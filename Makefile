@@ -1,5 +1,6 @@
-# make [TARGET] [FP_BITS=8|16|24|32] [FPE=n FPM=n]: the float is num_f$(FP_BITS).s;
-# for 8 and 16, FPE exponent and FPM fraction bits (default 5 and 2, 5 and 10).
+# make [TARGET] [FP_BITS=8|16|24|32] [FPE=n FPM=n] [FAST_SQR=1]: the float is
+# num_f$(FP_BITS).s; for 8 and 16, FPE exponent and FPM fraction bits (default 5
+# and 2, 5 and 10). FAST_SQR=1: SQR exact and faster, 370 bytes more.
 FP_BITS ?= 24
 FPE ?= 5
 ifeq ($(FP_BITS),8)
@@ -10,7 +11,8 @@ endif
 ifeq ($(filter $(FP_BITS),8 16 24 32),)
 $(error FP_BITS: 8, 16, 24 or 32)
 endif
-export FP_BITS FPE FPM
+FAST_SQR ?= 0
+export FP_BITS FPE FPM FAST_SQR
 
 PY := python3
 
@@ -19,6 +21,7 @@ PY := python3
 test:
 	$(PY) tools/simtest.py
 	sh test/tools/size_stale.sh
+	sh test/tools/routsize_fp.sh
 
 fpcheck:
 	$(PY) tools/fpcheck.py
@@ -31,6 +34,9 @@ fpall:                          # every float, exhaustive for f8 (2/5 overflows 
 	FP_BITS=16 FPE=7 FPM=8 $(PY) tools/fpcheck.py
 	FP_BITS=24 $(PY) tools/fpcheck.py
 	FP_BITS=32 $(PY) tools/fpcheck.py
+	FP_BITS=16 FAST_SQR=1 $(PY) tools/fpcheck.py sqr
+	FP_BITS=24 FAST_SQR=1 $(PY) tools/fpcheck.py sqr
+	FP_BITS=32 FAST_SQR=1 $(PY) tools/fpcheck.py sqr
 
 mathbench:
 	$(PY) tools/mathbench.py
