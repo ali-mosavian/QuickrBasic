@@ -1,16 +1,20 @@
-# make [TARGET] [FP_BITS=16|24|32] [FPE=n FPM=n]: the float is num_f$(FP_BITS).s;
-# for 16, FPE exponent and FPM fraction bits (default 5 and 10, IEEE half).
+# make [TARGET] [FP_BITS=8|16|24|32] [FPE=n FPM=n]: the float is num_f$(FP_BITS).s;
+# for 8 and 16, FPE exponent and FPM fraction bits (default 5 and 2, 5 and 10).
 FP_BITS ?= 24
 FPE ?= 5
+ifeq ($(FP_BITS),8)
+FPM ?= 2
+else
 FPM ?= 10
-ifeq ($(filter $(FP_BITS),16 24 32),)
-$(error FP_BITS: 16, 24 or 32)
+endif
+ifeq ($(filter $(FP_BITS),8 16 24 32),)
+$(error FP_BITS: 8, 16, 24 or 32)
 endif
 export FP_BITS FPE FPM
 
 PY := python3
 
-.PHONY: test fpcheck mathbench size repl style clean
+.PHONY: test fpcheck fpall mathbench size repl style clean
 
 test:
 	$(PY) tools/simtest.py
@@ -18,6 +22,15 @@ test:
 
 fpcheck:
 	$(PY) tools/fpcheck.py
+
+fpall:                          # every float, exhaustive for f8 (2/5 overflows INT(-3.06))
+	FP_BITS=8 FPE=5 FPM=2 EXH=1 $(PY) tools/fpcheck.py
+	FP_BITS=8 FPE=2 FPM=5 EXH=1 $(PY) tools/fpcheck.py
+	FP_BITS=8 FPE=4 FPM=3 EXH=1 $(PY) tools/fpcheck.py
+	FP_BITS=16 FPE=5 FPM=10 $(PY) tools/fpcheck.py
+	FP_BITS=16 FPE=7 FPM=8 $(PY) tools/fpcheck.py
+	FP_BITS=24 $(PY) tools/fpcheck.py
+	FP_BITS=32 $(PY) tools/fpcheck.py
 
 mathbench:
 	$(PY) tools/mathbench.py
