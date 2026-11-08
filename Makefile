@@ -31,6 +31,7 @@ test:
 	sh test/tools/f8tab_stale.sh
 	sh test/tools/lexcheck.sh
 	sh test/tools/stock_norm.sh
+	sh test/tools/build_stamp.sh
 
 gate:                           # every gate at once; FULL=1 adds fpall and the benches
 	$(PY) tools/harness.py gate $(if $(FULL),--full)
