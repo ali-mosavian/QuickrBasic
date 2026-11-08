@@ -29,6 +29,8 @@ test:
 	sh test/tools/routsize_fp.sh
 	sh test/tools/routsize_data.sh
 	sh test/tools/prof_branch.sh
+	sh test/tools/prof_inside.sh
+	sh test/tools/prof_labels.sh
 	sh test/tools/jmp_ind.sh
 	sh test/tools/f8tab_stale.sh
 	sh test/tools/lexcheck.sh
