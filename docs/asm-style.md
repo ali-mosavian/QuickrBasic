@@ -75,3 +75,17 @@ A stub that only brings a target into branch reach is `<target>_<where>`: `err_s
 
 A blank `;` line between the summary, the explanation and the fields. One item per line, the
 fields in this order, empty fields and an empty explanation left out, one block per entry label.
+
+## State
+
+- A layout the code reads through a pointer or the stack is a struct in `inc/core.inc` (`Desc`,
+  `Block`, `Line`, `For`, `Num`, ...). Code names the offset, `ldy #Desc::hi` or
+  `lda $101+For::id,x`, never the number. Sizes come from `.sizeof` (`HDR`, `FRSIZE`).
+- Global state is two structs, `Zp` and `Ram`, allocated once in `rt_state.s` (`zp`, `ram`). Fields
+  are grouped by owner, one comment line per group, and each says what it holds and who sets it.
+- A hot name keeps a short alias in `core.inc` (`ip = zp+Zp::ip`), so use sites read as before.
+- No `.res` for state outside `rt_state.s`: add a field and an alias.
+- Field order is part of the image. Code that relies on adjacency gets an `.assert` in
+  `rt_state.s`.
+- ca65: a member cannot be named `a`, `x` or `y`; a symbol in a struct's `.res` or `.if` needs
+  the `::` prefix.
