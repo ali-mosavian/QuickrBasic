@@ -18,7 +18,7 @@ PY := python3
 ISORT ?= isort
 RUFF ?= ruff
 TY ?= ty
-TYFLAGS ?=
+TYFLAGS ?= --extra-search-path $(shell python3 -c 'import numpy, pathlib; print(pathlib.Path(numpy.__file__).parents[1])')
 export ISORT RUFF TY TYFLAGS
 
 .PHONY: test gate fpcheck fpall mathbench size repl style clean
