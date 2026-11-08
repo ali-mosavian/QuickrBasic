@@ -76,6 +76,11 @@ A stub that only brings a target into branch reach is `<target>_<where>`: `err_s
 A blank `;` line between the summary, the explanation and the fields. One item per line, the
 fields in this order, empty fields and an empty explanation left out, one block per entry label.
 
+Every `in:` and `out:` item carries a note: what it holds for this routine, not the field's
+general description from `inc/core.inc`. Name the state (`ac`, `vty`, the FAC), not "the value".
+Only `as <routine>` and `does not return` stand without one. Notes share one column per docstring.
+`keeps:` is a bare register list.
+
 ## State
 
 - A layout the code reads through a pointer or the stack is a struct in `inc/core.inc` (`Desc`,

@@ -10,6 +10,8 @@ label, closed by a `; ::::::::::::::` rule line, and a known prefix of at most 3
 (data directives may).
 A src/ file also opens with the header (holds:, uses:, data:, calls:, in that
 order; data: optional), and docstring fields come in the order in:, out:, keeps:, error:.
+Every in: and out: item has a note, two spaces after the name; only `as <routine>` and
+`does not return` stand alone.
 Default PATHs: src inc tools test docs tables.
 """
 
@@ -40,6 +42,11 @@ MNEMONIC: re.Pattern[str] = re.compile(
 HEAD_KEYS: list[str] = ["holds", "uses", "data", "calls"]
 HEAD_NEEDED: frozenset[str] = frozenset({"holds", "uses", "calls"})
 DOC_KEYS: list[str] = ["in", "out", "keeps", "error"]
+NOTED_KEYS: frozenset[str] = frozenset({"in", "out"})
+FIELD_LINE: re.Pattern[str] = re.compile(r"^; (\w+):(?: +(.*))?$")
+ITEM_LINE: re.Pattern[str] = re.compile(r"^; {9}(\S.*)$")
+NOTE: re.Pattern[str] = re.compile(r"\S {2,}\S")
+NO_NOTE_NEEDED: tuple[str, ...] = ("as ", "does not return")
 
 type Problem = tuple[int, str]
 
@@ -98,13 +105,26 @@ def check_header(path: Path, lines: list[str]) -> list[Problem]:
 def check_docstrings(lines: list[str]) -> list[Problem]:
     bad: list[Problem] = []
     keys: list[tuple[int, str]] | None = None
+    field: str | None = None
     for no, line in enumerate(lines, 1):
         if line == DOC_RULE:
             if keys is not None:
                 bad += in_order(keys, DOC_KEYS, "docstring field")
             keys = [] if keys is None else None
-        elif keys is not None and (m := re.match(r"^; (\w+):", line)) and m[1] in DOC_KEYS:
+            field = None
+            continue
+        if keys is None:
+            continue
+        item = None
+        if (m := FIELD_LINE.match(line)) and m[1] in DOC_KEYS:
             keys.append((no, m[1]))
+            field, item = m[1], m[2]
+        elif field and (m := ITEM_LINE.match(line)):
+            item = m[1]
+        elif not (field and line.startswith(f"; {' ' * 9}")):  # else a note's continuation
+            field = None
+        if field in NOTED_KEYS and item and not NOTE.search(item) and not item.startswith(NO_NOTE_NEEDED):
+            bad.append((no, f"{field}: item without a note: {item}"))
     return bad
 
 
