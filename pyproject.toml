@@ -1,4 +1,4 @@
-# Lint and type-check settings for tools/ (ruff, ty); the project itself is 6502 assembly.
+# Lint, format and type-check settings for tools/ (ruff, isort, ty); the project itself is 6502 assembly.
 [project]
 name = "cbmbasic-bc-tools"
 version = "0"
@@ -6,11 +6,22 @@ requires-python = ">=3.12"
 
 [tool.ruff]
 target-version = "py312"
-line-length = 100
+line-length = 120
 include = ["tools/*.py", "test/**/*.py"]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "RET", "PIE", "PTH", "RUF", "ANN", "FLY"]
+select = ["E", "F", "W", "UP", "B", "C4", "SIM", "RET", "PIE", "PTH", "RUF", "ANN", "FLY"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.isort]
+profile = "black"
+line_length = 120
+force_single_line = true
+length_sort = true
+length_sort_sections = ["FUTURE", "STDLIB", "THIRDPARTY", "FIRSTPARTY", "LOCALFOLDER"]
+force_sort_within_sections = true
 
 [tool.ty.src]
 include = ["tools", "test"]
