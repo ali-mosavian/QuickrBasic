@@ -15,8 +15,13 @@ FAST_SQR ?= 0
 export FP_BITS FPE FPM FAST_SQR
 
 PY := python3
+ISORT ?= isort
+RUFF ?= ruff
+TY ?= ty
+TYFLAGS ?=
+export ISORT RUFF TY TYFLAGS
 
-.PHONY: test fpcheck fpall mathbench size repl style clean
+.PHONY: test gate fpcheck fpall mathbench size repl style clean
 
 test:
 	$(PY) tools/harness.py test
@@ -27,20 +32,14 @@ test:
 	sh test/tools/lexcheck.sh
 	sh test/tools/stock_norm.sh
 
+gate:                           # every gate at once; FULL=1 adds fpall and the benches
+	$(PY) tools/harness.py gate $(if $(FULL),--full)
+
 fpcheck:
 	$(PY) tools/floats.py check
 
 fpall:                          # every float, exhaustive for f8 (2/5 overflows INT(-3.06))
-	FP_BITS=8 FPE=5 FPM=2 EXH=1 $(PY) tools/floats.py check
-	FP_BITS=8 FPE=2 FPM=5 EXH=1 $(PY) tools/floats.py check
-	FP_BITS=8 FPE=4 FPM=3 EXH=1 $(PY) tools/floats.py check
-	FP_BITS=16 FPE=5 FPM=10 $(PY) tools/floats.py check
-	FP_BITS=16 FPE=7 FPM=8 $(PY) tools/floats.py check
-	FP_BITS=24 $(PY) tools/floats.py check
-	FP_BITS=32 $(PY) tools/floats.py check
-	FP_BITS=16 FAST_SQR=1 $(PY) tools/floats.py check sqr
-	FP_BITS=24 FAST_SQR=1 $(PY) tools/floats.py check sqr
-	FP_BITS=32 FAST_SQR=1 $(PY) tools/floats.py check sqr
+	$(PY) tools/floats.py all
 
 mathbench:
 	$(PY) tools/floats.py bench
