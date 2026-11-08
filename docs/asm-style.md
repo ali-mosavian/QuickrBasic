@@ -36,6 +36,8 @@ underscore, then the verb. `@locals`, zero-page variables and data tables are no
 | `rd_` | the READ position |
 | `ls_` | LIST |
 | `ret_` | an `rts` in branch reach |
+| `cm_` | the compiler: tokens to code (`cm_line`, `cm_expr`) |
+| `ex_` | the executor loop and its value stack (`ex_lp`, `ex_psh`) |
 
 A stub that only brings a target into branch reach is `<target>_<where>`: `err_sn_def`,
 `flt_zero_tr`. A bare `rts` stub is `ret_<where>`: `ret_fil`.
