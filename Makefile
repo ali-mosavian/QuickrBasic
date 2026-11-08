@@ -22,6 +22,7 @@ test:
 	$(PY) tools/simtest.py
 	sh test/tools/size_stale.sh
 	sh test/tools/routsize_fp.sh
+	sh test/tools/prof_branch.sh
 
 fpcheck:
 	$(PY) tools/fpcheck.py
