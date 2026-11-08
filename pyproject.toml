@@ -1,0 +1,16 @@
+# Lint and type-check settings for tools/ (ruff, ty); the project itself is 6502 assembly.
+[project]
+name = "cbmbasic-bc-tools"
+version = "0"
+requires-python = ">=3.12"
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+include = ["tools/*.py", "test/**/*.py"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "RET", "PIE", "PTH", "RUF", "ANN"]
+
+[tool.ty.src]
+include = ["tools", "test"]
