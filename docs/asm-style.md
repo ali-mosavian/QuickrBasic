@@ -10,12 +10,9 @@ underscore, then the verb. `@locals`, zero-page variables and data tables are no
 
 | Prefix | Module |
 |---|---|
-| `x_` | BASIC statements (`x_list`) |
-| `fn_` | BASIC functions, transcendentals included (`fn_call`, `fn_sqr`) |
-| `op_` | operators (`op_add`, `op_pow`) |
-| `st_` | the statement loop and its line scanning (`st_run`, `st_eos`) |
-| `var_` | variable access (`var_get`, `var_store`) |
-| `ev_` | the evaluator and value conversion (`ev_toint`, `ev_tofloat`) |
+| `op_` | op handlers and the statements, functions, operators they run (`op_add`) |
+| `st_` | line text scanning (`st_get`, `st_eos`) |
+| `var_` | the variables' store (`var_clr`, `var_id`) |
 | `lx_` | the tokenizer (`lx_line`) |
 | `prg_` | the program store (`prg_find`, `prg_next`) |
 | `sym_` | the symbol table |
@@ -37,7 +34,7 @@ underscore, then the verb. `@locals`, zero-page variables and data tables are no
 | `ls_` | LIST |
 | `ret_` | an `rts` in branch reach |
 | `cm_` | the compiler: tokens to code (`cm_line`, `cm_expr`) |
-| `ex_` | the executor loop and its value stack (`ex_lp`, `ex_psh`) |
+| `ex_` | the executor: loop, value stack, conversions, variables (`ex_lp`, `ex_toint`) |
 
 A stub that only brings a target into branch reach is `<target>_<where>`: `err_sn_def`,
 `flt_zero_tr`. A bare `rts` stub is `ret_<where>`: `ret_fil`.
