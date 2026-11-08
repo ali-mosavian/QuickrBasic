@@ -46,7 +46,7 @@ mathbench:
 	$(PY) tools/floats.py bench
 
 size:
-	$(PY) tools/size.py -m
+	$(PY) tools/romsize.py files
 
 repl:
 	tools/repl.sh
