@@ -28,22 +28,22 @@ test:
 	sh test/tools/stock_norm.sh
 
 fpcheck:
-	$(PY) tools/fpcheck.py
+	$(PY) tools/floats.py check
 
 fpall:                          # every float, exhaustive for f8 (2/5 overflows INT(-3.06))
-	FP_BITS=8 FPE=5 FPM=2 EXH=1 $(PY) tools/fpcheck.py
-	FP_BITS=8 FPE=2 FPM=5 EXH=1 $(PY) tools/fpcheck.py
-	FP_BITS=8 FPE=4 FPM=3 EXH=1 $(PY) tools/fpcheck.py
-	FP_BITS=16 FPE=5 FPM=10 $(PY) tools/fpcheck.py
-	FP_BITS=16 FPE=7 FPM=8 $(PY) tools/fpcheck.py
-	FP_BITS=24 $(PY) tools/fpcheck.py
-	FP_BITS=32 $(PY) tools/fpcheck.py
-	FP_BITS=16 FAST_SQR=1 $(PY) tools/fpcheck.py sqr
-	FP_BITS=24 FAST_SQR=1 $(PY) tools/fpcheck.py sqr
-	FP_BITS=32 FAST_SQR=1 $(PY) tools/fpcheck.py sqr
+	FP_BITS=8 FPE=5 FPM=2 EXH=1 $(PY) tools/floats.py check
+	FP_BITS=8 FPE=2 FPM=5 EXH=1 $(PY) tools/floats.py check
+	FP_BITS=8 FPE=4 FPM=3 EXH=1 $(PY) tools/floats.py check
+	FP_BITS=16 FPE=5 FPM=10 $(PY) tools/floats.py check
+	FP_BITS=16 FPE=7 FPM=8 $(PY) tools/floats.py check
+	FP_BITS=24 $(PY) tools/floats.py check
+	FP_BITS=32 $(PY) tools/floats.py check
+	FP_BITS=16 FAST_SQR=1 $(PY) tools/floats.py check sqr
+	FP_BITS=24 FAST_SQR=1 $(PY) tools/floats.py check sqr
+	FP_BITS=32 FAST_SQR=1 $(PY) tools/floats.py check sqr
 
 mathbench:
-	$(PY) tools/mathbench.py
+	$(PY) tools/floats.py bench
 
 size:
 	$(PY) tools/size.py -m
