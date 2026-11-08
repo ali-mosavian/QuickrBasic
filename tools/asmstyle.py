@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""asmstyle.py [--format] [PATH...]: line rules for .s, .inc, .py, .md and .txt files.
+"""asmstyle.py [PATH...]: line rules for .s, .inc, .py, .md and .txt files.
 
 Every line is at most 100 columns (Python 120, as ruff); a line that is only a comment is at
 most 80.
@@ -8,7 +8,7 @@ No tabs in any covered file. Every routine under src/ has a docstring block abov
 label, closed by a `; ::::::::::::::` rule line, and a known prefix of at most 3 letters
 (docs/asm-style.md). In assembly a label stands alone: an instruction never shares its line
 (data directives may).
---format: a src/ file also opens with the header (holds:, uses:, data:, calls:, in that
+A src/ file also opens with the header (holds:, uses:, data:, calls:, in that
 order; data: optional), and docstring fields come in the order in:, out:, keeps:, error:.
 Default PATHs: src inc tools test docs tables.
 """
@@ -139,8 +139,8 @@ def check(path: Path, fmt: bool = False) -> list[Problem]:
 
 def main(argv: Sequence[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
-    fmt = "--format" in args
-    paths = [a for a in args if a != "--format"] or DEFAULT_PATHS
+    fmt = True
+    paths = [a for a in args if a != "--format"] or DEFAULT_PATHS  # --format: the old flag
     failed = 0
     for p in files(x for x in paths if Path(x).exists()):
         for no, msg in check(p, fmt):
