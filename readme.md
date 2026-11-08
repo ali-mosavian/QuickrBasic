@@ -6,7 +6,7 @@ at the same ROM size.
 
 - `docs/bytecode.md`: architecture and byte-code spec (draft, nothing implemented).
 - `docs/structure.md`: source layout, naming, platform interface.
-- `tables/stmts.txt`: statement and function table that drives the compiler, the decompiler and
-  executor dispatch.
+- `tables/keywords.txt`: the keywords, in token order.
+- `make test` runs the unit and tool tests; the tools are in `tools/` (see docs/structure.md).
 
 Reference code lives in `/Users/alim/work/x16basic-c`.
