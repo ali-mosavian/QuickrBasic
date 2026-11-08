@@ -62,7 +62,10 @@ A stub that only brings a target into branch reach is `<target>_<where>`: `err_s
 ```
 ; ::::::::::::::
 ; name - one-line summary.
-;   at most one line of explanation
+;
+; What is not obvious from the code: hidden constraints, why it is done this
+; way, tricky flag or register use. As long as it needs to be; nothing trivial.
+;
 ; in:     item    note
 ; out:    item    note
 ; keeps:  registers kept
@@ -70,4 +73,5 @@ A stub that only brings a target into branch reach is `<target>_<where>`: `err_s
 ; ::::::::::::::
 ```
 
-One item per line, the fields in this order, empty fields left out, one block per entry label.
+A blank `;` line between the summary, the explanation and the fields. One item per line, the
+fields in this order, empty fields and an empty explanation left out, one block per entry label.
