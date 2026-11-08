@@ -24,6 +24,7 @@ test:
 	sh test/tools/routsize_fp.sh
 	sh test/tools/prof_branch.sh
 	sh test/tools/f8tab_stale.sh
+	sh test/tools/lexcheck.sh
 
 fpcheck:
 	$(PY) tools/fpcheck.py
