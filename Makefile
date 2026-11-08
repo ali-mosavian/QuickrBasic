@@ -31,6 +31,7 @@ test:
 	sh test/tools/prof_branch.sh
 	sh test/tools/prof_inside.sh
 	sh test/tools/cache_slots.sh
+	sh test/tools/prof_labels.sh
 	sh test/tools/jmp_ind.sh
 	sh test/tools/f8tab_stale.sh
 	sh test/tools/lexcheck.sh
