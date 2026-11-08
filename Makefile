@@ -52,7 +52,7 @@ repl:
 	tools/repl.sh
 
 style:
-	$(PY) tools/check_style.py
+	$(PY) tools/asmstyle.py
 
 clean:
 	rm -rf build
