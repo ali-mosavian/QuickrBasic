@@ -25,6 +25,7 @@ test:
 	sh test/tools/prof_branch.sh
 	sh test/tools/f8tab_stale.sh
 	sh test/tools/lexcheck.sh
+	sh test/tools/stock_norm.sh
 
 fpcheck:
 	$(PY) tools/fpcheck.py
