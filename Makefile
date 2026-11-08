@@ -19,7 +19,7 @@ PY := python3
 .PHONY: test fpcheck fpall mathbench size repl style clean
 
 test:
-	$(PY) tools/simtest.py
+	$(PY) tools/harness.py test
 	sh test/tools/size_stale.sh
 	sh test/tools/routsize_fp.sh
 	sh test/tools/prof_branch.sh
