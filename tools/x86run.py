@@ -55,17 +55,15 @@ def run(jobs: dict[str, str], work: Path, limit_ms: int = 60000) -> dict[str, Re
         lines += [f":ms {limit_ms}", f"mount c {work}", "c:", f"BASIC.COM < J{i}.IN > J{i}.TXT", "."]
     (work / "job.conf").write_text(CONF)
     (work / "jobs.txt").write_text("\n".join(lines) + "\n")
-    env = dict(os.environ, SDL_VIDEODRIVER="dummy", DOSRUN_FD="9")
     with open(work / "events.txt", "wb") as ev, open(work / "jobs.txt", "rb") as jin:
+        env = dict(os.environ, SDL_VIDEODRIVER="dummy", DOSRUN_FD=str(ev.fileno()))
         subprocess.run(
             [str(LLRM / "dosbox-x"), "-nolog", "-conf", str(work / "job.conf")],
             stdin=jin,
-            pass_fds=(9,) if False else (),
+            pass_fds=(ev.fileno(),),
             env=env,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            preexec_fn=lambda: os.dup2(ev.fileno(), 9),
-            close_fds=False,
             timeout=600,
         )
     ends = [json.loads(x) for x in (work / "events.txt").read_text().splitlines() if '"ev":"end"' in x]
