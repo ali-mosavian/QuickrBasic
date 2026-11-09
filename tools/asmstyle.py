@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""asmstyle.py [PATH...]: line rules for .s, .inc, .py, .md and .txt files.
+"""asmstyle.py [PATH...]: line rules for .s, .asm, .inc, .py, .md and .txt files.
 
 Every line is at most 100 columns (Python 120, as ruff); a line that is only a comment is at
 most 80.
@@ -25,12 +25,12 @@ from collections.abc import Sequence
 CODE_MAX: int = 100
 PY_MAX: int = 120
 COMMENT_MAX: int = 80
-SUFFIX: dict[str, str | None] = {".s": ";", ".inc": ";", ".py": "#", ".txt": "#", ".md": None}
+SUFFIX: dict[str, str | None] = {".s": ";", ".asm": ";", ".inc": ";", ".py": "#", ".txt": "#", ".md": None}
 DEFAULT_PATHS: list[str] = ["src", "inc", "tools", "test", "docs", "tables", "readme.md"]
 DOC_RULE: str = f"; {':' * 14}"
 HEAD_RULE: str = f"; {'=' * 74}"
 GLOBAL_LABEL: re.Pattern[str] = re.compile(r"^[A-Za-z_]\w*:$")
-LABEL_CODE: re.Pattern[str] = re.compile(r"^@?[A-Za-z_]\w*:\s+[A-Za-z]")
+LABEL_CODE: re.Pattern[str] = re.compile(r"^(@@|@?[A-Za-z_]\w*):\s+[A-Za-z]")
 PREFIX: re.Pattern[str] = re.compile(
     r"(op|st|lx|prg|var|sym|str|arr|flt|int|io|err|rpl|fil|sys|mem|plt|sim|rt|for|rd|ls|ret|cm|ex)_"
 )
@@ -131,8 +131,8 @@ def check_docstrings(lines: list[str]) -> list[Problem]:
 def check(path: Path, fmt: bool = False) -> list[Problem]:
     ext = path.suffix
     mark = SUFFIX.get(ext)
-    in_src = ext == ".s" and "/src/" in str(path.absolute())
-    asm = ext in (".s", ".inc")
+    in_src = ext in (".s", ".asm") and "/src/" in str(path.absolute())
+    asm = ext in (".s", ".asm", ".inc")
     bad = []
     lines = path.read_text(encoding="utf-8").split("\n")
     width = PY_MAX if ext == ".py" else CODE_MAX
@@ -142,7 +142,7 @@ def check(path: Path, fmt: bool = False) -> list[Problem]:
         if in_src and GLOBAL_LABEL.match(line) and re.match(r"^\s+[A-Za-z]", after):
             if before != DOC_RULE:
                 bad.append((no, "routine without a docstring block above it"))
-            if MNEMONIC.match(after) and (msg := prefix_problem(line[:-1])):
+            if (ext == ".asm" or MNEMONIC.match(after)) and (msg := prefix_problem(line[:-1])):
                 bad.append((no, msg))
         if asm and LABEL_CODE.match(line):
             bad.append((no, "instruction on a label line"))
