@@ -53,7 +53,8 @@ def run(jobs: dict[str, str], work: Path, limit_ms: int = 60000) -> dict[str, Re
     for i, name in enumerate(names):
         (work / f"J{i}.IN").write_bytes(jobs[name].encode("latin-1"))
         lines += [f":ms {limit_ms}", f"mount c {work}", "c:", f"BASIC.COM < J{i}.IN > J{i}.TXT", "."]
-    (work / "job.conf").write_text(CONF)
+    fpu = "" if os.environ.get("X86_FPU", "1") == "1" else "fpu=false\n"
+    (work / "job.conf").write_text(CONF.replace("[dos]", f"{fpu}[dos]"))
     (work / "jobs.txt").write_text("\n".join(lines) + "\n")
     with open(work / "events.txt", "wb") as ev, open(work / "jobs.txt", "rb") as jin:
         env = dict(os.environ, SDL_VIDEODRIVER="dummy", DOSRUN_FD=str(ev.fileno()))
