@@ -34,6 +34,7 @@ test:
 	sh test/tools/prof_labels.sh
 	sh test/tools/jmp_ind.sh
 	sh test/tools/dupes.sh
+	sh test/tools/entry_cost.sh
 	sh test/tools/f8tab_stale.sh
 	sh test/tools/lexcheck.sh
 	sh test/tools/stock_norm.sh
