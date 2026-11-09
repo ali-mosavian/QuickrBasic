@@ -21,6 +21,14 @@ CASES = {
     "A=1:PRINT A/3*3;2.5/2;1/2.5;A^-1": " 1  1.25  .4  1",
     "I%=7:J%=2:A=2:PRINT I%/J%;I%/A;A/J%;I%+J%;I%-A": " 3  3.5  1  9  5",
     'PRINT 1+"A"': "?TYPE MISMATCH ERROR",
+    "10 FOR I=1 TO 3:PRINT I/2;:NEXT:PRINT I\nRUN": "0  1  1  4",
+    "10 FOR I=1 TO 3:I=I+.5:PRINT I/2;:NEXT\nRUN": ".75  1.5",
+    "10 N=3:FOR I=1 TO N:PRINT I/2;:NEXT\nRUN": ".5  1  1.5",
+    "10 FOR J=1 TO 2:FOR I=1 TO J:NEXT:PRINT I/2;:NEXT\nRUN": "1  1",
+    "10 FOR I=1 TO 2:NEXT:PRINT X/2:X=1\nRUN": "0",
+    "10 FOR I=1 TO 3:NEXT:READ I:PRINT I/2:DATA 3\nRUN": "1.5",
+    "10 DEF FN F(I)=I/2:FOR I=1 TO 3:NEXT:PRINT FN F(3)\nRUN": "1.5",
+    "10 FOR I=1 TO 3:NEXT\nI=5\nPRINT I\n20 I=2.5:PRINT I\nRUN": "2.5",
 }
 
 
