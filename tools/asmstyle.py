@@ -12,7 +12,7 @@ A src/ file also opens with the header (holds:, uses:, data:, calls:, in that
 order; data: optional), and docstring fields come in the order in:, out:, keeps:, error:.
 Every in: and out: item has a note, two spaces after the name; only `as <routine>` and
 `does not return` stand alone.
-Default PATHs: src inc tools test docs tables.
+Default PATHs: src tools test docs tables.
 """
 
 import re
@@ -26,7 +26,7 @@ CODE_MAX: int = 100
 PY_MAX: int = 120
 COMMENT_MAX: int = 80
 SUFFIX: dict[str, str | None] = {".s": ";", ".asm": ";", ".inc": ";", ".py": "#", ".txt": "#", ".md": None}
-DEFAULT_PATHS: list[str] = ["src", "inc", "tools", "test", "docs", "tables", "readme.md"]
+DEFAULT_PATHS: list[str] = ["src", "tools", "test", "docs", "tables", "readme.md"]
 DOC_RULE: str = f"; {':' * 14}"
 HEAD_RULE: str = f"; {'=' * 74}"
 GLOBAL_LABEL: re.Pattern[str] = re.compile(r"^[A-Za-z_]\w*:$")

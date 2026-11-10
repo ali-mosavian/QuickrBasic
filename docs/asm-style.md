@@ -26,7 +26,7 @@ underscore, then the verb. `@locals`, zero-page variables and data tables are no
 | `fil_` | files and channels (`fil_open`) |
 | `sys_` | TI, TI$, ST (`sys_read`) |
 | `mem_` | memory moves |
-| `plt_` | the platform interface, the same in every `src/platform/*` |
+| `plt_` | the platform interface, the same in every `src/6502/platform/*` |
 | `sim_` | the sim platform's own helpers |
 | `rt_` | `rt_init` only |
 | `for_` | FOR frames |
@@ -75,15 +75,15 @@ A stub that only brings a target into branch reach is `<target>_<where>`: `err_s
 A blank `;` line between the summary, the explanation and the fields. One item per line, the
 fields in this order, empty fields and an empty explanation left out, one block per entry label.
 
-Every `in:` and `out:` item carries a note: what it holds for this routine, not the field's
-general description from `inc/core.inc`. Name the state (`ac`, `vty`, the FAC), not "the value".
+Every `in:` and `out:` item carries a note: what it holds for this routine, not the field's general
+description from `src/6502/inc/core.inc`. Name the state (`ac`, `vty`, the FAC), not "the value".
 Only `as <routine>` and `does not return` stand without one. Notes share one column per docstring.
 `keeps:` is a bare register list.
 
 ## State
 
-- A layout the code reads through a pointer or the stack is a struct in `inc/core.inc` (`Desc`,
-  `Block`, `Line`, `For`, `Num`, ...). Code names the offset, `ldy #Desc::hi` or
+- A layout the code reads through a pointer or the stack is a struct in `src/6502/inc/core.inc`
+  (`Desc`, `Block`, `Line`, `For`, `Num`, ...). Code names the offset, `ldy #Desc::hi` or
   `lda $101+For::id,x`, never the number. Sizes come from `.sizeof` (`HDR`, `FRSIZE`).
 - Global state is two structs, `Zp` and `Ram`, allocated once in `rt_state.s` (`zp`, `ram`). Fields
   are grouped by owner, one comment line per group, and each says what it holds and who sets it.
