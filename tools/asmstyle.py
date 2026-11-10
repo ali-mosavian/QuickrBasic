@@ -32,7 +32,7 @@ HEAD_RULE: str = f"; {'=' * 74}"
 GLOBAL_LABEL: re.Pattern[str] = re.compile(r"^[A-Za-z_]\w*:$")
 LABEL_CODE: re.Pattern[str] = re.compile(r"^(@@|@?[A-Za-z_]\w*):\s+[A-Za-z]")
 PREFIX: re.Pattern[str] = re.compile(
-    r"(op|st|lx|prg|var|sym|str|arr|flt|int|io|err|rpl|fil|sys|mem|plt|sim|rt|for|rd|ls|ret|cm|ex)_"
+    r"(op|st|lx|prg|var|sym|str|arr|flt|int|io|err|rpl|fil|sys|mem|plt|sim|rt|for|rd|ls|ret|cm|ex|sc|fn)_"
 )
 MNEMONIC: re.Pattern[str] = re.compile(
     r"\s+(adc|and|asl|b(cc|cs|eq|it|mi|ne|pl|rk|vc|vs)|cl[cdiv]|cmp|cp[xy]|de[cxy]|eor|in[cxy]|jmp|jsr"
