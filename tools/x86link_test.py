@@ -27,6 +27,10 @@ CASES = {
     '10 IF A>.5 THEN 20\n20 COUNT=1:PRINT CO;1.5E3;40000\n30 DEF FNSQR(X)=X*X\nLIST': [
         "10 IF A>.5 THEN 20", "20 COUNT=1:PRINT CO;1.5E3;40000", "30 DEF FNSQR(X)=X*X"],
     '10 PRINT "A";:PRINT TAB(5);B,:NEXT:NEXT I\nLIST': ['10 PRINT "A";:PRINT TAB(5);B,:NEXT:NEXT I'],
+    # No statement op: LIST joined same-kind statements, READ A:READ B as READ A,B.
+    "10 READ A:READ B:GET C:GET D:DIM E(1):DIM F(1):NEXT I:NEXT J\nLIST": [
+        "10 READ A:READ B:GET C:GET D:DIM E(1):DIM F(1):NEXT I:NEXT J"],
+    '10 PRINT#1,A;:PRINT B:CMD 1:PRINT C\nLIST': ['10 PRINT#1,A;:PRINT B:CMD 1:PRINT C'],
     "10 A=(B+C)*-D:E=2^-1:F=(G-H)-(I-J):K=NOT L\nLIST": ["10 A=(B+C)*-D:E=2^-1:F=G-H-(I-J):K=NOT L"],
 }
 
