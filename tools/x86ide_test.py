@@ -166,13 +166,22 @@ def play() -> None:
     assert text()[:5] == ["FOR I=1 TO 3", "  PRINT I*I", "NEXT", "FOR I=1 TO 3", ""], text()
     assert look()[24].endswith("00005:001"), look()[24]
 
-    # A runtime error: the cursor on its line, the error in a box.
-    keys("goto 99\n")
+    # A runtime error: its statement's word selected, the error in a box,
+    # moved to the foot when it would cover that line (uiedit.asm).
+    keys("rem\n" * 4 + "  goto 99\n")
     press(f"0x{F5:x}")
     scr = look("error")
+    assert next(i for i, r in enumerate(scr) if "UNDEF'D" in r) == 19, scr
+    assert attrs(10)[2:8] == bytes([0x17, 0x71, 0x71, 0x71, 0x71, 0x17]), attrs(10)[:9]
     assert any("UNDEF'D STATEMENT ERROR" in r for r in scr) and scr[24].startswith(" F1=HELP   ENTER=EXECUTE"), scr
+    # QBasic's message box (msgbox.c): text +6 wide, OK and Help 8 wide, 3 apart.
+    row = next(r for r in scr if "< HELP >" in r)
+    assert row.ljust(80)[25:55] == "     <  OK  >   < HELP >      ", scr
+    press("tab", "enter")  # Help: nothing to show, the box stays
+    assert any("UNDEF'D STATEMENT ERROR" in r for r in look()), look()
+    press("tab")  # back to OK
     press("enter")
-    assert look()[24].endswith("00005:001"), look()[24]
+    assert look()[24].endswith("00009:003") and attrs(10)[3] == 0x17, (look()[24], attrs(10)[:9])
 
     # New: the unsaved text asks first; N, its button's letter, answers No.
     press(f"0x{ALT_F:x}", "n")
