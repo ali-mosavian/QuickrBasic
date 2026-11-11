@@ -48,6 +48,30 @@ def play() -> None:
         """The BIOS shift flags, which ui_getkey reads: the key socket sends no modifiers."""
         s.send({"cmd": "mem_write_linear", "addr": 0x417, "data": "02" if on else "00"})
 
+    def flags(value: int) -> None:
+        """The BIOS shift flags, 02h Shift, 08h Alt."""
+        s.send({"cmd": "mem_write_linear", "addr": 0x417, "data": f"{value:02x}"})
+
+    def mouse_stub() -> None:
+        """INT 33h replaced: AX=3 answers from 0:0540h, the rest return. The key socket has no mouse."""
+        stub = "3d03007510" "2e8b1e4005" "2e8b0e4205" "2e8b164405" "cfcf"
+        s.send({"cmd": "mem_write_linear", "addr": 0x520, "data": stub})
+        s.send({"cmd": "mem_write_linear", "addr": 0x33 * 4, "data": "20050000"})
+
+    def mouse(row: int, col: int, down: bool) -> None:
+        state = bytes([int(down), 0, col * 8 % 256, col * 8 // 256, row * 8, 0])
+        s.send({"cmd": "mem_write_linear", "addr": 0x540, "data": state.hex()})
+        s.resume(60)
+
+    def click(row: int, col: int) -> None:
+        mouse(row, col, True)
+        mouse(row, col, False)
+
+    def attrs(row: int) -> bytes:
+        """The attributes of a row of page 0."""
+        data = bytes.fromhex(s.send({"cmd": "mem_read_linear", "addr": 0xB8000 + row * 160, "len": 160})["data"])
+        return data[1::2]
+
     def look(name: str = "") -> list[str]:
         s.resume(100)
         if name:
@@ -85,6 +109,17 @@ def play() -> None:
     out = output()
     assert " 42" in out and " 8" in out and out.count("PRESS ANY KEY TO CONTINUE") == 1, out
     press("space", "f6")
+
+    # Alt+F with Alt still held: letting Alt go once counted as an Alt tap
+    # and closed the menu, so it could not be moved in.
+    flags(0x08)
+    press(f"0x{ALT_F:x}")
+    flags(0)
+    s.resume(100)  # Alt let go while the menu waits
+    press("down")
+    scr = look()
+    assert any("OPEN..." in r for r in scr) and "LOADS A FILE" in scr[24], scr
+    press("esc", "esc")
 
     # Every File item drops down: a separator once ended the menu after Save As.
     press(f"0x{ALT_F:x}")
@@ -154,6 +189,35 @@ def play() -> None:
     assert "T1.BAS" in look()[1], look()
     saved = (work / "T1.BAS").read_bytes()
     assert saved.startswith(b"FOR I=1 TO 4\r\n  PRINT I*I\r\nNEXT\r\n"), saved
+    # The mouse: a title, an item dragged to, a list's line twice.
+    mouse_stub()
+    click(0, 9)
+    assert any("CUT" in r for r in look()), look()
+    click(12, 60)
+    assert not any("CUT" in r for r in look()), look()
+    mouse(0, 3, True)
+    mouse(3, 5, True)  # Open...
+    mouse(3, 5, False)
+    scr = look()
+    row = next(r for r, line in enumerate(scr) if "SQ.BAS" in line)
+    click(row, 14)
+    click(row, 14)
+    assert "SQ.BAS" in look()[1] and text()[0] == "FOR I=1 TO 3", look()
+    # A click places the cursor; a drag selects whole lines.
+    click(3, 5)
+    assert look()[24].endswith("00002:005"), look()[24]
+    click(2, 1)
+    mouse(2, 1, True)
+    mouse(4, 1, True)
+    mouse(4, 1, False)
+    s.resume(100)
+    assert attrs(2)[1] == attrs(3)[1] == 0x71 and attrs(4)[1] == 0x17, (attrs(2)[:4], attrs(4)[:4])
+    # <Shift+F5=Run> on the status bar.
+    click(24, 40)
+    s.resume(300)
+    assert output()[:3] == [" 1", " 4", " 9"], output()
+    press("space")
+
     press(f"0x{ALT_F:x}", "x")
     assert "C:\\>" in look(), look()
     s.close()
