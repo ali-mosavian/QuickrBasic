@@ -20,6 +20,15 @@ FLUSH = (
 CHURN = "\n".join(f'10 PRINT "{i:<60}":X=1+2+3+4' for i in range(1500))
 
 CASES = {
+    # The ops written out as machine code: every relation, INT and FLOAT, as a value and as an IF.
+    "10 A%=3:B%=5:C=3:D=5:E=-2.5\n"
+    "20 PRINT (A%<B%);(A%>B%);(A%=B%);(A%<>B%);(A%<=B%);(A%>=B%);(A%=3);(A%>2)\n"
+    "30 PRINT (C<D);(C>D);(C=D);(C<>D);(C<=D);(C>=D);(C=3);(C>2.5);(E<-2);(E>-3)\n"
+    '40 IF A%<B% THEN PRINT "L1"\n50 IF A%>=B% THEN PRINT "BAD1"\n60 IF C<=D THEN PRINT "L2"\n'
+    '70 IF C<>3 THEN PRINT "BAD2"\n80 IF A%<>B% AND C=3 THEN PRINT "L3"\n'
+    "90 PRINT -A%;NOT A%;-C;-E;A%*B%;A%/2;A%-B%;C*D;C/D;5-C;A%+1;INT(E)\nRUN": [
+        "-1  0  0 -1 -1  0 -1 -1", "-1  0  0 -1 -1  0 -1 -1 -1 -1", "L1", "L2", "L3",
+        "-3 -4 -3  2.5  15  1 -2  15  .6  2  4 -3"],
     FLUSH: ["3000  3000  15"],
     "10 GOTO 30\n20 PRINT 2:END\n30 PRINT 3\nRUN\n25 REM\n30 PRINT 4\nRUN": ["3", "4"],
     "10 GOTO 30\n30 PRINT 3\nRUN\n30\nRUN": ["3", "?UNDEF'D STATEMENT ERROR IN 10"],
