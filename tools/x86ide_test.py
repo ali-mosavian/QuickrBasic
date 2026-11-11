@@ -323,6 +323,9 @@ def play() -> None:
     assert attrs(3)[10] == 0x78 and attrs(4)[10] == 0x70, (attrs(3)[8:12], attrs(4)[8:12])
     # Help lines come from BASIC.HLP, counted across the menus.
     assert look()[24].startswith(" F1=HELP   DELETES SELECTED TEXT AND COPIES IT TO BUFFER"), look()[24]
+    # A gray item's key lights it and beeps, the menu stays (COW menu.c).
+    press("c")
+    assert attrs(3)[10] == 0x07 and any("CUT" in r for r in look()), attrs(3)[8:12]
     click(12, 60)
     assert not any("CUT" in r for r in look()), look()
     mouse(0, 3, True)
