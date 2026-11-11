@@ -9,9 +9,18 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 import x86run
 
+# A subroutine bigger than the code cache: it empties mid-run, with FOR, GOSUB and FN frames live.
+FLUSH = (
+    "10 DEF FNA(X)=X+1\n20 FOR I=1 TO 3\n30 GOSUB 1000\n40 NEXT\n50 PRINT Z;Y;T:END\n"
+    "1000 FOR J=1 TO 2:T=T+FNA(J):GOSUB 2000:NEXT:RETURN\n"
+    + "".join(f"{2000 + k} Z=Z+1:Y=Y+1:IF Z<0 THEN PRINT Z\n" for k in range(500))
+    + "2500 RETURN\nRUN"
+)
+
 CHURN = "\n".join(f'10 PRINT "{i:<60}":X=1+2+3+4' for i in range(1500))
 
 CASES = {
+    FLUSH: ["3000  3000  15"],
     "10 GOTO 30\n20 PRINT 2:END\n30 PRINT 3\nRUN\n25 REM\n30 PRINT 4\nRUN": ["3", "4"],
     "10 GOTO 30\n30 PRINT 3\nRUN\n30\nRUN": ["3", "?UNDEF'D STATEMENT ERROR IN 10"],
     "10 PRINT 7\nGOTO 10": ["7"],
