@@ -263,8 +263,8 @@ def play() -> None:
     assert [r.split()[0] for r in scr[7:9] if r.split()] == ["LEFT$", "LEN"], scr
     press("esc")
     ctrl_y()
-    complete("print i")  # one fits: put in, no list; I is no longer than the word
-    assert line() == "PRINT INT", line()
+    scr = complete("print mi")  # one fits: put in, its ( and its form shown
+    assert line() == "PRINT MID$(" and "MID$(S$, START[, N])" in scr[24], scr[24]
     ctrl_y()
     complete("for j=1 t")  # after an operand: the words that go on
     assert line() == "FOR J=1 TO", line()
@@ -278,6 +278,24 @@ def play() -> None:
     complete('print "pr')  # nor in a string
     assert line() == 'PRINT "PR' and look()[24].endswith(":017"), look()[24]
     ctrl_y()
+    scr = complete("x$=")  # a string wanted: string names and functions only
+    assert [r.split()[0] for r in scr[7:10]] == ["X$", "CHR$", "LEFT$"], scr
+    assert not any(r.split() and r.split()[0] in ("I", "INT", "FN") for r in scr[7:16]), scr
+    press("esc")
+    ctrl_y()
+    complete("n=m")  # a number wanted: no MID$, so Tab indents
+    assert line() == "N=M" and look()[24].endswith(":009"), look()[24]
+    ctrl_y()
+    complete("for k=1 to 2:next ")  # NEXT: the open FOR's variable
+    assert line() == "FOR K=1 TO 2:NEXT K", line()
+    ctrl_y()
+    press("0x75", "0x4f", "enter")  # GOSUB: a line after RETURN first, its text shown
+    keys("10 return\n20 rem b\ngosub ")
+    press("tab")
+    scr = look()
+    assert scr[9].split()[:3] == ["20", "REM", "B"] and scr[10].split()[:2] == ["10", "RETURN"], scr
+    press("enter")
+    assert text()[5] == "GOSUB 20", text()
 
     press(f"0x{ALT_F:x}", "x")
     if any("NOT SAVED" in r for r in look()):
