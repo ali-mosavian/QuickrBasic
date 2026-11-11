@@ -140,6 +140,12 @@ def play() -> None:
     scr = "\n".join(look("menu"))
     for want in ("SAVE AS...", "PRINT...", "EXIT"):
         assert want in scr, (want, scr)
+    # QBasic's title columns (uirsrcc.c rxTitle): ours sat one to the left.
+    bar = look()[0]
+    for title, col in (("FILE", 3), ("EDIT", 9), ("VIEW", 15), ("SEARCH", 21), ("RUN", 29), ("DEBUG", 34), ("OPTIONS", 41), ("HELP", 74)):
+        assert bar[col : col + len(title)] == title, (title, bar)
+    assert look()[2][3:6] == "NEW", look()[2]  # the box at title-2, items at +2
+    assert attrs(0)[2:9] == b"\x07\x0f\x07\x07\x07\x07\x70", attrs(0)[:10]
     press("esc")
 
     # Lines to the clipboard and back at the cursor. The paste once lost its
