@@ -2,64 +2,57 @@
 ; comp.asm - the compiler: a token line to stack-machine code
 ; ==========================================================================
 ; holds:    cm_line, cm_text, cm_code, cm_err; the statements and their
-;           scripts cms; the emitters cm_op ..; the token readers st_get ..
+;           the emitters cm_op ..; the token readers st_get ..
 ; uses:     cm_expr, sym_find, str_span, op_size, err_*
 ; data:     SI the token cursor, DI the code's next byte.
-;           cms, a statement's script: each byte, bit 7 the script's last;
-;           under A_BASE CALL that routine, else action A_*
+;           A statement is parsed by dfa.inc's automaton (tools/x86dfa.py):
+;           each state's entry for the byte at SI steps past a token, goes
+;           on at the statement's end, or runs an action: under A_BASE
+;           CALL that routine, else cmact's A_*, which reads its operands.
 ; calls:
 ;   cm_line            csp = SP
 ;     cm_new           the statement; ':' again, 0 cm_fin
-;       cm_tok, cm_scr
+;       cm_tok, cm_dfa
 ;     cm_fin           EOL; SP = csp; ret to the compile's caller
 ;   cm_err             err_raise comes here while csp is set: ERR, EOL
 ; ==========================================================================
 
-LAST    = 80h
 A_BASE  = 64
 A_E     = A_BASE
-A_X     = A_BASE+1
-A_C     = A_BASE+2
-A_O     = A_BASE+3
-A_FC    = A_BASE+4
-A_ES    = A_BASE+5
-A_M     = A_BASE+6
-A_LM    = A_BASE+7
-A_LOOP  = A_BASE+8
-A_LV    = A_BASE+9
-A_L     = A_BASE+10
-A_TOB   = A_BASE+11
-A_TOA   = A_BASE+12
-A_TOS   = A_BASE+13
-A_STR   = A_BASE+14
-A_FV    = A_BASE+15
-A_FST   = A_BASE+16
-A_FK    = A_BASE+17
-A_FOR   = A_BASE+18
-A_FOR1  = A_BASE+19
-A_NV    = A_BASE+20
-A_IF    = A_BASE+21
-A_ON    = A_BASE+22
-A_ONL   = A_BASE+23
-A_PR    = A_BASE+24
-A_DEF   = A_BASE+25
-A_LST   = A_BASE+26
-A_DV    = A_BASE+27
-A_DATA  = A_BASE+28
-A_REM   = A_BASE+29
-A_LET   = A_BASE+30
-A_IN    = A_BASE+31
-A_RD    = A_BASE+32
-A_GET   = A_BASE+33
-A_GOTO  = A_BASE+34
-A_GOSUB = A_BASE+35
-A_RUN   = A_BASE+36
-A_RES   = A_BASE+37
-A_RET   = A_BASE+38
-A_N0    = A_BASE+39
-A_N1    = A_BASE+40
-A_NARG  = A_BASE+41
-A_FOP   = A_BASE+42
+A_LV    = A_BASE+1
+A_L     = A_BASE+2
+A_TOB   = A_BASE+3
+A_TOA   = A_BASE+4
+A_TOS   = A_BASE+5
+A_STR   = A_BASE+6
+A_FV    = A_BASE+7
+A_FST   = A_BASE+8
+A_FK    = A_BASE+9
+A_FOR   = A_BASE+10
+A_FOR1  = A_BASE+11
+A_NV    = A_BASE+12
+A_IF    = A_BASE+13
+A_ON    = A_BASE+14
+A_ONL   = A_BASE+15
+A_PR    = A_BASE+16
+A_DEF   = A_BASE+17
+A_LST   = A_BASE+18
+A_DV    = A_BASE+19
+A_DATA  = A_BASE+20
+A_REM   = A_BASE+21
+A_LET   = A_BASE+22
+A_IN    = A_BASE+23
+A_RD    = A_BASE+24
+A_GET   = A_BASE+25
+A_GOTO  = A_BASE+26
+A_GOSUB = A_BASE+27
+A_RUN   = A_BASE+28
+A_RES   = A_BASE+29
+A_RET   = A_BASE+30
+A_N0    = A_BASE+31
+A_N1    = A_BASE+32
+A_NARG  = A_BASE+33
+A_FOP   = A_BASE+34
 
 ; ::::::::::::::
 ; cm_line - compile the direct line at ln.
@@ -201,14 +194,16 @@ cm_if:
 @cmi_d:
         mov     [cth],1
         call    st_getn
-        mov     ebx,s_goto-cms
         cmp     al,M_INT
-        je      cm_scr
+        jne     @F
+        mov     al,ST_GOTO
+        jmp     cm_dfa
+@@:
         test    al,al
         jns     @st_comp1
 
 ; ::::::::::::::
-; cm_tok - compile the statement at SI: its script.
+; cm_tok - compile the statement at SI.
 ;
 ; in:     SI  at its first byte
 ;         AL  that byte, 80h or over
@@ -217,47 +212,60 @@ cm_if:
 cm_tok:
         cmp     al,TK_NEW
         jbe     @cmk_k
-        mov     ebx,s_let-cms
         cmp     al,M_VAR
-        je      cm_scr
-        cmp     al,TK_GO
+        mov     al,ST_LET
+        je      cm_dfa
+        cmp     byte ptr [esi],TK_GO
         jne     @st_comp1
-        mov     ebx,s_go-cms
+        mov     al,ST_GO
         jmp     @cmk_s
 @cmk_k:
         mov     [ctok],al
         mov     [ctks],esi
         movzx   ebx,al
-        mov     bl,[cmt+ebx-80h]
+        mov     al,[ps_ent+ebx-80h]
 @cmk_s:
-        push    ebx
-        call    st_getn
-        pop     ebx
-
-; ::::::::::::::
-; cm_scr - run the script at offset BX of cms.
-;
-; in:     BX  the offset
-;         SI  the statement, past the keyword
-; ::::::::::::::
-cm_scr:
-        mov     [spc],ebx
-@cms_l:
-        call    cm_nb
         push    eax
-        call    cm_do
+        call    st_getn
         pop     eax
-        test    al,al
-        jns     @cms_l
-        ret
 
 ; ::::::::::::::
-; cm_do - run a script byte: a CALL or an action.
+; cm_dfa - run the statement automaton from state AL to its end.
 ;
-; in:     AL  the byte
+; in:     AL  the state
+;         SI  the statement, past the keyword
+; error:  ?SYNTAX ERROR  a byte the state has no entry for
+; ::::::::::::::
+cm_dfa:
+        movzx   edx,al
+@cmd_l:
+        call    st_get
+        movzx   ebx,al
+        movzx   ebx,byte ptr [ps_cls+ebx]
+        imul    edx,edx,PS_NC
+        add     ebx,edx
+        movzx   eax,word ptr [ps_tab+ebx*2]
+        movzx   edx,ah
+        cmp     al,PS_ACC
+        jb      @cmd_a
+        je      cm_rts
+        cmp     al,PS_EOS
+        jb      @st_comp1               ; PS_ERR
+        je      @cmd_l                  ; on, the end not stepped past
+        inc     esi                     ; PS_TOK
+        jmp     @cmd_l
+@cmd_a:
+        push    edx
+        call    cm_do
+        pop     edx
+        jmp     @cmd_l
+
+; ::::::::::::::
+; cm_do - run an action: a CALL or cmact's routine.
+;
+; in:     AL  the action
 ; ::::::::::::::
 cm_do:
-        and     al,7Fh
         cmp     al,A_BASE
         jb      cm_call
         movzx   ebx,al
@@ -514,18 +522,6 @@ cm_ins:
         jmp     cm_om
 
 ; ::::::::::::::
-; cm_nb - the script's next byte.
-;
-; out:    AL  the byte
-; keeps:  SI, DI
-; ::::::::::::::
-cm_nb:
-        mov     ebx,[spc]
-        inc     [spc]
-        mov     al,[cms+ebx]
-        ret
-
-; ::::::::::::::
 ; cm_op - emit op AL.
 ;
 ; in:     AL  the op
@@ -611,15 +607,6 @@ cm_lint:
 @cli_e:
         mov     [clle],edi
         ret
-
-; ::::::::::::::
-; cm_ax - expect the script's next byte, then step past it.
-;
-; error:  ?SYNTAX ERROR  another byte
-; ::::::::::::::
-cm_ax:
-        call    cm_nb
-        jmp     cm_chk
 
 ; ::::::::::::::
 ; cm_chkcl - cm_chk for ')'.
@@ -909,64 +896,10 @@ cm_res:
         jmp     cm_call
 
 ; ::::::::::::::
-; cm_ao - step past the script's next byte, if it is at SI; else cm_skm.
-;
-; in:     SI  at the byte, or the spaces before it
-; ::::::::::::::
-cm_ao:
-        call    cm_nb
-        mov     ah,al
-        call    st_get
-        cmp     al,ah
-        jne     cm_skm
-        inc     esi
-        ret
-
-; ::::::::::::::
-; cm_afc - the statement's end goes to the next A_M; else a comma.
-;
-; error:  ?SYNTAX ERROR  anything else
-; ::::::::::::::
-cm_afc:
-        call    st_eos
-        jz      cm_skm
-        jmp     cm_chkcm
-
-; ::::::::::::::
-; cm_aes - the statement's end goes to the next A_M.
-; ::::::::::::::
-cm_aes:
-        call    st_eos
-        jnz     cm_rts
-
-; ::::::::::::::
-; cm_skm - the script goes on after its next A_M.
-; ::::::::::::::
-cm_skm:
-        call    cm_nb
-        and     al,7Fh
-        cmp     al,A_M
-        jne     cm_skm
-
-; ::::::::::::::
-; cm_rts - ret: also action A_M.
+; cm_rts - ret.
 ; ::::::::::::::
 cm_rts:
         ret
-
-; ::::::::::::::
-; cm_loop - a comma, stepped past, goes back to the A_LM before.
-; ::::::::::::::
-cm_loop:
-        call    cm_optcm
-        jnz     cm_rts
-        mov     ebx,[spc]
-@cmo_b:
-        dec     ebx
-        cmp     [cms+ebx],A_LM
-        jne     @cmo_b
-        add     esp,8                   ; cm_do's return, cm_scr's saved byte
-        jmp     cm_scr
 
 ; ::::::::::::::
 ; cm_n0 - count a CALL's arguments, then load the count.

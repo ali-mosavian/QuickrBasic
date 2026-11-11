@@ -211,7 +211,6 @@ rpl_enter:
         movzx   ebx,ax
         mov     byte ptr [inbuf+ebx],0
         mov     [ln],DLINE
-        mov     [lxd],0
         mov     esi,offset inbuf
         mov     edi,offset cbuf
         call    lx_line

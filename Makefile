@@ -38,6 +38,7 @@ test:
 	sh test/tools/for_eol_cost.sh
 	sh test/tools/f8tab_stale.sh
 	sh test/tools/lexcheck.sh
+	sh test/tools/x86dfa.sh
 	sh test/tools/stock_norm.sh
 	sh test/tools/build_stamp.sh
 

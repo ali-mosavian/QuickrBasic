@@ -76,6 +76,7 @@ include vm/exec.asm
 include vm/flow.asm
 include vm/calls.asm
 include vm/builtins.asm
+include comp/dfa.inc
 include comp/lex.asm
 include comp/comp.asm
 include comp/expr.asm

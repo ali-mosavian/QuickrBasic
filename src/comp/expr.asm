@@ -752,63 +752,10 @@ cprec   db      79h,79h,7Bh,7Bh,7Fh,50h,46h,64h,64h,64h
         .code
 
         .data
-cmact   dd      cm_expr,cm_ax,cm_chkcm,cm_ao,cm_afc,cm_aes,cm_rts,cm_rts
-        dd      cm_loop,cm_lval,cm_lnum,cm_tob,cm_toa,cm_tos,cm_str1,cm_fv
+cmact   dd      cm_expr,cm_lval,cm_lnum,cm_tob,cm_toa,cm_tos,cm_str1,cm_fv
         dd      cm_fst,cm_fork,cm_for,cm_for1,cm_nv,cm_if,cm_on,cm_onl
         dd      cm_print,cm_def,cm_list,cm_dv,cm_dat,cm_rem,cm_store,cm_in
         dd      cm_rd,cm_get,cm_goto,cm_gosub,cm_run,cm_res,cm_ret,cm_n0
         dd      cm_n1,cm_narg,cm_fop
         .code
 
-; The script of each statement, END (80h) .. NEW (A2h), as an offset in cms.
-        .data
-cmt     db      s_end-cms,s_for-cms,s_next-cms,s_data-cms,s_inputn-cms,s_input-cms
-        db      s_dim-cms,s_read-cms,s_let-cms,s_goto-cms,s_run-cms,s_if-cms
-        db      s_res-cms,s_gosub-cms,s_ret-cms,s_rem-cms,s_stop-cms,s_on-cms
-        db      s_wait-cms,s_file-cms,s_file-cms,s_file-cms,s_def-cms,s_poke-cms
-        db      s_printn-cms,s_print-cms,s_cont-cms,s_list-cms,s_clr-cms,s_cmd-cms
-        db      s_sys-cms,s_open-cms,s_close-cms,s_get-cms,s_new-cms
-
-cms     label   byte
-s_end   db      K_END or LAST
-s_data  db      A_DATA or LAST
-s_if    db      A_IF or LAST
-s_ret   db      A_RET or LAST
-s_rem   db      A_REM or LAST
-s_stop  db      K_STOP or LAST
-s_def   db      A_DEF or LAST
-s_print db      A_PR or LAST
-s_cont  db      K_CONT or LAST
-s_list  db      A_LST or LAST
-s_clr   db      K_CLR or LAST
-s_new   db      K_NEW or LAST
-s_run   db      A_RUN or LAST
-s_res   db      A_RES or LAST
-s_for   db      A_FV,A_X,TK_EQ,A_E,A_FST,A_X,TK_TO,A_E,A_FK,A_O,TK_STEP,A_E,A_FK
-        db      A_FOR or LAST,A_M,A_FOR1 or LAST
-s_next  db      A_LM,A_NV,A_LOOP or LAST
-s_inputn db     A_E,A_TOB,K_FIIN,A_C,K_INFILE,A_LM,A_LV,A_IN,A_LOOP,K_INEND
-        db      K_FICLR or LAST
-s_input db      K_INBEG,A_O,'"',A_STR,K_SPR,A_X,';',A_M,K_INPR,A_LM,A_LV,A_IN
-        db      A_LOOP,K_INEND or LAST
-s_dim   db      A_LM,A_DV,A_LOOP or LAST
-s_read  db      A_LM,A_LV,A_RD,A_LOOP or LAST
-s_let   db      A_LV,A_X,TK_EQ,A_E,A_LET or LAST
-s_go    db      A_X,TK_TO
-s_goto  db      A_L,A_GOTO or LAST
-s_gosub db      A_L,A_GOSUB or LAST
-s_on    db      A_E,A_ON,A_LM,A_ONL,A_LOOP or LAST
-s_wait  db      A_E,A_TOA,A_C,A_E,A_TOB,A_O,',',A_E,A_TOB,K_WAIT or LAST,A_M
-        db      K_WAIT2 or LAST
-s_poke  db      A_E,A_TOA,A_C,A_E,A_TOB,K_POKE or LAST
-s_file  db      A_N0,A_ES,A_E,A_TOS,A_N1,A_FC,A_E,A_TOB,A_N1,A_FC,A_E,A_TOB,A_N1
-        db      A_FC,A_M,A_NARG,A_FOP or LAST
-s_open  db      A_N0,A_E,A_TOB,A_N1,A_FC,A_E,A_TOB,A_N1,A_FC,A_E,A_TOB,A_N1,A_FC
-        db      A_E,A_TOS,A_N1,A_M,A_NARG,K_OPEN or LAST
-s_close db      A_E,A_TOB,K_CLOSE or LAST
-s_sys   db      A_E,A_TOA,K_SYS or LAST
-s_printn db     A_E,A_TOB,K_FIOUT,A_FC,A_M,A_PR,K_FICLR or LAST
-s_cmd   db      A_E,A_TOB,K_FIOUT,A_FC,A_M,A_PR or LAST
-s_get   db      A_O,'#',A_E,A_TOB,K_FIIN,A_C,A_LM,A_LV,A_GET,A_LOOP,K_FICLR or LAST
-        db      A_M,K_NODIR,A_LM,A_LV,A_GET,A_LOOP or LAST
-        .code

@@ -120,20 +120,20 @@ iny0    dd      ?
 infl    db      ?
 isw_si  dd      ?
 wv      dw      ?
-spc     dd      ?
 onp     dd      ?
 cst     dd      ?
 ctok    db      ?
 cfid    db      ?
-lxd     db      ?
-lxe     db      ?
-lxf     db      ?
+lxst    db      ?                ; the tokenizer's state
+lxf     db      ?                ; the number is text
 nkind   db      ?
 nsyms   db      ?
 lxn     dd      ?
 lxs     dd      ?
 nkey    dw      ?
 nlenp   dd      ?
+lxv     dd      ?                ; a whole number's value
+lxm     dd      ?                ; a name's end
 fx      db      ?
 ff      db      ?
 fq      db      ?
