@@ -97,7 +97,8 @@ def play() -> None:
     press("home")  # past the indent Enter kept
     keys("next\n")
     assert text()[:3] == ["FOR I=1 TO 3", "  PRINT I*I", "NEXT"], text()
-    look("editor")
+    # QBasic's status lines (qbasmsgs.txt), less the keys we lack.
+    assert look("editor")[24].startswith(" <SHIFT+F1=HELP> <F6=WINDOW> <F5=RUN>  "), look()[24]
     press(f"0x{F5:x}")
     look("output")
     out = output()
@@ -107,6 +108,7 @@ def play() -> None:
     # The immediate window: output on page 1. The prompt once stayed there,
     # in front of the next output.
     press("f6")
+    assert look()[24].startswith(" <SHIFT+F1=HELP> <F6=WINDOW> <ENTER=EXECUTE LINE>  "), look()[24]
     keys("print 6*7\n")
     press("space")
     assert output()[24] == "", output()
@@ -123,7 +125,9 @@ def play() -> None:
     s.resume(100)  # Alt let go while the menu waits
     press("down")
     scr = look()
-    assert any("OPEN..." in r for r in scr) and "LOADS A FILE" in scr[24], scr
+    assert any("OPEN..." in r for r in scr) and scr[24].startswith(" F1=HELP   LOADS A FILE"), scr
+    bar = s.send({"cmd": "mem_read_linear", "addr": 0xB8000 + 24 * 160 + 18, "len": 1})["data"]
+    assert bar.lower() == "b3", bar  # F1=Help │
     press("esc", "esc")
     # Alt held on: Alt+Down and Alt+letter come as other keys, which the menu
     # ignored, so it worked only once Alt was let go.
@@ -165,8 +169,9 @@ def play() -> None:
     keys("goto 99\n")
     press(f"0x{F5:x}")
     scr = look("error")
-    assert any("UNDEF'D STATEMENT ERROR" in r for r in scr) and scr[24].endswith("00005:001"), scr
+    assert any("UNDEF'D STATEMENT ERROR" in r for r in scr) and scr[24].startswith(" F1=HELP   ENTER=EXECUTE"), scr
     press("enter")
+    assert look()[24].endswith("00005:001"), look()[24]
 
     # New: the unsaved text asks first; N, its button's letter, answers No.
     press(f"0x{ALT_F:x}", "n")
@@ -177,6 +182,7 @@ def play() -> None:
     # Open. Its header was two bytes too long: controls drawn from garbage.
     press(f"0x{ALT_F:x}", "o")
     scr = look("open")
+    assert scr[24].rstrip() == " F1=HELP   ENTER=EXECUTE   ESC=CANCEL   TAB=NEXT FIELD   ARROW=NEXT ITEM", scr[24]
     assert "FILE NAME:  *.BAS" in "\n".join(scr) and any(r.split() == ["SQ.BAS", ".."] for r in scr), scr
     press("tab", "enter")
     assert "SQ.BAS" in look()[1] and text()[:3] == ["FOR I=1 TO 3", "  PRINT I*I", "NEXT"], look()
@@ -231,8 +237,8 @@ def play() -> None:
     mouse(4, 1, False)
     s.resume(100)
     assert attrs(2)[1] == attrs(3)[1] == 0x71 and attrs(4)[1] == 0x17, (attrs(2)[:4], attrs(4)[:4])
-    # <Shift+F5=Run> on the status bar.
-    click(24, 40)
+    # <F5=Run> on the status bar.
+    click(24, 32)
     s.resume(300)
     assert output()[:3] == [" 1", " 4", " 9"], output()
     press("space")
