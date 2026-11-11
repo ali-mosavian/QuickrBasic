@@ -9,7 +9,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 import x86run
 
-# A subroutine bigger than the code cache: it empties mid-run, with FOR, GOSUB and FN frames live.
+# A subroutine bigger than the code cache: it empties mid-run, with the
+# FOR, GOSUB and FN frames live.
 FLUSH = (
     "10 DEF FNA(X)=X+1\n20 FOR I=1 TO 3\n30 GOSUB 1000\n40 NEXT\n50 PRINT Z;Y;T:END\n"
     "1000 FOR J=1 TO 2:T=T+FNA(J):GOSUB 2000:NEXT:RETURN\n"
@@ -20,7 +21,8 @@ FLUSH = (
 CHURN = "\n".join(f'10 PRINT "{i:<60}":X=1+2+3+4' for i in range(1500))
 
 CASES = {
-    # The ops written out as machine code: every relation, INT and FLOAT, as a value and as an IF.
+    # Ops written out as machine code: each relation, INT and FLOAT, as a
+    # value and as an IF.
     "10 A%=3:B%=5:C=3:D=5:E=-2.5\n"
     "20 PRINT (A%<B%);(A%>B%);(A%=B%);(A%<>B%);(A%<=B%);(A%>=B%);(A%=3);(A%>2)\n"
     "30 PRINT (C<D);(C>D);(C=D);(C<>D);(C<=D);(C>=D);(C=3);(C>2.5);(E<-2);(E>-3)\n"
