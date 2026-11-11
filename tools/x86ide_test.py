@@ -113,6 +113,30 @@ def play() -> None:
 
     # The immediate window: output on page 1. The prompt once stayed there,
     # in front of the next output.
+    # The WordStar keys of COW's edit manager (edittbls.inc).
+    def ctrl(c: str) -> None:
+        code = ord(c.upper()) - 64
+        s.send({"cmd": "key", "scancode": 0, "ascii": code, "stop": True})
+        s.run_to_key(3000)
+        s.resume(60)
+
+    press("up")  # to NEXT, 3
+    ctrl("d")
+    ctrl("d")
+    assert look()[24].endswith("00003:003"), look()[24]
+    ctrl("s")
+    ctrl("q")
+    assert look()[24][64:66] == "^Q", look()[24]
+    keys("d")
+    assert look()[24].endswith("00003:005") and look()[24][64:66] == "  ", look()[24]
+    ctrl("q")
+    keys("s")
+    ctrl("d")
+    ctrl("q")
+    ctrl("y")  # Ctrl+Q,Y: the rest of the line out
+    assert text()[2] == "N", text()
+    keys("ext")
+    press("down", "home")
     # Caps Lock and Num Lock: C at 67, N at 68 (uiwind.c).
     flags(0x60)
     press("right")
