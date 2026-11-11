@@ -23,7 +23,7 @@ CASES = {
     f"{CHURN}\n20 PRINT 9\nRUN": ["9"],
     # READ restarts at the first DATA, not after its first item.
     "10 DATA 1,2\n20 DATA 3\n30 READ A,B,C:RESTORE 20:READ D:PRINT A;B;C;D\nRUN": ["1  2  3  3"],
-    # LIST decompiles: each spelling as typed, no extra spaces.
+    # LIST prints the body: each spelling as typed, no extra spaces.
     '10 IF A>.5 THEN 20\n20 COUNT=1:PRINT CO;1.5E3;40000\n30 DEF FNSQR(X)=X*X\nLIST': [
         "10 IF A>.5 THEN 20", "20 COUNT=1:PRINT CO;1.5E3;40000", "30 DEF FNSQR(X)=X*X"],
     '10 PRINT "A";:PRINT TAB(5);B,:NEXT:NEXT I\nLIST': ['10 PRINT "A";:PRINT TAB(5);B,:NEXT:NEXT I'],
