@@ -74,6 +74,11 @@ CASES = {
     "10 FOR K%=1 TO 2:FOR L%=1 TO 2:PRINT K%;L%;:NEXT L%,K%:PRINT\n"
     "20 FOR I%=1 TO 2:FOR J%=1 TO 2:NEXT I%:PRINT I%;J%\nRUN": [
         "1  1  1  2  2  1  2  2", "3  1"],
+    # 1-D element loads and stores are machine code: INT and FLOAT, an
+    # undimensioned array (the slow way), a subscript out of range.
+    "10 DIM A%(5),B(5):FOR I=0 TO 5:A%(I)=I*2:B(I)=I*1.5:NEXT\n"
+    "20 PRINT A%(3);A%(5);B(3);B(5);C%(7);D(2)\n30 PRINT A%(6)\nRUN": [
+        "6  10  4.5  7.5  0  0", "?BAD SUBSCRIPT ERROR IN 30"],
     # LIST gives the line as typed, spaces and all.
     "10 A = B  +  1 : PRINT A,  C\nLIST": ["10 A = B  +  1 : PRINT A,  C"],
 }
