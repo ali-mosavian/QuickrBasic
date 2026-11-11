@@ -120,6 +120,15 @@ def play() -> None:
     scr = look()
     assert any("OPEN..." in r for r in scr) and "LOADS A FILE" in scr[24], scr
     press("esc", "esc")
+    # Alt held on: Alt+Down and Alt+letter come as other keys, which the menu
+    # ignored, so it worked only once Alt was let go.
+    flags(0x08)
+    press(f"0x{ALT_F:x}", "0xa0")
+    assert "LOADS A FILE" in look()[24], look()
+    press("0x18")  # Alt+O: Open..., which asks about the unsaved text first
+    flags(0)
+    assert any("NOT SAVED" in r for r in look()), look()
+    press("esc")
 
     # Every File item drops down: a separator once ended the menu after Save As.
     press(f"0x{ALT_F:x}")
