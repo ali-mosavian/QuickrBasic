@@ -208,6 +208,12 @@ def play() -> None:
     keys("zz")
     press("tab", "tab", "tab", "tab", "tab", "enter", "enter")
     assert text()[0] == "FOR I=1 TO 4", look()
+    # Ctrl+L repeats the find, as QBasic.
+    press("0x77", f"0x{ALT_S:x}", "f")
+    keys("i\n")
+    s.send({"cmd": "key", "scancode": 0x26, "ascii": 0x0C, "stop": True})
+    s.run_to_key(3000)
+    assert look()[24].endswith("00002:006"), look()[24]
 
     # Save As, then Exit to DOS.
     press(f"0x{ALT_F:x}", "a")
@@ -216,6 +222,7 @@ def play() -> None:
     saved = (work / "T1.BAS").read_bytes()
     assert saved.startswith(b"FOR I=1 TO 4\r\n  PRINT I*I\r\nNEXT\r\n"), saved
     # The mouse: a title, an item dragged to, a list's line twice.
+    press("home")  # the found text's selection off
     mouse_stub()
     click(0, 9)
     assert any("CUT" in r for r in look()), look()
