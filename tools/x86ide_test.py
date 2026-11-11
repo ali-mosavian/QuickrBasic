@@ -258,6 +258,20 @@ def play() -> None:
     # QBasic's dlgSearchFind (uisearch.des), its places client-relative.
     assert scr[9][12:22] == "FIND WHAT:" and scr[9][24:27] == "I  ", scr
     assert (scr[16][19:25], scr[16][34:44], scr[16][52:60]) == ("< OK >", "< CANCEL >", "< HELP >"), scr[16]
+    # Its letters lit once Alt is down (COW dlgcore.c); Alt+M checks Match.
+    assert 0x7F not in attrs(9)[11:60], attrs(9)[11:60]
+    flags(0x08)
+    s.resume(100)
+    flags(0)
+    s.resume(100)
+    assert attrs(9)[12] == 0x7F and attrs(9)[13] == 0x70, attrs(9)[11:16]
+    flags(0x08)
+    press("0x32")  # Alt+M
+    flags(0)
+    assert "[X] MATCH UPPER/LOWERCASE" in look()[13], look()
+    flags(0x08)
+    press("0x32")  # once more: off
+    flags(0)
     press("esc", "0x77", *["right"] * 8, f"0x{ALT_S:x}", "f")
     scr = look(); assert scr[9].ljust(80)[24:27] == "TO ", scr
     press("esc")
