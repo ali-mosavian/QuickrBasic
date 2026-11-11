@@ -67,9 +67,10 @@ x86:                            # the DOS .COM, build/x86/basic.com
 	$(LLRM_BIN)/jwlink option quiet format dos com file build/x86/main.obj name build/x86/raw.com
 	tail -c +257 build/x86/raw.com > build/x86/basic.com   # jwlink keeps the 100h bytes before org
 
+AC ?= 1                         # ide: Tab completion, AC=0 leaves it out
 ide:                            # with the full-screen editor, build/x86/basic-ide.com
 	mkdir -p build/x86-ide
-	cd src/x86 && $(LLRM_BIN)/jwasm -q -zf0 -DIDE=1 -Fo ../../build/x86-ide/main.obj main.asm
+	cd src/x86 && $(LLRM_BIN)/jwasm -q -zf0 -DIDE=1 -DAC=$(AC) -Fo ../../build/x86-ide/main.obj main.asm
 	$(LLRM_BIN)/jwlink option quiet format dos com file build/x86-ide/main.obj name build/x86-ide/raw.com
 	tail -c +257 build/x86-ide/raw.com > build/x86/basic-ide.com
 

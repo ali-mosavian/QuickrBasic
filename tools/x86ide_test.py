@@ -48,6 +48,11 @@ def play() -> None:
         """The BIOS shift flags, which ui_getkey reads: the key socket sends no modifiers."""
         s.send({"cmd": "mem_write_linear", "addr": 0x417, "data": "02" if on else "00"})
 
+    def ctrl_y() -> None:
+        s.send({"cmd": "key", "scancode": 0x15, "ascii": 0x19, "stop": True})
+        s.run_to_key(3000)
+        s.resume(60)
+
     def flags(value: int) -> None:
         """The BIOS shift flags, 02h Shift, 08h Alt."""
         s.send({"cmd": "mem_write_linear", "addr": 0x417, "data": f"{value:02x}"})
@@ -151,7 +156,6 @@ def play() -> None:
     assert look()[24].endswith("00005:001"), look()[24]
 
     # A runtime error: the cursor on its line, the error in a box.
-    press("ctrl+y")
     keys("goto 99\n")
     press(f"0x{F5:x}")
     scr = look("error")
@@ -227,7 +231,57 @@ def play() -> None:
     assert output()[:3] == [" 1", " 4", " 9"], output()
     press("space")
 
+    # Tab completes from what fits where the word is.
+    def line() -> str:
+        return text()[3]
+
+    def complete(typed: str) -> list[str]:
+        """Typed on an empty line 4, then Tab: the screen."""
+        press("0x75", "0x4f", "enter")  # Ctrl+End, End: a new last line
+        if line():
+            ctrl_y()
+        for c in typed:
+            if c == '"':
+                s.send({"cmd": "key", "scancode": 0x28, "ascii": 0x22, "stop": True})
+                s.run_to_key(3000)
+                s.resume(60)
+            else:
+                keys(c)
+        press("tab")
+        return look()
+
+    scr = complete("pr")  # a statement's start: statements, the common part typed
+    assert line() == "PRINT" and scr[7].strip() == "PRINT" and scr[8].strip() == "PRINT#", scr
+    assert attrs(7)[3] == 0x07 and attrs(8)[3] == 0x70, attrs(7)[:6]
+    press("down", "enter")
+    assert line() == "PRINT#", line()
+    # Ctrl+Y once checked the line first: PRINT# alone got a syntax error box,
+    # which then took the keys, and the line stayed.
+    ctrl_y()
+    assert line() == "" and not any("SYNTAX" in r for r in look()), look()
+    scr = complete("print le")  # an operand: functions and variables
+    assert [r.split()[0] for r in scr[7:9] if r.split()] == ["LEFT$", "LEN"], scr
+    press("esc")
+    ctrl_y()
+    complete("print i")  # one fits: put in, no list; I is no longer than the word
+    assert line() == "PRINT INT", line()
+    ctrl_y()
+    complete("for j=1 t")  # after an operand: the words that go on
+    assert line() == "FOR J=1 TO", line()
+    ctrl_y()
+    complete("next i")  # NEXT names a variable: I is all there is, so Tab indents
+    assert line() == "NEXT I" and look()[24].endswith(":009"), look()[24]
+    ctrl_y()
+    complete("rem pr")  # nothing in a remark
+    assert line() == "REM PR" and look()[24].endswith(":009"), look()[24]
+    ctrl_y()
+    complete('print "pr')  # nor in a string
+    assert line() == 'PRINT "PR' and look()[24].endswith(":017"), look()[24]
+    ctrl_y()
+
     press(f"0x{ALT_F:x}", "x")
+    if any("NOT SAVED" in r for r in look()):
+        press("n")
     assert "C:\\>" in look(), look()
     s.close()
     print("ok")
