@@ -87,7 +87,7 @@ op_fnent:
         jz      @fne_f
         push    ebx
         push    esi
-        call    flt_fix16
+        call    flt_fix32
         pop     esi
         pop     ebx
 @fne_f:
@@ -532,20 +532,19 @@ for_any:
         mov     ebp,[g_state.rn.fvp]
         jmp     @fa_gen
 @fa_pct:
-        mov     ax,[ebp]
-        add     ax,[ebx+F_STEP]
+        mov     eax,[ebp]
+        add     eax,[ebx+F_STEP]
         jo      err_iq
-        mov     [ebp],ax
-        mov     dx,[ebx+F_STEP]
-        test    dx,dx
-        js      @fa_dn
-        cmp     ax,[ebx+F_LIMIT]
+        mov     [ebp],eax
+        test    byte ptr [ebx+F_STEP+3],80h
+        jnz     @fa_dn
+        cmp     eax,[ebx+F_LIMIT]
         jle     @fa_lp
 @fa_done:
         add     [g_state.rn.cstk],FRSIZE
         dispatch
 @fa_dn:
-        cmp     ax,[ebx+F_LIMIT]
+        cmp     eax,[ebx+F_LIMIT]
         jge     @fa_lp
         jmp     @fa_done
 @fa_lp:

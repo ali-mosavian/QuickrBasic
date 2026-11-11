@@ -69,11 +69,11 @@ sc_mid2:
 ; fn_sgn - SGN: an INT.
 ;
 ; in:     EAX  the value
-; out:    AX  -1, 0 or 1
+; out:    EAX  -1, 0 or 1
 ; ::::::::::::::
 fn_sgn:
         call    flt_sgn
-        cbw
+        movsx   eax,al
         ret
 
 ; ::::::::::::::
@@ -108,46 +108,46 @@ fn_fre:
 ; ::::::::::::::
 ; fn_pos - POS.
 ;
-; out:    AX  the column
+; out:    EAX  the column
 ; ::::::::::::::
 fn_pos:
-        movzx   ax,[g_state.io.pcol]
+        movzx   eax,[g_state.io.pcol]
         ret
 
 ; ::::::::::::::
 ; fn_peek - PEEK, in the POKE memory.
 ;
 ; in:     AX  the address
-; out:    AX  the byte
+; out:    EAX  the byte
 ; ::::::::::::::
 fn_peek:
         movzx   ebx,ax
-        movzx   ax,[g_pokeb+ebx]
+        movzx   eax,[g_pokeb+ebx]
         ret
 
 ; ::::::::::::::
 ; op_size - LEN.
 ;
 ; in:     AX  the Desc
-; out:    AX  the length
+; out:    EAX  the length
 ; ::::::::::::::
 fn_len:
         call    str_get
-        mov     ax,cx
+        movzx   eax,cx
         ret
 
 ; ::::::::::::::
 ; fn_asc - ASC.
 ;
 ; in:     AX  the Desc
-; out:    AX  the first char
+; out:    EAX  the first char
 ; error:  ?ILLEGAL QUANTITY  empty
 ; ::::::::::::::
 fn_asc:
         call    str_get
         jz      err_iq
         mov     ebx,[g_state.sg.spt]
-        movzx   ax,byte ptr [ebx]
+        movzx   eax,byte ptr [ebx]
         ret
 
 ; ::::::::::::::

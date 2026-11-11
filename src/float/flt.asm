@@ -389,7 +389,7 @@ flt_from16:
         movsx   eax,ax
         jmp     short flt_from32        ; 5 bytes: flt_finit's jmp rel32 fits
 ; ::::::::::::::
-; flt_from32 - FAC = the signed EAX, under 2^24.
+; flt_from32 - FAC = the signed EAX, rounded to nearest even.
 ;
 ; in:     EAX  the number
 ; out:    EAX  the result, packed
@@ -399,9 +399,39 @@ flt_from32:
         xor     ebp,ebp
         test    eax,eax
         jz      @f_fu_r
-        jns     flt_norm
-        neg     eax
+        jns     @f32_m
+        neg     eax                     ; -2^31 stays 80000000h: unsigned
         mov     ebp,80000000h
+@f32_m:
+        cmp     eax,1000000h
+        jb      flt_norm
+        push    edx
+        bsr     ecx,eax
+        lea     ebx,[ecx+FBIAS]
+        sub     cl,23                   ; the bits past 24: 1..8
+        mov     edx,eax
+        shr     eax,cl
+        neg     cl
+        add     cl,32
+        shl     edx,cl                  ; those bits, the half at bit 31
+        cmp     edx,80000000h
+        jb      @f32_p
+        ja      @f32_u
+        test    al,1
+        jz      @f32_p
+@f32_u:
+        inc     eax
+        cmp     eax,1000000h
+        jb      @f32_p
+        shr     eax,1
+        inc     ebx
+@f32_p:
+        pop     edx
+        btr     eax,23
+        or      eax,ebp
+        shl     ebx,23
+        or      eax,ebx
+        ret
 ; ::::::::::::::
 ; flt_norm - pack a magnitude.
 ;
@@ -558,6 +588,61 @@ flt_fix:
         ja      @st_flt2
         mov     ax,dx
         neg     ax
+        ret
+
+; ::::::::::::::
+; flt_fix32 - EAX = floor(FAC), an INT.
+;
+; in:     EAX  the FAC, packed
+; out:    EAX  the number
+; error:  ?ILLEGAL QUANTITY  past -2^31..2^31-1
+; ::::::::::::::
+flt_fix32:
+        mov     ebx,eax
+        shl     ebx,1
+        shr     ebx,24
+        sub     ebx,FBIAS
+        jb      @fx32_f
+        cmp     ebx,31
+        ja      @st_flt2
+        mov     edx,eax
+        and     edx,7FFFFFh
+        or      edx,800000h
+        mov     ecx,ebx
+        sub     cl,23
+        jae     @fx32_b
+        neg     cl
+        mov     ebx,1
+        shl     ebx,cl
+        dec     ebx
+        and     ebx,edx                 ; the fraction
+        shr     edx,cl
+        test    eax,eax
+        jns     @fx32_p
+        cmp     ebx,1                   ; CF when whole
+        cmc
+        adc     edx,0                   ; a fraction floors away from 0
+        jmp     @fx32_n
+@fx32_b:
+        shl     edx,cl
+        test    eax,eax
+        js      @fx32_c
+        test    edx,edx
+        js      @st_flt2
+@fx32_p:
+        mov     eax,edx
+        ret
+@fx32_c:
+        cmp     edx,80000000h
+        ja      @st_flt2
+@fx32_n:
+        mov     eax,edx
+        neg     eax
+        ret
+@fx32_f:
+        test    eax,7F800000h
+        jz      flt_zero
+        sar     eax,31                  ; a fraction: 0, or -1 when negative
         ret
 
 ; ::::::::::::::

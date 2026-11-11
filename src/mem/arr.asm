@@ -17,17 +17,13 @@ include x86f.inc
 ; arr_esz - the element size of an array.
 ;
 ; in:     EBX  the id
-; out:    ECX  VS for a number, 2 for %, DSZ for $
+; out:    ECX  VS for a number or %, DSZ for $
 ; keeps:  EBX
 ; ::::::::::::::
 arr_esz:
         mov     cl,[g_sinfo+ebx]
         and     cl,3
         mov     ch,VS
-        cmp     cl,1
-        jne     @aes_s
-        mov     ch,2
-@aes_s:
         cmp     cl,2
         jne     @aes_r
         mov     ch,DSZ

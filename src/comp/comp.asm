@@ -424,7 +424,7 @@ cm_tof:
 @ctf_w:
         mov     ax,[ebx+1]               ; I.LD.I16: F.LD.F32 and its mark
         push    ebx
-        call    flt_from16
+        call    flt_fromu16
         pop     ebx
         mov     edi,ebx
         push    eax

@@ -514,6 +514,7 @@ sc_dim:
         add     ebx,ebx
 @sdm_l:
         pop     eax
+        subchk
         mov     [g_dimbuf+ebx-2],ax
         sub     ebx,2
         jnz     @sdm_l
@@ -808,28 +809,28 @@ sc_stti:
 ; ::::::::::::::
 sc_ipow:
         pop     ecx
-        movsx   ecx,cx
         pop     edx
-        mov     ax,1
-        jecxz    @sip_r
-        cmp     dx,1
-        je      @sip_r
-        xor     ax,ax
-        test    dx,dx
+        mov     eax,1
+        test    ecx,ecx
         jz      @sip_r
-        cmp     dx,-1
+        cmp     edx,1
+        je      @sip_r
+        xor     eax,eax
+        test    edx,edx
+        jz      @sip_r
+        cmp     edx,-1
         jne     @sip_b
-        mov     ax,1                    ; (-1)^n
+        mov     eax,1                   ; (-1)^n
         test    cl,1
         jz      @sip_r
-        neg     ax
+        neg     eax
         jmp     @sip_r
 @sip_b:
         test    ecx,ecx
         js      @sip_r                  ; |base| over 1, a negative power: 0
-        mov     ax,1
+        mov     eax,1
 @sip_l:
-        imul    ax,dx
+        imul    eax,edx
         jo      err_ov
         loop    @sip_l
 @sip_r:

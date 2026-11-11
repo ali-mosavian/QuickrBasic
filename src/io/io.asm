@@ -11,22 +11,22 @@ include x86f.inc
         .code
 
 ; ::::::::::::::
-; io_int - print a signed word as PRINT does: " " or "-", digits, " ".
+; io_int - print an INT as PRINT does: " " or "-", digits, " ".
 ;
-; in:     AX  the number
+; in:     EAX  the number
 ; keeps:  BX, SI, DI
 ; ::::::::::::::
 io_int:
-        mov     cx,ax
+        mov     ecx,eax
         mov     al,' '
-        test    cx,cx
+        test    ecx,ecx
         jns     @ioi_p
-        neg     cx
+        neg     ecx
         mov     al,'-'
 @ioi_p:
         call    io_putc
-        mov     ax,cx
-        call    io_num
+        mov     eax,ecx
+        call    io_u24
 
 ; ::::::::::::::
 ; io_space - print a space.

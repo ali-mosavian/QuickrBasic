@@ -377,6 +377,7 @@ externdef flt_add:near
 externdef flt_cmp:near
 externdef flt_div:near
 externdef flt_fix16:near
+externdef flt_fix32:near
 externdef flt_fixu16:near
 externdef flt_from16:near
 externdef flt_from32:near

@@ -558,10 +558,7 @@ cm_un:
         jne     @cu_2
         mov     ax,[esi+1]
         add     esi,3
-        test    ah,80h
-        jz      cm_lint
-        call    flt_fromu16
-        jmp     @cu_fk
+        jmp     cm_lint
 @cu_2:
         cmp     al,'('
         je      cm_paren
@@ -589,21 +586,7 @@ cm_un:
         cmp     [g_state.cm.cty],T_FLT
         mov     al,O_F_NEG
         je      @jt_expr2
-        call    cm_ileaf
-        jne     @cu_ng
-        mov     al,[ebx]
-        cmp     al,O_I_LD_V
-        je      @cu_ng
-        mov     ax,[ebx+1]
-        cmp     byte ptr [ebx],O_I_LD_U8
-        jne     @cu_n16
-        xor     ah,ah
-@cu_n16:
-        neg     ax
-        mov     edi,ebx
-        jmp     cm_lint
-@cu_ng:
-        mov     al,O_I_NEG
+        mov     al,O_I_NEG              ; I.LD.I16 is unsigned: no -literal fold
         jmp     cm_op
 @cu_4:
         cmp     al,TK_PLUS
@@ -620,7 +603,6 @@ cm_un:
         cmp     al,'9'
         ja      @cu_7
         call    flt_in
-@cu_fk:
         mov     [g_state.cm.cty],T_FLT
         push    eax
         mov     al,O_F_LD_F32

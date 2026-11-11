@@ -50,10 +50,12 @@ op_sldt:
 ; arr_r1 - arr_ref of a 1-D subscript.
 ;
 ; in:     EBX  the id * 2
-;         AX   the subscript
+;         EAX  the subscript
 ; out:    EDI  the element
+; error:  as arr_ref, and ?ILLEGAL QUANTITY past a word
 ; ::::::::::::::
 arr_r1:
+        subchk
         shr     ebx,1
         mov     [g_dimbuf],ax
         mov     [g_state.rn.narr],1
@@ -75,6 +77,7 @@ arr_pn:
         add     ebx,ebx
 @apn_l:
         pop     eax
+        subchk
         mov     [g_dimbuf+ebx-2],ax
         sub     ebx,2
         jnz     @apn_l
@@ -87,10 +90,9 @@ arr_pn:
 ; ::::::::::::::
 op_ilda1:
         pop     eax
-        a1get   0,@ila_s
+        a1get   2,@ila_s
 @ila_g:
-        movzx   eax,word ptr [edi]
-        push    eax
+        push    dword ptr [edi]
         dispatch
 @ila_s:
         call    arr_r1
@@ -152,10 +154,10 @@ op_sstv:
 op_ista1:
         pop     dword ptr [g_state.rn.stv]
         pop     eax
-        a1get   0,@isa_s
+        a1get   2,@isa_s
 @isa_g:
-        mov     ax,word ptr [g_state.rn.stv]
-        mov     [edi],ax
+        mov     eax,[g_state.rn.stv]
+        mov     [edi],eax
         dispatch
 @isa_s:
         call    arr_r1
@@ -213,30 +215,30 @@ op_sstan:
         jmp     @ssa_g
 
 ; ::::::::::::::
-; int_div - [EBP] / AX, truncated.
+; int_div - [EBP] / EAX, truncated.
 ;
-; in:     AX     the divisor
+; in:     EAX    the divisor
 ;         [EBP]  the dividend
-; out:    AX  the quotient
+; out:    EAX  the quotient
 ; keeps:  EBP, ESI
-; error:  ?DIVISION BY ZERO  AX 0
-;         ?OVERFLOW          -32768 / -1
+; error:  ?DIVISION BY ZERO  EAX 0
+;         ?OVERFLOW          -2^31 / -1
 ; ::::::::::::::
 int_div:
-        test    ax,ax
+        test    eax,eax
         jnz     @idv_g
         mov     al,E_DZ
         jmp     err_raise
 @idv_g:
-        mov     cx,ax
-        mov     ax,[ebp]
-        cmp     cx,-1
+        mov     ecx,eax
+        mov     eax,[ebp]
+        cmp     ecx,-1
         je      @idv_n
-        cwd
-        idiv    cx
+        cdq
+        idiv    ecx
         ret
 @idv_n:
-        neg     ax
+        neg     eax
         jno     @idv_r
         jmp     err_ov
 @idv_r:

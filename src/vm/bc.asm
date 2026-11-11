@@ -28,13 +28,13 @@ fcall   macro   fn
         pop     esi
         endm
 
-; AX = an INT right operand. src: 0 popped, 1 a variable, 2 the U8.
+; EAX = an INT right operand. src: 0 popped, 1 a variable, 2 the U8.
 isrc    macro   src
   if src eq 0
         pop     eax
   elseif src eq 1
         bvar
-        mov     ax,[ebx]
+        mov     eax,[ebx]
   else
         movzx   eax,byte ptr [esi]
         inc     esi
@@ -51,12 +51,12 @@ fsrc    macro   src
         mov     eax,[ebx]
   elseif src eq 2
         bvar
-        mov     ax,[ebx]
-        fcall   flt_from16
+        mov     eax,[ebx]
+        fcall   flt_from32
   elseif src eq 3
         movzx   eax,byte ptr [esi]
         inc     esi
-        fcall   flt_from16
+        fcall   flt_from32
   else
         mov     eax,[esi]
         add     esi,4
@@ -132,8 +132,7 @@ bc_S_LD_V:
 ; ::::::::::::::
 bc_I_ST_V:
         bvar
-        pop     eax
-        mov     [ebx],ax
+        pop     dword ptr [ebx]
         dispatch
 ; ::::::::::::::
 ; bc_F_ST_V - F.ST.V id ( f -- ): the FLOAT variable.
@@ -148,25 +147,25 @@ ibin    macro   nm,src,k
 bc_&nm:
         isrc    src
   if k eq 0
-        add     [esp],ax
+        add     [esp],eax
         jo      err_ov
   elseif k eq 1
-        sub     [esp],ax
+        sub     [esp],eax
         jo      err_ov
   elseif k eq 2
-        imul    ax,[esp]
+        imul    eax,[esp]
         jo      err_ov
-        mov     [esp],ax
+        mov     [esp],eax
   elseif k eq 3
         mov     ebp,esp
         push    esi
         call    int_div
         pop     esi
-        mov     [esp],ax
+        mov     [esp],eax
   elseif k eq 4
-        and     [esp],ax
+        and     [esp],eax
   else
-        or      [esp],ax
+        or      [esp],eax
   endif
         dispatch
         endm
@@ -194,14 +193,14 @@ bc_&nm:
 ; bc_I_NEG - I.NEG ( i -- i ).
 ; ::::::::::::::
 bc_I_NEG:
-        neg     word ptr [esp]
+        neg     dword ptr [esp]
         jo      err_ov
         dispatch
 ; ::::::::::::::
 ; bc_I_NOT - I.NOT ( i -- i ).
 ; ::::::::::::::
 bc_I_NOT:
-        not     word ptr [esp]
+        not     dword ptr [esp]
         dispatch
 
 ; FLOAT operators: the right in EAX, the left popped to EDX, bflt's k.
@@ -262,13 +261,13 @@ ctail   macro   cif
         dispatch
         endm
 
-; INT compare: left popped to DX, the right in AX.
+; INT compare: left popped to EDX, the right in EAX.
 icmp    macro   nm,src,cif
         local   @icl
 bc_&nm:
         isrc    src
         pop     edx
-        cmp     dx,ax
+        cmp     edx,eax
         mov     al,1
         jg      @icl
         mov     al,2
@@ -314,7 +313,7 @@ bc_&nm:
 ; ::::::::::::::
 bc_I_IF:
         pop     eax
-        test    ax,ax
+        test    eax,eax
         jz      ex_nextln
         dispatch
 ; ::::::::::::::
@@ -331,7 +330,7 @@ bc_F_IF:
 ; ::::::::::::::
 bc_I_TOF:
         pop     eax
-        fcall   flt_from16
+        fcall   flt_from32
         push    eax
         dispatch
 ; ::::::::::::::
@@ -339,7 +338,7 @@ bc_I_TOF:
 ; ::::::::::::::
 bc_F_TOI:
         pop     eax
-        fcall   flt_fix16
+        fcall   flt_fix32
         push    eax
         dispatch
 ; ::::::::::::::
@@ -350,6 +349,7 @@ bc_F_TOB:
         fcall   flt_fix16
         test    ah,ah
         jnz     err_iq
+        movzx   eax,al
         push    eax
         dispatch
 ; ::::::::::::::
@@ -358,21 +358,22 @@ bc_F_TOB:
 bc_F_TOA:
         pop     eax
         fcall   flt_fixu16
+        movzx   eax,ax
         push    eax
         dispatch
 ; ::::::::::::::
 ; bc_I_TOB - I.TOB ( i -- i ): 0..255.
 ; ::::::::::::::
 bc_I_TOB:
-        cmp     byte ptr [esp+1],0
-        jne     err_iq
+        cmp     dword ptr [esp],255
+        ja      err_iq
         dispatch
 ; ::::::::::::::
 ; bc_I_TOA - I.TOA ( i -- i ): 0..65535.
 ; ::::::::::::::
 bc_I_TOA:
-        test    byte ptr [esp+1],80h
-        jnz     err_iq
+        cmp     dword ptr [esp],65535
+        ja      err_iq
         dispatch
 ; ::::::::::::::
 ; bc_DROP - DROP ( x -- ).

@@ -34,14 +34,22 @@ ipfix   macro
 @ipb:
         endm
 
+; ?ILLEGAL QUANTITY unless the subscript in EAX fits a word, as the 16-bit
+; build's did. Kills ECX.
+subchk  macro
+        movsx   ecx,ax
+        cmp     ecx,eax
+        jne     err_iq
+        endm
+
 ; The STOP key: BREAK, CONT runs this op again.
 stopchk macro
         cmp     [g_state.rn.stpflg],0
         jne     ex_brk
         endm
 
-; EDI = element AX of the 1-D array whose id is at ESI; else to slow with EBX
-; the id * 2. sh: 0 an INT, 1 a string, 2 a FLOAT.
+; EDI = element EAX of the 1-D array whose id is at ESI; else to slow with
+; EBX the id * 2. sh: 1 a string, 2 an INT or a FLOAT.
 a1get   macro   sh,slow
         movzx   ebx,byte ptr [esi]
         inc     esi
@@ -49,12 +57,10 @@ a1get   macro   sh,slow
         mov     edi,[g_vt+ebx*2]
         cmp     byte ptr [edi],1
         jne     slow
-        cmp     ax,[edi+AH_FAST]
+        movzx   ecx,word ptr [edi+AH_FAST]
+        cmp     eax,ecx
         jae     slow
-        movzx   eax,ax
-  if sh eq 0
-        add     eax,eax
-  elseif sh eq 1
+  if sh eq 1
         lea     eax,[eax+eax*2]
         add     eax,eax
   else
