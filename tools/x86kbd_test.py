@@ -58,7 +58,7 @@ stk     label   byte
 def stuffer(work: Path, text: str) -> None:
     """KEYS.COM: text in the keyboard buffer (INT 16h AH=05h), then BASIC.COM as its child."""
     (work / "keys.asm").write_text(KEYS_ASM % ",".join(str(b) for b in text.encode()))
-    subprocess.run([str(x86run.LLRM / "jwasm"), "-q", "-bin", "-Fo", "KEYS.COM", "keys.asm"], cwd=work, check=True)
+    subprocess.run([os.environ.get("JWASM", "/Users/alim/work/personal/llrm-qbmac/target/release/jwasm"), "-q", "-bin", "-Fo", "KEYS.COM", "keys.asm"], cwd=work, check=True)
 
 
 def main() -> None:
@@ -69,7 +69,7 @@ def main() -> None:
     job = f":ms 2000\nmount c {work}\nc:\nKEYS.COM > OUT.TXT\n.\n"
     with open(work / "events.txt", "wb") as ev:
         subprocess.run(
-            [str(x86run.LLRM / "dosbox-x"), "-nolog", "-conf", str(work / "job.conf")],
+            [str(x86run.DOSBOX), "-nolog", "-conf", str(work / "job.conf")],
             input=job.encode(),
             pass_fds=(ev.fileno(),),
             env=dict(os.environ, SDL_VIDEODRIVER="dummy", DOSRUN_FD=str(ev.fileno())),

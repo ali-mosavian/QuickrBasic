@@ -21,7 +21,7 @@ TY ?= ty
 TYFLAGS ?= --extra-search-path $(shell python3 -c 'import numpy, pathlib; print(pathlib.Path(numpy.__file__).parents[1])')
 export ISORT RUFF TY TYFLAGS
 
-.PHONY: x86 ide test gate fpcheck fpall mathbench size repl style clean
+.PHONY: x86 x86f ide test gate fpcheck fpall mathbench size repl style clean
 
 test:
 	$(PY) tools/harness.py test
@@ -68,6 +68,16 @@ x86:                            # the DOS .COM, build/x86/basic.com
 		-Fo ../../build/x86/main.obj main.asm   # again, the data at the code's end
 	$(LLRM_BIN)/jwlink option quiet format dos com file build/x86/main.obj name build/x86/raw.com
 	tail -c +257 build/x86/raw.com > build/x86/basic.com   # jwlink keeps the 100h bytes before org
+
+# llrm's pinned Open Watcom: its DOS/32A
+DOS32A ?= $(HOME)/.cache/llrm/open-watcom-v2-703e1ae2f9a621dda2d28fb39b12d0d6d2788af6/bld/redist/dos32a
+x86f:                           # flat 32-bit, build/x86/basic32.exe, DOS32A.EXE beside it
+	mkdir -p build/x86f
+	cd src/x86f && $(LLRM_BIN)/jwasm -q -zf0 -Fl=../../build/x86f/main.lst -Fo ../../build/x86f/main.obj main.asm
+	$(LLRM_BIN)/jwlink option quiet format os2 le option stub=$(DOS32A)/stub32a.exe \
+		file build/x86f/main.obj name build/x86f/basic32.exe
+	cp build/x86f/basic32.exe build/x86/basic32.exe
+	$(PY) tools/x86d32a.py $(DOS32A)/dos32a.exe build/x86/DOS32A.EXE
 
 AC ?= 1                         # ide: Tab completion, AC=0 leaves it out
 ide:                            # with the full-screen editor, build/x86/basic-ide.com

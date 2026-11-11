@@ -1,0 +1,308 @@
+; ==========================================================================
+; bc.asm - handlers for the ops the 16-bit build writes out as machine code
+; ==========================================================================
+; holds:    bc_* the loads, stores, INT and FLOAT operators, compares, IF,
+;           conversions, DROP
+; uses:     flt_*, int_div, ex_nextln, err_ov, err_iq
+; data:     As comp/native.asm's templates: an INT op writes the top cell's
+;           low word; a compare's mask, its last operand: 1 greater, 2
+;           equal, 4 less.
+; ==========================================================================
+
+; EBX = the slot of the variable id at ESI, ESI past it.
+bvar    macro
+        movzx   ebx,byte ptr [esi]
+        inc     esi
+        lea     ebx,[VARBASE+ebx*4]
+        endm
+
+; flt routine fn with ESI kept.
+fcall   macro   fn
+        push    esi
+        call    fn
+        pop     esi
+        endm
+
+; AX = an INT right operand. src: 0 popped, 1 a variable, 2 the U8.
+isrc    macro   src
+  if src eq 0
+        pop     eax
+  elseif src eq 1
+        bvar
+        mov     ax,[ebx]
+  else
+        movzx   eax,byte ptr [esi]
+        inc     esi
+  endif
+        endm
+
+; EAX = a FLOAT right operand. src: 0 popped, 1 a variable, 2 an INT
+; variable, 3 the U8, 4 the F32.
+fsrc    macro   src
+  if src eq 0
+        pop     eax
+  elseif src eq 1
+        bvar
+        mov     eax,[ebx]
+  elseif src eq 2
+        bvar
+        mov     ax,[ebx]
+        fcall   flt_from16
+  elseif src eq 3
+        movzx   eax,byte ptr [esi]
+        inc     esi
+        fcall   flt_from16
+  else
+        mov     eax,[esi]
+        add     esi,4
+  endif
+        endm
+
+bc_I_LD_V:
+bc_F_LD_V:
+        bvar
+        push    dword ptr [ebx]
+        dispatch
+bc_I_LD_I16:
+        movzx   eax,word ptr [esi]
+        add     esi,2
+        push    eax
+        dispatch
+bc_I_LD_U8:
+        movzx   eax,byte ptr [esi]
+        inc     esi
+        push    eax
+        dispatch
+bc_F_LD_F32:
+        push    dword ptr [esi]
+        add     esi,4
+        dispatch
+bc_F_LD_U8:
+        fsrc    3
+        push    eax
+        dispatch
+bc_F_LD_VI:
+        fsrc    2
+        push    eax
+        dispatch
+bc_F_LD_PI:
+        fcall   flt_pi
+        push    eax
+        dispatch
+bc_S_LD_V:
+        movzx   eax,byte ptr [esi]
+        inc     esi
+        lea     eax,[SVBASE+eax*8]
+        push    eax
+        dispatch
+bc_I_ST_V:
+        bvar
+        pop     eax
+        mov     [ebx],ax
+        dispatch
+bc_F_ST_V:
+        bvar
+        pop     dword ptr [ebx]
+        dispatch
+
+; INT operators on the top cell: k 0 + 1 - 2 * 3 / 4 AND 5 OR.
+ibin    macro   nm,src,k
+bc_&nm:
+        isrc    src
+  if k eq 0
+        add     [esp],ax
+        jo      err_ov
+  elseif k eq 1
+        sub     [esp],ax
+        jo      err_ov
+  elseif k eq 2
+        imul    ax,[esp]
+        jo      err_ov
+        mov     [esp],ax
+  elseif k eq 3
+        mov     ebp,esp
+        push    esi
+        call    int_div
+        pop     esi
+        mov     [esp],ax
+  elseif k eq 4
+        and     [esp],ax
+  else
+        or      [esp],ax
+  endif
+        dispatch
+        endm
+
+        ibin    I_ADD,0,0
+        ibin    I_SUB,0,1
+        ibin    I_MUL,0,2
+        ibin    I_DIV,0,3
+        ibin    I_AND,0,4
+        ibin    I_OR,0,5
+        ibin    I_ADD_V,1,0
+        ibin    I_SUB_V,1,1
+        ibin    I_MUL_V,1,2
+        ibin    I_DIV_V,1,3
+        ibin    I_AND_V,1,4
+        ibin    I_OR_V,1,5
+        ibin    I_ADD_U8,2,0
+        ibin    I_SUB_U8,2,1
+        ibin    I_MUL_U8,2,2
+        ibin    I_DIV_U8,2,3
+        ibin    I_AND_U8,2,4
+        ibin    I_OR_U8,2,5
+
+bc_I_NEG:
+        neg     word ptr [esp]
+        jo      err_ov
+        dispatch
+bc_I_NOT:
+        not     word ptr [esp]
+        dispatch
+
+; FLOAT operators: the right in EAX, the left popped to EDX, bflt's k.
+fbin    macro   nm,src,k
+bc_&nm:
+        fsrc    src
+        pop     edx
+        push    esi
+        call    [bflt+k*4]
+        pop     esi
+        push    eax
+        dispatch
+        endm
+
+        fbin    F_ADD,0,0
+        fbin    F_SUB,0,1
+        fbin    F_MUL,0,2
+        fbin    F_DIV,0,3
+        fbin    F_ADD_V,1,0
+        fbin    F_SUB_V,1,1
+        fbin    F_MUL_V,1,2
+        fbin    F_DIV_V,1,3
+        fbin    F_ADD_VI,2,0
+        fbin    F_SUB_VI,2,1
+        fbin    F_MUL_VI,2,2
+        fbin    F_DIV_VI,2,3
+        fbin    F_ADD_U8,3,0
+        fbin    F_SUB_U8,3,1
+        fbin    F_MUL_U8,3,2
+        fbin    F_DIV_U8,3,3
+        fbin    F_ADD_F32,4,0
+        fbin    F_SUB_F32,4,1
+        fbin    F_MUL_F32,4,2
+        fbin    F_DIV_F32,4,3
+
+bc_F_NEG:
+        test    dword ptr [esp],7F800000h
+        jz      @F
+        xor     byte ptr [esp+3],80h
+@@:
+        dispatch
+
+; The relation's bit in AL, the mask at ESI: a compare pushes -1 or 0, a
+; CMPIF's false ends the line.
+ctail   macro   cif
+        inc     esi
+        and     al,[esi-1]              ; ZF after the inc: jz reads it
+  if cif
+        jz      ex_nextln
+  else
+        neg     al
+        sbb     eax,eax
+        push    eax
+  endif
+        dispatch
+        endm
+
+; INT compare: left popped to DX, the right in AX.
+icmp    macro   nm,src,cif
+        local   l1
+bc_&nm:
+        isrc    src
+        pop     edx
+        cmp     dx,ax
+        mov     al,1
+        jg      l1
+        mov     al,2
+        je      l1
+        mov     al,4
+l1:
+        ctail   cif
+        endm
+
+        icmp    I_CMP,0,0
+        icmp    I_CMP_V,1,0
+        icmp    I_CMP_U8,2,0
+        icmp    I_CMPIF,0,1
+        icmp    I_CMPIF_V,1,1
+        icmp    I_CMPIF_U8,2,1
+
+; FLOAT compare: flt_cmp's FFh, 0, 1 the mask's bit 0, 1, 2.
+fcmp    macro   nm,src,cif
+bc_&nm:
+        fsrc    src
+        pop     edx
+        fcall   flt_cmp
+        mov     cl,al
+        inc     cl
+        mov     al,1
+        shl     al,cl
+        ctail   cif
+        endm
+
+        fcmp    F_CMP,0,0
+        fcmp    F_CMP_V,1,0
+        fcmp    F_CMP_VI,2,0
+        fcmp    F_CMP_U8,3,0
+        fcmp    F_CMP_F32,4,0
+        fcmp    F_CMPIF,0,1
+        fcmp    F_CMPIF_V,1,1
+        fcmp    F_CMPIF_VI,2,1
+        fcmp    F_CMPIF_U8,3,1
+        fcmp    F_CMPIF_F32,4,1
+
+bc_I_IF:
+        pop     eax
+        test    ax,ax
+        jz      ex_nextln
+        dispatch
+bc_F_IF:
+        pop     eax
+        test    eax,7F800000h
+        jz      ex_nextln
+        dispatch
+
+bc_I_TOF:
+        pop     eax
+        fcall   flt_from16
+        push    eax
+        dispatch
+bc_F_TOI:
+        pop     eax
+        fcall   flt_fix16
+        push    eax
+        dispatch
+bc_F_TOB:
+        pop     eax
+        fcall   flt_fix16
+        test    ah,ah
+        jnz     err_iq
+        push    eax
+        dispatch
+bc_F_TOA:
+        pop     eax
+        fcall   flt_fixu16
+        push    eax
+        dispatch
+bc_I_TOB:
+        cmp     byte ptr [esp+1],0
+        jne     err_iq
+        dispatch
+bc_I_TOA:
+        test    byte ptr [esp+1],80h
+        jnz     err_iq
+        dispatch
+bc_DROP:
+        add     esp,4
+        dispatch

@@ -9,8 +9,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-LLRM = Path("/Users/alim/work/personal/llrm-qbmac/target/release")
-COM = ROOT / "build/x86/basic.com"
+# llrm release/next's DOSBox: DOSBOX_BIN, else the dosrun fork at the commit toolchain/dosrunbuild.sh pins.
+CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "llrm"
+DOSBOX = Path(os.environ.get("DOSBOX_BIN", CACHE / "dosbox-x-eea2b2da0203d37ff51e34a8f714af8110fe0162/src/dosbox-x"))
+COM = Path(os.environ.get("X86_COM", ROOT / "build/x86/basic.com"))  # X86_COM: basic32.exe too
 
 CONF = """[sdl]
 priority=higher,normal
@@ -48,6 +50,8 @@ def run(jobs: dict[str, str], work: Path, limit_ms: int = 60000) -> dict[str, Re
         shutil.rmtree(work)
     work.mkdir(parents=True)
     shutil.copy(COM, work / "BASIC.COM")
+    if (COM.parent / "DOS32A.EXE").exists() and COM.suffix.lower() == ".exe":  # stub32a loads it from the program's directory
+        shutil.copy(COM.parent / "DOS32A.EXE", work / "DOS32A.EXE")
     names = list(jobs)
     lines = []
     for i, name in enumerate(names):
@@ -59,7 +63,7 @@ def run(jobs: dict[str, str], work: Path, limit_ms: int = 60000) -> dict[str, Re
     with open(work / "events.txt", "wb") as ev, open(work / "jobs.txt", "rb") as jin:
         env = dict(os.environ, SDL_VIDEODRIVER="dummy", DOSRUN_FD=str(ev.fileno()))
         subprocess.run(
-            [str(LLRM / "dosbox-x"), "-nolog", "-conf", str(work / "job.conf")],
+            [str(DOSBOX), "-nolog", "-conf", str(work / "job.conf")],
             stdin=jin,
             pass_fds=(ev.fileno(),),
             env=env,
