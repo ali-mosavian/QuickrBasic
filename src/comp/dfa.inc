@@ -33,6 +33,7 @@ PS_TOK  = 0FFh
 ST_LET  = 8
 ST_GOTO = 9
 ST_GO   = 33
+ifdef DFA_DATA                  ; the tables: comp/lex.asm's alone
         .data
 sc_cls  label   byte
         db      000h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h
@@ -547,3 +548,4 @@ ps_ent  label   byte
         db      011h,012h,013h,013h,013h,014h,015h,016h,017h,018h,019h,01Ah,01Bh,01Ch,01Dh,01Eh,01Fh
         db      020h
         .code
+endif

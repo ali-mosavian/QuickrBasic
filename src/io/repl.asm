@@ -9,6 +9,9 @@
 ;     rpl_enter        lx_line; a numbered line: prg_put
 ; ==========================================================================
 
+include x86f.inc
+        .code
+
 ; ::::::::::::::
 ; err_id - ?ILLEGAL DIRECT.
 ;
@@ -234,3 +237,5 @@ rpl_enter:
         mov     al,2
 @ren_r:
         ret
+
+        end

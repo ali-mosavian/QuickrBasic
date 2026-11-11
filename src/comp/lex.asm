@@ -16,6 +16,11 @@
 ;     lx_scan          the scanner: the lowest keyword that is a prefix
 ; ==========================================================================
 
+include x86f.inc
+DFA_DATA = 1
+include comp/dfa.inc
+        .code
+
 ; ::::::::::::::
 ; lx_line - tokenize the text at SI into the body at DI.
 ;
@@ -320,3 +325,5 @@ lxact   dd      lt_put,lt_end,lt_nbeg,lt_ndig,lt_nput,lt_nend,lt_vbeg,lt_fbeg
         dd      lt_nchr,lt_npct,lt_ndol,lt_nlen,lt_fend,lt_nvar,lt_narr,lt_skip
         .code
 .erre LT_SKIP eq 15, <lxact: the order of tools/x86dfa.py's TK_ACTS>
+
+        end

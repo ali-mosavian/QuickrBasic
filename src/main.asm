@@ -1,8 +1,8 @@
 ; ==========================================================================
 ; main.asm - the .COM image: startup, then every module
 ; ==========================================================================
-; holds:    rt_start; the include list
-; uses:     every module, as one translation unit
+; holds:    rt_start; the regions at the end
+; uses:     plt_init, prg_init, flt_finit, rpl_ready
 ; data:     CS the code, below CSOFF, and the code cache over the data's
 ;           free part; DS=SS=ES CS+CSOFF/16, the data, its image moved there
 ;           at the start. FS the POKE segment; GS the program; the heap above.
@@ -11,12 +11,8 @@
 ; ==========================================================================
 ;           Flat: CS, DS, ES, SS the one 4G segment. The regions at the end.
 ; ==========================================================================
-        .386
-        .387
-        .model  flat
+include x86f.inc
         .stack  4096
-        option  casemap:none
-include def.inc
 
         .code
 
@@ -71,46 +67,6 @@ old23   df      ?                       ; the vectors plt_init replaced
 old1c   df      ?
         .code
 
-include vm/isa.inc
-include vm/exec.asm
-include vm/flow.asm
-include vm/calls.asm
-include vm/builtins.asm
-include comp/dfa.inc
-include comp/lex.asm
-include comp/comp.asm
-include comp/expr.asm
-include comp/link.asm
-include vm/bc.asm
-include comp/list.asm
-if IDE
-include ui/scr.asm
-include ui/mouse.asm
-if AC
-include ui/compl.asm
-endif
-include ui/text.asm
-include ui/edit.asm
-include ui/draw.asm
-include ui/menu.asm
-include ui/dlg.asm
-include ui/sync.asm
-include ui/ui.asm
-endif
-include mem/far.asm
-include mem/prog.asm
-include mem/sym.asm
-include mem/str.asm
-include mem/arr.asm
-include io/io.asm
-include io/repl.asm
-include io/file.asm
-include io/plat.asm
-include float/flt.asm
-include float/ftr.asm
-include float/fpu.asm
-include gen.inc
-include data.inc
         .data?
         align   4
 dsb     db      10000h dup(?)           ; the 16-bit build's DS, as one block
@@ -119,6 +75,15 @@ pokeb   db      10000h dup(?)
 cachb   db      10000h dup(?)
 stkb    db      STKSZ dup(?)
 heapb   db      HEAPSZ dup(?)
+if IDE
+txb     db      10000h dup(?)           ; the editor's text
+clpb    db      10000h dup(?)           ; its clipboard
+wrkb    db      10000h dup(?)           ; a file's bytes
+scrb    db      4000 dup(?)             ; the screen as drawn, then shown
+hlpb    db      HLPSZ dup(?)
+uibuf   db      UIBSZ dup(?)
+aclb    db      AC_MAX*AC_SZ dup(?)
+endif
         .code
 
         end     rt_start

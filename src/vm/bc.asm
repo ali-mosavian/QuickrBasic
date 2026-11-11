@@ -11,6 +11,9 @@
 ;   bc_*               dispatch to the next op
 ; ==========================================================================
 
+include x86f.inc
+        .code
+
 ; EBX = the slot of the variable id at ESI, ESI past it.
 bvar    macro
         movzx   ebx,byte ptr [esi]
@@ -377,3 +380,5 @@ bc_I_TOA:
 bc_DROP:
         add     esp,4
         dispatch
+
+        end

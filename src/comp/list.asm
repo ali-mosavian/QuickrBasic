@@ -11,6 +11,9 @@
 ;     ls_line          a line at a time
 ; ==========================================================================
 
+include x86f.inc
+        .code
+
 ; ::::::::::::::
 ; ls_all - list every line.
 ; ::::::::::::::
@@ -132,3 +135,5 @@ else
         pop     esi
         jmp     io_nl
 endif
+
+        end

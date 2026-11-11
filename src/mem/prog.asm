@@ -12,6 +12,9 @@
 ;     prg_drop         CONT and lc end; (pend) = 0; var_clr
 ; ==========================================================================
 
+include x86f.inc
+        .code
+
 ; ::::::::::::::
 ; prg_findw - find the line numbered lnum, from lc when lc is not above it.
 ;
@@ -156,3 +159,5 @@ prg_init:
         mov     [vend],VARBASE
         mov     [nsyms],0
         jmp     prg_drop
+
+        end

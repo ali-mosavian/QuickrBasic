@@ -14,67 +14,8 @@
 ;   ex_lp              a handler; back by dispatch or jmp ex_lp
 ; ==========================================================================
 
-dispatch macro
-        movzx   ebx,byte ptr [esi]
-        mov     [opip],esi              ; the op, for CONT after a BREAK
-        inc     esi
-        add     ebx,ebx
-        jmp     [ops+ebx*2]
-        endm
-
-; EBX = the slot offset (id * 4) of the variable id at ESI, ESI past it.
-vslot   macro
-        movzx   ebx,byte ptr [esi]
-        inc     esi
-        shl     ebx,2
-        endm
-
-; ESI = a frame's or CONT's ip, DX its line, from AX: a 16-bit stream
-; offset, or an offset in its line's code (cm_flush), under DCODE, which the
-; direct line never has.
-ipfix   macro
-        local   @ipa,@ipb
-        movzx   esi,ax
-        cmp     esi,DCODE
-        jae     @ipa
-        cmp     dx,DLINE
-        je      @ipa
-        call    ex_resolve
-        jmp     @ipb
-@ipa:
-        add     esi,offset cachb
-@ipb:
-        endm
-
-; The STOP key: BREAK, CONT runs this op again.
-stopchk macro
-        cmp     [stpflg],0
-        jne     ex_brk
-        endm
-
-; EDI = element AX of the 1-D array whose id is at ESI; else to slow with EBX
-; the id * 2. sh: 0 an INT, 1 a string, 2 a FLOAT.
-a1get   macro   sh,slow
-        movzx   ebx,byte ptr [esi]
-        inc     esi
-        add     ebx,ebx
-        mov     edi,[vt+ebx*2]
-        cmp     byte ptr [edi],1
-        jne     slow
-        cmp     ax,[edi+AH_FAST]
-        jae     slow
-        movzx   eax,ax
-  if sh eq 0
-        add     eax,eax
-  elseif sh eq 1
-        lea     eax,[eax+eax*2]
-        add     eax,eax
-  else
-        shl     eax,2
-  endif
-        add     eax,[edi+AH_PTR]
-        mov     edi,eax
-        endm
+include x86f.inc
+        .code
 
 ; ::::::::::::::
 ; ex_lp - run ops from ESI.
@@ -363,3 +304,24 @@ op_call:
         inc     esi
         add     ebx,ebx
         jmp     [calls+ebx*2]
+
+        .data
+ops     label   dword
+        oplist  opd
+calls   dd      sc_ipr,sc_fpr,sc_spr,sc_pnl,sc_pzone,sc_ptab,sc_pspc
+        dd      sc_fin,sc_sin,sc_fget,sc_sget,sc_inbeg,sc_inpr,sc_infile,sc_inend
+        dd      sc_fread,sc_sread,sc_res,sc_resl,sc_dim
+        dd      sc_open,sc_close,sc_fiout,sc_fiin,sc_ficlr,sc_load,sc_save,sc_vfy
+        dd      sc_run,sc_runl,sc_list,sc_cont,sc_clr,sc_new,sc_nodir,sc_end,sc_stop
+        dd      sc_poke,sc_wait,sc_wait2,sc_sys,sc_stti
+        dd      sc_ipow,sc_fpow,sc_fti,sc_sti,sc_ist
+        dd      20 dup(sc_fn1)
+        dd      sc_left,sc_right,sc_mid,sc_mid2
+
+bflt    dd      flt_add,flt_sub,flt_mul,flt_div,fn_pow
+fntab   dd      fn_sgn,fn_int,fn_abs,fn_usr,fn_fre,fn_pos,fn_sqr,fn_rnd,fn_log,fn_exp
+        dd      fn_cos,fn_sin,fn_tan,fn_atn,fn_peek,fn_len,fn_fstr,fn_val,fn_asc
+        dd      fn_chr
+        .code
+
+        end

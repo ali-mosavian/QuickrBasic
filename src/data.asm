@@ -1,6 +1,13 @@
 ; ==========================================================================
-; data.inc - the variables, zeroed at start
+; data.asm - the variables, zeroed at start; gen.inc's tables
 ; ==========================================================================
+; holds:    the modules' variables, bss_s to bss_e; msgs, kwlist (gen.inc)
+; uses:     nothing: data only
+; calls:
+;   none
+; ==========================================================================
+
+include x86f.inc
 
         .data?
 bss_s   label   byte
@@ -195,3 +202,7 @@ xbuf    db      264 dup(?)
 lbuf    db      264 dup(?)
 bss_e   label   byte
         .code
+
+include gen.inc
+
+        end

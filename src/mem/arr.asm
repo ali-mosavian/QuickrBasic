@@ -10,6 +10,9 @@
 ;   arr_ref            a new array: arr_new, every count 11
 ; ==========================================================================
 
+include x86f.inc
+        .code
+
 ; ::::::::::::::
 ; arr_esz - the element size of an array.
 ;
@@ -203,3 +206,5 @@ arr_new:
         and     al,0FCh
         cmp     eax,[sfr]
         ret
+
+        end

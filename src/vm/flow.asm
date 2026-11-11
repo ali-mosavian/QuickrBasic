@@ -12,6 +12,9 @@
 ;     for_any          a % inline, else flt_add
 ; ==========================================================================
 
+include x86f.inc
+        .code
+
 ; DST, a word = ESI's stream offset. Uses EAX.
 ipst    macro   dst
         mov     eax,esi
@@ -678,3 +681,5 @@ ex_nodir:
         ret
 
 ; --------------------------------------------------------------------------
+
+        end

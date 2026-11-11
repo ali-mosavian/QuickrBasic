@@ -2,7 +2,7 @@
 ; vm/isa.inc - the instruction set: the ops, the CALL routines, their tables
 ; ==========================================================================
 ; data:     oplist: each op's name, handler, size (0 varies) and flags. O_* the
-;           ops, K_* the CALL routines.
+;           ops, K_* the CALL routines. Their tables are in vm/exec.asm.
 ; ==========================================================================
 
 ; The ops: name, handler, size (0 varies), flags: FX an
@@ -128,9 +128,13 @@ oplist  macro   m
         endm
 
 opn     = 0
-opd     macro   nm,h,sz,fl
+opc     macro   nm,h,sz,fl
 O_&nm   = opn
 opn     = opn+1
+        endm
+        oplist  opc
+O_NOPS  = opn
+opd     macro   nm,h,sz,fl
         dd      h
         endm
 opszm   macro   nm,h,sz,fl
@@ -139,12 +143,6 @@ opszm   macro   nm,h,sz,fl
 opflm   macro   nm,h,sz,fl
         db      fl
         endm
-
-        .data
-ops     label   dword
-        oplist  opd
-O_NOPS  = opn
-        .code
 
 ; The CALL routines: the statements' first, then from K_IPOW an expression's.
 K_IPR   = 0
@@ -198,20 +196,3 @@ K_FN    = 47                    ; SGN .. MID$ by token, then MID$ of two
 K_LEFT  = K_FN+TK_MID-TK_SGN-2
 K_MID2  = K_FN+TK_MID-TK_SGN+1
 K_N     = K_MID2+1
-
-        .data
-calls   dd      sc_ipr,sc_fpr,sc_spr,sc_pnl,sc_pzone,sc_ptab,sc_pspc
-        dd      sc_fin,sc_sin,sc_fget,sc_sget,sc_inbeg,sc_inpr,sc_infile,sc_inend
-        dd      sc_fread,sc_sread,sc_res,sc_resl,sc_dim
-        dd      sc_open,sc_close,sc_fiout,sc_fiin,sc_ficlr,sc_load,sc_save,sc_vfy
-        dd      sc_run,sc_runl,sc_list,sc_cont,sc_clr,sc_new,sc_nodir,sc_end,sc_stop
-        dd      sc_poke,sc_wait,sc_wait2,sc_sys,sc_stti
-        dd      sc_ipow,sc_fpow,sc_fti,sc_sti,sc_ist
-        dd      20 dup(sc_fn1)
-        dd      sc_left,sc_right,sc_mid,sc_mid2
-
-bflt    dd      flt_add,flt_sub,flt_mul,flt_div,fn_pow
-fntab   dd      fn_sgn,fn_int,fn_abs,fn_usr,fn_fre,fn_pos,fn_sqr,fn_rnd,fn_log,fn_exp
-        dd      fn_cos,fn_sin,fn_tan,fn_atn,fn_peek,fn_len,fn_fstr,fn_val,fn_asc
-        dd      fn_chr
-        .code

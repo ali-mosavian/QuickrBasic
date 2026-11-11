@@ -14,6 +14,9 @@
 ;     flt_poly
 ; ==========================================================================
 
+include x86f.inc
+        .code
+
 fcon    macro   sg,m,e
         dd      ((e+FBIAS) SHL 23) OR (sg SHL 31) OR (m AND 7FFFFFh)
         endm
@@ -496,3 +499,5 @@ fn_sqr:
         jnz     @osq_l
 @osq_r:
         ret
+
+        end

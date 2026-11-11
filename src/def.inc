@@ -32,6 +32,7 @@ ENDIF
 XSLK    = 48                    ; cm_xlate: the most one op writes past its size
 XLIM    = 252                   ; compile room: ERR code, EOL still fit
 NL      = 13
+NFILE   = 10                    ; open files at most
 
 ; a FOR frame on the control stack: mark, ln:2, ip:2, id:1, step:4, limit:4,
 ; cache:4. With whole bounds: step:2, count:2, limit:2, FFFFh (a NaN, no float).
@@ -157,6 +158,10 @@ HDRBASE  equ     <(offset dsb+0BC00h)>   ; the arrays' headers
 HDRLIM   equ     <(offset dsb+0E000h)>
 ifndef AC
 AC       = IDE                  ; Tab completion in the editor
+endif
+if IDE
+HLPSZ    = 2048                 ; BASIC.HLP, the menus' help lines, at hlpb
+VIDEO    = 0B8000h              ; page 0 of the text screen, linear
 endif
 DCODE    = 0100h                ; in cachb: the direct line's stream
 CACHE0   = DCODE+1536           ; the cache, to CLIM

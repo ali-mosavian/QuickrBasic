@@ -7,6 +7,9 @@
 ;   fil_load           NEW, then rpl_enter per line
 ; ==========================================================================
 
+include x86f.inc
+        .code
+
 ; ::::::::::::::
 ; fil_open - plt_open, then fil_chk.
 ;
@@ -138,3 +141,5 @@ fil_verify:
         call    io_msg
 @jt_file1:
         jmp     ex_lp
+
+        end

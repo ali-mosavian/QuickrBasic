@@ -21,7 +21,7 @@ TY ?= ty
 TYFLAGS ?= --extra-search-path $(shell python3 -c 'import numpy, pathlib; print(pathlib.Path(numpy.__file__).parents[1])')
 export ISORT RUFF TY TYFLAGS
 
-.PHONY: x86 x86f ide test gate fpcheck fpall mathbench size repl style clean
+.PHONY: x86 x86f x86f-ide ide test gate fpcheck fpall mathbench size repl style clean
 
 test:
 	$(PY) tools/harness.py test
@@ -39,6 +39,7 @@ test:
 	sh test/tools/f8tab_stale.sh
 	sh test/tools/lexcheck.sh
 	sh test/tools/x86dfa.sh
+	sh test/tools/x86syms.sh
 	sh test/tools/stock_norm.sh
 	sh test/tools/build_stamp.sh
 
@@ -60,6 +61,7 @@ size:
 repl:
 	tools/repl.sh
 
+comma := ,
 LLRM_BIN ?= /Users/alim/work/personal/llrm-qbmac/target/release
 
 x86:                            # the DOS .COM, build/x86/basic.com
@@ -72,12 +74,34 @@ x86:                            # the DOS .COM, build/x86/basic.com
 
 # llrm's pinned Open Watcom: its DOS/32A
 DOS32A ?= $(HOME)/.cache/llrm/open-watcom-v2-703e1ae2f9a621dda2d28fb39b12d0d6d2788af6/bld/redist/dos32a
-x86f:                           # flat 32-bit, build/x86/basic32.exe, DOS32A.EXE beside it
-	mkdir -p build/x86f
-	cd src/x86f && $(LLRM_BIN)/jwasm -q -zf0 -Fl=../../build/x86f/main.lst -Fo ../../build/x86f/main.obj main.asm
-	$(LLRM_BIN)/jwlink option quiet format os2 le option stub=$(DOS32A)/stub32a.exe \
-		file build/x86f/main.obj name build/x86f/basic32.exe
+X86F_MODS := main data vm/exec vm/flow vm/calls vm/builtins vm/bc comp/lex comp/comp \
+	comp/expr comp/link comp/list mem/far mem/prog mem/sym mem/str mem/arr io/io io/repl \
+	io/file io/plat float/flt float/ftr float/fpu
+X86F_UI := ui/scr ui/mouse ui/compl ui/text ui/edit ui/draw ui/menu ui/dlg ui/sync ui/ui \
+	ui/uidata
+X86F_INC := $(wildcard src/x86f/*.inc src/x86f/*/*.inc)
+X86F_OBJ := $(X86F_MODS:%=build/x86f/%.obj)
+X86F_IDE_OBJ := $(X86F_MODS:%=build/x86f-ide/%.obj) $(X86F_UI:%=build/x86f-ide/%.obj)
+LE_LINK = $(LLRM_BIN)/jwlink option quiet format os2 le option stub=$(DOS32A)/stub32a.exe
+
+# each module on its own, the shared header x86f.inc (tools/x86syms.py)
+build/x86f/%.obj: src/x86f/%.asm $(X86F_INC)
+	@mkdir -p $(@D)
+	cd src/x86f && $(LLRM_BIN)/jwasm -q -zf0 -Fl=$(abspath $(@:.obj=.lst)) -Fo $(abspath $@) $*.asm
+build/x86f-ide/%.obj: src/x86f/%.asm $(X86F_INC)
+	@mkdir -p $(@D)
+	cd src/x86f && $(LLRM_BIN)/jwasm -q -zf0 -DIDE=1 -DAC=$(AC) -Fl=$(abspath $(@:.obj=.lst)) \
+		-Fo $(abspath $@) $*.asm
+
+x86f: $(X86F_OBJ)               # flat 32-bit, build/x86/basic32.exe, DOS32A.EXE beside it
+	$(LE_LINK) file $(subst $(eval) ,$(comma),$(X86F_OBJ)) name build/x86f/basic32.exe
 	cp build/x86f/basic32.exe build/x86/basic32.exe
+	$(PY) tools/x86d32a.py $(DOS32A)/dos32a.exe build/x86/DOS32A.EXE
+
+x86f-ide: $(X86F_IDE_OBJ)       # the flat build with the editor, build/x86/ide32.exe
+	$(LE_LINK) file $(subst $(eval) ,$(comma),$(X86F_IDE_OBJ)) name build/x86f-ide/ide32.exe
+	cp build/x86f-ide/ide32.exe build/x86/ide32.exe
+	cp src/x86f/ui/basic.hlp build/x86/BASIC.HLP
 	$(PY) tools/x86d32a.py $(DOS32A)/dos32a.exe build/x86/DOS32A.EXE
 
 AC ?= 1                         # ide: Tab completion, AC=0 leaves it out

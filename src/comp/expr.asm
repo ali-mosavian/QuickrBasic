@@ -12,6 +12,9 @@
 ;   cm_p               cm_un; the operators tighter than its precedence
 ; ==========================================================================
 
+include x86f.inc
+        .code
+
 ; ::::::::::::::
 ; cm_expr - compile an expression.
 ;
@@ -759,3 +762,4 @@ cmact   dd      cm_expr,cm_lval,cm_lnum,cm_tob,cm_toa,cm_tos,cm_str1,cm_fv
         dd      cm_n1,cm_narg,cm_fop
         .code
 
+        end

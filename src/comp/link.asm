@@ -13,6 +13,9 @@
 ;   cm_cache           cm_comp, the code copied past the program
 ; ==========================================================================
 
+include x86f.inc
+        .code
+
         .data
 opsz    label   byte
         oplist  opszm
@@ -467,3 +470,5 @@ cm_demf:
         jnz     cm_dem
 @rt_lin5:
         ret
+
+        end

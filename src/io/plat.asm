@@ -16,7 +16,8 @@
 ;   plt_open           device 0 stdin, 3 and 4 stdout, others DOS files
 ; ==========================================================================
 
-NFILE   = 10
+include x86f.inc
+        .code
 
 ; ::::::::::::::
 ; plt_init - the standard handles, the STOP key's vectors, the clock's origin.
@@ -682,3 +683,5 @@ plt_settim:
         add     eax,5184000
         mov     [toff],eax
         ret
+
+        end

@@ -14,6 +14,9 @@
 ;     flt_fst          the result, packed
 ; ==========================================================================
 
+include x86f.inc
+        .code
+
 ; ::::::::::::::
 ; flt_finit - find the FPU; with one, send the soft entries to the stubs.
 ;
@@ -58,7 +61,6 @@ fptab   dd      flt_add,flt_fadd,flt_sub,flt_fsub,flt_mul,flt_fmul,flt_div,flt_f
         dd      fn_sqr,flt_fsqr,fn_log,flt_flog,fn_exp,flt_fexp,fn_cos,flt_fcos
         dd      fn_sin,flt_fsin,fn_tan,flt_ftan,fn_atn,flt_fatn,0
         .code
-.erre flt_from32-flt_from16 ge 5, <flt_from16: room for the patched jmp>
 
 ; ::::::::::::::
 ; flt_fld - both operands to memory; the ARG on the x87 stack.
@@ -486,3 +488,5 @@ flt_fatn:
         fld1
         fpatan
         jmp     flt_fst
+
+        end

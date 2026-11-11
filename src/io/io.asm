@@ -7,6 +7,9 @@
 ;   io_field           io_prompt, io_read
 ; ==========================================================================
 
+include x86f.inc
+        .code
+
 ; ::::::::::::::
 ; io_int - print a signed word as PRINT does: " " or "-", digits, " ".
 ;
@@ -279,3 +282,5 @@ io_field:
 @iof_d:
         mov     [inpos],bl
         ret
+
+        end

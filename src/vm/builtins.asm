@@ -7,6 +7,9 @@
 ;   sc_fn1             fntab's fn_*, EAX in and out
 ; ==========================================================================
 
+include x86f.inc
+        .code
+
 ; ::::::::::::::
 ; sc_fn1 - a function of one value ( x -- y ): fntab's routine, EAX in and
 ; out.
@@ -238,3 +241,5 @@ fn_mid:
         je      err_iq
         dec     [s0v]
         jmp     str_sub
+
+        end

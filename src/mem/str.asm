@@ -14,6 +14,9 @@
 ;   str_alloc          full: str_gc
 ; ==========================================================================
 
+include x86f.inc
+        .code
+
 ; ::::::::::::::
 ; str_get - str_getd of the string value.
 ; ::::::::::::::
@@ -528,3 +531,5 @@ str_buftmp:
         add     eax,offset sbuf
         mov     [spt],eax
         jmp     str_tods
+
+        end

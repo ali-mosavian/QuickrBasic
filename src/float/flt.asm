@@ -16,6 +16,9 @@
 ;     flt_ow, flt_step, io_u24, io_putc
 ; ==========================================================================
 
+include x86f.inc
+        .code
+
 ; below the 24-bit significand, as src/core/num/num_f32.s.
 
 ; ::::::::::::::
@@ -908,3 +911,7 @@ flt_out:
         mov     [fdw],edi
         mov     al,'.'
         jmp     @fo_z
+
+.erre flt_from32-flt_from16 ge 5, <flt_from16: room for the patched jmp>
+
+        end

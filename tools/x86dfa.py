@@ -897,6 +897,7 @@ def emit(T: dict) -> str:
         f"ST_LET  = {T['ST_LET']}",
         f"ST_GOTO = {T['ST_GOTO']}",
         f"ST_GO   = {T['ST_GO']}",
+        "ifdef DFA_DATA                  ; the tables: comp/lex.asm's alone",
         "        .data",
         *rows("sc_cls", "db", T["sc_cls"]),
         *rows("sc_tab", "db", T["sc_tab"]),
@@ -908,6 +909,7 @@ def emit(T: dict) -> str:
         *rows("ps_tab", "dw", ps),
         *rows("ps_ent", "db", T["ps_ent"]),
         "        .code",
+        "endif",
     ]
     return "\n".join(out) + "\n"
 

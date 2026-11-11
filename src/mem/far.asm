@@ -10,6 +10,9 @@
 ;   mem_line, mem_pmov mem_movs
 ; ==========================================================================
 
+include x86f.inc
+        .code
+
 ; ::::::::::::::
 ; mem_line - copy line BX of the program to EDI.
 ;
@@ -122,3 +125,5 @@ mem_zero:
         pop     eax
         pop     edi
         ret
+
+        end

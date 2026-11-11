@@ -10,6 +10,9 @@
 ;   sym_find           a match of sinfo and the key, else a new id
 ; ==========================================================================
 
+include x86f.inc
+        .code
+
 ; ::::::::::::::
 ; var_clr - CLR: zero variables, drop arrays, reset READ, empty the heap.
 ;
@@ -101,3 +104,5 @@ sym_find:
 @sf_ok:
         mov     al,bl
         ret
+
+        end
