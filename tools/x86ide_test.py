@@ -219,6 +219,8 @@ def play() -> None:
     mouse_stub()
     click(0, 9)
     assert any("CUT" in r for r in look()), look()
+    # No selection: Copy is gray, Paste (the Clipboard has a line) not.
+    assert attrs(3)[10] == 0x78 and attrs(4)[10] == 0x70, (attrs(3)[8:12], attrs(4)[8:12])
     # Help lines come from BASIC.HLP, counted across the menus.
     assert look()[24].startswith(" F1=HELP   DELETES SELECTED TEXT AND COPIES IT TO BUFFER"), look()[24]
     click(12, 60)
