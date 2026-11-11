@@ -73,6 +73,7 @@ ide:                            # with the full-screen editor, build/x86/basic-i
 	cd src/x86 && $(LLRM_BIN)/jwasm -q -zf0 -DIDE=1 -DAC=$(AC) -Fo ../../build/x86-ide/main.obj main.asm
 	$(LLRM_BIN)/jwlink option quiet format dos com file build/x86-ide/main.obj name build/x86-ide/raw.com
 	tail -c +257 build/x86-ide/raw.com > build/x86/basic-ide.com
+	cp src/x86/ui/basic.hlp build/x86/BASIC.HLP
 
 style:
 	$(PY) tools/asmstyle.py

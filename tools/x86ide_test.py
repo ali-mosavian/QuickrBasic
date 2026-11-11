@@ -21,6 +21,7 @@ ALT_F, ALT_S, F5 = 0x21, 0x1F, 0x3F
 def play() -> None:
     work = Path(tempfile.mkdtemp())
     (work / "BASIC.COM").write_bytes((ROOT / "build/x86/basic-ide.com").read_bytes())
+    (work / "BASIC.HLP").write_bytes((ROOT / "src/x86/ui/basic.hlp").read_bytes())
     (work / "SQ.BAS").write_bytes(b"for i=1 to 3\r\n  print i*i\r\nnext\r\n")
     (work / "SUB").mkdir()
     s = qbplay.Session(work)
@@ -125,7 +126,7 @@ def play() -> None:
     s.resume(100)  # Alt let go while the menu waits
     press("down")
     scr = look()
-    assert any("OPEN..." in r for r in scr) and scr[24].startswith(" F1=HELP   LOADS A FILE"), scr
+    assert any("OPEN..." in r for r in scr) and scr[24].startswith(" F1=HELP   LOADS NEW FILE INTO MEMORY"), scr
     bar = s.send({"cmd": "mem_read_linear", "addr": 0xB8000 + 24 * 160 + 18, "len": 1})["data"]
     assert bar.lower() == "b3", bar  # F1=Help │
     press("esc", "esc")
@@ -133,7 +134,7 @@ def play() -> None:
     # ignored, so it worked only once Alt was let go.
     flags(0x08)
     press(f"0x{ALT_F:x}", "0xa0")
-    assert "LOADS A FILE" in look()[24], look()
+    assert "LOADS NEW FILE INTO MEMORY" in look()[24], look()
     press("0x18")  # Alt+O: Open..., which asks about the unsaved text first
     flags(0)
     assert any("NOT SAVED" in r for r in look()), look()
@@ -218,6 +219,8 @@ def play() -> None:
     mouse_stub()
     click(0, 9)
     assert any("CUT" in r for r in look()), look()
+    # Help lines come from BASIC.HLP, counted across the menus.
+    assert look()[24].startswith(" F1=HELP   DELETES SELECTED TEXT AND COPIES IT TO BUFFER"), look()[24]
     click(12, 60)
     assert not any("CUT" in r for r in look()), look()
     mouse(0, 3, True)
