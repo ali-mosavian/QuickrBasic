@@ -21,12 +21,12 @@ include x86f.inc
 ; ::::::::::::::
 rt_start:
         cld
+        mov     [g_plat.pspsel],es      ; DOS/32A: ES the PSP at the start
         mov     ax,ds
         mov     [g_plat.dsv],ax
         mov     es,ax
         mov     fs,ax
         mov     gs,ax
-        mov     [g_plat.pspsel],es              ; DOS/32A: ES the PSP at the start
         mov     esp,STKTOP
         mov     edi,offset g_bss_s
         mov     ecx,offset g_bss_e

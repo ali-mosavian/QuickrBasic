@@ -102,7 +102,7 @@ x86f: $(X86F_OBJ)               # flat 32-bit, build/x86/basic32.exe, DOS32A.EXE
 x86f-ide: $(X86F_IDE_OBJ)       # the flat build with the editor, build/x86/ide32.exe
 	$(LE_LINK) file $(subst $(eval) ,$(comma),$(X86F_IDE_OBJ)) name build/x86f-ide/ide32.exe
 	cp build/x86f-ide/ide32.exe build/x86/ide32.exe
-	cp src/x86f/ui/basic.hlp build/x86/BASIC.HLP
+	cp src/x86/ui/basic.hlp build/x86/BASIC.HLP
 	$(PY) tools/x86d32a.py $(DOS32A)/dos32a.exe build/x86/DOS32A.EXE
 
 AC ?= 1                         # ide: Tab completion, AC=0 leaves it out

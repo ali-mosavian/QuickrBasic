@@ -18,6 +18,11 @@ g_pokeb db      10000h dup(?)
 g_cachb db      10000h dup(?)
 g_stkb  db      STKSZ dup(?)
 g_heapb db      HEAPSZ dup(?)
+if IDE
+g_txb   db      10000h dup(?)            ; the editor's text
+g_clpb  db      10000h dup(?)            ; its clipboard
+g_wrkb  db      10000h dup(?)            ; a file's bytes
+endif
         .code
 
         end

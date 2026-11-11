@@ -2,6 +2,7 @@
 """x86ide_test.py: the QBasic-style editor (make ide) played on the emulated console: free-form lines, F5 on
 the output page, the immediate window, menus, clipboard, the file and search dialogs. Screenshots go to docs/img."""
 
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -16,18 +17,24 @@ import qbplay  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 IMG = ROOT / "docs/img"
 ALT_F, ALT_S, F5 = 0x21, 0x1F, 0x3F
+# X86_IDE=build/x86/ide32.exe plays the flat build, DOS32A.EXE beside it
+IDE = Path(os.environ.get("X86_IDE", ROOT / "build/x86/basic-ide.com"))
 
 
 def play() -> None:
     work = Path(tempfile.mkdtemp())
-    (work / "BASIC.COM").write_bytes((ROOT / "build/x86/basic-ide.com").read_bytes())
+    exe = "BASIC" + IDE.suffix.upper()
+    (work / exe).write_bytes(IDE.read_bytes())
+    if IDE.suffix == ".exe":
+        (work / "DOS32A.EXE").write_bytes((IDE.parent / "DOS32A.EXE").read_bytes())
     (work / "BASIC.HLP").write_bytes((ROOT / "src/x86/ui/basic.hlp").read_bytes())
     (work / "SQ.BAS").write_bytes(b"for i=1 to 3\r\n  print i*i\r\nnext\r\n")
     (work / "SUB").mkdir()
     s = qbplay.Session(work)
-    s.launch(3000, "BASIC.COM")
+    s.launch(3000, exe)
     s.keys_in_lockstep(["esc"], 3000)  # the first key after the launch is lost
     s.resume(100)
+    s.run_until(lambda: "PRESS ESC" in s.screen().upper(), 5000, "the welcome box")  # DOS/32A's start is slower
     # The welcome box's button, of no set width, once ran past its frame.
     scr = s.screen().upper().split("\n")
     r = next(i for i, line in enumerate(scr) if "PRESS ESC" in line)
@@ -90,7 +97,7 @@ def play() -> None:
 
     def look(name: str = "") -> list[str]:
         s.resume(100)
-        if name:
+        if name and IDE.suffix == ".com":  # the docs' pictures are the .COM's
             s.snap(IMG / f"ide-{name}.png")
         return s.screen().upper().split("\n")
 
