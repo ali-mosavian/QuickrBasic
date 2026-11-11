@@ -46,6 +46,11 @@ def play() -> None:
         data = bytes.fromhex(s.send({"cmd": "mem_read_linear", "addr": 0xB9000, "len": 4000})["data"])
         return "\n".join(data[r * 160 : r * 160 + 160 : 2].decode("latin-1").rstrip() for r in range(25)).upper()
 
+    def alt(scan: int) -> None:
+        s.send({"cmd": "key", "scancode": scan, "ascii": 0, "stop": True})
+        s.run_to_key(3000)
+        s.resume(60)
+
     keys("for i=1 to 3\nprint i*i\nnext\n")
     scr = look("editor")
     for want in ("10 FOR I=1 TO 3", "20 PRINT I*I", "30 NEXT", "IMMEDIATE"):
@@ -71,6 +76,37 @@ def play() -> None:
     look()
     scr = output()
     assert "16" in scr.split(), scr  # FOR I=1 TO 4: the fourth square
+    # Menus: Save As, New, Open it again, Open a file that is not there.
+    press("tab")
+    press("f10")
+    scr = look("menu")
+    for want in ("NEW", "OPEN...", "SAVE AS...", "EXIT      ALT+X"):
+        assert want in scr, (want, scr)
+    press("esc")
+    alt(0x21)
+    press("down", "down", "down", "enter")
+    look("dialog")
+    keys("t1\n")
+    scr = look()
+    assert "T1.BAS" in scr.split("\n")[1], scr
+    assert (work / "T1.BAS").read_text().upper().startswith("10 FOR I=1 TO 4"), (work / "T1.BAS").read_text()
+    alt(0x21)
+    press("enter")  # New
+    scr = look()
+    assert "10 FOR" not in scr and "UNTITLED" in scr, scr
+    alt(0x21)
+    press("down", "enter")
+    keys("t1\n")
+    scr = look()
+    assert "10 FOR I=1 TO 4" in scr and "T1.BAS" in scr.split("\n")[1], scr
+    alt(0x21)
+    press("down", "enter")
+    keys("nope\n")
+    s.resume(300)
+    assert "NOT FOUND" in output(), output()
+    press("space")
+    scr = look()
+    assert "T1.BAS" in scr.split("\n")[1], scr
     s.close()
     print("ok")
 
