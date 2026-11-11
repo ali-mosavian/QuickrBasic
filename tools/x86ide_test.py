@@ -113,6 +113,13 @@ def play() -> None:
 
     # The immediate window: output on page 1. The prompt once stayed there,
     # in front of the next output.
+    # Caps Lock and Num Lock: C at 67, N at 68 (uiwind.c).
+    flags(0x60)
+    press("right")
+    flags(0)
+    assert look()[24][67:69] == "CN", look()[24]
+    press("left")
+    assert look()[24][67:69] == "  ", look()[24]
     # QBasic's title bar (uiwind.c): the active title and the maximise
     # arrow in the window's colours swapped, ┤↑├ ending at ─┐.
     assert chars(1)[75:80] == b"\xb4\x18\xc3\xc4\xbf" and attrs(1)[76] == 0x71, (chars(1)[74:], attrs(1)[74:])
