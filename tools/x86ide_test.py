@@ -214,6 +214,12 @@ def play() -> None:
     s.send({"cmd": "key", "scancode": 0x26, "ascii": 0x0C, "stop": True})
     s.run_to_key(3000)
     assert look()[24].endswith("00002:006"), look()[24]
+    # Find starts from the selection, else the word at the cursor.
+    press(f"0x{ALT_S:x}", "f")
+    scr = look(); assert scr[10].ljust(80)[25:28] == "I  ", scr
+    press("esc", "0x77", *["right"] * 8, f"0x{ALT_S:x}", "f")
+    scr = look(); assert scr[10].ljust(80)[25:28] == "TO ", scr
+    press("esc")
 
     # Save As, then Exit to DOS.
     press(f"0x{ALT_F:x}", "a")
