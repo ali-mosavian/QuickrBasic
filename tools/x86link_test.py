@@ -69,6 +69,11 @@ CASES = {
     # GOTO, GOSUB find their line at the stream: back, forward, missing.
     "10 I=I+1:IF I<3 THEN 10\n20 GOSUB 60:GOTO 50\n40 PRINT 4\n50 PRINT I:GOTO 70\n"
     "60 PRINT 6:RETURN\n70 GOTO 90\nRUN": ["6", "3", "?UNDEF'D STATEMENT ERROR IN 70"],
+    # NEXT of an INT variable is machine code: it falls through to the next op,
+    # and an inner frame on top goes the slow way.
+    "10 FOR K%=1 TO 2:FOR L%=1 TO 2:PRINT K%;L%;:NEXT L%,K%:PRINT\n"
+    "20 FOR I%=1 TO 2:FOR J%=1 TO 2:NEXT I%:PRINT I%;J%\nRUN": [
+        "1  1  1  2  2  1  2  2", "3  1"],
     # LIST gives the line as typed, spaces and all.
     "10 A = B  +  1 : PRINT A,  C\nLIST": ["10 A = B  +  1 : PRINT A,  C"],
 }
