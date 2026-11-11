@@ -22,14 +22,14 @@ fcon    macro   sg,m,e
         endm
 
         .data
-ktab    label   dword
-klog    label   dword
+g_ktab  label   dword
+g_klog  label   dword
         fcon    0,090537Ch,-2
         fcon    0,08F2581h,-2
         fcon    0,0CCEDA9h,-2
         fcon    0,0AAAA6Fh,-1
         fcon    0,0800000h,1
-kexp    label   dword
+g_kexp  label   dword
         fcon    0,0E3A3BCh,-13
         fcon    0,0A305ABh,-10
         fcon    0,09E94F4h,-7
@@ -37,13 +37,13 @@ kexp    label   dword
         fcon    0,0F5FED1h,-3
         fcon    0,0B17215h,-1
         fcon    0,0800000h,0
-ksin    label   dword
+g_ksin  label   dword
         fcon    0,09ED88Bh,5
         fcon    1,099266Fh,6
         fcon    0,0A33458h,6
         fcon    1,0A55DE1h,5
         fcon    0,0C90FDBh,2
-katn    label   dword
+g_katn  label   dword
         fcon    0,0BD81FFh,-9
         fcon    1,08502B3h,-6
         fcon    0,0AFFD72h,-5
@@ -52,17 +52,17 @@ katn    label   dword
         fcon    1,091797Ch,-3
         fcon    0,0CCBA67h,-3
         fcon    1,0AAAA59h,-2
-kone    label   dword
+g_kone  label   dword
         fcon    0,0800000h,0
-kln2    label   dword
+g_kln2  label   dword
         fcon    0,0B17218h,-1
-kl2e    label   dword
+g_kl2e  label   dword
         fcon    0,0B8AA3Bh,0
-kr2p    label   dword
+g_kr2p  label   dword
         fcon    0,0A2F983h,-3
-kp2     label   dword
+g_kp2   label   dword
         fcon    0,0C90FDBh,0
-kpi     label   dword
+g_kpi   label   dword
         fcon    0,0C90FDBh,1
         .code
 NLOG    = 5
@@ -79,8 +79,8 @@ NATN    = 9
 ; out:    EAX  the result, packed
 ; ::::::::::::::
 flt_poly:
-        mov     [fipt],ebx
-        mov     [fcnt],cx
+        mov     [g_state.ft.fipt],ebx
+        mov     [g_state.ft.fcnt],cx
 ; ::::::::::::::
 ; flt_polyf - flt_poly, the terms in fipt and fcnt.
 ;
@@ -90,17 +90,17 @@ flt_poly:
 ; out:    EAX  the result, packed
 ; ::::::::::::::
 flt_polyf:
-        mov     [ft3],eax
-        mov     ebx,[fipt]
+        mov     [g_state.ft.ft3],eax
+        mov     ebx,[g_state.ft.fipt]
         mov     eax,[ebx]
 @@:
-        mov     edx,[ft3]
+        mov     edx,[g_state.ft.ft3]
         call    flt_mul
-        add     [fipt],4
-        mov     ebx,[fipt]
+        add     [g_state.ft.fipt],4
+        mov     ebx,[g_state.ft.fipt]
         mov     edx,[ebx]
         call    flt_add
-        dec     [fcnt]
+        dec     [g_state.ft.fcnt]
         jnz     @B
         ret
 @st_ftr1:
@@ -115,13 +115,13 @@ flt_polyf:
 ; out:    EAX  the result, packed
 ; ::::::::::::::
 flt_odd:
-        mov     [fipt],ebx
-        mov     [fcnt],cx
-        mov     [ft1],eax
+        mov     [g_state.ft.fipt],ebx
+        mov     [g_state.ft.fcnt],cx
+        mov     [g_state.ft.ft1],eax
         mov     edx,eax
         call    flt_mul
         call    flt_polyf
-        mov     edx,[ft1]
+        mov     edx,[g_state.ft.ft1]
         jmp     flt_mul
 
 ; ::::::::::::::
@@ -139,26 +139,26 @@ fn_log:
         shr     ecx,24
         jz      @st_ftr1
         sub     cx,FBIAS
-        mov     [flog],cx
+        mov     [g_state.ft.flog],cx
         and     eax,807FFFFFh
         or      eax,FBIAS SHL 23
-        mov     edx,[kone]
+        mov     edx,[g_kone]
         call    flt_sub                 ; 1 - m
-        mov     [ft2],eax
-        mov     edx,[kone]
+        mov     [g_state.ft.ft2],eax
+        mov     edx,[g_kone]
         add     edx,00800000h
         call    flt_sub                 ; 2 - (1 - m)
-        mov     edx,[ft2]
+        mov     edx,[g_state.ft.ft2]
         call    flt_div
-        mov     ebx,offset klog
+        mov     ebx,offset g_klog
         mov     cx,NLOG-1
         call    flt_odd
-        mov     [ft1],eax
-        mov     ax,[flog]
+        mov     [g_state.ft.ft1],eax
+        mov     ax,[g_state.ft.flog]
         call    flt_from16
-        mov     edx,[kln2]
+        mov     edx,[g_kln2]
         call    flt_mul
-        mov     edx,[ft1]
+        mov     edx,[g_state.ft.ft1]
         call    flt_sub
         jmp     flt_neg
 
@@ -170,7 +170,7 @@ fn_log:
 ; error:  ?OVERFLOW  past the largest FLOAT
 ; ::::::::::::::
 fn_exp:
-        mov     edx,[kl2e]
+        mov     edx,[g_kl2e]
         call    flt_mul
         mov     ecx,eax
         shl     ecx,1
@@ -188,7 +188,7 @@ fn_exp:
         call    flt_from16
         pop     edx
         call    flt_sub
-        mov     ebx,offset kexp
+        mov     ebx,offset g_kexp
         mov     cx,NEXP-1
         call    flt_poly
         pop     cx
@@ -223,7 +223,7 @@ fn_exp:
 ; out:    EAX  the result, packed
 ; ::::::::::::::
 flt_pi:
-        mov     eax,[kpi]
+        mov     eax,[g_kpi]
         ret
 
 ; ::::::::::::::
@@ -240,7 +240,7 @@ fn_pow:
         shl     ecx,1
         shr     ecx,24
         jnz     @F
-        mov     eax,[kone]
+        mov     eax,[g_kone]
         ret
 @@:
         test    edx,7F800000h
@@ -248,11 +248,11 @@ fn_pow:
         sub     ecx,FBIAS
         cmp     ecx,8
         jae     @fp_log
-        mov     word ptr [fipt],cx      ; k
+        mov     word ptr [g_state.ft.fipt],cx      ; k
         mov     ebx,eax
         and     ebx,7FFFFFh
         mov     cl,23
-        sub     cl,byte ptr [fipt]
+        sub     cl,byte ptr [g_state.ft.fipt]
         mov     ebp,1
         shl     ebp,cl
         dec     ebp
@@ -262,43 +262,43 @@ fn_pow:
         js      @fp_log
         or      ebx,800000h
         shr     ebx,16
-        mov     [fcnt],bx               ; the integer bits at bits 7..
+        mov     [g_state.ft.fcnt],bx               ; the integer bits at bits 7..
         mov     eax,edx
-        mov     [ft1],eax
+        mov     [g_state.ft.ft1],eax
 @@:
-        shl     byte ptr [fcnt],1
-        dec     byte ptr [fipt]
+        shl     byte ptr [g_state.ft.fcnt],1
+        dec     byte ptr [g_state.ft.fipt]
         js      @fp_r
         mov     edx,eax
         call    flt_mul
-        test    byte ptr [fcnt],80h
+        test    byte ptr [g_state.ft.fcnt],80h
         jz      @B
-        mov     edx,[ft1]
+        mov     edx,[g_state.ft.ft1]
         call    flt_mul
         jmp     @B
 @fp_r:
         ret
 @fp_log:
-        mov     [ft4],eax
+        mov     [g_state.ft.ft4],eax
         push    edx
         mov     eax,edx
         btr     eax,31
         call    fn_log
-        mov     edx,[ft4]
+        mov     edx,[g_state.ft.ft4]
         call    flt_mul
         call    fn_exp
         pop     edx
 @fp_sg:
         test    edx,edx
         jns     @fp_r
-        mov     [ft2],eax
-        mov     eax,[ft4]
+        mov     [g_state.ft.ft2],eax
+        mov     eax,[g_state.ft.ft4]
         call    flt_whl
         jnz     err_iq
         sub     eax,00800000h           ; half
         call    flt_whl
         pushf
-        mov     eax,[ft2]
+        mov     eax,[g_state.ft.ft2]
         popf
         jz      @fp_r
         jmp     flt_neg
@@ -327,7 +327,7 @@ flt_whl:
 ; out:    EAX  the result, packed
 ; ::::::::::::::
 fn_cos:
-        mov     edx,[kp2]
+        mov     edx,[g_kp2]
         call    flt_add
 ; ::::::::::::::
 ; fn_sin - FAC = SIN(FAC).
@@ -336,14 +336,14 @@ fn_cos:
 ; out:    EAX  the result, packed
 ; ::::::::::::::
 fn_sin:
-        mov     edx,[kr2p]
+        mov     edx,[g_kr2p]
         call    flt_mul
         mov     edx,eax
         push    edx
         call    flt_int
         pop     edx
         call    flt_sub
-        mov     edx,[kone]
+        mov     edx,[g_kone]
         sub     edx,00800000h
         call    flt_sub
         mov     ecx,eax
@@ -351,7 +351,7 @@ fn_sin:
         shr     ecx,24
         cmp     cl,FBIAS-2
         jb      @F
-        mov     edx,[kone]
+        mov     edx,[g_kone]
         sub     edx,00800000h
         and     eax,eax                 ; FAC's sign to ARG's
         mov     ecx,eax
@@ -359,7 +359,7 @@ fn_sin:
         or      edx,ecx
         call    flt_sub
 @@:
-        mov     ebx,offset ksin
+        mov     ebx,offset g_ksin
         mov     cx,NSIN-1
         jmp     flt_odd
 
@@ -371,12 +371,12 @@ fn_sin:
 ; error:  ?DIVISION BY ZERO  COS 0
 ; ::::::::::::::
 fn_tan:
-        mov     [ft2],eax
+        mov     [g_state.ft.ft2],eax
         call    fn_sin
-        mov     [ft4],eax
-        mov     eax,[ft2]
+        mov     [g_state.ft.ft4],eax
+        mov     eax,[g_state.ft.ft2]
         call    fn_cos
-        mov     edx,[ft4]
+        mov     edx,[g_state.ft.ft4]
         jmp     flt_div
 
 ; ::::::::::::::
@@ -395,16 +395,16 @@ fn_atn:
         cmp     cl,FBIAS
         pushf
         jb      @F
-        mov     edx,[kone]
+        mov     edx,[g_kone]
         call    flt_div
 @@:
-        mov     ebx,offset katn
+        mov     ebx,offset g_katn
         mov     cx,NATN-1
         call    flt_odd
         popf
         pop     ecx
         jb      @fa_r
-        mov     edx,[kp2]
+        mov     edx,[g_kp2]
         and     edx,7FFFFFFFh
         or      edx,ecx
         jmp     flt_sub
@@ -437,9 +437,9 @@ fn_rnd:
         movzx   ebx,dl
         shl     ebx,24
         or      ecx,ebx
-        mov     [rs],ecx
+        mov     [g_state.ft.rs],ecx
 @fr_n:
-        mov     eax,[rs]
+        mov     eax,[g_state.ft.rs]
         mov     edx,eax
         shr     edx,24
         and     eax,0FFFFFFh            ; L
@@ -454,11 +454,11 @@ fn_rnd:
         xor     edx,ecx
         add     eax,eax
         xor     edx,eax
-        mov     [rs],edx
+        mov     [g_state.ft.rs],edx
         shr     edx,8
         and     edx,7FFFFFh
         or      edx,FBIAS SHL 23
-        mov     eax,[kone]
+        mov     eax,[g_kone]
         jmp     flt_sub
 
 ; ::::::::::::::
@@ -473,7 +473,7 @@ fn_sqr:
         jz      @osq_r
         test    eax,eax
         js      err_iq
-        mov     [sqa],eax
+        mov     [g_state.ft.sqa],eax
         mov     ecx,eax
         shl     ecx,1
         shr     ecx,24
@@ -487,15 +487,15 @@ fn_sqr:
         or      eax,ecx
         call    flt_add
         sub     eax,00800000h
-        mov     [sqn],3
+        mov     [g_state.ft.sqn],3
 @osq_l:
-        mov     [sqg],eax
-        mov     edx,[sqa]
+        mov     [g_state.ft.sqg],eax
+        mov     edx,[g_state.ft.sqa]
         call    flt_div
-        mov     edx,[sqg]
+        mov     edx,[g_state.ft.sqg]
         call    flt_add
         sub     eax,00800000h
-        dec     [sqn]
+        dec     [g_state.ft.sqn]
         jnz     @osq_l
 @osq_r:
         ret

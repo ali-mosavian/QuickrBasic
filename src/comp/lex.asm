@@ -32,23 +32,23 @@ include comp/dfa.inc
 lx_line:
         xor     edx,edx
 @lxl_s:
-        mov     [lxst],dl
-        movzx   eax,byte ptr [tk_mode+edx]
-        call    [lxrd+eax*4]
+        mov     [g_state.lx.lxst],dl
+        movzx   eax,byte ptr [g_tk_mode+edx]
+        call    [g_lxrd+eax*4]
         movzx   ebx,al
-        movzx   ebx,byte ptr [tk_cls+ebx]
-        movzx   edx,[lxst]
+        movzx   ebx,byte ptr [g_tk_cls+ebx]
+        movzx   edx,[g_state.lx.lxst]
         imul    edx,edx,TK_NC
         add     ebx,edx
-        movzx   edx,word ptr [tk_tab+ebx*2]
+        movzx   edx,word ptr [g_tk_tab+ebx*2]
         test    dl,dl
         jns     @F
-        mov     esi,[lxs]               ; the next state reads it again
+        mov     esi,[g_state.lx.lxs]               ; the next state reads it again
 @@:
-        mov     [lxst],dh
+        mov     [g_state.lx.lxst],dh
         and     edx,7Fh
-        call    [lxact+edx*4]
-        movzx   edx,[lxst]
+        call    [g_lxact+edx*4]
+        movzx   edx,[g_state.lx.lxst]
         cmp     dl,0FFh
         jne     @lxl_s
         ret
@@ -69,7 +69,7 @@ lx_scan:
         push    ecx
         push    edx
 @lsc_r:
-        mov     [lxs],esi
+        mov     [g_state.lx.lxs],esi
         xor     edx,edx                 ; DL the state, DH the best token
 @lsc_l:
         movzx   eax,byte ptr [esi]
@@ -80,24 +80,24 @@ lx_scan:
         and     al,0DFh
         mov     [esi],al
 @@:
-        movzx   eax,byte ptr [sc_cls+eax]
+        movzx   eax,byte ptr [g_sc_cls+eax]
         movzx   ebx,dl
         imul    ebx,ebx,SC_NC
-        movzx   eax,byte ptr [sc_tab+ebx+eax]
+        movzx   eax,byte ptr [g_sc_tab+ebx+eax]
         cmp     al,SC_NUL
         jae     @lsc_x
         inc     esi
         cmp     al,SC_LEAF
         jae     @lsc_h
         mov     dl,al
-        mov     ah,[sc_acc+eax]
+        mov     ah,[g_sc_acc+eax]
         test    ah,ah
         jz      @lsc_l
         mov     dh,ah                   ; a keyword ends here
         mov     ecx,esi
         jmp     @lsc_l
 @lsc_h:
-        mov     al,[sc_acc+eax]
+        mov     al,[g_sc_acc+eax]
         jmp     @lsc_o
 @lsc_x:
         je      @lsc_0
@@ -120,7 +120,7 @@ lx_scan:
         mov     esi,ecx
         jmp     @lsc_o
 @lsc_f:
-        mov     esi,[lxs]
+        mov     esi,[g_state.lx.lxs]
 @lsc_b:
         lodsb
         jmp     @lsc_o
@@ -136,7 +136,7 @@ lx_scan:
 ; lx_raw - the byte at SI, as it is.
 ; ::::::::::::::
 lx_raw:
-        mov     [lxs],esi
+        mov     [g_state.lx.lxs],esi
         mov     al,[esi]
         test    al,al
         jz      @F
@@ -148,7 +148,7 @@ lx_raw:
 ; lx_dat - DATA text: the byte at SI; bytes of 80h or more but pi skipped.
 ; ::::::::::::::
 lx_dat:
-        mov     [lxs],esi
+        mov     [g_state.lx.lxs],esi
         mov     al,[esi]
         test    al,al
         jz      @F
@@ -181,14 +181,14 @@ lt_skip:
 ; lt_nbeg - a number's first byte, a digit or '.'.
 ; ::::::::::::::
 lt_nbeg:
-        mov     [lxn],edi
-        mov     [lxf],1
+        mov     [g_state.lx.lxn],edi
+        mov     [g_state.lx.lxf],1
         stosb
         cmp     al,'.'
         je      @F
-        mov     [lxf],0
+        mov     [g_state.lx.lxf],0
         and     eax,0Fh
-        mov     [lxv],eax
+        mov     [g_state.lx.lxv],eax
 @@:
         ret
 
@@ -197,15 +197,15 @@ lt_nbeg:
 ; ::::::::::::::
 lt_ndig:
         stosb
-        cmp     [lxf],0
+        cmp     [g_state.lx.lxf],0
         jne     @F
         and     eax,0Fh
-        imul    ecx,[lxv],10
+        imul    ecx,[g_state.lx.lxv],10
         add     eax,ecx
-        mov     [lxv],eax
+        mov     [g_state.lx.lxv],eax
         cmp     eax,65535
         jbe     @F
-        mov     [lxf],1
+        mov     [g_state.lx.lxf],1
 @@:
         ret
 
@@ -214,19 +214,19 @@ lt_ndig:
 ; ::::::::::::::
 lt_nput:
         stosb
-        mov     [lxf],1
+        mov     [g_state.lx.lxf],1
         ret
 
 ; ::::::::::::::
 ; lt_nend - the number's end: a whole one is M_INT lo hi.
 ; ::::::::::::::
 lt_nend:
-        cmp     [lxf],0
+        cmp     [g_state.lx.lxf],0
         jne     @F
-        mov     edi,[lxn]
+        mov     edi,[g_state.lx.lxn]
         mov     al,M_INT
         stosb
-        mov     ax,word ptr [lxv]
+        mov     ax,word ptr [g_state.lx.lxv]
         stosw
 @@:
         ret
@@ -235,21 +235,21 @@ lt_nend:
 ; lt_vbeg - a name's first letter: M_VAR, its length's place, the letter.
 ; ::::::::::::::
 lt_vbeg:
-        mov     [nkind],0
+        mov     [g_state.lx.nkind],0
         jmp     @lt_nb
 ; ::::::::::::::
 ; lt_fbeg - FN's name's first letter.
 ; ::::::::::::::
 lt_fbeg:
-        mov     [nkind],3
+        mov     [g_state.lx.nkind],3
 @lt_nb:
-        mov     byte ptr [nkey],al
-        mov     byte ptr [nkey+1],0
+        mov     byte ptr [g_state.lx.nkey],al
+        mov     byte ptr [g_state.lx.nkey+1],0
         mov     ah,al
         mov     al,M_VAR
         stosb
         stosb
-        mov     [nlenp],edi
+        mov     [g_state.lx.nlenp],edi
         mov     al,ah
         stosb
         ret
@@ -258,13 +258,13 @@ lt_fbeg:
 ; lt_npct - the name's %: its end.
 ; ::::::::::::::
 lt_npct:
-        mov     [nkind],1
+        mov     [g_state.lx.nkind],1
         jmp     @lt_ns
 ; ::::::::::::::
 ; lt_ndol - the name's $: its end.
 ; ::::::::::::::
 lt_ndol:
-        mov     [nkind],2
+        mov     [g_state.lx.nkind],2
 @lt_ns:
         call    lt_nchr
         jmp     lt_nlen
@@ -273,9 +273,9 @@ lt_ndol:
 ; lt_nchr - a letter or digit of the name; nkey keeps its second byte.
 ; ::::::::::::::
 lt_nchr:
-        cmp     byte ptr [nkey+1],0
+        cmp     byte ptr [g_state.lx.nkey+1],0
         jne     @F
-        mov     byte ptr [nkey+1],al
+        mov     byte ptr [g_state.lx.nkey+1],al
 @@:
         stosb
         ret
@@ -284,11 +284,11 @@ lt_nchr:
 ; lt_nlen - the name's end at SI: its length; lt_nvar goes on from SI.
 ; ::::::::::::::
 lt_nlen:
-        mov     ebx,[nlenp]
+        mov     ebx,[g_state.lx.nlenp]
         mov     eax,edi
         sub     eax,ebx
         mov     [ebx-1],al
-        mov     [lxm],esi
+        mov     [g_state.lx.lxm],esi
         ret
 
 ; ::::::::::::::
@@ -313,17 +313,17 @@ lt_narr:
 lt_nvar:
         xor     al,al
 @lt_id:
-        mov     esi,[lxm]
+        mov     esi,[g_state.lx.lxm]
 @lt_f:
         call    sym_find
         stosb
         ret
 
         .data
-lxrd    dd      lx_scan,lx_raw,lx_dat   ; by tk_mode: RD_KW, RD_RAW, RD_DATA
-lxact   dd      lt_put,lt_end,lt_nbeg,lt_ndig,lt_nput,lt_nend,lt_vbeg,lt_fbeg
+g_lxrd  dd      lx_scan,lx_raw,lx_dat    ; by tk_mode: RD_KW, RD_RAW, RD_DATA
+g_lxact dd      lt_put,lt_end,lt_nbeg,lt_ndig,lt_nput,lt_nend,lt_vbeg,lt_fbeg
         dd      lt_nchr,lt_npct,lt_ndol,lt_nlen,lt_fend,lt_nvar,lt_narr,lt_skip
         .code
-.erre LT_SKIP eq 15, <lxact: the order of tools/x86dfa.py's TK_ACTS>
+.erre LT_SKIP eq 15, <g_lxact: the order of tools/x86dfa.py's TK_ACTS>
 
         end

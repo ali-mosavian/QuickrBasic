@@ -25,22 +25,22 @@ include x86f.inc
 ; keeps:  SI, DI, CX, DX
 ; ::::::::::::::
 prg_findw:
-        mov     ax,[lnum]
-        movzx   ebx,[lc]
+        mov     ax,[g_state.rn.lnum]
+        movzx   ebx,[g_state.lnk.lc]
         test    ebx,ebx
         jz      @pf_b
-        cmp     ax,word ptr [progb+ebx+1]
+        cmp     ax,word ptr [g_progb+ebx+1]
         jae     @pf_c
 @pf_b:
         mov     ebx,PROGBASE
 @pf_c:
-        cmp     byte ptr [progb+ebx],0
+        cmp     byte ptr [g_progb+ebx],0
         je      @pf_no
-        cmp     ax,word ptr [progb+ebx+1]
+        cmp     ax,word ptr [g_progb+ebx+1]
         je      @pf_y
         jb      @pf_no
         push    ecx
-        movzx   ecx,byte ptr [progb+ebx]
+        movzx   ecx,byte ptr [g_progb+ebx]
         add     ebx,ecx
         pop     ecx
         jmp     @pf_c
@@ -65,8 +65,8 @@ prg_put:
         movzx   ecx,cx
         cmp     ecx,1
         je      @pp_d
-        mov     [pbs],esi
-        mov     [pbl],cx
+        mov     [g_state.mm.pbs],esi
+        mov     [g_state.mm.pbl],cx
         mov     eax,ecx
         add     eax,HDR
         cmp     eax,255
@@ -76,27 +76,27 @@ prg_put:
         push    ecx
         call    prg_findw
         jnc     @pp_i
-        mov     [lyo2],bx
-        movzx   eax,byte ptr [progb+ebx]
+        mov     [g_state.mm.lyo2],bx
+        movzx   eax,byte ptr [g_progb+ebx]
         lea     esi,[ebx+eax]
         mov     edi,ebx
-        movzx   ecx,[pend]
+        movzx   ecx,[g_state.mm.pend]
         sub     ecx,esi
         call    mem_pmov
-        mov     [pend],di
-        movzx   ebx,[lyo2]
+        mov     [g_state.mm.pend],di
+        movzx   ebx,[g_state.mm.lyo2]
 @pp_i:
         pop     ecx
         pop     eax
         cmp     ecx,1
         je      @jt_prog1
-        movzx   edx,[pend]
+        movzx   edx,[g_state.mm.pend]
         add     edx,eax
         inc     edx
         cmp     edx,PROGLIM
         jae     @pp_om
         push    eax
-        movzx   ecx,[pend]
+        movzx   ecx,[g_state.mm.pend]
         mov     esi,ecx
         sub     ecx,ebx
         dec     esi
@@ -105,7 +105,7 @@ prg_put:
         call    mem_pmov
         cld
         pop     eax
-        add     [pend],ax
+        add     [g_state.mm.pend],ax
         call    prg_fill
 @jt_prog1:
         jmp     prg_drop
@@ -119,14 +119,14 @@ prg_put:
 ;         pbs, pbl  the body, its length
 ; ::::::::::::::
 prg_fill:
-        lea     edi,[progb+ebx]
+        lea     edi,[g_progb+ebx]
         stosb
-        mov     ax,[lnum]
+        mov     ax,[g_state.rn.lnum]
         stosw
         xor     ax,ax
         stosw
-        mov     esi,[pbs]
-        movzx   ecx,[pbl]
+        mov     esi,[g_state.mm.pbs]
+        movzx   ecx,[g_state.mm.pbl]
         rep     movsb
         ret
 
@@ -139,12 +139,12 @@ prg_fill:
 ; ::::::::::::::
 prg_drop:
         xor     eax,eax
-        mov     [contip],ax
-        mov     [lc],ax
-        mov     [linked],al
-        mov     [cstk],CSTOP
-        movzx   ebx,[pend]
-        mov     [progb+ebx],al
+        mov     [g_state.rn.contip],ax
+        mov     [g_state.lnk.lc],ax
+        mov     [g_state.lnk.linked],al
+        mov     [g_state.rn.cstk],CSTOP
+        movzx   ebx,[g_state.mm.pend]
+        mov     [g_progb+ebx],al
         call    cm_infclr
         jmp     var_clr
 @pp_om:
@@ -155,9 +155,9 @@ prg_drop:
 ; prg_init - NEW: no program, no variables, then prg_drop.
 ; ::::::::::::::
 prg_init:
-        mov     [pend],PROGBASE
-        mov     [vend],VARBASE
-        mov     [nsyms],0
+        mov     [g_state.mm.pend],PROGBASE
+        mov     [g_state.mm.vend],VARBASE
+        mov     [g_state.lx.nsyms],0
         jmp     prg_drop
 
         end

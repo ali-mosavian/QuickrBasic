@@ -7,12 +7,13 @@
         .model  flat
         option  casemap:none
 include def.inc
+include state.inc
 include vm/isa.inc
 include vm/vm.inc
 include comp/comp.inc
 include comp/dfa.inc
 if IDE
-include ui/uibuf.inc
+include ui/ui.inc
 include ui/syms.inc
 else
 include syms.inc

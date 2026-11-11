@@ -113,22 +113,22 @@ err_od:
 ; ::::::::::::::
 err_raise:
         call    ex_fclr
-        cmp     [csp],0
+        cmp     [g_state.cm.csp],0
         jne     cm_err
         mov     ah,al
         call    fil_clrch
         call    io_fresh
         mov     al,ah
-        mov     esp,[rsp]
-        and     [tsp],0
+        mov     esp,[g_state.rn.rsp]
+        and     [g_state.sg.tsp],0
 if IDE
-        cmp     [ideon],0
+        cmp     [g_ui.lp.ideon],0
         jne     ui_err
 endif
         test    al,al
         jz      @erx_m
-        mov     [cstk],CSTOP
-        and     [contip],0
+        mov     [g_state.rn.cstk],CSTOP
+        and     [g_state.rn.contip],0
         mov     al,'?'
         call    io_putc
         mov     al,ah
@@ -136,12 +136,12 @@ endif
         mov     al,MSG_ERR
 @erx_m:
         call    io_msg
-        movzx   ebx,[ln]
+        movzx   ebx,[g_state.rn.ln]
         cmp     ebx,DLINE
         je      rpl_ready
         mov     al,MSG_IN
         call    io_msg
-        mov     ax,word ptr [progb+ebx+1]
+        mov     ax,word ptr [g_progb+ebx+1]
         call    io_num
 
 ; ::::::::::::::
@@ -151,7 +151,7 @@ endif
 ; ::::::::::::::
 rpl_ready:
 if IDE
-        cmp     [ideon],0
+        cmp     [g_ui.lp.ideon],0
         jne     ui_ready
 endif
         call    io_fresh
@@ -160,9 +160,9 @@ endif
 @rpl_r:
         call    plt_getline
         jnc     @F
-        cmp     [stpflg],0
+        cmp     [g_state.rn.stpflg],0
         je      @rpl_x
-        and     [stpflg],0              ; the STOP key at READY: nothing
+        and     [g_state.rn.stpflg],0              ; the STOP key at READY: nothing
         jmp     @rpl_r
 @@:
         call    rpl_enter
@@ -170,18 +170,18 @@ endif
         jz      rpl_run
         dec     al
         jz      @rpl_r
-        mov     [cstk],CSTOP
+        mov     [g_state.rn.cstk],CSTOP
         jmp     @rpl_r
 ; ::::::::::::::
 ; rpl_run - run the direct line rpl_enter left in cbuf.
 ; ::::::::::::::
 rpl_run:
-        and     [stpflg],0              ; a key the editor or READY kept
+        and     [g_state.rn.stpflg],0              ; a key the editor or READY kept
         call    cm_line
         call    ex_dcode
-        mov     eax,[eeol]              ; an older direct line's frames: its EOL
-        sub     eax,offset cachb
-        mov     ebx,[cstk]
+        mov     eax,[g_state.lnk.eeol]              ; an older direct line's frames: its EOL
+        sub     eax,offset g_cachb
+        mov     ebx,[g_state.rn.cstk]
 @rpl_f:
         cmp     ebx,CSTOP
         jae     @rpl_g
@@ -195,7 +195,7 @@ rpl_run:
         add     ebx,ecx
         jmp     @rpl_f
 @rpl_g:
-        mov     esi,offset cachb+DCODE
+        mov     esi,offset g_cachb+DCODE
         jmp     ex_lp
 @rpl_x:
         xor     al,al
@@ -212,15 +212,15 @@ rpl_run:
 ; ::::::::::::::
 rpl_enter:
         movzx   ebx,ax
-        mov     byte ptr [inbuf+ebx],0
-        mov     [ln],DLINE
-        mov     esi,offset inbuf
-        mov     edi,offset cbuf
+        mov     byte ptr [g_inbuf+ebx],0
+        mov     [g_state.rn.ln],DLINE
+        mov     esi,offset g_inbuf
+        mov     edi,offset g_cbuf
         call    lx_line
-        cmp     byte ptr [cbuf],0
+        cmp     byte ptr [g_cbuf],0
         mov     al,1
         je      @ren_r
-        mov     esi,offset cbuf
+        mov     esi,offset g_cbuf
         call    st_get
         cmp     al,M_INT
         mov     al,0
@@ -228,7 +228,7 @@ rpl_enter:
         mov     ax,[esi+1]
         cmp     ah,0FAh
         jae     err_sn
-        mov     [lnum],ax
+        mov     [g_state.rn.lnum],ax
         add     esi,3
         call    st_get
         mov     ecx,edi

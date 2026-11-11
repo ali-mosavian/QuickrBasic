@@ -27,10 +27,10 @@ include x86f.inc
 ; out:    as cm_text
 ; ::::::::::::::
 cm_line:
-        mov     eax,[dslin]
-        mov     [ctxlin],eax
-        mov     [cxb],offset xbuf
-        mov     esi,offset cbuf-1
+        mov     eax,[g_state.mm.dslin]
+        mov     [g_state.cm.ctxlin],eax
+        mov     [g_state.cm.cxb],offset g_xbuf
+        mov     esi,offset g_cbuf-1
 
 ; ::::::::::::::
 ; cm_text - compile a token body to code at cxb.
@@ -40,14 +40,14 @@ cm_line:
 ; out:    xo   the code's length
 ; ::::::::::::::
 cm_text:
-        mov     [csp],esp
+        mov     [g_state.cm.csp],esp
         xor     eax,eax
-        mov     [cll],eax
-        mov     [clle],eax
-        mov     [ccmpe],eax
-        mov     edi,[cxb]
+        mov     [g_state.cm.cll],eax
+        mov     [g_state.cm.clle],eax
+        mov     [g_state.cm.ccmpe],eax
+        mov     edi,[g_state.cm.cxb]
         lea     eax,[edi+XLIM]
-        mov     [cxlim],eax
+        mov     [g_state.cm.cxlim],eax
 
 ; ::::::::::::::
 ; cm_new - compile the statement after SI.
@@ -55,7 +55,7 @@ cm_text:
 ; in:     SI  before it
 ; ::::::::::::::
 cm_new:
-        mov     [cth],0
+        mov     [g_state.cm.cth],0
         call    st_eosn
         jz      cm_ee
         test    al,al
@@ -110,7 +110,7 @@ cm_err:
 cm_fin:
         mov     al,O_EOL
         stosb
-        mov     esp,[csp]
+        mov     esp,[g_state.cm.csp]
 
 ; ::::::::::::::
 ; cm_end - the compile is over.
@@ -119,10 +119,10 @@ cm_fin:
 ;         xo   the code's end
 ; ::::::::::::::
 cm_end:
-        and     [csp],0
+        and     [g_state.cm.csp],0
         mov     eax,edi
-        sub     eax,[cxb]
-        mov     [xo],al
+        sub     eax,[g_state.cm.cxb]
+        mov     [g_state.cm.xo],al
         ret
 
 ; ::::::::::::::
@@ -140,25 +140,25 @@ cm_if:
         cmp     al,TK_GOTO
         jne     @st_comp1
 @cmi_t:
-        cmp     edi,[ccmpe]
+        cmp     edi,[g_state.cm.ccmpe]
         jne     @cmi_n
-        mov     ebx,[ccmp]
+        mov     ebx,[g_state.cm.ccmp]
         add     byte ptr [ebx],O_I_CMPIF-O_I_CMP
         jmp     @cmi_d
 @st_comp1:
         jmp     err_sn
 @cmi_n:
         mov     al,O_I_IF
-        cmp     [cty],T_INT
+        cmp     [g_state.cm.cty],T_INT
         je      @cmi_o
         mov     al,O_F_IF
-        cmp     [cty],T_FLT
+        cmp     [g_state.cm.cty],T_FLT
         je      @cmi_o
         mov     al,O_S_IF
 @cmi_o:
         call    cm_op
 @cmi_d:
-        mov     [cth],1
+        mov     [g_state.cm.cth],1
         call    st_getn
         cmp     al,M_INT
         jne     @F
@@ -186,10 +186,10 @@ cm_tok:
         mov     al,ST_GO
         jmp     @cmk_s
 @cmk_k:
-        mov     [ctok],al
-        mov     [ctks],esi
+        mov     [g_state.cm.ctok],al
+        mov     [g_state.cm.ctks],esi
         movzx   ebx,al
-        mov     al,[ps_ent+ebx-80h]
+        mov     al,[g_ps_ent+ebx-80h]
 @cmk_s:
         push    eax
         call    st_getn
@@ -207,10 +207,10 @@ cm_dfa:
 @cmd_l:
         call    st_get
         movzx   ebx,al
-        movzx   ebx,byte ptr [ps_cls+ebx]
+        movzx   ebx,byte ptr [g_ps_cls+ebx]
         imul    edx,edx,PS_NC
         add     ebx,edx
-        movzx   eax,word ptr [ps_tab+ebx*2]
+        movzx   eax,word ptr [g_ps_tab+ebx*2]
         movzx   edx,ah
         cmp     al,PS_ACC
         jb      @cmd_a
@@ -236,7 +236,7 @@ cm_do:
         jb      cm_call
         movzx   ebx,al
         add     ebx,ebx
-        jmp     [cmact+ebx*2-4*A_BASE]
+        jmp     [g_cmact+ebx*2-4*A_BASE]
 
 ; ::::::::::::::
 ; cm_call - emit CALL AL.
@@ -258,7 +258,7 @@ cm_call:
 ; ::::::::::::::
 cm_store:
         call    cm_demf
-        mov     al,[ctk]
+        mov     al,[g_state.cm.ctk]
         mov     ah,al
         and     al,43h
         cmp     al,40h
@@ -278,8 +278,8 @@ cm_store:
         call    cm_tos
         mov     dl,2
 @cst_e:
-        mov     cl,[ctv]
-        mov     al,[ctn]
+        mov     cl,[g_state.cm.ctv]
+        mov     al,[g_state.cm.ctn]
         test    al,al
         jnz     @cst_a
         mov     al,O_I_ST_V
@@ -295,7 +295,7 @@ cm_store:
         mov     al,O_I_ST_A
         add     al,dl
         call    cm_opx
-        mov     al,[ctn]
+        mov     al,[g_state.cm.ctn]
         jmp     cm_byt
 @cst_y:
         test    ah,2
@@ -312,7 +312,7 @@ cm_store:
 ; ::::::::::::::
 cm_fork:
         call    cm_demf
-        cmp     [cfk],0
+        cmp     [g_state.cm.cfk],0
         je      cm_tof
 
 ; ::::::::::::::
@@ -322,11 +322,11 @@ cm_fork:
 ; error:  ?TYPE MISMATCH  a string
 ; ::::::::::::::
 cm_toi:
-        test    [cty],T_STR
+        test    [g_state.cm.cty],T_STR
         jnz     @st_comp3
-        cmp     [cty],T_INT
+        cmp     [g_state.cm.cty],T_INT
         je      cm_rts
-        mov     [cty],T_INT
+        mov     [g_state.cm.cty],T_INT
         mov     al,O_F_TOI
         jmp     cm_op
 
@@ -351,12 +351,12 @@ cm_tob:
 cm_toa:
         mov     ecx,O_I_TOA*256+O_F_TOA
 @ctn_g:
-        test    [cty],T_STR
+        test    [g_state.cm.cty],T_STR
         jnz     @st_comp3
         mov     al,cl
-        cmp     [cty],T_INT
+        cmp     [g_state.cm.cty],T_INT
         jne     @ctn_e
-        mov     [cty],T_INT
+        mov     [g_state.cm.cty],T_INT
         call    cm_ileaf
         jne     @ctn_i
         cmp     byte ptr [ebx],O_I_LD_U8
@@ -364,7 +364,7 @@ cm_toa:
 @ctn_i:
         mov     al,ch
 @ctn_e:
-        mov     [cty],T_INT
+        mov     [g_state.cm.cty],T_INT
         jmp     cm_op
 
 ; ::::::::::::::
@@ -373,7 +373,7 @@ cm_toa:
 ; error:  ?TYPE MISMATCH  a number
 ; ::::::::::::::
 cm_tos:
-        test    [cty],T_STR
+        test    [g_state.cm.cty],T_STR
         jz      @st_comp3
         ret
 
@@ -385,9 +385,9 @@ cm_tos:
 ; keeps:  all but BX
 ; ::::::::::::::
 cm_ileaf:
-        cmp     edi,[clle]
+        cmp     edi,[g_state.cm.clle]
         jne     @cil_r
-        mov     ebx,[cll]
+        mov     ebx,[g_state.cm.cll]
         cmp     byte ptr [ebx],O_I_LD_V
         je      @cil_r
         cmp     byte ptr [ebx],O_I_LD_U8
@@ -403,11 +403,11 @@ cm_ileaf:
 ; error:  ?TYPE MISMATCH  a string
 ; ::::::::::::::
 cm_tof:
-        test    [cty],T_STR
+        test    [g_state.cm.cty],T_STR
         jnz     err_tm
-        cmp     [cty],T_FLT
+        cmp     [g_state.cm.cty],T_FLT
         je      @rt_com2
-        mov     [cty],T_FLT
+        mov     [g_state.cm.cty],T_FLT
         call    cm_ileaf
         jne     @ctf_o
         mov     al,[ebx]
@@ -458,7 +458,7 @@ cm_dw:
 ; error:  ?OUT OF MEMORY  the code is full
 ; ::::::::::::::
 cm_ins:
-        cmp     edi,[cxlim]
+        cmp     edi,[g_state.cm.cxlim]
         jae     @st_comp7
         push    esi
         push    edi
@@ -473,15 +473,15 @@ cm_ins:
         pop     esi
         inc     edi
         mov     [ebx],al
-        cmp     [cll],ebx
+        cmp     [g_state.cm.cll],ebx
         jb      @cin_r
-        inc     [cll]
-        inc     [clle]
+        inc     [g_state.cm.cll]
+        inc     [g_state.cm.clle]
 @cin_r:
-        cmp     [ccmp],ebx
+        cmp     [g_state.cm.ccmp],ebx
         jb      @cin_q
-        inc     [ccmp]
-        inc     [ccmpe]
+        inc     [g_state.cm.ccmp]
+        inc     [g_state.cm.ccmpe]
 @cin_q:
         ret
 @st_comp7:
@@ -501,7 +501,7 @@ cm_op:
 ; error:  ?OUT OF MEMORY  the code is full
 ; ::::::::::::::
 cm_byt:
-        cmp     edi,[cxlim]
+        cmp     edi,[g_state.cm.cxlim]
         jae     @st_comp7
         stosb
         ret
@@ -522,7 +522,7 @@ cm_opx:
 ; in:     AL, DX  the op, the word
 ; ::::::::::::::
 cm_opw:
-        mov     [wv],dx
+        mov     [g_state.cm.wv],dx
         call    cm_op
 
 ; ::::::::::::::
@@ -531,9 +531,9 @@ cm_opw:
 ; in:     wv  the word
 ; ::::::::::::::
 cm_w:
-        mov     al,byte ptr [wv]
+        mov     al,byte ptr [g_state.cm.wv]
         call    cm_byt
-        mov     al,byte ptr [wv+1]
+        mov     al,byte ptr [g_state.cm.wv+1]
         jmp     cm_byt
 
 ; ::::::::::::::
@@ -556,8 +556,8 @@ cm_jw:
 ; out:    cty  T_INT
 ; ::::::::::::::
 cm_lint:
-        mov     [cty],T_INT
-        mov     [cll],edi
+        mov     [g_state.cm.cty],T_INT
+        mov     [g_state.cm.cll],edi
         test    ax,0FF00h
         jnz     @cli_w
         push    eax
@@ -571,7 +571,7 @@ cm_lint:
         mov     al,O_I_LD_I16
         call    cm_opw
 @cli_e:
-        mov     [clle],edi
+        mov     [g_state.cm.clle],edi
         ret
 
 ; ::::::::::::::
@@ -701,21 +701,21 @@ var_id:
 ; ::::::::::::::
 cm_fv:
         call    cm_name
-        test    [sinfo+ebx],80h
+        test    [g_sinfo+ebx],80h
         jnz     @st_comp2
-        mov     [cfid],al
+        mov     [g_state.cm.cfid],al
         call    cm_tgt
-        cmp     [cinf],0
+        cmp     [g_state.cm.cinf],0
         je      @cfv_k
-        mov     [cinfv],bl
-        or      [sinfo+ebx],SI_FOR
+        mov     [g_state.cm.cinfv],bl
+        or      [g_sinfo+ebx],SI_FOR
 @cfv_k:
-        mov     al,[sinfo+ebx]
-        mov     [ctk],al
+        mov     al,[g_sinfo+ebx]
+        mov     [g_state.cm.ctk],al
         and     al,43h
         cmp     al,2
         je      @st_comp6
-        mov     [cfk],al
+        mov     [g_state.cm.cfk],al
         ret
 
 ; ::::::::::::::
@@ -725,10 +725,10 @@ cm_fv:
 ; keeps:  BX
 ; ::::::::::::::
 cm_tgt:
-        mov     [ctv],bl
-        mov     al,[sinfo+ebx]
-        mov     [ctk],al
-        mov     [ctn],0
+        mov     [g_state.cm.ctv],bl
+        mov     al,[g_sinfo+ebx]
+        mov     [g_state.cm.ctk],al
+        mov     [g_state.cm.ctn],0
         ret
 @st_comp6:
         jmp     err_tm
@@ -755,11 +755,11 @@ cm_def:
         call    cm_chkop
         call    cm_name
         call    cm_unf
-        mov     al,[sinfo+ebx]
+        mov     al,[g_sinfo+ebx]
         and     al,43h
         cmp     al,2
         je      @st_comp6
-        test    [sinfo+ebx],80h
+        test    [g_sinfo+ebx],80h
         jnz     @st_comp2
         push    ebx
         call    cm_chkcl
@@ -794,7 +794,7 @@ cm_def:
 ; out:    SI    at the statement's end
 ; ::::::::::::::
 cm_dat:
-        mov     esi,[ctks]
+        mov     esi,[g_state.cm.ctks]
         inc     esi
         jmp     cm_skip
 
@@ -818,20 +818,20 @@ cm_lnum:
         cmp     al,M_INT
         jne     @cml_z
         mov     ax,[esi+1]
-        mov     [wv],ax
+        mov     [g_state.cm.wv],ax
         add     esi,3
         cmp     ah,0FAh
         jae     err_sn
         jmp     st_get
 @cml_z:
-        and     [wv],0
+        and     [g_state.cm.wv],0
         ret
 
 ; ::::::::::::::
 ; cm_lnld - I.LD.I16 of the line number wv.
 ; ::::::::::::::
 cm_lnld:
-        mov     dx,[wv]
+        mov     dx,[g_state.cm.wv]
         mov     al,O_I_LD_I16
         jmp     cm_opw
 
@@ -871,19 +871,19 @@ cm_rts:
 ; cm_n0 - count a CALL's arguments, then load the count.
 ; ::::::::::::::
 cm_n0:
-        mov     [ccnt],0
+        mov     [g_state.cm.ccnt],0
         ret
 ; ::::::::::::::
 ; cm_n1 - count a CALL's arguments, then load the count.
 ; ::::::::::::::
 cm_n1:
-        inc     [ccnt]
+        inc     [g_state.cm.ccnt]
         ret
 ; ::::::::::::::
 ; cm_narg - count a CALL's arguments, then load the count.
 ; ::::::::::::::
 cm_narg:
-        movzx   ax,[ccnt]
+        movzx   ax,[g_state.cm.ccnt]
         jmp     cm_lint
 
 ; ::::::::::::::
@@ -924,11 +924,11 @@ cm_for:
 cm_for1:
         mov     al,O_I_FOR1
 @cfo_g:
-        cmp     [cfk],0
+        cmp     [g_state.cm.cfk],0
         jne     @cfo_e
         inc     al                      ; F.FOR, F.FOR1
 @cfo_e:
-        mov     cl,[cfid]
+        mov     cl,[g_state.cm.cfid]
         jmp     cm_opx
 
 ; ::::::::::::::
@@ -968,13 +968,13 @@ cm_rd:
 cm_get:
         mov     al,K_FGET
 @crx_g:
-        mov     [cty],T_FLT
-        mov     ah,[ctk]
+        mov     [g_state.cm.cty],T_FLT
+        mov     ah,[g_state.cm.ctk]
         and     ah,3
         cmp     ah,2
         jne     @crx_c
         inc     al
-        mov     [cty],T_STR
+        mov     [g_state.cm.cty],T_STR
 @crx_c:
         call    cm_call
         jmp     cm_store
@@ -999,10 +999,10 @@ cm_print:
         je      @cmp_s
         call    cm_expr
         mov     al,K_SPR
-        cmp     [cty],T_STR
+        cmp     [g_state.cm.cty],T_STR
         je      @cmp_v
         mov     al,K_FPR
-        cmp     [cty],T_FLT
+        cmp     [g_state.cm.cty],T_FLT
         je      @cmp_v
         mov     al,K_IPR
 @cmp_v:
@@ -1040,17 +1040,17 @@ cm_print:
 ; in:     SI  after LIST
 ; ::::::::::::::
 cm_list:
-        mov     [cst],esi
+        mov     [g_state.cm.cst],esi
         call    cm_lnum
         push    eax
         call    cm_lnld
         pop     eax
         cmp     al,TK_MINUS
         je      @cli_d
-        cmp     esi,[cst]
+        cmp     esi,[g_state.cm.cst]
         jne     @cli_t
 @cli_a:
-        mov     [wv],0FFFFh
+        mov     [g_state.cm.wv],0FFFFh
 @cli_t:
         call    cm_lnld
         mov     al,K_LIST
@@ -1082,7 +1082,7 @@ cm_on:
         mov     al,O_ON
         call    cm_opx
         lea     eax,[edi-1]
-        mov     [onp],eax
+        mov     [g_state.cm.onp],eax
         inc     esi
         ret
 
@@ -1095,7 +1095,7 @@ cm_on:
 cm_onl:
         call    cm_lnum
         call    cm_jw
-        mov     ebx,[onp]
+        mov     ebx,[g_state.cm.onp]
         inc     byte ptr [ebx]
         ret
 
@@ -1129,7 +1129,7 @@ cm_ret:
 ; in:     ctok  the token
 ; ::::::::::::::
 cm_fop:
-        mov     al,[ctok]
+        mov     al,[g_state.cm.ctok]
         add     al,K_LOAD-TK_LOAD
         jmp     cm_call
 
@@ -1183,5 +1183,11 @@ cm_skip:
         jmp     @csk_lp
 @csk_r:
         ret
+
+        .data?
+g_cbufh db      ?                 ; cbuf-1: lx_line's line before the body
+g_cbuf  db      256 dup(?)
+g_xbuf  db      264 dup(?)
+        .code
 
         end

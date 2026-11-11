@@ -833,7 +833,7 @@ def check_parser(T: dict) -> int:
 def rows(name: str, kind: str, vals: list) -> list[str]:
     """A table as db or dw lines of at most 100 columns."""
     text = [f"0{v:02X}h" if kind == "db" else (v if isinstance(v, str) else f"0{v:04X}h") for v in vals]
-    out, line = [f"{name:<8}label   {'byte' if kind == 'db' else 'word'}"], []
+    out, line = [f"{name:<8} label   {'byte' if kind == 'db' else 'word'}"], []
     for x in text:
         if line and 16 + len(",".join([*line, x])) > 100:
             out.append(f"        {kind}      " + ",".join(line))
@@ -899,15 +899,15 @@ def emit(T: dict) -> str:
         f"ST_GO   = {T['ST_GO']}",
         "ifdef DFA_DATA                  ; the tables: comp/lex.asm's alone",
         "        .data",
-        *rows("sc_cls", "db", T["sc_cls"]),
-        *rows("sc_tab", "db", T["sc_tab"]),
-        *rows("sc_acc", "db", T["sc_acc"]),
-        *rows("tk_cls", "db", T["tk_cls"]),
-        *rows("tk_tab", "dw", T["tk_tab"]),
-        *rows("tk_mode", "db", T["tk_mode"]),
-        *rows("ps_cls", "db", T["ps_cls"]),
-        *rows("ps_tab", "dw", ps),
-        *rows("ps_ent", "db", T["ps_ent"]),
+        *rows("g_sc_cls", "db", T["sc_cls"]),
+        *rows("g_sc_tab", "db", T["sc_tab"]),
+        *rows("g_sc_acc", "db", T["sc_acc"]),
+        *rows("g_tk_cls", "db", T["tk_cls"]),
+        *rows("g_tk_tab", "dw", T["tk_tab"]),
+        *rows("g_tk_mode", "db", T["tk_mode"]),
+        *rows("g_ps_cls", "db", T["ps_cls"]),
+        *rows("g_ps_tab", "dw", ps),
+        *rows("g_ps_ent", "db", T["ps_ent"]),
         "        .code",
         "endif",
     ]

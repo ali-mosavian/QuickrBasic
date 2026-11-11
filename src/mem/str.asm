@@ -32,17 +32,17 @@ str_get:
 ; keeps:  EAX, EDX, SI, DI
 ; ::::::::::::::
 str_getd:
-        movzx   ebx,[tsp]
-        add     ebx,[tmplin]
+        movzx   ebx,[g_state.sg.tsp]
+        add     ebx,[g_state.sg.tmplin]
         sub     ebx,DSZ
         cmp     ebx,eax
         jne     @sgd_n
-        sub     [tsp],DSZ
+        sub     [g_state.sg.tsp],DSZ
 @sgd_n:
         mov     cx,[eax+D_LEN]
         mov     ebx,[eax+D_PTR]
-        mov     [spt],ebx
-        mov     [sln],cx
+        mov     [g_state.sg.spt],ebx
+        mov     [g_state.sg.sln],cx
         test    cx,cx
         ret
 
@@ -53,12 +53,12 @@ str_getd:
 ; out:    as str_push
 ; ::::::::::::::
 str_new:
-        mov     eax,[dpv]
-        mov     [spt],eax
-        mov     ax,[sn]
-        mov     [sln],ax
-        movzx   eax,[tsp]
-        add     eax,[tmplin]
+        mov     eax,[g_state.sg.dpv]
+        mov     [g_state.sg.spt],eax
+        mov     ax,[g_state.sg.sn]
+        mov     [g_state.sg.sln],ax
+        movzx   eax,[g_state.sg.tsp]
+        add     eax,[g_state.sg.tmplin]
         call    str_own
 
 ; ::::::::::::::
@@ -69,16 +69,16 @@ str_new:
 ; error:  ?FORMULA TOO COMPLEX  NTMP in use
 ; ::::::::::::::
 str_push:
-        movzx   ebx,[tsp]
+        movzx   ebx,[g_state.sg.tsp]
         cmp     ebx,DSZ*NTMP
         jae     err_st
-        mov     eax,[spt]
-        mov     dword ptr [tmpd+ebx+D_PTR],eax
-        mov     ax,[sln]
-        mov     word ptr [tmpd+ebx+D_LEN],ax
-        add     [tsp],DSZ
+        mov     eax,[g_state.sg.spt]
+        mov     dword ptr [g_tmpd+ebx+D_PTR],eax
+        mov     ax,[g_state.sg.sln]
+        mov     word ptr [g_tmpd+ebx+D_LEN],ax
+        add     [g_state.sg.tsp],DSZ
         mov     eax,ebx
-        add     eax,[tmplin]
+        add     eax,[g_state.sg.tmplin]
         ret
 
 ; ::::::::::::::
@@ -88,8 +88,8 @@ str_push:
 ; ::::::::::::::
 str_own:
         push    eax
-        movzx   eax,[sln]
-        add     eax,[spt]
+        movzx   eax,[g_state.sg.sln]
+        add     eax,[g_state.sg.spt]
         mov     ebx,eax
         pop     eax
         mov     [ebx+B_OWN],eax
@@ -103,12 +103,12 @@ str_own:
 ; keeps:  SI, DI
 ; ::::::::::::::
 str_fit:
-        movzx   eax,[sn]
+        movzx   eax,[g_state.sg.sn]
         add     eax,BHDR
         neg     eax
-        add     eax,[sfr]
-        mov     [dpv],eax
-        mov     ebx,[aend]
+        add     eax,[g_state.mm.sfr]
+        mov     [g_state.sg.dpv],eax
+        mov     ebx,[g_state.mm.aend]
         cmp     ebx,eax
         ret
 
@@ -123,19 +123,19 @@ str_fit:
 ; error:  ?OUT OF MEMORY  no room after str_gc
 ; ::::::::::::::
 str_alloc:
-        mov     [sn],ax
+        mov     [g_state.sg.sn],ax
         call    str_fit
         jc      @sal_o
         call    str_gc
         jc      @sal_o
         jmp     err_om
 @sal_o:
-        mov     eax,[dpv]
-        mov     [sfr],eax
-        movzx   ebx,[sn]
+        mov     eax,[g_state.sg.dpv]
+        mov     [g_state.mm.sfr],eax
+        movzx   ebx,[g_state.sg.sn]
         add     eax,ebx
         mov     ebx,eax
-        mov     ax,[sn]
+        mov     ax,[g_state.sg.sn]
         mov     [ebx+B_LEN],ax
         mov     dword ptr [ebx+B_OWN],0
         ret
@@ -149,25 +149,25 @@ str_alloc:
 ; keeps:  SI, DI
 ; ::::::::::::::
 str_gc:
-        mov     eax,[htop]
-        mov     [gq],eax
-        mov     [gd],eax
+        mov     eax,[g_state.mm.htop]
+        mov     [g_state.sg.gq],eax
+        mov     [g_state.sg.gd],eax
 @sgc_l:
-        mov     eax,[gq]
-        cmp     eax,[sfr]
+        mov     eax,[g_state.sg.gq]
+        cmp     eax,[g_state.mm.sfr]
         jbe     @sgc_e
         sub     eax,BHDR
         movzx   ecx,word ptr [eax+B_LEN]
         mov     edx,[eax+B_OWN]
         sub     eax,ecx
-        mov     [gq],eax                ; the chars, the next block's end
+        mov     [g_state.sg.gq],eax                ; the chars, the next block's end
         test    edx,edx
         jz      @sgc_l
         mov     ebx,edx
-        sub     ebx,[tmplin]
+        sub     ebx,[g_state.sg.tmplin]
         cmp     ebx,DSZ*NTMP
         jae     @sgc_v
-        cmp     bx,[tsp]
+        cmp     bx,[g_state.sg.tsp]
         jae     @sgc_l                  ; a popped temporary
 @sgc_v:
         xchg    eax,edx
@@ -175,20 +175,20 @@ str_gc:
         cmp     ebx,edx
         jne     @sgc_l
         add     ecx,BHDR
-        mov     ebx,[gd]
+        mov     ebx,[g_state.sg.gd]
         sub     ebx,ecx
-        mov     [gd],ebx
+        mov     [g_state.sg.gd],ebx
         push    eax                     ; the owner
         mov     eax,edx
         mov     edx,ebx
         call    mem_up
         pop     eax
-        mov     edx,[gd]
+        mov     edx,[g_state.sg.gd]
         mov     [eax+D_PTR],edx
         jmp     @sgc_l
 @sgc_e:
-        mov     eax,[gd]
-        mov     [sfr],eax
+        mov     eax,[g_state.sg.gd]
+        mov     [g_state.mm.sfr],eax
         jmp     str_fit
 
 ; ::::::::::::::
@@ -204,39 +204,39 @@ str_gc:
 str_set:
         call    str_get
         jz      @sst_s
-        mov     edx,[spt]
-        sub     edx,[proglin]
+        mov     edx,[g_state.sg.spt]
+        sub     edx,[g_state.mm.proglin]
         cmp     edx,PROGSZ
         jb      @sst_s
-        mov     edx,[spt]
-        cmp     edx,[sfr]
+        mov     edx,[g_state.sg.spt]
+        cmp     edx,[g_state.mm.sfr]
         jb      @sst_c
-        cmp     edx,[htop]
+        cmp     edx,[g_state.mm.htop]
         jae     @sst_c
         push    eax
-        movzx   eax,[sln]
+        movzx   eax,[g_state.sg.sln]
         add     eax,edx
         mov     ebx,eax
         pop     eax
         cmp     eax,[ebx+B_OWN]
         je      @sst_o
 @sst_c:
-        mov     [sac],eax
-        mov     ax,[sln]
+        mov     [g_state.sg.sac],eax
+        mov     ax,[g_state.sg.sln]
         call    str_alloc
-        mov     eax,[sac]
+        mov     eax,[g_state.sg.sac]
         call    str_getd
         call    str_cpyd
-        mov     eax,[dpv]
-        mov     [spt],eax
+        mov     eax,[g_state.sg.dpv]
+        mov     [g_state.sg.spt],eax
 @sst_o:
-        mov     eax,[bpo]
+        mov     eax,[g_state.sg.bpo]
         call    str_own
 @sst_s:
-        mov     ebx,[bpo]
-        mov     eax,[spt]
+        mov     ebx,[g_state.sg.bpo]
+        mov     eax,[g_state.sg.spt]
         mov     [ebx+D_PTR],eax
-        mov     ax,[sln]
+        mov     ax,[g_state.sg.sln]
         mov     [ebx+D_LEN],ax
         ret
 
@@ -247,7 +247,7 @@ str_set:
 ; keeps:  SI, DI
 ; ::::::::::::::
 str_cpyd:
-        mov     edx,[dpv]
+        mov     edx,[g_state.sg.dpv]
 
 ; ::::::::::::::
 ; str_cpy - copy sln chars from spt to EDX.
@@ -257,8 +257,8 @@ str_cpyd:
 ; keeps:  SI, DI
 ; ::::::::::::::
 str_cpy:
-        mov     eax,[spt]
-        mov     cx,[sln]
+        mov     eax,[g_state.sg.spt]
+        mov     cx,[g_state.sg.sln]
         jmp     mem_cpy
 
 ; ::::::::::::::
@@ -270,16 +270,16 @@ str_cpy:
 ; keeps:  DI
 ; ::::::::::::::
 str_near:
-        cmp     [sln],255
+        cmp     [g_state.sg.sln],255
         jbe     @snr_c
-        mov     [sln],255
+        mov     [g_state.sg.sln],255
 @snr_c:
-        mov     edx,[dslin]
-        add     edx,offset nbuf
+        mov     edx,[g_state.mm.dslin]
+        add     edx,offset g_nbuf
         call    str_cpy
-        movzx   ebx,[sln]
-        mov     byte ptr [nbuf+ebx],0
-        mov     esi,offset nbuf
+        movzx   ebx,[g_state.sg.sln]
+        mov     byte ptr [g_nbuf+ebx],0
+        mov     esi,offset g_nbuf
         ret
 
 ; ::::::::::::::
@@ -290,22 +290,22 @@ str_near:
 ; ::::::::::::::
 str_print:
         push    esi
-        mov     dx,[sln]
+        mov     dx,[g_state.sg.sln]
 @spr_c:
         test    dx,dx
         jz      @spr_e
-        mov     [sln],dx
+        mov     [g_state.sg.sln],dx
         push    edx
         call    str_near
-        movzx   ecx,[sln]
+        movzx   ecx,[g_state.sg.sln]
         mov     eax,ecx
-        add     [spt],eax
+        add     [g_state.sg.spt],eax
 @spr_l:
         lodsb
         call    io_putc
         loop    @spr_l
         pop     edx
-        sub     dx,[sln]
+        sub     dx,[g_state.sg.sln]
         jmp     @spr_c
 @spr_e:
         pop     esi
@@ -359,9 +359,9 @@ str_item:
 ; ::::::::::::::
 str_scan:
         call    str_span
-        mov     [sln],ax
-        add     ebx,[dslin]
-        mov     [spt],ebx
+        mov     [g_state.sg.sln],ax
+        add     ebx,[g_state.mm.dslin]
+        mov     [g_state.sg.spt],ebx
         jmp     str_push
 
 ; ::::::::::::::
@@ -409,8 +409,8 @@ str_dlen:
 ; error:  ?STRING TOO LONG  over SMAX chars
 ; ::::::::::::::
 str_cat:
-        mov     [sac],eax
-        mov     [sab],edx
+        mov     [g_state.sg.sac],eax
+        mov     [g_state.sg.sab],edx
         call    str_dlen
         mov     ax,cx
         xchg    eax,edx
@@ -420,14 +420,14 @@ str_cat:
         ja      @sca_l
         mov     ax,cx
         call    str_alloc
-        mov     eax,[sab]
+        mov     eax,[g_state.sg.sab]
         call    str_dlen
         movzx   edx,cx
-        add     edx,[dpv]
-        mov     eax,[sac]
+        add     edx,[g_state.sg.dpv]
+        mov     eax,[g_state.sg.sac]
         call    str_get
         call    str_cpy
-        mov     eax,[sab]
+        mov     eax,[g_state.sg.sab]
         call    str_getd
         call    str_cpyd
         jmp     str_new
@@ -444,18 +444,18 @@ str_cat:
 ; keeps:  SI, DI
 ; ::::::::::::::
 str_cmp:
-        mov     [sab],edx
+        mov     [g_state.sg.sab],edx
         call    str_get
         mov     dx,cx
-        mov     ebx,[spt]
-        mov     [sac],ebx
-        mov     eax,[sab]
+        mov     ebx,[g_state.sg.spt]
+        mov     [g_state.sg.sac],ebx
+        mov     eax,[g_state.sg.sab]
         call    str_getd
         push    esi
         push    edi
-        mov     esi,[spt]
-        mov     edi,[sac]
-        mov     cx,[sln]
+        mov     esi,[g_state.sg.spt]
+        mov     edi,[g_state.sg.sac]
+        mov     cx,[g_state.sg.sln]
 @scm_l:
         test    cx,cx
         jz      @scm_e
@@ -490,22 +490,22 @@ str_cmp:
 ; out:    EAX  a new temporary
 ; ::::::::::::::
 str_sub:
-        mov     [sac],eax
+        mov     [g_state.sg.sac],eax
         call    str_dlen
         mov     ax,cx
-        sub     ax,[s0v]
+        sub     ax,[g_state.sg.s0v]
         jnc     @ssb_a
         xor     ax,ax
 @ssb_a:
-        cmp     ax,[s1v]
+        cmp     ax,[g_state.sg.s1v]
         jb      @ssb_b
-        mov     ax,[s1v]
+        mov     ax,[g_state.sg.s1v]
 @ssb_b:
         call    str_alloc
-        mov     eax,[sac]
+        mov     eax,[g_state.sg.sac]
         call    str_get
-        movzx   eax,[s0v]
-        add     [spt],eax
+        movzx   eax,[g_state.sg.s0v]
+        add     [g_state.sg.spt],eax
 
 ; ::::::::::::::
 ; str_tods - copy sn chars from spt to the block: a new temporary.
@@ -514,8 +514,8 @@ str_sub:
 ; out:    EAX  the temporary
 ; ::::::::::::::
 str_tods:
-        mov     ax,[sn]
-        mov     [sln],ax
+        mov     ax,[g_state.sg.sn]
+        mov     [g_state.sg.sln],ax
         call    str_cpyd
         jmp     str_new
 
@@ -527,9 +527,14 @@ str_tods:
 ; ::::::::::::::
 str_buftmp:
         call    str_alloc
-        mov     eax,[dslin]
-        add     eax,offset sbuf
-        mov     [spt],eax
+        mov     eax,[g_state.mm.dslin]
+        add     eax,offset g_sbuf
+        mov     [g_state.sg.spt],eax
         jmp     str_tods
+
+        .data?
+g_tmpd  db      DSZ*NTMP dup(?)
+g_nbuf  db      257 dup(?)
+        .code
 
         end

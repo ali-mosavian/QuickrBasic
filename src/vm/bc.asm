@@ -210,7 +210,7 @@ bc_&nm:
         fsrc    src
         pop     edx
         push    esi
-        call    [bflt+k*4]
+        call    [g_bflt+k*4]
         pop     esi
         push    eax
         dispatch

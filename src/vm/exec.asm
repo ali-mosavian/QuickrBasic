@@ -28,7 +28,7 @@ ex_lp:
 ; ::::::::::::::
 ex_brk:
         call    plt_kflush              ; the Ctrl+C, not a key for the editor
-        mov     esi,[opip]
+        mov     esi,[g_state.rn.opip]
         jmp     sc_stop
 
 ; ::::::::::::::
@@ -38,10 +38,10 @@ ex_brk:
 ; ::::::::::::::
 op_sldt:
         movzx   ax,byte ptr [esi]
-        mov     [sln],ax
+        mov     [g_state.sg.sln],ax
         mov     ebx,[esi+1]
         add     esi,5
-        mov     [spt],ebx
+        mov     [g_state.sg.spt],ebx
         call    str_push
         push    eax
         dispatch
@@ -55,8 +55,8 @@ op_sldt:
 ; ::::::::::::::
 arr_r1:
         shr     ebx,1
-        mov     [dimbuf],ax
-        mov     [narr],1
+        mov     [g_dimbuf],ax
+        mov     [g_state.rn.narr],1
         jmp     arr_ref
 
 ; ::::::::::::::
@@ -66,21 +66,21 @@ arr_r1:
 ; error:  as arr_ref
 ; ::::::::::::::
 arr_pn:
-        pop     [aret]
+        pop     [g_state.rn.aret]
         movzx   edx,byte ptr [esi]
         mov     cl,[esi+1]
         add     esi,2
-        mov     [narr],cl
+        mov     [g_state.rn.narr],cl
         movzx   ebx,cl
         add     ebx,ebx
 @apn_l:
         pop     eax
-        mov     [dimbuf+ebx-2],ax
+        mov     [g_dimbuf+ebx-2],ax
         sub     ebx,2
         jnz     @apn_l
         mov     ebx,edx
         call    arr_ref
-        jmp     [aret]
+        jmp     [g_state.rn.aret]
 
 ; ::::::::::::::
 ; op_ilda1 - X.LD.A1 id ( i -- x ).
@@ -141,7 +141,7 @@ op_slda:
 op_sstv:
         vslot
         lea     eax,[SVBASE+ebx*2]
-        mov     [bpo],eax
+        mov     [g_state.sg.bpo],eax
         pop     eax
         call    str_set
         dispatch
@@ -150,11 +150,11 @@ op_sstv:
 ; op_ista1 - X.ST.A1 id ( i x -- ).
 ; ::::::::::::::
 op_ista1:
-        pop     dword ptr [stv]
+        pop     dword ptr [g_state.rn.stv]
         pop     eax
         a1get   0,@isa_s
 @isa_g:
-        mov     ax,word ptr [stv]
+        mov     ax,word ptr [g_state.rn.stv]
         mov     [edi],ax
         dispatch
 @isa_s:
@@ -164,11 +164,11 @@ op_ista1:
 ; op_fsta1 - X.ST.A1 id ( i x -- ).
 ; ::::::::::::::
 op_fsta1:
-        pop     dword ptr [stv]
+        pop     dword ptr [g_state.rn.stv]
         pop     eax
         a1get   2,@fsa_s
 @fsa_g:
-        mov     eax,[stv]
+        mov     eax,[g_state.rn.stv]
         mov     [edi],eax
         dispatch
 @fsa_s:
@@ -178,12 +178,12 @@ op_fsta1:
 ; op_ssta1 - X.ST.A1 id ( i x -- ).
 ; ::::::::::::::
 op_ssta1:
-        pop     dword ptr [stv]
+        pop     dword ptr [g_state.rn.stv]
         pop     eax
         a1get   1,@ssa_s
 @ssa_g:
-        mov     [bpo],edi
-        mov     eax,[stv]
+        mov     [g_state.sg.bpo],edi
+        mov     eax,[g_state.rn.stv]
         call    str_set
         dispatch
 @ssa_s:
@@ -194,21 +194,21 @@ op_ssta1:
 ; op_istan - X.ST.A id n ( i1..in x -- ).
 ; ::::::::::::::
 op_istan:
-        pop     dword ptr [stv]
+        pop     dword ptr [g_state.rn.stv]
         call    arr_pn
         jmp     @isa_g
 ; ::::::::::::::
 ; op_fstan - X.ST.A id n ( i1..in x -- ).
 ; ::::::::::::::
 op_fstan:
-        pop     dword ptr [stv]
+        pop     dword ptr [g_state.rn.stv]
         call    arr_pn
         jmp     @fsa_g
 ; ::::::::::::::
 ; op_sstan - X.ST.A id n ( i1..in x -- ).
 ; ::::::::::::::
 op_sstan:
-        pop     dword ptr [stv]
+        pop     dword ptr [g_state.rn.stv]
         call    arr_pn
         jmp     @ssa_g
 
@@ -251,7 +251,7 @@ int_div:
 ; ::::::::::::::
 ex_cmpt:
         and     al,cl
-        cmp     [cop],O_I_CMPIF*2
+        cmp     [g_state.rn.cop],O_I_CMPIF*2
         jae     @ct_if
         neg     al
         sbb     eax,eax
@@ -266,7 +266,7 @@ ex_cmpt:
 ; op_scmp - S.CMP .. S.CMPIF.
 ; ::::::::::::::
 op_scmp:
-        mov     [cop],bx
+        mov     [g_state.rn.cop],bx
         pop     eax
         pop     edx
         call    str_cmp
@@ -303,12 +303,12 @@ op_call:
         movzx   ebx,byte ptr [esi]
         inc     esi
         add     ebx,ebx
-        jmp     [calls+ebx*2]
+        jmp     [g_calls+ebx*2]
 
         .data
-ops     label   dword
+g_ops   label   dword
         oplist  opd
-calls   dd      sc_ipr,sc_fpr,sc_spr,sc_pnl,sc_pzone,sc_ptab,sc_pspc
+g_calls dd      sc_ipr,sc_fpr,sc_spr,sc_pnl,sc_pzone,sc_ptab,sc_pspc
         dd      sc_fin,sc_sin,sc_fget,sc_sget,sc_inbeg,sc_inpr,sc_infile,sc_inend
         dd      sc_fread,sc_sread,sc_res,sc_resl,sc_dim
         dd      sc_open,sc_close,sc_fiout,sc_fiin,sc_ficlr,sc_load,sc_save,sc_vfy
@@ -318,8 +318,8 @@ calls   dd      sc_ipr,sc_fpr,sc_spr,sc_pnl,sc_pzone,sc_ptab,sc_pspc
         dd      20 dup(sc_fn1)
         dd      sc_left,sc_right,sc_mid,sc_mid2
 
-bflt    dd      flt_add,flt_sub,flt_mul,flt_div,fn_pow
-fntab   dd      fn_sgn,fn_int,fn_abs,fn_usr,fn_fre,fn_pos,fn_sqr,fn_rnd,fn_log,fn_exp
+g_bflt  dd      flt_add,flt_sub,flt_mul,flt_div,fn_pow
+g_fntab dd      fn_sgn,fn_int,fn_abs,fn_usr,fn_fre,fn_pos,fn_sqr,fn_rnd,fn_log,fn_exp
         dd      fn_cos,fn_sin,fn_tan,fn_atn,fn_peek,fn_len,fn_fstr,fn_val,fn_asc
         dd      fn_chr
         .code

@@ -9,16 +9,16 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent / 'src' / 'x86f'
-CORE = ['main.asm', 'data.asm', 'vm/exec.asm', 'vm/flow.asm', 'vm/calls.asm',
+CORE = ['main.asm', 'vm/exec.asm', 'vm/flow.asm', 'vm/calls.asm',
         'vm/builtins.asm', 'vm/bc.asm', 'comp/lex.asm', 'comp/comp.asm',
         'comp/expr.asm', 'comp/link.asm', 'comp/list.asm', 'mem/far.asm',
         'mem/prog.asm', 'mem/sym.asm', 'mem/str.asm', 'mem/arr.asm',
         'io/io.asm', 'io/repl.asm', 'io/file.asm', 'io/plat.asm',
-        'float/flt.asm', 'float/ftr.asm', 'float/fpu.asm']
+        'float/flt.asm', 'float/ftr.asm', 'float/fpu.asm', 'regions.asm']
 UI = ['ui/scr.asm', 'ui/mouse.asm', 'ui/compl.asm', 'ui/text.asm',
       'ui/edit.asm', 'ui/draw.asm', 'ui/menu.asm', 'ui/dlg.asm',
-      'ui/sync.asm', 'ui/ui.asm', 'ui/uidata.asm']
-HEADERS = ['x86f.inc', 'def.inc', 'vm/isa.inc', 'vm/vm.inc', 'comp/comp.inc',
+      'ui/sync.asm', 'ui/ui.asm']
+HEADERS = ['x86f.inc', 'def.inc', 'state.inc', 'vm/isa.inc', 'vm/vm.inc', 'comp/comp.inc',
            'comp/dfa.inc', 'ui/uibuf.inc', 'ui/ui.inc']
 TYPES = {'db': 'byte', 'dw': 'word', 'dd': 'dword', 'df': 'fword',
          'dq': 'qword', 'dt': 'tbyte'}
@@ -212,9 +212,8 @@ def falls(files):
     return bad
 
 
-TARGETS = [('syms.inc', CORE, 'the core')]
-UI_TARGETS = [
-           ('ui/syms.inc', CORE + UI, 'the core and the editor')]
+TARGETS = [('syms.inc', CORE, 'the core'),
+           ('ui/syms.inc', CORE[:-1] + UI + CORE[-1:], 'the core and the editor')]
 
 
 def main():
@@ -223,7 +222,7 @@ def main():
         for out, files, title in TARGETS:
             if (ROOT / out).exists() and (ROOT / out).read_text() != emit(files, title):
                 bad.append('%s differs from tools/x86syms.py' % out)
-        bad += unshared(CORE)
+        bad += unshared(CORE) + unshared(CORE + UI)
         for b in sorted(set(bad)):
             print(b)
         sys.exit(1 if bad else 0)

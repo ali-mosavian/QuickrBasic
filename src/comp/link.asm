@@ -17,9 +17,9 @@ include x86f.inc
         .code
 
         .data
-opsz    label   byte
+g_opsz  label   byte
         oplist  opszm
-opfl    label   byte
+g_opfl  label   byte
         oplist  opflm
         .code
 
@@ -32,13 +32,13 @@ opfl    label   byte
 ; ::::::::::::::
 cm_comp:
         push    ebx
-        mov     edi,offset lbuf
+        mov     edi,offset g_lbuf
         call    mem_line
-        mov     [cxb],offset xbuf
-        lea     eax,[progb+ebx]
-        sub     eax,offset lbuf
-        mov     [ctxlin],eax
-        mov     esi,offset lbuf+HDR-1
+        mov     [g_state.cm.cxb],offset g_xbuf
+        lea     eax,[g_progb+ebx]
+        sub     eax,offset g_lbuf
+        mov     [g_state.cm.ctxlin],eax
+        mov     esi,offset g_lbuf+HDR-1
         call    cm_text
         pop     ebx
         ret
@@ -54,24 +54,24 @@ cm_comp:
 cm_cache:
         call    cm_comp
 @cc_t:
-        mov     edi,[cend]
-        mov     [elim],offset cachb+CLIM
+        mov     edi,[g_state.lnk.cend]
+        mov     [g_state.lnk.elim],offset g_cachb+CLIM
         push    ebx
         call    cm_xlate
         pop     ebx
         jnc     @cc_f
-        cmp     [cend],offset cachb+CACHE0
+        cmp     [g_state.lnk.cend],offset g_cachb+CACHE0
         je      err_om
         push    ebx
         call    cm_flush
         pop     ebx
         jmp     @cc_t
 @cc_f:
-        mov     esi,[cend]
-        mov     [cend],edi
+        mov     esi,[g_state.lnk.cend]
+        mov     [g_state.lnk.cend],edi
         mov     eax,esi
-        sub     eax,offset cachb
-        mov     word ptr [progb+ebx+L_CP],ax
+        sub     eax,offset g_cachb
+        mov     word ptr [g_progb+ebx+L_CP],ax
         ret
 
 ; ::::::::::::::
@@ -79,7 +79,7 @@ cm_cache:
 ; their lines' code, every line loses its code, the cache is empty.
 ; ::::::::::::::
 cm_flush:
-        mov     ebx,[cstk]
+        mov     ebx,[g_state.rn.cstk]
 @cfl_f:
         cmp     ebx,CSTOP
         jae     @cfl_c
@@ -89,31 +89,31 @@ cm_flush:
         mov     ax,[ebx+F_IP]
         cmp     ax,CACHE0
         jb      @cfl_n
-        sub     ax,word ptr [progb+edi+L_CP]
+        sub     ax,word ptr [g_progb+edi+L_CP]
         mov     [ebx+F_IP],ax
 @cfl_n:
         movzx   ecx,byte ptr [ebx+F_MARK]
         add     ebx,ecx
         jmp     @cfl_f
 @cfl_c:
-        movzx   edi,[contip]
+        movzx   edi,[g_state.rn.contip]
         test    edi,edi
         jz      @cfl_l
-        mov     ax,[contsi]
+        mov     ax,[g_state.rn.contsi]
         cmp     ax,CACHE0
         jb      @cfl_l
-        sub     ax,word ptr [progb+edi+L_CP]
-        mov     [contsi],ax
+        sub     ax,word ptr [g_progb+edi+L_CP]
+        mov     [g_state.rn.contsi],ax
 @cfl_l:
         mov     ebx,PROGBASE
 @cfl_x:
-        movzx   ecx,byte ptr [progb+ebx]
+        movzx   ecx,byte ptr [g_progb+ebx]
         jecxz   @cfl_d
-        and     word ptr [progb+ebx+L_CP],0
+        and     word ptr [g_progb+ebx+L_CP],0
         add     ebx,ecx
         jmp     @cfl_x
 @cfl_d:
-        mov     [cend],offset cachb+CACHE0
+        mov     [g_state.lnk.cend],offset g_cachb+CACHE0
         ret
 
 ; ::::::::::::::
@@ -129,17 +129,17 @@ cm_flush:
 ;         eeol  the EOL's element
 ; ::::::::::::::
 cm_xlate:
-        and     [einb],0
-        mov     esi,offset xbuf
+        and     [g_state.lnk.einb],0
+        mov     esi,offset g_xbuf
 @cx_l:
         movzx   ebx,byte ptr [esi]
         call    op_size
         lea     eax,[edi+ecx+XSLK]
-        cmp     eax,[elim]
+        cmp     eax,[g_state.lnk.elim]
         ja      @cx_ov
         cmp     bl,O_EOL
         jne     @cx_n
-        mov     [eeol],edi
+        mov     [g_state.lnk.eeol],edi
 @cx_n:
         mov     dl,bl
         movsb
@@ -159,11 +159,11 @@ cm_xlate:
 @cx_t:
         cmp     dl,O_EOL
         jne     @cx_l
-        mov     ebx,[einb]
+        mov     ebx,[g_state.lnk.einb]
         test    ebx,ebx
         jz      @cx_d
-        mov     eax,[eeol]
-        sub     eax,offset cachb
+        mov     eax,[g_state.lnk.eeol]
+        sub     eax,offset g_cachb
         mov     [ebx],ax
 @cx_d:
         clc
@@ -172,26 +172,26 @@ cm_xlate:
         stc
         ret
 @cx_j:
-        push    [lnum]
+        push    [g_state.rn.lnum]
         mov     ax,[edi-4]
-        mov     [lnum],ax
+        mov     [g_state.rn.lnum],ax
         push    edx
         call    prg_findw
         pop     edx
-        pop     [lnum]
+        pop     [g_state.rn.lnum]
         jnc     @cx_t
         mov     [edi-2],bx
         jmp     @cx_t
 @cx_def:
         movsb
         inc     esi
-        mov     [efn],edi
+        mov     [g_state.lnk.efn],edi
         xor     ax,ax
         stosw
         jmp     @cx_t
 @cx_ret:
         movsb
-        mov     ebx,[efn]
+        mov     ebx,[g_state.lnk.efn]
         mov     eax,edi
         sub     eax,ebx
         sub     eax,2
@@ -202,18 +202,18 @@ cm_xlate:
         movsb
         cmp     al,K_INBEG
         jne     @cx_i
-        mov     [einb],edi
+        mov     [g_state.lnk.einb],edi
         xor     ax,ax
         stosw
         jmp     @cx_t
 @cx_i:
         cmp     al,K_INEND
         jne     @cx_t
-        mov     ebx,[einb]
+        mov     ebx,[g_state.lnk.einb]
         mov     eax,edi
-        sub     eax,offset cachb
+        sub     eax,offset g_cachb
         mov     [ebx],ax
-        and     [einb],0
+        and     [g_state.lnk.einb],0
         jmp     @cx_t
 
 ; ::::::::::::::
@@ -251,16 +251,16 @@ cm_cbdem:
         jb      @rt_lin1
         cmp     al,O_F_FOR1
         ja      @rt_lin1
-        mov     [cfail],1
+        mov     [g_state.cm.cfail],1
 @rt_lin1:
         ret
 @ccb_v:
         call    cm_isfor
         jne     @ccb_x
-        or      [sinfo+ebx],SI_FOR
+        or      [g_sinfo+ebx],SI_FOR
         ret
 @ccb_x:
-        test    [sinfo+ebx],SI_INF
+        test    [g_sinfo+ebx],SI_INF
         jnz     cm_dem
         ret
 
@@ -289,7 +289,7 @@ cm_isfor:
         jmp     @cif_no
 @cif_x:
         movzx   ebx,al
-        test    [opfl+ebx],FX
+        test    [g_opfl+ebx],FX
         jnz     @cif_n
         cmp     al,O_I_FOR
         jb      @cif_no
@@ -313,21 +313,21 @@ cm_isfor:
 ; keeps:  SI
 ; ::::::::::::::
 cm_link:
-        cmp     [linked],0
+        cmp     [g_state.lnk.linked],0
         jne     cm_rts
         push    esi
         call    cm_infer
-        and     [lc],0
+        and     [g_state.lnk.lc],0
         mov     ebx,PROGBASE
 @clk_l:
-        movzx   ecx,byte ptr [progb+ebx]
+        movzx   ecx,byte ptr [g_progb+ebx]
         jecxz   @clk_d
-        and     word ptr [progb+ebx+L_CP],0
+        and     word ptr [g_progb+ebx+L_CP],0
         add     ebx,ecx
         jmp     @clk_l
 @clk_d:
-        mov     [cend],offset cachb+CACHE0
-        mov     [linked],1
+        mov     [g_state.lnk.cend],offset g_cachb+CACHE0
+        mov     [g_state.lnk.linked],1
         pop     esi
         ret
 
@@ -337,11 +337,11 @@ cm_link:
 cm_infclr:
         xor     ebx,ebx
 @cic_l:
-        cmp     bl,[nsyms]
+        cmp     bl,[g_state.lx.nsyms]
         je      @rt_lin4
-        test    [sinfo+ebx],SI_INF
+        test    [g_sinfo+ebx],SI_INF
         jz      @cic_n
-        and     [sinfo+ebx],NOT (SI_INF+1)
+        and     [g_sinfo+ebx],NOT (SI_INF+1)
 @cic_n:
         inc     bl
         jnz     @cic_l
@@ -357,74 +357,74 @@ cm_infer:
         call    cm_infclr
         xor     ebx,ebx
 @cin_a:
-        cmp     bl,[nsyms]
+        cmp     bl,[g_state.lx.nsyms]
         je      @cin_w
-        test    [sinfo+ebx],0C3h
+        test    [g_sinfo+ebx],0C3h
         jnz     @cin_b
-        or      [sinfo+ebx],SI_INF+1
+        or      [g_sinfo+ebx],SI_INF+1
 @cin_b:
         inc     bl
         jnz     @cin_a
 @cin_w:
         mov     ebx,PROGBASE
 @cin_1:
-        cmp     byte ptr [progb+ebx],0
+        cmp     byte ptr [g_progb+ebx],0
         je      @cin_u0
         call    cm_comp
-        mov     [cfail],0
-        mov     esi,offset xbuf
+        mov     [g_state.cm.cfail],0
+        mov     esi,offset g_xbuf
         mov     edx,offset cm_cbdem
         push    ebx
         call    cm_walk
         pop     ebx
-        movzx   ax,[cfail]
-        mov     word ptr [progb+ebx+L_CP],ax
-        movzx   ecx,byte ptr [progb+ebx]
+        movzx   ax,[g_state.cm.cfail]
+        mov     word ptr [g_progb+ebx+L_CP],ax
+        movzx   ecx,byte ptr [g_progb+ebx]
         add     ebx,ecx
         jmp     @cin_1
 @cin_u0:
         xor     ebx,ebx
 @cin_u:
-        cmp     bl,[nsyms]
+        cmp     bl,[g_state.lx.nsyms]
         je      @cin_p
-        test    [sinfo+ebx],SI_FOR
+        test    [g_sinfo+ebx],SI_FOR
         jnz     @cin_s
-        test    [sinfo+ebx],SI_INF
+        test    [g_sinfo+ebx],SI_INF
         jz      @cin_n
         call    cm_dem
         jmp     @cin_n
 @cin_s:
-        and     [sinfo+ebx],NOT SI_FOR
+        and     [g_sinfo+ebx],NOT SI_FOR
 @cin_n:
         inc     bl
         jnz     @cin_u
 @cin_p:
-        mov     [cinf],1
-        mov     [cinfc],0
-        mov     [cinfv],255
+        mov     [g_state.cm.cinf],1
+        mov     [g_state.cm.cinfc],0
+        mov     [g_state.cm.cinfv],255
         mov     ebx,PROGBASE
 @cin_l:
-        cmp     byte ptr [progb+ebx],0
+        cmp     byte ptr [g_progb+ebx],0
         je      @cin_d
-        cmp     word ptr [progb+ebx+L_CP],0
+        cmp     word ptr [g_progb+ebx+L_CP],0
         je      @cin_m
         call    cm_comp
 @cin_m:
-        movzx   ecx,byte ptr [progb+ebx]
+        movzx   ecx,byte ptr [g_progb+ebx]
         add     ebx,ecx
         jmp     @cin_l
 @cin_d:
         xor     ebx,ebx
 @cin_c:
-        cmp     bl,[nsyms]
+        cmp     bl,[g_state.lx.nsyms]
         je      @cin_e
-        and     [sinfo+ebx],NOT SI_FOR
+        and     [g_sinfo+ebx],NOT SI_FOR
         inc     bl
         jnz     @cin_c
 @cin_e:
-        cmp     [cinfc],0
+        cmp     [g_state.cm.cinfc],0
         jne     @cin_p
-        mov     [cinf],0
+        mov     [g_state.cm.cinf],0
         ret
 
 ; ::::::::::::::
@@ -434,10 +434,10 @@ cm_infer:
 ; keeps:  BX
 ; ::::::::::::::
 cm_unf:
-        cmp     [cinf],0
+        cmp     [g_state.cm.cinf],0
         je      cm_rts
-        mov     [cinfv],255
-        test    [sinfo+ebx],SI_INF
+        mov     [g_state.cm.cinfv],255
+        test    [g_sinfo+ebx],SI_INF
         jz      cm_rts
 
 ; ::::::::::::::
@@ -448,8 +448,8 @@ cm_unf:
 ; keeps:  BX
 ; ::::::::::::::
 cm_dem:
-        and     [sinfo+ebx],NOT (SI_INF+1)
-        mov     [cinfc],1
+        and     [g_sinfo+ebx],NOT (SI_INF+1)
+        mov     [g_state.cm.cinfc],1
         ret
 
 ; ::::::::::::::
@@ -459,16 +459,20 @@ cm_dem:
 ;         cinfv  the variable, 255 none
 ; ::::::::::::::
 cm_demf:
-        cmp     [cinf],0
+        cmp     [g_state.cm.cinf],0
         je      @rt_lin5
-        cmp     [cty],T_FLT
+        cmp     [g_state.cm.cty],T_FLT
         jne     @rt_lin5
-        movzx   ebx,[cinfv]
+        movzx   ebx,[g_state.cm.cinfv]
         cmp     bl,255
         je      @rt_lin5
-        test    [sinfo+ebx],SI_INF
+        test    [g_sinfo+ebx],SI_INF
         jnz     cm_dem
 @rt_lin5:
         ret
+
+        .data?
+g_lbuf  db      264 dup(?)
+        .code
 
         end

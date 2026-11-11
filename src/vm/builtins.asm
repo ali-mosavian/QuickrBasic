@@ -18,7 +18,7 @@ include x86f.inc
 ; ::::::::::::::
 sc_fn1:
         pop     eax
-        call    [fntab+ebx*2-4*K_FN]
+        call    [g_fntab+ebx*2-4*K_FN]
         push    eax
         dispatch
 
@@ -27,7 +27,7 @@ sc_fn1:
 ; ::::::::::::::
 sc_left:
         pop     eax
-        mov     [s0v],ax
+        mov     [g_state.sg.s0v],ax
         pop     eax
         call    fn_left
         push    eax
@@ -37,7 +37,7 @@ sc_left:
 ; ::::::::::::::
 sc_right:
         pop     eax
-        mov     [s0v],ax
+        mov     [g_state.sg.s0v],ax
         pop     eax
         call    fn_right
         push    eax
@@ -50,16 +50,16 @@ sc_right:
 ; ::::::::::::::
 sc_mid:
         pop     eax
-        mov     [s1v],ax
+        mov     [g_state.sg.s1v],ax
         jmp     @bmd_g
 ; ::::::::::::::
 ; sc_mid2 - MID$ ( s i -- s ).
 ; ::::::::::::::
 sc_mid2:
-        mov     [s1v],SMAX
+        mov     [g_state.sg.s1v],SMAX
 @bmd_g:
         pop     eax
-        mov     [s0v],ax
+        mov     [g_state.sg.s0v],ax
         pop     eax
         call    fn_mid
         push    eax
@@ -101,8 +101,8 @@ fn_usr:
 ; ::::::::::::::
 fn_fre:
         call    str_gc
-        mov     eax,[sfr]
-        sub     eax,[aend]
+        mov     eax,[g_state.mm.sfr]
+        sub     eax,[g_state.mm.aend]
         jmp     flt_from32
 
 ; ::::::::::::::
@@ -111,7 +111,7 @@ fn_fre:
 ; out:    AX  the column
 ; ::::::::::::::
 fn_pos:
-        movzx   ax,[pcol]
+        movzx   ax,[g_state.io.pcol]
         ret
 
 ; ::::::::::::::
@@ -122,7 +122,7 @@ fn_pos:
 ; ::::::::::::::
 fn_peek:
         movzx   ebx,ax
-        movzx   ax,[pokeb+ebx]
+        movzx   ax,[g_pokeb+ebx]
         ret
 
 ; ::::::::::::::
@@ -146,7 +146,7 @@ fn_len:
 fn_asc:
         call    str_get
         jz      err_iq
-        mov     ebx,[spt]
+        mov     ebx,[g_state.sg.spt]
         movzx   ax,byte ptr [ebx]
         ret
 
@@ -157,7 +157,7 @@ fn_asc:
 ; out:    AX  the temporary
 ; ::::::::::::::
 fn_chr:
-        mov     [sbuf],al
+        mov     [g_sbuf],al
         mov     ax,1
         jmp     str_buftmp
 
@@ -168,11 +168,11 @@ fn_chr:
 ; out:    AX   the temporary
 ; ::::::::::::::
 fn_fstr:
-        mov     [ocap],80h
-        mov     [sbx],0
+        mov     [g_state.io.ocap],80h
+        mov     [g_state.io.sbx],0
         call    flt_out
-        and     [ocap],7Fh
-        movzx   ax,[sbx]
+        and     [g_state.io.ocap],7Fh
+        movzx   ax,[g_state.io.sbx]
         dec     ax
         jmp     str_buftmp
 
@@ -211,7 +211,7 @@ fn_left:
 fn_right:
         call    str_dlen
         mov     dx,cx
-        sub     dx,[s0v]
+        sub     dx,[g_state.sg.s0v]
         jnc     str_from
         jmp     fn_left
 
@@ -223,9 +223,9 @@ fn_right:
 ; out:    AX  the temporary
 ; ::::::::::::::
 str_from:
-        mov     cx,[s0v]
-        mov     [s1v],cx
-        mov     [s0v],dx
+        mov     cx,[g_state.sg.s0v]
+        mov     [g_state.sg.s1v],cx
+        mov     [g_state.sg.s0v],dx
         jmp     str_sub
 
 ; ::::::::::::::
@@ -237,9 +237,9 @@ str_from:
 ; error:  ?ILLEGAL QUANTITY  start 0
 ; ::::::::::::::
 fn_mid:
-        cmp     [s0v],0
+        cmp     [g_state.sg.s0v],0
         je      err_iq
-        dec     [s0v]
+        dec     [g_state.sg.s0v]
         jmp     str_sub
 
         end

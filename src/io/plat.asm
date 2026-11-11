@@ -25,9 +25,9 @@ include x86f.inc
 ; out:    cin, outh, inh, isdev, fdev  ready
 ; ::::::::::::::
 plt_init:
-        mov     [cin],0FFh
-        mov     [outh],1
-        mov     edi,offset fdev
+        mov     [g_state.io.cin],0FFh
+        mov     [g_state.io.outh],1
+        mov     edi,offset g_state.fl.fdev
         mov     ecx,NFILE
         mov     al,0FFh
         rep     stosb
@@ -35,16 +35,16 @@ plt_init:
         xor     ebx,ebx
         int     21h
         and     dl,80h
-        mov     [isdev],dl
+        mov     [g_state.io.isdev],dl
         mov     ax,0204h                ; DPMI: the protected-mode vectors
         mov     bl,1Ch
         int     31h
-        mov     dword ptr [old1c],edx
-        mov     word ptr [old1c+4],cx
+        mov     dword ptr [g_plat.old1c],edx
+        mov     word ptr [g_plat.old1c+4],cx
         mov     bl,23h
         int     31h
-        mov     dword ptr [old23],edx
-        mov     word ptr [old23+4],cx
+        mov     dword ptr [g_plat.old23],edx
+        mov     word ptr [g_plat.old23+4],cx
         mov     cx,cs
         mov     ax,0205h
         mov     bl,23h
@@ -62,8 +62,8 @@ plt_init:
 ; ::::::::::::::
 plt_brk:
         push    ds
-        mov     ds,cs:[dsv]
-        mov     [stpflg],1
+        mov     ds,cs:[g_plat.dsv]
+        mov     [g_state.rn.stpflg],1
         pop     ds
         iretd
 
@@ -77,7 +77,7 @@ plt_brk:
 plt_tick:
         push    ds
         push    ebx
-        mov     ds,cs:[dsv]
+        mov     ds,cs:[g_plat.dsv]
         movzx   ebx,word ptr ds:[41Ah]
 @ptk_l:
         cmp     bx,ds:[41Ch]
@@ -92,11 +92,11 @@ plt_tick:
         movzx   ebx,word ptr ds:[480h]
         jmp     @ptk_l
 @ptk_s:
-        mov     [stpflg],1
+        mov     [g_state.rn.stpflg],1
 @ptk_x:
         pop     ebx
         pop     ds
-        jmp     fword ptr cs:[old1c]
+        jmp     fword ptr cs:[g_plat.old1c]
 
 ; ::::::::::::::
 ; plt_kflush - empty the BIOS key buffer.
@@ -122,15 +122,15 @@ plt_kflush:
 ; keeps:  all
 ; ::::::::::::::
 plt_flush:
-        cmp     [oblen],0
+        cmp     [g_state.io.oblen],0
         je      @pfl_r
         pushad
         mov     ah,40h
         mov     ebx,1
-        movzx   ecx,[oblen]
-        mov     edx,offset obuf
+        movzx   ecx,[g_state.io.oblen]
+        mov     edx,offset g_obuf
         int     21h
-        mov     [oblen],0
+        mov     [g_state.io.oblen],0
         popad
 @pfl_r:
         ret
@@ -145,12 +145,12 @@ plt_exit:
         push    eax
         mov     ax,0205h
         mov     bl,1Ch
-        mov     edx,dword ptr [old1c]
-        mov     cx,word ptr [old1c+4]
+        mov     edx,dword ptr [g_plat.old1c]
+        mov     cx,word ptr [g_plat.old1c+4]
         int     31h
         mov     bl,23h
-        mov     edx,dword ptr [old23]
-        mov     cx,word ptr [old23+4]
+        mov     edx,dword ptr [g_plat.old23]
+        mov     cx,word ptr [g_plat.old23+4]
         int     31h
         pop     eax
         mov     ah,4Ch
@@ -163,7 +163,7 @@ plt_exit:
 ; keeps:  all
 ; ::::::::::::::
 plt_putc:
-        cmp     [outh],1
+        cmp     [g_state.io.outh],1
         jne     @ppc_f
         push    ebx
         cmp     al,NL
@@ -180,10 +180,10 @@ plt_putc:
         pop     ebx
         ret
 @ppc_a:
-        movzx   ebx,[oblen]
-        mov     [obuf+ebx],al
+        movzx   ebx,[g_state.io.oblen]
+        mov     [g_obuf+ebx],al
         inc     ebx
-        mov     [oblen],bx
+        mov     [g_state.io.oblen],bx
         cmp     ebx,OBSZ
         jb      @ppc_r
         call    plt_flush
@@ -191,11 +191,11 @@ plt_putc:
         ret
 @ppc_f:
         pushad
-        mov     [fb],al
+        mov     [g_state.io.fb],al
         mov     ah,40h
-        movzx   ebx,[outh]
+        movzx   ebx,[g_state.io.outh]
         mov     ecx,1
-        mov     edx,offset fb
+        mov     edx,offset g_state.io.fb
         int     21h
         popad
         ret
@@ -216,9 +216,9 @@ plt_getline:
         call    plt_flush
         push    esi
         xor     esi,esi
-        cmp     [cin],0FFh
+        cmp     [g_state.io.cin],0FFh
         jne     @pgl_c
-        cmp     [isdev],0
+        cmp     [g_state.io.isdev],0
         je      @pgl_c
 @pgl_w:
         xor     ah,ah
@@ -235,7 +235,7 @@ plt_getline:
         jb      @pgl_w
         cmp     esi,80
         jae     @pgl_w
-        mov     [inbuf+esi],al
+        mov     [g_inbuf+esi],al
         inc     esi
         call    @pgl_o
         jmp     @pgl_w
@@ -254,7 +254,7 @@ plt_getline:
         call    plt_putc
         jmp     plt_flush
 @pgl_b:
-        mov     [stpflg],1
+        mov     [g_state.rn.stpflg],1
         call    plt_kflush
         pop     esi
         stc
@@ -273,11 +273,11 @@ plt_getline:
         je      @pgl_d
         cmp     al,13
         jne     @pgl_p
-        cmp     [cin],0FFh
+        cmp     [g_state.io.cin],0FFh
         je      @pgl_c
         jmp     @pgl_d
 @pgl_p:
-        mov     [inbuf+esi],al
+        mov     [g_inbuf+esi],al
         inc     esi
         cmp     esi,80
         jb      @pgl_c
@@ -286,15 +286,15 @@ plt_getline:
 @pgl_e:
         test    esi,esi
         jnz     @pgl_d
-        cmp     [cin],0FFh
+        cmp     [g_state.io.cin],0FFh
         jne     @pgl_d
         pop     esi
         stc
         ret
 @pgl_d:
-        cmp     [cin],0FFh
+        cmp     [g_state.io.cin],0FFh
         jne     @pgl_n
-        cmp     [isdev],0
+        cmp     [g_state.io.isdev],0
         jne     @pgl_n
         mov     al,NL
         call    plt_putc
@@ -311,9 +311,9 @@ plt_getline:
 ; keeps:  all but AL
 ; ::::::::::::::
 plt_getc:
-        cmp     [cin],0FFh
+        cmp     [g_state.io.cin],0FFh
         jne     @pgc_b
-        cmp     [isdev],0
+        cmp     [g_state.io.isdev],0
         je      @pgc_b
         push    edx
         call    plt_flush
@@ -343,41 +343,41 @@ plt_getc:
 ; keeps:  all but AX
 ; ::::::::::::::
 plt_getb:
-        cmp     [cin],0FFh
+        cmp     [g_state.io.cin],0FFh
         je      plt_raw
         push    ebx
-        movzx   ebx,[cin]
-        cmp     [fstt+ebx],0
+        movzx   ebx,[g_state.io.cin]
+        cmp     [g_state.fl.fstt+ebx],0
         jne     @pgb_h
         call    plt_raw
         jc      @pgb_x
-        mov     [flk+ebx],al
-        mov     [fstt+ebx],1
+        mov     [g_state.fl.flk+ebx],al
+        mov     [g_state.fl.fstt+ebx],1
 @pgb_h:
-        cmp     [fstt+ebx],1
+        cmp     [g_state.fl.fstt+ebx],1
         jne     @pgb_n
-        mov     ah,[flk+ebx]
+        mov     ah,[g_state.fl.flk+ebx]
         push    eax
         call    plt_raw
         jc      @pgb_l
-        mov     [flk+ebx],al
+        mov     [g_state.fl.flk+ebx],al
         pop     eax
         mov     al,ah
         pop     ebx
         clc
         ret
 @pgb_l:
-        mov     [fstt+ebx],2
-        mov     [iost],40h
+        mov     [g_state.fl.fstt+ebx],2
+        mov     [g_state.io.iost],40h
         pop     eax
         mov     al,ah
         pop     ebx
         clc
         ret
 @pgb_x:
-        mov     [fstt+ebx],2
+        mov     [g_state.fl.fstt+ebx],2
 @pgb_n:
-        mov     [iost],40h
+        mov     [g_state.io.iost],40h
         pop     ebx
         stc
         ret
@@ -395,9 +395,9 @@ plt_raw:
         push    ecx
         push    edx
         mov     ah,3Fh
-        movzx   ebx,[inh]
+        movzx   ebx,[g_state.io.inh]
         mov     ecx,1
-        mov     edx,offset fb
+        mov     edx,offset g_state.io.fb
         int     21h
         pop     edx
         pop     ecx
@@ -405,7 +405,7 @@ plt_raw:
         jc      @prw_e
         cmp     ax,1
         jne     @prw_e
-        mov     al,[fb]
+        mov     al,[g_state.io.fb]
         clc
         ret
 @prw_e:
@@ -423,9 +423,9 @@ plt_raw:
 plt_find:
         mov     ebx,NFILE-1
 @pfi_l:
-        cmp     [fdev+ebx],0FFh
+        cmp     [g_state.fl.fdev+ebx],0FFh
         je      @pfi_n
-        cmp     al,[flfn+ebx]
+        cmp     al,[g_state.fl.flfn+ebx]
         je      @pfi_y
 @pfi_n:
         dec     ebx
@@ -448,14 +448,14 @@ plt_find:
 ; ::::::::::::::
 plt_open:
         push    esi
-        mov     [iost],0
-        mov     al,[fln]
+        mov     [g_state.io.iost],0
+        mov     al,[g_state.io.fln]
         call    plt_find
         mov     al,2
         jnc     @pop_e
         mov     ebx,NFILE-1
 @pop_f:
-        cmp     [fdev+ebx],0FFh
+        cmp     [g_state.fl.fdev+ebx],0FFh
         je      @pop_g
         dec     ebx
         jns     @pop_f
@@ -465,8 +465,8 @@ plt_open:
         stc
         ret
 @pop_g:
-        mov     [fstt+ebx],0
-        mov     al,[fdv]
+        mov     [g_state.fl.fstt+ebx],0
+        mov     al,[g_state.io.fdv]
         test    al,al
         jnz     @pop_n0
         mov     al,40h
@@ -481,18 +481,18 @@ plt_open:
         mov     al,80h
         mov     ecx,1
 @pop_s:
-        mov     [fmd+ebx],al
-        mov     [ffd+ebx],cl
-        mov     al,[fln]
-        mov     [flfn+ebx],al
-        mov     al,[fdv]
-        mov     [fdev+ebx],al
+        mov     [g_state.fl.fmd+ebx],al
+        mov     [g_state.fl.ffd+ebx],cl
+        mov     al,[g_state.io.fln]
+        mov     [g_state.fl.flfn+ebx],al
+        mov     al,[g_state.io.fdv]
+        mov     [g_state.fl.fdev+ebx],al
         pop     esi
         clc
         ret
 @pop_h:
         mov     dl,40h
-        cmp     [fsa],1
+        cmp     [g_state.io.fsa],1
         jne     @pop_m
         mov     dl,80h
 @pop_m:
@@ -500,14 +500,14 @@ plt_open:
         call    str_near
         pop     edx
         xor     edi,edi
-        movzx   ecx,[sln]
+        movzx   ecx,[g_state.sg.sln]
 @pop_c:
         cmp     edi,ecx
         je      @pop_z
         lodsb
         cmp     al,','
         je      @pop_w
-        mov     [fnam+edi],al
+        mov     [g_state.io.fnam+edi],al
         inc     edi
         cmp     edi,16
         jb      @pop_c
@@ -516,7 +516,7 @@ plt_open:
         mov     ah,cl
         push    ecx
         mov     ecx,esi
-        sub     ecx,offset nbuf
+        sub     ecx,offset g_nbuf
         sub     ah,cl
         pop     ecx
         test    ah,ah
@@ -534,10 +534,10 @@ plt_open:
         mov     al,8
         test    edi,edi
         jz      @pop_e
-        mov     byte ptr [fnam+edi],0
+        mov     byte ptr [g_state.io.fnam+edi],0
         push    ebx
         push    edx
-        mov     edx,offset fnam
+        mov     edx,offset g_state.io.fnam
         test    dl,dl
         pop     eax
         push    eax
@@ -570,8 +570,8 @@ plt_open:
 plt_close:
         call    plt_find
         jc      @pcl_r
-        mov     [fdev+ebx],0FFh
-        movzx   ebx,[ffd+ebx]
+        mov     [g_state.fl.fdev+ebx],0FFh
+        movzx   ebx,[g_state.fl.ffd+ebx]
         cmp     ebx,2
         jb      @pcl_r
         mov     ah,3Eh
@@ -590,12 +590,12 @@ plt_chkin:
         call    plt_find
         mov     al,3
         jc      @pck_r
-        test    [fmd+ebx],40h
+        test    [g_state.fl.fmd+ebx],40h
         mov     al,6
         jz      @pck_e
-        mov     [cin],bl
-        movzx   ax,[ffd+ebx]
-        mov     [inh],ax
+        mov     [g_state.io.cin],bl
+        movzx   ax,[g_state.fl.ffd+ebx]
+        mov     [g_state.io.inh],ax
         clc
         ret
 @pck_e:
@@ -614,12 +614,12 @@ plt_chkout:
         call    plt_find
         mov     al,3
         jc      @pko_r
-        test    [fmd+ebx],80h
+        test    [g_state.fl.fmd+ebx],80h
         mov     al,7
         jz      @pko_e
         call    plt_flush
-        movzx   ax,[ffd+ebx]
-        mov     [outh],ax
+        movzx   ax,[g_state.fl.ffd+ebx]
+        mov     [g_state.io.outh],ax
         clc
         ret
 @pko_e:
@@ -634,9 +634,9 @@ plt_chkout:
 ; keeps:  all but AL
 ; ::::::::::::::
 plt_clrch:
-        mov     [cin],0FFh
-        and     [inh],0
-        mov     [outh],1
+        mov     [g_state.io.cin],0FFh
+        and     [g_state.io.inh],0
+        mov     [g_state.io.outh],1
         ret
 
 ; ::::::::::::::
@@ -661,7 +661,7 @@ plt_ticks:
 ; ::::::::::::::
 plt_rdtim:
         call    plt_ticks
-        add     eax,[toff]
+        add     eax,[g_state.io.toff]
         xor     edx,edx
         mov     ecx,5184000
         div     ecx
@@ -681,7 +681,15 @@ plt_settim:
         pop     edx
         add     eax,edx
         add     eax,5184000
-        mov     [toff],eax
+        mov     [g_state.io.toff],eax
         ret
+
+        .data?
+g_obuf  db      OBSZ dup(?)
+        .code
+
+        .data
+g_plat  TPLAT   <>
+        .code
 
         end

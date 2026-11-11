@@ -49,7 +49,7 @@ sc_pnl:
 ; ::::::::::::::
 sc_pzone:
         call    io_space
-        mov     al,[pcol]
+        mov     al,[g_state.io.pcol]
         mov     ah,0
         mov     bl,10
         div     bl
@@ -62,7 +62,7 @@ sc_pzone:
 ; ::::::::::::::
 sc_ptab:
         pop     eax
-        sub     al,[pcol]
+        sub     al,[g_state.io.pcol]
         jbe     @jt_call1
         mov     cl,al
         call    io_spaces
@@ -87,12 +87,12 @@ sc_pspc:
 ; ::::::::::::::
 sc_inbeg:
         call    ex_nodir
-        mov     [iredo],0
+        mov     [g_state.rn.iredo],0
         lodsw
         movzx   eax,ax
-        add     eax,offset cachb
-        mov     [inend],eax
-        mov     [iny0],esi
+        add     eax,offset g_cachb
+        mov     [g_state.rn.inend],eax
+        mov     [g_state.rn.iny0],esi
         jmp     ex_lp
 
 ; ::::::::::::::
@@ -108,7 +108,7 @@ sc_inpr:
 ; out:    infl  bit 7 set
 ; ::::::::::::::
 sc_infile:
-        or      [infl],80h
+        or      [g_state.io.infl],80h
         call    io_read
         jmp     ex_lp
 
@@ -118,15 +118,15 @@ sc_infile:
 ; in:     iredo  set by a bad field
 ; ::::::::::::::
 io_redo:
-        cmp     [iredo],0
+        cmp     [g_state.rn.iredo],0
         jne     @F
         ret
 @@:
-        mov     [iredo],0
+        mov     [g_state.rn.iredo],0
         mov     al,MSG_REDO
         call    io_msg
-        mov     esi,[iny0]
-        mov     esp,[rsp]
+        mov     esi,[g_state.rn.iny0]
+        mov     esp,[g_state.rn.rsp]
         jmp     ex_lp
 
 ; ::::::::::::::
@@ -138,43 +138,43 @@ io_redo:
 ; ::::::::::::::
 sc_fin:
         call    io_redo
-        mov     [lk],0
+        mov     [g_state.rn.lk],0
         jmp     @inv_g
 ; ::::::::::::::
 ; sc_sin - F.INPUT S.INPUT ( -- x ): the next field. An empty line
 ; ::::::::::::::
 sc_sin:
         call    io_redo
-        mov     [lk],2
+        mov     [g_state.rn.lk],2
 @inv_g:
-        cmp     [inlen],0
+        cmp     [g_state.io.inlen],0
         je      @inv_skip
         call    io_field
-        mov     [isw_si],esi
-        movzx   esi,[inpos]
-        add     esi,offset inbuf
+        mov     [g_state.rn.isw_si],esi
+        movzx   esi,[g_state.io.inpos]
+        add     esi,offset g_inbuf
         call    io_item
         pushf
         mov     ebx,esi
-        sub     ebx,offset inbuf
-        mov     [inpos],bl
-        mov     esi,[isw_si]
+        sub     ebx,offset g_inbuf
+        mov     [g_state.io.inpos],bl
+        mov     esi,[g_state.rn.isw_si]
         popf
         jc      @inv_bad
         push    eax
         jmp     ex_lp
 @inv_bad:
-        test    [infl],80h
+        test    [g_state.io.infl],80h
         jnz     @inv_fd
         push    eax                     ; stored as far as it went, then REDO
-        mov     [iredo],1
+        mov     [g_state.rn.iredo],1
         jmp     ex_lp
 @inv_fd:
         mov     al,E_FD
         jmp     err_raise
 @inv_skip:
-        mov     esp,[rsp]
-        mov     esi,[inend]
+        mov     esp,[g_state.rn.rsp]
+        mov     esi,[g_state.rn.inend]
         jmp     ex_lp
 
 ; ::::::::::::::
@@ -184,13 +184,13 @@ sc_sin:
 ; ::::::::::::::
 sc_inend:
         call    io_redo
-        test    [infl],80h
+        test    [g_state.io.infl],80h
         jnz     @jt_call2
-        mov     bl,[inpos]
+        mov     bl,[g_state.io.inpos]
         inc     bl
         jz      @jt_call2
         movzx   ebx,bl
-        cmp     byte ptr [inbuf+ebx-1],0
+        cmp     byte ptr [g_inbuf+ebx-1],0
         je      @jt_call2
         mov     al,MSG_EXTRA
         call    io_msg
@@ -206,23 +206,23 @@ sc_inend:
 ;         C    set when bad
 ; ::::::::::::::
 io_item:
-        cmp     [lk],2
+        cmp     [g_state.rn.lk],2
         jne     @F
         call    str_item
         jmp     @ii_t
 @@:
         call    flt_in
 @ii_t:
-        mov     [fsv],eax
+        mov     [g_state.rn.fsv],eax
         call    st_eos
         jz      @ii_ok
         cmp     al,','
         je      @ii_ok
-        mov     eax,[fsv]
+        mov     eax,[g_state.rn.fsv]
         stc
         ret
 @ii_ok:
-        mov     eax,[fsv]
+        mov     eax,[g_state.rn.fsv]
         clc
         ret
 
@@ -249,14 +249,14 @@ sc_fget:
 sc_sget:
         call    plt_getc
         movzx   cx,al
-        mov     [sln],cx
+        mov     [g_state.sg.sln],cx
         test    al,al
         jnz     @F
         call    str_push
         push    eax
         jmp     ex_lp
 @@:
-        mov     [sbuf],al
+        mov     [g_sbuf],al
         mov     ax,1
         call    str_buftmp
         push    eax
@@ -269,32 +269,32 @@ sc_sget:
 ;         ?OUT OF DATA   none left
 ; ::::::::::::::
 sc_fread:
-        mov     [lk],0
+        mov     [g_state.rn.lk],0
         jmp     @rdv_g
 ; ::::::::::::::
 ; sc_sread - F.READ S.READ ( -- x ): the next DATA item.
 ; ::::::::::::::
 sc_sread:
-        mov     [lk],2
+        mov     [g_state.rn.lk],2
 @rdv_g:
         push    esi
         call    rd_item
         call    io_item
         jc      @rdv_sn
-        mov     [dlp],esi
+        mov     [g_state.rn.dlp],esi
         pop     esi
         push    eax
         jmp     ex_lp
 @rdv_sn:
-        mov     ax,[dcp]
+        mov     ax,[g_state.rn.dcp]
         mov     ebx,PROGBASE
 @rdv_l:
-        movzx   ecx,byte ptr [progb+ebx]
+        movzx   ecx,byte ptr [g_progb+ebx]
         add     ebx,ecx
         cmp     ax,bx
         jae     @rdv_l
         sub     ebx,ecx
-        mov     [ln],bx
+        mov     [g_state.rn.ln],bx
         jmp     err_sn
 
 ; ::::::::::::::
@@ -305,18 +305,18 @@ sc_sread:
 ; error:  ?OUT OF DATA  no item left
 ; ::::::::::::::
 rd_item:
-        mov     esi,[dlp]
+        mov     esi,[g_state.rn.dlp]
         test    esi,esi
         jnz     @ri_c
         mov     ebx,PROGBASE
         call    rd_seek
-        cmp     [dcp],0
+        cmp     [g_state.rn.dcp],0
         je      @st_call1
-        mov     esi,[dlp]
+        mov     esi,[g_state.rn.dlp]
 @ri_c:
-        cmp     [dyo],0
+        cmp     [g_state.rn.dyo],0
         je      @ri_i
-        mov     [dyo],0
+        mov     [g_state.rn.dyo],0
         ret
 @st_call1:
         jmp     err_od
@@ -327,13 +327,13 @@ rd_item:
         inc     esi
         ret
 @ri_nx:
-        movzx   ebx,[dcp]
+        movzx   ebx,[g_state.rn.dcp]
         test    ebx,ebx
         jz      @st_call1
         call    rd_after
         jnc     @st_call1
         call    rd_load
-        mov     esi,offset rdbuf
+        mov     esi,offset g_rdbuf
         ret
 
 ; ::::::::::::::
@@ -344,12 +344,12 @@ rd_item:
 ; keeps:  SI
 ; ::::::::::::::
 rd_load:
-        mov     [dcp],bx
+        mov     [g_state.rn.dcp],bx
         push    esi
         xor     cl,cl
-        mov     esi,offset rdbuf
+        mov     esi,offset g_rdbuf
 @rdl_l:
-        mov     al,[progb+ebx]
+        mov     al,[g_progb+ebx]
         inc     ebx
         test    al,al
         jz      @rdl_e
@@ -385,12 +385,12 @@ rd_after:
         jz      @rds_n
 rd_scan:
 @rds_s:
-        cmp     byte ptr [progb+ebx],' '
+        cmp     byte ptr [g_progb+ebx],' '
         jne     @rds_t
         inc     ebx
         jmp     @rds_s
 @rds_t:
-        mov     al,[progb+ebx]
+        mov     al,[g_progb+ebx]
         cmp     al,TK_DATA
         je      @rds_y
         test    al,al
@@ -402,7 +402,7 @@ rd_scan:
 @rds_z:
         inc     ebx
 @rds_n:
-        cmp     byte ptr [progb+ebx],0      ; the next line, or the end
+        cmp     byte ptr [g_progb+ebx],0       ; the next line, or the end
         je      @rds_x
         add     ebx,HDR
         jmp     @rds_s
@@ -423,7 +423,7 @@ rd_scan:
 rd_sk:
         xor     cl,cl
 @rsk_l:
-        mov     al,[progb+ebx]
+        mov     al,[g_progb+ebx]
         inc     ebx
         test    al,al
         jz      @rsk_r
@@ -443,7 +443,7 @@ rd_sk:
 @rsk_v:
         cmp     al,M_VAR
         jne     @rsk_l
-        movzx   eax,byte ptr [progb+ebx]
+        movzx   eax,byte ptr [g_progb+ebx]
         add     ebx,eax
         add     ebx,2
         jmp     @rsk_l
@@ -464,7 +464,7 @@ sc_res:
 ; ::::::::::::::
 sc_resl:
         pop     eax
-        mov     [lnum],ax
+        mov     [g_state.rn.lnum],ax
         call    prg_findw
         jnc     err_us
         call    rd_seek
@@ -476,7 +476,7 @@ sc_resl:
 ; out:    dlp  0
 ; ::::::::::::::
 rd_first:
-        and     [dlp],0
+        and     [g_state.rn.dlp],0
         ret
 
 ; ::::::::::::::
@@ -486,7 +486,7 @@ rd_first:
 ; out:    dcp, dlp  the DATA, 0 when there is none; its text in rdbuf
 ; ::::::::::::::
 rd_seek:
-        cmp     byte ptr [progb+ebx],0
+        cmp     byte ptr [g_progb+ebx],0
         je      @rsk_n
         add     ebx,HDR
         call    rd_scan
@@ -494,11 +494,11 @@ rd_seek:
         call    rd_load
         jmp     @rsk_y
 @rsk_n:
-        mov     [dcp],0
-        mov     [rdbuf],0
+        mov     [g_state.rn.dcp],0
+        mov     [g_rdbuf],0
 @rsk_y:
-        mov     [dlp],offset rdbuf
-        mov     [dyo],1
+        mov     [g_state.rn.dlp],offset g_rdbuf
+        mov     [g_state.rn.dyo],1
         ret
 
 ; ::::::::::::::
@@ -508,13 +508,13 @@ rd_seek:
 ; ::::::::::::::
 sc_dim:
         pop     eax
-        mov     [narr],al
+        mov     [g_state.rn.narr],al
         pop     edx
         movzx   ebx,al
         add     ebx,ebx
 @sdm_l:
         pop     eax
-        mov     [dimbuf+ebx-2],ax
+        mov     [g_dimbuf+ebx-2],ax
         sub     ebx,2
         jnz     @sdm_l
         movzx   ebx,dl
@@ -527,24 +527,24 @@ sc_dim:
 sc_open:
         call    fil_def
         pop     eax
-        mov     [cnarg],al
+        mov     [g_state.rn.cnarg],al
         cmp     al,4
         jb      @sop_3
         pop     eax
         call    str_get
 @sop_3:
-        cmp     [cnarg],3
+        cmp     [g_state.rn.cnarg],3
         jb      @sop_2
         pop     eax
-        mov     [fsa],al
+        mov     [g_state.io.fsa],al
 @sop_2:
-        cmp     [cnarg],2
+        cmp     [g_state.rn.cnarg],2
         jb      @sop_1
         pop     eax
-        mov     [fdv],al
+        mov     [g_state.io.fdv],al
 @sop_1:
         pop     eax
-        mov     [fln],al
+        mov     [g_state.io.fln],al
         call    fil_open
         jmp     ex_lp
 
@@ -556,41 +556,41 @@ sc_open:
 fil_args:
         call    fil_def
         pop     eax
-        mov     [cnarg],al
+        mov     [g_state.rn.cnarg],al
         cmp     al,3
         jb      @fa_2
         pop     eax
-        mov     [fsa],al
+        mov     [g_state.io.fsa],al
 @fa_2:
-        cmp     [cnarg],2
+        cmp     [g_state.rn.cnarg],2
         jb      @fa_1
         pop     eax
-        mov     [fdv],al
+        mov     [g_state.io.fdv],al
 @fa_1:
-        cmp     [cnarg],1
+        cmp     [g_state.rn.cnarg],1
         jb      @fa_0
         pop     eax
         call    str_get
 @fa_0:
-        jmp     [aret]
+        jmp     [g_state.rn.aret]
 
 ; ::::::::::::::
 ; sc_load - LOAD ( [name [dev [sa]]] n -- ).
 ; ::::::::::::::
 sc_load:
-        mov     [aret],offset fil_load
+        mov     [g_state.rn.aret],offset fil_load
         jmp     fil_args
 ; ::::::::::::::
 ; sc_save - SAVE ( [name [dev [sa]]] n -- ).
 ; ::::::::::::::
 sc_save:
-        mov     [aret],offset fil_save
+        mov     [g_state.rn.aret],offset fil_save
         jmp     fil_args
 ; ::::::::::::::
 ; sc_vfy - VERIFY ( [name [dev [sa]]] n -- ).
 ; ::::::::::::::
 sc_vfy:
-        mov     [aret],offset fil_verify
+        mov     [g_state.rn.aret],offset fil_verify
         jmp     fil_args
 
 ; ::::::::::::::
@@ -633,11 +633,11 @@ sc_ficlr:
 ; ::::::::::::::
 sc_runl:
         pop     eax
-        mov     [runl],ax
+        mov     [g_state.rn.runl],ax
         call    var_clr
         call    cm_link
-        mov     ax,[runl]
-        mov     [lnum],ax
+        mov     ax,[g_state.rn.runl]
+        mov     [g_state.rn.lnum],ax
         call    prg_findw
         jnc     err_us
 
@@ -647,8 +647,8 @@ sc_runl:
 ; in:     BX  the line
 ; ::::::::::::::
 ex_rungo:
-        mov     esp,[rsp]
-        mov     [cstk],CSTOP
+        mov     esp,[g_state.rn.rsp]
+        mov     [g_state.rn.cstk],CSTOP
         jmp     ex_jump
 
 ; ::::::::::::::
@@ -663,7 +663,7 @@ sc_run:
 ; ::::::::::::::
 ex_runfirst:
         mov     ebx,PROGBASE
-        cmp     byte ptr [progb+ebx],0
+        cmp     byte ptr [g_progb+ebx],0
         jne     ex_rungo
         jmp     ex_end
 
@@ -672,9 +672,9 @@ ex_runfirst:
 ; ::::::::::::::
 sc_list:
         pop     eax
-        mov     [lto],ax
+        mov     [g_state.rn.lto],ax
         pop     eax
-        mov     [lfrom],ax
+        mov     [g_state.rn.lfrom],ax
         call    ls_range
         jmp     ex_ready
 
@@ -685,13 +685,13 @@ sc_list:
 ; error:  ?CAN'T CONTINUE  no place
 ; ::::::::::::::
 sc_cont:
-        movzx   ebx,[contip]
+        movzx   ebx,[g_state.rn.contip]
         test    ebx,ebx
         jz      err_cn
-        mov     ax,[contsi]
+        mov     ax,[g_state.rn.contsi]
         test    ax,ax
         jz      ex_ready
-        mov     [ln],bx
+        mov     [g_state.rn.ln],bx
         mov     dx,bx
         ipfix
         jmp     ex_lp
@@ -701,7 +701,7 @@ sc_cont:
 ; ::::::::::::::
 sc_clr:
         call    var_clr
-        mov     [cstk],CSTOP
+        mov     [g_state.rn.cstk],CSTOP
         jmp     ex_lp
 
 ; ::::::::::::::
@@ -739,7 +739,7 @@ ex_ready:
 ; error:  BREAK  always
 ; ::::::::::::::
 sc_stop:
-        mov     [stpflg],0
+        mov     [g_state.rn.stpflg],0
         call    ex_setcont
         mov     al,E_BRK
         jmp     err_raise
@@ -751,7 +751,7 @@ sc_poke:
         pop     eax
         pop     ebx
         movzx   ebx,bx
-        mov     [pokeb+ebx],al
+        mov     [g_pokeb+ebx],al
         jmp     ex_lp
 
 ; ::::::::::::::
@@ -771,7 +771,7 @@ sc_wait:
         pop     ebx
         movzx   ebx,bx
 @@:
-        mov     cl,[pokeb+ebx]
+        mov     cl,[g_pokeb+ebx]
         xor     cl,al
         and     cl,dl
         jz      @B
@@ -783,9 +783,9 @@ sc_wait:
 sc_sys:
         pop     eax
         movzx   ebx,ax
-        cmp     [pokeb+ebx],0           ; nothing poked there: a no-op
+        cmp     [g_pokeb+ebx],0            ; nothing poked there: a no-op
         je      @jt_call3
-        add     ebx,offset pokeb
+        add     ebx,offset g_pokeb
         pushad
         call    ebx
         popad
@@ -878,7 +878,7 @@ sc_sti:
         mov     cl,10
         div     cl
         or      ax,3030h
-        mov     word ptr [sbuf+ebx],ax
+        mov     word ptr [g_sbuf+ebx],ax
         pop     eax
         sub     ebx,2
         jns     @sti_l
@@ -891,7 +891,7 @@ sc_sti:
 ; sc_ist - I.LD.ST ( -- i ): the I/O status.
 ; ::::::::::::::
 sc_ist:
-        movzx   eax,[iost]
+        movzx   eax,[g_state.io.iost]
         push    eax
         jmp     ex_lp
 
@@ -917,14 +917,14 @@ sys_write:
 @syw_d:
         lodsb
         xor     al,'0'
-        cmp     al,[wlim+edi]
+        cmp     al,[g_wlim+edi]
         jae     @syw_q
         movzx   eax,al
         mov     ecx,edi
         add     edi,ecx
         add     edi,ecx
         add     edi,ecx
-        imul    eax,[wtab+edi]
+        imul    eax,[g_wtab+edi]
         mov     edi,ecx
         add     ebx,eax
         inc     edi
@@ -940,9 +940,13 @@ sys_write:
         jmp     err_iq
 
         .data
-wtab    dd      2160000,216000,36000,3600,600,60
-wlim    db      10,10,6,10,6,10
-relbit  db      1,2,4
+g_wtab  dd      2160000,216000,36000,3600,600,60
+g_wlim  db      10,10,6,10,6,10
+g_relbit db      1,2,4
+        .code
+
+        .data?
+g_rdbuf db      256 dup(?)
         .code
 
         end

@@ -39,10 +39,10 @@ fil_chk:
 ; keeps:  EAX
 ; ::::::::::::::
 fil_def:
-        mov     [fln],255
-        mov     [fdv],1
-        mov     [fsa],0
-        and     [sln],0
+        mov     [g_state.io.fln],255
+        mov     [g_state.io.fdv],1
+        mov     [g_state.io.fsa],0
+        and     [g_state.sg.sln],0
         ret
 
 ; ::::::::::::::
@@ -52,7 +52,7 @@ fil_def:
 ; keeps:  all but AL
 ; ::::::::::::::
 fil_clrch:
-        and     [infl],7Fh
+        and     [g_state.io.infl],7Fh
         jmp     plt_clrch
 
 ; ::::::::::::::
@@ -61,7 +61,7 @@ fil_clrch:
 ; in:     fdv, sln, spt  the device, the name
 ; ::::::::::::::
 fil_ropen:
-        mov     [fsa],0
+        mov     [g_state.io.fsa],0
         call    fil_open
         mov     al,255
         call    plt_chkin
@@ -82,18 +82,18 @@ fil_end:
 ; ::::::::::::::
 fil_load:
         call    fil_ropen
-        mov     ax,[ln]
-        mov     [lsv],ax
+        mov     ax,[g_state.rn.ln]
+        mov     [g_state.io.lsv],ax
         call    prg_init
 @ldl_l:
         call    plt_getline
         jc      @ldl_e
         call    rpl_enter
-        test    [iost],40h
+        test    [g_state.io.iost],40h
         jz      @ldl_l
 @ldl_e:
         call    fil_end
-        cmp     [lsv],DLINE
+        cmp     [g_state.io.lsv],DLINE
         je      ex_end
         call    cm_link
         jmp     ex_runfirst
@@ -104,7 +104,7 @@ fil_load:
 ; in:     fdv, sln, spt  the device, the name
 ; ::::::::::::::
 fil_save:
-        mov     [fsa],1
+        mov     [g_state.io.fsa],1
         call    fil_open
         mov     al,255
         call    plt_chkout
@@ -121,21 +121,21 @@ fil_save:
 ; ::::::::::::::
 fil_verify:
         call    fil_ropen
-        mov     [ocap],40h
+        mov     [g_state.io.ocap],40h
         call    ls_all
         call    plt_getc
         test    al,al
         jz      @vfy_e
-        or      [ocap],1
+        or      [g_state.io.ocap],1
 @vfy_e:
         call    fil_end
-        test    [ocap],1
-        mov     [ocap],0
+        test    [g_state.io.ocap],1
+        mov     [g_state.io.ocap],0
         jz      @vfy_o
         mov     al,E_VF
         jmp     err_raise
 @vfy_o:
-        cmp     [ln],DLINE
+        cmp     [g_state.rn.ln],DLINE
         jne     @jt_file1
         mov     al,MSG_OK
         call    io_msg

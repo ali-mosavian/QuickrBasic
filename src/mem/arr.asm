@@ -21,7 +21,7 @@ include x86f.inc
 ; keeps:  EBX
 ; ::::::::::::::
 arr_esz:
-        mov     cl,[sinfo+ebx]
+        mov     cl,[g_sinfo+ebx]
         and     cl,3
         mov     ch,VS
         cmp     cl,1
@@ -48,23 +48,23 @@ arr_esz:
 ;         ?OUT OF MEMORY     a new array does not fit
 ; ::::::::::::::
 arr_ref:
-        mov     [aid],bx
-        mov     edi,[vt+ebx*4]
+        mov     [g_state.mm.aid],bx
+        mov     edi,[g_vt+ebx*4]
         test    edi,edi
         jnz     @arf_h
-        movzx   ecx,[narr]
+        movzx   ecx,[g_state.rn.narr]
 @arf_c:
-        mov     word ptr [cntbuf+ecx*2-2],11
+        mov     word ptr [g_cntbuf+ecx*2-2],11
         loop    @arf_c
         call    arr_new
 @arf_h:
-        mov     cl,[narr]
+        mov     cl,[g_state.rn.narr]
         cmp     cl,[edi]
         jne     arr_bs
         xor     edx,edx
         xor     ebx,ebx
 @arf_k:
-        mov     ax,[dimbuf+ebx]
+        mov     ax,[g_dimbuf+ebx]
         cmp     ax,[edi+AH_CNT+ebx]
         jae     arr_bs
         movzx   eax,ax
@@ -76,7 +76,7 @@ arr_ref:
         add     ebx,2
         jmp     @arf_k
 @arf_t:
-        movzx   ebx,[aid]
+        movzx   ebx,[g_state.mm.aid]
         call    arr_esz
         imul    edx,ecx
         add     edx,[edi+AH_PTR]
@@ -103,13 +103,13 @@ arr_bs:
 ; error:  ?ILLEGAL QUANTITY  a subscript under 0
 ; ::::::::::::::
 arr_chk:
-        movzx   ecx,[narr]
+        movzx   ecx,[g_state.rn.narr]
 @ack_l:
-        mov     ax,[dimbuf+ecx*2-2]
+        mov     ax,[g_dimbuf+ecx*2-2]
         test    ax,ax
         js      err_iq
         inc     ax
-        mov     [cntbuf+ecx*2-2],ax
+        mov     [g_cntbuf+ecx*2-2],ax
         loop    @ack_l
         ret
 
@@ -124,10 +124,10 @@ arr_chk:
 ;         ?OUT OF MEMORY     it does not fit
 ; ::::::::::::::
 arr_dim:
-        mov     [aid],bx
+        mov     [g_state.mm.aid],bx
         call    arr_chk
-        movzx   ebx,[aid]
-        cmp     [vt+ebx*4],0
+        movzx   ebx,[g_state.mm.aid]
+        cmp     [g_vt+ebx*4],0
         je      arr_new
         mov     al,E_RD
         jmp     err_raise
@@ -145,66 +145,71 @@ arr_dim:
 ; error:  ?OUT OF MEMORY  not under the strings
 ; ::::::::::::::
 arr_new:
-        movzx   ebx,[aid]
+        movzx   ebx,[g_state.mm.aid]
         call    arr_esz
         mov     edx,ecx
-        movzx   ecx,[narr]
+        movzx   ecx,[g_state.rn.narr]
         xor     ebx,ebx
 @anw_m:
-        movzx   eax,word ptr [cntbuf+ebx]
+        movzx   eax,word ptr [g_cntbuf+ebx]
         imul    edx,eax
         jo      @st_arr1
         cmp     edx,100000h
         ja      @st_arr1
         add     ebx,2
         loop    @anw_m
-        mov     eax,[ahd]
+        mov     eax,[g_state.mm.ahd]
         add     eax,ebx
         add     eax,AH_CNT
         cmp     eax,HDRLIM
         ja      @st_arr1
-        mov     [asz],edx
+        mov     [g_state.mm.asz],edx
         call    @anw_e
         jbe     @anw_f
         call    str_gc
         call    @anw_e
         ja      err_om
 @anw_f:
-        xchg    eax,[aend]
+        xchg    eax,[g_state.mm.aend]
         push    eax
-        mov     ecx,[asz]
+        mov     ecx,[g_state.mm.asz]
         call    mem_zero
         pop     eax
-        mov     edi,[ahd]
+        mov     edi,[g_state.mm.ahd]
         mov     [edi+AH_PTR],eax
         xor     ax,ax
-        cmp     [narr],1
+        cmp     [g_state.rn.narr],1
         jne     @anw_s
-        mov     ax,word ptr [cntbuf]
+        mov     ax,word ptr [g_cntbuf]
 @anw_s:
         mov     [edi+AH_FAST],ax
-        movzx   ebx,[aid]
-        mov     [vt+ebx*4],edi
-        mov     al,[narr]
+        movzx   ebx,[g_state.mm.aid]
+        mov     [g_vt+ebx*4],edi
+        mov     al,[g_state.rn.narr]
         mov     [edi],al
         movzx   ecx,al
         add     ecx,ecx
         push    esi
         push    edi
-        mov     esi,offset cntbuf
+        mov     esi,offset g_cntbuf
         add     edi,AH_CNT
         rep     movsb
-        mov     [ahd],edi
+        mov     [g_state.mm.ahd],edi
         pop     edi
         pop     esi
         ret
 ; EAX = the data's end, on 4; flags: above sfr.
 @anw_e:
-        mov     eax,[asz]
-        add     eax,[aend]
+        mov     eax,[g_state.mm.asz]
+        add     eax,[g_state.mm.aend]
         add     eax,3
         and     al,0FCh
-        cmp     eax,[sfr]
+        cmp     eax,[g_state.mm.sfr]
         ret
+
+        .data?
+g_dimbuf dw      64 dup(?)
+g_cntbuf dw      64 dup(?)
+        .code
 
         end

@@ -22,35 +22,35 @@ include x86f.inc
 rt_start:
         cld
         mov     ax,ds
-        mov     [dsv],ax
+        mov     [g_plat.dsv],ax
         mov     es,ax
         mov     fs,ax
         mov     gs,ax
-        mov     [pspsel],es             ; DOS/32A: ES the PSP at the start
+        mov     [g_plat.pspsel],es              ; DOS/32A: ES the PSP at the start
         mov     esp,STKTOP
-        mov     edi,offset bss_s
-        mov     ecx,offset bss_e
+        mov     edi,offset g_bss_s
+        mov     ecx,offset g_bss_e
         sub     ecx,edi
         xor     al,al
         rep     stosb
-        mov     edi,offset pokeb
+        mov     edi,offset g_pokeb
         mov     ecx,10000h/4
         xor     eax,eax
         rep     stosd
-        mov     [peekseg],0
-        mov     [dslin],0
-        mov     [tmplin],offset tmpd
-        mov     [pglin],offset progb
-        mov     [proglin],offset progb+PROGBASE
-        mov     [hbot],offset heapb
-        mov     [htop],offset heapb+HEAPSZ
-        mov     [rsp],esp
-        mov     [cstk],CSTOP
-        mov     [stklim],STKTOP-STKROOM
-        mov     [cplim],STKTOP-2*STKROOM   ; the compiler's frames are twice the 16-bit build's
-        mov     dword ptr [progb+DLINE],0FF0000h
-        mov     [cxb],offset xbuf
-        mov     [rs],0FFFFFF01h         ; the 6502 build's boot state under sim65
+        mov     [g_state.mm.peekseg],0
+        mov     [g_state.mm.dslin],0
+        mov     [g_state.sg.tmplin],offset g_tmpd
+        mov     [g_state.mm.pglin],offset g_progb
+        mov     [g_state.mm.proglin],offset g_progb+PROGBASE
+        mov     [g_state.mm.hbot],offset g_heapb
+        mov     [g_state.mm.htop],offset g_heapb+HEAPSZ
+        mov     [g_state.rn.rsp],esp
+        mov     [g_state.rn.cstk],CSTOP
+        mov     [g_state.rn.stklim],STKTOP-STKROOM
+        mov     [g_state.rn.cplim],STKTOP-2*STKROOM ; compiler frames: twice the 16-bit's
+        mov     dword ptr [g_progb+DLINE],0FF0000h
+        mov     [g_state.cm.cxb],offset g_xbuf
+        mov     [g_state.ft.rs],0FFFFFF01h         ; the 6502 build's boot state under sim65
         call    flt_finit
         call    plt_init
         call    prg_init
@@ -60,30 +60,10 @@ else
         jmp     rpl_ready
 endif
 
-        .data
-dsv     dw      ?                       ; DS, for code that runs without it
-pspsel  dw      ?
-old23   df      ?                       ; the vectors plt_init replaced
-old1c   df      ?
+        .data?
+g_bss_s label   byte                    ; from here to g_bss_e (regions.asm): zeroed
+g_state TSTATE  <>
         .code
 
-        .data?
-        align   4
-dsb     db      10000h dup(?)           ; the 16-bit build's DS, as one block
-progb   db      10000h dup(?)
-pokeb   db      10000h dup(?)
-cachb   db      10000h dup(?)
-stkb    db      STKSZ dup(?)
-heapb   db      HEAPSZ dup(?)
-if IDE
-txb     db      10000h dup(?)           ; the editor's text
-clpb    db      10000h dup(?)           ; its clipboard
-wrkb    db      10000h dup(?)           ; a file's bytes
-scrb    db      4000 dup(?)             ; the screen as drawn, then shown
-hlpb    db      HLPSZ dup(?)
-uibuf   db      UIBSZ dup(?)
-aclb    db      AC_MAX*AC_SZ dup(?)
-endif
-        .code
 
         end     rt_start

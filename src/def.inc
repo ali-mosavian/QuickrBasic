@@ -149,27 +149,23 @@ E_UF    = 34
 DLINE    = 0                    ; in progb: the direct line, len 0, num FFxxh
 PROGBASE = 0110h                ; then the program, to PROGLIM
 PROGLIM  = 0FFF0h
-VARBASE  equ     <(offset dsb+0B000h)>
-VARLIM   equ     <(offset dsb+0B400h)>   ; 256 ids * 4
-SVBASE   equ     <(offset dsb+0B400h)>   ; a string variable's Desc, 8 bytes per id
-SVLIM    equ     <(offset dsb+0BC00h)>
+VARBASE  equ     <(offset g_dsb+0B000h)>
+VARLIM   equ     <(offset g_dsb+0B400h)>    ; 256 ids * 4
+SVBASE   equ     <(offset g_dsb+0B400h)>    ; a string variable's Desc, 8 bytes per id
+SVLIM    equ     <(offset g_dsb+0BC00h)>
 PROGSZ   = PROGLIM-PROGBASE
-HDRBASE  equ     <(offset dsb+0BC00h)>   ; the arrays' headers
-HDRLIM   equ     <(offset dsb+0E000h)>
+HDRBASE  equ     <(offset g_dsb+0BC00h)>    ; the arrays' headers
+HDRLIM   equ     <(offset g_dsb+0E000h)>
 ifndef AC
 AC       = IDE                  ; Tab completion in the editor
-endif
-if IDE
-HLPSZ    = 2048                 ; BASIC.HLP, the menus' help lines, at hlpb
-VIDEO    = 0B8000h              ; page 0 of the text screen, linear
 endif
 DCODE    = 0100h                ; in cachb: the direct line's stream
 CACHE0   = DCODE+1536           ; the cache, to CLIM
 CLIM     = 0FFF0h
 HEAPSZ   = 400000h              ; the heap: arrays and strings
-CSTOP    equ     <(offset dsb+0FC00h)>   ; the control stack, down from here
+CSTOP    equ     <(offset g_dsb+0FC00h)>    ; the control stack, down from here
 STKSZ    = 10000h               ; the data stack, its own region
-STKTOP   equ     <(offset stkb+STKSZ-16)>
+STKTOP   equ     <(offset g_stkb+STKSZ-16)>
 STKROOM  = 191                  ; bytes either stack may take, as stock's
-CSLIM    equ     <(offset dsb+0FC00h-STKROOM)>
+CSLIM    equ     <(offset g_dsb+0FC00h-STKROOM)>
 OBSZ     = 256                  ; plat.asm's output buffer

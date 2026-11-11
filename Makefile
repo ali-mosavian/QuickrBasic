@@ -74,17 +74,18 @@ x86:                            # the DOS .COM, build/x86/basic.com
 
 # llrm's pinned Open Watcom: its DOS/32A
 DOS32A ?= $(HOME)/.cache/llrm/open-watcom-v2-703e1ae2f9a621dda2d28fb39b12d0d6d2788af6/bld/redist/dos32a
-X86F_MODS := main data vm/exec vm/flow vm/calls vm/builtins vm/bc comp/lex comp/comp \
+X86F_MODS := main vm/exec vm/flow vm/calls vm/builtins vm/bc comp/lex comp/comp \
 	comp/expr comp/link comp/list mem/far mem/prog mem/sym mem/str mem/arr io/io io/repl \
 	io/file io/plat float/flt float/ftr float/fpu
-X86F_UI := ui/scr ui/mouse ui/compl ui/text ui/edit ui/draw ui/menu ui/dlg ui/sync ui/ui \
-	ui/uidata
+X86F_UI := ui/scr ui/mouse ui/compl ui/text ui/edit ui/draw ui/menu ui/dlg ui/sync ui/ui
 X86F_INC := $(wildcard src/x86f/*.inc src/x86f/*/*.inc)
-X86F_OBJ := $(X86F_MODS:%=build/x86f/%.obj)
-X86F_IDE_OBJ := $(X86F_MODS:%=build/x86f-ide/%.obj) $(X86F_UI:%=build/x86f-ide/%.obj)
+X86F_OBJ := $(X86F_MODS:%=build/x86f/%.obj) build/x86f/regions.obj
+X86F_IDE_OBJ := $(X86F_MODS:%=build/x86f-ide/%.obj) $(X86F_UI:%=build/x86f-ide/%.obj) \
+	build/x86f-ide/regions.obj
 LE_LINK = $(LLRM_BIN)/jwlink option quiet format os2 le option stub=$(DOS32A)/stub32a.exe
 
-# each module on its own, the shared header x86f.inc (tools/x86syms.py)
+# each module on its own, the shared header x86f.inc (tools/x86syms.py); regions.obj last:
+# the zeroed state runs from main.asm's g_bss_s to its g_bss_e
 build/x86f/%.obj: src/x86f/%.asm $(X86F_INC)
 	@mkdir -p $(@D)
 	cd src/x86f && $(LLRM_BIN)/jwasm -q -zf0 -Fl=$(abspath $(@:.obj=.lst)) -Fo $(abspath $@) $*.asm

@@ -34,7 +34,7 @@ cm_expr:
 ; ::::::::::::::
 cm_p:
         push    eax
-        cmp     esp,[cplim]
+        cmp     esp,[g_state.rn.cplim]
         jb      err_om
         call    cm_un
 @cp_l:
@@ -44,14 +44,14 @@ cm_p:
         jae     @cp_e
         movzx   ebx,al
         mov     ebp,esp
-        mov     cl,[cprec+ebx]
+        mov     cl,[g_cprec+ebx]
         cmp     byte ptr [ebp],cl
         jae     @cp_e
         cmp     bl,TK_GT-TK_PLUS
         jb      @cp_a
         mov     dl,80h
 @cp_r:
-        or      dl,[relbit+ebx-(TK_GT-TK_PLUS)]
+        or      dl,[g_relbit+ebx-(TK_GT-TK_PLUS)]
         inc     esi
         call    st_get
         sub     al,TK_GT
@@ -74,7 +74,7 @@ cm_p:
         pop     edx
         pop     ebx
 @cp_kl:
-        mov     al,[cty]
+        mov     al,[g_state.cm.cty]
         mov     ah,0
         push    ebx
         call    cm_ileaf
@@ -87,7 +87,7 @@ cm_p:
         push    eax
         push    ecx
         push    edi
-        mov     al,[cprec+ebx]
+        mov     al,[g_cprec+ebx]
         call    cm_p
         pop     ebx                      ; the right operand
         pop     ecx                      ; the left, an INT load when AH 1
@@ -110,31 +110,31 @@ cm_p:
 @cp_n1:
         cmp     al,T_STR
         jne     @cp_nm
-        test    [cty],T_STR
+        test    [g_state.cm.cty],T_STR
         jz      @st_expr1
         test    dl,dl
         jz      @cp_cat
         jns     @st_expr1
         and     dl,7
         mov     cl,dl
-        mov     [ccmp],edi
+        mov     [g_state.cm.ccmp],edi
         mov     al,O_S_CMP
         call    cm_opx
-        mov     [ccmpe],edi
-        mov     [cty],T_INT
+        mov     [g_state.cm.ccmpe],edi
+        mov     [g_state.cm.cty],T_INT
         jmp     @cp_l
 @cp_cat:
         mov     al,O_S_CAT
         call    cm_op
         jmp     @cp_l
 @cp_nm:
-        test    [cty],T_STR
+        test    [g_state.cm.cty],T_STR
         jnz     @st_expr1
         cmp     dl,4
         je      @cp_pw
         test    al,al
         js      @cp_fl
-        cmp     [cty],T_INT
+        cmp     [g_state.cm.cty],T_INT
         jne     @cp_lf
         test    dl,dl
         js      @cp_ic
@@ -147,7 +147,7 @@ cm_p:
 @cp_pw:
         test    al,al
         js      @cp_pf
-        cmp     [cty],T_INT
+        cmp     [g_state.cm.cty],T_INT
         jne     @cp_pl
         mov     al,K_IPOW
         call    cm_call
@@ -158,7 +158,7 @@ cm_p:
         call    cm_tof
         mov     al,K_FPOW
         call    cm_call
-        mov     [cty],T_FLT
+        mov     [g_state.cm.cty],T_FLT
         jmp     @cp_l
 @cp_lf:
         call    cm_lflt
@@ -247,7 +247,7 @@ cm_right:
 ; out:    cty  T_INT
 ; ::::::::::::::
 cm_iop:
-        mov     [cty],T_INT
+        mov     [g_state.cm.cty],T_INT
         mov     dl,al
         mov     ax,2*256+O_I_LD_V
         call    cm_right
@@ -275,7 +275,7 @@ cm_iop:
 ; out:    cty  T_INT
 ; ::::::::::::::
 cm_icmp:
-        mov     [cty],T_INT
+        mov     [g_state.cm.cty],T_INT
         and     dl,7
         mov     ax,2*256+O_I_LD_V
         call    cm_right
@@ -285,18 +285,18 @@ cm_icmp:
         call    cm_right
         mov     cl,O_I_CMP_U8
         je      @cic_f
-        mov     [ccmp],edi
+        mov     [g_state.cm.ccmp],edi
         mov     cl,dl
         mov     al,O_I_CMP
         call    cm_opx
-        mov     [ccmpe],edi
+        mov     [g_state.cm.ccmpe],edi
         ret
 @cic_f:
-        mov     [ccmp],ebx
+        mov     [g_state.cm.ccmp],ebx
         mov     [ebx],cl
         mov     al,dl
         call    cm_byt
-        mov     [ccmpe],edi
+        mov     [g_state.cm.ccmpe],edi
         ret
 
 ; ::::::::::::::
@@ -308,7 +308,7 @@ cm_icmp:
 ; out:    cty  T_FLT
 ; ::::::::::::::
 cm_fop2:
-        mov     [cty],T_FLT
+        mov     [g_state.cm.cty],T_FLT
         mov     dl,al
         call    cm_fkind
         jne     @cfp_p
@@ -355,31 +355,31 @@ cm_fkind:
 ; out:    cty  T_INT
 ; ::::::::::::::
 cm_fcmp:
-        mov     [cty],T_INT
+        mov     [g_state.cm.cty],T_INT
         and     dl,7
         call    cm_fkind
         jne     @cfc_p
-        mov     [ccmp],ebx
+        mov     [g_state.cm.ccmp],ebx
         sub     cl,O_F_ADD_V
         shr     cl,2
         movzx   ebx,cl
-        mov     al,[fcmpk+ebx]
-        mov     ebx,[ccmp]
+        mov     al,[g_fcmpk+ebx]
+        mov     ebx,[g_state.cm.ccmp]
         mov     [ebx],al
         mov     al,dl
         call    cm_byt
-        mov     [ccmpe],edi
+        mov     [g_state.cm.ccmpe],edi
         ret
 @cfc_p:
-        mov     [ccmp],edi
+        mov     [g_state.cm.ccmp],edi
         mov     cl,dl
         mov     al,O_F_CMP
         call    cm_opx
-        mov     [ccmpe],edi
+        mov     [g_state.cm.ccmpe],edi
         ret
 
         .data
-fcmpk   db      O_F_CMP_V,O_F_CMP_VI,O_F_CMP_U8,O_F_CMP_F32
+g_fcmpk db      O_F_CMP_V,O_F_CMP_VI,O_F_CMP_U8,O_F_CMP_F32
         .code
 
 ; ::::::::::::::
@@ -393,12 +393,12 @@ cm_lval:
         call    cm_name
         call    cm_unf
         call    cm_tgt
-        test    [ctk],80h
+        test    [g_state.cm.ctk],80h
         jz      @rt_exp1
-        push    word ptr [ctv]
+        push    word ptr [g_state.cm.ctv]
         call    cm_subs0
-        pop     word ptr [ctv]
-        mov     [ctn],cl
+        pop     word ptr [g_state.cm.ctv]
+        mov     [g_state.cm.ctn],cl
 @rt_exp1:
         ret
 
@@ -410,7 +410,7 @@ cm_lval:
 ; ::::::::::::::
 cm_load:
         call    cm_name
-        mov     dl,[sinfo+ebx]
+        mov     dl,[g_sinfo+ebx]
         test    dl,dl
         js      @cld_a
         mov     cl,bl
@@ -420,31 +420,31 @@ cm_load:
         cmp     dl,1
         je      @cld_i
         ja      @cld_s
-        mov     [cty],T_FLT
+        mov     [g_state.cm.cty],T_FLT
         mov     al,O_F_LD_V
         jmp     cm_opx
 @cld_i:
-        mov     [cll],edi
+        mov     [g_state.cm.cll],edi
         mov     al,O_I_LD_V
         call    cm_opx
-        mov     [clle],edi
-        mov     [cty],T_INT
+        mov     [g_state.cm.clle],edi
+        mov     [g_state.cm.cty],T_INT
         ret
 @cld_s:
-        mov     [cty],T_STR
+        mov     [g_state.cm.cty],T_STR
         mov     al,O_S_LD_V
         jmp     cm_opx
 @cld_y:
-        mov     [cty],T_STR
+        mov     [g_state.cm.cty],T_STR
         mov     al,K_STI
         test    dl,2
         jnz     @jt_expr1
         add     ebx,ebx
-        mov     [cty],T_INT
+        mov     [g_state.cm.cty],T_INT
         mov     al,K_IST
-        cmp     byte ptr [skey+ebx],'S'
+        cmp     byte ptr [g_skey+ebx],'S'
         je      @jt_expr1
-        mov     [cty],T_FLT
+        mov     [g_state.cm.cty],T_FLT
         mov     al,K_FTI
 @jt_expr1:
         jmp     cm_call
@@ -455,12 +455,12 @@ cm_load:
         pop     edx
         and     dl,3
         movzx   ebx,dl
-        mov     al,[ctys+ebx]
-        mov     [cty],al
-        mov     al,[lda1+ebx]
+        mov     al,[g_ctys+ebx]
+        mov     [g_state.cm.cty],al
+        mov     al,[g_lda1+ebx]
         cmp     cl,1
         je      @cld_1
-        mov     al,[ldan+ebx]
+        mov     al,[g_ldan+ebx]
         mov     ch,cl
         pop     ebx
         mov     cl,bl
@@ -473,9 +473,9 @@ cm_load:
         jmp     cm_opx
 
         .data
-ctys    db      T_FLT,T_INT,T_STR
-lda1    db      O_F_LD_A1,O_I_LD_A1,O_S_LD_A1
-ldan    db      O_F_LD_A,O_I_LD_A,O_S_LD_A
+g_ctys  db      T_FLT,T_INT,T_STR
+g_lda1  db      O_F_LD_A1,O_I_LD_A1,O_S_LD_A1
+g_ldan  db      O_F_LD_A,O_I_LD_A,O_S_LD_A
         .code
 
 ; ::::::::::::::
@@ -527,7 +527,7 @@ cm_str:
 ; in:     SI  after the opening quote
 ; ::::::::::::::
 cm_str1:
-        mov     [cty],T_STR
+        mov     [g_state.cm.cty],T_STR
         mov     ax,'""'
         call    str_span
         movzx   ecx,ax
@@ -537,7 +537,7 @@ cm_str1:
         mov     al,cl
         call    cm_byt
         mov     eax,ebx
-        add     eax,[ctxlin]
+        add     eax,[g_state.cm.ctxlin]
         call    cm_dw
         pop     esi
         jmp     str_skq
@@ -584,9 +584,9 @@ cm_un:
 @jt_expr2:
         jmp     cm_op
 @cu_nf:
-        test    [cty],T_STR
+        test    [g_state.cm.cty],T_STR
         jnz     err_tm
-        cmp     [cty],T_FLT
+        cmp     [g_state.cm.cty],T_FLT
         mov     al,O_F_NEG
         je      @jt_expr2
         call    cm_ileaf
@@ -621,7 +621,7 @@ cm_un:
         ja      @cu_7
         call    flt_in
 @cu_fk:
-        mov     [cty],T_FLT
+        mov     [g_state.cm.cty],T_FLT
         push    eax
         mov     al,O_F_LD_F32
         call    cm_op
@@ -672,7 +672,7 @@ cm_un:
         push    ecx
         call    cm_chkcl
         pop     eax
-        mov     [cty],T_STR
+        mov     [g_state.cm.cty],T_STR
         add     al,K_FN
         jmp     cm_call
 @cu_a1:
@@ -687,7 +687,7 @@ cm_un:
         cmp     al,TK_PI-TK_SGN
         jne     err_sn
         inc     esi
-        mov     [cty],T_FLT
+        mov     [g_state.cm.cty],T_FLT
         mov     al,O_F_LD_PI
         jmp     cm_op
 
@@ -701,13 +701,13 @@ cm_un:
 ; ::::::::::::::
 cm_farg:
         movzx   ebx,cl
-        mov     al,[fnsig+ebx]
+        mov     al,[g_fnsig+ebx]
         push    ecx
         push    eax
         and     al,0Fh
         movzx   ebx,al
         add     ebx,ebx
-        call    [fnarg+ebx*2]
+        call    [g_fnarg+ebx*2]
         pop     eax
         pop     ecx
         and     al,0F0h
@@ -715,7 +715,7 @@ cm_farg:
         jne     @cfa_t
         mov     al,T_STR
 @cfa_t:
-        mov     [cty],al
+        mov     [g_state.cm.cty],al
         ret
 
 ; ::::::::::::::
@@ -724,12 +724,12 @@ cm_farg:
 ; error:  ?TYPE MISMATCH  a string
 ; ::::::::::::::
 cm_nany:
-        test    [cty],T_STR
+        test    [g_state.cm.cty],T_STR
         jnz     err_tm
         ret
 
         .data
-fnarg   dd      cm_tof,cm_toa,cm_tos,cm_rts,cm_tob,cm_nany
+g_fnarg dd      cm_tof,cm_toa,cm_tos,cm_rts,cm_tob,cm_nany
         .code
 
 FA_F    = 0
@@ -744,18 +744,18 @@ FR_S    = 0B0h
 
 ; Per function, TK_SGN based: the argument, the result.
         .data
-fnsig   db      FA_F+FR_I,FA_F+FR_F,FA_F+FR_F,FA_F+FR_F,FA_Y+FR_F,FA_N+FR_I
+g_fnsig db      FA_F+FR_I,FA_F+FR_F,FA_F+FR_F,FA_F+FR_F,FA_Y+FR_F,FA_N+FR_I
         db      FA_F+FR_F,FA_F+FR_F,FA_F+FR_F,FA_F+FR_F,FA_F+FR_F,FA_F+FR_F
         db      FA_F+FR_F,FA_F+FR_F,FA_A+FR_I,FA_S+FR_I,FA_F+FR_S,FA_S+FR_F
         db      FA_S+FR_I,FA_B+FR_S
         .code
 
         .data
-cprec   db      79h,79h,7Bh,7Bh,7Fh,50h,46h,64h,64h,64h
+g_cprec db      79h,79h,7Bh,7Bh,7Fh,50h,46h,64h,64h,64h
         .code
 
         .data
-cmact   dd      cm_expr,cm_lval,cm_lnum,cm_tob,cm_toa,cm_tos,cm_str1,cm_fv
+g_cmact dd      cm_expr,cm_lval,cm_lnum,cm_tob,cm_toa,cm_tos,cm_str1,cm_fv
         dd      cm_fst,cm_fork,cm_for,cm_for1,cm_nv,cm_if,cm_on,cm_onl
         dd      cm_print,cm_def,cm_list,cm_dv,cm_dat,cm_rem,cm_store,cm_in
         dd      cm_rd,cm_get,cm_goto,cm_gosub,cm_run,cm_res,cm_ret,cm_n0

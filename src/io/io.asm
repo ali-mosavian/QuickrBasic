@@ -46,12 +46,12 @@ io_space:
 ; keeps:  all but AL
 ; ::::::::::::::
 io_putc:
-        test    [ocap],0C0h
+        test    [g_state.io.ocap],0C0h
         jnz     @iop_c
-        inc     [pcol]
+        inc     [g_state.io.pcol]
         cmp     al,NL
         jne     @jt_io1
-        mov     [pcol],0
+        mov     [g_state.io.pcol],0
 @jt_io1:
         jmp     plt_putc
 @iop_c:
@@ -61,15 +61,15 @@ io_putc:
         call    plt_getc
         cmp     al,bl
         je      @iop_e
-        or      [ocap],1
+        or      [g_state.io.ocap],1
 @iop_e:
         pop     ebx
         ret
 @iop_s:
         push    ebx
-        movzx   ebx,[sbx]
-        mov     [sbuf+ebx],al
-        inc     [sbx]
+        movzx   ebx,[g_state.io.sbx]
+        mov     [g_sbuf+ebx],al
+        inc     [g_state.io.sbx]
         pop     ebx
         ret
 
@@ -79,7 +79,7 @@ io_putc:
 ; keeps:  all but AL
 ; ::::::::::::::
 io_fresh:
-        cmp     [pcol],0
+        cmp     [g_state.io.pcol],0
         je      @iof_r
 
 ; ::::::::::::::
@@ -156,7 +156,7 @@ io_spaces:
 io_kw:
         and     al,7Fh
         push    ebx
-        mov     ebx,offset kwlist
+        mov     ebx,offset g_kwlist
         jmp     io_nth
 
 ; ::::::::::::::
@@ -167,7 +167,7 @@ io_kw:
 ; ::::::::::::::
 io_msg:
         push    ebx
-        mov     ebx,offset msgs
+        mov     ebx,offset g_msgs
 
 ; ::::::::::::::
 ; io_nth - print entry AL of the list at BX; a reference byte nests by io_msg.
@@ -241,18 +241,18 @@ io_prompt:
 io_read:
         call    plt_getline
         jnc     @F
-        cmp     [stpflg],0
+        cmp     [g_state.rn.stpflg],0
         je      err_od
-        and     [stpflg],0              ; the STOP key: BREAK, no CONT
-        and     [contip],0
+        and     [g_state.rn.stpflg],0              ; the STOP key: BREAK, no CONT
+        and     [g_state.rn.contip],0
         xor     al,al                   ; E_BRK
         jmp     err_raise
 @@:
-        mov     [inlen],al
+        mov     [g_state.io.inlen],al
         movzx   ebx,al
-        mov     byte ptr [inbuf+ebx],0
-        mov     [pcol],0
-        mov     [inpos],0FFh
+        mov     byte ptr [g_inbuf+ebx],0
+        mov     [g_state.io.pcol],0
+        mov     [g_state.io.inpos],0FFh
         ret
 
 ; ::::::::::::::
@@ -264,13 +264,13 @@ io_read:
 ; error:  ?OUT OF DATA  the end of the input
 ; ::::::::::::::
 io_field:
-        mov     bl,[inpos]
+        mov     bl,[g_state.io.inpos]
         inc     bl
         jz      @iof_d
         movzx   ebx,bl
-        cmp     byte ptr [inbuf+ebx-1],','
+        cmp     byte ptr [g_inbuf+ebx-1],','
         je      @iof_d
-        test    [infl],80h
+        test    [g_state.io.infl],80h
         jnz     @iof_rd
         mov     al,'?'
         call    io_putc
@@ -280,7 +280,14 @@ io_field:
         call    io_read
         jmp     io_field
 @iof_d:
-        mov     [inpos],bl
+        mov     [g_state.io.inpos],bl
         ret
+
+        .data?
+g_sbuf  db      256 dup(?)
+g_inbuf db      256 dup(?)
+        .code
+
+include gen.inc
 
         end

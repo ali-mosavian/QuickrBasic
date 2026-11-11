@@ -24,17 +24,17 @@ include x86f.inc
 ; ::::::::::::::
 flt_finit:
         fninit
-        mov     [fpw],5A5Ah
-        fnstsw  [fpw]
-        cmp     byte ptr [fpw],0
+        mov     [g_state.ft.fpw],5A5Ah
+        fnstsw  [g_state.ft.fpw]
+        cmp     byte ptr [g_state.ft.fpw],0
         jne     @ffi_r
-        fnstcw  [fpw]
-        mov     ax,[fpw]
+        fnstcw  [g_state.ft.fpw]
+        mov     ax,[g_state.ft.fpw]
         and     ax,103Fh
         cmp     ax,003Fh
         jne     @ffi_r
-        fldcw   [fcw]
-        mov     ebx,offset fptab
+        fldcw   [g_fcw]
+        mov     ebx,offset g_fptab
 @ffi_l:
         mov     ecx,[ebx]
         jecxz   @ffi_o
@@ -46,15 +46,15 @@ flt_finit:
         add     ebx,8
         jmp     @ffi_l
 @ffi_o:
-        mov     [hasfpu],1
+        mov     [g_state.ft.hasfpu],1
 @ffi_r:
         ret
 
         .data
-fcw     dw      007Fh
-fcwx    dw      037Fh                   ; 64-bit precision: 2^x's steps
-fcwd    dw      047Fh                   ; round down
-fptab   dd      flt_add,flt_fadd,flt_sub,flt_fsub,flt_mul,flt_fmul,flt_div,flt_fdiv
+g_fcw   dw      007Fh
+g_fcwx  dw      037Fh                    ; 64-bit precision: 2^x's steps
+g_fcwd  dw      047Fh                    ; round down
+g_fptab dd      flt_add,flt_fadd,flt_sub,flt_fsub,flt_mul,flt_fmul,flt_div,flt_fdiv
         dd      flt_from16,flt_ffrom,flt_from32,flt_ffrom32,flt_fromu16,flt_ffromu
         dd      flt_fix16,flt_ffix
         dd      flt_fixu16,flt_ffixu,flt_int,flt_ffloor,fn_pow,flt_fpow
@@ -72,9 +72,9 @@ fptab   dd      flt_add,flt_fadd,flt_sub,flt_fsub,flt_mul,flt_fmul,flt_div,flt_f
 ; keeps:  all
 ; ::::::::::::::
 flt_fld:
-        mov     [fpa],eax
-        mov     [fpb],edx
-        fld     dword ptr [fpb]
+        mov     [g_state.ft.fpa],eax
+        mov     [g_state.ft.fpb],edx
+        fld     dword ptr [g_state.ft.fpb]
         ret
 
 ; ::::::::::::::
@@ -87,7 +87,7 @@ flt_fld:
 ; ::::::::::::::
 flt_fadd:
         call    flt_fld
-        fadd    dword ptr [fpa]
+        fadd    dword ptr [g_state.ft.fpa]
 
 ; ::::::::::::::
 ; flt_fst - pop the x87's result; a denormal is 0, an infinity ?OVERFLOW.
@@ -97,8 +97,8 @@ flt_fadd:
 ; error:  ?OVERFLOW  an infinity
 ; ::::::::::::::
 flt_fst:
-        fstp    dword ptr [fpa]
-        mov     eax,[fpa]
+        fstp    dword ptr [g_state.ft.fpa]
+        mov     eax,[g_state.ft.fpa]
         mov     ecx,eax
         and     ecx,7F800000h
         jz      flt_zero
@@ -116,7 +116,7 @@ flt_fst:
 ; ::::::::::::::
 flt_fsub:
         call    flt_fld
-        fsub    dword ptr [fpa]
+        fsub    dword ptr [g_state.ft.fpa]
         jmp     flt_fst
 
 ; ::::::::::::::
@@ -129,7 +129,7 @@ flt_fsub:
 ; ::::::::::::::
 flt_fmul:
         call    flt_fld
-        fmul    dword ptr [fpa]
+        fmul    dword ptr [g_state.ft.fpa]
         jmp     flt_fst
 
 ; ::::::::::::::
@@ -148,7 +148,7 @@ flt_fdiv:
         jmp     err_raise
 @ffd_g:
         call    flt_fld
-        fdiv    dword ptr [fpa]
+        fdiv    dword ptr [g_state.ft.fpa]
         jmp     flt_fst
 
 ; ::::::::::::::
@@ -159,8 +159,8 @@ flt_fdiv:
 ; keeps:  EDX
 ; ::::::::::::::
 flt_ffrom:
-        mov     word ptr [fpi],ax
-        fild    word ptr [fpi]
+        mov     word ptr [g_state.ft.fpi],ax
+        fild    word ptr [g_state.ft.fpi]
         jmp     flt_fst
 
 ; ::::::::::::::
@@ -171,8 +171,8 @@ flt_ffrom:
 ; keeps:  EDX
 ; ::::::::::::::
 flt_ffrom32:
-        mov     [fpi],eax
-        fild    dword ptr [fpi]
+        mov     [g_state.ft.fpi],eax
+        fild    dword ptr [g_state.ft.fpi]
         jmp     flt_fst
 
 ; ::::::::::::::
@@ -184,8 +184,8 @@ flt_ffrom32:
 ; ::::::::::::::
 flt_ffromu:
         movzx   eax,ax
-        mov     [fpi],eax
-        fild    dword ptr [fpi]
+        mov     [g_state.ft.fpi],eax
+        fild    dword ptr [g_state.ft.fpi]
         jmp     flt_fst
 
 ; ::::::::::::::
@@ -209,8 +209,8 @@ flt_ffixu:
 flt_ffix:
         mov     cl,80h
 @fff_l:
-        mov     [fpa],eax
-        fld     dword ptr [fpa]
+        mov     [g_state.ft.fpa],eax
+        fld     dword ptr [g_state.ft.fpa]
 
 ; ::::::::::::::
 ; flt_xfix - pop st0 as an INT, floored.
@@ -222,10 +222,10 @@ flt_ffix:
 ; error:  ?ILLEGAL QUANTITY  out of range
 ; ::::::::::::::
 flt_xfix:
-        fldcw   [fcwd]
-        fistp   dword ptr [fpi]
-        fldcw   [fcw]
-        mov     eax,[fpi]
+        fldcw   [g_fcwd]
+        fistp   dword ptr [g_state.ft.fpi]
+        fldcw   [g_fcw]
+        mov     eax,[g_state.ft.fpi]
         test    cl,cl
         jz      @fxx_u
         movsx   ecx,ax
@@ -246,11 +246,11 @@ flt_xfix:
 ; out:    EAX  the result, packed
 ; ::::::::::::::
 flt_ffloor:
-        mov     [fpa],eax
-        fld     dword ptr [fpa]
-        fldcw   [fcwd]
+        mov     [g_state.ft.fpa],eax
+        fld     dword ptr [g_state.ft.fpa]
+        fldcw   [g_fcwd]
         frndint
-        fldcw   [fcw]
+        fldcw   [g_fcw]
         jmp     flt_fst
 
 ; ::::::::::::::
@@ -271,7 +271,7 @@ flt_x2x:
         faddp   st(1),st
         fscale
         fstp    st(1)
-        fldcw   [fcw]
+        fldcw   [g_fcw]
         ret
 
 ; ::::::::::::::
@@ -285,7 +285,7 @@ flt_x2x:
 ;         ?OVERFLOW          past the largest FLOAT
 ; ::::::::::::::
 flt_xpw:
-        mov     [ft4],eax
+        mov     [g_state.ft.ft4],eax
         mov     ecx,eax
         shl     ecx,1
         shr     ecx,24
@@ -339,9 +339,9 @@ flt_xpw:
         fmul    st,st(0)
         jmp     @fxw_2
 @fxw_g:
-        fldcw   [fcwx]
+        fldcw   [g_fcwx]
         fabs
-        fld     dword ptr [ft4]
+        fld     dword ptr [g_state.ft.ft4]
         fxch
         fyl2x
         call    flt_x2x
@@ -349,8 +349,8 @@ flt_xpw:
         movzx   edx,bl
         shl     edx,31
         call    @fp_sg
-        mov     [fpa],eax
-        fld     dword ptr [fpa]
+        mov     [g_state.ft.fpa],eax
+        fld     dword ptr [g_state.ft.fpa]
         ret
 
 ; ::::::::::::::
@@ -373,10 +373,10 @@ flt_xchk:
 ; ex_fclr - an error leaves nothing on the x87 stack.
 ; ::::::::::::::
 ex_fclr:
-        cmp     [hasfpu],0
+        cmp     [g_state.ft.hasfpu],0
         je      @fcl_r
         fninit
-        fldcw   [fcw]
+        fldcw   [g_fcw]
 @fcl_r:
         ret
 
@@ -387,8 +387,8 @@ ex_fclr:
 ; out:    st0  it
 ; ::::::::::::::
 flt_xin:
-        mov     [fpa],eax
-        fld     dword ptr [fpa]
+        mov     [g_state.ft.fpa],eax
+        fld     dword ptr [g_state.ft.fpa]
         ret
 
 ; ::::::::::::::
@@ -414,8 +414,8 @@ flt_xtst:
 ; out:    EAX  the result, packed
 ; ::::::::::::::
 flt_fpow:
-        mov     [fpb],edx
-        fld     dword ptr [fpb]
+        mov     [g_state.ft.fpb],edx
+        fld     dword ptr [g_state.ft.fpb]
         call    flt_xpw
         jmp     flt_fst
 
@@ -443,7 +443,7 @@ flt_flog:
 ; ::::::::::::::
 flt_fexp:
         call    flt_xin
-        fldcw   [fcwx]
+        fldcw   [g_fcwx]
         fldl2e
         fmulp   st(1),st
         call    flt_x2x

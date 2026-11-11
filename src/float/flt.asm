@@ -570,7 +570,7 @@ flt_fix:
 ; error:  ?OVERFLOW  past EMAX
 ; ::::::::::::::
 flt_scale:
-        mov     cl,[fx]
+        mov     cl,[g_state.ft.fx]
         test    cl,cl
         jnz     @F
         ret
@@ -600,7 +600,7 @@ flt_scale:
 ; error:  ?OVERFLOW  past EMAX
 ; ::::::::::::::
 flt_step:
-        sub     [fx],cl
+        sub     [g_state.ft.fx],cl
         mov     edx,eax
         mov     ch,cl
         test    cl,1
@@ -654,9 +654,9 @@ flt_insg:
 ; ::::::::::::::
 flt_in:
         xor     ebx,ebx                 ; w
-        mov     dword ptr [fx],0        ; fx ff fq fd
+        mov     dword ptr [g_state.ft.fx],0        ; fx ff fq fd
         call    flt_insg
-        mov     [fsg],al
+        mov     [g_state.ft.fsg],al
 @fi_dl:
         call    st_get
         xor     al,'0'
@@ -668,30 +668,30 @@ flt_in:
         imul    ebx,ebx,10
         movzx   eax,al
         add     ebx,eax
-        test    [ff],80h
+        test    [g_state.ft.ff],80h
         jz      @fi_dl
-        dec     [fx]
+        dec     [g_state.ft.fx]
         jmp     @fi_dl
 @fi_xd:
-        test    [ff],80h
+        test    [g_state.ft.ff],80h
         jnz     @fi_dl
-        inc     [fx]
+        inc     [g_state.ft.fx]
         jmp     @fi_dl
 @fi_nd:
         cmp     al,'.' xor '0'
         jne     @fi_ne
-        test    [ff],80h
+        test    [g_state.ft.ff],80h
         jnz     @fi_end
-        or      [ff],80h
+        or      [g_state.ft.ff],80h
         inc     esi
         jmp     @fi_dl
 @fi_ne:
         cmp     al,'E' xor '0'
         jne     @fi_end
-        or      [ff],40h
+        or      [g_state.ft.ff],40h
         inc     esi
         call    flt_insg
-        mov     [fd],al
+        mov     [g_state.ft.fd],al
 @fi_el:
         call    st_get
         xor     al,'0'
@@ -700,28 +700,28 @@ flt_in:
         inc     esi
         mov     cl,al
         mov     al,127
-        cmp     [fq],12
+        cmp     [g_state.ft.fq],12
         jae     @F
-        mov     al,[fq]
+        mov     al,[g_state.ft.fq]
         imul    ax,ax,10
         add     al,cl
 @@:
-        mov     [fq],al
+        mov     [g_state.ft.fq],al
         jmp     @fi_el
 @fi_end:
-        mov     al,[fq]                 ; fx +- exponent, within +-127
-        mov     cl,[fd]
+        mov     al,[g_state.ft.fq]                 ; fx +- exponent, within +-127
+        mov     cl,[g_state.ft.fd]
         xor     al,cl
         add     cl,cl
-        adc     al,[fx]
+        adc     al,[g_state.ft.fx]
         jno     @F
-        mov     al,[fd]
+        mov     al,[g_state.ft.fd]
         xor     al,7Fh
 @@:
-        mov     [fx],al
+        mov     [g_state.ft.fx],al
         mov     eax,ebx
         xor     ebp,ebp
-        cmp     [fsg],0
+        cmp     [g_state.ft.fsg],0
         je      @F
         mov     ebp,80000000h
 @@:
@@ -740,10 +740,10 @@ flt_in:
 ;         fd  not 0 when bits were lost
 ; ::::::::::::::
 flt_ow:
-        mov     eax,[fout]
+        mov     eax,[g_state.ft.fout]
         and     eax,7FFFFFh
         or      eax,800000h
-        mov     ebx,[fout]              ; no sign here: bits 31..23 are e
+        mov     ebx,[g_state.ft.fout]              ; no sign here: bits 31..23 are e
         shr     ebx,23
         jnz     @F
         xor     eax,eax
@@ -754,7 +754,7 @@ flt_ow:
         jbe     @F
         mov     cl,25
 @@:
-        mov     [fd],0
+        mov     [g_state.ft.fd],0
         test    cl,cl
         jz      @fo_wd
         mov     edx,eax
@@ -765,7 +765,7 @@ flt_ow:
         shr     eax,cl
         test    edx,edx
         jz      @fo_wd
-        mov     [fd],1
+        mov     [g_state.ft.fd],1
         dec     cl
         movzx   ecx,cl
         btr     edx,ecx
@@ -774,7 +774,7 @@ flt_ow:
         jz      @fo_wd
         inc     eax
 @fo_wd:
-        mov     [fw],eax
+        mov     [g_state.ft.fw],eax
         ret
 
 ; ::::::::::::::
@@ -791,43 +791,43 @@ flt_out:
         jns     @F
         mov     cl,'-'
 @@:
-        mov     [fout],eax
+        mov     [g_state.ft.fout],eax
         mov     al,cl
         call    io_putc
-        mov     eax,[fout]
+        mov     eax,[g_state.ft.fout]
         btr     eax,31
-        mov     [fx],0
+        mov     [g_state.ft.fx],0
 @fo_sc:
-        mov     [fout],eax
+        mov     [g_state.ft.fout],eax
         mov     cl,0FCh
         cmp     eax,(FBIAS+24) SHL 23
         jae     @fo_go
         call    flt_ow
-        mov     al,[fx]
-        or      al,[fd]
+        mov     al,[g_state.ft.fx]
+        or      al,[g_state.ft.fd]
         jnz     @fo_fr
-        mov     eax,[fw]
+        mov     eax,[g_state.ft.fw]
         call    io_u24
         jmp     @fo_sp
 @fo_fr:
         mov     cl,4
-        cmp     dword ptr [fout],(FBIAS+3*(NDO-4)) SHL 23
+        cmp     dword ptr [g_state.ft.fout],(FBIAS+3*(NDO-4)) SHL 23
         jb      @fo_go
-        mov     eax,[fw]
+        mov     eax,[g_state.ft.fw]
         mov     edi,NDO
 @fo_dd:
         xor     edx,edx
         mov     ebx,10
         div     ebx
         or      dl,'0'
-        mov     [fbuf+edi-1],dl
+        mov     [g_state.ft.fbuf+edi-1],dl
         test    eax,eax
         jz      @fo_lo
         dec     edi
         jnz     @fo_dd
         mov     cl,0FFh
 @fo_go:
-        mov     eax,[fout]
+        mov     eax,[g_state.ft.fout]
         call    flt_step
         jmp     @fo_sc
 @fo_lo:
@@ -837,19 +837,19 @@ flt_out:
         mov     edi,NDO+1
 @fo_tz:
         dec     edi
-        cmp     byte ptr [fbuf+edi-1],'0'
+        cmp     byte ptr [g_state.ft.fbuf+edi-1],'0'
         je      @fo_tz
         mov     ax,di
-        mov     [fq],al
-        mov     al,[fx]
+        mov     [g_state.ft.fq],al
+        mov     al,[g_state.ft.fx]
         add     al,NDO-1
-        mov     [fx],al
+        mov     [g_state.ft.fx],al
         mov     edi,1
-        mov     [ff],0
+        mov     [g_state.ft.ff],0
         add     al,2
         cmp     al,11
         jb      @fo_nE
-        mov     [ff],80h
+        mov     [g_state.ft.ff],80h
         jmp     @fo_pt
 @fo_nE:
         mov     ah,0
@@ -866,24 +866,24 @@ flt_out:
         call    io_putc
         inc     edi
 @fo_pt:
-        mov     [fdw],edi
+        mov     [g_state.ft.fdw],edi
         xor     edi,edi
 @fo_dg:
-        mov     al,[fbuf+edi]
+        mov     al,[g_state.ft.fbuf+edi]
 @fo_z:
         call    io_putc
         inc     edi
         mov     ax,di
-        cmp     al,[fq]
+        cmp     al,[g_state.ft.fq]
         jb      @fo_mo
         mov     al,'0'
-        cmp     edi,[fdw]
+        cmp     edi,[g_state.ft.fdw]
         jb      @fo_z
-        test    [ff],80h
+        test    [g_state.ft.ff],80h
         jz      @fo_sp
         mov     al,'E'
         call    io_putc
-        mov     al,[fx]
+        mov     al,[g_state.ft.fx]
         mov     cl,'+'
         test    al,al
         jns     @F
@@ -905,10 +905,10 @@ flt_out:
         pop     esi
         jmp     io_space
 @fo_mo:
-        cmp     edi,[fdw]
+        cmp     edi,[g_state.ft.fdw]
         jne     @fo_dg
         dec     edi
-        mov     [fdw],edi
+        mov     [g_state.ft.fdw],edi
         mov     al,'.'
         jmp     @fo_z
 

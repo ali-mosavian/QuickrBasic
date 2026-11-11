@@ -35,7 +35,7 @@ ST_GOTO = 9
 ST_GO   = 33
 ifdef DFA_DATA                  ; the tables: comp/lex.asm's alone
         .data
-sc_cls  label   byte
+g_sc_cls label   byte
         db      000h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h
         db      001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,002h,001h
         db      001h,003h,004h,001h,001h,001h,005h,001h,006h,007h,001h,008h,001h,009h,002h,002h,002h
@@ -52,7 +52,7 @@ sc_cls  label   byte
         db      027h,027h,027h,027h,027h,027h,027h,027h,027h,027h,027h,027h,027h,027h,027h,027h,027h
         db      027h,027h,027h,027h,027h,027h,027h,027h,027h,027h,027h,027h,027h,027h,027h,027h,027h
         db      002h
-sc_tab  label   byte
+g_sc_tab label   byte
         db      0F8h,0FCh,0FAh,0FCh,0FCh,0FCh,06Dh,06Eh,06Fh,070h,071h,072h,073h,0FBh,001h,0FCh,006h
         db      00Fh,014h,017h,01Ah,0FCh,020h,0FCh,025h,02Dh,030h,034h,037h,0FCh,040h,050h,05Dh,062h
         db      064h,06Ah,0FCh,0FCh,0B5h,0F9h,0FCh,0FCh,0FCh,0FCh,0FCh,0FCh,0FCh,0FCh,0FCh,0FCh,0FCh
@@ -310,7 +310,7 @@ sc_tab  label   byte
         db      0FCh,0FCh,0FCh,0FCh,0FCh,0FCh,0FCh,0FCh,0FCh,0FCh,0FCh,0FCh,0FCh,0FCh,0FCh,0FCh,0FCh
         db      0FCh,0FCh,0FCh,0FCh,0FCh,0FCh,0FCh,0FCh,0FCh,0FCh,0FCh,0FCh,0FCh,0FCh,0FCh,0FCh,0FCh
         db      0B4h,0FCh,0FCh,0FCh,0FCh,0FCh,0FCh,0FCh
-sc_acc  label   byte
+g_sc_acc label   byte
         db      000h,000h,000h,000h,000h,000h,000h,000h,000h,000h,000h,000h,000h,000h,000h,000h,000h
         db      000h,000h,000h,000h,000h,000h,000h,000h,000h,000h,000h,0CBh,000h,000h,000h,000h,000h
         db      000h,000h,085h,000h,000h,000h,000h,000h,000h,000h,000h,000h,000h,000h,000h,000h,000h
@@ -322,7 +322,7 @@ sc_acc  label   byte
         db      089h,08Bh,084h,0B5h,0C8h,0C3h,088h,09Bh,093h,0BCh,0CAh,0A2h,082h,0A8h,091h,09Fh,0B0h
         db      0C2h,097h,0B9h,098h,087h,08Fh,08Ch,08Eh,0C9h,0BBh,08Ah,094h,0B4h,0BFh,0A6h,0BAh,0A9h
         db      090h,0C4h,09Eh,0A3h,0C0h,0A7h,0A4h,0B7h,0C5h,095h,092h,0AEh
-tk_cls  label   byte
+g_tk_cls label   byte
         db      000h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h
         db      001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,002h,001h
         db      003h,001h,004h,005h,001h,001h,006h,001h,001h,001h,001h,001h,007h,001h,008h,008h,008h
@@ -339,7 +339,7 @@ tk_cls  label   byte
         db      001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h
         db      001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h
         db      001h
-tk_tab  label   word
+g_tk_tab label   word
         dw      0FF01h,00100h,00100h,00300h,00100h,00100h,00100h,00702h,00702h,00100h,00A06h,00A06h
         dw      00600h,00500h,00200h,00100h,0FF01h,00100h,00100h,00300h,00100h,00100h,00100h,00802h
         dw      00802h,00100h,00A06h,00A06h,00600h,00500h,00200h,00100h,0FF01h,00100h,00200h,00300h
@@ -358,9 +358,9 @@ tk_tab  label   word
         dw      00C0Ah,00C09h,0018Ch,0018Ch,00B08h,0018Ch,00B08h,00B08h,0018Ch,0018Ch,0018Ch,0018Ch
         dw      0010Dh,0010Dh,00C0Fh,0010Dh,0010Dh,0010Dh,0010Eh,0010Dh,0010Dh,0010Dh,0010Dh,0010Dh
         dw      0010Dh,0010Dh,0010Dh,0010Dh
-tk_mode label   byte
+g_tk_mode label   byte
         db      000h,000h,000h,001h,001h,001h,002h,000h,000h,000h,000h,000h,000h
-ps_cls  label   byte
+g_ps_cls label   byte
         db      000h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h
         db      001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h
         db      002h,003h,001h,001h,001h,001h,001h,001h,001h,001h,004h,001h,001h,001h,001h,001h,001h
@@ -377,7 +377,7 @@ ps_cls  label   byte
         db      001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h
         db      001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h,001h
         db      001h
-ps_tab  label   word
+g_ps_tab label   word
         dw      K_END+8960,K_END+8960,K_END+8960,K_END+8960,K_END+8960,K_END+8960,K_END+8960
         dw      K_END+8960,K_END+8960,A_FV+32768,A_FV+32768,A_FV+32768,A_FV+32768,A_FV+32768
         dw      A_FV+32768,A_FV+32768,A_FV+32768,A_FV+32768,A_NV+32512,A_NV+32512,A_NV+32512
@@ -543,7 +543,7 @@ ps_tab  label   word
         dw      A_FK+35072,A_FK+35072,A_FK+35072,A_FK+35072,A_FK+35072,A_FK+35072,A_FK+35072
         dw      A_FK+35072,A_FK+35072,A_FOR+8960,A_FOR+8960,A_FOR+8960,A_FOR+8960,A_FOR+8960
         dw      A_FOR+8960,A_FOR+8960,A_FOR+8960,A_FOR+8960
-ps_ent  label   byte
+g_ps_ent label   byte
         db      000h,001h,002h,003h,004h,005h,006h,007h,008h,009h,00Ah,00Bh,00Ch,00Dh,00Eh,00Fh,010h
         db      011h,012h,013h,013h,013h,014h,015h,016h,017h,018h,019h,01Ah,01Bh,01Ch,01Dh,01Eh,01Fh
         db      020h

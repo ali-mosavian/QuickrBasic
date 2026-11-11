@@ -18,7 +18,7 @@ include x86f.inc
 ; DST, a word = ESI's stream offset. Uses EAX.
 ipst    macro   dst
         mov     eax,esi
-        sub     eax,offset cachb
+        sub     eax,offset g_cachb
         mov     dst,ax
         endm
 
@@ -30,11 +30,11 @@ op_fndef:
         vslot
         movzx   eax,word ptr [esi]
         add     esi,2
-        mov     cx,[ln]
+        mov     cx,[g_state.rn.ln]
         mov     [VARBASE+ebx],cx
         movzx   edi,cx
-        movzx   edx,word ptr [progb+edi+L_CP]
-        add     edx,offset cachb
+        movzx   edx,word ptr [g_progb+edi+L_CP]
+        add     edx,offset g_cachb
         neg     edx
         add     edx,esi
         mov     [VARBASE+ebx+2],dx
@@ -50,7 +50,7 @@ op_fndef:
 ;         ?OUT OF MEMORY     a stack is full
 ; ::::::::::::::
 op_fncall:
-        cmp     esp,[stklim]
+        cmp     esp,[g_state.rn.stklim]
         jb      @st_flow1
         vslot
         mov     dx,[VARBASE+ebx]
@@ -59,14 +59,14 @@ op_fncall:
         mov     al,E_UF
         jmp     err_raise
 @fnc_d:
-        mov     edi,[cstk]
+        mov     edi,[g_state.rn.cstk]
         cmp     edi,CSLIM
         jb      @st_flow1
         sub     edi,M_FN
-        mov     [cstk],edi
+        mov     [g_state.rn.cstk],edi
         mov     byte ptr [edi],M_FN
         ipst    [edi+F_IP]
-        mov     cx,[ln]
+        mov     cx,[g_state.rn.ln]
         mov     [edi+F_LN],cx
         movzx   esi,word ptr [VARBASE+ebx+2]
         call    ex_resolve
@@ -77,13 +77,13 @@ op_fncall:
 ; ::::::::::::::
 op_fnent:
         vslot
-        mov     edi,[cstk]
+        mov     edi,[g_state.rn.cstk]
         mov     eax,[VARBASE+ebx]
         mov     [edi+F_OLD],eax
         pop     eax
         mov     ecx,ebx
         shr     ecx,2
-        test    [sinfo+ecx],1
+        test    [g_sinfo+ecx],1
         jz      @fne_f
         push    ebx
         push    esi
@@ -99,12 +99,12 @@ op_fnent:
 ; ::::::::::::::
 op_fnret:
         vslot
-        mov     edi,[cstk]
+        mov     edi,[g_state.rn.cstk]
         mov     eax,[edi+F_OLD]
         mov     [VARBASE+ebx],eax
         mov     dx,[edi+F_LN]
         add     edi,M_FN
-        mov     [cstk],edi
+        mov     [g_state.rn.cstk],edi
         mov     ax,[edi-M_FN+F_IP]
         ipfix
         dispatch
@@ -135,7 +135,7 @@ op_gosub:
 ; ::::::::::::::
 ex_target:
         lodsw
-        mov     [lnum],ax
+        mov     [g_state.rn.lnum],ax
         lodsw
         movzx   ebx,ax
         test    ebx,ebx
@@ -154,13 +154,13 @@ ex_target:
 ; error:  ?OUT OF MEMORY  the control stack is full
 ; ::::::::::::::
 ex_gosub:
-        mov     edi,[cstk]
+        mov     edi,[g_state.rn.cstk]
         cmp     edi,CSLIM
         jb      err_om
         sub     edi,M_GS
-        mov     [cstk],edi
+        mov     [g_state.rn.cstk],edi
         mov     byte ptr [edi+F_MARK],M_GS
-        mov     cx,[ln]
+        mov     cx,[g_state.rn.ln]
         mov     [edi+F_LN],cx
         ipst    [edi+F_IP]
 
@@ -170,15 +170,15 @@ ex_gosub:
 ; in:     EBX  the line
 ; ::::::::::::::
 ex_jump:
-        and     [tsp],0
-        cmp     [linked],0
+        and     [g_state.sg.tsp],0
+        cmp     [g_state.lnk.linked],0
         jne     @exj_g
         push    ebx
         call    cm_link
         pop     ebx
 @exj_g:
-        mov     [lc],bx
-        mov     [vpt],bx
+        mov     [g_state.lnk.lc],bx
+        mov     [g_state.rn.vpt],bx
         call    ex_line
         jmp     ex_lp
 
@@ -192,7 +192,7 @@ op_on:
         stopchk
         pop     edx
         lodsb
-        mov     [onk],al
+        mov     [g_state.rn.onk],al
         and     al,7Fh
         movzx   ecx,al
         lea     edi,[esi+ecx*4]         ; past the list
@@ -202,7 +202,7 @@ op_on:
         movzx   ebx,dl
         lea     ecx,[esi+ebx*4+2]
         mov     ax,[esi+ebx*4]
-        mov     [lnum],ax
+        mov     [g_state.rn.lnum],ax
         movzx   ebx,word ptr [ecx]
         mov     esi,edi
         test    ebx,ebx
@@ -211,7 +211,7 @@ op_on:
         jnc     err_us
         mov     [ecx],bx
 @on_g:
-        test    [onk],80h
+        test    [g_state.rn.onk],80h
         jnz     ex_gosub
         jmp     ex_jump
 @on_past:
@@ -230,11 +230,11 @@ op_ret:
         cmp     al,M_GS
         jne     err_rg
         mov     dx,[ebx+F_LN]
-        mov     [ln],dx
+        mov     [g_state.rn.ln],dx
         mov     ax,[ebx+F_IP]
         add     ebx,M_GS
-        mov     [cstk],ebx
-        and     [tsp],0
+        mov     [g_state.rn.cstk],ebx
+        and     [g_state.sg.tsp],0
         ipfix
         dispatch
 
@@ -248,7 +248,7 @@ op_ret:
 ; ::::::::::::::
 for_find:
         mov     cl,bl
-        mov     ebx,[cstk]
+        mov     ebx,[g_state.rn.cstk]
 @ff_lp:
         cmp     ebx,CSTOP
         jae     @ff_no
@@ -277,7 +277,7 @@ op_eol:
 ; ex_nextln - a false IF: on to the next line.
 ; ::::::::::::::
 ex_nextln:
-        and     [tsp],0
+        and     [g_state.sg.tsp],0
         call    ex_eol
         dispatch
 
@@ -288,16 +288,16 @@ ex_nextln:
 ; out:    ESI  the next line's code
 ; ::::::::::::::
 ex_eol:
-        movzx   ebx,[ln]
-        movzx   ecx,byte ptr [progb+ebx]
+        movzx   ebx,[g_state.rn.ln]
+        movzx   ecx,byte ptr [g_progb+ebx]
         add     ebx,ecx
-        cmp     byte ptr [progb+ebx],0
+        cmp     byte ptr [g_progb+ebx],0
         je      @F
-        mov     [vpt],bx
+        mov     [g_state.rn.vpt],bx
         jmp     ex_line
 @@:
         add     esp,4
-        mov     esi,offset cachb        ; contsi 0: CONT ends again
+        mov     esi,offset g_cachb         ; contsi 0: CONT ends again
         jmp     sc_end
 
 ; ::::::::::::::
@@ -309,14 +309,14 @@ ex_eol:
 ;         ESI  the code
 ; ::::::::::::::
 ex_line:
-        movzx   ebx,[vpt]
-        mov     [ln],bx
-        cmp     byte ptr [progb+ebx],0  ; the direct line's len
+        movzx   ebx,[g_state.rn.vpt]
+        mov     [g_state.rn.ln],bx
+        cmp     byte ptr [g_progb+ebx],0   ; the direct line's len
         je      @exl_x
-        movzx   esi,word ptr [progb+ebx+L_CP]
+        movzx   esi,word ptr [g_progb+ebx+L_CP]
         test    esi,esi
         jz      cm_cache
-        add     esi,offset cachb
+        add     esi,offset g_cachb
         ret
 @exl_x:
         call    cm_line
@@ -327,11 +327,11 @@ ex_line:
 ; out:    ESI  it
 ; ::::::::::::::
 ex_dcode:
-        mov     edi,offset cachb+DCODE
-        mov     [elim],offset cachb+DCODE+1536
+        mov     edi,offset g_cachb+DCODE
+        mov     [g_state.lnk.elim],offset g_cachb+DCODE+1536
         call    cm_xlate
         jc      err_om
-        mov     esi,offset cachb+DCODE
+        mov     esi,offset g_cachb+DCODE
         ret
 
 ; ::::::::::::::
@@ -342,48 +342,48 @@ ex_dcode:
 ; error:  ?OUT OF MEMORY  the control stack is full
 ; ::::::::::::::
 op_for:
-        mov     [fop],bx
+        mov     [g_state.rn.fop],bx
         lodsb
-        mov     [fid],al
+        mov     [g_state.rn.fid],al
         cmp     ebx,O_I_FOR1*2
         jae     @of_1
-        pop     dword ptr [fstep]
+        pop     dword ptr [g_state.rn.fstep]
         jmp     @of_l
 @of_1:
         mov     eax,1
         cmp     ebx,O_F_FOR1*2
         jne     @of_s
-        mov     eax,[kone]
+        mov     eax,[g_kone]
 @of_s:
-        mov     [fstep],eax
+        mov     [g_state.rn.fstep],eax
 @of_l:
-        pop     dword ptr [flim]
-        mov     bl,[fid]
+        pop     dword ptr [g_state.rn.flim]
+        mov     bl,[g_state.rn.fid]
         call    for_find
         je      @of_r
-        mov     ebx,[cstk]
+        mov     ebx,[g_state.rn.cstk]
         cmp     ebx,CSLIM
         jb      err_om
         sub     ebx,FRSIZE
 @of_r:
-        mov     [cstk],ebx
-        mov     al,[fid]
+        mov     [g_state.rn.cstk],ebx
+        mov     al,[g_state.rn.fid]
         mov     [ebx+F_ID],al
-        mov     eax,[fstep]
+        mov     eax,[g_state.rn.fstep]
         mov     [ebx+F_STEP],eax
-        mov     eax,[flim]
+        mov     eax,[g_state.rn.flim]
         mov     [ebx+F_LIMIT],eax
         mov     byte ptr [ebx+F_MARK],M_FR
-        cmp     [fop],O_F_FOR*2
+        cmp     [g_state.rn.fop],O_F_FOR*2
         je      @of_k
-        cmp     [fop],O_F_FOR1*2
+        cmp     [g_state.rn.fop],O_F_FOR1*2
         jne     @of_m
 @of_k:
         call    for_mki
 @of_m:
-        mov     ebx,[cstk]
+        mov     ebx,[g_state.rn.cstk]
         ipst    [ebx+F_IP]
-        mov     ax,[ln]
+        mov     ax,[g_state.rn.ln]
         mov     [ebx+F_LN],ax
         cmp     byte ptr [esi],O_EOL
         jne     @F
@@ -434,10 +434,10 @@ for_mki:
 ; ::::::::::::::
 op_nextv:
         stopchk
-        and     [tsp],0
+        and     [g_state.sg.tsp],0
         lodsb
         mov     bl,al
-        mov     edi,[cstk]
+        mov     edi,[g_state.rn.cstk]
         cmp     edi,CSTOP
         jae     @onv_f
         cmp     byte ptr [edi+F_MARK],M_FR
@@ -466,8 +466,8 @@ err_nf:
 ; ::::::::::::::
 op_nx0:
         stopchk
-        and     [tsp],0
-        mov     ebx,[cstk]
+        and     [g_state.sg.tsp],0
+        mov     ebx,[g_state.rn.cstk]
         cmp     ebx,CSTOP
         jae     err_nf
         cmp     byte ptr [ebx+F_MARK],M_FR
@@ -482,12 +482,12 @@ op_nx0:
 ;         ?OVERFLOW          past the largest FLOAT
 ; ::::::::::::::
 for_any:
-        mov     [cstk],ebx
+        mov     [g_state.rn.cstk],ebx
         movzx   edi,byte ptr [ebx+F_ID]
-        mov     cl,[sinfo+edi]
+        mov     cl,[g_sinfo+edi]
         and     cl,3
         lea     ebp,[VARBASE+edi*4]     ; the variable
-        mov     [fvp],ebp
+        mov     [g_state.rn.fvp],ebp
         cmp     cl,1
         je      @fa_pct
         cmp     word ptr [ebx+F_LIMIT+2],0FFFFh
@@ -499,15 +499,15 @@ for_any:
         movsx   ecx,word ptr [ebx+F_STEP]
         add     eax,ecx
         mov     [ebx+F_STEP+2],ax
-        mov     [fsv],eax
+        mov     [g_state.rn.fsv],eax
         push    esi
         call    flt_from32
         pop     esi
-        mov     ebx,[cstk]
-        mov     edi,[fvp]
+        mov     ebx,[g_state.rn.cstk]
+        mov     edi,[g_state.rn.fvp]
         mov     [edi],eax
         mov     [ebx+F_CACHE],eax
-        mov     eax,[fsv]
+        mov     eax,[g_state.rn.fsv]
         movsx   ecx,word ptr [ebx+F_LIMIT]
         test    byte ptr [ebx+F_STEP+1],80h
         jnz     @fa_id
@@ -522,14 +522,14 @@ for_any:
         push    esi
         mov     ax,[ebx+F_LIMIT]        ; the body wrote it: FLOAT from here on
         call    flt_from16
-        mov     ebx,[cstk]
+        mov     ebx,[g_state.rn.cstk]
         mov     [ebx+F_LIMIT],eax
         mov     ax,[ebx+F_STEP]
         call    flt_from16
         pop     esi
-        mov     ebx,[cstk]
+        mov     ebx,[g_state.rn.cstk]
         mov     [ebx+F_STEP],eax
-        mov     ebp,[fvp]
+        mov     ebp,[g_state.rn.fvp]
         jmp     @fa_gen
 @fa_pct:
         mov     ax,[ebp]
@@ -542,7 +542,7 @@ for_any:
         cmp     ax,[ebx+F_LIMIT]
         jle     @fa_lp
 @fa_done:
-        add     [cstk],FRSIZE
+        add     [g_state.rn.cstk],FRSIZE
         dispatch
 @fa_dn:
         cmp     ax,[ebx+F_LIMIT]
@@ -550,7 +550,7 @@ for_any:
         jmp     @fa_done
 @fa_lp:
         mov     dx,[ebx+F_LN]
-        mov     [ln],dx
+        mov     [g_state.rn.ln],dx
         mov     ax,[ebx+F_IP]
         ipfix
         dispatch
@@ -559,13 +559,13 @@ for_any:
         mov     eax,[ebp]
         mov     edx,[ebx+F_STEP]
         call    flt_add
-        mov     ebx,[fvp]
+        mov     ebx,[g_state.rn.fvp]
         mov     [ebx],eax
-        mov     ebx,[cstk]
+        mov     ebx,[g_state.rn.cstk]
         mov     edx,[ebx+F_LIMIT]
         call    flt_cmp                 ; 1 past above, FFh below
         pop     esi
-        mov     ebx,[cstk]
+        mov     ebx,[g_state.rn.cstk]
         mov     cl,1
         test    byte ptr [ebx+F_STEP+3],80h
         jz      @F
@@ -582,7 +582,7 @@ for_any:
 ; ::::::::::::::
 for_lp:
         mov     dx,[ebx+F_LN]
-        mov     [ln],dx
+        mov     [g_state.rn.ln],dx
         mov     ax,[ebx+F_IP]
         ipfix
         dispatch
@@ -606,7 +606,7 @@ op_err:
 op_size:
         push    ebx
         movzx   ebx,byte ptr [esi]
-        movzx   ecx,[opsz+ebx]
+        movzx   ecx,[g_opsz+ebx]
         jecxz   @oln_v
         pop     ebx
         ret
@@ -635,15 +635,15 @@ op_size:
 ex_resolve:
         movzx   ebx,dx
         mov     eax,esi
-        movzx   esi,word ptr [progb+ebx+L_CP]
+        movzx   esi,word ptr [g_progb+ebx+L_CP]
         test    esi,esi
         jnz     @exr_a
         push    eax
         call    cm_cache
         pop     eax
-        sub     esi,offset cachb
+        sub     esi,offset g_cachb
 @exr_a:
-        lea     esi,[esi+eax+offset cachb]
+        lea     esi,[esi+eax+offset g_cachb]
         ret
 
 ; ::::::::::::::
@@ -654,11 +654,11 @@ ex_resolve:
 ; keeps:  ESI
 ; ::::::::::::::
 ex_setcont:
-        mov     bx,[ln]
+        mov     bx,[g_state.rn.ln]
         cmp     bx,DLINE
         je      @F
-        mov     [contip],bx
-        ipst    [contsi]
+        mov     [g_state.rn.contip],bx
+        ipst    [g_state.rn.contsi]
 @@:
         ret
 
@@ -666,8 +666,8 @@ ex_setcont:
 ; ex_end - the run is over: both stacks empty, READY.
 ; ::::::::::::::
 ex_end:
-        mov     esp,[rsp]
-        mov     [cstk],CSTOP
+        mov     esp,[g_state.rn.rsp]
+        mov     [g_state.rn.cstk],CSTOP
         jmp     rpl_ready
 
 ; ::::::::::::::
@@ -676,7 +676,7 @@ ex_end:
 ; in:     ln  the running line
 ; ::::::::::::::
 ex_nodir:
-        cmp     [ln],DLINE
+        cmp     [g_state.rn.ln],DLINE
         je      err_id
         ret
 

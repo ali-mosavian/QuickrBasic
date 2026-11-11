@@ -26,18 +26,18 @@ var_clr:
         rep     stosb
         xor     ebx,ebx
 @vc_a:
-        test    [sinfo+ebx],80h
+        test    [g_sinfo+ebx],80h
         jz      @vc_n
-        mov     [vt+ebx*4],0
+        mov     [g_vt+ebx*4],0
 @vc_n:
         inc     bl
         jnz     @vc_a
-        mov     eax,[hbot]
-        mov     [aend],eax
-        mov     eax,[htop]
-        mov     [sfr],eax
-        mov     [ahd],HDRBASE
-        and     [tsp],0
+        mov     eax,[g_state.mm.hbot]
+        mov     [g_state.mm.aend],eax
+        mov     eax,[g_state.mm.htop]
+        mov     [g_state.mm.sfr],eax
+        mov     [g_state.mm.ahd],HDRBASE
+        and     [g_state.sg.tsp],0
         jmp     rd_first
 
 ; ::::::::::::::
@@ -51,11 +51,11 @@ var_clr:
 ; error:  ?OUT OF MEMORY  255 ids
 ; ::::::::::::::
 sym_find:
-        or      al,[nkind]
+        or      al,[g_state.lx.nkind]
         mov     dl,al
         test    al,81h
         jnz     @sf_n
-        mov     cx,[nkey]
+        mov     cx,[g_state.lx.nkey]
         cmp     cx,'IT'
         je      @sf_y
         cmp     cx,'TS'
@@ -67,17 +67,17 @@ sym_find:
 @sf_n:
         xor     ebx,ebx
 @sf_lp:
-        cmp     bl,[nsyms]
+        cmp     bl,[g_state.lx.nsyms]
         je      @sf_new
-        mov     cl,[sinfo+ebx]
+        mov     cl,[g_sinfo+ebx]
         test    cl,SI_INF
         jz      @F
         xor     cl,cl                   ; inferred INT: still the plain name
 @@:
         cmp     dl,cl
         jne     @sf_s
-        mov     cx,[skey+ebx*2]
-        cmp     cx,[nkey]
+        mov     cx,[g_skey+ebx*2]
+        cmp     cx,[g_state.lx.nkey]
         je      @sf_ok
 @sf_s:
         inc     bl
@@ -87,22 +87,28 @@ sym_find:
 @sf_new:
         cmp     bl,255
         jae     @sf_om
-        mov     [sinfo+ebx],dl
-        mov     cx,[nkey]
-        mov     [skey+ebx*2],cx
-        and     [vt+ebx*4],0
+        mov     [g_sinfo+ebx],dl
+        mov     cx,[g_state.lx.nkey]
+        mov     [g_skey+ebx*2],cx
+        and     [g_vt+ebx*4],0
         test    dl,dl
         js      @sf_m
         lea     ecx,[VARBASE+ebx*4]
-        mov     [vt+ebx*4],ecx          ; a slot's id is in its address
+        mov     [g_vt+ebx*4],ecx           ; a slot's id is in its address
         and     word ptr [SVBASE+ebx*8+D_LEN],0
         and     dword ptr [ecx],0
         add     ecx,VS
-        mov     [vend],ecx
+        mov     [g_state.mm.vend],ecx
 @sf_m:
-        inc     [nsyms]
+        inc     [g_state.lx.nsyms]
 @sf_ok:
         mov     al,bl
         ret
+
+        .data?
+g_vt    dd      256 dup(?)
+g_skey  dw      256 dup(?)
+g_sinfo db      256 dup(?)
+        .code
 
         end

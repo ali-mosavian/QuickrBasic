@@ -19,9 +19,9 @@ include x86f.inc
 ; ::::::::::::::
 ls_all:
         xor     ax,ax
-        mov     [lfrom],ax
+        mov     [g_state.rn.lfrom],ax
         dec     ax
-        mov     [lto],ax
+        mov     [g_state.rn.lto],ax
 ; ::::::::::::::
 ; ls_range - list lfrom to lto.
 ;
@@ -31,18 +31,18 @@ ls_all:
 ls_range:
         mov     ebx,PROGBASE
 @ls_l:
-        cmp     byte ptr [progb+ebx],0
+        cmp     byte ptr [g_progb+ebx],0
         je      @ls_e
-        mov     ax,word ptr [progb+ebx+1]
-        cmp     ax,[lfrom]
+        mov     ax,word ptr [g_progb+ebx+1]
+        cmp     ax,[g_state.rn.lfrom]
         jb      @ls_sk
-        cmp     ax,[lto]
+        cmp     ax,[g_state.rn.lto]
         ja      @ls_e
         push    ebx
         call    ls_line
         pop     ebx
 @ls_sk:
-        movzx   ecx,byte ptr [progb+ebx]
+        movzx   ecx,byte ptr [g_progb+ebx]
         add     ebx,ecx
         jmp     @ls_l
 @ls_e:
@@ -57,13 +57,13 @@ ls_range:
 ls_line:
         push    esi
         push    ebx
-        mov     ax,word ptr [progb+ebx+1]
+        mov     ax,word ptr [g_progb+ebx+1]
         call    io_num
         call    io_space
         pop     ebx
-        mov     edi,offset dlb
+        mov     edi,offset g_dlb
         call    mem_line
-        mov     esi,offset dlb+HDR
+        mov     esi,offset g_dlb+HDR
 if IDE                                 ; the editor lists a body alone
         call    ls_body
         pop     esi
@@ -74,20 +74,20 @@ if IDE                                 ; the editor lists a body alone
 ; ::::::::::::::
 ls_body:
 endif
-        mov     [lq],0
+        mov     [g_state.io.lq],0
 @ls_c:
         lodsb
         test    al,al
         jz      @ls_end
         cmp     al,'"'
         je      @ls_qt
-        cmp     [lq],0
+        cmp     [g_state.io.lq],0
         je      @ls_tok
         cmp     al,':'
         jne     @ls_o
-        cmp     [lq],2
+        cmp     [g_state.io.lq],2
         jne     @ls_o
-        mov     [lq],0
+        mov     [g_state.io.lq],0
         jmp     @ls_o
 @ls_tok:
         cmp     al,M_INT
@@ -114,7 +114,7 @@ endif
         cmp     al,TK_DATA
         jne     @ls_t3
 @ls_rw:
-        mov     [lq],cl
+        mov     [g_state.io.lq],cl
 @ls_t3:
         test    al,al
         jns     @ls_o
@@ -123,7 +123,7 @@ endif
         call    io_kw
         jmp     @ls_c
 @ls_qt:
-        xor     [lq],1
+        xor     [g_state.io.lq],1
         mov     al,'"'
 @ls_o:
         call    io_putc
@@ -135,5 +135,9 @@ else
         pop     esi
         jmp     io_nl
 endif
+
+        .data?
+g_dlb   db      256 dup(?)
+        .code
 
         end

@@ -4,10 +4,10 @@
 
 dispatch macro
         movzx   ebx,byte ptr [esi]
-        mov     [opip],esi              ; the op, for CONT after a BREAK
+        mov     [g_state.rn.opip],esi              ; the op, for CONT after a BREAK
         inc     esi
         add     ebx,ebx
-        jmp     [ops+ebx*2]
+        jmp     [g_ops+ebx*2]
         endm
 
 ; EBX = the slot offset (id * 4) of the variable id at ESI, ESI past it.
@@ -30,13 +30,13 @@ ipfix   macro
         call    ex_resolve
         jmp     @ipb
 @ipa:
-        add     esi,offset cachb
+        add     esi,offset g_cachb
 @ipb:
         endm
 
 ; The STOP key: BREAK, CONT runs this op again.
 stopchk macro
-        cmp     [stpflg],0
+        cmp     [g_state.rn.stpflg],0
         jne     ex_brk
         endm
 
@@ -46,7 +46,7 @@ a1get   macro   sh,slow
         movzx   ebx,byte ptr [esi]
         inc     esi
         add     ebx,ebx
-        mov     edi,[vt+ebx*2]
+        mov     edi,[g_vt+ebx*2]
         cmp     byte ptr [edi],1
         jne     slow
         cmp     ax,[edi+AH_FAST]
