@@ -21,7 +21,7 @@ TY ?= ty
 TYFLAGS ?= --extra-search-path $(shell python3 -c 'import numpy, pathlib; print(pathlib.Path(numpy.__file__).parents[1])')
 export ISORT RUFF TY TYFLAGS
 
-.PHONY: x86 test gate fpcheck fpall mathbench size repl style clean
+.PHONY: x86 ide test gate fpcheck fpall mathbench size repl style clean
 
 test:
 	$(PY) tools/harness.py test
@@ -66,6 +66,12 @@ x86:                            # the DOS .COM, build/x86/basic.com
 	cd src/x86 && $(LLRM_BIN)/jwasm -q -zf0 -Fo ../../build/x86/main.obj main.asm
 	$(LLRM_BIN)/jwlink option quiet format dos com file build/x86/main.obj name build/x86/raw.com
 	tail -c +257 build/x86/raw.com > build/x86/basic.com   # jwlink keeps the 100h bytes before org
+
+ide:                            # with the full-screen editor, build/x86/basic-ide.com
+	mkdir -p build/x86-ide
+	cd src/x86 && $(LLRM_BIN)/jwasm -q -zf0 -DIDE=1 -Fo ../../build/x86-ide/main.obj main.asm
+	$(LLRM_BIN)/jwlink option quiet format dos com file build/x86-ide/main.obj name build/x86-ide/raw.com
+	tail -c +257 build/x86-ide/raw.com > build/x86/basic-ide.com
 
 style:
 	$(PY) tools/asmstyle.py
