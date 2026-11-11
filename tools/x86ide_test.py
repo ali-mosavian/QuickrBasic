@@ -224,8 +224,8 @@ def play() -> None:
     keys("4")
     press("tab")
     keys("5\n")
-    row = look("verify")[21].ljust(80)
-    assert (row[16:26], row[28:36], row[40:50], row[53:61]) == ("< CHANGE >", "< SKIP >", "< CANCEL >", "< HELP >"), look()
+    row = look("verify")[22].ljust(80)
+    assert (row[17:27], row[29:37], row[41:51], row[54:62]) == ("< CHANGE >", "< SKIP >", "< CANCEL >", "< HELP >"), look()
     press("esc")  # Cancel ends it, no box after
     assert text()[0] == "FOR I=1 TO 4" and not any("COMPLETE" in r for r in look()), look()
     # Ctrl+L repeats the find, as QBasic.
@@ -236,9 +236,12 @@ def play() -> None:
     assert look()[24].endswith("00002:006"), look()[24]
     # Find starts from the selection, else the word at the cursor.
     press(f"0x{ALT_S:x}", "f")
-    scr = look(); assert scr[10].ljust(80)[25:28] == "I  ", scr
+    scr = [r.ljust(80) for r in look("find")]
+    # QBasic's dlgSearchFind (uisearch.des), its places client-relative.
+    assert scr[9][12:22] == "FIND WHAT:" and scr[9][24:27] == "I  ", scr
+    assert (scr[16][19:25], scr[16][34:44], scr[16][52:60]) == ("< OK >", "< CANCEL >", "< HELP >"), scr[16]
     press("esc", "0x77", *["right"] * 8, f"0x{ALT_S:x}", "f")
-    scr = look(); assert scr[10].ljust(80)[25:28] == "TO ", scr
+    scr = look(); assert scr[9].ljust(80)[24:27] == "TO ", scr
     press("esc")
 
     # Save As, then Exit to DOS.
