@@ -28,6 +28,11 @@ def play() -> None:
     s.launch(3000, "BASIC.COM")
     s.keys_in_lockstep(["esc"], 3000)  # the first key after the launch is lost
     s.resume(100)
+    # The welcome box's button, of no set width, once ran past its frame.
+    scr = s.screen().upper().split("\n")
+    r = next(i for i, line in enumerate(scr) if "PRESS ESC" in line)
+    raw = bytes.fromhex(s.send({"cmd": "mem_read_linear", "addr": 0xB8000 + r * 160, "len": 160})["data"])[0::2]
+    assert raw.index(b">") < raw.rindex(b"\xb3") - 1, raw
     s.keys_in_lockstep(["esc"], 3000)  # the welcome box
     s.resume(100)
 
