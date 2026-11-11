@@ -11,12 +11,16 @@ import x86run
 
 # A subroutine bigger than the code cache: it empties mid-run, with the
 # FOR, GOSUB and FN frames live.
-FLUSH = (
-    "10 DEF FNA(X)=X+1\n20 FOR I=1 TO 3\n30 GOSUB 1000\n40 NEXT\n50 PRINT Z;Y;T:END\n"
-    "1000 FOR J=1 TO 2:T=T+FNA(J):GOSUB 2000:NEXT:RETURN\n"
-    + "".join(f"{2000 + k} Z=Z+1:Y=Y+1:IF Z<0 THEN PRINT Z\n" for k in range(500))
-    + "2500 RETURN\nRUN"
-)
+def flush(n: int) -> str:
+    return (
+        "10 DEF FNA(X)=X+1\n20 FOR I=1 TO 3\n30 GOSUB 1000\n40 NEXT\n50 PRINT Z;Y;T:END\n"
+        "1000 FOR J=1 TO 2:T=T+FNA(J):GOSUB 2000:NEXT:RETURN\n"
+        + "".join(f"{2000 + k} Z=Z+1:Y=Y+1:IF Z<0 THEN PRINT Z\n" for k in range(n))
+        + f"{2000 + n} RETURN\nRUN"
+    )
+
+
+FLUSH = flush(500)
 
 CHURN = "\n".join(f'10 PRINT "{i:<60}":X=1+2+3+4' for i in range(1500))
 
@@ -32,6 +36,8 @@ CASES = {
         "-1  0  0 -1 -1  0 -1 -1", "-1  0  0 -1 -1  0 -1 -1 -1 -1", "L1", "L2", "L3",
         "-3 -4 -3  2.5  15  1 -2  15  .6  2  4 -3"],
     FLUSH: ["3000  3000  15"],
+    # A stream past the cache's end (XSLK too small): a crash at a flush.
+    flush(300): ["1800  1800  15"],
     "10 GOTO 30\n20 PRINT 2:END\n30 PRINT 3\nRUN\n25 REM\n30 PRINT 4\nRUN": ["3", "4"],
     "10 GOTO 30\n30 PRINT 3\nRUN\n30\nRUN": ["3", "?UNDEF'D STATEMENT ERROR IN 10"],
     "10 PRINT 7\nGOTO 10": ["7"],
@@ -60,6 +66,9 @@ CASES = {
     # A jump's line is found once and patched into the cached code.
     '10 FOR I=1 TO 3:PRINT I;:ON I GOTO 20,20,30\n20 NEXT\n30 PRINT "X":GOSUB 40:GOSUB 40:END\n'
     '40 PRINT "S":RETURN\nRUN': ["1  2  3 X", "S"],
+    # GOTO, GOSUB find their line at the stream: back, forward, missing.
+    "10 I=I+1:IF I<3 THEN 10\n20 GOSUB 60:GOTO 50\n40 PRINT 4\n50 PRINT I:GOTO 70\n"
+    "60 PRINT 6:RETURN\n70 GOTO 90\nRUN": ["6", "3", "?UNDEF'D STATEMENT ERROR IN 70"],
     # LIST gives the line as typed, spaces and all.
     "10 A = B  +  1 : PRINT A,  C\nLIST": ["10 A = B  +  1 : PRINT A,  C"],
 }
