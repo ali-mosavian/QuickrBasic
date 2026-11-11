@@ -215,8 +215,19 @@ def play() -> None:
     # window scrolled off the text.
     press(f"0x{ALT_S:x}", "c")
     keys("zz")
-    press("tab", "tab", "tab", "tab", "tab", "enter", "enter")
+    press("tab", "tab", "tab", "tab", "tab", "enter")
+    assert any("MATCH NOT FOUND" in r for r in look()), look()  # QBasic's, not "Change complete"
+    press("enter")
     assert text()[0] == "FOR I=1 TO 4", look()
+    # Find and Verify asks in QBasic's box: buttons only, at row 19 (uisearch.des).
+    press("0x77", f"0x{ALT_S:x}", "c")
+    keys("4")
+    press("tab")
+    keys("5\n")
+    row = look("verify")[21].ljust(80)
+    assert (row[16:26], row[28:36], row[40:50], row[53:61]) == ("< CHANGE >", "< SKIP >", "< CANCEL >", "< HELP >"), look()
+    press("esc")  # Cancel ends it, no box after
+    assert text()[0] == "FOR I=1 TO 4" and not any("COMPLETE" in r for r in look()), look()
     # Ctrl+L repeats the find, as QBasic.
     press("0x77", f"0x{ALT_S:x}", "f")
     keys("i\n")
