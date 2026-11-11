@@ -78,6 +78,11 @@ def play() -> None:
         data = bytes.fromhex(s.send({"cmd": "mem_read_linear", "addr": 0xB8000 + row * 160, "len": 160})["data"])
         return data[1::2]
 
+    def chars(row: int) -> bytes:
+        """The characters of a row of page 0."""
+        data = bytes.fromhex(s.send({"cmd": "mem_read_linear", "addr": 0xB8000 + row * 160, "len": 160})["data"])
+        return data[0::2]
+
     def look(name: str = "") -> list[str]:
         s.resume(100)
         if name:
@@ -108,8 +113,14 @@ def play() -> None:
 
     # The immediate window: output on page 1. The prompt once stayed there,
     # in front of the next output.
+    # QBasic's title bar (uiwind.c): the active title and the maximise
+    # arrow in the window's colours swapped, ┤↑├ ending at ─┐.
+    assert chars(1)[75:80] == b"\xb4\x18\xc3\xc4\xbf" and attrs(1)[76] == 0x71, (chars(1)[74:], attrs(1)[74:])
+    assert attrs(1)[34:44] == bytes([0x71] * 10) and attrs(1)[44] == 0x17, attrs(1)[32:46]  # " Untitled ", at (80-8-5)/2+1
     press("f6")
     assert look()[24].startswith(" <SHIFT+F1=HELP> <F6=WINDOW> <ENTER=EXECUTE LINE>  "), look()[24]
+    # Scroll bars on the active window only.
+    assert chars(20)[1] == 0x20 and chars(5)[79] == 0xB3, (chars(20)[:4], chars(5)[78:])
     keys("print 6*7\n")
     press("space")
     assert output()[24] == "", output()
