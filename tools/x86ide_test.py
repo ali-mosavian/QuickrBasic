@@ -250,6 +250,14 @@ def play() -> None:
     assert "T1.BAS" in look()[1], look()
     saved = (work / "T1.BAS").read_bytes()
     assert saved.startswith(b"FOR I=1 TO 4\r\n  PRINT I*I\r\nNEXT\r\n"), saved
+    # Save As onto another file asks first (uifile.c MSG_Overwrite); No asks for a name again.
+    press(f"0x{ALT_F:x}", "a")
+    keys("sq\n")
+    assert any("FILE ALREADY EXISTS. OVERWRITE?" in r for r in look()), look()
+    press("n")
+    assert any("SAVE AS" in r for r in look()), look()
+    press("esc")
+    assert (work / "SQ.BAS").read_bytes().startswith(b"for i=1 to 3"), "SQ.BAS overwritten"
     # The mouse: a title, an item dragged to, a list's line twice.
     press("home")  # the found text's selection off
     mouse_stub()
