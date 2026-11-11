@@ -7,6 +7,8 @@
 ; data:     As comp/native.asm's templates: an INT op writes the top cell's
 ;           low word; a compare's mask, its last operand: 1 greater, 2
 ;           equal, 4 less.
+; calls:
+;   bc_*               dispatch to the next op
 ; ==========================================================================
 
 ; EBX = the slot of the variable id at ESI, ESI past it.
@@ -58,48 +60,81 @@ fsrc    macro   src
   endif
         endm
 
+; ::::::::::::::
+; bc_I_LD_V - X.LD.V id: the variable's cell.
+; ::::::::::::::
 bc_I_LD_V:
+; ::::::::::::::
+; bc_F_LD_V - X.LD.V id: the variable's cell.
+; ::::::::::::::
 bc_F_LD_V:
         bvar
         push    dword ptr [ebx]
         dispatch
+; ::::::::::::::
+; bc_I_LD_I16 - I.LD.I16 w: the word.
+; ::::::::::::::
 bc_I_LD_I16:
         movzx   eax,word ptr [esi]
         add     esi,2
         push    eax
         dispatch
+; ::::::::::::::
+; bc_I_LD_U8 - I.LD.U8 b: the byte.
+; ::::::::::::::
 bc_I_LD_U8:
         movzx   eax,byte ptr [esi]
         inc     esi
         push    eax
         dispatch
+; ::::::::::::::
+; bc_F_LD_F32 - F.LD.F32 f: the FLOAT.
+; ::::::::::::::
 bc_F_LD_F32:
         push    dword ptr [esi]
         add     esi,4
         dispatch
+; ::::::::::::::
+; bc_F_LD_U8 - F.LD.U8 b: the byte as a FLOAT.
+; ::::::::::::::
 bc_F_LD_U8:
         fsrc    3
         push    eax
         dispatch
+; ::::::::::::::
+; bc_F_LD_VI - F.LD.VI id: the INT variable as a FLOAT.
+; ::::::::::::::
 bc_F_LD_VI:
         fsrc    2
         push    eax
         dispatch
+; ::::::::::::::
+; bc_F_LD_PI - F.LD.PI: pi.
+; ::::::::::::::
 bc_F_LD_PI:
         fcall   flt_pi
         push    eax
         dispatch
+; ::::::::::::::
+; bc_S_LD_V - S.LD.V id: the string variable's Desc.
+; ::::::::::::::
 bc_S_LD_V:
         movzx   eax,byte ptr [esi]
         inc     esi
         lea     eax,[SVBASE+eax*8]
         push    eax
         dispatch
+; ::::::::::::::
+; bc_I_ST_V - I.ST.V id ( i -- ): the INT variable.
+; ::::::::::::::
 bc_I_ST_V:
         bvar
         pop     eax
         mov     [ebx],ax
         dispatch
+; ::::::::::::::
+; bc_F_ST_V - F.ST.V id ( f -- ): the FLOAT variable.
+; ::::::::::::::
 bc_F_ST_V:
         bvar
         pop     dword ptr [ebx]
@@ -152,10 +187,16 @@ bc_&nm:
         ibin    I_AND_U8,2,4
         ibin    I_OR_U8,2,5
 
+; ::::::::::::::
+; bc_I_NEG - I.NEG ( i -- i ).
+; ::::::::::::::
 bc_I_NEG:
         neg     word ptr [esp]
         jo      err_ov
         dispatch
+; ::::::::::::::
+; bc_I_NOT - I.NOT ( i -- i ).
+; ::::::::::::::
 bc_I_NOT:
         not     word ptr [esp]
         dispatch
@@ -193,6 +234,9 @@ bc_&nm:
         fbin    F_MUL_F32,4,2
         fbin    F_DIV_F32,4,3
 
+; ::::::::::::::
+; bc_F_NEG - F.NEG ( f -- f ): 0 stays 0.
+; ::::::::::::::
 bc_F_NEG:
         test    dword ptr [esp],7F800000h
         jz      @F
@@ -217,17 +261,17 @@ ctail   macro   cif
 
 ; INT compare: left popped to DX, the right in AX.
 icmp    macro   nm,src,cif
-        local   l1
+        local   @icl
 bc_&nm:
         isrc    src
         pop     edx
         cmp     dx,ax
         mov     al,1
-        jg      l1
+        jg      @icl
         mov     al,2
-        je      l1
+        je      @icl
         mov     al,4
-l1:
+@icl:
         ctail   cif
         endm
 
@@ -262,27 +306,42 @@ bc_&nm:
         fcmp    F_CMPIF_U8,3,1
         fcmp    F_CMPIF_F32,4,1
 
+; ::::::::::::::
+; bc_I_IF - I.IF ( i -- ): 0 ends the line.
+; ::::::::::::::
 bc_I_IF:
         pop     eax
         test    ax,ax
         jz      ex_nextln
         dispatch
+; ::::::::::::::
+; bc_F_IF - ?
+; ::::::::::::::
 bc_F_IF:
         pop     eax
         test    eax,7F800000h
         jz      ex_nextln
         dispatch
 
+; ::::::::::::::
+; bc_I_TOF - I.TOF ( i -- f ).
+; ::::::::::::::
 bc_I_TOF:
         pop     eax
         fcall   flt_from16
         push    eax
         dispatch
+; ::::::::::::::
+; bc_F_TOI - F.TOI ( f -- i ).
+; ::::::::::::::
 bc_F_TOI:
         pop     eax
         fcall   flt_fix16
         push    eax
         dispatch
+; ::::::::::::::
+; bc_F_TOB - F.TOB ( f -- i ): 0..255.
+; ::::::::::::::
 bc_F_TOB:
         pop     eax
         fcall   flt_fix16
@@ -290,19 +349,31 @@ bc_F_TOB:
         jnz     err_iq
         push    eax
         dispatch
+; ::::::::::::::
+; bc_F_TOA - F.TOA ( f -- i ): an address, 0..65535.
+; ::::::::::::::
 bc_F_TOA:
         pop     eax
         fcall   flt_fixu16
         push    eax
         dispatch
+; ::::::::::::::
+; bc_I_TOB - I.TOB ( i -- i ): 0..255.
+; ::::::::::::::
 bc_I_TOB:
         cmp     byte ptr [esp+1],0
         jne     err_iq
         dispatch
+; ::::::::::::::
+; bc_I_TOA - I.TOA ( i -- i ): 0..65535.
+; ::::::::::::::
 bc_I_TOA:
         test    byte ptr [esp+1],80h
         jnz     err_iq
         dispatch
+; ::::::::::::::
+; bc_DROP - DROP ( x -- ).
+; ::::::::::::::
 bc_DROP:
         add     esp,4
         dispatch

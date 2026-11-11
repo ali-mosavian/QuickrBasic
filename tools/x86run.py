@@ -9,7 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-# llrm release/next's DOSBox: DOSBOX_BIN, else the dosrun fork at the commit toolchain/dosrunbuild.sh pins.
+# llrm release/next's DOSBox: DOSBOX_BIN, else the dosrun fork at the commit
+# toolchain/dosrunbuild.sh pins.
 CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "llrm"
 DOSBOX = Path(os.environ.get("DOSBOX_BIN", CACHE / "dosbox-x-eea2b2da0203d37ff51e34a8f714af8110fe0162/src/dosbox-x"))
 COM = Path(os.environ.get("X86_COM", ROOT / "build/x86/basic.com"))  # X86_COM: basic32.exe too
@@ -50,7 +51,8 @@ def run(jobs: dict[str, str], work: Path, limit_ms: int = 60000) -> dict[str, Re
         shutil.rmtree(work)
     work.mkdir(parents=True)
     shutil.copy(COM, work / "BASIC.COM")
-    if (COM.parent / "DOS32A.EXE").exists() and COM.suffix.lower() == ".exe":  # stub32a loads it from the program's directory
+    # stub32a loads DOS32A.EXE from the program's directory
+    if (COM.parent / "DOS32A.EXE").exists() and COM.suffix.lower() == ".exe":
         shutil.copy(COM.parent / "DOS32A.EXE", work / "DOS32A.EXE")
     names = list(jobs)
     lines = []

@@ -33,17 +33,17 @@ vslot   macro
 ; offset, or an offset in its line's code (cm_flush), under DCODE, which the
 ; direct line never has.
 ipfix   macro
-        local   l1,l2
+        local   @ipa,@ipb
         movzx   esi,ax
         cmp     esi,DCODE
-        jae     l1
+        jae     @ipa
         cmp     dx,DLINE
-        je      l1
+        je      @ipa
         call    ex_resolve
-        jmp     l2
-l1:
+        jmp     @ipb
+@ipa:
         add     esi,offset cachb
-l2:
+@ipb:
         endm
 
 ; The STOP key: BREAK, CONT runs this op again.

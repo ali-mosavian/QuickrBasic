@@ -3,8 +3,11 @@
 ; ==========================================================================
 ; holds:    mem_fs, mem_lin, mem_movs, mem_cpy, mem_up, mem_zero, mem_line,
 ;           mem_pmov
+; uses:     progb
 ; data:     Flat: a linear address is the address. The program's lines are
 ;           16-bit offsets from progb.
+; calls:
+;   mem_line, mem_pmov mem_movs
 ; ==========================================================================
 
 ; ::::::::::::::

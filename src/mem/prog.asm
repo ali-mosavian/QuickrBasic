@@ -17,7 +17,7 @@
 ;
 ; in:     lnum  the number
 ;         lc    a line, or 0
-; out:    EBX the first line numbered that or more, or the terminator
+; out:    EBX  the first line numbered that or more, or the terminator
 ;         CF  set when BX has that number
 ; keeps:  SI, DI, CX, DX
 ; ::::::::::::::
