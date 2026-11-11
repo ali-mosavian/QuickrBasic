@@ -32,13 +32,14 @@ CASES = {
         "10 READ A:READ B:GET C:GET D:DIM E(1):DIM F(1):NEXT I:NEXT J"],
     '10 PRINT#1,A;:PRINT B:CMD 1:PRINT C\nLIST': ['10 PRINT#1,A;:PRINT B:CMD 1:PRINT C'],
     "10 A=(B+C)*-D:E=2^-1:F=(G-H)-(I-J):K=NOT L\nLIST": ["10 A=(B+C)*-D:E=2^-1:F=(G-H)-(I-J):K=NOT L"],
-    # READ finds DATA by scanning the tokens: not in a REM or after THEN, a ':' in quotes stays.
-    '10 REM X:DATA 9\n20 IF 1 THEN DATA 8\n30 DATA 1:DATA "A:B":DATA 3\n40 READ A,B$,C:PRINT A;B$;C\nRUN': ["1 A:B 3"],
-    "10 DATA 1,2:DATA 3\n20 DATA 4\n30 FOR I=1 TO 4:READ A:PRINT A;:NEXT:PRINT\n40 RESTORE 20:READ B:PRINT B\n50 READ C\nRUN": [
-        "1  2  3  4", "4", "?OUT OF DATA ERROR IN 50"],
-    # A jump's line is found once and patched into the cached code: the second pass reads it.
-    '10 FOR I=1 TO 3:PRINT I;:ON I GOTO 20,20,30\n20 NEXT\n30 PRINT "X":GOSUB 40:GOSUB 40:END\n40 PRINT "S":RETURN\nRUN': [
-        "1  2  3 X", "S"],
+    # READ scans the tokens for DATA: not after THEN, a ':' in quotes stays.
+    "10 REM X:DATA 9\n20 IF 1 THEN DATA 8\n"
+    '30 DATA 1:DATA "A:B":DATA 3\n40 READ A,B$,C:PRINT A;B$;C\nRUN': ["1 A:B 3"],
+    "10 DATA 1,2:DATA 3\n20 DATA 4\n30 FOR I=1 TO 4:READ A:PRINT A;:NEXT:PRINT\n"
+    "40 RESTORE 20:READ B:PRINT B\n50 READ C\nRUN": ["1  2  3  4", "4", "?OUT OF DATA ERROR IN 50"],
+    # A jump's line is found once and patched into the cached code.
+    '10 FOR I=1 TO 3:PRINT I;:ON I GOTO 20,20,30\n20 NEXT\n30 PRINT "X":GOSUB 40:GOSUB 40:END\n'
+    '40 PRINT "S":RETURN\nRUN': ["1  2  3 X", "S"],
     # LIST gives the line as typed, spaces and all.
     "10 A = B  +  1 : PRINT A,  C\nLIST": ["10 A = B  +  1 : PRINT A,  C"],
 }
