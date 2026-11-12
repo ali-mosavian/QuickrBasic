@@ -71,6 +71,7 @@ sy_walk:
 ; out:    CF  set: a numbering error, shown when storing
 ; ::::::::::::::
 sy_pass:
+        call    tx_whole
         mov     [g_ui.sy.sy_prev],0FFFFh
         mov     [g_ui.sy.sy_i],0
         mov     [g_ui.sy.sy_on],1
@@ -173,10 +174,12 @@ sy_pass:
         jmp     @syp_l
 @syp_d:
         and     [g_ui.sy.sy_on],0
+        call    vw_apply
         clc
         ret
 @syp_e:
         and     [g_ui.sy.sy_on],0
+        call    vw_apply
         cmp     [g_ui.sy.sy_md],0
         jne     @syp_f
         mov     esi,eax

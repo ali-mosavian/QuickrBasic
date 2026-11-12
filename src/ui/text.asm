@@ -2,7 +2,8 @@
 ; text.asm - the editor's text, the clipboard, files
 ; ==========================================================================
 ; holds:    tx_init, tx_off, tx_len, tx_get, tx_repl, tx_insl, tx_dell,
-;           tx_read, tx_write, tx_mark, tx_mtog, tx_mclr, cb_*
+;           tx_read, tx_write, tx_mark, tx_mtog, tx_mclr, tx_view, tx_whole,
+;           cb_*
 ; uses:     txb, clpb, wrkb; INT 21h
 ; data:     The text is lines ended by CR, tx_end bytes, tx_n lines, at
 ;           least one; a position in it is an offset in txb. tx_ci, tx_co:
@@ -10,6 +11,9 @@
 ;           clipboard: cb_len bytes in clpb, whole
 ;           lines (cb_ln 1, each ended by CR) or a piece of one. A line's
 ;           mark (txmk, 0 or 1: a breakpoint) moves with it.
+;           The editor sees a view: tx_n lines from tx_v0 of the tx_all,
+;           its line numbers from 0 (a procedure's lines, view.asm). A line
+;           added or removed goes to tx_hook (EAX the line, EDX 1 or -1).
 ; calls:
 ;   tx_repl, tx_insl, tx_dell  tx_off; tx_move the rest along
 ;   tx_read            the file to wrkb, then CR-ended lines, tabs out
@@ -26,20 +30,47 @@ include x86f.inc
 tx_init:
         mov     byte ptr [g_txb],NL
         mov     [g_ui.tx.tx_end],1
-        mov     [g_ui.tx.tx_n],1
+        mov     [g_ui.tx.tx_all],1
+        call    tx_whole
         xor     ax,ax
         mov     [g_ui.tx.tx_ci],ax
         mov     [g_ui.tx.tx_co],ax
         jmp     tx_mclr
 
 ; ::::::::::::::
-; tx_off - the offset of line AX.
+; tx_view - the editor's view: DX lines from line AX; tx_whole - the
+; whole text.
+;
+; keeps:  all
+; ::::::::::::::
+tx_whole:
+        and     [g_ui.tx.tx_v0],0
+        push    eax
+        mov     ax,[g_ui.tx.tx_all]
+        mov     [g_ui.tx.tx_n],ax
+        pop     eax
+        ret
+tx_view:
+        mov     [g_ui.tx.tx_v0],ax
+        mov     [g_ui.tx.tx_n],dx
+        ret
+
+; ::::::::::::::
+; tx_off - the offset of the view's line AX.
 ;
 ; in:     AX  the line, below tx_n
 ; out:    EBX  its first byte, an offset in txb
 ; keeps:  all but EBX
 ; ::::::::::::::
 tx_off:
+        push    eax
+        add     ax,[g_ui.tx.tx_v0]
+        call    tx_offa
+        pop     eax
+        ret
+
+; tx_offa - tx_off of the text's line AX.
+tx_offa:
         push    ecx
         push    edi
         movzx   ecx,ax
@@ -206,10 +237,16 @@ tx_insl:
         call    tx_room
         dec     ecx
         jc      @txi_x
+        cmp     ax,[g_ui.tx.tx_n]       ; EDX the text's line: past the view,
+        jbe     @F                      ; its end
+        mov     ax,[g_ui.tx.tx_n]
+@@:
+        add     ax,[g_ui.tx.tx_v0]
+        movzx   edx,ax
         movzx   ebx,[g_ui.tx.tx_end]
-        cmp     ax,[g_ui.tx.tx_n]
+        cmp     dx,[g_ui.tx.tx_all]
         jae     @txi_e
-        call    tx_off
+        call    tx_offa
 @txi_e:
         push    esi
         push    ecx
@@ -228,10 +265,9 @@ tx_insl:
         pop     ecx
         inc     ecx
         add     [g_ui.tx.tx_end],cx
-        mov     edx,[esp+28]            ; the marks from line AX up one (pushad's)
-        movzx   eax,[g_ui.tx.tx_n]
+        movzx   eax,[g_ui.tx.tx_all]    ; the marks from line EDX up one
+        inc     [g_ui.tx.tx_all]
         inc     [g_ui.tx.tx_n]
-        movzx   edx,dx
 @txi_m:
         cmp     eax,edx
         jbe     @F
@@ -241,11 +277,25 @@ tx_insl:
         jmp     @txi_m
 @@:
         mov     byte ptr [g_txmk+edx],0
-        mov     [g_ui.tx.tx_ci],0
-        mov     [g_ui.tx.tx_co],0
+        mov     eax,edx
+        mov     edx,1
+        call    tx_tell
         clc
 @txi_x:
         popad
+        ret
+
+; tx_tell - line EAX added (EDX 1) or removed (-1): tx_hook told, the
+; lookup's place forgotten. Keeps all.
+tx_tell:
+        mov     [g_ui.tx.tx_ci],0
+        mov     [g_ui.tx.tx_co],0
+        cmp     [g_ui.tx.tx_hook],0
+        je      @F
+        pushad
+        call    [g_ui.tx.tx_hook]
+        popad
+@@:
         ret
 
 ; ::::::::::::::
@@ -255,7 +305,7 @@ tx_insl:
 ; ::::::::::::::
 tx_dell:
         pushad
-        cmp     [g_ui.tx.tx_n],1
+        cmp     [g_ui.tx.tx_n],1        ; the view's last line is emptied
         ja      @txd_d
         xor     ecx,ecx
         call    tx_repl
@@ -271,18 +321,22 @@ tx_dell:
         movzx   ecx,[g_ui.tx.tx_end]
         sub     ecx,ebx
         call    tx_move
+        dec     [g_ui.tx.tx_all]
         dec     [g_ui.tx.tx_n]
-        movzx   eax,word ptr [esp+28]   ; the marks after line AX down one
+        movzx   eax,word ptr [esp+28]   ; the marks after the line down one
+        add     ax,[g_ui.tx.tx_v0]
+        push    eax
 @txd_m:
-        cmp     ax,[g_ui.tx.tx_n]
+        cmp     ax,[g_ui.tx.tx_all]
         jae     @F
         mov     cl,[g_txmk+eax+1]
         mov     [g_txmk+eax],cl
         inc     eax
         jmp     @txd_m
 @@:
-        mov     [g_ui.tx.tx_ci],0
-        mov     [g_ui.tx.tx_co],0
+        pop     eax
+        mov     edx,-1
+        call    tx_tell
         popad
         ret
 
@@ -405,7 +459,8 @@ tx_read:
 @trd_f:
         sub     edi,offset g_txb
         mov     [g_ui.tx.tx_end],di
-        mov     [g_ui.tx.tx_n],bx
+        mov     [g_ui.tx.tx_all],bx
+        call    tx_whole
         mov     [g_ui.tx.tx_ci],0
         mov     [g_ui.tx.tx_co],0
         call    tx_mclr
@@ -414,23 +469,25 @@ tx_read:
         ret
 
 ; ::::::::::::::
-; tx_mark - line AX's mark.
+; tx_mark - the view's line AX's mark.
 ;
 ; out:    AL  it
 ; keeps:  all but EAX
 ; ::::::::::::::
 tx_mark:
+        add     ax,[g_ui.tx.tx_v0]
         movzx   eax,ax
         mov     al,[g_txmk+eax]
         ret
 
 ; ::::::::::::::
-; tx_mtog - line AX's mark: on, off.
+; tx_mtog - the view's line AX's mark: on, off.
 ;
 ; keeps:  all
 ; ::::::::::::::
 tx_mtog:
         push    eax
+        add     ax,[g_ui.tx.tx_v0]
         movzx   eax,ax
         xor     byte ptr [g_txmk+eax],1
         pop     eax

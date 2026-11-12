@@ -1376,7 +1376,8 @@ ac_pop:
         mov     ch,al
         mov     ax,[g_ui.ed.ed_line]             ; under the line, else over it
         sub     ax,[g_ui.ed.ed_top]
-        add     al,ED_R0+1
+        add     al,byte ptr [g_ui.ed.ed_r0]
+        inc     al
         mov     dh,al
         add     al,ch
         cmp     al,24

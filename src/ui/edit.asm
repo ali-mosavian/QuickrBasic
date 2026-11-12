@@ -355,7 +355,11 @@ ed_commit:
         movzx   ecx,word ptr [g_ui.bf.ed_lb.len]
         call    tx_repl
         popf
-        jnc     @edc_r
+        jc      @edc_e
+        call    vw_commit
+        clc
+        ret
+@edc_e:
         mov     esi,offset g_ui.bf.ui_ebuf
         call    dl_err
         stc
@@ -543,12 +547,14 @@ ed_down:
 ; ::::::::::::::
 ed_pgup:
         mov     ax,[g_ui.ed.ed_line]
-        sub     ax,ED_ROWS-1
+        sub     ax,[g_ui.ed.ed_rows]
+        inc     ax                      ; CF the sub's
         jae     @edp_u
         xor     ax,ax
 @edp_u:
         mov     dx,[g_ui.ed.ed_top]
-        sub     dx,ED_ROWS-1
+        sub     dx,[g_ui.ed.ed_rows]
+        inc     dx
         jae     @edp_t
         xor     dx,dx
 @edp_t:
@@ -559,14 +565,17 @@ ed_pgup:
 ; ::::::::::::::
 ed_pgdn:
         mov     ax,[g_ui.ed.ed_line]
-        add     ax,ED_ROWS-1
+        add     ax,[g_ui.ed.ed_rows]
+        dec     ax
         mov     dx,[g_ui.tx.tx_n]
         dec     dx
         cmp     ax,dx
         jbe     @edp_d
         mov     ax,dx
 @edp_d:
-        add     [g_ui.ed.ed_top],ED_ROWS-1
+        mov     cx,[g_ui.ed.ed_rows]
+        dec     cx
+        add     [g_ui.ed.ed_top],cx
         jmp     ed_goto
 ; ::::::::::::::
 ; ed_first - the cursor to the first line.
@@ -597,10 +606,11 @@ ed_ensure:
         mov     [g_ui.ed.ed_top],ax
 @ede_b:
         mov     dx,[g_ui.ed.ed_top]
-        add     dx,ED_ROWS
+        add     dx,[g_ui.ed.ed_rows]
         cmp     ax,dx
         jb      @ede_m
-        sub     ax,ED_ROWS-1
+        sub     ax,[g_ui.ed.ed_rows]
+        inc     ax
         mov     [g_ui.ed.ed_top],ax
 @ede_m:
         mov     ax,[g_ui.tx.tx_n]
@@ -656,7 +666,12 @@ ed_enter:
 @een_n:
         sub     edi,offset g_ui.bf.sy_buf
         mov     [g_ui.ed.ed_nlen],di
+        mov     al,[g_ui.ed.ed_vw]
+        push    eax
         call    ed_commit
+        pop     eax
+        cmp     al,[g_ui.ed.ed_vw]      ; a SUB line: its own view, made
+        jne     @een_r
         movzx   ecx,word ptr [g_ui.ed.ed_nlen]
         mov     ax,[g_ui.ed.ed_line]
         inc     ax

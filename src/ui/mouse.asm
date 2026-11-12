@@ -2,7 +2,7 @@
 ; mouse.asm - the mouse, when a driver is there: clicks in the editor
 ; ==========================================================================
 ; holds:    ms_init, ms_show, ms_hide, ms_poll, ms_main, ms_title
-; uses:     INT 33h; ed_goto, sel_mark, mn_run, ui_win and the run keys
+; uses:     INT 33h; ed_goto, sel_mark, mn_run, wn_at, wn_focus and the run keys
 ; data:     ms_poll turns the left button into events (ms_ev): MS_PRESS,
 ;           MS_DRAG (moved while down), MS_UP; ms_pos the cell, DH the
 ;           row, DL the column. ui_getkey gives one as key FFFEh.
@@ -148,11 +148,30 @@ ms_main:
 @msm_w:
         cmp     dh,24
         je      @msm_st
-        cmp     dh,IM_R0
-        jae     @msm_im
-        cmp     dh,ED_R0
+        call    wn_at
+        jc      @msm_r
+        cmp     ebx,W_ED1
         jb      @msm_r
-        cmp     dh,ED_R0+ED_ROWS
+        cmp     [g_ui.ms.ms_ev],MS_PRESS        ; a press: the focus there; a
+        jne     @F                              ; drag stays in its window
+        push    edx
+        call    wn_focus
+        pop     edx
+        jmp     @msm_x
+@@:
+        call    wn_cur
+        cmp     bl,[g_ui.wn.wact]
+        je      @msm_x
+        cmp     ebx,W_IMM
+        jne     @msm_r
+@msm_x:
+        cmp     [g_ui.lp.ui_foc],0
+        jne     @msm_r
+        cmp     dh,byte ptr [g_ui.ed.ed_r0]     ; its text rows
+        jb      @msm_r
+        mov     al,byte ptr [g_ui.ed.ed_r0]
+        add     al,byte ptr [g_ui.ed.ed_rows]
+        cmp     dh,al
         jae     @msm_r
         cmp     dl,79
         je      @msm_sb
@@ -160,14 +179,8 @@ ms_main:
         jz      @msm_r
         cmp     dl,ED_COLS
         ja      @msm_r
-        cmp     [g_ui.lp.ui_foc],0
-        je      @msm_e
-        push    edx
-        call    ui_win
-        pop     edx
-@msm_e:
         movzx   ax,dh                   ; the line, the last at most
-        sub     ax,ED_R0
+        sub     ax,[g_ui.ed.ed_r0]
         add     ax,[g_ui.ed.ed_top]
         mov     cx,[g_ui.tx.tx_n]
         cmp     ax,cx
@@ -198,27 +211,28 @@ ms_main:
         mov     [g_ui.bf.ed_lb.col],ax
 @msm_r:
         ret
-@msm_im:
-        cmp     [g_ui.lp.ui_foc],0
-        jne     @msm_r
-        jmp     ui_win
 @msm_sb:
         cmp     [g_ui.ms.ms_ev],MS_PRESS
         jne     @msm_r
-        cmp     dh,ED_R0
+        cmp     dh,byte ptr [g_ui.ed.ed_r0]
         je      ed_up
-        cmp     dh,ED_R0+ED_ROWS-1
+        mov     al,byte ptr [g_ui.ed.ed_r0]
+        add     al,byte ptr [g_ui.ed.ed_rows]
+        dec     al
+        cmp     dh,al
         je      ed_down
         push    edx                      ; above the thumb or below it
         mov     ax,[g_ui.ed.ed_line]
-        mov     cx,ED_ROWS-3
+        mov     cx,[g_ui.ed.ed_rows]
+        sub     cx,3
         mul     cx
         mov     cx,[g_ui.tx.tx_n]
         jcxz    @msm_z
         div     cx
 @msm_z:
         pop     edx
-        add     al,ED_R0+1
+        add     al,byte ptr [g_ui.ed.ed_r0]
+        inc     al
         cmp     dh,al
         jb      ed_pgup
         jmp     ed_pgdn

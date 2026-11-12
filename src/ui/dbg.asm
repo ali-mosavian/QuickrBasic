@@ -79,7 +79,8 @@ ud_hlset:
         mov     ax,[g_state.dbg.wnum]
         call    sy_find
         jc      @uhs_r
-        mov     [g_ui.ud.hl_ln],ax
+        mov     [g_ui.ud.hl_ln],ax      ; the text's line
+        call    vw_goline
         mov     edi,offset g_ui.bf.ud_txt
         call    tx_get
         mov     byte ptr [edi+ecx],0
@@ -138,6 +139,7 @@ ud_hlset:
         and     [g_ui.lp.ui_foc],0
         and     [g_ui.ed.sel_on],0
         mov     ax,[g_ui.ud.hl_ln]
+        sub     ax,[g_ui.tx.tx_v0]
         call    ed_load
         mov     ax,[g_ui.ud.hl_c0]
         mov     [g_ui.bf.ed_lb.col],ax
@@ -152,7 +154,7 @@ ud_hlset:
 ud_trace:
         pushad
         call    ud_hlset
-        call    dr_edit
+        call    wn_draw
         call    sc_flip
         mov     ax,0500h
         int     10h
@@ -188,8 +190,10 @@ ud_row:
         cmp     [g_ui.tx.tx_mod],0
         jne     @udr_r
         mov     ax,[g_ui.lp.dr_ln]
+        add     ax,[g_ui.tx.tx_v0]
         cmp     ax,[g_ui.ud.hl_ln]
         jne     @udr_r
+        mov     ax,[g_ui.lp.dr_ln]
         cmp     ax,[g_ui.ed.ed_line]    ; not while it is being changed
         jne     @F
         cmp     byte ptr [g_ui.bf.ed_lb.dty],0
@@ -277,6 +281,7 @@ ud_until:
         cmp     [g_ui.lp.ui_foc],0
         jne     @F
         mov     ax,[g_ui.ed.ed_line]
+        add     ax,[g_ui.tx.tx_v0]
         inc     ax
         mov     [g_ui.ud.ud_utl],ax
         jmp     ui_contp
@@ -293,6 +298,7 @@ ud_setnx:
         call    ui_cancont
         jc      @usn_c
         mov     ax,[g_ui.ed.ed_line]
+        add     ax,[g_ui.tx.tx_v0]
         mov     [g_ui.ud.ud_tgt],ax
         or      [g_ui.ud.ud_num],-1
         mov     edx,offset ud_numof

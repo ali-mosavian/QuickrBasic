@@ -44,9 +44,11 @@ ui_start:
         mov     [g_ui.ed.ed_ins],1
         mov     [g_ui.lp.ui_wrap],1
         call    ud_init
+        call    wn_init
         call    ms_init
         call    hl_load
         call    tx_init
+        call    vw_reset
         xor     ax,ax
         call    ed_load
         call    im_load
@@ -188,8 +190,24 @@ endif
         je      ui_nohelp
         cmp     ah,54h                  ; Shift+F1
         je      ui_nohelp
-        cmp     ah,59h                  ; Shift+F6: the other of two
-        je      ui_win
+        cmp     ah,59h                  ; Shift+F6: the window before
+        je      wn_prev
+        cmp     ah,83h                  ; Alt+=, Alt+grey +: a row more
+        je      wn_grow
+        cmp     ah,4Eh
+        je      wn_grow
+        cmp     ah,82h                  ; Alt+-, Alt+grey -: a row less
+        je      wn_shrink
+        cmp     ah,4Ah
+        je      wn_shrink
+        cmp     ah,67h                  ; Ctrl+F10
+        je      wn_max
+        cmp     ah,3Ch                  ; F2, Shift+F2, Ctrl+F2: the views
+        je      vw_subs
+        cmp     ah,55h
+        je      vw_next
+        cmp     ah,5Fh
+        je      vw_prev
         push    eax
         call    mn_alt
         pop     eax
@@ -280,12 +298,10 @@ hl_load:
         ret
 
 ; ::::::::::::::
-; ui_win - F6: the other window.
+; ui_win - F6: the next window.
 ; ::::::::::::::
 ui_win:
-        call    ed_commit
-        xor     [g_ui.lp.ui_foc],1
-        ret
+        jmp     wn_next
 
 ; ::::::::::::::
 ; ui_nohelp - F1.
@@ -502,7 +518,8 @@ ui_act:
 ui_acts dd      ui_new,ui_open,ui_save,ui_saveas,ui_exit,ed_cut,ed_copy
         dd      ed_paste,ed_clear,ui_view,ui_find,ui_find3,ui_change
         dd      ui_runp,ui_contp,ui_syntax,ui_about,ud_step,ud_pstep
-        dd      ud_trace1,ud_bp,ud_bpclr,ud_setnx,ud_restart
+        dd      ud_trace1,ud_bp,ud_bpclr,ud_setnx,ud_restart,wn_split
+        dd      vw_subs,vw_newsub,vw_newfn
         .code
 
 ; ::::::::::::::
@@ -553,6 +570,7 @@ ui_reset:
         mov     [g_ui.lp.ui_foc],al
         mov     [g_ui.tx.tx_chg],al
         mov     [g_ui.tx.tx_mod],1
+        call    vw_reset
         call    ed_load
         jmp     prg_init
 
@@ -967,6 +985,7 @@ ui_err:
         call    sy_find
         jc      @uer_m
 @uer_g:
+        call    vw_goline
         call    ui_atline
 @uer_m:
         mov     al,[g_ui.lp.ui_ecode]

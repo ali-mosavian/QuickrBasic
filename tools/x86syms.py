@@ -17,7 +17,7 @@ CORE = ['main.asm', 'vm/exec.asm', 'vm/flow.asm', 'vm/calls.asm',
         'float/flt.asm', 'float/ftr.asm', 'float/fpu.asm', 'float/dbl.asm', 'vm/dbg.asm', 'regions.asm']
 UI = ['ui/scr.asm', 'ui/mouse.asm', 'ui/compl.asm', 'ui/text.asm',
       'ui/edit.asm', 'ui/draw.asm', 'ui/menu.asm', 'ui/dlg.asm',
-      'ui/sync.asm', 'ui/dbg.asm', 'ui/ui.asm']
+      'ui/sync.asm', 'ui/dbg.asm', 'ui/win.asm', 'ui/view.asm', 'ui/ui.asm']
 HEADERS = ['x86f.inc', 'def.inc', 'state.inc', 'vm/isa.inc', 'vm/vm.inc', 'comp/comp.inc',
            'comp/dfa.inc', 'ui/uibuf.inc', 'ui/ui.inc']
 TYPES = {'db': 'byte', 'dw': 'word', 'dd': 'dword', 'df': 'fword',

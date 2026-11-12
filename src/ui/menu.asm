@@ -687,11 +687,11 @@ m_edit  db      A_CUT,MF_SEL,'Cu&t',0,'Shift+Del',0
         db      A_PASTE,MF_CLP,'&Paste',0,'Shift+Ins',0
         db      A_CLEAR,MF_SEL,'Cl&ear',0,'Del',0
         db      A_NONE,MF_SEP
-        db      A_NONE,MF_GRAY,'New &SUB...',0,0
-        db      A_NONE,MF_GRAY,'New &FUNCTION...',0,0
+        db      A_NSUB,0,'New &SUB...',0,0
+        db      A_NFN,0,'New &FUNCTION...',0,0
         db      0
-m_view  db      A_NONE,MF_GRAY,'&SUBs...',0,'F2',0
-        db      A_NONE,MF_GRAY,'S&plit',0,0
+m_view  db      A_SUBS,0,'&SUBs...',0,'F2',0
+        db      A_SPLIT,0,'S&plit',0,0
         db      A_OUT,0,'Output &Screen',0,'F4',0
         db      0
 m_srch  db      A_FIND,MF_ED,'&Find...',0,0

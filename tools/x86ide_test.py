@@ -434,14 +434,65 @@ def play() -> None:
     press(f"0x{ALT_F:x}", "n")
     if any("NOT SAVED" in r for r in look()):
         press("n")
-    for ln in ("sub hi", "print 7", "end sub", "", "hi"):
-        press("home")
-        keys(ln + "\n")
-        assert not any("ERROR" in r for r in look()), (ln, look())
-    assert chars(2)[1:7] == b"SUB hi", chars(2)
+    # The SUB line opens the procedure's own view, its END SUB made (QBasic's); Ctrl+F2 the module again.
+    press("home")
+    keys("sub hi\n")
+    assert chars(2)[1:7] == b"SUB hi" and text()[:3] == ["SUB HI", "", "END SUB"], look()
+    assert look()[1].strip() == "UNTITLED:HI", look()[1]
+    keys("print 7\n")
+    assert not any("ERROR" in r for r in look()), look()
+    press("0x5f")
+    keys("hi\n")
+    assert not any("ERROR" in r for r in look()), look()
     press(f"0x{F5:x}")
     assert output()[0] == " 7", output()
     press("space")
+
+    # Views: the module first, each procedure its own, as QBasic loads a file. Shift+F2 the next,
+    # Ctrl+F2 the one before, F2 the list; Edit, New FUNCTION.
+    (work / "VW.BAS").write_bytes(b"SUB a\r\nPRINT 1\r\nEND SUB\r\na\r\nFUNCTION f\r\nf = 2\r\nEND FUNCTION\r\n")
+    press(f"0x{ALT_F:x}", "o")
+    if any("NOT SAVED" in r for r in look()):
+        press("n")
+    keys("vw.bas\n")
+    assert look()[1].strip() == "VW.BAS" and text()[:2] == ["A", ""], look()
+    press("0x55")
+    assert look()[1].strip() == "VW.BAS:A" and text()[:4] == ["SUB A", "PRINT 1", "END SUB", ""], look()
+    press("0x55")
+    assert look()[1].strip() == "VW.BAS:F" and text()[0] == "FUNCTION F", look()
+    press("0x55")
+    assert look()[1].strip() == "VW.BAS", look()[1]
+    press("0x5f")
+    assert look()[1].strip() == "VW.BAS:F", look()[1]
+    press("0x3c")
+    scr = look()
+    r = next(i for i, ln in enumerate(scr) if "VW.BAS" in ln and i > 1)
+    assert [scr[r + k][11:20].strip() for k in range(3)] == ["VW.BAS", "A", "F"], scr
+    press("up", "enter")
+    assert look()[1].strip() == "VW.BAS:A", look()[1]
+    press("0x12", "f")
+    keys("g\n")
+    assert look()[1].strip() == "VW.BAS:G" and text()[:3] == ["FUNCTION G", "", "END FUNCTION"], look()
+    press("0x55")
+    assert look()[1].strip() == "VW.BAS", look()[1]
+
+    # Windows: Split, Alt+Plus and Alt+Minus a row, Ctrl+F10 the whole screen and back.
+    def titles() -> list[int]:
+        return [i for i, ln in enumerate(look()) if ln.strip() in ("VW.BAS", "IMMEDIATE")]
+
+    assert titles() == [1, 21], titles()
+    press(f"0x{0x2F:x}", "p")
+    assert titles() == [1, 11, 21], titles()
+    press("0x83")
+    assert titles() == [1, 12, 21], titles()
+    press("0x82", "0x82")
+    assert titles() == [1, 10, 21], titles()
+    press("0x67")
+    assert titles() == [1], titles()
+    press("0x67")
+    assert titles() == [1, 10, 21], titles()
+    press(f"0x{0x2F:x}", "p")
+    assert titles() == [1, 21], titles()
 
     # The debugger (QBasic's uidebug.asm). lit(): the lit statement's text line and text, the
     # breakpoints' lines.
@@ -482,7 +533,7 @@ def play() -> None:
     open_file("dbg.bas")
     # F8 steps a statement at a time, into a GOSUB and a SUB; DECLARE makes no stop.
     for want in [(1, "PRINT 1"), (2, "FOR i = 1 TO 2"), (2, "PRINT i"), (2, "NEXT"), (2, "PRINT i"), (2, "NEXT"),
-                 (3, "GOSUB g"), (7, "PRINT 7"), (8, "RETURN"), (4, "s"), (10, "PRINT 5"), (11, "END SUB"),
+                 (3, "GOSUB g"), (7, "PRINT 7"), (8, "RETURN"), (4, "s"), (1, "PRINT 5"), (2, "END SUB"),
                  (5, "PRINT 9")]:
         step(F8, want)
     assert look()[24].startswith(" <SHIFT+F1=HELP> <F5=CONTINUE> <F9=TOGGLE BKPT> <F8=STEP>"), look()[24]
@@ -493,14 +544,16 @@ def play() -> None:
                  (4, "s"), (5, "PRINT 9")]:
         step(F10, want)
     # A breakpoint is its line's colour; F5 stops there. Clear All takes it away.
-    cursor(10)
+    press("0x55")  # the SUB's view
+    cursor(1)
     press(f"0x{F9:x}")
-    assert lit()[1] == [10], lit()
-    press(f"0x{ALT_R:x}", "r", f"0x{F5:x}")
-    assert lit() == ((10, "PRINT 5"), [10]), lit()
+    assert lit()[1] == [1], lit()
+    press("0x5f", f"0x{ALT_R:x}", "r", f"0x{F5:x}")
+    assert lit() == ((1, "PRINT 5"), [1]), lit()
     press(f"0x{ALT_D:x}", "c")
     assert lit()[1] == [], lit()
     # F7: on to the cursor's line. Set Next Statement: CONT goes on there.
+    press("0x5f")
     cursor(6)
     step(F7, (6, "END"))
     press(f"0x{ALT_R:x}", "r")
@@ -521,7 +574,7 @@ def play() -> None:
             seen.add(lit()[0])
         if output()[24] == "PRESS ANY KEY TO CONTINUE":
             break
-    assert {(2, "PRINT i"), (7, "PRINT 7"), (10, "PRINT 5")} <= seen, seen
+    assert {(2, "PRINT i"), (7, "PRINT 7"), (1, "PRINT 5")} <= seen, seen
     assert output()[:7] == [" 1", " 1", " 2", " 7", " 5", " 9", ""], output()
     press("space")
     press(f"0x{ALT_D:x}", "t")

@@ -40,11 +40,7 @@ AC_PREV = 40                            ; a label's box: columns
 TXMAX   = 0FF00h                ; the text's bytes at most
 LNMAX   = 255                   ; a line's characters at most
 ; draw.asm
-ED_ROWS = 18
 ED_COLS = 78
-ED_R0   = 2
-IM_R0   = 22
-IM_ROWS = 2
 A_ED    = 17h
 A_SEL   = 71h
 A_TTL   = 71h                  ; the window's colours swapped
@@ -86,7 +82,11 @@ A_BP    = 21
 A_BPCLR = 22
 A_SETNX = 23
 A_RESTART = 24
-A_NONE  = 25
+A_SPLIT = 25
+A_SUBS  = 26
+A_NSUB  = 27
+A_NFN   = 28
+A_NONE  = 29
 A_BPL   = 47h                   ; a breakpoint's line
 A_CUR   = 1Fh                   ; the statement a stop or trace is at
 ; dlg.asm
@@ -178,7 +178,10 @@ TMSGD    ends
 TTEXT    struc                   ; the text, the clipboard
     hl_len  dw      ?               ; BASIC.HLP's bytes, at hlpb
     tx_end  dw      ?
-    tx_n    dw      ?
+    tx_n    dw      ?               ; the view's lines, from tx_v0 of tx_all
+    tx_v0   dw      ?
+    tx_all  dw      ?
+    tx_hook dd      ?               ; a line added, removed (view.asm)
     tx_ci   dw      ?               ; a line looked up last, its offset
     tx_co   dw      ?
     cb_len  dw      ?
@@ -201,6 +204,9 @@ TEDIT    struc                   ; the program window, the selection
     sel_c   dw      ?
     sel_a   dw      ?
     sel_b   dw      ?
+    ed_vw   db      ?               ; the view shown (view.asm)
+    ed_r0   dw      ?               ; the window's first text row, its rows
+    ed_rows dw      ?
 TEDIT    ends
 
 TFIND    struc                   ; a line made canonical; Find and Change
@@ -228,6 +234,30 @@ TSYNC    struc                   ; the text made the program
     sy_cb   dd      ?               ; sy_walk's routine
 TSYNC    ends
 
+NVIEW   = 64                    ; views at most (view.asm)
+VNAME   = 40                    ; a procedure's name's characters at most
+VLSZ    = VNAME+4               ; the SUBs box's list item
+VK_SUB  = 1                     ; vw_kind's
+VK_FN   = 2
+VK_END  = 3
+
+TVIEW    struc                   ; a view: the module, a procedure
+    vfirst  dw      ?               ; its first line in the text, its lines
+    vn      dw      ?
+    vkind   db      ?               ; 0 the module, VK_SUB, VK_FN
+    vline   dw      ?               ; the cursor's place left there
+    vtop    dw      ?
+    vcol    dw      ?
+    vname   db      VNAME+1 dup(?)
+TVIEW    ends
+
+TVIEWS   struc
+    vw_n    db      ?
+    vw_nlen dw      ?               ; vw_add's line's length
+    vw_src  dd      ?               ; vw_kind's line in the text
+    vw_tab  TVIEW   NVIEW dup(<>)
+TVIEWS   ends
+
 TUDBG    struc                   ; the debugger's UI (ui/dbg.asm)
     stopd   db      ?               ; 1: stopped, CONT goes on (not after END)
     hl_on   db      ?               ; 1: hl_ln's columns hl_c0 to hl_c1 lit
@@ -239,10 +269,31 @@ TUDBG    struc                   ; the debugger's UI (ui/dbg.asm)
     ud_num  dw      ?
 TUDBG    ends
 
+NWIN    = 4                     ; the windows, top down (win.asm)
+W_HELP  = 0
+W_ED1   = 1
+W_ED2   = 2
+W_IMM   = 3
+
+TWIN     struc                   ; a window
+    wh      db      ?               ; its rows with its title, 0 hidden
+    wcol    dw      ?               ; an edit window's state while not active
+    wed     TEDIT   <>
+TWIN     ends
+
+TWINS    struc
+    win     TWIN    NWIN dup(<>)
+    wact    db      ?               ; the active edit window
+    wmax    db      ?               ; 1: Ctrl+F10's, wsav the heights before
+    wsav    db      NWIN dup(?)
+TWINS    ends
+
 TIMM     struc                   ; the immediate window
     im_n    dw      ?
     im_i    dw      ?
     im_top  dw      ?
+    im_r0   dw      ?               ; the window's first row, its rows
+    im_rows dw      ?
 TIMM     ends
 
 TLOOP    struc                   ; the key loop, the screen
@@ -260,6 +311,7 @@ TLOOP    struc                   ; the key loop, the screen
     ul_new  db      ?
     dr_sk   db      ?
     dr_ln   dw      ?
+    dr_ina  db      ?               ; 1: drawing an edit window without the focus
 TLOOP    ends
 
 TMENU    struc                   ; the menus
@@ -292,6 +344,7 @@ TDIALOG  struc                   ; the dialog running, the message box
     dl_hr   db      ?
     ls_f    TLIST   <>              ; the Files list
     ls_d    TLIST   <>              ; the Dirs list
+    ls_v    TLIST   <>              ; the SUBs box's
 TDIALOG  ends
 
 TMOUSE   struc                   ; the mouse
@@ -351,6 +404,10 @@ TUIBUF   struc                   ; the big buffers
     dl_mask db      80 dup(?)       ; the Open box's mask
     dl_path db      80 dup(?)       ; the current directory
     ui_ebuf db      64 dup(?)       ; an error's message
+    vw_ln   db      LNBUF dup(?)    ; vw_kind's line in capitals
+    vw_new  db      LNBUF dup(?)    ; vw_add's
+    vw_fld  TLBUF   <>              ; New SUB's name
+    vw_list db      NVIEW*VLSZ dup(?)   ; the SUBs box's
     ud_txt  db      LNBUF dup(?)    ; ud_hlset's line, its body
     ud_tok  db      LNBUF*5 dup(?)  ; a digit becomes 5 bytes
     dl_dta  db      44 dup(?)       ; the directory search's DTA
@@ -370,5 +427,7 @@ TUI      struc
     ms      TMOUSE  <>
     ac      TCOMPL  <>
     ud      TUDBG   <>
+    wn      TWINS   <>
+    vw      TVIEWS  <>
     bf      TUIBUF  <>
 TUI      ends

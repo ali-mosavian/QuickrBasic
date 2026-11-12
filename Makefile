@@ -77,7 +77,7 @@ DOS32A ?= $(HOME)/.cache/llrm/open-watcom-v2-703e1ae2f9a621dda2d28fb39b12d0d6d27
 X86F_MODS := main vm/exec vm/flow vm/calls vm/builtins vm/bc comp/lex comp/decl comp/block comp/ctl comp/comp \
 	comp/expr comp/link comp/list mem/far mem/prog mem/sym mem/str mem/arr io/io io/repl \
 	io/file io/plat float/flt float/ftr float/fpu float/dbl vm/dbg
-X86F_UI := ui/scr ui/mouse ui/compl ui/text ui/edit ui/draw ui/menu ui/dlg ui/sync ui/dbg ui/ui
+X86F_UI := ui/scr ui/mouse ui/compl ui/text ui/edit ui/draw ui/menu ui/dlg ui/sync ui/dbg ui/win ui/view ui/ui
 X86F_INC := $(wildcard src/x86f/*.inc src/x86f/*/*.inc)
 X86F_OBJ := $(X86F_MODS:%=build/x86f/%.obj) build/x86f/regions.obj
 X86F_IDE_OBJ := $(X86F_MODS:%=build/x86f-ide/%.obj) $(X86F_UI:%=build/x86f-ide/%.obj) \

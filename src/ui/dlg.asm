@@ -828,7 +828,7 @@ dl_msg:
         pop     eax
         movzx   ecx,word ptr [g_ui.ed.ed_line]
         sub     cx,[g_ui.ed.ed_top]
-        add     cx,ED_R0
+        add     cx,[g_ui.ed.ed_r0]
         cmp     cl,ah
         jb      @dlm_p
         mov     ch,ah
@@ -1260,7 +1260,7 @@ dl_conf:
         mov     ebx,offset dg_conf
         mov     ax,[g_ui.ed.ed_line]
         sub     ax,[g_ui.ed.ed_top]
-        add     ax,ED_R0
+        add     ax,[g_ui.ed.ed_r0]
         mov     cl,19
         cmp     ax,19
         jb      @dlc_r

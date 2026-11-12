@@ -21,8 +21,7 @@ include x86f.inc
 ; ::::::::::::::
 dr_all:
         call    mn_bar
-        call    dr_edit
-        call    dr_imm
+        call    wn_draw
         call    dr_status
         jmp     dr_cursor
 
@@ -30,20 +29,33 @@ dr_all:
 ; dr_edit - the program window: its frame, its lines, its scroll bars.
 ; ::::::::::::::
 dr_edit:
-        mov     dx,0100h
-        mov     cx,1300h+80
+        mov     dh,byte ptr [g_ui.ed.ed_r0]
+        dec     dh                      ; DH the title's row
+        xor     dl,dl
+        mov     ch,byte ptr [g_ui.ed.ed_rows]
+        add     ch,2
+        mov     cl,80
         mov     ah,A_ED
         xor     esi,esi
+        push    edx
         call    sc_box
         call    ui_title
+        pop     edx
         mov     esi,offset g_ui.bf.ui_ttl
-        mov     dh,1
-        mov     cx,0BFDAh
-        mov     bl,[g_ui.lp.ui_foc]
-        xor     bl,1
+        mov     cx,0BFDAh               ; the top window's corners, else joins
+        cmp     dh,1
+        je      @F
+        mov     cx,0B4C3h
+@@:
+        call    dr_hasfoc
+        mov     bl,al
         mov     bh,1
         call    dr_ttl
+        xor     al,al
+        cmp     [g_ui.lp.dr_ina],0
+        jne     @F
         call    sel_get
+@@:
         mov     [g_ui.lp.dr_sk],al
         xor     cx,cx                   ; CX the row
 @dre_r:
@@ -51,17 +63,35 @@ dr_edit:
         call    dr_row
         pop     ecx
         inc     cx
-        cmp     cx,ED_ROWS
+        cmp     cx,[g_ui.ed.ed_rows]
         jb      @dre_r
-        cmp     [g_ui.lp.ui_foc],0               ; the bars: the active window's
-        jne     @dre_n
+        call    dr_hasfoc               ; the bars: the window with the focus
+        test    al,al
+        jz      @dre_n
         call    dr_vbar
         jmp     dr_hbar
 @dre_n:
-        mov     dx,(ED_R0+ED_ROWS)*256+1
+        mov     dh,byte ptr [g_ui.ed.ed_r0]
+        add     dh,byte ptr [g_ui.ed.ed_rows]
+        mov     dl,1
         mov     ax,A_ED*256+' '
         mov     cx,ED_COLS
         jmp     sc_fill
+
+; ::::::::::::::
+; dr_hasfoc - the edit window drawing has the focus.
+;
+; out:    AL  1 so, else 0
+; ::::::::::::::
+dr_hasfoc:
+        xor     al,al
+        cmp     [g_ui.lp.ui_foc],0
+        jne     @F
+        cmp     [g_ui.lp.dr_ina],0
+        jne     @F
+        inc     al
+@@:
+        ret
 
 ; ::::::::::::::
 ; dr_ttl - a window's title row DH, as QBasic's (uiwind.c): CL, CH its
@@ -114,7 +144,7 @@ dr_ttl:
 ; ::::::::::::::
 dr_row:
         mov     dh,cl
-        add     dh,ED_R0
+        add     dh,byte ptr [g_ui.ed.ed_r0]
         mov     dl,1
         mov     ax,[g_ui.ed.ed_top]
         add     ax,cx
@@ -127,8 +157,11 @@ dr_row:
 @drr_t:
         mov     esi,offset g_ui.bf.ed_lb.txt
         mov     cx,[g_ui.bf.ed_lb.len]
+        cmp     [g_ui.lp.dr_ina],0      ; ed_lb is the active window's
+        jne     @F
         cmp     ax,[g_ui.ed.ed_line]
         je      @drr_g
+@@:
         mov     edi,offset g_ui.bf.uc_line
         call    tx_get
         mov     esi,offset g_ui.bf.uc_line
@@ -195,12 +228,18 @@ dr_row:
 ; the cursor's line.
 ; ::::::::::::::
 dr_vbar:
-        mov     dx,ED_R0*256+79
+        cmp     word ptr [g_ui.ed.ed_rows],3
+        jb      @drv_r
+        mov     dh,byte ptr [g_ui.ed.ed_r0]
+        mov     dl,79
         mov     ax,A_BAR*256+18h
         mov     cx,1
         call    sc_fill
-        mov     dx,(ED_R0+1)*256+79
-        mov     ecx,ED_ROWS-2
+        mov     dh,byte ptr [g_ui.ed.ed_r0]
+        inc     dh
+        mov     dl,79
+        movzx   ecx,word ptr [g_ui.ed.ed_rows]
+        sub     ecx,2
 @drv_t:
         push    ecx
         mov     ax,A_BAR*256+0B0h
@@ -214,22 +253,28 @@ dr_vbar:
         mov     cx,1
         call    sc_fill
         mov     ax,[g_ui.ed.ed_line]             ; the thumb
-        mov     cx,ED_ROWS-3
+        mov     cx,[g_ui.ed.ed_rows]
+        sub     cx,3
         mul     cx
         mov     cx,[g_ui.tx.tx_n]
         div     cx
         mov     dh,al
-        add     dh,ED_R0+1
+        add     dh,byte ptr [g_ui.ed.ed_r0]
+        inc     dh
         mov     dl,79
         mov     ax,0000h+' '
         mov     cx,1
         jmp     sc_fill
+@drv_r:
+        ret
 
 ; ::::::::::::::
 ; dr_hbar - the sideways bar on row 20, its thumb at ed_left.
 ; ::::::::::::::
 dr_hbar:
-        mov     dx,(ED_R0+ED_ROWS)*256+0
+        mov     dh,byte ptr [g_ui.ed.ed_r0]
+        add     dh,byte ptr [g_ui.ed.ed_rows]
+        xor     dl,dl
         mov     ax,A_ED*256+0B3h
         mov     cx,1
         call    sc_fill
@@ -250,7 +295,8 @@ dr_hbar:
         div     cx
         mov     dl,al
         add     dl,2
-        mov     dh,ED_R0+ED_ROWS
+        mov     dh,byte ptr [g_ui.ed.ed_r0]
+        add     dh,byte ptr [g_ui.ed.ed_rows]
         mov     ax,0000h+' '
         mov     cx,1
         jmp     sc_fill
@@ -259,7 +305,8 @@ dr_hbar:
 ; dr_imm - the immediate window: its title, its two lines.
 ; ::::::::::::::
 dr_imm:
-        mov     dh,IM_R0-1
+        mov     dh,byte ptr [g_ui.im.im_r0]
+        dec     dh
         mov     esi,offset u_imm
         mov     cx,0B4C3h
         mov     bl,[g_ui.lp.ui_foc]
@@ -280,7 +327,7 @@ dr_imm:
         xor     bx,bx
 @dri_r:
         mov     dh,bl
-        add     dh,IM_R0
+        add     dh,byte ptr [g_ui.im.im_r0]
         xor     dl,dl
         mov     ax,A_ED*256+0B3h
         mov     cx,1
@@ -316,7 +363,7 @@ dr_imm:
         mov     cx,1
         call    sc_fill
         inc     bx
-        cmp     bx,IM_ROWS
+        cmp     bx,[g_ui.im.im_rows]
         jb      @dri_r
         ret
 
@@ -459,7 +506,7 @@ dr_cursor:
         call    ed_ensure
         mov     ax,[g_ui.ed.ed_line]
         sub     ax,[g_ui.ed.ed_top]
-        add     al,ED_R0
+        add     al,byte ptr [g_ui.ed.ed_r0]
         mov     dh,al
         mov     ax,[g_ui.bf.ed_lb.col]
         sub     ax,[g_ui.ed.ed_left]
@@ -469,7 +516,7 @@ dr_cursor:
 @drc_i:
         mov     ax,[g_ui.im.im_i]
         sub     ax,[g_ui.im.im_top]
-        add     al,IM_R0
+        add     al,byte ptr [g_ui.im.im_r0]
         mov     dh,al
         mov     ax,[g_ui.bf.im_lb.col]
         cmp     ax,ED_COLS-1
@@ -498,6 +545,7 @@ ui_title:
         stosb
         test    al,al
         jnz     @utt_l
+        call    vw_title
         pop     eax
         pop     edi
         pop     esi
