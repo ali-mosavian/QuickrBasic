@@ -280,43 +280,12 @@ lx_num:
 ; out:    SI  past it
 ; ::::::::::::::
 lx_hex:
-        movzx   eax,byte ptr [esi]
-        upcase  eax
-        mov     cl,4
-        cmp     al,'H'
-        je      @lxh_b
-        mov     cl,3
-        cmp     al,'O'
-        je      @lxh_b
+        call    num_amp
+        jnc     @F
         mov     al,'&'
         stosb
         ret
-@lxh_b:
-        inc     esi
-        xor     edx,edx
-@lxh_l:
-        movzx   eax,byte ptr [esi]
-        upcase  eax
-        sub     al,'0'
-        cmp     al,10
-        jb      @lxh_d
-        cmp     cl,4
-        jne     @lxh_e
-        sub     al,'A'-'0'
-        cmp     al,6
-        jae     @lxh_e
-        add     al,10
-@lxh_d:
-        cmp     cl,3
-        jne     @F
-        cmp     al,8
-        jae     @lxh_e
 @@:
-        shl     edx,cl
-        or      edx,eax
-        inc     esi
-        jmp     @lxh_l
-@lxh_e:
         mov     al,M_INT
         stosb
         mov     eax,edx

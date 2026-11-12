@@ -14,7 +14,7 @@ CORE = ['main.asm', 'vm/exec.asm', 'vm/flow.asm', 'vm/calls.asm', 'vm/sys.asm', 
         'vm/builtins.asm', 'vm/bc.asm', 'comp/lex.asm', 'comp/decl.asm', 'comp/block.asm', 'comp/ctl.asm', 'comp/comp.asm',
         'comp/expr.asm', 'comp/link.asm', 'comp/list.asm', 'mem/far.asm',
         'mem/prog.asm', 'mem/sym.asm', 'mem/str.asm', 'mem/arr.asm',
-        'io/io.asm', 'io/repl.asm', 'io/file.asm', 'io/plat.asm',
+        'io/io.asm', 'io/repl.asm', 'io/chan.asm', 'io/fio.asm', 'io/plat.asm',
         'float/flt.asm', 'float/ftr.asm', 'float/fpu.asm', 'float/dbl.asm', 'vm/dbg.asm', 'regions.asm']
 UI = ['ui/scr.asm', 'ui/mouse.asm', 'ui/compl.asm', 'ui/text.asm',
       'ui/edit.asm', 'ui/draw.asm', 'ui/menu.asm', 'ui/dlg.asm',

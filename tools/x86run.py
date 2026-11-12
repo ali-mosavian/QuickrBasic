@@ -77,7 +77,7 @@ def run(jobs: dict[str, str | tuple[str, str]], work: Path, limit_ms: int = 6000
             env=env,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            timeout=600,
+            timeout=max(600, 20 * len(names)),  # about 9 s a job: a fixed 600 cut a long batch
         )
     evs = [json.loads(x) for x in (work / "events.txt").read_text().splitlines()]
     ends = [e for e in evs if e.get("ev") == "end"]

@@ -1,19 +1,17 @@
 ; ==========================================================================
 ; plat.asm - the DOS platform: console, files, clock
 ; ==========================================================================
-; holds:    plt_putc, plt_getline, plt_getc, plt_exit, plt_open, plt_close,
-;           plt_chkin, plt_chkout, plt_clrch, plt_rdtim, plt_settim, plt_init
-; uses:     INT 21h handles, the BIOS tick at 0040:006Ch, inbuf
-; data:     NFILE slots: fdev (FFh free), flfn, ffd (handle), fmd (40h read,
-;           80h write), fstt/flk (the look-ahead). cin: the input slot, FFh
-;           standard input. obuf: standard output, flushed on NL, before a
-;           read and at the exit.
+; holds:    plt_putc, plt_getline, plt_getc, plt_getb, plt_exit, plt_rdtim,
+;           plt_settim, plt_init
+; uses:     INT 21h handles, the BIOS tick at 0040:006Ch, inbuf, ch_getb
+; data:     cin: FFh standard input, else the input channel (io/chan.asm).
+;           obuf: standard output, flushed on NL, before a read and at the
+;           exit.
 ; calls:
 ;   plt_getline        LF ends a line, CR too in a file
-;     plt_getb         a file: one byte ahead, ST 40h with the last
+;     plt_getb         standard input's, else ch_getb
 ;       plt_raw        AH=3Fh
-;   plt_putc           obuf; a file directly
-;   plt_open           device 0 stdin, 3 and 4 stdout, others DOS files
+;   plt_putc           obuf
 ; ==========================================================================
 
 include x86f.inc
@@ -22,15 +20,10 @@ include x86f.inc
 ; ::::::::::::::
 ; plt_init - the standard handles, the STOP key's vectors, the clock's origin.
 ;
-; out:    cin, outh, inh, isdev, fdev  ready
+; out:    cin, inh, isdev  ready
 ; ::::::::::::::
 plt_init:
         mov     [g_state.io.cin],0FFh
-        mov     [g_state.io.outh],1
-        mov     edi,offset g_state.fl.fdev
-        mov     ecx,NFILE
-        mov     al,0FFh
-        rep     stosb
         mov     ax,4400h
         xor     ebx,ebx
         int     21h
@@ -163,8 +156,6 @@ plt_exit:
 ; keeps:  all
 ; ::::::::::::::
 plt_putc:
-        cmp     [g_state.io.outh],1
-        jne     @ppc_f
         push    ebx
         cmp     al,NL
         jne     @ppc_b
@@ -189,17 +180,6 @@ plt_putc:
         call    plt_flush
 @ppc_r:
         ret
-@ppc_f:
-        pushad
-        mov     [g_state.io.fb],al
-        mov     ah,40h
-        movzx   ebx,[g_state.io.outh]
-        mov     ecx,1
-        mov     edx,offset g_state.io.fb
-        int     21h
-        popad
-        ret
-
 ; ::::::::::::::
 ; plt_getline - read a line into inbuf; only what follows the last full 80.
 ;
@@ -270,20 +250,12 @@ plt_getline:
         call    plt_getb
         jc      @pgl_e
         cmp     al,10
-        je      @pgl_lf
-        and     [g_state.io.ccr],0
+        je      @pgl_d
         cmp     al,13
         jne     @pgl_p
         cmp     [g_state.io.cin],0FFh
         je      @pgl_c
-        mov     [g_state.io.ccr],1      ; a file's CR LF: one line's end
-        jmp     @pgl_d
-@pgl_lf:
-        cmp     [g_state.io.ccr],0
-        je      @pgl_d
-        and     [g_state.io.ccr],0
-        test    esi,esi
-        jz      @pgl_c
+        call    ch_skiplf               ; a file's CR LF: one line's end
         jmp     @pgl_d
 @pgl_p:
         mov     [g_inbuf+esi],al
@@ -295,8 +267,6 @@ plt_getline:
 @pgl_e:
         test    esi,esi
         jnz     @pgl_d
-        cmp     [g_state.io.cin],0FFh
-        jne     @pgl_d
         pop     esi
         stc
         ret
@@ -343,53 +313,17 @@ plt_getc:
         ret
 
 ; ::::::::::::::
-; plt_getb - the next input byte; a file reads one ahead, as the KERNAL.
+; plt_getb - the next input byte: standard input's, or the input channel's.
 ;
-; in:     cin  the slot, FFh standard input
+; in:     cin  FFh standard input, else a channel
 ; out:    AL  the byte
 ;         CF  set at the end
-;         iost  40h once a file's last byte is read
 ; keeps:  all but AX
 ; ::::::::::::::
 plt_getb:
         cmp     [g_state.io.cin],0FFh
         je      plt_raw
-        push    ebx
-        movzx   ebx,[g_state.io.cin]
-        cmp     [g_state.fl.fstt+ebx],0
-        jne     @pgb_h
-        call    plt_raw
-        jc      @pgb_x
-        mov     [g_state.fl.flk+ebx],al
-        mov     [g_state.fl.fstt+ebx],1
-@pgb_h:
-        cmp     [g_state.fl.fstt+ebx],1
-        jne     @pgb_n
-        mov     ah,[g_state.fl.flk+ebx]
-        push    eax
-        call    plt_raw
-        jc      @pgb_l
-        mov     [g_state.fl.flk+ebx],al
-        pop     eax
-        mov     al,ah
-        pop     ebx
-        clc
-        ret
-@pgb_l:
-        mov     [g_state.fl.fstt+ebx],2
-        mov     [g_state.io.iost],40h
-        pop     eax
-        mov     al,ah
-        pop     ebx
-        clc
-        ret
-@pgb_x:
-        mov     [g_state.fl.fstt+ebx],2
-@pgb_n:
-        mov     [g_state.io.iost],40h
-        pop     ebx
-        stc
-        ret
+        jmp     ch_getb
 
 ; ::::::::::::::
 ; plt_raw - read one byte of the input handle.
@@ -419,233 +353,6 @@ plt_raw:
         ret
 @prw_e:
         stc
-        ret
-
-; ::::::::::::::
-; plt_find - the slot of a file.
-;
-; in:     AL  the file number
-; out:    BX  the slot
-;         CF  set when it is not open
-; keeps:  EAX, SI
-; ::::::::::::::
-plt_find:
-        mov     ebx,NFILE-1
-@pfi_l:
-        cmp     [g_state.fl.fdev+ebx],0FFh
-        je      @pfi_n
-        cmp     al,[g_state.fl.flfn+ebx]
-        je      @pfi_y
-@pfi_n:
-        dec     ebx
-        jns     @pfi_l
-        stc
-        ret
-@pfi_y:
-        clc
-        ret
-
-; ::::::::::::::
-; plt_open - open file fln; a DOS file is written for fsa 1 or ",W".
-;
-; The name ends at its first comma, at most 16 characters.
-;
-; in:     fln, fdv, fsa, sln, spt  the file
-; out:    CF  set: AL is the KERNAL error 1, 2, 4 or 8
-;         iost  0
-; keeps:  SI
-; ::::::::::::::
-plt_open:
-        push    esi
-        mov     [g_state.io.iost],0
-        mov     al,[g_state.io.fln]
-        call    plt_find
-        mov     al,2
-        jnc     @pop_e
-        mov     ebx,NFILE-1
-@pop_f:
-        cmp     [g_state.fl.fdev+ebx],0FFh
-        je      @pop_g
-        dec     ebx
-        jns     @pop_f
-        mov     al,1
-@pop_e:
-        pop     esi
-        stc
-        ret
-@pop_g:
-        mov     [g_state.fl.fstt+ebx],0
-        mov     al,[g_state.io.fdv]
-        test    al,al
-        jnz     @pop_n0
-        mov     al,40h
-        xor     ecx,ecx
-        jmp     @pop_s
-@pop_n0:
-        cmp     al,3
-        je      @pop_o
-        cmp     al,4
-        jne     @pop_h
-@pop_o:
-        mov     al,80h
-        mov     ecx,1
-@pop_s:
-        mov     [g_state.fl.fmd+ebx],al
-        mov     [g_state.fl.ffd+ebx],cl
-        mov     al,[g_state.io.fln]
-        mov     [g_state.fl.flfn+ebx],al
-        mov     al,[g_state.io.fdv]
-        mov     [g_state.fl.fdev+ebx],al
-        pop     esi
-        clc
-        ret
-@pop_h:
-        mov     dl,40h
-        cmp     [g_state.io.fsa],1
-        jne     @pop_m
-        mov     dl,80h
-@pop_m:
-        push    edx
-        call    str_near
-        pop     edx
-        xor     edi,edi
-        movzx   ecx,[g_state.sg.sln]
-@pop_c:
-        cmp     edi,ecx
-        je      @pop_z
-        lodsb
-        cmp     al,','
-        je      @pop_w
-        mov     [g_state.io.fnam+edi],al
-        inc     edi
-        cmp     edi,16
-        jb      @pop_c
-        jmp     @pop_z
-@pop_w:
-        mov     ah,cl
-        push    ecx
-        mov     ecx,esi
-        sub     ecx,offset g_nbuf
-        sub     ah,cl
-        pop     ecx
-        test    ah,ah
-        jz      @pop_z
-@pop_wl:
-        lodsb
-        cmp     al,'W'
-        jne     @pop_wn
-        mov     dl,80h
-        jmp     @pop_z
-@pop_wn:
-        dec     ah
-        jnz     @pop_wl
-@pop_z:
-        mov     al,8
-        test    edi,edi
-        jz      @pop_e
-        mov     byte ptr [g_state.io.fnam+edi],0
-        push    ebx
-        push    edx
-        mov     edx,offset g_state.io.fnam
-        test    dl,dl
-        pop     eax
-        push    eax
-        test    al,80h
-        jnz     @pop_cr
-        mov     ax,3D00h
-        int     21h
-        jmp     @pop_rs
-@pop_cr:
-        mov     ah,3Ch
-        xor     ecx,ecx
-        int     21h
-@pop_rs:
-        pop     edx
-        pop     ebx
-        jnc     @pop_ok
-        mov     al,4
-        jmp     @pop_e
-@pop_ok:
-        mov     cl,al
-        mov     al,dl
-        jmp     @pop_s
-
-; ::::::::::::::
-; plt_close - close a file; not open: nothing.
-;
-; in:     AL  the file number
-; keeps:  SI, DI
-; ::::::::::::::
-plt_close:
-        call    plt_find
-        jc      @pcl_r
-        mov     [g_state.fl.fdev+ebx],0FFh
-        movzx   ebx,[g_state.fl.ffd+ebx]
-        cmp     ebx,2
-        jb      @pcl_r
-        mov     ah,3Eh
-        int     21h
-@pcl_r:
-        ret
-
-; ::::::::::::::
-; plt_chkin - input from a file.
-;
-; in:     AL  the file number
-; out:    CF  set: AL is the KERNAL error 3 or 6
-; keeps:  SI, DI
-; ::::::::::::::
-plt_chkin:
-        call    plt_find
-        mov     al,3
-        jc      @pck_r
-        test    [g_state.fl.fmd+ebx],40h
-        mov     al,6
-        jz      @pck_e
-        mov     [g_state.io.cin],bl
-        movzx   ax,[g_state.fl.ffd+ebx]
-        mov     [g_state.io.inh],ax
-        clc
-        ret
-@pck_e:
-        stc
-@pck_r:
-        ret
-
-; ::::::::::::::
-; plt_chkout - output to a file.
-;
-; in:     AL  the file number
-; out:    CF  set: AL is the KERNAL error 3 or 7
-; keeps:  SI, DI
-; ::::::::::::::
-plt_chkout:
-        call    plt_find
-        mov     al,3
-        jc      @pko_r
-        test    [g_state.fl.fmd+ebx],80h
-        mov     al,7
-        jz      @pko_e
-        call    plt_flush
-        movzx   ax,[g_state.fl.ffd+ebx]
-        mov     [g_state.io.outh],ax
-        clc
-        ret
-@pko_e:
-        stc
-@pko_r:
-        ret
-
-; ::::::::::::::
-; plt_clrch - back to standard input and output.
-;
-; out:    cin  FFh
-; keeps:  all but AL
-; ::::::::::::::
-plt_clrch:
-        mov     [g_state.io.cin],0FFh
-        and     [g_state.io.inh],0
-        mov     [g_state.io.outh],1
         ret
 
 ; ::::::::::::::

@@ -194,7 +194,7 @@ GRAMMAR: dict[str, str] = {
     "FOR": "fv = e fst TO e fk ( STEP e fk for | for1 )",
     "NEXT": "nv { , nv }",
     "DATA": "data",
-    "INPUT": "!INBEG ( '\"' str !SPR ( ; !INPR | , !INLN ) | !INPR ) lv in { , lv in } !INEND",
+    "INPUT": "( # e toi !FIIN , !INBEG !INFILE lv in { , lv in } !INEND !FICLR | !INBEG ( '\"' str !SPR ( ; !INPR | , !INLN ) | !INPR ) lv in { , lv in } !INEND )",
     "DIM": "[ SHARED ] dv { , dv }",
     "CONST": "lv = e let { , lv = e let }",
     "DEFINT": "data",
@@ -215,14 +215,37 @@ GRAMMAR: dict[str, str] = {
     "ON": "e on onl { , onl }",
     "DEF": "def",
     "POKE": "e toi , e tob !POKE",
-    "PRINT": "pr",
+    "PRINT": "( # e toi !FIOUT , pr !FICLR | pr )",
+    "WRITE": "( # e toi !FIOUT , wr !FICLR | wr )",
+    "LINE": "INPUT ( # e toi !FIIN , !INLN lv lin !FICLR | [ ; ] [ '\"' str !SPR ( ; | , ) ] !INLN lv lin )",
+    "OPEN": "!ODEF e tos ( [ FOR ( INPUT !OMI | OUTPUT !OMO | APPEND !OMA | RANDOM !OMR | BINARY !OMB ) ]"
+            " [ ACCESS ( READ [ WRITE ] | WRITE ) ] [ SHARED | LOCK ( READ [ WRITE ] | WRITE ) ]"
+            " AS [ # ] e toi [ LEN = e toi !OREC ] !OPEN | , [ # ] e toi , e tos [ , e toi !OREC ] !OPEN2 )",
+    "CLOSE": "( $ !CLALL | [ # ] e toi !CLOSE { , [ # ] e toi !CLOSE } )",
+    "RESET": "!CLALL",
+    "KILL": "e tos !KILL",
+    "MKDIR": "e tos !MKDIR",
+    "RMDIR": "e tos !RMDIR",
+    "CHDIR": "e tos !CHDIR",
+    "NAME": "e tos AS e tos !NAME",
+    "FILES": "( $ n0 narg | e tos n0 n1 narg ) !FILES",
+    "SEEK": "[ # ] e toi , e toi !SEEK",
+    "GET": "[ # ] e toi ( , ( , n0 narg va | e toi ( , va | !GNV ) ) | n0 narg !GNV ) !GET",
+    "PUT": "[ # ] e toi ( , ( , n0 narg va | e toi ( , va | !GNV ) ) | n0 narg !GNV ) !PUT",
+    "FIELD": "[ # ] e toi !FLDB , e toi AS va !FLD { , e toi AS va !FLD }",
+    "LSET": "va = e tos !LSET",
+    "RSET": "va = e tos !RSET",
+    "BSAVE": "e tos , e toi , e toi !BSAVE",
+    "BLOAD": "e tos ( , e toi n0 n1 narg | n0 narg ) !BLOAD",
+    "LOCK": "[ # ] e toi [ , e toi [ TO e toi !DROP ] !DROP ] !LOCK",
+    "UNLOCK": "[ # ] e toi [ , e toi [ TO e toi !DROP ] !DROP ] !LOCK",
     "CLEAR": "!CLR",
     "SWAP": "swap",
     "ERROR": "e toi !ERROR",
     "TRON": "!TRON",
     "TROFF": "!TROFF",
     "RANDOMIZE": "( $ !RNDQ | e tod ) !RNDZ",
-    "SLEEP": "( $ n0 | e toi ) !SLEEP",
+    "SLEEP": "( $ n0 narg | e toi ) !SLEEP",
     "DATE$": "= e tos !SDATE",
     "TIME$": "= e tos !STIME",
     "ENVIRON": "e tos !ENVSET",
@@ -283,8 +306,10 @@ def thompson(text: str, nfa: list[NState]) -> int:
                 if w == "{":
                     nfa[a].eps.append(b)
                     nfa[b].eps.append(a)
+                nfa[cur].eps.append(a)
             else:
                 a, b = new(), new()
+                nfa[cur].eps.append(a)
                 if w == "$":
                     sym = ("eos",)
                 elif w.startswith("!"):
@@ -299,7 +324,6 @@ def thompson(text: str, nfa: list[NState]) -> int:
                         a = m
                     sym = ("tok", last)
                 nfa[a].edges.append((sym, b))
-            nfa[cur].eps.append(a)
             cur = b
         return s, cur
 
@@ -361,7 +385,7 @@ def parser() -> tuple[Dfa, list[int], dict[str, int]]:
             elif sym[0] == "eos":
                 d.delta[me][cls[0]] = ("eos", get(frozenset(ts)))
     m, named = minimize(d, named)
-    assert len(m.delta) < 0xFF
+    assert len(m.delta) < 0xFFFF
     return m, cls, named
 
 
@@ -369,9 +393,10 @@ def parser() -> tuple[Dfa, list[int], dict[str, int]]:
 
 
 def rows(name: str, kind: str, vals: list) -> list[str]:
-    """A table as db or dw lines of at most 100 columns."""
-    text = [f"0{v:02X}h" if kind == "db" else (v if isinstance(v, str) else f"0{v:04X}h") for v in vals]
-    out, line = [f"{name:<8} label   {'byte' if kind == 'db' else 'word'}"], []
+    """A table as db, dw or dd lines of at most 100 columns."""
+    width = {"db": 2, "dw": 4, "dd": 8}[kind]
+    text = [v if isinstance(v, str) else f"0{v:0{width}X}h" for v in vals]
+    out, line = [f"{name:<8} label   {dict(db='byte', dw='word', dd='dword')[kind]}"], []
     for x in text:
         if line and 16 + len(",".join([*line, x])) > 100:
             out.append(f"        {kind}      " + ",".join(line))
@@ -396,7 +421,7 @@ def tables() -> dict:
         "kw_acc": [lab for lab in sd.label],
         "chr_tok": [CHAR_TOK.get(b, 0) for b in range(256)],
         "ps_cls": pcls,
-        "ps_tab": [(PS_CODE.get(a, a), nx if nx >= 0 else 0xFF) for row in pd.delta for a, nx in row],
+        "ps_tab": [(PS_CODE.get(a, a), nx if nx >= 0 else 0xFFFF) for row in pd.delta for a, nx in row],
         # a token that starts no statement: state 0, all errors; ps_ent1 FFh n's
         "ps_ent": [named[by_tok[t]] if t in by_tok else 0 for t in range(0x80, 0xFF)],
         "ps_ent1": [named[by_tok[0x100 + n]] if 0x100 + n in by_tok else 0 for n in range(len(PAGE1))],
@@ -428,9 +453,9 @@ def emit(T: dict) -> str:
         *rows("g_kw_acc", "dw", T["kw_acc"]),
         *rows("g_chr_tok", "db", T["chr_tok"]),
         *rows("g_ps_cls", "db", T["ps_cls"]),
-        *rows("g_ps_tab", "dw", ps),
-        *rows("g_ps_ent", "db", T["ps_ent"]),
-        *rows("g_ps_ent1", "db", T["ps_ent1"]),
+        *rows("g_ps_tab", "dd", ps),
+        *rows("g_ps_ent", "dw", T["ps_ent"]),
+        *rows("g_ps_ent1", "dw", T["ps_ent1"]),
         "        .code",
         "endif",
     ]

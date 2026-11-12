@@ -297,6 +297,47 @@ qbklist macro   m
         m       CVD,sc_cvd
         m       CVSM,sc_cvsm
         m       CVDM,sc_cvdm
+        m       OPEN2,sc_open2
+        m       ODEF,sc_odef
+        m       OMI,sc_omi
+        m       OMO,sc_omo
+        m       OMA,sc_oma
+        m       OMR,sc_omr
+        m       OMB,sc_omb
+        m       OREC,sc_orec
+        m       CLALL,sc_clall
+        m       SLINE,sc_sline
+        m       WI,sc_wi
+        m       WF,sc_wf
+        m       WD,sc_wd
+        m       WS,sc_ws
+        m       WCOM,sc_wcom
+        m       EOF,sc_eof
+        m       LOF,sc_lof
+        m       LOC,sc_loc
+        m       SEEKF,sc_seekf
+        m       SEEK,sc_seek
+        m       FREEF,sc_freef
+        m       INPS,sc_inps
+        m       FATTR,sc_fattr
+        m       KILL,sc_kill
+        m       NAME,sc_name
+        m       MKDIR,sc_mkdir
+        m       RMDIR,sc_rmdir
+        m       CHDIR,sc_chdir
+        m       FILES,sc_files
+        m       GET,sc_get
+        m       PUT,sc_put
+        m       GNV,sc_gnv
+        m       FLDB,sc_fldb
+        m       FLD,sc_fld
+        m       LSET,sc_lset
+        m       RSET,sc_rset
+        m       BSAVE,sc_bsave
+        m       BLOAD,sc_bload
+        m       LOCK,sc_lock
+        m       DROP,sc_drop
+        m       NFA,sc_nfa
         endm
 kc      = K_MID2+1
 kdef    macro   n,h

@@ -468,7 +468,7 @@ g_ops   label   dword
 g_calls dd      sc_ipr,sc_fpr,sc_spr,sc_pnl,sc_pzone,sc_ptab,sc_pspc
         dd      sc_fin,sc_sin,sc_fget,sc_sget,sc_inbeg,sc_inpr,sc_infile,sc_inend
         dd      sc_fread,sc_sread,sc_res,sc_resl,sc_dim
-        dd      sc_open,sc_close,sc_fiout,sc_fiin,sc_ficlr,sc_load,sc_save,sc_vfy
+        dd      sc_open,sc_close,sc_fiout,sc_fiin,sc_ficlr,sc_nfa,sc_nfa,sc_nfa
         dd      sc_run,sc_runl,sc_list,sc_cont,sc_clr,sc_new,sc_nodir,sc_end,sc_stop
         dd      sc_poke,sc_wait,sc_wait2,sc_sys,sc_inln
         dd      sc_ipow,sc_fpow,sc_fti,sc_sti,sc_ist

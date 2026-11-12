@@ -168,7 +168,6 @@ TMEM     ends
 
 TIO      struc                   ; input and output
     fline   dw      ?               ; loading a file: its line, for a warning
-    ccr     db      ?               ; plt_getline: a file's line ended at a CR
     ocap    db      ?
     pcol    db      ?
     sbx     db      ?
@@ -193,14 +192,22 @@ TIO      struc                   ; input and output
     lq      db      ?
 TIO      ends
 
-TFILES   struc                   ; the open files, by number
-    fdev    db      NFILE dup(?)
-    flfn    db      NFILE dup(?)
-    ffd     db      NFILE dup(?)
-    fmd     db      NFILE dup(?)
-    fstt    db      NFILE dup(?)
-    flk     db      NFILE dup(?)
-TFILES   ends
+TCHAN    struc                   ; a channel (io/chan.asm)
+    cnum    db      ?               ; its file number, 0 free
+    ckind   db      ?               ; CK_*
+    cmode   db      ?               ; FM_*
+    ccol    db      ?               ; its output column while another is used
+    chnd    dw      ?               ; the DOS handle
+    creclen dw      ?               ; RANDOM's record length
+    cbn     dw      ?               ; bytes in cbuf
+    cbp     dw      ?               ; read ahead: the next one
+    cdirty  db      ?               ; cbuf holds bytes to write
+    ceof    db      ?               ; GET read past the end
+    cpos    dd      ?               ; the file's offset of cbuf
+    clast   dd      ?               ; LOC: the last record, or byte
+    cfld    dw      ?               ; FIELD's next offset
+    cbuf    db      CBSZ dup(?)
+TCHAN    ends
 
 TFLT     struc                   ; the float routines
     fx      db      ?
@@ -258,7 +265,6 @@ TSTATE   struc
     sg      TSTR    <>
     mm      TMEM    <>
     io      TIO     <>
-    fl      TFILES  <>
     ft      TFLT    <>
     dbg     TDBG    <>
 TSTATE   ends

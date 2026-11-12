@@ -119,7 +119,10 @@ sc_inpr:
 ; ::::::::::::::
 sc_infile:
         or      [g_state.io.infl],80h
-        call    io_read
+@@:
+        call    io_read                 ; empty lines skipped
+        cmp     [g_state.io.inlen],0
+        je      @B
         jmp     ex_lp
 
 ; ::::::::::::::
@@ -617,111 +620,6 @@ g_dimst dd      ?                       ; DIM's count: bit 7 a STATIC's array, f
         .code
 
 ; ::::::::::::::
-; sc_open - OPEN ( lfn [dev [sa [name]]] n -- ).
-; ::::::::::::::
-sc_open:
-        call    fil_def
-        dpop    eax
-        mov     [g_state.rn.cnarg],al
-        cmp     al,4
-        jb      @sop_3
-        dpop    eax
-        call    str_get
-@sop_3:
-        cmp     [g_state.rn.cnarg],3
-        jb      @sop_2
-        dpop    eax
-        mov     [g_state.io.fsa],al
-@sop_2:
-        cmp     [g_state.rn.cnarg],2
-        jb      @sop_1
-        dpop    eax
-        mov     [g_state.io.fdv],al
-@sop_1:
-        dpop    eax
-        mov     [g_state.io.fln],al
-        call    fil_open
-        jmp     ex_lp
-
-; ::::::::::::::
-; fil_args - LOAD's, SAVE's, VERIFY's ( [name [dev [sa]]] n -- ), then aret.
-;
-; out:    fdv, fsa, sln, spt  the file, the defaults for the rest
-; ::::::::::::::
-fil_args:
-        call    fil_def
-        dpop    eax
-        mov     [g_state.rn.cnarg],al
-        cmp     al,3
-        jb      @fa_2
-        dpop    eax
-        mov     [g_state.io.fsa],al
-@fa_2:
-        cmp     [g_state.rn.cnarg],2
-        jb      @fa_1
-        dpop    eax
-        mov     [g_state.io.fdv],al
-@fa_1:
-        cmp     [g_state.rn.cnarg],1
-        jb      @fa_0
-        dpop    eax
-        call    str_get
-@fa_0:
-        jmp     [g_state.rn.aret]
-
-; ::::::::::::::
-; sc_load - LOAD ( [name [dev [sa]]] n -- ).
-; ::::::::::::::
-sc_load:
-        mov     [g_state.rn.aret],offset fil_load
-        jmp     fil_args
-; ::::::::::::::
-; sc_save - SAVE ( [name [dev [sa]]] n -- ).
-; ::::::::::::::
-sc_save:
-        mov     [g_state.rn.aret],offset fil_save
-        jmp     fil_args
-; ::::::::::::::
-; sc_vfy - VERIFY ( [name [dev [sa]]] n -- ).
-; ::::::::::::::
-sc_vfy:
-        mov     [g_state.rn.aret],offset fil_verify
-        jmp     fil_args
-
-; ::::::::::::::
-; sc_close - CLOSE ( lfn -- ).
-; ::::::::::::::
-sc_close:
-        dpop    eax
-        call    plt_close
-        jmp     ex_lp
-
-; ::::::::::::::
-; sc_fiout - FI.OUT ( lfn -- ): output to the file.
-; ::::::::::::::
-sc_fiout:
-        dpop    eax
-        call    plt_chkout
-        call    fil_chk
-        jmp     ex_lp
-
-; ::::::::::::::
-; sc_fiin - FI.IN ( lfn -- ): input from the file.
-; ::::::::::::::
-sc_fiin:
-        dpop    eax
-        call    plt_chkin
-        call    fil_chk
-        jmp     ex_lp
-
-; ::::::::::::::
-; sc_ficlr - FI.CLR: back to the screen and keyboard.
-; ::::::::::::::
-sc_ficlr:
-        call    fil_clrch
-        jmp     ex_lp
-
-; ::::::::::::::
 ; sc_runl - RUN.L ( line -- ).
 ;
 ; error:  ?UNDEF'D STATEMENT  no such line
@@ -765,6 +663,7 @@ sc_run:
 ; ex_runfirst - run from the first line.
 ; ::::::::::::::
 ex_runfirst:
+        call    ch_clall
         mov     ebx,PROGBASE
         cmp     byte ptr [g_progb+ebx],0
         jne     ex_rungo
@@ -827,6 +726,7 @@ sc_nodir:
 ; in:     ln, SI  where CONT goes on
 ; ::::::::::::::
 sc_end:
+        call    ch_clall
         call    ex_setcont
 
 ; ::::::::::::::

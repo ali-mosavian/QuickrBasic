@@ -104,7 +104,7 @@ cm_ee:
         cmp     al,M_INT
         jne     @cnx_t
         call    cm_mark
-        mov     al,ST_GOTO              ; ELSE line
+        mov     ax,ST_GOTO              ; ELSE line
         call    cm_dfa
         jmp     cm_nx
 @cnx_t:
@@ -215,7 +215,7 @@ cm_if:
         cmp     al,M_INT
         jne     cm_tok
 @cmi_g:
-        mov     al,ST_GOTO
+        mov     ax,ST_GOTO
         jmp     cm_dfa
 
 ; ::::::::::::::
@@ -316,9 +316,9 @@ cm_tok:
         movzx   ebx,al
         cmp     al,TK_X
         je      @cmk_x
-        mov     al,[g_ps_ent+ebx-80h]
+        mov     ax,[g_ps_ent+ebx*2-100h]
 @cmk_e:
-        test    al,al
+        test    ax,ax
         jz      @st_comp1
         push    eax
         call    st_getn
@@ -327,28 +327,29 @@ cm_tok:
 @cmk_x:                                  ; FFh n: its own table, past both
         movzx   ebx,byte ptr [esi+1]
         inc     esi
-        mov     al,[g_ps_ent1+ebx]
+        mov     ax,[g_ps_ent1+ebx*2]
         jmp     @cmk_e
 @cmk_v:
-        mov     al,ST_LET
+        mov     ax,ST_LET
 
 ; ::::::::::::::
-; cm_dfa - run the statement automaton from state AL to its end.
+; cm_dfa - run the statement automaton from state AX to its end.
 ;
-; in:     AL  the state
+; in:     AX  the state
 ;         SI  the statement, past the keyword
 ; error:  ?SYNTAX ERROR  a byte the state has no entry for
 ; ::::::::::::::
 cm_dfa:
-        movzx   edx,al
+        movzx   edx,ax
 @cmd_l:
         call    st_get
         movzx   ebx,al
         movzx   ebx,byte ptr [g_ps_cls+ebx]
         imul    edx,edx,PS_NC
         add     ebx,edx
-        movzx   eax,word ptr [g_ps_tab+ebx*2]
-        movzx   edx,ah
+        mov     eax,[g_ps_tab+ebx*4]    ; the code, the next state above it
+        mov     edx,eax
+        shr     edx,8
         cmp     al,PS_ACC
         jb      @cmd_a
         je      cm_rts
@@ -1570,6 +1571,48 @@ cm_print:
         dec     esi
         pop     eax
         jmp     @cmp_o
+
+; ::::::::::::::
+; cm_write - WRITE items: each by its type, a comma between, PR.NL after.
+;
+; error:  ?SYNTAX ERROR  no , or ; between items
+; ::::::::::::::
+cm_write:
+        call    st_eos
+        jz      @cmp_n
+        call    cm_expr
+        mov     al,K_WS
+        cmp     [g_state.cm.cty],T_STR
+        je      @F
+        mov     al,K_WF
+        cmp     [g_state.cm.cty],T_FLT
+        je      @F
+        mov     al,K_WD
+        cmp     [g_state.cm.cty],T_DBL
+        je      @F
+        mov     al,K_WI
+@@:
+        call    cm_call
+        call    st_eos
+        jz      @cmp_n
+        cmp     al,','
+        je      @F
+        cmp     al,';'
+        jne     err_sn
+@@:
+        inc     esi
+        mov     al,K_WCOM
+        call    cm_call
+        jmp     cm_write
+
+; ::::::::::::::
+; cm_lin - LINE INPUT's target: the line, stored.
+; ::::::::::::::
+cm_lin:
+        mov     al,K_SLINE
+        call    cm_call
+        mov     [g_state.cm.cty],T_STR
+        jmp     cm_store
 
 ; ::::::::::::::
 ; cm_list - LIST [from][-[to]]: the two numbers, CALL LIST.

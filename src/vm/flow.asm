@@ -732,7 +732,7 @@ ex_trap:
         mov     ax,[edi+4]
 @@:
         mov     [g_state.rn.rc1],ax
-        call    fil_clrch
+        call    ch_clr
         call    ex_sbase
         mov     esp,eax
         movzx   ebx,[g_state.rn.ehnd]
@@ -900,6 +900,7 @@ ex_setcont:
 ; ex_end - the run is over: both stacks empty, READY.
 ; ::::::::::::::
 ex_end:
+        call    ch_clall
         mov     esp,[g_state.rn.rsp]
         mov     [g_state.rn.cstk],CSTOP
         jmp     rpl_ready

@@ -816,6 +816,14 @@ cm_un:
         push    eax
         call    cm_chkcl
         pop     ecx
+        movzx   ebx,cl
+        cmp     [g_state.cm.cty],T_INT
+        jne     @F
+        cmp     byte ptr [g_dfnk+ebx],80h       ; STR$ of an INT: through a DOUBLE,
+        jne     @F                              ; every digit kept
+        call    cm_tod
+        jmp     @cu_ds
+@@:
         cmp     [g_state.cm.cty],T_DBL
         jne     @cu_dq
         movzx   ebx,cl
@@ -910,6 +918,8 @@ cm_un:
 ; cm_addr - a variable's linear address: a record's or a field's code, else
 ; its slot's, its Desc's.
 ;
+; out:    vakind  what is there: VA_* shl 24 + its bytes; a string's Desc
+;                 VA_DESC + its STRING * n
 ; error:  ?SYNTAX ERROR  not a variable
 ; ::::::::::::::
 cm_addr:
@@ -918,6 +928,20 @@ cm_addr:
         jne     err_sn
         call    rc_ref
         jc      @cad_v
+        movzx   ebx,[g_rfet]            ; a field's kind, its bytes
+        movzx   eax,[g_rffix]
+        cmp     bl,ET_REC
+        jae     @F
+        cmp     bl,ET_SD
+        je      @F
+        movzx   eax,[g_etsz+ebx]
+@@:
+        or      eax,VA_RAW shl 24
+        cmp     bl,ET_I2
+        jne     @F
+        or      eax,VA_I2 shl 24
+@@:
+        mov     [g_vakind],eax
         mov     ax,[g_rfoff]
         test    ax,ax
         jz      @cad_r
@@ -929,6 +953,7 @@ cm_addr:
         ret
 @cad_v:
         call    var_id
+        call    @cad_k
         test    [g_sinfo+ebx],80h       ; an element: RA.ADDR's
         jz      @F
         push    ebx
@@ -942,11 +967,47 @@ cm_addr:
 @@:
         lea     eax,[VARBASE+ebx*4]
         mov     dl,[g_sinfo+ebx]
+        test    dl,SK_DBL
+        jnz     @F
         and     dl,3
         cmp     dl,2
-        jne     @F
-        lea     eax,[SVBASE+ebx*8]
+        jne     @cad_l
 @@:
+        lea     eax,[SVBASE+ebx*8]
+@cad_l:
+        jmp     cm_lint
+@cad_k:                                 ; vakind of variable EBX
+        mov     dl,[g_sinfo+ebx]
+        mov     eax,VA_RAW shl 24 + 8
+        test    dl,SK_DBL
+        jnz     @cak_r
+        mov     al,4
+        and     dl,3
+        jz      @cak_r                  ; a SINGLE
+        cmp     dl,2
+        je      @cak_s
+        cmp     [g_vtyp+ebx],ET_I4      ; an INT: 2 bytes but a LONG's
+        je      @cak_r
+        mov     eax,VA_I2 shl 24 + 4
+        jmp     @cak_r
+@cak_s:
+        movzx   ecx,word ptr [g_vnam+ebx*2]
+        movzx   eax,word ptr [g_nfix+ecx*2]
+        test    [g_sinfo+ebx],80h
+        jz      @F
+        movzx   eax,word ptr [g_nafix+ecx*2]
+@@:
+        or      eax,VA_DESC shl 24
+@cak_r:
+        mov     [g_vakind],eax
+        ret
+
+; ::::::::::::::
+; cm_va - a variable's place for GET, PUT, FIELD, LSET: ( -- addr kind ).
+; ::::::::::::::
+cm_va:
+        call    cm_addr
+        mov     eax,[g_vakind]
         jmp     cm_lint
 
 ; ::::::::::::::
@@ -996,6 +1057,15 @@ cm_xfn:
         mov     al,[ebx+XF_ARG+edx]
         cmp     al,'R'
         je      @cxf_r
+        cmp     al,'H'                  ; a file number, its # or not
+        jne     @cxf_x
+        call    st_get
+        cmp     al,'#'
+        jne     @F
+        inc     esi
+@@:
+        mov     al,'I'
+@cxf_x:
         push    eax
         call    cm_expr
         pop     eax
@@ -1232,10 +1302,19 @@ g_xfn   label   byte
         xfn     100h+TK1_CVD,K_CVD,1,1,T_DBL,<'S',0,0>
         xfn     100h+TK1_CVSMBF,K_CVSM,1,1,T_FLT,<'S',0,0>
         xfn     100h+TK1_CVDMBF,K_CVDM,1,1,T_DBL,<'S',0,0>
+        xfn     100h+TK1_EOF,K_EOF,1,1,T_INT,<'H',0,0>
+        xfn     100h+TK1_LOF,K_LOF,1,1,T_INT,<'H',0,0>
+        xfn     100h+TK1_LOC,K_LOC,1,1,T_INT,<'H',0,0>
+        xfn     100h+TK1_SEEK,K_SEEKF,1,1,T_INT,<'H',0,0>
+        xfn     100h+TK1_FREEFILE,K_FREEF,0,0,T_INT,<0,0,0>
+        xfn     100h+TK1_INPUTS,K_INPS,1,2,T_STR,<'I','H',0>
+        xfn     100h+TK1_FILEATTR,K_FATTR,2,2,T_INT,<'H','I',0>
         dw      0
 g_cprec db      78h,78h,7Bh,7Bh,7Fh,50h,46h,64h,64h,64h
         db      7Ah,79h,44h,42h,40h     ; \ MOD XOR EQV IMP
 g_xop   db      O_I_DIV,O_I_MOD,O_I_XOR,O_I_EQV,O_I_IMP
+        .data?
+g_vakind dd     ?
         .code
 
         .data
@@ -1243,7 +1322,8 @@ g_cmact dd      cm_expr,cm_lval,cm_lnum,cm_tob,cm_toa,cm_tos,cm_str1,cm_fv
         dd      cm_fst,cm_fork,cm_for,cm_for1,cm_nv,cm_if,cm_on,cm_onl
         dd      cm_print,cm_def,cm_list,cm_dv,cm_dat,cm_rem,cm_store,cm_in
         dd      cm_rd,cm_get,cm_goto,cm_gosub,cm_run,cm_res,cm_ret,cm_n0
-        dd      cm_n1,cm_narg,cm_fop,cm_swap,cm_toi,cm_tod
+        dd      cm_n1,cm_narg,cm_fop,cm_swap,cm_toi,cm_tod,cm_va,cm_write
+        dd      cm_lin
         .code
 
         end

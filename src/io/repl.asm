@@ -142,7 +142,7 @@ err_raise:
         pop     ecx
 @erx_k:
         mov     ah,al
-        call    fil_clrch
+        call    ch_clr
         call    io_fresh
         mov     al,ah
         mov     esp,[g_state.rn.rsp]
@@ -258,6 +258,7 @@ rpl_run:
         mov     esi,[g_state.lnk.ecode]             ; past its statement map
         jmp     ex_lp
 @rpl_x:
+        call    ch_clall
         xor     al,al
         jmp     plt_exit
 
@@ -304,11 +305,13 @@ rpl_file:
         mov     ecx,edi
         sub     ecx,offset g_fnmb
         jz      @rfl_r
-        mov     [g_state.sg.sln],cx
-        mov     [g_state.sg.spt],offset g_fnmb
-        mov     [g_state.io.fln],255
-        mov     [g_state.io.fdv],8
-        call    fil_ropen
+        mov     byte ptr [edi],0
+        mov     esi,offset g_fnmb       ; file 255, read
+        mov     eax,255
+        mov     dl,FM_IN
+        mov     ecx,128
+        call    ch_open
+        call    ch_in
         mov     [g_state.io.lmode],1
         mov     [g_state.io.batch],1
         and     [g_state.io.fline],0
@@ -317,10 +320,9 @@ rpl_file:
         jc      @rfl_d
         inc     [g_state.io.fline]
         call    rpl_enter
-        test    [g_state.io.iost],40h
-        jz      @rfl_l
+        jmp     @rfl_l
 @rfl_d:
-        call    fil_end
+        call    ch_clall
         mov     [g_state.io.lmode],0
         and     [g_state.io.fline],0
         call    prg_drop

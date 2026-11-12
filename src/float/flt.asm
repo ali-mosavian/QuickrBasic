@@ -263,6 +263,55 @@ flt_insg:
         ret
 
 ; ::::::::::::::
+; num_amp - &H or &O and its digits.
+;
+; in:     SI  after the '&'
+; out:    CF  set: neither, SI kept
+;         EDX the value
+;         SI  past it
+; keeps:  all but EAX, ECX, EDX
+; ::::::::::::::
+num_amp:
+        movzx   eax,byte ptr [esi]
+        upcase  al
+        mov     cl,4
+        cmp     al,'H'
+        je      @nam_b
+        mov     cl,3
+        cmp     al,'O'
+        je      @nam_b
+        stc
+        ret
+@nam_b:
+        inc     esi
+        xor     edx,edx
+@nam_l:
+        movzx   eax,byte ptr [esi]
+        upcase  al
+        sub     al,'0'
+        cmp     al,10
+        jb      @nam_d
+        cmp     cl,4
+        jne     @nam_e
+        sub     al,'A'-'0'
+        cmp     al,6
+        jae     @nam_e
+        add     al,10
+@nam_d:
+        cmp     cl,3
+        jne     @F
+        cmp     al,8
+        jae     @nam_e
+@@:
+        shl     edx,cl
+        or      edx,eax
+        inc     esi
+        jmp     @nam_l
+@nam_e:
+        clc
+        ret
+
+; ::::::::::::::
 ; flt_in - read [sign] digits [. digits] [E [sign] digits]; compiling: a scan.
 ;
 ; in:     SI   the text
@@ -273,6 +322,17 @@ flt_insg:
 ; error:  ?OVERFLOW  past the largest FLOAT
 ; ::::::::::::::
 flt_in:
+        call    st_get                  ; &H, &O: an INT's digits
+        cmp     al,'&'
+        jne     @fi_g
+        inc     esi
+        call    num_amp
+        jc      @fi_na
+        mov     eax,edx
+        jmp     flt_from32
+@fi_na:
+        dec     esi
+@fi_g:
         xor     ebx,ebx                 ; w
         mov     dword ptr [g_state.ft.fx],0        ; fx ff fq fd
         call    flt_insg

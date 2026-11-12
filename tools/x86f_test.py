@@ -221,6 +221,29 @@ CASES = {
                      "PRINT 10# ^ 500: PRINT 2# ^ 100000: PRINT SIN(1D+300): PRINT SQR(4#)\r\n"
                      "END\r\nh: PRINT \"e\"; ERR: RESUME NEXT\r\n",
                      " 1.#INF \r\ne 6 \r\n 1.#INF \r\ne 6 \r\ne 5 \r\n 2 \r\n", "ERROR"),
+    # Sequential files: PRINT #, WRITE #, LINE INPUT #, INPUT #, EOF past the last CR LF, APPEND.
+    # OPEN's FOR OUTPUT, a two-byte keyword inside a statement, was a syntax error.
+    "qb_file_seq": ("OPEN \"T1.TXT\" FOR OUTPUT AS #1\r\nPRINT #1, \"hello\"; 42\r\nWRITE #1, \"a,b\", 3.5, -7\r\nCLOSE #1\r\nOPEN \"T1.TXT\" FOR INPUT AS #2\r\nLINE INPUT #2, a$\r\nPRINT \"[\" + a$ + \"]\"\r\nINPUT #2, b$, c, d\r\nPRINT b$; c; d\r\nPRINT EOF(2), LOF(2)\r\nCLOSE\r\nPRINT FREEFILE\r\nOPEN \"T1.TXT\" FOR APPEND AS #1\r\nPRINT #1, \"more\"\r\nCLOSE 1\r\nOPEN \"T1.TXT\" FOR INPUT AS 1\r\nDO WHILE NOT EOF(1)\r\nLINE INPUT #1, x$: PRINT x$\r\nLOOP\r\nCLOSE\r\nKILL \"T1.TXT\"\r\nPRINT \"done\"\r\n",
+                    "[hello 42 ]\r\na,b 3.5 -7 \r\n-1             25 \r\n 1 \r\nhello 42 \r\n"
+                    "\"a,b\",3.5,-7\r\nmore\r\ndone\r\n", "ERROR"),
+    # INPUT$ and SEEK on exact places; INPUT$ gave its error code as the chars read.
+    "qb_file_pos": ("f = FREEFILE\r\nOPEN \"Q.DAT\" FOR OUTPUT AS #f\r\nPRINT #f, \"AB\";\r\nCLOSE #f\r\nOPEN \"Q.DAT\" FOR APPEND AS #f\r\nPRINT #f, \"CD\";\r\nCLOSE #f\r\nOPEN \"Q.DAT\" FOR INPUT AS #f\r\nPRINT LOF(f)\r\na$ = INPUT$(2, f)\r\nPRINT a$, SEEK(f)\r\nSEEK #f, 3\r\nPRINT SEEK(f)\r\nb$ = INPUT$(2, f)\r\nPRINT b$, EOF(f)\r\nKILL \"Q.DAT\"\r\n",
+                    " 4 \r\nAB             3 \r\n 3 \r\nCD            -1 \r\n", "ERROR"),
+    # BINARY and RANDOM: GET, PUT, FIELD, LSET, RSET, LOC, LOF, SEEK. GET and PUT's left-out
+    # record pushed nothing.
+    "qb_file_rec": ("OPEN \"B.DAT\" FOR BINARY AS #1\r\na% = 258: b& = 65536 + 3: c! = 1.5: d# = 2.25: s$ = \"xyz\"\r\nPUT #1, , a%\r\nPUT #1, , b&\r\nPUT #1, , c!\r\nPUT #1, , d#\r\nPUT #1, , s$\r\nPRINT LOF(1), LOC(1), SEEK(1)\r\nGET #1, 1, x%\r\nGET #1, , y&\r\nGET #1, , z!\r\nGET #1, , w#\r\nt$ = SPACE$(3)\r\nGET #1, , t$\r\nPRINT x%; y&; z!; w#; t$\r\nCLOSE\r\nOPEN \"R.DAT\" FOR RANDOM AS #1 LEN = 10\r\nFIELD #1, 4 AS n$, 6 AS m$\r\nLSET n$ = \"ab\": RSET m$ = \"cd\"\r\nPUT #1, 2\r\nLSET n$ = \"zz\"\r\nGET #1, 2\r\nPRINT \"[\" + n$ + \"][\" + m$ + \"]\", LOC(1), LOF(1)\r\nCLOSE\r\nKILL \"B.DAT\": KILL \"R.DAT\"\r\n",
+                    " 21            21            22 \r\n 258  65539  1.5  2.25 xyz\r\n"
+                    "[ab  ][    cd]               2             20 \r\n", "ERROR"),
+    # File errors as QBasic numbers them; the other OPEN, FILEATTR, LOCK, NAME, the directories,
+    # BSAVE and BLOAD.
+    "qb_file_misc": ("ON ERROR GOTO h\r\nOPEN \"NOPE.TXT\" FOR INPUT AS #1\r\nOPEN \"O\", #1, \"A.TXT\": PRINT #1, \"x\": OPEN \"A.TXT\" FOR OUTPUT AS #1\r\nPRINT FILEATTR(1, 1); FREEFILE\r\nLOCK #1: UNLOCK #1, 1 TO 2\r\nCLOSE #1, #2\r\nNAME \"A.TXT\" AS \"B.TXT\"\r\nOPEN \"B.TXT\" FOR INPUT AS 3: LINE INPUT #3, l$: PRINT l$: INPUT #3, z$\r\nCLOSE\r\nMKDIR \"QD\": CHDIR \"QD\": CHDIR \"..\": RMDIR \"QD\"\r\nRMDIR \"QD\"\r\nDIM w%(3): w%(0) = 1: w%(1) = 2: w%(3) = 9\r\nBSAVE \"W.BIN\", VARPTR(w%(0)), 16\r\nDIM v%(3): BLOAD \"W.BIN\", VARPTR(v%(0))\r\nPRINT v%(0); v%(1); v%(3)\r\nKILL \"W.BIN\": KILL \"B.TXT\"\r\nPRINT #7, 1\r\nEND\r\nh: PRINT \"e\"; ERR: RESUME NEXT\r\n",
+                     "e 53 \r\ne 55 \r\n 2  2 \r\nx\r\ne 62 \r\ne 76 \r\n 1  2  9 \r\ne 52 \r\n",
+                     "ERROR"),
+    # &H and &O in DATA and VAL, as in the program's text: a syntax error.
+    "qb_data_amp": ("READ a%, b%: PRINT a%; b%; VAL(\"&O17\")\r\nDATA &H1234, -2\r\n",
+                    " 4660 -2  15 \r\n", "ERROR"),
+    # STR$ of a LONG went through a SINGLE: 21096440.
+    "qb_str_long": ("x& = 21096439: PRINT STR$(x&); STR$(-5)\r\n", " 21096439-5\r\n", "ERROR"),
 }
 
 # Run as files; what standard error showed. A file's CR LF counted as two lines: line 3, 5.

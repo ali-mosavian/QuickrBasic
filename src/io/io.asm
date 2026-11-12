@@ -53,6 +53,8 @@ io_putc:
         jne     @jt_io1
         mov     [g_state.io.pcol],0
 @jt_io1:
+        cmp     [g_och],0
+        jne     ch_putc
         jmp     plt_putc
 @iop_c:
         js      @iop_s
@@ -266,6 +268,9 @@ io_prompt:
 io_read:
         call    plt_getline
         jnc     @F
+        cmp     [g_state.io.cin],0FFh
+        mov     al,62                   ; Input past end of file
+        jne     ch_err
         cmp     [g_state.rn.stpflg],0
         je      err_od
         and     [g_state.rn.stpflg],0              ; the STOP key: BREAK, no CONT
@@ -276,8 +281,11 @@ io_read:
         mov     [g_state.io.inlen],al
         movzx   ebx,al
         mov     byte ptr [g_inbuf+ebx],0
-        mov     [g_state.io.pcol],0
         mov     [g_state.io.inpos],0FFh
+        cmp     [g_state.io.cin],0FFh   ; the console's: its Enter ended the line
+        jne     @F
+        mov     [g_state.io.pcol],0
+@@:
         ret
 
 ; ::::::::::::::

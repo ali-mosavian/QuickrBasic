@@ -142,7 +142,7 @@ ct_dseg:
 ct_redim:
         inc     esi
         mov     [g_state.cm.credim],40h
-        mov     al,[g_ps_ent+TK_DIM-80h]
+        mov     ax,[g_ps_ent+(TK_DIM-80h)*2]
         call    cm_dfa
         mov     [g_state.cm.credim],0
         clc

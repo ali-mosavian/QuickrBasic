@@ -48,7 +48,20 @@ ENDIF
 XSLK    = 48                    ; cm_xlate: the most one op writes past its size
 XLIM    = 252                   ; compile room: ERR code, EOL still fit
 NL      = 13
-NFILE   = 10                    ; open files at most
+NCH     = 16                    ; channels: the console and 15 files (io/chan.asm)
+CBSZ    = 512                   ; a channel's buffer
+RECMAX  = 4096                  ; a record's bytes at most
+CK_CON  = 1                     ; a channel's kind: the console, a DOS file,
+CK_DISK = 2                     ; NUL
+CK_NUL  = 3
+FM_IN   = 1                     ; OPEN's modes
+FM_OUT  = 2
+FM_APP  = 4
+FM_RND  = 8
+FM_BIN  = 16
+VA_DESC = 1                     ; a variable's place (cm_va): a Desc,
+VA_RAW  = 2                     ; its bytes, an INT kept as 2
+VA_I2   = 3
 
 ; a FOR frame on the control stack: mark, ln:2, ip:2, id:1, step:4, limit:4,
 ; cache:4. With whole bounds: step:2, count:2, limit:2, FFFFh (a NaN, no float).
