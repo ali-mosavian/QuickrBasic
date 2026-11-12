@@ -2,13 +2,14 @@
 ; text.asm - the editor's text, the clipboard, files
 ; ==========================================================================
 ; holds:    tx_init, tx_off, tx_len, tx_get, tx_repl, tx_insl, tx_dell,
-;           tx_read, tx_write, cb_*
+;           tx_read, tx_write, tx_mark, tx_mtog, tx_mclr, cb_*
 ; uses:     txb, clpb, wrkb; INT 21h
 ; data:     The text is lines ended by CR, tx_end bytes, tx_n lines, at
 ;           least one; a position in it is an offset in txb. tx_ci, tx_co:
 ;           a line's index and offset, where the next lookup starts. The
 ;           clipboard: cb_len bytes in clpb, whole
-;           lines (cb_ln 1, each ended by CR) or a piece of one.
+;           lines (cb_ln 1, each ended by CR) or a piece of one. A line's
+;           mark (txmk, 0 or 1: a breakpoint) moves with it.
 ; calls:
 ;   tx_repl, tx_insl, tx_dell  tx_off; tx_move the rest along
 ;   tx_read            the file to wrkb, then CR-ended lines, tabs out
@@ -29,7 +30,7 @@ tx_init:
         xor     ax,ax
         mov     [g_ui.tx.tx_ci],ax
         mov     [g_ui.tx.tx_co],ax
-        ret
+        jmp     tx_mclr
 
 ; ::::::::::::::
 ; tx_off - the offset of line AX.
@@ -227,7 +228,19 @@ tx_insl:
         pop     ecx
         inc     ecx
         add     [g_ui.tx.tx_end],cx
+        mov     edx,[esp+28]            ; the marks from line AX up one (pushad's)
+        movzx   eax,[g_ui.tx.tx_n]
         inc     [g_ui.tx.tx_n]
+        movzx   edx,dx
+@txi_m:
+        cmp     eax,edx
+        jbe     @F
+        mov     cl,[g_txmk+eax-1]
+        mov     [g_txmk+eax],cl
+        dec     eax
+        jmp     @txi_m
+@@:
+        mov     byte ptr [g_txmk+edx],0
         mov     [g_ui.tx.tx_ci],0
         mov     [g_ui.tx.tx_co],0
         clc
@@ -259,6 +272,15 @@ tx_dell:
         sub     ecx,ebx
         call    tx_move
         dec     [g_ui.tx.tx_n]
+        movzx   eax,word ptr [esp+28]   ; the marks after line AX down one
+@txd_m:
+        cmp     ax,[g_ui.tx.tx_n]
+        jae     @F
+        mov     cl,[g_txmk+eax+1]
+        mov     [g_txmk+eax],cl
+        inc     eax
+        jmp     @txd_m
+@@:
         mov     [g_ui.tx.tx_ci],0
         mov     [g_ui.tx.tx_co],0
         popad
@@ -386,9 +408,51 @@ tx_read:
         mov     [g_ui.tx.tx_n],bx
         mov     [g_ui.tx.tx_ci],0
         mov     [g_ui.tx.tx_co],0
+        call    tx_mclr
         clc
 @trd_r:
         ret
+
+; ::::::::::::::
+; tx_mark - line AX's mark.
+;
+; out:    AL  it
+; keeps:  all but EAX
+; ::::::::::::::
+tx_mark:
+        movzx   eax,ax
+        mov     al,[g_txmk+eax]
+        ret
+
+; ::::::::::::::
+; tx_mtog - line AX's mark: on, off.
+;
+; keeps:  all
+; ::::::::::::::
+tx_mtog:
+        push    eax
+        movzx   eax,ax
+        xor     byte ptr [g_txmk+eax],1
+        pop     eax
+        ret
+
+; ::::::::::::::
+; tx_mclr - no line marked.
+;
+; keeps:  all
+; ::::::::::::::
+tx_mclr:
+        pushad
+        mov     edi,offset g_txmk
+        mov     ecx,TXMAX/4
+        xor     eax,eax
+        rep     stosd
+        popad
+        ret
+
+        .data?
+g_txmk  db      TXMAX dup(?)            ; a byte per line
+        .code
 
 ; ::::::::::::::
 ; tx_write - the text to the file named at EDX, lines ended by CR LF.

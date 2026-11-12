@@ -42,6 +42,7 @@ externdef ex_nextln:near
 externdef ex_nodir:near
 externdef ex_resolve:near
 externdef ex_setcont:near
+externdef ex_smap:near
 externdef ex_trap:near
 externdef g_lsav:byte
 externdef op_eol:near
@@ -567,6 +568,10 @@ externdef op_ftod:near
 externdef op_itod:near
 externdef sc_dpr:near
 externdef sc_dstr:near
+; vm/dbg.asm
+externdef op_dbg:near
+externdef sc_troff:near
+externdef sc_tron:near
 ; regions.asm
 externdef g_bss_e:byte
 externdef g_cachb:byte

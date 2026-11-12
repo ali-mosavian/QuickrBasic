@@ -116,7 +116,7 @@ def play() -> None:
     keys("next\n")
     assert text()[:3] == ["FOR I = 1 TO 3", "  PRINT I * I", "NEXT"], text()
     # QBasic's status lines (qbasmsgs.txt), less the keys we lack.
-    assert look("editor")[24].startswith(" <SHIFT+F1=HELP> <F6=WINDOW> <F5=RUN>  "), look()[24]
+    assert look("editor")[24].startswith(" <SHIFT+F1=HELP> <F6=WINDOW> <F5=RUN> <F8=STEP>  "), look()[24]
     press(f"0x{F5:x}")
     look("output")
     out = output()
@@ -442,6 +442,103 @@ def play() -> None:
     press(f"0x{F5:x}")
     assert output()[0] == " 7", output()
     press("space")
+
+    # The debugger (QBasic's uidebug.asm). lit(): the lit statement's text line and text, the
+    # breakpoints' lines.
+    F7, F8, F9, F10, ALT_D, ALT_R = 0x41, 0x42, 0x43, 0x44, 0x20, 0x13
+
+    def lit() -> tuple:
+        cur, bps = None, []
+        for r in range(2, 20):
+            a, c = attrs(r), chars(r)
+            on = [i for i in range(1, 79) if a[i] == 0x1F]
+            if on:
+                cur = (r - 2, c[on[0] : on[-1] + 1].decode())
+            if a[78] == 0x47:
+                bps.append(r - 2)
+        return cur, bps
+
+    def step(key: int, want: tuple) -> None:
+        press(f"0x{key:x}")
+        assert lit()[0] == want, (want, lit(), look())
+
+    def open_file(name: str) -> None:
+        press(f"0x{ALT_F:x}", "o")
+        if any("NOT SAVED" in r for r in look()):
+            press("n")
+        keys(name + "\n")
+        assert name.upper() in look()[1], look()
+
+    def cursor(line: int) -> None:
+        press("0x77")  # Ctrl+Home
+        for _ in range(line):
+            press("down")
+
+    dbg = ["DECLARE SUB s ()", "PRINT 1", "FOR i = 1 TO 2: PRINT i: NEXT", "GOSUB g", "s", "PRINT 9", "END",
+           "g: PRINT 7", "RETURN", "SUB s", "PRINT 5", "END SUB"]
+    (work / "DBG.BAS").write_bytes("\r\n".join(dbg).encode() + b"\r\n")
+    (work / "LOOP.BAS").write_bytes(b"DO\r\nx = x + 1: y = y + 1\r\nLOOP\r\n")
+    (work / "STP.BAS").write_bytes(b"PRINT 1: STOP: PRINT 2\r\n")
+    open_file("dbg.bas")
+    # F8 steps a statement at a time, into a GOSUB and a SUB; DECLARE makes no stop.
+    for want in [(1, "PRINT 1"), (2, "FOR i = 1 TO 2"), (2, "PRINT i"), (2, "NEXT"), (2, "PRINT i"), (2, "NEXT"),
+                 (3, "GOSUB g"), (7, "PRINT 7"), (8, "RETURN"), (4, "s"), (10, "PRINT 5"), (11, "END SUB"),
+                 (5, "PRINT 9")]:
+        step(F8, want)
+    assert look()[24].startswith(" <SHIFT+F1=HELP> <F5=CONTINUE> <F9=TOGGLE BKPT> <F8=STEP>"), look()[24]
+    # F10 runs a GOSUB, a call through. Restart stops at the first statement again.
+    press(f"0x{ALT_R:x}", "r")
+    assert lit()[0] == (1, "PRINT 1"), lit()
+    for want in [(2, "FOR i = 1 TO 2"), (2, "PRINT i"), (2, "NEXT"), (2, "PRINT i"), (2, "NEXT"), (3, "GOSUB g"),
+                 (4, "s"), (5, "PRINT 9")]:
+        step(F10, want)
+    # A breakpoint is its line's colour; F5 stops there. Clear All takes it away.
+    cursor(10)
+    press(f"0x{F9:x}")
+    assert lit()[1] == [10], lit()
+    press(f"0x{ALT_R:x}", "r", f"0x{F5:x}")
+    assert lit() == ((10, "PRINT 5"), [10]), lit()
+    press(f"0x{ALT_D:x}", "c")
+    assert lit()[1] == [], lit()
+    # F7: on to the cursor's line. Set Next Statement: CONT goes on there.
+    cursor(6)
+    step(F7, (6, "END"))
+    press(f"0x{ALT_R:x}", "r")
+    cursor(5)
+    press(f"0x{ALT_D:x}", "n")
+    assert lit()[0] == (5, "PRINT 9"), lit()
+    press(f"0x{F5:x}")
+    assert output()[0] == " 9", output()
+    press("space")
+    # Trace On lights each statement as it runs; the run ends as without it. Labels once failed
+    # in the editor (UNDEF'D STATEMENT): the text was stored as numbered lines, not loaded.
+    press(f"0x{ALT_D:x}", "t")
+    press(f"0x{F5:x}")
+    seen = set()
+    for _ in range(40):
+        s.resume(100)
+        if lit()[0]:
+            seen.add(lit()[0])
+        if output()[24] == "PRESS ANY KEY TO CONTINUE":
+            break
+    assert {(2, "PRINT i"), (7, "PRINT 7"), (10, "PRINT 5")} <= seen, seen
+    assert output()[:7] == [" 1", " 1", " 2", " 7", " 5", " 9", ""], output()
+    press("space")
+    press(f"0x{ALT_D:x}", "t")
+    # STOP, then Continue: CONT was typed to the REPL, which QBasic's keywords lack: a syntax error.
+    open_file("stp.bas")
+    press(f"0x{F5:x}")
+    assert lit()[0] == (0, "PRINT 2"), (lit(), look())
+    press(f"0x{F5:x}")
+    assert output()[:2] == [" 1", " 2"], output()
+    press("space")
+    # Ctrl+Break stops at a statement's start, lit; the Ctrl+C is no key for the editor (a page down).
+    open_file("loop.bas")
+    s.send({"cmd": "key", "scancode": F5, "ascii": 0, "stop": False})  # a loop reads no key
+    s.resume(300)
+    s.send({"cmd": "key", "scancode": 0x2E, "ascii": 3, "stop": False})
+    s.resume(500)
+    assert lit()[0] in [(0, "DO"), (1, "x = x + 1"), (1, "y = y + 1"), (2, "LOOP")], (lit(), look())
 
     press(f"0x{ALT_F:x}", "x")
     if any("NOT SAVED" in r for r in look()):

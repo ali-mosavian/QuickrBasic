@@ -79,7 +79,16 @@ A_START = 14
 A_CONT  = 15
 A_SYNTAX = 16
 A_ABOUT = 17
-A_NONE  = 18
+A_STEP  = 18
+A_PSTEP = 19
+A_TRACE = 20
+A_BP    = 21
+A_BPCLR = 22
+A_SETNX = 23
+A_RESTART = 24
+A_NONE  = 25
+A_BPL   = 47h                   ; a breakpoint's line
+A_CUR   = 1Fh                   ; the statement a stop or trace is at
 ; dlg.asm
 CT_FLD  = 1
 CT_LST  = 2
@@ -216,7 +225,19 @@ TSYNC    struc                   ; the text made the program
     sy_prev dw      ?
     sy_on   db      ?               ; making the program: an error is at sy_i
     sy_hid  db      ?
+    sy_cb   dd      ?               ; sy_walk's routine
 TSYNC    ends
+
+TUDBG    struc                   ; the debugger's UI (ui/dbg.asm)
+    stopd   db      ?               ; 1: stopped, CONT goes on (not after END)
+    hl_on   db      ?               ; 1: hl_ln's columns hl_c0 to hl_c1 lit
+    hl_ln   dw      ?
+    hl_c0   dw      ?
+    hl_c1   dw      ?
+    ud_utl  dw      ?               ; F7's line + 1, 0 none
+    ud_tgt  dw      ?               ; ud_numof's line, its number
+    ud_num  dw      ?
+TUDBG    ends
 
 TIMM     struc                   ; the immediate window
     im_n    dw      ?
@@ -330,6 +351,8 @@ TUIBUF   struc                   ; the big buffers
     dl_mask db      80 dup(?)       ; the Open box's mask
     dl_path db      80 dup(?)       ; the current directory
     ui_ebuf db      64 dup(?)       ; an error's message
+    ud_txt  db      LNBUF dup(?)    ; ud_hlset's line, its body
+    ud_tok  db      LNBUF*5 dup(?)  ; a digit becomes 5 bytes
     dl_dta  db      44 dup(?)       ; the directory search's DTA
     dl_name db      80 dup(?)       ; the file chosen
     ac_list TACE    AC_MAX dup(<>)  ; the completions
@@ -346,5 +369,6 @@ TUI      struc
     dg      TDIALOG <>
     ms      TMOUSE  <>
     ac      TCOMPL  <>
+    ud      TUDBG   <>
     bf      TUIBUF  <>
 TUI      ends

@@ -34,6 +34,7 @@ TCOMP    struc                   ; the compiler
     cstat   db      ?               ; var_find makes a STATIC, not a local
     credim  db      ?               ; 40h: DIM's grammar is REDIM's
     cchk    db      ?               ; 1: the IDE's line check, unlinked
+    cdbg    dd      ?               ; past the statement's DBG, 0 none
     cproc   db      ?               ; the procedure the compiled line is in
 TCOMP    ends
 
@@ -76,6 +77,8 @@ TLEX     struc                   ; the tokenizer
     nlenp   dd      ?
     lxv     dd      ?               ; a whole number's value
     lxm     dd      ?               ; a name's end
+    lxsrc   dd      ?               ; lx_line's text and body, for lxcol
+    lxdst   dd      ?
 TLEX     ends
 
 TRUN     struc                   ; the executor
@@ -233,6 +236,20 @@ TPLAT    struc                   ; the platform: kept over the zeroing
     old1c   df      ?
 TPLAT    ends
 
+TDBG     struc                   ; the debugger (vm/dbg.asm)
+    mode    db      ?               ; DM_*: the stop the next DBG looks for
+    trace   db      ?               ; 1: each statement to hook (TRON)
+    bpon    db      ?               ; 1: a breakpoint is set
+    utl     db      ?               ; 1: until, a one-time stop at line ulnum
+    emit    db      ?               ; 1: a DBG op starts each statement
+    pdep    dd      ?               ; DM_PSTEP: stop at this depth or less
+    ulnum   dw      ?
+    hook    dd      ?               ; trace's routine, 0 none
+    wnum    dw      ?               ; dbg_pos: the line's number
+    wb0     db      ?               ;   its statement's body offsets, from
+    wb1     db      ?               ;   and to (0FFh the line's end)
+TDBG     ends
+
 TSTATE   struc
     cm      TCOMP   <>
     lnk     TLINK   <>
@@ -243,4 +260,5 @@ TSTATE   struc
     io      TIO     <>
     fl      TFILES  <>
     ft      TFLT    <>
+    dbg     TDBG    <>
 TSTATE   ends

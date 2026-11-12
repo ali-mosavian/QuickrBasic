@@ -169,6 +169,7 @@ oplist  macro   m
         m       D_TOI,op_dtoi,1,FX
         m       D_FN,op_dfn,2,FX
         m       D_POW,op_dpow,1,FX
+        m       DBG,op_dbg,1,0
         endm
 
 JSIZE   = 7                     ; a jump op: target line:2 boff:1 mode:1, addr:2
@@ -265,4 +266,6 @@ K_DPR   = K_FIX+20
 K_DSTR  = K_FIX+21
 K_DREAD = K_FIX+22
 K_DIN   = K_FIX+23
-K_N     = K_FIX+24
+K_TRON  = K_FIX+24
+K_TROFF = K_FIX+25
+K_N     = K_FIX+26

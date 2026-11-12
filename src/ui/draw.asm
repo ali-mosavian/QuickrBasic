@@ -152,6 +152,7 @@ dr_row:
         mov     al,' '
         call    sc_fill
         pop     edx
+        call    ud_row
         mov     ax,[g_ui.lp.dr_ln]               ; the selection
         cmp     [g_ui.lp.dr_sk],2
         jne     @drr_p
@@ -330,10 +331,8 @@ dr_skeys:
         cmp     [g_ui.lp.ui_foc],0
         jne     @drk_r
         mov     esi,offset u_kedit
-        cmp     [g_ui.tx.tx_mod],0
-        jne     @drk_r
-        cmp     [g_state.rn.contip],0
-        je      @drk_r
+        call    ui_stopped
+        jnz     @drk_r
         mov     esi,offset u_krun
 @drk_r:
         ret

@@ -24,10 +24,20 @@ ex_lp:
         dispatch
 
 ; ::::::::::::::
-; ex_brk - BREAK at the op dispatch last ran: CONT runs it again.
+; ex_brk - BREAK at the op dispatch last ran: CONT runs it again. With DBG
+; ops (the IDE), a program line goes on to the next statement's start.
 ; ::::::::::::::
 ex_brk:
         call    plt_kflush              ; the Ctrl+C, not a key for the editor
+        cmp     [g_state.dbg.emit],0
+        je      @F
+        cmp     [g_state.rn.ln],DLINE
+        je      @F
+        and     [g_state.rn.stpflg],0
+        mov     [g_state.dbg.mode],DM_STEP
+        mov     esi,[g_state.rn.opip]
+        jmp     ex_lp
+@@:
         mov     esi,[g_state.rn.opip]
         jmp     sc_stop
 
@@ -467,7 +477,7 @@ g_calls dd      sc_ipr,sc_fpr,sc_spr,sc_pnl,sc_pzone,sc_ptab,sc_pspc
         dd      sc_fix,sc_instr,sc_lbnd,sc_ubnd,sc_space,sc_strg,sc_ltrim
         dd      sc_rtrim,sc_ucase,sc_lcase,sc_hex,sc_oct,sc_sfix,sc_mids
         dd      sc_vseg,sc_sadd,sc_err,sc_erl,sc_error,sc_erase
-        dd      sc_dpr,sc_dstr,sc_dread,sc_din
+        dd      sc_dpr,sc_dstr,sc_dread,sc_din,sc_tron,sc_troff
 
 g_bflt  dd      flt_add,flt_sub,flt_mul,flt_div,fn_pow
 g_fntab dd      fn_sgn,fn_int,fn_abs,fn_usr,fn_fre,fn_pos,fn_sqr,fn_rnd,fn_log,fn_exp

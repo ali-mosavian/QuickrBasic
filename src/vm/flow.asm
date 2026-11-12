@@ -721,35 +721,50 @@ ex_trap:
         jmp     @etr_l
 @etr_d:
         mov     [g_state.rn.erl],dx
-        movzx   ebx,word ptr [g_progb+ecx+L_CP]  ; the statement, by the map
-        add     ebx,offset g_cachb
+        mov     ebx,ecx                 ; the statement, by the map
         mov     eax,[g_state.rn.opip]
-        sub     eax,ebx
-        movzx   ecx,byte ptr [ebx-1]
-        lea     edi,[ecx+ecx*2+1]
-        neg     edi
-        add     edi,ebx
-        xor     edx,edx
-        mov     ebp,0FFFFh
-@etr_m:
-        jecxz   @etr_s
-        movzx   ebx,word ptr [edi+1]
-        cmp     ebx,eax
-        ja      @etr_n
-        mov     edx,ebx
-        add     edi,3
-        dec     ecx
-        jmp     @etr_m
-@etr_n:
-        mov     ebp,ebx
-@etr_s:
-        mov     [g_state.rn.rc0],dx
-        mov     [g_state.rn.rc1],bp
+        call    ex_smap
+        mov     ax,[edi+1]
+        mov     [g_state.rn.rc0],ax
+        mov     ax,0FFFFh
+        cmp     ecx,1
+        jbe     @F
+        mov     ax,[edi+4]
+@@:
+        mov     [g_state.rn.rc1],ax
         call    fil_clrch
         call    ex_sbase
         mov     esp,eax
         movzx   ebx,[g_state.rn.ehnd]
         jmp     ex_jump
+
+; ::::::::::::::
+; ex_smap - the map entry of the statement holding code address EAX of
+; line EBX: the last whose code is at EAX or before, else the first. An
+; entry: body offset, code offset:2; the line's EOL's last.
+;
+; out:    EDI  the entry
+;         ECX  the entries from it on
+; ::::::::::::::
+ex_smap:
+        movzx   ebx,word ptr [g_progb+ebx+L_CP]
+        add     ebx,offset g_cachb
+        sub     eax,ebx
+        movzx   ecx,byte ptr [ebx-1]   ; the count, after the entries
+        lea     edi,[ecx+ecx*2+1]
+        neg     edi
+        add     edi,ebx
+@esm_l:
+        cmp     ecx,1
+        jbe     @esm_r
+        movzx   edx,word ptr [edi+4]
+        cmp     edx,eax
+        ja      @esm_r
+        add     edi,3
+        dec     ecx
+        jmp     @esm_l
+@esm_r:
+        ret
 
 ; ::::::::::::::
 ; ex_sbase - the data stack at the running procedure's body's start, or

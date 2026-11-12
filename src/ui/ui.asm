@@ -43,6 +43,7 @@ ui_start:
         mov     [g_ui.tx.syn_on],1
         mov     [g_ui.ed.ed_ins],1
         mov     [g_ui.lp.ui_wrap],1
+        call    ud_init
         call    ms_init
         call    hl_load
         call    tx_init
@@ -165,8 +166,14 @@ endif
         je      ui_find3
         test    al,al
         jnz     @uk_w
+        cmp     ah,41h
+        je      ud_until
+        cmp     ah,42h
+        je      ud_step
+        cmp     ah,43h
+        je      ud_bp
         cmp     ah,44h
-        je      @uk_bar
+        je      ud_pstep
         cmp     ah,3Eh
         je      ui_view
         cmp     ah,3Fh
@@ -494,7 +501,8 @@ ui_act:
         .data
 ui_acts dd      ui_new,ui_open,ui_save,ui_saveas,ui_exit,ed_cut,ed_copy
         dd      ed_paste,ed_clear,ui_view,ui_find,ui_find3,ui_change
-        dd      ui_runp,ui_contp,ui_syntax,ui_about
+        dd      ui_runp,ui_contp,ui_syntax,ui_about,ud_step,ud_pstep
+        dd      ud_trace1,ud_bp,ud_bpclr,ud_setnx,ud_restart
         .code
 
 ; ::::::::::::::
@@ -801,6 +809,7 @@ ui_atline:
 ui_runp:
         call    ui_sync
         jc      @urp_r
+        call    ud_prep
         call    ui_outclr
         mov     [g_ui.lp.ui_rf],1
         mov     dword ptr [g_inbuf],'NUR'
@@ -811,20 +820,46 @@ ui_runp:
         ret
 
 ; ::::::::::::::
+; ui_cancont - CONT can go on: stopped, the text as it was. After END or
+; an error QBasic runs again.
+;
+; out:    CF  set: it cannot
+; ::::::::::::::
+ui_cancont:
+        call    ed_commit
+        call    ui_stopped
+        jnz     @F
+        clc
+        ret
+@@:
+        stc
+        ret
+
+; ::::::::::::::
+; ui_stopped - a stop to go on from, the text as it was.
+;
+; out:    ZF  set: so
+; keeps:  all
+; ::::::::::::::
+ui_stopped:
+        cmp     [g_ui.ud.stopd],0
+        je      @F
+        cmp     [g_ui.tx.tx_mod],0
+        ret
+@@:
+        cmp     [g_ui.ud.stopd],1       ; ZF clear
+        ret
+
+; ::::::::::::::
 ; ui_contp - Run, Continue: CONT after a STOP unless the text changed.
 ; ::::::::::::::
 ui_contp:
-        call    ed_commit
-        cmp     [g_ui.tx.tx_mod],0
-        jne     ui_runp
-        cmp     [g_state.rn.contip],0
-        je      ui_runp
+        call    ui_cancont
+        jc      ui_runp
+        call    ud_prep
         call    ui_out
         mov     [g_ui.lp.ui_rf],1
-        mov     dword ptr [g_inbuf],'TNOC'
-        mov     ax,4
-        call    rpl_enter
-        jmp     rpl_run
+        jmp     rpl_cont
 
 ; ::::::::::::::
 ; ui_exec - Enter in the immediate window: its line run on the output page.
@@ -921,6 +956,7 @@ ui_err:
         cmp     [g_ui.sy.sy_on],0
         je      @uer_l
         and     [g_ui.sy.sy_on],0
+        and     [g_state.io.lmode],0    ; sy_build's, the error ended
         mov     ax,[g_ui.sy.sy_i]
         jmp     @uer_g
 @uer_l:
@@ -935,7 +971,10 @@ ui_err:
 @uer_m:
         mov     al,[g_ui.lp.ui_ecode]
         test    al,al
-        jz      ui_loop
+        jnz     @F
+        call    ud_stop
+        jmp     ui_loop
+@@:
         call    ui_emsg
         mov     esi,offset g_ui.bf.ui_ebuf
         call    dl_err
@@ -1276,19 +1315,25 @@ u_imm      db   'Immediate',0
 u_untl     db   'Untitled',0
 ; QBasic's status lines (qbasmsgs.txt) less the keys we lack; after
 ; each, its keys for the mouse: their last column, their routine
-u_kedit    db   '<Shift+F1=Help> <F6=Window> <F5=Run>',0
+u_kedit    db   '<Shift+F1=Help> <F6=Window> <F5=Run> <F8=Step>',0
            db   15
            dd   ui_nohelp
            db   27
            dd   ui_win
            db   36
            dd   ui_contp
+           db   46
+           dd   ud_step
            db   0
-u_krun     db   '<Shift+F1=Help> <F5=Continue>',0
+u_krun     db   '<Shift+F1=Help> <F5=Continue> <F9=Toggle Bkpt> <F8=Step>',0
            db   15
            dd   ui_nohelp
            db   29
            dd   ui_contp
+           db   46
+           dd   ud_bp
+           db   56
+           dd   ud_step
            db   0
 u_kimm     db   '<Shift+F1=Help> <F6=Window> <Enter=Execute Line>',0
            db   15

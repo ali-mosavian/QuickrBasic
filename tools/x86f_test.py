@@ -175,6 +175,8 @@ CASES = {
     # A procedure's local arrays went with it only at the next RUN: 3000 calls ran out of memory.
     "qb_localarr": ("DECLARE SUB p (n)\r\nFOR i = 1 TO 3000: p i: NEXT: PRINT \"ok\"\r\n"
                     "SUB p (n)\r\nDIM a(2000): a(1) = n\r\nEND SUB\r\n", "ok\r\n", "ERROR"),
+    # TRON, TROFF: the editor's trace; on their own, nothing.
+    "qb_tron": ("TRON: PRINT 1: TROFF: PRINT 2\r\n", " 1 \r\n 2 \r\n", "ERROR"),
     # DOUBLE: 16 digits, D exponents, 8-byte cells through arrays, READ, FIX/INT.
     "qb_dbl": ("a# = 1# / 3#: PRINT a#; 1D+20; 1.5D-07; 2# ^ .5\r\n"
                "DIM d(3) AS DOUBLE: d(2) = 3.141592653589793#: PRINT d(2) * 2\r\n"

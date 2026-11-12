@@ -1,7 +1,7 @@
 ; ==========================================================================
 ; lex.asm - the tokenizer: a typed line becomes the body of a stored line
 ; ==========================================================================
-; holds:    lx_line, lx_word
+; holds:    lx_line, lx_word, g_lxcol
 ; uses:     dfa.inc's tables (tools/x86dfa.py), nam_find
 ; data:     SI the text, DI the body. In the body:
 ;           M_VAR len name nam:2  a name as typed, its suffix too; nam its
@@ -11,6 +11,7 @@
 ;           Spaces go, but in strings, REM and DATA. A number with a point,
 ;           an exponent or 2^31 and over stays text. A keyword is a whole
 ;           word (the scanner's automaton), any other word a name.
+;           lxcol: an item's column in the text, by its body offset.
 ; calls:
 ;   lx_line            each item of the line
 ;     lx_word          a word: its keyword, or a name for nam_find
@@ -30,13 +31,17 @@ include comp/dfa.inc
 ; error:  ?OUT OF MEMORY  from nam_find
 ; ::::::::::::::
 lx_line:
+        mov     [g_state.lx.lxsrc],esi
+        mov     [g_state.lx.lxdst],edi
+lx_item:
         lodsb
         test    al,al
         jz      @lxl_e
         cmp     al,' '
-        je      lx_line
+        je      lx_item
         cmp     al,9
-        je      lx_line
+        je      lx_item
+        call    lx_col
         cmp     al,'"'
         je      @lxl_q
         cmp     al,"'"
@@ -61,7 +66,7 @@ lx_line:
         mov     al,ah
 @@:
         stosb
-        jmp     lx_line
+        jmp     lx_item
 @lxl_e:
         stosb
         ret
@@ -74,7 +79,7 @@ lx_line:
         stosb
         cmp     al,'"'
         jne     @lxq_l
-        jmp     lx_line
+        jmp     lx_item
 @lxl_c:
         mov     al,TK_REM
         stosb
@@ -91,14 +96,14 @@ lx_line:
         cmp     bl,10
         jb      @lxl_n
         stosb                           ; a '.' alone
-        jmp     lx_line
+        jmp     lx_item
 @lxl_n:
         dec     esi
         call    lx_num
-        jmp     lx_line
+        jmp     lx_item
 @lxl_h:
         call    lx_hex
-        jmp     lx_line
+        jmp     lx_item
 @lxl_w:
         dec     esi
         call    lx_fn
@@ -106,7 +111,7 @@ lx_line:
         cmp     al,TK_REM
         je      @lxl_r
         cmp     al,TK_DATA
-        jne     lx_line
+        jne     lx_item
         xor     cl,cl                   ; DATA's text: to a ':' out of quotes
 @lxd_l:
         lodsb
@@ -125,7 +130,31 @@ lx_line:
         jmp     @lxd_l
 @lxd_x:
         stosb
-        jmp     lx_line
+        jmp     lx_item
+
+; ::::::::::::::
+; lx_col - the item at SI-1: its column to lxcol at the body's offset.
+;
+; keeps:  all
+; ::::::::::::::
+lx_col:
+        push    eax
+        push    ebx
+        mov     ebx,edi
+        sub     ebx,[g_state.lx.lxdst]
+        cmp     ebx,255
+        ja      @F
+        lea     eax,[esi-1]
+        sub     eax,[g_state.lx.lxsrc]
+        mov     [g_lxcol+ebx],al
+@@:
+        pop     ebx
+        pop     eax
+        ret
+
+        .data?
+g_lxcol db      256 dup(?)
+        .code
 
 ; ::::::::::::::
 ; lx_fn - DEF FN name, FN name: the word FN and the name after its spaces

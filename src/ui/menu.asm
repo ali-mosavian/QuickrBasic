@@ -302,8 +302,8 @@ mn_drop:
         pop     edx
         test    byte ptr [esi+1],MF_CHK
         jz      @mnd_t
-        cmp     [g_ui.tx.syn_on],0
-        je      @mnd_t
+        call    mn_chk
+        jz      @mnd_t
         mov     al,07h
         mov     ecx,1
         push    edx
@@ -609,6 +609,21 @@ mn_find:
         ret
 
 ; ::::::::::::::
+; mn_chk - the flag of check item ESI: Syntax Checking's, Trace On's.
+;
+; out:    ZF  clear: on
+; keeps:  all
+; ::::::::::::::
+mn_chk:
+        cmp     byte ptr [esi],A_TRACE
+        je      @F
+        cmp     [g_ui.tx.syn_on],0
+        ret
+@@:
+        cmp     [g_state.dbg.trace],0
+        ret
+
+; ::::::::::::::
 ; ui_upper - AL in capitals.
 ; ::::::::::::::
 ui_upper:
@@ -684,17 +699,17 @@ m_srch  db      A_FIND,MF_ED,'&Find...',0,0
         db      A_CHANGE,MF_ED,'&Change...',0,0
         db      0
 m_run   db      A_START,0,'&Start',0,'Shift+F5',0
-        db      A_NONE,MF_GRAY,'&Restart',0,0
+        db      A_RESTART,0,'&Restart',0,0
         db      A_CONT,0,'Co&ntinue',0,'F5',0
         db      0
-m_dbg   db      A_NONE,MF_GRAY,'&Step',0,'F8',0
-        db      A_NONE,MF_GRAY,'&Procedure Step',0,'F10',0
+m_dbg   db      A_STEP,0,'&Step',0,'F8',0
+        db      A_PSTEP,0,'&Procedure Step',0,'F10',0
         db      A_NONE,MF_SEP
-        db      A_NONE,MF_GRAY,'&Trace On',0,0
+        db      A_TRACE,MF_CHK,'&Trace On',0,0
         db      A_NONE,MF_SEP
-        db      A_NONE,MF_GRAY,'Toggle &Breakpoint',0,'F9',0
-        db      A_NONE,MF_GRAY,'&Clear All Breakpoints',0,0
-        db      A_NONE,MF_GRAY,'Set &Next Statement',0,0
+        db      A_BP,MF_ED,'Toggle &Breakpoint',0,'F9',0
+        db      A_BPCLR,0,'&Clear All Breakpoints',0,0
+        db      A_SETNX,MF_ED,'Set &Next Statement',0,0
         db      0
 m_opt   db      A_NONE,MF_GRAY,'&Display...',0,0
         db      A_NONE,MF_GRAY,'Help &Path...',0,0

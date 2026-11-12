@@ -80,6 +80,7 @@ cm_new:
 ; error:  ?SYNTAX ERROR  any other byte
 ; ::::::::::::::
 cm_nx:
+        call    cm_dbgx
         call    st_eos
         jnz     @st_comp4
 
@@ -232,6 +233,42 @@ cm_mark:
         ret
 
 ; ::::::::::::::
+; cm_dbg - DBG before a program statement's code, when the debugger wants
+; it (dbg.emit); not SUB's, FUNCTION's, which only jump past the body.
+;
+; keeps:  all but AL
+; ::::::::::::::
+cm_dbg:
+        and     [g_state.cm.cdbg],0
+        cmp     [g_state.dbg.emit],0
+        je      @F
+        cmp     [g_state.cm.cline],DLINE
+        je      @F
+        cmp     byte ptr [esi],TK_SUB
+        je      @F
+        cmp     byte ptr [esi],TK_FUNCTION
+        je      @F
+        mov     al,O_DBG
+        stosb
+        mov     [g_state.cm.cdbg],edi
+@@:
+        ret
+
+; ::::::::::::::
+; cm_dbgx - after the statement: its DBG gone when it made no code
+; (DECLARE, DEFINT, ...), as QBasic does not stop there.
+;
+; keeps:  all
+; ::::::::::::::
+cm_dbgx:
+        cmp     [g_state.cm.cdbg],edi
+        jne     @F
+        dec     edi
+@@:
+        and     [g_state.cm.cdbg],0
+        ret
+
+; ::::::::::::::
 ; cm_markb - record a statement at body offset AL.
 ;
 ; keeps:  all
@@ -266,6 +303,7 @@ g_stx   dw      NSTM dup(?)             ; its code's offset in xbuf
 ; ::::::::::::::
 cm_tok:
         call    cm_mark
+        call    cm_dbg
         call    ct_stmt
         jnc     cm_rts
         mov     al,[esi]

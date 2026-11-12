@@ -1,7 +1,7 @@
 ; ==========================================================================
 ; sync.asm - the text to the program store, line numbers both ways
 ; ==========================================================================
-; holds:    sy_build, sy_find
+; holds:    sy_build, sy_find, sy_walk
 ; uses:     tx_get, rpl_enter, prg_init, dl_ok
 ; data:     A line's number is its label when it starts with one; a line
 ;           without one takes the number after the line before (0 for the
@@ -9,7 +9,7 @@
 ;           label alone is stored as REM, to be jumped to.
 ; calls:
 ;   sy_build           NEW, then each line through rpl_enter
-;     sy_pass          the numbering, shared with sy_find
+;     sy_pass          the numbering, shared with sy_find, sy_walk
 ; ==========================================================================
 
 include x86f.inc
@@ -25,8 +25,11 @@ include x86f.inc
 sy_build:
         call    prg_init
         mov     [g_ui.sy.sy_md],0
+        mov     [g_state.io.lmode],1    ; as a file loads: labels, its order
         call    sy_pass
+        mov     [g_state.io.lmode],0
         jc      @syb_r
+        call    prg_drop
         and     [g_ui.tx.tx_mod],0
 @syb_r:
         ret
@@ -52,8 +55,18 @@ sy_find:
         ret
 
 ; ::::::::::::::
-; sy_pass - number each line; store it (sy_md 0) or stop at sy_tg (sy_md 1,
-; then 2 when found).
+; sy_walk - each line's index and number to the routine at EDX.
+;
+; in:     EDX  called with AX the index, DX the number
+; ::::::::::::::
+sy_walk:
+        mov     [g_ui.sy.sy_cb],edx
+        mov     [g_ui.sy.sy_md],3
+        jmp     sy_pass
+
+; ::::::::::::::
+; sy_pass - number each line; store it (sy_md 0), stop at sy_tg (sy_md 1,
+; then 2 when found) or call sy_cb (sy_md 3).
 ;
 ; out:    CF  set: a numbering error, shown when storing
 ; ::::::::::::::
@@ -114,6 +127,12 @@ sy_pass:
         mov     [g_ui.sy.sy_prev],dx
         cmp     [g_ui.sy.sy_md],0
         je      @syp_s
+        cmp     [g_ui.sy.sy_md],3
+        jne     @F
+        mov     ax,[g_ui.sy.sy_i]
+        call    [g_ui.sy.sy_cb]
+        jmp     @syp_n
+@@:
         cmp     dx,[g_ui.sy.sy_tg]
         jne     @syp_n
         mov     [g_ui.sy.sy_md],2

@@ -262,6 +262,13 @@ rpl_run:
         jmp     plt_exit
 
 ; ::::::::::::::
+; rpl_cont - CONT from the editor: QBasic has no CONT statement to type.
+; ::::::::::::::
+rpl_cont:
+        and     [g_state.rn.stpflg],0
+        jmp     sc_cont
+
+; ::::::::::::::
 ; rpl_file - run the file the command line names, then exit; no name: back.
 ;
 ; Its lines are stored in its order, a number or none; a label at a line's
