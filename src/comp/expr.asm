@@ -879,8 +879,8 @@ cm_un:
         mov     [g_state.cm.cll],eax
         mov     [g_state.cm.clle],eax
         ret
-@cu_ln:                                 ; LEN(r): a record's, a field's size
-        push    esi
+@cu_ln:                                 ; LEN(r): a record's, a field's, a
+        push    esi                     ; number's size
         push    edi
         inc     esi
         call    st_get
@@ -891,7 +891,7 @@ cm_un:
         cmp     al,M_VAR
         jne     @cul_n
         call    rc_ref
-        jc      @cul_n
+        jc      @cul_v
         call    st_get
         cmp     al,')'
         jne     @cul_n
@@ -907,6 +907,27 @@ cm_un:
         jmp     cm_lint
 @cul_f:
         movzx   eax,[g_rffix]
+        jmp     cm_lint
+@cul_v:                                 ; a scalar: % 2, & ! 4, # 8
+        call    var_id
+        test    [g_sinfo+ebx],80h
+        jnz     @cul_n
+        call    @cad_k
+        call    st_get
+        cmp     al,')'
+        jne     @cul_n
+        mov     eax,[g_vakind]
+        mov     ecx,eax
+        shr     ecx,24
+        cmp     cl,VA_DESC
+        je      @cul_n
+        inc     esi
+        pop     edi
+        add     esp,4
+        movzx   eax,al
+        cmp     cl,VA_I2
+        jne     cm_lint
+        mov     eax,2
         jmp     cm_lint
 @cul_n:
         pop     edi

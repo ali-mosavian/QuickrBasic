@@ -262,6 +262,10 @@ CASES = {
     "qb_inps_long": ('OPEN "I.TMP" FOR OUTPUT AS #1: PRINT #1, STRING$(300, "z"); "ab": CLOSE\r\n'
                      'OPEN "I.TMP" FOR INPUT AS #1: a$ = INPUT$(301, #1): b$ = INPUT$(1, 1): CLOSE\r\n'
                      'KILL "I.TMP": PRINT LEN(a$); RIGHT$(a$, 2); b$\r\n', " 301 zab\r\n", "ERROR"),
+    # LEN of a number was a type mismatch.
+    "qb_len_num": ('DIM d AS DOUBLE, i AS INTEGER\r\ns$ = "abc"\r\n'
+                   'PRINT LEN(a%); LEN(b&); LEN(c!); LEN(e#); LEN(d); LEN(i); LEN(s$)\r\n',
+                   " 2  4  4  8  8  2  3 \r\n", "ERROR"),
     # & after a whole number was a syntax error.
     "qb_lit_long": ("PRINT 70000&; -5%\r\n", " 70000 -5 \r\n", "ERROR"),
 }
