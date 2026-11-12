@@ -88,12 +88,13 @@ PK_END  = 3
 DM_STEP = 1                     ; the debugger's stops: the next statement
 DM_PSTEP = 2                    ; the next at the depth of pdep or less
 DBBPSZ  = 65536/8               ; the breakpoints: a bit per line number
-M_PC    = 20                    ; a procedure's frame: mark, ln:2, ip:2, then
+M_PC    = 22                    ; a procedure's frame: mark, ln:2, ip:2, then
 F_PRC   = 5                     ; its procedure
 F_LSP0  = 6                     ; lsp before its arguments, before its locals
 F_LSP1  = 10
 F_TSPB  = 14                    ; the caller's tspb
 F_SB    = 16                    ; the data stack at its body's start
+F_LHND  = 20                    ; ON LOCAL ERROR's line, 0 none
 LSSZ    = 12                    ; a save entry: id:2, ref:2, the value:8
 LSAVSZ  = 10000h                ; the save stack
 

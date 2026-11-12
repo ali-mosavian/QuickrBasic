@@ -39,6 +39,7 @@ externdef rec_get:near
 externdef ex_dcode:near
 externdef ex_end:near
 externdef ex_erl:near
+externdef ex_hnd:near
 externdef ex_jump:near
 externdef ex_nextln:near
 externdef ex_nodir:near
@@ -47,6 +48,7 @@ externdef ex_setcont:near
 externdef ex_smap:near
 externdef ex_trap:near
 externdef g_lsav:byte
+externdef g_thnd:word
 externdef op_eol:near
 externdef op_err:near
 externdef op_fjf:near
@@ -62,6 +64,7 @@ externdef op_nextv:near
 externdef op_nx0:near
 externdef op_on:near
 externdef op_onerr:near
+externdef op_onlerr:near
 externdef op_pcall:near
 externdef op_pret:near
 externdef op_resume:near

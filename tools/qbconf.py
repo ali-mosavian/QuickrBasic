@@ -31,7 +31,6 @@ SKIP = {
     "divmod": NOD,
     "palette_using_pds71": "PDS 7.1's PALETTE USING, and the screen",
     "redim_preserve_pds71": "PDS 7.1's REDIM PRESERVE",
-    "resumelocals_local": "PDS 7.1's ON LOCAL ERROR",
 }
 # DOSBox-X off x86 runs the x87 in 64-bit doubles: the last digit of LOG, EXP, ^ and PRINT can differ.
 if platform.machine() not in ("x86_64", "AMD64", "i386", "i686"):

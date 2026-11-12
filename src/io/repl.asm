@@ -127,11 +127,14 @@ err_raise:
         jz      @erx_u
         cmp     al,E_OS
         je      @erx_u
-        cmp     [g_state.rn.ehnd],0
-        je      @erx_u
         cmp     [g_state.rn.inerr],0
         jne     @erx_u
         cmp     [g_state.rn.ln],DLINE
+        je      @erx_u
+        push    eax
+        call    ex_hnd
+        pop     eax
+        cmp     [g_thnd],0
         jne     ex_trap
 @erx_u:
         and     [g_state.rn.inerr],0

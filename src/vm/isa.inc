@@ -144,6 +144,7 @@ oplist  macro   m
         m       SF_ST,op_sfst,5,0
         m       R_COPY,op_rcopy,3,0
         m       ONERR,op_onerr,5,0
+        m       ONLERR,op_onlerr,5,0
         m       RESUME,op_resume,6,0
         m       D_LD_V,op_dldv,3,FX+FV
         m       D_ST_V,op_dstv,3,FV
@@ -168,7 +169,7 @@ oplist  macro   m
         m       DBG,op_dbg,1,0
         endm
 
-JSIZE   = 7                     ; a jump op: target line:2 boff:1 mode:1, addr:2
+JSIZE   = 7                     ; a jump op: target line:2 boff+mode:2, addr:2
 
 opn     = 0
 opc     macro   nm,h,sz,fl

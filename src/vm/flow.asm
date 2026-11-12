@@ -602,6 +602,92 @@ op_onerr:
         dispatch
 
 ; ::::::::::::::
+; op_onlerr - ONLERR num addr: ON LOCAL ERROR GOTO's line, the running
+; procedure's, 0 none; at the module's level ON ERROR's.
+;
+; error:  Label not defined  no such line
+; ::::::::::::::
+op_onlerr:
+        mov     edi,[g_state.rn.cstk]
+@onl_f:
+        cmp     edi,CSTOP
+        jae     op_onerr
+        movzx   eax,byte ptr [edi+F_MARK]
+        cmp     al,M_PC
+        je      @onl_p
+        add     edi,eax
+        jmp     @onl_f
+@onl_p:
+        xor     ebx,ebx
+        cmp     word ptr [esi],0
+        jne     @F
+        add     esi,4
+        jmp     @onl_s
+@@:
+        call    ex_target
+@onl_s:
+        mov     [edi+F_LHND],bx
+        dispatch
+
+; ::::::::::::::
+; ex_hnd - the handler of an error: the innermost ON LOCAL ERROR's, the
+; procedures its procedure called dropped, the error then at its call;
+; else ON ERROR's.
+;
+; out:    thnd     the handler's line, 0 none
+;         ln, opip the error's place
+; ::::::::::::::
+ex_hnd:
+        mov     edi,[g_state.rn.cstk]
+@ehd_f:
+        cmp     edi,CSTOP
+        jae     @ehd_m
+        movzx   eax,byte ptr [edi+F_MARK]
+        cmp     al,M_PC
+        jne     @ehd_n
+        cmp     word ptr [edi+F_LHND],0
+        jne     @ehd_y
+@ehd_n:
+        add     edi,eax
+        jmp     @ehd_f
+@ehd_m:
+        mov     ax,[g_state.rn.ehnd]
+        mov     [g_thnd],ax
+        ret
+@ehd_y:
+        mov     ax,[edi+F_LHND]
+        mov     [g_thnd],ax
+        mov     [g_hfr],edi
+@ehd_u:
+        mov     ebx,[g_state.rn.cstk]   ; the innermost procedure's frame
+@@:
+        movzx   eax,byte ptr [ebx+F_MARK]
+        cmp     al,M_PC
+        je      @F
+        add     ebx,eax
+        jmp     @B
+@@:
+        cmp     ebx,[g_hfr]
+        je      @ehd_r
+        call    pr_pop
+        lea     eax,[ebx+M_PC]
+        mov     [g_state.rn.cstk],eax
+        mov     dx,[ebx+F_LN]           ; the error: at the call
+        mov     [g_state.rn.ln],dx
+        mov     ax,[ebx+F_IP]
+        ipfix
+        dec     esi
+        mov     [g_state.rn.opip],esi
+        jmp     @ehd_u
+@ehd_r:
+        ret
+
+        .data?
+g_thnd  dw      ?                       ; the error's handler's line
+g_hfr   dd      ?                       ; its ON LOCAL ERROR's frame
+        .code
+
+; ::::::::::::::
 ; ex_trap - an error ON ERROR handles: ERR, ERL, where RESUME goes on, then
 ; the handler on the failing statement's data stack, its frames kept.
 ;
@@ -635,7 +721,7 @@ ex_trap:
         call    ch_clr
         call    ex_sbase
         mov     esp,eax
-        movzx   ebx,[g_state.rn.ehnd]
+        movzx   ebx,[g_thnd]
         jmp     ex_jump
 
 ; ::::::::::::::
@@ -1143,6 +1229,7 @@ op_pcall:
         mov     ax,[g_state.sg.tsp]
         mov     [g_state.sg.tspb],ax
         mov     [edi+F_SB],esp
+        mov     word ptr [edi+F_LHND],0
         sub     esi,6                   ; the target
         jmp     ex_bjump
 
@@ -1155,6 +1242,19 @@ op_pcall:
 ; ::::::::::::::
 op_pret:
         stopchk
+        call    pr_pop
+        jmp     @prt_x2
+
+; ::::::::::::::
+; pr_pop - the innermost procedure's frame, and those above it, dropped as
+; its return does: its parameters to their refs, the caller's locals back,
+; a FUNCTION's result kept (pres, pres8, lres).
+;
+; out:    EBX  the frame, cstk at it
+;         EBP  its procedure
+; error:  RETURN without GOSUB  no frame
+; ::::::::::::::
+pr_pop:
         mov     ebx,[g_state.rn.cstk]
 @prt_f:
         cmp     ebx,CSTOP
@@ -1311,6 +1411,8 @@ op_pret:
         mov     [g_state.sg.tsp],ax
         mov     ax,[ebx+F_TSPB]
         mov     [g_state.sg.tspb],ax
+        ret
+@prt_x2:
         cmp     byte ptr [ebp+P_KIND],PK_FUNC
         jne     @prt_j
         movzx   ecx,word ptr [ebp+P_RES]

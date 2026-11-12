@@ -241,7 +241,8 @@ ct_erase:
         ret
 
 ; ::::::::::::::
-; ct_onerr - ON ERROR GOTO line: ONERR num addr; another ON is not one.
+; ct_onerr - ON [LOCAL] ERROR GOTO line: ONERR or ONLERR num addr; another ON
+; is not one.
 ; ::::::::::::::
 ct_onerr:
         push    esi
@@ -249,16 +250,27 @@ ct_onerr:
         call    st_get
         cmp     al,TK_X
         jne     @coe_n
+        mov     ah,O_ONERR
+        cmp     byte ptr [esi+1],TK1_LOCAL      ; PDS's ON LOCAL ERROR
+        jne     @F
+        add     esi,2
+        call    st_get
+        cmp     al,TK_X
+        jne     err_sn
+        mov     ah,O_ONLERR
+@@:
         cmp     byte ptr [esi+1],TK1_ERROR
         jne     @coe_n
         add     esp,4
         add     esi,2
+        push    eax
         call    st_get
         cmp     al,TK_GOTO
         jne     err_sn
         inc     esi
         call    cm_lnum
-        mov     al,O_ONERR
+        pop     eax
+        mov     al,ah
         call    cm_op
         call    cm_jw
         clc
