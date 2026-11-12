@@ -269,6 +269,10 @@ bk_stmt:
 @@:
         cmp     byte ptr [esi],TK_AS
         jne     @F
+        mov     cl,ET_SH
+        cmp     word ptr [esi+1],TK_X+TK1_SHORT*256
+        je      @F
+        xor     ecx,ecx
         movzx   eax,byte ptr [esi+1]
         sub     al,TK_INTEGER
         cmp     al,TK_STRING-TK_INTEGER

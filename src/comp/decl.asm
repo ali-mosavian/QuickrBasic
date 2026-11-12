@@ -82,6 +82,7 @@ dc_line:
         mov     cx,[g_state.lx.nflds]
         mov     word ptr [g_typ+eax*8+T_FST],cx
         and     word ptr [g_typ+eax*8+T_NF],0
+        and     word ptr [g_typ+eax*8+T_SIZE],0
         jmp     @dcl_n
 @dcl_fld:                               ; in a TYPE: f AS type [* n]
         movzx   edx,[g_state.lx.dtype]
@@ -100,27 +101,46 @@ dc_line:
         xor     eax,eax
         mov     [edi+F_ET],ax
         mov     [edi+F_FIX],ax
+        mov     ax,word ptr [g_typ+edx*8+T_SIZE] ; at the TYPE's end
+        mov     [edi+F_OFF],ax
         movzx   eax,byte ptr [esi+1]
         cmp     al,M_VAR
         je      @dcf_t
+        cmp     al,TK_X
+        jne     @F
+        cmp     byte ptr [esi+2],TK1_SHORT
+        jne     @dcl_n
+        mov     byte ptr [edi+F_ET],ET_SH
+        mov     eax,2
+        jmp     @dcf_z
+@@:
         sub     al,TK_INTEGER
         cmp     al,TK_STRING-TK_INTEGER
         ja      @dcl_n
-        mov     al,[g_dast+eax]
-        mov     [edi+F_ET],al
+        movzx   ecx,[g_dast+eax]
+        mov     [edi+F_ET],cl
+        movzx   eax,[g_etsz+ecx]
         add     esi,2
-        cmp     byte ptr [esi],TK_MUL
-        jne     @dcl_n
+        cmp     cl,ET_SD
+        jne     @dcf_z
+        xor     eax,eax
+        cmp     byte ptr [esi],TK_MUL   ; STRING * n
+        jne     @dcf_z
         cmp     byte ptr [esi+1],M_INT
-        jne     @dcl_n
+        jne     @dcf_z
         mov     eax,[esi+2]
         mov     [edi+F_FIX],ax
-        jmp     @dcl_n
+        jmp     @dcf_z
 @dcf_t:
+        push    edx
         inc     esi                     ; another TYPE's
         call    dc_nam
-        mov     al,[g_ntype+ebx]
+        pop     edx
+        movzx   eax,[g_ntype+ebx]
         mov     [edi+F_SUB],al
+        mov     ax,word ptr [g_typ+eax*8+T_SIZE]
+@dcf_z:                                 ; AX its size: the TYPE's grows
+        add     word ptr [g_typ+edx*8+T_SIZE],ax
         jmp     @dcl_n
 
 @dcl_opt:                               ; OPTION BASE n
@@ -303,6 +323,14 @@ dc_line:
         movzx   eax,byte ptr [esi+1]
         cmp     al,M_VAR
         je      @dcm_t
+        cmp     al,TK_X                 ; AS SHORT
+        jne     @F
+        cmp     byte ptr [esi+2],TK1_SHORT
+        jne     @dcm_r
+        add     esi,3
+        mov     byte ptr [edi+ebx],ET_SH
+        ret
+@@:
         sub     al,TK_INTEGER
         cmp     al,TK_STRING-TK_INTEGER
         ja      @dcm_r
@@ -325,48 +353,19 @@ dc_line:
         call    dc_item
 @dcm_r:
         ret
-@dcm_t:                                 ; AS a TYPE: each field a name n.f
+@dcm_t:                                 ; AS a TYPE: a record, its array
         push    ebx
         inc     esi
         call    dc_nam
         movzx   eax,[g_ntype+ebx]
         pop     ebx
-        test    eax,eax
-        jz      @dcm_r
         mov     edx,offset g_nrec
         cmp     edi,offset g_ntyp
         je      @F
         mov     edx,offset g_narec
 @@:
         mov     [edx+ebx],al
-        push    esi
-        push    edi
-        call    rc_leaves
-        pop     edi
-        pop     esi
-        mov     dl,[g_nflag+ebx]
-        and     dl,NM_SHR
-        xor     ecx,ecx
-@dct_l:
-        cmp     ecx,[g_rln]
-        jae     @dcm_r
-        movzx   eax,word ptr [g_rlid+ecx*2]
-        or      [g_nflag+eax],dl
-        mov     ebp,[g_rlfp+ecx*4]
-        push    edx
-        mov     dl,[ebp+F_ET]
-        mov     [edi+eax],dl
-        mov     dx,[ebp+F_FIX]
-        cmp     edi,offset g_ntyp
-        jne     @F
-        mov     [g_nfix+eax*2],dx
-        jmp     @dct_n
-@@:
-        mov     [g_nafix+eax*2],dx
-@dct_n:
-        pop     edx
-        inc     ecx
-        jmp     @dct_l
+        ret
 @dcm_c:
         cmp     byte ptr [esi],','
         jne     @dcl_n
@@ -434,82 +433,6 @@ dc_line:
         jne     @dcl_n
         inc     esi
         jmp     @dcc_l
-
-; ::::::::::::::
-; rc_leaves - the names n.f of each field of TYPE EAX for name EBX, the
-; fields of a field's TYPE in turn: rlid the names, rlfp the fields.
-;
-; out:    rln  how many
-; keeps:  EBX
-; error:  ?OUT OF MEMORY  from nam_find
-; ::::::::::::::
-rc_leaves:
-        and     [g_rln],0
-        push    ebx
-        mov     esi,[g_nname+ebx*4]
-        movzx   ecx,byte ptr [esi]
-        inc     esi
-        mov     edi,offset g_rnam
-        mov     [g_rnl],ecx
-        rep     movsb
-        call    rc_walk
-        pop     ebx
-        ret
-
-; ::::::::::::::
-; rc_walk - rc_leaves under the text rnam, rnl long, of TYPE EAX.
-; ::::::::::::::
-rc_walk:
-        movzx   esi,word ptr [g_typ+eax*8+T_FST]
-        movzx   ecx,word ptr [g_typ+eax*8+T_NF]
-@rcw_l:
-        test    ecx,ecx
-        jz      @rcw_r
-        push    ecx
-        push    esi
-        push    [g_rnl]
-        mov     edi,[g_rnl]
-        cmp     edi,72
-        jae     err_om
-        add     edi,offset g_rnam
-        mov     al,'.'
-        stosb
-        movzx   eax,word ptr [g_fld+esi*8+F_NAM]
-        push    esi
-        mov     esi,[g_nname+eax*4]
-        movzx   ecx,byte ptr [esi]
-        inc     esi
-        lea     eax,[ecx+1]
-        add     [g_rnl],eax
-        rep     movsb
-        pop     esi
-        movzx   eax,byte ptr [g_fld+esi*8+F_SUB]
-        test    eax,eax
-        jz      @rcw_f
-        call    rc_walk
-        jmp     @rcw_n
-@rcw_f:
-        mov     ecx,[g_rln]
-        cmp     ecx,NRLF
-        jae     err_om
-        lea     eax,[g_fld+esi*8]
-        mov     [g_rlfp+ecx*4],eax
-        mov     [g_state.lx.nptr],offset g_rnam
-        mov     eax,[g_rnl]
-        mov     [g_state.lx.nlen],al
-        call    nam_find
-        mov     ecx,[g_rln]
-        mov     [g_rlid+ecx*2],ax
-        inc     [g_rln]
-@rcw_n:
-        pop     [g_rnl]
-        pop     esi
-        pop     ecx
-        inc     esi
-        dec     ecx
-        jmp     @rcw_l
-@rcw_r:
-        ret
 
 ; ::::::::::::::
 ; dc_nam - the name at SI, stepped past.
@@ -614,11 +537,6 @@ g_fld   db      NFLD*8 dup(?)           ; a field: F_*
 g_ntype db      NNAM dup(?)             ; a name's TYPE, 0 none
 g_nrec  db      NNAM dup(?)             ; a name's record's TYPE, its array's
 g_narec db      NNAM dup(?)
-g_rnam  db      80 dup(?)               ; rc_leaves: a name n.f
-g_rnl   dd      ?
-g_rln   dd      ?
-g_rlid  dw      NRLF dup(?)
-g_rlfp  dd      NRLF dup(?)
 g_nfix  dw      NNAM dup(?)             ; a name's STRING * n, its array's
 g_nafix dw      NNAM dup(?)
 g_obase db      ?                       ; OPTION BASE
@@ -626,6 +544,7 @@ g_shr   db      NSHR*8 dup(?)           ; SHARED, STATIC: proc name:2, name:2, 1
         .data
 g_dett  db      ET_I2,ET_I4,ET_R4,ET_R8,ET_SD   ; DEFINT .. DEFSTR
 g_dast  db      ET_I2,ET_I4,ET_R4,ET_R8,ET_SD   ; AS INTEGER .. AS STRING
+g_etsz  db      0,4,4,4,8,0,2               ; a record field's size by ET_*
         .code
 
         end

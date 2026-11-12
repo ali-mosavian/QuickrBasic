@@ -21,6 +21,12 @@ include x86f.inc
 ; keeps:  EBX
 ; ::::::::::::::
 arr_esz:
+        movzx   ecx,[g_vtyp+ebx]
+        sub     ecx,ET_REC              ; a record's: its TYPE's size
+        jb      @aes_k
+        movzx   ecx,word ptr [g_typ+ecx*8+T_SIZE]
+        ret
+@aes_k:
         mov     cl,[g_sinfo+ebx]
         and     cl,3
         mov     ch,VS

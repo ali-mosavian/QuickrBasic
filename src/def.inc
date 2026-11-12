@@ -27,6 +27,7 @@ ET_I4   = 2
 ET_R4   = 3
 ET_R8   = 4
 ET_SD   = 5
+ET_SH   = 6                     ; SHORT: 2 bytes in a record, else an INT
 EMAX    = 254
 NDO     = 7                     ; digits flt_out shows
 NTMP    = 48                    ; string temporaries: the data stack is full first
@@ -170,12 +171,14 @@ T_NAM   = 0
 T_FST   = 2
 T_NF    = 4
 NTYPE   = 64
-F_NAM   = 0                     ; a field: its name, ET_*, its TYPE, STRING * n
-F_ET    = 2
+T_SIZE  = 6                     ; its bytes, as QBasic lays them
+F_NAM   = 0                     ; a field: its name, ET_*, its TYPE, STRING * n,
+F_ET    = 2                     ; its offset
 F_SUB   = 3
 F_FIX   = 4
+F_OFF   = 6
 NFLD    = 512
-NRLF    = 64                    ; a record's fields at most
+ET_REC  = 40h                   ; vtyp: a record of TYPE t is ET_REC + t
 
 ; a procedure (g_prc, comp/block.asm): 32 bytes
 PSIZE   = 32

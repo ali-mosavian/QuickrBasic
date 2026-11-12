@@ -86,6 +86,132 @@ arr_pn:
         jmp     [g_state.rn.aret]
 
 ; ::::::::::::::
+; op_raddr - R.ADDR id ( -- a ): the record's address; made, zeroed, at its
+; first use.
+; ::::::::::::::
+op_raddr:
+        movzx   ebx,word ptr [esi]
+        add     esi,2
+        mov     edi,[g_vt+ebx*4]
+        test    edi,edi
+        jnz     @rad_g
+        mov     [g_state.mm.aid],bx
+        mov     [g_state.rn.narr],1
+        mov     word ptr [g_cntbuf],1
+        and     word ptr [g_lbbuf],0
+        call    arr_new
+@rad_g:
+        push    dword ptr [edi+AH_PTR]
+        dispatch
+
+; ::::::::::::::
+; op_raddra - RA.ADDR id n ( i1..in -- a ): a record array's element.
+; ::::::::::::::
+op_raddra:
+        call    arr_pn
+        push    edi
+        dispatch
+
+; ::::::::::::::
+; op_flld - FL.LD off et ( a -- x ): a record's number field.
+; ::::::::::::::
+op_flld:
+        pop     edi
+        movzx   eax,word ptr [esi]
+        add     edi,eax
+        cmp     byte ptr [esi+2],ET_SH
+        lea     esi,[esi+3]
+        je      @fll_h
+        push    dword ptr [edi]
+        dispatch
+@fll_h:
+        movsx   eax,word ptr [edi]
+        push    eax
+        dispatch
+
+; ::::::::::::::
+; op_flst - FL.ST off et ( a x -- ).
+;
+; error:  ?OVERFLOW  a SHORT's past 16 bits
+; ::::::::::::::
+op_flst:
+        pop     eax
+        pop     edi
+        movzx   ecx,word ptr [esi]
+        add     edi,ecx
+        cmp     byte ptr [esi+2],ET_SH
+        lea     esi,[esi+3]
+        je      @fls_h
+        mov     [edi],eax
+        dispatch
+@fls_h:
+        movsx   ecx,ax
+        cmp     ecx,eax
+        jne     err_ov
+        mov     [edi],ax
+        dispatch
+
+; ::::::::::::::
+; op_sfld - SF.LD off n ( a -- s ): a STRING * n field, a temporary.
+; ::::::::::::::
+op_sfld:
+        movzx   eax,word ptr [esi+2]
+        call    str_alloc               ; the record does not move
+        pop     eax
+        movzx   ecx,word ptr [esi]
+        add     eax,ecx
+        add     esi,4
+        push    esi
+        mov     esi,eax
+        mov     edi,[g_state.sg.dpv]
+        movzx   ecx,[g_state.sg.sn]
+        rep     movsb
+        pop     esi
+        call    str_new
+        push    eax
+        dispatch
+
+; ::::::::::::::
+; op_sfst - SF.ST off n ( a s -- ): cut or padded with spaces.
+; ::::::::::::::
+op_sfst:
+        pop     eax
+        call    str_get
+        pop     edi
+        movzx   ecx,word ptr [esi]
+        add     edi,ecx
+        movzx   edx,word ptr [esi+2]
+        add     esi,4
+        movzx   ecx,[g_state.sg.sln]
+        cmp     ecx,edx
+        jbe     @F
+        mov     ecx,edx
+@@:
+        sub     edx,ecx
+        push    esi
+        mov     esi,[g_state.sg.spt]
+        rep     movsb
+        mov     ecx,edx
+        mov     al,' '
+        rep     stosb
+        pop     esi
+        dispatch
+
+; ::::::::::::::
+; op_rcopy - R.COPY n ( a b -- ): record b's n bytes over a's.
+; ::::::::::::::
+op_rcopy:
+        pop     eax
+        pop     edi
+        movzx   ecx,word ptr [esi]
+        add     esi,2
+        push    esi
+        mov     esi,eax
+        rep     movsb
+        pop     esi
+        dispatch
+
+; ::::::::::::::
 ; op_ilda1 - X.LD.A1 id ( i -- x ).
 ; ::::::::::::::
 op_ilda1:
@@ -321,6 +447,7 @@ g_calls dd      sc_ipr,sc_fpr,sc_spr,sc_pnl,sc_pzone,sc_ptab,sc_pspc
         dd      sc_left,sc_right,sc_mid,sc_mid2
         dd      sc_fix,sc_instr,sc_lbnd,sc_ubnd,sc_space,sc_strg,sc_ltrim
         dd      sc_rtrim,sc_ucase,sc_lcase,sc_hex,sc_oct,sc_sfix,sc_mids
+        dd      sc_dseg,sc_vptr,sc_vseg
 
 g_bflt  dd      flt_add,flt_sub,flt_mul,flt_div,fn_pow
 g_fntab dd      fn_sgn,fn_int,fn_abs,fn_usr,fn_fre,fn_pos,fn_sqr,fn_rnd,fn_log,fn_exp

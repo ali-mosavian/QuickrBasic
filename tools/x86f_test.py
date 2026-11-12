@@ -127,7 +127,16 @@ CASES = {
     "qb_fixstr": ('DIM f AS STRING * 5: PRINT "["; f; "]"; LEN(f)\r\nf = "cat": PRINT "["; f; "]": f = "abcdefg": PRINT f\r\n'
                   't$ = "abcdef": MID$(t$, 2, 3) = "XYZW": PRINT t$\r\n',
                   "[     ] 5 \r\n[cat  ]\r\nabcde\r\naXYZef\r\n", "ERROR"),
-    # DIM v AS a TYPE skipped two bytes of the TYPE's name: SYNTAX ERROR.
+    # A record is one block, as QBasic lays it out: SHORT 2 bytes, INTEGER 4, STRING * n n.
+    "qb_recmem": ("TYPE V\r\nx AS SHORT\r\ny AS INTEGER\r\nt AS STRING * 3\r\nEND TYPE\r\n"
+                  'DIM a AS V, b AS V: a.x = &H1234: a.y = -1: a.t = "ab": b = a: a.x = 0\r\n'
+                  "DEF SEG = VARSEG(b): PRINT LEN(b); LEN(b.t); PEEK(VARPTR(b)); PEEK(VARPTR(b) + 1); "
+                  "PEEK(VARPTR(b.t) + 2): DEF SEG\r\nPRINT b.x; b.y; b.t; \"|\"\r\n",
+                  " 9  3  52  18  32 \r\n 4660 -1 ab |\r\n", "ERROR"),
+    "qb_short": ("TYPE V\r\nx AS SHORT\r\nEND TYPE\r\nDIM a AS V: a.x = -32768: PRINT a.x: a.x = 32768\r\n",
+                 "-32768 \r\n?OVERFLOW", None),
+    # DIM v AS a TYPE skipped two bytes of the TYPE's name: SYNTAX ERROR. rc_ref lost a(i)'s
+    # '(' to var_find's EDX: SYNTAX ERROR.
     "qb_type": ("TYPE P\r\nx AS LONG\r\nt AS STRING * 2\r\nEND TYPE\r\nTYPE L\r\na AS P\r\nb AS P\r\nEND TYPE\r\n"
                 'DIM c AS L, d AS L, q(3) AS P\r\nc.a.x = 5: c.b.t = "xyz": d = c: c.a.x = 0\r\n'
                 "q(2).x = 9: q(1).x = q(2).x + 1\r\nPRINT d.a.x; d.b.t; q(1).x; q(2).x\r\n",

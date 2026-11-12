@@ -349,6 +349,8 @@ cm_call:
 ;         ?SYNTAX ERROR   a DEF FN's name
 ; ::::::::::::::
 cm_store:
+        cmp     [g_state.cm.ctn],0FFh
+        je      rc_store
         mov     al,[g_state.cm.ctk]
         and     al,3
         cmp     al,1
@@ -830,12 +832,6 @@ var_id:
         lea     esi,[esi+ecx+2]
         movzx   eax,word ptr [esi]
         add     esi,2
-        cmp     byte ptr [esi],'('      ; a record array's a(i).f: a.f(i)
-        jne     @F
-        cmp     [g_narec+eax],0
-        je      @F
-        call    rc_elem
-@@:
         xor     edx,edx
         cmp     [g_vfs],1               ; 1 a scalar, 2 an array
         je      @F
@@ -945,7 +941,7 @@ var_scope:
         ret
 
         .data
-g_etk   db      0,1,1,0,0,2             ; ET_* to the kind: FLOAT, INT, STRING
+g_etk   db      0,1,1,0,0,2,1           ; ET_* to the kind: FLOAT, INT, STRING
         .code
 
 ; ::::::::::::::
@@ -1199,35 +1195,12 @@ cm_dv:
         cmp     byte ptr [esi],'('
         jne     @cdv_as                 ; a scalar: var_id made it
         movzx   eax,word ptr [g_vnam+ebx*2]
-        movzx   ecx,[g_narec+eax]
-        test    ecx,ecx
-        jnz     @cdv_r
+        movzx   ecx,[g_narec+eax]       ; a record array: its own variable
+        jecxz   @F
+        call    rc_avar
+@@:
         call    cm_dim1
         jmp     cm_dvas
-@cdv_r:                                 ; a record array: each field's
-        mov     ebx,eax
-        mov     eax,ecx
-        pushad
-        call    rc_leaves
-        popad
-        xor     ecx,ecx
-@cdv_l:
-        cmp     ecx,[g_rln]
-        jae     cm_dvas
-        push    ecx
-        push    esi
-        movzx   eax,word ptr [g_rlid+ecx*2]
-        mov     ebp,[g_rlfp+ecx*4]
-        mov     dl,80h
-        call    rc_var
-        call    cm_dim1
-        pop     eax
-        pop     ecx
-        inc     ecx
-        cmp     ecx,[g_rln]
-        jae     cm_dvas
-        mov     esi,eax
-        jmp     @cdv_l
 
 ; ::::::::::::::
 ; cm_dim1 - DIM's array EBX: ( subscripts ), its id, the count, CALL DIM.
@@ -1251,94 +1224,7 @@ cm_dim1:
         mov     al,K_DIM
         jmp     cm_call
 
-; ::::::::::::::
-; rc_var - the variable of a record's field: name AX, field EBP.
-;
-; in:     DL   80h an array, else 0
-; out:    EBX  the variable
-;         DL   its kind, as sinfo's
-;         cstat
-; ::::::::::::::
-rc_var:
-        call    var_scope
-        movzx   ecx,byte ptr [ebp+F_ET]
-        or      dl,[g_etk+ecx]
-        push    edx
-        call    var_find
-        pop     edx
-        mov     ebx,eax
-        ret
 
-; ::::::::::::::
-; rc_elem - a record array's element a(i).f: the name a.f.
-;
-; in:     EAX  a
-;         SI   at '('
-; out:    EAX  a.f, else a when no .f follows
-;         BL   f's last char, its suffix
-; keeps:  ESI, BH
-; ::::::::::::::
-rc_elem:
-        push    esi
-        push    edi
-        push    ecx
-        push    edx
-        xor     ecx,ecx
-@rce_l:
-        mov     dl,[esi]
-        test    dl,dl
-        jz      @rce_r
-        cmp     dl,'('
-        jne     @F
-        inc     ecx
-@@:
-        cmp     dl,')'
-        jne     @F
-        dec     ecx
-@@:
-        push    eax
-        call    dc_item
-        pop     eax
-        test    ecx,ecx
-        jnz     @rce_l
-        cmp     byte ptr [esi],'.'
-        jne     @rce_r
-        cmp     byte ptr [esi+1],M_VAR
-        jne     @rce_r
-        lea     edx,[esi+1]             ; a's text, '.', f's
-        push    esi
-        mov     esi,[g_nname+eax*4]
-        movzx   ecx,byte ptr [esi]
-        inc     esi
-        mov     edi,offset g_rnam
-        rep     movsb
-        mov     al,'.'
-        stosb
-        movzx   ecx,byte ptr [edx+1]
-        lea     esi,[edx+2]
-        mov     bl,[esi+ecx-1]
-        cmp     bl,'.'                  ; % & ! # $: not the name's
-        jae     @F
-        dec     ecx
-@@:
-        rep     movsb
-        pop     esi
-        sub     edi,offset g_rnam
-        mov     [g_state.lx.nptr],offset g_rnam
-        mov     eax,edi
-        mov     [g_state.lx.nlen],al
-        call    nam_find
-@rce_r:
-        pop     edx
-        pop     ecx
-        pop     edi
-        pop     esi
-        ret
-
-        .data
-g_ldk   db      O_F_LD_V,O_I_LD_V,O_S_LD_V      ; by kind
-g_stk   db      O_F_ST_V,O_I_ST_V,O_S_ST_V
-        .code
 @cdv_as:                                ; a scalar STRING * n: n spaces
         push    ebx
         call    cm_dvas
@@ -1367,6 +1253,11 @@ cm_dvas:
         jne     @F
         inc     esi
         jmp     dc_item
+@@:
+        cmp     byte ptr [esi+1],TK_X   ; AS SHORT
+        jne     @F
+        add     esi,3
+        ret
 @@:
         add     esi,2
         cmp     byte ptr [esi-1],TK_STRING

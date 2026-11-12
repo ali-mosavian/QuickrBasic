@@ -66,6 +66,8 @@ ct_stmt:
         je      ct_none
         cmp     al,TK_OPTION
         je      ct_none
+        cmp     al,TK_DEF
+        je      ct_dseg
         cmp     al,TK_MID
         je      ct_mids
         cmp     al,TK_SHARED
@@ -111,6 +113,34 @@ ct_stmt:
 ct_none:
         call    ct_skip
         clc
+        ret
+
+; ::::::::::::::
+; ct_dseg - DEF SEG [= s]; another DEF is not one.
+; ::::::::::::::
+ct_dseg:
+        cmp     byte ptr [esi+1],TK_X
+        jne     @cdg_n
+        cmp     byte ptr [esi+2],TK1_SEG
+        jne     @cdg_n
+        add     esi,3
+        call    st_get
+        cmp     al,TK_EQ
+        jne     @F
+        inc     esi
+        call    cm_expr
+        call    cm_toi
+        jmp     @cdg_k
+@@:
+        or      eax,-1
+        call    cm_lint
+@cdg_k:
+        mov     al,K_DSEG
+        call    cm_call
+        clc
+        ret
+@cdg_n:
+        stc
         ret
 
 ; ::::::::::::::
@@ -268,83 +298,329 @@ ct_let:
         ret
 
 ; ::::::::::::::
-; ct_rcopy - a = b of two records of a TYPE: each field's.
+; ct_rcopy - a = b of two records of one TYPE: their addresses, R.COPY.
 ;
-; out:    CF  set: not one, SI kept
+; in:     SI  at a
+; out:    CF  set: not one, SI and the code kept
 ; ::::::::::::::
 ct_rcopy:
-        movzx   ecx,byte ptr [esi+1]
-        movzx   ebx,word ptr [esi+ecx+2]        ; a
-        movzx   eax,[g_nrec+ebx]
-        test    eax,eax
-        jz      @crc_n
-        lea     edx,[esi+ecx+4]
-        cmp     byte ptr [edx],TK_EQ
-        jne     @crc_n
-        cmp     byte ptr [edx+1],M_VAR
-        jne     @crc_n
-        movzx   ecx,byte ptr [edx+2]
-        movzx   ebp,word ptr [edx+ecx+3]        ; b
-        cmp     al,[g_nrec+ebp]
-        jne     @crc_n
-        mov     cl,[edx+ecx+5]
-        test    cl,cl
-        jz      @F
-        cmp     cl,':'
-        je      @F
-        cmp     cl,TK_REM
-        jne     @crc_n
-@@:
-        push    edx
-        push    ebx
+        push    esi
+        push    edi
+        call    rc_ref
+        jc      @crc_n
+        movzx   eax,[g_rfet]
+        cmp     al,ET_REC
+        jb      @crc_n
         push    eax
-        pushad                          ; b's fields, then a's
-        mov     ebx,ebp
-        call    rc_leaves
-        mov     ecx,[g_rln]
-        mov     esi,offset g_rlid
-        mov     edi,offset g_rlid2
-        rep     movsw
-        popad
-        pop     eax
-        pop     ebx
-        pushad
-        call    rc_leaves
-        popad
-        xor     ecx,ecx
-@crc_l:
-        cmp     ecx,[g_rln]
-        jae     @crc_d
-        push    ecx
-        mov     ebp,[g_rlfp+ecx*4]
-        movzx   eax,word ptr [g_rlid2+ecx*2]
-        xor     dl,dl
-        call    rc_var
-        and     edx,3
-        mov     al,[g_ldk+edx]
-        mov     ecx,ebx
-        call    cm_opid
-        mov     ecx,[esp]
-        mov     ebp,[g_rlfp+ecx*4]
-        movzx   eax,word ptr [g_rlid+ecx*2]
-        xor     dl,dl
-        call    rc_var
-        and     edx,3
-        mov     al,[g_stk+edx]
-        mov     ecx,ebx
-        call    cm_opid
-        pop     ecx
-        inc     ecx
-        jmp     @crc_l
-@crc_d:
-        pop     esi                     ; past b
+        call    st_get
+        cmp     al,TK_EQ
+        jne     @crc_m
         inc     esi
+        call    st_get
+        cmp     al,M_VAR
+        jne     @crc_m
+        call    rc_ref
+        jc      @crc_m
+        pop     eax
+        cmp     al,[g_rfet]
+        jne     @crc_n
+        call    st_eos
+        jnz     @crc_n
+        add     esp,8
+        mov     al,O_R_COPY
+        mov     dx,[g_rffix]
+        call    cm_opw
+        clc
+        ret
+@crc_m:
+        pop     eax
+@crc_n:
+        pop     edi
+        pop     esi
+        stc
+        ret
+
+; ::::::::::::::
+; rc_ref - a record's reference at SI: r, r.f, a(i), a(i).f, r.g.f, each
+; field's offset added. Its address's code: R.ADDR, or the subscripts and
+; RA.ADDR. r is the longest prefix before a dot a record's name.
+;
+; in:     SI  at M_VAR
+; out:    CF     set: not one, SI and the code kept
+;         rfet   the field's ET_*, ET_REC + t a whole record of TYPE t
+;         rfoff  its offset
+;         rffix  STRING * n's n, a record's size
+;         SI     past it
+; error:  ?SYNTAX ERROR  no such field
+; ::::::::::::::
+rc_ref:
+        movzx   ecx,byte ptr [esi+1]
+        movzx   eax,word ptr [esi+ecx+2]
+        lea     edx,[esi+ecx+4]         ; past the name
+        cmp     byte ptr [edx],'('
+        jne     @rrf_s
+        movzx   ecx,[g_narec+eax]       ; a(i)
+        test    ecx,ecx
+        jz      @rrf_n
+        push    ecx
+        mov     esi,edx
+        call    rc_avar
+        push    ebx
+        call    cm_subs0
+        pop     edx
+        push    ecx
+        mov     al,O_RA_ADDR
+        call    cm_opw
+        pop     eax
+        call    cm_byt
+        pop     ecx
+        cmp     byte ptr [esi],'.'      ; .f
+        jne     rc_whole
+        cmp     byte ptr [esi+1],M_VAR
+        jne     rc_whole
+        inc     esi
+        movzx   edx,byte ptr [esi+1]
+        lea     ebx,[esi+2]
+        call    rc_path
         call    dc_item
         clc
         ret
-@crc_n:
+@rrf_s:
+        movzx   ecx,[g_nrec+eax]        ; r
+        jecxz   @rrf_d
+        mov     esi,edx
+        call    rc_saddr
+        jmp     rc_whole
+@rrf_d:
+        movzx   ecx,byte ptr [esi+1]    ; r.f: the longest prefix a record's
+        lea     ebx,[esi+2]
+@rrf_l:
+        dec     ecx
+        jle     @rrf_n
+        cmp     byte ptr [ebx+ecx],'.'
+        jne     @rrf_l
+        mov     [g_state.lx.nptr],ebx
+        mov     [g_state.lx.nlen],cl
+        push    ebx
+        push    ecx
+        push    edx
+        call    nam_find
+        pop     edx
+        pop     ecx
+        pop     ebx
+        cmp     [g_nrec+eax],0
+        je      @rrf_l
+        push    edx
+        push    esi
+        push    ecx
+        movzx   ecx,[g_nrec+eax]
+        call    rc_saddr
+        pop     eax                     ; the dot
+        pop     esi
+        movzx   edx,byte ptr [esi+1]
+        lea     ebx,[esi+eax+3]
+        sub     edx,eax
+        dec     edx
+        call    rc_path
+        pop     esi
+        clc
+        ret
+@rrf_n:
         stc
         ret
+
+; ::::::::::::::
+; rc_saddr - R.ADDR of record EAX of TYPE ECX.
+;
+; keeps:  ECX, ESI
+; ::::::::::::::
+rc_saddr:
+        push    ecx
+        call    rc_svar
+        mov     ecx,ebx
+        mov     al,O_R_ADDR
+        call    cm_opid
+        pop     ecx
+        ret
+
+; ::::::::::::::
+; rc_whole - the reference is all of a record of TYPE ECX.
+; ::::::::::::::
+rc_whole:
+        and     [g_rfoff],0
+        lea     eax,[ecx+ET_REC]
+        mov     [g_rfet],al
+        mov     ax,word ptr [g_typ+ecx*8+T_SIZE]
+        mov     [g_rffix],ax
+        clc
+        ret
+
+; ::::::::::::::
+; rc_path - the fields f.g.. of TYPE ECX: the text at EBX, EDX long.
+;
+; out:    rfet, rfoff, rffix
+; error:  ?SYNTAX ERROR  no such field
+; ::::::::::::::
+rc_path:
+        push    esi
+        push    edi
+        call    @rpa_0
+        pop     edi
+        pop     esi
+        ret
+@rpa_0:
+        and     [g_rfoff],0
+        mov     al,[ebx+edx-1]          ; a suffix is not the name's
+        cmp     al,'.'
+        jae     @rpa_l
+        dec     edx
+@rpa_l:
+        xor     eax,eax                 ; the part to a '.'
+@@:
+        cmp     eax,edx
+        jae     @F
+        cmp     byte ptr [ebx+eax],'.'
+        je      @F
+        inc     eax
+        jmp     @B
+@@:
+        push    eax
+        push    ebx
+        push    ecx
+        push    edx
+        mov     [g_state.lx.nptr],ebx
+        mov     [g_state.lx.nlen],al
+        call    nam_find
+        pop     edx
+        pop     ecx
+        pop     ebx
+        movzx   esi,word ptr [g_typ+ecx*8+T_FST]
+        movzx   edi,word ptr [g_typ+ecx*8+T_NF]
+@rpa_f:
+        test    edi,edi
+        jz      err_sn
+        cmp     ax,word ptr [g_fld+esi*8+F_NAM]
+        je      @rpa_y
+        inc     esi
+        dec     edi
+        jmp     @rpa_f
+@rpa_y:
+        lea     esi,[g_fld+esi*8]
+        mov     ax,[esi+F_OFF]
+        add     [g_rfoff],ax
+        pop     eax
+        movzx   ecx,byte ptr [esi+F_SUB]
+        add     ebx,eax
+        sub     edx,eax
+        jz      @rpa_e
+        test    ecx,ecx                 ; .g: a field of a TYPE's
+        jz      err_sn
+        inc     ebx
+        dec     edx
+        jmp     @rpa_l
+@rpa_e:
+        test    ecx,ecx
+        jz      @F
+        mov     ax,[g_rfoff]            ; a record in it
+        push    eax
+        call    rc_whole
+        pop     eax
+        mov     [g_rfoff],ax
+        ret
+@@:
+        mov     al,[esi+F_ET]
+        mov     [g_rfet],al
+        mov     ax,[esi+F_FIX]
+        mov     [g_rffix],ax
+        ret
+
+; ::::::::::::::
+; rc_avar, rc_svar - the variable of record array, record EAX of TYPE ECX.
+;
+; out:    EBX  it
+; keeps:  ESI, EDI
+; ::::::::::::::
+rc_avar:
+        mov     dl,80h
+        jmp     @rcv_g
+rc_svar:
+        mov     dl,81h
+@rcv_g:
+        call    var_scope
+        add     cl,ET_REC
+        call    var_find
+        mov     ebx,eax
+        ret
+
+; ::::::::::::::
+; rc_load - the field's value rc_ref found: FL.LD off et, SF.LD off n.
+;
+; out:    cty
+; error:  ?TYPE MISMATCH  a whole record
+; ::::::::::::::
+rc_load:
+        movzx   ebx,[g_rfet]
+        cmp     bl,ET_REC
+        jae     err_tm
+        mov     dx,[g_rfoff]
+        cmp     bl,ET_SD
+        je      @rld_s
+        push    ebx
+        mov     al,O_FL_LD
+        call    cm_opw
+        pop     ebx
+        mov     al,bl
+        call    cm_byt
+        mov     al,[g_etk+ebx]
+        movzx   eax,al
+        mov     al,[g_ctys+eax]
+        jmp     @rld_t
+@rld_s:
+        mov     al,O_SF_LD
+        call    cm_opw
+        mov     ax,[g_rffix]
+        call    @rld_w
+        mov     al,T_STR
+@rld_t:
+        mov     [g_state.cm.cty],al
+        xor     eax,eax
+        mov     [g_state.cm.cll],eax
+        mov     [g_state.cm.clle],eax
+        ret
+@rld_w:                                 ; the word AX
+        push    eax
+        call    cm_byt
+        pop     eax
+        mov     al,ah
+        jmp     cm_byt
+
+; ::::::::::::::
+; rc_store - store to the field cm_lval found: ctv its offset, ctfet,
+; ctffix; FL.ST off et, SF.ST off n.
+; ::::::::::::::
+rc_store:
+        movzx   ebx,[g_ctfet]
+        cmp     bl,ET_SD
+        je      @rst_s
+        cmp     [g_etk+ebx],0
+        jne     @rst_i
+        call    cm_tof
+        jmp     @rst_o
+@rst_i:
+        call    cm_toi
+@rst_o:
+        mov     al,O_FL_ST
+        mov     dx,[g_state.cm.ctv]
+        call    cm_opw
+        mov     al,[g_ctfet]
+        jmp     cm_byt
+@rst_s:
+        call    cm_tos
+        mov     al,O_SF_ST
+        mov     dx,[g_state.cm.ctv]
+        call    cm_opw
+        mov     ax,[g_ctffix]
+        jmp     @rld_w
 
 ; ::::::::::::::
 ; ct_scall - n args: a SUB's call without CALL; another name is not one.
@@ -1119,7 +1395,11 @@ g_ctnm  db      "#0"                    ; a SELECT's value: its name
         .data?
 g_ctvr  dw      ?                       ; that variable
 g_cttp  db      ?                       ; its type
-g_rlid2 dw      NRLF dup(?)             ; ct_rcopy: b's fields
+g_rfet  db      ?                       ; rc_ref's field: ET_*, its offset, n
+g_rfoff dw      ?
+g_rffix dw      ?
+g_ctfet db      ?                       ; cm_lval's field: ET_*, n
+g_ctffix dw     ?
         .code
 
         end

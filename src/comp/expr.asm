@@ -425,6 +425,25 @@ g_fcmpk db      O_F_CMP_V,O_F_CMP_VI,O_F_CMP_U8,O_F_CMP_F32
 ; error:  ?SYNTAX ERROR  no M_VAR
 ; ::::::::::::::
 cm_lval:
+        call    st_get
+        cmp     al,M_VAR
+        jne     @clv_v
+        call    rc_ref                  ; a record's field: its address
+        jc      @clv_v
+        mov     ax,[g_rfoff]
+        mov     [g_state.cm.ctv],ax
+        mov     [g_state.cm.ctn],0FFh
+        mov     al,[g_rfet]
+        mov     [g_ctfet],al
+        cmp     al,ET_REC
+        jae     err_tm
+        mov     dx,[g_rffix]
+        mov     [g_ctffix],dx
+        movzx   eax,al
+        mov     al,[g_etk+eax]
+        mov     [g_state.cm.ctk],al
+        ret
+@clv_v:
         call    cm_name
         call    cm_tgt
         test    [g_state.cm.ctk],80h
@@ -458,6 +477,12 @@ cm_load:
         cmp     dl,[g_state.cm.cproc]
         jne     ct_fcall
 @cld_v:
+        call    st_get
+        cmp     al,M_VAR
+        jne     @F
+        call    rc_ref
+        jnc     rc_load
+@@:
         call    cm_name
         mov     dl,[g_sinfo+ebx]
         test    dl,dl
@@ -540,13 +565,6 @@ cm_subs0:
         push    ecx
         call    cm_chkcl
         pop     ecx
-        cmp     byte ptr [esi],'.'      ; a record array's .f: in its name
-        jne     @F
-        cmp     byte ptr [esi+1],M_VAR
-        jne     @F
-        inc     esi
-        call    dc_item
-@@:
         ret
 
 ; ::::::::::::::
@@ -656,6 +674,19 @@ cm_un:
         pop     eax
         jmp     cm_dw
 @cu_7:
+        cmp     al,TK_LEN
+        je      @cu_ln
+        cmp     al,TK_X
+        jne     @cu_7a
+        mov     ah,[esi+1]
+        mov     cl,K_VPTR
+        cmp     ah,TK1_VARPTR
+        je      @cu_vp
+        mov     cl,K_VSEG
+        cmp     ah,TK1_VARSEG
+        je      @cu_vp
+        mov     al,TK_X
+@cu_7a:
         sub     al,TK_SGN
         cmp     al,TK_MID-TK_SGN
         ja      @cu_8
@@ -703,6 +734,82 @@ cm_un:
 @cu_8:
         mov     al,[esi]
         jmp     cm_xfn
+@cu_vp:                                 ; VARPTR(v), VARSEG(v): its address
+        push    ecx
+        add     esi,2
+        call    cm_chkop
+        call    cm_addr
+        call    cm_chkcl
+        pop     eax
+        call    cm_call
+        mov     [g_state.cm.cty],T_INT
+        ret
+@cu_ln:                                 ; LEN(r): a record's, a field's size
+        push    esi
+        push    edi
+        inc     esi
+        call    st_get
+        cmp     al,'('
+        jne     @cul_n
+        inc     esi
+        call    st_get
+        cmp     al,M_VAR
+        jne     @cul_n
+        call    rc_ref
+        jc      @cul_n
+        call    st_get
+        cmp     al,')'
+        jne     @cul_n
+        inc     esi
+        pop     edi
+        add     esp,4
+        movzx   eax,[g_rfet]
+        cmp     al,ET_REC
+        jae     @cul_f
+        cmp     al,ET_SD
+        je      @cul_f
+        movzx   eax,[g_etsz+eax]
+        jmp     cm_lint
+@cul_f:
+        movzx   eax,[g_rffix]
+        jmp     cm_lint
+@cul_n:
+        pop     edi
+        pop     esi
+        mov     al,[esi]
+        jmp     @cu_7a
+
+; ::::::::::::::
+; cm_addr - a variable's linear address: a record's or a field's code, else
+; its slot's, its Desc's.
+;
+; error:  ?SYNTAX ERROR  not a variable
+; ::::::::::::::
+cm_addr:
+        call    st_get
+        cmp     al,M_VAR
+        jne     err_sn
+        call    rc_ref
+        jc      @cad_v
+        mov     ax,[g_rfoff]
+        test    ax,ax
+        jz      @cad_r
+        movzx   eax,ax
+        call    cm_lint
+        mov     al,O_I_ADD
+        call    cm_op
+@cad_r:
+        ret
+@cad_v:
+        call    var_id
+        lea     eax,[VARBASE+ebx*4]
+        mov     dl,[g_sinfo+ebx]
+        and     dl,3
+        cmp     dl,2
+        jne     @F
+        lea     eax,[SVBASE+ebx*8]
+@@:
+        jmp     cm_lint
 
 ; ::::::::::::::
 ; cm_xfn - QBasic's other functions, by g_xfn: f(args), each converted to

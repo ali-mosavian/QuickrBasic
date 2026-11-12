@@ -151,6 +151,7 @@ TMEM     struc                   ; the memory map, the program, the arrays
     pbs     dd      ?               ; prg_put's body
     pbl     dw      ?
     peekseg dw      ?
+    dseg    dd      ?               ; DEF SEG's, -1 none: PEEK reads pokeb
 TMEM     ends
 
 TIO      struc                   ; input and output

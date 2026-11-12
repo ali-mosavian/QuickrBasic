@@ -140,6 +140,13 @@ oplist  macro   m
         m       I_XOR,bc_I_XOR,1,FX
         m       I_EQV,bc_I_EQV,1,FX
         m       I_IMP,bc_I_IMP,1,FX
+        m       R_ADDR,op_raddr,3,0
+        m       RA_ADDR,op_raddra,4,0
+        m       FL_LD,op_flld,4,0
+        m       FL_ST,op_flst,4,0
+        m       SF_LD,op_sfld,5,0
+        m       SF_ST,op_sfst,5,0
+        m       R_COPY,op_rcopy,3,0
         endm
 
 JSIZE   = 7                     ; a jump op: target line:2 boff:1 mode:1, addr:2
@@ -226,4 +233,7 @@ K_HEX   = K_FIX+10
 K_OCT   = K_FIX+11
 K_SFIX  = K_FIX+12
 K_MIDS  = K_FIX+13
-K_N     = K_FIX+14
+K_DSEG  = K_FIX+14
+K_VPTR  = K_FIX+15
+K_VSEG  = K_FIX+16
+K_N     = K_FIX+17
