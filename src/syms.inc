@@ -21,6 +21,7 @@ externdef op_ilda1:near
 externdef op_ista1:near
 externdef op_istan:near
 externdef op_lda:near
+externdef op_pref:near
 externdef op_raddr:near
 externdef op_raddra:near
 externdef op_rcopy:near
@@ -306,6 +307,7 @@ externdef bk_find:near
 externdef bk_proc:near
 externdef cm_blocks:near
 externdef g_blk:byte
+externdef g_pbyv:byte
 externdef g_ppar:word
 externdef g_prc:byte
 externdef g_vfs:byte
@@ -387,6 +389,7 @@ externdef cm_tod:near
 externdef cm_tof:near
 externdef cm_toi:near
 externdef cm_tos:near
+externdef cm_w:near
 externdef cm_write:near
 externdef et_sfx:near
 externdef g_cbuf:byte
@@ -453,6 +456,7 @@ externdef var_find:near
 ; mem/scope.asm
 externdef scp_arec:near
 externdef scp_bind:near
+externdef scp_con:near
 externdef scp_decl:near
 externdef scp_get:near
 externdef scp_init:near

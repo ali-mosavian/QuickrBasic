@@ -778,6 +778,7 @@ rc_ref:
         push    ecx
         mov     esi,edx
         call    rc_avar
+        mov     [g_rfid],bx
         push    ebx
         call    cm_subs0
         pop     edx
@@ -904,6 +905,7 @@ rc_nreca:
 rc_saddr:
         push    ecx
         call    rc_svar
+        mov     [g_rfid],bx
         mov     ecx,ebx
         mov     al,O_R_ADDR
         call    cm_opid
@@ -1217,7 +1219,7 @@ ct_pcall:
 ct_args:
         mov     al,[edx+P_FLAG]         ; a DEF FN's: by value
         and     al,PF_DEF
-        mov     [g_cbyv],al
+        mov     [g_cbyd],al
         movzx   ecx,word ptr [edx+P_NPAR]
         jecxz   @cag_r
         movzx   ebx,word ptr [edx+P_PAR]
@@ -1225,6 +1227,12 @@ ct_args:
 @cag_l:
         push    ecx
         push    ebx
+        mov     eax,ebx                 ; BYVAL's: by value
+        sub     eax,offset g_ppar
+        shr     eax,1
+        mov     al,[g_pbyv+eax]
+        or      al,[g_cbyd]
+        mov     [g_cbyv],al
         movzx   eax,word ptr [ebx]
         call    ct_arg
         pop     ebx
@@ -1241,10 +1249,14 @@ ct_args:
         ret
 
 ; ::::::::::::::
-; ct_arg - an argument to parameter EAX: a variable of its type alone is
-; passed by reference, n() an array by its id, else the value.
+; ct_arg - an argument to parameter EAX: a variable alone is passed by
+; reference, an array's element, a record's number field by P.REF; n() an
+; array by its id; else the value. A CONST, BYVAL's, a DEF FN's: the value.
+;
+; error:  Parameter type mismatch  a variable, an array, of another type
 ; ::::::::::::::
 ct_arg:
+        mov     [g_cpar],ax
         movzx   edx,[g_sinfo+eax]
         test    dl,dl
         js      @car_a
@@ -1258,31 +1270,103 @@ ct_arg:
         movzx   eax,word ptr [esi+ecx+2]
         test    [g_nflag+eax],NM_SUB+NM_FUNC+NM_FN
         jnz     @car_e
-        mov     al,[esi+ecx+4]
-        test    al,al
-        jz      @car_v
-        cmp     al,','
-        je      @car_v
-        cmp     al,')'
-        je      @car_v
-        cmp     al,':'
-        je      @car_v
-        cmp     al,TK_REM
-        jne     @car_e
+        call    scp_con
+        jc      @car_e
+        jmp     @car_x
 @car_v:
         push    esi
         call    var_id
         pop     esi
-        mov     al,[g_sinfo+ebx]
-        mov     ah,[esp]
-        and     ax,0707h
-        cmp     al,ah
-        jne     @car_e
+        call    ct_ptm
         pop     edx
         push    ebx
         call    cm_load
         pop     eax
         jmp     cm_lint
+@car_x:                                 ; an element, a field: P.REF, else
+        push    esi                     ; the value
+        push    edi
+        call    rc_ref
+        jc      @cgr_a
+        movzx   eax,[g_rfet]
+        cmp     al,ET_SD
+        jne     @F
+        cmp     [g_rffix],0             ; STRING * n
+        jne     @cgr_n
+@@:
+        cmp     al,ET_SH
+        je      @cgr_n
+        cmp     al,ET_REC
+        jae     @cgr_n
+        movzx   ecx,[g_cpar]
+        cmp     al,[g_vtyp+ecx]
+        jne     @cgr_n
+        mov     bx,[g_rfid]
+        mov     dx,[g_rfoff]
+        jmp     @cgr_t
+@cgr_a:
+        movzx   ecx,byte ptr [esi+1]
+        cmp     byte ptr [esi+ecx+4],'('
+        jne     @cgr_n
+        call    var_id
+        test    [g_sinfo+ebx],80h
+        jz      @cgr_n
+        movzx   eax,word ptr [g_vnam+ebx*2]
+        push    edx
+        mov     dl,80h
+        mov     ecx,B_FIX
+        call    scp_decl
+        pop     edx
+        test    ecx,ecx
+        jnz     @cgr_n
+        movzx   ecx,[g_cpar]
+        mov     al,[g_vtyp+ebx]
+        cmp     al,[g_vtyp+ecx]
+        jne     @cgr_n
+        push    ebx
+        call    cm_subs0
+        pop     edx
+        push    edx
+        push    ecx
+        mov     al,O_RA_ADDR
+        call    cm_opw
+        pop     eax
+        call    cm_byt
+        pop     ebx
+        xor     edx,edx
+@cgr_t:                                 ; BX the array, DX the offset
+        push    edx
+        call    st_get
+        call    ct_aend
+        pop     edx
+        jne     @cgr_n
+        add     esp,8
+        mov     al,O_P_REF
+        push    edx
+        mov     dx,bx
+        call    cm_opw
+        pop     edx
+        mov     [g_state.cm.wv],dx
+        call    cm_w
+        pop     edx
+        xor     eax,eax                 ; the kind: 0 4 bytes, 1 8, 2 a Desc
+        test    dl,SK_DBL
+        jnz     @cgr_d
+        and     dl,3
+        cmp     dl,2
+        jne     cm_byt
+        mov     al,2
+        jmp     cm_byt
+@cgr_d:
+        inc     eax
+        jmp     cm_byt
+@cgr_n:                                 ; a variable alone: by reference
+        pop     edi
+        pop     esi
+        movzx   ecx,byte ptr [esi+1]
+        mov     al,[esi+ecx+4]
+        call    ct_aend
+        je      @car_v
 @car_e:
         call    cm_expr
         pop     eax
@@ -1328,6 +1412,7 @@ ct_arg:
 @car_k:
         test    [g_sinfo+ebx],80h
         jz      err_sn
+        call    ct_ptm
         push    ebx
         call    cm_chkop
         call    cm_chkcl
@@ -1352,6 +1437,44 @@ ct_arg:
         call    rc_svar
         mov     eax,ebx
         jmp     @car_o
+
+; ::::::::::::::
+; ct_aend - is AL an argument's end?
+;
+; out:    ZF  set: it is
+; ::::::::::::::
+ct_aend:
+        test    al,al
+        jz      @cae_r
+        cmp     al,','
+        je      @cae_r
+        cmp     al,')'
+        je      @cae_r
+        cmp     al,':'
+        je      @cae_r
+        cmp     al,TK_REM
+@cae_r:
+        ret
+
+; ::::::::::::::
+; ct_ptm - variable EBX the parameter cpar's type?
+;
+; keeps:  all
+; error:  Parameter type mismatch  it is not
+; ::::::::::::::
+ct_ptm:
+        push    eax
+        push    ecx
+        movzx   ecx,[g_cpar]
+        mov     al,[g_vtyp+ebx]
+        cmp     al,[g_vtyp+ecx]
+        pop     ecx
+        pop     eax
+        jne     @F
+        ret
+@@:
+        mov     al,E_PTM
+        jmp     err_raise
 
 ; ::::::::::::::
 ; ct_bif - a block IF's test: JF to its next clause.
@@ -1970,12 +2093,15 @@ ct_vop:
 g_ctnm  db      "#0"                    ; a SELECT's value: its name
         .data?
 g_ctvr  dw      ?                       ; that variable
-g_cbyv  db      ?                       ; ct_args: every argument by value
+g_cbyv  db      ?                       ; ct_args: the argument by value
+g_cbyd  db      ?                       ; every one: a DEF FN's
+g_cpar  dw      ?                       ; ct_arg's parameter
 g_cttp  db      ?                       ; its type
 g_rfnt  dd      ?                       ; rc_ref's: a prefix's TYPE
 g_rfet  db      ?                       ; rc_ref's field: ET_*, its offset, n
 g_rfoff dw      ?
 g_rffix dw      ?
+g_rfid  dw      ?                       ; its record, its array: the variable
 g_ctfet db      ?                       ; cm_lval's field: ET_*, n
 g_ctffix dw     ?
         .code

@@ -137,6 +137,38 @@ op_raddra:
         dispatch
 
 ; ::::::::::::::
+; op_pref - P.REF id off k ( a -- x o r ): an argument by reference to the
+; element, the field off past a, of array or record id: its value, of kind
+; k (0 4 bytes, 1 8, 2 a string's Desc: its address); its offset in the
+; data, and 8000h + id, for op_pcall.
+; ::::::::::::::
+op_pref:
+        dpop    edi
+        movzx   eax,word ptr [esi+2]
+        add     edi,eax
+        movzx   ebx,word ptr [esi]
+        mov     al,[esi+4]
+        add     esi,5
+        cmp     al,1
+        je      @prf_d
+        ja      @prf_s
+        dpush   dword ptr [edi]
+        jmp     @prf_r
+@prf_d:
+        push    dword ptr [edi+4]
+        push    dword ptr [edi]
+        jmp     @prf_r
+@prf_s:
+        dpush   edi
+@prf_r:
+        mov     eax,[g_vt+ebx*4]
+        sub     edi,[eax+AH_PTR]
+        dpush   edi
+        or      ebx,8000h
+        dpush   ebx
+        dispatch
+
+; ::::::::::::::
 ; op_flld - FL.LD off et ( a -- x ): a record's number field.
 ; ::::::::::::::
 op_flld:

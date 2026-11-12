@@ -1077,7 +1077,8 @@ ex_bjump:
 ; temporary's), its locals are saved there and zeroed, then the entries to
 ; its parameters; on at its body. A value: an INT, a FLOAT, a string's Desc,
 ; an array's id; a ref: the variable PRET stores the parameter back to, or
-; FFFFh.
+; FFFFh; or, 8000h + an array's, a record's id, below it its element's
+; offset in the data: P.REF's.
 ;
 ; error:  Out of stack space  a stack is full
 ; ::::::::::::::
@@ -1093,16 +1094,24 @@ op_pcall:
         add     ebp,offset g_prc
         movzx   ecx,word ptr [ebp+P_NPAR]
         mov     edi,[g_state.rn.lsp]
-        lea     eax,[ecx+ecx*2]
-        lea     edi,[edi+eax*4]
+        mov     eax,ecx
+        shl     eax,4                   ; LSSZ
+        add     edi,eax
         cmp     edi,offset g_lsav+LSAVSZ-LSSZ
         jae     @st_flow1
         mov     [g_state.rn.ppend],edi
-        jecxz   @pca_s
+        test    ecx,ecx
+        jz      @pca_s
 @pca_a:                                 ; the arguments, the last first
         sub     edi,LSSZ
         dpop    eax
         mov     [edi+2],ax
+        cmp     ax,0FFFFh
+        je      @F
+        test    ah,80h                  ; P.REF's: the offset too
+        jz      @F
+        dpop    dword ptr [edi+12]
+@@:
         movzx   ebx,word ptr [ebp+P_PAR]
         add     ebx,ecx
         movzx   ebx,word ptr [g_ppar+ebx*2-2]
@@ -1147,7 +1156,8 @@ op_pcall:
         pop     ebp
         pop     edi
         pop     ecx
-        loop    @pca_a
+        dec     ecx
+        jnz     @pca_a
 @pca_s:
         mov     edx,[g_state.rn.ppend]   ; the locals, saved and zeroed
         mov     esi,[g_state.rn.ppip]
@@ -1400,6 +1410,8 @@ pr_pop:
         movzx   ecx,word ptr [edx+2]
         cmp     cx,0FFFFh
         je      @prt_on
+        test    ch,80h
+        jnz     @prt_oa
         movzx   eax,word ptr [edx]
         mov     al,[g_sinfo+eax]
         test    al,SK_DBL
@@ -1419,6 +1431,31 @@ pr_pop:
 @prt_os:
         lea     eax,[edx+4]
         lea     edi,[SVBASE+ecx*8]
+        call    ls_mov
+        jmp     @prt_on
+@prt_oa:                                ; to an element: its array's data now
+        and     ecx,7FFFh
+        mov     ecx,[g_vt+ecx*4]
+        jecxz   @prt_on                 ; ERASEd
+        mov     edi,[ecx+AH_PTR]
+        add     edi,[edx+12]
+        movzx   eax,word ptr [edx]
+        mov     al,[g_sinfo+eax]
+        test    al,SK_DBL
+        jz      @F
+        mov     eax,[edx+8]
+        mov     [edi+4],eax
+        jmp     @prt_o4
+@@:
+        and     al,3
+        cmp     al,2
+        je      @prt_os2
+@prt_o4:
+        mov     eax,[edx+4]
+        mov     [edi],eax
+        jmp     @prt_on
+@prt_os2:
+        lea     eax,[edx+4]
         call    ls_mov
 @prt_on:
         add     edx,LSSZ

@@ -118,8 +118,8 @@ F_LSP1  = 10
 F_TSPB  = 14                    ; the caller's tspb
 F_SB    = 16                    ; the data stack at its body's start
 F_LHND  = 20                    ; ON LOCAL ERROR's line, 0 none
-LSSZ    = 12                    ; a save entry: id:2, ref:2, the value:8
-LSAVSZ  = 10000h                ; the save stack
+LSSZ    = 16                    ; a save entry: id:2, ref:2, the value:8, off:4
+LSAVSZ  = 15000h                ; the save stack
 
 D_LEN   = 0                     ; a string Desc: len:2, ptr:4 linear
 D_PTR   = 2
@@ -169,7 +169,8 @@ E_SPE   = 40                    ; Subprogram error: BC's, no ERR of its own
 E_ASF   = 41                    ; AS clause required on first declaration: so
 E_AAD   = 42                    ; Array already dimensioned: so
 E_VND   = 43                    ; Variable not declared: VBDOS's, so
-E_LAST  = E_VND
+E_PTM   = 44                    ; Parameter type mismatch: so
+E_LAST  = E_PTM
 
 ; Memory map, flat: the code, then the data; the regions in .data? (main.asm).
 ; dsb is the 16-bit build's DS at the same offsets: the variables, the

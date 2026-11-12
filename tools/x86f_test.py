@@ -265,6 +265,22 @@ CASES = {
                   "DIM i AS INTEGER, v(2)\r\nFOR i = 1 TO 1: v(i) = f%: NEXT\r\ns k + v(1)\r\n"
                   "SUB s (a)\r\nDIM l\r\nl = a + g: PRINT l\r\nEND SUB\r\nFUNCTION f%\r\nSTATIC n\r\nn = n + 1: f% = n\r\nEND FUNCTION\r\n",
                   " 3 \r\n", "ERROR"),
+    # An array's element, a record's field went by value; a variable, an array of another type
+    # passed converted; BYVAL (PDS's) was by reference.
+    "qb_refel": ("DECLARE SUB s (a)\r\nDECLARE SUB t (b$)\r\nDIM v(3), w$(2): v(2) = 1\r\n"
+                 "s v(2): PRINT v(2)\r\nCALL s(v(2)): PRINT v(2)\r\nt w$(1): PRINT w$(1)\r\n"
+                 "SUB s (a)\r\nDIM l(500): a = a + 1\r\nEND SUB\r\nSUB t (b$)\r\nb$ = b$ + \"q\"\r\nEND SUB\r\n",
+                 " 2 \r\n 3 \r\nq\r\n", "ERROR"),
+    "qb_reffld": ("TYPE t\r\n f AS INTEGER\r\n d AS DOUBLE\r\nEND TYPE\r\nDECLARE SUB s (a%)\r\nDECLARE SUB u (b#)\r\n"
+                  "DIM r AS t, q(2) AS t\r\ns r.f: s q(1).f: u q(2).d: PRINT r.f; q(1).f; q(2).d\r\n"
+                  "SUB s (a%)\r\na% = 9\r\nEND SUB\r\nSUB u (b#)\r\nb# = 2.25\r\nEND SUB\r\n",
+                  " 9  9  2.25 \r\n", "ERROR"),
+    "qb_ptmv": ("DECLARE SUB s (a%)\r\nx! = 1: s x!: PRINT x!\r\nSUB s (a%)\r\na% = 5\r\nEND SUB\r\n",
+                "Parameter type mismatch", None),
+    "qb_ptma": ("DECLARE SUB s (a%())\r\nDIM v(3)\r\ns v()\r\nSUB s (a%())\r\nPRINT \"in\"\r\nEND SUB\r\n",
+                "Parameter type mismatch", None),
+    "qb_byval": ("DECLARE SUB s (BYVAL a)\r\nx = 1: s x: PRINT x\r\nSUB s (BYVAL a)\r\na = 5\r\nEND SUB\r\n",
+                 " 1 \r\n", "ERROR"),
     "qb_gosubsc": ('DECLARE SUB s ()\r\ns\r\nEND\r\nm: PRINT "m": RETURN\r\nSUB s\r\nGOSUB m\r\nEND SUB\r\n',
                    "Subprogram error", None),
     # Unhandled: ERROR n's message; RESUME with no error; ON ERROR GOTO 0 in the handler.

@@ -279,6 +279,7 @@ bk_stmt:
         inc     esi
 @bkp_l:                                 ; [BYVAL] n[()] [AS type]
         cmp     byte ptr [esi],TK_BYVAL
+        sete    [g_bkbyv]
         jne     @F
         inc     esi
 @@:
@@ -311,6 +312,10 @@ bk_stmt:
         cmp     ecx,NPPAR
         jae     err_om
         mov     [g_ppar+ecx*2],ax
+        push    eax
+        mov     al,[g_bkbyv]
+        mov     [g_pbyv+ecx],al
+        pop     eax
         inc     [g_state.lnk.nppar]
         inc     word ptr [edi+P_NPAR]
         xor     ecx,ecx                 ; on to its ',' or the ')'
@@ -833,6 +838,8 @@ bk_proc:
         .data?
 g_prc   db      NPROC*PSIZE dup(?)      ; the procedures, from 1
 g_ppar  dw      NPPAR dup(?)            ; their parameters' variables
+g_pbyv  db      NPPAR dup(?)            ; 1: BYVAL (PDS's)
+g_bkbyv db      ?
 g_vfs   db      ?                       ; var_id: 1 a scalar, 2 an array, '(' or not
 g_vft   db      ?                       ; var_id: the type, ET_*; 0 by the name
 g_bkdef db      ?                       ; the procedure is a DEF FN's
