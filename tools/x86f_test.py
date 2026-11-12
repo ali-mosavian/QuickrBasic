@@ -159,6 +159,8 @@ CASES = {
     # was made again, 11 elements: QBasic's are all Subscript out of range.
     "qb_subs": ('DIM s(1 TO 3)\r\nREDIM d(2)\r\nON ERROR GOTO h\r\nPRINT s(-1)\r\nx& = 70000: PRINT s(x&)\r\n'
                 'ERASE d: PRINT d(0)\r\nEND\r\nh: PRINT ERR: RESUME NEXT\r\n', " 9 \r\n 9 \r\n 9 \r\n", "ERROR"),
+    # DIM kept which subscripts had no TO in 24 bits: the 26th's hi and base swapped, 1 TO 0.
+    "qb_dim26": ('DIM a(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1)\r\na(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1) = 7\r\nPRINT a(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1)\r\n', " 7 \r\n", "ERROR"),
     # Unhandled: ERROR n's message; RESUME with no error; ON ERROR GOTO 0 in the handler.
     "qb_errn": ("ERROR 11\r\n", "?DIVISION BY ZERO ERROR", None),
     "qb_errun": ("ERROR 99\r\n", "?UNPRINTABLE ERROR", None),

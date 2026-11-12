@@ -545,7 +545,7 @@ rd_seek:
         ret
 
 ; ::::::::::::::
-; sc_dim - DIM ( i1..in id n -- ).
+; sc_dim - DIM ( i1..in mlo mhi id n -- ): m, bit i: subscript i is hi, base.
 ;
 ; error:  as arr_dim
 ; ::::::::::::::
@@ -555,13 +555,15 @@ sc_dim:
         and     al,3Fh
         mov     [g_state.rn.narr],al
         dpop    edx
+        dpop    dword ptr [g_dmsk+4]
+        dpop    dword ptr [g_dmsk]
         movzx   ecx,al
 @sdm_l:
         dpop    eax                     ; lo TO hi, or hi and the base
         dpop    ebx
         push    edx
-        lea     edx,[ecx+7]
-        bt      [g_dimst],edx
+        lea     edx,[ecx-1]
+        bt      dword ptr [g_dmsk],edx
         pop     edx
         jnc     @F
         xchg    eax,ebx
@@ -614,8 +616,8 @@ sc_erase:
         call    mem_zero
         jmp     ex_lp
         .data?
-g_dimst dd      ?                       ; DIM's count: bit 7 a STATIC's array, from
-                                        ; bit 8 the dimensions given as hi, base
+g_dimst dd      ?                       ; DIM's count: bit 6 REDIM, bit 7 a STATIC's
+g_dmsk  dq      ?                       ; bit i: subscript i is hi, base
         .code
 
 ; ::::::::::::::

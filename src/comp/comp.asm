@@ -1331,7 +1331,8 @@ cm_dv:
         jmp     cm_dvas
 
 ; ::::::::::::::
-; cm_dim1 - DIM's array EBX: ( subscripts ), its id, the count, CALL DIM.
+; cm_dim1 - DIM's array EBX: ( subscripts ), dmask as 2 INTs, its id, the
+; count, CALL DIM.
 ;
 ; in:     cstat  a STATIC's array: dimensioned once
 ;         SI     at '('
@@ -1343,6 +1344,12 @@ cm_dim1:
         push    eax
         push    ebx
         call    cm_dsubs
+        push    ecx
+        mov     eax,dword ptr [g_dmask]
+        call    cm_lint
+        mov     eax,dword ptr [g_dmask+4]
+        call    cm_lint
+        pop     ecx
         pop     eax
         pop     edx
         or      ecx,edx
@@ -1400,15 +1407,16 @@ cm_dvas:
 ; cm_dsubs - DIM's ( [lo TO] hi {, ..} ): lo hi, or hi and OPTION BASE's,
 ; each an INT.
 ;
-; out:    ECX  n, and from bit 8 the dimensions without TO
+; out:    ECX    n
+;         dmask  bit i: subscript i without TO
 ; ::::::::::::::
 cm_dsubs:
         call    cm_chkop
         xor     ecx,ecx
-        xor     edx,edx
+        mov     dword ptr [g_dmask],ecx
+        mov     dword ptr [g_dmask+4],ecx
 @cds_l:
         push    ecx
-        push    edx
         call    cm_expr
         call    cm_toi
         call    st_get
@@ -1417,25 +1425,19 @@ cm_dsubs:
         inc     esi
         call    cm_expr
         call    cm_toi
-        pop     edx
         pop     ecx
         jmp     @cds_n
 @cds_b:
         movzx   eax,[g_obase]
         call    cm_lint
-        pop     edx
         pop     ecx
-        bts     edx,ecx
+        bts     dword ptr [g_dmask],ecx
 @cds_n:
         inc     ecx
         push    ecx
-        push    edx
         call    cm_optcm
-        pop     edx
         pop     ecx
         jz      @cds_l
-        shl     edx,8
-        or      ecx,edx
         push    ecx
         call    cm_chkcl
         pop     ecx
@@ -1836,6 +1838,7 @@ cm_skip:
 g_cbufh db      ?                 ; cbuf-1: lx_line's line before the body
 g_cbuf  db      256 dup(?)
 g_xbuf  db      264 dup(?)
+g_dmask dq      ?                 ; cm_dsubs: bit i, subscript i its hi only
         .code
 
         end
