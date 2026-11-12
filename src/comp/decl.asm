@@ -19,7 +19,7 @@
 ;           SHARED, STATIC n   BF_REF, BF_STAT in the procedure's
 ;           DIM SHARED, a module's CONST   BF_SHR in the module's
 ;           AS STRING * n  n's, n()'s length
-;           OPTION BASE n  obase
+;           OPTION BASE n  obase: 0 or 1, once, before any array's DIM
 ;           A type is ET_*, 0 none declared. DEFtype holds from its line to
 ;           the file's end, SUBs too: dfev keeps deft after each such line,
 ;           dc_deft sets it for the line compiled.
@@ -313,8 +313,16 @@ dc_line:
         jne     @dcl_n
         cmp     byte ptr [esi+2],M_INT
         jne     @dcl_n
+        cmp     dword ptr [esi+3],1     ; 0 or 1, once, before any DIM
+        ja      err_sn
+        cmp     [g_obset],0
+        jne     err_sn
+        cmp     [g_odim],0
+        mov     al,E_AAD
+        jne     err_raise
         mov     al,[esi+3]
         mov     [g_obase],al
+        mov     [g_obset],1
         add     esi,7
         jmp     @dcl_n
 @dcl_dec:                               ; DECLARE SUB|FUNCTION n: its flag
@@ -489,6 +497,10 @@ dc_line:
         cmp     byte ptr [esi],M_VAR
         jne     @dcl_n
         call    dc_nam
+        cmp     byte ptr [esi],'('
+        jne     @F
+        mov     [g_odim],1              ; an array dimensioned
+@@:
         mov     ax,[g_dscope]
         push    eax
         call    dc_redim
@@ -993,6 +1005,8 @@ g_typ   db      NTYPE*8 dup(?)          ; a TYPE: T_*
 g_fld   db      NFLD*8 dup(?)           ; a field: F_*
 g_ntype db      NNAM dup(?)             ; a name's TYPE, 0 none
 g_obase db      ?                       ; OPTION BASE
+g_obset db      ?                       ; OPTION BASE given
+g_odim  db      ?                       ; DIM, REDIM, COMMON of an array
 g_ndev  dd      ?                       ; DEFtype's lines: place:2, deft
 g_dfev  db      NDEV*DEVSZ dup(?)
 g_dscope dw     ?                       ; the scope declarations go to

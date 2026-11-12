@@ -297,6 +297,8 @@ externdef g_fld:byte
 externdef g_ndev:dword
 externdef g_ntype:byte
 externdef g_obase:byte
+externdef g_obset:byte
+externdef g_odim:byte
 externdef g_typ:byte
 ; comp/block.asm
 externdef bk_find:near

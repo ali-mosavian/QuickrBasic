@@ -78,6 +78,8 @@ sym_init:
         mov     [g_state.lx.dproc],ax
         call    scp_init
         mov     [g_obase],al
+        mov     [g_obset],al
+        mov     [g_odim],al
         mov     [g_state.lx.ntyps],ax
         mov     [g_state.lx.nflds],ax
         mov     [g_state.lx.dtype],ax

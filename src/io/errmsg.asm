@@ -55,7 +55,7 @@ er_text:
 ; ERR by E_*: 0 none; FFh not trapped, Out of stack space; F0h.. BC's compile
 ; errors, no ERR of their own.
 g_qberr db      0,0,2,3,4,5,7,8,9,10,11,13,17,0,6,1,16,15,12,0,0,0,0
-        db      67,55,52,53,68,54,54,64,52,0,13,18,0,0FFh,73,33,40,0F0h,0F1h
+        db      67,55,52,53,68,54,54,64,52,0,13,18,0,0FFh,73,33,40,0F0h,0F1h,0F2h
 .erre ($ - g_qberr) EQ E_LAST+1
 g_qbmsg db      1,"NEXT without FOR",0
         db      2,"Syntax error",0
@@ -113,6 +113,7 @@ g_qbmsg db      1,"NEXT without FOR",0
         db      76,"Path not found",0
         db      0F0h,"Subprogram error",0
         db      0F1h,"AS clause required on first declaration",0
+        db      0F2h,"Array already dimensioned",0
         db      0FFh,"Out of stack space",0
         db      0
 g_qbunp db      "Unprintable error",0

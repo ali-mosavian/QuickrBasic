@@ -41,7 +41,8 @@ arr_esz:
         ret
 
 ; ::::::::::::::
-; arr_ref - the address of an element; a new array gets every count 11.
+; arr_ref - the address of an element; a new array gets every subscript
+; OPTION BASE to 10.
 ;
 ; in:     EBX     the id
 ;         narr    n, the subscripts
@@ -60,9 +61,11 @@ arr_ref:
         cmp     [g_adyn+ebx],0          ; ERASE freed it: not made again
         jne     arr_bs
         movzx   ecx,[g_state.rn.narr]
+        movzx   eax,[g_obase]               ; OPTION BASE to 10
 @arf_c:
         mov     word ptr [g_cntbuf+ecx*2-2],11
-        and     word ptr [g_lbbuf+ecx*2-2],0
+        sub     word ptr [g_cntbuf+ecx*2-2],ax
+        mov     word ptr [g_lbbuf+ecx*2-2],ax
         loop    @arf_c
         call    arr_new
 @arf_h:

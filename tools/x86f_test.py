@@ -252,6 +252,11 @@ CASES = {
     "qb_deftpos": ("a = 1.5: PRINT a\r\nDEFINT A\r\na = 2.7: PRINT a; a!\r\n", " 1.5 \r\n 3  1.5 \r\n", "ERROR"),
     "qb_deftsub": ("DECLARE SUB s ()\r\nDECLARE SUB t ()\r\ns: t: c = 1.5: PRINT c\r\nSUB s\r\nDEFINT C\r\nEND SUB\r\n"
                    "SUB t\r\nc = 1.5: PRINT c\r\nEND SUB\r\n", " 2 \r\n 1.5 \r\n", "ERROR"),
+    # OPTION BASE: an undimensioned array's was 0; after a DIM, again, or not 0 or 1 it ran.
+    "qb_obimp": ("OPTION BASE 1\r\nb(2) = 1: PRINT LBOUND(b); UBOUND(b)\r\n", " 1  10 \r\n", "ERROR"),
+    "qb_obdim": ("DIM a(3)\r\nOPTION BASE 1\r\nPRINT LBOUND(a)\r\n", "Array already dimensioned", None),
+    "qb_obtwice": ("OPTION BASE 1\r\nOPTION BASE 0\r\nDIM a(3): PRINT LBOUND(a)\r\n", "Syntax error", None),
+    "qb_ob2": ("OPTION BASE 2\r\nPRINT 1\r\n", "Syntax error", None),
     "qb_gosubsc": ('DECLARE SUB s ()\r\ns\r\nEND\r\nm: PRINT "m": RETURN\r\nSUB s\r\nGOSUB m\r\nEND SUB\r\n',
                    "Subprogram error", None),
     # Unhandled: ERROR n's message; RESUME with no error; ON ERROR GOTO 0 in the handler.

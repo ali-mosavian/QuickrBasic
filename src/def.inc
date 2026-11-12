@@ -167,7 +167,8 @@ E_DL    = 38                    ; Duplicate label
 E_VR    = 39                    ; Variable required
 E_SPE   = 40                    ; Subprogram error: BC's, no ERR of its own
 E_ASF   = 41                    ; AS clause required on first declaration: so
-E_LAST  = E_ASF
+E_AAD   = 42                    ; Array already dimensioned: so
+E_LAST  = E_AAD
 
 ; Memory map, flat: the code, then the data; the regions in .data? (main.asm).
 ; dsb is the 16-bit build's DS at the same offsets: the variables, the
