@@ -6,6 +6,7 @@ import os
 import re
 import shutil
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -112,3 +113,21 @@ def run(jobs: dict[str, str | tuple], work: Path, limit_ms: int = 60000, file: b
         out[name] = Result(name, text, e.get("reason", "none"), e.get("instructions", 0), e.get("ms", 0),
                            "\n".join(screens[i]))
     return out
+
+
+WORKERS = (os.cpu_count() or 4) * 2  # DOSBoxes at once
+
+
+def split(jobs: dict, n: int = WORKERS) -> list[dict]:
+    """jobs dealt into at most n batches, none empty."""
+    items = list(jobs.items())
+    return [dict(items[i::n]) for i in range(min(n, len(items)))]
+
+
+def run_all(batches: list[dict], work: Path) -> dict[str, Result]:
+    """Each batch, run's arguments less work, in its own DOSBox, WORKERS at once."""
+    res: dict[str, Result] = {}
+    with ThreadPoolExecutor(WORKERS) as ex:
+        for r in ex.map(lambda ib: run(work=work / f"b{ib[0]}", **ib[1]), enumerate(batches)):
+            res |= r
+    return res

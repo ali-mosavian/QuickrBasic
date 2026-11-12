@@ -11,7 +11,6 @@ import re
 import sys
 import tempfile
 import tomllib
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -78,15 +77,9 @@ def main() -> None:
     args = [a for a in sys.argv[1:] if a != "-v"]
     every = cases()
     pick = {k: v for k, v in every.items() if (not args and k not in SKIP) or k in args or k.upper() in args}
-    names = list(pick)
-    chunks = [names[i : i + 24] for i in range(0, len(names), 24)]
     tmp = Path(tempfile.mkdtemp())
-    res = {}
-    with ThreadPoolExecutor(4) as ex:  # one DOSBox per chunk, under x86run's 600 s
-        for r in ex.map(lambda ic: x86run.run({k: pick[k][0] for k in ic[1]}, tmp / f"w{ic[0]}", 3000, file=True,
-                                              files=COMPANIONS),
-                        enumerate(chunks)):
-            res.update(r)
+    batches = [dict(jobs=b, limit_ms=3000, file=True, files=COMPANIONS) for b in x86run.split({k: v[0] for k, v in pick.items()})]
+    res = x86run.run_all(batches, tmp)
     ok = 0
     for k, (_, want, whole) in pick.items():
         got = res[k].out

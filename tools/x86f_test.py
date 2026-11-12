@@ -6,7 +6,6 @@ Each case: its program, run as a file, the output it must print and one it must 
 import os
 import sys
 import tempfile
-from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -351,14 +350,11 @@ def forbidden(forbid: str, out: str) -> bool:
 
 def main() -> None:
     tmp = Path(tempfile.mkdtemp())
-    names = list(CASES)
-    batches = [({k: CASES[k][0] for k in names[i::4]}, f"w{i}", True) for i in range(4)]
-    batches += [({k: v[0] for k, v in REPL.items()}, "r", False), ({k: v[0] for k, v in WARN.items()}, "e", True)]
-    batches += [({k: v[0] for k, v in BIG.items()}, "b", True, 8)]
-    res = {}
-    with ThreadPoolExecutor(4) as ex:  # one DOSBox a batch
-        for r in ex.map(lambda b: x86run.run(b[0], tmp / b[1], 10000, file=b[2], mem=(b + (4,))[3]), batches):
-            res |= r
+    batches = [dict(jobs=b, limit_ms=10000, file=True) for b in x86run.split({k: v[0] for k, v in CASES.items()})]
+    batches += [dict(jobs={k: v[0] for k, v in REPL.items()}, limit_ms=10000),
+                dict(jobs={k: v[0] for k, v in WARN.items()}, limit_ms=10000, file=True),
+                dict(jobs={k: v[0] for k, v in BIG.items()}, limit_ms=10000, file=True, mem=8)]
+    res = x86run.run_all(batches, tmp)
     every = CASES | REPL | BIG
     bad = [k for k, (_, want, forbid) in every.items() if want not in res[k].out or (forbid and forbidden(forbid, res[k].out))]
     bad += [k for k, (_, want) in WARN.items() if want not in res[k].screen]
