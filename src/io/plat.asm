@@ -258,11 +258,10 @@ plt_getline:
         call    ch_skiplf               ; a file's CR LF: one line's end
         jmp     @pgl_d
 @pgl_p:
+        cmp     esi,INMAX               ; past it: left out
+        jae     @pgl_c
         mov     [g_inbuf+esi],al
         inc     esi
-        cmp     esi,255
-        jb      @pgl_c
-        xor     esi,esi
         jmp     @pgl_c
 @pgl_e:
         test    esi,esi

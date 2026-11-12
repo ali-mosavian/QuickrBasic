@@ -253,6 +253,15 @@ CASES = {
                      "H|abcd|x#5\r\n", "ERROR"),
     # USING beside the action in PRINT's grammar: a two-byte keyword first was a syntax error.
     "qb_print_kw2": ('PRINT STRING$(3, "z"); LCASE$("AB")\r\n', "zzzab\r\n", "ERROR"),
+    # A line past 255 bytes wrapped the input buffer: LINE INPUT # gave 45 of 300.
+    "qb_line_long": ('OPEN "L.TMP" FOR OUTPUT AS #1: PRINT #1, STRING$(300, "z"): '
+                     'PRINT #1, STRING$(290, "y"); ",7": CLOSE\r\n'
+                     'OPEN "L.TMP" FOR INPUT AS #1: LINE INPUT #1, a$: INPUT #1, b$, n%: CLOSE\r\n'
+                     'KILL "L.TMP": PRINT LEN(a$); LEN(b$); n%\r\n', " 300  290  7 \r\n", "ERROR"),
+    # INPUT$ over 255 was an Illegal function call.
+    "qb_inps_long": ('OPEN "I.TMP" FOR OUTPUT AS #1: PRINT #1, STRING$(300, "z"); "ab": CLOSE\r\n'
+                     'OPEN "I.TMP" FOR INPUT AS #1: a$ = INPUT$(301, #1): b$ = INPUT$(1, 1): CLOSE\r\n'
+                     'KILL "I.TMP": PRINT LEN(a$); RIGHT$(a$, 2); b$\r\n', " 301 zab\r\n", "ERROR"),
     # & after a whole number was a syntax error.
     "qb_lit_long": ("PRINT 70000&; -5%\r\n", " 70000 -5 \r\n", "ERROR"),
 }

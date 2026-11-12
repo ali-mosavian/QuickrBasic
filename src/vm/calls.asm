@@ -171,13 +171,13 @@ sc_din:
         je      @inv_skip
         call    io_field
         mov     [g_state.rn.isw_si],esi
-        movzx   esi,[g_state.io.inpos]
+        mov     esi,[g_state.io.inpos]
         add     esi,offset g_inbuf
         call    io_item
         pushf
         mov     ebx,esi
         sub     ebx,offset g_inbuf
-        mov     [g_state.io.inpos],bl
+        mov     [g_state.io.inpos],ebx
         mov     esi,[g_state.rn.isw_si]
         popf
         jc      @inv_bad
@@ -212,10 +212,9 @@ sc_inend:
         call    io_redo
         test    [g_state.io.infl],80h
         jnz     @jt_call2
-        mov     bl,[g_state.io.inpos]
-        inc     bl
+        mov     ebx,[g_state.io.inpos]
+        inc     ebx
         jz      @jt_call2
-        movzx   ebx,bl
         cmp     byte ptr [g_inbuf+ebx-1],0
         je      @jt_call2
         mov     al,MSG_EXTRA

@@ -455,6 +455,7 @@ externdef str_set:near
 externdef str_skq:near
 externdef str_span:near
 externdef str_sub:near
+externdef str_tods:near
 ; mem/arr.asm
 externdef arr_bs:near
 externdef arr_dim:near

@@ -159,15 +159,12 @@ sc_ficlr:
 ; sc_sline - LINE INPUT's ( -- s ): the line read, whole.
 ; ::::::::::::::
 sc_sline:
-        push    esi
-        movzx   ecx,[g_state.io.inlen]
-        mov     esi,offset g_inbuf
-        mov     edi,offset g_sbuf
-        push    ecx
-        rep     movsb
-        pop     ecx
-        pop     esi
-        jmp     sx_sret
+        mov     eax,[g_state.io.inlen]
+        call    str_alloc
+        mov     [g_state.sg.spt],offset g_inbuf
+        call    str_tods
+        dpush   eax
+        jmp     ex_lp
 
 ; ::::::::::::::
 ; sc_wi, sc_wf, sc_wd - WRITE a number ( x -- ): as PRINT, no spaces;
@@ -367,10 +364,15 @@ sc_inps:
 @@:
         dpop    ecx
         dec     ecx
-        cmp     ecx,254
+        cmp     ecx,INMAX-1
         ja      err_iq
         inc     ecx
         push    esi
+        push    ecx
+        mov     eax,ecx                 ; read into the string's block
+        call    str_alloc
+        pop     ecx
+        mov     esi,[g_state.sg.dpv]
         xor     ebx,ebx
 @fip_l:
         test    edi,edi
@@ -384,12 +386,14 @@ sc_inps:
         xor     ah,ah
         int     16h
 @fip_s:
-        mov     [g_sbuf+ebx],al
+        mov     [esi+ebx],al
         inc     ebx
         cmp     ebx,ecx
         jb      @fip_l
+        call    str_new
         pop     esi
-        jmp     sx_sret
+        dpush   eax
+        jmp     ex_lp
 @fip_x:
         pop     esi
         mov     al,62                   ; Input past end of file

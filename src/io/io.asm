@@ -260,7 +260,7 @@ io_prompt:
 ;
 ; out:    inbuf  the line, 0-terminated
 ;         inlen  its length
-;         inpos  FFh
+;         inpos  -1
 ;         pcol   0
 ; keeps:  SI
 ; error:  ?OUT OF DATA  the end of the input
@@ -278,10 +278,9 @@ io_read:
         xor     al,al                   ; E_BRK
         jmp     err_raise
 @@:
-        mov     [g_state.io.inlen],al
-        movzx   ebx,al
-        mov     byte ptr [g_inbuf+ebx],0
-        mov     [g_state.io.inpos],0FFh
+        mov     [g_state.io.inlen],eax
+        mov     byte ptr [g_inbuf+eax],0
+        mov     [g_state.io.inpos],-1
         cmp     [g_state.io.cin],0FFh   ; the console's: its Enter ended the line
         jne     @F
         mov     [g_state.io.pcol],0
@@ -297,10 +296,9 @@ io_read:
 ; error:  ?OUT OF DATA  the end of the input
 ; ::::::::::::::
 io_field:
-        mov     bl,[g_state.io.inpos]
-        inc     bl
+        mov     ebx,[g_state.io.inpos]
+        inc     ebx
         jz      @iof_d
-        movzx   ebx,bl
         cmp     byte ptr [g_inbuf+ebx-1],','
         je      @iof_d
         test    [g_state.io.infl],80h
@@ -313,12 +311,12 @@ io_field:
         call    io_read
         jmp     io_field
 @iof_d:
-        mov     [g_state.io.inpos],bl
+        mov     [g_state.io.inpos],ebx
         ret
 
         .data?
 g_sbuf  db      256 dup(?)
-g_inbuf db      256 dup(?)
+g_inbuf db      INMAX+1 dup(?)
         .code
 
 include gen.inc

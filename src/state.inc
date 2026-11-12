@@ -166,13 +166,15 @@ TMEM     struc                   ; the memory map, the program, the arrays
     peekseg dw      ?
 TMEM     ends
 
+INMAX   = 32767                 ; an input line's characters at most, as QBasic's
+
 TIO      struc                   ; input and output
     fline   dw      ?               ; loading a file: its line, for a warning
     ocap    db      ?
     pcol    db      ?
     sbx     db      ?
-    inlen   db      ?
-    inpos   db      ?
+    inlen   dd      ?
+    inpos   dd      ?
     infl    db      ?
     lsv     dw      ?
     cin     db      ?
