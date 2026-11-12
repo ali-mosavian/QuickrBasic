@@ -181,6 +181,13 @@ CASES = {
                       'b(0, 0) = 1: b(0, 2) = 3: b(1, 1) = 5\r\nREDIM PRESERVE b(2, 3)\r\n'
                       'PRINT b(0, 0); b(0, 2); b(1, 1); b(2, 3); z(1)\r\nREDIM PRESERVE a(1)\r\nPRINT a(0); a(1); UBOUND(a)\r\n',
                       " 0  10  20  30  0  0 \r\nyy,zzz,,,\r\n 1  3  5  0  4 \r\n 0  10  1 \r\n", "ERROR"),
+    # SHORT was an INT outside a record. QBasic's INTEGER: SHORT arithmetic overflows past 16 bits,
+    # a store to one too; with an INT or a FLOAT it widens; HEX$ shows 16 bits.
+    "qb_short_ops": ('DIM s AS SHORT, t AS SHORT\r\nON ERROR GOTO h\r\ns = 32767: t = -1\r\n'
+                     'PRINT s + 40000; s + 1.5; HEX$(t); HEX$(-1)\r\nPRINT s + 1\r\ns = 40000\r\n'
+                     'DIM a(3) AS SHORT\r\na(1) = s: a(2) = a(1) * 2\r\nREAD t\r\nPRINT s - 1; a(1) \\ 2 + 5\r\n'
+                     'END\r\nDATA 32768\r\nh: PRINT "ov"; ERR: RESUME NEXT\r\n',
+                     " 72767  32768.5 FFFFFFFFFFFF\r\nov 6 \r\nov 6 \r\nov 6 \r\nov 6 \r\n 32766  16388 \r\n", "ERROR"),
     # Unhandled: ERROR n's message; RESUME with no error; ON ERROR GOTO 0 in the handler.
     # A full stack was ?OUT OF MEMORY, which ON ERROR trapped; BC's is Out of stack space, not
     # trapped, its line, module and address after.

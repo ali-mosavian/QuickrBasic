@@ -409,7 +409,16 @@ cm_store:
         mov     dl,1
         jmp     @cst_e
 @cst_i:
+        call    cm_shv
         call    cm_toi
+        movzx   ecx,[g_state.cm.ctv]    ; a SHORT: Overflow past 16 bits,
+        cmp     byte ptr [g_vtyp+ecx],ET_SH     ; unless it is one
+        jne     @F
+        cmp     [g_cshc],0
+        jne     @F
+        mov     al,O_I_CHK16
+        call    cm_op
+@@:
         xor     dl,dl
         jmp     @cst_e
 @cst_s:

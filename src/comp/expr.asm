@@ -37,7 +37,20 @@ cm_p:
         cmp     esp,[g_state.rn.cplim]
         jb      err_om
         call    cm_un
-@cp_l:
+        jmp     @cp_l0
+@cp_l:                                  ; an operator's done: [ESP] a SHORT's
+        pop     eax                     ; when 1
+        test    al,al
+        jz      @F
+        cmp     [g_state.cm.cty],T_INT
+        jne     @F
+        mov     al,O_I_CHK16
+        call    cm_op
+        mov     al,1
+@@:
+        mov     [g_csh],al
+        mov     [g_cshe],edi
+@cp_l0:
         call    st_get
         mov     ah,10                   ; \ MOD XOR EQV IMP: 10 .. 14
         cmp     al,'\'
@@ -103,6 +116,8 @@ cm_p:
         jne     @cp_nf
         mov     ah,1
 @cp_nf:
+        call    cm_shv
+        push    dword ptr [g_cshc]
         push    edx
         push    eax
         push    ecx
@@ -113,6 +128,7 @@ cm_p:
         pop     ecx                      ; the left, an INT load when AH 1
         pop     eax                      ; AL the left's type
         pop     edx                      ; the operator
+        call    cm_sop
         test    dl,dl
         js      @F
         cmp     dl,10
@@ -253,6 +269,70 @@ cm_p:
         jmp     @cp_l
 @cp_e:
         pop     eax
+        ret
+
+; ::::::::::::::
+; cm_sop - operator DL's result is a SHORT's when both operands are SHORTs or
+; literals that fit, one a SHORT: + - * \ MOD, QBasic's INTEGER arithmetic.
+;
+; in:     [ESP+4]  the left's class, cm_shv's
+; out:    [ESP+4]  1 a SHORT's result, else 0
+; keeps:  all
+; ::::::::::::::
+cm_sop:
+        call    cm_shv
+        push    eax
+        mov     al,[g_cshc]
+        mov     ah,[esp+8]
+        test    al,al
+        jz      @csh_n
+        test    ah,ah
+        jz      @csh_n
+        or      al,ah
+        and     al,1
+        jz      @csh_n
+        cmp     dl,2                    ; + - *
+        jbe     @csh_r
+        cmp     dl,10                   ; \ MOD
+        je      @csh_r
+        cmp     dl,11
+        je      @csh_r
+@csh_n:
+        xor     al,al
+@csh_r:
+        mov     [esp+8],al
+        pop     eax
+        ret
+
+; ::::::::::::::
+; cm_shv - the value just compiled: a SHORT's 1, a literal that fits 2, else
+; 0. Valid while nothing follows its code.
+;
+; out:    cshc  the class
+; keeps:  all
+; ::::::::::::::
+cm_shv:
+        push    eax
+        xor     al,al
+        cmp     edi,[g_cshe]
+        jne     @F
+        mov     al,[g_csh]
+@@:
+        mov     [g_cshc],al
+        pop     eax
+        ret
+
+; ::::::::::::::
+; cm_shid - id EBX's load just compiled: a SHORT's, class 1.
+;
+; keeps:  all
+; ::::::::::::::
+cm_shid:
+        cmp     byte ptr [g_vtyp+ebx],ET_SH
+        jne     @F
+        mov     [g_csh],1
+        mov     [g_cshe],edi
+@@:
         ret
 
 ; ::::::::::::::
@@ -544,15 +624,18 @@ cm_load:
 @cld_i:
         mov     [g_state.cm.cll],edi
         mov     al,O_I_LD_V
+        push    ebx
         call    cm_opid
+        pop     ebx
         mov     [g_state.cm.clle],edi
         mov     [g_state.cm.cty],T_INT
-        ret
+        jmp     cm_shid
 @cld_s:
         mov     [g_state.cm.cty],T_STR
         mov     al,O_S_LD_V
         jmp     cm_opid
 @cld_a:
+        push    ebx
         push    ebx
         push    edx
         call    cm_subs0
@@ -570,10 +653,14 @@ cm_load:
         mov     ecx,ebx
         call    cm_opid
         pop     eax
-        jmp     cm_byt
+        call    cm_byt
+        jmp     @cld_h
 @cld_1:
         pop     ecx
-        jmp     cm_opid
+        call    cm_opid
+@cld_h:
+        pop     ebx
+        jmp     cm_shid
 
         .data
 g_ctys  db      T_FLT,T_INT,T_STR,T_DBL,T_DBL   ; by kind, SK_DBL a DOUBLE
@@ -657,6 +744,7 @@ cm_str1:
 ; error:  ?SYNTAX ERROR  not an operand
 ; ::::::::::::::
 cm_un:
+        and     [g_cshe],0              ; not a SHORT's unless it says
         call    st_get
         cmp     al,M_VAR
         je      cm_load
@@ -664,7 +752,15 @@ cm_un:
         jne     @cu_2
         mov     eax,[esi+1]
         add     esi,5
-        jmp     cm_lint
+        push    eax
+        call    cm_lint
+        pop     eax
+        cmp     eax,32767
+        ja      @F
+        mov     [g_csh],2
+        mov     [g_cshe],edi
+@@:
+        ret
 @cu_2:
         cmp     al,'('
         je      cm_paren
@@ -695,8 +791,13 @@ cm_un:
         cmp     [g_state.cm.cty],T_FLT
         mov     al,O_F_NEG
         je      @jt_expr2
+        call    cm_shv                  ; a SHORT's negated is one
         mov     al,O_I_NEG              ; I.LD.I16 is unsigned: no -literal fold
-        jmp     cm_op
+        call    cm_op
+        mov     al,[g_cshc]
+        mov     [g_csh],al
+        mov     [g_cshe],edi
+        ret
 @cu_4:
         cmp     al,TK_PLUS
         jne     @cu_5
@@ -1168,8 +1269,8 @@ cm_xfn:
         jmp     @cxf_n
 
 ; ::::::::::::::
-; cm_xarg - the value as kind AL: I an INT, F a FLOAT, S a string, X a
-; string or a number, then 1 or 0.
+; cm_xarg - the value as kind AL: I an INT, W an INT, a SHORT's 16 bits, F a
+; FLOAT, S a string, X a string or a number, then 1 or 0.
 ; ::::::::::::::
 cm_xarg:
         cmp     al,'D'
@@ -1188,6 +1289,17 @@ cm_xarg:
         mov     al,K_FIX
         jmp     cm_call
 @cxa_n:
+        cmp     al,'W'                  ; HEX$, OCT$: a SHORT's 16 bits
+        jne     @F
+        call    cm_shv
+        call    cm_toi
+        cmp     [g_cshc],1
+        jne     cm_rts
+        mov     eax,0FFFFh
+        call    cm_lint
+        mov     al,O_I_AND
+        jmp     cm_op
+@@:
         cmp     al,'I'
         je      cm_toi
         cmp     al,'F'
@@ -1289,8 +1401,8 @@ g_xfn   label   byte
         xfn     100h+TK1_RTRIMS,K_RTRIM,1,1,T_STR,<'S',0,0>
         xfn     100h+TK1_UCASES,K_UCASE,1,1,T_STR,<'S',0,0>
         xfn     100h+TK1_LCASES,K_LCASE,1,1,T_STR,<'S',0,0>
-        xfn     100h+TK1_HEXS,K_HEX,1,1,T_STR,<'I',0,0>
-        xfn     100h+TK1_OCTS,K_OCT,1,1,T_STR,<'I',0,0>
+        xfn     100h+TK1_HEXS,K_HEX,1,1,T_STR,<'W',0,0>
+        xfn     100h+TK1_OCTS,K_OCT,1,1,T_STR,<'W',0,0>
         xfn     100h+TK1_ERR,K_ERR,0,0,T_INT,<0,0,0>
         xfn     100h+TK1_ERL,K_ERL,0,0,T_INT,<0,0,0>
         xfn     100h+TK1_TIMER,K_TIMER,0,0,T_FLT,<0,0,0>
@@ -1326,6 +1438,9 @@ g_cprec db      78h,78h,7Bh,7Bh,7Fh,50h,46h,64h,64h,64h
         db      7Ah,79h,44h,42h,40h     ; \ MOD XOR EQV IMP
 g_xop   db      O_I_DIV,O_I_MOD,O_I_XOR,O_I_EQV,O_I_IMP
         .data?
+g_csh   db      ?                       ; the SHORT class of the code ending
+g_cshc  db      ?                       ; at cshe; cm_shv's
+g_cshe  dd      ?
 g_vakind dd     ?
         .code
 

@@ -193,6 +193,18 @@ op_flst:
         dispatch
 
 ; ::::::::::::::
+; op_ichk16 - I.CHK16 ( x -- x ): a SHORT's value.
+;
+; error:  Overflow  past 16 bits
+; ::::::::::::::
+op_ichk16:
+        mov     eax,[esp]
+        movsx   ecx,ax
+        cmp     ecx,eax
+        jne     err_ov
+        dispatch
+
+; ::::::::::::::
 ; op_sfld - SF.LD off n ( a -- s ): a STRING * n field, a temporary.
 ; ::::::::::::::
 op_sfld:

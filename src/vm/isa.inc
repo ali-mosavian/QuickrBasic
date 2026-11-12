@@ -145,6 +145,7 @@ oplist  macro   m
         m       R_COPY,op_rcopy,3,0
         m       ONERR,op_onerr,5,0
         m       ONLERR,op_onlerr,5,0
+        m       I_CHK16,op_ichk16,1,FX
         m       RESUME,op_resume,6,0
         m       D_LD_V,op_dldv,3,FX+FV
         m       D_ST_V,op_dstv,3,FV

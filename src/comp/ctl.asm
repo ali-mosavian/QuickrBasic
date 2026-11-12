@@ -808,6 +808,11 @@ rc_load:
         pop     ebx
         mov     al,bl
         call    cm_byt
+        cmp     bl,ET_SH
+        jne     @F
+        mov     [g_csh],1
+        mov     [g_cshe],edi
+@@:
         mov     al,[g_etk+ebx]
         movzx   eax,al
         mov     al,[g_ctys+eax]

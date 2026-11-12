@@ -16,6 +16,7 @@ externdef op_flld:near
 externdef op_flst:near
 externdef op_fsta1:near
 externdef op_fstan:near
+externdef op_ichk16:near
 externdef op_ilda1:near
 externdef op_ista1:near
 externdef op_istan:near
@@ -403,8 +404,12 @@ externdef cm_lflt:near
 externdef cm_load:near
 externdef cm_lval:near
 externdef cm_paren:near
+externdef cm_shv:near
 externdef cm_subs0:near
 externdef g_cmact:dword
+externdef g_csh:byte
+externdef g_cshc:byte
+externdef g_cshe:dword
 externdef g_ctys:byte
 ; comp/link.asm
 externdef cm_cache:near
