@@ -521,6 +521,7 @@ ui_acts dd      ui_new,ui_open,ui_save,ui_saveas,ui_exit,ed_cut,ed_copy
         dd      ui_runp,ui_contp,ui_syntax,ui_about,ud_step,ud_pstep
         dd      ud_trace1,ud_bp,ud_bpclr,ud_setnx,ud_restart,wn_split
         dd      vw_subs,vw_newsub,vw_newfn,th_qb,th_dark,hl_toggle,wn_vsplit
+        dd      NTHEME-2 dup(th_pick)
         .code
 
 ; ::::::::::::::

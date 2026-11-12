@@ -832,6 +832,7 @@ externdef th_ah:near
 externdef th_dark:near
 externdef th_in:near
 externdef th_out:near
+externdef th_pick:near
 externdef th_qb:near
 ; ui/syntax.asm
 externdef g_hlon:byte

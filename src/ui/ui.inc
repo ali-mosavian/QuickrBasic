@@ -67,6 +67,7 @@ A_PAR   = 22
 A_TYP   = 23
 A_OP    = 24
 NATTR   = 25
+NTHEME  = 9
 TH_SZ   = NATTR+48              ; a theme: its attributes, 16 colours' RGB
 ; menu.asm
 MF_GRAY = 1
@@ -108,7 +109,8 @@ A_THQB  = 29
 A_THDK  = 30
 A_SYNHL = 31
 A_VSPLIT = 32
-A_NONE  = 33
+A_TH2   = 33                    ; themes 2 .. NTHEME-1
+A_NONE  = A_TH2+NTHEME-2
 ; dlg.asm
 CT_FLD  = 1
 CT_LST  = 2

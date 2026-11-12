@@ -5,6 +5,8 @@ the output page, the immediate window, menus, clipboard, the file and search dia
 import os
 import sys
 import tempfile
+
+from PIL import Image
 from pathlib import Path
 
 LLRM = Path("/Users/alim/work/personal/llrm-qbmac/tools")
@@ -537,7 +539,14 @@ def play() -> None:
         assert list(attrs(3)[1:37]) == want, attrs(3)[1:37].hex()
         press(f"0x{0x18:x}", "d")
         assert list(attrs(2)[1:21:5]) == [0x15, 0x15, 0x17, 0x18], attrs(2)[1:21].hex()
-        assert [attrs(3)[1 + i] for i in (0, 4, 8, 11, 29)] == [0x15, 0x19, 0x14, 0x1B, 0x1B], attrs(3).hex()
+        assert [attrs(3)[1 + i] for i in (0, 4, 8, 11, 29)] == [0x15, 0x19, 0x1D, 0x1A, 0x1B], attrs(3).hex()
+        # Gruvbox Dark Soft: Zed's colours in the DAC, the editor's ground #32302F
+        press(f"0x{0x18:x}", "g")
+        assert attrs(2)[1] == 0x15, attrs(2).hex()
+        shot = Path(tempfile.mkdtemp()) / "th.png"
+        s.snap(shot)
+        px = Image.open(shot).convert("RGB").getpixel((364, 168))
+        assert all(abs(a - b) <= 8 for a, b in zip(px, (0x32, 0x30, 0x2F))), px
         press(f"0x{0x18:x}", "q")
         press(f"0x{0x18:x}", "h")
         assert set(attrs(2)[1:21]) == {0x17}, attrs(2)[1:21].hex()

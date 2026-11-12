@@ -688,7 +688,15 @@ mn_flags db     A_TRACE
         dd      offset g_thn
         db      0, A_THDK
         dd      offset g_thn
-        db      1, A_SYNHL
+        db      1
+mf_th = 2
+        rept    NTHEME-2
+        db      A_TH2+mf_th-2
+        dd      offset g_thn
+        db      mf_th
+mf_th = mf_th+1
+        endm
+        db      A_SYNHL
         dd      offset g_hlon
         db      0FFh, 0
 mn_scan db      21h,12h,2Fh,1Fh,13h,20h,18h,23h ; Alt+F E V S R D O H
@@ -745,6 +753,13 @@ m_dbg   db      A_STEP,0,'&Step',0,'F8',0
         db      0
 m_opt   db      A_THQB,MF_CHK,'&QBasic Colors',0,0
         db      A_THDK,MF_CHK,'One &Dark',0,0
+        db      A_TH2,MF_CHK,'One &Light',0,0
+        db      A_TH2+1,MF_CHK,'&Ayu Mirage',0,0
+        db      A_TH2+2,MF_CHK,'Ay&u Light',0,0
+        db      A_TH2+3,MF_CHK,'&Gruvbox Dark Soft',0,0
+        db      A_TH2+4,MF_CHK,'Gruv&box Light',0,0
+        db      A_TH2+5,MF_CHK,'&JetBrains Dark',0,0
+        db      A_TH2+6,MF_CHK,'JetBrains Ligh&t',0,0
         db      A_SYNHL,MF_CHK,'Syntax &Highlighting',0,0
         db      A_NONE,MF_SEP
         db      A_NONE,MF_GRAY,'Help &Path...',0,0
