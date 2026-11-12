@@ -222,6 +222,11 @@ dc_line:
         jne     @F
         cmp     byte ptr [esi+1],TK1_COMMON
         je      @dcl_cmn
+        cmp     byte ptr [esi+1],TK1_DEFSHORT
+        jne     @F
+        mov     dl,ET_SH
+        add     esi,2
+        jmp     @dcd_l
 @@:
         sub     al,TK_DEFINT
         cmp     al,TK_DEFSTR-TK_DEFINT
@@ -429,7 +434,7 @@ dc_line:
         inc     esi
         jmp     @dch_l
 
-@dcl_def:                               ; DEFtype l[-l] {, l[-l]}
+@dcl_def:                               ; DEFtype l[-l] {, l[-l]}; DEFSHORT ours
         movzx   eax,al
         mov     dl,[g_dett+eax]
         inc     esi

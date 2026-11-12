@@ -62,7 +62,7 @@ WIDTH WINDOW WRITE XOR""".split()
 PAGE0 = [*C64, *((w, w) for w in MORE)]
 assert len(PAGE0) == 0xFF - 0x80, len(PAGE0)
 _lexed = {s for _, s in PAGE0 if s}
-EXTRA = ["SHORT", "SSEG", "PRESERVE", "EXPLICIT"]  # ours: a 2-byte integer, for records' QBasic layout
+EXTRA = ["SHORT", "SSEG", "PRESERVE", "EXPLICIT", "DEFSHORT"]  # ours: a 2-byte integer, for records' QBasic layout
 # (INTEGER is 4 bytes); PDS's REDIM PRESERVE; VBDOS's OPTION EXPLICIT
 PAGE1 = [w for w in QB45 if w not in _lexed] + EXTRA
 TOKENS: dict[str, int] = {s: 0x80 + n for n, (_, s) in enumerate(PAGE0) if s}

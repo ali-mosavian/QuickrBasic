@@ -119,8 +119,8 @@ ct_stmt:
         ret
 
 ; ::::::::::::::
-; ct_none - DECLARE, SHARED, STATIC: entered with the line (dc_line), no
-; code.
+; ct_none - DECLARE, SHARED, STATIC, DEFtype: entered with the line
+; (dc_line), no code.
 ; ::::::::::::::
 ct_none:
         call    ct_skip
@@ -430,6 +430,8 @@ ct_xst:
         mov     al,[esi+1]
         cmp     al,TK1_COMMON
         je      ct_common
+        cmp     al,TK1_DEFSHORT
+        je      ct_none
         cmp     al,TK1_RESUME
         jne     ct_evs
         add     esi,2

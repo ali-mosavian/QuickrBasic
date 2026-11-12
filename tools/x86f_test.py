@@ -311,6 +311,9 @@ CASES = {
                 " .001  .00001  .0000001  1E-08  .0000012  1.2E-07  1.234567E-02  1.23456E-03 \r\n"
                 " .9999999 5.555556E-09 1.5E-10\r\n"
                 " .0001  .000015  .000001  .0000000000000001  1.2D-16  .000000012345678  .0123456789012345 \r\n", "ERROR"),
+    # DEFSHORT, ours, was a syntax error: its letters' names a SHORT, overflowing past 16 bits.
+    "qb_defshort": ('DEFSHORT S-T\r\nON ERROR GOTO h\r\nu = 40000: s = 32767: PRINT u; s\r\nt = u\r\nEND\r\n'
+                    'h: PRINT "ov"; ERR: RESUME NEXT\r\n', " 40000  32767 \r\nov 6 \r\n", "ERROR"),
     "qb_gosubsc": ('DECLARE SUB s ()\r\ns\r\nEND\r\nm: PRINT "m": RETURN\r\nSUB s\r\nGOSUB m\r\nEND SUB\r\n',
                    "Subprogram error", None),
     # Unhandled: ERROR n's message; RESUME with no error; ON ERROR GOTO 0 in the handler.
