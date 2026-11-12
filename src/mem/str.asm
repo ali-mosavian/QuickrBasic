@@ -213,6 +213,10 @@ str_set:
         jb      @sst_c
         cmp     edx,[g_state.mm.htop]
         jae     @sst_c
+        mov     ebx,eax                 ; a variable's block stays its own
+        sub     ebx,[g_state.sg.tmplin]
+        cmp     ebx,DSZ*NTMP
+        jae     @sst_c
         push    eax
         movzx   eax,[g_state.sg.sln]
         add     eax,edx

@@ -83,6 +83,11 @@ CASES = {
     "qb_fnspace": ("DEF FN twice(v) = v * 2\r\nPRINT FN twice(4)\r\n", " 8 \r\n", "ERROR"),
     "qb_swap": ("a=1: c=2: DIM z(3): z(1)=5: z(2)=9: SWAP a, c: SWAP z(1), z(2): PRINT a; c; z(1); z(2)\r\n",
                 " 2  1  9  5 \r\n", "ERROR"),
+    # a$ = b$ took b$'s heap block: once a$ changed, a GC dropped it and b$ printed "gh".
+    "str_letvar": ('b$ = "x" + "y": a$ = b$: a$ = "q"\r\n'
+                   'x$ = "abcdefghij": FOR k = 1 TO 9: x$ = x$ + x$: NEXT\r\n'
+                   'FOR i = 1 TO 1000: c$ = x$ + STR$(i): NEXT\r\nPRINT b$\r\n',
+                   "xy\r\n", "ERROR"),
     "int32_lit": ("A%=65535:PRINT A%*2\r\n", " 131070 \r\n", "ERROR"),
 }
 
