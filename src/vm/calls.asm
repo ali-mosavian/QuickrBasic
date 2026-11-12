@@ -784,26 +784,38 @@ sc_poke:
         jmp     ex_lp
 
 ; ::::::::::::::
-; sc_wait - WAIT ( addr mask xor -- ), ( addr mask -- ): until
-; (PEEK EOR xor) AND mask.
+; sc_wait - WAIT ( port mask xor -- ); sc_wait2 ( port mask -- ): until
+; (INP XOR xor) AND mask.
 ; ::::::::::::::
 sc_wait2:
         xor     eax,eax
         jmp     @swt_g
-; ::::::::::::::
-; sc_wait - WAIT ( addr mask xor -- ), ( addr mask -- ): until
-; ::::::::::::::
 sc_wait:
         dpop    eax
 @swt_g:
-        dpop    edx
+        mov     ecx,eax
         dpop    ebx
-        movzx   ebx,bx
+        dpop    edx
 @@:
-        mov     cl,[g_pokeb+ebx]
-        xor     cl,al
-        and     cl,dl
+        in      al,dx
+        xor     al,cl
+        and     al,bl
         jz      @B
+        jmp     ex_lp
+
+; ::::::::::::::
+; sc_inp - INP ( port -- b ); sc_out - OUT ( port b -- ).
+; ::::::::::::::
+sc_inp:
+        dpop    edx
+        in      al,dx
+        movzx   eax,al
+        dpush   eax
+        jmp     ex_lp
+sc_out:
+        dpop    eax
+        dpop    edx
+        out     dx,al
         jmp     ex_lp
 
 ; ::::::::::::::

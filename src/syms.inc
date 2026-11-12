@@ -93,6 +93,7 @@ externdef sc_inbeg:near
 externdef sc_inend:near
 externdef sc_infile:near
 externdef sc_inln:near
+externdef sc_inp:near
 externdef sc_inpr:near
 externdef sc_ipow:near
 externdef sc_ipr:near
@@ -100,6 +101,7 @@ externdef sc_ist:near
 externdef sc_list:near
 externdef sc_new:near
 externdef sc_nodir:near
+externdef sc_out:near
 externdef sc_pnl:near
 externdef sc_poke:near
 externdef sc_pspc:near

@@ -188,6 +188,11 @@ CASES = {
                      'DIM a(3) AS SHORT\r\na(1) = s: a(2) = a(1) * 2\r\nREAD t\r\nPRINT s - 1; a(1) \\ 2 + 5\r\n'
                      'END\r\nDATA 32768\r\nh: PRINT "ov"; ERR: RESUME NEXT\r\n',
                      " 72767  32768.5 FFFFFFFFFFFF\r\nov 6 \r\nov 6 \r\nov 6 \r\nov 6 \r\n 32766  16388 \r\n", "ERROR"),
+    # INP and OUT were syntax errors; WAIT read POKE's memory, not a port. The DAC's registers read
+    # back what OUT wrote; WAIT ends on the vertical retrace's bit.
+    "qb_ports": ('OUT &H3C8, 5: OUT &H3C9, 10: OUT &H3C9, 20: OUT &H3C9, 30\r\n'
+                 'OUT &H3C7, 5: PRINT INP(&H3C9); INP(&H3C9); INP(&H3C9)\r\nWAIT &H3DA, 8: WAIT &H3DA, 8, 8: PRINT "w"\r\n',
+                 " 10  20  30 \r\nw\r\n", "ERROR"),
     # Unhandled: ERROR n's message; RESUME with no error; ON ERROR GOTO 0 in the handler.
     # A full stack was ?OUT OF MEMORY, which ON ERROR trapped; BC's is Out of stack space, not
     # trapped, its line, module and address after.

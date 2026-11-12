@@ -1431,6 +1431,7 @@ g_xfn   label   byte
         xfn     100h+TK1_LOC,K_LOC,1,1,T_INT,<'H',0,0>
         xfn     100h+TK1_SEEK,K_SEEKF,1,1,T_INT,<'H',0,0>
         xfn     100h+TK1_FREEFILE,K_FREEF,0,0,T_INT,<0,0,0>
+        xfn     100h+TK1_INP,K_INP,1,1,T_INT,<'I',0,0>
         xfn     100h+TK1_INPUTS,K_INPS,1,2,T_STR,<'I','H',0>
         xfn     100h+TK1_FILEATTR,K_FATTR,2,2,T_INT,<'H','I',0>
         dw      0

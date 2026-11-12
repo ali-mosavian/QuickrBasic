@@ -338,6 +338,8 @@ qbklist macro   m
         m       NFA,sc_nfa
         m       USB,sc_usb
         m       USI,sc_usi
+        m       INP,sc_inp
+        m       OUT,sc_out
         m       USF,sc_usf
         m       USD,sc_usd
         m       USS,sc_uss

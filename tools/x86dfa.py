@@ -215,6 +215,8 @@ GRAMMAR: dict[str, str] = {
     "STOP": "!STOP",
     "ON": "e on onl { , onl }",
     "POKE": "e toi , e tob !POKE",
+    "OUT": "e toi , e toi !OUT",
+    "WAIT": "e toi , e toi ( , e toi !WAIT | !WAIT2 )",
     "PRINT": "( # e toi !FIOUT , pr !FICLR | pr )",
     "WRITE": "( # e toi !FIOUT , wr !FICLR | wr )",
     "LINE": "INPUT ( # e toi !FIIN , !INLN lv lin !FICLR | [ ; ] [ '\"' str !SPR ( ; | , ) ] !INLN lv lin )",
