@@ -157,6 +157,11 @@ CASES = {
                  "e 11  50  5  0 \r\ne 5  0  2 \r\ne 7  0 x\r\n", "ERROR"),
     # A DOUBLE element of 2 or more subscripts stored without its count: the VM ran its operands.
     "qb_dbl_arr2": ('DIM g#(9, 9)\r\ng#(1, 2) = 3\r\nPRINT g#(1, 2); g#(2, 1)\r\n', " 3  0 \r\n", "ERROR"),
+    # Freeing an array walked all 4096 ids, not those in use: 4000 calls of a SUB with local arrays
+    # took 15 s, past the limit.
+    "qb_dimfree": ('DECLARE SUB a (n AS INTEGER)\r\nFOR i = 1 TO 4000: a i MOD 50: NEXT: PRINT "ok"\r\nEND\r\n'
+                   'SUB a (n AS INTEGER)\r\nREDIM x(300 + n) AS INTEGER\r\nDIM y(40) AS LONG\r\nEND SUB\r\n',
+                   "ok\r\n", "ERROR"),
     # Unhandled: ERROR n's message; RESUME with no error; ON ERROR GOTO 0 in the handler.
     # A full stack was ?OUT OF MEMORY, which ON ERROR trapped; BC's is Out of stack space, not
     # trapped, its line, module and address after.

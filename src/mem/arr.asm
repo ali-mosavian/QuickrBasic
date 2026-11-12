@@ -322,11 +322,14 @@ arr_free:
         sub     eax,ecx
         jmp     @afr_b
 @afr_v:
-        mov     ecx,NSYM-1              ; the headers kept: vt
+        movzx   ecx,[g_state.lx.nsyms]  ; the headers kept: vt, the ids in use
+        dec     ecx
+        jecxz   @afr_s2
 @afr_t:
         lea     eax,[g_vt+ecx*4]
         call    @afr_r
         loop    @afr_t
+@afr_s2:
         mov     edx,offset g_lsav       ; the save stack's arrays
 @afr_l:
         cmp     edx,[g_state.rn.lsp]
@@ -370,13 +373,16 @@ arr_free:
 arr_rep:
         pushad
         mov     edi,[g_vt+ebx*4]
-        mov     ecx,NSYM-1
+        movzx   ecx,[g_state.lx.nsyms]  ; the ids in use
+        dec     ecx
+        jecxz   @arp_s
 @arp_t:
         cmp     dword ptr [g_vt+ecx*4],1
         jne     @F
         mov     [g_vt+ecx*4],edi
 @@:
         loop    @arp_t
+@arp_s:
         mov     edx,offset g_lsav
 @arp_l:
         cmp     edx,[g_state.rn.lsp]
