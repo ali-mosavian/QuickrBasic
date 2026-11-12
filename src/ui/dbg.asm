@@ -84,25 +84,8 @@ ud_hlset:
         mov     edi,offset g_ui.bf.ud_txt
         call    tx_get
         mov     byte ptr [edi+ecx],0
-        mov     esi,edi                 ; past the indent and a line number,
-@uhs_b:                                 ; as sy_pass
-        cmp     byte ptr [esi],' '
-        jne     @uhs_d
-        inc     esi
-        jmp     @uhs_b
-@uhs_d:
-        mov     al,[esi]
-        sub     al,'0'
-        cmp     al,9
-        ja      @uhs_s
-        inc     esi
-        jmp     @uhs_d
-@uhs_s:
-        cmp     byte ptr [esi],' '
-        jne     @uhs_x
-        inc     esi
-        jmp     @uhs_s
-@uhs_x:
+        call    ui_body                 ; the body, as the editor stores it
+        mov     esi,edi
         push    ecx
         push    esi
         mov     edi,offset g_ui.bf.ud_tok

@@ -40,10 +40,10 @@ vw_reset:
         jmp     vw_apply
 
 ; ::::::::::::::
-; vw_kind - text line AX: a procedure's first line, its end, or neither.
+; vw_kind - text line AX tokenized: dc_proc's answer.
 ;
-; out:    AL  VK_SUB, VK_FN, VK_END, else 0
-;         ESI past the keyword, at the name, for VK_SUB, VK_FN
+; out:    AL   PK_SUB, PK_FN, PK_END, else 0
+;         ESI  the name's M_VAR in cbuf, for PK_SUB, PK_FN
 ; keeps:  all but EAX, ESI
 ; ::::::::::::::
 vw_kind:
@@ -53,102 +53,18 @@ vw_kind:
         call    tx_offa
         call    tx_len
         lea     esi,[g_txb+ebx]
-        mov     [g_ui.vw.vw_src],esi
-        mov     edi,offset g_ui.bf.vw_ln        ; 0-ended, upper case
-        mov     ebx,edi
-@vk_c:
-        jecxz   @vk_z
-        lodsb
-        call    ui_upper
-        stosb
-        dec     ecx
-        jmp     @vk_c
-@vk_z:
+        mov     edi,offset g_ui.bf.vw_ln        ; 0-ended for lx_line
+        rep     movsb
         mov     byte ptr [edi],0
-        mov     esi,ebx
-        call    vw_sp
-@vk_d:                                  ; a line number
-        mov     al,[esi]
-        sub     al,'0'
-        cmp     al,9
-        ja      @F
-        inc     esi
-        jmp     @vk_d
-@@:
-        call    vw_sp
-        mov     edi,offset u_kwsub
-        mov     ah,VK_SUB
-        call    vw_word
-        je      @vk_r
-        mov     edi,offset u_kwfn
-        mov     ah,VK_FN
-        call    vw_word
-        je      @vk_r
-        mov     edi,offset u_kwend
-        call    vw_word
-        jne     @vk_n
-        mov     edi,offset u_kwsub
-        mov     ah,VK_END
-        call    vw_word
-        je      @vk_r
-        mov     edi,offset u_kwfn
-        call    vw_word
-        je      @vk_r
-@vk_n:
-        xor     ah,ah
-@vk_r:
-        mov     al,ah
+        pushad
+        mov     esi,offset g_ui.bf.vw_ln
+        mov     edi,offset g_cbuf
+        call    lx_line
+        popad
+        call    dc_proc
         pop     edi
         pop     ecx
         pop     ebx
-        ret
-
-; vw_sp - ESI past spaces. Keeps all but ESI.
-vw_sp:
-        cmp     byte ptr [esi],' '
-        jne     @F
-        inc     esi
-        jmp     vw_sp
-@@:
-        ret
-
-; vw_word - the word at ESI is the one at EDI (0-ended), a whole word: ZF
-; set, ESI past it and its spaces. Keeps all but ESI, flags.
-vw_word:
-        push    eax
-        push    esi
-        push    edi
-@vw_l:
-        mov     al,[edi]
-        test    al,al
-        jz      @vw_e
-        cmp     al,[esi]
-        jne     @vw_n
-        inc     esi
-        inc     edi
-        jmp     @vw_l
-@vw_e:
-        mov     al,[esi]                ; the word ends here
-        cmp     al,' '
-        je      @F
-        test    al,al
-        jz      @F
-        cmp     al,'('
-        je      @F
-        cmp     al,"'"
-        jne     @vw_n
-@@:
-        pop     edi
-        add     esp,4
-        pop     eax
-        call    vw_sp
-        cmp     al,al                   ; ZF set
-        ret
-@vw_n:
-        pop     edi
-        pop     esi
-        pop     eax
-        or      esp,esp                 ; ZF clear
         ret
 
 ; ::::::::::::::
@@ -168,9 +84,9 @@ vw_order:
         push    eax
         call    vw_kind
         mov     cl,dh
-        cmp     al,VK_END
+        cmp     al,PK_END
         je      @vor_e
-        cmp     al,VK_SUB
+        cmp     al,PK_SUB
         jb      @vor_k
         mov     dh,1
         mov     cl,1
@@ -213,9 +129,9 @@ vw_scan:
         and     [g_ui.tx.tx_hook],0     ; not told of the module's line
         xor     eax,eax
         call    vw_kind
-        cmp     al,VK_SUB
+        cmp     al,PK_SUB
         jb      @vws_s
-        cmp     al,VK_END
+        cmp     al,PK_END
         jae     @vws_s
         xor     eax,eax                 ; a blank line before
         xor     ecx,ecx
@@ -233,9 +149,9 @@ vw_scan:
         jae     @vws_d
         push    eax
         call    vw_kind
-        cmp     al,VK_SUB
+        cmp     al,PK_SUB
         jb      @vws_n
-        cmp     al,VK_END
+        cmp     al,PK_END
         jae     @vws_n
         cmp     ebx,NVIEW
         jae     @vws_n
@@ -243,22 +159,15 @@ vw_scan:
         mov     [edi].TVIEW.vkind,al
         mov     eax,[esp]
         mov     [edi].TVIEW.vfirst,ax
-        push    edi                     ; its name as typed, to a space or a (
-        sub     esi,offset g_ui.bf.vw_ln
-        add     esi,[g_ui.vw.vw_src]
+        push    edi                     ; its name as typed: the M_VAR's
         lea     edi,[edi].TVIEW.vname
+        movzx   ecx,byte ptr [esi+1]
+        add     esi,2
+        cmp     ecx,VNAME
+        jbe     @F
         mov     ecx,VNAME
-@vws_c:
-        lodsb
-        cmp     al,NL
-        je      @vws_e
-        cmp     al,' '
-        je      @vws_e
-        cmp     al,'('
-        je      @vws_e
-        stosb
-        loop    @vws_c
-@vws_e:
+@@:
+        rep     movsb
         mov     byte ptr [edi],0
         pop     edi
         inc     ebx
@@ -435,28 +344,32 @@ vw_prev:
         jmp     vw_show
 
 ; ::::::::::::::
-; vw_commit - the line just stored: a SUB or FUNCTION typed in the module
-; becomes a procedure of its own, shown, as QBasic does.
+; vw_commit - the line just stored: a SUB or FUNCTION line typed becomes a
+; procedure of its own, shown, as QBasic does; a procedure's own first line
+; changed, the names again.
 ; ::::::::::::::
 vw_commit:
-        cmp     [g_ui.ed.ed_vw],0
-        jne     @vcm_r
         mov     ax,[g_ui.ed.ed_line]
+        test    ax,ax
+        jnz     @vcm_k
+        cmp     [g_ui.ed.ed_vw],0
+        je      @vcm_k
+        call    vw_scan                 ; its name may be another
+        jmp     vw_apply
+@vcm_k:
         add     ax,[g_ui.tx.tx_v0]
-        push    eax
         call    vw_kind
         mov     dl,al
-        pop     eax
-        cmp     dl,VK_SUB
+        cmp     dl,PK_SUB
         jb      @vcm_r
-        cmp     dl,VK_END
+        cmp     dl,PK_END
         jae     @vcm_r
         push    edx
         mov     edi,offset g_ui.bf.vw_new       ; its text
         mov     ax,[g_ui.ed.ed_line]
         call    tx_get
         mov     [g_ui.vw.vw_nlen],cx
-        mov     ax,[g_ui.ed.ed_line]    ; out of the module
+        mov     ax,[g_ui.ed.ed_line]    ; out of its view
         call    tx_dell
         pop     edx
         jmp     vw_add
@@ -468,11 +381,11 @@ vw_commit:
 ; then its view, the name's own if it has one.
 ; ::::::::::::::
 vw_newsub:
-        mov     dl,VK_SUB
+        mov     dl,PK_SUB
         mov     esi,offset u_nsub
         jmp     @vns_g
 vw_newfn:
-        mov     dl,VK_FN
+        mov     dl,PK_FN
         mov     esi,offset u_nfn
 @vns_g:
         push    edx
@@ -492,7 +405,7 @@ vw_newfn:
         pop     edx
         jnc     vw_show
         mov     esi,offset u_kwsub      ; "SUB name"
-        cmp     dl,VK_SUB
+        cmp     dl,PK_SUB
         je      @F
         mov     esi,offset u_kwfn
 @@:
@@ -555,7 +468,7 @@ vw_find:
 
 ; ::::::::::::::
 ; vw_add - a procedure at the text's end: vw_new's line (vw_nlen), a
-; blank, its END (DL VK_SUB, VK_FN); shown, the cursor on the blank.
+; blank, its END (DL PK_SUB, PK_FN); shown, the cursor on the blank.
 ; ::::::::::::::
 vw_add:
         push    edx
@@ -572,7 +485,7 @@ vw_add:
         pop     edx
         mov     esi,offset u_endsub
         mov     cx,7
-        cmp     dl,VK_SUB
+        cmp     dl,PK_SUB
         je      @F
         mov     esi,offset u_endfn
         mov     cx,12
@@ -696,7 +609,6 @@ vw_del:
         .data
 u_kwsub db      'SUB',0
 u_kwfn  db      'FUNCTION',0
-u_kwend db      'END',0
 u_endsub db     'END SUB'
 u_endfn db      'END FUNCTION'
 u_nsub  db      'New SUB',0

@@ -367,6 +367,33 @@ ed_commit:
         ret
 
 ; ::::::::::::::
+; ui_body - EDI past a line's indent, its number and the spaces after: at
+; its body. Keeps all but EDI.
+; ::::::::::::::
+ui_body:
+        push    eax
+@ubd_b:
+        cmp     byte ptr [edi],' '
+        jne     @ubd_d
+        inc     edi
+        jmp     @ubd_b
+@ubd_d:
+        mov     al,[edi]
+        sub     al,'0'
+        cmp     al,9
+        ja      @ubd_s
+        inc     edi
+        jmp     @ubd_d
+@ubd_s:
+        cmp     byte ptr [edi],' '
+        jne     @ubd_r
+        inc     edi
+        jmp     @ubd_s
+@ubd_r:
+        pop     eax
+        ret
+
+; ::::::::::::::
 ; ui_canon - the line of CX characters at SI as LIST shows it: in sbuf,
 ; sbx long; its label and indent kept.
 ;
@@ -379,26 +406,8 @@ ui_canon:
         ja      @uca_k
         movzx   ebx,cx
         mov     byte ptr [esi+ebx],0
-        mov     edi,esi                 ; EDI past the label and the indent
-@uca_b:
-        cmp     byte ptr [edi],' '
-        jne     @uca_d
-        inc     edi
-        jmp     @uca_b
-@uca_d:
-        mov     al,[edi]
-        cmp     al,'0'
-        jb      @uca_e
-        cmp     al,'9'
-        ja      @uca_e
-        inc     edi
-        jmp     @uca_d
-@uca_e:
-        cmp     byte ptr [edi],' '
-        jne     @uca_f
-        inc     edi
-        jmp     @uca_e
-@uca_f:
+        mov     edi,esi                 ; EDI past the indent and number
+        call    ui_body
         cmp     byte ptr [edi],0
         je      @uca_k
         mov     [g_ui.fd.uc_pre],edi

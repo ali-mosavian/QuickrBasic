@@ -23,6 +23,43 @@ include x86f.inc
         .code
 
 ; ::::::::::::::
+; dc_proc - the body in cbuf: a procedure's first line, its END, or neither.
+;
+; out:    AL   PK_SUB, PK_FN, PK_END, else 0
+;         ESI  the name's M_VAR, for PK_SUB, PK_FN
+; keeps:  all but EAX, ESI
+; ::::::::::::::
+dc_proc:
+        mov     esi,offset g_cbuf
+        cmp     byte ptr [esi],M_INT    ; a line number
+        jne     @F
+        add     esi,5
+@@:
+        lodsb
+        mov     ah,PK_SUB
+        cmp     al,TK_SUB
+        je      @dcq_n
+        mov     ah,PK_FN
+        cmp     al,TK_FUNCTION
+        je      @dcq_n
+        cmp     al,TK_END
+        jne     @dcq_0
+        mov     ah,PK_END
+        cmp     byte ptr [esi],TK_SUB
+        je      @dcq_r
+        cmp     byte ptr [esi],TK_FUNCTION
+        je      @dcq_r
+@dcq_0:
+        xor     ah,ah
+        jmp     @dcq_r
+@dcq_n:
+        cmp     byte ptr [esi],M_VAR
+        jne     @dcq_0
+@dcq_r:
+        mov     al,ah
+        ret
+
+; ::::::::::::::
 ; dc_line - enter the declarations of the body in cbuf.
 ;
 ; keeps:  all

@@ -109,6 +109,13 @@ endif
         je      @ls_sp
         test    al,al
         js      @ls_tok
+        cmp     al,'.'
+        je      @ls_num
+        cmp     al,'0'
+        jb      @F
+        cmp     al,'9'
+        jbe     @ls_num
+@@:
         mov     cl,LS_WORD              ; any other byte: as a word
         call    ls_lead
         call    io_putc
@@ -119,6 +126,43 @@ endif
         call    ls_lead
         lodsd
         call    io_u24
+        mov     [g_state.io.lq],cl
+        jmp     @ls_c
+@ls_num:                                ; a number kept as text: one word,
+        mov     cl,LS_WORD              ; its exponent's sign too
+        call    ls_lead
+@lsn_l:
+        mov     dl,al
+        call    io_putc
+        mov     al,[esi]
+        cmp     al,'.'
+        je      @lsn_t
+        cmp     al,'#'
+        je      @lsn_t
+        cmp     al,'!'
+        je      @lsn_t
+        cmp     al,'E'
+        je      @lsn_t
+        cmp     al,'D'
+        je      @lsn_t
+        cmp     al,'+'
+        je      @lsn_s
+        cmp     al,'-'
+        je      @lsn_s
+        sub     al,'0'
+        cmp     al,9
+        ja      @lsn_x
+        mov     al,[esi]
+        jmp     @lsn_t
+@lsn_s:
+        cmp     dl,'E'
+        je      @lsn_t
+        cmp     dl,'D'
+        jne     @lsn_x
+@lsn_t:
+        inc     esi
+        jmp     @lsn_l
+@lsn_x:
         mov     [g_state.io.lq],cl
         jmp     @ls_c
 @ls_var:

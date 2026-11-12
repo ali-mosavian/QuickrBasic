@@ -256,6 +256,7 @@ externdef lx_line:near
 ; comp/decl.asm
 externdef dc_item:near
 externdef dc_line:near
+externdef dc_proc:near
 externdef g_dast:byte
 externdef g_etsz:byte
 externdef g_fld:byte
@@ -294,11 +295,6 @@ externdef rc_load:near
 externdef rc_ref:near
 externdef rc_store:near
 ; comp/comp.asm
-externdef @vsc_d:near
-externdef @vsc_l:near
-externdef @vsc_m:near
-externdef @vsc_n:near
-externdef @vsc_s:near
 externdef cm_byt:near
 externdef cm_call:near
 externdef cm_chkcl:near
@@ -663,6 +659,7 @@ externdef le_wleft:near
 externdef le_wright:near
 externdef sel_get:near
 externdef sel_mark:near
+externdef ui_body:near
 externdef ui_canon:near
 externdef ui_emsg:near
 ; ui/draw.asm

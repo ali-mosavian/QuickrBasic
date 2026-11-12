@@ -237,9 +237,6 @@ TSYNC    ends
 NVIEW   = 64                    ; views at most (view.asm)
 VNAME   = 40                    ; a procedure's name's characters at most
 VLSZ    = VNAME+4               ; the SUBs box's list item
-VK_SUB  = 1                     ; vw_kind's
-VK_FN   = 2
-VK_END  = 3
 
 TVIEW    struc                   ; a view: the module, a procedure
     vfirst  dw      ?               ; its first line in the text, its lines
@@ -254,7 +251,6 @@ TVIEW    ends
 TVIEWS   struc
     vw_n    db      ?
     vw_nlen dw      ?               ; vw_add's line's length
-    vw_src  dd      ?               ; vw_kind's line in the text
     vw_tab  TVIEW   NVIEW dup(<>)
 TVIEWS   ends
 
@@ -404,7 +400,7 @@ TUIBUF   struc                   ; the big buffers
     dl_mask db      80 dup(?)       ; the Open box's mask
     dl_path db      80 dup(?)       ; the current directory
     ui_ebuf db      64 dup(?)       ; an error's message
-    vw_ln   db      LNBUF dup(?)    ; vw_kind's line in capitals
+    vw_ln   db      LNBUF dup(?)    ; vw_kind's line, 0-ended
     vw_new  db      LNBUF dup(?)    ; vw_add's
     vw_fld  TLBUF   <>              ; New SUB's name
     vw_list db      NVIEW*VLSZ dup(?)   ; the SUBs box's
