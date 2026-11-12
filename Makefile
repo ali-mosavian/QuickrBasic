@@ -74,7 +74,7 @@ x86:                            # the DOS .COM, build/x86/basic.com
 
 # llrm's pinned Open Watcom: its DOS/32A
 DOS32A ?= $(HOME)/.cache/llrm/open-watcom-v2-703e1ae2f9a621dda2d28fb39b12d0d6d2788af6/bld/redist/dos32a
-X86F_MODS := main vm/exec vm/flow vm/calls vm/builtins vm/bc comp/lex comp/decl comp/block comp/ctl comp/comp \
+X86F_MODS := main vm/exec vm/flow vm/calls vm/builtins vm/sys vm/bin vm/bc comp/lex comp/decl comp/block comp/ctl comp/comp \
 	comp/expr comp/link comp/list mem/far mem/prog mem/sym mem/str mem/arr io/io io/repl \
 	io/file io/plat float/flt float/ftr float/fpu float/dbl vm/dbg
 X86F_UI := ui/scr ui/mouse ui/compl ui/text ui/edit ui/draw ui/menu ui/dlg ui/sync ui/dbg ui/win ui/view ui/ui

@@ -49,9 +49,10 @@ rt_start:
         mov     [g_state.rn.stklim],STKTOP-STKROOM
         mov     dword ptr [g_progb+DLINE],0FF0000h
         mov     [g_state.cm.cxb],offset g_xbuf
-        mov     [g_state.ft.rs],0FFFFFF01h         ; the 6502 build's boot state under sim65
+        mov     [g_state.ft.rs],50000h  ; QBasic's first seed
         call    flt_finit
         call    plt_init
+        call    sys_init
         call    prg_init
 if IDE
         jmp     ui_start

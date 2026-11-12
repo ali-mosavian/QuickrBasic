@@ -764,17 +764,21 @@ cm_un:
         mov     cl,K_SADD
         cmp     ah,TK1_SADD
         je      @cu_vp
-        mov     cl,K_ERR
-        cmp     ah,TK1_ERR
-        je      @cu_er
-        mov     cl,K_ERL
-        cmp     ah,TK1_ERL
-        je      @cu_er
         mov     al,TK_X
 @cu_7a:
         sub     al,TK_SGN
         cmp     al,TK_MID-TK_SGN
         ja      @cu_8
+        cmp     al,TK_RND-TK_SGN        ; RND alone: RND(1)
+        jne     @F
+        cmp     byte ptr [esi+1],'('
+        je      @F
+        inc     esi
+        mov     eax,1
+        call    cm_lint
+        mov     cl,TK_RND-TK_SGN
+        jmp     @cu_dq
+@@:
         push    eax
         inc     esi
         call    cm_chkop
@@ -867,10 +871,6 @@ cm_un:
         mov     [g_state.cm.cll],eax
         mov     [g_state.cm.clle],eax
         ret
-@cu_er:                                 ; ERR, ERL
-        add     esi,2
-        mov     al,cl
-        jmp     @cu_vc
 @cu_ln:                                 ; LEN(r): a record's, a field's size
         push    esi
         push    edi
@@ -975,6 +975,17 @@ cm_xfn:
         jmp     @cxf_l
 @cxf_f:
         push    ebx
+        cmp     byte ptr [ebx+XF_MAX],0 ; none: no ( )
+        je      @cxf_k
+        test    byte ptr [ebx+XF_MIN],7Fh
+        jnz     @cxf_p
+        call    st_get                  ; all optional: ( ) too
+        cmp     al,'('
+        je      @cxf_p
+        xor     eax,eax                 ; the count, 0
+        call    cm_lint
+        jmp     @cxf_k
+@cxf_p:
         call    cm_chkop
         xor     ecx,ecx                 ; arguments
         xor     edx,edx                 ; the kind's index
@@ -1037,6 +1048,7 @@ cm_xfn:
         mov     eax,ecx
         call    cm_lint
 @@:
+@cxf_k:
         pop     ebx
         mov     al,[ebx+XF_K]
         test    al,al
@@ -1169,7 +1181,8 @@ g_fnsig db      FA_F+FR_I,FA_F+FR_F,FA_F+FR_F,FA_F+FR_F,FA_Y+FR_F,FA_N+FR_I
 
         .data
 XF_K    = 2                     ; g_xfn: token:2, K, least|80h leading
-XF_MIN  = 3                     ; optional, most, result type, the kinds
+XF_MIN  = 3                     ; optional, most, result type, the kinds;
+                                ; most 0: no ( ); least 0: ( ) optional
 XF_MAX  = 4
 XF_RES  = 5
 XF_ARG  = 6
@@ -1196,6 +1209,29 @@ g_xfn   label   byte
         xfn     100h+TK1_LCASES,K_LCASE,1,1,T_STR,<'S',0,0>
         xfn     100h+TK1_HEXS,K_HEX,1,1,T_STR,<'I',0,0>
         xfn     100h+TK1_OCTS,K_OCT,1,1,T_STR,<'I',0,0>
+        xfn     100h+TK1_ERR,K_ERR,0,0,T_INT,<0,0,0>
+        xfn     100h+TK1_ERL,K_ERL,0,0,T_INT,<0,0,0>
+        xfn     100h+TK1_TIMER,K_TIMER,0,0,T_FLT,<0,0,0>
+        xfn     100h+TK1_DATES,K_DATE,0,0,T_STR,<0,0,0>
+        xfn     100h+TK1_TIMES,K_TIME,0,0,T_STR,<0,0,0>
+        xfn     TK_INKEYS,K_INKEY,0,0,T_STR,<0,0,0>
+        xfn     100h+TK1_COMMANDS,K_CMD,0,0,T_STR,<0,0,0>
+        xfn     100h+TK1_ENVIRONS,K_ENVS,1,1,T_STR,<'X',0,0>
+        xfn     100h+TK1_SETMEM,K_SETMEM,1,1,T_INT,<'I',0,0>
+        xfn     100h+TK1_ERDEV,K_ERDEV,0,0,T_INT,<0,0,0>
+        xfn     100h+TK1_ERDEVS,K_ERDEVS,0,0,T_STR,<0,0,0>
+        xfn     100h+TK1_MKIS,K_MKI,1,1,T_STR,<'I',0,0>
+        xfn     100h+TK1_MKLS,K_MKL,1,1,T_STR,<'I',0,0>
+        xfn     100h+TK1_MKSS,K_MKS,1,1,T_STR,<'F',0,0>
+        xfn     100h+TK1_MKDS,K_MKD,1,1,T_STR,<'D',0,0>
+        xfn     100h+TK1_MKSMBFS,K_MKSM,1,1,T_STR,<'F',0,0>
+        xfn     100h+TK1_MKDMBFS,K_MKDM,1,1,T_STR,<'D',0,0>
+        xfn     100h+TK1_CVI,K_CVI,1,1,T_INT,<'S',0,0>
+        xfn     100h+TK1_CVL,K_CVL,1,1,T_INT,<'S',0,0>
+        xfn     100h+TK1_CVS,K_CVS,1,1,T_FLT,<'S',0,0>
+        xfn     100h+TK1_CVD,K_CVD,1,1,T_DBL,<'S',0,0>
+        xfn     100h+TK1_CVSMBF,K_CVSM,1,1,T_FLT,<'S',0,0>
+        xfn     100h+TK1_CVDMBF,K_CVDM,1,1,T_DBL,<'S',0,0>
         dw      0
 g_cprec db      78h,78h,7Bh,7Bh,7Fh,50h,46h,64h,64h,64h
         db      7Ah,79h,44h,42h,40h     ; \ MOD XOR EQV IMP
@@ -1207,7 +1243,7 @@ g_cmact dd      cm_expr,cm_lval,cm_lnum,cm_tob,cm_toa,cm_tos,cm_str1,cm_fv
         dd      cm_fst,cm_fork,cm_for,cm_for1,cm_nv,cm_if,cm_on,cm_onl
         dd      cm_print,cm_def,cm_list,cm_dv,cm_dat,cm_rem,cm_store,cm_in
         dd      cm_rd,cm_get,cm_goto,cm_gosub,cm_run,cm_res,cm_ret,cm_n0
-        dd      cm_n1,cm_narg,cm_fop,cm_swap,cm_toi
+        dd      cm_n1,cm_narg,cm_fop,cm_swap,cm_toi,cm_tod
         .code
 
         end

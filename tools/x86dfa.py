@@ -218,17 +218,27 @@ GRAMMAR: dict[str, str] = {
     "PRINT": "pr",
     "CLEAR": "!CLR",
     "SWAP": "swap",
+    "ERROR": "e toi !ERROR",
+    "TRON": "!TRON",
+    "TROFF": "!TROFF",
+    "RANDOMIZE": "( $ !RNDQ | e tod ) !RNDZ",
+    "SLEEP": "( $ n0 | e toi ) !SLEEP",
+    "DATE$": "= e tos !SDATE",
+    "TIME$": "= e tos !STIME",
+    "ENVIRON": "e tos !ENVSET",
 }
 EOS = (0, ord(":"))
 
 
-def ptoken(w: str) -> int:
+def ptoken(w: str) -> list[int]:
+    """A grammar word's bytes in the body: a token, FFh n, or a character."""
     if w == "=":
-        return TK_EQ
+        return [TK_EQ]
     if w in TOKENS:
-        assert TOKENS[w] < 0x100, w
-        return TOKENS[w]
-    return ord(w.strip("'"))
+        t = TOKENS[w]
+        assert t != 0x100 + ord(" "), w  # st_get skips a space: not in a grammar
+        return [t] if t < 0x100 else [0xFF, t - 0x100]
+    return [ord(w.strip("'"))]
 
 
 @dataclass
@@ -282,7 +292,12 @@ def thompson(text: str, nfa: list[NState]) -> int:
                 elif w.islower():
                     sym = ("act", "A_" + w.upper())
                 else:
-                    sym = ("tok", ptoken(w))
+                    *head, last = ptoken(w)
+                    for byte in head:  # FFh n: a state between
+                        m = new()
+                        nfa[a].edges.append((("tok", byte), m))
+                        a = m
+                    sym = ("tok", last)
                 nfa[a].edges.append((sym, b))
             nfa[cur].eps.append(a)
             cur = b
@@ -308,7 +323,7 @@ def closure(nfa: list[NState], ss: frozenset[int]) -> frozenset[int]:
 # statement is done, "err" a syntax error
 def parser() -> tuple[Dfa, list[int], dict[str, int]]:
     words = {w for g in GRAMMAR.values() for w in g.split()}
-    toks = sorted({ptoken(w) for w in words if not (w in "[]{}()|$" or w.startswith("!") or w.islower())})
+    toks = sorted({b for w in words if not (w in "[]{}()|$" or w.startswith("!") or w.islower()) for b in ptoken(w)})
     cls = classes([set(EOS), *({b} for b in toks)])
     ncls = max(cls) + 1
     nfa: list[NState] = []
@@ -382,8 +397,9 @@ def tables() -> dict:
         "chr_tok": [CHAR_TOK.get(b, 0) for b in range(256)],
         "ps_cls": pcls,
         "ps_tab": [(PS_CODE.get(a, a), nx if nx >= 0 else 0xFF) for row in pd.delta for a, nx in row],
-        # a token that starts no statement: state 0, all errors
+        # a token that starts no statement: state 0, all errors; ps_ent1 FFh n's
         "ps_ent": [named[by_tok[t]] if t in by_tok else 0 for t in range(0x80, 0xFF)],
+        "ps_ent1": [named[by_tok[0x100 + n]] if 0x100 + n in by_tok else 0 for n in range(len(PAGE1))],
     }
 
 
@@ -414,6 +430,7 @@ def emit(T: dict) -> str:
         *rows("g_ps_cls", "db", T["ps_cls"]),
         *rows("g_ps_tab", "dw", ps),
         *rows("g_ps_ent", "db", T["ps_ent"]),
+        *rows("g_ps_ent1", "db", T["ps_ent1"]),
         "        .code",
         "endif",
     ]

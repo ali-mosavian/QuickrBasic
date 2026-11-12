@@ -3,13 +3,14 @@
     python3 tools/x86syms.py [IDE]         write src/x86f/syms.inc (or ui/)
     python3 tools/x86syms.py check         syms.inc as written? constants and
                                            macros shared but not in a header?
+                                           an @-label in two modules?
 """
 import re
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent / 'src' / 'x86f'
-CORE = ['main.asm', 'vm/exec.asm', 'vm/flow.asm', 'vm/calls.asm',
+CORE = ['main.asm', 'vm/exec.asm', 'vm/flow.asm', 'vm/calls.asm', 'vm/sys.asm', 'vm/bin.asm',
         'vm/builtins.asm', 'vm/bc.asm', 'comp/lex.asm', 'comp/decl.asm', 'comp/block.asm', 'comp/ctl.asm', 'comp/comp.asm',
         'comp/expr.asm', 'comp/link.asm', 'comp/list.asm', 'mem/far.asm',
         'mem/prog.asm', 'mem/sym.asm', 'mem/str.asm', 'mem/arr.asm',
@@ -216,13 +217,28 @@ TARGETS = [('syms.inc', CORE, 'the core'),
            ('ui/syms.inc', CORE[:-1] + UI + CORE[-1:], 'the core and the editor')]
 
 
+def clashes(files):
+    """@-labels two modules both define: jwasm makes them public, the link
+    keeps one."""
+    seen, bad = {}, []
+    for f in files:
+        for l in code((ROOT / f).read_text()):
+            m = re.match(r'^(@\w+)::?', l)
+            if m and m.group(1) not in ('@@',):
+                lab = m.group(1)
+                if lab in seen and seen[lab] != f:
+                    bad.append('%s in %s and %s' % (lab, seen[lab], f))
+                seen.setdefault(lab, f)
+    return bad
+
+
 def main():
     if len(sys.argv) > 1 and sys.argv[1] == 'check':
         bad = []
         for out, files, title in TARGETS:
             if (ROOT / out).exists() and (ROOT / out).read_text() != emit(files, title):
                 bad.append('%s differs from tools/x86syms.py' % out)
-        bad += unshared(CORE) + unshared(CORE + UI)
+        bad += unshared(CORE) + unshared(CORE + UI) + clashes(CORE + UI)
         for b in sorted(set(bad)):
             print(b)
         sys.exit(1 if bad else 0)

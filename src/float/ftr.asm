@@ -2,7 +2,7 @@
 ; ftr.asm - RND, pi
 ; ==========================================================================
 ; holds:    fn_rnd, flt_pi
-; uses:     flt_sub, rs
+; uses:     rs
 ; ==========================================================================
 
 include x86f.inc
@@ -29,53 +29,45 @@ flt_pi:
         ret
 
 ; ::::::::::::::
-; fn_rnd - FAC = RND: 24 LFSR steps at once, mask A3000000h.
+; fn_rnd - FAC = RND(x), QBasic's: a 24-bit linear congruence (rt/random's
+; B$RND1). 0 repeats the last; a negative x seeds from its bits, the top
+; byte added into the low three; then the next.
 ;
-; in:     EAX  negative: seeds rs
+; in:     EAX  x, packed
 ; out:    EAX  the result, packed
-;         rs   the new state
+;         rs   the seed
 ; ::::::::::::::
 fn_rnd:
+        lea     edx,[eax+eax]
+        test    edx,edx
+        jz      @fr_c
         test    eax,eax
         jns     @fr_n
         mov     edx,eax
-        and     edx,7FFFFFh
-        or      edx,800000h             ; the significand: rs is e ho moh mo, low first
-        mov     ecx,eax
-        shl     ecx,1
-        shr     ecx,24
-        mov     ebx,edx
-        shr     ebx,16
-        shl     ebx,8
-        or      ecx,ebx
-        movzx   ebx,dh
-        shl     ebx,16
-        or      ecx,ebx
-        movzx   ebx,dl
-        shl     ebx,24
-        or      ecx,ebx
-        mov     [g_state.ft.rs],ecx
+        shr     edx,24
+        add     eax,edx
+        and     eax,0FFFFFFh
+        mov     [g_state.ft.rs],eax
 @fr_n:
         mov     eax,[g_state.ft.rs]
-        mov     edx,eax
-        shr     edx,24
-        and     eax,0FFFFFFh            ; L
-        mov     ecx,eax
-        shl     ecx,8
-        xor     edx,ecx
-        mov     ecx,eax
-        shl     ecx,6
-        xor     edx,ecx
-        mov     ecx,eax
-        shl     ecx,2
-        xor     edx,ecx
-        add     eax,eax
-        xor     edx,eax
-        mov     [g_state.ft.rs],edx
-        shr     edx,8
-        and     edx,7FFFFFh
-        or      edx,FBIAS SHL 23
-        mov     eax,[g_kone]
-        jmp     flt_sub
+        imul    eax,eax,16598013
+        add     eax,12820163
+        and     eax,0FFFFFFh
+        mov     [g_state.ft.rs],eax
+@fr_c:                                  ; seed / 2^24, exactly: 24 bits
+        mov     eax,[g_state.ft.rs]
+        test    eax,eax
+        jz      @fr_r
+        bsr     ecx,eax                 ; the top bit, 0..23
+        mov     edx,23
+        sub     edx,ecx
+        xchg    ecx,edx
+        shl     eax,cl
+        and     eax,7FFFFFh
+        add     edx,FBIAS-24
+        shl     edx,23
+        or      eax,edx
+@fr_r:
+        ret
 
         end

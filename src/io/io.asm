@@ -228,6 +228,21 @@ io_nth:
         ret
 
 ; ::::::::::::::
+; io_puts - print the 0-ended text at EBX.
+;
+; keeps:  all but AL, EBX
+; ::::::::::::::
+io_puts:
+        mov     al,[ebx]
+        test    al,al
+        jz      @F
+        call    io_putc
+        inc     ebx
+        jmp     io_puts
+@@:
+        ret
+
+; ::::::::::::::
 ; io_prompt - print "? " and read a line.
 ;
 ; out:    as io_read

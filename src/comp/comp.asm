@@ -311,18 +311,24 @@ cm_tok:
         je      @cmk_v
         cmp     al,80h
         jb      @st_comp1
-        cmp     al,TK_X
-        je      @st_comp1
         mov     [g_state.cm.ctok],al
         mov     [g_state.cm.ctks],esi
         movzx   ebx,al
+        cmp     al,TK_X
+        je      @cmk_x
         mov     al,[g_ps_ent+ebx-80h]
+@cmk_e:
         test    al,al
         jz      @st_comp1
         push    eax
         call    st_getn
         pop     eax
         jmp     cm_dfa
+@cmk_x:                                  ; FFh n: its own table, past both
+        movzx   ebx,byte ptr [esi+1]
+        inc     esi
+        mov     al,[g_ps_ent1+ebx]
+        jmp     @cmk_e
 @cmk_v:
         mov     al,ST_LET
 

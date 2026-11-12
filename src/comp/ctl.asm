@@ -204,19 +204,10 @@ ct_onerr:
         ret
 
 ; ::::::::::::::
-; ct_xst - RESUME [NEXT | 0 | line]: RESUME mode num addr; ERROR n: CALL
-; ERROR; TRON, TROFF: CALL TRON, TROFF.
+; ct_xst - RESUME [NEXT | 0 | line]: RESUME mode num addr.
 ; ::::::::::::::
 ct_xst:
         mov     al,[esi+1]
-        cmp     al,TK1_ERROR
-        je      @cxs_e
-        mov     ah,K_TRON
-        cmp     al,TK1_TRON
-        je      @cxs_t
-        mov     ah,K_TROFF
-        cmp     al,TK1_TROFF
-        je      @cxs_t
         cmp     al,TK1_RESUME
         jne     @coe_s
         add     esi,2
@@ -242,20 +233,6 @@ ct_xst:
         mov     al,O_RESUME
         call    cm_opx
         call    cm_jw
-        clc
-        ret
-@cxs_e:
-        add     esi,2
-        call    cm_expr
-        call    cm_toi
-        mov     al,K_ERROR
-        call    cm_call
-        clc
-        ret
-@cxs_t:                                 ; TRON, TROFF
-        add     esi,2
-        mov     al,ah
-        call    cm_call
         clc
         ret
 @coe_s:

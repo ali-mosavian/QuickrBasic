@@ -13,7 +13,7 @@ upcase  macro   r
 @upc:
         endm
 
-A_BASE  = 64
+A_BASE  = 0C0h                  ; above the CALLs, under the PS_ codes (FCh)
 A_E     = A_BASE
 A_LV    = A_BASE+1
 A_L     = A_BASE+2
@@ -51,3 +51,6 @@ A_NARG  = A_BASE+33
 A_FOP   = A_BASE+34
 A_SWAP  = A_BASE+35
 A_TOI   = A_BASE+36
+A_TOD   = A_BASE+37
+.erre K_N LE A_BASE                     ; a CALL's K_ is never an action
+.erre A_TOD LT 0FCh

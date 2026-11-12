@@ -175,6 +175,22 @@ CASES = {
     # A procedure's local arrays went with it only at the next RUN: 3000 calls ran out of memory.
     "qb_localarr": ("DECLARE SUB p (n)\r\nFOR i = 1 TO 3000: p i: NEXT: PRINT \"ok\"\r\n"
                     "SUB p (n)\r\nDIM a(2000): a(1) = n\r\nEND SUB\r\n", "ok\r\n", "ERROR"),
+    # ERROR through the statement grammar: its CALL's number, past A_BASE, ran as an action instead.
+    "qb_error_k": ("ON ERROR GOTO h: ERROR 57: END\r\nh: PRINT ERR: RESUME NEXT\r\n", " 57 \r\n", "SYNTAX"),
+    # QBasic's RND: its 24-bit generator, the seed 50000h at the start; 0 repeats; RANDOMIZE.
+    "qb_rnd": ("PRINT RND; RND(0); RND\r\nRANDOMIZE 1234: PRINT RND\r\n",
+               " .7055475  .7055475  .533424 \r\n", "ERROR"),
+    # Numbers as their bytes, MBF too; MKI$ is 2 bytes.
+    "qb_mki": ("PRINT CVI(MKI$(-5)); CVL(MKL$(70000)); CVS(MKS$(1.5)); CVD(MKD$(2.25#))\r\n"
+               "PRINT CVSMBF(MKSMBF$(-3.5)); CVDMBF(MKDMBF$(1.1#)); ASC(MID$(MKSMBF$(1), 4)); LEN(MKI$(1))\r\n"
+               "PRINT MKI$(40000)\r\n",
+               "-5  70000  1.5  2.25 \r\n-3.5  1.1  129  2 \r\n?OVERFLOW ERROR", None),
+    # ENVIRON sets, replaces, removes; DATE$ = and the rest of its line: the routine kept the VM's
+    # ip in ESI and lost the line's next statement.
+    "qb_environ": ("ENVIRON \"QZ=a\": ENVIRON \"QZ=bc\": PRINT ENVIRON$(\"qz\"); LEN(ENVIRON$(\"QZ\"))\r\n"
+                   "ENVIRON \"QZ=\": PRINT \"[\"; ENVIRON$(\"QZ\"); \"]\"\r\n"
+                   "DATE$ = \"02-03-2001\": PRINT DATE$: PRINT LEN(TIME$); TIMER > 0; LEN(INKEY$)\r\n",
+                   "bc 2 \r\n[]\r\n02-03-2001\r\n 8 -1  0 \r\n", "ERROR"),
     # TRON, TROFF: the editor's trace; on their own, nothing.
     "qb_tron": ("TRON: PRINT 1: TROFF: PRINT 2\r\n", " 1 \r\n 2 \r\n", "ERROR"),
     # DOUBLE: 16 digits, D exponents, 8-byte cells through arrays, READ, FIX/INT.
