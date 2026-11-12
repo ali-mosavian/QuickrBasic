@@ -46,7 +46,7 @@ rt_start:
         mov     [g_state.rn.rsp],esp
         mov     [g_state.rn.cstk],CSTOP
         mov     [g_state.rn.stklim],STKTOP-STKROOM
-        mov     dword ptr [g_progb+DLINE],0FF0000h
+        mov     dword ptr [g_progb+DLINE],0FF000000h ; len 0, num FF00h
         mov     [g_state.cm.cxb],offset g_xbuf
         mov     [g_state.ft.rs],50000h  ; QBasic's first seed
         call    flt_finit

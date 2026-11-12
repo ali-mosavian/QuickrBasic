@@ -138,7 +138,7 @@ cm_err:
 ; in:     csp  SP at the compile's start
 ; ::::::::::::::
 cm_fin:
-        mov     al,0FFh                 ; the EOL's map entry
+        mov     eax,BOFF                ; the EOL's map entry
         call    cm_markb
         mov     al,O_EOL
         stosb
@@ -269,7 +269,7 @@ cm_dbgx:
         ret
 
 ; ::::::::::::::
-; cm_markb - record a statement at body offset AL.
+; cm_markb - record a statement at body offset AX.
 ;
 ; keeps:  all
 ; ::::::::::::::
@@ -278,7 +278,7 @@ cm_markb:
         movzx   ebx,[g_state.cm.nst]
         cmp     ebx,NSTM
         jae     @cmb_r
-        mov     [g_stb+ebx],al
+        mov     [g_stb+ebx*2],ax
         push    eax
         mov     eax,edi
         sub     eax,[g_state.cm.cxb]
@@ -290,7 +290,7 @@ cm_markb:
         ret
 
         .data?
-g_stb   db      NSTM dup(?)             ; a statement's body offset
+g_stb   dw      NSTM dup(?)             ; a statement's body offset
 g_stx   dw      NSTM dup(?)             ; its code's offset in xbuf
         .code
 
@@ -1838,8 +1838,8 @@ cm_skip:
 
         .data?
 g_cbufh db      ?                 ; cbuf-1: lx_line's line before the body
-g_cbuf  db      256 dup(?)
-g_xbuf  db      264 dup(?)
+g_cbuf  db      LMAX+8 dup(?)
+g_xbuf  db      XLIM+12 dup(?)
 g_dmask dq      ?                 ; cm_dsubs: bit i, subscript i its hi only
         .code
 

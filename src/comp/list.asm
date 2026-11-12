@@ -43,9 +43,9 @@ ls_all:
 ls_range:
         mov     ebx,PROGBASE
 @ls_l:
-        cmp     byte ptr [g_progb+ebx],0
+        cmp     word ptr [g_progb+ebx],0
         je      @ls_e
-        mov     ax,word ptr [g_progb+ebx+1]
+        mov     ax,word ptr [g_progb+ebx+L_NUM]
         cmp     ax,[g_state.rn.lfrom]
         jb      @ls_sk
         cmp     ax,[g_state.rn.lto]
@@ -54,7 +54,7 @@ ls_range:
         call    ls_line
         pop     ebx
 @ls_sk:
-        movzx   ecx,byte ptr [g_progb+ebx]
+        movzx   ecx,word ptr [g_progb+ebx]
         add     ebx,ecx
         jmp     @ls_l
 @ls_e:
@@ -69,7 +69,7 @@ ls_range:
 ls_line:
         push    esi
         push    ebx
-        mov     ax,word ptr [g_progb+ebx+1]
+        mov     ax,word ptr [g_progb+ebx+L_NUM]
         call    io_num
         call    io_space
         pop     ebx
@@ -353,7 +353,7 @@ ls_space:
         ret
 
         .data?
-g_dlb   db      256 dup(?)
+g_dlb   db      LMAX+8 dup(?)
         .code
 
         end

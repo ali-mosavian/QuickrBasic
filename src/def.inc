@@ -40,14 +40,19 @@ MAXD    = 16
 M_VAR   = 01h
 M_INT   = 02h
 REM_Q   = 03h                   ; after TK_REM: the comment was a ', not REM
-HDR     = 5                     ; len:1, num:2, cp:2
+HDR     = 6                     ; len:2, num:2, cp:2
 NONUM   = 0FFFFh                ; a line's num: it has none
-L_CP    = 3                     ; a line's code in the cache
+L_NUM   = 2
+L_CP    = 4                     ; a line's code in the cache
+LMAX    = 2047                  ; a line's record at most: its body offsets fit BOFF
+LSRC    = 255                   ; a line's text at most; its body is 5 times at most
+BOFF    = 7FFh                  ; a position's body offset: the low 11 bits of its
+TAGSH   = 11                    ; word, a mode or a BK_* above; BOFF the line's end
 IFNDEF IDE
 IDE     = 0
 ENDIF
 XSLK    = 48                    ; cm_xlate: the most one op writes past its size
-XLIM    = 252                   ; compile room: ERR code, EOL still fit
+XLIM    = 2040                  ; compile room: ERR code, EOL still fit
 NL      = 13
 NCH     = 16                    ; channels: the console and 15 files (io/chan.asm)
 CBSZ    = 512                   ; a channel's buffer

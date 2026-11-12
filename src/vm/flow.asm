@@ -205,9 +205,9 @@ ex_nextln:
 ; ::::::::::::::
 ex_eol:
         movzx   ebx,[g_state.rn.ln]
-        movzx   ecx,byte ptr [g_progb+ebx]
+        movzx   ecx,word ptr [g_progb+ebx]
         add     ebx,ecx
-        cmp     byte ptr [g_progb+ebx],0
+        cmp     word ptr [g_progb+ebx],0
         je      @F
         mov     [g_state.rn.vpt],bx
         jmp     ex_line
@@ -227,7 +227,7 @@ ex_eol:
 ex_line:
         movzx   ebx,[g_state.rn.vpt]
         mov     [g_state.rn.ln],bx
-        cmp     byte ptr [g_progb+ebx],0   ; the direct line's len
+        cmp     word ptr [g_progb+ebx],0   ; the direct line's len
         je      @exl_x
         movzx   esi,word ptr [g_progb+ebx+L_CP]
         test    esi,esi
@@ -624,12 +624,12 @@ ex_trap:
         mov     ebx,ecx                 ; the statement, by the map
         mov     eax,[g_state.rn.opip]
         call    ex_smap
-        mov     ax,[edi+1]
+        mov     ax,[edi+2]
         mov     [g_state.rn.rc0],ax
         mov     ax,0FFFFh
         cmp     ecx,1
         jbe     @F
-        mov     ax,[edi+4]
+        mov     ax,[edi+6]
 @@:
         mov     [g_state.rn.rc1],ax
         call    ch_clr
@@ -651,14 +651,14 @@ ex_erl:
 @etr_l:
         cmp     ebx,ecx
         ja      @etr_d
-        cmp     byte ptr [g_progb+ebx],0
+        cmp     word ptr [g_progb+ebx],0
         je      @etr_d
-        movzx   eax,word ptr [g_progb+ebx+1]
+        movzx   eax,word ptr [g_progb+ebx+L_NUM]
         cmp     ax,NONUM
         je      @F
         mov     edx,eax
 @@:
-        movzx   eax,byte ptr [g_progb+ebx]
+        movzx   eax,word ptr [g_progb+ebx]
         add     ebx,eax
         jmp     @etr_l
 @etr_d:
@@ -668,7 +668,7 @@ ex_erl:
 ; ::::::::::::::
 ; ex_smap - the map entry of the statement holding code address EAX of
 ; line EBX: the last whose code is at EAX or before, else the first. An
-; entry: body offset, code offset:2; the line's EOL's last.
+; entry: body offset:2, code offset:2; the line's EOL's last.
 ;
 ; out:    EDI  the entry
 ;         ECX  the entries from it on
@@ -678,16 +678,16 @@ ex_smap:
         add     ebx,offset g_cachb
         sub     eax,ebx
         movzx   ecx,byte ptr [ebx-1]   ; the count, after the entries
-        lea     edi,[ecx+ecx*2+1]
+        lea     edi,[ecx*4+1]
         neg     edi
         add     edi,ebx
 @esm_l:
         cmp     ecx,1
         jbe     @esm_r
-        movzx   edx,word ptr [edi+4]
+        movzx   edx,word ptr [edi+6]
         cmp     edx,eax
         ja      @esm_r
-        add     edi,3
+        add     edi,4
         dec     ecx
         jmp     @esm_l
 @esm_r:
@@ -902,7 +902,8 @@ op_fpop:
 ; before that code, the mode's place in it. The address is kept in the op
 ; unless the cache was flushed meanwhile, the op with it.
 ;
-; in:     ESI  the target: line:2 boff:1 mode:1, then the address:2, 0 none
+; in:     ESI  the target: line:2, boff and mode:2 (BOFF, TAGSH), then the
+;              address:2, 0 none
 ; error:  ?SYNTAX ERROR  a target the link gave none (FFFFh)
 ; ::::::::::::::
 ex_bjump:
@@ -927,26 +928,29 @@ ex_bjump:
         call    ex_line
         pop     edx
         pop     eax
-        movzx   ecx,byte ptr [esi-1]    ; the map: n of boff:1 coff:2, then n
-        lea     edi,[ecx+ecx*2+1]
+        movzx   ecx,byte ptr [esi-1]    ; the map: n of boff:2 coff:2, then n
+        lea     edi,[ecx*4+1]
         neg     edi
         add     edi,esi
-        mov     bl,[edx+2]
+        movzx   ebx,word ptr [edx+2]
+        and     ebx,BOFF
 @ebj_l:
         jecxz   @ebj_n
-        cmp     [edi],bl
+        cmp     [edi],bx
         je      @ebj_y
-        add     edi,3
+        add     edi,4
         dec     ecx
         jmp     @ebj_l
 @ebj_y:
-        movzx   ebx,word ptr [edi+1]
-        cmp     byte ptr [edx+3],1
+        movzx   ebx,word ptr [edx+2]
+        shr     ebx,TAGSH               ; the mode
+        cmp     bl,1
+        movzx   ebx,word ptr [edi+2]
         jb      @ebj_t
         je      @ebj_1
         cmp     ecx,1                   ; mode 2: the next statement's
         jbe     @ebj_n
-        movzx   ebx,word ptr [edi+4]
+        movzx   ebx,word ptr [edi+6]
         jmp     @ebj_t
 @ebj_1:
         add     ebx,JSIZE               ; mode 1: past its JMP

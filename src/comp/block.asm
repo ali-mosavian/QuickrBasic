@@ -7,7 +7,8 @@
 ;           offset in its body. cm_blocks walks every statement in program
 ;           order, a stack of the open blocks, and gives each block statement
 ;           an entry in g_blk, in that order (bk_find's binary search):
-;             B_POS   its position, line:2 boff:1, then BK_* its kind
+;             B_POS   its position: line:2, boff and BK_* its kind:2 (BOFF,
+;                     TAGSH)
 ;             B_NXT   where its false test, or its loop, goes: a target
 ;             B_END   where it leaves the block: a target
 ;             B_LINK  the next entry+1 of a chain: IF's clauses, a loop's EXITs
@@ -54,14 +55,14 @@ cm_blocks:
         and     [g_state.lnk.cprc],0
         mov     ebx,PROGBASE
 @cbk_l:
-        movzx   ecx,byte ptr [g_progb+ebx]
+        movzx   ecx,word ptr [g_progb+ebx]
         jecxz   @cbk_d
         mov     [g_state.lnk.bln],bx
         lea     esi,[g_progb+ebx+HDR]
         push    ebx
         call    bk_line
         pop     ebx
-        movzx   ecx,byte ptr [g_progb+ebx]
+        movzx   ecx,word ptr [g_progb+ebx]
         add     ebx,ecx
         jmp     @cbk_l
 @cbk_d:
@@ -157,7 +158,7 @@ bk_line:
 ; ::::::::::::::
 bk_stmt:
         mov     ecx,esi
-        sub     ecx,ebp                 ; CL its offset
+        sub     ecx,ebp                 ; CX its offset
         mov     al,[esi]
         cmp     al,TK_IF
         je      @bks_if
@@ -223,7 +224,7 @@ bk_stmt:
 @bks_fun:
         mov     dl,PK_FUNC
 @bkp_g:
-        mov     [g_bkoff],cl
+        mov     [g_bkoff],cx
         cmp     [g_state.lnk.cprc],0
         jne     @bk_er
         cmp     byte ptr [esi+1],M_VAR
@@ -354,7 +355,7 @@ bk_stmt:
         or      byte ptr [edi+P_FLAG],PF_DEF    ; = e: the body is this
         cmp     byte ptr [esi],TK_EQ    ; statement's past its JMP
         jne     @bkp_x
-        mov     cl,[g_bkoff]
+        mov     cx,[g_bkoff]
         mov     al,1
         call    bk_herem
         mov     [edi+P_ENTRY],eax
@@ -490,7 +491,7 @@ bk_stmt:
         movzx   edx,word ptr [ebx+S_OPEN]
         shl     edx,4
         mov     eax,dword ptr [g_blk+edx+B_POS]
-        and     eax,0FFFFFFh            ; mode 0
+        and     eax,(BOFF shl 16) or 0FFFFh     ; mode 0
         mov     [edi+B_NXT],eax
         call    bk_here2
         mov     dword ptr [g_blk+edx+B_END],eax
@@ -589,9 +590,13 @@ bk_new:
         push    eax
         mov     ax,[g_state.lnk.bln]
         mov     [edi+B_POS],ax
-        mov     [edi+B_POS+2],cl
         pop     eax
-        mov     [edi+B_POS+3],al
+        push    eax
+        movzx   eax,al
+        shl     eax,TAGSH
+        or      ax,cx
+        mov     [edi+B_POS+2],ax
+        pop     eax
         xor     eax,eax
         mov     [edi+B_NXT],eax
         mov     [edi+B_END],eax
@@ -648,7 +653,11 @@ bk_clause:
         pop     edi
         pop     eax
         mov     [ebx+S_LAST],ax
-        cmp     byte ptr [edi+B_POS+3],BK_ELSE
+        push    eax
+        movzx   eax,word ptr [edi+B_POS+2]
+        shr     eax,TAGSH
+        cmp     al,BK_ELSE
+        pop     eax
         jne     @F
         or      word ptr [ebx+S_LAST],8000h     ; after ELSE: no false test
 @@:
@@ -697,7 +706,7 @@ bk_exits:
 ; ::::::::::::::
 ; bk_here - the target here, mode DL, to [EDI].
 ;
-; in:     CL  the statement's offset
+; in:     CX  the statement's offset
 ; keeps:  all
 ; ::::::::::::::
 bk_here:
@@ -711,7 +720,7 @@ bk_here:
 ; ::::::::::::::
 ; bk_here0, bk_here2 - EAX the target here, mode 0 or 2.
 ;
-; in:     CL  the statement's offset
+; in:     CX  the statement's offset
 ; keeps:  all but EAX
 ; ::::::::::::::
 bk_here0:
@@ -721,14 +730,14 @@ bk_here2:
         mov     al,2
 bk_herem:
         movzx   eax,al
-        shl     eax,8
-        mov     al,cl
+        shl     eax,TAGSH
+        or      ax,cx
         shl     eax,16
-        mov     ax,[g_state.lnk.bln]    ; line:2 boff:1 mode:1
+        mov     ax,[g_state.lnk.bln]    ; line:2, boff and mode:2
         ret
 
 ; ::::::::::::::
-; bk_find - the entry at line BX, offset CL.
+; bk_find - the entry at line BX, offset CX.
 ;
 ; out:    EAX  its index; CF set: none
 ; keeps:  all but EAX
@@ -740,8 +749,8 @@ bk_find:
         push    esi
         push    edi
         movzx   ebx,bx
-        shl     ebx,8
-        movzx   ecx,cl
+        shl     ebx,TAGSH
+        and     ecx,BOFF
         or      ebx,ecx                 ; the key
         xor     ecx,ecx                 ; [ECX, EDX)
         movzx   edx,[g_state.lnk.nblk]
@@ -753,8 +762,9 @@ bk_find:
         mov     edi,eax
         shl     edi,4
         movzx   esi,word ptr [g_blk+edi+B_POS]
-        shl     esi,8
-        movzx   edi,byte ptr [g_blk+edi+B_POS+2]
+        shl     esi,TAGSH
+        movzx   edi,word ptr [g_blk+edi+B_POS+2]
+        and     edi,BOFF
         or      esi,edi
         cmp     esi,ebx
         je      @bkf_y
@@ -811,7 +821,7 @@ g_ppar  dw      NPPAR dup(?)            ; their parameters' variables
 g_vfs   db      ?                       ; var_id: 1 a scalar, 2 an array, '(' or not
 g_vft   db      ?                       ; var_id: the type, ET_*; 0 by the name
 g_bkdef db      ?                       ; the procedure is a DEF FN's
-g_bkoff db      ?                       ; its statement's offset
+g_bkoff dw      ?                       ; its statement's offset
 g_blk   db      NBLK*16 dup(?)
 g_bst   db      NBST*SSIZE dup(?)
         .code

@@ -28,11 +28,20 @@ include comp/dfa.inc
 ; in:     SI  inbuf, 0-terminated
 ;         DI  cbuf
 ; out:    DI  past the body's 0
-; error:  ?OUT OF MEMORY  from nam_find
+; error:  Out of memory  from nam_find, or the text past LSRC
 ; ::::::::::::::
 lx_line:
         mov     [g_state.lx.lxsrc],esi
         mov     [g_state.lx.lxdst],edi
+        push    edi                     ; the body is at most 5 times the text
+        push    ecx
+        mov     edi,esi
+        mov     ecx,LSRC+1
+        xor     al,al
+        repne   scasb
+        pop     ecx
+        pop     edi
+        jne     err_om
 lx_item:
         lodsb
         test    al,al
@@ -144,8 +153,8 @@ lx_col:
         push    ebx
         mov     ebx,edi
         sub     ebx,[g_state.lx.lxdst]
-        cmp     ebx,255
-        ja      @F
+        cmp     ebx,LMAX
+        jae     @F
         lea     eax,[esi-1]
         sub     eax,[g_state.lx.lxsrc]
         mov     [g_lxcol+ebx],al
@@ -155,7 +164,7 @@ lx_col:
         ret
 
         .data?
-g_lxcol db      256 dup(?)
+g_lxcol db      LMAX dup(?)
         .code
 
 ; ::::::::::::::

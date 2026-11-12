@@ -984,7 +984,7 @@ ui_err:
         movzx   ebx,word ptr [g_state.rn.ln]
         cmp     bx,DLINE
         je      @uer_m
-        mov     ax,word ptr [g_progb+ebx+1]
+        mov     ax,word ptr [g_progb+ebx+L_NUM]
         call    sy_find
         jc      @uer_m
 @uer_g:

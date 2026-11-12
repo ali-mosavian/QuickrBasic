@@ -254,8 +254,8 @@ TDBG     struc                   ; the debugger (vm/dbg.asm)
     ulnum   dw      ?
     hook    dd      ?               ; trace's routine, 0 none
     wnum    dw      ?               ; dbg_pos: the line's number
-    wb0     db      ?               ;   its statement's body offsets, from
-    wb1     db      ?               ;   and to (0FFh the line's end)
+    wb0     dw      ?               ;   its statement's body offsets, from
+    wb1     dw      ?               ;   and to (BOFF the line's end)
 TDBG     ends
 
 TSTATE   struc

@@ -377,7 +377,7 @@ externdef cm_tos:near
 externdef cm_write:near
 externdef g_cbuf:byte
 externdef g_etk:byte
-externdef g_stb:byte
+externdef g_stb:word
 externdef g_stx:word
 externdef g_xbuf:byte
 externdef lbl_at:near

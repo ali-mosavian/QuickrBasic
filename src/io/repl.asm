@@ -152,11 +152,11 @@ endif
         movzx   ebx,[g_state.rn.ln]
         cmp     ebx,DLINE
         je      rpl_ready
-        cmp     word ptr [g_progb+ebx+1],NONUM
+        cmp     word ptr [g_progb+ebx+L_NUM],NONUM
         je      rpl_ready
         mov     al,MSG_IN
         call    io_msg
-        mov     ax,word ptr [g_progb+ebx+1]
+        mov     ax,word ptr [g_progb+ebx+L_NUM]
         call    io_num
         jmp     rpl_ready
 @@:
@@ -198,11 +198,11 @@ endif
         call    io_hex4
         jmp     rpl_ready
 @erx_n:                                 ; typed lines: in line n, if numbered
-        cmp     word ptr [g_progb+ecx+1],NONUM
+        cmp     word ptr [g_progb+ecx+L_NUM],NONUM
         je      rpl_ready
         mov     ebx,offset r_eline
         call    io_puts
-        mov     ax,word ptr [g_progb+ecx+1]
+        mov     ax,word ptr [g_progb+ecx+L_NUM]
         call    io_num
         jmp     rpl_ready
 

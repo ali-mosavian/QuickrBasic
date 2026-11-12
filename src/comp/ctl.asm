@@ -1139,14 +1139,14 @@ ct_else:
         ret
 
 ; ::::::::::::::
-; ct_here - the target in this line at offset CL, mode AL.
+; ct_here - the target in this line at offset CX, mode AL.
 ;
 ; out:    EAX  the target
 ; ::::::::::::::
 ct_here:
         movzx   eax,al
-        shl     eax,8
-        mov     al,cl
+        shl     eax,TAGSH
+        or      ax,cx
         shl     eax,16
         mov     ax,[g_state.cm.cline]
         ret

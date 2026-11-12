@@ -98,7 +98,7 @@ ud_hlset:
         add     eax,ebx
         mov     [g_ui.ud.hl_c0],ax
         movzx   edx,[g_state.dbg.wb1]
-        cmp     dl,0FFh
+        cmp     edx,BOFF
         je      @uhs_e
         movzx   edx,byte ptr [g_lxcol+edx]
         add     edx,ebx

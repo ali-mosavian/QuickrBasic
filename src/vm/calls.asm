@@ -324,7 +324,7 @@ sc_dread:
         mov     ax,[g_state.rn.dcp]
         mov     ebx,PROGBASE
 @rdv_l:
-        movzx   ecx,byte ptr [g_progb+ebx]
+        movzx   ecx,word ptr [g_progb+ebx]
         add     ebx,ecx
         cmp     ax,bx
         jae     @rdv_l
@@ -437,7 +437,7 @@ rd_scan:
 @rds_z:
         inc     ebx
 @rds_n:
-        cmp     byte ptr [g_progb+ebx],0       ; the next line, or the end
+        cmp     word ptr [g_progb+ebx],0       ; the next line, or the end
         je      @rds_x
         add     ebx,HDR
         jmp     @rds_s
@@ -529,7 +529,7 @@ rd_first:
 ; out:    dcp, dlp  the DATA, 0 when there is none; its text in rdbuf
 ; ::::::::::::::
 rd_seek:
-        cmp     byte ptr [g_progb+ebx],0
+        cmp     word ptr [g_progb+ebx],0
         je      @rsk_n
         add     ebx,HDR
         call    rd_scan
@@ -666,7 +666,7 @@ sc_run:
 ex_runfirst:
         call    ch_clall
         mov     ebx,PROGBASE
-        cmp     byte ptr [g_progb+ebx],0
+        cmp     word ptr [g_progb+ebx],0
         jne     ex_rungo
         jmp     ex_end
 

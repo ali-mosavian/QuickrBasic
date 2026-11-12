@@ -106,7 +106,7 @@ cm_flush:
 @cfl_l:
         mov     ebx,PROGBASE
 @cfl_x:
-        movzx   ecx,byte ptr [g_progb+ebx]
+        movzx   ecx,word ptr [g_progb+ebx]
         jecxz   @cfl_d
         and     word ptr [g_progb+ebx+L_CP],0
         add     ebx,ecx
@@ -121,7 +121,7 @@ cm_flush:
 ; or GOSUB's line is found now when it exists; an INPUT's
 ; end (16 bits, from cachb) are filled in. The CALL of INBEG takes 2 bytes
 ; more than in xbuf. Before the code, its statement map: for
-; each statement the compile recorded (g_stb, g_stx), its body offset:1 and
+; each statement the compile recorded (g_stb, g_stx), its body offset:2 and
 ; its code's offset:2; then their count:1 (vm/flow.asm, ex_bjump).
 ;
 ; in:     EDI   where it goes
@@ -134,7 +134,7 @@ cm_flush:
 cm_xlate:
         and     [g_state.lnk.einb],0
         movzx   ecx,[g_state.cm.nst]
-        lea     eax,[ecx+ecx*2+1]
+        lea     eax,[ecx*4+1]
         add     eax,edi
         cmp     eax,[g_state.lnk.elim]
         ja      @cx_ov
@@ -228,13 +228,13 @@ cx_mark:
         add     eax,offset g_xbuf
         cmp     eax,esi
         jne     @cxm_r
-        lea     ecx,[ebx+ebx*2]
+        lea     ecx,[ebx*4]
         add     ecx,[g_state.lnk.emap]
-        mov     al,[g_stb+ebx]
-        mov     [ecx],al
+        mov     ax,[g_stb+ebx*2]
+        mov     [ecx],ax
         mov     eax,edi
         sub     eax,[g_state.lnk.ecode]
-        mov     [ecx+1],ax
+        mov     [ecx+2],ax
         inc     [g_state.lnk.ek]
         jmp     @cxm_l
 @cxm_r:
@@ -272,7 +272,7 @@ cm_link:
         and     [g_state.lnk.lc],0
         mov     ebx,PROGBASE
 @clk_l:
-        movzx   ecx,byte ptr [g_progb+ebx]
+        movzx   ecx,word ptr [g_progb+ebx]
         jecxz   @clk_d
         and     word ptr [g_progb+ebx+L_CP],0
         add     ebx,ecx
@@ -284,7 +284,7 @@ cm_link:
         ret
 
         .data?
-g_lbuf  db      264 dup(?)
+g_lbuf  db      LMAX+8 dup(?)
         .code
 
         end

@@ -52,7 +52,7 @@ op_dbg:
         sub     eax,offset g_cachb
         cmp     ax,word ptr [g_progb+ebx+L_CP]
         jne     @odb_d
-        movzx   eax,word ptr [g_progb+ebx+1]
+        movzx   eax,word ptr [g_progb+ebx+L_NUM]
         cmp     [g_state.dbg.utl],0
         je      @F
         cmp     ax,[g_state.dbg.ulnum]
@@ -97,17 +97,17 @@ dbg_depth:
 ; dbg_pos - the place of code address EAX in line EBX to wnum, wb0, wb1.
 ; ::::::::::::::
 dbg_pos:
-        mov     dx,word ptr [g_progb+ebx+1]
+        mov     dx,word ptr [g_progb+ebx+L_NUM]
         mov     [g_state.dbg.wnum],dx
         call    ex_smap
-        mov     al,[edi]
-        mov     [g_state.dbg.wb0],al
-        mov     al,0FFh
+        mov     ax,[edi]
+        mov     [g_state.dbg.wb0],ax
+        mov     ax,BOFF
         cmp     ecx,1
         jbe     @F
-        mov     al,[edi+3]
+        mov     ax,[edi+4]
 @@:
-        mov     [g_state.dbg.wb1],al
+        mov     [g_state.dbg.wb1],ax
         ret
 
 ; ::::::::::::::

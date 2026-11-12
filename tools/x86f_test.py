@@ -162,6 +162,10 @@ CASES = {
     "qb_dimfree": ('DECLARE SUB a (n AS INTEGER)\r\nFOR i = 1 TO 4000: a i MOD 50: NEXT: PRINT "ok"\r\nEND\r\n'
                    'SUB a (n AS INTEGER)\r\nREDIM x(300 + n) AS INTEGER\r\nDIM y(40) AS LONG\r\nEND SUB\r\n',
                    "ok\r\n", "ERROR"),
+    # A line's tokens were 255 bytes at most, Out of memory past; positions and the statement map
+    # held body offsets in a byte: a loop's or RESUME's statement past 255 was lost.
+    "qb_long_line": ('ON ERROR GOTO h\r\nDO: i = i + 1: a0 = 1: a1 = 1: a2 = 1: a3 = 1: a4 = 1: a5 = 1: a6 = 1: a7 = 1: a8 = 1: a9 = 1: a10 = 1: a11 = 1: a12 = 1: a13 = 1: a14 = 1: a15 = 1: a16 = 1: a17 = 1: a18 = 1: a19 = 1: a20 = 1: a21 = 1: a22 = 1: a23 = 1: a24 = 1: LOOP UNTIL i = 3: PRINT i\r\n'
+                     'a0 = 1: a1 = 1: a2 = 1: a3 = 1: a4 = 1: a5 = 1: a6 = 1: a7 = 1: a8 = 1: a9 = 1: a10 = 1: a11 = 1: a12 = 1: a13 = 1: a14 = 1: a15 = 1: a16 = 1: a17 = 1: a18 = 1: a19 = 1: a20 = 1: a21 = 1: a22 = 1: a23 = 1: a24 = 1: x = 1 / 0: PRINT "n"\r\nEND\r\nh: RESUME NEXT\r\n', " 3 \r\nn\r\n", "ERROR"),
     # Unhandled: ERROR n's message; RESUME with no error; ON ERROR GOTO 0 in the handler.
     # A full stack was ?OUT OF MEMORY, which ON ERROR trapped; BC's is Out of stack space, not
     # trapped, its line, module and address after.

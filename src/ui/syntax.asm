@@ -83,8 +83,8 @@ hl_line:
 @hxl_l:
         mov     ebx,esi                 ; EBX the item's column
         sub     ebx,offset g_hlbody
-        cmp     ebx,255
-        ja      @hxl_r
+        cmp     ebx,LMAX
+        jae     @hxl_r
         movzx   ebx,byte ptr [g_lxcol+ebx]
         lodsb
         test    al,al

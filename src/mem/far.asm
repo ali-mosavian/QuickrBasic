@@ -22,7 +22,7 @@ include x86f.inc
 mem_line:
         push    esi
         lea     esi,[g_progb+ebx]
-        movzx   ecx,byte ptr [esi]
+        movzx   ecx,word ptr [esi]
         call    mem_movs
         pop     esi
         ret
