@@ -323,6 +323,14 @@ CASES = {
     "qb_andefok": ('DECLARE SUB s ()\r\nDIM SHARED c(2)\r\nDIM e(4)\r\ns\r\nSUB s\r\nSTATIC f()\r\nSHARED e()\r\n'
                    'REDIM g(3)\r\nIF 0 THEN h(1) = 1\r\nPRINT UBOUND(c); UBOUND(e); UBOUND(g); UBOUND(h)\r\nEND SUB\r\n',
                    " 2  4  3  10 \r\n", "ERROR"),
+    # SINGLE arithmetic stored to a DOUBLE was rounded to 7 digits first: .3333333432674408 for
+    # x / 3. BC keeps the x87's precision to the store; constants it folds as SINGLEs, not ^.
+    "qb_dblx": ('x = 1: a% = 1: b% = 3: c# = a% / b%: d# = x / 3: e# = 2 ^ .5: PRINT c#; d#; e#\r\n'
+                'c# = -1 / 3: d# = -x / 3: e# = (x + 1) / 3: f# = x / 3 + 1: PRINT c#; d#; e#; f#\r\n'
+                'x = 2: c# = SQR(x) / 3: d# = 1 / 3 + 1#: PRINT c#; d#\r\n',
+                " .3333333333333333  .3333333333333333  1.414213562373095 \r\n"
+                "-.3333333432674408 -.3333333333333333  .6666666666666666  1.333333333333333 \r\n"
+                " .4714045207910317  1.333333343267441 \r\n", "ERROR"),
     "qb_gosubsc": ('DECLARE SUB s ()\r\ns\r\nEND\r\nm: PRINT "m": RETURN\r\nSUB s\r\nGOSUB m\r\nEND SUB\r\n',
                    "Subprogram error", None),
     # Unhandled: ERROR n's message; RESUME with no error; ON ERROR GOTO 0 in the handler.

@@ -418,6 +418,7 @@ externdef cm_lval:near
 externdef cm_paren:near
 externdef cm_shv:near
 externdef cm_subs0:near
+externdef g_ckon:dword
 externdef g_cmact:dword
 externdef g_csh:byte
 externdef g_cshc:byte

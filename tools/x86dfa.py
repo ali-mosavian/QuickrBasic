@@ -204,7 +204,7 @@ GRAMMAR: dict[str, str] = {
     "DEFDBL": "data",
     "DEFSTR": "data",
     "READ": "lv rd { , lv rd }",
-    "LET": "lv = e let",
+    "LET": "lv = le let",
     "GOTO": "l goto",
     "RUN": "run",
     "IF": "if",

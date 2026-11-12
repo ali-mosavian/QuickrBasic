@@ -22,7 +22,29 @@ include x86f.inc
 ; out:    SI  after it and the spaces
 ; ::::::::::::::
 cm_expr:
+        movzx   eax,[g_cwd]             ; not an assignment's: its own
+        push    eax
+        mov     [g_cwd],0
         xor     al,al
+        call    cm_p
+        pop     eax
+        mov     [g_cwd],al
+        xor     eax,eax
+        ret
+
+; ::::::::::::::
+; cm_lexpr - an assignment's value. A DOUBLE target's: a SINGLE operator of
+; more than constants a DOUBLE one, as BC keeps the x87's precision to the
+; store; of constants still a SINGLE, as BC folds them.
+; ::::::::::::::
+cm_lexpr:
+        mov     al,[g_state.cm.ctk]
+        and     al,SK_DBL
+        mov     [g_cwd],al
+        xor     al,al
+        call    cm_p
+        mov     [g_cwd],0
+        ret
 
 ; ::::::::::::::
 ; cm_p - compile while the operators bind tighter than precedence AL.
@@ -50,6 +72,13 @@ cm_p:
 @@:
         mov     [g_csh],al
         mov     [g_cshe],edi
+        xor     eax,eax                 ; of constants: one; else none
+        cmp     [g_cbk],al              ; ends here, an operand folded in
+        je      @F                      ; or not
+        mov     eax,edi
+@@:
+        mov     [g_ckon],eax
+        mov     [g_cbk],0
 @cp_l0:
         call    st_get
         mov     ah,10                   ; \ MOD XOR EQV IMP: 10 .. 14
@@ -107,8 +136,12 @@ cm_p:
         pop     edx
         pop     ebx
 @cp_kl:
+        xor     eax,eax                 ; bit 16: the left a constant
+        cmp     edi,[g_ckon]
+        jne     @F
+        mov     eax,10000h
+@@:
         mov     al,[g_state.cm.cty]
-        mov     ah,0
         push    ebx
         call    cm_ileaf
         mov     ecx,ebx
@@ -129,6 +162,15 @@ cm_p:
         pop     eax                      ; AL the left's type
         pop     edx                      ; the operator
         call    cm_sop
+        mov     [g_cbk],0               ; both constants; ^ not folded
+        cmp     dl,4
+        je      @F
+        test    eax,10000h
+        jz      @F
+        cmp     edi,[g_ckon]
+        jne     @F
+        mov     [g_cbk],1
+@@:
         test    dl,dl
         js      @F
         cmp     dl,10
@@ -183,6 +225,19 @@ cm_p:
         je      @cp_db
         cmp     [g_state.cm.cty],T_DBL
         je      @cp_db
+        cmp     [g_cwd],0               ; for a DOUBLE: + - * of a SINGLE,
+        je      @cp_np                  ; / of any, not of constants; ^
+        cmp     dl,4
+        je      @cp_db
+        cmp     [g_cbk],0
+        jne     @cp_np
+        cmp     dl,3
+        je      @cp_db
+        test    al,al
+        js      @cp_db
+        cmp     [g_state.cm.cty],T_FLT
+        je      @cp_db
+@cp_np:
         cmp     dl,4
         je      @cp_pw
         test    al,al
@@ -770,6 +825,16 @@ cm_un:
         inc     esi
         call    cm_p
         pop     ecx
+        push    [g_ckon]                ; 0: a constant's, so the result
+        sub     [esp],edi
+        call    @cu_ng
+        pop     eax
+        test    eax,eax
+        jnz     @F
+        mov     [g_ckon],edi
+@@:
+        ret
+@cu_ng:
         cmp     ch,O_F_NEG
         je      @cu_nf
         call    cm_toi
@@ -819,7 +884,9 @@ cm_un:
         mov     al,O_F_LD_F32
         call    cm_op
         pop     eax
-        jmp     cm_dw
+        call    cm_dw
+        mov     [g_ckon],edi
+        ret
 @cu_dk:                                 ; a DOUBLE: D.LD.K q
         add     esp,4
         mov     [g_state.cm.cty],T_DBL
@@ -832,6 +899,7 @@ cm_un:
         xor     eax,eax
         mov     [g_state.cm.cll],eax
         mov     [g_state.cm.clle],eax
+        mov     [g_ckon],edi
         ret
 @cu_7:
         cmp     al,TK_LEN
@@ -910,6 +978,16 @@ cm_un:
         call    cm_tod
         jmp     @cu_ds
 @@:
+        cmp     [g_cwd],0               ; for a DOUBLE: of an INT or a
+        je      @cu_dd                  ; SINGLE a DOUBLE's, as BC keeps the
+        test    [g_state.cm.cty],T_STR or T_DBL ; x87's precision
+        jnz     @cu_dd
+        cmp     byte ptr [g_dfnk+ebx],80h
+        jae     @cu_dd
+        push    ecx
+        call    cm_tod
+        pop     ecx
+@cu_dd:
         cmp     [g_state.cm.cty],T_DBL
         jne     @cu_dq
         movzx   ebx,cl
@@ -1444,6 +1522,9 @@ g_xop   db      O_I_DIV,O_I_MOD,O_I_XOR,O_I_EQV,O_I_IMP
 g_csh   db      ?                       ; the SHORT class of the code ending
 g_cshc  db      ?                       ; at cshe; cm_shv's
 g_cshe  dd      ?
+g_ckon  dd      ?                       ; a constant's code ends here
+g_cwd   db      ?                       ; cm_lexpr's: a DOUBLE target
+g_cbk   db      ?                       ; the operator's operands constants
 g_vakind dd     ?
         .code
 
@@ -1453,7 +1534,7 @@ g_cmact dd      cm_expr,cm_lval,cm_lnum,cm_tob,cm_toa,cm_tos,cm_str1,cm_fv
         dd      cm_print,cm_list,cm_dv,cm_dat,cm_rem,cm_store,cm_in
         dd      cm_rd,cm_get,cm_goto,cm_gosub,cm_run,cm_res,cm_ret,cm_n0
         dd      cm_n1,cm_narg,cm_fop,cm_swap,cm_toi,cm_tod,cm_va,cm_write
-        dd      cm_lin
+        dd      cm_lin,cm_lexpr
         .code
 
         end

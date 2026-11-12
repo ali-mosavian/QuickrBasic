@@ -54,5 +54,6 @@ A_TOD   = A_BASE+36
 A_VA    = A_BASE+37
 A_WR    = A_BASE+38
 A_LIN   = A_BASE+39
+A_LE    = A_BASE+40
 .erre K_N LE A_BASE                     ; a CALL's K_ is never an action
-.erre A_LIN LT 0FCh
+.erre A_LE LT 0FCh

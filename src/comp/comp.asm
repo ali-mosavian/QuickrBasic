@@ -833,6 +833,7 @@ cm_lint:
         call    cm_dw
 @cli_e:
         mov     [g_state.cm.clle],edi
+        mov     [g_ckon],edi
         ret
 
 ; ::::::::::::::
