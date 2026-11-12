@@ -33,6 +33,7 @@ TCOMP    struc                   ; the compiler
     cscope  db      ?               ; var_find's scope: 0 the module, a procedure
     cstat   db      ?               ; var_find makes a STATIC, not a local
     credim  db      ?               ; 40h: DIM's grammar is REDIM's
+    cchk    db      ?               ; 1: the IDE's line check, unlinked
     cproc   db      ?               ; the procedure the compiled line is in
 TCOMP    ends
 

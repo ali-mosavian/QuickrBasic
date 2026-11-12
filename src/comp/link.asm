@@ -283,6 +283,7 @@ cm_walk:
 ; keeps:  SI
 ; ::::::::::::::
 cm_link:
+        mov     [g_state.cm.cchk],0     ; a check an error left
         cmp     [g_state.lnk.linked],0
         jne     cm_rts
         push    esi

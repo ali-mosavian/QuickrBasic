@@ -312,7 +312,11 @@ ct_skip:
 ct_sub:
         inc     esi
         call    ct_proc
+        jnc     @F
+        call    ct_pchk
         jc      err_sn
+        jmp     ct_none
+@@:
         mov     eax,[edx+P_SKIP]
         call    ct_jmp
         jmp     ct_none
@@ -363,7 +367,11 @@ ct_proc:
 ct_call:
         inc     esi
         call    ct_proc
+        jnc     @F
+        call    ct_pchk
         jc      err_sn
+        jmp     ct_none
+@@:
         push    eax
         push    edx
         cmp     byte ptr [esi],'('
@@ -755,6 +763,29 @@ ct_scall:
         jmp     ct_pcall
 @css_n:
         pop     esi
+        call    ct_pchk
+        jnc     ct_none
+        ret
+
+; ::::::::::::::
+; ct_pchk - in the IDE's check of a line alone, a SUB or FUNCTION its
+; declaration named passes: g_prc has it only once the program is linked.
+;
+; in:     SI  at the name
+; out:    CF  clear: passes
+; ::::::::::::::
+ct_pchk:
+        cmp     [g_state.cm.cchk],0
+        je      @cpk_n
+        cmp     byte ptr [esi],M_VAR
+        jne     @cpk_n
+        movzx   ecx,byte ptr [esi+1]
+        movzx   eax,word ptr [esi+ecx+2]
+        test    [g_nflag+eax],NM_SUB+NM_FUNC
+        jz      @cpk_n
+        clc
+        ret
+@cpk_n:
         stc
         ret
 

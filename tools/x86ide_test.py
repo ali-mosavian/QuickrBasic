@@ -429,6 +429,20 @@ def play() -> None:
     press("enter")
     assert text()[5] == "GOSUB 20", text()
 
+    # A typed SUB, then its call without CALL: each line, checked alone, was a syntax error (the
+    # procedure table is the link's), and the SUB line stayed in small letters.
+    press(f"0x{ALT_F:x}", "n")
+    if any("NOT SAVED" in r for r in look()):
+        press("n")
+    for ln in ("sub hi", "print 7", "end sub", "", "hi"):
+        press("home")
+        keys(ln + "\n")
+        assert not any("ERROR" in r for r in look()), (ln, look())
+    assert chars(2)[1:7] == b"SUB hi", chars(2)
+    press(f"0x{F5:x}")
+    assert output()[0] == " 7", output()
+    press("space")
+
     press(f"0x{ALT_F:x}", "x")
     if any("NOT SAVED" in r for r in look()):
         press("n")

@@ -410,11 +410,14 @@ ui_canon:
         mov     esi,offset g_inbuf
         mov     edi,offset g_cbuf
         call    lx_line
+        call    dc_line                 ; a typed SUB known to the lines after
         pop     esi
         cmp     [g_ui.tx.syn_on],0
         je      @uca_l
         push    esi
+        mov     [g_state.cm.cchk],1
         call    cm_line
+        mov     [g_state.cm.cchk],0
         mov     [g_ui.fd.uc_err],0
         mov     esi,offset g_xbuf
         mov     edx,offset ui_chkop
