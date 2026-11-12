@@ -373,58 +373,76 @@ rpl_file:
 ; error:  as ch_open
 ; ::::::::::::::
 rpl_load:
-        mov     esi,offset g_fnmb       ; file 255, read
-        mov     eax,255
-        mov     dl,FM_IN
-        mov     ecx,128
-        call    ch_open
-        call    ch_in
         mov     [g_state.io.lmode],1
         mov     [g_state.io.batch],1
         and     [g_state.io.fline],0
-        mov     [g_rinc],0
-@rfl_l:
-        call    plt_getline
-        jc      @rfl_i
-        inc     [g_state.io.fline]
-        call    rpl_inc
-        pushfd
-        call    rpl_enter
-        popfd
-        jnc     @rfl_l
-        inc     [g_rinc]                ; an include: its lines next
-        mov     esi,offset g_finc
-        call    @rfl_n
-        mov     dl,FM_IN
-        mov     ecx,128
-        call    ch_open
-        call    ch_in
-        jmp     @rfl_l
-@rfl_i:
-        cmp     [g_rinc],0              ; an include's end: back to the file
-        je      @rfl_d                  ; it was in
-        call    @rfl_n
-        call    ch_find
-        call    ch_close
-        dec     [g_rinc]
-        call    @rfl_n
-        call    ch_find
-        call    ch_in
-        jmp     @rfl_l
-@rfl_n:                                 ; EAX the file of include depth rinc
-        movzx   eax,[g_rinc]
-        neg     eax
-        add     eax,255
-        ret
-@rfl_d:
+        mov     esi,offset g_fnmb
         mov     eax,255
-        call    ch_find
-        call    ch_close
-        call    ch_clr
+        call    rpl_read
         mov     [g_state.io.lmode],0
         and     [g_state.io.fline],0
 @rfl_r:
         ret
+
+; ::::::::::::::
+; rpl_incl - rpl_line, then an include's lines from file 254 (the editor's
+; lines).
+;
+; error:  as rpl_read
+; ::::::::::::::
+rpl_incl:
+        call    rpl_line
+        jnc     @F
+        mov     esi,offset g_finc
+        mov     eax,254
+        call    rpl_read
+@@:
+        ret
+
+; ::::::::::::::
+; rpl_line - rpl_enter of inbuf, AX long.
+;
+; out:    CF    set: a '$INCLUDE: 'f' line, finc f
+; error:  as rpl_enter
+; ::::::::::::::
+rpl_line:
+        call    rpl_inc
+        pushfd
+        call    rpl_enter
+        popfd
+        ret
+
+; ::::::::::::::
+; rpl_read - enter the lines of file ESI, 0-ended, read as file EAX; an
+; include's on the file below, in place. Then the console's again.
+;
+; error:  as ch_open, rpl_enter
+; ::::::::::::::
+rpl_read:
+        push    eax
+        mov     dl,FM_IN
+        mov     ecx,128
+        call    ch_open
+        call    ch_in
+@rrd_l:
+        call    plt_getline
+        jc      @rrd_e
+        inc     [g_state.io.fline]
+        call    rpl_line
+        jnc     @rrd_l
+        mov     eax,[esp]               ; an include: its lines next
+        dec     eax
+        mov     esi,offset g_finc
+        call    rpl_read
+        mov     eax,[esp]
+        call    ch_find
+        call    ch_in
+        jmp     @rrd_l
+@rrd_e:
+        pop     eax
+        call    ch_find
+        call    ch_close
+        jmp     ch_clr
 
 ; ::::::::::::::
 ; rpl_inc - is inbuf, AX long, a '$INCLUDE: 'f' metacommand (or REM's)?
@@ -438,6 +456,17 @@ rpl_inc:
         mov     esi,offset g_inbuf
         movzx   edx,ax
         add     edx,esi
+        call    @rin_b
+@@:                                     ; past a line number
+        cmp     esi,edx
+        jae     @F
+        mov     al,[esi]
+        sub     al,'0'
+        cmp     al,9
+        ja      @F
+        inc     esi
+        jmp     @B
+@@:
         call    @rin_b
         cmp     esi,edx
         jae     @rin_n
@@ -584,7 +613,6 @@ r_inc   db      '$INCLUDE',0
         .data?
 g_fnmb  db      128 dup(?)               ; the command line's file name
 g_finc  db      128 dup(?)               ; an include's
-g_rinc  db      ?                       ; includes open
         .code
 
         end

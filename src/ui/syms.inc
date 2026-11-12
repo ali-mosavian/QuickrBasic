@@ -537,6 +537,7 @@ externdef g_fnmb:byte
 externdef rpl_cont:near
 externdef rpl_enter:near
 externdef rpl_file:near
+externdef rpl_incl:near
 externdef rpl_load:near
 externdef rpl_ready:near
 externdef rpl_run:near

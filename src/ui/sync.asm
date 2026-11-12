@@ -8,7 +8,8 @@
 ;           first). The labels must rise; a blank line is not stored. A
 ;           label alone is stored as REM, to be jumped to.
 ; calls:
-;   sy_build           NEW, then each line through rpl_enter
+;   sy_build           NEW, then each line through rpl_enter; an include's
+;                      file's lines after its line (rpl_incl)
 ;     sy_pass          the numbering, shared with sy_find, sy_walk
 ; ==========================================================================
 
@@ -168,7 +169,7 @@ sy_pass:
 @syp_t:
         mov     eax,edi
         sub     eax,offset g_inbuf
-        call    rpl_enter
+        call    rpl_incl
 @syp_n:
         inc     [g_ui.sy.sy_i]
         jmp     @syp_l

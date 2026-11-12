@@ -462,6 +462,18 @@ def play() -> None:
     assert output()[0] == " 7", output()
     press("space")
 
+    # A '$INCLUDE line's file was not read when the editor's lines were entered: A was 0, not 41.
+    if flat:
+        (work / "INC.BI").write_bytes(b"a = 41\r\n")
+        (work / "INC.BAS").write_bytes(b"'$INCLUDE: 'INC.BI'\r\nPRINT a + 1\r\n")
+        press(f"0x{ALT_F:x}", "o")
+        if any("NOT SAVED" in r for r in look()):
+            press("n")
+        keys("inc.bas\n")
+        press(f"0x{F5:x}")
+        assert output()[0] == " 42", output()
+        press("space")
+
     # Views: the module first, each procedure its own, as QBasic loads a file. Shift+F2 the next,
     # Ctrl+F2 the one before, F2 the list; Edit, New FUNCTION.
     (work / "VW.BAS").write_bytes(b"SUB a\r\nPRINT 1\r\nEND SUB\r\na\r\nFUNCTION f\r\nf = 2\r\nEND FUNCTION\r\n")
