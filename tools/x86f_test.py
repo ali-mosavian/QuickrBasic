@@ -175,6 +175,34 @@ CASES = {
     # A procedure's local arrays went with it only at the next RUN: 3000 calls ran out of memory.
     "qb_localarr": ("DECLARE SUB p (n)\r\nFOR i = 1 TO 3000: p i: NEXT: PRINT \"ok\"\r\n"
                     "SUB p (n)\r\nDIM a(2000): a(1) = n\r\nEND SUB\r\n", "ok\r\n", "ERROR"),
+    # DOUBLE: 16 digits, D exponents, 8-byte cells through arrays, READ, FIX/INT.
+    "qb_dbl": ("a# = 1# / 3#: PRINT a#; 1D+20; 1.5D-07; 2# ^ .5\r\n"
+               "DIM d(3) AS DOUBLE: d(2) = 3.141592653589793#: PRINT d(2) * 2\r\n"
+               "READ r#: PRINT r#; FIX(-2.5#); INT(-2.5#); CDBL(1) / 3\r\n"
+               "DATA 1.000000000000001\r\n",
+               " .3333333333333333  1D+20  1.5D-07  1.414213562373095 \r\n"
+               " 6.283185307179586 \r\n"
+               " 1.000000000000001 -2 -3  .3333333333333333 \r\n", "ERROR"),
+    # The first digit's power from LOG10 came out one high near 10^n: 10000000 was printed.
+    # 20 digits overflowed the 64-bit mantissa: -8.4D+19 was printed.
+    "qb_dbl_digits": ("PRINT 9999999.999999994#; 99999999999999.94#\r\n"
+                      "PRINT 12345678901234567890#\r\n",
+                      " 9999999.999999994  99999999999999.94 \r\n 1.234567890123457D+19 \r\n",
+                      "ERROR"),
+    # A DOUBLE BYREF, a FUNCTION's DOUBLE result, a record's DOUBLE field.
+    "qb_dbl_proc": ("DECLARE SUB tw (x AS DOUBLE)\r\nDECLARE FUNCTION h# (x#)\r\n"
+                    "TYPE r\r\na AS INTEGER\r\nd AS DOUBLE\r\nEND TYPE\r\n"
+                    "DIM v AS r: v.d = 2.5#: v.a = 7\r\n"
+                    "y# = 1.25#: tw y#: PRINT y#; h#(y#); v.d; v.a\r\n"
+                    "SUB tw (x AS DOUBLE)\r\nx = x * 2\r\nEND SUB\r\n"
+                    "FUNCTION h# (x#)\r\nt# = x# / 4: h# = t# + 1D+15\r\nEND FUNCTION\r\n",
+                    " 2.5  1000000000000001  2.5  7 \r\n", "ERROR"),
+    # BC's limits: EXP and ^ give infinity up to 2^32767.5, then error 6; SIN past 2^31 error 5.
+    # DOSBox's FXAM sees no infinity: 2 ^ 100000 was infinity, not error 6.
+    "qb_dbl_range": ("ON ERROR GOTO h\r\nPRINT EXP(22712.6#): PRINT EXP(22712.8#)\r\n"
+                     "PRINT 10# ^ 500: PRINT 2# ^ 100000: PRINT SIN(1D+300): PRINT SQR(4#)\r\n"
+                     "END\r\nh: PRINT \"e\"; ERR: RESUME NEXT\r\n",
+                     " 1.#INF \r\ne 6 \r\n 1.#INF \r\ne 6 \r\ne 5 \r\n 2 \r\n", "ERROR"),
 }
 
 # Run as files; what standard error showed. A file's CR LF counted as two lines: line 3, 5.

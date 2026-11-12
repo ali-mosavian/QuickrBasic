@@ -5,9 +5,9 @@
 ; uses:     flt_*, str_*, arr_ref, the CALL table
 ;           The code is a stream of byte ops in cachb, each its op then
 ;           its operands. A handler enters with ESI at its operands, EBX the
-;           op * 2, and ends by dispatch. The data stack is ESP, 4-byte
-;           cells: an INT in the low word, a FLOAT packed, a string its Desc's
-;           address. Every op takes its operands off it and pushes its
+;           op * 2, and ends by dispatch. The data stack is ESP, 8-byte
+;           cells: an INT, a FLOAT packed or a string's Desc address in the
+;           low dword; a DOUBLE fills one. Every op takes its operands off it and pushes its
 ;           result. At a statement's start ESP is rsp. A stream address kept
 ;           in memory is 16 bits, from cachb.
 ; calls:
@@ -43,7 +43,7 @@ op_sldt:
         add     esi,5
         mov     [g_state.sg.spt],ebx
         call    str_push
-        push    eax
+        dpush   eax
         dispatch
 
 ; ::::::::::::::
@@ -76,7 +76,7 @@ arr_pn:
         movzx   ebx,cl
         add     ebx,ebx
 @apn_l:
-        pop     eax
+        dpop    eax
         subchk
         mov     [g_dimbuf+ebx-2],ax
         sub     ebx,2
@@ -101,7 +101,7 @@ op_raddr:
         and     word ptr [g_lbbuf],0
         call    arr_new
 @rad_g:
-        push    dword ptr [edi+AH_PTR]
+        dpush   dword ptr [edi+AH_PTR]
         dispatch
 
 ; ::::::::::::::
@@ -109,24 +109,31 @@ op_raddr:
 ; ::::::::::::::
 op_raddra:
         call    arr_pn
-        push    edi
+        dpush   edi
         dispatch
 
 ; ::::::::::::::
 ; op_flld - FL.LD off et ( a -- x ): a record's number field.
 ; ::::::::::::::
 op_flld:
-        pop     edi
+        dpop    edi
         movzx   eax,word ptr [esi]
         add     edi,eax
         cmp     byte ptr [esi+2],ET_SH
-        lea     esi,[esi+3]
         je      @fll_h
+        cmp     byte ptr [esi+2],ET_R8
+        lea     esi,[esi+3]
+        je      @fll_d
+        dpush   dword ptr [edi]
+        dispatch
+@fll_d:
+        push    dword ptr [edi+4]
         push    dword ptr [edi]
         dispatch
 @fll_h:
+        add     esi,3
         movsx   eax,word ptr [edi]
-        push    eax
+        dpush   eax
         dispatch
 
 ; ::::::::::::::
@@ -135,14 +142,26 @@ op_flld:
 ; error:  ?OVERFLOW  a SHORT's past 16 bits
 ; ::::::::::::::
 op_flst:
-        pop     eax
-        pop     edi
+        cmp     byte ptr [esi+2],ET_R8
+        je      @fls_d
+        dpop    eax
+        dpop    edi
         movzx   ecx,word ptr [esi]
         add     edi,ecx
         cmp     byte ptr [esi+2],ET_SH
         lea     esi,[esi+3]
         je      @fls_h
         mov     [edi],eax
+        dispatch
+@fls_d:
+        pop     eax
+        pop     edx
+        dpop    edi
+        movzx   ecx,word ptr [esi]
+        add     edi,ecx
+        add     esi,3
+        mov     [edi],eax
+        mov     [edi+4],edx
         dispatch
 @fls_h:
         movsx   ecx,ax
@@ -157,7 +176,7 @@ op_flst:
 op_sfld:
         movzx   eax,word ptr [esi+2]
         call    str_alloc               ; the record does not move
-        pop     eax
+        dpop    eax
         movzx   ecx,word ptr [esi]
         add     eax,ecx
         add     esi,4
@@ -168,16 +187,16 @@ op_sfld:
         rep     movsb
         pop     esi
         call    str_new
-        push    eax
+        dpush   eax
         dispatch
 
 ; ::::::::::::::
 ; op_sfst - SF.ST off n ( a s -- ): cut or padded with spaces.
 ; ::::::::::::::
 op_sfst:
-        pop     eax
+        dpop    eax
         call    str_get
-        pop     edi
+        dpop    edi
         movzx   ecx,word ptr [esi]
         add     edi,ecx
         movzx   edx,word ptr [esi+2]
@@ -201,8 +220,8 @@ op_sfst:
 ; op_rcopy - R.COPY n ( a b -- ): record b's n bytes over a's.
 ; ::::::::::::::
 op_rcopy:
-        pop     eax
-        pop     edi
+        dpop    eax
+        dpop    edi
         movzx   ecx,word ptr [esi]
         add     esi,2
         push    esi
@@ -215,10 +234,10 @@ op_rcopy:
 ; op_ilda1 - X.LD.A1 id ( i -- x ).
 ; ::::::::::::::
 op_ilda1:
-        pop     eax
+        dpop    eax
         a1get   2,@ila_s
 @ila_g:
-        push    dword ptr [edi]
+        dpush   dword ptr [edi]
         dispatch
 @ila_s:
         call    arr_r1
@@ -227,10 +246,10 @@ op_ilda1:
 ; op_flda1 - X.LD.A1 id ( i -- x ).
 ; ::::::::::::::
 op_flda1:
-        pop     eax
+        dpop    eax
         a1get   2,@fla_s
 @fla_g:
-        push    dword ptr [edi]
+        dpush   dword ptr [edi]
         dispatch
 @fla_s:
         call    arr_r1
@@ -239,10 +258,10 @@ op_flda1:
 ; op_slda1 - X.LD.A1 id ( i -- x ).
 ; ::::::::::::::
 op_slda1:
-        pop     eax
+        dpop    eax
         a1get   1,@sla_s
 @sla_g:
-        push    edi
+        dpush   edi
         dispatch
 @sla_s:
         call    arr_r1
@@ -253,14 +272,14 @@ op_slda1:
 ; ::::::::::::::
 op_lda:
         call    arr_pn
-        push    dword ptr [edi]
+        dpush   dword ptr [edi]
         dispatch
 ; ::::::::::::::
 ; op_slda - X.LD.A id n ( i1..in -- x ).
 ; ::::::::::::::
 op_slda:
         call    arr_pn
-        push    edi
+        dpush   edi
         dispatch
 
 ; ::::::::::::::
@@ -270,7 +289,7 @@ op_sstv:
         vslot
         lea     eax,[SVBASE+ebx*2]
         mov     [g_state.sg.bpo],eax
-        pop     eax
+        dpop    eax
         call    str_set
         dispatch
 
@@ -278,8 +297,8 @@ op_sstv:
 ; op_ista1 - X.ST.A1 id ( i x -- ).
 ; ::::::::::::::
 op_ista1:
-        pop     dword ptr [g_state.rn.stv]
-        pop     eax
+        dpop    dword ptr [g_state.rn.stv]
+        dpop    eax
         a1get   2,@isa_s
 @isa_g:
         mov     eax,[g_state.rn.stv]
@@ -292,8 +311,8 @@ op_ista1:
 ; op_fsta1 - X.ST.A1 id ( i x -- ).
 ; ::::::::::::::
 op_fsta1:
-        pop     dword ptr [g_state.rn.stv]
-        pop     eax
+        dpop    dword ptr [g_state.rn.stv]
+        dpop    eax
         a1get   2,@fsa_s
 @fsa_g:
         mov     eax,[g_state.rn.stv]
@@ -306,8 +325,8 @@ op_fsta1:
 ; op_ssta1 - X.ST.A1 id ( i x -- ).
 ; ::::::::::::::
 op_ssta1:
-        pop     dword ptr [g_state.rn.stv]
-        pop     eax
+        dpop    dword ptr [g_state.rn.stv]
+        dpop    eax
         a1get   1,@ssa_s
 @ssa_g:
         mov     [g_state.sg.bpo],edi
@@ -322,21 +341,21 @@ op_ssta1:
 ; op_istan - X.ST.A id n ( i1..in x -- ).
 ; ::::::::::::::
 op_istan:
-        pop     dword ptr [g_state.rn.stv]
+        dpop    dword ptr [g_state.rn.stv]
         call    arr_pn
         jmp     @isa_g
 ; ::::::::::::::
 ; op_fstan - X.ST.A id n ( i1..in x -- ).
 ; ::::::::::::::
 op_fstan:
-        pop     dword ptr [g_state.rn.stv]
+        dpop    dword ptr [g_state.rn.stv]
         call    arr_pn
         jmp     @fsa_g
 ; ::::::::::::::
 ; op_sstan - X.ST.A id n ( i1..in x -- ).
 ; ::::::::::::::
 op_sstan:
-        pop     dword ptr [g_state.rn.stv]
+        dpop    dword ptr [g_state.rn.stv]
         call    arr_pn
         jmp     @ssa_g
 
@@ -383,7 +402,7 @@ ex_cmpt:
         jae     @ct_if
         neg     al
         sbb     eax,eax
-        push    eax
+        dpush   eax
         dispatch
 @ct_if:
         test    al,al
@@ -395,8 +414,8 @@ ex_cmpt:
 ; ::::::::::::::
 op_scmp:
         mov     [g_state.rn.cop],bx
-        pop     eax
-        pop     edx
+        dpop    eax
+        dpop    edx
         call    str_cmp
         mov     al,cl
         mov     cl,[esi]
@@ -407,7 +426,7 @@ op_scmp:
 ; op_sif - X.IF ( x -- ): false ends the line.
 ; ::::::::::::::
 op_sif:
-        pop     eax
+        dpop    eax
         call    str_getd
         jz      ex_nextln
         dispatch
@@ -418,10 +437,10 @@ op_sif:
 ; error:  ?STRING TOO LONG  over SMAX chars
 ; ::::::::::::::
 op_scat:
-        pop     eax
-        pop     edx
+        dpop    eax
+        dpop    edx
         call    str_cat
-        push    eax
+        dpush   eax
         dispatch
 
 ; ::::::::::::::
@@ -448,6 +467,7 @@ g_calls dd      sc_ipr,sc_fpr,sc_spr,sc_pnl,sc_pzone,sc_ptab,sc_pspc
         dd      sc_fix,sc_instr,sc_lbnd,sc_ubnd,sc_space,sc_strg,sc_ltrim
         dd      sc_rtrim,sc_ucase,sc_lcase,sc_hex,sc_oct,sc_sfix,sc_mids
         dd      sc_vseg,sc_sadd,sc_err,sc_erl,sc_error,sc_erase
+        dd      sc_dpr,sc_dstr,sc_dread,sc_din
 
 g_bflt  dd      flt_add,flt_sub,flt_mul,flt_div,fn_pow
 g_fntab dd      fn_sgn,fn_int,fn_abs,fn_usr,fn_fre,fn_pos,fn_sqr,fn_rnd,fn_log,fn_exp

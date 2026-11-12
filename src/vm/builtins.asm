@@ -17,30 +17,30 @@ include x86f.inc
 ; in:     BX  k * 2
 ; ::::::::::::::
 sc_fn1:
-        pop     eax
+        dpop    eax
         call    [g_fntab+ebx*2-4*K_FN]
-        push    eax
+        dpush   eax
         dispatch
 
 ; ::::::::::::::
 ; sc_left - LEFT$ ( s n -- s ).
 ; ::::::::::::::
 sc_left:
-        pop     eax
+        dpop    eax
         mov     [g_state.sg.s0v],ax
-        pop     eax
+        dpop    eax
         call    fn_left
-        push    eax
+        dpush   eax
         dispatch
 ; ::::::::::::::
 ; sc_right - RIGHT$ ( s n -- s ).
 ; ::::::::::::::
 sc_right:
-        pop     eax
+        dpop    eax
         mov     [g_state.sg.s0v],ax
-        pop     eax
+        dpop    eax
         call    fn_right
-        push    eax
+        dpush   eax
         dispatch
 
 ; ::::::::::::::
@@ -49,7 +49,7 @@ sc_right:
 ; error:  ?ILLEGAL QUANTITY  i 0
 ; ::::::::::::::
 sc_mid:
-        pop     eax
+        dpop    eax
         mov     [g_state.sg.s1v],ax
         jmp     @bmd_g
 ; ::::::::::::::
@@ -58,11 +58,11 @@ sc_mid:
 sc_mid2:
         mov     [g_state.sg.s1v],SMAX
 @bmd_g:
-        pop     eax
+        dpop    eax
         mov     [g_state.sg.s0v],ax
-        pop     eax
+        dpop    eax
         call    fn_mid
-        push    eax
+        dpush   eax
         dispatch
 
 ; ::::::::::::::
@@ -253,11 +253,11 @@ sc_vseg:
 ; ::::::::::::::
 sc_err:
         movzx   eax,[g_state.rn.errn]
-        push    eax
+        dpush   eax
         dispatch
 sc_erl:
         movzx   eax,[g_state.rn.erl]
-        push    eax
+        dpush   eax
         dispatch
 
 ; ::::::::::::::
@@ -266,7 +266,7 @@ sc_erl:
 ; error:  ?ILLEGAL QUANTITY  n not 1..255
 ; ::::::::::::::
 sc_error:
-        pop     eax
+        dpop    eax
         dec     eax
         cmp     eax,254
         ja      err_iq
@@ -306,18 +306,18 @@ sc_fix:
 ; error:  ?ILLEGAL QUANTITY  n under 1
 ; ::::::::::::::
 sc_instr:
-        pop     ecx
+        dpop    ecx
         mov     [g_state.rn.cnarg],cl
-        pop     eax
+        dpop    eax
         call    str_get                 ; t
         mov     edx,[g_state.sg.spt]
         movzx   ebp,[g_state.sg.sln]
-        pop     eax
+        dpop    eax
         call    str_get                 ; s
         mov     ebx,1
         cmp     [g_state.rn.cnarg],3
         jne     @F
-        pop     ebx
+        dpop    ebx
 @@:
         cmp     ebx,1
         jl      err_iq
@@ -350,7 +350,7 @@ sc_instr:
         mov     eax,ebx
 @sin_r:
         pop     esi
-        push    eax
+        dpush   eax
         dispatch
 
 ; ::::::::::::::
@@ -365,19 +365,19 @@ sc_lbnd:
 sc_ubnd:
         mov     edx,1
 @sbd_g:
-        pop     ecx
+        dpop    ecx
         mov     eax,1
         cmp     ecx,2
         jne     @F
-        pop     eax
+        dpop    eax
 @@:
-        pop     ebx
+        dpop    ebx
         mov     edi,[g_vt+ebx*4]
         test    edi,edi
         jnz     @F
         lea     eax,[edx+edx*4]         ; none yet: 0 to 10
         add     eax,eax
-        push    eax
+        dpush   eax
         dispatch
 @@:
         movzx   ecx,byte ptr [edi]
@@ -391,14 +391,14 @@ sc_ubnd:
         movzx   ecx,word ptr [ebx]
         lea     eax,[eax+ecx-1]
 @@:
-        push    eax
+        dpush   eax
         dispatch
 
 ; ::::::::::::::
 ; sc_space - SPACE$ ( n -- s ).
 ; ::::::::::::::
 sc_space:
-        pop     eax
+        dpop    eax
         mov     dl,' '
         jmp     @sst_n
 
@@ -409,8 +409,8 @@ sc_space:
 ; error:  ?ILLEGAL QUANTITY  x empty, not a char, n out of range
 ; ::::::::::::::
 sc_strg:
-        pop     ecx
-        pop     eax
+        dpop    ecx
+        dpop    eax
         jecxz   @ssg_n
         call    str_get
         jz      err_iq
@@ -422,7 +422,7 @@ sc_strg:
         ja      err_iq
 @ssg_c:
         mov     dl,al
-        pop     eax
+        dpop    eax
 @sst_n:                                 ; n of DL
         cmp     eax,SMAX
         ja      err_iq
@@ -434,7 +434,7 @@ sc_strg:
         mov     al,dl
         rep     stosb
         call    str_new
-        push    eax
+        dpush   eax
         dispatch
 
 ; ::::::::::::::
@@ -471,9 +471,9 @@ sc_rtrim:
         mov     [g_state.sg.s0v],0
         mov     [g_state.sg.s1v],cx
 @ssu_g:
-        pop     eax
+        dpop    eax
         call    str_sub
-        push    eax
+        dpush   eax
         dispatch
 
 ; ::::::::::::::
@@ -487,7 +487,7 @@ sc_lcase:
 @suc_g:
         mov     [g_state.sg.s0v],0
         mov     [g_state.sg.s1v],SMAX
-        pop     eax
+        dpop    eax
         push    edx
         call    str_sub
         pop     edx
@@ -505,7 +505,7 @@ sc_lcase:
         inc     edi
         loop    @suc_l
 @suc_r:
-        push    eax
+        dpush   eax
         dispatch
 
 ; ::::::::::::::
@@ -517,7 +517,7 @@ sc_hex:
 sc_oct:
         mov     cl,3
 @shx_g:
-        pop     eax
+        dpop    eax
         mov     edi,offset g_sbuf+15
         xor     edx,edx
 @shx_l:
@@ -545,18 +545,18 @@ sc_oct:
         pop     esi
         mov     eax,edx
         call    str_buftmp
-        push    eax
+        dpush   eax
         dispatch
 
 ; ::::::::::::::
 ; sc_sfix - ( s n -- s ): s as a STRING * n, cut or padded with spaces.
 ; ::::::::::::::
 sc_sfix:
-        pop     eax
+        dpop    eax
         push    eax
         call    str_alloc
         pop     ecx
-        pop     eax
+        dpop    eax
         push    ecx
         call    str_get
         pop     ecx
@@ -576,7 +576,7 @@ sc_sfix:
         rep     stosb
         pop     esi
         call    str_new
-        push    eax
+        dpush   eax
         dispatch
 
 ; ::::::::::::::
@@ -586,12 +586,12 @@ sc_sfix:
 ; error:  ?ILLEGAL QUANTITY  i under 1
 ; ::::::::::::::
 sc_mids:
-        pop     edx                     ; v
-        pop     ecx                     ; n
-        pop     ebx                     ; i
+        dpop    edx                     ; v
+        dpop    ecx                     ; n
+        dpop    ebx                     ; i
         cmp     ebx,1
         jl      err_iq
-        pop     eax
+        dpop    eax
         push    edx
         push    ecx
         push    ebx
@@ -621,7 +621,7 @@ sc_mids:
         rep     movsb
         pop     esi
 @smd_r:
-        push    eax
+        dpush   eax
         dispatch
 
         .data?

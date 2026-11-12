@@ -28,6 +28,9 @@ arr_esz:
         ret
 @aes_k:
         mov     cl,[g_sinfo+ebx]
+        mov     ch,8
+        test    cl,SK_DBL
+        jnz     @aes_r
         and     cl,3
         mov     ch,VS
         cmp     cl,2

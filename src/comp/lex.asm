@@ -211,12 +211,12 @@ lx_num:
         sub     bl,'0'
         cmp     bl,10
         jae     @lxn_x
-        mov     byte ptr [esi],'E'
+        mov     byte ptr [esi],al       ; E or D, upper case
         movsb
         mov     [g_state.lx.lxf],1
         jmp     @lxn_d
 @lxn_s:
-        mov     byte ptr [esi],'E'
+        mov     byte ptr [esi],al
         movsw
         mov     [g_state.lx.lxf],1
         jmp     @lxn_d
@@ -225,6 +225,15 @@ lx_num:
         mov     [g_state.lx.lxf],1
         jmp     @lxn_d
 @lxn_x:
+        mov     al,[esi]                ; # a DOUBLE's, ! a SINGLE's
+        cmp     al,'#'
+        je      @F
+        cmp     al,'!'
+        jne     @lxn_y
+@@:
+        movsb
+        mov     [g_state.lx.lxf],1
+@lxn_y:
         cmp     [g_state.lx.lxf],0
         jne     @lxn_r
         mov     edi,[g_state.lx.lxn]

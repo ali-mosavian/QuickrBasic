@@ -31,7 +31,7 @@ fcall   macro   fn
 ; EAX = an INT right operand. src: 0 popped, 1 a variable, 2 the U8.
 isrc    macro   src
   if src eq 0
-        pop     eax
+        dpop    eax
   elseif src eq 1
         bvar
         mov     eax,[ebx]
@@ -45,7 +45,7 @@ isrc    macro   src
 ; variable, 3 the U8, 4 the F32.
 fsrc    macro   src
   if src eq 0
-        pop     eax
+        dpop    eax
   elseif src eq 1
         bvar
         mov     eax,[ebx]
@@ -72,7 +72,7 @@ bc_I_LD_V:
 ; ::::::::::::::
 bc_F_LD_V:
         bvar
-        push    dword ptr [ebx]
+        dpush   dword ptr [ebx]
         dispatch
 ; ::::::::::::::
 ; bc_I_LD_I16 - I.LD.I16 w: the word.
@@ -80,13 +80,13 @@ bc_F_LD_V:
 bc_I_LD_I16:
         movzx   eax,word ptr [esi]
         add     esi,2
-        push    eax
+        dpush   eax
         dispatch
 ; ::::::::::::::
 ; bc_I_LD_I32 - I.LD.I32 n:4: the INT.
 ; ::::::::::::::
 bc_I_LD_I32:
-        push    dword ptr [esi]
+        dpush   dword ptr [esi]
         add     esi,4
         dispatch
 ; ::::::::::::::
@@ -95,13 +95,13 @@ bc_I_LD_I32:
 bc_I_LD_U8:
         movzx   eax,byte ptr [esi]
         inc     esi
-        push    eax
+        dpush   eax
         dispatch
 ; ::::::::::::::
 ; bc_F_LD_F32 - F.LD.F32 f: the FLOAT.
 ; ::::::::::::::
 bc_F_LD_F32:
-        push    dword ptr [esi]
+        dpush   dword ptr [esi]
         add     esi,4
         dispatch
 ; ::::::::::::::
@@ -109,21 +109,21 @@ bc_F_LD_F32:
 ; ::::::::::::::
 bc_F_LD_U8:
         fsrc    3
-        push    eax
+        dpush   eax
         dispatch
 ; ::::::::::::::
 ; bc_F_LD_VI - F.LD.VI id: the INT variable as a FLOAT.
 ; ::::::::::::::
 bc_F_LD_VI:
         fsrc    2
-        push    eax
+        dpush   eax
         dispatch
 ; ::::::::::::::
 ; bc_F_LD_PI - F.LD.PI: pi.
 ; ::::::::::::::
 bc_F_LD_PI:
         fcall   flt_pi
-        push    eax
+        dpush   eax
         dispatch
 ; ::::::::::::::
 ; bc_S_LD_V - S.LD.V id: the string variable's Desc.
@@ -132,21 +132,21 @@ bc_S_LD_V:
         movzx   eax,word ptr [esi]
         add     esi,2
         lea     eax,[SVBASE+eax*8]
-        push    eax
+        dpush   eax
         dispatch
 ; ::::::::::::::
 ; bc_I_ST_V - I.ST.V id ( i -- ): the INT variable.
 ; ::::::::::::::
 bc_I_ST_V:
         bvar
-        pop     dword ptr [ebx]
+        dpop    dword ptr [ebx]
         dispatch
 ; ::::::::::::::
 ; bc_F_ST_V - F.ST.V id ( f -- ): the FLOAT variable.
 ; ::::::::::::::
 bc_F_ST_V:
         bvar
-        pop     dword ptr [ebx]
+        dpop    dword ptr [ebx]
         dispatch
 
 ; INT operators on the top cell: k 0 + 1 - 2 * 3 / 4 AND 5 OR.
@@ -200,7 +200,7 @@ bc_&nm:
 ; bc_I_MOD - I.MOD ( a b -- a MOD b ): the sign of a.
 ; ::::::::::::::
 bc_I_MOD:
-        pop     eax
+        dpop    eax
         cmp     eax,-1                  ; int_div's -1 leaves EDX
         jne     @F
         and     dword ptr [esp],0
@@ -216,16 +216,16 @@ bc_I_MOD:
 ; bc_I_XOR, bc_I_EQV, bc_I_IMP - ( a b -- c ).
 ; ::::::::::::::
 bc_I_XOR:
-        pop     eax
+        dpop    eax
         xor     [esp],eax
         dispatch
 bc_I_EQV:
-        pop     eax
+        dpop    eax
         xor     [esp],eax
         not     dword ptr [esp]
         dispatch
 bc_I_IMP:
-        pop     eax
+        dpop    eax
         not     dword ptr [esp]
         or      [esp],eax
         dispatch
@@ -248,11 +248,11 @@ bc_I_NOT:
 fbin    macro   nm,src,k
 bc_&nm:
         fsrc    src
-        pop     edx
+        dpop    edx
         push    esi
         call    [g_bflt+k*4]
         pop     esi
-        push    eax
+        dpush   eax
         dispatch
         endm
 
@@ -297,7 +297,7 @@ ctail   macro   cif
   else
         neg     al
         sbb     eax,eax
-        push    eax
+        dpush   eax
   endif
         dispatch
         endm
@@ -307,7 +307,7 @@ icmp    macro   nm,src,cif
         local   @icl
 bc_&nm:
         isrc    src
-        pop     edx
+        dpop    edx
         cmp     edx,eax
         mov     al,1
         jg      @icl
@@ -329,7 +329,7 @@ bc_&nm:
 fcmp    macro   nm,src,cif
 bc_&nm:
         fsrc    src
-        pop     edx
+        dpop    edx
         fcall   flt_cmp
         mov     cl,al
         inc     cl
@@ -353,7 +353,7 @@ bc_&nm:
 ; bc_I_IF - I.IF ( i -- ): 0 ends the line.
 ; ::::::::::::::
 bc_I_IF:
-        pop     eax
+        dpop    eax
         test    eax,eax
         jz      ex_nextln
         dispatch
@@ -361,7 +361,7 @@ bc_I_IF:
 ; bc_F_IF - ?
 ; ::::::::::::::
 bc_F_IF:
-        pop     eax
+        dpop    eax
         test    eax,7F800000h
         jz      ex_nextln
         dispatch
@@ -370,37 +370,37 @@ bc_F_IF:
 ; bc_I_TOF - I.TOF ( i -- f ).
 ; ::::::::::::::
 bc_I_TOF:
-        pop     eax
+        dpop    eax
         fcall   flt_from32
-        push    eax
+        dpush   eax
         dispatch
 ; ::::::::::::::
 ; bc_F_TOI - F.TOI ( f -- i ).
 ; ::::::::::::::
 bc_F_TOI:
-        pop     eax
+        dpop    eax
         fcall   flt_fix32
-        push    eax
+        dpush   eax
         dispatch
 ; ::::::::::::::
 ; bc_F_TOB - F.TOB ( f -- i ): 0..255.
 ; ::::::::::::::
 bc_F_TOB:
-        pop     eax
+        dpop    eax
         fcall   flt_fix16
         test    ah,ah
         jnz     err_iq
         movzx   eax,al
-        push    eax
+        dpush   eax
         dispatch
 ; ::::::::::::::
 ; bc_F_TOA - F.TOA ( f -- i ): an address, 0..65535.
 ; ::::::::::::::
 bc_F_TOA:
-        pop     eax
+        dpop    eax
         fcall   flt_fixu16
         movzx   eax,ax
-        push    eax
+        dpush   eax
         dispatch
 ; ::::::::::::::
 ; bc_I_TOB - I.TOB ( i -- i ): 0..255.
@@ -420,7 +420,7 @@ bc_I_TOA:
 ; bc_DROP - DROP ( x -- ).
 ; ::::::::::::::
 bc_DROP:
-        add     esp,4
+        add     esp,CELL
         dispatch
 
         end

@@ -220,7 +220,7 @@ var_find:
         cmp     cl,[g_vtyp+ebx]
         jne     @vf_s
         mov     ch,[g_sinfo+ebx]
-        and     ch,83h
+        and     ch,87h
         cmp     ch,dl
         jne     @vf_s
         mov     ch,[g_state.cm.cscope]

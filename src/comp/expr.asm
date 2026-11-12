@@ -163,6 +163,10 @@ cm_p:
 @cp_nm:
         test    [g_state.cm.cty],T_STR
         jnz     @st_expr1
+        cmp     al,T_DBL
+        je      @cp_db
+        cmp     [g_state.cm.cty],T_DBL
+        je      @cp_db
         cmp     dl,4
         je      @cp_pw
         test    al,al
@@ -194,6 +198,42 @@ cm_p:
         mov     al,K_FPOW
         call    cm_call
         mov     [g_state.cm.cty],T_FLT
+        jmp     @cp_l
+@cp_db:                                 ; a DOUBLE either side: both DOUBLEs
+        cmp     al,T_DBL
+        je      @cp_dr
+        mov     cl,O_I_TOD
+        cmp     al,T_INT
+        je      @F
+        mov     cl,O_F_TOD
+@@:
+        push    edx
+        mov     al,cl
+        call    cm_ins
+        pop     edx
+@cp_dr:
+        push    edx
+        call    cm_tod
+        pop     edx
+        xor     eax,eax
+        mov     [g_state.cm.cll],eax
+        mov     [g_state.cm.clle],eax
+        mov     al,O_D_POW
+        cmp     dl,4
+        je      @cp_do
+        test    dl,dl
+        js      @cp_dc
+        mov     al,dl
+        add     al,O_D_ADD
+@cp_do:
+        call    cm_op
+        jmp     @cp_l
+@cp_dc:
+        and     dl,7
+        mov     cl,dl
+        mov     al,O_D_CMP
+        call    cm_opx
+        mov     [g_state.cm.cty],T_INT
         jmp     @cp_l
 @cp_lf:
         call    cm_lflt
@@ -488,6 +528,12 @@ cm_load:
         test    dl,dl
         js      @cld_a
         mov     ecx,ebx
+        test    dl,SK_DBL
+        jz      @F
+        mov     [g_state.cm.cty],T_DBL
+        mov     al,O_D_LD_V
+        jmp     cm_opid
+@@:
         and     dl,43h
         cmp     dl,3
         je      @cld_fn
@@ -520,7 +566,7 @@ cm_load:
         push    edx
         call    cm_subs0
         pop     edx
-        and     dl,3
+        and     dl,7
         movzx   ebx,dl
         mov     al,[g_ctys+ebx]
         mov     [g_state.cm.cty],al
@@ -539,9 +585,12 @@ cm_load:
         jmp     cm_opid
 
         .data
-g_ctys  db      T_FLT,T_INT,T_STR
-g_lda1  db      O_F_LD_A1,O_I_LD_A1,O_S_LD_A1
-g_ldan  db      O_F_LD_A,O_I_LD_A,O_S_LD_A
+g_ctys  db      T_FLT,T_INT,T_STR,T_DBL,T_DBL   ; by kind, SK_DBL a DOUBLE
+g_lda1  db      O_F_LD_A1,O_I_LD_A1,O_S_LD_A1,O_D_LD_A1,O_D_LD_A1
+g_ldan  db      O_F_LD_A,O_I_LD_A,O_S_LD_A,O_D_LD_A,O_D_LD_A
+; SGN .. CHR$ of a DOUBLE: D.FN's k, 80h STR$'s, FFh none
+g_dfnk  db      1,2,0,0FFh,0FFh,0FFh,4,0FFh,9,10,6,5,7,8,0FFh,0FFh,80h,0FFh,0FFh,0FFh
+g_xdbl  db      0                       ; cm_xarg's FIX kept a DOUBLE
         .code
 
 ; ::::::::::::::
@@ -649,6 +698,9 @@ cm_un:
 @cu_nf:
         test    [g_state.cm.cty],T_STR
         jnz     err_tm
+        mov     al,O_D_NEG
+        cmp     [g_state.cm.cty],T_DBL
+        je      @jt_expr2
         cmp     [g_state.cm.cty],T_FLT
         mov     al,O_F_NEG
         je      @jt_expr2
@@ -666,13 +718,35 @@ cm_un:
         jb      @cu_7
         cmp     al,'9'
         ja      @cu_7
+        push    esi
+        call    dbl_in
+        cmp     al,1
+        je      @cu_dk
+        pop     esi
         call    flt_in
+        cmp     byte ptr [esi],'!'
+        jne     @F
+        inc     esi
+@@:
         mov     [g_state.cm.cty],T_FLT
         push    eax
         mov     al,O_F_LD_F32
         call    cm_op
         pop     eax
         jmp     cm_dw
+@cu_dk:                                 ; a DOUBLE: D.LD.K q
+        add     esp,4
+        mov     [g_state.cm.cty],T_DBL
+        mov     al,O_D_LD_K
+        call    cm_op
+        mov     eax,dword ptr [g_dval]
+        call    cm_dw
+        mov     eax,dword ptr [g_dval+4]
+        call    cm_dw
+        xor     eax,eax
+        mov     [g_state.cm.cll],eax
+        mov     [g_state.cm.clle],eax
+        ret
 @cu_7:
         cmp     al,TK_LEN
         je      @cu_ln
@@ -738,6 +812,37 @@ cm_un:
         push    eax
         call    cm_chkcl
         pop     ecx
+        cmp     [g_state.cm.cty],T_DBL
+        jne     @cu_dq
+        movzx   ebx,cl
+        mov     al,[g_dfnk+ebx]
+        cmp     al,0FFh
+        je      @cu_dq
+        cmp     al,80h
+        je      @cu_ds
+        push    eax
+        mov     al,O_D_FN
+        call    cm_op
+        pop     eax
+        push    eax
+        call    cm_byt
+        pop     eax
+        cmp     al,1                    ; SGN: an INT
+        mov     al,T_DBL
+        jne     @F
+        mov     al,T_INT
+@@:
+        mov     [g_state.cm.cty],al
+        xor     eax,eax
+        mov     [g_state.cm.cll],eax
+        mov     [g_state.cm.clle],eax
+        ret
+@cu_ds:
+        mov     al,K_DSTR
+        call    cm_call
+        mov     [g_state.cm.cty],T_STR
+        ret
+@cu_dq:
         call    cm_farg
         mov     al,cl
         add     al,K_FN
@@ -941,6 +1046,11 @@ cm_xfn:
         pop     ebx
 @@:
         mov     al,[ebx+XF_RES]
+        cmp     [g_xdbl],0
+        je      @F
+        mov     [g_xdbl],0
+        mov     al,T_DBL
+@@:
         mov     [g_state.cm.cty],al
         xor     eax,eax
         mov     [g_state.cm.cll],eax
@@ -968,6 +1078,22 @@ cm_xfn:
 ; string or a number, then 1 or 0.
 ; ::::::::::::::
 cm_xarg:
+        cmp     al,'D'
+        je      cm_tod
+        cmp     al,'G'                  ; FIX's: a DOUBLE's D.FN 3, else CALL FIX
+        jne     @cxa_n
+        cmp     [g_state.cm.cty],T_DBL
+        jne     @F
+        mov     [g_xdbl],1
+        mov     al,O_D_FN
+        call    cm_op
+        mov     al,3
+        jmp     cm_byt
+@@:
+        call    cm_tof
+        mov     al,K_FIX
+        jmp     cm_call
+@cxa_n:
         cmp     al,'I'
         je      cm_toi
         cmp     al,'F'
@@ -1057,8 +1183,8 @@ g_xfn   label   byte
         xfn     100h+TK1_CINT,0,1,1,T_INT,<'I',0,0>
         xfn     100h+TK1_CLNG,0,1,1,T_INT,<'I',0,0>
         xfn     100h+TK1_CSNG,0,1,1,T_FLT,<'F',0,0>
-        xfn     100h+TK1_CDBL,0,1,1,T_FLT,<'F',0,0>
-        xfn     TK_FIX,K_FIX,1,1,T_FLT,<'F',0,0>
+        xfn     100h+TK1_CDBL,0,1,1,T_DBL,<'D',0,0>
+        xfn     TK_FIX,0,1,1,T_FLT,<'G',0,0>
         xfn     TK_INSTR,K_INSTR,82h,3,T_INT,<'I','S','S'>
         xfn     TK_LBOUND,K_LBND,1,2,T_INT,<'R','I',0>
         xfn     TK_UBOUND,K_UBND,1,2,T_INT,<'R','I',0>

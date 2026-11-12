@@ -709,6 +709,11 @@ rc_store:
         movzx   ebx,[g_ctfet]
         cmp     bl,ET_SD
         je      @rst_s
+        cmp     bl,ET_R8
+        jne     @F
+        call    cm_tod
+        jmp     @rst_o
+@@:
         cmp     [g_etk+ebx],0
         jne     @rst_i
         call    cm_tof
@@ -776,7 +781,7 @@ ct_fcall:
         pop     edx
         movzx   eax,word ptr [edx+P_RES]
         movzx   eax,[g_sinfo+eax]
-        and     eax,3
+        and     eax,7
         mov     al,[g_ctys+eax]
         mov     [g_state.cm.cty],al
         xor     eax,eax
@@ -865,7 +870,7 @@ ct_arg:
         pop     esi
         mov     al,[g_sinfo+ebx]
         mov     ah,[esp]
-        and     ax,0303h
+        and     ax,0707h
         cmp     al,ah
         jne     @car_e
         pop     edx
@@ -876,6 +881,11 @@ ct_arg:
 @car_e:
         call    cm_expr
         pop     eax
+        test    al,SK_DBL
+        jz      @F
+        call    cm_tod
+        jmp     @car_n
+@@:
         and     al,3
         cmp     al,1
         je      @car_i
@@ -1031,6 +1041,11 @@ ct_jf:
 ct_jt:
         mov     cl,O_I_JT
 @ctj_t:
+        push    eax
+        push    ecx
+        call    cm_dnz
+        pop     ecx
+        pop     eax
         test    [g_state.cm.cty],T_STR
         jnz     err_tm
         cmp     [g_state.cm.cty],T_FLT
@@ -1202,6 +1217,10 @@ ct_select:
         jne     err_sn
         inc     esi
         call    cm_expr
+        cmp     [g_state.cm.cty],T_DBL
+        jne     @F
+        call    cm_tof
+@@:
         pop     edx
         xor     eax,eax                 ; the depth
         test    edx,edx
@@ -1253,6 +1272,10 @@ ct_var:
         mov     cl,ET_SD
         test    [g_cttp],T_STR
         jnz     @F
+        mov     dl,SK_DBL
+        mov     cl,ET_R8
+        cmp     [g_cttp],T_DBL
+        je      @F
         xor     dl,dl
         mov     cl,ET_R4
 @@:
@@ -1476,6 +1499,9 @@ ct_ldop:
         mov     al,O_F_LD_V
         cmp     [g_cttp],T_FLT
         je      @ctl_r
+        mov     al,O_D_LD_V
+        cmp     [g_cttp],T_DBL
+        je      @ctl_r
         mov     al,O_S_LD_V
 @ctl_r:
         ret
@@ -1488,6 +1514,11 @@ ct_ldop:
 ; ::::::::::::::
 ct_vop:
         mov     cx,[g_ctvr]
+        cmp     [g_cttp],T_DBL
+        jne     @F
+        mov     al,O_D_ST_V             ; only a store: SWAP's
+        ret
+@@:
         cmp     [g_cttp],T_INT
         je      @ctv_r
         inc     al

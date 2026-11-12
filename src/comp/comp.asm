@@ -165,6 +165,7 @@ cm_end:
 ; ::::::::::::::
 cm_if:
         call    cm_expr
+        call    cm_dnz
         mov     al,[esi]
         cmp     al,TK_THEN
         je      @cmi_t
@@ -352,6 +353,8 @@ cm_store:
         cmp     [g_state.cm.ctn],0FFh
         je      rc_store
         mov     al,[g_state.cm.ctk]
+        test    al,SK_DBL
+        jnz     @cst_d
         and     al,3
         cmp     al,1
         je      @cst_i
@@ -381,6 +384,25 @@ cm_store:
         call    cm_call
 @@:
         mov     dl,2
+        jmp     @cst_e
+@cst_d:                                 ; a DOUBLE: D.ST.V, .A1, .A
+        call    cm_tod
+        movzx   ecx,[g_state.cm.ctv]
+        mov     al,[g_state.cm.ctn]
+        mov     dl,O_D_ST_V
+        test    al,al
+        jz      @F
+        mov     dl,O_D_ST_A1
+        cmp     al,1
+        je      @F
+        mov     dl,O_D_ST_A
+@@:
+        mov     al,dl
+        call    cm_opid
+        cmp     dl,O_D_ST_A
+        jne     cm_rts
+        mov     al,[g_state.cm.ctn]
+        jmp     cm_byt
 @cst_e:
         movzx   ecx,[g_state.cm.ctv]
         mov     al,[g_state.cm.ctn]
@@ -423,8 +445,41 @@ cm_toi:
         jnz     @st_comp3
         cmp     [g_state.cm.cty],T_INT
         je      cm_rts
-        mov     [g_state.cm.cty],T_INT
         mov     al,O_F_TOI
+        cmp     [g_state.cm.cty],T_DBL
+        jne     @F
+        mov     al,O_D_TOI
+@@:
+        mov     [g_state.cm.cty],T_INT
+        jmp     cm_op
+
+; ::::::::::::::
+; cm_tod - the value as a DOUBLE.
+;
+; out:    cty  T_DBL
+; error:  ?TYPE MISMATCH  a string
+; ::::::::::::::
+cm_tod:
+        test    [g_state.cm.cty],T_STR
+        jnz     @st_comp3
+        mov     al,O_I_TOD
+        cmp     [g_state.cm.cty],T_INT
+        je      @F
+        mov     al,O_F_TOD
+        cmp     [g_state.cm.cty],T_FLT
+        jne     cm_rts
+@@:
+        mov     [g_state.cm.cty],T_DBL
+        jmp     cm_op
+
+; ::::::::::::::
+; cm_dnz - a DOUBLE test as an INT one: D.NZ.
+; ::::::::::::::
+cm_dnz:
+        cmp     [g_state.cm.cty],T_DBL
+        jne     cm_rts
+        mov     [g_state.cm.cty],T_INT
+        mov     al,O_D_NZ
         jmp     cm_op
 
 ; ::::::::::::::
@@ -450,6 +505,12 @@ cm_toa:
 @ctn_g:
         test    [g_state.cm.cty],T_STR
         jnz     @st_comp3
+        cmp     [g_state.cm.cty],T_DBL
+        jne     @F
+        push    ecx
+        call    cm_toi
+        pop     ecx
+@@:
         mov     al,cl
         cmp     [g_state.cm.cty],T_INT
         jne     @ctn_e
@@ -507,6 +568,12 @@ cm_tof:
         jnz     err_tm
         cmp     [g_state.cm.cty],T_FLT
         je      @rt_com2
+        cmp     [g_state.cm.cty],T_DBL
+        jne     @F
+        mov     [g_state.cm.cty],T_FLT
+        mov     al,O_D_TOF
+        jmp     cm_op
+@@:
         mov     [g_state.cm.cty],T_FLT
         call    cm_ileaf
         jne     @ctf_o
@@ -941,7 +1008,7 @@ var_scope:
         ret
 
         .data
-g_etk   db      0,1,1,0,0,2,1           ; ET_* to the kind: FLOAT, INT, STRING
+g_etk   db      0,1,1,0,SK_DBL,2,1      ; ET_* to the kind: FLOAT, INT, STRING, DOUBLE
         .code
 
 ; ::::::::::::::
@@ -960,6 +1027,8 @@ cm_fv:
         call    cm_tgt
         mov     al,[g_sinfo+ebx]
         mov     [g_state.cm.ctk],al
+        test    al,SK_DBL               ; a DOUBLE's FOR: not yet
+        jnz     @st_comp6
         and     al,43h
         cmp     al,2
         je      @st_comp6
@@ -1380,6 +1449,18 @@ cm_get:
 @crx_g:
         mov     [g_state.cm.cty],T_FLT
         mov     ah,[g_state.cm.ctk]
+        test    ah,SK_DBL
+        jz      @F
+        cmp     al,K_FGET
+        je      @F
+        cmp     al,K_FIN
+        mov     al,K_DIN
+        je      @crx_d
+        mov     al,K_DREAD
+@crx_d:
+        mov     [g_state.cm.cty],T_DBL
+        jmp     @crx_c
+@@:
         and     ah,3
         cmp     ah,2
         jne     @crx_c
@@ -1413,6 +1494,9 @@ cm_print:
         je      @cmp_v
         mov     al,K_FPR
         cmp     [g_state.cm.cty],T_FLT
+        je      @cmp_v
+        mov     al,K_DPR
+        cmp     [g_state.cm.cty],T_DBL
         je      @cmp_v
         mov     al,K_IPR
 @cmp_v:

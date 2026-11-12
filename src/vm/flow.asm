@@ -81,7 +81,7 @@ op_fnent:
         mov     edi,[g_state.rn.cstk]
         mov     eax,[VARBASE+ebx]
         mov     [edi+F_OLD],eax
-        pop     eax
+        dpop    eax
         mov     ecx,ebx
         shr     ecx,2
         test    [g_sinfo+ecx],1
@@ -191,7 +191,7 @@ ex_jump:
 ; ::::::::::::::
 op_on:
         stopchk
-        pop     edx
+        dpop    edx
         lodsb
         mov     [g_state.rn.onk],al
         and     al,7Fh
@@ -348,7 +348,7 @@ op_for:
         mov     [g_state.rn.fid],ax
         cmp     ebx,O_I_FOR1*2
         jae     @of_1
-        pop     dword ptr [g_state.rn.fstep]
+        dpop    dword ptr [g_state.rn.fstep]
         jmp     @of_l
 @of_1:
         mov     eax,1
@@ -358,7 +358,7 @@ op_for:
 @of_s:
         mov     [g_state.rn.fstep],eax
 @of_l:
-        pop     dword ptr [g_state.rn.flim]
+        dpop    dword ptr [g_state.rn.flim]
         mov     bx,[g_state.rn.fid]
         call    for_find
         je      @of_r
@@ -908,7 +908,7 @@ op_jmp:
 ; op_ijf - I.JF target ( i -- ): jump when 0.
 ; ::::::::::::::
 op_ijf:
-        pop     eax
+        dpop    eax
         test    eax,eax
         jz      ex_bjump
 @ojf_n:
@@ -918,7 +918,7 @@ op_ijf:
 ; op_fjf - F.JF target ( f -- ): jump when 0.
 ; ::::::::::::::
 op_fjf:
-        pop     eax
+        dpop    eax
         test    eax,7F800000h
         jz      ex_bjump
         jmp     @ojf_n
@@ -926,7 +926,7 @@ op_fjf:
 ; op_ijt - I.JT target ( i -- ): jump unless 0.
 ; ::::::::::::::
 op_ijt:
-        pop     eax
+        dpop    eax
         test    eax,eax
         jnz     ex_bjump
         jmp     @ojf_n
@@ -934,7 +934,7 @@ op_ijt:
 ; op_fjt - F.JT target ( f -- ): jump unless 0.
 ; ::::::::::::::
 op_fjt:
-        pop     eax
+        dpop    eax
         test    eax,7F800000h
         jnz     ex_bjump
         jmp     @ojf_n
@@ -1049,13 +1049,14 @@ op_pcall:
         jecxz   @pca_s
 @pca_a:                                 ; the arguments, the last first
         sub     edi,LSSZ
-        pop     eax
+        dpop    eax
         mov     [edi+2],ax
         movzx   ebx,word ptr [ebp+P_PAR]
         add     ebx,ecx
         movzx   ebx,word ptr [g_ppar+ebx*2-2]
         mov     [edi],bx
         pop     eax
+        pop     dword ptr [edi+8]       ; a DOUBLE's high half
         mov     dl,[g_sinfo+ebx]
         test    dl,dl
         js      @pca_y
@@ -1094,12 +1095,22 @@ op_pcall:
         mov     cl,[g_sinfo+ebx]
         test    cl,cl
         js      @pcl_y
+        test    cl,SK_DBL
+        jnz     @pcl_q
         and     cl,3
         cmp     cl,2
         je      @pcl_t
         xor     eax,eax
         xchg    eax,[VARBASE+ebx*4]
         mov     [edx+4],eax
+        jmp     @pcl_n
+@pcl_q:
+        xor     eax,eax
+        xchg    eax,[SVBASE+ebx*8]
+        mov     [edx+4],eax
+        xor     eax,eax
+        xchg    eax,[SVBASE+ebx*8+4]
+        mov     [edx+8],eax
         jmp     @pcl_n
 @pcl_y:
         xor     eax,eax
@@ -1125,6 +1136,13 @@ op_pcall:
         mov     cl,[g_sinfo+ebx]
         test    cl,cl
         js      @pcb_y
+        test    cl,SK_DBL
+        jz      @F
+        mov     [SVBASE+ebx*8],eax
+        mov     eax,[edi+8]
+        mov     [SVBASE+ebx*8+4],eax
+        jmp     @pcb_n
+@@:
         and     cl,3
         cmp     cl,2
         je      @pcb_t
@@ -1194,6 +1212,14 @@ op_pret:
         je      @prt_pn
         movzx   ecx,word ptr [edx]
         mov     al,[g_sinfo+ecx]
+        test    al,SK_DBL
+        jz      @F
+        mov     eax,[SVBASE+ecx*8]
+        mov     [edx+4],eax
+        mov     eax,[SVBASE+ecx*8+4]
+        mov     [edx+8],eax
+        jmp     @prt_pn
+@@:
         and     al,3
         cmp     al,2
         je      @prt_ps
@@ -1215,6 +1241,14 @@ op_pret:
         jne     @prt_l
         movzx   ecx,word ptr [ebp+P_RES]
         mov     al,[g_sinfo+ecx]
+        test    al,SK_DBL
+        jz      @F
+        mov     eax,[SVBASE+ecx*8]
+        mov     dword ptr [g_pres8],eax
+        mov     eax,[SVBASE+ecx*8+4]
+        mov     dword ptr [g_pres8+4],eax
+        jmp     @prt_l
+@@:
         and     al,3
         cmp     al,2
         je      @prt_rs
@@ -1235,6 +1269,14 @@ op_pret:
         mov     al,[g_sinfo+ecx]
         test    al,al
         js      @prt_ly
+        test    al,SK_DBL
+        jz      @F
+        mov     eax,[edx+4]
+        mov     [SVBASE+ecx*8],eax
+        mov     eax,[edx+8]
+        mov     [SVBASE+ecx*8+4],eax
+        jmp     @prt_ll
+@@:
         and     al,3
         cmp     al,2
         je      @prt_ls
@@ -1279,6 +1321,14 @@ op_pret:
         je      @prt_on
         movzx   eax,word ptr [edx]
         mov     al,[g_sinfo+eax]
+        test    al,SK_DBL
+        jz      @F
+        mov     eax,[edx+4]
+        mov     [SVBASE+ecx*8],eax
+        mov     eax,[edx+8]
+        mov     [SVBASE+ecx*8+4],eax
+        jmp     @prt_on
+@@:
         and     al,3
         cmp     al,2
         je      @prt_os
@@ -1303,10 +1353,16 @@ op_pret:
         jne     @prt_j
         movzx   ecx,word ptr [ebp+P_RES]
         mov     al,[g_sinfo+ecx]
+        test    al,SK_DBL
+        jz      @F
+        push    dword ptr [g_pres8+4]
+        push    dword ptr [g_pres8]
+        jmp     @prt_j
+@@:
         and     al,3
         cmp     al,2
         je      @prt_js
-        push    [g_state.rn.pres]
+        dpush   [g_state.rn.pres]
         jmp     @prt_j
 @prt_js:
         movzx   edi,[g_state.sg.tsp]    ; a string: a new temporary
@@ -1316,7 +1372,7 @@ op_pret:
         add     edi,[g_state.sg.tmplin]
         mov     eax,offset g_lres
         call    ls_mov
-        push    edi
+        dpush   edi
 @prt_j:
         mov     dx,[ebx+F_LN]
         mov     [g_state.rn.ln],dx
@@ -1325,6 +1381,10 @@ op_pret:
         mov     [g_state.rn.cstk],ebx
         ipfix
         dispatch
+
+        .data?
+g_pres8 dq      ?                       ; a DOUBLE FUNCTION's result
+        .code
 
 ; ::::::::::::::
 ; ls_mov - the Desc at EAX to the Desc at EDI, which then owns its heap

@@ -149,6 +149,26 @@ oplist  macro   m
         m       R_COPY,op_rcopy,3,0
         m       ONERR,op_onerr,5,0
         m       RESUME,op_resume,6,0
+        m       D_LD_V,op_dldv,3,FX+FV
+        m       D_ST_V,op_dstv,3,FV
+        m       D_LD_K,op_dldk,9,FX
+        m       D_LD_A1,op_dlda1,3,FX
+        m       D_LD_A,op_dlda,4,FX
+        m       D_ST_A1,op_dsta1,3,0
+        m       D_ST_A,op_dstan,4,0
+        m       D_ADD,op_dadd,1,FX
+        m       D_SUB,op_dsub,1,FX
+        m       D_MUL,op_dmul,1,FX
+        m       D_DIV,op_ddiv,1,FX
+        m       D_NEG,op_dneg,1,FX
+        m       D_CMP,op_dcmp,2,FX
+        m       D_NZ,op_dnz,1,FX
+        m       I_TOD,op_itod,1,FX
+        m       F_TOD,op_ftod,1,FX
+        m       D_TOF,op_dtof,1,FX
+        m       D_TOI,op_dtoi,1,FX
+        m       D_FN,op_dfn,2,FX
+        m       D_POW,op_dpow,1,FX
         endm
 
 JSIZE   = 7                     ; a jump op: target line:2 boff:1 mode:1, addr:2
@@ -241,4 +261,8 @@ K_ERR   = K_FIX+16
 K_ERL   = K_FIX+17
 K_ERROR = K_FIX+18
 K_ERASE = K_FIX+19
-K_N     = K_FIX+20
+K_DPR   = K_FIX+20
+K_DSTR  = K_FIX+21
+K_DREAD = K_FIX+22
+K_DIN   = K_FIX+23
+K_N     = K_FIX+24

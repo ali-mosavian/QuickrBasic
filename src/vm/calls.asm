@@ -16,21 +16,21 @@ include x86f.inc
 ; sc_ipr - PRINT a value ( x -- ).
 ; ::::::::::::::
 sc_ipr:
-        pop     eax
+        dpop    eax
         call    io_int
         jmp     ex_lp
 ; ::::::::::::::
 ; sc_fpr - PRINT a value ( x -- ).
 ; ::::::::::::::
 sc_fpr:
-        pop     eax
+        dpop    eax
         call    flt_out
         jmp     ex_lp
 ; ::::::::::::::
 ; sc_spr - PRINT a value ( x -- ).
 ; ::::::::::::::
 sc_spr:
-        pop     eax
+        dpop    eax
         call    str_get
         call    str_print
         jmp     ex_lp
@@ -61,7 +61,7 @@ sc_pzone:
 ; sc_ptab - PR.TAB ( i -- ): to column i, from 1; past it, on the next line.
 ; ::::::::::::::
 sc_ptab:
-        pop     eax
+        dpop    eax
         dec     eax
         jg      @F
         xor     eax,eax
@@ -83,7 +83,7 @@ sc_ptab:
 ; sc_pspc - PR.SPC ( i -- ).
 ; ::::::::::::::
 sc_pspc:
-        pop     eax
+        dpop    eax
         mov     cl,al
         call    io_spaces
         jmp     ex_lp
@@ -156,6 +156,13 @@ sc_fin:
 sc_sin:
         call    io_redo
         mov     [g_state.rn.lk],2
+        jmp     @inv_g
+; ::::::::::::::
+; sc_din - D.INPUT ( -- d ).
+; ::::::::::::::
+sc_din:
+        call    io_redo
+        mov     [g_state.rn.lk],3
 @inv_g:
         cmp     [g_state.io.inlen],0
         je      @inv_skip
@@ -171,13 +178,19 @@ sc_sin:
         mov     esi,[g_state.rn.isw_si]
         popf
         jc      @inv_bad
-        push    eax
-        jmp     ex_lp
+        jmp     @vpush
 @inv_bad:
         test    [g_state.io.infl],80h
         jnz     @inv_fd
-        push    eax                     ; stored as far as it went, then REDO
-        mov     [g_state.rn.iredo],1
+        mov     [g_state.rn.iredo],1    ; stored as far as it went, then REDO
+@vpush:                                 ; EAX, or lk 3's DOUBLE
+        cmp     [g_state.rn.lk],3
+        jne     @F
+        push    dword ptr [g_dval+4]
+        push    dword ptr [g_dval]
+        jmp     ex_lp
+@@:
+        dpush   eax
         jmp     ex_lp
 @inv_fd:
         mov     al,E_FD
@@ -221,6 +234,11 @@ io_item:
         call    str_item
         jmp     @ii_t
 @@:
+        cmp     [g_state.rn.lk],3
+        jne     @F
+        call    dbl_in
+        jmp     @ii_t
+@@:
         call    flt_in
 @ii_t:
         mov     [g_state.rn.fsv],eax
@@ -251,7 +269,7 @@ sc_fget:
 @@:
         xor     ah,ah
         call    flt_from16
-        push    eax
+        dpush   eax
         jmp     ex_lp
 ; ::::::::::::::
 ; sc_sget - F.GET S.GET ( -- x ): the key waiting, or none.
@@ -263,13 +281,13 @@ sc_sget:
         test    al,al
         jnz     @F
         call    str_push
-        push    eax
+        dpush   eax
         jmp     ex_lp
 @@:
         mov     [g_sbuf],al
         mov     ax,1
         call    str_buftmp
-        push    eax
+        dpush   eax
         jmp     ex_lp
 
 ; ::::::::::::::
@@ -286,6 +304,12 @@ sc_fread:
 ; ::::::::::::::
 sc_sread:
         mov     [g_state.rn.lk],2
+        jmp     @rdv_g
+; ::::::::::::::
+; sc_dread - D.READ ( -- d ).
+; ::::::::::::::
+sc_dread:
+        mov     [g_state.rn.lk],3
 @rdv_g:
         push    esi
         call    rd_item
@@ -293,8 +317,7 @@ sc_sread:
         jc      @rdv_sn
         mov     [g_state.rn.dlp],esi
         pop     esi
-        push    eax
-        jmp     ex_lp
+        jmp     @vpush
 @rdv_sn:
         mov     ax,[g_state.rn.dcp]
         mov     ebx,PROGBASE
@@ -473,7 +496,7 @@ sc_res:
 ; error:  ?UNDEF'D STATEMENT  no such line
 ; ::::::::::::::
 sc_resl:
-        pop     eax
+        dpop    eax
         cmp     eax,10000h
         jb      @srl_n
         movzx   ebx,ax
@@ -525,15 +548,15 @@ rd_seek:
 ; error:  as arr_dim
 ; ::::::::::::::
 sc_dim:
-        pop     eax
+        dpop    eax
         mov     [g_dimst],eax
         and     al,3Fh
         mov     [g_state.rn.narr],al
-        pop     edx
+        dpop    edx
         movzx   ecx,al
 @sdm_l:
-        pop     eax                     ; lo TO hi, or hi and the base
-        pop     ebx
+        dpop    eax                     ; lo TO hi, or hi and the base
+        dpop    ebx
         push    edx
         lea     edx,[ecx+7]
         bt      [g_dimst],edx
@@ -573,7 +596,7 @@ sc_dim:
 ; sc_erase - ERASE ( id -- ): REDIM's array freed, another's elements zeroed.
 ; ::::::::::::::
 sc_erase:
-        pop     ebx
+        dpop    ebx
         mov     edi,[g_vt+ebx*4]
         test    edi,edi
         jz      ex_lp
@@ -598,24 +621,24 @@ g_dimst dd      ?                       ; DIM's count: bit 7 a STATIC's array, f
 ; ::::::::::::::
 sc_open:
         call    fil_def
-        pop     eax
+        dpop    eax
         mov     [g_state.rn.cnarg],al
         cmp     al,4
         jb      @sop_3
-        pop     eax
+        dpop    eax
         call    str_get
 @sop_3:
         cmp     [g_state.rn.cnarg],3
         jb      @sop_2
-        pop     eax
+        dpop    eax
         mov     [g_state.io.fsa],al
 @sop_2:
         cmp     [g_state.rn.cnarg],2
         jb      @sop_1
-        pop     eax
+        dpop    eax
         mov     [g_state.io.fdv],al
 @sop_1:
-        pop     eax
+        dpop    eax
         mov     [g_state.io.fln],al
         call    fil_open
         jmp     ex_lp
@@ -627,21 +650,21 @@ sc_open:
 ; ::::::::::::::
 fil_args:
         call    fil_def
-        pop     eax
+        dpop    eax
         mov     [g_state.rn.cnarg],al
         cmp     al,3
         jb      @fa_2
-        pop     eax
+        dpop    eax
         mov     [g_state.io.fsa],al
 @fa_2:
         cmp     [g_state.rn.cnarg],2
         jb      @fa_1
-        pop     eax
+        dpop    eax
         mov     [g_state.io.fdv],al
 @fa_1:
         cmp     [g_state.rn.cnarg],1
         jb      @fa_0
-        pop     eax
+        dpop    eax
         call    str_get
 @fa_0:
         jmp     [g_state.rn.aret]
@@ -669,7 +692,7 @@ sc_vfy:
 ; sc_close - CLOSE ( lfn -- ).
 ; ::::::::::::::
 sc_close:
-        pop     eax
+        dpop    eax
         call    plt_close
         jmp     ex_lp
 
@@ -677,7 +700,7 @@ sc_close:
 ; sc_fiout - FI.OUT ( lfn -- ): output to the file.
 ; ::::::::::::::
 sc_fiout:
-        pop     eax
+        dpop    eax
         call    plt_chkout
         call    fil_chk
         jmp     ex_lp
@@ -686,7 +709,7 @@ sc_fiout:
 ; sc_fiin - FI.IN ( lfn -- ): input from the file.
 ; ::::::::::::::
 sc_fiin:
-        pop     eax
+        dpop    eax
         call    plt_chkin
         call    fil_chk
         jmp     ex_lp
@@ -704,7 +727,7 @@ sc_ficlr:
 ; error:  ?UNDEF'D STATEMENT  no such line
 ; ::::::::::::::
 sc_runl:
-        pop     eax
+        dpop    eax
         cmp     eax,10000h
         jae     err_us                  ; RUN takes a number, not a label
         mov     [g_state.rn.runl],ax
@@ -751,9 +774,9 @@ ex_runfirst:
 ; sc_list - LIST ( from to -- ), then READY.
 ; ::::::::::::::
 sc_list:
-        pop     eax
+        dpop    eax
         mov     [g_state.rn.lto],ax
-        pop     eax
+        dpop    eax
         mov     [g_state.rn.lfrom],ax
         call    ls_range
         jmp     ex_ready
@@ -828,8 +851,8 @@ sc_stop:
 ; sc_poke - POKE ( addr byte -- ).
 ; ::::::::::::::
 sc_poke:
-        pop     eax
-        pop     ebx
+        dpop    eax
+        dpop    ebx
         mov     [ebx],al                ; a flat address
         jmp     ex_lp
 
@@ -844,10 +867,10 @@ sc_wait2:
 ; sc_wait - WAIT ( addr mask xor -- ), ( addr mask -- ): until
 ; ::::::::::::::
 sc_wait:
-        pop     eax
+        dpop    eax
 @swt_g:
-        pop     edx
-        pop     ebx
+        dpop    edx
+        dpop    ebx
         movzx   ebx,bx
 @@:
         mov     cl,[g_pokeb+ebx]
@@ -860,7 +883,7 @@ sc_wait:
 ; sc_sys - SYS ( addr -- ): a call into the POKE memory.
 ; ::::::::::::::
 sc_sys:
-        pop     eax
+        dpop    eax
         movzx   ebx,ax
         cmp     [g_pokeb+ebx],0            ; nothing poked there: a no-op
         je      @jt_call3
@@ -884,8 +907,8 @@ sc_inln:
 ; error:  ?OVERFLOW  past an INT
 ; ::::::::::::::
 sc_ipow:
-        pop     ecx
-        pop     edx
+        dpop    ecx
+        dpop    edx
         mov     eax,1
         test    ecx,ecx
         jz      @sip_r
@@ -910,17 +933,17 @@ sc_ipow:
         jo      err_ov
         loop    @sip_l
 @sip_r:
-        push    eax
+        dpush   eax
         dispatch
 
 ; ::::::::::::::
 ; sc_fpow - F.POW ( base power -- r ).
 ; ::::::::::::::
 sc_fpow:
-        pop     eax
-        pop     edx
+        dpop    eax
+        dpop    edx
         call    fn_pow
-        push    eax
+        dpush   eax
         dispatch
 
 ; ::::::::::::::
@@ -933,7 +956,7 @@ sc_fti:
         xor     ebp,ebp
         call    flt_norm
 @@:
-        push    eax
+        dpush   eax
         jmp     ex_lp
 
 ; ::::::::::::::
@@ -961,7 +984,7 @@ sc_sti:
         jns     @sti_l
         mov     ax,6
         call    str_buftmp
-        push    eax
+        dpush   eax
         jmp     ex_lp
 
 ; ::::::::::::::
@@ -969,7 +992,7 @@ sc_sti:
 ; ::::::::::::::
 sc_ist:
         movzx   eax,[g_state.io.iost]
-        push    eax
+        dpush   eax
         jmp     ex_lp
 
         .data

@@ -3,8 +3,8 @@
 ; ==========================================================================
 ; holds:    every constant but the O_* ops (vm/isa.inc numbers them)
 ; data:     Every value's type is known at compile time (cty). On the data
-;           stack a value is a 4-byte cell: an INT in its low word, a FLOAT
-;           packed, a string its Desc's linear address. SI the code or token
+;           stack a value is an 8-byte cell: an INT, a FLOAT packed or a
+;           string's Desc address in its low dword; a DOUBLE, an IEEE double. SI the code or token
 ;           cursor. A FLOAT packed: an IEEE single, s:1 e:8 f:23, e 0 zero. A
 ;           number variable is a FLOAT, a % an INT.
 ; ==========================================================================
@@ -13,6 +13,8 @@ FBIAS   = 127
 T_INT   = 0                     ; a static type
 T_STR   = 40h
 T_FLT   = 80h
+T_DBL   = 20h                   ; a DOUBLE: a whole cell
+SK_DBL  = 4                     ; sinfo: a DOUBLE's
 NM_LBL  = 1                     ; nflag: a label; nline its line
 NM_FN   = 2                     ; nflag: DEF FN's, the name starts FN
 NM_SUB  = 4                     ; nflag: a SUB's

@@ -2,6 +2,18 @@
 ; vm/vm.inc - the executor's macros, for its handlers in every module
 ; ==========================================================================
 
+; A data stack cell is 8 bytes: an INT, a FLOAT, an address in its low
+; dword, a DOUBLE in all of it. A register's save stays 4.
+CELL    = 8
+dpush   macro   x
+        sub     esp,4
+        push    x
+        endm
+dpop    macro   x
+        pop     x
+        add     esp,4
+        endm
+
 dispatch macro
         movzx   ebx,byte ptr [esi]
         mov     [g_state.rn.opip],esi              ; the op, for CONT after a BREAK
