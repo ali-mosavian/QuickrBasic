@@ -70,6 +70,14 @@ ct_stmt:
         je      ct_dseg
         cmp     al,TK_MID
         je      ct_mids
+        cmp     al,TK_ON
+        je      ct_onerr
+        cmp     al,TK_REDIM
+        je      ct_redim
+        cmp     al,TK_ERASE
+        je      ct_erase
+        cmp     al,TK_X
+        je      ct_xst
         cmp     al,TK_SHARED
         je      ct_none
         cmp     al,TK_STATIC
@@ -125,6 +133,120 @@ ct_dseg:
         jne     @cdg_n
         jmp     ct_none                 ; dc_line warned
 @cdg_n:
+        stc
+        ret
+
+; ::::::::::::::
+; ct_redim - REDIM: DIM's grammar, each array's CALL DIM marked REDIM's.
+; ::::::::::::::
+ct_redim:
+        inc     esi
+        mov     [g_state.cm.credim],40h
+        mov     al,[g_ps_ent+TK_DIM-80h]
+        call    cm_dfa
+        mov     [g_state.cm.credim],0
+        clc
+        ret
+
+; ::::::::::::::
+; ct_erase - ERASE a {, a}: each array's id, CALL ERASE.
+; ::::::::::::::
+ct_erase:
+        inc     esi
+@cer_l:
+        mov     [g_vfs],2
+        call    cm_name
+        mov     [g_vfs],0
+        movzx   eax,word ptr [g_vnam+ebx*2]
+        movzx   ecx,[g_narec+eax]       ; a record array: its own variable
+        jecxz   @F
+        call    rc_avar
+@@:
+        mov     eax,ebx
+        call    cm_lint
+        mov     al,K_ERASE
+        call    cm_call
+        call    st_get
+        cmp     al,','
+        jne     @F
+        inc     esi
+        jmp     @cer_l
+@@:
+        clc
+        ret
+
+; ::::::::::::::
+; ct_onerr - ON ERROR GOTO line: ONERR num addr; another ON is not one.
+; ::::::::::::::
+ct_onerr:
+        push    esi
+        inc     esi
+        call    st_get
+        cmp     al,TK_X
+        jne     @coe_n
+        cmp     byte ptr [esi+1],TK1_ERROR
+        jne     @coe_n
+        add     esp,4
+        add     esi,2
+        call    st_get
+        cmp     al,TK_GOTO
+        jne     err_sn
+        inc     esi
+        call    cm_lnum
+        mov     al,O_ONERR
+        call    cm_op
+        call    cm_jw
+        clc
+        ret
+@coe_n:
+        pop     esi
+        stc
+        ret
+
+; ::::::::::::::
+; ct_xst - RESUME [NEXT | 0 | line]: RESUME mode num addr; ERROR n: CALL
+; ERROR.
+; ::::::::::::::
+ct_xst:
+        mov     al,[esi+1]
+        cmp     al,TK1_ERROR
+        je      @cxs_e
+        cmp     al,TK1_RESUME
+        jne     @coe_s
+        add     esi,2
+        and     [g_state.cm.wv],0
+        and     [g_state.cm.wa],0
+        call    st_get
+        xor     cl,cl
+        cmp     al,TK_NEXT
+        jne     @F
+        inc     esi
+        inc     cl
+        jmp     @cxs_o
+@@:
+        call    st_eos
+        jz      @cxs_o
+        call    cm_lnum
+        xor     cl,cl
+        mov     ax,[g_state.cm.wv]
+        or      ax,[g_state.cm.wa]
+        jz      @cxs_o
+        mov     cl,2
+@cxs_o:
+        mov     al,O_RESUME
+        call    cm_opx
+        call    cm_jw
+        clc
+        ret
+@cxs_e:
+        add     esi,2
+        call    cm_expr
+        call    cm_toi
+        mov     al,K_ERROR
+        call    cm_call
+        clc
+        ret
+@coe_s:
         stc
         ret
 

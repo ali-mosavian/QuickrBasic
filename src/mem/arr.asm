@@ -197,6 +197,8 @@ arr_new:
         mov     [edi+AH_FAST],ax
         movzx   ebx,[g_state.mm.aid]
         mov     [g_vt+ebx*4],edi
+        mov     al,[g_dyn]
+        mov     [g_adyn+ebx],al
         mov     al,[g_state.rn.narr]
         mov     [edi],al
         movzx   ecx,al
@@ -223,7 +225,184 @@ arr_new:
         cmp     eax,[g_state.mm.sfr]
         ret
 
+; ::::::::::::::
+; arr_size - an array's data size.
+;
+; in:     EBX  the id, EDI  its header
+; out:    EAX  the bytes
+; keeps:  all but EAX
+; ::::::::::::::
+arr_size:
+        push    ecx
+        push    edx
+        push    esi
+        call    arr_esz
+        mov     eax,ecx
+        movzx   edx,byte ptr [edi]
+        lea     esi,[edi+AH_CNT]
+@asz_l:
+        movzx   ecx,word ptr [esi]
+        imul    eax,ecx
+        add     esi,2
+        dec     edx
+        jnz     @asz_l
+        pop     esi
+        pop     edx
+        pop     ecx
+        ret
+
+; ::::::::::::::
+; arr_free - drop array EBX: its header and data go, what follows them moves
+; down. The headers' data pointers, the string blocks' owners in the moved
+; data, and the headers kept in vt and on the save stack follow; one kept
+; that was this array's becomes afrep. Its strings die with their Descs.
+;
+; in:     EBX    the id, an array
+;         afrep  what this array's other references become
+; keeps:  all
+; ::::::::::::::
+arr_free:
+        pushad
+        mov     edi,[g_vt+ebx*4]
+        and     dword ptr [g_vt+ebx*4],0
+        mov     [g_afh],edi
+        call    arr_size
+        mov     ebp,[edi+AH_PTR]        ; the data: [D, D+S) goes
+        add     eax,ebp
+        add     eax,3
+        and     al,0FCh
+        sub     eax,ebp
+        mov     [g_afsz],eax
+        movzx   edx,byte ptr [edi]
+        lea     edx,[edx*4+AH_CNT]
+        mov     [g_afhs],edx
+        lea     esi,[ebp+eax]           ; the data after it down
+        mov     ecx,[g_state.mm.aend]
+        sub     ecx,esi
+        push    edi
+        mov     edi,ebp
+        rep     movsb
+        pop     edi
+        mov     ecx,[g_state.mm.aend]   ; the moved Descs' blocks: their owners
+        mov     [g_afend],ecx
+        sub     [g_state.mm.aend],eax
+        lea     esi,[edi+edx]           ; the headers after it down
+        mov     ecx,[g_state.mm.ahd]
+        sub     ecx,esi
+        rep     movsb
+        sub     [g_state.mm.ahd],edx
+        mov     edi,HDRBASE             ; their data pointers
+@afr_h:
+        cmp     edi,[g_state.mm.ahd]
+        jae     @afr_s
+        mov     eax,[edi+AH_PTR]
+        cmp     eax,ebp
+        jbe     @F
+        sub     eax,[g_afsz]
+        mov     [edi+AH_PTR],eax
+@@:
+        movzx   eax,byte ptr [edi]
+        lea     edi,[edi+eax*4+AH_CNT]
+        jmp     @afr_h
+@afr_s:
+        mov     eax,[g_state.mm.htop]   ; the string blocks
+@afr_b:
+        cmp     eax,[g_state.mm.sfr]
+        jbe     @afr_v
+        sub     eax,BHDR
+        movzx   ecx,word ptr [eax+B_LEN]
+        mov     edx,[eax+B_OWN]
+        cmp     edx,ebp
+        jb      @F
+        cmp     edx,[g_afend]
+        jae     @F
+        sub     edx,[g_afsz]
+        mov     [eax+B_OWN],edx
+@@:
+        sub     eax,ecx
+        jmp     @afr_b
+@afr_v:
+        mov     ecx,NSYM-1              ; the headers kept: vt
+@afr_t:
+        lea     eax,[g_vt+ecx*4]
+        call    @afr_r
+        loop    @afr_t
+        mov     edx,offset g_lsav       ; the save stack's arrays
+@afr_l:
+        cmp     edx,[g_state.rn.lsp]
+        jae     @afr_x
+        movzx   ecx,word ptr [edx]
+        test    [g_sinfo+ecx],80h
+        jz      @F
+        lea     eax,[edx+4]
+        call    @afr_r
+@@:
+        add     edx,LSSZ
+        jmp     @afr_l
+@afr_x:
+        popad
+        ret
+; [EAX], a header: past the dropped one moves down, it becomes afrep.
+@afr_r:
+        mov     ebx,[eax]
+        sub     ebx,[g_afh]
+        jb      @afr_rr
+        jnz     @F
+        mov     ebx,[g_afrep]
+        mov     [eax],ebx
+        ret
+@@:
+        mov     ebx,[g_state.mm.ahd]
+        add     ebx,[g_afhs]
+        cmp     [eax],ebx
+        jae     @afr_rr
+        mov     ebx,[g_afhs]
+        sub     [eax],ebx
+@afr_rr:
+        ret
+
+; ::::::::::::::
+; arr_rep - the references afrep marked: to array EBX's header.
+;
+; in:     EBX  the id
+; keeps:  all
+; ::::::::::::::
+arr_rep:
+        pushad
+        mov     edi,[g_vt+ebx*4]
+        mov     ecx,NSYM-1
+@arp_t:
+        cmp     dword ptr [g_vt+ecx*4],1
+        jne     @F
+        mov     [g_vt+ecx*4],edi
+@@:
+        loop    @arp_t
+        mov     edx,offset g_lsav
+@arp_l:
+        cmp     edx,[g_state.rn.lsp]
+        jae     @arp_x
+        movzx   ecx,word ptr [edx]
+        test    [g_sinfo+ecx],80h
+        jz      @F
+        cmp     dword ptr [edx+4],1
+        jne     @F
+        mov     [edx+4],edi
+@@:
+        add     edx,LSSZ
+        jmp     @arp_l
+@arp_x:
+        popad
+        ret
+
+        .data
+g_dyn   db      0                       ; arr_new: a dynamic array (REDIM's)
         .data?
+g_adyn  db      NSYM dup(?)             ; by id: REDIM made it; ERASE frees it
+g_afh   dd      ?                       ; arr_free: the header, its size,
+g_afhs  dd      ?
+g_afsz  dd      ?                       ; the data's size, the data's old end
+g_afend dd      ?
+g_afrep dd      ?
 g_dimbuf dw      64 dup(?)
 g_cntbuf dw      64 dup(?)
 g_lbbuf dw      64 dup(?)                   ; the lower bounds

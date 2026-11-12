@@ -38,6 +38,8 @@ dc_line:
         mov     al,[esi]
         cmp     al,TK_DIM
         je      @dcl_dim
+        cmp     al,TK_REDIM
+        je      @dcl_dim
         cmp     al,TK_CONST
         je      @dcl_con
         cmp     al,TK_SUB

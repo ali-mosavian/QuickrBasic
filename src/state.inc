@@ -32,6 +32,7 @@ TCOMP    struc                   ; the compiler
     csif    db      ?               ; in a one-line IF
     cscope  db      ?               ; var_find's scope: 0 the module, a procedure
     cstat   db      ?               ; var_find makes a STATIC, not a local
+    credim  db      ?               ; 40h: DIM's grammar is REDIM's
     cproc   db      ?               ; the procedure the compiled line is in
 TCOMP    ends
 
@@ -115,6 +116,14 @@ TRUN     struc                   ; the executor
     lfrom   dw      ?
     lto     dw      ?
     fop     dw      ?
+    ehnd    dw      ?               ; ON ERROR's line, 0 none
+    inerr   db      ?               ; 1: in the handler, till RESUME
+    errn    dw      ?               ; ERR, ERL
+    erl     dw      ?
+    uerr    dw      ?               ; ERROR n's n
+    rln     dw      ?               ; RESUME's line, its statement's code offset,
+    rc0     dw      ?               ; the next's (FFFFh: the next line)
+    rc1     dw      ?
 TRUN     ends
 
 TSTR     struc                   ; strings

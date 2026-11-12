@@ -527,7 +527,7 @@ rd_seek:
 sc_dim:
         pop     eax
         mov     [g_dimst],eax
-        and     al,7Fh
+        and     al,3Fh
         mov     [g_state.rn.narr],al
         pop     edx
         movzx   ecx,al
@@ -546,12 +546,47 @@ sc_dim:
         mov     [g_lbbuf+ecx*2-2],bx
         loop    @sdm_l
         movzx   ebx,dx
+        test    [g_dimst],40h           ; REDIM: the old one goes
+        jnz     @sdm_r
         test    [g_dimst],80h           ; a STATIC's, dimensioned: kept
         jz      @F
         cmp     dword ptr [g_vt+ebx*4],0
         jne     ex_lp
 @@:
         call    arr_dim
+        jmp     ex_lp
+@sdm_r:
+        mov     [g_dyn],1
+        cmp     dword ptr [g_vt+ebx*4],0
+        je      @F
+        mov     [g_afrep],1
+        call    arr_free
+@@:
+        push    ebx
+        call    arr_dim
+        pop     ebx
+        call    arr_rep
+        mov     [g_dyn],0
+        jmp     ex_lp
+
+; ::::::::::::::
+; sc_erase - ERASE ( id -- ): REDIM's array freed, another's elements zeroed.
+; ::::::::::::::
+sc_erase:
+        pop     ebx
+        mov     edi,[g_vt+ebx*4]
+        test    edi,edi
+        jz      ex_lp
+        cmp     [g_adyn+ebx],0
+        je      @ser_z
+        and     [g_afrep],0
+        call    arr_free
+        jmp     ex_lp
+@ser_z:
+        call    arr_size
+        mov     ecx,eax
+        mov     eax,[edi+AH_PTR]
+        call    mem_zero
         jmp     ex_lp
         .data?
 g_dimst dd      ?                       ; DIM's count: bit 7 a STATIC's array, from
@@ -687,6 +722,10 @@ sc_runl:
 ; ::::::::::::::
 ex_rungo:
         mov     esp,[g_state.rn.rsp]
+        and     [g_state.rn.ehnd],0
+        and     [g_state.rn.inerr],0
+        and     [g_state.rn.errn],0
+        and     [g_state.rn.erl],0
         mov     [g_state.rn.cstk],CSTOP
         mov     [g_state.rn.lsp],offset g_lsav
         and     [g_state.sg.tspb],0

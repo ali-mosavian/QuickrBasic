@@ -1210,12 +1210,13 @@ cm_dv:
 ; ::::::::::::::
 cm_dim1:
         movzx   eax,[g_state.cm.cstat]
+        shl     eax,7
+        or      al,[g_state.cm.credim]
         push    eax
         push    ebx
         call    cm_dsubs
         pop     eax
         pop     edx
-        shl     edx,7
         or      ecx,edx
         push    ecx
         call    cm_lint

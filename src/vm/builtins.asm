@@ -249,6 +249,33 @@ sc_vseg:
         dispatch
 
 ; ::::::::::::::
+; sc_err, sc_erl - ERR, ERL ( -- n ).
+; ::::::::::::::
+sc_err:
+        movzx   eax,[g_state.rn.errn]
+        push    eax
+        dispatch
+sc_erl:
+        movzx   eax,[g_state.rn.erl]
+        push    eax
+        dispatch
+
+; ::::::::::::::
+; sc_error - ERROR ( n -- ): raise QBasic's error n.
+;
+; error:  ?ILLEGAL QUANTITY  n not 1..255
+; ::::::::::::::
+sc_error:
+        pop     eax
+        dec     eax
+        cmp     eax,254
+        ja      err_iq
+        inc     eax
+        mov     [g_state.rn.uerr],ax
+        mov     al,E_USR
+        jmp     err_raise
+
+; ::::::::::::::
 ; sc_sadd - SADD ( Desc -- a ): its chars' address.
 ; ::::::::::::::
 sc_sadd:

@@ -115,6 +115,32 @@ err_raise:
         call    ex_fclr
         cmp     [g_state.cm.csp],0
         jne     cm_err
+        test    al,al                   ; BREAK: never handled
+        jz      @erx_u
+        cmp     [g_state.rn.ehnd],0
+        je      @erx_u
+        cmp     [g_state.rn.inerr],0
+        jne     @erx_u
+        cmp     [g_state.rn.ln],DLINE
+        jne     ex_trap
+@erx_u:
+        and     [g_state.rn.inerr],0
+        cmp     al,E_USR                ; ERROR n: its message, if one
+        jne     @erx_k
+        push    ecx
+        push    edi
+        mov     ax,[g_state.rn.uerr]
+        mov     edi,offset g_qberr+2
+        mov     ecx,E_USR-2
+        repne   scasb
+        mov     al,E_USR
+        jne     @F
+        lea     eax,[edi-1]
+        sub     eax,offset g_qberr
+@@:
+        pop     edi
+        pop     ecx
+@erx_k:
         mov     ah,al
         call    fil_clrch
         call    io_fresh
@@ -124,7 +150,12 @@ err_raise:
         and     [g_state.sg.tspb],0
 if IDE
         cmp     [g_ui.lp.ideon],0
+        je      @F
+        cmp     al,E_USR
         jne     ui_err
+        mov     al,E_IQ
+        jmp     ui_err
+@@:
 endif
         test    al,al
         jz      @erx_m
@@ -133,7 +164,10 @@ endif
         mov     al,'?'
         call    io_putc
         mov     al,ah
+        cmp     al,E_USR
+        je      @erx_p
         call    io_msg
+@erx_e:
         mov     al,MSG_ERR
 @erx_m:
         call    io_msg
@@ -146,6 +180,27 @@ endif
         call    io_msg
         mov     ax,word ptr [g_progb+ebx+1]
         call    io_num
+
+        jmp     rpl_ready
+@erx_p:                                 ; no message: UNPRINTABLE
+        push    esi
+        mov     esi,offset g_unpr
+@@:
+        lodsb
+        test    al,al
+        jz      @F
+        call    io_putc
+        jmp     @B
+@@:
+        pop     esi
+        jmp     @erx_e
+
+        .data
+; QBasic's error numbers, by E_*: ERR's.
+g_qberr db      0,0,2,3,4,5,7,8,9,10,11,13,17,0,6,1,16,15,12,0,0,0,0
+        db      67,55,52,53,68,54,54,64,52,0,13,18
+g_unpr  db      "UNPRINTABLE",0
+        .code
 
 ; ::::::::::::::
 ; rpl_ready - print READY., then read and enter lines.

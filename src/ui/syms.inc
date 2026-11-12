@@ -40,6 +40,7 @@ externdef ex_nextln:near
 externdef ex_nodir:near
 externdef ex_resolve:near
 externdef ex_setcont:near
+externdef ex_trap:near
 externdef g_lsav:byte
 externdef op_eol:near
 externdef op_err:near
@@ -59,8 +60,10 @@ externdef op_jmp:near
 externdef op_nextv:near
 externdef op_nx0:near
 externdef op_on:near
+externdef op_onerr:near
 externdef op_pcall:near
 externdef op_pret:near
+externdef op_resume:near
 externdef op_ret:near
 externdef op_size:near
 ; vm/calls.asm
@@ -72,6 +75,7 @@ externdef sc_clr:near
 externdef sc_cont:near
 externdef sc_dim:near
 externdef sc_end:near
+externdef sc_erase:near
 externdef sc_fget:near
 externdef sc_ficlr:near
 externdef sc_fiin:near
@@ -127,6 +131,9 @@ externdef fn_pos:near
 externdef fn_sgn:near
 externdef fn_usr:near
 externdef fn_val:near
+externdef sc_erl:near
+externdef sc_err:near
+externdef sc_error:near
 externdef sc_fix:near
 externdef sc_fn1:near
 externdef sc_hex:near
@@ -289,6 +296,7 @@ externdef cm_chkeq:near
 externdef cm_chkop:near
 externdef cm_dat:near
 externdef cm_def:near
+externdef cm_dfa:near
 externdef cm_dv:near
 externdef cm_dw:near
 externdef cm_err:near
@@ -305,6 +313,7 @@ externdef cm_if:near
 externdef cm_ileaf:near
 externdef cm_in:near
 externdef cm_ins:near
+externdef cm_jw:near
 externdef cm_line:near
 externdef cm_lint:near
 externdef cm_list:near
@@ -420,10 +429,16 @@ externdef str_sub:near
 ; mem/arr.asm
 externdef arr_bs:near
 externdef arr_dim:near
+externdef arr_free:near
 externdef arr_new:near
 externdef arr_ref:near
+externdef arr_rep:near
+externdef arr_size:near
+externdef g_adyn:byte
+externdef g_afrep:dword
 externdef g_cntbuf:word
 externdef g_dimbuf:word
+externdef g_dyn:byte
 externdef g_lbbuf:word
 ; io/io.asm
 externdef g_inbuf:byte
@@ -455,6 +470,7 @@ externdef err_sn:near
 externdef err_st:near
 externdef err_tm:near
 externdef err_us:near
+externdef g_qberr:byte
 externdef rpl_enter:near
 externdef rpl_file:near
 externdef rpl_ready:near

@@ -690,6 +690,12 @@ cm_un:
         mov     cl,K_SADD
         cmp     ah,TK1_SADD
         je      @cu_vp
+        mov     cl,K_ERR
+        cmp     ah,TK1_ERR
+        je      @cu_er
+        mov     cl,K_ERL
+        cmp     ah,TK1_ERL
+        je      @cu_er
         mov     al,TK_X
 @cu_7a:
         sub     al,TK_SGN
@@ -747,14 +753,19 @@ cm_un:
         call    cm_chkcl
         pop     eax
         test    al,al
-        jz      @F
+        jz      @cu_vt
+@cu_vc:
         call    cm_call
-@@:
+@cu_vt:
         mov     [g_state.cm.cty],T_INT
         xor     eax,eax
         mov     [g_state.cm.cll],eax
         mov     [g_state.cm.clle],eax
         ret
+@cu_er:                                 ; ERR, ERL
+        add     esi,2
+        mov     al,cl
+        jmp     @cu_vc
 @cu_ln:                                 ; LEN(r): a record's, a field's size
         push    esi
         push    edi

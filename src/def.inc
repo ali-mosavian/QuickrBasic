@@ -63,11 +63,12 @@ M_FR    = FRSIZE                ; a frame's mark is its size
 M_GS    = 5
 M_FN    = 9                     ; an FN frame: mark, ln:2, ip:2, the old value:4
 F_OLD   = 5
-M_PC    = 16                    ; a procedure's frame: mark, ln:2, ip:2, then
+M_PC    = 20                    ; a procedure's frame: mark, ln:2, ip:2, then
 F_PRC   = 5                     ; its procedure
 F_LSP0  = 6                     ; lsp before its arguments, before its locals
 F_LSP1  = 10
 F_TSPB  = 14                    ; the caller's tspb
+F_SB    = 16                    ; the data stack at its body's start
 LSSZ    = 12                    ; a save entry: id:2, ref:2, the value:8
 LSAVSZ  = 10000h                ; the save stack
 
@@ -110,6 +111,7 @@ E_TMF   = 23
 E_VF    = 32
 E_FD    = 33
 E_UF    = 34
+E_USR   = 35                    ; ERROR n: n in uerr
 
 ; Memory map, flat: the code, then the data; the regions in .data? (main.asm).
 ; dsb is the 16-bit build's DS at the same offsets: the variables, the

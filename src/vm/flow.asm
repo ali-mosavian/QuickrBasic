@@ -664,6 +664,158 @@ op_err:
         jmp     err_raise
 
 ; ::::::::::::::
+; op_onerr - ONERR num addr: ON ERROR GOTO's line; 0 none. GOTO 0 in the
+; handler raises the error it handles.
+;
+; error:  ?UNDEF'D STATEMENT  no such line
+; ::::::::::::::
+op_onerr:
+        cmp     word ptr [esi],0
+        jne     @one_g
+        add     esi,4
+        and     [g_state.rn.ehnd],0
+        cmp     [g_state.rn.inerr],0
+        je      @one_d
+        mov     ax,[g_state.rn.errn]
+        mov     [g_state.rn.uerr],ax
+        mov     al,E_USR
+        jmp     err_raise
+@one_g:
+        call    ex_target
+        mov     [g_state.rn.ehnd],bx
+@one_d:
+        dispatch
+
+; ::::::::::::::
+; ex_trap - an error ON ERROR handles: ERR, ERL, where RESUME goes on, then
+; the handler on the failing statement's data stack, its frames kept.
+;
+; in:     AL     the error, E_*
+;         ln     the failing line, opip the op
+; ::::::::::::::
+ex_trap:
+        movzx   edx,al
+        movzx   eax,[g_qberr+edx]
+        cmp     dl,E_USR
+        jne     @F
+        mov     ax,[g_state.rn.uerr]
+@@:
+        mov     [g_state.rn.errn],ax
+        mov     [g_state.rn.inerr],1
+        movzx   ecx,[g_state.rn.ln]     ; ERL: the last number at or before it
+        mov     [g_state.rn.rln],cx
+        mov     ebx,PROGBASE
+        xor     edx,edx
+@etr_l:
+        cmp     ebx,ecx
+        ja      @etr_d
+        cmp     byte ptr [g_progb+ebx],0
+        je      @etr_d
+        mov     ax,word ptr [g_progb+ebx+1]
+        cmp     ax,NONUM
+        je      @F
+        mov     dx,ax
+@@:
+        movzx   eax,byte ptr [g_progb+ebx]
+        add     ebx,eax
+        jmp     @etr_l
+@etr_d:
+        mov     [g_state.rn.erl],dx
+        movzx   ebx,word ptr [g_progb+ecx+L_CP]  ; the statement, by the map
+        add     ebx,offset g_cachb
+        mov     eax,[g_state.rn.opip]
+        sub     eax,ebx
+        movzx   ecx,byte ptr [ebx-1]
+        lea     edi,[ecx+ecx*2+1]
+        neg     edi
+        add     edi,ebx
+        xor     edx,edx
+        mov     ebp,0FFFFh
+@etr_m:
+        jecxz   @etr_s
+        movzx   ebx,word ptr [edi+1]
+        cmp     ebx,eax
+        ja      @etr_n
+        mov     edx,ebx
+        add     edi,3
+        dec     ecx
+        jmp     @etr_m
+@etr_n:
+        mov     ebp,ebx
+@etr_s:
+        mov     [g_state.rn.rc0],dx
+        mov     [g_state.rn.rc1],bp
+        call    fil_clrch
+        call    ex_sbase
+        mov     esp,eax
+        movzx   ebx,[g_state.rn.ehnd]
+        jmp     ex_jump
+
+; ::::::::::::::
+; ex_sbase - the data stack at the running procedure's body's start, or
+; the module's.
+;
+; out:    EAX  it
+; ::::::::::::::
+ex_sbase:
+        mov     eax,[g_state.rn.rsp]
+        mov     ebx,[g_state.rn.cstk]
+@esb_l:
+        cmp     ebx,CSTOP
+        jae     @esb_r
+        movzx   ecx,byte ptr [ebx+F_MARK]
+        cmp     cl,M_PC
+        je      @esb_f
+        add     ebx,ecx
+        jmp     @esb_l
+@esb_f:
+        mov     eax,[ebx+F_SB]
+@esb_r:
+        ret
+
+; ::::::::::::::
+; op_resume - RESUME mode num addr: mode 0 the failing statement again, 1
+; the one after it, 2 the line num addr.
+;
+; error:  RESUME without error (20)  not in a handler
+; ::::::::::::::
+op_resume:
+        stopchk
+        cmp     [g_state.rn.inerr],0
+        je      @rsm_e
+        and     [g_state.rn.inerr],0
+        and     [g_state.rn.errn],0
+        call    ex_sbase
+        mov     esp,eax
+        lodsb
+        cmp     al,2
+        je      @rsm_l
+        mov     cx,[g_state.rn.rc0]
+        test    al,al
+        jz      @F
+        mov     cx,[g_state.rn.rc1]
+@@:
+        tspclr
+        mov     dx,[g_state.rn.rln]
+        mov     [g_state.rn.ln],dx
+        mov     [g_state.rn.vpt],dx
+        cmp     cx,0FFFFh
+        je      @rsm_n
+        movzx   esi,cx
+        call    ex_resolve
+        dispatch
+@rsm_n:
+        call    ex_eol
+        dispatch
+@rsm_l:
+        call    ex_target
+        jmp     ex_jump
+@rsm_e:
+        mov     [g_state.rn.uerr],20
+        mov     al,E_USR
+        jmp     err_raise
+
+; ::::::::::::::
 ; op_size - the size of the op at ESI.
 ;
 ; in:     ESI  at it
@@ -1010,6 +1162,7 @@ op_pcall:
         mov     [edi+F_TSPB],ax
         mov     ax,[g_state.sg.tsp]
         mov     [g_state.sg.tspb],ax
+        mov     [edi+F_SB],esp
         sub     esi,6                   ; the target
         jmp     ex_bjump
 
@@ -1089,6 +1242,25 @@ op_pret:
         mov     [VARBASE+ecx*4],eax
         jmp     @prt_ll
 @prt_ly:
+        cmp     dword ptr [g_vt+ecx*4],0
+        je      @prt_lz
+        movzx   eax,word ptr [ebp+P_NPAR]       ; a parameter's is the caller's
+        movzx   edi,word ptr [ebp+P_PAR]
+        add     eax,edi
+@@:
+        dec     eax
+        cmp     eax,edi
+        jl      @F
+        cmp     cx,[g_ppar+eax*2]
+        je      @prt_lz
+        jmp     @B
+@@:
+        push    ebx
+        mov     ebx,ecx
+        and     [g_afrep],0
+        call    arr_free
+        pop     ebx
+@prt_lz:
         mov     eax,[edx+4]
         mov     [g_vt+ecx*4],eax
         jmp     @prt_ll

@@ -147,6 +147,8 @@ oplist  macro   m
         m       SF_LD,op_sfld,5,0
         m       SF_ST,op_sfst,5,0
         m       R_COPY,op_rcopy,3,0
+        m       ONERR,op_onerr,5,0
+        m       RESUME,op_resume,6,0
         endm
 
 JSIZE   = 7                     ; a jump op: target line:2 boff:1 mode:1, addr:2
@@ -235,4 +237,8 @@ K_SFIX  = K_FIX+12
 K_MIDS  = K_FIX+13
 K_VSEG  = K_FIX+14
 K_SADD  = K_FIX+15
-K_N     = K_FIX+16
+K_ERR   = K_FIX+16
+K_ERL   = K_FIX+17
+K_ERROR = K_FIX+18
+K_ERASE = K_FIX+19
+K_N     = K_FIX+20

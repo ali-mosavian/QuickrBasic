@@ -147,6 +147,34 @@ CASES = {
                 "POKE VARPTR(n) + 1, 1: POKE SADD(b$), 74\r\n"
                 "PRINT n; PEEK(VARPTR(a(2))); b$; PEEK(SADD(b$) + 4); VARSEG(n); SSEG(b$)\r\n",
                 " 256  7 JELLO 79  0  0 \r\n", "ERROR"),
+    # ON ERROR: the handler runs on the failing procedure's frames; RESUME NEXT goes on inside
+    # the FUNCTION a statement called mid-expression.
+    "qb_onerr": ("DECLARE FUNCTION f% (d%)\r\nON ERROR GOTO h\r\nPRINT 1 + f(0); ERR\r\n"
+                 "k = -1: s$ = SPACE$(k): PRINT LEN(s$): ERROR 7\r\nPRINT \"no\"\r\nx:\r\nPRINT \"x\"\r\nEND\r\n"
+                 "h: PRINT \"e\"; ERR; ERL;\r\nIF ERR = 5 THEN k = 2: RESUME 0\r\n"
+                 "IF ERR = 7 THEN RESUME x\r\nRESUME NEXT\r\n"
+                 "FUNCTION f% (d%)\r\n50 c% = 10 \\ d%: f% = c% + 4\r\nEND FUNCTION\r\n",
+                 "e 11  50  5  0 \r\ne 5  0  2 \r\ne 7  0 x\r\n", "ERROR"),
+    # Unhandled: ERROR n's message; RESUME with no error; ON ERROR GOTO 0 in the handler.
+    "qb_errn": ("ERROR 11\r\n", "?DIVISION BY ZERO ERROR", None),
+    "qb_errun": ("ERROR 99\r\n", "?UNPRINTABLE ERROR", None),
+    "qb_resnoerr": ("RESUME\r\n", "?UNPRINTABLE ERROR", None),
+    "qb_onerr0": ("ON ERROR GOTO h\r\nERROR 6\r\nEND\r\nh: ON ERROR GOTO 0\r\n", "?OVERFLOW ERROR", None),
+    # REDIM frees the old array; a SUB's REDIM of its parameter is the caller's. ERASE zeroes a
+    # DIM's array, frees a REDIM's.
+    "qb_redim": ("DECLARE SUB g (q())\r\nREDIM a(2): a(1) = 5: REDIM a(1 TO 7): PRINT a(1); LBOUND(a); UBOUND(a)\r\n"
+                 "g a(): PRINT UBOUND(a); a(9)\r\nDIM s(3): s(2) = 4: ERASE s: PRINT s(2); UBOUND(s)\r\n"
+                 "ERASE a: REDIM a(-1 TO 1): PRINT LBOUND(a)\r\n"
+                 "SUB g (q())\r\nREDIM q(9): q(9) = 3\r\nEND SUB\r\n",
+                 " 0  1  7 \r\n 9  3 \r\n 0  3 \r\n-1 \r\n", "ERROR"),
+    # Freeing an array moves the arrays after it: their strings' blocks must follow their Descs,
+    # or the next collection drops them.
+    "qb_erase_str": ("FOR i = 1 TO 50: c$ = STRING$(100, 66): NEXT\r\n"
+                     "REDIM a(500): DIM b$(3): b$(1) = \"x\" + \"y\": ERASE a\r\n"
+                     "x = FRE(\"\"): FOR i = 1 TO 50: c$ = STRING$(100, 65): NEXT: PRINT b$(1)\r\n", "xy\r\n", "ERROR"),
+    # A procedure's local arrays went with it only at the next RUN: 3000 calls ran out of memory.
+    "qb_localarr": ("DECLARE SUB p (n)\r\nFOR i = 1 TO 3000: p i: NEXT: PRINT \"ok\"\r\n"
+                    "SUB p (n)\r\nDIM a(2000): a(1) = n\r\nEND SUB\r\n", "ok\r\n", "ERROR"),
 }
 
 # Run as files; what standard error showed. A file's CR LF counted as two lines: line 3, 5.
