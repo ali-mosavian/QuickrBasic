@@ -2,7 +2,8 @@
 ; compl.asm - Tab completes the word at the cursor, from what fits there
 ; ==========================================================================
 ; holds:    ac_tab
-; uses:     kwlist, tx_get, le_insn, sc_*, dr_all, ui_getkey
+; uses:     lx_line, dc_tail, dc_step, kwlist, tx_get, le_insn, sc_*, dr_all,
+;           ui_getkey
 ; data:     The line before the word tells what fits (ac_m): a statement
 ;           or a variable at a statement's start; a line label after GOTO,
 ;           GOSUB, THEN, RUN, LIST, ON's list; a variable after FOR, NEXT,
@@ -165,55 +166,9 @@ ac_alpha:
         ret
 
 ; ::::::::::::::
-; ac_kw - the keyword that starts at SI, as the tokenizer finds it.
-;
-; out:    CF  clear: AL its token, CX its length
-; keeps:  all but AX, CX
-; ::::::::::::::
-ac_kw:
-        push    ebx
-        push    edx
-        push    edi
-        mov     ebx,offset g_kwlist
-        mov     dl,80h
-@akw_e:
-        cmp     byte ptr [ebx],0
-        je      @akw_n
-        mov     edi,esi
-        xor     ecx,ecx
-@akw_c:
-        mov     al,[edi]
-        call    ui_upper
-        mov     ah,[ebx]
-        and     ah,7Fh
-        cmp     al,ah
-        jne     @akw_s
-        inc     cx
-        inc     edi
-        test    byte ptr [ebx],80h
-        lea     bx,[ebx+1]
-        jz      @akw_c
-        mov     al,dl
-        clc
-        jmp     @akw_x
-@akw_s:
-        test    byte ptr [ebx],80h
-        lea     bx,[ebx+1]
-        jz      @akw_s
-        inc     dl
-        jmp     @akw_e
-@akw_n:
-        stc
-@akw_x:
-        pop     edi
-        pop     edx
-        pop     ebx
-        ret
-
-; ::::::::::::::
-; ac_ctx - what fits at the word: the line before it read as the
-; tokenizer reads it, the type each operand gives (ac_lt) and the one the
-; expression wants (ac_ty).
+; ac_ctx - what fits at the word: the line before it tokenized, its last
+; statement read item by item; the type each operand gives (ac_lt) and the
+; one the expression wants (ac_ty).
 ;
 ; out:    CF  set: nothing (a string, REM, DATA)
 ;         ac_m  what fits
@@ -225,82 +180,32 @@ ac_ctx:
         rep     movsb
         mov     byte ptr [edi],0
         mov     esi,offset g_ui.bf.sy_buf
-@acx_ss:
+        call    ac_lex
+        call    dc_tail
+        jc      @acx_no
         mov     [g_ui.ac.ac_st],0
         mov     [g_ui.ac.ac_pv],AP_ST
         mov     [g_ui.ac.ac_ty],AT_ANY
         mov     [g_ui.ac.ac_fn],0
 @acx_l:
-        lodsb
+        mov     al,[esi]
         test    al,al
         jz      @acx_e
-        cmp     al,' '
-        je      @acx_l
+        js      @acx_k
+        cmp     al,M_VAR
+        je      @acx_v
         cmp     al,'"'
         je      @acx_q
-        cmp     al,':'
-        je      @acx_ss
-        dec     esi
-        call    ac_kw
-        jc      @acx_nk
-        movzx   ecx,cx
-        add     esi,ecx
-        cmp     al,TK_REM
-        je      @acx_no
-        cmp     al,TK_DATA
-        je      @acx_no
-        cmp     [g_ui.ac.ac_pv],TK_THEN          ; a statement's start: its keyword
-        je      @acx_s
-        cmp     [g_ui.ac.ac_pv],AP_ST
-        jne     @acx_t
-@acx_s:
-        mov     [g_ui.ac.ac_st],al
-@acx_t:
-        mov     [g_ui.ac.ac_pv],al
-        call    ac_tkty
-        cmp     al,TK_PLUS              ; + - * / ^ AND OR > = <
-        jb      @acx_l
-        cmp     al,TK_PLUS+9
-        ja      @acx_l
-        mov     [g_ui.ac.ac_pv],AP_SEP
-        jmp     @acx_l
-@acx_nk:
-        mov     al,[esi]
-        call    ac_alpha
-        jc      @acx_d
-        call    ac_name
-        call    ac_nty
-        mov     [g_ui.ac.ac_lt],al
-        cmp     [g_ui.ac.ac_pv],AP_ST
-        jne     @acx_ar
-        mov     [g_ui.ac.ac_st],AP_ID            ; an assignment
-@acx_ar:
-        movzx   ebx,[g_ui.ac.ac_nm]  ; an array's subscripts: numbers
-        cmp     byte ptr [g_ui.ac.ac_nm+ebx],'('
-        jne     @acx_op
-        mov     [g_ui.ac.ac_flt],al
-        mov     [g_ui.ac.ac_fn],0FFh
-        mov     [g_ui.ac.ac_ty],AT_NUM
-        mov     [g_ui.ac.ac_pv],AP_SEP
-        jmp     @acx_l
-@acx_d:
-        inc     esi
-        call    ac_digit
-        jc      @acx_o
-@acx_dl:
-        lodsb                           ; a number; a label at the start
-        call    ac_digit
-        jnc     @acx_dl
-        dec     esi
-        mov     [g_ui.ac.ac_lt],AT_NUM
-        cmp     [g_ui.ac.ac_pv],AP_ST
-        jne     @acx_op
-        cmp     [g_ui.ac.ac_st],0
-        je      @acx_l
-@acx_op:
-        mov     [g_ui.ac.ac_pv],AP_ID
-        jmp     @acx_l
+        cmp     al,M_INT
+        je      @acx_d
+        cmp     al,'.'
+        je      @acx_d
+        cmp     al,'0'
+        jb      @acx_o
+        cmp     al,'9'
+        jbe     @acx_d
 @acx_o:
+        inc     esi
         mov     ah,AP_SEP
         mov     dl,[g_ui.ac.ac_fn]
         cmp     al,'('                  ; a function's argument: its type
@@ -342,12 +247,49 @@ ac_ctx:
 @acx_p:
         mov     [g_ui.ac.ac_pv],ah
         jmp     @acx_l
+@acx_k:
+        push    eax                     ; a keyword
+        call    dc_item
+        pop     eax
+        cmp     [g_ui.ac.ac_pv],TK_THEN          ; a statement's start: its keyword
+        je      @acx_s
+        cmp     [g_ui.ac.ac_pv],AP_ST
+        jne     @acx_t
+@acx_s:
+        mov     [g_ui.ac.ac_st],al
+@acx_t:
+        mov     [g_ui.ac.ac_pv],al
+        call    ac_tkty
+        cmp     al,TK_PLUS              ; + - * / ^ AND OR > = <
+        jb      @acx_l
+        cmp     al,TK_PLUS+9
+        ja      @acx_l
+        mov     [g_ui.ac.ac_pv],AP_SEP
+        jmp     @acx_l
+@acx_v:
+        call    ac_vnm
+        call    ac_nty
+        mov     [g_ui.ac.ac_lt],al
+        cmp     [g_ui.ac.ac_pv],AP_ST
+        jne     @acx_ar
+        mov     [g_ui.ac.ac_st],AP_ID            ; an assignment
+@acx_ar:
+        cmp     byte ptr [esi],'('      ; an array's subscripts: numbers
+        jne     @acx_op
+        inc     esi
+        mov     [g_ui.ac.ac_flt],al
+        mov     [g_ui.ac.ac_fn],0FFh
+        mov     [g_ui.ac.ac_ty],AT_NUM
+        mov     [g_ui.ac.ac_pv],AP_SEP
+        jmp     @acx_l
+@acx_d:
+        call    dc_step
+        mov     [g_ui.ac.ac_lt],AT_NUM
+@acx_op:
+        mov     [g_ui.ac.ac_pv],AP_ID
+        jmp     @acx_l
 @acx_q:
-        lodsb
-        test    al,al
-        jz      @acx_no
-        cmp     al,'"'
-        jne     @acx_q
+        call    dc_item
         mov     [g_ui.ac.ac_lt],AT_STR
         jmp     @acx_op
 @acx_no:
@@ -420,45 +362,39 @@ ac_tkty:
         ret
 
 ; ::::::::::::::
-; ac_name - the name at SI, a letter first, to ac_nm: its length, then it
-; in capitals, AC_LEN at most; a '(' after it kept.
+; ac_vnm - the name at SI's M_VAR to ac_nm: its length, then it in
+; capitals, AC_LEN at most; a '(' after it added.
 ;
-; out:    SI  past it
+; out:    SI  past it, at the '('
 ; keeps:  all but AX, SI
 ; ::::::::::::::
-ac_name:
+ac_vnm:
         push    ecx
         push    edi
-        mov     edi,offset g_ui.ac.ac_nm+1
-        mov     al,[esi]
-        jmp     @anm_c
-@anm_l:
-        mov     al,[esi]
-        call    ac_alnum
-        jc      @anm_e
+        movzx   ecx,byte ptr [esi+1]
+        lea     eax,[esi+ecx+4]
         push    eax
-        call    ac_kw                   ; a keyword ends it
-        pop     eax
-        jnc     @anm_x
-@anm_c:
-        call    ac_put1
-        inc     esi
-        jmp     @anm_l
-@anm_e:
-        cmp     al,'$'
-        je      @anm_s
-        cmp     al,'%'
-        jne     @anm_x
-@anm_s:
-        call    ac_put1
-        inc     esi
-@anm_x:
+        add     esi,2
+        cmp     ecx,AC_LEN
+        jbe     @avn_c
+        mov     ecx,AC_LEN
+@avn_c:
+        mov     edi,offset g_ui.ac.ac_nm+1
+        jecxz   @avn_p
+@avn_l:
+        lodsb
+        call    ui_upper
+        stosb
+        loop    @avn_l
+@avn_p:
+        pop     esi
         cmp     byte ptr [esi],'('
-        jne     @anm_z
+        jne     @avn_z
+        cmp     edi,offset g_ui.ac.ac_nm+1+AC_LEN
+        jae     @avn_z
         mov     al,'('
-        call    ac_put1
-        inc     esi
-@anm_z:
+        stosb
+@avn_z:
         mov     eax,edi
         sub     eax,offset g_ui.ac.ac_nm+1
         mov     [g_ui.ac.ac_nm],al
@@ -468,16 +404,43 @@ ac_name:
         ret
 
 ; ::::::::::::::
-; ac_put1 - AL in capitals at DI, while ac_nm has room.
+; ac_line - text line AX tokenized, the cursor's from the editor: its text
+; in sy_buf, its body in cbuf.
+;
+; out:    SI  the body
+; keeps:  all but SI
 ; ::::::::::::::
-ac_put1:
-        cmp     edi,offset g_ui.ac.ac_nm+1+AC_LEN
-        jae     @ap1_r
-        call    ui_upper
-        stosb
-@ap1_r:
-        ret
+ac_line:
+        pushad
+        mov     edi,offset g_ui.bf.sy_buf
+        cmp     ax,[g_ui.ed.ed_line]
+        jne     @alx_t
+        mov     esi,offset g_ui.bf.ed_lb.txt
+        movzx   ecx,word ptr [g_ui.bf.ed_lb.len]
+        rep     movsb
+        jmp     @alx_z
+@alx_t:
+        call    tx_get
+        movzx   ecx,cx
+        add     edi,ecx
+@alx_z:
+        mov     byte ptr [edi],0
+        popad
+        mov     esi,offset g_ui.bf.sy_buf
 
+; ::::::::::::::
+; ac_lex - the 0-ended text at SI tokenized into cbuf.
+;
+; out:    SI  the body
+; keeps:  all but SI
+; ::::::::::::::
+ac_lex:
+        pushad
+        mov     edi,offset g_cbuf
+        call    lx_line
+        popad
+        mov     esi,offset g_cbuf
+        ret
 ; ::::::::::::::
 ; ac_nty - the type of the name in ac_nm: a string when it ends in $.
 ;
@@ -728,20 +691,7 @@ ac_vars:
         cmp     ax,[g_ui.tx.tx_n]
         jae     @acv_r
         push    eax
-        mov     edi,offset g_ui.bf.sy_buf
-        cmp     ax,[g_ui.ed.ed_line]
-        jne     @acv_t
-        mov     esi,offset g_ui.bf.ed_lb.txt
-        movzx   ecx,word ptr [g_ui.bf.ed_lb.len]
-        rep     movsb
-        jmp     @acv_z
-@acv_t:
-        call    tx_get
-        movzx   ecx,cx
-        add     edi,ecx
-@acv_z:
-        mov     byte ptr [edi],0
-        mov     esi,offset g_ui.bf.sy_buf
+        call    ac_line
         pop     edx
         push    edx
         test    [g_ui.ac.ac_m],AM_LB
@@ -754,8 +704,13 @@ ac_vars:
         jz      @acv_n
         call    ac_ids
 @acv_n:
-        mov     esi,offset g_ui.bf.sy_buf
-        call    ac_lastkw
+        mov     esi,offset g_cbuf
+        call    dc_tail                 ; its last statement's keyword
+        mov     al,[esi]
+        test    al,al
+        js      @acv_k
+        xor     al,al
+@acv_k:
         mov     [g_ui.ac.ac_plk],al
         pop     eax
         inc     ax
@@ -764,30 +719,23 @@ ac_vars:
         ret
 
 ; ::::::::::::::
-; ac_label - the label that starts line DX, at SI, to ac_list.
+; ac_label - the label that starts line DX, the body at SI, to ac_list.
 ;
-; keeps:  SI
+; keeps:  all
 ; ::::::::::::::
 ac_label:
-        push    esi
-@acl_s:
-        lodsb
-        cmp     al,' '
-        je      @acl_s
-        dec     esi
-        mov     edi,esi
-@acl_d:
-        lodsb
-        cmp     al,'0'
-        jb      @acl_e
-        cmp     al,'9'
-        jbe     @acl_d
-@acl_e:
-        dec     esi
-        mov     ecx,esi
-        sub     ecx,edi
-        jcxz    @acl_r
-        mov     esi,edi
+        cmp     byte ptr [esi],M_INT
+        jne     @acl_n
+        cmp     dword ptr [esi+1],0FFFFh
+        ja      @acl_n
+        pushad
+        mov     eax,[esi+1]
+        mov     edi,offset g_ui.ac.ac_nm
+        call    ui_dec
+        mov     esi,offset g_ui.ac.ac_nm
+        mov     ecx,edi
+        sub     ecx,esi
+        mov     edx,[esp+20]            ; pushad's DX
         mov     ax,AK_LB+100h           ; GOSUB: a start first
         cmp     [g_ui.ac.ac_pv],TK_GOSUB
         jne     @acl_a
@@ -804,101 +752,28 @@ ac_label:
         xor     ah,ah
 @acl_a:
         call    ac_add
-@acl_r:
-        pop     esi
+        popad
+@acl_n:
         ret
 
 ; ::::::::::::::
-; ac_lastkw - the keyword that starts the last statement of the line at SI.
-;
-; out:    AL  it, 0 none
-; keeps:  all but AX, CX
-; ::::::::::::::
-ac_lastkw:
-        push    esi
-        push    edx
-        xor     dx,dx                   ; DL the keyword, DH 0 at a start
-@alk_l:
-        lodsb
-        test    al,al
-        jz      @alk_e
-        cmp     al,'"'
-        je      @alk_q
-        cmp     al,' '
-        je      @alk_l
-        cmp     al,':'
-        jne     @alk_k
-        xor     dx,dx
-        jmp     @alk_l
-@alk_k:
-        dec     esi
-        call    ac_kw
-        jc      @alk_n
-        movzx   ecx,cx
-        add     esi,ecx
-        test    dh,dh
-        jnz     @alk_t
-        mov     dl,al
-        inc     dh
-@alk_t:
-        cmp     al,TK_REM
-        je      @alk_e
-        jmp     @alk_l
-@alk_n:
-        lodsb
-        call    ac_digit                ; a label keeps the start
-        jnc     @alk_l
-        mov     dh,1
-        jmp     @alk_l
-@alk_q:
-        lodsb
-        test    al,al
-        jz      @alk_e
-        cmp     al,'"'
-        jne     @alk_q
-        jmp     @alk_l
-@alk_e:
-        mov     al,dl
-        pop     edx
-        pop     esi
-        ret
-
-; ::::::::::::::
-; ac_ids - the names in the line at SI, to ac_list: not in strings, not
-; after REM or DATA, not keywords; of the type wanted; no array after FOR
-; or NEXT.
+; ac_ids - the names in the body at SI, to ac_list: not after REM or DATA;
+; of the type wanted; no array after FOR or NEXT.
 ; ::::::::::::::
 ac_ids:
-        lodsb
+        mov     al,[esi]
         test    al,al
         jz      @aci_r
-        cmp     al,'"'
-        je      @aci_q
-        dec     esi
-        call    ac_kw
-        jc      @aci_n
-        movzx   ecx,cx
-        add     esi,ecx
         cmp     al,TK_REM
         je      @aci_r
         cmp     al,TK_DATA
         je      @aci_r
-        jmp     ac_ids
-@aci_n:
-        mov     al,[esi]
-        call    ac_alpha
-        jnc     @aci_i
-        inc     esi
-        call    ac_digit                ; a number: its digits are no name
-        jc      ac_ids
-@aci_d:
-        lodsb
-        call    ac_alnum
-        jnc     @aci_d
-        dec     esi
+        cmp     al,M_VAR
+        je      @aci_i
+        call    dc_step
         jmp     ac_ids
 @aci_i:
-        call    ac_name
+        call    ac_vnm
         call    ac_nty
         mov     ah,[g_ui.ac.ac_ty]
         test    ah,ah
@@ -923,13 +798,6 @@ ac_ids:
         call    ac_add
         pop     esi
         jmp     ac_ids
-@aci_q:
-        lodsb
-        test    al,al
-        jz      @aci_r
-        cmp     al,'"'
-        jne     @aci_q
-        jmp     ac_ids
 @aci_r:
         ret
 
@@ -939,7 +807,7 @@ ac_ids:
 ; ::::::::::::::
 ac_open:
         mov     [g_ui.ac.ac_dp],0
-        mov     esi,offset g_ui.bf.sy_buf  ; the line to the word, as ac_ctx left it
+        mov     esi,offset g_cbuf       ; the line to the word, as ac_ctx left it
         mov     [g_ui.ac.ac_cur],1
         mov     ax,[g_ui.ed.ed_line]
 @aop_l:
@@ -950,20 +818,13 @@ ac_open:
         mov     [g_ui.ac.ac_cur],0
         dec     ax
         js      @aop_r
-        mov     edi,offset g_ui.bf.sy_buf
-        push    eax
-        call    tx_get
-        movzx   ecx,cx
-        add     edi,ecx
-        mov     byte ptr [edi],0
-        pop     eax
-        mov     esi,offset g_ui.bf.sy_buf
+        call    ac_line
         jmp     @aop_l
 @aop_r:
         ret
 
 ; ::::::::::::::
-; ac_evs - the line at SI's FORs and NEXTs, taken last first against the
+; ac_evs - the body at SI's FORs and NEXTs, taken last first against the
 ; NEXTs after them (ac_dp).
 ;
 ; out:    CF  clear: the open FOR found, in ac_on
@@ -972,53 +833,41 @@ ac_evs:
         mov     edi,offset g_ui.bf.ac_ev  ; events: FOR its name; NEXT 0, a count
         xor     ebx,ebx
 @aev_l:
-        lodsb
+        mov     al,[esi]
         test    al,al
         jz      @aev_b
-        cmp     al,'"'
-        je      @aev_q
-        dec     esi
-        call    ac_kw
-        jc      @aev_n
-        movzx   ecx,cx
-        add     esi,ecx
         cmp     al,TK_REM
         je      @aev_b
         cmp     al,TK_DATA
         je      @aev_b
+        push    eax
+        call    dc_step
+        pop     eax
         cmp     al,TK_FOR
         je      @aev_f
         cmp     al,TK_NEXT
         jne     @aev_l
-        xor     ecx,ecx ; NEXT: its names
+        xor     ecx,ecx                 ; NEXT: its names
 @aev_x:
-        lodsb
-        cmp     al,' '
-        je      @aev_x
+        mov     al,[esi]
         cmp     al,','
-        je      @aev_x
-        dec     esi
-        call    ac_alpha
-        jc      @aev_c
-        push    edi
-        call    ac_name
-        pop     edi
+        je      @aev_m
+        cmp     al,M_VAR
+        jne     @aev_c
+        call    dc_item
         inc     cx
+        jmp     @aev_x
+@aev_m:
+        inc     esi
         jmp     @aev_x
 @aev_c:
         mov     byte ptr [edi],0
         mov     [edi+1],cl
         jmp     @aev_s
 @aev_f:
-        lodsb
-        cmp     al,' '
-        je      @aev_f
-        dec     esi
-        call    ac_alpha
-        jc      @aev_l
-        push    edi
-        call    ac_name
-        pop     edi
+        cmp     byte ptr [esi],M_VAR
+        jne     @aev_l
+        call    ac_vnm
         push    esi
         mov     esi,offset g_ui.ac.ac_nm
         mov     ecx,AC_SZ
@@ -1030,16 +879,6 @@ ac_evs:
         jae     @aev_l
         add     edi,AC_SZ
         inc     bx
-        jmp     @aev_l
-@aev_n:
-        inc     esi
-        jmp     @aev_l
-@aev_q:
-        lodsb
-        test    al,al
-        jz      @aev_b
-        cmp     al,'"'
-        jne     @aev_q
         jmp     @aev_l
 @aev_b:
         test    bx,bx                   ; last first
@@ -1073,7 +912,6 @@ ac_evs:
 @aev_no:
         stc
         ret
-
 ; ::::::::::::::
 ; ac_add - CX characters at SI to ac_list, in capitals, once, in order of
 ; rank then text; when they start with the word and are longer. A variable
@@ -1553,22 +1391,16 @@ ac_prev:
         push    ebx
         push    edx
         mov     ax,[esi-1+TACE.xt]
-        mov     edi,offset g_ui.bf.sy_buf
-        call    tx_get
-        movzx   ebx,cx
-        mov     byte ptr [edi+ebx],0
-        mov     esi,edi
-@apv_s:
-        lodsb
-        cmp     al,' '
-        je      @apv_s
-        cmp     al,'0'
-        jb      @apv_t
-        cmp     al,'9'
-        jbe     @apv_s
+        call    ac_line
+        xor     edi,edi                 ; its text from the item after the label
+        cmp     byte ptr [esi],M_INT
+        jne     @apv_t
+        cmp     byte ptr [esi+5],0
+        je      @apv_e
+        movzx   edi,byte ptr [g_lxcol+5]
 @apv_t:
-        dec     esi
-        mov     edi,esi ; its length, to the box's edge
+        add     edi,offset g_ui.bf.sy_buf
+        mov     esi,edi                 ; its length, to the box's edge
 @apv_n:
         lodsb
         test    al,al
@@ -1584,6 +1416,7 @@ ac_prev:
         add     dl,7
         mov     ah,A_BAR
         call    sc_strn
+@apv_e:
         pop     edx
         pop     ebx
         ret

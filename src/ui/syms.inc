@@ -257,6 +257,8 @@ externdef lx_line:near
 externdef dc_item:near
 externdef dc_line:near
 externdef dc_proc:near
+externdef dc_step:near
+externdef dc_tail:near
 externdef g_dast:byte
 externdef g_etsz:byte
 externdef g_fld:byte

@@ -59,6 +59,115 @@ dc_proc:
         mov     al,ah
         ret
 
+if AC
+; ::::::::::::::
+; dc_tail - the statement a body ends in.
+;
+; in:     SI  the body
+; out:    SI  that statement's first item, past a line number
+;         CF  set: the body ends in a string, REM's or DATA's text
+; keeps:  all but EAX, ESI
+; ::::::::::::::
+dc_tail:
+        push    edx
+        cmp     byte ptr [esi],M_INT
+        jne     @dct_s
+        add     esi,5
+@dct_s:
+        mov     edx,esi
+@dct_l:
+        mov     al,[esi]
+        test    al,al
+        jz      @dct_x
+        cmp     al,':'
+        je      @dct_c
+        cmp     al,TK_REM
+        je      @dct_y
+        cmp     al,'"'
+        je      @dct_q
+        cmp     al,TK_DATA
+        je      @dct_d
+        call    dc_item
+        jmp     @dct_l
+@dct_c:
+        inc     esi
+        jmp     @dct_s
+@dct_q:
+        inc     esi                     ; a string: open at the end?
+        mov     al,[esi]
+        test    al,al
+        jz      @dct_y
+        cmp     al,'"'
+        jne     @dct_q
+        inc     esi
+        jmp     @dct_l
+@dct_d:
+        xor     ah,ah                   ; DATA's text: to a ':' out of quotes
+@dct_dl:
+        inc     esi
+        mov     al,[esi]
+        test    al,al
+        jz      @dct_y
+        cmp     al,'"'
+        jne     @F
+        xor     ah,1
+@@:
+        test    ah,ah
+        jnz     @dct_dl
+        cmp     al,':'
+        jne     @dct_dl
+        jmp     @dct_c
+@dct_y:
+        stc
+@dct_x:
+        mov     esi,edx
+        pop     edx
+        ret
+
+; ::::::::::::::
+; dc_step - dc_item, a number kept as text stepped whole: digits, '.', an
+; exponent and its sign, '#' or '!'.
+;
+; keeps:  all but ESI, EAX
+; ::::::::::::::
+dc_step:
+        mov     al,[esi]
+        cmp     al,'.'
+        je      @dcs_l
+        sub     al,'0'
+        cmp     al,10
+        jae     dc_item
+@dcs_l:
+        inc     esi
+        mov     al,[esi]
+        cmp     al,'.'
+        je      @dcs_l
+        cmp     al,'E'
+        je      @dcs_e
+        cmp     al,'D'
+        je      @dcs_e
+        cmp     al,'#'
+        je      @dcs_t
+        cmp     al,'!'
+        je      @dcs_t
+        sub     al,'0'
+        cmp     al,10
+        jb      @dcs_l
+        ret
+@dcs_e:
+        mov     al,[esi+1]
+        cmp     al,'+'
+        je      @dcs_s
+        cmp     al,'-'
+        jne     @dcs_l
+@dcs_s:
+        inc     esi
+        jmp     @dcs_l
+@dcs_t:
+        inc     esi
+        ret
+endif
+
 ; ::::::::::::::
 ; dc_line - enter the declarations of the body in cbuf.
 ;

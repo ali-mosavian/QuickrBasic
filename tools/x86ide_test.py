@@ -410,6 +410,11 @@ def play() -> None:
     complete('print "pr')  # nor in a string
     assert line() == 'PRINT "PR' and look()[24].endswith(":017"), look()[24]
     ctrl_y()
+    # The editor's own reader took all after DATA as DATA's: no statement after its ':'.
+    complete("data 1:pr")
+    assert line() == "DATA 1:PRINT", line()
+    press("esc")
+    ctrl_y()
     scr = complete("x$=")  # a string wanted: string names and functions only
     assert [r.split()[0] for r in scr[7:10]] == ["X$", "CHR$", "LEFT$"], scr
     assert not any(r.split() and r.split()[0] in ("I", "INT", "FN") for r in scr[7:16]), scr
