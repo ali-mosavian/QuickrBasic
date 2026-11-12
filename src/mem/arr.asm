@@ -257,8 +257,9 @@ arr_size:
 ; ::::::::::::::
 ; arr_free - drop array EBX: its header and data go, what follows them moves
 ; down. The headers' data pointers, the string blocks' owners in the moved
-; data, and the headers kept in vt and on the save stack follow; one kept
-; that was this array's becomes afrep. Its strings die with their Descs.
+; data, the headers kept in vt and on the save stack, and the parameters'
+; cells in the moved data follow; a header kept that was this array's
+; becomes afrep. Its strings die with their Descs.
 ;
 ; in:     EBX    the id, an array
 ;         afrep  what this array's other references become
@@ -330,7 +331,13 @@ arr_free:
         jecxz   @afr_s2
 @afr_t:
         lea     eax,[g_vt+ecx*4]
+        test    [g_sinfo+ecx],80h
+        jz      @F
         call    @afr_r
+        jmp     @afr_u
+@@:
+        call    @afr_d
+@afr_u:
         loop    @afr_t
 @afr_s2:
         mov     edx,offset g_lsav       ; the save stack's arrays
@@ -342,6 +349,11 @@ arr_free:
         jz      @F
         lea     eax,[edx+4]
         call    @afr_r
+@@:
+        cmp     word ptr [edx+2],0FFFEh ; a parameter's cell before
+        jne     @F
+        lea     eax,[edx+12]
+        call    @afr_d
 @@:
         add     edx,LSSZ
         jmp     @afr_l
@@ -365,6 +377,20 @@ arr_free:
         mov     ebx,[g_afhs]
         sub     [eax],ebx
 @afr_rr:
+        ret
+; [EAX], a parameter's cell: in the data moved down, it follows.
+@afr_d:
+        mov     ebx,[eax]
+        sub     ebx,ebp
+        jb      @afr_dr                 ; under the freed data
+        cmp     ebx,[g_afsz]
+        jb      @afr_dr
+        mov     ebx,[eax]
+        cmp     ebx,[g_afend]
+        jae     @afr_dr
+        mov     ebx,[g_afsz]
+        sub     [eax],ebx
+@afr_dr:
         ret
 
 ; ::::::::::::::

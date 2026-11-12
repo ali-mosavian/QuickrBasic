@@ -288,6 +288,17 @@ CASES = {
     # under OPTION BASE 1.
     "qb_ubnderase": ("REDIM v(3)\r\nERASE v\r\nPRINT UBOUND(v)\r\n", "Subscript out of range", None),
     "qb_lbndimp": ("OPTION BASE 1\r\nIF 0 THEN w(1) = 1\r\nPRINT LBOUND(w); UBOUND(w)\r\n", " 1  10 \r\n", "ERROR"),
+    # Parameters were copied in and out: a variable passed twice, or SHARED and passed, was two
+    # inside the call, the last copy back winning.
+    "qb_alias": ("DECLARE SUB s (a, b)\r\nx = 1: s x, x: PRINT x\r\nSUB s (a, b)\r\na = 5: PRINT b;\r\nEND SUB\r\n",
+                 " 5  5 \r\n", "ERROR"),
+    "qb_aliasshr": ("DECLARE SUB s (a$)\r\nDIM SHARED g$\r\ng$ = \"x\": s g$: PRINT g$\r\n"
+                    "SUB s (a$)\r\na$ = \"y\": PRINT g$;\r\ng$ = \"z\": PRINT a$\r\nEND SUB\r\n", "yz\r\nz\r\n", "ERROR"),
+    "qb_refnest": ("DECLARE SUB s (a#)\r\nDECLARE SUB t (b#)\r\nx# = 1: s x#: PRINT x#\r\n"
+                   "SUB s (a#)\r\nt a#: a# = a# * 10\r\nEND SUB\r\nSUB t (b#)\r\nb# = b# + 1\r\nEND SUB\r\n", " 20 \r\n", "ERROR"),
+    "qb_reffor": ("DECLARE SUB s (a)\r\ns x: PRINT x\r\nSUB s (a)\r\nFOR a = 1 TO 3: NEXT\r\nEND SUB\r\n", " 4 \r\n", "ERROR"),
+    "qb_refmove": ("DECLARE SUB s (a, b$)\r\nREDIM SHARED t(100)\r\nREDIM v(3), w$(3)\r\ns v(2), w$(1): PRINT v(2); w$(1)\r\n"
+                   "SUB s (a, b$)\r\nERASE t\r\na = 7: b$ = \"m\"\r\nEND SUB\r\n", " 7 m\r\n", "ERROR"),
     "qb_gosubsc": ('DECLARE SUB s ()\r\ns\r\nEND\r\nm: PRINT "m": RETURN\r\nSUB s\r\nGOSUB m\r\nEND SUB\r\n',
                    "Subprogram error", None),
     # Unhandled: ERROR n's message; RESUME with no error; ON ERROR GOTO 0 in the handler.

@@ -169,7 +169,10 @@ oplist  macro   m
         m       D_FN,op_dfn,2,FX
         m       D_POW,op_dpow,1,FX
         m       DBG,op_dbg,1,0
-        m       P_REF,op_pref,6,0
+        m       P_REF,op_pref,3,0
+        m       V_ADDR,op_vaddr,3,0
+        m       V_LD,op_vld,4,FX
+        m       V_ST,op_vst,4,0
         endm
 
 JSIZE   = 7                     ; a jump op: target line:2 boff+mode:2, addr:2

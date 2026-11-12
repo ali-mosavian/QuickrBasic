@@ -347,12 +347,13 @@ op_for:
 for_in:
         movzx   edi,word ptr [ebx+F_ID]
         mov     cl,[g_sinfo+edi]
+        mov     edi,[g_vt+edi*4]        ; its cell
         and     cl,3
         cmp     cl,1
         je      @fin_i
         cmp     word ptr [ebx+F_LIMIT+2],0FFFFh
         je      @fin_c
-        fld     dword ptr [VARBASE+edi*4]
+        fld     dword ptr [edi]
         fcomp   dword ptr [ebx+F_LIMIT]
         fnstsw  ax
         sahf
@@ -374,7 +375,7 @@ for_in:
         mov     dl,[ebx+F_STEP+1]
         jmp     @fin_s
 @fin_i:
-        mov     eax,[VARBASE+edi*4]
+        mov     eax,[edi]
         mov     ecx,[ebx+F_LIMIT]
         mov     dl,[ebx+F_STEP+3]
 @fin_s:
@@ -411,7 +412,8 @@ for_mki:
         jnz     @fmk_a
         push    eax
         movzx   edi,word ptr [ebp+F_ID]
-        mov     eax,[VARBASE+edi*4]
+        mov     edi,[g_vt+edi*4]
+        mov     eax,[edi]
         mov     [ebp+F_CACHE],eax
         call    flt_w16
         jnz     @fmk_b
@@ -488,7 +490,7 @@ for_any:
         movzx   edi,word ptr [ebx+F_ID]
         mov     cl,[g_sinfo+edi]
         and     cl,3
-        lea     ebp,[VARBASE+edi*4]     ; the variable
+        mov     ebp,[g_vt+edi*4]        ; the variable's cell
         mov     [g_state.rn.fvp],ebp
         cmp     cl,1
         je      @fa_pct
@@ -1076,9 +1078,10 @@ ex_bjump:
 ; frame. Its arguments go to save entries (a string copied unless a
 ; temporary's), its locals are saved there and zeroed, then the entries to
 ; its parameters; on at its body. A value: an INT, a FLOAT, a string's Desc,
-; an array's id; a ref: the variable PRET stores the parameter back to, or
-; FFFFh; or, 8000h + an array's, a record's id, below it its element's
-; offset in the data: P.REF's.
+; an array's id. A ref: FFFFh none; an array's id, PRET's store back; else
+; a cell: the scalar parameter is it, vt its address, while the procedure
+; runs, its value none. An entry: id:2, ref:2 (FFFEh a scalar's), the
+; value:8, a scalar's cell before:4.
 ;
 ; error:  Out of stack space  a stack is full
 ; ::::::::::::::
@@ -1104,21 +1107,24 @@ op_pcall:
         jz      @pca_s
 @pca_a:                                 ; the arguments, the last first
         sub     edi,LSSZ
-        dpop    eax
-        mov     [edi+2],ax
-        cmp     ax,0FFFFh
-        je      @F
-        test    ah,80h                  ; P.REF's: the offset too
-        jz      @F
-        dpop    dword ptr [edi+12]
-@@:
         movzx   ebx,word ptr [ebp+P_PAR]
         add     ebx,ecx
         movzx   ebx,word ptr [g_ppar+ebx*2-2]
         mov     [edi],bx
+        dpop    eax                     ; the ref
+        mov     [edi+2],ax
+        mov     dl,[g_sinfo+ebx]
+        test    dl,dl
+        js      @pca_r
+        cmp     eax,0FFFFh
+        je      @pca_r
+        mov     word ptr [edi+2],0      ; a cell: the parameter's, no value
+        mov     [edi+12],eax
+        add     esp,8
+        jmp     @pca_c
+@pca_r:
         pop     eax
         pop     dword ptr [edi+8]       ; a DOUBLE's high half
-        mov     dl,[g_sinfo+ebx]
         test    dl,dl
         js      @pca_y
         and     dl,3
@@ -1126,7 +1132,9 @@ op_pcall:
         je      @pca_t
 @pca_v:
         mov     [edi+4],eax
-        loop    @pca_a
+@pca_c:
+        dec     ecx
+        jnz     @pca_a
         jmp     @pca_s
 @pca_y:
         cmp     dl,81h                  ; a record: made if not yet
@@ -1209,6 +1217,19 @@ op_pcall:
         cmp     edi,[g_state.rn.ppend]
         jae     @pcb_d
         movzx   ebx,word ptr [edi]
+        test    [g_sinfo+ebx],80h
+        jnz     @pcb_a
+        call    var_cell                ; a scalar: vt its cell, the old one
+        cmp     word ptr [edi+2],0      ; kept
+        jne     @F
+        mov     ecx,[edi+12]
+@@:
+        xchg    ecx,[g_vt+ebx*4]
+        mov     [edi+12],ecx
+        cmp     word ptr [edi+2],0
+        mov     word ptr [edi+2],0FFFEh
+        je      @pcb_n                  ; the argument's: no value
+@pcb_a:
         mov     eax,[edi+4]
         mov     cl,[g_sinfo+ebx]
         test    cl,cl
@@ -1269,8 +1290,8 @@ op_pcall:
 
 ; ::::::::::::::
 ; op_pret - PRET: back from the procedure: its frame and the frames above
-; it go; the parameters with a ref are stored back to it after the locals
-; are restored; a FUNCTION's result is pushed.
+; it go; the scalar parameters' cells back, an array's to its ref after
+; the locals are restored; a FUNCTION's result is pushed.
 ;
 ; error:  ?RETURN WITHOUT GOSUB  no procedure's frame
 ; ::::::::::::::
@@ -1281,7 +1302,7 @@ op_pret:
 
 ; ::::::::::::::
 ; pr_pop - the innermost procedure's frame, and those above it, dropped as
-; its return does: its parameters to their refs, the caller's locals back,
+; its return does: its parameters' cells back, the caller's locals back,
 ; a FUNCTION's result kept (pres, pres8, lres).
 ;
 ; out:    EBX  the frame, cstk at it
@@ -1307,28 +1328,8 @@ pr_pop:
         cmp     word ptr [edx+2],0FFFFh
         je      @prt_pn
         movzx   ecx,word ptr [edx]
-        mov     al,[g_sinfo+ecx]
-        test    al,al
-        js      @prt_pa
-        test    al,SK_DBL
-        jz      @F
-        mov     eax,[SVBASE+ecx*8]
-        mov     [edx+4],eax
-        mov     eax,[SVBASE+ecx*8+4]
-        mov     [edx+8],eax
-        jmp     @prt_pn
-@@:
-        and     al,3
-        cmp     al,2
-        je      @prt_ps
-        mov     eax,[VARBASE+ecx*4]
-        mov     [edx+4],eax
-        jmp     @prt_pn
-@prt_ps:
-        lea     eax,[SVBASE+ecx*8]
-        lea     edi,[edx+4]
-        call    ls_mov
-        jmp     @prt_pn
+        test    [g_sinfo+ecx],80h
+        jz      @prt_pn
 @prt_pa:                                ; an array: its header, dynamic
         mov     eax,[g_vt+ecx*4]
         mov     [edx+4],eax
@@ -1416,68 +1417,24 @@ pr_pop:
         call    ls_mov
         jmp     @prt_ll
 @prt_o:
-        mov     edx,[ebx+F_LSP0]        ; the parameters to their refs
+        mov     edx,[ebx+F_LSP0]        ; the cells back, arrays to refs
 @prt_ol:
         cmp     edx,[ebx+F_LSP1]
         jae     @prt_x
         movzx   ecx,word ptr [edx+2]
         cmp     cx,0FFFFh
         je      @prt_on
-        test    ch,80h
-        jnz     @prt_oa
         movzx   eax,word ptr [edx]
-        mov     al,[g_sinfo+eax]
-        test    al,al
-        js      @prt_ob
-        test    al,SK_DBL
-        jz      @F
-        mov     eax,[edx+4]
-        mov     [SVBASE+ecx*8],eax
-        mov     eax,[edx+8]
-        mov     [SVBASE+ecx*8+4],eax
-        jmp     @prt_on
-@@:
-        and     al,3
-        cmp     al,2
-        je      @prt_os
-        mov     eax,[edx+4]
-        mov     [VARBASE+ecx*4],eax
-        jmp     @prt_on
-@prt_os:
-        lea     eax,[edx+4]
-        lea     edi,[SVBASE+ecx*8]
-        call    ls_mov
+        cmp     cx,0FFFEh               ; a scalar: its old cell back
+        jne     @prt_ob
+        mov     ecx,[edx+12]
+        mov     [g_vt+eax*4],ecx
         jmp     @prt_on
 @prt_ob:                                ; an array: the one it ends as
         mov     eax,[edx+4]
         mov     [g_vt+ecx*4],eax
         mov     al,[edx+8]
         mov     [g_adyn+ecx],al
-        jmp     @prt_on
-@prt_oa:                                ; to an element: its array's data now
-        and     ecx,7FFFh
-        mov     ecx,[g_vt+ecx*4]
-        jecxz   @prt_on                 ; ERASEd
-        mov     edi,[ecx+AH_PTR]
-        add     edi,[edx+12]
-        movzx   eax,word ptr [edx]
-        mov     al,[g_sinfo+eax]
-        test    al,SK_DBL
-        jz      @F
-        mov     eax,[edx+8]
-        mov     [edi+4],eax
-        jmp     @prt_o4
-@@:
-        and     al,3
-        cmp     al,2
-        je      @prt_os2
-@prt_o4:
-        mov     eax,[edx+4]
-        mov     [edi],eax
-        jmp     @prt_on
-@prt_os2:
-        lea     eax,[edx+4]
-        call    ls_mov
 @prt_on:
         add     edx,LSSZ
         jmp     @prt_ol

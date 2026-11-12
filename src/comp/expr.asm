@@ -1078,6 +1078,12 @@ cm_addr:
         pop     eax
         jmp     cm_byt
 @@:
+        mov     ecx,ebx                 ; a parameter's: its cell, the
+        call    var_ispar               ; argument's
+        jnc     @F
+        mov     al,O_V_ADDR
+        jmp     cm_opid
+@@:
         lea     eax,[VARBASE+ebx*4]
         mov     dl,[g_sinfo+ebx]
         test    dl,SK_DBL

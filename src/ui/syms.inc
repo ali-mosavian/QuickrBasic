@@ -36,6 +36,9 @@ externdef op_sldt:near
 externdef op_ssta1:near
 externdef op_sstan:near
 externdef op_sstv:near
+externdef op_vaddr:near
+externdef op_vld:near
+externdef op_vst:near
 externdef rec_get:near
 ; vm/flow.asm
 externdef ex_dcode:near
@@ -393,7 +396,6 @@ externdef cm_tod:near
 externdef cm_tof:near
 externdef cm_toi:near
 externdef cm_tos:near
-externdef cm_w:near
 externdef cm_write:near
 externdef et_sfx:near
 externdef g_cbuf:byte
@@ -407,6 +409,7 @@ externdef lbl_nam:near
 externdef st_eos:near
 externdef st_get:near
 externdef var_id:near
+externdef var_ispar:near
 externdef var_par:near
 externdef var_scope:near
 ; comp/expr.asm
@@ -457,6 +460,7 @@ externdef g_vt:dword
 externdef g_vtyp:byte
 externdef nam_find:near
 externdef sym_init:near
+externdef var_cell:near
 externdef var_clr:near
 externdef var_find:near
 ; mem/scope.asm

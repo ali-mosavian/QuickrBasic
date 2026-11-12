@@ -33,9 +33,13 @@ var_clr:
         xor     ebx,ebx
 @vc_a:
         test    [g_sinfo+ebx],80h
-        jz      @vc_n
+        jz      @vc_c
         mov     [g_vt+ebx*4],0
         mov     [g_adyn+ebx],0
+        jmp     @vc_n
+@vc_c:
+        call    var_cell                ; a parameter's bound elsewhere: back
+        mov     [g_vt+ebx*4],ecx
 @vc_n:
         inc     ebx
         cmp     bx,[g_state.lx.nsyms]
@@ -49,6 +53,29 @@ var_clr:
         and     [g_state.sg.tspb],0
         mov     [g_state.rn.lsp],offset g_lsav
         jmp     rd_first
+
+; ::::::::::::::
+; var_cell - scalar EBX's own cell: an INT's, a FLOAT's in VARBASE, a
+; DOUBLE's, a string's Desc in SVBASE. vt holds a scalar's cell: its own,
+; a parameter's the argument's while its procedure runs.
+;
+; out:    ECX  it
+; keeps:  all but ECX
+; ::::::::::::::
+var_cell:
+        lea     ecx,[VARBASE+ebx*4]
+        test    [g_sinfo+ebx],SK_DBL
+        jnz     @vcl_s
+        push    eax
+        mov     al,[g_sinfo+ebx]
+        and     al,3
+        cmp     al,2
+        pop     eax
+        jne     @vcl_r
+@vcl_s:
+        lea     ecx,[SVBASE+ebx*8]
+@vcl_r:
+        ret
 
 ; ::::::::::::::
 ; sym_init - no names, no variables.
@@ -254,10 +281,10 @@ var_find:
         and     [g_vt+ebx*4],0
         test    dl,dl
         js      @vf_a
-        lea     ecx,[VARBASE+ebx*4]
-        mov     [g_vt+ebx*4],ecx           ; a slot's variable is in its address
+        call    var_cell
+        mov     [g_vt+ebx*4],ecx
         and     word ptr [SVBASE+ebx*8+D_LEN],0
-        and     dword ptr [ecx],0
+        and     dword ptr [VARBASE+ebx*4],0
 @vf_a:
         inc     [g_state.lx.nsyms]
 @vf_ok:

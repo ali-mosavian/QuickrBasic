@@ -756,11 +756,14 @@ cm_opx:
         jmp     cm_byt
 
 ; ::::::::::::::
-; cm_opid - emit op AL, then the id CX.
+; cm_opid - emit op AL, then the id CX; a parameter's load, store through
+; its cell (cm_vop).
 ;
 ; in:     AL, CX  the op, the id
 ; ::::::::::::::
 cm_opid:
+        call    cm_vop
+        jc      cm_rts
         mov     dx,cx
 
 ; ::::::::::::::
@@ -1024,6 +1027,93 @@ var_decl:
         mov     al,E_VND
         jmp     err_raise
 @vdc_r:
+        ret
+
+; ::::::::::::::
+; cm_vop - op AL of variable CX, X.LD.V or X.ST.V of a parameter of the
+; procedure compiled: V.LD, V.ST CX kind instead.
+;
+; out:    CF  set: emitted
+; keeps:  ECX
+; ::::::::::::::
+cm_vop:
+        push    edx
+        mov     dx,O_V_LD               ; DH the kind: 0 4 bytes, 1 8, 2 a Desc
+        cmp     al,O_I_LD_V
+        je      @cvo_p
+        cmp     al,O_F_LD_V
+        je      @cvo_p
+        mov     dh,1
+        cmp     al,O_D_LD_V
+        je      @cvo_p
+        mov     dh,2
+        cmp     al,O_S_LD_V
+        je      @cvo_p
+        mov     dx,O_V_ST
+        cmp     al,O_I_ST_V
+        je      @cvo_p
+        cmp     al,O_F_ST_V
+        je      @cvo_p
+        mov     dh,1
+        cmp     al,O_D_ST_V
+        je      @cvo_p
+        mov     dh,2
+        cmp     al,O_S_ST_V
+        jne     @cvo_n
+@cvo_p:
+        call    var_ispar
+        jnc     @cvo_n
+        push    edx
+        mov     al,dl
+        mov     dx,cx
+        call    cm_opw
+        pop     eax
+        mov     al,ah
+        call    cm_byt
+        pop     edx
+        stc
+        ret
+@cvo_n:
+        pop     edx
+        clc
+        ret
+
+; ::::::::::::::
+; var_ispar - variable CX a scalar parameter of the procedure compiled?
+;
+; out:    CF  set: it is
+; keeps:  all
+; ::::::::::::::
+var_ispar:
+        push    eax
+        push    ebx
+        push    ecx
+        push    edx
+        movzx   eax,cx
+        test    [g_sinfo+eax],80h
+        jnz     @vip_n
+        movzx   edx,[g_state.cm.cproc]
+        test    edx,edx
+        jz      @vip_n
+        shl     edx,5
+        movzx   ebx,word ptr [g_prc+edx+P_PAR]
+        movzx   ecx,word ptr [g_prc+edx+P_NPAR]
+        jecxz   @vip_n
+@@:
+        cmp     ax,[g_ppar+ebx*2]
+        je      @vip_y
+        inc     ebx
+        loop    @B
+@vip_n:
+        clc
+        jmp     @vip_r
+@vip_y:
+        stc
+@vip_r:
+        pop     edx
+        pop     ecx
+        pop     ebx
+        pop     eax
         ret
 
 ; ::::::::::::::

@@ -137,35 +137,71 @@ op_raddra:
         dispatch
 
 ; ::::::::::::::
-; op_pref - P.REF id off k ( a -- x o r ): an argument by reference to the
-; element, the field off past a, of array or record id: its value, of kind
-; k (0 4 bytes, 1 8, 2 a string's Desc: its address); its offset in the
-; data, and 8000h + id, for op_pcall.
+; op_pref - P.REF off ( a -- 0 c ): an argument by reference to the element,
+; the field off past a: no value, the cell c for op_pcall.
 ; ::::::::::::::
 op_pref:
-        dpop    edi
-        movzx   eax,word ptr [esi+2]
-        add     edi,eax
+        dpop    eax
+        movzx   ecx,word ptr [esi]
+        add     esi,2
+        add     eax,ecx
+        dpush   0
+        dpush   eax
+        dispatch
+
+; ::::::::::::::
+; op_vaddr - V.ADDR id ( -- c ): scalar id's cell, a parameter's the
+; argument's.
+; ::::::::::::::
+op_vaddr:
         movzx   ebx,word ptr [esi]
-        mov     al,[esi+4]
-        add     esi,5
+        add     esi,2
+        dpush   [g_vt+ebx*4]
+        dispatch
+
+; ::::::::::::::
+; op_vld - V.LD id k ( -- x ): a parameter's value, through its cell; k 0 an
+; INT's, a FLOAT's, 1 a DOUBLE's, 2 a string's: its Desc.
+; ::::::::::::::
+op_vld:
+        movzx   ebx,word ptr [esi]
+        mov     edi,[g_vt+ebx*4]
+        mov     al,[esi+2]
+        add     esi,3
         cmp     al,1
-        je      @prf_d
-        ja      @prf_s
+        je      @vld_d
+        ja      @vld_s
         dpush   dword ptr [edi]
-        jmp     @prf_r
-@prf_d:
+        dispatch
+@vld_d:
         push    dword ptr [edi+4]
         push    dword ptr [edi]
-        jmp     @prf_r
-@prf_s:
+        dispatch
+@vld_s:
         dpush   edi
-@prf_r:
-        mov     eax,[g_vt+ebx*4]
-        sub     edi,[eax+AH_PTR]
-        dpush   edi
-        or      ebx,8000h
-        dpush   ebx
+        dispatch
+
+; ::::::::::::::
+; op_vst - V.ST id k ( x -- ): a parameter's store, through its cell.
+; ::::::::::::::
+op_vst:
+        movzx   ebx,word ptr [esi]
+        mov     edi,[g_vt+ebx*4]
+        mov     al,[esi+2]
+        add     esi,3
+        cmp     al,1
+        je      @vst_d
+        ja      @vst_s
+        dpop    dword ptr [edi]
+        dispatch
+@vst_d:
+        pop     dword ptr [edi]
+        pop     dword ptr [edi+4]
+        dispatch
+@vst_s:
+        mov     [g_state.sg.bpo],edi
+        dpop    eax
+        call    str_set
         dispatch
 
 ; ::::::::::::::

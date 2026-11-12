@@ -778,7 +778,6 @@ rc_ref:
         push    ecx
         mov     esi,edx
         call    rc_avar
-        mov     [g_rfid],bx
         push    ebx
         call    cm_subs0
         pop     edx
@@ -905,7 +904,6 @@ rc_nreca:
 rc_saddr:
         push    ecx
         call    rc_svar
-        mov     [g_rfid],bx
         mov     ecx,ebx
         mov     al,O_R_ADDR
         call    cm_opid
@@ -1250,8 +1248,9 @@ ct_args:
 
 ; ::::::::::::::
 ; ct_arg - an argument to parameter EAX: a variable alone is passed by
-; reference, an array's element, a record's number field by P.REF; n() an
-; array by its id; else the value. A CONST, BYVAL's, a DEF FN's: the value.
+; reference, its cell (V.ADDR), an array's element, a record's number field
+; too (P.REF); n() an array by its id; else the value. A CONST, BYVAL's, a
+; DEF FN's: the value.
 ;
 ; error:  Parameter type mismatch  a variable, an array, of another type
 ; ::::::::::::::
@@ -1273,16 +1272,16 @@ ct_arg:
         call    scp_con
         jc      @car_e
         jmp     @car_x
-@car_v:
-        push    esi
+@car_v:                                 ; no value, its cell
         call    var_id
-        pop     esi
         call    ct_ptm
         pop     edx
         push    ebx
-        call    cm_load
-        pop     eax
-        jmp     cm_lint
+        xor     eax,eax
+        call    cm_lint
+        pop     ecx
+        mov     al,O_V_ADDR
+        jmp     cm_opid
 @car_x:                                 ; an element, a field: P.REF, else
         push    esi                     ; the value
         push    edi
@@ -1301,7 +1300,6 @@ ct_arg:
         movzx   ecx,[g_cpar]
         cmp     al,[g_vtyp+ecx]
         jne     @cgr_n
-        mov     bx,[g_rfid]
         mov     dx,[g_rfoff]
         jmp     @cgr_t
 @cgr_a:
@@ -1334,32 +1332,15 @@ ct_arg:
         call    cm_byt
         pop     ebx
         xor     edx,edx
-@cgr_t:                                 ; BX the array, DX the offset
+@cgr_t:                                 ; DX the offset
         push    edx
         call    st_get
         call    ct_aend
         pop     edx
         jne     @cgr_n
-        add     esp,8
+        add     esp,12
         mov     al,O_P_REF
-        push    edx
-        mov     dx,bx
-        call    cm_opw
-        pop     edx
-        mov     [g_state.cm.wv],dx
-        call    cm_w
-        pop     edx
-        xor     eax,eax                 ; the kind: 0 4 bytes, 1 8, 2 a Desc
-        test    dl,SK_DBL
-        jnz     @cgr_d
-        and     dl,3
-        cmp     dl,2
-        jne     cm_byt
-        mov     al,2
-        jmp     cm_byt
-@cgr_d:
-        inc     eax
-        jmp     cm_byt
+        jmp     cm_opw
 @cgr_n:                                 ; a variable alone: by reference
         pop     edi
         pop     esi
@@ -2104,7 +2085,6 @@ g_rfnt  dd      ?                       ; rc_ref's: a prefix's TYPE
 g_rfet  db      ?                       ; rc_ref's field: ET_*, its offset, n
 g_rfoff dw      ?
 g_rffix dw      ?
-g_rfid  dw      ?                       ; its record, its array: the variable
 g_ctfet db      ?                       ; cm_lval's field: ET_*, n
 g_ctffix dw     ?
         .code
