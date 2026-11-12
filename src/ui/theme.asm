@@ -85,20 +85,21 @@ th_ah:
 ; the attribute controller's palette as the BIOS sets it: colour n's DAC
 g_acpal db      0,1,2,3,4,5,20,7,56,57,58,59,60,61,62,63
 ; ED SEL TTL BAR HOT STAT MSEL MHOT GRAY BPL CUR DLG DSEL DFOC SHD THB,
-; KW STR NUM COM NAM; then the 16 colours
+; KW STR NUM COM NAM FNM PAR TYP OP; then the 16 colours
 g_ths   label   byte
         db      17h,71h,71h,70h,7Fh,30h,07h,0Fh,78h,47h,1Fh,70h,07h,7Fh,08h,00h
-        db      1Bh,1Eh,1Dh,1Ah,17h     ; QBasic's, VGA's colours
+        db      1Bh,1Eh,1Dh,1Ah,17h,1Fh,1Ch,13h,13h ; QBasic's, VGA's colours
         db      0,0,0, 0,0,42, 0,42,0, 0,42,42, 42,0,0, 42,0,42, 42,21,0, 42,42,42
         db      21,21,21, 21,21,63, 21,63,21, 21,63,63, 63,21,21, 63,21,63
         db      63,63,21, 63,63,63
 ; One Dark's (Zed's): 0 the bars, 1 the text's ground, 3 a selection's, 5
-; keywords, 2 strings, 6 numbers, 8 comments
+; keywords, 2 strings, 6 numbers, 8 comments, 9 functions, 4 parameters, 11
+; types and operators
         db      17h,37h,39h,07h,0Fh,07h,3Fh,39h,08h,4Fh,3Fh,07h,3Fh,0Fh,08h,30h
-        db      15h,12h,16h,18h,17h
-        db      8,9,10, 10,11,13, 38,48,30, 15,17,20, 56,27,29, 49,30,55, 52,38,25
-        db      42,44,47, 23,24,28, 24,43,59, 38,48,30, 21,45,48, 56,27,29
-        db      49,30,55, 57,48,30, 55,55,57
+        db      15h,12h,16h,18h,17h,19h,14h,1Bh,1Bh
+        db      8,9,10, 10,11,13, 40,48,32, 15,17,20, 52,28,29, 45,29,51, 47,37,26
+        db      43,44,47, 23,24,27, 28,43,58, 40,48,32, 27,45,47, 52,28,29
+        db      45,29,51, 56,48,33, 55,55,57
 .erre ($ - g_ths) EQ 2*TH_SZ
 g_thn   db      0                       ; the theme shown
         .data?

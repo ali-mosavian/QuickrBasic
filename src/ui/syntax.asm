@@ -7,6 +7,9 @@
 ; data:     The line is tokenized as the compiler does it; each item of the
 ;           body, at its column (lxcol), gives its slot (A_KW ..) to the
 ;           columns from there to the next item's. hlc: a slot a column.
+;           hls: what the last item makes of the next: after AS or TYPE a
+;           type; after SUB, FUNCTION, DEF a name being declared, then its
+;           parameters in the ( ) after it, hld deep.
 ; ==========================================================================
 
 include x86f.inc
@@ -75,6 +78,8 @@ hl_line:
         mov     edi,offset g_hlbody
         call    lx_line
         mov     esi,offset g_hlbody
+        mov     [g_hls],0
+        mov     [g_hld],0
 @hxl_l:
         mov     ebx,esi                 ; EBX the item's column
         sub     ebx,offset g_hlbody
@@ -98,16 +103,51 @@ hl_line:
         je      @hxl_x
         cmp     al,80h
         jae     @hxl_k
+        cmp     al,'('
+        je      @hxl_o
+        cmp     al,')'
+        je      @hxl_z
+        mov     ah,A_OP
+        cmp     al,'\'
+        je      @hxl_p
         cmp     al,'.'
         je      @hxl_n
         sub     al,'0'
         cmp     al,10
         jb      @hxl_n
-        mov     ah,A_ED                 ; a ',' ':' '(' and the like
+@hxl_e0:
+        mov     ah,A_ED                 ; a ',' ':' and the like
         jmp     @hxl_p
+@hxl_o:                                 ; ( after the name: the parameters
+        test    [g_hls],HS_NAME
+        jz      @F
+        mov     [g_hld],1
+        jmp     @hxl_e0
+@@:
+        cmp     [g_hld],0
+        je      @hxl_e0
+        inc     [g_hld]
+        jmp     @hxl_e0
+@hxl_z:
+        cmp     [g_hld],0
+        je      @hxl_e0
+        dec     [g_hld]
+        jmp     @hxl_e0
 @hxl_v:
         movzx   eax,byte ptr [esi]      ; len name nam:2
         lea     esi,[esi+eax+3]
+        mov     ah,A_TYP
+        test    [g_hls],HS_AS
+        jnz     @hxl_p
+        test    [g_hls],HS_DEF
+        jz      @F
+        mov     ah,A_FNM
+        mov     cl,HS_NAME
+        jmp     @hxl_w
+@@:
+        mov     ah,A_PAR
+        cmp     [g_hld],0
+        jne     @hxl_p
         mov     ah,A_NAM
         jmp     @hxl_p
 @hxl_i:
@@ -179,20 +219,53 @@ hl_line:
         jne     @hxd_l
         jmp     @hxl_l
 @hxl_x:
-        inc     esi
-@hxl_k:
+        lodsb                           ; its second byte
+        mov     ah,A_TYP
+        cmp     al,TK1_ANY
+        je      @hxl_p
         mov     ah,A_KW
-        cmp     al,TK_PLUS              ; + - * / ^ > = <: plain
-        jb      @hxl_p
+        jmp     @hxl_p
+@hxl_k:
+        mov     ah,A_OP                 ; + - * / ^ > = <
+        cmp     al,TK_PLUS
+        jb      @F
         cmp     al,TK_POW
-        jbe     @F
+        jbe     @hxl_p
         cmp     al,TK_GT
-        jb      @hxl_p
+        jb      @F
         cmp     al,TK_LT
-        ja      @hxl_p
+        jbe     @hxl_p
 @@:
-        mov     ah,A_ED
+        mov     ah,A_TYP
+        cmp     al,TK_INTEGER
+        jb      @F
+        cmp     al,TK_STRING
+        jbe     @hxl_p
+@@:
+        mov     ah,A_KW
+        mov     cl,HS_AS
+        cmp     al,TK_AS
+        je      @hxl_w
+        cmp     al,TK_TYPE
+        je      @hxl_w
+        mov     cl,HS_DEF
+        cmp     al,TK_SUB
+        je      @hxl_w
+        cmp     al,TK_FUNCTION
+        je      @hxl_w
+        cmp     al,TK_DEF
+        je      @hxl_w
+        cmp     al,TK_FN                ; DEF FN: the name's
+        jne     @hxl_p
+        test    [g_hls],HS_DEF
+        jz      @hxl_p
+        mov     ah,A_FNM
+@hxl_w:
+        mov     [g_hls],cl              ; for the next item
+        jmp     @hxl_q
 @hxl_p:
+        mov     [g_hls],0
+@hxl_q:
         call    @hxl_f
         jmp     @hxl_l
 @hxl_t:
@@ -209,9 +282,15 @@ hl_line:
 @@:
         ret
 
+HS_AS   = 1
+HS_DEF  = 2
+HS_NAME = 4
+
         .data
 g_hlon  db      1                       ; Syntax Highlighting
         .data?
+g_hls   db      ?
+g_hld   db      ?
 g_hlen  dd      ?
 g_hlc   db      LNMAX+1 dup(?)
 g_hlsrc db      LNBUF dup(?)

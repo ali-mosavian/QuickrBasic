@@ -512,15 +512,17 @@ def play() -> None:
     press(f"0x{0x2F:x}", "p")
     assert titles() == [1, 21], titles()
 
-    # Syntax highlighting from the compiler's lexer: keywords, strings, numbers, comments by the
-    # theme; Options' One Dark and QBasic Colors, Syntax Highlighting off; Split Vertically.
+    # Syntax highlighting from the compiler's lexer: keywords, strings, numbers, comments, a
+    # declared name, its parameters, types, operators by the theme; Options' One Dark and QBasic
+    # Colors, Syntax Highlighting off; Split Vertically.
     if flat:
         press(f"0x{ALT_F:x}", "n")
         if any("NOT SAVED" in r for r in look()):
             press("n")
-        for c in 'PRINT "a"; 12: REM c\n':
-            if c == '"':  # keys() has no '"'
-                s.send({"cmd": "key", "scancode": 0x28, "ascii": 0x22, "stop": True})
+        raw = {'"': 0x28, "(": 0x0A, ")": 0x0B, "+": 0x0D}  # keys() has none of these
+        for c in 'PRINT "a"; 12: REM c\nDEF FNf(v) = v + 1: DIM x AS INTEGER\n':
+            if c in raw:
+                s.send({"cmd": "key", "scancode": raw[c], "ascii": ord(c), "stop": True})
                 s.run_to_key(3000)
                 s.resume(60)
             else:
@@ -529,8 +531,13 @@ def play() -> None:
         assert chars(2)[1:21] == b'PRINT "a"; 12: REM c', chars(2)
         want = [0x1B] * 6 + [0x1E] * 3 + [0x17] * 2 + [0x1D] * 2 + [0x17] * 2 + [0x1A] * 5
         assert list(attrs(2)[1:21]) == want, attrs(2)[1:21].hex()
+        # were all keyword or plain: DEF FNf(v) = v + 1: DIM x AS INTEGER
+        want = [0x1B] * 4 + [0x1F] * 3 + [0x17, 0x1C] + [0x17] * 2 + [0x13] * 2 + [0x17] * 2 + [0x13] * 2
+        want += [0x1D] + [0x17] * 2 + [0x1B] * 4 + [0x17] * 2 + [0x1B] * 3 + [0x13] * 7
+        assert list(attrs(3)[1:37]) == want, attrs(3)[1:37].hex()
         press(f"0x{0x18:x}", "d")
         assert list(attrs(2)[1:21:5]) == [0x15, 0x15, 0x17, 0x18], attrs(2)[1:21].hex()
+        assert [attrs(3)[1 + i] for i in (0, 4, 8, 11, 29)] == [0x15, 0x19, 0x14, 0x1B, 0x1B], attrs(3).hex()
         press(f"0x{0x18:x}", "q")
         press(f"0x{0x18:x}", "h")
         assert set(attrs(2)[1:21]) == {0x17}, attrs(2)[1:21].hex()
