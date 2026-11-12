@@ -88,6 +88,26 @@ CASES = {
                    'x$ = "abcdefghij": FOR k = 1 TO 9: x$ = x$ + x$: NEXT\r\n'
                    'FOR i = 1 TO 1000: c$ = x$ + STR$(i): NEXT\r\nPRINT b$\r\n',
                    "xy\r\n", "ERROR"),
+    "qb_procs": ("x = 5: CALL hi(3): hi 4: PRINT sq(x) + 1\r\ny = 10: bump y: PRINT y: bump (y): PRINT y\r\n"
+                 "END\r\nSUB hi (n)\r\nPRINT \"hi\"; n\r\nEND SUB\r\nFUNCTION sq (x)\r\nsq = x * x\r\nEND FUNCTION\r\n"
+                 "SUB bump (v)\r\nv = v + 1\r\nEND SUB\r\n",
+                 "hi 3 \r\nhi 4 \r\n 26 \r\n 11 \r\n 11 \r\n", "ERROR"),
+    # PCALL bound a string argument the wrong way round: a$ was empty in the procedure.
+    "qb_strparam": ('PRINT nm$("bob") + "!"\r\nFUNCTION nm$ (a$)\r\nnm$ = "<" + a$ + ">"\r\nEND FUNCTION\r\n',
+                    "<bob>!\r\n", "ERROR"),
+    # A parameter's AS type was not entered: the body's n was another variable, a SINGLE.
+    "qb_paramas": ("c% = 4: inc c%: PRINT c%\r\nSUB inc (n AS INTEGER)\r\nn = n + 1\r\nEND SUB\r\n", " 5 \r\n", "ERROR"),
+    # STATIC n in a FUNCTION took the module's DIM SHARED n: the sequence printed 100 101.
+    "qb_static": ("DIM SHARED n AS INTEGER: n = 99: PRINT f; f; n\r\nFUNCTION f\r\nSTATIC n AS INTEGER\r\n"
+                  "n = n + 1: f = n\r\nEND FUNCTION\r\n", " 1  2  99 \r\n", "ERROR"),
+    # The control stack kept the C64's 191 bytes: fib(12) in a FOR was OUT OF MEMORY.
+    "qb_recurse": ("DEFINT A-Z\r\nFOR i = 12 TO 12: PRINT fib(i): NEXT\r\nFUNCTION fib (n)\r\n"
+                   "IF n < 2 THEN fib = n ELSE fib = fib(n - 1) + fib(n - 2)\r\nEND FUNCTION\r\n", " 144 \r\n", "ERROR"),
+    # DIM a(0 TO 0) was a SYNTAX ERROR; a STATIC FUNCTION's DIM ran again: REDIM'D ARRAY.
+    "qb_dimto": ("PRINT f; f\r\nFUNCTION f STATIC\r\nDIM c(0 TO 0)\r\nc(0) = c(0) + 1: f = c(0)\r\nEND FUNCTION\r\n",
+                 " 1  2 \r\n", "ERROR"),
+    "qb_exitsub": ("k = 7: s: s: PRINT k\r\nSUB s\r\nSHARED k\r\nFOR i = 1 TO 10\r\nIF i = 3 THEN EXIT SUB\r\n"
+                   "PRINT i;\r\nk = k + 1\r\nNEXT\r\nEND SUB\r\n", " 1  2  1  2  11 \r\n", "ERROR"),
     "int32_lit": ("A%=65535:PRINT A%*2\r\n", " 131070 \r\n", "ERROR"),
 }
 

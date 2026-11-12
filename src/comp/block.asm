@@ -15,6 +15,9 @@
 ;           A target is a position and a mode: 0 the statement, 1 past the
 ;           JMP it starts with, 2 the statement after it. A jump op holds one
 ;           and the address it resolves to (vm/flow.asm, ex_btgt).
+;           SUB and FUNCTION ... END give g_prc an entry (def.inc P_*): its
+;           body, its lines, its parameters' variables in g_ppar, the
+;           FUNCTION's result variable, the target past its END.
 ; calls:
 ;   cm_blocks          each line
 ;     bk_line          each statement, and those after THEN and ELSE
@@ -45,6 +48,9 @@ cm_blocks:
         pushad
         and     [g_state.lnk.nblk],0
         and     [g_state.lnk.bsp],0
+        mov     [g_state.lnk.nprc],1
+        and     [g_state.lnk.nppar],0
+        and     [g_state.lnk.cprc],0
         mov     ebx,PROGBASE
 @cbk_l:
         movzx   ecx,byte ptr [g_progb+ebx]
@@ -58,6 +64,14 @@ cm_blocks:
         add     ebx,ecx
         jmp     @cbk_l
 @cbk_d:
+        movzx   eax,[g_state.lnk.cprc]  ; a SUB with no END SUB
+        test    eax,eax
+        jz      @F
+        shl     eax,5
+        mov     ax,word ptr [g_prc+eax+P_FIRST]
+        mov     [g_state.rn.ln],ax
+        jmp     err_sn
+@@:
         movzx   eax,[g_state.lnk.bsp]
         test    eax,eax
         jz      @cbk_r
@@ -170,6 +184,10 @@ bk_stmt:
         je      @bks_nx
         cmp     al,TK_EXIT
         je      @bks_ex
+        cmp     al,TK_SUB
+        je      @bks_sub
+        cmp     al,TK_FUNCTION
+        je      @bks_fun
         cmp     al,TK_END
         jne     @bks_r
         mov     al,[esi+1]
@@ -177,7 +195,141 @@ bk_stmt:
         je      @bks_ef
         cmp     al,TK_SELECT
         je      @bks_es
+        cmp     al,TK_SUB
+        je      @bks_esb
+        cmp     al,TK_FUNCTION
+        je      @bks_esb
 @bks_r:
+        ret
+
+@bks_sub:                               ; SUB, FUNCTION: a procedure's entry
+        mov     dl,PK_SUB
+        jmp     @bkp_g
+@bks_fun:
+        mov     dl,PK_FUNC
+@bkp_g:
+        cmp     [g_state.lnk.cprc],0
+        jne     @bk_er
+        cmp     byte ptr [esi+1],M_VAR
+        jne     @bk_er
+        movzx   eax,[g_state.lnk.nprc]
+        cmp     eax,NPROC
+        jae     err_om
+        inc     [g_state.lnk.nprc]
+        mov     [g_state.lnk.cprc],ax
+        push    esi
+        push    ebp
+        mov     edi,eax
+        shl     edi,5
+        add     edi,offset g_prc
+        mov     [edi+P_KIND],dl
+        mov     byte ptr [edi+P_FLAG],0
+        call    bk_here2                ; its body: the statement after
+        mov     [edi+P_ENTRY],eax
+        mov     ax,[g_state.lnk.bln]
+        mov     [edi+P_FIRST],ax
+        mov     [edi+P_LAST],ax
+        and     word ptr [edi+P_NPAR],0
+        mov     ax,[g_state.lnk.nppar]
+        mov     [edi+P_PAR],ax
+        or      dword ptr [edi+P_SKIP],-1
+        inc     esi
+        movzx   ecx,byte ptr [esi+1]
+        movzx   eax,word ptr [esi+ecx+2]
+        mov     [edi+P_NAM],ax
+        mov     cl,byte ptr [g_state.lnk.cprc]
+        mov     [g_nprc+eax],cl
+        mov     [g_state.cm.cproc],cl
+        cmp     dl,PK_FUNC
+        jne     @bkp_p
+        push    esi
+        mov     [g_vfs],1               ; its result: a scalar of its name
+        call    var_id
+        mov     [g_vfs],0
+        mov     [edi+P_RES],ax
+        pop     esi
+@bkp_p:
+        call    dc_item                 ; past the name
+        cmp     byte ptr [esi],'('
+        jne     @bkp_s
+        inc     esi
+@bkp_l:                                 ; [BYVAL] n[()] [AS type]
+        cmp     byte ptr [esi],TK_BYVAL
+        jne     @F
+        inc     esi
+@@:
+        cmp     byte ptr [esi],M_VAR
+        jne     @bkp_s
+        push    esi
+        call    dc_item
+        xor     ecx,ecx
+        cmp     byte ptr [esi],'('
+        jne     @F
+        add     esi,2
+@@:
+        cmp     byte ptr [esi],TK_AS
+        jne     @F
+        movzx   eax,byte ptr [esi+1]
+        sub     al,TK_INTEGER
+        cmp     al,TK_STRING-TK_INTEGER
+        ja      @F
+        mov     cl,[g_dast+eax]
+@@:
+        mov     [g_vft],cl
+        pop     esi
+        call    var_id
+        mov     [g_vft],0
+        movzx   ecx,[g_state.lnk.nppar]
+        cmp     ecx,NPPAR
+        jae     err_om
+        mov     [g_ppar+ecx*2],ax
+        inc     [g_state.lnk.nppar]
+        inc     word ptr [edi+P_NPAR]
+        xor     ecx,ecx                 ; on to its ',' or the ')'
+@bkp_k:
+        mov     al,[esi]
+        test    al,al
+        jz      @bkp_s
+        cmp     al,'('
+        jne     @F
+        inc     ecx
+@@:
+        cmp     al,')'
+        jne     @bkp_m
+        jecxz   @bkp_c
+        dec     ecx
+@bkp_m:
+        cmp     al,','
+        jne     @F
+        jecxz   @bkp_n
+@@:
+        call    dc_item
+        jmp     @bkp_k
+@bkp_n:
+        inc     esi
+        jmp     @bkp_l
+@bkp_c:
+        inc     esi
+@bkp_s:
+        cmp     byte ptr [esi],TK_STATIC
+        jne     @F
+        or      byte ptr [edi+P_FLAG],PF_STAT
+@@:
+        mov     [g_state.cm.cproc],0
+        pop     ebp
+        pop     esi
+        ret
+
+@bks_esb:                               ; END SUB, END FUNCTION
+        movzx   edx,[g_state.lnk.cprc]
+        test    edx,edx
+        jz      @bk_er
+        shl     edx,5
+        mov     ax,[g_state.lnk.bln]
+        mov     word ptr [g_prc+edx+P_LAST],ax
+        call    bk_here2
+        mov     dword ptr [g_prc+edx+P_SKIP],eax
+        and     [g_state.lnk.cprc],0
         ret
 
 @bks_if:                                ; IF: a block when THEN ends the line
@@ -578,7 +730,39 @@ bk_find:
         pop     ebx
         ret
 
+; ::::::::::::::
+; bk_proc - cproc: the procedure line BX is in, 0 none.
+;
+; keeps:  all
+; ::::::::::::::
+bk_proc:
+        push    eax
+        push    ecx
+        push    edx
+        xor     edx,edx
+        movzx   ecx,[g_state.lnk.nprc]
+@bpr_l:
+        dec     ecx
+        jle     @bpr_r
+        mov     eax,ecx
+        shl     eax,5
+        cmp     bx,word ptr [g_prc+eax+P_FIRST]
+        jb      @bpr_l
+        cmp     bx,word ptr [g_prc+eax+P_LAST]
+        ja      @bpr_l
+        mov     edx,ecx
+@bpr_r:
+        mov     [g_state.cm.cproc],dl
+        pop     edx
+        pop     ecx
+        pop     eax
+        ret
+
         .data?
+g_prc   db      NPROC*PSIZE dup(?)      ; the procedures, from 1
+g_ppar  dw      NPPAR dup(?)            ; their parameters' variables
+g_vfs   db      ?                       ; var_id: 1 a scalar, '(' or not
+g_vft   db      ?                       ; var_id: the type, ET_*; 0 by the name
 g_blk   db      NBLK*16 dup(?)
 g_bst   db      NBST*SSIZE dup(?)
         .code

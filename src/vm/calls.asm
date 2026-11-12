@@ -526,6 +526,8 @@ rd_seek:
 ; ::::::::::::::
 sc_dim:
         pop     eax
+        mov     [g_dimst],al
+        and     al,7Fh
         mov     [g_state.rn.narr],al
         pop     edx
         movzx   ebx,al
@@ -537,8 +539,16 @@ sc_dim:
         sub     ebx,2
         jnz     @sdm_l
         movzx   ebx,dx
+        test    [g_dimst],80h           ; a STATIC's, dimensioned: kept
+        jz      @F
+        cmp     dword ptr [g_vt+ebx*4],0
+        jne     ex_lp
+@@:
         call    arr_dim
         jmp     ex_lp
+        .data?
+g_dimst db      ?                       ; DIM's count: bit 7 a STATIC's array
+        .code
 
 ; ::::::::::::::
 ; sc_open - OPEN ( lfn [dev [sa [name]]] n -- ).
@@ -670,6 +680,8 @@ sc_runl:
 ex_rungo:
         mov     esp,[g_state.rn.rsp]
         mov     [g_state.rn.cstk],CSTOP
+        mov     [g_state.rn.lsp],offset g_lsav
+        and     [g_state.sg.tspb],0
         jmp     ex_jump
 
 ; ::::::::::::::

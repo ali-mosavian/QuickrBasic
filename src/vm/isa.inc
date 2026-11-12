@@ -134,6 +134,8 @@ oplist  macro   m
         m       NXLN,ex_nextln,1,0
         m       FPOP,op_fpop,1,0
         m       FSKIP,op_jmp,7,0
+        m       PCALL,op_pcall,8,0
+        m       PRET,op_pret,1,0
         endm
 
 JSIZE   = 7                     ; a jump op: target line:2 boff:1 mode:1, addr:2

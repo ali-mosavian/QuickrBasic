@@ -5,7 +5,8 @@
 ; uses:     prg_findw, cm_line, cm_link, flt_add, err_*
 ; data:     The control stack holds frames from cstk up to CSTOP, the mark the
 ;           size: GOSUB mark ln:2 ip:2; FOR mark ln:2 ip:2 id step:4 limit:4
-;           cache:4; FN mark ip:2 id old:4.
+;           cache:4; FN mark ip:2 id old:4; PCALL mark ln:2 ip:2 proc
+;           lsp0:4 lsp1:4 tspb:2.
 ; calls:
 ;   ex_jump            ex_line: a stored line, or cm_line and ex_dcode
 ;   op_nx0, op_nextv
@@ -170,7 +171,7 @@ ex_gosub:
 ; in:     EBX  the line
 ; ::::::::::::::
 ex_jump:
-        and     [g_state.sg.tsp],0
+        tspclr
         cmp     [g_state.lnk.linked],0
         jne     @exj_g
         push    ebx
@@ -234,7 +235,7 @@ op_ret:
         mov     ax,[ebx+F_IP]
         add     ebx,M_GS
         mov     [g_state.rn.cstk],ebx
-        and     [g_state.sg.tsp],0
+        tspclr
         ipfix
         dispatch
 
@@ -277,7 +278,7 @@ op_eol:
 ; ex_nextln - a false IF: on to the next line.
 ; ::::::::::::::
 ex_nextln:
-        and     [g_state.sg.tsp],0
+        tspclr
         call    ex_eol
         dispatch
 
@@ -501,7 +502,7 @@ for_mki:
 ; ::::::::::::::
 op_nextv:
         stopchk
-        and     [g_state.sg.tsp],0
+        tspclr
         lodsw
         mov     bx,ax
         mov     edi,[g_state.rn.cstk]
@@ -533,7 +534,7 @@ err_nf:
 ; ::::::::::::::
 op_nx0:
         stopchk
-        and     [g_state.sg.tsp],0
+        tspclr
         mov     ebx,[g_state.rn.cstk]
         cmp     ebx,CSTOP
         jae     err_nf
@@ -811,7 +812,7 @@ op_fpop:
 ; ::::::::::::::
 ex_bjump:
         stopchk
-        and     [g_state.sg.tsp],0
+        tspclr
         movzx   eax,word ptr [esi+4]
         test    eax,eax
         jz      @ebj_f
@@ -865,6 +866,322 @@ ex_bjump:
         dispatch
 @ebj_n:
         jmp     err_sn
+
+; ::::::::::::::
+; op_pcall - PCALL proc target addr ( (value ref)*n -- ): a procedure's
+; frame. Its arguments go to save entries (a string copied unless a
+; temporary's), its locals are saved there and zeroed, then the entries to
+; its parameters; on at its body. A value: an INT, a FLOAT, a string's Desc,
+; an array's id; a ref: the variable PRET stores the parameter back to, or
+; FFFFh.
+;
+; error:  ?OUT OF MEMORY  a stack is full
+; ::::::::::::::
+op_pcall:
+        cmp     esp,[g_state.rn.stklim]
+        jb      @st_flow1
+        mov     edi,[g_state.rn.cstk]
+        cmp     edi,CSLIM
+        jb      @st_flow1
+        mov     [g_state.rn.ppip],esi
+        movzx   ebp,byte ptr [esi]
+        shl     ebp,5
+        add     ebp,offset g_prc
+        movzx   ecx,word ptr [ebp+P_NPAR]
+        mov     edi,[g_state.rn.lsp]
+        lea     eax,[ecx+ecx*2]
+        lea     edi,[edi+eax*4]
+        cmp     edi,offset g_lsav+LSAVSZ-LSSZ
+        jae     @st_flow1
+        mov     [g_state.rn.ppend],edi
+        jecxz   @pca_s
+@pca_a:                                 ; the arguments, the last first
+        sub     edi,LSSZ
+        pop     eax
+        mov     [edi+2],ax
+        movzx   ebx,word ptr [ebp+P_PAR]
+        add     ebx,ecx
+        movzx   ebx,word ptr [g_ppar+ebx*2-2]
+        mov     [edi],bx
+        pop     eax
+        mov     dl,[g_sinfo+ebx]
+        test    dl,dl
+        js      @pca_y
+        and     dl,3
+        cmp     dl,2
+        je      @pca_t
+@pca_v:
+        mov     [edi+4],eax
+        loop    @pca_a
+        jmp     @pca_s
+@pca_y:
+        mov     eax,[g_vt+eax*4]        ; an array: its header
+        jmp     @pca_v
+@pca_t:
+        push    ecx
+        push    edi
+        push    ebp
+        lea     ebx,[edi+4]
+        mov     [g_state.sg.bpo],ebx
+        call    str_set
+        pop     ebp
+        pop     edi
+        pop     ecx
+        loop    @pca_a
+@pca_s:
+        mov     edx,[g_state.rn.ppend]   ; the locals, saved and zeroed
+        mov     esi,[g_state.rn.ppip]
+        movzx   eax,byte ptr [esi]
+        movzx   ebx,word ptr [g_plh+eax*2]
+@pcl_l:
+        test    ebx,ebx
+        jz      @pcl_d
+        cmp     edx,offset g_lsav+LSAVSZ-LSSZ
+        jae     @st_flow1
+        mov     [edx],bx
+        mov     cl,[g_sinfo+ebx]
+        test    cl,cl
+        js      @pcl_y
+        and     cl,3
+        cmp     cl,2
+        je      @pcl_t
+        xor     eax,eax
+        xchg    eax,[VARBASE+ebx*4]
+        mov     [edx+4],eax
+        jmp     @pcl_n
+@pcl_y:
+        xor     eax,eax
+        xchg    eax,[g_vt+ebx*4]
+        mov     [edx+4],eax
+        jmp     @pcl_n
+@pcl_t:
+        lea     eax,[SVBASE+ebx*8]
+        lea     edi,[edx+4]
+        call    ls_mov
+        and     word ptr [eax+D_LEN],0
+@pcl_n:
+        add     edx,LSSZ
+        movzx   ebx,word ptr [g_vnloc+ebx*2]
+        jmp     @pcl_l
+@pcl_d:
+        mov     edi,[g_state.rn.lsp]    ; the arguments to the parameters
+@pcb_l:
+        cmp     edi,[g_state.rn.ppend]
+        jae     @pcb_d
+        movzx   ebx,word ptr [edi]
+        mov     eax,[edi+4]
+        mov     cl,[g_sinfo+ebx]
+        test    cl,cl
+        js      @pcb_y
+        and     cl,3
+        cmp     cl,2
+        je      @pcb_t
+        mov     [VARBASE+ebx*4],eax
+        jmp     @pcb_n
+@pcb_y:
+        mov     [g_vt+ebx*4],eax
+        jmp     @pcb_n
+@pcb_t:
+        push    edi
+        lea     eax,[edi+4]
+        lea     edi,[SVBASE+ebx*8]
+        call    ls_mov
+        pop     edi
+@pcb_n:
+        add     edi,LSSZ
+        jmp     @pcb_l
+@pcb_d:
+        mov     edi,[g_state.rn.cstk]   ; the frame
+        sub     edi,M_PC
+        mov     [g_state.rn.cstk],edi
+        mov     byte ptr [edi+F_MARK],M_PC
+        mov     cx,[g_state.rn.ln]
+        mov     [edi+F_LN],cx
+        mov     al,[esi]
+        mov     [edi+F_PRC],al
+        lea     esi,[esi+7]
+        ipst    [edi+F_IP]
+        mov     eax,[g_state.rn.lsp]
+        mov     [edi+F_LSP0],eax
+        mov     eax,[g_state.rn.ppend]
+        mov     [edi+F_LSP1],eax
+        mov     [g_state.rn.lsp],edx
+        mov     ax,[g_state.sg.tspb]
+        mov     [edi+F_TSPB],ax
+        mov     ax,[g_state.sg.tsp]
+        mov     [g_state.sg.tspb],ax
+        sub     esi,6                   ; the target
+        jmp     ex_bjump
+
+; ::::::::::::::
+; op_pret - PRET: back from the procedure: its frame and the frames above
+; it go; the parameters with a ref are stored back to it after the locals
+; are restored; a FUNCTION's result is pushed.
+;
+; error:  ?RETURN WITHOUT GOSUB  no procedure's frame
+; ::::::::::::::
+op_pret:
+        stopchk
+        mov     ebx,[g_state.rn.cstk]
+@prt_f:
+        cmp     ebx,CSTOP
+        jae     err_rg
+        movzx   eax,byte ptr [ebx+F_MARK]
+        cmp     al,M_PC
+        je      @prt_g
+        add     ebx,eax
+        jmp     @prt_f
+@prt_g:
+        mov     [g_state.rn.cstk],ebx
+        mov     edx,[ebx+F_LSP0]        ; the parameters' values
+@prt_p:
+        cmp     edx,[ebx+F_LSP1]
+        jae     @prt_r
+        cmp     word ptr [edx+2],0FFFFh
+        je      @prt_pn
+        movzx   ecx,word ptr [edx]
+        mov     al,[g_sinfo+ecx]
+        and     al,3
+        cmp     al,2
+        je      @prt_ps
+        mov     eax,[VARBASE+ecx*4]
+        mov     [edx+4],eax
+        jmp     @prt_pn
+@prt_ps:
+        lea     eax,[SVBASE+ecx*8]
+        lea     edi,[edx+4]
+        call    ls_mov
+@prt_pn:
+        add     edx,LSSZ
+        jmp     @prt_p
+@prt_r:
+        movzx   ebp,byte ptr [ebx+F_PRC]        ; a FUNCTION's result
+        shl     ebp,5
+        add     ebp,offset g_prc
+        cmp     byte ptr [ebp+P_KIND],PK_FUNC
+        jne     @prt_l
+        movzx   ecx,word ptr [ebp+P_RES]
+        mov     al,[g_sinfo+ecx]
+        and     al,3
+        cmp     al,2
+        je      @prt_rs
+        mov     eax,[VARBASE+ecx*4]
+        mov     [g_state.rn.pres],eax
+        jmp     @prt_l
+@prt_rs:
+        lea     eax,[SVBASE+ecx*8]
+        mov     edi,offset g_lres
+        call    ls_mov
+@prt_l:
+        mov     edx,[g_state.rn.lsp]    ; the locals back
+@prt_ll:
+        cmp     edx,[ebx+F_LSP1]
+        jbe     @prt_o
+        sub     edx,LSSZ
+        movzx   ecx,word ptr [edx]
+        mov     al,[g_sinfo+ecx]
+        test    al,al
+        js      @prt_ly
+        and     al,3
+        cmp     al,2
+        je      @prt_ls
+        mov     eax,[edx+4]
+        mov     [VARBASE+ecx*4],eax
+        jmp     @prt_ll
+@prt_ly:
+        mov     eax,[edx+4]
+        mov     [g_vt+ecx*4],eax
+        jmp     @prt_ll
+@prt_ls:
+        lea     eax,[edx+4]
+        lea     edi,[SVBASE+ecx*8]
+        call    ls_mov
+        jmp     @prt_ll
+@prt_o:
+        mov     edx,[ebx+F_LSP0]        ; the parameters to their refs
+@prt_ol:
+        cmp     edx,[ebx+F_LSP1]
+        jae     @prt_x
+        movzx   ecx,word ptr [edx+2]
+        cmp     cx,0FFFFh
+        je      @prt_on
+        movzx   eax,word ptr [edx]
+        mov     al,[g_sinfo+eax]
+        and     al,3
+        cmp     al,2
+        je      @prt_os
+        mov     eax,[edx+4]
+        mov     [VARBASE+ecx*4],eax
+        jmp     @prt_on
+@prt_os:
+        lea     eax,[edx+4]
+        lea     edi,[SVBASE+ecx*8]
+        call    ls_mov
+@prt_on:
+        add     edx,LSSZ
+        jmp     @prt_ol
+@prt_x:
+        mov     eax,[ebx+F_LSP0]
+        mov     [g_state.rn.lsp],eax
+        mov     ax,[g_state.sg.tspb]    ; the callee's temporaries go
+        mov     [g_state.sg.tsp],ax
+        mov     ax,[ebx+F_TSPB]
+        mov     [g_state.sg.tspb],ax
+        cmp     byte ptr [ebp+P_KIND],PK_FUNC
+        jne     @prt_j
+        movzx   ecx,word ptr [ebp+P_RES]
+        mov     al,[g_sinfo+ecx]
+        and     al,3
+        cmp     al,2
+        je      @prt_js
+        push    [g_state.rn.pres]
+        jmp     @prt_j
+@prt_js:
+        movzx   edi,[g_state.sg.tsp]    ; a string: a new temporary
+        cmp     edi,DSZ*NTMP
+        jae     err_st
+        add     [g_state.sg.tsp],DSZ
+        add     edi,[g_state.sg.tmplin]
+        mov     eax,offset g_lres
+        call    ls_mov
+        push    edi
+@prt_j:
+        mov     dx,[ebx+F_LN]
+        mov     [g_state.rn.ln],dx
+        mov     ax,[ebx+F_IP]
+        add     ebx,M_PC
+        mov     [g_state.rn.cstk],ebx
+        ipfix
+        dispatch
+
+; ::::::::::::::
+; ls_mov - the Desc at EAX to the Desc at EDI, which then owns its heap
+; block.
+;
+; keeps:  all
+; ::::::::::::::
+ls_mov:
+        push    ebx
+        push    ecx
+        mov     ebx,[eax+D_PTR]
+        mov     [edi+D_PTR],ebx
+        movzx   ecx,word ptr [eax+D_LEN]
+        mov     [edi+D_LEN],cx
+        jecxz   @lsm_r
+        cmp     ebx,[g_state.mm.sfr]
+        jb      @lsm_r
+        cmp     ebx,[g_state.mm.htop]
+        jae     @lsm_r
+        mov     [ebx+ecx+B_OWN],edi
+@lsm_r:
+        pop     ecx
+        pop     ebx
+        ret
+
+        .data?
+g_lsav  db      LSAVSZ dup(?)           ; the save stack: LSSZ entries
+g_lres  db      8 dup(?)                ; PRET: a FUNCTION's string result
+        .code
 
 ; --------------------------------------------------------------------------
 

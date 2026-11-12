@@ -45,6 +45,8 @@ var_clr:
         mov     [g_state.mm.sfr],eax
         mov     [g_state.mm.ahd],HDRBASE
         and     [g_state.sg.tsp],0
+        and     [g_state.sg.tspb],0
+        mov     [g_state.rn.lsp],offset g_lsav
         jmp     rd_first
 
 ; ::::::::::::::
@@ -67,6 +69,12 @@ sym_init:
         mov     ecx,26
         mov     al,ET_R4
         rep     stosb
+        mov     edi,offset g_plh
+        mov     ecx,NPROC/2
+        xor     eax,eax
+        rep     stosd
+        mov     [g_state.lx.nshr],ax
+        mov     [g_state.lx.dproc],ax
         ret
 
 ; ::::::::::::::
@@ -153,6 +161,7 @@ nam_find:
         mov     [g_nline+ebx*2],0
         mov     [g_ntyp+ebx],0
         mov     [g_natyp+ebx],0
+        mov     [g_nprc+ebx],0
         mov     edi,[g_nname+ebx*4]
         cmp     byte ptr [edi],2
         jbe     @nf_n
@@ -168,12 +177,15 @@ nam_find:
         ret
 
 ; ::::::::::::::
-; var_find - the variable of a name, a type and a kind; a new one is made, a
-; new scalar zeroed.
+; var_find - the variable of a name, a type and a kind in scope cscope; a new
+; one is made, a new scalar zeroed. A new one of a procedure joins its
+; locals (plh, vnloc), unless cstat.
 ;
 ; in:     AX  the name
 ;         CL  the type, ET_*
 ;         DL  the kind: bit 7 an array, bits 1-0 as sinfo's
+;         cscope  0 the module's, else the procedure's
+;         cstat   1: a STATIC one, not a local
 ; out:    EAX  the variable
 ; keeps:  ESI, EDI
 ; error:  ?OUT OF MEMORY  NSYM variables
@@ -187,6 +199,8 @@ var_find:
         movzx   ebx,dl
         shr     ebx,7
         add     edi,ebx
+        movzx   ebx,[g_state.cm.cscope]
+        lea     edi,[edi+ebx*8]
         and     edi,HSIZE-1
         movzx   ebx,word ptr [g_vhead+edi*2]
 @vf_lp:
@@ -199,6 +213,9 @@ var_find:
         mov     ch,[g_sinfo+ebx]
         and     ch,83h
         cmp     ch,dl
+        jne     @vf_s
+        mov     ch,[g_state.cm.cscope]
+        cmp     ch,[g_vscp+ebx]
         je      @vf_ok
 @vf_s:
         movzx   ebx,word ptr [g_vnext+ebx*2]
@@ -215,6 +232,18 @@ var_find:
         mov     [g_vnext+ebx*2],ax
         mov     [g_vhead+edi*2],bx
         mov     [g_sinfo+ebx],dl
+        mov     al,[g_state.cm.cscope]
+        mov     [g_vscp+ebx],al
+        and     word ptr [g_vnloc+ebx*2],0
+        test    al,al
+        jz      @vf_m
+        cmp     [g_state.cm.cstat],0
+        jne     @vf_m
+        movzx   eax,al                  ; a local: on its procedure's list
+        mov     cx,[g_plh+eax*2]
+        mov     [g_vnloc+ebx*2],cx
+        mov     [g_plh+eax*2],bx
+@vf_m:
         and     [g_vt+ebx*4],0
         test    dl,dl
         js      @vf_a
@@ -236,6 +265,10 @@ g_vnext dw      NSYM dup(?)
 g_vhead dw      HSIZE dup(?)
 g_vtyp  db      NSYM dup(?)
 g_sinfo db      NSYM dup(?)
+g_vscp  db      NSYM dup(?)                 ; its scope: 0 the module, a procedure
+g_vnloc dw      NSYM dup(?)                 ; the next local of its procedure
+g_plh   dw      NPROC dup(?)                ; a procedure's first local
+g_nprc  db      NNAM dup(?)                 ; a name's procedure, 0 none
 g_nname dd      NNAM dup(?)
 g_nnext dw      NNAM dup(?)
 g_nline dw      NNAM dup(?)

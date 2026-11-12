@@ -42,6 +42,14 @@ subchk  macro
         jne     err_iq
         endm
 
+; tsp to the procedure's floor: the statement's temporaries go.
+tspclr  macro
+        push    eax
+        mov     ax,[g_state.sg.tspb]
+        mov     [g_state.sg.tsp],ax
+        pop     eax
+        endm
+
 ; The STOP key: BREAK, CONT runs this op again.
 stopchk macro
         cmp     [g_state.rn.stpflg],0

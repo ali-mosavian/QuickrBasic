@@ -15,6 +15,12 @@ T_STR   = 40h
 T_FLT   = 80h
 NM_LBL  = 1                     ; nflag: a label; nline its line
 NM_FN   = 2                     ; nflag: DEF FN's, the name starts FN
+NM_SUB  = 4                     ; nflag: a SUB's
+NM_FUNC = 8                     ; nflag: a FUNCTION's
+NM_SHR  = 10h                   ; nflag: DIM SHARED, CONST: every procedure's
+NPROC   = 256                   ; procedures, 1 .. NPROC-1
+NPPAR   = 2048                  ; their parameters, all
+NSHR    = 512                   ; SHARED and STATIC names in procedures
 ET_IMP  = 0                     ; a type: none given (QBasic's ET_*)
 ET_I2   = 1
 ET_I4   = 2
@@ -56,6 +62,13 @@ M_FR    = FRSIZE                ; a frame's mark is its size
 M_GS    = 5
 M_FN    = 9                     ; an FN frame: mark, ln:2, ip:2, the old value:4
 F_OLD   = 5
+M_PC    = 16                    ; a procedure's frame: mark, ln:2, ip:2, then
+F_PRC   = 5                     ; its procedure
+F_LSP0  = 6                     ; lsp before its arguments, before its locals
+F_LSP1  = 10
+F_TSPB  = 14                    ; the caller's tspb
+LSSZ    = 12                    ; a save entry: id:2, ref:2, the value:8
+LSAVSZ  = 10000h                ; the save stack
 
 D_LEN   = 0                     ; a string Desc: len:2, ptr:4 linear
 D_PTR   = 2
@@ -125,9 +138,9 @@ HEAPSZ   = 400000h              ; the heap: arrays and strings
 CSTOP    equ     <(offset g_dsb+0FC00h)>    ; the control stack, down from here
 STKSZ    = 10000h               ; the data stack, its own region
 STKTOP   equ     <(offset g_stkb+STKSZ-16)>
-STKROOM  = 191                  ; bytes either stack may take, as stock's
-CPROOM   = 4000h                ; the compiler's frames
-CSLIM    equ     <(offset g_dsb+0FC00h-STKROOM)>
+STKROOM  = 8000h                ; the data stack's room for the run
+CPROOM   = 4000h                ; the compiler's frames, below where it starts
+CSLIM    equ     <(offset g_dsb+0E000h)>    ; the control stack's floor
 OBSZ     = 256                  ; plat.asm's output buffer
 
 ; block entries (comp/block.asm): their fields, their kinds
@@ -152,4 +165,18 @@ BK_ENDSEL = 11
 BK_EXIT   = 12
 BK_FOR    = 13
 
-
+; a procedure (g_prc, comp/block.asm): 32 bytes
+PSIZE   = 32
+P_NAM   = 0                     ; its name
+P_KIND  = 2                     ; PK_SUB, PK_FUNC
+P_FLAG  = 3                     ; PF_STAT
+P_ENTRY = 4                     ; its body: a target
+P_FIRST = 8                     ; its first line, its last
+P_LAST  = 10
+P_NPAR  = 12                    ; its parameters: their variables from P_PAR
+P_RES   = 14                    ; FUNCTION's result variable
+P_PAR   = 16                    ; in g_ppar
+P_SKIP  = 20                    ; past its END: a target
+PK_SUB  = 1
+PK_FUNC = 2
+PF_STAT = 1

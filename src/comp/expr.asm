@@ -410,6 +410,21 @@ cm_lval:
 ; in:     SI  at M_VAR
 ; ::::::::::::::
 cm_load:
+        call    st_get
+        cmp     al,M_VAR
+        jne     @cld_v
+        movzx   ecx,byte ptr [esi+1]    ; a FUNCTION's name: its call, but
+        movzx   eax,word ptr [esi+ecx+2]        ; its result in it
+        test    [g_nflag+eax],NM_FUNC
+        jz      @cld_v
+        movzx   edx,[g_nprc+eax]
+        test    edx,edx
+        jz      @cld_v
+        cmp     byte ptr [esi+ecx+4],'('
+        je      ct_fcall
+        cmp     dl,[g_state.cm.cproc]
+        jne     ct_fcall
+@cld_v:
         call    cm_name
         mov     dl,[g_sinfo+ebx]
         test    dl,dl
@@ -486,6 +501,15 @@ cm_subs0:
         push    ecx
         call    cm_expr
         call    cm_toi
+        call    st_get
+        cmp     al,TK_TO                ; lo TO hi: from 0 to hi
+        jne     @F
+        inc     esi
+        mov     al,O_DROP
+        call    cm_op
+        call    cm_expr
+        call    cm_toi
+@@:
         call    cm_optcm
         pop     ecx
         jz      @cs_l

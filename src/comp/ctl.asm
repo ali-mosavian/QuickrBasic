@@ -50,8 +50,29 @@ ct_stmt:
         je      ct_while
         cmp     al,TK_WEND
         je      ct_wend
+        cmp     al,M_VAR
+        je      ct_scall
+        cmp     al,TK_CALL
+        je      ct_call
+        cmp     al,TK_SUB
+        je      ct_sub
+        cmp     al,TK_FUNCTION
+        je      ct_sub
+        cmp     al,TK_DECLARE
+        je      ct_none
+        cmp     al,TK_SHARED
+        je      ct_none
+        cmp     al,TK_STATIC
+        je      ct_none
         cmp     al,TK_EXIT
-        je      ct_exit
+        jne     @F
+        mov     al,[esi+1]
+        cmp     al,TK_SUB
+        je      ct_pret
+        cmp     al,TK_FUNCTION
+        je      ct_pret
+        jmp     ct_exit
+@@:
         cmp     al,TK_END
         jne     @cts_n
         mov     al,[esi+1]
@@ -59,6 +80,10 @@ ct_stmt:
         je      @cts_2
         cmp     al,TK_SELECT
         je      @cts_2
+        cmp     al,TK_SUB
+        je      ct_pret
+        cmp     al,TK_FUNCTION
+        je      ct_pret
 @cts_n:
         stc
         ret
@@ -68,6 +93,277 @@ ct_stmt:
         inc     esi                     ; END IF, END SELECT: no code
         clc
         ret
+
+; ::::::::::::::
+; ct_none - DECLARE, SHARED, STATIC: entered with the line (dc_line), no
+; code.
+; ::::::::::::::
+ct_none:
+        call    ct_skip
+        clc
+        ret
+
+; ::::::::::::::
+; ct_skip - SI to the statement's end: 0, ':' or '.
+; ::::::::::::::
+ct_skip:
+        mov     al,[esi]
+        test    al,al
+        jz      @csp_r
+        cmp     al,':'
+        je      @csp_r
+        cmp     al,TK_REM
+        je      @csp_r
+        call    dc_item
+        jmp     ct_skip
+@csp_r:
+        ret
+
+; ::::::::::::::
+; ct_sub - SUB, FUNCTION: run into, it is passed: JMP past its END.
+; ::::::::::::::
+ct_sub:
+        inc     esi
+        call    ct_proc
+        jc      err_sn
+        mov     eax,[edx+P_SKIP]
+        call    ct_jmp
+        jmp     ct_none
+
+; ::::::::::::::
+; ct_pret - END SUB, EXIT SUB, END FUNCTION, EXIT FUNCTION: PRET.
+; ::::::::::::::
+ct_pret:
+        add     esi,2
+        mov     al,O_PRET
+        call    cm_op
+        clc
+        ret
+
+; ::::::::::::::
+; ct_proc - the procedure the name at SI is.
+;
+; out:    EDX  its entry in g_prc
+;         AL   its index
+;         CF   set: none; SI kept
+;         SI   past the name
+; ::::::::::::::
+ct_proc:
+        cmp     byte ptr [esi],M_VAR
+        jne     @cpr_n
+        movzx   ecx,byte ptr [esi+1]
+        movzx   eax,word ptr [esi+ecx+2]
+        test    [g_nflag+eax],NM_SUB+NM_FUNC
+        jz      @cpr_n
+        movzx   edx,[g_nprc+eax]
+        test    edx,edx
+        jz      @cpr_n
+        lea     esi,[esi+ecx+4]
+        mov     eax,edx
+        shl     edx,5
+        add     edx,offset g_prc
+        clc
+        ret
+@cpr_n:
+        stc
+        ret
+
+; ::::::::::::::
+; ct_call - CALL n [( args )].
+;
+; error:  ?SYNTAX ERROR  no SUB n
+; ::::::::::::::
+ct_call:
+        inc     esi
+        call    ct_proc
+        jc      err_sn
+        push    eax
+        push    edx
+        cmp     byte ptr [esi],'('
+        jne     @F
+        inc     esi
+        call    ct_args
+        call    cm_chkcl
+@@:
+        pop     edx
+        pop     eax
+        jmp     ct_pcall
+
+; ::::::::::::::
+; ct_scall - n args: a SUB's call without CALL; another name is not one.
+; ::::::::::::::
+ct_scall:
+        push    esi
+        call    ct_proc
+        jc      @css_n
+        cmp     byte ptr [edx+P_KIND],PK_SUB
+        jne     @css_n
+        add     esp,4
+        push    eax
+        push    edx
+        call    st_eos
+        jz      @F
+        call    ct_args
+@@:
+        pop     edx
+        pop     eax
+        jmp     ct_pcall
+@css_n:
+        pop     esi
+        stc
+        ret
+
+; ::::::::::::::
+; ct_fcall - a FUNCTION's call in an expression: n [( args )].
+;
+; in:     SI   at the name
+; out:    cty  its result's type
+; ::::::::::::::
+ct_fcall:
+        call    ct_proc
+        push    eax
+        push    edx
+        cmp     byte ptr [esi],'('
+        jne     @F
+        inc     esi
+        call    ct_args
+        call    cm_chkcl
+@@:
+        pop     edx
+        pop     eax
+        push    edx
+        call    ct_pcall
+        pop     edx
+        movzx   eax,word ptr [edx+P_RES]
+        movzx   eax,[g_sinfo+eax]
+        and     eax,3
+        mov     al,[g_ctys+eax]
+        mov     [g_state.cm.cty],al
+        xor     eax,eax
+        mov     [g_state.cm.cll],eax
+        mov     [g_state.cm.clle],eax
+        ret
+
+; ::::::::::::::
+; ct_pcall - PCALL AL: the procedure EDX's call.
+; ::::::::::::::
+ct_pcall:
+        push    edx
+        push    eax
+        mov     al,O_PCALL
+        call    cm_op
+        pop     eax
+        call    cm_byt
+        pop     edx
+        mov     eax,[edx+P_ENTRY]
+        call    cm_dw
+        xor     al,al
+        call    cm_byt
+        call    cm_byt
+        clc
+        ret
+
+; ::::::::::::::
+; ct_args - the arguments of procedure EDX: for each parameter its value
+; and its ref (op_pcall).
+;
+; error:  ?SYNTAX ERROR  too few
+; ::::::::::::::
+ct_args:
+        movzx   ecx,word ptr [edx+P_NPAR]
+        jecxz   @cag_r
+        movzx   ebx,word ptr [edx+P_PAR]
+        lea     ebx,[g_ppar+ebx*2]
+@cag_l:
+        push    ecx
+        push    ebx
+        movzx   eax,word ptr [ebx]
+        call    ct_arg
+        pop     ebx
+        pop     ecx
+        add     ebx,2
+        dec     ecx
+        jz      @cag_r
+        call    st_get
+        cmp     al,','
+        jne     err_sn
+        inc     esi
+        jmp     @cag_l
+@cag_r:
+        ret
+
+; ::::::::::::::
+; ct_arg - an argument to parameter EAX: a variable of its type alone is
+; passed by reference, n() an array by its id, else the value.
+; ::::::::::::::
+ct_arg:
+        movzx   edx,[g_sinfo+eax]
+        test    dl,dl
+        js      @car_a
+        push    edx                     ; [ESP] its sinfo, kept across calls
+        call    st_get
+        cmp     al,M_VAR
+        jne     @car_e
+        movzx   ecx,byte ptr [esi+1]
+        movzx   eax,word ptr [esi+ecx+2]
+        test    [g_nflag+eax],NM_SUB+NM_FUNC+NM_FN
+        jnz     @car_e
+        mov     al,[esi+ecx+4]
+        test    al,al
+        jz      @car_v
+        cmp     al,','
+        je      @car_v
+        cmp     al,')'
+        je      @car_v
+        cmp     al,':'
+        je      @car_v
+        cmp     al,TK_REM
+        jne     @car_e
+@car_v:
+        push    esi
+        call    var_id
+        pop     esi
+        mov     al,[g_sinfo+ebx]
+        mov     ah,[esp]
+        and     ax,0303h
+        cmp     al,ah
+        jne     @car_e
+        pop     edx
+        push    ebx
+        call    cm_load
+        pop     eax
+        jmp     cm_lint
+@car_e:
+        call    cm_expr
+        pop     eax
+        and     al,3
+        cmp     al,1
+        je      @car_i
+        ja      @car_s
+        call    cm_tof
+        jmp     @car_n
+@car_i:
+        call    cm_toi
+        jmp     @car_n
+@car_s:
+        call    cm_tos
+@car_n:
+        mov     eax,0FFFFh
+        jmp     cm_lint
+@car_a:
+        call    st_get
+        cmp     al,M_VAR
+        jne     err_sn
+        call    var_id
+        test    [g_sinfo+ebx],80h
+        jz      err_sn
+        push    ebx
+        call    cm_chkop
+        call    cm_chkcl
+        pop     eax
+        call    cm_lint
+        mov     eax,0FFFFh
+        jmp     cm_lint
 
 ; ::::::::::::::
 ; ct_bif - a block IF's test: JF to its next clause.
@@ -420,6 +716,8 @@ ct_var:
         xor     dl,dl
         mov     cl,ET_R4
 @@:
+        mov     [g_state.cm.cscope],0
+        mov     [g_state.cm.cstat],0
         call    var_find
         mov     [g_ctvr],ax
         mov     ecx,eax

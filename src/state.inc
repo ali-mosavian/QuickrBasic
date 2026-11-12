@@ -30,6 +30,9 @@ TCOMP    struc                   ; the compiler
     cline   dw      ?               ; its line, DLINE direct
     nst     db      ?               ; statements recorded (g_stb, g_stx)
     csif    db      ?               ; in a one-line IF
+    cscope  db      ?               ; var_find's scope: 0 the module, a procedure
+    cstat   db      ?               ; var_find makes a STATIC, not a local
+    cproc   db      ?               ; the procedure the compiled line is in
 TCOMP    ends
 
 TLINK    struc                   ; the linker and the cache
@@ -47,6 +50,9 @@ TLINK    struc                   ; the linker and the cache
     emap    dd      ?               ; cm_xlate's statement map
     ecode   dd      ?               ; the code after it
     ek      db      ?               ; the next statement it maps
+    nprc    dw      ?               ; procedures + 1 (g_prc)
+    nppar   dw      ?               ; their parameters (g_ppar)
+    cprc    dw      ?               ; the procedure the scan is in, 0 none
 TLINK    ends
 
 TLEX     struc                   ; the tokenizer
@@ -54,6 +60,8 @@ TLEX     struc                   ; the tokenizer
     lxf     db      ?               ; the number is text
     nsyms   dw      ?               ; the next variable
     nnams   dw      ?               ; the next name
+    nshr    dw      ?               ; SHARED, STATIC names (g_shr)
+    dproc   dw      ?               ; dc_line: the procedure being entered, its name
     nlen    db      ?               ; nam_find's name: its length, its text
     nptr    dd      ?
     nsfree  dd      ?               ; the names' next byte
@@ -77,9 +85,13 @@ TRUN     struc                   ; the executor
     fstep   dd      ?
     runl    dw      ?
     stklim  dd      ?
-    cplim   dd      ?               ; cm_p's stklim
+    cplim   dd      ?               ; cm_p's stklim: CPROOM under the compile's SP
     rsp     dd      ?
     cstk    dd      ?               ; the control stack's top frame
+    lsp     dd      ?               ; the save stack's top (g_lsav)
+    ppip    dd      ?               ; PCALL: its ip, its entries' end
+    ppend   dd      ?
+    pres    dd      ?               ; PRET: a FUNCTION's INT or FLOAT result
     contip  dw      ?
     contsi  dw      ?
     ln      dw      ?
@@ -115,6 +127,7 @@ TSTR     struc                   ; strings
     sac     dd      ?
     sab     dd      ?
     tsp     dw      ?               ; the temporaries in use, DSZ each
+    tspb    dw      ?               ; the procedure's floor of tsp
     tmplin  dd      ?               ; tmpd, linear
 TSTR     ends
 

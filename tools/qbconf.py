@@ -25,6 +25,11 @@ def text(p: Path) -> str:
     return p.read_bytes().decode("latin-1").replace("\r\n", "\n").replace("\n", "\r\n")
 
 
+def trim(t: str) -> str:
+    """Lines without trailing blanks: llrm's .out files drop the blank QBasic prints after a number."""
+    return "\r\n".join(x.rstrip() for x in t.rstrip("\r\n").split("\r\n"))
+
+
 def cases() -> dict[str, tuple[str, str, bool]]:
     """name: (program, wanted output, whole output must match)."""
     out = {}
@@ -53,7 +58,7 @@ def main() -> None:
     ok = 0
     for k, (_, want, whole) in pick.items():
         got = res[k].out
-        good = got == want if whole else want in got
+        good = trim(got) == trim(want) if whole else want in got
         ok += good
         print(f"{'pass' if good else 'FAIL'} {k}" + ("" if good else f": {res[k].reason} {got[:60]!r}"))
         if not good and "-v" in sys.argv:

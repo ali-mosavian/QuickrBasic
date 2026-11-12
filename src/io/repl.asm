@@ -121,6 +121,7 @@ err_raise:
         mov     al,ah
         mov     esp,[g_state.rn.rsp]
         and     [g_state.sg.tsp],0
+        and     [g_state.sg.tspb],0
 if IDE
         cmp     [g_ui.lp.ideon],0
         jne     ui_err

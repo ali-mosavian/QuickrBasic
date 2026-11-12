@@ -28,6 +28,7 @@ include x86f.inc
 ; ::::::::::::::
 cm_line:
         mov     [g_state.cm.cline],DLINE
+        mov     [g_state.cm.cproc],0
         mov     eax,[g_state.mm.dslin]
         mov     [g_state.cm.ctxlin],eax
         mov     [g_state.cm.cxb],offset g_xbuf
@@ -42,6 +43,8 @@ cm_line:
 ; ::::::::::::::
 cm_text:
         mov     [g_state.cm.csp],esp
+        lea     eax,[esp-CPROOM]
+        mov     [g_state.rn.cplim],eax
         lea     eax,[esi+1]
         mov     [g_state.cm.cbase],eax
         mov     [g_state.cm.nst],0
@@ -817,13 +820,18 @@ var_id:
         xor     edx,edx
         cmp     byte ptr [esi],'('
         jne     @F
+        cmp     [g_vfs],0
+        jne     @F
         mov     dl,80h
 @@:
         test    [g_nflag+eax],NM_FN
         jz      @F
         mov     dl,3                    ; DEF FN's: never an array
 @@:
-        mov     ecx,ET_R4
+        movzx   ecx,[g_vft]
+        test    ecx,ecx
+        jnz     @vid_k
+        mov     cl,ET_R4
         cmp     bl,'!'
         je      @vid_k
         mov     cl,ET_R8
@@ -853,8 +861,66 @@ var_id:
         je      @F
         or      dl,[g_etk+ecx]
 @@:
+        call    var_scope
         call    var_find
         mov     ebx,eax
+        ret
+
+; ::::::::::::::
+; var_scope - the scope of name AX in the procedure compiled: its own, but a
+; name DIM SHARED, CONST, DEF FN's or SHARED in it; STATIC in it, or every
+; one of a STATIC procedure, not a local.
+;
+; out:    cscope, cstat
+; keeps:  all
+; ::::::::::::::
+var_scope:
+        push    eax
+        push    ebx
+        push    ecx
+        mov     [g_state.cm.cstat],0
+        movzx   ecx,[g_state.cm.cproc]
+        mov     [g_state.cm.cscope],cl
+        jecxz   @vsc_r
+        movzx   eax,ax
+        test    [g_nflag+eax],NM_FN+NM_LBL
+        jnz     @vsc_m
+        shl     ecx,5
+        mov     bx,word ptr [g_prc+ecx+P_NAM]
+        movzx   ecx,[g_state.lx.nshr]   ; SHARED or STATIC in it
+        jecxz   @vsc_d
+        push    esi
+        mov     esi,offset g_shr
+@vsc_l:
+        cmp     bx,[esi]
+        jne     @vsc_n
+        cmp     ax,[esi+2]
+        jne     @vsc_n
+        cmp     byte ptr [esi+4],1
+        pop     esi
+        jne     @vsc_s
+@vsc_m:
+        mov     [g_state.cm.cscope],0   ; the module's
+        jmp     @vsc_r
+@vsc_s:
+        mov     [g_state.cm.cstat],1    ; STATIC
+        jmp     @vsc_r
+@vsc_n:
+        add     esi,8
+        loop    @vsc_l
+        pop     esi
+@vsc_d:
+        test    [g_nflag+eax],NM_SHR
+        jnz     @vsc_m
+        movzx   ecx,[g_state.cm.cproc]
+        shl     ecx,5
+        test    byte ptr [g_prc+ecx+P_FLAG],PF_STAT
+        jz      @vsc_r
+        mov     [g_state.cm.cstat],1
+@vsc_r:
+        pop     ecx
+        pop     ebx
+        pop     eax
         ret
 
         .data
@@ -1111,9 +1177,14 @@ cm_dv:
         call    cm_name
         cmp     byte ptr [esi],'('
         jne     @cdv_as                 ; a scalar: var_id made it
+        movzx   eax,[g_state.cm.cstat]  ; a STATIC's: once
+        push    eax
         push    ebx
         call    cm_subs0
         pop     eax
+        pop     edx
+        shl     edx,7
+        or      ecx,edx
         push    ecx
         call    cm_lint
         pop     eax

@@ -33,6 +33,7 @@ externdef ex_nextln:near
 externdef ex_nodir:near
 externdef ex_resolve:near
 externdef ex_setcont:near
+externdef g_lsav:byte
 externdef op_eol:near
 externdef op_err:near
 externdef op_fjf:near
@@ -51,6 +52,8 @@ externdef op_jmp:near
 externdef op_nextv:near
 externdef op_nx0:near
 externdef op_on:near
+externdef op_pcall:near
+externdef op_pret:near
 externdef op_ret:near
 externdef op_size:near
 ; vm/calls.asm
@@ -213,14 +216,22 @@ externdef lx_line:near
 ; comp/decl.asm
 externdef dc_item:near
 externdef dc_line:near
+externdef g_dast:byte
+externdef g_shr:byte
 ; comp/block.asm
 externdef bk_find:near
+externdef bk_proc:near
 externdef cm_blocks:near
 externdef g_blk:byte
+externdef g_ppar:word
+externdef g_prc:byte
+externdef g_vfs:byte
+externdef g_vft:byte
 ; comp/ctl.asm
 externdef cm_swap:near
 externdef ct_bif:near
 externdef ct_else:near
+externdef ct_fcall:near
 externdef ct_fskip:near
 externdef ct_jf:near
 externdef ct_stmt:near
@@ -286,6 +297,7 @@ externdef lbl_at:near
 externdef lbl_nam:near
 externdef st_eos:near
 externdef st_get:near
+externdef var_id:near
 ; comp/expr.asm
 externdef cm_expr:near
 externdef cm_fcmp:near
@@ -296,6 +308,7 @@ externdef cm_lval:near
 externdef cm_paren:near
 externdef cm_subs0:near
 externdef g_cmact:dword
+externdef g_ctys:byte
 ; comp/link.asm
 externdef cm_cache:near
 externdef cm_link:near
@@ -321,8 +334,11 @@ externdef g_deft:byte
 externdef g_natyp:byte
 externdef g_nflag:byte
 externdef g_nline:word
+externdef g_nprc:byte
 externdef g_ntyp:byte
+externdef g_plh:word
 externdef g_sinfo:byte
+externdef g_vnloc:word
 externdef g_vt:dword
 externdef nam_find:near
 externdef sym_init:near

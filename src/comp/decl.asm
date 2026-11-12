@@ -9,6 +9,10 @@
 ;                          first letter
 ;           DIM [SHARED] n[( )] AS type   ntyp, natyp: n's, n()'s type
 ;           CONST n = e    ntyp: the value's type, when n has no suffix
+;           SUB, FUNCTION, DECLARE n (params)   nflag NM_SUB, NM_FUNC; the
+;                          parameters' AS types as DIM's
+;           SHARED, STATIC n   g_shr: the procedure being entered (dproc), n
+;           DIM SHARED, a module's CONST   nflag NM_SHR
 ;           A type is ET_*; 0 in ntyp, natyp is none declared. DEFtype holds
 ;           for the whole program, not from its line on.
 ; ==========================================================================
@@ -33,6 +37,18 @@ dc_line:
         je      @dcl_dim
         cmp     al,TK_CONST
         je      @dcl_con
+        cmp     al,TK_SUB
+        je      @dcl_sub
+        cmp     al,TK_FUNCTION
+        je      @dcl_fun
+        cmp     al,TK_DECLARE
+        je      @dcl_dec
+        cmp     al,TK_SHARED
+        je      @dcl_shr
+        cmp     al,TK_STATIC
+        je      @dcl_sta
+        cmp     al,TK_END
+        je      @dcl_end
         sub     al,TK_DEFINT
         cmp     al,TK_DEFSTR-TK_DEFINT
         jbe     @dcl_def
@@ -41,6 +57,93 @@ dc_line:
         jnz     @dcl_s
         popad
         ret
+
+@dcl_dec:                               ; DECLARE SUB|FUNCTION n: its flag
+        inc     esi
+        mov     dl,NM_SUB
+        cmp     byte ptr [esi],TK_SUB
+        je      @dcp_f
+        mov     dl,NM_FUNC
+        cmp     byte ptr [esi],TK_FUNCTION
+        jne     @dcl_n
+@dcp_f:
+        inc     esi
+        cmp     byte ptr [esi],M_VAR
+        jne     @dcl_n
+        call    dc_nam
+        or      [g_nflag+ebx],dl
+        jmp     @dcp_p
+@dcl_sub:                               ; SUB n, FUNCTION n: in it from here
+        mov     dl,NM_SUB
+        jmp     @dcs_g
+@dcl_fun:
+        mov     dl,NM_FUNC
+@dcs_g:
+        inc     esi
+        cmp     byte ptr [esi],M_VAR
+        jne     @dcl_n
+        call    dc_nam
+        or      [g_nflag+ebx],dl
+        mov     [g_state.lx.dproc],bx
+@dcp_p:                                 ; ( [BYVAL] n[()] [AS type] {, ..} )
+        cmp     byte ptr [esi],'('      ; as DIM's
+        jne     @dcl_n
+        inc     esi
+@dcp_l:
+        cmp     byte ptr [esi],TK_BYVAL
+        jne     @F
+        inc     esi
+@@:
+        cmp     byte ptr [esi],M_VAR
+        jne     @dcl_n
+        call    dc_nam
+        call    @dcm_1
+        cmp     byte ptr [esi],','
+        jne     @dcl_n
+        inc     esi
+        jmp     @dcp_l
+@dcl_end:                               ; END SUB, END FUNCTION: the module
+        mov     al,[esi+1]
+        cmp     al,TK_SUB
+        je      @F
+        cmp     al,TK_FUNCTION
+        jne     @dcl_n
+@@:
+        and     [g_state.lx.dproc],0
+        jmp     @dcl_n
+@dcl_shr:                               ; SHARED n[()] [AS t] {, ..}
+        mov     dl,1
+        jmp     @dch_g
+@dcl_sta:                               ; STATIC n[()] [AS t] {, ..}
+        mov     dl,2
+@dch_g:
+        inc     esi
+@dch_l:
+        cmp     byte ptr [esi],M_VAR
+        jne     @dcl_n
+        call    dc_nam
+        movzx   eax,[g_state.lx.nshr]
+        cmp     eax,NSHR
+        jae     @dch_s
+        inc     [g_state.lx.nshr]
+        lea     edi,[g_shr+eax*8]
+        mov     ax,[g_state.lx.dproc]
+        mov     [edi],ax
+        mov     [edi+2],bx
+        mov     [edi+4],dl
+@dch_s:
+        mov     al,[esi]                ; past ( ) and AS type
+        test    al,al
+        jz      @dcl_n
+        cmp     al,':'
+        je      @dcl_n
+        cmp     al,','
+        je      @dch_c
+        call    dc_item
+        jmp     @dch_s
+@dch_c:
+        inc     esi
+        jmp     @dch_l
 
 @dcl_def:                               ; DEFtype l[-l] {, l[-l]}
         movzx   eax,al
@@ -80,13 +183,21 @@ dc_line:
 
 @dcl_dim:                               ; DIM [SHARED] n[( )] [AS type] {, ..}
         inc     esi
+        xor     ecx,ecx
         cmp     byte ptr [esi],TK_SHARED
         jne     @dcm_l
         inc     esi
+        mov     cl,NM_SHR
 @dcm_l:
         cmp     byte ptr [esi],M_VAR
         jne     @dcl_n
         call    dc_nam
+        or      [g_nflag+ebx],cl
+        push    ecx
+        call    @dcm_1
+        pop     ecx
+        jmp     @dcm_c
+@dcm_1:
         mov     edi,offset g_ntyp
         cmp     byte ptr [esi],'('
         jne     @dcm_a
@@ -95,7 +206,7 @@ dc_line:
 @dcm_p:
         mov     al,[esi]
         test    al,al
-        jz      @dcl_n
+        jz      @dcm_r
         cmp     al,'('
         jne     @F
         inc     ecx
@@ -109,18 +220,20 @@ dc_line:
         jnz     @dcm_p
 @dcm_a:
         cmp     byte ptr [esi],TK_AS
-        jne     @dcm_c
+        jne     @dcm_r
         movzx   eax,byte ptr [esi+1]
         sub     al,TK_INTEGER
         cmp     al,TK_STRING-TK_INTEGER
-        ja      @dcl_n
+        ja      @dcm_r
         add     esi,2
         mov     al,[g_dast+eax]
         mov     [edi+ebx],al
         cmp     byte ptr [esi],TK_MUL   ; STRING * n
-        jne     @dcm_c
+        jne     @dcm_r
         inc     esi
         call    dc_item
+@dcm_r:
+        ret
 @dcm_c:
         cmp     byte ptr [esi],','
         jne     @dcl_n
@@ -176,6 +289,10 @@ dc_line:
         call    dc_item
         jmp     @dcc_e
 @dcc_t:
+        cmp     [g_state.lx.dproc],0
+        jne     @F
+        or      [g_nflag+ebx],NM_SHR    ; the module's: every procedure's
+@@:
         test    ebp,ebp                 ; a suffix: its own type
         jnz     @dcc_c
         mov     [g_ntyp+ebx],dl
@@ -282,6 +399,8 @@ dc_next:
         jne     @dcn_dl
         jmp     @dcn_c
 
+        .data?
+g_shr   db      NSHR*8 dup(?)           ; SHARED, STATIC: proc name:2, name:2, 1|2
         .data
 g_dett  db      ET_I2,ET_I4,ET_R4,ET_R8,ET_SD   ; DEFINT .. DEFSTR
 g_dast  db      ET_I2,ET_I4,ET_R4,ET_R8,ET_SD   ; AS INTEGER .. AS STRING
