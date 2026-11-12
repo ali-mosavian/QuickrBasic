@@ -70,6 +70,7 @@ sym_init:
         mov     ecx,26
         mov     al,ET_R4
         rep     stosb
+        and     [g_ndev],0
         mov     edi,offset g_plh
         mov     ecx,NPROC/2
         xor     eax,eax

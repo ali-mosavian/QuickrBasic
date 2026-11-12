@@ -56,11 +56,9 @@ CASES = {
     "qb_err_nonum": ("PRINT 1/0\r\n", "Division by zero in line No line number in module", "65535"),
     # INT / INT truncated, C64-BC style: QBasic's / is a FLOAT.
     "qb_div": ("A%=7:PRINT A%/2;7/2\r\n", " 3.5  3.5 \r\n", "ERROR"),
-    # DIM AS, DEFtype and CONST were syntax errors; their types are entered with the line, so a
-    # line before the declaration sees them too.
-    "qb_decl": ("GOTO 1\r\n2 PRINT a; s; v; x(2); PI; T$; N: END\r\n1 DEFINT A-Z\r\n"
-                "DIM s AS STRING, v AS SINGLE: DIM x(5) AS LONG\r\nCONST N = 4, PI = 3.5, T$ = \"t\"\r\n"
-                "a = 7 / 2: s = \"hi\": v = 7 / 2: x(2) = 70000: GOTO 2\r\n",
+    # DIM AS, DEFtype and CONST were syntax errors.
+    "qb_decl": ("DEFINT A-Z\r\nDIM s AS STRING, v AS SINGLE: DIM x(5) AS LONG\r\nCONST N = 4, PI = 3.5\r\n"
+                "CONST T$ = \"t\"\r\na = 7 / 2: s = \"hi\": v = 7 / 2: x(2) = 70000\r\nPRINT a; s; v; x(2); PI; T$; N\r\n",
                 " 4 hi 3.5  70000  3.5 t 4 \r\n", "ERROR"),
     # FLOAT to INT floored, as C64: QBasic rounds, a half to even.
     "qb_round": ('A%=2.5:B%=3.5:C%=-2.5:D%=-2.6:PRINT A%;B%;C%;D%;CHR$(65.6)\r\n', " 2  4 -2 -3 B\r\n", "ERROR"),
@@ -250,6 +248,10 @@ CASES = {
                  "Subprogram error", None),
     "qb_numsub": ('DECLARE SUB s ()\r\ns\r\nGOTO 20\r\n20 PRINT "m"\r\nSUB s\r\nGOSUB 30\r\nEXIT SUB\r\n'
                   '30 PRINT "s": RETURN\r\nEND SUB\r\n', "s\r\nm\r\n", "ERROR"),
+    # DEFtype held for the whole program; BC's from its line to the file's end, SUBs too.
+    "qb_deftpos": ("a = 1.5: PRINT a\r\nDEFINT A\r\na = 2.7: PRINT a; a!\r\n", " 1.5 \r\n 3  1.5 \r\n", "ERROR"),
+    "qb_deftsub": ("DECLARE SUB s ()\r\nDECLARE SUB t ()\r\ns: t: c = 1.5: PRINT c\r\nSUB s\r\nDEFINT C\r\nEND SUB\r\n"
+                   "SUB t\r\nc = 1.5: PRINT c\r\nEND SUB\r\n", " 2 \r\n 1.5 \r\n", "ERROR"),
     "qb_gosubsc": ('DECLARE SUB s ()\r\ns\r\nEND\r\nm: PRINT "m": RETURN\r\nSUB s\r\nGOSUB m\r\nEND SUB\r\n',
                    "Subprogram error", None),
     # Unhandled: ERROR n's message; RESUME with no error; ON ERROR GOTO 0 in the handler.

@@ -37,6 +37,7 @@ cm_comp:
         mov     [g_state.cm.ctxlin],eax
         mov     [g_state.cm.cline],bx
         call    bk_proc
+        call    dc_deft
         mov     esi,offset g_lbuf+HDR-1
         call    cm_text
         pop     ebx

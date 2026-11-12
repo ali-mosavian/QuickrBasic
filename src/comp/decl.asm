@@ -1,7 +1,7 @@
 ; ==========================================================================
 ; decl.asm - a line's declarations, into the name table as it is entered
 ; ==========================================================================
-; holds:    dc_line
+; holds:    dc_line, dc_deft
 ; uses:     scp_bind (mem/scope.asm), g_deft
 ; data:     As QBasic, a line's declarations go into the table when it is
 ;           entered, so lines compiled before it know them:
@@ -20,12 +20,16 @@
 ;           DIM SHARED, a module's CONST   BF_SHR in the module's
 ;           AS STRING * n  n's, n()'s length
 ;           OPTION BASE n  obase
-;           A type is ET_*; 0 in ntyp, natyp is none declared. DEFtype holds
-;           for the whole program, not from its line on.
+;           A type is ET_*, 0 none declared. DEFtype holds from its line to
+;           the file's end, SUBs too: dfev keeps deft after each such line,
+;           dc_deft sets it for the line compiled.
 ; ==========================================================================
 
 include x86f.inc
         .code
+
+NDEV    = 256
+DEVSZ   = 28
 
 ; ::::::::::::::
 ; dc_proc - the body in cbuf: a procedure's first line, its END, or neither.
@@ -442,6 +446,7 @@ dc_line:
         inc     ebx
         jmp     @dcd_f
 @dcd_c:
+        call    dc_dfev
         cmp     byte ptr [esi],','
         jne     @dcl_n
         inc     esi
@@ -641,6 +646,62 @@ dc_line:
         jne     @dcl_n
         inc     esi
         jmp     @dcc_l
+
+; ::::::::::::::
+; dc_dfev - a loading line's DEFtype: deft from it on, an event at its place.
+;
+; keeps:  all
+; error:  Out of memory  past NDEV lines with DEFtype
+; ::::::::::::::
+dc_dfev:
+        cmp     [g_state.io.lmode],0
+        je      @dfv_r
+        pushad
+        mov     ax,[g_state.mm.pend]
+        mov     ecx,[g_ndev]
+        jecxz   @F
+        imul    edi,ecx,DEVSZ
+        cmp     ax,word ptr [g_dfev+edi-DEVSZ]  ; this line's again
+        je      @dfv_c
+@@:
+        cmp     ecx,NDEV
+        jae     err_om
+        inc     [g_ndev]
+        inc     ecx
+        imul    edi,ecx,DEVSZ
+@dfv_c:
+        lea     edi,[g_dfev+edi-DEVSZ]
+        stosw
+        mov     esi,offset g_deft
+        mov     ecx,26
+        rep     movsb
+        popad
+@dfv_r:
+        ret
+
+; ::::::::::::::
+; dc_deft - deft as line BX sees it: its DEFtype's and those before it.
+;
+; keeps:  all
+; ::::::::::::::
+dc_deft:
+        pushad
+        mov     esi,offset g_dft0
+        mov     edx,offset g_dfev
+        mov     ecx,[g_ndev]
+        jecxz   @dft_c
+@@:
+        cmp     bx,[edx]
+        jb      @dft_c
+        lea     esi,[edx+2]
+        add     edx,DEVSZ
+        loop    @B
+@dft_c:
+        mov     edi,offset g_deft
+        mov     ecx,26
+        rep     movsb
+        popad
+        ret
 
 ; ::::::::::::::
 ; dc_redim - a procedure's REDIM of a name the module shares with it: the
@@ -932,9 +993,12 @@ g_typ   db      NTYPE*8 dup(?)          ; a TYPE: T_*
 g_fld   db      NFLD*8 dup(?)           ; a field: F_*
 g_ntype db      NNAM dup(?)             ; a name's TYPE, 0 none
 g_obase db      ?                       ; OPTION BASE
+g_ndev  dd      ?                       ; DEFtype's lines: place:2, deft
+g_dfev  db      NDEV*DEVSZ dup(?)
 g_dscope dw     ?                       ; the scope declarations go to
 g_dredim db     ?                       ; @dcl_dim: a REDIM
         .data
+g_dft0  db      26 dup(ET_R4)           ; deft before any DEFtype
 g_dett  db      ET_I2,ET_I4,ET_R4,ET_R8,ET_SD   ; DEFINT .. DEFSTR
 g_dast  db      ET_I2,ET_I4,ET_R4,ET_R8,ET_SD   ; AS INTEGER .. AS STRING
 g_etsz  db      0,4,4,4,8,0,2               ; a record field's size by ET_*

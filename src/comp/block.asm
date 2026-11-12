@@ -224,6 +224,10 @@ bk_stmt:
 @bks_fun:
         mov     dl,PK_FUNC
 @bkp_g:
+        push    ebx
+        movzx   ebx,[g_state.lnk.bln]
+        call    dc_deft
+        pop     ebx
         mov     [g_bkoff],cx
         cmp     [g_state.lnk.cprc],0
         jne     @bk_er

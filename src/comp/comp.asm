@@ -29,8 +29,12 @@ include x86f.inc
 cm_line:
         mov     [g_state.cm.cline],DLINE
         push    eax
+        push    ebx
         xor     eax,eax
         call    scp_proc
+        or      ebx,-1                  ; the program's end's DEFtype
+        call    dc_deft
+        pop     ebx
         pop     eax
         mov     eax,[g_state.mm.dslin]
         mov     [g_state.cm.ctxlin],eax

@@ -289,6 +289,7 @@ externdef g_ps_ent1:word
 externdef g_ps_tab:dword
 externdef lx_line:near
 ; comp/decl.asm
+externdef dc_deft:near
 externdef dc_item:near
 externdef dc_line:near
 externdef dc_proc:near
@@ -297,6 +298,7 @@ externdef dc_tail:near
 externdef g_dast:byte
 externdef g_etsz:byte
 externdef g_fld:byte
+externdef g_ndev:dword
 externdef g_ntype:byte
 externdef g_obase:byte
 externdef g_typ:byte
