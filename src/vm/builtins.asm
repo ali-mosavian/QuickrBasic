@@ -357,7 +357,7 @@ sc_instr:
 ; sc_lbnd, sc_ubnd - LBOUND, UBOUND ( id [d] count -- i ): of dimension d,
 ; 1 the first.
 ;
-; error:  ?BAD SUBSCRIPT  no dimension d
+; error:  ?BAD SUBSCRIPT  no dimension d, or ERASEd
 ; ::::::::::::::
 sc_lbnd:
         xor     edx,edx
@@ -375,8 +375,13 @@ sc_ubnd:
         mov     edi,[g_vt+ebx*4]
         test    edi,edi
         jnz     @F
-        lea     eax,[edx+edx*4]         ; none yet: 0 to 10
-        add     eax,eax
+        cmp     [g_adyn+ebx],0          ; ERASEd: none
+        jne     arr_bs
+        mov     eax,10                  ; none yet: OPTION BASE to 10
+        test    edx,edx
+        jnz     @sbd_n
+        movzx   eax,[g_obase]
+@sbd_n:
         dpush   eax
         dispatch
 @@:

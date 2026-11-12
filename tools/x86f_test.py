@@ -281,6 +281,13 @@ CASES = {
                 "Parameter type mismatch", None),
     "qb_byval": ("DECLARE SUB s (BYVAL a)\r\nx = 1: s x: PRINT x\r\nSUB s (BYVAL a)\r\na = 5\r\nEND SUB\r\n",
                  " 1 \r\n", "ERROR"),
+    # A SUB's REDIM of its array parameter after ERASE made one the caller never saw.
+    "qb_redimpar": ("DECLARE SUB s (a())\r\nREDIM v(3)\r\ns v(): PRINT UBOUND(v); v(9)\r\n"
+                    "SUB s (a())\r\nREDIM a(9): a(9) = 4\r\nERASE a\r\nREDIM a(9): a(9) = 6\r\nEND SUB\r\n", " 9  6 \r\n", "ERROR"),
+    # UBOUND of an ERASEd dynamic array was 10, an implicit one's; LBOUND of one not yet made 0
+    # under OPTION BASE 1.
+    "qb_ubnderase": ("REDIM v(3)\r\nERASE v\r\nPRINT UBOUND(v)\r\n", "Subscript out of range", None),
+    "qb_lbndimp": ("OPTION BASE 1\r\nIF 0 THEN w(1) = 1\r\nPRINT LBOUND(w); UBOUND(w)\r\n", " 1  10 \r\n", "ERROR"),
     "qb_gosubsc": ('DECLARE SUB s ()\r\ns\r\nEND\r\nm: PRINT "m": RETURN\r\nSUB s\r\nGOSUB m\r\nEND SUB\r\n',
                    "Subprogram error", None),
     # Unhandled: ERROR n's message; RESUME with no error; ON ERROR GOTO 0 in the handler.

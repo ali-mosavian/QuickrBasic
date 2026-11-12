@@ -1416,7 +1416,10 @@ ct_arg:
         push    ebx
         call    cm_chkop
         call    cm_chkcl
+        mov     eax,[esp]               ; its ref: itself, PRET's store back
+        call    cm_lint
         pop     eax
+        jmp     cm_lint
 @car_o:
         call    cm_lint
         mov     eax,0FFFFh

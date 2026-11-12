@@ -1227,6 +1227,11 @@ op_pcall:
         jmp     @pcb_n
 @pcb_y:
         mov     [g_vt+ebx*4],eax
+        movzx   eax,word ptr [edi+2]    ; an array's: dynamic as its ref
+        cmp     ax,0FFFFh
+        je      @pcb_n
+        mov     al,[g_adyn+eax]
+        mov     [g_adyn+ebx],al
         jmp     @pcb_n
 @pcb_t:
         push    edi
@@ -1303,6 +1308,8 @@ pr_pop:
         je      @prt_pn
         movzx   ecx,word ptr [edx]
         mov     al,[g_sinfo+ecx]
+        test    al,al
+        js      @prt_pa
         test    al,SK_DBL
         jz      @F
         mov     eax,[SVBASE+ecx*8]
@@ -1321,6 +1328,12 @@ pr_pop:
         lea     eax,[SVBASE+ecx*8]
         lea     edi,[edx+4]
         call    ls_mov
+        jmp     @prt_pn
+@prt_pa:                                ; an array: its header, dynamic
+        mov     eax,[g_vt+ecx*4]
+        mov     [edx+4],eax
+        mov     al,[g_adyn+ecx]
+        mov     [edx+8],al
 @prt_pn:
         add     edx,LSSZ
         jmp     @prt_p
@@ -1414,6 +1427,8 @@ pr_pop:
         jnz     @prt_oa
         movzx   eax,word ptr [edx]
         mov     al,[g_sinfo+eax]
+        test    al,al
+        js      @prt_ob
         test    al,SK_DBL
         jz      @F
         mov     eax,[edx+4]
@@ -1432,6 +1447,12 @@ pr_pop:
         lea     eax,[edx+4]
         lea     edi,[SVBASE+ecx*8]
         call    ls_mov
+        jmp     @prt_on
+@prt_ob:                                ; an array: the one it ends as
+        mov     eax,[edx+4]
+        mov     [g_vt+ecx*4],eax
+        mov     al,[edx+8]
+        mov     [g_adyn+ecx],al
         jmp     @prt_on
 @prt_oa:                                ; to an element: its array's data now
         and     ecx,7FFFh
