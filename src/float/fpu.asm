@@ -486,47 +486,66 @@ fn_log:
         fyl2x
         jmp     flt_fst
 ; ::::::::::::::
-; fn_exp - EXP on the x87.
+; fn_exp - EXP on the x87. ?OVERFLOW past 2^32767.5, else at most
+; infinity, as BC's.
 ; ::::::::::::::
 fn_exp:
         call    flt_xin
         fldcw   [g_fcwx]
         fldl2e
         fmulp   st(1),st
+        fcom    [g_dovf]
+        fnstsw  ax
+        sahf
+        jae     @fxe_ov
         call    flt_x2x
-        jmp     flt_fst
+        fstp    dword ptr [g_state.ft.fpa]
+        mov     eax,[g_state.ft.fpa]
+        test    eax,7F800000h
+        jz      flt_zero
+        ret
+@fxe_ov:
+        fstp    st(0)
+        fldcw   [g_fcw]
+        jmp     err_ov
 ; ::::::::::::::
 ; fn_cos - COS on the x87.
 ; ::::::::::::::
 fn_cos:
-        call    flt_xin
+        call    flt_xtrg
         fcos
-        jmp     @fxn_c2
+        jmp     flt_fst
 ; ::::::::::::::
 ; fn_sin - SIN on the x87.
 ; ::::::::::::::
 fn_sin:
-        call    flt_xin
+        call    flt_xtrg
         fsin
-@fxn_c2:
-        fnstsw  ax
-        test    ah,4                    ; C2: past 2^63, not reduced
-        jz      flt_fst
-@fxn_c0:
-        fstp    st(0)
-        xor     eax,eax
-        ret
+        jmp     flt_fst
 ; ::::::::::::::
 ; fn_tan - TAN on the x87.
 ; ::::::::::::::
 fn_tan:
-        call    flt_xin
+        call    flt_xtrg
         fptan
-        fnstsw  ax
-        test    ah,4
-        jnz     @fxn_c0
         fstp    st(0)
         jmp     flt_fst
+; ::::::::::::::
+; flt_xtrg - load EAX; ?ILLEGAL QUANTITY past 2^31, as BC's.
+; ::::::::::::::
+flt_xtrg:
+        call    flt_xin
+        fld     st(0)
+        fabs
+        fcomp   [g_dbig]
+        fnstsw  ax
+        sahf
+        ja      @F
+        ret
+@@:
+        fstp    st(0)
+        add     esp,4
+        jmp     err_iq
 ; ::::::::::::::
 ; fn_atn - ATN on the x87.
 ; ::::::::::::::

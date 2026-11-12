@@ -6,6 +6,7 @@ print NAME.out. Cases are read from llrm's tree (LLRM, default ~/work/personal/l
 picks cases; -v prints a failure's output. SKIP's cases are not run, each for its reason."""
 
 import os
+import platform
 import sys
 import tempfile
 import tomllib
@@ -27,6 +28,10 @@ SKIP = {
     "arrays": NOD,
     "divmod": NOD,
 }
+# DOSBox-X off x86 runs the x87 in 64-bit doubles: the last digit of LOG, EXP, ^ and PRINT can differ.
+if platform.machine() not in ("x86_64", "AMD64", "i386", "i686"):
+    SKIP |= dict.fromkeys(["log_exp_digits", "range_power_digits", "data_after_checked", "pow_stack_depth",
+                           "pow_unrolled"], "the x87 in doubles")
 RUNS = LLRM / "tests/run/qb"
 
 

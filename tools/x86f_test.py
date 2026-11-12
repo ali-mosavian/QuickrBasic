@@ -287,6 +287,13 @@ CASES = {
                    " 2  4  4  8  8  2  3 \r\n", "ERROR"),
     # & after a whole number was a syntax error.
     "qb_lit_long": ("PRINT 70000&; -5%\r\n", " 70000 -5 \r\n", "ERROR"),
+    # SINGLE EXP overflowed at SINGLE's range: 22712 was error 6, not BC's infinity.
+    "qb_exp_sng": ('ON ERROR GOTO h\r\nPRINT "a"\r\ns! = 22712: z# = EXP(s!): PRINT "ok"\r\n'
+                   's! = 22713: z# = EXP(s!): PRINT "ok"\r\nEND\r\nh: PRINT ERR: RESUME NEXT\r\n',
+                   "a\r\nok\r\n 6 \r\nok\r\n", "ERROR"),
+    # SINGLE SIN past 2^31 gave 0 or a value, not error 5.
+    "qb_trig_sng": ('ON ERROR GOTO h\r\ns! = 1E13: x = SIN(s!): x = COS(s!): x = TAN(s!)\r\n'
+                    'END\r\nh: PRINT ERR: RESUME NEXT\r\n', " 5 \r\n 5 \r\n 5 \r\n", "ERROR"),
 }
 
 # Run as files; what standard error showed. A file's CR LF counted as two lines: line 3, 5.

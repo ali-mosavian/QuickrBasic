@@ -642,8 +642,10 @@ externdef g_fcwx:word
 externdef dbl_digits:near
 externdef dbl_fmt:near
 externdef dbl_in:near
+externdef g_dbig:dword
 externdef g_dbuf:byte
 externdef g_dig:byte
+externdef g_dovf:dword
 externdef g_dp:dword
 externdef g_dval:qword
 externdef op_dadd:near

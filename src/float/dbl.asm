@@ -888,7 +888,7 @@ g_p10   real8   1.0E0,1.0E1,1.0E2,1.0E3,1.0E4,1.0E5,1.0E6,1.0E7,1.0E8,1.0E9
         real8   1.0E10,1.0E11,1.0E12,1.0E13,1.0E14,1.0E15,1.0E16,1.0E17,1.0E18
         real8   1.0E19,1.0E20,1.0E21,1.0E22
 g_dbig  dd      4F000000h               ; 2^31
-g_dovf  real4   32767.5                 ; EXP's limit, in powers of 2
+g_dovf  dd      46FFFF00h               ; 32767.5: EXP's limit, in powers of 2
 g_dmax  real8   1.7976931348623157E308
 g_dfn   dd      @dfn_abs,@dfn_sgn,@dfn_int,@dfn_fix,@dfn_sqr,@dfn_sin,@dfn_cos
         dd      @dfn_tan,@dfn_atn,@dfn_log,@dfn_exp
