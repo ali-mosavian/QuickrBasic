@@ -271,7 +271,8 @@ rpl_cont:
 ; rpl_file - run the file the command line names, then exit; no name: back.
 ;
 ; Its lines are stored in its order, a number or none; a label at a line's
-; start is that line's.
+; start is that line's. A '$INCLUDE: 'f' line's file is read from there, to
+; its end, on file 254 and down.
 ; ::::::::::::::
 rpl_file:
         assume  fs:nothing
@@ -313,12 +314,40 @@ rpl_file:
         mov     [g_state.io.lmode],1
         mov     [g_state.io.batch],1
         and     [g_state.io.fline],0
+        mov     [g_rinc],0
 @rfl_l:
         call    plt_getline
-        jc      @rfl_d
+        jc      @rfl_i
         inc     [g_state.io.fline]
+        call    rpl_inc
+        pushfd
         call    rpl_enter
+        popfd
+        jnc     @rfl_l
+        inc     [g_rinc]                ; an include: its lines next
+        mov     esi,offset g_finc
+        call    @rfl_n
+        mov     dl,FM_IN
+        mov     ecx,128
+        call    ch_open
+        call    ch_in
         jmp     @rfl_l
+@rfl_i:
+        cmp     [g_rinc],0              ; an include's end: back to the file
+        je      @rfl_d                  ; it was in
+        call    @rfl_n
+        call    ch_find
+        call    ch_close
+        dec     [g_rinc]
+        call    @rfl_n
+        call    ch_find
+        call    ch_in
+        jmp     @rfl_l
+@rfl_n:                                 ; EAX the file of include depth rinc
+        movzx   eax,[g_rinc]
+        neg     eax
+        add     eax,255
+        ret
 @rfl_d:
         call    ch_clall
         mov     [g_state.io.lmode],0
@@ -327,6 +356,94 @@ rpl_file:
         call    cm_link
         jmp     ex_runfirst
 @rfl_r:
+        ret
+
+; ::::::::::::::
+; rpl_inc - is inbuf, AX long, a '$INCLUDE: 'f' metacommand (or REM's)?
+;
+; out:    CF    set: it is
+;         finc  f, 0-ended
+; keeps:  all
+; ::::::::::::::
+rpl_inc:
+        pushad
+        mov     esi,offset g_inbuf
+        movzx   edx,ax
+        add     edx,esi
+        call    @rin_b
+        cmp     esi,edx
+        jae     @rin_n
+        cmp     byte ptr [esi],"'"
+        jne     @F
+        inc     esi
+        jmp     @rin_m
+@@:
+        mov     edi,offset r_rem
+        call    @rin_w
+        jc      @rin_n
+@rin_m:
+        call    @rin_b
+        mov     edi,offset r_inc
+        call    @rin_w
+        jc      @rin_n
+        call    @rin_b
+        cmp     byte ptr [esi],':'
+        jne     @rin_n
+        inc     esi
+        call    @rin_b
+        cmp     byte ptr [esi],"'"
+        jne     @rin_n
+        inc     esi
+        mov     edi,offset g_finc
+@@:
+        cmp     esi,edx
+        jae     @rin_n
+        lodsb
+        cmp     al,"'"
+        je      @F
+        stosb
+        cmp     edi,offset g_finc+127
+        jb      @B
+        jmp     @rin_n
+@@:
+        mov     byte ptr [edi],0
+        popad
+        stc
+        ret
+@rin_n:
+        popad
+        clc
+        ret
+@rin_b:                                 ; ESI past blanks
+        cmp     esi,edx
+        jae     @F
+        cmp     byte ptr [esi],' '
+        je      @rin_bn
+        cmp     byte ptr [esi],9
+        jne     @F
+@rin_bn:
+        inc     esi
+        jmp     @rin_b
+@@:
+        ret
+@rin_w:                                 ; the word at EDI, any case; CF: not it
+        mov     al,[edi]
+        test    al,al
+        jz      @F
+        cmp     esi,edx
+        jae     @rin_x
+        mov     ah,[esi]
+        upcase  ah
+        cmp     ah,al
+        jne     @rin_x
+        inc     esi
+        inc     edi
+        jmp     @rin_w
+@@:
+        clc
+        ret
+@rin_x:
+        stc
         ret
 
 ; ::::::::::::::
@@ -393,8 +510,13 @@ rpl_enter:
         mov     al,2
         ret
 
+        .data
+r_rem   db      'REM',0
+r_inc   db      '$INCLUDE',0
         .data?
 g_fnmb  db      128 dup(?)               ; the command line's file name
+g_finc  db      128 dup(?)               ; an include's
+g_rinc  db      ?                       ; includes open
         .code
 
         end
