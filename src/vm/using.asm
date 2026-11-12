@@ -222,6 +222,7 @@ us_ldr:
         ret
 @@:
         fabs
+        mov     [g_ndig],16
         call    dbl_digits
         push    esi
         push    edi

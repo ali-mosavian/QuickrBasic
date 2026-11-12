@@ -199,15 +199,9 @@ cm_p:
 @cp_ic:
         call    cm_icmp
         jmp     @cp_l
-@cp_pw:
+@cp_pw:                                 ; ^: a SINGLE, INTs' too
         test    al,al
         js      @cp_pf
-        cmp     [g_state.cm.cty],T_INT
-        jne     @cp_pl
-        mov     al,K_IPOW
-        call    cm_call
-        jmp     @cp_l
-@cp_pl:
         call    cm_lflt
 @cp_pf:
         call    cm_tof

@@ -215,11 +215,6 @@ TFLT     struc                   ; the float routines
     fq      db      ?
     fd      db      ?
     fsg     db      ?
-    fout    dd      ?
-    fw      dd      ?
-    fdw     dd      ?
-    fbuf    db      7 dup(?)
-    ft1     dd      ?
     ft2     dd      ?
     ft3     dd      ?
     ft4     dd      ?

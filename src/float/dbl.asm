@@ -83,6 +83,7 @@ dbl_in:
         mov     dword ptr [g_dm],eax
         mov     dword ptr [g_dm+4],eax
         xor     ecx,ecx                 ; the digits taken
+        mov     [g_dnz],ecx             ; the zeros after the point before
         xor     edx,edx                 ; the power of ten
         xor     ebx,ebx                 ; BL a point seen, BH the kind
 @din_l:
@@ -100,6 +101,7 @@ dbl_in:
         test    bl,bl                   ; a leading zero
         jz      @din_l
         dec     edx
+        inc     [g_dnz]
         jmp     @din_l
 @din_d:
         cmp     ecx,18                  ; under 2^63
@@ -180,9 +182,11 @@ dbl_in:
         inc     esi
         mov     bh,2
 @@:
-        test    bh,bh
-        jnz     @F
-        cmp     ecx,7
+        test    bh,bh                   ; past 7 digits, BC's count: the
+        jnz     @F                      ; zeros after the point too
+        mov     eax,ecx
+        add     eax,[g_dnz]
+        cmp     eax,7
         jbe     @F
         mov     bh,1
 @@:
@@ -207,7 +211,8 @@ dbl_in:
         ret
 
 ; ::::::::::::::
-; dbl_digits - st0's digits, 16, rounded once: v = 0.d1d2.. * 10^(dp+1).
+; dbl_digits - st0's digits, ndig of them, rounded once: v = 0.d1d2.. *
+; 10^(dp+1).
 ;
 ; in:     st0  v, over 0 and finite; popped
 ; out:    dig  the digits, ECX of them, the trailing zeros left out
@@ -227,29 +232,32 @@ dbl_digits:
         fldcw   [g_fcwx]
         mov     ebx,4                   ; tries
 @ddg_s:
-        mov     eax,15                  ; N = v * 10^(15-p), 16 digits
+        mov     eax,[g_ndig]            ; N = v * 10^(nd-1-p), nd digits
+        dec     eax
         sub     eax,[g_dp]
         fld     st(0)
         call    dbl_scale
         dec     ebx
-        jz      @ddg_fi
-        fcom    [g_p10+15*8]            ; under 10^15: p one too high
-        fnstsw  ax
+        jz      @F
+        mov     eax,[g_ndig]
+        fcom    [g_p10+eax*8-8]         ; under 10^(nd-1) unrounded: p one
+        fnstsw  ax                      ; too high
         sahf
         jae     @F
         fstp    st(0)
         dec     [g_dp]
         jmp     @ddg_s
 @@:
-        fistp   [g_dn]
-        cmp     dword ptr [g_dn+4],002386F2h    ; 10^16 after rounding
-        jb      @ddg_d
-        ja      @F
-        cmp     dword ptr [g_dn],6FC10000h
-        jb      @ddg_d
-@@:
+        frndint
+        mov     eax,[g_ndig]
+        fcom    [g_p10+eax*8]           ; rounded up to 10^nd: 10^(nd-1),
+        fnstsw  ax                      ; one place up
+        sahf
+        jb      @ddg_fi
+        fstp    st(0)
+        mov     eax,[g_ndig]
+        fld     [g_p10+eax*8-8]
         inc     [g_dp]
-        jmp     @ddg_s
 @ddg_fi:
         fistp   [g_dn]
 @ddg_d:
@@ -257,9 +265,10 @@ dbl_digits:
         fild    [g_dn]
         fbstp   [g_dbcd]
         dq24
-        xor     ecx,ecx                 ; 16 digits to dig, the first first
+        xor     ecx,ecx                 ; nd digits to dig, the first first
 @@:
-        mov     eax,15
+        mov     eax,[g_ndig]
+        dec     eax
         sub     eax,ecx
         mov     edx,eax
         shr     edx,1
@@ -272,7 +281,7 @@ dbl_digits:
         add     dl,'0'
         mov     [g_dig+ecx],dl
         inc     ecx
-        cmp     ecx,16
+        cmp     ecx,[g_ndig]
         jb      @B
 @@:
         cmp     ecx,1                   ; nd: less the trailing zeros
@@ -288,14 +297,29 @@ dbl_digits:
 
 ; ::::::::::::::
 ; dbl_fmt - a DOUBLE as PRINT spells it: a space or -, 16 digits at most,
-; no 0 before the point, D+nn past 10^16 or under 10^-4.
+; no 0 before the point; D+nn from 10^16, D-nn when under 1 it needs more
+; than 16 decimals. QB45's: PDS and VBDOS give 15 digits. flt_fmt - a
+; SINGLE so, 7 digits, E.
 ;
-; in:     EAX  the DOUBLE's address
+; in:     EAX  the DOUBLE's address; flt_fmt's the SINGLE's
 ; out:    dbuf  the text
 ;         ECX   its length
 ; keeps:  ESI
 ; ::::::::::::::
+flt_fmt:
+        push    eax
+        fld     dword ptr [eax]
+        fstp    [g_dsgl]
+        mov     eax,offset g_dsgl
+        mov     [g_ndig],7
+        mov     [g_expc],'E'
+        call    num_fmt
+        pop     eax
+        ret
 dbl_fmt:
+        mov     [g_ndig],16
+        mov     [g_expc],'D'
+num_fmt:
         push    esi
         push    edi
         push    ebx
@@ -332,13 +356,17 @@ dbl_fmt:
         call    dbl_digits
 @@:
         mov     edx,[g_dp]
-        cmp     edx,-4
-        jl      @dfm_x
-        cmp     edx,16
+        cmp     edx,[g_ndig]
         jge     @dfm_x
         xor     ebx,ebx
         test    edx,edx
-        js      @dfm_f
+        jns     @dfm_w
+        mov     eax,ecx                 ; under 1: its decimals, -p-1+n
+        sub     eax,edx
+        dec     eax
+        cmp     eax,[g_ndig]
+        jbe     @dfm_f
+        jmp     @dfm_x
 @dfm_w:                                 ; the whole part
         mov     al,'0'
         cmp     ebx,ecx
@@ -391,7 +419,7 @@ dbl_fmt:
         cmp     ebx,ecx
         jb      @B
 @dfm_xe:
-        mov     al,'D'
+        mov     al,[g_expc]
         stosb
         mov     al,'+'
         test    edx,edx
@@ -902,6 +930,10 @@ g_dp    dd      ?
 g_dtmp  dd      ?
 g_dsg   db      ?
 g_dig   db      16 dup(?)
+g_dnz   dd      ?
+g_ndig  dd      ?                       ; num_fmt: the digits, the exponent's
+g_expc  db      ?                       ; letter
+g_dsgl  dq      ?                       ; flt_fmt's SINGLE
 g_dbuf  db      32 dup(?)
         .code
 

@@ -45,7 +45,6 @@ ET_R8   = 4
 ET_SD   = 5
 ET_SH   = 6                     ; SHORT: 2 bytes in a record, else an INT
 EMAX    = 254
-NDO     = 7                     ; digits flt_out shows
 NTMP    = 48                    ; string temporaries: the data stack is full first
 VS      = 4                     ; a variable's slot, a number's bytes
 NB      = 4                     ; a stored FLOAT's bytes

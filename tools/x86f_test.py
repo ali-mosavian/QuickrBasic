@@ -299,6 +299,18 @@ CASES = {
     "qb_reffor": ("DECLARE SUB s (a)\r\ns x: PRINT x\r\nSUB s (a)\r\nFOR a = 1 TO 3: NEXT\r\nEND SUB\r\n", " 4 \r\n", "ERROR"),
     "qb_refmove": ("DECLARE SUB s (a, b$)\r\nREDIM SHARED t(100)\r\nREDIM v(3), w$(3)\r\ns v(2), w$(1): PRINT v(2); w$(1)\r\n"
                    "SUB s (a, b$)\r\nERASE t\r\na = 7: b$ = \"m\"\r\nEND SUB\r\n", " 7 m\r\n", "ERROR"),
+    # A SINGLE printed, and read, through repeated single-precision steps, rounded more than
+    # once: 1/3 was .3333334, 9.999999 was 10, .001 9.999999E-04; past 7 digits it was not
+    # E+nn; under 1 it went E-nn by its power, not by the decimals it needs, DOUBLE's too. ^ of
+    # INTs was an INT; 12345678 a SINGLE.
+    "qb_sfmt": ("PRINT 1 / 3; 9.999999; 99999.99; 1E7; 12345678; 2 ^ 24\r\n"
+                "PRINT .001; .00001; .0000001; 1E-08; 1.2E-6; 1.2E-7; 1.234567E-02; 1.23456E-03\r\n"
+                "PRINT STR$(.9999999); STR$(5 / 9E8); STR$(1.5E-10)\r\n"
+                "PRINT 1D-04; 1.5D-05; .000001#; 1D-16; 1.2D-16; 1.2345678D-08; 1.23456789012345D-02\r\n",
+                " .3333333  9.999999  99999.99  1E+07  12345678  1.677722E+07 \r\n"
+                " .001  .00001  .0000001  1E-08  .0000012  1.2E-07  1.234567E-02  1.23456E-03 \r\n"
+                " .9999999 5.555556E-09 1.5E-10\r\n"
+                " .0001  .000015  .000001  .0000000000000001  1.2D-16  .000000012345678  .0123456789012345 \r\n", "ERROR"),
     "qb_gosubsc": ('DECLARE SUB s ()\r\ns\r\nEND\r\nm: PRINT "m": RETURN\r\nSUB s\r\nGOSUB m\r\nEND SUB\r\n',
                    "Subprogram error", None),
     # Unhandled: ERROR n's message; RESUME with no error; ON ERROR GOTO 0 in the handler.
@@ -354,7 +366,7 @@ CASES = {
                "DIM d(3) AS DOUBLE: d(2) = 3.141592653589793#: PRINT d(2) * 2\r\n"
                "READ r#: PRINT r#; FIX(-2.5#); INT(-2.5#); CDBL(1) / 3\r\n"
                "DATA 1.000000000000001\r\n",
-               " .3333333333333333  1D+20  1.5D-07  1.414213562373095 \r\n"
+               " .3333333333333333  1D+20  .00000015  1.414213562373095 \r\n"
                " 6.283185307179586 \r\n"
                " 1.000000000000001 -2 -3  .3333333333333333 \r\n", "ERROR"),
     # The first digit's power from LOG10 came out one high near 10^n: 10000000 was printed.
