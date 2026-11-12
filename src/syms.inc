@@ -121,6 +121,7 @@ externdef sc_sys:near
 externdef sc_wait:near
 externdef sc_wait2:near
 ; vm/sys.asm
+externdef g_env:byte
 externdef sc_cmd:near
 externdef sc_date:near
 externdef sc_envs:near
@@ -132,6 +133,8 @@ externdef sc_rndq:near
 externdef sc_rndz:near
 externdef sc_sdate:near
 externdef sc_setmem:near
+externdef sc_shell:near
+externdef sc_shell0:near
 externdef sc_sleep:near
 externdef sc_stime:near
 externdef sc_time:near
@@ -598,6 +601,7 @@ externdef sc_usi:near
 externdef sc_uss:near
 ; io/plat.asm
 externdef g_plat:TPLAT
+externdef plt_exec:near
 externdef plt_exit:near
 externdef plt_flush:near
 externdef plt_getc:near

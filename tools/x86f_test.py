@@ -193,6 +193,11 @@ CASES = {
     "qb_ports": ('OUT &H3C8, 5: OUT &H3C9, 10: OUT &H3C9, 20: OUT &H3C9, 30\r\n'
                  'OUT &H3C7, 5: PRINT INP(&H3C9); INP(&H3C9); INP(&H3C9)\r\nWAIT &H3DA, 8: WAIT &H3DA, 8, 8: PRINT "w"\r\n',
                  " 10  20  30 \r\nw\r\n", "ERROR"),
+    # SHELL was a syntax error. The child gets ENVIRON's environment and writes after what was
+    # printed; a COMSPEC that does not run is Illegal function call.
+    "qb_shell": ('PRINT "a"\r\nENVIRON "QBX=hello"\r\nSHELL "set"\r\nSHELL "echo b"\r\nPRINT "c"\r\nON ERROR GOTO h\r\n'
+                 'ENVIRON "COMSPEC=X:\\NONE.COM"\r\nSHELL "echo d"\r\nEND\r\nh: PRINT "e"; ERR: RESUME NEXT\r\n',
+                 "QBX=hello\r\nb\r\nc\r\ne 5 \r\n", "warning"),
     # Unhandled: ERROR n's message; RESUME with no error; ON ERROR GOTO 0 in the handler.
     # A full stack was ?OUT OF MEMORY, which ON ERROR trapped; BC's is Out of stack space, not
     # trapped, its line, module and address after.

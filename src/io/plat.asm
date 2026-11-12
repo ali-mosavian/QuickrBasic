@@ -2,7 +2,7 @@
 ; plat.asm - the DOS platform: console, files, clock
 ; ==========================================================================
 ; holds:    plt_putc, plt_getline, plt_getc, plt_getb, plt_exit, plt_rdtim,
-;           plt_settim, plt_init, plt_heap
+;           plt_settim, plt_init, plt_heap, plt_exec
 ; uses:     INT 21h handles, the BIOS tick at 0040:006Ch, inbuf, ch_getb
 ; data:     cin: FFh standard input, else the input channel (io/chan.asm).
 ;           obuf: standard output, flushed on NL, before a read and at the
@@ -452,8 +452,135 @@ plt_settim:
         mov     [g_state.io.toff],eax
         ret
 
+; ::::::::::::::
+; plt_exec - run a program: DOS's EXEC in real mode through DPMI, in DOS
+; memory: env, the environment, at 0, then XP the parameter block, XT the
+; tail, XN the path, XF the FCBs.
+;
+; in:     ESI  the path, 0-ended
+;         EBX  the command tail: its count, its text, CR
+; out:    CF   set: it did not run
+; keeps:  all
+; ::::::::::::::
+XP      = 0
+XT      = 16
+XN      = XT+128
+XF      = XN+128
+XSZ     = XF+32
+plt_exec:
+        pushad
+        push    es
+        call    plt_flush
+        mov     [g_xfail],1
+        mov     edi,offset g_env        ; the environment's bytes, to its end's 0
+@@:
+        cmp     byte ptr [edi],0
+        je      @F
+        xor     al,al
+        mov     ecx,-1
+        repne   scasb
+        jmp     @B
+@@:
+        sub     edi,offset g_env-1
+        mov     [g_xenvn],edi
+        add     edi,16                  ; and a 0, on a paragraph
+        and     edi,not 15
+        mov     [g_xenv],edi
+        push    ebx
+        lea     ebx,[edi+XSZ+15]
+        shr     ebx,4
+        mov     ax,0100h
+        int     31h
+        pop     ebx
+        jc      @pex_r
+        mov     [g_xseg],ax
+        mov     [g_xsel],dx
+        mov     es,dx                   ; the block zeroed
+        push    esi
+        xor     edi,edi
+        mov     ecx,[g_xenv]
+        add     ecx,XSZ
+        xor     al,al
+        rep     stosb
+        xor     edi,edi                 ; the environment
+        mov     esi,offset g_env
+        mov     ecx,[g_xenvn]
+        rep     movsb
+        mov     edx,[g_xenv]
+        movzx   eax,[g_xseg]
+        mov     es:[edx+XP],ax
+        lea     ecx,[edx+XT]
+        mov     es:[edx+XP+2],cx
+        mov     es:[edx+XP+4],ax
+        lea     ecx,[edx+XF]
+        mov     es:[edx+XP+6],cx
+        mov     es:[edx+XP+8],ax
+        add     ecx,16
+        mov     es:[edx+XP+10],cx
+        mov     es:[edx+XP+12],ax
+        lea     edi,[edx+XT]            ; the tail
+        mov     esi,ebx
+        movzx   ecx,byte ptr [esi]
+        add     ecx,2
+        rep     movsb
+        pop     esi                     ; the path
+        lea     edi,[edx+XN]
+        mov     ecx,127
+@@:
+        lodsb
+        stosb
+        test    al,al
+        loopnz  @B
+        push    ds
+        pop     es
+        mov     edi,offset g_xrm
+        mov     ecx,32h
+        xor     al,al
+        rep     stosb
+        mov     dword ptr [g_xrm+1Ch],4B00h     ; EAX
+        mov     dword ptr [g_xrm+10h],edx       ; EBX: the parameter block
+        add     edx,XN
+        mov     dword ptr [g_xrm+14h],edx       ; EDX: the path
+        mov     ax,[g_xseg]
+        mov     word ptr [g_xrm+22h],ax         ; ES
+        mov     word ptr [g_xrm+24h],ax         ; DS
+        mov     ax,0200h                ; EXEC leaves INT 22h its own: kept
+        mov     bl,22h
+        int     31h
+        push    ecx
+        push    edx
+        mov     ax,0300h
+        mov     bx,21h
+        xor     ecx,ecx
+        mov     edi,offset g_xrm
+        int     31h
+        jc      @F
+        test    byte ptr [g_xrm+20h],1  ; its flags: CF
+        jnz     @F
+        mov     [g_xfail],0
+@@:
+        pop     edx
+        pop     ecx
+        mov     ax,0201h
+        mov     bl,22h
+        int     31h
+        mov     ax,0101h
+        mov     dx,[g_xsel]
+        int     31h
+@pex_r:
+        pop     es
+        popad
+        bt      dword ptr [g_xfail],0
+        ret
+
         .data?
 g_obuf  db      OBSZ dup(?)
+g_xrm   db      32h dup(?)              ; plt_exec: the real-mode registers
+g_xfail dd      ?
+g_xenvn dd      ?                       ; the environment's bytes, rounded
+g_xenv  dd      ?
+g_xseg  dw      ?                       ; the DOS block: segment, selector
+g_xsel  dw      ?
         .code
 
         .data

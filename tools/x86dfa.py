@@ -251,6 +251,7 @@ GRAMMAR: dict[str, str] = {
     "DATE$": "= e tos !SDATE",
     "TIME$": "= e tos !STIME",
     "ENVIRON": "e tos !ENVSET",
+    "SHELL": "( $ !SHELL0 | e tos !SHELL )",
 }
 EOS = (0, ord(":"))
 

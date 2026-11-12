@@ -312,6 +312,55 @@ sc_inkey:
         jmp     sx_sret
 
 ; ::::::::::::::
+; sc_shell - SHELL ( s -- ): COMSPEC /C s; sc_shell0 ( -- ): COMSPEC.
+;
+; error:  Illegal function call  it did not run
+; ::::::::::::::
+sc_shell0:
+        xor     ecx,ecx
+        jmp     @shl_t
+sc_shell:
+        dpop    eax
+        call    str_get
+        mov     ebx,[g_state.sg.spt]
+        movzx   ecx,cx
+@shl_t:
+        push    esi
+        mov     edi,offset g_shtl+1     ; the tail: count, " /C s", CR
+        jecxz   @F
+        cmp     ecx,122
+        jbe     @shl_c
+        mov     ecx,122
+@shl_c:
+        mov     dword ptr [edi],20432F20h       ; " /C "
+        add     edi,4
+        mov     esi,ebx
+        rep     movsb
+@@:
+        mov     byte ptr [edi],0Dh
+        mov     eax,edi
+        sub     eax,offset g_shtl+1
+        mov     [g_shtl],al
+        mov     ebx,offset g_shcs
+        mov     ecx,7
+        call    sx_find
+        mov     esi,offset g_shcm
+        jc      @F
+        lea     esi,[edi+8]             ; past COMSPEC=
+@@:
+        mov     ebx,offset g_shtl
+        call    plt_exec
+        pop     esi
+        jc      err_iq
+        jmp     ex_lp
+        .data
+g_shcs  db      "COMSPEC"
+g_shcm  db      "COMMAND.COM",0
+        .data?
+g_shtl  db      128 dup(?)
+        .code
+
+; ::::::::::::::
 ; sc_cmd - COMMAND$ ( -- s ).
 ; ::::::::::::::
 sc_cmd:

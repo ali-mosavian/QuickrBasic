@@ -340,6 +340,8 @@ qbklist macro   m
         m       USI,sc_usi
         m       INP,sc_inp
         m       OUT,sc_out
+        m       SHELL,sc_shell
+        m       SHELL0,sc_shell0
         m       USF,sc_usf
         m       USD,sc_usd
         m       USS,sc_uss
