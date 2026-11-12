@@ -62,7 +62,7 @@ op_sldt:
 ; in:     EBX  the id * 2
 ;         EAX  the subscript
 ; out:    EDI  the element
-; error:  as arr_ref, and ?ILLEGAL QUANTITY past a word
+; error:  as arr_ref, and Subscript out of range past a word
 ; ::::::::::::::
 arr_r1:
         subchk

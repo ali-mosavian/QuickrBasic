@@ -155,6 +155,10 @@ CASES = {
                  "IF ERR = 7 THEN RESUME x\r\nRESUME NEXT\r\n"
                  "FUNCTION f% (d%)\r\n50 c% = 10 \\ d%: f% = c% + 4\r\nEND FUNCTION\r\n",
                  "e 11  50  5  0 \r\ne 5  0  2 \r\ne 7  0 x\r\n", "ERROR"),
+    # Out of bounds was Illegal function call below 0 or past a word, and an ERASEd dynamic array
+    # was made again, 11 elements: QBasic's are all Subscript out of range.
+    "qb_subs": ('DIM s(1 TO 3)\r\nREDIM d(2)\r\nON ERROR GOTO h\r\nPRINT s(-1)\r\nx& = 70000: PRINT s(x&)\r\n'
+                'ERASE d: PRINT d(0)\r\nEND\r\nh: PRINT ERR: RESUME NEXT\r\n', " 9 \r\n 9 \r\n 9 \r\n", "ERROR"),
     # Unhandled: ERROR n's message; RESUME with no error; ON ERROR GOTO 0 in the handler.
     "qb_errn": ("ERROR 11\r\n", "?DIVISION BY ZERO ERROR", None),
     "qb_errun": ("ERROR 99\r\n", "?UNPRINTABLE ERROR", None),

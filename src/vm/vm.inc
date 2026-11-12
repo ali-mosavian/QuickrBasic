@@ -46,12 +46,11 @@ ipfix   macro
 @ipb:
         endm
 
-; ?ILLEGAL QUANTITY unless the subscript in EAX fits a word, as the 16-bit
-; build's did. Kills ECX.
+; Subscript out of range unless the subscript in EAX fits a word. Kills ECX.
 subchk  macro
         movsx   ecx,ax
         cmp     ecx,eax
-        jne     err_iq
+        jne     arr_bs
         endm
 
 ; tsp to the procedure's floor: the statement's temporaries go.

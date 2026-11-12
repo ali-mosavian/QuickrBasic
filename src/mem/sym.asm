@@ -35,6 +35,7 @@ var_clr:
         test    [g_sinfo+ebx],80h
         jz      @vc_n
         mov     [g_vt+ebx*4],0
+        mov     [g_adyn+ebx],0
 @vc_n:
         inc     ebx
         cmp     bx,[g_state.lx.nsyms]

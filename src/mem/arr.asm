@@ -48,15 +48,17 @@ arr_esz:
 ;         dimbuf  the subscripts
 ; out:    EDI  the element
 ; keeps:  ESI
-; error:  ?BAD SUBSCRIPT     n is not the array's, or si not under ci
-;         ?ILLEGAL QUANTITY  si under 0
-;         ?OUT OF MEMORY     a new array does not fit
+; error:  Subscript out of range  n is not the array's, a subscript is
+;                                 out of its bounds, or ERASE freed it
+;         Out of memory           a new array does not fit
 ; ::::::::::::::
 arr_ref:
         mov     [g_state.mm.aid],bx
         mov     edi,[g_vt+ebx*4]
         test    edi,edi
         jnz     @arf_h
+        cmp     [g_adyn+ebx],0          ; ERASE freed it: not made again
+        jne     arr_bs
         movzx   ecx,[g_state.rn.narr]
 @arf_c:
         mov     word ptr [g_cntbuf+ecx*2-2],11
@@ -98,14 +100,9 @@ arr_ref:
         ret
 
 ; ::::::::::::::
-; arr_bs - ?ILLEGAL QUANTITY if a subscript is negative, else ?BAD SUBSCRIPT.
-;
-; in:     narr, dimbuf  the subscripts
-; error:  ?ILLEGAL QUANTITY  a subscript under 0
-;         ?BAD SUBSCRIPT     none is
+; arr_bs - Subscript out of range.
 ; ::::::::::::::
 arr_bs:
-        call    arr_chk
         mov     al,E_BS
         jmp     err_raise
 
