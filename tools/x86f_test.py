@@ -242,6 +242,14 @@ CASES = {
     "qb_restsub": ('DECLARE SUB s ()\r\ns\r\nEND\r\nd: DATA 7\r\nSUB s\r\nRESTORE d\r\nREAD a: PRINT a\r\nEND SUB\r\n',
                    " 7 \r\n", "ERROR"),
     "qb_constsfx": ("CONST k = 1, j% = 2\r\nPRINT k%; j\r\n", " 1  2 \r\n", "ERROR"),
+    # A line number is a label: the same twice, in any scopes, ran both lines; a SUB's GOSUB
+    # to the module's ran it.
+    "qb_dupnum": ("10 PRINT 1\r\n10 PRINT 2\r\n", "Duplicate label", None),
+    "qb_dupnum2": ('DECLARE SUB s ()\r\n10 s\r\nSUB s\r\n10 PRINT "s"\r\nEND SUB\r\n', "Duplicate label", None),
+    "qb_numsc": ('DECLARE SUB s ()\r\ns\r\nEND\r\n20 PRINT "m": RETURN\r\nSUB s\r\nGOSUB 20\r\nEND SUB\r\n',
+                 "Subprogram error", None),
+    "qb_numsub": ('DECLARE SUB s ()\r\ns\r\nGOTO 20\r\n20 PRINT "m"\r\nSUB s\r\nGOSUB 30\r\nEXIT SUB\r\n'
+                  '30 PRINT "s": RETURN\r\nEND SUB\r\n', "s\r\nm\r\n", "ERROR"),
     "qb_gosubsc": ('DECLARE SUB s ()\r\ns\r\nEND\r\nm: PRINT "m": RETURN\r\nSUB s\r\nGOSUB m\r\nEND SUB\r\n',
                    "Subprogram error", None),
     # Unhandled: ERROR n's message; RESUME with no error; ON ERROR GOTO 0 in the handler.

@@ -29,6 +29,7 @@ B_ET    = 7                     ; the declared type, the array's next
 B_REC   = 9                     ; the record's TYPE, the array's next
 B_FIX   = 12                    ; STRING * n, the array's next (words)
 B_LINE  = 16                    ; a label's line
+SC_NUM  = 8000h                 ; a scope's line numbers: its labels too
 BSZ     = 20
 BF_SHR  = 1                     ; the module's, every procedure's
 BF_REF  = 2                     ; SHARED in a procedure: the module's

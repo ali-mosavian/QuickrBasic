@@ -451,6 +451,8 @@ externdef scp_bind:near
 externdef scp_decl:near
 externdef scp_get:near
 externdef scp_init:near
+externdef scp_label:near
+externdef scp_lfind:near
 externdef scp_look:near
 externdef scp_mshr:near
 externdef scp_own:near

@@ -2,7 +2,8 @@
 ; scope.asm - the scoped name table: what a name is declared as, in the
 ; module and in each procedure
 ; ==========================================================================
-; holds:    scp_init, scp_bind, scp_get, scp_look, scp_decl, scp_sfx, scp_mshr
+; holds:    scp_init, scp_bind, scp_get, scp_look, scp_decl, scp_sfx, scp_mshr,
+;           scp_label, scp_lfind
 ; data:     A binding (B_*) is a name's in one scope: the module's (0) or a
 ;           procedure's (its name). It holds the declared type, record and
 ;           STRING * n of the scalar and of the array, a label's line, and
@@ -11,7 +12,8 @@
 ;           STATIC; BF_LBL a label; BF_CON a CONST. A procedure's binding,
 ;           any, makes the name its own there: it shadows the module's;
 ;           but BF_USE alone, a use with a suffix before any declaration
-;           there, is none.
+;           there, is none. A label is a binding too, a line number's in
+;           scope + SC_NUM; one scope's in all (nflag's NM_LBL, lnbit).
 ;           The compiler's scopes are a stack (scs) of procedures, 0 the
 ;           module at its bottom; a name is looked up from the top down, its
 ;           first binding the scope seen from above sees. From a SUB or a
@@ -23,7 +25,7 @@
 include x86f.inc
         .code
 
-NBND    = 8192
+NBND    = 16384                 ; numbered lines' too
 NSCS    = 4
 SCHASH  = 1024
 
@@ -40,6 +42,9 @@ scp_init:
         mov     edi,offset g_bhead
         mov     ecx,SCHASH/2
         xor     eax,eax
+        rep     stosd
+        mov     edi,offset g_lnbit
+        mov     ecx,64000/32
         rep     stosd
         pop     edi
         pop     ecx
@@ -358,6 +363,74 @@ scp_mshr:
         ret
 
 ; ::::::::::::::
+; scp_lany - has a scope label BX: a name, a line number when AX has SC_NUM?
+;
+; out:    CF  set: one has
+; keeps:  all
+; ::::::::::::::
+scp_lany:
+        test    ah,SC_NUM shr 8
+        jz      @F
+        bt      dword ptr [g_lnbit],ebx
+        ret
+@@:
+        test    [g_nflag+ebx],NM_LBL
+        jz      @F
+        stc
+@@:
+        ret
+
+; ::::::::::::::
+; scp_label - label BX of scope AX (SC_NUM: a line number) at line DX.
+;
+; keeps:  all but EDI
+; error:  Duplicate label  a scope has it
+; ::::::::::::::
+scp_label:
+        call    scp_lany
+        jc      @slb_e
+        test    ah,SC_NUM shr 8
+        jz      @F
+        bts     dword ptr [g_lnbit],ebx
+        jmp     @slb_b
+@@:
+        or      [g_nflag+ebx],NM_LBL
+@slb_b:
+        call    scp_bind
+        or      byte ptr [edi+B_FLG],BF_LBL
+        mov     [edi+B_LINE],dx
+        ret
+@slb_e:
+        mov     al,E_DL
+        jmp     err_raise
+
+; ::::::::::::::
+; scp_lfind - label BX of scope AX (SC_NUM: a line number): its line.
+;
+; out:    EAX  it, 0 no scope's
+; keeps:  all but EAX
+; error:  Subprogram error  another scope's
+; ::::::::::::::
+scp_lfind:
+        push    edi
+        call    scp_get
+        jc      @slf_o
+        test    byte ptr [edi+B_FLG],BF_LBL
+        jz      @slf_o
+        movzx   eax,word ptr [edi+B_LINE]
+        pop     edi
+        ret
+@slf_o:
+        pop     edi                     ; EDI: a compile's ERR goes there
+        call    scp_lany
+        mov     eax,0
+        jnc     @F
+        mov     al,E_SPE
+        jmp     err_raise
+@@:
+        ret
+
+; ::::::::::::::
 ; scp_arec - name EAX's array's record TYPE, 0 none.
 ;
 ; out:    ECX  it
@@ -378,6 +451,7 @@ g_scs   dw      NSCS dup(0)
 g_bzero db      BSZ dup(0)              ; none
         .data?
 g_bhead dw      SCHASH dup(?)
+g_lnbit dd      64000/32 dup(?)         ; the line numbers a scope has
 g_bnd   db      NBND*BSZ dup(?)
         .code
 

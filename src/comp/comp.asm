@@ -1183,16 +1183,16 @@ g_lmod  db      0                       ; cm_lnum: a label of the module's
         .code
 
 ; ::::::::::::::
-; cm_lnum - a line number, M_INT, or a label; none there is 0.
+; cm_lnum - a line number, M_INT, or a label; none there is 0. Either is a
+; label of the scope's own, the module's when lmod (cleared).
 ;
 ; in:     SI  at it, or spaces before it
 ; out:    wv  the number, NONUM for a label
-;         wa  a label's line, 0 when it has none: the scope's own, the
-;             module's when lmod (cleared)
+;         wa  its line, 0 when it has none
 ;         SI  after it
 ;         AL  the byte there
 ; error:  ?SYNTAX ERROR  64000 and over
-;         Subprogram error  another scope's label
+;         as scp_lfind
 ; ::::::::::::::
 cm_lnum:
         and     [g_state.cm.wa],0
@@ -1201,45 +1201,43 @@ cm_lnum:
         je      @cml_v
         cmp     al,M_INT
         jne     @cml_z
-        mov     [g_lmod],0
         mov     eax,[esi+1]
-        mov     [g_state.cm.wv],ax
-        add     esi,5
         cmp     eax,64000
         jae     err_sn
+        mov     [g_state.cm.wv],ax
+        movzx   ebx,ax
+        add     esi,5
+        test    ebx,ebx                 ; 0: ON ERROR GOTO 0's, none
+        jz      @F
+        mov     edx,SC_NUM
+        call    @cml_f
+@@:
+        mov     [g_lmod],0
         jmp     st_get
 @cml_z:
         mov     [g_lmod],0
         and     [g_state.cm.wv],0
         ret
-@cml_v:                                 ; a label: the scope's own, or the
-        call    lbl_nam                 ; module's (lmod)
-        push    edi
+@cml_v:
+        call    lbl_nam
         mov     ebx,eax
+        xor     edx,edx
+        call    @cml_f
+        mov     [g_state.cm.wv],NONUM
+        movzx   ebx,byte ptr [esi+1]
+        lea     esi,[esi+ebx+4]
+        jmp     st_get
+@cml_f:                                 ; label EBX, of DX's kind: wa
         xor     eax,eax
         cmp     [g_lmod],0
         jne     @F
         call    scp_own
 @@:
         mov     [g_lmod],0
-        call    scp_get
-        jc      @cml_o
-        test    byte ptr [edi+B_FLG],BF_LBL
-        jz      @cml_o
-        mov     ax,[edi+B_LINE]
+        or      eax,edx
+        call    scp_lfind
         mov     [g_state.cm.wa],ax
-        pop     edi
-@cml_l:
-        mov     [g_state.cm.wv],NONUM
-        movzx   ebx,byte ptr [esi+1]
-        lea     esi,[esi+ebx+4]
-        jmp     st_get
-@cml_o:                                 ; none: another scope's label?
-        pop     edi                     ; EDI: a compile's ERR goes there
-        test    [g_nflag+ebx],NM_LBL
-        jz      @cml_l
-        mov     al,E_SPE
-        jmp     err_raise
+        ret
 
 ; ::::::::::::::
 ; lbl_nam - the name at SI; a label's has NM_LBL, its line in nline.
