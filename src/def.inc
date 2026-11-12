@@ -129,3 +129,27 @@ STKROOM  = 191                  ; bytes either stack may take, as stock's
 CPROOM   = 4000h                ; the compiler's frames
 CSLIM    equ     <(offset g_dsb+0FC00h-STKROOM)>
 OBSZ     = 256                  ; plat.asm's output buffer
+
+; block entries (comp/block.asm): their fields, their kinds
+NBLK    = 2048
+NSTM    = 128                   ; statements a line's map holds
+B_POS   = 0
+B_NXT   = 4
+B_END   = 8
+B_LINK  = 12
+B_AUX   = 14
+BK_IF     = 1
+BK_ELSEIF = 2
+BK_ELSE   = 3
+BK_ENDIF  = 4
+BK_DO     = 5
+BK_LOOP   = 6
+BK_WHILE  = 7
+BK_WEND   = 8
+BK_SELECT = 9
+BK_CASE   = 10
+BK_ENDSEL = 11
+BK_EXIT   = 12
+BK_FOR    = 13
+
+

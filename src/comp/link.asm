@@ -35,6 +35,7 @@ cm_comp:
         lea     eax,[g_progb+ebx]
         sub     eax,offset g_lbuf
         mov     [g_state.cm.ctxlin],eax
+        mov     [g_state.cm.cline],bx
         mov     esi,offset g_lbuf+HDR-1
         call    cm_text
         pop     ebx
@@ -64,7 +65,7 @@ cm_cache:
         pop     ebx
         jmp     @cc_t
 @cc_f:
-        mov     esi,[g_state.lnk.cend]
+        mov     esi,[g_state.lnk.ecode]
         mov     [g_state.lnk.cend],edi
         mov     eax,esi
         sub     eax,offset g_cachb
@@ -111,24 +112,39 @@ cm_flush:
         jmp     @cfl_x
 @cfl_d:
         mov     [g_state.lnk.cend],offset g_cachb+CACHE0
+        inc     [g_state.lnk.nfl]
         ret
 
 ; ::::::::::::::
 ; cm_xlate - xbuf's ops as a stream at EDI: each op, its operands. A GOTO's
 ; or GOSUB's line is found now when it exists; a DEF's length, an INPUT's
 ; end (16 bits, from cachb) are filled in. FN.DEF and the CALL of INBEG
-; take 2 bytes more than in xbuf.
+; take 2 bytes more than in xbuf. Before the code, its statement map: for
+; each statement the compile recorded (g_stb, g_stx), its body offset:1 and
+; its code's offset:2; then their count:1 (vm/flow.asm, ex_bjump).
 ;
 ; in:     EDI   where it goes
 ;         elim  its limit
 ; out:    EDI   its end
+;         ecode its code
 ;         CF    set when it does not fit
 ;         eeol  the EOL's element
 ; ::::::::::::::
 cm_xlate:
         and     [g_state.lnk.einb],0
+        movzx   ecx,[g_state.cm.nst]
+        lea     eax,[ecx+ecx*2+1]
+        add     eax,edi
+        cmp     eax,[g_state.lnk.elim]
+        ja      @cx_ov
+        mov     [g_state.lnk.emap],edi
+        mov     [eax-1],cl
+        mov     edi,eax
+        mov     [g_state.lnk.ecode],edi
+        mov     [g_state.lnk.ek],0
         mov     esi,offset g_xbuf
 @cx_l:
+        call    cx_mark
         movzx   ebx,byte ptr [esi]
         call    op_size
         lea     eax,[edi+ecx+XSLK]
@@ -214,6 +230,38 @@ cm_xlate:
         jmp     @cx_t
 
 ; ::::::::::::::
+; cx_mark - the statements whose code starts at SI: their map entries.
+;
+; keeps:  all
+; ::::::::::::::
+cx_mark:
+        push    eax
+        push    ebx
+        push    ecx
+@cxm_l:
+        movzx   ebx,[g_state.lnk.ek]
+        cmp     bl,[g_state.cm.nst]
+        jae     @cxm_r
+        movzx   eax,word ptr [g_stx+ebx*2]
+        add     eax,offset g_xbuf
+        cmp     eax,esi
+        jne     @cxm_r
+        lea     ecx,[ebx+ebx*2]
+        add     ecx,[g_state.lnk.emap]
+        mov     al,[g_stb+ebx]
+        mov     [ecx],al
+        mov     eax,edi
+        sub     eax,[g_state.lnk.ecode]
+        mov     [ecx+1],ax
+        inc     [g_state.lnk.ek]
+        jmp     @cxm_l
+@cxm_r:
+        pop     ecx
+        pop     ebx
+        pop     eax
+        ret
+
+; ::::::::::::::
 ; cm_walk - call DX with each op of the code at SI.
 ;
 ; in:     SI  the code, in DS
@@ -237,6 +285,7 @@ cm_link:
         cmp     [g_state.lnk.linked],0
         jne     cm_rts
         push    esi
+        call    cm_blocks
         and     [g_state.lnk.lc],0
         mov     ebx,PROGBASE
 @clk_l:

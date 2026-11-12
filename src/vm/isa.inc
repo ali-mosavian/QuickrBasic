@@ -126,7 +126,17 @@ oplist  macro   m
         m       NEXT,op_nx0,1,0
         m       NEXT_V,op_nextv,3,FV
         m       ERR,op_err,2,0
+        m       JMP,op_jmp,7,0
+        m       I_JF,op_ijf,7,0
+        m       F_JF,op_fjf,7,0
+        m       I_JT,op_ijt,7,0
+        m       F_JT,op_fjt,7,0
+        m       NXLN,ex_nextln,1,0
+        m       FPOP,op_fpop,1,0
+        m       FSKIP,op_jmp,7,0
         endm
+
+JSIZE   = 7                     ; a jump op: target line:2 boff:1 mode:1, addr:2
 
 opn     = 0
 opc     macro   nm,h,sz,fl

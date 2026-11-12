@@ -331,7 +331,7 @@ ex_dcode:
         mov     [g_state.lnk.elim],offset g_cachb+DCODE+1536
         call    cm_xlate
         jc      err_om
-        mov     esi,offset g_cachb+DCODE
+        mov     esi,[g_state.lnk.ecode]
         ret
 
 ; ::::::::::::::
@@ -382,6 +382,16 @@ op_for:
         call    for_mki
 @of_m:
         mov     ebx,[g_state.rn.cstk]
+        cmp     byte ptr [esi],O_FSKIP
+        jne     @of_p
+        call    for_in
+        jnc     @of_e
+        add     [g_state.rn.cstk],FRSIZE        ; not entered: past its NEXT
+        inc     esi
+        jmp     ex_bjump
+@of_e:
+        add     esi,JSIZE
+@of_p:
         ipst    [ebx+F_IP]
         mov     ax,[g_state.rn.ln]
         mov     [ebx+F_LN],ax
@@ -391,6 +401,63 @@ op_for:
         jmp     @of_m
 @@:
         dispatch
+
+; ::::::::::::::
+; for_in - is the loop at EBX entered: its start not past its limit, as its
+; step's sign has it?
+;
+; out:    CF  set: not entered
+; keeps:  EBX, ESI
+; ::::::::::::::
+for_in:
+        movzx   edi,word ptr [ebx+F_ID]
+        mov     cl,[g_sinfo+edi]
+        and     cl,3
+        cmp     cl,1
+        je      @fin_i
+        cmp     word ptr [ebx+F_LIMIT+2],0FFFFh
+        je      @fin_c
+        fld     dword ptr [VARBASE+edi*4]
+        fcomp   dword ptr [ebx+F_LIMIT]
+        fnstsw  ax
+        sahf
+        mov     cl,[ebx+F_STEP+3]
+        jb      @fin_lt
+        je      @fin_y
+        test    cl,cl                   ; past it upward: entered only down
+        js      @fin_y
+        stc
+        ret
+@fin_lt:
+        test    cl,cl
+        jns     @fin_y
+        stc
+        ret
+@fin_c:
+        movsx   eax,word ptr [ebx+F_STEP+2]     ; an INT-counted FLOAT loop
+        movsx   ecx,word ptr [ebx+F_LIMIT]
+        mov     dl,[ebx+F_STEP+1]
+        jmp     @fin_s
+@fin_i:
+        mov     eax,[VARBASE+edi*4]
+        mov     ecx,[ebx+F_LIMIT]
+        mov     dl,[ebx+F_STEP+3]
+@fin_s:
+        cmp     eax,ecx
+        jl      @fin_l2
+        je      @fin_y
+        test    dl,dl
+        js      @fin_y
+        stc
+        ret
+@fin_l2:
+        test    dl,dl
+        jns     @fin_y
+        stc
+        ret
+@fin_y:
+        clc
+        ret
 
 ; ::::::::::::::
 ; for_mki - a FLOAT loop whose start, limit and step are whole INTs counts in
@@ -678,6 +745,126 @@ ex_nodir:
         cmp     [g_state.rn.ln],DLINE
         je      err_id
         ret
+
+; ::::::::::::::
+; op_jmp - JMP target: a block's jump (comp/block.asm).
+; ::::::::::::::
+op_jmp:
+        jmp     ex_bjump
+; ::::::::::::::
+; op_ijf - I.JF target ( i -- ): jump when 0.
+; ::::::::::::::
+op_ijf:
+        pop     eax
+        test    eax,eax
+        jz      ex_bjump
+@ojf_n:
+        add     esi,JSIZE-1
+        dispatch
+; ::::::::::::::
+; op_fjf - F.JF target ( f -- ): jump when 0.
+; ::::::::::::::
+op_fjf:
+        pop     eax
+        test    eax,7F800000h
+        jz      ex_bjump
+        jmp     @ojf_n
+; ::::::::::::::
+; op_ijt - I.JT target ( i -- ): jump unless 0.
+; ::::::::::::::
+op_ijt:
+        pop     eax
+        test    eax,eax
+        jnz     ex_bjump
+        jmp     @ojf_n
+; ::::::::::::::
+; op_fjt - F.JT target ( f -- ): jump unless 0.
+; ::::::::::::::
+op_fjt:
+        pop     eax
+        test    eax,7F800000h
+        jnz     ex_bjump
+        jmp     @ojf_n
+
+; ::::::::::::::
+; op_fpop - FPOP: EXIT FOR's, the innermost FOR's frame dropped.
+; ::::::::::::::
+op_fpop:
+        mov     edi,[g_state.rn.cstk]
+        cmp     edi,CSTOP
+        jae     @ofp_r
+        cmp     byte ptr [edi+F_MARK],M_FR
+        jne     @ofp_r
+        add     edi,M_FR
+        mov     [g_state.rn.cstk],edi
+@ofp_r:
+        dispatch
+
+; ::::::::::::::
+; ex_bjump - go to the target at ESI: its address once found, else the
+; target line's code (compiled when it has none), its statement by the map
+; before that code, the mode's place in it. The address is kept in the op
+; unless the cache was flushed meanwhile, the op with it.
+;
+; in:     ESI  the target: line:2 boff:1 mode:1, then the address:2, 0 none
+; error:  ?SYNTAX ERROR  a target the link gave none (FFFFh)
+; ::::::::::::::
+ex_bjump:
+        stopchk
+        and     [g_state.sg.tsp],0
+        movzx   eax,word ptr [esi+4]
+        test    eax,eax
+        jz      @ebj_f
+        mov     bx,[esi]
+        mov     [g_state.rn.ln],bx
+        lea     esi,[g_cachb+eax]
+        dispatch
+@ebj_f:
+        mov     edx,esi
+        mov     bx,[edx]
+        cmp     bx,0FFFFh
+        je      err_sn
+        mov     al,[g_state.lnk.nfl]
+        push    eax
+        push    edx
+        mov     [g_state.rn.vpt],bx
+        call    ex_line
+        pop     edx
+        pop     eax
+        movzx   ecx,byte ptr [esi-1]    ; the map: n of boff:1 coff:2, then n
+        lea     edi,[ecx+ecx*2+1]
+        neg     edi
+        add     edi,esi
+        mov     bl,[edx+2]
+@ebj_l:
+        jecxz   @ebj_n
+        cmp     [edi],bl
+        je      @ebj_y
+        add     edi,3
+        dec     ecx
+        jmp     @ebj_l
+@ebj_y:
+        movzx   ebx,word ptr [edi+1]
+        cmp     byte ptr [edx+3],1
+        jb      @ebj_t
+        je      @ebj_1
+        cmp     ecx,1                   ; mode 2: the next statement's
+        jbe     @ebj_n
+        movzx   ebx,word ptr [edi+4]
+        jmp     @ebj_t
+@ebj_1:
+        add     ebx,JSIZE               ; mode 1: past its JMP
+@ebj_t:
+        add     esi,ebx
+        cmp     al,[g_state.lnk.nfl]
+        jne     @ebj_d
+        mov     eax,esi
+        sub     eax,offset g_cachb
+        mov     [edx+4],ax
+@ebj_d:
+        dispatch
+@ebj_n:
+        jmp     err_sn
 
 ; --------------------------------------------------------------------------
 

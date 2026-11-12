@@ -222,7 +222,7 @@ def play() -> None:
 
     # A runtime error: its statement's word selected, the error in a box,
     # moved to the foot when it would cover that line (uiedit.asm).
-    keys("rem\n" * 4 + "  goto 99\n")
+    keys("next\n" + "rem\n" * 3 + "  goto 99\n")  # the pasted FOR closed: QBasic pairs blocks first
     press(f"0x{F5:x}")
     scr = look("error")
     assert next(i for i, r in enumerate(scr) if "UNDEF'D" in r) == 19, scr

@@ -216,6 +216,7 @@ GRAMMAR: dict[str, str] = {
     "POKE": "e toa , e tob !POKE",
     "PRINT": "pr",
     "CLEAR": "!CLR",
+    "SWAP": "swap",
 }
 EOS = (0, ord(":"))
 

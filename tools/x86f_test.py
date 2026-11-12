@@ -64,11 +64,32 @@ CASES = {
                 " 4 hi 3.5  70000  3.5 t 4 \r\n", "ERROR"),
     # FLOAT to INT floored, as C64: QBasic rounds, a half to even.
     "qb_round": ('A%=2.5:B%=3.5:C%=-2.5:D%=-2.6:PRINT A%;B%;C%;D%;CHR$(65.6)\r\n', " 2  4 -2 -3 B\r\n", "ERROR"),
+    # M1, control flow: block IF, one-line IF ... ELSE, DO, WHILE, SELECT CASE, EXIT, SWAP.
+    "qb_blockif": ("FOR i=1 TO 3\r\nIF i=1 THEN\r\nPRINT \"a\";\r\nELSEIF i=2 THEN\r\nPRINT \"b\";\r\n"
+                   "ELSE\r\nPRINT \"c\";\r\nEND IF\r\nNEXT\r\n", "abc", "ERROR"),
+    # PRINT read ELSE as an expression: the THEN part did not compile, the false jump had no target.
+    "qb_ifelse": ('IF 0 THEN PRINT "a" ELSE PRINT "b"\r\nIF 1 THEN PRINT "c" ELSE PRINT "d"\r\n', "b\r\nc\r\n", "ERROR"),
+    "qb_loops": ("n=0: DO WHILE n<3: n=n+1: LOOP: PRINT n;\r\nDO: n=n+1: IF n=7 THEN EXIT DO\r\nLOOP UNTIL n>99: PRINT n;\r\n"
+                 "WHILE n>0: n=n-2: WEND: PRINT n;\r\nFOR k=1 TO 9: IF k=4 THEN EXIT FOR\r\nNEXT: PRINT k\r\n",
+                 " 3  7 -1  4 \r\n", "ERROR"),
+    # T_INT is 0: an INT SELECT read as not compiled, ?SYNTAX ERROR.
+    "qb_select": ("c%=2: SELECT CASE c%\r\nCASE 1: PRINT \"one\"\r\nCASE 2, 3: PRINT \"two\"\r\nCASE ELSE: PRINT \"x\"\r\n"
+                  "END SELECT\r\nFOR v=1 TO 5: SELECT CASE v: CASE IS < 2: PRINT \"l\";: CASE 3 TO 4: PRINT \"m\";\r\n"
+                  "CASE ELSE: PRINT \"h\";\r\nEND SELECT: NEXT\r\n", "two\r\nlhmmh", "ERROR"),
+    # C64's FOR ran its body once when the start was past the limit.
+    "qb_forskip": ('FOR i=5 TO 1: PRINT "no": NEXT: FOR j=1 TO 0 STEP -1: PRINT j;: NEXT: PRINT "y"\r\n',
+                   " 1  0 y\r\n", "no"),
+    # DEF FN twice: the name moved over FN's first byte when one space parted them; the load hung.
+    "qb_fnspace": ("DEF FN twice(v) = v * 2\r\nPRINT FN twice(4)\r\n", " 8 \r\n", "ERROR"),
+    "qb_swap": ("a=1: c=2: DIM z(3): z(1)=5: z(2)=9: SWAP a, c: SWAP z(1), z(2): PRINT a; c; z(1); z(2)\r\n",
+                " 2  1  9  5 \r\n", "ERROR"),
     "int32_lit": ("A%=65535:PRINT A%*2\r\n", " 131070 \r\n", "ERROR"),
 }
 
 # Typed at the prompt, not run as a file.
 REPL = {
+    # A direct line ran from DCODE, its statement map's place: nothing printed.
+    "repl_direct": ("PRINT 5\r\n", " 5 \r\n", "ERROR"),
     # A numbered line stepped 3 bytes past its M_INT, which is 5: the line lost its first bytes.
     "repl_numbered": ("10 PRINT 5\r\n20 PRINT 6\r\nRUN\r\n", " 5 \r\n 6 \r\n", "ERROR"),
 }

@@ -101,6 +101,7 @@ lx_line:
         jmp     lx_line
 @lxl_w:
         dec     esi
+        call    lx_fn
         call    lx_word
         cmp     al,TK_REM
         je      @lxl_r
@@ -125,6 +126,46 @@ lx_line:
 @lxd_x:
         stosb
         jmp     lx_line
+
+; ::::::::::::::
+; lx_fn - DEF FN name, FN name: the word FN and the name after its spaces
+; made one name, the spaces moved before it.
+;
+; in:     SI  at a word
+; out:    SI  at the word, FN joined
+; ::::::::::::::
+lx_fn:
+        mov     ax,[esi]
+        and     ax,0DFDFh
+        cmp     ax,'NF'
+        jne     @lxf_r
+        mov     al,[esi+2]
+        cmp     al,' '
+        je      @F
+        cmp     al,9
+        jne     @lxf_r
+@@:
+        lea     ebx,[esi+2]
+@lxf_s:
+        movzx   eax,byte ptr [ebx]
+        cmp     al,' '
+        je      @lxf_n
+        cmp     al,9
+        jne     @lxf_l
+@lxf_n:
+        inc     ebx
+        jmp     @lxf_s
+@lxf_l:
+        upcase  eax
+        sub     al,'A'
+        cmp     al,26
+        jae     @lxf_r
+        mov     ax,[esi]
+        mov     word ptr [esi],'  '     ; spaces first: one space overlaps
+        mov     [ebx-2],ax
+        lea     esi,[ebx-2]
+@lxf_r:
+        ret
 
 ; ::::::::::::::
 ; lx_num - a number: M_INT n:4 when whole and under 2^31, else its text.

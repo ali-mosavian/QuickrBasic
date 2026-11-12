@@ -199,7 +199,7 @@ rpl_run:
         add     ebx,ecx
         jmp     @rpl_f
 @rpl_g:
-        mov     esi,offset g_cachb+DCODE
+        mov     esi,[g_state.lnk.ecode]             ; past its statement map
         jmp     ex_lp
 @rpl_x:
         xor     al,al

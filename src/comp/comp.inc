@@ -49,3 +49,4 @@ A_N0    = A_BASE+31
 A_N1    = A_BASE+32
 A_NARG  = A_BASE+33
 A_FOP   = A_BASE+34
+A_SWAP  = A_BASE+35

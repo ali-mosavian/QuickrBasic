@@ -26,6 +26,10 @@ TCOMP    struc                   ; the compiler
     ctok    db      ?
     cfid    dw      ?
     csp     dd      ?
+    cbase   dd      ?               ; the body's start
+    cline   dw      ?               ; its line, DLINE direct
+    nst     db      ?               ; statements recorded (g_stb, g_stx)
+    csif    db      ?               ; in a one-line IF
 TCOMP    ends
 
 TLINK    struc                   ; the linker and the cache
@@ -36,6 +40,13 @@ TLINK    struc                   ; the linker and the cache
     einb    dd      ?               ; an INPUT's end, to fill in
     linked  db      ?
     lc      dw      ?
+    nblk    dw      ?               ; block entries (comp/block.asm)
+    bsp     dw      ?               ; their scan's stack depth
+    bln     dw      ?               ; the line it scans
+    nfl     db      ?               ; cache flushes, mod 256
+    emap    dd      ?               ; cm_xlate's statement map
+    ecode   dd      ?               ; the code after it
+    ek      db      ?               ; the next statement it maps
 TLINK    ends
 
 TLEX     struc                   ; the tokenizer

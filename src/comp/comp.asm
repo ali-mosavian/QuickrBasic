@@ -27,6 +27,7 @@ include x86f.inc
 ; out:    as cm_text
 ; ::::::::::::::
 cm_line:
+        mov     [g_state.cm.cline],DLINE
         mov     eax,[g_state.mm.dslin]
         mov     [g_state.cm.ctxlin],eax
         mov     [g_state.cm.cxb],offset g_xbuf
@@ -41,6 +42,10 @@ cm_line:
 ; ::::::::::::::
 cm_text:
         mov     [g_state.cm.csp],esp
+        lea     eax,[esi+1]
+        mov     [g_state.cm.cbase],eax
+        mov     [g_state.cm.nst],0
+        mov     [g_state.cm.csif],0
         xor     eax,eax
         mov     [g_state.cm.cll],eax
         mov     [g_state.cm.clle],eax
@@ -76,14 +81,32 @@ cm_nx:
         jnz     @st_comp4
 
 ; ::::::::::::::
-; cm_ee - at a statement's end: 0 the line ends, ':' another statement.
+; cm_ee - at a statement's end: 0 or ' the line ends, ':' another statement,
+; ELSE a one-line IF's ELSE part.
 ;
-; in:     AL  0 or ':'
+; in:     AL  0, ':', TK_REM or TK_ELSE
 ; ::::::::::::::
 cm_ee:
         test    al,al
-        jnz     cm_new
-        jmp     cm_fin
+        jz      cm_fin
+        cmp     al,TK_REM
+        je      cm_fin
+        cmp     al,':'
+        je      cm_new
+        mov     al,O_NXLN               ; ELSE: the THEN part
+        call    cm_op                   ; leaves the line
+        call    st_getn
+        jz      @st_comp4
+        cmp     al,M_INT
+        jne     @cnx_t
+        call    cm_mark
+        mov     al,ST_GOTO              ; ELSE line
+        call    cm_dfa
+        jmp     cm_nx
+@cnx_t:
+        call    cm_tok
+        jmp     cm_nx
+
 @st_comp4:
         jmp     err_sn
 
@@ -111,6 +134,8 @@ cm_err:
 ; in:     csp  SP at the compile's start
 ; ::::::::::::::
 cm_fin:
+        mov     al,0FFh                 ; the EOL's map entry
+        call    cm_markb
         mov     al,O_EOL
         stosb
         mov     esp,[g_state.cm.csp]
@@ -143,6 +168,20 @@ cm_if:
         cmp     al,TK_GOTO
         jne     @st_comp1
 @cmi_t:
+        cmp     al,TK_THEN              ; a block IF: THEN ends the line
+        jne     @cmi_1
+        mov     ah,[esi+1]
+        test    ah,ah
+        jz      ct_bif
+        cmp     ah,TK_REM
+        je      ct_bif
+@cmi_1:
+        mov     [g_state.cm.csif],1
+        call    ct_else
+        jc      @cmi_f
+        call    ct_jf                   ; false: past the ELSE
+        jmp     @cmi_d
+@cmi_f:
         cmp     edi,[g_state.cm.ccmpe]
         jne     @cmi_n
         mov     ebx,[g_state.cm.ccmp]
@@ -175,6 +214,46 @@ cm_if:
         jmp     cm_dfa
 
 ; ::::::::::::::
+; cm_mark - record the statement at SI: its body offset, its code's place in
+; xbuf, for cm_xlate's map.
+;
+; keeps:  all
+; ::::::::::::::
+cm_mark:
+        push    eax
+        mov     eax,esi
+        sub     eax,[g_state.cm.cbase]
+        call    cm_markb
+        pop     eax
+        ret
+
+; ::::::::::::::
+; cm_markb - record a statement at body offset AL.
+;
+; keeps:  all
+; ::::::::::::::
+cm_markb:
+        push    ebx
+        movzx   ebx,[g_state.cm.nst]
+        cmp     ebx,NSTM
+        jae     @cmb_r
+        mov     [g_stb+ebx],al
+        push    eax
+        mov     eax,edi
+        sub     eax,[g_state.cm.cxb]
+        mov     [g_stx+ebx*2],ax
+        pop     eax
+        inc     [g_state.cm.nst]
+@cmb_r:
+        pop     ebx
+        ret
+
+        .data?
+g_stb   db      NSTM dup(?)             ; a statement's body offset
+g_stx   dw      NSTM dup(?)             ; its code's offset in xbuf
+        .code
+
+; ::::::::::::::
 ; cm_tok - compile the statement at SI.
 ;
 ; in:     SI  at its first byte
@@ -182,6 +261,10 @@ cm_if:
 ; error:  ?SYNTAX ERROR  not a statement's keyword or a name
 ; ::::::::::::::
 cm_tok:
+        call    cm_mark
+        call    ct_stmt
+        jnc     cm_rts
+        mov     al,[esi]
         cmp     al,M_VAR
         je      @cmk_v
         cmp     al,80h
@@ -679,14 +762,25 @@ st_eosn:
 ; st_eos - is the byte at SI the end of a statement?
 ;
 ; in:     SI  at the byte, or the spaces before it
-; out:    ZF  set at 0 or ':'
+; out:    ZF  set at 0, ':', ' and, in a one-line IF, ELSE
 ;         AL  the byte
 ; ::::::::::::::
 st_eos:
         call    st_get
         jz      @ste_r
         cmp     al,':'
+        je      @ste_r
+        cmp     al,TK_REM
+        je      @ste_r
+        cmp     al,TK_ELSE
+        jne     @ste_r
+        cmp     [g_state.cm.csif],0
+        je      @ste_n
+        cmp     al,al
 @ste_r:
+        ret
+@ste_n:
+        test    al,al                   ; ZF clear
         ret
 
 ; ::::::::::::::
@@ -1062,7 +1156,8 @@ cm_for1:
         inc     al                      ; F.FOR, F.FOR1
 @cfo_e:
         movzx   ecx,[g_state.cm.cfid]
-        jmp     cm_opid
+        call    cm_opid
+        jmp     ct_fskip
 
 ; ::::::::::::::
 ; cm_nv - NEXT.V id, or NEXT.
