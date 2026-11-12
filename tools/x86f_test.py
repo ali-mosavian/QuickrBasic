@@ -314,6 +314,15 @@ CASES = {
     # DEFSHORT, ours, was a syntax error: its letters' names a SHORT, overflowing past 16 bits.
     "qb_defshort": ('DEFSHORT S-T\r\nON ERROR GOTO h\r\nu = 40000: s = 32767: PRINT u; s\r\nt = u\r\nEND\r\n'
                     'h: PRINT "ov"; ERR: RESUME NEXT\r\n', " 40000  32767 \r\nov 6 \r\n", "ERROR"),
+    # UBOUND of an array not yet in the text of its scope gave an implicit array's 10; BC's:
+    # Array not defined, at compile time, by the text's order, not the run's.
+    "qb_andef": ('PRINT 1\r\nGOTO 10\r\n5 PRINT UBOUND(a)\r\nEND\r\n10 a(1) = 1: GOTO 5\r\n',
+                 "Array not defined", " 1"),
+    "qb_andefsub": ('DECLARE SUB s ()\r\nDIM a(5)\r\ns\r\nSUB s\r\nPRINT LBOUND(a)\r\nEND SUB\r\n',
+                    "Array not defined", " 0"),
+    "qb_andefok": ('DECLARE SUB s ()\r\nDIM SHARED c(2)\r\nDIM e(4)\r\ns\r\nSUB s\r\nSTATIC f()\r\nSHARED e()\r\n'
+                   'REDIM g(3)\r\nIF 0 THEN h(1) = 1\r\nPRINT UBOUND(c); UBOUND(e); UBOUND(g); UBOUND(h)\r\nEND SUB\r\n',
+                   " 2  4  3  10 \r\n", "ERROR"),
     "qb_gosubsc": ('DECLARE SUB s ()\r\ns\r\nEND\r\nm: PRINT "m": RETURN\r\nSUB s\r\nGOSUB m\r\nEND SUB\r\n',
                    "Subprogram error", None),
     # Unhandled: ERROR n's message; RESUME with no error; ON ERROR GOTO 0 in the handler.

@@ -21,6 +21,9 @@
 ;           AS STRING * n  n's, n()'s length
 ;           OPTION BASE n  obase: 0 or 1, once, before any array's DIM
 ;           OPTION EXPLICIT   oexp: var_id's names declared
+;           n( in DIM, COMMON, SHARED, STATIC, parameters, a use   n an
+;                          array known in scope + SC_ARR, from there on: an
+;                          LBOUND or UBOUND of none is Array not defined
 ;           A type is ET_*, 0 none declared. DEFtype holds from its line to
 ;           the file's end, SUBs too: dfev keeps deft after each such line,
 ;           dc_deft sets it for the line compiled.
@@ -420,6 +423,10 @@ dc_line:
         mov     al,dl                   ; 1 BF_REF, 2 BF_STAT
         add     al,al
         or      [edi+B_FLG],al
+        cmp     byte ptr [esi],'('
+        jne     @dch_s
+        mov     ax,[g_state.lx.dproc]
+        call    dc_arr
 @dch_s:
         mov     al,[esi]                ; past ( ) and AS type
         test    al,al
@@ -530,6 +537,8 @@ dc_line:
         cmp     byte ptr [esi],'('
         jne     @dcm_a
         inc     edx
+        mov     ax,[g_dscope]
+        call    dc_arr
         xor     ecx,ecx                 ; to the ')' that closes it
 @dcm_p:
         mov     al,[esi]
@@ -964,6 +973,78 @@ dc_use:
         ret
 
 ; ::::::::::::::
+; dc_arr - name EBX an array known in scope AX from here on.
+;
+; keeps:  all
+; ::::::::::::::
+dc_arr:
+        push    eax
+        push    edi
+        or      ah,SC_ARR shr 8
+        call    scp_bind
+        pop     edi
+        pop     eax
+        ret
+
+; ::::::::::::::
+; dc_ause - the name at SI: followed by (, an array known in dproc's scope.
+;
+; keeps:  all
+; ::::::::::::::
+dc_ause:
+        push    eax
+        push    ebx
+        movzx   eax,byte ptr [esi+1]
+        cmp     byte ptr [esi+eax+4],'('
+        jne     @dau_r
+        movzx   ebx,word ptr [esi+eax+2]
+        mov     ax,[g_state.lx.dproc]
+        call    dc_arr
+@dau_r:
+        pop     ebx
+        pop     eax
+        ret
+
+; ::::::::::::::
+; dc_bnd - LBOUND or UBOUND at SI: of an array known in dproc's scope, or
+; one the module shares.
+;
+; keeps:  all
+; error:  Array not defined  neither
+; ::::::::::::::
+dc_bnd:
+        cmp     word ptr [esi+1],'('+M_VAR*256
+        jne     @dbn_r
+        push    eax
+        push    ebx
+        push    edi
+        movzx   eax,byte ptr [esi+3]
+        movzx   ebx,word ptr [esi+eax+4]
+        mov     ax,[g_state.lx.dproc]
+        or      ah,SC_ARR shr 8
+        call    scp_get
+        jnc     @dbn_k
+        cmp     ax,SC_ARR
+        je      @dbn_e
+        mov     ax,SC_ARR
+        call    scp_get
+        jc      @dbn_e
+        xor     eax,eax
+        call    scp_get
+        jc      @dbn_e
+        test    byte ptr [edi+B_FLG],BF_SHR
+        jnz     @dbn_k
+@dbn_e:
+        mov     al,E_AND
+        jmp     err_raise
+@dbn_k:
+        pop     edi
+        pop     ebx
+        pop     eax
+@dbn_r:
+        ret
+
+; ::::::::::::::
 ; dc_next - to the next statement: past a ':' out of strings; REM's and
 ; DATA's text are skipped.
 ;
@@ -983,6 +1064,14 @@ dc_next:
         cmp     al,M_VAR
         jne     @F
         call    dc_use
+        call    dc_ause
+@@:
+        cmp     al,TK_LBOUND
+        je      @dcn_b
+        cmp     al,TK_UBOUND
+        jne     @F
+@dcn_b:
+        call    dc_bnd
 @@:
         call    dc_item
         jmp     dc_next

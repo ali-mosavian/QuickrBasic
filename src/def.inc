@@ -30,6 +30,7 @@ B_REC   = 9                     ; the record's TYPE, the array's next
 B_FIX   = 12                    ; STRING * n, the array's next (words)
 B_LINE  = 16                    ; a label's line
 SC_NUM  = 8000h                 ; a scope's line numbers: its labels too
+SC_ARR  = 4000h                 ; a scope's arrays known so far, in the text
 BSZ     = 20
 BF_SHR  = 1                     ; the module's, every procedure's
 BF_REF  = 2                     ; SHARED in a procedure: the module's
@@ -169,7 +170,8 @@ E_ASF   = 41                    ; AS clause required on first declaration: so
 E_AAD   = 42                    ; Array already dimensioned: so
 E_VND   = 43                    ; Variable not declared: VBDOS's, so
 E_PTM   = 44                    ; Parameter type mismatch: so
-E_LAST  = E_PTM
+E_AND   = 45                    ; Array not defined
+E_LAST  = E_AND
 
 ; Memory map, flat: the code, then the data; the regions in .data? (main.asm).
 ; dsb is the 16-bit build's DS at the same offsets: the variables, the
