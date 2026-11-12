@@ -293,8 +293,8 @@ io_read:
         cmp     [g_state.io.cin],0FFh
         mov     al,62                   ; Input past end of file
         jne     ch_err
-        cmp     [g_state.rn.stpflg],0
-        je      err_od
+        test    [g_state.rn.stpflg],SF_BRK
+        jz      err_od
         and     [g_state.rn.stpflg],0              ; the STOP key: BREAK, no CONT
         and     [g_state.rn.contip],0
         xor     al,al                   ; E_BRK

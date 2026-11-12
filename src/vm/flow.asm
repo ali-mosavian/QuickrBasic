@@ -70,15 +70,29 @@ ex_target:
 ; error:  Out of stack space  the control stack is full
 ; ::::::::::::::
 ex_gosub:
+        mov     al,M_GS
+        call    ex_gsf
+        jmp     ex_jump
+
+; ::::::::::::::
+; ex_gsf - push a GOSUB's frame, mark AL, its size: RETURN goes on at ESI.
+;
+; out:    EDI  the frame
+; error:  Out of stack space  no room
+; keeps:  EBX, ESI
+; ::::::::::::::
+ex_gsf:
+        movzx   ecx,al
         mov     edi,[g_state.rn.cstk]
         cmp     edi,CSLIM
         jb      err_os
-        sub     edi,M_GS
+        sub     edi,ecx
         mov     [g_state.rn.cstk],edi
-        mov     byte ptr [edi+F_MARK],M_GS
+        mov     [edi+F_MARK],al
         mov     cx,[g_state.rn.ln]
         mov     [edi+F_LN],cx
         ipst    [edi+F_IP]
+        ret
 
 ; ::::::::::::::
 ; ex_jump - run the line at EBX from its start.
@@ -144,11 +158,16 @@ op_ret:
         mov     bx,0FFFFh
         call    for_find
         cmp     al,M_GS
+        je      @F
+        cmp     al,M_EV
         jne     err_rg
+        call    ev_ret
+@@:
         mov     dx,[ebx+F_LN]
         mov     [g_state.rn.ln],dx
+        movzx   ecx,byte ptr [ebx+F_MARK]
         mov     ax,[ebx+F_IP]
-        add     ebx,M_GS
+        add     ebx,ecx
         mov     [g_state.rn.cstk],ebx
         tspclr
         ipfix

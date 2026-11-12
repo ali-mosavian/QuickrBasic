@@ -28,6 +28,8 @@ ex_lp:
 ; ops (the IDE), a program line goes on to the next statement's start.
 ; ::::::::::::::
 ex_brk:
+        test    [g_state.rn.stpflg],SF_BRK
+        jz      ev_run
         call    plt_kflush              ; the Ctrl+C, not a key for the editor
         cmp     [g_state.dbg.emit],0
         je      @F

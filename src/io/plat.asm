@@ -109,7 +109,7 @@ plt_init:
 plt_brk:
         push    ds
         mov     ds,cs:[g_plat.dsv]
-        mov     [g_state.rn.stpflg],1
+        or      [g_state.rn.stpflg],SF_BRK
         pop     ds
         iretd
 
@@ -138,8 +138,9 @@ plt_tick:
         movzx   ebx,word ptr ds:[480h]
         jmp     @ptk_l
 @ptk_s:
-        mov     [g_state.rn.stpflg],1
+        or      [g_state.rn.stpflg],SF_BRK
 @ptk_x:
+        call    ev_tick
         pop     ebx
         pop     ds
         jmp     fword ptr cs:[g_plat.old1c]

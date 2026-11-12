@@ -276,8 +276,8 @@ endif
 @rpl_r:
         call    plt_getline
         jnc     @F
-        cmp     [g_state.rn.stpflg],0
-        je      @rpl_x
+        test    [g_state.rn.stpflg],SF_BRK
+        jz      @rpl_x
         and     [g_state.rn.stpflg],0              ; the STOP key at READY: nothing
         jmp     @rpl_r
 @@:

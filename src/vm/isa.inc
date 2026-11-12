@@ -145,6 +145,7 @@ oplist  macro   m
         m       R_COPY,op_rcopy,3,0
         m       ONERR,op_onerr,5,0
         m       ONLERR,op_onlerr,5,0
+        m       ONEV,op_onev,6,0
         m       I_CHK16,op_ichk16,1,FX
         m       RESUME,op_resume,6,0
         m       D_LD_V,op_dldv,3,FX+FV
@@ -342,6 +343,8 @@ qbklist macro   m
         m       OUT,sc_out
         m       SHELL,sc_shell
         m       SHELL0,sc_shell0
+        m       EVST,sc_evst
+        m       KEYDEF,sc_keydef
         m       USF,sc_usf
         m       USD,sc_usd
         m       USS,sc_uss

@@ -670,6 +670,7 @@ sc_runl:
 ; ::::::::::::::
 ex_rungo:
         mov     esp,[g_state.rn.rsp]
+        call    ev_clr
         and     [g_state.rn.ehnd],0
         and     [g_state.rn.inerr],0
         and     [g_state.rn.errn],0
@@ -760,6 +761,8 @@ sc_end:
 ; ex_ready - back to READY, the frames kept.
 ; ::::::::::::::
 ex_ready:
+        call    ev_clr
+        and     [g_state.rn.stpflg],not SF_EV
         jmp     rpl_ready
 
 ; ::::::::::::::

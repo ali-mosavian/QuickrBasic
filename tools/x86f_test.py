@@ -198,6 +198,15 @@ CASES = {
     "qb_shell": ('PRINT "a"\r\nENVIRON "QBX=hello"\r\nSHELL "set"\r\nSHELL "echo b"\r\nPRINT "c"\r\nON ERROR GOTO h\r\n'
                  'ENVIRON "COMSPEC=X:\\NONE.COM"\r\nSHELL "echo d"\r\nEND\r\nh: PRINT "e"; ERR: RESUME NEXT\r\n',
                  "QBX=hello\r\nb\r\nc\r\ne 5 \r\n", "warning"),
+    # Event trapping was a syntax error. ON TIMER runs its GOSUB each interval while ON; OFF drops
+    # events; STOP keeps one for ON, run at the next jump or line's end. A key ON KEY traps (here pushed through the 8042) is taken.
+    "qb_events": ('ON TIMER(1) GOSUB tk\r\nTIMER ON\r\nt0 = TIMER: DO: LOOP UNTIL n >= 2 OR TIMER - t0 > 5\r\n'
+                  'TIMER OFF: PRINT "n"; n\r\nt0 = TIMER: DO: LOOP UNTIL TIMER - t0 > 1.3\r\nPRINT "off"; n\r\n'
+                  'TIMER STOP: t0 = TIMER: DO: LOOP UNTIL TIMER - t0 > 1.3\r\nPRINT "stop"; n\r\nTIMER ON\r\n'
+                  'TIMER OFF: PRINT "on"; n\r\nON KEY(1) GOSUB f1\r\nKEY(1) ON\r\nOUT &H64, &HD2: OUT &H60, &H3B\r\n'
+                  't0 = TIMER: DO: LOOP UNTIL k OR TIMER - t0 > 2\r\nPRINT "key"; k; INKEY$ = ""\r\nEND\r\n'
+                  'tk: n = n + 1: RETURN\r\nf1: k = k + 1: RETURN\r\n',
+                  "n 2 \r\noff 2 \r\nstop 2 \r\non 3 \r\nkey 1 -1 \r\n", "ERROR"),
     # Unhandled: ERROR n's message; RESUME with no error; ON ERROR GOTO 0 in the handler.
     # A full stack was ?OUT OF MEMORY, which ON ERROR trapped; BC's is Out of stack space, not
     # trapped, its line, module and address after.

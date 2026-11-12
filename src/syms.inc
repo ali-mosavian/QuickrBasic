@@ -40,6 +40,7 @@ externdef rec_get:near
 externdef ex_dcode:near
 externdef ex_end:near
 externdef ex_erl:near
+externdef ex_gsf:near
 externdef ex_hnd:near
 externdef ex_jump:near
 externdef ex_nextln:near
@@ -47,6 +48,7 @@ externdef ex_nodir:near
 externdef ex_resolve:near
 externdef ex_setcont:near
 externdef ex_smap:near
+externdef ex_target:near
 externdef ex_trap:near
 externdef g_lsav:byte
 externdef g_thnd:word
@@ -689,6 +691,14 @@ externdef sc_dstr:near
 externdef op_dbg:near
 externdef sc_troff:near
 externdef sc_tron:near
+; vm/event.asm
+externdef ev_clr:near
+externdef ev_ret:near
+externdef ev_run:near
+externdef ev_tick:near
+externdef op_onev:near
+externdef sc_evst:near
+externdef sc_keydef:near
 ; regions.asm
 externdef g_bss_e:byte
 externdef g_cachb:byte

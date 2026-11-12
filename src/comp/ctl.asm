@@ -256,6 +256,8 @@ ct_onerr:
         call    st_get
         cmp     al,TK_X
         jne     @coe_n
+        call    ct_evk
+        jnc     @coe_e
         mov     ah,O_ONERR
         cmp     byte ptr [esi+1],TK1_LOCAL      ; PDS's ON LOCAL ERROR
         jne     @F
@@ -285,6 +287,137 @@ ct_onerr:
         pop     esi
         stc
         ret
+@coe_e:                                 ; ON event(n) GOSUB line: ONEV kind
+        add     esp,4                   ; num addr ( n -- )
+        push    ecx
+        call    ct_evn
+        call    st_get
+        cmp     al,TK_GOSUB
+        jne     err_sn
+        inc     esi
+        call    cm_lnum
+        mov     al,O_ONEV
+        call    cm_op
+        pop     eax
+        call    cm_byt
+        call    cm_jw
+        clc
+        ret
+
+; ::::::::::::::
+; ct_evk - is the TK_X word at SI an event's: TIMER, KEY, COM, PEN, STRIG?
+;
+; out:    CF   clear: ECX its EK_*, SI past it
+; keeps:  EAX
+; ::::::::::::::
+ct_evk:
+        mov     cl,[esi+1]
+        mov     ch,EK_TIMER
+        cmp     cl,TK1_TIMER
+        je      @cek_y
+        mov     ch,EK_KEY
+        cmp     cl,TK1_KEY
+        je      @cek_y
+        mov     ch,EK_COM
+        cmp     cl,TK1_COM
+        je      @cek_y
+        mov     ch,EK_PEN
+        cmp     cl,TK1_PEN
+        je      @cek_y
+        mov     ch,EK_STRIG
+        cmp     cl,TK1_STRIG
+        je      @cek_y
+        stc
+        ret
+@cek_y:
+        movzx   ecx,ch
+        add     esi,2
+        clc
+        ret
+
+; ::::::::::::::
+; ct_evn - kind ECX's (n): KEY, COM, STRIG; TIMER's in ON TIMER; else 0.
+;
+; in:     ESP+4  the kind
+; ::::::::::::::
+ct_evn:
+        mov     ecx,[esp+4]
+        cmp     ecx,EK_PEN
+        je      @cen_0
+        call    st_get
+        cmp     al,'('
+        jne     @cen_t
+        call    cm_paren
+        jmp     cm_toi
+@cen_t:
+        cmp     ecx,EK_TIMER
+        jne     err_sn
+@cen_0:
+        xor     eax,eax
+        jmp     cm_lint
+
+; ::::::::::::::
+; ct_evs - event(n) ON | OFF | STOP: CALL EVST ( n kind*4+state -- ); KEY n,
+; s: CALL KEYDEF; KEY ON, OFF, LIST: the screen's, nothing.
+; ::::::::::::::
+ct_evs:
+        call    ct_evk
+        jc      @coe_s
+        cmp     ecx,EK_KEY
+        jne     @ces_n
+        call    st_get
+        cmp     al,'('
+        je      @ces_n
+        cmp     al,TK_ON
+        je      @ces_k
+        cmp     al,TK_LIST
+        je      @ces_k
+        cmp     al,TK_X
+        jne     @F
+        cmp     byte ptr [esi+1],TK1_OFF
+        jne     @F
+        inc     esi
+@ces_k:
+        inc     esi
+        clc
+        ret
+@@:
+        call    cm_expr                 ; KEY n, s
+        call    cm_toi
+        call    cm_chkcm
+        call    cm_expr
+        call    cm_tos
+        mov     al,K_KEYDEF
+        call    cm_call
+        clc
+        ret
+@ces_n:
+        push    ecx
+        call    ct_evn
+        call    st_get
+        xor     edx,edx                 ; OFF 0, ON 1, STOP 2
+        cmp     al,TK_X
+        jne     @F
+        cmp     byte ptr [esi+1],TK1_OFF
+        jne     err_sn
+        inc     esi
+        jmp     @ces_s
+@@:
+        inc     edx
+        cmp     al,TK_ON
+        je      @ces_s
+        inc     edx
+        cmp     al,TK_STOP
+        jne     err_sn
+@ces_s:
+        inc     esi
+        pop     eax
+        lea     eax,[eax*4+edx]
+        call    cm_lint
+        mov     al,K_EVST
+        call    cm_call
+        clc
+        ret
 
 ; ::::::::::::::
 ; ct_xst - RESUME [NEXT | 0 | line]: RESUME mode num addr.
@@ -292,7 +425,7 @@ ct_onerr:
 ct_xst:
         mov     al,[esi+1]
         cmp     al,TK1_RESUME
-        jne     @coe_s
+        jne     ct_evs
         add     esi,2
         and     [g_state.cm.wv],0
         and     [g_state.cm.wa],0
