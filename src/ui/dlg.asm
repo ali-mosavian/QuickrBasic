@@ -181,7 +181,7 @@ dl_dfld:
         je      @dlf_r
         cmp     [g_ui.dg.dl_new],0               ; the text selected till a key
         je      @dlf_k
-        mov     ah,07h
+        mov     ah,A_DSEL
         call    sc_attr
 @dlf_k:
         mov     ax,[ebx+TLBUF.col]

@@ -609,18 +609,37 @@ mn_find:
         ret
 
 ; ::::::::::::::
-; mn_chk - the flag of check item ESI: Syntax Checking's, Trace On's.
+; mn_chk - check item ESI on: its flag's byte, by mn_flags, nonzero or
+; the value given.
 ;
 ; out:    ZF  clear: on
 ; keeps:  all
 ; ::::::::::::::
 mn_chk:
-        cmp     byte ptr [esi],A_TRACE
+        push    eax
+        push    ebx
+        mov     ebx,offset mn_flags
+@mck_l:
+        mov     al,[ebx]
+        test    al,al
+        jz      @mck_r                  ; none: off, ZF set
+        cmp     al,[esi]
         je      @F
-        cmp     [g_ui.tx.syn_on],0
-        ret
+        add     ebx,6
+        jmp     @mck_l
 @@:
-        cmp     [g_state.dbg.trace],0
+        mov     eax,[ebx+1]
+        mov     al,[eax]
+        mov     ah,[ebx+5]
+        cmp     ah,0FFh
+        je      @mck_t
+        cmp     al,ah
+        sete    al
+@mck_t:
+        test    al,al
+@mck_r:
+        pop     ebx
+        pop     eax
         ret
 
 ; ::::::::::::::
@@ -660,6 +679,18 @@ mn_alt:
 
 
         .data
+; a check item's action, its flag's byte, the value that is on (FFh any but 0)
+mn_flags db     A_TRACE
+        dd      offset g_state.dbg.trace
+        db      0FFh, A_SYNTAX
+        dd      offset g_ui.tx.syn_on
+        db      0FFh, A_THQB
+        dd      offset g_thn
+        db      0, A_THDK
+        dd      offset g_thn
+        db      1, A_SYNHL
+        dd      offset g_hlon
+        db      0FFh, 0
 mn_scan db      21h,12h,2Fh,1Fh,13h,20h,18h,23h ; Alt+F E V S R D O H
 mn_x    db      3,9,15,21,29,34,41,74   ; QBasic's (uirsrcc.c)
 mn_tt   dd      t_file,t_edit,t_view,t_srch,t_run,t_dbg,t_opt,t_help
@@ -692,6 +723,7 @@ m_edit  db      A_CUT,MF_SEL,'Cu&t',0,'Shift+Del',0
         db      0
 m_view  db      A_SUBS,0,'&SUBs...',0,'F2',0
         db      A_SPLIT,0,'S&plit',0,0
+        db      A_VSPLIT,0,'Split &Vertically',0,0
         db      A_OUT,0,'Output &Screen',0,'F4',0
         db      0
 m_srch  db      A_FIND,MF_ED,'&Find...',0,0
@@ -711,7 +743,10 @@ m_dbg   db      A_STEP,0,'&Step',0,'F8',0
         db      A_BPCLR,0,'&Clear All Breakpoints',0,0
         db      A_SETNX,MF_ED,'Set &Next Statement',0,0
         db      0
-m_opt   db      A_NONE,MF_GRAY,'&Display...',0,0
+m_opt   db      A_THQB,MF_CHK,'&QBasic Colors',0,0
+        db      A_THDK,MF_CHK,'One &Dark',0,0
+        db      A_SYNHL,MF_CHK,'Syntax &Highlighting',0,0
+        db      A_NONE,MF_SEP
         db      A_NONE,MF_GRAY,'Help &Path...',0,0
         db      A_SYNTAX,MF_CHK,'&Syntax Checking',0,0
         db      0

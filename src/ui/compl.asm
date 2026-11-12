@@ -1374,7 +1374,7 @@ ac_draw:
         dec     dl
         movzx   ecx,[g_ui.ac.ac_bw]
         sub     cx,2
-        mov     ah,07h
+        mov     ah,A_DSEL
         call    sc_attr
 @acd_n:
         inc     bx

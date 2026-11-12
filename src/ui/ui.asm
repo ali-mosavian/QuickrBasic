@@ -54,6 +54,7 @@ ui_start:
         call    im_load
         mov     ax,3
         int     10h
+        call    th_qb
         mov     fs,[g_plat.pspsel]              ; a file named on the command line,
         mov     esi,81h                 ; in the PSP
         movzx   ecx,byte ptr fs:[80h]
@@ -519,7 +520,7 @@ ui_acts dd      ui_new,ui_open,ui_save,ui_saveas,ui_exit,ed_cut,ed_copy
         dd      ed_paste,ed_clear,ui_view,ui_find,ui_find3,ui_change
         dd      ui_runp,ui_contp,ui_syntax,ui_about,ud_step,ud_pstep
         dd      ud_trace1,ud_bp,ud_bpclr,ud_setnx,ud_restart,wn_split
-        dd      vw_subs,vw_newsub,vw_newfn
+        dd      vw_subs,vw_newsub,vw_newfn,th_qb,th_dark,hl_toggle,wn_vsplit
         .code
 
 ; ::::::::::::::
@@ -735,7 +736,7 @@ ui_in:
         mov     ax,0500h
         int     10h
         popad
-        ret
+        jmp     th_in
 ; ::::::::::::::
 ; ui_out - page 1, the output, shown.
 ; ::::::::::::::
@@ -744,11 +745,12 @@ ui_out:
         mov     ax,0501h
         int     10h
         popad
-        ret
+        jmp     th_out
 ; ::::::::::::::
 ; ui_outclr - page 1 shown and cleared.
 ; ::::::::::::::
 ui_outclr:
+        call    th_out
         pushad
         mov     ax,0501h
         int     10h

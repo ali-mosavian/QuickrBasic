@@ -5,6 +5,7 @@
 ;           sc_attr, sc_cur, sc_shape, sc_flip
 ; uses:     INT 10h; port 3DAh
 ; data:     Drawing goes to a copy of page 0 at scrb; sc_flip shows it.
+;           An attribute is a slot, the theme's (theme.asm).
 ;           A position is DH the row, DL the column. A string's '&' marks
 ;           its hotkey, drawn with BH; a plain string has BH = AH.
 ; calls:
@@ -38,12 +39,15 @@ sc_at:
 ; keeps:  all but DL, EDI
 ; ::::::::::::::
 sc_fill:
+        push    eax
         push    ecx
+        call    th_ah
         movzx   ecx,cx
         call    sc_at
         add     dl,cl
         rep     stosw
         pop     ecx
+        pop     eax
         ret
 
 ; ::::::::::::::
@@ -55,6 +59,11 @@ sc_fill:
 ; ::::::::::::::
 sc_str:
         push    eax
+        push    ebx
+        call    th_ah
+        xchg    ah,bh
+        call    th_ah
+        xchg    ah,bh
         call    sc_at
 @scs_l:
         lodsb
@@ -74,6 +83,7 @@ sc_str:
         inc     dl
         jmp     @scs_l
 @scs_e:
+        pop     ebx
         pop     eax
         ret
 
@@ -88,6 +98,7 @@ sc_strn:
         jcxz    @scn_r
         push    eax
         push    ecx
+        call    th_ah
         movzx   ecx,cx
         call    sc_at
         add     dl,cl
@@ -231,7 +242,9 @@ sc_sep:
 ; ::::::::::::::
 sc_attr:
         jcxz    @sat_r
+        push    eax
         push    ecx
+        call    th_ah
         movzx   ecx,cx
         call    sc_at
         inc     edi
@@ -240,6 +253,7 @@ sc_attr:
         add     edi,2
         loop    @sat_l
         pop     ecx
+        pop     eax
 @sat_r:
         ret
 
@@ -252,7 +266,7 @@ sc_attr:
 sc_shadow:
         pushad
         mov     bx,cx
-        mov     ah,08h
+        mov     ah,A_SHD
         inc     dh
         add     dl,bl
         movzx   si,bh
@@ -287,7 +301,7 @@ sc_shadow:
         jbe     @ssh_c
         mov     cl,al
 @ssh_c:
-        mov     ah,08h
+        mov     ah,A_SHD
         call    sc_attr
 @ssh_x:
         popad

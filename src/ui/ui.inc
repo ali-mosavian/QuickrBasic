@@ -39,14 +39,31 @@ AC_PREV = 40                            ; a label's box: columns
 ; text.asm
 TXMAX   = 0FF00h                ; the text's bytes at most
 LNMAX   = 255                   ; a line's characters at most
-; draw.asm
+; draw.asm; the attributes are slots, the theme's (theme.asm)
 ED_COLS = 78
-A_ED    = 17h
-A_SEL   = 71h
-A_TTL   = 71h                  ; the window's colours swapped
-A_BAR   = 70h
-A_HOT   = 7Fh
-A_STAT  = 30h
+A_ED    = 0
+A_SEL   = 1
+A_TTL   = 2                     ; the window's colours swapped
+A_BAR   = 3
+A_HOT   = 4
+A_STAT  = 5
+A_MSEL  = 6
+A_MHOT  = 7
+A_GRAY  = 8
+A_BPL   = 9                     ; a breakpoint's line
+A_CUR   = 10                    ; the statement a stop or trace is at
+A_DLG   = 11
+A_DSEL  = 12
+A_DFOC  = 13
+A_SHD   = 14                    ; a box's shadow
+A_THB   = 15                    ; a scroll bar's thumb
+A_KW    = 16                    ; syntax.asm's: keywords, strings, numbers,
+A_STR   = 17                    ; comments, names
+A_NUM   = 18
+A_COM   = 19
+A_NAM   = 20
+NATTR   = 21
+TH_SZ   = NATTR+48              ; a theme: its attributes, 16 colours' RGB
 ; menu.asm
 MF_GRAY = 1
 MF_SEP  = 2
@@ -55,9 +72,6 @@ MF_SEL  = 8                     ; gray without a selection
 MF_CLP  = 16                    ; gray with the Clipboard empty
 MF_ED   = 32                    ; gray in the immediate window
 NMENU   = 8
-A_MSEL  = 07h
-A_MHOT  = 0Fh
-A_GRAY  = 78h
 A_NEW   = 1
 A_OPEN  = 2
 A_SAVE  = 3
@@ -86,9 +100,11 @@ A_SPLIT = 25
 A_SUBS  = 26
 A_NSUB  = 27
 A_NFN   = 28
-A_NONE  = 29
-A_BPL   = 47h                   ; a breakpoint's line
-A_CUR   = 1Fh                   ; the statement a stop or trace is at
+A_THQB  = 29
+A_THDK  = 30
+A_SYNHL = 31
+A_VSPLIT = 32
+A_NONE  = 33
 ; dlg.asm
 CT_FLD  = 1
 CT_LST  = 2
@@ -96,9 +112,6 @@ CT_BTN  = 3
 CT_CHK  = 4
 CT_TXT  = 5
 CF_NOF  = 1                     ; takes no focus
-A_DLG   = 70h
-A_DSEL  = 07h
-A_DFOC  = 7Fh
 DO_OK   = 4
 DS_OK   = 3
 DF_OK   = 3
@@ -207,6 +220,8 @@ TEDIT    struc                   ; the program window, the selection
     ed_vw   db      ?               ; the view shown (view.asm)
     ed_r0   dw      ?               ; the window's first text row, its rows
     ed_rows dw      ?
+    ed_x    db      ?               ; its frame's first column, its text's
+    ed_tw   dw      ?               ; columns (the frame's less 2)
 TEDIT    ends
 
 TFIND    struc                   ; a line made canonical; Find and Change
@@ -281,6 +296,8 @@ TWINS    struc
     win     TWIN    NWIN dup(<>)
     wact    db      ?               ; the active edit window
     wmax    db      ?               ; 1: Ctrl+F10's, wsav the heights before
+    wvert   db      ?               ; 1: ED2 beside ED1, its rows ED1's
+    wvsav   db      ?               ; wvert before Ctrl+F10
     wsav    db      NWIN dup(?)
 TWINS    ends
 

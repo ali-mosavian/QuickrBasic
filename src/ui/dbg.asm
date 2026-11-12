@@ -165,7 +165,7 @@ ud_row:
         test    al,al
         jz      @F
         mov     ah,A_BPL
-        mov     cx,ED_COLS
+        mov     cx,[g_ui.ed.ed_tw]
         call    sc_attr
 @@:
         cmp     [g_ui.ud.hl_on],0
@@ -190,9 +190,9 @@ ud_row:
 @@:
         sub     bx,[g_ui.ed.ed_left]
         jbe     @udr_r
-        cmp     bx,ED_COLS
+        cmp     bx,[g_ui.ed.ed_tw]
         jbe     @F
-        mov     bx,ED_COLS
+        mov     bx,[g_ui.ed.ed_tw]
 @@:
         cmp     ax,bx
         jae     @udr_r

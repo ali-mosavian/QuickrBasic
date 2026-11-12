@@ -31,10 +31,13 @@ dr_all:
 dr_edit:
         mov     dh,byte ptr [g_ui.ed.ed_r0]
         dec     dh                      ; DH the title's row
-        xor     dl,dl
+        mov     dl,[g_ui.ed.ed_x]
+        mov     [g_ttlx],dl
         mov     ch,byte ptr [g_ui.ed.ed_rows]
         add     ch,2
-        mov     cl,80
+        mov     cl,byte ptr [g_ui.ed.ed_tw]
+        add     cl,2
+        mov     [g_ttlw],cl
         mov     ah,A_ED
         xor     esi,esi
         push    edx
@@ -73,9 +76,10 @@ dr_edit:
 @dre_n:
         mov     dh,byte ptr [g_ui.ed.ed_r0]
         add     dh,byte ptr [g_ui.ed.ed_rows]
-        mov     dl,1
+        mov     dl,[g_ui.ed.ed_x]
+        inc     dl
         mov     ax,A_ED*256+' '
-        mov     cx,ED_COLS
+        mov     cx,[g_ui.ed.ed_tw]
         jmp     sc_fill
 
 ; ::::::::::::::
@@ -94,19 +98,20 @@ dr_hasfoc:
         ret
 
 ; ::::::::::::::
-; dr_ttl - a window's title row DH, as QBasic's (uiwind.c): CL, CH its
-; corners; the title at ESI centred, lit when BL is 1; BH 1: the maximise
-; arrow.
+; dr_ttl - a window's title row DH, as QBasic's (uiwind.c), from column
+; ttlx, ttlw wide: CL, CH its corners; the title at ESI centred, lit when
+; BL is 1; BH 1: the maximise arrow.
 ; ::::::::::::::
 dr_ttl:
-        xor     dl,dl
+        mov     dl,[g_ttlx]
         push    ecx
         mov     ah,A_ED
         mov     al,cl
         mov     cx,1
         call    sc_fill
         mov     al,0C4h
-        mov     cx,78
+        movzx   cx,[g_ttlw]
+        sub     cx,2
         call    sc_fill
         pop     ecx
         mov     al,ch
@@ -114,7 +119,7 @@ dr_ttl:
         call    sc_fill
         test    bh,bh
         jz      @drt_t
-        mov     dl,75
+        sub     dl,5
         mov     ax,A_ED*256+0B4h
         call    sc_fill
         mov     ax,A_TTL*256+18h
@@ -122,11 +127,13 @@ dr_ttl:
         mov     ax,A_ED*256+0C3h
         call    sc_fill
 @drt_t:
-        call    sc_slen                 ; at 1 + (80 - its length - 5) / 2
-        mov     dl,75
+        call    sc_slen                 ; at 1 + (the width - its length - 5) / 2
+        mov     dl,[g_ttlw]
+        sub     dl,5
         sub     dl,cl
         shr     dl,1
         inc     dl
+        add     dl,[g_ttlx]
         mov     ah,A_ED
         test    bl,bl
         jz      @drt_c
@@ -145,14 +152,15 @@ dr_ttl:
 dr_row:
         mov     dh,cl
         add     dh,byte ptr [g_ui.ed.ed_r0]
-        mov     dl,1
+        mov     dl,[g_ui.ed.ed_x]
+        inc     dl
         mov     ax,[g_ui.ed.ed_top]
         add     ax,cx
         mov     [g_ui.lp.dr_ln],ax
         cmp     ax,[g_ui.tx.tx_n]
         jb      @drr_t
         mov     ax,A_ED*256+' '
-        mov     cx,ED_COLS
+        mov     cx,[g_ui.ed.ed_tw]
         jmp     sc_fill
 @drr_t:
         mov     esi,offset g_ui.bf.ed_lb.txt
@@ -166,25 +174,30 @@ dr_row:
         call    tx_get
         mov     esi,offset g_ui.bf.uc_line
 @drr_g:
+        mov     [g_drls],esi            ; the whole line, for hl_row
+        mov     [g_drln],cx
         movzx   ebx,[g_ui.ed.ed_left]            ; the part from ed_left
         sub     cx,bx
         jae     @drr_c
         xor     cx,cx
 @drr_c:
         add     esi,ebx
-        cmp     cx,ED_COLS
+        cmp     cx,[g_ui.ed.ed_tw]
         jbe     @drr_w
-        mov     cx,ED_COLS
+        mov     cx,[g_ui.ed.ed_tw]
 @drr_w:
         mov     ah,A_ED
         push    edx
         call    sc_strn
-        mov     bx,ED_COLS
+        mov     bx,[g_ui.ed.ed_tw]
         sub     bx,cx
         mov     cx,bx
         mov     al,' '
         call    sc_fill
         pop     edx
+        mov     esi,[g_drls]
+        movzx   ecx,[g_drln]
+        call    hl_row
         call    ud_row
         mov     ax,[g_ui.lp.dr_ln]               ; the selection
         cmp     [g_ui.lp.dr_sk],2
@@ -194,7 +207,7 @@ dr_row:
         cmp     ax,[g_ui.ed.sel_b]
         ja      @drr_x
         mov     ah,A_SEL
-        mov     cx,ED_COLS
+        mov     cx,[g_ui.ed.ed_tw]
         jmp     sc_attr
 @drr_p:
         cmp     [g_ui.lp.dr_sk],1
@@ -209,9 +222,9 @@ dr_row:
 @drr_1:
         sub     bx,[g_ui.ed.ed_left]
         jbe     @drr_x
-        cmp     bx,ED_COLS
+        cmp     bx,[g_ui.ed.ed_tw]
         jbe     @drr_2
-        mov     bx,ED_COLS
+        mov     bx,[g_ui.ed.ed_tw]
 @drr_2:
         cmp     ax,bx
         jae     @drr_x
@@ -231,13 +244,13 @@ dr_vbar:
         cmp     word ptr [g_ui.ed.ed_rows],3
         jb      @drv_r
         mov     dh,byte ptr [g_ui.ed.ed_r0]
-        mov     dl,79
+        call    dr_barx
         mov     ax,A_BAR*256+18h
         mov     cx,1
         call    sc_fill
         mov     dh,byte ptr [g_ui.ed.ed_r0]
         inc     dh
-        mov     dl,79
+        call    dr_barx
         movzx   ecx,word ptr [g_ui.ed.ed_rows]
         sub     ecx,2
 @drv_t:
@@ -261,11 +274,18 @@ dr_vbar:
         mov     dh,al
         add     dh,byte ptr [g_ui.ed.ed_r0]
         inc     dh
-        mov     dl,79
-        mov     ax,0000h+' '
+        call    dr_barx
+        mov     ax,A_THB*256+' '
         mov     cx,1
         jmp     sc_fill
 @drv_r:
+        ret
+
+; dr_barx - DL the scroll bar's column, the frame's last. Keeps all but DL.
+dr_barx:
+        mov     dl,[g_ui.ed.ed_x]
+        add     dl,byte ptr [g_ui.ed.ed_tw]
+        inc     dl
         ret
 
 ; ::::::::::::::
@@ -274,14 +294,15 @@ dr_vbar:
 dr_hbar:
         mov     dh,byte ptr [g_ui.ed.ed_r0]
         add     dh,byte ptr [g_ui.ed.ed_rows]
-        xor     dl,dl
+        mov     dl,[g_ui.ed.ed_x]
         mov     ax,A_ED*256+0B3h
         mov     cx,1
         call    sc_fill
         mov     ax,A_BAR*256+1Bh
         call    sc_fill
         mov     ax,A_BAR*256+0B0h
-        mov     cx,ED_COLS-2
+        mov     cx,[g_ui.ed.ed_tw]
+        sub     cx,2
         call    sc_fill
         mov     ax,A_BAR*256+1Ah
         mov     cx,1
@@ -289,15 +310,17 @@ dr_hbar:
         mov     ax,A_ED*256+0B3h
         call    sc_fill
         mov     ax,[g_ui.ed.ed_left]
-        mov     cx,ED_COLS-3
+        mov     cx,[g_ui.ed.ed_tw]
+        sub     cx,3
         mul     cx
         mov     cx,LNMAX
         div     cx
         mov     dl,al
         add     dl,2
+        add     dl,[g_ui.ed.ed_x]
         mov     dh,byte ptr [g_ui.ed.ed_r0]
         add     dh,byte ptr [g_ui.ed.ed_rows]
-        mov     ax,0000h+' '
+        mov     ax,A_THB*256+' '
         mov     cx,1
         jmp     sc_fill
 
@@ -305,6 +328,8 @@ dr_hbar:
 ; dr_imm - the immediate window: its title, its two lines.
 ; ::::::::::::::
 dr_imm:
+        mov     [g_ttlx],0
+        mov     [g_ttlw],80
         mov     dh,byte ptr [g_ui.im.im_r0]
         dec     dh
         mov     esi,offset u_imm
@@ -511,6 +536,7 @@ dr_cursor:
         mov     ax,[g_ui.bf.ed_lb.col]
         sub     ax,[g_ui.ed.ed_left]
         inc     al
+        add     al,[g_ui.ed.ed_x]
         mov     dl,al
         jmp     sc_cur
 @drc_i:
@@ -550,5 +576,12 @@ ui_title:
         pop     edi
         pop     esi
         ret
+
+        .data?
+g_drls  dd      ?
+g_drln  dw      ?
+g_ttlx  db      ?                       ; dr_ttl's window: its first column,
+g_ttlw  db      ?                       ; its width
+        .code
 
         end

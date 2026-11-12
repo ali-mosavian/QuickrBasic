@@ -173,11 +173,12 @@ ms_main:
         add     al,byte ptr [g_ui.ed.ed_rows]
         cmp     dh,al
         jae     @msm_r
-        cmp     dl,79
+        mov     al,dl                   ; AL the text's column + 1
+        sub     al,[g_ui.ed.ed_x]
+        jbe     @msm_r
+        dec     al
+        cmp     al,byte ptr [g_ui.ed.ed_tw]
         je      @msm_sb
-        test    dl,dl
-        jz      @msm_r
-        cmp     dl,ED_COLS
         ja      @msm_r
         movzx   ax,dh                   ; the line, the last at most
         sub     ax,[g_ui.ed.ed_r0]
@@ -206,6 +207,7 @@ ms_main:
         pop     edx
         jc      @msm_r
         movzx   ax,dl
+        sub     al,[g_ui.ed.ed_x]
         dec     ax
         add     ax,[g_ui.ed.ed_left]
         mov     [g_ui.bf.ed_lb.col],ax

@@ -634,10 +634,11 @@ ed_ensure:
         mov     [g_ui.ed.ed_left],ax
 @ede_r:
         mov     dx,[g_ui.ed.ed_left]
-        add     dx,ED_COLS
+        add     dx,[g_ui.ed.ed_tw]
         cmp     ax,dx
         jb      @ede_x
-        sub     ax,ED_COLS-1
+        sub     ax,[g_ui.ed.ed_tw]
+        inc     ax
         mov     [g_ui.ed.ed_left],ax
 @ede_x:
         ret

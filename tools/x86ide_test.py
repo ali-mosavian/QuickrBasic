@@ -27,7 +27,8 @@ def play() -> None:
     (work / exe).write_bytes(IDE.read_bytes())
     if IDE.suffix == ".exe":
         (work / "DOS32A.EXE").write_bytes((IDE.parent / "DOS32A.EXE").read_bytes())
-    (work / "BASIC.HLP").write_bytes((ROOT / "src/x86/ui/basic.hlp").read_bytes())
+    hlp = "src/x86f/ui/basic.hlp" if IDE.suffix == ".exe" else "src/x86/ui/basic.hlp"
+    (work / "BASIC.HLP").write_bytes((ROOT / hlp).read_bytes())
     (work / "SQ.BAS").write_bytes(b"for i=1 to 3\r\n  print i*i\r\nnext\r\n")
     (work / "SUB").mkdir()
     s = qbplay.Session(work)
@@ -109,6 +110,10 @@ def play() -> None:
         """Page 1, where the program writes: text_screen shows page 0 only."""
         data = bytes.fromhex(s.send({"cmd": "mem_read_linear", "addr": 0xB9000, "len": 4000})["data"])
         return [data[r * 160 : r * 160 + 160 : 2].decode("latin-1").rstrip().upper() for r in range(25)]
+
+    flat = IDE.suffix == ".exe"
+    if flat:  # the checks of colours before the highlighting's own are of plain text
+        press(f"0x{0x18:x}", "h")
 
     # Free-form lines, capitalised on leaving; F5 runs them.
     keys("for i=1 to 3\n  print i*i\n")
@@ -506,6 +511,42 @@ def play() -> None:
     assert titles() == [1, 10, 21], titles()
     press(f"0x{0x2F:x}", "p")
     assert titles() == [1, 21], titles()
+
+    # Syntax highlighting from the compiler's lexer: keywords, strings, numbers, comments by the
+    # theme; Options' One Dark and QBasic Colors, Syntax Highlighting off; Split Vertically.
+    if flat:
+        press(f"0x{ALT_F:x}", "n")
+        if any("NOT SAVED" in r for r in look()):
+            press("n")
+        for c in 'PRINT "a"; 12: REM c\n':
+            if c == '"':  # keys() has no '"'
+                s.send({"cmd": "key", "scancode": 0x28, "ascii": 0x22, "stop": True})
+                s.run_to_key(3000)
+                s.resume(60)
+            else:
+                keys(c)
+        press(f"0x{0x18:x}", "h")
+        assert chars(2)[1:21] == b'PRINT "a"; 12: REM c', chars(2)
+        want = [0x1B] * 6 + [0x1E] * 3 + [0x17] * 2 + [0x1D] * 2 + [0x17] * 2 + [0x1A] * 5
+        assert list(attrs(2)[1:21]) == want, attrs(2)[1:21].hex()
+        press(f"0x{0x18:x}", "d")
+        assert list(attrs(2)[1:21:5]) == [0x15, 0x15, 0x17, 0x18], attrs(2)[1:21].hex()
+        press(f"0x{0x18:x}", "q")
+        press(f"0x{0x18:x}", "h")
+        assert set(attrs(2)[1:21]) == {0x17}, attrs(2)[1:21].hex()
+        press(f"0x{0x18:x}", "h")
+        press(f"0x{0x2F:x}", "v")
+        assert chars(1)[0] == chars(1)[40] == 0xDA and chars(2)[41:61] == chars(2)[1:21], (chars(1), chars(2))
+        assert attrs(2)[41] == 0x1B, attrs(2).hex()
+        def lit_title() -> list[bool]:  # each window's title lit (the arrows always are)
+            return [0x71 in attrs(1)[c : c + 30] for c in (5, 45)]
+
+        assert lit_title() == [True, False], attrs(1).hex()
+        click(2, 45)  # the window under the click by its column too
+        assert lit_title() == [False, True], attrs(1).hex()
+        press(f"0x{0x2F:x}", "v")
+        assert chars(1)[60] == 0xC4 and look()[21].strip() == "IMMEDIATE", look()
+        press(f"0x{0x18:x}", "h")
 
     # The debugger (QBasic's uidebug.asm). lit(): the lit statement's text line and text, the
     # breakpoints' lines.

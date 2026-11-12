@@ -77,7 +77,7 @@ DOS32A ?= $(HOME)/.cache/llrm/open-watcom-v2-703e1ae2f9a621dda2d28fb39b12d0d6d27
 X86F_MODS := main vm/exec vm/flow vm/calls vm/builtins vm/sys vm/bin vm/bc comp/lex comp/decl comp/block comp/ctl comp/comp \
 	comp/expr comp/link comp/list mem/far mem/prog mem/sym mem/str mem/arr io/io io/repl \
 	io/chan io/fio io/plat float/flt float/ftr float/fpu float/dbl vm/dbg
-X86F_UI := ui/scr ui/mouse ui/compl ui/text ui/edit ui/draw ui/menu ui/dlg ui/sync ui/dbg ui/win ui/view ui/ui
+X86F_UI := ui/scr ui/mouse ui/compl ui/text ui/edit ui/draw ui/menu ui/dlg ui/sync ui/dbg ui/win ui/view ui/theme ui/syntax ui/ui
 X86F_INC := $(wildcard src/x86f/*.inc src/x86f/*/*.inc)
 X86F_OBJ := $(X86F_MODS:%=build/x86f/%.obj) build/x86f/regions.obj
 X86F_IDE_OBJ := $(X86F_MODS:%=build/x86f-ide/%.obj) $(X86F_UI:%=build/x86f-ide/%.obj) \
@@ -102,7 +102,7 @@ x86f: $(X86F_OBJ)               # flat 32-bit, build/x86/basic32.exe, DOS32A.EXE
 x86f-ide: $(X86F_IDE_OBJ)       # the flat build with the editor, build/x86/ide32.exe
 	$(LE_LINK) file $(subst $(eval) ,$(comma),$(X86F_IDE_OBJ)) name build/x86f-ide/ide32.exe
 	cp build/x86f-ide/ide32.exe build/x86/ide32.exe
-	cp src/x86/ui/basic.hlp build/x86/BASIC.HLP
+	cp src/x86f/ui/basic.hlp build/x86/BASIC.HLP
 	$(PY) tools/x86d32a.py $(DOS32A)/dos32a.exe build/x86/DOS32A.EXE
 
 AC ?= 1                         # ide: Tab completion, AC=0 leaves it out

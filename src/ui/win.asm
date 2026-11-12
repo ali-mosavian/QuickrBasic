@@ -5,7 +5,8 @@
 ;           wn_grow, wn_shrink, wn_max, wn_act
 ; uses:     dr_edit, dr_imm, ed_commit, ed_load
 ; data:     The windows stack from row 1 to row 23, W_ED1, W_ED2 (Split),
-;           W_IMM, each wh rows with its title, 0 hidden. An edit window
+;           W_IMM, each wh rows with its title, 0 hidden. wvert: ED2 sits
+;           beside ED1 instead, in its rows, each half the columns. An edit window
 ;           has a bottom row, the scroll bar's when it has the focus. The
 ;           active edit window's state is g_ui.ed and ed_lb's column; the
 ;           other's waits in its wed, wcol. ui_foc 1: the immediate window
@@ -36,6 +37,12 @@ wn_layout:
         xor     ebx,ebx
 @wnl_l:
         call    wn_ptr
+        call    wn_beside
+        jnc     @F
+        mov     al,[g_ui.wn.win+W_ED1*size TWIN].wh
+        mov     [edi].TWIN.wh,al
+        sub     dl,al                   ; ED1's rows again
+@@:
         movzx   ecx,[edi].TWIN.wh
         movzx   eax,dl
         inc     eax                     ; the first row under the title
@@ -45,6 +52,17 @@ wn_layout:
         cmp     bl,[g_ui.wn.wact]
         jne     @F
         mov     esi,offset g_ui.ed
+@@:
+        mov     [esi].TEDIT.ed_x,0      ; the columns: all, or a half
+        mov     [esi].TEDIT.ed_tw,78
+        cmp     [g_ui.wn.wvert],0
+        je      @F
+        cmp     [g_ui.wn.win+W_ED2*size TWIN].wh,0
+        je      @F
+        mov     [esi].TEDIT.ed_tw,38
+        cmp     ebx,W_ED2
+        jne     @F
+        mov     [esi].TEDIT.ed_x,40
 @@:
         mov     [esi].TEDIT.ed_r0,ax
         sub     ecx,2                   ; the title, the bottom row
@@ -66,6 +84,20 @@ wn_layout:
         cmp     ebx,NWIN
         jb      @wnl_l
         popad
+        ret
+
+; wn_beside - CF set: window EBX is ED2 beside ED1, shown. Keeps all.
+wn_beside:
+        cmp     ebx,W_ED2
+        jne     @wbs_n
+        cmp     [g_ui.wn.wvert],0
+        je      @wbs_n
+        cmp     [g_ui.wn.win+W_ED2*size TWIN].wh,0
+        je      @wbs_n
+        stc
+        ret
+@wbs_n:
+        clc
         ret
 
 ; wn_ptr - EDI = window EBX's TWIN. Keeps all but EDI.
@@ -202,7 +234,7 @@ wn_prev:
         jmp     wn_focus
 
 ; ::::::::::::::
-; wn_at - the window over screen row DH.
+; wn_at - the window at screen row DH, column DL.
 ;
 ; out:    EBX  it
 ;         CF   set: none
@@ -215,13 +247,30 @@ wn_at:
         xor     ebx,ebx
 @wat_l:
         call    wn_ptr
+        call    wn_beside               ; in ED1's rows, counted there
+        jc      @wat_n
         add     al,[edi].TWIN.wh
         cmp     dh,al
-        jb      @wat_r                  ; CF clear: a hidden one never ends
-        inc     ebx                     ; under the row before it
+        jb      @wat_f                  ; CF clear: a hidden one never ends
+@wat_n:                                 ; under the row before it
+        inc     ebx
         cmp     ebx,NWIN
         jb      @wat_l
         clc                             ; none: CF set after the cmc
+        jmp     @wat_r
+@wat_f:
+        cmp     ebx,W_ED1               ; ED1's rows, ED2's columns
+        jne     @F
+        push    ebx
+        mov     ebx,W_ED2
+        call    wn_beside
+        pop     ebx
+        jnc     @F
+        cmp     dl,40
+        jb      @F
+        mov     ebx,W_ED2
+@@:
+        stc                             ; found: CF clear after the cmc
 @wat_r:
         cmc
         pop     edi
@@ -243,6 +292,7 @@ wn_split:
         shr     eax,1
         mov     [g_ui.wn.win+W_ED2*size TWIN].wh,al
         sub     [g_ui.wn.win+W_ED1*size TWIN].wh,al
+@wsp_c:
         mov     esi,offset g_ui.ed      ; ED2 starts as ED1
         mov     edi,offset g_ui.wn.win+W_ED2*size TWIN+TWIN.wed
         mov     ecx,size TEDIT
@@ -253,11 +303,29 @@ wn_split:
 @wsp_o:                                 ; one again, with the active one's
         mov     [g_ui.wn.wact],W_ED1    ; state, which g_ui.ed holds
         mov     al,[g_ui.wn.win+W_ED2*size TWIN].wh
+        cmp     [g_ui.wn.wvert],0
+        jne     @F
         add     [g_ui.wn.win+W_ED1*size TWIN].wh,al
+@@:
         mov     [g_ui.wn.win+W_ED2*size TWIN].wh,0
+        mov     [g_ui.wn.wvert],0
         jmp     wn_layout
 @wsp_r:
         ret
+
+; ::::::::::::::
+; wn_vsplit - View, Split Vertically: the edit window in two side by
+; side, the same text in both; again, one.
+; ::::::::::::::
+wn_vsplit:
+        call    wn_unmax
+        call    ed_commit
+        cmp     [g_ui.wn.win+W_ED2*size TWIN].wh,0
+        jne     @wsp_o
+        mov     [g_ui.wn.wvert],1
+        mov     al,[g_ui.wn.win+W_ED1*size TWIN].wh
+        mov     [g_ui.wn.win+W_ED2*size TWIN].wh,al
+        jmp     @wsp_c
 
 ; ::::::::::::::
 ; wn_grow - Alt+Plus: the window with the focus a row taller, from the
@@ -266,7 +334,7 @@ wn_split:
 ; ::::::::::::::
 wn_grow:
         call    wn_unmax
-        call    wn_cur
+        call    wn_curh
         mov     ecx,ebx                 ; ECX gains, a neighbour that can
         mov     edx,1                   ; spare a row loses: under it first
         call    wn_spare
@@ -277,7 +345,7 @@ wn_grow:
         ret
 wn_shrink:
         call    wn_unmax
-        call    wn_cur
+        call    wn_curh
         call    wn_ptr
         call    wn_min
         cmp     [edi].TWIN.wh,al
@@ -293,6 +361,16 @@ wn_shrink:
         mov     ecx,eax
         jmp     wn_move
 @wgr_r:
+        ret
+
+; wn_curh - EBX the window with the focus, ED1 for ED2 beside it: whose
+; rows change.
+wn_curh:
+        call    wn_cur
+        call    wn_beside
+        jnc     @F
+        mov     ebx,W_ED1
+@@:
         ret
 
 ; wn_move - a row from window EBX to window ECX.
@@ -317,6 +395,8 @@ wn_shown:
         call    wn_ptr
         cmp     [edi].TWIN.wh,0
         je      @wsh_l
+        call    wn_beside
+        jc      @wsh_l
         mov     eax,ebx
         clc
         jmp     @wsh_r
@@ -358,6 +438,9 @@ wn_min:
 wn_max:
         cmp     [g_ui.wn.wmax],0
         jne     wn_unmax
+        mov     al,[g_ui.wn.wvert]
+        mov     [g_ui.wn.wvsav],al
+        mov     [g_ui.wn.wvert],0
         xor     ebx,ebx                 ; the heights kept, all hidden
 @wmx_l:
         call    wn_ptr
@@ -386,6 +469,8 @@ wn_unmax:
         cmp     ebx,NWIN
         jb      @wum_l
         mov     [g_ui.wn.wmax],0
+        mov     al,[g_ui.wn.wvsav]
+        mov     [g_ui.wn.wvert],al
         call    wn_layout
 @wum_r:
         ret
