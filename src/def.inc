@@ -132,6 +132,7 @@ E_VF    = 32
 E_FD    = 33
 E_UF    = 34
 E_USR   = 35                    ; ERROR n: n in uerr
+E_OS    = 36                    ; Out of stack space: not trapped
 
 ; Memory map, flat: the code, then the data; the regions in .data? (main.asm).
 ; dsb is the 16-bit build's DS at the same offsets: the variables, the

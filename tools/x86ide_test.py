@@ -15,10 +15,12 @@ import llrmbin  # noqa: E402
 
 llrmbin.stale_binaries = lambda *a, **k: []  # the emulator is the stamped one; the llrm sources are not ours
 import qbplay  # noqa: E402
+import x86run  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 IMG = ROOT / "docs/img"
 ALT_F, ALT_S, F5 = 0x21, 0x1F, 0x3F
+MSGS = x86run.messages()
 # X86_IDE=build/x86/ide32.exe plays the flat build, DOS32A.EXE beside it
 IDE = Path(os.environ.get("X86_IDE", ROOT / "build/x86/basic-ide.com"))
 
@@ -232,14 +234,14 @@ def play() -> None:
     keys("next\n" + "rem\n" * 3 + "  goto 99\n")  # the pasted FOR closed: QBasic pairs blocks first
     press(f"0x{F5:x}")
     scr = look("error")
-    assert next(i for i, r in enumerate(scr) if "UNDEF'D" in r) == 19, scr
+    assert next(i for i, r in enumerate(scr) if "LABEL NOT DEFINED" in r) == 19, scr
     assert attrs(10)[2:8] == bytes([0x17, 0x71, 0x71, 0x71, 0x71, 0x17]), attrs(10)[:9]
-    assert any("UNDEF'D STATEMENT ERROR" in r for r in scr) and scr[24].startswith(" F1=HELP   ENTER=EXECUTE"), scr
+    assert any("LABEL NOT DEFINED" in r for r in scr) and scr[24].startswith(" F1=HELP   ENTER=EXECUTE"), scr
     # QBasic's message box (msgbox.c): text +6 wide, OK and Help 8 wide, 3 apart.
     row = next(r for r in scr if "< HELP >" in r)
     assert row.ljust(80)[25:55] == "     <  OK  >   < HELP >      ", scr
     press("tab", "enter")  # Help: nothing to show, the box stays
-    assert any("UNDEF'D STATEMENT ERROR" in r for r in look()), look()
+    assert any("LABEL NOT DEFINED" in r for r in look()), look()
     press("tab")  # back to OK
     press("enter")
     assert look()[24].endswith("00009:003") and attrs(10)[3] == 0x17, (look()[24], attrs(10)[:9])
@@ -452,10 +454,10 @@ def play() -> None:
     assert chars(2)[1:7] == b"SUB hi" and text()[:3] == ["SUB HI", "", "END SUB"], look()
     assert look()[1].strip() == "UNTITLED:HI", look()[1]
     keys("print 7\n")
-    assert not any("ERROR" in r for r in look()), look()
+    assert not any(m.upper() in r for m in MSGS for r in look()), look()
     press("0x5f")
     keys("hi\n")
-    assert not any("ERROR" in r for r in look()), look()
+    assert not any(m.upper() in r for m in MSGS for r in look()), look()
     press(f"0x{F5:x}")
     assert output()[0] == " 7", output()
     press("space")

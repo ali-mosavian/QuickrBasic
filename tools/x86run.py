@@ -3,6 +3,7 @@
 
 import json
 import os
+import re
 import shutil
 import subprocess
 from dataclasses import dataclass
@@ -46,6 +47,13 @@ class Result:
     screen: str = ""  # the console's lines: what standard error wrote, with DOSBox's own
 
 
+def messages() -> list[str]:
+    """The errors' messages, as src/x86f/io/errmsg.asm spells them."""
+    msgs = re.findall(r'^(?:g_qbmsg)?\s+db\s+\w+,"([^"]+)",0', (ROOT / "src/x86f/io/errmsg.asm").read_text(), re.M)
+    assert len(msgs) > 50, "errmsg.asm's messages not read"
+    return msgs + ["Unprintable error"]
+
+
 def run(jobs: dict[str, str | tuple], work: Path, limit_ms: int = 60000, file: bool = False,
         files: dict[str, bytes] | None = None) -> dict[str, Result]:
     """Run each program text as stdin of BASIC.COM, or with file as the file BASIC.COM runs, its
@@ -64,10 +72,13 @@ def run(jobs: dict[str, str | tuple], work: Path, limit_ms: int = 60000, file: b
     lines = []
     for i, name in enumerate(names):
         prog, stdin, args = (jobs[name], "", "") if isinstance(jobs[name], str) else (*jobs[name], "")[:3]
+        # the file named as the job, its first 8 letters: BC's module name in an error's message
+        bas = f"J{i}\\{re.sub(r'[^A-Za-z0-9_]', '', name)[:8].upper() or 'PROG'}.BAS"
         if file:
-            (work / f"J{i}.BAS").write_bytes(prog.encode("latin-1"))
+            (work / f"J{i}").mkdir()
+            (work / bas.replace("\\", "/")).write_bytes(prog.encode("latin-1"))
         (work / f"J{i}.IN").write_bytes((stdin if file else prog).encode("latin-1"))
-        run = f"BASIC.COM J{i}.BAS {args}".rstrip() + f" < J{i}.IN" if file else f"BASIC.COM < J{i}.IN"
+        run = f"BASIC.COM {bas} {args}".rstrip() + f" < J{i}.IN" if file else f"BASIC.COM < J{i}.IN"
         lines += [f":ms {limit_ms}", f"mount c {work}", "c:", f"{run} > J{i}.TXT", "."]
     fpu = "" if os.environ.get("X86_FPU", "1") == "1" else "fpu=false\n"
     (work / "job.conf").write_text(CONF.replace("[dos]", f"{fpu}[dos]"))

@@ -230,6 +230,28 @@ io_nth:
         ret
 
 ; ::::::::::::::
+; io_hex4 - print AX, 4 hex digits.
+;
+; keeps:  all but EAX
+; ::::::::::::::
+io_hex4:
+        push    ecx
+        mov     ecx,4
+@ihx_l:
+        rol     ax,4
+        push    eax
+        and     al,0Fh
+        add     al,90h                  ; 0-9, A-F
+        daa
+        adc     al,40h
+        daa
+        call    io_putc
+        pop     eax
+        loop    @ihx_l
+        pop     ecx
+        ret
+
+; ::::::::::::::
 ; io_puts - print the 0-ended text at EBX.
 ;
 ; keeps:  all but AL, EBX

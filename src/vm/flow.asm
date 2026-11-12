@@ -23,7 +23,7 @@ ipst    macro   dst
         endm
 
 @st_flow1:
-        jmp     err_om
+        jmp     err_os
 
 ; ::::::::::::::
 ; op_goto - GOTO, GOSUB num addr: addr is 0 until the jump first runs.
@@ -67,12 +67,12 @@ ex_target:
 ;
 ; in:     EBX      the line
 ;         ln, ESI  where RETURN goes on
-; error:  ?OUT OF MEMORY  the control stack is full
+; error:  Out of stack space  the control stack is full
 ; ::::::::::::::
 ex_gosub:
         mov     edi,[g_state.rn.cstk]
         cmp     edi,CSLIM
-        jb      err_om
+        jb      err_os
         sub     edi,M_GS
         mov     [g_state.rn.cstk],edi
         mov     byte ptr [edi+F_MARK],M_GS
@@ -255,7 +255,7 @@ ex_dcode:
 ; start is already stored. An older loop of the variable drops; a FOR ending
 ; its line goes on at the next.
 ;
-; error:  ?OUT OF MEMORY  the control stack is full
+; error:  Out of stack space  the control stack is full
 ; ::::::::::::::
 op_for:
         mov     [g_state.rn.fop],bx
@@ -279,7 +279,7 @@ op_for:
         je      @of_r
         mov     ebx,[g_state.rn.cstk]
         cmp     ebx,CSLIM
-        jb      err_om
+        jb      err_os
         sub     ebx,FRSIZE
 @of_r:
         mov     [g_state.rn.cstk],ebx
@@ -617,24 +617,9 @@ ex_trap:
 @@:
         mov     [g_state.rn.errn],ax
         mov     [g_state.rn.inerr],1
-        movzx   ecx,[g_state.rn.ln]     ; ERL: the last number at or before it
+        movzx   ecx,[g_state.rn.ln]
         mov     [g_state.rn.rln],cx
-        mov     ebx,PROGBASE
-        xor     edx,edx
-@etr_l:
-        cmp     ebx,ecx
-        ja      @etr_d
-        cmp     byte ptr [g_progb+ebx],0
-        je      @etr_d
-        mov     ax,word ptr [g_progb+ebx+1]
-        cmp     ax,NONUM
-        je      @F
-        mov     dx,ax
-@@:
-        movzx   eax,byte ptr [g_progb+ebx]
-        add     ebx,eax
-        jmp     @etr_l
-@etr_d:
+        call    ex_erl
         mov     [g_state.rn.erl],dx
         mov     ebx,ecx                 ; the statement, by the map
         mov     eax,[g_state.rn.opip]
@@ -652,6 +637,33 @@ ex_trap:
         mov     esp,eax
         movzx   ebx,[g_state.rn.ehnd]
         jmp     ex_jump
+
+; ::::::::::::::
+; ex_erl - ERL: the last line number at or before line ECX, else 0.
+;
+; out:    EDX  it
+; keeps:  ECX, ESI, EDI
+; ::::::::::::::
+ex_erl:
+        push    ebx
+        mov     ebx,PROGBASE
+        xor     edx,edx
+@etr_l:
+        cmp     ebx,ecx
+        ja      @etr_d
+        cmp     byte ptr [g_progb+ebx],0
+        je      @etr_d
+        movzx   eax,word ptr [g_progb+ebx+1]
+        cmp     ax,NONUM
+        je      @F
+        mov     edx,eax
+@@:
+        movzx   eax,byte ptr [g_progb+ebx]
+        add     ebx,eax
+        jmp     @etr_l
+@etr_d:
+        pop     ebx
+        ret
 
 ; ::::::::::::::
 ; ex_smap - the map entry of the statement holding code address EAX of
@@ -958,7 +970,7 @@ ex_bjump:
 ; an array's id; a ref: the variable PRET stores the parameter back to, or
 ; FFFFh.
 ;
-; error:  ?OUT OF MEMORY  a stack is full
+; error:  Out of stack space  a stack is full
 ; ::::::::::::::
 op_pcall:
         cmp     esp,[g_state.rn.stklim]

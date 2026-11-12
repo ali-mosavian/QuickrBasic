@@ -7,6 +7,7 @@ picks cases; -v prints a failure's output. SKIP's cases are not run, each for it
 
 import os
 import platform
+import re
 import sys
 import tempfile
 import tomllib
@@ -25,8 +26,13 @@ SKIP = {
     "Q45U08": INT16 + ": AS INTEGER is 4 bytes in a record",
     "hex_oct_negative": INT16 + ": HEX$, OCT$ of a negative %",
     "ovfpol": INT16 + ": 32767 + 1 fits",
+    "farchk": INT16 + ": a LONG subscript is not Overflow",
+    "hugechk": INT16 + ": a LONG subscript is not Overflow",
     "arrays": NOD,
     "divmod": NOD,
+    "palette_using_pds71": "PDS 7.1's PALETTE USING, and the screen",
+    "redim_preserve_pds71": "PDS 7.1's REDIM PRESERVE",
+    "resumelocals_local": "PDS 7.1's ON LOCAL ERROR",
 }
 # DOSBox-X off x86 runs the x87 in 64-bit doubles: the last digit of LOG, EXP, ^ and PRINT can differ.
 if platform.machine() not in ("x86_64", "AMD64", "i386", "i686"):
@@ -39,16 +45,18 @@ def text(p: Path) -> str:
     return p.read_bytes().decode("latin-1").replace("\r\n", "\n").replace("\n", "\r\n")
 
 
-def trim(t: str) -> str:
-    """Lines without trailing blanks: llrm's .out files drop the blank QBasic prints after a number."""
-    return "\r\n".join(x.rstrip() for x in t.rstrip("\r\n").split("\r\n"))
+def trim(t: str, mask: str = "") -> str:
+    """As llrm's runner compares: lines without trailing blanks, blank lines dropped, each match of the
+    case's mask (text that varies run to run) read as N."""
+    return "\r\n".join(re.sub(mask, "N", x) if mask else x for x in (y.rstrip() for y in t.split("\r\n")) if x)
 
 
 COMPANIONS: dict[str, bytes] = {}  # files the cases read, by name
 
 
-def cases() -> dict[str, tuple[str | tuple, str, bool]]:
-    """name: (program, or (program, input, arguments); wanted output, whole output must match)."""
+def cases() -> dict[str, tuple[str | tuple, str, bool | str]]:
+    """name: (program, or (program, input, arguments); wanted output; False: it is in the output,
+    else the whole output must match, under its mask if a str)."""
     out = {}
     files = {p.name.upper(): p for p in SUITE.iterdir()}
     for c in tomllib.loads((SUITE / "suite.toml").read_text())["case"]:
@@ -61,7 +69,8 @@ def cases() -> dict[str, tuple[str | tuple, str, bool]]:
             out[c["source"].split(".")[0]] = (prog, c["expected"], False)
     for b in sorted(RUNS.glob("*.bas")):
         if b.with_suffix(".out").exists():
-            out[b.stem] = (text(b), text(b.with_suffix(".out")), True)
+            m = re.search(r"^' mask: (.*?)\s*$", text(b), re.M)
+            out[b.stem] = (text(b), text(b.with_suffix(".out")), m.group(1) if m else True)
     return out
 
 
@@ -81,7 +90,8 @@ def main() -> None:
     ok = 0
     for k, (_, want, whole) in pick.items():
         got = res[k].out
-        good = trim(got) == trim(want) if whole else want in got
+        mask = whole if isinstance(whole, str) else ""
+        good = trim(got, mask) == trim(want) if whole else want in got
         ok += good
         print(f"{'pass' if good else 'FAIL'} {k}" + ("" if good else f": {res[k].reason} {got[:60]!r}"))
         if not good and "-v" in sys.argv:

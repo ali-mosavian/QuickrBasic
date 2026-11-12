@@ -18,7 +18,7 @@ CASES = {
     "cmpif_false": ('A=5:IF A=4 THEN PRINT "NO":PRINT "NO"\r\nPRINT "END"\r\n', "END\r\n", "NO"),
     # cm_p's stack check kept the 16-bit room while each level took 12 bytes,
     # not 6: 14 parentheses were OUT OF MEMORY.
-    "paren_depth": ("PRINT " + "(" * 29 + "7" + ")" * 29 + "\r\n", " 7 \r\n", "MEMORY"),
+    "paren_depth": ("PRINT " + "(" * 29 + "7" + ")" * 29 + "\r\n", " 7 \r\n", "ERROR"),
     # The lexer took a name after an A5h byte (spaces skipped) for FN's: 42405
     # is M_INT A5h A5h, so A was FN A.
     "fn_lookback": ("PRINT 42405; A\r\n", " 42405  0 \r\n", "ERROR"),
@@ -27,9 +27,9 @@ CASES = {
     "int32_mul": ("A%=-70000:PRINT 300*300;A%*30000\r\n", " 90000 -2100000000 \r\n", "ERROR"),
     "int32_arr": ("DIM B%(3):B%(1)=70000:B%(2)=-5:PRINT B%(1);B%(2)\r\n", " 70000 -5 \r\n", "ERROR"),
     "int32_for": ("FOR I%=32766 TO 32768:PRINT I%;:NEXT\r\n", " 32766  32767  32768 ", "ERROR"),
-    "int32_ovf": ("A%=65536:PRINT A%*32768\r\n", "?OVERFLOW", None),
+    "int32_ovf": ("A%=65536:PRINT A%*32768\r\n", "Overflow in line", None),
     "int32_toi": ("A=2^30:A%=A*2-128:PRINT A%:A%=-A*2:PRINT A%:A%=A*2\r\n",
-                  " 2147483520 \r\n-2147483648 \r\n?ILLEGAL QUANTITY", None),
+                  " 2147483520 \r\n-2147483648 \r\nIllegal function call in line", None),
     # INT functions left the upper 16 bits unset: ASC("B")*1000 was 1507394000.
     "int32_fns": ('PRINT ASC("B")*1000;LEN("ABC")*100000;SGN(-5)\r\n', " 66000  300000 -1 \r\n", "ERROR"),
     # -literal folded into an unsigned I.LD.I16: -5 was 65531.
@@ -53,7 +53,7 @@ CASES = {
     "qb_restore": ("READ a\r\nRESTORE two\r\nREAD b\r\nPRINT a; b\r\nDATA 1\r\ntwo:\r\nDATA 2\r\n",
                    " 1  2 \r\n", "ERROR"),
     # An error on a line with no number said IN 65535, NONUM.
-    "qb_err_nonum": ("PRINT 1/0\r\n", "?DIVISION BY ZERO ERROR", "65535"),
+    "qb_err_nonum": ("PRINT 1/0\r\n", "Division by zero in line No line number in module", "65535"),
     # INT / INT truncated, C64-BC style: QBasic's / is a FLOAT.
     "qb_div": ("A%=7:PRINT A%/2;7/2\r\n", " 3.5  3.5 \r\n", "ERROR"),
     # DIM AS, DEFtype and CONST were syntax errors; their types are entered with the line, so a
@@ -134,7 +134,7 @@ CASES = {
                   "PEEK(VARPTR(b.t) + 2)\r\nPRINT b.x; b.y; b.t; \"|\"\r\n",
                   " 9  3  52  18  32 \r\n 4660 -1 ab |\r\n", "ERROR"),
     "qb_short": ("TYPE V\r\nx AS SHORT\r\nEND TYPE\r\nDIM a AS V: a.x = -32768: PRINT a.x: a.x = 32768\r\n",
-                 "-32768 \r\n?OVERFLOW", None),
+                 "-32768 \r\nOverflow in line", None),
     # DIM v AS a TYPE skipped two bytes of the TYPE's name: SYNTAX ERROR. rc_ref lost a(i)'s
     # '(' to var_find's EDX: SYNTAX ERROR.
     "qb_type": ("TYPE P\r\nx AS LONG\r\nt AS STRING * 2\r\nEND TYPE\r\nTYPE L\r\na AS P\r\nb AS P\r\nEND TYPE\r\n"
@@ -155,17 +155,21 @@ CASES = {
                  "IF ERR = 7 THEN RESUME x\r\nRESUME NEXT\r\n"
                  "FUNCTION f% (d%)\r\n50 c% = 10 \\ d%: f% = c% + 4\r\nEND FUNCTION\r\n",
                  "e 11  50  5  0 \r\ne 5  0  2 \r\ne 7  0 x\r\n", "ERROR"),
+    # Unhandled: ERROR n's message; RESUME with no error; ON ERROR GOTO 0 in the handler.
+    # A full stack was ?OUT OF MEMORY, which ON ERROR trapped; BC's is Out of stack space, not
+    # trapped, its line, module and address after.
+    "qb_err_stack": ('ON ERROR GOTO h\r\n20 GOSUB 20\r\nh: PRINT "trapped": END\r\n',
+                     "Out of stack space in line 20 in module QB_ERR_S at address ", "trapped"),
     # Out of bounds was Illegal function call below 0 or past a word, and an ERASEd dynamic array
     # was made again, 11 elements: QBasic's are all Subscript out of range.
     "qb_subs": ('DIM s(1 TO 3)\r\nREDIM d(2)\r\nON ERROR GOTO h\r\nPRINT s(-1)\r\nx& = 70000: PRINT s(x&)\r\n'
                 'ERASE d: PRINT d(0)\r\nEND\r\nh: PRINT ERR: RESUME NEXT\r\n', " 9 \r\n 9 \r\n 9 \r\n", "ERROR"),
     # DIM kept which subscripts had no TO in 24 bits: the 26th's hi and base swapped, 1 TO 0.
     "qb_dim26": ('DIM a(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1)\r\na(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1) = 7\r\nPRINT a(0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1)\r\n', " 7 \r\n", "ERROR"),
-    # Unhandled: ERROR n's message; RESUME with no error; ON ERROR GOTO 0 in the handler.
-    "qb_errn": ("ERROR 11\r\n", "?DIVISION BY ZERO ERROR", None),
-    "qb_errun": ("ERROR 99\r\n", "?UNPRINTABLE ERROR", None),
-    "qb_resnoerr": ("RESUME\r\n", "?UNPRINTABLE ERROR", None),
-    "qb_onerr0": ("ON ERROR GOTO h\r\nERROR 6\r\nEND\r\nh: ON ERROR GOTO 0\r\n", "?OVERFLOW ERROR", None),
+    "qb_errn": ("ERROR 11\r\n", "Division by zero in line", None),
+    "qb_errun": ("ERROR 99\r\n", "Unprintable error in line", None),
+    "qb_resnoerr": ("RESUME\r\n", "RESUME without error in line", None),
+    "qb_onerr0": ("ON ERROR GOTO h\r\nERROR 6\r\nEND\r\nh: ON ERROR GOTO 0\r\n", "Overflow in line", None),
     # REDIM frees the old array; a SUB's REDIM of its parameter is the caller's. ERASE zeroes a
     # DIM's array, frees a REDIM's.
     "qb_redim": ("DECLARE SUB g (q())\r\nREDIM a(2): a(1) = 5: REDIM a(1 TO 7): PRINT a(1); LBOUND(a); UBOUND(a)\r\n"
@@ -182,7 +186,7 @@ CASES = {
     "qb_localarr": ("DECLARE SUB p (n)\r\nFOR i = 1 TO 3000: p i: NEXT: PRINT \"ok\"\r\n"
                     "SUB p (n)\r\nDIM a(2000): a(1) = n\r\nEND SUB\r\n", "ok\r\n", "ERROR"),
     # ERROR through the statement grammar: its CALL's number, past A_BASE, ran as an action instead.
-    "qb_error_k": ("ON ERROR GOTO h: ERROR 57: END\r\nh: PRINT ERR: RESUME NEXT\r\n", " 57 \r\n", "SYNTAX"),
+    "qb_error_k": ("ON ERROR GOTO h: ERROR 57: END\r\nh: PRINT ERR: RESUME NEXT\r\n", " 57 \r\n", "Syntax error"),
     # QBasic's RND: its 24-bit generator, the seed 50000h at the start; 0 repeats; RANDOMIZE.
     "qb_rnd": ("PRINT RND; RND(0); RND\r\nRANDOMIZE 1234: PRINT RND\r\n",
                " .7055475  .7055475  .533424 \r\n", "ERROR"),
@@ -190,7 +194,7 @@ CASES = {
     "qb_mki": ("PRINT CVI(MKI$(-5)); CVL(MKL$(70000)); CVS(MKS$(1.5)); CVD(MKD$(2.25#))\r\n"
                "PRINT CVSMBF(MKSMBF$(-3.5)); CVDMBF(MKDMBF$(1.1#)); ASC(MID$(MKSMBF$(1), 4)); LEN(MKI$(1))\r\n"
                "PRINT MKI$(40000)\r\n",
-               "-5  70000  1.5  2.25 \r\n-3.5  1.1  129  2 \r\n?OVERFLOW ERROR", None),
+               "-5  70000  1.5  2.25 \r\n-3.5  1.1  129  2 \r\nOverflow in line", None),
     # ENVIRON sets, replaces, removes; DATE$ = and the rest of its line: the routine kept the VM's
     # ip in ESI and lost the line's next statement.
     "qb_environ": ("ENVIRON \"QZ=a\": ENVIRON \"QZ=bc\": PRINT ENVIRON$(\"qz\"); LEN(ENVIRON$(\"QZ\"))\r\n"
@@ -325,13 +329,22 @@ REPL = {
 }
 
 
+# A forbidden "ERROR": any error's message at a line's start.
+MSGS = x86run.messages()
+
+
+def forbidden(forbid: str, out: str) -> bool:
+    lines = "\n" + out.replace("\r", "")
+    return any("\n" + m in lines for m in MSGS) if forbid == "ERROR" else forbid in out
+
+
 def main() -> None:
     tmp = Path(tempfile.mkdtemp())
     res = x86run.run({k: v[0] for k, v in CASES.items()}, tmp / "w", 10000, file=True)
     res |= x86run.run({k: v[0] for k, v in REPL.items()}, tmp / "r", 10000)
     res |= x86run.run({k: v[0] for k, v in WARN.items()}, tmp / "e", 10000, file=True)
     every = CASES | REPL
-    bad = [k for k, (_, want, forbid) in every.items() if want not in res[k].out or (forbid and forbid in res[k].out)]
+    bad = [k for k, (_, want, forbid) in every.items() if want not in res[k].out or (forbid and forbidden(forbid, res[k].out))]
     bad += [k for k, (_, want) in WARN.items() if want not in res[k].screen]
     for k in bad:
         print(f"FAIL {k}: {res[k].reason} {res[k].out!r}")

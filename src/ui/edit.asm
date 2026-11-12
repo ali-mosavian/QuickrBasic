@@ -485,34 +485,18 @@ ui_chkop:
 ; ::::::::::::::
 ui_emsg:
         push    eax
-        mov     [g_state.io.ocap],80h
-        and     [g_state.io.sbx],0
-        call    io_msg
-        mov     al,MSG_ERR
-        call    io_msg
-        and     [g_state.io.ocap],0
-        pop     eax
-        movzx   ecx,[g_state.io.sbx]
-        mov     esi,offset g_sbuf
+        push    esi
+        push    edi
+        call    er_text
         mov     edi,offset g_ui.bf.ui_ebuf
-        jcxz    @uem_e
+@@:
         lodsb
         stosb
-        dec     cx
-        jcxz    @uem_e
-@uem_l:
-        lodsb
-        cmp     al,'A'
-        jb      @uem_s
-        cmp     al,'Z'
-        ja      @uem_s
-        add     al,20h
-@uem_s:
-        stosb
-        loop    @uem_l
-@uem_e:
-        xor     al,al
-        stosb
+        test    al,al
+        jnz     @B
+        pop     edi
+        pop     esi
+        pop     eax
         stc
         ret
 

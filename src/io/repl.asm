@@ -94,6 +94,13 @@ err_om:
         jmp     err_raise
 
 ; ::::::::::::::
+; err_os - Out of stack space: not trapped.
+; ::::::::::::::
+err_os:
+        mov     al,E_OS
+        jmp     err_raise
+
+; ::::::::::::::
 ; err_od - ?OUT OF DATA.
 ;
 ; error:  ?OUT OF DATA  always
@@ -101,14 +108,15 @@ err_om:
 err_od:
         mov     al,E_OD
 
-; ::::::::::::::
-; err_raise - print ?<text> ERROR [IN <line>], or BREAK [IN <line>]; READY.
+; err_raise - print the error's message, a file run's where, as BC's: "in
+; line n|No line number in module NAME at address s:o"; or BREAK [IN n].
+; READY.
 ;
 ; While compiling the error is cm_err's: an ERR op, raised when the code runs.
 ; Any error but BREAK clears CONT and drops the frames.
 ;
 ; in:     AL   the error, E_*
-;         ln   the failing line
+;         ln   the failing line, opip the op
 ;         csp  not 0 while compiling
 ; ::::::::::::::
 err_raise:
@@ -117,6 +125,8 @@ err_raise:
         jne     cm_err
         test    al,al                   ; BREAK: never handled
         jz      @erx_u
+        cmp     al,E_OS
+        je      @erx_u
         cmp     [g_state.rn.ehnd],0
         je      @erx_u
         cmp     [g_state.rn.inerr],0
@@ -125,22 +135,6 @@ err_raise:
         jne     ex_trap
 @erx_u:
         and     [g_state.rn.inerr],0
-        cmp     al,E_USR                ; ERROR n: its message, if one
-        jne     @erx_k
-        push    ecx
-        push    edi
-        mov     ax,[g_state.rn.uerr]
-        mov     edi,offset g_qberr+2
-        mov     ecx,E_USR-2
-        repne   scasb
-        mov     al,E_USR
-        jne     @F
-        lea     eax,[edi-1]
-        sub     eax,offset g_qberr
-@@:
-        pop     edi
-        pop     ecx
-@erx_k:
         mov     ah,al
         call    ch_clr
         call    io_fresh
@@ -150,56 +144,115 @@ err_raise:
         and     [g_state.sg.tspb],0
 if IDE
         cmp     [g_ui.lp.ideon],0
-        je      @F
-        cmp     al,E_USR
         jne     ui_err
-        mov     al,E_IQ
-        jmp     ui_err
-@@:
 endif
         test    al,al
-        jz      @erx_m
-        mov     [g_state.rn.cstk],CSTOP
-        and     [g_state.rn.contip],0
-        mov     al,'?'
-        call    io_putc
-        mov     al,ah
-        cmp     al,E_USR
-        je      @erx_p
-        call    io_msg
-@erx_e:
-        mov     al,MSG_ERR
-@erx_m:
-        call    io_msg
+        jnz     @F
+        call    io_msg                  ; BREAK [IN n]
         movzx   ebx,[g_state.rn.ln]
         cmp     ebx,DLINE
         je      rpl_ready
         cmp     word ptr [g_progb+ebx+1],NONUM
-        je      rpl_ready               ; a line with no number: no IN
+        je      rpl_ready
         mov     al,MSG_IN
         call    io_msg
         mov     ax,word ptr [g_progb+ebx+1]
         call    io_num
-
         jmp     rpl_ready
-@erx_p:                                 ; no message: UNPRINTABLE
-        push    esi
-        mov     esi,offset g_unpr
 @@:
+        mov     [g_state.rn.cstk],CSTOP
+        and     [g_state.rn.contip],0
+        call    er_text
+        mov     ebx,esi
+        call    io_puts
+        movzx   ecx,[g_state.rn.ln]
+        cmp     ecx,DLINE
+        je      rpl_ready
+        cmp     [g_state.io.batch],0
+        je      @erx_n
+        mov     ebx,offset r_eline
+        call    io_puts
+        call    ex_erl
+        test    edx,edx
+        jz      @erx_0
+        mov     eax,edx
+        call    io_u24
+        jmp     @erx_m
+@erx_0:
+        mov     ebx,offset r_enone
+        call    io_puts
+@erx_m:
+        mov     ebx,offset r_emod
+        call    io_puts
+        call    rpl_mod
+        mov     ebx,offset r_eaddr
+        call    io_puts
+        mov     eax,[g_state.rn.opip]
+        sub     eax,offset g_cachb
+        push    eax
+        shr     eax,16
+        call    io_hex4
+        mov     al,':'
+        call    io_putc
+        pop     eax
+        call    io_hex4
+        jmp     rpl_ready
+@erx_n:                                 ; typed lines: in line n, if numbered
+        cmp     word ptr [g_progb+ecx+1],NONUM
+        je      rpl_ready
+        mov     ebx,offset r_eline
+        call    io_puts
+        mov     ax,word ptr [g_progb+ecx+1]
+        call    io_num
+        jmp     rpl_ready
+
+; ::::::::::::::
+; rpl_mod - the module's name, as BC's: the file's, without its path and
+; type, 8 characters, blanks after.
+; ::::::::::::::
+rpl_mod:
+        mov     esi,offset g_fnmb
+        mov     ebx,esi
+@rmd_s:                                 ; past the last \ or :
         lodsb
         test    al,al
         jz      @F
-        call    io_putc
-        jmp     @B
+        cmp     al,'\'
+        je      @rmd_b
+        cmp     al,':'
+        jne     @rmd_s
+@rmd_b:
+        mov     ebx,esi
+        jmp     @rmd_s
 @@:
-        pop     esi
-        jmp     @erx_e
+        mov     esi,ebx
+        mov     ecx,8
+@rmd_c:
+        lodsb
+        test    al,al
+        jz      @rmd_p
+        cmp     al,'.'
+        je      @rmd_p
+        cmp     al,'a'
+        jb      @F
+        cmp     al,'z'
+        ja      @F
+        sub     al,20h
+@@:
+        call    io_putc
+        loop    @rmd_c
+        ret
+@rmd_p:
+        mov     al,' '
+        call    io_putc
+        loop    @rmd_p
+        ret
 
         .data
-; QBasic's error numbers, by E_*: ERR's.
-g_qberr db      0,0,2,3,4,5,7,8,9,10,11,13,17,0,6,1,16,15,12,0,0,0,0
-        db      67,55,52,53,68,54,54,64,52,0,13,18
-g_unpr  db      "UNPRINTABLE",0
+r_eline db      " in line ",0
+r_enone db      "No line number",0
+r_emod  db      " in module ",0
+r_eaddr db      " at address ",0
         .code
 
 ; ::::::::::::::
