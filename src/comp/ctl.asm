@@ -202,14 +202,20 @@ ct_skip0:
         ret
 
 ; ::::::::::::::
-; ct_redim - REDIM: DIM's grammar, each array's CALL DIM marked REDIM's.
+; ct_redim - REDIM [PRESERVE]: DIM's grammar, each array's CALL DIM marked
+; REDIM's.
 ; ::::::::::::::
 ct_redim:
         inc     esi
         mov     [g_state.cm.credim],40h
+        cmp     word ptr [esi],TK_X or (TK1_PRESERVE shl 8)
+        jne     @F
+        add     esi,2
+        mov     [g_state.cm.credim],140h
+@@:
         mov     ax,[g_ps_ent+(TK_DIM-80h)*2]
         call    cm_dfa
-        mov     [g_state.cm.credim],0
+        and     [g_state.cm.credim],0
         clc
         ret
 

@@ -365,6 +365,85 @@ arr_free:
         ret
 
 ; ::::::::::::::
+; arr_keep - REDIM PRESERVE: each element of the array at pold that the
+; array at pnew has too, by its subscripts, copied there; a string's moved.
+;
+; in:     EBX  the id; pold and pnew, as many dimensions
+; keeps:  all
+; ::::::::::::::
+arr_keep:
+        pushad
+        mov     [g_kid],ebx
+        mov     esi,[g_pold]
+        movzx   ecx,byte ptr [esi]
+        mov     [g_kn],ecx
+        call    arr_esz
+        mov     [g_kesz],ecx
+        mov     ecx,[g_kn]              ; the old elements: the counts' product
+        mov     eax,1
+@akp_t:
+        movzx   edx,word ptr [esi+AH_CNT+ecx*2-2]
+        imul    eax,edx
+        loop    @akp_t
+        mov     [g_kcnt],eax
+        and     [g_ki],0
+@akp_e:                                 ; element ki: its subscripts, the last
+        mov     eax,[g_ki]              ; the fastest
+        cmp     eax,[g_kcnt]
+        jae     @akp_r
+        mov     esi,[g_pold]
+        mov     edi,[g_pnew]
+        mov     ecx,[g_kn]
+        xor     ebp,ebp                 ; the new index
+        mov     [g_kmul],1
+@akp_s:
+        movzx   ebx,word ptr [esi+AH_CNT+ecx*2-2]
+        xor     edx,edx
+        div     ebx                     ; EDX the old relative subscript
+        mov     ebx,[g_kn]              ; the lower bounds
+        lea     ebx,[esi+ebx*2]
+        movsx   ebx,word ptr [ebx+AH_CNT+ecx*2-2]
+        add     edx,ebx
+        mov     ebx,[g_kn]
+        lea     ebx,[edi+ebx*2]
+        movsx   ebx,word ptr [ebx+AH_CNT+ecx*2-2]
+        sub     edx,ebx                 ; the new relative subscript
+        movzx   ebx,word ptr [edi+AH_CNT+ecx*2-2]
+        cmp     edx,ebx
+        jae     @akp_n                  ; not in the new one (or under 0)
+        imul    edx,[g_kmul]
+        add     ebp,edx
+        imul    ebx,[g_kmul]
+        mov     [g_kmul],ebx
+        loop    @akp_s
+        mov     eax,[g_kesz]            ; copy
+        mov     ecx,eax
+        imul    ebp,eax
+        imul    eax,[g_ki]
+        add     eax,[esi+AH_PTR]
+        add     ebp,[edi+AH_PTR]
+        mov     ebx,[g_kid]
+        mov     dl,[g_sinfo+ebx]
+        and     dl,SK_DBL or 3
+        cmp     dl,2
+        jne     @akp_b
+        cmp     byte ptr [g_vtyp+ebx],ET_REC
+        jae     @akp_b
+        mov     edi,ebp                 ; a string: its block moves too
+        call    ls_mov
+        jmp     @akp_n
+@akp_b:
+        mov     esi,eax
+        mov     edi,ebp
+        rep     movsb
+@akp_n:
+        inc     [g_ki]
+        jmp     @akp_e
+@akp_r:
+        popad
+        ret
+
+; ::::::::::::::
 ; arr_rep - the references afrep marked: to array EBX's header.
 ;
 ; in:     EBX  the id
@@ -409,6 +488,14 @@ g_afhs  dd      ?
 g_afsz  dd      ?                       ; the data's size, the data's old end
 g_afend dd      ?
 g_afrep dd      ?
+g_pold  dd      ?                       ; arr_keep: the old header, the new
+g_pnew  dd      ?
+g_kn    dd      ?                       ; the dimensions, the element size,
+g_kesz  dd      ?                       ; the old elements, this one, the new
+g_kcnt  dd      ?                       ; count's product so far
+g_ki    dd      ?
+g_kmul  dd      ?
+g_kid   dd      ?
 g_dimbuf dw      64 dup(?)
 g_cntbuf dw      64 dup(?)
 g_lbbuf dw      64 dup(?)                   ; the lower bounds

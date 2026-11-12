@@ -32,7 +32,7 @@ TCOMP    struc                   ; the compiler
     csif    db      ?               ; in a one-line IF
     cscope  db      ?               ; var_find's scope: 0 the module, a procedure
     cstat   db      ?               ; var_find makes a STATIC, not a local
-    credim  db      ?               ; 40h: DIM's grammar is REDIM's
+    credim  dw      ?               ; 40h: DIM's grammar is REDIM's; 100h PRESERVE
     cchk    db      ?               ; 1: the IDE's line check, unlinked
     cdbg    dd      ?               ; past the statement's DBG, 0 none
     cproc   db      ?               ; the procedure the compiled line is in

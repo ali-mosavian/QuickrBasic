@@ -172,6 +172,15 @@ CASES = {
                    'SUB t\r\nON LOCAL ERROR GOTO h\r\nm\r\nPRINT "t"\r\nEXIT SUB\r\nh: PRINT "e"; ERR: RESUME NEXT\r\n'
                    'END SUB\r\nSUB m\r\nx = 1 / 0: PRINT "m"\r\nEND SUB\r\n',
                    "e 11 \r\nt\r\nd\r\nDivision by zero", "no"),
+    # PDS's REDIM PRESERVE was a syntax error. Elements keep their subscripts; strings move with them;
+    # another array after it stays.
+    "qb_redim_keep": ('REDIM a(3) AS INTEGER, s$(2), z(1)\r\nFOR i = 0 TO 3: a(i) = i * 10: NEXT\r\n'
+                      's$(0) = "x": s$(1) = "yy": s$(2) = "zzz": z(1) = 4\r\nREDIM PRESERVE a(5) AS INTEGER\r\n'
+                      'REDIM PRESERVE s$(1 TO 4)\r\nFOR i = 0 TO 5: PRINT a(i); : NEXT: PRINT\r\n'
+                      'FOR i = 1 TO 4: PRINT s$(i); ","; : NEXT: PRINT\r\nREDIM b(1, 2)\r\n'
+                      'b(0, 0) = 1: b(0, 2) = 3: b(1, 1) = 5\r\nREDIM PRESERVE b(2, 3)\r\n'
+                      'PRINT b(0, 0); b(0, 2); b(1, 1); b(2, 3); z(1)\r\nREDIM PRESERVE a(1)\r\nPRINT a(0); a(1); UBOUND(a)\r\n',
+                      " 0  10  20  30  0  0 \r\nyy,zzz,,,\r\n 1  3  5  0  4 \r\n 0  10  1 \r\n", "ERROR"),
     # Unhandled: ERROR n's message; RESUME with no error; ON ERROR GOTO 0 in the handler.
     # A full stack was ?OUT OF MEMORY, which ON ERROR trapped; BC's is Out of stack space, not
     # trapped, its line, module and address after.

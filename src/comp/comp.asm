@@ -1342,7 +1342,7 @@ cm_dv:
 cm_dim1:
         movzx   eax,[g_state.cm.cstat]
         shl     eax,7
-        or      al,[g_state.cm.credim]
+        or      ax,[g_state.cm.credim]
         push    eax
         push    ebx
         call    cm_dsubs

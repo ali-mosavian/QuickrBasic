@@ -584,14 +584,39 @@ sc_dim:
         jmp     ex_lp
 @sdm_r:
         mov     [g_dyn],1
-        cmp     dword ptr [g_vt+ebx*4],0
+        mov     edi,[g_vt+ebx*4]
+        test    edi,edi
         je      @F
+        test    byte ptr [g_dimst+1],1
+        jnz     @sdm_p
         mov     [g_afrep],1
         call    arr_free
 @@:
         push    ebx
         call    arr_dim
         pop     ebx
+        call    arr_rep
+        mov     [g_dyn],0
+        jmp     ex_lp
+@sdm_p:                                 ; PRESERVE: the new one made, the old
+        mov     al,[g_state.rn.narr]    ; one's elements copied, then freed
+        cmp     al,[edi]
+        jne     arr_bs
+        mov     [g_pold],edi
+        and     dword ptr [g_vt+ebx*4],0
+        push    ebx
+        call    arr_dim
+        pop     ebx
+        mov     edi,[g_vt+ebx*4]
+        mov     [g_pnew],edi
+        call    arr_keep
+        mov     eax,[g_pold]
+        mov     [g_vt+ebx*4],eax
+        mov     [g_afrep],1
+        call    arr_free
+        mov     eax,[g_pnew]            ; its header was after the old one's
+        sub     eax,[g_afhs]
+        mov     [g_vt+ebx*4],eax
         call    arr_rep
         mov     [g_dyn],0
         jmp     ex_lp
@@ -616,7 +641,8 @@ sc_erase:
         call    mem_zero
         jmp     ex_lp
         .data?
-g_dimst dd      ?                       ; DIM's count: bit 6 REDIM, bit 7 a STATIC's
+g_dimst dd      ?                       ; DIM's count: bit 6 REDIM, bit 7 a STATIC's,
+                                        ; bit 8 PRESERVE
 g_dmsk  dq      ?                       ; bit i: subscript i is hi, base
         .code
 
