@@ -155,6 +155,8 @@ CASES = {
                  "IF ERR = 7 THEN RESUME x\r\nRESUME NEXT\r\n"
                  "FUNCTION f% (d%)\r\n50 c% = 10 \\ d%: f% = c% + 4\r\nEND FUNCTION\r\n",
                  "e 11  50  5  0 \r\ne 5  0  2 \r\ne 7  0 x\r\n", "ERROR"),
+    # A DOUBLE element of 2 or more subscripts stored without its count: the VM ran its operands.
+    "qb_dbl_arr2": ('DIM g#(9, 9)\r\ng#(1, 2) = 3\r\nPRINT g#(1, 2); g#(2, 1)\r\n', " 3  0 \r\n", "ERROR"),
     # Unhandled: ERROR n's message; RESUME with no error; ON ERROR GOTO 0 in the handler.
     # A full stack was ?OUT OF MEMORY, which ON ERROR trapped; BC's is Out of stack space, not
     # trapped, its line, module and address after.

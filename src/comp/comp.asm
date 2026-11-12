@@ -442,7 +442,9 @@ cm_store:
         mov     dl,O_D_ST_A
 @@:
         mov     al,dl
-        call    cm_opid
+        push    edx
+        call    cm_opid                 ; DX the id
+        pop     edx
         cmp     dl,O_D_ST_A
         jne     cm_rts
         mov     al,[g_state.cm.ctn]
