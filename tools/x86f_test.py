@@ -257,6 +257,14 @@ CASES = {
     "qb_obdim": ("DIM a(3)\r\nOPTION BASE 1\r\nPRINT LBOUND(a)\r\n", "Array already dimensioned", None),
     "qb_obtwice": ("OPTION BASE 1\r\nOPTION BASE 0\r\nDIM a(3): PRINT LBOUND(a)\r\n", "Syntax error", None),
     "qb_ob2": ("OPTION BASE 2\r\nPRINT 1\r\n", "Syntax error", None),
+    # VBDOS's OPTION EXPLICIT was ignored: every variable, array, FOR's too, must be declared.
+    "qb_oexp": ("OPTION EXPLICIT\r\nDIM x\r\nx = 1: y = 2: PRINT x\r\n", "Variable not declared", None),
+    "qb_oexpfor": ("OPTION EXPLICIT\r\nDIM x\r\nFOR i = 1 TO 2: NEXT\r\n", "Variable not declared", None),
+    "qb_oexparr": ("OPTION EXPLICIT\r\nDIM a(3)\r\nb(1) = 2\r\n", "Variable not declared", None),
+    "qb_oexpok": ("OPTION EXPLICIT\r\nDECLARE SUB s (a)\r\nDECLARE FUNCTION f% ()\r\nCONST k = 2\r\nDIM SHARED g\r\n"
+                  "DIM i AS INTEGER, v(2)\r\nFOR i = 1 TO 1: v(i) = f%: NEXT\r\ns k + v(1)\r\n"
+                  "SUB s (a)\r\nDIM l\r\nl = a + g: PRINT l\r\nEND SUB\r\nFUNCTION f%\r\nSTATIC n\r\nn = n + 1: f% = n\r\nEND FUNCTION\r\n",
+                  " 3 \r\n", "ERROR"),
     "qb_gosubsc": ('DECLARE SUB s ()\r\ns\r\nEND\r\nm: PRINT "m": RETURN\r\nSUB s\r\nGOSUB m\r\nEND SUB\r\n',
                    "Subprogram error", None),
     # Unhandled: ERROR n's message; RESUME with no error; ON ERROR GOTO 0 in the handler.

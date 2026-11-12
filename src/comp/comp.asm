@@ -956,6 +956,7 @@ cm_name:
 ;         SI        after the name
 ; error:  ?OUT OF MEMORY  from var_find
 ;         Duplicate definition  a suffix not its AS type's (scp_sfx)
+;         as var_decl
 ; ::::::::::::::
 var_id:
         movzx   ecx,byte ptr [esi+1]
@@ -991,6 +992,7 @@ var_id:
         upcase  ecx
         movzx   ecx,[g_deft+ecx-'A']
 @vid_k:
+        call    var_decl
         cmp     ecx,ET_REC
         jae     @vid_r
         or      dl,[g_etk+ecx]
@@ -1005,6 +1007,24 @@ var_id:
         jnz     @vid_g
         mov     dl,81h
         jmp     @vid_g
+
+; ::::::::::::::
+; var_decl - under OPTION EXPLICIT, name EAX declared, or a procedure's.
+;
+; keeps:  all
+; error:  Variable not declared  it is not
+; ::::::::::::::
+var_decl:
+        cmp     [g_oexp],0
+        je      @vdc_r
+        test    [g_nflag+eax],NM_SUB+NM_FUNC+NM_FN
+        jnz     @vdc_r
+        call    scp_known
+        jnc     @vdc_r
+        mov     al,E_VND
+        jmp     err_raise
+@vdc_r:
+        ret
 
 ; ::::::::::::::
 ; et_sfx - the type of suffix BL.

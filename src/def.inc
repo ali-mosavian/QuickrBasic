@@ -168,7 +168,8 @@ E_VR    = 39                    ; Variable required
 E_SPE   = 40                    ; Subprogram error: BC's, no ERR of its own
 E_ASF   = 41                    ; AS clause required on first declaration: so
 E_AAD   = 42                    ; Array already dimensioned: so
-E_LAST  = E_AAD
+E_VND   = 43                    ; Variable not declared: VBDOS's, so
+E_LAST  = E_VND
 
 ; Memory map, flat: the code, then the data; the regions in .data? (main.asm).
 ; dsb is the 16-bit build's DS at the same offsets: the variables, the

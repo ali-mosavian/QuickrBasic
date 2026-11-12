@@ -20,6 +20,7 @@
 ;           DIM SHARED, a module's CONST   BF_SHR in the module's
 ;           AS STRING * n  n's, n()'s length
 ;           OPTION BASE n  obase: 0 or 1, once, before any array's DIM
+;           OPTION EXPLICIT   oexp: var_id's names declared
 ;           A type is ET_*, 0 none declared. DEFtype holds from its line to
 ;           the file's end, SUBs too: dfev keeps deft after each such line,
 ;           dc_deft sets it for the line compiled.
@@ -308,7 +309,12 @@ dc_line:
         add     word ptr [g_typ+edx*8+T_SIZE],ax
         jmp     @dcl_n
 
-@dcl_opt:                               ; OPTION BASE n
+@dcl_opt:                               ; OPTION BASE n, OPTION EXPLICIT
+        cmp     word ptr [esi+1],TK_X+TK1_EXPLICIT*256
+        jne     @F
+        mov     [g_oexp],1
+        jmp     @dcl_n
+@@:
         cmp     byte ptr [esi+1],TK_BASE
         jne     @dcl_n
         cmp     byte ptr [esi+2],M_INT
@@ -1007,6 +1013,7 @@ g_ntype db      NNAM dup(?)             ; a name's TYPE, 0 none
 g_obase db      ?                       ; OPTION BASE
 g_obset db      ?                       ; OPTION BASE given
 g_odim  db      ?                       ; DIM, REDIM, COMMON of an array
+g_oexp  db      ?                       ; OPTION EXPLICIT
 g_ndev  dd      ?                       ; DEFtype's lines: place:2, deft
 g_dfev  db      NDEV*DEVSZ dup(?)
 g_dscope dw     ?                       ; the scope declarations go to

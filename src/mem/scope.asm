@@ -2,7 +2,7 @@
 ; scope.asm - the scoped name table: what a name is declared as, in the
 ; module and in each procedure
 ; ==========================================================================
-; holds:    scp_init, scp_bind, scp_get, scp_look, scp_decl, scp_sfx, scp_mshr,
+; holds:    scp_init, scp_bind, scp_get, scp_look, scp_decl, scp_sfx, scp_mshr, scp_known,
 ;           scp_label, scp_lfind
 ; data:     A binding (B_*) is a name's in one scope: the module's (0) or a
 ;           procedure's (its name). It holds the declared type, record and
@@ -336,6 +336,28 @@ scp_sfx:
         mov     al,E_RD
         jmp     err_raise
 @@:
+        ret
+
+; ::::::::::::::
+; scp_known - name EAX: bound, as the procedure compiled sees it?
+;
+; out:    CF  set: not
+; keeps:  all
+; ::::::::::::::
+scp_known:
+        push    eax
+        push    ebx
+        push    edi
+        mov     ebx,eax
+        call    scp_look
+        cmp     edi,offset g_bzero
+        clc
+        jne     @F
+        stc
+@@:
+        pop     edi
+        pop     ebx
+        pop     eax
         ret
 
 ; ::::::::::::::

@@ -303,6 +303,7 @@ externdef g_ntype:byte
 externdef g_obase:byte
 externdef g_obset:byte
 externdef g_odim:byte
+externdef g_oexp:byte
 externdef g_typ:byte
 ; comp/block.asm
 externdef bk_find:near
@@ -461,6 +462,7 @@ externdef scp_bind:near
 externdef scp_decl:near
 externdef scp_get:near
 externdef scp_init:near
+externdef scp_known:near
 externdef scp_label:near
 externdef scp_lfind:near
 externdef scp_look:near
