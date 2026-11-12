@@ -84,8 +84,6 @@ dbg_depth:
         cmp     cl,M_PC
         je      @ddp_c
         cmp     cl,M_GS
-        je      @ddp_c
-        cmp     cl,M_FN
         jne     @ddp_n
 @ddp_c:
         inc     eax

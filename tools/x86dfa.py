@@ -213,7 +213,6 @@ GRAMMAR: dict[str, str] = {
     "REM": "rem",
     "STOP": "!STOP",
     "ON": "e on onl { , onl }",
-    "DEF": "def",
     "POKE": "e toi , e tob !POKE",
     "PRINT": "( # e toi !FIOUT , pr !FICLR | pr )",
     "WRITE": "( # e toi !FIOUT , wr !FICLR | wr )",

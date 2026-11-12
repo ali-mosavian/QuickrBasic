@@ -42,7 +42,6 @@ TLINK    struc                   ; the linker and the cache
     cend    dd      ?               ; the cache's next byte, past the program
     elim    dd      ?               ; cm_xlate's limit
     eeol    dd      ?               ; the EOL element
-    efn     dd      ?               ; a DEF's length, to fill in
     einb    dd      ?               ; an INPUT's end, to fill in
     linked  db      ?
     lc      dw      ?

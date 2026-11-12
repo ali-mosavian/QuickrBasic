@@ -392,7 +392,6 @@ cm_call:
 ;
 ; in:     ctv, ctk, ctn  the target: id, sinfo, subscripts
 ; error:  ?TYPE MISMATCH  the wrong type
-;         ?SYNTAX ERROR   a DEF FN's name
 ; ::::::::::::::
 cm_store:
         cmp     [g_state.cm.ctn],0FFh
@@ -930,7 +929,6 @@ cm_name:
 ; var_id - the variable the name at SI is, as QBasic's variable manager
 ; finds it: of its name; an array when '(' follows; its type by its suffix,
 ; else as DIM AS or CONST declared it (ntyp, natyp), else by DEFtype (deft).
-; A name DEF FN's (NM_FN) is the function, kind 3.
 ;
 ; in:     SI  at M_VAR
 ; out:    EBX, EAX  the variable
@@ -952,10 +950,6 @@ var_id:
         jne     @F
 @vid_a:
         mov     dl,80h
-@@:
-        test    [g_nflag+eax],NM_FN
-        jz      @F
-        mov     dl,3                    ; DEF FN's: never an array
 @@:
         movzx   ecx,[g_vft]
         test    ecx,ecx
@@ -986,10 +980,7 @@ var_id:
         upcase  ecx
         movzx   ecx,[g_deft+ecx-'A']
 @vid_k:
-        cmp     dl,3
-        je      @F
         or      dl,[g_etk+ecx]
-@@:
         call    var_scope
         call    var_find
         mov     ebx,eax
@@ -997,8 +988,9 @@ var_id:
 
 ; ::::::::::::::
 ; var_scope - the scope of name AX in the procedure compiled: its own, but a
-; name DIM SHARED, CONST, DEF FN's or SHARED in it; STATIC in it, or every
-; one of a STATIC procedure, not a local.
+; name DIM SHARED, CONST, a label or SHARED in it; STATIC in it, or every
+; one of a STATIC procedure, not a local. In a DEF FN only its parameters
+; and its result are its own.
 ;
 ; out:    cscope, cstat
 ; keeps:  all
@@ -1012,9 +1004,11 @@ var_scope:
         mov     [g_state.cm.cscope],cl
         jecxz   @vsc_r
         movzx   eax,ax
-        test    [g_nflag+eax],NM_FN+NM_LBL
+        test    [g_nflag+eax],NM_LBL
         jnz     @vsc_m
         shl     ecx,5
+        test    byte ptr [g_prc+ecx+P_FLAG],PF_DEF
+        jnz     @vsc_f
         mov     bx,word ptr [g_prc+ecx+P_NAM]
         movzx   ecx,[g_state.lx.nshr]   ; SHARED or STATIC in it
         jecxz   @vsc_d
@@ -1051,6 +1045,21 @@ var_scope:
         pop     ebx
         pop     eax
         ret
+@vsc_f:                                 ; a DEF FN: its name, a parameter's
+        cmp     ax,word ptr [g_prc+ecx+P_NAM]
+        je      @vsc_r
+        movzx   ebx,word ptr [g_prc+ecx+P_PAR]
+        movzx   ecx,word ptr [g_prc+ecx+P_NPAR]
+        jecxz   @vsc_m
+@@:
+        push    ecx
+        movzx   ecx,word ptr [g_ppar+ebx*2]
+        cmp     ax,word ptr [g_vnam+ecx*2]
+        pop     ecx
+        je      @vsc_r
+        inc     ebx
+        loop    @B
+        jmp     @vsc_m
 
         .data
 g_etk   db      0,1,1,0,SK_DBL,2,1      ; ET_* to the kind: FLOAT, INT, STRING, DOUBLE
@@ -1096,58 +1105,6 @@ cm_tgt:
         jmp     err_tm
 @st_comp2:
         jmp     err_sn
-
-; ::::::::::::::
-; cm_def - DEF FN name(var) = expr: NODIR, FN.DEF id len, FN.ENTER var, the
-; body, FN.RET var.
-;
-; in:     SI  after DEF
-; error:  ?SYNTAX ERROR   no FN ( ) =, or an array parameter
-;         ?TYPE MISMATCH  a string parameter
-; ::::::::::::::
-cm_def:
-        mov     al,K_NODIR
-        call    cm_call
-        call    st_get
-        cmp     al,M_VAR
-        jne     @st_comp2
-        call    var_id
-        cmp     [g_sinfo+ebx],3
-        jne     @st_comp2               ; DEF FN's name starts FN
-        push    eax
-        call    cm_chkop
-        call    cm_name
-        mov     al,[g_sinfo+ebx]
-        and     al,43h
-        cmp     al,2
-        je      @st_comp6
-        test    [g_sinfo+ebx],80h
-        jnz     @st_comp2
-        push    ebx
-        call    cm_chkcl
-        call    cm_chkeq
-        pop     edx
-        pop     ecx
-        push    edx
-        mov     al,O_FN_DEF
-        call    cm_opid
-        xor     al,al
-        call    cm_byt
-        pop     ecx
-        push    ecx
-        push    edi
-        mov     al,O_FN_ENTER
-        call    cm_opid
-        call    cm_expr
-        call    cm_tof
-        pop     ebx
-        pop     ecx
-        mov     al,O_FN_RET
-        call    cm_opid
-        mov     eax,edi
-        sub     eax,ebx
-        mov     [ebx-1],al
-        ret
 
 ; ::::::::::::::
 ; cm_dat - DATA: no code, READ finds the text in the body.

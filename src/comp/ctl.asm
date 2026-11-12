@@ -89,6 +89,8 @@ ct_stmt:
         je      ct_pret
         cmp     al,TK_FUNCTION
         je      ct_pret
+        cmp     al,TK_DEF
+        je      ct_pret
         jmp     ct_exit
 @@:
         cmp     al,TK_END
@@ -103,6 +105,8 @@ ct_stmt:
         cmp     al,TK_SUB
         je      ct_pret
         cmp     al,TK_FUNCTION
+        je      ct_pret
+        cmp     al,TK_DEF
         je      ct_pret
 @cts_n:
         stc
@@ -124,7 +128,7 @@ ct_none:
         ret
 
 ; ::::::::::::::
-; ct_dseg - DEF SEG [= s]: no code, flat; another DEF is not one.
+; ct_dseg - DEF SEG [= s]: no code, flat. DEF FN: ct_def.
 ; ::::::::::::::
 ct_dseg:
         cmp     byte ptr [esi+1],TK_X
@@ -133,7 +137,68 @@ ct_dseg:
         jne     @cdg_n
         jmp     ct_none                 ; dc_line warned
 @cdg_n:
+        cmp     byte ptr [esi+1],M_VAR
+        je      ct_def
         stc
+        ret
+
+; ::::::::::::::
+; ct_def - DEF FNn [(params)]: run into, passed as a FUNCTION; with = e, JMP
+; past it, then the body: the result e, PRET.
+; ::::::::::::::
+ct_def:
+        inc     esi
+        push    esi
+        call    ct_proc
+        pop     ebx
+        jnc     @F
+        mov     esi,ebx
+        call    ct_pchk
+        jc      err_sn
+        jmp     ct_none
+@@:
+        push    ebx                     ; the name
+        mov     eax,[edx+P_SKIP]
+        call    ct_jmp
+        call    ct_skip0                ; past ( params )
+        pop     ebx
+        call    st_get
+        cmp     al,TK_EQ
+        jne     ct_none
+        push    esi
+        mov     esi,ebx
+        mov     [g_vfs],1               ; its result
+        call    cm_name
+        mov     [g_vfs],0
+        call    cm_tgt
+        pop     esi
+        inc     esi
+        call    cm_expr
+        call    cm_store
+        jmp     ct_pret0
+
+; ct_skip0 - past a ( .. ) at SI, if any. Uses EAX, ECX.
+ct_skip0:
+        cmp     byte ptr [esi],'('
+        jne     @czp_r
+        xor     ecx,ecx
+@@:
+        mov     al,[esi]
+        test    al,al
+        jz      @czp_r
+        cmp     al,'('
+        jne     @czp_c
+        inc     ecx
+@czp_c:
+        cmp     al,')'
+        jne     @czp_n
+        call    dc_item
+        loop    @B
+        ret
+@czp_n:
+        call    dc_item
+        jmp     @B
+@czp_r:
         ret
 
 ; ::::::::::::::
@@ -315,6 +380,7 @@ ct_sub:
 ; ::::::::::::::
 ct_pret:
         add     esi,2
+ct_pret0:
         mov     al,O_PRET
         call    cm_op
         clc
@@ -333,7 +399,7 @@ ct_proc:
         jne     @cpr_n
         movzx   ecx,byte ptr [esi+1]
         movzx   eax,word ptr [esi+ecx+2]
-        test    [g_nflag+eax],NM_SUB+NM_FUNC
+        test    [g_nflag+eax],NM_SUB+NM_FUNC+NM_FN
         jz      @cpr_n
         movzx   edx,[g_nprc+eax]
         test    edx,edx
@@ -770,7 +836,7 @@ ct_pchk:
         jne     @cpk_n
         movzx   ecx,byte ptr [esi+1]
         movzx   eax,word ptr [esi+ecx+2]
-        test    [g_nflag+eax],NM_SUB+NM_FUNC
+        test    [g_nflag+eax],NM_SUB+NM_FUNC+NM_FN
         jz      @cpk_n
         clc
         ret
@@ -835,6 +901,9 @@ ct_pcall:
 ; error:  ?SYNTAX ERROR  too few
 ; ::::::::::::::
 ct_args:
+        mov     al,[edx+P_FLAG]         ; a DEF FN's: by value
+        and     al,PF_DEF
+        mov     [g_cbyv],al
         movzx   ecx,word ptr [edx+P_NPAR]
         jecxz   @cag_r
         movzx   ebx,word ptr [edx+P_PAR]
@@ -866,6 +935,8 @@ ct_arg:
         test    dl,dl
         js      @car_a
         push    edx                     ; [ESP] its sinfo, kept across calls
+        cmp     [g_cbyv],0
+        jne     @car_e
         call    st_get
         cmp     al,M_VAR
         jne     @car_e
@@ -1552,6 +1623,7 @@ ct_vop:
 g_ctnm  db      "#0"                    ; a SELECT's value: its name
         .data?
 g_ctvr  dw      ?                       ; that variable
+g_cbyv  db      ?                       ; ct_args: every argument by value
 g_cttp  db      ?                       ; its type
 g_rfet  db      ?                       ; rc_ref's field: ET_*, its offset, n
 g_rfoff dw      ?

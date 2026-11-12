@@ -17,7 +17,8 @@
 ;           and the address it resolves to (vm/flow.asm, ex_btgt).
 ;           SUB and FUNCTION ... END give g_prc an entry (def.inc P_*): its
 ;           body, its lines, its parameters' variables in g_ppar, the
-;           FUNCTION's result variable, the target past its END.
+;           FUNCTION's result variable, the target past its END. DEF FN is a
+;           FUNCTION (PF_DEF), to END DEF or, with = e, its own statement.
 ; calls:
 ;   cm_blocks          each line
 ;     bk_line          each statement, and those after THEN and ELSE
@@ -188,6 +189,8 @@ bk_stmt:
         je      @bks_sub
         cmp     al,TK_FUNCTION
         je      @bks_fun
+        cmp     al,TK_DEF
+        je      @bks_def
         cmp     al,TK_END
         jne     @bks_r
         mov     al,[esi+1]
@@ -199,8 +202,20 @@ bk_stmt:
         je      @bks_esb
         cmp     al,TK_FUNCTION
         je      @bks_esb
+        cmp     al,TK_DEF
+        je      @bks_esb
 @bks_r:
         ret
+
+@bks_def:                               ; DEF FNn: a FUNCTION of its own
+        cmp     byte ptr [esi+1],M_VAR
+        jne     @bks_r
+        movzx   eax,byte ptr [esi+2]
+        movzx   eax,word ptr [esi+eax+3]
+        test    [g_nflag+eax],NM_FN
+        jz      @bk_er
+        mov     [g_bkdef],1
+        jmp     @bks_fun
 
 @bks_sub:                               ; SUB, FUNCTION: a procedure's entry
         mov     dl,PK_SUB
@@ -208,6 +223,7 @@ bk_stmt:
 @bks_fun:
         mov     dl,PK_FUNC
 @bkp_g:
+        mov     [g_bkoff],cl
         cmp     [g_state.lnk.cprc],0
         jne     @bk_er
         cmp     byte ptr [esi+1],M_VAR
@@ -319,6 +335,20 @@ bk_stmt:
         jne     @F
         or      byte ptr [edi+P_FLAG],PF_STAT
 @@:
+        cmp     [g_bkdef],0
+        je      @bkp_x
+        mov     [g_bkdef],0             ; DEF FN: its parameters known now;
+        or      byte ptr [edi+P_FLAG],PF_DEF    ; = e: the body is this
+        cmp     byte ptr [esi],TK_EQ    ; statement's past its JMP
+        jne     @bkp_x
+        mov     cl,[g_bkoff]
+        mov     al,1
+        call    bk_herem
+        mov     [edi+P_ENTRY],eax
+        call    bk_here2
+        mov     [edi+P_SKIP],eax
+        and     [g_state.lnk.cprc],0
+@bkp_x:
         mov     [g_state.cm.cproc],0
         pop     ebp
         pop     esi
@@ -767,6 +797,8 @@ g_prc   db      NPROC*PSIZE dup(?)      ; the procedures, from 1
 g_ppar  dw      NPPAR dup(?)            ; their parameters' variables
 g_vfs   db      ?                       ; var_id: 1 a scalar, 2 an array, '(' or not
 g_vft   db      ?                       ; var_id: the type, ET_*; 0 by the name
+g_bkdef db      ?                       ; the procedure is a DEF FN's
+g_bkoff db      ?                       ; its statement's offset
 g_blk   db      NBLK*16 dup(?)
 g_bst   db      NBST*SSIZE dup(?)
         .code

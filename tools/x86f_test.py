@@ -262,6 +262,13 @@ CASES = {
     "qb_inps_long": ('OPEN "I.TMP" FOR OUTPUT AS #1: PRINT #1, STRING$(300, "z"); "ab": CLOSE\r\n'
                      'OPEN "I.TMP" FOR INPUT AS #1: a$ = INPUT$(301, #1): b$ = INPUT$(1, 1): CLOSE\r\n'
                      'KILL "I.TMP": PRINT LEN(a$); RIGHT$(a$, 2); b$\r\n', " 301 zab\r\n", "ERROR"),
+    # DEF FN had one numeric parameter: several, typed, a string's, EXIT DEF and END DEF were
+    # syntax errors. Its parameters local, the rest the module's; arguments by value.
+    "qb_deffn_qb": ('DEF FNadd% (a AS INTEGER, b AS INTEGER) = a + b\r\nDEF FNup$ (s$) = UCASE$(s$) + "!"\r\n'
+                    'y = 10: DEF FNy (x) = x + y\r\nDEF FNfact# (n%)\r\n'
+                    '  IF n% <= 1 THEN FNfact# = 1: EXIT DEF\r\n  FNfact# = n% * FNfact#(n% - 1)\r\nEND DEF\r\n'
+                    'x = 7: n% = 3: PRINT FNadd%(2, 5); FNup$("ab"); FNy(1); FNfact#(10); x; n%\r\n',
+                    " 7 AB! 11  3628800  7  3 \r\n", "ERROR"),
     # LEN of a number was a type mismatch.
     "qb_len_num": ('DIM d AS DOUBLE, i AS INTEGER\r\ns$ = "abc"\r\n'
                    'PRINT LEN(a%); LEN(b&); LEN(c!); LEN(e#); LEN(d); LEN(i); LEN(s$)\r\n',

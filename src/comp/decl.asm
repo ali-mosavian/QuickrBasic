@@ -10,7 +10,7 @@
 ;           DIM [SHARED] n[( )] AS type   ntyp, natyp: n's, n()'s type
 ;           CONST n = e    ntyp: the value's type, when n has no suffix
 ;           SUB, FUNCTION, DECLARE n (params)   nflag NM_SUB, NM_FUNC; the
-;                          parameters' AS types as DIM's
+;                          parameters' AS types as DIM's; DEF FNn's too
 ;           SHARED, STATIC n   g_shr: the procedure being entered (dproc), n
 ;           DIM SHARED, a module's CONST   nflag NM_SHR
 ;           AS STRING * n  nfix, nafix: n's, n()'s length
@@ -194,6 +194,8 @@ dc_line:
         je      @dcl_fun
         cmp     al,TK_DECLARE
         je      @dcl_dec
+        cmp     al,TK_DEF
+        je      @dcl_dfn
         cmp     al,TK_SHARED
         je      @dcl_shr
         cmp     al,TK_STATIC
@@ -315,6 +317,12 @@ dc_line:
         jne     @dcl_n
         call    dc_nam
         or      [g_nflag+ebx],dl
+        jmp     @dcp_p
+@dcl_dfn:                               ; DEF FNn (params): their types
+        inc     esi
+        cmp     byte ptr [esi],M_VAR
+        jne     @dcl_n
+        call    dc_nam
         jmp     @dcp_p
 @dcl_sub:                               ; SUB n, FUNCTION n: in it from here
         mov     dl,NM_SUB

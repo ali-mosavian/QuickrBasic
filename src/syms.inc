@@ -49,10 +49,6 @@ externdef op_eol:near
 externdef op_err:near
 externdef op_fjf:near
 externdef op_fjt:near
-externdef op_fncall:near
-externdef op_fndef:near
-externdef op_fnent:near
-externdef op_fnret:near
 externdef op_for:near
 externdef op_fpop:near
 externdef op_gosub:near
@@ -324,7 +320,6 @@ externdef cm_chkcm:near
 externdef cm_chkeq:near
 externdef cm_chkop:near
 externdef cm_dat:near
-externdef cm_def:near
 externdef cm_dfa:near
 externdef cm_dnz:near
 externdef cm_dv:near

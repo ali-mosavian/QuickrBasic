@@ -245,8 +245,6 @@ rpl_run:
 @rpl_f:
         cmp     ebx,CSTOP
         jae     @rpl_g
-        cmp     byte ptr [ebx+F_MARK],M_FN
-        je      @rpl_n
         cmp     word ptr [ebx+F_LN],DLINE
         jne     @rpl_n
         mov     [ebx+F_IP],ax

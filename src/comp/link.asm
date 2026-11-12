@@ -118,9 +118,9 @@ cm_flush:
 
 ; ::::::::::::::
 ; cm_xlate - xbuf's ops as a stream at EDI: each op, its operands. A GOTO's
-; or GOSUB's line is found now when it exists; a DEF's length, an INPUT's
-; end (16 bits, from cachb) are filled in. FN.DEF and the CALL of INBEG
-; take 2 bytes more than in xbuf. Before the code, its statement map: for
+; or GOSUB's line is found now when it exists; an INPUT's
+; end (16 bits, from cachb) are filled in. The CALL of INBEG takes 2 bytes
+; more than in xbuf. Before the code, its statement map: for
 ; each statement the compile recorded (g_stb, g_stx), its body offset:1 and
 ; its code's offset:2; then their count:1 (vm/flow.asm, ex_bjump).
 ;
@@ -158,10 +158,6 @@ cm_xlate:
         mov     dl,bl
         movsb
         dec     ecx
-        cmp     dl,O_FN_DEF
-        je      @cx_def
-        cmp     dl,O_FN_RET
-        je      @cx_ret
         cmp     dl,O_CALL
         je      @cx_call
 @cx_c:
@@ -195,21 +191,6 @@ cm_xlate:
         pop     [g_state.rn.lnum]
         jnc     @cx_t
         mov     [edi-2],bx
-        jmp     @cx_t
-@cx_def:
-        movsw
-        inc     esi
-        mov     [g_state.lnk.efn],edi
-        xor     ax,ax
-        stosw
-        jmp     @cx_t
-@cx_ret:
-        movsw
-        mov     ebx,[g_state.lnk.efn]
-        mov     eax,edi
-        sub     eax,ebx
-        sub     eax,2
-        mov     [ebx],ax
         jmp     @cx_t
 @cx_call:
         mov     al,[esi]

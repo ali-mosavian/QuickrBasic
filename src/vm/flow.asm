@@ -5,8 +5,7 @@
 ; uses:     prg_findw, cm_line, cm_link, flt_add, err_*
 ; data:     The control stack holds frames from cstk up to CSTOP, the mark the
 ;           size: GOSUB mark ln:2 ip:2; FOR mark ln:2 ip:2 id step:4 limit:4
-;           cache:4; FN mark ip:2 id old:4; PCALL mark ln:2 ip:2 proc
-;           lsp0:4 lsp1:4 tspb:2.
+;           cache:4; PCALL mark ln:2 ip:2 proc lsp0:4 lsp1:4 tspb:2.
 ; calls:
 ;   ex_jump            ex_line: a stored line, or cm_line and ex_dcode
 ;   op_nx0, op_nextv
@@ -23,92 +22,8 @@ ipst    macro   dst
         mov     dst,ax
         endm
 
-; ::::::::::::::
-; op_fndef - FN.DEF id len:2: the slot holds the DEF's line and the body's
-; offset in its code; the body is skipped.
-; ::::::::::::::
-op_fndef:
-        vslot
-        movzx   eax,word ptr [esi]
-        add     esi,2
-        mov     cx,[g_state.rn.ln]
-        mov     [VARBASE+ebx],cx
-        movzx   edi,cx
-        movzx   edx,word ptr [g_progb+edi+L_CP]
-        add     edx,offset g_cachb
-        neg     edx
-        add     edx,esi
-        mov     [VARBASE+ebx+2],dx
-        add     esi,eax
-        jmp     ex_lp
 @st_flow1:
         jmp     err_om
-
-; ::::::::::::::
-; op_fncall - FN.CALL id ( f -- f ): an FN frame, then the body.
-;
-; error:  ?UNDEF'D FUNCTION  no DEF ran
-;         ?OUT OF MEMORY     a stack is full
-; ::::::::::::::
-op_fncall:
-        cmp     esp,[g_state.rn.stklim]
-        jb      @st_flow1
-        vslot
-        mov     dx,[VARBASE+ebx]
-        test    dx,dx
-        jnz     @fnc_d
-        mov     al,E_UF
-        jmp     err_raise
-@fnc_d:
-        mov     edi,[g_state.rn.cstk]
-        cmp     edi,CSLIM
-        jb      @st_flow1
-        sub     edi,M_FN
-        mov     [g_state.rn.cstk],edi
-        mov     byte ptr [edi],M_FN
-        ipst    [edi+F_IP]
-        mov     cx,[g_state.rn.ln]
-        mov     [edi+F_LN],cx
-        movzx   esi,word ptr [VARBASE+ebx+2]
-        call    ex_resolve
-        dispatch
-
-; ::::::::::::::
-; op_fnent - FN.ENTER id ( f -- ): the parameter's value kept, the argument in.
-; ::::::::::::::
-op_fnent:
-        vslot
-        mov     edi,[g_state.rn.cstk]
-        mov     eax,[VARBASE+ebx]
-        mov     [edi+F_OLD],eax
-        dpop    eax
-        mov     ecx,ebx
-        shr     ecx,2
-        test    [g_sinfo+ecx],1
-        jz      @fne_f
-        push    ebx
-        push    esi
-        call    flt_fix32
-        pop     esi
-        pop     ebx
-@fne_f:
-        mov     [VARBASE+ebx],eax
-        dispatch
-
-; ::::::::::::::
-; op_fnret - FN.RET id ( f -- f ): the parameter back, on after FN.CALL.
-; ::::::::::::::
-op_fnret:
-        vslot
-        mov     edi,[g_state.rn.cstk]
-        mov     eax,[edi+F_OLD]
-        mov     [VARBASE+ebx],eax
-        mov     dx,[edi+F_LN]
-        add     edi,M_FN
-        mov     [g_state.rn.cstk],edi
-        mov     ax,[edi-M_FN+F_IP]
-        ipfix
-        dispatch
 
 ; ::::::::::::::
 ; op_goto - GOTO, GOSUB num addr: addr is 0 until the jump first runs.

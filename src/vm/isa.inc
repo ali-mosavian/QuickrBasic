@@ -111,10 +111,6 @@ oplist  macro   m
         m       I_TOA,bc_I_TOA,1,FX
         m       DROP,bc_DROP,1,FX
         m       CALL,op_call,2,0
-        m       FN_DEF,op_fndef,4,0
-        m       FN_CALL,op_fncall,3,FX
-        m       FN_ENTER,op_fnent,3,FV
-        m       FN_RET,op_fnret,3,0
         m       GOTO,op_goto,5,0
         m       GOSUB,op_gosub,5,0
         m       ON,op_on,0,0

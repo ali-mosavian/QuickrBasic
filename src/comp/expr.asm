@@ -496,7 +496,7 @@ cm_lval:
         ret
 
 ; ::::::::::::::
-; cm_load - a variable's value: X.LD.V id, a DEF FN's call, or the
+; cm_load - a variable's value: X.LD.V id, a FUNCTION's or DEF FN's call, or the
 ; subscripts and X.LD.A1 id, X.LD.A id n.
 ;
 ; in:     SI  at M_VAR
@@ -507,7 +507,7 @@ cm_load:
         jne     @cld_v
         movzx   ecx,byte ptr [esi+1]    ; a FUNCTION's name: its call, but
         movzx   eax,word ptr [esi+ecx+2]        ; its result in it
-        test    [g_nflag+eax],NM_FUNC
+        test    [g_nflag+eax],NM_FUNC+NM_FN
         jz      @cld_v
         movzx   edx,[g_nprc+eax]
         test    edx,edx
@@ -535,8 +535,6 @@ cm_load:
         jmp     cm_opid
 @@:
         and     dl,43h
-        cmp     dl,3
-        je      @cld_fn
         cmp     dl,1
         je      @cld_i
         ja      @cld_s
@@ -553,13 +551,6 @@ cm_load:
 @cld_s:
         mov     [g_state.cm.cty],T_STR
         mov     al,O_S_LD_V
-        jmp     cm_opid
-@cld_fn:
-        push    ebx                     ; DEF FN's: ( expr ), FN.CALL
-        call    cm_paren
-        call    cm_tof
-        pop     ecx
-        mov     al,O_FN_CALL
         jmp     cm_opid
 @cld_a:
         push    ebx
@@ -1341,7 +1332,7 @@ g_vakind dd     ?
         .data
 g_cmact dd      cm_expr,cm_lval,cm_lnum,cm_tob,cm_toa,cm_tos,cm_str1,cm_fv
         dd      cm_fst,cm_fork,cm_for,cm_for1,cm_nv,cm_if,cm_on,cm_onl
-        dd      cm_print,cm_def,cm_list,cm_dv,cm_dat,cm_rem,cm_store,cm_in
+        dd      cm_print,cm_list,cm_dv,cm_dat,cm_rem,cm_store,cm_in
         dd      cm_rd,cm_get,cm_goto,cm_gosub,cm_run,cm_res,cm_ret,cm_n0
         dd      cm_n1,cm_narg,cm_fop,cm_swap,cm_toi,cm_tod,cm_va,cm_write
         dd      cm_lin
