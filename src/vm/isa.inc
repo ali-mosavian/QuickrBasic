@@ -345,6 +345,8 @@ qbklist macro   m
         m       SHELL0,sc_shell0
         m       EVST,sc_evst
         m       KEYDEF,sc_keydef
+        m       CMN,sc_cmn
+        m       CHAIN,sc_chain
         m       USF,sc_usf
         m       USD,sc_usd
         m       USS,sc_uss

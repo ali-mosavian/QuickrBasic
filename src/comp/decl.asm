@@ -208,6 +208,11 @@ dc_line:
         je      @dcl_typ
         cmp     al,M_VAR
         je      @dcl_fld
+        cmp     al,TK_X
+        jne     @F
+        cmp     byte ptr [esi+1],TK1_COMMON
+        je      @dcl_cmn
+@@:
         sub     al,TK_DEFINT
         cmp     al,TK_DEFSTR-TK_DEFINT
         jbe     @dcl_def
@@ -436,6 +441,25 @@ dc_line:
         jne     @dcl_n
         inc     esi
         jmp     @dcd_l
+
+@dcl_cmn:                               ; COMMON [SHARED] [/b/]: as DIM's
+        add     esi,2
+        xor     ecx,ecx
+        cmp     byte ptr [esi],TK_SHARED
+        jne     @F
+        inc     esi
+        mov     cl,NM_SHR
+@@:
+        cmp     byte ptr [esi],TK_DIV
+        jne     @dcm_l
+        cmp     byte ptr [esi+1],M_VAR
+        jne     @dcl_n
+        movzx   eax,byte ptr [esi+2]
+        lea     esi,[esi+eax+5]
+        cmp     byte ptr [esi],TK_DIV
+        jne     @dcl_n
+        inc     esi
+        jmp     @dcm_l
 
 @dcl_dim:                               ; DIM [SHARED] n[( )] [AS type] {, ..}
         inc     esi

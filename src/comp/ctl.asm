@@ -424,6 +424,8 @@ ct_evs:
 ; ::::::::::::::
 ct_xst:
         mov     al,[esi+1]
+        cmp     al,TK1_COMMON
+        je      ct_common
         cmp     al,TK1_RESUME
         jne     ct_evs
         add     esi,2
@@ -453,6 +455,92 @@ ct_xst:
         ret
 @coe_s:
         stc
+        ret
+
+; ::::::::::::::
+; ct_common - COMMON [SHARED] [/block/] v[()] [AS type] {, ..}: each
+; variable's id, CALL CMN. decl.asm takes the types.
+; ::::::::::::::
+ct_common:
+        add     esi,2
+        call    st_get
+        cmp     al,TK_SHARED
+        jne     @F
+        inc     esi
+@@:
+        call    st_get
+        cmp     al,TK_DIV
+        jne     @ccm_v
+        inc     esi
+        call    st_get
+        cmp     al,M_VAR
+        jne     err_sn
+        call    cm_skvar
+        call    st_get
+        cmp     al,TK_DIV
+        jne     err_sn
+        inc     esi
+@ccm_v:
+        call    cm_name
+        call    st_get
+        cmp     al,'('
+        jne     @F
+        inc     esi
+        call    st_get
+        cmp     al,')'
+        jne     err_sn
+        inc     esi
+@@:
+        call    cm_skas
+        mov     eax,ebx
+        call    cm_lint
+        mov     al,K_CMN
+        call    cm_call
+        call    st_get
+        cmp     al,','
+        jne     @F
+        inc     esi
+        jmp     @ccm_v
+@@:
+        clc
+        ret
+
+; ::::::::::::::
+; cm_skvar - past the M_VAR at SI.
+; ::::::::::::::
+cm_skvar:
+        push    ecx
+        movzx   ecx,byte ptr [esi+1]
+        lea     esi,[esi+ecx+4]
+        pop     ecx
+        ret
+
+; ::::::::::::::
+; cm_skas - past AS type [* n], if there.
+; ::::::::::::::
+cm_skas:
+        call    st_get
+        cmp     al,TK_AS
+        jne     @csa_r
+        inc     esi
+        call    st_get
+        cmp     al,M_VAR
+        je      cm_skvar
+        cmp     al,TK_X
+        jne     @F
+        add     esi,2
+        ret
+@@:
+        inc     esi
+        call    st_get
+        cmp     al,TK_MUL
+        jne     @csa_r
+        inc     esi
+        call    st_get
+        cmp     al,M_INT
+        jne     err_sn
+        add     esi,5
+@csa_r:
         ret
 
 ; ::::::::::::::

@@ -207,6 +207,11 @@ CASES = {
                   't0 = TIMER: DO: LOOP UNTIL k OR TIMER - t0 > 2\r\nPRINT "key"; k; INKEY$ = ""\r\nEND\r\n'
                   'tk: n = n + 1: RETURN\r\nf1: k = k + 1: RETURN\r\n',
                   "n 2 \r\noff 2 \r\nstop 2 \r\non 3 \r\nkey 1 -1 \r\n", "ERROR"),
+    # CHAIN and COMMON were syntax errors. COMMON's values pass by position to CHAIN's file (FILES'
+    # QB_CH2.BAS), arrays with their bounds; files stay open; a missing file is File not found.
+    "qb_chain": ('COMMON a%, s$, d#, x(), t AS SHORT\r\nDIM x(1 TO 3)\r\na% = 7: s$ = "hi": d# = 1.25: x(3) = 9: t = -2\r\n'
+                 'OPEN "QB_CH.TXT" FOR OUTPUT AS #1\r\nPRINT "a"\r\nCHAIN "QB_CH2"\r\nPRINT "no"\r\n',
+                 "a\r\n 7 hi 1.25  9  1 -2  0 \r\ne 53 \r\n", "no"),
     # Unhandled: ERROR n's message; RESUME with no error; ON ERROR GOTO 0 in the handler.
     # A full stack was ?OUT OF MEMORY, which ON ERROR trapped; BC's is Out of stack space, not
     # trapped, its line, module and address after.
@@ -389,6 +394,12 @@ REPL = {
 }
 
 
+# Companions the cases read, beside them.
+FILES = {
+    "QB_CH2.BAS": b'COMMON b%, q$, e#, y(), u AS SHORT\r\nPRINT b%; q$; e#; y(3); LBOUND(y); u; t\r\n'
+                  b'PRINT #1, "kept": CLOSE #1\r\nON ERROR GOTO h\r\nCHAIN "NONE"\r\nEND\r\nh: PRINT "e"; ERR: RESUME NEXT\r\n',
+}
+
 # A forbidden "ERROR": any error's message at a line's start.
 MSGS = x86run.messages()
 
@@ -400,7 +411,7 @@ def forbidden(forbid: str, out: str) -> bool:
 
 def main() -> None:
     tmp = Path(tempfile.mkdtemp())
-    batches = [dict(jobs=b, limit_ms=10000, file=True) for b in x86run.split({k: v[0] for k, v in CASES.items()})]
+    batches = [dict(jobs=b, limit_ms=10000, file=True, files=FILES) for b in x86run.split({k: v[0] for k, v in CASES.items()})]
     batches += [dict(jobs={k: v[0] for k, v in REPL.items()}, limit_ms=10000),
                 dict(jobs={k: v[0] for k, v in WARN.items()}, limit_ms=10000, file=True),
                 dict(jobs={k: v[0] for k, v in BIG.items()}, limit_ms=10000, file=True, mem=8)]

@@ -361,6 +361,18 @@ rpl_file:
         sub     ecx,offset g_fnmb
         jz      @rfl_r
         mov     byte ptr [edi],0
+        call    rpl_load
+        call    prg_drop
+        call    cm_link
+        jmp     ex_runfirst
+
+; ::::::::::::::
+; rpl_load - enter the lines of the file fnmb names, its includes' in place;
+; then the console's again.
+;
+; error:  as ch_open
+; ::::::::::::::
+rpl_load:
         mov     esi,offset g_fnmb       ; file 255, read
         mov     eax,255
         mov     dl,FM_IN
@@ -405,12 +417,12 @@ rpl_file:
         add     eax,255
         ret
 @rfl_d:
-        call    ch_clall
+        mov     eax,255
+        call    ch_find
+        call    ch_close
+        call    ch_clr
         mov     [g_state.io.lmode],0
         and     [g_state.io.fline],0
-        call    prg_drop
-        call    cm_link
-        jmp     ex_runfirst
 @rfl_r:
         ret
 

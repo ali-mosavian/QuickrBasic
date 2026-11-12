@@ -76,6 +76,7 @@ externdef op_ret:near
 externdef op_size:near
 ; vm/calls.asm
 externdef ex_runfirst:near
+externdef ex_rungo:near
 externdef g_relbit:byte
 externdef rd_first:near
 externdef sc_clr:near
@@ -463,6 +464,7 @@ externdef str_getd:near
 externdef str_item:near
 externdef str_near:near
 externdef str_new:near
+externdef str_own:near
 externdef str_print:near
 externdef str_push:near
 externdef str_set:near
@@ -473,6 +475,7 @@ externdef str_tods:near
 ; mem/arr.asm
 externdef arr_bs:near
 externdef arr_dim:near
+externdef arr_esz:near
 externdef arr_free:near
 externdef arr_keep:near
 externdef arr_new:near
@@ -523,7 +526,9 @@ externdef err_sn:near
 externdef err_st:near
 externdef err_tm:near
 externdef err_us:near
+externdef g_fnmb:byte
 externdef rpl_file:near
+externdef rpl_load:near
 externdef rpl_ready:near
 ; io/chan.asm
 externdef ch_clall:near
@@ -699,6 +704,10 @@ externdef ev_tick:near
 externdef op_onev:near
 externdef sc_evst:near
 externdef sc_keydef:near
+; vm/chain.asm
+externdef chn_start:near
+externdef sc_chain:near
+externdef sc_cmn:near
 ; regions.asm
 externdef g_bss_e:byte
 externdef g_cachb:byte

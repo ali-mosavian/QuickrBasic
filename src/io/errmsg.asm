@@ -54,8 +54,8 @@ er_text:
         .data
 ; ERR by E_*: 0 none; FFh not trapped, Out of stack space.
 g_qberr db      0,0,2,3,4,5,7,8,9,10,11,13,17,0,6,1,16,15,12,0,0,0,0
-        db      67,55,52,53,68,54,54,64,52,0,13,18,0,0FFh
-.erre ($ - g_qberr) EQ E_OS+1
+        db      67,55,52,53,68,54,54,64,52,0,13,18,0,0FFh,73
+.erre ($ - g_qberr) EQ E_AF+1
 g_qbmsg db      1,"NEXT without FOR",0
         db      2,"Syntax error",0
         db      3,"RETURN without GOSUB",0

@@ -252,6 +252,7 @@ GRAMMAR: dict[str, str] = {
     "TIME$": "= e tos !STIME",
     "ENVIRON": "e tos !ENVSET",
     "SHELL": "( $ !SHELL0 | e tos !SHELL )",
+    "CHAIN": "e tos !CHAIN",
 }
 EOS = (0, ord(":"))
 
