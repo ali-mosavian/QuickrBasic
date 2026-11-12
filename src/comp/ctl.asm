@@ -529,7 +529,7 @@ rc_ref:
         lea     edx,[esi+ecx+4]         ; past the name
         cmp     byte ptr [edx],'('
         jne     @rrf_s
-        movzx   ecx,[g_narec+eax]       ; a(i)
+        call    rc_nreca                ; a(i)
         test    ecx,ecx
         jz      @rrf_n
         push    ecx
@@ -556,7 +556,7 @@ rc_ref:
         clc
         ret
 @rrf_s:
-        movzx   ecx,[g_nrec+eax]        ; r
+        call    rc_nrec                 ; r
         jecxz   @rrf_d
         mov     esi,edx
         call    rc_saddr
@@ -578,12 +578,16 @@ rc_ref:
         pop     edx
         pop     ecx
         pop     ebx
-        cmp     [g_nrec+eax],0
+        push    ecx
+        call    rc_nrec
+        mov     [g_rfnt],ecx
+        pop     ecx
+        cmp     [g_rfnt],0
         je      @rrf_l
         push    edx
         push    esi
         push    ecx
-        movzx   ecx,[g_nrec+eax]
+        mov     ecx,[g_rfnt]
         call    rc_saddr
         pop     eax                     ; the dot
         pop     esi
@@ -597,6 +601,51 @@ rc_ref:
         ret
 @rrf_n:
         stc
+        ret
+
+; ::::::::::::::
+; rc_nrec, rc_nreca - the TYPE of record name EAX, of its array; 0 none: a
+; parameter's of the procedure compiled is its own (var_par), else as DIM
+; declared the name.
+;
+; out:    ECX  the TYPE
+; keeps:  all else
+; ::::::::::::::
+rc_nrec:
+        push    ebx                     ; EBX: 0 a record, 1 its array
+        xor     ebx,ebx
+        jmp     @rnr_g
+rc_nreca:
+        push    ebx
+        mov     ebx,1
+@rnr_g:
+        push    edx
+        push    eax
+        mov     dl,80h                  ; a record parameter, either kind
+        call    var_par
+        jc      @rnr_p
+        test    ebx,ebx
+        jnz     @rnr_d
+        xor     dl,dl                   ; a parameter, not a record
+        call    var_par
+        mov     ecx,0
+        jc      @rnr_r
+@rnr_d:
+        mov     eax,[esp]
+        movzx   ecx,[g_nrec+eax]
+        test    ebx,ebx
+        jz      @rnr_r
+        movzx   ecx,[g_narec+eax]
+        jmp     @rnr_r
+@rnr_p:
+        movzx   ecx,[g_vtyp+eax]
+        sub     ecx,ET_REC
+        jae     @rnr_r
+        xor     ecx,ecx
+@rnr_r:
+        pop     eax
+        pop     edx
+        pop     ebx
         ret
 
 ; ::::::::::::::
@@ -991,20 +1040,43 @@ ct_arg:
 @car_n:
         mov     eax,0FFFFh
         jmp     cm_lint
-@car_a:
-        call    st_get
+@car_a:                                 ; an array n(), a record array's, or
+        call    st_get                  ; a record n, by its id
         cmp     al,M_VAR
         jne     err_sn
+        movzx   ecx,byte ptr [esi+1]
+        movzx   eax,word ptr [esi+ecx+2]
+        cmp     byte ptr [esi+ecx+4],'('
+        jne     @car_r
+        movzx   ebx,[g_narec+eax]
+        test    ebx,ebx
+        jnz     @F
         call    var_id
+        jmp     @car_k
+@@:
+        lea     esi,[esi+ecx+4]
+        mov     ecx,ebx
+        call    rc_avar
+@car_k:
         test    [g_sinfo+ebx],80h
         jz      err_sn
         push    ebx
         call    cm_chkop
         call    cm_chkcl
         pop     eax
+@car_o:
         call    cm_lint
         mov     eax,0FFFFh
         jmp     cm_lint
+@car_r:
+        movzx   ebx,[g_nrec+eax]
+        test    ebx,ebx
+        jz      err_sn
+        lea     esi,[esi+ecx+4]
+        mov     ecx,ebx
+        call    rc_svar
+        mov     eax,ebx
+        jmp     @car_o
 
 ; ::::::::::::::
 ; ct_bif - a block IF's test: JF to its next clause.
@@ -1625,6 +1697,7 @@ g_ctnm  db      "#0"                    ; a SELECT's value: its name
 g_ctvr  dw      ?                       ; that variable
 g_cbyv  db      ?                       ; ct_args: every argument by value
 g_cttp  db      ?                       ; its type
+g_rfnt  dd      ?                       ; rc_ref's: a prefix's TYPE
 g_rfet  db      ?                       ; rc_ref's field: ET_*, its offset, n
 g_rfoff dw      ?
 g_rffix dw      ?

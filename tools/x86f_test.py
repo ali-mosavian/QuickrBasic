@@ -269,6 +269,18 @@ CASES = {
                     '  IF n% <= 1 THEN FNfact# = 1: EXIT DEF\r\n  FNfact# = n% * FNfact#(n% - 1)\r\nEND DEF\r\n'
                     'x = 7: n% = 3: PRINT FNadd%(2, 5); FNup$("ab"); FNy(1); FNfact#(10); x; n%\r\n',
                     " 7 AB! 11  3628800  7  3 \r\n", "ERROR"),
+    # Parameters' AS types were one table by name: the last procedure's n AS DOUBLE made Half's
+    # n AS SINGLE another variable; Half(4) gave 0.
+    "qb_par_type": ('DECLARE FUNCTION Half! (n AS SINGLE)\r\nDECLARE FUNCTION Dbl# (n AS DOUBLE)\r\n'
+                    'PRINT Half(4); Dbl(8)\r\nFUNCTION Half! (n AS SINGLE)\r\n  Half! = n / 2\r\nEND FUNCTION\r\n'
+                    'FUNCTION Dbl# (n AS DOUBLE)\r\n  Dbl# = n * 2\r\nEND FUNCTION\r\n', " 2  16 \r\n", "ERROR"),
+    # A TYPE's array parameter was a SINGLE array, another SUB's arr() AS LONG a record array
+    # (type mismatch); a record not yet used went in as no record, its fields set in a copy.
+    "qb_par_rec": ('TYPE C\r\n x AS LONG\r\n y AS LONG\r\nEND TYPE\r\nDIM n(1) AS LONG, p(1) AS C, q AS C\r\n'
+                   'CALL FN1(n()): CALL FP(p()): CALL G(q)\r\nPRINT n(1); p(1).y; q.x; q.y\r\n'
+                   'SUB FN1 (arr() AS LONG)\r\n  arr(1) = 8\r\nEND SUB\r\n'
+                   'SUB FP (arr() AS C)\r\n  arr(1).y = 4\r\nEND SUB\r\n'
+                   'SUB G (r AS C)\r\n  r.x = 5: r.y = r.x + 1\r\nEND SUB\r\n', " 8  4  5  6 \r\n", "ERROR"),
     # LEN of a number was a type mismatch.
     "qb_len_num": ('DIM d AS DOUBLE, i AS INTEGER\r\ns$ = "abc"\r\n'
                    'PRINT LEN(a%); LEN(b&); LEN(c!); LEN(e#); LEN(d); LEN(i); LEN(s$)\r\n',

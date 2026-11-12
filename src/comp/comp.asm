@@ -969,6 +969,8 @@ var_id:
         mov     cl,ET_SD
         cmp     bl,'$'
         je      @vid_k
+        call    var_par                 ; no suffix: a parameter's own type
+        jc      @vid_p
         movzx   ecx,[g_ntyp+eax]
         test    dl,80h
         jz      @F
@@ -980,10 +982,65 @@ var_id:
         upcase  ecx
         movzx   ecx,[g_deft+ecx-'A']
 @vid_k:
+        cmp     ecx,ET_REC
+        jae     @vid_r
         or      dl,[g_etk+ecx]
+@vid_g:
         call    var_scope
         call    var_find
+@vid_p:
         mov     ebx,eax
+        ret
+@vid_r:                                 ; a record: rc_svar's, rc_avar's kind
+        test    dl,dl
+        jnz     @vid_g
+        mov     dl,81h
+        jmp     @vid_g
+
+; ::::::::::::::
+; var_par - name AX, an array when DL has 80h: a parameter of the procedure
+; compiled, as its line declared it. The AS types of every procedure's
+; parameters share one table by name (dc_line); this one is its own.
+;
+; out:    CF   set: EAX its variable
+; keeps:  all else
+; ::::::::::::::
+var_par:
+        push    ecx
+        movzx   ecx,[g_state.cm.cproc]
+        jecxz   @vpr_n
+        push    ebx
+        push    esi
+        push    edx
+        shl     ecx,5
+        movzx   ebx,word ptr [g_prc+ecx+P_PAR]
+        movzx   ecx,word ptr [g_prc+ecx+P_NPAR]
+        jecxz   @vpr_x
+@vpr_l:
+        movzx   esi,word ptr [g_ppar+ebx*2]
+        cmp     ax,word ptr [g_vnam+esi*2]
+        jne     @vpr_c
+        mov     dh,[g_sinfo+esi]
+        xor     dh,dl
+        test    dh,80h
+        jnz     @vpr_c
+        mov     eax,esi
+        pop     edx
+        pop     esi
+        pop     ebx
+        pop     ecx
+        stc
+        ret
+@vpr_c:
+        inc     ebx
+        loop    @vpr_l
+@vpr_x:
+        pop     edx
+        pop     esi
+        pop     ebx
+@vpr_n:
+        pop     ecx
+        clc
         ret
 
 ; ::::::::::::::

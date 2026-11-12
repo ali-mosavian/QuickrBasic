@@ -34,6 +34,7 @@ externdef op_sldt:near
 externdef op_ssta1:near
 externdef op_sstan:near
 externdef op_sstv:near
+externdef rec_get:near
 ; vm/flow.asm
 externdef ex_dcode:near
 externdef ex_end:near
@@ -387,6 +388,7 @@ externdef lbl_nam:near
 externdef st_eos:near
 externdef st_get:near
 externdef var_id:near
+externdef var_par:near
 externdef var_scope:near
 ; comp/expr.asm
 externdef cm_expr:near

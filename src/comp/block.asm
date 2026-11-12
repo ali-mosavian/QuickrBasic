@@ -284,17 +284,17 @@ bk_stmt:
         add     esi,2
 @@:
         cmp     byte ptr [esi],TK_AS
-        jne     @F
+        jne     @bkp_v
         mov     cl,ET_SH
         cmp     word ptr [esi+1],TK_X+TK1_SHORT*256
-        je      @F
+        je      @bkp_v
         xor     ecx,ecx
         movzx   eax,byte ptr [esi+1]
         sub     al,TK_INTEGER
         cmp     al,TK_STRING-TK_INTEGER
-        ja      @F
+        ja      @bkp_t
         mov     cl,[g_dast+eax]
-@@:
+@bkp_v:
         mov     [g_vft],cl
         pop     esi
         call    var_id
@@ -328,6 +328,19 @@ bk_stmt:
 @bkp_n:
         inc     esi
         jmp     @bkp_l
+@bkp_t:                                 ; AS a TYPE: its record, its array,
+        mov     eax,[esp]               ; as dc_line entered the name
+        movzx   ecx,byte ptr [eax+1]
+        cmp     byte ptr [eax+ecx+4],'('
+        movzx   eax,word ptr [eax+ecx+2]
+        movzx   ecx,[g_nrec+eax]
+        jne     @F
+        movzx   ecx,[g_narec+eax]
+@@:
+        test    ecx,ecx
+        jz      @bkp_v
+        add     cl,ET_REC
+        jmp     @bkp_v
 @bkp_c:
         inc     esi
 @bkp_s:

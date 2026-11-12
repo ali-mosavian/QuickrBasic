@@ -999,6 +999,21 @@ op_pcall:
         loop    @pca_a
         jmp     @pca_s
 @pca_y:
+        cmp     dl,81h                  ; a record: made if not yet
+        jne     @F
+        push    ebx
+        push    ecx
+        push    edi
+        push    ebp
+        mov     ebx,eax
+        call    rec_get
+        mov     eax,edi
+        pop     ebp
+        pop     edi
+        pop     ecx
+        pop     ebx
+        jmp     @pca_v
+@@:
         mov     eax,[g_vt+eax*4]        ; an array: its header
         jmp     @pca_v
 @pca_t:

@@ -102,17 +102,29 @@ arr_pn:
 op_raddr:
         movzx   ebx,word ptr [esi]
         add     esi,2
+        call    rec_get
+        dpush   dword ptr [edi+AH_PTR]
+        dispatch
+
+; ::::::::::::::
+; rec_get - record EBX's header, the record made, zeroed, at its first use.
+;
+; out:    EDI  the header
+; keeps:  ESI, EBX
+; ::::::::::::::
+rec_get:
         mov     edi,[g_vt+ebx*4]
         test    edi,edi
-        jnz     @rad_g
+        jnz     @rcg_r
         mov     [g_state.mm.aid],bx
         mov     [g_state.rn.narr],1
         mov     word ptr [g_cntbuf],1
         and     word ptr [g_lbbuf],0
+        push    ebx
         call    arr_new
-@rad_g:
-        dpush   dword ptr [edi+AH_PTR]
-        dispatch
+        pop     ebx
+@rcg_r:
+        ret
 
 ; ::::::::::::::
 ; op_raddra - RA.ADDR id n ( i1..in -- a ): a record array's element.
