@@ -74,8 +74,8 @@ sym_init:
         mov     ecx,NPROC/2
         xor     eax,eax
         rep     stosd
-        mov     [g_state.lx.nshr],ax
         mov     [g_state.lx.dproc],ax
+        call    scp_init
         mov     [g_obase],al
         mov     [g_state.lx.ntyps],ax
         mov     [g_state.lx.nflds],ax
@@ -163,14 +163,7 @@ nam_find:
         mov     [g_nnext+ebx*2],cx
         mov     [g_nhead+eax*2],bx
         mov     [g_nflag+ebx],0
-        mov     [g_nline+ebx*2],0
-        mov     [g_ntyp+ebx],0
-        mov     [g_natyp+ebx],0
-        mov     [g_nfix+ebx*2],0
         mov     [g_ntype+ebx],0
-        mov     [g_nrec+ebx],0
-        mov     [g_narec+ebx],0
-        mov     [g_nafix+ebx*2],0
         mov     [g_nprc+ebx],0
         mov     edi,[g_nname+ebx*4]
         cmp     byte ptr [edi],2
@@ -281,11 +274,8 @@ g_plh   dw      NPROC dup(?)                ; a procedure's first local
 g_nprc  db      NNAM dup(?)                 ; a name's procedure, 0 none
 g_nname dd      NNAM dup(?)
 g_nnext dw      NNAM dup(?)
-g_nline dw      NNAM dup(?)
 g_nhead dw      HSIZE dup(?)
 g_nflag db      NNAM dup(?)
-g_ntyp  db      NNAM dup(?)                 ; a name's declared type, ET_*
-g_natyp db      NNAM dup(?)                 ; its array's
 g_deft  db      26 dup(?)                   ; DEFtype's, by first letter
         .code
 

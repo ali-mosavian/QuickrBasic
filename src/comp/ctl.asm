@@ -229,7 +229,7 @@ ct_erase:
         call    cm_name
         mov     [g_vfs],0
         movzx   eax,word ptr [g_vnam+ebx*2]
-        movzx   ecx,[g_narec+eax]       ; a record array: its own variable
+        call    scp_arec                 ; a record array: its own variable
         jecxz   @F
         call    rc_avar
 @@:
@@ -276,6 +276,9 @@ ct_onerr:
         cmp     al,TK_GOTO
         jne     err_sn
         inc     esi
+        mov     eax,[esp]
+        cmp     ah,O_ONERR              ; ON ERROR's handler: the module's
+        sete    [g_lmod]
         call    cm_lnum
         pop     eax
         mov     al,ah
@@ -295,6 +298,7 @@ ct_onerr:
         cmp     al,TK_GOSUB
         jne     err_sn
         inc     esi
+        mov     [g_lmod],1              ; an event's handler: the module's
         call    cm_lnum
         mov     al,O_ONEV
         call    cm_op
@@ -871,10 +875,15 @@ rc_nreca:
         jc      @rnr_r
 @rnr_d:
         mov     eax,[esp]
-        movzx   ecx,[g_nrec+eax]
+        push    edx
+        xor     edx,edx
         test    ebx,ebx
-        jz      @rnr_r
-        movzx   ecx,[g_narec+eax]
+        jz      @F
+        mov     dl,80h
+@@:
+        mov     ecx,B_REC
+        call    scp_decl
+        pop     edx
         jmp     @rnr_r
 @rnr_p:
         movzx   ecx,[g_vtyp+eax]
@@ -1292,7 +1301,10 @@ ct_arg:
         movzx   eax,word ptr [esi+ecx+2]
         cmp     byte ptr [esi+ecx+4],'('
         jne     @car_r
-        movzx   ebx,[g_narec+eax]
+        push    ecx
+        call    scp_arec
+        mov     ebx,ecx
+        pop     ecx
         test    ebx,ebx
         jnz     @F
         call    var_id
@@ -1313,7 +1325,14 @@ ct_arg:
         mov     eax,0FFFFh
         jmp     cm_lint
 @car_r:
-        movzx   ebx,[g_nrec+eax]
+        push    ecx
+        push    edx
+        xor     edx,edx
+        mov     ecx,B_REC
+        call    scp_decl
+        mov     ebx,ecx
+        pop     edx
+        pop     ecx
         test    ebx,ebx
         jz      err_sn
         lea     esi,[esi+ecx+4]

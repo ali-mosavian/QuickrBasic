@@ -256,7 +256,10 @@ bk_stmt:
         mov     [edi+P_NAM],ax
         mov     cl,byte ptr [g_state.lnk.cprc]
         mov     [g_nprc+eax],cl
-        mov     [g_state.cm.cproc],cl
+        push    eax
+        movzx   eax,cl
+        call    scp_proc
+        pop     eax
         cmp     dl,PK_FUNC
         jne     @bkp_p
         push    esi
@@ -334,10 +337,14 @@ bk_stmt:
         movzx   ecx,byte ptr [eax+1]
         cmp     byte ptr [eax+ecx+4],'('
         movzx   eax,word ptr [eax+ecx+2]
-        movzx   ecx,[g_nrec+eax]
-        jne     @F
-        movzx   ecx,[g_narec+eax]
-@@:
+        mov     ecx,B_REC               ; a scalar's, an array's
+        push    edx
+        setz    dl
+        dec     dl
+        not     dl
+        and     dl,80h
+        call    scp_decl
+        pop     edx
         test    ecx,ecx
         jz      @bkp_v
         add     cl,ET_REC
@@ -363,7 +370,10 @@ bk_stmt:
         mov     [edi+P_SKIP],eax
         and     [g_state.lnk.cprc],0
 @bkp_x:
-        mov     [g_state.cm.cproc],0
+        push    eax
+        xor     eax,eax
+        call    scp_proc
+        pop     eax
         pop     ebp
         pop     esi
         ret
@@ -809,7 +819,8 @@ bk_proc:
         ja      @bpr_l
         mov     edx,ecx
 @bpr_r:
-        mov     [g_state.cm.cproc],dl
+        movzx   eax,dl
+        call    scp_proc
         pop     edx
         pop     ecx
         pop     eax

@@ -596,10 +596,16 @@ rpl_enter:
 @ren_a:
         call    lbl_at
         jne     @ren_b
-        call    lbl_nam                 ; the label: its name's line
-        or      [g_nflag+eax],NM_LBL
-        mov     bx,[g_state.mm.pend]
-        mov     [g_nline+eax*2],bx
+        call    lbl_nam                 ; the label: its line, in the scope
+        or      [g_nflag+eax],NM_LBL    ; being entered
+        push    edi
+        mov     ebx,eax
+        mov     ax,[g_state.lx.dproc]
+        call    scp_bind
+        or      byte ptr [edi+B_FLG],BF_LBL
+        mov     ax,[g_state.mm.pend]
+        mov     [edi+B_LINE],ax
+        pop     edi
 @ren_b:
         mov     ecx,edi
         sub     ecx,esi

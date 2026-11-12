@@ -212,6 +212,14 @@ CASES = {
     "qb_chain": ('COMMON a%, s$, d#, x(), t AS SHORT\r\nDIM x(1 TO 3)\r\na% = 7: s$ = "hi": d# = 1.25: x(3) = 9: t = -2\r\n'
                  'OPEN "QB_CH.TXT" FOR OUTPUT AS #1\r\nPRINT "a"\r\nCHAIN "QB_CH2"\r\nPRINT "no"\r\n',
                  "a\r\n 7 hi 1.25  9  1 -2  0 \r\ne 53 \r\n", "no"),
+    # Declarations were by name, program-wide: a module's DIM AS typed a SUB's local, a SUB's DIM AS
+    # and CONST the module's and other SUBs' (Type mismatch; the module's k became 2), and a GOSUB
+    # took another procedure's label. Each scope is now its own, the module's seen when shared.
+    "qb_scopes": ('DECLARE SUB s ()\r\nDECLARE SUB t ()\r\nDIM a AS STRING: CONST k = 1\r\nDIM SHARED z: z = 7: y = 6\r\n'
+                  'a = "m": PRINT a\r\ns\r\nt\r\nb = 2: PRINT b; k; y\r\nGOSUB l\r\nEND\r\nl: PRINT "m": RETURN\r\n'
+                  'SUB s\r\nSHARED y\r\nCONST k = 2\r\nDIM b AS STRING\r\na = 5: b = "q": PRINT a; b; k; z\r\ny = 8\r\n'
+                  'GOSUB l\r\nEXIT SUB\r\nl: PRINT "s": RETURN\r\nEND SUB\r\nSUB t\r\nb = 4: PRINT b; y\r\nEND SUB\r\n',
+                  "m\r\n 5 q 2  7 \r\ns\r\n 4  0 \r\n 2  1  8 \r\nm\r\n", "ERROR"),
     # Unhandled: ERROR n's message; RESUME with no error; ON ERROR GOTO 0 in the handler.
     # A full stack was ?OUT OF MEMORY, which ON ERROR trapped; BC's is Out of stack space, not
     # trapped, its line, module and address after.

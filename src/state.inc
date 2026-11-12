@@ -62,7 +62,6 @@ TLEX     struc                   ; the tokenizer
     lxf     db      ?               ; the number is text
     nsyms   dw      ?               ; the next variable
     nnams   dw      ?               ; the next name
-    nshr    dw      ?               ; SHARED, STATIC names (g_shr)
     dproc   dw      ?               ; dc_line: the procedure being entered, its name
     ntyps   dw      ?               ; TYPEs (comp/decl.asm), the last's index
     nflds   dw      ?               ; their fields

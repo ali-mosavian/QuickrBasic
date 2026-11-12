@@ -1104,12 +1104,14 @@ cm_addr:
         mov     eax,VA_I2 shl 24 + 4
         jmp     @cak_r
 @cak_s:
-        movzx   ecx,word ptr [g_vnam+ebx*2]
-        movzx   eax,word ptr [g_nfix+ecx*2]
-        test    [g_sinfo+ebx],80h
-        jz      @F
-        movzx   eax,word ptr [g_nafix+ecx*2]
-@@:
+        movzx   eax,word ptr [g_vnam+ebx*2]
+        push    edx
+        mov     dl,[g_sinfo+ebx]
+        and     dl,80h
+        mov     ecx,B_FIX
+        call    scp_decl
+        pop     edx
+        mov     eax,ecx
         or      eax,VA_DESC shl 24
 @cak_r:
         mov     [g_vakind],eax

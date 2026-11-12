@@ -2,18 +2,21 @@
 ; decl.asm - a line's declarations, into the name table as it is entered
 ; ==========================================================================
 ; holds:    dc_line
-; uses:     g_ntyp, g_natyp, g_deft
+; uses:     scp_bind (mem/scope.asm), g_deft
 ; data:     As QBasic, a line's declarations go into the table when it is
 ;           entered, so lines compiled before it know them:
 ;           DEFtype a-b    deft, the type of a name with no suffix by its
 ;                          first letter
-;           DIM [SHARED] n[( )] AS type   ntyp, natyp: n's, n()'s type
-;           CONST n = e    ntyp: the value's type, when n has no suffix
+;           Each into the binding of its scope (dscope): the module's, or
+;           the procedure being entered's (dproc), there its own name.
+;           DIM [SHARED] n[( )] AS type   n's, n()'s type
+;           CONST n = e    the value's type, when n has no suffix
 ;           SUB, FUNCTION, DECLARE n (params)   nflag NM_SUB, NM_FUNC; the
-;                          parameters' AS types as DIM's; DEF FNn's too
-;           SHARED, STATIC n   g_shr: the procedure being entered (dproc), n
-;           DIM SHARED, a module's CONST   nflag NM_SHR
-;           AS STRING * n  nfix, nafix: n's, n()'s length
+;                          parameters' AS types as DIM's, in n's scope; DEF
+;                          FNn's too
+;           SHARED, STATIC n   BF_REF, BF_STAT in the procedure's
+;           DIM SHARED, a module's CONST   BF_SHR in the module's
+;           AS STRING * n  n's, n()'s length
 ;           OPTION BASE n  obase
 ;           A type is ET_*; 0 in ntyp, natyp is none declared. DEFtype holds
 ;           for the whole program, not from its line on.
@@ -322,12 +325,15 @@ dc_line:
         jne     @dcl_n
         call    dc_nam
         or      [g_nflag+ebx],dl
+        mov     [g_dscope],bx           ; the parameters: its own
         jmp     @dcp_p
-@dcl_dfn:                               ; DEF FNn (params): their types
-        inc     esi
+@dcl_dfn:                               ; DEF FNn (params): their types; its
+        inc     esi                     ; name its own
         cmp     byte ptr [esi],M_VAR
         jne     @dcl_n
         call    dc_nam
+        mov     [g_dscope],bx
+        call    dc_bind
         jmp     @dcp_p
 @dcl_sub:                               ; SUB n, FUNCTION n: in it from here
         mov     dl,NM_SUB
@@ -341,6 +347,7 @@ dc_line:
         call    dc_nam
         or      [g_nflag+ebx],dl
         mov     [g_state.lx.dproc],bx
+        mov     [g_dscope],bx
 @dcp_p:                                 ; ( [BYVAL] n[()] [AS type] {, ..} )
         cmp     byte ptr [esi],'('      ; as DIM's
         jne     @dcl_n
@@ -383,15 +390,11 @@ dc_line:
         cmp     byte ptr [esi],M_VAR
         jne     @dcl_n
         call    dc_nam
-        movzx   eax,[g_state.lx.nshr]
-        cmp     eax,NSHR
-        jae     @dch_s
-        inc     [g_state.lx.nshr]
-        lea     edi,[g_shr+eax*8]
         mov     ax,[g_state.lx.dproc]
-        mov     [edi],ax
-        mov     [edi+2],bx
-        mov     [edi+4],dl
+        call    scp_bind
+        mov     al,dl                   ; 1 BF_REF, 2 BF_STAT
+        add     al,al
+        or      [edi+B_FLG],al
 @dch_s:
         mov     al,[esi]                ; past ( ) and AS type
         test    al,al
@@ -444,11 +447,12 @@ dc_line:
 
 @dcl_cmn:                               ; COMMON [SHARED] [/b/]: as DIM's
         add     esi,2
+        and     [g_dscope],0
         xor     ecx,ecx
         cmp     byte ptr [esi],TK_SHARED
         jne     @F
         inc     esi
-        mov     cl,NM_SHR
+        mov     cl,BF_SHR
 @@:
         cmp     byte ptr [esi],TK_DIV
         jne     @dcm_l
@@ -462,26 +466,39 @@ dc_line:
         jmp     @dcm_l
 
 @dcl_dim:                               ; DIM [SHARED] n[( )] [AS type] {, ..}
+        cmp     byte ptr [esi],TK_REDIM
+        sete    [g_dredim]
         inc     esi
         xor     ecx,ecx
+        mov     ax,[g_state.lx.dproc]
         cmp     byte ptr [esi],TK_SHARED
-        jne     @dcm_l
+        jne     @F
         inc     esi
-        mov     cl,NM_SHR
+        mov     cl,BF_SHR
+        xor     eax,eax
+@@:
+        mov     [g_dscope],ax
 @dcm_l:
         cmp     byte ptr [esi],M_VAR
         jne     @dcl_n
         call    dc_nam
-        or      [g_nflag+ebx],cl
+        mov     ax,[g_dscope]
+        push    eax
+        call    dc_redim
+        call    dc_bind
+        or      [edi+B_FLG],cl
         push    ecx
         call    @dcm_1
         pop     ecx
+        pop     eax
+        mov     [g_dscope],ax
         jmp     @dcm_c
 @dcm_1:
-        mov     edi,offset g_ntyp
+        call    dc_bind
+        xor     edx,edx                 ; 1: the array's fields
         cmp     byte ptr [esi],'('
         jne     @dcm_a
-        mov     edi,offset g_natyp
+        inc     edx
         xor     ecx,ecx                 ; to the ')' that closes it
 @dcm_p:
         mov     al,[esi]
@@ -509,7 +526,7 @@ dc_line:
         cmp     byte ptr [esi+2],TK1_SHORT
         jne     @dcm_r
         add     esi,3
-        mov     byte ptr [edi+ebx],ET_SH
+        mov     byte ptr [edi+B_ET+edx],ET_SH
         ret
 @@:
         sub     al,TK_INTEGER
@@ -517,20 +534,14 @@ dc_line:
         ja      @dcm_r
         add     esi,2
         mov     al,[g_dast+eax]
-        mov     [edi+ebx],al
+        mov     [edi+B_ET+edx],al
         cmp     byte ptr [esi],TK_MUL   ; STRING * n
         jne     @dcm_r
         inc     esi
         cmp     byte ptr [esi],M_INT
         jne     @dcm_r
         mov     eax,[esi+1]
-        cmp     edi,offset g_ntyp
-        jne     @F
-        mov     [g_nfix+ebx*2],ax
-        jmp     @dcm_x
-@@:
-        mov     [g_nafix+ebx*2],ax
-@dcm_x:
+        mov     [edi+B_FIX+edx*2],ax
         call    dc_item
 @dcm_r:
         ret
@@ -540,12 +551,7 @@ dc_line:
         call    dc_nam
         movzx   eax,[g_ntype+ebx]
         pop     ebx
-        mov     edx,offset g_nrec
-        cmp     edi,offset g_ntyp
-        je      @F
-        mov     edx,offset g_narec
-@@:
-        mov     [edx+ebx],al
+        mov     [edi+B_REC+edx],al
         ret
 @dcm_c:
         cmp     byte ptr [esi],','
@@ -602,18 +608,65 @@ dc_line:
         call    dc_item
         jmp     @dcc_e
 @dcc_t:
-        cmp     [g_state.lx.dproc],0
-        jne     @F
-        or      [g_nflag+ebx],NM_SHR    ; the module's: every procedure's
+        mov     ax,[g_state.lx.dproc]
+        call    scp_bind
+        test    ax,ax
+        jnz     @F
+        or      byte ptr [edi+B_FLG],BF_SHR     ; the module's: every procedure's
 @@:
         test    ebp,ebp                 ; a suffix: its own type
         jnz     @dcc_c
-        mov     [g_ntyp+ebx],dl
+        mov     [edi+B_ET],dl
 @dcc_c:
         cmp     byte ptr [esi],','
         jne     @dcl_n
         inc     esi
         jmp     @dcc_l
+
+; ::::::::::::::
+; dc_redim - a procedure's REDIM of a name the module shares with it: the
+; module's array, not one of its own: dscope 0.
+;
+; keeps:  all
+; ::::::::::::::
+dc_redim:
+        cmp     [g_dredim],0
+        je      @drd_r
+        cmp     [g_dscope],0
+        je      @drd_r
+        push    eax
+        push    edi
+        mov     ax,[g_dscope]
+        call    scp_get
+        jc      @F
+        test    byte ptr [edi+B_FLG],BF_REF
+        jnz     @drd_m
+@@:
+        xor     eax,eax
+        call    scp_get
+        jc      @drd_x
+        test    byte ptr [edi+B_FLG],BF_SHR
+        jz      @drd_x
+@drd_m:
+        and     [g_dscope],0
+@drd_x:
+        pop     edi
+        pop     eax
+@drd_r:
+        ret
+
+; ::::::::::::::
+; dc_bind - name EBX's binding in dscope.
+;
+; out:    EDI  it
+; keeps:  all but EDI
+; ::::::::::::::
+dc_bind:
+        push    eax
+        mov     ax,[g_dscope]
+        call    scp_bind
+        pop     eax
+        ret
 
 ; ::::::::::::::
 ; dc_warn - on standard error, a warning for each DEF SEG, VARSEG, SSEG in
@@ -813,12 +866,9 @@ dc_next:
 g_typ   db      NTYPE*8 dup(?)          ; a TYPE: T_*
 g_fld   db      NFLD*8 dup(?)           ; a field: F_*
 g_ntype db      NNAM dup(?)             ; a name's TYPE, 0 none
-g_nrec  db      NNAM dup(?)             ; a name's record's TYPE, its array's
-g_narec db      NNAM dup(?)
-g_nfix  dw      NNAM dup(?)             ; a name's STRING * n, its array's
-g_nafix dw      NNAM dup(?)
 g_obase db      ?                       ; OPTION BASE
-g_shr   db      NSHR*8 dup(?)           ; SHARED, STATIC: proc name:2, name:2, 1|2
+g_dscope dw     ?                       ; the scope declarations go to
+g_dredim db     ?                       ; @dcl_dim: a REDIM
         .data
 g_dett  db      ET_I2,ET_I4,ET_R4,ET_R8,ET_SD   ; DEFINT .. DEFSTR
 g_dast  db      ET_I2,ET_I4,ET_R4,ET_R8,ET_SD   ; AS INTEGER .. AS STRING

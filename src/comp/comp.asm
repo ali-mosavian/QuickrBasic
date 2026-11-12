@@ -28,7 +28,10 @@ include x86f.inc
 ; ::::::::::::::
 cm_line:
         mov     [g_state.cm.cline],DLINE
-        mov     [g_state.cm.cproc],0
+        push    eax
+        xor     eax,eax
+        call    scp_proc
+        pop     eax
         mov     eax,[g_state.mm.dslin]
         mov     [g_state.cm.ctxlin],eax
         mov     [g_state.cm.cxb],offset g_xbuf
@@ -424,12 +427,15 @@ cm_store:
 @cst_s:
         call    cm_tos
         movzx   ecx,[g_state.cm.ctv]    ; a STRING * n: n chars
-        movzx   ecx,word ptr [g_vnam+ecx*2]
-        movzx   eax,word ptr [g_nfix+ecx*2]
+        movzx   eax,word ptr [g_vnam+ecx*2]
+        xor     edx,edx
         cmp     [g_state.cm.ctn],0
         je      @F
-        movzx   eax,word ptr [g_nafix+ecx*2]
+        mov     dl,80h
 @@:
+        mov     ecx,B_FIX
+        call    scp_decl
+        mov     eax,ecx
         test    eax,eax
         jz      @F
         call    cm_lint
@@ -982,11 +988,8 @@ var_id:
         je      @vid_k
         call    var_par                 ; no suffix: a parameter's own type
         jc      @vid_p
-        movzx   ecx,[g_ntyp+eax]
-        test    dl,80h
-        jz      @F
-        movzx   ecx,[g_natyp+eax]
-@@:
+        mov     ecx,B_ET
+        call    scp_decl
         test    ecx,ecx
         jnz     @vid_k
         movzx   ecx,bh
@@ -1055,10 +1058,9 @@ var_par:
         ret
 
 ; ::::::::::::::
-; var_scope - the scope of name AX in the procedure compiled: its own, but a
-; name DIM SHARED, CONST, a label or SHARED in it; STATIC in it, or every
-; one of a STATIC procedure, not a local. In a DEF FN only its parameters
-; and its result are its own.
+; var_scope - the scope of name AX in the procedure compiled, as scp_look
+; finds it; a label's the module's. STATIC in it, or every one of a STATIC
+; procedure, not a local.
 ;
 ; out:    cscope, cstat
 ; keeps:  all
@@ -1067,6 +1069,7 @@ var_scope:
         push    eax
         push    ebx
         push    ecx
+        push    edi
         mov     [g_state.cm.cstat],0
         movzx   ecx,[g_state.cm.cproc]
         mov     [g_state.cm.cscope],cl
@@ -1074,60 +1077,26 @@ var_scope:
         movzx   eax,ax
         test    [g_nflag+eax],NM_LBL
         jnz     @vsc_m
-        shl     ecx,5
-        test    byte ptr [g_prc+ecx+P_FLAG],PF_DEF
-        jnz     @vsc_f
-        mov     bx,word ptr [g_prc+ecx+P_NAM]
-        movzx   ecx,[g_state.lx.nshr]   ; SHARED or STATIC in it
-        jecxz   @vsc_d
-        push    esi
-        mov     esi,offset g_shr
-@vsc_l:
-        cmp     bx,[esi]
-        jne     @vsc_n
-        cmp     ax,[esi+2]
-        jne     @vsc_n
-        cmp     byte ptr [esi+4],1
-        pop     esi
-        jne     @vsc_s
-@vsc_m:
-        mov     [g_state.cm.cscope],0   ; the module's
-        jmp     @vsc_r
-@vsc_s:
-        mov     [g_state.cm.cstat],1    ; STATIC
-        jmp     @vsc_r
-@vsc_n:
-        add     esi,8
-        loop    @vsc_l
-        pop     esi
-@vsc_d:
-        test    [g_nflag+eax],NM_SHR
-        jnz     @vsc_m
-        movzx   ecx,[g_state.cm.cproc]
+        mov     ebx,eax
+        call    scp_look
+        test    eax,eax
+        jz      @vsc_m
+        test    byte ptr [edi+B_FLG],BF_STAT
+        jnz     @vsc_s
         shl     ecx,5
         test    byte ptr [g_prc+ecx+P_FLAG],PF_STAT
         jz      @vsc_r
-        mov     [g_state.cm.cstat],1
+@vsc_s:
+        mov     [g_state.cm.cstat],1    ; STATIC
+        jmp     @vsc_r
+@vsc_m:
+        mov     [g_state.cm.cscope],0   ; the module's
 @vsc_r:
+        pop     edi
         pop     ecx
         pop     ebx
         pop     eax
         ret
-@vsc_f:                                 ; a DEF FN: its name, a parameter's
-        cmp     ax,word ptr [g_prc+ecx+P_NAM]
-        je      @vsc_r
-        movzx   ebx,word ptr [g_prc+ecx+P_PAR]
-        movzx   ecx,word ptr [g_prc+ecx+P_NPAR]
-        jecxz   @vsc_m
-@@:
-        push    ecx
-        movzx   ecx,word ptr [g_ppar+ebx*2]
-        cmp     ax,word ptr [g_vnam+ecx*2]
-        pop     ecx
-        je      @vsc_r
-        inc     ebx
-        loop    @B
-        jmp     @vsc_m
 
         .data
 g_etk   db      0,1,1,0,SK_DBL,2,1      ; ET_* to the kind: FLOAT, INT, STRING, DOUBLE
@@ -1191,12 +1160,17 @@ cm_dat:
 cm_rem:
         jmp     cm_fin
 
+        .data
+g_lmod  db      0                       ; cm_lnum: a label of the module's
+        .code
+
 ; ::::::::::::::
 ; cm_lnum - a line number, M_INT, or a label; none there is 0.
 ;
 ; in:     SI  at it, or spaces before it
 ; out:    wv  the number, NONUM for a label
-;         wa  a label's line, 0 when it has none
+;         wa  a label's line, 0 when it has none: the scope's own, the
+;             module's when lmod (cleared)
 ;         SI  after it
 ;         AL  the byte there
 ; error:  ?SYNTAX ERROR  64000 and over
@@ -1208,6 +1182,7 @@ cm_lnum:
         je      @cml_v
         cmp     al,M_INT
         jne     @cml_z
+        mov     [g_lmod],0
         mov     eax,[esi+1]
         mov     [g_state.cm.wv],ax
         add     esi,5
@@ -1215,15 +1190,27 @@ cm_lnum:
         jae     err_sn
         jmp     st_get
 @cml_z:
+        mov     [g_lmod],0
         and     [g_state.cm.wv],0
         ret
-@cml_v:
-        call    lbl_nam
-        test    [g_nflag+eax],NM_LBL
+@cml_v:                                 ; a label: the scope's own, or the
+        call    lbl_nam                 ; module's (lmod)
+        push    edi
+        mov     ebx,eax
+        xor     eax,eax
+        cmp     [g_lmod],0
+        jne     @F
+        call    scp_own
+@@:
+        mov     [g_lmod],0
+        call    scp_get
+        jc      @F
+        test    byte ptr [edi+B_FLG],BF_LBL
         jz      @F
-        mov     ax,[g_nline+eax*2]
+        mov     ax,[edi+B_LINE]
         mov     [g_state.cm.wa],ax
 @@:
+        pop     edi
         mov     [g_state.cm.wv],NONUM
         movzx   ebx,byte ptr [esi+1]
         lea     esi,[esi+ebx+4]
@@ -1334,7 +1321,7 @@ cm_dv:
         cmp     byte ptr [esi],'('
         jne     @cdv_as                 ; a scalar: var_id made it
         movzx   eax,word ptr [g_vnam+ebx*2]
-        movzx   ecx,[g_narec+eax]       ; a record array: its own variable
+        call    scp_arec                 ; a record array: its own variable
         jecxz   @F
         call    rc_avar
 @@:
@@ -1377,7 +1364,14 @@ cm_dim1:
         call    cm_dvas
         pop     ecx
         movzx   eax,word ptr [g_vnam+ecx*2]
-        movzx   eax,word ptr [g_nfix+eax*2]
+        push    ecx
+        push    edx
+        xor     edx,edx
+        mov     ecx,B_FIX
+        call    scp_decl
+        mov     eax,ecx
+        pop     edx
+        pop     ecx
         test    eax,eax
         jz      cm_rts
         test    [g_sinfo+ecx],80h
