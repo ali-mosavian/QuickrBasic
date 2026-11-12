@@ -136,6 +136,10 @@ oplist  macro   m
         m       FSKIP,op_jmp,7,0
         m       PCALL,op_pcall,8,0
         m       PRET,op_pret,1,0
+        m       I_MOD,bc_I_MOD,1,FX
+        m       I_XOR,bc_I_XOR,1,FX
+        m       I_EQV,bc_I_EQV,1,FX
+        m       I_IMP,bc_I_IMP,1,FX
         endm
 
 JSIZE   = 7                     ; a jump op: target line:2 boff:1 mode:1, addr:2
@@ -208,4 +212,18 @@ K_IST   = 46
 K_FN    = 47                    ; SGN .. MID$ by token, then MID$ of two
 K_LEFT  = K_FN+TK_MID-TK_SGN-2
 K_MID2  = K_FN+TK_MID-TK_SGN+1
-K_N     = K_MID2+1
+K_FIX   = K_MID2+1              ; QBasic's functions (comp/expr.asm, g_xfn)
+K_INSTR = K_FIX+1
+K_LBND  = K_FIX+2
+K_UBND  = K_FIX+3
+K_SPACE = K_FIX+4
+K_STRG  = K_FIX+5
+K_LTRIM = K_FIX+6
+K_RTRIM = K_FIX+7
+K_UCASE = K_FIX+8
+K_LCASE = K_FIX+9
+K_HEX   = K_FIX+10
+K_OCT   = K_FIX+11
+K_SFIX  = K_FIX+12
+K_MIDS  = K_FIX+13
+K_N     = K_FIX+14

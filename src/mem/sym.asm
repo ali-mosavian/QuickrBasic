@@ -75,6 +75,10 @@ sym_init:
         rep     stosd
         mov     [g_state.lx.nshr],ax
         mov     [g_state.lx.dproc],ax
+        mov     [g_obase],al
+        mov     [g_state.lx.ntyps],ax
+        mov     [g_state.lx.nflds],ax
+        mov     [g_state.lx.dtype],ax
         ret
 
 ; ::::::::::::::
@@ -161,6 +165,11 @@ nam_find:
         mov     [g_nline+ebx*2],0
         mov     [g_ntyp+ebx],0
         mov     [g_natyp+ebx],0
+        mov     [g_nfix+ebx*2],0
+        mov     [g_ntype+ebx],0
+        mov     [g_nrec+ebx],0
+        mov     [g_narec+ebx],0
+        mov     [g_nafix+ebx*2],0
         mov     [g_nprc+ebx],0
         mov     edi,[g_nname+ebx*4]
         cmp     byte ptr [edi],2

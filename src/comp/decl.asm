@@ -13,6 +13,8 @@
 ;                          parameters' AS types as DIM's
 ;           SHARED, STATIC n   g_shr: the procedure being entered (dproc), n
 ;           DIM SHARED, a module's CONST   nflag NM_SHR
+;           AS STRING * n  nfix, nafix: n's, n()'s length
+;           OPTION BASE n  obase
 ;           A type is ET_*; 0 in ntyp, natyp is none declared. DEFtype holds
 ;           for the whole program, not from its line on.
 ; ==========================================================================
@@ -49,6 +51,12 @@ dc_line:
         je      @dcl_sta
         cmp     al,TK_END
         je      @dcl_end
+        cmp     al,TK_OPTION
+        je      @dcl_opt
+        cmp     al,TK_TYPE
+        je      @dcl_typ
+        cmp     al,M_VAR
+        je      @dcl_fld
         sub     al,TK_DEFINT
         cmp     al,TK_DEFSTR-TK_DEFINT
         jbe     @dcl_def
@@ -58,6 +66,72 @@ dc_line:
         popad
         ret
 
+@dcl_typ:                               ; TYPE t: its fields from here
+        cmp     byte ptr [esi+1],M_VAR
+        jne     @dcl_n
+        inc     esi
+        call    dc_nam
+        movzx   eax,[g_state.lx.ntyps]
+        cmp     eax,NTYPE-1
+        jae     err_om
+        inc     eax
+        mov     [g_state.lx.ntyps],ax
+        mov     [g_state.lx.dtype],ax
+        mov     [g_ntype+ebx],al
+        mov     word ptr [g_typ+eax*8+T_NAM],bx
+        mov     cx,[g_state.lx.nflds]
+        mov     word ptr [g_typ+eax*8+T_FST],cx
+        and     word ptr [g_typ+eax*8+T_NF],0
+        jmp     @dcl_n
+@dcl_fld:                               ; in a TYPE: f AS type [* n]
+        movzx   edx,[g_state.lx.dtype]
+        test    edx,edx
+        jz      @dcl_n
+        call    dc_nam
+        cmp     byte ptr [esi],TK_AS
+        jne     @dcl_n
+        movzx   eax,[g_state.lx.nflds]
+        cmp     eax,NFLD
+        jae     err_om
+        inc     [g_state.lx.nflds]
+        inc     word ptr [g_typ+edx*8+T_NF]
+        lea     edi,[g_fld+eax*8]
+        mov     [edi+F_NAM],bx
+        xor     eax,eax
+        mov     [edi+F_ET],ax
+        mov     [edi+F_FIX],ax
+        movzx   eax,byte ptr [esi+1]
+        cmp     al,M_VAR
+        je      @dcf_t
+        sub     al,TK_INTEGER
+        cmp     al,TK_STRING-TK_INTEGER
+        ja      @dcl_n
+        mov     al,[g_dast+eax]
+        mov     [edi+F_ET],al
+        add     esi,2
+        cmp     byte ptr [esi],TK_MUL
+        jne     @dcl_n
+        cmp     byte ptr [esi+1],M_INT
+        jne     @dcl_n
+        mov     eax,[esi+2]
+        mov     [edi+F_FIX],ax
+        jmp     @dcl_n
+@dcf_t:
+        inc     esi                     ; another TYPE's
+        call    dc_nam
+        mov     al,[g_ntype+ebx]
+        mov     [edi+F_SUB],al
+        jmp     @dcl_n
+
+@dcl_opt:                               ; OPTION BASE n
+        cmp     byte ptr [esi+1],TK_BASE
+        jne     @dcl_n
+        cmp     byte ptr [esi+2],M_INT
+        jne     @dcl_n
+        mov     al,[esi+3]
+        mov     [g_obase],al
+        add     esi,7
+        jmp     @dcl_n
 @dcl_dec:                               ; DECLARE SUB|FUNCTION n: its flag
         inc     esi
         mov     dl,NM_SUB
@@ -104,6 +178,11 @@ dc_line:
         jmp     @dcp_l
 @dcl_end:                               ; END SUB, END FUNCTION: the module
         mov     al,[esi+1]
+        cmp     al,TK_TYPE
+        jne     @F
+        and     [g_state.lx.dtype],0
+        jmp     @dcl_n
+@@:
         cmp     al,TK_SUB
         je      @F
         cmp     al,TK_FUNCTION
@@ -222,6 +301,8 @@ dc_line:
         cmp     byte ptr [esi],TK_AS
         jne     @dcm_r
         movzx   eax,byte ptr [esi+1]
+        cmp     al,M_VAR
+        je      @dcm_t
         sub     al,TK_INTEGER
         cmp     al,TK_STRING-TK_INTEGER
         ja      @dcm_r
@@ -231,9 +312,61 @@ dc_line:
         cmp     byte ptr [esi],TK_MUL   ; STRING * n
         jne     @dcm_r
         inc     esi
+        cmp     byte ptr [esi],M_INT
+        jne     @dcm_r
+        mov     eax,[esi+1]
+        cmp     edi,offset g_ntyp
+        jne     @F
+        mov     [g_nfix+ebx*2],ax
+        jmp     @dcm_x
+@@:
+        mov     [g_nafix+ebx*2],ax
+@dcm_x:
         call    dc_item
 @dcm_r:
         ret
+@dcm_t:                                 ; AS a TYPE: each field a name n.f
+        push    ebx
+        inc     esi
+        call    dc_nam
+        movzx   eax,[g_ntype+ebx]
+        pop     ebx
+        test    eax,eax
+        jz      @dcm_r
+        mov     edx,offset g_nrec
+        cmp     edi,offset g_ntyp
+        je      @F
+        mov     edx,offset g_narec
+@@:
+        mov     [edx+ebx],al
+        push    esi
+        push    edi
+        call    rc_leaves
+        pop     edi
+        pop     esi
+        mov     dl,[g_nflag+ebx]
+        and     dl,NM_SHR
+        xor     ecx,ecx
+@dct_l:
+        cmp     ecx,[g_rln]
+        jae     @dcm_r
+        movzx   eax,word ptr [g_rlid+ecx*2]
+        or      [g_nflag+eax],dl
+        mov     ebp,[g_rlfp+ecx*4]
+        push    edx
+        mov     dl,[ebp+F_ET]
+        mov     [edi+eax],dl
+        mov     dx,[ebp+F_FIX]
+        cmp     edi,offset g_ntyp
+        jne     @F
+        mov     [g_nfix+eax*2],dx
+        jmp     @dct_n
+@@:
+        mov     [g_nafix+eax*2],dx
+@dct_n:
+        pop     edx
+        inc     ecx
+        jmp     @dct_l
 @dcm_c:
         cmp     byte ptr [esi],','
         jne     @dcl_n
@@ -301,6 +434,82 @@ dc_line:
         jne     @dcl_n
         inc     esi
         jmp     @dcc_l
+
+; ::::::::::::::
+; rc_leaves - the names n.f of each field of TYPE EAX for name EBX, the
+; fields of a field's TYPE in turn: rlid the names, rlfp the fields.
+;
+; out:    rln  how many
+; keeps:  EBX
+; error:  ?OUT OF MEMORY  from nam_find
+; ::::::::::::::
+rc_leaves:
+        and     [g_rln],0
+        push    ebx
+        mov     esi,[g_nname+ebx*4]
+        movzx   ecx,byte ptr [esi]
+        inc     esi
+        mov     edi,offset g_rnam
+        mov     [g_rnl],ecx
+        rep     movsb
+        call    rc_walk
+        pop     ebx
+        ret
+
+; ::::::::::::::
+; rc_walk - rc_leaves under the text rnam, rnl long, of TYPE EAX.
+; ::::::::::::::
+rc_walk:
+        movzx   esi,word ptr [g_typ+eax*8+T_FST]
+        movzx   ecx,word ptr [g_typ+eax*8+T_NF]
+@rcw_l:
+        test    ecx,ecx
+        jz      @rcw_r
+        push    ecx
+        push    esi
+        push    [g_rnl]
+        mov     edi,[g_rnl]
+        cmp     edi,72
+        jae     err_om
+        add     edi,offset g_rnam
+        mov     al,'.'
+        stosb
+        movzx   eax,word ptr [g_fld+esi*8+F_NAM]
+        push    esi
+        mov     esi,[g_nname+eax*4]
+        movzx   ecx,byte ptr [esi]
+        inc     esi
+        lea     eax,[ecx+1]
+        add     [g_rnl],eax
+        rep     movsb
+        pop     esi
+        movzx   eax,byte ptr [g_fld+esi*8+F_SUB]
+        test    eax,eax
+        jz      @rcw_f
+        call    rc_walk
+        jmp     @rcw_n
+@rcw_f:
+        mov     ecx,[g_rln]
+        cmp     ecx,NRLF
+        jae     err_om
+        lea     eax,[g_fld+esi*8]
+        mov     [g_rlfp+ecx*4],eax
+        mov     [g_state.lx.nptr],offset g_rnam
+        mov     eax,[g_rnl]
+        mov     [g_state.lx.nlen],al
+        call    nam_find
+        mov     ecx,[g_rln]
+        mov     [g_rlid+ecx*2],ax
+        inc     [g_rln]
+@rcw_n:
+        pop     [g_rnl]
+        pop     esi
+        pop     ecx
+        inc     esi
+        dec     ecx
+        jmp     @rcw_l
+@rcw_r:
+        ret
 
 ; ::::::::::::::
 ; dc_nam - the name at SI, stepped past.
@@ -400,6 +609,19 @@ dc_next:
         jmp     @dcn_c
 
         .data?
+g_typ   db      NTYPE*8 dup(?)          ; a TYPE: T_*
+g_fld   db      NFLD*8 dup(?)           ; a field: F_*
+g_ntype db      NNAM dup(?)             ; a name's TYPE, 0 none
+g_nrec  db      NNAM dup(?)             ; a name's record's TYPE, its array's
+g_narec db      NNAM dup(?)
+g_rnam  db      80 dup(?)               ; rc_leaves: a name n.f
+g_rnl   dd      ?
+g_rln   dd      ?
+g_rlid  dw      NRLF dup(?)
+g_rlfp  dd      NRLF dup(?)
+g_nfix  dw      NNAM dup(?)             ; a name's STRING * n, its array's
+g_nafix dw      NNAM dup(?)
+g_obase db      ?                       ; OPTION BASE
 g_shr   db      NSHR*8 dup(?)           ; SHARED, STATIC: proc name:2, name:2, 1|2
         .data
 g_dett  db      ET_I2,ET_I4,ET_R4,ET_R8,ET_SD   ; DEFINT .. DEFSTR

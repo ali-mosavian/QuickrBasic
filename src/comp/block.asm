@@ -761,7 +761,7 @@ bk_proc:
         .data?
 g_prc   db      NPROC*PSIZE dup(?)      ; the procedures, from 1
 g_ppar  dw      NPPAR dup(?)            ; their parameters' variables
-g_vfs   db      ?                       ; var_id: 1 a scalar, '(' or not
+g_vfs   db      ?                       ; var_id: 1 a scalar, 2 an array, '(' or not
 g_vft   db      ?                       ; var_id: the type, ET_*; 0 by the name
 g_blk   db      NBLK*16 dup(?)
 g_bst   db      NBST*SSIZE dup(?)

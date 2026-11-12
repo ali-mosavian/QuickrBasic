@@ -319,6 +319,8 @@ g_calls dd      sc_ipr,sc_fpr,sc_spr,sc_pnl,sc_pzone,sc_ptab,sc_pspc
         dd      sc_ipow,sc_fpow,sc_fti,sc_sti,sc_ist
         dd      20 dup(sc_fn1)
         dd      sc_left,sc_right,sc_mid,sc_mid2
+        dd      sc_fix,sc_instr,sc_lbnd,sc_ubnd,sc_space,sc_strg,sc_ltrim
+        dd      sc_rtrim,sc_ucase,sc_lcase,sc_hex,sc_oct,sc_sfix,sc_mids
 
 g_bflt  dd      flt_add,flt_sub,flt_mul,flt_div,fn_pow
 g_fntab dd      fn_sgn,fn_int,fn_abs,fn_usr,fn_fre,fn_pos,fn_sqr,fn_rnd,fn_log,fn_exp

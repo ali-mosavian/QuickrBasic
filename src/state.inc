@@ -62,6 +62,9 @@ TLEX     struc                   ; the tokenizer
     nnams   dw      ?               ; the next name
     nshr    dw      ?               ; SHARED, STATIC names (g_shr)
     dproc   dw      ?               ; dc_line: the procedure being entered, its name
+    ntyps   dw      ?               ; TYPEs (comp/decl.asm), the last's index
+    nflds   dw      ?               ; their fields
+    dtype   dw      ?               ; dc_line: the TYPE being entered
     nlen    db      ?               ; nam_find's name: its length, its text
     nptr    dd      ?
     nsfree  dd      ?               ; the names' next byte

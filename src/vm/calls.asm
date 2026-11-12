@@ -526,18 +526,25 @@ rd_seek:
 ; ::::::::::::::
 sc_dim:
         pop     eax
-        mov     [g_dimst],al
+        mov     [g_dimst],eax
         and     al,7Fh
         mov     [g_state.rn.narr],al
         pop     edx
-        movzx   ebx,al
-        add     ebx,ebx
+        movzx   ecx,al
 @sdm_l:
-        pop     eax
-        subchk
-        mov     [g_dimbuf+ebx-2],ax
-        sub     ebx,2
-        jnz     @sdm_l
+        pop     eax                     ; lo TO hi, or hi and the base
+        pop     ebx
+        push    edx
+        lea     edx,[ecx+7]
+        bt      [g_dimst],edx
+        pop     edx
+        jnc     @F
+        xchg    eax,ebx
+@@:
+        sub     eax,ebx
+        mov     [g_dimbuf+ecx*2-2],ax
+        mov     [g_lbbuf+ecx*2-2],bx
+        loop    @sdm_l
         movzx   ebx,dx
         test    [g_dimst],80h           ; a STATIC's, dimensioned: kept
         jz      @F
@@ -547,7 +554,8 @@ sc_dim:
         call    arr_dim
         jmp     ex_lp
         .data?
-g_dimst db      ?                       ; DIM's count: bit 7 a STATIC's array
+g_dimst dd      ?                       ; DIM's count: bit 7 a STATIC's array, from
+                                        ; bit 8 the dimensions given as hi, base
         .code
 
 ; ::::::::::::::

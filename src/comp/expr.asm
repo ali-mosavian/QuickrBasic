@@ -39,14 +39,29 @@ cm_p:
         call    cm_un
 @cp_l:
         call    st_get
+        mov     ah,10                   ; \ MOD XOR EQV IMP: 10 .. 14
+        cmp     al,'\'
+        je      @cp_x
+        sub     al,TK_MOD-11
+        cmp     al,11
+        jb      @cp_e
+        cmp     al,14
+        jbe     @cp_y
+        add     al,TK_MOD-11
         sub     al,TK_PLUS
         cmp     al,TK_LT-TK_PLUS+1
         jae     @cp_e
+        jmp     @cp_y
+@cp_x:
+        mov     al,ah
+@cp_y:
         movzx   ebx,al
         mov     ebp,esp
         mov     cl,[g_cprec+ebx]
         cmp     byte ptr [ebp],cl
         jae     @cp_e
+        cmp     bl,10
+        jae     @cp_a
         cmp     bl,TK_GT-TK_PLUS
         jb      @cp_a
         mov     dl,80h
@@ -64,10 +79,15 @@ cm_p:
         mov     dl,bl
         inc     esi
 @cp_d:
+        test    dl,dl                   ; a relation: 80h + its mask
+        js      @cp_kl
         cmp     dl,5
         jb      @cp_kl
         cmp     dl,7
-        jae     @cp_kl
+        jb      @F
+        cmp     dl,10
+        jb      @cp_kl
+@@:
         push    ebx
         push    edx
         call    cm_toi
@@ -93,6 +113,11 @@ cm_p:
         pop     ecx                      ; the left, an INT load when AH 1
         pop     eax                      ; AL the left's type
         pop     edx                      ; the operator
+        test    dl,dl
+        js      @F
+        cmp     dl,10
+        jae     @cp_xo
+@@:
         cmp     dl,5
         jb      @cp_n1
         cmp     dl,7
@@ -104,6 +129,14 @@ cm_p:
         pop     eax
         dec     al                      ; AND 4, OR 5
         call    cm_iop
+        jmp     @cp_l
+@cp_xo:
+        push    edx
+        call    cm_toi
+        pop     edx
+        movzx   ebx,dl
+        mov     al,[g_xop+ebx-10]
+        call    cm_op
         jmp     @cp_l
 @st_expr1:
         jmp     err_tm
@@ -501,21 +534,19 @@ cm_subs0:
         push    ecx
         call    cm_expr
         call    cm_toi
-        call    st_get
-        cmp     al,TK_TO                ; lo TO hi: from 0 to hi
-        jne     @F
-        inc     esi
-        mov     al,O_DROP
-        call    cm_op
-        call    cm_expr
-        call    cm_toi
-@@:
         call    cm_optcm
         pop     ecx
         jz      @cs_l
         push    ecx
         call    cm_chkcl
         pop     ecx
+        cmp     byte ptr [esi],'.'      ; a record array's .f: in its name
+        jne     @F
+        cmp     byte ptr [esi+1],M_VAR
+        jne     @F
+        inc     esi
+        call    dc_item
+@@:
         ret
 
 ; ::::::::::::::
@@ -670,7 +701,145 @@ cm_un:
         add     al,K_FN
         jmp     cm_call
 @cu_8:
-        jmp     err_sn
+        mov     al,[esi]
+        jmp     cm_xfn
+
+; ::::::::::::::
+; cm_xfn - QBasic's other functions, by g_xfn: f(args), each converted to
+; its kind; the count after them when it varies; then CALL K, or none.
+;
+; in:     SI  at the token
+; error:  ?SYNTAX ERROR  not one, or too few arguments
+; ::::::::::::::
+cm_xfn:
+        movzx   eax,al
+        cmp     al,TK_X
+        jne     @F
+        movzx   eax,byte ptr [esi+1]
+        add     eax,100h
+        inc     esi
+@@:
+        inc     esi
+        mov     ebx,offset g_xfn
+@cxf_l:
+        cmp     word ptr [ebx],0
+        je      err_sn
+        cmp     ax,[ebx]
+        je      @cxf_f
+        add     ebx,XF_SZ
+        jmp     @cxf_l
+@cxf_f:
+        push    ebx
+        call    cm_chkop
+        xor     ecx,ecx                 ; arguments
+        xor     edx,edx                 ; the kind's index
+@cxf_a:
+        push    ecx
+        push    edx
+        mov     ebx,[esp+8]
+        mov     al,[ebx+XF_ARG+edx]
+        cmp     al,'R'
+        je      @cxf_r
+        push    eax
+        call    cm_expr
+        pop     eax
+        pop     edx
+        pop     ecx
+        push    ecx
+        push    edx
+        mov     ebx,[esp+8]
+        jecxz   @F                      ; a leading optional left out
+        jmp     @cxf_c
+@@:
+        test    byte ptr [ebx+XF_MIN],80h
+        jz      @cxf_c
+        cmp     [g_state.cm.cty],T_STR
+        jne     @cxf_c
+        cmp     al,'S'
+        je      @cxf_c
+        inc     dword ptr [esp]
+        mov     edx,[esp]
+        mov     al,[ebx+XF_ARG+edx]
+@cxf_c:
+        call    cm_xarg
+@cxf_n:
+        pop     edx
+        pop     ecx
+        inc     ecx
+        inc     edx
+        mov     ebx,[esp]
+        cmp     dl,[ebx+XF_MAX]
+        jae     @cxf_e
+        push    ecx
+        push    edx
+        call    cm_optcm
+        pop     edx
+        pop     ecx
+        jz      @cxf_a
+@cxf_e:
+        mov     al,[ebx+XF_MIN]
+        and     al,7Fh
+        cmp     dl,al
+        jb      err_sn
+        push    ecx
+        call    cm_chkcl
+        pop     ecx
+        mov     ebx,[esp]
+        mov     al,[ebx+XF_MIN]
+        and     al,7Fh
+        cmp     al,[ebx+XF_MAX]
+        je      @F
+        mov     eax,ecx
+        call    cm_lint
+@@:
+        pop     ebx
+        mov     al,[ebx+XF_K]
+        test    al,al
+        jz      @F
+        push    ebx
+        call    cm_call
+        pop     ebx
+@@:
+        mov     al,[ebx+XF_RES]
+        mov     [g_state.cm.cty],al
+        xor     eax,eax
+        mov     [g_state.cm.cll],eax
+        mov     [g_state.cm.clle],eax
+        ret
+@cxf_r:                                 ; an array, n or n(): its id
+        call    st_get
+        cmp     al,M_VAR
+        jne     err_sn
+        mov     [g_vfs],2
+        call    var_id
+        mov     [g_vfs],0
+        cmp     byte ptr [esi],'('
+        jne     @F
+        cmp     byte ptr [esi+1],')'
+        jne     err_sn
+        add     esi,2
+@@:
+        mov     eax,ebx
+        call    cm_lint
+        jmp     @cxf_n
+
+; ::::::::::::::
+; cm_xarg - the value as kind AL: I an INT, F a FLOAT, S a string, X a
+; string or a number, then 1 or 0.
+; ::::::::::::::
+cm_xarg:
+        cmp     al,'I'
+        je      cm_toi
+        cmp     al,'F'
+        je      cm_tof
+        cmp     al,'S'
+        je      cm_tos
+        test    [g_state.cm.cty],T_STR
+        mov     eax,1
+        jnz     cm_lint
+        call    cm_toi
+        xor     eax,eax
+        jmp     cm_lint
 
 ; ::::::::::::::
 ; cm_farg - function CL's argument converted; cty its result.
@@ -732,7 +901,38 @@ g_fnsig db      FA_F+FR_I,FA_F+FR_F,FA_F+FR_F,FA_F+FR_F,FA_Y+FR_F,FA_N+FR_I
         .code
 
         .data
-g_cprec db      79h,79h,7Bh,7Bh,7Fh,50h,46h,64h,64h,64h
+XF_K    = 2                     ; g_xfn: token:2, K, least|80h leading
+XF_MIN  = 3                     ; optional, most, result type, the kinds
+XF_MAX  = 4
+XF_RES  = 5
+XF_ARG  = 6
+XF_SZ   = 9
+xfn     macro   t,k,mn,mx,r,a
+        dw      t
+        db      k,mn,mx,r
+        db      a
+        endm
+g_xfn   label   byte
+        xfn     100h+TK1_CINT,0,1,1,T_INT,<'I',0,0>
+        xfn     100h+TK1_CLNG,0,1,1,T_INT,<'I',0,0>
+        xfn     100h+TK1_CSNG,0,1,1,T_FLT,<'F',0,0>
+        xfn     100h+TK1_CDBL,0,1,1,T_FLT,<'F',0,0>
+        xfn     TK_FIX,K_FIX,1,1,T_FLT,<'F',0,0>
+        xfn     TK_INSTR,K_INSTR,82h,3,T_INT,<'I','S','S'>
+        xfn     TK_LBOUND,K_LBND,1,2,T_INT,<'R','I',0>
+        xfn     TK_UBOUND,K_UBND,1,2,T_INT,<'R','I',0>
+        xfn     100h+TK1_SPACES,K_SPACE,1,1,T_STR,<'I',0,0>
+        xfn     100h+TK1_STRINGS,K_STRG,2,2,T_STR,<'I','X',0>
+        xfn     100h+TK1_LTRIMS,K_LTRIM,1,1,T_STR,<'S',0,0>
+        xfn     100h+TK1_RTRIMS,K_RTRIM,1,1,T_STR,<'S',0,0>
+        xfn     100h+TK1_UCASES,K_UCASE,1,1,T_STR,<'S',0,0>
+        xfn     100h+TK1_LCASES,K_LCASE,1,1,T_STR,<'S',0,0>
+        xfn     100h+TK1_HEXS,K_HEX,1,1,T_STR,<'I',0,0>
+        xfn     100h+TK1_OCTS,K_OCT,1,1,T_STR,<'I',0,0>
+        dw      0
+g_cprec db      78h,78h,7Bh,7Bh,7Fh,50h,46h,64h,64h,64h
+        db      7Ah,79h,44h,42h,40h     ; \ MOD XOR EQV IMP
+g_xop   db      O_I_DIV,O_I_MOD,O_I_XOR,O_I_EQV,O_I_IMP
         .code
 
         .data

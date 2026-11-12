@@ -4,7 +4,7 @@
 ; holds:    arr_ref, arr_dim, arr_new
 ; uses:     str_gc, err_*
 ; data:     vt: the header in dsb: n, the data's address, the fast count, the
-;           n counts (words). The data on the heap, zeroed:
+;           n counts, the n lower bounds (words). The data on the heap, zeroed:
 ;           VS for a number, 2 for %, DSZ for $.
 ; calls:
 ;   arr_ref            a new array: arr_new, every count 11
@@ -51,18 +51,23 @@ arr_ref:
         movzx   ecx,[g_state.rn.narr]
 @arf_c:
         mov     word ptr [g_cntbuf+ecx*2-2],11
+        and     word ptr [g_lbbuf+ecx*2-2],0
         loop    @arf_c
         call    arr_new
 @arf_h:
         mov     cl,[g_state.rn.narr]
         cmp     cl,[edi]
         jne     arr_bs
+        push    ebp
+        movzx   ebp,cl
+        lea     ebp,[edi+ebp*2]         ; the lower bounds, less AH_CNT
         xor     edx,edx
         xor     ebx,ebx
 @arf_k:
         mov     ax,[g_dimbuf+ebx]
+        sub     ax,[ebp+ebx+AH_CNT]
         cmp     ax,[edi+AH_CNT+ebx]
-        jae     arr_bs
+        jae     @arf_b
         movzx   eax,ax
         add     edx,eax
         dec     cl
@@ -71,7 +76,11 @@ arr_ref:
         imul    edx,eax
         add     ebx,2
         jmp     @arf_k
+@arf_b:
+        pop     ebp
+        jmp     arr_bs
 @arf_t:
+        pop     ebp
         movzx   ebx,[g_state.mm.aid]
         call    arr_esz
         imul    edx,ecx
@@ -155,8 +164,7 @@ arr_new:
         add     ebx,2
         loop    @anw_m
         mov     eax,[g_state.mm.ahd]
-        add     eax,ebx
-        add     eax,AH_CNT
+        lea     eax,[eax+ebx*2+AH_CNT]
         cmp     eax,HDRLIM
         ja      @st_arr1
         mov     [g_state.mm.asz],edx
@@ -176,6 +184,8 @@ arr_new:
         xor     ax,ax
         cmp     [g_state.rn.narr],1
         jne     @anw_s
+        cmp     word ptr [g_lbbuf],0    ; the fast path: 1-D from 0
+        jne     @anw_s
         mov     ax,word ptr [g_cntbuf]
 @anw_s:
         mov     [edi+AH_FAST],ax
@@ -189,6 +199,10 @@ arr_new:
         push    edi
         mov     esi,offset g_cntbuf
         add     edi,AH_CNT
+        push    ecx
+        rep     movsb
+        pop     ecx
+        mov     esi,offset g_lbbuf
         rep     movsb
         mov     [g_state.mm.ahd],edi
         pop     edi
@@ -206,6 +220,7 @@ arr_new:
         .data?
 g_dimbuf dw      64 dup(?)
 g_cntbuf dw      64 dup(?)
+g_lbbuf dw      64 dup(?)                   ; the lower bounds
         .code
 
         end

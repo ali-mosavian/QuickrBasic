@@ -165,6 +165,18 @@ BK_ENDSEL = 11
 BK_EXIT   = 12
 BK_FOR    = 13
 
+; a TYPE (g_typ, comp/decl.asm): its name, its first field, how many
+T_NAM   = 0
+T_FST   = 2
+T_NF    = 4
+NTYPE   = 64
+F_NAM   = 0                     ; a field: its name, ET_*, its TYPE, STRING * n
+F_ET    = 2
+F_SUB   = 3
+F_FIX   = 4
+NFLD    = 512
+NRLF    = 64                    ; a record's fields at most
+
 ; a procedure (g_prc, comp/block.asm): 32 bytes
 PSIZE   = 32
 P_NAM   = 0                     ; its name

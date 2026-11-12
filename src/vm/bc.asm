@@ -197,6 +197,40 @@ bc_&nm:
         ibin    I_OR_U8,2,5
 
 ; ::::::::::::::
+; bc_I_MOD - I.MOD ( a b -- a MOD b ): the sign of a.
+; ::::::::::::::
+bc_I_MOD:
+        pop     eax
+        cmp     eax,-1                  ; int_div's -1 leaves EDX
+        jne     @F
+        and     dword ptr [esp],0
+        dispatch
+@@:
+        mov     ebp,esp
+        push    esi
+        call    int_div
+        pop     esi
+        mov     [esp],edx
+        dispatch
+; ::::::::::::::
+; bc_I_XOR, bc_I_EQV, bc_I_IMP - ( a b -- c ).
+; ::::::::::::::
+bc_I_XOR:
+        pop     eax
+        xor     [esp],eax
+        dispatch
+bc_I_EQV:
+        pop     eax
+        xor     [esp],eax
+        not     dword ptr [esp]
+        dispatch
+bc_I_IMP:
+        pop     eax
+        not     dword ptr [esp]
+        or      [esp],eax
+        dispatch
+
+; ::::::::::::::
 ; bc_I_NEG - I.NEG ( i -- i ).
 ; ::::::::::::::
 bc_I_NEG:

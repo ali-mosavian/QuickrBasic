@@ -51,7 +51,11 @@ ct_stmt:
         cmp     al,TK_WEND
         je      ct_wend
         cmp     al,M_VAR
-        je      ct_scall
+        je      ct_name
+        cmp     al,TK_LET
+        je      ct_let
+        cmp     al,TK_TYPE
+        je      ct_none
         cmp     al,TK_CALL
         je      ct_call
         cmp     al,TK_SUB
@@ -60,6 +64,10 @@ ct_stmt:
         je      ct_sub
         cmp     al,TK_DECLARE
         je      ct_none
+        cmp     al,TK_OPTION
+        je      ct_none
+        cmp     al,TK_MID
+        je      ct_mids
         cmp     al,TK_SHARED
         je      ct_none
         cmp     al,TK_STATIC
@@ -79,6 +87,8 @@ ct_stmt:
         cmp     al,TK_IF
         je      @cts_2
         cmp     al,TK_SELECT
+        je      @cts_2
+        cmp     al,TK_TYPE
         je      @cts_2
         cmp     al,TK_SUB
         je      ct_pret
@@ -100,6 +110,46 @@ ct_stmt:
 ; ::::::::::::::
 ct_none:
         call    ct_skip
+        clc
+        ret
+
+; ::::::::::::::
+; ct_mids - MID$(v, i [, n]) = s: v = its value with s over it (sc_mids).
+; ::::::::::::::
+ct_mids:
+        inc     esi
+        call    cm_chkop
+        push    esi
+        call    cm_lval
+        mov     al,[g_state.cm.ctk]
+        and     al,3
+        cmp     al,2
+        jne     err_tm
+        pop     eax
+        push    dword ptr [g_state.cm.ctv]
+        mov     esi,eax
+        call    cm_load
+        call    cm_chkcm
+        call    cm_expr
+        call    cm_toi
+        call    cm_optcm
+        jnz     @cms_n
+        call    cm_expr
+        call    cm_toi
+        jmp     @cms_v
+@cms_n:
+        mov     eax,SMAX
+        call    cm_lint
+@cms_v:
+        call    cm_chkcl
+        call    cm_chkeq
+        call    cm_expr
+        call    cm_tos
+        mov     al,K_MIDS
+        call    cm_call
+        pop     dword ptr [g_state.cm.ctv]
+        mov     [g_state.cm.cty],T_STR
+        call    cm_store
         clc
         ret
 
@@ -188,6 +238,113 @@ ct_call:
         pop     edx
         pop     eax
         jmp     ct_pcall
+
+; ::::::::::::::
+; ct_name - a statement starting with a name: a TYPE's field, a record's
+; copy, a SUB's call; else not one.
+; ::::::::::::::
+ct_name:
+        movzx   ecx,byte ptr [esi+1]
+        cmp     byte ptr [esi+ecx+4],TK_AS
+        je      ct_none
+        call    ct_rcopy
+        jnc     @ctn_r
+        jmp     ct_scall
+@ctn_r:
+        ret
+
+; ::::::::::::::
+; ct_let - LET: a record's copy, else not one.
+; ::::::::::::::
+ct_let:
+        inc     esi
+        cmp     byte ptr [esi],M_VAR
+        jne     @ctl_n
+        call    ct_rcopy
+        jnc     @ctn_r
+@ctl_n:
+        dec     esi
+        stc
+        ret
+
+; ::::::::::::::
+; ct_rcopy - a = b of two records of a TYPE: each field's.
+;
+; out:    CF  set: not one, SI kept
+; ::::::::::::::
+ct_rcopy:
+        movzx   ecx,byte ptr [esi+1]
+        movzx   ebx,word ptr [esi+ecx+2]        ; a
+        movzx   eax,[g_nrec+ebx]
+        test    eax,eax
+        jz      @crc_n
+        lea     edx,[esi+ecx+4]
+        cmp     byte ptr [edx],TK_EQ
+        jne     @crc_n
+        cmp     byte ptr [edx+1],M_VAR
+        jne     @crc_n
+        movzx   ecx,byte ptr [edx+2]
+        movzx   ebp,word ptr [edx+ecx+3]        ; b
+        cmp     al,[g_nrec+ebp]
+        jne     @crc_n
+        mov     cl,[edx+ecx+5]
+        test    cl,cl
+        jz      @F
+        cmp     cl,':'
+        je      @F
+        cmp     cl,TK_REM
+        jne     @crc_n
+@@:
+        push    edx
+        push    ebx
+        push    eax
+        pushad                          ; b's fields, then a's
+        mov     ebx,ebp
+        call    rc_leaves
+        mov     ecx,[g_rln]
+        mov     esi,offset g_rlid
+        mov     edi,offset g_rlid2
+        rep     movsw
+        popad
+        pop     eax
+        pop     ebx
+        pushad
+        call    rc_leaves
+        popad
+        xor     ecx,ecx
+@crc_l:
+        cmp     ecx,[g_rln]
+        jae     @crc_d
+        push    ecx
+        mov     ebp,[g_rlfp+ecx*4]
+        movzx   eax,word ptr [g_rlid2+ecx*2]
+        xor     dl,dl
+        call    rc_var
+        and     edx,3
+        mov     al,[g_ldk+edx]
+        mov     ecx,ebx
+        call    cm_opid
+        mov     ecx,[esp]
+        mov     ebp,[g_rlfp+ecx*4]
+        movzx   eax,word ptr [g_rlid+ecx*2]
+        xor     dl,dl
+        call    rc_var
+        and     edx,3
+        mov     al,[g_stk+edx]
+        mov     ecx,ebx
+        call    cm_opid
+        pop     ecx
+        inc     ecx
+        jmp     @crc_l
+@crc_d:
+        pop     esi                     ; past b
+        inc     esi
+        call    dc_item
+        clc
+        ret
+@crc_n:
+        stc
+        ret
 
 ; ::::::::::::::
 ; ct_scall - n args: a SUB's call without CALL; another name is not one.
@@ -962,6 +1119,7 @@ g_ctnm  db      "#0"                    ; a SELECT's value: its name
         .data?
 g_ctvr  dw      ?                       ; that variable
 g_cttp  db      ?                       ; its type
+g_rlid2 dw      NRLF dup(?)             ; ct_rcopy: b's fields
         .code
 
         end

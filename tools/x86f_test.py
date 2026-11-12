@@ -108,6 +108,30 @@ CASES = {
                  " 1  2 \r\n", "ERROR"),
     "qb_exitsub": ("k = 7: s: s: PRINT k\r\nSUB s\r\nSHARED k\r\nFOR i = 1 TO 10\r\nIF i = 3 THEN EXIT SUB\r\n"
                    "PRINT i;\r\nk = k + 1\r\nNEXT\r\nEND SUB\r\n", " 1  2  1  2  11 \r\n", "ERROR"),
+    "qb_intops": ("PRINT 17 \\ 3; -17 \\ 3; 17 MOD 5; -17 MOD 5; 5 XOR 3; 2 + 7 MOD 4 * 1; 6 EQV 3; 0 IMP 0\r\n",
+                  " 5 -5  2 -2  6  5 -6 -1 \r\n", "ERROR"),
+    # \\ MOD XOR's operator codes, 10 and up, took the relations (80h + mask) too: p <> 13 was a
+    # BAD SUBSCRIPT.
+    "qb_relop": ("p = 12.6: PRINT p <> 13; p < 13; p = 12.6\r\n", "-1 -1 -1 \r\n", "ERROR"),
+    "qb_conv": ("PRINT CINT(2.5); CINT(3.5); CLNG(40000.4); FIX(-2.7); INT(-2.7); CSNG(3); CDBL(1.5)\r\n",
+                " 2  4  40000 -2 -3  3  1.5 \r\n", "ERROR"),
+    # INSTR's count was lost under str_get's CX: INSTR(4, "hello", "l") searched from 1, gave 3.
+    "qb_instr": ('PRINT INSTR("hello", "l"); INSTR(4, "hello", "l"); INSTR(8, "abc", "a"); INSTR("abc", "")\r\n',
+                 " 3  4  0  1 \r\n", "ERROR"),
+    "qb_strfn": ('PRINT "["; SPACE$(2); "]"; STRING$(3, "x"); STRING$(2, 65); "["; LTRIM$("  a "); "]["; '
+                 'RTRIM$(" b  "); "]"; UCASE$("aBc"); LCASE$("AbC"); HEX$(255); OCT$(8); HEX$(-1)\r\n',
+                 "[  ]xxxAA[a ][ b]ABCabcFF10FFFFFFFF\r\n", "ERROR"),
+    "qb_bounds": ("OPTION BASE 1\r\nDIM v(-2 TO 2), w(2, 3)\r\nFOR i = -2 TO 2: v(i) = i * 11: NEXT\r\n"
+                  "w(2, 3) = 7: PRINT v(-2); v(2); LBOUND(v); UBOUND(v); LBOUND(w, 2); UBOUND(w, 2); w(2, 3)\r\n",
+                  "-22  22 -2  2  1  3  7 \r\n", "ERROR"),
+    "qb_fixstr": ('DIM f AS STRING * 5: PRINT "["; f; "]"; LEN(f)\r\nf = "cat": PRINT "["; f; "]": f = "abcdefg": PRINT f\r\n'
+                  't$ = "abcdef": MID$(t$, 2, 3) = "XYZW": PRINT t$\r\n',
+                  "[     ] 5 \r\n[cat  ]\r\nabcde\r\naXYZef\r\n", "ERROR"),
+    # DIM v AS a TYPE skipped two bytes of the TYPE's name: SYNTAX ERROR.
+    "qb_type": ("TYPE P\r\nx AS LONG\r\nt AS STRING * 2\r\nEND TYPE\r\nTYPE L\r\na AS P\r\nb AS P\r\nEND TYPE\r\n"
+                'DIM c AS L, d AS L, q(3) AS P\r\nc.a.x = 5: c.b.t = "xyz": d = c: c.a.x = 0\r\n'
+                "q(2).x = 9: q(1).x = q(2).x + 1\r\nPRINT d.a.x; d.b.t; q(1).x; q(2).x\r\n",
+                " 5 xy 10  9 \r\n", "ERROR"),
     "int32_lit": ("A%=65535:PRINT A%*2\r\n", " 131070 \r\n", "ERROR"),
 }
 

@@ -365,6 +365,19 @@ cm_store:
         jmp     @cst_e
 @cst_s:
         call    cm_tos
+        movzx   ecx,[g_state.cm.ctv]    ; a STRING * n: n chars
+        movzx   ecx,word ptr [g_vnam+ecx*2]
+        movzx   eax,word ptr [g_nfix+ecx*2]
+        cmp     [g_state.cm.ctn],0
+        je      @F
+        movzx   eax,word ptr [g_nafix+ecx*2]
+@@:
+        test    eax,eax
+        jz      @F
+        call    cm_lint
+        mov     al,K_SFIX
+        call    cm_call
+@@:
         mov     dl,2
 @cst_e:
         movzx   ecx,[g_state.cm.ctv]
@@ -817,11 +830,19 @@ var_id:
         lea     esi,[esi+ecx+2]
         movzx   eax,word ptr [esi]
         add     esi,2
+        cmp     byte ptr [esi],'('      ; a record array's a(i).f: a.f(i)
+        jne     @F
+        cmp     [g_narec+eax],0
+        je      @F
+        call    rc_elem
+@@:
         xor     edx,edx
+        cmp     [g_vfs],1               ; 1 a scalar, 2 an array
+        je      @F
+        ja      @vid_a
         cmp     byte ptr [esi],'('
         jne     @F
-        cmp     [g_vfs],0
-        jne     @F
+@vid_a:
         mov     dl,80h
 @@:
         test    [g_nflag+eax],NM_FN
@@ -1177,10 +1198,48 @@ cm_dv:
         call    cm_name
         cmp     byte ptr [esi],'('
         jne     @cdv_as                 ; a scalar: var_id made it
-        movzx   eax,[g_state.cm.cstat]  ; a STATIC's: once
+        movzx   eax,word ptr [g_vnam+ebx*2]
+        movzx   ecx,[g_narec+eax]
+        test    ecx,ecx
+        jnz     @cdv_r
+        call    cm_dim1
+        jmp     cm_dvas
+@cdv_r:                                 ; a record array: each field's
+        mov     ebx,eax
+        mov     eax,ecx
+        pushad
+        call    rc_leaves
+        popad
+        xor     ecx,ecx
+@cdv_l:
+        cmp     ecx,[g_rln]
+        jae     cm_dvas
+        push    ecx
+        push    esi
+        movzx   eax,word ptr [g_rlid+ecx*2]
+        mov     ebp,[g_rlfp+ecx*4]
+        mov     dl,80h
+        call    rc_var
+        call    cm_dim1
+        pop     eax
+        pop     ecx
+        inc     ecx
+        cmp     ecx,[g_rln]
+        jae     cm_dvas
+        mov     esi,eax
+        jmp     @cdv_l
+
+; ::::::::::::::
+; cm_dim1 - DIM's array EBX: ( subscripts ), its id, the count, CALL DIM.
+;
+; in:     cstat  a STATIC's array: dimensioned once
+;         SI     at '('
+; ::::::::::::::
+cm_dim1:
+        movzx   eax,[g_state.cm.cstat]
         push    eax
         push    ebx
-        call    cm_subs0
+        call    cm_dsubs
         pop     eax
         pop     edx
         shl     edx,7
@@ -1190,16 +1249,176 @@ cm_dv:
         pop     eax
         call    cm_lint
         mov     al,K_DIM
+        jmp     cm_call
+
+; ::::::::::::::
+; rc_var - the variable of a record's field: name AX, field EBP.
+;
+; in:     DL   80h an array, else 0
+; out:    EBX  the variable
+;         DL   its kind, as sinfo's
+;         cstat
+; ::::::::::::::
+rc_var:
+        call    var_scope
+        movzx   ecx,byte ptr [ebp+F_ET]
+        or      dl,[g_etk+ecx]
+        push    edx
+        call    var_find
+        pop     edx
+        mov     ebx,eax
+        ret
+
+; ::::::::::::::
+; rc_elem - a record array's element a(i).f: the name a.f.
+;
+; in:     EAX  a
+;         SI   at '('
+; out:    EAX  a.f, else a when no .f follows
+;         BL   f's last char, its suffix
+; keeps:  ESI, BH
+; ::::::::::::::
+rc_elem:
+        push    esi
+        push    edi
+        push    ecx
+        push    edx
+        xor     ecx,ecx
+@rce_l:
+        mov     dl,[esi]
+        test    dl,dl
+        jz      @rce_r
+        cmp     dl,'('
+        jne     @F
+        inc     ecx
+@@:
+        cmp     dl,')'
+        jne     @F
+        dec     ecx
+@@:
+        push    eax
+        call    dc_item
+        pop     eax
+        test    ecx,ecx
+        jnz     @rce_l
+        cmp     byte ptr [esi],'.'
+        jne     @rce_r
+        cmp     byte ptr [esi+1],M_VAR
+        jne     @rce_r
+        lea     edx,[esi+1]             ; a's text, '.', f's
+        push    esi
+        mov     esi,[g_nname+eax*4]
+        movzx   ecx,byte ptr [esi]
+        inc     esi
+        mov     edi,offset g_rnam
+        rep     movsb
+        mov     al,'.'
+        stosb
+        movzx   ecx,byte ptr [edx+1]
+        lea     esi,[edx+2]
+        mov     bl,[esi+ecx-1]
+        cmp     bl,'.'                  ; % & ! # $: not the name's
+        jae     @F
+        dec     ecx
+@@:
+        rep     movsb
+        pop     esi
+        sub     edi,offset g_rnam
+        mov     [g_state.lx.nptr],offset g_rnam
+        mov     eax,edi
+        mov     [g_state.lx.nlen],al
+        call    nam_find
+@rce_r:
+        pop     edx
+        pop     ecx
+        pop     edi
+        pop     esi
+        ret
+
+        .data
+g_ldk   db      O_F_LD_V,O_I_LD_V,O_S_LD_V      ; by kind
+g_stk   db      O_F_ST_V,O_I_ST_V,O_S_ST_V
+        .code
+@cdv_as:                                ; a scalar STRING * n: n spaces
+        push    ebx
+        call    cm_dvas
+        pop     ecx
+        movzx   eax,word ptr [g_vnam+ecx*2]
+        movzx   eax,word ptr [g_nfix+eax*2]
+        test    eax,eax
+        jz      cm_rts
+        test    [g_sinfo+ecx],80h
+        jnz     cm_rts
+        push    ecx
+        call    cm_lint
+        mov     al,K_SPACE
         call    cm_call
-@cdv_as:
-        cmp     byte ptr [esi],TK_AS    ; AS type: dc_line's
+        pop     ecx
+        mov     al,O_S_ST_V
+        jmp     cm_opid
+
+; ::::::::::::::
+; cm_dvas - past DIM's AS type [* n]: dc_line's.
+; ::::::::::::::
+cm_dvas:
+        cmp     byte ptr [esi],TK_AS
         jne     cm_rts
+        cmp     byte ptr [esi+1],M_VAR  ; AS a TYPE
+        jne     @F
+        inc     esi
+        jmp     dc_item
+@@:
         add     esi,2
         cmp     byte ptr [esi-1],TK_STRING
         jne     cm_rts
         cmp     byte ptr [esi],TK_MUL   ; STRING * n
         jne     cm_rts
         add     esi,6
+        ret
+
+; ::::::::::::::
+; cm_dsubs - DIM's ( [lo TO] hi {, ..} ): lo hi, or hi and OPTION BASE's,
+; each an INT.
+;
+; out:    ECX  n, and from bit 8 the dimensions without TO
+; ::::::::::::::
+cm_dsubs:
+        call    cm_chkop
+        xor     ecx,ecx
+        xor     edx,edx
+@cds_l:
+        push    ecx
+        push    edx
+        call    cm_expr
+        call    cm_toi
+        call    st_get
+        cmp     al,TK_TO
+        jne     @cds_b
+        inc     esi
+        call    cm_expr
+        call    cm_toi
+        pop     edx
+        pop     ecx
+        jmp     @cds_n
+@cds_b:
+        movzx   eax,[g_obase]
+        call    cm_lint
+        pop     edx
+        pop     ecx
+        bts     edx,ecx
+@cds_n:
+        inc     ecx
+        push    ecx
+        push    edx
+        call    cm_optcm
+        pop     edx
+        pop     ecx
+        jz      @cds_l
+        shl     edx,8
+        or      ecx,edx
+        push    ecx
+        call    cm_chkcl
+        pop     ecx
         ret
 
 ; ::::::::::::::
