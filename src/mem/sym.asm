@@ -1,13 +1,19 @@
 ; ==========================================================================
-; sym.asm - the symbol table and the variables
+; sym.asm - the name table and the variables
 ; ==========================================================================
-; holds:    var_clr, sym_find
+; holds:    var_clr, sym_init, nam_find, var_find
 ; uses:     hbot, htop, rd_first
-; data:     Per id, tables: skey the key, sinfo bit 7 array, bit 6 TI, TI$ or
-;           ST, bit 5 a plain variable inferred INT, bits 1-0 the kind; vt a
-;           variable's slot, an array's header.
+; data:     A name, 1 .. NNAM-1, as QBasic's name table: nname its text, its
+;           length then its letters in upper case, a suffix left out; nflag
+;           NM_*; nline a label's line. The lexer makes names; what a name
+;           is the compiler finds here.
+;           A variable, 1 .. NSYM-1, as QBasic's variable manager: of a name,
+;           a type (ET_*) and whether an array. vnam, vtyp the name and type;
+;           sinfo bit 7 array, bits 1-0 the kind (3 DEF FN's); vt its slot, an array's header.
+;           Each table chains its hashes from a head, 0 ends a chain.
 ; calls:
-;   sym_find           a match of sinfo and the key, else a new id
+;   nam_find           the name of a text, else a new one
+;   var_find           the variable of a name, type and kind, else a new one
 ; ==========================================================================
 
 include x86f.inc
@@ -21,7 +27,7 @@ include x86f.inc
 ; ::::::::::::::
 var_clr:
         mov     edi,VARBASE
-        mov     ecx,SVLIM-VARBASE
+        mov     ecx,NSYM*12              ; varb, svarb
         xor     al,al
         rep     stosb
         xor     ebx,ebx
@@ -30,8 +36,9 @@ var_clr:
         jz      @vc_n
         mov     [g_vt+ebx*4],0
 @vc_n:
-        inc     bl
-        jnz     @vc_a
+        inc     ebx
+        cmp     bx,[g_state.lx.nsyms]
+        jb      @vc_a
         mov     eax,[g_state.mm.hbot]
         mov     [g_state.mm.aend],eax
         mov     eax,[g_state.mm.htop]
@@ -41,74 +48,202 @@ var_clr:
         jmp     rd_first
 
 ; ::::::::::::::
-; sym_find - the id of a name; a new one is made, a new variable zeroed.
+; sym_init - no names, no variables.
 ;
-; in:     AL     80h an array, 0 a variable
-;         nkind  the kind
-;         nkey   the name's first two bytes; hi 0 for a lone letter
-; out:    AL  the id
-; keeps:  ESI, EDI
-; error:  ?OUT OF MEMORY  255 ids
+; keeps:  ESI
 ; ::::::::::::::
-sym_find:
-        or      al,[g_state.lx.nkind]
-        mov     dl,al
-        test    al,81h
-        jnz     @sf_n
-        mov     cx,[g_state.lx.nkey]
-        cmp     cx,'IT'
-        je      @sf_y
-        cmp     cx,'TS'
-        jne     @sf_n
-        test    dl,dl
-        jnz     @sf_n
-@sf_y:
-        or      dl,40h
-@sf_n:
-        xor     ebx,ebx
-@sf_lp:
-        cmp     bl,[g_state.lx.nsyms]
-        je      @sf_new
-        mov     cl,[g_sinfo+ebx]
-        test    cl,SI_INF
-        jz      @F
-        xor     cl,cl                   ; inferred INT: still the plain name
-@@:
-        cmp     dl,cl
-        jne     @sf_s
-        mov     cx,[g_skey+ebx*2]
-        cmp     cx,[g_state.lx.nkey]
-        je      @sf_ok
-@sf_s:
-        inc     bl
-        jnz     @sf_lp
-@sf_om:
+sym_init:
+        mov     [g_state.lx.nsyms],1
+        mov     [g_state.lx.nnams],1
+        mov     [g_state.lx.nsfree],offset g_snmb
+        mov     edi,offset g_nhead
+        mov     ecx,HSIZE/2
+        xor     eax,eax
+        rep     stosd
+        mov     edi,offset g_vhead
+        mov     ecx,HSIZE/2
+        rep     stosd
+        mov     edi,offset g_deft
+        mov     ecx,26
+        mov     al,ET_R4
+        rep     stosb
+        ret
+
+; ::::::::::::::
+; nam_find - the name of a text; a new one is made. A new name starting FN
+; is DEF FN's: NM_FN.
+;
+; in:     nptr  the text
+;         nlen  its length, a suffix left out
+; out:    EAX  the name
+; keeps:  ESI, EDI
+; error:  ?OUT OF MEMORY  NNAM names, or the names' room is full
+; ::::::::::::::
+nam_find:
+        push    esi
+        push    edi
+        mov     esi,[g_state.lx.nptr]
+        movzx   ecx,[g_state.lx.nlen]
+        push    ecx
+        push    esi
+        xor     eax,eax
+@nf_hl:
+        movzx   edi,byte ptr [esi]
+        upcase  edi
+        imul    eax,eax,31
+        add     eax,edi
+        inc     esi
+        loop    @nf_hl
+        and     eax,HSIZE-1
+        pop     esi
+        pop     ecx
+        push    eax
+        movzx   ebx,word ptr [g_nhead+eax*2]
+@nf_lp:
+        test    ebx,ebx
+        jz      @nf_new
+        mov     edi,[g_nname+ebx*4]
+        cmp     cl,[edi]
+        jne     @nf_s
+        push    ecx
+        push    esi
+@nf_c:
+        inc     edi
+        movzx   eax,byte ptr [esi]
+        upcase  eax
+        cmp     al,[edi]
+        jne     @nf_m
+        inc     esi
+        loop    @nf_c
+        pop     esi
+        pop     ecx
+        pop     eax
+        jmp     @nf_ok
+@nf_m:
+        pop     esi
+        pop     ecx
+@nf_s:
+        movzx   ebx,word ptr [g_nnext+ebx*2]
+        jmp     @nf_lp
+@nf_om:
         jmp     err_om
-@sf_new:
-        cmp     bl,255
-        jae     @sf_om
+@nf_new:
+        movzx   ebx,[g_state.lx.nnams]
+        cmp     ebx,NNAM
+        jae     @nf_om
+        mov     edi,[g_state.lx.nsfree]
+        lea     eax,[edi+ecx+1]
+        cmp     eax,offset g_snmb+NMSZ
+        ja      @nf_om
+        mov     [g_nname+ebx*4],edi
+        mov     al,cl
+        stosb
+@nf_cp:
+        movzx   eax,byte ptr [esi]
+        upcase  eax
+        stosb
+        inc     esi
+        loop    @nf_cp
+        mov     [g_state.lx.nsfree],edi
+        pop     eax
+        mov     cx,[g_nhead+eax*2]
+        mov     [g_nnext+ebx*2],cx
+        mov     [g_nhead+eax*2],bx
+        mov     [g_nflag+ebx],0
+        mov     [g_nline+ebx*2],0
+        mov     [g_ntyp+ebx],0
+        mov     [g_natyp+ebx],0
+        mov     edi,[g_nname+ebx*4]
+        cmp     byte ptr [edi],2
+        jbe     @nf_n
+        cmp     word ptr [edi+1],'NF'
+        jne     @nf_n
+        mov     [g_nflag+ebx],NM_FN
+@nf_n:
+        inc     [g_state.lx.nnams]
+@nf_ok:
+        mov     eax,ebx
+        pop     edi
+        pop     esi
+        ret
+
+; ::::::::::::::
+; var_find - the variable of a name, a type and a kind; a new one is made, a
+; new scalar zeroed.
+;
+; in:     AX  the name
+;         CL  the type, ET_*
+;         DL  the kind: bit 7 an array, bits 1-0 as sinfo's
+; out:    EAX  the variable
+; keeps:  ESI, EDI
+; error:  ?OUT OF MEMORY  NSYM variables
+; ::::::::::::::
+var_find:
+        push    edi
+        movzx   eax,ax
+        movzx   ebx,cl
+        lea     edi,[eax*4+eax]
+        lea     edi,[edi+ebx*2]
+        movzx   ebx,dl
+        shr     ebx,7
+        add     edi,ebx
+        and     edi,HSIZE-1
+        movzx   ebx,word ptr [g_vhead+edi*2]
+@vf_lp:
+        test    ebx,ebx
+        jz      @vf_new
+        cmp     ax,[g_vnam+ebx*2]
+        jne     @vf_s
+        cmp     cl,[g_vtyp+ebx]
+        jne     @vf_s
+        mov     ch,[g_sinfo+ebx]
+        and     ch,83h
+        cmp     ch,dl
+        je      @vf_ok
+@vf_s:
+        movzx   ebx,word ptr [g_vnext+ebx*2]
+        jmp     @vf_lp
+@vf_om:
+        jmp     err_om
+@vf_new:
+        movzx   ebx,[g_state.lx.nsyms]
+        cmp     ebx,NSYM
+        jae     @vf_om
+        mov     [g_vnam+ebx*2],ax
+        mov     [g_vtyp+ebx],cl
+        mov     ax,[g_vhead+edi*2]
+        mov     [g_vnext+ebx*2],ax
+        mov     [g_vhead+edi*2],bx
         mov     [g_sinfo+ebx],dl
-        mov     cx,[g_state.lx.nkey]
-        mov     [g_skey+ebx*2],cx
         and     [g_vt+ebx*4],0
         test    dl,dl
-        js      @sf_m
+        js      @vf_a
         lea     ecx,[VARBASE+ebx*4]
-        mov     [g_vt+ebx*4],ecx           ; a slot's id is in its address
+        mov     [g_vt+ebx*4],ecx           ; a slot's variable is in its address
         and     word ptr [SVBASE+ebx*8+D_LEN],0
         and     dword ptr [ecx],0
-        add     ecx,VS
-        mov     [g_state.mm.vend],ecx
-@sf_m:
+@vf_a:
         inc     [g_state.lx.nsyms]
-@sf_ok:
-        mov     al,bl
+@vf_ok:
+        mov     eax,ebx
+        pop     edi
         ret
 
         .data?
-g_vt    dd      256 dup(?)
-g_skey  dw      256 dup(?)
-g_sinfo db      256 dup(?)
+g_vt    dd      NSYM dup(?)
+g_vnam  dw      NSYM dup(?)
+g_vnext dw      NSYM dup(?)
+g_vhead dw      HSIZE dup(?)
+g_vtyp  db      NSYM dup(?)
+g_sinfo db      NSYM dup(?)
+g_nname dd      NNAM dup(?)
+g_nnext dw      NNAM dup(?)
+g_nline dw      NNAM dup(?)
+g_nhead dw      HSIZE dup(?)
+g_nflag db      NNAM dup(?)
+g_ntyp  db      NNAM dup(?)                 ; a name's declared type, ET_*
+g_natyp db      NNAM dup(?)                 ; its array's
+g_deft  db      26 dup(?)                   ; DEFtype's, by first letter
         .code
 
         end

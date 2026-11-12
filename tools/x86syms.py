@@ -10,7 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent / 'src' / 'x86f'
 CORE = ['main.asm', 'vm/exec.asm', 'vm/flow.asm', 'vm/calls.asm',
-        'vm/builtins.asm', 'vm/bc.asm', 'comp/lex.asm', 'comp/comp.asm',
+        'vm/builtins.asm', 'vm/bc.asm', 'comp/lex.asm', 'comp/decl.asm', 'comp/comp.asm',
         'comp/expr.asm', 'comp/link.asm', 'comp/list.asm', 'mem/far.asm',
         'mem/prog.asm', 'mem/sym.asm', 'mem/str.asm', 'mem/arr.asm',
         'io/io.asm', 'io/repl.asm', 'io/file.asm', 'io/plat.asm',

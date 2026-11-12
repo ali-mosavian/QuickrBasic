@@ -1,19 +1,19 @@
 ; ==========================================================================
 ; lex.asm - the tokenizer: a typed line becomes the body of a stored line
 ; ==========================================================================
-; holds:    lx_line, the scanner and the tokenizer's actions lt_*
-; uses:     dfa.inc's tables (tools/x86dfa.py), sym_find
+; holds:    lx_line, lx_word
+; uses:     dfa.inc's tables (tools/x86dfa.py), nam_find
 ; data:     SI the text, DI the body. In the body:
-;           M_VAR len name id  a name with its % or $, then its symbol id
-;           M_INT lo hi        a whole number under 65536
-;           Keywords crunch as stock: tools/lexer.py is the model.
-;           Two automata. The scanner reads text bytes into a symbol: a
-;           keyword's token, PRINT for ?, else the byte. The tokenizer's
-;           states read a symbol each, as tk_mode says (scanned, raw, DATA
-;           text); each entry is an action lt_* and the next state.
+;           M_VAR len name nam:2  a name as typed, its suffix too; nam its
+;                                 entry in the name table
+;           M_INT n:4            a whole number under 2^31, &H, &O
+;           a token              80h..FEh, or TK_X and a byte
+;           Spaces go, but in strings, REM and DATA. A number with a point,
+;           an exponent or 2^31 and over stays text. A keyword is a whole
+;           word (the scanner's automaton), any other word a name.
 ; calls:
-;   lx_line            a symbol (lxrd by tk_mode), the entry, its action
-;     lx_scan          the scanner: the lowest keyword that is a prefix
+;   lx_line            each item of the line
+;     lx_word          a word: its keyword, or a name for nam_find
 ; ==========================================================================
 
 include x86f.inc
@@ -27,303 +27,322 @@ include comp/dfa.inc
 ; in:     SI  inbuf, 0-terminated
 ;         DI  cbuf
 ; out:    DI  past the body's 0
-; error:  ?OUT OF MEMORY  from sym_find
+; error:  ?OUT OF MEMORY  from nam_find
 ; ::::::::::::::
 lx_line:
-        xor     edx,edx
-@lxl_s:
-        mov     [g_state.lx.lxst],dl
-        movzx   eax,byte ptr [g_tk_mode+edx]
-        call    [g_lxrd+eax*4]
-        movzx   ebx,al
-        movzx   ebx,byte ptr [g_tk_cls+ebx]
-        movzx   edx,[g_state.lx.lxst]
-        imul    edx,edx,TK_NC
-        add     ebx,edx
-        movzx   edx,word ptr [g_tk_tab+ebx*2]
-        test    dl,dl
-        jns     @F
-        mov     esi,[g_state.lx.lxs]               ; the next state reads it again
-@@:
-        mov     [g_state.lx.lxst],dh
-        and     edx,7Fh
-        call    [g_lxact+edx*4]
-        movzx   edx,[g_state.lx.lxst]
-        cmp     dl,0FFh
-        jne     @lxl_s
-        ret
-
-; ::::::::::::::
-; lx_scan - the scanner: the symbol at SI.
-;
-; A letter it reads comes in upper case, folded in the text too: a state
-; reads a byte only to compare it with a keyword's.
-;
-; out:    AL   the symbol
-;         SI   past it; stays on the 0
-;         lxs  where it began
-; keeps:  all but EAX, SI
-; ::::::::::::::
-lx_scan:
-        push    ebx
-        push    ecx
-        push    edx
-@lsc_r:
-        mov     [g_state.lx.lxs],esi
-        xor     edx,edx                 ; DL the state, DH the best token
-@lsc_l:
-        movzx   eax,byte ptr [esi]
-        cmp     al,'a'
-        jb      @F
-        cmp     al,'z'
-        ja      @F
-        and     al,0DFh
-        mov     [esi],al
-@@:
-        movzx   eax,byte ptr [g_sc_cls+eax]
-        movzx   ebx,dl
-        imul    ebx,ebx,SC_NC
-        movzx   eax,byte ptr [g_sc_tab+ebx+eax]
-        cmp     al,SC_NUL
-        jae     @lsc_x
-        inc     esi
-        cmp     al,SC_LEAF
-        jae     @lsc_h
-        mov     dl,al
-        mov     ah,[g_sc_acc+eax]
-        test    ah,ah
-        jz      @lsc_l
-        mov     dh,ah                   ; a keyword ends here
-        mov     ecx,esi
-        jmp     @lsc_l
-@lsc_h:
-        mov     al,[g_sc_acc+eax]
-        jmp     @lsc_o
-@lsc_x:
-        je      @lsc_0
-        cmp     al,SC_SKIP
-        jne     @F
-        inc     esi
-        jmp     @lsc_r
-@@:
-        cmp     al,SC_BYTE
-        je      @lsc_b
-        cmp     al,SC_PRINT
-        jne     @lsc_k
-        inc     esi
-        mov     al,TK_PRINT
-        jmp     @lsc_o
-@lsc_k:
-        test    dh,dh                   ; SC_BACK: the best keyword, else
-        jz      @lsc_f                  ; the first byte
-        mov     al,dh
-        mov     esi,ecx
-        jmp     @lsc_o
-@lsc_f:
-        mov     esi,[g_state.lx.lxs]
-@lsc_b:
         lodsb
-        jmp     @lsc_o
-@lsc_0:
-        xor     al,al
-@lsc_o:
-        pop     edx
-        pop     ecx
-        pop     ebx
-        ret
-
-; ::::::::::::::
-; lx_raw - the byte at SI, as it is.
-; ::::::::::::::
-lx_raw:
-        mov     [g_state.lx.lxs],esi
-        mov     al,[esi]
         test    al,al
-        jz      @F
-        inc     esi
-@@:
-        ret
-
-; ::::::::::::::
-; lx_dat - DATA text: the byte at SI; bytes of 80h or more but pi skipped.
-; ::::::::::::::
-lx_dat:
-        mov     [g_state.lx.lxs],esi
-        mov     al,[esi]
-        test    al,al
-        jz      @F
-        inc     esi
-        cmp     al,80h
-        jb      @F
-        cmp     al,TK_PI
-        jne     lx_dat
-@@:
-        ret
-
-; ::::::::::::::
-; lt_put - the symbol to the body.
-;
-; in:     AL  the symbol, as for each lt_* action
-; ::::::::::::::
-lt_put:
-; ::::::::::::::
-; lt_end - the line's 0 to the body; the tokenizer stops.
-; ::::::::::::::
-lt_end:
-        stosb
-; ::::::::::::::
-; lt_skip - nothing: a space before an array's '('.
-; ::::::::::::::
-lt_skip:
-        ret
-
-; ::::::::::::::
-; lt_nbeg - a number's first byte, a digit or '.'.
-; ::::::::::::::
-lt_nbeg:
-        mov     [g_state.lx.lxn],edi
-        mov     [g_state.lx.lxf],1
-        stosb
+        jz      @lxl_e
+        cmp     al,' '
+        je      lx_line
+        cmp     al,9
+        je      lx_line
+        cmp     al,'"'
+        je      @lxl_q
+        cmp     al,"'"
+        je      @lxl_c
+        cmp     al,'&'
+        je      @lxl_h
+        movzx   ebx,al
         cmp     al,'.'
-        je      @F
+        je      @lxl_d
+        sub     bl,'0'
+        cmp     bl,10
+        jb      @lxl_n
+        mov     bl,al
+        upcase  ebx
+        sub     bl,'A'
+        cmp     bl,26
+        jb      @lxl_w
+        movzx   ebx,al
+        mov     ah,[g_chr_tok+ebx]
+        test    ah,ah
+        jz      @F
+        mov     al,ah
+@@:
+        stosb
+        jmp     lx_line
+@lxl_e:
+        stosb
+        ret
+@lxl_q:
+        stosb                           ; a string: to its quote, as it is
+@lxq_l:
+        lodsb
+        test    al,al
+        jz      @lxl_e
+        stosb
+        cmp     al,'"'
+        jne     @lxq_l
+        jmp     lx_line
+@lxl_c:
+        mov     al,TK_REM
+        stosb
+@lxl_r:                                 ; REM's text: the rest, as it is
+@lxr_l:
+        lodsb
+        stosb
+        test    al,al
+        jnz     @lxr_l
+        ret
+@lxl_d:
+        mov     bl,[esi]
+        sub     bl,'0'
+        cmp     bl,10
+        jb      @lxl_n
+        stosb                           ; a '.' alone
+        jmp     lx_line
+@lxl_n:
+        dec     esi
+        call    lx_num
+        jmp     lx_line
+@lxl_h:
+        call    lx_hex
+        jmp     lx_line
+@lxl_w:
+        dec     esi
+        call    lx_word
+        cmp     al,TK_REM
+        je      @lxl_r
+        cmp     al,TK_DATA
+        jne     lx_line
+        xor     cl,cl                   ; DATA's text: to a ':' out of quotes
+@lxd_l:
+        lodsb
+        test    al,al
+        jz      @lxl_e
+        cmp     al,'"'
+        jne     @F
+        xor     cl,1
+@@:
+        test    cl,cl
+        jnz     @lxd_p
+        cmp     al,':'
+        je      @lxd_x
+@lxd_p:
+        stosb
+        jmp     @lxd_l
+@lxd_x:
+        stosb
+        jmp     lx_line
+
+; ::::::::::::::
+; lx_num - a number: M_INT n:4 when whole and under 2^31, else its text.
+;
+; in:     SI  at its first digit or point
+; out:    SI  past it
+; ::::::::::::::
+lx_num:
+        mov     [g_state.lx.lxn],edi
+        xor     edx,edx                 ; the value; DH bit: text
+        xor     ecx,ecx
         mov     [g_state.lx.lxf],0
-        and     eax,0Fh
-        mov     [g_state.lx.lxv],eax
-@@:
-        ret
-
-; ::::::::::::::
-; lt_ndig - a digit: a whole number's value, text from 65536.
-; ::::::::::::::
-lt_ndig:
-        stosb
+@lxn_d:
+        movzx   eax,byte ptr [esi]
+        sub     al,'0'
+        cmp     al,10
+        jae     @lxn_o
+        movsb
         cmp     [g_state.lx.lxf],0
-        jne     @F
-        and     eax,0Fh
-        imul    ecx,[g_state.lx.lxv],10
-        add     eax,ecx
-        mov     [g_state.lx.lxv],eax
-        cmp     eax,65535
-        jbe     @F
+        jne     @lxn_d
+        imul    ecx,ecx,10
+        jc      @lxn_t
+        add     ecx,eax
+        jns     @lxn_d
+@lxn_t:
+        mov     [g_state.lx.lxf],1      ; 2^31 and over: text
+        jmp     @lxn_d
+@lxn_o:
+        mov     al,[esi]
+        cmp     al,'.'
+        je      @lxn_p
+        upcase  eax
+        cmp     al,'E'
+        je      @lxn_e
+        cmp     al,'D'
+        jne     @lxn_x
+@lxn_e:
+        mov     bl,[esi+1]              ; E, D: an exponent when a digit or sign
+        cmp     bl,'+'                  ; follows
+        je      @lxn_s
+        cmp     bl,'-'
+        je      @lxn_s
+        sub     bl,'0'
+        cmp     bl,10
+        jae     @lxn_x
+        mov     byte ptr [esi],'E'
+        movsb
         mov     [g_state.lx.lxf],1
-@@:
-        ret
-
-; ::::::::::::::
-; lt_nput - '.', E or E's sign: the number is text.
-; ::::::::::::::
-lt_nput:
-        stosb
+        jmp     @lxn_d
+@lxn_s:
+        mov     byte ptr [esi],'E'
+        movsw
         mov     [g_state.lx.lxf],1
-        ret
-
-; ::::::::::::::
-; lt_nend - the number's end: a whole one is M_INT lo hi.
-; ::::::::::::::
-lt_nend:
+        jmp     @lxn_d
+@lxn_p:
+        movsb
+        mov     [g_state.lx.lxf],1
+        jmp     @lxn_d
+@lxn_x:
         cmp     [g_state.lx.lxf],0
-        jne     @F
+        jne     @lxn_r
         mov     edi,[g_state.lx.lxn]
         mov     al,M_INT
         stosb
-        mov     ax,word ptr [g_state.lx.lxv]
-        stosw
-@@:
+        mov     eax,ecx
+        stosd
+@lxn_r:
         ret
 
 ; ::::::::::::::
-; lt_vbeg - a name's first letter: M_VAR, its length's place, the letter.
+; lx_hex - &H or &O and its digits: M_INT n:4; '&' alone is the byte.
+;
+; in:     SI  after the '&'
+; out:    SI  past it
 ; ::::::::::::::
-lt_vbeg:
-        mov     [g_state.lx.nkind],0
-        jmp     @lt_nb
+lx_hex:
+        movzx   eax,byte ptr [esi]
+        upcase  eax
+        mov     cl,4
+        cmp     al,'H'
+        je      @lxh_b
+        mov     cl,3
+        cmp     al,'O'
+        je      @lxh_b
+        mov     al,'&'
+        stosb
+        ret
+@lxh_b:
+        inc     esi
+        xor     edx,edx
+@lxh_l:
+        movzx   eax,byte ptr [esi]
+        upcase  eax
+        sub     al,'0'
+        cmp     al,10
+        jb      @lxh_d
+        cmp     cl,4
+        jne     @lxh_e
+        sub     al,'A'-'0'
+        cmp     al,6
+        jae     @lxh_e
+        add     al,10
+@lxh_d:
+        cmp     cl,3
+        jne     @F
+        cmp     al,8
+        jae     @lxh_e
+@@:
+        shl     edx,cl
+        or      edx,eax
+        inc     esi
+        jmp     @lxh_l
+@lxh_e:
+        mov     al,M_INT
+        stosb
+        mov     eax,edx
+        stosd
+        ret
+
 ; ::::::::::::::
-; lt_fbeg - FN's name's first letter.
+; lx_word - a word: letters, digits and points. Its keyword's token, or a
+; name (lx_name).
+;
+; in:     SI  at its first letter
+; out:    SI  past it
+;         AL  the token written, else 0
+; error:  ?OUT OF MEMORY  from nam_find
 ; ::::::::::::::
-lt_fbeg:
-        mov     [g_state.lx.nkind],3
-@lt_nb:
-        mov     byte ptr [g_state.lx.nkey],al
-        mov     byte ptr [g_state.lx.nkey+1],0
-        mov     ah,al
+lx_word:
+        mov     [g_state.lx.lxs],esi
+        mov     edx,KW_START
+@lxw_l:
+        movzx   eax,byte ptr [esi]
+        movzx   ebx,al
+        upcase  ebx
+        sub     bl,'A'
+        cmp     bl,26
+        jb      @lxw_c
+        sub     al,'0'
+        cmp     al,10
+        jb      @lxw_c
+        cmp     byte ptr [esi],'.'
+        jne     @lxw_e
+@lxw_c:
+        movzx   eax,byte ptr [esi]
+        upcase  eax
+        movzx   eax,byte ptr [g_kw_cls+eax]
+        imul    edx,edx,KW_NC
+        add     edx,eax
+        movzx   edx,word ptr [g_kw_tab+edx*2]
+        inc     esi
+        jmp     @lxw_l
+@lxw_e:
+        cmp     byte ptr [esi],'$'
+        jne     @lxw_k
+        movzx   eax,byte ptr [g_kw_cls+'$']
+        imul    ebx,edx,KW_NC
+        add     ebx,eax
+        movzx   ebx,word ptr [g_kw_tab+ebx*2]
+        cmp     word ptr [g_kw_acc+ebx*2],0
+        je      @lxw_k
+        mov     edx,ebx
+        inc     esi
+@lxw_k:
+        movzx   eax,word ptr [g_kw_acc+edx*2]
+        test    eax,eax
+        jz      lx_name
+        cmp     eax,100h
+        jb      @lxw_1
+        mov     byte ptr [edi],TK_X
+        inc     edi
+@lxw_1:
+        stosb
+        ret
+
+; ::::::::::::::
+; lx_name - the word from lxs to SI is a name: M_VAR len name nam:2, a suffix
+; % & ! # $ in the text but not the name's key. What the name is, the
+; compiler finds in the name table.
+;
+; in:     lxs  its start
+;         SI   its end
+; out:    AL   0
+; error:  ?OUT OF MEMORY  from nam_find
+; ::::::::::::::
+lx_name:
         mov     al,M_VAR
         stosb
-        stosb
-        mov     [g_state.lx.nlenp],edi
-        mov     al,ah
-        stosb
-        ret
-
-; ::::::::::::::
-; lt_npct - the name's %: its end.
-; ::::::::::::::
-lt_npct:
-        mov     [g_state.lx.nkind],1
-        jmp     @lt_ns
-; ::::::::::::::
-; lt_ndol - the name's $: its end.
-; ::::::::::::::
-lt_ndol:
-        mov     [g_state.lx.nkind],2
-@lt_ns:
-        call    lt_nchr
-        jmp     lt_nlen
-
-; ::::::::::::::
-; lt_nchr - a letter or digit of the name; nkey keeps its second byte.
-; ::::::::::::::
-lt_nchr:
-        cmp     byte ptr [g_state.lx.nkey+1],0
-        jne     @F
-        mov     byte ptr [g_state.lx.nkey+1],al
-@@:
-        stosb
-        ret
-
-; ::::::::::::::
-; lt_nlen - the name's end at SI: its length; lt_nvar goes on from SI.
-; ::::::::::::::
-lt_nlen:
-        mov     ebx,[g_state.lx.nlenp]
+        stosb                           ; the length's place
+        mov     [g_state.lx.nptr],edi
+        mov     ecx,esi
+        sub     ecx,[g_state.lx.lxs]
+        mov     [g_state.lx.nlen],cl
+        push    esi
+        mov     esi,[g_state.lx.lxs]
+        rep     movsb
+        pop     esi
+        mov     al,[esi]
+        cmp     al,'%'
+        je      @lxm_s
+        cmp     al,'&'
+        je      @lxm_s
+        cmp     al,'!'
+        je      @lxm_s
+        cmp     al,'#'
+        je      @lxm_s
+        cmp     al,'$'
+        jne     @lxm_l
+@lxm_s:
+        movsb
+@lxm_l:
+        mov     ebx,[g_state.lx.nptr]
         mov     eax,edi
         sub     eax,ebx
         mov     [ebx-1],al
-        mov     [g_state.lx.lxm],esi
-        ret
-
-; ::::::::::::::
-; lt_fend - FN's name's end: its id.
-; ::::::::::::::
-lt_fend:
-        call    lt_nlen
+        call    nam_find
+        stosw
         xor     al,al
-        jmp     @lt_f
-
-; ::::::::::::::
-; lt_narr - a '(' after the name: an array's id; the text again from the
-; name's end.
-; ::::::::::::::
-lt_narr:
-        mov     al,80h
-        jmp     @lt_id
-; ::::::::::::::
-; lt_nvar - no '(' after the name: a variable's id; the text again from
-; the name's end.
-; ::::::::::::::
-lt_nvar:
-        xor     al,al
-@lt_id:
-        mov     esi,[g_state.lx.lxm]
-@lt_f:
-        call    sym_find
-        stosb
         ret
-
-        .data
-g_lxrd  dd      lx_scan,lx_raw,lx_dat    ; by tk_mode: RD_KW, RD_RAW, RD_DATA
-g_lxact dd      lt_put,lt_end,lt_nbeg,lt_ndig,lt_nput,lt_nend,lt_vbeg,lt_fbeg
-        dd      lt_nchr,lt_npct,lt_ndol,lt_nlen,lt_fend,lt_nvar,lt_narr,lt_skip
-        .code
-.erre LT_SKIP eq 15, <g_lxact: the order of tools/x86dfa.py's TK_ACTS>
 
         end

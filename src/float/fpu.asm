@@ -1,15 +1,15 @@
 ; ==========================================================================
-; fpu.asm - the float work on the x87, patched over the soft routines' entries
+; fpu.asm - the float work, on the x87
 ; ==========================================================================
-; holds:    flt_finit, the x87 stubs under the soft entries
-; uses:     flt_add, flt_sub, flt_mul, flt_div, flt_zero, err_ov, err_iq,
-;           err_raise, fn_pow, fn_sqr .. fn_atn
+; holds:    flt_finit, flt_add .. flt_div, flt_from16, flt_from32,
+;           flt_fromu16, flt_fix16, flt_fixu16, flt_fix32, flt_int, fn_pow, fn_sqr ..
+;           fn_atn, ex_fclr
+; uses:     flt_zero, err_ov, err_iq, err_raise
 ; data:     a packed FLOAT is an x87 single: e 0 is 0, e 255 is ?OVERFLOW.
 ;           Every routine takes and returns packed singles; the x87 stack is
 ;           empty between them.
 ; calls:
-;   flt_finit          no FPU: nothing; else the jmps and the handlers
-;   flt_fadd .. flt_fdiv
+;   flt_add .. flt_div
 ;     flt_fld          both operands, ARG on the x87 stack
 ;     flt_fst          the result, packed
 ; ==========================================================================
@@ -18,7 +18,7 @@ include x86f.inc
         .code
 
 ; ::::::::::::::
-; flt_finit - find the FPU; with one, send the soft entries to the stubs.
+; flt_finit - find the x87; with none, say so and leave.
 ;
 ; out:    the x87  24-bit precision, exceptions masked
 ; ::::::::::::::
@@ -27,39 +27,26 @@ flt_finit:
         mov     [g_state.ft.fpw],5A5Ah
         fnstsw  [g_state.ft.fpw]
         cmp     byte ptr [g_state.ft.fpw],0
-        jne     @ffi_r
+        jne     @ffi_n
         fnstcw  [g_state.ft.fpw]
         mov     ax,[g_state.ft.fpw]
         and     ax,103Fh
         cmp     ax,003Fh
-        jne     @ffi_r
+        jne     @ffi_n
         fldcw   [g_fcw]
-        mov     ebx,offset g_fptab
-@ffi_l:
-        mov     ecx,[ebx]
-        jecxz   @ffi_o
-        mov     eax,[ebx+4]
-        sub     eax,ecx
-        sub     eax,5
-        mov     byte ptr [ecx],0E9h     ; jmp rel32 over the soft entry
-        mov     [ecx+1],eax
-        add     ebx,8
-        jmp     @ffi_l
-@ffi_o:
-        mov     [g_state.ft.hasfpu],1
-@ffi_r:
         ret
+@ffi_n:
+        mov     edx,offset g_nofpu
+        mov     ah,9
+        int     21h
+        mov     ax,4C01h
+        int     21h
 
         .data
 g_fcw   dw      007Fh
 g_fcwx  dw      037Fh                    ; 64-bit precision: 2^x's steps
 g_fcwd  dw      047Fh                    ; round down
-g_fptab dd      flt_add,flt_fadd,flt_sub,flt_fsub,flt_mul,flt_fmul,flt_div,flt_fdiv
-        dd      flt_from16,flt_ffrom,flt_from32,flt_ffrom32,flt_fromu16,flt_ffromu
-        dd      flt_fix16,flt_ffix
-        dd      flt_fixu16,flt_ffixu,flt_int,flt_ffloor,fn_pow,flt_fpow
-        dd      fn_sqr,flt_fsqr,fn_log,flt_flog,fn_exp,flt_fexp,fn_cos,flt_fcos
-        dd      fn_sin,flt_fsin,fn_tan,flt_ftan,fn_atn,flt_fatn,0
+g_nofpu db      "A math coprocessor is required.",13,10,"$"
         .code
 
 ; ::::::::::::::
@@ -78,14 +65,14 @@ flt_fld:
         ret
 
 ; ::::::::::::::
-; flt_fadd - FAC = ARG + FAC.
+; flt_add - FAC = ARG + FAC.
 ;
 ; in:     EAX  the FAC, packed
 ;         EDX  the ARG, packed
 ; out:    EAX  the result, packed
 ; error:  ?OVERFLOW  past EMAX
 ; ::::::::::::::
-flt_fadd:
+flt_add:
         call    flt_fld
         fadd    dword ptr [g_state.ft.fpa]
 
@@ -107,33 +94,33 @@ flt_fst:
         ret
 
 ; ::::::::::::::
-; flt_fsub - FAC = ARG - FAC.
+; flt_sub - FAC = ARG - FAC.
 ;
 ; in:     EAX  the FAC, packed
 ;         EDX  the ARG, packed
 ; out:    EAX  the result, packed
 ; error:  ?OVERFLOW  past EMAX
 ; ::::::::::::::
-flt_fsub:
+flt_sub:
         call    flt_fld
         fsub    dword ptr [g_state.ft.fpa]
         jmp     flt_fst
 
 ; ::::::::::::::
-; flt_fmul - FAC = ARG * FAC.
+; flt_mul - FAC = ARG * FAC.
 ;
 ; in:     EAX  the FAC, packed
 ;         EDX  the ARG, packed
 ; out:    EAX  the result, packed
 ; error:  ?OVERFLOW  past EMAX
 ; ::::::::::::::
-flt_fmul:
+flt_mul:
         call    flt_fld
         fmul    dword ptr [g_state.ft.fpa]
         jmp     flt_fst
 
 ; ::::::::::::::
-; flt_fdiv - FAC = ARG / FAC.
+; flt_div - FAC = ARG / FAC.
 ;
 ; in:     EAX  the divisor, packed
 ;         EDX  the dividend, packed
@@ -141,7 +128,7 @@ flt_fmul:
 ; error:  ?DIVISION BY ZERO  FAC 0
 ;         ?OVERFLOW          past EMAX
 ; ::::::::::::::
-flt_fdiv:
+flt_div:
         test    eax,0FF000000h
         jnz     @ffd_g
         mov     al,E_DZ
@@ -152,68 +139,69 @@ flt_fdiv:
         jmp     flt_fst
 
 ; ::::::::::::::
-; flt_ffrom - FAC = the INT in AX.
+; flt_from16 - FAC = the INT in AX.
 ;
 ; in:     AX  the INT
 ; out:    EAX  the result, packed
 ; keeps:  EDX
 ; ::::::::::::::
-flt_ffrom:
+flt_from16:
         mov     word ptr [g_state.ft.fpi],ax
         fild    word ptr [g_state.ft.fpi]
         jmp     flt_fst
 
 ; ::::::::::::::
-; flt_ffrom32 - FAC = the signed EAX.
+; flt_from32 - FAC = the signed EAX.
 ;
 ; in:     EAX  the number
 ; out:    EAX  the result, packed
 ; keeps:  EDX
 ; ::::::::::::::
-flt_ffrom32:
+flt_from32:
         mov     [g_state.ft.fpi],eax
         fild    dword ptr [g_state.ft.fpi]
         jmp     flt_fst
 
 ; ::::::::::::::
-; flt_ffromu - FAC = AX, unsigned.
+; flt_fromu16 - FAC = AX, unsigned.
 ;
 ; in:     AX  the number
 ; out:    EAX  the result, packed
 ; keeps:  EDX
 ; ::::::::::::::
-flt_ffromu:
+flt_fromu16:
         movzx   eax,ax
         mov     [g_state.ft.fpi],eax
         fild    dword ptr [g_state.ft.fpi]
         jmp     flt_fst
 
 ; ::::::::::::::
-; flt_ffixu - AX = floor(FAC), 0..65535.
+; flt_fixu16 - AX = FAC rounded, 0..65535.
 ;
 ; in:     EAX  the FAC, packed
 ; out:    AX  the number
 ; error:  ?ILLEGAL QUANTITY  out of range
 ; ::::::::::::::
-flt_ffixu:
+flt_fixu16:
         xor     cl,cl
         jmp     @fff_l
 
 ; ::::::::::::::
-; flt_ffix - AX = floor(FAC), -32768..32767.
+; flt_fix16 - AX = FAC rounded, -32768..32767.
 ;
 ; in:     EAX  the FAC, packed
 ; out:    AX  the number
 ; error:  ?ILLEGAL QUANTITY  out of range
 ; ::::::::::::::
-flt_ffix:
+flt_fix16:
         mov     cl,80h
 @fff_l:
         mov     [g_state.ft.fpa],eax
         fld     dword ptr [g_state.ft.fpa]
 
 ; ::::::::::::::
-; flt_xfix - pop st0 as an INT, floored.
+; flt_xfix - pop st0 as an INT, rounded to the nearest, a half to even, as
+; QBasic's.
 ;
 ; in:     st0  the value
 ;         CL   80h signed, 0 unsigned
@@ -222,9 +210,7 @@ flt_ffix:
 ; error:  ?ILLEGAL QUANTITY  out of range
 ; ::::::::::::::
 flt_xfix:
-        fldcw   [g_fcwd]
         fistp   dword ptr [g_state.ft.fpi]
-        fldcw   [g_fcw]
         mov     eax,[g_state.ft.fpi]
         test    cl,cl
         jz      @fxx_u
@@ -240,12 +226,33 @@ flt_xfix:
         ret
 
 ; ::::::::::::::
-; flt_ffloor - FAC = floor(FAC).
+; flt_fix32 - EAX = FAC rounded to the nearest, a half to even, as QBasic's.
+;
+; in:     EAX  the FAC, packed
+; out:    EAX  the number
+; keeps:  all but EAX
+; error:  ?ILLEGAL QUANTITY  past -2^31..2^31-1
+; ::::::::::::::
+flt_fix32:
+        mov     [g_state.ft.fpa],eax
+        fld     dword ptr [g_state.ft.fpa]
+        fistp   dword ptr [g_state.ft.fpi]
+        mov     eax,[g_state.ft.fpi]
+        cmp     eax,80000000h           ; out of range, or -2^31 itself
+        je      @fx3_e
+        ret
+@fx3_e:
+        cmp     [g_state.ft.fpa],0CF000000h
+        jne     err_iq
+        ret
+
+; ::::::::::::::
+; flt_int - FAC = floor(FAC).
 ;
 ; in:     EAX  the FAC, packed
 ; out:    EAX  the result, packed
 ; ::::::::::::::
-flt_ffloor:
+flt_int:
         mov     [g_state.ft.fpa],eax
         fld     dword ptr [g_state.ft.fpa]
         fldcw   [g_fcwd]
@@ -348,9 +355,52 @@ flt_xpw:
         call    flt_fst
         movzx   edx,bl
         shl     edx,31
-        call    @fp_sg
+        call    flt_psg
         mov     [g_state.ft.fpa],eax
         fld     dword ptr [g_state.ft.fpa]
+        ret
+
+; ::::::::::::::
+; flt_psg - a negative base's power: its sign by the power, odd or even.
+;
+; in:     EAX  |base| ^ power, packed
+;         EDX  bit 31: the base was negative
+;         ft4  the power, packed
+; out:    EAX  the result
+; error:  ?ILLEGAL QUANTITY  a negative base, a fraction power
+; ::::::::::::::
+flt_psg:
+        test    edx,edx
+        jns     @fps_r
+        mov     [g_state.ft.ft2],eax
+        mov     eax,[g_state.ft.ft4]
+        call    flt_whl
+        jnz     err_iq
+        sub     eax,00800000h           ; half
+        call    flt_whl
+        pushf
+        mov     eax,[g_state.ft.ft2]
+        popf
+        jz      @fps_r
+        jmp     flt_neg
+@fps_r:
+        ret
+
+; ::::::::::::::
+; flt_whl - is the FAC whole?
+;
+; in:     EAX  the FAC, packed
+; out:    ZF   set when whole
+;         EAX  the FAC
+; ::::::::::::::
+flt_whl:
+        mov     edx,eax
+        call    flt_int
+        push    edx
+        call    flt_cmp
+        pop     edx
+        test    al,al
+        mov     eax,edx
         ret
 
 ; ::::::::::::::
@@ -373,11 +423,8 @@ flt_xchk:
 ; ex_fclr - an error leaves nothing on the x87 stack.
 ; ::::::::::::::
 ex_fclr:
-        cmp     [g_state.ft.hasfpu],0
-        je      @fcl_r
         fninit
         fldcw   [g_fcw]
-@fcl_r:
         ret
 
 ; ::::::::::::::
@@ -407,13 +454,13 @@ flt_xtst:
         jmp     err_iq
 
 ; ::::::::::::::
-; flt_fpow - EDX ^ EAX on the x87.
+; fn_pow - EDX ^ EAX on the x87.
 ;
 ; in:     EAX  the power, packed
 ;         EDX  the base, packed
 ; out:    EAX  the result, packed
 ; ::::::::::::::
-flt_fpow:
+fn_pow:
         mov     [g_state.ft.fpb],edx
         fld     dword ptr [g_state.ft.fpb]
         call    flt_xpw
@@ -421,17 +468,17 @@ flt_fpow:
 
 ; The x87 builtins: EAX in, EAX out, a single so X=SIN(A):X=SIN(A) holds.
 ; ::::::::::::::
-; flt_fsqr - SQR on the x87.
+; fn_sqr - SQR on the x87.
 ; ::::::::::::::
-flt_fsqr:
+fn_sqr:
         call    flt_xtst
         jb      @st_fpu2
         fsqrt
         jmp     flt_fst
 ; ::::::::::::::
-; flt_flog - LOG on the x87.
+; fn_log - LOG on the x87.
 ; ::::::::::::::
-flt_flog:
+fn_log:
         call    flt_xtst
         jbe     @st_fpu2
         fldln2
@@ -439,9 +486,9 @@ flt_flog:
         fyl2x
         jmp     flt_fst
 ; ::::::::::::::
-; flt_fexp - EXP on the x87.
+; fn_exp - EXP on the x87.
 ; ::::::::::::::
-flt_fexp:
+fn_exp:
         call    flt_xin
         fldcw   [g_fcwx]
         fldl2e
@@ -449,16 +496,16 @@ flt_fexp:
         call    flt_x2x
         jmp     flt_fst
 ; ::::::::::::::
-; flt_fcos - COS on the x87.
+; fn_cos - COS on the x87.
 ; ::::::::::::::
-flt_fcos:
+fn_cos:
         call    flt_xin
         fcos
         jmp     @fxn_c2
 ; ::::::::::::::
-; flt_fsin - SIN on the x87.
+; fn_sin - SIN on the x87.
 ; ::::::::::::::
-flt_fsin:
+fn_sin:
         call    flt_xin
         fsin
 @fxn_c2:
@@ -470,9 +517,9 @@ flt_fsin:
         xor     eax,eax
         ret
 ; ::::::::::::::
-; flt_ftan - TAN on the x87.
+; fn_tan - TAN on the x87.
 ; ::::::::::::::
-flt_ftan:
+fn_tan:
         call    flt_xin
         fptan
         fnstsw  ax
@@ -481,9 +528,9 @@ flt_ftan:
         fstp    st(0)
         jmp     flt_fst
 ; ::::::::::::::
-; flt_fatn - ATN on the x87.
+; fn_atn - ATN on the x87.
 ; ::::::::::::::
-flt_fatn:
+fn_atn:
         call    flt_xin
         fld1
         fpatan

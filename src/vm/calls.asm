@@ -43,7 +43,7 @@ sc_pnl:
         jmp     ex_lp
 
 ; ::::::::::::::
-; sc_pzone - PR.ZONE: to the next 10-column zone.
+; sc_pzone - PR.ZONE: to the next 14-column zone.
 ;
 ; in:     pcol  the column
 ; ::::::::::::::
@@ -51,17 +51,27 @@ sc_pzone:
         call    io_space
         mov     al,[g_state.io.pcol]
         mov     ah,0
-        mov     bl,10
+        mov     bl,14
         div     bl
         test    ah,ah
         jnz     sc_pzone
         jmp     ex_lp
 
 ; ::::::::::::::
-; sc_ptab - PR.TAB ( i -- ).
+; sc_ptab - PR.TAB ( i -- ): to column i, from 1; past it, on the next line.
 ; ::::::::::::::
 sc_ptab:
         pop     eax
+        dec     eax
+        jg      @F
+        xor     eax,eax
+@@:
+        cmp     al,[g_state.io.pcol]
+        jae     @F
+        push    eax
+        call    io_nl
+        pop     eax
+@@:
         sub     al,[g_state.io.pcol]
         jbe     @jt_call1
         mov     cl,al
@@ -438,14 +448,14 @@ rd_sk:
         je      @rsk_r
         cmp     al,M_INT
         jne     @rsk_v
-        add     ebx,2
+        add     ebx,4
         jmp     @rsk_l
 @rsk_v:
         cmp     al,M_VAR
         jne     @rsk_l
         movzx   eax,byte ptr [g_progb+ebx]
         add     ebx,eax
-        add     ebx,2
+        add     ebx,3
         jmp     @rsk_l
 @rsk_r:
         ret
@@ -458,12 +468,20 @@ sc_res:
         jmp     ex_lp
 
 ; ::::::::::::::
-; sc_resl - RESTORE.L ( line -- ).
+; sc_resl - RESTORE.L ( line -- ): a number, or 10000h and a label's line.
 ;
 ; error:  ?UNDEF'D STATEMENT  no such line
 ; ::::::::::::::
 sc_resl:
         pop     eax
+        cmp     eax,10000h
+        jb      @srl_n
+        movzx   ebx,ax
+        test    ebx,ebx
+        jz      err_us
+        call    rd_seek
+        jmp     ex_lp
+@srl_n:
         mov     [g_state.rn.lnum],ax
         call    prg_findw
         jnc     err_us
@@ -518,7 +536,7 @@ sc_dim:
         mov     [g_dimbuf+ebx-2],ax
         sub     ebx,2
         jnz     @sdm_l
-        movzx   ebx,dl
+        movzx   ebx,dx
         call    arr_dim
         jmp     ex_lp
 
@@ -634,6 +652,8 @@ sc_ficlr:
 ; ::::::::::::::
 sc_runl:
         pop     eax
+        cmp     eax,10000h
+        jae     err_us                  ; RUN takes a number, not a label
         mov     [g_state.rn.runl],ax
         call    var_clr
         call    cm_link
@@ -794,12 +814,10 @@ sc_sys:
         jmp     ex_lp
 
 ; ::::::::::::::
-; sc_stti - S.ST.TI ( s -- ): TI$ = "HHMMSS".
+; sc_inln - IN.LINE: a line, no ?; INPUT "prompt", ..
 ; ::::::::::::::
-sc_stti:
-        pop     eax
-        mov     cl,2
-        call    sys_write
+sc_inln:
+        call    io_read
         jmp     ex_lp
 
 ; ::::::::::::::
@@ -896,53 +914,7 @@ sc_ist:
         push    eax
         jmp     ex_lp
 
-; ::::::::::::::
-; sys_write - TI$ = "HHMMSS" sets the clock.
-;
-; in:     CL   lk, the kind
-;         AX   the string
-; error:  ?SYNTAX ERROR      TI or ST
-;         ?TYPE MISMATCH     a number
-;         ?ILLEGAL QUANTITY  not 6 digits, or past 23:59:59
-; ::::::::::::::
-sys_write:
-        test    cl,3
-        jz      err_sn
-        call    str_get
-        cmp     cx,6
-        jne     err_iq
-        push    esi
-        call    str_near
-        xor     ebx,ebx
-        xor     edi,edi
-@syw_d:
-        lodsb
-        xor     al,'0'
-        cmp     al,[g_wlim+edi]
-        jae     @syw_q
-        movzx   eax,al
-        mov     ecx,edi
-        add     edi,ecx
-        add     edi,ecx
-        add     edi,ecx
-        imul    eax,[g_wtab+edi]
-        mov     edi,ecx
-        add     ebx,eax
-        inc     edi
-        cmp     edi,6
-        jne     @syw_d
-        cmp     ebx,5184000
-        jae     @syw_q
-        pop     esi
-        mov     eax,ebx
-        jmp     plt_settim
-@syw_q:
-        pop     esi
-        jmp     err_iq
-
         .data
-g_wtab  dd      2160000,216000,36000,3600,600,60
-g_wlim  db      10,10,6,10,6,10
 g_relbit db      1,2,4
         .code
 

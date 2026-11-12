@@ -225,7 +225,7 @@ op_on:
 ; ::::::::::::::
 op_ret:
         stopchk
-        mov     bl,0FFh
+        mov     bx,0FFFFh
         call    for_find
         cmp     al,M_GS
         jne     err_rg
@@ -241,13 +241,13 @@ op_ret:
 ; ::::::::::::::
 ; for_find - a variable's FOR frame, above the newest GOSUB or FN frame.
 ;
-; in:     BL  the id
+; in:     BX  the id
 ; out:    EBX  the frame
 ;         AL   its mark
 ;         ZF   set when found
 ; ::::::::::::::
 for_find:
-        mov     cl,bl
+        mov     cx,bx
         mov     ebx,[g_state.rn.cstk]
 @ff_lp:
         cmp     ebx,CSTOP
@@ -255,7 +255,7 @@ for_find:
         mov     al,[ebx+F_MARK]
         cmp     al,M_FR
         jne     @ff_r
-        cmp     cl,[ebx+F_ID]
+        cmp     cx,[ebx+F_ID]
         je      @ff_r
         add     ebx,FRSIZE
         jmp     @ff_lp
@@ -343,8 +343,8 @@ ex_dcode:
 ; ::::::::::::::
 op_for:
         mov     [g_state.rn.fop],bx
-        lodsb
-        mov     [g_state.rn.fid],al
+        lodsw
+        mov     [g_state.rn.fid],ax
         cmp     ebx,O_I_FOR1*2
         jae     @of_1
         pop     dword ptr [g_state.rn.fstep]
@@ -358,7 +358,7 @@ op_for:
         mov     [g_state.rn.fstep],eax
 @of_l:
         pop     dword ptr [g_state.rn.flim]
-        mov     bl,[g_state.rn.fid]
+        mov     bx,[g_state.rn.fid]
         call    for_find
         je      @of_r
         mov     ebx,[g_state.rn.cstk]
@@ -367,8 +367,8 @@ op_for:
         sub     ebx,FRSIZE
 @of_r:
         mov     [g_state.rn.cstk],ebx
-        mov     al,[g_state.rn.fid]
-        mov     [ebx+F_ID],al
+        mov     ax,[g_state.rn.fid]
+        mov     [ebx+F_ID],ax
         mov     eax,[g_state.rn.fstep]
         mov     [ebx+F_STEP],eax
         mov     eax,[g_state.rn.flim]
@@ -408,7 +408,7 @@ for_mki:
         call    flt_w16
         jnz     @fmk_a
         push    eax
-        movzx   edi,byte ptr [ebp+F_ID]
+        movzx   edi,word ptr [ebp+F_ID]
         mov     eax,[VARBASE+edi*4]
         mov     [ebp+F_CACHE],eax
         call    flt_w16
@@ -435,14 +435,14 @@ for_mki:
 op_nextv:
         stopchk
         and     [g_state.sg.tsp],0
-        lodsb
-        mov     bl,al
+        lodsw
+        mov     bx,ax
         mov     edi,[g_state.rn.cstk]
         cmp     edi,CSTOP
         jae     @onv_f
         cmp     byte ptr [edi+F_MARK],M_FR
         jne     @onv_f
-        cmp     al,[edi+F_ID]
+        cmp     ax,[edi+F_ID]
         jne     @onv_f
         mov     ebx,edi
         jmp     for_any
@@ -483,7 +483,7 @@ op_nx0:
 ; ::::::::::::::
 for_any:
         mov     [g_state.rn.cstk],ebx
-        movzx   edi,byte ptr [ebx+F_ID]
+        movzx   edi,word ptr [ebx+F_ID]
         mov     cl,[g_sinfo+edi]
         and     cl,3
         lea     ebp,[VARBASE+edi*4]     ; the variable

@@ -160,6 +160,16 @@ io_kw:
         jmp     io_nth
 
 ; ::::::::::::::
+; io_kw1 - print the keyword of FFh AL.
+;
+; keeps:  all but AL
+; ::::::::::::::
+io_kw1:
+        push    ebx
+        mov     ebx,offset g_kwlist1
+        jmp     io_nth
+
+; ::::::::::::::
 ; io_msg - print message AL of msgs.
 ;
 ; in:     AL  the entry: E_*, MSG_*

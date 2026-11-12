@@ -47,7 +47,7 @@ rt_start:
         mov     [g_state.rn.rsp],esp
         mov     [g_state.rn.cstk],CSTOP
         mov     [g_state.rn.stklim],STKTOP-STKROOM
-        mov     [g_state.rn.cplim],STKTOP-2*STKROOM ; compiler frames: twice the 16-bit's
+        mov     [g_state.rn.cplim],STKTOP-CPROOM   ; the compiler's frames
         mov     dword ptr [g_progb+DLINE],0FF0000h
         mov     [g_state.cm.cxb],offset g_xbuf
         mov     [g_state.ft.rs],0FFFFFF01h         ; the 6502 build's boot state under sim65
@@ -57,6 +57,7 @@ rt_start:
 if IDE
         jmp     ui_start
 else
+        call    rpl_file
         jmp     rpl_ready
 endif
 

@@ -279,7 +279,7 @@ plt_getline:
 @pgl_p:
         mov     [g_inbuf+esi],al
         inc     esi
-        cmp     esi,80
+        cmp     esi,255
         jb      @pgl_c
         xor     esi,esi
         jmp     @pgl_c

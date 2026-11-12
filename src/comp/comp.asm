@@ -3,7 +3,7 @@
 ; ==========================================================================
 ; holds:    cm_line, cm_text, cm_code, cm_err; the statements and their
 ;           the emitters cm_op ..; the token readers st_get ..
-; uses:     cm_expr, sym_find, str_span, op_size, err_*
+; uses:     cm_expr, var_id, str_span, op_size, err_*
 ; data:     SI the token cursor, DI the code's next byte.
 ;           A statement is parsed by dfa.inc's automaton (tools/x86dfa.py):
 ;           each state's entry for the byte at SI steps past a token, goes
@@ -48,6 +48,11 @@ cm_text:
         mov     edi,[g_state.cm.cxb]
         lea     eax,[edi+XLIM]
         mov     [g_state.cm.cxlim],eax
+        inc     esi
+        call    lbl_at                  ; a label: on from its ':'
+        lea     esi,[esi-1]
+        jne     cm_new
+        mov     esi,ebx
 
 ; ::::::::::::::
 ; cm_new - compile the statement after SI.
@@ -58,8 +63,6 @@ cm_new:
         mov     [g_state.cm.cth],0
         call    st_eosn
         jz      cm_ee
-        test    al,al
-        jns     @st_comp4
         call    cm_tok
 
 ; ::::::::::::::
@@ -159,41 +162,44 @@ cm_if:
         call    cm_op
 @cmi_d:
         mov     [g_state.cm.cth],1
+        mov     al,[esi]                ; THEN or GOTO
+        push    eax
         call    st_getn
+        pop     edx
+        cmp     dl,TK_GOTO
+        je      @cmi_g
         cmp     al,M_INT
-        jne     @F
+        jne     cm_tok
+@cmi_g:
         mov     al,ST_GOTO
         jmp     cm_dfa
-@@:
-        test    al,al
-        jns     @st_comp1
 
 ; ::::::::::::::
 ; cm_tok - compile the statement at SI.
 ;
 ; in:     SI  at its first byte
-;         AL  that byte, 80h or over
-; error:  ?SYNTAX ERROR  not a keyword, M_VAR or GO TO
+;         AL  that byte
+; error:  ?SYNTAX ERROR  not a statement's keyword or a name
 ; ::::::::::::::
 cm_tok:
-        cmp     al,TK_NEW
-        jbe     @cmk_k
         cmp     al,M_VAR
-        mov     al,ST_LET
-        je      cm_dfa
-        cmp     byte ptr [esi],TK_GO
-        jne     @st_comp1
-        mov     al,ST_GO
-        jmp     @cmk_s
-@cmk_k:
+        je      @cmk_v
+        cmp     al,80h
+        jb      @st_comp1
+        cmp     al,TK_X
+        je      @st_comp1
         mov     [g_state.cm.ctok],al
         mov     [g_state.cm.ctks],esi
         movzx   ebx,al
         mov     al,[g_ps_ent+ebx-80h]
-@cmk_s:
+        test    al,al
+        jz      @st_comp1
         push    eax
         call    st_getn
         pop     eax
+        jmp     cm_dfa
+@cmk_v:
+        mov     al,ST_LET
 
 ; ::::::::::::::
 ; cm_dfa - run the statement automaton from state AL to its end.
@@ -250,23 +256,20 @@ cm_call:
 
 ; ::::::::::::::
 ; cm_store - convert the value to the target's type and store it: X.ST.V,
-; X.ST.A1, X.ST.A; TI$ by S.ST.TI.
+; X.ST.A1, X.ST.A.
 ;
 ; in:     ctv, ctk, ctn  the target: id, sinfo, subscripts
 ; error:  ?TYPE MISMATCH  the wrong type
-;         ?SYNTAX ERROR   TI or ST
+;         ?SYNTAX ERROR   a DEF FN's name
 ; ::::::::::::::
 cm_store:
-        call    cm_demf
         mov     al,[g_state.cm.ctk]
-        mov     ah,al
-        and     al,43h
-        cmp     al,40h
-        jae     @cst_y
         and     al,3
         cmp     al,1
         je      @cst_i
-        ja      @cst_s
+        cmp     al,2
+        je      @cst_s
+        ja      err_sn
         call    cm_tof
         mov     dl,1
         jmp     @cst_e
@@ -278,31 +281,25 @@ cm_store:
         call    cm_tos
         mov     dl,2
 @cst_e:
-        mov     cl,[g_state.cm.ctv]
+        movzx   ecx,[g_state.cm.ctv]
         mov     al,[g_state.cm.ctn]
         test    al,al
         jnz     @cst_a
         mov     al,O_I_ST_V
         add     al,dl
-        jmp     cm_opx
+        jmp     cm_opid
 @cst_a:
         cmp     al,1
         jne     @cst_n
         mov     al,O_I_ST_A1
         add     al,dl
-        jmp     cm_opx
+        jmp     cm_opid
 @cst_n:
         mov     al,O_I_ST_A
         add     al,dl
-        call    cm_opx
+        call    cm_opid
         mov     al,[g_state.cm.ctn]
         jmp     cm_byt
-@cst_y:
-        test    ah,2
-        jz      err_sn
-        call    cm_tos
-        mov     al,K_STTI
-        jmp     cm_call
 
 ; ::::::::::::::
 ; cm_fork - the value as FOR's variable wants it.
@@ -311,7 +308,6 @@ cm_store:
 ; error:  ?TYPE MISMATCH  a string
 ; ::::::::::::::
 cm_fork:
-        call    cm_demf
         cmp     [g_state.cm.cfk],0
         je      cm_tof
 
@@ -378,7 +374,8 @@ cm_tos:
         ret
 
 ; ::::::::::::::
-; cm_ileaf - is the code's last op an INT load: I.LD.V, I.LD.U8, I.LD.I16?
+; cm_ileaf - is the code's last op an INT load: I.LD.V, I.LD.U8, I.LD.I16,
+; I.LD.I32?
 ;
 ; out:    ZF  set when it is
 ;         BX  the op
@@ -391,6 +388,8 @@ cm_ileaf:
         cmp     byte ptr [ebx],O_I_LD_V
         je      @cil_r
         cmp     byte ptr [ebx],O_I_LD_U8
+        je      @cil_r
+        cmp     byte ptr [ebx],O_I_LD_I32
         je      @cil_r
         cmp     byte ptr [ebx],O_I_LD_I16
 @cil_r:
@@ -422,9 +421,16 @@ cm_tof:
         mov     byte ptr [ebx],O_F_LD_U8
         ret
 @ctf_w:
-        mov     ax,[ebx+1]               ; I.LD.I16: F.LD.F32 and its mark
         push    ebx
+        cmp     al,O_I_LD_I32
+        je      @ctf_d
+        mov     ax,[ebx+1]               ; I.LD.I16, I32: F.LD.F32 and its mark
         call    flt_fromu16
+        jmp     @ctf_f
+@ctf_d:
+        mov     eax,[ebx+1]
+        call    flt_from32
+@ctf_f:
         pop     ebx
         mov     edi,ebx
         push    eax
@@ -517,6 +523,14 @@ cm_opx:
         jmp     cm_byt
 
 ; ::::::::::::::
+; cm_opid - emit op AL, then the id CX.
+;
+; in:     AL, CX  the op, the id
+; ::::::::::::::
+cm_opid:
+        mov     dx,cx
+
+; ::::::::::::::
 ; cm_opw - emit op AL, then word DX.
 ;
 ; in:     AL, DX  the op, the word
@@ -541,23 +555,27 @@ cm_w:
 ; which the first jump fills (ex_target).
 ;
 ; in:     wv  the number
+;         wa  the line, a label's, else 0
 ; ::::::::::::::
 cm_jw:
         call    cm_w
-        xor     al,al
+        mov     al,byte ptr [g_state.cm.wa]
         call    cm_byt
-        xor     al,al
+        mov     al,byte ptr [g_state.cm.wa+1]
         jmp     cm_byt
 
 ; ::::::::::::::
-; cm_lint - emit an INT load of AX: I.LD.U8 under 256, else I.LD.I16.
+; cm_lint - emit an INT load of EAX: I.LD.U8 under 256, I.LD.I16 under
+; 65536, else I.LD.I32.
 ;
-; in:     AX  the number
+; in:     EAX  the number
 ; out:    cty  T_INT
 ; ::::::::::::::
 cm_lint:
         mov     [g_state.cm.cty],T_INT
         mov     [g_state.cm.cll],edi
+        test    eax,0FFFF0000h
+        jnz     @cli_l
         test    ax,0FF00h
         jnz     @cli_w
         push    eax
@@ -570,6 +588,13 @@ cm_lint:
         mov     dx,ax
         mov     al,O_I_LD_I16
         call    cm_opw
+        jmp     @cli_e
+@cli_l:
+        push    eax
+        mov     al,O_I_LD_I32
+        call    cm_op
+        pop     eax
+        call    cm_dw
 @cli_e:
         mov     [g_state.cm.clle],edi
         ret
@@ -668,8 +693,8 @@ st_eos:
 ; cm_name - a name: M_VAR and its id.
 ;
 ; in:     SI  at M_VAR, or spaces before it
-; out:    BX, AL  the id
-;         SI      after it
+; out:    EBX, AX  the id
+;         SI       after it
 ; error:  ?SYNTAX ERROR  no M_VAR
 ; ::::::::::::::
 cm_name:
@@ -678,18 +703,69 @@ cm_name:
         jne     @st_comp5
 
 ; ::::::::::::::
-; var_id - the id of the name at SI: M_VAR, the length, the text, the id.
+; var_id - the variable the name at SI is, as QBasic's variable manager
+; finds it: of its name; an array when '(' follows; its type by its suffix,
+; else as DIM AS or CONST declared it (ntyp, natyp), else by DEFtype (deft).
+; A name DEF FN's (NM_FN) is the function, kind 3.
 ;
 ; in:     SI  at M_VAR
-; out:    BX, AL  the id
-;         SI      after it
+; out:    EBX, EAX  the variable
+;         SI        after the name
+; error:  ?OUT OF MEMORY  from var_find
 ; ::::::::::::::
 var_id:
-        movzx   ebx,byte ptr [esi+1]
-        lea     esi,[esi+ebx+2]
-        lodsb
-        movzx   ebx,al
+        movzx   ecx,byte ptr [esi+1]
+        mov     bl,[esi+ecx+1]          ; the text's last byte
+        mov     bh,[esi+2]              ; its first
+        lea     esi,[esi+ecx+2]
+        movzx   eax,word ptr [esi]
+        add     esi,2
+        xor     edx,edx
+        cmp     byte ptr [esi],'('
+        jne     @F
+        mov     dl,80h
+@@:
+        test    [g_nflag+eax],NM_FN
+        jz      @F
+        mov     dl,3                    ; DEF FN's: never an array
+@@:
+        mov     ecx,ET_R4
+        cmp     bl,'!'
+        je      @vid_k
+        mov     cl,ET_R8
+        cmp     bl,'#'
+        je      @vid_k
+        mov     cl,ET_I2
+        cmp     bl,'%'
+        je      @vid_k
+        mov     cl,ET_I4
+        cmp     bl,'&'
+        je      @vid_k
+        mov     cl,ET_SD
+        cmp     bl,'$'
+        je      @vid_k
+        movzx   ecx,[g_ntyp+eax]
+        test    dl,80h
+        jz      @F
+        movzx   ecx,[g_natyp+eax]
+@@:
+        test    ecx,ecx
+        jnz     @vid_k
+        movzx   ecx,bh
+        upcase  ecx
+        movzx   ecx,[g_deft+ecx-'A']
+@vid_k:
+        cmp     dl,3
+        je      @F
+        or      dl,[g_etk+ecx]
+@@:
+        call    var_find
+        mov     ebx,eax
         ret
+
+        .data
+g_etk   db      0,1,1,0,0,2             ; ET_* to the kind: FLOAT, INT, STRING
+        .code
 
 ; ::::::::::::::
 ; cm_fv - FOR's variable: the target of the start's store.
@@ -703,13 +779,8 @@ cm_fv:
         call    cm_name
         test    [g_sinfo+ebx],80h
         jnz     @st_comp2
-        mov     [g_state.cm.cfid],al
+        mov     [g_state.cm.cfid],ax
         call    cm_tgt
-        cmp     [g_state.cm.cinf],0
-        je      @cfv_k
-        mov     [g_state.cm.cinfv],bl
-        or      [g_sinfo+ebx],SI_FOR
-@cfv_k:
         mov     al,[g_sinfo+ebx]
         mov     [g_state.cm.ctk],al
         and     al,43h
@@ -725,7 +796,7 @@ cm_fv:
 ; keeps:  BX
 ; ::::::::::::::
 cm_tgt:
-        mov     [g_state.cm.ctv],bl
+        mov     [g_state.cm.ctv],bx
         mov     al,[g_sinfo+ebx]
         mov     [g_state.cm.ctk],al
         mov     [g_state.cm.ctn],0
@@ -746,15 +817,15 @@ cm_tgt:
 cm_def:
         mov     al,K_NODIR
         call    cm_call
-        mov     al,TK_FN
-        call    cm_chk
+        call    st_get
         cmp     al,M_VAR
         jne     @st_comp2
         call    var_id
+        cmp     [g_sinfo+ebx],3
+        jne     @st_comp2               ; DEF FN's name starts FN
         push    eax
         call    cm_chkop
         call    cm_name
-        call    cm_unf
         mov     al,[g_sinfo+ebx]
         and     al,43h
         cmp     al,2
@@ -768,20 +839,20 @@ cm_def:
         pop     ecx
         push    edx
         mov     al,O_FN_DEF
-        call    cm_opx
+        call    cm_opid
         xor     al,al
         call    cm_byt
         pop     ecx
         push    ecx
         push    edi
         mov     al,O_FN_ENTER
-        call    cm_opx
+        call    cm_opid
         call    cm_expr
         call    cm_tof
         pop     ebx
         pop     ecx
         mov     al,O_FN_RET
-        call    cm_opx
+        call    cm_opid
         mov     eax,edi
         sub     eax,ebx
         mov     [ebx-1],al
@@ -805,33 +876,83 @@ cm_rem:
         jmp     cm_fin
 
 ; ::::::::::::::
-; cm_lnum - a line number: M_INT; none there is 0.
+; cm_lnum - a line number, M_INT, or a label; none there is 0.
 ;
 ; in:     SI  at it, or spaces before it
-; out:    wv  the number
+; out:    wv  the number, NONUM for a label
+;         wa  a label's line, 0 when it has none
 ;         SI  after it
 ;         AL  the byte there
 ; error:  ?SYNTAX ERROR  64000 and over
 ; ::::::::::::::
 cm_lnum:
+        and     [g_state.cm.wa],0
         call    st_get
+        cmp     al,M_VAR
+        je      @cml_v
         cmp     al,M_INT
         jne     @cml_z
-        mov     ax,[esi+1]
+        mov     eax,[esi+1]
         mov     [g_state.cm.wv],ax
-        add     esi,3
-        cmp     ah,0FAh
+        add     esi,5
+        cmp     eax,64000
         jae     err_sn
         jmp     st_get
 @cml_z:
         and     [g_state.cm.wv],0
         ret
+@cml_v:
+        call    lbl_nam
+        test    [g_nflag+eax],NM_LBL
+        jz      @F
+        mov     ax,[g_nline+eax*2]
+        mov     [g_state.cm.wa],ax
+@@:
+        mov     [g_state.cm.wv],NONUM
+        movzx   ebx,byte ptr [esi+1]
+        lea     esi,[esi+ebx+4]
+        jmp     st_get
 
 ; ::::::::::::::
-; cm_lnld - I.LD.I16 of the line number wv.
+; lbl_nam - the name at SI; a label's has NM_LBL, its line in nline.
+;
+; in:     SI  at M_VAR
+; out:    EAX  the name
+; keeps:  all but EAX
+; ::::::::::::::
+lbl_nam:
+        movzx   eax,byte ptr [esi+1]
+        movzx   eax,word ptr [esi+eax+2]
+        ret
+
+; ::::::::::::::
+; lbl_at - does a label start the body at SI: M_VAR, then ':'?
+;
+; in:     SI  at the body
+; out:    ZF  set when one does
+;         EBX  its ':'
+; keeps:  all but EBX
+; ::::::::::::::
+lbl_at:
+        cmp     byte ptr [esi],M_VAR
+        jne     @lba_r
+        movzx   ebx,byte ptr [esi+1]
+        lea     ebx,[esi+ebx+4]
+        cmp     byte ptr [ebx],':'
+@lba_r:
+        ret
+
+; ::::::::::::::
+; cm_lnld - I.LD.I16 of the line number wv; a label's line wa as 10000h+wa.
 ; ::::::::::::::
 cm_lnld:
         mov     dx,[g_state.cm.wv]
+        cmp     dx,NONUM
+        jne     @F
+        movzx   eax,[g_state.cm.wa]
+        add     eax,10000h
+        jmp     cm_lint
+@@:
         mov     al,O_I_LD_I16
         jmp     cm_opw
 
@@ -883,7 +1004,7 @@ cm_n1:
 ; cm_narg - count a CALL's arguments, then load the count.
 ; ::::::::::::::
 cm_narg:
-        movzx   ax,[g_state.cm.ccnt]
+        movzx   eax,[g_state.cm.ccnt]
         jmp     cm_lint
 
 ; ::::::::::::::
@@ -894,6 +1015,8 @@ cm_narg:
 ; ::::::::::::::
 cm_dv:
         call    cm_name
+        cmp     byte ptr [esi],'('
+        jne     @cdv_as                 ; a scalar: var_id made it
         push    ebx
         call    cm_subs0
         pop     eax
@@ -902,7 +1025,17 @@ cm_dv:
         pop     eax
         call    cm_lint
         mov     al,K_DIM
-        jmp     cm_call
+        call    cm_call
+@cdv_as:
+        cmp     byte ptr [esi],TK_AS    ; AS type: dc_line's
+        jne     cm_rts
+        add     esi,2
+        cmp     byte ptr [esi-1],TK_STRING
+        jne     cm_rts
+        cmp     byte ptr [esi],TK_MUL   ; STRING * n
+        jne     cm_rts
+        add     esi,6
+        ret
 
 ; ::::::::::::::
 ; cm_fst - FOR's start: stored as LET's.
@@ -928,8 +1061,8 @@ cm_for1:
         jne     @cfo_e
         inc     al                      ; F.FOR, F.FOR1
 @cfo_e:
-        mov     cl,[g_state.cm.cfid]
-        jmp     cm_opx
+        movzx   ecx,[g_state.cm.cfid]
+        jmp     cm_opid
 
 ; ::::::::::::::
 ; cm_nv - NEXT.V id, or NEXT.
@@ -941,9 +1074,9 @@ cm_nv:
         cmp     al,M_VAR
         jne     @cmv_n
         call    var_id
-        mov     cl,al
+        mov     ecx,eax
         mov     al,O_NEXT_V
-        jmp     cm_opx
+        jmp     cm_opid
 @cmv_n:
         mov     al,O_NEXT
         jmp     cm_op
@@ -1027,9 +1160,8 @@ cm_print:
 @cmp_a:
         push    eax
         inc     esi
-        call    cm_expr
+        call    cm_paren
         call    cm_tob
-        call    cm_chkcl
         dec     esi
         pop     eax
         jmp     @cmp_o
@@ -1171,13 +1303,13 @@ cm_skip:
         je      @csk_r
         cmp     al,M_INT
         jne     @csk_v
-        add     esi,2
+        add     esi,4
         jmp     @csk_n
 @csk_v:
         cmp     al,M_VAR
         jne     @csk_n
         movzx   ebx,byte ptr [esi+1]
-        lea     esi,[esi+ebx+2]
+        lea     esi,[esi+ebx+3]
 @csk_n:
         inc     esi
         jmp     @csk_lp

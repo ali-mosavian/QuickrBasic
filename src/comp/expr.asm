@@ -2,7 +2,7 @@
 ; expr.asm - the expression compiler
 ; ==========================================================================
 ; holds:    cm_expr, cm_p, cm_un and the operand loads
-; uses:     cm_op .., st_get, flt_in, sym_find
+; uses:     cm_op .., st_get, flt_in, var_id
 ; data:     Every operand is pushed; an operator takes the cells it needs. A
 ;           right operand that is one load folds into the operator: F.ADD.V,
 ;           I.CMP.U8 ...
@@ -136,6 +136,8 @@ cm_p:
         js      @cp_fl
         cmp     [g_state.cm.cty],T_INT
         jne     @cp_lf
+        cmp     dl,3                    ; INT / INT is a FLOAT, as QBasic's
+        je      @cp_lf
         test    dl,dl
         js      @cp_ic
         mov     al,dl
@@ -249,14 +251,14 @@ cm_right:
 cm_iop:
         mov     [g_state.cm.cty],T_INT
         mov     dl,al
-        mov     ax,2*256+O_I_LD_V
+        mov     ax,3*256+O_I_LD_V
         call    cm_right
         jne     @cio_k
         add     dl,O_I_ADD_V
         mov     [ebx],dl
         ret
 @cio_k:
-        mov     al,O_I_LD_U8
+        mov     ax,2*256+O_I_LD_U8
         call    cm_right
         jne     @cio_p
         add     dl,O_I_ADD_U8
@@ -277,11 +279,11 @@ cm_iop:
 cm_icmp:
         mov     [g_state.cm.cty],T_INT
         and     dl,7
-        mov     ax,2*256+O_I_LD_V
+        mov     ax,3*256+O_I_LD_V
         call    cm_right
         mov     cl,O_I_CMP_V
         je      @cic_f
-        mov     al,O_I_LD_U8
+        mov     ax,2*256+O_I_LD_U8
         call    cm_right
         mov     cl,O_I_CMP_U8
         je      @cic_f
@@ -329,7 +331,7 @@ cm_fop2:
 ; keeps:  BX, DX
 ; ::::::::::::::
 cm_fkind:
-        mov     ax,2*256+O_F_LD_V
+        mov     ax,3*256+O_F_LD_V
         mov     cl,O_F_ADD_V
         call    cm_right
         je      @cfk_r
@@ -337,7 +339,7 @@ cm_fkind:
         mov     cl,O_F_ADD_VI
         call    cm_right
         je      @cfk_r
-        mov     al,O_F_LD_U8
+        mov     ax,2*256+O_F_LD_U8
         mov     cl,O_F_ADD_U8
         call    cm_right
         je      @cfk_r
@@ -391,19 +393,18 @@ g_fcmpk db      O_F_CMP_V,O_F_CMP_VI,O_F_CMP_U8,O_F_CMP_F32
 ; ::::::::::::::
 cm_lval:
         call    cm_name
-        call    cm_unf
         call    cm_tgt
         test    [g_state.cm.ctk],80h
         jz      @rt_exp1
-        push    word ptr [g_state.cm.ctv]
+        push    dword ptr [g_state.cm.ctv]
         call    cm_subs0
-        pop     word ptr [g_state.cm.ctv]
+        pop     dword ptr [g_state.cm.ctv]
         mov     [g_state.cm.ctn],cl
 @rt_exp1:
         ret
 
 ; ::::::::::::::
-; cm_load - a variable's value: X.LD.V id, a CALL for TI TI$ ST, or the
+; cm_load - a variable's value: X.LD.V id, a DEF FN's call, or the
 ; subscripts and X.LD.A1 id, X.LD.A id n.
 ;
 ; in:     SI  at M_VAR
@@ -413,41 +414,34 @@ cm_load:
         mov     dl,[g_sinfo+ebx]
         test    dl,dl
         js      @cld_a
-        mov     cl,bl
+        mov     ecx,ebx
         and     dl,43h
-        cmp     dl,40h
-        jae     @cld_y
+        cmp     dl,3
+        je      @cld_fn
         cmp     dl,1
         je      @cld_i
         ja      @cld_s
         mov     [g_state.cm.cty],T_FLT
         mov     al,O_F_LD_V
-        jmp     cm_opx
+        jmp     cm_opid
 @cld_i:
         mov     [g_state.cm.cll],edi
         mov     al,O_I_LD_V
-        call    cm_opx
+        call    cm_opid
         mov     [g_state.cm.clle],edi
         mov     [g_state.cm.cty],T_INT
         ret
 @cld_s:
         mov     [g_state.cm.cty],T_STR
         mov     al,O_S_LD_V
-        jmp     cm_opx
-@cld_y:
-        mov     [g_state.cm.cty],T_STR
-        mov     al,K_STI
-        test    dl,2
-        jnz     @jt_expr1
-        add     ebx,ebx
-        mov     [g_state.cm.cty],T_INT
-        mov     al,K_IST
-        cmp     byte ptr [g_skey+ebx],'S'
-        je      @jt_expr1
-        mov     [g_state.cm.cty],T_FLT
-        mov     al,K_FTI
-@jt_expr1:
-        jmp     cm_call
+        jmp     cm_opid
+@cld_fn:
+        push    ebx                     ; DEF FN's: ( expr ), FN.CALL
+        call    cm_paren
+        call    cm_tof
+        pop     ecx
+        mov     al,O_FN_CALL
+        jmp     cm_opid
 @cld_a:
         push    ebx
         push    edx
@@ -461,16 +455,15 @@ cm_load:
         cmp     cl,1
         je      @cld_1
         mov     al,[g_ldan+ebx]
-        mov     ch,cl
         pop     ebx
-        mov     cl,bl
-        call    cm_opx
-        mov     al,ch
+        push    ecx
+        mov     ecx,ebx
+        call    cm_opid
+        pop     eax
         jmp     cm_byt
 @cld_1:
-        pop     ebx
-        mov     cl,bl
-        jmp     cm_opx
+        pop     ecx
+        jmp     cm_opid
 
         .data
 g_ctys  db      T_FLT,T_INT,T_STR
@@ -556,8 +549,8 @@ cm_un:
         je      cm_load
         cmp     al,M_INT
         jne     @cu_2
-        mov     ax,[esi+1]
-        add     esi,3
+        mov     eax,[esi+1]
+        add     esi,5
         jmp     cm_lint
 @cu_2:
         cmp     al,'('
@@ -594,8 +587,6 @@ cm_un:
         inc     esi
         jmp     cm_un
 @cu_5:
-        cmp     al,TK_FN
-        je      @cu_fn
         cmp     al,'"'
         je      cm_str
         cmp     al,'.'
@@ -609,17 +600,6 @@ cm_un:
         call    cm_op
         pop     eax
         jmp     cm_dw
-@cu_fn:
-        call    st_getn
-        cmp     al,M_VAR
-        jne     err_sn
-        call    var_id
-        push    eax
-        call    cm_paren
-        call    cm_tof
-        pop     ecx
-        mov     al,O_FN_CALL
-        jmp     cm_opx
 @cu_7:
         sub     al,TK_SGN
         cmp     al,TK_MID-TK_SGN
@@ -666,12 +646,7 @@ cm_un:
         add     al,K_FN
         jmp     cm_call
 @cu_8:
-        cmp     al,TK_PI-TK_SGN
-        jne     err_sn
-        inc     esi
-        mov     [g_state.cm.cty],T_FLT
-        mov     al,O_F_LD_PI
-        jmp     cm_op
+        jmp     err_sn
 
 ; ::::::::::::::
 ; cm_farg - function CL's argument converted; cty its result.

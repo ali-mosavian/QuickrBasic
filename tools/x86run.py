@@ -45,8 +45,9 @@ class Result:
     ms: int
 
 
-def run(jobs: dict[str, str], work: Path, limit_ms: int = 60000) -> dict[str, Result]:
-    """Run each program text as stdin of BASIC.COM; one DOSBox, one job per program."""
+def run(jobs: dict[str, str | tuple[str, str]], work: Path, limit_ms: int = 60000, file: bool = False) -> dict[str, Result]:
+    """Run each program text as stdin of BASIC.COM, or with file as the file BASIC.COM runs, its
+    stdin a job's (program, input) second; one DOSBox, one job per program."""
     if work.exists():
         shutil.rmtree(work)
     work.mkdir(parents=True)
@@ -57,8 +58,12 @@ def run(jobs: dict[str, str], work: Path, limit_ms: int = 60000) -> dict[str, Re
     names = list(jobs)
     lines = []
     for i, name in enumerate(names):
-        (work / f"J{i}.IN").write_bytes(jobs[name].encode("latin-1"))
-        lines += [f":ms {limit_ms}", f"mount c {work}", "c:", f"BASIC.COM < J{i}.IN > J{i}.TXT", "."]
+        prog, stdin = (jobs[name], "") if isinstance(jobs[name], str) else jobs[name]
+        if file:
+            (work / f"J{i}.BAS").write_bytes(prog.encode("latin-1"))
+        (work / f"J{i}.IN").write_bytes((stdin if file else prog).encode("latin-1"))
+        run = f"BASIC.COM J{i}.BAS < J{i}.IN" if file else f"BASIC.COM < J{i}.IN"
+        lines += [f":ms {limit_ms}", f"mount c {work}", "c:", f"{run} > J{i}.TXT", "."]
     fpu = "" if os.environ.get("X86_FPU", "1") == "1" else "fpu=false\n"
     (work / "job.conf").write_text(CONF.replace("[dos]", f"{fpu}[dos]"))
     (work / "jobs.txt").write_text("\n".join(lines) + "\n")

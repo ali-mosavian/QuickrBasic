@@ -1,15 +1,12 @@
 ; ==========================================================================
-; link.asm - types inferred, the code cache; lines compiled to streams
+; link.asm - the code cache; lines compiled to streams
 ; ==========================================================================
-; holds:    cm_link, cm_infer, cm_infclr, cm_comp, cm_cache, cm_flush,
-;           cm_xlate; cm_walk
+; holds:    cm_link, cm_comp, cm_cache, cm_flush, cm_xlate; cm_walk
 ;           opsz, opfl
 ; uses:     cm_text, mem_line, op_size
 ; data:     A line's cp is its code in the cache, 0 when it has none.
 ; calls:
-;   cm_link            cm_infer, then the cache is empty
-;     cm_infer         every line compiled, its stores walked; FOR lines
-;                      again until the types hold
+;   cm_link            the cache is empty
 ;   cm_cache           cm_comp, the code copied past the program
 ; ==========================================================================
 
@@ -183,14 +180,14 @@ cm_xlate:
         mov     [edi-2],bx
         jmp     @cx_t
 @cx_def:
-        movsb
+        movsw
         inc     esi
         mov     [g_state.lnk.efn],edi
         xor     ax,ax
         stosw
         jmp     @cx_t
 @cx_ret:
-        movsb
+        movsw
         mov     ebx,[g_state.lnk.efn]
         mov     eax,edi
         sub     eax,ebx
@@ -232,83 +229,7 @@ cm_walk:
         jmp     cm_walk
 
 ; ::::::::::::::
-; cm_cbdem - cm_walk: demote what is assigned other than by FOR, mark FOR's;
-; a FOR sets cfail.
-;
-; in:     AL  the op
-;         SI  at it
-; keeps:  CX, DX, SI
-; ::::::::::::::
-cm_cbdem:
-        movzx   ebx,byte ptr [esi+1]
-        cmp     al,O_FN_ENTER
-        je      @ccb_x
-        cmp     al,O_I_ST_V
-        je      @ccb_v
-        cmp     al,O_F_ST_V
-        je      @ccb_v
-        cmp     al,O_I_FOR
-        jb      @rt_lin1
-        cmp     al,O_F_FOR1
-        ja      @rt_lin1
-        mov     [g_state.cm.cfail],1
-@rt_lin1:
-        ret
-@ccb_v:
-        call    cm_isfor
-        jne     @ccb_x
-        or      [g_sinfo+ebx],SI_FOR
-        ret
-@ccb_x:
-        test    [g_sinfo+ebx],SI_INF
-        jnz     cm_dem
-        ret
-
-; ::::::::::::::
-; cm_isfor - is the store at SI a FOR's start? Its FOR follows after the
-; expression ops of the limit and step.
-;
-; in:     SI  at the store
-;         BL  its id
-; out:    ZF  set when it is
-; keeps:  all
-; ::::::::::::::
-cm_isfor:
-        push    eax
-        push    ecx
-        push    esi
-        push    ebx
-@cif_n:
-        call    op_size
-        add     esi,ecx
-        mov     al,[esi]
-        cmp     al,O_CALL
-        jne     @cif_x
-        cmp     byte ptr [esi+1],K_IPOW
-        jae     @cif_n
-        jmp     @cif_no
-@cif_x:
-        movzx   ebx,al
-        test    [g_opfl+ebx],FX
-        jnz     @cif_n
-        cmp     al,O_I_FOR
-        jb      @cif_no
-        cmp     al,O_F_FOR1
-        ja      @cif_no
-        pop     ebx
-        cmp     bl,[esi+1]
-        jmp     @cif_r
-@cif_no:
-        pop     ebx
-        or      esp,esp                 ; ZF clear
-@cif_r:
-        pop     esi
-        pop     ecx
-        pop     eax
-        ret
-
-; ::::::::::::::
-; cm_link - before the program runs: infer the types, empty the cache.
+; cm_link - before the program runs: empty the cache.
 ;
 ; keeps:  SI
 ; ::::::::::::::
@@ -316,7 +237,6 @@ cm_link:
         cmp     [g_state.lnk.linked],0
         jne     cm_rts
         push    esi
-        call    cm_infer
         and     [g_state.lnk.lc],0
         mov     ebx,PROGBASE
 @clk_l:
@@ -329,146 +249,6 @@ cm_link:
         mov     [g_state.lnk.cend],offset g_cachb+CACHE0
         mov     [g_state.lnk.linked],1
         pop     esi
-        ret
-
-; ::::::::::::::
-; cm_infclr - no variable is inferred INT.
-; ::::::::::::::
-cm_infclr:
-        xor     ebx,ebx
-@cic_l:
-        cmp     bl,[g_state.lx.nsyms]
-        je      @rt_lin4
-        test    [g_sinfo+ebx],SI_INF
-        jz      @cic_n
-        and     [g_sinfo+ebx],NOT (SI_INF+1)
-@cic_n:
-        inc     bl
-        jnz     @cic_l
-@rt_lin4:
-        ret
-
-; ::::::::::::::
-; cm_infer - type the variables a FOR alone assigns, with INT bounds, as INT.
-; Every line is compiled and its stores walked; a FOR's line is compiled again
-; until nothing changes, as the bounds' types decide.
-; ::::::::::::::
-cm_infer:
-        call    cm_infclr
-        xor     ebx,ebx
-@cin_a:
-        cmp     bl,[g_state.lx.nsyms]
-        je      @cin_w
-        test    [g_sinfo+ebx],0C3h
-        jnz     @cin_b
-        or      [g_sinfo+ebx],SI_INF+1
-@cin_b:
-        inc     bl
-        jnz     @cin_a
-@cin_w:
-        mov     ebx,PROGBASE
-@cin_1:
-        cmp     byte ptr [g_progb+ebx],0
-        je      @cin_u0
-        call    cm_comp
-        mov     [g_state.cm.cfail],0
-        mov     esi,offset g_xbuf
-        mov     edx,offset cm_cbdem
-        push    ebx
-        call    cm_walk
-        pop     ebx
-        movzx   ax,[g_state.cm.cfail]
-        mov     word ptr [g_progb+ebx+L_CP],ax
-        movzx   ecx,byte ptr [g_progb+ebx]
-        add     ebx,ecx
-        jmp     @cin_1
-@cin_u0:
-        xor     ebx,ebx
-@cin_u:
-        cmp     bl,[g_state.lx.nsyms]
-        je      @cin_p
-        test    [g_sinfo+ebx],SI_FOR
-        jnz     @cin_s
-        test    [g_sinfo+ebx],SI_INF
-        jz      @cin_n
-        call    cm_dem
-        jmp     @cin_n
-@cin_s:
-        and     [g_sinfo+ebx],NOT SI_FOR
-@cin_n:
-        inc     bl
-        jnz     @cin_u
-@cin_p:
-        mov     [g_state.cm.cinf],1
-        mov     [g_state.cm.cinfc],0
-        mov     [g_state.cm.cinfv],255
-        mov     ebx,PROGBASE
-@cin_l:
-        cmp     byte ptr [g_progb+ebx],0
-        je      @cin_d
-        cmp     word ptr [g_progb+ebx+L_CP],0
-        je      @cin_m
-        call    cm_comp
-@cin_m:
-        movzx   ecx,byte ptr [g_progb+ebx]
-        add     ebx,ecx
-        jmp     @cin_l
-@cin_d:
-        xor     ebx,ebx
-@cin_c:
-        cmp     bl,[g_state.lx.nsyms]
-        je      @cin_e
-        and     [g_sinfo+ebx],NOT SI_FOR
-        inc     bl
-        jnz     @cin_c
-@cin_e:
-        cmp     [g_state.cm.cinfc],0
-        jne     @cin_p
-        mov     [g_state.cm.cinf],0
-        ret
-
-; ::::::::::::::
-; cm_unf - in a pass, a variable assigned other than by FOR is a FLOAT.
-;
-; in:     BX  the id
-; keeps:  BX
-; ::::::::::::::
-cm_unf:
-        cmp     [g_state.cm.cinf],0
-        je      cm_rts
-        mov     [g_state.cm.cinfv],255
-        test    [g_sinfo+ebx],SI_INF
-        jz      cm_rts
-
-; ::::::::::::::
-; cm_dem - variable BX is a FLOAT after all.
-;
-; in:     BX  the id
-; out:    cinfc  1
-; keeps:  BX
-; ::::::::::::::
-cm_dem:
-        and     [g_sinfo+ebx],NOT (SI_INF+1)
-        mov     [g_state.cm.cinfc],1
-        ret
-
-; ::::::::::::::
-; cm_demf - in a pass, a FLOAT bound makes the FOR's variable a FLOAT.
-;
-; in:     cty    the bound's type
-;         cinfv  the variable, 255 none
-; ::::::::::::::
-cm_demf:
-        cmp     [g_state.cm.cinf],0
-        je      @rt_lin5
-        cmp     [g_state.cm.cty],T_FLT
-        jne     @rt_lin5
-        movzx   ebx,[g_state.cm.cinfv]
-        cmp     bl,255
-        je      @rt_lin5
-        test    [g_sinfo+ebx],SI_INF
-        jnz     cm_dem
-@rt_lin5:
         ret
 
         .data?

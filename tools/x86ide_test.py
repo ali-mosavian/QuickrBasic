@@ -114,7 +114,7 @@ def play() -> None:
     keys("for i=1 to 3\n  print i*i\n")
     press("home")  # past the indent Enter kept
     keys("next\n")
-    assert text()[:3] == ["FOR I=1 TO 3", "  PRINT I*I", "NEXT"], text()
+    assert text()[:3] == ["FOR I = 1 TO 3", "  PRINT I * I", "NEXT"], text()
     # QBasic's status lines (qbasmsgs.txt), less the keys we lack.
     assert look("editor")[24].startswith(" <SHIFT+F1=HELP> <F6=WINDOW> <F5=RUN>  "), look()[24]
     press(f"0x{F5:x}")
@@ -217,7 +217,7 @@ def play() -> None:
     shift(True)
     press("0x52")  # Shift+Ins
     shift(False)
-    assert text()[:5] == ["FOR I=1 TO 3", "  PRINT I*I", "NEXT", "FOR I=1 TO 3", ""], text()
+    assert text()[:5] == ["FOR I = 1 TO 3", "  PRINT I * I", "NEXT", "FOR I = 1 TO 3", ""], text()
     assert look()[24].endswith("00005:001"), look()[24]
 
     # A runtime error: its statement's word selected, the error in a box,
@@ -249,12 +249,12 @@ def play() -> None:
     assert scr[24].rstrip() == " F1=HELP   ENTER=EXECUTE   ESC=CANCEL   TAB=NEXT FIELD   ARROW=NEXT ITEM", scr[24]
     assert "FILE NAME:  *.BAS" in "\n".join(scr) and any(r.split() == ["SQ.BAS", ".."] for r in scr), scr
     press("tab", "enter")
-    assert "SQ.BAS" in look()[1] and text()[:3] == ["FOR I=1 TO 3", "  PRINT I*I", "NEXT"], look()
+    assert "SQ.BAS" in look()[1] and text()[:3] == ["FOR I = 1 TO 3", "  PRINT I * I", "NEXT"], look()
 
     # Find selects the match; Change All.
     press(f"0x{ALT_S:x}", "f")
-    keys("i*i\n")
-    assert look()[24].endswith("00002:012"), look()[24]
+    keys("i * i\n")
+    assert look()[24].endswith("00002:014"), look()[24]
     press(f"0x{ALT_S:x}", "c")
     keys("3")
     press("tab")
@@ -264,7 +264,7 @@ def play() -> None:
     press("enter")
     assert any("CHANGE COMPLETE" in r for r in look()), look()
     press("enter")
-    assert text()[0] == "FOR I=1 TO 4", look()
+    assert text()[0] == "FOR I = 1 TO 4", look()
     # Change All finding nothing once left the cursor at column -1, the
     # window scrolled off the text.
     press(f"0x{ALT_S:x}", "c")
@@ -272,7 +272,7 @@ def play() -> None:
     press("tab", "tab", "tab", "tab", "tab", "enter")
     assert any("MATCH NOT FOUND" in r for r in look()), look()  # QBasic's, not "Change complete"
     press("enter")
-    assert text()[0] == "FOR I=1 TO 4", look()
+    assert text()[0] == "FOR I = 1 TO 4", look()
     # Find and Verify asks in QBasic's box: buttons only, at row 19 (uisearch.des).
     press("0x77", f"0x{ALT_S:x}", "c")
     keys("4")
@@ -281,7 +281,7 @@ def play() -> None:
     row = look("verify")[22].ljust(80)
     assert (row[17:27], row[29:37], row[41:51], row[54:62]) == ("< CHANGE >", "< SKIP >", "< CANCEL >", "< HELP >"), look()
     press("esc")  # Cancel ends it, no box after
-    assert text()[0] == "FOR I=1 TO 4" and not any("COMPLETE" in r for r in look()), look()
+    assert text()[0] == "FOR I = 1 TO 4" and not any("COMPLETE" in r for r in look()), look()
     # Ctrl+L repeats the find, as QBasic.
     press("0x77", f"0x{ALT_S:x}", "f")
     keys("i\n")
@@ -308,7 +308,7 @@ def play() -> None:
     flags(0x08)
     press("0x32")  # once more: off
     flags(0)
-    press("esc", "0x77", *["right"] * 8, f"0x{ALT_S:x}", "f")
+    press("esc", "0x77", *["right"] * 10, f"0x{ALT_S:x}", "f")
     scr = look(); assert scr[9].ljust(80)[24:27] == "TO ", scr
     press("esc")
 
@@ -317,7 +317,7 @@ def play() -> None:
     keys("t1\n")
     assert "T1.BAS" in look()[1], look()
     saved = (work / "T1.BAS").read_bytes()
-    assert saved.startswith(b"FOR I=1 TO 4\r\n  PRINT I*I\r\nNEXT\r\n"), saved
+    assert saved.startswith(b"FOR i = 1 TO 4\r\n  PRINT i * i\r\nNEXT\r\n"), saved
     # Save As onto another file asks first (uifile.c MSG_Overwrite); No asks for a name again.
     press(f"0x{ALT_F:x}", "a")
     keys("sq\n")
@@ -347,7 +347,7 @@ def play() -> None:
     row = next(r for r, line in enumerate(scr) if "SQ.BAS" in line)
     click(row, 14)
     click(row, 14)
-    assert "SQ.BAS" in look()[1] and text()[0] == "FOR I=1 TO 3", look()
+    assert "SQ.BAS" in look()[1] and text()[0] == "FOR I = 1 TO 3", look()
     # A click places the cursor; a drag selects whole lines.
     click(3, 5)
     assert look()[24].endswith("00002:005"), look()[24]

@@ -2,7 +2,7 @@
 ; prog.asm - the program store, in GS
 ; ==========================================================================
 ; holds:    prg_findw, prg_put, prg_fill, prg_drop, prg_init
-; uses:     cm_infclr, var_clr, mem_pmov
+; uses:     var_clr, mem_pmov
 ; data:     a line: len:1 num:2 cp:2 body, the tokens lx_line made, with their
 ;           0. cp is its code in the cache (cm_cache), 0 for none. A len of 0
 ;           ends the lines, at pend.
@@ -16,16 +16,36 @@ include x86f.inc
         .code
 
 ; ::::::::::::::
-; prg_findw - find the line numbered lnum, from lc when lc is not above it.
+; prg_findw - find the line numbered lnum: any line so numbered, as a loaded
+; program's are in the file's order; else the place by number, from lc when
+; lc is not above it.
 ;
-; in:     lnum  the number
+; in:     lnum  the number; NONUM is none
 ;         lc    a line, or 0
-; out:    EBX  the first line numbered that or more, or the terminator
+; out:    EBX  the line, else the first numbered more, or the terminator
 ;         CF  set when BX has that number
 ; keeps:  SI, DI, CX, DX
 ; ::::::::::::::
 prg_findw:
         mov     ax,[g_state.rn.lnum]
+        mov     ebx,PROGBASE
+        cmp     ax,NONUM
+        je      @pf_no
+        push    ecx
+@pf_x:
+        cmp     byte ptr [g_progb+ebx],0
+        je      @pf_o
+        cmp     ax,word ptr [g_progb+ebx+1]
+        je      @pf_z
+        movzx   ecx,byte ptr [g_progb+ebx]
+        add     ebx,ecx
+        jmp     @pf_x
+@pf_z:
+        pop     ecx
+        stc
+        ret
+@pf_o:
+        pop     ecx
         movzx   ebx,[g_state.lnk.lc]
         test    ebx,ebx
         jz      @pf_b
@@ -111,6 +131,31 @@ prg_put:
         jmp     prg_drop
 
 ; ::::::::::::::
+; prg_add - a loaded line: at the end, the program not dropped.
+;
+; in:     lnum  its number, NONUM none
+;         CX    the body length with its 0
+;         ESI   the body
+; error:  ?OUT OF MEMORY  it does not fit
+; ::::::::::::::
+prg_add:
+        movzx   ecx,cx
+        mov     [g_state.mm.pbs],esi
+        mov     [g_state.mm.pbl],cx
+        lea     eax,[ecx+HDR]
+        cmp     eax,255
+        ja      err_om
+        movzx   ebx,[g_state.mm.pend]
+        lea     edx,[ebx+eax+1]
+        cmp     edx,PROGLIM
+        jae     err_om
+        add     [g_state.mm.pend],ax
+        call    prg_fill
+        movzx   ebx,[g_state.mm.pend]
+        mov     byte ptr [g_progb+ebx],0
+        ret
+
+; ::::::::::::::
 ; prg_fill - write the line at BX: the record of size AL, lnum, the body.
 ;
 ; in:     AL    the record's size
@@ -145,7 +190,6 @@ prg_drop:
         mov     [g_state.rn.cstk],CSTOP
         movzx   ebx,[g_state.mm.pend]
         mov     [g_progb+ebx],al
-        call    cm_infclr
         jmp     var_clr
 @pp_om:
         call    prg_drop
@@ -157,7 +201,7 @@ prg_drop:
 prg_init:
         mov     [g_state.mm.pend],PROGBASE
         mov     [g_state.mm.vend],VARBASE
-        mov     [g_state.lx.nsyms],0
+        call    sym_init
         jmp     prg_drop
 
         end

@@ -12,8 +12,8 @@ dispatch macro
 
 ; EBX = the slot offset (id * 4) of the variable id at ESI, ESI past it.
 vslot   macro
-        movzx   ebx,byte ptr [esi]
-        inc     esi
+        movzx   ebx,word ptr [esi]
+        add     esi,2
         shl     ebx,2
         endm
 
@@ -51,8 +51,8 @@ stopchk macro
 ; EDI = element EAX of the 1-D array whose id is at ESI; else to slow with
 ; EBX the id * 2. sh: 1 a string, 2 an INT or a FLOAT.
 a1get   macro   sh,slow
-        movzx   ebx,byte ptr [esi]
-        inc     esi
+        movzx   ebx,word ptr [esi]
+        add     esi,2
         add     ebx,ebx
         mov     edi,[g_vt+ebx*2]
         cmp     byte ptr [edi],1

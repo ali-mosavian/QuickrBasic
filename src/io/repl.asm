@@ -139,6 +139,8 @@ endif
         movzx   ebx,[g_state.rn.ln]
         cmp     ebx,DLINE
         je      rpl_ready
+        cmp     word ptr [g_progb+ebx+1],NONUM
+        je      rpl_ready               ; a line with no number: no IN
         mov     al,MSG_IN
         call    io_msg
         mov     ax,word ptr [g_progb+ebx+1]
@@ -154,6 +156,8 @@ if IDE
         cmp     [g_ui.lp.ideon],0
         jne     ui_ready
 endif
+        cmp     [g_state.io.batch],0
+        jne     @rpl_x
         call    io_fresh
         mov     al,MSG_READY
         call    io_msg
@@ -202,13 +206,73 @@ rpl_run:
         jmp     plt_exit
 
 ; ::::::::::::::
+; rpl_file - run the file the command line names, then exit; no name: back.
+;
+; Its lines are stored in its order, a number or none; a label at a line's
+; start is that line's.
+; ::::::::::::::
+rpl_file:
+        assume  fs:nothing
+        mov     ax,[g_plat.pspsel]
+        push    fs
+        mov     fs,ax
+        movzx   ecx,byte ptr fs:[80h]
+        mov     esi,81h
+        mov     edi,offset g_fnmb
+@rfl_s:
+        jecxz   @rfl_e
+        mov     al,fs:[esi]
+        inc     esi
+        dec     ecx
+        cmp     al,' '
+        je      @rfl_s
+@rfl_c:
+        cmp     al,' '
+        jbe     @rfl_e
+        stosb
+        jecxz   @rfl_e
+        mov     al,fs:[esi]
+        inc     esi
+        dec     ecx
+        jmp     @rfl_c
+@rfl_e:
+        pop     fs
+        assume  fs:error
+        mov     ecx,edi
+        sub     ecx,offset g_fnmb
+        jz      @rfl_r
+        mov     [g_state.sg.sln],cx
+        mov     [g_state.sg.spt],offset g_fnmb
+        mov     [g_state.io.fln],255
+        mov     [g_state.io.fdv],8
+        call    fil_ropen
+        mov     [g_state.io.lmode],1
+        mov     [g_state.io.batch],1
+@rfl_l:
+        call    plt_getline
+        jc      @rfl_d
+        call    rpl_enter
+        test    [g_state.io.iost],40h
+        jz      @rfl_l
+@rfl_d:
+        call    fil_end
+        mov     [g_state.io.lmode],0
+        call    prg_drop
+        call    cm_link
+        jmp     ex_runfirst
+@rfl_r:
+        ret
+
+; ::::::::::::::
 ; rpl_enter - tokenize inbuf; store a numbered line, an empty text deletes it.
+; Loading a file every line is stored, at the end.
 ;
 ; in:     AX  the length of inbuf
+;         lmode  loading
 ; out:    AL  0 a direct line in cbuf, 1 empty, 2 stored or deleted
 ;         ln  DLINE
 ; error:  ?SYNTAX ERROR   line number 64000 or over
-;         ?OUT OF MEMORY  from prg_put, sym_find
+;         ?OUT OF MEMORY  from prg_put, nam_find
 ; ::::::::::::::
 rpl_enter:
         movzx   ebx,ax
@@ -217,19 +281,22 @@ rpl_enter:
         mov     esi,offset g_inbuf
         mov     edi,offset g_cbuf
         call    lx_line
+        call    dc_line
         cmp     byte ptr [g_cbuf],0
         mov     al,1
         je      @ren_r
         mov     esi,offset g_cbuf
         call    st_get
+        cmp     [g_state.io.lmode],0
+        jne     @ren_l
         cmp     al,M_INT
         mov     al,0
         jne     @ren_r
-        mov     ax,[esi+1]
-        cmp     ah,0FAh
+        mov     eax,[esi+1]
+        cmp     eax,64000
         jae     err_sn
         mov     [g_state.rn.lnum],ax
-        add     esi,3
+        add     esi,5
         call    st_get
         mov     ecx,edi
         sub     ecx,esi
@@ -237,5 +304,31 @@ rpl_enter:
         mov     al,2
 @ren_r:
         ret
+@ren_l:
+        mov     [g_state.rn.lnum],NONUM
+        cmp     al,M_INT
+        jne     @ren_a
+        mov     eax,[esi+1]
+        cmp     eax,64000
+        jae     err_sn
+        mov     [g_state.rn.lnum],ax
+        add     esi,5
+@ren_a:
+        call    lbl_at
+        jne     @ren_b
+        call    lbl_nam                 ; the label: its name's line
+        or      [g_nflag+eax],NM_LBL
+        mov     bx,[g_state.mm.pend]
+        mov     [g_nline+eax*2],bx
+@ren_b:
+        mov     ecx,edi
+        sub     ecx,esi
+        call    prg_add
+        mov     al,2
+        ret
+
+        .data?
+g_fnmb  db      128 dup(?)               ; the command line's file name
+        .code
 
         end

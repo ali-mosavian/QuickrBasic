@@ -69,9 +69,9 @@ arr_r1:
 ; ::::::::::::::
 arr_pn:
         pop     [g_state.rn.aret]
-        movzx   edx,byte ptr [esi]
-        mov     cl,[esi+1]
-        add     esi,2
+        movzx   edx,word ptr [esi]
+        mov     cl,[esi+2]
+        add     esi,3
         mov     [g_state.rn.narr],cl
         movzx   ebx,cl
         add     ebx,ebx
@@ -315,7 +315,7 @@ g_calls dd      sc_ipr,sc_fpr,sc_spr,sc_pnl,sc_pzone,sc_ptab,sc_pspc
         dd      sc_fread,sc_sread,sc_res,sc_resl,sc_dim
         dd      sc_open,sc_close,sc_fiout,sc_fiin,sc_ficlr,sc_load,sc_save,sc_vfy
         dd      sc_run,sc_runl,sc_list,sc_cont,sc_clr,sc_new,sc_nodir,sc_end,sc_stop
-        dd      sc_poke,sc_wait,sc_wait2,sc_sys,sc_stti
+        dd      sc_poke,sc_wait,sc_wait2,sc_sys,sc_inln
         dd      sc_ipow,sc_fpow,sc_fti,sc_sti,sc_ist
         dd      20 dup(sc_fn1)
         dd      sc_left,sc_right,sc_mid,sc_mid2

@@ -9,25 +9,22 @@ TCOMP    struc                   ; the compiler
     ccmp    dd      ?               ; the last compare
     ccmpe   dd      ?               ; its end
     ccnt    db      ?
-    ctv     db      ?               ; the target: id, then sinfo
+    ctv     dw      ?               ; the target: id, then sinfo
     ctk     db      ?
     ctn     db      ?
-    cinf    db      ?               ; cm_infer's pass is on
-    cinfc   db      ?               ; a pass demoted a variable
-    cinfv   db      ?               ; the FOR variable being compiled, in a pass
     cfk     db      ?
     xo      db      ?
     ctxlin  dd      ?               ; linear address of body offset 0, for literals
-    cfail   db      ?
     cxb     dd      ?               ; where the compiler writes
     cxlim   dd      ?
     ctks    dd      ?               ; its keyword
     cth     db      ?               ; the statement follows a THEN
     wv      dw      ?
+    wa      dw      ?               ; a jump's line, a label's
     onp     dd      ?
     cst     dd      ?
     ctok    db      ?
-    cfid    db      ?
+    cfid    dw      ?
     csp     dd      ?
 TCOMP    ends
 
@@ -44,8 +41,11 @@ TLINK    ends
 TLEX     struc                   ; the tokenizer
     lxst    db      ?               ; the tokenizer's state
     lxf     db      ?               ; the number is text
-    nkind   db      ?
-    nsyms   db      ?
+    nsyms   dw      ?               ; the next variable
+    nnams   dw      ?               ; the next name
+    nlen    db      ?               ; nam_find's name: its length, its text
+    nptr    dd      ?
+    nsfree  dd      ?               ; the names' next byte
     lxn     dd      ?
     lxs     dd      ?
     nkey    dw      ?
@@ -74,7 +74,7 @@ TRUN     struc                   ; the executor
     ln      dw      ?
     lnum    dw      ?
     vpt     dw      ?
-    fid     db      ?
+    fid     dw      ?
     onk     db      ?
     fvp     dd      ?
     fsv     dd      ?
@@ -145,6 +145,8 @@ TIO      struc                   ; input and output
     fdv     db      ?
     fsa     db      ?
     iost    db      ?
+    lmode   db      ?               ; loading a file: every line is stored
+    batch   db      ?               ; a file run: its end exits
     fnam    db      17 dup(?)
     lq      db      ?
 TIO      ends
@@ -159,7 +161,6 @@ TFILES   struc                   ; the open files, by number
 TFILES   ends
 
 TFLT     struc                   ; the float routines
-    hasfpu  db      ?
     fx      db      ?
     ff      db      ?
     fq      db      ?

@@ -16,8 +16,8 @@ include x86f.inc
 
 ; EBX = the slot of the variable id at ESI, ESI past it.
 bvar    macro
-        movzx   ebx,byte ptr [esi]
-        inc     esi
+        movzx   ebx,word ptr [esi]
+        add     esi,2
         lea     ebx,[VARBASE+ebx*4]
         endm
 
@@ -83,6 +83,13 @@ bc_I_LD_I16:
         push    eax
         dispatch
 ; ::::::::::::::
+; bc_I_LD_I32 - I.LD.I32 n:4: the INT.
+; ::::::::::::::
+bc_I_LD_I32:
+        push    dword ptr [esi]
+        add     esi,4
+        dispatch
+; ::::::::::::::
 ; bc_I_LD_U8 - I.LD.U8 b: the byte.
 ; ::::::::::::::
 bc_I_LD_U8:
@@ -122,8 +129,8 @@ bc_F_LD_PI:
 ; bc_S_LD_V - S.LD.V id: the string variable's Desc.
 ; ::::::::::::::
 bc_S_LD_V:
-        movzx   eax,byte ptr [esi]
-        inc     esi
+        movzx   eax,word ptr [esi]
+        add     esi,2
         lea     eax,[SVBASE+eax*8]
         push    eax
         dispatch

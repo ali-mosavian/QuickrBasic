@@ -13,8 +13,14 @@ FBIAS   = 127
 T_INT   = 0                     ; a static type
 T_STR   = 40h
 T_FLT   = 80h
-SI_INF  = 20h                   ; sinfo: a plain variable inferred INT
-SI_FOR  = 10h                   ; sinfo: a FOR's variable, during cm_infer
+NM_LBL  = 1                     ; nflag: a label; nline its line
+NM_FN   = 2                     ; nflag: DEF FN's, the name starts FN
+ET_IMP  = 0                     ; a type: none given (QBasic's ET_*)
+ET_I2   = 1
+ET_I4   = 2
+ET_R4   = 3
+ET_R8   = 4
+ET_SD   = 5
 EMAX    = 254
 NDO     = 7                     ; digits flt_out shows
 NTMP    = 48                    ; string temporaries: the data stack is full first
@@ -22,9 +28,10 @@ VS      = 4                     ; a variable's slot, a number's bytes
 NB      = 4                     ; a stored FLOAT's bytes
 MAXD    = 16
 
-M_VAR   = 0CCh
-M_INT   = 0CDh
+M_VAR   = 01h
+M_INT   = 02h
 HDR     = 5                     ; len:1, num:2, cp:2
+NONUM   = 0FFFFh                ; a line's num: it has none
 L_CP    = 3                     ; a line's code in the cache
 IFNDEF IDE
 IDE     = 0
@@ -40,11 +47,11 @@ F_MARK  = 0
 F_LN    = 1
 F_IP    = 3                     ; where the loop or RETURN goes on: absolute, or
                                 ; an offset in its line's code (cm_flush)
-F_ID    = 5
-F_STEP  = 6
-F_LIMIT = 10
-F_CACHE = 14                    ; an INT counter's frame: the float last stored
-FRSIZE  = 18
+F_ID    = 5                     ; a word
+F_STEP  = 7
+F_LIMIT = 11
+F_CACHE = 15                    ; an INT counter's frame: the float last stored
+FRSIZE  = 19
 M_FR    = FRSIZE                ; a frame's mark is its size
 M_GS    = 5
 M_FN    = 9                     ; an FN frame: mark, ln:2, ip:2, the old value:4
@@ -61,56 +68,6 @@ AH_PTR  = 1                     ; an array's header: n, data:4, fast:2, the coun
 AH_FAST = 5                     ; 1-D: the count, else 0
 AH_CNT  = 7
 
-TK_END  = 80h
-TK_FOR  = 81h
-TK_NEXT = 82h
-TK_DATA = 83h
-TK_INPUTN = 84h
-TK_INPUT = 85h
-TK_DIM  = 86h
-TK_READ = 87h
-TK_GOTO = 89h
-TK_RUN  = 8Ah
-TK_IF   = 8Bh
-TK_RES  = 8Ch
-TK_GOSUB = 8Dh
-TK_RET  = 8Eh
-TK_REM  = 8Fh
-TK_STOP = 90h
-TK_ON   = 91h
-TK_WAIT = 92h
-TK_LOAD = 93h
-TK_DEF  = 96h
-TK_POKE = 97h
-TK_PRINTN = 98h
-TK_PRINT = 99h
-TK_CONT = 9Ah
-TK_LIST = 9Bh
-TK_CLR  = 9Ch
-TK_CMD  = 9Dh
-TK_SYS  = 9Eh
-TK_OPEN = 9Fh
-TK_CLOSE = 0A0h
-TK_GET  = 0A1h
-TK_NEW  = 0A2h
-TK_TAB  = 0A3h
-TK_TO   = 0A4h
-TK_FN   = 0A5h
-TK_SPC  = 0A6h
-TK_THEN = 0A7h
-TK_NOT  = 0A8h
-TK_STEP = 0A9h
-TK_PLUS = 0AAh
-TK_MINUS = 0ABh
-TK_GT   = 0B1h
-TK_EQ   = 0B2h
-TK_LT   = 0B3h
-TK_SGN  = 0B4h
-TK_FRE  = 0B8h
-TK_LEN  = 0C3h
-TK_MID  = 0CAh
-TK_GO   = 0CBh
-TK_PI   = 0FFh
 
 E_BRK   = 0
 MSG_READY = 1
@@ -149,10 +106,12 @@ E_UF    = 34
 DLINE    = 0                    ; in progb: the direct line, len 0, num FFxxh
 PROGBASE = 0110h                ; then the program, to PROGLIM
 PROGLIM  = 0FFF0h
-VARBASE  equ     <(offset g_dsb+0B000h)>
-VARLIM   equ     <(offset g_dsb+0B400h)>    ; 256 ids * 4
-SVBASE   equ     <(offset g_dsb+0B400h)>    ; a string variable's Desc, 8 bytes per id
-SVLIM    equ     <(offset g_dsb+0BC00h)>
+NSYM     = 4096                 ; variables, 0 none
+NNAM     = 4096                 ; names, 0 none
+HSIZE    = 1024                 ; the symbols' hash chains
+NMSZ     = 10000h               ; the symbols' names
+VARBASE  equ     <(offset g_varb)>          ; a variable's slot, 4 bytes per id
+SVBASE   equ     <(offset g_svarb)>         ; a string variable's Desc, 8 bytes per id
 PROGSZ   = PROGLIM-PROGBASE
 HDRBASE  equ     <(offset g_dsb+0BC00h)>    ; the arrays' headers
 HDRLIM   equ     <(offset g_dsb+0E000h)>
@@ -167,5 +126,6 @@ CSTOP    equ     <(offset g_dsb+0FC00h)>    ; the control stack, down from here
 STKSZ    = 10000h               ; the data stack, its own region
 STKTOP   equ     <(offset g_stkb+STKSZ-16)>
 STKROOM  = 191                  ; bytes either stack may take, as stock's
+CPROOM   = 4000h                ; the compiler's frames
 CSLIM    equ     <(offset g_dsb+0FC00h-STKROOM)>
 OBSZ     = 256                  ; plat.asm's output buffer

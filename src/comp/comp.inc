@@ -2,6 +2,17 @@
 ; comp/comp.inc - the parser's actions: under A_BASE a CALL, from it cmact's
 ; ==========================================================================
 
+; r = r in upper case, a letter; r a 32-bit register.
+upcase  macro   r
+        local   @upc
+        cmp     r,'a'
+        jb      @upc
+        cmp     r,'z'
+        ja      @upc
+        sub     r,32
+@upc:
+        endm
+
 A_BASE  = 64
 A_E     = A_BASE
 A_LV    = A_BASE+1
