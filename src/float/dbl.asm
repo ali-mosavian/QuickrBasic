@@ -207,6 +207,86 @@ dbl_in:
         ret
 
 ; ::::::::::::::
+; dbl_digits - st0's digits, 16, rounded once: v = 0.d1d2.. * 10^(dp+1).
+;
+; in:     st0  v, over 0 and finite; popped
+; out:    dig  the digits, ECX of them, the trailing zeros left out
+;         dp   the first digit's power of ten
+; keeps:  ESI, EDI
+; ::::::::::::::
+dbl_digits:
+        push    ebx
+        push    edx
+        fldcw   [g_fcwx]                ; 64 bits: v * 10^k rounds once
+        fld     st(0)                   ; p: the power of the first digit
+        fldlg2
+        fxch
+        fyl2x
+        fldcw   [g_fcwd]
+        fistp   [g_dp]
+        fldcw   [g_fcwx]
+        mov     ebx,4                   ; tries
+@ddg_s:
+        mov     eax,15                  ; N = v * 10^(15-p), 16 digits
+        sub     eax,[g_dp]
+        fld     st(0)
+        call    dbl_scale
+        dec     ebx
+        jz      @ddg_fi
+        fcom    [g_p10+15*8]            ; under 10^15: p one too high
+        fnstsw  ax
+        sahf
+        jae     @F
+        fstp    st(0)
+        dec     [g_dp]
+        jmp     @ddg_s
+@@:
+        fistp   [g_dn]
+        cmp     dword ptr [g_dn+4],002386F2h    ; 10^16 after rounding
+        jb      @ddg_d
+        ja      @F
+        cmp     dword ptr [g_dn],6FC10000h
+        jb      @ddg_d
+@@:
+        inc     [g_dp]
+        jmp     @ddg_s
+@ddg_fi:
+        fistp   [g_dn]
+@ddg_d:
+        fstp    st(0)
+        fild    [g_dn]
+        fbstp   [g_dbcd]
+        dq24
+        xor     ecx,ecx                 ; 16 digits to dig, the first first
+@@:
+        mov     eax,15
+        sub     eax,ecx
+        mov     edx,eax
+        shr     edx,1
+        mov     dl,byte ptr [g_dbcd+edx]
+        test    al,1
+        jz      @ddg_lo
+        shr     dl,4
+@ddg_lo:
+        and     dl,0Fh
+        add     dl,'0'
+        mov     [g_dig+ecx],dl
+        inc     ecx
+        cmp     ecx,16
+        jb      @B
+@@:
+        cmp     ecx,1                   ; nd: less the trailing zeros
+        je      @F
+        cmp     byte ptr [g_dig+ecx-1],'0'
+        jne     @F
+        dec     ecx
+        jmp     @B
+@@:
+        pop     edx
+        pop     ebx
+        ret
+
+; ::::::::::::::
 ; dbl_fmt - a DOUBLE as PRINT spells it: a space or -, 16 digits at most,
 ; no 0 before the point, D+nn past 10^16 or under 10^-4.
 ;
@@ -249,69 +329,7 @@ dbl_fmt:
         add     edi,6
         jmp     @dfm_r
 @@:
-        fld     st(0)                   ; p: the power of the first digit
-        fldlg2
-        fxch
-        fyl2x
-        fldcw   [g_fcwd]
-        fistp   [g_dp]
-        fldcw   [g_fcwx]
-        mov     ebx,4                   ; tries
-@dfm_s:
-        mov     eax,15                  ; N = v * 10^(15-p), 16 digits
-        sub     eax,[g_dp]
-        fld     st(0)
-        call    dbl_scale
-        dec     ebx
-        jz      @dfm_fi
-        fcom    [g_p10+15*8]            ; under 10^15: p one too high
-        fnstsw  ax
-        sahf
-        jae     @F
-        fstp    st(0)
-        dec     [g_dp]
-        jmp     @dfm_s
-@@:
-        fistp   [g_dn]
-        cmp     dword ptr [g_dn+4],002386F2h    ; 10^16 after rounding
-        jb      @dfm_d
-        ja      @F
-        cmp     dword ptr [g_dn],6FC10000h
-        jb      @dfm_d
-@@:
-        inc     [g_dp]
-        jmp     @dfm_s
-@dfm_fi:
-        fistp   [g_dn]
-@dfm_d:
-        fstp    st(0)
-        fild    [g_dn]
-        fbstp   [g_dbcd]
-        dq24
-        xor     ecx,ecx                 ; 16 digits to dig, the first first
-@@:
-        mov     eax,15
-        sub     eax,ecx
-        mov     edx,eax
-        shr     edx,1
-        mov     dl,byte ptr [g_dbcd+edx]
-        test    al,1
-        jz      @dfm_lo
-        shr     dl,4
-@dfm_lo:
-        and     dl,0Fh
-        add     dl,'0'
-        mov     [g_dig+ecx],dl
-        inc     ecx
-        cmp     ecx,16
-        jb      @B
-@@:
-        cmp     ecx,1                   ; nd: less the trailing zeros
-        je      @F
-        cmp     byte ptr [g_dig+ecx-1],'0'
-        jne     @F
-        dec     ecx
-        jmp     @B
+        call    dbl_digits
 @@:
         mov     edx,[g_dp]
         cmp     edx,-4

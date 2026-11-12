@@ -570,6 +570,14 @@ externdef sc_wd:near
 externdef sc_wf:near
 externdef sc_wi:near
 externdef sc_ws:near
+; vm/using.asm
+externdef sc_usb:near
+externdef sc_usd:near
+externdef sc_use:near
+externdef sc_usen:near
+externdef sc_usf:near
+externdef sc_usi:near
+externdef sc_uss:near
 ; io/plat.asm
 externdef g_plat:TPLAT
 externdef plt_exit:near
@@ -623,9 +631,12 @@ externdef g_fcw:word
 externdef g_fcwd:word
 externdef g_fcwx:word
 ; float/dbl.asm
+externdef dbl_digits:near
 externdef dbl_fmt:near
 externdef dbl_in:near
 externdef g_dbuf:byte
+externdef g_dig:byte
+externdef g_dp:dword
 externdef g_dval:qword
 externdef op_dadd:near
 externdef op_dcmp:near

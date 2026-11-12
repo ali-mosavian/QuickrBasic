@@ -265,6 +265,14 @@ lx_num:
 @lxn_y:
         cmp     [g_state.lx.lxf],0
         jne     @lxn_r
+        mov     al,[esi]                ; % an INTEGER's, & a LONG's: one type
+        cmp     al,'%'
+        je      @F
+        cmp     al,'&'
+        jne     @lxn_i
+@@:
+        inc     esi
+@lxn_i:
         mov     edi,[g_state.lx.lxn]
         mov     al,M_INT
         stosb

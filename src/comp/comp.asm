@@ -1517,11 +1517,28 @@ cm_get:
 
 ; ::::::::::::::
 ; cm_print - PRINT items; PR.NL unless the list ends with ; , TAB( or SPC(.
+; USING a format: cm_using's items.
 ;
 ; in:     SI  after PRINT
 ; error:  ?SYNTAX ERROR  no ) after TAB( or SPC(
 ; ::::::::::::::
 cm_print:
+        call    st_get
+        cmp     al,TK_X
+        jne     @cmp_l
+        cmp     byte ptr [esi+1],TK1_USING
+        jne     @cmp_l
+        add     esi,2                   ; USING format; items
+        call    cm_expr
+        call    cm_tos
+        mov     al,K_USB
+        call    cm_call
+        call    st_get
+        cmp     al,';'
+        jne     err_sn
+        inc     esi
+        jmp     cm_using
+@cmp_l:
         call    st_eos
         jz      @cmp_n
 @cmp_i:
@@ -1546,7 +1563,7 @@ cm_print:
         mov     al,K_IPR
 @cmp_v:
         call    cm_call
-        jmp     cm_print
+        jmp     @cmp_l
 @cmp_c:
         mov     al,K_PZONE
 @cmp_o:
@@ -1613,6 +1630,43 @@ cm_lin:
         call    cm_call
         mov     [g_state.cm.cty],T_STR
         jmp     cm_store
+
+; ::::::::::::::
+; cm_using - PRINT USING's items: each by its type; US.END, or US.ENDN when
+; ; or , ends the list.
+;
+; error:  ?SYNTAX ERROR  no , or ; between items
+; ::::::::::::::
+cm_using:
+        call    st_eos
+        jz      @cmu_e
+        call    cm_expr
+        mov     al,K_USS
+        cmp     [g_state.cm.cty],T_STR
+        je      @F
+        mov     al,K_USF
+        cmp     [g_state.cm.cty],T_FLT
+        je      @F
+        mov     al,K_USD
+        cmp     [g_state.cm.cty],T_DBL
+        je      @F
+        mov     al,K_USI
+@@:
+        call    cm_call
+        call    st_eos
+        jz      @cmu_e
+        cmp     al,','
+        je      @F
+        cmp     al,';'
+        jne     err_sn
+@@:
+        call    st_eosn
+        jnz     cm_using
+        mov     al,K_USEN
+        jmp     cm_call
+@cmu_e:
+        mov     al,K_USE
+        jmp     cm_call
 
 ; ::::::::::::::
 ; cm_list - LIST [from][-[to]]: the two numbers, CALL LIST.

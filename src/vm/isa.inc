@@ -338,6 +338,13 @@ qbklist macro   m
         m       LOCK,sc_lock
         m       DROP,sc_drop
         m       NFA,sc_nfa
+        m       USB,sc_usb
+        m       USI,sc_usi
+        m       USF,sc_usf
+        m       USD,sc_usd
+        m       USS,sc_uss
+        m       USE,sc_use
+        m       USEN,sc_usen
         endm
 kc      = K_MID2+1
 kdef    macro   n,h

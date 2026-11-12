@@ -376,6 +376,8 @@ def parser() -> tuple[Dfa, list[int], dict[str, int]]:
         final = any(nfa[q].final for q in c)
         assert len(acts) + final <= 1, f"not LL(1): {acts} final={final}"
         if acts:
+            # past a two-byte keyword's head the action could not have its byte
+            assert ("tok", 0xFF) not in by, f"{acts[0][1]} beside a two-byte keyword"
             d.delta[me] = [(acts[0][1], get(frozenset(by[acts[0]])))] * ncls
         elif final:
             d.delta[me] = [("acc", -1)] * ncls

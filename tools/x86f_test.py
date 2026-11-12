@@ -244,6 +244,17 @@ CASES = {
                     " 4660 -2  15 \r\n", "ERROR"),
     # STR$ of a LONG went through a SINGLE: 21096440.
     "qb_str_long": ("x& = 21096439: PRINT STR$(x&); STR$(-5)\r\n", " 21096439-5\r\n", "ERROR"),
+    # A carry through 9s looped for ever; one into no digits ran LOOP from ECX 0; a SINGLE was
+    # rounded to 7 digits first: 1.01.
+    "qb_using_num": ('PRINT USING "##.#"; 9.96; .5\r\nPRINT USING "#"; .5; 9.5\r\n'
+                     'PRINT USING "##.##"; 1.005!; 2.675!\r\nPRINT USING "**$###.##"; -5\r\n',
+                     "10.0 0.5\r\n1%10\r\n 1.00 2.67\r\n***-$5.00\r\n", "ERROR"),
+    "qb_using_str": ('PRINT USING "!|\\  \\|&"; "Hi"; "abcdef"; "x";\r\nPRINT USING "_##"; 5\r\n',
+                     "H|abcd|x#5\r\n", "ERROR"),
+    # USING beside the action in PRINT's grammar: a two-byte keyword first was a syntax error.
+    "qb_print_kw2": ('PRINT STRING$(3, "z"); LCASE$("AB")\r\n', "zzzab\r\n", "ERROR"),
+    # & after a whole number was a syntax error.
+    "qb_lit_long": ("PRINT 70000&; -5%\r\n", " 70000 -5 \r\n", "ERROR"),
 }
 
 # Run as files; what standard error showed. A file's CR LF counted as two lines: line 3, 5.
