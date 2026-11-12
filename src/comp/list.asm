@@ -236,6 +236,15 @@ endif
         mov     cl,LS_FN
 @ls_kp:
         call    ls_lead
+        cmp     al,TK_REM               ; ' as it was written
+        jne     @F
+        cmp     byte ptr [esi],REM_Q
+        jne     @F
+        inc     esi
+        mov     al,"'"
+        call    io_putc
+        jmp     @ls_rem
+@@:
         push    eax
         call    io_kw
         pop     eax

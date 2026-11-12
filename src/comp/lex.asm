@@ -83,6 +83,8 @@ lx_item:
 @lxl_c:
         mov     al,TK_REM
         stosb
+        mov     al,REM_Q
+        stosb
 @lxl_r:                                 ; REM's text: the rest, as it is
 @lxr_l:
         lodsb

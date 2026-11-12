@@ -39,6 +39,7 @@ MAXD    = 16
 
 M_VAR   = 01h
 M_INT   = 02h
+REM_Q   = 03h                   ; after TK_REM: the comment was a ', not REM
 HDR     = 5                     ; len:1, num:2, cp:2
 NONUM   = 0FFFFh                ; a line's num: it has none
 L_CP    = 3                     ; a line's code in the cache

@@ -521,8 +521,8 @@ def play() -> None:
         press(f"0x{ALT_F:x}", "n")
         if any("NOT SAVED" in r for r in look()):
             press("n")
-        raw = {'"': 0x28, "(": 0x0A, ")": 0x0B, "+": 0x0D}  # keys() has none of these
-        for c in 'PRINT "a"; 12: REM c\nDEF FNf(v) = v + 1: DIM x AS INTEGER\n':
+        raw = {'"': 0x28, "'": 0x28, "(": 0x0A, ")": 0x0B, "+": 0x0D}  # keys() has none of these
+        for c in 'PRINT "a"; 12: REM c\nDEF FNf(v) = v + 1: DIM x AS INTEGER\nx = 1 \' n\n':
             if c in raw:
                 s.send({"cmd": "key", "scancode": raw[c], "ascii": ord(c), "stop": True})
                 s.run_to_key(3000)
@@ -531,6 +531,7 @@ def play() -> None:
                 keys(c)
         press(f"0x{0x18:x}", "h")
         assert chars(2)[1:21] == b'PRINT "a"; 12: REM c', chars(2)
+        assert chars(4)[1:10] == b"x = 1 ' n", chars(4)  # was listed as REM
         want = [0x1B] * 6 + [0x1E] * 3 + [0x17] * 2 + [0x1D] * 2 + [0x17] * 2 + [0x1A] * 5
         assert list(attrs(2)[1:21]) == want, attrs(2)[1:21].hex()
         # were all keyword or plain: DEF FNf(v) = v + 1: DIM x AS INTEGER
