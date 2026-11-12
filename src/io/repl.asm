@@ -553,6 +553,7 @@ rpl_inc:
 ;         ln  DLINE
 ; error:  ?SYNTAX ERROR   line number 64000 or over
 ;         ?OUT OF MEMORY  from prg_put, nam_find
+;         Duplicate label  a label's name another scope's, or this one's
 ; ::::::::::::::
 rpl_enter:
         movzx   ebx,ax
@@ -596,7 +597,10 @@ rpl_enter:
 @ren_a:
         call    lbl_at
         jne     @ren_b
-        call    lbl_nam                 ; the label: its line, in the scope
+        call    lbl_nam                 ; the label: its line, in the scope;
+        test    [g_nflag+eax],NM_LBL    ; one name in all scopes
+        mov     dl,E_DL
+        jnz     @ren_e
         or      [g_nflag+eax],NM_LBL    ; being entered
         push    edi
         mov     ebx,eax
@@ -612,6 +616,9 @@ rpl_enter:
         call    prg_add
         mov     al,2
         ret
+@ren_e:
+        mov     al,dl
+        jmp     err_raise
 
         .data
 r_rem   db      'REM',0

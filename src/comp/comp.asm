@@ -951,6 +951,7 @@ cm_name:
 ; out:    EBX, EAX  the variable
 ;         SI        after the name
 ; error:  ?OUT OF MEMORY  from var_find
+;         Duplicate definition  a suffix not its AS type's (scp_sfx)
 ; ::::::::::::::
 var_id:
         movzx   ecx,byte ptr [esi+1]
@@ -971,21 +972,11 @@ var_id:
         movzx   ecx,[g_vft]
         test    ecx,ecx
         jnz     @vid_k
-        mov     cl,ET_R4
-        cmp     bl,'!'
-        je      @vid_k
-        mov     cl,ET_R8
-        cmp     bl,'#'
-        je      @vid_k
-        mov     cl,ET_I2
-        cmp     bl,'%'
-        je      @vid_k
-        mov     cl,ET_I4
-        cmp     bl,'&'
-        je      @vid_k
-        mov     cl,ET_SD
-        cmp     bl,'$'
-        je      @vid_k
+        call    et_sfx
+        jecxz   @F
+        call    scp_sfx
+        jmp     @vid_k
+@@:
         call    var_par                 ; no suffix: a parameter's own type
         jc      @vid_p
         mov     ecx,B_ET
@@ -1010,6 +1001,33 @@ var_id:
         jnz     @vid_g
         mov     dl,81h
         jmp     @vid_g
+
+; ::::::::::::::
+; et_sfx - the type of suffix BL.
+;
+; out:    ECX  ET_*, 0 none
+; keeps:  all but ECX
+; ::::::::::::::
+et_sfx:
+        mov     cl,ET_R4
+        cmp     bl,'!'
+        je      @esf_r
+        mov     cl,ET_R8
+        cmp     bl,'#'
+        je      @esf_r
+        mov     cl,ET_I2
+        cmp     bl,'%'
+        je      @esf_r
+        mov     cl,ET_I4
+        cmp     bl,'&'
+        je      @esf_r
+        mov     cl,ET_SD
+        cmp     bl,'$'
+        je      @esf_r
+        xor     cl,cl
+@esf_r:
+        movzx   ecx,cl
+        ret
 
 ; ::::::::::::::
 ; var_par - name AX, an array when DL has 80h: a parameter of the procedure
@@ -1174,6 +1192,7 @@ g_lmod  db      0                       ; cm_lnum: a label of the module's
 ;         SI  after it
 ;         AL  the byte there
 ; error:  ?SYNTAX ERROR  64000 and over
+;         Subprogram error  another scope's label
 ; ::::::::::::::
 cm_lnum:
         and     [g_state.cm.wa],0
@@ -1204,17 +1223,23 @@ cm_lnum:
 @@:
         mov     [g_lmod],0
         call    scp_get
-        jc      @F
+        jc      @cml_o
         test    byte ptr [edi+B_FLG],BF_LBL
-        jz      @F
+        jz      @cml_o
         mov     ax,[edi+B_LINE]
         mov     [g_state.cm.wa],ax
-@@:
         pop     edi
+@cml_l:
         mov     [g_state.cm.wv],NONUM
         movzx   ebx,byte ptr [esi+1]
         lea     esi,[esi+ebx+4]
         jmp     st_get
+@cml_o:                                 ; none: another scope's label?
+        pop     edi                     ; EDI: a compile's ERR goes there
+        test    [g_nflag+ebx],NM_LBL
+        jz      @cml_l
+        mov     al,E_SPE
+        jmp     err_raise
 
 ; ::::::::::::::
 ; lbl_nam - the name at SI; a label's has NM_LBL, its line in nline.
@@ -1278,6 +1303,7 @@ cm_res:
         pop     eax
         jz      @jt_comp1
         push    eax
+        mov     [g_lmod],1              ; the module's label
         call    cm_lnum
         call    cm_lnld
         pop     eax

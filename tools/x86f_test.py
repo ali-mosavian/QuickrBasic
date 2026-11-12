@@ -218,8 +218,32 @@ CASES = {
     "qb_scopes": ('DECLARE SUB s ()\r\nDECLARE SUB t ()\r\nDIM a AS STRING: CONST k = 1\r\nDIM SHARED z: z = 7: y = 6\r\n'
                   'a = "m": PRINT a\r\ns\r\nt\r\nb = 2: PRINT b; k; y\r\nGOSUB l\r\nEND\r\nl: PRINT "m": RETURN\r\n'
                   'SUB s\r\nSHARED y\r\nCONST k = 2\r\nDIM b AS STRING\r\na = 5: b = "q": PRINT a; b; k; z\r\ny = 8\r\n'
-                  'GOSUB l\r\nEXIT SUB\r\nl: PRINT "s": RETURN\r\nEND SUB\r\nSUB t\r\nb = 4: PRINT b; y\r\nEND SUB\r\n',
+                  'GOSUB l2\r\nEXIT SUB\r\nl2: PRINT "s": RETURN\r\nEND SUB\r\nSUB t\r\nb = 4: PRINT b; y\r\nEND SUB\r\n',
                   "m\r\n 5 q 2  7 \r\ns\r\n 4  0 \r\n 2  1  8 \r\nm\r\n", "ERROR"),
+    # Scope errors QB45, PDS 7.1 and VBDOS's BC give, where these ran: a label is the module's
+    # name, one in all scopes; a suffix other than a name's AS type; assigning a SUB, or a
+    # FUNCTION outside it; CONST, DIM in a SUB of a DIM SHARED name; DIM AS after a use.
+    "qb_dlabel": ('DECLARE SUB s ()\r\ns\r\nGOSUB l\r\nEND\r\nl: PRINT "m": RETURN\r\n'
+                  'SUB s\r\nGOSUB l\r\nEXIT SUB\r\nl: PRINT "s": RETURN\r\nEND SUB\r\n', "Duplicate label", None),
+    "qb_dlabel2": ('DECLARE SUB s ()\r\nDECLARE SUB t ()\r\ns\r\nt\r\nSUB s\r\nl: PRINT "s"\r\nEND SUB\r\n'
+                   'SUB t\r\nl: PRINT "t"\r\nEND SUB\r\n', "Duplicate label", None),
+    "qb_sfxdup": ("DIM x AS INTEGER\r\nx! = 2\r\nPRINT x\r\n", "Duplicate definition", None),
+    "qb_sfxdupa": ("DIM x(3) AS INTEGER\r\nx!(1) = 2: PRINT x(1)\r\n", "Duplicate definition", None),
+    "qb_subasg": ('DECLARE SUB s ()\r\ns\r\nSUB s\r\nPRINT "in"\r\ns = 1\r\nEND SUB\r\n', "Syntax error", "Out of stack"),
+    "qb_fnasg": ("DECLARE FUNCTION f ()\r\nf = 3\r\nPRINT f\r\nEND\r\nFUNCTION f\r\nf = 1\r\nEND FUNCTION\r\n",
+                 "Variable required", None),
+    "qb_shrconst": ("DECLARE SUB s ()\r\nDIM SHARED x\r\nx = 1: s: PRINT x\r\nSUB s\r\nCONST x = 4\r\nPRINT x\r\nEND SUB\r\n",
+                    "Syntax error", None),
+    "qb_shrdim": ("DECLARE SUB s ()\r\nDIM SHARED x\r\nx = 1\r\ns\r\nPRINT x\r\nSUB s\r\nDIM x\r\nx = 5: PRINT x\r\nEND SUB\r\n",
+                  "Duplicate definition", None),
+    "qb_asfirst": ("x% = 1\r\nDIM x AS INTEGER\r\nPRINT x\r\n", "AS clause required on first declaration", None),
+    # RESTORE's label in a SUB looked in the SUB's labels, not the module's; a CONST with another
+    # suffix, or none, was another variable: 0.
+    "qb_restsub": ('DECLARE SUB s ()\r\ns\r\nEND\r\nd: DATA 7\r\nSUB s\r\nRESTORE d\r\nREAD a: PRINT a\r\nEND SUB\r\n',
+                   " 7 \r\n", "ERROR"),
+    "qb_constsfx": ("CONST k = 1, j% = 2\r\nPRINT k%; j\r\n", " 1  2 \r\n", "ERROR"),
+    "qb_gosubsc": ('DECLARE SUB s ()\r\ns\r\nEND\r\nm: PRINT "m": RETURN\r\nSUB s\r\nGOSUB m\r\nEND SUB\r\n',
+                   "Subprogram error", None),
     # Unhandled: ERROR n's message; RESUME with no error; ON ERROR GOTO 0 in the handler.
     # A full stack was ?OUT OF MEMORY, which ON ERROR trapped; BC's is Out of stack space, not
     # trapped, its line, module and address after.

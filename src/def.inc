@@ -34,6 +34,8 @@ BF_SHR  = 1                     ; the module's, every procedure's
 BF_REF  = 2                     ; SHARED in a procedure: the module's
 BF_STAT = 4                     ; STATIC
 BF_LBL  = 8                     ; a label
+BF_CON  = 16                    ; a CONST
+BF_USE  = 32                    ; alone: no binding, a use with a suffix before
 ET_IMP  = 0                     ; a type: none given (QBasic's ET_*)
 ET_I2   = 1
 ET_I4   = 2
@@ -160,6 +162,11 @@ E_UF    = 34
 E_USR   = 35                    ; ERROR n: n in uerr
 E_OS    = 36                    ; Out of stack space: not trapped
 E_AF    = 37                    ; Advanced feature unavailable
+E_DL    = 38                    ; Duplicate label
+E_VR    = 39                    ; Variable required
+E_SPE   = 40                    ; Subprogram error: BC's, no ERR of its own
+E_ASF   = 41                    ; AS clause required on first declaration: so
+E_LAST  = E_ASF
 
 ; Memory map, flat: the code, then the data; the regions in .data? (main.asm).
 ; dsb is the 16-bit build's DS at the same offsets: the variables, the

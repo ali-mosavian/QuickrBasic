@@ -10,7 +10,9 @@
 ;           Each into the binding of its scope (dscope): the module's, or
 ;           the procedure being entered's (dproc), there its own name.
 ;           DIM [SHARED] n[( )] AS type   n's, n()'s type
-;           CONST n = e    the value's type, when n has no suffix
+;           CONST n = e    its suffix's type, else the value's; BF_CON: n
+;                          with any suffix the CONST
+;                          A procedure's of a DIM SHARED name: Syntax error
 ;           SUB, FUNCTION, DECLARE n (params)   nflag NM_SUB, NM_FUNC; the
 ;                          parameters' AS types as DIM's, in n's scope; DEF
 ;                          FNn's too
@@ -485,6 +487,7 @@ dc_line:
         mov     ax,[g_dscope]
         push    eax
         call    dc_redim
+        call    dc_shdim
         call    dc_bind
         or      [edi+B_FLG],cl
         push    ecx
@@ -518,6 +521,9 @@ dc_line:
 @dcm_a:
         cmp     byte ptr [esi],TK_AS
         jne     @dcm_r
+        cmp     byte ptr [edi+B_FLG],BF_USE     ; used with a suffix before
+        mov     al,E_ASF
+        je      err_raise
         movzx   eax,byte ptr [esi+1]
         cmp     al,M_VAR
         je      @dcm_t
@@ -609,15 +615,28 @@ dc_line:
         jmp     @dcc_e
 @dcc_t:
         mov     ax,[g_state.lx.dproc]
+        test    ax,ax
+        jz      @F
+        call    scp_mshr                ; a procedure's of a DIM SHARED name
+        jc      err_sn
+@@:
         call    scp_bind
+        or      byte ptr [edi+B_FLG],BF_CON
         test    ax,ax
         jnz     @F
         or      byte ptr [edi+B_FLG],BF_SHR     ; the module's: every procedure's
 @@:
         test    ebp,ebp                 ; a suffix: its own type
-        jnz     @dcc_c
+        jz      @F
+        push    ebx
+        push    ecx
+        mov     ebx,ebp
+        call    et_sfx
+        mov     dl,cl
+        pop     ecx
+        pop     ebx
+@@:
         mov     [edi+B_ET],dl
-@dcc_c:
         cmp     byte ptr [esi],','
         jne     @dcl_n
         inc     esi
@@ -653,6 +672,23 @@ dc_redim:
         pop     edi
         pop     eax
 @drd_r:
+        ret
+
+; ::::::::::::::
+; dc_shdim - a procedure's DIM of name EBX: not one the module shares (QB45's,
+; PDS's; VBDOS makes it a local).
+;
+; keeps:  all
+; error:  Duplicate definition  it is
+; ::::::::::::::
+dc_shdim:
+        cmp     [g_dscope],0
+        je      @dsh_r
+        call    scp_mshr
+        jnc     @dsh_r
+        mov     al,E_RD
+        jmp     err_raise
+@dsh_r:
         ret
 
 ; ::::::::::::::
@@ -819,6 +855,31 @@ dc_item:
         ret
 
 ; ::::::::::::::
+; dc_use - the name at SI used: with a suffix and no binding in dproc's
+; scope, one of BF_USE, for DIM AS's check.
+;
+; keeps:  all
+; ::::::::::::::
+dc_use:
+        push    eax
+        push    ebx
+        push    edi
+        movzx   eax,byte ptr [esi+1]
+        movzx   ebx,word ptr [esi+eax+2]
+        cmp     byte ptr [esi+eax+1],'.'
+        jae     @dus_r
+        mov     ax,[g_state.lx.dproc]
+        call    scp_get
+        jnc     @dus_r
+        call    scp_bind
+        mov     byte ptr [edi+B_FLG],BF_USE
+@dus_r:
+        pop     edi
+        pop     ebx
+        pop     eax
+        ret
+
+; ::::::::::::::
 ; dc_next - to the next statement: past a ':' out of strings; REM's and
 ; DATA's text are skipped.
 ;
@@ -835,6 +896,10 @@ dc_next:
         je      @dcn_c
         cmp     al,TK_DATA
         je      @dcn_d
+        cmp     al,M_VAR
+        jne     @F
+        call    dc_use
+@@:
         call    dc_item
         jmp     dc_next
 @dcn_c:

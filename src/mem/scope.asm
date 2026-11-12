@@ -2,14 +2,16 @@
 ; scope.asm - the scoped name table: what a name is declared as, in the
 ; module and in each procedure
 ; ==========================================================================
-; holds:    scp_init, scp_bind, scp_get, scp_look, scp_decl
+; holds:    scp_init, scp_bind, scp_get, scp_look, scp_decl, scp_sfx, scp_mshr
 ; data:     A binding (B_*) is a name's in one scope: the module's (0) or a
 ;           procedure's (its name). It holds the declared type, record and
 ;           STRING * n of the scalar and of the array, a label's line, and
 ;           flags: BF_SHR the module's, every procedure's (DIM SHARED,
 ;           CONST); BF_REF in a procedure, SHARED: the module's; BF_STAT
-;           STATIC; BF_LBL a label. A procedure's binding, any, makes the
-;           name its own there: it shadows the module's.
+;           STATIC; BF_LBL a label; BF_CON a CONST. A procedure's binding,
+;           any, makes the name its own there: it shadows the module's;
+;           but BF_USE alone, a use with a suffix before any declaration
+;           there, is none.
 ;           The compiler's scopes are a stack (scs) of procedures, 0 the
 ;           module at its bottom; a name is looked up from the top down, its
 ;           first binding the scope seen from above sees. From a SUB or a
@@ -222,6 +224,8 @@ scp_look:
         call    scp_frame
         call    scp_get
         jc      @slk_u
+        cmp     byte ptr [edi+B_FLG],BF_USE
+        je      @slk_u
         test    dl,dl
         jz      @F
         test    byte ptr [edi+B_FLG],BF_SHR
@@ -280,6 +284,76 @@ scp_decl:
 @@:
         pop     edi
         pop     ebx
+        pop     eax
+        ret
+
+; ::::::::::::::
+; scp_sfx - name EAX with suffix type ECX (ET_*), an array's when DL has
+; 80h, as the procedure compiled sees it: a CONST's is the CONST's type, any
+; suffix; else not DIM AS another type, a record.
+;
+; out:    ECX  the type
+; keeps:  all but ECX
+; error:  Duplicate definition  DIM AS another
+; ::::::::::::::
+scp_sfx:
+        push    eax
+        push    ebx
+        push    edi
+        mov     ebx,eax
+        call    scp_look
+        test    byte ptr [edi+B_FLG],BF_CON
+        jz      @F
+        movzx   ecx,byte ptr [edi+B_ET]
+        jmp     @scl_n
+@@:
+        xor     eax,eax
+        test    dl,dl
+        jns     @F
+        inc     eax
+@@:
+        cmp     byte ptr [edi+B_REC+eax],0
+        stc
+        jne     @scl_r
+        mov     al,[edi+B_ET+eax]
+        test    al,al
+        jz      @scl_n
+        cmp     al,cl
+        stc
+        jne     @scl_r
+@scl_n:
+        clc
+@scl_r:
+        pop     edi                     ; EDI: a compile's ERR goes there
+        pop     ebx
+        pop     eax
+        jnc     @F
+        mov     al,E_RD
+        jmp     err_raise
+@@:
+        ret
+
+; ::::::::::::::
+; scp_mshr - name EBX: a variable the module shares, DIM SHARED, not a CONST?
+;
+; out:    CF  set: it is
+; keeps:  all
+; ::::::::::::::
+scp_mshr:
+        push    eax
+        push    edi
+        xor     eax,eax
+        call    scp_get
+        jc      @smr_n
+        mov     al,[edi+B_FLG]
+        and     al,BF_SHR or BF_CON
+        cmp     al,BF_SHR
+        stc
+        je      @smr_r
+@smr_n:
+        clc
+@smr_r:
+        pop     edi
         pop     eax
         ret
 

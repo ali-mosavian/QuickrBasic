@@ -383,6 +383,7 @@ externdef cm_tof:near
 externdef cm_toi:near
 externdef cm_tos:near
 externdef cm_write:near
+externdef et_sfx:near
 externdef g_cbuf:byte
 externdef g_etk:byte
 externdef g_lmod:byte
@@ -451,8 +452,10 @@ externdef scp_decl:near
 externdef scp_get:near
 externdef scp_init:near
 externdef scp_look:near
+externdef scp_mshr:near
 externdef scp_own:near
 externdef scp_proc:near
+externdef scp_sfx:near
 ; mem/str.asm
 externdef g_tmpd:byte
 externdef str_alloc:near

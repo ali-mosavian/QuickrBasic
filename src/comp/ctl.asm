@@ -1101,23 +1101,35 @@ rc_store:
 
 ; ::::::::::::::
 ; ct_scall - n args: a SUB's call without CALL; another name is not one.
+;
+; error:  Syntax error       a SUB's name assigned
+;         Variable required  a FUNCTION's, outside it
 ; ::::::::::::::
 ct_scall:
         push    esi
         call    ct_proc
         jc      @css_n
         cmp     byte ptr [edx+P_KIND],PK_SUB
-        jne     @css_n
+        jne     @css_f
         add     esp,4
         push    eax
         push    edx
         call    st_eos
         jz      @F
+        cmp     al,TK_EQ                ; s = e
+        je      err_sn
         call    ct_args
 @@:
         pop     edx
         pop     eax
         jmp     ct_pcall
+@css_f:                                 ; f = e: in FUNCTION f only
+        cmp     al,[g_state.cm.cproc]
+        je      @css_n
+        call    st_get
+        cmp     al,TK_EQ
+        mov     al,E_VR
+        je      err_raise
 @css_n:
         pop     esi
         call    ct_pchk
