@@ -597,6 +597,7 @@ externdef plt_exit:near
 externdef plt_flush:near
 externdef plt_getc:near
 externdef plt_getline:near
+externdef plt_heap:near
 externdef plt_init:near
 externdef plt_kflush:near
 externdef plt_putc:near
@@ -897,7 +898,6 @@ externdef g_bss_e:byte
 externdef g_cachb:byte
 externdef g_clpb:byte
 externdef g_dsb:byte
-externdef g_heapb:byte
 externdef g_pokeb:byte
 externdef g_progb:byte
 externdef g_snmb:byte

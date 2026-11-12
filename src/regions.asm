@@ -1,5 +1,5 @@
 ; ==========================================================================
-; regions.asm - the 64K regions and the heap, linked last
+; regions.asm - the 64K regions, linked last
 ; ==========================================================================
 ; holds:    g_bss_e, the end of the zeroed state; the regions after it
 ; uses:     nothing: data only
@@ -20,7 +20,6 @@ g_progb db      10000h dup(?)
 g_pokeb db      10000h dup(?)
 g_cachb db      10000h dup(?)
 g_stkb  db      STKSZ dup(?)
-g_heapb db      HEAPSZ dup(?)
 if IDE
 g_txb   db      10000h dup(?)            ; the editor's text
 g_clpb  db      10000h dup(?)            ; its clipboard

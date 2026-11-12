@@ -42,8 +42,7 @@ rt_start:
         mov     [g_state.sg.tmplin],offset g_tmpd
         mov     [g_state.mm.pglin],offset g_progb
         mov     [g_state.mm.proglin],offset g_progb+PROGBASE
-        mov     [g_state.mm.hbot],offset g_heapb
-        mov     [g_state.mm.htop],offset g_heapb+HEAPSZ
+        call    plt_heap
         mov     [g_state.rn.rsp],esp
         mov     [g_state.rn.cstk],CSTOP
         mov     [g_state.rn.stklim],STKTOP-STKROOM

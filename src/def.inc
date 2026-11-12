@@ -158,7 +158,8 @@ endif
 DCODE    = 0100h                ; in cachb: the direct line's stream
 CACHE0   = DCODE+1536           ; the cache, to CLIM
 CLIM     = 0FFF0h
-HEAPSZ   = 400000h              ; the heap: arrays and strings
+HMIN     = 40000h               ; the heap, arrays and strings: DPMI's, at least
+HROOM    = 10000h               ; the free memory left to the DPMI host
 CSTOP    equ     <(offset g_dsb+0FC00h)>    ; the control stack, down from here
 STKSZ    = 10000h               ; the data stack, its own region
 STKTOP   equ     <(offset g_stkb+STKSZ-16)>

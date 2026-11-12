@@ -2,7 +2,7 @@
 ; plat.asm - the DOS platform: console, files, clock
 ; ==========================================================================
 ; holds:    plt_putc, plt_getline, plt_getc, plt_getb, plt_exit, plt_rdtim,
-;           plt_settim, plt_init
+;           plt_settim, plt_init, plt_heap
 ; uses:     INT 21h handles, the BIOS tick at 0040:006Ch, inbuf, ch_getb
 ; data:     cin: FFh standard input, else the input channel (io/chan.asm).
 ;           obuf: standard output, flushed on NL, before a read and at the
@@ -15,6 +15,59 @@
 ; ==========================================================================
 
 include x86f.inc
+        .code
+
+; ::::::::::::::
+; plt_heap - the heap: DPMI's largest free block, HROOM left for the host.
+;
+; out:    hbot, htop  its ends, DS offsets
+; error:  a message, the exit: under HMIN
+; ::::::::::::::
+plt_heap:
+        mov     ax,0500h                ; the free memory: its largest block
+        mov     edi,offset g_inbuf
+        int     31h
+        mov     eax,dword ptr [g_inbuf]
+        sub     eax,HROOM
+        jb      @phe_m
+        and     eax,not 0FFFh
+        cmp     eax,HMIN
+        jb      @phe_m
+        push    eax
+        mov     cx,ax
+        shr     eax,16
+        mov     bx,ax
+        mov     ax,0501h
+        int     31h
+        pop     edx
+        jc      @phe_m
+        shl     ebx,16                  ; BX:CX the block, linear
+        mov     bx,cx
+        push    ebx
+        push    edx
+        mov     ax,0006h                ; DS's base: offset = linear - base
+        mov     bx,ds
+        int     31h
+        shl     ecx,16
+        mov     cx,dx
+        pop     edx
+        pop     eax
+        sub     eax,ecx
+        mov     [g_state.mm.hbot],eax
+        add     eax,edx
+        mov     [g_state.mm.htop],eax
+        ret
+@phe_m:
+        mov     ah,40h
+        mov     ebx,2
+        mov     ecx,p_nomemz-p_nomem
+        mov     edx,offset p_nomem
+        int     21h
+        mov     ax,4C01h
+        int     21h
+        .data
+p_nomem db      "Out of memory",13,10
+p_nomemz label  byte
         .code
 
 ; ::::::::::::::

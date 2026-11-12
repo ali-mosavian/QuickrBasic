@@ -6,6 +6,7 @@ Each case: its program, run as a file, the output it must print and one it must 
 import os
 import sys
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -308,6 +309,14 @@ CASES = {
                     'END\r\nh: PRINT ERR: RESUME NEXT\r\n', " 5 \r\n 5 \r\n 5 \r\n", "ERROR"),
 }
 
+# Run as files with 8 MB: the heap is the memory free.
+BIG = {
+    # The heap was a fixed 4 MB whatever the machine had: 4.8 MB of arrays were Out of memory.
+    "qb_heap": ('DIM a(999, 99) AS DOUBLE, b(999, 99) AS DOUBLE, c(999, 99) AS DOUBLE\r\n'
+                'DIM d(999, 99) AS DOUBLE, e(999, 99) AS DOUBLE, f(999, 99) AS DOUBLE\r\n'
+                'f(999, 99) = 3: PRINT f(999, 99)\r\n', " 3 \r\n", "ERROR"),
+}
+
 # Run as files; what standard error showed. A file's CR LF counted as two lines: line 3, 5.
 WARN = {
     "warn_seg": ("PRINT 1\r\nDEF SEG = VARSEG(x)\r\nDEF SEG: PRINT SSEG(a$)\r\n",
@@ -342,10 +351,15 @@ def forbidden(forbid: str, out: str) -> bool:
 
 def main() -> None:
     tmp = Path(tempfile.mkdtemp())
-    res = x86run.run({k: v[0] for k, v in CASES.items()}, tmp / "w", 10000, file=True)
-    res |= x86run.run({k: v[0] for k, v in REPL.items()}, tmp / "r", 10000)
-    res |= x86run.run({k: v[0] for k, v in WARN.items()}, tmp / "e", 10000, file=True)
-    every = CASES | REPL
+    names = list(CASES)
+    batches = [({k: CASES[k][0] for k in names[i::4]}, f"w{i}", True) for i in range(4)]
+    batches += [({k: v[0] for k, v in REPL.items()}, "r", False), ({k: v[0] for k, v in WARN.items()}, "e", True)]
+    batches += [({k: v[0] for k, v in BIG.items()}, "b", True, 8)]
+    res = {}
+    with ThreadPoolExecutor(4) as ex:  # one DOSBox a batch
+        for r in ex.map(lambda b: x86run.run(b[0], tmp / b[1], 10000, file=b[2], mem=(b + (4,))[3]), batches):
+            res |= r
+    every = CASES | REPL | BIG
     bad = [k for k, (_, want, forbid) in every.items() if want not in res[k].out or (forbid and forbidden(forbid, res[k].out))]
     bad += [k for k, (_, want) in WARN.items() if want not in res[k].screen]
     for k in bad:

@@ -20,7 +20,7 @@ CONF = """[sdl]
 priority=higher,normal
 output=surface
 [dosbox]
-memsize=32
+memsize={mem}
 startquiet=true
 startbanner=false
 quit warning=false
@@ -55,7 +55,7 @@ def messages() -> list[str]:
 
 
 def run(jobs: dict[str, str | tuple], work: Path, limit_ms: int = 60000, file: bool = False,
-        files: dict[str, bytes] | None = None) -> dict[str, Result]:
+        files: dict[str, bytes] | None = None, mem: int = 4) -> dict[str, Result]:
     """Run each program text as stdin of BASIC.COM, or with file as the file BASIC.COM runs, its
     stdin a job's (program, input[, arguments]) second, the arguments after the file's name; files
     are put beside them. One DOSBox, one job per program."""
@@ -81,7 +81,8 @@ def run(jobs: dict[str, str | tuple], work: Path, limit_ms: int = 60000, file: b
         run = f"BASIC.COM {bas} {args}".rstrip() + f" < J{i}.IN" if file else f"BASIC.COM < J{i}.IN"
         lines += [f":ms {limit_ms}", f"mount c {work}", "c:", f"{run} > J{i}.TXT", "."]
     fpu = "" if os.environ.get("X86_FPU", "1") == "1" else "fpu=false\n"
-    (work / "job.conf").write_text(CONF.replace("[dos]", f"{fpu}[dos]"))
+    # mem: DOSBox's MB. DOS/32A's start costs about 0.35 s a MB, the heap takes what is free
+    (work / "job.conf").write_text(CONF.format(mem=mem).replace("[dos]", f"{fpu}[dos]"))
     (work / "jobs.txt").write_text("\n".join(lines) + "\n")
     with open(work / "events.txt", "wb") as ev, open(work / "jobs.txt", "rb") as jin:
         env = dict(os.environ, SDL_VIDEODRIVER="dummy", DOSRUN_FD=str(ev.fileno()))
