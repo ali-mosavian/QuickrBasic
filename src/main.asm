@@ -38,7 +38,6 @@ rt_start:
         xor     eax,eax
         rep     stosd
         mov     [g_state.mm.peekseg],0
-        or      [g_state.mm.dseg],-1
         mov     [g_state.mm.dslin],0
         mov     [g_state.sg.tmplin],offset g_tmpd
         mov     [g_state.mm.pglin],offset g_progb

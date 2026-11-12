@@ -130,8 +130,8 @@ CASES = {
     # A record is one block, as QBasic lays it out: SHORT 2 bytes, INTEGER 4, STRING * n n.
     "qb_recmem": ("TYPE V\r\nx AS SHORT\r\ny AS INTEGER\r\nt AS STRING * 3\r\nEND TYPE\r\n"
                   'DIM a AS V, b AS V: a.x = &H1234: a.y = -1: a.t = "ab": b = a: a.x = 0\r\n'
-                  "DEF SEG = VARSEG(b): PRINT LEN(b); LEN(b.t); PEEK(VARPTR(b)); PEEK(VARPTR(b) + 1); "
-                  "PEEK(VARPTR(b.t) + 2): DEF SEG\r\nPRINT b.x; b.y; b.t; \"|\"\r\n",
+                  "PRINT LEN(b); LEN(b.t); PEEK(VARPTR(b)); PEEK(VARPTR(b) + 1); "
+                  "PEEK(VARPTR(b.t) + 2)\r\nPRINT b.x; b.y; b.t; \"|\"\r\n",
                   " 9  3  52  18  32 \r\n 4660 -1 ab |\r\n", "ERROR"),
     "qb_short": ("TYPE V\r\nx AS SHORT\r\nEND TYPE\r\nDIM a AS V: a.x = -32768: PRINT a.x: a.x = 32768\r\n",
                  "-32768 \r\n?OVERFLOW", None),
@@ -142,6 +142,25 @@ CASES = {
                 "q(2).x = 9: q(1).x = q(2).x + 1\r\nPRINT d.a.x; d.b.t; q(1).x; q(2).x\r\n",
                 " 5 xy 10  9 \r\n", "ERROR"),
     "int32_lit": ("A%=65535:PRINT A%*2\r\n", " 131070 \r\n", "ERROR"),
+    # Flat: PEEK and POKE take VARPTR's and SADD's 4-byte address; VARSEG and SSEG are 0.
+    "qb_flat": ('DIM n AS LONG, a(3) AS LONG: a(2) = 7: b$ = "HE" + "LLO"\r\n'
+                "POKE VARPTR(n) + 1, 1: POKE SADD(b$), 74\r\n"
+                "PRINT n; PEEK(VARPTR(a(2))); b$; PEEK(SADD(b$) + 4); VARSEG(n); SSEG(b$)\r\n",
+                " 256  7 JELLO 79  0  0 \r\n", "ERROR"),
+}
+
+# Run as files; what standard error showed. A file's CR LF counted as two lines: line 3, 5.
+WARN = {
+    "warn_seg": ("PRINT 1\r\nDEF SEG = VARSEG(x)\r\nDEF SEG: PRINT SSEG(a$)\r\n",
+                 "Warning: line 2: DEF SEG has no effect in 32-bit mode\n"
+                 "Warning: line 2: VARSEG has no effect in 32-bit mode\n"
+                 "Warning: line 3: DEF SEG has no effect in 32-bit mode\n"
+                 "Warning: line 3: SSEG has no effect in 32-bit mode"),
+    # LF and CR LF, mixed: one line each, blank ones too.
+    "warn_lf": ("PRINT 1\nDEF SEG\r\n\n\r\nDEF SEG\nDEF SEG\r\n",
+                "Warning: line 2: DEF SEG has no effect in 32-bit mode\n"
+                "Warning: line 5: DEF SEG has no effect in 32-bit mode\n"
+                "Warning: line 6: DEF SEG"),
 }
 
 # Typed at the prompt, not run as a file.
@@ -157,8 +176,10 @@ def main() -> None:
     tmp = Path(tempfile.mkdtemp())
     res = x86run.run({k: v[0] for k, v in CASES.items()}, tmp / "w", 10000, file=True)
     res |= x86run.run({k: v[0] for k, v in REPL.items()}, tmp / "r", 10000)
+    res |= x86run.run({k: v[0] for k, v in WARN.items()}, tmp / "e", 10000, file=True)
     every = CASES | REPL
     bad = [k for k, (_, want, forbid) in every.items() if want not in res[k].out or (forbid and forbid in res[k].out)]
+    bad += [k for k, (_, want) in WARN.items() if want not in res[k].screen]
     for k in bad:
         print(f"FAIL {k}: {res[k].reason} {res[k].out!r}")
     sys.exit(1 if bad else print("ok") or 0)

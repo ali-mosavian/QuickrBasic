@@ -679,11 +679,16 @@ cm_un:
         cmp     al,TK_X
         jne     @cu_7a
         mov     ah,[esi+1]
-        mov     cl,K_VPTR
+        xor     cl,cl
         cmp     ah,TK1_VARPTR
         je      @cu_vp
         mov     cl,K_VSEG
         cmp     ah,TK1_VARSEG
+        je      @cu_vp
+        cmp     ah,TK1_SSEG
+        je      @cu_vp
+        mov     cl,K_SADD
+        cmp     ah,TK1_SADD
         je      @cu_vp
         mov     al,TK_X
 @cu_7a:
@@ -734,15 +739,21 @@ cm_un:
 @cu_8:
         mov     al,[esi]
         jmp     cm_xfn
-@cu_vp:                                 ; VARPTR(v), VARSEG(v): its address
+@cu_vp:                                 ; VARPTR, VARSEG, SSEG, SADD (v)
         push    ecx
         add     esi,2
         call    cm_chkop
         call    cm_addr
         call    cm_chkcl
         pop     eax
+        test    al,al
+        jz      @F
         call    cm_call
+@@:
         mov     [g_state.cm.cty],T_INT
+        xor     eax,eax
+        mov     [g_state.cm.cll],eax
+        mov     [g_state.cm.clle],eax
         ret
 @cu_ln:                                 ; LEN(r): a record's, a field's size
         push    esi
@@ -802,6 +813,17 @@ cm_addr:
         ret
 @cad_v:
         call    var_id
+        test    [g_sinfo+ebx],80h       ; an element: RA.ADDR's
+        jz      @F
+        push    ebx
+        call    cm_subs0
+        pop     edx
+        push    ecx
+        mov     al,O_RA_ADDR
+        call    cm_opw
+        pop     eax
+        jmp     cm_byt
+@@:
         lea     eax,[VARBASE+ebx*4]
         mov     dl,[g_sinfo+ebx]
         and     dl,3
@@ -986,7 +1008,7 @@ cm_nany:
         ret
 
         .data
-g_fnarg dd      cm_tof,cm_toa,cm_tos,cm_rts,cm_tob,cm_nany
+g_fnarg dd      cm_tof,cm_toa,cm_tos,cm_rts,cm_tob,cm_nany,cm_toi
         .code
 
 FA_F    = 0
@@ -995,6 +1017,7 @@ FA_S    = 2
 FA_Y    = 3
 FA_B    = 4
 FA_N    = 5
+FA_I    = 6
 FR_I    = T_INT
 FR_F    = T_FLT
 FR_S    = 0B0h
@@ -1003,7 +1026,7 @@ FR_S    = 0B0h
         .data
 g_fnsig db      FA_F+FR_I,FA_F+FR_F,FA_F+FR_F,FA_F+FR_F,FA_Y+FR_F,FA_N+FR_I
         db      FA_F+FR_F,FA_F+FR_F,FA_F+FR_F,FA_F+FR_F,FA_F+FR_F,FA_F+FR_F
-        db      FA_F+FR_F,FA_F+FR_F,FA_A+FR_I,FA_S+FR_I,FA_F+FR_S,FA_S+FR_F
+        db      FA_F+FR_F,FA_F+FR_F,FA_I+FR_I,FA_S+FR_I,FA_F+FR_S,FA_S+FR_F
         db      FA_S+FR_I,FA_B+FR_S
         .code
 
@@ -1047,7 +1070,7 @@ g_cmact dd      cm_expr,cm_lval,cm_lnum,cm_tob,cm_toa,cm_tos,cm_str1,cm_fv
         dd      cm_fst,cm_fork,cm_for,cm_for1,cm_nv,cm_if,cm_on,cm_onl
         dd      cm_print,cm_def,cm_list,cm_dv,cm_dat,cm_rem,cm_store,cm_in
         dd      cm_rd,cm_get,cm_goto,cm_gosub,cm_run,cm_res,cm_ret,cm_n0
-        dd      cm_n1,cm_narg,cm_fop,cm_swap
+        dd      cm_n1,cm_narg,cm_fop,cm_swap,cm_toi
         .code
 
         end

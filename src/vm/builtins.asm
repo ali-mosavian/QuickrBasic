@@ -121,15 +121,7 @@ fn_pos:
 ; out:    EAX  the byte
 ; ::::::::::::::
 fn_peek:
-        mov     ebx,[g_state.mm.dseg]
-        cmp     ebx,-1
-        jne     @fpk_s
-        movzx   ebx,ax
-        movzx   eax,[g_pokeb+ebx]
-        ret
-@fpk_s:                                 ; DEF SEG's: segment * 16 + a, linear
-        shl     ebx,4
-        movzx   eax,byte ptr [ebx+eax]
+        movzx   eax,byte ptr [eax]      ; a flat address
         ret
 
 ; ::::::::::::::
@@ -250,21 +242,19 @@ fn_mid:
         jmp     str_sub
 
 ; ::::::::::::::
-; sc_dseg - DEF SEG ( s -- ): PEEK's segment, -1 none.
+; sc_vseg - VARSEG ( a -- 0 ): flat, no segment.
 ; ::::::::::::::
-sc_dseg:
-        pop     [g_state.mm.dseg]
+sc_vseg:
+        and     dword ptr [esp],0
         dispatch
 
 ; ::::::::::::::
-; sc_vptr, sc_vseg - VARPTR, VARSEG ( a -- i ): a linear address as a
-; segment and an offset under 16.
+; sc_sadd - SADD ( Desc -- a ): its chars' address.
 ; ::::::::::::::
-sc_vptr:
-        and     dword ptr [esp],15
-        dispatch
-sc_vseg:
-        shr     dword ptr [esp],4
+sc_sadd:
+        mov     eax,[esp]
+        mov     eax,[eax+D_PTR]
+        mov     [esp],eax
         dispatch
 
 ; ::::::::::::::

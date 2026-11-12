@@ -270,11 +270,20 @@ plt_getline:
         call    plt_getb
         jc      @pgl_e
         cmp     al,10
-        je      @pgl_d
+        je      @pgl_lf
+        and     [g_state.io.ccr],0
         cmp     al,13
         jne     @pgl_p
         cmp     [g_state.io.cin],0FFh
         je      @pgl_c
+        mov     [g_state.io.ccr],1      ; a file's CR LF: one line's end
+        jmp     @pgl_d
+@pgl_lf:
+        cmp     [g_state.io.ccr],0
+        je      @pgl_d
+        and     [g_state.io.ccr],0
+        test    esi,esi
+        jz      @pgl_c
         jmp     @pgl_d
 @pgl_p:
         mov     [g_inbuf+esi],al

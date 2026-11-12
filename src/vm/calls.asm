@@ -786,13 +786,12 @@ sc_stop:
         jmp     err_raise
 
 ; ::::::::::::::
-; sc_poke - POKE ( addr byte -- ), in its own segment.
+; sc_poke - POKE ( addr byte -- ).
 ; ::::::::::::::
 sc_poke:
         pop     eax
         pop     ebx
-        movzx   ebx,bx
-        mov     [g_pokeb+ebx],al
+        mov     [ebx],al                ; a flat address
         jmp     ex_lp
 
 ; ::::::::::::::

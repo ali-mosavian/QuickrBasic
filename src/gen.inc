@@ -85,5 +85,5 @@ g_kwlist1 label   byte
         db      0D4h,055h,04Eh,04Ch,04Fh,043h,0CBh,055h,053h,049h,04Eh,0C7h,056h,041h,052h,050h,054h
         db      0D2h,056h,041h,052h,050h,054h,052h,0A4h,056h,041h,052h,053h,045h,0C7h,056h,049h,045h
         db      0D7h,057h,049h,044h,054h,0C8h,057h,049h,04Eh,044h,04Fh,0D7h,057h,052h,049h,054h,0C5h
-        db      053h,048h,04Fh,052h,0D4h,000h
+        db      053h,048h,04Fh,052h,0D4h,053h,053h,045h,0C7h,000h
         .code

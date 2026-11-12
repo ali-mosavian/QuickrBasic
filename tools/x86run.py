@@ -43,6 +43,7 @@ class Result:
     reason: str
     instructions: int
     ms: int
+    screen: str = ""  # the console's lines: what standard error wrote, with DOSBox's own
 
 
 def run(jobs: dict[str, str | tuple[str, str]], work: Path, limit_ms: int = 60000, file: bool = False) -> dict[str, Result]:
@@ -78,11 +79,20 @@ def run(jobs: dict[str, str | tuple[str, str]], work: Path, limit_ms: int = 6000
             stderr=subprocess.DEVNULL,
             timeout=600,
         )
-    ends = [json.loads(x) for x in (work / "events.txt").read_text().splitlines() if '"ev":"end"' in x]
+    evs = [json.loads(x) for x in (work / "events.txt").read_text().splitlines()]
+    ends = [e for e in evs if e.get("ev") == "end"]
+    screens = [[] for _ in names]
+    k = 0
+    for e in evs:
+        if e.get("ev") == "end":
+            k += 1
+        elif e.get("ev") == "line" and k < len(names):
+            screens[k].append(e.get("text", ""))
     out: dict[str, Result] = {}
     for i, name in enumerate(names):
         e = ends[i] if i < len(ends) else {}
         f = work / f"J{i}.TXT"
         text = f.read_bytes().decode("latin-1") if f.exists() else ""
-        out[name] = Result(name, text, e.get("reason", "none"), e.get("instructions", 0), e.get("ms", 0))
+        out[name] = Result(name, text, e.get("reason", "none"), e.get("instructions", 0), e.get("ms", 0),
+                           "\n".join(screens[i]))
     return out

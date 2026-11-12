@@ -116,29 +116,14 @@ ct_none:
         ret
 
 ; ::::::::::::::
-; ct_dseg - DEF SEG [= s]; another DEF is not one.
+; ct_dseg - DEF SEG [= s]: no code, flat; another DEF is not one.
 ; ::::::::::::::
 ct_dseg:
         cmp     byte ptr [esi+1],TK_X
         jne     @cdg_n
         cmp     byte ptr [esi+2],TK1_SEG
         jne     @cdg_n
-        add     esi,3
-        call    st_get
-        cmp     al,TK_EQ
-        jne     @F
-        inc     esi
-        call    cm_expr
-        call    cm_toi
-        jmp     @cdg_k
-@@:
-        or      eax,-1
-        call    cm_lint
-@cdg_k:
-        mov     al,K_DSEG
-        call    cm_call
-        clc
-        ret
+        jmp     ct_none                 ; dc_line warned
 @cdg_n:
         stc
         ret

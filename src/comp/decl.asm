@@ -29,6 +29,7 @@ include x86f.inc
 ; ::::::::::::::
 dc_line:
         pushad
+        call    dc_warn
         mov     esi,offset g_cbuf
         cmp     byte ptr [esi],M_INT    ; a line number
         jne     @dcl_s
@@ -433,6 +434,103 @@ dc_line:
         jne     @dcl_n
         inc     esi
         jmp     @dcc_l
+
+; ::::::::::::::
+; dc_warn - on standard error, a warning for each DEF SEG, VARSEG, SSEG in
+; cbuf: no effect, flat. Not in the editor.
+; ::::::::::::::
+dc_warn:
+if IDE eq 0
+        mov     esi,offset g_cbuf
+@dcw_l:
+        mov     al,[esi]
+        test    al,al
+        jz      @dcw_r
+        cmp     al,TK_REM
+        je      @dcw_r
+        cmp     al,TK_DATA
+        je      @dcw_r
+        mov     edx,offset g_wdseg
+        cmp     al,TK_DEF
+        jne     @F
+        cmp     word ptr [esi+1],TK_X+TK1_SEG*256
+        je      @dcw_w
+@@:
+        mov     edx,offset g_wvseg
+        cmp     al,TK_X
+        jne     @dcw_n
+        cmp     byte ptr [esi+1],TK1_VARSEG
+        je      @dcw_w
+        mov     edx,offset g_wsseg
+        cmp     byte ptr [esi+1],TK1_SSEG
+        jne     @dcw_n
+@dcw_w:
+        push    esi
+        push    edx
+        mov     edi,offset g_wbuf       ; "Warning: line n: " what
+        mov     esi,offset g_wpre
+        mov     ecx,9
+        rep     movsb
+        movzx   eax,[g_state.io.fline]
+        test    eax,eax
+        jz      @dcw_t
+        mov     esi,offset g_wlin
+        mov     ecx,5
+        rep     movsb
+        mov     ebx,10
+        xor     ecx,ecx
+@@:
+        xor     edx,edx
+        div     ebx
+        add     dl,'0'
+        push    edx
+        inc     ecx
+        test    eax,eax
+        jnz     @B
+@@:
+        pop     eax
+        stosb
+        loop    @B
+        mov     ax,' :'
+        stosw
+@dcw_t:
+        pop     esi
+@@:
+        lodsb
+        stosb
+        test    al,al
+        jnz     @B
+        dec     edi
+        mov     esi,offset g_wtail
+@@:
+        lodsb
+        stosb
+        test    al,al
+        jnz     @B
+        lea     ecx,[edi-1]
+        sub     ecx,offset g_wbuf
+        mov     edx,offset g_wbuf
+        mov     ebx,2
+        mov     ah,40h
+        int     21h
+        pop     esi
+@dcw_n:
+        call    dc_item
+        jmp     @dcw_l
+@dcw_r:
+endif
+        ret
+
+        .data
+g_wpre  db      "Warning: "
+g_wlin  db      "line "
+g_wdseg db      "DEF SEG",0
+g_wvseg db      "VARSEG",0
+g_wsseg db      "SSEG",0
+g_wtail db      " has no effect in 32-bit mode",13,10,0
+        .data?
+g_wbuf  db      80 dup(?)
+        .code
 
 ; ::::::::::::::
 ; dc_nam - the name at SI, stepped past.

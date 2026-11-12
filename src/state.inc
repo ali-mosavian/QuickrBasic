@@ -151,10 +151,11 @@ TMEM     struc                   ; the memory map, the program, the arrays
     pbs     dd      ?               ; prg_put's body
     pbl     dw      ?
     peekseg dw      ?
-    dseg    dd      ?               ; DEF SEG's, -1 none: PEEK reads pokeb
 TMEM     ends
 
 TIO      struc                   ; input and output
+    fline   dw      ?               ; loading a file: its line, for a warning
+    ccr     db      ?               ; plt_getline: a file's line ended at a CR
     ocap    db      ?
     pcol    db      ?
     sbx     db      ?

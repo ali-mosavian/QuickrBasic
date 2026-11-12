@@ -249,15 +249,18 @@ rpl_file:
         call    fil_ropen
         mov     [g_state.io.lmode],1
         mov     [g_state.io.batch],1
+        and     [g_state.io.fline],0
 @rfl_l:
         call    plt_getline
         jc      @rfl_d
+        inc     [g_state.io.fline]
         call    rpl_enter
         test    [g_state.io.iost],40h
         jz      @rfl_l
 @rfl_d:
         call    fil_end
         mov     [g_state.io.lmode],0
+        and     [g_state.io.fline],0
         call    prg_drop
         call    cm_link
         jmp     ex_runfirst

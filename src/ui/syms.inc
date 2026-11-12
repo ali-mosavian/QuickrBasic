@@ -127,7 +127,6 @@ externdef fn_pos:near
 externdef fn_sgn:near
 externdef fn_usr:near
 externdef fn_val:near
-externdef sc_dseg:near
 externdef sc_fix:near
 externdef sc_fn1:near
 externdef sc_hex:near
@@ -142,12 +141,12 @@ externdef sc_mids:near
 externdef sc_oct:near
 externdef sc_right:near
 externdef sc_rtrim:near
+externdef sc_sadd:near
 externdef sc_sfix:near
 externdef sc_space:near
 externdef sc_strg:near
 externdef sc_ubnd:near
 externdef sc_ucase:near
-externdef sc_vptr:near
 externdef sc_vseg:near
 ; vm/bc.asm
 externdef bc_DROP:near
