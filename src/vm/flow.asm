@@ -1012,16 +1012,16 @@ op_fpop:
 ; before that code, the mode's place in it. The address is kept in the op
 ; unless the cache was flushed meanwhile, the op with it.
 ;
-; in:     ESI  the target: line:2, boff and mode:2 (BOFF, TAGSH), then the
-;              address:2, 0 none
+; in:     ESI  the target: line:2, boff:2, then the address:2, under 3 none:
+;              the mode
 ; error:  ?SYNTAX ERROR  a target the link gave none (FFFFh)
 ; ::::::::::::::
 ex_bjump:
         stopchk
         tspclr
         movzx   eax,word ptr [esi+4]
-        test    eax,eax
-        jz      @ebj_f
+        cmp     eax,3
+        jb      @ebj_f
         mov     bx,[esi]
         mov     [g_state.rn.ln],bx
         lea     esi,[g_cachb+eax]
@@ -1043,7 +1043,6 @@ ex_bjump:
         neg     edi
         add     edi,esi
         movzx   ebx,word ptr [edx+2]
-        and     ebx,BOFF
 @ebj_l:
         jecxz   @ebj_n
         cmp     [edi],bx
@@ -1052,8 +1051,7 @@ ex_bjump:
         dec     ecx
         jmp     @ebj_l
 @ebj_y:
-        movzx   ebx,word ptr [edx+2]
-        shr     ebx,TAGSH               ; the mode
+        movzx   ebx,word ptr [edx+4]    ; the mode
         cmp     bl,1
         movzx   ebx,word ptr [edi+2]
         jb      @ebj_t

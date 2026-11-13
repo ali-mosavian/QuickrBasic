@@ -58,10 +58,10 @@ HDR     = 6                     ; len:2, num:2, cp:2
 NONUM   = 0FFFFh                ; a line's num: it has none
 L_NUM   = 2
 L_CP    = 4                     ; a line's code in the cache
-LMAX    = 2047                  ; a line's record at most: its body offsets fit BOFF
+LMAX    = 2047                  ; a line's record at most
 LSRC    = 255                   ; a line's text at most; its body is 5 times at most
-BOFF    = 7FFh                  ; a position's body offset: the low 11 bits of its
-TAGSH   = 11                    ; word, a mode or a BK_* above; BOFF the line's end
+BOFF    = 0FFFFh                ; a statement map's body offset of the line's end
+PDIR    = 8000h                 ; a position's tag: the direct line's
 IFNDEF IDE
 IDE     = 0
 ENDIF

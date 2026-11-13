@@ -3,12 +3,12 @@
 ; ==========================================================================
 ; holds:    cm_blocks, bk_find
 ; uses:     dc_item, dx_raise, err_sn, err_om
-; data:     A position is a line (its offset in progb) and a statement's
-;           offset in its body. cm_blocks walks every statement in program
+; data:     A position is a statement's offset in progb:2 and a tag:2, a
+;           mode or a BK_* kind; the direct line's (PDIR) its body offset.
+;           cm_blocks walks every statement in program
 ;           order, a stack of the open blocks, and gives each block statement
 ;           an entry in g_blk, in that order (bk_find's binary search):
-;             B_POS   its position: line:2, boff and BK_* its kind:2 (BOFF,
-;                     TAGSH)
+;             B_POS   its position, its BK_* kind the tag
 ;             B_NXT   where its false test, or its loop, goes: a target
 ;             B_END   where it leaves the block: a target
 ;             B_LINK  the next entry+1 of a chain: IF's clauses, a loop's EXITs
@@ -70,11 +70,8 @@ cm_blocks:
         test    eax,eax
         jz      @F
         shl     eax,5
-        mov     edx,dword ptr [g_prc+eax+P_ENTRY]
-        mov     [g_state.lnk.bln],dx
-        shr     edx,16
-        mov     ecx,edx
-        and     ecx,BOFF
+        mov     eax,dword ptr [g_prc+eax+P_ENTRY]
+        call    bk_posl
         mov     ax,E_PWE
         jmp     bk_fail0
 @@:
@@ -84,10 +81,9 @@ cm_blocks:
         movzx   edx,byte ptr [g_bst+eax*SSIZE-SSIZE+S_KIND]
         movzx   eax,word ptr [g_bst+eax*SSIZE-SSIZE+S_OPEN]
         shl     eax,4
-        mov     bx,word ptr [g_blk+eax+B_POS]
-        mov     [g_state.lnk.bln],bx
-        movzx   ecx,word ptr [g_blk+eax+B_POS+2]
-        and     ecx,BOFF
+        mov     eax,dword ptr [g_blk+eax+B_POS]
+        call    bk_posl
+        movzx   ebx,[g_state.lnk.bln]
         movzx   eax,byte ptr [g_bkopen+edx]
         xor     edi,edi
         cmp     al,E_FWN                ; FOR: {other} its variable
@@ -527,8 +523,7 @@ bk_stmt:
         call    bk_new
         movzx   edx,word ptr [ebx+S_OPEN]
         shl     edx,4
-        mov     eax,dword ptr [g_blk+edx+B_POS]
-        and     eax,(BOFF shl 16) or 0FFFFh     ; mode 0
+        movzx   eax,word ptr [g_blk+edx+B_POS]      ; mode 0
         mov     [edi+B_NXT],eax
         call    bk_here2
         mov     dword ptr [g_blk+edx+B_END],eax
@@ -581,9 +576,7 @@ bk_next:
         movzx   eax,word ptr [ebx+S_OPEN]       ; the FOR's: FOR v
         shl     eax,4
         movzx   esi,word ptr [g_blk+eax+B_POS]
-        movzx   eax,word ptr [g_blk+eax+B_POS+2]
-        and     eax,BOFF
-        lea     esi,[g_progb+esi+HDR+eax+1]
+        lea     esi,[g_progb+esi+1]
         cmp     byte ptr [esi],M_VAR
         jne     @bnn_c
         movzx   eax,byte ptr [esi+1]
@@ -676,12 +669,12 @@ bk_new:
         add     edi,offset g_blk
         push    eax
         mov     ax,[g_state.lnk.bln]
+        add     ax,cx
+        add     ax,HDR
         mov     [edi+B_POS],ax
         pop     eax
         push    eax
         movzx   eax,al
-        shl     eax,TAGSH
-        or      ax,cx
         mov     [edi+B_POS+2],ax
         pop     eax
         xor     eax,eax
@@ -783,8 +776,7 @@ bk_clause:
         pop     eax
         mov     [ebx+S_LAST],ax
         push    eax
-        movzx   eax,word ptr [edi+B_POS+2]
-        shr     eax,TAGSH
+        movzx   eax,byte ptr [edi+B_POS+2]
         cmp     al,BK_ELSE
         pop     eax
         jne     @F
@@ -859,10 +851,36 @@ bk_here2:
         mov     al,2
 bk_herem:
         movzx   eax,al
-        shl     eax,TAGSH
-        or      ax,cx
         shl     eax,16
-        mov     ax,[g_state.lnk.bln]    ; line:2, boff and mode:2
+        mov     ax,[g_state.lnk.bln]    ; at:2, mode:2
+        add     ax,cx
+        add     ax,HDR
+        ret
+
+; ::::::::::::::
+; bk_posl - bln, ECX: the line and body offset of position EAX.
+;
+; keeps:  all but ECX
+; ::::::::::::::
+bk_posl:
+        push    eax
+        push    ebx
+        movzx   eax,ax
+        mov     ebx,PROGBASE
+@@:
+        movzx   ecx,word ptr [g_progb+ebx]
+        add     ecx,ebx
+        cmp     eax,ecx
+        jb      @F
+        mov     ebx,ecx
+        jmp     @B
+@@:
+        mov     [g_state.lnk.bln],bx
+        mov     ecx,eax
+        sub     ecx,ebx
+        sub     ecx,HDR
+        pop     ebx
+        pop     eax
         ret
 
 ; ::::::::::::::
@@ -878,9 +896,9 @@ bk_find:
         push    esi
         push    edi
         movzx   ebx,bx
-        shl     ebx,TAGSH
-        and     ecx,BOFF
-        or      ebx,ecx                 ; the key
+        movzx   ecx,cx
+        add     ebx,ecx
+        add     ebx,HDR                 ; the key: the position
         xor     ecx,ecx                 ; [ECX, EDX)
         movzx   edx,[g_state.lnk.nblk]
 @bkf_l:
@@ -891,10 +909,6 @@ bk_find:
         mov     edi,eax
         shl     edi,4
         movzx   esi,word ptr [g_blk+edi+B_POS]
-        shl     esi,TAGSH
-        movzx   edi,word ptr [g_blk+edi+B_POS+2]
-        and     edi,BOFF
-        or      esi,edi
         cmp     esi,ebx
         je      @bkf_y
         jb      @F

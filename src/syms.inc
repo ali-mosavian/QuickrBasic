@@ -314,6 +314,7 @@ externdef g_oexp:byte
 externdef g_typ:byte
 ; comp/block.asm
 externdef bk_find:near
+externdef bk_posl:near
 externdef bk_proc:near
 externdef cm_blocks:near
 externdef g_blk:byte

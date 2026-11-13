@@ -1310,10 +1310,7 @@ ct_pcall:
         call    cm_byt
         pop     edx
         mov     eax,[edx+P_ENTRY]
-        call    cm_dw
-        xor     al,al
-        call    cm_byt
-        call    cm_byt
+        call    ct_tdw
         clc
         ret
 
@@ -1636,11 +1633,56 @@ ct_else:
 ; ::::::::::::::
 ct_here:
         movzx   eax,al
-        shl     eax,TAGSH
-        or      ax,cx
+        cmp     [g_state.cm.cline],DLINE
+        jne     @F
+        or      ah,PDIR shr 8           ; the direct line's: its offset
+        shl     eax,16
+        mov     ax,cx
+        ret
+@@:
         shl     eax,16
         mov     ax,[g_state.cm.cline]
+        add     ax,cx
+        add     ax,HDR
         ret
+
+; ::::::::::::::
+; ct_tdw - emit target EAX as a jump op's: line:2 boff:2, then its mode:2,
+; which the address replaces once found (vm/flow.asm, ex_bjump). FFFFFFFFh
+; none: line FFFFh.
+; ::::::::::::::
+ct_tdw:
+        cmp     eax,-1
+        je      @ctw_w
+        push    eax
+        test    eax,PDIR shl 16
+        jz      @F
+        movzx   eax,ax                  ; the direct line's
+        shl     eax,16
+        mov     ax,DLINE
+        jmp     @ctw_m
+@@:
+        push    ecx
+        push    dword ptr [g_state.lnk.bln]
+        call    bk_posl
+        mov     eax,ecx
+        shl     eax,16
+        mov     ax,[g_state.lnk.bln]
+        pop     dword ptr [g_state.lnk.bln]
+        pop     ecx
+@ctw_m:
+        call    cm_dw
+        pop     eax
+        shr     eax,16
+        and     eax,not PDIR
+        call    cm_byt
+        xor     al,al
+        jmp     cm_byt
+@ctw_w:
+        call    cm_dw
+        xor     al,al
+        call    cm_byt
+        jmp     cm_byt
 
 ; ::::::::::::::
 ; ct_ent - the entry of the statement at SI.
@@ -1718,10 +1760,7 @@ ct_jmp:
         push    ecx
         call    cm_op
         pop     eax
-        call    cm_dw
-        xor     al,al
-        call    cm_byt
-        call    cm_byt
+        call    ct_tdw
         clc
         ret
 
