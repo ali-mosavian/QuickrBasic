@@ -15,6 +15,9 @@ uint32_t pdos_int(int vector, PdosRegs *r);
 /* DS's selector. */
 uint16_t pdos_ds(void);
 
+/* The PSP's command tail, its leading blanks skipped, at most max bytes; its length. */
+uint32_t pdos_cmdline(char *buf, uint32_t max);
+
 /* The flat segment's byte at linear address `a` (DS is zero-based under DOS/32A). */
 static inline volatile uint8_t *pdos_lin(uint32_t a) { return (volatile uint8_t *)(uintptr_t)a; }
 #endif

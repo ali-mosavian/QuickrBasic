@@ -22,11 +22,9 @@ void psys_exit(uint8_t code)
 
 uint32_t psys_cmdline(char *buf, uint32_t cap)
 {
-    int n = llrm_os_command_line((unsigned char *)buf, cap - 1);
-    if (n < 0)
-        n = 0;
+    uint32_t n = pdos_cmdline(buf, cap - 1);
     buf[n] = 0;
-    return (uint32_t)n;
+    return n;
 }
 
 uint32_t psys_environ(char *buf, uint32_t cap)

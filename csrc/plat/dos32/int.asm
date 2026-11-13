@@ -1,7 +1,8 @@
 ; pdos_int: a software interrupt with the registers of a PdosRegs (plat/dos32/dos.h), cdecl.
         .386
         .model  flat
-        public  _pdos_int, _pdos_ds
+        public  _pdos_int, _pdos_ds, _pdos_cmdline
+        extern  LL$PSP:word
         .code
 ; int pdos_int(int vector, PdosRegs *r): the registers in, out; the flags returned.
 _pdos_int:
@@ -42,5 +43,40 @@ _pdos_int:
 _pdos_ds:
         xor     eax,eax
         mov     ax,ds
+        ret
+; uint32_t pdos_cmdline(char *buf, uint32_t max): the PSP's command tail without its leading
+; blanks, at most max bytes; its length. (llrm's LL$COMMAND_LINE reads its arguments a slot high.)
+_pdos_cmdline:
+        push    esi
+        push    edi
+        push    es
+        mov     es,[LL$PSP]
+        movzx   ecx,byte ptr es:[80h]
+        mov     esi,81h
+@@:
+        jecxz   @F
+        cmp     byte ptr es:[esi],' '
+        jne     @F
+        inc     esi
+        dec     ecx
+        jmp     @B
+@@:
+        cmp     ecx,[esp+20]
+        jbe     @F
+        mov     ecx,[esp+20]
+@@:
+        mov     edi,[esp+16]
+        mov     eax,ecx
+        jecxz   @cmd_r
+@@:
+        mov     dl,es:[esi]
+        mov     [edi],dl
+        inc     esi
+        inc     edi
+        loop    @B
+@cmd_r:
+        pop     es
+        pop     edi
+        pop     esi
         ret
         end
