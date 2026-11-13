@@ -87,7 +87,10 @@ build/c/basic32/%.obj: csrc/%.c $(CHDR)
 build/c/ide32/%.obj: csrc/%.c $(CHDR)
 	@mkdir -p $(@D)
 	$(LLRM)/target/release/llrm-cc $(CFLAGS) -DIDE=1 -c $< -o $@
-build/c/basic32/%.obj build/c/ide32/%.obj: csrc/%.asm
+build/c/basic32/%.obj: csrc/%.asm
+	@mkdir -p $(@D)
+	$(LLRM)/target/release/jwasm -q -zf0 -Fo $@ $<
+build/c/ide32/%.obj: csrc/%.asm
 	@mkdir -p $(@D)
 	$(LLRM)/target/release/jwasm -q -zf0 -Fo $@ $<
 
