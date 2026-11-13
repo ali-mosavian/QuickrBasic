@@ -2,7 +2,7 @@
 ; dpane.asm - the debug pane: at a stop, right of the code, its windows
 ; Watch, Locals and Call stack
 ; ==========================================================================
-; holds:    dp_open, dp_close, dp_draw, dp_key, dp_mouse
+; holds:    dp_open, dp_close, dp_draw, dp_key, dp_mouse, dp_hover, dp_tip
 ; uses:     cstk's frames, sy_find, vw_of, vw_goline, dr_ttl, sc_*
 ; data:     g_ui.dp. The frames (TDFRM): the stop's, then each procedure's
 ;           caller, from cstk's M_PC frames, each with its text line and its
@@ -13,6 +13,8 @@
 ;           parameters' cells, F_LSP1 the locals' values, in g_plh's order).
 ;           Watch: expressions, each PRINTed by dbg_eval in the stop's
 ;           procedure's scope at each stop; kept across runs.
+;           The tooltip: the Locals row of the variable under the cursor, or
+;           the mouse (tt_ms), in the selected frame's view.
 ;           The windows share the edit windows' rows (dp_geo).
 ; ==========================================================================
 
@@ -108,6 +110,7 @@ dp_frm1:
         push    edx
         mov     [edi].TDFRM.df_fp,edx
         mov     [edi].TDFRM.df_ln,0FFFFh
+        mov     [edi].TDFRM.df_vw,0FFh
         lea     edx,[edi].TDFRM.df_txt
         push    edi
         mov     edi,edx
@@ -136,6 +139,7 @@ dp_frm1:
         inc     eax
         lea     esi,[edi].TVIEW.vname
         pop     edi
+        mov     [edi].TDFRM.df_vw,bl
         test    ebx,ebx
         jnz     @F
         mov     esi,offset u_dpmod
@@ -868,6 +872,7 @@ dp_newer:
 dp_var1:
         cmp     ebp,NDVAR
         jae     @dv1_r
+        mov     [g_ui.dp.dp_vid+ebp*2],bx
         pushad
         mov     edi,offset g_dprow
         movzx   eax,word ptr [g_vnam+ebx*2]
@@ -1008,7 +1013,326 @@ dp_val:
         stosb
         ret
 
+; ::::::::::::::
+; dp_hover - the mouse moved to DX: the tooltip by it.
+; ::::::::::::::
+dp_hover:
+        mov     [g_ui.dp.tt_ms],1
+        mov     [g_ui.dp.tt_pos],dx
+        ret
+
+; ::::::::::::::
+; dp_tip - stopped, the program as it ran: the Locals row of the variable
+; under the mouse or the cursor, under it (over it on the last row).
+; ::::::::::::::
+dp_tip:
+        cmp     [g_ui.dp.dp_on],0
+        je      @dpt_r
+        call    ui_stopped
+        jnz     @dpt_r
+        pushad
+        movzx   eax,[g_ui.dp.dp_frm]    ; in the frame's view
+        imul    eax,eax,size TDFRM
+        mov     al,[g_ui.dp.dp_fr+eax].TDFRM.df_vw
+        cmp     al,[g_ui.ed.ed_vw]
+        jne     @dpt_x
+        cmp     [g_ui.dp.tt_ms],0
+        jne     @dpt_m
+        cmp     [g_ui.lp.ui_foc],0      ; the cursor's
+        jne     @dpt_x
+        movzx   eax,[g_ui.bf.ed_lb.col]
+        mov     esi,offset g_ui.bf.ed_lb.txt
+        movzx   ecx,[g_ui.bf.ed_lb.len]
+        movzx   edx,[g_ui.ed.ed_line]
+        jmp     @dpt_w
+@dpt_m:
+        mov     dx,[g_ui.dp.tt_pos]     ; the mouse's, in the active window
+        call    wn_at
+        jc      @dpt_x
+        cmp     bl,[g_ui.wn.wact]
+        jne     @dpt_x
+        movzx   eax,dh
+        sub     ax,[g_ui.ed.ed_r0]
+        jb      @dpt_x
+        cmp     ax,[g_ui.ed.ed_rows]
+        jae     @dpt_x
+        add     ax,[g_ui.ed.ed_top]
+        cmp     ax,[g_ui.tx.tx_n]
+        jae     @dpt_x
+        movzx   ecx,dl
+        sub     cl,[g_ui.ed.ed_x]
+        jbe     @dpt_x
+        dec     ecx
+        cmp     cx,[g_ui.ed.ed_tw]
+        jae     @dpt_x
+        add     cx,[g_ui.ed.ed_left]
+        movzx   edx,ax
+        push    ecx
+        mov     edi,offset g_dpln
+        call    tx_get
+        mov     esi,edi
+        pop     eax
+@dpt_w:                                 ; ESI the line, ECX its length, EAX
+        push    edx                     ; the column, EDX the line
+        call    dp_word
+        jc      @dpt_p
+        call    dp_find
+        jc      @dpt_p
+        pop     edx
+        imul    esi,eax,DP_TW
+        add     esi,offset g_ui.dp.dp_vt
+        sub     dx,[g_ui.ed.ed_top]     ; its row: under the name, else over
+        add     dx,[g_ui.ed.ed_r0]
+        inc     edx
+        mov     ax,[g_ui.ed.ed_r0]
+        add     ax,[g_ui.ed.ed_rows]
+        cmp     dx,ax
+        jb      @F
+        sub     edx,2
+@@:
+        mov     dh,dl
+        xor     ecx,ecx                 ; ECX the row's length
+@@:
+        cmp     byte ptr [esi+ecx],0
+        je      @F
+        inc     ecx
+        jmp     @B
+@@:
+        movzx   eax,[g_ui.ed.ed_x]      ; its column: the name's, in the
+        inc     eax                     ; window
+        sub     bx,[g_ui.ed.ed_left]
+        jae     @F
+        xor     ebx,ebx
+@@:
+        add     eax,ebx
+        movzx   ebx,[g_ui.ed.ed_x]
+        inc     ebx
+        add     bx,[g_ui.ed.ed_tw]      ; past the window
+        lea     edi,[eax+ecx+2]
+        cmp     edi,ebx
+        jbe     @F
+        mov     eax,ebx
+        sub     eax,ecx
+        sub     eax,2
+@@:
+        mov     dl,al
+        mov     ax,A_BAR*256+' '
+        push    ecx
+        mov     ecx,1
+        call    sc_fill
+        pop     ecx
+        call    sc_strn
+        mov     ecx,1
+        call    sc_fill
+        jmp     @dpt_x
+@dpt_p:
+        pop     edx
+@dpt_x:
+        popad
+@dpt_r:
+        ret
+
+; ::::::::::::::
+; dp_word - the name at column EAX of the line ESI, ECX long: not in a
+; string or after a ' .
+;
+; out:    EBX  its first column
+;         ECX  its length, its suffix left out
+;         DL   its suffix, 0 none
+;         CF   set: none
+; keeps:  ESI
+; ::::::::::::::
+dp_word:
+        cmp     eax,ecx
+        jae     @dpw_n
+        mov     edi,ecx                 ; EDI the line's length
+        mov     dl,[esi+eax]
+        call    dp_issfx
+        jc      @F
+        test    eax,eax                 ; on a suffix: the name before it
+        jz      @dpw_n
+        dec     eax
+@@:
+        mov     dl,[esi+eax]
+        call    dp_isnm
+        jc      @dpw_n
+        mov     ebx,eax
+@@:
+        test    ebx,ebx                 ; back to its start, a letter
+        jz      @F
+        mov     dl,[esi+ebx-1]
+        call    dp_isnm
+        jc      @F
+        dec     ebx
+        jmp     @B
+@@:
+        mov     dl,[esi+ebx]
+        or      dl,20h
+        cmp     dl,'a'
+        jb      @dpw_n
+        cmp     dl,'z'
+        ja      @dpw_n
+@@:
+        inc     eax                     ; on to its end
+        cmp     eax,edi
+        jae     @F
+        mov     dl,[esi+eax]
+        call    dp_isnm
+        jnc     @B
+@@:
+        mov     ecx,eax
+        sub     ecx,ebx
+        xor     dl,dl
+        cmp     eax,edi
+        jae     @F
+        mov     dl,[esi+eax]
+        call    dp_issfx
+        jnc     @F
+        xor     dl,dl
+@@:
+        xor     eax,eax                 ; not in a string, a comment: EDI
+        xor     edi,edi                 ; 1 in a string
+@dpw_q:
+        cmp     eax,ebx
+        jae     @dpw_y
+        mov     dh,[esi+eax]
+        inc     eax
+        cmp     dh,'"'
+        jne     @F
+        xor     edi,1
+        jmp     @dpw_q
+@@:
+        cmp     dh,"'"
+        jne     @dpw_q
+        test    edi,edi
+        jz      @dpw_n
+        jmp     @dpw_q
+@dpw_y:
+        clc
+        ret
+@dpw_n:
+        stc
+        ret
+
+; dp_isnm - CF clear: DL a name's character. Keeps all.
+dp_isnm:
+        push    edx
+        cmp     dl,'.'
+        je      @dpi_y
+        cmp     dl,'0'
+        jb      @dpi_x
+        cmp     dl,'9'
+        jbe     @dpi_y
+        or      dl,20h
+        cmp     dl,'a'
+        jb      @dpi_x
+        cmp     dl,'z'
+        jbe     @dpi_y
+@dpi_x:
+        pop     edx
+        stc
+        ret
+@dpi_y:
+        pop     edx
+        clc
+        ret
+
+; dp_issfx - CF clear: DL a type's suffix. Keeps all.
+dp_issfx:
+        push    edi
+        push    ecx
+        push    eax
+        mov     al,dl
+        mov     edi,offset g_dpsfn
+        mov     ecx,5
+        repne   scasb
+        pop     eax
+        pop     ecx
+        pop     edi
+        je      @F
+        stc
+        ret
+@@:
+        clc
+        ret
+
+; ::::::::::::::
+; dp_find - Locals' row of the name at ESI+EBX, ECX long, suffix DL: its
+; letters the variable's name's, its suffix, if any, its type's.
+;
+; out:    EAX  the row
+;         CF   set: none
+; keeps:  EBX, ESI
+; ::::::::::::::
+dp_find:
+        push    ebx
+        push    esi
+        add     esi,ebx
+        xor     eax,eax
+@dfd_l:
+        cmp     al,[g_ui.dp.dp_nv]
+        jae     @dfd_n
+        movzx   ebx,[g_ui.dp.dp_vid+eax*2]
+        test    dl,dl
+        jz      @F
+        push    eax
+        push    edi
+        push    ecx
+        mov     al,dl
+        mov     edi,offset g_dpsfn
+        mov     ecx,5
+        repne   scasb
+        mov     al,[edi-1+g_dpsft-g_dpsfn]
+        cmp     al,[g_vtyp+ebx]
+        pop     ecx
+        pop     edi
+        pop     eax
+        jne     @dfd_x
+@@:
+        push    eax
+        push    edi
+        movzx   eax,word ptr [g_vnam+ebx*2]
+        mov     edi,[g_nname+eax*4]
+        cmp     cl,[edi]
+        jne     @dfd_c
+        push    ecx
+        push    esi
+@@:
+        inc     edi
+        lodsb
+        cmp     al,'a'
+        jb      @dfd_u
+        cmp     al,'z'
+        ja      @dfd_u
+        sub     al,20h
+@dfd_u:
+        cmp     al,[edi]
+        jne     @F
+        loop    @B
+@@:
+        pop     esi
+        pop     ecx
+@dfd_c:
+        pop     edi
+        pop     eax
+        je      @dfd_y
+@dfd_x:
+        inc     eax
+        jmp     @dfd_l
+@dfd_y:
+        pop     esi
+        pop     ebx
+        clc
+        ret
+@dfd_n:
+        pop     esi
+        pop     ebx
+        stc
+        ret
+
         .data
+g_dpsfn db      '%&!#$'                 ; a suffix, its type
+g_dpsft db      ET_I2,ET_I4,ET_R4,ET_R8,ET_SD
 g_dpsfx db      0,'%','&',0,'#','$'     ; by ET_*: the suffix shown
 u_dpeq  db      ' = ',0
 u_dparr db      '(array)',0
@@ -1029,6 +1353,7 @@ dg_dpw  TDLG    <8,14,8,52,u_dpadd,3,0,5,1>
         TCTL    <CT_BTN,6,30,10,0,0,u_cancel,0,0,0,0>
         .data?
 g_dpout db      80 dup(?)               ; dbg_eval's output
+g_dpln  db      LNBUF dup(?)            ; the line under the mouse
 g_dpp   dd      ?                       ; Locals' procedure, 0 the module
 g_dpnw  dd      ?                       ; its newer call, dp_newer's
 g_dprow db      80 dup(?)               ; a row being made

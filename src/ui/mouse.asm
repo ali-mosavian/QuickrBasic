@@ -4,7 +4,8 @@
 ; holds:    ms_init, ms_show, ms_hide, ms_poll, ms_main, ms_title
 ; uses:     INT 33h; ed_goto, sel_mark, mn_run, wn_at, wn_focus and the run keys
 ; data:     ms_poll turns the left button into events (ms_ev): MS_PRESS,
-;           MS_DRAG (moved while down), MS_UP; ms_pos the cell, DH the
+;           MS_DRAG (moved while down), MS_UP, MS_MOVE (moved with none,
+;           while the key loop waits: ms_hov); ms_pos the cell, DH the
 ;           row, DL the column. ui_getkey gives one as key FFFEh.
 ; calls:
 ;   ms_main            ms_title, mn_run, ed_goto
@@ -82,10 +83,17 @@ ms_poll:
         jmp     @msp_e
 @msp_s:
         test    bl,bl
-        jz      @msp_x
+        jz      @msp_m
         cmp     dx,[g_ui.ms.ms_pos]
         je      @msp_x
         mov     al,MS_DRAG
+        jmp     @msp_e
+@msp_m:                                 ; no button: a move, if the key
+        cmp     [g_ui.ms.ms_hov],0      ; loop takes one
+        je      @msp_x
+        cmp     dx,[g_ui.ms.ms_pos]
+        je      @msp_x
+        mov     al,MS_MOVE
 @msp_e:
         mov     [g_ui.ms.ms_ev],al
         mov     [g_ui.ms.ms_pos],dx
@@ -135,6 +143,8 @@ ms_title:
 ; ::::::::::::::
 ms_main:
         mov     dx,[g_ui.ms.ms_pos]
+        cmp     [g_ui.ms.ms_ev],MS_MOVE
+        je      dp_hover
         cmp     [g_ui.ms.ms_ev],MS_UP
         je      @msm_r
         test    dh,dh

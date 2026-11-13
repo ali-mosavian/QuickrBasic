@@ -97,7 +97,13 @@ if AC eq 0
         and     [g_ui.lp.ui_help],0              ; else ui_key: a completion shows it
 endif
         call    dr_all
+        mov     [g_ui.ms.ms_hov],1
         call    ui_getkey
+        mov     [g_ui.ms.ms_hov],0
+        cmp     ax,MS_KEY
+        je      @F
+        and     [g_ui.dp.tt_ms],0       ; a key: the tooltip by the cursor
+@@:
         call    ui_key
         jmp     ui_loop
 
@@ -170,9 +176,13 @@ endif
         test    al,al
         jnz     @uk_w
         cmp     ah,41h
+        je      ud_pstep
+        cmp     ah,64h                  ; Ctrl+F7
         je      ud_until
         cmp     ah,42h
         je      ud_step
+        cmp     ah,5Bh                  ; Shift+F8
+        je      ud_sout
         cmp     ah,43h
         je      ud_bp
         cmp     ah,44h
@@ -523,6 +533,7 @@ ui_acts dd      ui_new,ui_open,ui_save,ui_saveas,ui_exit,ed_cut,ed_copy
         dd      ud_trace1,ud_bp,ud_bpclr,ud_setnx,ud_restart,wn_split
         dd      vw_subs,vw_newsub,vw_newfn,th_qb,th_dark,hl_toggle,wn_vsplit
         dd      NTHEME-2 dup(th_pick)
+        dd      ud_sout
         .code
 
 ; ::::::::::::::
@@ -1350,15 +1361,17 @@ u_kedit    db   '<Shift+F1=Help> <F6=Window> <F5=Run> <F8=Step>',0
            db   46
            dd   ud_step
            db   0
-u_krun     db   '<Shift+F1=Help> <F5=Continue> <F9=Toggle Bkpt> <F8=Step>',0
-           db   15
-           dd   ui_nohelp
-           db   29
+u_krun     db   '<F5=Continue> <F7=Over> <F8=Step> <Shift+F8=Out> <F9=Bkpt>',0
+           db   13
            dd   ui_contp
-           db   46
-           dd   ud_bp
-           db   56
+           db   23
+           dd   ud_pstep
+           db   33
            dd   ud_step
+           db   48
+           dd   ud_sout
+           db   58
+           dd   ud_bp
            db   0
 u_kimm     db   '<Shift+F1=Help> <F6=Window> <Enter=Execute Line>',0
            db   15

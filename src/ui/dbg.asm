@@ -217,7 +217,7 @@ ud_step:
         jmp     ui_contp
 
 ; ::::::::::::::
-; ud_pstep - Debug, Procedure Step, F10: the next statement at this depth
+; ud_pstep - Debug, Step Over, F7, F10: the next statement at this depth
 ; or less: a call, a GOSUB run through.
 ; ::::::::::::::
 ud_pstep:
@@ -225,6 +225,23 @@ ud_pstep:
         call    ui_cancont
         jc      @F
         call    dbg_depth
+@@:
+        mov     [g_state.dbg.pdep],eax
+        mov     [g_state.dbg.mode],DM_PSTEP
+        jmp     ui_contp
+
+; ::::::::::::::
+; ud_sout - Debug, Step Out, Shift+F8: on till the procedure or GOSUB
+; stopped in has returned; in the module, as Step Over.
+; ::::::::::::::
+ud_sout:
+        xor     eax,eax
+        call    ui_cancont
+        jc      @F
+        call    dbg_depth
+        dec     eax
+        jns     @F
+        xor     eax,eax
 @@:
         mov     [g_state.dbg.pdep],eax
         mov     [g_state.dbg.mode],DM_PSTEP
@@ -262,7 +279,7 @@ ud_bpclr:
         jmp     tx_mclr
 
 ; ::::::::::::::
-; ud_until - F7: on to the cursor's line.
+; ud_until - Ctrl+F7: on to the cursor's line.
 ; ::::::::::::::
 ud_until:
         cmp     [g_ui.lp.ui_foc],0

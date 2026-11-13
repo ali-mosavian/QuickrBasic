@@ -22,6 +22,7 @@ include x86f.inc
 dr_all:
         call    mn_bar
         call    wn_draw
+        call    dp_tip
         call    dr_status
         jmp     dr_cursor
 

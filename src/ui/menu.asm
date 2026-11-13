@@ -850,7 +850,8 @@ m_run   db      A_START,0,'&Start',0,'Shift+F5',0
         db      A_CONT,0,'Co&ntinue',0,'F5',0
         db      0
 m_dbg   db      A_STEP,0,'&Step',0,'F8',0
-        db      A_PSTEP,0,'&Procedure Step',0,'F10',0
+        db      A_PSTEP,0,'Step &Over',0,'F7',0
+        db      A_SOUT,0,'Step O&ut',0,'Shift+F8',0
         db      A_NONE,MF_SEP
         db      A_TRACE,MF_CHK,'&Trace On',0,0
         db      A_NONE,MF_SEP

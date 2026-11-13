@@ -663,6 +663,13 @@ def play() -> None:
             end = next(i for i, r in enumerate(rows) if "Locals" in r)
             return [r[2:-1].strip() for r in rows[1:end] if r[2:-1].strip()]
 
+        # The cursor on a variable, or the mouse over one: its value under it.
+        press("end", "left")
+        assert b" N% = 3 " in chars(6), chars(6)
+        mouse(3, 1, False)
+        assert b" T% = 30 " in chars(4), chars(4)
+        mouse(0, 70, False)
+        assert b"T% = 30" not in chars(4), chars(4)
         # Watch: Ins asks for an expression, evaluated in the stopped call's scope; an error is its
         # message, and the run goes on as it was; Del drops the selected one.
         press("0x40", "0x52")
@@ -702,13 +709,24 @@ def play() -> None:
                  (3, "GOSUB g"), (7, "PRINT 7"), (8, "RETURN"), (4, "s"), (1, "PRINT 5"), (2, "END SUB"),
                  (5, "PRINT 9")]:
         step(F8, want)
-    assert look()[24].startswith(" <SHIFT+F1=HELP> <F5=CONTINUE> <F9=TOGGLE BKPT> <F8=STEP>"), look()[24]
-    # F10 runs a GOSUB, a call through. Restart stops at the first statement again.
-    press(f"0x{ALT_R:x}", "r")
-    assert lit()[0] == (1, "PRINT 1"), lit()
-    for want in [(2, "FOR i = 1 TO 2"), (2, "PRINT i"), (2, "NEXT"), (2, "PRINT i"), (2, "NEXT"), (3, "GOSUB g"),
-                 (4, "s"), (5, "PRINT 9")]:
-        step(F10, want)
+    if flat:
+        assert look()[24].startswith(" <F5=CONTINUE> <F7=OVER> <F8=STEP> <SHIFT+F8=OUT> <F9=BKPT>"), look()[24]
+    else:
+        assert look()[24].startswith(" <SHIFT+F1=HELP> <F5=CONTINUE> <F9=TOGGLE BKPT> <F8=STEP>"), look()[24]
+    # F10, and F7 (step over, ours), run a GOSUB, a call through. Restart stops at the first
+    # statement again. Shift+F8 (step out, ours) runs on till the SUB has returned.
+    for over in [F10, F7] if flat else [F10]:
+        press(f"0x{ALT_R:x}", "r")
+        assert lit()[0] == (1, "PRINT 1"), lit()
+        for want in [(2, "FOR i = 1 TO 2"), (2, "PRINT i"), (2, "NEXT"), (2, "PRINT i"), (2, "NEXT"),
+                     (3, "GOSUB g"), (4, "s"), (5, "PRINT 9")]:
+            step(over, want)
+    if flat:
+        press(f"0x{ALT_R:x}", "r")
+        for _ in range(7):
+            press(f"0x{F10:x}")
+        step(F8, (1, "PRINT 5"))
+        step(0x5B, (5, "PRINT 9"))
     # A breakpoint is its line's colour; F5 stops there. Clear All takes it away.
     press("0x55")  # the SUB's view
     cursor(1)
@@ -718,10 +736,10 @@ def play() -> None:
     assert lit() == ((1, "PRINT 5"), [1]), lit()
     press(f"0x{ALT_D:x}", "c")
     assert lit()[1] == [], lit()
-    # F7: on to the cursor's line. Set Next Statement: CONT goes on there.
+    # F7 (Ctrl+F7 in ours): on to the cursor's line. Set Next Statement: CONT goes on there.
     press("0x5f")
     cursor(6)
-    step(F7, (6, "END"))
+    step(0x64 if flat else F7, (6, "END"))
     press(f"0x{ALT_R:x}", "r")
     cursor(5)
     press(f"0x{ALT_D:x}", "n")

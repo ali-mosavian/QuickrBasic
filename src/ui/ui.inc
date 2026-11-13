@@ -15,6 +15,7 @@ FLDMAX  = 80                    ; a dialog field's characters at most
 MS_PRESS = 1
 MS_DRAG  = 2
 MS_UP    = 3
+MS_MOVE  = 4                            ; moved, no button, ms_hov set
 MS_KEY   = 0FFFEh
 ; compl.asm
 AM_ST   = 1                             ; statements
@@ -111,7 +112,8 @@ A_THDK  = 30
 A_SYNHL = 31
 A_VSPLIT = 32
 A_TH2   = 33                    ; themes 2 .. NTHEME-1
-A_NONE  = A_TH2+NTHEME-2
+A_SOUT  = A_TH2+NTHEME-2
+A_NONE  = A_SOUT+1
 ; dlg.asm
 CT_FLD  = 1
 CT_LST  = 2
@@ -323,6 +325,7 @@ WXLEN   = 41                    ; a watch's expression, 0-ended
 TDFRM    struc                   ; a call stack's frame
     df_ln   dw      ?               ; its text line, FFFFh the immediate's
     df_fp   dd      ?               ; its procedure's cstk frame, 0 module
+    df_vw   db      ?               ; its view, FFh none
     df_txt  db      DP_TW+1 dup(?)  ; its row
 TDFRM    ends
 
@@ -339,6 +342,9 @@ TDPANE   struc                   ; the debug pane (dpane.asm)
     dp_wx   db      NWATCH*WXLEN dup(?)
     dp_wv   db      NWATCH*DP_TW dup(?)
     dp_fld  TLBUF   <>              ; Ins's expression
+    tt_ms   db      ?               ; 1: the tooltip by the mouse, at tt_pos
+    tt_pos  dw      ?
+    dp_vid  dw      NDVAR dup(?)    ; Locals' variables' ids
     dp_nv   db      ?               ; Locals' variables, their rows
     dp_vt   db      NDVAR*DP_TW dup(?)
     dp_fr   TDFRM   NDFRM dup(<>)
@@ -412,6 +418,7 @@ TMOUSE   struc                   ; the mouse
     ms_b    db      ?
     ms_ev   db      ?
     ms_pos  dw      ?
+    ms_hov  db      ?               ; 1: a move is an event (the key loop's)
 TMOUSE   ends
 
 TCOMPL   struc                   ; Tab completion

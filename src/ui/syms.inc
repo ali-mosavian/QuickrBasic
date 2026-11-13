@@ -878,6 +878,7 @@ externdef ud_pstep:near
 externdef ud_restart:near
 externdef ud_row:near
 externdef ud_setnx:near
+externdef ud_sout:near
 externdef ud_step:near
 externdef ud_stop:near
 externdef ud_trace1:near
@@ -885,9 +886,11 @@ externdef ud_until:near
 ; ui/dpane.asm
 externdef dp_close:near
 externdef dp_draw:near
+externdef dp_hover:near
 externdef dp_key:near
 externdef dp_mouse:near
 externdef dp_open:near
+externdef dp_tip:near
 ; ui/win.asm
 externdef wn_act:near
 externdef wn_at:near
