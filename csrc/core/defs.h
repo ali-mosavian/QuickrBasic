@@ -1,0 +1,199 @@
+/* The constants and the arena's records every part shares (src/def.inc). A record whose layout a
+   BASIC program, the bytecode or a file can see is PACKED, as the asm lays it. */
+#ifndef CORE_DEFS_H
+#define CORE_DEFS_H
+#include "base.h"
+
+#ifndef IDE
+#define IDE 0
+#endif
+#ifndef AC
+#define AC IDE /* Tab completion in the editor */
+#endif
+
+/* A compiled expression's static type (cty). */
+enum : uint8_t {
+    T_INT = 0,
+    T_DBL = 0x20, /* a whole cell */
+    T_STR = 0x40,
+    T_FLT = 0x80,
+};
+
+/* A declared type (QBasic's ET_*); a record of TYPE t is ET_REC + t. */
+enum : uint8_t {
+    ET_IMP = 0, /* none given */
+    ET_I2 = 1,
+    ET_I4 = 2,
+    ET_R4 = 3,
+    ET_R8 = 4,
+    ET_SD = 5,
+    ET_SH = 6, /* SHORT: 2 bytes in a record, else an INT */
+    ET_REC = 0x40,
+    EMAX = 254,
+};
+
+enum {
+    FBIAS = 127,
+    SK_DBL = 4,   /* a variable's info: a DOUBLE's */
+    VS = 4,       /* a variable's slot, a number's bytes */
+    NB = 4,       /* a stored FLOAT's bytes */
+    MAXD = 16,    /* dimensions at most */
+    NTMP = 48,    /* string temporaries */
+    NPROC = 256,  /* procedures, 1 .. NPROC-1 */
+    NPPAR = 2048, /* their parameters, all */
+    NTYPE = 64,
+    NFLD = 512,
+    NBLK = 2048, /* block statements' entries */
+};
+
+/* A name's flags. */
+enum : uint8_t { NM_LBL = 1, NM_FN = 2, NM_SUB = 4, NM_FUNC = 8 };
+
+/* A binding's flags (mem/scope). */
+enum : uint8_t { BF_SHR = 1, BF_REF = 2, BF_STAT = 4, BF_LBL = 8, BF_CON = 16, BF_USE = 32 };
+enum : uint16_t { SC_NUM = 0x8000, SC_ARR = 0x4000 };
+
+/* Tokens in a stored line. */
+enum : uint8_t { M_VAR = 1, M_INT = 2, REM_Q = 3 };
+
+/* A line's record in the program store, its body after it. */
+typedef struct PACKED {
+    uint32_t len;  /* the record's bytes, 0 the end */
+    uint16_t num;  /* its number, NONUM none */
+    uint32_t code; /* its code in the cache, 0 none */
+    uint32_t pre;  /* its text before the body, after it */
+    uint8_t flags; /* LF_* */
+    uint8_t sep;   /* the byte before the body the compiler reads */
+} Line;
+static_assert(sizeof(Line) == 16);
+enum { HDR = sizeof(Line) };
+enum : uint8_t { LF_ASIS = 1, LF_BP = 2, LF_INC = 4 };
+enum : uint32_t {
+    NONUM = 0xFFFF,
+    LMAX = 0xFEE0,     /* a line's body at most */
+    BOFF = 0xFFFFFFFF, /* a statement map's body offset of the line's end */
+    PDIR = 0x80000000, /* a target's flag: the direct line's */
+    LXCMAX = IDE ? 0xFEE0 : 1,
+    XSLK = 48,         /* the most one op writes past its size */
+    XLIM = 0xF8E0,     /* a line's code at most */
+};
+
+/* A statement map's entry, before a line's code; their count after them. */
+typedef struct PACKED {
+    uint32_t body, code;
+} Stmt;
+
+/* Channels (io/chan). */
+enum { NL = 13, NCH = 16, CBSZ = 512, RECMAX = 4096 };
+enum : uint8_t { CK_CON = 1, CK_DISK = 2, CK_NUL = 3 };
+enum : uint8_t { FM_IN = 1, FM_OUT = 2, FM_APP = 4, FM_RND = 8, FM_BIN = 16 };
+/* A variable's place (cm_va). */
+enum : uint8_t { VA_DESC = 1, VA_RAW = 2, VA_I2 = 3 };
+
+/* The control stack's frames; a frame's mark is its size. */
+typedef struct PACKED {
+    uint8_t mark;
+    uint32_t line;
+    uint32_t resume; /* absolute, or an offset in its line's code */
+} Frame;
+typedef struct PACKED {
+    Frame h;
+    uint16_t id;
+    uint32_t step, limit;
+    uint32_t cache; /* an INT counter's: the float last stored */
+} ForFrame;
+typedef struct PACKED {
+    Frame h;
+    uint8_t slot;
+} EventFrame;
+typedef struct PACKED {
+    Frame h;
+    uint8_t proc;
+    uint32_t save0, save1; /* the save stack before its arguments, before its locals */
+    uint16_t tmpb;         /* the caller's temporaries' floor */
+    uint32_t stk;          /* the data stack at its body's start */
+    uint32_t onerr;        /* ON LOCAL ERROR's line, 0 none */
+} ProcFrame;
+enum {
+    M_GS = sizeof(Frame),
+    M_FR = sizeof(ForFrame),
+    M_EV = sizeof(EventFrame),
+    M_PC = sizeof(ProcFrame),
+};
+enum : uint8_t { SF_BRK = 1, SF_EV = 2 };
+
+/* An event's slot (vm/event). */
+typedef struct PACKED {
+    uint32_t line;
+    uint8_t state, flags;
+    uint16_t pad;
+} EventSlot;
+static_assert(sizeof(EventSlot) == 8);
+enum : uint8_t { EK_TIMER, EK_KEY, EK_COM, EK_PEN, EK_STRIG };
+
+enum : uint8_t { DM_STEP = 1, DM_PSTEP = 2 };
+
+enum { LSSZ = 16, LSAVSZ = 0x15000 }; /* a save entry: id:2 ref:2 value:8 off:4; the save stack */
+
+/* A string's Desc. */
+typedef struct PACKED {
+    uint16_t len;
+    Addr ptr;
+} Desc;
+static_assert(sizeof(Desc) == 6);
+enum { DSZ = sizeof(Desc), SMAX = 32767 };
+/* A string block's tail, after its chars. */
+typedef struct PACKED {
+    uint16_t len;
+    Addr owner;
+} StrTail;
+enum { BHDR = sizeof(StrTail) };
+
+/* An array's header: its dimensions, its data, the count of a 1-D, then the counts. */
+typedef struct PACKED {
+    uint8_t dims;
+    Addr data;
+    uint16_t fast;
+    uint16_t count[];
+} ArrayHdr;
+
+/* Errors and messages: E_* QBasic's errors, MSG_* the other messages. */
+enum : uint8_t {
+    E_BRK = 0, MSG_READY = 1, E_SN = 2, E_RG = 3, E_OD = 4, E_IQ = 5, E_OM = 6, E_US = 7,
+    E_BS = 8, E_RD = 9, E_DZ = 10, E_TM = 11, E_CN = 12, MSG_OK = 13, E_OV = 14, E_NF = 15,
+    E_ST = 16, E_LS = 17, E_ID = 18, MSG_ERR = 19, MSG_IN = 20, MSG_REDO = 21, MSG_EXTRA = 22,
+    E_TMF = 23,
+    E_VF = 32, E_FD = 33, E_UF = 34,
+    E_USR = 35, /* ERROR n */
+    E_OS = 36,  /* Out of stack space: not trapped */
+    E_AF = 37, E_DL = 38, E_VR = 39, E_SPE = 40, E_ASF = 41, E_AAD = 42, E_VND = 43,
+    E_PTM = 44, E_AND = 45, E_FWN = 46, E_WWW = 47, E_WEW = 48, E_BIF = 49, E_EIF = 50,
+    E_ELS = 51, E_DWL = 52, E_LWD = 53, E_SWE = 54, E_ESW = 55, E_CWS = 56, E_PWE = 57,
+    E_EPW = 58, E_EXW = 59,
+    E_LAST = E_EXW,
+};
+
+/* The memory map: offsets in the program store and the code cache. */
+enum {
+    DLINE = 0,          /* the direct line, len 0, num FFxxh */
+    PROGBASE = 0x0110,  /* then the program */
+    HSIZE = 1024,       /* the symbols' hash chains */
+    DCODE = 0x0100,     /* the direct line's stream */
+    CACHE0 = DCODE + 1536,
+    CLIM = 0xFFF0,
+    HMIN = 0x40000,     /* the heap at least */
+    STKSZ = 0x10000,    /* the data stack */
+    STKROOM = 0x8000,   /* its room for the run */
+    CPROOM = 0x4000,    /* the compiler's frames */
+    OBSZ = 256,         /* the output buffer */
+};
+static_assert(XLIM == CLIM - CACHE0 - 16);
+
+/* Block statements (comp/block), procedures, TYPEs: their records are comp's. */
+enum : uint8_t {
+    BK_IF = 1, BK_ELSEIF, BK_ELSE, BK_ENDIF, BK_DO, BK_LOOP, BK_WHILE, BK_WEND, BK_SELECT,
+    BK_CASE, BK_ENDSEL, BK_EXIT, BK_FOR,
+};
+enum : uint8_t { PK_SUB = 1, PK_FUNC = 2, PK_END = 3 };
+enum : uint8_t { PF_STAT = 1, PF_DEF = 2 };
+#endif

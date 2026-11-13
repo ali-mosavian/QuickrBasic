@@ -58,3 +58,49 @@ style:
 
 clean:
 	rm -rf build
+
+# ---- The C build: csrc/, llrm-cc for x86_32-dos, build/c/basic32.exe and ide32.exe ----
+# LLRM: llrm release/next's tree (its runtime, its link recipe, its tools); LLRM_CLANG_M16 its
+# patched clang. The OS layer's header is in the tree; the C library's subset is csrc/lib.
+LLRM ?= $(HOME)/work/personal/llrm-next
+LLRM_CLANG_M16 ?= $(HOME)/work/other/llvm-m16/build/bin/clang
+export LLRM_CLANG_M16
+CC_OPT ?= -O2
+CFLAGS := -target x86_32-dos -std=c23 $(CC_OPT) -Wall -Wextra -Wno-unused-parameter \
+	-isystem $(LLRM)/toolchain/clang/os/x86-m32 -isystem csrc/lib/include -Icsrc -Icsrc/core
+CSRC := $(shell find csrc/core csrc/lib -name '*.c' -not -path 'csrc/core/ui/*') \
+	$(wildcard csrc/plat/dos32/*.c) csrc/main.c
+CUI := $(shell find csrc/core/ui -name '*.c' 2>/dev/null)
+CASM := $(wildcard csrc/plat/dos32/*.asm)
+CHDR := $(shell find csrc -name '*.h' -o -name '*.def')
+COBJ := $(CSRC:csrc/%.c=build/c/basic32/%.obj) $(CASM:csrc/%.asm=build/c/basic32/%.obj)
+CIDE_OBJ := $(CSRC:csrc/%.c=build/c/ide32/%.obj) $(CUI:csrc/%.c=build/c/ide32/%.obj) \
+	$(CASM:csrc/%.asm=build/c/ide32/%.obj)
+C_LINK = python3 -I $(LLRM)/tools/dosbatch/link_objects.py x86-m32
+
+.PHONY: c cbasic32 cide32 ctest
+c: cbasic32 cide32
+
+build/c/basic32/%.obj: csrc/%.c $(CHDR)
+	@mkdir -p $(@D)
+	$(LLRM)/target/release/llrm-cc $(CFLAGS) -DIDE=0 -c $< -o $@
+build/c/ide32/%.obj: csrc/%.c $(CHDR)
+	@mkdir -p $(@D)
+	$(LLRM)/target/release/llrm-cc $(CFLAGS) -DIDE=1 -c $< -o $@
+build/c/basic32/%.obj build/c/ide32/%.obj: csrc/%.asm
+	@mkdir -p $(@D)
+	$(LLRM)/target/release/jwasm -q -zf0 -Fo $@ $<
+
+cbasic32: $(COBJ)
+	$(C_LINK) $(abspath build/c/basic32.exe) $(abspath $(COBJ))
+	$(PY) tools/x86d32a.py $(DOS32A)/dos32a.exe build/c/DOS32A.EXE
+
+cide32: $(CIDE_OBJ)
+	$(C_LINK) $(abspath build/c/ide32.exe) $(abspath $(CIDE_OBJ))
+	cp src/ui/basic.hlp build/c/BASIC.HLP
+	$(PY) tools/x86d32a.py $(DOS32A)/dos32a.exe build/c/DOS32A.EXE
+
+ctest:                          # the suites against the C build
+	X86_COM=build/c/basic32.exe $(PY) tools/x86f_test.py build/c/basic32.exe
+	X86_COM=build/c/basic32.exe $(PY) tools/qbconf.py
+	X86_IDE=build/c/ide32.exe $(PY) tools/x86ide_test.py
