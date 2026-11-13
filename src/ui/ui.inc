@@ -316,6 +316,7 @@ DP_TW   = DP_W-2                ; a row's text
 NDP     = 3                     ; its windows: Watch, Locals, Call stack
 DP_STK  = 2
 NDFRM   = 16                    ; the call stack's frames shown at most
+NDVAR   = 64                    ; Locals' variables shown at most
 
 TDFRM    struc                   ; a call stack's frame
     df_ln   dw      ?               ; its text line, FFFFh the immediate's
@@ -332,6 +333,8 @@ TDPANE   struc                   ; the debug pane (dpane.asm)
     dp_top  db      NDP dup(?)      ; its first row shown
     dp_row  db      NDP dup(?)      ; its title's row, its rows with it
     dp_h    db      NDP dup(?)
+    dp_nv   db      ?               ; Locals' variables, their rows
+    dp_vt   db      NDVAR*DP_TW dup(?)
     dp_fr   TDFRM   NDFRM dup(<>)
 TDPANE   ends
 

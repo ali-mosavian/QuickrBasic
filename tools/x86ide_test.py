@@ -625,7 +625,7 @@ def play() -> None:
 
     def debug_pane() -> None:
         """At a stop: the code in columns 0-49; Watch, Locals, Call stack right of it; gone on a run."""
-        fact = ["DECLARE SUB Fact (n%)", "DIM SHARED r&", "r& = 1", "Fact 4", "PRINT r&", "END",
+        fact = ["DECLARE SUB Fact (n%)", "DIM SHARED r&", "s$ = \"hi\"", "d# = 2.5#", "r& = 1", "Fact 4", "PRINT r&", "END",
                 "SUB Fact (n%)", "t% = n% * 10", "IF n% > 3 THEN Fact n% - 1", "r& = r& * n%", "END SUB"]
         (work / "FACT.BAS").write_bytes("\r\n".join(fact).encode() + b"\r\n")
         open_file("fact.bas")
@@ -638,14 +638,24 @@ def play() -> None:
             stack = rows[next(i for i, r in enumerate(rows) if "Call stack" in r) + 1 : -1]
             return [r[1:-1].split() for r in stack if r[1:-1].strip()]
 
+        def locals_() -> list[str]:
+            rows = pane()
+            top = next(i for i, r in enumerate(rows) if "Locals" in r)
+            end = next(i for i, r in enumerate(rows) if "Call stack" in r)
+            return [r[2:-1].strip() for r in rows[top + 1 : end] if r[2:-1].strip()]
+
         rows = pane()
         assert rows[0].startswith("\xda") and "Watch" in rows[0] and "\xbf" == rows[0][-1], rows
-        assert frames() == [["\x10Fact", "line", "4"], ["Fact", "line", "3"], ["module", "line", "4"]], pane()
+        assert locals_() == ["N% = 3", "T% = 30"], pane()  # the parameter first
+        assert frames() == [["\x10Fact", "line", "4"], ["Fact", "line", "3"], ["module", "line", "6"]], pane()
         assert lit()[0] == (3, "r& = r& * n%"), lit()
         # F6 to the pane, Tab to the call stack, the caller's frame: the cursor on its call
         press("0x40", "tab", "tab", "down", "enter")
         assert look()[24].endswith("00003:001"), look()[24]
         assert [f[0] for f in frames()] == ["Fact", "\x10Fact", "module"], pane()
+        assert locals_() == ["N% = 4", "T% = 40"], pane()  # the outer call's: saved by the inner
+        press("down", "enter")
+        assert locals_() == ["R& = 1", 'S$ = "hi"', "D# = 2.5"], pane()
         press(f"0x{F5:x}")  # the outer call's stop: two frames
         assert [f[0] for f in frames()] == ["\x10Fact", "module"], pane()
         press(f"0x{F5:x}")

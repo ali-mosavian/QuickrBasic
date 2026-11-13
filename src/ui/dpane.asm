@@ -7,6 +7,10 @@
 ; data:     g_ui.dp. The frames (TDFRM): the stop's, then each procedure's
 ;           caller, from cstk's M_PC frames, each with its text line and its
 ;           row: the procedure's name, or module, and its line in its view.
+;           Locals: the selected frame's procedure's variables (vscp), its
+;           parameters first, as the frame sees them: a newer call of the
+;           same procedure saved them on the save stack (F_LSP0 the
+;           parameters' cells, F_LSP1 the locals' values, in g_plh's order).
 ;           The windows share the edit windows' rows (dp_geo).
 ; ==========================================================================
 
@@ -26,6 +30,7 @@ dp_open:
         mov     ecx,2*NDP
         rep     stosb
         call    dp_frames
+        call    dp_vars
         call    wn_layout
         popad
         ret
@@ -147,6 +152,7 @@ dp_frm1:
         mov     esi,offset u_dpline
         call    dp_cpy
         pop     eax
+        movzx   eax,ax
         call    dp_dec
         pop     edi
         jmp     @dfr_r
@@ -175,10 +181,16 @@ dp_cpy:
         pop     eax
         ret
 
-; dp_dec - AX in decimal at EDI. Keeps all but EDI.
+; dp_dec - EAX in decimal at EDI, a sign before it when negative. Keeps
+; all but EDI.
 dp_dec:
         pushad
-        movzx   eax,ax
+        test    eax,eax
+        jns     @F
+        neg     eax
+        mov     byte ptr [edi],'-'
+        inc     edi
+@@:
         xor     ecx,ecx
         mov     ebx,10
 @@:
@@ -233,8 +245,10 @@ dp_geo:
 ; ::::::::::::::
 dp_cnt:
         xor     eax,eax
-        cmp     ebp,DP_STK
-        jne     @F
+        cmp     ebp,1
+        jb      @F
+        mov     al,[g_ui.dp.dp_nv]
+        je      @F
         mov     al,[g_ui.dp.dp_nf]
 @@:
         ret
@@ -253,8 +267,13 @@ dp_item:
         cmp     [esp],eax
         pop     eax
         jae     @dpi_n
+        imul    esi,eax,DP_TW
+        add     esi,offset g_ui.dp.dp_vt
+        cmp     ebp,DP_STK
+        jne     @F
         imul    esi,eax,size TDFRM
         add     esi,offset g_ui.dp.dp_fr+TDFRM.df_txt
+@@:
         pop     eax
         clc
         ret
@@ -468,6 +487,7 @@ dp_vis:
 ; ::::::::::::::
 dp_go:
         mov     [g_ui.dp.dp_frm],al
+        call    dp_vars
         imul    ebx,eax,size TDFRM
         mov     ax,[g_ui.dp.dp_fr+ebx].TDFRM.df_ln
         cmp     ax,0FFFFh
@@ -526,7 +546,287 @@ dp_mouse:
 @dpm_r:
         ret
 
+; ::::::::::::::
+; dp_vars - Locals: the selected frame's procedure's variables, the
+; module's at the module; its parameters first, then by id. A DEF FN's are
+; left out.
+;
+; keeps:  all
+; ::::::::::::::
+dp_vars:
+        pushad
+        movzx   eax,[g_ui.dp.dp_frm]
+        imul    eax,eax,size TDFRM
+        mov     edx,[g_ui.dp.dp_fr+eax].TDFRM.df_fp
+        xor     eax,eax
+        test    edx,edx
+        jz      @F
+        mov     al,[edx+F_PRC]
+@@:
+        mov     [g_dpp],eax
+        call    dp_newer
+        mov     edi,offset g_ui.dp.dp_vt
+        xor     ebp,ebp
+        test    eax,eax                 ; the parameters
+        jz      @dpv_o
+        shl     eax,5
+        movzx   ecx,word ptr [g_prc+eax+P_NPAR]
+        movzx   esi,word ptr [g_prc+eax+P_PAR]
+        xor     edx,edx
+@dpv_p:
+        cmp     edx,ecx
+        jae     @dpv_o
+        movzx   ebx,word ptr [g_ppar+esi*2]
+        push    ecx
+        mov     ecx,edx
+        call    dp_var1
+        pop     ecx
+        inc     esi
+        inc     edx
+        jmp     @dpv_p
+@dpv_o:
+        mov     ebx,1                   ; the others
+@dpv_l:
+        cmp     bx,[g_state.lx.nsyms]
+        jae     @dpv_e
+        mov     al,[g_vscp+ebx]
+        cmp     al,byte ptr [g_dpp]
+        jne     @dpv_n
+        mov     al,[g_sinfo+ebx]
+        and     al,83h
+        cmp     al,3
+        je      @dpv_n
+        call    dp_ispar
+        jnc     @dpv_n
+        or      ecx,-1
+        call    dp_var1
+@dpv_n:
+        inc     ebx
+        jmp     @dpv_l
+@dpv_e:
+        mov     eax,ebp
+        mov     [g_ui.dp.dp_nv],al
+        popad
+        ret
+
+; dp_ispar - CF clear: EBX is a parameter of procedure dpp. Keeps all.
+dp_ispar:
+        pushad
+        mov     eax,[g_dpp]
+        test    eax,eax
+        jz      @dip_n
+        shl     eax,5
+        movzx   ecx,word ptr [g_prc+eax+P_NPAR]
+        jecxz   @dip_n
+        movzx   esi,word ptr [g_prc+eax+P_PAR]
+@@:
+        cmp     bx,[g_ppar+esi*2]
+        je      @dip_y
+        inc     esi
+        loop    @B
+@dip_n:
+        popad
+        stc
+        ret
+@dip_y:
+        popad
+        clc
+        ret
+
+; ::::::::::::::
+; dp_newer - dpnw: the oldest call of procedure dpp newer than the frame at
+; EDX, which saved what that frame sees; 0 none, or the module.
+;
+; keeps:  all
+; ::::::::::::::
+dp_newer:
+        pushad
+        xor     esi,esi
+        test    edx,edx
+        jz      @dpn_r
+        mov     ebx,[g_state.rn.cstk]
+        mov     eax,[g_dpp]
+@dpn_l:
+        cmp     ebx,edx
+        jae     @dpn_r
+        movzx   ecx,byte ptr [ebx+F_MARK]
+        cmp     cl,M_PC
+        jne     @F
+        cmp     al,[ebx+F_PRC]
+        jne     @F
+        mov     esi,ebx
+@@:
+        add     ebx,ecx
+        jmp     @dpn_l
+@dpn_r:
+        mov     [g_dpnw],esi
+        popad
+        ret
+
+; ::::::::::::::
+; dp_var1 - Locals' row of variable EBX, parameter ECX of its procedure or
+; -1: its name, " = ", its value as the frame sees it.
+;
+; in:     EDI  the row; EBP the rows so far
+; out:    EDI  the next row; EBP one more
+; ::::::::::::::
+dp_var1:
+        cmp     ebp,NDVAR
+        jae     @dv1_r
+        pushad
+        mov     edi,offset g_dprow
+        movzx   eax,word ptr [g_vnam+ebx*2]
+        mov     esi,[g_nname+eax*4]
+        movzx   eax,byte ptr [esi]
+        inc     esi
+        push    ecx
+        mov     ecx,eax
+        rep     movsb
+        pop     ecx
+        movzx   eax,[g_vtyp+ebx]
+        cmp     eax,ET_SD
+        ja      @F
+        mov     al,[g_dpsfx+eax]
+        test    al,al
+        jz      @F
+        stosb
+@@:
+        mov     esi,offset u_dpeq
+        call    dp_cpy
+        mov     esi,offset u_dparr
+        test    [g_sinfo+ebx],80h
+        jnz     @dv1_t
+        mov     esi,offset u_dprec
+        cmp     [g_vtyp+ebx],ET_REC
+        jae     @dv1_t
+        call    dp_cell
+        call    dp_val
+        jmp     @dv1_c
+@dv1_t:
+        call    dp_cpy
+@dv1_c:
+        mov     byte ptr [edi],0
+        mov     esi,offset g_dprow      ; to the row, cut to it
+        mov     edi,[esp]
+        mov     ecx,DP_TW-1
+@@:
+        lodsb
+        test    al,al
+        jz      @F
+        stosb
+        loop    @B
+@@:
+        mov     byte ptr [edi],0
+        popad
+        add     edi,DP_TW
+        inc     ebp
+@dv1_r:
+        ret
+
+; ::::::::::::::
+; dp_cell - variable EBX's cell as the frame sees it: vt's, else a newer
+; call's saved one.
+;
+; in:     ECX  its parameter's place, -1 none
+; out:    EDX  the cell
+; keeps:  all but EDX
+; ::::::::::::::
+dp_cell:
+        mov     edx,[g_vt+ebx*4]
+        push    esi
+        mov     esi,[g_dpnw]
+        test    esi,esi
+        jz      @dpc_x
+        push    eax
+        push    ecx
+        test    ecx,ecx
+        js      @F
+        shl     ecx,4                   ; LSSZ
+        add     ecx,[esi+F_LSP0]
+        mov     edx,[ecx+12]            ; the cell before the newer call
+@@:
+        call    var_cell
+        cmp     edx,ecx
+        jne     @dpc_p
+        mov     eax,[g_dpp]             ; its own: the value saved
+        movzx   eax,word ptr [g_plh+eax*2]
+        xor     ecx,ecx
+@dpc_l:
+        test    eax,eax
+        jz      @dpc_p
+        cmp     eax,ebx
+        je      @F
+        movzx   eax,word ptr [g_vnloc+eax*2]
+        inc     ecx
+        jmp     @dpc_l
+@@:
+        shl     ecx,4
+        mov     edx,[esi+F_LSP1]
+        lea     edx,[edx+ecx+4]
+@dpc_p:
+        pop     ecx
+        pop     eax
+@dpc_x:
+        pop     esi
+        ret
+
+; ::::::::::::::
+; dp_val - the value of variable EBX's kind in cell EDX, as text at EDI: a
+; number as PRINT's without its sign's space, a string in quotes.
+;
+; out:    EDI  past it
+; ::::::::::::::
+dp_val:
+        mov     al,[g_sinfo+ebx]
+        test    al,SK_DBL
+        jnz     @dvl_d
+        and     al,3
+        cmp     al,2
+        je      @dvl_s
+        mov     al,[g_vtyp+ebx]
+        cmp     al,ET_R4
+        je      @dvl_f
+        cmp     al,ET_IMP
+        je      @dvl_f
+        mov     eax,[edx]
+        jmp     dp_dec
+@dvl_f:
+        push    edi
+        mov     eax,edx
+        call    flt_fmt
+        jmp     @dvl_n
+@dvl_d:
+        push    edi
+        mov     eax,edx
+        call    dbl_fmt
+@dvl_n:
+        pop     edi
+        mov     esi,offset g_dbuf
+        cmp     byte ptr [esi],' '
+        jne     @F
+        inc     esi
+        dec     ecx
+@@:
+        rep     movsb
+        ret
+@dvl_s:
+        mov     al,'"'
+        stosb
+        movzx   ecx,word ptr [edx+D_LEN]
+        cmp     ecx,DP_TW
+        jbe     @F
+        mov     ecx,DP_TW
+@@:
+        mov     esi,[edx+D_PTR]
+        rep     movsb
+        stosb
+        ret
+
         .data
+g_dpsfx db      0,'%','&',0,'#','$'     ; by ET_*: the suffix shown
+u_dpeq  db      ' = ',0
+u_dparr db      '(array)',0
+u_dprec db      '(record)',0
 g_dpttl dd      u_dpwat,u_dploc,u_dpstk
 u_dpwat db      'Watch',0
 u_dploc db      'Locals',0
@@ -534,6 +834,10 @@ u_dpstk db      'Call stack',0
 u_dpmod db      'module',0
 u_dpimm db      'Immediate',0
 u_dpline db     'line ',0
+        .data?
+g_dpp   dd      ?                       ; Locals' procedure, 0 the module
+g_dpnw  dd      ?                       ; its newer call, dp_newer's
+g_dprow db      80 dup(?)               ; a row being made
         .code
 
         end

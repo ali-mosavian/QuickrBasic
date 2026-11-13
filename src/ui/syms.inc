@@ -452,11 +452,13 @@ externdef prg_put:near
 ; mem/sym.asm
 externdef g_deft:byte
 externdef g_nflag:byte
+externdef g_nname:dword
 externdef g_nprc:byte
 externdef g_plh:word
 externdef g_sinfo:byte
 externdef g_vnam:word
 externdef g_vnloc:word
+externdef g_vscp:byte
 externdef g_vt:dword
 externdef g_vtyp:byte
 externdef nam_find:near
