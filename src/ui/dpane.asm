@@ -110,7 +110,7 @@ dp_frm1:
         push    ebx
         push    edx
         mov     [edi].TDFRM.df_fp,edx
-        mov     [edi].TDFRM.df_ln,0FFFFh
+        mov     [edi].TDFRM.df_ln,-1
         mov     [edi].TDFRM.df_vw,0FFh
         lea     edx,[edi].TDFRM.df_txt
         push    edi
@@ -125,10 +125,10 @@ dp_frm1:
         je      @dfr_n
         call    lm_of
         jc      @dfr_n
-        mov     [edi].TDFRM.df_ln,ax
+        mov     [edi].TDFRM.df_ln,eax
         push    edi
         call    vw_of
-        sub     ax,[edi].TVIEW.vfirst
+        sub     eax,[edi].TVIEW.vfirst
         inc     eax
         lea     esi,[edi].TVIEW.vname
         pop     edi
@@ -499,15 +499,15 @@ dp_go:
         mov     [g_ui.dp.dp_frm],al
         call    dp_vars
         imul    ebx,eax,size TDFRM
-        mov     ax,[g_ui.dp.dp_fr+ebx].TDFRM.df_ln
-        cmp     ax,0FFFFh
+        mov     eax,[g_ui.dp.dp_fr+ebx].TDFRM.df_ln
+        cmp     eax,-1
         je      @dpg_r
         push    eax
         call    ed_commit
         mov     eax,[esp]
         call    vw_goline
         pop     eax
-        sub     ax,[g_ui.tx.tx_v0]
+        sub     eax,[g_ui.tx.tx_v0]
         and     [g_ui.ed.sel_on],0
         call    ed_load
         and     [g_ui.bf.ed_lb.col],0
@@ -1051,7 +1051,7 @@ dp_tip:
         movzx   eax,[g_ui.bf.ed_lb.col]
         mov     esi,offset g_ui.bf.ed_lb.txt
         movzx   ecx,[g_ui.bf.ed_lb.len]
-        movzx   edx,[g_ui.ed.ed_line]
+        mov     edx,[g_ui.ed.ed_line]
         jmp     @dpt_w
 @dpt_m:
         mov     dx,[g_ui.dp.tt_pos]     ; the mouse's, in the active window
@@ -1064,8 +1064,8 @@ dp_tip:
         jb      @dpt_x
         cmp     ax,[g_ui.ed.ed_rows]
         jae     @dpt_x
-        add     ax,[g_ui.ed.ed_top]
-        cmp     ax,[g_ui.tx.tx_n]
+        add     eax,[g_ui.ed.ed_top]
+        cmp     eax,[g_ui.tx.tx_n]
         jae     @dpt_x
         movzx   ecx,dl
         sub     cl,[g_ui.ed.ed_x]
@@ -1087,7 +1087,7 @@ dp_tip:
         call    dp_find
         jc      @dpt_p
         pop     edx
-        sub     dx,[g_ui.ed.ed_top]     ; its row: under the name, else over
+        sub     edx,[g_ui.ed.ed_top]     ; its row: under the name, else over
         add     dx,[g_ui.ed.ed_r0]
         inc     edx
         mov     ax,[g_ui.ed.ed_r0]

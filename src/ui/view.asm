@@ -29,8 +29,8 @@ vw_reset:
         mov     ecx,NVIEW               ; no kept places
         mov     edi,offset g_ui.vw.vw_tab
 @vrs_l:
-        mov     [edi].TVIEW.vline,ax
-        mov     [edi].TVIEW.vtop,ax
+        mov     [edi].TVIEW.vline,eax
+        mov     [edi].TVIEW.vtop,eax
         mov     [edi].TVIEW.vcol,ax
         add     edi,size TVIEW
         loop    @vrs_l
@@ -76,7 +76,7 @@ vw_order:
         xor     eax,eax
         xor     dh,dh                   ; DH 1: in a procedure
 @vor_l:
-        cmp     ax,[g_ui.tx.tx_all]
+        cmp     eax,[g_ui.tx.tx_all]
         jae     @vor_n
         push    eax
         call    vw_kind
@@ -139,7 +139,7 @@ vw_scan:
         mov     ebx,1                   ; EBX the views
         mov     eax,1
 @vws_l:
-        cmp     ax,[g_ui.tx.tx_all]
+        cmp     eax,[g_ui.tx.tx_all]
         jae     @vws_d
         push    eax
         call    vw_kind
@@ -152,7 +152,7 @@ vw_scan:
         add     edi,size TVIEW
         mov     [edi].TVIEW.vkind,al
         mov     eax,[esp]
-        mov     [edi].TVIEW.vfirst,ax
+        mov     [edi].TVIEW.vfirst,eax
         push    edi                     ; its name as typed: the M_VAR's
         lea     edi,[edi].TVIEW.vname
         movzx   ecx,byte ptr [esi+1]
@@ -174,13 +174,13 @@ vw_scan:
         mov     edi,offset g_ui.vw.vw_tab       ; each one's lines: to the next
         mov     ecx,ebx
 @vws_m:
-        mov     ax,[g_ui.tx.tx_all]
+        mov     eax,[g_ui.tx.tx_all]
         cmp     ecx,1
         je      @F
-        mov     ax,[edi+size TVIEW].TVIEW.vfirst
+        mov     eax,[edi+size TVIEW].TVIEW.vfirst
 @@:
-        sub     ax,[edi].TVIEW.vfirst
-        mov     [edi].TVIEW.vn,ax
+        sub     eax,[edi].TVIEW.vfirst
+        mov     [edi].TVIEW.vn,eax
         add     edi,size TVIEW
         loop    @vws_m
         ret
@@ -193,13 +193,13 @@ vw_shift:
         movzx   ebx,[g_ui.ed.ed_vw]
         imul    edi,ebx,size TVIEW
         add     edi,offset g_ui.vw.vw_tab
-        add     [edi].TVIEW.vn,dx
+        add     [edi].TVIEW.vn,edx
 @vsh_l:
         inc     ebx
         cmp     bl,[g_ui.vw.vw_n]
         jae     @vsh_r
         add     edi,size TVIEW
-        add     [edi].TVIEW.vfirst,dx
+        add     [edi].TVIEW.vfirst,edx
         jmp     @vsh_l
 @vsh_r:
         ret
@@ -221,8 +221,8 @@ vw_apply:
 @@:
         imul    edi,eax,size TVIEW
         add     edi,offset g_ui.vw.vw_tab
-        mov     ax,[edi].TVIEW.vfirst
-        mov     dx,[edi].TVIEW.vn
+        mov     eax,[edi].TVIEW.vfirst
+        mov     edx,[edi].TVIEW.vn
         call    tx_view
         pop     edi
         pop     edx
@@ -243,10 +243,10 @@ vw_show:
         call    ed_commit
         movzx   ebx,[g_ui.ed.ed_vw]     ; the place left
         call    vw_ptr
-        mov     ax,[g_ui.ed.ed_line]
-        mov     [edi].TVIEW.vline,ax
-        mov     ax,[g_ui.ed.ed_top]
-        mov     [edi].TVIEW.vtop,ax
+        mov     eax,[g_ui.ed.ed_line]
+        mov     [edi].TVIEW.vline,eax
+        mov     eax,[g_ui.ed.ed_top]
+        mov     [edi].TVIEW.vtop,eax
         mov     ax,[g_ui.bf.ed_lb.col]
         mov     [edi].TVIEW.vcol,ax
         pop     ebx
@@ -256,15 +256,15 @@ vw_show:
         and     [g_ui.ed.sel_on],0
         and     [g_ui.ed.ed_left],0
         and     [g_ui.lp.ui_foc],0
-        mov     ax,[edi].TVIEW.vtop
-        mov     [g_ui.ed.ed_top],ax
+        mov     eax,[edi].TVIEW.vtop
+        mov     [g_ui.ed.ed_top],eax
         mov     ax,[edi].TVIEW.vcol
         mov     [g_ui.bf.ed_lb.col],ax
-        mov     ax,[edi].TVIEW.vline
-        cmp     ax,[g_ui.tx.tx_n]
+        mov     eax,[edi].TVIEW.vline
+        cmp     eax,[g_ui.tx.tx_n]
         jb      @F
-        xor     ax,ax
-        mov     [g_ui.ed.ed_top],ax
+        xor     eax,eax
+        mov     [g_ui.ed.ed_top],eax
 @@:
         call    ed_load
         jmp     ed_ensure
@@ -283,7 +283,7 @@ vw_goline:
 @@:
         call    vw_apply
         pop     eax
-        sub     ax,[g_ui.tx.tx_v0]
+        sub     eax,[g_ui.tx.tx_v0]
         ret
 
 ; ::::::::::::::
@@ -300,7 +300,7 @@ vw_of:
         cmp     bl,[g_ui.vw.vw_n]
         jae     @vof_f
         call    vw_ptr
-        cmp     ax,[edi].TVIEW.vfirst
+        cmp     eax,[edi].TVIEW.vfirst
         jae     @vof_l
 @vof_f:
         dec     ebx
@@ -354,15 +354,15 @@ vw_prev:
 ; changed, the names again.
 ; ::::::::::::::
 vw_commit:
-        mov     ax,[g_ui.ed.ed_line]
-        test    ax,ax
+        mov     eax,[g_ui.ed.ed_line]
+        test    eax,eax
         jnz     @vcm_k
         cmp     [g_ui.ed.ed_vw],0
         je      @vcm_k
         call    vw_scan                 ; its name may be another
         jmp     vw_apply
 @vcm_k:
-        add     ax,[g_ui.tx.tx_v0]
+        add     eax,[g_ui.tx.tx_v0]
         call    vw_kind
         mov     dl,al
         cmp     dl,PK_SUB
@@ -371,10 +371,10 @@ vw_commit:
         jae     @vcm_r
         push    edx
         mov     edi,offset g_ui.bf.vw_new       ; its text
-        mov     ax,[g_ui.ed.ed_line]
+        mov     eax,[g_ui.ed.ed_line]
         call    tx_get
         mov     [g_ui.vw.vw_nlen],cx
-        mov     ax,[g_ui.ed.ed_line]    ; out of its view
+        mov     eax,[g_ui.ed.ed_line]    ; out of its view
         call    tx_dell
         pop     edx
         jmp     vw_add
@@ -479,14 +479,14 @@ vw_add:
         push    edx
         call    tx_whole
         and     [g_ui.tx.tx_hook],0
-        mov     ax,[g_ui.tx.tx_all]
+        mov     eax,[g_ui.tx.tx_all]
         mov     esi,offset g_ui.bf.vw_new
         mov     cx,[g_ui.vw.vw_nlen]
         call    tx_insl
-        inc     ax
+        inc     eax
         xor     ecx,ecx
         call    tx_insl
-        inc     ax
+        inc     eax
         pop     edx
         mov     esi,offset u_endsub
         mov     cx,7
@@ -590,8 +590,8 @@ vw_del:
         cmp     al,0
         jne     @vdl_r
         call    vw_ptr
-        movzx   eax,[edi].TVIEW.vfirst
-        movzx   ecx,[edi].TVIEW.vn
+        mov     eax,[edi].TVIEW.vfirst
+        mov     ecx,[edi].TVIEW.vn
         call    tx_whole
         and     [g_ui.tx.tx_hook],0
 @@:
@@ -605,8 +605,8 @@ vw_del:
         mov     [g_ui.wn.win+W_ED1*size TWIN+TWIN.wed.ed_vw],al
         mov     [g_ui.wn.win+W_ED2*size TWIN+TWIN.wed.ed_vw],al
         call    vw_apply
-        xor     ax,ax
-        mov     [g_ui.ed.ed_top],ax
+        xor     eax,eax
+        mov     [g_ui.ed.ed_top],eax
         call    ed_load
 @vdl_r:
         ret

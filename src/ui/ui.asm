@@ -50,7 +50,7 @@ ui_start:
         call    lm_init
         call    tx_init
         call    vw_reset
-        xor     ax,ax
+        xor     eax,eax
         call    ed_load
         call    im_load
         mov     ax,3
@@ -577,8 +577,8 @@ ui_asksave:
 ; ui_reset - the editor at the text's start: a new or loaded text.
 ; ::::::::::::::
 ui_reset:
-        xor     ax,ax
-        mov     [g_ui.ed.ed_top],ax
+        xor     eax,eax
+        mov     [g_ui.ed.ed_top],eax
         mov     [g_ui.ed.ed_left],ax
         mov     [g_ui.bf.ed_lb.col],ax
         mov     [g_ui.ed.sel_on],al
@@ -821,8 +821,8 @@ ui_selw:
         cmp     dx,bx
         je      @ual_r
         mov     [g_ui.ed.sel_c],dx
-        mov     ax,[g_ui.ed.ed_line]
-        mov     [g_ui.ed.sel_l],ax
+        mov     eax,[g_ui.ed.ed_line]
+        mov     [g_ui.ed.sel_l],eax
         mov     [g_ui.ed.sel_on],1
 @ual_r:
         ret
@@ -1055,16 +1055,16 @@ ui_search:
         test    ecx,ecx
         jz      @usr_n
         call    ed_commit
-        mov     ax,[g_ui.ed.ed_line]
-        mov     [g_ui.fd.us_l],ax
+        mov     eax,[g_ui.ed.ed_line]
+        mov     [g_ui.fd.us_l],eax
         mov     ax,[g_ui.bf.ed_lb.col]
         inc     ax
         mov     [g_ui.fd.us_c],ax
-        movzx   ecx,word ptr [g_ui.tx.tx_n]
-        inc     cx                      ; every line, this one twice
+        mov     ecx,[g_ui.tx.tx_n]
+        inc     ecx                     ; every line, this one twice
 @usr_l:
         push    ecx
-        mov     ax,[g_ui.fd.us_l]
+        mov     eax,[g_ui.fd.us_l]
         mov     edi,offset g_ui.bf.uc_line
         call    tx_get
         movzx   ebx,cx
@@ -1081,28 +1081,28 @@ ui_search:
 @usr_x:
         pop     ecx
         and     [g_ui.fd.us_c],0
-        mov     ax,[g_ui.fd.us_l]
-        inc     ax
-        cmp     ax,[g_ui.tx.tx_n]
+        mov     eax,[g_ui.fd.us_l]
+        inc     eax
+        cmp     eax,[g_ui.tx.tx_n]
         jb      @usr_w
         cmp     [g_ui.lp.ui_wrap],0
         je      @usr_n
-        xor     ax,ax
+        xor     eax,eax
 @usr_w:
-        mov     [g_ui.fd.us_l],ax
+        mov     [g_ui.fd.us_l],eax
         loop    @usr_l
 @usr_n:
         stc
         ret
 @usr_y:
         pop     ecx
-        mov     ax,[g_ui.fd.us_l]
+        mov     eax,[g_ui.fd.us_l]
         push    edx
         call    ed_load
         pop     edx
         mov     [g_ui.ed.sel_c],dx
-        mov     ax,[g_ui.fd.us_l]
-        mov     [g_ui.ed.sel_l],ax
+        mov     eax,[g_ui.fd.us_l]
+        mov     [g_ui.ed.sel_l],eax
         mov     [g_ui.ed.sel_on],1
         add     dx,[g_ui.bf.fd_what.len]
         mov     [g_ui.bf.ed_lb.col],dx
@@ -1198,8 +1198,8 @@ ui_fdef:
         movzx   ecx,word ptr [g_ui.bf.ed_lb.len]
         cmp     [g_ui.ed.sel_on],0
         je      @ufe_w
-        mov     ax,[g_ui.ed.sel_l]
-        cmp     ax,[g_ui.ed.ed_line]
+        mov     eax,[g_ui.ed.sel_l]
+        cmp     eax,[g_ui.ed.ed_line]
         jne     @ufe_x
         mov     dx,[g_ui.ed.sel_c]               ; DX to BX, the columns
         cmp     dx,bx
@@ -1272,11 +1272,11 @@ ui_change:
         and     [g_ui.ed.sel_on],0
         cmp     [g_ui.fd.uc_all],0
         je      @uch_l
-        mov     ax,[g_ui.ed.ed_line]             ; Change All: from the start, the
-        mov     [g_ui.fd.uc_sl],ax               ; cursor back after
+        mov     eax,[g_ui.ed.ed_line]             ; Change All: from the start, the
+        mov     [g_ui.fd.uc_sl],eax               ; cursor back after
         mov     ax,[g_ui.bf.ed_lb.col]
         mov     [g_ui.fd.uc_sc],ax
-        xor     ax,ax
+        xor     eax,eax
         call    ed_load
         and     [g_ui.bf.ed_lb.col],0
         dec     word ptr [g_ui.bf.ed_lb.col]
@@ -1308,10 +1308,10 @@ ui_change:
         cmp     [g_ui.fd.uc_all],0
         je      @uch_m
         call    ed_commit
-        mov     ax,[g_ui.fd.uc_sl]
-        cmp     ax,[g_ui.tx.tx_n]
+        mov     eax,[g_ui.fd.uc_sl]
+        cmp     eax,[g_ui.tx.tx_n]
         jbe     @uch_g
-        mov     ax,[g_ui.tx.tx_n]
+        mov     eax,[g_ui.tx.tx_n]
 @uch_g:
         call    ed_load
         mov     ax,[g_ui.fd.uc_sc]

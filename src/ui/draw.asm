@@ -155,10 +155,10 @@ dr_row:
         add     dh,byte ptr [g_ui.ed.ed_r0]
         mov     dl,[g_ui.ed.ed_x]
         inc     dl
-        mov     ax,[g_ui.ed.ed_top]
-        add     ax,cx
-        mov     [g_ui.lp.dr_ln],ax
-        cmp     ax,[g_ui.tx.tx_n]
+        movzx   eax,cx
+        add     eax,[g_ui.ed.ed_top]
+        mov     [g_ui.lp.dr_ln],eax
+        cmp     eax,[g_ui.tx.tx_n]
         jb      @drr_t
         mov     ax,A_ED*256+' '
         mov     cx,[g_ui.ed.ed_tw]
@@ -168,7 +168,7 @@ dr_row:
         mov     cx,[g_ui.bf.ed_lb.len]
         cmp     [g_ui.lp.dr_ina],0      ; ed_lb is the active window's
         jne     @F
-        cmp     ax,[g_ui.ed.ed_line]
+        cmp     eax,[g_ui.ed.ed_line]
         je      @drr_g
 @@:
         mov     edi,offset g_ui.bf.uc_line
@@ -200,12 +200,12 @@ dr_row:
         movzx   ecx,[g_drln]
         call    hl_row
         call    ud_row
-        mov     ax,[g_ui.lp.dr_ln]               ; the selection
+        mov     eax,[g_ui.lp.dr_ln]               ; the selection
         cmp     [g_ui.lp.dr_sk],2
         jne     @drr_p
-        cmp     ax,[g_ui.ed.sel_a]
+        cmp     eax,[g_ui.ed.sel_a]
         jb      @drr_x
-        cmp     ax,[g_ui.ed.sel_b]
+        cmp     eax,[g_ui.ed.sel_b]
         ja      @drr_x
         mov     ah,A_SEL
         mov     cx,[g_ui.ed.ed_tw]
@@ -213,10 +213,10 @@ dr_row:
 @drr_p:
         cmp     [g_ui.lp.dr_sk],1
         jne     @drr_x
-        cmp     ax,[g_ui.ed.ed_line]
+        cmp     eax,[g_ui.ed.ed_line]
         jne     @drr_x
-        mov     ax,[g_ui.ed.sel_a]               ; the piece, clipped to the window
-        mov     bx,[g_ui.ed.sel_b]
+        mov     eax,[g_ui.ed.sel_a]               ; the piece, clipped to the window
+        mov     ebx,[g_ui.ed.sel_b]
         sub     ax,[g_ui.ed.ed_left]
         jae     @drr_1
         xor     ax,ax
@@ -266,12 +266,12 @@ dr_vbar:
         mov     ax,A_BAR*256+19h
         mov     cx,1
         call    sc_fill
-        mov     ax,[g_ui.ed.ed_line]             ; the thumb
-        mov     cx,[g_ui.ed.ed_rows]
-        sub     cx,3
-        mul     cx
-        mov     cx,[g_ui.tx.tx_n]
-        div     cx
+        mov     eax,[g_ui.ed.ed_line]             ; the thumb
+        movzx   ecx,[g_ui.ed.ed_rows]
+        sub     ecx,3
+        mul     ecx
+        mov     ecx,[g_ui.tx.tx_n]
+        div     ecx
         mov     dh,al
         add     dh,byte ptr [g_ui.ed.ed_r0]
         inc     dh
@@ -481,14 +481,14 @@ dr_status:
 @drs_n:
         call    sc_fill
         mov     edi,offset g_ui.lp.ui_pos
-        mov     ax,[g_ui.ed.ed_line]
-        inc     ax
+        mov     eax,[g_ui.ed.ed_line]
+        inc     eax
         mov     cx,5
         call    ui_decn
         mov     al,':'
         stosb
-        mov     ax,[g_ui.bf.ed_lb.col]
-        inc     ax
+        movzx   eax,[g_ui.bf.ed_lb.col]
+        inc     eax
         mov     cx,3
         mov     dx,1846h
         cmp     ax,1000                 ; past 999: 5 digits, 2 columns left
@@ -505,7 +505,7 @@ dr_status:
         jmp     sc_str
 
 ; ::::::::::::::
-; ui_decn - AX in CX decimal digits at EDI, zeros before.
+; ui_decn - EAX in CX decimal digits at EDI, zeros before.
 ;
 ; out:    EDI  past them
 ; ::::::::::::::
@@ -515,10 +515,10 @@ ui_decn:
         movzx   ecx,cx
         add     edi,ecx
         push    edi
-        mov     bx,10
+        mov     ebx,10
 @udn_l:
-        xor     dx,dx
-        div     bx
+        xor     edx,edx
+        div     ebx
         add     dl,'0'
         dec     edi
         mov     [edi],dl
@@ -546,8 +546,8 @@ dr_cursor:
         ja      @drc_r
         je      @drc_i
         call    ed_ensure
-        mov     ax,[g_ui.ed.ed_line]
-        sub     ax,[g_ui.ed.ed_top]
+        mov     eax,[g_ui.ed.ed_line]
+        sub     eax,[g_ui.ed.ed_top]
         add     al,byte ptr [g_ui.ed.ed_r0]
         mov     dh,al
         mov     ax,[g_ui.bf.ed_lb.col]

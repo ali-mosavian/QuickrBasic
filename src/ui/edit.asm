@@ -311,7 +311,7 @@ le_insn:
 ; ed_load - line AX into ed_lb; the column stays.
 ; ::::::::::::::
 ed_load:
-        mov     [g_ui.ed.ed_line],ax
+        mov     [g_ui.ed.ed_line],eax
         mov     edi,offset g_ui.bf.ed_lb.txt
         call    tx_get
         mov     [g_ui.bf.ed_lb.len],cx
@@ -351,7 +351,7 @@ ed_commit:
         mov     edi,offset g_ui.bf.ed_lb.txt
         rep     movsb
 @edc_w:
-        mov     ax,[g_ui.ed.ed_line]
+        mov     eax,[g_ui.ed.ed_line]
         mov     esi,offset g_ui.bf.ed_lb.txt
         movzx   ecx,word ptr [g_ui.bf.ed_lb.len]
         call    tx_repl
@@ -623,10 +623,10 @@ ed_goto:
 ; ed_up - the cursor one line up.
 ; ::::::::::::::
 ed_up:
-        mov     ax,[g_ui.ed.ed_line]
-        test    ax,ax
+        mov     eax,[g_ui.ed.ed_line]
+        test    eax,eax
         jz      @edu_r
-        dec     ax
+        dec     eax
         jmp     ed_goto
 @edu_r:
         ret
@@ -634,59 +634,59 @@ ed_up:
 ; ed_down - the cursor one line down.
 ; ::::::::::::::
 ed_down:
-        mov     ax,[g_ui.ed.ed_line]
-        inc     ax
-        cmp     ax,[g_ui.tx.tx_n]
+        mov     eax,[g_ui.ed.ed_line]
+        inc     eax
+        cmp     eax,[g_ui.tx.tx_n]
         jae     @edu_r
         jmp     ed_goto
 ; ::::::::::::::
 ; ed_pgup - a window of lines up.
 ; ::::::::::::::
 ed_pgup:
-        mov     ax,[g_ui.ed.ed_line]
-        sub     ax,[g_ui.ed.ed_rows]
-        inc     ax                      ; CF the sub's
+        movzx   ecx,[g_ui.ed.ed_rows]
+        mov     eax,[g_ui.ed.ed_line]
+        sub     eax,ecx
+        inc     eax                     ; CF the sub's
         jae     @edp_u
-        xor     ax,ax
+        xor     eax,eax
 @edp_u:
-        mov     dx,[g_ui.ed.ed_top]
-        sub     dx,[g_ui.ed.ed_rows]
-        inc     dx
+        mov     edx,[g_ui.ed.ed_top]
+        sub     edx,ecx
+        inc     edx
         jae     @edp_t
-        xor     dx,dx
+        xor     edx,edx
 @edp_t:
-        mov     [g_ui.ed.ed_top],dx
+        mov     [g_ui.ed.ed_top],edx
         jmp     ed_goto
 ; ::::::::::::::
 ; ed_pgdn - a window of lines down.
 ; ::::::::::::::
 ed_pgdn:
-        mov     ax,[g_ui.ed.ed_line]
-        add     ax,[g_ui.ed.ed_rows]
-        dec     ax
-        mov     dx,[g_ui.tx.tx_n]
-        dec     dx
-        cmp     ax,dx
+        movzx   ecx,[g_ui.ed.ed_rows]
+        dec     ecx
+        mov     eax,[g_ui.ed.ed_line]
+        add     eax,ecx
+        mov     edx,[g_ui.tx.tx_n]
+        dec     edx
+        cmp     eax,edx
         jbe     @edp_d
-        mov     ax,dx
+        mov     eax,edx
 @edp_d:
-        mov     cx,[g_ui.ed.ed_rows]
-        dec     cx
-        add     [g_ui.ed.ed_top],cx
+        add     [g_ui.ed.ed_top],ecx
         jmp     ed_goto
 ; ::::::::::::::
 ; ed_first - the cursor to the first line.
 ; ::::::::::::::
 ed_first:
-        xor     ax,ax
+        xor     eax,eax
         mov     [g_ui.bf.ed_lb.col],ax
         jmp     ed_goto
 ; ::::::::::::::
 ; ed_last - the cursor to the last line.
 ; ::::::::::::::
 ed_last:
-        mov     ax,[g_ui.tx.tx_n]
-        dec     ax
+        mov     eax,[g_ui.tx.tx_n]
+        dec     eax
         call    ed_goto
         jc      @edu_r
         mov     ax,[g_ui.bf.ed_lb.len]
@@ -697,24 +697,27 @@ ed_last:
 ; ed_ensure - ed_top and ed_left so that the cursor shows.
 ; ::::::::::::::
 ed_ensure:
-        mov     ax,[g_ui.ed.ed_line]
-        cmp     ax,[g_ui.ed.ed_top]
+        mov     eax,[g_ui.ed.ed_line]
+        cmp     eax,[g_ui.ed.ed_top]
         jae     @ede_b
-        mov     [g_ui.ed.ed_top],ax
+        mov     [g_ui.ed.ed_top],eax
 @ede_b:
-        mov     dx,[g_ui.ed.ed_top]
-        add     dx,[g_ui.ed.ed_rows]
-        cmp     ax,dx
-        jb      @ede_m
-        sub     ax,[g_ui.ed.ed_rows]
-        inc     ax
-        mov     [g_ui.ed.ed_top],ax
-@ede_m:
-        mov     ax,[g_ui.tx.tx_n]
-        cmp     [g_ui.ed.ed_top],ax
+        push    ecx
+        movzx   ecx,[g_ui.ed.ed_rows]
+        mov     edx,[g_ui.ed.ed_top]
+        add     edx,ecx
+        cmp     eax,edx
+        jb      @F
+        sub     eax,ecx
+        inc     eax
+        mov     [g_ui.ed.ed_top],eax
+@@:
+        pop     ecx
+        mov     eax,[g_ui.tx.tx_n]
+        cmp     [g_ui.ed.ed_top],eax
         jb      @ede_h
-        dec     ax
-        mov     [g_ui.ed.ed_top],ax
+        dec     eax
+        mov     [g_ui.ed.ed_top],eax
 @ede_h:
         mov     ax,[g_ui.bf.ed_lb.col]
         cmp     ax,[g_ui.ed.ed_left]
@@ -771,8 +774,8 @@ ed_enter:
         cmp     al,[g_ui.ed.ed_vw]      ; a SUB line: its own view, made
         jne     @een_r
         movzx   ecx,word ptr [g_ui.ed.ed_nlen]
-        mov     ax,[g_ui.ed.ed_line]
-        inc     ax
+        mov     eax,[g_ui.ed.ed_line]
+        inc     eax
         mov     esi,offset g_ui.bf.sy_buf
         call    tx_insl
         jc      @een_r
@@ -791,23 +794,23 @@ ed_bs:
         mov     ebx,offset g_ui.bf.ed_lb
         call    le_bs
         jnc     @edb_r
-        mov     ax,[g_ui.ed.ed_line]
-        test    ax,ax
+        mov     eax,[g_ui.ed.ed_line]
+        test    eax,eax
         jz      @edb_r
         mov     esi,offset g_ui.bf.ed_lb.txt  ; this line, kept
         mov     edi,offset g_ui.bf.sy_buf
         movzx   ecx,word ptr [g_ui.bf.ed_lb.len]
         mov     [g_ui.ed.ed_nlen],cx
         rep     movsb
-        dec     ax
+        dec     eax
         mov     edi,offset g_ui.bf.uc_line
         call    tx_get
         add     cx,[g_ui.ed.ed_nlen]
         cmp     cx,LNMAX
         ja      @edb_r
-        mov     ax,[g_ui.ed.ed_line]
+        mov     eax,[g_ui.ed.ed_line]
         call    tx_dell
-        dec     ax
+        dec     eax
         call    ed_load
         mov     ax,[g_ui.bf.ed_lb.len]
         mov     [g_ui.bf.ed_lb.col],ax
@@ -831,9 +834,9 @@ ed_del:
         mov     ebx,offset g_ui.bf.ed_lb
         call    le_del
         jnc     @edd_r
-        mov     ax,[g_ui.ed.ed_line]
-        inc     ax
-        cmp     ax,[g_ui.tx.tx_n]
+        mov     eax,[g_ui.ed.ed_line]
+        inc     eax
+        cmp     eax,[g_ui.tx.tx_n]
         jae     @edd_r
         mov     edi,offset g_ui.bf.sy_buf
         call    tx_get
@@ -843,8 +846,8 @@ ed_del:
         add     ax,cx
         cmp     ax,LNMAX
         ja      @edd_r
-        mov     ax,[g_ui.ed.ed_line]
-        inc     ax
+        mov     eax,[g_ui.ed.ed_line]
+        inc     eax
         call    tx_dell
         push    word ptr [g_ui.bf.ed_lb.col]
         mov     esi,offset g_ui.bf.sy_buf
@@ -879,21 +882,21 @@ ed_ctrly:
         cmp     byte ptr [g_ui.bf.ed_lb.dty],0  ; kept as typed: no syntax check
         je      @edy_c
         and     byte ptr [g_ui.bf.ed_lb.dty],0
-        mov     ax,[g_ui.ed.ed_line]
+        mov     eax,[g_ui.ed.ed_line]
         mov     esi,offset g_ui.bf.ed_lb.txt
         movzx   ecx,word ptr [g_ui.bf.ed_lb.len]
         call    tx_repl
 @edy_c:
-        mov     ax,[g_ui.ed.ed_line]
-        mov     dx,ax
+        mov     eax,[g_ui.ed.ed_line]
+        mov     edx,eax
         call    cb_lines
         call    tx_dell
         mov     [g_ui.tx.tx_mod],1
         mov     [g_ui.tx.tx_chg],1
-        cmp     ax,[g_ui.tx.tx_n]
+        cmp     eax,[g_ui.tx.tx_n]
         jb      @edy_l
-        mov     ax,[g_ui.tx.tx_n]
-        dec     ax
+        mov     eax,[g_ui.tx.tx_n]
+        dec     eax
 @edy_l:
         call    ed_load
         and     [g_ui.bf.ed_lb.col],0
@@ -906,8 +909,8 @@ sel_mark:
         cmp     [g_ui.ed.sel_on],0
         jne     @slm_r
         mov     [g_ui.ed.sel_on],1
-        mov     ax,[g_ui.ed.ed_line]
-        mov     [g_ui.ed.sel_l],ax
+        mov     eax,[g_ui.ed.ed_line]
+        mov     [g_ui.ed.sel_l],eax
         mov     ax,[g_ui.bf.ed_lb.col]
         mov     [g_ui.ed.sel_c],ax
 @slm_r:
@@ -926,36 +929,36 @@ sel_get:
         je      @slg_r
         push    ebx
         push    edx
-        mov     ax,[g_ui.ed.sel_l]
-        cmp     ax,[g_ui.ed.ed_line]
+        mov     eax,[g_ui.ed.sel_l]
+        cmp     eax,[g_ui.ed.ed_line]
         jne     @slg_l
-        mov     ax,[g_ui.ed.sel_c]
-        mov     dx,[g_ui.bf.ed_lb.col]
-        cmp     ax,dx
+        movzx   eax,[g_ui.ed.sel_c]
+        movzx   edx,[g_ui.bf.ed_lb.col]
+        cmp     eax,edx
         jbe     @slg_o
-        xchg    ax,dx
+        xchg    eax,edx
 @slg_o:
-        mov     [g_ui.ed.sel_a],ax
-        mov     [g_ui.ed.sel_b],dx
+        mov     [g_ui.ed.sel_a],eax
+        mov     [g_ui.ed.sel_b],edx
         cmp     ax,dx
         mov     al,0
         je      @slg_x
         mov     al,1
         jmp     @slg_x
 @slg_l:
-        mov     dx,[g_ui.ed.ed_line]
+        mov     edx,[g_ui.ed.ed_line]
         movzx   ebx,word ptr [g_ui.bf.ed_lb.col]  ; the lower end's column
-        cmp     ax,dx
+        cmp     eax,edx
         jb      @slg_u
-        xchg    ax,dx
+        xchg    eax,edx
         movzx   ebx,word ptr [g_ui.ed.sel_c]
 @slg_u:
-        test    bx,bx
+        test    ebx,ebx
         jnz     @slg_k
-        dec     dx
+        dec     edx
 @slg_k:
-        mov     [g_ui.ed.sel_a],ax
-        mov     [g_ui.ed.sel_b],dx
+        mov     [g_ui.ed.sel_a],eax
+        mov     [g_ui.ed.sel_b],edx
         mov     al,2
 @slg_x:
         pop     edx
@@ -981,7 +984,7 @@ ed_copy:
         jbe     @edo_p
         movzx   ecx,dx
 @edo_p:
-        sub     cx,[g_ui.ed.sel_a]
+        sub     ecx,[g_ui.ed.sel_a]
         jae     @edo_q
         xor     ecx,ecx
 @edo_q:
@@ -991,8 +994,8 @@ ed_copy:
         ret
 @edo_l:
         call    ed_commit
-        mov     ax,[g_ui.ed.sel_a]
-        mov     dx,[g_ui.ed.sel_b]
+        mov     eax,[g_ui.ed.sel_a]
+        mov     edx,[g_ui.ed.sel_b]
         call    cb_lines
         mov     al,2
 @edy_r:
@@ -1008,26 +1011,26 @@ ed_clear:
         jb      @edl_r
         ja      @edl_l
         movzx   ecx,word ptr [g_ui.ed.sel_a]
-        mov     dx,[g_ui.ed.sel_b]
+        mov     edx,[g_ui.ed.sel_b]
         mov     ebx,offset g_ui.bf.ed_lb
         call    le_cut
         mov     [g_ui.bf.ed_lb.col],cx
         ret
 @edl_l:
         call    ed_commit
-        mov     ax,[g_ui.ed.sel_a]
-        movzx   ecx,word ptr [g_ui.ed.sel_b]
-        sub     cx,ax
-        inc     cx
+        mov     eax,[g_ui.ed.sel_a]
+        mov     ecx,[g_ui.ed.sel_b]
+        sub     ecx,eax
+        inc     ecx
 @edl_d:
         call    tx_dell
         loop    @edl_d
         mov     [g_ui.tx.tx_mod],1
         mov     [g_ui.tx.tx_chg],1
-        cmp     ax,[g_ui.tx.tx_n]
+        cmp     eax,[g_ui.tx.tx_n]
         jb      @edl_g
-        mov     ax,[g_ui.tx.tx_n]
-        dec     ax
+        mov     eax,[g_ui.tx.tx_n]
+        dec     eax
 @edl_g:
         call    ed_load
         and     [g_ui.bf.ed_lb.col],0
@@ -1062,7 +1065,7 @@ ed_paste:
 @eps_l:
         call    ed_commit
         mov     esi,offset g_clpb          ; ESI in the clipboard
-        mov     dx,[g_ui.ed.ed_line]             ; DX the line, AL the characters
+        mov     edx,[g_ui.ed.ed_line]             ; DX the line, AL the characters
 @eps_n:
         mov     ecx,esi
         sub     ecx,offset g_clpb
@@ -1080,14 +1083,14 @@ ed_paste:
         sub     ecx,offset g_ui.bf.sy_buf
         push    esi
         mov     esi,offset g_ui.bf.sy_buf
-        mov     ax,dx
+        mov     eax,edx
         call    tx_insl
         pop     esi
         jc      @eps_e
-        inc     dx
+        inc     edx
         jmp     @eps_n
 @eps_e:
-        mov     ax,dx
+        mov     eax,edx
         mov     [g_ui.tx.tx_mod],1
         mov     [g_ui.tx.tx_chg],1
         call    ed_load

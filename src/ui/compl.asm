@@ -413,7 +413,7 @@ ac_vnm:
 ac_line:
         pushad
         mov     edi,offset g_ui.bf.sy_buf
-        cmp     ax,[g_ui.ed.ed_line]
+        cmp     eax,[g_ui.ed.ed_line]
         jne     @alx_t
         mov     esi,offset g_ui.bf.ed_lb.txt
         movzx   ecx,word ptr [g_ui.bf.ed_lb.len]
@@ -665,7 +665,7 @@ ac_keys:
         jbe     @ack_d
         inc     ah
 @ack_d:
-        movzx   dx,dl
+        movzx   edx,dl
         mov     esi,offset g_ui.ac.ac_tmp
         mov     ecx,edi
         sub     ecx,esi
@@ -686,9 +686,9 @@ ac_vars:
         test    [g_ui.ac.ac_m],AM_VR+AM_LB
         jz      @acv_r
         mov     [g_ui.ac.ac_plk],0
-        xor     ax,ax
+        xor     eax,eax
 @acv_l:
-        cmp     ax,[g_ui.tx.tx_n]
+        cmp     eax,[g_ui.tx.tx_n]
         jae     @acv_r
         push    eax
         call    ac_line
@@ -696,7 +696,7 @@ ac_vars:
         push    edx
         test    [g_ui.ac.ac_m],AM_LB
         jz      @acv_v
-        cmp     dx,[g_ui.ed.ed_line]             ; not the word's own line
+        cmp     edx,[g_ui.ed.ed_line]             ; not the word's own line
         je      @acv_v
         call    ac_label
 @acv_v:
@@ -809,14 +809,14 @@ ac_open:
         mov     [g_ui.ac.ac_dp],0
         mov     esi,offset g_cbuf       ; the line to the word, as ac_ctx left it
         mov     [g_ui.ac.ac_cur],1
-        mov     ax,[g_ui.ed.ed_line]
+        mov     eax,[g_ui.ed.ed_line]
 @aop_l:
         push    eax
         call    ac_evs
         pop     eax
         jnc     @aop_r
         mov     [g_ui.ac.ac_cur],0
-        dec     ax
+        dec     eax
         js      @aop_r
         call    ac_line
         jmp     @aop_l
@@ -919,14 +919,14 @@ ac_evs:
 ;
 ; in:     AL  the kind (AK_*)
 ;         AH  the rank
-;         DX  the token or the line
+;         EDX  the token or the line
 ; keeps:  all
 ; ::::::::::::::
 ac_add:
         pushad
         movzx   ecx,cx
         mov     word ptr [g_ui.ac.ac_kd],ax  ; with ac_rk
-        mov     [g_ui.ac.ac_xt],dx
+        mov     [g_ui.ac.ac_xt],edx
         cmp     cx,[g_ui.ac.ac_pn]
         jbe     @aad_r
         cmp     cx,AC_LEN
@@ -1020,8 +1020,8 @@ ac_add:
         rep     movsb
         mov     ax,word ptr [g_ui.ac.ac_kd]
         mov     word ptr [ebx+TACE.kd],ax
-        mov     ax,[g_ui.ac.ac_xt]
-        mov     [ebx+TACE.xt],ax
+        mov     eax,[g_ui.ac.ac_xt]
+        mov     [ebx+TACE.xt],eax
         inc     [g_ui.ac.ac_n]
 @aad_r:
         popad
@@ -1212,8 +1212,8 @@ ac_pop:
         mov     [g_ui.ac.ac_bn],al
         add     al,2
         mov     ch,al
-        mov     ax,[g_ui.ed.ed_line]             ; under the line, else over it
-        sub     ax,[g_ui.ed.ed_top]
+        mov     eax,[g_ui.ed.ed_line]             ; under the line, else over it
+        sub     eax,[g_ui.ed.ed_top]
         add     al,byte ptr [g_ui.ed.ed_r0]
         inc     al
         mov     dh,al
@@ -1390,7 +1390,7 @@ ac_draw:
 ac_prev:
         push    ebx
         push    edx
-        mov     ax,[esi-1+TACE.xt]
+        mov     eax,[esi-1+TACE.xt]
         call    ac_line
         xor     edi,edi                 ; its text from the item after the label
         cmp     byte ptr [esi],M_INT

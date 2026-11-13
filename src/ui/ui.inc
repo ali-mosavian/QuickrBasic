@@ -6,7 +6,7 @@
 HLPSZ   = 2048                  ; BASIC.HLP, the menus' help lines, at g_hlpb
 VIDEO   = 0B8000h               ; page 0 of the text screen, linear
 AC_MAX  = 48                    ; completions listed at most
-AC_SZ   = 16                    ; one: its length, its text
+AC_SZ   = 18                    ; one: its length, its text
 AC_EVN  = 8
 DLBUF   = 260                   ; a dialog line buffer's text
 FLDMAX  = 80                    ; a dialog field's characters at most
@@ -191,7 +191,7 @@ TACE     struc                   ; a completion
     txt     db      AC_LEN+1 dup(?)
     kd      db      ?               ; its kind (AK_*)
     rk      db      ?               ; its rank
-    xt      dw      ?               ; its token or line
+    xt      dd      ?               ; its token or line
 TACE     ends
 .erre size TACE eq AC_SZ
 
@@ -207,9 +207,9 @@ TMSGD    ends
 
 TTEXT    struc                   ; the text, the clipboard
     hl_len  dw      ?               ; BASIC.HLP's bytes, at hlpb
-    tx_n    dw      ?               ; the view's lines, from tx_v0 of tx_all
-    tx_v0   dw      ?
-    tx_all  dw      ?
+    tx_n    dd      ?               ; the view's lines, from tx_v0 of tx_all
+    tx_v0   dd      ?
+    tx_all  dd      ?
     tx_hook dd      ?               ; a line added, removed (view.asm)
     cb_len  dw      ?
     cb_ln   db      ?
@@ -220,18 +220,18 @@ TTEXT    struc                   ; the text, the clipboard
 TTEXT    ends
 
 TEDIT    struc                   ; the program window, the selection
-    ed_line dw      ?               ; the cursor's line, the first shown, the
-    ed_top  dw      ?               ; first column shown
+    ed_line dd      ?               ; the cursor's line, the first shown, the
+    ed_top  dd      ?               ; first column shown
     ed_left dw      ?
     ed_ins  db      ?               ; 1 insert, 0 overtype
     ed_ind  dw      ?
     ed_nlen dw      ?
     ed_pfx  db      ?               ; Ctrl+Q waiting for its second key
     sel_on  db      ?
-    sel_l   dw      ?
+    sel_l   dd      ?
     sel_c   dw      ?
-    sel_a   dw      ?
-    sel_b   dw      ?
+    sel_a   dd      ?
+    sel_b   dd      ?
     ed_vw   db      ?               ; the view shown (view.asm)
     ed_r0   dw      ?               ; the window's first text row, its rows
     ed_rows dw      ?
@@ -248,9 +248,9 @@ TFIND    struc                   ; a line made canonical; Find and Change
     uc_n    dw      ?
     uc_all  db      ?
     uc_f    db      ?               ; Change found one
-    uc_sl   dw      ?
+    uc_sl   dd      ?
     uc_sc   dw      ?
-    us_l    dw      ?
+    us_l    dd      ?
     us_c    dw      ?
     fd_case db      ?
     fd_whole db      ?
@@ -261,11 +261,11 @@ VNAME   = 40                    ; a procedure's name's characters at most
 VLSZ    = VNAME+4               ; the SUBs box's list item
 
 TVIEW    struc                   ; a view: the module, a procedure
-    vfirst  dw      ?               ; its first line in the text, its lines
-    vn      dw      ?
+    vfirst  dd      ?               ; its first line in the text, its lines
+    vn      dd      ?
     vkind   db      ?               ; 0 the module, VK_SUB, VK_FN
-    vline   dw      ?               ; the cursor's place left there
-    vtop    dw      ?
+    vline   dd      ?               ; the cursor's place left there
+    vtop    dd      ?
     vcol    dw      ?
     vname   db      VNAME+1 dup(?)
 TVIEW    ends
@@ -279,10 +279,10 @@ TVIEWS   ends
 TUDBG    struc                   ; the debugger's UI (ui/dbg.asm)
     stopd   db      ?               ; 1: stopped, CONT goes on (not after END)
     hl_on   db      ?               ; 1: hl_ln's columns hl_c0 to hl_c1 lit
-    hl_ln   dw      ?
+    hl_ln   dd      ?
     hl_c0   dw      ?
     hl_c1   dw      ?
-    ud_utl  dw      ?               ; F7's line + 1, 0 none
+    ud_utl  dd      ?               ; F7's line + 1, 0 none
 TUDBG    ends
 
 NWIN    = 4                     ; the windows, top down (win.asm)
@@ -319,7 +319,7 @@ NWATCH  = 8                     ; watches at most
 WXLEN   = 41                    ; a watch's expression, 0-ended
 
 TDFRM    struc                   ; a call stack's frame
-    df_ln   dw      ?               ; its text line, FFFFh the immediate's
+    df_ln   dd      ?               ; its text line, -1 the immediate's
     df_fp   dd      ?               ; its procedure's cstk frame, 0 module
     df_vw   db      ?               ; its view, FFh none
     df_txt  db      DP_TW+1 dup(?)  ; its row
@@ -369,7 +369,7 @@ TLOOP    struc                   ; the key loop, the screen
     ui_wrap db      ?
     ul_new  db      ?
     dr_sk   db      ?
-    dr_ln   dw      ?
+    dr_ln   dd      ?
     dr_ina  db      ?               ; 1: drawing an edit window without the focus
 TLOOP    ends
 
@@ -444,7 +444,7 @@ TCOMPL   struc                   ; Tab completion
     ac_dp   dw      ?               ; NEXTs not yet matched
     ac_kd   db      ?               ; ac_add: the kind; a word with ac_rk
     ac_rk   db      ?               ;   the rank
-    ac_xt   dw      ?               ;   the token or line
+    ac_xt   dd      ?               ;   the token or line
     ac_nm   db      AC_SZ dup(?)    ; a name: its length, it
     ac_on   db      AC_SZ dup(?)    ; the open FOR's variable
     ac_sigb db      32 dup(?)       ; a function's form

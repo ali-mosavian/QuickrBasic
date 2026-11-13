@@ -58,7 +58,7 @@ lm_build:
         add     ebx,eax
         jmp     @lmb_l
 @lmb_d:
-        mov     [g_ui.tx.tx_all],cx
+        mov     [g_ui.tx.tx_all],ecx
         popad
         ret
 
@@ -70,13 +70,10 @@ lm_build:
 ; ::::::::::::::
 lm_off:
         mov     ebx,[g_state.mm.progend]
-        cmp     ax,[g_ui.tx.tx_all]
+        cmp     eax,[g_ui.tx.tx_all]
         jae     @F
         lmbase  ebx
-        push    eax
-        movzx   eax,ax
         mov     ebx,[ebx+eax*4]
-        pop     eax
 @@:
         ret
 
@@ -94,7 +91,7 @@ lm_of:
         push    esi
         lmbase  esi
         xor     ecx,ecx                 ; [ECX, EDX): the last <= EBX in it
-        movzx   edx,[g_ui.tx.tx_all]
+        mov     edx,[g_ui.tx.tx_all]
         test    edx,edx
         jz      @lmo_n
         cmp     ebx,[esi]

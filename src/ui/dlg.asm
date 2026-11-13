@@ -838,8 +838,8 @@ dl_msg:
         push    eax
         call    ed_ensure
         pop     eax
-        movzx   ecx,word ptr [g_ui.ed.ed_line]
-        sub     cx,[g_ui.ed.ed_top]
+        mov     ecx,[g_ui.ed.ed_line]
+        sub     ecx,[g_ui.ed.ed_top]
         add     cx,[g_ui.ed.ed_r0]
         cmp     cl,ah
         jb      @dlm_p
@@ -1352,8 +1352,8 @@ dl_find:
 dl_conf:
         call    ed_ensure
         mov     ebx,offset dg_conf
-        mov     ax,[g_ui.ed.ed_line]
-        sub     ax,[g_ui.ed.ed_top]
+        mov     eax,[g_ui.ed.ed_line]
+        sub     eax,[g_ui.ed.ed_top]
         add     ax,[g_ui.ed.ed_r0]
         mov     cl,19
         cmp     ax,19

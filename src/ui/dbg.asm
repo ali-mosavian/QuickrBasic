@@ -33,7 +33,7 @@ ud_prep:
         and     [g_ui.ud.stopd],0
         mov     [g_state.dbg.bpon],1
         and     [g_state.dbg.utl],0
-        movzx   eax,[g_ui.ud.ud_utl]
+        mov     eax,[g_ui.ud.ud_utl]
         test    eax,eax
         jz      @F
         dec     eax
@@ -70,7 +70,7 @@ ud_hlset:
         mov     ebx,[g_state.dbg.wline]
         call    lm_of
         jc      @uhs_r
-        mov     [g_ui.ud.hl_ln],ax      ; the text's line
+        mov     [g_ui.ud.hl_ln],eax      ; the text's line
         call    vw_goline
         mov     edi,offset g_ui.bf.uc_line
         call    tx_get
@@ -112,8 +112,8 @@ ud_hlset:
         mov     [g_ui.ud.hl_on],1
         and     [g_ui.lp.ui_foc],0
         and     [g_ui.ed.sel_on],0
-        mov     ax,[g_ui.ud.hl_ln]
-        sub     ax,[g_ui.tx.tx_v0]
+        mov     eax,[g_ui.ud.hl_ln]
+        sub     eax,[g_ui.tx.tx_v0]
         call    ed_load
         mov     ax,[g_ui.ud.hl_c0]
         mov     [g_ui.bf.ed_lb.col],ax
@@ -151,7 +151,7 @@ ud_trace:
 ; ::::::::::::::
 ud_row:
         pushad
-        mov     ax,[g_ui.lp.dr_ln]
+        mov     eax,[g_ui.lp.dr_ln]
         call    tx_mark
         test    al,al
         jz      @F
@@ -163,12 +163,12 @@ ud_row:
         je      @udr_r
         cmp     [g_ui.tx.tx_mod],0
         jne     @udr_r
-        mov     ax,[g_ui.lp.dr_ln]
-        add     ax,[g_ui.tx.tx_v0]
-        cmp     ax,[g_ui.ud.hl_ln]
+        mov     eax,[g_ui.lp.dr_ln]
+        add     eax,[g_ui.tx.tx_v0]
+        cmp     eax,[g_ui.ud.hl_ln]
         jne     @udr_r
-        mov     ax,[g_ui.lp.dr_ln]
-        cmp     ax,[g_ui.ed.ed_line]    ; not while it is being changed
+        mov     eax,[g_ui.lp.dr_ln]
+        cmp     eax,[g_ui.ed.ed_line]    ; not while it is being changed
         jne     @F
         cmp     byte ptr [g_ui.bf.ed_lb.dty],0
         jne     @udr_r
@@ -254,7 +254,7 @@ ud_trace1:
 ud_bp:
         cmp     [g_ui.lp.ui_foc],0
         jne     @F
-        mov     ax,[g_ui.ed.ed_line]
+        mov     eax,[g_ui.ed.ed_line]
         jmp     tx_mtog
 @@:
         ret
@@ -271,10 +271,10 @@ ud_bpclr:
 ud_until:
         cmp     [g_ui.lp.ui_foc],0
         jne     @F
-        mov     ax,[g_ui.ed.ed_line]
-        add     ax,[g_ui.tx.tx_v0]
-        inc     ax
-        mov     [g_ui.ud.ud_utl],ax
+        mov     eax,[g_ui.ed.ed_line]
+        add     eax,[g_ui.tx.tx_v0]
+        inc     eax
+        mov     [g_ui.ud.ud_utl],eax
         jmp     ui_contp
 @@:
         ret
@@ -288,7 +288,7 @@ ud_until:
 ud_setnx:
         call    ui_cancont
         jc      @usn_c
-        mov     ax,[g_ui.ed.ed_line]
+        mov     eax,[g_ui.ed.ed_line]
         call    tx_rec
         call    bk_proc
         mov     al,[g_state.cm.cproc]

@@ -795,6 +795,24 @@ def play() -> None:
         press(f"0x{F5:x}")
         assert output()[0] == " 2000", output()
         press("space")
+        # Past 65,535 lines: the line counters were words, the last lines out of reach.
+        (work / "LONG.BAS").write_bytes(b"x = 0\r\n" + b"x = x + 1\r\n" * 66000 + b"PRINT x\r\n")
+        press(f"0x{ALT_F:x}", "o")
+        keys("long.bas")
+        s.send({"cmd": "key", "scancode": 0x1C, "ascii": 13, "stop": False})  # a load of 30 emulated s
+        for _ in range(120):
+            s.resume(1000)
+            if "LONG.BAS" in look()[1]:
+                break
+        press("0x75")  # Ctrl+End
+        assert look()[24].endswith("66002:008"), look()[24]
+        s.send({"cmd": "key", "scancode": F5, "ascii": 0, "stop": False})
+        for _ in range(60):
+            s.resume(1000)
+            if output()[24]:
+                break
+        assert output()[0] == " 66000", output()
+        press("space")
     # Ctrl+Break stops at a statement's start, lit; the Ctrl+C is no key for the editor (a page down).
     open_file("loop.bas")
     s.send({"cmd": "key", "scancode": F5, "ascii": 0, "stop": False})  # a loop reads no key

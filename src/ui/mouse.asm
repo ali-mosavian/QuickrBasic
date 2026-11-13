@@ -192,16 +192,14 @@ ms_main:
         cmp     al,byte ptr [g_ui.ed.ed_tw]
         je      @msm_sb
         ja      @msm_r
-        movzx   ax,dh                   ; the line, the last at most
-        sub     ax,[g_ui.ed.ed_r0]
-        add     ax,[g_ui.ed.ed_top]
-        mov     cx,[g_ui.tx.tx_n]
-        cmp     ax,cx
+        movzx   eax,dh                  ; the line, the last at most
+        movzx   ecx,[g_ui.ed.ed_r0]
+        sub     eax,ecx
+        add     eax,[g_ui.ed.ed_top]
+        mov     ecx,[g_ui.tx.tx_n]
+        cmp     eax,ecx
         jb      @msm_l
-        mov     ax,cx
-        dec     ax
-        jns     @msm_l
-        xor     ax,ax
+        lea     eax,[ecx-1]
 @msm_l:
         cmp     [g_ui.ms.ms_ev],MS_DRAG          ; a drag, a Shift+click select
         je      @msm_m
@@ -236,13 +234,13 @@ ms_main:
         cmp     dh,al
         je      ed_down
         push    edx                      ; above the thumb or below it
-        mov     ax,[g_ui.ed.ed_line]
-        mov     cx,[g_ui.ed.ed_rows]
-        sub     cx,3
-        mul     cx
-        mov     cx,[g_ui.tx.tx_n]
-        jcxz    @msm_z
-        div     cx
+        mov     eax,[g_ui.ed.ed_line]
+        movzx   ecx,[g_ui.ed.ed_rows]
+        sub     ecx,3
+        mul     ecx
+        mov     ecx,[g_ui.tx.tx_n]
+        jecxz   @msm_z
+        div     ecx
 @msm_z:
         pop     edx
         add     al,byte ptr [g_ui.ed.ed_r0]

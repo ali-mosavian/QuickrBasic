@@ -193,7 +193,7 @@ wn_act:
         call    vw_apply
         call    wn_ptr
         push    [edi].TWIN.wcol
-        mov     ax,[g_ui.ed.ed_line]
+        mov     eax,[g_ui.ed.ed_line]
         call    ed_load
         pop     ax
         mov     [g_ui.bf.ed_lb.col],ax

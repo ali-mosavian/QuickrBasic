@@ -39,7 +39,7 @@ tx_init:
         jmp     tx_whole
 
 ; ::::::::::::::
-; tx_view - the editor's view: DX lines from line AX; tx_whole - the
+; tx_view - the editor's view: EDX lines from line EAX; tx_whole - the
 ; whole text.
 ;
 ; keeps:  all
@@ -47,30 +47,30 @@ tx_init:
 tx_whole:
         and     [g_ui.tx.tx_v0],0
         push    eax
-        mov     ax,[g_ui.tx.tx_all]
-        mov     [g_ui.tx.tx_n],ax
+        mov     eax,[g_ui.tx.tx_all]
+        mov     [g_ui.tx.tx_n],eax
         pop     eax
         ret
 tx_view:
-        mov     [g_ui.tx.tx_v0],ax
-        mov     [g_ui.tx.tx_n],dx
+        mov     [g_ui.tx.tx_v0],eax
+        mov     [g_ui.tx.tx_n],edx
         ret
 
 ; ::::::::::::::
-; tx_rec - the view's line AX's record.
+; tx_rec - the view's line EAX's record.
 ;
 ; out:    EBX  it
 ; keeps:  all but EBX
 ; ::::::::::::::
 tx_rec:
         push    eax
-        add     ax,[g_ui.tx.tx_v0]
+        add     eax,[g_ui.tx.tx_v0]
         call    lm_off
         pop     eax
         ret
 
 ; ::::::::::::::
-; tx_get - line AX into EDI.
+; tx_get - line EAX into EDI.
 ;
 ; out:    ECX  its length
 ; keeps:  all but ECX
@@ -255,15 +255,14 @@ tx_add:
         ret
 
 ; ::::::::::::::
-; tx_repl - line AX becomes CX characters from ESI.
+; tx_repl - line EAX becomes CX characters from ESI.
 ;
 ; out:    CF  clear
 ; keeps:  all
 ; ::::::::::::::
 tx_repl:
         pushad
-        movzx   eax,ax
-        add     ax,[g_ui.tx.tx_v0]
+        add     eax,[g_ui.tx.tx_v0]
         movzx   ecx,cx
         xor     edx,edx
         call    tx_put
@@ -272,20 +271,19 @@ tx_repl:
         ret
 
 ; ::::::::::::::
-; tx_insl - a new line of CX characters from ESI before line AX.
+; tx_insl - a new line of CX characters from ESI before line EAX.
 ;
-; in:     AX  at most tx_n
+; in:     EAX  at most tx_n
 ; out:    CF  clear
 ; keeps:  all
 ; ::::::::::::::
 tx_insl:
         pushad
-        cmp     ax,[g_ui.tx.tx_n]       ; past the view: its end
+        cmp     eax,[g_ui.tx.tx_n]       ; past the view: its end
         jbe     @F
-        mov     ax,[g_ui.tx.tx_n]
+        mov     eax,[g_ui.tx.tx_n]
 @@:
-        add     ax,[g_ui.tx.tx_v0]
-        movzx   eax,ax
+        add     eax,[g_ui.tx.tx_v0]
         movzx   ecx,cx
         push    eax
         mov     dl,1
@@ -310,7 +308,7 @@ tx_tell:
         ret
 
 ; ::::::::::::::
-; tx_dell - remove line AX; the last one left is emptied.
+; tx_dell - remove line EAX; the last one left is emptied.
 ;
 ; keeps:  all
 ; ::::::::::::::
@@ -329,15 +327,15 @@ tx_dell:
         mov     [g_ui.tx.tx_mod],1
         call    lm_build
         dec     [g_ui.tx.tx_n]
-        movzx   eax,word ptr [esp+28]
-        add     ax,[g_ui.tx.tx_v0]
+        mov     eax,[esp+28]
+        add     eax,[g_ui.tx.tx_v0]
         mov     edx,-1
         call    tx_tell
         popad
         ret
 
 ; ::::::::::::::
-; tx_mark - the view's line AX's mark.
+; tx_mark - the view's line EAX's mark.
 ;
 ; out:    AL  it: 0, 1
 ; keeps:  all but EAX
@@ -352,7 +350,7 @@ tx_mark:
         ret
 
 ; ::::::::::::::
-; tx_mtog - the view's line AX's mark: on, off.
+; tx_mtog - the view's line EAX's mark: on, off.
 ;
 ; keeps:  all
 ; ::::::::::::::
@@ -398,13 +396,13 @@ cb_put:
         ret
 
 ; ::::::::::::::
-; cb_lines - lines AX to DX (inclusive) to the clipboard, as many as fit.
+; cb_lines - lines EAX to EDX (inclusive) to the clipboard, as many as fit.
 ; ::::::::::::::
 cb_lines:
         pushad
         mov     edi,offset g_clpb
 @cbl_l:
-        cmp     ax,dx
+        cmp     eax,edx
         ja      @cbl_d
         push    edi
         mov     edi,offset g_ui.bf.sy_buf
@@ -597,7 +595,7 @@ tx_write:
         and     [g_rderr],0
         xor     eax,eax
 @twr_l:
-        cmp     ax,[g_ui.tx.tx_all]
+        cmp     eax,[g_ui.tx.tx_all]
         jae     @twr_d
         call    lm_off
         mov     edi,offset g_ui.bf.sy_buf
