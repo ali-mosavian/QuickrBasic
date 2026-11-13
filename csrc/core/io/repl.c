@@ -24,11 +24,7 @@
 #include "vm/stmt.h"
 
 #if IDE
-/* The editor's (src/ui/ui.asm, ported last). */
-extern bool ui_on;                      /* g_ui.lp.ideon */
-void ui_start(void);                    /* returns when the console is not the editor's */
-[[noreturn]] void ui_ready(void);       /* the program ended: its page, then the editor */
-[[noreturn]] void ui_err(uint8_t code); /* an error, BREAK or STOP: the editor at its line */
+#include "ui/uimn.h"
 #endif
 
 Repl repl;
@@ -100,8 +96,8 @@ static void report(uint8_t code)
     strg.tmp_used = 0;
     strg.tmp_floor = 0;
 #if IDE
-    if (ui_on)
-        ui_err(code);
+    if (uimn.on)
+        uimn_error(code);
 #endif
     uint32_t line = exec.line;
     if (code == E_BRK) {
@@ -171,8 +167,8 @@ void repl_cont(void)
 [[noreturn]] static void ready(void)
 {
 #if IDE
-    if (ui_on)
-        ui_ready();
+    if (uimn.on)
+        uimn_ready();
 #endif
     if (repl.batch)
         quit();
@@ -222,7 +218,7 @@ void repl_main(void)
     switch (setjmp(repl.top)) {
     case REPL_START:
 #if IDE
-        ui_start();
+        uimn_start();
 #else
         run_file();
 #endif

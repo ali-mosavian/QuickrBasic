@@ -37,6 +37,21 @@ uint32_t psys_environ(char *buf, uint32_t cap)
     return n + 1;
 }
 
+uint32_t psys_self(char *buf, uint32_t cap)
+{
+    static char env[0x8000];
+    uint32_t n = llrm_os_environment_read(0, (unsigned char *)env, sizeof env);
+    uint32_t i = 0;
+    while (i + 1 < n && (env[i] || env[i + 1])) /* the variables, a 0 after the last */
+        i++;
+    i += 4; /* the two 0s, the strings' count */
+    uint32_t len = 0;
+    while (i < n && env[i] && len + 1 < cap)
+        buf[len++] = env[i++];
+    buf[len] = 0;
+    return len;
+}
+
 /* The DOS block's layout after the environment: the parameter block, the tail, the path, the
    FCBs. */
 enum { XP = 0, XT = 16, XN = XT + 128, XF = XN + 128, XSZ = XF + 32 };

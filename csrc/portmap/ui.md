@@ -13,7 +13,7 @@ implementer's unless given. Platform: `plat/pscr.h` (screen), `plat/pmou.h` (mou
 - A key `AX` is a `uint16_t`, scan << 8 | char; `0FFFFh` `KEY_ALT`, `MS_KEY` `KEY_MOUSE`.
 - A flag result is a `bool`, true the success: `CF set: none` → false. Each prototype says which.
 - `TLBUF` and `TEDBUF` are one `LineBuf` whose `text` points at its storage (`uimn.edline_text`
-  ..); uimn.c's initializer sets them (`.edline.text = uimn.edline_text`), view.c and dpan.c
+  ..); `uimn_start` sets them (uimn stays zeroed, out of the image's data), view.c and dpan.c
   their own fields'.
 - The clipboard `g_clpb` (regions.asm, IDE only) is `uimn.text.clip[CLIPSZ]`: no Addr reaches it,
   so it is not carved from the arena. `g_scrb` is scrn.c's static `PscrCell[2000]`.

@@ -19,7 +19,7 @@
 #include "vm/syst.h"
 
 #if IDE
-void lm_init(void); /* the editor's line map's block (src/ui/lmap.asm, ported last) */
+#include "ui/lmap.h"
 #endif
 
 int main(void)
@@ -43,7 +43,7 @@ int main(void)
     allo_new(0x10000, prog_place);
     prog_place();
 #if IDE
-    lm_init(); /* the variables, names last: they grow while code holds their cells */
+    lmap_init(); /* the variables, names last: they grow while code holds their cells */
 #endif
     symb_new();
     exec.cstk = allo.cs_top;

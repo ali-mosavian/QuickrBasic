@@ -14,7 +14,7 @@
 enum { NCMN = 512, CHBSZ = 0x10000 };
 
 #if IDE
-extern bool ui_on; /* the editor's (g_ui.lp.ideon) */
+#include "ui/uimn.h"
 #endif
 
 static struct {
@@ -181,7 +181,7 @@ void chai_cmn(void)
 void chai_chain(void)
 {
 #if IDE
-    if (ui_on)
+    if (uimn.on)
         repl_error(E_AF);
 #endif
     Desc s = strg_get(exec_popa());
