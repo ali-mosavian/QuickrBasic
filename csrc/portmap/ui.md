@@ -260,7 +260,7 @@ implementer's unless given. Platform: `plat/pscr.h` (screen), `plat/pmou.h` (mou
 | `mn_alt`* (AH; CF set: not one) | `bool menu_alt(scan)` |
 | `mn_altl`* (data) | `uint8_t menu_altchar(scan)` |
 | `mn_x`*, `mn_tt`* | `menu_x[]`, `menu_title[]` |
-| `ui_upper`* | `uimn_upper(c)` (ui.h, inline) |
+| `ui_upper`* | `upcase(c)` (base.h); `is_letter`, `is_digit`, `is_blank` beside it |
 | `mn_skip`, `mn_help`, `mn_off`, `mn_item`, `mn_size`, `mn_drop`, `mn_box`, `mn_move`, `mn_unalt`, `mn_swap`, `mn_find`, `mn_chk` | static |
 | `mn_flags`, `mn_scan`, `mn_alta`, `mn_it`, `t_*`, `m_*` | static |
 | `g_ui.mn.*` (TMENU), `bf.ui_hbuf` | static |

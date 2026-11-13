@@ -35,23 +35,22 @@ extern Chnl chnl;
 void chnl_init(void);
 /* The channel of file number num, if open; nullptr none. */
 Chan *chnl_look(int32_t num);
-/* chnl_look, or 52 Bad file name or number (not open, or out of 1..255). */
+/* chnl_look, or Bad file name or number (not open, or out of 1..255). */
 Chan *chnl_find(int32_t num);
-/* QBasic's error qb (52 ..), raised as ERROR qb raises it. */
-[[noreturn]] void chnl_error(uint8_t qb);
-/* A platform (DOS) error raised as QBasic's: 2 53, 3 76, 4 67, 5 70, 6 52, 15 68, else 75. */
+/* A platform (DOS) error raised as QBasic's (QB_*). */
 [[noreturn]] void chnl_doserr(uint16_t dos);
 
 /* Open file number num on name, mode FM_*, records of reclen bytes; a device's name (SCRN:
-   CONS: NUL:) no file. Errors: 52, 55 already open, 67 none free, 59 a bad length; the file's. */
+   CONS: NUL:) no file. Errors: QB_BAD_FILE_NUMBER, QB_FILE_OPEN, QB_TOO_MANY_FILES,
+   QB_BAD_RECORD_LENGTH; the file's. */
 Chan *chnl_open(int32_t num, const char *name, uint8_t mode, uint32_t reclen);
 /* Close a channel, its bytes written; the console stays. */
 void chnl_close(Chan *c);
 /* Close every file: CLOSE alone, RESET, END, RUN. */
 void chnl_closeall(void);
-/* Output to c, its column cons's. Error: 54 Bad file mode, not one written to. */
+/* Output to c, its column cons's. Error: QB_BAD_FILE_MODE, not one written to. */
 void chnl_out(Chan *c);
-/* Input from c. Error: 54 Bad file mode, not one read. */
+/* Input from c. Error: QB_BAD_FILE_MODE, not one read. */
 void chnl_in(Chan *c);
 /* Output and input the console's again; INPUT#'s state cleared. */
 void chnl_clear(void);

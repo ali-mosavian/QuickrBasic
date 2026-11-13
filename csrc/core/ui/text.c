@@ -83,7 +83,7 @@ static Made make(const uint8_t *src, uint32_t len)
         p++;
     const uint8_t *digits = p;
     uint32_t num = 0;
-    for (; p < body && (uint8_t)(*p - '0') <= 9; p++) {
+    for (; p < body && is_digit(*p); p++) {
         num = num * 10 + (*p - '0');
         if (num >= LNUM_LIMIT)
             num = LNUM_LIMIT;
@@ -274,7 +274,7 @@ uint16_t text_read(const char *name)
                 n--;                       /* indent dropped */
             if (n && buf[n - 1] == '_')
                 buf[n - 1] = ' ';
-            while (peek(&c) && (c == ' ' || c == 9))
+            while (peek(&c) && is_blank(c))
                 io.pos++;
             continue;
         }

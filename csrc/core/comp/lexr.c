@@ -15,10 +15,6 @@ static uint8_t *src;          /* (ESI) the text */
 static uint8_t *dst;          /* (EDI) the body */
 static const uint8_t *wstart; /* lx.lxs: a word's start */
 
-static bool isletter(const uint8_t c) { return (uint8_t)(upcase(c) - 'A') < 26; }
-static bool is_blank(const uint8_t c) { return c == ' ' || c == '\t'; }
-static bool isdigit_(const uint8_t c) { return (uint8_t)(c - '0') < 10; }
-
 static void room(void)
 {
     if (dst >= lexr.end)
@@ -87,7 +83,7 @@ static void joinfn(void)
     uint8_t *b = src + 2;
     while (is_blank(*b))
         b++;
-    if (!isletter(*b))
+    if (!is_letter(*b))
         return;
     const uint8_t f = src[0];
     const uint8_t n = src[1];
@@ -108,7 +104,7 @@ static void number(void)
         if (*src == 0)
             more();
         const uint8_t c = *src;
-        if (isdigit_(c)) {
+        if (is_digit(c)) {
             *dst++ = *src++;
             if (text)
                 continue;
@@ -132,7 +128,7 @@ static void number(void)
                 text = true;
                 continue;
             }
-            if (isdigit_(b)) {
+            if (is_digit(b)) {
                 *src = u;
                 *dst++ = *src++;
                 text = true;
@@ -184,7 +180,7 @@ uint16_t lexr_keyword(const uint8_t **const at)
 {
     const uint8_t *p = *at;
     uint16_t st = KW_START;
-    while (isletter(*p) || isdigit_(*p) || *p == '.')
+    while (is_letter(*p) || is_digit(*p) || *p == '.')
         st = kwstep(st, lexr_kw_class[upcase(*p++)]);
     if (*p == '$') { /* a '$' when the keyword has one */
         const uint16_t s2 = kwstep(st, lexr_kw_class['$']);
@@ -320,12 +316,12 @@ uint8_t *lexr_line(uint8_t *const text, uint8_t *const body)
             return copy_rest();
         } else if (c == '&')
             hexnum();
-        else if (c == '.' && !isdigit_(*src)) /* a '.' alone */
+        else if (c == '.' && !is_digit(*src)) /* a '.' alone */
             *dst++ = c;
-        else if (c == '.' || isdigit_(c)) {
+        else if (c == '.' || is_digit(c)) {
             src--;
             number();
-        } else if (isletter(c)) {
+        } else if (is_letter(c)) {
             src--;
             joinfn();
             const uint8_t t = word();

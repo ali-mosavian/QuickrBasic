@@ -85,13 +85,8 @@ static const struct {
     {TK_MID, "s$, start[, n]"}, {TK_TAB, "column"}, {TK_SPC, "n"},
 };
 
-static bool is_alpha(uint8_t c)
-{
-    c = uimn_upper(c);
-    return c >= 'A' && c <= 'Z';
-}
-static bool is_alnum(uint8_t c) { return (c >= '0' && c <= '9') || is_alpha(c); }
-static bool is_digit(uint8_t c) { return c == '.' || (c >= '0' && c <= '9'); }
+static bool is_alnum(const uint8_t c) { return is_digit(c) || is_letter(c); }
+static bool starts_number(const uint8_t c) { return c == '.' || is_digit(c); }
 
 /* ac_word: the word before the cursor; false: the cursor is inside a word or past the line. */
 static bool word(void)
@@ -111,7 +106,7 @@ static bool word(void)
     for (uint16_t i = 0; i < ac.pn; i++) {
         uint8_t c = b->text[s + i];
         ac.lc = c >= 'a';
-        ac.pfx[i] = uimn_upper(c);
+        ac.pfx[i] = upcase(c);
     }
     ac.pfx[ac.pn] = 0;
     return true;
@@ -175,7 +170,7 @@ static const uint8_t *var_name(const uint8_t *p)
     if (n > AC_LEN)
         n = AC_LEN;
     for (uint32_t i = 0; i < n; i++)
-        ac.nm[1 + i] = uimn_upper(p[2 + i]);
+        ac.nm[1 + i] = upcase(p[2 + i]);
     if (*next == '(' && n < AC_LEN)
         ac.nm[1 + n++] = '(';
     ac.nm[0] = (uint8_t)n;
@@ -254,7 +249,7 @@ static bool context(void)
             p = decl_item(p);
             ac.lt = AT_STR;
             ac.pv = AP_ID;
-        } else if (c == M_INT || is_digit(c)) {
+        } else if (c == M_INT || starts_number(c)) {
             p = decl_step(p);
             ac.lt = AT_NUM;
             ac.pv = AP_ID;
@@ -281,7 +276,7 @@ static bool context(void)
         }
     }
     mask();
-    if (is_digit(ac.pfx[0])) /* a number is a label */
+    if (starts_number(ac.pfx[0])) /* a number is a label */
         ac.m &= AM_LB;
     return ac.m != 0;
 }
@@ -312,7 +307,7 @@ static void add(const uint8_t *s, uint32_t n, uint8_t kind, uint8_t rank, uint32
         return;
     uint8_t up[AC_LEN + 1];
     for (uint32_t i = 0; i < n; i++)
-        up[i] = uimn_upper(s[i]);
+        up[i] = upcase(s[i]);
     up[n] = 0;
     if (memcmp(up, ac.pfx, ac.pn))
         return;
@@ -357,7 +352,7 @@ static void keys(void)
             w[n++] = c & 0x7F;
         } while (!(c & 0x80));
         w[n] = 0;
-        if (!wanted(tok) || !is_alpha(w[0]))
+        if (!wanted(tok) || !is_letter(w[0]))
             continue;
         if (ac.ty == AT_STR && (tok == TK_FN || tok == TK_NOT)) /* FN and NOT give numbers */
             continue;
@@ -500,7 +495,7 @@ static void put(const uint8_t *s, uint16_t upto)
     uint16_t n = upto - ac.pn;
     for (uint16_t i = 0; i < n; i++) {
         uint8_t c = s[ac.pn + i];
-        t[i] = ac.lc && is_alpha(c) ? c | 0x20 : c;
+        t[i] = ac.lc && is_letter(c) ? c | 0x20 : c;
     }
     ac.pn = upto;
     edit_lb_insert(&uimn.edline, t, n);

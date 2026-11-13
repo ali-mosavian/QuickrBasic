@@ -85,7 +85,7 @@ static const struct {
     {255, "Out of stack space"},
 };
 
-const char *emsg_text(uint8_t code)
+const char *emsg_text(const uint8_t code)
 {
     uint8_t num = emsg_errnum[code];
     if (code == E_USR) {

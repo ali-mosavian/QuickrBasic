@@ -352,7 +352,7 @@ static uint8_t hotkey(const Item *it)
         s++;
     if (*s)
         s++;
-    return uimn_upper((uint8_t)*s);
+    return upcase((uint8_t)*s);
 }
 
 /* The menus' loop's next step. */
@@ -501,7 +501,7 @@ void menu_run(uint8_t m, bool open)
             } else if (scan == 0x44) {
                 next = QUIT;
             } else if (ch) {
-                uint8_t c = uimn_upper(ch);
+                uint8_t c = upcase(ch);
                 if (!mn.open) {
                     int t = find(c); /* a title's key opens it */
                     if (t >= 0) {

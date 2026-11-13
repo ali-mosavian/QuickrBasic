@@ -247,7 +247,7 @@ static uint8_t hotkey(const char *s)
         if (!c)
             return 0;
         if (c == '&')
-            return uimn_upper((uint8_t)*s);
+            return upcase((uint8_t)*s);
     }
 }
 
@@ -439,7 +439,7 @@ static uint8_t run(Dlog *d)
             }
             if (hot) { /* a hotkey, from the next control on (COW dlgcore.c): a button
                           pressed, a box checked, else the focus */
-                letter = uimn_upper(letter);
+                letter = upcase(letter);
                 uint8_t i = d->focus;
                 uint8_t left = d->n;
                 for (;;) {
@@ -698,7 +698,7 @@ bool dlog_fileok(uint8_t why)
     char *d = uimn.chosen;
     bool wild = false, dot = false;
     for (uint16_t i = 0; i < len; i++) {
-        uint8_t c = uimn_upper(uimn.fname.text[i]);
+        uint8_t c = upcase(uimn.fname.text[i]);
         if (c == '*' || c == '?')
             wild = true;
         if (c == '.')

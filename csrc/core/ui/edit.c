@@ -161,7 +161,7 @@ uint8_t *edit_body(uint8_t *text)
 {
     while (*text == ' ')
         text++;
-    while ((uint8_t)(*text - '0') <= 9)
+    while (is_digit(*text))
         text++;
     while (*text == ' ')
         text++;

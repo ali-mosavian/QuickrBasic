@@ -99,10 +99,15 @@ typedef struct PACKED {
 
 /* Channels (io/chan). */
 enum { NL = 13, NCH = 16, CBSZ = 512, RECMAX = 4096 };
+enum { RECLEN_DEFAULT = 128, FILENO_MAX = 255 }; /* OPEN's record length; file numbers 1 .. */
 enum : uint8_t { CK_CON = 1, CK_DISK = 2, CK_NUL = 3 };
 enum : uint8_t { FM_IN = 1, FM_OUT = 2, FM_APP = 4, FM_RND = 8, FM_BIN = 16 };
-/* A variable's place (cm_va). */
+/* A variable's place (cm_va): its kind (VA_*) in the top byte, its bytes below (a Desc's: its
+   STRING * n, 0 none). */
 enum : uint8_t { VA_DESC = 1, VA_RAW = 2, VA_I2 = 3 };
+static inline uint32_t va_pack(const uint8_t kind, const uint32_t n) { return (uint32_t)kind << 24 | n; }
+static inline uint8_t va_kind(const uint32_t v) { return (uint8_t)(v >> 24); }
+static inline uint16_t va_n(const uint32_t v) { return (uint16_t)v; }
 
 enum : uint8_t { SF_BRK = 1, SF_EV = 2 };
 
@@ -159,6 +164,30 @@ enum : uint8_t {
     E_EPW = 58, E_EXW = 59,
     E_LAST = E_EXW,
 };
+
+/* QBasic's ERR numbers the runtime raises (repl_qberr), as ERROR n raises them. */
+typedef enum : uint8_t {
+    QB_NO_FUNCTION = 18,
+    QB_RESUME_NO_ERROR = 20,
+    QB_NO_SUB = 35,
+    QB_FIELD_OVERFLOW = 50,
+    QB_BAD_FILE_NUMBER = 52,
+    QB_FILE_NOT_FOUND = 53,
+    QB_BAD_FILE_MODE = 54,
+    QB_FILE_OPEN = 55,
+    QB_FILE_EXISTS = 58,
+    QB_BAD_RECORD_LENGTH = 59,
+    QB_DISK_FULL = 61,
+    QB_PAST_END = 62,
+    QB_BAD_RECORD_NUMBER = 63,
+    QB_BAD_FILE_NAME = 64,
+    QB_TOO_MANY_FILES = 67,
+    QB_DEVICE_UNAVAILABLE = 68,
+    QB_PERMISSION_DENIED = 70,
+    QB_NO_ADVANCED = 73,
+    QB_PATH_ACCESS = 75,
+    QB_PATH_NOT_FOUND = 76,
+} QbErr;
 
 /* The memory map: offsets in the program store and the code cache. */
 enum {

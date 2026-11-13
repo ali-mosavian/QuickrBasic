@@ -272,7 +272,7 @@ static bool find(uint8_t *v)
     for (uint8_t i = 1; i < vw.n; i++) {
         const char *s = vw.tab[i].name;
         uint16_t j = 0;
-        while (j < name_field.len && uimn_upper((uint8_t)s[j]) == uimn_upper(name_field.text[j]))
+        while (j < name_field.len && upcase((uint8_t)s[j]) == upcase(name_field.text[j]))
             j++;
         if (j == name_field.len && !s[j]) {
             *v = i;

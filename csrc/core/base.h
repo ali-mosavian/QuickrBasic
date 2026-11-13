@@ -41,6 +41,9 @@ static inline void wr16(const Addr a, const uint16_t v) { store16(at(a), v); }
 static inline void wr32(const Addr a, const uint32_t v) { store32(at(a), v); }
 
 static inline uint8_t upcase(const uint8_t c) { return c >= 'a' && c <= 'z' ? c - ('a' - 'A') : c; }
+static inline bool is_letter(const uint8_t c) { return (uint8_t)(upcase(c) - 'A') < 26; }
+static inline bool is_digit(const uint8_t c) { return (uint8_t)(c - '0') < 10; }
+static inline bool is_blank(const uint8_t c) { return c == ' ' || c == '\t'; }
 
 /* A data stack cell: an INT, a FLOAT, or an Addr (a string's Desc) in its low dword; a DOUBLE
    fills it. */

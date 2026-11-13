@@ -562,13 +562,7 @@ void dpan_hover(uint8_t row, uint8_t col)
     dp.tip_col = col;
 }
 
-static bool is_name_char(uint8_t c)
-{
-    if (c == '.' || (c >= '0' && c <= '9'))
-        return true;
-    c |= 0x20;
-    return c >= 'a' && c <= 'z';
-}
+static bool is_name_char(const uint8_t c) { return c == '.' || is_digit(c) || is_letter(c); }
 
 static bool is_suffix(uint8_t c) { return c && strchr(sfx_char, c); }
 
@@ -620,7 +614,7 @@ static bool match(uint16_t id, const uint8_t *s, uint32_t n, uint8_t sfx)
     if ((uint8_t)n != t[0])
         return false;
     for (uint32_t i = 0; i < n; i++)
-        if (uimn_upper(s[i]) != t[1 + i])
+        if (upcase(s[i]) != t[1 + i])
             return false;
     return true;
 }

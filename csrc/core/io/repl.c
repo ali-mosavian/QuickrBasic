@@ -29,6 +29,12 @@
 
 Repl repl;
 
+void repl_qberr(const QbErr qb)
+{
+    vm.err.user = qb;
+    repl_error(E_USR);
+}
+
 void repl_error(uint8_t code)
 {
     lexr.more = nullptr; /* a streamed line's lexing ended */
@@ -48,18 +54,21 @@ void repl_error(uint8_t code)
 
 void repl_ready(void) { longjmp(repl.top, REPL_READY); }
 
-/* The module's name, as BC's: the file's without its path and type, 8 characters, blanks
-   after. */
+/* A source file's channel; an include's the number below its includer's. */
+enum { SOURCE_FILENO = FILENO_MAX, MODULE_WIDTH = 8 };
+
+/* The module's name, as BC's: the file's without its path and type, MODULE_WIDTH characters,
+   blanks after. */
 static void module_name(void)
 {
     const char *s = repl.file;
     for (const char *p = s; *p; p++)
         if (*p == '\\' || *p == ':')
             s = p + 1;
-    int n = 0;
-    for (; n < 8 && *s && *s != '.'; n++, s++)
-        cons_putc((uint8_t)(*s >= 'a' && *s <= 'z' ? *s - 32 : *s));
-    for (; n < 8; n++)
+    uint32_t n = 0;
+    for (; n < MODULE_WIDTH && s[n] && s[n] != '.'; n++)
+        cons_putc(upcase((uint8_t)s[n]));
+    for (; n < MODULE_WIDTH; n++)
         cons_putc(' ');
 }
 
@@ -67,18 +76,18 @@ static void module_name(void)
    the place, what is wrong and what to do. Any other error: nothing. */
 static void diagnose(void)
 {
-    const ErrOp *e = (const ErrOp *)vm.opip;
+    const ErrOp *const e = (const ErrOp *)vm.opip;
     if (!e || e->op != O_ERR)
         return;
-    const uint8_t *body = vm.line == DLINE ? comp_cbuf : at(prog_addr(vm.line) + HDR);
-    uint32_t col = list_text(body, e->at);
-    uint32_t mark = diag_at((const char *)cons.sbuf, col, e->code, e->dg, e->state);
+    const uint8_t *const body = vm.line == DLINE ? comp_cbuf : at(prog_addr(vm.line) + HDR);
+    const uint32_t col = list_text(body, e->at);
+    const uint32_t mark = diag_at((const char *)cons.sbuf, col, e->code, e->dg, e->state);
     cons_nl();
     cons_spaces(2);
     cons_puts((const char *)cons.sbuf);
     cons_nl();
     cons_spaces(2);
-    for (; mark; mark--)
+    for (uint32_t i = 0; i < mark; i++)
         cons_space();
     cons_putc('^');
     cons_nl();
@@ -87,7 +96,7 @@ static void diagnose(void)
 
 /* repl_error's message, a file run's where, as BC's: "in line n|No line number in module NAME at
    address s:o"; or BREAK [IN n]. The stacks reset first; the editor takes it there. */
-static void report(uint8_t code)
+static void report(const uint8_t code)
 {
     vm.err.active = false;
     chnl_clear();
@@ -99,7 +108,7 @@ static void report(uint8_t code)
     if (uimn.on)
         uimn_error(code);
 #endif
-    uint32_t line = vm.line;
+    const uint32_t line = vm.line;
     if (code == E_BRK) {
         cons_msg(E_BRK); /* BREAK [IN n] */
         if (line != DLINE && prog_line(line)->num != NONUM) {
@@ -114,7 +123,7 @@ static void report(uint8_t code)
     if (line != DLINE) {
         if (repl.batch) {
             cons_puts(" in line ");
-            uint16_t erl = flow_erl(line);
+            const uint16_t erl = flow_erl(line);
             if (erl)
                 cons_uint(erl);
             else
@@ -122,7 +131,7 @@ static void report(uint8_t code)
             cons_puts(" in module ");
             module_name();
             cons_puts(" at address ");
-            uint32_t off = (uint32_t)(vm.opip - at(allo.cache));
+            const uint32_t off = (uint32_t)(vm.opip - at(allo.cache));
             cons_hex4((uint16_t)(off >> 16));
             cons_putc(':');
             cons_hex4((uint16_t)off);
@@ -146,7 +155,7 @@ void repl_run(void)
     vm.stop = 0; /* a key the editor or READY kept */
     comp_line();
     flow_dcode();
-    uint32_t eol = link.eol - allo.cache; /* an older direct line's frames: its EOL */
+    const uint32_t eol = link.eol - allo.cache; /* an older direct line's frames: its EOL */
     for (uint32_t i = 0; i < vm.nframes; i++)
         if (vm.frames[i].ret.line == DLINE)
             vm.frames[i].ret.code = eol;
@@ -173,14 +182,14 @@ void repl_cont(void)
     cons_fresh();
     cons_msg(MSG_READY);
     for (;;) {
-        int32_t len = cons_getline();
+        const int32_t len = cons_getline();
         if (len < 0) {
             if (!(vm.stop & SF_BRK))
                 quit();
             vm.stop = 0; /* the STOP key at READY: nothing */
             continue;
         }
-        uint8_t r = repl_enter((uint32_t)len);
+        const uint8_t r = repl_enter((uint32_t)len);
         if (r == ENTER_DIRECT)
             repl_run();
         if (r == ENTER_STORED)
@@ -230,34 +239,34 @@ void repl_main(void)
     ready();
 }
 
-static const uint8_t *blanks(const uint8_t *p, const uint8_t *end)
+static const uint8_t *blanks(const uint8_t *p, const uint8_t *const end)
 {
-    while (p < end && (*p == ' ' || *p == 9))
+    while (p < end && is_blank(*p))
         p++;
     return p;
 }
 
 /* The word w (capitals) at *p, any case: *p past it. */
-static bool word(const uint8_t **p, const uint8_t *end, const char *w)
+static bool word(const uint8_t **const p, const uint8_t *const end, const char *const w)
 {
-    const uint8_t *q = *p;
-    for (; *w; w++, q++) {
-        if (q >= end)
+    const uint8_t *const q = *p;
+    const size_t n = strlen(w);
+    if ((size_t)(end - q) < n)
+        return false;
+    for (size_t i = 0; i < n; i++)
+        if (upcase(q[i]) != (uint8_t)w[i])
             return false;
-        uint8_t c = *q >= 'a' && *q <= 'z' ? *q - 32 : *q;
-        if (c != (uint8_t)*w)
-            return false;
-    }
-    *p = q;
+    *p = q + n;
     return true;
 }
 
 /* Is inbuf, len long, a '$INCLUDE: 'f' metacommand (or REM's)? f to repl.incl. */
-static bool is_include(uint32_t len)
+static bool is_include(const uint32_t len)
 {
-    const uint8_t *p = cons.inbuf, *end = p + len;
+    const uint8_t *p = cons.inbuf;
+    const uint8_t *const end = p + len;
     p = blanks(p, end);
-    while (p < end && (uint8_t)(*p - '0') <= 9) /* past a line number */
+    while (p < end && is_digit(*p)) /* past a line number */
         p++;
     p = blanks(p, end);
     if (p >= end)
@@ -278,7 +287,7 @@ static bool is_include(uint32_t len)
     for (size_t n = 0;;) {
         if (p >= end)
             return false;
-        uint8_t c = *p++;
+        const uint8_t c = *p++;
         if (c == '\'') {
             repl.incl[n] = 0;
             return true;
@@ -290,7 +299,7 @@ static bool is_include(uint32_t len)
 }
 
 /* A line number in the body at p (M_INT n): Syntax error 64000 or over. */
-static uint16_t line_number(const uint8_t *p)
+static uint16_t line_number(const uint8_t *const p)
 {
     const uint32_t num = load32(p + 1);
     if (num >= LNUM_LIMIT)
@@ -298,9 +307,9 @@ static uint16_t line_number(const uint8_t *p)
     return (uint16_t)num;
 }
 
-/* The line in comp_cbuf entered as stored line place: its declarations, its number's and its
-   label's labels. vm.lnum its number, NONUM none; returns its body past the number. */
-static const uint8_t *enter_decls(uint32_t place)
+/* The line in comp_cbuf, to be stored at place: its declarations. vm.lnum its number, NONUM
+   none; returns its body past the number. */
+static const uint8_t *declare(const uint32_t place)
 {
     prog.entering = place;
     decl_line(comp_cbuf);
@@ -308,34 +317,38 @@ static const uint8_t *enter_decls(uint32_t place)
     vm.lnum = NONUM;
     if (comp_peek(&p) == M_INT) {
         vm.lnum = line_number(p);
-        p += 5;
-        scop_label(SC_NUM | decl.proc, vm.lnum, prog.entering);
+        p += INT_TOKEN_SIZE;
     }
+    return p;
+}
+
+/* declare, and the line's number's and label's labels. */
+static const uint8_t *enter_decls(const uint32_t place)
+{
+    const uint8_t *const p = declare(place);
+    if (vm.lnum != NONUM)
+        scop_label(SC_NUM | decl.proc, vm.lnum, prog.entering);
     if (comp_label(p))
         scop_label(decl.proc, comp_nameof(p), prog.entering);
     return p;
 }
 
-uint8_t repl_enter(uint32_t len)
+uint8_t repl_enter(const uint32_t len)
 {
     cons.inbuf[len] = 0;
     vm.line = DLINE;
-    const uint8_t *end = lexr_line(cons.inbuf, comp_cbuf);
-    uint32_t place = prog_at();
+    const uint8_t *const end = lexr_line(cons.inbuf, comp_cbuf);
+    const uint32_t place = prog_at();
     if (!comp_cbuf[0])
         return ENTER_EMPTY;
     if (repl.loading) { /* every line stored, at the end */
-        const uint8_t *body = enter_decls(place);
+        const uint8_t *const body = enter_decls(place);
         prog_add(vm.lnum, body, (uint32_t)(end - body));
         return ENTER_STORED;
     }
-    prog.entering = place;
-    decl_line(comp_cbuf);
-    const uint8_t *p = comp_cbuf;
-    if (comp_peek(&p) != M_INT)
+    const uint8_t *p = declare(place);
+    if (vm.lnum == NONUM)
         return ENTER_DIRECT;
-    vm.lnum = line_number(p);
-    p += 5;
     comp_peek(&p);
     prog_put(vm.lnum, p, (uint32_t)(end - p));
     return ENTER_STORED;
@@ -343,15 +356,15 @@ uint8_t repl_enter(uint32_t len)
 
 /* Enter the lines of file name, read as file number num; an include's on the number below, in
    place. Then the console's again. */
-static void read_file(const char *name, int32_t num)
+static void read_file(const char *const name, const int32_t num)
 {
-    chnl_in(chnl_open(num, name, FM_IN, 128));
+    chnl_in(chnl_open(num, name, FM_IN, RECLEN_DEFAULT));
     for (;;) {
-        int32_t len = srcr_line();
+        const int32_t len = srcr_line();
         if (len < 0)
             break;
         repl.fline++;
-        bool inc = is_include((uint32_t)len);
+        const bool inc = is_include((uint32_t)len);
         lexr.more = srcr_more;
         repl_enter((uint32_t)len);
         lexr.more = nullptr;
@@ -369,7 +382,7 @@ void repl_load(void)
     repl.loading = true;
     repl.batch = true;
     repl.fline = 0;
-    read_file(repl.file, 255);
+    read_file(repl.file, SOURCE_FILENO);
     repl.loading = false;
     repl.fline = 0;
 }
@@ -388,15 +401,15 @@ void repl_relink(void)
     for (uint32_t line = PROGBASE; prog_line(line)->len;) {
         vm.line = line;
         uint8_t *d = comp_cbuf; /* its number, then its body */
-        uint32_t num = prog_line(line)->num;
+        const uint32_t num = prog_line(line)->num;
         if (num != NONUM) {
             *d = M_INT;
             store32(d + 1, num);
-            d += 5;
+            d += INT_TOKEN_SIZE;
         }
         prog_body(line, d);
         const uint8_t *body = enter_decls(line);
-        uint8_t tok = comp_peek(&body);
+        const uint8_t tok = comp_peek(&body);
         line += prog_line(line)->len;
         if (tok != TK_REM)
             continue;
@@ -406,7 +419,7 @@ void repl_relink(void)
             continue;
         prog.add_at = line;
         prog.add_flags = LF_INC;
-        read_file(repl.incl, 254);
+        read_file(repl.incl, SOURCE_FILENO - 1);
         line = prog.add_at;
         prog.add_at = 0;
         prog.add_flags = 0;

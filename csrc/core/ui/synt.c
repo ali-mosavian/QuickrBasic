@@ -40,8 +40,8 @@ static void paint(uint32_t col, uint8_t slot)
 static const uint8_t *number(const uint8_t *p)
 {
     for (;; p++) {
-        uint8_t c = *p;
-        if (!(c >= '0' && c <= '9') && c != '.' && c != 'E' && c != 'D' && c != '+' &&
+        const uint8_t c = *p;
+        if (!is_digit(c) && c != '.' && c != 'E' && c != 'D' && c != '+' &&
             c != '-' && c != '#' && c != '!')
             return p;
     }
@@ -143,7 +143,7 @@ static void line(const uint8_t *text, uint32_t len)
                 hl.depth--;
         } else if (c == '\\')
             slot = SL_OP;
-        else if (c == '.' || (c >= '0' && c <= '9')) {
+        else if (c == '.' || is_digit(c)) {
             p = number(p);
             slot = SL_NUM;
         }

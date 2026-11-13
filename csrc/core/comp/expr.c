@@ -455,7 +455,7 @@ static uint16_t undeclared(void)
         ctrl_dropargs(true);
         comp_close();
     }
-    ctrl_undef(ERR_NO_FUNCTION);
+    ctrl_undef(QB_NO_FUNCTION);
     return id;
 }
 
@@ -541,23 +541,20 @@ void expr_target(void)
     comp.tgtsubs = n;
 }
 
-/* A place's kind (VA_*) and its bytes, as expr.vakind holds them. */
-static uint32_t va(const uint8_t kind, const uint32_t bytes) { return (uint32_t)kind << 24 | bytes; }
-static uint8_t va_kind(const uint32_t v) { return (uint8_t)(v >> 24); }
 
 /* Variable id's place: its kind and bytes; a string's Desc and its STRING * n. */
 static uint32_t vakind(const uint16_t id)
 {
     const Var *const v = symb_var(id);
     if (v->info & SK_DBL)
-        return va(VA_RAW, 8);
+        return va_pack(VA_RAW, 8);
     switch (v->info & VK_MASK) {
     case VK_INT: /* 2 bytes but a LONG's */
-        return va(v->type == ET_I4 ? VA_RAW : VA_I2, 4);
+        return va_pack(v->type == ET_I4 ? VA_RAW : VA_I2, 4);
     case VK_STR:
-        return va(VA_DESC, scop_fix(v->name, v->info & VI_ARR));
+        return va_pack(VA_DESC, scop_fix(v->name, v->info & VI_ARR));
     default:
-        return va(VA_RAW, 4);
+        return va_pack(VA_RAW, 4);
     }
 }
 
@@ -574,7 +571,7 @@ static void varaddr(void)
     if (comp_cur() != M_VAR)
         synerr();
     if (ctrl_recref()) {
-        expr.vakind = va(ctrl.ref.et == ET_I2 ? VA_I2 : VA_RAW, field_size());
+        expr.vakind = va_pack(ctrl.ref.et == ET_I2 ? VA_I2 : VA_RAW, field_size());
         if (ctrl.ref.off) {
             comp_int(ctrl.ref.off);
             comp_op(O_I_ADD);

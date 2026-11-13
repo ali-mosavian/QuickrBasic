@@ -33,6 +33,8 @@ extern Repl repl;
 
 /* Raise error code (E_*): never returns (above). */
 [[noreturn]] void repl_error(uint8_t code);
+/* Raise QBasic's error qb as ERROR qb does. */
+[[noreturn]] void repl_qberr(QbErr qb);
 
 /* The start, then the READY loop: the command line's file run (the editor in the IDE), else
    READY., lines read and entered. repl.top's setjmp. */

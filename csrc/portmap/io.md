@@ -6,7 +6,7 @@ console half; plat.asm's machine half goes to `plat/dos32` behind pfil, psys, pk
 ## Errors and unwinding
 
 `err_raise` is `[[noreturn]] repl_error(code)`; `err_xx` is `repl_error(E_XX)`; `ch_err` is
-`chnl_error(qb)` (E_USR with `vm.err.user = qb`). repl_error clears `lexr.more`, then longjmps to the
+`repl_qberr(qb)` (E_USR with `vm.err.user = qb`; `QbErr`, defs.h). repl_error clears `lexr.more`, then longjmps to the
 first that holds: dbug's probe (`dbg_ever`); `comp_fail(code)` while `comp.busy`; `flow_trap`
 when a handler takes it; else `repl.top` with `REPL_ERROR` (message, READY / batch exit /
 `ui_err`). `vm.rsp`'s asm role as the C stack's reset point is `repl.top`; `rpl_ready` and
@@ -168,7 +168,7 @@ A channel is a `Chan *` (`&chnl.ch[i]`); the asm's EBX index is `c - chnl.ch`.
 | `ch_init` | `chnl_init()` |
 | `ch_look` | `chnl_look(num)` (nullptr none) |
 | `ch_find` | `chnl_find(num)` |
-| `ch_err` | `chnl_error(qb)` |
+| `ch_err` | `repl_qberr(qb)` |
 | `ch_doserr` | `chnl_doserr(dos)` |
 | `ch_open` | `chnl_open(num, name, mode, reclen)` |
 | `ch_close` | `chnl_close(c)` |

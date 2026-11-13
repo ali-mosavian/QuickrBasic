@@ -770,7 +770,7 @@ static void call(void)
             ctrl_dropargs(true);
             comp_close();
         }
-        ctrl_undef(ERR_NO_SUB);
+        ctrl_undef(QB_NO_SUB);
         return;
     }
     argsparen(pr);
@@ -812,7 +812,7 @@ static bool subcall(void)
             synerr();
         ctrl_dropargs(false);
     }
-    ctrl_undef(ERR_NO_SUB);
+    ctrl_undef(QB_NO_SUB);
     return true;
 }
 

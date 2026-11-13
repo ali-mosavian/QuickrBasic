@@ -516,7 +516,7 @@ static void konst(void)
                 depth--;
             if (c == '"')
                 et = ET_SD;
-            if ((c == '.' || (uint8_t)(c - '0') < 10 || c == TK_DIV) && et != ET_SD)
+            if ((c == '.' || is_digit(c) || c == TK_DIV) && et != ET_SD)
                 et = ET_R4; /* a point, an exponent, a / */
             s = decl_item(s);
         }

@@ -12,7 +12,6 @@ List list;
    relation. */
 enum : uint8_t { LS_NONE, LS_WORD, LS_KW, LS_FN, LS_SEP, LS_REL };
 
-static bool is_digit(const uint8_t c) { return (uint8_t)(c - '0') <= 9; }
 
 /* ls_lead: the space before a word, as the last item wants. */
 static void lead(void)

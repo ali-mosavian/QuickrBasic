@@ -313,12 +313,9 @@ static void edit_key(uint16_t key)
 
 /* ui_wordc: c in a word: a letter, a digit, or one of "!#$%&." (QBasic's wordCharBitMask,
    uiword.asm). */
-static bool wordc(uint8_t c)
+static bool wordc(const uint8_t c)
 {
-    c = uimn_upper(c);
-    if (c < '0')
-        return memchr("!#$%&.", c, 6) != nullptr;
-    return c <= '9' || (c >= 'A' && c <= 'Z');
+    return is_digit(c) || is_letter(c) || memchr("!#$%&.", c, 6) != nullptr;
 }
 
 /* ui_match: Find What at column col of uimn.line. */
@@ -329,8 +326,8 @@ static bool match(uint16_t col)
     for (uint16_t i = 0; i < n; i++) {
         uint8_t a = s[i], b = w[i];
         if (!uimn.match_case) {
-            a = uimn_upper(a);
-            b = uimn_upper(b);
+            a = upcase(a);
+            b = upcase(b);
         }
         if (a != b)
             return false;
@@ -506,7 +503,7 @@ static bool save(void)
 static bool same_name(const char *a, const char *b)
 {
     for (;; a++, b++) {
-        if (uimn_upper((uint8_t)*a) != uimn_upper((uint8_t)*b))
+        if (upcase((uint8_t)*a) != upcase((uint8_t)*b))
             return false;
         if (!*a)
             return true;

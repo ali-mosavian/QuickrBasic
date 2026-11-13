@@ -24,7 +24,6 @@ static const uint8_t op_sizes[O_NOPS] = {
 
 enum {
     DCODE_SIZE = CACHE0 - DCODE, /* the direct line's room in the cache */
-    RESUME_WITHOUT_ERROR = 20,
 };
 
 /* A jump not yet resolved keeps its mode (JumpMode) where its code offset will go. */
@@ -718,8 +717,7 @@ void flow_resume(Vm *const vm)
     if (exec_stopchk(vm))
         return;
     if (!vm->err.active) {
-        vm->err.user = RESUME_WITHOUT_ERROR;
-        repl_error(E_USR);
+        repl_qberr(QB_RESUME_NO_ERROR);
     }
     vm->err.active = false;
     vm->err.code = 0;
