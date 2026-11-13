@@ -171,7 +171,21 @@ E_AAD   = 42                    ; Array already dimensioned: so
 E_VND   = 43                    ; Variable not declared: VBDOS's, so
 E_PTM   = 44                    ; Parameter type mismatch: so
 E_AND   = 45                    ; Array not defined
-E_LAST  = E_AND
+E_FWN   = 46                    ; FOR without NEXT; the blocks' pairing, cm_blocks
+E_WWW   = 47                    ; WHILE without WEND
+E_WEW   = 48                    ; WEND without WHILE
+E_BIF   = 49                    ; Block IF without END IF: these BC's, no ERR
+E_EIF   = 50                    ; END IF without block IF
+E_ELS   = 51                    ; ELSE without IF
+E_DWL   = 52                    ; DO without LOOP
+E_LWD   = 53                    ; LOOP without DO
+E_SWE   = 54                    ; SELECT without END SELECT
+E_ESW   = 55                    ; END SELECT without SELECT
+E_CWS   = 56                    ; CASE without SELECT
+E_PWE   = 57                    ; SUB/FUNCTION without END SUB/FUNCTION
+E_EPW   = 58                    ; END SUB/FUNCTION without SUB/FUNCTION
+E_EXW   = 59                    ; EXIT not within matching block
+E_LAST  = E_EXW
 
 ; Memory map, flat: the code, then the data; the regions in .data? (main.asm).
 ; dsb is the 16-bit build's DS at the same offsets: the variables, the

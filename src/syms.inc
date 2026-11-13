@@ -549,6 +549,7 @@ externdef er_text:near
 externdef g_qberr:byte
 ; io/diag.asm
 externdef dx_at:near
+externdef dx_raise:near
 externdef dx_say:near
 ; io/repl.asm
 externdef err_cn:near

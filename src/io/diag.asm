@@ -1,13 +1,14 @@
 ; ==========================================================================
 ; diag.asm - a compile error in words, for the person who wrote the line
 ; ==========================================================================
-; holds:    dx_at, dx_what, dx_todo, dx_say
+; holds:    dx_at, dx_what, dx_todo, dx_shape, dx_say, dx_raise
 ; uses:     er_text, cm_expn, cm_expect, lx_kw, io_putc, io_puts, io_nl; msg.inc
 ;           (tools/x86msg.py)
 ; data:     An error is its E_*, its DG_ (0: found by BC's name and the text
 ;           at the error) and its column in the line's text. dx_at reads the
 ;           place: the text there, the statement it is in, the name it is
-;           about; dx_say prints what is wrong, then what to do.
+;           about; dx_say prints what is wrong, then what to do, each a
+;           sentence, then the statement's form, if it has words for it.
 ;           Nothing here knows how the error was found; ported from llrm's
 ;           front/explain.rs.
 ; ==========================================================================
@@ -89,6 +90,39 @@ dx_at:
         popad
         mov     eax,[g_dxp]
         ret
+
+;::::::::::::::
+; dx_raise - an error found off the code, as if an ERR op raised it: never
+; trapped.
+;
+; in:     AL   the error, E_*
+;         AH   its DG_
+;         ECX  its offset in the line's body
+;         DX   the line
+;         EBX  {other}'s text, EDI its length
+; ::::::::::::::
+dx_raise:
+        mov     [g_dxr],O_ERR
+        mov     word ptr [g_dxr+1],ax
+        cmp     ecx,255
+        jbe     @F
+        mov     cl,255
+@@:
+        mov     [g_dxr+3],cl
+        or      word ptr [g_dxr+4],-1
+        mov     [g_state.rn.ln],dx
+        mov     [g_state.rn.opip],offset g_dxr
+        mov     [g_state.rn.inerr],1
+        mov     ecx,edi
+        cmp     ecx,31
+        jbe     @F
+        mov     ecx,31
+@@:
+        mov     esi,ebx
+        mov     edi,offset g_dxoth
+        rep     movsb
+        mov     byte ptr [edi],0
+        jmp     err_raise
 
 ; dx_back - the item before column ECX of the line at ESI: p at it, EDX
 ; its length; none: EDX 0.
@@ -399,6 +433,7 @@ dx_find:
 ; dx_res - the error's words: wt what is wrong, td what to do (0 none), nm2
 ; the name, for an error the catalogue has no words for.
 dx_res:
+        and     [g_dxfm],0
         movzx   eax,[g_dxid]
         test    eax,eax
         jz      @xdsy_b
@@ -459,17 +494,17 @@ dx_res:
         ret
 
 ; ::::::::::::::
-; dx_what - print what is wrong.
+; dx_what - print what is wrong, a sentence.
 ; ::::::::::::::
 dx_what:
         pushad
         mov     ebx,[g_dxwt]
-        call    dx_fill
+        call    dx_sent
         popad
         ret
 
 ; ::::::::::::::
-; dx_todo - print what to do, if the error has words for it.
+; dx_todo - print what to do, a sentence, if the error has words for it.
 ;
 ; out:    ZF  set: none
 ; ::::::::::::::
@@ -480,21 +515,44 @@ dx_todo:
         jz      @F
         cmp     byte ptr [ebx],0
         je      @F
-        call    dx_fill
+        call    dx_sent
         or      ebx,ebx                 ; ZF clear
 @@:
         popad
         ret
 
 ; ::::::::::::::
-; dx_say - the error dx_at placed, in words: what is wrong, then what to do;
-; a line each.
+; dx_shape - print how the statement is written, if known.
+;
+; out:    ZF  set: not known
+; ::::::::::::::
+dx_shape:
+        pushad
+        mov     ebx,[g_dxfm]
+        test    ebx,ebx
+        jz      @F
+        call    io_puts
+        or      ebx,ebx                 ; ZF clear
+@@:
+        popad
+        ret
+
+; ::::::::::::::
+; dx_say - the error dx_at placed, in words: what is wrong, what to do, the
+; statement's form indented; a line each.
 ; ::::::::::::::
 dx_say:
         call    dx_what
         call    io_nl
         call    dx_todo
         jz      @F
+        call    io_nl
+@@:
+        cmp     [g_dxfm],0
+        je      @F
+        call    io_space
+        call    io_space
+        call    dx_shape
         call    io_nl
 @@:
         ret
@@ -537,7 +595,8 @@ dx_syn:
         mov     esi,offset g_dxstm
         call    dx_form
         jc      @xdsn_r
-        mov     edi,offset g_dxkey      ; STATEMENT is written: form
+        mov     [g_dxfm],ebx
+        mov     edi,offset g_dxkey      ; STATEMENT is written:
         mov     [g_dxtd],edi
         mov     esi,offset g_dxstm
 @@:
@@ -552,14 +611,23 @@ dx_syn:
         stosb
         test    al,al
         jnz     @B
-        dec     edi
-        mov     esi,ebx
-@@:
-        lodsb
-        stosb
-        test    al,al
-        jnz     @B
 @xdsn_r:
+        ret
+
+; dx_sent - dx_fill as a sentence: a capital first, a period last unless it
+; ends in one or a ':'.
+dx_sent:
+        mov     [g_dxcap],1
+        call    dx_fill
+        mov     [g_dxcap],0
+        mov     al,[g_dxlast]
+        cmp     al,'.'
+        je      @F
+        cmp     al,':'
+        je      @F
+        mov     al,'.'
+        call    io_putc
+@@:
         ret
 
 ; dx_fill - print the words at EBX, {text} {name} {statement} {stm}
@@ -575,9 +643,21 @@ dx_fill:
         cmp     al,'{'
         je      @xdfl_k
 @xdfl_c:
+        cmp     [g_dxcap],0
+        je      @F
+        mov     [g_dxcap],0
+        cmp     al,'a'
+        jb      @F
+        cmp     al,'z'
+        ja      @F
+        sub     al,20h
+@@:
+        mov     [g_dxlast],al
         call    io_putc
         jmp     @xdfl_l
 @xdfl_k:
+        mov     [g_dxcap],0
+        mov     [g_dxlast],'x'
         mov     edi,offset g_dxph       ; the placeholders, 0 each
         xor     edx,edx
 @xdfl_m:
@@ -660,8 +740,9 @@ dx_pfound:                              ; `text`, or the statement's end
         call    dx_ptext
         mov     al,'`'
         jmp     io_putc
-dx_pnone:
-        ret
+dx_pother:
+        mov     ebx,offset g_dxoth
+        jmp     io_puts
 
         .data
 g_dxwc  db      "._$%&!#@"
@@ -671,7 +752,7 @@ g_dxlead db     "SUB",0,"FUNCTION",0,"TYPE",0,"DECLARE",0,"CALL",0,"STATIC",0
         db      "RETURN",0,0
 g_dxph  db      "text}",0,"name}",0,"statement}",0,"stm}",0,"other}",0,"bc}",0
         db      "expected}",0,"found}",0,0
-g_dxphf dd      dx_ptext,dx_pname,dx_pstmt,dx_pstm,dx_pnone,dx_pbc,dx_pexp,dx_pfound
+g_dxphf dd      dx_ptext,dx_pname,dx_pstmt,dx_pstm,dx_pother,dx_pbc,dx_pexp,dx_pfound
 g_dxsyn db      "Syntax error",0
 g_dxsfst db     "`{text}` cannot be used here: it does not start a valid statement at "
         db      "this point",0
@@ -679,7 +760,7 @@ g_dxsfit db     "`{text}` does not fit the {stm} here",0
 g_dxsend db     "the {stm} is incomplete: the line ends where more is needed",0
 g_dxsexp db     "expected {expected} in the {stm}, but found {found}",0
 g_dxeos db      "the end of the statement",0
-g_dxwrit db     " is written: ",0
+g_dxwrit db     " is written:",0
 g_dxchk db      "check the statement against the manual; the mark shows where it "
         db      "stopped being understood",0
 g_dxat  db      "{bc} (at `{text}`)",0
@@ -701,6 +782,11 @@ g_dxnm2 dd      ?                       ; its name, when no words
 g_dxke  dd      ?                       ; the key's end before " /"
 g_dxstm db      16 dup(?)               ; the statement's word
 g_dxkey db      160 dup(?)              ; a key, a word; a form's line
+g_dxr   db      6 dup(?)                ; dx_raise's ERR op
+g_dxoth db      32 dup(?)               ; {other}
+g_dxfm  dd      ?                       ; the statement's form, 0 none
+g_dxcap db      ?                       ; dx_fill: a capital next
+g_dxlast db     ?                       ; dx_fill: the last it put
         .code
 
         end

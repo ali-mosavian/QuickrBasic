@@ -803,6 +803,18 @@ dl_msg:
         jmp     @dlm_b
 @dlm_bw:
         mov     [g_ui.dg.msg_bw],cx
+        mov     esi,[g_ui.dg.msg_ttl]   ; the title: its spaces too
+        test    esi,esi
+        jz      @F
+        push    ecx
+        call    sc_slen
+        add     ecx,2
+        cmp     dh,cl
+        jae     @dlm_tw
+        mov     dh,cl
+@dlm_tw:
+        pop     ecx
+@@:
         movzx   ax,dh                   ; the wider, and 6 (msgbox.c)
         cmp     ax,cx
         jae     @dlm_w
@@ -839,7 +851,8 @@ dl_msg:
         sub     ah,al
 @dlm_p:
         mov     [ebx+TDLG.row],ah
-        mov     dword ptr [ebx+TDLG.ttl],0
+        mov     eax,[g_ui.dg.msg_ttl]
+        mov     [ebx+TDLG.ttl],eax
         mov     al,[g_ui.dg.msg_nl]
         add     al,3
         mov     [ebx+TDLG.sep],al
@@ -859,6 +872,10 @@ dl_msg:
         mov     al,[ebx+TDLG.cols]
         sub     al,cl
         shr     al,1
+        cmp     [g_ui.dg.msg_ttl],0     ; titled: left-aligned
+        je      @F
+        mov     al,3
+@@:
         mov     [edi+TCTL.col],al
         pop     ecx
         mov     byte ptr [edi+TCTL.flg],CF_NOF
@@ -962,11 +979,25 @@ dl_bhelp:
 
 ; ::::::::::::::
 ; dl_err - dl_ok for an error at the cursor's line: the box off that line;
-; the selection off after.
+; the selection off after. Text of more than one line: the first its title,
+; the rest left-aligned.
 ; ::::::::::::::
 dl_err:
         mov     [g_ui.dg.msg_adj],1
+        mov     edi,esi
+@@:
+        mov     al,[edi]
+        inc     edi
+        test    al,al
+        jz      @dle_o
+        cmp     al,'|'
+        jne     @B
+        mov     byte ptr [edi-1],0
+        mov     [g_ui.dg.msg_ttl],esi
+        mov     esi,edi
+@dle_o:
         call    dl_ok
+        and     [g_ui.dg.msg_ttl],0
         mov     [g_ui.dg.msg_adj],0
         and     [g_ui.ed.sel_on],0               ; the error's word, shown till now
         ret
@@ -975,11 +1006,17 @@ dl_err:
 ; dl_wrap - ECX bytes at ESI to EDI as a box's lines: '|' at a space past
 ; DL_WRAP columns; a '|' of the text a box's line drawing one.
 ;
+; in:     wr_ind  each line's indent
 ; out:    EDI  past them
 ; ::::::::::::::
-DL_WRAP = 60
+DL_WRAP = 44
 dl_wrap:
-        xor     edx,edx                 ; the column
+        push    ecx
+        movzx   ecx,[g_ui.dg.wr_ind]
+        mov     edx,ecx                 ; the column
+        mov     al,' '
+        rep     stosb
+        pop     ecx
         xor     ebx,ebx                 ; the last space
 @dlw_l:
         jecxz   @dlw_r
@@ -1000,6 +1037,26 @@ dl_wrap:
         test    ebx,ebx
         jz      @dlw_l
         mov     byte ptr [ebx],'|'
+        push    ecx                     ; the rest of the line past the indent
+        push    esi
+        movzx   eax,[g_ui.dg.wr_ind]
+        mov     ecx,edi
+        sub     ecx,ebx
+        dec     ecx
+        lea     esi,[edi-1]
+        add     edi,eax
+        push    edi
+        dec     edi
+        std
+        rep     movsb
+        cld
+        lea     edi,[ebx+1]
+        mov     ecx,eax
+        mov     al,' '
+        rep     stosb
+        pop     edi
+        pop     esi
+        pop     ecx
         mov     edx,edi
         sub     edx,ebx
         dec     edx

@@ -525,7 +525,7 @@ ui_dxerr:
         add     eax,edx
         mov     [esp+28],eax            ; popad's EAX
         mov     edi,offset g_ui.bf.ui_ebuf
-        mov     al,[ebx+1]              ; its class first: Syntax error
+        mov     al,[ebx+1]              ; its class, the title: Syntax error
         call    er_text
 @@:
         lodsb
@@ -534,32 +534,52 @@ ui_dxerr:
         stosb
         jmp     @B
 @@:
-        mov     al,'|'
-        stosb
-        mov     edx,offset dx_what
+        mov     [g_ui.dg.wr_ind],0
+        mov     edx,offset dx_what      ; |what is wrong
         call    @udx_w
-        push    edi
-        inc     edi
-        mov     edx,offset dx_todo
-        call    @udx_w
-        pop     eax
-        lea     ecx,[eax+1]
-        cmp     edi,ecx
-        jne     @F
-        mov     edi,eax                 ; nothing to do: no '|'
-@@:
-        mov     byte ptr [eax],'|'
+        mov     edx,offset dx_todo      ; ||what to do
+        mov     ax,'||'
+        call    @udx_p
+        mov     [g_ui.dg.wr_ind],2      ; |  the statement's form
+        mov     edx,offset dx_shape
+        mov     ax,'|'
+        call    @udx_p
+        mov     [g_ui.dg.wr_ind],0
         mov     byte ptr [edi],0
         popad
         ret
-@udx_w:                                 ; what EDX prints, wrapped, to EDI
+@udx_p:                                 ; AL, AH if not 0, then what EDX
+        push    edi                     ; prints, wrapped; none: nothing
+        stosb
+        test    ah,ah
+        jz      @F
+        mov     al,ah
+        stosb
+@@:
+        push    edi
+        call    @udx_c
+        pop     eax
+        pop     edx
+        test    ecx,ecx
+        jnz     @udx_x
+        mov     edi,edx
+        ret
+@udx_w:                                 ; '|', then what EDX prints, wrapped
+        mov     al,'|'
+        stosb
+        push    edi
+        call    @udx_c
+        pop     eax
+@udx_x:
+        jmp     dl_wrap
+@udx_c:                                 ; ECX bytes EDX prints, at g_sbuf
         mov     [g_state.io.ocap],80h
         and     [g_state.io.sbx],0
         call    edx
         and     [g_state.io.ocap],0
         movzx   ecx,[g_state.io.sbx]
         mov     esi,offset g_sbuf
-        jmp     dl_wrap
+        ret
 
 ; ::::::::::::::
 ; ui_emsg - the message of error AL in ui_ebuf: "Syntax error".

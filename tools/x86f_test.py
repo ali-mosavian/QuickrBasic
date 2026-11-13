@@ -494,17 +494,30 @@ CASES = {
     # a denormal 0 (and 1 / it Division by zero), the rest error 6.
     # A compile error gave BC's line alone; now the line, a mark under the place, what is wrong
     # and what to do.
-    "qb_diag_end": ("PRINT a(1\r\n", "  PRINT a(1\r\n           ^\r\nthe PRINT statement is incomplete: "
-                    "the line ends where more is needed\r\nPRINT is written: PRINT [#file,]", None),
+    "qb_diag_end": ("PRINT a(1\r\n", "  PRINT a(1\r\n           ^\r\nThe PRINT statement is incomplete: "
+                    "the line ends where more is needed.\r\nPRINT is written:\r\n  PRINT [#file,]", None),
     "qb_diag_goto": ("ON 1 PRINT\r\n", "\r\n       ^\r\n`PRINT` should be followed by GOTO or GOSUB "
-                     "here\r\nwrite `ON expression GOTO label, label`", None),
-    "qb_diag_tm": ('x = "a" + 1\r\n', '\r\n            ^\r\n`1` has the wrong type for this place', None),
+                     "here.\r\nWrite `ON expression GOTO label, label`.", None),
+    "qb_diag_tm": ('x = "a" + 1\r\n', '\r\n            ^\r\n`1` has the wrong type for this place (', None),
     # A statement the automaton rejected said only that it does not fit; now what it wanted.
-    "qb_diag_exp": ("FOR i = 1 3\r\nNEXT\r\n", "expected `TO` in the FOR statement, but found `3`\r\n"
-                    "FOR is written: FOR counter = start TO end [STEP step]", None),
-    "qb_diag_exp2": ('OPEN "x" FOR FOO AS 1\r\n', "expected `INPUT`, `APPEND`, `BINARY`, `OUTPUT` or "
-                     "`RANDOM` in the OPEN statement, but found `FOO`", None),
-    "qb_diag_kw": ('NAME "a" "b"\r\n', 'expected `AS` in the NAME statement, but found `"b"`', None),
+    "qb_diag_exp": ("FOR i = 1 3\r\nNEXT\r\n", "Expected `TO` in the FOR statement, but found `3`.\r\n"
+                    "FOR is written:\r\n  FOR counter = start TO end [STEP step]", None),
+    "qb_diag_exp2": ('OPEN "x" FOR FOO AS 1\r\n', "Expected `INPUT`, `APPEND`, `BINARY`, `OUTPUT` or "
+                     "`RANDOM` in the OPEN statement, but found `FOO`.", None),
+    "qb_diag_kw": ('NAME "a" "b"\r\n', 'Expected `AS` in the NAME statement, but found `"b"`.', None),
+    # The blocks' errors were a Syntax error, or NEXT without FOR, with no line shown and no words.
+    "qb_blk_open": ("PRINT 1\r\nFOR i = 0 TO 9\r\nPRINT i\r\n", "FOR without NEXT in line No line number"
+                    " in module", None),
+    "qb_blk_open2": ("PRINT 1\r\nFOR i = 0 TO 9\r\nPRINT i\r\n", "  FOR i = 0 TO 9\r\n  ^\r\nThis FOR loop,"
+                     " counting with `i`, is never closed", None),
+    "qb_blk_nextv": ("FOR i = 1 TO 3\r\nNEXT j\r\n", "  NEXT j\r\n       ^\r\nThis NEXT ends a loop counting "
+                     "with `j`, but the loop open here counts with `i`.\r\nWrite `NEXT i`, or just NEXT.", " 1"),
+    "qb_blk_cross": ("FOR i = 1 TO 3\r\nDO\r\nNEXT i\r\n", "NEXT without FOR in line No line number in module"
+                     "", None),
+    "qb_blk_cross2": ("FOR i = 1 TO 3\r\nDO\r\nNEXT i\r\n", "the DO block started inside it is still open",
+                      None),
+    "qb_blk_loop": ("PRINT 1\r\nLOOP\r\n", "LOOP without DO in line", " 1"),
+    "qb_blk_next2": ("FOR i = 1 TO 2: FOR j = 1 TO 2: NEXT j, i: PRINT \"ok\"\r\n", "ok", "ERROR"),
     "qb_sng_range": ('PRINT VAL("1.23456789012"); 1E-45; 1 / 1E-45\r\n'
                      'a! = 3.4E+38: d# = 1D+40: x! = 1E-38: PRINT a! * 10; CSNG(d#); x! / 1000\r\n',
                      " 1.23456789012  1.401298E-45  1.#INF \r\n 1.#INF  1.#INF  9.999666E-42 \r\n",

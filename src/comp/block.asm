@@ -2,7 +2,7 @@
 ; block.asm - the block statements paired across lines, before a run
 ; ==========================================================================
 ; holds:    cm_blocks, bk_find
-; uses:     dc_item, err_sn, err_om
+; uses:     dc_item, dx_raise, err_sn, err_om
 ; data:     A position is a line (its offset in progb) and a statement's
 ;           offset in its body. cm_blocks walks every statement in program
 ;           order, a stack of the open blocks, and gives each block statement
@@ -42,8 +42,8 @@ NBST    = 64
 ; cm_blocks - pair the program's block statements into g_blk.
 ;
 ; out:    nblk  the entries
-; error:  ?SYNTAX ERROR  a block left open, a closer with no opener; ln its
-;                        line
+; error:  FOR without NEXT .. a block left open, a closer with no opener,
+;         in words (dx_raise); ln its line
 ;         ?OUT OF MEMORY NBLK entries
 ; ::::::::::::::
 cm_blocks:
@@ -70,18 +70,35 @@ cm_blocks:
         test    eax,eax
         jz      @F
         shl     eax,5
-        mov     ax,word ptr [g_prc+eax+P_FIRST]
-        mov     [g_state.rn.ln],ax
-        jmp     err_sn
+        mov     edx,dword ptr [g_prc+eax+P_ENTRY]
+        mov     [g_state.lnk.bln],dx
+        shr     edx,16
+        mov     ecx,edx
+        and     ecx,BOFF
+        mov     ax,E_PWE
+        jmp     bk_fail0
 @@:
-        movzx   eax,[g_state.lnk.bsp]
+        movzx   eax,[g_state.lnk.bsp]   ; a block left open: at its opener
         test    eax,eax
         jz      @cbk_r
+        movzx   edx,byte ptr [g_bst+eax*SSIZE-SSIZE+S_KIND]
         movzx   eax,word ptr [g_bst+eax*SSIZE-SSIZE+S_OPEN]
         shl     eax,4
-        mov     ax,word ptr [g_blk+eax]
-        mov     [g_state.rn.ln],ax
-        jmp     err_sn
+        mov     bx,word ptr [g_blk+eax+B_POS]
+        mov     [g_state.lnk.bln],bx
+        movzx   ecx,word ptr [g_blk+eax+B_POS+2]
+        and     ecx,BOFF
+        movzx   eax,byte ptr [g_bkopen+edx]
+        xor     edi,edi
+        cmp     al,E_FWN                ; FOR: {other} its variable
+        jne     bk_fail
+        movzx   ebx,bx
+        lea     esi,[g_progb+ebx+HDR+ecx+1]
+        cmp     byte ptr [esi],M_VAR
+        jne     bk_fail
+        lea     ebx,[esi+2]
+        movzx   edi,byte ptr [esi+1]
+        jmp     bk_fail
 @cbk_r:
         popad
         ret
@@ -390,7 +407,8 @@ bk_stmt:
 @bks_esb:                               ; END SUB, END FUNCTION
         movzx   edx,[g_state.lnk.cprc]
         test    edx,edx
-        jz      @bk_er
+        mov     ax,E_EPW
+        jz      bk_fail0
         shl     edx,5
         mov     ax,[g_state.lnk.bln]
         mov     word ptr [g_prc+edx+P_LAST],ax
@@ -426,7 +444,7 @@ bk_stmt:
         jmp     bk_push
 
 @bks_ei:                                ; ELSEIF: the clause before goes here
-        mov     dl,BK_IF
+        mov     dx,BK_IF+E_ELS*256
         call    bk_top
         mov     al,BK_ELSEIF
         call    bk_new
@@ -435,7 +453,7 @@ bk_stmt:
         ret
 
 @bks_el:                                ; ELSE at a statement's start: a block's
-        mov     dl,BK_IF
+        mov     dx,BK_IF+E_ELS*256
         call    bk_top
         mov     al,BK_ELSE
         call    bk_new
@@ -443,7 +461,7 @@ bk_stmt:
         jmp     bk_clause
 
 @bks_ef:                                ; END IF
-        mov     dl,BK_IF
+        mov     dx,BK_IF+E_EIF*256
         call    bk_top
         mov     al,BK_ENDIF
         call    bk_new
@@ -466,7 +484,7 @@ bk_stmt:
         jmp     bk_push
 
 @bks_cs:                                ; CASE: SELECT's or the case before's
-        mov     dl,BK_SELECT            ; test goes here
+        mov     dx,BK_SELECT+E_CWS*256  ; test goes here
         call    bk_top
         mov     al,BK_CASE
         call    bk_new
@@ -476,7 +494,7 @@ bk_stmt:
         jmp     bk_clause
 
 @bks_es:                                ; END SELECT
-        mov     dl,BK_SELECT
+        mov     dx,BK_SELECT+E_ESW*256
         call    bk_top
         mov     al,BK_ENDSEL
         call    bk_new
@@ -498,11 +516,11 @@ bk_stmt:
         jmp     bk_push
 
 @bks_lp:                                ; LOOP, WEND: back to the opener, which
-        mov     dl,BK_DO                ; leaves past it, as its EXITs do
+        mov     dx,BK_DO+E_LWD*256      ; leaves past it, as its EXITs do
         mov     al,BK_LOOP
         jmp     @bks_lw
 @bks_wn:
-        mov     dl,BK_WHILE
+        mov     dx,BK_WHILE+E_WEW*256
         mov     al,BK_WEND
 @bks_lw:
         call    bk_top
@@ -522,9 +540,10 @@ bk_stmt:
         mov     dl,BK_FOR
         jmp     bk_push
 
-@bks_nx:                                ; NEXT a, b: a FOR closed for each
-        mov     edx,1
-        push    esi
+@bks_nx:                                ; NEXT a, b: a FOR closed for each,
+        push    esi                     ; which must count with it
+        inc     esi
+        xor     edi,edi                 ; NEXT alone: the innermost
 @bnx_l:
         mov     al,[esi]
         test    al,al
@@ -537,25 +556,69 @@ bk_stmt:
         je      @bnx_e
         cmp     al,','
         jne     @F
-        inc     edx
+        call    bk_next
+        xor     edi,edi
+@@:
+        cmp     al,M_VAR
+        jne     @F
+        mov     edi,esi
 @@:
         call    dc_item
         jmp     @bnx_l
 @bnx_e:
+        call    bk_next
         pop     esi
-@bnx_p:
-        push    edx
-        mov     dl,BK_FOR
+        ret
+
+; bk_next - NEXT closes the innermost FOR, which counts with the variable at
+; EDI (0 any).
+bk_next:
+        pushad
+        mov     dx,BK_FOR+E_NF*256
         call    bk_top
+        test    edi,edi
+        jz      @bnn_c
+        movzx   eax,word ptr [ebx+S_OPEN]       ; the FOR's: FOR v
+        shl     eax,4
+        movzx   esi,word ptr [g_blk+eax+B_POS]
+        movzx   eax,word ptr [g_blk+eax+B_POS+2]
+        and     eax,BOFF
+        lea     esi,[g_progb+esi+HDR+eax+1]
+        cmp     byte ptr [esi],M_VAR
+        jne     @bnn_c
+        movzx   eax,byte ptr [esi+1]
+        movzx   edx,byte ptr [edi+1]
+        mov     ax,word ptr [esi+eax+2]         ; the same name, suffix
+        cmp     ax,word ptr [edi+edx+2]
+        jne     @bnn_x
+        movzx   eax,byte ptr [esi+1]
+        mov     al,[esi+eax+1]
+        mov     ah,[edi+edx+1]
+        cmp     al,'.'
+        jb      @F
+        xor     al,al
+@@:
+        cmp     ah,'.'
+        jb      @F
+        xor     ah,ah
+@@:
+        cmp     al,ah
+        jne     @bnn_x
+@bnn_c:
         call    bk_here2
         movzx   edx,word ptr [ebx+S_OPEN]
         shl     edx,4
         mov     dword ptr [g_blk+edx+B_END],eax
         call    bk_exits
-        pop     edx
-        dec     edx
-        jnz     @bnx_p
+        popad
         ret
+@bnn_x:                                 ; the caret at NEXT's variable,
+        mov     ecx,edi                 ; {other} the FOR's
+        sub     ecx,ebp
+        lea     ebx,[esi+2]
+        movzx   edi,byte ptr [esi+1]
+        mov     ax,E_NF+DG_NEXT_WITHOUT_FOR_MISMATCH*256
+        jmp     bk_fail
 
 @bks_ex:                                ; EXIT FOR, EXIT DO: on the chain of
         mov     dl,BK_FOR               ; the innermost such block
@@ -568,7 +631,7 @@ bk_stmt:
         movzx   ebx,[g_state.lnk.bsp]
 @bex_l:
         test    ebx,ebx
-        jz      @bk_er
+        jz      @bex_n
         dec     ebx
         cmp     [g_bst+ebx*SSIZE+S_KIND],dl
         jne     @bex_l
@@ -583,6 +646,11 @@ bk_stmt:
         inc     eax
         mov     [ebx+S_CHAIN],ax
         ret
+@bex_n:                                 ; EXIT FOR: {other} FOR
+        movzx   ebx,dl
+        mov     ebx,[g_bkwd+ebx*4]
+        mov     ax,E_EXW
+        jmp     bk_fail1
 
 @bk_er:
         mov     ax,[g_state.lnk.bln]
@@ -643,18 +711,60 @@ bk_push:
 ; ::::::::::::::
 ; bk_top - the innermost block, which must be of kind DL.
 ;
+; in:     DH   the error, E_*, if not: X without Y
 ; out:    EBX  its stack entry
 ; keeps:  EAX, ECX, ESI, EDI, EBP
-; error:  ?SYNTAX ERROR  none, or another kind
+; error:  DH  none of kind DL open; another inside it, in words
 ; ::::::::::::::
 bk_top:
         movzx   ebx,[g_state.lnk.bsp]
         test    ebx,ebx
-        jz      @bk_er
+        jz      @bkt_n
         lea     ebx,[g_bst+ebx*SSIZE-SSIZE]
         cmp     [ebx+S_KIND],dl
-        jne     @bk_er
+        jne     @F
         ret
+@@:
+        movzx   edi,[g_state.lnk.bsp]   ; open further out: crossed
+@bkt_l:
+        dec     edi
+        js      @bkt_n
+        cmp     [g_bst+edi*SSIZE+S_KIND],dl
+        jne     @bkt_l
+        movzx   ebx,byte ptr [ebx+S_KIND]
+        mov     ebx,[g_bkwd+ebx*4]
+        mov     ah,DG_BLOCKS_CROSSED
+        jmp     @bkt_r
+@bkt_n:
+        xor     ah,ah                   ; by BC's name; NEXT's alone
+        cmp     dh,E_NF
+        jne     @F
+        mov     ah,DG_NEXT_WITHOUT_FOR_END
+@@:
+        xor     ebx,ebx
+@bkt_r:
+        mov     al,dh
+        jmp     bk_fail1
+
+; ::::::::::::::
+; bk_fail - error AL, its words AH, at offset ECX of the line scanned;
+; {other} EBX, EDI long; bk_fail1 {other} the 0-ended EBX, bk_fail0 none.
+; ::::::::::::::
+bk_fail0:
+        xor     ebx,ebx
+bk_fail1:
+        xor     edi,edi
+        test    ebx,ebx
+        jz      bk_fail
+@@:
+        cmp     byte ptr [ebx+edi],0
+        je      bk_fail
+        inc     edi
+        jmp     @B
+bk_fail:
+        movzx   ecx,cx
+        mov     dx,[g_state.lnk.bln]
+        jmp     dx_raise
 
 ; ::::::::::::::
 ; bk_clause - a clause EAX (EDI) of the block at EBX: the last clause's
@@ -835,6 +945,15 @@ bk_proc:
         pop     eax
         ret
 
+        .data
+; by BK_*: an opener's word; the error it left open gives
+g_bkwd  dd      0,b_wif,0,0,0,b_wdo,0,b_wwh,0,b_wsel,0,0,0,b_wfor
+g_bkopen db     0,E_BIF,0,0,0,E_DWL,0,E_WWW,0,E_SWE,0,0,0,E_FWN
+b_wif   db      "IF",0
+b_wdo   db      "DO",0
+b_wwh   db      "WHILE",0
+b_wsel  db      "SELECT",0
+b_wfor  db      "FOR",0
         .data?
 g_prc   db      NPROC*PSIZE dup(?)      ; the procedures, from 1
 g_ppar  dw      NPPAR dup(?)            ; their parameters' variables

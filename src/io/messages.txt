@@ -1,0 +1,19 @@
+# The blocks' errors, which llrm's messages.txt lacks; read ahead of it, so an entry here wins.
+# BC's name [/variant] | what is wrong | what to do. {other}: the loop's variable, or the block left open.
+FOR without NEXT|this FOR loop, counting with `{other}`, is never closed, so it is not known which lines it repeats|add `NEXT {other}` after the last line the loop repeats
+NEXT without FOR /mismatch|this NEXT ends a loop counting with `{text}`, but the loop open here counts with `{other}`|write `NEXT {other}`, or just NEXT
+NEXT without FOR /end|this NEXT has no FOR loop open above it|remove it, or add a FOR above the lines to repeat
+WHILE without WEND|this WHILE loop is never closed, so it is not known which lines it repeats|add WEND after the last line the loop repeats
+WEND without WHILE|this WEND has no WHILE loop open above it|remove it, or add `WHILE condition` above the lines to repeat
+DO without LOOP|this DO loop is never closed, so it is not known which lines it repeats|add LOOP after the last line the loop repeats
+LOOP without DO|this LOOP has no DO loop open above it|remove it, or add DO above the lines to repeat
+Block IF without END IF|nothing follows THEN, so this IF starts a block of lines, and the block is never closed|add END IF after the block's last line, or put the statement after THEN on this line
+END IF without block IF|this END IF has no block IF open above it|remove it; a block IF is `IF condition THEN` with nothing after THEN
+ELSE without IF|this {statement} has no block IF open above it|start the block with `IF condition THEN`, nothing after THEN
+SELECT without END SELECT|this SELECT CASE is never closed|add END SELECT after its last CASE
+END SELECT without SELECT|this END SELECT has no SELECT CASE open above it|remove it, or add `SELECT CASE value` above the first CASE
+CASE without SELECT|this CASE has no SELECT CASE open above it|add `SELECT CASE value` above the first CASE
+SUB/FUNCTION without END SUB/FUNCTION|`{name}` is never closed|add END {statement} after its last line
+END SUB/FUNCTION without SUB/FUNCTION|this line ends a SUB or FUNCTION, but none is open|remove it, or start the procedure with SUB or FUNCTION above
+EXIT not within matching block|this EXIT {other} is not inside a {other} loop|move it inside the loop, or remove it
+Blocks crossed|this line ends a block while the {other} block started inside it is still open|blocks end in the reverse order they start: end the {other} block first

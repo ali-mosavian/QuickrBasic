@@ -52,10 +52,11 @@ er_text:
         ret
 
         .data
-; ERR by E_*: 0 none; FFh not trapped, Out of stack space; F0h.. BC's compile
+; ERR by E_*: 0 none; FFh not trapped, Out of stack space; E0h.. BC's compile
 ; errors, no ERR of their own.
 g_qberr db      0,0,2,3,4,5,7,8,9,10,11,13,17,0,6,1,16,15,12,0,0,0,0
         db      67,55,52,53,68,54,54,64,52,0,13,18,0,0FFh,73,33,40,0F0h,0F1h,0F2h,0F3h,0F4h,38
+        db      26,29,30,0E0h,0E1h,0E2h,0E3h,0E4h,0E5h,0E6h,0E7h,0E8h,0E9h,0EAh
 .erre ($ - g_qberr) EQ E_LAST+1
 g_qbmsg db      1,"NEXT without FOR",0
         db      2,"Syntax error",0
@@ -111,6 +112,17 @@ g_qbmsg db      1,"NEXT without FOR",0
         db      74,"Rename across disks",0
         db      75,"Path/File access error",0
         db      76,"Path not found",0
+        db      0E0h,"Block IF without END IF",0
+        db      0E1h,"END IF without block IF",0
+        db      0E2h,"ELSE without IF",0
+        db      0E3h,"DO without LOOP",0
+        db      0E4h,"LOOP without DO",0
+        db      0E5h,"SELECT without END SELECT",0
+        db      0E6h,"END SELECT without SELECT",0
+        db      0E7h,"CASE without SELECT",0
+        db      0E8h,"SUB/FUNCTION without END SUB/FUNCTION",0
+        db      0E9h,"END SUB/FUNCTION without SUB/FUNCTION",0
+        db      0EAh,"EXIT not within matching block",0
         db      0F0h,"Subprogram error",0
         db      0F1h,"AS clause required on first declaration",0
         db      0F2h,"Array already dimensioned",0

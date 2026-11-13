@@ -194,7 +194,7 @@ TIMH     ends
 
 TMSGD    struc                   ; the message box: lines, buttons
     dlg     TDLG    <>
-    ctl     TCTL    12 dup(<>)
+    ctl     TCTL    16 dup(<>)
 TMSGD    ends
 
 TTEXT    struc                   ; the text, the clipboard
@@ -408,6 +408,8 @@ TDIALOG  struc                   ; the dialog running, the message box
     msg_bw  dw      ?
     msg_b0  db      ?
     msg_adj db      ?               ; 1: the box off the cursor's line
+    msg_ttl dd      ?               ; its title, 0 none: its lines left-aligned
+    wr_ind  db      ?               ; dl_wrap: each line's indent
     dl_pad  dw      ?               ; a button's spaces, left and right
     dl_alt  db      ?               ; Alt was down: the hotkeys lit
     dl_hr   db      ?

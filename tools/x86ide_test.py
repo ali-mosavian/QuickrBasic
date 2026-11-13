@@ -789,18 +789,51 @@ def play() -> None:
     s.resume(500)
     assert lit()[0] in [(0, "DO"), (1, "x = x + 1"), (1, "y = y + 1"), (2, "LOOP")], (lit(), look())
 
-    # A compile error's box said its class alone; now what is wrong and what to do after it.
+    def box() -> list[str]:
+        """A box's title, then its lines past the frame's left edge, blank ones out; capitals."""
+        s.resume(100)
+        rows = [chars(r) for r in range(25)]
+        top = max(i for i, r in enumerate(rows) if b"\xda" in r and b"\xbf" in r)  # over the window's
+        left, right = rows[top].index(b"\xda"), rows[top].index(b"\xbf")
+        title = rows[top][left + 1:right].strip(b"\xc4 ").decode("latin-1").upper()
+        lines = []
+        for r in rows[top + 1:]:
+            if r[left] != 0xB3:
+                break
+            line = r[left + 1:right].rstrip().decode("latin-1").upper()
+            if line.strip():
+                lines.append(line)
+        return [title] + lines
+
+    # A compile error's box said its class alone; now the class its title, what is wrong, then what to do and the
+    # statement's form on lines of their own.
     (work / "DX.BAS").write_bytes(b"x = 1\r\n")
     open_file("dx.bas")
     press("end", "enter")
     keys("print a(1\n")
-    box = " ".join(r.strip() for r in look())
-    assert "SYNTAX ERROR THE PRINT STATEMENT IS INCOMPLETE" in box, box
-    assert "PRINT IS WRITTEN: PRINT [#FILE,]" in box, box
+    b = box()
+    assert b[0] == "SYNTAX ERROR", b
+    assert b[1].startswith("  THE PRINT STATEMENT IS INCOMPLETE"), b
+    assert "  PRINT IS WRITTEN:" in b and any(r.startswith("    PRINT [#FILE,]") for r in b), b
     press("esc", "end", "enter")
     keys("for i = 1 3\n")
-    box = " ".join(r.strip() for r in look())
-    assert "SYNTAX ERROR EXPECTED `TO` IN THE FOR STATEMENT, BUT FOUND `3`" in box, box
+    b = " ".join(r.strip() for r in box())
+    assert "EXPECTED `TO` IN THE FOR STATEMENT, BUT FOUND `3`." in b, b
+    press("esc")
+    # A block left open, a NEXT of another loop's variable: a Syntax error, or NEXT without FOR, in no words.
+    (work / "BLK.BAS").write_bytes(b"FOR i = 1 TO 3\r\nPRINT i\r\nNEXT j\r\n")
+    open_file("blk.bas")
+    press(f"0x{F5:x}")
+    b = box()
+    assert b[0] == "NEXT WITHOUT FOR", b
+    assert "WRITE `NEXT I`, OR JUST NEXT." in " ".join(r.strip() for r in b), b
+    press("esc")
+    (work / "BLK2.BAS").write_bytes(b"PRINT 1\r\nFOR i = 1 TO 3\r\nPRINT i\r\n")
+    open_file("blk2.bas")
+    press(f"0x{F5:x}")
+    b = box()
+    assert b[0] == "FOR WITHOUT NEXT", b
+    assert "ADD `NEXT I` AFTER THE LAST LINE" in " ".join(r.strip() for r in b), b
     press("esc")
 
     if flat:
