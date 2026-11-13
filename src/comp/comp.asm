@@ -353,9 +353,20 @@ cm_dfa:
         call    st_get
         movzx   ebx,al
         movzx   ebx,byte ptr [g_ps_cls+ebx]
-        imul    edx,edx,PS_NC
-        add     ebx,edx
-        mov     eax,[g_ps_tab+ebx*4]    ; the code, the next state above it
+        push    ecx                     ; the class's exception, else the
+        movzx   ecx,word ptr [g_ps_off+edx*2]   ; state's default: the code,
+        mov     eax,[g_ps_def+edx*4]    ; the next state above it
+@cmd_x:
+        cmp     cx,word ptr [g_ps_off+edx*2+2]
+        jae     @F
+        cmp     bl,[g_ps_xc+ecx]
+        je      @cmd_y
+        inc     ecx
+        jmp     @cmd_x
+@cmd_y:
+        mov     eax,[g_ps_xv+ecx*4]
+@@:
+        pop     ecx
         mov     edx,eax
         shr     edx,8
         cmp     al,PS_ACC

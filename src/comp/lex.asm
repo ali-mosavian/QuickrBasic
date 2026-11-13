@@ -1,7 +1,7 @@
 ; ==========================================================================
 ; lex.asm - the tokenizer: a typed line becomes the body of a stored line
 ; ==========================================================================
-; holds:    lx_line, lx_word, g_lxcol
+; holds:    lx_line, lx_word, kw_step, g_lxcol
 ; uses:     dfa.inc's tables (tools/x86dfa.py), nam_find
 ; data:     SI the text, DI the body. In the body:
 ;           M_VAR len name nam:2  a name as typed, its suffix too; nam its
@@ -339,18 +339,17 @@ lx_word:
         movzx   eax,byte ptr [esi]
         upcase  eax
         movzx   eax,byte ptr [g_kw_cls+eax]
-        imul    edx,edx,KW_NC
-        add     edx,eax
-        movzx   edx,word ptr [g_kw_tab+edx*2]
+        call    kw_step
         inc     esi
         jmp     @lxw_l
 @lxw_e:
         cmp     byte ptr [esi],'$'
         jne     @lxw_k
         movzx   eax,byte ptr [g_kw_cls+'$']
-        imul    ebx,edx,KW_NC
-        add     ebx,eax
-        movzx   ebx,word ptr [g_kw_tab+ebx*2]
+        push    edx
+        call    kw_step
+        mov     ebx,edx
+        pop     edx
         cmp     word ptr [g_kw_acc+ebx*2],0
         je      @lxw_k
         mov     edx,ebx
@@ -365,6 +364,33 @@ lx_word:
         inc     edi
 @lxw_1:
         stosb
+        ret
+
+; ::::::::::::::
+; kw_step - the scanner's state EDX on character class AL: the state's
+; transition of that class in its list (kw_off), else 0, the dead state.
+;
+; out:    EDX  the state
+; keeps:  all but EDX
+; ::::::::::::::
+kw_step:
+        push    ecx
+        push    ebx
+        movzx   ecx,word ptr [g_kw_off+edx*2]
+        movzx   ebx,word ptr [g_kw_off+edx*2+2]
+        xor     edx,edx
+@kws_l:
+        cmp     ecx,ebx
+        jae     @kws_r
+        cmp     al,[g_kw_tc+ecx]
+        je      @F
+        inc     ecx
+        jmp     @kws_l
+@@:
+        movzx   edx,word ptr [g_kw_tn+ecx*2]
+@kws_r:
+        pop     ebx
+        pop     ecx
         ret
 
 ; ::::::::::::::
