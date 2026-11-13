@@ -571,6 +571,14 @@ def play() -> None:
         s.snap(shot)
         px = Image.open(shot).convert("RGB").getpixel((364, 168))
         assert all(abs(a - b) <= 8 for a, b in zip(px, (0x32, 0x30, 0x2F))), px
+        # a box's shadow darker than the box and the ground: it was the bars' colour, the box's own
+        press(f"0x{ALT_F:x}")
+        right = chars(1).index(0xBF, 1)
+        s.snap(shot)
+        img = Image.open(shot).convert("RGB")
+        box, shade, ground = (img.getpixel((c * 9 + 8, 3 * 16 + 1)) for c in (right - 2, right + 1, right + 6))
+        assert sum(shade) < min(sum(box), sum(ground)), (box, shade, ground)
+        press("esc")
         press(f"0x{0x18:x}", "t", "q")
         press(f"0x{0x18:x}", "h")
         assert set(attrs(2)[1:21]) == {0x17}, attrs(2)[1:21].hex()
