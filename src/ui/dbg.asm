@@ -29,6 +29,7 @@ ud_init:
 ; text, nothing lit.
 ; ::::::::::::::
 ud_prep:
+        call    dp_close
         and     [g_ui.ud.hl_on],0
         and     [g_ui.ud.stopd],0
         call    dbg_bpclr
@@ -57,7 +58,8 @@ ud_line:
         ret
 
 ; ::::::::::::::
-; ud_stop - a stop with CONT to go on: its statement lit, the cursor at it.
+; ud_stop - a stop with CONT to go on: the debug pane, its statement lit,
+; the cursor at it.
 ; ::::::::::::::
 ud_stop:
         and     [g_ui.ud.ud_utl],0
@@ -65,6 +67,8 @@ ud_stop:
         test    ebx,ebx
         jz      @F
         mov     [g_ui.ud.stopd],1
+        call    dp_open
+        movzx   ebx,[g_state.rn.contip]
         movzx   eax,[g_state.rn.contsi]
         add     eax,offset g_cachb
         call    dbg_pos

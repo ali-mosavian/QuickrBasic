@@ -292,6 +292,7 @@ W_HELP  = 0
 W_ED1   = 1
 W_ED2   = 2
 W_IMM   = 3
+W_DBG   = NWIN                  ; the debug pane, beside them: not in win
 
 TWIN     struc                   ; a window
     wh      db      ?               ; its rows with its title, 0 hidden
@@ -301,12 +302,38 @@ TWIN     ends
 
 TWINS    struc
     win     TWIN    NWIN dup(<>)
+    wcols   db      ?               ; the edit windows' columns: 80, 50
     wact    db      ?               ; the active edit window
     wmax    db      ?               ; 1: Ctrl+F10's, wsav the heights before
     wvert   db      ?               ; 1: ED2 beside ED1, its rows ED1's
     wvsav   db      ?               ; wvert before Ctrl+F10
     wsav    db      NWIN dup(?)
 TWINS    ends
+
+DP_COL  = 50                    ; the debug pane's first column (dpane.asm)
+DP_W    = 30                    ; its columns
+DP_TW   = DP_W-2                ; a row's text
+NDP     = 3                     ; its windows: Watch, Locals, Call stack
+DP_STK  = 2
+NDFRM   = 16                    ; the call stack's frames shown at most
+
+TDFRM    struc                   ; a call stack's frame
+    df_ln   dw      ?               ; its text line, FFFFh the immediate's
+    df_fp   dd      ?               ; its procedure's cstk frame, 0 module
+    df_txt  db      DP_TW+1 dup(?)  ; its row
+TDFRM    ends
+
+TDPANE   struc                   ; the debug pane (dpane.asm)
+    dp_on   db      ?               ; 1: shown, a stop
+    dp_foc  db      ?               ; its window with the focus
+    dp_frm  db      ?               ; the frame selected, 0 the stop's
+    dp_nf   db      ?               ; the frames
+    dp_sel  db      NDP dup(?)      ; each window's row selected
+    dp_top  db      NDP dup(?)      ; its first row shown
+    dp_row  db      NDP dup(?)      ; its title's row, its rows with it
+    dp_h    db      NDP dup(?)
+    dp_fr   TDFRM   NDFRM dup(<>)
+TDPANE   ends
 
 TIMM     struc                   ; the immediate window
     im_n    dw      ?
@@ -318,7 +345,7 @@ TIMM     ends
 
 TLOOP    struc                   ; the key loop, the screen
     ideon   db      ?               ; the editor runs
-    ui_foc  db      ?               ; 1: the immediate window
+    ui_foc  db      ?               ; 1: the immediate window, 2 the debug pane
     ui_help dd      ?               ; the status bar's help, or 0
     ui_pos  db      12 dup(?)
     ui_kf   db      ?
@@ -451,6 +478,7 @@ TUI      struc
     ms      TMOUSE  <>
     ac      TCOMPL  <>
     ud      TUDBG   <>
+    dp      TDPANE  <>
     wn      TWINS   <>
     vw      TVIEWS  <>
     bf      TUIBUF  <>

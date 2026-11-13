@@ -2,7 +2,7 @@
 ; view.asm - views: the module and each SUB or FUNCTION on its own
 ; ==========================================================================
 ; holds:    vw_reset, vw_scan, vw_apply, vw_show, vw_goline, vw_title,
-;           vw_commit, vw_next, vw_prev, vw_subs, vw_newsub, vw_newfn
+;           vw_of, vw_commit, vw_next, vw_prev, vw_subs, vw_newsub, vw_newfn
 ; uses:     tx_* (the text and its view), ed_load, ed_commit, wn_*, dl_run
 ; data:     The text keeps the module's lines first, then each procedure
 ;           from its SUB or FUNCTION line to the next one's (vw_order makes
@@ -282,16 +282,7 @@ vw_show:
 ; ::::::::::::::
 vw_goline:
         push    eax
-        xor     ebx,ebx                 ; the last view from at or before it
-@vgl_l:
-        inc     ebx
-        cmp     bl,[g_ui.vw.vw_n]
-        jae     @vgl_f
-        call    vw_ptr
-        cmp     ax,[edi].TVIEW.vfirst
-        jae     @vgl_l
-@vgl_f:
-        dec     ebx
+        call    vw_of
         cmp     bl,[g_ui.ed.ed_vw]
         je      @F
         call    vw_show
@@ -300,6 +291,26 @@ vw_goline:
         pop     eax
         sub     ax,[g_ui.tx.tx_v0]
         ret
+
+; ::::::::::::::
+; vw_of - the view text line AX is in: the last from at or before it.
+;
+; out:    EBX  it
+;         EDI  its TVIEW
+; keeps:  all but EBX, EDI
+; ::::::::::::::
+vw_of:
+        xor     ebx,ebx
+@vof_l:
+        inc     ebx
+        cmp     bl,[g_ui.vw.vw_n]
+        jae     @vof_f
+        call    vw_ptr
+        cmp     ax,[edi].TVIEW.vfirst
+        jae     @vof_l
+@vof_f:
+        dec     ebx
+        jmp     vw_ptr
 
 ; ::::::::::::::
 ; vw_title - the active window's view's name after the file's at EDI.

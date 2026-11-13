@@ -334,7 +334,8 @@ dr_imm:
         dec     dh
         mov     esi,offset u_imm
         mov     cx,0B4C3h
-        mov     bl,[g_ui.lp.ui_foc]
+        cmp     [g_ui.lp.ui_foc],1
+        sete    bl
         xor     bh,bh
         call    dr_ttl
         mov     ax,[g_ui.im.im_i]                ; the window shows im_top and the next
@@ -400,8 +401,8 @@ dr_imm:
 ; ::::::::::::::
 dr_skeys:
         mov     esi,offset u_kimm
-        cmp     [g_ui.lp.ui_foc],0
-        jne     @drk_r
+        cmp     [g_ui.lp.ui_foc],1
+        je      @drk_r
         mov     esi,offset u_kedit
         call    ui_stopped
         jnz     @drk_r
@@ -525,9 +526,14 @@ dr_cursor:
         jne     @drc_s
         mov     cx,0407h
 @drc_s:
+        cmp     [g_ui.lp.ui_foc],2      ; the pane: its row lit, no cursor
+        jne     @F
+        mov     cx,2000h
+@@:
         call    sc_shape
-        cmp     [g_ui.lp.ui_foc],0
-        jne     @drc_i
+        cmp     [g_ui.lp.ui_foc],1
+        ja      @drc_r
+        je      @drc_i
         call    ed_ensure
         mov     ax,[g_ui.ed.ed_line]
         sub     ax,[g_ui.ed.ed_top]
@@ -552,6 +558,8 @@ dr_cursor:
         inc     al
         mov     dl,al
         jmp     sc_cur
+@drc_r:
+        ret
 
 ; ::::::::::::::
 ; ui_title - the window's title in ui_ttl: the file's name or Untitled.

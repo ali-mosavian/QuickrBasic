@@ -150,6 +150,8 @@ ms_main:
         je      @msm_st
         call    wn_at
         jc      @msm_r
+        cmp     ebx,W_DBG
+        je      dp_mouse
         cmp     ebx,W_ED1
         jb      @msm_r
         cmp     [g_ui.ms.ms_ev],MS_PRESS        ; a press: the focus there; a

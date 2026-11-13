@@ -832,6 +832,9 @@ externdef dr_edit:near
 externdef dr_imm:near
 externdef dr_skeys:near
 externdef dr_status:near
+externdef dr_ttl:near
+externdef g_ttlw:byte
+externdef g_ttlx:byte
 ; ui/menu.asm
 externdef mn_alt:near
 externdef mn_altl:byte
@@ -871,6 +874,12 @@ externdef ud_step:near
 externdef ud_stop:near
 externdef ud_trace1:near
 externdef ud_until:near
+; ui/dpane.asm
+externdef dp_close:near
+externdef dp_draw:near
+externdef dp_key:near
+externdef dp_mouse:near
+externdef dp_open:near
 ; ui/win.asm
 externdef wn_act:near
 externdef wn_at:near
@@ -879,6 +888,7 @@ externdef wn_draw:near
 externdef wn_focus:near
 externdef wn_grow:near
 externdef wn_init:near
+externdef wn_layout:near
 externdef wn_max:near
 externdef wn_next:near
 externdef wn_prev:near
@@ -892,6 +902,7 @@ externdef vw_goline:near
 externdef vw_newfn:near
 externdef vw_newsub:near
 externdef vw_next:near
+externdef vw_of:near
 externdef vw_prev:near
 externdef vw_reset:near
 externdef vw_subs:near

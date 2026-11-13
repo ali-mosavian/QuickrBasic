@@ -19,7 +19,7 @@ CORE = ['main.asm', 'vm/exec.asm', 'vm/flow.asm', 'vm/calls.asm', 'vm/sys.asm', 
         'regions.asm']
 UI = ['ui/scr.asm', 'ui/mouse.asm', 'ui/compl.asm', 'ui/text.asm',
       'ui/edit.asm', 'ui/draw.asm', 'ui/menu.asm', 'ui/dlg.asm',
-      'ui/sync.asm', 'ui/dbg.asm', 'ui/win.asm', 'ui/view.asm', 'ui/theme.asm',
+      'ui/sync.asm', 'ui/dbg.asm', 'ui/dpane.asm', 'ui/win.asm', 'ui/view.asm', 'ui/theme.asm',
       'ui/syntax.asm', 'ui/ui.asm']
 HEADERS = ['x86f.inc', 'def.inc', 'state.inc', 'vm/isa.inc', 'vm/vm.inc', 'comp/comp.inc',
            'comp/dfa.inc', 'ui/uibuf.inc', 'ui/ui.inc']

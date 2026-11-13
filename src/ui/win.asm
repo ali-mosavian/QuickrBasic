@@ -10,7 +10,9 @@
 ;           has a bottom row, the scroll bar's when it has the focus. The
 ;           active edit window's state is g_ui.ed and ed_lb's column; the
 ;           other's waits in its wed, wcol. ui_foc 1: the immediate window
-;           has the focus, else the active edit window.
+;           has the focus, 2 the debug pane (dpane.asm), else the active edit
+;           window. With the pane (a stop) the edit windows have wcols 50
+;           columns, the pane the rest, in their rows.
 ; ==========================================================================
 
 include x86f.inc
@@ -33,6 +35,12 @@ wn_init:
 ; ::::::::::::::
 wn_layout:
         pushad
+        mov     al,80
+        cmp     [g_ui.dp.dp_on],0
+        je      @F
+        mov     al,DP_COL
+@@:
+        mov     [g_ui.wn.wcols],al
         mov     dl,1                    ; DL the next window's title row
         xor     ebx,ebx
 @wnl_l:
@@ -53,17 +61,21 @@ wn_layout:
         jne     @F
         mov     esi,offset g_ui.ed
 @@:
-        mov     [esi].TEDIT.ed_x,0      ; the columns: all, or a half
-        mov     [esi].TEDIT.ed_tw,78
+        push    eax                     ; the columns: all, or a half
+        mov     [esi].TEDIT.ed_x,0
+        movzx   eax,[g_ui.wn.wcols]
         cmp     [g_ui.wn.wvert],0
         je      @F
         cmp     [g_ui.wn.win+W_ED2*size TWIN].wh,0
         je      @F
-        mov     [esi].TEDIT.ed_tw,38
+        shr     eax,1
         cmp     ebx,W_ED2
         jne     @F
-        mov     [esi].TEDIT.ed_x,40
+        mov     [esi].TEDIT.ed_x,al
 @@:
+        sub     eax,2
+        mov     [esi].TEDIT.ed_tw,ax
+        pop     eax
         mov     [esi].TEDIT.ed_r0,ax
         sub     ecx,2                   ; the title, the bottom row
         jae     @F
@@ -135,6 +147,7 @@ wn_draw:
         inc     ebx
         cmp     ebx,W_IMM
         jb      @wnd_l
+        call    dp_draw
         cmp     [g_ui.wn.win+W_IMM*size TWIN].wh,0
         je      @F
         jmp     dr_imm
@@ -192,46 +205,68 @@ wn_act:
 ; immediate window.
 ; ::::::::::::::
 wn_focus:
+        mov     al,1
         cmp     ebx,W_IMM
+        je      @F
+        cmp     ebx,W_DBG
         jne     wn_act
+        inc     al
+@@:
+        push    eax
         call    ed_commit
-        mov     [g_ui.lp.ui_foc],1
+        pop     eax
+        mov     [g_ui.lp.ui_foc],al
         ret
 
 ; wn_cur - EBX the window with the focus.
 wn_cur:
-        mov     ebx,W_IMM
-        cmp     [g_ui.lp.ui_foc],0
-        jne     @F
         movzx   ebx,[g_ui.wn.wact]
+        cmp     [g_ui.lp.ui_foc],1
+        jb      @F
+        mov     ebx,W_IMM
+        je      @F
+        mov     ebx,W_DBG
 @@:
         ret
 
 ; ::::::::::::::
-; wn_next - F6: the focus to the next window shown; wn_prev - Shift+F6:
-; the one before.
+; wn_next - F6: the focus to the next window shown, by wnord; wn_prev -
+; Shift+F6: the one before.
 ; ::::::::::::::
 wn_next:
         mov     edx,1
         jmp     @wnn_g
 wn_prev:
-        mov     edx,-1
+        mov     edx,NWORD-1
 @wnn_g:
         call    wn_cur
-@wnn_l:
-        add     ebx,edx
-        cmp     ebx,W_ED1
-        jge     @F
-        mov     ebx,W_IMM
+        xor     ecx,ecx                 ; ECX its place in wnord
 @@:
-        cmp     ebx,W_IMM
-        jle     @F
-        mov     ebx,W_ED1
+        cmp     bl,[g_wnord+ecx]
+        je      @wnn_l
+        inc     ecx
+        jmp     @B
+@wnn_l:
+        add     ecx,edx
+        cmp     ecx,NWORD
+        jb      @F
+        sub     ecx,NWORD
+@@:
+        movzx   ebx,[g_wnord+ecx]
+        cmp     ebx,W_DBG
+        jne     @F
+        cmp     [g_ui.dp.dp_on],0
+        je      @wnn_l
+        jmp     wn_focus
 @@:
         call    wn_ptr
         cmp     [edi].TWIN.wh,0
         je      @wnn_l
         jmp     wn_focus
+        .data
+g_wnord db      W_ED1,W_ED2,W_DBG,W_IMM
+NWORD   = $ - g_wnord
+        .code
 
 ; ::::::::::::::
 ; wn_at - the window at screen row DH, column DL.
@@ -243,6 +278,18 @@ wn_prev:
 wn_at:
         push    eax
         push    edi
+        mov     ebx,W_DBG               ; the pane: its columns, the edit
+        cmp     [g_ui.dp.dp_on],0       ; windows' rows
+        je      @F
+        cmp     dl,DP_COL
+        jb      @F
+        test    dh,dh
+        jz      @F
+        mov     al,23
+        sub     al,[g_ui.wn.win+W_IMM*size TWIN].wh
+        cmp     dh,al
+        jbe     @wat_y
+@@:
         mov     al,1                    ; AL past window EBX
         xor     ebx,ebx
 @wat_l:
@@ -266,10 +313,13 @@ wn_at:
         call    wn_beside
         pop     ebx
         jnc     @F
-        cmp     dl,40
+        mov     al,[g_ui.wn.wcols]
+        shr     al,1
+        cmp     dl,al
         jb      @F
         mov     ebx,W_ED2
 @@:
+@wat_y:
         stc                             ; found: CF clear after the cmc
 @wat_r:
         cmc
@@ -363,14 +413,17 @@ wn_shrink:
 @wgr_r:
         ret
 
-; wn_curh - EBX the window with the focus, ED1 for ED2 beside it: whose
-; rows change.
+; wn_curh - EBX the window with the focus, ED1 for ED2 beside it or the
+; pane: whose rows change.
 wn_curh:
         call    wn_cur
+        cmp     ebx,W_DBG
+        je      @F
         call    wn_beside
-        jnc     @F
-        mov     ebx,W_ED1
+        jnc     @wch_r
 @@:
+        mov     ebx,W_ED1
+@wch_r:
         ret
 
 ; wn_move - a row from window EBX to window ECX.
@@ -450,7 +503,7 @@ wn_max:
         inc     ebx
         cmp     ebx,NWIN
         jb      @wmx_l
-        call    wn_cur
+        call    wn_curh
         call    wn_ptr
         mov     [edi].TWIN.wh,23
         mov     [g_ui.wn.wmax],1

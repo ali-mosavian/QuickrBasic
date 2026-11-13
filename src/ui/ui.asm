@@ -214,8 +214,9 @@ endif
         pop     eax
         jnc     @uk_r
 @uk_w:
-        cmp     [g_ui.lp.ui_foc],0
-        jne     im_key
+        cmp     [g_ui.lp.ui_foc],1
+        je      im_key
+        ja      dp_key
         jmp     ed_key
 @uk_bar:
         xor     ax,ax
@@ -572,6 +573,7 @@ ui_reset:
         mov     [g_ui.lp.ui_foc],al
         mov     [g_ui.tx.tx_chg],al
         mov     [g_ui.tx.tx_mod],1
+        call    dp_close
         call    vw_reset
         call    ed_load
         jmp     prg_init
@@ -969,6 +971,7 @@ ui_err:
         jz      @uer_b
         mov     [g_state.rn.cstk],CSTOP
         and     [g_state.rn.contip],0
+        call    dp_close
 @uer_b:
         call    plt_flush
         and     [g_state.io.pcol],0

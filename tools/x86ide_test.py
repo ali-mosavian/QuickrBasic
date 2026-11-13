@@ -592,14 +592,14 @@ def play() -> None:
     # breakpoints' lines.
     F7, F8, F9, F10, ALT_D, ALT_R = 0x41, 0x42, 0x43, 0x44, 0x20, 0x13
 
-    def lit() -> tuple:
+    def lit() -> tuple:  # the code's columns only: the debug pane is right of column 49 at a stop
         cur, bps = None, []
         for r in range(2, 20):
             a, c = attrs(r), chars(r)
-            on = [i for i in range(1, 79) if a[i] == 0x1F]
+            on = [i for i in range(1, 49) if a[i] == 0x1F]
             if on:
                 cur = (r - 2, c[on[0] : on[-1] + 1].decode())
-            if a[78] == 0x47:
+            if a[48] == 0x47:
                 bps.append(r - 2)
         return cur, bps
 
@@ -618,6 +618,41 @@ def play() -> None:
         press("0x77")  # Ctrl+Home
         for _ in range(line):
             press("down")
+
+    def pane() -> list[str]:
+        """The debug pane's rows, columns 50 to 79."""
+        return [chars(r)[50:80].decode("latin-1") for r in range(1, 21)]
+
+    def debug_pane() -> None:
+        """At a stop: the code in columns 0-49; Watch, Locals, Call stack right of it; gone on a run."""
+        fact = ["DECLARE SUB Fact (n%)", "DIM SHARED r&", "r& = 1", "Fact 4", "PRINT r&", "END",
+                "SUB Fact (n%)", "t% = n% * 10", "IF n% > 3 THEN Fact n% - 1", "r& = r& * n%", "END SUB"]
+        (work / "FACT.BAS").write_bytes("\r\n".join(fact).encode() + b"\r\n")
+        open_file("fact.bas")
+        assert "Watch" not in "".join(pane()), pane()
+        press("0x55")  # Fact's view: the breakpoint at r& = r& * n%, the inner call's
+        cursor(3)
+        press(f"0x{F9:x}", "0x5f", f"0x{F5:x}")
+        def frames() -> list[list[str]]:
+            rows = pane()
+            stack = rows[next(i for i, r in enumerate(rows) if "Call stack" in r) + 1 : -1]
+            return [r[1:-1].split() for r in stack if r[1:-1].strip()]
+
+        rows = pane()
+        assert rows[0].startswith("\xda") and "Watch" in rows[0] and "\xbf" == rows[0][-1], rows
+        assert frames() == [["\x10Fact", "line", "4"], ["Fact", "line", "3"], ["module", "line", "4"]], pane()
+        assert lit()[0] == (3, "r& = r& * n%"), lit()
+        # F6 to the pane, Tab to the call stack, the caller's frame: the cursor on its call
+        press("0x40", "tab", "tab", "down", "enter")
+        assert look()[24].endswith("00003:001"), look()[24]
+        assert [f[0] for f in frames()] == ["Fact", "\x10Fact", "module"], pane()
+        press(f"0x{F5:x}")  # the outer call's stop: two frames
+        assert [f[0] for f in frames()] == ["\x10Fact", "module"], pane()
+        press(f"0x{F5:x}")
+        assert output()[0] == " 12", output()
+        press("space")
+        assert "Watch" not in "".join(pane()), pane()
+        press(f"0x{ALT_D:x}", "c")
 
     dbg = ["DECLARE SUB s ()", "PRINT 1", "FOR i = 1 TO 2: PRINT i: NEXT", "GOSUB g", "s", "PRINT 9", "END",
            "g: PRINT 7", "RETURN", "SUB s", "PRINT 5", "END SUB"]
@@ -686,6 +721,9 @@ def play() -> None:
     s.send({"cmd": "key", "scancode": 0x2E, "ascii": 3, "stop": False})
     s.resume(500)
     assert lit()[0] in [(0, "DO"), (1, "x = x + 1"), (1, "y = y + 1"), (2, "LOOP")], (lit(), look())
+
+    if flat:
+        debug_pane()
 
     press(f"0x{ALT_F:x}", "x")
     if any("NOT SAVED" in r for r in look()):
