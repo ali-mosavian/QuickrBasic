@@ -13,12 +13,19 @@ os.environ.setdefault("X86_COM", sys.argv[1] if len(sys.argv) > 1 else str(ROOT 
 import x86run  # noqa: E402
 
 CASES = {
+    # C port: llrm-cc compiled REDIM's case of decl_line's switch (shared with DIM) past its load of
+    # decl.proc, so REDIM bound the array in a garbage scope: UBOUND after it was Array not defined.
+    "c_redim_ubound": ("REDIM v(3)\r\nPRINT UBOUND(v); LBOUND(v)\r\n", " 3  0 \r\n", "ERROR"),
+    # C port: the same miscompile in blok_pair: WEND (sharing LOOP's case) read a stale block depth,
+    # so every WEND on a line of its own was WEND without WHILE.
+    "c_wend_line": ("WHILE i < 2\r\ni = i + 1\r\nWEND\r\nDO\r\nj = j + 1\r\nLOOP UNTIL j = 3\r\nPRINT i; j\r\n",
+                    " 2  3 \r\n", "ERROR"),
     # C port: a string literal left the cursor at its text, so the ':' after it was a Syntax error.
     "c_str_colon": ('X$="HI":PRINT X$\r\n', "HI\r\n", "ERROR"),
-    # C port: llrm-cc's switch sent END FUNCTION and END DEF to "END SUB/FUNCTION without
-    # SUB/FUNCTION" without checking for an open procedure.
+    # C port: the same miscompile: END FUNCTION and END DEF (sharing END SUB's case) went to
+    # "END SUB/FUNCTION without SUB/FUNCTION" without checking for an open procedure.
     "c_end_function": ("10 DEF FNT$(A$)\r\n20 FNT$ = A$ + \"!\"\r\n30 END DEF\r\n40 PRINT F%(3); FNT$(\"X\")\r\n"
-                       "50 FUNCTION F%(A%)\r\n60 F% = A% * 2\r\n70 END FUNCTION\r\nRUN\r\n", " 6 X!\r\n", "ERROR"),
+                       "50 FUNCTION F%(A%)\r\n60 F% = A% * 2\r\n70 END FUNCTION\r\n", " 6 X!\r\n", "ERROR"),
     # ctail's inc esi after the and: ZF was the inc's, so a false IF ran the
     # rest of the line.
     "cmpif_false": ('A=5:IF A=4 THEN PRINT "NO":PRINT "NO"\r\nPRINT "END"\r\n', "END\r\n", "NO"),

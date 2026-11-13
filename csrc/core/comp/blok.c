@@ -37,8 +37,9 @@ static const uint8_t leftopen[] = {
 static const uint8_t *body; /* (EBP) the body scanned */
 static uint32_t off;        /* (ECX) the statement's offset in it */
 static bool isdef;          /* g_bkdef: the procedure is a DEF FN's */
-/* END SUB, FUNCTION, DEF by the word after END: a table, as llrm-cc compiled this switch's
-   FUNCTION and DEF cases to the error without testing blok.proc. */
+/* llrm-cc miscompiles a switch whose case values share one block: the second value's edge
+   skips the block's first load (blok.proc here, blok.depth for WEND, decl.proc for REDIM). So no
+   shared case labels in these switches: END's words by a table, LOOP and WEND each their own. */
 static const bool endproc[256] = {[TK_SUB] = true, [TK_FUNCTION] = true, [TK_DEF] = true};
 
 [[noreturn]] static void fail(uint8_t code, uint8_t dg, uint32_t at, uint32_t line,
@@ -286,6 +287,17 @@ done:
     scop_proc(0);
 }
 
+/* LOOP, WEND, kind: back to the opener (open), which leaves past it, as its EXITs do. */
+static void loopend(uint8_t open, uint8_t err, uint8_t kind)
+{
+    Open *o = top(open, err);
+    uint16_t i = add(kind);
+    blok_blocks[i].next = blok_blocks[o->open].pos * 4;
+    uint32_t t = target(off, 2);
+    blok_blocks[o->open].done = t;
+    exits(o, t);
+}
+
 /* The statement at s: a block statement's entry and the stack. */
 static void stmt(const uint8_t *s)
 {
@@ -334,17 +346,12 @@ static void stmt(const uint8_t *s)
     case TK_WHILE:
         push(BK_WHILE, add(BK_WHILE));
         return;
-    case TK_LOOP: /* back to the opener, which leaves past it, as its EXITs do */
-    case TK_WEND: {
-        bool lp = *s == TK_LOOP;
-        o = top(lp ? BK_DO : BK_WHILE, lp ? E_LWD : E_WEW);
-        i = add(lp ? BK_LOOP : BK_WEND);
-        blok_blocks[i].next = blok_blocks[o->open].pos * 4;
-        uint32_t t = target(off, 2);
-        blok_blocks[o->open].done = t;
-        exits(o, t);
+    case TK_LOOP: /* one case each: see endproc */
+        loopend(BK_DO, E_LWD, BK_LOOP);
         return;
-    }
+    case TK_WEND:
+        loopend(BK_WHILE, E_WEW, BK_WEND);
+        return;
     case TK_FOR: /* past its NEXT when not entered */
         push(BK_FOR, add(BK_FOR));
         return;

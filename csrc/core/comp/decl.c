@@ -500,9 +500,9 @@ static void common(void)
 }
 
 /* DIM [SHARED] n[( )] [AS type] {, ..} */
-static void dim(void)
+static void dim(bool redim)
 {
-    decl.redim = *s == TK_REDIM;
+    decl.redim = redim;
     s++;
     uint8_t flags = 0;
     uint16_t scope = decl.proc;
@@ -681,9 +681,11 @@ void decl_line(const uint8_t *body)
     do {
         uint8_t c = *s;
         switch (c) {
-        case TK_DIM:
+        case TK_DIM: /* one case each: llrm-cc, see blok.c's endproc */
+            dim(false);
+            break;
         case TK_REDIM:
-            dim();
+            dim(true);
             break;
         case TK_CONST:
             konst();
