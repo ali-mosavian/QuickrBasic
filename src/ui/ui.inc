@@ -317,6 +317,8 @@ NDP     = 3                     ; its windows: Watch, Locals, Call stack
 DP_STK  = 2
 NDFRM   = 16                    ; the call stack's frames shown at most
 NDVAR   = 64                    ; Locals' variables shown at most
+NWATCH  = 8                     ; watches at most
+WXLEN   = 41                    ; a watch's expression, 0-ended
 
 TDFRM    struc                   ; a call stack's frame
     df_ln   dw      ?               ; its text line, FFFFh the immediate's
@@ -333,6 +335,10 @@ TDPANE   struc                   ; the debug pane (dpane.asm)
     dp_top  db      NDP dup(?)      ; its first row shown
     dp_row  db      NDP dup(?)      ; its title's row, its rows with it
     dp_h    db      NDP dup(?)
+    dp_nw   db      ?               ; the watches: expressions, rows; kept
+    dp_wx   db      NWATCH*WXLEN dup(?)
+    dp_wv   db      NWATCH*DP_TW dup(?)
+    dp_fld  TLBUF   <>              ; Ins's expression
     dp_nv   db      ?               ; Locals' variables, their rows
     dp_vt   db      NDVAR*DP_TW dup(?)
     dp_fr   TDFRM   NDFRM dup(<>)

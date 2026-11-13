@@ -399,6 +399,7 @@ externdef cm_tos:near
 externdef cm_write:near
 externdef et_sfx:near
 externdef g_cbuf:byte
+externdef g_dlprc:byte
 externdef g_etk:byte
 externdef g_lmod:byte
 externdef g_stb:word
@@ -734,7 +735,11 @@ externdef sc_dstr:near
 externdef dbg_bpclr:near
 externdef dbg_bpset:near
 externdef dbg_depth:near
+externdef dbg_eval:near
+externdef dbg_ever:near
+externdef dbg_evx:near
 externdef dbg_pos:near
+externdef g_dbev:dword
 externdef op_dbg:near
 externdef sc_troff:near
 externdef sc_tron:near
@@ -743,6 +748,7 @@ externdef ev_clr:near
 externdef ev_ret:near
 externdef ev_run:near
 externdef ev_tick:near
+externdef g_evon:byte
 externdef op_onev:near
 externdef sc_evst:near
 externdef sc_keydef:near

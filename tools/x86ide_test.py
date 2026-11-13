@@ -647,6 +647,32 @@ def play() -> None:
         rows = pane()
         assert rows[0].startswith("\xda") and "Watch" in rows[0] and "\xbf" == rows[0][-1], rows
         assert locals_() == ["N% = 3", "T% = 30"], pane()  # the parameter first
+
+        def typed(text: str) -> None:  # keys() has no shifted symbols
+            raw = {"(": 0x0A, ")": 0x0B, "+": 0x0D, "*": 0x09, "/": 0x35, "%": 0x06}
+            for c in text:
+                if c in raw:
+                    s.send({"cmd": "key", "scancode": raw[c], "ascii": ord(c), "stop": True})
+                    s.run_to_key(3000)
+                    s.resume(60)
+                else:
+                    keys(c)
+
+        def watches() -> list[str]:
+            rows = pane()
+            end = next(i for i, r in enumerate(rows) if "Locals" in r)
+            return [r[2:-1].strip() for r in rows[1:end] if r[2:-1].strip()]
+
+        # Watch: Ins asks for an expression, evaluated in the stopped call's scope; an error is its
+        # message, and the run goes on as it was; Del drops the selected one.
+        press("0x40", "0x52")
+        typed("n% * 2\n")
+        press("0x52")
+        typed("1 / 0\n")
+        assert watches() == ["n% * 2 = 6", "1 / 0 = Division by zero"], pane()
+        press("0x53")
+        assert watches() == ["n% * 2 = 6"], pane()
+        press("esc")
         assert frames() == [["\x10Fact", "line", "4"], ["Fact", "line", "3"], ["module", "line", "6"]], pane()
         assert lit()[0] == (3, "r& = r& * n%"), lit()
         # F6 to the pane, Tab to the call stack, the caller's frame: the cursor on its call
@@ -658,6 +684,7 @@ def play() -> None:
         assert locals_() == ["R& = 1", 'S$ = "hi"', "D# = 2.5"], pane()
         press(f"0x{F5:x}")  # the outer call's stop: two frames
         assert [f[0] for f in frames()] == ["\x10Fact", "module"], pane()
+        assert watches() == ["n% * 2 = 8"], pane()
         press(f"0x{F5:x}")
         assert output()[0] == " 12", output()
         press("space")

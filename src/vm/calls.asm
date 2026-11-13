@@ -755,6 +755,9 @@ sc_nodir:
 ; in:     ln, SI  where CONT goes on
 ; ::::::::::::::
 sc_end:
+        xor     al,al
+        cmp     [g_dbev],0              ; the probe's line ended
+        jne     dbg_evx
         call    ch_clall
         call    ex_setcont
 

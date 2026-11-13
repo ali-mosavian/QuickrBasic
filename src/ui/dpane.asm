@@ -11,6 +11,8 @@
 ;           parameters first, as the frame sees them: a newer call of the
 ;           same procedure saved them on the save stack (F_LSP0 the
 ;           parameters' cells, F_LSP1 the locals' values, in g_plh's order).
+;           Watch: expressions, each PRINTed by dbg_eval in the stop's
+;           procedure's scope at each stop; kept across runs.
 ;           The windows share the edit windows' rows (dp_geo).
 ; ==========================================================================
 
@@ -31,6 +33,7 @@ dp_open:
         rep     stosb
         call    dp_frames
         call    dp_vars
+        call    dp_weval
         call    wn_layout
         popad
         ret
@@ -244,7 +247,7 @@ dp_geo:
 ; keeps:  all but EAX
 ; ::::::::::::::
 dp_cnt:
-        xor     eax,eax
+        movzx   eax,[g_ui.dp.dp_nw]
         cmp     ebp,1
         jb      @F
         mov     al,[g_ui.dp.dp_nv]
@@ -268,7 +271,10 @@ dp_item:
         pop     eax
         jae     @dpi_n
         imul    esi,eax,DP_TW
-        add     esi,offset g_ui.dp.dp_vt
+        add     esi,offset g_ui.dp.dp_wv
+        test    ebp,ebp
+        jz      @F
+        add     esi,offset g_ui.dp.dp_vt-offset g_ui.dp.dp_wv
         cmp     ebp,DP_STK
         jne     @F
         imul    esi,eax,size TDFRM
@@ -420,6 +426,13 @@ dp_key:
         je      @dpk_e
         test    al,al
         jnz     @dpk_r
+        test    ebp,ebp
+        jnz     @F
+        cmp     ah,52h
+        je      dp_wadd
+        cmp     ah,53h
+        je      dp_wdel
+@@:
         movzx   ecx,[g_ui.dp.dp_sel+ebp]
         cmp     ah,48h
         je      @dpk_u
@@ -544,6 +557,188 @@ dp_mouse:
         mov     eax,ecx
         jmp     dp_go
 @dpm_r:
+        ret
+
+; ::::::::::::::
+; dp_wadd - Ins in Watch: an expression asked, added, evaluated.
+; ::::::::::::::
+dp_wadd:
+        cmp     [g_ui.dp.dp_nw],NWATCH
+        jae     @dwa_r
+        mov     ebx,offset dg_dpw
+        mov     byte ptr [ebx].TDLG.foc,0
+        and     [g_ui.dp.dp_fld.len],0
+        and     [g_ui.dp.dp_fld.col],0
+        call    dl_run
+        cmp     al,1
+        jne     @dwa_r
+        movzx   ecx,[g_ui.dp.dp_fld.len]
+        jecxz   @dwa_r
+        cmp     ecx,WXLEN-1
+        jbe     @F
+        mov     ecx,WXLEN-1
+@@:
+        movzx   eax,[g_ui.dp.dp_nw]
+        mov     [g_ui.dp.dp_sel],al
+        imul    edi,eax,WXLEN
+        add     edi,offset g_ui.dp.dp_wx
+        mov     esi,offset g_ui.dp.dp_fld.txt
+        rep     movsb
+        mov     byte ptr [edi],0
+        inc     [g_ui.dp.dp_nw]
+        call    dp_weval
+        xor     ebp,ebp
+        jmp     dp_vis
+@dwa_r:
+        ret
+
+; ::::::::::::::
+; dp_wdel - Del in Watch: the selected watch dropped.
+; ::::::::::::::
+dp_wdel:
+        movzx   eax,[g_ui.dp.dp_sel]
+        movzx   ecx,[g_ui.dp.dp_nw]
+        cmp     eax,ecx
+        jae     @dwd_r
+        dec     ecx
+        mov     [g_ui.dp.dp_nw],cl
+        sub     ecx,eax                 ; those after it, down one
+        push    ecx
+        imul    edi,eax,WXLEN
+        add     edi,offset g_ui.dp.dp_wx
+        lea     esi,[edi+WXLEN]
+        imul    ecx,ecx,WXLEN
+        rep     movsb
+        pop     ecx
+        imul    edi,eax,DP_TW
+        add     edi,offset g_ui.dp.dp_wv
+        lea     esi,[edi+DP_TW]
+        imul    ecx,ecx,DP_TW
+        rep     movsb
+        cmp     al,[g_ui.dp.dp_nw]
+        jb      @dwd_r
+        dec     al
+        js      @dwd_r
+        mov     [g_ui.dp.dp_sel],al
+@dwd_r:
+        ret
+
+; ::::::::::::::
+; dp_weval - each watch's row: its expression, " = ", what PRINT shows of
+; it in the stop's procedure, or its error's message.
+;
+; keeps:  all
+; ::::::::::::::
+dp_weval:
+        pushad
+        mov     edx,[g_ui.dp.dp_fr].TDFRM.df_fp
+        xor     eax,eax
+        test    edx,edx
+        jz      @F
+        mov     al,[edx+F_PRC]
+@@:
+        mov     [g_dpp],eax
+        xor     ebx,ebx
+@dwe_l:
+        cmp     bl,[g_ui.dp.dp_nw]
+        jae     @dwe_e
+        imul    esi,ebx,WXLEN
+        add     esi,offset g_ui.dp.dp_wx
+        mov     edi,offset g_dprow
+        push    esi
+        call    dp_cpy
+        mov     esi,offset u_dpeq
+        call    dp_cpy
+        pop     esi
+        push    ebx
+        call    dp_wval
+        pop     ebx
+        mov     byte ptr [edi],0
+        imul    edi,ebx,DP_TW
+        add     edi,offset g_ui.dp.dp_wv
+        call    dp_rowcut
+        inc     ebx
+        jmp     @dwe_l
+@dwe_e:
+        popad
+        ret
+
+; ::::::::::::::
+; dp_wval - expression ESI's value as text at EDI: dbg_eval's output, its
+; spaces and end of line left out; an error's message. A ':' (another
+; statement) or a direct line's frame on cstk (its code would go): none.
+;
+; out:    EDI  past it
+; ::::::::::::::
+dp_wval:
+        xor     ecx,ecx
+@@:
+        mov     al,[esi+ecx]
+        inc     ecx
+        test    al,al
+        jz      @F
+        cmp     al,':'
+        jne     @B
+        mov     al,E_SN+1
+        jmp     @dwv_x
+@@:
+        mov     ebx,[g_state.rn.cstk]   ; a direct line's frame: none
+@@:
+        cmp     ebx,CSTOP
+        jae     @F
+        cmp     word ptr [ebx+F_LN],DLINE
+        je      @dwv_n
+        movzx   ecx,byte ptr [ebx+F_MARK]
+        add     ebx,ecx
+        jmp     @B
+@@:
+        push    edi
+        mov     eax,[g_dpp]
+        mov     edi,offset g_dpout
+        call    dbg_eval
+        pop     edi
+        test    al,al
+        jnz     @dwv_x
+        mov     esi,offset g_dpout
+@@:
+        lodsb
+        cmp     al,' '
+        je      @B
+        dec     esi
+@dwv_c:
+        lodsb
+        cmp     al,' '
+        jb      @dwv_t
+        stosb
+        jmp     @dwv_c
+@dwv_t:
+        cmp     byte ptr [edi-1],' '
+        jne     @dwv_r
+        dec     edi
+        jmp     @dwv_t
+@dwv_x:
+        dec     al
+        call    er_text
+        jmp     dp_cpy
+@dwv_n:
+        mov     esi,offset u_dpna
+        jmp     dp_cpy
+@dwv_r:
+        ret
+
+; dp_rowcut - the row at g_dprow to EDI, cut to DP_TW-1 characters,
+; 0-ended. Keeps all but ESI, EDI, ECX.
+dp_rowcut:
+        mov     esi,offset g_dprow
+        mov     ecx,DP_TW-1
+@@:
+        lodsb
+        test    al,al
+        jz      @F
+        stosb
+        loop    @B
+@@:
+        mov     byte ptr [edi],0
         ret
 
 ; ::::::::::::::
@@ -706,17 +901,8 @@ dp_var1:
         call    dp_cpy
 @dv1_c:
         mov     byte ptr [edi],0
-        mov     esi,offset g_dprow      ; to the row, cut to it
         mov     edi,[esp]
-        mov     ecx,DP_TW-1
-@@:
-        lodsb
-        test    al,al
-        jz      @F
-        stosb
-        loop    @B
-@@:
-        mov     byte ptr [edi],0
+        call    dp_rowcut
         popad
         add     edi,DP_TW
         inc     ebp
@@ -834,7 +1020,15 @@ u_dpstk db      'Call stack',0
 u_dpmod db      'module',0
 u_dpimm db      'Immediate',0
 u_dpline db     'line ',0
+u_dpna  db      '(not here)',0
+u_dpadd db      'Add Watch',0
+u_dpexp db      'Expression:',0
+dg_dpw  TDLG    <8,14,8,52,u_dpadd,3,0,5,1>
+        TCTL    <CT_FLD,1,14,34,1,0,g_ui.dp.dp_fld,0,u_dpexp,2,2>
+        TCTL    <CT_BTN,6,12,6,0,0,u_ok,0,0,0,0>
+        TCTL    <CT_BTN,6,30,10,0,0,u_cancel,0,0,0,0>
         .data?
+g_dpout db      80 dup(?)               ; dbg_eval's output
 g_dpp   dd      ?                       ; Locals' procedure, 0 the module
 g_dpnw  dd      ?                       ; its newer call, dp_newer's
 g_dprow db      80 dup(?)               ; a row being made

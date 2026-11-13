@@ -934,6 +934,9 @@ ex_setcont:
 ; ex_end - the run is over: both stacks empty, READY.
 ; ::::::::::::::
 ex_end:
+        xor     al,al
+        cmp     [g_dbev],0              ; the probe's line ended
+        jne     dbg_evx
         call    ch_clall
         mov     esp,[g_state.rn.rsp]
         mov     [g_state.rn.cstk],CSTOP

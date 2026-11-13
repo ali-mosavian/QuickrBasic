@@ -120,6 +120,8 @@ err_od:
 ;         csp  not 0 while compiling
 ; ::::::::::::::
 err_raise:
+        cmp     [g_dbev],0              ; the probe's: back to it
+        jne     dbg_ever
         call    ex_fclr
         cmp     [g_state.cm.csp],0
         jne     cm_err

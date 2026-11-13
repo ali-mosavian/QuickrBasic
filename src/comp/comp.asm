@@ -21,7 +21,8 @@ include x86f.inc
         .code
 
 ; ::::::::::::::
-; cm_line - compile the direct line at ln.
+; cm_line - compile the direct line at ln, in the module's scope or, for
+; the debugger's probe, dlprc's procedure's.
 ;
 ; in:     ln  the line
 ; out:    as cm_text
@@ -30,7 +31,7 @@ cm_line:
         mov     [g_state.cm.cline],DLINE
         push    eax
         push    ebx
-        xor     eax,eax
+        movzx   eax,[g_dlprc]
         call    scp_proc
         or      ebx,-1                  ; the program's end's DEFtype
         call    dc_deft
@@ -1978,6 +1979,8 @@ cm_skip:
 @csk_r:
         ret
 
+        .data
+g_dlprc db      0                 ; the direct line's procedure, 0 the module
         .data?
 g_cbufh db      ?                 ; cbuf-1: lx_line's line before the body
 g_cbuf  db      LMAX+8 dup(?)
