@@ -71,7 +71,7 @@ CFLAGS := --target=i386-pc-win32 -march=i386 -mregparm=3 -std=c23 $(CC_OPT) -ffr
 	-DARENA_AT_ZERO=1 -Wall -Wextra -Wno-unused-parameter -isystem csrc/lib/include -Icsrc -Icsrc/core
 COWN := $(foreach f,memcpy memmove memset,--redefine-sym _$(f)=_lib_$(f))
 CSRC := $(shell find csrc/core csrc/lib -name '*.c' -not -path 'csrc/core/ui/*') \
-	$(wildcard csrc/plat/dos32/*.c) csrc/main.c
+	$(wildcard csrc/plat/dos32/*.c) csrc/boot.c csrc/main.c
 CUI := $(shell find csrc/core/ui -name '*.c' 2>/dev/null)
 CASM := $(wildcard csrc/plat/dos32/*.asm)
 CHDR := $(shell find csrc -name '*.h' -o -name '*.def')
@@ -106,6 +106,39 @@ cide32: $(CIDE_OBJ)
 	$(C_LINK) $(abspath build/c/ide32.exe) $(abspath $(CIDE_OBJ))
 	cp src/ui/basic.hlp build/c/BASIC.HLP
 	$(PY) tools/x86d32a.py $(DOS32A)/dos32a.exe build/c/DOS32A.EXE
+
+# ---- The host build: the same core on this machine (x86-64; Rosetta's x87 on Apple silicon) ----
+HOST_CC ?= $(CLANG) -arch x86_64 -isysroot $(shell xcrun --show-sdk-path 2>/dev/null)
+HOST_CFLAGS := -std=c23 -O1 -g -DARENA_AT_ZERO=0 -Wall -Wextra -Wno-unused-parameter \
+	-Icsrc/plat/host/include -Icsrc -Icsrc/core
+HSRC := $(shell find csrc/core -name '*.c' -not -path 'csrc/core/ui/*') \
+	$(wildcard csrc/plat/host/*.c) csrc/boot.c
+HOBJ := $(HSRC:csrc/%.c=build/host/obj/%.o)
+
+.PHONY: chost chosttest
+build/host/obj/%.o: csrc/%.c $(CHDR)
+	@mkdir -p $(@D)
+	$(HOST_CC) $(HOST_CFLAGS) -DIDE=0 -c $< -o $@
+
+chost: build/host/basic
+build/host/basic: $(HOBJ) build/host/obj/main.o
+	$(HOST_CC) $^ -o $@
+
+UNIT_SRC := $(wildcard tests/unit/*.c)
+UNIT_OBJ := $(UNIT_SRC:tests/unit/%.c=build/host/unit/%.o)
+build/host/unit/%.o: tests/unit/%.c tests/unit/unit.h $(CHDR)
+	@mkdir -p $(@D)
+	$(HOST_CC) $(HOST_CFLAGS) -DIDE=0 -c $< -o $@
+build/host/unit_tests: $(HOBJ) $(UNIT_OBJ)
+	$(HOST_CC) $^ -o $@
+
+.PHONY: cunit
+cunit: build/host/unit_tests   # the unit tests, on the host
+	build/host/unit_tests
+
+chosttest: chost cunit         # the unit tests and the suites against the host build, natively
+	X86_COM=build/host/basic $(PY) tools/x86f_test.py build/host/basic
+	X86_COM=build/host/basic $(PY) tools/qbconf.py
 
 ctest:                          # the suites against the C build
 	X86_COM=build/c/basic32.exe $(PY) tools/x86f_test.py build/c/basic32.exe

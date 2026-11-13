@@ -69,6 +69,8 @@ def run(jobs: dict[str, str | tuple], work: Path, limit_ms: int = 60000, file: b
         shutil.copy(COM.parent / "DOS32A.EXE", work / "DOS32A.EXE")
     for n, data in (files or {}).items():  # companions the programs read
         (work / n).write_bytes(data)
+    if is_host(COM):
+        return run_host(jobs, work, limit_ms, file)
     names = list(jobs)
     lines = []
     for i, name in enumerate(names):
@@ -116,6 +118,32 @@ def run(jobs: dict[str, str | tuple], work: Path, limit_ms: int = 60000, file: b
 
 
 WORKERS = (os.cpu_count() or 4) * 2  # DOSBoxes at once
+
+
+def is_host(com: Path) -> bool:
+    """com is this machine's program (the host build), not a DOS one."""
+    return com.suffix.lower() not in (".exe", ".com")
+
+
+def run_host(jobs: dict[str, str | tuple], work: Path, limit_ms: int, file: bool) -> dict[str, Result]:
+    """run's jobs with the host build, natively: the same files, names and streams, no DOSBox."""
+    out: dict[str, Result] = {}
+    for i, name in enumerate(jobs):
+        prog, stdin, args = (jobs[name], "", "") if isinstance(jobs[name], str) else (*jobs[name], "")[:3]
+        bas = f"J{i}\\{re.sub(r'[^A-Za-z0-9_]', '', name)[:8].upper() or 'PROG'}.BAS"
+        argv = [str(COM.resolve())]
+        if file:
+            (work / f"J{i}").mkdir()
+            (work / bas.replace("\\", "/")).write_bytes(prog.encode("latin-1"))
+            argv += [bas, *args.split()]
+        data = (stdin if file else prog).encode("latin-1")
+        try:
+            p = subprocess.run(argv, cwd=work, input=data, capture_output=True, timeout=limit_ms / 1000)
+            reason, text, err = "exit", p.stdout, p.stderr
+        except subprocess.TimeoutExpired as e:
+            reason, text, err = "timeout", e.stdout or b"", e.stderr or b""
+        out[name] = Result(name, text.decode("latin-1"), reason, 0, 0, err.decode("latin-1").replace("\r\n", "\n"))
+    return out
 
 
 def split(jobs: dict, n: int = WORKERS) -> list[dict]:

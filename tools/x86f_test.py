@@ -606,7 +606,14 @@ def forbidden(forbid: str, out: str) -> bool:
     return any("\n" + m in lines for m in MSGS) if forbid == "ERROR" else forbid in out
 
 
+# What the host build (plat/host) cannot show as DOS does, each for its reason.
+HOST_SKIP = {"qb_shell": "SHELL runs /bin/sh, whose SET lists its own variables"}
+
+
 def main() -> None:
+    if x86run.is_host(x86run.COM):
+        for k in HOST_SKIP:
+            CASES.pop(k)
     tmp = Path(tempfile.mkdtemp())
     batches = [dict(jobs=b, limit_ms=10000, file=True, files=FILES) for b in x86run.split({k: v[0] for k, v in CASES.items()})]
     batches += [dict(jobs={k: v[0] for k, v in REPL.items()}, limit_ms=10000),
