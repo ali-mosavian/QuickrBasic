@@ -334,7 +334,8 @@ lx_num:
         ret
 
 ; ::::::::::::::
-; lx_hex - &H or &O and its digits: M_INT n:4; '&' alone is the byte.
+; lx_hex - &H or &O, its digits, a % or & after: M_INT n:4; '&' alone is
+; the byte.
 ;
 ; in:     SI  after the '&'
 ; out:    SI  past it
@@ -345,6 +346,14 @@ lx_hex:
         mov     al,'&'
         stosb
         ret
+@@:
+        mov     al,[esi]                ; % an INTEGER's, & a LONG's: one type
+        cmp     al,'%'
+        je      @lxh_s
+        cmp     al,'&'
+        jne     @F
+@lxh_s:
+        inc     esi
 @@:
         mov     al,M_INT
         stosb
