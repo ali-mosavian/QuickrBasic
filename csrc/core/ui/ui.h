@@ -174,23 +174,25 @@ typedef struct {
     bool tip_mouse;   /* dp.tt_ms: the tooltip by the mouse, else by the cursor */
     bool stopped;     /* ud.stopd: stopped, CONT goes on (not after END) */
 
+    /* Before the big arrays: dlog.c's static tables point at these, and llrm-cc's
+       object writer keeps only 16 bits of a data pointer's offset. */
+    bool match_case;  /* fd.fd_case: Find's Match Upper/Lowercase */
+    bool whole_word;  /* fd.fd_whole: Whole Word */
+    LineBuf edline;        /* bf.ed_lb: the cursor's line, LNBUF */
+    LineBuf immline;       /* bf.im_lb: the immediate line, DLBUF */
+    LineBuf fname;         /* bf.dl_fn: a dialog's File Name field, DLBUF */
+    LineBuf find_what;     /* bf.fd_what: Find What */
+    LineBuf change_to;     /* bf.fd_to: Change To */
+
     UiText text;
     UiEdit ed;        /* the active edit window's */
     UiWins win;
     UiImm imm;
     UiMouse mouse;
 
-    bool match_case;  /* fd.fd_case: Find's Match Upper/Lowercase */
-    bool whole_word;  /* fd.fd_whole: Whole Word */
-
     uint16_t help_len;     /* tx.hl_len: BASIC.HLP's bytes */
     char help_text[HLPSZ]; /* g_hlpb: BASIC.HLP, a line per menu item */
 
-    LineBuf edline;        /* bf.ed_lb: the cursor's line, LNBUF */
-    LineBuf immline;       /* bf.im_lb: the immediate line, DLBUF */
-    LineBuf fname;         /* bf.dl_fn: a dialog's File Name field, DLBUF */
-    LineBuf find_what;     /* bf.fd_what: Find What */
-    LineBuf change_to;     /* bf.fd_to: Change To */
     uint8_t line[LNBUF];   /* bf.uc_line: a line got from the text, a copy the lexer may change */
     uint8_t build[LNBUF];  /* bf.sy_buf: a line being built */
     char file[80];         /* bf.ui_fn: the file's name, "" none */
@@ -205,6 +207,7 @@ typedef struct {
     uint8_t change_to_text[DLBUF];
 } Uimn;
 extern Uimn uimn;
+static_assert(offsetof(Uimn, change_to) + sizeof(LineBuf) <= 0x10000);
 
 /* c in capitals, a to z only (ui_upper, menu.asm's). */
 static inline uint8_t uimn_upper(uint8_t c) { return c >= 'a' && c <= 'z' ? c - 0x20 : c; }

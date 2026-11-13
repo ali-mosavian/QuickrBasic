@@ -17,11 +17,11 @@ static void copy_str(char *d, const char *s) { memcpy(d, s, strlen(s) + 1); }
 enum { VLSZ = VNAME + 4 }; /* the SUBs box's list item */
 
 static struct {
+    uint8_t name_text[DLBUF]; /* first: name_field points here (ui.h's 16-bit note) */
     uint8_t n;                /* vw_n: the views */
     uint16_t new_len;         /* vw_nlen: add's line's length */
     View tab[NVIEW];
     uint8_t new_line[LNBUF];  /* vw_new: add's line */
-    uint8_t name_text[DLBUF];
     char list_text[NVIEW * VLSZ];
 } vw;
 
