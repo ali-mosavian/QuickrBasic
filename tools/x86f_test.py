@@ -527,6 +527,11 @@ CASES = {
     "qb_long_line": ("FOR i = 1 TO 3: " + "x = x + 1: " * 300 + "NEXT: IF x > 0 THEN PRINT x ELSE PRINT -1\r\n"
                      "DO: k = k + 1: " + "y = y + 1: " * 250 + "LOOP UNTIL k = 2: PRINT y\r\n", " 900 \r\n 500 \r\n",
                      "ERROR"),
+    # A '_' after a blank ended no line: Syntax error. Not one in a string or a comment.
+    "qb_cont": ('A = 1 + _\r\n    2\r\nPRINT A; _\r\n  "x_ _"\r\nPRINT "a _"\r\nPRINT 3 \' t _\r\n'
+                'PRINT 4 REM m _\r\nPRINT 5\r\n', " 3 x_ _\r\na _\r\n 3 \r\n 4 \r\n 5 \r\n", "rror"),
+    # A line past the 32 KB input buffer: Out of memory.
+    "qb_phys_line": ("X = 0: " + "X = X + 1: " * 3500 + "PRINT X\r\n", " 3500 \r\n", "memory"),
     "qb_long_err": ("z = 1: " * 60 + "PRINT (z\r\n", "\r\n" + " " * 430 + "^\r\nThe PRINT statement is incomplete", None),
     "qb_blk_next2": ("FOR i = 1 TO 2: FOR j = 1 TO 2: NEXT j, i: PRINT \"ok\"\r\n", "ok", "ERROR"),
     "qb_sng_range": ('PRINT VAL("1.23456789012"); 1E-45; 1 / 1E-45\r\n'

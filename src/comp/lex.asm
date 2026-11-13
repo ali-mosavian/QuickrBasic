@@ -22,6 +22,8 @@ DFA_DATA = 1
 include comp/dfa.inc
         .code
 
+LXAHEAD = 128                           ; lx_ahead: a word's, a number's bytes
+
 ; lxroom - Out of memory: the body at DI past a line's record.
 lxroom  macro
         cmp     edi,[g_lxend]
@@ -46,11 +48,12 @@ lx_line:
 lx_item:
         lodsb
         test    al,al
-        jz      @lxl_e
+        jz      @lxl_z
         cmp     al,' '
         je      lx_item
         cmp     al,9
         je      lx_item
+        call    lx_ahead
         call    lx_col
         cmp     al,'"'
         je      @lxl_q
@@ -81,17 +84,29 @@ lx_item:
         call    lx_col                  ; the end too has a column
         stosb
         ret
+@lxl_z:                                 ; the window's end: more, else the line's
+        dec     esi
+        call    lx_more
+        jnc     lx_item
+        inc     esi
+        jmp     @lxl_e
 @lxl_q:
         stosb                           ; a string: to its quote, as it is
 @lxq_l:
         lxroom
         lodsb
         test    al,al
-        jz      @lxl_e
+        jz      @lxq_z
         stosb
         cmp     al,'"'
         jne     @lxq_l
         jmp     lx_item
+@lxq_z:
+        dec     esi
+        call    lx_more
+        jnc     @lxq_l
+        inc     esi
+        jmp     @lxl_e
 @lxl_c:
         mov     al,TK_REM
         stosb
@@ -101,9 +116,16 @@ lx_item:
 @lxr_l:
         lxroom
         lodsb
-        stosb
         test    al,al
-        jnz     @lxr_l
+        jz      @lxr_z
+        stosb
+        jmp     @lxr_l
+@lxr_z:
+        dec     esi
+        call    lx_more
+        jnc     @lxr_l
+        inc     esi
+        stosb
         ret
 @lxl_d:
         mov     bl,[esi]
@@ -132,7 +154,7 @@ lx_item:
         lxroom
         lodsb
         test    al,al
-        jz      @lxl_e
+        jz      @lxd_z
         cmp     al,'"'
         jne     @F
         xor     cl,1
@@ -147,6 +169,54 @@ lx_item:
 @lxd_x:
         stosb
         jmp     lx_item
+@lxd_z:
+        dec     esi
+        call    lx_more
+        jnc     @lxd_l
+        inc     esi
+        jmp     @lxl_e
+
+; ::::::::::::::
+; lx_more - streamed text (lxfill): the window's end at ESI; the window slid,
+; its bytes from ESI on kept, and read on.
+;
+; out:    CF  set: the line has no more; ESI as it was
+; keeps:  all but ESI
+; ::::::::::::::
+lx_more:
+        cmp     [g_lxfill],0
+        je      @lxm_n
+        push    eax
+        call    [g_lxfill]
+        jc      @lxm_p
+        sub     [g_state.lx.lxsrc],eax
+        sub     [g_state.lx.lxs],eax
+        pop     eax
+        clc
+        ret
+@lxm_p:
+        pop     eax
+@lxm_n:
+        stc
+        ret
+
+; lx_ahead - streamed: the item at ESI-1 and LXAHEAD bytes after it in the
+; window, for the word, the number it may be.
+lx_ahead:
+        cmp     [g_lxfill],0
+        je      @lxa_r
+        push    eax
+        mov     eax,[g_srfe]
+        sub     eax,esi
+        cmp     eax,LXAHEAD
+        jae     @F
+        dec     esi
+        call    lx_more
+        inc     esi
+@@:
+        pop     eax
+@lxa_r:
+        ret
 
 ; ::::::::::::::
 ; lx_col - the item at SI-1: its column to lxcol at the body's offset; the
@@ -211,6 +281,7 @@ lx_colof:
 g_lxcol dw      LXCMAX dup(?)
 g_lxlst dd      ?                       ; the last item's offset, -1 none
 g_lxend dd      ?                       ; the body's limit: a line's record
+g_lxfill dd     ?                       ; streamed text: its reader (sr_more), 0 none
 g_lxall db      ?                       ; 1: every byte's column, for lx_colof
 g_lxlc  dw      ?                       ; its column
         .code
@@ -268,6 +339,10 @@ lx_num:
         mov     [g_state.lx.lxf],0
 @lxn_d:
         lxroom
+        cmp     byte ptr [esi],0        ; the window's end: more
+        jne     @F
+        call    lx_more
+@@:
         movzx   eax,byte ptr [esi]
         sub     al,'0'
         cmp     al,10

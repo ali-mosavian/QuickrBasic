@@ -288,6 +288,7 @@ externdef g_kw_cls:byte
 externdef g_kw_off:word
 externdef g_kw_tc:byte
 externdef g_kw_tn:word
+externdef g_lxfill:dword
 externdef g_ps_cls:byte
 externdef g_ps_cname:byte
 externdef g_ps_def:dword
@@ -550,6 +551,10 @@ externdef g_qberr:byte
 externdef dx_at:near
 externdef dx_raise:near
 externdef dx_say:near
+; io/srd.asm
+externdef g_srfe:dword
+externdef sr_line:near
+externdef sr_more:near
 ; io/repl.asm
 externdef err_cn:near
 externdef err_id:near
@@ -648,6 +653,7 @@ externdef g_plat:TPLAT
 externdef plt_exec:near
 externdef plt_exit:near
 externdef plt_flush:near
+externdef plt_getb:near
 externdef plt_getc:near
 externdef plt_getline:near
 externdef plt_heap:near

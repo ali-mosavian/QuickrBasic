@@ -120,6 +120,7 @@ err_od:
 ;         csp  not 0 while compiling
 ; ::::::::::::::
 err_raise:
+        and     [g_lxfill],0            ; a streamed line's lexing ended
         cmp     [g_dbev],0              ; the probe's: back to it
         jne     dbg_ever
         call    ex_fclr
@@ -480,10 +481,12 @@ rpl_read:
         call    ch_open
         call    ch_in
 @rrd_l:
-        call    plt_getline
+        call    sr_line
         jc      @rrd_e
         inc     [g_state.io.fline]
+        mov     [g_lxfill],offset sr_more
         call    rpl_line
+        mov     [g_lxfill],0
         jnc     @rrd_l
         mov     eax,[esp]               ; an include: its lines next
         dec     eax
