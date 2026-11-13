@@ -57,6 +57,7 @@ cm_text:
         mov     [g_state.cm.cbase],eax
         mov     [g_state.cm.nst],0
         mov     [g_state.cm.csif],0
+        mov     [g_state.cm.cdg],0
         xor     eax,eax
         mov     [g_state.cm.cll],eax
         mov     [g_state.cm.clle],eax
@@ -129,16 +130,29 @@ cm_om:
         mov     al,E_OM
 
 ; ::::::::::::::
-; cm_err - the compile ends here: ERR AL, EOL. The statement's code before
-; the ERR runs first.
+; cm_err - the compile ends here: ERR AL dg at, EOL: dg the error's words
+; (io/msg.inc), at the body's byte it is at. The statement's code before the
+; ERR runs first.
 ;
 ; in:     AL   the error
+;         SI   where in the body
+;         cdg  its DG_, 0: by its text
 ;         csp  SP at the compile's start
 ; ::::::::::::::
 cm_err:
         mov     ah,al
         mov     al,O_ERR
         stosw
+        mov     al,[g_state.cm.cdg]     ; its words, and where in the body
+        stosb
+        mov     [g_state.cm.cdg],0
+        mov     eax,esi
+        sub     eax,[g_state.cm.cbase]
+        cmp     eax,255
+        jbe     @F
+        mov     al,255
+@@:
+        stosb
 
 ; ::::::::::::::
 ; cm_fin - the line's end: EOL; the compile returns.
@@ -1879,7 +1893,9 @@ cm_on:
         mov     ah,[esi]
         xor     ah,TK_GOTO
         test    ah,0FBh
-        jnz     err_sn
+        jz      @F
+        cmerr   err_sn,DG_GOTO_MISSING
+@@:
         xor     cl,cl
         test    ah,ah
         jz      @con_g

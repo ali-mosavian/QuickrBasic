@@ -1,7 +1,7 @@
 ; ==========================================================================
 ; lex.asm - the tokenizer: a typed line becomes the body of a stored line
 ; ==========================================================================
-; holds:    lx_line, lx_word, kw_step, g_lxcol
+; holds:    lx_line, lx_word, kw_step, lx_colof, g_lxcol
 ; uses:     dfa.inc's tables (tools/x86dfa.py), nam_find
 ; data:     SI the text, DI the body. In the body:
 ;           M_VAR len name nam:2  a name as typed, its suffix too; nam its
@@ -35,6 +35,7 @@ lx_line:
         mov     [g_state.lx.lxdst],edi
         push    edi                     ; the body is at most 5 times the text
         push    ecx
+        or      [g_lxlst],-1            ; no item's column yet
         mov     edi,esi
         mov     ecx,LSRC+1
         xor     al,al
@@ -77,6 +78,7 @@ lx_item:
         stosb
         jmp     lx_item
 @lxl_e:
+        call    lx_col                  ; the end too has a column
         stosb
         ret
 @lxl_q:
@@ -151,20 +153,56 @@ lx_item:
 lx_col:
         push    eax
         push    ebx
+        push    ecx
         mov     ebx,edi
         sub     ebx,[g_state.lx.lxdst]
         cmp     ebx,LMAX
+        jae     @lxc_r
+        mov     ecx,[g_lxlst]           ; the bytes since the last item: its
+        mov     al,[g_lxlc]             ; column
+@@:
+        inc     ecx
+        cmp     ecx,ebx
         jae     @F
+        mov     [g_lxcol+ecx],al
+        jmp     @B
+@@:
         lea     eax,[esi-1]
         sub     eax,[g_state.lx.lxsrc]
         mov     [g_lxcol+ebx],al
-@@:
+        mov     [g_lxlc],al
+        mov     [g_lxlst],ebx
+@lxc_r:
+        pop     ecx
         pop     ebx
         pop     eax
         ret
 
+; ::::::::::::::
+; lx_colof - the column in lx_line's text of the body's byte EAX: its item's,
+; else the one's before it.
+;
+; out:    ECX  the column
+; keeps:  all but ECX
+; ::::::::::::::
+lx_colof:
+        xor     ecx,ecx
+        cmp     [g_lxlst],0
+        jl      @F
+        push    eax
+        cmp     eax,[g_lxlst]
+        jbe     @lxo_c
+        mov     eax,[g_lxlst]
+@lxo_c:
+        movzx   ecx,byte ptr [g_lxcol+eax]
+        pop     eax
+@@:
+        ret
+
         .data?
 g_lxcol db      LMAX dup(?)
+g_lxlst dd      ?                       ; the last item's offset, -1 none
+g_lxlc  db      ?                       ; its column
         .code
 
 ; ::::::::::::::

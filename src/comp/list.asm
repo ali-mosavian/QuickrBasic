@@ -1,7 +1,7 @@
 ; ==========================================================================
 ; list.asm - LIST, SAVE and VERIFY: a stored body back to text
 ; ==========================================================================
-; holds:    ls_all, ls_range, ls_line
+; holds:    ls_all, ls_range, ls_line, ls_body, ls_text
 ; uses:     mem_line, io_kw, io_num, io_putc
 ; data:     A line lists as QBasic's editor spaces it: keywords from their
 ;           tokens, a name from its M_VAR, a whole number from its M_INT;
@@ -76,18 +76,47 @@ ls_line:
         mov     edi,offset g_dlb
         call    mem_line
         mov     esi,offset g_dlb+HDR
-if IDE                                 ; the editor lists a body alone
         call    ls_body
         pop     esi
         jmp     io_nl
 
 ; ::::::::::::::
+; ls_text - the body at ESI as LIST spells it, in sbuf, sbx long, a 0
+; after; and where its byte EAX on is spelled.
+;
+; out:    ECX  that column
+; keeps:  ESI
+; ::::::::::::::
+ls_text:
+        push    esi
+        add     eax,esi
+        mov     [g_lsat],eax
+        mov     [g_state.io.ocap],80h
+        and     [g_state.io.sbx],0
+        call    ls_body
+        and     [g_state.io.ocap],0
+        movzx   ecx,[g_state.io.sbx]
+        mov     byte ptr [g_sbuf+ecx],0
+        cmp     [g_lsat],-1             ; not reached: the end
+        jne     @F
+        movzx   ecx,[g_lscol]
+@@:
+        or      [g_lsat],-1
+        pop     esi
+        ret
+
+; ::::::::::::::
 ; ls_body - print the token body at SI.
 ; ::::::::::::::
 ls_body:
-endif
         mov     [g_state.io.lq],LS_NONE
 @ls_c:
+        cmp     esi,[g_lsat]            ; ls_text's byte: its column
+        jb      @F
+        or      [g_lsat],-1
+        mov     al,[g_state.io.sbx]
+        mov     [g_lscol],al
+@@:
         lodsb
         test    al,al
         jz      @ls_end
@@ -323,12 +352,13 @@ endif
         mov     [g_state.io.lq],cl
         jmp     @ls_c
 @ls_end:
-if IDE
         ret
-else
-        pop     esi
-        jmp     io_nl
-endif
+
+        .data
+g_lsat  dd      -1                      ; ls_text's byte, -1 none
+        .data?
+g_lscol db      ?
+        .code
 
 ; ::::::::::::::
 ; ls_lead - the space before a word, as the last item wants.

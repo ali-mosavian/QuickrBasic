@@ -13,6 +13,13 @@ upcase  macro   r
 @upc:
         endm
 
+; Raise error e as the catalogue's entry dg (io/msg.inc): its words, not only
+; its code's.
+cmerr   macro   e,dg
+        mov     [g_state.cm.cdg],dg
+        jmp     e
+        endm
+
 A_BASE  = 0C0h                  ; above the CALLs, under the PS_ codes (FCh)
 A_E     = A_BASE
 A_LV    = A_BASE+1

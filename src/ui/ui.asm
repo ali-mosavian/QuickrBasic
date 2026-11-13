@@ -815,6 +815,14 @@ ui_atline:
         jne     @ual_s
         inc     bx
         jmp     @ual_b
+
+; ::::::::::::::
+; ui_selw - the cursor at column BX of the cursor's line, the word there
+; selected.
+; ::::::::::::::
+ui_selw:
+        and     [g_ui.ed.sel_on],0
+        movzx   ecx,word ptr [g_ui.bf.ed_lb.len]
 @ual_s:
         mov     [g_ui.bf.ed_lb.col],bx
         mov     dx,bx
@@ -978,6 +986,7 @@ ui_ready:
 ; ::::::::::::::
 ui_err:
         mov     [g_ui.lp.ui_ecode],al
+        mov     [g_ui.lp.ui_eln],0
         test    al,al
         jz      @uer_b
         mov     [g_state.rn.cstk],CSTOP
@@ -1001,6 +1010,7 @@ ui_err:
         mov     ax,word ptr [g_progb+ebx+L_NUM]
         call    sy_find
         jc      @uer_m
+        mov     [g_ui.lp.ui_eln],1
 @uer_g:
         call    vw_goline
         call    ui_atline
@@ -1012,9 +1022,29 @@ ui_err:
         jmp     ui_loop
 @@:
         call    ui_emsg
+        call    ui_dxrun
         mov     esi,offset g_ui.bf.ui_ebuf
         call    dl_err
         jmp     ui_loop
+
+; ::::::::::::::
+; ui_dxrun - a compile error met running, at the cursor's line: its words in
+; ui_ebuf, the word it is at selected.
+; ::::::::::::::
+ui_dxrun:
+        cmp     [g_ui.lp.ui_eln],0
+        je      @udxr_r
+        mov     ebx,[g_state.rn.opip]
+        cmp     byte ptr [ebx],O_ERR
+        jne     @udxr_r
+        movzx   ecx,word ptr [g_ui.bf.ed_lb.len]
+        mov     esi,offset g_ui.bf.ed_lb.txt
+        mov     byte ptr [esi+ecx],0
+        call    ui_dxerr
+        mov     ebx,eax
+        jmp     ui_selw
+@udxr_r:
+        ret
 
 ; ::::::::::::::
 ; ui_find - Search, Find: the box, then the search.

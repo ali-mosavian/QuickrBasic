@@ -789,6 +789,16 @@ def play() -> None:
     s.resume(500)
     assert lit()[0] in [(0, "DO"), (1, "x = x + 1"), (1, "y = y + 1"), (2, "LOOP")], (lit(), look())
 
+    # A compile error's box said its class alone; now what is wrong and what to do after it.
+    (work / "DX.BAS").write_bytes(b"x = 1\r\n")
+    open_file("dx.bas")
+    press("end", "enter")
+    keys("print a(1\n")
+    box = " ".join(r.strip() for r in look())
+    assert "SYNTAX ERROR THE PRINT STATEMENT IS INCOMPLETE" in box, box
+    assert "PRINT IS WRITTEN: PRINT [#FILE,]" in box, box
+    press("esc")
+
     if flat:
         debug_pane()
 

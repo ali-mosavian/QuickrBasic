@@ -36,6 +36,7 @@ TCOMP    struc                   ; the compiler
     cchk    db      ?               ; 1: the IDE's line check, unlinked
     cdbg    dd      ?               ; past the statement's DBG, 0 none
     cproc   db      ?               ; the procedure the compiled line is in
+    cdg     db      ?               ; the error's DG_ (io/msg.inc), 0: by its text
 TCOMP    ends
 
 TLINK    struc                   ; the linker and the cache

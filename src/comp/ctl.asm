@@ -274,7 +274,9 @@ ct_onerr:
         push    eax
         call    st_get
         cmp     al,TK_GOTO
-        jne     err_sn
+        je      @F
+        cmerr   err_sn,DG_GOTO_MISSING
+@@:
         inc     esi
         mov     eax,[esp]
         cmp     ah,O_ONERR              ; ON ERROR's handler: the module's

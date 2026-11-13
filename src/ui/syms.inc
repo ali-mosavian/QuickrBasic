@@ -296,6 +296,7 @@ externdef g_ps_ent1:word
 externdef g_ps_off:word
 externdef g_ps_xc:byte
 externdef g_ps_xv:dword
+externdef lx_colof:near
 externdef lx_line:near
 ; comp/decl.asm
 externdef dc_deft:near
@@ -441,8 +442,10 @@ externdef cm_walk:near
 externdef cm_xlate:near
 externdef g_opsz:byte
 ; comp/list.asm
+externdef g_dlb:byte
 externdef ls_body:near
 externdef ls_range:near
+externdef ls_text:near
 ; mem/far.asm
 externdef mem_cpy:near
 externdef mem_line:near
@@ -550,6 +553,11 @@ externdef io_u24:near
 ; io/errmsg.asm
 externdef er_text:near
 externdef g_qberr:byte
+; io/diag.asm
+externdef dx_at:near
+externdef dx_say:near
+externdef dx_todo:near
+externdef dx_what:near
 ; io/repl.asm
 externdef err_cn:near
 externdef err_id:near
@@ -843,6 +851,7 @@ externdef sel_get:near
 externdef sel_mark:near
 externdef ui_body:near
 externdef ui_canon:near
+externdef ui_dxerr:near
 externdef ui_emsg:near
 ; ui/draw.asm
 externdef dr_all:near
@@ -873,6 +882,7 @@ externdef dl_ok:near
 externdef dl_open:near
 externdef dl_run:near
 externdef dl_saveas:near
+externdef dl_wrap:near
 externdef dl_ync:near
 externdef ui_ledit:near
 ; ui/sync.asm
@@ -987,6 +997,7 @@ externdef ui_getkey:near
 externdef ui_key:near
 externdef ui_ready:near
 externdef ui_runp:near
+externdef ui_selw:near
 externdef ui_start:near
 externdef ui_stopped:near
 ; regions.asm

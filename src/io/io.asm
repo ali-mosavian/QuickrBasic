@@ -70,8 +70,11 @@ io_putc:
 @iop_s:
         push    ebx
         movzx   ebx,[g_state.io.sbx]
+        cmp     bl,255                  ; full: the rest dropped
+        je      @iop_f
         mov     [g_sbuf+ebx],al
         inc     [g_state.io.sbx]
+@iop_f:
         pop     ebx
         ret
 

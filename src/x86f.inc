@@ -12,6 +12,7 @@ include vm/isa.inc
 include vm/vm.inc
 include comp/comp.inc
 include comp/dfa.inc
+include io/msg.inc
 if IDE
 include ui/ui.inc
 include ui/syms.inc

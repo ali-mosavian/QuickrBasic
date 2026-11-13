@@ -492,6 +492,13 @@ CASES = {
                    " 1500 -.0005  100  5 \r\n", "ERROR"),
     # BC's SINGLE: past its range infinity, under it a denormal; VAL a DOUBLE. VAL gave 1.234568,
     # a denormal 0 (and 1 / it Division by zero), the rest error 6.
+    # A compile error gave BC's line alone; now the line, a mark under the place, what is wrong
+    # and what to do.
+    "qb_diag_end": ("PRINT a(1\r\n", "  PRINT a(1\r\n           ^\r\nthe PRINT statement is incomplete: "
+                    "the line ends where more is needed\r\nPRINT is written: PRINT [#file,]", None),
+    "qb_diag_goto": ("ON 1 PRINT\r\n", "\r\n       ^\r\n`PRINT` should be followed by GOTO or GOSUB "
+                     "here\r\nwrite `ON expression GOTO label, label`", None),
+    "qb_diag_tm": ('x = "a" + 1\r\n', '\r\n            ^\r\n`1` has the wrong type for this place', None),
     "qb_sng_range": ('PRINT VAL("1.23456789012"); 1E-45; 1 / 1E-45\r\n'
                      'a! = 3.4E+38: d# = 1D+40: x! = 1E-38: PRINT a! * 10; CSNG(d#); x! / 1000\r\n',
                      " 1.23456789012  1.401298E-45  1.#INF \r\n 1.#INF  1.#INF  9.999666E-42 \r\n",

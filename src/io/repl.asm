@@ -172,7 +172,7 @@ endif
         call    io_puts
         movzx   ecx,[g_state.rn.ln]
         cmp     ecx,DLINE
-        je      rpl_ready
+        je      @erx_d
         cmp     [g_state.io.batch],0
         je      @erx_n
         mov     ebx,offset r_eline
@@ -201,15 +201,68 @@ endif
         call    io_putc
         pop     eax
         call    io_hex4
-        jmp     rpl_ready
+        jmp     @erx_d
 @erx_n:                                 ; typed lines: in line n, if numbered
         cmp     word ptr [g_progb+ecx+L_NUM],NONUM
-        je      rpl_ready
+        je      @erx_d
         mov     ebx,offset r_eline
         call    io_puts
         mov     ax,word ptr [g_progb+ecx+L_NUM]
         call    io_num
+        jmp     @erx_d
+@erx_d:
+        call    er_diag
         jmp     rpl_ready
+
+; ::::::::::::::
+; er_diag - a compile error's place and words, under BC's message: the line
+; as LIST spells it, a mark under the place, what is wrong and what to do.
+; Any other error: nothing.
+;
+; in:     opip  the op that raised it: ERR code dg at, the compiler's
+;         ln    its line
+; ::::::::::::::
+er_diag:
+        mov     ebx,[g_state.rn.opip]
+        cmp     byte ptr [ebx],O_ERR
+        jne     @erd_r
+        mov     ax,[ebx+1]
+        push    eax
+        movzx   eax,byte ptr [ebx+3]
+        mov     esi,offset g_cbuf
+        movzx   ebx,[g_state.rn.ln]
+        cmp     ebx,DLINE
+        je      @F
+        mov     edi,offset g_dlb
+        call    mem_line
+        mov     esi,offset g_dlb+HDR
+@@:
+        call    ls_text
+        pop     eax
+        mov     esi,offset g_sbuf
+        call    dx_at
+        push    eax
+        call    io_nl
+        call    @erd_in
+        mov     ebx,offset g_sbuf
+        call    io_puts
+        call    io_nl
+        call    @erd_in
+        pop     ecx
+        jecxz   @erd_m
+@@:
+        call    io_space
+        loop    @B
+@erd_m:
+        mov     al,'^'
+        call    io_putc
+        call    io_nl
+        jmp     dx_say
+@erd_in:
+        call    io_space
+        jmp     io_space
+@erd_r:
+        ret
 
 ; ::::::::::::::
 ; rpl_mod - the module's name, as BC's: the file's, without its path and

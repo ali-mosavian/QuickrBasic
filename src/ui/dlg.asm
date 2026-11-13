@@ -972,6 +972,43 @@ dl_err:
         ret
 
 ; ::::::::::::::
+; dl_wrap - ECX bytes at ESI to EDI as a box's lines: '|' at a space past
+; DL_WRAP columns; a '|' of the text a box's line drawing one.
+;
+; out:    EDI  past them
+; ::::::::::::::
+DL_WRAP = 60
+dl_wrap:
+        xor     edx,edx                 ; the column
+        xor     ebx,ebx                 ; the last space
+@dlw_l:
+        jecxz   @dlw_r
+        lodsb
+        dec     ecx
+        cmp     al,'|'
+        jne     @F
+        mov     al,0B3h
+@@:
+        stosb
+        inc     edx
+        cmp     al,' '
+        jne     @F
+        lea     ebx,[edi-1]
+@@:
+        cmp     edx,DL_WRAP
+        jb      @dlw_l
+        test    ebx,ebx
+        jz      @dlw_l
+        mov     byte ptr [ebx],'|'
+        mov     edx,edi
+        sub     edx,ebx
+        dec     edx
+        xor     ebx,ebx
+        jmp     @dlw_l
+@dlw_r:
+        ret
+
+; ::::::::::::::
 ; dl_ok - a message box with OK.
 ;
 ; in:     SI  the text

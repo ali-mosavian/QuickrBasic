@@ -236,6 +236,8 @@ TEDIT    ends
 TFIND    struc                   ; a line made canonical; Find and Change
     uc_pre  dd      ?
     uc_err  db      ?
+    uc_eop  dd      ?               ; its ERR op
+    uc_ecol dw      ?               ; the column it is at
     uc_src  dd      ?
     uc_n    dw      ?
     uc_all  db      ?
@@ -369,6 +371,7 @@ TLOOP    struc                   ; the key loop, the screen
     ui_cpos dw      ?
     ui_rpos dw      ?
     ui_ecode db      ?
+    ui_eln  db      ?               ; 1: the cursor is at the error's line
     ui_wrap db      ?
     ul_new  db      ?
     dr_sk   db      ?
@@ -455,7 +458,7 @@ TUIBUF   struc                   ; the big buffers
     uc_line db      260 dup(?)      ; a line got from the text
     sy_buf  db      260 dup(?)      ; a line being built
     im_h    TIMH    IMN dup(<>)     ; the immediate window's lines
-    msg_txt db      256 dup(?)      ; a message box's lines
+    msg_txt db      640 dup(?)      ; a message box's lines
     msg_d   TMSGD   <>              ; the message box
     ls_fl   db      LSMAX*13 dup(?) ; the Files list
     ls_dl   db      LSMAX*13 dup(?) ; the Dirs list
@@ -470,7 +473,7 @@ TUIBUF   struc                   ; the big buffers
     ui_ttl  db      82 dup(?)       ; the window's title
     dl_mask db      80 dup(?)       ; the Open box's mask
     dl_path db      80 dup(?)       ; the current directory
-    ui_ebuf db      64 dup(?)       ; an error's message
+    ui_ebuf db      600 dup(?)      ; an error's message, '|' between lines
     vw_ln   db      LNBUF dup(?)    ; vw_kind's line, 0-ended
     vw_new  db      LNBUF dup(?)    ; vw_add's
     vw_fld  TLBUF   <>              ; New SUB's name

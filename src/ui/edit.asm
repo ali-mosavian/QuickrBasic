@@ -360,6 +360,8 @@ ed_commit:
         clc
         ret
 @edc_e:
+        movzx   ebx,[g_ui.fd.uc_ecol]   ; the error's word
+        call    ui_selw
         mov     esi,offset g_ui.bf.ui_ebuf
         call    dl_err
         stc
@@ -439,7 +441,12 @@ ui_canon:
         mov     al,[g_ui.fd.uc_err]
         test    al,al
         jz      @uca_l
-        jmp     ui_emsg
+        mov     esi,[g_ui.fd.uc_src]
+        mov     ebx,[g_ui.fd.uc_eop]
+        call    ui_dxerr
+        mov     [g_ui.fd.uc_ecol],ax
+        stc
+        ret
 @uca_l:
         mov     [g_state.io.ocap],80h
         and     [g_state.io.sbx],0
@@ -475,8 +482,81 @@ ui_chkop:
         jne     @uck_r
         mov     al,[esi+1]
         mov     [g_ui.fd.uc_err],al
+        mov     [g_ui.fd.uc_eop],esi
 @uck_r:
         ret
+
+; ::::::::::::::
+; ui_dxerr - a compile error's words in ui_ebuf: its class, what is wrong,
+; then what to do, wrapped for a box.
+;
+; in:     ESI  the line's text, 0-ended
+;         EBX  its ERR op: ERR code dg at
+; out:    EAX  the column in the text it is at
+; ::::::::::::::
+ui_dxerr:
+        pushad
+        mov     edi,esi
+        call    ui_body
+        mov     edx,edi                 ; the body's column
+        sub     edx,esi
+        push    edx
+        mov     esi,edi
+        mov     edi,offset g_inbuf
+@@:
+        lodsb
+        stosb
+        test    al,al
+        jnz     @B
+        push    ebx
+        mov     esi,offset g_inbuf      ; the body's bytes to columns
+        mov     edi,offset g_cbuf
+        call    lx_line
+        pop     ebx
+        movzx   eax,byte ptr [ebx+3]
+        call    lx_colof
+        mov     ax,[ebx+1]
+        mov     esi,offset g_inbuf
+        call    dx_at
+        pop     edx
+        add     eax,edx
+        mov     [esp+28],eax            ; popad's EAX
+        mov     edi,offset g_ui.bf.ui_ebuf
+        mov     al,[ebx+1]              ; its class first: Syntax error
+        call    er_text
+@@:
+        lodsb
+        test    al,al
+        jz      @F
+        stosb
+        jmp     @B
+@@:
+        mov     al,'|'
+        stosb
+        mov     edx,offset dx_what
+        call    @udx_w
+        push    edi
+        inc     edi
+        mov     edx,offset dx_todo
+        call    @udx_w
+        pop     eax
+        lea     ecx,[eax+1]
+        cmp     edi,ecx
+        jne     @F
+        mov     edi,eax                 ; nothing to do: no '|'
+@@:
+        mov     byte ptr [eax],'|'
+        mov     byte ptr [edi],0
+        popad
+        ret
+@udx_w:                                 ; what EDX prints, wrapped, to EDI
+        mov     [g_state.io.ocap],80h
+        and     [g_state.io.sbx],0
+        call    edx
+        and     [g_state.io.ocap],0
+        movzx   ecx,[g_state.io.sbx]
+        mov     esi,offset g_sbuf
+        jmp     dl_wrap
 
 ; ::::::::::::::
 ; ui_emsg - the message of error AL in ui_ebuf: "Syntax error".

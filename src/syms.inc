@@ -436,7 +436,9 @@ externdef cm_link:near
 externdef cm_xlate:near
 externdef g_opsz:byte
 ; comp/list.asm
+externdef g_dlb:byte
 externdef ls_range:near
+externdef ls_text:near
 ; mem/far.asm
 externdef mem_cpy:near
 externdef mem_line:near
@@ -541,6 +543,9 @@ externdef io_u24:near
 ; io/errmsg.asm
 externdef er_text:near
 externdef g_qberr:byte
+; io/diag.asm
+externdef dx_at:near
+externdef dx_say:near
 ; io/repl.asm
 externdef err_cn:near
 externdef err_id:near
