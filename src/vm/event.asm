@@ -3,8 +3,8 @@
 ; ==========================================================================
 ; holds:    op_onev, sc_evst, sc_keydef, ev_tick, ev_run, ev_ret, ev_clr
 ; uses:     the BIOS key buffer and flags at 0040:0017, 001Ah..; stpflg
-; data:     evtab: by slot, line:2 (0 none), state:1 (0 OFF, 1 ON, 2 STOP),
-;           flags:1 (1 pending, 2 its handler running). Slots: 0 TIMER,
+; data:     evtab: a TEVSLOT by slot: line (0 none), state (0 OFF, 1 ON, 2
+;           STOP), flags (1 pending, 2 its handler running). Slots: 0 TIMER,
 ;           1..31 KEY(n), 32..33 COM(n), 34 PEN, 35..38 STRIG(0, 2, 4, 6).
 ;           ev_tick, from the tick interrupt, counts the timer down and takes
 ;           a trapped key from the buffer's head; an event an ON slot can run
@@ -16,6 +16,9 @@ include x86f.inc
         .code
 
 NEV     = 39
+        .data?
+g_evtab db      NEV*EVSZ dup(?)         ; before its uses: [g_evtab+i].TEVSLOT
+        .code
 
 ; ::::::::::::::
 ; ev_slot - the slot of kind ECX (EK_*), n EAX.
@@ -84,7 +87,7 @@ op_onev:
         xor     edx,edx
         cmp     word ptr [esi],0
         jne     @F
-        add     esi,4
+        add     esi,sizeof TLREF
         jmp     @onv_s
 @@:
         push    ebx
@@ -92,7 +95,7 @@ op_onev:
         mov     edx,ebx
         pop     ebx
 @onv_s:
-        mov     word ptr [g_evtab+ebx*4],dx
+        mov     [g_evtab+ebx*EVSZ].TEVSLOT.line,edx
         dispatch
 
 ; ::::::::::::::
@@ -108,12 +111,12 @@ sc_evst:
         shr     ecx,2
         and     edx,3
         call    ev_slot
-        lea     ebx,[g_evtab+ebx*4]
-        mov     al,[ebx+2]
-        mov     [ebx+2],dl
+        lea     ebx,[g_evtab+ebx*EVSZ]
+        mov     al,[ebx].TEVSLOT.state
+        mov     [ebx].TEVSLOT.state,dl
         test    dl,dl
         jnz     @F
-        and     byte ptr [ebx+3],not 1
+        and     [ebx].TEVSLOT.flags,not 1
 @@:
         cmp     ebx,offset g_evtab      ; the TIMER started: a whole interval
         jne     @F
@@ -131,9 +134,9 @@ sc_evst:
 ; keeps:  all
 ; ::::::::::::::
 ev_sig:
-        cmp     word ptr [ebx],0
+        cmp     [ebx].TEVSLOT.line,0
         je      @F
-        cmp     word ptr [ebx+2],1+1*256        ; ON, pending, not running
+        cmp     word ptr [ebx].TEVSLOT.state,1+1*256        ; ON, pending, not running
         jne     @F
         or      [g_state.rn.stpflg],SF_EV
 @@:
@@ -178,7 +181,7 @@ ev_tick:
         cmp     [g_evon],0
         je      @evt_r
         pushad
-        cmp     byte ptr [g_evtab+2],0
+        cmp     [g_evtab].TEVSLOT.state,0
         je      @evt_k
         dec     [g_evtc]
         jnz     @evt_k
@@ -195,7 +198,7 @@ ev_tick:
         and     dh,0Fh
         mov     ecx,1
 @evt_l:
-        cmp     byte ptr [g_evtab+ecx*4+2],0
+        cmp     [g_evtab+ecx*EVSZ].TEVSLOT.state,0
         je      @evt_n
         movzx   eax,[g_evsc+ecx]
         cmp     ecx,15
@@ -224,14 +227,14 @@ ev_tick:
         mov     si,ds:[480h]
 @@:
         mov     ds:[41Ah],si
-        lea     ebx,[g_evtab+ecx*4]
+        lea     ebx,[g_evtab+ecx*EVSZ]
         call    @evt_p
 @evt_x:
         popad
 @evt_r:
         ret
 @evt_p:                                 ; the slot at EBX: pending
-        or      byte ptr [ebx+3],1
+        or      [ebx].TEVSLOT.flags,1
         jmp     ev_sig
 
 ; ::::::::::::::
@@ -243,24 +246,24 @@ ev_run:
         mov     esi,[g_state.rn.opip]
         mov     ebx,offset g_evtab
 @evr_l:
-        cmp     word ptr [ebx],0
+        cmp     [ebx].TEVSLOT.line,0
         je      @F
-        cmp     word ptr [ebx+2],1+1*256
+        cmp     word ptr [ebx].TEVSLOT.state,1+1*256
         je      @evr_g
 @@:
-        add     ebx,4
-        cmp     ebx,offset g_evtab+NEV*4
+        add     ebx,sizeof TEVSLOT
+        cmp     ebx,offset g_evtab+NEV*EVSZ
         jb      @evr_l
         jmp     ex_lp
 @evr_g:
-        mov     byte ptr [ebx+3],2      ; running, no longer pending
+        mov     [ebx].TEVSLOT.flags,2      ; running, no longer pending
         mov     al,M_EV
         call    ex_gsf
         mov     eax,ebx
         sub     eax,offset g_evtab
-        shr     eax,2
+        shr     eax,3
         mov     [edi+F_EVN],al
-        movzx   ebx,word ptr [ebx]
+        mov     ebx,[ebx].TEVSLOT.line
         jmp     ex_jump
 
 ; ::::::::::::::
@@ -272,8 +275,8 @@ ev_run:
 ev_ret:
         push    ebx
         movzx   ebx,byte ptr [ebx+F_EVN]
-        lea     ebx,[g_evtab+ebx*4]
-        and     byte ptr [ebx+3],not 2
+        lea     ebx,[g_evtab+ebx*EVSZ]
+        and     [ebx].TEVSLOT.flags,not 2
         call    ev_sig
         pop     ebx
         ret
@@ -288,7 +291,7 @@ ev_clr:
         push    ecx
         push    edi
         mov     edi,offset g_evtab
-        mov     ecx,NEV
+        mov     ecx,NEV*EVSZ/4
         xor     eax,eax
         rep     stosd
         mov     [g_evon],1
@@ -305,7 +308,6 @@ g_evsc  db      0,3Bh,3Ch,3Dh,3Eh,3Fh,40h,41h,42h,43h,44h,48h,4Bh,4Dh,50h
 .erre ($ - g_evsc) EQ 32
 g_evon  db      0                       ; ev_tick: evtab is set
         .data?
-g_evtab dd      NEV dup(?)
 g_evti  dd      ?                       ; ON TIMER's ticks, the count down
 g_evtc  dd      ?
 g_evuk  dw      11 dup(?)               ; KEY 15..25: shift flags, scan code

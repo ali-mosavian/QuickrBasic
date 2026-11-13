@@ -55,7 +55,7 @@ externdef ex_stmtof:near
 externdef ex_target:near
 externdef ex_trap:near
 externdef g_lsav:byte
-externdef g_thnd:word
+externdef g_thnd:dword
 externdef ls_mov:near
 externdef op_eol:near
 externdef op_err:near

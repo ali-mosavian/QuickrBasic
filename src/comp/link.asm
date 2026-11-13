@@ -182,14 +182,14 @@ cm_xlate:
         ret
 @cx_j:
         push    [g_state.rn.lnum]
-        mov     ax,[edi-4]
+        mov     ax,[edi-sizeof TLREF].TLREF.num
         mov     [g_state.rn.lnum],ax
         push    edx
         call    prg_findw
         pop     edx
         pop     [g_state.rn.lnum]
         jnc     @cx_t
-        mov     [edi-2],bx
+        mov     [edi-sizeof TLREF].TLREF.line,ebx
         jmp     @cx_t
 @cx_call:
         mov     al,[esi]

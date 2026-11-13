@@ -441,7 +441,7 @@ scp_label:
 @slb_b:
         call    scp_bind
         or      byte ptr [edi+B_FLG],BF_LBL
-        mov     [edi+B_LINE],dx
+        mov     [edi+B_LINE],edx
         ret
 @slb_e:
         mov     al,E_DL
@@ -460,7 +460,7 @@ scp_lfind:
         jc      @slf_o
         test    byte ptr [edi+B_FLG],BF_LBL
         jz      @slf_o
-        movzx   eax,word ptr [edi+B_LINE]
+        mov     eax,[edi+B_LINE]
         pop     edi
         ret
 @slf_o:

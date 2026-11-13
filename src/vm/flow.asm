@@ -43,7 +43,7 @@ op_gosub:
         jmp     ex_gosub
 
 ; ::::::::::::::
-; ex_target - num addr at ESI: the line.
+; ex_target - the TLREF at ESI: its line, found the first time.
 ;
 ; out:    EBX  the line
 ;         ESI  past them
@@ -52,13 +52,13 @@ op_gosub:
 ex_target:
         lodsw
         mov     [g_state.rn.lnum],ax
-        lodsw
-        movzx   ebx,ax
+        lodsd
+        mov     ebx,eax
         test    ebx,ebx
         jnz     @etg_r
         call    prg_findw
         jnc     err_us
-        mov     [esi-2],bx           ; found once, read after
+        mov     [esi-4],ebx             ; found once, read after
 @etg_r:
         ret
 
@@ -113,7 +113,7 @@ ex_jump:
         jmp     ex_lp
 
 ; ::::::::::::::
-; op_on - ON kn (num addr)*n ( k -- ): kn bit 7 GOSUB; past the list for 0
+; op_on - ON kn TLREF*n ( k -- ): kn bit 7 GOSUB; past the list for 0
 ; or k > n.
 ;
 ; error:  ?UNDEF'D STATEMENT  no such line
@@ -125,21 +125,23 @@ op_on:
         mov     [g_state.rn.onk],al
         and     al,7Fh
         movzx   ecx,al
-        lea     edi,[esi+ecx*4]         ; past the list
+        imul    ecx,sizeof TLREF
+        lea     edi,[esi+ecx]           ; past the list
         dec     dl                      ; k 0: 255, past n < 128
         cmp     dl,al
         jae     @on_past
-        movzx   ebx,dl
-        lea     ecx,[esi+ebx*4+2]
-        mov     ax,[esi+ebx*4]
+        movzx   ecx,dl
+        imul    ecx,sizeof TLREF
+        add     ecx,esi                 ; its TLREF
+        mov     ax,[ecx].TLREF.num
         mov     [g_state.rn.lnum],ax
-        movzx   ebx,word ptr [ecx]
+        mov     ebx,[ecx].TLREF.line
         mov     esi,edi
         test    ebx,ebx
         jnz     @on_g
         call    prg_findw
         jnc     err_us
-        mov     [ecx],bx
+        mov     [ecx].TLREF.line,ebx
 @on_g:
         test    [g_state.rn.onk],80h
         jnz     ex_gosub
@@ -609,7 +611,7 @@ op_err:
 op_onerr:
         cmp     word ptr [esi],0
         jne     @one_g
-        add     esi,4
+        add     esi,sizeof TLREF
         and     [g_state.rn.onerr],0
         cmp     [g_state.rn.inerr],0
         je      @one_d
@@ -643,7 +645,7 @@ op_onlerr:
         xor     ebx,ebx
         cmp     word ptr [esi],0
         jne     @F
-        add     esi,4
+        add     esi,sizeof TLREF
         jmp     @onl_s
 @@:
         call    ex_target
@@ -674,11 +676,11 @@ ex_hnd:
         jmp     @ehd_f
 @ehd_m:
         mov     eax,[g_state.rn.onerr]
-        mov     [g_thnd],ax
+        mov     [g_thnd],eax
         ret
 @ehd_y:
         mov     eax,[edi].TPROC.onerr
-        mov     [g_thnd],ax
+        mov     [g_thnd],eax
         mov     [g_hfr],edi
 @ehd_u:
         mov     ebx,[g_state.rn.cstk]   ; the innermost procedure's frame
@@ -705,7 +707,7 @@ ex_hnd:
         ret
 
         .data?
-g_thnd  dw      ?                       ; the error's handler's line
+g_thnd  dd      ?                       ; the error's handler's line
 g_hfr   dd      ?                       ; its ON LOCAL ERROR's frame
         .code
 
@@ -743,7 +745,7 @@ ex_trap:
         call    ch_clr
         call    ex_sbase
         mov     esp,eax
-        movzx   ebx,[g_thnd]
+        mov     ebx,[g_thnd]
         jmp     ex_jump
 
 ; ::::::::::::::
@@ -888,7 +890,7 @@ op_size:
         ret
 @oln_on:
         and     cl,7Fh
-        shl     ecx,2
+        imul    ecx,sizeof TLREF
         add     ecx,2
         pop     ebx
         ret

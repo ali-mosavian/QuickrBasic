@@ -111,8 +111,8 @@ oplist  macro   m
         m       I_TOA,bc_I_TOA,1,FX
         m       DROP,bc_DROP,1,FX
         m       CALL,op_call,2,0
-        m       GOTO,op_goto,5,0
-        m       GOSUB,op_gosub,5,0
+        m       GOTO,op_goto,1+sizeof TLREF,0
+        m       GOSUB,op_gosub,1+sizeof TLREF,0
         m       ON,op_on,0,0
         m       RETURN,op_ret,1,0
         m       I_FOR,op_for,3,FV+FB
@@ -143,11 +143,11 @@ oplist  macro   m
         m       SF_LD,op_sfld,5,0
         m       SF_ST,op_sfst,5,0
         m       R_COPY,op_rcopy,3,0
-        m       ONERR,op_onerr,5,0
-        m       ONLERR,op_onlerr,5,0
-        m       ONEV,op_onev,6,0
+        m       ONERR,op_onerr,1+sizeof TLREF,0
+        m       ONLERR,op_onlerr,1+sizeof TLREF,0
+        m       ONEV,op_onev,2+sizeof TLREF,0
         m       I_CHK16,op_ichk16,1,FX
-        m       RESUME,op_resume,6,0
+        m       RESUME,op_resume,2+sizeof TLREF,0
         m       D_LD_V,op_dldv,3,FX+FV
         m       D_ST_V,op_dstv,3,FV
         m       D_LD_K,op_dldk,9,FX
@@ -181,6 +181,10 @@ TJUMP    struc                   ; a jump op's target
     dest    dd      ?               ; its code's offset; under 3 the mode,
 TJUMP    ends                    ; until found (ex_jumpto)
 JSIZE   = 1+sizeof TJUMP
+TLREF    struc                   ; a GOTO's line: its number, the line, 0
+    num     dw      ?               ; until found (ex_target)
+    line    dd      ?
+TLREF    ends
 
 opn     = 0
 opc     macro   nm,h,sz,fl

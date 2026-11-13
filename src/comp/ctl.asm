@@ -438,7 +438,7 @@ ct_xst:
         jne     ct_evs
         add     esi,2
         and     [g_state.cm.wv],0
-        and     [g_state.cm.wa],0
+        and     [g_state.cm.jline],0
         call    st_get
         xor     cl,cl
         cmp     al,TK_NEXT
@@ -451,8 +451,8 @@ ct_xst:
         jz      @cxs_o
         call    cm_lnum
         xor     cl,cl
-        mov     ax,[g_state.cm.wv]
-        or      ax,[g_state.cm.wa]
+        movzx   eax,[g_state.cm.wv]
+        or      eax,[g_state.cm.jline]
         jz      @cxs_o
         mov     cl,2
 @cxs_o:

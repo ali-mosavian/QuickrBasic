@@ -956,18 +956,18 @@ cm_w:
         jmp     cm_byt
 
 ; ::::::::::::::
-; cm_jw - emit a jump's line number wv and the room its line's address takes,
-; which the first jump fills (ex_target).
+; cm_jw - emit a TLREF: the line number wv, the line jline, a label's, else
+; 0 until the first jump finds it (ex_target).
 ;
-; in:     wv  the number
-;         wa  the line, a label's, else 0
+; keeps:  ECX
 ; ::::::::::::::
 cm_jw:
         call    cm_w
-        mov     al,byte ptr [g_state.cm.wa]
-        call    cm_byt
-        mov     al,byte ptr [g_state.cm.wa+1]
-        jmp     cm_byt
+        push    ecx
+        mov     eax,[g_state.cm.jline]
+        call    cm_dw
+        pop     ecx
+        ret
 
 ; ::::::::::::::
 ; cm_lint - emit an INT load of EAX: I.LD.U8 under 256, I.LD.I16 under
@@ -1479,7 +1479,7 @@ g_lmod  db      0                       ; cm_lnum: a label of the module's
 ;         as scp_lfind
 ; ::::::::::::::
 cm_lnum:
-        and     [g_state.cm.wa],0
+        and     [g_state.cm.jline],0
         call    st_get
         cmp     al,M_VAR
         je      @cml_v
@@ -1520,7 +1520,7 @@ cm_lnum:
         mov     [g_lmod],0
         or      eax,edx
         call    scp_lfind
-        mov     [g_state.cm.wa],ax
+        mov     [g_state.cm.jline],eax
         ret
 
 ; ::::::::::::::
@@ -1553,13 +1553,14 @@ lbl_at:
         ret
 
 ; ::::::::::::::
-; cm_lnld - I.LD.I16 of the line number wv; a label's line wa as 10000h+wa.
+; cm_lnld - I.LD.I16 of the line number wv; a label's line jline as
+; 10000h+jline.
 ; ::::::::::::::
 cm_lnld:
         mov     dx,[g_state.cm.wv]
         cmp     dx,NONUM
         jne     @F
-        movzx   eax,[g_state.cm.wa]
+        mov     eax,[g_state.cm.jline]
         add     eax,10000h
         jmp     cm_lint
 @@:

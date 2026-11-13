@@ -501,7 +501,7 @@ sc_resl:
         dpop    eax
         cmp     eax,10000h
         jb      @srl_n
-        movzx   ebx,ax
+        lea     ebx,[eax-10000h]
         test    ebx,ebx
         jz      err_us
         call    rd_seek

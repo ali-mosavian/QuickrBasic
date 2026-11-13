@@ -20,7 +20,7 @@ TCOMP    struc                   ; the compiler
     ctks    dd      ?               ; its keyword
     cth     db      ?               ; the statement follows a THEN
     wv      dw      ?
-    wa      dw      ?               ; a jump's line, a label's
+    jline   dd      ?               ; a jump's line, a label's
     onp     dd      ?
     cst     dd      ?
     ctok    db      ?

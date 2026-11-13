@@ -33,7 +33,11 @@ include x86f.inc
         .code
 
 NDEV    = 256
-DEVSZ   = 28
+TDEFEV   struc                   ; a DEFtype line's event
+    line    dd      ?
+    deft    db      26 dup(?)       ; deft from it on
+TDEFEV   ends
+DEVSZ   = sizeof TDEFEV
 
 ; ::::::::::::::
 ; dc_proc - the body in cbuf: a procedure's first line, its END, or neither.
@@ -693,7 +697,7 @@ dc_dfev:
         mov     ecx,[g_ndev]
         jecxz   @F
         imul    edi,ecx,DEVSZ
-        cmp     ax,word ptr [g_dfev+edi-DEVSZ]  ; this line's again
+        cmp     eax,dword ptr [g_dfev+edi-DEVSZ] ; this line's again
         je      @dfv_c
 @@:
         cmp     ecx,NDEV
@@ -703,7 +707,7 @@ dc_dfev:
         imul    edi,ecx,DEVSZ
 @dfv_c:
         lea     edi,[g_dfev+edi-DEVSZ]
-        stosw
+        stosd
         mov     esi,offset g_deft
         mov     ecx,26
         rep     movsb
@@ -712,7 +716,7 @@ dc_dfev:
         ret
 
 ; ::::::::::::::
-; dc_deft - deft as line BX sees it: its DEFtype's and those before it.
+; dc_deft - deft as line EBX sees it: its DEFtype's and those before it.
 ;
 ; keeps:  all
 ; ::::::::::::::
@@ -723,9 +727,9 @@ dc_deft:
         mov     ecx,[g_ndev]
         jecxz   @dft_c
 @@:
-        cmp     bx,[edx]
+        cmp     ebx,[edx]
         jb      @dft_c
-        lea     esi,[edx+2]
+        lea     esi,[edx+4]
         add     edx,DEVSZ
         loop    @B
 @dft_c:
@@ -1108,7 +1112,7 @@ g_obase db      ?                       ; OPTION BASE
 g_obset db      ?                       ; OPTION BASE given
 g_odim  db      ?                       ; DIM, REDIM, COMMON of an array
 g_oexp  db      ?                       ; OPTION EXPLICIT
-g_ndev  dd      ?                       ; DEFtype's lines: place:2, deft
+g_ndev  dd      ?                       ; DEFtype's lines, TDEFEV each
 g_dfev  db      NDEV*DEVSZ dup(?)
 g_dscope dw     ?                       ; the scope declarations go to
 g_dredim db     ?                       ; @dcl_dim: a REDIM

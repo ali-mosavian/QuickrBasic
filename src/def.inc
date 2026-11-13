@@ -132,6 +132,14 @@ SF_BRK  = 1                     ; stpflg: the STOP key; an event to run
 SF_EV   = 2
 M_EV    = sizeof TEVENT
 F_EVN   = TEVENT.slot
+TEVSLOT  struc                   ; an event's slot (vm/event.asm)
+    line    dd      ?               ; its handler, 0 none
+    state   db      ?               ; OFF, ON, STOP
+    flags   db      ?               ; 1 pending, 2 running
+    pad     dw      ?
+TEVSLOT  ends
+EVSZ    = 8                     ; a slot's bytes, a scale
+.erre sizeof TEVSLOT EQ EVSZ
 EK_TIMER = 0                    ; ONEV's, EVST's kinds
 EK_KEY  = 1
 EK_COM  = 2
