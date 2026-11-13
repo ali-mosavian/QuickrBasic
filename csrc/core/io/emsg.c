@@ -89,9 +89,9 @@ const char *emsg_text(uint8_t code)
 {
     uint8_t num = emsg_errnum[code];
     if (code == E_USR) {
-        if (exec.uerr > 0xFE)
+        if (vm.err.user > 0xFE)
             return "Unprintable error";
-        num = (uint8_t)exec.uerr;
+        num = (uint8_t)vm.err.user;
     }
     for (size_t i = 0; num && i < countof(msgs); i++)
         if (msgs[i].num == num)

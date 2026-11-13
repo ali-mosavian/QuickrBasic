@@ -4,8 +4,8 @@
 
 extern volatile uint8_t *ptick_flag;
 extern uint8_t ptick_bit;
-void ptick_hook(void);
-void ptick_unhook(void);
+CDECL void ptick_hook(void);
+CDECL void ptick_unhook(void);
 
 enum : uint32_t { JDAY = 5184000 }; /* a day's 60 Hz jiffies */
 

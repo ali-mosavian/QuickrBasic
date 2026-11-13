@@ -4,6 +4,8 @@
 #define CORE_DEFS_H
 #include "base.h"
 
+typedef struct Vm Vm; /* the virtual machine (vm/exec.h) */
+
 #ifndef IDE
 #define IDE 0
 #endif
@@ -53,6 +55,14 @@ enum : uint8_t { NM_LBL = 1, NM_FN = 2, NM_SUB = 4, NM_FUNC = 8 };
 enum : uint8_t { BF_SHR = 1, BF_REF = 2, BF_STAT = 4, BF_LBL = 8, BF_CON = 16, BF_USE = 32 };
 enum : uint16_t { SC_NUM = 0x8000, SC_ARR = 0x4000 };
 
+/* A jump target's mode: the statement, past the JMP it starts with, or the statement after it. */
+typedef enum : uint8_t { TO_STMT, PAST_JMP, TO_NEXT_STMT } JumpMode;
+
+/* RESTORE's and RUN's line operand: a line number, or LABEL_LINE plus a label's line. */
+enum : uint32_t { LABEL_LINE = 0x10000 };
+/* DIM's flag word: the dimension count, then what kind of DIM it is. */
+enum : uint32_t { DIM_COUNT = 0x3F, DIM_REDIM = 0x40, DIM_STATIC = 0x80, DIM_PRESERVE = 0x100 };
+
 /* Tokens in a stored line. */
 enum : uint8_t { M_VAR = 1, M_INT = 2, REM_Q = 3 };
 
@@ -90,36 +100,6 @@ enum : uint8_t { FM_IN = 1, FM_OUT = 2, FM_APP = 4, FM_RND = 8, FM_BIN = 16 };
 /* A variable's place (cm_va). */
 enum : uint8_t { VA_DESC = 1, VA_RAW = 2, VA_I2 = 3 };
 
-/* The control stack's frames; a frame's mark is its size. */
-typedef struct PACKED {
-    uint8_t mark;
-    uint32_t line;
-    uint32_t resume; /* absolute, or an offset in its line's code */
-} Frame;
-typedef struct PACKED {
-    Frame h;
-    uint16_t id;
-    uint32_t step, limit;
-    uint32_t cache; /* an INT counter's: the float last stored */
-} ForFrame;
-typedef struct PACKED {
-    Frame h;
-    uint8_t slot;
-} EventFrame;
-typedef struct PACKED {
-    Frame h;
-    uint8_t proc;
-    uint32_t save0, save1; /* the save stack before its arguments, before its locals */
-    uint16_t tmpb;         /* the caller's temporaries' floor */
-    uint32_t stk;          /* the data stack at its body's start */
-    uint32_t onerr;        /* ON LOCAL ERROR's line, 0 none */
-} ProcFrame;
-enum {
-    M_GS = sizeof(Frame),
-    M_FR = sizeof(ForFrame),
-    M_EV = sizeof(EventFrame),
-    M_PC = sizeof(ProcFrame),
-};
 enum : uint8_t { SF_BRK = 1, SF_EV = 2 };
 
 /* An event's slot (vm/event). */
@@ -133,7 +113,7 @@ enum : uint8_t { EK_TIMER, EK_KEY, EK_COM, EK_PEN, EK_STRIG };
 
 enum : uint8_t { DM_STEP = 1, DM_PSTEP = 2 };
 
-enum { LSSZ = 16, LSAVSZ = 0x15000 }; /* a save entry: id:2 ref:2 value:8 off:4; the save stack */
+enum { LSAVSZ = 0x15000 }; /* the bindings' bytes (vm/exec.h) */
 
 /* A string's Desc. */
 typedef struct PACKED {

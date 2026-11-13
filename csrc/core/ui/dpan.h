@@ -1,10 +1,9 @@
 /* The debug pane: at a stop, right of the code (columns DP_COL on, the edit windows' rows), its
    windows Watch, Locals and Call stack (src/ui/dpane.asm).
 
-   The frames: the stop's (exec.cont_line), then each procedure's caller, from exec.cstk's M_PC
-   frames, each with its text line and its row. Locals: the selected frame's procedure's
+   The frames: the stop's (vm.cont.line), then each procedure's caller, from the call frames, each with its text line and its row. Locals: the selected frame's procedure's
    variables, its parameters first, as that frame sees them (a newer call of the same procedure
-   saved them on the save stack, ProcFrame.save0 and save1). Watch: expressions, each PRINTed
+   set them aside in its CallVars). Watch: expressions, each PRINTed
    by dbug_eval in the stop's procedure's scope at each stop; kept across runs. The tooltip:
    the Locals row of the variable under the mouse (uimn.tip_mouse) or the cursor. uimn.pane_on is
    ui.h's; the rest is dpan.c's. */

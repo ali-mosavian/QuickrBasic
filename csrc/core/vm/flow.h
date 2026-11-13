@@ -1,54 +1,52 @@
-/* The executor's control flow (src/vm/flow.asm): lines, jumps, GOSUB, FOR and NEXT, procedures,
-   ON ERROR and RESUME.
+/* Control flow: lines, jumps, GOSUB, FOR and NEXT, SUB and FUNCTION calls, ON ERROR and RESUME.
 
-   The control stack holds frames (defs.h) from exec.cstk up to allo.cs_top, a frame's mark its
-   size: GOSUB's and an event's, FOR's, a procedure's. A frame's resume is a code offset (exec.h).
-   A procedure's call (PCALL) keeps its arguments and its locals' values on the save stack, LSSZ
-   bytes an entry: id:2, ref:2 (FFFFh none, FFFEh a scalar parameter's cell), the value:8, a
-   scalar's cell before:4. */
+   GOSUBs, events, FOR loops and calls are Frames on vm.frames. A call sets its parameters and
+   locals aside on vm.callvars. */
 #ifndef CORE_VM_FLOW_H
 #define CORE_VM_FLOW_H
 #include "vm/exec.h"
 
-/* FUNCTION's string result's Desc carved (g_lres: a heap block's owner is an Addr). */
+enum : uint32_t { LINE_END = 0xFFFFFFFF }; /* a Place's code: the start of the line after */
+
+/* The FUNCTION result's string descriptor carved from the arena. */
 void flow_init(void);
-/* ex_dcode: the direct line's code, compiled to comp's xbuf, as a stream at DCODE; returns its
-   code, past its statement map (link.code). Out of memory: it does not fit. */
+
+/* Push a frame of kind, returning where the running statement goes on. Out of stack space. */
+Frame *flow_push(Vm *vm, FrameKind kind);
+/* The innermost frame of kind, nullptr none. */
+Frame *flow_find(Vm *vm, FrameKind kind);
+/* The place of vm->ip in the running line. */
+Place flow_here(const Vm *vm);
+/* The code at place, its line compiled if the cache dropped it. */
+uint8_t *flow_place(Place place);
+
+/* Go to line's start, linking the program first if it is not. */
+void flow_jump(Vm *vm, uint32_t line);
+/* Go to the next line; past the last the program ENDs. */
+void flow_nextln(Vm *vm);
+/* The LineRef operand at vm->ip: its line, found by number on first use. Undefined line number. */
+uint32_t flow_target(Vm *vm);
+/* The direct line compiled into the cache; returns its code. Out of memory. */
 uint8_t *flow_dcode(void);
-/* ex_end: the run is over, both stacks empty, READY; back to dbug's probe if it ran. */
-[[noreturn]] void flow_end(void);
-/* ex_erl: ERL's number: the last line number at or before line, 0 none. */
+
+/* The handler for an error now: the innermost call's ON LOCAL ERROR, the calls above it returned
+   as if the error were at their call; else ON ERROR's. 0 none. */
+uint32_t flow_handler(Vm *vm);
+/* Run handler for error code: sets ERR, ERL and RESUME's places, then back into the loop. */
+[[noreturn]] void flow_trap(Vm *vm, uint8_t code, uint32_t handler);
+/* ERL: the last line number at or before line, 0 none. */
 uint16_t flow_erl(uint32_t line);
-/* ex_gsf: push a GOSUB-like frame of mark (M_GS, M_EV), RETURN going on at exec.line, exec.ip.
-   Out of stack space. */
-Addr flow_push(uint8_t mark);
-/* ex_hnd: the error's handler line, 0 none: the innermost ON LOCAL ERROR's, the procedures its
-   procedure called dropped as by their returns (exec.line, exec.opip then the call); else ON
-   ERROR's. */
-uint32_t flow_handler(void);
-/* ex_trap: the error code ON ERROR handles at handler: ERR, ERL, where RESUME goes on, then the
-   handler run on the failing procedure's data stack, frames kept. Into exec_run's loop. */
-[[noreturn]] void flow_trap(uint8_t code, uint32_t handler);
-/* ex_jump: on at line's start; the program linked first if it is not. */
-void flow_jump(uint32_t line);
-/* ex_nextln, the NXLN op's: on to the next line (a false IF); the program's end ENDs. */
-void flow_nextln(void);
-/* ex_nodir: Illegal direct in the direct line. */
-void flow_nodir(void);
-/* ex_resolve: code offset off of line's code (compiled if it has none) as an address. */
-uint8_t *flow_resolve(uint32_t line, uint32_t off);
-/* ipload: a frame's or CONT's place: off from the cache's base, or under DCODE in line's code. */
-uint8_t *flow_place(uint32_t line, uint32_t off);
-/* ex_setcont: CONT goes on at exec.line, exec.ip; not for the direct line. */
-void flow_setcont(void);
-/* ex_stmtof: line's statement map entry of the statement holding code: the last at it or
-   before, else the first; *left the entries from it on, the line's EOL's last. */
+/* The statement map entry of the statement holding code in line; *left the entries from it on. */
 Stmt *flow_stmtof(uint32_t line, const uint8_t *code, uint32_t *left);
-/* ex_target: the LineRef at exec.ip, its line, found and kept the first time; exec.ip past it.
-   Undefined line number. */
-uint32_t flow_target(void);
-/* ls_mov: the Desc at from to the Desc at to, which then owns its heap block. */
-void flow_lsmove(Addr from, Addr to);
-/* op_size: the bytes of the op at op. */
+
+/* CONT goes on at the running statement; not from the direct line. */
+void flow_setcont(Vm *vm);
+/* The program ends: files closed, the stacks empty, READY. */
+[[noreturn]] void flow_end(Vm *vm);
+/* Illegal direct when running the direct line. */
+void flow_nodir(Vm *vm);
+/* The size of the op at op, with its operands. */
 uint32_t flow_opsize(const uint8_t *op);
+/* Move the string descriptor at from to to, which then owns its heap block. */
+void flow_lsmove(Addr from, Addr to);
 #endif

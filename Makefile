@@ -59,15 +59,17 @@ style:
 clean:
 	rm -rf build
 
-# ---- The C build: csrc/, llrm-cc for x86_32-dos, build/c/basic32.exe and ide32.exe ----
-# LLRM: llrm release/next's tree (its runtime, its link recipe, its tools); LLRM_CLANG_M16 its
-# patched clang. The OS layer's header is in the tree; the C library's subset is csrc/lib.
+# ---- The C build: csrc/, clang for i386 (COFF), build/c/basic32.exe and ide32.exe ----
+# LLRM: llrm release/next's tree, for its DOS32 start-up and runtime, link recipe (jwlink) and
+# jwasm. The C library's subset is csrc/lib; its mem routines are renamed in each object.
 LLRM ?= $(HOME)/work/personal/llrm-next
-LLRM_CLANG_M16 ?= $(HOME)/work/other/llvm-m16/build/bin/clang
-export LLRM_CLANG_M16
+CLANG ?= /opt/homebrew/opt/llvm/bin/clang
+OBJCOPY ?= $(dir $(CLANG))llvm-objcopy
 CC_OPT ?= -O2
-CFLAGS := -target x86_32-dos -std=c23 $(CC_OPT) -Wall -Wextra -Wno-unused-parameter \
-	-isystem $(LLRM)/toolchain/clang/os/x86-m32 -isystem csrc/lib/include -Icsrc -Icsrc/core
+CFLAGS := --target=i386-pc-win32 -march=i386 -mregparm=3 -std=c23 $(CC_OPT) -ffreestanding \
+	-fno-asynchronous-unwind-tables -fno-stack-protector -mno-stack-arg-probe -mstack-alignment=4 \
+	-DARENA_AT_ZERO=1 -Wall -Wextra -Wno-unused-parameter -isystem csrc/lib/include -Icsrc -Icsrc/core
+COWN := $(foreach f,memcpy memmove memset,--redefine-sym _$(f)=_lib_$(f))
 CSRC := $(shell find csrc/core csrc/lib -name '*.c' -not -path 'csrc/core/ui/*') \
 	$(wildcard csrc/plat/dos32/*.c) csrc/main.c
 CUI := $(shell find csrc/core/ui -name '*.c' 2>/dev/null)
@@ -83,10 +85,12 @@ c: cbasic32 cide32
 
 build/c/basic32/%.obj: csrc/%.c $(CHDR)
 	@mkdir -p $(@D)
-	$(LLRM)/target/release/llrm-cc $(CFLAGS) -DIDE=0 -c $< -o $@
+	$(CLANG) $(CFLAGS) -DIDE=0 -c $< -o $@
+	$(OBJCOPY) $(COWN) $@
 build/c/ide32/%.obj: csrc/%.c $(CHDR)
 	@mkdir -p $(@D)
-	$(LLRM)/target/release/llrm-cc $(CFLAGS) -DIDE=1 -c $< -o $@
+	$(CLANG) $(CFLAGS) -DIDE=1 -c $< -o $@
+	$(OBJCOPY) $(COWN) $@
 build/c/basic32/%.obj: csrc/%.asm
 	@mkdir -p $(@D)
 	$(LLRM)/target/release/jwasm -q -zf0 -Fo $@ $<

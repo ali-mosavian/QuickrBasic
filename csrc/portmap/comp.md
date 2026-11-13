@@ -253,5 +253,5 @@ Defined in lexr.c (`DFA_DATA`), declared `extern const` for comp.c. The parser's
 |---|---|
 | `comp_init()` | carves `comp_cbuf` (`allo_carve`); main.c calls it |
 | `comp_cur()`, `comp_curn()`, `comp_end()` | `st_get`, `st_getn`, `st_eos` at `comp.p` |
-| `comp_rd16`, `comp_rd32` | unaligned reads of the body |
+| `comp_rd16`, `comp_rd32` | `load16`, `load32` (base.h): unaligned reads |
 | `comp.depth`, `COMP_MAXDEPTH` | `cplim`'s stack room as nesting levels; to calibrate |

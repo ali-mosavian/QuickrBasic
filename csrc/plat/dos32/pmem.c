@@ -5,7 +5,6 @@
 
 enum { HOST_ROOM = 0x10000 };
 
-uint8_t *mem_base;
 
 static uint32_t dpmi_info[12]; /* DPMI 0500h's buffer */
 
@@ -26,7 +25,6 @@ bool pmem_init(uint32_t least, Addr *lo, Addr *hi)
     r = (PdosRegs){.eax = 0x0006, .ebx = pdos_ds()};
     pdos_int(0x31, &r);
     uint32_t ds_base = (r.ecx << 16) | (r.edx & 0xFFFF);
-    mem_base = nullptr;
     *lo = linear - ds_base;
     *hi = *lo + size;
     return true;

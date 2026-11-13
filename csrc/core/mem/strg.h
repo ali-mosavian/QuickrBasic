@@ -24,6 +24,13 @@ enum : uint8_t { SCMP_GT = 1, SCMP_EQ = 2, SCMP_LT = 4 };
 void strg_init(void);
 /* The length and chars of the Desc at desc; the top temporary is popped. */
 Desc strg_get(Addr desc);
+/* The Desc at desc, the temporaries untouched. */
+static inline Desc strg_peek(const Addr desc)
+{
+    Desc s;
+    memcpy(&s, at(desc), DSZ);
+    return s;
+}
 /* A new temporary for s. String formula too complex (E_ST): NTMP in use. */
 Addr strg_push(Desc s);
 /* A heap block for len chars, no owner yet; returns its chars. Collects when full. Out of

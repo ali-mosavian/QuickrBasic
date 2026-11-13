@@ -15,7 +15,7 @@ uint32_t diag_at(const char *text, uint32_t col, uint8_t code, uint8_t dg, uint1
 
 /* An error found off the code (the block pass), raised as if an ERR op at body offset at of
    line (a program store offset) raised it, never trapped; other its {other} text, len bytes
-   (31 at most kept). exec.opip is set to an ErrOp (vm/exec.h) of diag's own. */
+   (31 at most kept). vm.opip is set to an ErrOp (vm/exec.h) of diag's own. */
 [[noreturn]] void diag_raise(uint8_t code, uint8_t dg, uint32_t at, uint32_t line,
                              const char *other, uint32_t len);
 

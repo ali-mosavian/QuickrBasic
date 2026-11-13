@@ -8,97 +8,138 @@
 #include "plat/pfpu.h"
 #include "vm/exec.h"
 
-static uint64_t bits(double d)
+/* An IEEE double's fields. */
+enum : uint64_t {
+    DBL_SIGN = 1ull << 63,
+    DBL_MANT = (1ull << 52) - 1,
+    DBL_IMPLICIT = 1ull << 52,
+    DBL_MINUS_ONE = 0xBFF0000000000000,
+};
+enum { DBL_MANT_BITS = 52, DBL_EXP_MASK = 0x7FF, DBL_BIAS = 1023, DBL_DIGITS = 16, SNGL_DIGITS = 7 };
+
+/* Mantissa digits taken at most: under 2^63. */
+enum { MANT_DIGITS_MAX = 18, EXPONENT_MAX = 10000 };
+
+static uint64_t bits(const double d) { return (Cell){.d = d}.raw; }
+static double val(const uint64_t u) { return (Cell){.raw = u}.d; }
+
+static uint32_t exponent(const uint64_t u) { return u >> DBL_MANT_BITS & DBL_EXP_MASK; }
+static bool special(const uint64_t u) { return exponent(u) == DBL_EXP_MASK; } /* infinity or NaN */
+static bool is_zero(const uint64_t u) { return !(u << 1); }
+
+/* Overflow past the largest. */
+static void check(const Cell *const c)
 {
-    uint64_t u;
-    memcpy(&u, &d, 8);
-    return u;
+    if (special(c->raw))
+        repl_error(E_OV);
 }
 
-static double val(uint64_t u)
+static void status(const uint8_t st)
 {
-    double d;
-    memcpy(&d, &u, 8);
+    if (st == PFPU_IQ)
+        repl_error(E_IQ);
+    if (st == PFPU_OV)
+        repl_error(E_OV);
+}
+
+/* ---- text in -------------------------------------------------------------------------------- */
+
+static void skip(const uint8_t **const p)
+{
+    while (**p == ' ')
+        ++*p;
+}
+
+/* The next digit at *p, spaces skipped, *p past it; -1 none. */
+static int next_digit(const uint8_t **const p)
+{
+    skip(p);
+    const uint8_t d = **p - '0';
+    if (d > 9)
+        return -1;
+    ++*p;
     return d;
 }
 
-static bool special(uint64_t u) { return (u >> 52 & 0x7FF) == 0x7FF; } /* infinity or NaN */
-static bool is_zero(uint64_t u) { return !(u << 1); }
+/* A number's digits: up to MANT_DIGITS_MAX of them, the power of ten for the rest. */
+typedef struct {
+    uint64_t mant;
+    int32_t pow10;
+    uint32_t digits;      /* the digits taken */
+    uint32_t zeros;       /* the zeros after the point before them */
+} Mantissa;
 
-/* dbl_chk: ?OVERFLOW past the largest. */
-static void check(const Cell *c)
+static Mantissa read_mantissa(const uint8_t **const p)
 {
-    if (special(c->raw)) repl_error(E_OV);
+    Mantissa m = {};
+    bool point = false;
+    for (;;) {
+        skip(p);
+        if (**p == '.') {
+            if (point)
+                break;
+            point = true;
+            ++*p;
+            continue;
+        }
+        const int d = next_digit(p);
+        if (d < 0)
+            break;
+        if (!m.digits && !d) { /* a leading zero */
+            if (point) {
+                m.pow10--;
+                m.zeros++;
+            }
+            continue;
+        }
+        if (m.digits >= MANT_DIGITS_MAX) { /* past it, their power only */
+            if (!point)
+                m.pow10++;
+            continue;
+        }
+        m.digits++;
+        m.mant = m.mant * 10 + (uint32_t)d;
+        if (point)
+            m.pow10--;
+    }
+    return m;
 }
 
-static void status(uint8_t st)
+/* An exponent after D or E: its value; *kind DK_DBL for D. */
+static int32_t read_exponent(const uint8_t **const p, uint8_t *const kind)
 {
-    if (st == PFPU_IQ) repl_error(E_IQ);
-    if (st == PFPU_OV) repl_error(E_OV);
+    skip(p);
+    const uint8_t c = upcase(**p);
+    if (c != 'D' && c != 'E')
+        return 0;
+    if (c == 'D')
+        *kind = DK_DBL;
+    ++*p;
+    const bool neg = sngl_skipsign(p);
+    int32_t e = 0;
+    for (int d; (d = next_digit(p)) >= 0;)
+        if (e < EXPONENT_MAX)
+            e = e * 10 + d;
+    return neg ? -e : e;
 }
 
-static void skip(const uint8_t **p)
+double dubl_in(const uint8_t **const p, uint8_t *const kind)
 {
-    while (**p == ' ') ++*p;
-}
-
-double dubl_in(const uint8_t **p, uint8_t *kind)
-{
-    uint8_t k = DK_ANY;
     skip(p);
     if (**p == '&') {
         uint32_t v;
         ++*p;
         if (sngl_hexoct(p, &v)) {
-            if (kind) *kind = DK_ANY;
+            if (kind)
+                *kind = DK_ANY;
             return (double)(int32_t)v;
         }
         --*p;
     }
-    bool neg = sngl_skipsign(p), point = false;
-    uint64_t m = 0;
-    uint32_t n = 0, zeros = 0; /* the digits taken; the zeros after the point before them */
-    int32_t pw = 0;            /* the power of ten */
-    for (;;) {
-        skip(p);
-        uint8_t c = **p;
-        if (c == '.') {
-            if (point) break;
-            point = true;
-            ++*p;
-            continue;
-        }
-        uint8_t d = (uint8_t)(c - '0');
-        if (d > 9) break;
-        ++*p;
-        if (!n && !d) { /* a leading zero */
-            if (point) pw--, zeros++;
-            continue;
-        }
-        if (n >= 18) { /* under 2^63: past it their power only */
-            if (!point) pw++;
-            continue;
-        }
-        n++;
-        m = m * 10 + d;
-        if (point) pw--;
-    }
-    skip(p);
-    uint8_t c = **p & 0xDF;
-    if (c == 'D' || c == 'E') {
-        if (c == 'D') k = DK_DBL;
-        ++*p;
-        bool eneg = sngl_skipsign(p);
-        int32_t e = 0;
-        for (;;) {
-            skip(p);
-            uint8_t d = (uint8_t)(**p - '0');
-            if (d > 9) break;
-            ++*p;
-            if (e < 10000) e = e * 10 + d;
-        }
-        pw += eneg ? -e : e;
-    }
+    const bool neg = sngl_skipsign(p);
+    Mantissa m = read_mantissa(p);
+    uint8_t k = DK_ANY;
+    m.pow10 += read_exponent(p, &k);
     skip(p);
     if (**p == '#') {
         ++*p;
@@ -107,217 +148,245 @@ double dubl_in(const uint8_t **p, uint8_t *kind)
         ++*p;
         k = DK_SNGL;
     }
-    if (!k && n + zeros > 7) k = DK_DBL; /* BC's count: the zeros after the point too */
+    if (!k && m.digits + m.zeros > SNGL_DIGITS) /* BC's count: the zeros after the point too */
+        k = DK_DBL;
     Cell r;
-    pfpu_scale10(m, pw, &r.d);
-    if (neg) r.raw ^= 1ull << 63;
+    pfpu_scale10(m.mant, m.pow10, &r.d);
+    if (neg)
+        r.raw ^= DBL_SIGN;
     check(&r);
-    if (kind) *kind = k;
+    if (kind)
+        *kind = k;
     return r.d;
 }
 
-uint32_t dubl_digits(double v, uint32_t ndig, uint8_t *dig, int32_t *dp)
+/* ---- text out ------------------------------------------------------------------------------- */
+
+uint32_t dubl_digits(const double v, const uint32_t ndig, uint8_t *const dig, int32_t *const dp)
 {
     uint64_t num = pfpu_digits(v, ndig, dp);
-    for (uint32_t i = ndig; i--; num /= 10) dig[i] = (uint8_t)('0' + num % 10);
+    for (uint32_t i = ndig; i-- > 0; num /= 10)
+        dig[i] = (uint8_t)('0' + num % 10);
     uint32_t n = ndig;
-    while (n > 1 && dig[n - 1] == '0') n--;
+    while (n > 1 && dig[n - 1] == '0')
+        n--;
     return n;
 }
 
-/* num_fmt: v as PRINT spells it with ndig digits at most and exponent letter ex. */
-static uint32_t fmt(double v, uint32_t ndig, uint8_t ex, uint8_t *out)
+/* v as PRINT spells it with ndig digits at most and exponent letter ex. */
+static uint32_t fmt(const double v, const uint32_t ndig, const uint8_t ex, uint8_t *const out)
 {
-    uint8_t *o = out, dig[16];
+    uint8_t *o = out;
     *o++ = ' ';
     if (!(v < 0 || v > 0)) { /* 0, and NaN as ftst sees it */
         *o++ = '0';
         return (uint32_t)(o - out);
     }
-    uint64_t u = bits(v);
-    if (v < 0) out[0] = '-', u &= ~(1ull << 63);
+    if (v < 0)
+        out[0] = '-';
+    const uint64_t u = bits(v) & ~DBL_SIGN;
     if (special(u)) {
-        memcpy(o, "1.#INF", 6);
-        return (uint32_t)(o + 6 - out);
+        static const char inf[] = "1.#INF";
+        memcpy(o, inf, strlen(inf));
+        return (uint32_t)(o + strlen(inf) - out);
     }
+    uint8_t dig[DBL_DIGITS];
     int32_t dp;
-    uint32_t n = dubl_digits(val(u), ndig, dig, &dp), b = 0;
-    if (dp < (int32_t)ndig) {
-        if (dp >= 0) { /* the whole part */
-            for (; b <= (uint32_t)dp; b++) *o++ = b < n ? dig[b] : '0';
-            if (b < n) {
-                *o++ = '.';
-                while (b < n) *o++ = dig[b++];
-            }
-            return (uint32_t)(o - out);
-        }
-        if (n + (uint32_t)-dp - 1 <= ndig) { /* under 1: .000ddd */
+    const uint32_t n = dubl_digits(val(u), ndig, dig, &dp);
+    if (dp >= 0 && dp < (int32_t)ndig) { /* the whole part, then the rest after a point */
+        uint32_t b = 0;
+        for (; b <= (uint32_t)dp; b++)
+            *o++ = b < n ? dig[b] : '0';
+        if (b < n) {
             *o++ = '.';
-            for (int32_t z = -dp - 1; z > 0; z--) *o++ = '0';
-            while (b < n) *o++ = dig[b++];
-            return (uint32_t)(o - out);
+            for (; b < n; b++)
+                *o++ = dig[b];
         }
+        return (uint32_t)(o - out);
+    }
+    if (dp < 0 && n + (uint32_t)-dp - 1 <= ndig) { /* under 1: .000ddd */
+        *o++ = '.';
+        for (int32_t z = -dp - 1; z > 0; z--)
+            *o++ = '0';
+        for (uint32_t b = 0; b < n; b++)
+            *o++ = dig[b];
+        return (uint32_t)(o - out);
     }
     *o++ = dig[0]; /* d.dddD+nn */
     if (n > 1) {
         *o++ = '.';
-        for (b = 1; b < n; b++) *o++ = dig[b];
+        for (uint32_t b = 1; b < n; b++)
+            *o++ = dig[b];
     }
     *o++ = ex;
     *o++ = dp < 0 ? '-' : '+';
     uint32_t e = dp < 0 ? (uint32_t)-dp : (uint32_t)dp;
-    if (e >= 100) *o++ = (uint8_t)('0' + e / 100), e %= 100;
+    if (e >= 100) {
+        *o++ = (uint8_t)('0' + e / 100);
+        e %= 100;
+    }
     *o++ = (uint8_t)('0' + e / 10);
     *o++ = (uint8_t)('0' + e % 10);
     return (uint32_t)(o - out);
 }
 
-uint32_t dubl_fmt(double v, uint8_t *out) { return fmt(v, 16, 'D', out); }
+uint32_t dubl_fmt(const double v, uint8_t *const out) { return fmt(v, DBL_DIGITS, 'D', out); }
 
-uint32_t dubl_fmtf(Sngl v, uint8_t *out)
+uint32_t dubl_fmtf(const Sngl v, uint8_t *const out) { return fmt(sngl_val(v), SNGL_DIGITS, 'E', out); }
+
+/* ---- loads and stores ----------------------------------------------------------------------- */
+
+static Cell cell_at(const Addr a) { return load_cell(at(a)); }
+static void cell_put(const Addr a, const Cell c) { store_cell(at(a), c); }
+
+void dubl_ldv(Vm *const vm) { exec_push(vm, cell_at(symb_cell(exec_u16(vm)))); }
+void dubl_stv(Vm *const vm)
 {
-    float f;
-    memcpy(&f, &v, 4);
-    return fmt((double)f, 7, 'E', out);
+    const Addr cell = symb_cell(exec_u16(vm));
+    cell_put(cell, exec_pop(vm));
 }
 
-static Cell rdcell(Addr a)
+void dubl_ldk(Vm *const vm)
 {
-    Cell c;
-    memcpy(&c, at(a), 8);
-    return c;
+    exec_push(vm, load_cell(vm->ip));
+    vm->ip += sizeof(Cell);
 }
 
-static void wrcell(Addr a, Cell c) { memcpy(at(a), &c, 8); }
-
-void dubl_ldv(void) { exec_push(rdcell(symb_cell(exec_u16()))); }
-void dubl_stv(void) { wrcell(symb_cell(exec_u16()), exec_pop()); }
-
-void dubl_ldk(void)
+void dubl_lda1(Vm *const vm)
 {
-    Cell c;
-    memcpy(&c, exec.ip, 8);
-    exec.ip += 8;
-    exec_push(c);
+    const int32_t i = exec_popi(vm);
+    exec_push(vm, cell_at(exec_elem1(exec_u16(vm), i)));
 }
 
-void dubl_lda1(void)
+void dubl_lda(Vm *const vm) { exec_push(vm, cell_at(exec_elem(vm))); }
+
+void dubl_sta1(Vm *const vm)
 {
-    int32_t i = exec_popi();
-    exec_push(rdcell(exec_elem1(exec_u16(), i)));
+    const Cell d = exec_pop(vm);
+    const int32_t i = exec_popi(vm);
+    cell_put(exec_elem1(exec_u16(vm), i), d);
 }
 
-void dubl_lda(void) { exec_push(rdcell(exec_elem())); }
-
-void dubl_sta1(void)
+void dubl_sta(Vm *const vm)
 {
-    Cell d = exec_pop();
-    int32_t i = exec_popi();
-    wrcell(exec_elem1(exec_u16(), i), d);
+    const Cell d = exec_pop(vm);
+    cell_put(exec_elem(vm), d);
 }
 
-void dubl_sta(void)
+/* ---- arithmetic ----------------------------------------------------------------------------- */
+
+void dubl_add(Vm *const vm)
 {
-    Cell d = exec_pop();
-    wrcell(exec_elem(), d);
+    const double b = exec_popd(vm);
+    vm->sp->d += b;
+    check(vm->sp);
 }
 
-void dubl_add(void)
+void dubl_sub(Vm *const vm)
 {
-    double b = exec_popd();
-    exec.sp->d += b;
-    check(exec.sp);
+    const double b = exec_popd(vm);
+    vm->sp->d -= b;
+    check(vm->sp);
 }
 
-void dubl_sub(void)
+void dubl_mul(Vm *const vm)
 {
-    double b = exec_popd();
-    exec.sp->d -= b;
-    check(exec.sp);
+    const double b = exec_popd(vm);
+    vm->sp->d *= b;
+    check(vm->sp);
 }
 
-void dubl_mul(void)
+/* Division by zero: the divisor 0. */
+void dubl_div(Vm *const vm)
 {
-    double b = exec_popd();
-    exec.sp->d *= b;
-    check(exec.sp);
+    if (is_zero(vm->sp->raw))
+        repl_error(E_DZ);
+    const double b = exec_popd(vm);
+    vm->sp->d /= b;
+    check(vm->sp);
 }
 
-void dubl_div(void)
+void dubl_neg(Vm *const vm)
 {
-    if (is_zero(exec.sp->raw)) repl_error(E_DZ);
-    double b = exec_popd();
-    exec.sp->d /= b;
-    check(exec.sp);
+    if (!is_zero(vm->sp->raw))
+        vm->sp->raw ^= DBL_SIGN;
 }
 
-void dubl_neg(void)
+void dubl_cmp(Vm *const vm)
 {
-    if (!is_zero(exec.sp->raw)) exec.sp->raw ^= 1ull << 63;
+    const double b = exec_popd(vm);
+    const double a = vm->sp->d;
+    const uint8_t rel = a > b ? DC_GT : a < b ? DC_LT : DC_EQ;
+    vm->sp->u = rel & exec_u8(vm) ? UINT32_MAX : 0;
 }
 
-void dubl_cmp(void)
-{
-    double b = exec_popd(), a = exec.sp->d;
-    uint8_t rel = a > b ? DC_GT : a < b ? DC_LT : DC_EQ;
-    exec.sp->u = rel & exec_u8() ? 0xFFFFFFFF : 0;
-}
+void dubl_nz(Vm *const vm) { vm->sp->u = is_zero(vm->sp->raw) ? 0 : UINT32_MAX; }
+void dubl_itod(Vm *const vm) { vm->sp->d = vm->sp->i; }
+void dubl_ftod(Vm *const vm) { vm->sp->d = vm->sp->f; }
+void dubl_tof(Vm *const vm) { vm->sp->u = sngl_from_dbl(vm->sp->d); }
 
-void dubl_nz(void) { exec.sp->u = is_zero(exec.sp->raw) ? 0 : 0xFFFFFFFF; }
-void dubl_itod(void) { exec.sp->d = exec.sp->i; }
-void dubl_ftod(void) { exec.sp->d = exec.sp->f; }
-void dubl_tof(void) { exec.sp->u = sngl_from_dbl(exec.sp->d); }
-
-/* fistp qword at the nearest, a half to even: INT64_MIN past the range (the indefinite). */
-static int64_t fistp(uint64_t u)
+/* fistp qword: to the nearest, a half to even; INT64_MIN past the range (the indefinite). */
+static int64_t round_to_int64(const uint64_t u)
 {
-    uint32_t e = u >> 52 & 0x7FF;
-    bool neg = u >> 63;
-    if (e >= 1023 + 63) return INT64_MIN; /* -2^63 itself too */
-    if (e < 1022) return 0;
-    uint64_t m = (u & 0xFFFFFFFFFFFFF) | 1ull << 52, q;
-    if (e >= 1075) q = m << (e - 1075);
+    const uint32_t e = exponent(u);
+    if (e >= DBL_BIAS + 63)
+        return INT64_MIN; /* -2^63 itself too */
+    if (e < DBL_BIAS - 1)
+        return 0;
+    const uint64_t m = (u & DBL_MANT) | DBL_IMPLICIT;
+    const uint32_t point = DBL_BIAS + DBL_MANT_BITS; /* the exponent of a whole significand */
+    uint64_t q;
+    if (e >= point)
+        q = m << (e - point);
     else {
-        uint32_t sh = 1075 - e;
-        uint64_t rem = m & ((1ull << sh) - 1), half = 1ull << (sh - 1);
-        q = m >> sh;
-        if (rem > half || (rem == half && (q & 1))) q++;
+        const uint32_t shift = point - e;
+        const uint64_t rem = m & ((1ull << shift) - 1);
+        const uint64_t half = 1ull << (shift - 1);
+        q = m >> shift;
+        if (rem > half || (rem == half && (q & 1)))
+            q++;
     }
-    return neg ? (int64_t)(0 - q) : (int64_t)q;
+    return u & DBL_SIGN ? (int64_t)(0 - q) : (int64_t)q;
 }
 
-void dubl_toi(void)
+/* Overflow past an INT. */
+void dubl_toi(Vm *const vm)
 {
-    int64_t v = fistp(exec.sp->raw);
-    exec.sp->raw = (uint64_t)v;
-    if (v != (int32_t)v) repl_error(E_OV);
+    const int64_t v = round_to_int64(vm->sp->raw);
+    vm->sp->raw = (uint64_t)v;
+    if (v != (int32_t)v)
+        repl_error(E_OV);
 }
 
-/* frndint down or toward 0. */
-static uint64_t rndint(uint64_t u, bool down)
+/* frndint, down or toward 0. */
+static uint64_t round_whole(uint64_t u, const bool down)
 {
-    uint32_t e = u >> 52 & 0x7FF;
-    uint64_t neg = u & 1ull << 63;
-    if (e >= 1075) return u;
-    if (e < 1023) {
-        if (down && neg && !is_zero(u)) return 0xBFF0000000000000; /* -1 */
-        return neg;
+    const uint32_t e = exponent(u);
+    const uint64_t sign = u & DBL_SIGN;
+    if (e >= DBL_BIAS + DBL_MANT_BITS) /* whole already */
+        return u;
+    if (e < DBL_BIAS) { /* under 1 */
+        if (down && sign && !is_zero(u))
+            return DBL_MINUS_ONE;
+        return sign;
     }
-    uint64_t frac = (1ull << (1075 - e)) - 1;
-    if (!(u & frac)) return u;
-    if (down && neg) u += frac + 1;
+    const uint64_t frac = (1ull << (DBL_BIAS + DBL_MANT_BITS - e)) - 1;
+    if (!(u & frac))
+        return u;
+    if (down && sign)
+        u += frac + 1;
     return u & ~frac;
 }
 
-void dubl_fn(void)
+void dubl_fn(Vm *const vm)
 {
-    uint8_t k = exec_u8();
-    Cell *c = exec.sp;
+    const uint8_t k = exec_u8(vm);
+    Cell *const c = vm->sp;
     switch (k) {
-    case DF_ABS: c->raw &= ~(1ull << 63); break;
-    case DF_SGN: c->u = (uint32_t)(c->d > 0 ? 1 : c->d < 0 ? -1 : 0); return; /* NaN 0 */
-    case DF_INT: c->raw = rndint(c->raw, true); break;
-    case DF_FIX: c->raw = rndint(c->raw, false); break;
+    case DF_ABS: c->raw &= ~DBL_SIGN; break;
+    case DF_SGN: c->i = c->d > 0 ? 1 : c->d < 0 ? -1 : 0; return; /* NaN 0 */
+    case DF_INT: c->raw = round_whole(c->raw, true); break;
+    case DF_FIX: c->raw = round_whole(c->raw, false); break;
     case DF_SQR: status(pfpu_dfn(PF_SQR, c->d, &c->d)); return;
     case DF_EXP: status(pfpu_dfn(PF_EXP, c->d, &c->d)); return;
     default: {
@@ -329,22 +398,23 @@ void dubl_fn(void)
     check(c);
 }
 
-void dubl_pow(void)
+void dubl_pow(Vm *const vm)
 {
-    double b = exec_popd();
-    status(pfpu_dpow(exec.sp->d, b, &exec.sp->d));
+    const double b = exec_popd(vm);
+    status(pfpu_dpow(vm->sp->d, b, &vm->sp->d));
 }
 
-void dubl_print(void)
+void dubl_print(Vm *const vm)
 {
     uint8_t t[DUBL_TXT];
-    uint32_t n = dubl_fmt(exec_popd(), t);
-    for (uint32_t i = 0; i < n; i++) cons_putc(t[i]);
+    const uint32_t n = dubl_fmt(exec_popd(vm), t);
+    for (uint32_t i = 0; i < n; i++)
+        cons_putc(t[i]);
     cons_space();
 }
 
-void dubl_str(void)
+void dubl_str(Vm *const vm)
 {
-    uint32_t n = dubl_fmt(exec_popd(), cons.sbuf);
-    exec_pusha(strg_buftmp((uint16_t)n));
+    const uint32_t n = dubl_fmt(exec_popd(vm), cons.sbuf);
+    exec_pusha(vm, strg_buftmp((uint16_t)n));
 }

@@ -10,11 +10,26 @@
 
 typedef uint32_t Sngl;
 
+static inline float sngl_val(const Sngl a)
+{
+    return (Cell){.u = a}.f;
+}
+
+/* f rounded to a SINGLE: the store rounds an x87 result once. */
+static inline Sngl sngl_bits(const float f)
+{
+    return (Cell){.f = f}.u;
+}
+
 enum : Sngl {
     SNGL_ONE = 0x3F800000, /* 1 (ftr.asm's g_kone) */
     SNGL_PI = 0x40490FDB,  /* pi rounded (ftr.asm's flt_pi) */
+    SNGL_HUNDRED = 0x42C80000,
     SNGL_SIGN = 0x80000000,
+    SNGL_MANT = 0x7FFFFF,
+    SNGL_IMPLICIT = 0x800000, /* the significand's leading 1 */
 };
+enum { SNGL_EXP_SHIFT = 23, SNGL_EXP_MASK = 0xFF };
 
 /* |a|. */
 Sngl sngl_abs(Sngl a);

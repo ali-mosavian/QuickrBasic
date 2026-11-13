@@ -37,10 +37,10 @@ void repl_error(uint8_t code)
     fmth_clear();
     if (comp.busy)
         comp_fail(code);
-    if (code != E_BRK && code != E_OS && !exec.inerr && exec.line != DLINE) {
-        uint32_t handler = flow_handler();
+    if (code != E_BRK && code != E_OS && !vm.err.active && vm.line != DLINE) {
+        uint32_t handler = flow_handler(&vm);
         if (handler)
-            flow_trap(code, handler);
+            flow_trap(&vm, code, handler);
     }
     repl.err = code;
     longjmp(repl.top, REPL_ERROR);
@@ -67,10 +67,10 @@ static void module_name(void)
    the place, what is wrong and what to do. Any other error: nothing. */
 static void diagnose(void)
 {
-    const ErrOp *e = (const ErrOp *)exec.opip;
+    const ErrOp *e = (const ErrOp *)vm.opip;
     if (!e || e->op != O_ERR)
         return;
-    const uint8_t *body = exec.line == DLINE ? comp_cbuf : at(prog_addr(exec.line) + HDR);
+    const uint8_t *body = vm.line == DLINE ? comp_cbuf : at(prog_addr(vm.line) + HDR);
     uint32_t col = list_text(body, e->at);
     uint32_t mark = diag_at((const char *)cons.sbuf, col, e->code, e->dg, e->state);
     cons_nl();
@@ -89,17 +89,17 @@ static void diagnose(void)
    address s:o"; or BREAK [IN n]. The stacks reset first; the editor takes it there. */
 static void report(uint8_t code)
 {
-    exec.inerr = false;
+    vm.err.active = false;
     chnl_clear();
     cons_fresh();
-    exec.sp = exec.rsp;
+    vm.sp = vm.rsp;
     strg.tmp_used = 0;
     strg.tmp_floor = 0;
 #if IDE
     if (uimn.on)
         uimn_error(code);
 #endif
-    uint32_t line = exec.line;
+    uint32_t line = vm.line;
     if (code == E_BRK) {
         cons_msg(E_BRK); /* BREAK [IN n] */
         if (line != DLINE && prog_line(line)->num != NONUM) {
@@ -108,8 +108,8 @@ static void report(uint8_t code)
         }
         return;
     }
-    exec.cstk = allo.cs_top;
-    exec.cont_line = 0;
+    vm.nframes = 0;
+    vm.cont.line = 0;
     cons_puts(emsg_text(code));
     if (line != DLINE) {
         if (repl.batch) {
@@ -122,7 +122,7 @@ static void report(uint8_t code)
             cons_puts(" in module ");
             module_name();
             cons_puts(" at address ");
-            uint32_t off = (uint32_t)(exec.opip - at(allo.cache));
+            uint32_t off = (uint32_t)(vm.opip - at(allo.cache));
             cons_hex4((uint16_t)(off >> 16));
             cons_putc(':');
             cons_hex4((uint16_t)off);
@@ -143,23 +143,21 @@ static void report(uint8_t code)
 
 void repl_run(void)
 {
-    exec.stop = 0; /* a key the editor or READY kept */
+    vm.stop = 0; /* a key the editor or READY kept */
     comp_line();
     flow_dcode();
     uint32_t eol = link.eol - allo.cache; /* an older direct line's frames: its EOL */
-    for (Addr f = exec.cstk; f < allo.cs_top; f += rd8(f)) {
-        Frame *fr = (Frame *)at(f);
-        if (fr->line == DLINE)
-            fr->resume = eol;
-    }
-    exec.ip = at(link.code); /* past its statement map */
+    for (uint32_t i = 0; i < vm.nframes; i++)
+        if (vm.frames[i].ret.line == DLINE)
+            vm.frames[i].ret.code = eol;
+    vm.ip = at(link.code); /* past its statement map */
     exec_run();
 }
 
 void repl_cont(void)
 {
-    exec.stop = 0;
-    stmt_cont();
+    vm.stop = 0;
+    stmt_cont(&vm);
     exec_run();
 }
 
@@ -177,16 +175,16 @@ void repl_cont(void)
     for (;;) {
         int32_t len = cons_getline();
         if (len < 0) {
-            if (!(exec.stop & SF_BRK))
+            if (!(vm.stop & SF_BRK))
                 quit();
-            exec.stop = 0; /* the STOP key at READY: nothing */
+            vm.stop = 0; /* the STOP key at READY: nothing */
             continue;
         }
         uint8_t r = repl_enter((uint32_t)len);
         if (r == ENTER_DIRECT)
             repl_run();
         if (r == ENTER_STORED)
-            exec.cstk = allo.cs_top;
+            vm.nframes = 0;
     }
 }
 
@@ -294,25 +292,24 @@ static bool is_include(uint32_t len)
 /* A line number in the body at p (M_INT n): Syntax error 64000 or over. */
 static uint16_t line_number(const uint8_t *p)
 {
-    uint32_t num;
-    memcpy(&num, p + 1, 4);
+    const uint32_t num = load32(p + 1);
     if (num >= 64000)
         repl_error(E_SN);
     return (uint16_t)num;
 }
 
 /* The line in comp_cbuf entered as stored line place: its declarations, its number's and its
-   label's labels. exec.lnum its number, NONUM none; returns its body past the number. */
+   label's labels. vm.lnum its number, NONUM none; returns its body past the number. */
 static const uint8_t *enter_decls(uint32_t place)
 {
     prog.entering = place;
     decl_line(comp_cbuf);
     const uint8_t *p = comp_cbuf;
-    exec.lnum = NONUM;
+    vm.lnum = NONUM;
     if (comp_peek(&p) == M_INT) {
-        exec.lnum = line_number(p);
+        vm.lnum = line_number(p);
         p += 5;
-        scop_label(SC_NUM | decl.proc, exec.lnum, prog.entering);
+        scop_label(SC_NUM | decl.proc, vm.lnum, prog.entering);
     }
     if (comp_label(p))
         scop_label(decl.proc, comp_nameof(p), prog.entering);
@@ -322,14 +319,14 @@ static const uint8_t *enter_decls(uint32_t place)
 uint8_t repl_enter(uint32_t len)
 {
     cons.inbuf[len] = 0;
-    exec.line = DLINE;
+    vm.line = DLINE;
     const uint8_t *end = lexr_line(cons.inbuf, comp_cbuf);
     uint32_t place = prog_at();
     if (!comp_cbuf[0])
         return ENTER_EMPTY;
     if (repl.loading) { /* every line stored, at the end */
         const uint8_t *body = enter_decls(place);
-        prog_add(exec.lnum, body, (uint32_t)(end - body));
+        prog_add(vm.lnum, body, (uint32_t)(end - body));
         return ENTER_STORED;
     }
     prog.entering = place;
@@ -337,10 +334,10 @@ uint8_t repl_enter(uint32_t len)
     const uint8_t *p = comp_cbuf;
     if (comp_peek(&p) != M_INT)
         return ENTER_DIRECT;
-    exec.lnum = line_number(p);
+    vm.lnum = line_number(p);
     p += 5;
     comp_peek(&p);
-    prog_put(exec.lnum, p, (uint32_t)(end - p));
+    prog_put(vm.lnum, p, (uint32_t)(end - p));
     return ENTER_STORED;
 }
 
@@ -389,12 +386,12 @@ void repl_relink(void)
     prog_drop();
     repl.loading = true;
     for (uint32_t line = PROGBASE; prog_line(line)->len;) {
-        exec.line = line;
+        vm.line = line;
         uint8_t *d = comp_cbuf; /* its number, then its body */
         uint32_t num = prog_line(line)->num;
         if (num != NONUM) {
             *d = M_INT;
-            memcpy(d + 1, &num, 4);
+            store32(d + 1, num);
             d += 5;
         }
         prog_body(line, d);

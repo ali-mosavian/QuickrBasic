@@ -1,6 +1,6 @@
 # Cross-group decisions (phase 2)
 
-1. Interrupts run no C. The jwasm handlers only set bits in `exec.stop` (`SF_BRK` from INT 23h and
+1. Interrupts run no C. The jwasm handlers only set bits in `vm.stop` (`SF_BRK` from INT 23h and
    the tick's Ctrl+C scan, `SF_TICK` from the tick) and count ticks; the core polls (`exec_brk` →
    `evnt_poll`). `psys_init` takes no tick callback.
 2. vm owns `plat/pkey.h` and `plat/pclk.h` and their dos32 code, including what io needs:

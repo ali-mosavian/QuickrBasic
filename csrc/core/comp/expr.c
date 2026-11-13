@@ -434,7 +434,7 @@ void expr_load(void)
 {
     if (comp_cur() == M_VAR) { /* a FUNCTION's name: its call, but its result in it */
         uint8_t len = comp.p[1];
-        const Name *n = symb_name(comp_rd16(comp.p + len + 2));
+        const Name *n = symb_name(load16(comp.p + len + 2));
         if (n->flags & (NM_FUNC | NM_FN)) {
             if (!n->proc) {
                 loadvar(undeclared());
@@ -492,7 +492,7 @@ static void vakind(uint16_t id)
                 va = VA_I2 << 24 | 4;
             break;
         case 2:
-            va = scop_decl(v->name, B_FIX, info & VI_ARR) | VA_DESC << 24;
+            va = scop_fix(v->name, info & VI_ARR) | VA_DESC << 24;
             break;
         }
     }
@@ -761,7 +761,7 @@ static void unary(void)
             expr_load();
             return;
         case M_INT: {
-            uint32_t v = comp_rd32(comp.p + 1);
+            uint32_t v = load32(comp.p + 1);
             comp.p += 5;
             comp_int(v);
             if (v <= 32767) {
@@ -811,8 +811,7 @@ static void unary(void)
             if (kind == DK_DBL) { /* a DOUBLE: D.LD.K q */
                 comp.type = T_DBL;
                 comp_op(O_D_LD_K);
-                uint64_t q;
-                memcpy(&q, &d, 8);
+                const uint64_t q = (Cell){.d = d}.raw;
                 comp_dword((uint32_t)q);
                 comp_dword((uint32_t)(q >> 32));
                 comp.iload = comp.iloadend = nullptr;

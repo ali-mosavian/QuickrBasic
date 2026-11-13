@@ -419,7 +419,7 @@ static uint8_t nrec(uint16_t name, bool array)
     }
     if (!array && comp_param(name, 0, &id))
         return 0; /* a parameter, not a record */
-    return (uint8_t)scop_decl(name, B_REC, array);
+    return scop_rec(name, array);
 }
 
 static uint16_t recvar(uint16_t name, uint8_t t, uint8_t kind)
@@ -482,7 +482,7 @@ bool ctrl_recref(void)
 {
     const uint8_t *p = comp.p;
     uint8_t len = p[1];
-    uint16_t name = comp_rd16(p + len + 2);
+    uint16_t name = load16(p + len + 2);
     const uint8_t *after = p + len + 4;
     uint8_t t;
     if (*after == '(') { /* a(i) */
@@ -659,9 +659,9 @@ static void arrayarg(void)
         synerr();
     const uint8_t *p = comp.p;
     uint8_t len = p[1];
-    uint16_t name = comp_rd16(p + len + 2), id;
+    uint16_t name = load16(p + len + 2), id;
     if (p[len + 4] == '(') {
-        uint8_t t = scop_arec(name);
+        uint8_t t = scop_rec(name, true);
         if (t) {
             comp.p = p + len + 4;
             id = ctrl_recarray(name, t);
@@ -676,7 +676,7 @@ static void arrayarg(void)
         comp_int(id);
         return;
     }
-    uint8_t t = (uint8_t)scop_decl(name, B_REC, false);
+    uint8_t t = scop_rec(name, false);
     if (!t)
         synerr();
     comp.p = p + len + 4;
@@ -711,7 +711,7 @@ static void arg(uint16_t par)
             } else if (p[p[1] + 4] == '(') { /* an element */
                 uint16_t id = comp_var(0, 0);
                 const Var *v = symb_var(id);
-                if (v->info & VI_ARR && !scop_decl(v->name, B_FIX, true) && v->type == ptype) {
+                if (v->info & VI_ARR && !scop_fix(v->name, true) && v->type == ptype) {
                     uint8_t n = expr_subs();
                     comp_opw(O_RA_ADDR, id);
                     comp_byte(n);
@@ -916,10 +916,10 @@ static bool defseg(void)
 static void redim(void)
 {
     comp.p++;
-    comp.redim = 0x40;
+    comp.redim = DIM_REDIM;
     if (comp.p[0] == TK_X && comp.p[1] == TK1_PRESERVE) {
         comp.p += 2;
-        comp.redim = 0x140;
+        comp.redim = DIM_REDIM | DIM_PRESERVE;
     }
     comp_dfa(lexr_ps_entry[TK_DIM - 0x80]);
     comp.redim = 0;
@@ -932,7 +932,7 @@ static void erase(void)
     do {
         uint16_t id = shaped(2);
         uint16_t name = symb_var(id)->name;
-        uint8_t t = scop_arec(name); /* a record array: its own variable */
+        uint8_t t = scop_rec(name, true); /* a record array: its own variable */
         if (t)
             id = ctrl_recarray(name, t);
         comp_int(id);

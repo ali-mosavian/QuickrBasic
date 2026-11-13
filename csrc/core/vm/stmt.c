@@ -2,6 +2,7 @@
    CONT, END, STOP, POKE, WAIT, INP, OUT, SYS, ^. */
 #include "vm/stmt.h"
 #include "comp/comp.h"
+#include "comp/decl.h"
 #include "comp/dfa.h"
 #include "comp/link.h"
 #include "comp/list.h"
@@ -23,65 +24,67 @@
 #include "vm/evnt.h"
 #include "vm/flow.h"
 
-enum { RDSZ = 256 };
+enum { DATA_TEXT_SIZE = 256, PRINT_ZONE = 14 };
 
-/* What an item reads: a FLOAT, a string, a DOUBLE (the asm's rn.lk 0, 2, 3). */
-enum : uint8_t { LK_FLT = 0, LK_STR = 2, LK_DBL = 3 };
+/* What an INPUT field or a DATA item is read as. */
+typedef enum : uint8_t { ITEM_SNGL, ITEM_STRING, ITEM_DOUBLE } ItemKind;
 
 static struct {
-    uint8_t *rdbuf;      /* g_rdbuf: the DATA in hand's text, in the arena */
-    const uint8_t *dlp;  /* rn.dlp: READ's place in rdbuf, null before the first */
-    uint32_t dataat;     /* rn.dataat: the DATA's first byte in the store, 0 none */
-    bool before;         /* rn.dyo: dlp is before a DATA's first item */
-    uint8_t *in_end;     /* rn.inend: where an empty INPUT line goes on */
-    uint8_t *in_start;   /* rn.iny0: REDO comes back here */
-    bool redo;           /* rn.iredo: a bad field: REDO FROM START after the stores */
+    uint8_t *data_text;        /* g_rdbuf: the DATA in hand's text, in the arena */
+    const uint8_t *data_pos;   /* READ's place in data_text, null before the first READ */
+    uint32_t data_at;          /* the DATA's first byte in the store, 0 none */
+    bool before_first;         /* data_pos is before the DATA's first item */
+    uint8_t *input_end;        /* where an INPUT's empty line goes on */
+    uint8_t *input_start;      /* REDO comes back here */
+    bool redo;                 /* a bad field: REDO FROM START after the stores */
 } st;
 
-void stmt_init(void) { st.rdbuf = at(allo_carve(RDSZ)); }
+void stmt_init(void) { st.data_text = at(allo_carve(DATA_TEXT_SIZE)); }
 
-/* PRINT a value ( x -- ). */
-void stmt_ipr(void) { cons_int(exec_popi()); }
-void stmt_fpr(void) { sngl_print(exec_pop().u); }
-void stmt_spr(void) { strg_print(strg_get(exec_popa())); }
-void stmt_pnl(void) { cons_nl(); }
+/* ---- PRINT ---------------------------------------------------------------------------------- */
 
-/* PR.ZONE: to the next 14-column zone. */
-void stmt_pzone(void)
+void stmt_ipr(Vm *const vm) { cons_int(exec_popi(vm)); }
+void stmt_fpr(Vm *const vm) { sngl_print(exec_pop(vm).u); }
+void stmt_spr(Vm *const vm) { strg_print(strg_get(exec_popa(vm))); }
+void stmt_pnl(Vm *const) { cons_nl(); }
+
+/* PR.ZONE: to the next zone. */
+void stmt_pzone(Vm *const)
 {
     do
         cons_space();
-    while (cons.col % 14);
+    while (cons.col % PRINT_ZONE);
 }
 
-/* PR.TAB ( i -- ): to column i, from 1; past it, on the next line. */
-void stmt_ptab(void)
+/* TAB(i): to column i, from 1; past it, on the next line. */
+void stmt_ptab(Vm *const vm)
 {
-    int32_t i = exec_popi() - 1;
-    uint8_t c = i > 0 ? (uint8_t)i : 0;
-    if (c < cons.col)
+    const int32_t i = exec_popi(vm) - 1;
+    const uint8_t col = i > 0 ? (uint8_t)i : 0;
+    if (col < cons.col)
         cons_nl();
-    if (c > cons.col)
-        cons_spaces(c - cons.col);
+    if (col > cons.col)
+        cons_spaces(col - cons.col);
 }
 
-/* PR.SPC ( i -- ). */
-void stmt_pspc(void) { cons_spaces((uint8_t)exec_popi()); }
+void stmt_pspc(Vm *const vm) { cons_spaces((uint8_t)exec_popi(vm)); }
+
+/* ---- INPUT ---------------------------------------------------------------------------------- */
 
 /* IN.BEGIN end:2: not direct; REDO comes back here. The end is where an empty line goes on. */
-void stmt_inbeg(void)
+void stmt_inbeg(Vm *const vm)
 {
-    flow_nodir();
+    flow_nodir(vm);
     st.redo = false;
-    st.in_end = at(allo.cache + exec_u16());
-    st.in_start = exec.ip;
+    st.input_end = at(allo.cache + exec_u16(vm));
+    st.input_start = vm->ip;
 }
 
-/* IN.PROMPT: ? and a line. */
-void stmt_inpr(void) { cons_prompt(); }
+/* ? and a line. */
+void stmt_inpr(Vm *const) { cons_prompt(); }
 
-/* IN.FILE: INPUT#'s line, empty lines skipped. */
-void stmt_infile(void)
+/* INPUT#'s line, empty lines skipped. */
+void stmt_infile(Vm *const)
 {
     cons.from_file = true;
     do
@@ -89,126 +92,118 @@ void stmt_infile(void)
     while (!cons.inlen);
 }
 
-/* IN.LINE: a line, no ?: INPUT "prompt", .. */
-void stmt_inln(void) { cons_read(); }
+/* A line, no ?: INPUT "prompt", .. */
+void stmt_inln(Vm *const) { cons_read(); }
 
-/* io_redo: after a bad field's store: ?Redo from start, the INPUT again. true: exec.ip moved. */
-static bool redo(void)
+/* After a bad field's store: ?Redo from start, the INPUT again. true: vm->ip moved. */
+static bool redo(Vm *const vm)
 {
     if (!st.redo)
         return false;
     st.redo = false;
     cons_msg(MSG_REDO);
-    exec.ip = st.in_start;
-    exec.sp = exec.rsp;
+    vm->ip = st.input_start;
+    vm->sp = vm->rsp;
     return true;
 }
 
-/* io_item: an item at *p of kind lk, ending at the statement's end or ','; *p at that end.
-   false: it ends elsewhere (bad), the value read as far as it went. */
-static bool item(const uint8_t **p, uint8_t lk, Cell *v)
+/* An item at *p, ending at the statement's end or ','; *p at that end. false: it ends elsewhere
+   (bad), the value read as far as it went. */
+static bool read_item(const uint8_t **const p, const ItemKind kind, Cell *const v)
 {
-    if (lk == LK_STR) {
+    switch (kind) {
+    case ITEM_STRING: {
         Addr pos = addr_of(*p);
-        v->raw = strg_item(&pos);
+        v->a = strg_item(&pos);
         *p = at(pos);
-    } else if (lk == LK_DBL)
-        v->d = dubl_in(p, nullptr);
-    else
-        v->raw = sngl_in(p);
+        break;
+    }
+    case ITEM_DOUBLE: v->d = dubl_in(p, nullptr); break;
+    case ITEM_SNGL: v->u = sngl_in(p); break;
+    }
     return comp_eos(p) || **p == ',';
 }
 
-static void push_item(uint8_t lk, Cell v)
+static void push_item(Vm *const vm, const ItemKind kind, const Cell v)
 {
-    if (lk != LK_DBL)
-        v.raw = v.u;
-    exec_push(v);
+    if (kind == ITEM_DOUBLE)
+        exec_push(vm, v);
+    else
+        exec_pusha(vm, v.u);
 }
 
-/* F.INPUT S.INPUT D.INPUT ( -- x ): the next field. An empty line leaves the rest of the INPUT.
-   ?File data: a bad number in INPUT#. */
-static void input(uint8_t lk)
+/* The next field. An empty line leaves the rest of the INPUT. File data: a bad number in INPUT#. */
+static void input(Vm *const vm, const ItemKind kind)
 {
-    if (redo())
+    if (redo(vm))
         return;
     if (!cons.inlen) {
-        exec.sp = exec.rsp;
-        exec.ip = st.in_end;
+        vm->sp = vm->rsp;
+        vm->ip = st.input_end;
         return;
     }
     cons_field();
     const uint8_t *p = cons.inbuf + cons.inpos;
     Cell v = {};
-    bool ok = item(&p, lk, &v);
+    const bool ok = read_item(&p, kind, &v);
     cons.inpos = (int32_t)(p - cons.inbuf);
     if (!ok) {
         if (cons.from_file)
             repl_error(E_FD);
         st.redo = true; /* stored as far as it went, then REDO */
     }
-    push_item(lk, v);
+    push_item(vm, kind, v);
 }
-void stmt_fin(void) { input(LK_FLT); }
-void stmt_sin(void) { input(LK_STR); }
-void stmt_din(void) { input(LK_DBL); }
+void stmt_fin(Vm *const vm) { input(vm, ITEM_SNGL); }
+void stmt_sin(Vm *const vm) { input(vm, ITEM_STRING); }
+void stmt_din(Vm *const vm) { input(vm, ITEM_DOUBLE); }
 
 /* IN.END: ?Extra ignored for fields left. */
-void stmt_inend(void)
+void stmt_inend(Vm *const vm)
 {
-    if (redo() || cons.from_file || cons.inpos == -1)
+    if (redo(vm) || cons.from_file || cons.inpos == -1)
         return;
     if (cons.inbuf[cons.inpos])
         cons_msg(MSG_EXTRA);
 }
 
-/* F.GET ( -- f ): the key waiting as a digit, 0 none. Syntax error: not a digit. */
-void stmt_fget(void)
+/* GET to a number: the key waiting as a digit, 0 none. Syntax error: not a digit. */
+void stmt_fget(Vm *const vm)
 {
-    uint8_t c = cons_getc();
-    if (c) {
-        c ^= '0';
-        if (c >= 10)
-            repl_error(E_SN);
-    }
-    exec_pusha(fmth_from_i16(c));
+    const uint8_t c = cons_getc();
+    const uint8_t digit = c ? c - '0' : 0;
+    if (digit >= 10)
+        repl_error(E_SN);
+    exec_pusha(vm, fmth_from_i16(digit));
 }
 
-/* S.GET ( -- s ): the key waiting, or none. */
-void stmt_sget(void)
+/* GET to a string: the key waiting, or none. */
+void stmt_sget(Vm *const vm)
 {
-    uint8_t c = cons_getc();
+    const uint8_t c = cons_getc();
     if (!c) {
-        exec_pusha(strg_push((Desc){}));
+        exec_pusha(vm, strg_push((Desc){}));
         return;
     }
     cons.sbuf[0] = c;
-    exec_pusha(strg_buftmp(1));
+    exec_pusha(vm, strg_buftmp(1));
 }
 
-/* rd_sk: past a statement: *b past its ':' or its 0, which it returns. */
-static uint8_t skip_stmt(uint32_t *b)
+/* ---- READ and DATA -------------------------------------------------------------------------- */
+
+/* Past a statement: *b past its ':' or its 0, which it returns. */
+static uint8_t skip_stmt(uint32_t *const b)
 {
-    bool quoted = false;
-    for (;;) {
-        uint8_t c = rd8(prog_addr((*b)++));
-        if (!c)
-            return 0;
-        if (c == '"')
-            quoted = !quoted;
-        else if (quoted)
-            continue;
-        else if (c == ':')
-            return c;
-        else if (c == M_INT)
-            *b += 4;
-        else if (c == M_VAR)
-            *b += rd8(prog_addr(*b)) + 3u;
-    }
+    const uint8_t *const start = at(prog_addr(*b));
+    const uint8_t *p = start;
+    while (*p && *p != ':')
+        p = decl_item(p);
+    *b += (uint32_t)(p - start) + 1;
+    return *p;
 }
 
-/* rd_scan: the first DATA at or after the statement starting at *b; *b its first byte. */
-static bool scan_data(uint32_t *b)
+/* The first DATA at or after the statement starting at *b; *b its first byte. */
+static bool scan_data(uint32_t *const b)
 {
     for (;;) {
         uint8_t c;
@@ -228,8 +223,8 @@ static bool scan_data(uint32_t *b)
     }
 }
 
-/* rd_after: the first DATA after the statement *b is in. */
-static bool data_after(uint32_t *b)
+/* The first DATA after the statement *b is in. */
+static bool data_after(uint32_t *const b)
 {
     if (!skip_stmt(b)) {
         if (!prog_line(*b)->len)
@@ -239,132 +234,127 @@ static bool data_after(uint32_t *b)
     return scan_data(b);
 }
 
-/* rd_load: the text of the DATA at b to rdbuf, up to a ':' outside quotes. */
-static void load_data(uint32_t b)
+/* The text of the DATA at b to data_text, up to its ':'. */
+static void load_data(const uint32_t b)
 {
-    st.dataat = b;
-    bool quoted = false;
-    uint8_t *d = st.rdbuf;
-    for (uint8_t c; (c = rd8(prog_addr(b++))) && (c != ':' || quoted); *d++ = c)
-        if (c == '"')
-            quoted = !quoted;
-    *d = 0;
+    st.data_at = b;
+    const uint8_t *const text = at(prog_addr(b));
+    const size_t n = (size_t)(comp_skipdata(text) - text);
+    memcpy(st.data_text, text, n);
+    st.data_text[n] = 0;
 }
 
-/* rd_seek: READ goes on at the first DATA at or after line. */
-static void seek_data(uint32_t line)
+/* READ goes on at the first DATA at or after line. */
+static void seek_data(const uint32_t line)
 {
     uint32_t b = line + HDR;
     if (prog_line(line)->len && scan_data(&b))
         load_data(b);
     else {
-        st.dataat = 0;
-        st.rdbuf[0] = 0;
+        st.data_at = 0;
+        st.data_text[0] = 0;
     }
-    st.dlp = st.rdbuf;
-    st.before = true;
+    st.data_pos = st.data_text;
+    st.before_first = true;
 }
 
-/* rd_item: the next DATA item. Out of DATA. */
-static const uint8_t *data_item(void)
+/* The next DATA item. Out of DATA. */
+static const uint8_t *next_data(void)
 {
-    const uint8_t *p = st.dlp;
-    if (!p) {
+    if (!st.data_pos) {
         seek_data(PROGBASE);
-        if (!st.dataat)
+        if (!st.data_at)
             repl_error(E_OD);
-        p = st.dlp;
     }
-    if (st.before) {
-        st.before = false;
+    const uint8_t *p = st.data_pos;
+    if (st.before_first) {
+        st.before_first = false;
         return p;
     }
     if (comp_peek(&p) == ',')
         return p + 1;
-    uint32_t b = st.dataat;
+    uint32_t b = st.data_at;
     if (!b || !data_after(&b))
         repl_error(E_OD);
     load_data(b);
-    return st.rdbuf;
+    return st.data_text;
 }
 
-/* F.READ S.READ D.READ ( -- x ): the next DATA item. Syntax error, in the DATA's line: a bad
-   item. */
-static void read(uint8_t lk)
+/* The next DATA item. Syntax error, in the DATA's line: a bad item. */
+static void read(Vm *const vm, const ItemKind kind)
 {
-    const uint8_t *p = data_item();
+    const uint8_t *p = next_data();
     Cell v = {};
-    if (!item(&p, lk, &v)) {
-        uint32_t l = PROGBASE;
-        while (st.dataat >= l + prog_line(l)->len)
-            l += prog_line(l)->len;
-        exec.line = l;
+    if (!read_item(&p, kind, &v)) {
+        uint32_t line = PROGBASE;
+        while (st.data_at >= line + prog_line(line)->len)
+            line += prog_line(line)->len;
+        vm->line = line;
         repl_error(E_SN);
     }
-    st.dlp = p;
-    push_item(lk, v);
+    st.data_pos = p;
+    push_item(vm, kind, v);
 }
-void stmt_fread(void) { read(LK_FLT); }
-void stmt_sread(void) { read(LK_STR); }
-void stmt_dread(void) { read(LK_DBL); }
+void stmt_fread(Vm *const vm) { read(vm, ITEM_SNGL); }
+void stmt_sread(Vm *const vm) { read(vm, ITEM_STRING); }
+void stmt_dread(Vm *const vm) { read(vm, ITEM_DOUBLE); }
 
 /* RESTORE: the first DATA. */
-void stmt_res(void) { stmt_restore(); }
-void stmt_restore(void) { st.dlp = nullptr; }
+void stmt_res(Vm *const) { stmt_restore(); }
+void stmt_restore(void) { st.data_pos = nullptr; }
 
-/* RESTORE.L ( line -- ): a number, or 10000h and a label's line. Undefined line number. */
-void stmt_resl(void)
+/* RESTORE line. Undefined line number. */
+void stmt_resl(Vm *const vm)
 {
-    uint32_t x = exec_pop().u;
+    const uint32_t x = exec_pop(vm).u;
     uint32_t line;
-    if (x >= 0x10000) {
-        line = x - 0x10000;
+    if (x >= LABEL_LINE) {
+        line = x - LABEL_LINE;
         if (!line)
             repl_error(E_US);
     } else {
-        exec.lnum = (uint16_t)x;
+        vm->lnum = (uint16_t)x;
         if (!prog_find((uint16_t)x, &line))
             repl_error(E_US);
     }
     seek_data(line);
 }
 
-/* DIM ( i1..in mlo mhi id n -- ): n bit 6 REDIM, bit 7 a STATIC's, bit 8 PRESERVE; m, bit i:
-   subscript i is hi, base. As arry_dim. */
-void stmt_dim(void)
+/* ---- DIM and ERASE -------------------------------------------------------------------------- */
+
+/* DIM ( i1..in mlo mhi id flags -- ): bit i of m: subscript i was written hi, base. As arry_dim. */
+void stmt_dim(Vm *const vm)
 {
-    uint32_t n = exec_pop().u;
-    uint8_t dims = n & 0x3F;
-    uint16_t id = (uint16_t)exec_pop().u;
-    uint64_t mask = (uint64_t)exec_pop().u << 32;
-    mask |= exec_pop().u;
-    for (int i = dims; i > 0; i--) { /* lo TO hi, or hi and the base */
-        int32_t hi = exec_popi();
-        int32_t lo = exec_popi();
-        if (mask >> (i - 1) & 1) {
-            int32_t t = hi;
-            hi = lo;
-            lo = t;
-        }
-        arry.subs[i - 1] = (uint16_t)(hi - lo);
-        arry.lbounds[i - 1] = (int16_t)lo;
+    const uint32_t flags = exec_pop(vm).u;
+    const uint8_t dims = flags & DIM_COUNT;
+    const uint16_t id = (uint16_t)exec_pop(vm).u;
+    const uint32_t mask_hi = exec_pop(vm).u;
+    const uint64_t swapped = (uint64_t)mask_hi << 32 | exec_pop(vm).u;
+    for (uint8_t i = dims; i-- > 0;) { /* lo TO hi, or hi and the base */
+        const int32_t second = exec_popi(vm);
+        const int32_t first = exec_popi(vm);
+        const bool swap = swapped >> i & 1;
+        const int32_t hi = swap ? first : second;
+        const int32_t lo = swap ? second : first;
+        arry.subs[i] = (uint16_t)(hi - lo);
+        arry.lbounds[i] = (int16_t)lo;
     }
-    Var *v = symb_var(id);
-    if (!(n & 0x40)) {
-        if (!(n & 0x80) || !v->vt) /* a STATIC's, dimensioned: kept */
+    Var *const v = symb_var(id);
+    if (!(flags & DIM_REDIM)) {
+        if (!(flags & DIM_STATIC) || !v->vt) /* a STATIC's, dimensioned: kept */
             arry_dim(id, dims, false);
         return;
     }
-    Addr old = v->vt; /* REDIM: the old one goes */
-    if (old && n & 0x100) { /* PRESERVE: the new one made, the old one's elements copied */
-        if (dims != ((ArrayHdr *)at(old))->dims)
+    const Addr old = v->vt; /* REDIM: the old one goes */
+    if (old && flags & DIM_PRESERVE) { /* the new one made, the old one's elements copied */
+        if (dims != ((const ArrayHdr *)at(old))->dims)
             arry_bad_sub();
         v->vt = 0;
         arry_dim(id, dims, true);
-        Addr fresh = symb_var(id)->vt;
+        const Addr fresh = symb_var(id)->vt;
         arry_keep(id, old, fresh);
         symb_var(id)->vt = old;
-        uint32_t freed = arry_free(id, AREP);
+        const uint32_t freed = arry_free(id, AREP);
         symb_var(id)->vt = fresh - freed; /* its header was after the old one's */
     } else {
         if (old)
@@ -375,58 +365,59 @@ void stmt_dim(void)
 }
 
 /* ERASE ( id -- ): REDIM's array freed, another's elements zeroed. */
-void stmt_erase(void)
+void stmt_erase(Vm *const vm)
 {
-    uint16_t id = (uint16_t)exec_pop().u;
-    Addr h = symb_var(id)->vt;
-    if (!h)
+    const uint16_t id = (uint16_t)exec_pop(vm).u;
+    const Addr hdr = symb_var(id)->vt;
+    if (!hdr)
         return;
     if (symb_varx(id)->dyn)
         arry_free(id, 0);
     else
-        copy_zero(((ArrayHdr *)at(h))->data, arry_size(id, h));
+        copy_zero(((const ArrayHdr *)at(hdr))->data, arry_size(id, hdr));
 }
 
-/* ex_ready: back to READY, the frames kept. */
-[[noreturn]] static void ready(void)
+/* ---- RUN, LIST, CONT, END, STOP ------------------------------------------------------------- */
+
+/* Back to READY, the frames kept. */
+[[noreturn]] static void ready(Vm *const vm)
 {
     evnt_clear();
-    exec.stop &= ~SF_EV;
+    vm->stop &= ~SF_EV;
     repl_ready();
 }
 
-void stmt_rungo(uint32_t line)
+void stmt_rungo(const uint32_t line)
 {
-    exec.sp = exec.rsp;
+    vm.sp = vm.rsp;
     evnt_clear();
     chai_start();
-    exec.onerr = 0;
-    exec.inerr = false;
-    exec.err = 0;
-    exec.erl = 0;
-    exec.cstk = allo.cs_top;
-    exec.lsp = exec.lsav;
+    vm.err.handler = 0;
+    vm.err.active = false;
+    vm.err.code = 0;
+    vm.err.line = 0;
+    vm.nframes = 0;
+    vm.ncallvars = 0;
     strg.tmp_floor = 0;
-    flow_jump(line);
+    flow_jump(&vm, line);
 }
 
-/* RUN.L ( line -- ). Undefined line number; a label. */
-void stmt_runl(void)
+/* RUN line. Undefined line number; a label. */
+void stmt_runl(Vm *const vm)
 {
-    uint32_t num = exec_pop().u;
-    if (num >= 0x10000)
+    const uint32_t num = exec_pop(vm).u;
+    if (num >= LABEL_LINE)
         repl_error(E_US); /* RUN takes a number, not a label */
     symb_clear();
     link_start();
-    exec.lnum = (uint16_t)num;
+    vm->lnum = (uint16_t)num;
     uint32_t line;
     if (!prog_find((uint16_t)num, &line))
         repl_error(E_US);
     stmt_rungo(line);
 }
 
-/* RUN. */
-void stmt_run(void)
+void stmt_run(Vm *const)
 {
     symb_clear();
     link_start();
@@ -437,146 +428,150 @@ void stmt_runfirst(void)
 {
     chnl_closeall();
     if (!prog_line(PROGBASE)->len)
-        flow_end();
+        flow_end(&vm);
     stmt_rungo(PROGBASE);
 }
 
 /* LIST ( from to -- ), then READY. */
-void stmt_list(void)
+void stmt_list(Vm *const vm)
 {
-    uint16_t to = (uint16_t)exec_pop().u;
-    uint16_t from = (uint16_t)exec_pop().u;
+    const uint16_t to = (uint16_t)exec_pop(vm).u;
+    const uint16_t from = (uint16_t)exec_pop(vm).u;
     list_range(from, to);
-    ready();
+    ready(vm);
 }
 
-void stmt_cont(void)
+void stmt_cont(Vm *const vm)
 {
-    uint32_t line = exec.cont_line;
-    if (!line)
+    if (!vm->cont.line)
         repl_error(E_CN);
-    if (!exec.cont_code)
-        ready();
-    exec.line = line;
-    exec.ip = flow_place(line, exec.cont_code);
+    if (!vm->cont.code)
+        ready(vm);
+    vm->line = vm->cont.line;
+    vm->ip = flow_place(vm->cont);
 }
 
-/* CLR: the variables, and the frames. */
-void stmt_clr(void)
+/* CLEAR: the variables, and the frames. */
+void stmt_clr(Vm *const vm)
 {
     symb_clear();
-    exec.cstk = allo.cs_top;
+    vm->nframes = 0;
 }
 
-/* NEW. */
-void stmt_new(void)
+void stmt_new(Vm *const vm)
 {
     prog_init();
-    flow_end();
+    flow_end(vm);
 }
 
-/* NODIR: Illegal direct in the direct line. */
-void stmt_nodir(void) { flow_nodir(); }
+/* Illegal direct in the direct line. */
+void stmt_nodir(Vm *const vm) { flow_nodir(vm); }
 
-void stmt_end(void)
+void stmt_end(Vm *const vm)
 {
     if (dbug.probing)
         dbug_done();
     chnl_closeall();
-    flow_setcont();
-    ready();
+    flow_setcont(vm);
+    ready(vm);
 }
 
-void stmt_stop(void)
+void stmt_stop(Vm *const vm)
 {
-    exec.stop = 0;
-    flow_setcont();
+    vm->stop = 0;
+    flow_setcont(vm);
     repl_error(E_BRK);
 }
 
+/* ---- the machine ---------------------------------------------------------------------------- */
+
 /* POKE ( addr byte -- ). */
-void stmt_poke(void)
+void stmt_poke(Vm *const vm)
 {
-    uint8_t b = (uint8_t)exec_pop().u;
-    wr8(exec_popa(), b);
+    const uint8_t b = (uint8_t)exec_pop(vm).u;
+    wr8(exec_popa(vm), b);
 }
 
-/* WAIT ( port mask xor -- ), WAIT2 ( port mask -- ): until (INP XOR xor) AND mask. */
-static void wait(uint8_t x)
+/* WAIT ( port mask -- ): until (INP XOR flip) AND mask. */
+static void wait(Vm *const vm, const uint8_t flip)
 {
-    uint8_t mask = (uint8_t)exec_pop().u;
-    uint16_t port = (uint16_t)exec_pop().u;
-    while (!((psys_inp(port) ^ x) & mask))
+    const uint8_t mask = (uint8_t)exec_pop(vm).u;
+    const uint16_t port = (uint16_t)exec_pop(vm).u;
+    while (!((psys_inp(port) ^ flip) & mask))
         ;
 }
-void stmt_wait(void) { wait((uint8_t)exec_pop().u); }
-void stmt_wait2(void) { wait(0); }
+void stmt_wait(Vm *const vm) { wait(vm, (uint8_t)exec_pop(vm).u); }
+void stmt_wait2(Vm *const vm) { wait(vm, 0); }
 
 /* INP ( port -- b ); OUT ( port b -- ). */
-void stmt_inp(void) { exec_pushi(psys_inp((uint16_t)exec_pop().u)); }
-void stmt_out(void)
+void stmt_inp(Vm *const vm) { exec_pushi(vm, psys_inp((uint16_t)exec_pop(vm).u)); }
+void stmt_out(Vm *const vm)
 {
-    uint8_t b = (uint8_t)exec_pop().u;
-    psys_outp((uint16_t)exec_pop().u, b);
+    const uint8_t b = (uint8_t)exec_pop(vm).u;
+    psys_outp((uint16_t)exec_pop(vm).u, b);
 }
 
 /* SYS ( addr -- ): a call into the POKE memory; nothing poked there: a no-op. */
-void stmt_sys(void)
+void stmt_sys(Vm *const vm)
 {
-    Addr a = allo.poke + (uint16_t)exec_pop().u;
+    const Addr a = allo.poke + (uint16_t)exec_pop(vm).u;
     if (rd8(a))
         psys_call(a);
 }
 
-/* I.POW ( base power -- r ): truncated for a negative power. Overflow past an INT. */
-void stmt_ipow(void)
+/* ---- ^ and TI ------------------------------------------------------------------------------- */
+
+/* INT ^ INT: 0 for a negative power past |base| 1. Overflow past an INT. */
+static int32_t int_pow(const int32_t base, const int32_t power)
 {
-    int32_t p = exec_popi();
-    int32_t b = exec_popi();
+    if (!power || base == 1)
+        return 1;
+    if (!base)
+        return 0;
+    if (base == -1)
+        return power & 1 ? -1 : 1;
+    if (power < 0)
+        return 0;
     int32_t r = 1;
-    if (p && b != 1) {
-        if (!b)
-            r = 0;
-        else if (b == -1)
-            r = p & 1 ? -1 : 1;
-        else if (p < 0)
-            r = 0; /* |base| over 1, a negative power */
-        else
-            for (; p; p--)
-                if (__builtin_mul_overflow(r, b, &r))
-                    repl_error(E_OV);
-    }
-    exec_pushi(r);
+    for (int32_t i = 0; i < power; i++)
+        if (__builtin_mul_overflow(r, base, &r))
+            repl_error(E_OV);
+    return r;
 }
 
-/* F.POW ( base power -- r ). */
-void stmt_fpow(void)
+void stmt_ipow(Vm *const vm)
 {
-    Sngl p = exec_pop().u;
-    Sngl b = exec_pop().u;
-    exec_pusha(fmth_pow(b, p));
+    const int32_t power = exec_popi(vm);
+    const int32_t base = exec_popi(vm);
+    exec_pushi(vm, int_pow(base, power));
 }
 
-/* F.LD.TI ( -- f ): the jiffies. */
-void stmt_fti(void)
+void stmt_fpow(Vm *const vm)
 {
-    uint32_t j = pclk_jiffies();
-    exec_pusha(j ? sngl_norm(j, false) : 0);
+    const Sngl power = exec_pop(vm).u;
+    const Sngl base = exec_pop(vm).u;
+    exec_pusha(vm, fmth_pow(base, power));
 }
 
-/* S.LD.TI ( -- s ): "HHMMSS". */
-void stmt_sti(void)
+/* TI: the jiffies. */
+void stmt_fti(Vm *const vm)
 {
-    uint32_t j = pclk_jiffies();
-    for (int i = 6; i >= 0; i -= 2) {
-        uint32_t base = i ? 60 : 100;
-        uint32_t d = j % base;
-        j /= base;
+    const uint32_t j = pclk_jiffies();
+    exec_pusha(vm, j ? sngl_norm(j, false) : 0);
+}
+
+/* TI$: "HHMMSS" from the hundredths. */
+void stmt_sti(Vm *const vm)
+{
+    uint32_t t = pclk_jiffies() / 100;
+    for (int i = 4; i >= 0; i -= 2) {
+        const uint32_t d = t % 60;
+        t /= 60;
         cons.sbuf[i] = '0' + d / 10;
         cons.sbuf[i + 1] = '0' + d % 10;
     }
-    exec_pusha(strg_buftmp(6));
+    exec_pusha(vm, strg_buftmp(6));
 }
 
-/* I.LD.ST ( -- i ): the I/O status. */
-void stmt_ist(void) { exec_pushi(cons.status); }
+/* ST: the I/O status. */
+void stmt_ist(Vm *const vm) { exec_pushi(vm, cons.status); }

@@ -3,12 +3,12 @@
 
    OP(name, handler, size, flags): op O_name, its handler, its bytes with the op (0 varies: ON,
    S.LD.TXT, see flow_opsize), FX an expression's op, FV a variable's id (a word) after the op, FB
-   the handler serves several ops and reads which at exec.opip.
+   the handler serves several ops and reads which at vm.opip.
 
    K(name, handler): the CALL op's routine K_name. The statements' first, from K_IPOW an
    expression's; K_FN_SGN .. K_FN_CHRS are SGN .. CHR$ by token (TK_SGN ..), all func_fn1.
 
-   A handler is `void h(void)`: its operands at exec.ip, its values on exec.sp. Another group's
+   A handler is `void h(void)`: its operands at vm.ip, its values on vm.sp. Another group's
    group's handlers are named in its portmap (num: dubl_*; io: file_*). */
 
 #ifdef OP

@@ -9,135 +9,135 @@
 enum { FMTMAX = 255, NDIG = 80 };
 
 /* A field's kind (us_fld). */
-enum : uint8_t { UF_NONE, UF_FIRST, UF_ALL, UF_WIDE, UF_NUM };
+typedef enum : uint8_t { UF_NONE, UF_FIRST, UF_ALL, UF_WIDE, UF_NUM } FieldKind;
 
 /* A numeric field (TUSF). */
 typedef struct {
-    uint32_t len;   /* its characters in the format */
-    uint32_t wid;   /* its columns, the signs not counted */
-    uint32_t lp;    /* a leading + */
-    uint32_t tr;    /* a trailing + or -, else 0 */
-    uint32_t st;    /* ** */
-    uint32_t dol;   /* a $ */
-    uint32_t com;   /* commas */
-    uint32_t bp;    /* places before the point */
-    uint32_t dec;   /* after it */
-    uint32_t pt;    /* a point */
-    uint32_t car;   /* 4 or 5 for an exponent */
+    uint32_t len;     /* its characters in the format */
+    uint32_t width;   /* its columns, the signs not counted */
+    bool plus_lead;   /* a leading + */
+    uint8_t trail;    /* a trailing + or -, else 0 */
+    bool stars;       /* ** */
+    bool dollar;      /* a $ */
+    bool commas;
+    uint32_t before;  /* places before the point */
+    uint32_t after;   /* after it */
+    bool point;
+    uint32_t carets;  /* 4 or 5 for an exponent, else 0 */
 } Field;
 
 static struct {
     uint8_t fmt[FMTMAX];
-    uint32_t len, at;      /* the format's length, the place */
+    uint32_t fmt_len, pos;     /* the format's length, the place */
     Field f;
-    uint8_t nt[NDIG + 20]; /* the number: its digits, their count, places before the point */
-    int32_t nc, ni;
-    bool neg, sci;         /* its sign; PRINT would give it an exponent */
+    uint8_t digits[NDIG + 20]; /* the number: 0.digits * 10^scale */
+    int32_t count, scale;
+    bool neg, sci;             /* its sign; PRINT would give it an exponent */
     uint8_t body[FMTMAX + NDIG];
     uint8_t line[FMTMAX + NDIG + 8];
 } us;
 
 /* The format's char at d, 0 past it. */
-static uint8_t ch(uint32_t d) { return d < us.len ? us.fmt[d] : 0; }
+static uint8_t fmt_at(const uint32_t d) { return d < us.fmt_len ? us.fmt[d] : 0; }
 
-static void out(const uint8_t *p, uint32_t n)
+static void out(const uint8_t *const p, const uint32_t n)
 {
-    while (n--)
-        cons_putc(*p++);
+    for (uint32_t i = 0; i < n; i++)
+        cons_putc(p[i]);
 }
 
 /* US.BEGIN ( fmt -- ). Illegal function call: over 255 characters. */
-void usng_usb(void)
+void usng_usb(Vm *const vm)
 {
-    Desc s = strg_get(exec_popa());
+    const Desc s = strg_get(exec_popa(vm));
     if (s.len > FMTMAX)
         repl_error(E_IQ);
-    us.len = s.len;
+    us.fmt_len = s.len;
     memcpy(us.fmt, at(s.ptr), s.len);
-    us.at = 0;
+    us.pos = 0;
 }
 
 /* us_numf: the numeric field at b in us.f; false none. */
-static bool numfield(uint32_t b)
+static bool num_field(const uint32_t b)
 {
-    Field *f = &us.f;
+    Field *const f = &us.f;
     *f = (Field){};
     uint32_t d = b;
     bool digits = false;
-    if (ch(d) == '+' && d + 1 < us.len) {
-        f->lp = 1;
+    if (fmt_at(d) == '+' && d + 1 < us.fmt_len) {
+        f->plus_lead = true;
         d++;
     }
-    if (d + 1 < us.len) {
+    if (d + 1 < us.fmt_len) {
         if (us.fmt[d] == '*' && us.fmt[d + 1] == '*') {
-            f->st = 1;
-            f->wid += 2;
-            f->bp += 2;
+            f->stars = true;
+            f->width += 2;
+            f->before += 2;
             d += 2;
-            if (ch(d) == '$') {
-                f->dol = 1;
-                f->wid++;
+            if (fmt_at(d) == '$') {
+                f->dollar = true;
+                f->width++;
                 d++;
             }
         } else if (us.fmt[d] == '$' && us.fmt[d + 1] == '$') {
-            f->dol = 1;
-            f->wid += 2;
-            f->bp++;
+            f->dollar = true;
+            f->width += 2;
+            f->before++;
             d += 2;
         }
     }
     for (;; d++) { /* # and , before the point */
-        if (ch(d) == '#')
-            f->bp++;
-        else if (ch(d) == ',')
-            f->com = 1;
+        if (fmt_at(d) == '#')
+            f->before++;
+        else if (fmt_at(d) == ',')
+            f->commas = true;
         else
             break;
-        f->wid++;
+        f->width++;
         digits = true;
     }
-    if (ch(d) == '.') {
-        if (d + 1 < us.len && us.fmt[d + 1] == '#') {
-            f->pt = 1;
-            f->wid++;
-            for (d++; ch(d) == '#'; d++) {
-                f->dec++;
-                f->wid++;
+    if (fmt_at(d) == '.') {
+        if (d + 1 < us.fmt_len && us.fmt[d + 1] == '#') {
+            f->point = true;
+            f->width++;
+            for (d++; fmt_at(d) == '#'; d++) {
+                f->after++;
+                f->width++;
                 digits = true;
             }
         } else if (digits) { /* ##. : a point, no places after it */
-            f->pt = 1;
-            f->wid++;
+            f->point = true;
+            f->width++;
             d++;
         }
     }
-    if (!digits && !f->st && !f->dol)
+    if (!digits && !f->stars && !f->dollar)
         return false;
-    if (d + 3 < us.len && !memcmp(us.fmt + d, "^^^^", 4)) {
-        f->car = 4;
+    if (d + 3 < us.fmt_len && !memcmp(us.fmt + d, "^^^^", 4)) {
+        f->carets = 4;
         d += 4;
-        if (ch(d) == '^') {
-            f->car = 5;
+        if (fmt_at(d) == '^') {
+            f->carets = 5;
             d++;
         }
     }
-    if (!f->lp && (ch(d) == '+' || ch(d) == '-'))
-        f->tr = us.fmt[d++];
+    if (!f->plus_lead && (fmt_at(d) == '+' || fmt_at(d) == '-'))
+        f->trail = us.fmt[d++];
     f->len = d - b;
     return true;
 }
 
 /* us_fld: the field at b: its kind, *len its length; a number's in us.f. */
-static uint8_t field(uint32_t b, uint32_t *len)
+static FieldKind field(const uint32_t b, uint32_t *const len)
 {
-    uint8_t c = us.fmt[b];
+    const uint8_t c = us.fmt[b];
     *len = 1;
     if (c == '!')
         return UF_FIRST;
     if (c == '&')
         return UF_ALL;
     if (c == '\\') {
-        for (uint32_t d = b + 1; d < us.len; d++) {
+        for (uint32_t d = b + 1; d < us.fmt_len; d++) {
             if (us.fmt[d] == '\\') {
                 *len = d + 1 - b;
                 return UF_WIDE;
@@ -147,69 +147,69 @@ static uint8_t field(uint32_t b, uint32_t *len)
         }
         return UF_NONE;
     }
-    if (!memchr("#.+$*", c, 5) || !numfield(b))
+    if (!memchr("#.+$*", c, 5) || !num_field(b))
         return UF_NONE;
     *len = us.f.len;
     return UF_NUM;
 }
 
-/* us_lit: the literal text from us.at to the next field written; its kind, UF_NONE the format's
+/* us_lit: the literal text from us.pos to the next field written; its kind, UF_NONE the format's
    end. */
-static uint8_t literal(uint32_t *len)
+static FieldKind literal(uint32_t *const len)
 {
     for (;;) {
-        if (us.at >= us.len)
+        if (us.pos >= us.fmt_len)
             return UF_NONE;
-        if (us.fmt[us.at] == '_' && us.at + 1 < us.len) {
-            cons_putc(us.fmt[us.at + 1]);
-            us.at += 2;
+        if (us.fmt[us.pos] == '_' && us.pos + 1 < us.fmt_len) {
+            cons_putc(us.fmt[us.pos + 1]);
+            us.pos += 2;
             continue;
         }
-        uint8_t k = field(us.at, len);
+        const FieldKind k = field(us.pos, len);
         if (k)
             return k;
-        cons_putc(us.fmt[us.at++]);
+        cons_putc(us.fmt[us.pos++]);
     }
 }
 
 /* us_next: to the next field for an item, the text before it written; its kind, *len its
    length. Illegal function call: a format with no field. */
-static uint8_t next(uint32_t *len)
+static FieldKind next_field(uint32_t *const len)
 {
-    uint32_t start = us.at;
+    const uint32_t start = us.pos;
     if (!literal(len)) {
         if (!start)
             repl_error(E_IQ);
-        us.at = 0;
+        us.pos = 0;
         if (!literal(len))
             repl_error(E_IQ);
     }
-    return field(us.at, len);
+    return field(us.pos, len);
 }
 
 /* US.END: the text up to the next field, a new line; US.ENDN: no new line. */
-void usng_use(void)
+void usng_use(Vm *const)
 {
     uint32_t len;
     literal(&len);
     cons_nl();
 }
-void usng_usen(void)
+void usng_usen(Vm *const)
 {
     uint32_t len;
     literal(&len);
 }
 
 /* US.STR ( s -- ): to a string field. Type mismatch: a numeric field. */
-void usng_uss(void)
+void usng_uss(Vm *const vm)
 {
     uint32_t w;
-    uint8_t k = next(&w);
+    const FieldKind k = next_field(&w);
     if (k == UF_NUM)
         repl_error(E_TM);
-    us.at += w;
-    Desc s = strg_get(exec_popa());
-    const uint8_t *p = at(s.ptr);
+    us.pos += w;
+    const Desc s = strg_get(exec_popa(vm));
+    const uint8_t *const p = at(s.ptr);
     if (k == UF_FIRST)
         cons_putc(s.len ? *p : ' ');
     else if (k == UF_ALL)
@@ -223,7 +223,7 @@ void usng_uss(void)
 }
 
 /* us_ldi: the INT v's digits. */
-static void load_int(int32_t v)
+static void load_int(const int32_t v)
 {
     us.sci = false;
     us.neg = v < 0;
@@ -234,165 +234,165 @@ static void load_int(int32_t v)
         t[n++] = '0' + u % 10;
         u /= 10;
     } while (u);
-    us.nc = us.ni = n;
+    us.count = us.scale = n;
     for (int32_t i = 0; i < n; i++)
-        us.nt[i] = t[n - 1 - i];
+        us.digits[i] = t[n - 1 - i];
 }
 
 /* us_ldr: v's digits to 16 places, a SINGLE's when td is 7, a DOUBLE's 16; us.sci when PRINT,
    rounding it to td digits, would give it an exponent. */
-static void load_real(double v, int32_t td)
+static void load_real(const double v, const int32_t td)
 {
     us.neg = v < 0;
     if (v == 0) {
-        us.nt[0] = '0';
-        us.nc = us.ni = 1;
+        us.digits[0] = '0';
+        us.count = us.scale = 1;
         us.sci = false;
         return;
     }
     uint8_t dig[20];
     int32_t dp;
-    int32_t tc = (int32_t)dubl_digits(us.neg ? -v : v, 16, dig, &dp);
-    memcpy(us.nt, dig, tc);
-    us.nc = tc;
-    us.ni = dp + 1;
-    if (us.nc > td) { /* rounded to the type's digits */
+    const int32_t tc = (int32_t)dubl_digits(us.neg ? -v : v, 16, dig, &dp);
+    memcpy(us.digits, dig, tc);
+    us.count = tc;
+    us.scale = dp + 1;
+    if (us.count > td) { /* rounded to the type's digits */
         int32_t b = td;
-        us.nc = td;
-        if (us.nt[b] >= '5') {
+        us.count = td;
+        if (us.digits[b] >= '5') {
             for (;;) {
                 if (--b < 0) { /* all 9s: 1, a place more */
-                    us.nt[0] = '1';
-                    us.nc = 1;
-                    us.ni++;
+                    us.digits[0] = '1';
+                    us.count = 1;
+                    us.scale++;
                     break;
                 }
-                if (us.nt[b] != '9') {
-                    us.nt[b]++;
+                if (us.digits[b] != '9') {
+                    us.digits[b]++;
                     break;
                 }
-                us.nc = b; /* carried up past the 9s */
+                us.count = b; /* carried up past the 9s */
             }
         }
-        while (us.nc > 1 && us.nt[us.nc - 1] == '0')
-            us.nc--;
+        while (us.count > 1 && us.digits[us.count - 1] == '0')
+            us.count--;
     }
-    if (us.ni > td) /* past the type's places: ni or |ni - nc| over its digits */
+    if (us.scale > td) /* past the type's places: ni or |ni - nc| over its digits */
         us.sci = true;
     else {
-        int32_t d = us.ni - us.nc;
+        const int32_t d = us.scale - us.count;
         us.sci = (d < 0 ? -d : d) > td;
     }
-    memcpy(us.nt, dig, tc); /* the digits: all 16 of them */
-    us.nc = tc;
-    us.ni = dp + 1;
+    memcpy(us.digits, dig, tc); /* the digits: all 16 of them */
+    us.count = tc;
+    us.scale = dp + 1;
 }
 
 /* us_norm: zeros before the digits so that every place before the point has one: ni not under
    0. */
-static void norm(void)
+static void pad_zeros(void)
 {
-    int32_t k = -us.ni;
+    int32_t k = -us.scale;
     if (k <= 0)
         return;
     if (k > NDIG)
         k = NDIG;
-    memmove(us.nt + k, us.nt, us.nc);
-    memset(us.nt, '0', k);
-    us.nc += k;
-    us.ni = 0;
-    if (us.nc > NDIG)
-        us.nc = NDIG;
+    memmove(us.digits + k, us.digits, us.count);
+    memset(us.digits, '0', k);
+    us.count += k;
+    us.scale = 0;
+    if (us.count > NDIG)
+        us.count = NDIG;
 }
 
 /* us_round: the digits rounded, half up, to places after the point, zeros added to them. */
-static void round_to(int32_t places)
+static void round_to(const int32_t places)
 {
-    norm();
-    int32_t keep = places + us.ni;
+    pad_zeros();
+    int32_t keep = places + us.scale;
     if (keep > NDIG)
         keep = NDIG;
-    if (keep >= us.nc) {
-        for (; us.nc < keep; us.nc++)
-            us.nt[us.nc] = '0';
+    if (keep >= us.count) {
+        for (; us.count < keep; us.count++)
+            us.digits[us.count] = '0';
         return;
     }
-    us.nc = keep;
-    if (us.nt[keep] < '5')
+    us.count = keep;
+    if (us.digits[keep] < '5')
         return;
     for (int32_t i = keep - 1; i >= 0; i--) {
-        if (us.nt[i] != '9') {
-            us.nt[i]++;
+        if (us.digits[i] != '9') {
+            us.digits[i]++;
             return;
         }
-        us.nt[i] = '0';
+        us.digits[i] = '0';
     }
-    memmove(us.nt + 1, us.nt, us.nc); /* all 9s: a 1 before them */
-    us.nt[0] = '1';
-    us.nc++;
-    us.ni++;
+    memmove(us.digits + 1, us.digits, us.count); /* all 9s: a 1 before them */
+    us.digits[0] = '1';
+    us.count++;
+    us.scale++;
 }
 
 /* us_lead: the sign before the number, 0 none. */
-static uint8_t lead(void) { return us.f.lp ? us.neg ? '-' : '+' : 0; }
+static uint8_t lead_sign(void) { return us.f.plus_lead ? us.neg ? '-' : '+' : 0; }
 
 /* us_tsign: the sign after it, 0 none. */
-static uint8_t tsign(void)
+static uint8_t trail_sign(void)
 {
-    uint8_t t = (uint8_t)us.f.tr;
+    const uint8_t t = us.f.trail;
     if (!t)
         return 0;
     return us.neg ? '-' : t == '+' ? '+' : ' ';
 }
 
 /* us_fits: the body's n chars, its signs and $, past the field's columns? */
-static bool past(uint32_t n)
+static bool overflows(uint32_t n)
 {
-    if (us.f.lp || (us.neg && !us.f.tr))
+    if (us.f.plus_lead || (us.neg && !us.f.trail))
         n++;
-    return n + us.f.dol > us.f.wid + us.f.lp;
+    return n + us.f.dollar > us.f.width + us.f.plus_lead;
 }
 
 /* us_fexp: the number as digits and an exponent of car carets (4: two digits, 5: three) in the
    field's places, to the body; its length. */
-static uint32_t fexp(uint32_t car)
+static uint32_t with_exponent(const uint32_t carets)
 {
-    int32_t whole = us.f.bp ? (int32_t)us.f.bp - 1 : 0; /* less the sign's place */
-    int32_t places = whole + (int32_t)us.f.dec;
-    norm();
+    const int32_t whole = us.f.before ? (int32_t)us.f.before - 1 : 0; /* less the sign's place */
+    const int32_t places = whole + (int32_t)us.f.after;
+    pad_zeros();
     int32_t first = 0; /* the first digit not 0 */
-    while (first < us.nc && us.nt[first] == '0')
+    while (first < us.count && us.digits[first] == '0')
         first++;
     int32_t shift = 0;
-    if (first < us.nc) {
-        int32_t ex = us.ni - first;
-        memmove(us.nt, us.nt + first, us.nc - first);
-        us.nc -= first;
-        us.ni = 0;
+    if (first < us.count) {
+        int32_t ex = us.scale - first;
+        memmove(us.digits, us.digits + first, us.count - first);
+        us.count -= first;
+        us.scale = 0;
         round_to(places);
-        if (us.ni) {
+        if (us.scale) {
             ex++;
-            us.ni = 0;
+            us.scale = 0;
         }
         shift = ex - whole;
     } else
-        memset(us.nt, '0', places); /* 0: zeros in every place */
+        memset(us.digits, '0', places); /* 0: zeros in every place */
     uint8_t *d = us.body;
-    *d++ = us.neg ? '-' : !whole && us.f.pt ? '0' : ' ';
+    *d++ = us.neg ? '-' : !whole && us.f.point ? '0' : ' ';
     for (int32_t i = 0; i < places; i++) {
-        if (i == whole && us.f.pt)
+        if (i == whole && us.f.point)
             *d++ = '.';
-        uint8_t c = us.nt[i];
-        if (i < whole - 1 && c == '0' && first == us.nc) /* a lead 0 of 0 a space */
+        uint8_t c = us.digits[i];
+        if (i < whole - 1 && c == '0' && first == us.count) /* a lead 0 of 0 a space */
             c = ' ';
         *d++ = c;
     }
-    if (whole == places && us.f.pt)
+    if (whole == places && us.f.point)
         *d++ = '.';
     *d++ = 'E';
     *d++ = shift < 0 ? '-' : '+';
-    uint32_t e = shift < 0 ? 0u - (uint32_t)shift : (uint32_t)shift;
-    if (car == 5)
+    const uint32_t e = shift < 0 ? 0u - (uint32_t)shift : (uint32_t)shift;
+    if (carets == 5)
         *d++ = '0' + e / 100 % 10;
     *d++ = '0' + e % 100 / 10;
     *d++ = '0' + e % 10;
@@ -401,23 +401,23 @@ static uint32_t fexp(uint32_t car)
 
 /* us_wnum: the body's n chars in cols columns: right-aligned, filled with spaces or *s, the signs
    and $ around them; a % first when past them. */
-static void wnum(uint32_t n, uint32_t cols)
+static void write_number(const uint32_t n, const uint32_t cols)
 {
     uint8_t *d = us.line;
-    uint8_t before = lead(), after = tsign(), minus = 0;
-    if (us.neg && !before && !after)
-        minus = '-';
-    uint32_t need = n + (before || minus) + us.f.dol;
+    const uint8_t before = lead_sign();
+    const uint8_t after = trail_sign();
+    const bool minus = us.neg && !before && !after;
+    const uint32_t need = n + (before || minus) + us.f.dollar;
     if (need > cols)
         *d++ = '%';
     else
         for (uint32_t i = cols - need; i; i--)
-            *d++ = us.f.st ? '*' : ' ';
+            *d++ = us.f.stars ? '*' : ' ';
     if (before)
         *d++ = before;
     if (minus)
-        *d++ = minus;
-    if (us.f.dol)
+        *d++ = '-';
+    if (us.f.dollar)
         *d++ = '$';
     memcpy(d, us.body, n);
     d += n;
@@ -427,70 +427,68 @@ static void wnum(uint32_t n, uint32_t cols)
 }
 
 /* us_plain: a number without an exponent, written. */
-static void plain(void)
+static void write_plain(void)
 {
-    round_to((int32_t)us.f.dec);
+    round_to((int32_t)us.f.after);
     uint8_t *d = us.body; /* the digits before the point, commas */
     int32_t b = 0;
-    while (b < us.ni && us.nt[b] == '0')
+    while (b < us.scale && us.digits[b] == '0')
         b++;
-    int32_t n = us.ni - b;
+    const int32_t n = us.scale - b;
     if (!n) {
-        if (us.f.bp)
+        if (us.f.before)
             *d++ = '0';
     } else
         for (int32_t k = 0; k < n; k++) {
-            if (us.f.com && k && (n - k) % 3 == 0)
+            if (us.f.commas && k && (n - k) % 3 == 0)
                 *d++ = ',';
-            *d++ = us.nt[b + k];
+            *d++ = us.digits[b + k];
         }
-    if (us.f.pt) { /* the point, the places after it */
+    if (us.f.point) { /* the point, the places after it */
         *d++ = '.';
-        memcpy(d, us.nt + us.ni, us.f.dec);
-        d += us.f.dec;
+        memcpy(d, us.digits + us.scale, us.f.after);
+        d += us.f.after;
     }
-    uint32_t len = (uint32_t)(d - us.body);
-    if (us.sci && past(len)) { /* past the field: an exponent */
+    const uint32_t len = (uint32_t)(d - us.body);
+    if (us.sci && overflows(len)) { /* past the field: an exponent */
         cons_putc('%');
-        out(us.body, fexp(4));
+        out(us.body, with_exponent(4));
         return;
     }
-    wnum(len, us.f.wid + us.f.lp);
+    write_number(len, us.f.width + us.f.plus_lead);
 }
 
 /* A number to a numeric field. Type mismatch: a string field. */
-static void number(void)
+static void number(Vm *const vm)
 {
     uint32_t w;
-    if (next(&w) != UF_NUM)
+    if (next_field(&w) != UF_NUM)
         repl_error(E_TM);
-    us.at += w;
-    if (us.f.car) {
-        uint32_t n = fexp(us.f.car);
-        uint8_t t = tsign(); /* us_trail */
+    us.pos += w;
+    if (us.f.carets) {
+        uint32_t n = with_exponent(us.f.carets);
+        const uint8_t t = trail_sign(); /* us_trail */
         if (t)
             us.body[n++] = t;
         out(us.body, n);
     } else
-        plain();
-    exec.sp++;
+        write_plain();
+    vm->sp++;
 }
 
 /* US.INT ( i -- ), US.FLT ( f -- ), US.DBL ( d -- ). */
-void usng_usi(void)
+void usng_usi(Vm *const vm)
 {
-    load_int(exec.sp->i);
-    number();
+    load_int(vm->sp->i);
+    number(vm);
 }
-void usng_usf(void)
+void usng_usf(Vm *const vm)
 {
-    float f;
-    memcpy(&f, &exec.sp->u, 4);
-    load_real(f, 7);
-    number();
+    load_real(vm->sp->f, 7);
+    number(vm);
 }
-void usng_usd(void)
+void usng_usd(Vm *const vm)
 {
-    load_real(exec.sp->d, 16);
-    number();
+    load_real(vm->sp->d, 16);
+    number(vm);
 }

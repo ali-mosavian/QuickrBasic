@@ -13,17 +13,34 @@
    segment's 0: an Addr is the address, as VARPTR and PEEK see it. */
 typedef uint32_t Addr;
 
+#if ARENA_AT_ZERO /* the platform's arena starts at address 0 (DOS32's flat segment) */
+static inline uint8_t *at(const Addr a) { return (uint8_t *)(uintptr_t)a; }
+static inline Addr addr_of(const void *const p) { return (Addr)(uintptr_t)p; }
+#else
 extern uint8_t *mem_base; /* Addr 0; set once by pmem_init (plat/pmem.h) */
 
-static inline uint8_t *at(Addr a) { return mem_base + a; }
-static inline Addr addr_of(const void *p) { return (Addr)((const uint8_t *)p - mem_base); }
+static inline uint8_t *at(const Addr a) { return mem_base + a; }
+static inline Addr addr_of(const void *const p) { return (Addr)((const uint8_t *)p - mem_base); }
+#endif
 
-static inline uint8_t rd8(Addr a) { return *at(a); }
-static inline uint16_t rd16(Addr a) { uint16_t v; memcpy(&v, at(a), 2); return v; }
-static inline uint32_t rd32(Addr a) { uint32_t v; memcpy(&v, at(a), 4); return v; }
-static inline void wr8(Addr a, uint8_t v) { *at(a) = v; }
-static inline void wr16(Addr a, uint16_t v) { memcpy(at(a), &v, 2); }
-static inline void wr32(Addr a, uint32_t v) { memcpy(at(a), &v, 4); }
+/* Words at any address: the 386 loads them unaligned, and may_alias lets them read any object's
+   bytes. */
+typedef uint16_t __attribute__((aligned(1), may_alias)) Word16;
+typedef uint32_t __attribute__((aligned(1), may_alias)) Word32;
+
+static inline uint16_t load16(const void *const p) { return *(const Word16 *)p; }
+static inline uint32_t load32(const void *const p) { return *(const Word32 *)p; }
+static inline void store16(void *const p, const uint16_t v) { *(Word16 *)p = v; }
+static inline void store32(void *const p, const uint32_t v) { *(Word32 *)p = v; }
+
+static inline uint8_t rd8(const Addr a) { return *at(a); }
+static inline uint16_t rd16(const Addr a) { return load16(at(a)); }
+static inline uint32_t rd32(const Addr a) { return load32(at(a)); }
+static inline void wr8(const Addr a, const uint8_t v) { *at(a) = v; }
+static inline void wr16(const Addr a, const uint16_t v) { store16(at(a), v); }
+static inline void wr32(const Addr a, const uint32_t v) { store32(at(a), v); }
+
+static inline uint8_t upcase(const uint8_t c) { return c >= 'a' && c <= 'z' ? c - ('a' - 'A') : c; }
 
 /* A data stack cell: an INT, a FLOAT, or an Addr (a string's Desc) in its low dword; a DOUBLE
    fills it. */
@@ -36,6 +53,12 @@ typedef union {
     uint64_t raw;
 } Cell;
 static_assert(sizeof(Cell) == 8);
+
+typedef Cell __attribute__((aligned(1), may_alias)) AnyCell;
+
+/* The 8 bytes at p as a Cell, and back. */
+static inline Cell load_cell(const void *const p) { return *(const AnyCell *)p; }
+static inline void store_cell(void *const p, const Cell c) { *(AnyCell *)p = c; }
 
 /* A record laid out byte for byte as the asm's struc: no padding. */
 #define PACKED [[gnu::packed]]

@@ -53,37 +53,37 @@ static const char *bas_name(Addr s)
 /* c's record buffer. */
 static Addr record(const Chan *c) { return file.recs + (uint32_t)(c - chnl.ch) * RECMAX; }
 
-void file_opendef(void)
+void file_opendef(Vm *vm)
 {
     file.mode = FM_RND;
     file.reclen = 128;
 }
-void file_mode_in(void) { file.mode = FM_IN; }
-void file_mode_out(void) { file.mode = FM_OUT; }
-void file_mode_app(void) { file.mode = FM_APP; }
-void file_mode_rnd(void) { file.mode = FM_RND; }
-void file_mode_bin(void) { file.mode = FM_BIN; }
+void file_mode_in(Vm *vm) { file.mode = FM_IN; }
+void file_mode_out(Vm *vm) { file.mode = FM_OUT; }
+void file_mode_app(Vm *vm) { file.mode = FM_APP; }
+void file_mode_rnd(Vm *vm) { file.mode = FM_RND; }
+void file_mode_bin(Vm *vm) { file.mode = FM_BIN; }
 
-void file_reclen(void)
+void file_reclen(Vm *vm)
 {
-    uint32_t n = (uint32_t)exec_popi();
+    uint32_t n = (uint32_t)exec_popi(vm);
     if (n - 1 > RECMAX - 1)
         chnl_error(59); /* Bad record length */
     file.reclen = n;
 }
 
-void file_open(void)
+void file_open(Vm *vm)
 {
-    int32_t num = exec_popi();
-    const char *name = name_of(exec_popa());
+    int32_t num = exec_popi(vm);
+    const char *name = name_of(exec_popa(vm));
     chnl_open(num, name, file.mode, file.reclen);
 }
 
-void file_open2(void)
+void file_open2(Vm *vm)
 {
-    const char *name = name_of(exec_popa());
-    int32_t num = exec_popi();
-    Desc m = strg_get(exec_popa());
+    const char *name = name_of(exec_popa(vm));
+    int32_t num = exec_popi(vm);
+    Desc m = strg_get(exec_popa(vm));
     static const char modes[] = {'I', FM_IN, 'O', FM_OUT, 'A', FM_APP, 'R', FM_RND, 'B', FM_BIN};
     if (m.len) {
         uint8_t c = rd8(m.ptr);
@@ -99,23 +99,23 @@ void file_open2(void)
     chnl_error(54); /* Bad file mode */
 }
 
-void file_close(void)
+void file_close(Vm *vm)
 {
-    Chan *c = chnl_look(exec_popi());
+    Chan *c = chnl_look(exec_popi(vm));
     if (c)
         chnl_close(c);
 }
 
-void file_closeall(void) { chnl_closeall(); }
-void file_out(void) { chnl_out(chnl_find(exec_popi())); }
-void file_in(void) { chnl_in(chnl_find(exec_popi())); }
-void file_console(void) { chnl_clear(); }
+void file_closeall(Vm *vm) { chnl_closeall(); }
+void file_out(Vm *vm) { chnl_out(chnl_find(exec_popi(vm))); }
+void file_in(Vm *vm) { chnl_in(chnl_find(exec_popi(vm))); }
+void file_console(Vm *vm) { chnl_clear(); }
 
-void file_lineinput(void)
+void file_lineinput(Vm *vm)
 {
     uint16_t len = (uint16_t)cons.inlen;
     Addr chars = strg_alloc(len);
-    exec_pusha(strg_tods(chars, addr_of(cons.inbuf), len));
+    exec_pusha(vm, strg_tods(chars, addr_of(cons.inbuf), len));
 }
 
 /* Output to sbuf, from its start. */
@@ -134,45 +134,45 @@ static void write_out(void)
             cons_putc(cons.sbuf[i]);
 }
 
-void file_write_int(void)
+void file_write_int(Vm *vm)
 {
-    int32_t v = exec_popi();
+    int32_t v = exec_popi(vm);
     capture();
     cons_int(v);
     write_out();
 }
 
-void file_write_flt(void)
+void file_write_flt(Vm *vm)
 {
-    Sngl v = exec_pop().u;
+    Sngl v = exec_pop(vm).u;
     capture();
     sngl_print(v);
     write_out();
 }
 
-void file_write_dbl(void)
+void file_write_dbl(Vm *vm)
 {
     uint8_t text[DUBL_TXT];
-    uint32_t n = dubl_fmt(exec_popd(), text);
+    uint32_t n = dubl_fmt(exec_popd(vm), text);
     capture();
     for (uint32_t i = 0; i < n; i++)
         cons_putc(text[i]);
     write_out();
 }
 
-void file_write_str(void)
+void file_write_str(Vm *vm)
 {
-    Desc d = strg_get(exec_popa());
+    Desc d = strg_get(exec_popa(vm));
     cons_putc('"');
     strg_print(d);
     cons_putc('"');
 }
 
-void file_write_comma(void) { cons_putc(','); }
+void file_write_comma(Vm *vm) { cons_putc(','); }
 
-void file_eof(void)
+void file_eof(Vm *vm)
 {
-    Chan *c = chnl_find(exec_popi());
+    Chan *c = chnl_find(exec_popi(vm));
     int32_t r;
     if (c->mode & (FM_RND | FM_BIN))
         r = c->eof ? -1 : 0;
@@ -180,29 +180,29 @@ void file_eof(void)
         r = chnl_peek(c) < 0 ? -1 : 0;
     else
         r = -1; /* written: at its end */
-    exec_pushi(r);
+    exec_pushi(vm, r);
 }
 
-void file_lof(void) { exec_pushi((int32_t)chnl_lof(chnl_find(exec_popi()))); }
+void file_lof(Vm *vm) { exec_pushi(vm, (int32_t)chnl_lof(chnl_find(exec_popi(vm)))); }
 
-void file_loc(void)
+void file_loc(Vm *vm)
 {
-    Chan *c = chnl_find(exec_popi());
+    Chan *c = chnl_find(exec_popi(vm));
     uint32_t t = chnl_tell(c);
     if (c->mode & FM_RND)
         t = c->last;
     else if (!(c->mode & FM_BIN))
         t = (t + 127) >> 7;
-    exec_pushi((int32_t)t);
+    exec_pushi(vm, (int32_t)t);
 }
 
-void file_seekpos(void)
+void file_seekpos(Vm *vm)
 {
-    Chan *c = chnl_find(exec_popi());
+    Chan *c = chnl_find(exec_popi(vm));
     uint32_t t = chnl_tell(c);
     if (c->mode & FM_RND)
         t /= c->reclen;
-    exec_pushi((int32_t)(t + 1));
+    exec_pushi(vm, (int32_t)(t + 1));
 }
 
 /* Record or byte p of c, from 1, as an offset. Error: 63 Bad record number, under 1. */
@@ -214,29 +214,29 @@ static uint32_t offset_of(const Chan *c, uint32_t p)
     return c->mode & FM_RND ? p * c->reclen : p;
 }
 
-void file_seek(void)
+void file_seek(Vm *vm)
 {
-    Chan *c = chnl_find(exec.sp[1].i);
-    uint32_t p = exec.sp[0].u;
-    exec.sp += 2;
+    Chan *c = chnl_find(vm->sp[1].i);
+    uint32_t p = vm->sp[0].u;
+    vm->sp += 2;
     chnl_seek(c, offset_of(c, p));
     c->eof = false;
 }
 
-void file_freefile(void)
+void file_freefile(Vm *vm)
 {
     int32_t n = 1;
     while (n <= 255 && chnl_look(n))
         n++;
-    exec_pushi(n);
+    exec_pushi(vm, n);
 }
 
-void file_input_str(void)
+void file_input_str(Vm *vm)
 {
     Chan *c = nullptr; /* nullptr: the keyboard */
-    if (exec_popi() != 1)
-        c = chnl_find(exec_popi());
-    uint32_t n = (uint32_t)exec_popi();
+    if (exec_popi(vm) != 1)
+        c = chnl_find(exec_popi(vm));
+    uint32_t n = (uint32_t)exec_popi(vm);
     if (n - 1 > INMAX - 1)
         repl_error(E_IQ);
     Addr chars = strg_alloc((uint16_t)n);
@@ -254,13 +254,13 @@ void file_input_str(void)
         }
         wr8(chars + i, b);
     }
-    exec_pusha(strg_new(chars, (uint16_t)n));
+    exec_pusha(vm, strg_new(chars, (uint16_t)n));
 }
 
-void file_attr(void)
+void file_attr(Vm *vm)
 {
-    int32_t a = exec_popi();
-    Chan *c = chnl_find(exec_popi());
+    int32_t a = exec_popi(vm);
+    Chan *c = chnl_find(exec_popi(vm));
     int32_t r = c->handle;
     if (a != 2) {
         if (a != 1)
@@ -268,7 +268,7 @@ void file_attr(void)
         /* 1 2 4 8 32: INPUT OUTPUT RANDOM APPEND BINARY */
         r = c->mode & FM_IN ? 1 : c->mode & FM_OUT ? 2 : c->mode & FM_RND ? 4 : c->mode & FM_APP ? 8 : 32;
     }
-    exec_pushi(r);
+    exec_pushi(vm, r);
 }
 
 static void dos(uint16_t err)
@@ -277,28 +277,28 @@ static void dos(uint16_t err)
         chnl_doserr(err);
 }
 
-void file_kill(void) { dos(pfil_delete(name_of(exec_popa()))); }
-void file_mkdir(void) { dos(pfil_mkdir(name_of(exec_popa()))); }
-void file_rmdir(void) { dos(pfil_rmdir(name_of(exec_popa()))); }
-void file_chdir(void) { dos(pfil_chdir(name_of(exec_popa()))); }
+void file_kill(Vm *vm) { dos(pfil_delete(name_of(exec_popa(vm)))); }
+void file_mkdir(Vm *vm) { dos(pfil_mkdir(name_of(exec_popa(vm)))); }
+void file_rmdir(Vm *vm) { dos(pfil_rmdir(name_of(exec_popa(vm)))); }
+void file_chdir(Vm *vm) { dos(pfil_chdir(name_of(exec_popa(vm)))); }
 
-void file_rename(void)
+void file_rename(Vm *vm)
 {
-    const char *to = name_of(exec_popa());
+    const char *to = name_of(exec_popa(vm));
     size_t n = strlen(to);
     memcpy(name2, to, n + 1);
-    uint16_t err = pfil_rename(name_of(exec_popa()), name2);
+    uint16_t err = pfil_rename(name_of(exec_popa(vm)), name2);
     if (err == PFIL_DENIED)
         chnl_error(58); /* File already exists */
     dos(err);
 }
 
-void file_files(void)
+void file_files(Vm *vm)
 {
     static char pattern[264];
     memcpy(pattern, "*.*", 4);
-    if (exec_popi()) {
-        const char *n = name_of(exec_popa());
+    if (exec_popi(vm)) {
+        const char *n = name_of(exec_popa(vm));
         memcpy(pattern, n, strlen(n) + 1);
     }
     cons_putc('\\'); /* the current directory */
@@ -341,10 +341,10 @@ void file_files(void)
     cons_nl();
 }
 
-void file_novar(void)
+void file_novar(Vm *vm)
 {
-    exec_pushi(0);
-    exec_pushi(0);
+    exec_pushi(vm, 0);
+    exec_pushi(vm, 0);
 }
 
 /* The bytes of the variable at addr of kind: its place, *n its length; a Desc's chars. */
@@ -440,10 +440,10 @@ static void binary(Chan *c, Addr addr, uint32_t kind, bool put)
    record; BINARY: v's bytes at byte p, a string read its own length of them. */
 static void get_put(bool put)
 {
-    uint32_t kind = exec.sp[0].u;
-    Addr addr = exec.sp[1].a;
-    uint32_t p = exec.sp[2].u;
-    Chan *c = chnl_find(exec.sp[3].i);
+    uint32_t kind = vm.sp[0].u;
+    Addr addr = vm.sp[1].a;
+    uint32_t p = vm.sp[2].u;
+    Chan *c = chnl_find(vm.sp[3].i);
     if (!(c->mode & (FM_RND | FM_BIN)))
         chnl_error(54);
     uint32_t off;
@@ -474,25 +474,25 @@ static void get_put(bool put)
         if (kind)
             from_record(c, addr, kind);
     }
-    exec.sp += 4;
+    vm.sp += 4;
 }
 
-void file_get(void) { get_put(false); }
-void file_put(void) { get_put(true); }
+void file_get(Vm *vm) { get_put(false); }
+void file_put(Vm *vm) { get_put(true); }
 
-void file_field(void)
+void file_field(Vm *vm)
 {
-    field_chan = chnl_find(exec_popi());
+    field_chan = chnl_find(exec_popi(vm));
     field_chan->field = 0;
 }
 
-void file_fielditem(void)
+void file_fielditem(Vm *vm)
 {
-    uint32_t kind = exec.sp++->u;
+    uint32_t kind = vm->sp++->u;
     if (va_kind(kind) != VA_DESC)
         repl_error(E_TM);
-    Addr desc = exec_popa();
-    uint32_t w = exec.sp++->u;
+    Addr desc = exec_popa(vm);
+    uint32_t w = vm->sp++->u;
     Chan *c = field_chan;
     if ((uint16_t)(c->field + w) > c->reclen)
         chnl_error(50); /* FIELD overflow */
@@ -521,9 +521,9 @@ static void justify(uint8_t *dst, uint32_t len, const uint8_t *src, uint32_t n, 
    gets a new value; a record's STRING * n its bytes. */
 static void set(bool right)
 {
-    Desc s = strg_get(exec.sp[0].a);
-    uint32_t kind = exec.sp[1].u;
-    Addr addr = exec.sp[2].a;
+    Desc s = strg_get(vm.sp[0].a);
+    uint32_t kind = vm.sp[1].u;
+    Addr addr = vm.sp[2].a;
     const uint8_t *src = at(s.ptr);
     if (va_kind(kind) != VA_DESC) {
         justify(at(addr), va_n(kind), src, s.len, right);
@@ -537,36 +537,36 @@ static void set(bool right)
             strg_set(strg_buftmp(len), addr);
         }
     }
-    exec.sp += 3;
+    vm.sp += 3;
 }
 
-void file_lset(void) { set(false); }
-void file_rset(void) { set(true); }
+void file_lset(Vm *vm) { set(false); }
+void file_rset(Vm *vm) { set(true); }
 
-void file_bsave(void)
+void file_bsave(Vm *vm)
 {
-    const char *name = bas_name(exec.sp[2].a);
-    Addr from = exec.sp[1].a;
-    uint16_t n = (uint16_t)exec.sp[0].u;
+    const char *name = bas_name(vm->sp[2].a);
+    Addr from = vm->sp[1].a;
+    uint16_t n = (uint16_t)vm->sp[0].u;
     PfilHandle h;
     dos(pfil_create(name, &h));
     uint8_t hdr[7] = {0xFD}; /* FDh, the address's words swapped, n */
     uint32_t seg = from << 16 | from >> 16;
-    memcpy(hdr + 1, &seg, 4);
-    memcpy(hdr + 5, &n, 2);
+    store32(hdr + 1, seg);
+    store16(hdr + 5, n);
     uint32_t put;
     pfil_write(h, hdr, 7, &put);
     pfil_write(h, at(from), n, &put);
     pfil_close(h);
-    exec.sp += 3;
+    vm->sp += 3;
 }
 
-void file_bload(void)
+void file_bload(Vm *vm)
 {
-    uint32_t flag = exec.sp++->u;
-    Addr to = flag ? exec_popa() : 0;
+    uint32_t flag = vm->sp++->u;
+    Addr to = flag ? exec_popa(vm) : 0;
     bool given = (uint8_t)flag; /* an address given */
-    const char *name = bas_name(exec_popa());
+    const char *name = bas_name(exec_popa(vm));
     PfilHandle h;
     dos(pfil_open(name, PFIL_READ, &h));
     uint8_t hdr[7] = {0};
@@ -577,16 +577,14 @@ void file_bload(void)
         chnl_error(54);
     }
     if (!given) {
-        uint32_t seg;
-        memcpy(&seg, hdr + 1, 4);
+        const uint32_t seg = load32(hdr + 1);
         to = seg << 16 | seg >> 16;
     }
-    uint16_t n;
-    memcpy(&n, hdr + 5, 2);
+    const uint16_t n = load16(hdr + 5);
     pfil_read(h, at(to), n, &got);
     pfil_close(h);
 }
 
-void file_lock(void) { chnl_find(exec_popi()); }
-void file_drop(void) { exec.sp++; }
-void file_noadv(void) { chnl_error(73); }
+void file_lock(Vm *vm) { chnl_find(exec_popi(vm)); }
+void file_drop(Vm *vm) { vm->sp++; }
+void file_noadv(Vm *vm) { chnl_error(73); }

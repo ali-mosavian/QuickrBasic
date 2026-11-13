@@ -2,6 +2,7 @@
    On DOS32 the keys are INT 16h's, the shift flags 0040:0017h's. */
 #ifndef PLAT_PKEY_H
 #define PLAT_PKEY_H
+#include <cdecl.h>
 #include "base.h"
 
 /* A key read: its character as the host gives it (0, or E0h with a scan code: an extended key),
@@ -29,5 +30,5 @@ void pkey_init(volatile uint8_t *flag, uint8_t bit);
 /* The traps, by slot 1 .. 31 (slot 0 unused), copied. */
 void pkey_trap(const PkeyTrap traps[PKEY_NTRAP]);
 /* The slots whose key was taken since the last call, bit n slot n; cleared. */
-uint32_t pkey_taken(void);
+CDECL uint32_t pkey_taken(void);
 #endif

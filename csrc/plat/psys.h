@@ -4,13 +4,14 @@
    the console, which a running loop never does. */
 #ifndef PLAT_PSYS_H
 #define PLAT_PSYS_H
+#include <cdecl.h>
 #include "base.h"
 
 /* The STOP key's handlers in: each ORs bit into *stop (exec's stop flags, SF_BRK). No C runs in
    an interrupt: ON TIMER's and ON KEY's tick is pclk's (pclk_init), polled by the core. */
 void psys_init(volatile uint8_t *stop, uint8_t bit);
 /* The handlers out, exit with code. Standard output is the caller's to flush first. */
-[[noreturn]] void psys_exit(uint8_t code);
+[[noreturn]] CDECL void psys_exit(uint8_t code);
 
 /* The command line after the program's name, its leading blanks skipped (DOS's PSP tail);
    cap bytes at most, 0-ended; its length. */
@@ -27,9 +28,9 @@ bool psys_exec(const char *path, const char *tail, uint8_t len, const char *env,
                uint32_t envlen);
 
 /* INP, OUT: an I/O port's byte. */
-uint8_t psys_inp(uint16_t port);
-void psys_outp(uint16_t port, uint8_t v);
+CDECL uint8_t psys_inp(uint16_t port);
+CDECL void psys_outp(uint16_t port, uint8_t v);
 
 /* SYS: call the machine code at a, in the POKE memory (declared by vm). */
-void psys_call(Addr a);
+CDECL void psys_call(Addr a);
 #endif

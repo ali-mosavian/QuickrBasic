@@ -90,7 +90,7 @@ static Made make(const uint8_t *src, uint32_t len)
     }
     if (p != digits)
         m.num = (uint16_t)num;
-    exec.line = DLINE;
+    vm.line = DLINE;
     m.len = (uint32_t)(lexr_line(body, comp_cbuf) - comp_cbuf);
     bool asis = uimn.text.asis;
     uimn.text.asis = false;

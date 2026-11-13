@@ -33,7 +33,7 @@ enum {
 /* TDFRM: a call stack's frame. */
 typedef struct {
     int32_t line;    /* df_ln: its text line, -1 the immediate's */
-    Addr fp;         /* df_fp: its procedure's cstk frame, 0 the module */
+    const Frame *fp; /* its procedure's call frame, nullptr the module */
     uint8_t view;    /* df_vw: its view, FFh none */
     char text[DP_TW + 1];
 } PaneFrame;
@@ -54,7 +54,7 @@ static struct {
     char vt[NDVAR][DP_TW];
     PaneFrame fr[NDFRM];
     uint8_t proc;    /* g_dpp: Locals' procedure, 0 the module */
-    Addr newer;      /* g_dpnw: its newer call, dp_newer's */
+    const Frame *newer; /* its newer call, find_newer's */
     char row_text[ROWSZ]; /* g_dprow */
     char tip[DP_TW];      /* g_dptip: a module variable's tooltip */
 } dp;
@@ -112,19 +112,19 @@ static void rowcut(char *d)
     d[i] = 0;
 }
 
-/* dp_pc: the first M_PC frame from f on cstk, 0 none. */
-static Addr proc_frame(Addr f)
+/* The newest call frame at index i or older, nullptr none. */
+static const Frame *call_from(int32_t i)
 {
-    for (; f < allo.cs_top; f += rd8(f))
-        if (rd8(f) == M_PC)
-            return f;
-    return 0;
+    for (; i >= 0; i--)
+        if (vm.frames[i].kind == FRAME_CALL)
+            return &vm.frames[i];
+    return nullptr;
 }
 
-static uint8_t frame_proc(Addr fp) { return fp ? ((const ProcFrame *)at(fp))->proc : 0; }
+static uint8_t frame_proc(const Frame *fp) { return fp ? fp->call.proc : 0; }
 
 /* dp_frm1: frame f: program line line, its procedure's frame fp. */
-static void frame1(PaneFrame *f, uint32_t line, Addr fp)
+static void frame1(PaneFrame *f, uint32_t line, const Frame *fp)
 {
     f->fp = fp;
     f->line = -1;
@@ -151,15 +151,14 @@ static void frame1(PaneFrame *f, uint32_t line, Addr fp)
 static void frames(void)
 {
     uint8_t n = 0;
-    uint32_t line = exec.cont_line;
-    Addr f = exec.cstk;
-    for (;;) {
-        f = proc_frame(f);
+    uint32_t line = vm.cont.line;
+    for (int32_t i = (int32_t)vm.nframes - 1;;) {
+        const Frame *f = call_from(i);
         frame1(&dp.fr[n++], line, f);
         if (!f || n >= NDFRM)
             break;
-        line = ((const Frame *)at(f))->line;
-        f += M_PC;
+        line = f->ret.line;
+        i = (int32_t)(f - vm.frames) - 1;
     }
     dp.nframes = n;
 }
@@ -243,13 +242,13 @@ static bool is_param(uint16_t id)
 
 /* dp_newer: the oldest call of procedure dp.proc newer than frame fp, which saved what that
    frame sees; 0 none, or the module. */
-static void find_newer(Addr fp)
+static void find_newer(const Frame *fp)
 {
-    dp.newer = 0;
+    dp.newer = nullptr;
     if (!fp)
         return;
-    for (Addr f = exec.cstk; f < fp; f += rd8(f))
-        if (rd8(f) == M_PC && ((const ProcFrame *)at(f))->proc == dp.proc)
+    for (const Frame *f = vm.frames + vm.nframes; --f > fp;)
+        if (f->kind == FRAME_CALL && f->call.proc == dp.proc)
             dp.newer = f;
 }
 
@@ -260,15 +259,15 @@ static Addr cell_of(uint16_t id, int32_t par)
     Addr cell = symb_var(id)->vt;
     if (!dp.newer)
         return cell;
-    const ProcFrame *pf = (const ProcFrame *)at(dp.newer);
+    const Call *c = &dp.newer->call;
     if (par >= 0)
-        cell = rd32(pf->save0 + (uint32_t)par * LSSZ + 12); /* the cell before the newer call */
+        cell = vm.callvars[c->params + (uint32_t)par].cell; /* the cell before the newer call */
     if (cell != symb_cell(id))
         return cell;
     uint32_t n = 0; /* its own: the value saved */
     for (uint16_t v = symb.first_local[dp.proc]; v; v = symb_varx(v)->nloc, n++)
         if (v == id)
-            return pf->save1 + n * LSSZ + 4;
+            return addr_of(&vm.callvars[c->locals + n].value);
     return cell;
 }
 
@@ -280,8 +279,7 @@ static char *value(char *d, uint16_t id, Addr cell)
     uint8_t buf[DUBL_TXT];
     uint32_t n;
     if (v->info & SK_DBL) {
-        double x;
-        memcpy(&x, at(cell), sizeof x);
+        const double x = load_cell(at(cell)).d;
         n = dubl_fmt(x, buf);
     } else if ((v->info & VK_MASK) == VK_STR) {
         const Desc *s = (const Desc *)at(cell);
@@ -344,7 +342,7 @@ static bool skipped(uint16_t id) { return (symb_var(id)->info & 0x83) == 3; }
    parameters first, then by id. */
 static void vars(void)
 {
-    Addr fp = dp.fr[dp.frame].fp;
+    const Frame *fp = dp.fr[dp.frame].fp;
     dp.proc = frame_proc(fp);
     find_newer(fp);
     dp.nvars = 0;
@@ -367,8 +365,8 @@ static char *watch_value(char *d, const char *expr)
     if (strchr(expr, ':'))
         err = E_SN + 1;
     else {
-        for (Addr f = exec.cstk; f < allo.cs_top; f += rd8(f))
-            if (((const Frame *)at(f))->line == DLINE)
+        for (uint32_t i = 0; i < vm.nframes; i++)
+            if (vm.frames[i].ret.line == DLINE)
                 return cpy(d, "(not here)");
         char out[80];
         err = dbug_eval(expr, dp.proc, out);

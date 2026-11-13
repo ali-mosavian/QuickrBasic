@@ -46,12 +46,12 @@ int main(void)
     lmap_init(); /* the variables, names last: they grow while code holds their cells */
 #endif
     symb_new();
-    exec.cstk = allo.cs_top;
+    vm.nframes = 0;
     prog_line(DLINE)->len = 0; /* the direct line: len 0, num FF00h */
     prog_line(DLINE)->num = 0xFF00;
     rndm.seed = RNDM_SEED0; /* QBasic's first seed */
     fmth_init();
-    psys_init(&exec.stop, SF_BRK);
+    psys_init(&vm.stop, SF_BRK);
     syst_init();
     prog_init();
     repl_main();

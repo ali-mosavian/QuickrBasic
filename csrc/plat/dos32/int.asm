@@ -1,8 +1,9 @@
 ; pdos_int: a software interrupt with the registers of a PdosRegs (plat/dos32/dos.h), cdecl.
         .386
         .model  flat
-        public  _pdos_int, _pdos_ds, _pdos_cmdline
+        public  _pdos_int, _pdos_ds, _pdos_cmdline, _pdos_environ
         extern  LL$PSP:word
+        extern  LL$ENVIRONMENT_READ:near
         .code
 ; int pdos_int(int vector, PdosRegs *r): the registers in, out; the flags returned.
 _pdos_int:
@@ -39,6 +40,9 @@ _pdos_int:
         pop     esi
         pop     ebx
         ret
+; uint32_t pdos_environ(uint32_t index, uint8_t *buf, uint32_t cap): llrm's, its arguments as given.
+_pdos_environ:
+        jmp     LL$ENVIRONMENT_READ
 ; uint16_t pdos_ds(void): DS's selector.
 _pdos_ds:
         xor     eax,eax

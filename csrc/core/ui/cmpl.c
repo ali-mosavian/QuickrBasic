@@ -380,8 +380,7 @@ static void keys(void)
 /* ac_label: the label that starts the body p of line line, to the list. */
 static void label(const uint8_t *p, uint32_t line)
 {
-    uint32_t num;
-    memcpy(&num, p + 1, 4);
+    const uint32_t num = load32(p + 1);
     if (p[0] != M_INT || num > 0xFFFF)
         return;
     char *e = uimn_dec((char *)ac.nm, (uint16_t)num);

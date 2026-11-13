@@ -283,9 +283,9 @@ void diag_raise(uint8_t code, uint8_t dg, uint32_t at, uint32_t line, const char
 {
     static ErrOp op;
     op = (ErrOp){.op = O_ERR, .code = code, .dg = dg, .at = at, .state = DX_NOSTATE};
-    exec.line = line;
-    exec.opip = (uint8_t *)&op;
-    exec.inerr = true;
+    vm.line = line;
+    vm.opip = (uint8_t *)&op;
+    vm.err.active = true;
     if (len > sizeof dx.other - 1)
         len = sizeof dx.other - 1;
     memcpy(dx.other, other, len);

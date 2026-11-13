@@ -47,7 +47,7 @@ typedef struct {
 } Symb;
 extern Symb symb;
 
-static inline Addr symb_cell(uint16_t id) { return symb.vars.at[0] + id * 8u; }
+static inline Addr symb_cell(uint16_t id) { return symb.vars.at[0] + id * (uint32_t)sizeof(Cell); }
 static inline Var *symb_var(uint16_t id) { return (Var *)at(symb.vars.at[1]) + id; }
 static inline VarX *symb_varx(uint16_t id) { return (VarX *)at(symb.vars.at[2]) + id; }
 static inline Name *symb_name(uint16_t id) { return (Name *)at(symb.names.at[0]) + id; }

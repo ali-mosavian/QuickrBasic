@@ -89,11 +89,11 @@ void udbg_prep(void)
 void udbg_stop(void)
 {
     hl.until = 0;
-    if (!exec.cont_line)
+    if (!vm.cont.line)
         return;
     uimn.stopped = true;
     dpan_open();
-    dbug_pos(exec.cont_line, at(allo.cache + exec.cont_code));
+    dbug_pos(vm.cont.line, at(allo.cache + vm.cont.code));
     hlset();
 }
 
@@ -125,7 +125,7 @@ void udbg_step(void)
 
 void udbg_pstep(void)
 {
-    dbug.pdep = uimn_cancont() ? dbug_depth() : 0;
+    dbug.pdep = uimn_cancont() ? dbug_depth(&vm) : 0;
     dbug.mode = DM_PSTEP;
     uimn_cont();
 }
@@ -134,7 +134,7 @@ void udbg_sout(void)
 {
     uint32_t d = 0;
     if (uimn_cancont()) {
-        d = dbug_depth();
+        d = dbug_depth(&vm);
         if (d)
             d--;
     }
@@ -176,14 +176,14 @@ void udbg_setnext(void)
     uint32_t rec = text_rec(uimn.ed.line);
     blok_scope(rec);
     uint8_t proc = comp.proc;
-    blok_scope(exec.cont_line);
+    blok_scope(vm.cont.line);
     if (proc != comp.proc) {
         dlog_ok("Cannot cross module/procedure boundary");
         return;
     }
     uint32_t code = prog_line(rec)->code;
     Addr a = code ? allo.cache + code : link_cache(rec);
-    exec.cont_line = rec;
-    exec.cont_code = a - allo.cache;
+    vm.cont.line = rec;
+    vm.cont.code = a - allo.cache;
     udbg_stop();
 }

@@ -16,7 +16,7 @@ void udbg_init(void);
 /* ud_prep: before a run or CONT: the pane closed, nothing lit, uimn.stopped off, breakpoints
    on, Ctrl+F7's line to dbug (until, uline). */
 void udbg_prep(void);
-/* ud_stop: a stop CONT goes on from (exec.cont_line): uimn.stopped, the debug pane, its
+/* ud_stop: a stop CONT goes on from (vm.cont.line): uimn.stopped, the debug pane, its
    statement lit, the cursor at it. No cont_line: nothing. */
 void udbg_stop(void);
 /* ud_row: the edit window's row at row, col shows view line line: a breakpoint's colour, the lit

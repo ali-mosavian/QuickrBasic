@@ -6,9 +6,14 @@
 Allo allo;
 
 /* The control stack's region keeps the asm's tail above CSTOP (g_dsb+FC00h .. 10000h). */
-enum { CSTAIL = 0x400 };
+enum { CSTAIL = 0x400, ALIGN = 16 };
 
-void allo_init(Addr lo, Addr hi)
+static Addr align(const Addr a) { return (a + ALIGN - 1) & ~(Addr)(ALIGN - 1); }
+
+/* Do size more bytes fit at a, HMIN left after them? */
+static bool fits(const Addr a, const uint32_t size) { return (uint64_t)a + size + HMIN <= allo.top; }
+
+void allo_init(const Addr lo, const Addr hi)
 {
     allo.bot = lo;
     allo.top = hi;
@@ -19,17 +24,15 @@ void allo_init(Addr lo, Addr hi)
 }
 
 /* The heap's bottom aligned to 16, with size bytes after it and HMIN left; 0 no room. */
-static Addr room(uint32_t size)
+static Addr room(const uint32_t size)
 {
-    Addr a = (allo.bot + 15) & ~15u;
-    if ((uint64_t)a + size + HMIN > allo.top)
-        return 0;
-    return a;
+    const Addr a = align(allo.bot);
+    return fits(a, size) ? a : 0;
 }
 
-Addr allo_carve(uint32_t size)
+Addr allo_carve(const uint32_t size)
 {
-    Addr a = room(size);
+    const Addr a = room(size);
     if (!a)
         repl_error(E_OM);
     memset(at(a), 0, size);
@@ -37,39 +40,37 @@ Addr allo_carve(uint32_t size)
     return a;
 }
 
-uint32_t allo_new(uint32_t size, AlloMoved moved)
+uint32_t allo_new(const uint32_t size, const AlloMoved moved)
 {
-    uint32_t h = allo.nblocks;
-    Addr a = room(size);
+    const uint32_t h = allo.nblocks;
+    const Addr a = room(size);
     if (h >= NBLKH || !a)
         repl_error(E_OM);
-    allo.block[h] = (AlloBlock){a, size, moved};
+    allo.block[h] = (AlloBlock){.base = a, .cap = size, .moved = moved};
     allo.nblocks++;
     allo.bot = a + size;
     return h;
 }
 
-static void tell(const AlloBlock *b)
+static void tell(const AlloBlock *const b)
 {
     if (b->moved)
         b->moved();
 }
 
-bool allo_grow(uint32_t h, uint32_t size)
+bool allo_grow(const uint32_t h, const uint32_t size)
 {
-    AlloBlock *b = &allo.block[h];
+    AlloBlock *const b = &allo.block[h];
     if (size <= b->cap)
         return true;
-    uint32_t cap = b->cap + b->cap / 2;
-    if (cap < size)
-        cap = size;
-    cap = (cap + 15) & ~15u;
+    const uint32_t half_again = b->cap + b->cap / 2;
+    const uint32_t cap = align(half_again < size ? size : half_again);
     if (arry.end != allo.bot || strg.low != allo.top) /* the heap not empty */
         return false;
-    uint32_t grow = cap - b->cap;
-    if ((uint64_t)allo.bot + grow + HMIN > allo.top)
+    const uint32_t grow = cap - b->cap;
+    if (!fits(allo.bot, grow))
         return false;
-    Addr end = b->base + b->cap;
+    const Addr end = b->base + b->cap;
     b->cap = cap;
     memmove(at(end + grow), at(end), allo.bot - end);
     allo.bot += grow;

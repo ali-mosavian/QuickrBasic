@@ -6,10 +6,10 @@ console half; plat.asm's machine half goes to `plat/dos32` behind pfil, psys, pk
 ## Errors and unwinding
 
 `err_raise` is `[[noreturn]] repl_error(code)`; `err_xx` is `repl_error(E_XX)`; `ch_err` is
-`chnl_error(qb)` (E_USR with `exec.uerr = qb`). repl_error clears `lexr.more`, then longjmps to the
+`chnl_error(qb)` (E_USR with `vm.err.user = qb`). repl_error clears `lexr.more`, then longjmps to the
 first that holds: dbug's probe (`dbg_ever`); `comp_fail(code)` while `comp.busy`; `flow_trap`
 when a handler takes it; else `repl.top` with `REPL_ERROR` (message, READY / batch exit /
-`ui_err`). `exec.rsp`'s asm role as the C stack's reset point is `repl.top`; `rpl_ready` and
+`ui_err`). `vm.rsp`'s asm role as the C stack's reset point is `repl.top`; `rpl_ready` and
 every `jmp rpl_ready` (ex_end, ex_ready) is `repl_ready()`, a longjmp there.
 
 ## Regions (each init carves its own with `allo_carve`)
@@ -87,7 +87,7 @@ every `jmp rpl_ready` (ex_end, ex_ready) is `repl_ready()`, a longjmp there.
 | `plt_getb` | `cons_getb()` (-1 the end) |
 | `plt_raw` | static (pfil_read of `PFIL_STDIN`) |
 | `plt_exit` | `cons_exit(code)`: cons_flush, psys_exit |
-| `plt_init` | `cons_init()` (stdin's kind) + `psys_init(&exec.stop, SF_BRK)` |
+| `plt_init` | `cons_init()` (stdin's kind) + `psys_init(&vm.stop, SF_BRK)` |
 | `plt_brk`, `plt_tick` | dos32 `pstop.asm` (the tick's Ctrl+C scan); ON TIMER's tick is vm's `ptick.asm` |
 | `plt_heap` | `pmem_init` (exists) |
 | `plt_kflush` | `pkey_flush()` (vm's) |

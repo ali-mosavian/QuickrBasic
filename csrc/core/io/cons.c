@@ -126,10 +126,10 @@ void cons_read(void)
     if (n < 0) {
         if (chnl.in)
             chnl_error(62); /* Input past end of file */
-        if (!(exec.stop & SF_BRK))
+        if (!(vm.stop & SF_BRK))
             repl_error(E_OD);
-        exec.stop = 0; /* the STOP key: BREAK, no CONT */
-        exec.cont_line = 0;
+        vm.stop = 0; /* the STOP key: BREAK, no CONT */
+        vm.cont.line = 0;
         repl_error(E_BRK);
     }
     cons.inlen = (uint32_t)n;
@@ -200,7 +200,7 @@ int32_t cons_getline(void)
             uint16_t key = pkey_wait();
             uint8_t ch = (uint8_t)key;
             if (!key || ch == 3) { /* Ctrl+Break, Ctrl+C */
-                exec.stop = SF_BRK;
+                vm.stop = SF_BRK;
                 pkey_flush();
                 return -1;
             }

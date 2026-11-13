@@ -1,5 +1,6 @@
 /* LIST, SAVE and VERIFY: a stored body back to text (comp/list.asm). */
 #include "comp/list.h"
+#include "comp/comp.h"
 #include "comp/dfa.h"
 #include "io/cons.h"
 #include "mem/prog.h"
@@ -11,6 +12,8 @@ List list;
    relation. */
 enum : uint8_t { LS_NONE, LS_WORD, LS_KW, LS_FN, LS_SEP, LS_REL };
 
+static bool is_digit(const uint8_t c) { return (uint8_t)(c - '0') <= 9; }
+
 /* ls_lead: the space before a word, as the last item wants. */
 static void lead(void)
 {
@@ -18,7 +21,7 @@ static void lead(void)
         cons_space();
 }
 
-static void listline(uint32_t l)
+static void listline(const uint32_t l)
 {
     cons_uint(prog_line(l)->num);
     cons_space();
@@ -26,10 +29,10 @@ static void listline(uint32_t l)
     cons_nl();
 }
 
-void list_range(uint16_t from, uint16_t to)
+void list_range(const uint16_t from, const uint16_t to)
 {
     for (uint32_t l = PROGBASE, len; (len = prog_line(l)->len); l += len) {
-        uint16_t num = prog_line(l)->num;
+        const uint16_t num = prog_line(l)->num;
         if (num < from)
             continue;
         if (num > to)
@@ -38,7 +41,7 @@ void list_range(uint16_t from, uint16_t to)
     }
 }
 
-uint32_t list_text(const uint8_t *body, uint32_t at)
+uint32_t list_text(const uint8_t *const body, const uint32_t at)
 {
     list.at = body + at;
     cons.capture = CAP_SBUF;
@@ -46,7 +49,7 @@ uint32_t list_text(const uint8_t *body, uint32_t at)
     list_body(body);
     cons.capture = 0;
     cons.sbuf[cons.sblen] = 0;
-    uint32_t col = list.at ? cons.sblen : list.col; /* not reached: the end */
+    const uint32_t col = list.at ? cons.sblen : list.col; /* not reached: the end */
     list.at = nullptr;
     return col;
 }
@@ -56,10 +59,9 @@ static const uint8_t *number(const uint8_t *p, uint8_t c)
 {
     for (;;) {
         cons_putc(c);
-        uint8_t prev = c;
+        const uint8_t prev = c;
         c = *p;
-        bool more = c == '.' || c == '#' || c == '!' || c == 'E' || c == 'D' ||
-                    (uint8_t)(c - '0') <= 9 ||
+        const bool more = c == '.' || c == '#' || c == '!' || c == 'E' || c == 'D' || is_digit(c) ||
                     ((c == '+' || c == '-') && (prev == 'E' || prev == 'D'));
         if (!more)
             return p;
@@ -68,30 +70,20 @@ static const uint8_t *number(const uint8_t *p, uint8_t c)
 }
 
 /* An operator: spaced, but a sign. */
-static void binop(uint8_t t)
+static void binop(const uint8_t t)
 {
-    uint8_t cls = LS_SEP;
-    if (t == TK_MINUS || t == TK_PLUS) {
-        if (list.last != LS_WORD) { /* a sign */
-            if (list.last != LS_NONE)
-                cons_space();
-            cons_kw(t);
-            list.last = LS_NONE;
-            return;
-        }
+    const bool relation = t >= TK_GT && t <= TK_LT;
+    if ((t == TK_MINUS || t == TK_PLUS) && list.last != LS_WORD) { /* a sign */
+        if (list.last != LS_NONE)
+            cons_space();
+        cons_kw(t);
+        list.last = LS_NONE;
+        return;
     }
-    if (t >= TK_GT && t <= TK_LT) {
-        cls = LS_REL;
-        if (list.last == LS_REL) { /* <= <> >=: one operator */
-            cons_kw(t);
-            list.last = cls;
-            return;
-        }
-    }
-    if (list.last != LS_NONE)
+    if (!(relation && list.last == LS_REL) && list.last != LS_NONE) /* <= <> >=: one operator */
         cons_space();
     cons_kw(t);
-    list.last = cls;
+    list.last = relation ? LS_REL : LS_SEP;
 }
 
 void list_body(const uint8_t *p)
@@ -108,10 +100,8 @@ void list_body(const uint8_t *p)
         switch (c) {
         case M_INT: {
             lead();
-            uint32_t v;
-            memcpy(&v, p, 4);
+            cons_uint(load32(p));
             p += 4;
-            cons_uint(v);
             list.last = LS_WORD;
             continue;
         }
@@ -154,7 +144,7 @@ void list_body(const uint8_t *p)
         }
         if (c < 0x80) {
             lead();
-            if (c == '.' || (uint8_t)(c - '0') <= 9)
+            if (c == '.' || is_digit(c))
                 p = number(p, c);
             else
                 cons_putc(c); /* any other byte: as a word */
@@ -162,8 +152,8 @@ void list_body(const uint8_t *p)
             continue;
         }
         if (c == TK_X) { /* FFh n: a function when '(' follows */
-            uint8_t n = *p++;
-            uint8_t cls = *p == '(' ? LS_FN : LS_KW;
+            const uint8_t n = *p++;
+            const uint8_t cls = *p == '(' ? LS_FN : LS_KW;
             lead();
             cons_kw1(n);
             list.last = cls;
@@ -173,7 +163,7 @@ void list_body(const uint8_t *p)
             binop(c);
             continue;
         }
-        uint8_t cls = (c >= TK_SGN && c <= TK_MID) || c == TK_TAB || c == TK_SPC || c >= TK_LBOUND
+        const uint8_t cls = (c >= TK_SGN && c <= TK_MID) || c == TK_TAB || c == TK_SPC || c >= TK_LBOUND
                           ? LS_FN
                           : LS_KW;
         lead();
@@ -183,21 +173,14 @@ void list_body(const uint8_t *p)
         } else {
             cons_kw(c);
             list.last = cls;
-            if (c == TK_DATA) { /* DATA's text: to a ':' out of quotes */
-                bool quoted = false;
-                for (;;) {
-                    c = *p++;
-                    if (!c)
-                        return;
-                    if (c == '"')
-                        quoted = !quoted;
-                    if (!quoted && c == ':') {
-                        cons_putc(c);
-                        list.last = LS_SEP;
-                        break;
-                    }
-                    cons_putc(c);
-                }
+            if (c == TK_DATA) { /* its text as it is, then its ':' */
+                const uint8_t *const end = comp_skipdata(p);
+                for (; p < end; p++)
+                    cons_putc(*p);
+                if (!*p)
+                    return;
+                cons_putc(*p++);
+                list.last = LS_SEP;
                 continue;
             }
             if (c != TK_REM)

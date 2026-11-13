@@ -8,25 +8,39 @@
 #include "vm/exec.h"
 #include "vm/flow.h"
 
+enum { DATA_MAX = 0x100000, DATA_ALIGN = 4 };
+
 Arry arry;
 
-/* An array header's fields, by Addr: its dimensions, its data, the fast count, then the counts
-   and the lower bounds. */
-enum { AH_PTR = offsetof(ArrayHdr, data), AH_FAST = offsetof(ArrayHdr, fast), AH_CNT = 7 };
-static_assert(AH_CNT == sizeof(ArrayHdr));
+static ArrayHdr *hdr_at(const Addr h) { return (ArrayHdr *)at(h); }
 
-static uint16_t count(Addr h, uint32_t i) { return rd16(h + AH_CNT + i * 2); }
-static int16_t lbound(Addr h, uint32_t i)
+/* A header's bytes: the fixed part, then a count and a lower bound a dimension. */
+static uint32_t hdr_size(const uint8_t dims) { return sizeof(ArrayHdr) + dims * 2u * sizeof(uint16_t); }
+
+static uint16_t count(const ArrayHdr *const a, const uint32_t i) { return a->count[i]; }
+static int16_t lbound(const ArrayHdr *const a, const uint32_t i) { return (int16_t)a->count[a->dims + i]; }
+
+static uint32_t elem_count(const ArrayHdr *const a)
 {
-    return (int16_t)rd16(h + AH_CNT + rd8(h) * 2u + i * 2);
+    uint32_t n = 1;
+    for (uint32_t i = 0; i < a->dims; i++)
+        n *= count(a, i);
+    return n;
 }
-static Addr vt_of(uint16_t id) { return symb.vars.at[1] + id * 8u + offsetof(Var, vt); }
+
+/* size bytes from a, to the next DATA_ALIGN. */
+static uint64_t aligned_end(const Addr a, const uint32_t size)
+{
+    return ((uint64_t)a + size + DATA_ALIGN - 1) & ~(uint64_t)(DATA_ALIGN - 1);
+}
+
+static bool is_array_var(const uint16_t id) { return symb_var(id)->info & VI_ARR; }
 
 [[noreturn]] void arry_bad_sub(void) { repl_error(E_BS); }
 
-uint32_t arry_esize(uint16_t id)
+uint32_t arry_esize(const uint16_t id)
 {
-    const Var *v = symb_var(id);
+    const Var *const v = symb_var(id);
     if (v->type >= ET_REC)
         return decl_types[v->type - ET_REC].size;
     if (v->info & SK_DBL)
@@ -34,7 +48,7 @@ uint32_t arry_esize(uint16_t id)
     return (v->info & VK_MASK) == VK_STR ? DSZ : VS;
 }
 
-Addr arry_ref(uint16_t id, uint8_t n)
+Addr arry_ref(const uint16_t id, const uint8_t n)
 {
     Addr h = symb_var(id)->vt;
     if (!h) {
@@ -46,21 +60,20 @@ Addr arry_ref(uint16_t id, uint8_t n)
         }
         h = arry_new(id, n, false);
     }
-    if (n != rd8(h))
+    const ArrayHdr *const a = hdr_at(h);
+    if (n != a->dims)
         arry_bad_sub();
-    uint32_t idx = 0;
+    uint32_t idx = 0; /* the last subscript the fastest */
     for (uint32_t i = 0; i < n; i++) {
-        uint16_t r = arry.subs[i] - (uint16_t)lbound(h, i);
-        if (r >= count(h, i))
+        const uint16_t r = arry.subs[i] - (uint16_t)lbound(a, i);
+        if (r >= count(a, i))
             arry_bad_sub();
-        idx += r;
-        if (i + 1 < n)
-            idx *= count(h, i + 1);
+        idx = idx * count(a, i) + r;
     }
-    return rd32(h + AH_PTR) + idx * arry_esize(id);
+    return a->data + idx * arry_esize(id);
 }
 
-void arry_dim(uint16_t id, uint8_t n, bool dyn)
+void arry_dim(const uint16_t id, const uint8_t n, const bool dyn)
 {
     for (uint32_t i = n; i-- > 0;) {
         if ((int16_t)arry.subs[i] < 0)
@@ -72,149 +85,174 @@ void arry_dim(uint16_t id, uint8_t n, bool dyn)
     arry_new(id, n, dyn);
 }
 
-/* The data's end, on 4, for size bytes from arry.end. */
-static uint64_t data_end(uint32_t size) { return ((uint64_t)arry.end + size + 3) & ~3ull; }
-
-Addr arry_new(uint16_t id, uint8_t n, bool dyn)
+Addr arry_new(const uint16_t id, const uint8_t n, const bool dyn)
 {
     uint64_t size = arry_esize(id);
     for (uint32_t i = 0; i < n; i++) {
         size *= arry.counts[i];
-        if (size > 0x100000)
+        if (size > DATA_MAX)
             repl_error(E_OM);
     }
-    if (arry.hdr + n * 4u + AH_CNT > allo.hdr_base + HDRSZ)
+    if (arry.hdr + hdr_size(n) > allo.hdr_base + HDRSZ)
         repl_error(E_OM);
-    if (data_end((uint32_t)size) > strg.low) {
+    if (aligned_end(arry.end, (uint32_t)size) > strg.low) {
         strg_gc();
-        if (data_end((uint32_t)size) > strg.low)
+        if (aligned_end(arry.end, (uint32_t)size) > strg.low)
             repl_error(E_OM);
     }
-    Addr data = arry.end;
-    arry.end = (Addr)data_end((uint32_t)size);
+    const Addr data = arry.end;
+    arry.end = (Addr)aligned_end(data, (uint32_t)size);
     copy_zero(data, (uint32_t)size);
-    Addr h = arry.hdr;
-    wr32(h + AH_PTR, data);
-    wr16(h + AH_FAST, n == 1 && arry.lbounds[0] == 0 ? arry.counts[0] : 0); /* 1-D from 0 */
+
+    const Addr h = arry.hdr;
+    ArrayHdr *const a = hdr_at(h);
+    a->dims = n;
+    a->data = data;
+    a->fast = n == 1 && arry.lbounds[0] == 0 ? arry.counts[0] : 0; /* 1-D from 0 */
+    memcpy(&a->count[0], arry.counts, n * sizeof arry.counts[0]);
+    memcpy(&a->count[n], arry.lbounds, n * sizeof arry.lbounds[0]);
+    arry.hdr = h + hdr_size(n);
     symb_var(id)->vt = h;
     symb_varx(id)->dyn = dyn;
-    wr8(h, n);
-    memcpy(at(h + AH_CNT), arry.counts, n * 2u);
-    memcpy(at(h + AH_CNT + n * 2u), arry.lbounds, n * 2u);
-    arry.hdr = h + AH_CNT + n * 4u;
     return h;
 }
 
-uint32_t arry_size(uint16_t id, Addr hdr)
+uint32_t arry_size(const uint16_t id, const Addr hdr)
 {
-    uint32_t size = arry_esize(id);
-    for (uint32_t i = 0; i < rd8(hdr); i++)
-        size *= count(hdr, i);
-    return size;
+    return arry_esize(id) * elem_count(hdr_at(hdr));
 }
 
-/* arry_free's: the header dropped, its bytes, the data dropped [data, data+size), the data's old
-   end, what references to the header become. */
-static Addr fh, fdata, fend, frep;
-static uint32_t fhs, fsize;
+/* ---- freeing -------------------------------------------------------------------------------- */
 
-/* A header kept at a: past the dropped one it moves down; the dropped one's becomes frep. */
-static void follow_hdr(Addr a)
+/* An array being freed: its header and the header's bytes, its data [data, data + size), the
+   data's old end, what references to the header become. */
+typedef struct {
+    Addr hdr;
+    uint32_t hdr_size;
+    Addr data;
+    uint32_t size;
+    Addr old_end;
+    Addr rep;
+} Freed;
+
+/* A header kept: past the dropped one it moves down; the dropped one's becomes rep. */
+static Addr moved_hdr(const Freed *const f, const Addr h)
 {
-    Addr x = rd32(a);
-    if (x < fh)
-        return;
-    if (x == fh)
-        wr32(a, frep);
-    else if (x < arry.hdr + fhs)
-        wr32(a, x - fhs);
+    if (h < f->hdr)
+        return h;
+    if (h == f->hdr)
+        return f->rep;
+    return h < arry.hdr + f->hdr_size ? h - f->hdr_size : h;
 }
 
-/* A parameter's cell kept at a: in the data moved down, it follows. */
-static void follow_cell(Addr a)
+/* A parameter's cell kept: in the data moved down, it follows. */
+static Addr moved_cell(const Freed *const f, const Addr c)
 {
-    Addr x = rd32(a);
-    if (x >= fdata && x - fdata >= fsize && x < fend)
-        wr32(a, x - fsize);
+    const bool moved = c >= f->data && c - f->data >= f->size && c < f->old_end;
+    return moved ? c - f->size : c;
 }
 
-uint32_t arry_free(uint16_t id, Addr rep)
+/* The moved string blocks' owners follow. */
+static void follow_owners(const Freed *const f)
 {
-    Addr h = symb_var(id)->vt;
-    symb_var(id)->vt = 0;
-    fh = h;
-    frep = rep;
-    fdata = rd32(h + AH_PTR);
-    fsize = (uint32_t)(((uint64_t)fdata + arry_size(id, h) + 3) & ~3ull) - fdata;
-    fhs = rd8(h) * 4u + AH_CNT;
-    copy_mem(fdata, fdata + fsize, arry.end - (fdata + fsize));
-    fend = arry.end;
-    arry.end -= fsize;
-    copy_mem(h, h + fhs, arry.hdr - (h + fhs));
-    arry.hdr -= fhs;
-    for (Addr p = allo.hdr_base; p < arry.hdr; p += rd8(p) * 4u + AH_CNT) {
-        Addr d = rd32(p + AH_PTR);
-        if (d > fdata)
-            wr32(p + AH_PTR, d - fsize);
-    }
-    for (Addr b = allo.top; b > strg.low;) { /* the moved string blocks' owners */
+    for (Addr b = allo.top; b > strg.low;) {
         b -= BHDR;
-        uint16_t len = rd16(b);
-        Addr own = rd32(b + offsetof(StrTail, owner));
-        if (own >= fdata && own < fend)
-            wr32(b + offsetof(StrTail, owner), own - fsize);
-        b -= len;
+        StrTail *const tail = (StrTail *)at(b);
+        if (tail->owner >= f->data && tail->owner < f->old_end)
+            tail->owner -= f->size;
+        b -= tail->len;
     }
-    for (uint32_t c = symb.nvars - 1u; c > 0 && c < symb.nvars; c--) {
-        if (symb_var((uint16_t)c)->info & VI_ARR)
-            follow_hdr(vt_of((uint16_t)c));
-        else
-            follow_cell(vt_of((uint16_t)c));
-    }
-    for (Addr e = exec.lsav; e < exec.lsp; e += LSSZ) { /* save entries: id:2 ref:2 value:8 off:4 */
-        if (symb_var(rd16(e))->info & VI_ARR)
-            follow_hdr(e + 4);
-        if (rd16(e + 2) == 0xFFFE) /* a parameter's cell before */
-            follow_cell(e + 12);
-    }
-    return fhs;
 }
 
-void arry_keep(uint16_t id, Addr old, Addr fresh)
+uint32_t arry_free(const uint16_t id, const Addr rep)
 {
-    uint32_t n = rd8(old), esz = arry_esize(id), total = 1;
-    for (uint32_t i = 0; i < n; i++)
-        total *= count(old, i);
-    const Var *v = symb_var(id);
-    bool str = (v->info & (SK_DBL | VK_MASK)) == VK_STR && v->type < ET_REC;
+    Var *const v = symb_var(id);
+    const Addr h = v->vt;
+    v->vt = 0;
+    const ArrayHdr *const a = hdr_at(h);
+    const Freed f = {
+        .hdr = h,
+        .hdr_size = hdr_size(a->dims),
+        .data = a->data,
+        .size = (uint32_t)(aligned_end(a->data, arry_size(id, h)) - a->data),
+        .old_end = arry.end,
+        .rep = rep,
+    };
+    copy_mem(f.data, f.data + f.size, arry.end - (f.data + f.size));
+    arry.end -= f.size;
+    copy_mem(h, h + f.hdr_size, arry.hdr - (h + f.hdr_size));
+    arry.hdr -= f.hdr_size;
+    for (Addr p = allo.hdr_base; p < arry.hdr; p += hdr_size(hdr_at(p)->dims)) {
+        ArrayHdr *const kept = hdr_at(p);
+        if (kept->data > f.data)
+            kept->data -= f.size;
+    }
+    follow_owners(&f);
+    for (uint16_t c = symb.nvars; c-- > 1;) {
+        Var *const var = symb_var(c);
+        var->vt = is_array_var(c) ? moved_hdr(&f, var->vt) : moved_cell(&f, var->vt);
+    }
+    for (uint32_t i = 0; i < vm.ncallvars; i++) {
+        CallVar *const cv = &vm.callvars[i];
+        if (is_array_var(cv->var))
+            cv->array.hdr = moved_hdr(&f, cv->array.hdr);
+        else if (cv->cell) /* a parameter's cell before */
+            cv->cell = moved_cell(&f, cv->cell);
+    }
+    return f.hdr_size;
+}
+
+/* ---- REDIM PRESERVE ------------------------------------------------------------------------- */
+
+/* Element k of old, by its subscripts, in fresh: *idx; false it is not there. */
+static bool index_in(const ArrayHdr *const old, const ArrayHdr *const fresh, uint32_t k,
+                     uint32_t *const idx)
+{
+    uint32_t i = 0;
+    uint32_t scale = 1;
+    for (uint32_t d = old->dims; d-- > 0;) { /* the last subscript the fastest */
+        const uint32_t r = k % count(old, d);
+        k /= count(old, d);
+        const uint32_t s = r + lbound(old, d) - lbound(fresh, d);
+        if (s >= count(fresh, d)) /* past it, or under 0 */
+            return false;
+        i += s * scale;
+        scale *= count(fresh, d);
+    }
+    *idx = i;
+    return true;
+}
+
+void arry_keep(const uint16_t id, const Addr old_hdr, const Addr fresh_hdr)
+{
+    const ArrayHdr *const old = hdr_at(old_hdr);
+    const ArrayHdr *const fresh = hdr_at(fresh_hdr);
+    const uint32_t esize = arry_esize(id);
+    const Var *const v = symb_var(id);
+    const bool strings = (v->info & (SK_DBL | VK_MASK)) == VK_STR && v->type < ET_REC;
+    const uint32_t total = elem_count(old);
     for (uint32_t k = 0; k < total; k++) {
-        uint32_t rest = k, idx = 0, mul = 1, c = n;
-        for (; c > 0; c--) { /* the last subscript the fastest */
-            uint32_t r = rest % count(old, c - 1);
-            rest /= count(old, c - 1);
-            uint32_t s = r + lbound(old, c - 1) - lbound(fresh, c - 1);
-            if (s >= count(fresh, c - 1))
-                break; /* not in the new one, or under 0 */
-            idx += s * mul;
-            mul *= count(fresh, c - 1);
-        }
-        if (c)
+        uint32_t idx;
+        if (!index_in(old, fresh, k, &idx))
             continue;
-        Addr src = rd32(old + AH_PTR) + k * esz, dst = rd32(fresh + AH_PTR) + idx * esz;
-        if (str)
+        const Addr src = old->data + k * esize;
+        const Addr dst = fresh->data + idx * esize;
+        if (strings)
             flow_lsmove(src, dst); /* its block moves too */
         else
-            copy_mem(dst, src, esz);
+            copy_mem(dst, src, esize);
     }
 }
 
-void arry_rep(uint16_t id)
+void arry_rep(const uint16_t id)
 {
-    Addr h = symb_var(id)->vt;
-    for (uint32_t c = symb.nvars - 1u; c > 0 && c < symb.nvars; c--)
-        if (symb_var((uint16_t)c)->vt == AREP)
-            symb_var((uint16_t)c)->vt = h;
-    for (Addr e = exec.lsav; e < exec.lsp; e += LSSZ)
-        if ((symb_var(rd16(e))->info & VI_ARR) && rd32(e + 4) == AREP)
-            wr32(e + 4, h);
+    const Addr h = symb_var(id)->vt;
+    for (uint16_t c = symb.nvars; c-- > 1;)
+        if (symb_var(c)->vt == AREP)
+            symb_var(c)->vt = h;
+    for (uint32_t i = 0; i < vm.ncallvars; i++) {
+        CallVar *const cv = &vm.callvars[i];
+        if (is_array_var(cv->var) && cv->array.hdr == AREP)
+            cv->array.hdr = h;
+    }
 }

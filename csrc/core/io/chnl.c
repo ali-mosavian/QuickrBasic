@@ -37,7 +37,7 @@ Chan *chnl_find(int32_t num)
 
 void chnl_error(uint8_t qb)
 {
-    exec.uerr = qb;
+    vm.err.user = qb;
     repl_error(E_USR);
 }
 

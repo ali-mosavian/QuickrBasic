@@ -6,60 +6,58 @@
 #include "mem/copy.h"
 #include "mem/prog.h"
 
+enum { NEAR_MAX = 255 };
+
 Strg strg;
 
-static uint8_t nbuf[257];
+static uint8_t near_buf[NEAR_MAX + 1];
 
 void strg_init(void) { strg.tmp = allo_carve(DSZ * NTMP); }
 
-static Desc desc_at(Addr d)
-{
-    Desc s;
-    memcpy(&s, at(d), DSZ);
-    return s;
-}
+static void desc_put(const Addr d, const Desc s) { memcpy(at(d), &s, DSZ); }
 
-static void desc_put(Addr d, Desc s) { memcpy(at(d), &s, DSZ); }
+/* The tail of the block whose len chars are at chars. */
+static StrTail *tail_of(const Addr chars, const uint16_t len) { return (StrTail *)at(chars + len); }
 
-/* Whether d is one of the temporaries' Descs, in use or not. */
-static bool is_tmp(Addr d) { return d - strg.tmp < DSZ * NTMP; }
+/* Is d one of the temporaries' Descs, in use or not? */
+static bool is_tmp(const Addr d) { return d - strg.tmp < DSZ * NTMP; }
 
-Desc strg_get(Addr desc)
+/* Is d a temporary popped already? */
+static bool is_popped_tmp(const Addr d) { return is_tmp(d) && d - strg.tmp >= strg.tmp_used; }
+
+Desc strg_get(const Addr desc)
 {
     if (desc == strg.tmp + strg.tmp_used - DSZ)
         strg.tmp_used -= DSZ;
-    return desc_at(desc);
+    return strg_peek(desc);
 }
 
-Addr strg_push(Desc s)
+Addr strg_push(const Desc s)
 {
     if (strg.tmp_used >= DSZ * NTMP)
         repl_error(E_ST);
-    Addr d = strg.tmp + strg.tmp_used;
+    const Addr d = strg.tmp + strg.tmp_used;
     desc_put(d, s);
     strg.tmp_used += DSZ;
     return d;
 }
 
-void strg_own(Addr chars, uint16_t len, Addr owner)
-{
-    wr32(chars + len + offsetof(StrTail, owner), owner);
-}
+void strg_own(const Addr chars, const uint16_t len, const Addr owner) { tail_of(chars, len)->owner = owner; }
 
-Addr strg_new(Addr chars, uint16_t len)
+Addr strg_new(const Addr chars, const uint16_t len)
 {
     strg_own(chars, len, strg.tmp + strg.tmp_used);
-    return strg_push((Desc){len, chars});
+    return strg_push((Desc){.len = len, .ptr = chars});
 }
 
 /* A block of len chars under low fits above the arrays: its chars, else 0. */
-static Addr fit(uint16_t len)
+static Addr fit(const uint16_t len)
 {
-    Addr c = strg.low - len - BHDR;
+    const Addr c = strg.low - len - BHDR;
     return arry.end < c ? c : 0;
 }
 
-Addr strg_alloc(uint16_t len)
+Addr strg_alloc(const uint16_t len)
 {
     Addr c = fit(len);
     if (!c) {
@@ -69,155 +67,154 @@ Addr strg_alloc(uint16_t len)
             repl_error(E_OM);
     }
     strg.low = c;
-    wr16(c + len, len);
-    wr32(c + len + offsetof(StrTail, owner), 0);
+    *tail_of(c, len) = (StrTail){.len = len, .owner = 0};
     return c;
+}
+
+/* Is the block at chars live: its owner a Desc still pointing at them? */
+static bool is_live(const Addr chars, const Addr owner)
+{
+    return owner && !is_popped_tmp(owner) && strg_peek(owner).ptr == chars;
 }
 
 void strg_gc(void)
 {
-    Addr q = allo.top, d = allo.top;
-    while (q > strg.low) {
-        q -= BHDR;
-        uint16_t len = rd16(q);
-        Addr owner = rd32(q + offsetof(StrTail, owner));
-        q -= len; /* the chars, the next block's end */
-        if (!owner)
+    Addr dst = allo.top;
+    for (Addr end = allo.top; end > strg.low;) {
+        const StrTail tail = *(const StrTail *)at(end - BHDR);
+        const Addr chars = end - BHDR - tail.len;
+        end = chars; /* the next block's end */
+        if (!is_live(chars, tail.owner))
             continue;
-        if (is_tmp(owner) && owner - strg.tmp >= strg.tmp_used)
-            continue; /* a popped temporary */
-        if (desc_at(owner).ptr != q)
-            continue;
-        d -= len + BHDR;
-        copy_mem(d, q, len + BHDR);
-        wr32(owner + offsetof(Desc, ptr), d);
+        dst -= tail.len + BHDR;
+        copy_mem(dst, chars, tail.len + BHDR);
+        wr32(tail.owner + offsetof(Desc, ptr), dst);
     }
-    strg.low = d;
+    strg.low = dst;
 }
 
-void strg_set(Addr value, Addr desc)
+/* Are s's chars in the program's text? */
+static bool in_program(const Desc s)
+{
+    const uint32_t off = s.ptr - prog.base;
+    return off >= PROGBASE && off < prog.end;
+}
+
+/* Is s's block the temporary value's own, to be taken over? */
+static bool owned_by_tmp(const Desc s, const Addr value)
+{
+    return s.ptr >= strg.low && s.ptr < allo.top && is_tmp(value) &&
+           tail_of(s.ptr, s.len)->owner == value;
+}
+
+void strg_set(const Addr value, const Addr desc)
 {
     Desc s = strg_get(value);
-    if (s.len) {
-        uint32_t off = s.ptr - prog.base;
-        if (off >= PROGBASE && off < prog.end)
-            goto point; /* in the program's text: kept there */
-        bool own = s.ptr >= strg.low && s.ptr < allo.top && is_tmp(value) &&
-                   rd32(s.ptr + s.len + offsetof(StrTail, owner)) == value;
-        if (!own) { /* a variable's block stays its own */
-            Addr c = strg_alloc(s.len);
+    if (s.len && !in_program(s)) { /* the program's text is kept where it is */
+        if (!owned_by_tmp(s, value)) { /* a variable's block stays its own */
+            const Addr c = strg_alloc(s.len);
             s = strg_get(value);
             copy_mem(c, s.ptr, s.len);
             s.ptr = c;
         }
         strg_own(s.ptr, s.len, desc);
     }
-point:
     desc_put(desc, s);
 }
 
-const uint8_t *strg_near(Desc s)
+const uint8_t *strg_near(const Desc s)
 {
-    uint16_t n = s.len > 255 ? 255 : s.len;
-    memcpy(nbuf, at(s.ptr), n);
-    nbuf[n] = 0;
-    return nbuf;
+    const uint16_t n = s.len > NEAR_MAX ? NEAR_MAX : s.len;
+    memcpy(near_buf, at(s.ptr), n);
+    near_buf[n] = 0;
+    return near_buf;
 }
 
-void strg_print(Desc s)
+void strg_print(const Desc s)
 {
-    while (s.len) {
-        uint16_t n = s.len > 255 ? 255 : s.len;
-        const uint8_t *p = strg_near(s);
-        for (uint16_t i = 0; i < n; i++)
-            cons_putc(p[i]);
-        s.ptr += n;
-        s.len -= n;
-    }
+    const uint8_t *const p = at(s.ptr);
+    for (uint16_t i = 0; i < s.len; i++)
+        cons_putc(p[i]);
 }
 
-uint32_t strg_span(const uint8_t **p, uint8_t stop1, uint8_t stop2)
+uint32_t strg_span(const uint8_t **const p, const uint8_t stop1, const uint8_t stop2)
 {
-    const uint8_t *s = *p;
+    const uint8_t *const start = *p;
     while (**p && **p != stop1 && **p != stop2)
         (*p)++;
-    return (uint32_t)(*p - s);
+    return (uint32_t)(*p - start);
 }
 
-const uint8_t *strg_skipq(const uint8_t *p) { return *p ? p + 1 : p; }
+const uint8_t *strg_skipq(const uint8_t *const p) { return *p ? p + 1 : p; }
 
 /* A temporary for the text at *pos up to a 0, stop1 or stop2; *pos at the stop. */
-static Addr scan(Addr *pos, uint8_t stop1, uint8_t stop2)
+static Addr scan(Addr *const pos, const uint8_t stop1, const uint8_t stop2)
 {
     const uint8_t *p = at(*pos);
-    uint16_t len = (uint16_t)strg_span(&p, stop1, stop2);
-    Desc s = {len, *pos};
+    const Desc s = {.len = (uint16_t)strg_span(&p, stop1, stop2), .ptr = *pos};
     *pos = addr_of(p);
     return strg_push(s);
 }
 
-Addr strg_item(Addr *pos)
+Addr strg_item(Addr *const pos)
 {
     while (rd8(*pos) == ' ')
         ++*pos;
     if (rd8(*pos) != '"')
         return scan(pos, ',', ':');
     ++*pos;
-    Addr t = scan(pos, '"', '"');
+    const Addr t = scan(pos, '"', '"');
     *pos = addr_of(strg_skipq(at(*pos)));
     return t;
 }
 
-uint16_t strg_len(Addr desc) { return rd16(desc); }
+uint16_t strg_len(const Addr desc) { return rd16(desc); }
 
-Addr strg_cat(Addr left, Addr right)
+Addr strg_cat(const Addr left, const Addr right)
 {
-    uint16_t llen = strg_len(left);
-    uint32_t n = strg_len(right) + llen;
+    const uint16_t left_len = strg_len(left);
+    const uint32_t n = left_len + strg_len(right);
     if (n > SMAX)
         repl_error(E_LS);
-    Addr c = strg_alloc((uint16_t)n);
-    Desc s = strg_get(right);
-    copy_mem(c + llen, s.ptr, s.len);
-    s = strg_get(left);
-    copy_mem(c, s.ptr, s.len);
+    const Addr c = strg_alloc((uint16_t)n);
+    const Desc r = strg_get(right);
+    copy_mem(c + left_len, r.ptr, r.len);
+    const Desc l = strg_get(left);
+    copy_mem(c, l.ptr, l.len);
     return strg_new(c, (uint16_t)n);
 }
 
-uint8_t strg_cmp(Addr left, Addr right)
+uint8_t strg_cmp(const Addr left, const Addr right)
 {
-    Desc r = strg_get(right);
-    Desc l = strg_get(left);
-    const uint8_t *a = at(l.ptr), *b = at(r.ptr);
-    for (uint16_t i = 0;; i++) {
-        if (i == l.len)
-            return i == r.len ? SCMP_EQ : SCMP_LT;
-        if (i == r.len)
-            return SCMP_GT;
+    const Desc r = strg_get(right);
+    const Desc l = strg_get(left);
+    const uint8_t *const a = at(l.ptr);
+    const uint8_t *const b = at(r.ptr);
+    const uint16_t n = l.len < r.len ? l.len : r.len;
+    for (uint16_t i = 0; i < n; i++)
         if (a[i] != b[i])
             return a[i] < b[i] ? SCMP_LT : SCMP_GT;
-    }
+    return l.len == r.len ? SCMP_EQ : l.len < r.len ? SCMP_LT : SCMP_GT;
 }
 
-Addr strg_sub(Addr desc, uint16_t start, uint16_t most)
+Addr strg_sub(const Addr desc, const uint16_t start, const uint16_t most)
 {
-    uint16_t len = strg_len(desc);
-    uint16_t n = len > start ? len - start : 0;
-    if (n > most)
-        n = most;
-    Addr c = strg_alloc(n);
-    Desc s = strg_get(desc);
+    const uint16_t len = strg_len(desc);
+    const uint16_t rest = len > start ? len - start : 0;
+    const uint16_t n = rest < most ? rest : most;
+    const Addr c = strg_alloc(n);
+    const Desc s = strg_get(desc);
     return strg_tods(c, s.ptr + start, n);
 }
 
-Addr strg_tods(Addr chars, Addr src, uint16_t len)
+Addr strg_tods(const Addr chars, const Addr src, const uint16_t len)
 {
     copy_mem(chars, src, len);
     return strg_new(chars, len);
 }
 
-Addr strg_buftmp(uint16_t len)
+Addr strg_buftmp(const uint16_t len)
 {
-    Addr c = strg_alloc(len);
+    const Addr c = strg_alloc(len);
     return strg_tods(c, addr_of(cons.sbuf), len);
 }

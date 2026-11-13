@@ -6,54 +6,65 @@
 #include "plat/pkey.h"
 #include "vm/flow.h"
 
-enum : uint32_t { TDAY = 0x1800B0 }; /* the BIOS's ticks a day */
+enum : uint32_t {
+    TICKS_A_DAY = 0x1800B0,         /* the BIOS's */
+    TICKS_PER_10000_SECONDS = 182065,
+};
+enum { TIMER_MAX_SECONDS = 86400, STRIG_MAX = 7 /* STRIG(0) .. STRIG(6), two numbers a slot */ };
 
-/* KEY n's scan code: F1..F10, up, left, right, down, 15..25 the user's, F11, F12. */
-static const uint8_t keyscan[32] = {
-    0, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F, 0x40, 0x41, 0x42, 0x43, 0x44, 0x48, 0x4B, 0x4D, 0x50,
-    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x85, 0x86,
+/* KEY n's scan code: F1..F10, up, left, right, down, then the user's, F11, F12. */
+static const uint8_t keyscan[NKEYS + 1] = {
+    [1] = 0x3B, 0x3C, 0x3D, 0x3E, 0x3F, 0x40, 0x41, 0x42, 0x43, 0x44, 0x48, 0x4B, 0x4D, 0x50,
+    [30] = 0x85, 0x86,
 };
 
 Evnt evnt;
 
-/* ev_slot: the slot of kind (EK_*) and n. Illegal function call: no such n. */
-static uint32_t slot_of(uint8_t kind, int32_t n)
+/* The slot of kind (EK_*) and n. Illegal function call: no such n. */
+static uint32_t slot_of(const uint8_t kind, const int32_t n)
 {
     switch (kind) {
-    case EK_TIMER: return 0;
+    case EK_TIMER: return EV_TIMER;
     case EK_KEY:
-        if ((uint32_t)(n - 1) >= 31)
+        if (n < 1 || n > NKEYS)
             repl_error(E_IQ);
-        return (uint32_t)n;
+        return EV_KEY + (uint32_t)n - 1;
     case EK_COM:
-        if ((uint32_t)(n - 1) >= 2)
+        if (n < 1 || n > NCOMS)
             repl_error(E_IQ);
         return EV_COM + (uint32_t)n - 1;
     case EK_PEN: return EV_PEN;
     default:
-        if ((uint32_t)n >= 8)
+        if (n < 0 || n > STRIG_MAX)
             repl_error(E_IQ);
         return EV_STRIG + (uint32_t)n / 2;
     }
 }
 
-/* ev_sig: slot i's event can run now: SF_EV. */
-static void signal(uint32_t i)
+/* Can slot s's event run now? */
+static bool runnable(const EventSlot *const s)
 {
-    const EventSlot *s = &evnt.slot[i];
-    if (s->line && s->state == ES_ON && s->flags == EF_PENDING)
-        exec.stop |= SF_EV;
+    return s->line && s->state == ES_ON && s->flags == EF_PENDING;
 }
+
+/* Slot i's event can run now: SF_EV. */
+static void signal(Vm *const vm, const uint32_t i)
+{
+    if (runnable(&evnt.slot[i]))
+        vm->stop |= SF_EV;
+}
+
+static bool is_user_key(const uint32_t i) { return i >= UKEY_FIRST && i <= UKEY_LAST; }
 
 /* The keys ON KEY traps, to the platform: a slot's while it is not OFF. */
 static void traps(void)
 {
     PkeyTrap t[PKEY_NTRAP] = {};
     for (uint32_t i = EV_KEY; i < PKEY_NTRAP; i++) {
-        if (!evnt.slot[i].state)
+        if (evnt.slot[i].state == ES_OFF)
             continue;
-        if (i >= 15 && i <= 25) {
-            uint16_t k = evnt.ukey[i - 15];
+        if (is_user_key(i)) {
+            const uint16_t k = evnt.ukey[i - UKEY_FIRST];
             t[i] = (PkeyTrap){.scan = (uint8_t)(k >> 8), .shift = k & 0x0F};
         } else
             t[i] = (PkeyTrap){.scan = keyscan[i], .shift = PKEY_ANY};
@@ -62,108 +73,106 @@ static void traps(void)
 }
 
 /* ONEV kind num line ( n -- ): ON event(n) GOSUB's line, 0 none; ON TIMER's n the seconds,
-   1..86400. Illegal function call: no such n. Label not defined. */
-void evnt_onev(void)
+   1..TIMER_MAX_SECONDS. Illegal function call: no such n. Label not defined. */
+void evnt_onev(Vm *const vm)
 {
-    int32_t n = exec_popi();
-    uint32_t i = slot_of(exec_u8(), n);
-    if (!i) { /* in ticks */
-        if ((uint32_t)(n - 1) >= 86400)
+    const int32_t n = exec_popi(vm);
+    const uint32_t i = slot_of(exec_u8(vm), n);
+    if (i == EV_TIMER) {
+        if (n < 1 || n > TIMER_MAX_SECONDS)
             repl_error(E_IQ);
-        evnt.interval = evnt.count = ((uint32_t)n * 182065u + 5000) / 10000;
+        evnt.interval = evnt.count = ((uint32_t)n * TICKS_PER_10000_SECONDS + 5000) / 10000;
     }
     uint32_t line = 0;
-    if (!rd16(addr_of(exec.ip)))
-        exec.ip += sizeof(LineRef);
+    if (!rd16(addr_of(vm->ip)))
+        vm->ip += sizeof(LineRef);
     else
-        line = flow_target();
+        line = flow_target(vm);
     evnt.slot[i].line = line;
 }
 
-/* event(n) ON, OFF, STOP ( n ks -- ): ks the kind * 4 + the state. OFF drops one pending; ON
-   runs one. */
-void evnt_evst(void)
+/* event(n) ON, OFF, STOP ( n kind_state -- ): the kind * 4 + the state. OFF drops one pending;
+   ON runs one. */
+void evnt_evst(Vm *const vm)
 {
-    uint32_t ks = exec_pop().u;
-    uint32_t i = slot_of((uint8_t)(ks >> 2), exec_popi());
-    EventSlot *s = &evnt.slot[i];
-    uint8_t old = s->state;
-    s->state = ks & 3;
-    if (!s->state)
+    const uint32_t kind_state = exec_pop(vm).u;
+    const uint32_t i = slot_of((uint8_t)(kind_state >> 2), exec_popi(vm));
+    EventSlot *const s = &evnt.slot[i];
+    const uint8_t old = s->state;
+    s->state = kind_state & 3;
+    if (s->state == ES_OFF)
         s->flags &= ~EF_PENDING;
-    if (!i && !old) /* the TIMER started: a whole interval */
+    if (i == EV_TIMER && old == ES_OFF) /* the TIMER started: a whole interval */
         evnt.count = evnt.interval;
-    signal(i);
+    signal(vm, i);
     traps();
 }
 
-/* KEY n, s ( n s -- ): KEY 15..25's key, s its shift flags and scan code; another n's text is
-   the screen's, not kept. Illegal function call: n not 1..25, 30, 31. */
-void evnt_keydef(void)
+/* KEY n, s ( n s -- ): a user key's, s its shift flags and scan code; another n's text is the
+   screen's, not kept. Illegal function call: n not 1..25, 30, 31. */
+void evnt_keydef(Vm *const vm)
 {
-    Desc s = strg_get(exec_popa());
-    uint32_t k = exec_pop().u - 1;
-    if (k >= 25 && (k < 29 || k >= 31))
+    const Desc s = strg_get(exec_popa(vm));
+    const uint32_t n = exec_pop(vm).u;
+    if (n < 1 || (n > UKEY_LAST && n < 30) || n > NKEYS)
         repl_error(E_IQ);
-    k -= 14;
-    if (k >= NUKEY) /* 1..14, 30, 31 */
+    if (!is_user_key(n))
         return;
     if (s.len < 2)
         repl_error(E_IQ);
-    evnt.ukey[k] = rd16(s.ptr);
+    evnt.ukey[n - UKEY_FIRST] = rd16(s.ptr);
     traps();
 }
 
 /* Slot i's event happened. */
-static void pend(uint32_t i)
+static void pend(Vm *const vm, const uint32_t i)
 {
     evnt.slot[i].flags |= EF_PENDING;
-    signal(i);
+    signal(vm, i);
 }
 
-void evnt_poll(void)
+void evnt_poll(Vm *const vm)
 {
-    exec.stop &= ~SF_TICK;
-    uint32_t now = pclk_ticks();
-    uint32_t n = now >= evnt.tick ? now - evnt.tick : now + TDAY - evnt.tick;
+    vm->stop &= ~SF_TICK;
+    const uint32_t now = pclk_ticks();
+    const uint32_t n = now >= evnt.tick ? now - evnt.tick : now + TICKS_A_DAY - evnt.tick;
     evnt.tick = now;
-    uint32_t keys = pkey_taken();
+    const uint32_t keys = pkey_taken();
     if (!evnt.on)
         return;
-    if (evnt.slot[0].state && evnt.interval && n) {
+    if (evnt.slot[EV_TIMER].state != ES_OFF && evnt.interval && n) {
         if (n < evnt.count)
             evnt.count -= n;
         else {
             evnt.count = evnt.interval - (n - evnt.count) % evnt.interval;
-            pend(0);
+            pend(vm, EV_TIMER);
         }
     }
     for (uint32_t i = EV_KEY; i < PKEY_NTRAP && keys >> i; i++)
         if (keys >> i & 1)
-            pend(i);
+            pend(vm, i);
 }
 
-bool evnt_run(void)
+bool evnt_run(Vm *const vm)
 {
-    exec.stop &= ~SF_EV;
-    exec.ip = exec.opip;
+    vm->stop &= ~SF_EV;
+    vm->ip = vm->opip;
     for (uint32_t i = 0; i < NEV; i++) {
-        EventSlot *s = &evnt.slot[i];
-        if (s->line && s->state == ES_ON && s->flags == EF_PENDING) {
+        EventSlot *const s = &evnt.slot[i];
+        if (runnable(s)) {
             s->flags = EF_RUNNING; /* no longer pending */
-            Addr f = flow_push(M_EV);
-            ((EventFrame *)at(f))->slot = (uint8_t)i;
-            flow_jump(s->line);
+            flow_push(vm, FRAME_EVENT)->event = (uint8_t)i;
+            flow_jump(vm, s->line);
             break;
         }
     }
     return true;
 }
 
-void evnt_return(const EventFrame *f)
+void evnt_return(Vm *const vm, const uint8_t slot)
 {
-    evnt.slot[f->slot].flags &= ~EF_RUNNING;
-    signal(f->slot);
+    evnt.slot[slot].flags &= ~EF_RUNNING;
+    signal(vm, slot);
 }
 
 void evnt_clear(void)

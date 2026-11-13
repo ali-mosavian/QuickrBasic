@@ -1,250 +1,273 @@
-/* The simple ops (src/vm/bc.asm): loads, stores, INT and FLOAT operators, compares, IF,
-   conversions, DROP. An INT op works on the top cell's low dword. */
+/* The simple ops: loads, stores, INT and SINGLE operators, compares, IF, conversions, DROP. An INT
+   op works on the top cell's low dword. */
 #include "vm/oper.h"
 #include "io/repl.h"
 #include "mem/symb.h"
 #include "num/fmth.h"
 #include "vm/flow.h"
 
-const uint8_t oper_relbit[3] = {OPER_GT, OPER_EQ, OPER_LT};
+/* Where an op's right operand comes from. */
+typedef enum {
+    POPPED,      /* the data stack */
+    VAR,         /* the variable whose id follows the op */
+    U8,          /* the byte that follows, an INT */
+    VAR_AS_SNGL, /* an INT variable, as a SINGLE */
+    U8_AS_SNGL,  /* the byte that follows, as a SINGLE */
+    F32,         /* the SINGLE that follows */
+} Source;
 
-/* The variable at exec.ip's own cell. */
-static Addr var(void) { return symb_cell(exec_u16()); }
+/* The cell of the variable whose id is at vm->ip. */
+static Addr var_cell(Vm *const vm) { return symb_cell(exec_u16(vm)); }
 
-/* The right operand: src 0 popped, 1 a variable, 2 the U8 (INT); 3 an INT variable as a FLOAT,
-   4 the U8 as a FLOAT, 5 the F32. */
-static uint32_t operand(int src)
+static uint32_t operand(Vm *const vm, const Source src)
 {
     switch (src) {
-    case 0: return exec_pop().u;
-    case 1: return rd32(var());
-    case 2: return exec_u8();
-    case 3: return fmth_from_i32((int32_t)rd32(var()));
-    case 4: return fmth_from_i32(exec_u8());
-    default: return exec_u32();
+    case POPPED: return exec_pop(vm).u;
+    case VAR: return rd32(var_cell(vm));
+    case U8: return exec_u8(vm);
+    case VAR_AS_SNGL: return fmth_from_i32((int32_t)rd32(var_cell(vm)));
+    case U8_AS_SNGL: return fmth_from_i32(exec_u8(vm));
+    case F32: return exec_u32(vm);
     }
+    unreachable();
 }
 
-/* X.LD.V id: the variable's cell. */
-void oper_i_ld_v(void) { exec_pusha(rd32(var())); }
-/* I.LD.I16 w: the word, unsigned. */
-void oper_i_ld_i16(void) { exec_pusha(exec_u16()); }
-void oper_i_ld_i32(void) { exec_pusha(exec_u32()); }
-void oper_i_ld_u8(void) { exec_pusha(exec_u8()); }
-void oper_f_ld_f32(void) { exec_pusha(exec_u32()); }
-void oper_f_ld_u8(void) { exec_pusha(operand(4)); }
-/* F.LD.VI id: the INT variable as a FLOAT. */
-void oper_f_ld_vi(void) { exec_pusha(operand(3)); }
-void oper_f_ld_pi(void) { exec_pusha(SNGL_PI); }
-/* S.LD.V id: the string variable's Desc. */
-void oper_s_ld_v(void) { exec_pusha(var()); }
-/* X.ST.V id ( x -- ). */
-void oper_i_st_v(void)
-{
-    Addr c = var();
-    wr32(c, exec_pop().u);
-}
-void oper_f_st_v(void) { oper_i_st_v(); }
+/* ---- loads and stores ----------------------------------------------------------------------- */
 
-/* INT operators on the top cell: k 0 + 1 - 2 * 3 / 4 AND 5 OR. Overflow. */
-static void ibin(int src, int k)
+void oper_i_ld_v(Vm *const vm) { exec_pusha(vm, operand(vm, VAR)); }
+void oper_i_ld_i16(Vm *const vm) { exec_pusha(vm, exec_u16(vm)); } /* unsigned */
+void oper_i_ld_i32(Vm *const vm) { exec_pusha(vm, exec_u32(vm)); }
+void oper_i_ld_u8(Vm *const vm) { exec_pusha(vm, exec_u8(vm)); }
+void oper_f_ld_f32(Vm *const vm) { exec_pusha(vm, operand(vm, F32)); }
+void oper_f_ld_u8(Vm *const vm) { exec_pusha(vm, operand(vm, U8_AS_SNGL)); }
+void oper_f_ld_vi(Vm *const vm) { exec_pusha(vm, operand(vm, VAR_AS_SNGL)); }
+void oper_f_ld_pi(Vm *const vm) { exec_pusha(vm, SNGL_PI); }
+/* A string variable: its descriptor. */
+void oper_s_ld_v(Vm *const vm) { exec_pusha(vm, var_cell(vm)); }
+
+void oper_i_st_v(Vm *const vm)
 {
-    int32_t b = (int32_t)operand(src);
-    Cell *t = exec.sp;
+    const Addr cell = var_cell(vm);
+    wr32(cell, exec_pop(vm).u);
+}
+void oper_f_st_v(Vm *const vm) { oper_i_st_v(vm); }
+
+/* ---- INT ------------------------------------------------------------------------------------ */
+
+typedef enum { ADD, SUB, MUL, DIV, AND, OR } IntOp;
+
+/* The top cell op the right operand. Overflow. */
+static void int_op(Vm *const vm, const Source src, const IntOp op)
+{
+    const int32_t b = (int32_t)operand(vm, src);
+    Cell *const top = vm->sp;
     int32_t r, rem;
-    switch (k) {
-    case 0:
-        if (__builtin_add_overflow(t->i, b, &r))
-            repl_error(E_OV);
-        break;
-    case 1:
-        if (__builtin_sub_overflow(t->i, b, &r))
-            repl_error(E_OV);
-        break;
-    case 2:
-        if (__builtin_mul_overflow(t->i, b, &r))
-            repl_error(E_OV);
-        break;
-    case 3: r = exec_idiv(t->i, b, &rem); break;
-    case 4: r = t->i & b; break;
-    default: r = t->i | b; break;
+    bool overflow = false;
+    switch (op) {
+    case ADD: overflow = __builtin_add_overflow(top->i, b, &r); break;
+    case SUB: overflow = __builtin_sub_overflow(top->i, b, &r); break;
+    case MUL: overflow = __builtin_mul_overflow(top->i, b, &r); break;
+    case DIV: r = exec_idiv(top->i, b, &rem); break;
+    case AND: r = top->i & b; break;
+    case OR: r = top->i | b; break;
     }
-    t->i = r;
+    if (overflow)
+        repl_error(E_OV);
+    top->i = r;
 }
 
-void oper_i_add(void) { ibin(0, 0); }
-void oper_i_sub(void) { ibin(0, 1); }
-void oper_i_mul(void) { ibin(0, 2); }
-void oper_i_div(void) { ibin(0, 3); }
-void oper_i_and(void) { ibin(0, 4); }
-void oper_i_or(void) { ibin(0, 5); }
-void oper_i_add_v(void) { ibin(1, 0); }
-void oper_i_sub_v(void) { ibin(1, 1); }
-void oper_i_mul_v(void) { ibin(1, 2); }
-void oper_i_div_v(void) { ibin(1, 3); }
-void oper_i_and_v(void) { ibin(1, 4); }
-void oper_i_or_v(void) { ibin(1, 5); }
-void oper_i_add_u8(void) { ibin(2, 0); }
-void oper_i_sub_u8(void) { ibin(2, 1); }
-void oper_i_mul_u8(void) { ibin(2, 2); }
-void oper_i_div_u8(void) { ibin(2, 3); }
-void oper_i_and_u8(void) { ibin(2, 4); }
-void oper_i_or_u8(void) { ibin(2, 5); }
+void oper_i_add(Vm *const vm) { int_op(vm, POPPED, ADD); }
+void oper_i_sub(Vm *const vm) { int_op(vm, POPPED, SUB); }
+void oper_i_mul(Vm *const vm) { int_op(vm, POPPED, MUL); }
+void oper_i_div(Vm *const vm) { int_op(vm, POPPED, DIV); }
+void oper_i_and(Vm *const vm) { int_op(vm, POPPED, AND); }
+void oper_i_or(Vm *const vm) { int_op(vm, POPPED, OR); }
+void oper_i_add_v(Vm *const vm) { int_op(vm, VAR, ADD); }
+void oper_i_sub_v(Vm *const vm) { int_op(vm, VAR, SUB); }
+void oper_i_mul_v(Vm *const vm) { int_op(vm, VAR, MUL); }
+void oper_i_div_v(Vm *const vm) { int_op(vm, VAR, DIV); }
+void oper_i_and_v(Vm *const vm) { int_op(vm, VAR, AND); }
+void oper_i_or_v(Vm *const vm) { int_op(vm, VAR, OR); }
+void oper_i_add_u8(Vm *const vm) { int_op(vm, U8, ADD); }
+void oper_i_sub_u8(Vm *const vm) { int_op(vm, U8, SUB); }
+void oper_i_mul_u8(Vm *const vm) { int_op(vm, U8, MUL); }
+void oper_i_div_u8(Vm *const vm) { int_op(vm, U8, DIV); }
+void oper_i_and_u8(Vm *const vm) { int_op(vm, U8, AND); }
+void oper_i_or_u8(Vm *const vm) { int_op(vm, U8, OR); }
 
-/* I.MOD ( a b -- a MOD b ): the sign of a. */
-void oper_i_mod(void)
+/* MOD: the remainder takes the left operand's sign. */
+void oper_i_mod(Vm *const vm)
 {
-    int32_t b = exec_popi();
+    const int32_t b = exec_popi(vm);
     int32_t rem = 0;
     if (b != -1)
-        exec_idiv(exec.sp->i, b, &rem);
-    exec.sp->i = rem;
+        exec_idiv(vm->sp->i, b, &rem);
+    vm->sp->i = rem;
 }
 
-void oper_i_xor(void)
+void oper_i_xor(Vm *const vm)
 {
-    int32_t b = exec_popi();
-    exec.sp->i ^= b;
-}
-void oper_i_eqv(void)
-{
-    int32_t b = exec_popi();
-    exec.sp->i = ~(exec.sp->i ^ b);
-}
-void oper_i_imp(void)
-{
-    int32_t b = exec_popi();
-    exec.sp->i = ~exec.sp->i | b;
+    const int32_t b = exec_popi(vm);
+    vm->sp->i ^= b;
 }
 
-/* I.NEG ( i -- -i ). Overflow. */
-void oper_i_neg(void)
+void oper_i_eqv(Vm *const vm)
 {
-    if (exec.sp->i == INT32_MIN)
+    const int32_t b = exec_popi(vm);
+    vm->sp->i = ~(vm->sp->i ^ b);
+}
+
+void oper_i_imp(Vm *const vm)
+{
+    const int32_t b = exec_popi(vm);
+    vm->sp->i = ~vm->sp->i | b;
+}
+
+/* Overflow at -2^31. */
+void oper_i_neg(Vm *const vm)
+{
+    if (vm->sp->i == INT32_MIN)
         repl_error(E_OV);
-    exec.sp->i = -exec.sp->i;
-}
-void oper_i_not(void) { exec.sp->i = ~exec.sp->i; }
-
-/* FLOAT operators: the right operand by src (as operand's 0, 1, 3, 4, 5), the left popped. */
-static Sngl (*const fops[4])(Sngl, Sngl) = {fmth_add, fmth_sub, fmth_mul, fmth_div};
-static void fbin(int src, int k)
-{
-    Sngl b = operand(src);
-    Sngl a = exec_pop().u;
-    exec_pusha(fops[k](a, b));
+    vm->sp->i = -vm->sp->i;
 }
 
-void oper_f_add(void) { fbin(0, 0); }
-void oper_f_sub(void) { fbin(0, 1); }
-void oper_f_mul(void) { fbin(0, 2); }
-void oper_f_div(void) { fbin(0, 3); }
-void oper_f_add_v(void) { fbin(1, 0); }
-void oper_f_sub_v(void) { fbin(1, 1); }
-void oper_f_mul_v(void) { fbin(1, 2); }
-void oper_f_div_v(void) { fbin(1, 3); }
-void oper_f_add_vi(void) { fbin(3, 0); }
-void oper_f_sub_vi(void) { fbin(3, 1); }
-void oper_f_mul_vi(void) { fbin(3, 2); }
-void oper_f_div_vi(void) { fbin(3, 3); }
-void oper_f_add_u8(void) { fbin(4, 0); }
-void oper_f_sub_u8(void) { fbin(4, 1); }
-void oper_f_mul_u8(void) { fbin(4, 2); }
-void oper_f_div_u8(void) { fbin(4, 3); }
-void oper_f_add_f32(void) { fbin(5, 0); }
-void oper_f_sub_f32(void) { fbin(5, 1); }
-void oper_f_mul_f32(void) { fbin(5, 2); }
-void oper_f_div_f32(void) { fbin(5, 3); }
+void oper_i_not(Vm *const vm) { vm->sp->i = ~vm->sp->i; }
 
-/* F.NEG ( f -- -f ): 0 stays 0. */
-void oper_f_neg(void)
+/* ---- SINGLE --------------------------------------------------------------------------------- */
+
+typedef enum { FADD, FSUB, FMUL, FDIV } SnglOp;
+
+/* The left operand popped op the right. */
+static void sngl_op(Vm *const vm, const Source src, const SnglOp op)
 {
-    if (exec.sp->u & 0x7FFFFFFF)
-        exec.sp->u ^= SNGL_SIGN;
+    const Sngl b = operand(vm, src);
+    Cell *const top = vm->sp;
+    switch (op) {
+    case FADD: top->u = fmth_add(top->u, b); break;
+    case FSUB: top->u = fmth_sub(top->u, b); break;
+    case FMUL: top->u = fmth_mul(top->u, b); break;
+    case FDIV: top->u = fmth_div(top->u, b); break;
+    }
 }
 
-/* A compare's end: the relation's bit against the mask at exec.ip; a compare pushes -1 or 0, a
-   CMPIF's false ends the line. */
-static void ctail(uint8_t rel, bool cif)
+void oper_f_add(Vm *const vm) { sngl_op(vm, POPPED, FADD); }
+void oper_f_sub(Vm *const vm) { sngl_op(vm, POPPED, FSUB); }
+void oper_f_mul(Vm *const vm) { sngl_op(vm, POPPED, FMUL); }
+void oper_f_div(Vm *const vm) { sngl_op(vm, POPPED, FDIV); }
+void oper_f_add_v(Vm *const vm) { sngl_op(vm, VAR, FADD); }
+void oper_f_sub_v(Vm *const vm) { sngl_op(vm, VAR, FSUB); }
+void oper_f_mul_v(Vm *const vm) { sngl_op(vm, VAR, FMUL); }
+void oper_f_div_v(Vm *const vm) { sngl_op(vm, VAR, FDIV); }
+void oper_f_add_vi(Vm *const vm) { sngl_op(vm, VAR_AS_SNGL, FADD); }
+void oper_f_sub_vi(Vm *const vm) { sngl_op(vm, VAR_AS_SNGL, FSUB); }
+void oper_f_mul_vi(Vm *const vm) { sngl_op(vm, VAR_AS_SNGL, FMUL); }
+void oper_f_div_vi(Vm *const vm) { sngl_op(vm, VAR_AS_SNGL, FDIV); }
+void oper_f_add_u8(Vm *const vm) { sngl_op(vm, U8_AS_SNGL, FADD); }
+void oper_f_sub_u8(Vm *const vm) { sngl_op(vm, U8_AS_SNGL, FSUB); }
+void oper_f_mul_u8(Vm *const vm) { sngl_op(vm, U8_AS_SNGL, FMUL); }
+void oper_f_div_u8(Vm *const vm) { sngl_op(vm, U8_AS_SNGL, FDIV); }
+void oper_f_add_f32(Vm *const vm) { sngl_op(vm, F32, FADD); }
+void oper_f_sub_f32(Vm *const vm) { sngl_op(vm, F32, FSUB); }
+void oper_f_mul_f32(Vm *const vm) { sngl_op(vm, F32, FMUL); }
+void oper_f_div_f32(Vm *const vm) { sngl_op(vm, F32, FDIV); }
+
+/* -0 stays 0. */
+void oper_f_neg(Vm *const vm)
 {
-    bool yes = rel & exec_u8();
-    if (!cif)
-        exec_pushi(yes ? -1 : 0);
+    if (vm->sp->u & ~SNGL_SIGN)
+        vm->sp->u ^= SNGL_SIGN;
+}
+
+/* ---- compares ------------------------------------------------------------------------------- */
+
+/* The relation's bit against the op's mask: a compare pushes -1 or 0; a CMPIF's false ends the
+   line. */
+static void compared(Vm *const vm, const uint8_t rel, const bool cmpif)
+{
+    const bool yes = rel & exec_u8(vm);
+    if (!cmpif)
+        exec_pushi(vm, yes ? -1 : 0);
     else if (!yes)
-        flow_nextln();
+        flow_nextln(vm);
 }
 
-static void icmp(int src, bool cif)
+static void int_cmp(Vm *const vm, const Source src, const bool cmpif)
 {
-    int32_t b = (int32_t)operand(src);
-    int32_t a = exec_popi();
-    ctail(a > b ? OPER_GT : a == b ? OPER_EQ : OPER_LT, cif);
+    const int32_t b = (int32_t)operand(vm, src);
+    const int32_t a = exec_popi(vm);
+    compared(vm, a > b ? OPER_GT : a == b ? OPER_EQ : OPER_LT, cmpif);
 }
 
-/* FLOAT compare: the left against the right. */
-static void fcmp(int src, bool cif)
+static void sngl_cmp_op(Vm *const vm, const Source src, const bool cmpif)
 {
-    Sngl b = operand(src);
-    Sngl a = exec_pop().u;
-    int r = sngl_cmp(b, a); /* the asm's flt_cmp: the right (FAC) against the left */
-    ctail(r < 0 ? OPER_GT : r == 0 ? OPER_EQ : OPER_LT, cif);
+    const Sngl b = operand(vm, src);
+    const int c = sngl_cmp(exec_pop(vm).u, b);
+    compared(vm, c > 0 ? OPER_GT : c == 0 ? OPER_EQ : OPER_LT, cmpif);
 }
 
-void oper_i_cmp(void) { icmp(0, false); }
-void oper_i_cmp_v(void) { icmp(1, false); }
-void oper_i_cmp_u8(void) { icmp(2, false); }
-void oper_i_cmpif(void) { icmp(0, true); }
-void oper_i_cmpif_v(void) { icmp(1, true); }
-void oper_i_cmpif_u8(void) { icmp(2, true); }
-void oper_f_cmp(void) { fcmp(0, false); }
-void oper_f_cmp_v(void) { fcmp(1, false); }
-void oper_f_cmp_vi(void) { fcmp(3, false); }
-void oper_f_cmp_u8(void) { fcmp(4, false); }
-void oper_f_cmp_f32(void) { fcmp(5, false); }
-void oper_f_cmpif(void) { fcmp(0, true); }
-void oper_f_cmpif_v(void) { fcmp(1, true); }
-void oper_f_cmpif_vi(void) { fcmp(3, true); }
-void oper_f_cmpif_u8(void) { fcmp(4, true); }
-void oper_f_cmpif_f32(void) { fcmp(5, true); }
+void oper_i_cmp(Vm *const vm) { int_cmp(vm, POPPED, false); }
+void oper_i_cmp_v(Vm *const vm) { int_cmp(vm, VAR, false); }
+void oper_i_cmp_u8(Vm *const vm) { int_cmp(vm, U8, false); }
+void oper_i_cmpif(Vm *const vm) { int_cmp(vm, POPPED, true); }
+void oper_i_cmpif_v(Vm *const vm) { int_cmp(vm, VAR, true); }
+void oper_i_cmpif_u8(Vm *const vm) { int_cmp(vm, U8, true); }
+void oper_f_cmp(Vm *const vm) { sngl_cmp_op(vm, POPPED, false); }
+void oper_f_cmp_v(Vm *const vm) { sngl_cmp_op(vm, VAR, false); }
+void oper_f_cmp_vi(Vm *const vm) { sngl_cmp_op(vm, VAR_AS_SNGL, false); }
+void oper_f_cmp_u8(Vm *const vm) { sngl_cmp_op(vm, U8_AS_SNGL, false); }
+void oper_f_cmp_f32(Vm *const vm) { sngl_cmp_op(vm, F32, false); }
+void oper_f_cmpif(Vm *const vm) { sngl_cmp_op(vm, POPPED, true); }
+void oper_f_cmpif_v(Vm *const vm) { sngl_cmp_op(vm, VAR, true); }
+void oper_f_cmpif_vi(Vm *const vm) { sngl_cmp_op(vm, VAR_AS_SNGL, true); }
+void oper_f_cmpif_u8(Vm *const vm) { sngl_cmp_op(vm, U8_AS_SNGL, true); }
+void oper_f_cmpif_f32(Vm *const vm) { sngl_cmp_op(vm, F32, true); }
 
-/* X.IF ( x -- ): 0 ends the line. */
-void oper_i_if(void)
+/* IF: false ends the line. A SINGLE is false at +0 and -0. */
+void oper_i_if(Vm *const vm)
 {
-    if (!exec_popi())
-        flow_nextln();
-}
-void oper_f_if(void)
-{
-    if (!(exec_pop().u & 0x7FFFFFFF))
-        flow_nextln();
+    if (!exec_popi(vm))
+        flow_nextln(vm);
 }
 
-void oper_i_tof(void) { exec.sp->u = fmth_from_i32(exec.sp->i); }
-void oper_f_toi(void) { exec.sp->i = fmth_to_i32(exec.sp->u); }
-/* F.TOB ( f -- i ): 0..255. Illegal function call. */
-void oper_f_tob(void)
+void oper_f_if(Vm *const vm)
 {
-    int16_t v = fmth_to_i16(exec.sp->u);
+    if (!(exec_pop(vm).u & ~SNGL_SIGN))
+        flow_nextln(vm);
+}
+
+/* ---- conversions ---------------------------------------------------------------------------- */
+
+void oper_i_tof(Vm *const vm) { vm->sp->u = fmth_from_i32(vm->sp->i); }
+void oper_f_toi(Vm *const vm) { vm->sp->i = fmth_to_i32(vm->sp->u); }
+
+/* A byte, 0..255. Illegal function call. */
+void oper_f_tob(Vm *const vm)
+{
+    const int16_t v = fmth_to_i16(vm->sp->u);
     if ((uint16_t)v > 255)
         repl_error(E_IQ);
-    exec_pop();
-    exec_pushi(v);
+    exec_pop(vm);
+    exec_pushi(vm, v);
 }
-/* F.TOA ( f -- i ): an address, 0..65535. */
-void oper_f_toa(void)
+
+/* An address, 0..65535. */
+void oper_f_toa(Vm *const vm)
 {
-    uint16_t v = fmth_to_u16(exec.sp->u);
-    exec_pop();
-    exec_pushi(v);
+    const uint16_t v = fmth_to_u16(vm->sp->u);
+    exec_pop(vm);
+    exec_pushi(vm, v);
 }
-void oper_i_tob(void)
+
+void oper_i_tob(Vm *const vm)
 {
-    if (exec.sp->u > 255)
+    if (vm->sp->u > 255)
         repl_error(E_IQ);
 }
-void oper_i_toa(void)
+
+void oper_i_toa(Vm *const vm)
 {
-    if (exec.sp->u > 65535)
+    if (vm->sp->u > 65535)
         repl_error(E_IQ);
 }
-void oper_drop(void) { exec.sp++; }
+
+void oper_drop(Vm *const vm) { vm->sp++; }

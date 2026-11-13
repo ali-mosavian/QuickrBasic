@@ -22,11 +22,6 @@ typedef struct PACKED {
 } Binding;
 static_assert(sizeof(Binding) == 20);
 
-/* scop_decl's fields: a Binding's offsets, as the asm's B_*. */
-enum : uint8_t { B_ET = 7, B_REC = 9, B_FIX = 12 };
-static_assert(offsetof(Binding, et) == B_ET && offsetof(Binding, rec) == B_REC &&
-              offsetof(Binding, fix) == B_FIX);
-
 /* No bindings. */
 void scop_init(void);
 /* Scope's binding of name, nullptr none. */
@@ -40,9 +35,11 @@ uint16_t scop_own(void);
 /* Name's binding from the top of the stack down, a zero one for none; *scope its scope, for none
    scop_own's. */
 const Binding *scop_look(uint16_t name, uint16_t *scope);
-/* Name's declared field (B_ET, B_REC or B_FIX), the array's when array, as the procedure compiled
-   sees it; 0 none. */
-uint16_t scop_decl(uint16_t name, uint8_t field, bool array);
+/* Name's declared type (ET_*), record TYPE and STRING * n, the array's when array, as the
+   procedure compiled sees it; 0 none. */
+uint8_t scop_type(uint16_t name, bool array);
+uint8_t scop_rec(uint16_t name, bool array);
+uint16_t scop_fix(uint16_t name, bool array);
 /* Name used with suffix type (ET_*), the array when array: a CONST's type for a CONST, else type.
    Duplicate definition (E_RD): DIM AS another type, or a record. */
 uint8_t scop_sfx(uint16_t name, uint8_t type, bool array);
@@ -58,6 +55,4 @@ void scop_label(uint16_t scope, uint16_t key, uint32_t line);
 /* Label key of scope: its line, 0 when no scope has it. Subprogram error (E_SPE): another
    scope's. */
 uint32_t scop_lfind(uint16_t scope, uint16_t key);
-/* Name's array's record TYPE, 0 none. */
-uint8_t scop_arec(uint16_t name);
 #endif

@@ -224,8 +224,8 @@ void comp_tofloat(void)
         *leaf = O_F_LD_U8;
         return;
     }
-    Sngl f = *leaf == O_I_LD_I32 ? fmth_from_i32((int32_t)comp_rd32(leaf + 1))
-                                 : fmth_from_u16(comp_rd16(leaf + 1));
+    Sngl f = *leaf == O_I_LD_I32 ? fmth_from_i32((int32_t)load32(leaf + 1))
+                                 : fmth_from_u16(load16(leaf + 1));
     comp.out = leaf; /* F.LD.F32 in its place */
     comp_op(O_F_LD_F32);
     comp_dword(f);
@@ -263,7 +263,7 @@ void comp_store(void)
         break;
     case 2: { /* a STRING * n: n chars */
         comp_tostring();
-        uint16_t fix = scop_decl(symb_var(comp.tgt)->name, B_FIX, subs != 0);
+        uint16_t fix = scop_fix(symb_var(comp.tgt)->name, subs != 0);
         if (fix) {
             comp_int(fix);
             comp_call(K_SFIX);
@@ -357,7 +357,7 @@ uint8_t comp_lnum(void)
         comp.lnum = 0;
         return c;
     }
-    uint32_t n = comp_rd32(comp.p + 1);
+    uint32_t n = load32(comp.p + 1);
     if (n >= 64000)
         synerr();
     comp.lnum = (uint16_t)n;
@@ -368,11 +368,11 @@ uint8_t comp_lnum(void)
     return comp_cur();
 }
 
-/* cm_lnld: I.LD.I16 of the line number; a label's line as 10000h + its line. */
+/* cm_lnld: I.LD.I16 of the line number; a label's line as LABEL_LINE + its line. */
 static void lnumload(void)
 {
     if (comp.lnum == NONUM)
-        comp_int(comp.jline + 0x10000);
+        comp_int(comp.jline + LABEL_LINE);
     else
         comp_opw(O_I_LD_I16, comp.lnum);
 }
@@ -399,7 +399,16 @@ const uint8_t *comp_label(const uint8_t *body)
     return *colon == ':' ? colon : nullptr;
 }
 
-uint16_t comp_nameof(const uint8_t *at) { return comp_rd16(at + at[1] + 2); }
+uint16_t comp_nameof(const uint8_t *const at) { return load16(at + at[1] + 2); }
+
+const uint8_t *comp_skipdata(const uint8_t *p)
+{
+    bool quoted = false;
+    for (; *p && (quoted || *p != ':'); p++)
+        if (*p == '"')
+            quoted = !quoted;
+    return p;
+}
 
 bool comp_ispar(uint16_t id)
 {
@@ -460,7 +469,7 @@ uint16_t comp_var(uint8_t shape, uint8_t et)
     const uint8_t *q = comp.p;
     uint8_t len = q[1];
     uint8_t last = q[len + 1], first = q[2];
-    uint16_t name = comp_rd16(q + len + 2);
+    uint16_t name = load16(q + len + 2);
     comp.p = q + len + 4;
     uint8_t kind = 0;
     if (shape > 1 || (!shape && *comp.p == '('))
@@ -474,7 +483,7 @@ uint16_t comp_var(uint8_t shape, uint8_t et)
             uint16_t id;
             if (comp_param(name, kind, &id)) /* no suffix: a parameter's own type */
                 return id;
-            type = (uint8_t)scop_decl(name, B_ET, kind != 0);
+            type = scop_type(name, kind != 0);
             if (!type) {
                 uint8_t f = first >= 'a' && first <= 'z' ? first - 32 : first;
                 type = symb.deft[f - 'A'];
@@ -507,8 +516,7 @@ static void mapstmt(uint32_t bodyoff)
         comp.lim = comp.out;
         return;
     }
-    Stmt st = {bodyoff, (uint32_t)(comp.out - comp.buf)};
-    memcpy(e, &st, sizeof st);
+    *(Stmt *)e = (Stmt){.body = bodyoff, .code = (uint32_t)(comp.out - comp.buf)}; /* packed: any address */
     comp.lim = e - 12;
     comp.nstmt++;
 }
@@ -558,7 +566,7 @@ void comp_fail(uint8_t err)
     *o++ = comp.dg; /* its words, and where in the body */
     comp.dg = 0;
     uint32_t atoff = (uint32_t)(comp.p - comp.body);
-    memcpy(o, &atoff, 4);
+    store32(o, atoff);
     memcpy(o + 4, &comp.dfa, 2);
     comp.out = o + 6;
     comp.dfa = 0xFFFF;
@@ -885,7 +893,7 @@ static uint32_t dimsubs(void)
    array is dimensioned once. */
 static void dim1(uint16_t id)
 {
-    uint32_t flags = (uint32_t)comp.isstatic << 7 | comp.redim;
+    uint32_t flags = (comp.isstatic ? DIM_STATIC : 0) | comp.redim;
     uint32_t n = dimsubs();
     comp_int((uint32_t)dmask);
     comp_int((uint32_t)(dmask >> 32));
@@ -919,7 +927,7 @@ static void act_dv(void)
     uint16_t id = comp_name();
     if (*comp.p == '(') {
         uint16_t name = symb_var(id)->name;
-        uint8_t t = scop_arec(name); /* a record array: its own variable */
+        uint8_t t = scop_rec(name, true); /* a record array: its own variable */
         if (t)
             id = ctrl_recarray(name, t);
         dim1(id);
@@ -927,7 +935,7 @@ static void act_dv(void)
         return;
     }
     dimas();
-    uint16_t fix = scop_decl(symb_var(id)->name, B_FIX, false);
+    uint16_t fix = scop_fix(symb_var(id)->name, false);
     if (!fix || symb_var(id)->info & VI_ARR)
         return;
     comp_int(fix);

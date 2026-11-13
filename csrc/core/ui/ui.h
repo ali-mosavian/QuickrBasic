@@ -210,5 +210,5 @@ extern Uimn uimn;
 static_assert(offsetof(Uimn, change_to) + sizeof(LineBuf) <= 0x10000);
 
 /* c in capitals, a to z only (ui_upper, menu.asm's). */
-static inline uint8_t uimn_upper(uint8_t c) { return c >= 'a' && c <= 'z' ? c - 0x20 : c; }
+static inline uint8_t uimn_upper(uint8_t c) { return upcase(c); }
 #endif

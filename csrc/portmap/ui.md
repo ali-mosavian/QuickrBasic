@@ -45,7 +45,7 @@ implementer's unless given. Platform: `plat/pscr.h` (screen), `plat/pmou.h` (mou
 
 | asm | C |
 |---|---|
-| `g_state.rn.contln`, `contcode`, `cstk`, `line`, `opip`, `stpflg` | `exec.cont_line`, `exec.cont_code`, `exec.cstk`, `exec.line`, `exec.opip`, `exec.stop` |
+| `g_state.rn.contln`, `contcode`, `cstk`, `line`, `opip`, `stpflg` | `vm.cont.line`, `vm.cont.code`, `vm.cstk`, `vm.line`, `vm.opip`, `vm.stop` |
 | `CSTOP` | `allo.cs_top` |
 | `g_state.mm.cachebase`, `progbase`, `progend`, `addfl`, `addat`, `preptr`, `prelen` | `allo.cache`, `prog.base`, `prog.end`, `prog.add_flags`, `prog.add_at`, `prog.pre`, `prog.pre_len` |
 | `g_state.rn.lnum` (tx_make) | `prog_add`/`prog_ins`'s `num` |

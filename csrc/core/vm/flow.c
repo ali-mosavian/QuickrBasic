@@ -1,5 +1,4 @@
-/* The executor's control flow (src/vm/flow.asm): lines, jumps, GOSUB, FOR and NEXT, procedures,
-   ON ERROR and RESUME. */
+/* Control flow: lines, jumps, GOSUB, FOR and NEXT, SUB and FUNCTION calls, ON ERROR and RESUME. */
 #include "vm/flow.h"
 #include "comp/blok.h"
 #include "comp/comp.h"
@@ -13,574 +12,690 @@
 #include "mem/strg.h"
 #include "mem/symb.h"
 #include "num/fmth.h"
+#include "num/sngl.h"
 #include "vm/dbug.h"
 #include "vm/evnt.h"
 #include "vm/stmt.h"
 
-static const uint8_t opsize[O_NOPS] = {
+static const uint8_t op_sizes[O_NOPS] = {
 #define OP(name, h, size, fl) size,
 #include "vm/ops.def"
 };
 
-static Addr lres;       /* g_lres: a FUNCTION's string result, a Desc */
-static uint32_t pres;   /* a FUNCTION's INT or FLOAT result */
-static Cell pres8;      /* g_pres8: a DOUBLE's */
+enum {
+    DCODE_SIZE = CACHE0 - DCODE, /* the direct line's room in the cache */
+    ON_GOSUB = 0x80,             /* ON's count byte: GOSUB, not GOTO */
+    ON_COUNT = 0x7F,
+    RESUME_WITHOUT_ERROR = 20,
+};
 
-static inline Frame *frame(Addr f) { return (Frame *)at(f); }
-static inline uint8_t *cache(uint32_t off) { return at(allo.cache + off); }
-static inline uint32_t ipoff(const uint8_t *p) { return addr_of(p) - allo.cache; }
-static inline void tmp_clear(void) { strg.tmp_used = strg.tmp_floor; }
+/* A jump not yet resolved keeps its mode (JumpMode) where its code offset will go. */
+enum : uint32_t { RESOLVED = TO_NEXT_STMT + 1 };
+enum : uint32_t { NO_LINE = 0xFFFFFFFF }; /* a jump's line when the compiler found no target */
 
-void flow_init(void) { lres = allo_carve(8); }
+/* A FUNCTION's result between its return and its push. A string's descriptor is in the arena,
+   where a heap block's owner must be. */
+static struct {
+    Addr text;
+    Cell value;
+} result;
 
-/* ex_line: the code of line exec.runln: a program line's in the cache, compiled into it if it has
-   none; the direct line's compiled. exec.line set. */
-static void run_line(void)
+void flow_init(void) { result.text = allo_carve(DSZ + 2); }
+
+static inline uint8_t *cache_at(const uint32_t off) { return at(allo.cache + off); }
+static inline uint32_t cache_off(const uint8_t *const p) { return addr_of(p) - allo.cache; }
+static inline void drop_temps(void) { strg.tmp_used = strg.tmp_floor; }
+static inline bool is_string(const Var *const v) { return (v->info & VK_MASK) == VK_STR; }
+static inline bool is_int(const Var *const v) { return (v->info & VK_MASK) == VK_INT; }
+static inline bool is_double(const Var *const v) { return v->info & SK_DBL; }
+static inline bool is_array(const Var *const v) { return v->info & VI_ARR; }
+
+/* ---- lines ---------------------------------------------------------------------------------- */
+
+/* A line's statement map: the entries before its code, their count just before the code. */
+static Stmt *stmt_map(uint8_t *const code, uint32_t *const count)
 {
-    uint32_t l = exec.runln;
-    exec.line = l;
-    const Line *ln = prog_line(l);
-    if (!ln->len) {
-        comp_line();
-        exec.ip = flow_dcode();
-    } else
-        exec.ip = ln->code ? cache(ln->code) : at(link_cache(l));
+    *count = rd32(addr_of(code) - 4);
+    return (Stmt *)(code - 4 - *count * sizeof(Stmt));
 }
 
 uint8_t *flow_dcode(void)
 {
-    Addr a = allo.cache + DCODE;
-    link.lim = allo.cache + DCODE + 1536;
-    if (!link_xlate(&a))
+    Addr stream = allo.cache + DCODE;
+    link.lim = stream + DCODE_SIZE;
+    if (!link_xlate(&stream))
         repl_error(E_OM);
     return at(link.code);
 }
 
-/* ex_eol: on to the next line; at the program's end, END. */
-static void eol(void)
+/* Start running line: a program line's code from the cache, compiled into it if absent; the
+   direct line compiled on its own. */
+static void enter_line(Vm *const vm, const uint32_t line)
 {
-    uint32_t next = exec.line + prog_line(exec.line)->len;
-    if (!prog_line(next)->len) {
-        exec.ip = cache(0); /* CONT ends again */
-        stmt_end();
-    }
-    exec.runln = next;
-    run_line();
+    vm->line = line;
+    const Line *const ln = prog_line(line);
+    if (!ln->len) {
+        comp_line();
+        vm->ip = flow_dcode();
+    } else
+        vm->ip = ln->code ? cache_at(ln->code) : at(link_cache(line));
 }
 
-void flow_jump(uint32_t line)
+static void next_line(Vm *const vm)
 {
-    tmp_clear();
+    const uint32_t next = vm->line + prog_line(vm->line)->len;
+    if (!prog_line(next)->len) {
+        vm->ip = cache_at(0); /* CONT ends again */
+        stmt_end(vm);
+    }
+    enter_line(vm, next);
+}
+
+void flow_nextln(Vm *const vm)
+{
+    drop_temps();
+    next_line(vm);
+}
+
+void flow_jump(Vm *const vm, const uint32_t line)
+{
+    drop_temps();
     if (!link.linked)
         link_start();
     link.cursor = line;
-    exec.runln = line;
-    run_line();
+    enter_line(vm, line);
 }
 
-uint32_t flow_target(void)
+/* The line a LineRef names, found by number on first use and kept in it. */
+static uint32_t ref_line(Vm *const vm, LineRef *const ref)
 {
-    uint16_t num = exec_u16();
-    exec.lnum = num;
-    uint32_t line = exec_u32();
-    if (!line) {
-        if (!prog_find(num, &line))
-            repl_error(E_US);
-        memcpy(exec.ip - 4, &line, 4); /* found once, read after */
-    }
-    return line;
+    vm->lnum = ref->num;
+    if (ref->line)
+        return ref->line;
+    uint32_t line;
+    if (!prog_find(ref->num, &line))
+        repl_error(E_US);
+    return ref->line = line;
 }
 
-Addr flow_push(uint8_t mark)
+uint32_t flow_target(Vm *const vm)
 {
-    Addr f = exec.cstk;
-    if (f < allo.cs_lim)
-        repl_error(E_OS);
-    f -= mark;
-    exec.cstk = f;
-    Frame *fr = frame(f);
-    fr->mark = mark;
-    fr->line = exec.line;
-    fr->resume = ipoff(exec.ip);
-    return f;
+    LineRef *const ref = (LineRef *)vm->ip;
+    vm->ip += sizeof(LineRef);
+    return ref_line(vm, ref);
 }
 
-static void gosub(uint32_t line)
-{
-    flow_push(M_GS);
-    flow_jump(line);
-}
-
-uint8_t *flow_place(uint32_t line, uint32_t off)
-{
-    if (off >= DCODE || line == DLINE)
-        return cache(off);
-    return flow_resolve(line, off);
-}
-
-uint8_t *flow_resolve(uint32_t line, uint32_t off)
+/* Offset off in line's code, the line compiled if the cache has none. */
+static uint8_t *resolve(const uint32_t line, const uint32_t off)
 {
     uint32_t code = prog_line(line)->code;
     if (!code)
         code = link_cache(line) - allo.cache;
-    return cache(code + off);
+    return cache_at(code + off);
 }
 
-/* A frame's place: exec.line, exec.ip. */
-static void resume(Addr f)
+uint8_t *flow_place(const Place p)
 {
-    exec.line = frame(f)->line;
-    exec.ip = flow_place(exec.line, frame(f)->resume);
+    if (p.code >= DCODE || p.line == DLINE)
+        return cache_at(p.code);
+    return resolve(p.line, p.code);
 }
 
-/* GOTO num line. Undefined line number. */
-void flow_goto(void)
+Place flow_here(const Vm *const vm) { return (Place){vm->line, cache_off(vm->ip)}; }
+
+static void go_to(Vm *const vm, const Place p)
 {
-    if (exec_stopchk())
-        return;
-    flow_jump(flow_target());
+    vm->line = p.line;
+    vm->ip = flow_place(p);
 }
 
-/* GOSUB num line. */
-void flow_gosub(void)
-{
-    if (exec_stopchk())
-        return;
-    gosub(flow_target());
-}
+/* ---- frames --------------------------------------------------------------------------------- */
 
-/* ON kn LineRef*n ( k -- ): kn bit 7 GOSUB; past the list for 0 or k > n. */
-void flow_on(void)
+Frame *flow_push(Vm *const vm, const FrameKind kind)
 {
-    if (exec_stopchk())
-        return;
-    uint8_t k = (uint8_t)exec_popi() - 1; /* 0: 255, past any n */
-    uint8_t onk = exec_u8();
-    uint8_t n = onk & 0x7F;
-    uint8_t *refs = exec.ip;
-    exec.ip += n * sizeof(LineRef);
-    if (k >= n)
-        return;
-    LineRef *r = (LineRef *)(refs + k * sizeof(LineRef));
-    exec.lnum = r->num;
-    uint32_t line = r->line;
-    if (!line) {
-        if (!prog_find(r->num, &line))
-            repl_error(E_US);
-        r->line = line;
-    }
-    if (onk & 0x80)
-        gosub(line);
-    else
-        flow_jump(line);
-}
-
-/* for_find: the FOR frame of variable id above the newest other frame: *mark M_FR when found;
-   else the frame met (*mark its mark), or the stack's top (*mark 1). */
-static Addr for_find(uint16_t id, uint8_t *mark)
-{
-    Addr f = exec.cstk;
-    for (; f < allo.cs_top; f += M_FR) {
-        ForFrame *ff = (ForFrame *)at(f);
-        *mark = ff->h.mark;
-        if (*mark != M_FR || ff->id == id)
-            return f;
-    }
-    *mark = 1;
+    if (vm->nframes == MAX_FRAMES)
+        repl_error(E_OS);
+    Frame *const f = &vm->frames[vm->nframes++];
+    *f = (Frame){.kind = kind, .ret = flow_here(vm)};
     return f;
 }
 
-/* RETURN: the FOR frames above the GOSUB's drop. RETURN without GOSUB. */
-void flow_return(void)
+static Frame *top_frame(Vm *const vm) { return vm->nframes ? &vm->frames[vm->nframes - 1] : nullptr; }
+
+/* Drop f and the frames above it. */
+static void pop_to(Vm *const vm, const Frame *const f) { vm->nframes = (uint32_t)(f - vm->frames); }
+
+Frame *flow_find(Vm *const vm, const FrameKind kind)
 {
-    if (exec_stopchk())
+    for (uint32_t i = vm->nframes; i-- > 0;)
+        if (vm->frames[i].kind == kind)
+            return &vm->frames[i];
+    return nullptr;
+}
+
+/* The first frame under the FOR loops on top, nullptr none. */
+static Frame *under_loops(Vm *const vm)
+{
+    for (uint32_t i = vm->nframes; i-- > 0;)
+        if (vm->frames[i].kind != FRAME_FOR)
+            return &vm->frames[i];
+    return nullptr;
+}
+
+/* The loop of var among the FOR loops on top: the frame count with it on top, 0 none. */
+static uint32_t find_loop(const Vm *const vm, const uint16_t var)
+{
+    for (uint32_t i = vm->nframes; i-- > 0 && vm->frames[i].kind == FRAME_FOR;)
+        if (vm->frames[i].loop.var == var)
+            return i + 1;
+    return 0;
+}
+
+/* ---- GOTO, GOSUB, ON ------------------------------------------------------------------------ */
+
+static void gosub(Vm *const vm, const uint32_t line)
+{
+    flow_push(vm, FRAME_GOSUB);
+    flow_jump(vm, line);
+}
+
+void flow_goto(Vm *const vm)
+{
+    if (exec_stopchk(vm))
         return;
-    uint8_t mark;
-    Addr f = for_find(0xFFFF, &mark);
-    if (mark == M_EV)
-        evnt_return((EventFrame *)at(f));
-    else if (mark != M_GS)
+    flow_jump(vm, flow_target(vm));
+}
+
+void flow_gosub(Vm *const vm)
+{
+    if (exec_stopchk(vm))
+        return;
+    gosub(vm, flow_target(vm));
+}
+
+/* RETURN: the FOR loops inside the subroutine end too. */
+void flow_return(Vm *const vm)
+{
+    if (exec_stopchk(vm))
+        return;
+    Frame *const f = under_loops(vm);
+    if (!f || (f->kind != FRAME_GOSUB && f->kind != FRAME_EVENT))
         repl_error(E_RG);
-    exec.cstk = f + mark;
-    tmp_clear();
-    resume(f);
+    if (f->kind == FRAME_EVENT)
+        evnt_return(vm, f->event);
+    pop_to(vm, f);
+    drop_temps();
+    go_to(vm, f->ret);
 }
 
-/* EOL: on to the next line. */
-void flow_eol(void)
+/* ON k GOTO/GOSUB: k counts from 1; 0 or past the list falls through. */
+void flow_on(Vm *const vm)
 {
-    if (exec_stopchk())
+    if (exec_stopchk(vm))
         return;
-    flow_nextln();
-}
-
-void flow_nextln(void)
-{
-    tmp_clear();
-    eol();
-}
-
-/* for_in: is the loop entered, its start not past its limit as its step's sign has it? */
-static bool for_in(const ForFrame *ff)
-{
-    const Var *v = symb_var(ff->id);
-    uint32_t x = rd32(v->vt);
-    int32_t a, c;
-    bool down;
-    if ((v->info & VK_MASK) == VK_INT) {
-        a = (int32_t)x;
-        c = (int32_t)ff->limit;
-        down = ff->step >> 31;
-    } else if (ff->limit >> 16 == 0xFFFF) { /* an INT-counted FLOAT loop */
-        a = (int16_t)(ff->step >> 16);
-        c = (int16_t)ff->limit;
-        down = ff->step & 0x8000;
-    } else {
-        int r = sngl_cmp(x, ff->limit);
-        down = ff->step >> 31;
-        return r == 0 || (r < 0 ? !down : down);
-    }
-    return a == c || (a < c ? !down : down);
-}
-
-/* for_mki: a FLOAT loop whose start, limit and step are whole and fit 16 bits counts in an INT:
-   step's high word the count, its low the step; limit's low word the limit, its high FFFFh;
-   cache the FLOAT last stored. */
-static void for_mki(ForFrame *ff)
-{
-    int16_t s, l, v;
-    if (!sngl_w16(ff->step, &s) || !sngl_w16(ff->limit, &l))
+    const uint8_t k = (uint8_t)exec_popi(vm) - 1; /* 0 wraps past any count */
+    const uint8_t kind = exec_u8(vm);
+    const uint8_t count = kind & ON_COUNT;
+    LineRef *const lines = (LineRef *)vm->ip;
+    vm->ip += count * sizeof(LineRef);
+    if (k >= count)
         return;
-    ff->cache = rd32(symb_var(ff->id)->vt);
-    if (!sngl_w16(ff->cache, &v))
-        return;
-    ff->step = (uint32_t)(uint16_t)v << 16 | (uint16_t)s;
-    ff->limit = 0xFFFF0000 | (uint16_t)l;
+    const uint32_t line = ref_line(vm, &lines[k]);
+    if (kind & ON_GOSUB)
+        gosub(vm, line);
+    else
+        flow_jump(vm, line);
 }
 
-/* jumpto: to the Jump at exec.ip: its address once found, else the target line's code (compiled
-   when it has none), its statement by the map before that code, the mode's place in it. The
-   address is kept in the op unless the cache was flushed meanwhile. Syntax error: no target. */
-static void jumpto(void)
+void flow_eol(Vm *const vm)
 {
-    if (exec_stopchk())
+    if (exec_stopchk(vm))
         return;
-    tmp_clear();
-    Jump *jp = (Jump *)exec.ip;
-    Jump j = *jp;
-    if (j.dest >= 3) {
-        exec.line = j.line;
-        exec.ip = cache(j.dest);
+    flow_nextln(vm);
+}
+
+/* ---- jumps ---------------------------------------------------------------------------------- */
+
+/* The Jump operand at vm->ip. Once resolved it holds its target's code offset. Until then its
+   mode picks, in the target line's code, the statement, the code past its JMP, or the next
+   statement; the offset found is kept unless the cache was flushed meanwhile. */
+static void take_jump(Vm *const vm)
+{
+    if (exec_stopchk(vm))
+        return;
+    drop_temps();
+    Jump *const op = (Jump *)vm->ip;
+    const Jump j = *op;
+    if (j.dest >= RESOLVED) {
+        vm->line = j.line;
+        vm->ip = cache_at(j.dest);
         return;
     }
-    if (j.line == 0xFFFFFFFF)
+    if (j.line == NO_LINE)
         repl_error(E_SN);
-    uint8_t flushes = link.flushes;
-    exec.runln = j.line;
-    run_line();
-    uint32_t n = rd32(addr_of(exec.ip) - 4);
-    const Stmt *e = (const Stmt *)(exec.ip - 4 - n * sizeof(Stmt));
-    for (; n && e->body != j.body; e++, n--)
-        ;
-    if (!n)
-        repl_error(E_SN);
-    uint32_t code = e->code;
-    if (j.dest == 1)
-        code += JSIZE; /* past its JMP */
-    else if (j.dest == 2) {
-        if (n <= 1)
-            repl_error(E_SN);
-        code = e[1].code; /* the next statement's */
-    }
-    exec.ip += code;
-    if (flushes == link.flushes)
-        jp->dest = ipoff(exec.ip);
-}
-
-/* I.FOR F.FOR id ( limit step -- ), I.FOR1 F.FOR1 id ( limit -- ): the start is already stored.
-   An older loop of the variable drops; a FOR ending its line goes on at the next. */
-void flow_for(void)
-{
-    uint8_t op = *exec.opip;
-    uint16_t id = exec_u16();
-    uint32_t step;
-    if (op < O_I_FOR1)
-        step = exec_pop().u;
-    else
-        step = op == O_F_FOR1 ? SNGL_ONE : 1;
-    uint32_t limit = exec_pop().u;
-    uint8_t mark;
-    Addr f = for_find(id, &mark);
-    if (mark != M_FR) {
-        f = exec.cstk;
-        if (f < allo.cs_lim)
-            repl_error(E_OS);
-        f -= M_FR;
-    }
-    exec.cstk = f;
-    ForFrame *ff = (ForFrame *)at(f);
-    ff->id = id;
-    ff->step = step;
-    ff->limit = limit;
-    ff->h.mark = M_FR;
-    if (op == O_F_FOR || op == O_F_FOR1)
-        for_mki(ff);
-    for (;;) {
-        ff = (ForFrame *)at(exec.cstk);
-        if (*exec.ip == O_FSKIP) {
-            if (!for_in(ff)) {
-                exec.cstk += M_FR; /* not entered: past its NEXT */
-                exec.ip++;
-                jumpto();
-                return;
-            }
-            exec.ip += JSIZE;
-        }
-        ff->h.resume = ipoff(exec.ip);
-        ff->h.line = exec.line;
-        if (*exec.ip != O_EOL)
-            return;
-        eol(); /* no next line: no return, the frame kept */
-    }
-}
-
-/* for_any: step the FOR frame at f: an INT by its INT, an INT-counted FLOAT by its count, else the
-   FLOAT. Illegal function call: an INT stepped out of range. */
-static void for_any(Addr f)
-{
-    exec.cstk = f;
-    ForFrame *ff = (ForFrame *)at(f);
-    const Var *v = symb_var(ff->id);
-    Addr cell = v->vt;
-    bool more;
-    if ((v->info & VK_MASK) == VK_INT) {
-        int32_t x;
-        if (__builtin_add_overflow((int32_t)rd32(cell), (int32_t)ff->step, &x))
-            repl_error(E_IQ);
-        wr32(cell, (uint32_t)x);
-        more = ff->step >> 31 ? x >= (int32_t)ff->limit : x <= (int32_t)ff->limit;
-    } else if (ff->limit >> 16 == 0xFFFF && rd32(cell) == ff->cache) {
-        int32_t x = (int16_t)(ff->step >> 16) + (int16_t)ff->step;
-        ff->step = (ff->step & 0xFFFF) | (uint32_t)x << 16;
-        Sngl s = fmth_from_i32(x);
-        wr32(cell, s);
-        ff->cache = s;
-        int32_t l = (int16_t)ff->limit;
-        more = ff->step & 0x8000 ? x >= l : x <= l;
-    } else {
-        if (ff->limit >> 16 == 0xFFFF) { /* the body wrote it: FLOAT from here on */
-            ff->limit = fmth_from_i16((int16_t)ff->limit);
-            ff->step = fmth_from_i16((int16_t)ff->step);
-        }
-        Sngl x = fmth_add(rd32(cell), ff->step);
-        wr32(cell, x);
-        more = sngl_cmp(x, ff->limit) != (ff->step >> 31 ? -1 : 1);
-    }
-    if (more)
-        resume(f);
-    else
-        exec.cstk += M_FR;
-}
-
-/* NEXT.V id. NEXT without FOR. */
-void flow_next_v(void)
-{
-    if (exec_stopchk())
-        return;
-    tmp_clear();
-    uint16_t id = exec_u16();
-    Addr f = exec.cstk;
-    ForFrame *ff = (ForFrame *)at(f);
-    if (f < allo.cs_top && ff->h.mark == M_FR && ff->id == id) {
-        for_any(f);
-        return;
-    }
-    uint8_t mark;
-    f = for_find(id, &mark);
-    if (mark != M_FR)
-        repl_error(E_NF);
-    for_any(f);
-}
-
-/* NEXT, no variable. NEXT without FOR: no FOR frame on top. */
-void flow_next(void)
-{
-    if (exec_stopchk())
-        return;
-    tmp_clear();
-    Addr f = exec.cstk;
-    if (f >= allo.cs_top || frame(f)->mark != M_FR)
-        repl_error(E_NF);
-    for_any(f);
-}
-
-/* ERR code: a compile error met running. */
-void flow_err(void) { repl_error(((const ErrOp *)exec.opip)->code); }
-
-/* ONERR num line: ON ERROR GOTO's line; 0 none. GOTO 0 in the handler raises the error it
-   handles. */
-void flow_onerr(void)
-{
-    if (!rd16(addr_of(exec.ip))) {
-        exec.ip += sizeof(LineRef);
-        exec.onerr = 0;
-        if (exec.inerr) {
-            exec.uerr = exec.err;
-            repl_error(E_USR);
-        }
-        return;
-    }
-    exec.onerr = flow_target();
-}
-
-/* The innermost procedure's frame at or above f, else allo.cs_top. */
-static Addr proc_frame(Addr f)
-{
-    while (f < allo.cs_top && frame(f)->mark != M_PC)
-        f += frame(f)->mark;
-    return f;
-}
-
-/* ONLERR num line: ON LOCAL ERROR GOTO's line, the running procedure's, 0 none; at the module's
-   level ON ERROR's. */
-void flow_onlerr(void)
-{
-    Addr f = proc_frame(exec.cstk);
-    if (f >= allo.cs_top) {
-        flow_onerr();
-        return;
-    }
-    uint32_t line = 0;
-    if (!rd16(addr_of(exec.ip)))
-        exec.ip += sizeof(LineRef);
-    else
-        line = flow_target();
-    ((ProcFrame *)at(f))->onerr = line;
-}
-
-/* The save entries' fields. */
-static inline Addr se_id(Addr e) { return e; }
-static inline Addr se_ref(Addr e) { return e + 2; }
-static inline Addr se_val(Addr e) { return e + 4; }
-static inline Addr se_cell(Addr e) { return e + 12; }
-
-/* pr_pop: the innermost procedure's frame, and those above it, dropped as its return does: its
-   parameters' cells back, the caller's locals back, a FUNCTION's result kept. Returns the frame,
-   exec.cstk at it. RETURN without GOSUB: none. */
-static Addr pr_pop(void)
-{
-    Addr f = proc_frame(exec.cstk);
-    if (f >= allo.cs_top)
-        repl_error(E_RG);
-    exec.cstk = f;
-    ProcFrame *pf = (ProcFrame *)at(f);
-    for (Addr e = pf->save0; e < pf->save1; e += LSSZ) { /* an array parameter's header, dyn */
-        if (rd16(se_ref(e)) == 0xFFFF)
-            continue;
-        uint16_t id = rd16(se_id(e));
-        if (symb_var(id)->info & VI_ARR) {
-            wr32(se_val(e), symb_var(id)->vt);
-            wr8(se_val(e) + 4, symb_varx(id)->dyn);
-        }
-    }
-    const Proc *p = &blok_procs[pf->proc];
-    if (p->kind == PK_FUNC) { /* its result */
-        uint8_t info = symb_var(p->result)->info;
-        Addr c = symb_cell(p->result);
-        if (info & SK_DBL)
-            memcpy(&pres8, at(c), 8);
-        else if ((info & VK_MASK) == VK_STR)
-            flow_lsmove(c, lres);
-        else
-            pres = rd32(c);
-    }
-    for (Addr e = exec.lsp; e > pf->save1;) { /* the locals back */
-        e -= LSSZ;
-        uint16_t id = rd16(se_id(e));
-        Var *v = symb_var(id);
-        if (v->info & VI_ARR) {
-            if (v->vt) {
-                bool param = false; /* a parameter's array is the caller's */
-                for (uint32_t i = p->npar; i-- > 0;)
-                    param |= blok_params[p->par + i] == id;
-                if (!param)
-                    arry_free(id, 0);
-            }
-            v->vt = rd32(se_val(e));
-            continue;
-        }
-        Addr c = symb_cell(id);
-        if (v->info & SK_DBL)
-            memcpy(at(c), at(se_val(e)), 8);
-        else if ((v->info & VK_MASK) == VK_STR)
-            flow_lsmove(se_val(e), c);
-        else
-            wr32(c, rd32(se_val(e)));
-    }
-    for (Addr e = pf->save0; e < pf->save1; e += LSSZ) { /* cells back, arrays to their refs */
-        uint16_t ref = rd16(se_ref(e));
-        if (ref == 0xFFFF)
-            continue;
-        if (ref == 0xFFFE) {
-            symb_var(rd16(se_id(e)))->vt = rd32(se_cell(e));
-            continue;
-        }
-        symb_var(ref)->vt = rd32(se_val(e));
-        symb_varx(ref)->dyn = rd8(se_val(e) + 4);
-    }
-    exec.lsp = pf->save0;
-    strg.tmp_used = strg.tmp_floor; /* the callee's temporaries go */
-    strg.tmp_floor = pf->tmpb;
-    return f;
-}
-
-uint32_t flow_handler(void)
-{
-    Addr h = exec.cstk;
-    for (;; h += frame(h)->mark) {
-        h = proc_frame(h);
-        if (h >= allo.cs_top)
-            return exec.onerr;
-        if (((ProcFrame *)at(h))->onerr)
-            break;
-    }
-    uint32_t handler = ((ProcFrame *)at(h))->onerr;
-    for (Addr f; (f = proc_frame(exec.cstk)) != h;) { /* the procedures it called return */
-        pr_pop();
-        exec.cstk = f + M_PC;
-        resume(f); /* the error: at the call */
-        exec.ip--;
-        exec.opip = exec.ip;
-    }
-    return handler;
-}
-
-/* ex_sbase: the data stack at the running procedure's body's start, or the module's. */
-static Cell *stack_base(void)
-{
-    Addr f = proc_frame(exec.cstk);
-    return f < allo.cs_top ? (Cell *)at(((ProcFrame *)at(f))->stk) : exec.rsp;
-}
-
-void flow_trap(uint8_t code, uint32_t handler)
-{
-    exec.err = code == E_USR ? exec.uerr : emsg_errnum[code];
-    exec.inerr = true;
-    exec.res_line = exec.line;
-    exec.erl = flow_erl(exec.line);
+    const uint8_t flushes = link.flushes;
+    enter_line(vm, j.line);
     uint32_t left;
-    const Stmt *e = flow_stmtof(exec.line, exec.opip, &left);
-    exec.res_at = e->code;
-    exec.res_next = left > 1 ? e[1].code : 0xFFFFFFFF;
+    const Stmt *s = stmt_map(vm->ip, &left);
+    for (; left && s->body != j.body; s++, left--)
+        ;
+    if (!left)
+        repl_error(E_SN);
+    uint32_t code = s->code;
+    if (j.dest == PAST_JMP)
+        code += JSIZE;
+    else if (j.dest == TO_NEXT_STMT) {
+        if (left == 1)
+            repl_error(E_SN);
+        code = s[1].code;
+    }
+    vm->ip += code;
+    if (flushes == link.flushes)
+        op->dest = cache_off(vm->ip);
+}
+
+/* JMP: a block's jump, and FOR's skip. */
+void flow_jmp(Vm *const vm) { take_jump(vm); }
+
+static void jump_if(Vm *const vm, const bool cond)
+{
+    if (cond)
+        take_jump(vm);
+    else
+        vm->ip += sizeof(Jump);
+}
+
+/* A SINGLE is true unless +0 or -0. */
+static bool sngl_true(const Cell c) { return c.u & ~SNGL_SIGN; }
+
+void flow_i_jf(Vm *const vm) { jump_if(vm, !exec_popi(vm)); }
+void flow_f_jf(Vm *const vm) { jump_if(vm, !sngl_true(exec_pop(vm))); }
+void flow_i_jt(Vm *const vm) { jump_if(vm, exec_popi(vm)); }
+void flow_f_jt(Vm *const vm) { jump_if(vm, sngl_true(exec_pop(vm))); }
+
+/* ---- FOR / NEXT ----------------------------------------------------------------------------- */
+
+static bool counts_down(const ForLoop *const l) { return l->step >> 31; }
+
+/* Is x past the loop's limit? */
+static bool past_limit(const ForLoop *const l, const bool int_var, const uint32_t x)
+{
+    if (int_var)
+        return counts_down(l) ? (int32_t)x < (int32_t)l->limit : (int32_t)x > (int32_t)l->limit;
+    const int c = sngl_cmp(x, l->limit);
+    return counts_down(l) ? c < 0 : c > 0;
+}
+
+/* FOR var = start TO limit [STEP step], start stored, limit and step on the data stack. A loop of
+   the same var still running restarts. A loop not entered goes past its NEXT. */
+void flow_for(Vm *const vm)
+{
+    const uint8_t op = *vm->opip;
+    const uint16_t var = exec_u16(vm);
+    const uint32_t step = op == O_I_FOR || op == O_F_FOR ? exec_pop(vm).u
+                                                   : (op == O_F_FOR1 ? SNGL_ONE : 1);
+    const ForLoop loop = {var, exec_pop(vm).u, step};
+
+    const uint32_t old = find_loop(vm, var);
+    if (old)
+        vm->nframes = old - 1;
+    if (*vm->ip == O_FSKIP) {
+        const Var *const v = symb_var(var);
+        if (past_limit(&loop, is_int(v), rd32(v->vt))) {
+            vm->ip++;
+            take_jump(vm);
+            return;
+        }
+        vm->ip += JSIZE;
+    }
+    while (*vm->ip == O_EOL) /* the body starts on a later line */
+        next_line(vm);
+    flow_push(vm, FRAME_FOR)->loop = loop;
+}
+
+/* Step the loop on top of depth frames; back to its body until it is done. An INT stepped past
+   its range is Illegal function call. */
+static void step_loop(Vm *const vm, const uint32_t depth)
+{
+    const Frame *const f = &vm->frames[depth - 1];
+    const ForLoop *const l = &f->loop;
+    const Var *const v = symb_var(l->var);
+    const Addr cell = v->vt;
+    const bool int_var = is_int(v);
+    uint32_t x;
+    if (int_var) {
+        int32_t sum;
+        if (__builtin_add_overflow((int32_t)rd32(cell), (int32_t)l->step, &sum))
+            repl_error(E_IQ);
+        x = (uint32_t)sum;
+    } else
+        x = fmth_add(rd32(cell), l->step);
+    wr32(cell, x);
+    if (past_limit(l, int_var, x)) {
+        vm->nframes = depth - 1;
+        return;
+    }
+    vm->nframes = depth; /* the loops inside it end */
+    go_to(vm, f->ret);
+}
+
+/* NEXT var. */
+void flow_next_v(Vm *const vm)
+{
+    if (exec_stopchk(vm))
+        return;
+    drop_temps();
+    const uint32_t depth = find_loop(vm, exec_u16(vm));
+    if (!depth)
+        repl_error(E_NF);
+    step_loop(vm, depth);
+}
+
+/* NEXT: the innermost loop. */
+void flow_next(Vm *const vm)
+{
+    if (exec_stopchk(vm))
+        return;
+    drop_temps();
+    const uint32_t depth = vm->nframes;
+    if (!depth || vm->frames[depth - 1].kind != FRAME_FOR)
+        repl_error(E_NF);
+    step_loop(vm, depth);
+}
+
+/* EXIT FOR. */
+void flow_fpop(Vm *const vm)
+{
+    const Frame *const f = top_frame(vm);
+    if (f && f->kind == FRAME_FOR)
+        pop_to(vm, f);
+}
+
+/* ---- SUB and FUNCTION ----------------------------------------------------------------------- */
+
+/* A scalar's value from cell from to cell to; a string's heap block follows its descriptor. */
+static void move_value(const Var *const v, const Addr from, const Addr to)
+{
+    if (is_double(v))
+        memcpy(at(to), at(from), 8);
+    else if (is_string(v))
+        flow_lsmove(from, to);
+    else
+        wr32(to, rd32(from));
+}
+
+static void clear_value(const Var *const v, const Addr cell)
+{
+    if (is_double(v))
+        memset(at(cell), 0, 8);
+    else if (is_string(v))
+        wr16(cell, 0);
+    else
+        wr32(cell, 0);
+}
+
+enum : uint32_t { NO_REF = 0xFFFF }; /* an argument's ref: passed by value, or no array */
+
+/* Take the arguments off the data stack into callvars b, last first. Each is a ref above a value:
+   a variable's cell, passed by reference and with no value; or an array argument's id. By value,
+   its CallVar holds the value till bind_params; a string is copied unless a temporary. */
+static void take_args(Vm *const vm, const Proc *const p, CallVar *const b)
+{
+    for (uint32_t i = p->npar; i-- > 0;) {
+        b[i] = (CallVar){.var = blok_params[p->par + i]};
+        const Var *const v = symb_var(b[i].var);
+        const uint32_t ref = exec_pop(vm).u;
+        if (!is_array(v) && ref != NO_REF) {
+            b[i].cell = ref;
+            vm->sp++; /* its value slot, empty */
+            continue;
+        }
+        const Cell val = exec_pop(vm);
+        if (is_array(v)) {
+            b[i].arg = ref == NO_REF ? 0 : (uint16_t)ref;
+            b[i].array.hdr = v->info == (VI_ARR | VK_INT) ? exec_record((uint16_t)val.u)
+                                                          : symb_var((uint16_t)val.u)->vt;
+        } else if (is_string(v))
+            strg_set(val.a, addr_of(&b[i].value));
+        else
+            b[i].value = val;
+    }
+}
+
+/* Set the procedure's locals aside into callvars from b, emptying them; returns past the last. */
+static CallVar *save_locals(Vm *const vm, const uint8_t proc, CallVar *b)
+{
+    for (uint16_t id = symb.first_local[proc]; id; id = symb_varx(id)->nloc, b++) {
+        if (b >= vm->callvars + MAX_CALLVARS - 1)
+            repl_error(E_OS);
+        *b = (CallVar){.var = id};
+        Var *const v = symb_var(id);
+        if (is_array(v)) {
+            b->array.hdr = v->vt;
+            v->vt = 0;
+        } else {
+            move_value(v, symb_cell(id), addr_of(&b->value));
+            clear_value(v, symb_cell(id));
+        }
+    }
+    return b;
+}
+
+/* Point the parameters at their arguments: a scalar by reference at the argument's cell, by value
+   at its own cell given the value; an array at the argument's header. A scalar's cell before is
+   kept in its CallVar. */
+static void bind_params(CallVar *b, uint32_t n)
+{
+    for (; n--; b++) {
+        Var *const v = symb_var(b->var);
+        if (is_array(v)) {
+            v->vt = b->array.hdr;
+            if (b->arg) /* dynamic as the argument */
+                symb_varx(b->var)->dyn = symb_varx(b->arg)->dyn;
+            continue;
+        }
+        const Addr arg_cell = b->cell;
+        b->cell = v->vt;
+        if (arg_cell)
+            v->vt = arg_cell;
+        else {
+            v->vt = symb_cell(b->var);
+            move_value(v, addr_of(&b->value), v->vt);
+        }
+    }
+}
+
+/* PCALL proc body: call a SUB or FUNCTION, its arguments on the data stack. */
+void flow_pcall(Vm *const vm)
+{
+    uint8_t *const call = vm->ip;
+    const uint8_t proc = *call;
+    const Proc *const p = &blok_procs[proc];
+    if (vm->sp < vm->stklim || vm->nframes == MAX_FRAMES ||
+        vm->ncallvars + p->npar >= MAX_CALLVARS - 1)
+        repl_error(E_OS);
+    CallVar *const params = vm->callvars + vm->ncallvars;
+    take_args(vm, p, params);
+    const CallVar *const end = save_locals(vm, proc, params + p->npar);
+    bind_params(params, p->npar);
+
+    vm->ip = call + 1 + sizeof(Jump); /* the call returns past its body's Jump */
+    flow_push(vm, FRAME_CALL)->call = (Call){
+        .proc = proc,
+        .params = vm->ncallvars,
+        .locals = vm->ncallvars + p->npar,
+        .temp_floor = strg.tmp_floor,
+        .stack = vm->sp,
+    };
+    vm->ncallvars = (uint32_t)(end - vm->callvars);
+    strg.tmp_floor = strg.tmp_used;
+    vm->ip = call + 1;
+    take_jump(vm);
+}
+
+static bool is_param(const Proc *const p, const uint16_t var)
+{
+    for (uint32_t i = 0; i < p->npar; i++)
+        if (blok_params[p->par + i] == var)
+            return true;
+    return false;
+}
+
+/* End call f, the innermost, and drop the frames above it. The array arguments get their headers
+   back as the callee left them, a FUNCTION's result is kept, the locals get the caller's values
+   back, the parameters their cells. */
+static void end_call(Vm *const vm, const Frame *const f)
+{
+    const Call *const c = &f->call;
+    const Proc *const p = &blok_procs[c->proc];
+    CallVar *const params = vm->callvars + c->params, *const locals = vm->callvars + c->locals;
+    pop_to(vm, f);
+
+    for (CallVar *b = params; b < locals; b++)
+        if (b->arg) {
+            b->array.hdr = symb_var(b->var)->vt;
+            b->array.dyn = symb_varx(b->var)->dyn;
+        }
+    if (p->kind == PK_FUNC) {
+        const Var *const v = symb_var(p->result);
+        const Addr cell = symb_cell(p->result);
+        if (is_double(v))
+            memcpy(&result.value, at(cell), 8);
+        else if (is_string(v))
+            flow_lsmove(cell, result.text);
+        else
+            result.value.u = rd32(cell);
+    }
+    for (CallVar *b = vm->callvars + vm->ncallvars; b-- > locals;) {
+        Var *const v = symb_var(b->var);
+        if (!is_array(v))
+            move_value(v, addr_of(&b->value), symb_cell(b->var));
+        else {
+            if (v->vt && !is_param(p, b->var)) /* a parameter's array is the caller's */
+                arry_free(b->var, 0);
+            v->vt = b->array.hdr;
+        }
+    }
+    for (CallVar *b = params; b < locals; b++) {
+        if (!is_array(symb_var(b->var)))
+            symb_var(b->var)->vt = b->cell;
+        else if (b->arg) {
+            symb_var(b->arg)->vt = b->array.hdr;
+            symb_varx(b->arg)->dyn = b->array.dyn;
+        }
+    }
+    vm->ncallvars = c->params;
+    drop_temps(); /* the callee's */
+    strg.tmp_floor = c->temp_floor;
+}
+
+/* PRET: return from the call, a FUNCTION's result pushed. */
+void flow_pret(Vm *const vm)
+{
+    if (exec_stopchk(vm))
+        return;
+    const Frame *const f = flow_find(vm, FRAME_CALL);
+    if (!f)
+        repl_error(E_RG);
+    end_call(vm, f);
+    const Proc *const p = &blok_procs[f->call.proc];
+    if (p->kind == PK_FUNC) {
+        const Var *const v = symb_var(p->result);
+        if (is_double(v))
+            exec_push(vm, result.value);
+        else if (is_string(v)) {
+            if (strg.tmp_used >= DSZ * NTMP)
+                repl_error(E_ST);
+            const Addr t = strg.tmp + strg.tmp_used;
+            strg.tmp_used += DSZ;
+            flow_lsmove(result.text, t);
+            exec_pusha(vm, t);
+        } else
+            exec_pusha(vm, result.value.u);
+    }
+    go_to(vm, f->ret);
+}
+
+void flow_lsmove(const Addr from, const Addr to)
+{
+    const Desc d = *(Desc *)at(from);
+    *(Desc *)at(to) = d;
+    if (d.len && d.ptr >= strg.low && d.ptr < allo.top)
+        ((StrTail *)at(d.ptr + d.len))->owner = to;
+}
+
+/* ---- ON ERROR / RESUME ---------------------------------------------------------------------- */
+
+/* ON [LOCAL] ERROR GOTO's line, 0 for GOTO 0. */
+static uint32_t handler_line(Vm *const vm)
+{
+    if (((LineRef *)vm->ip)->num)
+        return flow_target(vm);
+    vm->ip += sizeof(LineRef);
+    return 0;
+}
+
+/* ON ERROR GOTO. GOTO 0 inside the handler raises the error being handled. */
+void flow_onerr(Vm *const vm)
+{
+    vm->err.handler = handler_line(vm);
+    if (!vm->err.handler && vm->err.active) {
+        vm->err.user = vm->err.code;
+        repl_error(E_USR);
+    }
+}
+
+/* ON LOCAL ERROR GOTO: the running procedure's handler; in the module, ON ERROR's. */
+void flow_onlerr(Vm *const vm)
+{
+    Frame *const f = flow_find(vm, FRAME_CALL);
+    if (f)
+        f->call.on_error = handler_line(vm);
+    else
+        flow_onerr(vm);
+}
+
+uint32_t flow_handler(Vm *const vm)
+{
+    Frame *h = nullptr;
+    for (uint32_t i = vm->nframes; i-- > 0 && !h;)
+        if (vm->frames[i].kind == FRAME_CALL && vm->frames[i].call.on_error)
+            h = &vm->frames[i];
+    if (!h)
+        return vm->err.handler;
+    for (const Frame *f; (f = flow_find(vm, FRAME_CALL)) != h;) {
+        end_call(vm, f);
+        go_to(vm, f->ret); /* the error is now at the call */
+        vm->opip = --vm->ip;
+    }
+    return h->call.on_error;
+}
+
+/* The data stack as the running procedure's body started, or the module's. */
+static Cell *stack_base(Vm *const vm)
+{
+    const Frame *const f = flow_find(vm, FRAME_CALL);
+    return f ? f->call.stack : vm->rsp;
+}
+
+void flow_trap(Vm *const vm, const uint8_t code, const uint32_t handler)
+{
+    vm->err.code = code == E_USR ? vm->err.user : emsg_errnum[code];
+    vm->err.active = true;
+    vm->err.line = flow_erl(vm->line);
+    uint32_t left;
+    const Stmt *const s = flow_stmtof(vm->line, vm->opip, &left);
+    vm->err.failed = (Place){vm->line, s->code};
+    vm->err.next = (Place){vm->line, left > 1 ? s[1].code : LINE_END};
     chnl_clear();
-    exec.sp = stack_base();
-    flow_jump(handler);
-    if (exec.running)
-        longjmp(exec.loop, 1);
+    vm->sp = stack_base(vm);
+    flow_jump(vm, handler);
+    if (vm->running)
+        longjmp(vm->loop, 1);
     exec_run();
 }
 
-uint16_t flow_erl(uint32_t line)
+uint16_t flow_erl(const uint32_t line)
 {
     uint16_t erl = 0;
     for (uint32_t l = PROGBASE; l <= line && prog_line(l)->len; l += prog_line(l)->len)
@@ -589,238 +704,74 @@ uint16_t flow_erl(uint32_t line)
     return erl;
 }
 
-Stmt *flow_stmtof(uint32_t line, const uint8_t *code, uint32_t *left)
+Stmt *flow_stmtof(const uint32_t line, const uint8_t *const code, uint32_t *const left)
 {
-    uint8_t *base = cache(prog_line(line)->code);
-    uint32_t off = (uint32_t)(code - base);
-    uint32_t n = rd32(addr_of(base) - 4);
-    Stmt *e = (Stmt *)(base - 4 - n * sizeof(Stmt));
-    for (; n > 1 && e[1].code <= off; e++)
-        n--;
-    *left = n;
-    return e;
+    uint8_t *const base = cache_at(prog_line(line)->code);
+    const uint32_t off = (uint32_t)(code - base);
+    Stmt *s = stmt_map(base, left);
+    for (; *left > 1 && s[1].code <= off; s++)
+        (*left)--;
+    return s;
 }
 
-/* RESUME mode num line: mode 0 the failing statement again, 1 the one after it, 2 the line.
-   RESUME without error (20): not in a handler. */
-void flow_resume(void)
+/* RESUME, RESUME NEXT, RESUME line. */
+void flow_resume(Vm *const vm)
 {
-    if (exec_stopchk())
+    if (exec_stopchk(vm))
         return;
-    if (!exec.inerr) {
-        exec.uerr = 20;
+    if (!vm->err.active) {
+        vm->err.user = RESUME_WITHOUT_ERROR;
         repl_error(E_USR);
     }
-    exec.inerr = false;
-    exec.err = 0;
-    exec.sp = stack_base();
-    uint8_t mode = exec_u8();
-    if (mode == 2) {
-        flow_jump(flow_target());
+    vm->err.active = false;
+    vm->err.code = 0;
+    vm->sp = stack_base(vm);
+    const enum : uint8_t { AGAIN, NEXT, LINE } mode = exec_u8(vm);
+    if (mode == LINE) {
+        flow_jump(vm, flow_target(vm));
         return;
     }
-    uint32_t at_ = mode ? exec.res_next : exec.res_at;
-    tmp_clear();
-    exec.line = exec.runln = exec.res_line;
-    if (at_ == 0xFFFFFFFF)
-        eol();
+    const Place p = mode == NEXT ? vm->err.next : vm->err.failed;
+    drop_temps();
+    vm->line = p.line;
+    if (p.code == LINE_END)
+        next_line(vm);
     else
-        exec.ip = flow_resolve(exec.res_line, at_);
+        vm->ip = resolve(p.line, p.code);
 }
 
-uint32_t flow_opsize(const uint8_t *op)
+/* A compile error, raised when its statement runs. */
+void flow_err(Vm *const vm) { repl_error(((const ErrOp *)vm->opip)->code); }
+
+/* ---- the rest ------------------------------------------------------------------------------- */
+
+uint32_t flow_opsize(const uint8_t *const op)
 {
-    uint32_t n = opsize[op[0]];
-    if (n)
-        return n;
+    if (op_sizes[op[0]])
+        return op_sizes[op[0]];
     if (op[0] == O_ON)
-        return (op[1] & 0x7F) * sizeof(LineRef) + 2;
-    return op[1] + 2u;
+        return (op[1] & ON_COUNT) * sizeof(LineRef) + 2;
+    return op[1] + 2u; /* its length byte */
 }
 
-void flow_setcont(void)
+void flow_setcont(Vm *const vm)
 {
-    if (exec.line == DLINE)
-        return;
-    exec.cont_line = exec.line;
-    exec.cont_code = ipoff(exec.ip);
+    if (vm->line != DLINE)
+        vm->cont = flow_here(vm);
 }
 
-void flow_end(void)
+void flow_end(Vm *const vm)
 {
     if (dbug.probing)
         dbug_done();
     chnl_closeall();
-    exec.sp = exec.rsp;
-    exec.cstk = allo.cs_top;
+    vm->sp = vm->rsp;
+    vm->nframes = 0;
     repl_ready();
 }
 
-void flow_nodir(void)
+void flow_nodir(Vm *const vm)
 {
-    if (exec.line == DLINE)
+    if (vm->line == DLINE)
         repl_error(E_ID);
-}
-
-/* JMP target: a block's jump; FSKIP's too. */
-void flow_jmp(void) { jumpto(); }
-
-/* X.JF target ( x -- ): jump when 0; X.JT unless 0. */
-static void jump_if(bool yes)
-{
-    if (yes)
-        jumpto();
-    else
-        exec.ip += JSIZE - 1;
-}
-void flow_i_jf(void) { jump_if(!exec_popi()); }
-void flow_f_jf(void) { jump_if(!(exec_pop().u & 0x7FFFFFFF)); }
-void flow_i_jt(void) { jump_if(exec_popi()); }
-void flow_f_jt(void) { jump_if(exec_pop().u & 0x7FFFFFFF); }
-
-/* FPOP: EXIT FOR's, the innermost FOR's frame dropped. */
-void flow_fpop(void)
-{
-    Addr f = exec.cstk;
-    if (f < allo.cs_top && frame(f)->mark == M_FR)
-        exec.cstk = f + M_FR;
-}
-
-/* PCALL proc target ( (value ref)*n -- ): a procedure's frame. Its arguments go to save
-   entries (a string copied unless a temporary's), its locals are saved there and zeroed, then
-   the entries to its parameters; on at its body. A value: an INT, a FLOAT, a string's Desc, an
-   array's id. A ref: FFFFh none; an array's id, PRET's store back; else a cell: the scalar
-   parameter is it while the procedure runs, its value none. Out of stack space. */
-void flow_pcall(void)
-{
-    if (exec.sp < exec.stklim || exec.cstk < allo.cs_lim)
-        repl_error(E_OS);
-    uint8_t *pip = exec.ip;
-    const Proc *p = &blok_procs[*pip];
-    Addr lim = exec.lsav + LSAVSZ - LSSZ;
-    Addr pend = exec.lsp + p->npar * LSSZ;
-    if (pend >= lim)
-        repl_error(E_OS);
-    Addr e = pend;
-    for (uint32_t i = p->npar; i > 0; i--) { /* the arguments, the last first */
-        e -= LSSZ;
-        uint16_t id = blok_params[p->par + i - 1];
-        wr16(se_id(e), id);
-        uint32_t ref = exec_pop().u;
-        wr16(se_ref(e), (uint16_t)ref);
-        uint8_t info = symb_var(id)->info;
-        if (!(info & VI_ARR) && ref != 0xFFFF) { /* a cell: the parameter's, no value */
-            wr16(se_ref(e), 0);
-            wr32(se_cell(e), ref);
-            exec.sp++;
-            continue;
-        }
-        Cell val = exec_pop();
-        wr32(se_val(e) + 4, (uint32_t)(val.raw >> 32)); /* a DOUBLE's high half */
-        if (info & VI_ARR)
-            wr32(se_val(e), info == (VI_ARR | VK_INT) ? exec_record((uint16_t)val.u)
-                                                      : symb_var((uint16_t)val.u)->vt);
-        else if ((info & VK_MASK) == VK_STR)
-            strg_set(val.a, se_val(e));
-        else
-            wr32(se_val(e), val.u);
-    }
-    Addr d = pend; /* the locals, saved and zeroed */
-    for (uint16_t id = symb.first_local[*pip]; id; id = symb_varx(id)->nloc, d += LSSZ) {
-        if (d >= lim)
-            repl_error(E_OS);
-        wr16(se_id(d), id);
-        Var *v = symb_var(id);
-        Addr c = symb_cell(id);
-        if (v->info & VI_ARR) {
-            wr32(se_val(d), v->vt);
-            v->vt = 0;
-        } else if (v->info & SK_DBL) {
-            memcpy(at(se_val(d)), at(c), 8);
-            memset(at(c), 0, 8);
-        } else if ((v->info & VK_MASK) == VK_STR) {
-            flow_lsmove(c, se_val(d));
-            wr16(c, 0);
-        } else {
-            wr32(se_val(d), rd32(c));
-            wr32(c, 0);
-        }
-    }
-    for (e = exec.lsp; e < pend; e += LSSZ) { /* the arguments to the parameters */
-        uint16_t id = rd16(se_id(e));
-        Var *v = symb_var(id);
-        if (!(v->info & VI_ARR)) { /* a scalar: vt its cell, the old one kept */
-            bool cell = rd16(se_ref(e)) == 0;
-            Addr c = cell ? rd32(se_cell(e)) : symb_cell(id);
-            wr32(se_cell(e), v->vt);
-            v->vt = c;
-            wr16(se_ref(e), 0xFFFE);
-            if (cell)
-                continue; /* the argument's: no value */
-        }
-        uint32_t val = rd32(se_val(e));
-        Addr c = symb_cell(id);
-        if (v->info & VI_ARR) {
-            v->vt = val;
-            uint16_t ref = rd16(se_ref(e)); /* an array's: dynamic as its ref */
-            if (ref != 0xFFFF)
-                symb_varx(id)->dyn = symb_varx(ref)->dyn;
-        } else if (v->info & SK_DBL)
-            memcpy(at(c), at(se_val(e)), 8);
-        else if ((v->info & VK_MASK) == VK_STR)
-            flow_lsmove(se_val(e), c);
-        else
-            wr32(c, val);
-    }
-    Addr f = exec.cstk - M_PC; /* the frame */
-    exec.cstk = f;
-    ProcFrame *pf = (ProcFrame *)at(f);
-    pf->h.mark = M_PC;
-    pf->h.line = exec.line;
-    pf->proc = *pip;
-    pf->h.resume = ipoff(pip + 1 + sizeof(Jump));
-    pf->save0 = exec.lsp;
-    pf->save1 = pend;
-    exec.lsp = d;
-    pf->tmpb = strg.tmp_floor;
-    strg.tmp_floor = strg.tmp_used;
-    pf->stk = addr_of(exec.sp);
-    pf->onerr = 0;
-    exec.ip = pip + 1; /* the target */
-    jumpto();
-}
-
-/* PRET: back from the procedure; a FUNCTION's result pushed. RETURN without GOSUB. */
-void flow_pret(void)
-{
-    if (exec_stopchk())
-        return;
-    Addr f = pr_pop();
-    const Proc *p = &blok_procs[((ProcFrame *)at(f))->proc];
-    if (p->kind == PK_FUNC) {
-        uint8_t info = symb_var(p->result)->info;
-        if (info & SK_DBL)
-            exec_push(pres8);
-        else if ((info & VK_MASK) == VK_STR) { /* a new temporary */
-            if (strg.tmp_used >= DSZ * NTMP)
-                repl_error(E_ST);
-            Addr t = strg.tmp + strg.tmp_used;
-            strg.tmp_used += DSZ;
-            flow_lsmove(lres, t);
-            exec_pusha(t);
-        } else
-            exec_pusha(pres);
-    }
-    exec.cstk = f + M_PC;
-    resume(f);
-}
-
-void flow_lsmove(Addr from, Addr to)
-{
-    Addr p = rd32(from + 2);
-    uint16_t len = rd16(from);
-    wr32(to + 2, p);
-    wr16(to, len);
-    if (len && p >= strg.low && p < allo.top)
-        wr32(p + len + 2, to); /* the block's owner */
 }

@@ -110,7 +110,7 @@ GS offsets); `prog_line(off)` is its `Line *`. A string value is the `Addr` of i
 
 | asm | C |
 |---|---|
-| `B_SC B_NAM B_NXT B_FLG B_ET B_REC B_FIX B_LINE`, `BSZ` | `Binding` (`.scope .name .next .flags .et[2] .rec[2] .fix[2] .line`); `B_ET B_REC B_FIX` kept as `scop_decl`'s field |
+| `B_SC B_NAM B_NXT B_FLG B_ET B_REC B_FIX B_LINE`, `BSZ` | `Binding` (`.scope .name .next .flags .et[2] .rec[2] .fix[2] .line`); the fields read by `scop_type`, `scop_rec`, `scop_fix` |
 | `g_bnd`, `g_nbnd`, `g_bhead`, `g_lnbit`, `g_scs`, `g_scn`, `g_bzero` | static |
 | `scp_init` | `scop_init()` |
 | `scp_get` (AX, BX → EDI, CF) | `Binding *scop_get(scope, name)`, nullptr none |
@@ -118,14 +118,14 @@ GS offsets); `prog_line(off)` is its `Line *`. A string value is the `Addr` of i
 | `scp_proc` (EAX) | `scop_proc(proc)`; sets comp's `cm.cproc` |
 | `scp_own` → EAX | `uint16_t scop_own()` |
 | `scp_look` (BX → EDI, EAX) | `const Binding *scop_look(name, &scope)`, never nullptr |
-| `scp_decl` (EAX, CL, DL → ECX) | `uint16_t scop_decl(name, field, array)` |
+| `scp_decl` (EAX, CL, DL → ECX) | `scop_type(name, array)`, `scop_rec(name, array)`, `scop_fix(name, array)` |
 | `scp_sfx` (EAX, ECX, DL → ECX) | `uint8_t scop_sfx(name, type, array)` |
 | `scp_con` (CF set: is) | `bool scop_con(name)` |
 | `scp_known` (CF set: not) | `bool scop_known(name)`: true bound |
 | `scp_mshr` (EBX; CF set: is) | `bool scop_mshr(name)` |
 | `scp_label` (AX, BX, DX) | `scop_label(scope, key, line)` |
 | `scp_lfind` (AX, BX → EAX) | `uint32_t scop_lfind(scope, key)` |
-| `scp_arec` (EAX → ECX) | `uint8_t scop_arec(name)` |
+| `scp_arec` (EAX → ECX) | `scop_rec(name, true)` |
 | `scp_enter`, `scp_leave`, `scp_frame`, `scp_hash`, `scp_lany` | static |
 
 ## strg (str.asm)

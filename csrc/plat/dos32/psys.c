@@ -1,12 +1,11 @@
 /* The process on DOS32: the STOP key's vectors (pstop.asm), the PSP's command line and
    environment (llrm's OS layer), SHELL's EXEC through DPMI in DOS memory. */
-#include <llrm_os.h>
 #include "dos.h"
 #include "plat/psys.h"
 
-void pstop_hook(volatile uint8_t *flag, uint8_t bit);
-void pstop_unhook(void);
-void ptick_unhook(void); /* pclk's and pkey's tick (ptick.asm) */
+CDECL void pstop_hook(volatile uint8_t *flag, uint8_t bit);
+CDECL void pstop_unhook(void);
+CDECL void ptick_unhook(void); /* pclk's and pkey's tick (ptick.asm) */
 
 void psys_init(volatile uint8_t *stop, uint8_t bit) { pstop_hook(stop, bit); }
 
@@ -29,7 +28,7 @@ uint32_t psys_cmdline(char *buf, uint32_t cap)
 
 uint32_t psys_environ(char *buf, uint32_t cap)
 {
-    uint32_t n = llrm_os_environment_read(0, (unsigned char *)buf, cap - 1);
+    uint32_t n = pdos_environ(0, (uint8_t *)buf, cap - 1);
     for (uint32_t i = 0; i < n; i++)
         if (!buf[i] && (!i || !buf[i - 1]))
             return i + 1;
@@ -40,7 +39,7 @@ uint32_t psys_environ(char *buf, uint32_t cap)
 uint32_t psys_self(char *buf, uint32_t cap)
 {
     static char env[0x8000];
-    uint32_t n = llrm_os_environment_read(0, (unsigned char *)env, sizeof env);
+    uint32_t n = pdos_environ(0, (uint8_t *)env, sizeof env);
     uint32_t i = 0;
     while (i + 1 < n && (env[i] || env[i + 1])) /* the variables, a 0 after the last */
         i++;
@@ -89,11 +88,11 @@ bool psys_exec(const char *path, const char *tail, uint8_t len, const char *env,
     static uint8_t rm[0x32]; /* the real-mode registers */
     memset(rm, 0, sizeof rm);
     uint32_t v = 0x4B00, bx = xenv + XP, dx = xenv + XN;
-    memcpy(rm + 0x1C, &v, 4);  /* EAX */
-    memcpy(rm + 0x10, &bx, 4); /* EBX: the parameter block */
-    memcpy(rm + 0x14, &dx, 4); /* EDX: the path */
-    memcpy(rm + 0x22, &seg, 2); /* ES */
-    memcpy(rm + 0x24, &seg, 2); /* DS */
+    store32(rm + 0x1C, v);  /* EAX */
+    store32(rm + 0x10, bx); /* EBX: the parameter block */
+    store32(rm + 0x14, dx); /* EDX: the path */
+    store16(rm + 0x22, seg); /* ES */
+    store16(rm + 0x24, seg); /* DS */
 
     PdosRegs v22 = {.eax = 0x0200, .ebx = 0x22}; /* EXEC leaves INT 22h its own: kept */
     pdos_int(0x31, &v22);

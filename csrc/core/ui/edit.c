@@ -186,7 +186,7 @@ bool edit_canon(uint8_t *text, uint16_t len)
     if (*body) {
         uc.pre = body;
         memcpy(uimn.line, body, strlen((const char *)body) + 1);
-        exec.line = DLINE;
+        vm.line = DLINE;
         lexr_line(uimn.line, comp_cbuf);
         decl_line(comp_cbuf); /* a typed SUB known to the lines after */
         if (uimn.text.check) {

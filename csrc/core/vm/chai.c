@@ -1,6 +1,6 @@
-/* CHAIN and COMMON (src/vm/chain.asm). chb holds COMMON's values in order: an entry is the kind
-   (Var.info's VI_ARR, SK_DBL, VK_MASK), then a number's 4 or 8 bytes, a string's len:2 and chars;
-   an array's dims:1 (0 none), its counts and lower bounds (words), then its elements so. */
+/* CHAIN and COMMON (src/vm/chain.asm). The buffer holds COMMON's values in order: an entry is the
+   kind (Var.info's VI_ARR, SK_DBL, VK_MASK), then a number's 4 or 8 bytes, a string's len:2 and
+   chars; an array's dims:1 (0 none), its counts and lower bounds (words), then its elements so. */
 #include "vm/chai.h"
 #include "comp/link.h"
 #include "io/repl.h"
@@ -11,197 +11,204 @@
 #include "vm/flow.h"
 #include "vm/stmt.h"
 
-enum { NCMN = 512, CHBSZ = 0x10000 };
-
 #if IDE
 #include "ui/uimn.h"
 #endif
 
+enum { NCMN = 512, CHAIN_BUF_SIZE = 0x10000, CHAIN_NAME_MAX = 120 };
+
 static struct {
-    uint8_t *next, *end;  /* g_chr, g_che: chb's next value, its end */
+    const uint8_t *next;  /* g_chr: the next value to take */
+    uint8_t *end;         /* g_che: past the last */
     bool chained;         /* g_chf: CHAIN's run starting */
     uint32_t n;           /* g_cmn: the ids COMMON named so far in this run */
     uint16_t id[NCMN];    /* g_cmid */
-    uint8_t buf[CHBSZ];   /* g_chb */
+    uint8_t buf[CHAIN_BUF_SIZE]; /* g_chb */
 } ch;
 
-/* chn_kind: variable id's kind. Type mismatch: a record. */
-static uint8_t kind(uint16_t id)
+/* ---- the kinds ------------------------------------------------------------------------------ */
+
+static const uint8_t KIND_MASK = VI_ARR | SK_DBL | VK_MASK;
+
+static bool is_array(const uint8_t kind) { return kind & VI_ARR; }
+static bool is_string(const uint8_t kind) { return (kind & (SK_DBL | VK_MASK)) == VK_STR; }
+
+/* Variable id's kind. Type mismatch: a record. */
+static uint8_t kind_of(const uint16_t id)
 {
-    const Var *v = symb_var(id);
+    const Var *const v = symb_var(id);
     if (v->type >= ET_REC)
         repl_error(E_TM);
-    return v->info & (VI_ARR | SK_DBL | VK_MASK);
+    return v->info & KIND_MASK;
 }
 
-/* chn_cell: a scalar of kind k's bytes; 0 a string. */
-static uint32_t bytes(uint8_t k)
-{
-    if ((k & (SK_DBL | VK_MASK)) == VK_STR)
-        return 0;
-    return k & SK_DBL ? 8 : 4;
-}
+/* A number of kind k's bytes. */
+static uint32_t number_size(const uint8_t kind) { return kind & SK_DBL ? 8 : 4; }
 
-/* chn_elems: array id's (header h) elements; *size their bytes, 0 strings. */
-static uint32_t elems(Addr h, uint16_t id, uint32_t *size)
+/* Array id's (header hdr) element count. */
+static uint32_t elem_count(const ArrayHdr *const a)
 {
-    const ArrayHdr *a = (const ArrayHdr *)at(h);
     uint32_t n = 1;
     for (uint32_t i = 0; i < a->dims; i++)
         n *= a->count[i];
-    uint8_t k = symb_var(id)->info & (SK_DBL | VK_MASK);
-    *size = k == VK_STR ? 0 : arry_esize(id) * n;
     return n;
 }
 
-/* chn_room: n more bytes fit at p. Out of memory. */
-static void room(const uint8_t *p, uint32_t n)
+/* ---- out: the values to the buffer ---------------------------------------------------------- */
+
+/* n bytes from src to *p. Out of memory: past the buffer. */
+static void put(uint8_t **const p, const void *const src, const uint32_t n)
 {
-    if (p + n > ch.buf + CHBSZ)
+    if (*p + n > ch.buf + CHAIN_BUF_SIZE)
         repl_error(E_OM);
+    memcpy(*p, src, n);
+    *p += n;
 }
 
-/* chn_sout: the string of the Desc at d to *p: len:2, chars. */
-static void str_out(uint8_t **p, Addr d)
+/* The string of the Desc at desc: len:2, chars. */
+static void put_string(uint8_t **const p, const Addr desc)
 {
-    uint16_t len = rd16(d);
-    room(*p, len + 2u);
-    memcpy(*p, &len, 2);
-    memcpy(*p + 2, at(rd32(d + 2)), len);
-    *p += len + 2;
+    const Desc s = strg_peek(desc);
+    put(p, &s.len, sizeof s.len);
+    put(p, at(s.ptr), s.len);
 }
 
-/* chn_sin: the string at *p, len:2 and chars, to the Desc at d: a block it owns. */
-static void str_in(const uint8_t **p, Addr d)
+static void put_array(uint8_t **const p, const uint16_t id)
 {
-    uint16_t len;
-    memcpy(&len, *p, 2);
-    *p += 2;
-    Addr chars = 0;
-    if (len) {
-        chars = strg_alloc(len);
-        memcpy(at(chars), *p, len);
-        strg_own(chars, len, d);
-        *p += len;
-    }
-    wr16(d, len);
-    wr32(d + 2, chars);
+    const Addr hdr = symb_var(id)->vt;
+    const uint8_t dims = hdr ? ((const ArrayHdr *)at(hdr))->dims : 0;
+    put(p, &dims, 1);
+    if (!hdr)
+        return;
+    const ArrayHdr *const a = (const ArrayHdr *)at(hdr);
+    put(p, a->count, dims * 2u * sizeof a->count[0]); /* the counts, the lower bounds */
+    const uint32_t n = elem_count(a);
+    if (is_string(kind_of(id)))
+        for (uint32_t i = 0; i < n; i++)
+            put_string(p, a->data + i * DSZ);
+    else
+        put(p, at(a->data), arry_esize(id) * n);
 }
 
-/* chn_save: COMMON's variables' values to chb. Out of memory: more than it holds. */
+/* COMMON's variables' values to the buffer. Out of memory: more than it holds. */
 static void save(void)
 {
     uint8_t *p = ch.buf;
     for (uint32_t i = 0; i < ch.n; i++) {
-        uint16_t id = ch.id[i];
-        uint8_t k = kind(id);
-        room(p, 1);
-        *p++ = k;
-        if (!(k & VI_ARR)) {
-            uint32_t n = bytes(k);
-            if (!n)
-                str_out(&p, symb_cell(id));
-            else {
-                room(p, n);
-                memcpy(p, at(symb_cell(id)), n);
-                p += n;
-            }
-            continue;
-        }
-        Addr h = symb_var(id)->vt; /* dims, the counts, the lower bounds; 0 none */
-        const ArrayHdr *a = (const ArrayHdr *)at(h);
-        uint32_t dims = h ? a->dims : 0;
-        room(p, dims * 4 + 1);
-        *p++ = (uint8_t)dims;
-        if (!h)
-            continue;
-        memcpy(p, a->count, dims * 4);
-        p += dims * 4;
-        uint32_t size, n = elems(h, id, &size);
-        Addr d = a->data;
-        if (size) {
-            room(p, size);
-            memcpy(p, at(d), size);
-            p += size;
-        } else
-            for (; n; n--, d += DSZ) /* strings */
-                str_out(&p, d);
+        const uint16_t id = ch.id[i];
+        const uint8_t kind = kind_of(id);
+        put(&p, &kind, 1);
+        if (is_array(kind))
+            put_array(&p, id);
+        else if (is_string(kind))
+            put_string(&p, symb_cell(id));
+        else
+            put(&p, at(symb_cell(id)), number_size(kind));
     }
     ch.next = ch.buf;
     ch.end = p;
 }
 
+/* ---- in: the values from the buffer --------------------------------------------------------- */
+
+/* n bytes from *p to dst. */
+static void get(const uint8_t **const p, void *const dst, const uint32_t n)
+{
+    memcpy(dst, *p, n);
+    *p += n;
+}
+
+/* The string at *p, len:2 and chars, to the Desc at desc: a block it owns. */
+static void get_string(const uint8_t **const p, const Addr desc)
+{
+    uint16_t len;
+    get(p, &len, sizeof len);
+    Addr chars = 0;
+    if (len) {
+        chars = strg_alloc(len);
+        get(p, at(chars), len);
+        strg_own(chars, len, desc);
+    }
+    const Desc s = {.len = len, .ptr = chars};
+    memcpy(at(desc), &s, DSZ);
+}
+
+static void get_array(const uint8_t **const p, const uint16_t id)
+{
+    uint8_t dims;
+    get(p, &dims, 1);
+    if (!dims)
+        return;
+    if (symb_var(id)->vt)
+        arry_free(id, 0);
+    get(p, arry.counts, dims * sizeof arry.counts[0]);
+    get(p, arry.lbounds, dims * sizeof arry.lbounds[0]);
+    const Addr hdr = arry_new(id, dims, true);
+    const ArrayHdr *const a = (const ArrayHdr *)at(hdr);
+    const uint32_t n = elem_count(a);
+    if (is_string(kind_of(id)))
+        for (uint32_t i = 0; i < n; i++)
+            get_string(p, a->data + i * DSZ);
+    else
+        get(p, at(a->data), arry_esize(id) * n);
+}
+
 /* COMMON's variable ( id -- ): named, for a CHAIN; CHAIN's next value, if any, stored in it.
    Type mismatch: not the value's kind. Out of memory: past NCMN variables. */
-void chai_cmn(void)
+void chai_cmn(Vm *const vm)
 {
-    uint16_t id = (uint16_t)exec_pop().u;
+    const uint16_t id = (uint16_t)exec_pop(vm).u;
     if (ch.n >= NCMN)
         repl_error(E_OM);
     ch.id[ch.n++] = id;
     const uint8_t *p = ch.next;
     if (!p || p >= ch.end)
         return;
-    uint8_t k = kind(id);
-    if (k != *p++)
+    const uint8_t kind = kind_of(id);
+    if (kind != *p++)
         repl_error(E_TM);
-    if (!(k & VI_ARR)) {
-        uint32_t n = bytes(k);
-        if (!n)
-            str_in(&p, symb_cell(id));
-        else {
-            memcpy(at(symb_cell(id)), p, n);
-            p += n;
-        }
-    } else {
-        uint8_t dims = *p++;
-        if (dims) {
-            if (symb_var(id)->vt)
-                arry_free(id, 0);
-            memcpy(arry.counts, p, dims * 2u);
-            memcpy(arry.lbounds, p + dims * 2, dims * 2u);
-            p += dims * 4;
-            Addr h = arry_new(id, dims, true);
-            uint32_t size, n = elems(h, id, &size);
-            Addr d = ((ArrayHdr *)at(h))->data;
-            if (size) {
-                memcpy(at(d), p, size);
-                p += size;
-            } else
-                for (; n; n--, d += DSZ) /* strings */
-                    str_in(&p, d);
-        }
-    }
-    ch.next = (uint8_t *)p;
+    if (is_array(kind))
+        get_array(&p, id);
+    else if (is_string(kind))
+        get_string(&p, symb_cell(id));
+    else
+        get(&p, at(symb_cell(id)), number_size(kind));
+    ch.next = p;
 }
 
-/* CHAIN ( s -- ): COMMON's values kept, the file s (.BAS when it has no extension) loaded and
-   run. Advanced feature unavailable: in the editor. Illegal function call: a name past 120
-   chars. As repl_load. */
-void chai_chain(void)
+/* ---- CHAIN ---------------------------------------------------------------------------------- */
+
+/* repl.file: s, with .BAS when it has no extension. */
+static void set_file(const Desc s)
 {
-#if IDE
-    if (uimn.on)
-        repl_error(E_AF);
-#endif
-    Desc s = strg_get(exec_popa());
-    if (s.len > 120)
-        repl_error(E_IQ);
     bool ext = false;
     for (uint16_t i = 0; i < s.len; i++) {
-        char c = (char)rd8(s.ptr + i);
+        const char c = (char)rd8(s.ptr + i);
         repl.file[i] = c;
         if (c == '.')
             ext = true;
         else if (c == '\\')
             ext = false;
     }
-    char *e = repl.file + s.len;
-    if (!ext) {
-        memcpy(e, ".BAS", 4);
-        e += 4;
-    }
-    *e = 0;
+    char *const end = repl.file + s.len;
+    if (ext)
+        *end = 0;
+    else
+        memcpy(end, ".BAS", sizeof ".BAS");
+}
+
+/* CHAIN ( s -- ): COMMON's values kept, the file s loaded and run. Advanced feature unavailable:
+   in the editor. Illegal function call: a name past CHAIN_NAME_MAX chars. As repl_load. */
+void chai_chain(Vm *const vm)
+{
+#if IDE
+    if (uimn.on)
+        repl_error(E_AF);
+#endif
+    const Desc s = strg_get(exec_popa(vm));
+    if (s.len > CHAIN_NAME_MAX)
+        repl_error(E_IQ);
+    set_file(s);
     save();
     ch.chained = true;
     prog_init();
@@ -209,7 +216,7 @@ void chai_chain(void)
     prog_drop();
     link_start();
     if (!prog_line(PROGBASE)->len)
-        flow_end();
+        flow_end(vm);
     stmt_rungo(PROGBASE);
 }
 

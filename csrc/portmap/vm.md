@@ -1,16 +1,16 @@
 # vm: asm → C
 
-Headers in `csrc/core/vm/`. `ESI` is `exec.ip` (`uint8_t *`), `ESP` the data stack `exec.sp`
+Headers in `csrc/core/vm/`. `ESI` is `vm.ip` (`uint8_t *`), `ESP` the data stack `vm.sp`
 (`Cell *`, grows down, carved from the arena). `jmp ex_lp` / `dispatch` in a handler is a
-`return` with `exec.ip` set; `stopchk` is `if (exec_stopchk()) return;`. A handler is
+`return` with `vm.ip` set; `stopchk` is `if (exec_stopchk()) return;`. A handler is
 `void h(void)`, listed only in `vm/ops.def`: an op `OP(name, handler, size, flags)`, a CALL
 routine `K(name, handler)`. `O_*`, `K_*`, `FX FV FB` are `vm/exec.h`'s enums from it. Lines are
 program-store offsets (`uint32_t`, mem's `prog_line`). `CSTOP`, `CSLIM` are mem's
 `allo.cs_top`, `allo.cs_lim`; `mm.cachebase` is `allo.cache`.
 
 Errors: `repl_error` unwinds; `ex_trap` is `flow_trap`, which longjmps into `exec_run`'s loop
-(`exec.loop`). The probe (`dbug_eval`) runs a nested `exec_run`; its end or error comes back by
-`dbug_done` / `dbug_fail`. Interrupts only set `exec.stop` bits (`SF_BRK`; `SF_TICK` from
+(`vm.loop`). The probe (`dbug_eval`) runs a nested `exec_run`; its end or error comes back by
+`dbug_done` / `dbug_fail`. Interrupts only set `vm.stop` bits (`SF_BRK`; `SF_TICK` from
 `pclk_init`/`pkey_init`); the STOP check polls them.
 
 ## isa.inc, vm.inc → ops.def, exec.h
@@ -27,7 +27,7 @@ Errors: `repl_error` unwinds; `ex_trap` is `flow_trap`, which longjmps into `exe
 | `dispatch` | `exec_run`'s loop |
 | `vslot`, `bvar` | `exec_u16()` id, `symb_cell(id)` |
 | `ipload` | `flow_place(line, off)` |
-| `subchk` | in `exec_elem1`, `exec_elem` |
+| `subchk` | `subscript` (exec.c) |
 | `tspclr` | `strg.tmp_used = strg.tmp_floor` |
 | `stopchk` | `exec_stopchk()` |
 | `a1get` | inside `exec_*_a1` |
@@ -36,28 +36,28 @@ Errors: `repl_error` unwinds; `ex_trap` is `flow_trap`, which longjmps into `exe
 
 | asm | C |
 |---|---|
-| `opip` | `exec.opip` |
-| `rsp` | `exec.rsp` |
-| `stklim` | `exec.stklim` |
+| `opip` | `vm.opip` |
+| `rsp` | `vm.rsp` |
+| `stklim` | `vm.stklim` |
 | `cplim` | `comp.depth` (comp's) |
-| `cstk` | `exec.cstk` |
-| `lsp` | `exec.lsp` |
-| `line`, `runln`, `lnum` | `exec.line`, `exec.runln`, `exec.lnum` |
-| `stpflg` | `exec.stop` (volatile) |
-| `contln`, `contcode` | `exec.cont_line`, `exec.cont_code` |
-| `onerr`, `inerr`, `errn`, `erl`, `uerr` | `exec.onerr`, `exec.inerr`, `exec.err`, `exec.erl`, `exec.uerr` |
-| `resln`, `resat`, `resnext` | `exec.res_line`, `exec.res_at`, `exec.res_next` |
+| `cstk` | `vm.cstk` |
+| `lsp` | `vm.lsp` |
+| `line`, `runln`, `lnum` | `vm.line`, `vm.runln`, `vm.lnum` |
+| `stpflg` | `vm.stop` (volatile) |
+| `contln`, `contcode` | `vm.cont.line`, `vm.cont.code` |
+| `onerr`, `inerr`, `errn`, `erl`, `uerr` | `vm.err.handler`, `vm.err.active`, `vm.err.code`, `vm.err.line`, `vm.err.user` |
+| `resln`, `resat`, `resnext` | `vm.res_line`, `vm.res_at`, `vm.res_next` |
 | `lfrom`, `lto` | `list_range`'s parameters (comp) |
 | `narr` | `arry_*`'s `n` parameter (mem) |
 | `stv`, `aret`, `cnarg`, `cop`, `fid`, `flim`, `fstep`, `fop`, `fvp`, `fsv`, `isw_si`, `lk`, `onk`, `runl`, `ppip`, `ppend`, `pres` | locals / statics |
 | `dlp`, `dataat`, `dyo`, `inend`, `iny0`, `iredo` | static in stmt.c (READ, INPUT) |
-| — | `exec.ip`, `exec.sp`, `exec.stktop`, `exec.lsav`, `exec.loop` (new) |
+| — | `vm.ip`, `vm.sp`, `vm.stktop`, `vm.lsav`, `vm.loop` (new) |
 
 ## exec.asm → exec
 
 | asm | C |
 |---|---|
-| `ex_lp` | `exec_run()` (noreturn), from `exec.ip` |
+| `ex_lp` | `exec_run()` (noreturn), from `vm.ip` |
 | `ex_brk` | `bool exec_brk()` |
 | `arr_r1` | `Addr exec_elem1(id, sub)` |
 | `arr_pn` | `Addr exec_elem()` |
@@ -75,7 +75,7 @@ Errors: `repl_error` unwinds; `ex_trap` is `flow_trap`, which longjmps into `exe
 | `op_sstv`, `op_ista1`, `op_fsta1`, `op_ssta1`, `op_istan`, `op_fstan`, `op_sstan` | `exec_s_st_v`, `exec_i_st_a1`, `exec_f_st_a1`, `exec_s_st_a1`, `exec_i_st_a`, `exec_f_st_a`, `exec_s_st_a` |
 | `ex_cmpt` | static |
 | `op_scmp`, `op_sif`, `op_scat` | `exec_s_cmp`, `exec_s_if`, `exec_s_cat` |
-| `g_stkb`, `STKTOP` | carved by `exec_init`; `exec.stktop` |
+| `g_stkb`, `STKTOP` | carved by `exec_init`; `vm.stktop` |
 
 ## bc.asm → oper
 
@@ -103,7 +103,7 @@ Errors: `repl_error` unwinds; `ex_trap` is `flow_trap`, which longjmps into `exe
 | `ex_setcont` | `flow_setcont()` |
 | `ex_stmtof` (EBX, EAX → EDI, ECX) | `Stmt *flow_stmtof(line, code, &left)` |
 | `ex_target` (→ EBX) | `uint32_t flow_target()` |
-| `g_lsav`, `LSAVSZ` | `exec.lsav` (carved by `exec_init`) |
+| `g_lsav`, `LSAVSZ` | `vm.lsav` (carved by `exec_init`) |
 | `ls_mov` (EAX, EDI) | `flow_lsmove(from, to)` |
 | `op_size` (ESI → ECX) | `uint32_t flow_opsize(op)` |
 | `ex_line`, `ex_eol`, `ex_gosub`, `ex_jumpto`, `ex_sbase`, `for_find`, `for_in`, `for_mki`, `for_any`, `for_lp`, `pr_pop`, `err_nf`, `ipsave` | static |
@@ -123,7 +123,7 @@ Errors: `repl_error` unwinds; `ex_trap` is `flow_trap`, which longjmps into `exe
 | `sc_cont` | `stmt_cont()` |
 | `sc_end` | `stmt_end()` (noreturn) |
 | `sc_stop` | `stmt_stop()` (noreturn) |
-| `g_relbit` | `oper_relbit[]` (oper.h) |
+| `g_relbit` | `compared` (oper.c): a compare's relation as `OPER_GT`, `OPER_EQ` or `OPER_LT` |
 | `sc_ipr`, `sc_fpr`, `sc_spr`, `sc_pnl`, `sc_pzone`, `sc_ptab` | `stmt_ipr`, `stmt_fpr`, `stmt_spr`, `stmt_pnl`, `stmt_pzone`, `stmt_ptab` |
 | `sc_pspc`, `sc_fin`, `sc_sin`, `sc_din`, `sc_fget`, `sc_sget` | `stmt_pspc`, `stmt_fin`, `stmt_sin`, `stmt_din`, `stmt_fget`, `stmt_sget` |
 | `sc_inbeg`, `sc_inpr`, `sc_infile`, `sc_inend`, `sc_inln`, `sc_fread` | `stmt_inbeg`, `stmt_inpr`, `stmt_infile`, `stmt_inend`, `stmt_inln`, `stmt_fread` |
@@ -204,9 +204,9 @@ Errors: `repl_error` unwinds; `ex_trap` is `flow_trap`, which longjmps into `exe
 | `g_evti`, `g_evtc`, `g_evuk`, `g_evon` | `evnt.interval`, `evnt.count`, `evnt.ukey[]`, `evnt.on` |
 | `g_evsc` | static |
 | `ev_clr` | `evnt_clear()` |
-| `ev_tick` | `evnt_poll()`: polled at the STOP check on `SF_TICK`; the key buffer's work is the platform's (`pkey_trap`, `pkey_taken`) |
-| `ev_run` | `bool evnt_run()` |
-| `ev_ret` (EBX) | `evnt_return(frame)` |
+| `ev_tick` | `evnt_poll(vm)`: polled at the STOP check on `SF_TICK`; the key buffer's work is the platform's (`pkey_trap`, `pkey_taken`) |
+| `ev_run` | `bool evnt_run(vm)` |
+| `ev_ret` (EBX) | `evnt_return(vm, slot)` |
 | `ev_slot`, `ev_sig` | static |
 | `op_onev`, `sc_evst`, `sc_keydef` | `evnt_onev`, `evnt_evst`, `evnt_keydef` |
 
@@ -225,17 +225,17 @@ Errors: `repl_error` unwinds; `ex_trap` is `flow_trap`, which longjmps into `exe
 |---|---|
 | INT 21h 2Ah 2Bh 2Ch 2Dh | `pclk_date`, `pclk_set_date`, `pclk_time`, `pclk_set_time` |
 | `ds:[46Ch]` | `pclk_ticks()` |
-| INT 1Ch's `ev_tick` call | `ptick.asm` sets `SF_TICK` in `exec.stop`; `pclk_init(&exec.stop, SF_TICK)` hooks it. No C runs in interrupts: `psys_init(stop, bit)` has no tick callback (io: psys.h changed) |
+| INT 1Ch's `ev_tick` call | `ptick.asm` sets `SF_TICK` in `vm.stop`; `pclk_init(&vm.stop, SF_TICK)` hooks it. No C runs in interrupts: `psys_init(stop, bit)` has no tick callback (io: psys.h changed) |
 | tick unhook | `ptick_unhook()` in `psys_exit` (io's); `pclk_done` the same, unused |
 | jiffies | `pclk_jiffies`, `pclk_set_jiffies` (with `toff`, for cons) |
 | INT 16h 10h 11h | `pkey_read`, `pkey_ready` |
 | `ds:[417h]` | `pkey_shift` |
 | `plt_kflush` | `pkey_flush` |
 | INT 16h 00h, DOS 0Bh/07h | `pkey_wait`, `pkey_poll` (for cons) |
-| `ev_tick`'s key buffer scan | `pkey_init(&exec.stop, SF_TICK)`, `pkey_trap(traps)`, `pkey_taken()` |
+| `ev_tick`'s key buffer scan | `pkey_init(&vm.stop, SF_TICK)`, `pkey_trap(traps)`, `pkey_taken()` |
 | `in`, `out` | `psys_inp`, `psys_outp`: defined in `plat/dos32/ptick.asm`, not psys.c |
 | `sc_sys`'s call | `psys_call(a)` (ptick.asm) |
 
 ## Start-up
 
-`exec_init`, `flow_init` (the RESUME buffer), `stmt_init` (READ's buffer), `syst_init`: main.c calls each. io: clear `exec.running` where an error lands at `repl.top`, else a trap outside the loop longjmps to a dead `exec.loop`.
+`exec_init`, `flow_init` (the RESUME buffer), `stmt_init` (READ's buffer), `syst_init`: main.c calls each. io: clear `vm.running` where an error lands at `repl.top`, else a trap outside the loop longjmps to a dead `vm.loop`.

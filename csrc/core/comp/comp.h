@@ -53,7 +53,7 @@ typedef struct {
     uint8_t forkind;      /* cfk: FOR's variable's kind, 0 a FLOAT */
     uint16_t forvar;      /* cfid: FOR's variable */
     uint8_t *onat;        /* onp: ON's count byte */
-    uint16_t redim;       /* credim: 40h DIM's grammar is REDIM's; 100h PRESERVE */
+    uint16_t redim;       /* credim: DIM_REDIM, DIM_PRESERVE or 0 */
     uint16_t lnum;        /* wv: a jump's line number, NONUM a label's */
     uint32_t jline;       /* jline: its line, 0 until the first jump finds it */
     bool modlabel;        /* g_lmod: comp_lnum's label is the module's (cleared) */
@@ -83,8 +83,17 @@ extern const uint8_t comp_etkind[7];
    parenthesis); to be calibrated against the asm build. */
 enum { COMP_MAXDEPTH = CPROOM / 24 };
 
-static inline uint16_t comp_rd16(const uint8_t *p) { uint16_t v; memcpy(&v, p, 2); return v; }
-static inline uint32_t comp_rd32(const uint8_t *p) { uint32_t v; memcpy(&v, p, 4); return v; }
+
+/* A body's tokens: M_INT n:4; M_VAR len text id:2 (the text with its suffix, if any). */
+enum { INT_TOKEN_SIZE = 5 };
+/* Past the name token at p. */
+static inline const uint8_t *comp_skipname(const uint8_t *const p) { return p + p[1] + 4; }
+/* The name token at p's suffix (% & ! # $, all under '.'), 0 none. */
+static inline uint8_t comp_suffixof(const uint8_t *const p)
+{
+    const uint8_t c = p[p[1] + 1];
+    return c < '.' ? c : 0;
+}
 
 /* Compiling */
 void comp_init(void);                    /* comp_cbuf carved (allo_carve) */
@@ -144,4 +153,6 @@ void comp_scope(uint16_t name);          /* var_scope: comp.scope, comp.isstatic
 uint8_t comp_suffix(uint8_t c);          /* et_sfx: % & ! # $ to ET_*, 0 none */
 const uint8_t *comp_label(const uint8_t *body); /* lbl_at: a label starts body: its ':', else null */
 uint16_t comp_nameof(const uint8_t *at); /* lbl_nam: the name of the M_VAR at at */
+/* DATA's text from p (past the DATA token): to its ':' out of quotes, or its 0. */
+const uint8_t *comp_skipdata(const uint8_t *p);
 #endif

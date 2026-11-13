@@ -227,9 +227,13 @@ program's directory.
 C module of the same part, named by a 4-letter prefix that also starts its external names
 (`csrc/PORTING.md`); `csrc/portmap/` maps every asm label to its C name.
 
-The compiler is llrm-cc for `x86_32-dos` (llrm's `release/next`, `LLRM`), over the patched clang
-(`LLRM_CLANG_M16`), linked with llrm's start-up and OS layer by its `link_objects.py`. There is no C
-library: `csrc/lib` has the string routines and setjmp.
+The compiler is clang (`CLANG`) for i386, COFF objects in the register convention
+(`-mregparm=3`), linked by jwlink with llrm's DOS32 start-up and runtime through its
+`link_objects.py` (llrm's `release/next` tree, `LLRM`). Routines in asm, in llrm's runtime, and C
+called from asm take their arguments on the stack: their declarations say `CDECL`. There is no C
+library: `csrc/lib` has the string routines and setjmp. clang calls memcpy, memmove and memset in
+the register convention, so `csrc/lib` has them too, renamed in each object so as not to clash
+with the runtime's.
 
 The core, `csrc/core`, is portable C. Everything a BASIC program can see, and every record that
 holds an address of it, lives in one arena (`core/base.h`): an address is a 32-bit offset in it,
@@ -243,6 +247,5 @@ process and the STOP key, `pkey` keyboard, `pclk` clock and tick, `pscr` text sc
 interrupt from C, and jwasm files for what C cannot do: the interrupt handlers, which only set
 bits the core polls, port I/O and the x87. A host or wasm build is another directory beside it.
 
-llrm-llc at -O2 sends a switch's second case value of a shared block past the block's first load:
-no stacked case labels where the block starts with a load. Its `LL$COMMAND_LINE` reads its
-arguments a slot high, so the command tail comes from `pdos_cmdline`.
+llrm's `LL$COMMAND_LINE` read its arguments a slot high, so the command tail comes from
+`pdos_cmdline`.

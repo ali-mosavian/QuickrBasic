@@ -17,8 +17,8 @@ typedef struct {
 } Prog;
 extern Prog prog;
 
-static inline Addr prog_addr(uint32_t line) { return prog.base + line; }
-static inline Line *prog_line(uint32_t line) { return (Line *)at(prog.base + line); }
+static inline Addr prog_addr(const uint32_t line) { return prog.base + line; }
+static inline Line *prog_line(const uint32_t line) { return (Line *)at(prog.base + line); }
 
 /* The line numbered num: any so numbered, else the place by number, from the link's cursor (asm
    lnk.cursor) when that is not above it. *line: the line, else the first numbered more, or the

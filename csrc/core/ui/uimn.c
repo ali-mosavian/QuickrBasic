@@ -591,7 +591,7 @@ static void load(void)
 }
 
 /* ui_open: File, Open. */
-static void file_open(void)
+static void file_open(Vm *vm)
 {
     if (ask_save() && dlog_open())
         load();
@@ -684,7 +684,7 @@ static void exec_line(void)
 void uimn_ready(void)
 {
     cons_flush();
-    exec.stop = 0;
+    vm.stop = 0;
     uint8_t row, col;
     pscr_where(1, &row, &col);
     if (ui.run_wait || row != ui.crow || col != ui.ccol) {
@@ -738,11 +738,11 @@ static void at_line(uint32_t line)
    word it is at selected. */
 static void run_error_words(void)
 {
-    if (!ui.at_error || !exec.opip || *exec.opip != O_ERR)
+    if (!ui.at_error || !vm.opip || *vm.opip != O_ERR)
         return;
     LineBuf *b = &uimn.edline;
     b->text[b->len] = 0;
-    uimn_selword(edit_dxerr(b->text, (const ErrOp *)exec.opip));
+    uimn_selword(edit_dxerr(b->text, (const ErrOp *)vm.opip));
 }
 
 void uimn_error(uint8_t code)
@@ -750,21 +750,21 @@ void uimn_error(uint8_t code)
     ui.ecode = code;
     ui.at_error = false;
     if (code != E_BRK) {
-        exec.cstk = allo.cs_top;
-        exec.cont_line = 0;
+        vm.nframes = 0;
+        vm.cont.line = 0;
         dpan_close();
     }
     cons_flush();
     cons.col = 0;
-    exec.stop = 0;
+    vm.stop = 0;
     page_in();
     repl.loading = false; /* repl_relink's, the error ended it */
     prog.add_flags = 0;
     prog.add_at = 0;
-    if (exec.line != DLINE) {
+    if (vm.line != DLINE) {
         lmap_build(); /* the include's lines are no line */
         uint32_t line;
-        if (lmap_of(exec.line, &line)) {
+        if (lmap_of(vm.line, &line)) {
             ui.at_error = true;
             at_line(view_goline(line));
         }
@@ -787,7 +787,7 @@ void uimn_act(uint8_t action)
 {
     switch (action) {
     case ACT_NEW: file_new(); break;
-    case ACT_OPEN: file_open(); break;
+    case ACT_OPEN: file_open(&vm); break;
     case ACT_SAVE: file_save(); break;
     case ACT_SAVEAS: file_saveas(); break;
     case ACT_EXIT: file_exit(); break;

@@ -11,18 +11,18 @@ void fmth_init(void);
 /* After an error: the x87's stack empty, its control word the default (ex_fclr). */
 void fmth_clear(void);
 
-Sngl fmth_add(Sngl a, Sngl b);
-Sngl fmth_sub(Sngl a, Sngl b);
-Sngl fmth_mul(Sngl a, Sngl b);
+static inline Sngl fmth_add(const Sngl a, const Sngl b) { return sngl_bits(sngl_val(a) + sngl_val(b)); }
+static inline Sngl fmth_sub(const Sngl a, const Sngl b) { return sngl_bits(sngl_val(a) - sngl_val(b)); }
+static inline Sngl fmth_mul(const Sngl a, const Sngl b) { return sngl_bits(sngl_val(a) * sngl_val(b)); }
 /* a / b; ?DIVISION BY ZERO when b is 0 or -0. */
 Sngl fmth_div(Sngl a, Sngl b);
 /* a ^ b, at 64 bits; a whole power by squaring. ?ILLEGAL QUANTITY a negative base to a fraction,
    0 to a negative power; ?OVERFLOW past 2^32767.5, infinity below it. */
 Sngl fmth_pow(Sngl a, Sngl b);
 
-Sngl fmth_from_i16(int16_t v);
-Sngl fmth_from_u16(uint16_t v);
-Sngl fmth_from_i32(int32_t v);
+static inline Sngl fmth_from_i16(const int16_t v) { return sngl_bits((float)v); }
+static inline Sngl fmth_from_u16(const uint16_t v) { return sngl_bits((float)v); }
+static inline Sngl fmth_from_i32(const int32_t v) { return sngl_bits((float)v); }
 /* a rounded to the nearest, a half to even; ?ILLEGAL QUANTITY out of the type's range. */
 int16_t fmth_to_i16(Sngl a);
 uint16_t fmth_to_u16(Sngl a);
