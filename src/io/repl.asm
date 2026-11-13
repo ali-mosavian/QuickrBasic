@@ -1,7 +1,7 @@
 ; ==========================================================================
 ; repl.asm - errors and the READY loop
 ; ==========================================================================
-; holds:    err_*, err_raise, rpl_ready, rpl_enter
+; holds:    err_*, err_raise, rpl_ready, rpl_enter, ent_line
 ; uses:     lx_line, prg_put, cm_line, ex_dcode, ex_lp, io_*
 ; calls:
 ;   err_raise          compiling: cm_err; else the message, then rpl_ready
@@ -622,14 +622,16 @@ rpl_enter:
         mov     esi,offset g_inbuf
         mov     edi,offset g_cbuf
         call    lx_line
-        call    dc_line
+        mov     edx,[g_state.mm.progend]
         cmp     byte ptr [g_cbuf],0
         mov     al,1
         je      @ren_r
-        mov     esi,offset g_cbuf
-        call    st_get
         cmp     [g_state.io.lmode],0
         jne     @ren_l
+        mov     [g_state.mm.enterat],edx
+        call    dc_line
+        mov     esi,offset g_cbuf
+        call    st_get
         cmp     al,M_INT
         mov     al,0
         jne     @ren_r
@@ -646,34 +648,52 @@ rpl_enter:
 @ren_r:
         ret
 @ren_l:
-        mov     [g_state.rn.lnum],NONUM
-        cmp     al,M_INT
-        jne     @ren_a
-        mov     eax,[esi+1]
-        cmp     eax,64000
-        jae     err_sn
-        mov     [g_state.rn.lnum],ax
-        add     esi,5
-        movzx   ebx,ax                  ; the number: a label
-        mov     eax,SC_NUM
-        call    @ren_lb
-@ren_a:
-        call    lbl_at
-        jne     @ren_b
-        call    lbl_nam
-        mov     ebx,eax
-        xor     eax,eax
-        call    @ren_lb
-@ren_b:
+        call    ent_line
         mov     ecx,edi
         sub     ecx,esi
         call    prg_add
         mov     al,2
         ret
-@ren_lb:                                ; label EBX here, in the scope
+
+; ::::::::::::::
+; ent_line - the line in cbuf entered as stored line EDX: its declarations;
+; its number and its label, labels there.
+;
+; out:    ESI  its body, past the number
+;         lnum  the number, NONUM none
+; keeps:  EDI
+; error:  ?SYNTAX ERROR  line number 64000 or over
+;         Duplicate label  as scp_label
+; ::::::::::::::
+ent_line:
+        mov     [g_state.mm.enterat],edx
+        call    dc_line
+        mov     esi,offset g_cbuf
+        call    st_get
+        mov     [g_state.rn.lnum],NONUM
+        cmp     al,M_INT
+        jne     @enl_a
+        mov     eax,[esi+1]
+        cmp     eax,64000
+        jae     err_sn
+        mov     [g_state.rn.lnum],ax
+        add     esi,5
+        movzx   ebx,ax
+        mov     eax,SC_NUM
+        call    @enl_lb
+@enl_a:
+        call    lbl_at
+        jne     @enl_r
+        call    lbl_nam
+        mov     ebx,eax
+        xor     eax,eax
+        call    @enl_lb
+@enl_r:
+        ret
+@enl_lb:                                ; label EBX here, in the scope
         push    edi
         or      ax,[g_state.lx.dproc]
-        mov     edx,[g_state.mm.progend]
+        mov     edx,[g_state.mm.enterat]
         call    scp_label
         pop     edi
         ret

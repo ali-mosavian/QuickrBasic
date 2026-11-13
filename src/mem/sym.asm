@@ -1,7 +1,7 @@
 ; ==========================================================================
 ; sym.asm - the name table and the variables
 ; ==========================================================================
-; holds:    var_clr, sym_init, nam_find, var_find
+; holds:    var_clr, sym_init, var_init, nam_find, var_find
 ; uses:     hbot, htop, rd_first
 ; data:     A name, 1 .. NNAM-1, as QBasic's name table: nname its text, its
 ;           length then its letters in upper case, a suffix left out; nflag
@@ -78,39 +78,34 @@ var_cell:
         ret
 
 ; ::::::::::::::
-; sym_init - no names, no variables.
+; sym_init - no names, no variables, no declarations.
 ;
 ; keeps:  ESI
 ; ::::::::::::::
 sym_init:
-        mov     [g_state.lx.nsyms],1
         mov     [g_state.lx.nnams],1
         mov     [g_state.lx.nsfree],offset g_snmb
         mov     edi,offset g_nhead
         mov     ecx,HSIZE/2
         xor     eax,eax
         rep     stosd
+        call    var_init
+        jmp     dc_reset
+
+; ::::::::::::::
+; var_init - no variables; the names kept.
+;
+; keeps:  ESI
+; ::::::::::::::
+var_init:
+        mov     [g_state.lx.nsyms],1
         mov     edi,offset g_vhead
         mov     ecx,HSIZE/2
-        rep     stosd
-        mov     edi,offset g_deft
-        mov     ecx,26
-        mov     al,ET_R4
-        rep     stosb
-        and     [g_ndev],0
-        mov     edi,offset g_plh
-        mov     ecx,NPROC/2
         xor     eax,eax
         rep     stosd
-        mov     [g_state.lx.dproc],ax
-        call    scp_init
-        mov     [g_obase],al
-        mov     [g_obset],al
-        mov     [g_odim],al
-        mov     [g_oexp],al
-        mov     [g_state.lx.ntyps],ax
-        mov     [g_state.lx.nflds],ax
-        mov     [g_state.lx.dtype],ax
+        mov     edi,offset g_plh
+        mov     ecx,NPROC/2
+        rep     stosd
         ret
 
 ; ::::::::::::::

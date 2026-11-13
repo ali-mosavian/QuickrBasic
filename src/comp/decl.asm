@@ -1,7 +1,7 @@
 ; ==========================================================================
 ; decl.asm - a line's declarations, into the name table as it is entered
 ; ==========================================================================
-; holds:    dc_line, dc_deft
+; holds:    dc_reset, dc_line, dc_deft
 ; uses:     scp_bind (mem/scope.asm), g_deft
 ; data:     As QBasic, a line's declarations go into the table when it is
 ;           entered, so lines compiled before it know them:
@@ -184,6 +184,39 @@ dc_step:
         inc     esi
         ret
 endif
+
+; ::::::::::::::
+; dc_reset - no declarations: the names kept, what they were declared as
+; dropped (all but NM_FN, the spelling's).
+;
+; keeps:  ESI
+; ::::::::::::::
+dc_reset:
+        mov     edi,offset g_deft
+        mov     ecx,26
+        mov     al,ET_R4
+        rep     stosb
+        xor     eax,eax
+        mov     [g_ndev],eax
+        mov     [g_state.lx.dproc],ax
+        call    scp_init
+        mov     [g_obase],al
+        mov     [g_obset],al
+        mov     [g_odim],al
+        mov     [g_oexp],al
+        mov     [g_state.lx.ntyps],ax
+        mov     [g_state.lx.nflds],ax
+        mov     [g_state.lx.dtype],ax
+        movzx   ecx,[g_state.lx.nnams]
+@dcr_n:
+        dec     ecx
+        jz      @dcr_r
+        and     [g_nflag+ecx],NM_FN
+        mov     [g_ntype+ecx],al
+        mov     [g_nprc+ecx],al
+        jmp     @dcr_n
+@dcr_r:
+        ret
 
 ; ::::::::::::::
 ; dc_line - enter the declarations of the body in cbuf.
@@ -693,7 +726,7 @@ dc_dfev:
         cmp     [g_state.io.lmode],0
         je      @dfv_r
         pushad
-        mov     eax,[g_state.mm.progend]
+        mov     eax,[g_state.mm.enterat]
         mov     ecx,[g_ndev]
         jecxz   @F
         imul    edi,ecx,DEVSZ

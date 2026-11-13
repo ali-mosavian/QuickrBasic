@@ -163,6 +163,7 @@ TMEM     struc                   ; the memory map, the program, the arrays
     sfr     dd      ?
     vend    dd      ?
     progend dd      ?
+    enterat dd      ?               ; the stored line being entered
     oldline dd      ?
     bodyptr dd      ?               ; prg_put's body
     bodylen dd      ?
