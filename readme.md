@@ -1,12 +1,10 @@
-# cbmbasic-bc
+# QuickrBasic
 
-A compiled-only BASIC for the Microsoft-derived 6502 machines (X16 first; C64, C128, PET, VIC-20,
-Plus/4 later): every statement is compiled to byte code, one execution path, 10x faster than stock
-at the same ROM size.
+QBasic 4.5 for DOS, as a 32-bit DOS/32A program: a compiler to bytecode and its runtime
+(`basic32.exe`), and the same with a QBasic-style editor (`ide32.exe`). No limits but memory:
+programs, lines, strings, arrays and symbol tables grow as needed.
 
-- `docs/bytecode.md`: architecture and byte-code spec (draft, nothing implemented).
-- `docs/structure.md`: source layout, naming, platform interface.
-- `tables/keywords.txt`: the keywords, in token order.
-- `make test` runs the unit and tool tests; the tools are in `tools/` (see docs/structure.md).
-
-Reference code lives in `/Users/alim/work/x16basic-c`.
+- `make` builds both into `build/x86/`; `make test` runs the regressions and llrm's QB 4.5
+  conformance suite under DOSBox.
+- `docs/design.md`: the design. `docs/asm-style.md`: the assembly style.
+- Toolchain: jwasm, jwlink, DOS/32A and dosbox-x from llrm (`LLRM_BIN`, `DOS32A`).

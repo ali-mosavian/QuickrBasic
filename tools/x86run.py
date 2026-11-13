@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # toolchain/dosrunbuild.sh pins.
 CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "llrm"
 DOSBOX = Path(os.environ.get("DOSBOX_BIN", CACHE / "dosbox-x-eea2b2da0203d37ff51e34a8f714af8110fe0162/src/dosbox-x"))
-COM = Path(os.environ.get("X86_COM", ROOT / "build/x86/basic.com"))  # X86_COM: basic32.exe too
+COM = Path(os.environ.get("X86_COM", ROOT / "build/x86/basic32.exe"))
 
 CONF = """[sdl]
 priority=higher,normal
@@ -49,8 +49,8 @@ class Result:
 
 
 def messages() -> list[str]:
-    """The errors' messages, as src/x86f/io/errmsg.asm spells them."""
-    msgs = re.findall(r'^(?:g_qbmsg)?\s+db\s+\w+,"([^"]+)",0', (ROOT / "src/x86f/io/errmsg.asm").read_text(), re.M)
+    """The errors' messages, as src/io/errmsg.asm spells them."""
+    msgs = re.findall(r'^(?:g_qbmsg)?\s+db\s+\w+,"([^"]+)",0', (ROOT / "src/io/errmsg.asm").read_text(), re.M)
     assert len(msgs) > 50, "errmsg.asm's messages not read"
     return msgs + ["Unprintable error"]
 

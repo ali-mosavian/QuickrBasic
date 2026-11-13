@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """x86msg.py [check]: the compile errors' words, from llrm's QB frontend and our own, as
-src/x86f/io/msg.inc.
+src/io/msg.inc.
 
   x86msg.py        write msg.inc
   x86msg.py check  msg.inc as the generator writes it
 
 llrm's messages.txt gives each error BC's name, what is wrong and what to do; syntax_forms.txt
 how each statement is written. Both are read from $LLRM (default ~/work/personal/llrm-qbmac), so
-the words have one home. src/x86f/io/messages.txt adds the ones llrm lacks, read first, so its
+the words have one home. src/io/messages.txt adds the ones llrm lacks, read first, so its
 entry of a name wins. msg.inc holds them as data for io/diag.asm, and a DG_ number per entry
 for the compiler's sites that know which one they raise; the data only where DX_DATA is set.
 """
@@ -18,8 +18,8 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "src/x86f/io/msg.inc"
-OWN = ROOT / "src/x86f/io/messages.txt"
+OUT = ROOT / "src/io/msg.inc"
+OWN = ROOT / "src/io/messages.txt"
 LLRM = Path(os.environ.get("LLRM", Path.home() / "work/personal/llrm-qbmac"))
 FRONT = LLRM / "crates/frontends/qb/src/front"
 

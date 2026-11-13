@@ -22,7 +22,7 @@ IMG = ROOT / "docs/img"
 ALT_F, ALT_S, F5 = 0x21, 0x1F, 0x3F
 MSGS = x86run.messages()
 # X86_IDE=build/x86/ide32.exe plays the flat build, DOS32A.EXE beside it
-IDE = Path(os.environ.get("X86_IDE", ROOT / "build/x86/basic-ide.com"))
+IDE = Path(os.environ.get("X86_IDE", ROOT / "build/x86/ide32.exe"))
 
 
 def play() -> None:
@@ -31,7 +31,7 @@ def play() -> None:
     (work / exe).write_bytes(IDE.read_bytes())
     if IDE.suffix == ".exe":
         (work / "DOS32A.EXE").write_bytes((IDE.parent / "DOS32A.EXE").read_bytes())
-    hlp = "src/x86f/ui/basic.hlp" if IDE.suffix == ".exe" else "src/x86/ui/basic.hlp"
+    hlp = "src/ui/basic.hlp"
     (work / "BASIC.HLP").write_bytes((ROOT / hlp).read_bytes())
     (work / "SQ.BAS").write_bytes(b"for i=1 to _\r\n 3\r\n  print i*i\r\nnext\r\n")
     (work / "SUB").mkdir()

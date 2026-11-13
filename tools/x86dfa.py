@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """x86dfa.py [check]: the flat build's keyword scanner and statement parser as minimized automata.
 
-  x86dfa.py        write src/x86f/comp/dfa.inc and the keyword list in src/x86f/gen.inc
+  x86dfa.py        write src/comp/dfa.inc and the keyword list in src/gen.inc
   x86dfa.py check  both as the generator writes them; the scanner against the keyword list
 
 The keywords are QBasic's: llrm's NAMES_QB45, the words BC reserves. A word is matched whole,
@@ -19,8 +19,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "src/x86f/comp/dfa.inc"
-GEN = ROOT / "src/x86f/gen.inc"
+OUT = ROOT / "src/comp/dfa.inc"
+GEN = ROOT / "src/gen.inc"
 
 # (listed as, lexed as): the 16-bit build's tokens 80h..CCh
 C64 = [

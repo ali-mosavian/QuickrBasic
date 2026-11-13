@@ -1,6 +1,6 @@
-# Lint, format and type-check settings for tools/ (ruff, isort, ty); the project itself is 6502 assembly.
+# Lint, format and type-check settings for tools/ (ruff, isort, ty); the project itself is x86 assembly.
 [project]
-name = "cbmbasic-bc-tools"
+name = "quickrbasic-tools"
 version = "0"
 requires-python = ">=3.12"
 
