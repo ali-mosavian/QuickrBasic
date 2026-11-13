@@ -156,20 +156,11 @@ sy_pass:
         jnz     @syp_c
         mov     dword ptr [edi],'MER'
         add     edi,3
-        jmp     @syp_t
 @syp_c:
-        lodsb
-        test    al,al
-        jz      @syp_t0
-        stosb
-        cmp     edi,offset g_inbuf+250
-        jb      @syp_c
-        jmp     @syp_t
-@syp_t0:
-@syp_t:
-        mov     eax,edi
-        sub     eax,offset g_inbuf
+        call    sr_mem                  ; the rest streamed after EDI
+        mov     [g_lxfill],offset sr_more
         call    rpl_incl
+        and     [g_lxfill],0
 @syp_n:
         inc     [g_ui.sy.sy_i]
         jmp     @syp_l

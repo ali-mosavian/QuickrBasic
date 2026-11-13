@@ -571,6 +571,7 @@ externdef cn_eol:near
 externdef cn_init:near
 externdef g_srfe:dword
 externdef sr_line:near
+externdef sr_mem:near
 externdef sr_more:near
 ; io/repl.asm
 externdef err_cn:near

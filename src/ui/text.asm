@@ -473,7 +473,7 @@ tx_read:
         stosb
         inc     edx
 @trd_c:
-        cmp     edi,offset g_txb+TXMAX-LNMAX
+        cmp     edi,offset g_txb+TXMAX-1
         jae     @trd_e
         dec     ecx
         jnz     @trd_l

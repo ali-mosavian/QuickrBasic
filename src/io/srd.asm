@@ -1,7 +1,7 @@
 ; ==========================================================================
 ; srd.asm - a source file's lines, streamed to the lexer
 ; ==========================================================================
-; holds:    sr_line, sr_more, cn_init, cn_byte, cn_eol
+; holds:    sr_line, sr_mem, sr_more, cn_init, cn_byte, cn_eol
 ; uses:     plt_getb, ch_skiplf
 ; data:     A logical line is physical lines joined where one ends in a
 ;           blank and '_', outside a string and a comment: BC's
@@ -24,6 +24,7 @@ SRCAP   = INMAX-4                       ; the window's text: then it slides
 ;         CF   set at the end, nothing read
 ; ::::::::::::::
 sr_line:
+        and     [g_srmem],0
         mov     [g_srfe],offset g_inbuf
         and     [g_srend],0
         and     [g_srpend],0
@@ -38,6 +39,23 @@ sr_line:
         ret
 @@:
         clc
+        ret
+
+; ::::::::::::::
+; sr_mem - the line at ESI, 0-ended, into inbuf after EDI: what fits, the
+; rest by sr_more. No line ends in it: none continues.
+;
+; out:    EAX  the window's length
+; ::::::::::::::
+sr_mem:
+        mov     [g_srmem],esi
+        mov     [g_srfe],edi
+        and     [g_srend],0
+        and     [g_srpend],0
+        call    cn_init
+        call    sr_fill
+        mov     eax,[g_srfe]
+        sub     eax,offset g_inbuf
         ret
 
 ; ::::::::::::::
@@ -88,8 +106,17 @@ sr_fill:
         cmp     byte ptr [edi-1],'_'
         jne     @srf_x
 @srf_g:
+        mov     ecx,[g_srmem]           ; a line in memory: its 0 the end
+        jecxz   @srf_f
+        mov     al,[ecx]
+        test    al,al
+        jz      @srf_z
+        inc     [g_srmem]
+        jmp     @srf_h
+@srf_f:
         call    plt_getb
         jc      @srf_z
+@srf_h:
         mov     [g_srany],1
         cmp     al,10
         je      @srf_e
@@ -240,6 +267,7 @@ cn_eol:
 
         .data?
 g_srfe  dd      ?                       ; the window's end: its 0
+g_srmem dd      ?                       ; sr_mem's line still to read, 0 a file
 g_srpend dd     ?                       ; blanks in code not yet put
 g_srend db      ?                       ; 1: the logical line is all in
 g_srany db      ?                       ; 1: a byte or a line's end was read

@@ -1084,7 +1084,7 @@ dp_tip:
         add     cx,[g_ui.ed.ed_left]
         movzx   edx,ax
         push    ecx
-        mov     edi,offset g_dpln
+        mov     edi,offset g_ui.bf.uc_line
         call    tx_get
         mov     esi,edi
         pop     eax
@@ -1419,7 +1419,6 @@ dg_dpw  TDLG    <8,14,8,52,u_dpadd,3,0,5,1>
         TCTL    <CT_BTN,6,30,10,0,0,u_cancel,0,0,0,0>
         .data?
 g_dpout db      80 dup(?)               ; dbg_eval's output
-g_dpln  db      LNBUF dup(?)            ; the line under the mouse
 g_dptip db      DP_TW dup(?)            ; the tooltip of a module variable
 g_dpp   dd      ?                       ; Locals' procedure, 0 the module
 g_dpnw  dd      ?                       ; its newer call, dp_newer's

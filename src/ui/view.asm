@@ -53,11 +53,11 @@ vw_kind:
         call    tx_offa
         call    tx_len
         lea     esi,[g_txb+ebx]
-        mov     edi,offset g_ui.bf.vw_ln        ; 0-ended for lx_line
+        mov     edi,offset g_ui.bf.uc_line      ; 0-ended for lx_line
         rep     movsb
         mov     byte ptr [edi],0
         pushad
-        mov     esi,offset g_ui.bf.vw_ln
+        mov     esi,offset g_ui.bf.uc_line
         mov     edi,offset g_cbuf
         call    lx_line
         popad

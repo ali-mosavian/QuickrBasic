@@ -8,7 +8,7 @@ VIDEO   = 0B8000h               ; page 0 of the text screen, linear
 AC_MAX  = 48                    ; completions listed at most
 AC_SZ   = 16                    ; one: its length, its text
 AC_EVN  = 8
-LNBUF   = 260                   ; a line buffer's text
+DLBUF   = 260                   ; a dialog line buffer's text
 FLDMAX  = 80                    ; a dialog field's characters at most
 
 ; mouse.asm
@@ -39,7 +39,8 @@ AT_NUM  = 2                             ;   a number
 AC_PREV = 40                            ; a label's box: columns
 ; text.asm
 TXMAX   = 0FF00h                ; the text's bytes at most
-LNMAX   = 255                   ; a line's characters at most
+LNMAX   = TXMAX-100h            ; a line's characters at most: the text's
+LNBUF   = LNMAX+4               ; a line buffer's text
 ; draw.asm; the attributes are slots, the theme's (theme.asm)
 ED_COLS = 78
 A_ED    = 0
@@ -134,8 +135,15 @@ TLBUF    struc                   ; a line being edited
     col     dw      ?               ; the cursor's column
     len     dw      ?
     dty     db      ?               ; changed
-    txt     db      LNBUF dup(?)
+    txt     db      DLBUF dup(?)
 TLBUF    ends
+
+TEDBUF   struc                   ; the editor's line: TLBUF's fields
+    col     dw      ?
+    len     dw      ?
+    dty     db      ?
+    txt     db      LNBUF dup(?)
+TEDBUF   ends
 
 TDLG     struc                   ; a dialog, its controls (TCTL) after it
     row     db      ?
@@ -457,14 +465,14 @@ TCOMPL   struc                   ; Tab completion
 TCOMPL   ends
 
 TUIBUF   struc                   ; the big buffers
-    uc_line db      260 dup(?)      ; a line got from the text
-    sy_buf  db      260 dup(?)      ; a line being built
+    uc_line db      LNBUF dup(?)    ; a line got from the text; lx_line's copy
+    sy_buf  db      LNBUF dup(?)    ; a line being built
     im_h    TIMH    IMN dup(<>)     ; the immediate window's lines
     msg_txt db      640 dup(?)      ; a message box's lines
     msg_d   TMSGD   <>              ; the message box
     ls_fl   db      LSMAX*13 dup(?) ; the Files list
     ls_dl   db      LSMAX*13 dup(?) ; the Dirs list
-    ed_lb   TLBUF   <>              ; the cursor's line
+    ed_lb   TEDBUF  <>              ; the cursor's line
     im_lb   TLBUF   <>              ; the immediate line
     dl_fn   TLBUF   <>              ; a dialog's file name field
     fd_what TLBUF   <>              ; Find what
@@ -476,12 +484,9 @@ TUIBUF   struc                   ; the big buffers
     dl_mask db      80 dup(?)       ; the Open box's mask
     dl_path db      80 dup(?)       ; the current directory
     ui_ebuf db      600 dup(?)      ; an error's message, '|' between lines
-    vw_ln   db      LNBUF dup(?)    ; vw_kind's line, 0-ended
     vw_new  db      LNBUF dup(?)    ; vw_add's
     vw_fld  TLBUF   <>              ; New SUB's name
     vw_list db      NVIEW*VLSZ dup(?)   ; the SUBs box's
-    ud_txt  db      LNBUF dup(?)    ; ud_hlset's line, its body
-    ud_tok  db      LNBUF*5 dup(?)  ; a digit becomes 5 bytes
     dl_dta  db      44 dup(?)       ; the directory search's DTA
     dl_name db      80 dup(?)       ; the file chosen
     ac_list TACE    AC_MAX dup(<>)  ; the completions

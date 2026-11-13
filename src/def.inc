@@ -65,7 +65,7 @@ IFNDEF IDE
 IDE     = 0
 ENDIF
 if IDE
-LXCMAX  = 1300                  ; lx_line's column map: an editor line's body
+LXCMAX  = 0FEE0h                ; lx_line's column map: a line's body (LMAX)
 else
 LXCMAX  = 1                     ; none outside the IDE
 endif

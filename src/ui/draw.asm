@@ -314,7 +314,12 @@ dr_hbar:
         mov     cx,[g_ui.ed.ed_tw]
         sub     cx,3
         mul     cx
-        mov     cx,LNMAX
+        mov     cx,[g_ui.ed.ed_left]    ; of the columns to the window's end,
+        add     cx,[g_ui.ed.ed_tw]      ; 255 at least
+        cmp     cx,255
+        jae     @F
+        mov     cx,255
+@@:
         div     cx
         mov     dl,al
         add     dl,2
@@ -485,10 +490,15 @@ dr_status:
         mov     ax,[g_ui.bf.ed_lb.col]
         inc     ax
         mov     cx,3
+        mov     dx,1846h
+        cmp     ax,1000                 ; past 999: 5 digits, 2 columns left
+        jb      @F
+        mov     cx,5
+        mov     dl,44h
+@@:
         call    ui_decn
         xor     al,al
         stosb
-        mov     dx,1846h
         mov     esi,offset g_ui.lp.ui_pos
         mov     ah,A_STAT
         mov     bh,ah

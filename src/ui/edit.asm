@@ -404,8 +404,6 @@ ui_body:
 ui_canon:
         mov     [g_ui.fd.uc_src],esi
         mov     [g_ui.fd.uc_n],cx
-        cmp     cx,200
-        ja      @uca_k
         movzx   ebx,cx
         mov     byte ptr [esi+ebx],0
         mov     edi,esi                 ; EDI past the indent and number
@@ -415,14 +413,14 @@ ui_canon:
         mov     [g_ui.fd.uc_pre],edi
         push    esi
         mov     esi,edi
-        mov     edi,offset g_inbuf
+        mov     edi,offset g_ui.bf.uc_line
 @uca_c:
         lodsb
         stosb
         test    al,al
         jnz     @uca_c
         mov     [g_state.rn.ln],DLINE
-        mov     esi,offset g_inbuf
+        mov     esi,offset g_ui.bf.uc_line
         mov     edi,offset g_cbuf
         call    lx_line
         call    dc_line                 ; a typed SUB known to the lines after

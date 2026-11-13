@@ -716,6 +716,7 @@ def play() -> None:
     (work / "DBG.BAS").write_bytes("\r\n".join(dbg).encode() + b"\r\n")
     (work / "LOOP.BAS").write_bytes(b"DO\r\nx = x + 1: y = y + 1\r\nLOOP\r\n")
     (work / "STP.BAS").write_bytes(b"PRINT 1: STOP: PRINT 2\r\n")
+    (work / "LNG.BAS").write_bytes(b"x = 0: " + b"x = x + 1: " * 300 + b"PRINT x\r\n")
     open_file("dbg.bas")
     # F8 steps a statement at a time, into a GOSUB and a SUB; DECLARE makes no stop.
     for want in [(1, "PRINT 1"), (2, "FOR i = 1 TO 2"), (2, "PRINT i"), (2, "NEXT"), (2, "PRINT i"), (2, "NEXT"),
@@ -781,6 +782,11 @@ def play() -> None:
     assert lit()[0] == (0, "PRINT 2"), (lit(), look())
     press(f"0x{F5:x}")
     assert output()[:2] == [" 1", " 2"], output()
+    press("space")
+    # A line was cut at 255 characters on load and at 250 on Run: it printed nothing.
+    open_file("lng.bas")
+    press(f"0x{F5:x}")
+    assert output()[0] == " 300", output()
     press("space")
     # Ctrl+Break stops at a statement's start, lit; the Ctrl+C is no key for the editor (a page down).
     open_file("loop.bas")

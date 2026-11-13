@@ -38,15 +38,19 @@ hl_row:
         pop     edx
         movzx   ebx,[g_ui.ed.ed_left]   ; EBX the column, ECX those left
         movzx   ecx,[g_ui.ed.ed_tw]
+        mov     edi,offset g_hlc
 @hxr_l:
         cmp     ebx,[g_hlen]
         jae     @hxr_x
-        mov     ah,[g_hlc+ebx]
+        mov     ah,[edi]
+        inc     edi
         cmp     ah,A_ED
         je      @F
         push    ecx
+        push    edi
         mov     cx,1
         call    sc_attr
+        pop     edi
         pop     ecx
 @@:
         inc     dl
@@ -66,23 +70,20 @@ hl_line:
         mov     ecx,LNMAX
 @@:
         mov     [g_hlen],ecx
-        mov     edi,offset g_hlsrc      ; a copy: the lexer changes its text
-        push    ecx
+        mov     edi,offset g_ui.bf.uc_line      ; a copy: the lexer changes its text
         rep     movsb
         mov     byte ptr [edi],0
-        pop     ecx
-        mov     edi,offset g_hlc
-        mov     al,A_ED
-        rep     stosb
-        mov     esi,offset g_hlsrc
-        mov     edi,offset g_hlbody
+        and     [g_hlpc],0
+        mov     [g_hlpa],A_ED
+        mov     esi,offset g_ui.bf.uc_line
+        mov     edi,offset g_cbuf
         call    lx_line
-        mov     esi,offset g_hlbody
+        mov     esi,offset g_cbuf
         mov     [g_hls],0
         mov     [g_hld],0
 @hxl_l:
         mov     ebx,esi                 ; EBX the item's column
-        sub     ebx,offset g_hlbody
+        sub     ebx,offset g_cbuf
         cmp     ebx,LMAX
         jae     @hxl_r
         movzx   ebx,word ptr [g_lxcol+ebx*2]
@@ -271,15 +272,31 @@ hl_line:
 @hxl_t:
         call    @hxl_f
 @hxl_r:
-        ret
-@hxl_f:                                 ; AH from column EBX to the end
-        mov     ecx,[g_hlen]
-        sub     ecx,ebx
+        mov     ebx,[g_hlen]
+@hxl_f:                                 ; AH from column EBX on; the one
+        pushad                          ; before to EBX in its own, those
+        mov     eax,[g_hlpc]            ; shown only
+        movzx   edx,[g_ui.ed.ed_left]
+        cmp     eax,edx
+        jae     @F
+        mov     eax,edx
+@@:
+        movzx   ecx,[g_ui.ed.ed_tw]
+        add     ecx,edx
+        cmp     ecx,ebx
         jbe     @F
-        lea     edi,[g_hlc+ebx]
-        mov     al,ah
+        mov     ecx,ebx
+@@:
+        sub     ecx,eax
+        jle     @F
+        lea     edi,[g_hlc+eax]
+        sub     edi,edx
+        mov     al,[g_hlpa]
         rep     stosb
 @@:
+        popad
+        mov     [g_hlpc],ebx
+        mov     [g_hlpa],ah
         ret
 
 HS_AS   = 1
@@ -292,9 +309,9 @@ g_hlon  db      1                       ; Syntax Highlighting
 g_hls   db      ?
 g_hld   db      ?
 g_hlen  dd      ?
-g_hlc   db      LNMAX+1 dup(?)
-g_hlsrc db      LNBUF dup(?)
-g_hlbody db     LNBUF*5 dup(?)
+g_hlpa  db      ?                       ; the last item's colour
+g_hlpc  dd      ?                       ; its column
+g_hlc   db      256 dup(?)              ; the colours of the columns shown
         .code
 
         end

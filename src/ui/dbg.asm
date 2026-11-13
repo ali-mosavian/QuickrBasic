@@ -85,18 +85,18 @@ ud_hlset:
         jc      @uhs_r
         mov     [g_ui.ud.hl_ln],ax      ; the text's line
         call    vw_goline
-        mov     edi,offset g_ui.bf.ud_txt
+        mov     edi,offset g_ui.bf.uc_line
         call    tx_get
         mov     byte ptr [edi+ecx],0
         call    ui_body                 ; the body, as the editor stores it
         mov     esi,edi
         push    ecx
         push    esi
-        mov     edi,offset g_ui.bf.ud_tok
+        mov     edi,offset g_cbuf
         call    lx_line
         pop     ebx
         pop     ecx
-        sub     ebx,offset g_ui.bf.ud_txt       ; EBX the body's column
+        sub     ebx,offset g_ui.bf.uc_line      ; EBX the body's column
         movzx   eax,[g_state.dbg.wb0]
         movzx   eax,word ptr [g_lxcol+eax*2]
         add     eax,ebx
@@ -112,7 +112,7 @@ ud_hlset:
 @uhs_t:                                 ; back over the ':' and spaces
         cmp     edx,eax
         jbe     @uhs_c
-        mov     cl,[g_ui.bf.ud_txt+edx-1]
+        mov     cl,[g_ui.bf.uc_line+edx-1]
         cmp     cl,' '
         je      @F
         cmp     cl,':'
