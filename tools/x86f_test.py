@@ -527,6 +527,8 @@ CASES = {
     "qb_long_line": ("FOR i = 1 TO 3: " + "x = x + 1: " * 300 + "NEXT: IF x > 0 THEN PRINT x ELSE PRINT -1\r\n"
                      "DO: k = k + 1: " + "y = y + 1: " * 250 + "LOOP UNTIL k = 2: PRINT y\r\n", " 900 \r\n 500 \r\n",
                      "ERROR"),
+    # The program store was 64 KB: 6000 short lines were Out of memory.
+    "qb_big_store": ("X = 0\r\n" + "X = X + 1\r\n" * 6000 + "PRINT X\r\n", " 6000 \r\n", "memory"),
     # A '_' after a blank ended no line: Syntax error. Not one in a string or a comment.
     "qb_cont": ('A = 1 + _\r\n    2\r\nPRINT A; _\r\n  "x_ _"\r\nPRINT "a _"\r\nPRINT 3 \' t _\r\n'
                 'PRINT 4 REM m _\r\nPRINT 5\r\n', " 3 x_ _\r\na _\r\n 3 \r\n 4 \r\n 5 \r\n", "rror"),

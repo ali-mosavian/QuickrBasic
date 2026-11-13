@@ -61,7 +61,7 @@ TLINE    struc                   ; a line's record in the store, its body after
 TLINE    ends
 HDR     = sizeof TLINE
 NONUM   = 0FFFFh                ; a line's num: it has none
-LMAX    = 0FEE0h                ; a line's record at most: the store (PROGLIM-PROGBASE)
+LMAX    = 0FEE0h                ; a line's body at most: cbuf
 BOFF    = 0FFFFFFFFh            ; a statement map's body offset of the line's end
 TSTMT    struc                   ; a statement map's entry, before the line's
     body    dd      ?               ; code, their count:4 after them: the
@@ -233,15 +233,13 @@ E_LAST  = E_EXW
 ; progb and pokeb. The stream region: offsets from cachb, stored in 16 bits;
 ; the direct line's code at DCODE, the cache from CACHE0.
 DLINE    = 0                    ; in progb: the direct line, len 0, num FFxxh
-PROGBASE = 0110h                ; then the program, to PROGLIM
-PROGLIM  = 0FFF0h
+PROGBASE = 0110h                ; then the program, to progend
 NSYM     = 4096                 ; variables, 0 none
 NNAM     = 4096                 ; names, 0 none
 HSIZE    = 1024                 ; the symbols' hash chains
 NMSZ     = 10000h               ; the symbols' names
 VARBASE  equ     <(offset g_varb)>          ; a variable's slot, 4 bytes per id
 SVBASE   equ     <(offset g_svarb)>         ; a string variable's Desc, 8 bytes per id
-PROGSZ   = PROGLIM-PROGBASE
 HDRBASE  equ     <(offset g_dsb+0BC00h)>    ; the arrays' headers
 HDRLIM   equ     <(offset g_dsb+0E000h)>
 ifndef AC
@@ -266,7 +264,6 @@ cbcmp   macro   dst,k
         cmp     dst,eax
         pop     eax
         endm
-.erre LMAX EQ PROGLIM-PROGBASE
 .erre XLIM EQ CLIM-CACHE0-16
 HMIN     = 40000h               ; the heap, arrays and strings: DPMI's, at least
 HROOM    = 10000h               ; the free memory left to the DPMI host

@@ -89,8 +89,6 @@ prg_put:
         mov     [g_state.mm.bodylen],ecx
         mov     eax,ecx
         add     eax,HDR
-        cmp     eax,LMAX
-        ja      err_om
 @pp_d:
         push    eax
         push    ecx
@@ -113,8 +111,10 @@ prg_put:
         mov     edx,[g_state.mm.progend]
         add     edx,eax
         add     edx,4                   ; the terminator
-        cmp     edx,PROGLIM
-        jae     @pp_om
+        pushad                          ; whole without it, should room fail
+        call    prg_drop
+        popad
+        call    prg_room
         push    eax
         mov     ecx,[g_state.mm.progend]
         mov     esi,ecx
@@ -143,12 +143,9 @@ prg_add:
         mov     [g_state.mm.bodyptr],esi
         mov     [g_state.mm.bodylen],ecx
         lea     eax,[ecx+HDR]
-        cmp     eax,LMAX
-        ja      err_om
         mov     ebx,[g_state.mm.progend]
         lea     edx,[ebx+eax+4]
-        cmp     edx,PROGLIM
-        jae     err_om
+        call    prg_room
         add     [g_state.mm.progend],eax
         call    prg_fill
         mov     ebx,[g_state.mm.progend]
@@ -191,13 +188,29 @@ prg_drop:
         mov     ebx,[g_state.mm.progend]
         mov     gs:[ebx].TLINE.len,eax
         jmp     var_clr
-@pp_om:
-        call    prg_drop
-        jmp     err_om
 
 ; ::::::::::::::
 ; prg_init - NEW: no program, no variables, then prg_drop.
 ; ::::::::::::::
+; ::::::::::::::
+; prg_room - the store EDX bytes at least: grown, the variables dropped
+; first (an edit drops them anyway).
+;
+; keeps:  all
+; error:  Out of memory
+; ::::::::::::::
+prg_room:
+        cmp     edx,[g_state.alloc.tab+HPROG*sizeof TALLOC].TALLOC.cap
+        jbe     @prm_r
+        pushad
+        call    var_clr
+        mov     eax,HPROG
+        mov     ecx,edx
+        call    alloc_grow
+        popad
+@prm_r:
+        ret
+
 ; ::::::::::::::
 ; prg_place - the store's block where it now is: pglin, proglin, GS.
 ; ::::::::::::::

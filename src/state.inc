@@ -248,6 +248,7 @@ TDBG     ends
 TALLOC   struc                   ; a block (mem/alloc.asm)
     base    dd      ?               ; its first byte
     cap     dd      ?               ; its bytes
+    moved   dd      ?               ; called when it moves or grows, 0 none
 TALLOC   ends
 
 NBLKH   = 8                     ; blocks at most

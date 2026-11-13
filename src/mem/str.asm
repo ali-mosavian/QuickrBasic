@@ -204,10 +204,13 @@ str_gc:
 str_set:
         call    str_get
         jz      @sst_s
-        mov     edx,[g_state.sg.spt]
-        sub     edx,[g_state.mm.progfirst]
-        cmp     edx,PROGSZ
+        mov     edx,[g_state.sg.spt]  ; in the program's text: kept there
+        sub     edx,[g_state.mm.progbase]
+        cmp     edx,PROGBASE
+        jb      @F
+        cmp     edx,[g_state.mm.progend]
         jb      @sst_s
+@@:
         mov     edx,[g_state.sg.spt]
         cmp     edx,[g_state.mm.sfr]
         jb      @sst_c

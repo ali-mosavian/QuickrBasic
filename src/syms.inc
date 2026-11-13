@@ -450,6 +450,7 @@ externdef mem_pmov:near
 externdef mem_up:near
 externdef mem_zero:near
 ; mem/alloc.asm
+externdef alloc_grow:near
 externdef alloc_new:near
 externdef alloc_sel:near
 ; mem/prog.asm
