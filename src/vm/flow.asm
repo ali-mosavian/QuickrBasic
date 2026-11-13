@@ -18,7 +18,7 @@ include x86f.inc
 ; DST, a word = ESI's stream offset. Uses EAX.
 ipst    macro   dst
         mov     eax,esi
-        sub     eax,offset g_cachb
+        sub     eax,[g_state.mm.cblin]
         mov     dst,ax
         endm
 
@@ -224,15 +224,15 @@ ex_nextln:
 ; ::::::::::::::
 ex_eol:
         movzx   ebx,[g_state.rn.ln]
-        movzx   ecx,word ptr [g_progb+ebx]
+        movzx   ecx,word ptr gs:[ebx]
         add     ebx,ecx
-        cmp     word ptr [g_progb+ebx],0
+        cmp     word ptr gs:[ebx],0
         je      @F
         mov     [g_state.rn.vpt],bx
         jmp     ex_line
 @@:
         add     esp,4
-        mov     esi,offset g_cachb         ; contsi 0: CONT ends again
+        mov     esi,[g_state.mm.cblin]         ; contsi 0: CONT ends again
         jmp     sc_end
 
 ; ::::::::::::::
@@ -246,12 +246,12 @@ ex_eol:
 ex_line:
         movzx   ebx,[g_state.rn.vpt]
         mov     [g_state.rn.ln],bx
-        cmp     word ptr [g_progb+ebx],0   ; the direct line's len
+        cmp     word ptr gs:[ebx],0   ; the direct line's len
         je      @exl_x
-        movzx   esi,word ptr [g_progb+ebx+L_CP]
+        movzx   esi,word ptr gs:[ebx+L_CP]
         test    esi,esi
         jz      cm_cache
-        add     esi,offset g_cachb
+        add     esi,[g_state.mm.cblin]
         ret
 @exl_x:
         call    cm_line
@@ -262,8 +262,9 @@ ex_line:
 ; out:    ESI  it
 ; ::::::::::::::
 ex_dcode:
-        mov     edi,offset g_cachb+DCODE
-        mov     [g_state.lnk.elim],offset g_cachb+DCODE+1536
+        mov     edi,[g_state.mm.cblin]
+        add     edi,DCODE
+        cblea   [g_state.lnk.elim],DCODE+1536
         call    cm_xlate
         jc      err_om
         mov     esi,[g_state.lnk.ecode]
@@ -758,14 +759,14 @@ ex_erl:
 @etr_l:
         cmp     ebx,ecx
         ja      @etr_d
-        cmp     word ptr [g_progb+ebx],0
+        cmp     word ptr gs:[ebx],0
         je      @etr_d
-        movzx   eax,word ptr [g_progb+ebx+L_NUM]
+        movzx   eax,word ptr gs:[ebx+L_NUM]
         cmp     ax,NONUM
         je      @F
         mov     edx,eax
 @@:
-        movzx   eax,word ptr [g_progb+ebx]
+        movzx   eax,word ptr gs:[ebx]
         add     ebx,eax
         jmp     @etr_l
 @etr_d:
@@ -781,8 +782,8 @@ ex_erl:
 ;         ECX  the entries from it on
 ; ::::::::::::::
 ex_smap:
-        movzx   ebx,word ptr [g_progb+ebx+L_CP]
-        add     ebx,offset g_cachb
+        movzx   ebx,word ptr gs:[ebx+L_CP]
+        add     ebx,[g_state.mm.cblin]
         sub     eax,ebx
         movzx   ecx,word ptr [ebx-2]   ; the count, after the entries
         lea     edi,[ecx*4+2]
@@ -903,15 +904,16 @@ op_size:
 ex_resolve:
         movzx   ebx,dx
         mov     eax,esi
-        movzx   esi,word ptr [g_progb+ebx+L_CP]
+        movzx   esi,word ptr gs:[ebx+L_CP]
         test    esi,esi
         jnz     @exr_a
         push    eax
         call    cm_cache
         pop     eax
-        sub     esi,offset g_cachb
+        sub     esi,[g_state.mm.cblin]
 @exr_a:
-        lea     esi,[esi+eax+offset g_cachb]
+        lea     esi,[esi+eax]
+        add     esi,[g_state.mm.cblin]
         ret
 
 ; ::::::::::::::
@@ -1024,7 +1026,8 @@ ex_bjump:
         jb      @ebj_f
         mov     bx,[esi]
         mov     [g_state.rn.ln],bx
-        lea     esi,[g_cachb+eax]
+        mov     esi,[g_state.mm.cblin]
+        add     esi,eax
         dispatch
 @ebj_f:
         mov     edx,esi
@@ -1067,7 +1070,7 @@ ex_bjump:
         cmp     al,[g_state.lnk.nfl]
         jne     @ebj_d
         mov     eax,esi
-        sub     eax,offset g_cachb
+        sub     eax,[g_state.mm.cblin]
         mov     [edx+4],ax
 @ebj_d:
         dispatch

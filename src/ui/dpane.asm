@@ -123,7 +123,7 @@ dp_frm1:
         mov     esi,offset u_dpimm
         cmp     ebx,DLINE
         je      @dfr_n
-        mov     ax,word ptr [g_progb+ebx+L_NUM]
+        mov     ax,word ptr gs:[ebx+L_NUM]
         push    ebp
         push    edx
         push    edi

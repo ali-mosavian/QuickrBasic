@@ -53,10 +53,10 @@ op_dbg:
         movzx   ebx,[g_state.rn.ln]
 @odb_b:                                 ; the line's first statement only
         lea     eax,[esi-1]
-        sub     eax,offset g_cachb
-        cmp     ax,word ptr [g_progb+ebx+L_CP]
+        sub     eax,[g_state.mm.cblin]
+        cmp     ax,word ptr gs:[ebx+L_CP]
         jne     @odb_d
-        movzx   eax,word ptr [g_progb+ebx+L_NUM]
+        movzx   eax,word ptr gs:[ebx+L_NUM]
         cmp     [g_state.dbg.utl],0
         je      @F
         cmp     ax,[g_state.dbg.ulnum]
@@ -101,7 +101,7 @@ dbg_depth:
 ; dbg_pos - the place of code address EAX in line EBX to wnum, wb0, wb1.
 ; ::::::::::::::
 dbg_pos:
-        mov     dx,word ptr [g_progb+ebx+L_NUM]
+        mov     dx,word ptr gs:[ebx+L_NUM]
         mov     [g_state.dbg.wnum],dx
         call    ex_smap
         mov     ax,[edi]

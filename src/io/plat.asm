@@ -50,6 +50,7 @@ plt_heap:
         int     31h
         shl     ecx,16
         mov     cx,dx
+        mov     [g_plat.dsbase],ecx
         pop     edx
         pop     eax
         sub     eax,ecx

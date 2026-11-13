@@ -5,6 +5,7 @@
         .386
         .387
         .model  flat
+        assume  gs:nothing              ; GS: the program store (prg_seg)
         option  casemap:none
 include def.inc
 include state.inc

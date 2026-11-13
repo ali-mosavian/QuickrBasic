@@ -55,14 +55,15 @@ cm_blocks:
         and     [g_state.lnk.cprc],0
         mov     ebx,PROGBASE
 @cbk_l:
-        movzx   ecx,word ptr [g_progb+ebx]
+        movzx   ecx,word ptr gs:[ebx]
         jecxz   @cbk_d
         mov     [g_state.lnk.bln],bx
-        lea     esi,[g_progb+ebx+HDR]
+        lea     esi,[ebx+HDR]
+        add     esi,[g_state.mm.pglin]
         push    ebx
         call    bk_line
         pop     ebx
-        movzx   ecx,word ptr [g_progb+ebx]
+        movzx   ecx,word ptr gs:[ebx]
         add     ebx,ecx
         jmp     @cbk_l
 @cbk_d:
@@ -89,7 +90,8 @@ cm_blocks:
         cmp     al,E_FWN                ; FOR: {other} its variable
         jne     bk_fail
         movzx   ebx,bx
-        lea     esi,[g_progb+ebx+HDR+ecx+1]
+        lea     esi,[ebx+HDR+ecx+1]
+        add     esi,[g_state.mm.pglin]
         cmp     byte ptr [esi],M_VAR
         jne     bk_fail
         lea     ebx,[esi+2]
@@ -576,7 +578,8 @@ bk_next:
         movzx   eax,word ptr [ebx+S_OPEN]       ; the FOR's: FOR v
         shl     eax,4
         movzx   esi,word ptr [g_blk+eax+B_POS]
-        lea     esi,[g_progb+esi+1]
+        lea     esi,[esi+1]
+        add     esi,[g_state.mm.pglin]
         cmp     byte ptr [esi],M_VAR
         jne     @bnn_c
         movzx   eax,byte ptr [esi+1]
@@ -868,7 +871,7 @@ bk_posl:
         movzx   eax,ax
         mov     ebx,PROGBASE
 @@:
-        movzx   ecx,word ptr [g_progb+ebx]
+        movzx   ecx,word ptr gs:[ebx]
         add     ecx,ebx
         cmp     eax,ecx
         jb      @F

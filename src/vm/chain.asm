@@ -355,7 +355,7 @@ endif
         call    prg_drop
         call    cm_link
         mov     ebx,PROGBASE
-        cmp     word ptr [g_progb+ebx],0
+        cmp     word ptr gs:[ebx],0
         jne     ex_rungo
         jmp     ex_end
 

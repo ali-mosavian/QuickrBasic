@@ -42,7 +42,7 @@ ipfix   macro
         call    ex_resolve
         jmp     @ipb
 @ipa:
-        add     esi,offset g_cachb
+        add     esi,[g_state.mm.cblin]
 @ipb:
         endm
 

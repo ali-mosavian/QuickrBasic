@@ -215,6 +215,22 @@ endif
 DCODE    = 0100h                ; in cachb: the direct line's stream
 CACHE0   = DCODE+1536           ; the cache, to CLIM
 CLIM     = 0FFF0h
+
+; cblea DST, K: DST = the cache's address K. cbcmp DST, K: DST against it.
+cblea   macro   dst,k
+        push    eax
+        mov     eax,[g_state.mm.cblin]
+        add     eax,k
+        mov     dst,eax
+        pop     eax
+        endm
+cbcmp   macro   dst,k
+        push    eax
+        mov     eax,[g_state.mm.cblin]
+        add     eax,k
+        cmp     dst,eax
+        pop     eax
+        endm
 .erre LMAX EQ PROGLIM-PROGBASE
 .erre XLIM EQ CLIM-CACHE0-16
 HMIN     = 40000h               ; the heap, arrays and strings: DPMI's, at least

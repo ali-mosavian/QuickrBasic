@@ -35,7 +35,8 @@ cm_comp:
         mov     [g_state.cm.cline],bx
         call    bk_proc
         call    dc_deft
-        lea     esi,[g_progb+ebx+HDR-1]
+        lea     esi,[ebx+HDR-1]
+        add     esi,[g_state.mm.pglin]
         call    cm_text
         pop     ebx
         ret
@@ -52,12 +53,12 @@ cm_cache:
         call    cm_comp
 @cc_t:
         mov     edi,[g_state.lnk.cend]
-        mov     [g_state.lnk.elim],offset g_cachb+CLIM
+        cblea   [g_state.lnk.elim],CLIM
         push    ebx
         call    cm_xlate
         pop     ebx
         jnc     @cc_f
-        cmp     [g_state.lnk.cend],offset g_cachb+CACHE0
+        cbcmp   [g_state.lnk.cend],CACHE0
         je      err_om
         push    ebx
         call    cm_flush
@@ -67,8 +68,8 @@ cm_cache:
         mov     esi,[g_state.lnk.ecode]
         mov     [g_state.lnk.cend],edi
         mov     eax,esi
-        sub     eax,offset g_cachb
-        mov     word ptr [g_progb+ebx+L_CP],ax
+        sub     eax,[g_state.mm.cblin]
+        mov     word ptr gs:[ebx+L_CP],ax
         ret
 
 ; ::::::::::::::
@@ -86,7 +87,7 @@ cm_flush:
         mov     ax,[ebx+F_IP]
         cmp     ax,CACHE0
         jb      @cfl_n
-        sub     ax,word ptr [g_progb+edi+L_CP]
+        sub     ax,word ptr gs:[edi+L_CP]
         mov     [ebx+F_IP],ax
 @cfl_n:
         movzx   ecx,byte ptr [ebx+F_MARK]
@@ -99,18 +100,18 @@ cm_flush:
         mov     ax,[g_state.rn.contsi]
         cmp     ax,CACHE0
         jb      @cfl_l
-        sub     ax,word ptr [g_progb+edi+L_CP]
+        sub     ax,word ptr gs:[edi+L_CP]
         mov     [g_state.rn.contsi],ax
 @cfl_l:
         mov     ebx,PROGBASE
 @cfl_x:
-        movzx   ecx,word ptr [g_progb+ebx]
+        movzx   ecx,word ptr gs:[ebx]
         jecxz   @cfl_d
-        and     word ptr [g_progb+ebx+L_CP],0
+        and     word ptr gs:[ebx+L_CP],0
         add     ebx,ecx
         jmp     @cfl_x
 @cfl_d:
-        mov     [g_state.lnk.cend],offset g_cachb+CACHE0
+        cblea   [g_state.lnk.cend],CACHE0
         inc     [g_state.lnk.nfl]
         ret
 
@@ -171,7 +172,7 @@ cm_xlate:
         test    ebx,ebx
         jz      @cx_d
         mov     eax,[g_state.lnk.eeol]
-        sub     eax,offset g_cachb
+        sub     eax,[g_state.mm.cblin]
         mov     [ebx],ax
 @cx_d:
         clc
@@ -204,7 +205,7 @@ cm_xlate:
         jne     @cx_t
         mov     ebx,[g_state.lnk.einb]
         mov     eax,edi
-        sub     eax,offset g_cachb
+        sub     eax,[g_state.mm.cblin]
         mov     [ebx],ax
         and     [g_state.lnk.einb],0
         jmp     @cx_t
@@ -275,13 +276,13 @@ cm_link:
         and     [g_state.lnk.lc],0
         mov     ebx,PROGBASE
 @clk_l:
-        movzx   ecx,word ptr [g_progb+ebx]
+        movzx   ecx,word ptr gs:[ebx]
         jecxz   @clk_d
-        and     word ptr [g_progb+ebx+L_CP],0
+        and     word ptr gs:[ebx+L_CP],0
         add     ebx,ecx
         jmp     @clk_l
 @clk_d:
-        mov     [g_state.lnk.cend],offset g_cachb+CACHE0
+        cblea   [g_state.lnk.cend],CACHE0
         mov     [g_state.lnk.linked],1
         pop     esi
         ret

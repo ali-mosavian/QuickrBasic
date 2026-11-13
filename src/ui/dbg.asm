@@ -70,7 +70,7 @@ ud_stop:
         call    dp_open
         movzx   ebx,[g_state.rn.contip]
         movzx   eax,[g_state.rn.contsi]
-        add     eax,offset g_cachb
+        add     eax,[g_state.mm.cblin]
         call    dbg_pos
         jmp     ud_hlset
 @@:
@@ -325,15 +325,15 @@ ud_setnx:
         pop     eax
         cmp     al,[g_state.cm.cproc]
         jne     @usn_p
-        movzx   esi,word ptr [g_progb+ebx+L_CP]
-        add     esi,offset g_cachb
-        cmp     esi,offset g_cachb
+        movzx   esi,word ptr gs:[ebx+L_CP]
+        add     esi,[g_state.mm.cblin]
+        cmp     esi,[g_state.mm.cblin]
         jne     @F
         call    cm_cache
 @@:
         mov     [g_state.rn.contip],bx
         mov     eax,esi
-        sub     eax,offset g_cachb
+        sub     eax,[g_state.mm.cblin]
         mov     [g_state.rn.contsi],ax
         jmp     ud_stop
 @usn_p:

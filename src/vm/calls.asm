@@ -100,7 +100,7 @@ sc_inbeg:
         mov     [g_state.rn.iredo],0
         lodsw
         movzx   eax,ax
-        add     eax,offset g_cachb
+        add     eax,[g_state.mm.cblin]
         mov     [g_state.rn.inend],eax
         mov     [g_state.rn.iny0],esi
         jmp     ex_lp
@@ -324,7 +324,7 @@ sc_dread:
         mov     ax,[g_state.rn.dcp]
         mov     ebx,PROGBASE
 @rdv_l:
-        movzx   ecx,word ptr [g_progb+ebx]
+        movzx   ecx,word ptr gs:[ebx]
         add     ebx,ecx
         cmp     ax,bx
         jae     @rdv_l
@@ -384,7 +384,7 @@ rd_load:
         xor     cl,cl
         mov     esi,offset g_rdbuf
 @rdl_l:
-        mov     al,[g_progb+ebx]
+        mov     al,gs:[ebx]
         inc     ebx
         test    al,al
         jz      @rdl_e
@@ -420,12 +420,12 @@ rd_after:
         jz      @rds_n
 rd_scan:
 @rds_s:
-        cmp     byte ptr [g_progb+ebx],' '
+        cmp     byte ptr gs:[ebx],' '
         jne     @rds_t
         inc     ebx
         jmp     @rds_s
 @rds_t:
-        mov     al,[g_progb+ebx]
+        mov     al,gs:[ebx]
         cmp     al,TK_DATA
         je      @rds_y
         test    al,al
@@ -437,7 +437,7 @@ rd_scan:
 @rds_z:
         inc     ebx
 @rds_n:
-        cmp     word ptr [g_progb+ebx],0       ; the next line, or the end
+        cmp     word ptr gs:[ebx],0       ; the next line, or the end
         je      @rds_x
         add     ebx,HDR
         jmp     @rds_s
@@ -458,7 +458,7 @@ rd_scan:
 rd_sk:
         xor     cl,cl
 @rsk_l:
-        mov     al,[g_progb+ebx]
+        mov     al,gs:[ebx]
         inc     ebx
         test    al,al
         jz      @rsk_r
@@ -478,7 +478,7 @@ rd_sk:
 @rsk_v:
         cmp     al,M_VAR
         jne     @rsk_l
-        movzx   eax,byte ptr [g_progb+ebx]
+        movzx   eax,byte ptr gs:[ebx]
         add     ebx,eax
         add     ebx,3
         jmp     @rsk_l
@@ -529,7 +529,7 @@ rd_first:
 ; out:    dcp, dlp  the DATA, 0 when there is none; its text in rdbuf
 ; ::::::::::::::
 rd_seek:
-        cmp     word ptr [g_progb+ebx],0
+        cmp     word ptr gs:[ebx],0
         je      @rsk_n
         add     ebx,HDR
         call    rd_scan
@@ -694,7 +694,7 @@ sc_run:
 ex_runfirst:
         call    ch_clall
         mov     ebx,PROGBASE
-        cmp     word ptr [g_progb+ebx],0
+        cmp     word ptr gs:[ebx],0
         jne     ex_rungo
         jmp     ex_end
 

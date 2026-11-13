@@ -158,11 +158,11 @@ endif
         movzx   ebx,[g_state.rn.ln]
         cmp     ebx,DLINE
         je      rpl_ready
-        cmp     word ptr [g_progb+ebx+L_NUM],NONUM
+        cmp     word ptr gs:[ebx+L_NUM],NONUM
         je      rpl_ready
         mov     al,MSG_IN
         call    io_msg
-        mov     ax,word ptr [g_progb+ebx+L_NUM]
+        mov     ax,word ptr gs:[ebx+L_NUM]
         call    io_num
         jmp     rpl_ready
 @@:
@@ -194,7 +194,7 @@ endif
         mov     ebx,offset r_eaddr
         call    io_puts
         mov     eax,[g_state.rn.opip]
-        sub     eax,offset g_cachb
+        sub     eax,[g_state.mm.cblin]
         push    eax
         shr     eax,16
         call    io_hex4
@@ -204,11 +204,11 @@ endif
         call    io_hex4
         jmp     @erx_d
 @erx_n:                                 ; typed lines: in line n, if numbered
-        cmp     word ptr [g_progb+ecx+L_NUM],NONUM
+        cmp     word ptr gs:[ecx+L_NUM],NONUM
         je      @erx_d
         mov     ebx,offset r_eline
         call    io_puts
-        mov     ax,word ptr [g_progb+ecx+L_NUM]
+        mov     ax,word ptr gs:[ecx+L_NUM]
         call    io_num
         jmp     @erx_d
 @erx_d:
@@ -235,7 +235,8 @@ er_diag:
         movzx   ebx,[g_state.rn.ln]
         cmp     ebx,DLINE
         je      @F
-        lea     esi,[g_progb+ebx+HDR]
+        lea     esi,[ebx+HDR]
+        add     esi,[g_state.mm.pglin]
 @@:
         call    ls_text
         pop     edx
@@ -352,7 +353,7 @@ rpl_run:
         call    cm_line
         call    ex_dcode
         mov     eax,[g_state.lnk.eeol]              ; an older direct line's frames: its EOL
-        sub     eax,offset g_cachb
+        sub     eax,[g_state.mm.cblin]
         mov     ebx,[g_state.rn.cstk]
 @rpl_f:
         cmp     ebx,CSTOP

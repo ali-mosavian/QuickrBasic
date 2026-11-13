@@ -16,9 +16,7 @@ g_dsb   db      10000h dup(?)            ; the 16-bit build's DS, as one block
 g_varb  db      NSYM*4 dup(?)            ; the variables' slots, then
 g_svarb db      NSYM*8 dup(?)            ; the string variables' Descs
 g_snmb  db      NMSZ dup(?)              ; the symbols' names
-g_progb db      10000h dup(?)
 g_pokeb db      10000h dup(?)
-g_cachb db      10000h dup(?)
 g_stkb  db      STKSZ dup(?)
 if IDE
 g_txb   db      10000h dup(?)            ; the editor's text

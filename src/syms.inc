@@ -449,12 +449,16 @@ externdef mem_cpy:near
 externdef mem_pmov:near
 externdef mem_up:near
 externdef mem_zero:near
+; mem/blk.asm
+externdef blk_new:near
+externdef blk_seg:near
 ; mem/prog.asm
 externdef prg_add:near
 externdef prg_drop:near
 externdef prg_findw:near
 externdef prg_init:near
 externdef prg_put:near
+externdef prg_seg:near
 ; mem/sym.asm
 externdef g_deft:byte
 externdef g_nflag:byte
@@ -765,10 +769,8 @@ externdef sc_chain:near
 externdef sc_cmn:near
 ; regions.asm
 externdef g_bss_e:byte
-externdef g_cachb:byte
 externdef g_dsb:byte
 externdef g_pokeb:byte
-externdef g_progb:byte
 externdef g_snmb:byte
 externdef g_stkb:byte
 externdef g_svarb:byte

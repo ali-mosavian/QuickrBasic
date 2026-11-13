@@ -151,7 +151,9 @@ TSTR     ends
 TMEM     struc                   ; the memory map, the program, the arrays
     dslin   dd      ?               ; DS:0, linear
     proglin dd      ?               ; PROGBASE, linear
-    pglin   dd      ?               ; the program's segment, linear
+    pglin   dd      ?               ; the program's block, its base
+    pgsel   dw      ?               ; its selector, in GS
+    cblin   dd      ?               ; the cache's block, its base
     hbot    dd      ?               ; the heap
     htop    dd      ?
     asz     dd      ?
@@ -223,6 +225,7 @@ TFLT     ends
 
 TPLAT    struc                   ; the platform: kept over the zeroing
     dsv     dw      ?               ; DS, for code that runs without it
+    dsbase  dd      ?               ; DS's base, linear
     pspsel  dw      ?               ; the PSP
     old23   df      ?               ; the vectors plt_init replaced
     old1c   df      ?
@@ -242,7 +245,22 @@ TDBG     struc                   ; the debugger (vm/dbg.asm)
     wb1     dw      ?               ;   and to (BOFF the line's end)
 TDBG     ends
 
+TBLK     struc                   ; a block (mem/blk.asm)
+    base    dd      ?               ; its first byte
+    cap     dd      ?               ; its bytes
+TBLK     ends
+
+NBLKH   = 8                     ; blocks at most
+HCACHE  = 0                     ; the code cache's block
+HPROG   = 1                     ; the program store's
+
+TBLKS    struc                   ; the allocator
+    nb      dd      ?               ; the blocks made
+    tab     TBLK    NBLKH dup(<>)
+TBLKS    ends
+
 TSTATE   struc
+    bk      TBLKS   <>
     cm      TCOMP   <>
     lnk     TLINK   <>
     lx      TLEX    <>

@@ -21,7 +21,8 @@ include x86f.inc
 ; ::::::::::::::
 mem_line:
         push    esi
-        lea     esi,[g_progb+ebx]
+        lea     esi,[ebx]
+        add     esi,[g_state.mm.pglin]
         movzx   ecx,word ptr [esi]
         call    mem_movs
         pop     esi
@@ -33,11 +34,11 @@ mem_line:
 ; keeps:  all but ECX; ESI, EDI past the copy, as offsets
 ; ::::::::::::::
 mem_pmov:
-        add     esi,offset g_progb
-        add     edi,offset g_progb
+        add     esi,[g_state.mm.pglin]
+        add     edi,[g_state.mm.pglin]
         call    mem_movs
-        sub     esi,offset g_progb
-        sub     edi,offset g_progb
+        sub     esi,[g_state.mm.pglin]
+        sub     edi,[g_state.mm.pglin]
         ret
 
 ; ::::::::::::::

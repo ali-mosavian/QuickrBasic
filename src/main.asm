@@ -40,13 +40,17 @@ rt_start:
         mov     [g_state.mm.peekseg],0
         mov     [g_state.mm.dslin],0
         mov     [g_state.sg.tmplin],offset g_tmpd
-        mov     [g_state.mm.pglin],offset g_progb
-        mov     [g_state.mm.proglin],offset g_progb+PROGBASE
         call    plt_heap
+        mov     ecx,10000h              ; the cache, then the program store
+        call    blk_new
+        mov     [g_state.mm.cblin],edx
+        mov     ecx,10000h
+        call    blk_new
+        call    prg_seg
         mov     [g_state.rn.rsp],esp
         mov     [g_state.rn.cstk],CSTOP
         mov     [g_state.rn.stklim],STKTOP-STKROOM
-        mov     dword ptr [g_progb+DLINE],0FF000000h ; len 0, num FF00h
+        mov     dword ptr gs:[DLINE],0FF000000h ; len 0, num FF00h
         mov     [g_state.cm.cxb],offset g_xbuf
         mov     [g_state.ft.rs],50000h  ; QBasic's first seed
         call    flt_finit
