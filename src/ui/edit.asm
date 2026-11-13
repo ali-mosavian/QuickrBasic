@@ -491,7 +491,7 @@ ui_chkop:
 ; then what to do, wrapped for a box.
 ;
 ; in:     ESI  the line's text, 0-ended
-;         EBX  its ERR op: ERR code dg at:2 st:2
+;         EBX  its ERR op, a TERR
 ; out:    EAX  the column in the text it is at
 ; ::::::::::::::
 ui_dxerr:
@@ -515,10 +515,10 @@ ui_dxerr:
         call    lx_line
         mov     [g_lxall],0
         pop     ebx
-        movzx   eax,word ptr [ebx+3]
+        mov     eax,[ebx].TERR.at
         call    lx_colof
-        mov     ax,[ebx+1]
-        mov     dx,[ebx+5]
+        mov     ax,word ptr [ebx].TERR.code
+        mov     dx,[ebx].TERR.state
         mov     esi,offset g_inbuf
         call    dx_at
         pop     edx

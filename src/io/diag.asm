@@ -102,10 +102,13 @@ dx_at:
 ;         EBX  {other}'s text, EDI its length
 ; ::::::::::::::
 dx_raise:
-        mov     [g_dxr],O_ERR
-        mov     word ptr [g_dxr+1],ax
-        mov     word ptr [g_dxr+3],cx
-        or      word ptr [g_dxr+5],-1
+        push    ebx
+        mov     ebx,offset g_dxr        ; [g_dxr].TERR: g_dxr is defined after
+        mov     [ebx].TERR.op,O_ERR
+        mov     word ptr [ebx].TERR.code,ax
+        mov     [ebx].TERR.at,ecx
+        or      [ebx].TERR.state,-1
+        pop     ebx
         mov     [g_state.rn.line],edx
         mov     [g_state.rn.opip],offset g_dxr
         mov     [g_state.rn.inerr],1
@@ -778,7 +781,7 @@ g_dxnm2 dd      ?                       ; its name, when no words
 g_dxke  dd      ?                       ; the key's end before " /"
 g_dxstm db      16 dup(?)               ; the statement's word
 g_dxkey db      160 dup(?)              ; a key, a word; a form's line
-g_dxr   db      7 dup(?)                ; dx_raise's ERR op
+g_dxr   db      sizeof TERR dup(?)      ; dx_raise's ERR op
 g_dxoth db      32 dup(?)               ; {other}
 g_dxfm  dd      ?                       ; the statement's form, 0 none
 g_dxcap db      ?                       ; dx_fill: a capital next

@@ -220,17 +220,18 @@ endif
 ; as LIST spells it, a mark under the place, what is wrong and what to do.
 ; Any other error: nothing.
 ;
-; in:     opip  the op that raised it: ERR code dg at:2 st:2, the compiler's
+; in:     opip  the op that raised it: a TERR, the compiler's
 ;         ln    its line
 ; ::::::::::::::
 er_diag:
         mov     ebx,[g_state.rn.opip]
         cmp     byte ptr [ebx],O_ERR
         jne     @erd_r
-        mov     ax,[ebx+1]
+        mov     ax,word ptr [ebx].TERR.code
         push    eax
-        push    dword ptr [ebx+5]       ; the automaton's state
-        movzx   eax,word ptr [ebx+3]
+        movzx   eax,[ebx].TERR.state
+        push    eax
+        mov     eax,[ebx].TERR.at
         mov     esi,offset g_cbuf
         mov     ebx,[g_state.rn.line]
         cmp     ebx,DLINE

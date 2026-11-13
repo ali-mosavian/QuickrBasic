@@ -121,7 +121,7 @@ oplist  macro   m
         m       F_FOR1,op_for,3,FV+FB
         m       NEXT,op_nx0,1,0
         m       NEXT_V,op_nextv,3,FV
-        m       ERR,op_err,7,0
+        m       ERR,op_err,sizeof TERR,0
         m       JMP,op_jmp,JSIZE,0
         m       I_JF,op_ijf,JSIZE,0
         m       F_JF,op_fjf,JSIZE,0
@@ -181,6 +181,13 @@ TJUMP    struc                   ; a jump op's target
     dest    dd      ?               ; its code's offset; under 3 the mode,
 TJUMP    ends                    ; until found (ex_jumpto)
 JSIZE   = 1+sizeof TJUMP
+TERR     struc                   ; an ERR op: a compile error met running
+    op      db      ?
+    code    db      ?               ; the error
+    dg      db      ?               ; its DG_ (io/msg.inc), 0: by its text
+    at      dd      ?               ; the body's byte it is at
+    state   dw      ?               ; the automaton's state, FFFFh none
+TERR     ends
 TLREF    struc                   ; a GOTO's line: its number, the line, 0
     num     dw      ?               ; until found (ex_target)
     line    dd      ?

@@ -152,7 +152,7 @@ cm_err:
         mov     [g_state.cm.cdg],0
         mov     eax,esi
         sub     eax,[g_state.cm.cbase]
-        stosw
+        stosd
         or      eax,-1
         xchg    ax,[g_state.cm.cdfa]
         stosw
