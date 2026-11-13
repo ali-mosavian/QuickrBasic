@@ -19,8 +19,8 @@ typedef struct PACKED {
     uint16_t aux;   /* SELECT: depth, (its value's T_* | 1) << 8; CASE: its SELECT's; EXIT: BK_* */
     uint8_t kind;   /* BK_* */
     uint8_t pad[15];
-} Block;
-static_assert(sizeof(Block) == 32);
+} BlockEnt;
+static_assert(sizeof(BlockEnt) == 32);
 
 /* A SUB, FUNCTION or DEF FN. */
 typedef struct PACKED {
@@ -49,7 +49,7 @@ typedef struct {
 } Blok;
 extern Blok blok;
 
-extern Block blok_blocks[NBLK];   /* g_blk */
+extern BlockEnt blok_blocks[NBLK];   /* g_blk */
 extern Proc blok_procs[NPROC];    /* g_prc, from 1 */
 extern uint16_t blok_params[NPPAR]; /* g_ppar: parameters' variables */
 extern uint8_t blok_byval[NPPAR]; /* g_pbyv: 1 BYVAL */

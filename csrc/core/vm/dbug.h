@@ -30,7 +30,7 @@ uint32_t dbug_depth(void);
 void dbug_pos(uint32_t line, const uint8_t *code);
 /* dbg_eval: PRINT expr in procedure proc's scope (0 the module), its output to out, 0-ended,
    79 chars at most; the stopped run as it was. A FUNCTION it calls runs; no breakpoint, step,
-   trace or event stops it. 0, else the error (E_*) + 1; BREAK is 0. */
+   trace or event stops it. 0, else the error (E_*) + 1. */
 uint8_t dbug_eval(const char *expr, uint8_t proc, char out[80]);
 /* dbg_evx: the probe's line ended (sc_end, ex_end): back to dbug_eval. */
 [[noreturn]] void dbug_done(void);

@@ -68,7 +68,6 @@ typedef struct {
     Cell *rsp;     /* rn.rsp: the stack empty, at a statement's start */
     Cell *stklim;  /* rn.stklim: PCALL's floor of sp */
     Cell *stktop;  /* the data stack's region's top (STKTOP); its base stktop - STKSZ/8 */
-    uint32_t cplim; /* rn.cplim: the compiler's frames' floor (comp's) */
 
     Addr cstk;  /* rn.cstk: the control stack's top frame; allo.cs_top (CSTOP) when empty */
     Addr lsav;  /* g_lsav: the save stack, LSAVSZ bytes of LSSZ entries */
@@ -91,9 +90,8 @@ typedef struct {
     uint32_t res_at;   /* rn.resat: its failing statement's code offset */
     uint32_t res_next; /* rn.resnext: the next's; FFFFFFFFh the next line */
 
-    uint16_t list_from, list_to; /* rn.lfrom, rn.lto: LIST's range (comp/list) */
-
-    jmp_buf loop; /* exec_run's: flow_trap and a nested probe come back into the loop */
+    bool running; /* exec_run's loop is on the C stack: exec.loop holds */
+    jmp_buf loop; /* exec_run's: flow_trap comes back into the loop */
 } Exec;
 extern Exec exec;
 
@@ -113,7 +111,8 @@ static inline uint16_t exec_u16(void) { uint16_t v; memcpy(&v, exec.ip, 2); exec
 static inline uint32_t exec_u32(void) { uint32_t v; memcpy(&v, exec.ip, 4); exec.ip += 4; return v; }
 
 /* The data stack and the save stack carved from the arena (allo_carve); the control stack is
-   mem's, allo.cs_lim .. allo.cs_top. The platform's flags pointed at exec.stop. */
+   mem's, allo.cs_lim .. allo.cs_top. The tick's and the trapped keys' flag pointed at exec.stop
+   (SF_TICK); psys_exit takes the tick out. */
 void exec_init(void);
 /* ex_lp: run ops from exec.ip, from here on; leaves only by longjmp. */
 [[noreturn]] void exec_run(void);

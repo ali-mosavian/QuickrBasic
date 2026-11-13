@@ -4,6 +4,8 @@
 #define CORE_VM_STMT_H
 #include "vm/exec.h"
 
+/* READ's buffer carved (g_rdbuf: a READ item's temporary points into it). */
+void stmt_init(void);
 /* ex_runfirst: run from the first line (END at once with none); exec.ip set, files closed. */
 void stmt_runfirst(void);
 /* ex_rungo: both stacks emptied, events, COMMON and ON ERROR cleared; on at line. */

@@ -29,7 +29,7 @@ typedef struct {
     uint8_t len;          /* xo: the code's length, mod 256 */
     bool busy;            /* csp: compiling; an error is comp_fail's */
     jmp_buf unwind;       /* csp: comp_fail's way back to comp_text */
-    uint8_t depth;        /* cplim: expression nesting, Out of memory past the asm's limit */
+    uint16_t depth;       /* cplim: expression nesting, Out of memory past COMP_MAXDEPTH */
 
     /* the expression */
     uint8_t type;         /* cty: its T_* */
@@ -79,7 +79,15 @@ extern uint8_t comp_xbuf[XLIM + 12];
 /* TVAR.info's ET_* to its kind: 0 FLOAT, 1 INT, 2 STRING, SK_DBL DOUBLE. */
 extern const uint8_t comp_etkind[7];
 
+/* cplim's CPROOM bytes of the asm's stack as nesting levels of expr's prec (24 bytes a
+   parenthesis); to be calibrated against the asm build. */
+enum { COMP_MAXDEPTH = CPROOM / 24 };
+
+static inline uint16_t comp_rd16(const uint8_t *p) { uint16_t v; memcpy(&v, p, 2); return v; }
+static inline uint32_t comp_rd32(const uint8_t *p) { uint32_t v; memcpy(&v, p, 4); return v; }
+
 /* Compiling */
+void comp_init(void);                    /* comp_cbuf carved (allo_carve) */
 void comp_line(void);                    /* the direct line in comp_cbuf, to comp_xbuf */
 void comp_text(const uint8_t *body);     /* the body at body to comp.buf; comp.len its length */
 [[noreturn]] void comp_fail(uint8_t err); /* repl_error while comp.busy: ERR, EOL, unwind */
@@ -115,6 +123,9 @@ void comp_store(void);                   /* the value converted and stored to th
 uint8_t comp_peek(const uint8_t **p);    /* st_get: *p at the byte past spaces; it, 0 the end */
 uint8_t comp_next(const uint8_t **p);    /* st_getn: comp_peek a byte on */
 bool comp_eos(const uint8_t **p);        /* st_eos: *p at 0, ':', ', or ELSE in a one-line IF */
+static inline uint8_t comp_cur(void) { return comp_peek(&comp.p); }  /* st_get at comp.p */
+static inline uint8_t comp_curn(void) { return comp_next(&comp.p); } /* st_getn */
+static inline bool comp_end(void) { return comp_eos(&comp.p); }      /* st_eos */
 void comp_need(uint8_t b);               /* cm_chk: comp.p at b, stepped past; else Syntax error */
 static inline void comp_open(void) { comp_need('('); }
 static inline void comp_close(void) { comp_need(')'); }

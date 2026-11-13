@@ -25,11 +25,11 @@ typedef struct {
     Addr base;       /* its first byte */
     uint32_t cap;    /* its bytes */
     AlloMoved moved; /* nullptr none */
-} Block;
+} AlloBlock;
 
 typedef struct {
     uint32_t nblocks;
-    Block block[NBLKH]; /* by handle */
+    AlloBlock block[NBLKH]; /* by handle */
     Addr bot, top;      /* the heap (mm.hbot, mm.htop) */
     Addr cache;         /* the code cache's block, which never moves (mm.cachebase) */
     Addr hdr_base;      /* the arrays' headers, to hdr_base + HDRSZ (HDRBASE, HDRLIM) */

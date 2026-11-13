@@ -1,8 +1,8 @@
 /* Console output and INPUT's lines (io/io.asm, and plat.asm's output buffer and standard
    input). Everything printed goes through cons_putc: to sbuf while captured, else to the output
    channel (io/chnl), the console's being standard output through obuf. inbuf and sbuf are
-   carved from the arena at the start (main.c): strg reads INPUT's items and LINE INPUT's line
-   in inbuf by Addr. */
+   carved from the arena (cons_init): strg reads INPUT's items and LINE INPUT's line in inbuf
+   by Addr. */
 #ifndef CORE_IO_CONS_H
 #define CORE_IO_CONS_H
 #include "defs.h"
@@ -35,8 +35,8 @@ typedef struct {
 } Cons;
 extern Cons cons;
 
-/* inbuf and sbuf at their regions; standard input's kind. */
-void cons_init(Addr inbuf, Addr sbuf);
+/* inbuf and sbuf carved (allo_carve); standard input's kind; the console the only channel. */
+void cons_init(void);
 
 /* A character to the output, its column kept; NL ends the line. */
 void cons_putc(uint8_t c);

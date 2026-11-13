@@ -22,8 +22,6 @@ typedef struct {
 } Link;
 extern Link link;
 
-/* Each op's size, 0 varies (ON) (g_opsz, from vm's op list). */
-extern const uint8_t link_opsize[];
 
 void link_start(void);           /* cm_link: before a run: blocks paired, the cache empty */
 Addr link_cache(uint32_t line);  /* cm_cache: line compiled into the cache; its code */

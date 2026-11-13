@@ -15,8 +15,8 @@ typedef struct {
 } File;
 extern File file;
 
-/* The records' region, carved from the arena at the start. */
-void file_init(Addr recs);
+/* The records' region carved (allo_carve). */
+void file_init(void);
 
 void file_opendef(void);  /* OPEN's defaults: RANDOM, 128-byte records */
 void file_mode_in(void);  /* FOR INPUT */

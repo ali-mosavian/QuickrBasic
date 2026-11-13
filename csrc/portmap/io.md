@@ -12,13 +12,13 @@ when a handler takes it; else `repl.top` with `REPL_ERROR` (message, READY / bat
 `ui_err`). `exec.rsp`'s asm role as the C stack's reset point is `repl.top`; `rpl_ready` and
 every `jmp rpl_ready` (ex_end, ex_ready) is `repl_ready()`, a longjmp there.
 
-## Regions (main.c carves them with `allo_carve`)
+## Regions (each init carves its own with `allo_carve`)
 
 | asm | C |
 |---|---|
-| `g_inbuf` | `cons.inbuf` (INMAX+1, arena: strg_item, strg_tods read it by Addr) |
-| `g_sbuf` | `cons.sbuf` (SBMAX+1, arena) |
-| `g_recb` | `file.recs` (NCH*RECMAX, arena: FIELD's Descs point in), `file_init` |
+| `g_inbuf` | `cons.inbuf` (INMAX+1, `cons_init`; strg_item, strg_tods read it by Addr) |
+| `g_sbuf` | `cons.sbuf` (SBMAX+1, `cons_init`) |
+| `g_recb` | `file.recs` (NCH*RECMAX, `file_init`: FIELD's Descs point in) |
 | `g_cbuf` | comp's `comp_cbuf` (comp.h) |
 | `g_obuf` | `cons.obuf` (plain array) |
 
@@ -26,7 +26,7 @@ every `jmp rpl_ready` (ex_end, ex_ready) is `repl_ready()`, a longjmp there.
 
 | asm | C |
 |---|---|
-| `rt_start` | `main()`: pmem_init, allo_init, the carving, inits, `repl_main()` |
+| `rt_start` | `main()`: pmem_init, allo_init, the carving inits, the blocks, inits, `repl_main()` |
 | `g_state` | gone: each part its module's struct (`cons`, `repl`, `chnl`, `exec`, ...) |
 | `g_bss_s`/`g_bss_e` zeroing | C statics start zeroed |
 | `g_plat.pspsel`, `g_plat.dsv` | gone (psys_cmdline, psys_environ) |
@@ -52,7 +52,7 @@ every `jmp rpl_ready` (ex_end, ex_ready) is `repl_ready()`, a longjmp there.
 | `io_prompt` | `cons_prompt()` |
 | `io_read` | `cons_read()` |
 | `io_field` | `cons_field()` |
-| `g_msgs`, `g_kwlist`, `g_kwlist1` (gen.inc, x86dfa.py) | the generator's C output (comp's); cons reads them |
+| `g_msgs`, `g_kwlist`, `g_kwlist1` (gen.inc) | `cons_msgs`, `cons_kwlist`, `cons_kwlist1` (io/gen.h, x86dfa.py; defined in cons.c) |
 
 ### `g_state.io` (TIO)
 
@@ -69,7 +69,7 @@ every `jmp rpl_ready` (ex_end, ex_ready) is `repl_ready()`, a longjmp there.
 | `oblen` | `cons.oblen` |
 | `cin` | `chnl.in` (FFh standard input is channel 0) |
 | `inh`, `fb` | gone (`PFIL_STDIN`, plat's own byte) |
-| `toff` | pclk's own (dos32) |
+| `toff` | pclk's (`pclk_jiffies`) |
 | `fline` | `repl.fline` |
 | `lmode` | `repl.loading` |
 | `batch` | `repl.batch` |
@@ -87,20 +87,19 @@ every `jmp rpl_ready` (ex_end, ex_ready) is `repl_ready()`, a longjmp there.
 | `plt_getb` | `cons_getb()` (-1 the end) |
 | `plt_raw` | static (pfil_read of `PFIL_STDIN`) |
 | `plt_exit` | `cons_exit(code)`: cons_flush, psys_exit |
-| `plt_init` | `cons_init(inbuf, sbuf)` + `psys_init(&exec.stop, SF_BRK, evnt's ev_tick)` |
-| `plt_brk`, `plt_tick` | dos32 psys's handlers |
+| `plt_init` | `cons_init()` (stdin's kind) + `psys_init(&exec.stop, SF_BRK)` |
+| `plt_brk`, `plt_tick` | dos32 `pstop.asm` (the tick's Ctrl+C scan); ON TIMER's tick is vm's `ptick.asm` |
 | `plt_heap` | `pmem_init` (exists) |
-| `plt_kflush` | `pkey_flush()` (declared by io: pkey.h's owner adds it) |
-| `plt_rdtim` | `pclk_jiffies()` (declared by io: pclk.h) |
-| `plt_settim` | `pclk_setjiffies(j)` (declared by io: pclk.h; no caller) |
+| `plt_kflush` | `pkey_flush()` (vm's) |
+| `plt_rdtim` | `pclk_jiffies()` (vm's) |
+| `plt_settim` | `pclk_set_jiffies(j)` (vm's; no caller) |
 | `plt_exec` | `psys_exec(path, tail, len, env, envlen)`; the caller flushes cons first |
-| `g_plat` (TPLAT): `dsv`, `dsbase`, `pspsel`, `old23`, `old1c` | gone: dos32's statics; `dsbase` is 0 (Addr = linear) |
+| `g_plat` (TPLAT): `dsv`, `dsbase`, `pspsel`, `old23`, `old1c` | gone: dos32's statics (pstop.asm), pmem's base, llrm's `LL$PSP` |
 | `g_xrm`, `g_xfail`, `g_xenvn`, `g_xenv`, `g_xseg`, `g_xsel` | dos32 psys's statics |
 | `p_nomem` | main.c's "Out of memory" |
 
-Needed from other platform headers (declared by io): `uint16_t pkey_wait(void)` (INT 16h AH=0:
-scan << 8 | char), `void pkey_flush(void)`, `uint8_t pkey_poll(void)` (DOS 0Bh/07h: a key or 0,
-no echo), `uint32_t pclk_jiffies(void)` (under 5184000), `void pclk_setjiffies(uint32_t)`.
+Keys: `pkey_wait` (INT 16h AH=0) for INPUT's line and INPUT$, `pkey_poll` (DOS 0Bh/07h) for
+`cons_getc`.
 
 ## io/errmsg.asm → emsg
 

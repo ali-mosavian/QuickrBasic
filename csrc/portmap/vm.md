@@ -39,7 +39,7 @@ Errors: `repl_error` unwinds; `ex_trap` is `flow_trap`, which longjmps into `exe
 | `opip` | `exec.opip` |
 | `rsp` | `exec.rsp` |
 | `stklim` | `exec.stklim` |
-| `cplim` | `exec.cplim` (comp's) |
+| `cplim` | `comp.depth` (comp's) |
 | `cstk` | `exec.cstk` |
 | `lsp` | `exec.lsp` |
 | `line`, `runln`, `lnum` | `exec.line`, `exec.runln`, `exec.lnum` |
@@ -47,7 +47,7 @@ Errors: `repl_error` unwinds; `ex_trap` is `flow_trap`, which longjmps into `exe
 | `contln`, `contcode` | `exec.cont_line`, `exec.cont_code` |
 | `onerr`, `inerr`, `errn`, `erl`, `uerr` | `exec.onerr`, `exec.inerr`, `exec.err`, `exec.erl`, `exec.uerr` |
 | `resln`, `resat`, `resnext` | `exec.res_line`, `exec.res_at`, `exec.res_next` |
-| `lfrom`, `lto` | `exec.list_from`, `exec.list_to` |
+| `lfrom`, `lto` | `list_range`'s parameters (comp) |
 | `narr` | `arry_*`'s `n` parameter (mem) |
 | `stv`, `aret`, `cnarg`, `cop`, `fid`, `flim`, `fstep`, `fop`, `fvp`, `fsv`, `isw_si`, `lk`, `onk`, `runl`, `ppip`, `ppend`, `pres` | locals / statics |
 | `dlp`, `dataat`, `dyo`, `inend`, `iny0`, `iredo` | static in stmt.c (READ, INPUT) |
@@ -225,10 +225,17 @@ Errors: `repl_error` unwinds; `ex_trap` is `flow_trap`, which longjmps into `exe
 |---|---|
 | INT 21h 2Ah 2Bh 2Ch 2Dh | `pclk_date`, `pclk_set_date`, `pclk_time`, `pclk_set_time` |
 | `ds:[46Ch]` | `pclk_ticks()` |
-| INT 1Ch's `ev_tick` call | `pclk_init(&exec.stop, SF_TICK)`; psys_init's `tick` is nullptr |
+| INT 1Ch's `ev_tick` call | `ptick.asm` sets `SF_TICK` in `exec.stop`; `pclk_init(&exec.stop, SF_TICK)` hooks it. No C runs in interrupts: `psys_init(stop, bit)` has no tick callback (io: psys.h changed) |
+| tick unhook | `ptick_unhook()` in `psys_exit` (io's); `pclk_done` the same, unused |
+| jiffies | `pclk_jiffies`, `pclk_set_jiffies` (with `toff`, for cons) |
 | INT 16h 10h 11h | `pkey_read`, `pkey_ready` |
 | `ds:[417h]` | `pkey_shift` |
 | `plt_kflush` | `pkey_flush` |
+| INT 16h 00h, DOS 0Bh/07h | `pkey_wait`, `pkey_poll` (for cons) |
 | `ev_tick`'s key buffer scan | `pkey_init(&exec.stop, SF_TICK)`, `pkey_trap(traps)`, `pkey_taken()` |
-| `in`, `out` | `psys_inp`, `psys_outp` (io's) |
-| `sc_sys`'s call | `psys_call(a)` |
+| `in`, `out` | `psys_inp`, `psys_outp`: defined in `plat/dos32/ptick.asm`, not psys.c |
+| `sc_sys`'s call | `psys_call(a)` (ptick.asm) |
+
+## Start-up
+
+`exec_init`, `flow_init` (the RESUME buffer), `stmt_init` (READ's buffer), `syst_init`: main.c calls each. io: clear `exec.running` where an error lands at `repl.top`, else a trap outside the loop longjmps to a dead `exec.loop`.

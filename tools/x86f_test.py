@@ -13,6 +13,12 @@ os.environ.setdefault("X86_COM", sys.argv[1] if len(sys.argv) > 1 else str(ROOT 
 import x86run  # noqa: E402
 
 CASES = {
+    # C port: a string literal left the cursor at its text, so the ':' after it was a Syntax error.
+    "c_str_colon": ('X$="HI":PRINT X$\r\n', "HI\r\n", "ERROR"),
+    # C port: llrm-cc's switch sent END FUNCTION and END DEF to "END SUB/FUNCTION without
+    # SUB/FUNCTION" without checking for an open procedure.
+    "c_end_function": ("10 DEF FNT$(A$)\r\n20 FNT$ = A$ + \"!\"\r\n30 END DEF\r\n40 PRINT F%(3); FNT$(\"X\")\r\n"
+                       "50 FUNCTION F%(A%)\r\n60 F% = A% * 2\r\n70 END FUNCTION\r\nRUN\r\n", " 6 X!\r\n", "ERROR"),
     # ctail's inc esi after the and: ZF was the inc's, so a false IF ran the
     # rest of the line.
     "cmpif_false": ('A=5:IF A=4 THEN PRINT "NO":PRINT "NO"\r\nPRINT "END"\r\n', "END\r\n", "NO"),

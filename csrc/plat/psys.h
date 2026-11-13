@@ -6,14 +6,13 @@
 #define PLAT_PSYS_H
 #include "base.h"
 
-/* The STOP key's handlers in: each ORs bit into *stop (exec's stop flags, SF_BRK); the tick
-   then calls tick (evnt's, ON TIMER and ON KEY; nullptr none), in the interrupt: it touches
-   only memory it alone writes and flags. */
-void psys_init(volatile uint8_t *stop, uint8_t bit, void (*tick)(void));
+/* The STOP key's handlers in: each ORs bit into *stop (exec's stop flags, SF_BRK). No C runs in
+   an interrupt: ON TIMER's and ON KEY's tick is pclk's (pclk_init), polled by the core. */
+void psys_init(volatile uint8_t *stop, uint8_t bit);
 /* The handlers out, exit with code. Standard output is the caller's to flush first. */
 [[noreturn]] void psys_exit(uint8_t code);
 
-/* The command line after the program's name, as typed (DOS's PSP tail, its CR not counted);
+/* The command line after the program's name, its leading blanks skipped (DOS's PSP tail);
    cap bytes at most, 0-ended; its length. */
 uint32_t psys_cmdline(char *buf, uint32_t cap);
 /* The environment at the start: NAME=value 0 each, a 0 after the last; cap bytes at most;

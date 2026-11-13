@@ -25,7 +25,8 @@ typedef struct {
 } Lexr;
 extern Lexr lexr;
 
-uint8_t *lexr_line(const uint8_t *text, uint8_t *body); /* text, 0-ended, to body; past its 0 */
+uint8_t *lexr_line(uint8_t *text, uint8_t *body); /* text, 0-ended, to body; past its 0. The text
+                                                      is changed: FN joined, E and D upper case */
 uint16_t lexr_keyword(const uint8_t **at); /* lx_kw: the keyword the word at *at spells, stepped
                                               past: its token (100h + n for TK_X n), 0 a name */
 #if IDE

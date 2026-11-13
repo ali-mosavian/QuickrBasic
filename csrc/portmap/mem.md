@@ -34,7 +34,7 @@ GS offsets); `prog_line(off)` is its `Line *`. A string value is the `Addr` of i
 
 | asm | C |
 |---|---|
-| `TALLOC`, `g_state.alloc.tab[h]` | `Block`, `allo.block[h]` (`.base .cap .moved`) |
+| `TALLOC`, `g_state.alloc.tab[h]` | `AlloBlock`, `allo.block[h]` (`.base .cap .moved`) |
 | `alloc.nb` | `allo.nblocks` |
 | `NBLKH HCACHE HPROG HLMAP` | same |
 | `mm.hbot`, `mm.htop` | `allo.bot`, `allo.top` |

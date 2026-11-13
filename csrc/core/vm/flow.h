@@ -10,8 +10,10 @@
 #define CORE_VM_FLOW_H
 #include "vm/exec.h"
 
-/* ex_line, ex_dcode: the direct line's code, compiled from comp's xbuf, as a stream at DCODE;
-   exec.ip past its statement map. Out of memory: it does not fit. */
+/* FUNCTION's string result's Desc carved (g_lres: a heap block's owner is an Addr). */
+void flow_init(void);
+/* ex_dcode: the direct line's code, compiled to comp's xbuf, as a stream at DCODE; returns its
+   code, past its statement map (link.code). Out of memory: it does not fit. */
 uint8_t *flow_dcode(void);
 /* ex_end: the run is over, both stacks empty, READY; back to dbug's probe if it ran. */
 [[noreturn]] void flow_end(void);
