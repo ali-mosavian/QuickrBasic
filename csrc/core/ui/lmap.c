@@ -17,9 +17,10 @@ void lmap_build(void)
     for (uint32_t rec = PROGBASE; prog_line(rec)->len; rec += prog_line(rec)->len) {
         if (prog_line(rec)->flags & LF_INC)
             continue;
-        if (n * 4 + 4 > allo_cap(HLMAP)) {
+        const uint32_t need = (n + 1) * sizeof(uint32_t);
+        if (need > allo_cap(HLMAP)) {
             symb_clear(); /* it grows: the heap emptied first */
-            if (!allo_grow(HLMAP, n * 4 + 4))
+            if (!allo_grow(HLMAP, need))
                 repl_error(E_OM);
         }
         map()[n++] = rec;
@@ -27,19 +28,19 @@ void lmap_build(void)
     uimn.text.all = n;
 }
 
-uint32_t lmap_off(uint32_t line)
+uint32_t lmap_off(const uint32_t line)
 {
     return line < uimn.text.all ? map()[line] : prog.end;
 }
 
-bool lmap_of(uint32_t rec, uint32_t *line)
+bool lmap_of(const uint32_t rec, uint32_t *const line)
 {
-    const uint32_t *m = map();
+    const uint32_t *const m = map();
     uint32_t lo = 0, hi = uimn.text.all; /* [lo, hi): the last <= rec in it */
     if (!hi || rec < m[0])
         return false;
     while (lo + 1 < hi) {
-        uint32_t mid = (lo + hi) / 2;
+        const uint32_t mid = (lo + hi) / 2;
         if (rec < m[mid])
             hi = mid;
         else

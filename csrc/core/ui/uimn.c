@@ -27,8 +27,17 @@
 
 Uimn uimn; /* zeroed: its line buffers' texts are set by uimn_start */
 
+enum : uint8_t { PAGE_EDIT = 0, PAGE_OUT = 1 };
+enum : uint8_t { VIDEO_TEXT = 3 }; /* pscr_mode's 80x25 colour text */
+enum : uint8_t { ATTR_PLAIN = 0x07 }; /* gray on black */
+/* ui.alt. */
+enum : uint8_t { ALT_NONE = 0, ALT_DOWN = 1, ALT_HELD = 2 };
+
+#define CTRL(c) ((c) & 0x1F)          /* Ctrl+letter's character */
+#define FKEY(f1, n) ((f1) + (n) - 1) /* Fn's scan code, from SCAN_F1, SCAN_SHIFT_F1, .. */
+
 static struct {
-    uint8_t alt;      /* alt_t: 1 Alt went down alone, 2 it was down at the call */
+    uint8_t alt;      /* alt_t: ALT_DOWN Alt went down alone, ALT_HELD it was down at the call */
     bool run_wait;    /* ui_rf: a run: always wait for a key at its end */
     uint8_t crow, ccol; /* ui_cpos: the output's cursor before an immediate line */
     uint8_t ecode;    /* ui_ecode */
@@ -87,7 +96,7 @@ const StatusKeys uimn_keys_imm = {
     {{15, nohelp}, {27, next_window}, {48, exec_line}},
 };
 
-char *uimn_dec(char *dst, uint16_t v)
+char *uimn_dec(char *const dst, uint16_t v)
 {
     char digits[5];
     int n = 0;
@@ -95,9 +104,9 @@ char *uimn_dec(char *dst, uint16_t v)
         digits[n++] = (char)('0' + v % 10);
         v /= 10;
     } while (v);
-    while (n)
-        *dst++ = digits[--n];
-    return dst;
+    for (int i = 0; i < n; i++)
+        dst[i] = digits[n - 1 - i];
+    return dst + n;
 }
 
 /* ---- pages */
@@ -105,14 +114,14 @@ char *uimn_dec(char *dst, uint16_t v)
 /* ui_in: page 0, the editor, shown. */
 static void page_in(void)
 {
-    pscr_page(0);
+    pscr_page(PAGE_EDIT);
     them_in();
 }
 
 /* ui_out: page 1, the output, shown. */
 static void page_out(void)
 {
-    pscr_page(1);
+    pscr_page(PAGE_OUT);
     them_out();
 }
 
@@ -120,80 +129,89 @@ static void page_out(void)
 static void page_clear(void)
 {
     them_out();
-    pscr_page(1);
-    pscr_scroll(0, 0, 0, 24, 79, 0x07);
-    pscr_cursor(1, 0, 0);
+    pscr_page(PAGE_OUT);
+    pscr_scroll(0, 0, 0, PSCR_ROWS - 1, PSCR_COLS - 1, ATTR_PLAIN);
+    pscr_cursor(PAGE_OUT, 0, 0);
     cons.col = 0;
 }
 
 /* ---- keys */
 
+/* k as a key: an extended key's E0h character 0. */
+static uint16_t key_of(const PkeyKey k)
+{
+    const uint8_t ch = k.ch == CH_E0 && k.scan ? 0 : k.ch;
+    return (uint16_t)(k.scan << 8 | ch);
+}
+
+/* A key, the mouse, or Alt let go after going down alone. */
+static uint16_t wait_key(void)
+{
+    for (;;) {
+        if (pkey_ready())
+            return key_of(pkey_read());
+        if (mous_poll())
+            return KEY_MOUSE;
+        if (pkey_shift() & PKEY_ALT) {
+            if (ui.alt == ALT_NONE)
+                ui.alt = ALT_DOWN;
+            continue;
+        }
+        const bool tap = ui.alt == ALT_DOWN;
+        ui.alt = ALT_NONE;
+        if (tap)
+            return KEY_ALT;
+    }
+}
+
 uint16_t uimn_getkey(void)
 {
     scrn_flip();
     mous_show();
-    ui.alt = (pkey_shift() & 8) >> 2; /* 2: the Alt held from before */
-    uint16_t key;
-    for (;;) {
-        if (pkey_ready()) {
-            PkeyKey k = pkey_read();
-            if (k.ch == 0xE0 && k.scan)
-                k.ch = 0;
-            key = (uint16_t)(k.scan << 8 | k.ch);
-            break;
-        }
-        if (mous_poll()) {
-            key = KEY_MOUSE;
-            break;
-        }
-        if (pkey_shift() & 8) {
-            if (!ui.alt)
-                ui.alt = 1;
-            continue;
-        }
-        bool tap = ui.alt == 1;
-        ui.alt = 0;
-        if (tap) {
-            key = KEY_ALT;
-            break;
-        }
-    }
+    ui.alt = pkey_shift() & PKEY_ALT ? ALT_HELD : ALT_NONE;
+    const uint16_t key = wait_key();
     uimn.keyflags = pkey_shift();
     mous_hide();
     return key;
 }
 
 /* im_key: a key in the immediate window. */
-static void imm_key(uint16_t key)
+static void imm_key(const uint16_t key)
 {
-    uint8_t ch = (uint8_t)key;
-    if (ch == 0x0D) {
+    const uint8_t ch = (uint8_t)key, scan = (uint8_t)(key >> 8);
+    if (ch == CH_ENTER) {
         exec_line();
         return;
     }
     if (!ch) {
-        if (key >> 8 == 0x48) {
+        if (scan == SCAN_UP) {
             edit_imm_up();
             return;
         }
-        if (key >> 8 == 0x50) {
+        if (scan == SCAN_DOWN) {
             edit_imm_down();
             return;
         }
     }
-    if (ch >= 0x20 && uimn.immline.len >= ED_COLS - 1)
+    if (ch >= ' ' && uimn.immline.len >= ED_COLS - 1)
         return;
     dlog_ledit(&uimn.immline, key);
 }
 
 /* Ctrl+A to Ctrl+Z as WordStar's: the scan code of the key they stand for (COW edittbls.inc). */
 static const uint8_t wordstar[26] = {
-    0x73, 0, 0x51, 0x4D, 0x48, 0x74, 0x53, 0, 0, 0, 0, 0, 0,
-    0, 0, 0, 0, 0x49, 0x4B, 0, 0, 0x52, 0, 0x50, 0, 0,
+    [CTRL('A') - 1] = SCAN_CTRL_LEFT, [CTRL('C') - 1] = SCAN_PGDN, [CTRL('D') - 1] = SCAN_RIGHT,
+    [CTRL('E') - 1] = SCAN_UP,        [CTRL('F') - 1] = SCAN_CTRL_RIGHT,
+    [CTRL('G') - 1] = SCAN_DEL,       [CTRL('R') - 1] = SCAN_PGUP, [CTRL('S') - 1] = SCAN_LEFT,
+    [CTRL('V') - 1] = SCAN_INS,       [CTRL('X') - 1] = SCAN_DOWN,
 };
 /* Ctrl+Q's second key: the letter's code, the scan code (0 erases to the line's end). */
-static const uint8_t wordstar_q[][2] = {{0x13, 0x47}, {0x04, 0x4F}, {0x12, 0x77}, {0x03, 0x75},
-                                        {0x19, 0}};
+static const struct {
+    uint8_t ch, scan;
+} wordstar_q[] = {
+    {CTRL('S'), SCAN_HOME},     {CTRL('D'), SCAN_END}, {CTRL('R'), SCAN_CTRL_HOME},
+    {CTRL('C'), SCAN_CTRL_END}, {CTRL('Y'), 0},
+};
 
 static void lb_left(void) { edit_lb_left(&uimn.edline); }
 static void lb_right(void) { edit_lb_right(&uimn.edline); }
@@ -207,106 +225,126 @@ static const struct {
     uint8_t scan;
     void (*run)(void);
 } moves[] = {
-    {0x48, edit_up},   {0x50, edit_down},  {0x4B, lb_left},    {0x4D, lb_right},
-    {0x47, lb_home},   {0x4F, lb_end},     {0x49, edit_pgup},  {0x51, edit_pgdn},
-    {0x77, edit_first}, {0x75, edit_last}, {0x73, lb_wleft},   {0x74, lb_wright},
+    {SCAN_UP, edit_up},         {SCAN_DOWN, edit_down},     {SCAN_LEFT, lb_left},
+    {SCAN_RIGHT, lb_right},     {SCAN_HOME, lb_home},       {SCAN_END, lb_end},
+    {SCAN_PGUP, edit_pgup},     {SCAN_PGDN, edit_pgdn},     {SCAN_CTRL_HOME, edit_first},
+    {SCAN_CTRL_END, edit_last}, {SCAN_CTRL_LEFT, lb_wleft}, {SCAN_CTRL_RIGHT, lb_wright},
 };
 
-/* ed_key: a key in the program window: a shifted move selects. */
-static void edit_key(uint16_t key)
+static void edit_key(uint16_t key);
+
+/* An extended key (character 0) in the program window. */
+static void edit_scan(const uint8_t scan)
 {
-    LineBuf *b = &uimn.edline;
-    uint8_t ch = (uint8_t)key, scan = (uint8_t)(key >> 8);
-    bool shift = uimn.keyflags & 3;
-    if (!ch) {
-        for (uint32_t i = 0; i < countof(moves); i++) {
-            if (moves[i].scan != scan)
-                continue;
-            if (shift)
-                edit_sel_mark();
-            else
-                uimn.ed.sel_on = false;
-            moves[i].run();
-            return;
-        }
-        if (scan == 0x53) {
-            if (shift) {
-                edit_cut();
-            } else if (edit_sel()) {
-                edit_clear();
-            } else {
-                uimn.ed.sel_on = false;
-                edit_del();
-            }
-        } else if (scan == 0x52) {
-            if (shift)
-                edit_paste();
-            else
-                uimn.ed.insert = !uimn.ed.insert;
-        } else if (scan == 0x92) {
-            edit_copy();
-        }
+    const bool shift = uimn.keyflags & PKEY_SHIFT;
+    for (uint32_t i = 0; i < countof(moves); i++) {
+        if (moves[i].scan != scan)
+            continue;
+        if (shift)
+            edit_sel_mark();
+        else
+            uimn.ed.sel_on = false;
+        moves[i].run();
         return;
     }
-    if (uimn.ed.prefix) {
-        uimn.ed.prefix = 0;
-        ch &= 0x1F;
-        for (uint32_t i = 0; i < countof(wordstar_q); i++) {
-            if (wordstar_q[i][0] != ch)
-                continue;
-            if (wordstar_q[i][1]) {
-                edit_key((uint16_t)(wordstar_q[i][1] << 8));
-            } else { /* Ctrl+Q,Y: to the line's end out */
-                uimn.ed.sel_on = false;
-                edit_lb_cut(b, b->col, b->len);
-            }
-            return;
+    if (scan == SCAN_DEL) {
+        if (shift) {
+            edit_cut();
+        } else if (edit_sel()) {
+            edit_clear();
+        } else {
+            uimn.ed.sel_on = false;
+            edit_del();
+        }
+    } else if (scan == SCAN_INS) {
+        if (shift)
+            edit_paste();
+        else
+            uimn.ed.insert = !uimn.ed.insert;
+    } else if (scan == SCAN_CTRL_INS) {
+        edit_copy();
+    }
+}
+
+/* Ctrl+Q's second key, ch. */
+static void edit_ctrlq(const uint8_t ch)
+{
+    LineBuf *const b = &uimn.edline;
+    const uint8_t letter = CTRL(ch);
+    for (uint32_t i = 0; i < countof(wordstar_q); i++) {
+        if (wordstar_q[i].ch != letter)
+            continue;
+        if (wordstar_q[i].scan) {
+            edit_key((uint16_t)(wordstar_q[i].scan << 8));
+        } else { /* Ctrl+Q,Y: to the line's end out */
+            uimn.ed.sel_on = false;
+            edit_lb_cut(b, b->col, b->len);
         }
         return;
     }
-    if (ch == 0x11) { /* Ctrl+Q: a second key follows */
-        uimn.ed.prefix = ch;
-        return;
-    }
-    if (ch <= 0x1A && wordstar[ch - 1]) {
-        edit_key((uint16_t)(wordstar[ch - 1] << 8));
-        return;
-    }
+}
+
+/* A control character ch; false: not one, ch is typed. */
+static bool edit_control(const uint8_t ch)
+{
     switch (ch) {
-    case 0x0D:
+    case CH_ENTER:
         uimn.ed.sel_on = false;
         edit_enter();
-        return;
-    case 0x08:
+        return true;
+    case CH_BACKSPACE:
         if (edit_sel())
             edit_clear();
         else
             edit_bs();
-        return;
-    case 0x09:
+        return true;
+    case CH_TAB:
         uimn.ed.sel_on = false;
 #if AC
         if (cmpl_tab())
-            return;
+            return true;
 #endif
         edit_tab();
-        return;
-    case 0x19:
+        return true;
+    case CTRL('Y'):
         uimn.ed.sel_on = false;
         edit_ctrly();
-        return;
-    case 0x1B:
+        return true;
+    case CH_ESC:
         uimn.ed.sel_on = false;
-        return;
+        return true;
     default:
-        break;
+        return ch < ' ';
     }
-    if (ch < 0x20)
+}
+
+/* ed_key: a key in the program window: a shifted move selects. */
+static void edit_key(const uint16_t key)
+{
+    const uint8_t ch = (uint8_t)key;
+    if (!ch) {
+        edit_scan((uint8_t)(key >> 8));
+        return;
+    }
+    if (uimn.ed.prefix) {
+        uimn.ed.prefix = 0;
+        edit_ctrlq(ch);
+        return;
+    }
+    if (ch == CTRL('Q')) { /* a second key follows */
+        uimn.ed.prefix = ch;
+        return;
+    }
+    if (ch <= CTRL('Z') && wordstar[ch - 1]) {
+        edit_key((uint16_t)(wordstar[ch - 1] << 8));
+        return;
+    }
+    if (edit_control(ch))
         return;
     if (edit_sel() == SEL_PIECE)
         edit_clear();
     uimn.ed.sel_on = false;
-    edit_lb_type(b, ch, LNMAX);
+    edit_lb_type(&uimn.edline, ch, LNMAX);
 }
 
 /* ---- Search */
@@ -319,10 +357,10 @@ static bool wordc(const uint8_t c)
 }
 
 /* ui_match: Find What at column col of uimn.line. */
-static bool match(uint16_t col)
+static bool match(const uint16_t col)
 {
-    const uint8_t *s = uimn.line + col, *w = uimn.find_what.text;
-    uint16_t n = uimn.find_what.len;
+    const uint8_t *const s = uimn.line + col, *const w = uimn.find_what.text;
+    const uint16_t n = uimn.find_what.len;
     for (uint16_t i = 0; i < n; i++) {
         uint8_t a = s[i], b = w[i];
         if (!uimn.match_case) {
@@ -342,16 +380,16 @@ static bool match(uint16_t col)
 /* ui_search: Find What from past the cursor, wrapping (ui.wrap): found, it is selected. */
 static bool search(void)
 {
-    uint16_t len = uimn.find_what.len;
+    const uint16_t len = uimn.find_what.len;
     if (!len)
         return false;
     edit_commit();
     ui.at_line = uimn.ed.line;
     ui.at_col = uimn.edline.col + 1;
     for (uint32_t n = uimn.text.n + 1; n; n--) { /* every line, this one twice */
-        uint16_t got = (uint16_t)text_get(ui.at_line, uimn.line);
+        const uint16_t got = (uint16_t)text_get(ui.at_line, uimn.line);
         if (got >= len) {
-            uint16_t last = got - len;
+            const uint16_t last = got - len;
             for (uint16_t col = ui.at_col; col <= last; col++) {
                 if (!match(col))
                     continue;
@@ -388,7 +426,7 @@ static void find_default(void)
 {
     if (uimn.focus)
         return;
-    const uint8_t *t = uimn.edline.text;
+    const uint8_t *const t = uimn.edline.text;
     uint16_t to = uimn.edline.col, len = uimn.edline.len, from;
     if (uimn.ed.sel_on) {
         if (uimn.ed.sel_line != uimn.ed.line)
@@ -413,7 +451,7 @@ static void find_default(void)
         while (to < len && wordc(t[to]))
             to++;
     }
-    uint16_t n = to - from;
+    const uint16_t n = to - from;
     if (!n || n > FLDMAX)
         return;
     uimn.find_what.len = uimn.find_what.col = n;
@@ -432,28 +470,28 @@ static void find(void)
 static void change(void)
 {
     find_default();
-    uint8_t r = dlog_change();
-    if (r > 1)
+    const uint8_t r = dlog_change();
+    if (r > CHANGE_ALL)
         return;
-    ui.change_all = r;
+    ui.change_all = r == CHANGE_ALL;
     ui.changed_one = false;
     ui.wrap = false;
     edit_commit();
     uimn.ed.sel_on = false;
-    LineBuf *b = &uimn.edline;
+    LineBuf *const b = &uimn.edline;
     if (ui.change_all) { /* from the start, the cursor back after */
         ui.start_line = uimn.ed.line;
         ui.start_col = b->col;
         edit_load(0);
-        b->col = 0xFFFF;
+        b->col = UINT16_MAX; /* search's from column 0 */
     }
     while (search()) {
         ui.changed_one = true;
         if (!ui.change_all) {
-            uint8_t c = dlog_conf();
-            if (c == 1)
+            const uint8_t c = dlog_conf();
+            if (c == CONF_SKIP)
                 continue;
-            if (c > 1) { /* Cancel: no word more (uisearch.c) */
+            if (c > CONF_SKIP) { /* Cancel: no word more (uisearch.c) */
                 ui.wrap = true;
                 return;
             }
@@ -500,12 +538,12 @@ static bool save(void)
     return write_file();
 }
 
-static bool same_name(const char *a, const char *b)
+static bool same_name(const char *const a, const char *const b)
 {
-    for (;; a++, b++) {
-        if (upcase((uint8_t)*a) != upcase((uint8_t)*b))
+    for (uint32_t i = 0;; i++) {
+        if (upcase((uint8_t)a[i]) != upcase((uint8_t)b[i]))
             return false;
-        if (!*a)
+        if (!a[i])
             return true;
     }
 }
@@ -517,17 +555,16 @@ static bool save_as(void)
     for (;;) {
         if (!dlog_saveas())
             return false;
-        if (!same_name(uimn.chosen, uimn.file)) { /* another file there: Overwrite? */
-            uint8_t attr;
-            if (pfil_getattr(uimn.chosen, &attr) == PFIL_OK) {
-                uint8_t r = dlog_ync(s_overw);
-                if (r == 1)
-                    continue;
-                if (r > 1)
-                    return false;
-            }
-        }
-        break;
+        if (same_name(uimn.chosen, uimn.file))
+            break;
+        uint8_t attr;
+        if (pfil_getattr(uimn.chosen, &attr) != PFIL_OK)
+            break;
+        const uint8_t r = dlog_ync(s_overw); /* another file there */
+        if (r == YNC_YES)
+            break;
+        if (r > YNC_NO)
+            return false;
     }
     memcpy(uimn.file, uimn.chosen, sizeof uimn.file);
     return write_file();
@@ -539,10 +576,10 @@ static bool ask_save(void)
     edit_commit();
     if (!uimn.text.unsaved)
         return true;
-    uint8_t r = dlog_ync(s_notsaved);
-    if (r == 1)
+    const uint8_t r = dlog_ync(s_notsaved);
+    if (r == YNC_NO)
         return true;
-    if (r > 1)
+    if (r > YNC_NO)
         return false;
     return save();
 }
@@ -602,7 +639,7 @@ static void file_exit(void)
 {
     if (!ask_save())
         return;
-    pscr_mode(3);
+    pscr_mode(VIDEO_TEXT);
     cons_exit(0);
 }
 
@@ -640,8 +677,9 @@ void uimn_run(void)
     udbg_prep();
     page_clear();
     ui.run_wait = true;
-    memcpy(cons.inbuf, "RUN", 3);
-    repl_enter(3);
+    static const char cmd[] = "RUN";
+    memcpy(cons.inbuf, cmd, sizeof cmd - 1);
+    repl_enter(sizeof cmd - 1);
     repl_run();
 }
 
@@ -667,15 +705,32 @@ void uimn_cont(void)
 static void exec_line(void)
 {
     sync();
-    uint16_t len = edit_imm_next();
+    const uint16_t len = edit_imm_next();
     if (!len)
         return;
     page_out();
-    pscr_where(1, &ui.crow, &ui.ccol);
+    pscr_where(PAGE_OUT, &ui.crow, &ui.ccol);
     ui.run_wait = false;
     if (repl_enter(len) == ENTER_DIRECT)
         repl_run();
     page_in();
+}
+
+/* Press any key on the output's last row, the output's cursor back after. */
+static void wait_anykey(void)
+{
+    cons_fresh();
+    uint8_t row, col;
+    pscr_where(PAGE_OUT, &row, &col); /* output goes on here after the key */
+    pscr_cursor(PAGE_OUT, STATUS_ROW, 0);
+    for (uint32_t i = 0; s_anykey[i]; i++)
+        cons_putc((uint8_t)s_anykey[i]);
+    cons_flush();
+    cons.col = 0;
+    pkey_read();
+    pscr_cursor(PAGE_OUT, STATUS_ROW, 0); /* the prompt off */
+    pscr_fill(PAGE_OUT, STATUS_ROW, 0, ATTR_PLAIN << 8 | ' ', PSCR_COLS);
+    pscr_cursor(PAGE_OUT, row, col);
 }
 
 void uimn_ready(void)
@@ -683,30 +738,19 @@ void uimn_ready(void)
     cons_flush();
     vm.stop = 0;
     uint8_t row, col;
-    pscr_where(1, &row, &col);
-    if (ui.run_wait || row != ui.crow || col != ui.ccol) {
-        cons_fresh();
-        pscr_where(1, &row, &col); /* output goes on here after the key */
-        pscr_cursor(1, 24, 0);
-        for (const char *s = s_anykey; *s; s++)
-            cons_putc((uint8_t)*s);
-        cons_flush();
-        cons.col = 0;
-        pkey_read();
-        pscr_cursor(1, 24, 0); /* the prompt off */
-        pscr_fill(1, 24, 0, 0x0720, 80);
-        pscr_cursor(1, row, col);
-    }
+    pscr_where(PAGE_OUT, &row, &col);
+    if (ui.run_wait || row != ui.crow || col != ui.ccol)
+        wait_anykey();
     page_in();
     loop();
 }
 
 /* ---- the cursor at a line, an error */
 
-void uimn_selword(uint16_t col)
+void uimn_selword(const uint16_t col)
 {
     uimn.ed.sel_on = false;
-    LineBuf *b = &uimn.edline;
+    LineBuf *const b = &uimn.edline;
     b->col = col;
     uint16_t end = col;
     while (end < b->len && wordc(b->text[end]))
@@ -720,11 +764,11 @@ void uimn_selword(uint16_t col)
 
 /* ui_atline: the cursor at line's first word, the word selected, as QBasic shows an error's
    statement. */
-static void at_line(uint32_t line)
+static void at_line(const uint32_t line)
 {
     uimn.focus = FOC_EDIT;
     edit_load(line);
-    const LineBuf *b = &uimn.edline;
+    const LineBuf *const b = &uimn.edline;
     uint16_t col = 0;
     while (col < b->len && b->text[col] == ' ')
         col++;
@@ -737,12 +781,12 @@ static void run_error_words(void)
 {
     if (!ui.at_error || !vm.opip || *vm.opip != O_ERR)
         return;
-    LineBuf *b = &uimn.edline;
+    LineBuf *const b = &uimn.edline;
     b->text[b->len] = 0;
     uimn_selword(edit_dxerr(b->text, (const ErrOp *)vm.opip));
 }
 
-void uimn_error(uint8_t code)
+void uimn_error(const uint8_t code)
 {
     ui.ecode = code;
     ui.at_error = false;
@@ -778,9 +822,9 @@ void uimn_error(uint8_t code)
 
 /* ---- the commands */
 
-static void act_theme(uint8_t action) { them_pick(action); }
+static void act_theme(const uint8_t action) { them_pick(action); }
 
-void uimn_act(uint8_t action)
+void uimn_act(const uint8_t action)
 {
     switch (action) {
     case ACT_NEW: file_new(); break;
@@ -823,7 +867,7 @@ void uimn_act(uint8_t action)
     }
 }
 
-void uimn_key(uint16_t key)
+void uimn_key(const uint16_t key)
 {
 #if AC
     uimn.help = nullptr; /* a completion's form, shown till now */
@@ -836,36 +880,37 @@ void uimn_key(uint16_t key)
         mous_main();
         return;
     }
-    if (key == 0x260C) { /* Ctrl+L: Repeat Last Find */
+    if (key == (SCAN_L << 8 | CTRL('L'))) { /* Repeat Last Find */
         find_again();
         return;
     }
-    if (!(key & 0xFF)) {
-        switch (key >> 8) {
-        case 0x41: udbg_pstep();
-        case 0x64: udbg_until(); return;  /* Ctrl+F7 */
-        case 0x42: udbg_step();
-        case 0x5B: udbg_sout();           /* Shift+F8 */
-        case 0x43: udbg_bp(); return;
-        case 0x44: udbg_pstep();
-        case 0x3E: view_output(); return;
-        case 0x3F: uimn_cont();
-        case 0x58: uimn_run();
-        case 0x40: next_window(); return;
-        case 0x3D: find_again(); return;
-        case 0x3B:
-        case 0x54: nohelp(); return;      /* F1, Shift+F1 */
-        case 0x59: wind_prev(); return;   /* Shift+F6: the window before */
-        case 0x83:
-        case 0x4E: wind_grow(); return;   /* Alt+=, Alt+grey +: a row more */
-        case 0x82:
-        case 0x4A: wind_shrink(); return; /* Alt+-, Alt+grey -: a row less */
-        case 0x67: wind_max(); return;    /* Ctrl+F10 */
-        case 0x3C: view_subs(); return;   /* F2, Shift+F2, Ctrl+F2: the views */
-        case 0x55: view_next(); return;
-        case 0x5F: view_prev(); return;
+    if (!(uint8_t)key) {
+        const uint8_t scan = (uint8_t)(key >> 8);
+        switch (scan) {
+        case FKEY(SCAN_F1, 7): udbg_pstep();
+        case FKEY(SCAN_CTRL_F1, 7): udbg_until(); return;
+        case FKEY(SCAN_F1, 8): udbg_step();
+        case FKEY(SCAN_SHIFT_F1, 8): udbg_sout();
+        case FKEY(SCAN_F1, 9): udbg_bp(); return;
+        case FKEY(SCAN_F1, 10): udbg_pstep();
+        case FKEY(SCAN_F1, 4): view_output(); return;
+        case FKEY(SCAN_F1, 5): uimn_cont();
+        case FKEY(SCAN_SHIFT_F1, 5): uimn_run();
+        case FKEY(SCAN_F1, 6): next_window(); return;
+        case FKEY(SCAN_F1, 3): find_again(); return;
+        case SCAN_F1:
+        case SCAN_SHIFT_F1: nohelp(); return;
+        case FKEY(SCAN_SHIFT_F1, 6): wind_prev(); return; /* the window before */
+        case SCAN_ALT_EQUALS:
+        case SCAN_GREY_PLUS: wind_grow(); return;         /* a row more */
+        case SCAN_ALT_MINUS:
+        case SCAN_GREY_MINUS: wind_shrink(); return;      /* a row less */
+        case FKEY(SCAN_CTRL_F1, 10): wind_max(); return;
+        case FKEY(SCAN_F1, 2): view_subs(); return;       /* the views */
+        case FKEY(SCAN_SHIFT_F1, 2): view_next(); return;
+        case FKEY(SCAN_CTRL_F1, 2): view_prev(); return;
         default:
-            if (menu_alt((uint8_t)(key >> 8)))
+            if (menu_alt(scan))
                 return;
         }
     }
@@ -886,7 +931,7 @@ static void loop(void)
 #endif
         draw_all();
         uimn.mouse.hover = true;
-        uint16_t key = uimn_getkey();
+        const uint16_t key = uimn_getkey();
         uimn.mouse.hover = false;
         if (key != KEY_MOUSE)
             uimn.tip_mouse = false; /* a key: the tooltip by the cursor */
@@ -899,15 +944,16 @@ static void loop(void)
 /* hl_load: BASIC.HLP, from the program's own directory. */
 static void load_help(void)
 {
+    static const char file[] = "BASIC.HLP";
     char name[160];
-    uint32_t n = psys_self(name, sizeof name - 10);
+    const uint32_t n = psys_self(name, sizeof name - sizeof file);
     if (!n)
         return;
     uint32_t dir = 0; /* past the last '\' */
     for (uint32_t i = 0; i < n; i++)
         if (name[i] == '\\')
             dir = i + 1;
-    memcpy(name + dir, "BASIC.HLP", 10);
+    memcpy(name + dir, file, sizeof file);
     PfilHandle h;
     if (pfil_open(name, PFIL_READ, &h) != PFIL_OK)
         return;
@@ -917,10 +963,9 @@ static void load_help(void)
     pfil_close(h);
 }
 
-void uimn_start(void)
+/* The editor's state at its start. */
+static void init(void)
 {
-    if (!cons.stdin_dev || !pfil_isdev(PFIL_STDOUT))
-        return;
     uimn.on = true;
     uimn.edline.text = uimn.edline_text;
     uimn.immline.text = uimn.immline_text;
@@ -940,15 +985,27 @@ void uimn_start(void)
     view_reset();
     edit_load(0);
     edit_imm_load();
-    pscr_mode(3);
-    them_qbasic();
-    char tail[128]; /* a file named on the command line */
+}
+
+/* uimn.fname's text the command line's first word, FLDMAX at most; its length. */
+static uint16_t cmdline_file(void)
+{
+    char tail[128];
     psys_cmdline(tail, sizeof tail);
     uint16_t n = 0;
-    while ((uint8_t)tail[n] > ' ' && n < FLDMAX) {
+    for (; (uint8_t)tail[n] > ' ' && n < FLDMAX; n++)
         uimn.fname.text[n] = (uint8_t)tail[n];
-        n++;
-    }
+    return n;
+}
+
+void uimn_start(void)
+{
+    if (!cons.stdin_dev || !pfil_isdev(PFIL_STDOUT))
+        return;
+    init();
+    pscr_mode(VIDEO_TEXT);
+    them_qbasic();
+    const uint16_t n = cmdline_file();
     if (n) {
         uimn.fname.len = n;
         dlog_fileok(DLOG_PRESS);

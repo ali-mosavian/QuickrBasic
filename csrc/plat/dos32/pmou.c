@@ -2,39 +2,30 @@
 #include "dos.h"
 #include "plat/pmou.h"
 
-static uint32_t int33(uint32_t ax, PdosRegs *r)
+enum { RESET_OK = 0xFFFF, CELL_SHIFT = 3 }; /* a text cell is 8 mickeys square */
+
+static PdosRegs int33(const uint16_t ax)
 {
-    *r = (PdosRegs){.eax = ax};
-    pdos_int(0x33, r);
-    return r->eax & 0xFFFF;
+    PdosRegs r = {.eax = ax};
+    pdos_int(INT_MOUSE, &r);
+    return r;
 }
 
 bool pmou_init(void)
 {
-    volatile uint8_t *v = pdos_lin(0x33 * 4); /* the real-mode vector, linear */
+    volatile const uint8_t *const v = pdos_lin(INT_MOUSE * 4); /* the real-mode vector, linear */
     if (!(v[0] | v[1] | v[2] | v[3]))
         return false;
-    PdosRegs r;
-    return int33(0, &r) == 0xFFFF;
+    return (int33(MOUSE_RESET).eax & 0xFFFF) == RESET_OK;
 }
 
-void pmou_show(void)
-{
-    PdosRegs r;
-    int33(1, &r);
-}
-
-void pmou_hide(void)
-{
-    PdosRegs r;
-    int33(2, &r);
-}
+void pmou_show(void) { int33(MOUSE_SHOW); }
+void pmou_hide(void) { int33(MOUSE_HIDE); }
 
 PmouState pmou_state(void)
 {
-    PdosRegs r;
-    int33(3, &r);
-    return (PmouState){.row = (uint8_t)((r.edx & 0xFFFF) >> 3),
-                       .col = (uint8_t)((r.ecx & 0xFFFF) >> 3),
+    const PdosRegs r = int33(MOUSE_STATE);
+    return (PmouState){.row = (uint8_t)((r.edx & 0xFFFF) >> CELL_SHIFT),
+                       .col = (uint8_t)((r.ecx & 0xFFFF) >> CELL_SHIFT),
                        .buttons = (uint8_t)r.ebx};
 }

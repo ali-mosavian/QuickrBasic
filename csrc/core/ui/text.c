@@ -12,6 +12,7 @@
 #include "plat/pfil.h"
 
 enum { RDSZ = 4096 }; /* a file's bytes read, written at a time */
+enum : uint8_t { LF = 10, CH_EOF = 0x1A }; /* NL is CR */
 
 static struct {
     PfilHandle h;
@@ -35,73 +36,83 @@ void text_whole(void)
     uimn.text.n = uimn.text.all;
 }
 
-void text_view(uint32_t first, uint32_t n)
+void text_view(const uint32_t first, const uint32_t n)
 {
     uimn.text.first = first;
     uimn.text.n = n;
 }
 
-uint32_t text_rec(uint32_t line) { return lmap_off(line + uimn.text.first); }
+uint32_t text_rec(const uint32_t line) { return lmap_off(line + uimn.text.first); }
 
 /* The line of record rec into dst; its length. */
-static uint32_t text_of(uint32_t rec, uint8_t *dst)
+static uint32_t text_of(const uint32_t rec, uint8_t *const dst)
 {
-    const Line *p = prog_line(rec);
-    uint32_t n = p->pre;
-    memcpy(dst, at(prog_addr(rec + p->len - n)), n);
+    const Line *const p = prog_line(rec);
+    const uint32_t pre = p->pre;
+    memcpy(dst, at(prog_addr(rec + p->len - pre)), pre);
     if (p->flags & LF_ASIS)
-        return n;
-    uint32_t sblen = cons.sblen; /* sbuf's user's, kept */
-    uint8_t capture = cons.capture, col = cons.col;
+        return pre;
+    const uint32_t sblen = cons.sblen; /* sbuf's user's, kept */
+    const uint8_t capture = cons.capture, col = cons.col;
     cons.capture = CAP_SBUF;
     cons.sblen = 0;
     list_body(at(prog_addr(rec + HDR)));
-    memcpy(dst + n, cons.sbuf, cons.sblen);
-    n += cons.sblen;
+    const uint32_t n = pre + cons.sblen;
+    memcpy(dst + pre, cons.sbuf, cons.sblen);
     cons.capture = capture;
     cons.col = col;
     cons.sblen = sblen;
     return n;
 }
 
-uint32_t text_get(uint32_t line, uint8_t *dst) { return text_of(text_rec(line), dst); }
+uint32_t text_get(const uint32_t line, uint8_t *const dst) { return text_of(text_rec(line), dst); }
+
+/* The line number text's first end characters start with, past blanks: LNUM_LIMIT when past;
+   NONUM none. */
+static uint16_t number(const uint8_t *const text, const uint32_t end)
+{
+    uint32_t k = 0;
+    while (text[k] == ' ')
+        k++;
+    const uint32_t digits = k;
+    uint32_t num = 0;
+    for (; k < end && is_digit(text[k]); k++) {
+        num = num * 10 + (text[k] - '0');
+        if (num >= LNUM_LIMIT)
+            num = LNUM_LIMIT;
+    }
+    return k != digits ? (uint16_t)num : NONUM;
+}
+
+/* LIST's spelling of the body in comp_cbuf, after pre_len characters, fits an editor line. */
+static bool spelling_fits(const uint32_t pre_len)
+{
+    cons.capture = CAP_SBUF;
+    cons.sblen = 0;
+    list_body(comp_cbuf);
+    cons.capture = 0;
+    return cons.sblen + pre_len <= LNMAX;
+}
 
 /* The line of len characters at src made a record's: its body in comp_cbuf, its number, its text
    before the body (prog.pre); as typed when uimn.text.asis (used up) or when LIST would spell it
    past an editor line. src is kept till the record is filled. */
-static Made make(const uint8_t *src, uint32_t len)
+static Made make(const uint8_t *const src, const uint32_t len)
 {
-    Made m = {.num = NONUM};
+    Made m = {};
     prog.pre = src;
-    uint8_t *text = uimn.line; /* a copy, 0-ended, worked on: the lexer changes its text */
+    uint8_t *const text = uimn.line; /* a copy, 0-ended, worked on: the lexer changes its text */
     memmove(text, src, len);
     text[len] = 0;
-    uint8_t *body = edit_body(text);
+    uint8_t *const body = edit_body(text);
     prog.pre_len = (uint32_t)(body - text);
-    const uint8_t *p = text; /* its number, 64000 when past */
-    while (*p == ' ')
-        p++;
-    const uint8_t *digits = p;
-    uint32_t num = 0;
-    for (; p < body && is_digit(*p); p++) {
-        num = num * 10 + (*p - '0');
-        if (num >= LNUM_LIMIT)
-            num = LNUM_LIMIT;
-    }
-    if (p != digits)
-        m.num = (uint16_t)num;
+    m.num = number(text, prog.pre_len);
     vm.line = DLINE;
     m.len = (uint32_t)(lexr_line(body, comp_cbuf) - comp_cbuf);
-    bool asis = uimn.text.asis;
+    const bool asis = uimn.text.asis;
     uimn.text.asis = false;
-    if (!asis) {
-        cons.capture = CAP_SBUF; /* LIST's spelling's length */
-        cons.sblen = 0;
-        list_body(comp_cbuf);
-        cons.capture = 0;
-        if (cons.sblen + prog.pre_len <= LNMAX)
-            return m;
-    }
+    if (!asis && spelling_fits(prog.pre_len))
+        return m;
     prog.pre_len = len;
     m.flags = LF_ASIS;
     return m;
@@ -109,10 +120,11 @@ static Made make(const uint8_t *src, uint32_t len)
 
 /* The line of len characters at src stored as text line line: before it (insert), else in its
    place, its mark kept. */
-static void put(uint32_t line, const uint8_t *src, uint32_t len, bool insert)
+static void put(const uint32_t line, const uint8_t *const src, const uint32_t len,
+                const bool insert)
 {
     Made m = make(src, len);
-    uint32_t rec = lmap_off(line);
+    const uint32_t rec = lmap_off(line);
     if (!insert) {
         m.flags |= prog_line(rec)->flags & LF_BP;
         prog_cut(rec);
@@ -125,9 +137,9 @@ static void put(uint32_t line, const uint8_t *src, uint32_t len, bool insert)
 }
 
 /* The line of len characters at src stored after the rest, the map not made. */
-static void add(const uint8_t *src, uint32_t len)
+static void add(const uint8_t *const src, const uint32_t len)
 {
-    Made m = make(src, len);
+    const Made m = make(src, len);
     prog.add_flags = m.flags;
     prog.add_at = 0;
     prog_add(m.num, comp_cbuf, m.len);
@@ -143,29 +155,28 @@ void text_init(void)
     text_whole();
 }
 
-void text_repl(uint32_t line, const uint8_t *src, uint16_t len)
+void text_repl(const uint32_t line, const uint8_t *const src, const uint16_t len)
 {
     put(line + uimn.text.first, src, len, false);
 }
 
 /* A line added (delta 1) or removed (-1): the hook told. */
-static void tell(uint32_t line, int32_t delta)
+static void tell(const uint32_t line, const int32_t delta)
 {
     if (uimn.text.hook)
         uimn.text.hook(line, delta);
 }
 
-void text_insert(uint32_t line, const uint8_t *src, uint16_t len)
+void text_insert(const uint32_t line, const uint8_t *const src, const uint16_t len)
 {
-    if (line > uimn.text.n) /* past the view: its end */
-        line = uimn.text.n;
-    line += uimn.text.first;
-    put(line, src, len, true);
+    const uint32_t in_view = line > uimn.text.n ? uimn.text.n : line; /* past the view: its end */
+    const uint32_t whole = in_view + uimn.text.first;
+    put(whole, src, len, true);
     uimn.text.n++;
-    tell(line, 1);
+    tell(whole, 1);
 }
 
-void text_delete(uint32_t line)
+void text_delete(const uint32_t line)
 {
     if (uimn.text.n <= 1) { /* the view's last line is emptied */
         text_repl(line, uimn.build, 0);
@@ -179,9 +190,9 @@ void text_delete(uint32_t line)
     tell(line + uimn.text.first, -1);
 }
 
-bool text_mark(uint32_t line) { return prog_line(text_rec(line))->flags & LF_BP; }
+bool text_mark(const uint32_t line) { return prog_line(text_rec(line))->flags & LF_BP; }
 
-void text_toggle(uint32_t line) { prog_line(text_rec(line))->flags ^= LF_BP; }
+void text_toggle(const uint32_t line) { prog_line(text_rec(line))->flags ^= LF_BP; }
 
 void text_unmark_all(void)
 {
@@ -189,19 +200,19 @@ void text_unmark_all(void)
         prog_line(rec)->flags &= ~LF_BP;
 }
 
-void text_clip_put(const uint8_t *src, uint16_t len, bool lines)
+void text_clip_put(const uint8_t *const src, const uint16_t len, const bool lines)
 {
     uimn.text.clip_lines = lines;
     uimn.text.clip_len = len;
     memmove(uimn.text.clip, src, len);
 }
 
-void text_clip_lines(uint32_t from, uint32_t to)
+void text_clip_lines(const uint32_t from, const uint32_t to)
 {
     uint32_t n = 0;
-    for (; from <= to; from++) {
-        uint32_t len = text_get(from, uimn.build);
-        if (n + len + 1 > 0xFFFF)
+    for (uint32_t line = from; line <= to; line++) {
+        const uint32_t len = text_get(line, uimn.build);
+        if (n + len + 1 > UINT16_MAX)
             break;
         memcpy(uimn.text.clip + n, uimn.build, len);
         n += len;
@@ -212,7 +223,7 @@ void text_clip_lines(uint32_t from, uint32_t to)
 }
 
 /* The file's next byte, not taken; false: the end. */
-static bool peek(uint8_t *c)
+static bool peek(uint8_t *const c)
 {
     if (io.pos >= io.cnt) {
         uint32_t got;
@@ -226,7 +237,7 @@ static bool peek(uint8_t *c)
 }
 
 /* The file's next byte, taken. */
-static bool next(uint8_t *c)
+static bool next(uint8_t *const c)
 {
     if (!peek(c))
         return false;
@@ -235,7 +246,7 @@ static bool next(uint8_t *c)
 }
 
 /* The line read, len long in uimn.build, stored. */
-static void read_line(uint32_t len)
+static void read_line(const uint32_t len)
 {
     if (!edit_canon(uimn.build, (uint16_t)len))
         uimn.text.asis = true;
@@ -243,52 +254,61 @@ static void read_line(uint32_t len)
     io.lines++;
 }
 
-uint16_t text_read(const char *name)
+/* A line's end c (CR, CR LF, LF) after n characters in uimn.build: the line stored, or, continued
+   with '_', the '_' a blank and the next line's indent dropped; the characters kept. */
+static uint32_t line_end(const uint8_t c, uint32_t n)
 {
-    uint16_t e = pfil_open(name, PFIL_READ, &io.h);
+    uint8_t *const buf = uimn.build;
+    uint8_t after;
+    if (c == NL && peek(&after) && after == LF)
+        io.pos++;
+    const bool more = srcr_phys_end();
+    srcr_phys_start();
+    if (!more) {
+        read_line(n);
+        return 0;
+    }
+    while (n && buf[n - 1] == ' ')
+        n--;
+    if (n && buf[n - 1] == '_')
+        buf[n - 1] = ' ';
+    while (peek(&after) && is_blank(after))
+        io.pos++;
+    return n;
+}
+
+/* Character c after n in uimn.build: a tab spaces to the next stop, past LNMAX cut; the
+   characters now. */
+static uint32_t line_char(const uint8_t c, uint32_t n)
+{
+    uint8_t *const buf = uimn.build;
+    srcr_phys_byte(c);
+    if (n >= LNMAX)
+        return n;
+    if (c != CH_TAB) {
+        buf[n++] = c;
+        return n;
+    }
+    do
+        buf[n++] = ' ';
+    while (n % TAB_STOP && n < LNMAX);
+    return n;
+}
+
+uint16_t text_read(const char *const name)
+{
+    const uint16_t e = pfil_open(name, PFIL_READ, &io.h);
     if (e != PFIL_OK)
         return e;
     io.pos = io.cnt = 0;
     uimn.text.changed = true;
     prog_init();
     io.lines = 0;
-    uint8_t *const buf = uimn.build;
     uint32_t n = 0; /* the line's characters, its column */
     srcr_phys_start();
-    for (;;) {
-        uint8_t c;
-        if (!next(&c) || c == 0x1A)
-            break;
-        if (c == 10 || c == NL) {
-            uint8_t lf;
-            if (c == NL && peek(&lf) && lf == 10)
-                io.pos++;
-            bool more = srcr_phys_end();
-            srcr_phys_start();
-            if (!more) {
-                read_line(n);
-                n = 0;
-                continue;
-            }
-            while (n && buf[n - 1] == ' ') /* continued: the '_' a blank, the next line's */
-                n--;                       /* indent dropped */
-            if (n && buf[n - 1] == '_')
-                buf[n - 1] = ' ';
-            while (peek(&c) && is_blank(c))
-                io.pos++;
-            continue;
-        }
-        srcr_phys_byte(c);
-        if (n >= LNMAX)
-            continue;
-        if (c != 9) {
-            buf[n++] = c;
-            continue;
-        }
-        do
-            buf[n++] = ' ';
-        while (n & 7 && n < LNMAX);
-    }
+    uint8_t c;
+    while (next(&c) && c != CH_EOF)
+        n = c == LF || c == NL ? line_end(c, n) : line_char(c, n);
     if (n || !io.lines) /* the last line, unended */
         read_line(n);
     pfil_close(io.h);
@@ -298,24 +318,26 @@ uint16_t text_read(const char *name)
 }
 
 /* len bytes at p written; a DOS error to io.err. */
-static void out(const uint8_t *p, uint32_t len)
+static void out(const uint8_t *const p, const uint32_t len)
 {
-    uint32_t put;
-    uint16_t e;
-    if (len && (e = pfil_write(io.h, p, len, &put)) != PFIL_OK)
+    if (!len)
+        return;
+    uint32_t wrote;
+    const uint16_t e = pfil_write(io.h, p, len, &wrote);
+    if (e != PFIL_OK)
         io.err = e;
 }
 
 static void flush(void)
 {
-    uint32_t n = io.cnt;
+    const uint32_t n = io.cnt;
     io.cnt = 0;
     out(io.buf, n);
 }
 
-uint16_t text_write(const char *name)
+uint16_t text_write(const char *const name)
 {
-    uint16_t e = pfil_create(name, &io.h);
+    const uint16_t e = pfil_create(name, &io.h);
     if (e != PFIL_OK)
         return e;
     io.cnt = 0;
@@ -324,7 +346,7 @@ uint16_t text_write(const char *name)
     for (uint32_t line = 0; line < uimn.text.all; line++) {
         uint32_t len = text_of(lmap_off(line), buf);
         buf[len++] = NL;
-        buf[len++] = 10;
+        buf[len++] = LF;
         if (io.cnt + len > RDSZ) {
             flush();
             if (len > RDSZ) { /* longer than the buffer: as it is */

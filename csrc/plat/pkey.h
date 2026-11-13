@@ -11,9 +11,15 @@ typedef struct {
     uint8_t ch, scan;
 } PkeyKey;
 
+/* pkey_shift's flags. */
+enum : uint8_t {
+    PKEY_RSHIFT = 0x01, PKEY_LSHIFT = 0x02, PKEY_SHIFT = PKEY_RSHIFT | PKEY_LSHIFT, PKEY_CTRL = 0x04,
+    PKEY_ALT = 0x08, PKEY_NUM = 0x20, PKEY_CAPS = 0x40,
+};
+
 bool pkey_ready(void);   /* a key waiting */
 PkeyKey pkey_read(void); /* the next key, waited for */
-uint8_t pkey_shift(void); /* the shift flags: bit 0 right shift, 1 left, 2 Ctrl, 3 Alt */
+uint8_t pkey_shift(void); /* the shift flags (PKEY_*) */
 void pkey_flush(void);   /* the keys waiting dropped */
 uint16_t pkey_wait(void); /* the next key, waited for: scan code << 8 | char (INT 16h AH=0) */
 uint8_t pkey_poll(void); /* a key waiting, read without echo, else 0 (DOS 0Bh, 07h) */

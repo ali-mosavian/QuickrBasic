@@ -28,21 +28,28 @@ static struct {
 } hl;
 
 /* ud_hlset: the statement at dbug.wline, stmt_from, stmt_to lit, the cursor at its start. */
+/* The statement's end, before c1, past c0: its trailing spaces and ':' left out. */
+static uint32_t trim_end(const uint8_t *const s, const uint32_t c0, uint32_t c1)
+{
+    while (c1 > c0 && (s[c1 - 1] == ' ' || s[c1 - 1] == ':'))
+        c1--;
+    return c1;
+}
+
 static void hlset(void)
 {
     uint32_t tl;
     if (!lmap_of(dbug.wline, &tl))
         return;
     hl.line = tl;
-    uint32_t len = text_get(view_goline(tl), uimn.line);
+    const uint32_t len = text_get(view_goline(tl), uimn.line);
     uimn.line[len] = 0;
-    uint8_t *body = edit_body(uimn.line);
+    uint8_t *const body = edit_body(uimn.line);
     lexr_line(body, comp_cbuf);
-    uint32_t bc = (uint32_t)(body - uimn.line);
-    uint32_t c0 = lexr.col[dbug.stmt_from] + bc;
-    uint32_t c1 = dbug.stmt_to == BOFF ? len : lexr.col[dbug.stmt_to] + bc;
-    while (c1 > c0 && (uimn.line[c1 - 1] == ' ' || uimn.line[c1 - 1] == ':'))
-        c1--;
+    const uint32_t bc = (uint32_t)(body - uimn.line);
+    const uint32_t c0 = lexr.col[dbug.stmt_from] + bc;
+    const uint32_t c1 = trim_end(uimn.line, c0,
+                                 dbug.stmt_to == BOFF ? len : lexr.col[dbug.stmt_to] + bc);
     hl.c0 = (uint16_t)c0;
     hl.c1 = (uint16_t)c1;
     hl.on = true;
@@ -53,6 +60,8 @@ static void hlset(void)
     edit_ensure();
 }
 
+enum { TRACE_TICKS = 2 };
+
 /* ud_trace (dbug.hook): the statement lit on the editor's page for two ticks. */
 static void trace(void)
 {
@@ -60,7 +69,7 @@ static void trace(void)
     wind_draw();
     scrn_flip();
     pscr_page(0);
-    uint32_t until = pclk_ticks() + 2;
+    const uint32_t until = pclk_ticks() + TRACE_TICKS;
     while (until > pclk_ticks())
         ;
     pscr_page(1);
@@ -97,7 +106,7 @@ void udbg_stop(void)
     hlset();
 }
 
-void udbg_row(uint8_t row, uint8_t col, uint32_t line)
+void udbg_row(const uint8_t row, const uint8_t col, const uint32_t line)
 {
     if (text_mark(line))
         scrn_attr(row, col, uimn.ed.width, SL_BPL);
@@ -105,13 +114,12 @@ void udbg_row(uint8_t row, uint8_t col, uint32_t line)
         return;
     if (line == uimn.ed.line && uimn.edline.dirty) /* not while it is being changed */
         return;
-    uint16_t left = uimn.ed.left;
-    uint16_t a = hl.c0 > left ? hl.c0 - left : 0;
+    const uint16_t left = uimn.ed.left;
+    const uint16_t a = hl.c0 > left ? hl.c0 - left : 0;
     if (hl.c1 <= left)
         return;
-    uint16_t b = hl.c1 - left;
-    if (b > uimn.ed.width)
-        b = uimn.ed.width;
+    const uint16_t end = hl.c1 - left;
+    const uint16_t b = end > uimn.ed.width ? uimn.ed.width : end;
     if (a >= b)
         return;
     scrn_attr(row, (uint8_t)(col + a), b - a, SL_CUR);
@@ -132,13 +140,8 @@ void udbg_pstep(void)
 
 void udbg_sout(void)
 {
-    uint32_t d = 0;
-    if (uimn_cancont()) {
-        d = dbug_depth(&vm);
-        if (d)
-            d--;
-    }
-    dbug.pdep = d;
+    const uint32_t d = uimn_cancont() ? dbug_depth(&vm) : 0;
+    dbug.pdep = d ? d - 1 : 0;
     dbug.mode = DM_PSTEP;
     uimn_cont();
 }
@@ -173,16 +176,16 @@ void udbg_setnext(void)
         dlog_ok("Cannot continue");
         return;
     }
-    uint32_t rec = text_rec(uimn.ed.line);
+    const uint32_t rec = text_rec(uimn.ed.line);
     blok_scope(rec);
-    uint8_t proc = comp.proc;
+    const uint8_t proc = comp.proc;
     blok_scope(vm.cont.line);
     if (proc != comp.proc) {
         dlog_ok("Cannot cross module/procedure boundary");
         return;
     }
-    uint32_t code = prog_line(rec)->code;
-    Addr a = code ? allo.cache + code : link_cache(rec);
+    const uint32_t code = prog_line(rec)->code;
+    const Addr a = code ? allo.cache + code : link_cache(rec);
     vm.cont.line = rec;
     vm.cont.code = a - allo.cache;
     udbg_stop();

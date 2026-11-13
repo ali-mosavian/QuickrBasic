@@ -28,13 +28,17 @@ enum {
     NWATCH = 8,  /* watches at most */
     WXLEN = 41,  /* a watch's expression, 0-ended */
     ROWSZ = 256, /* a row being made: an expression, " = ", a value or a message */
+    VIEW_NONE = 0xFF,
+    FRAME_NAME = 15, /* a frame's row: its view's name, 15 characters at most, */
+    FRAME_LINE = 16, /*   "line n" from column 16 */
+    VK_FN = 3,       /* a DEF FN's kind (Var.info) */
 };
 
 /* TDFRM: a call stack's frame. */
 typedef struct {
     int32_t line;    /* df_ln: its text line, -1 the immediate's */
     const Frame *fp; /* its procedure's call frame, nullptr the module */
-    uint8_t view;    /* df_vw: its view, FFh none */
+    uint8_t view;    /* df_vw: its view, VIEW_NONE none */
     char text[DP_TW + 1];
 } PaneFrame;
 
@@ -77,15 +81,16 @@ static const uint8_t sfx_type[] = {ET_I2, ET_I4, ET_R4, ET_R8, ET_SD}; /* its ty
 static const char sfx_of[] = {0, '%', '&', 0, '#', '$'}; /* by ET_*: the suffix shown */
 
 /* dp_cpy: s at d, its 0 left out; past it. */
-static char *cpy(char *d, const char *s)
+static char *cpy(char *const d, const char *const s)
 {
-    while (*s)
-        *d++ = *s++;
-    return d;
+    uint32_t i = 0;
+    for (; s[i]; i++)
+        d[i] = s[i];
+    return d + i;
 }
 
 /* dp_dec: v in decimal at d, a sign when negative; past it. */
-static char *dec(char *d, int32_t v)
+static char *dec(char *d, const int32_t v)
 {
     uint32_t u = (uint32_t)v;
     if (v < 0) {
@@ -98,13 +103,13 @@ static char *dec(char *d, int32_t v)
         t[n++] = (char)('0' + u % 10);
         u /= 10;
     } while (u);
-    while (n)
-        *d++ = t[--n];
-    return d;
+    for (int i = 0; i < n; i++)
+        d[i] = t[n - 1 - i];
+    return d + n;
 }
 
 /* dp_rowcut: dp.row_text to d, cut to DP_TW-1 characters, 0-ended. */
-static void rowcut(char *d)
+static void rowcut(char *const d)
 {
     uint32_t i = 0;
     for (; i < DP_TW - 1 && dp.row_text[i]; i++)
@@ -121,14 +126,14 @@ static const Frame *call_from(int32_t i)
     return nullptr;
 }
 
-static uint8_t frame_proc(const Frame *fp) { return fp ? fp->call.proc : 0; }
+static uint8_t frame_proc(const Frame *const fp) { return fp ? fp->call.proc : 0; }
 
 /* dp_frm1: frame f: program line line, its procedure's frame fp. */
-static void frame1(PaneFrame *f, uint32_t line, const Frame *fp)
+static void frame1(PaneFrame *const f, const uint32_t line, const Frame *const fp)
 {
     f->fp = fp;
     f->line = -1;
-    f->view = 0xFF;
+    f->view = VIEW_NONE;
     memset(f->text, ' ', DP_TW);
     f->text[DP_TW] = 0;
     uint32_t tl;
@@ -137,14 +142,14 @@ static void frame1(PaneFrame *f, uint32_t line, const Frame *fp)
         return;
     }
     f->line = (int32_t)tl;
-    uint8_t v = view_of(tl);
-    const View *vw = view_at(v);
-    uint32_t n = tl - vw->first + 1;
+    const uint8_t v = view_of(tl);
+    const View *const vw = view_at(v);
+    const uint32_t n = tl - vw->first + 1;
     f->view = v;
-    const char *name = v ? vw->name : "module";
-    for (int i = 0; i < 15 && name[i]; i++) /* the name, 15 characters at most */
+    const char *const name = v ? vw->name : "module";
+    for (int i = 0; i < FRAME_NAME && name[i]; i++)
         f->text[i] = name[i];
-    dec(cpy(f->text + 16, "line "), (uint16_t)n);
+    dec(cpy(f->text + FRAME_LINE, "line "), (uint16_t)n);
 }
 
 /* dp_frames: the stop's line, then each M_PC frame's caller. */
@@ -167,8 +172,8 @@ static void frames(void)
    Call stack, the rest to Locals. */
 static void geo(void)
 {
-    uint8_t all = 23 - uimn.win.win[W_IMM].height;
-    uint8_t q = (uint8_t)(all * 3 / 10);
+    const uint8_t all = WIN_ROWS - uimn.win.win[W_IMM].height;
+    const uint8_t q = (uint8_t)(all * 3 / 10);
     dp.h[DP_WAT] = q;
     dp.h[DP_STK] = q;
     dp.h[DP_LOC] = all - 2 * q;
@@ -178,39 +183,39 @@ static void geo(void)
 }
 
 /* dp_cnt: window w's items. */
-static uint8_t count(uint8_t w)
+static uint8_t count(const uint8_t w)
 {
     return w == DP_WAT ? dp.nwatch : w == DP_LOC ? dp.nvars : dp.nframes;
 }
 
 /* dp_item: item i of window w, nullptr none. */
-static const char *item(uint8_t w, uint32_t i)
+static const char *item(const uint8_t w, const uint32_t i)
 {
     if (i >= count(w))
         return nullptr;
     return w == DP_WAT ? dp.wv[i] : w == DP_LOC ? dp.vt[i] : dp.fr[i].text;
 }
 
-static bool has_focus(uint8_t w) { return uimn.focus == FOC_PANE && dp.focus == w; }
+static bool has_focus(const uint8_t w) { return uimn.focus == FOC_PANE && dp.focus == w; }
 
 /* dp_line: row r of window w: its borders, its item. */
-static void line1(uint8_t w, uint8_t r)
+static void line1(const uint8_t w, const uint8_t r)
 {
-    uint8_t row = dp.row[w] + 1 + r;
-    uint8_t col = scrn_fill(row, DP_COL, SL_ED, 0xB3, 1);
-    uint32_t i = dp.top[w] + r;
-    uint8_t slot = has_focus(w) && (uint8_t)i == dp.sel[w] ? SL_SEL : SL_ED;
-    uint8_t mark = w == DP_STK && (uint8_t)i == dp.frame && (uint8_t)i < dp.nframes ? 0x10 : ' ';
-    col = scrn_fill(row, col, slot, mark, 1);
+    const uint8_t row = dp.row[w] + 1 + r;
+    const uint32_t i = dp.top[w] + r;
+    const uint8_t slot = has_focus(w) && (uint8_t)i == dp.sel[w] ? SL_SEL : SL_ED;
+    const bool cur = w == DP_STK && (uint8_t)i == dp.frame && (uint8_t)i < dp.nframes;
+    uint8_t col = scrn_fill(row, DP_COL, SL_ED, GLYPH_V, 1);
+    col = scrn_fill(row, col, slot, cur ? GLYPH_POINT_RIGHT : ' ', 1);
     scrn_fill(row, col, slot, ' ', DP_TW - 1);
-    const char *s = item(w, i);
+    const char *const s = item(w, i);
     if (s) {
         uint16_t n = 0;
         while (s[n] && n < DP_TW - 1)
             n++;
         scrn_strn(row, col, (const uint8_t *)s, n, slot);
     }
-    scrn_fill(row, DP_COL + DP_W - 1, SL_ED, 0xB3, 1);
+    scrn_fill(row, DP_COL + DP_W - 1, SL_ED, GLYPH_V, 1);
 }
 
 void dpan_draw(void)
@@ -219,21 +224,20 @@ void dpan_draw(void)
         return;
     geo();
     for (uint8_t w = 0; w < NDP; w++) {
-        if (w == 0)
-            draw_title(dp.row[w], DP_COL, DP_W, 0xDA, 0xBF, titles[w], has_focus(w), false);
-        else
-            draw_title(dp.row[w], DP_COL, DP_W, 0xC3, 0xB4, titles[w], has_focus(w), false);
+        const bool top = !w; /* the top window's corners, else joins */
+        draw_title(dp.row[w], DP_COL, DP_W, top ? GLYPH_TOP_LEFT : GLYPH_V_RIGHT,
+                   top ? GLYPH_TOP_RIGHT : GLYPH_V_LEFT, titles[w], has_focus(w), false);
         for (uint8_t r = 0; r + 1 < dp.h[w]; r++)
             line1(w, r);
     }
 }
 
 /* dp_ispar: id is a parameter of procedure dp.proc. */
-static bool is_param(uint16_t id)
+static bool is_param(const uint16_t id)
 {
     if (!dp.proc)
         return false;
-    const Proc *p = &blok_procs[dp.proc];
+    const Proc *const p = &blok_procs[dp.proc];
     for (uint16_t k = 0; k < p->npar; k++)
         if (blok_params[p->par + k] == id)
             return true;
@@ -242,26 +246,29 @@ static bool is_param(uint16_t id)
 
 /* dp_newer: the oldest call of procedure dp.proc newer than frame fp, which saved what that
    frame sees; 0 none, or the module. */
-static void find_newer(const Frame *fp)
+static void find_newer(const Frame *const fp)
 {
     dp.newer = nullptr;
     if (!fp)
         return;
-    for (const Frame *f = vm.frames + vm.nframes; --f > fp;)
+    const uint32_t at = (uint32_t)(fp - vm.frames);
+    for (uint32_t i = vm.nframes - 1; i > at; i--) {
+        const Frame *const f = &vm.frames[i];
         if (f->kind == FRAME_CALL && f->call.proc == dp.proc)
             dp.newer = f;
+    }
 }
 
 /* dp_cell: variable id's cell as the frame sees it: vt's, else a newer call's saved one; par its
    parameter's place, -1 none. */
-static Addr cell_of(uint16_t id, int32_t par)
+static Addr cell_of(const uint16_t id, const int32_t par)
 {
-    Addr cell = symb_var(id)->vt;
+    const Addr vt = symb_var(id)->vt;
     if (!dp.newer)
-        return cell;
-    const Call *c = &dp.newer->call;
-    if (par >= 0)
-        cell = vm.callvars[c->params + (uint32_t)par].cell; /* the cell before the newer call */
+        return vt;
+    const Call *const c = &dp.newer->call;
+    /* a parameter: its cell before the newer call */
+    const Addr cell = par >= 0 ? vm.callvars[c->params + (uint32_t)par].cell : vt;
     if (cell != symb_cell(id))
         return cell;
     uint32_t n = 0; /* its own: the value saved */
@@ -273,17 +280,17 @@ static Addr cell_of(uint16_t id, int32_t par)
 
 /* dp_val: the value of variable id's kind in cell, as text at d: a number as PRINT's without
    its sign's space, a string in quotes. Past it. */
-static char *value(char *d, uint16_t id, Addr cell)
+static char *value(char *d, const uint16_t id, const Addr cell)
 {
-    const Var *v = symb_var(id);
+    const Var *const v = symb_var(id);
     uint8_t buf[DUBL_TXT];
     uint32_t n;
     if (v->info & SK_DBL) {
         const double x = load_cell(at(cell)).d;
         n = dubl_fmt(x, buf);
     } else if ((v->info & VK_MASK) == VK_STR) {
-        const Desc *s = (const Desc *)at(cell);
-        uint32_t len = s->len > DP_TW ? DP_TW : s->len;
+        const Desc *const s = (const Desc *)at(cell);
+        const uint32_t len = s->len > DP_TW ? DP_TW : s->len;
         *d++ = '"';
         memcpy(d, at(s->ptr), len);
         d += len;
@@ -305,10 +312,10 @@ static char *value(char *d, uint16_t id, Addr cell)
 
 /* dp_vtext: variable id's row in dp.row_text: its name, " = ", its value as the frame sees it;
    par its parameter's place or -1. */
-static void var_text(uint16_t id, int32_t par)
+static void var_text(const uint16_t id, const int32_t par)
 {
-    const Var *v = symb_var(id);
-    const uint8_t *name = symb_text(v->name);
+    const Var *const v = symb_var(id);
+    const uint8_t *const name = symb_text(v->name);
     char *d = dp.row_text;
     memcpy(d, name + 1, name[0]);
     d += name[0];
@@ -325,7 +332,7 @@ static void var_text(uint16_t id, int32_t par)
 }
 
 /* dp_var1: Locals' next row: variable id, parameter par of its procedure or -1. */
-static void var1(uint16_t id, int32_t par)
+static void var1(const uint16_t id, const int32_t par)
 {
     if (dp.nvars >= NDVAR)
         return;
@@ -336,18 +343,21 @@ static void var1(uint16_t id, int32_t par)
 }
 
 /* A variable Locals and the tooltip leave out (a DEF FN's). */
-static bool skipped(uint16_t id) { return (symb_var(id)->info & 0x83) == 3; }
+static bool skipped(const uint16_t id)
+{
+    return (symb_var(id)->info & (VI_ARR | VK_MASK)) == VK_FN;
+}
 
 /* dp_vars: Locals: the selected frame's procedure's variables, the module's at the module; its
    parameters first, then by id. */
 static void vars(void)
 {
-    const Frame *fp = dp.fr[dp.frame].fp;
+    const Frame *const fp = dp.fr[dp.frame].fp;
     dp.proc = frame_proc(fp);
     find_newer(fp);
     dp.nvars = 0;
     if (dp.proc) {
-        const Proc *p = &blok_procs[dp.proc];
+        const Proc *const p = &blok_procs[dp.proc];
         for (uint16_t k = 0; k < p->npar; k++)
             var1(blok_params[p->par + k], k);
     }
@@ -359,29 +369,39 @@ static void vars(void)
 /* dp_wval: expression expr's value as text at d (in dp.row_text): dbug_eval's output, its spaces
    and end of line left out; an error's message. A ':' (another statement) or a direct line's
    frame on cstk (its code would go): none. Past it. */
-static char *watch_value(char *d, const char *expr)
+/* dbug_eval's output out at d, its spaces and end of line left out; past it. */
+static char *eval_text(char *d, const char *const out)
 {
-    uint8_t err = 0;
+    uint32_t a = 0;
+    while (out[a] == ' ')
+        a++;
+    uint32_t n = 0;
+    for (; (uint8_t)out[a + n] >= ' '; n++)
+        d[n] = out[a + n];
+    d += n;
+    while (d[-1] == ' ') /* may eat into " = " for an empty string, as the asm */
+        d--;
+    return d;
+}
+
+/* A direct line's frame on cstk. */
+static bool direct_called(void)
+{
+    for (uint32_t i = 0; i < vm.nframes; i++)
+        if (vm.frames[i].ret.line == DLINE)
+            return true;
+    return false;
+}
+
+static char *watch_value(char *const d, const char *const expr)
+{
     if (strchr(expr, ':'))
-        err = E_SN + 1;
-    else {
-        for (uint32_t i = 0; i < vm.nframes; i++)
-            if (vm.frames[i].ret.line == DLINE)
-                return cpy(d, "(not here)");
-        char out[80];
-        err = dbug_eval(expr, dp.proc, out);
-        if (!err) {
-            const char *s = out;
-            while (*s == ' ')
-                s++;
-            while ((uint8_t)*s >= ' ')
-                *d++ = *s++;
-            while (d[-1] == ' ') /* may eat into " = " for an empty string, as the asm */
-                d--;
-            return d;
-        }
-    }
-    return cpy(d, emsg_text(err - 1));
+        return cpy(d, emsg_text(E_SN));
+    if (direct_called())
+        return cpy(d, "(not here)");
+    char out[80];
+    const uint8_t err = dbug_eval(expr, dp.proc, out);
+    return err ? cpy(d, emsg_text(err - 1)) : eval_text(d, out);
 }
 
 /* dp_weval: each watch's row: its expression, " = ", what PRINT shows of it in the stop's
@@ -421,26 +441,26 @@ void dpan_close(void)
 }
 
 /* dp_vis: window w's first row shown: its selected row in view. */
-static void visible(uint8_t w)
+static void visible(const uint8_t w)
 {
     geo();
-    uint8_t s = dp.sel[w];
+    const uint8_t s = dp.sel[w];
     if (s < dp.top[w]) {
         dp.top[w] = s;
         return;
     }
-    uint8_t rows = dp.h[w] - 1;
+    const uint8_t rows = dp.h[w] - 1;
     if (!rows || (uint8_t)(s - dp.top[w]) < rows)
         return;
     dp.top[w] = s - rows + 1;
 }
 
 /* dp_go: frame i selected: the cursor at the start of its line. */
-static void go(uint8_t i)
+static void go(const uint8_t i)
 {
     dp.frame = i;
     vars();
-    int32_t line = dp.fr[i].line;
+    const int32_t line = dp.fr[i].line;
     if (line == -1)
         return;
     edit_commit();
@@ -461,11 +481,9 @@ static void watch_add(void)
     fld.col = 0;
     if (dlog_run(&add_dlog) != 1)
         return;
-    uint32_t n = fld.len;
-    if (!n)
+    if (!fld.len)
         return;
-    if (n > WXLEN - 1)
-        n = WXLEN - 1;
+    const uint32_t n = fld.len < WXLEN - 1 ? fld.len : WXLEN - 1;
     dp.sel[DP_WAT] = dp.nwatch;
     memcpy(dp.wx[dp.nwatch], fld.text, n);
     dp.wx[dp.nwatch][n] = 0;
@@ -477,62 +495,57 @@ static void watch_add(void)
 /* dp_wdel: Del in Watch: the selected watch dropped. */
 static void watch_del(void)
 {
-    uint8_t i = dp.sel[DP_WAT];
+    const uint8_t i = dp.sel[DP_WAT];
     if (i >= dp.nwatch)
         return;
     dp.nwatch--;
-    uint32_t after = dp.nwatch - i;
+    const uint32_t after = dp.nwatch - i;
     memmove(dp.wx[i], dp.wx[i + 1], after * WXLEN);
     memmove(dp.wv[i], dp.wv[i + 1], after * DP_TW);
     if (i >= dp.nwatch && i > 0)
         dp.sel[DP_WAT] = i - 1;
 }
 
-void dpan_key(uint16_t key)
+/* Up or Down in window w: its row selected moved by one, kept in view. */
+static void sel_step(const uint8_t w, const uint8_t scan)
 {
-    uint8_t w = dp.focus;
-    uint8_t c = (uint8_t)key, scan = (uint8_t)(key >> 8);
-    if (c == 9) {
-        dp.focus = w + 1 < NDP ? w + 1 : 0;
-        return;
-    }
-    if (key == 0x0F00) {
-        dp.focus = w ? w - 1 : NDP - 1;
-        return;
-    }
-    if (c == 0x1B) {
-        wind_focus(uimn.win.active);
-        return;
-    }
-    if (c == 0x0D) {
-        if (w == DP_STK && dp.sel[w] < dp.nframes)
-            go(dp.sel[w]);
-        return;
-    }
-    if (c)
-        return;
-    if (w == DP_WAT && scan == 0x52) {
-        watch_add();
-        return;
-    }
-    if (w == DP_WAT && scan == 0x53) {
-        watch_del();
-        return;
-    }
-    int32_t s = dp.sel[w];
-    if (scan == 0x48) {
-        if (--s < 0)
-            return;
-    } else if (scan == 0x50) {
-        if (++s >= count(w))
-            return;
-    } else
+    const bool up = scan == SCAN_UP;
+    const int32_t s = dp.sel[w] + (up ? -1 : 1);
+    if (up ? s < 0 : s >= count(w))
         return;
     dp.sel[w] = (uint8_t)s;
     visible(w);
 }
 
-void dpan_mouse(uint8_t row, uint8_t col)
+/* A key with no character (an extended one) in window w. */
+static void scan_key(const uint8_t w, const uint8_t scan)
+{
+    if (w == DP_WAT && scan == SCAN_INS)
+        watch_add();
+    else if (w == DP_WAT && scan == SCAN_DEL)
+        watch_del();
+    else if (scan == SCAN_UP || scan == SCAN_DOWN)
+        sel_step(w, scan);
+}
+
+void dpan_key(const uint16_t key)
+{
+    const uint8_t w = dp.focus;
+    const uint8_t c = (uint8_t)key, scan = (uint8_t)(key >> 8);
+    if (c == CH_TAB)
+        dp.focus = w + 1 < NDP ? w + 1 : 0;
+    else if (key == KEY_SHIFT_TAB)
+        dp.focus = w ? w - 1 : NDP - 1;
+    else if (c == CH_ESC)
+        wind_focus(uimn.win.active);
+    else if (c == CH_ENTER) {
+        if (w == DP_STK && dp.sel[w] < dp.nframes)
+            go(dp.sel[w]);
+    } else if (!c)
+        scan_key(w, scan);
+}
+
+void dpan_mouse(const uint8_t row, const uint8_t col)
 {
     if (uimn.mouse.event != MS_PRESS)
         return;
@@ -544,10 +557,10 @@ void dpan_mouse(uint8_t row, uint8_t col)
     if (w < 0)
         return;
     dp.focus = (uint8_t)w;
-    uint8_t r = row - dp.row[w];
+    const uint8_t r = row - dp.row[w];
     if (!r)
         return;
-    uint8_t i = (uint8_t)(r - 1 + dp.top[w]);
+    const uint8_t i = (uint8_t)(r - 1 + dp.top[w]);
     if (i >= count((uint8_t)w))
         return;
     dp.sel[w] = i;
@@ -555,7 +568,7 @@ void dpan_mouse(uint8_t row, uint8_t col)
         go(i);
 }
 
-void dpan_hover(uint8_t row, uint8_t col)
+void dpan_hover(const uint8_t row, const uint8_t col)
 {
     uimn.tip_mouse = true;
     dp.tip_row = row;
@@ -564,12 +577,12 @@ void dpan_hover(uint8_t row, uint8_t col)
 
 static bool is_name_char(const uint8_t c) { return c == '.' || is_digit(c) || is_letter(c); }
 
-static bool is_suffix(uint8_t c) { return c && strchr(sfx_char, c); }
+static bool is_suffix(const uint8_t c) { return c && strchr(sfx_char, c); }
 
 /* dp_word: the name at column col of s, len long, not in a string or after a '. *start its
    first column, *n its length (its suffix left out), *sfx its suffix, 0 none. */
-static bool word(const uint8_t *s, uint32_t len, uint32_t col, uint32_t *start, uint32_t *n,
-                 uint8_t *sfx)
+static bool word(const uint8_t *const s, const uint32_t len, uint32_t col, uint32_t *const start,
+                 uint32_t *const n, uint8_t *const sfx)
 {
     if (col >= len)
         return false;
@@ -583,8 +596,7 @@ static bool word(const uint8_t *s, uint32_t len, uint32_t col, uint32_t *start, 
     uint32_t b = col;
     while (b && is_name_char(s[b - 1]))
         b--;
-    uint8_t c = s[b] | 0x20;
-    if (c < 'a' || c > 'z')
+    if (!is_letter(s[b]))
         return false;
     uint32_t e = col;
     do
@@ -605,12 +617,12 @@ static bool word(const uint8_t *s, uint32_t len, uint32_t col, uint32_t *start, 
 
 /* dp_match: variable id is the name s, n long, suffix sfx: its letters the name's, the suffix,
    if any, its type's. */
-static bool match(uint16_t id, const uint8_t *s, uint32_t n, uint8_t sfx)
+static bool match(const uint16_t id, const uint8_t *const s, const uint32_t n, const uint8_t sfx)
 {
-    const Var *v = symb_var(id);
+    const Var *const v = symb_var(id);
     if (sfx && sfx_type[strchr(sfx_char, sfx) - sfx_char] != v->type)
         return false;
-    const uint8_t *t = symb_text(v->name);
+    const uint8_t *const t = symb_text(v->name);
     if ((uint8_t)n != t[0])
         return false;
     for (uint32_t i = 0; i < n; i++)
@@ -620,9 +632,9 @@ static bool match(uint16_t id, const uint8_t *s, uint32_t n, uint8_t sfx)
 }
 
 /* dp_seen: module variable id is seen in procedure dp.proc: DIM SHARED, or SHARED there. */
-static bool seen(uint16_t id)
+static bool seen(const uint16_t id)
 {
-    uint16_t name = symb_var(id)->name;
+    const uint16_t name = symb_var(id)->name;
     const Binding *b = scop_get(0, name);
     if (b && b->flags & BF_SHR)
         return true;
@@ -632,7 +644,7 @@ static bool seen(uint16_t id)
 
 /* dp_find: the row of the name s, n long, suffix sfx: Locals' variable of it, else a module one
    the frame's procedure sees, SHARED; nullptr none. */
-static const char *find(const uint8_t *s, uint32_t n, uint8_t sfx)
+static const char *find(const uint8_t *const s, const uint32_t n, const uint8_t sfx)
 {
     for (uint8_t i = 0; i < dp.nvars; i++)
         if (match(dp.vid[i], s, n, sfx))
@@ -649,56 +661,71 @@ static const char *find(const uint8_t *s, uint32_t n, uint8_t sfx)
     return nullptr;
 }
 
+/* The tooltip's text line: the cursor's, else the mouse's in the active window; *text, *len,
+   *col in it, *line its number. False: none. */
+static bool tip_at(const uint8_t **const text, uint32_t *const len, uint32_t *const col,
+                   uint32_t *const line)
+{
+    const UiEdit *const ed = &uimn.ed;
+    if (!uimn.tip_mouse) {
+        if (uimn.focus != FOC_EDIT)
+            return false;
+        *col = uimn.edline.col;
+        *text = uimn.edline.text;
+        *len = uimn.edline.len;
+        *line = ed->line;
+        return true;
+    }
+    uint8_t w;
+    if (!wind_at(dp.tip_row, dp.tip_col, &w) || w != uimn.win.active)
+        return false;
+    if (dp.tip_row < ed->row0 || dp.tip_row - ed->row0 >= ed->rows)
+        return false;
+    const uint32_t l = dp.tip_row - ed->row0 + ed->top;
+    if (l >= uimn.text.n || dp.tip_col <= ed->x)
+        return false;
+    const uint32_t c = dp.tip_col - ed->x - 1u;
+    if (c >= ed->width)
+        return false;
+    *col = c + ed->left;
+    *line = (uint16_t)l;
+    *len = text_get(*line, uimn.line);
+    *text = uimn.line;
+    return true;
+}
+
+/* Tooltip s for the name at column start of line line: under it, else over it, in the window. */
+static void tip_show(const char *const s, const uint32_t start, const uint32_t line)
+{
+    const UiEdit *const ed = &uimn.ed;
+    uint16_t r = (uint16_t)(line - ed->top + ed->row0 + 1);
+    if (r >= ed->row0 + ed->rows)
+        r -= 2;
+    const uint32_t sn = strlen(s);
+    const uint32_t edge = ed->x + 1u + ed->width; /* past the window */
+    const uint32_t c0 = ed->x + 1u + (start > ed->left ? start - ed->left : 0);
+    const uint32_t c = c0 + sn + 2 > edge ? edge - sn - 2 : c0;
+    const uint8_t row = (uint8_t)r;
+    uint8_t x = scrn_fill(row, (uint8_t)c, SL_BAR, ' ', 1);
+    x = scrn_strn(row, x, (const uint8_t *)s, (uint16_t)sn, SL_BAR);
+    scrn_fill(row, x, SL_BAR, ' ', 1);
+}
+
 void dpan_tip(void)
 {
     if (!uimn.pane_on || !uimn_stopped())
         return;
     if (dp.fr[dp.frame].view != uimn.ed.view) /* in the frame's view */
         return;
-    const UiEdit *ed = &uimn.ed;
     const uint8_t *text;
     uint32_t len, col, line;
-    if (!uimn.tip_mouse) { /* the cursor's */
-        if (uimn.focus != FOC_EDIT)
-            return;
-        col = uimn.edline.col;
-        text = uimn.edline.text;
-        len = uimn.edline.len;
-        line = ed->line;
-    } else { /* the mouse's, in the active window */
-        uint8_t w;
-        if (!wind_at(dp.tip_row, dp.tip_col, &w) || w != uimn.win.active)
-            return;
-        if (dp.tip_row < ed->row0 || dp.tip_row - ed->row0 >= ed->rows)
-            return;
-        uint32_t l = dp.tip_row - ed->row0 + ed->top;
-        if (l >= uimn.text.n || dp.tip_col <= ed->x)
-            return;
-        uint32_t c = dp.tip_col - ed->x - 1u;
-        if (c >= ed->width)
-            return;
-        col = c + ed->left;
-        line = (uint16_t)l;
-        len = text_get(line, uimn.line);
-        text = uimn.line;
-    }
+    if (!tip_at(&text, &len, &col, &line))
+        return;
     uint32_t start, n;
     uint8_t sfx;
     if (!word(text, len, col, &start, &n, &sfx))
         return;
-    const char *s = find(text + start, n, sfx);
-    if (!s)
-        return;
-    uint16_t r = (uint16_t)(line - ed->top + ed->row0 + 1); /* under the name, else over */
-    if (r >= ed->row0 + ed->rows)
-        r -= 2;
-    uint32_t sn = strlen(s);
-    uint32_t c = ed->x + 1u + (start > ed->left ? start - ed->left : 0);
-    uint32_t edge = ed->x + 1u + ed->width; /* past the window */
-    if (c + sn + 2 > edge)
-        c = edge - sn - 2;
-    uint8_t row = (uint8_t)r;
-    uint8_t x = scrn_fill(row, (uint8_t)c, SL_BAR, ' ', 1);
-    x = scrn_strn(row, x, (const uint8_t *)s, (uint16_t)sn, SL_BAR);
-    scrn_fill(row, x, SL_BAR, ' ', 1);
+    const char *const s = find(text + start, n, sfx);
+    if (s)
+        tip_show(s, start, line);
 }

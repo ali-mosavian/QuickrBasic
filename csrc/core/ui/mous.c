@@ -1,5 +1,6 @@
 /* The mouse in the editor (src/ui/mouse.asm). */
 #include "ui/mous.h"
+#include "plat/pkey.h"
 #include "ui/dpan.h"
 #include "ui/draw.h"
 #include "ui/edit.h"
@@ -7,6 +8,10 @@
 #include "ui/scrn.h"
 #include "ui/wind.h"
 #include "plat/pmou.h"
+
+enum : uint8_t {
+    BUTTON_LEFT = 1, /* PmouState.buttons */
+};
 
 void mous_init(void)
 {
@@ -26,35 +31,40 @@ void mous_hide(void)
         pmou_hide();
 }
 
+/* The event of the left button, down or not, against m's last poll; 0 none. */
+static uint8_t poll_event(const UiMouse *const m, const uint8_t down, const bool moved)
+{
+    if (down != m->button)
+        return down ? MS_PRESS : MS_UP;
+    if (down && moved)
+        return MS_DRAG;
+    if (!down && m->hover && moved)
+        return MS_MOVE;
+    return 0;
+}
+
 bool mous_poll(void)
 {
-    UiMouse *m = &uimn.mouse;
+    UiMouse *const m = &uimn.mouse;
     if (!m->on)
         return false;
-    PmouState s = pmou_state();
-    uint8_t b = s.buttons & 1, ev;
-    bool moved = s.row != m->row || s.col != m->col;
-    if (b != m->button)
-        ev = b ? MS_PRESS : MS_UP;
-    else if (b && moved)
-        ev = MS_DRAG;
-    else if (!b && m->hover && moved)
-        ev = MS_MOVE;
-    else {
-        m->button = b;
+    const PmouState s = pmou_state();
+    const uint8_t down = s.buttons & BUTTON_LEFT;
+    const bool moved = s.row != m->row || s.col != m->col;
+    const uint8_t ev = poll_event(m, down, moved);
+    m->button = down;
+    if (!ev)
         return false;
-    }
-    m->button = b;
     m->event = ev;
     m->row = s.row;
     m->col = s.col;
     return true;
 }
 
-bool mous_title(uint8_t col, uint8_t *menu)
+bool mous_title(const uint8_t col, uint8_t *const menu)
 {
     for (int m = NMENU - 1; m >= 0; m--) {
-        uint8_t x = menu_x[m] - 1;
+        const uint8_t x = menu_x[m] - 1;
         if (col < x)
             continue;
         if ((uint8_t)(x + scrn_slen(menu_title[m]) + 1) < col)
@@ -66,9 +76,9 @@ bool mous_title(uint8_t col, uint8_t *menu)
 }
 
 /* A press on the edit window's scroll bar at row. */
-static void scroll_bar(uint8_t row)
+static void scroll_bar(const uint8_t row)
 {
-    const UiEdit *e = &uimn.ed;
+    const UiEdit *const e = &uimn.ed;
     if (row == e->row0) {
         edit_up();
         return;
@@ -87,7 +97,7 @@ static void scroll_bar(uint8_t row)
 }
 
 /* A press on the status bar at col: the key there run. */
-static void status_bar(uint8_t col)
+static void status_bar(const uint8_t col)
 {
     if (uimn.help)
         return;
@@ -98,10 +108,47 @@ static void status_bar(uint8_t col)
         }
 }
 
+/* The event in edit window w at row, col: its focus on a press, the cursor there, a selection
+   on a drag or a Shift+click; a press on its scroll bar. */
+static void edit_click(const uint8_t w, const uint8_t row, const uint8_t col)
+{
+    const UiMouse *const m = &uimn.mouse;
+    if (m->event == MS_PRESS) /* a press: the focus there; a drag stays in its window */
+        wind_focus(w);
+    else {
+        const uint8_t cur = wind_cur();
+        if (cur != uimn.win.active && cur != W_IMM)
+            return;
+    }
+    UiEdit *const e = &uimn.ed;
+    if (uimn.focus != FOC_EDIT || row < (uint8_t)e->row0 ||
+        row >= (uint8_t)(e->row0 + e->rows))
+        return;
+    if (col <= e->x)
+        return;
+    const uint8_t c = (uint8_t)(col - e->x - 1); /* the text's column */
+    if (c == (uint8_t)e->width) {
+        if (m->event == MS_PRESS)
+            scroll_bar(row);
+        return;
+    }
+    if (c > (uint8_t)e->width)
+        return;
+    const uint32_t at = row - e->row0 + e->top; /* the line, the last at most */
+    const uint32_t line = at < uimn.text.n ? at : uimn.text.n - 1;
+    if (m->event == MS_DRAG || uimn.keyflags & PKEY_SHIFT)
+        edit_sel_mark();
+    else
+        e->sel_on = false;
+    if (!edit_goto(line))
+        return;
+    uimn.edline.col = (uint16_t)(col - e->x - 1 + e->left);
+}
+
 void mous_main(void)
 {
-    UiMouse *m = &uimn.mouse;
-    uint8_t row = m->row, col = m->col;
+    const UiMouse *const m = &uimn.mouse;
+    const uint8_t row = m->row, col = m->col;
     if (m->event == MS_MOVE) {
         dpan_hover(row, col);
         return;
@@ -114,7 +161,7 @@ void mous_main(void)
             menu_run(menu, true);
         return;
     }
-    if (row == 24) {
+    if (row == STATUS_ROW) {
         if (m->event == MS_PRESS)
             status_bar(col);
         return;
@@ -122,42 +169,8 @@ void mous_main(void)
     uint8_t w;
     if (!wind_at(row, col, &w))
         return;
-    if (w == W_DBG) {
+    if (w == W_DBG)
         dpan_mouse(row, col);
-        return;
-    }
-    if (w < W_ED1)
-        return;
-    if (m->event == MS_PRESS) /* a press: the focus there; a drag stays in its window */
-        wind_focus(w);
-    else {
-        uint8_t cur = wind_cur();
-        if (cur != uimn.win.active && cur != W_IMM)
-            return;
-    }
-    UiEdit *e = &uimn.ed;
-    if (uimn.focus != FOC_EDIT || row < (uint8_t)e->row0 ||
-        row >= (uint8_t)(e->row0 + e->rows))
-        return;
-    uint8_t c = col - e->x; /* the text's column + 1 */
-    if (col <= e->x)
-        return;
-    c--;
-    if (c == (uint8_t)e->width) {
-        if (m->event == MS_PRESS)
-            scroll_bar(row);
-        return;
-    }
-    if (c > (uint8_t)e->width)
-        return;
-    uint32_t line = row - e->row0 + e->top; /* the line, the last at most */
-    if (line >= uimn.text.n)
-        line = uimn.text.n - 1;
-    if (m->event == MS_DRAG || uimn.keyflags & 3) /* a drag, a Shift+click select */
-        edit_sel_mark();
-    else
-        e->sel_on = false;
-    if (!edit_goto(line))
-        return;
-    uimn.edline.col = (uint16_t)(col - e->x - 1 + e->left);
+    else if (w >= W_ED1)
+        edit_click(w, row, col);
 }

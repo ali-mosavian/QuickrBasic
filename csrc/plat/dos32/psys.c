@@ -7,28 +7,30 @@ CDECL void pstop_hook(volatile uint8_t *flag, uint8_t bit);
 CDECL void pstop_unhook(void);
 CDECL void ptick_unhook(void); /* pclk's and pkey's tick (ptick.asm) */
 
-void psys_init(volatile uint8_t *stop, uint8_t bit) { pstop_hook(stop, bit); }
+enum { INT_TERMINATE = 0x22, CH_CR = 0x0D, PATH_MAX = 127 };
 
-void psys_exit(uint8_t code)
+void psys_init(volatile uint8_t *const stop, const uint8_t bit) { pstop_hook(stop, bit); }
+
+void psys_exit(const uint8_t code)
 {
     pstop_unhook();
     ptick_unhook();
-    PdosRegs r = {.eax = 0x4C00u | code};
-    pdos_int(0x21, &r);
+    PdosRegs r = {.eax = pdos_fn(DOS_EXIT, code)};
+    pdos_int(INT_DOS, &r);
     for (;;) {
     }
 }
 
-uint32_t psys_cmdline(char *buf, uint32_t cap)
+uint32_t psys_cmdline(char *const buf, const uint32_t cap)
 {
-    uint32_t n = pdos_cmdline(buf, cap - 1);
+    const uint32_t n = pdos_cmdline(buf, cap - 1);
     buf[n] = 0;
     return n;
 }
 
-uint32_t psys_environ(char *buf, uint32_t cap)
+uint32_t psys_environ(char *const buf, const uint32_t cap)
 {
-    uint32_t n = pdos_environ(0, (uint8_t *)buf, cap - 1);
+    const uint32_t n = pdos_environ(0, (uint8_t *)buf, cap - 1);
     for (uint32_t i = 0; i < n; i++)
         if (!buf[i] && (!i || !buf[i - 1]))
             return i + 1;
@@ -36,72 +38,112 @@ uint32_t psys_environ(char *buf, uint32_t cap)
     return n + 1;
 }
 
-uint32_t psys_self(char *buf, uint32_t cap)
+uint32_t psys_self(char *const buf, const uint32_t cap)
 {
     static char env[0x8000];
-    uint32_t n = pdos_environ(0, (uint8_t *)env, sizeof env);
+    const uint32_t n = pdos_environ(0, (uint8_t *)env, sizeof env);
     uint32_t i = 0;
     while (i + 1 < n && (env[i] || env[i + 1])) /* the variables, a 0 after the last */
         i++;
     i += 4; /* the two 0s, the strings' count */
     uint32_t len = 0;
-    while (i < n && env[i] && len + 1 < cap)
-        buf[len++] = env[i++];
+    for (; i < n && env[i] && len + 1 < cap; i++)
+        buf[len++] = env[i];
     buf[len] = 0;
     return len;
 }
 
-/* The DOS block's layout after the environment: the parameter block, the tail, the path, the
-   FCBs. */
-enum { XP = 0, XT = 16, XN = XT + 128, XF = XN + 128, XSZ = XF + 32 };
+/* EXEC's parameter block (4B00h): far pointers as offset, segment. */
+typedef struct __attribute__((packed)) {
+    uint16_t env_seg, tail_off, tail_seg, fcb1_off, fcb1_seg, fcb2_off, fcb2_seg;
+} ExecParams;
 
-/* DS's base: a linear address less it is a DS offset. */
-static uint32_t ds_base(void)
+/* The DOS block after the environment: the parameter block, the tail, the path, two FCBs. */
+typedef struct __attribute__((packed)) {
+    ExecParams params;
+    uint8_t pad[16 - sizeof(ExecParams)];
+    uint8_t tail[128]; /* its count, its text, CR */
+    char path[128];
+    uint8_t fcb[2][16];
+} ExecBlock;
+
+/* A DOS memory block: its real-mode segment, its selector, its DS address. */
+typedef struct {
+    uint16_t seg, sel;
+    uint8_t *at;
+} DosBlock;
+
+static bool dos_alloc(const uint32_t size, DosBlock *const b)
 {
-    PdosRegs r = {.eax = 0x0006, .ebx = pdos_ds()};
-    pdos_int(0x31, &r);
-    return (r.ecx & 0xFFFF) << 16 | (r.edx & 0xFFFF);
+    PdosRegs r = {.eax = DPMI_DOS_ALLOC, .ebx = (size + 15) >> 4};
+    if (pdos_int(INT_DPMI, &r) & PDOS_CF)
+        return false;
+    b->seg = (uint16_t)r.eax;
+    b->sel = (uint16_t)r.edx;
+    b->at = (uint8_t *)(uintptr_t)((uint32_t)b->seg * 16 - pdos_ds_base());
+    return true;
 }
 
-bool psys_exec(const char *path, const char *tail, uint8_t len, const char *env,
-               uint32_t envlen)
+static void dos_free(const DosBlock *const b)
 {
-    uint32_t xenv = (envlen + 16) & ~15u; /* the environment and a 0, on a paragraph */
-    PdosRegs r = {.eax = 0x0100, .ebx = (xenv + XSZ + 15) >> 4};
-    if (pdos_int(0x31, &r) & PDOS_CF)
-        return false;
-    uint16_t seg = (uint16_t)r.eax, sel = (uint16_t)r.edx;
-    uint8_t *b = (uint8_t *)(uintptr_t)((uint32_t)seg * 16 - ds_base());
-    memset(b, 0, xenv + XSZ);
-    memcpy(b, env, envlen);
-    uint16_t pb[7] = {seg, (uint16_t)(xenv + XT), seg, (uint16_t)(xenv + XF), seg,
-                      (uint16_t)(xenv + XF + 16), seg};
-    memcpy(b + xenv + XP, pb, sizeof pb);
-    uint8_t *t = b + xenv + XT; /* its count, its text, CR */
-    t[0] = len;
-    memcpy(t + 1, tail, len);
-    t[1 + len] = 13;
-    char *n = (char *)b + xenv + XN;
-    for (int i = 0; i < 127 && (n[i] = path[i]); i++) {
+    PdosRegs r = {.eax = DPMI_DOS_FREE, .edx = b->sel};
+    pdos_int(INT_DPMI, &r);
+}
+
+/* The environment at the block's start, the EXEC block at xenv. */
+static void fill(const DosBlock *const b, const uint32_t xenv, const char *const path,
+                 const char *const tail, const uint8_t len, const char *const env,
+                 const uint32_t envlen)
+{
+    memset(b->at, 0, xenv + sizeof(ExecBlock));
+    for (uint32_t i = 0; i < envlen; i++)
+        b->at[i] = (uint8_t)env[i];
+    ExecBlock *const x = (ExecBlock *)(b->at + xenv);
+    const uint16_t base = (uint16_t)xenv;
+    x->params = (ExecParams){
+        .env_seg = b->seg,
+        .tail_off = base + offsetof(ExecBlock, tail), .tail_seg = b->seg,
+        .fcb1_off = base + offsetof(ExecBlock, fcb[0]), .fcb1_seg = b->seg,
+        .fcb2_off = base + offsetof(ExecBlock, fcb[1]), .fcb2_seg = b->seg,
+    };
+    x->tail[0] = len;
+    for (uint32_t i = 0; i < len; i++)
+        x->tail[1 + i] = (uint8_t)tail[i];
+    x->tail[1 + len] = CH_CR;
+    for (uint32_t i = 0; i < PATH_MAX && (x->path[i] = path[i]); i++) {
     }
+}
 
-    static uint8_t rm[0x32]; /* the real-mode registers */
-    memset(rm, 0, sizeof rm);
-    uint32_t v = 0x4B00, bx = xenv + XP, dx = xenv + XN;
-    store32(rm + 0x1C, v);  /* EAX */
-    store32(rm + 0x10, bx); /* EBX: the parameter block */
-    store32(rm + 0x14, dx); /* EDX: the path */
-    store16(rm + 0x22, seg); /* ES */
-    store16(rm + 0x24, seg); /* DS */
+/* DOS's EXEC of the block at xenv, INT 22h kept (EXEC takes it): whether it ran. */
+static bool exec(const DosBlock *const b, const uint32_t xenv)
+{
+    static PdosRmRegs rm;
+    rm = (PdosRmRegs){
+        .eax = pdos_fn(DOS_EXEC, 0),
+        .ebx = xenv + offsetof(ExecBlock, params),
+        .edx = xenv + offsetof(ExecBlock, path),
+        .es = b->seg,
+        .ds = b->seg,
+    };
+    PdosRegs v22 = {.eax = DPMI_GET_RM_VECTOR, .ebx = INT_TERMINATE};
+    pdos_int(INT_DPMI, &v22);
+    PdosRegs r = {.eax = DPMI_RM_INT, .ebx = INT_DOS, .edi = (uint32_t)(uintptr_t)&rm};
+    const bool ran = !(pdos_int(INT_DPMI, &r) & PDOS_CF) && !(rm.flags & PDOS_CF);
+    v22.eax = DPMI_SET_RM_VECTOR;
+    v22.ebx = INT_TERMINATE;
+    pdos_int(INT_DPMI, &v22);
+    return ran;
+}
 
-    PdosRegs v22 = {.eax = 0x0200, .ebx = 0x22}; /* EXEC leaves INT 22h its own: kept */
-    pdos_int(0x31, &v22);
-    r = (PdosRegs){.eax = 0x0300, .ebx = 0x21, .ecx = 0, .edi = (uint32_t)(uintptr_t)rm};
-    bool ran = !(pdos_int(0x31, &r) & PDOS_CF) && !(rm[0x20] & 1);
-    v22.eax = 0x0201;
-    v22.ebx = 0x22;
-    pdos_int(0x31, &v22);
-    r = (PdosRegs){.eax = 0x0101, .edx = sel};
-    pdos_int(0x31, &r);
+bool psys_exec(const char *const path, const char *const tail, const uint8_t len,
+               const char *const env, const uint32_t envlen)
+{
+    const uint32_t xenv = (envlen + 16) & ~15u; /* the environment and a 0, on a paragraph */
+    DosBlock b;
+    if (!dos_alloc(xenv + sizeof(ExecBlock), &b))
+        return false;
+    fill(&b, xenv, path, tail, len, env, envlen);
+    const bool ran = exec(&b, xenv);
+    dos_free(&b);
     return ran;
 }

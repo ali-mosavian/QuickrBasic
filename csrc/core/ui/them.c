@@ -5,6 +5,12 @@
 
 Them them;
 
+enum : uint8_t {
+    TH_QBASIC = 0,
+    TH_DARK = 1,
+    TH_PICKED = 2, /* ACT_TH2's */
+};
+
 /* Zed's themes' attributes, over one layout of the colours: 0 bars, 1 the text's ground, 2 a
    shadow, 3 a selection, 4 errors, 5 keywords, 6 numbers, 7 text, 8 comments, 9 functions,
    10 operators, 11 types, 12 strings, 13 parameters, 14 warnings, 15 strong text. */
@@ -54,16 +60,19 @@ static const uint8_t themes[NTHEME][TH_SZ] = {
      1, 31, 5, 2, 2, 2, 61, 38, 4, 0, 0, 0},
 };
 
-void them_set(uint8_t n)
+void them_set(const uint8_t n)
 {
     them.cur = n;
     memcpy(them.attr, themes[n], NSLOT);
     them_in();
 }
 
-void them_qbasic(void) { them_set(0); }
-void them_dark(void) { them_set(1); }
-void them_pick(uint8_t action) { them_set(action - (ACT_TH2 - 2)); }
+void them_qbasic(void) { them_set(TH_QBASIC); }
+void them_dark(void) { them_set(TH_DARK); }
+void them_pick(const uint8_t action) { them_set(TH_PICKED + (action - ACT_TH2)); }
 
-void them_in(void) { pscr_palette(themes[them.cur] + NSLOT); }
-void them_out(void) { pscr_palette(themes[0] + NSLOT); }
+/* A theme's 16 colours, past its attributes. */
+static const uint8_t *colours(const uint8_t n) { return themes[n] + NSLOT; }
+
+void them_in(void) { pscr_palette(colours(them.cur)); }
+void them_out(void) { pscr_palette(colours(TH_QBASIC)); }

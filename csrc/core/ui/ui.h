@@ -12,6 +12,7 @@
 #ifndef UI_UI_H
 #define UI_UI_H
 #include "defs.h"
+#include "plat/pscr.h"
 
 enum {
     HLPSZ = 2048,     /* BASIC.HLP's bytes at most: the menus' help lines */
@@ -61,6 +62,38 @@ enum : uint8_t {
 enum : uint16_t {
     KEY_ALT = 0xFFFF,   /* Alt pressed and let go alone */
     KEY_MOUSE = 0xFFFE, /* a mouse event: uimn.mouse (MS_KEY) */
+};
+
+/* A key's scan code (its high byte). */
+enum : uint8_t {
+    SCAN_F1 = 0x3B, SCAN_F10 = 0x44, SCAN_SHIFT_F1 = 0x54, SCAN_CTRL_F1 = 0x5E, SCAN_ALT_F1 = 0x68,
+    SCAN_HOME = 0x47, SCAN_UP = 0x48, SCAN_PGUP = 0x49, SCAN_LEFT = 0x4B, SCAN_RIGHT = 0x4D,
+    SCAN_END = 0x4F, SCAN_DOWN = 0x50, SCAN_PGDN = 0x51, SCAN_INS = 0x52, SCAN_DEL = 0x53,
+    SCAN_CTRL_LEFT = 0x73, SCAN_CTRL_RIGHT = 0x74, SCAN_CTRL_END = 0x75, SCAN_CTRL_PGDN = 0x76,
+    SCAN_CTRL_HOME = 0x77, SCAN_CTRL_PGUP = 0x84,
+    SCAN_ESC = 0x01, SCAN_ENTER = 0x1C, SCAN_L = 0x26, SCAN_GREY_MINUS = 0x4A,
+    SCAN_GREY_PLUS = 0x4E, SCAN_ALT_MINUS = 0x82, SCAN_ALT_EQUALS = 0x83, SCAN_CTRL_INS = 0x92,
+    SCAN_ALT_UP = 0x98, SCAN_ALT_LEFT = 0x9B, SCAN_ALT_RIGHT = 0x9D, SCAN_ALT_DOWN = 0xA0,
+    SCAN_ALT_PAD_ENTER = 0xA6,
+    SCAN_ALT_FIRST = 0x10, SCAN_ALT_LAST = 0x32, /* Alt+letter's: Q .. M */
+};
+enum : uint16_t { KEY_SHIFT_TAB = 0x0F00 };
+/* A key's character (its low byte). */
+enum : uint8_t { CH_BACKSPACE = 0x08, CH_TAB = 0x09, CH_ENTER = 0x0D, CH_ESC = 0x1B, CH_E0 = 0xE0 };
+
+enum : uint8_t {
+    STATUS_ROW = PSCR_ROWS - 1, /* the status bar */
+    WIN_ROWS = PSCR_ROWS - 2,   /* the windows': the screen's less the menu and status bars */
+    TAB_STOP = 8,
+};
+/* The cursor's shapes (pscr_shape). */
+enum : uint16_t { CURSOR_INSERT = 0x0607, CURSOR_OVERWRITE = 0x0407 };
+/* Code page 437's glyphs the screens draw. */
+enum : uint8_t {
+    GLYPH_POINT_RIGHT = 0x10, GLYPH_POINT_LEFT = 0x11, GLYPH_UP = 0x18, GLYPH_DOWN = 0x19,
+    GLYPH_RIGHT = 0x1A, GLYPH_LEFT = 0x1B, GLYPH_SHADE = 0xB0, GLYPH_V = 0xB3, GLYPH_V_LEFT = 0xB4,
+    GLYPH_TOP_RIGHT = 0xBF, GLYPH_BOTTOM_LEFT = 0xC0, GLYPH_V_RIGHT = 0xC3, GLYPH_H = 0xC4,
+    GLYPH_BOTTOM_RIGHT = 0xD9, GLYPH_TOP_LEFT = 0xDA,
 };
 
 /* uimn.focus: which window has the keys (ui_foc). */

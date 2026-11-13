@@ -82,6 +82,7 @@ uint8_t dlog_msg(const char *text, const MsgButton *buttons);
 void dlog_ok(const char *text);
 /* dl_ync: a message box with Yes, No, Cancel (and Help): 0 Yes, 1 No, 2 Cancel or Esc. */
 uint8_t dlog_ync(const char *text);
+enum : uint8_t { YNC_YES = 0, YNC_NO = 1 };
 /* dl_err: dlog_ok for an error at the cursor's line: the box off that line; text past its first
    '|' (the '|' made 0) left-aligned under the first line, its title; the selection off after. */
 void dlog_err(char *text);
@@ -104,8 +105,10 @@ bool dlog_find(void);
 /* dl_conf: Find and Verify's question: its buttons only, at row 19, or row 2 when the cursor
    is that low: 0 Change, 1 Skip, else cancelled. */
 uint8_t dlog_conf(void);
+enum : uint8_t { CONF_CHANGE = 0, CONF_SKIP = 1 };
 /* dl_change: Search, Change's box: 0 Find and Verify, 1 Change All, else cancelled. */
 uint8_t dlog_change(void);
+enum : uint8_t { CHANGE_VERIFY = 0, CHANGE_ALL = 1 };
 /* ui_ledit: an editing key in the one-line buffer b (a field, the immediate line): a character
    typed (FLDMAX at most), Backspace, Left, Right, Home, End, Del, Ctrl+Left, Ctrl+Right. */
 void dlog_ledit(LineBuf *b, uint16_t key);

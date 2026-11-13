@@ -5,31 +5,37 @@
 #include "ui/edit.h"
 #include "ui/view.h"
 
-static UiWin *win(uint8_t w) { return &uimn.win.win[w]; }
+enum : uint8_t {
+    ED1_INIT = 20,  /* the heights at start */
+    IMM_INIT = 3,
+    SPLIT_MIN = 6,  /* ED1's height that Split halves, at least */
+};
+
+static UiWin *win(const uint8_t w) { return &uimn.win.win[w]; }
 
 /* Window w is ED2 beside ED1, shown. */
-static bool beside(uint8_t w)
+static bool beside(const uint8_t w)
 {
     return w == W_ED2 && uimn.win.vert && win(W_ED2)->height;
 }
 
 void wind_layout(void)
 {
-    UiWins *ws = &uimn.win;
-    ws->cols = uimn.pane_on ? DP_COL : 80;
+    UiWins *const ws = &uimn.win;
+    ws->cols = uimn.pane_on ? DP_COL : PSCR_COLS;
     uint8_t row = 1; /* the next window's title row */
     for (uint8_t w = 0; w < NWIN; w++) {
-        UiWin *p = win(w);
+        UiWin *const p = win(w);
         if (beside(w)) {
             p->height = win(W_ED1)->height;
             row -= p->height; /* ED1's rows again */
         }
-        uint16_t first = row + 1; /* the first row under the title */
+        const uint16_t first = row + 1; /* the first row under the title */
         if (w == W_IMM) {
             uimn.imm.row0 = first;
             uimn.imm.rows = p->height ? p->height - 1 : 0;
         } else {
-            UiEdit *e = w == ws->active ? &uimn.ed : &p->ed; /* the active one's is uimn.ed */
+            UiEdit *const e = w == ws->active ? &uimn.ed : &p->ed; /* the active one's is uimn.ed */
             uint32_t cols = ws->cols; /* all, or a half */
             e->x = 0;
             if (ws->vert && win(W_ED2)->height) {
@@ -47,16 +53,16 @@ void wind_layout(void)
 
 void wind_init(void)
 {
-    win(W_ED1)->height = 20;
-    win(W_IMM)->height = 3;
+    win(W_ED1)->height = ED1_INIT;
+    win(W_IMM)->height = IMM_INIT;
     uimn.win.active = W_ED1;
     wind_layout();
 }
 
 /* uimn.ed and edit window w's state exchanged. */
-static void swap(uint8_t w)
+static void swap(const uint8_t w)
 {
-    UiEdit t = uimn.ed;
+    const UiEdit t = uimn.ed;
     uimn.ed = win(w)->ed;
     win(w)->ed = t;
 }
@@ -81,7 +87,7 @@ void wind_draw(void)
         draw_imm();
 }
 
-void wind_act(uint8_t w)
+void wind_act(const uint8_t w)
 {
     edit_commit();
     uimn.focus = FOC_EDIT;
@@ -92,24 +98,19 @@ void wind_act(uint8_t w)
     uimn.win.active = w;
     swap(w); /* the new one's from its ed */
     view_apply();
-    uint16_t col = win(w)->col;
+    const uint16_t col = win(w)->col;
     edit_load(uimn.ed.line);
     uimn.edline.col = col;
 }
 
-void wind_focus(uint8_t w)
+void wind_focus(const uint8_t w)
 {
-    uint8_t focus;
-    if (w == W_IMM)
-        focus = FOC_IMM;
-    else if (w == W_DBG)
-        focus = FOC_PANE;
-    else {
+    if (w != W_IMM && w != W_DBG) {
         wind_act(w);
         return;
     }
     edit_commit();
-    uimn.focus = focus;
+    uimn.focus = w == W_IMM ? FOC_IMM : FOC_PANE;
 }
 
 uint8_t wind_cur(void)
@@ -123,15 +124,15 @@ static const uint8_t order[] = {W_ED1, W_ED2, W_DBG, W_IMM}; /* F6's */
 enum { NWORD = countof(order) };
 
 /* The focus to the window shown d places on in order. */
-static void step(uint32_t d)
+static void step(const uint32_t d)
 {
-    uint8_t cur = wind_cur();
+    const uint8_t cur = wind_cur();
     uint32_t i = 0;
     while (order[i] != cur)
         i++;
     for (;;) {
         i = (i + d) % NWORD;
-        uint8_t w = order[i];
+        const uint8_t w = order[i];
         if (w == W_DBG ? uimn.pane_on : win(w)->height != 0) {
             wind_focus(w);
             return;
@@ -142,10 +143,10 @@ static void step(uint32_t d)
 void wind_next(void) { step(1); }
 void wind_prev(void) { step(NWORD - 1); }
 
-bool wind_at(uint8_t row, uint8_t col, uint8_t *w)
+bool wind_at(const uint8_t row, const uint8_t col, uint8_t *const w)
 {
     if (uimn.pane_on && col >= DP_COL && row && /* the pane: its columns, the edit windows' rows */
-        row <= (uint8_t)(23 - win(W_IMM)->height)) {
+        row <= (uint8_t)(WIN_ROWS - win(W_IMM)->height)) {
         *w = W_DBG;
         return true;
     }
@@ -167,7 +168,7 @@ bool wind_at(uint8_t row, uint8_t col, uint8_t *w)
 /* The heights before Ctrl+F10, if maximised. */
 static void unmax(void)
 {
-    UiWins *ws = &uimn.win;
+    UiWins *const ws = &uimn.win;
     if (!ws->maxed)
         return;
     for (uint8_t w = 0; w < NWIN; w++)
@@ -204,8 +205,8 @@ void wind_split(void)
         unsplit();
         return;
     }
-    uint8_t h = win(W_ED1)->height; /* ED2 hidden: ED1 is the active one */
-    if (h < 6)
+    const uint8_t h = win(W_ED1)->height; /* ED2 hidden: ED1 is the active one */
+    if (h < SPLIT_MIN)
         return;
     win(W_ED2)->height = h >> 1;
     win(W_ED1)->height -= h >> 1;
@@ -228,15 +229,15 @@ void wind_vsplit(void)
 /* The window with the focus, ED1 for ED2 beside it or the pane: whose rows change. */
 static uint8_t cur_rows(void)
 {
-    uint8_t w = wind_cur();
+    const uint8_t w = wind_cur();
     return w == W_DBG || beside(w) ? W_ED1 : w;
 }
 
 /* Window w's least height: its title and a row, an edit window's bottom row too. */
-static uint8_t least(uint8_t w) { return w == W_IMM ? 2 : 3; }
+static uint8_t least(const uint8_t w) { return w == W_IMM ? 2 : 3; }
 
 /* The window shown next to window w, d 1 under, -1 over; false: none. */
-static bool shown(uint8_t w, int d, uint8_t *next)
+static bool shown(const uint8_t w, const int d, uint8_t *const next)
 {
     for (uint32_t i = w + d; i < NWIN; i += d)
         if (win(i)->height && !beside(i)) {
@@ -247,7 +248,7 @@ static bool shown(uint8_t w, int d, uint8_t *next)
 }
 
 /* A row from window from to window to. */
-static void move(uint8_t from, uint8_t to)
+static void move(const uint8_t from, const uint8_t to)
 {
     win(from)->height--;
     win(to)->height++;
@@ -257,27 +258,30 @@ static void move(uint8_t from, uint8_t to)
 void wind_grow(void)
 {
     unmax();
-    uint8_t w = cur_rows(), n; /* w gains, a neighbour that can spare a row loses: under first */
-    for (int d = 1; d >= -1; d -= 2)
+    const uint8_t w = cur_rows(); /* w gains, a neighbour that can spare a row loses: under first */
+    for (int d = 1; d >= -1; d -= 2) {
+        uint8_t n;
         if (shown(w, d, &n) && win(n)->height > least(n)) {
             move(n, w);
             return;
         }
+    }
 }
 
 void wind_shrink(void)
 {
     unmax();
-    uint8_t w = cur_rows(), n; /* w loses, the neighbour under it, else over it, gains */
+    const uint8_t w = cur_rows(); /* w loses, the neighbour under it, else over it, gains */
     if (win(w)->height <= least(w))
         return;
+    uint8_t n;
     if (shown(w, 1, &n) || shown(w, -1, &n))
         move(w, n);
 }
 
 void wind_max(void)
 {
-    UiWins *ws = &uimn.win;
+    UiWins *const ws = &uimn.win;
     if (ws->maxed) {
         unmax();
         return;
@@ -288,7 +292,7 @@ void wind_max(void)
         ws->saved[w] = win(w)->height;
         win(w)->height = 0;
     }
-    win(cur_rows())->height = 23;
+    win(cur_rows())->height = WIN_ROWS;
     ws->maxed = true;
     wind_layout();
 }
