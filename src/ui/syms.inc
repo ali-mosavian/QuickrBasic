@@ -566,6 +566,9 @@ externdef dx_shape:near
 externdef dx_todo:near
 externdef dx_what:near
 ; io/srd.asm
+externdef cn_byte:near
+externdef cn_eol:near
+externdef cn_init:near
 externdef g_srfe:dword
 externdef sr_line:near
 externdef sr_more:near

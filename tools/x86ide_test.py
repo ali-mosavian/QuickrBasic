@@ -33,7 +33,7 @@ def play() -> None:
         (work / "DOS32A.EXE").write_bytes((IDE.parent / "DOS32A.EXE").read_bytes())
     hlp = "src/x86f/ui/basic.hlp" if IDE.suffix == ".exe" else "src/x86/ui/basic.hlp"
     (work / "BASIC.HLP").write_bytes((ROOT / hlp).read_bytes())
-    (work / "SQ.BAS").write_bytes(b"for i=1 to 3\r\n  print i*i\r\nnext\r\n")
+    (work / "SQ.BAS").write_bytes(b"for i=1 to _\r\n 3\r\n  print i*i\r\nnext\r\n")
     (work / "SUB").mkdir()
     s = qbplay.Session(work)
     s.launch(3000, exe)
@@ -252,7 +252,8 @@ def play() -> None:
     press("n")
     assert text()[0] == "" and "UNTITLED" in look()[1], look()
 
-    # Open. Its header was two bytes too long: controls drawn from garbage.
+    # Open. Its header was two bytes too long: controls drawn from garbage. A line
+    # continued with '_' was two lines, the first a syntax error.
     press(f"0x{ALT_F:x}", "o")
     scr = look("open")
     assert scr[24].rstrip() == " F1=HELP   ENTER=EXECUTE   ESC=CANCEL   TAB=NEXT FIELD   ARROW=NEXT ITEM", scr[24]
@@ -334,7 +335,7 @@ def play() -> None:
     press("n")
     assert any("SAVE AS" in r for r in look()), look()
     press("esc")
-    assert (work / "SQ.BAS").read_bytes().startswith(b"for i=1 to 3"), "SQ.BAS overwritten"
+    assert (work / "SQ.BAS").read_bytes().startswith(b"for i=1 to _"), "SQ.BAS overwritten"
     # The mouse: a title, an item dragged to, a list's line twice.
     press("home")  # the found text's selection off
     mouse_stub()

@@ -400,7 +400,9 @@ tx_read:
         mov     edi,offset g_txb
         xor     edx,edx                 ; EDX the column, EBX the lines
         xor     ebx,ebx
-        jecxz   @trd_e
+        call    cn_init
+        test    ecx,ecx
+        jz      @trd_e
 @trd_l:
         lodsb
         cmp     al,1Ah
@@ -415,6 +417,11 @@ tx_read:
         dec     ecx
         jz      @trd_n1
 @trd_n:
+        call    cn_eol
+        pushfd
+        call    cn_init
+        popfd
+        jc      @trd_j
         mov     al,NL
         stosb
         inc     ebx
@@ -426,7 +433,29 @@ tx_read:
         inc     ebx
         xor     edx,edx
         jmp     @trd_e
+@trd_j:                                 ; continued: the '_' a blank, the next
+        cmp     byte ptr [edi-1],' '    ; line's indent dropped
+        jne     @F
+        dec     edi
+        dec     edx
+        jmp     @trd_j
+@@:
+        cmp     byte ptr [edi-1],'_'
+        jne     @trd_k
+        mov     byte ptr [edi-1],' '
+@trd_k:
+        cmp     ecx,1
+        jbe     @trd_c
+        cmp     byte ptr [esi],' '
+        je      @F
+        cmp     byte ptr [esi],9
+        jne     @trd_c
+@@:
+        inc     esi
+        dec     ecx
+        jmp     @trd_k
 @trd_t:
+        call    cn_byte
         cmp     edx,LNMAX
         jae     @trd_c
         cmp     al,9
@@ -446,7 +475,8 @@ tx_read:
 @trd_c:
         cmp     edi,offset g_txb+TXMAX-LNMAX
         jae     @trd_e
-        loop    @trd_l
+        dec     ecx
+        jnz     @trd_l
 @trd_e:
         cmp     edi,offset g_txb
         je      @trd_z
