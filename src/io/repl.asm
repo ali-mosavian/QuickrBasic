@@ -155,14 +155,14 @@ endif
         test    al,al
         jnz     @F
         call    io_msg                  ; BREAK [IN n]
-        movzx   ebx,[g_state.rn.ln]
+        mov     ebx,[g_state.rn.ln]
         cmp     ebx,DLINE
         je      rpl_ready
-        cmp     word ptr gs:[ebx+L_NUM],NONUM
+        cmp     gs:[ebx].TLN.num,NONUM
         je      rpl_ready
         mov     al,MSG_IN
         call    io_msg
-        mov     ax,word ptr gs:[ebx+L_NUM]
+        mov     ax,gs:[ebx].TLN.num
         call    io_num
         jmp     rpl_ready
 @@:
@@ -171,7 +171,7 @@ endif
         call    er_text
         mov     ebx,esi
         call    io_puts
-        movzx   ecx,[g_state.rn.ln]
+        mov     ecx,[g_state.rn.ln]
         cmp     ecx,DLINE
         je      @erx_d
         cmp     [g_state.io.batch],0
@@ -204,11 +204,11 @@ endif
         call    io_hex4
         jmp     @erx_d
 @erx_n:                                 ; typed lines: in line n, if numbered
-        cmp     word ptr gs:[ecx+L_NUM],NONUM
+        cmp     gs:[ecx].TLN.num,NONUM
         je      @erx_d
         mov     ebx,offset r_eline
         call    io_puts
-        mov     ax,word ptr gs:[ecx+L_NUM]
+        mov     ax,gs:[ecx].TLN.num
         call    io_num
         jmp     @erx_d
 @erx_d:
@@ -232,7 +232,7 @@ er_diag:
         push    dword ptr [ebx+5]       ; the automaton's state
         movzx   eax,word ptr [ebx+3]
         mov     esi,offset g_cbuf
-        movzx   ebx,[g_state.rn.ln]
+        mov     ebx,[g_state.rn.ln]
         cmp     ebx,DLINE
         je      @F
         lea     esi,[ebx+HDR]
@@ -358,9 +358,9 @@ rpl_run:
 @rpl_f:
         cmp     ebx,CSTOP
         jae     @rpl_g
-        cmp     word ptr [ebx+F_LN],DLINE
+        cmp     [ebx].TFRH.ln,DLINE
         jne     @rpl_n
-        mov     [ebx+F_IP],ax
+        mov     [ebx].TFRH.ip,eax
 @rpl_n:
         movzx   ecx,byte ptr [ebx+F_MARK]
         add     ebx,ecx
@@ -672,7 +672,7 @@ rpl_enter:
 @ren_lb:                                ; label EBX here, in the scope
         push    edi
         or      ax,[g_state.lx.dproc]
-        mov     dx,[g_state.mm.pend]
+        mov     edx,[g_state.mm.pend]
         call    scp_label
         pop     edi
         ret

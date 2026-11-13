@@ -27,7 +27,7 @@ TCOMP    struc                   ; the compiler
     cfid    dw      ?
     csp     dd      ?
     cbase   dd      ?               ; the body's start
-    cline   dw      ?               ; its line, DLINE direct
+    cline   dd      ?               ; its line, DLINE direct
     nst     dw      ?               ; statements recorded (cm_markb)
     cmap    dd      ?               ; the map's top: its entries grow down
     csif    db      ?               ; in a one-line IF
@@ -47,10 +47,10 @@ TLINK    struc                   ; the linker and the cache
     eeol    dd      ?               ; the EOL element
     einb    dd      ?               ; an INPUT's end, to fill in
     linked  db      ?
-    lc      dw      ?
+    lc      dd      ?
     nblk    dw      ?               ; block entries (comp/block.asm)
     bsp     dw      ?               ; their scan's stack depth
-    bln     dw      ?               ; the line it scans
+    bln     dd      ?               ; the line it scans
     nfl     db      ?               ; cache flushes, mod 256
     emap    dd      ?               ; cm_xlate's statement map
     ecode   dd      ?               ; the code after it
@@ -101,11 +101,11 @@ TRUN     struc                   ; the executor
     ppip    dd      ?               ; PCALL: its ip, its entries' end
     ppend   dd      ?
     pres    dd      ?               ; PRET: a FUNCTION's INT or FLOAT result
-    contip  dw      ?
-    contsi  dw      ?
-    ln      dw      ?
+    contip  dd      ?
+    contsi  dd      ?
+    ln      dd      ?
     lnum    dw      ?
-    vpt     dw      ?
+    vpt     dd      ?
     fid     dw      ?
     onk     db      ?
     fvp     dd      ?
@@ -113,7 +113,7 @@ TRUN     struc                   ; the executor
     iredo   db      ?
     stpflg  db      ?
     dlp     dd      ?
-    dcp     dw      ?
+    dcp     dd      ?
     dyo     db      ?               ; 1: dlp is before a DATA's first item
     inend   dd      ?               ; where the INPUT in hand ends
     iny0    dd      ?
@@ -121,14 +121,14 @@ TRUN     struc                   ; the executor
     lfrom   dw      ?
     lto     dw      ?
     fop     dw      ?
-    ehnd    dw      ?               ; ON ERROR's line, 0 none
+    ehnd    dd      ?               ; ON ERROR's line, 0 none
     inerr   db      ?               ; 1: in the handler, till RESUME
     errn    dw      ?               ; ERR, ERL
     erl     dw      ?
     uerr    dw      ?               ; ERROR n's n
-    rln     dw      ?               ; RESUME's line, its statement's code offset,
-    rc0     dw      ?               ; the next's (FFFFh: the next line)
-    rc1     dw      ?
+    rln     dd      ?               ; RESUME's line, its statement's code offset,
+    rc0     dd      ?               ; the next's (FFFFFFFFh: the next line)
+    rc1     dd      ?
 TRUN     ends
 
 TSTR     struc                   ; strings
@@ -162,10 +162,10 @@ TMEM     struc                   ; the memory map, the program, the arrays
     aend    dd      ?
     sfr     dd      ?
     vend    dd      ?
-    pend    dw      ?
-    lyo2    dw      ?
+    pend    dd      ?
+    lyo2    dd      ?
     pbs     dd      ?               ; prg_put's body
-    pbl     dw      ?
+    pbl     dd      ?
     peekseg dw      ?
 TMEM     ends
 
@@ -241,8 +241,8 @@ TDBG     struc                   ; the debugger (vm/dbg.asm)
     ulnum   dw      ?
     hook    dd      ?               ; trace's routine, 0 none
     wnum    dw      ?               ; dbg_pos: the line's number
-    wb0     dw      ?               ;   its statement's body offsets, from
-    wb1     dw      ?               ;   and to (BOFF the line's end)
+    wb0     dd      ?               ;   its statement's body offsets, from
+    wb1     dd      ?               ;   and to (BOFF the line's end)
 TDBG     ends
 
 TBLK     struc                   ; a block (mem/blk.asm)

@@ -34,10 +34,10 @@ vslot   macro
 ; direct line never has.
 ipfix   macro
         local   @ipa,@ipb
-        movzx   esi,ax
+        mov     esi,eax
         cmp     esi,DCODE
         jae     @ipa
-        cmp     dx,DLINE
+        cmp     edx,DLINE
         je      @ipa
         call    ex_resolve
         jmp     @ipb

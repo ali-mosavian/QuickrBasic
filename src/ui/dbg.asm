@@ -63,13 +63,13 @@ ud_line:
 ; ::::::::::::::
 ud_stop:
         and     [g_ui.ud.ud_utl],0
-        movzx   ebx,[g_state.rn.contip]
+        mov     ebx,[g_state.rn.contip]
         test    ebx,ebx
         jz      @F
         mov     [g_ui.ud.stopd],1
         call    dp_open
-        movzx   ebx,[g_state.rn.contip]
-        movzx   eax,[g_state.rn.contsi]
+        mov     ebx,[g_state.rn.contip]
+        mov     eax,[g_state.rn.contsi]
         add     eax,[g_state.mm.cblin]
         call    dbg_pos
         jmp     ud_hlset
@@ -97,11 +97,11 @@ ud_hlset:
         pop     ebx
         pop     ecx
         sub     ebx,offset g_ui.bf.uc_line      ; EBX the body's column
-        movzx   eax,[g_state.dbg.wb0]
+        mov     eax,[g_state.dbg.wb0]
         movzx   eax,word ptr [g_lxcol+eax*2]
         add     eax,ebx
         mov     [g_ui.ud.hl_c0],ax
-        movzx   edx,[g_state.dbg.wb1]
+        mov     edx,[g_state.dbg.wb1]
         cmp     edx,BOFF
         je      @uhs_e
         movzx   edx,word ptr [g_lxcol+edx*2]
@@ -319,22 +319,22 @@ ud_setnx:
         mov     al,[g_state.cm.cproc]
         push    eax
         push    ebx
-        movzx   ebx,[g_state.rn.contip]
+        mov     ebx,[g_state.rn.contip]
         call    bk_proc
         pop     ebx
         pop     eax
         cmp     al,[g_state.cm.cproc]
         jne     @usn_p
-        movzx   esi,word ptr gs:[ebx+L_CP]
+        mov     esi,gs:[ebx].TLN.cp
         add     esi,[g_state.mm.cblin]
         cmp     esi,[g_state.mm.cblin]
         jne     @F
         call    cm_cache
 @@:
-        mov     [g_state.rn.contip],bx
+        mov     [g_state.rn.contip],ebx
         mov     eax,esi
         sub     eax,[g_state.mm.cblin]
-        mov     [g_state.rn.contsi],ax
+        mov     [g_state.rn.contsi],eax
         jmp     ud_stop
 @usn_p:
         mov     esi,offset u_bnext

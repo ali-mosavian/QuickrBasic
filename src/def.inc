@@ -54,10 +54,13 @@ MAXD    = 16
 M_VAR   = 01h
 M_INT   = 02h
 REM_Q   = 03h                   ; after TK_REM: the comment was a ', not REM
-HDR     = 6                     ; len:2, num:2, cp:2
+TLN      struc                   ; a line's record in the store, its body after
+    len     dd      ?               ; the record's bytes, 0 the end
+    num     dw      ?               ; its number, NONUM none
+    cp      dd      ?               ; its code in the cache, 0 none
+TLN      ends
+HDR     = sizeof TLN
 NONUM   = 0FFFFh                ; a line's num: it has none
-L_NUM   = 2
-L_CP    = 4                     ; a line's code in the cache
 LMAX    = 0FEE0h                ; a line's record at most: the store (PROGLIM-PROGBASE)
 BOFF    = 0FFFFh                ; a statement map's body offset of the line's end
 PDIR    = 8000h                 ; a position's tag: the direct line's
@@ -87,23 +90,44 @@ VA_DESC = 1                     ; a variable's place (cm_va): a Desc,
 VA_RAW  = 2                     ; its bytes, an INT kept as 2
 VA_I2   = 3
 
-; a FOR frame on the control stack: mark, ln:2, ip:2, id:1, step:4, limit:4,
-; cache:4. With whole bounds: step:2, count:2, limit:2, FFFFh (a NaN, no float).
-F_MARK  = 0
-F_LN    = 1
-F_IP    = 3                     ; where the loop or RETURN goes on: absolute, or
-                                ; an offset in its line's code (cm_flush)
-F_ID    = 5                     ; a word
-F_STEP  = 7
-F_LIMIT = 11
-F_CACHE = 15                    ; an INT counter's frame: the float last stored
-FRSIZE  = 19
-M_FR    = FRSIZE                ; a frame's mark is its size
-M_GS    = 5
+; The control stack's frames; a frame's mark is its size.
+TFRH     struc                   ; every frame's start; a GOSUB's whole
+    mark    db      ?
+    ln      dd      ?               ; the line
+    ip      dd      ?               ; where it goes on: absolute, or an offset
+TFRH     ends                    ; in its line's code (cm_flush)
+TFRFOR   struc                   ; FOR. With whole bounds: step:2, count:2,
+    h       TFRH    <>              ; limit:2, FFFFh (a NaN, no float)
+    id      dw      ?
+    step    dd      ?
+    limit   dd      ?
+    cache   dd      ?               ; an INT counter's: the float last stored
+TFRFOR   ends
+TFREV    struc                   ; an event's GOSUB
+    h       TFRH    <>
+    slot    db      ?
+TFREV    ends
+TFRPC    struc                   ; a procedure's
+    h       TFRH    <>
+    prc     db      ?               ; its procedure
+    lsp0    dd      ?               ; lsp before its arguments, before its locals
+    lsp1    dd      ?
+    tspb    dw      ?               ; the caller's tspb
+    sb      dd      ?               ; the data stack at its body's start
+    lhnd    dd      ?               ; ON LOCAL ERROR's line, 0 none
+TFRPC    ends
+F_MARK  = (TFRH.mark) and 0FFh
+F_ID    = (TFRFOR.id) and 0FFh
+F_STEP  = (TFRFOR.step) and 0FFh
+F_LIMIT = (TFRFOR.limit) and 0FFh
+F_CACHE = (TFRFOR.cache) and 0FFh
+FRSIZE  = sizeof TFRFOR
+M_FR    = FRSIZE
+M_GS    = sizeof TFRH
 SF_BRK  = 1                     ; stpflg: the STOP key; an event to run
 SF_EV   = 2
-M_EV    = 6                     ; an event's GOSUB: mark, ln:2, ip:2, its slot
-F_EVN   = 5
+M_EV    = sizeof TFREV
+F_EVN   = (TFREV.slot) and 0FFh
 EK_TIMER = 0                    ; ONEV's, EVST's kinds
 EK_KEY  = 1
 EK_COM  = 2
@@ -115,13 +139,12 @@ PK_END  = 3
 DM_STEP = 1                     ; the debugger's stops: the next statement
 DM_PSTEP = 2                    ; the next at the depth of pdep or less
 DBBPSZ  = 65536/8               ; the breakpoints: a bit per line number
-M_PC    = 22                    ; a procedure's frame: mark, ln:2, ip:2, then
-F_PRC   = 5                     ; its procedure
-F_LSP0  = 6                     ; lsp before its arguments, before its locals
-F_LSP1  = 10
-F_TSPB  = 14                    ; the caller's tspb
-F_SB    = 16                    ; the data stack at its body's start
-F_LHND  = 20                    ; ON LOCAL ERROR's line, 0 none
+M_PC    = sizeof TFRPC
+F_PRC   = (TFRPC.prc) and 0FFh
+F_LSP0  = (TFRPC.lsp0) and 0FFh
+F_LSP1  = (TFRPC.lsp1) and 0FFh
+F_TSPB  = (TFRPC.tspb) and 0FFh
+F_SB    = (TFRPC.sb) and 0FFh
 LSSZ    = 16                    ; a save entry: id:2, ref:2, the value:8, off:4
 LSAVSZ  = 15000h                ; the save stack
 

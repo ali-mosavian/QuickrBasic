@@ -33,11 +33,11 @@ prg_findw:
         je      @pf_no
         push    ecx
 @pf_x:
-        cmp     word ptr gs:[ebx],0
+        cmp     gs:[ebx].TLN.len,0
         je      @pf_o
-        cmp     ax,word ptr gs:[ebx+L_NUM]
+        cmp     ax,gs:[ebx].TLN.num
         je      @pf_z
-        movzx   ecx,word ptr gs:[ebx]
+        mov     ecx,gs:[ebx].TLN.len
         add     ebx,ecx
         jmp     @pf_x
 @pf_z:
@@ -46,21 +46,21 @@ prg_findw:
         ret
 @pf_o:
         pop     ecx
-        movzx   ebx,[g_state.lnk.lc]
+        mov     ebx,[g_state.lnk.lc]
         test    ebx,ebx
         jz      @pf_b
-        cmp     ax,word ptr gs:[ebx+L_NUM]
+        cmp     ax,gs:[ebx].TLN.num
         jae     @pf_c
 @pf_b:
         mov     ebx,PROGBASE
 @pf_c:
-        cmp     word ptr gs:[ebx],0
+        cmp     gs:[ebx].TLN.len,0
         je      @pf_no
-        cmp     ax,word ptr gs:[ebx+L_NUM]
+        cmp     ax,gs:[ebx].TLN.num
         je      @pf_y
         jb      @pf_no
         push    ecx
-        movzx   ecx,word ptr gs:[ebx]
+        mov     ecx,gs:[ebx].TLN.len
         add     ebx,ecx
         pop     ecx
         jmp     @pf_c
@@ -86,7 +86,7 @@ prg_put:
         cmp     ecx,1
         je      @pp_d
         mov     [g_state.mm.pbs],esi
-        mov     [g_state.mm.pbl],cx
+        mov     [g_state.mm.pbl],ecx
         mov     eax,ecx
         add     eax,HDR
         cmp     eax,LMAX
@@ -96,27 +96,27 @@ prg_put:
         push    ecx
         call    prg_findw
         jnc     @pp_i
-        mov     [g_state.mm.lyo2],bx
-        movzx   eax,word ptr gs:[ebx]
+        mov     [g_state.mm.lyo2],ebx
+        mov     eax,gs:[ebx].TLN.len
         lea     esi,[ebx+eax]
         mov     edi,ebx
-        movzx   ecx,[g_state.mm.pend]
+        mov     ecx,[g_state.mm.pend]
         sub     ecx,esi
         call    mem_pmov
-        mov     [g_state.mm.pend],di
-        movzx   ebx,[g_state.mm.lyo2]
+        mov     [g_state.mm.pend],edi
+        mov     ebx,[g_state.mm.lyo2]
 @pp_i:
         pop     ecx
         pop     eax
         cmp     ecx,1
         je      @jt_prog1
-        movzx   edx,[g_state.mm.pend]
+        mov     edx,[g_state.mm.pend]
         add     edx,eax
-        add     edx,2                   ; the terminator
+        add     edx,4                   ; the terminator
         cmp     edx,PROGLIM
         jae     @pp_om
         push    eax
-        movzx   ecx,[g_state.mm.pend]
+        mov     ecx,[g_state.mm.pend]
         mov     esi,ecx
         sub     ecx,ebx
         dec     esi
@@ -125,7 +125,7 @@ prg_put:
         call    mem_pmov
         cld
         pop     eax
-        add     [g_state.mm.pend],ax
+        add     [g_state.mm.pend],eax
         call    prg_fill
 @jt_prog1:
         jmp     prg_drop
@@ -141,38 +141,37 @@ prg_put:
 prg_add:
         movzx   ecx,cx
         mov     [g_state.mm.pbs],esi
-        mov     [g_state.mm.pbl],cx
+        mov     [g_state.mm.pbl],ecx
         lea     eax,[ecx+HDR]
         cmp     eax,LMAX
         ja      err_om
-        movzx   ebx,[g_state.mm.pend]
-        lea     edx,[ebx+eax+2]
+        mov     ebx,[g_state.mm.pend]
+        lea     edx,[ebx+eax+4]
         cmp     edx,PROGLIM
         jae     err_om
-        add     [g_state.mm.pend],ax
+        add     [g_state.mm.pend],eax
         call    prg_fill
-        movzx   ebx,[g_state.mm.pend]
-        mov     word ptr gs:[ebx],0
+        mov     ebx,[g_state.mm.pend]
+        mov     gs:[ebx].TLN.len,0
         ret
 
 ; ::::::::::::::
-; prg_fill - write the line at BX: the record of size AX, lnum, the body.
+; prg_fill - write the line at EBX: the record of size EAX, lnum, the body.
 ;
-; in:     AX    the record's size
+; in:     EAX   the record's size
 ;         EBX   the record
 ;         lnum  its number
 ;         pbs, pbl  the body, its length
 ; ::::::::::::::
 prg_fill:
-        lea     edi,[ebx]
-        add     edi,[g_state.mm.pglin]
-        stosw
+        mov     gs:[ebx].TLN.len,eax
         mov     ax,[g_state.rn.lnum]
-        stosw
-        xor     ax,ax
-        stosw
+        mov     gs:[ebx].TLN.num,ax
+        mov     gs:[ebx].TLN.cp,0
+        lea     edi,[ebx+HDR]
+        add     edi,[g_state.mm.pglin]
         mov     esi,[g_state.mm.pbs]
-        movzx   ecx,[g_state.mm.pbl]
+        mov     ecx,[g_state.mm.pbl]
         rep     movsb
         ret
 
@@ -185,12 +184,12 @@ prg_fill:
 ; ::::::::::::::
 prg_drop:
         xor     eax,eax
-        mov     [g_state.rn.contip],ax
-        mov     [g_state.lnk.lc],ax
+        mov     [g_state.rn.contip],eax
+        mov     [g_state.lnk.lc],eax
         mov     [g_state.lnk.linked],al
         mov     [g_state.rn.cstk],CSTOP
-        movzx   ebx,[g_state.mm.pend]
-        mov     word ptr gs:[ebx],ax
+        mov     ebx,[g_state.mm.pend]
+        mov     gs:[ebx].TLN.len,eax
         jmp     var_clr
 @pp_om:
         call    prg_drop

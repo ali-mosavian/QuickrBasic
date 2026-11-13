@@ -55,15 +55,15 @@ cm_blocks:
         and     [g_state.lnk.cprc],0
         mov     ebx,PROGBASE
 @cbk_l:
-        movzx   ecx,word ptr gs:[ebx]
+        mov     ecx,gs:[ebx].TLN.len
         jecxz   @cbk_d
-        mov     [g_state.lnk.bln],bx
+        mov     [g_state.lnk.bln],ebx
         lea     esi,[ebx+HDR]
         add     esi,[g_state.mm.pglin]
         push    ebx
         call    bk_line
         pop     ebx
-        movzx   ecx,word ptr gs:[ebx]
+        mov     ecx,gs:[ebx].TLN.len
         add     ebx,ecx
         jmp     @cbk_l
 @cbk_d:
@@ -84,7 +84,7 @@ cm_blocks:
         shl     eax,4
         mov     eax,dword ptr [g_blk+eax+B_POS]
         call    bk_posl
-        movzx   ebx,[g_state.lnk.bln]
+        mov     ebx,[g_state.lnk.bln]
         movzx   eax,byte ptr [g_bkopen+edx]
         xor     edi,edi
         cmp     al,E_FWN                ; FOR: {other} its variable
@@ -240,7 +240,7 @@ bk_stmt:
         mov     dl,PK_FUNC
 @bkp_g:
         push    ebx
-        movzx   ebx,[g_state.lnk.bln]
+        mov     ebx,[g_state.lnk.bln]
         call    dc_deft
         pop     ebx
         mov     [g_bkoff],cx
@@ -262,7 +262,7 @@ bk_stmt:
         mov     byte ptr [edi+P_FLAG],0
         call    bk_here2                ; its body: the statement after
         mov     [edi+P_ENTRY],eax
-        mov     ax,[g_state.lnk.bln]
+        mov     eax,[g_state.lnk.bln]
         mov     [edi+P_FIRST],ax
         mov     [edi+P_LAST],ax
         and     word ptr [edi+P_NPAR],0
@@ -408,7 +408,7 @@ bk_stmt:
         mov     ax,E_EPW
         jz      bk_fail0
         shl     edx,5
-        mov     ax,[g_state.lnk.bln]
+        mov     eax,[g_state.lnk.bln]
         mov     word ptr [g_prc+edx+P_LAST],ax
         call    bk_here2
         mov     dword ptr [g_prc+edx+P_SKIP],eax
@@ -649,8 +649,8 @@ bk_next:
         jmp     bk_fail1
 
 @bk_er:
-        mov     ax,[g_state.lnk.bln]
-        mov     [g_state.rn.ln],ax
+        mov     eax,[g_state.lnk.bln]
+        mov     [g_state.rn.ln],eax
         jmp     err_sn
 
 ; ::::::::::::::
@@ -671,7 +671,7 @@ bk_new:
         shl     edi,4
         add     edi,offset g_blk
         push    eax
-        mov     ax,[g_state.lnk.bln]
+        mov     eax,[g_state.lnk.bln]
         add     ax,cx
         add     ax,HDR
         mov     [edi+B_POS],ax
@@ -759,7 +759,7 @@ bk_fail1:
         jmp     @B
 bk_fail:
         movzx   ecx,cx
-        mov     dx,[g_state.lnk.bln]
+        mov     edx,[g_state.lnk.bln]
         jmp     dx_raise
 
 ; ::::::::::::::
@@ -855,7 +855,7 @@ bk_here2:
 bk_herem:
         movzx   eax,al
         shl     eax,16
-        mov     ax,[g_state.lnk.bln]    ; at:2, mode:2
+        mov     ax,word ptr [g_state.lnk.bln]   ; at:2, mode:2
         add     ax,cx
         add     ax,HDR
         ret
@@ -871,14 +871,14 @@ bk_posl:
         movzx   eax,ax
         mov     ebx,PROGBASE
 @@:
-        movzx   ecx,word ptr gs:[ebx]
+        mov     ecx,gs:[ebx].TLN.len
         add     ecx,ebx
         cmp     eax,ecx
         jb      @F
         mov     ebx,ecx
         jmp     @B
 @@:
-        mov     [g_state.lnk.bln],bx
+        mov     [g_state.lnk.bln],ebx
         mov     ecx,eax
         sub     ecx,ebx
         sub     ecx,HDR

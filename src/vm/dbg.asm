@@ -27,7 +27,7 @@ op_dbg:
         jne     @F
         dispatch
 @@:
-        movzx   ebx,[g_state.rn.ln]
+        mov     ebx,[g_state.rn.ln]
         cmp     ebx,DLINE
         je      @odb_d
         cmp     [g_state.dbg.trace],0
@@ -40,7 +40,7 @@ op_dbg:
         call    dbg_pos
         call    [g_state.dbg.hook]
         pop     esi
-        movzx   ebx,[g_state.rn.ln]
+        mov     ebx,[g_state.rn.ln]
 @odb_m:
         mov     al,[g_state.dbg.mode]
         cmp     al,DM_STEP
@@ -50,13 +50,13 @@ op_dbg:
         call    dbg_depth
         cmp     eax,[g_state.dbg.pdep]
         jbe     @odb_s
-        movzx   ebx,[g_state.rn.ln]
+        mov     ebx,[g_state.rn.ln]
 @odb_b:                                 ; the line's first statement only
         lea     eax,[esi-1]
         sub     eax,[g_state.mm.cblin]
-        cmp     ax,word ptr gs:[ebx+L_CP]
+        cmp     eax,gs:[ebx].TLN.cp
         jne     @odb_d
-        movzx   eax,word ptr gs:[ebx+L_NUM]
+        movzx   eax,gs:[ebx].TLN.num
         cmp     [g_state.dbg.utl],0
         je      @F
         cmp     ax,[g_state.dbg.ulnum]
@@ -101,17 +101,17 @@ dbg_depth:
 ; dbg_pos - the place of code address EAX in line EBX to wnum, wb0, wb1.
 ; ::::::::::::::
 dbg_pos:
-        mov     dx,word ptr gs:[ebx+L_NUM]
+        mov     dx,gs:[ebx].TLN.num
         mov     [g_state.dbg.wnum],dx
         call    ex_smap
-        mov     ax,[edi]
-        mov     [g_state.dbg.wb0],ax
-        mov     ax,BOFF
+        movzx   eax,word ptr [edi]
+        mov     [g_state.dbg.wb0],eax
+        mov     eax,BOFF
         cmp     ecx,1
         jbe     @F
-        mov     ax,[edi+4]
+        movzx   eax,word ptr [edi+4]
 @@:
-        mov     [g_state.dbg.wb1],ax
+        mov     [g_state.dbg.wb1],eax
         ret
 
 ; ::::::::::::::
@@ -243,9 +243,7 @@ g_dbsvt dd      g_state.rn.rsp
         dd      g_state.rn.ppip
         db      8                       ; ppip, ppend
         dd      g_state.rn.contip
-        db      8                       ; contip, contsi, ln, lnum
-        dd      g_state.rn.vpt
-        db      2
+        db      TRUN.fid-TRUN.contip    ; contip, contsi, ln, lnum, vpt
         dd      g_state.rn.opip
         db      4
         dd      g_state.rn.stpflg
@@ -257,7 +255,7 @@ g_dbsvt dd      g_state.rn.rsp
         dd      g_state.sg.tspb
         db      2
         dd      g_state.io.ocap
-        db      3                       ; ocap, pcol, sbx
+        db      TIO.inlen-TIO.ocap      ; ocap, pcol, sbx
         dd      g_state.dbg.mode
         db      4
         dd      g_evon

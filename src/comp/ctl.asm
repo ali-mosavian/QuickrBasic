@@ -1641,7 +1641,7 @@ ct_here:
         ret
 @@:
         shl     eax,16
-        mov     ax,[g_state.cm.cline]
+        mov     ax,word ptr [g_state.cm.cline]
         add     ax,cx
         add     ax,HDR
         ret
@@ -1667,7 +1667,7 @@ ct_tdw:
         call    bk_posl
         mov     eax,ecx
         shl     eax,16
-        mov     ax,[g_state.lnk.bln]
+        mov     ax,word ptr [g_state.lnk.bln]
         pop     dword ptr [g_state.lnk.bln]
         pop     ecx
 @ctw_m:
@@ -1698,7 +1698,7 @@ ct_ent:
         push    eax
         push    ebx
         push    ecx
-        mov     bx,[g_state.cm.cline]
+        mov     ebx,[g_state.cm.cline]
         mov     ecx,esi
         sub     ecx,[g_state.cm.cbase]
         call    bk_find

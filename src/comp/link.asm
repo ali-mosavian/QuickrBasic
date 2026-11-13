@@ -32,7 +32,7 @@ cm_comp:
         mov     [g_state.cm.cxb],offset g_xbuf
         mov     eax,[g_state.mm.dslin]  ; compiled where it is stored
         mov     [g_state.cm.ctxlin],eax
-        mov     [g_state.cm.cline],bx
+        mov     [g_state.cm.cline],ebx
         call    bk_proc
         call    dc_deft
         lea     esi,[ebx+HDR-1]
@@ -69,7 +69,7 @@ cm_cache:
         mov     [g_state.lnk.cend],edi
         mov     eax,esi
         sub     eax,[g_state.mm.cblin]
-        mov     word ptr gs:[ebx+L_CP],ax
+        mov     gs:[ebx].TLN.cp,eax
         ret
 
 ; ::::::::::::::
@@ -81,33 +81,33 @@ cm_flush:
 @cfl_f:
         cmp     ebx,CSTOP
         jae     @cfl_c
-        movzx   edi,word ptr [ebx+F_LN]
+        mov     edi,[ebx].TFRH.ln
         cmp     edi,DLINE
         je      @cfl_n
-        mov     ax,[ebx+F_IP]
+        mov     eax,[ebx].TFRH.ip
         cmp     ax,CACHE0
         jb      @cfl_n
-        sub     ax,word ptr gs:[edi+L_CP]
-        mov     [ebx+F_IP],ax
+        sub     eax,gs:[edi].TLN.cp
+        mov     [ebx].TFRH.ip,eax
 @cfl_n:
         movzx   ecx,byte ptr [ebx+F_MARK]
         add     ebx,ecx
         jmp     @cfl_f
 @cfl_c:
-        movzx   edi,[g_state.rn.contip]
+        mov     edi,[g_state.rn.contip]
         test    edi,edi
         jz      @cfl_l
-        mov     ax,[g_state.rn.contsi]
+        mov     eax,[g_state.rn.contsi]
         cmp     ax,CACHE0
         jb      @cfl_l
-        sub     ax,word ptr gs:[edi+L_CP]
-        mov     [g_state.rn.contsi],ax
+        sub     eax,gs:[edi].TLN.cp
+        mov     [g_state.rn.contsi],eax
 @cfl_l:
         mov     ebx,PROGBASE
 @cfl_x:
-        movzx   ecx,word ptr gs:[ebx]
+        mov     ecx,gs:[ebx].TLN.len
         jecxz   @cfl_d
-        and     word ptr gs:[ebx+L_CP],0
+        and     gs:[ebx].TLN.cp,0
         add     ebx,ecx
         jmp     @cfl_x
 @cfl_d:
@@ -276,9 +276,9 @@ cm_link:
         and     [g_state.lnk.lc],0
         mov     ebx,PROGBASE
 @clk_l:
-        movzx   ecx,word ptr gs:[ebx]
+        mov     ecx,gs:[ebx].TLN.len
         jecxz   @clk_d
-        and     word ptr gs:[ebx+L_CP],0
+        and     gs:[ebx].TLN.cp,0
         add     ebx,ecx
         jmp     @clk_l
 @clk_d:

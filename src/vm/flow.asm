@@ -19,7 +19,7 @@ include x86f.inc
 ipst    macro   dst
         mov     eax,esi
         sub     eax,[g_state.mm.cblin]
-        mov     dst,ax
+        mov     dst,eax
         endm
 
 @st_flow1:
@@ -89,9 +89,9 @@ ex_gsf:
         sub     edi,ecx
         mov     [g_state.rn.cstk],edi
         mov     [edi+F_MARK],al
-        mov     cx,[g_state.rn.ln]
-        mov     [edi+F_LN],cx
-        ipst    [edi+F_IP]
+        mov     ecx,[g_state.rn.ln]
+        mov     [edi].TFRH.ln,ecx
+        ipst    [edi].TFRH.ip
         ret
 
 ; ::::::::::::::
@@ -107,8 +107,8 @@ ex_jump:
         call    cm_link
         pop     ebx
 @exj_g:
-        mov     [g_state.lnk.lc],bx
-        mov     [g_state.rn.vpt],bx
+        mov     [g_state.lnk.lc],ebx
+        mov     [g_state.rn.vpt],ebx
         call    ex_line
         jmp     ex_lp
 
@@ -163,10 +163,10 @@ op_ret:
         jne     err_rg
         call    ev_ret
 @@:
-        mov     dx,[ebx+F_LN]
-        mov     [g_state.rn.ln],dx
+        mov     edx,[ebx].TFRH.ln
+        mov     [g_state.rn.ln],edx
         movzx   ecx,byte ptr [ebx+F_MARK]
-        mov     ax,[ebx+F_IP]
+        mov     eax,[ebx].TFRH.ip
         add     ebx,ecx
         mov     [g_state.rn.cstk],ebx
         tspclr
@@ -223,12 +223,12 @@ ex_nextln:
 ; out:    ESI  the next line's code
 ; ::::::::::::::
 ex_eol:
-        movzx   ebx,[g_state.rn.ln]
-        movzx   ecx,word ptr gs:[ebx]
+        mov     ebx,[g_state.rn.ln]
+        mov     ecx,gs:[ebx].TLN.len
         add     ebx,ecx
-        cmp     word ptr gs:[ebx],0
+        cmp     gs:[ebx].TLN.len,0
         je      @F
-        mov     [g_state.rn.vpt],bx
+        mov     [g_state.rn.vpt],ebx
         jmp     ex_line
 @@:
         add     esp,4
@@ -244,11 +244,11 @@ ex_eol:
 ;         ESI  the code
 ; ::::::::::::::
 ex_line:
-        movzx   ebx,[g_state.rn.vpt]
-        mov     [g_state.rn.ln],bx
-        cmp     word ptr gs:[ebx],0   ; the direct line's len
+        mov     ebx,[g_state.rn.vpt]
+        mov     [g_state.rn.ln],ebx
+        cmp     gs:[ebx].TLN.len,0   ; the direct line's len
         je      @exl_x
-        movzx   esi,word ptr gs:[ebx+L_CP]
+        mov     esi,gs:[ebx].TLN.cp
         test    esi,esi
         jz      cm_cache
         add     esi,[g_state.mm.cblin]
@@ -328,9 +328,9 @@ op_for:
 @of_e:
         add     esi,JSIZE
 @of_p:
-        ipst    [ebx+F_IP]
-        mov     ax,[g_state.rn.ln]
-        mov     [ebx+F_LN],ax
+        ipst    [ebx].TFRH.ip
+        mov     eax,[g_state.rn.ln]
+        mov     [ebx].TFRH.ln,eax
         cmp     byte ptr [esi],O_EOL
         jne     @F
         call    ex_eol                  ; no next line: no return, the frame kept
@@ -358,7 +358,7 @@ for_in:
         fcomp   dword ptr [ebx+F_LIMIT]
         fnstsw  ax
         sahf
-        mov     cl,[ebx+F_STEP+3]
+        mov     cl,byte ptr [ebx+F_STEP+3]
         jb      @fin_lt
         je      @fin_y
         test    cl,cl                   ; past it upward: entered only down
@@ -373,12 +373,12 @@ for_in:
 @fin_c:
         movsx   eax,word ptr [ebx+F_STEP+2]     ; an INT-counted FLOAT loop
         movsx   ecx,word ptr [ebx+F_LIMIT]
-        mov     dl,[ebx+F_STEP+1]
+        mov     dl,byte ptr [ebx+F_STEP+1]
         jmp     @fin_s
 @fin_i:
         mov     eax,[edi]
         mov     ecx,[ebx+F_LIMIT]
-        mov     dl,[ebx+F_STEP+3]
+        mov     dl,byte ptr [ebx+F_STEP+3]
 @fin_s:
         cmp     eax,ecx
         jl      @fin_l2
@@ -418,12 +418,12 @@ for_mki:
         mov     [ebp+F_CACHE],eax
         call    flt_w16
         jnz     @fmk_b
-        mov     [ebp+F_STEP+2],ax
+        mov     word ptr [ebp+F_STEP+2],ax
         pop     eax
-        mov     [ebp+F_LIMIT],ax
+        mov     word ptr [ebp+F_LIMIT],ax
         mov     word ptr [ebp+F_LIMIT+2],0FFFFh
         pop     eax
-        mov     [ebp+F_STEP],ax
+        mov     word ptr [ebp+F_STEP],ax
         ret
 @fmk_b:
         pop     eax
@@ -503,7 +503,7 @@ for_any:
         movsx   eax,word ptr [ebx+F_STEP+2]
         movsx   ecx,word ptr [ebx+F_STEP]
         add     eax,ecx
-        mov     [ebx+F_STEP+2],ax
+        mov     word ptr [ebx+F_STEP+2],ax
         mov     [g_state.rn.fsv],eax
         push    esi
         call    flt_from32
@@ -525,11 +525,11 @@ for_any:
         jmp     @fa_done
 @fa_deg:
         push    esi
-        mov     ax,[ebx+F_LIMIT]        ; the body wrote it: FLOAT from here on
+        mov     ax,word ptr [ebx+F_LIMIT]        ; the body wrote it: FLOAT from here on
         call    flt_from16
         mov     ebx,[g_state.rn.cstk]
         mov     [ebx+F_LIMIT],eax
-        mov     ax,[ebx+F_STEP]
+        mov     ax,word ptr [ebx+F_STEP]
         call    flt_from16
         pop     esi
         mov     ebx,[g_state.rn.cstk]
@@ -553,9 +553,9 @@ for_any:
         jge     @fa_lp
         jmp     @fa_done
 @fa_lp:
-        mov     dx,[ebx+F_LN]
-        mov     [g_state.rn.ln],dx
-        mov     ax,[ebx+F_IP]
+        mov     edx,[ebx].TFRH.ln
+        mov     [g_state.rn.ln],edx
+        mov     eax,[ebx].TFRH.ip
         ipfix
         dispatch
 @fa_gen:
@@ -585,9 +585,9 @@ for_any:
 ; in:     EBX  the frame
 ; ::::::::::::::
 for_lp:
-        mov     dx,[ebx+F_LN]
-        mov     [g_state.rn.ln],dx
-        mov     ax,[ebx+F_IP]
+        mov     edx,[ebx].TFRH.ln
+        mov     [g_state.rn.ln],edx
+        mov     eax,[ebx].TFRH.ip
         ipfix
         dispatch
 
@@ -619,7 +619,7 @@ op_onerr:
         jmp     err_raise
 @one_g:
         call    ex_target
-        mov     [g_state.rn.ehnd],bx
+        mov     [g_state.rn.ehnd],ebx
 @one_d:
         dispatch
 
@@ -648,7 +648,7 @@ op_onlerr:
 @@:
         call    ex_target
 @onl_s:
-        mov     [edi+F_LHND],bx
+        mov     [edi].TFRPC.lhnd,ebx
         dispatch
 
 ; ::::::::::::::
@@ -667,17 +667,17 @@ ex_hnd:
         movzx   eax,byte ptr [edi+F_MARK]
         cmp     al,M_PC
         jne     @ehd_n
-        cmp     word ptr [edi+F_LHND],0
+        cmp     [edi].TFRPC.lhnd,0
         jne     @ehd_y
 @ehd_n:
         add     edi,eax
         jmp     @ehd_f
 @ehd_m:
-        mov     ax,[g_state.rn.ehnd]
+        mov     eax,[g_state.rn.ehnd]
         mov     [g_thnd],ax
         ret
 @ehd_y:
-        mov     ax,[edi+F_LHND]
+        mov     eax,[edi].TFRPC.lhnd
         mov     [g_thnd],ax
         mov     [g_hfr],edi
 @ehd_u:
@@ -694,9 +694,9 @@ ex_hnd:
         call    pr_pop
         lea     eax,[ebx+M_PC]
         mov     [g_state.rn.cstk],eax
-        mov     dx,[ebx+F_LN]           ; the error: at the call
-        mov     [g_state.rn.ln],dx
-        mov     ax,[ebx+F_IP]
+        mov     edx,[ebx].TFRH.ln           ; the error: at the call
+        mov     [g_state.rn.ln],edx
+        mov     eax,[ebx].TFRH.ip
         ipfix
         dec     esi
         mov     [g_state.rn.opip],esi
@@ -725,21 +725,21 @@ ex_trap:
 @@:
         mov     [g_state.rn.errn],ax
         mov     [g_state.rn.inerr],1
-        movzx   ecx,[g_state.rn.ln]
-        mov     [g_state.rn.rln],cx
+        mov     ecx,[g_state.rn.ln]
+        mov     [g_state.rn.rln],ecx
         call    ex_erl
         mov     [g_state.rn.erl],dx
         mov     ebx,ecx                 ; the statement, by the map
         mov     eax,[g_state.rn.opip]
         call    ex_smap
-        mov     ax,[edi+2]
-        mov     [g_state.rn.rc0],ax
-        mov     ax,0FFFFh
+        movzx   eax,word ptr [edi+2]
+        mov     [g_state.rn.rc0],eax
+        or      eax,-1
         cmp     ecx,1
         jbe     @F
-        mov     ax,[edi+6]
+        movzx   eax,word ptr [edi+6]
 @@:
-        mov     [g_state.rn.rc1],ax
+        mov     [g_state.rn.rc1],eax
         call    ch_clr
         call    ex_sbase
         mov     esp,eax
@@ -759,14 +759,14 @@ ex_erl:
 @etr_l:
         cmp     ebx,ecx
         ja      @etr_d
-        cmp     word ptr gs:[ebx],0
+        cmp     gs:[ebx].TLN.len,0
         je      @etr_d
-        movzx   eax,word ptr gs:[ebx+L_NUM]
+        movzx   eax,gs:[ebx].TLN.num
         cmp     ax,NONUM
         je      @F
         mov     edx,eax
 @@:
-        movzx   eax,word ptr gs:[ebx]
+        mov     eax,gs:[ebx].TLN.len
         add     ebx,eax
         jmp     @etr_l
 @etr_d:
@@ -782,7 +782,7 @@ ex_erl:
 ;         ECX  the entries from it on
 ; ::::::::::::::
 ex_smap:
-        movzx   ebx,word ptr gs:[ebx+L_CP]
+        mov     ebx,gs:[ebx].TLN.cp
         add     ebx,[g_state.mm.cblin]
         sub     eax,ebx
         movzx   ecx,word ptr [ebx-2]   ; the count, after the entries
@@ -840,18 +840,18 @@ op_resume:
         lodsb
         cmp     al,2
         je      @rsm_l
-        mov     cx,[g_state.rn.rc0]
+        mov     ecx,[g_state.rn.rc0]
         test    al,al
         jz      @F
-        mov     cx,[g_state.rn.rc1]
+        mov     ecx,[g_state.rn.rc1]
 @@:
         tspclr
-        mov     dx,[g_state.rn.rln]
-        mov     [g_state.rn.ln],dx
-        mov     [g_state.rn.vpt],dx
-        cmp     cx,0FFFFh
+        mov     edx,[g_state.rn.rln]
+        mov     [g_state.rn.ln],edx
+        mov     [g_state.rn.vpt],edx
+        cmp     ecx,-1
         je      @rsm_n
-        movzx   esi,cx
+        mov     esi,ecx
         call    ex_resolve
         dispatch
 @rsm_n:
@@ -904,7 +904,7 @@ op_size:
 ex_resolve:
         movzx   ebx,dx
         mov     eax,esi
-        movzx   esi,word ptr gs:[ebx+L_CP]
+        mov     esi,gs:[ebx].TLN.cp
         test    esi,esi
         jnz     @exr_a
         push    eax
@@ -924,10 +924,10 @@ ex_resolve:
 ; keeps:  ESI
 ; ::::::::::::::
 ex_setcont:
-        mov     bx,[g_state.rn.ln]
-        cmp     bx,DLINE
+        mov     ebx,[g_state.rn.ln]
+        cmp     ebx,DLINE
         je      @F
-        mov     [g_state.rn.contip],bx
+        mov     [g_state.rn.contip],ebx
         ipst    [g_state.rn.contsi]
 @@:
         ret
@@ -1024,20 +1024,20 @@ ex_bjump:
         movzx   eax,word ptr [esi+4]
         cmp     eax,3
         jb      @ebj_f
-        mov     bx,[esi]
-        mov     [g_state.rn.ln],bx
+        movzx   ebx,word ptr [esi]
+        mov     [g_state.rn.ln],ebx
         mov     esi,[g_state.mm.cblin]
         add     esi,eax
         dispatch
 @ebj_f:
         mov     edx,esi
-        mov     bx,[edx]
-        cmp     bx,0FFFFh
+        movzx   ebx,word ptr [edx]
+        cmp     ebx,0FFFFh
         je      err_sn
         mov     al,[g_state.lnk.nfl]
         push    eax
         push    edx
-        mov     [g_state.rn.vpt],bx
+        mov     [g_state.rn.vpt],ebx
         call    ex_line
         pop     edx
         pop     eax
@@ -1272,12 +1272,12 @@ op_pcall:
         sub     edi,M_PC
         mov     [g_state.rn.cstk],edi
         mov     byte ptr [edi+F_MARK],M_PC
-        mov     cx,[g_state.rn.ln]
-        mov     [edi+F_LN],cx
+        mov     ecx,[g_state.rn.ln]
+        mov     [edi].TFRH.ln,ecx
         mov     al,[esi]
         mov     [edi+F_PRC],al
         lea     esi,[esi+7]
-        ipst    [edi+F_IP]
+        ipst    [edi].TFRH.ip
         mov     eax,[g_state.rn.lsp]
         mov     [edi+F_LSP0],eax
         mov     eax,[g_state.rn.ppend]
@@ -1288,7 +1288,7 @@ op_pcall:
         mov     ax,[g_state.sg.tsp]
         mov     [g_state.sg.tspb],ax
         mov     [edi+F_SB],esp
-        mov     word ptr [edi+F_LHND],0
+        mov     [edi].TFRPC.lhnd,0
         sub     esi,6                   ; the target
         jmp     ex_bjump
 
@@ -1476,9 +1476,9 @@ pr_pop:
         call    ls_mov
         dpush   edi
 @prt_j:
-        mov     dx,[ebx+F_LN]
-        mov     [g_state.rn.ln],dx
-        mov     ax,[ebx+F_IP]
+        mov     edx,[ebx].TFRH.ln
+        mov     [g_state.rn.ln],edx
+        mov     eax,[ebx].TFRH.ip
         add     ebx,M_PC
         mov     [g_state.rn.cstk],ebx
         ipfix

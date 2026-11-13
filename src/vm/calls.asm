@@ -321,15 +321,15 @@ sc_dread:
         pop     esi
         jmp     @vpush
 @rdv_sn:
-        mov     ax,[g_state.rn.dcp]
+        mov     eax,[g_state.rn.dcp]
         mov     ebx,PROGBASE
 @rdv_l:
-        movzx   ecx,word ptr gs:[ebx]
+        mov     ecx,gs:[ebx].TLN.len
         add     ebx,ecx
-        cmp     ax,bx
+        cmp     eax,ebx
         jae     @rdv_l
         sub     ebx,ecx
-        mov     [g_state.rn.ln],bx
+        mov     [g_state.rn.ln],ebx
         jmp     err_sn
 
 ; ::::::::::::::
@@ -362,7 +362,7 @@ rd_item:
         inc     esi
         ret
 @ri_nx:
-        movzx   ebx,[g_state.rn.dcp]
+        mov     ebx,[g_state.rn.dcp]
         test    ebx,ebx
         jz      @st_call1
         call    rd_after
@@ -379,7 +379,7 @@ rd_item:
 ; keeps:  SI
 ; ::::::::::::::
 rd_load:
-        mov     [g_state.rn.dcp],bx
+        mov     [g_state.rn.dcp],ebx
         push    esi
         xor     cl,cl
         mov     esi,offset g_rdbuf
@@ -437,7 +437,7 @@ rd_scan:
 @rds_z:
         inc     ebx
 @rds_n:
-        cmp     word ptr gs:[ebx],0       ; the next line, or the end
+        cmp     gs:[ebx].TLN.len,0       ; the next line, or the end
         je      @rds_x
         add     ebx,HDR
         jmp     @rds_s
@@ -529,7 +529,7 @@ rd_first:
 ; out:    dcp, dlp  the DATA, 0 when there is none; its text in rdbuf
 ; ::::::::::::::
 rd_seek:
-        cmp     word ptr gs:[ebx],0
+        cmp     gs:[ebx].TLN.len,0
         je      @rsk_n
         add     ebx,HDR
         call    rd_scan
@@ -694,7 +694,7 @@ sc_run:
 ex_runfirst:
         call    ch_clall
         mov     ebx,PROGBASE
-        cmp     word ptr gs:[ebx],0
+        cmp     gs:[ebx].TLN.len,0
         jne     ex_rungo
         jmp     ex_end
 
@@ -716,14 +716,14 @@ sc_list:
 ; error:  ?CAN'T CONTINUE  no place
 ; ::::::::::::::
 sc_cont:
-        movzx   ebx,[g_state.rn.contip]
+        mov     ebx,[g_state.rn.contip]
         test    ebx,ebx
         jz      err_cn
-        mov     ax,[g_state.rn.contsi]
-        test    ax,ax
+        mov     eax,[g_state.rn.contsi]
+        test    eax,eax
         jz      ex_ready
-        mov     [g_state.rn.ln],bx
-        mov     dx,bx
+        mov     [g_state.rn.ln],ebx
+        mov     edx,ebx
         ipfix
         jmp     ex_lp
 
