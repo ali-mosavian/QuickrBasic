@@ -2,7 +2,7 @@
 ; dbl.asm - DOUBLE: its ops, its text
 ; ==========================================================================
 ; holds:    the D.* handlers, dbl_in, dbl_fmt, dbl_p10
-; uses:     flt_insg, err_ov, err_iq, err_raise, io_putc, str_buftmp
+; uses:     flt_insg, fx_sin .. fx_exp, err_ov, err_iq, err_raise, io_putc, str_buftmp
 ; data:     A DOUBLE is an IEEE double, a whole data stack cell; a scalar's
 ;           in its 8-byte slot at SVBASE. The x87 works at 53 bits for a D op
 ;           (fcwq), back at fcw after it.
@@ -725,47 +725,22 @@ op_dfn:
         fsqrt
         jmp     @dfn_xs
 @dfn_sin:
-        call    dfn_trig
-        fsin
+        call    fx_sin
         jmp     @dfn_st
 @dfn_cos:
-        call    dfn_trig
-        fcos
+        call    fx_cos
         jmp     @dfn_st
 @dfn_tan:
-        call    dfn_trig
-        fptan
-        fstp    st(0)
+        call    fx_tan
         jmp     @dfn_st
 @dfn_atn:
-        fld1
-        fpatan
+        call    fx_atn
         jmp     @dfn_st
 @dfn_log:
-        ftst
-        fnstsw  ax
-        sahf
-        jbe     @dfn_iq
-        fldln2
-        fxch
-        fyl2x
+        call    fx_log
         jmp     @dfn_st
-@dfn_exp:                               ; past 2^32767.5 ?OVERFLOW, else at
-        fldl2e                          ; most infinity, as BC's
-        fmulp   st(1),st
-        fcom    [g_dovf]
-        fnstsw  ax
-        sahf
-        jae     @dfn_ov
-        fld     st(0)
-        frndint
-        fsub    st(1),st
-        fxch
-        f2xm1
-        fld1
-        faddp   st(1),st
-        fscale
-        fstp    st(1)
+@dfn_exp:
+        call    fx_exp
         jmp     @dfn_xs
 @dfn_st:
         fstp    qword ptr [esp]
@@ -773,141 +748,23 @@ op_dfn:
         mov     edi,esp
         call    dbl_chk
         dispatch
-@dfn_iq:
-        fstp    st(0)
-        dq24
-        jmp     err_iq
-@dfn_ov:
-        fstp    st(0)
-        dq24
-        jmp     err_ov
 @dfn_xs:
         fstp    qword ptr [esp]
         dq24
         dispatch
 
 ; ::::::::::::::
-; op_dpow - D.POW ( a b -- a^b ): a whole power by squaring.
-;
-; error:  ?ILLEGAL QUANTITY  a negative base, a fraction power; 0 ^ a
-;                            negative power
-;         ?OVERFLOW          past the largest
+; op_dpow - D.POW ( a b -- a^b ): fx_pow.
 ; ::::::::::::::
 op_dpow:
         fldcw   [g_fcwx]
-        fld     qword ptr [esp]         ; b
-        fld     st(0)
-        frndint
-        fcomp   st(1)
-        fnstsw  ax
-        sahf
-        jne     @dpw_g                  ; a fraction
-        fld     st(0)
-        fabs
-        fcomp   [g_dbig]
-        fnstsw  ax
-        sahf
-        jae     @dpw_g
-        fistp   dword ptr [g_dtmp]
-        fld     qword ptr [esp+CELL]    ; a
-        mov     eax,[g_dtmp]
-        mov     ecx,eax
-        test    eax,eax
-        jns     @F
-        neg     eax
-@@:
-        fld1                            ; r a
-@dpw_l:
-        test    eax,eax
-        jz      @dpw_e
-        shr     eax,1
-        jnc     @F
-        fmul    st,st(1)
-@@:
-        fxch
-        fmul    st,st(0)
-        fxch
-        jmp     @dpw_l
-@dpw_e:
-        fstp    st(1)
-        test    ecx,ecx
-        jns     @dpw_st
-        ftst
-        fnstsw  ax
-        sahf
-        je      @dpw_iq
-        fld1
-        fdivrp  st(1),st
-        jmp     @dpw_st
-@dpw_g:                                 ; 2 ^ (b log2 a), a > 0
         fld     qword ptr [esp+CELL]
-        ftst
-        fnstsw  ax
-        sahf
-        jb      @dpw_iq2
-        je      @dpw_z
-        fyl2x
-        fld     st(0)
-        frndint
-        fsub    st(1),st
-        fxch
-        f2xm1
-        fld1
-        faddp   st(1),st
-        fscale
-        fstp    st(1)
-@dpw_st:
-        fld     st(0)                   ; infinity: ?OVERFLOW only past
-        fabs                            ; 2^32767.5, as EXP (DOSBox's FXAM
-        fcomp   [g_dmax]                ; sees no infinity)
-        fnstsw  ax
-        sahf
-        jbe     @F
         fld     qword ptr [esp]
-        fld     qword ptr [esp+CELL]
-        fabs
-        fyl2x
-        fcomp   [g_dovf]
-        fnstsw  ax
-        sahf
-        jae     @dpw_ov
-@@:
+        call    fx_pow
         add     esp,CELL
         fstp    qword ptr [esp]
         dq24
         dispatch
-@dpw_z:                                 ; 0 ^ b: 0 when b over 0
-        fstp    st(0)
-        ftst
-        fnstsw  ax
-        sahf
-        jbe     @dpw_iq
-        fstp    st(0)
-        fldz
-        jmp     @dpw_st
-@dpw_iq2:
-        fstp    st(0)
-@dpw_iq:
-        fstp    st(0)
-        dq24
-        jmp     err_iq
-@dpw_ov:
-        fstp    st(0)
-        dq24
-        jmp     err_ov
-
-; dfn_trig - ?ILLEGAL QUANTITY for SIN, COS, TAN past 2^31, as BC's.
-dfn_trig:
-        fld     st(0)
-        fabs
-        fcomp   [g_dbig]
-        fnstsw  ax
-        sahf
-        ja      @F
-        ret
-@@:
-        add     esp,4
-        jmp     @dfn_iq
 
         .data
 g_fcwq  dw      027Fh                   ; 53 bits, to nearest
@@ -917,7 +774,6 @@ g_p10   real8   1.0E0,1.0E1,1.0E2,1.0E3,1.0E4,1.0E5,1.0E6,1.0E7,1.0E8,1.0E9
         real8   1.0E19,1.0E20,1.0E21,1.0E22
 g_dbig  dd      4F000000h               ; 2^31
 g_dovf  dd      46FFFF00h               ; 32767.5: EXP's limit, in powers of 2
-g_dmax  real8   1.7976931348623157E308
 g_dfn   dd      @dfn_abs,@dfn_sgn,@dfn_int,@dfn_fix,@dfn_sqr,@dfn_sin,@dfn_cos
         dd      @dfn_tan,@dfn_atn,@dfn_log,@dfn_exp
         .data?

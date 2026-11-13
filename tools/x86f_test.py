@@ -482,6 +482,11 @@ CASES = {
     # SINGLE SIN past 2^31 gave 0 or a value, not error 5.
     "qb_trig_sng": ('ON ERROR GOTO h\r\ns! = 1E13: x = SIN(s!): x = COS(s!): x = TAN(s!)\r\n'
                     'END\r\nh: PRINT ERR: RESUME NEXT\r\n', " 5 \r\n 5 \r\n 5 \r\n", "ERROR"),
+    # SINGLE ^ gave 0, 1, 0 and error 6 where BC's gives error 5: 0 ^ -1, a negative base to a
+    # power past 2^31.
+    "qb_pow_sng": ('ON ERROR GOTO h\r\nz! = 0: m! = -1: t! = -2: x = z! ^ m!: x = m! ^ 2147483648!\r\n'
+                   'x = z! ^ -2147483649!: x = t! ^ 1E+30\r\nEND\r\nh: PRINT ERR: RESUME NEXT\r\n',
+                   " 5 \r\n 5 \r\n 5 \r\n 5 \r\n", "ERROR"),
 }
 
 # Run as files with 8 MB: the heap is the memory free.

@@ -652,7 +652,6 @@ externdef flt_abs:near
 externdef flt_cmp:near
 externdef flt_in:near
 externdef flt_insg:near
-externdef flt_neg:near
 externdef flt_norm:near
 externdef flt_out:near
 externdef flt_sgn:near
@@ -685,6 +684,13 @@ externdef fn_pow:near
 externdef fn_sin:near
 externdef fn_sqr:near
 externdef fn_tan:near
+externdef fx_atn:near
+externdef fx_cos:near
+externdef fx_exp:near
+externdef fx_log:near
+externdef fx_pow:near
+externdef fx_sin:near
+externdef fx_tan:near
 externdef g_fcw:word
 externdef g_fcwd:word
 externdef g_fcwx:word

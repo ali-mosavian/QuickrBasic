@@ -3,7 +3,7 @@
 ; ==========================================================================
 ; holds:    flt_finit, flt_add .. flt_div, flt_from16, flt_from32,
 ;           flt_fromu16, flt_fix16, flt_fixu16, flt_fix32, flt_int, fn_pow, fn_sqr ..
-;           fn_atn, ex_fclr
+;           fn_atn, ex_fclr, fx_exp .. fx_atn: the x87 cores DOUBLE shares
 ; uses:     flt_zero, err_ov, err_iq, err_raise
 ; data:     a packed FLOAT is an x87 single: e 0 is 0, e 255 is ?OVERFLOW.
 ;           Every routine takes and returns packed singles; the x87 stack is
@@ -47,6 +47,11 @@ g_fcw   dw      007Fh
 g_fcwx  dw      037Fh                    ; 64-bit precision: 2^x's steps
 g_fcwd  dw      047Fh                    ; round down
 g_nofpu db      "A math coprocessor is required.",13,10,"$"
+g_dmax  real8   1.7976931348623157E308
+        .data?
+g_pwa   dt      ?                       ; fx_pow's base, power
+g_pwb   dt      ?
+g_pwi   dd      ?
         .code
 
 ; ::::::::::::::
@@ -260,15 +265,23 @@ flt_int:
         fldcw   [g_fcw]
         jmp     flt_fst
 
+; The x87 cores, shared by SINGLE and DOUBLE: st0 in, st0 out, at the
+; caller's precision. An error jumps out; err_raise clears the x87.
 ; ::::::::::::::
-; flt_x2x - st0 = 2^st0.
-;
-; in:     st0  the power
-;         fcwx  loaded
-; out:    st0  the result
-;         fcw   loaded
+; fx_exp - st0 = e^st0. ?OVERFLOW past 2^32767.5, else at most infinity,
+; as BC's.
 ; ::::::::::::::
-flt_x2x:
+fx_exp:
+        fldl2e
+        fmulp   st(1),st
+        fcom    [g_dovf]
+        fnstsw  ax
+        sahf
+        jae     err_ov
+; ::::::::::::::
+; fx_x2x - st0 = 2^st0.
+; ::::::::::::::
+fx_x2x:
         fld     st(0)
         frndint
         fsub    st(1),st
@@ -278,129 +291,139 @@ flt_x2x:
         faddp   st(1),st
         fscale
         fstp    st(1)
-        fldcw   [g_fcw]
         ret
-
 ; ::::::::::::::
-; flt_xpw - st0 ^ EAX; whole powers under 256 by squaring.
+; fx_pow - st0 = st1 ^ st0, popping one; a whole power by squaring.
 ;
-; in:     st0  the base
-;         EAX  the power, packed
-; out:    st0  the result
-; keeps:  SI
-; error:  ?ILLEGAL QUANTITY  a negative base, a fraction power
-;         ?OVERFLOW          past the largest FLOAT
+; error:  ?ILLEGAL QUANTITY  a negative base, a fraction power; 0 ^ a
+;                            negative power
+;         ?OVERFLOW          past 2^32767.5, as EXP (DOSBox's FXAM sees no
+;                            infinity)
 ; ::::::::::::::
-flt_xpw:
-        mov     [g_state.ft.ft4],eax
+fx_pow:
+        fstp    [g_pwb]
+        fstp    [g_pwa]
+        fld     [g_pwb]
+        fld     st(0)
+        frndint
+        fcomp   st(1)
+        fnstsw  ax
+        sahf
+        jne     @fpw_g                  ; a fraction
+        fld     st(0)
+        fabs
+        fcomp   [g_dbig]
+        fnstsw  ax
+        sahf
+        jae     @fpw_g
+        fistp   [g_pwi]
+        fld     [g_pwa]
+        mov     eax,[g_pwi]
         mov     ecx,eax
-        shl     ecx,1
-        shr     ecx,24
-        jnz     @fxw_b
-        fstp    st(0)
-        fld1
-        ret
-@fxw_b:
-        mov     edx,eax
+        test    eax,eax
+        jns     @F
+        neg     eax
+@@:
+        fld1                            ; r a
+@fpw_l:
+        test    eax,eax
+        jz      @fpw_e
+        shr     eax,1
+        jnc     @F
+        fmul    st,st(1)
+@@:
+        fxch
+        fmul    st,st(0)
+        fxch
+        jmp     @fpw_l
+@fpw_e:
+        fstp    st(1)
+        test    ecx,ecx
+        jns     @fpw_c
         ftst
         fnstsw  ax
         sahf
-        je      @fxw_r
-        setb    bl
-        mov     eax,edx
-        sub     ecx,FBIAS
-        cmp     ecx,8
-        jae     @fxw_g
-        mov     ch,cl                   ; k
-        mov     cl,23
-        sub     cl,ch
-        mov     edx,1
-        shl     edx,cl
-        dec     edx
-        test    eax,edx                 ; a fraction left?
-        jnz     @fxw_g
-        test    eax,eax                 ; a negative power
-        js      @fxw_g
-        and     eax,7FFFFFh
-        or      eax,800000h
-        shr     eax,16                  ; the power's bits, the top at bit 7
-        cmp     al,80h
-        je      @fxw_2
-        fld     st(0)
-@fxw_l:
-        shl     al,1
-        dec     ch
-        js      @fxw_e
-        fmul    st,st(0)
-        test    al,80h
-        jz      @fxw_l
-        fmul    st,st(1)
-        jmp     @fxw_l
-@fxw_e:
-        fstp    st(1)
-@fxw_r:
-        ret
-@fxw_2:
-        dec     ch
-        js      @fxw_r
-        fmul    st,st(0)
-        jmp     @fxw_2
-@fxw_g:
-        fldcw   [g_fcwx]
+        je      err_iq
+        fld1
+        fdivrp  st(1),st
+        jmp     @fpw_c
+@fpw_g:                                 ; 2 ^ (b log2 a), a > 0
+        fld     [g_pwa]
+        ftst
+        fnstsw  ax
+        sahf
+        jb      err_iq
+        je      @fpw_z
+        fyl2x
+        call    fx_x2x
+@fpw_c:
+        fld     st(0)                   ; infinity: ?OVERFLOW only past
+        fabs                            ; 2^32767.5
+        fcomp   [g_dmax]
+        fnstsw  ax
+        sahf
+        jbe     @F
+        fld     [g_pwb]
+        fld     [g_pwa]
         fabs
-        fld     dword ptr [g_state.ft.ft4]
+        fyl2x
+        fcomp   [g_dovf]
+        fnstsw  ax
+        sahf
+        jae     err_ov
+@@:
+        ret
+@fpw_z:                                 ; 0 ^ b: 0 when b over 0
+        fstp    st(0)
+        ftst
+        fnstsw  ax
+        sahf
+        jbe     err_iq
+        fstp    st(0)
+        fldz
+        jmp     @fpw_c
+; ::::::::::::::
+; fx_log - st0 = ln st0; ?ILLEGAL QUANTITY at 0 or under.
+; ::::::::::::::
+fx_log:
+        ftst
+        fnstsw  ax
+        sahf
+        jbe     err_iq
+        fldln2
         fxch
         fyl2x
-        call    flt_x2x
-        call    flt_fst
-        movzx   edx,bl
-        shl     edx,31
-        call    flt_psg
-        mov     [g_state.ft.fpa],eax
-        fld     dword ptr [g_state.ft.fpa]
         ret
-
 ; ::::::::::::::
-; flt_psg - a negative base's power: its sign by the power, odd or even.
-;
-; in:     EAX  |base| ^ power, packed
-;         EDX  bit 31: the base was negative
-;         ft4  the power, packed
-; out:    EAX  the result
-; error:  ?ILLEGAL QUANTITY  a negative base, a fraction power
+; fx_sin, fx_cos, fx_tan; ?ILLEGAL QUANTITY past 2^31, as BC's.
 ; ::::::::::::::
-flt_psg:
-        test    edx,edx
-        jns     @fps_r
-        mov     [g_state.ft.ft2],eax
-        mov     eax,[g_state.ft.ft4]
-        call    flt_whl
-        jnz     err_iq
-        sub     eax,00800000h           ; half
-        call    flt_whl
-        pushf
-        mov     eax,[g_state.ft.ft2]
-        popf
-        jz      @fps_r
-        jmp     flt_neg
-@fps_r:
+fx_sin:
+        call    fx_trg
+        fsin
         ret
-
+fx_cos:
+        call    fx_trg
+        fcos
+        ret
+fx_tan:
+        call    fx_trg
+        fptan
+        fstp    st(0)
+        ret
+fx_trg:
+        fld     st(0)
+        fabs
+        fcomp   [g_dbig]
+        fnstsw  ax
+        sahf
+        ja      err_iq
+        ret
 ; ::::::::::::::
-; flt_whl - is the FAC whole?
-;
-; in:     EAX  the FAC, packed
-; out:    ZF   set when whole
-;         EAX  the FAC
+; fx_atn - st0 = atan st0.
 ; ::::::::::::::
-flt_whl:
-        mov     edx,eax
-        call    flt_int
-        push    edx
-        call    flt_cmp
-        pop     edx
-        test    al,al
-        mov     eax,edx
+fx_atn:
+        fld1
+        fpatan
         ret
 
 ; ::::::::::::::
@@ -450,20 +473,18 @@ flt_xtst:
         fnstsw  ax
         sahf
         ret
-@st_fpu2:
-        jmp     err_iq
 
 ; ::::::::::::::
-; fn_pow - EDX ^ EAX on the x87.
-;
-; in:     EAX  the power, packed
-;         EDX  the base, packed
-; out:    EAX  the result, packed
+; fn_pow - EDX ^ EAX.
 ; ::::::::::::::
 fn_pow:
         mov     [g_state.ft.fpb],edx
+        mov     [g_state.ft.fpa],eax
+        fldcw   [g_fcwx]
         fld     dword ptr [g_state.ft.fpb]
-        call    flt_xpw
+        fld     dword ptr [g_state.ft.fpa]
+        call    fx_pow
+        fldcw   [g_fcw]
         jmp     flt_fst
 
 ; The x87 builtins: EAX in, EAX out, a single so X=SIN(A):X=SIN(A) holds.
@@ -472,87 +493,42 @@ fn_pow:
 ; ::::::::::::::
 fn_sqr:
         call    flt_xtst
-        jb      @st_fpu2
+        jb      err_iq
         fsqrt
         jmp     flt_fst
 ; ::::::::::::::
-; fn_log - LOG on the x87.
-; ::::::::::::::
-fn_log:
-        call    flt_xtst
-        jbe     @st_fpu2
-        fldln2
-        fxch
-        fyl2x
-        jmp     flt_fst
-; ::::::::::::::
-; fn_exp - EXP on the x87. ?OVERFLOW past 2^32767.5, else at most
-; infinity, as BC's.
+; fn_exp - EXP; an infinity stays, as BC's.
 ; ::::::::::::::
 fn_exp:
         call    flt_xin
         fldcw   [g_fcwx]
-        fldl2e
-        fmulp   st(1),st
-        fcom    [g_dovf]
-        fnstsw  ax
-        sahf
-        jae     @fxe_ov
-        call    flt_x2x
+        call    fx_exp
+        fldcw   [g_fcw]
         fstp    dword ptr [g_state.ft.fpa]
         mov     eax,[g_state.ft.fpa]
         test    eax,7F800000h
         jz      flt_zero
         ret
-@fxe_ov:
-        fstp    st(0)
-        fldcw   [g_fcw]
-        jmp     err_ov
 ; ::::::::::::::
-; fn_cos - COS on the x87.
+; fn_log .. fn_atn - EAX through its x87 core.
 ; ::::::::::::::
+fn_log:
+        mov     edx,offset fx_log
+        jmp     flt_xfn
 fn_cos:
-        call    flt_xtrg
-        fcos
-        jmp     flt_fst
-; ::::::::::::::
-; fn_sin - SIN on the x87.
-; ::::::::::::::
+        mov     edx,offset fx_cos
+        jmp     flt_xfn
 fn_sin:
-        call    flt_xtrg
-        fsin
-        jmp     flt_fst
-; ::::::::::::::
-; fn_tan - TAN on the x87.
-; ::::::::::::::
+        mov     edx,offset fx_sin
+        jmp     flt_xfn
 fn_tan:
-        call    flt_xtrg
-        fptan
-        fstp    st(0)
-        jmp     flt_fst
-; ::::::::::::::
-; flt_xtrg - load EAX; ?ILLEGAL QUANTITY past 2^31, as BC's.
-; ::::::::::::::
-flt_xtrg:
-        call    flt_xin
-        fld     st(0)
-        fabs
-        fcomp   [g_dbig]
-        fnstsw  ax
-        sahf
-        ja      @F
-        ret
-@@:
-        fstp    st(0)
-        add     esp,4
-        jmp     err_iq
-; ::::::::::::::
-; fn_atn - ATN on the x87.
-; ::::::::::::::
+        mov     edx,offset fx_tan
+        jmp     flt_xfn
 fn_atn:
+        mov     edx,offset fx_atn
+flt_xfn:
         call    flt_xin
-        fld1
-        fpatan
+        call    edx
         jmp     flt_fst
 
         end
