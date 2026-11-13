@@ -491,7 +491,7 @@ ui_chkop:
 ; then what to do, wrapped for a box.
 ;
 ; in:     ESI  the line's text, 0-ended
-;         EBX  its ERR op: ERR code dg at
+;         EBX  its ERR op: ERR code dg at st
 ; out:    EAX  the column in the text it is at
 ; ::::::::::::::
 ui_dxerr:
@@ -511,11 +511,14 @@ ui_dxerr:
         push    ebx
         mov     esi,offset g_inbuf      ; the body's bytes to columns
         mov     edi,offset g_cbuf
+        mov     [g_lxall],1
         call    lx_line
+        mov     [g_lxall],0
         pop     ebx
         movzx   eax,byte ptr [ebx+3]
         call    lx_colof
         mov     ax,[ebx+1]
+        mov     dx,[ebx+4]
         mov     esi,offset g_inbuf
         call    dx_at
         pop     edx

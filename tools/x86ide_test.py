@@ -797,6 +797,10 @@ def play() -> None:
     box = " ".join(r.strip() for r in look())
     assert "SYNTAX ERROR THE PRINT STATEMENT IS INCOMPLETE" in box, box
     assert "PRINT IS WRITTEN: PRINT [#FILE,]" in box, box
+    press("esc", "end", "enter")
+    keys("for i = 1 3\n")
+    box = " ".join(r.strip() for r in look())
+    assert "SYNTAX ERROR EXPECTED `TO` IN THE FOR STATEMENT, BUT FOUND `3`" in box, box
     press("esc")
 
     if flat:

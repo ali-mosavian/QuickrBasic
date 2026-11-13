@@ -37,6 +37,7 @@ TCOMP    struc                   ; the compiler
     cdbg    dd      ?               ; past the statement's DBG, 0 none
     cproc   db      ?               ; the procedure the compiled line is in
     cdg     db      ?               ; the error's DG_ (io/msg.inc), 0: by its text
+    cdfa    dw      ?               ; the automaton's state it failed in, FFFFh none
 TCOMP    ends
 
 TLINK    struc                   ; the linker and the cache

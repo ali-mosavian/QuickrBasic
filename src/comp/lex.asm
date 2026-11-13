@@ -1,7 +1,7 @@
 ; ==========================================================================
 ; lex.asm - the tokenizer: a typed line becomes the body of a stored line
 ; ==========================================================================
-; holds:    lx_line, lx_word, kw_step, lx_colof, g_lxcol
+; holds:    lx_line, lx_word, lx_kw, kw_step, lx_colof, g_lxcol
 ; uses:     dfa.inc's tables (tools/x86dfa.py), nam_find
 ; data:     SI the text, DI the body. In the body:
 ;           M_VAR len name nam:2  a name as typed, its suffix too; nam its
@@ -158,15 +158,17 @@ lx_col:
         sub     ebx,[g_state.lx.lxdst]
         cmp     ebx,LMAX
         jae     @lxc_r
-        mov     ecx,[g_lxlst]           ; the bytes since the last item: its
-        mov     al,[g_lxlc]             ; column
+        cmp     [g_lxall],0             ; the bytes since the last item: its
+        je      @lxc_s                  ; column, when lx_colof is to be asked
+        mov     ecx,[g_lxlst]
+        mov     al,[g_lxlc]
 @@:
         inc     ecx
         cmp     ecx,ebx
-        jae     @F
+        jae     @lxc_s
         mov     [g_lxcol+ecx],al
         jmp     @B
-@@:
+@lxc_s:
         lea     eax,[esi-1]
         sub     eax,[g_state.lx.lxsrc]
         mov     [g_lxcol+ebx],al
@@ -180,7 +182,7 @@ lx_col:
 
 ; ::::::::::::::
 ; lx_colof - the column in lx_line's text of the body's byte EAX: its item's,
-; else the one's before it.
+; else the one's before it. lx_line ran with lxall set.
 ;
 ; out:    ECX  the column
 ; keeps:  all but ECX
@@ -202,6 +204,7 @@ lx_colof:
         .data?
 g_lxcol db      LMAX dup(?)
 g_lxlst dd      ?                       ; the last item's offset, -1 none
+g_lxall db      ?                       ; 1: every byte's column, for lx_colof
 g_lxlc  db      ?                       ; its column
         .code
 
@@ -360,6 +363,27 @@ lx_hex:
 ; ::::::::::::::
 lx_word:
         mov     [g_state.lx.lxs],esi
+        call    lx_kw
+        test    eax,eax
+        jz      lx_name
+        cmp     eax,100h
+        jb      @lxw_1
+        mov     byte ptr [edi],TK_X
+        inc     edi
+@lxw_1:
+        stosb
+        ret
+
+; ::::::::::::::
+; lx_kw - the keyword a word spells: its letters, digits and points, a '$'
+; when the keyword has one.
+;
+; in:     SI   at its first letter
+; out:    SI   past it
+;         EAX  the keyword's token (100h+ FFh's page), 0: a name
+; keeps:  all but EAX, EBX, EDX, ESI
+; ::::::::::::::
+lx_kw:
         mov     edx,KW_START
 @lxw_l:
         movzx   eax,byte ptr [esi]
@@ -394,14 +418,6 @@ lx_word:
         inc     esi
 @lxw_k:
         movzx   eax,word ptr [g_kw_acc+edx*2]
-        test    eax,eax
-        jz      lx_name
-        cmp     eax,100h
-        jb      @lxw_1
-        mov     byte ptr [edi],TK_X
-        inc     edi
-@lxw_1:
-        stosb
         ret
 
 ; ::::::::::::::

@@ -289,12 +289,14 @@ externdef g_kw_off:word
 externdef g_kw_tc:byte
 externdef g_kw_tn:word
 externdef g_ps_cls:byte
+externdef g_ps_cname:byte
 externdef g_ps_def:dword
 externdef g_ps_ent:word
 externdef g_ps_ent1:word
 externdef g_ps_off:word
 externdef g_ps_xc:byte
 externdef g_ps_xv:dword
+externdef lx_kw:near
 externdef lx_line:near
 ; comp/decl.asm
 externdef dc_deft:near
@@ -350,6 +352,8 @@ externdef cm_dnz:near
 externdef cm_dv:near
 externdef cm_dw:near
 externdef cm_err:near
+externdef cm_expect:near
+externdef cm_expn:near
 externdef cm_fop:near
 externdef cm_for:near
 externdef cm_for1:near

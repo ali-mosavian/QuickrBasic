@@ -459,6 +459,30 @@ def sparse_ps(tab: list, ncls: int) -> dict:
     return {"ps_def": dflt, "ps_off": [*off, len(xc)], "ps_xc": xc, "ps_xv": xv}
 
 
+def class_names(pcls: list[int], ncls: int) -> list[str]:
+    """What a parser class is, as a syntax error's "expected" names it: the grammar's word whose
+    byte it holds (a keyword's second byte after FFh too), the statement's end, a string; empty
+    for FFh and the bytes no grammar names."""
+    words = {w for g in GRAMMAR.values() for w in g.split()
+             if not (w in "[]{}()|$" or w.startswith("!") or w.islower())}
+    by_byte: dict[int, set[str]] = {}
+    for w in words:
+        by_byte.setdefault(ptoken(w)[-1], set()).add(w.strip("'"))
+    names = []
+    for c in range(ncls):
+        bs = [b for b in range(256) if pcls[b] == c]
+        named = {w for b in bs for w in by_byte.get(b, ())}
+        if 0 in bs:
+            names.append("the end of the statement")
+        elif named == {'"'}:
+            names.append("a string")
+        elif len(named) == 1 and 0xFF not in bs:
+            names.append(f"`{named.pop()}`")
+        else:
+            names.append("")
+    return names
+
+
 def tables() -> dict:
     """The arrays and constants dfa.inc holds, as lex.asm and comp.asm read them."""
     sd, scls, kstart = scanner()
@@ -473,6 +497,7 @@ def tables() -> dict:
         "kw_acc": [lab for lab in sd.label],
         "chr_tok": [CHAR_TOK.get(b, 0) for b in range(256)],
         "ps_cls": pcls,
+        "ps_cname": class_names(pcls, pd.ncls),
         "ps_tab": (ps_tab := [(PS_CODE.get(a, a), nx if nx >= 0 else 0xFFFF) for row in pd.delta for a, nx in row]),
         **sparse_ps(ps_tab, pd.ncls),
         # a token that starts no statement: state 0, all errors; ps_ent1 FFh n's
@@ -517,6 +542,8 @@ def emit(T: dict) -> str:
         *rows("g_ps_xv", "dd", ps(T["ps_xv"])),
         *rows("g_ps_ent", "dw", T["ps_ent"]),
         *rows("g_ps_ent1", "dw", T["ps_ent1"]),
+        "g_ps_cname label byte                   ; a class's name, 0-ended each",
+        *(f'        db      "{n}",0' if n else "        db      0" for n in T["ps_cname"]),
         "        .code",
         "endif",
     ]

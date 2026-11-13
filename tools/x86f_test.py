@@ -499,6 +499,12 @@ CASES = {
     "qb_diag_goto": ("ON 1 PRINT\r\n", "\r\n       ^\r\n`PRINT` should be followed by GOTO or GOSUB "
                      "here\r\nwrite `ON expression GOTO label, label`", None),
     "qb_diag_tm": ('x = "a" + 1\r\n', '\r\n            ^\r\n`1` has the wrong type for this place', None),
+    # A statement the automaton rejected said only that it does not fit; now what it wanted.
+    "qb_diag_exp": ("FOR i = 1 3\r\nNEXT\r\n", "expected `TO` in the FOR statement, but found `3`\r\n"
+                    "FOR is written: FOR counter = start TO end [STEP step]", None),
+    "qb_diag_exp2": ('OPEN "x" FOR FOO AS 1\r\n', "expected `INPUT`, `APPEND`, `BINARY`, `OUTPUT` or "
+                     "`RANDOM` in the OPEN statement, but found `FOO`", None),
+    "qb_diag_kw": ('NAME "a" "b"\r\n', 'expected `AS` in the NAME statement, but found `"b"`', None),
     "qb_sng_range": ('PRINT VAL("1.23456789012"); 1E-45; 1 / 1E-45\r\n'
                      'a! = 3.4E+38: d# = 1D+40: x! = 1E-38: PRINT a! * 10; CSNG(d#); x! / 1000\r\n',
                      " 1.23456789012  1.401298E-45  1.#INF \r\n 1.#INF  1.#INF  9.999666E-42 \r\n",

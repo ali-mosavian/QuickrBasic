@@ -58,6 +58,7 @@ cm_text:
         mov     [g_state.cm.nst],0
         mov     [g_state.cm.csif],0
         mov     [g_state.cm.cdg],0
+        mov     [g_state.cm.cdfa],-1
         xor     eax,eax
         mov     [g_state.cm.cll],eax
         mov     [g_state.cm.clle],eax
@@ -130,13 +131,14 @@ cm_om:
         mov     al,E_OM
 
 ; ::::::::::::::
-; cm_err - the compile ends here: ERR AL dg at, EOL: dg the error's words
-; (io/msg.inc), at the body's byte it is at. The statement's code before the
-; ERR runs first.
+; cm_err - the compile ends here: ERR AL dg at st, EOL: dg the error's words
+; (io/msg.inc), at the body's byte it is at, st the automaton's state it
+; failed in (FFFFh none). The statement's code before the ERR runs first.
 ;
 ; in:     AL   the error
 ;         SI   where in the body
 ;         cdg  its DG_, 0: by its text
+;         cdfa its state
 ;         csp  SP at the compile's start
 ; ::::::::::::::
 cm_err:
@@ -153,6 +155,9 @@ cm_err:
         mov     al,255
 @@:
         stosb
+        or      eax,-1
+        xchg    ax,[g_state.cm.cdfa]
+        stosw
 
 ; ::::::::::::::
 ; cm_fin - the line's end: EOL; the compile returns.
@@ -367,35 +372,170 @@ cm_dfa:
         call    st_get
         movzx   ebx,al
         movzx   ebx,byte ptr [g_ps_cls+ebx]
-        push    ecx                     ; the class's exception, else the
-        movzx   ecx,word ptr [g_ps_off+edx*2]   ; state's default: the code,
-        mov     eax,[g_ps_def+edx*4]    ; the next state above it
-@cmd_x:
-        cmp     cx,word ptr [g_ps_off+edx*2+2]
-        jae     @F
-        cmp     bl,[g_ps_xc+ecx]
-        je      @cmd_y
-        inc     ecx
-        jmp     @cmd_x
-@cmd_y:
-        mov     eax,[g_ps_xv+ecx*4]
-@@:
-        pop     ecx
-        mov     edx,eax
-        shr     edx,8
+        call    ps_look
         cmp     al,PS_ACC
         jb      @cmd_a
         je      cm_rts
         cmp     al,PS_EOS
-        jb      @st_comp1               ; PS_ERR
+        jb      @cmd_e                  ; PS_ERR
+        mov     edx,eax
+        shr     edx,8
+        cmp     al,PS_EOS
         je      @cmd_l                  ; on, the end not stepped past
         inc     esi                     ; PS_TOK
         jmp     @cmd_l
+@cmd_e:                                 ; for the error's words: what it wanted
+        mov     [g_state.cm.cdfa],dx
+        jmp     err_sn
 @cmd_a:
+        mov     edx,eax
+        shr     edx,8
         push    edx
         call    cm_do
         pop     edx
         jmp     @cmd_l
+
+; ::::::::::::::
+; ps_look - state EDX's entry for class BL: the class's exception, else the
+; state's default.
+;
+; out:    EAX  the entry: the code, the next state above it
+; keeps:  all but EAX
+; ::::::::::::::
+ps_look:
+        push    ecx
+        movzx   ecx,word ptr [g_ps_off+edx*2]
+        mov     eax,[g_ps_def+edx*4]
+@psl_x:
+        cmp     cx,word ptr [g_ps_off+edx*2+2]
+        jae     @F
+        cmp     bl,[g_ps_xc+ecx]
+        je      @psl_y
+        inc     ecx
+        jmp     @psl_x
+@psl_y:
+        mov     eax,[g_ps_xv+ecx*4]
+@@:
+        pop     ecx
+        ret
+
+; ::::::::::::::
+; cm_expn - the names of what automaton state EDX wanted to psexp: its
+; classes'; past FFh, the keywords of the state it leads to.
+;
+; out:    ECX  how many; 0 none named
+; ::::::::::::::
+cm_expn:
+        push    eax
+        push    ebx
+        push    edx
+        push    esi
+        push    edi
+        mov     edi,offset g_psexp
+        mov     cl,1                    ; FFh followed once
+        call    @cex_c
+        mov     ecx,edi
+        sub     ecx,offset g_psexp
+        shr     ecx,2
+        pop     edi
+        pop     esi
+        pop     edx
+        pop     ebx
+        pop     eax
+        ret
+
+; ::::::::::::::
+; cm_expect - print what automaton state EDX wanted, as "a, b or c".
+;
+; keeps:  all
+; ::::::::::::::
+cm_expect:
+        push    ecx
+        push    ebx
+        push    esi
+        call    cm_expn
+        mov     esi,offset g_psexp
+@cex_p:
+        test    ecx,ecx
+        jz      @cex_r
+        mov     ebx,[esi]
+        add     esi,4
+        call    io_puts
+        dec     ecx
+        jz      @cex_r
+        mov     ebx,offset g_psor
+        cmp     ecx,1
+        je      @F
+        mov     ebx,offset g_pscm
+@@:
+        call    io_puts
+        jmp     @cex_p
+@cex_r:
+        pop     esi
+        pop     ebx
+        pop     ecx
+        ret
+@cex_c:                                 ; state EDX's names to EDI
+        xor     ebx,ebx
+@cex_l:
+        cmp     bl,PS_NC
+        jae     @cex_x
+        call    ps_look
+        cmp     al,PS_EOS
+        jb      @cex_n
+        cmp     bl,[g_ps_cls+0FFh]
+        jne     @cex_k
+        test    cl,cl                   ; FFh: the next state's keywords
+        jz      @cex_n
+        push    edx
+        push    ebx
+        mov     edx,eax
+        shr     edx,8
+        xor     cl,cl
+        call    @cex_c
+        mov     cl,1
+        pop     ebx
+        pop     edx
+        jmp     @cex_n
+@cex_k:
+        test    cl,cl                   ; past FFh the end's class is ACCESS's
+        jnz     @F
+        cmp     bl,[g_ps_cls]
+        je      @cex_n
+@@:
+        push    ecx                     ; its name, the BL-th
+        push    edi
+        mov     edi,offset g_ps_cname
+        movzx   ecx,bl
+@cex_s:
+        jecxz   @F
+        push    ecx
+        xor     al,al
+        or      ecx,-1
+        repne   scasb
+        pop     ecx
+        dec     ecx
+        jmp     @cex_s
+@@:
+        mov     esi,edi
+        pop     edi
+        pop     ecx
+        cmp     byte ptr [esi],0
+        je      @cex_n
+        mov     [edi],esi
+        add     edi,4
+@cex_n:
+        inc     bl
+        jmp     @cex_l
+@cex_x:
+        ret
+
+        .data
+g_psor  db      " or ",0
+g_pscm  db      ", ",0
+        .data?
+g_psexp dd      PS_NC*2 dup(?)          ; cm_expect's names
+        .code
 
 ; ::::::::::::::
 ; cm_do - run an action: a CALL or cmact's routine.

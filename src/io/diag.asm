@@ -2,7 +2,8 @@
 ; diag.asm - a compile error in words, for the person who wrote the line
 ; ==========================================================================
 ; holds:    dx_at, dx_what, dx_todo, dx_say
-; uses:     er_text, io_putc, io_puts, io_nl; msg.inc (tools/x86msg.py)
+; uses:     er_text, cm_expn, cm_expect, lx_kw, io_putc, io_puts, io_nl; msg.inc
+;           (tools/x86msg.py)
 ; data:     An error is its E_*, its DG_ (0: found by BC's name and the text
 ;           at the error) and its column in the line's text. dx_at reads the
 ;           place: the text there, the statement it is in, the name it is
@@ -24,12 +25,14 @@ include io/msg.inc
 ;         ECX  the error's column in it
 ;         AL   the error, E_*
 ;         AH   its DG_, 0: by its text
+;         DX   the statement automaton's state it failed in, FFFFh none
 ; out:    EAX  the column of the text it is about
 ; ::::::::::::::
 dx_at:
         pushad
         mov     [g_dxln],esi
         mov     word ptr [g_dxcd],ax
+        mov     [g_dxst],dx
         xor     edx,edx                 ; the column, at most the end
 @@:
         cmp     byte ptr [esi+edx],0
@@ -130,7 +133,7 @@ dx_back:
         xor     edx,edx
         ret
 
-; dx_stmt - stm the statement's first word, if a statement's (g_dxfrm); dgbeg
+; dx_stmt - stm the statement's first word, if a keyword; dxbeg
 ; set when the error is at that word.
 dx_stmt:
         mov     esi,[g_dxln]
@@ -195,6 +198,11 @@ dx_stmt:
         mov     esi,offset g_dxstm
         call    dx_form
         jnc     @xdgs_r
+        call    lx_kw                   ; a keyword, if no form for it
+        test    eax,eax
+        jz      @xdgs_n
+        cmp     byte ptr [esi],0
+        je      @xdgs_r
 @xdgs_n:
         mov     [g_dxstm],0
 @xdgs_r:
@@ -512,6 +520,14 @@ dx_syn:
         mov     [g_dxwt],offset g_dxsfst
         jmp     @xdsn_w
 @xdsn_s:
+        movzx   edx,[g_dxst]            ; the automaton's state: what it wanted
+        cmp     dx,-1
+        je      @F
+        call    cm_expn
+        mov     [g_dxwt],offset g_dxsexp
+        test    ecx,ecx
+        jnz     @xdsn_w
+@@:
         mov     [g_dxwt],offset g_dxsend
         cmp     [g_dxtl],0
         je      @xdsn_w
@@ -632,6 +648,18 @@ dx_pstm:                                ; STATEMENT statement, or statement
 dx_pbc:
         mov     ebx,[g_dxnm2]
         jmp     io_puts
+dx_pexp:
+        movzx   edx,[g_dxst]
+        jmp     cm_expect
+dx_pfound:                              ; `text`, or the statement's end
+        mov     ebx,offset g_dxeos
+        cmp     [g_dxtl],0
+        je      io_puts
+        mov     al,'`'
+        call    io_putc
+        call    dx_ptext
+        mov     al,'`'
+        jmp     io_putc
 dx_pnone:
         ret
 
@@ -641,13 +669,16 @@ g_dxlead db     "SUB",0,"FUNCTION",0,"TYPE",0,"DECLARE",0,"CALL",0,"STATIC",0
         db      "SHARED",0,"DIM",0,"REDIM",0,"COMMON",0,"CONST",0,"DEF",0,"END",0
         db      "EXIT",0,"ERASE",0,"SELECT",0,"CASE",0,"GOTO",0,"GOSUB",0
         db      "RETURN",0,0
-g_dxph  db      "text}",0,"name}",0,"statement}",0,"stm}",0,"other}",0,"bc}",0,0
-g_dxphf dd      dx_ptext,dx_pname,dx_pstmt,dx_pstm,dx_pnone,dx_pbc
+g_dxph  db      "text}",0,"name}",0,"statement}",0,"stm}",0,"other}",0,"bc}",0
+        db      "expected}",0,"found}",0,0
+g_dxphf dd      dx_ptext,dx_pname,dx_pstmt,dx_pstm,dx_pnone,dx_pbc,dx_pexp,dx_pfound
 g_dxsyn db      "Syntax error",0
 g_dxsfst db     "`{text}` cannot be used here: it does not start a valid statement at "
         db      "this point",0
 g_dxsfit db     "`{text}` does not fit the {stm} here",0
 g_dxsend db     "the {stm} is incomplete: the line ends where more is needed",0
+g_dxsexp db     "expected {expected} in the {stm}, but found {found}",0
+g_dxeos db      "the end of the statement",0
 g_dxwrit db     " is written: ",0
 g_dxchk db      "check the statement against the manual; the mark shows where it "
         db      "stopped being understood",0
@@ -656,6 +687,7 @@ g_dxthis db     "this",0
 g_dxstw db      "statement",0
         .data?
 g_dxln  dd      ?                       ; the line's text
+g_dxst  dw      ?                       ; the automaton's state, FFFFh none
 g_dxcd  db      ?                       ; the error, E_*
 g_dxid  db      ?                       ; its DG_, 0 none
 g_dxp   dd      ?                       ; the text's column

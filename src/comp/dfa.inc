@@ -643,5 +643,29 @@ g_ps_ent1 label   word
         dw      00027h,00000h,00000h,00000h,00022h,00000h,00000h,00035h,00000h,00031h,00000h,00000h
         dw      00000h,00000h,00000h,00033h,00000h,0002Fh,0002Eh,00000h,00000h,0002Ah,00000h,00000h
         dw      00000h,00000h,00000h,00000h,00000h,00017h,00000h,00000h,00000h,00000h,00000h
+g_ps_cname label byte                   ; a class's name, 0-ended each
+        db      "the end of the statement",0
+        db      0
+        db      "`APPEND`",0
+        db      "`BINARY`",0
+        db      "a string",0
+        db      "`#`",0
+        db      "`,`",0
+        db      "`LOCK`",0
+        db      0
+        db      "`;`",0
+        db      "`OUTPUT`",0
+        db      "`RANDOM`",0
+        db      "`WRITE`",0
+        db      "`FOR`",0
+        db      "`INPUT`",0
+        db      "`READ`",0
+        db      "`TO`",0
+        db      "`STEP`",0
+        db      "`=`",0
+        db      "`LEN`",0
+        db      "`SHARED`",0
+        db      "`AS`",0
+        db      0
         .code
 endif
