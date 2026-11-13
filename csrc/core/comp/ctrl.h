@@ -40,6 +40,8 @@ void ctrl_jf(uint32_t target); /* JF by comp.type; Type mismatch a string */
 void ctrl_forskip(void);       /* ct_fskip: FSKIP past FOR's NEXT, comp.kw the FOR */
 void ctrl_fcall(void);         /* a FUNCTION's call in an expression; comp.type its result's */
 void ctrl_dropargs(bool paren); /* ct_uarg: a DECLAREd-only call's arguments checked, dropped */
+/* QBasic's ERR for a call of no procedure. */
+enum : uint8_t { ERR_NO_FUNCTION = 18, ERR_NO_SUB = 35 };
 void ctrl_undef(uint8_t err);  /* ct_undef: ERROR err when run: no such procedure */
 void ctrl_swap(void);          /* cm_swap: SWAP a, b */
 bool ctrl_recref(void);        /* rc_ref: a record reference at comp.p to ctrl.ref, its address's

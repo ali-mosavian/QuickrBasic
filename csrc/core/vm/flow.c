@@ -24,8 +24,6 @@ static const uint8_t op_sizes[O_NOPS] = {
 
 enum {
     DCODE_SIZE = CACHE0 - DCODE, /* the direct line's room in the cache */
-    ON_GOSUB = 0x80,             /* ON's count byte: GOSUB, not GOTO */
-    ON_COUNT = 0x7F,
     RESUME_WITHOUT_ERROR = 20,
 };
 
@@ -726,12 +724,12 @@ void flow_resume(Vm *const vm)
     vm->err.active = false;
     vm->err.code = 0;
     vm->sp = stack_base(vm);
-    const enum : uint8_t { AGAIN, NEXT, LINE } mode = exec_u8(vm);
-    if (mode == LINE) {
+    const ResumeMode mode = exec_u8(vm);
+    if (mode == RESUME_LINE) {
         flow_jump(vm, flow_target(vm));
         return;
     }
-    const Place p = mode == NEXT ? vm->err.next : vm->err.failed;
+    const Place p = mode == RESUME_NEXT ? vm->err.next : vm->err.failed;
     drop_temps();
     vm->line = p.line;
     if (p.code == LINE_END)

@@ -8,7 +8,6 @@ enum {
     NBND = 16384, /* numbered lines' too */
     NSCS = 4,
     SCHASH = 1024,
-    NLINES = 64000,
     WORD_BITS = 32,
 };
 
@@ -17,7 +16,7 @@ static uint32_t depth = 1;       /* the stack's scopes */
 static uint16_t stack[NSCS];     /* procedures, 0 the module */
 static const Binding none;       /* a binding of nothing */
 static uint16_t heads[SCHASH];
-static uint32_t lnbit[NLINES / WORD_BITS]; /* the line numbers a scope has */
+static uint32_t lnbit[LNUM_LIMIT / WORD_BITS]; /* the line numbers a scope has */
 static Binding bnd[NBND];
 
 static uint32_t hash(const uint16_t scope, const uint16_t name) { return (scope * 7u + name) & (SCHASH - 1); }

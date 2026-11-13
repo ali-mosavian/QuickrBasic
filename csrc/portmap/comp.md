@@ -141,7 +141,7 @@ Defined in lexr.c (`DFA_DATA`), declared `extern const` for comp.c. The parser's
 | `cm_opx`* | `comp_opb(op, b)` |
 | `cm_opw`* | `comp_opw(op, w)` |
 | `cm_opid`* | `comp_opid(op, id)` |
-| `cm_dw`* | `comp_dword(d)` |
+| `cm_dw`* | `comp_dword(d)`; its halves `comp_word(w)` |
 | `cm_ins`* | `comp_insert(b, at)` |
 | `cm_lint`* | `comp_int(n)` |
 | `cm_call`* | `comp_call(k)` |
@@ -149,6 +149,7 @@ Defined in lexr.c (`DFA_DATA`), declared `extern const` for comp.c. The parser's
 | `cm_ileaf`* | `comp_intleaf()` → the load, null |
 | `cm_toi`*, `cm_tof`*, `cm_tod`*, `cm_tos`*, `cm_tob`*, `cm_toa`*, `cm_dnz`* | `comp_toint`, `comp_tofloat`, `comp_todouble`, `comp_tostring`, `comp_tobyte`, `comp_toaddr`, `comp_dtest` |
 | `cm_tgt`* | `comp_target(id)` |
+| (by kind) | `comp_toinfo(info)`: a variable's kind; `comp_pick(type, i, f, d, s)`: one of four by `T_*` |
 | `cm_store`*, `cm_fst`* | `comp_store()` (`A_FST`'s too) |
 | `cm_chkcl`*, `cm_chkop`*, `cm_chkcm`*, `cm_chkeq`*, `cm_chk` | `comp_close`, `comp_open`, `comp_comma`, `comp_equals`, `comp_need(b)` |
 | `cm_optcm`* | `comp_optcomma()` → true: there was one |
@@ -166,9 +167,9 @@ Defined in lexr.c (`DFA_DATA`), declared `extern const` for comp.c. The parser's
 | `cm_rts`* | gone (a `ret`) |
 | `cm_if`*, `cm_fv`*, `cm_fork`*, `cm_for`*, `cm_for1`*, `cm_nv`*, `cm_on`*, `cm_onl`*, `cm_print`*, `cm_list`*, `cm_dv`*, `cm_dat`*, `cm_rem`*, `cm_in`*, `cm_rd`*, `cm_get`*, `cm_goto`*, `cm_gosub`*, `cm_run`*, `cm_res`*, `cm_ret`*, `cm_n0`*, `cm_n1`*, `cm_narg`*, `cm_fop`*, `cm_write`*, `cm_lin`* | static actions `act_if`, `act_fv`, `act_fork`, `act_for`, `act_for1`, `act_nv`, `act_on`, `act_onl`, `act_print`, `act_list`, `act_dv`, `act_data`, `act_rem`, `act_in`, `act_rd`, `act_get`, `act_goto`, `act_gosub`, `act_run`, `act_res`, `act_ret`, `act_n0`, `act_n1`, `act_narg`, `act_fop`, `act_write`, `act_lin` |
 | `g_cmact`* (expr.asm) | static `actions[]` in comp.c, `[A_x - A_BASE] = ...` |
-| `cm_new`, `cm_nx`, `cm_ee`, `cm_om`, `cm_fin`, `cm_end`, `cm_mark`, `cm_dbg`, `cm_dbgx`, `cm_mapstmt`, `cm_tok`, `ps_look`, `cm_do`, `cm_w`, `cm_lnld`, `var_decl`, `cm_vop`, `cm_dim1`, `cm_dvas`, `cm_dsubs`, `cm_using`, `cm_skip` | statics `stmt`, `after`, `atend`, (`repl_error(E_OM)`), `finish`, (end of `comp_text`), `mark`, `dbg`, `dbgdrop`, `mapstmt`, `token`, `pslook`, `act`, (in `comp_opw`), `lnumload`, `declared`, `parop`, `dim1`, `skipas`, `dimsubs`, `using`, `skipdata` |
+| `cm_new`, `cm_nx`, `cm_ee`, `cm_om`, `cm_fin`, `cm_end`, `cm_mark`, `cm_dbg`, `cm_dbgx`, `cm_mapstmt`, `cm_tok`, `ps_look`, `cm_do`, `cm_w`, `cm_lnld`, `var_decl`, `cm_vop`, `cm_dim1`, `cm_dvas`, `cm_dsubs`, `cm_using`, `cm_skip` | statics `stmt`, `after`, `atend`, (`repl_error(E_OM)`), `finish`, (end of `comp_text`), `mark`, `dbg`, `dbgdrop`, `mapstmt`, `token`, `pslook`, `act`, (in `comp_opw`), `lnumload`, `declared`, `parop`, `dim1`, `skipas`, `dimsubs`, `using`, `comp_skipdata` |
 | `g_cbuf`* (`g_cbufh` before it) | `comp_cbuf` (arena, its byte before it too) |
-| `g_xbuf`* | `comp_xbuf[XLIM + 12]` |
+| `g_xbuf`* | `comp_xbuf[XLIM + COMP_TAIL]` |
 | `g_dlprc`* | `comp.dlproc` |
 | `g_lmod`* | `comp.modlabel` |
 | `g_etk`* | `comp_etkind[7]` |
@@ -213,7 +214,8 @@ Defined in lexr.c (`DFA_DATA`), declared `extern const` for comp.c. The parser's
 | `cm_shv`* | `expr_shclass()` |
 | `cm_icmp`*, `cm_fcmp`* | `expr_icmp(rel, right)`, `expr_fcmp(rel, right)` |
 | `cm_lflt`* | `expr_lfloat(left, right)` → right moved |
-| `cm_p`, `cm_un`, `cm_sop`, `cm_shid`, `cm_right`, `cm_iop`, `cm_fop2`, `cm_fkind`, `cm_str`, `cm_addr`, `cm_xfn`, `cm_xarg`, `cm_farg`, `cm_nany` | statics `prec(p)`, `unary`, `shortop`, `shortid`, `isright`, `intop`, `fltop`, `fltkind`, `literal`, `varaddr`, `xfunc`, `xarg`, `farg`, `notstr` |
+| `cm_p`, `cm_un`, `cm_sop`, `cm_shid`, `cm_right`, `cm_iop`, `cm_fop2`, `cm_fkind`, `cm_str`, `cm_addr`, `cm_xfn`, `cm_xarg`, `cm_farg`, `cm_nany` | statics `prec(p)` (parses; `binary`, `strop`, `numop`, `dblop` emit), `unary`, `shortop`, `shortid`, `isright`, `intop`, `fltop`, `fltkind`, `literal`, `varaddr`, `xfunc` (`xfn_at`, `xfn_args`), `xarg`, `farg`, `notstr` |
+| `g_cprec` values, operator indices | `P_*`, `OP_*`; a relation `REL | DC_*` (expr.h) |
 | `g_csh`*, `g_cshe`*, `g_cshc`* | `expr.sh`, `expr.shend`, `expr.shclass` |
 | `g_ckon`* | `expr.kend` |
 | `g_ctys`* | `expr_ktype[5]` |

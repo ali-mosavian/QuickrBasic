@@ -7,6 +7,8 @@
 
 /* A SHORT's class (expr.shclass): a value of no SHORT, a SHORT's, a literal that fits one. */
 enum : uint8_t { SH_NONE = 0, SH_SHORT = 1, SH_LIT = 2 };
+/* A relation's operator byte: REL and its DC_* mask. */
+enum : uint8_t { REL = 0x80, REL_MASK = 7 };
 
 typedef struct {
     uint8_t sh;          /* g_csh: the SHORT class of the code ending at shend */
@@ -32,7 +34,7 @@ void expr_target(void);    /* cm_lval: a store's target, its subscripts compiled
 void expr_string(void);    /* cm_str1: a literal after its quote, S.LD.TXT */
 void expr_varaddr(void);   /* cm_va: a variable's place for GET, PUT, FIELD: ( -- addr kind ) */
 uint8_t expr_shclass(void); /* cm_shv: the value just compiled's SH_*, to expr.shclass too */
-void expr_icmp(uint8_t rel, uint8_t *right); /* an INT relation, rel 80h + mask */
+void expr_icmp(uint8_t rel, uint8_t *right); /* an INT relation, rel REL + mask */
 void expr_fcmp(uint8_t rel, uint8_t *right); /* a FLOAT relation, the right's load folded */
 /* cm_lflt: the left INT operand as a FLOAT: its load (left, null none) in place, else I.TOF
    before right. Returns right, moved. */

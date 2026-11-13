@@ -25,7 +25,6 @@ enum {
     UKEY_LAST = 25,
     NUKEY = UKEY_LAST - UKEY_FIRST + 1,
 };
-enum : uint8_t { ES_OFF = 0, ES_ON = 1, ES_STOP = 2 };    /* a slot's state */
 enum : uint8_t { EF_PENDING = 1, EF_RUNNING = 2 };        /* its flags */
 
 typedef struct {

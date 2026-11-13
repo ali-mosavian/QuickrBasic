@@ -293,7 +293,7 @@ static bool is_include(uint32_t len)
 static uint16_t line_number(const uint8_t *p)
 {
     const uint32_t num = load32(p + 1);
-    if (num >= 64000)
+    if (num >= LNUM_LIMIT)
         repl_error(E_SN);
     return (uint16_t)num;
 }

@@ -16,7 +16,7 @@
 
 Comp comp;
 uint8_t *comp_cbuf;
-uint8_t comp_xbuf[XLIM + 12];
+uint8_t comp_xbuf[XLIM + COMP_TAIL];
 const uint8_t comp_etkind[7] = {0, 1, 1, 0, SK_DBL, 2, 1};
 
 static uint64_t dmask; /* dimsubs: bit i, subscript i its hi only */
@@ -33,58 +33,65 @@ void comp_init(void)
 
 /* ---- emitting */
 
-void comp_byte(uint8_t b)
+void comp_byte(const uint8_t b)
 {
     if (comp.out >= comp.lim)
         comp_fail(E_OM); /* cm_om: the code is full */
     *comp.out++ = b;
 }
 
-void comp_opb(uint8_t op, uint8_t b)
+void comp_opb(const uint8_t op, const uint8_t b)
 {
     comp_op(op);
     comp_byte(b);
 }
 
-void comp_opw(uint8_t op, uint16_t w)
+void comp_word(const uint16_t w)
 {
-    comp.lnum = w; /* the asm's wv: the word */
-    comp_op(op);
     comp_byte((uint8_t)w);
     comp_byte((uint8_t)(w >> 8));
 }
 
-void comp_dword(uint32_t d)
+void comp_opw(const uint8_t op, const uint16_t w)
 {
-    for (int i = 0; i < 4; i++, d >>= 8)
-        comp_byte((uint8_t)d);
+    comp.lnum = w; /* the asm's wv: the word */
+    comp_op(op);
+    comp_word(w);
+}
+
+void comp_dword(const uint32_t d)
+{
+    comp_word((uint16_t)d);
+    comp_word((uint16_t)(d >> 16));
 }
 
 void comp_lref(void)
 {
-    comp_byte((uint8_t)comp.lnum);
-    comp_byte((uint8_t)(comp.lnum >> 8));
+    comp_word(comp.lnum);
     comp_dword(comp.jline);
 }
 
-void comp_insert(uint8_t b, uint8_t *where)
+/* A mark into the code, at or past where: moved up a byte with it. Null is below any. */
+static void follow(uint8_t **const start, uint8_t **const end, const uint8_t *const where)
+{
+    if ((uintptr_t)*start >= (uintptr_t)where) {
+        ++*start;
+        ++*end;
+    }
+}
+
+void comp_insert(const uint8_t b, uint8_t *const where)
 {
     if (comp.out >= comp.lim)
         comp_fail(E_OM);
     memmove(where + 1, where, (size_t)(comp.out - where));
     comp.out++;
     *where = b;
-    if ((uintptr_t)comp.iload >= (uintptr_t)where) {
-        comp.iload++;
-        comp.iloadend++;
-    }
-    if ((uintptr_t)comp.cmp >= (uintptr_t)where) {
-        comp.cmp++;
-        comp.cmpend++;
-    }
+    follow(&comp.iload, &comp.iloadend, where);
+    follow(&comp.cmp, &comp.cmpend, where);
 }
 
-void comp_int(uint32_t n)
+void comp_int(const uint32_t n)
 {
     comp.type = T_INT;
     comp.iload = comp.out;
@@ -99,11 +106,11 @@ void comp_int(uint32_t n)
     expr.kend = comp.out;
 }
 
-void comp_call(uint8_t k) { comp_opb(O_CALL, k); }
+void comp_call(const uint8_t k) { comp_opb(O_CALL, k); }
 
 /* cm_vop: X.LD.V or X.ST.V of a scalar parameter of the procedure compiled: V.LD, V.ST id kind
    instead (kind 0 4 bytes, 1 8, 2 a Desc). */
-static bool parop(uint8_t op, uint16_t id)
+static bool parop(const uint8_t op, const uint16_t id)
 {
     uint8_t vop, kind;
     switch (op) {
@@ -122,7 +129,7 @@ static bool parop(uint8_t op, uint16_t id)
     return true;
 }
 
-void comp_opid(uint8_t op, uint16_t id)
+void comp_opid(const uint8_t op, const uint16_t id)
 {
     if (!parop(op, id))
         comp_opw(op, id);
@@ -132,7 +139,7 @@ uint8_t *comp_intleaf(void)
 {
     if (comp.out != comp.iloadend)
         return nullptr;
-    uint8_t op = *comp.iload;
+    const uint8_t op = *comp.iload;
     return op == O_I_LD_V || op == O_I_LD_U8 || op == O_I_LD_I32 || op == O_I_LD_I16 ? comp.iload
                                                                                      : nullptr;
 }
@@ -145,7 +152,7 @@ void comp_toint(void)
         mismatch();
     if (comp.type == T_INT)
         return;
-    uint8_t op = comp.type == T_DBL ? O_D_TOI : O_F_TOI;
+    const uint8_t op = comp.type == T_DBL ? O_D_TOI : O_F_TOI;
     comp.type = T_INT;
     comp_op(op);
 }
@@ -174,20 +181,20 @@ void comp_dtest(void)
 }
 
 /* A byte or an address: a U8 load needs nothing. */
-static void tonarrow(uint8_t fop, uint8_t iop)
+static void tonarrow(const uint8_t fop, const uint8_t iop)
 {
     if (comp.type & T_STR)
         mismatch();
     if (comp.type == T_DBL)
         comp_toint();
-    if (comp.type == T_INT) {
-        uint8_t *leaf = comp_intleaf();
+    const bool is_int = comp.type == T_INT;
+    if (is_int) {
+        const uint8_t *const leaf = comp_intleaf();
         if (leaf && *leaf == O_I_LD_U8)
             return;
-        fop = iop;
     }
     comp.type = T_INT;
-    comp_op(fop);
+    comp_op(is_int ? iop : fop);
 }
 
 void comp_tobyte(void) { tonarrow(O_F_TOB, O_I_TOB); }
@@ -211,7 +218,7 @@ void comp_tofloat(void)
         return;
     }
     comp.type = T_FLT;
-    uint8_t *leaf = comp_intleaf();
+    uint8_t *const leaf = comp_intleaf();
     if (!leaf) {
         comp_op(O_I_TOF);
         return;
@@ -224,18 +231,68 @@ void comp_tofloat(void)
         *leaf = O_F_LD_U8;
         return;
     }
-    Sngl f = *leaf == O_I_LD_I32 ? fmth_from_i32((int32_t)load32(leaf + 1))
+    const Sngl f = *leaf == O_I_LD_I32 ? fmth_from_i32((int32_t)load32(leaf + 1))
                                  : fmth_from_u16(load16(leaf + 1));
     comp.out = leaf; /* F.LD.F32 in its place */
     comp_op(O_F_LD_F32);
     comp_dword(f);
 }
 
-void comp_target(uint16_t id)
+void comp_toinfo(const uint8_t info)
+{
+    if (info & SK_DBL)
+        comp_todouble();
+    else
+        switch (info & VK_MASK) {
+        case VK_INT: comp_toint(); break;
+        case VK_FLT: comp_tofloat(); break;
+        default: comp_tostring();
+        }
+}
+
+void comp_target(const uint16_t id)
 {
     comp.tgt = id;
     comp.tgtinfo = symb_var(id)->info;
     comp.tgtsubs = 0;
+}
+
+/* The target's store by its subscripts: none, one, or many and their count. */
+static void store_to(const uint8_t scalar, const uint8_t one, const uint8_t many)
+{
+    const uint8_t subs = comp.tgtsubs;
+    if (subs > 1) {
+        comp_opid(many, comp.tgt);
+        comp_byte(subs);
+    } else
+        comp_opid(subs ? one : scalar, comp.tgt);
+}
+
+/* The value converted for the target; its store ops' offset from the INT's: 0, 1 FLOAT, 2 STRING. */
+static uint8_t convert_for_target(void)
+{
+    switch (comp.tgtinfo & VK_MASK) {
+    case VK_INT: /* a SHORT: Overflow past 16 bits, unless it is one */
+        expr_shclass();
+        comp_toint();
+        if (symb_var(comp.tgt)->type == ET_SH && !expr.shclass)
+            comp_op(O_I_CHK16);
+        return 0;
+    case VK_FLT:
+        comp_tofloat();
+        return 1;
+    case VK_STR: { /* a STRING * n: n chars */
+        comp_tostring();
+        const uint16_t fix = scop_fix(symb_var(comp.tgt)->name, comp.tgtsubs != 0);
+        if (fix) {
+            comp_int(fix);
+            comp_call(K_SFIX);
+        }
+        return 2;
+    }
+    default:
+        synerr();
+    }
 }
 
 void comp_store(void)
@@ -244,67 +301,33 @@ void comp_store(void)
         ctrl_recstore();
         return;
     }
-    uint8_t info = comp.tgtinfo, subs = comp.tgtsubs, k;
-    if (info & SK_DBL) { /* a DOUBLE: D.ST.V, .A1, .A */
+    if (comp.tgtinfo & SK_DBL) {
         comp_todouble();
-        uint8_t op = !subs ? O_D_ST_V : subs == 1 ? O_D_ST_A1 : O_D_ST_A;
-        comp_opid(op, comp.tgt);
-        if (op == O_D_ST_A)
-            comp_byte(subs);
+        store_to(O_D_ST_V, O_D_ST_A1, O_D_ST_A);
         return;
     }
-    switch (info & 3) {
-    case 1: /* an INT; a SHORT: Overflow past 16 bits, unless it is one */
-        expr_shclass();
-        comp_toint();
-        if (symb_var(comp.tgt)->type == ET_SH && !expr.shclass)
-            comp_op(O_I_CHK16);
-        k = 0;
-        break;
-    case 2: { /* a STRING * n: n chars */
-        comp_tostring();
-        uint16_t fix = scop_fix(symb_var(comp.tgt)->name, subs != 0);
-        if (fix) {
-            comp_int(fix);
-            comp_call(K_SFIX);
-        }
-        k = 2;
-        break;
-    }
-    case 3:
-        synerr();
-    default:
-        comp_tofloat();
-        k = 1;
-    }
-    if (!subs)
-        comp_opid(O_I_ST_V + k, comp.tgt);
-    else if (subs == 1)
-        comp_opid(O_I_ST_A1 + k, comp.tgt);
-    else {
-        comp_opid(O_I_ST_A + k, comp.tgt);
-        comp_byte(subs);
-    }
+    const uint8_t k = convert_for_target();
+    store_to(O_I_ST_V + k, O_I_ST_A1 + k, O_I_ST_A + k);
 }
 
 /* ---- the token reader */
 
-uint8_t comp_peek(const uint8_t **p)
+uint8_t comp_peek(const uint8_t **const p)
 {
     while (**p == ' ')
         (*p)++;
     return **p;
 }
 
-uint8_t comp_next(const uint8_t **p)
+uint8_t comp_next(const uint8_t **const p)
 {
     (*p)++;
     return comp_peek(p);
 }
 
-bool comp_eos(const uint8_t **p)
+bool comp_eos(const uint8_t **const p)
 {
-    uint8_t c = comp_peek(p);
+    const uint8_t c = comp_peek(p);
     if (!c || c == ':' || c == TK_REM)
         return true;
     return c == TK_ELSE && comp.oneif;
@@ -317,7 +340,7 @@ static bool eosnext(void)
     return comp_end();
 }
 
-void comp_need(uint8_t b)
+void comp_need(const uint8_t b)
 {
     if (comp_cur() != b)
         synerr();
@@ -335,9 +358,9 @@ bool comp_optcomma(void)
 }
 
 /* Label key of DX's kind: jline, in the scope's own or, when modlabel (cleared), the module's. */
-static void lfind(uint16_t key, uint16_t kind)
+static void lfind(const uint16_t key, const uint16_t kind)
 {
-    uint16_t scope = comp.modlabel ? 0 : scop_own();
+    const uint16_t scope = comp.modlabel ? 0 : scop_own();
     comp.modlabel = false;
     comp.jline = scop_lfind(scope | kind, key);
 }
@@ -345,11 +368,11 @@ static void lfind(uint16_t key, uint16_t kind)
 uint8_t comp_lnum(void)
 {
     comp.jline = 0;
-    uint8_t c = comp_cur();
+    const uint8_t c = comp_cur();
     if (c == M_VAR) {
         lfind(comp_nameof(comp.p), 0);
         comp.lnum = NONUM;
-        comp.p += comp.p[1] + 4;
+        comp.p = comp_skipname(comp.p);
         return comp_cur();
     }
     if (c != M_INT) {
@@ -357,11 +380,11 @@ uint8_t comp_lnum(void)
         comp.lnum = 0;
         return c;
     }
-    uint32_t n = load32(comp.p + 1);
-    if (n >= 64000)
+    const uint32_t n = load32(comp.p + 1);
+    if (n >= LNUM_LIMIT)
         synerr();
     comp.lnum = (uint16_t)n;
-    comp.p += 5;
+    comp.p += INT_TOKEN_SIZE;
     if (n) /* 0: ON ERROR GOTO 0's, none */
         lfind((uint16_t)n, SC_NUM);
     comp.modlabel = false;
@@ -379,7 +402,7 @@ static void lnumload(void)
 
 /* ---- names and variables */
 
-uint8_t comp_suffix(uint8_t c)
+uint8_t comp_suffix(const uint8_t c)
 {
     switch (c) {
     case '!': return ET_R4;
@@ -391,11 +414,11 @@ uint8_t comp_suffix(uint8_t c)
     }
 }
 
-const uint8_t *comp_label(const uint8_t *body)
+const uint8_t *comp_label(const uint8_t *const body)
 {
     if (*body != M_VAR)
         return nullptr;
-    const uint8_t *colon = body + body[1] + 4;
+    const uint8_t *const colon = comp_skipname(body);
     return *colon == ':' ? colon : nullptr;
 }
 
@@ -410,26 +433,26 @@ const uint8_t *comp_skipdata(const uint8_t *p)
     return p;
 }
 
-bool comp_ispar(uint16_t id)
+bool comp_ispar(const uint16_t id)
 {
     if (symb_var(id)->info & VI_ARR || !comp.proc)
         return false;
-    const Proc *p = &blok_procs[comp.proc];
+    const Proc *const p = &blok_procs[comp.proc];
     for (uint32_t i = 0; i < p->npar; i++)
         if (blok_params[p->par + i] == id)
             return true;
     return false;
 }
 
-bool comp_param(uint16_t name, uint8_t array, uint16_t *id)
+bool comp_param(const uint16_t name, const uint8_t array, uint16_t *const id)
 {
     if (!comp.proc)
         return false;
-    const Proc *p = &blok_procs[comp.proc];
+    const Proc *const p = &blok_procs[comp.proc];
     for (uint32_t i = 0; i < p->npar; i++) {
-        uint16_t v = blok_params[p->par + i];
-        const Var *var = symb_var(v);
-        if (var->name == name && !((var->info ^ array) & 0x80)) {
+        const uint16_t v = blok_params[p->par + i];
+        const Var *const var = symb_var(v);
+        if (var->name == name && !((var->info ^ array) & VI_ARR)) {
             *id = v;
             return true;
         }
@@ -437,7 +460,7 @@ bool comp_param(uint16_t name, uint8_t array, uint16_t *id)
     return false;
 }
 
-void comp_scope(uint16_t name)
+void comp_scope(const uint16_t name)
 {
     comp.isstatic = false;
     comp.scope = comp.proc;
@@ -456,7 +479,7 @@ void comp_scope(uint16_t name)
 }
 
 /* var_decl: under OPTION EXPLICIT, name declared, or a procedure's; else Variable not declared. */
-static void declared(uint16_t name)
+static void declared(const uint16_t name)
 {
     if (!decl.explicit_ || symb_name(name)->flags & (NM_SUB | NM_FUNC | NM_FN))
         return;
@@ -464,36 +487,29 @@ static void declared(uint16_t name)
         repl_error(E_VND);
 }
 
-uint16_t comp_var(uint8_t shape, uint8_t et)
+uint16_t comp_var(const uint8_t shape, const uint8_t et)
 {
-    const uint8_t *q = comp.p;
-    uint8_t len = q[1];
-    uint8_t last = q[len + 1], first = q[2];
-    uint16_t name = load16(q + len + 2);
-    comp.p = q + len + 4;
-    uint8_t kind = 0;
-    if (shape > 1 || (!shape && *comp.p == '('))
-        kind = VI_ARR;
+    const uint8_t *const q = comp.p;
+    const uint8_t first = q[2];
+    const uint8_t sfx = comp_suffix(comp_suffixof(q));
+    const uint16_t name = comp_nameof(q);
+    comp.p = comp_skipname(q);
+    uint8_t kind = shape > 1 || (!shape && *comp.p == '(') ? VI_ARR : 0;
     uint8_t type = et;
-    if (!type) {
-        uint8_t t = comp_suffix(last);
-        if (t)
-            type = scop_sfx(name, t, kind != 0);
-        else {
-            uint16_t id;
-            if (comp_param(name, kind, &id)) /* no suffix: a parameter's own type */
-                return id;
-            type = scop_type(name, kind != 0);
-            if (!type) {
-                uint8_t f = first >= 'a' && first <= 'z' ? first - 32 : first;
-                type = symb.deft[f - 'A'];
-            }
-        }
+    if (!type && sfx)
+        type = scop_sfx(name, sfx, kind != 0);
+    else if (!type) {
+        uint16_t id;
+        if (comp_param(name, kind, &id)) /* no suffix: a parameter's own type */
+            return id;
+        type = scop_type(name, kind != 0);
+        if (!type)
+            type = symb.deft[upcase(first) - 'A'];
     }
     declared(name);
     if (type >= ET_REC) { /* a record: ctrl_recarray's, recvar's kind */
         if (!kind)
-            kind = 0x81;
+            kind = VI_RECARR;
     } else
         kind |= comp_etkind[type];
     comp_scope(name);
@@ -509,15 +525,15 @@ uint16_t comp_name(void)
 
 /* ---- the statement map, DBG */
 
-static void mapstmt(uint32_t bodyoff)
+static void mapstmt(const uint32_t bodyoff)
 {
-    uint8_t *e = comp.map - (comp.nstmt * 8 + sizeof(Stmt));
-    if (e < comp.out + 8) { /* no room: the code is full */
+    uint8_t *const e = comp.map - (comp.nstmt + 1) * sizeof(Stmt);
+    if (e < comp.out + sizeof(Stmt)) { /* no room: the code is full */
         comp.lim = comp.out;
         return;
     }
     *(Stmt *)e = (Stmt){.body = bodyoff, .code = (uint32_t)(comp.out - comp.buf)}; /* packed: any address */
-    comp.lim = e - 12;
+    comp.lim = e - COMP_TAIL;
     comp.nstmt++;
 }
 
@@ -558,22 +574,21 @@ static void finish(void)
     longjmp(comp.unwind, 1);
 }
 
-void comp_fail(uint8_t err)
+void comp_fail(const uint8_t err)
 {
-    uint8_t *o = comp.out;
-    *o++ = O_ERR;
-    *o++ = err;
-    *o++ = comp.dg; /* its words, and where in the body */
+    uint8_t *const o = comp.out; /* ERR err dg at:4 state:2 */
+    o[0] = O_ERR;
+    o[1] = err;
+    o[2] = comp.dg;
+    store32(o + 3, (uint32_t)(comp.p - comp.body));
+    store16(o + 7, comp.dfa);
+    comp.out = o + 9;
     comp.dg = 0;
-    uint32_t atoff = (uint32_t)(comp.p - comp.body);
-    store32(o, atoff);
-    memcpy(o + 4, &comp.dfa, 2);
-    comp.out = o + 6;
     comp.dfa = 0xFFFF;
     done();
 }
 
-static uint32_t pslook(uint32_t st, uint8_t cls)
+static uint32_t pslook(const uint32_t st, const uint8_t cls)
 {
     for (uint32_t i = lexr_ps_first[st]; i < lexr_ps_first[st + 1]; i++)
         if (lexr_ps_xclass[i] == cls)
@@ -583,12 +598,12 @@ static uint32_t pslook(uint32_t st, uint8_t cls)
 
 static void (*const actions[A_END - A_BASE])(void);
 
-void comp_dfa(uint16_t state)
+void comp_dfa(const uint16_t state)
 {
     uint32_t st = state;
     for (;;) {
-        uint32_t e = pslook(st, lexr_ps_class[comp_cur()]);
-        uint8_t code = (uint8_t)e;
+        const uint32_t e = pslook(st, lexr_ps_class[comp_cur()]);
+        const uint8_t code = (uint8_t)e;
         if (code < PS_ACC) {
             st = e >> 8;
             if (code < A_BASE)
@@ -610,10 +625,10 @@ void comp_dfa(uint16_t state)
 }
 
 /* State st's names to names[n..]; past FFh (follow) the keywords of the state it leads to. */
-static uint8_t expnames(uint32_t st, bool follow, const char *names[], uint8_t n)
+static uint8_t expnames(const uint32_t st, const bool follow, const char *names[], uint8_t n)
 {
     for (uint8_t cls = 0; cls < PS_NC; cls++) {
-        uint32_t e = pslook(st, cls);
+        const uint32_t e = pslook(st, cls);
         if ((uint8_t)e < PS_EOS)
             continue;
         if (cls == lexr_ps_class[0xFF]) {
@@ -629,18 +644,18 @@ static uint8_t expnames(uint32_t st, bool follow, const char *names[], uint8_t n
     return n;
 }
 
-uint8_t comp_expnames(uint16_t state, const char *names[])
+uint8_t comp_expnames(const uint16_t state, const char *names[])
 {
     return expnames(state, true, names, 0);
 }
 
-void comp_expected(uint16_t state)
+void comp_expected(const uint16_t state)
 {
     const char *names[PS_NC * 2];
-    uint8_t n = comp_expnames(state, names);
+    const uint8_t n = comp_expnames(state, names);
     for (uint8_t i = 0; i < n; i++) {
         cons_puts(names[i]);
-        uint8_t left = n - i - 1;
+        const uint8_t left = n - i - 1;
         if (left)
             cons_puts(left == 1 ? " or " : ", ");
     }
@@ -653,7 +668,7 @@ static void token(void)
     dbg();
     if (ctrl_stmt())
         return;
-    uint8_t c = *comp.p;
+    const uint8_t c = *comp.p;
     if (c == M_VAR) {
         comp_dfa(ST_LET);
         return;
@@ -674,6 +689,14 @@ static void token(void)
     comp_dfa(st);
 }
 
+/* cm_nx: the statement compiled, its end next. */
+static void ended(void)
+{
+    dbgdrop();
+    if (!comp_end())
+        synerr();
+}
+
 /* The statements after comp.p, to the line's end. */
 static void stmts(void)
 {
@@ -681,9 +704,7 @@ static void stmts(void)
         comp.then = false;
         if (!eosnext()) {
             token();
-            dbgdrop(); /* cm_nx */
-            if (!comp_end())
-                synerr();
+            ended();
         }
         for (;;) { /* cm_ee: 0 or ' the line ends, ':' another statement, ELSE a one-line IF's */
             uint8_t c = *comp.p;
@@ -700,14 +721,12 @@ static void stmts(void)
                 comp_dfa(ST_GOTO); /* ELSE line */
             } else
                 token();
-            dbgdrop();
-            if (!comp_end())
-                synerr();
+            ended();
         }
     }
 }
 
-void comp_text(const uint8_t *body)
+void comp_text(const uint8_t *const body)
 {
     comp.busy = true;
     comp.depth = 0;
@@ -718,9 +737,8 @@ void comp_text(const uint8_t *body)
     comp.dfa = 0xFFFF;
     comp.iload = comp.iloadend = comp.cmpend = nullptr;
     comp.out = comp.buf;
-    comp.map = comp.buf + XLIM + 12; /* the map down from the top, 12 bytes above the code for
-                                        ERR, EOL */
-    comp.lim = comp.map - 12;
+    comp.map = comp.buf + XLIM + COMP_TAIL; /* the map grows down from the top */
+    comp.lim = comp.map - COMP_TAIL;
     const uint8_t *colon = comp_label(body); /* a label: on from its ':' */
     comp.p = colon ? colon : body - 1;
     if (!setjmp(comp.unwind)) {
@@ -742,6 +760,12 @@ void comp_line(void)
 
 /* ---- the actions */
 
+/* The one of four for the value's type. */
+static uint8_t by_type(const uint8_t i, const uint8_t f, const uint8_t d, const uint8_t s)
+{
+    return comp_pick(comp.type, i, f, d, s);
+}
+
 /* IF expr THEN|GOTO line or statements: a compare just made becomes its CMPIF, else X.IF. */
 static void act_if(void)
 {
@@ -760,10 +784,10 @@ static void act_if(void)
         ctrl_jf(t); /* false: past the ELSE */
     else if (comp.out == comp.cmpend)
         *comp.cmp += O_I_CMPIF - O_I_CMP;
-    else
-        comp_op(comp.type == T_INT ? O_I_IF : comp.type == T_FLT ? O_F_IF : O_S_IF);
+    else /* comp_dtest made a DOUBLE an INT */
+        comp_op(by_type(O_I_IF, O_F_IF, O_I_IF, O_S_IF));
     comp.then = true;
-    uint8_t kw = *comp.p; /* THEN or GOTO */
+    const uint8_t kw = *comp.p; /* THEN or GOTO */
     c = comp_curn();
     if (kw == TK_GOTO || c == M_INT)
         comp_dfa(ST_GOTO);
@@ -774,34 +798,26 @@ static void act_if(void)
 /* FOR's variable: the target of the start's store. */
 static void act_fv(void)
 {
-    uint16_t id = comp_name();
-    uint8_t info = symb_var(id)->info;
+    const uint16_t id = comp_name();
+    const uint8_t info = symb_var(id)->info;
     if (info & VI_ARR)
         synerr();
     comp.forvar = id;
     comp_target(id);
     if (info & SK_DBL) /* a DOUBLE's FOR: not yet */
         mismatch();
-    info &= 0x43;
-    if (info == 2)
+    const uint8_t kind = info & VK_MASK;
+    if (kind == VK_STR)
         mismatch();
-    comp.forkind = info;
+    comp.forkind = kind;
 }
 
 /* The value as FOR's variable wants it. */
-static void act_fork(void)
-{
-    if (comp.forkind)
-        comp_toint();
-    else
-        comp_tofloat();
-}
+static void act_fork(void) { comp_toinfo(comp.forkind); }
 
-static void act_for(uint8_t op)
+static void act_for(const uint8_t op)
 {
-    if (!comp.forkind)
-        op++; /* F.FOR, F.FOR1 */
-    comp_opid(op, comp.forvar);
+    comp_opid(comp.forkind ? op : op + 1, comp.forvar); /* F.FOR, F.FOR1 after the INT's */
     ctrl_forskip();
 }
 static void act_for2(void) { act_for(O_I_FOR); }
@@ -816,39 +832,14 @@ static void act_nv(void)
         comp_op(O_NEXT);
 }
 
-/* cm_skip: DATA's text, to a ':' outside quotes. */
-static void skipdata(void)
-{
-    uint8_t q = 0;
-    for (;; comp.p++) {
-        uint8_t c = *comp.p;
-        if (!c)
-            return;
-        if (c == '"')
-            q++;
-        else if (!(q & 1)) {
-            if (c == ':')
-                return;
-            if (c == M_INT)
-                comp.p += 4;
-            else if (c == M_VAR)
-                comp.p += comp.p[1] + 3;
-        }
-    }
-}
-
 /* DATA: no code, READ finds the text in the body. */
-static void act_data(void)
-{
-    comp.p = comp.kw + 1;
-    skipdata();
-}
+static void act_data(void) { comp.p = comp_skipdata(comp.kw + 1); }
 
 /* REM: the line's end. */
 static void act_rem(void) { done(); }
 
 /* RUN, RESTORE [line]: CALL, or the line and CALL .L. */
-static void runres(uint8_t k)
+static void runres(const uint8_t k)
 {
     if (comp_end()) {
         comp_call(k);
@@ -891,10 +882,10 @@ static uint32_t dimsubs(void)
 
 /* DIM's array id: ( subscripts ), the mask as 2 INTs, its id, the count, CALL DIM. A STATIC's
    array is dimensioned once. */
-static void dim1(uint16_t id)
+static void dim1(const uint16_t id)
 {
-    uint32_t flags = (comp.isstatic ? DIM_STATIC : 0) | comp.redim;
-    uint32_t n = dimsubs();
+    const uint32_t flags = (comp.isstatic ? DIM_STATIC : 0) | comp.redim;
+    const uint32_t n = dimsubs();
     comp_int((uint32_t)dmask);
     comp_int((uint32_t)(dmask >> 32));
     comp_int(id);
@@ -912,13 +903,13 @@ static void dimas(void)
         comp.p = decl_item(p + 1);
         return;
     }
-    if (p[1] == TK_X) { /* AS SHORT */
+    if (p[1] == TK_X) { /* AS SHORT: AS, FFh n */
         comp.p = p + 3;
         return;
     }
-    comp.p = p += 2;
-    if (p[-1] == TK_STRING && *p == TK_MUL) /* STRING * n */
-        comp.p += 6;
+    comp.p = p + 2;
+    if (p[1] == TK_STRING && p[2] == TK_MUL) /* STRING * n */
+        comp.p += 1 + INT_TOKEN_SIZE;
 }
 
 /* A DIM item: the subscripts, its id, n, CALL DIM; a scalar STRING * n: n spaces. */
@@ -926,8 +917,8 @@ static void act_dv(void)
 {
     uint16_t id = comp_name();
     if (*comp.p == '(') {
-        uint16_t name = symb_var(id)->name;
-        uint8_t t = scop_rec(name, true); /* a record array: its own variable */
+        const uint16_t name = symb_var(id)->name;
+        const uint8_t t = scop_rec(name, true); /* a record array: its own variable */
         if (t)
             id = ctrl_recarray(name, t);
         dim1(id);
@@ -935,7 +926,7 @@ static void act_dv(void)
         return;
     }
     dimas();
-    uint16_t fix = scop_fix(symb_var(id)->name, false);
+    const uint16_t fix = scop_fix(symb_var(id)->name, false);
     if (!fix || symb_var(id)->info & VI_ARR)
         return;
     comp_int(fix);
@@ -947,11 +938,11 @@ static void act_dv(void)
 static void readto(uint8_t k)
 {
     comp.type = T_FLT;
-    uint8_t info = comp.tgtinfo;
+    const uint8_t info = comp.tgtinfo;
     if (info & SK_DBL && k != K_FGET) {
         k = k == K_FIN ? K_DIN : K_DREAD;
         comp.type = T_DBL;
-    } else if ((info & 3) == 2) {
+    } else if ((info & VK_MASK) == VK_STR) {
         k++;
         comp.type = T_STR;
     }
@@ -969,11 +960,10 @@ static void using(void)
         if (comp_end())
             break;
         expr_compile();
-        uint8_t t = comp.type;
-        comp_call(t == T_STR ? K_USS : t == T_FLT ? K_USF : t == T_DBL ? K_USD : K_USI);
+        comp_call(by_type(K_USI, K_USF, K_USD, K_USS));
         if (comp_end())
             break;
-        uint8_t c = *comp.p;
+        const uint8_t c = *comp.p;
         if (c != ',' && c != ';')
             synerr();
         if (eosnext()) {
@@ -1003,7 +993,7 @@ static void act_print(void)
         return;
     }
     for (;;) {
-        uint8_t c = *comp.p;
+        const uint8_t c = *comp.p;
         if (c == ',')
             comp_call(K_PZONE);
         else if (c == TK_TAB || c == TK_SPC) {
@@ -1014,8 +1004,7 @@ static void act_print(void)
             comp_call(c == TK_TAB ? K_PTAB : K_PSPC);
         } else if (c != ';') {
             expr_compile();
-            uint8_t t = comp.type;
-            comp_call(t == T_STR ? K_SPR : t == T_FLT ? K_FPR : t == T_DBL ? K_DPR : K_IPR);
+            comp_call(by_type(K_IPR, K_FPR, K_DPR, K_SPR));
             if (comp_end()) {
                 comp_call(K_PNL);
                 return;
@@ -1034,11 +1023,10 @@ static void act_write(void)
         if (comp_end())
             break;
         expr_compile();
-        uint8_t t = comp.type;
-        comp_call(t == T_STR ? K_WS : t == T_FLT ? K_WF : t == T_DBL ? K_WD : K_WI);
+        comp_call(by_type(K_WI, K_WF, K_WD, K_WS));
         if (comp_end())
             break;
-        uint8_t c = *comp.p;
+        const uint8_t c = *comp.p;
         if (c != ',' && c != ';')
             synerr();
         comp.p++;
@@ -1058,8 +1046,8 @@ static void act_lin(void)
 /* LIST [from][-[to]]: the two numbers, CALL LIST. */
 static void act_list(void)
 {
-    const uint8_t *start = comp.p;
-    uint8_t c = comp_lnum();
+    const uint8_t *const start = comp.p;
+    const uint8_t c = comp_lnum();
     lnumload();
     if (c == TK_MINUS) {
         if (eosnext())
@@ -1076,12 +1064,12 @@ static void act_list(void)
 static void act_on(void)
 {
     comp_tobyte();
-    uint8_t x = *comp.p ^ TK_GOTO;
-    if (x & 0xFB) {
+    const uint8_t c = *comp.p;
+    if (c != TK_GOTO && c != TK_GOSUB) {
         comp.dg = DG_GOTO_MISSING;
         synerr();
     }
-    comp_opb(O_ON, x ? 0x80 : 0);
+    comp_opb(O_ON, c == TK_GOSUB ? ON_GOSUB : 0);
     comp.onat = comp.out - 1;
     comp.p++;
 }

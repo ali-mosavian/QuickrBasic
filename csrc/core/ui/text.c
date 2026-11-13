@@ -85,8 +85,8 @@ static Made make(const uint8_t *src, uint32_t len)
     uint32_t num = 0;
     for (; p < body && (uint8_t)(*p - '0') <= 9; p++) {
         num = num * 10 + (*p - '0');
-        if (num >= 64000)
-            num = 64000;
+        if (num >= LNUM_LIMIT)
+            num = LNUM_LIMIT;
     }
     if (p != digits)
         m.num = (uint16_t)num;

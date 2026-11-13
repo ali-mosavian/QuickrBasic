@@ -58,6 +58,10 @@ enum : uint16_t { SC_NUM = 0x8000, SC_ARR = 0x4000 };
 /* A jump target's mode: the statement, past the JMP it starts with, or the statement after it. */
 typedef enum : uint8_t { TO_STMT, PAST_JMP, TO_NEXT_STMT } JumpMode;
 
+/* Line numbers are under LNUM_LIMIT. */
+enum : uint32_t { LNUM_LIMIT = 64000 };
+/* ON's count byte: the count, ON_GOSUB for GOSUB. */
+enum : uint8_t { ON_GOSUB = 0x80, ON_COUNT = 0x7F };
 /* RESTORE's and RUN's line operand: a line number, or LABEL_LINE plus a label's line. */
 enum : uint32_t { LABEL_LINE = 0x10000 };
 /* DIM's flag word: the dimension count, then what kind of DIM it is. */
@@ -110,6 +114,9 @@ typedef struct PACKED {
 } EventSlot;
 static_assert(sizeof(EventSlot) == 8);
 enum : uint8_t { EK_TIMER, EK_KEY, EK_COM, EK_PEN, EK_STRIG };
+enum : uint8_t { ES_OFF = 0, ES_ON = 1, ES_STOP = 2 }; /* an event's state */
+/* RESUME's operand: the failed statement, the one after it, or a line. */
+typedef enum : uint8_t { RESUME_AGAIN, RESUME_NEXT, RESUME_LINE } ResumeMode;
 
 enum : uint8_t { DM_STEP = 1, DM_PSTEP = 2 };
 

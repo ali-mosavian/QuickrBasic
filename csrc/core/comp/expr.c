@@ -14,43 +14,68 @@
 Expr expr;
 const uint8_t expr_ktype[5] = {T_FLT, T_INT, T_STR, T_DBL, T_DBL};
 
-/* An operator's index: + - * / ^ AND OR > = < (TK_PLUS on), then \ MOD XOR EQV IMP from 10. */
-static const uint8_t prectab[15] = {0x78, 0x78, 0x7B, 0x7B, 0x7F, 0x50, 0x46, 0x64, 0x64, 0x64,
-                                    0x7A, 0x79, 0x44, 0x42, 0x40};
-static const uint8_t xop[5] = {O_I_DIV, O_I_MOD, O_I_XOR, O_I_EQV, O_I_IMP};
-static const uint8_t relbit[3] = {DC_GT, DC_EQ, DC_LT}; /* > = < */
+/* An operator's index: + - * / ^ AND OR > = < from TK_PLUS, then \ MOD XOR EQV IMP. A relation
+   compiles as REL and its DC_* mask. */
+enum : uint8_t {
+    OP_ADD, OP_SUB, OP_MUL, OP_DIV, OP_POW, OP_AND, OP_OR, OP_GT, OP_EQ, OP_LT,
+    OP_IDIV, OP_MOD, OP_XOR, OP_EQV, OP_IMP, NOPS,
+};
+/* Precedences: the higher binds tighter. */
+enum : uint8_t {
+    P_IMP = 0x40, P_EQV = 0x42, P_XOR = 0x44, P_OR = 0x46, P_AND = 0x50, P_NOT = 0x5A,
+    P_REL = 0x64, P_ADD = 0x78, P_MOD = 0x79, P_IDIV = 0x7A, P_MUL = 0x7B, P_NEG = 0x7D,
+    P_POW = 0x7F,
+};
+static const uint8_t prectab[NOPS] = {
+    [OP_ADD] = P_ADD,   [OP_SUB] = P_ADD, [OP_MUL] = P_MUL, [OP_DIV] = P_MUL, [OP_POW] = P_POW,
+    [OP_AND] = P_AND,   [OP_OR] = P_OR,   [OP_GT] = P_REL,  [OP_EQ] = P_REL,  [OP_LT] = P_REL,
+    [OP_IDIV] = P_IDIV, [OP_MOD] = P_MOD, [OP_XOR] = P_XOR, [OP_EQV] = P_EQV, [OP_IMP] = P_IMP,
+};
+static const uint8_t xop[] = {O_I_DIV, O_I_MOD, O_I_XOR, O_I_EQV, O_I_IMP}; /* from OP_IDIV */
+static const uint8_t relbit[] = {DC_GT, DC_EQ, DC_LT};                      /* from OP_GT */
 static const uint8_t fcmpk[4] = {O_F_CMP_V, O_F_CMP_VI, O_F_CMP_U8, O_F_CMP_F32};
 static const uint8_t lda1[5] = {O_F_LD_A1, O_I_LD_A1, O_S_LD_A1, O_D_LD_A1, O_D_LD_A1};
 static const uint8_t ldan[5] = {O_F_LD_A, O_I_LD_A, O_S_LD_A, O_D_LD_A, O_D_LD_A};
-/* SGN .. CHR$ of a DOUBLE: D.FN's operand, 80h STR$'s, FFh none. */
-static const uint8_t dfnk[20] = {1, 2, 0, 0xFF, 0xFF, 0xFF, 4, 0xFF, 9, 10,
-                                 6, 5, 7, 8, 0xFF, 0xFF, 0x80, 0xFF, 0xFF, 0xFF};
-
-/* Per function, TK_SGN on: its argument's conversion (FA_*), its result (FR_*). */
-enum { FA_F, FA_A, FA_S, FA_Y, FA_B, FA_N, FA_I };
-enum { FR_I = T_INT, FR_F = T_FLT, FR_S = 0xB0 };
-static const uint8_t fnsig[20] = {
-    FA_F + FR_I, FA_F + FR_F, FA_F + FR_F, FA_F + FR_F, FA_Y + FR_F, FA_N + FR_I, FA_F + FR_F,
-    FA_F + FR_F, FA_F + FR_F, FA_F + FR_F, FA_F + FR_F, FA_F + FR_F, FA_F + FR_F, FA_F + FR_F,
-    FA_I + FR_I, FA_S + FR_I, FA_F + FR_S, FA_S + FR_F, FA_S + FR_I, FA_B + FR_S,
+/* SGN .. CHR$ of a DOUBLE: D.FN's operand, DFN_STR STR$'s, DFN_NONE none. */
+enum : uint8_t { DFN_STR = 0x80, DFN_NONE = 0xFF };
+#define FN(tk) [TK_##tk - TK_SGN]
+static const uint8_t dfnk[20] = {
+    FN(SGN) = DF_SGN,    FN(INT) = DF_INT,    FN(ABS) = DF_ABS,    FN(USR) = DFN_NONE,
+    FN(FRE) = DFN_NONE,  FN(POS) = DFN_NONE,  FN(SQR) = DF_SQR,    FN(RND) = DFN_NONE,
+    FN(LOG) = DF_LOG,    FN(EXP) = DF_EXP,    FN(COS) = DF_COS,    FN(SIN) = DF_SIN,
+    FN(TAN) = DF_TAN,    FN(ATN) = DF_ATN,    FN(PEEK) = DFN_NONE, FN(LEN) = DFN_NONE,
+    FN(STRS) = DFN_STR,  FN(VAL) = DFN_NONE,  FN(ASC) = DFN_NONE,  FN(CHRS) = DFN_NONE,
 };
 
+/* Per function, TK_SGN on: its argument's conversion (FA_*), its result (FR_*). */
+enum { FA_F, FA_A, FA_S, FA_Y, FA_B, FA_N, FA_I, FA_MASK = 0x0F };
+enum { FR_I = T_INT, FR_F = T_FLT, FR_S = 0xB0, FR_MASK = 0xF0 };
+static const uint8_t fnsig[20] = {
+    FN(SGN) = FA_F + FR_I,  FN(INT) = FA_F + FR_F,  FN(ABS) = FA_F + FR_F,  FN(USR) = FA_F + FR_F,
+    FN(FRE) = FA_Y + FR_F,  FN(POS) = FA_N + FR_I,  FN(SQR) = FA_F + FR_F,  FN(RND) = FA_F + FR_F,
+    FN(LOG) = FA_F + FR_F,  FN(EXP) = FA_F + FR_F,  FN(COS) = FA_F + FR_F,  FN(SIN) = FA_F + FR_F,
+    FN(TAN) = FA_F + FR_F,  FN(ATN) = FA_F + FR_F,  FN(PEEK) = FA_I + FR_I, FN(LEN) = FA_S + FR_I,
+    FN(STRS) = FA_F + FR_S, FN(VAL) = FA_S + FR_F,  FN(ASC) = FA_S + FR_I,  FN(CHRS) = FA_B + FR_S,
+};
+#undef FN
+
 /* QBasic's other functions: the token (100h + n for TK_X n), the CALL (0 none), the arguments at
-   least (| 80h: a leading one optional), at most (0: no ( ); least 0: ( ) optional), the result,
-   each argument's kind: I an INT, W a SHORT's 16 bits, F a FLOAT, D a DOUBLE, S a string, X a
-   string or a number, G FIX's, H a file number, R an array. */
+   least (| XF_LEAD: a leading one optional), at most (0: no ( ); least 0: ( ) optional), the
+   result, each argument's kind: I an INT, W a SHORT's 16 bits, F a FLOAT, D a DOUBLE, S a string,
+   X a string or a number, G FIX's, H a file number, R an array. */
 typedef struct {
     uint16_t tok;
     uint8_t k, min, max, res;
     char arg[3];
 } XFn;
+enum : uint8_t { XF_LEAD = 0x80, XF_MIN = 0x7F };
 static const XFn xfns[] = {
     {0x100 + TK1_CINT, 0, 1, 1, T_INT, "I"},
     {0x100 + TK1_CLNG, 0, 1, 1, T_INT, "I"},
     {0x100 + TK1_CSNG, 0, 1, 1, T_FLT, "F"},
     {0x100 + TK1_CDBL, 0, 1, 1, T_DBL, "D"},
     {TK_FIX, 0, 1, 1, T_FLT, "G"},
-    {TK_INSTR, K_INSTR, 0x82, 3, T_INT, {'I', 'S', 'S'}},
+    {TK_INSTR, K_INSTR, XF_LEAD | 2, 3, T_INT, {'I', 'S', 'S'}},
     {TK_LBOUND, K_LBND, 1, 2, T_INT, "RI"},
     {TK_UBOUND, K_UBND, 1, 2, T_INT, "RI"},
     {0x100 + TK1_SPACES, K_SPACE, 1, 1, T_STR, "I"},
@@ -102,7 +127,7 @@ static void unary(void);
 
 void expr_compile(void)
 {
-    bool dbl = expr.dbltgt; /* not an assignment's: its own */
+    const bool dbl = expr.dbltgt; /* not an assignment's: its own */
     expr.dbltgt = false;
     prec(0);
     expr.dbltgt = dbl;
@@ -122,7 +147,7 @@ uint8_t expr_shclass(void)
 }
 
 /* Id's load just compiled: a SHORT's, class 1. */
-static void shortid(uint16_t id)
+static void shortid(const uint16_t id)
 {
     if (symb_var(id)->type == ET_SH) {
         expr.sh = SH_SHORT;
@@ -130,23 +155,27 @@ static void shortid(uint16_t id)
     }
 }
 
+static bool is_rel(const uint8_t rel) { return rel & REL; }
+static bool is_logic(const uint8_t rel) { return rel == OP_AND || rel == OP_OR; }
+static bool is_xop(const uint8_t rel) { return rel >= OP_IDIV && rel < REL; } /* \ MOD XOR EQV IMP */
+
 /* cm_sop: operator rel's result is a SHORT's when both operands are SHORTs or literals that fit,
    one a SHORT: + - * \ MOD, QBasic's INTEGER arithmetic. lsh: the left's class. */
-static uint8_t shortop(uint8_t rel, uint8_t lsh)
+static uint8_t shortop(const uint8_t rel, const uint8_t lsh)
 {
-    uint8_t rsh = expr_shclass();
-    if (!lsh || !rsh || !((lsh | rsh) & 1))
-        return 0;
-    return rel <= 2 || rel == 10 || rel == 11;
+    const uint8_t rsh = expr_shclass();
+    if (!lsh || !rsh || !((lsh | rsh) & SH_SHORT))
+        return SH_NONE;
+    const bool arith = rel <= OP_MUL || rel == OP_IDIV || rel == OP_MOD;
+    return arith ? SH_SHORT : SH_NONE;
 }
 
-/* Is the right operand at right one op, sized size? */
-static bool isright(uint8_t op, uint32_t size, const uint8_t *right)
+static bool isright(const uint8_t op, const uint32_t size, const uint8_t *const right)
 {
     return (uint32_t)(comp.out - right) == size && *right == op;
 }
 
-uint8_t *expr_lfloat(uint8_t *left, uint8_t *right)
+uint8_t *expr_lfloat(uint8_t *const left, uint8_t *const right)
 {
     if (left) {
         if (*left == O_I_LD_V) {
@@ -163,7 +192,7 @@ uint8_t *expr_lfloat(uint8_t *left, uint8_t *right)
 }
 
 /* INT operator o (0..5: + - * / AND OR): the right operand's load folds into .V or .U8. */
-static void intop(uint8_t o, uint8_t *right)
+static void intop(const uint8_t o, uint8_t *const right)
 {
     comp.type = T_INT;
     if (isright(O_I_LD_V, 3, right))
@@ -174,10 +203,11 @@ static void intop(uint8_t o, uint8_t *right)
         comp_op(O_I_ADD + o);
 }
 
-void expr_icmp(uint8_t rel, uint8_t *right)
+void expr_icmp(const uint8_t rel, uint8_t *const right)
 {
     comp.type = T_INT;
-    uint8_t m = rel & 7, op;
+    const uint8_t m = rel & REL_MASK;
+    uint8_t op;
     if (isright(O_I_LD_V, 3, right))
         op = O_I_CMP_V;
     else if (isright(O_I_LD_U8, 2, right))
@@ -195,7 +225,7 @@ void expr_icmp(uint8_t rel, uint8_t *right)
 }
 
 /* The right operand's load that folds: the first op of its group, F_ADD_V .. F_ADD_F32; 0 none. */
-static uint8_t fltkind(const uint8_t *right)
+static uint8_t fltkind(const uint8_t *const right)
 {
     if (isright(O_F_LD_V, 3, right))
         return O_F_ADD_V;
@@ -209,20 +239,21 @@ static uint8_t fltkind(const uint8_t *right)
 }
 
 /* FLOAT operator o (0..3: + - * /): the right's load folded into .V, .VI, .U8 or .F32. */
-static void fltop(uint8_t o, uint8_t *right)
+static void fltop(const uint8_t o, uint8_t *const right)
 {
     comp.type = T_FLT;
-    uint8_t k = fltkind(right);
+    const uint8_t k = fltkind(right);
     if (k)
         *right = k + o;
     else
         comp_op(O_F_ADD + o);
 }
 
-void expr_fcmp(uint8_t rel, uint8_t *right)
+void expr_fcmp(const uint8_t rel, uint8_t *const right)
 {
     comp.type = T_INT;
-    uint8_t m = rel & 7, k = fltkind(right);
+    const uint8_t m = rel & REL_MASK;
+    const uint8_t k = fltkind(right);
     if (k) {
         comp.cmp = right;
         *right = fcmpk[(k - O_F_ADD_V) >> 2];
@@ -234,116 +265,152 @@ void expr_fcmp(uint8_t rel, uint8_t *right)
     comp.cmpend = comp.out;
 }
 
+/* String operator rel: + joins, a relation compares. */
+static void strop(const uint8_t rel)
+{
+    if (!(comp.type & T_STR))
+        mismatch();
+    if (rel == OP_ADD)
+        comp_op(O_S_CAT);
+    else if (!is_rel(rel))
+        mismatch();
+    else {
+        comp.cmp = comp.out;
+        comp_opb(O_S_CMP, rel & REL_MASK);
+        comp.cmpend = comp.out;
+        comp.type = T_INT;
+    }
+}
+
+/* A DOUBLE either side; or for a DOUBLE target ^, and unless of constants / or a SINGLE's. */
+static bool wants_double(const uint8_t rel, const uint8_t ltype)
+{
+    if (ltype == T_DBL || comp.type == T_DBL)
+        return true;
+    if (!expr.dbltgt)
+        return false;
+    return rel == OP_POW ||
+           (!expr.bothk && (rel == OP_DIV || ltype & T_FLT || comp.type == T_FLT));
+}
+
+/* Number operator rel in DOUBLEs, the left converted before right. */
+static void dblop(const uint8_t rel, const uint8_t ltype, uint8_t *const right)
+{
+    if (ltype != T_DBL)
+        comp_insert(ltype == T_INT ? O_I_TOD : O_F_TOD, right);
+    comp_todouble();
+    comp.iload = comp.iloadend = nullptr;
+    if (rel == OP_POW)
+        comp_op(O_D_POW);
+    else if (is_rel(rel)) {
+        comp_opb(O_D_CMP, rel & REL_MASK);
+        comp.type = T_INT;
+    } else
+        comp_op(O_D_ADD + rel);
+}
+
+/* Number operator rel: DOUBLEs, ^ a SINGLE's, INTs (but /, a FLOAT as QBasic's), or FLOATs. */
+static void numop(const uint8_t rel, const uint8_t ltype, uint8_t *const left, uint8_t *right)
+{
+    if (comp.type & T_STR)
+        mismatch();
+    const bool lint = !(ltype & T_FLT);
+    if (wants_double(rel, ltype))
+        dblop(rel, ltype, right);
+    else if (rel == OP_POW) {
+        if (lint)
+            expr_lfloat(left, right);
+        comp_tofloat();
+        comp_call(K_FPOW);
+        comp.type = T_FLT;
+    } else if (lint && comp.type == T_INT && rel != OP_DIV) {
+        if (is_rel(rel))
+            expr_icmp(rel, right);
+        else
+            intop(rel, right);
+    } else {
+        if (lint)
+            right = expr_lfloat(left, right);
+        comp_tofloat();
+        if (is_rel(rel))
+            expr_fcmp(rel, right);
+        else
+            fltop(rel, right);
+    }
+}
+
+/* The operator at c's index; false: none. */
+static bool operator_of(const uint8_t c, uint8_t *const op)
+{
+    if (c == '\\')
+        *op = OP_IDIV;
+    else if (c >= TK_MOD && c <= TK_IMP)
+        *op = c - TK_MOD + OP_MOD;
+    else if (c >= TK_PLUS && c <= TK_LT)
+        *op = c - TK_PLUS;
+    else
+        return false;
+    return true;
+}
+
+/* A run of > = < from op: REL and their mask, comp.p past it. */
+static uint8_t relation(uint8_t op)
+{
+    uint8_t rel = REL;
+    for (;;) {
+        rel |= relbit[op - OP_GT];
+        const uint8_t c = comp_curn();
+        if (c < TK_GT || c > TK_LT)
+            return rel;
+        op = c - TK_PLUS;
+    }
+}
+
+/* Operator rel after its left operand: its right one at precedence p, then the operator. */
+static void binary(const uint8_t rel, const uint8_t p)
+{
+    if (is_logic(rel) || is_xop(rel))
+        comp_toint();
+    const bool leftk = comp.out == expr.kend; /* the left a constant */
+    const uint8_t ltype = comp.type;
+    uint8_t *const left = comp_intleaf();
+    const uint8_t lsh = expr_shclass();
+    uint8_t *const right = comp.out;
+    prec(p);
+    const uint8_t sh = shortop(rel, lsh);
+    expr.bothk = rel != OP_POW && leftk && comp.out == expr.kend; /* ^ not folded */
+    if (is_xop(rel)) {
+        comp_toint();
+        comp_op(xop[rel - OP_IDIV]);
+    } else if (is_logic(rel)) {
+        comp_toint();
+        intop(rel - 1, right); /* AND, OR: O_I_ADD's 4th, 5th on */
+    } else if (ltype == T_STR)
+        strop(rel);
+    else
+        numop(rel, ltype, left, right);
+    if (sh && comp.type == T_INT) /* a SHORT's result checked */
+        comp_op(O_I_CHK16);
+    expr.sh = sh;
+    expr.shend = comp.out;
+    expr.kend = expr.bothk ? comp.out : nullptr; /* of constants: one */
+    expr.bothk = false;
+}
+
 /* cm_p: compile while the operators bind tighter than precedence p. */
-static void prec(uint8_t p)
+static void prec(const uint8_t p)
 {
     if (++comp.depth > COMP_MAXDEPTH)
         repl_error(E_OM);
     unary();
-    for (;;) {
-        uint8_t c = comp_cur(), op;
-        if (c == '\\')
-            op = 10;
-        else if (c >= TK_MOD && c <= TK_IMP)
-            op = c - TK_MOD + 11;
-        else if (c >= TK_PLUS && c <= TK_LT)
-            op = c - TK_PLUS;
+    uint8_t op;
+    while (operator_of(comp_cur(), &op) && p < prectab[op]) {
+        uint8_t rel = op;
+        if (op >= OP_GT && op <= OP_LT)
+            rel = relation(op);
         else
-            break;
-        if (p >= prectab[op])
-            break;
-        uint8_t rel;
-        if (op >= TK_GT - TK_PLUS && op < 10) { /* a relation: 80h + its mask */
-            rel = 0x80;
-            for (;;) {
-                rel |= relbit[op - (TK_GT - TK_PLUS)];
-                c = comp_curn();
-                if (c < TK_GT || c > TK_LT)
-                    break;
-                op = c - TK_PLUS;
-            }
-        } else {
-            rel = op;
             comp.p++;
-        }
-        if (!(rel & 0x80) && rel >= 5 && (rel < 7 || rel >= 10))
-            comp_toint(); /* AND OR \ MOD XOR EQV IMP: INTs */
-        bool leftk = comp.out == expr.kend; /* the left a constant */
-        uint8_t ltype = comp.type;
-        uint8_t *left = comp_intleaf();
-        uint8_t lsh = expr_shclass();
-        uint8_t *right = comp.out;
-        prec(prectab[op]);
-        uint8_t sh = shortop(rel, lsh);
-        expr.bothk = rel != 4 && leftk && comp.out == expr.kend; /* both constants; ^ not
-                                                                    folded */
-        if (!(rel & 0x80) && rel >= 10) {
-            comp_toint();
-            comp_op(xop[rel - 10]);
-        } else if (!(rel & 0x80) && rel >= 5 && rel < 7) {
-            comp_toint();
-            intop(rel - 1, right); /* AND 4, OR 5 */
-        } else if (ltype == T_STR) {
-            if (!(comp.type & T_STR))
-                mismatch();
-            if (!rel)
-                comp_op(O_S_CAT);
-            else if (!(rel & 0x80))
-                mismatch();
-            else {
-                comp.cmp = comp.out;
-                comp_opb(O_S_CMP, rel & 7);
-                comp.cmpend = comp.out;
-                comp.type = T_INT;
-            }
-        } else {
-            if (comp.type & T_STR)
-                mismatch();
-            /* a DOUBLE either side, or for a DOUBLE target: + - * of a SINGLE, / of any, not of
-               constants; ^ */
-            bool dbl = ltype == T_DBL || comp.type == T_DBL ||
-                       (expr.dbltgt && (rel == 4 || (!expr.bothk && (rel == 3 || ltype & T_FLT ||
-                                                                     comp.type == T_FLT))));
-            if (dbl) {
-                if (ltype != T_DBL)
-                    comp_insert(ltype == T_INT ? O_I_TOD : O_F_TOD, right);
-                comp_todouble();
-                comp.iload = comp.iloadend = nullptr;
-                if (rel == 4)
-                    comp_op(O_D_POW);
-                else if (rel & 0x80) {
-                    comp_opb(O_D_CMP, rel & 7);
-                    comp.type = T_INT;
-                } else
-                    comp_op(O_D_ADD + rel);
-            } else if (rel == 4) { /* ^: a SINGLE, INTs' too */
-                if (!(ltype & T_FLT))
-                    expr_lfloat(left, right);
-                comp_tofloat();
-                comp_call(K_FPOW);
-                comp.type = T_FLT;
-            } else if (!(ltype & T_FLT) && comp.type == T_INT && rel != 3) {
-                if (rel & 0x80) /* INT / INT is a FLOAT, as QBasic's */
-                    expr_icmp(rel, right);
-                else
-                    intop(rel, right);
-            } else {
-                if (!(ltype & T_FLT))
-                    right = expr_lfloat(left, right);
-                comp_tofloat();
-                if (rel & 0x80)
-                    expr_fcmp(rel, right);
-                else
-                    fltop(rel, right);
-            }
-        }
-        /* an operator's done: a SHORT's result checked */
-        if (sh && comp.type == T_INT)
-            comp_op(O_I_CHK16);
-        expr.sh = sh;
-        expr.shend = comp.out;
-        expr.kend = expr.bothk ? comp.out : nullptr; /* of constants: one */
-        expr.bothk = false;
+        binary(rel, prectab[op]);
     }
     comp.depth--;
 }
@@ -371,9 +438,9 @@ uint8_t expr_subs(void)
 void expr_string(void)
 {
     comp.type = T_STR;
-    const uint8_t *start = comp.p;
+    const uint8_t *const start = comp.p;
     const uint8_t *q = start;
-    uint32_t len = strg_span(&q, '"', '"');
+    const uint32_t len = strg_span(&q, '"', '"');
     comp_opb(O_S_LD_TXT, (uint8_t)len);
     comp_dword(addr_of(start));
     comp.p = strg_skipq(q);
@@ -382,23 +449,23 @@ void expr_string(void)
 /* A FUNCTION DECLAREd only: its arguments, Function not defined when run; its result's id. */
 static uint16_t undeclared(void)
 {
-    uint16_t id = comp_var(1, 0);
+    const uint16_t id = comp_var(1, 0);
     if (*comp.p == '(') {
         comp.p++;
         ctrl_dropargs(true);
         comp_close();
     }
-    ctrl_undef(18);
+    ctrl_undef(ERR_NO_FUNCTION);
     return id;
 }
 
 /* A variable's value, its id's: X.LD.V, or the subscripts and X.LD.A1 id, X.LD.A id n. */
-static void loadvar(uint16_t id)
+static void loadvar(const uint16_t id)
 {
-    uint8_t info = symb_var(id)->info;
+    const uint8_t info = symb_var(id)->info;
     if (info & VI_ARR) {
-        uint8_t n = expr_subs();
-        uint8_t k = info & 7;
+        const uint8_t n = expr_subs();
+        const uint8_t k = info & (SK_DBL | VK_MASK);
         comp.type = expr_ktype[k];
         if (n == 1)
             comp_opid(lda1[k], id);
@@ -414,14 +481,14 @@ static void loadvar(uint16_t id)
         comp_opid(O_D_LD_V, id);
         return;
     }
-    uint8_t k = info & 0x43;
-    if (k == 1) {
+    const uint8_t k = info & VK_MASK;
+    if (k == VK_INT) {
         comp.iload = comp.out;
         comp_opid(O_I_LD_V, id);
         comp.iloadend = comp.out;
         comp.type = T_INT;
         shortid(id);
-    } else if (k > 1) {
+    } else if (k == VK_STR) {
         comp.type = T_STR;
         comp_opid(O_S_LD_V, id);
     } else {
@@ -433,14 +500,13 @@ static void loadvar(uint16_t id)
 void expr_load(void)
 {
     if (comp_cur() == M_VAR) { /* a FUNCTION's name: its call, but its result in it */
-        uint8_t len = comp.p[1];
-        const Name *n = symb_name(load16(comp.p + len + 2));
+        const Name *const n = symb_name(comp_nameof(comp.p));
         if (n->flags & (NM_FUNC | NM_FN)) {
             if (!n->proc) {
                 loadvar(undeclared());
                 return;
             }
-            if (comp.p[len + 4] == '(' || n->proc != comp.proc) {
+            if (*comp_skipname(comp.p) == '(' || n->proc != comp.proc) {
                 ctrl_fcall();
                 return;
             }
@@ -465,38 +531,41 @@ void expr_target(void)
         comp.tgtinfo = comp_etkind[ctrl.ref.et];
         return;
     }
-    comp_target(comp_name());
-    if (comp.tgtinfo & VI_ARR) {
-        uint16_t tgt = comp.tgt;
-        uint8_t info = comp.tgtinfo, subs = comp.tgtsubs;
-        uint8_t n = expr_subs();
-        comp.tgt = tgt;
-        comp.tgtinfo = info;
-        comp.tgtsubs = subs;
-        comp.tgtsubs = n;
+    const uint16_t id = comp_name();
+    if (!(symb_var(id)->info & VI_ARR)) {
+        comp_target(id);
+        return;
+    }
+    const uint8_t n = expr_subs(); /* may compile a call with its own target */
+    comp_target(id);
+    comp.tgtsubs = n;
+}
+
+/* A place's kind (VA_*) and its bytes, as expr.vakind holds them. */
+static uint32_t va(const uint8_t kind, const uint32_t bytes) { return (uint32_t)kind << 24 | bytes; }
+static uint8_t va_kind(const uint32_t v) { return (uint8_t)(v >> 24); }
+
+/* Variable id's place: its kind and bytes; a string's Desc and its STRING * n. */
+static uint32_t vakind(const uint16_t id)
+{
+    const Var *const v = symb_var(id);
+    if (v->info & SK_DBL)
+        return va(VA_RAW, 8);
+    switch (v->info & VK_MASK) {
+    case VK_INT: /* 2 bytes but a LONG's */
+        return va(v->type == ET_I4 ? VA_RAW : VA_I2, 4);
+    case VK_STR:
+        return va(VA_DESC, scop_fix(v->name, v->info & VI_ARR));
+    default:
+        return va(VA_RAW, 4);
     }
 }
 
-/* Variable id's place: expr.vakind, VA_* << 24 + its bytes; a string's Desc VA_DESC + its
-   STRING * n. */
-static void vakind(uint16_t id)
+/* ctrl.ref's field: its bytes. */
+static uint32_t field_size(void)
 {
-    const Var *v = symb_var(id);
-    uint8_t info = v->info;
-    uint32_t va = VA_RAW << 24 | 8;
-    if (!(info & SK_DBL)) {
-        va = VA_RAW << 24 | 4;
-        switch (info & 3) {
-        case 1: /* an INT: 2 bytes but a LONG's */
-            if (v->type != ET_I4)
-                va = VA_I2 << 24 | 4;
-            break;
-        case 2:
-            va = scop_fix(v->name, info & VI_ARR) | VA_DESC << 24;
-            break;
-        }
-    }
-    expr.vakind = va;
+    const uint8_t et = ctrl.ref.et;
+    return et >= ET_REC || et == ET_SD ? ctrl.ref.fix : decl_etsize[et];
 }
 
 /* cm_addr: a variable's address: a record's or a field's code, else its slot's, its Desc's. */
@@ -504,23 +573,18 @@ static void varaddr(void)
 {
     if (comp_cur() != M_VAR)
         synerr();
-    if (ctrl_recref()) { /* a field's kind, its bytes */
-        uint8_t et = ctrl.ref.et;
-        uint32_t va = et >= ET_REC || et == ET_SD ? ctrl.ref.fix : decl_etsize[et];
-        va |= VA_RAW << 24;
-        if (et == ET_I2)
-            va |= VA_I2 << 24;
-        expr.vakind = va;
+    if (ctrl_recref()) {
+        expr.vakind = va(ctrl.ref.et == ET_I2 ? VA_I2 : VA_RAW, field_size());
         if (ctrl.ref.off) {
             comp_int(ctrl.ref.off);
             comp_op(O_I_ADD);
         }
         return;
     }
-    uint16_t id = comp_var(0, 0);
-    vakind(id);
+    const uint16_t id = comp_var(0, 0);
+    expr.vakind = vakind(id);
     if (symb_var(id)->info & VI_ARR) { /* an element: RA.ADDR's */
-        uint8_t n = expr_subs();
+        const uint8_t n = expr_subs();
         comp_opw(O_RA_ADDR, id);
         comp_byte(n);
     } else if (comp_ispar(id)) /* a parameter's: its cell, the argument's */
@@ -536,7 +600,7 @@ void expr_varaddr(void)
 }
 
 /* The value as kind k (an XFn's). */
-static void xarg(char k)
+static void xarg(const char k)
 {
     switch (k) {
     case 'D':
@@ -577,25 +641,22 @@ static void xarg(char k)
     }
 }
 
-/* QBasic's other functions, by xfns: f(args), each converted to its kind; the count after them
-   when it varies; then CALL k, or none. */
-static void xfunc(void)
+/* The function token at comp.p (FFh n as 100h + n), comp.p past it: its XFn. */
+static const XFn *xfn_at(void)
 {
     uint16_t tok = *comp.p;
     if (tok == TK_X)
         tok = 0x100 + *++comp.p;
     comp.p++;
-    const XFn *f = xfns;
-    while (f < xfns + countof(xfns) && f->tok != tok)
-        f++;
-    if (f == xfns + countof(xfns))
-        synerr();
-    if (!f->max)
-        goto call; /* no ( ) */
-    if (!(f->min & 0x7F) && comp_cur() != '(') { /* all optional: ( ) too */
-        comp_int(0);
-        goto call;
-    }
+    for (size_t i = 0; i < countof(xfns); i++)
+        if (xfns[i].tok == tok)
+            return &xfns[i];
+    synerr();
+}
+
+/* f's ( arguments ), each converted to its kind; their count after them when it varies. */
+static void xfn_args(const XFn *const f)
+{
     comp_open();
     uint32_t n = 0, i = 0; /* the arguments, the kind's index */
     for (;;) {
@@ -603,7 +664,7 @@ static void xfunc(void)
         if (k == 'R') { /* an array, n or n(): its id */
             if (comp_cur() != M_VAR)
                 synerr();
-            uint16_t id = comp_var(2, 0);
+            const uint16_t id = comp_var(2, 0);
             if (*comp.p == '(') {
                 if (comp.p[1] != ')')
                     synerr();
@@ -617,8 +678,8 @@ static void xfunc(void)
                 k = 'I';
             }
             expr_compile();
-            if (!n && f->min & 0x80 && comp.type == T_STR && k != 'S') /* a leading optional
-                                                                          left out */
+            if (!n && f->min & XF_LEAD && comp.type == T_STR && k != 'S') /* a leading optional
+                                                                             left out */
                 k = f->arg[++i];
             xarg(k);
         }
@@ -627,28 +688,33 @@ static void xfunc(void)
         if (i >= f->max || !comp_optcomma())
             break;
     }
-    if (i < (f->min & 0x7F))
+    if (i < (f->min & XF_MIN))
         synerr();
     comp_close();
-    if ((f->min & 0x7F) != f->max)
+    if ((f->min & XF_MIN) != f->max)
         comp_int(n);
-call:
+}
+
+/* QBasic's other functions, by xfns: f(args), then CALL k, or none. */
+static void xfunc(void)
+{
+    const XFn *const f = xfn_at();
+    if (f->max && ((f->min & XF_MIN) || comp_cur() == '('))
+        xfn_args(f);
+    else if (f->max) /* all optional, ( ) left out */
+        comp_int(0);
     if (f->k)
         comp_call(f->k);
-    uint8_t t = f->res;
-    if (expr.fixdbl) {
-        expr.fixdbl = false;
-        t = T_DBL;
-    }
-    comp.type = t;
+    comp.type = expr.fixdbl ? T_DBL : f->res;
+    expr.fixdbl = false;
     comp.iload = comp.iloadend = nullptr;
 }
 
 /* Function f's (TK_SGN on) argument converted; comp.type its result. */
-static void farg(uint8_t f)
+static void farg(const uint8_t f)
 {
-    uint8_t sig = fnsig[f];
-    switch (sig & 0x0F) {
+    const uint8_t sig = fnsig[f];
+    switch (sig & FA_MASK) {
     case FA_F: comp_tofloat(); break;
     case FA_A: comp_toaddr(); break;
     case FA_S: comp_tostring(); break;
@@ -659,32 +725,30 @@ static void farg(uint8_t f)
         break;
     case FA_I: comp_toint(); break;
     }
-    uint8_t res = sig & 0xF0;
+    const uint8_t res = sig & FR_MASK;
     comp.type = res == FR_S ? T_STR : res;
 }
 
 /* LEN(r): a record's, a field's, a number's size; false: LEN's own call, nothing compiled. */
 static bool lensize(void)
 {
-    const uint8_t *p = comp.p;
-    uint8_t *out = comp.out;
+    const uint8_t *const p = comp.p;
+    uint8_t *const out = comp.out;
     comp.p++;
     if (comp_cur() == '(' && comp_curn() == M_VAR) {
         if (ctrl_recref()) {
             if (comp_cur() == ')') {
                 comp.p++;
-                uint8_t et = ctrl.ref.et;
-                comp_int(et >= ET_REC || et == ET_SD ? ctrl.ref.fix : decl_etsize[et]);
+                comp_int(field_size());
                 return true;
             }
         } else { /* a scalar: % 2, & ! 4, # 8 */
-            uint16_t id = comp_var(0, 0);
+            const uint16_t id = comp_var(0, 0);
             if (!(symb_var(id)->info & VI_ARR)) {
-                vakind(id);
-                uint32_t va = expr.vakind;
-                if (comp_cur() == ')' && va >> 24 != VA_DESC) {
+                const uint32_t v = vakind(id);
+                if (comp_cur() == ')' && va_kind(v) != VA_DESC) {
                     comp.p++;
-                    comp_int(va >> 24 == VA_I2 ? 2 : (uint8_t)va);
+                    comp_int(va_kind(v) == VA_I2 ? 2 : (uint8_t)v);
                     return true;
                 }
             }
@@ -696,7 +760,7 @@ static bool lensize(void)
 }
 
 /* SGN .. MID$, from cm_un's @cu_7a: f the function, TK_SGN on. */
-static void func(uint8_t f)
+static void func(const uint8_t f)
 {
     if (f == TK_RND - TK_SGN && comp.p[1] != '(') { /* RND alone: RND(1) */
         comp.p++;
@@ -727,18 +791,19 @@ static void func(uint8_t f)
         return;
     }
     comp_close();
-    if (comp.type == T_INT && dfnk[f] == 0x80) /* STR$ of an INT: through a DOUBLE, every digit */
+    const uint8_t df = dfnk[f];
+    if (comp.type == T_INT && df == DFN_STR) /* STR$ of an INT: through a DOUBLE, every digit */
         comp_todouble();
-    else if (expr.dbltgt && !(comp.type & (T_STR | T_DBL)) && dfnk[f] < 0x80)
+    else if (expr.dbltgt && !(comp.type & (T_STR | T_DBL)) && df < DFN_STR)
         comp_todouble(); /* for a DOUBLE: of an INT or a SINGLE a DOUBLE's, as BC */
-    if (comp.type == T_DBL && dfnk[f] != 0xFF) {
-        if (dfnk[f] == 0x80) {
+    if (comp.type == T_DBL && df != DFN_NONE) {
+        if (df == DFN_STR) {
             comp_call(K_DSTR);
             comp.type = T_STR;
             return;
         }
-        comp_opb(O_D_FN, dfnk[f]);
-        comp.type = dfnk[f] == DF_SGN ? T_INT : T_DBL;
+        comp_opb(O_D_FN, df);
+        comp.type = df == DF_SGN ? T_INT : T_DBL;
         comp.iload = comp.iloadend = nullptr;
         return;
     }
@@ -750,21 +815,33 @@ static void func(uint8_t f)
         comp_call(K_FN + f);
 }
 
+/* VARPTR, VARSEG, SSEG, SADD (v) after FFh: its CALL in k, 0 none; false: not one. */
+static bool addr_call(const uint8_t tok, uint8_t *const k)
+{
+    switch (tok) {
+    case TK1_VARPTR: *k = 0; return true;
+    case TK1_VARSEG:
+    case TK1_SSEG: *k = K_VSEG; return true;
+    case TK1_SADD: *k = K_SADD; return true;
+    default: return false;
+    }
+}
+
 /* cm_un: an operand: a variable, an element, a literal, ( expr ), - NOT +, a function. */
 static void unary(void)
 {
     expr.shend = nullptr; /* not a SHORT's unless it says */
     for (;;) {
-        uint8_t c = comp_cur();
+        const uint8_t c = comp_cur();
         switch (c) {
         case M_VAR:
             expr_load();
             return;
         case M_INT: {
-            uint32_t v = load32(comp.p + 1);
-            comp.p += 5;
+            const uint32_t v = load32(comp.p + 1);
+            comp.p += INT_TOKEN_SIZE;
             comp_int(v);
-            if (v <= 32767) {
+            if (v <= INT16_MAX) {
                 expr.sh = SH_LIT;
                 expr.shend = comp.out;
             }
@@ -776,8 +853,8 @@ static void unary(void)
         case TK_MINUS:
         case TK_NOT: {
             comp.p++;
-            prec(c == TK_MINUS ? 0x7D : 0x5A);
-            bool k = expr.kend == comp.out; /* a constant's, so the result */
+            prec(c == TK_MINUS ? P_NEG : P_NOT);
+            const bool k = expr.kend == comp.out; /* a constant's, so the result */
             if (c == TK_NOT) {
                 comp_toint();
                 comp_op(O_I_NOT);
@@ -807,7 +884,7 @@ static void unary(void)
         }
         if (c >= '.' && c <= '9') {
             uint8_t kind;
-            double d = dubl_in(&comp.p, &kind);
+            const double d = dubl_in(&comp.p, &kind);
             if (kind == DK_DBL) { /* a DOUBLE: D.LD.K q */
                 comp.type = T_DBL;
                 comp_op(O_D_LD_K);
@@ -825,27 +902,19 @@ static void unary(void)
         }
         if (c == TK_LEN && lensize())
             return;
-        if (c == TK_X) { /* VARPTR, VARSEG, SSEG, SADD (v) */
-            uint8_t a = comp.p[1], k = 0xFF;
-            if (a == TK1_VARPTR)
-                k = 0;
-            else if (a == TK1_VARSEG || a == TK1_SSEG)
-                k = K_VSEG;
-            else if (a == TK1_SADD)
-                k = K_SADD;
-            if (k != 0xFF) {
-                comp.p += 2;
-                comp_open();
-                varaddr();
-                comp_close();
-                if (k)
-                    comp_call(k);
-                comp.type = T_INT;
-                comp.iload = comp.iloadend = nullptr;
-                return;
-            }
+        uint8_t k;
+        if (c == TK_X && addr_call(comp.p[1], &k)) {
+            comp.p += 2;
+            comp_open();
+            varaddr();
+            comp_close();
+            if (k)
+                comp_call(k);
+            comp.type = T_INT;
+            comp.iload = comp.iloadend = nullptr;
+            return;
         }
-        uint8_t f = c - TK_SGN;
+        const uint8_t f = c - TK_SGN;
         if (f > TK_MID - TK_SGN)
             xfunc();
         else
