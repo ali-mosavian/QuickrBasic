@@ -552,17 +552,26 @@ def play() -> None:
         want = [0x1B] * 4 + [0x1F] * 3 + [0x17, 0x1C] + [0x17] * 2 + [0x13] * 2 + [0x17] * 2 + [0x13] * 2
         want += [0x1D] + [0x17] * 2 + [0x1B] * 4 + [0x17] * 2 + [0x1B] * 3 + [0x13] * 7
         assert list(attrs(3)[1:37]) == want, attrs(3)[1:37].hex()
-        press(f"0x{0x18:x}", "d")
+        # the themes, Options' Theme sub-menu: its box by its item, its help line; Left back
+        press(f"0x{0x18:x}", "t")
+        look()
+        row = next(r for r in (2, 3, 4) if b"Theme" in chars(r))
+        assert b"\x10" in chars(row) and b"QBasic Colors" in chars(row), chars(row)
+        assert b"QBasic's colors" in chars(24), chars(24)
+        press("0x4b")
+        assert not any(b"One Dark" in chars(r) for r in range(1, 12))
+        press("esc")
+        press(f"0x{0x18:x}", "t", "d")
         assert list(attrs(2)[1:21:5]) == [0x15, 0x15, 0x17, 0x18], attrs(2)[1:21].hex()
         assert [attrs(3)[1 + i] for i in (0, 4, 8, 11, 29)] == [0x15, 0x19, 0x1D, 0x1A, 0x1B], attrs(3).hex()
         # Gruvbox Dark Soft: Zed's colours in the DAC, the editor's ground #32302F
-        press(f"0x{0x18:x}", "g")
+        press(f"0x{0x18:x}", "t", "g")
         assert attrs(2)[1] == 0x15, attrs(2).hex()
         shot = Path(tempfile.mkdtemp()) / "th.png"
         s.snap(shot)
         px = Image.open(shot).convert("RGB").getpixel((364, 168))
         assert all(abs(a - b) <= 8 for a, b in zip(px, (0x32, 0x30, 0x2F))), px
-        press(f"0x{0x18:x}", "q")
+        press(f"0x{0x18:x}", "t", "q")
         press(f"0x{0x18:x}", "h")
         assert set(attrs(2)[1:21]) == {0x17}, attrs(2)[1:21].hex()
         press(f"0x{0x18:x}", "h")

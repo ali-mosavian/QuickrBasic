@@ -26,8 +26,7 @@ Highlights statement currently executing
 Sets/clears breakpoint at cursor location
 Removes all breakpoints
 Makes the statement at the cursor the next statement to execute
-Shows the editor in QBasic's colors
-Shows the editor in One Dark's colors
+Chooses the editor's colors
 Colors keywords, strings, numbers and comments
 Sets search path for Help files
 Turns editor's syntax checking on or off.
@@ -36,3 +35,12 @@ Displays help table of contents
 Displays information about the Basic keyword the cursor is on
 Displays information about how to use online Help
 Displays product version and copyright information
+Shows the editor in QBasic's colors
+Shows the editor in One Dark's colors
+Shows the editor in One Light's colors
+Shows the editor in Ayu Mirage's colors
+Shows the editor in Ayu Light's colors
+Shows the editor in Gruvbox Dark Soft's colors
+Shows the editor in Gruvbox Light's colors
+Shows the editor in JetBrains Dark's colors
+Shows the editor in JetBrains Light's colors

@@ -76,6 +76,7 @@ MF_CHK  = 4                     ; a mark when its flag (mn_chk) is on
 MF_SEL  = 8                     ; gray without a selection
 MF_CLP  = 16                    ; gray with the Clipboard empty
 MF_ED   = 32                    ; gray in the immediate window
+MF_SUB  = 64                    ; opens a sub-menu, its command mn_it's index
 NMENU   = 8
 A_NEW   = 1
 A_OPEN  = 2
@@ -334,15 +335,19 @@ TLOOP    struc                   ; the key loop, the screen
 TLOOP    ends
 
 TMENU    struc                   ; the menus
-    mn_c    db      ?               ; the menu, its item
-    mn_i    db      ?
+    mn_c    db      ?               ; the bar's menu
     mn_open db      ?
     mn_on   db      ?
-    mn_cnt  db      ?
-    mn_w    db      ?
-    mn_l    db      ?
     mn_d    db      ?
     mn_q    db      ?
+    mn_sub  db      ?               ; 1: a sub-menu open
+    mn_m    db      ?               ; the box shown: its mn_it index, its item,
+    mn_i    db      ?               ; count, width, column, top row; mn_swap's
+    mn_cnt  db      ?               ; 6 bytes
+    mn_w    db      ?
+    mn_l    db      ?
+    mn_top  db      ?
+    mn_sv   db      6 dup(?)        ; the parent's, a sub-menu open
 TMENU    ends
 
 TDIALOG  struc                   ; the dialog running, the message box

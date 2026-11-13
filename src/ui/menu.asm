@@ -5,8 +5,10 @@
 ; uses:     sc_*, dr_all, ui_getkey, ui_act
 ; data:     A menu: its title, its column, its items. An item: the command
 ;           (A_*), flags (MF_*), its text with '&' before the hotkey, its
-;           key's name, its help line, each 0-ended; MF_SEP alone is a
-;           separator; a 0 command ends the menu.
+;           key's name, each 0-ended; MF_SEP alone is a separator; a 0
+;           command ends the menu. An MF_SUB item's command is its sub-menu's
+;           index in mn_it, past the bar's; the sub-menu's box is drawn over
+;           its parent's, whose level mn_swap keeps in mn_sv.
 ; calls:
 ;   mn_run             the bar lit, a menu open, until a command or Esc
 ;     mn_drop          the open menu's box
@@ -78,7 +80,7 @@ mn_skip:
 ; ::::::::::::::
 mn_help:
         pushad
-        movzx   edi,[g_ui.mn.mn_c]
+        movzx   edi,[g_ui.mn.mn_m]
         add     edi,edi
         xor     ebx,ebx
         xor     dx,dx                   ; DX the line
@@ -180,7 +182,7 @@ mn_off:
 ; out:    SI  it
 ; ::::::::::::::
 mn_item:
-        movzx   ebx,[g_ui.mn.mn_c]
+        movzx   ebx,[g_ui.mn.mn_m]
         add     bx,bx
         mov     esi,[mn_it+ebx*2]
         movzx   ecx,al
@@ -194,9 +196,15 @@ mn_item:
         ret
 
 ; ::::::::::::::
-; mn_size - menu mn_c's items (mn_cnt) and its box's width (mn_w).
+; mn_size - menu mn_m's items (mn_cnt) and its box's width (mn_w); no
+; sub-menu open, mn_m the bar's mn_c.
 ; ::::::::::::::
 mn_size:
+        cmp     [g_ui.mn.mn_sub],0
+        jne     @F
+        mov     al,[g_ui.mn.mn_c]
+        mov     [g_ui.mn.mn_m],al
+@@:
         mov     al,0
         call    mn_item
         xor     dx,dx                   ; DL the count, DH the widest
@@ -219,6 +227,11 @@ mn_size:
         add     bx,cx
         add     bx,3
 @mnz_w:
+        mov     eax,[esp]
+        test    byte ptr [eax+1],MF_SUB
+        jz      @F
+        add     bx,2
+@@:
         cmp     bl,dh
         jbe     @mnz_p
         mov     dh,bl
@@ -234,8 +247,9 @@ mn_size:
         ret
 
 ; ::::::::::::::
-; mn_drop - menu mn_c's box under its title, item mn_i lit, its help on the
-; status bar.
+; mn_drop - menu mn_c's box under its title; then as mn_box.
+; mn_box - the box at mn_l, mn_top, item mn_i lit, its help on the status
+; bar.
 ; ::::::::::::::
 mn_drop:
         call    mn_size
@@ -250,7 +264,10 @@ mn_drop:
         sub     dl,[g_ui.mn.mn_w]
 @mnd_x:
         mov     [g_ui.mn.mn_l],dl
-        mov     dh,1
+        mov     [g_ui.mn.mn_top],1
+mn_box:
+        mov     dl,[g_ui.mn.mn_l]
+        mov     dh,[g_ui.mn.mn_top]
         mov     ch,[g_ui.mn.mn_cnt]
         add     ch,2
         mov     cl,[g_ui.mn.mn_w]
@@ -264,7 +281,8 @@ mn_drop:
         jae     @mnd_e
         push    eax
         mov     dh,al
-        add     dh,2
+        add     dh,[g_ui.mn.mn_top]
+        inc     dh
         mov     dl,[g_ui.mn.mn_l]
         push    eax
         call    mn_item
@@ -311,18 +329,29 @@ mn_drop:
         pop     edx
 @mnd_t:
         inc     dl
+        push    esi
         add     esi,2
         call    sc_str
         push    ebx
         call    sc_slen
         pop     ebx
-        jcxz    @mnd_n
+        jcxz    @mnd_a
         mov     dl,[g_ui.mn.mn_l]
         add     dl,[g_ui.mn.mn_w]
         sub     dl,2
         sub     dl,cl
         mov     bh,ah
         call    sc_str
+@mnd_a:
+        pop     esi
+        test    byte ptr [esi+1],MF_SUB
+        jz      @mnd_n
+        mov     dl,[g_ui.mn.mn_l]
+        add     dl,[g_ui.mn.mn_w]
+        sub     dl,3
+        mov     al,10h
+        mov     ecx,1
+        call    sc_fill
 @mnd_n:
         pop     eax
         inc     al
@@ -397,6 +426,22 @@ mn_altl db      'QWERTYUIOP    ASDFGHJKL     ZXCVBNM'
         .code
 
 ; ::::::::::::::
+; mn_swap - the box's level and mn_sv's exchanged.
+;
+; keeps:  all
+; ::::::::::::::
+mn_swap:
+        push    eax
+        mov     eax,dword ptr [g_ui.mn.mn_m]
+        xchg    eax,dword ptr [g_ui.mn.mn_sv]
+        mov     dword ptr [g_ui.mn.mn_m],eax
+        mov     ax,word ptr [g_ui.mn.mn_l]
+        xchg    ax,word ptr [g_ui.mn.mn_sv+4]
+        mov     word ptr [g_ui.mn.mn_l],ax
+        pop     eax
+        ret
+
+; ::::::::::::::
 ; mn_run - the menus, from menu AL: AH 0 the bar lit, 1 its menu open.
 ; ::::::::::::::
 mn_run:
@@ -406,6 +451,7 @@ mn_run:
         mov     [g_ui.mn.mn_c],al
         mov     [g_ui.mn.mn_open],ah
         mov     [g_ui.mn.mn_on],1
+        and     [g_ui.mn.mn_sub],0
         and     [g_ui.mn.mn_i],0
         call    mn_size
 @mnr_l:
@@ -413,7 +459,16 @@ mn_run:
         call    dr_all
         cmp     [g_ui.mn.mn_open],0
         je      @mnr_k
+        cmp     [g_ui.mn.mn_sub],0
+        jne     @F
         call    mn_drop
+        jmp     @mnr_st
+@@:
+        call    mn_swap
+        call    mn_drop
+        call    mn_swap
+        call    mn_box
+@mnr_st:
         call    dr_status
 @mnr_k:
         mov     ecx,2000h
@@ -425,7 +480,7 @@ mn_run:
         je      @mnr_ms
         call    mn_unalt
         cmp     al,1Bh
-        je      @mnr_x
+        je      @mnr_es
         cmp     al,0Dh
         je      @mnr_e
         cmp     ah,4Bh
@@ -482,6 +537,13 @@ mn_run:
 @mnr_qn:
         inc     [g_ui.mn.mn_q]
         jmp     @mnr_q
+@mnr_es:
+        cmp     [g_ui.mn.mn_sub],0
+        je      @mnr_x
+@mnr_bk:                                ; back to the parent
+        call    mn_swap
+        and     [g_ui.mn.mn_sub],0
+        jmp     @mnr_l
 @mnr_x:
         and     [g_ui.mn.mn_on],0
         and     [g_ui.lp.ui_help],0
@@ -505,8 +567,9 @@ mn_run:
         cmp     [g_ui.mn.mn_open],0
         je      @mnr_mo
         mov     al,dh
-        sub     al,2
-        jb      @mnr_mo
+        sub     al,[g_ui.mn.mn_top]
+        jbe     @mnr_mo
+        dec     al
         cmp     al,[g_ui.mn.mn_cnt]
         jae     @mnr_mo
         mov     ah,dl
@@ -529,7 +592,11 @@ mn_run:
 @mnr_mo:
         cmp     [g_ui.ms.ms_ev],MS_PRESS
         jne     @mnr_l
-        jmp     @mnr_x
+        cmp     [g_ui.mn.mn_sub],0
+        je      @mnr_x
+        call    mn_swap                 ; off the sub-menu: the parent's click
+        and     [g_ui.mn.mn_sub],0
+        jmp     @mnr_ms
 @mnr_e:
         cmp     [g_ui.mn.mn_open],0
         je      @mnr_o
@@ -538,22 +605,60 @@ mn_run:
         call    mn_off
         jnz     @mnr_bp
 @mnr_go:
+        test    byte ptr [esi+1],MF_SUB
+        jnz     @mnr_so
         and     [g_ui.mn.mn_on],0
         and     [g_ui.lp.ui_help],0
         mov     al,[esi]
         jmp     ui_act
+@mnr_so:                                ; a sub-menu: its first item by its parent's,
+        mov     al,[esi]                ; right of the box, else left
+        call    mn_swap
+        mov     [g_ui.mn.mn_m],al
+        mov     [g_ui.mn.mn_sub],1
+        and     [g_ui.mn.mn_i],0
+        call    mn_size
+        mov     al,[g_ui.mn.mn_sv+1]
+        add     al,[g_ui.mn.mn_sv+5]
+        mov     [g_ui.mn.mn_top],al
+        mov     al,[g_ui.mn.mn_sv+4]
+        mov     ah,al
+        add     al,[g_ui.mn.mn_sv+3]
+        mov     dl,al
+        add     dl,[g_ui.mn.mn_w]
+        cmp     dl,79
+        jbe     @F
+        mov     al,ah
+        sub     al,[g_ui.mn.mn_w]
+@@:
+        mov     [g_ui.mn.mn_l],al
+        jmp     @mnr_l
 @mnr_o:
         mov     [g_ui.mn.mn_open],1
+        and     [g_ui.mn.mn_sub],0
         and     [g_ui.mn.mn_i],0
         call    mn_size
         jmp     @mnr_l
 @mnr_lf:
+        cmp     [g_ui.mn.mn_sub],0
+        jne     @mnr_bk
         mov     al,[g_ui.mn.mn_c]
         dec     al
         jns     @mnr_m
         mov     al,NMENU-1
         jmp     @mnr_m
 @mnr_rt:
+        cmp     [g_ui.mn.mn_sub],0
+        jne     @F
+        cmp     [g_ui.mn.mn_open],0
+        je      @F
+        mov     al,[g_ui.mn.mn_i]
+        call    mn_item
+        test    byte ptr [esi+1],MF_SUB
+        jz      @F
+        call    mn_off
+        jz      @mnr_so
+@@:
         mov     al,[g_ui.mn.mn_c]
         inc     al
         cmp     al,NMENU
@@ -561,6 +666,7 @@ mn_run:
         xor     al,al
 @mnr_m:
         mov     [g_ui.mn.mn_c],al
+        and     [g_ui.mn.mn_sub],0
         and     [g_ui.mn.mn_i],0
         call    mn_size
         jmp     @mnr_l
@@ -703,6 +809,7 @@ mn_scan db      21h,12h,2Fh,1Fh,13h,20h,18h,23h ; Alt+F E V S R D O H
 mn_x    db      3,9,15,21,29,34,41,74   ; QBasic's (uirsrcc.c)
 mn_tt   dd      t_file,t_edit,t_view,t_srch,t_run,t_dbg,t_opt,t_help
 mn_it   dd      m_file,m_edit,m_view,m_srch,m_run,m_dbg,m_opt,m_help
+        dd      m_theme                 ; the sub-menus, from NMENU
 t_file  db      '&File',0
 t_edit  db      '&Edit',0
 t_view  db      '&View',0
@@ -751,7 +858,13 @@ m_dbg   db      A_STEP,0,'&Step',0,'F8',0
         db      A_BPCLR,0,'&Clear All Breakpoints',0,0
         db      A_SETNX,MF_ED,'Set &Next Statement',0,0
         db      0
-m_opt   db      A_THQB,MF_CHK,'&QBasic Colors',0,0
+m_opt   db      NMENU,MF_SUB,'&Theme',0,0
+        db      A_SYNHL,MF_CHK,'Syntax &Highlighting',0,0
+        db      A_NONE,MF_SEP
+        db      A_NONE,MF_GRAY,'Help &Path...',0,0
+        db      A_SYNTAX,MF_CHK,'&Syntax Checking',0,0
+        db      0
+m_theme db      A_THQB,MF_CHK,'&QBasic Colors',0,0
         db      A_THDK,MF_CHK,'One &Dark',0,0
         db      A_TH2,MF_CHK,'One &Light',0,0
         db      A_TH2+1,MF_CHK,'&Ayu Mirage',0,0
@@ -760,10 +873,6 @@ m_opt   db      A_THQB,MF_CHK,'&QBasic Colors',0,0
         db      A_TH2+4,MF_CHK,'Gruv&box Light',0,0
         db      A_TH2+5,MF_CHK,'&JetBrains Dark',0,0
         db      A_TH2+6,MF_CHK,'JetBrains Ligh&t',0,0
-        db      A_SYNHL,MF_CHK,'Syntax &Highlighting',0,0
-        db      A_NONE,MF_SEP
-        db      A_NONE,MF_GRAY,'Help &Path...',0,0
-        db      A_SYNTAX,MF_CHK,'&Syntax Checking',0,0
         db      0
 m_help  db      A_NONE,MF_GRAY,'&Index',0,0
         db      A_NONE,MF_GRAY,'&Contents',0,0
