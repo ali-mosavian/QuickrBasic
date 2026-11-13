@@ -636,7 +636,7 @@ ui_load:
         call    ui_canon
         pop     eax
         jc      @ul_x
-        movzx   ecx,[g_state.io.sbx]
+        mov     ecx,[g_state.io.sbx]
         mov     esi,offset g_sbuf
         call    tx_repl
 @ul_x:

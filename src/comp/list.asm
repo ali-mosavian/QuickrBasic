@@ -73,9 +73,7 @@ ls_line:
         call    io_num
         call    io_space
         pop     ebx
-        mov     edi,offset g_dlb
-        call    mem_line
-        mov     esi,offset g_dlb+HDR
+        lea     esi,[g_progb+ebx+HDR]
         call    ls_body
         pop     esi
         jmp     io_nl
@@ -95,11 +93,11 @@ ls_text:
         and     [g_state.io.sbx],0
         call    ls_body
         and     [g_state.io.ocap],0
-        movzx   ecx,[g_state.io.sbx]
+        mov     ecx,[g_state.io.sbx]
         mov     byte ptr [g_sbuf+ecx],0
         cmp     [g_lsat],-1             ; not reached: the end
         jne     @F
-        movzx   ecx,[g_lscol]
+        mov     ecx,[g_lscol]
 @@:
         or      [g_lsat],-1
         pop     esi
@@ -114,8 +112,8 @@ ls_body:
         cmp     esi,[g_lsat]            ; ls_text's byte: its column
         jb      @F
         or      [g_lsat],-1
-        mov     al,[g_state.io.sbx]
-        mov     [g_lscol],al
+        mov     eax,[g_state.io.sbx]
+        mov     [g_lscol],eax
 @@:
         lodsb
         test    al,al
@@ -357,7 +355,7 @@ ls_body:
         .data
 g_lsat  dd      -1                      ; ls_text's byte, -1 none
         .data?
-g_lscol db      ?
+g_lscol dd      ?
         .code
 
 ; ::::::::::::::
@@ -383,7 +381,6 @@ ls_space:
         ret
 
         .data?
-g_dlb   db      LMAX+8 dup(?)
         .code
 
         end

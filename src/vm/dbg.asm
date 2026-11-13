@@ -196,7 +196,7 @@ dbg_evx:
         and     [g_dbev],0
         mov     [esp+28],al             ; pushad's EAX
         mov     edi,[esp]               ; pushad's EDI
-        movzx   ecx,[g_state.io.sbx]
+        mov     ecx,[g_state.io.sbx]
         cmp     ecx,79
         jbe     @F
         mov     ecx,79

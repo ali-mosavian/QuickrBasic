@@ -98,13 +98,13 @@ ud_hlset:
         pop     ecx
         sub     ebx,offset g_ui.bf.ud_txt       ; EBX the body's column
         movzx   eax,[g_state.dbg.wb0]
-        movzx   eax,byte ptr [g_lxcol+eax]
+        movzx   eax,word ptr [g_lxcol+eax*2]
         add     eax,ebx
         mov     [g_ui.ud.hl_c0],ax
         movzx   edx,[g_state.dbg.wb1]
         cmp     edx,BOFF
         je      @uhs_e
-        movzx   edx,byte ptr [g_lxcol+edx]
+        movzx   edx,word ptr [g_lxcol+edx*2]
         add     edx,ebx
         jmp     @uhs_t
 @uhs_e:

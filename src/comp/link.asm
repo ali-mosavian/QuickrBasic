@@ -3,7 +3,7 @@
 ; ==========================================================================
 ; holds:    cm_link, cm_comp, cm_cache, cm_flush, cm_xlate; cm_walk
 ;           opsz, opfl
-; uses:     cm_text, mem_line, op_size
+; uses:     cm_text, op_size
 ; data:     A line's cp is its code in the cache, 0 when it has none.
 ; calls:
 ;   cm_link            the cache is empty
@@ -29,16 +29,13 @@ g_opfl  label   byte
 ; ::::::::::::::
 cm_comp:
         push    ebx
-        mov     edi,offset g_lbuf
-        call    mem_line
         mov     [g_state.cm.cxb],offset g_xbuf
-        lea     eax,[g_progb+ebx]
-        sub     eax,offset g_lbuf
+        mov     eax,[g_state.mm.dslin]  ; compiled where it is stored
         mov     [g_state.cm.ctxlin],eax
         mov     [g_state.cm.cline],bx
         call    bk_proc
         call    dc_deft
-        mov     esi,offset g_lbuf+HDR-1
+        lea     esi,[g_progb+ebx+HDR-1]
         call    cm_text
         pop     ebx
         ret
@@ -122,8 +119,8 @@ cm_flush:
 ; or GOSUB's line is found now when it exists; an INPUT's
 ; end (16 bits, from cachb) are filled in. The CALL of INBEG takes 2 bytes
 ; more than in xbuf. Before the code, its statement map: for
-; each statement the compile recorded (g_stb, g_stx), its body offset:2 and
-; its code's offset:2; then their count:1 (vm/flow.asm, ex_bjump).
+; each statement the compile recorded (cm_markb), its body offset:2 and
+; its code's offset:2; then their count:2 (vm/flow.asm, ex_bjump).
 ;
 ; in:     EDI   where it goes
 ;         elim  its limit
@@ -135,12 +132,12 @@ cm_flush:
 cm_xlate:
         and     [g_state.lnk.einb],0
         movzx   ecx,[g_state.cm.nst]
-        lea     eax,[ecx*4+1]
+        lea     eax,[ecx*4+2]
         add     eax,edi
         cmp     eax,[g_state.lnk.elim]
         ja      @cx_ov
         mov     [g_state.lnk.emap],edi
-        mov     [eax-1],cl
+        mov     [eax-2],cx
         mov     edi,eax
         mov     [g_state.lnk.ecode],edi
         mov     [g_state.lnk.ek],0
@@ -221,17 +218,21 @@ cx_mark:
         push    eax
         push    ebx
         push    ecx
+        push    edx
 @cxm_l:
         movzx   ebx,[g_state.lnk.ek]
-        cmp     bl,[g_state.cm.nst]
+        cmp     bx,[g_state.cm.nst]
         jae     @cxm_r
-        movzx   eax,word ptr [g_stx+ebx*2]
+        lea     edx,[ebx*4+4]           ; its entry, down from the map's top
+        neg     edx
+        add     edx,[g_state.cm.cmap]
+        movzx   eax,word ptr [edx+2]
         add     eax,offset g_xbuf
         cmp     eax,esi
         jne     @cxm_r
         lea     ecx,[ebx*4]
         add     ecx,[g_state.lnk.emap]
-        mov     ax,[g_stb+ebx*2]
+        mov     ax,[edx]
         mov     [ecx],ax
         mov     eax,edi
         sub     eax,[g_state.lnk.ecode]
@@ -239,6 +240,7 @@ cx_mark:
         inc     [g_state.lnk.ek]
         jmp     @cxm_l
 @cxm_r:
+        pop     edx
         pop     ecx
         pop     ebx
         pop     eax
@@ -285,7 +287,6 @@ cm_link:
         ret
 
         .data?
-g_lbuf  db      LMAX+8 dup(?)
         .code
 
         end

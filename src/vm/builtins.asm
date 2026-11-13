@@ -171,7 +171,7 @@ fn_fstr:
         mov     [g_state.io.sbx],0
         call    flt_out
         and     [g_state.io.ocap],7Fh
-        movzx   ax,[g_state.io.sbx]
+        mov     eax,[g_state.io.sbx]
         dec     ax
         jmp     str_buftmp
 

@@ -289,7 +289,7 @@ externdef g_kw_off:word
 externdef g_kw_tc:byte
 externdef g_kw_tn:word
 externdef g_lxall:byte
-externdef g_lxcol:byte
+externdef g_lxcol:word
 externdef g_ps_cls:byte
 externdef g_ps_cname:byte
 externdef g_ps_def:dword
@@ -416,8 +416,6 @@ externdef g_cbuf:byte
 externdef g_dlprc:byte
 externdef g_etk:byte
 externdef g_lmod:byte
-externdef g_stb:word
-externdef g_stx:word
 externdef g_xbuf:byte
 externdef lbl_at:near
 externdef lbl_nam:near
@@ -450,13 +448,11 @@ externdef cm_walk:near
 externdef cm_xlate:near
 externdef g_opsz:byte
 ; comp/list.asm
-externdef g_dlb:byte
 externdef ls_body:near
 externdef ls_range:near
 externdef ls_text:near
 ; mem/far.asm
 externdef mem_cpy:near
-externdef mem_line:near
 externdef mem_pmov:near
 externdef mem_up:near
 externdef mem_zero:near

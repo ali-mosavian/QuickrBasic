@@ -121,7 +121,7 @@ oplist  macro   m
         m       F_FOR1,op_for,3,FV+FB
         m       NEXT,op_nx0,1,0
         m       NEXT_V,op_nextv,3,FV
-        m       ERR,op_err,6,0
+        m       ERR,op_err,7,0
         m       JMP,op_jmp,7,0
         m       I_JF,op_ijf,7,0
         m       F_JF,op_fjf,7,0

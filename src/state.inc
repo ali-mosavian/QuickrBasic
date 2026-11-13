@@ -28,7 +28,8 @@ TCOMP    struc                   ; the compiler
     csp     dd      ?
     cbase   dd      ?               ; the body's start
     cline   dw      ?               ; its line, DLINE direct
-    nst     db      ?               ; statements recorded (g_stb, g_stx)
+    nst     dw      ?               ; statements recorded (cm_markb)
+    cmap    dd      ?               ; the map's top: its entries grow down
     csif    db      ?               ; in a one-line IF
     cscope  db      ?               ; var_find's scope: 0 the module, a procedure
     cstat   db      ?               ; var_find makes a STATIC, not a local
@@ -53,7 +54,7 @@ TLINK    struc                   ; the linker and the cache
     nfl     db      ?               ; cache flushes, mod 256
     emap    dd      ?               ; cm_xlate's statement map
     ecode   dd      ?               ; the code after it
-    ek      db      ?               ; the next statement it maps
+    ek      dw      ?               ; the next statement it maps
     nprc    dw      ?               ; procedures + 1 (g_prc)
     nppar   dw      ?               ; their parameters (g_ppar)
     cprc    dw      ?               ; the procedure the scan is in, 0 none
@@ -167,12 +168,13 @@ TMEM     struc                   ; the memory map, the program, the arrays
 TMEM     ends
 
 INMAX   = 32767                 ; an input line's characters at most, as QBasic's
+SBMAX   = 0FFF0h                ; sbuf: a line's LIST spelled, the rest dropped
 
 TIO      struc                   ; input and output
     fline   dw      ?               ; loading a file: its line, for a warning
     ocap    db      ?
     pcol    db      ?
-    sbx     db      ?
+    sbx     dd      ?               ; sbuf's bytes, to SBMAX
     inlen   dd      ?
     inpos   dd      ?
     infl    db      ?

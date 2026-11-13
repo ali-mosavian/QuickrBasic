@@ -58,15 +58,19 @@ HDR     = 6                     ; len:2, num:2, cp:2
 NONUM   = 0FFFFh                ; a line's num: it has none
 L_NUM   = 2
 L_CP    = 4                     ; a line's code in the cache
-LMAX    = 2047                  ; a line's record at most
-LSRC    = 255                   ; a line's text at most; its body is 5 times at most
+LMAX    = 0FEE0h                ; a line's record at most: the store (PROGLIM-PROGBASE)
 BOFF    = 0FFFFh                ; a statement map's body offset of the line's end
 PDIR    = 8000h                 ; a position's tag: the direct line's
 IFNDEF IDE
 IDE     = 0
 ENDIF
+if IDE
+LXCMAX  = 1300                  ; lx_line's column map: an editor line's body
+else
+LXCMAX  = 1                     ; none outside the IDE
+endif
 XSLK    = 48                    ; cm_xlate: the most one op writes past its size
-XLIM    = 2040                  ; compile room: ERR code, EOL still fit
+XLIM    = 0F8E0h                ; a line's code at most: the cache (CLIM-CACHE0-16)
 NL      = 13
 NCH     = 16                    ; channels: the console and 15 files (io/chan.asm)
 CBSZ    = 512                   ; a channel's buffer
@@ -211,6 +215,8 @@ endif
 DCODE    = 0100h                ; in cachb: the direct line's stream
 CACHE0   = DCODE+1536           ; the cache, to CLIM
 CLIM     = 0FFF0h
+.erre LMAX EQ PROGLIM-PROGBASE
+.erre XLIM EQ CLIM-CACHE0-16
 HMIN     = 40000h               ; the heap, arrays and strings: DPMI's, at least
 HROOM    = 10000h               ; the free memory left to the DPMI host
 CSTOP    equ     <(offset g_dsb+0FC00h)>    ; the control stack, down from here
@@ -223,7 +229,6 @@ OBSZ     = 256                  ; plat.asm's output buffer
 
 ; block entries (comp/block.asm): their fields, their kinds
 NBLK    = 2048
-NSTM    = 128                   ; statements a line's map holds
 B_POS   = 0
 B_NXT   = 4
 B_END   = 8

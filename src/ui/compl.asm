@@ -1397,7 +1397,7 @@ ac_prev:
         jne     @apv_t
         cmp     byte ptr [esi+5],0
         je      @apv_e
-        movzx   edi,byte ptr [g_lxcol+5]
+        movzx   edi,word ptr [g_lxcol+5*2]
 @apv_t:
         add     edi,offset g_ui.bf.sy_buf
         mov     esi,edi                 ; its length, to the box's edge

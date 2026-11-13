@@ -410,8 +410,6 @@ externdef g_cbuf:byte
 externdef g_dlprc:byte
 externdef g_etk:byte
 externdef g_lmod:byte
-externdef g_stb:word
-externdef g_stx:word
 externdef g_xbuf:byte
 externdef lbl_at:near
 externdef lbl_nam:near
@@ -443,12 +441,10 @@ externdef cm_link:near
 externdef cm_xlate:near
 externdef g_opsz:byte
 ; comp/list.asm
-externdef g_dlb:byte
 externdef ls_range:near
 externdef ls_text:near
 ; mem/far.asm
 externdef mem_cpy:near
-externdef mem_line:near
 externdef mem_pmov:near
 externdef mem_up:near
 externdef mem_zero:near

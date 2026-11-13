@@ -344,7 +344,7 @@ ed_commit:
         call    ui_canon
         pushf
         jc      @edc_w
-        movzx   ecx,[g_state.io.sbx]
+        mov     ecx,[g_state.io.sbx]
         mov     [g_ui.bf.ed_lb.len],cx
         mov     esi,offset g_sbuf
         mov     edi,offset g_ui.bf.ed_lb.txt
@@ -460,12 +460,14 @@ ui_canon:
         mov     esi,offset g_cbuf
         call    ls_body
         and     [g_state.io.ocap],0
+        cmp     [g_state.io.sbx],LNMAX  ; past an editor line: as typed
+        ja      @uca_k
         clc
         ret
 @uca_k:
         mov     esi,[g_ui.fd.uc_src]
         movzx   ecx,word ptr [g_ui.fd.uc_n]
-        mov     [g_state.io.sbx],cl
+        mov     [g_state.io.sbx],ecx
         mov     edi,offset g_sbuf
         rep     movsb
         clc
@@ -491,7 +493,7 @@ ui_chkop:
 ; then what to do, wrapped for a box.
 ;
 ; in:     ESI  the line's text, 0-ended
-;         EBX  its ERR op: ERR code dg at st
+;         EBX  its ERR op: ERR code dg at:2 st:2
 ; out:    EAX  the column in the text it is at
 ; ::::::::::::::
 ui_dxerr:
@@ -515,10 +517,10 @@ ui_dxerr:
         call    lx_line
         mov     [g_lxall],0
         pop     ebx
-        movzx   eax,byte ptr [ebx+3]
+        movzx   eax,word ptr [ebx+3]
         call    lx_colof
         mov     ax,[ebx+1]
-        mov     dx,[ebx+4]
+        mov     dx,[ebx+5]
         mov     esi,offset g_inbuf
         call    dx_at
         pop     edx
@@ -577,7 +579,7 @@ ui_dxerr:
         and     [g_state.io.sbx],0
         call    edx
         and     [g_state.io.ocap],0
-        movzx   ecx,[g_state.io.sbx]
+        mov     ecx,[g_state.io.sbx]
         mov     esi,offset g_sbuf
         ret
 

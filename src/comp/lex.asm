@@ -22,27 +22,27 @@ DFA_DATA = 1
 include comp/dfa.inc
         .code
 
+; lxroom - Out of memory: the body at DI past a line's record.
+lxroom  macro
+        cmp     edi,[g_lxend]
+        jae     err_om
+endm
+
 ; ::::::::::::::
 ; lx_line - tokenize the text at SI into the body at DI.
 ;
 ; in:     SI  inbuf, 0-terminated
 ;         DI  cbuf
 ; out:    DI  past the body's 0
-; error:  Out of memory  from nam_find, or the text past LSRC
+; error:  Out of memory  from nam_find
+; The body is at most 5 times the text: DI has room for it.
 ; ::::::::::::::
 lx_line:
         mov     [g_state.lx.lxsrc],esi
         mov     [g_state.lx.lxdst],edi
-        push    edi                     ; the body is at most 5 times the text
-        push    ecx
+        lea     eax,[edi+LMAX]
+        mov     [g_lxend],eax
         or      [g_lxlst],-1            ; no item's column yet
-        mov     edi,esi
-        mov     ecx,LSRC+1
-        xor     al,al
-        repne   scasb
-        pop     ecx
-        pop     edi
-        jne     err_om
 lx_item:
         lodsb
         test    al,al
@@ -84,6 +84,7 @@ lx_item:
 @lxl_q:
         stosb                           ; a string: to its quote, as it is
 @lxq_l:
+        lxroom
         lodsb
         test    al,al
         jz      @lxl_e
@@ -98,6 +99,7 @@ lx_item:
         stosb
 @lxl_r:                                 ; REM's text: the rest, as it is
 @lxr_l:
+        lxroom
         lodsb
         stosb
         test    al,al
@@ -127,6 +129,7 @@ lx_item:
         jne     lx_item
         xor     cl,cl                   ; DATA's text: to a ':' out of quotes
 @lxd_l:
+        lxroom
         lodsb
         test    al,al
         jz      @lxl_e
@@ -146,7 +149,8 @@ lx_item:
         jmp     lx_item
 
 ; ::::::::::::::
-; lx_col - the item at SI-1: its column to lxcol at the body's offset.
+; lx_col - the item at SI-1: its column to lxcol at the body's offset; the
+; body within a line's record.
 ;
 ; keeps:  all
 ; ::::::::::::::
@@ -156,23 +160,25 @@ lx_col:
         push    ecx
         mov     ebx,edi
         sub     ebx,[g_state.lx.lxdst]
-        cmp     ebx,LMAX
+        cmp     ebx,LMAX                ; past a line's record: the store's
+        jae     err_om
+        cmp     ebx,LXCMAX
         jae     @lxc_r
         cmp     [g_lxall],0             ; the bytes since the last item: its
         je      @lxc_s                  ; column, when lx_colof is to be asked
         mov     ecx,[g_lxlst]
-        mov     al,[g_lxlc]
+        mov     ax,[g_lxlc]
 @@:
         inc     ecx
         cmp     ecx,ebx
         jae     @lxc_s
-        mov     [g_lxcol+ecx],al
+        mov     [g_lxcol+ecx*2],ax
         jmp     @B
 @lxc_s:
         lea     eax,[esi-1]
         sub     eax,[g_state.lx.lxsrc]
-        mov     [g_lxcol+ebx],al
-        mov     [g_lxlc],al
+        mov     [g_lxcol+ebx*2],ax
+        mov     [g_lxlc],ax
         mov     [g_lxlst],ebx
 @lxc_r:
         pop     ecx
@@ -196,16 +202,17 @@ lx_colof:
         jbe     @lxo_c
         mov     eax,[g_lxlst]
 @lxo_c:
-        movzx   ecx,byte ptr [g_lxcol+eax]
+        movzx   ecx,word ptr [g_lxcol+eax*2]
         pop     eax
 @@:
         ret
 
         .data?
-g_lxcol db      LMAX dup(?)
+g_lxcol dw      LXCMAX dup(?)
 g_lxlst dd      ?                       ; the last item's offset, -1 none
+g_lxend dd      ?                       ; the body's limit: a line's record
 g_lxall db      ?                       ; 1: every byte's column, for lx_colof
-g_lxlc  db      ?                       ; its column
+g_lxlc  dw      ?                       ; its column
         .code
 
 ; ::::::::::::::
@@ -260,6 +267,7 @@ lx_num:
         xor     ecx,ecx
         mov     [g_state.lx.lxf],0
 @lxn_d:
+        lxroom
         movzx   eax,byte ptr [esi]
         sub     al,'0'
         cmp     al,10

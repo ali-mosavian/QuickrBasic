@@ -784,8 +784,8 @@ ex_smap:
         movzx   ebx,word ptr [g_progb+ebx+L_CP]
         add     ebx,offset g_cachb
         sub     eax,ebx
-        movzx   ecx,byte ptr [ebx-1]   ; the count, after the entries
-        lea     edi,[ecx*4+1]
+        movzx   ecx,word ptr [ebx-2]   ; the count, after the entries
+        lea     edi,[ecx*4+2]
         neg     edi
         add     edi,ebx
 @esm_l:
@@ -1038,8 +1038,8 @@ ex_bjump:
         call    ex_line
         pop     edx
         pop     eax
-        movzx   ecx,byte ptr [esi-1]    ; the map: n of boff:2 coff:2, then n
-        lea     edi,[ecx*4+1]
+        movzx   ecx,word ptr [esi-2]    ; the map: n of boff:2 coff:2, then n:2
+        lea     edi,[ecx*4+2]
         neg     edi
         add     edi,esi
         movzx   ebx,word ptr [edx+2]

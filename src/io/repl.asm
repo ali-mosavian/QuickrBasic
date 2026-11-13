@@ -219,7 +219,7 @@ endif
 ; as LIST spells it, a mark under the place, what is wrong and what to do.
 ; Any other error: nothing.
 ;
-; in:     opip  the op that raised it: ERR code dg at st, the compiler's
+; in:     opip  the op that raised it: ERR code dg at:2 st:2, the compiler's
 ;         ln    its line
 ; ::::::::::::::
 er_diag:
@@ -228,15 +228,13 @@ er_diag:
         jne     @erd_r
         mov     ax,[ebx+1]
         push    eax
-        push    dword ptr [ebx+4]       ; the automaton's state
-        movzx   eax,byte ptr [ebx+3]
+        push    dword ptr [ebx+5]       ; the automaton's state
+        movzx   eax,word ptr [ebx+3]
         mov     esi,offset g_cbuf
         movzx   ebx,[g_state.rn.ln]
         cmp     ebx,DLINE
         je      @F
-        mov     edi,offset g_dlb
-        call    mem_line
-        mov     esi,offset g_dlb+HDR
+        lea     esi,[g_progb+ebx+HDR]
 @@:
         call    ls_text
         pop     edx

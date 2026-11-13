@@ -85,7 +85,7 @@ hl_line:
         sub     ebx,offset g_hlbody
         cmp     ebx,LMAX
         jae     @hxl_r
-        movzx   ebx,byte ptr [g_lxcol+ebx]
+        movzx   ebx,word ptr [g_lxcol+ebx*2]
         lodsb
         test    al,al
         jz      @hxl_r

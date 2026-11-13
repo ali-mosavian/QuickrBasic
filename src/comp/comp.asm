@@ -64,7 +64,9 @@ cm_text:
         mov     [g_state.cm.clle],eax
         mov     [g_state.cm.ccmpe],eax
         mov     edi,[g_state.cm.cxb]
-        lea     eax,[edi+XLIM]
+        lea     eax,[edi+XLIM+12]       ; the map down from the top, 12 bytes
+        mov     [g_state.cm.cmap],eax   ; above the code for ERR, EOL
+        sub     eax,12
         mov     [g_state.cm.cxlim],eax
         inc     esi
         call    lbl_at                  ; a label: on from its ':'
@@ -150,11 +152,7 @@ cm_err:
         mov     [g_state.cm.cdg],0
         mov     eax,esi
         sub     eax,[g_state.cm.cbase]
-        cmp     eax,255
-        jbe     @F
-        mov     al,255
-@@:
-        stosb
+        stosw
         or      eax,-1
         xchg    ax,[g_state.cm.cdfa]
         stosw
@@ -296,30 +294,35 @@ cm_dbgx:
         ret
 
 ; ::::::::::::::
-; cm_markb - record a statement at body offset AX.
+; cm_markb - record a statement at body offset AX: below the map, its
+; body offset:2 and its code's offset in xbuf:2. No room: the code is full.
 ;
 ; keeps:  all
 ; ::::::::::::::
 cm_markb:
         push    ebx
+        push    edx
         movzx   ebx,[g_state.cm.nst]
-        cmp     ebx,NSTM
-        jae     @cmb_r
-        mov     [g_stb+ebx*2],ax
-        push    eax
-        mov     eax,edi
-        sub     eax,[g_state.cm.cxb]
-        mov     [g_stx+ebx*2],ax
-        pop     eax
+        mov     edx,[g_state.cm.cmap]
+        lea     ebx,[ebx*4+4]
+        sub     edx,ebx                 ; the entry
+        lea     ebx,[edi+8]
+        cmp     edx,ebx
+        jb      @cmb_f
+        mov     [edx],ax
+        mov     ebx,edi
+        sub     ebx,[g_state.cm.cxb]
+        mov     [edx+2],bx
+        sub     edx,12
+        mov     [g_state.cm.cxlim],edx
         inc     [g_state.cm.nst]
 @cmb_r:
+        pop     edx
         pop     ebx
         ret
-
-        .data?
-g_stb   dw      NSTM dup(?)             ; a statement's body offset
-g_stx   dw      NSTM dup(?)             ; its code's offset in xbuf
-        .code
+@cmb_f:
+        mov     [g_state.cm.cxlim],edi
+        jmp     @cmb_r
 
 ; ::::::::::::::
 ; cm_tok - compile the statement at SI.
@@ -2150,7 +2153,7 @@ cm_skip:
 g_dlprc db      0                 ; the direct line's procedure, 0 the module
         .data?
 g_cbufh db      ?                 ; cbuf-1: lx_line's line before the body
-g_cbuf  db      LMAX+8 dup(?)
+g_cbuf  db      LMAX+64 dup(?)          ; a typed line's body: lx_line's limit, an item
 g_xbuf  db      XLIM+12 dup(?)
 g_dmask dq      ?                 ; cm_dsubs: bit i, subscript i its hi only
         .code

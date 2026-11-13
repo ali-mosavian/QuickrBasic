@@ -215,7 +215,7 @@ fx_cap:
 ; fx_wout - sbuf's text, its spaces left out, to the output; the next op.
 fx_wout:
         mov     [g_state.io.ocap],0
-        movzx   ecx,[g_state.io.sbx]
+        mov     ecx,[g_state.io.sbx]
         xor     ebx,ebx
 @fwo_l:
         cmp     ebx,ecx

@@ -69,9 +69,9 @@ io_putc:
         ret
 @iop_s:
         push    ebx
-        movzx   ebx,[g_state.io.sbx]
-        cmp     bl,255                  ; full: the rest dropped
-        je      @iop_f
+        mov     ebx,[g_state.io.sbx]
+        cmp     ebx,SBMAX               ; full: the rest dropped
+        jae     @iop_f
         mov     [g_sbuf+ebx],al
         inc     [g_state.io.sbx]
 @iop_f:
@@ -340,7 +340,7 @@ io_field:
         ret
 
         .data?
-g_sbuf  db      256 dup(?)
+g_sbuf  db      SBMAX+1 dup(?)
 g_inbuf db      INMAX+1 dup(?)
         .code
 
