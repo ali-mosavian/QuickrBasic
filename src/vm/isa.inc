@@ -11,26 +11,27 @@
 FX      = 1
 FV      = 2
 FB      = 4                     ; the handler is shared: BX = the op * 2
+FK      = 8                     ; pure: the stack alone (comp/fold.asm)
 
 oplist  macro   m
         m       EOL,op_eol,1,0
         m       I_LD_V,bc_I_LD_V,3,FX+FV
-        m       I_LD_I16,bc_I_LD_I16,3,FX
-        m       I_LD_U8,bc_I_LD_U8,2,FX
-        m       I_LD_I32,bc_I_LD_I32,5,FX
+        m       I_LD_I16,bc_I_LD_I16,3,FX+FK
+        m       I_LD_U8,bc_I_LD_U8,2,FX+FK
+        m       I_LD_I32,bc_I_LD_I32,5,FX+FK
         m       I_LD_A1,op_ilda1,3,FX
         m       I_LD_A,op_lda,4,FX
         m       F_LD_V,bc_F_LD_V,3,FX+FV
         m       F_LD_VI,bc_F_LD_VI,3,FX+FV
-        m       F_LD_F32,bc_F_LD_F32,5,FX
-        m       F_LD_U8,bc_F_LD_U8,2,FX
+        m       F_LD_F32,bc_F_LD_F32,5,FX+FK
+        m       F_LD_U8,bc_F_LD_U8,2,FX+FK
         m       F_LD_A1,op_flda1,3,FX
         m       F_LD_A,op_lda,4,FX
         m       S_LD_V,bc_S_LD_V,3,FX+FV
         m       S_LD_TXT,op_sldt,6,FX
         m       S_LD_A1,op_slda1,3,FX
         m       S_LD_A,op_slda,4,FX
-        m       F_LD_PI,bc_F_LD_PI,1,FX
+        m       F_LD_PI,bc_F_LD_PI,1,FX+FK
         m       I_ST_V,bc_I_ST_V,3,FV
         m       F_ST_V,bc_F_ST_V,3,FV
         m       S_ST_V,op_sstv,3,FV
@@ -40,30 +41,30 @@ oplist  macro   m
         m       I_ST_A,op_istan,4,0
         m       F_ST_A,op_fstan,4,0
         m       S_ST_A,op_sstan,4,0
-        m       I_ADD,bc_I_ADD,1,FX
-        m       I_SUB,bc_I_SUB,1,FX
-        m       I_MUL,bc_I_MUL,1,FX
-        m       I_DIV,bc_I_DIV,1,FX
-        m       I_AND,bc_I_AND,1,FX
-        m       I_OR,bc_I_OR,1,FX
+        m       I_ADD,bc_I_ADD,1,FX+FK
+        m       I_SUB,bc_I_SUB,1,FX+FK
+        m       I_MUL,bc_I_MUL,1,FX+FK
+        m       I_DIV,bc_I_DIV,1,FX+FK
+        m       I_AND,bc_I_AND,1,FX+FK
+        m       I_OR,bc_I_OR,1,FX+FK
         m       I_ADD_V,bc_I_ADD_V,3,FX+FV
         m       I_SUB_V,bc_I_SUB_V,3,FX+FV
         m       I_MUL_V,bc_I_MUL_V,3,FX+FV
         m       I_DIV_V,bc_I_DIV_V,3,FX+FV
         m       I_AND_V,bc_I_AND_V,3,FX+FV
         m       I_OR_V,bc_I_OR_V,3,FX+FV
-        m       I_ADD_U8,bc_I_ADD_U8,2,FX
-        m       I_SUB_U8,bc_I_SUB_U8,2,FX
-        m       I_MUL_U8,bc_I_MUL_U8,2,FX
-        m       I_DIV_U8,bc_I_DIV_U8,2,FX
-        m       I_AND_U8,bc_I_AND_U8,2,FX
-        m       I_OR_U8,bc_I_OR_U8,2,FX
-        m       I_NEG,bc_I_NEG,1,FX
-        m       I_NOT,bc_I_NOT,1,FX
-        m       F_ADD,bc_F_ADD,1,FX+FB
-        m       F_SUB,bc_F_SUB,1,FX+FB
-        m       F_MUL,bc_F_MUL,1,FX+FB
-        m       F_DIV,bc_F_DIV,1,FX+FB
+        m       I_ADD_U8,bc_I_ADD_U8,2,FX+FK
+        m       I_SUB_U8,bc_I_SUB_U8,2,FX+FK
+        m       I_MUL_U8,bc_I_MUL_U8,2,FX+FK
+        m       I_DIV_U8,bc_I_DIV_U8,2,FX+FK
+        m       I_AND_U8,bc_I_AND_U8,2,FX+FK
+        m       I_OR_U8,bc_I_OR_U8,2,FX+FK
+        m       I_NEG,bc_I_NEG,1,FX+FK
+        m       I_NOT,bc_I_NOT,1,FX+FK
+        m       F_ADD,bc_F_ADD,1,FX+FB+FK
+        m       F_SUB,bc_F_SUB,1,FX+FB+FK
+        m       F_MUL,bc_F_MUL,1,FX+FB+FK
+        m       F_DIV,bc_F_DIV,1,FX+FB+FK
         m       F_ADD_V,bc_F_ADD_V,3,FX+FV+FB
         m       F_SUB_V,bc_F_SUB_V,3,FX+FV+FB
         m       F_MUL_V,bc_F_MUL_V,3,FX+FV+FB
@@ -72,23 +73,23 @@ oplist  macro   m
         m       F_SUB_VI,bc_F_SUB_VI,3,FX+FV+FB
         m       F_MUL_VI,bc_F_MUL_VI,3,FX+FV+FB
         m       F_DIV_VI,bc_F_DIV_VI,3,FX+FV+FB
-        m       F_ADD_U8,bc_F_ADD_U8,2,FX+FB
-        m       F_SUB_U8,bc_F_SUB_U8,2,FX+FB
-        m       F_MUL_U8,bc_F_MUL_U8,2,FX+FB
-        m       F_DIV_U8,bc_F_DIV_U8,2,FX+FB
-        m       F_ADD_F32,bc_F_ADD_F32,5,FX+FB
-        m       F_SUB_F32,bc_F_SUB_F32,5,FX+FB
-        m       F_MUL_F32,bc_F_MUL_F32,5,FX+FB
-        m       F_DIV_F32,bc_F_DIV_F32,5,FX+FB
-        m       F_NEG,bc_F_NEG,1,FX
-        m       I_CMP,bc_I_CMP,2,FX+FB
+        m       F_ADD_U8,bc_F_ADD_U8,2,FX+FB+FK
+        m       F_SUB_U8,bc_F_SUB_U8,2,FX+FB+FK
+        m       F_MUL_U8,bc_F_MUL_U8,2,FX+FB+FK
+        m       F_DIV_U8,bc_F_DIV_U8,2,FX+FB+FK
+        m       F_ADD_F32,bc_F_ADD_F32,5,FX+FB+FK
+        m       F_SUB_F32,bc_F_SUB_F32,5,FX+FB+FK
+        m       F_MUL_F32,bc_F_MUL_F32,5,FX+FB+FK
+        m       F_DIV_F32,bc_F_DIV_F32,5,FX+FB+FK
+        m       F_NEG,bc_F_NEG,1,FX+FK
+        m       I_CMP,bc_I_CMP,2,FX+FB+FK
         m       I_CMP_V,bc_I_CMP_V,4,FX+FV+FB
-        m       I_CMP_U8,bc_I_CMP_U8,3,FX+FB
-        m       F_CMP,bc_F_CMP,2,FX+FB
+        m       I_CMP_U8,bc_I_CMP_U8,3,FX+FB+FK
+        m       F_CMP,bc_F_CMP,2,FX+FB+FK
         m       F_CMP_V,bc_F_CMP_V,4,FX+FV+FB
         m       F_CMP_VI,bc_F_CMP_VI,4,FX+FV+FB
-        m       F_CMP_U8,bc_F_CMP_U8,3,FX+FB
-        m       F_CMP_F32,bc_F_CMP_F32,6,FX+FB
+        m       F_CMP_U8,bc_F_CMP_U8,3,FX+FB+FK
+        m       F_CMP_F32,bc_F_CMP_F32,6,FX+FB+FK
         m       S_CMP,op_scmp,2,FX+FB
         m       I_CMPIF,bc_I_CMPIF,2,FB
         m       I_CMPIF_V,bc_I_CMPIF_V,4,FV+FB
@@ -103,12 +104,12 @@ oplist  macro   m
         m       F_IF,bc_F_IF,1,0
         m       S_IF,op_sif,1,0
         m       S_CAT,op_scat,1,FX
-        m       I_TOF,bc_I_TOF,1,FX
-        m       F_TOI,bc_F_TOI,1,FX
-        m       F_TOB,bc_F_TOB,1,FX
-        m       F_TOA,bc_F_TOA,1,FX
-        m       I_TOB,bc_I_TOB,1,FX
-        m       I_TOA,bc_I_TOA,1,FX
+        m       I_TOF,bc_I_TOF,1,FX+FK
+        m       F_TOI,bc_F_TOI,1,FX+FK
+        m       F_TOB,bc_F_TOB,1,FX+FK
+        m       F_TOA,bc_F_TOA,1,FX+FK
+        m       I_TOB,bc_I_TOB,1,FX+FK
+        m       I_TOA,bc_I_TOA,1,FX+FK
         m       DROP,bc_DROP,1,FX
         m       CALL,op_call,2,0
         m       GOTO,op_goto,1+sizeof TLREF,0
@@ -132,10 +133,10 @@ oplist  macro   m
         m       FSKIP,op_jmp,JSIZE,0
         m       PCALL,op_pcall,JSIZE+1,0
         m       PRET,op_pret,1,0
-        m       I_MOD,bc_I_MOD,1,FX
-        m       I_XOR,bc_I_XOR,1,FX
-        m       I_EQV,bc_I_EQV,1,FX
-        m       I_IMP,bc_I_IMP,1,FX
+        m       I_MOD,bc_I_MOD,1,FX+FK
+        m       I_XOR,bc_I_XOR,1,FX+FK
+        m       I_EQV,bc_I_EQV,1,FX+FK
+        m       I_IMP,bc_I_IMP,1,FX+FK
         m       R_ADDR,op_raddr,3,0
         m       RA_ADDR,op_raddra,4,0
         m       FL_LD,op_flld,4,0
@@ -146,26 +147,26 @@ oplist  macro   m
         m       ONERR,op_onerr,1+sizeof TLREF,0
         m       ONLERR,op_onlerr,1+sizeof TLREF,0
         m       ONEV,op_onev,2+sizeof TLREF,0
-        m       I_CHK16,op_ichk16,1,FX
+        m       I_CHK16,op_ichk16,1,FX+FK
         m       RESUME,op_resume,2+sizeof TLREF,0
         m       D_LD_V,op_dldv,3,FX+FV
         m       D_ST_V,op_dstv,3,FV
-        m       D_LD_K,op_dldk,9,FX
+        m       D_LD_K,op_dldk,9,FX+FK
         m       D_LD_A1,op_dlda1,3,FX
         m       D_LD_A,op_dlda,4,FX
         m       D_ST_A1,op_dsta1,3,0
         m       D_ST_A,op_dstan,4,0
-        m       D_ADD,op_dadd,1,FX
-        m       D_SUB,op_dsub,1,FX
-        m       D_MUL,op_dmul,1,FX
-        m       D_DIV,op_ddiv,1,FX
-        m       D_NEG,op_dneg,1,FX
-        m       D_CMP,op_dcmp,2,FX
-        m       D_NZ,op_dnz,1,FX
-        m       I_TOD,op_itod,1,FX
-        m       F_TOD,op_ftod,1,FX
-        m       D_TOF,op_dtof,1,FX
-        m       D_TOI,op_dtoi,1,FX
+        m       D_ADD,op_dadd,1,FX+FK
+        m       D_SUB,op_dsub,1,FX+FK
+        m       D_MUL,op_dmul,1,FX+FK
+        m       D_DIV,op_ddiv,1,FX+FK
+        m       D_NEG,op_dneg,1,FX+FK
+        m       D_CMP,op_dcmp,2,FX+FK
+        m       D_NZ,op_dnz,1,FX+FK
+        m       I_TOD,op_itod,1,FX+FK
+        m       F_TOD,op_ftod,1,FX+FK
+        m       D_TOF,op_dtof,1,FX+FK
+        m       D_TOI,op_dtoi,1,FX+FK
         m       D_FN,op_dfn,2,FX
         m       D_POW,op_dpow,1,FX
         m       DBG,op_dbg,1,0
@@ -173,6 +174,7 @@ oplist  macro   m
         m       V_ADDR,op_vaddr,3,0
         m       V_LD,op_vld,4,FX
         m       V_ST,op_vst,4,0
+        m       FOLD,op_fold,1,0
         endm
 
 TJUMP    struc                   ; a jump op's target

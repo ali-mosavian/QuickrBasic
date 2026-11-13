@@ -10,7 +10,7 @@ AC ?= 1                         # ide32: Tab completion, AC=0 leaves it out
 .PHONY: all basic32 ide32 syms test style clean
 
 MODS := main vm/exec vm/flow vm/calls vm/builtins vm/sys vm/bin vm/bc comp/lex comp/decl comp/block comp/ctl comp/comp \
-	comp/expr comp/link comp/list mem/far mem/alloc mem/tab mem/prog mem/sym mem/scope mem/str mem/arr io/io io/errmsg io/diag io/srd io/repl \
+	comp/expr comp/fold comp/link comp/list mem/far mem/alloc mem/tab mem/prog mem/sym mem/scope mem/str mem/arr io/io io/errmsg io/diag io/srd io/repl \
 	io/chan io/fio vm/using io/plat float/flt float/ftr float/fpu float/dbl vm/dbg vm/event vm/chain
 UI := ui/scr ui/mouse ui/compl ui/text ui/edit ui/draw ui/menu ui/dlg ui/lmap ui/dbg ui/dpane ui/win ui/view ui/theme ui/syntax ui/ui
 INC := $(wildcard src/*.inc src/*/*.inc)
@@ -47,6 +47,7 @@ ide32: $(IDE_OBJ)
 
 test:                           # the regressions, QB 4.5 conformance, the generated files
 	$(PY) tools/x86f_test.py build/x86/basic32.exe
+	$(PY) tools/x86fold_test.py build/x86/basic32.exe
 	$(PY) tools/qbconf.py
 	sh test/tools/x86msg.sh
 	sh test/tools/x86syms.sh

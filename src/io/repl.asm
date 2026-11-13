@@ -120,6 +120,7 @@ err_od:
 ;         csp  not 0 while compiling
 ; ::::::::::::::
 err_raise:
+        call    cf_fail
         and     [g_lxfill],0            ; a streamed line's lexing ended
         cmp     [g_dbev],0              ; the probe's: back to it
         jne     dbg_ever

@@ -273,6 +273,7 @@ cm_link:
         jne     cm_rts
         push    esi
         call    var_size
+        call    var_kclr
         call    cm_blocks
         and     [g_state.lnk.cursor],0
         mov     ebx,PROGBASE

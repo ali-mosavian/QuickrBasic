@@ -214,6 +214,14 @@ climbing. Listing spaces a line as QBasic's editor does.
 `tools/x86f_test.py` holds its regressions. `tools/qbconf.py` runs llrm's qb45 suite and
 `tests/run/qb` against it.
 
+## Constant folding
+
+An expression of constants compiles to one load of its value (`comp/fold.asm`). Its code runs as
+it is compiled, through the VM's own handlers, so the value is bit for bit the run's; an op is
+foldable when its flags in `vm/isa.inc` have `FK`. An error while folding leaves the code to raise
+it when run. A CONST whose value folds keeps that load, and a use compiled after it loads the
+value instead of the variable. `tools/x86fold_test.py` checks each case costs what its value does.
+
 ## Editor
 
 `build/x86/ide32.exe` is the same build with `IDE=1`: a QBasic-style editor. `ide32 NAME.BAS`
