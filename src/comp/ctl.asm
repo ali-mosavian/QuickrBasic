@@ -670,9 +670,21 @@ ct_call:
         inc     esi
         call    ct_proc
         jnc     @F
-        call    ct_pchk
+        call    ct_pdecl
         jc      err_sn
-        jmp     ct_none
+        cmp     [g_state.cm.cchk],0
+        jne     ct_none
+        movzx   ecx,byte ptr [esi+1]    ; DECLAREd only: its arguments, then
+        lea     esi,[esi+ecx+4]         ; Subprogram not defined when run
+        cmp     byte ptr [esi],'('
+        jne     @ccl_u
+        inc     esi
+        mov     ah,1
+        call    ct_uarg
+        call    cm_chkcl
+@ccl_u:
+        mov     al,35
+        jmp     ct_undef
 @@:
         push    eax
         push    edx
@@ -1138,6 +1150,99 @@ ct_scall:
         pop     esi
         call    ct_pchk
         jnc     ct_none
+        cmp     byte ptr [esi],M_VAR    ; a SUB DECLAREd only: its arguments,
+        jne     @css_x                  ; then Subprogram not defined when run
+        movzx   ecx,byte ptr [esi+1]
+        movzx   eax,word ptr [esi+ecx+2]
+        test    [g_nflag+eax],NM_SUB
+        jz      @css_x
+        movzx   eax,[g_nprc+eax]
+        test    eax,eax
+        jnz     @css_x
+        lea     esi,[esi+ecx+4]
+        call    st_eos
+        jz      @F
+        cmp     al,TK_EQ
+        je      err_sn
+        xor     ah,ah
+        call    ct_uarg
+@@:
+        mov     al,35
+        jmp     ct_undef
+@css_x:
+        stc
+        ret
+
+; ::::::::::::::
+; ct_pdecl - CF clear: the name at SI is a SUB's or FUNCTION's a DECLARE or a
+; definition named.
+; ::::::::::::::
+ct_pdecl:
+        cmp     byte ptr [esi],M_VAR
+        jne     @cpd_n
+        movzx   ecx,byte ptr [esi+1]
+        movzx   eax,word ptr [esi+ecx+2]
+        test    [g_nflag+eax],NM_SUB+NM_FUNC+NM_FN
+        jz      @cpd_n
+        clc
+        ret
+@cpd_n:
+        stc
+        ret
+
+; ::::::::::::::
+; ct_uarg - the arguments of a procedure DECLAREd only, compiled for their
+; syntax and types, their code dropped: to ')' when AH is set, else to the
+; statement's end. a() passes an array whole.
+; ::::::::::::::
+ct_uarg:
+        push    edi
+@cua_l:
+        test    ah,ah
+        jz      @F
+        cmp     byte ptr [esi],')'
+        je      @cua_r
+        jmp     @cua_a
+@@:
+        push    eax
+        call    st_eos
+        pop     eax
+        jz      @cua_r
+@cua_a:
+        cmp     byte ptr [esi],TK_BYVAL
+        jne     @F
+        inc     esi
+@@:
+        cmp     byte ptr [esi],M_VAR
+        jne     @cua_e
+        movzx   ecx,byte ptr [esi+1]
+        cmp     word ptr [esi+ecx+4],'('+')'*256
+        jne     @cua_e
+        lea     esi,[esi+ecx+6]
+        jmp     @cua_n
+@cua_e:
+        push    eax
+        call    cm_expr
+        pop     eax
+@cua_n:
+        cmp     byte ptr [esi],','
+        jne     @cua_r
+        inc     esi
+        jmp     @cua_l
+@cua_r:
+        pop     edi
+        ret
+
+; ::::::::::::::
+; ct_undef - ERROR AL: a call of a procedure no SUB or FUNCTION defines,
+; raised when it runs, as BC's linker finds none.
+; ::::::::::::::
+ct_undef:
+        movzx   eax,al
+        call    cm_lint
+        mov     al,K_ERROR
+        call    cm_call
+        clc
         ret
 
 ; ::::::::::::::

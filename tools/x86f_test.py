@@ -519,6 +519,10 @@ CASES = {
     "qb_blk_loop": ("PRINT 1\r\nLOOP\r\n", "LOOP without DO in line", " 1"),
     # &H and &O took no type suffix: &HFF& was a Syntax error at the &.
     "qb_hex_sfx": ("CONST a% = &H10%, b& = &HFF&: PRINT a%; b&; &O17&; &HFFFF&\r\n", " 16  255  15  65535 \r\n", "ERROR"),
+    # A call of a SUB or FUNCTION only DECLAREd was a syntax error; as BC's, it compiles and fails when run.
+    "qb_pdecl": ('DECLARE SUB ext (a%, b$)\r\nDECLARE FUNCTION fx% (a%)\r\nON ERROR GOTO h\r\next 1, "x"\r\n'
+                 'CALL ext(2, "y")\r\ny = fx%(3) + 1\r\nPRINT "d"\r\nEND\r\nh: PRINT ERR;: RESUME NEXT\r\n',
+                 " 35  35  18 d\r\n", "ERROR"),
     "qb_blk_next2": ("FOR i = 1 TO 2: FOR j = 1 TO 2: NEXT j, i: PRINT \"ok\"\r\n", "ok", "ERROR"),
     "qb_sng_range": ('PRINT VAL("1.23456789012"); 1E-45; 1 / 1E-45\r\n'
                      'a! = 3.4E+38: d# = 1D+40: x! = 1E-38: PRINT a! * 10; CSNG(d#); x! / 1000\r\n',

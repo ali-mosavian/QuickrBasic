@@ -624,6 +624,25 @@ cm_lval:
 @rt_exp1:
         ret
 
+; @cld_u - a FUNCTION DECLAREd only: its arguments, Function not defined
+; when run, then its result variable's value for the expression's type.
+@cld_u:
+        mov     [g_vfs],1
+        call    var_id
+        mov     [g_vfs],0
+        push    ebx
+        cmp     byte ptr [esi],'('
+        jne     @F
+        inc     esi
+        mov     ah,1
+        call    ct_uarg
+        call    cm_chkcl
+@@:
+        mov     al,18
+        call    ct_undef
+        pop     ebx
+        jmp     @cld_n
+
 ; ::::::::::::::
 ; cm_load - a variable's value: X.LD.V id, a FUNCTION's or DEF FN's call, or the
 ; subscripts and X.LD.A1 id, X.LD.A id n.
@@ -640,7 +659,7 @@ cm_load:
         jz      @cld_v
         movzx   edx,[g_nprc+eax]
         test    edx,edx
-        jz      @cld_v
+        jz      @cld_u
         cmp     byte ptr [esi+ecx+4],'('
         je      ct_fcall
         cmp     dl,[g_state.cm.cproc]
@@ -653,6 +672,7 @@ cm_load:
         jnc     rc_load
 @@:
         call    cm_name
+@cld_n:
         mov     dl,[g_sinfo+ebx]
         test    dl,dl
         js      @cld_a

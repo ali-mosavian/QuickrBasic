@@ -336,6 +336,8 @@ externdef ct_fcall:near
 externdef ct_fskip:near
 externdef ct_jf:near
 externdef ct_stmt:near
+externdef ct_uarg:near
+externdef ct_undef:near
 externdef g_ctfet:byte
 externdef g_ctffix:word
 externdef g_rfet:byte
