@@ -1013,6 +1013,12 @@ cm_un:
         ret
 @cu_dq:
         call    cm_farg
+        cmp     cl,TK_VAL-TK_SGN        ; VAL: a DOUBLE, as BC's
+        jne     @F
+        mov     [g_state.cm.cty],T_DBL
+        mov     al,K_DVAL
+        jmp     cm_call
+@@:
         mov     al,cl
         add     al,K_FN
         jmp     cm_call

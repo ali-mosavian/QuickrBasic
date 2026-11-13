@@ -490,6 +490,12 @@ CASES = {
     # SINGLE's own reader stopped at D, a lowercase e, a space before E: 1.5 -.5 1 .5.
     "qb_val_exp": ('PRINT VAL(" 1.5D3"); VAL("-.5e-3"); VAL("1 e2"); VAL(".5d1")\r\n',
                    " 1500 -.0005  100  5 \r\n", "ERROR"),
+    # BC's SINGLE: past its range infinity, under it a denormal; VAL a DOUBLE. VAL gave 1.234568,
+    # a denormal 0 (and 1 / it Division by zero), the rest error 6.
+    "qb_sng_range": ('PRINT VAL("1.23456789012"); 1E-45; 1 / 1E-45\r\n'
+                     'a! = 3.4E+38: d# = 1D+40: x! = 1E-38: PRINT a! * 10; CSNG(d#); x! / 1000\r\n',
+                     " 1.23456789012  1.401298E-45  1.#INF \r\n 1.#INF  1.#INF  9.999666E-42 \r\n",
+                     "ERROR"),
 }
 
 # Run as files with 8 MB: the heap is the memory free.

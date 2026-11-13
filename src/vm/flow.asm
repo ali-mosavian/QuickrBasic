@@ -972,7 +972,7 @@ op_ijf:
 ; ::::::::::::::
 op_fjf:
         dpop    eax
-        test    eax,7F800000h
+        test    eax,7FFFFFFFh
         jz      ex_bjump
         jmp     @ojf_n
 ; ::::::::::::::
@@ -988,7 +988,7 @@ op_ijt:
 ; ::::::::::::::
 op_fjt:
         dpop    eax
-        test    eax,7F800000h
+        test    eax,7FFFFFFFh
         jnz     ex_bjump
         jmp     @ojf_n
 

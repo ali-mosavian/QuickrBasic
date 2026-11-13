@@ -281,7 +281,7 @@ bc_&nm:
 ; bc_F_NEG - F.NEG ( f -- f ): 0 stays 0.
 ; ::::::::::::::
 bc_F_NEG:
-        test    dword ptr [esp],7F800000h
+        test    dword ptr [esp],7FFFFFFFh
         jz      @F
         xor     byte ptr [esp+3],80h
 @@:
@@ -362,7 +362,7 @@ bc_I_IF:
 ; ::::::::::::::
 bc_F_IF:
         dpop    eax
-        test    eax,7F800000h
+        test    eax,7FFFFFFFh
         jz      ex_nextln
         dispatch
 

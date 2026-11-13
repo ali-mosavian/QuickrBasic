@@ -176,18 +176,20 @@ fn_fstr:
         jmp     str_buftmp
 
 ; ::::::::::::::
-; fn_val - VAL, of a copy with a 0 after it.
-;
-; in:     EAX  the Desc
-; out:    EAX  the FLOAT
+; sc_dval - VAL ( s -- d ), of a copy with a 0 after it: a DOUBLE, as BC's.
 ; ::::::::::::::
-fn_val:
+sc_dval:
+        mov     eax,[esp]
         call    str_get
         push    esi
         call    str_near
-        call    flt_in
+        call    dbl_in
         pop     esi
-        ret
+        mov     eax,dword ptr [g_dval]
+        mov     [esp],eax
+        mov     eax,dword ptr [g_dval+4]
+        mov     [esp+4],eax
+        jmp     ex_lp
 
 ; ::::::::::::::
 ; fn_left - LEFT$.

@@ -173,7 +173,7 @@ externdef fn_peek:near
 externdef fn_pos:near
 externdef fn_sgn:near
 externdef fn_usr:near
-externdef fn_val:near
+externdef sc_dval:near
 externdef sc_erl:near
 externdef sc_err:near
 externdef sc_error:near
@@ -670,7 +670,6 @@ externdef flt_norm:near
 externdef flt_out:near
 externdef flt_sgn:near
 externdef flt_w16:near
-externdef flt_zero:near
 externdef num_amp:near
 ; float/ftr.asm
 externdef flt_pi:near

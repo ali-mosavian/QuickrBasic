@@ -5,7 +5,7 @@
 ; holds:    flt_cmp, flt_neg, flt_abs, flt_sgn, flt_in, flt_out
 ; uses:     err_raise, err_iq, st_get, num_amp, dbl_scale, flt_fmt, io_putc,
 ;           io_space
-; data:     FAC EAX, ARG EDX, packed: s:1 e:8 f:23, an IEEE single; e 0 is zero
+; data:     FAC EAX, ARG EDX, packed: s:1 e:8 f:23, an IEEE single
 ; calls:
 ;   flt_in
 ;     num_amp, flt_insg, st_get
@@ -18,15 +18,6 @@ include x86f.inc
         .code
 
 ; below the 24-bit significand, as src/core/num/num_f32.s.
-
-; ::::::::::::::
-; flt_zero - FAC = 0.
-;
-; out:    EAX  0
-; ::::::::::::::
-flt_zero:
-        xor     eax,eax
-        ret
 
 ; ::::::::::::::
 ; err_ov - ?OVERFLOW.
@@ -44,7 +35,7 @@ err_ov:
 ; out:    EAX  the result, packed
 ; ::::::::::::::
 flt_neg:
-        test    eax,7F800000h
+        test    eax,7FFFFFFFh
         jz      @F
         xor     eax,80000000h
 @@:
@@ -104,7 +95,7 @@ flt_key:
 ; out:    AL  1, 0 or FFh
 ; ::::::::::::::
 flt_sgn:
-        test    eax,7F800000h
+        test    eax,7FFFFFFFh
         jz      @f_s0
         test    eax,eax
         mov     al,1
@@ -172,6 +163,8 @@ flt_w16:
         cmp     al,al
         ret
 @fwh_z:
+        test    eax,7FFFFFh             ; a denormal: not whole
+        jnz     @fwh_r
         xor     ax,ax
         ret
 @fwh_n:
@@ -261,7 +254,6 @@ num_amp:
 ; in:     SI   the text
 ; out:    EAX  the number
 ;         SI   the first byte not taken
-; error:  ?OVERFLOW  past the largest FLOAT
 ; ::::::::::::::
 flt_in:
         call    dbl_in
@@ -270,14 +262,6 @@ flt_dv:
         fld     [g_dval]
         fstp    dword ptr [g_state.ft.fpa]
         mov     eax,[g_state.ft.fpa]
-        mov     ecx,eax
-        and     ecx,7F800000h
-        cmp     ecx,7F800000h
-        je      err_ov
-        test    ecx,ecx                 ; under the smallest: 0
-        jnz     @F
-        and     eax,80000000h
-@@:
         ret
 
 ; ::::::::::::::

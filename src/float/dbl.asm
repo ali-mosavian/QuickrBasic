@@ -679,10 +679,6 @@ op_ftod:
 op_dtof:
         fld     qword ptr [esp]
         fstp    dword ptr [esp]
-        mov     eax,[esp]
-        and     eax,7F800000h
-        cmp     eax,7F800000h
-        je      err_ov
         dispatch
 
 ; ::::::::::::::

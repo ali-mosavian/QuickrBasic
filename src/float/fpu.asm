@@ -4,8 +4,9 @@
 ; holds:    flt_finit, flt_add .. flt_div, flt_from16, flt_from32,
 ;           flt_fromu16, flt_fix16, flt_fixu16, flt_fix32, flt_int, fn_pow, fn_sqr ..
 ;           fn_atn, ex_fclr, fx_exp .. fx_atn: the x87 cores DOUBLE shares
-; uses:     flt_zero, err_ov, err_iq, err_raise
-; data:     a packed FLOAT is an x87 single: e 0 is 0, e 255 is ?OVERFLOW.
+; uses:     err_ov, err_iq, err_raise
+; data:     a packed FLOAT is an x87 single; past its range infinity, under
+;           it a denormal, as BC's.
 ;           Every routine takes and returns packed singles; the x87 stack is
 ;           empty between them.
 ; calls:
@@ -75,27 +76,20 @@ flt_fld:
 ; in:     EAX  the FAC, packed
 ;         EDX  the ARG, packed
 ; out:    EAX  the result, packed
-; error:  ?OVERFLOW  past EMAX
 ; ::::::::::::::
 flt_add:
         call    flt_fld
         fadd    dword ptr [g_state.ft.fpa]
 
 ; ::::::::::::::
-; flt_fst - pop the x87's result; a denormal is 0, an infinity ?OVERFLOW.
+; flt_fst - pop the x87's result.
 ;
 ; in:     st0  the result
 ; out:    EAX  the result, packed
-; error:  ?OVERFLOW  an infinity
 ; ::::::::::::::
 flt_fst:
         fstp    dword ptr [g_state.ft.fpa]
         mov     eax,[g_state.ft.fpa]
-        mov     ecx,eax
-        and     ecx,7F800000h
-        jz      flt_zero
-        cmp     ecx,7F800000h
-        je      err_ov
         ret
 
 ; ::::::::::::::
@@ -104,7 +98,6 @@ flt_fst:
 ; in:     EAX  the FAC, packed
 ;         EDX  the ARG, packed
 ; out:    EAX  the result, packed
-; error:  ?OVERFLOW  past EMAX
 ; ::::::::::::::
 flt_sub:
         call    flt_fld
@@ -117,7 +110,6 @@ flt_sub:
 ; in:     EAX  the FAC, packed
 ;         EDX  the ARG, packed
 ; out:    EAX  the result, packed
-; error:  ?OVERFLOW  past EMAX
 ; ::::::::::::::
 flt_mul:
         call    flt_fld
@@ -131,10 +123,9 @@ flt_mul:
 ;         EDX  the dividend, packed
 ; out:    EAX  the result, packed
 ; error:  ?DIVISION BY ZERO  FAC 0
-;         ?OVERFLOW          past EMAX
 ; ::::::::::::::
 flt_div:
-        test    eax,0FF000000h
+        test    eax,7FFFFFFFh
         jnz     @ffd_g
         mov     al,E_DZ
         jmp     err_raise
@@ -427,22 +418,6 @@ fx_atn:
         ret
 
 ; ::::::::::::::
-; flt_xchk - a result: a denormal is 0, an infinity ?OVERFLOW.
-;
-; in:     EAX  the result
-; out:    EAX  the result, packed
-; keeps:  BX, SI, DI
-; error:  ?OVERFLOW  an infinity
-; ::::::::::::::
-flt_xchk:
-        mov     ecx,eax
-        and     ecx,7F800000h
-        jz      flt_zero
-        cmp     ecx,7F800000h
-        je      err_ov
-        ret
-
-; ::::::::::::::
 ; ex_fclr - an error leaves nothing on the x87 stack.
 ; ::::::::::::::
 ex_fclr:
@@ -504,11 +479,7 @@ fn_exp:
         fldcw   [g_fcwx]
         call    fx_exp
         fldcw   [g_fcw]
-        fstp    dword ptr [g_state.ft.fpa]
-        mov     eax,[g_state.ft.fpa]
-        test    eax,7F800000h
-        jz      flt_zero
-        ret
+        jmp     flt_fst
 ; ::::::::::::::
 ; fn_log .. fn_atn - EAX through its x87 core.
 ; ::::::::::::::

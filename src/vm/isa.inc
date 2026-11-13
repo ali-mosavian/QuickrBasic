@@ -356,6 +356,7 @@ qbklist macro   m
         m       USS,sc_uss
         m       USE,sc_use
         m       USEN,sc_usen
+        m       DVAL,sc_dval
         endm
 kc      = K_MID2+1
 kdef    macro   n,h

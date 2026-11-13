@@ -575,7 +575,7 @@ ktab    macro   n,h
 
 g_bflt  dd      flt_add,flt_sub,flt_mul,flt_div,fn_pow
 g_fntab dd      fn_sgn,fn_int,fn_abs,fn_usr,fn_fre,fn_pos,fn_sqr,fn_rnd,fn_log,fn_exp
-        dd      fn_cos,fn_sin,fn_tan,fn_atn,fn_peek,fn_len,fn_fstr,fn_val,fn_asc
+        dd      fn_cos,fn_sin,fn_tan,fn_atn,fn_peek,fn_len,fn_fstr,0,fn_asc
         dd      fn_chr
         .code
 
