@@ -786,7 +786,10 @@ def play() -> None:
     s.send({"cmd": "key", "scancode": F5, "ascii": 0, "stop": False})  # a loop reads no key
     s.resume(300)
     s.send({"cmd": "key", "scancode": 0x2E, "ascii": 3, "stop": False})
-    s.resume(500)
+    for _ in range(40):  # the stop's drawing takes 0.5 s or more
+        s.resume(100)
+        if lit()[0]:
+            break
     assert lit()[0] in [(0, "DO"), (1, "x = x + 1"), (1, "y = y + 1"), (2, "LOOP")], (lit(), look())
 
     def box() -> list[str]:
