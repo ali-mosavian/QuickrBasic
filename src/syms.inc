@@ -650,6 +650,7 @@ externdef plt_rdtim:near
 externdef err_ov:near
 externdef flt_abs:near
 externdef flt_cmp:near
+externdef flt_dv:near
 externdef flt_in:near
 externdef flt_insg:near
 externdef flt_norm:near
@@ -698,7 +699,6 @@ externdef g_fcwx:word
 externdef dbl_digits:near
 externdef dbl_fmt:near
 externdef dbl_in:near
-externdef dbl_scale:near
 externdef flt_fmt:near
 externdef g_dbig:dword
 externdef g_dbuf:byte

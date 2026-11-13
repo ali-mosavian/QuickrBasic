@@ -487,6 +487,9 @@ CASES = {
     "qb_pow_sng": ('ON ERROR GOTO h\r\nz! = 0: m! = -1: t! = -2: x = z! ^ m!: x = m! ^ 2147483648!\r\n'
                    'x = z! ^ -2147483649!: x = t! ^ 1E+30\r\nEND\r\nh: PRINT ERR: RESUME NEXT\r\n',
                    " 5 \r\n 5 \r\n 5 \r\n 5 \r\n", "ERROR"),
+    # SINGLE's own reader stopped at D, a lowercase e, a space before E: 1.5 -.5 1 .5.
+    "qb_val_exp": ('PRINT VAL(" 1.5D3"); VAL("-.5e-3"); VAL("1 e2"); VAL(".5d1")\r\n',
+                   " 1500 -.0005  100  5 \r\n", "ERROR"),
 }
 
 # Run as files with 8 MB: the heap is the memory free.

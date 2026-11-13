@@ -63,7 +63,9 @@ dbl_scale:
         ret
 
 ; ::::::::::::::
-; dbl_in - read [sign] digits [. digits] [E|D [sign] digits] [# | !].
+; dbl_in - read &H|&O digits, or [sign] digits [. digits] [E|D [sign] digits]
+; [# | !]; spaces between are skipped, as BC's VAL and INPUT. The one number
+; reader: a SINGLE's is this, rounded (flt_in).
 ;
 ; in:     SI  the text, or spaces before it
 ; out:    dval  the value
@@ -76,6 +78,20 @@ dbl_in:
         push    ecx
         push    edx
         push    edi
+        call    st_get
+        cmp     al,'&'
+        jne     @din_n
+        inc     esi
+        call    num_amp
+        jc      @din_na
+        mov     [g_dtmp],edx
+        fild    dword ptr [g_dtmp]
+        fstp    [g_dval]
+        xor     eax,eax
+        jmp     @din_r
+@din_na:
+        dec     esi
+@din_n:
         fldcw   [g_fcwq]
         call    flt_insg
         mov     [g_dsg],al
@@ -87,7 +103,7 @@ dbl_in:
         xor     edx,edx                 ; the power of ten
         xor     ebx,ebx                 ; BL a point seen, BH the kind
 @din_l:
-        mov     al,[esi]
+        call    st_get
         cmp     al,'.'
         je      @din_p
         sub     al,'0'
@@ -137,7 +153,7 @@ dbl_in:
         inc     esi
         jmp     @din_l
 @din_e:
-        mov     al,[esi]
+        call    st_get
         and     al,0DFh
         cmp     al,'D'
         jne     @F
@@ -153,7 +169,8 @@ dbl_in:
         mov     [g_dtmp],eax
         xor     edx,edx
 @@:
-        movzx   eax,byte ptr [esi]
+        call    st_get
+        movzx   eax,al
         sub     al,'0'
         cmp     al,9
         ja      @F
@@ -171,7 +188,7 @@ dbl_in:
         pop     eax
         add     edx,eax
 @din_s:
-        mov     al,[esi]
+        call    st_get
         cmp     al,'#'
         jne     @F
         inc     esi
@@ -204,6 +221,7 @@ dbl_in:
         call    dbl_chk
         pop     edi
         mov     al,bh
+@din_r:
         pop     edi
         pop     edx
         pop     ecx

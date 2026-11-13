@@ -210,21 +210,7 @@ TCHAN    struc                   ; a channel (io/chan.asm)
 TCHAN    ends
 
 TFLT     struc                   ; the float routines
-    fx      db      ?
-    ff      db      ?
-    fq      db      ?
-    fd      db      ?
-    fsg     db      ?
-    ft2     dd      ?
-    ft3     dd      ?
-    ft4     dd      ?
-    fipt    dd      ?
-    fcnt    dw      ?
-    flog    dw      ?
     rs      dd      ?
-    sqa     dd      ?
-    sqg     dd      ?
-    sqn     db      ?
     fpa     dd      ?
     fpb     dd      ?
     fpw     dw      ?

@@ -2,7 +2,7 @@
 ; expr.asm - the expression compiler
 ; ==========================================================================
 ; holds:    cm_expr, cm_p, cm_un and the operand loads
-; uses:     cm_op .., st_get, flt_in, var_id
+; uses:     cm_op .., st_get, dbl_in, flt_dv, var_id
 ; data:     Every operand is pushed; an operator takes the cells it needs. A
 ;           right operand that is one load folds into the operator: F.ADD.V,
 ;           I.CMP.U8 ...
@@ -869,16 +869,10 @@ cm_un:
         jb      @cu_7
         cmp     al,'9'
         ja      @cu_7
-        push    esi
         call    dbl_in
         cmp     al,1
         je      @cu_dk
-        pop     esi
-        call    flt_in
-        cmp     byte ptr [esi],'!'
-        jne     @F
-        inc     esi
-@@:
+        call    flt_dv
         mov     [g_state.cm.cty],T_FLT
         push    eax
         mov     al,O_F_LD_F32
@@ -888,7 +882,6 @@ cm_un:
         mov     [g_ckon],edi
         ret
 @cu_dk:                                 ; a DOUBLE: D.LD.K q
-        add     esp,4
         mov     [g_state.cm.cty],T_DBL
         mov     al,O_D_LD_K
         call    cm_op

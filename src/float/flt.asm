@@ -256,104 +256,20 @@ num_amp:
         ret
 
 ; ::::::::::::::
-; flt_in - read [sign] digits [. digits] [E [sign] digits]; compiling: a scan.
+; flt_in - dbl_in's number as a SINGLE.
 ;
 ; in:     SI   the text
-;         csp  not 0 while compiling
 ; out:    EAX  the number
 ;         SI   the first byte not taken
-; keeps:  DI
 ; error:  ?OVERFLOW  past the largest FLOAT
 ; ::::::::::::::
 flt_in:
-        call    st_get                  ; &H, &O: an INT's digits
-        cmp     al,'&'
-        jne     @fi_g
-        inc     esi
-        call    num_amp
-        jc      @fi_na
-        mov     eax,edx
-        jmp     flt_from32
-@fi_na:
-        dec     esi
-@fi_g:
-        xor     ebx,ebx                 ; w
-        mov     dword ptr [g_state.ft.fx],0        ; fx ff fq fd
-        call    flt_insg
-        mov     [g_state.ft.fsg],al
-@fi_dl:
-        call    st_get
-        xor     al,'0'
-        cmp     al,10
-        jae     @fi_nd
-        inc     esi
-        cmp     ebx,100000000           ; 9 digits, the rest their power
-        jae     @fi_xd
-        imul    ebx,ebx,10
-        movzx   eax,al
-        add     ebx,eax
-        test    [g_state.ft.ff],80h
-        jz      @fi_dl
-        dec     [g_state.ft.fx]
-        jmp     @fi_dl
-@fi_xd:
-        test    [g_state.ft.ff],80h
-        jnz     @fi_dl
-        inc     [g_state.ft.fx]
-        jmp     @fi_dl
-@fi_nd:
-        cmp     al,'.' xor '0'
-        jne     @fi_ne
-        test    [g_state.ft.ff],80h
-        jnz     @fi_end
-        or      [g_state.ft.ff],80h
-        inc     esi
-        jmp     @fi_dl
-@fi_ne:
-        cmp     al,'E' xor '0'
-        jne     @fi_end
-        or      [g_state.ft.ff],40h
-        inc     esi
-        call    flt_insg
-        mov     [g_state.ft.fd],al
-@fi_el:
-        call    st_get
-        xor     al,'0'
-        cmp     al,10
-        jae     @fi_end
-        inc     esi
-        mov     cl,al
-        mov     al,127
-        cmp     [g_state.ft.fq],12
-        jae     @F
-        mov     al,[g_state.ft.fq]
-        imul    ax,ax,10
-        add     al,cl
-@@:
-        mov     [g_state.ft.fq],al
-        jmp     @fi_el
-@fi_end:
-        mov     al,[g_state.ft.fq]                 ; fx +- exponent, within +-127
-        mov     cl,[g_state.ft.fd]
-        xor     al,cl
-        add     cl,cl
-        adc     al,[g_state.ft.fx]
-        jno     @F
-        mov     al,[g_state.ft.fd]
-        xor     al,7Fh
-@@:
-        movsx   eax,al                  ; w * 10^fx on the x87, rounded once
-        push    ebx
-        fldcw   [g_fcwx]
-        fild    dword ptr [esp]
-        call    dbl_scale
-        cmp     [g_state.ft.fsg],0
-        je      @F
-        fchs
-@@:
-        fstp    dword ptr [esp]
-        fldcw   [g_fcw]
-        pop     eax
+        call    dbl_in
+; flt_dv - dval as a SINGLE, in EAX.
+flt_dv:
+        fld     [g_dval]
+        fstp    dword ptr [g_state.ft.fpa]
+        mov     eax,[g_state.ft.fpa]
         mov     ecx,eax
         and     ecx,7F800000h
         cmp     ecx,7F800000h
