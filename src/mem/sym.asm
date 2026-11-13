@@ -1,16 +1,18 @@
 ; ==========================================================================
 ; sym.asm - the name table and the variables
 ; ==========================================================================
-; holds:    var_clr, sym_init, var_init, nam_find, var_find
-; uses:     hbot, htop, rd_first
-; data:     A name, 1 .. NNAM-1, as QBasic's name table: nname its text, its
-;           length then its letters in upper case, a suffix left out; nflag
-;           NM_*; nline a label's line. The lexer makes names; what a name
-;           is the compiler finds here.
-;           A variable, 1 .. NSYM-1, as QBasic's variable manager: of a name,
-;           a type (ET_*) and whether an array. vnam, vtyp the name and type;
-;           sinfo bit 7 array, bits 1-0 the kind (3 DEF FN's); vt its slot, an array's header.
-;           Each table chains its hashes from a head, 0 ends a chain.
+; holds:    sym_new, var_size, var_clr, var_cell, sym_init, var_init, nam_find, var_find
+; uses:     tab_*, sel_set, hbot, htop, rd_first
+; data:     A name, 1 .. nnams-1, as QBasic's name table: a TNAM in nams,
+;           its text in ntext, its length then its letters in upper case, a
+;           suffix left out. The lexer makes names; what a name is the
+;           compiler finds here.
+;           A variable, 1 .. nsyms-1, as QBasic's variable manager: of a
+;           name, a type (ET_*) and whether an array. vars holds its 8-byte
+;           cell, a TVAR (at FS:id*8) and a TVX. vt is its cell, an array's
+;           header. Compiled code holds cells' addresses: the cells move
+;           only when an edit drops the code. Each table chains its hashes
+;           from a head, 0 ends a chain.
 ; calls:
 ;   nam_find           the name of a text, else a new one
 ;   var_find           the variable of a name, type and kind, else a new one
@@ -19,27 +21,143 @@
 include x86f.inc
         .code
 
+VINIT   = 1024                  ; the first variables' room
+NINIT   = 1024                  ;   names'
+IDMAX   = 0FFFFh                ; ids are words
+VSLACK  = 256                   ; variables past the program's: direct lines'
+
+; ::::::::::::::
+; sym_new - the tables' blocks, after the program's.
+; ::::::::::::::
+sym_new:
+        mov     esi,offset g_state.sym.vars
+        mov     [esi].TTAB.narr,3
+        mov     [esi].TTAB.sz,8         ; the cells, TVAR, TVX
+        mov     dword ptr [esi+4].TTAB.sz,8
+        mov     dword ptr [esi+8].TTAB.sz,8
+        mov     [esi].TTAB.max,IDMAX
+        mov     ecx,VINIT
+        mov     ebx,offset var_place
+        call    tab_new
+        call    var_place
+        mov     esi,offset g_state.sym.nams
+        mov     [esi].TTAB.narr,2
+        mov     [esi].TTAB.sz,8         ; TNAM, the chains
+        mov     dword ptr [esi+4].TTAB.sz,2
+        mov     [esi].TTAB.max,IDMAX
+        mov     ecx,NINIT
+        mov     ebx,offset nam_place
+        call    tab_new
+        mov     esi,offset g_state.sym.ntext
+        mov     [esi].TTAB.narr,1
+        mov     [esi].TTAB.sz,1
+        mov     [esi].TTAB.max,IDMAX*256
+        mov     ecx,NINIT*8
+        mov     ebx,offset txt_place
+        jmp     tab_new
+
+; ::::::::::::::
+; var_place - the variables' block moved or grew: FS, and scalars' vt by
+; the cells' move.
+; ::::::::::::::
+var_place:
+        mov     esi,offset g_state.sym.vars
+        call    tab_place
+        mov     eax,[esi].TTAB.base     ; EAX the cells' move
+        sub     eax,edx
+        mov     edx,[esi+4].TTAB.at
+        mov     ecx,[esi].TTAB.cap
+        shl     ecx,3
+        mov     bx,[g_state.sym.vsel]
+        call    sel_set
+        mov     [g_state.sym.vsel],bx
+        mov     fs,bx
+        test    eax,eax
+        jz      @vp_r
+        mov     ebx,1
+@vp_l:
+        cmp     bx,[g_state.lx.nsyms]
+        jae     @vp_r
+        test    fs:[ebx*8].TVAR.info,80h
+        jnz     @F
+        cmp     fs:[ebx*8].TVAR.vt,0
+        je      @F
+        add     fs:[ebx*8].TVAR.vt,eax
+@@:
+        inc     ebx
+        jmp     @vp_l
+@vp_r:
+        ret
+
+nam_place:
+        mov     esi,offset g_state.sym.nams
+        jmp     tab_place
+
+txt_place:
+        mov     esi,offset g_state.sym.ntext
+        jmp     tab_place
+
+; ::::::::::::::
+; var_size - room for the program's variables before it runs: compiled
+; lazily, they are made while the heap holds strings and arrays, when the
+; block cannot grow. Each M_VAR byte in the store counts as one; it may
+; also be another token's byte, never less.
+;
+; keeps:  ESI
+; ::::::::::::::
+var_size:
+        movzx   ecx,[g_state.lx.nsyms]
+        add     ecx,VSLACK
+        mov     ebx,PROGBASE
+@vs_l:
+        mov     edx,gs:[ebx].TLINE.len
+        test    edx,edx
+        jz      @vs_d
+        lea     edi,[ebx+HDR]
+        add     ebx,edx
+@vs_b:
+        cmp     edi,ebx
+        jae     @vs_l
+        cmp     byte ptr gs:[edi],M_VAR
+        jne     @F
+        inc     ecx
+@@:
+        inc     edi
+        jmp     @vs_b
+@vs_d:
+        cmp     ecx,IDMAX
+        jbe     @F
+        mov     ecx,IDMAX
+@@:
+        push    esi
+        mov     esi,offset g_state.sym.vars
+        call    tab_room                ; no room: the variable past it errs
+        pop     esi
+        ret
+
 ; ::::::::::::::
 ; var_clr - CLR: zero variables, drop arrays, reset READ, empty the heap.
 ;
 ; out:    aend, sfr, tsp, dlp, dyo  reset
-; keeps:  SI
+; keeps:  EDX, ESI
 ; ::::::::::::::
 var_clr:
-        mov     edi,VARBASE
-        mov     ecx,NSYM*12              ; varb, svarb
-        xor     al,al
-        rep     stosb
+        mov     edi,[g_state.sym.vars.at]
+        mov     ecx,[g_state.sym.vars.cap]
+        shl     ecx,1
+        xor     eax,eax
+        rep     stosd
         xor     ebx,ebx
+        vxat    eax
 @vc_a:
-        test    [g_sinfo+ebx],80h
+        test    fs:[ebx*8].TVAR.info,80h
         jz      @vc_c
-        mov     [g_vt+ebx*4],0
-        mov     [g_adyn+ebx],0
+        and     fs:[ebx*8].TVAR.vt,0
+        mov     [eax+ebx*8].TVX.dyn,0
         jmp     @vc_n
 @vc_c:
         call    var_cell                ; a parameter's bound elsewhere: back
-        mov     [g_vt+ebx*4],ecx
+        mov     fs:[ebx*8].TVAR.vt,ecx
 @vc_n:
         inc     ebx
         cmp     bx,[g_state.lx.nsyms]
@@ -55,26 +173,16 @@ var_clr:
         jmp     rd_first
 
 ; ::::::::::::::
-; var_cell - scalar EBX's own cell: an INT's, a FLOAT's in VARBASE, a
-; DOUBLE's, a string's Desc in SVBASE. vt holds a scalar's cell: its own,
-; a parameter's the argument's while its procedure runs.
+; var_cell - scalar EBX's own cell: an INT's or a FLOAT's first 4 bytes, a
+; DOUBLE's 8, a string's Desc. vt holds a scalar's cell: its own, a
+; parameter's the argument's while its procedure runs.
 ;
 ; out:    ECX  it
 ; keeps:  all but ECX
 ; ::::::::::::::
 var_cell:
-        lea     ecx,[VARBASE+ebx*4]
-        test    [g_sinfo+ebx],SK_DBL
-        jnz     @vcl_s
-        push    eax
-        mov     al,[g_sinfo+ebx]
-        and     al,3
-        cmp     al,2
-        pop     eax
-        jne     @vcl_r
-@vcl_s:
-        lea     ecx,[SVBASE+ebx*8]
-@vcl_r:
+        mov     ecx,[g_state.sym.vars.at]
+        lea     ecx,[ecx+ebx*8]
         ret
 
 ; ::::::::::::::
@@ -84,7 +192,7 @@ var_cell:
 ; ::::::::::::::
 sym_init:
         mov     [g_state.lx.nnams],1
-        mov     [g_state.lx.nsfree],offset g_snmb
+        and     [g_state.sym.tfree],0
         mov     edi,offset g_nhead
         mov     ecx,HSIZE/2
         xor     eax,eax
@@ -116,7 +224,7 @@ var_init:
 ;         nlen  its length, a suffix left out
 ; out:    EAX  the name
 ; keeps:  ESI, EDI
-; error:  ?OUT OF MEMORY  NNAM names, or the names' room is full
+; error:  ?OUT OF MEMORY  past IDMAX names, or the heap is not empty
 ; ::::::::::::::
 nam_find:
         push    esi
@@ -141,7 +249,9 @@ nam_find:
 @nf_lp:
         test    ebx,ebx
         jz      @nf_new
-        mov     edi,[g_nname+ebx*4]
+        nmat    edi
+        mov     edi,[edi+ebx*8].TNAM.text
+        add     edi,[g_state.sym.ntext.at]
         cmp     cl,[edi]
         jne     @nf_s
         push    ecx
@@ -162,19 +272,30 @@ nam_find:
         pop     esi
         pop     ecx
 @nf_s:
-        movzx   ebx,word ptr [g_nnext+ebx*2]
+        mov     edi,[g_state.sym.nams.at+4]
+        movzx   ebx,word ptr [edi+ebx*2]
         jmp     @nf_lp
-@nf_om:
-        jmp     err_om
 @nf_new:
         movzx   ebx,[g_state.lx.nnams]
-        cmp     ebx,NNAM
-        jae     @nf_om
-        mov     edi,[g_state.lx.nsfree]
-        lea     eax,[edi+ecx+1]
-        cmp     eax,offset g_snmb+NMSZ
-        ja      @nf_om
-        mov     [g_nname+ebx*4],edi
+        push    esi
+        push    ecx
+        lea     ecx,[ebx+1]
+        mov     esi,offset g_state.sym.nams
+        call    tab_room
+        jc      @F
+        mov     ecx,[esp]
+        add     ecx,[g_state.sym.tfree]
+        inc     ecx
+        mov     esi,offset g_state.sym.ntext
+        call    tab_room
+@@:
+        pop     ecx
+        pop     esi
+        jc      @nf_om
+        nmat    edx
+        mov     edi,[g_state.sym.tfree]
+        mov     [edx+ebx*8].TNAM.text,edi
+        add     edi,[g_state.sym.ntext.at]
         mov     al,cl
         stosb
 @nf_cp:
@@ -183,20 +304,21 @@ nam_find:
         stosb
         inc     esi
         loop    @nf_cp
-        mov     [g_state.lx.nsfree],edi
+        sub     edi,[g_state.sym.ntext.at]
+        mov     [g_state.sym.tfree],edi
         pop     eax
         mov     cx,[g_nhead+eax*2]
-        mov     [g_nnext+ebx*2],cx
+        mov     edi,[g_state.sym.nams.at+4]
+        mov     [edi+ebx*2],cx
         mov     [g_nhead+eax*2],bx
-        mov     [g_nflag+ebx],0
-        mov     [g_ntype+ebx],0
-        mov     [g_nprc+ebx],0
-        mov     edi,[g_nname+ebx*4]
+        and     dword ptr [edx+ebx*8].TNAM.flag,0     ; flag, typ, prc
+        mov     edi,[edx+ebx*8].TNAM.text
+        add     edi,[g_state.sym.ntext.at]
         cmp     byte ptr [edi],2
         jbe     @nf_n
         cmp     word ptr [edi+1],'NF'
         jne     @nf_n
-        mov     [g_nflag+ebx],NM_FN
+        mov     [edx+ebx*8].TNAM.flag,NM_FN
 @nf_n:
         inc     [g_state.lx.nnams]
 @nf_ok:
@@ -204,6 +326,11 @@ nam_find:
         pop     edi
         pop     esi
         ret
+@nf_om:                                 ; the caller's ESI, EDI: cm_err's
+        pop     eax
+        pop     edi
+        pop     esi
+        jmp     err_om
 
 ; ::::::::::::::
 ; var_find - the variable of a name, a type and a kind in scope cscope; a new
@@ -217,10 +344,11 @@ nam_find:
 ;         cstat   1: a STATIC one, not a local
 ; out:    EAX  the variable
 ; keeps:  ESI, EDI
-; error:  ?OUT OF MEMORY  NSYM variables
+; error:  ?OUT OF MEMORY  past IDMAX variables, or the heap is not empty
 ; ::::::::::::::
 var_find:
         push    edi
+        push    esi
         movzx   eax,ax
         movzx   ebx,cl
         lea     edi,[eax*4+eax]
@@ -232,76 +360,78 @@ var_find:
         lea     edi,[edi+ebx*8]
         and     edi,HSIZE-1
         movzx   ebx,word ptr [g_vhead+edi*2]
+        vxat    esi
 @vf_lp:
         test    ebx,ebx
         jz      @vf_new
-        cmp     ax,[g_vnam+ebx*2]
+        cmp     ax,fs:[ebx*8].TVAR.nam
         jne     @vf_s
-        cmp     cl,[g_vtyp+ebx]
+        cmp     cl,fs:[ebx*8].TVAR.typ
         jne     @vf_s
-        mov     ch,[g_sinfo+ebx]
+        mov     ch,fs:[ebx*8].TVAR.info
         and     ch,87h
         cmp     ch,dl
         jne     @vf_s
         mov     ch,[g_state.cm.cscope]
-        cmp     ch,[g_vscp+ebx]
+        cmp     ch,[esi+ebx*8].TVX.scp
         je      @vf_ok
 @vf_s:
-        movzx   ebx,word ptr [g_vnext+ebx*2]
+        movzx   ebx,[esi+ebx*8].TVX.next
         jmp     @vf_lp
-@vf_om:
-        jmp     err_om
 @vf_new:
         movzx   ebx,[g_state.lx.nsyms]
-        cmp     ebx,NSYM
-        jae     @vf_om
-        mov     [g_vnam+ebx*2],ax
-        mov     [g_vtyp+ebx],cl
+        cmp     ebx,[g_state.sym.vars.cap]
+        jb      @F
+        push    ecx
+        lea     ecx,[ebx+1]
+        mov     esi,offset g_state.sym.vars
+        call    tab_room
+        pop     ecx
+        jc      @vf_om
+        vxat    esi
+@@:
+        mov     fs:[ebx*8].TVAR.nam,ax
+        mov     fs:[ebx*8].TVAR.typ,cl
+        mov     fs:[ebx*8].TVAR.info,dl
         mov     ax,[g_vhead+edi*2]
-        mov     [g_vnext+ebx*2],ax
+        mov     [esi+ebx*8].TVX.next,ax
         mov     [g_vhead+edi*2],bx
-        mov     [g_sinfo+ebx],dl
         mov     al,[g_state.cm.cscope]
-        mov     [g_vscp+ebx],al
-        and     word ptr [g_vnloc+ebx*2],0
+        mov     [esi+ebx*8].TVX.scp,al
+        and     [esi+ebx*8].TVX.nloc,0
+        mov     [esi+ebx*8].TVX.dyn,0
         test    al,al
         jz      @vf_m
         cmp     [g_state.cm.cstat],0
         jne     @vf_m
         movzx   eax,al                  ; a local: on its procedure's list
         mov     cx,[g_plh+eax*2]
-        mov     [g_vnloc+ebx*2],cx
+        mov     [esi+ebx*8].TVX.nloc,cx
         mov     [g_plh+eax*2],bx
 @vf_m:
-        and     [g_vt+ebx*4],0
+        and     fs:[ebx*8].TVAR.vt,0
         test    dl,dl
         js      @vf_a
         call    var_cell
-        mov     [g_vt+ebx*4],ecx
-        and     word ptr [SVBASE+ebx*8+D_LEN],0
-        and     dword ptr [VARBASE+ebx*4],0
+        mov     fs:[ebx*8].TVAR.vt,ecx
+        and     dword ptr [ecx],0
+        and     dword ptr [ecx+4],0
 @vf_a:
         inc     [g_state.lx.nsyms]
 @vf_ok:
         mov     eax,ebx
+        pop     esi
         pop     edi
         ret
+@vf_om:                                 ; the caller's ESI, EDI: cm_err's
+        pop     esi
+        pop     edi
+        jmp     err_om
 
         .data?
-g_vt    dd      NSYM dup(?)
-g_vnam  dw      NSYM dup(?)
-g_vnext dw      NSYM dup(?)
 g_vhead dw      HSIZE dup(?)
-g_vtyp  db      NSYM dup(?)
-g_sinfo db      NSYM dup(?)
-g_vscp  db      NSYM dup(?)                 ; its scope: 0 the module, a procedure
-g_vnloc dw      NSYM dup(?)                 ; the next local of its procedure
 g_plh   dw      NPROC dup(?)                ; a procedure's first local
-g_nprc  db      NNAM dup(?)                 ; a name's procedure, 0 none
-g_nname dd      NNAM dup(?)
-g_nnext dw      NNAM dup(?)
 g_nhead dw      HSIZE dup(?)
-g_nflag db      NNAM dup(?)
 g_deft  db      26 dup(?)                   ; DEFtype's, by first letter
         .code
 

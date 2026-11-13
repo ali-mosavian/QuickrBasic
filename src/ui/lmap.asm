@@ -49,6 +49,7 @@ lm_build:
         mov     ecx,edx
         call    alloc_grow
         popad
+        jc      err_om
 @@:
         lmbase  edi
         mov     [edi+ecx*4],ebx

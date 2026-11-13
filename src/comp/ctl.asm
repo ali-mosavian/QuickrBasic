@@ -228,7 +228,7 @@ ct_erase:
         mov     [g_vfs],2
         call    cm_name
         mov     [g_vfs],0
-        movzx   eax,word ptr [g_vnam+ebx*2]
+        movzx   eax,fs:[ebx*8].TVAR.nam
         call    scp_arec                 ; a record array: its own variable
         jecxz   @F
         call    rc_avar
@@ -646,9 +646,10 @@ ct_proc:
         jne     @cpr_n
         movzx   ecx,byte ptr [esi+1]
         movzx   eax,word ptr [esi+ecx+2]
-        test    [g_nflag+eax],NM_SUB+NM_FUNC+NM_FN
+        nmtest  eax,NM_SUB+NM_FUNC+NM_FN
         jz      @cpr_n
-        movzx   edx,[g_nprc+eax]
+        nmat    edx
+        movzx   edx,[edx+eax*8].TNAM.prc
         test    edx,edx
         jz      @cpr_n
         lea     esi,[esi+ecx+4]
@@ -902,7 +903,7 @@ rc_nreca:
         pop     edx
         jmp     @rnr_r
 @rnr_p:
-        movzx   ecx,[g_vtyp+eax]
+        movzx   ecx,fs:[eax*8].TVAR.typ
         sub     ecx,ET_REC
         jae     @rnr_r
         xor     ecx,ecx
@@ -1154,9 +1155,11 @@ ct_scall:
         jne     @css_x                  ; then Subprogram not defined when run
         movzx   ecx,byte ptr [esi+1]
         movzx   eax,word ptr [esi+ecx+2]
-        test    [g_nflag+eax],NM_SUB
+        nmtest  eax,NM_SUB
         jz      @css_x
-        movzx   eax,[g_nprc+eax]
+        shl     eax,3
+        add     eax,[g_state.sym.nams.at]
+        movzx   eax,[eax].TNAM.prc
         test    eax,eax
         jnz     @css_x
         lea     esi,[esi+ecx+4]
@@ -1182,7 +1185,7 @@ ct_pdecl:
         jne     @cpd_n
         movzx   ecx,byte ptr [esi+1]
         movzx   eax,word ptr [esi+ecx+2]
-        test    [g_nflag+eax],NM_SUB+NM_FUNC+NM_FN
+        nmtest  eax,NM_SUB+NM_FUNC+NM_FN
         jz      @cpd_n
         clc
         ret
@@ -1259,7 +1262,7 @@ ct_pchk:
         jne     @cpk_n
         movzx   ecx,byte ptr [esi+1]
         movzx   eax,word ptr [esi+ecx+2]
-        test    [g_nflag+eax],NM_SUB+NM_FUNC+NM_FN
+        nmtest  eax,NM_SUB+NM_FUNC+NM_FN
         jz      @cpk_n
         clc
         ret
@@ -1289,7 +1292,7 @@ ct_fcall:
         call    ct_pcall
         pop     edx
         movzx   eax,word ptr [edx+P_RES]
-        movzx   eax,[g_sinfo+eax]
+        movzx   eax,fs:[eax*8].TVAR.info
         and     eax,7
         mov     al,[g_ctys+eax]
         mov     [g_state.cm.cty],al
@@ -1362,7 +1365,7 @@ ct_args:
 ; ::::::::::::::
 ct_arg:
         mov     [g_cpar],ax
-        movzx   edx,[g_sinfo+eax]
+        movzx   edx,fs:[eax*8].TVAR.info
         test    dl,dl
         js      @car_a
         push    edx                     ; [ESP] its sinfo, kept across calls
@@ -1373,7 +1376,7 @@ ct_arg:
         jne     @car_e
         movzx   ecx,byte ptr [esi+1]
         movzx   eax,word ptr [esi+ecx+2]
-        test    [g_nflag+eax],NM_SUB+NM_FUNC+NM_FN
+        nmtest  eax,NM_SUB+NM_FUNC+NM_FN
         jnz     @car_e
         call    scp_con
         jc      @car_e
@@ -1404,7 +1407,7 @@ ct_arg:
         cmp     al,ET_REC
         jae     @cgr_n
         movzx   ecx,[g_cpar]
-        cmp     al,[g_vtyp+ecx]
+        cmp     al,fs:[ecx*8].TVAR.typ
         jne     @cgr_n
         mov     dx,[g_rfoff]
         jmp     @cgr_t
@@ -1413,9 +1416,9 @@ ct_arg:
         cmp     byte ptr [esi+ecx+4],'('
         jne     @cgr_n
         call    var_id
-        test    [g_sinfo+ebx],80h
+        test    fs:[ebx*8].TVAR.info,80h
         jz      @cgr_n
-        movzx   eax,word ptr [g_vnam+ebx*2]
+        movzx   eax,fs:[ebx*8].TVAR.nam
         push    edx
         mov     dl,80h
         mov     ecx,B_FIX
@@ -1424,8 +1427,8 @@ ct_arg:
         test    ecx,ecx
         jnz     @cgr_n
         movzx   ecx,[g_cpar]
-        mov     al,[g_vtyp+ebx]
-        cmp     al,[g_vtyp+ecx]
+        mov     al,fs:[ebx*8].TVAR.typ
+        cmp     al,fs:[ecx*8].TVAR.typ
         jne     @cgr_n
         push    ebx
         call    cm_subs0
@@ -1497,7 +1500,7 @@ ct_arg:
         mov     ecx,ebx
         call    rc_avar
 @car_k:
-        test    [g_sinfo+ebx],80h
+        test    fs:[ebx*8].TVAR.info,80h
         jz      err_sn
         call    ct_ptm
         push    ebx
@@ -1556,8 +1559,8 @@ ct_ptm:
         push    eax
         push    ecx
         movzx   ecx,[g_cpar]
-        mov     al,[g_vtyp+ebx]
-        cmp     al,[g_vtyp+ecx]
+        mov     al,fs:[ebx*8].TVAR.typ
+        cmp     al,fs:[ecx*8].TVAR.typ
         pop     ecx
         pop     eax
         jne     @F

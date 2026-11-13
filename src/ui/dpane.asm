@@ -781,10 +781,11 @@ dp_vars:
 @dpv_l:
         cmp     bx,[g_state.lx.nsyms]
         jae     @dpv_e
-        mov     al,[g_vscp+ebx]
+        vxat    eax
+        mov     al,[eax+ebx*8].TVX.scp
         cmp     al,byte ptr [g_dpp]
         jne     @dpv_n
-        mov     al,[g_sinfo+ebx]
+        mov     al,fs:[ebx*8].TVAR.info
         and     al,83h
         cmp     al,3
         je      @dpv_n
@@ -888,15 +889,17 @@ dp_var1:
 dp_vtext:
         pushad
         mov     edi,offset g_dprow
-        movzx   eax,word ptr [g_vnam+ebx*2]
-        mov     esi,[g_nname+eax*4]
+        movzx   eax,fs:[ebx*8].TVAR.nam
+        nmat    esi
+        mov     esi,[esi+eax*8].TNAM.text
+        add     esi,[g_state.sym.ntext.at]
         movzx   eax,byte ptr [esi]
         inc     esi
         push    ecx
         mov     ecx,eax
         rep     movsb
         pop     ecx
-        movzx   eax,[g_vtyp+ebx]
+        movzx   eax,fs:[ebx*8].TVAR.typ
         cmp     eax,ET_SD
         ja      @F
         mov     al,[g_dpsfx+eax]
@@ -907,10 +910,10 @@ dp_vtext:
         mov     esi,offset u_dpeq
         call    dp_cpy
         mov     esi,offset u_dparr
-        test    [g_sinfo+ebx],80h
+        test    fs:[ebx*8].TVAR.info,80h
         jnz     @dv1_t
         mov     esi,offset u_dprec
-        cmp     [g_vtyp+ebx],ET_REC
+        cmp     fs:[ebx*8].TVAR.typ,ET_REC
         jae     @dv1_t
         call    dp_cell
         call    dp_val
@@ -931,7 +934,7 @@ dp_vtext:
 ; keeps:  all but EDX
 ; ::::::::::::::
 dp_cell:
-        mov     edx,[g_vt+ebx*4]
+        mov     edx,fs:[ebx*8].TVAR.vt
         push    esi
         mov     esi,[g_dpnw]
         test    esi,esi
@@ -955,7 +958,9 @@ dp_cell:
         jz      @dpc_p
         cmp     eax,ebx
         je      @F
-        movzx   eax,word ptr [g_vnloc+eax*2]
+        shl     eax,3
+        add     eax,[g_state.sym.vars.at+8]
+        movzx   eax,[eax].TVX.nloc
         inc     ecx
         jmp     @dpc_l
 @@:
@@ -976,13 +981,13 @@ dp_cell:
 ; out:    EDI  past it
 ; ::::::::::::::
 dp_val:
-        mov     al,[g_sinfo+ebx]
+        mov     al,fs:[ebx*8].TVAR.info
         test    al,SK_DBL
         jnz     @dvl_d
         and     al,3
         cmp     al,2
         je      @dvl_s
-        mov     al,[g_vtyp+ebx]
+        mov     al,fs:[ebx*8].TVAR.typ
         cmp     al,ET_R4
         je      @dvl_f
         cmp     al,ET_IMP
@@ -1293,9 +1298,12 @@ dp_find:
 @dfd_v:
         cmp     bx,[g_state.lx.nsyms]
         jae     @dfd_n
-        cmp     [g_vscp+ebx],0
+        push    eax
+        vxat    eax
+        cmp     [eax+ebx*8].TVX.scp,0
+        pop     eax
         jne     @dfd_x
-        mov     al,[g_sinfo+ebx]
+        mov     al,fs:[ebx*8].TVAR.info
         and     al,83h
         cmp     al,3
         je      @dfd_x
@@ -1338,11 +1346,13 @@ dp_match:
         repne   scasb
         pop     ecx
         mov     al,[edi-1+g_dpsft-g_dpsfn]
-        cmp     al,[g_vtyp+ebx]
+        cmp     al,fs:[ebx*8].TVAR.typ
         jne     @dmt_r
 @@:
-        movzx   eax,word ptr [g_vnam+ebx*2]
-        mov     edi,[g_nname+eax*4]
+        movzx   eax,fs:[ebx*8].TVAR.nam
+        nmat    edi
+        mov     edi,[edi+eax*8].TNAM.text
+        add     edi,[g_state.sym.ntext.at]
         cmp     cl,[edi]
         jne     @dmt_r
 @@:
@@ -1365,7 +1375,7 @@ dp_match:
 ; SHARED, or SHARED there. Keeps all.
 dp_seen:
         pushad
-        movzx   ebx,word ptr [g_vnam+ebx*2]
+        movzx   ebx,fs:[ebx*8].TVAR.nam
         xor     eax,eax
         call    scp_get
         jc      @F

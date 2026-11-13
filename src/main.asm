@@ -49,6 +49,10 @@ rt_start:
         mov     ebx,offset prg_place
         call    alloc_new
         call    prg_place
+if IDE
+        call    lm_init                 ; the variables, names last: they grow
+endif                                   ; while code holds their cells
+        call    sym_new
         mov     [g_state.rn.rsp],esp
         mov     [g_state.rn.cstk],CSTOP
         mov     [g_state.rn.stklim],STKTOP-STKROOM

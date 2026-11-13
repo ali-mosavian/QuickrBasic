@@ -588,7 +588,7 @@ cm_store:
         call    cm_shv
         call    cm_toi
         movzx   ecx,[g_state.cm.ctv]    ; a SHORT: Overflow past 16 bits,
-        cmp     byte ptr [g_vtyp+ecx],ET_SH     ; unless it is one
+        cmp     fs:[ecx*8].TVAR.typ,ET_SH     ; unless it is one
         jne     @F
         cmp     [g_cshc],0
         jne     @F
@@ -600,7 +600,7 @@ cm_store:
 @cst_s:
         call    cm_tos
         movzx   ecx,[g_state.cm.ctv]    ; a STRING * n: n chars
-        movzx   eax,word ptr [g_vnam+ecx*2]
+        movzx   eax,fs:[ecx*8].TVAR.nam
         xor     edx,edx
         cmp     [g_state.cm.ctn],0
         je      @F
@@ -1190,7 +1190,7 @@ var_id:
 var_decl:
         cmp     [g_oexp],0
         je      @vdc_r
-        test    [g_nflag+eax],NM_SUB+NM_FUNC+NM_FN
+        nmtest  eax,NM_SUB+NM_FUNC+NM_FN
         jnz     @vdc_r
         call    scp_known
         jnc     @vdc_r
@@ -1260,7 +1260,7 @@ var_ispar:
         push    ecx
         push    edx
         movzx   eax,cx
-        test    [g_sinfo+eax],80h
+        test    fs:[eax*8].TVAR.info,80h
         jnz     @vip_n
         movzx   edx,[g_state.cm.cproc]
         test    edx,edx
@@ -1334,9 +1334,9 @@ var_par:
         jecxz   @vpr_x
 @vpr_l:
         movzx   esi,word ptr [g_ppar+ebx*2]
-        cmp     ax,word ptr [g_vnam+esi*2]
+        cmp     ax,fs:[esi*8].TVAR.nam
         jne     @vpr_c
-        mov     dh,[g_sinfo+esi]
+        mov     dh,fs:[esi*8].TVAR.info
         xor     dh,dl
         test    dh,80h
         jnz     @vpr_c
@@ -1377,7 +1377,7 @@ var_scope:
         mov     [g_state.cm.cscope],cl
         jecxz   @vsc_r
         movzx   eax,ax
-        test    [g_nflag+eax],NM_LBL
+        nmtest  eax,NM_LBL
         jnz     @vsc_m
         mov     ebx,eax
         call    scp_look
@@ -1414,11 +1414,11 @@ g_etk   db      0,1,1,0,SK_DBL,2,1      ; ET_* to the kind: FLOAT, INT, STRING, 
 ; ::::::::::::::
 cm_fv:
         call    cm_name
-        test    [g_sinfo+ebx],80h
+        test    fs:[ebx*8].TVAR.info,80h
         jnz     @st_comp2
         mov     [g_state.cm.cfid],ax
         call    cm_tgt
-        mov     al,[g_sinfo+ebx]
+        mov     al,fs:[ebx*8].TVAR.info
         mov     [g_state.cm.ctk],al
         test    al,SK_DBL               ; a DOUBLE's FOR: not yet
         jnz     @st_comp6
@@ -1436,7 +1436,7 @@ cm_fv:
 ; ::::::::::::::
 cm_tgt:
         mov     [g_state.cm.ctv],bx
-        mov     al,[g_sinfo+ebx]
+        mov     al,fs:[ebx*8].TVAR.info
         mov     [g_state.cm.ctk],al
         mov     [g_state.cm.ctn],0
         ret
@@ -1629,7 +1629,7 @@ cm_dv:
         call    cm_name
         cmp     byte ptr [esi],'('
         jne     @cdv_as                 ; a scalar: var_id made it
-        movzx   eax,word ptr [g_vnam+ebx*2]
+        movzx   eax,fs:[ebx*8].TVAR.nam
         call    scp_arec                 ; a record array: its own variable
         jecxz   @F
         call    rc_avar
@@ -1672,7 +1672,7 @@ cm_dim1:
         push    ebx
         call    cm_dvas
         pop     ecx
-        movzx   eax,word ptr [g_vnam+ecx*2]
+        movzx   eax,fs:[ecx*8].TVAR.nam
         push    ecx
         push    edx
         xor     edx,edx
@@ -1683,7 +1683,7 @@ cm_dim1:
         pop     ecx
         test    eax,eax
         jz      cm_rts
-        test    [g_sinfo+ecx],80h
+        test    fs:[ecx*8].TVAR.info,80h
         jnz     cm_rts
         push    ecx
         call    cm_lint

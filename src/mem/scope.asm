@@ -417,7 +417,7 @@ scp_lany:
         bt      dword ptr [g_lnbit],ebx
         ret
 @@:
-        test    [g_nflag+ebx],NM_LBL
+        nmtest  ebx,NM_LBL
         jz      @F
         stc
 @@:
@@ -437,7 +437,10 @@ scp_label:
         bts     dword ptr [g_lnbit],ebx
         jmp     @slb_b
 @@:
-        or      [g_nflag+ebx],NM_LBL
+        push    edi
+        nmat    edi
+        or      [edi+ebx*8].TNAM.flag,NM_LBL
+        pop     edi
 @slb_b:
         call    scp_bind
         or      byte ptr [edi+B_FLG],BF_LBL

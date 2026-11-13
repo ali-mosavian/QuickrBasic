@@ -4,7 +4,7 @@
 ; holds:    the D.* handlers, dbl_in, dbl_fmt, dbl_p10
 ; uses:     flt_insg, fx_sin .. fx_exp, err_ov, err_iq, err_raise, io_putc, str_buftmp
 ; data:     A DOUBLE is an IEEE double, a whole data stack cell; a scalar's
-;           in its 8-byte slot at SVBASE. The x87 works at 53 bits for a D op
+;           in its 8-byte cell. The x87 works at 53 bits for a D op
 ;           (fcwq), back at fcw after it.
 ; ==========================================================================
 
@@ -508,8 +508,10 @@ sc_dstr:
 op_dldv:
         movzx   ebx,word ptr [esi]
         add     esi,2
-        push    dword ptr [SVBASE+ebx*8+4]
-        push    dword ptr [SVBASE+ebx*8]
+        shl     ebx,3
+        add     ebx,[g_state.sym.vars.at]
+        push    dword ptr [ebx+4]
+        push    dword ptr [ebx]
         dispatch
 ; ::::::::::::::
 ; op_dstv - D.ST.V id ( d -- ).
@@ -517,8 +519,10 @@ op_dldv:
 op_dstv:
         movzx   ebx,word ptr [esi]
         add     esi,2
-        pop     dword ptr [SVBASE+ebx*8]
-        pop     dword ptr [SVBASE+ebx*8+4]
+        shl     ebx,3
+        add     ebx,[g_state.sym.vars.at]
+        pop     dword ptr [ebx]
+        pop     dword ptr [ebx+4]
         dispatch
 ; ::::::::::::::
 ; op_dldk - D.LD.K q:8 ( -- d ).

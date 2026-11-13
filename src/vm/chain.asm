@@ -26,9 +26,9 @@ CHBSZ   = 10000h
 ; error:  Type mismatch  a record
 ; ::::::::::::::
 chn_kind:
-        cmp     byte ptr [g_vtyp+ebx],ET_REC
+        cmp     fs:[ebx*8].TVAR.typ,ET_REC
         jae     err_tm
-        mov     al,[g_sinfo+ebx]
+        mov     al,fs:[ebx*8].TVAR.info
         and     al,80h or SK_DBL or 3
         ret
 
@@ -40,7 +40,7 @@ chn_kind:
 ; keeps:  all but ECX, EDX
 ; ::::::::::::::
 chn_cell:
-        lea     edx,[SVBASE+ebx*8]
+        cellof  edx,ebx
         xor     ecx,ecx
         push    eax
         and     al,SK_DBL or 3
@@ -50,7 +50,6 @@ chn_cell:
         mov     ecx,8
         test    al,SK_DBL
         jnz     @cce_r
-        lea     edx,[VARBASE+ebx*4]
         mov     ecx,4
 @cce_r:
         ret
@@ -74,7 +73,7 @@ chn_elems:
         jnz     @cel_l
         pop     ebx
         push    eax
-        mov     al,[g_sinfo+ebx]
+        mov     al,fs:[ebx*8].TVAR.info
         and     al,SK_DBL or 3
         cmp     al,2
         je      @cel_s
@@ -194,7 +193,7 @@ chn_save:
         call    chn_sout
         jmp     @chs_n
 @chs_a:
-        mov     edx,[g_vt+ebx*4]        ; n, the counts, the lower bounds; 0
+        mov     edx,fs:[ebx*8].TVAR.vt        ; n, the counts, the lower bounds; 0
         xor     ecx,ecx                 ; none
         test    edx,edx
         jz      @F
@@ -271,7 +270,7 @@ sc_cmn:
         lodsb
         test    al,al
         jz      @cmn_e
-        cmp     dword ptr [g_vt+ebx*4],0
+        cmp     fs:[ebx*8].TVAR.vt,0
         je      @F
         and     [g_afrep],0
         call    arr_free

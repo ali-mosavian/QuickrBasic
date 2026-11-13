@@ -73,7 +73,7 @@ a1get   macro   sh,slow
         movzx   ebx,word ptr [esi]
         add     esi,2
         add     ebx,ebx
-        mov     edi,[g_vt+ebx*2]
+        mov     edi,fs:[ebx*4].TVAR.vt
         cmp     byte ptr [edi],1
         jne     slow
         movzx   ecx,word ptr [edi+AH_FAST]

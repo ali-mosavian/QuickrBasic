@@ -239,12 +239,7 @@ E_LAST  = E_EXW
 ; the direct line's code at DCODE, the cache from CACHE0.
 DLINE    = 0                    ; in progb: the direct line, len 0, num FFxxh
 PROGBASE = 0110h                ; then the program, to progend
-NSYM     = 4096                 ; variables, 0 none
-NNAM     = 4096                 ; names, 0 none
 HSIZE    = 1024                 ; the symbols' hash chains
-NMSZ     = 10000h               ; the symbols' names
-VARBASE  equ     <(offset g_varb)>          ; a variable's slot, 4 bytes per id
-SVBASE   equ     <(offset g_svarb)>         ; a string variable's Desc, 8 bytes per id
 HDRBASE  equ     <(offset g_dsb+0BC00h)>    ; the arrays' headers
 HDRLIM   equ     <(offset g_dsb+0E000h)>
 ifndef AC

@@ -208,12 +208,13 @@ dc_reset:
         mov     [g_state.lx.nflds],ax
         mov     [g_state.lx.dtype],ax
         movzx   ecx,[g_state.lx.nnams]
+        nmat    edx
 @dcr_n:
         dec     ecx
         jz      @dcr_r
-        and     [g_nflag+ecx],NM_FN
-        mov     [g_ntype+ecx],al
-        mov     [g_nprc+ecx],al
+        and     [edx+ecx*8].TNAM.flag,NM_FN
+        mov     [edx+ecx*8].TNAM.typ,al
+        mov     [edx+ecx*8].TNAM.prc,al
         jmp     @dcr_n
 @dcr_r:
         ret
@@ -288,7 +289,10 @@ dc_line:
         inc     eax
         mov     [g_state.lx.ntyps],ax
         mov     [g_state.lx.dtype],ax
-        mov     [g_ntype+ebx],al
+        push    edi
+        nmat    edi
+        mov     [edi+ebx*8].TNAM.typ,al
+        pop     edi
         mov     word ptr [g_typ+eax*8+T_NAM],bx
         mov     cx,[g_state.lx.nflds]
         mov     word ptr [g_typ+eax*8+T_FST],cx
@@ -347,7 +351,8 @@ dc_line:
         inc     esi                     ; another TYPE's
         call    dc_nam
         pop     edx
-        movzx   eax,[g_ntype+ebx]
+        nmat    eax
+        movzx   eax,[eax+ebx*8].TNAM.typ
         mov     [edi+F_SUB],al
         mov     ax,word ptr [g_typ+eax*8+T_SIZE]
 @dcf_z:                                 ; AX its size: the TYPE's grows
@@ -389,7 +394,10 @@ dc_line:
         cmp     byte ptr [esi],M_VAR
         jne     @dcl_n
         call    dc_nam
-        or      [g_nflag+ebx],dl
+        push    edi
+        nmat    edi
+        or      [edi+ebx*8].TNAM.flag,dl
+        pop     edi
         mov     [g_dscope],bx           ; the parameters: its own
         jmp     @dcp_p
 @dcl_dfn:                               ; DEF FNn (params): their types; its
@@ -410,7 +418,10 @@ dc_line:
         cmp     byte ptr [esi],M_VAR
         jne     @dcl_n
         call    dc_nam
-        or      [g_nflag+ebx],dl
+        push    edi
+        nmat    edi
+        or      [edi+ebx*8].TNAM.flag,dl
+        pop     edi
         mov     [g_state.lx.dproc],bx
         mov     [g_dscope],bx
 @dcp_p:                                 ; ( [BYVAL] n[()] [AS type] {, ..} )
@@ -629,7 +640,8 @@ dc_line:
         push    ebx
         inc     esi
         call    dc_nam
-        movzx   eax,[g_ntype+ebx]
+        nmat    eax
+        movzx   eax,[eax+ebx*8].TNAM.typ
         pop     ebx
         mov     [edi+B_REC+edx],al
         ret
@@ -1140,7 +1152,6 @@ dc_next:
         .data?
 g_typ   db      NTYPE*8 dup(?)          ; a TYPE: T_*
 g_fld   db      NFLD*8 dup(?)           ; a field: F_*
-g_ntype db      NNAM dup(?)             ; a name's TYPE, 0 none
 g_obase db      ?                       ; OPTION BASE
 g_obset db      ?                       ; OPTION BASE given
 g_odim  db      ?                       ; DIM, REDIM, COMMON of an array

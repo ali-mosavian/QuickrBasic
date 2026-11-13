@@ -25,7 +25,6 @@ include x86f.inc
 ; ui_start - the editor when both standard handles are the console.
 ; ::::::::::::::
 ui_start:
-        assume  fs:nothing
         cmp     [g_state.io.isdev],0
         je      rpl_ready
         mov     ax,4400h
@@ -47,7 +46,6 @@ ui_start:
         call    wn_init
         call    ms_init
         call    hl_load
-        call    lm_init
         call    tx_init
         call    vw_reset
         xor     eax,eax
@@ -79,6 +77,7 @@ ui_start:
         jae     @ust_e
         loop    @ust_c
 @ust_e:
+        mov     fs,[g_state.sym.vsel]
         mov     [g_ui.bf.dl_fn.len],dx
         call    dl_fok
         mov     [g_ui.lp.ul_new],1
@@ -86,6 +85,7 @@ ui_start:
         and     [g_ui.lp.ul_new],0
         jmp     ui_loop
 @ust_w:
+        mov     fs,[g_state.sym.vsel]
         mov     esi,offset u_welcome
         mov     ebx,offset bt_wel
         call    dl_msg
@@ -266,6 +266,7 @@ ui_lin:
 hl_load:
         mov     fs,[g_plat.pspsel]
         movzx   ebx,word ptr fs:[2Ch]   ; the environment, the program's path
+        mov     fs,[g_state.sym.vsel]
         test    ebx,ebx
         jz      @hll_r
         call    ui_lin

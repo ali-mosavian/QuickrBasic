@@ -349,8 +349,8 @@ op_for:
 ; ::::::::::::::
 for_in:
         movzx   edi,word ptr [ebx+F_ID]
-        mov     cl,[g_sinfo+edi]
-        mov     edi,[g_vt+edi*4]        ; its cell
+        mov     cl,fs:[edi*8].TVAR.info
+        mov     edi,fs:[edi*8].TVAR.vt        ; its cell
         and     cl,3
         cmp     cl,1
         je      @fin_i
@@ -415,7 +415,7 @@ for_mki:
         jnz     @fmk_a
         push    eax
         movzx   edi,word ptr [ebp+F_ID]
-        mov     edi,[g_vt+edi*4]
+        mov     edi,fs:[edi*8].TVAR.vt
         mov     eax,[edi]
         mov     [ebp+F_CACHE],eax
         call    flt_w16
@@ -491,9 +491,9 @@ op_nx0:
 for_any:
         mov     [g_state.rn.cstk],ebx
         movzx   edi,word ptr [ebx+F_ID]
-        mov     cl,[g_sinfo+edi]
+        mov     cl,fs:[edi*8].TVAR.info
         and     cl,3
-        mov     ebp,[g_vt+edi*4]        ; the variable's cell
+        mov     ebp,fs:[edi*8].TVAR.vt        ; the variable's cell
         mov     [g_state.rn.fvp],ebp
         cmp     cl,1
         je      @fa_pct
@@ -1118,7 +1118,7 @@ op_pcall:
         mov     [edi],bx
         dpop    eax                     ; the ref
         mov     [edi+2],ax
-        mov     dl,[g_sinfo+ebx]
+        mov     dl,fs:[ebx*8].TVAR.info
         test    dl,dl
         js      @pca_r
         cmp     eax,0FFFFh
@@ -1157,7 +1157,7 @@ op_pcall:
         pop     ebx
         jmp     @pca_v
 @@:
-        mov     eax,[g_vt+eax*4]        ; an array: its header
+        mov     eax,fs:[eax*8].TVAR.vt        ; an array: its header
         jmp     @pca_v
 @pca_t:
         push    ecx
@@ -1182,7 +1182,7 @@ op_pcall:
         cmp     edx,offset g_lsav+LSAVSZ-LSSZ
         jae     @st_flow1
         mov     [edx],bx
-        mov     cl,[g_sinfo+ebx]
+        mov     cl,fs:[ebx*8].TVAR.info
         test    cl,cl
         js      @pcl_y
         test    cl,SK_DBL
@@ -1190,31 +1190,35 @@ op_pcall:
         and     cl,3
         cmp     cl,2
         je      @pcl_t
+        call    var_cell
         xor     eax,eax
-        xchg    eax,[VARBASE+ebx*4]
+        xchg    eax,[ecx]
         mov     [edx+4],eax
         jmp     @pcl_n
 @pcl_q:
+        call    var_cell
         xor     eax,eax
-        xchg    eax,[SVBASE+ebx*8]
+        xchg    eax,[ecx]
         mov     [edx+4],eax
         xor     eax,eax
-        xchg    eax,[SVBASE+ebx*8+4]
+        xchg    eax,[ecx+4]
         mov     [edx+8],eax
         jmp     @pcl_n
 @pcl_y:
         xor     eax,eax
-        xchg    eax,[g_vt+ebx*4]
+        xchg    eax,fs:[ebx*8].TVAR.vt
         mov     [edx+4],eax
         jmp     @pcl_n
 @pcl_t:
-        lea     eax,[SVBASE+ebx*8]
+        call    var_cell
+        mov     eax,ecx
         lea     edi,[edx+4]
         call    ls_mov
         and     word ptr [eax+D_LEN],0
 @pcl_n:
         add     edx,LSSZ
-        movzx   ebx,word ptr [g_vnloc+ebx*2]
+        vxat    ecx
+        movzx   ebx,[ecx+ebx*8].TVX.nloc
         jmp     @pcl_l
 @pcl_d:
         mov     edi,[g_state.rn.lsp]    ; the arguments to the parameters
@@ -1222,47 +1226,51 @@ op_pcall:
         cmp     edi,[g_state.rn.ppend]
         jae     @pcb_d
         movzx   ebx,word ptr [edi]
-        test    [g_sinfo+ebx],80h
+        test    fs:[ebx*8].TVAR.info,80h
         jnz     @pcb_a
         call    var_cell                ; a scalar: vt its cell, the old one
         cmp     word ptr [edi+2],0      ; kept
         jne     @F
         mov     ecx,[edi+12]
 @@:
-        xchg    ecx,[g_vt+ebx*4]
+        xchg    ecx,fs:[ebx*8].TVAR.vt
         mov     [edi+12],ecx
         cmp     word ptr [edi+2],0
         mov     word ptr [edi+2],0FFFEh
         je      @pcb_n                  ; the argument's: no value
 @pcb_a:
         mov     eax,[edi+4]
-        mov     cl,[g_sinfo+ebx]
+        mov     cl,fs:[ebx*8].TVAR.info
         test    cl,cl
         js      @pcb_y
         test    cl,SK_DBL
         jz      @F
-        mov     [SVBASE+ebx*8],eax
+        call    var_cell
+        mov     [ecx],eax
         mov     eax,[edi+8]
-        mov     [SVBASE+ebx*8+4],eax
+        mov     [ecx+4],eax
         jmp     @pcb_n
 @@:
         and     cl,3
         cmp     cl,2
         je      @pcb_t
-        mov     [VARBASE+ebx*4],eax
+        call    var_cell
+        mov     [ecx],eax
         jmp     @pcb_n
 @pcb_y:
-        mov     [g_vt+ebx*4],eax
+        mov     fs:[ebx*8].TVAR.vt,eax
         movzx   eax,word ptr [edi+2]    ; an array's: dynamic as its ref
         cmp     ax,0FFFFh
         je      @pcb_n
-        mov     al,[g_adyn+eax]
-        mov     [g_adyn+ebx],al
+        vxat    ecx
+        mov     al,[ecx+eax*8].TVX.dyn
+        mov     [ecx+ebx*8].TVX.dyn,al
         jmp     @pcb_n
 @pcb_t:
         push    edi
         lea     eax,[edi+4]
-        lea     edi,[SVBASE+ebx*8]
+        call    var_cell
+        mov     edi,ecx
         call    ls_mov
         pop     edi
 @pcb_n:
@@ -1333,12 +1341,13 @@ pr_pop:
         cmp     word ptr [edx+2],0FFFFh
         je      @prt_pn
         movzx   ecx,word ptr [edx]
-        test    [g_sinfo+ecx],80h
+        test    fs:[ecx*8].TVAR.info,80h
         jz      @prt_pn
 @prt_pa:                                ; an array: its header, dynamic
-        mov     eax,[g_vt+ecx*4]
+        mov     eax,fs:[ecx*8].TVAR.vt
         mov     [edx+4],eax
-        mov     al,[g_adyn+ecx]
+        vxat    eax
+        mov     al,[eax+ecx*8].TVX.dyn
         mov     [edx+8],al
 @prt_pn:
         add     edx,LSSZ
@@ -1350,23 +1359,24 @@ pr_pop:
         cmp     byte ptr [ebp+P_KIND],PK_FUNC
         jne     @prt_l
         movzx   ecx,word ptr [ebp+P_RES]
-        mov     al,[g_sinfo+ecx]
+        mov     al,fs:[ecx*8].TVAR.info
         test    al,SK_DBL
+        cellof  edi,ecx
         jz      @F
-        mov     eax,[SVBASE+ecx*8]
+        mov     eax,[edi]
         mov     dword ptr [g_pres8],eax
-        mov     eax,[SVBASE+ecx*8+4]
+        mov     eax,[edi+4]
         mov     dword ptr [g_pres8+4],eax
         jmp     @prt_l
 @@:
         and     al,3
         cmp     al,2
         je      @prt_rs
-        mov     eax,[VARBASE+ecx*4]
+        mov     eax,[edi]
         mov     [g_state.rn.pres],eax
         jmp     @prt_l
 @prt_rs:
-        lea     eax,[SVBASE+ecx*8]
+        mov     eax,edi
         mov     edi,offset g_lres
         call    ls_mov
 @prt_l:
@@ -1376,25 +1386,26 @@ pr_pop:
         jbe     @prt_o
         sub     edx,LSSZ
         movzx   ecx,word ptr [edx]
-        mov     al,[g_sinfo+ecx]
+        mov     al,fs:[ecx*8].TVAR.info
         test    al,al
         js      @prt_ly
+        cellof  edi,ecx
         test    al,SK_DBL
         jz      @F
         mov     eax,[edx+4]
-        mov     [SVBASE+ecx*8],eax
+        mov     [edi],eax
         mov     eax,[edx+8]
-        mov     [SVBASE+ecx*8+4],eax
+        mov     [edi+4],eax
         jmp     @prt_ll
 @@:
         and     al,3
         cmp     al,2
         je      @prt_ls
         mov     eax,[edx+4]
-        mov     [VARBASE+ecx*4],eax
+        mov     [edi],eax
         jmp     @prt_ll
 @prt_ly:
-        cmp     dword ptr [g_vt+ecx*4],0
+        cmp     fs:[ecx*8].TVAR.vt,0
         je      @prt_lz
         movzx   eax,word ptr [ebp+P_NPAR]       ; a parameter's is the caller's
         movzx   edi,word ptr [ebp+P_PAR]
@@ -1414,11 +1425,10 @@ pr_pop:
         pop     ebx
 @prt_lz:
         mov     eax,[edx+4]
-        mov     [g_vt+ecx*4],eax
+        mov     fs:[ecx*8].TVAR.vt,eax
         jmp     @prt_ll
 @prt_ls:
         lea     eax,[edx+4]
-        lea     edi,[SVBASE+ecx*8]
         call    ls_mov
         jmp     @prt_ll
 @prt_o:
@@ -1433,13 +1443,16 @@ pr_pop:
         cmp     cx,0FFFEh               ; a scalar: its old cell back
         jne     @prt_ob
         mov     ecx,[edx+12]
-        mov     [g_vt+eax*4],ecx
+        mov     fs:[eax*8].TVAR.vt,ecx
         jmp     @prt_on
 @prt_ob:                                ; an array: the one it ends as
         mov     eax,[edx+4]
-        mov     [g_vt+ecx*4],eax
-        mov     al,[edx+8]
-        mov     [g_adyn+ecx],al
+        mov     fs:[ecx*8].TVAR.vt,eax
+        vxat    eax
+        push    edx
+        mov     dl,[edx+8]
+        mov     [eax+ecx*8].TVX.dyn,dl
+        pop     edx
 @prt_on:
         add     edx,LSSZ
         jmp     @prt_ol
@@ -1455,7 +1468,7 @@ pr_pop:
         cmp     byte ptr [ebp+P_KIND],PK_FUNC
         jne     @prt_j
         movzx   ecx,word ptr [ebp+P_RES]
-        mov     al,[g_sinfo+ecx]
+        mov     al,fs:[ecx*8].TVAR.info
         test    al,SK_DBL
         jz      @F
         push    dword ptr [g_pres8+4]

@@ -389,7 +389,6 @@ rpl_cont:
 ; its end, on file 254 and down.
 ; ::::::::::::::
 rpl_file:
-        assume  fs:nothing
         mov     ax,[g_plat.pspsel]
         push    fs
         mov     fs,ax
@@ -414,7 +413,6 @@ rpl_file:
         jmp     @rfl_c
 @rfl_e:
         pop     fs
-        assume  fs:error
         mov     ecx,edi
         sub     ecx,offset g_fnmb
         jz      @rfl_r
@@ -708,7 +706,6 @@ ent_line:
 ; ::::::::::::::
 rpl_relink:
         call    rpl_noinc
-        mov     [g_state.mm.vend],VARBASE
         call    var_init
         call    dc_reset
         call    prg_drop

@@ -115,7 +115,7 @@ op_raddr:
 ; keeps:  ESI, EBX
 ; ::::::::::::::
 rec_get:
-        mov     edi,[g_vt+ebx*4]
+        mov     edi,fs:[ebx*8].TVAR.vt
         test    edi,edi
         jnz     @rcg_r
         mov     [g_state.mm.aid],bx
@@ -156,7 +156,7 @@ op_pref:
 op_vaddr:
         movzx   ebx,word ptr [esi]
         add     esi,2
-        dpush   [g_vt+ebx*4]
+        dpush   fs:[ebx*8].TVAR.vt
         dispatch
 
 ; ::::::::::::::
@@ -165,7 +165,7 @@ op_vaddr:
 ; ::::::::::::::
 op_vld:
         movzx   ebx,word ptr [esi]
-        mov     edi,[g_vt+ebx*4]
+        mov     edi,fs:[ebx*8].TVAR.vt
         mov     al,[esi+2]
         add     esi,3
         cmp     al,1
@@ -186,7 +186,7 @@ op_vld:
 ; ::::::::::::::
 op_vst:
         movzx   ebx,word ptr [esi]
-        mov     edi,[g_vt+ebx*4]
+        mov     edi,fs:[ebx*8].TVAR.vt
         mov     al,[esi+2]
         add     esi,3
         cmp     al,1
@@ -391,7 +391,8 @@ op_slda:
 ; ::::::::::::::
 op_sstv:
         vslot
-        lea     eax,[SVBASE+ebx*2]
+        lea     eax,[ebx*2]
+        add     eax,[g_state.sym.vars.at]
         mov     [g_state.sg.bpo],eax
         dpop    eax
         call    str_set

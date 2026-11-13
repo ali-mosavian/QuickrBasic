@@ -577,14 +577,14 @@ sc_dim:
         jnz     @sdm_r
         test    [g_dimst],80h           ; a STATIC's, dimensioned: kept
         jz      @F
-        cmp     dword ptr [g_vt+ebx*4],0
+        cmp     fs:[ebx*8].TVAR.vt,0
         jne     ex_lp
 @@:
         call    arr_dim
         jmp     ex_lp
 @sdm_r:
         mov     [g_dyn],1
-        mov     edi,[g_vt+ebx*4]
+        mov     edi,fs:[ebx*8].TVAR.vt
         test    edi,edi
         je      @F
         test    byte ptr [g_dimst+1],1
@@ -603,20 +603,20 @@ sc_dim:
         cmp     al,[edi]
         jne     arr_bs
         mov     [g_pold],edi
-        and     dword ptr [g_vt+ebx*4],0
+        and     fs:[ebx*8].TVAR.vt,0
         push    ebx
         call    arr_dim
         pop     ebx
-        mov     edi,[g_vt+ebx*4]
+        mov     edi,fs:[ebx*8].TVAR.vt
         mov     [g_pnew],edi
         call    arr_keep
         mov     eax,[g_pold]
-        mov     [g_vt+ebx*4],eax
+        mov     fs:[ebx*8].TVAR.vt,eax
         mov     [g_afrep],1
         call    arr_free
         mov     eax,[g_pnew]            ; its header was after the old one's
         sub     eax,[g_afhs]
-        mov     [g_vt+ebx*4],eax
+        mov     fs:[ebx*8].TVAR.vt,eax
         call    arr_rep
         mov     [g_dyn],0
         jmp     ex_lp
@@ -626,10 +626,13 @@ sc_dim:
 ; ::::::::::::::
 sc_erase:
         dpop    ebx
-        mov     edi,[g_vt+ebx*4]
+        mov     edi,fs:[ebx*8].TVAR.vt
         test    edi,edi
         jz      ex_lp
-        cmp     [g_adyn+ebx],0
+        push    eax
+        vxat    eax
+        cmp     [eax+ebx*8].TVX.dyn,0
+        pop     eax
         je      @ser_z
         and     [g_afrep],0
         call    arr_free

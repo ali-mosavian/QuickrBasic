@@ -374,10 +374,13 @@ sc_ubnd:
         dpop    eax
 @@:
         dpop    ebx
-        mov     edi,[g_vt+ebx*4]
+        mov     edi,fs:[ebx*8].TVAR.vt
         test    edi,edi
         jnz     @F
-        cmp     [g_adyn+ebx],0          ; ERASEd: none
+        push    eax
+        vxat    eax
+        cmp     [eax+ebx*8].TVX.dyn,0
+        pop     eax          ; ERASEd: none
         jne     arr_bs
         mov     eax,10                  ; none yet: OPTION BASE to 10
         test    edx,edx

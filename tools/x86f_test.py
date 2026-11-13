@@ -548,6 +548,11 @@ BIG = {
     "qb_heap": ('DIM a(999, 99) AS DOUBLE, b(999, 99) AS DOUBLE, c(999, 99) AS DOUBLE\r\n'
                 'DIM d(999, 99) AS DOUBLE, e(999, 99) AS DOUBLE, f(999, 99) AS DOUBLE\r\n'
                 'f(999, 99) = 3: PRINT f(999, 99)\r\n', " 3 \r\n", "ERROR"),
+    # Names and variables were fixed tables of 4,096: the 4,097th was Out of memory.
+    # Made while a string was in the heap the table could not grow: Out of memory; failing, it crashed.
+    "many_vars_heap": ('a$ = "s" + STR$(1)\r\n' + "".join(f"v{i} = {i}\r\n" for i in range(1500)) + "PRINT a$; v1400\r\n",
+                       "s 1 1400 \r\n", "ERROR"),
+    "many_vars": ("".join(f"v{i} = {i}\r\n" for i in range(5000)) + "PRINT v0; v4999\r\n", " 0  4999 \r\n", "ERROR"),
 }
 
 # Run as files; what standard error showed. A file's CR LF counted as two lines: line 3, 5.

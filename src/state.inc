@@ -71,7 +71,6 @@ TLEX     struc                   ; the tokenizer
     dtype   dw      ?               ; dc_line: the TYPE being entered
     nlen    db      ?               ; nam_find's name: its length, its text
     nptr    dd      ?
-    nsfree  dd      ?               ; the names' next byte
     lxn     dd      ?
     lxs     dd      ?
     nkey    dw      ?
@@ -161,7 +160,6 @@ TMEM     struc                   ; the memory map, the program, the arrays
     aid     dw      ?
     aend    dd      ?
     sfr     dd      ?
-    vend    dd      ?
     progend dd      ?
     enterat dd      ?               ; the stored line being entered
     bodyptr dd      ?               ; prg_put's body
@@ -260,6 +258,49 @@ HCACHE  = 0                     ; the code cache's block
 HPROG   = 1                     ; the program store's
 HLMAP   = 2                     ; the editor's line map (ui/lmap.asm)
 
+TMAXA   = 3                     ; a table's arrays at most
+
+TTAB     struc                   ; a table (mem/tab.asm)
+    hnd     dd      ?               ; its block
+    cap     dd      ?               ; its entries
+    max     dd      ?               ;   at most
+    base    dd      ?               ; the block's base when placed
+    narr    dd      ?               ; its arrays
+    sz      dd      TMAXA dup(?)    ; each one's bytes per entry
+    at      dd      TMAXA dup(?)    ; each one's first byte
+TTAB     ends
+
+TVAR     struc                   ; a variable, at FS:id*8 (mem/sym.asm)
+    vt      dd      ?               ; its cell; an array's header
+    nam     dw      ?               ; its name
+    typ     db      ?               ; ET_*
+    info    db      ?               ; bit 7 an array, SK_DBL, bits 1-0 the kind
+TVAR     ends
+
+TVX      struc                   ; a variable's rest, at vars.at[8]+id*8
+    next    dw      ?               ; its hash chain's next
+    nloc    dw      ?               ; the next local of its procedure
+    scp     db      ?               ; its scope: 0 the module, a procedure
+    dyn     db      ?               ; REDIM made it; ERASE frees it
+            dw      ?
+TVX      ends
+
+TNAM     struc                   ; a name, at nams.at+id*8
+    text    dd      ?               ; its text's offset in ntext
+    flag    db      ?               ; NM_*
+    typ     db      ?               ; its TYPE, 0 none
+    prc     db      ?               ; its procedure, 0 none
+            db      ?
+TNAM     ends
+
+TSYM     struc                   ; the variables and names (mem/sym.asm)
+    vars    TTAB    <>              ; cells, TVAR, TVX
+    nams    TTAB    <>              ; TNAM, the hash chains' next
+    ntext   TTAB    <>              ; the names' text
+    tfree   dd      ?               ; ntext's next byte, an offset
+    vsel    dw      ?               ; FS: the TVARs
+TSYM     ends
+
 TALLOCS  struc                   ; the allocator
     nb      dd      ?               ; the blocks made
     tab     TALLOC  NBLKH dup(<>)
@@ -276,4 +317,25 @@ TSTATE   struc
     io      TIO     <>
     ft      TFLT    <>
     dbg     TDBG    <>
+    sym     TSYM    <>
 TSTATE   ends
+
+vxat    macro   reg                     ; REG the TVXs (mem/sym.asm)
+        mov     reg,[g_state.sym.vars.at+8]
+endm
+
+cellof  macro   reg,id                  ; REG variable ID's own cell
+        mov     reg,[g_state.sym.vars.at]
+        lea     reg,[reg+id*8]
+endm
+
+nmat    macro   reg                     ; REG the TNAMs
+        mov     reg,[g_state.sym.nams.at]
+endm
+
+nmtest  macro   id,bits                 ; ZF: name ID's flag has none of BITS
+        push    edi
+        nmat    edi
+        test    [edi+id*8].TNAM.flag,bits
+        pop     edi
+endm

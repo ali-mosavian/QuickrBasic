@@ -6,6 +6,7 @@
         .387
         .model  flat
         assume  gs:nothing              ; GS: the program store (prg_place)
+        assume  fs:nothing              ; FS: the variables' TVARs (mem/sym.asm)
         option  casemap:none
 include def.inc
 include state.inc

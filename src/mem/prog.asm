@@ -293,6 +293,7 @@ prg_room:
         mov     ecx,edx
         call    alloc_grow
         popad
+        jc      err_om
 @prm_r:
         ret
 
@@ -317,7 +318,6 @@ prg_place:
 
 prg_init:
         mov     [g_state.mm.progend],PROGBASE
-        mov     [g_state.mm.vend],VARBASE
         call    sym_init
         jmp     prg_drop
 

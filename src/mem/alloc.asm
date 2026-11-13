@@ -1,7 +1,7 @@
 ; ==========================================================================
 ; alloc.asm - the allocator: blocks in the heap's arena
 ; ==========================================================================
-; holds:    alloc_new, alloc_grow, alloc_sel
+; holds:    alloc_new, alloc_grow, alloc_sel, sel_set
 ; uses:     plt_heap's hbot, htop
 ; data:     Blocks are packed from the arena's start, in g_state.alloc.tab by
 ;           handle; the BASIC heap, hbot to htop, is what lies above the
@@ -55,8 +55,8 @@ alloc_new:
 ; alloc_grow - block EAX to ECX bytes at least, half as many again: the
 ; blocks after it move up, each block from it on told (moved).
 ;
+; out:    CF   set: not grown, the heap not empty or without room
 ; keeps:  all
-; error:  Out of memory  the heap is not empty, or has no room
 ; ::::::::::::::
 alloc_grow:
         pushad
@@ -76,19 +76,19 @@ alloc_grow:
         and     edx,not 15
         mov     ebx,[g_state.mm.hbot]   ; the heap empty: nothing in it moves
         cmp     [g_state.mm.aend],ebx
-        jne     err_om
+        jne     @alg_f
         mov     ebx,[g_state.mm.htop]
         cmp     [g_state.mm.sfr],ebx
-        jne     err_om
+        jne     @alg_f
         mov     ebp,edx                 ; EBP the growth
         sub     ebp,[esi].TALLOC.cap
         mov     ebx,[g_state.mm.hbot]
         add     ebx,ebp
-        jc      err_om
+        jc      @alg_f
         add     ebx,HMIN
-        jc      err_om
+        jc      @alg_f
         cmp     ebx,[g_state.mm.htop]
-        ja      err_om
+        ja      @alg_f
         mov     [esi].TALLOC.cap,edx
         push    esi
         push    edi
@@ -118,6 +118,11 @@ alloc_grow:
         jmp     @alg_m
 @alg_r:
         popad
+        clc
+        ret
+@alg_f:
+        popad
+        stc
         ret
 @alg_t:                                 ; block ESI told
         mov     eax,[esi].TALLOC.moved
@@ -137,29 +142,45 @@ alloc_grow:
 ; error:  Out of memory: no descriptor
 ; ::::::::::::::
 alloc_sel:
+        push    ecx
+        push    edx
+        imul    edx,eax,sizeof TALLOC
+        mov     ecx,[g_state.alloc.tab+edx].TALLOC.cap
+        mov     edx,[g_state.alloc.tab+edx].TALLOC.base
+        call    sel_set
+        pop     edx
+        pop     ecx
+        ret
+
+; ::::::::::::::
+; sel_set - a selector for the ECX bytes at EDX; a new one when BX is 0.
+;
+; out:    BX   the selector
+; error:  Out of memory: no descriptor
+; ::::::::::::::
+sel_set:
         pushad
         test    bx,bx
-        jnz     @bks_b
+        jnz     @sls_b
         mov     bx,ds                   ; DS's alias: a data descriptor
         mov     ax,000Ah
-        push    eax
         int     31h
-        mov     bx,ax
-        pop     eax
         jc      err_om
-        mov     eax,[esp+28]
-@bks_b:
+        mov     bx,ax
+@sls_b:
         mov     [esp+16],ebx
-        imul    esi,eax,sizeof TALLOC
-        mov     edx,[g_state.alloc.tab+esi].TALLOC.base
+        mov     esi,ecx
         add     edx,[g_plat.dsbase]
         mov     ecx,edx
         shr     ecx,16
         mov     ax,0007h
         int     31h
         jc      err_om
-        mov     edx,[g_state.alloc.tab+esi].TALLOC.cap
-        dec     edx
+        lea     edx,[esi-1]
+        cmp     edx,100000h             ; past 1 MB: whole pages
+        jb      @F
+        or      edx,0FFFh
+@@:
         mov     ecx,edx
         shr     ecx,16
         mov     ax,0008h

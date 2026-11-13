@@ -18,7 +18,8 @@ include x86f.inc
 bvar    macro
         movzx   ebx,word ptr [esi]
         add     esi,2
-        lea     ebx,[VARBASE+ebx*4]
+        shl     ebx,3
+        add     ebx,[g_state.sym.vars.at]
         endm
 
 ; flt routine fn with ESI kept.
@@ -131,7 +132,8 @@ bc_F_LD_PI:
 bc_S_LD_V:
         movzx   eax,word ptr [esi]
         add     esi,2
-        lea     eax,[SVBASE+eax*8]
+        shl     eax,3
+        add     eax,[g_state.sym.vars.at]
         dpush   eax
         dispatch
 ; ::::::::::::::

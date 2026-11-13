@@ -20,7 +20,6 @@ ENVSZ   = 4096
 ; sys_init - the environment and the command line, from the PSP.
 ; ::::::::::::::
 sys_init:
-        assume  fs:nothing
         push    fs
         mov     fs,[g_plat.pspsel]
         mov     fs,fs:[2Ch]             ; DOS/32A: the environment's selector

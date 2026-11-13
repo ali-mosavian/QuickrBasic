@@ -377,7 +377,7 @@ cm_shv:
 ; keeps:  all
 ; ::::::::::::::
 cm_shid:
-        cmp     byte ptr [g_vtyp+ebx],ET_SH
+        cmp     fs:[ebx*8].TVAR.typ,ET_SH
         jne     @F
         mov     [g_csh],1
         mov     [g_cshe],edi
@@ -655,9 +655,10 @@ cm_load:
         jne     @cld_v
         movzx   ecx,byte ptr [esi+1]    ; a FUNCTION's name: its call, but
         movzx   eax,word ptr [esi+ecx+2]        ; its result in it
-        test    [g_nflag+eax],NM_FUNC+NM_FN
+        nmtest  eax,NM_FUNC+NM_FN
         jz      @cld_v
-        movzx   edx,[g_nprc+eax]
+        nmat    edx
+        movzx   edx,[edx+eax*8].TNAM.prc
         test    edx,edx
         jz      @cld_u
         cmp     byte ptr [esi+ecx+4],'('
@@ -673,7 +674,7 @@ cm_load:
 @@:
         call    cm_name
 @cld_n:
-        mov     dl,[g_sinfo+ebx]
+        mov     dl,fs:[ebx*8].TVAR.info
         test    dl,dl
         js      @cld_a
         mov     ecx,ebx
@@ -1093,7 +1094,7 @@ cm_un:
         jmp     cm_lint
 @cul_v:                                 ; a scalar: % 2, & ! 4, # 8
         call    var_id
-        test    [g_sinfo+ebx],80h
+        test    fs:[ebx*8].TVAR.info,80h
         jnz     @cul_n
         call    @cad_k
         call    st_get
@@ -1158,7 +1159,7 @@ cm_addr:
 @cad_v:
         call    var_id
         call    @cad_k
-        test    [g_sinfo+ebx],80h       ; an element: RA.ADDR's
+        test    fs:[ebx*8].TVAR.info,80h       ; an element: RA.ADDR's
         jz      @F
         push    ebx
         call    cm_subs0
@@ -1175,19 +1176,10 @@ cm_addr:
         mov     al,O_V_ADDR
         jmp     cm_opid
 @@:
-        lea     eax,[VARBASE+ebx*4]
-        mov     dl,[g_sinfo+ebx]
-        test    dl,SK_DBL
-        jnz     @F
-        and     dl,3
-        cmp     dl,2
-        jne     @cad_l
-@@:
-        lea     eax,[SVBASE+ebx*8]
-@cad_l:
+        cellof  eax,ebx
         jmp     cm_lint
 @cad_k:                                 ; vakind of variable EBX
-        mov     dl,[g_sinfo+ebx]
+        mov     dl,fs:[ebx*8].TVAR.info
         mov     eax,VA_RAW shl 24 + 8
         test    dl,SK_DBL
         jnz     @cak_r
@@ -1196,14 +1188,14 @@ cm_addr:
         jz      @cak_r                  ; a SINGLE
         cmp     dl,2
         je      @cak_s
-        cmp     [g_vtyp+ebx],ET_I4      ; an INT: 2 bytes but a LONG's
+        cmp     fs:[ebx*8].TVAR.typ,ET_I4      ; an INT: 2 bytes but a LONG's
         je      @cak_r
         mov     eax,VA_I2 shl 24 + 4
         jmp     @cak_r
 @cak_s:
-        movzx   eax,word ptr [g_vnam+ebx*2]
+        movzx   eax,fs:[ebx*8].TVAR.nam
         push    edx
-        mov     dl,[g_sinfo+ebx]
+        mov     dl,fs:[ebx*8].TVAR.info
         and     dl,80h
         mov     ecx,B_FIX
         call    scp_decl

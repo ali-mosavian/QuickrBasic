@@ -224,7 +224,7 @@ bk_stmt:
         jne     @bks_r
         movzx   eax,byte ptr [esi+2]
         movzx   eax,word ptr [esi+eax+3]
-        test    [g_nflag+eax],NM_FN
+        nmtest  eax,NM_FN
         jz      @bk_er
         mov     [g_bkdef],1
         jmp     @bks_fun
@@ -270,7 +270,10 @@ bk_stmt:
         movzx   eax,word ptr [esi+ecx+2]
         mov     [edi+P_NAM],ax
         mov     cl,byte ptr [g_state.lnk.cprc]
-        mov     [g_nprc+eax],cl
+        push    edi
+        nmat    edi
+        mov     [edi+eax*8].TNAM.prc,cl
+        pop     edi
         push    eax
         movzx   eax,cl
         call    scp_proc

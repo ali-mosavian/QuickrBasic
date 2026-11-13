@@ -21,13 +21,13 @@ include x86f.inc
 ; keeps:  EBX
 ; ::::::::::::::
 arr_esz:
-        movzx   ecx,[g_vtyp+ebx]
+        movzx   ecx,fs:[ebx*8].TVAR.typ
         sub     ecx,ET_REC              ; a record's: its TYPE's size
         jb      @aes_k
         movzx   ecx,word ptr [g_typ+ecx*8+T_SIZE]
         ret
 @aes_k:
-        mov     cl,[g_sinfo+ebx]
+        mov     cl,fs:[ebx*8].TVAR.info
         mov     ch,8
         test    cl,SK_DBL
         jnz     @aes_r
@@ -55,10 +55,13 @@ arr_esz:
 ; ::::::::::::::
 arr_ref:
         mov     [g_state.mm.aid],bx
-        mov     edi,[g_vt+ebx*4]
+        mov     edi,fs:[ebx*8].TVAR.vt
         test    edi,edi
         jnz     @arf_h
-        cmp     [g_adyn+ebx],0          ; ERASE freed it: not made again
+        push    eax
+        vxat    eax
+        cmp     [eax+ebx*8].TVX.dyn,0
+        pop     eax          ; ERASE freed it: not made again
         jne     arr_bs
         movzx   ecx,[g_state.rn.narr]
         movzx   eax,[g_obase]               ; OPTION BASE to 10
@@ -141,7 +144,7 @@ arr_dim:
         mov     [g_state.mm.aid],bx
         call    arr_chk
         movzx   ebx,[g_state.mm.aid]
-        cmp     [g_vt+ebx*4],0
+        cmp     fs:[ebx*8].TVAR.vt,0
         je      arr_new
         mov     al,E_RD
         jmp     err_raise
@@ -199,9 +202,12 @@ arr_new:
 @anw_s:
         mov     [edi+AH_FAST],ax
         movzx   ebx,[g_state.mm.aid]
-        mov     [g_vt+ebx*4],edi
+        mov     fs:[ebx*8].TVAR.vt,edi
         mov     al,[g_dyn]
-        mov     [g_adyn+ebx],al
+        push    edx
+        vxat    edx
+        mov     [edx+ebx*8].TVX.dyn,al
+        pop     edx
         mov     al,[g_state.rn.narr]
         mov     [edi],al
         movzx   ecx,al
@@ -267,8 +273,8 @@ arr_size:
 ; ::::::::::::::
 arr_free:
         pushad
-        mov     edi,[g_vt+ebx*4]
-        and     dword ptr [g_vt+ebx*4],0
+        mov     edi,fs:[ebx*8].TVAR.vt
+        and     fs:[ebx*8].TVAR.vt,0
         mov     [g_afh],edi
         call    arr_size
         mov     ebp,[edi+AH_PTR]        ; the data: [D, D+S) goes
@@ -330,8 +336,9 @@ arr_free:
         dec     ecx
         jecxz   @afr_s2
 @afr_t:
-        lea     eax,[g_vt+ecx*4]
-        test    [g_sinfo+ecx],80h
+        mov     eax,[g_state.sym.vars.at+4]  ; FS's, from DS
+        lea     eax,[eax+ecx*8].TVAR.vt
+        test    fs:[ecx*8].TVAR.info,80h
         jz      @F
         call    @afr_r
         jmp     @afr_u
@@ -345,7 +352,7 @@ arr_free:
         cmp     edx,[g_state.rn.lsp]
         jae     @afr_x
         movzx   ecx,word ptr [edx]
-        test    [g_sinfo+ecx],80h
+        test    fs:[ecx*8].TVAR.info,80h
         jz      @F
         lea     eax,[edx+4]
         call    @afr_r
@@ -452,11 +459,11 @@ arr_keep:
         add     eax,[esi+AH_PTR]
         add     ebp,[edi+AH_PTR]
         mov     ebx,[g_kid]
-        mov     dl,[g_sinfo+ebx]
+        mov     dl,fs:[ebx*8].TVAR.info
         and     dl,SK_DBL or 3
         cmp     dl,2
         jne     @akp_b
-        cmp     byte ptr [g_vtyp+ebx],ET_REC
+        cmp     fs:[ebx*8].TVAR.typ,ET_REC
         jae     @akp_b
         mov     edi,ebp                 ; a string: its block moves too
         call    ls_mov
@@ -480,14 +487,14 @@ arr_keep:
 ; ::::::::::::::
 arr_rep:
         pushad
-        mov     edi,[g_vt+ebx*4]
+        mov     edi,fs:[ebx*8].TVAR.vt
         movzx   ecx,[g_state.lx.nsyms]  ; the ids in use
         dec     ecx
         jecxz   @arp_s
 @arp_t:
-        cmp     dword ptr [g_vt+ecx*4],1
+        cmp     fs:[ecx*8].TVAR.vt,1
         jne     @F
-        mov     [g_vt+ecx*4],edi
+        mov     fs:[ecx*8].TVAR.vt,edi
 @@:
         loop    @arp_t
 @arp_s:
@@ -496,7 +503,7 @@ arr_rep:
         cmp     edx,[g_state.rn.lsp]
         jae     @arp_x
         movzx   ecx,word ptr [edx]
-        test    [g_sinfo+ecx],80h
+        test    fs:[ecx*8].TVAR.info,80h
         jz      @F
         cmp     dword ptr [edx+4],1
         jne     @F
@@ -511,7 +518,6 @@ arr_rep:
         .data
 g_dyn   db      0                       ; arr_new: a dynamic array (REDIM's)
         .data?
-g_adyn  db      NSYM dup(?)             ; by id: REDIM made it; ERASE frees it
 g_afh   dd      ?                       ; arr_free: the header, its size,
 g_afhs  dd      ?
 g_afsz  dd      ?                       ; the data's size, the data's old end
