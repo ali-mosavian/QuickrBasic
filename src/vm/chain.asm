@@ -355,7 +355,7 @@ endif
         call    prg_drop
         call    cm_link
         mov     ebx,PROGBASE
-        cmp     gs:[ebx].TLN.len,0
+        cmp     gs:[ebx].TLINE.len,0
         jne     ex_rungo
         jmp     ex_end
 

@@ -158,11 +158,11 @@ endif
         mov     ebx,[g_state.rn.ln]
         cmp     ebx,DLINE
         je      rpl_ready
-        cmp     gs:[ebx].TLN.num,NONUM
+        cmp     gs:[ebx].TLINE.num,NONUM
         je      rpl_ready
         mov     al,MSG_IN
         call    io_msg
-        mov     ax,gs:[ebx].TLN.num
+        mov     ax,gs:[ebx].TLINE.num
         call    io_num
         jmp     rpl_ready
 @@:
@@ -204,11 +204,11 @@ endif
         call    io_hex4
         jmp     @erx_d
 @erx_n:                                 ; typed lines: in line n, if numbered
-        cmp     gs:[ecx].TLN.num,NONUM
+        cmp     gs:[ecx].TLINE.num,NONUM
         je      @erx_d
         mov     ebx,offset r_eline
         call    io_puts
-        mov     ax,gs:[ecx].TLN.num
+        mov     ax,gs:[ecx].TLINE.num
         call    io_num
         jmp     @erx_d
 @erx_d:
@@ -358,9 +358,9 @@ rpl_run:
 @rpl_f:
         cmp     ebx,CSTOP
         jae     @rpl_g
-        cmp     [ebx].TFRH.ln,DLINE
+        cmp     [ebx].TFRAME.ln,DLINE
         jne     @rpl_n
-        mov     [ebx].TFRH.ip,eax
+        mov     [ebx].TFRAME.ip,eax
 @rpl_n:
         movzx   ecx,byte ptr [ebx+F_MARK]
         add     ebx,ecx

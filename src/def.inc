@@ -54,16 +54,20 @@ MAXD    = 16
 M_VAR   = 01h
 M_INT   = 02h
 REM_Q   = 03h                   ; after TK_REM: the comment was a ', not REM
-TLN      struc                   ; a line's record in the store, its body after
+TLINE    struc                   ; a line's record in the store, its body after
     len     dd      ?               ; the record's bytes, 0 the end
     num     dw      ?               ; its number, NONUM none
-    cp      dd      ?               ; its code in the cache, 0 none
-TLN      ends
-HDR     = sizeof TLN
+    code    dd      ?               ; its code in the cache, 0 none
+TLINE    ends
+HDR     = sizeof TLINE
 NONUM   = 0FFFFh                ; a line's num: it has none
 LMAX    = 0FEE0h                ; a line's record at most: the store (PROGLIM-PROGBASE)
-BOFF    = 0FFFFh                ; a statement map's body offset of the line's end
-PDIR    = 8000h                 ; a position's tag: the direct line's
+BOFF    = 0FFFFFFFFh            ; a statement map's body offset of the line's end
+TSTMT    struc                   ; a statement map's entry, before the line's
+    body    dd      ?               ; code, their count:4 after them: the
+    code    dd      ?               ; statement's body offset, its code's
+TSTMT    ends
+PDIR    = 80000000h             ; a target's flag: the direct line's
 IFNDEF IDE
 IDE     = 0
 ENDIF
@@ -91,43 +95,43 @@ VA_RAW  = 2                     ; its bytes, an INT kept as 2
 VA_I2   = 3
 
 ; The control stack's frames; a frame's mark is its size.
-TFRH     struc                   ; every frame's start; a GOSUB's whole
+TFRAME   struc                   ; every frame's start; a GOSUB's whole
     mark    db      ?
     ln      dd      ?               ; the line
     ip      dd      ?               ; where it goes on: absolute, or an offset
-TFRH     ends                    ; in its line's code (cm_flush)
-TFRFOR   struc                   ; FOR. With whole bounds: step:2, count:2,
-    h       TFRH    <>              ; limit:2, FFFFh (a NaN, no float)
+TFRAME   ends                    ; in its line's code (cm_flush)
+TFOR     struc                   ; FOR. With whole bounds: step:2, count:2,
+    h       TFRAME  <>              ; limit:2, FFFFh (a NaN, no float)
     id      dw      ?
     step    dd      ?
     limit   dd      ?
     cache   dd      ?               ; an INT counter's: the float last stored
-TFRFOR   ends
-TFREV    struc                   ; an event's GOSUB
-    h       TFRH    <>
+TFOR     ends
+TEVENT   struc                   ; an event's GOSUB
+    h       TFRAME  <>
     slot    db      ?
-TFREV    ends
-TFRPC    struc                   ; a procedure's
-    h       TFRH    <>
-    prc     db      ?               ; its procedure
-    lsp0    dd      ?               ; lsp before its arguments, before its locals
-    lsp1    dd      ?
-    tspb    dw      ?               ; the caller's tspb
-    sb      dd      ?               ; the data stack at its body's start
-    lhnd    dd      ?               ; ON LOCAL ERROR's line, 0 none
-TFRPC    ends
-F_MARK  = (TFRH.mark) and 0FFh
-F_ID    = (TFRFOR.id) and 0FFh
-F_STEP  = (TFRFOR.step) and 0FFh
-F_LIMIT = (TFRFOR.limit) and 0FFh
-F_CACHE = (TFRFOR.cache) and 0FFh
-FRSIZE  = sizeof TFRFOR
+TEVENT   ends
+TPROC    struc                   ; a procedure's
+    h       TFRAME  <>
+    pnum    db      ?               ; its procedure
+    save0   dd      ?               ; lsp before its arguments, before its locals
+    save1   dd      ?
+    tmpb    dw      ?               ; the caller's tspb
+    stk     dd      ?               ; the data stack at its body's start
+    onerr   dd      ?               ; ON LOCAL ERROR's line, 0 none
+TPROC    ends
+F_MARK  = TFRAME.mark
+F_ID    = TFOR.id
+F_STEP  = TFOR.step
+F_LIMIT = TFOR.limit
+F_CACHE = TFOR.cache
+FRSIZE  = sizeof TFOR
 M_FR    = FRSIZE
-M_GS    = sizeof TFRH
+M_GS    = sizeof TFRAME
 SF_BRK  = 1                     ; stpflg: the STOP key; an event to run
 SF_EV   = 2
-M_EV    = sizeof TFREV
-F_EVN   = (TFREV.slot) and 0FFh
+M_EV    = sizeof TEVENT
+F_EVN   = TEVENT.slot
 EK_TIMER = 0                    ; ONEV's, EVST's kinds
 EK_KEY  = 1
 EK_COM  = 2
@@ -139,12 +143,12 @@ PK_END  = 3
 DM_STEP = 1                     ; the debugger's stops: the next statement
 DM_PSTEP = 2                    ; the next at the depth of pdep or less
 DBBPSZ  = 65536/8               ; the breakpoints: a bit per line number
-M_PC    = sizeof TFRPC
-F_PRC   = (TFRPC.prc) and 0FFh
-F_LSP0  = (TFRPC.lsp0) and 0FFh
-F_LSP1  = (TFRPC.lsp1) and 0FFh
-F_TSPB  = (TFRPC.tspb) and 0FFh
-F_SB    = (TFRPC.sb) and 0FFh
+M_PC    = sizeof TPROC
+F_PRC   = TPROC.pnum
+F_LSP0  = TPROC.save0
+F_LSP1  = TPROC.save1
+F_TSPB  = TPROC.tmpb
+F_SB    = TPROC.stk
 LSSZ    = 16                    ; a save entry: id:2, ref:2, the value:8, off:4
 LSAVSZ  = 15000h                ; the save stack
 
@@ -268,11 +272,17 @@ OBSZ     = 256                  ; plat.asm's output buffer
 
 ; block entries (comp/block.asm): their fields, their kinds
 NBLK    = 2048
-B_POS   = 0
-B_NXT   = 4
-B_END   = 8
-B_LINK  = 12
-B_AUX   = 14
+TBLOCK   struc                   ; a block statement's entry (comp/block.asm)
+    pos     dd      ?               ; its position
+    next    dd      ?               ; where its false test, or its loop, goes
+    done    dd      ?               ; where it leaves the block
+    link    dw      ?               ; the next entry+1 of a chain
+    aux     dw      ?               ; CASE: its SELECT's entry; EXIT: the BK_*
+    kind    db      ?               ; its BK_*
+            db      15 dup(?)
+TBLOCK   ends
+BLOCKSH = 5                     ; an entry's index to its offset
+.erre sizeof TBLOCK EQ 1 shl BLOCKSH
 BK_IF     = 1
 BK_ELSEIF = 2
 BK_ELSE   = 3

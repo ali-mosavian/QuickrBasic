@@ -69,7 +69,7 @@ cm_cache:
         mov     [g_state.lnk.cend],edi
         mov     eax,esi
         sub     eax,[g_state.mm.cblin]
-        mov     gs:[ebx].TLN.cp,eax
+        mov     gs:[ebx].TLINE.code,eax
         ret
 
 ; ::::::::::::::
@@ -81,14 +81,14 @@ cm_flush:
 @cfl_f:
         cmp     ebx,CSTOP
         jae     @cfl_c
-        mov     edi,[ebx].TFRH.ln
+        mov     edi,[ebx].TFRAME.ln
         cmp     edi,DLINE
         je      @cfl_n
-        mov     eax,[ebx].TFRH.ip
+        mov     eax,[ebx].TFRAME.ip
         cmp     ax,CACHE0
         jb      @cfl_n
-        sub     eax,gs:[edi].TLN.cp
-        mov     [ebx].TFRH.ip,eax
+        sub     eax,gs:[edi].TLINE.code
+        mov     [ebx].TFRAME.ip,eax
 @cfl_n:
         movzx   ecx,byte ptr [ebx+F_MARK]
         add     ebx,ecx
@@ -100,14 +100,14 @@ cm_flush:
         mov     eax,[g_state.rn.contsi]
         cmp     ax,CACHE0
         jb      @cfl_l
-        sub     eax,gs:[edi].TLN.cp
+        sub     eax,gs:[edi].TLINE.code
         mov     [g_state.rn.contsi],eax
 @cfl_l:
         mov     ebx,PROGBASE
 @cfl_x:
-        mov     ecx,gs:[ebx].TLN.len
+        mov     ecx,gs:[ebx].TLINE.len
         jecxz   @cfl_d
-        and     gs:[ebx].TLN.cp,0
+        and     gs:[ebx].TLINE.code,0
         add     ebx,ecx
         jmp     @cfl_x
 @cfl_d:
@@ -120,8 +120,8 @@ cm_flush:
 ; or GOSUB's line is found now when it exists; an INPUT's
 ; end (16 bits, from cachb) are filled in. The CALL of INBEG takes 2 bytes
 ; more than in xbuf. Before the code, its statement map: for
-; each statement the compile recorded (cm_markb), its body offset:2 and
-; its code's offset:2; then their count:2 (vm/flow.asm, ex_bjump).
+; each statement the compile recorded (cm_markb), a TSTMT; then their
+; count:4 (vm/flow.asm, ex_bjump).
 ;
 ; in:     EDI   where it goes
 ;         elim  its limit
@@ -132,13 +132,13 @@ cm_flush:
 ; ::::::::::::::
 cm_xlate:
         and     [g_state.lnk.einb],0
-        movzx   ecx,[g_state.cm.nst]
-        lea     eax,[ecx*4+2]
+        mov     ecx,[g_state.cm.nst]
+        lea     eax,[ecx*8+4]
         add     eax,edi
         cmp     eax,[g_state.lnk.elim]
         ja      @cx_ov
         mov     [g_state.lnk.emap],edi
-        mov     [eax-2],cx
+        mov     [eax-4],ecx
         mov     edi,eax
         mov     [g_state.lnk.ecode],edi
         mov     [g_state.lnk.ek],0
@@ -221,23 +221,23 @@ cx_mark:
         push    ecx
         push    edx
 @cxm_l:
-        movzx   ebx,[g_state.lnk.ek]
-        cmp     bx,[g_state.cm.nst]
+        mov     ebx,[g_state.lnk.ek]
+        cmp     ebx,[g_state.cm.nst]
         jae     @cxm_r
-        lea     edx,[ebx*4+4]           ; its entry, down from the map's top
+        lea     edx,[ebx*8+sizeof TSTMT]  ; its entry, down from the map's top
         neg     edx
         add     edx,[g_state.cm.cmap]
-        movzx   eax,word ptr [edx+2]
+        mov     eax,[edx].TSTMT.code
         add     eax,offset g_xbuf
         cmp     eax,esi
         jne     @cxm_r
-        lea     ecx,[ebx*4]
+        lea     ecx,[ebx*8]
         add     ecx,[g_state.lnk.emap]
-        mov     ax,[edx]
-        mov     [ecx],ax
+        mov     eax,[edx].TSTMT.body
+        mov     [ecx].TSTMT.body,eax
         mov     eax,edi
         sub     eax,[g_state.lnk.ecode]
-        mov     [ecx+2],ax
+        mov     [ecx].TSTMT.code,eax
         inc     [g_state.lnk.ek]
         jmp     @cxm_l
 @cxm_r:
@@ -276,9 +276,9 @@ cm_link:
         and     [g_state.lnk.lc],0
         mov     ebx,PROGBASE
 @clk_l:
-        mov     ecx,gs:[ebx].TLN.len
+        mov     ecx,gs:[ebx].TLINE.len
         jecxz   @clk_d
-        and     gs:[ebx].TLN.cp,0
+        and     gs:[ebx].TLINE.code,0
         add     ebx,ecx
         jmp     @clk_l
 @clk_d:

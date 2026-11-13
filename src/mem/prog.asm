@@ -33,11 +33,11 @@ prg_findw:
         je      @pf_no
         push    ecx
 @pf_x:
-        cmp     gs:[ebx].TLN.len,0
+        cmp     gs:[ebx].TLINE.len,0
         je      @pf_o
-        cmp     ax,gs:[ebx].TLN.num
+        cmp     ax,gs:[ebx].TLINE.num
         je      @pf_z
-        mov     ecx,gs:[ebx].TLN.len
+        mov     ecx,gs:[ebx].TLINE.len
         add     ebx,ecx
         jmp     @pf_x
 @pf_z:
@@ -49,18 +49,18 @@ prg_findw:
         mov     ebx,[g_state.lnk.lc]
         test    ebx,ebx
         jz      @pf_b
-        cmp     ax,gs:[ebx].TLN.num
+        cmp     ax,gs:[ebx].TLINE.num
         jae     @pf_c
 @pf_b:
         mov     ebx,PROGBASE
 @pf_c:
-        cmp     gs:[ebx].TLN.len,0
+        cmp     gs:[ebx].TLINE.len,0
         je      @pf_no
-        cmp     ax,gs:[ebx].TLN.num
+        cmp     ax,gs:[ebx].TLINE.num
         je      @pf_y
         jb      @pf_no
         push    ecx
-        mov     ecx,gs:[ebx].TLN.len
+        mov     ecx,gs:[ebx].TLINE.len
         add     ebx,ecx
         pop     ecx
         jmp     @pf_c
@@ -97,7 +97,7 @@ prg_put:
         call    prg_findw
         jnc     @pp_i
         mov     [g_state.mm.lyo2],ebx
-        mov     eax,gs:[ebx].TLN.len
+        mov     eax,gs:[ebx].TLINE.len
         lea     esi,[ebx+eax]
         mov     edi,ebx
         mov     ecx,[g_state.mm.pend]
@@ -152,7 +152,7 @@ prg_add:
         add     [g_state.mm.pend],eax
         call    prg_fill
         mov     ebx,[g_state.mm.pend]
-        mov     gs:[ebx].TLN.len,0
+        mov     gs:[ebx].TLINE.len,0
         ret
 
 ; ::::::::::::::
@@ -164,10 +164,10 @@ prg_add:
 ;         pbs, pbl  the body, its length
 ; ::::::::::::::
 prg_fill:
-        mov     gs:[ebx].TLN.len,eax
+        mov     gs:[ebx].TLINE.len,eax
         mov     ax,[g_state.rn.lnum]
-        mov     gs:[ebx].TLN.num,ax
-        mov     gs:[ebx].TLN.cp,0
+        mov     gs:[ebx].TLINE.num,ax
+        mov     gs:[ebx].TLINE.code,0
         lea     edi,[ebx+HDR]
         add     edi,[g_state.mm.pglin]
         mov     esi,[g_state.mm.pbs]
@@ -189,7 +189,7 @@ prg_drop:
         mov     [g_state.lnk.linked],al
         mov     [g_state.rn.cstk],CSTOP
         mov     ebx,[g_state.mm.pend]
-        mov     gs:[ebx].TLN.len,eax
+        mov     gs:[ebx].TLINE.len,eax
         jmp     var_clr
 @pp_om:
         call    prg_drop
@@ -209,7 +209,7 @@ prg_seg:
         call    blk_seg
         mov     [g_state.mm.pgsel],bx
         mov     gs,bx
-        mov     eax,[g_state.bk.tab+HPROG*sizeof TBLK].TBLK.base
+        mov     eax,[g_state.alloc.tab+HPROG*sizeof TALLOC].TALLOC.base
         mov     [g_state.mm.pglin],eax
         add     eax,PROGBASE
         mov     [g_state.mm.proglin],eax

@@ -28,7 +28,7 @@ TCOMP    struc                   ; the compiler
     csp     dd      ?
     cbase   dd      ?               ; the body's start
     cline   dd      ?               ; its line, DLINE direct
-    nst     dw      ?               ; statements recorded (cm_markb)
+    nst     dd      ?               ; statements recorded (cm_markb)
     cmap    dd      ?               ; the map's top: its entries grow down
     csif    db      ?               ; in a one-line IF
     cscope  db      ?               ; var_find's scope: 0 the module, a procedure
@@ -54,7 +54,7 @@ TLINK    struc                   ; the linker and the cache
     nfl     db      ?               ; cache flushes, mod 256
     emap    dd      ?               ; cm_xlate's statement map
     ecode   dd      ?               ; the code after it
-    ek      dw      ?               ; the next statement it maps
+    ek      dd      ?               ; the next statement it maps
     nprc    dw      ?               ; procedures + 1 (g_prc)
     nppar   dw      ?               ; their parameters (g_ppar)
     cprc    dw      ?               ; the procedure the scan is in, 0 none
@@ -245,22 +245,22 @@ TDBG     struc                   ; the debugger (vm/dbg.asm)
     wb1     dd      ?               ;   and to (BOFF the line's end)
 TDBG     ends
 
-TBLK     struc                   ; a block (mem/blk.asm)
+TALLOC   struc                   ; a block (mem/blk.asm)
     base    dd      ?               ; its first byte
     cap     dd      ?               ; its bytes
-TBLK     ends
+TALLOC   ends
 
 NBLKH   = 8                     ; blocks at most
 HCACHE  = 0                     ; the code cache's block
 HPROG   = 1                     ; the program store's
 
-TBLKS    struc                   ; the allocator
+TALLOCS  struc                   ; the allocator
     nb      dd      ?               ; the blocks made
-    tab     TBLK    NBLKH dup(<>)
-TBLKS    ends
+    tab     TALLOC  NBLKH dup(<>)
+TALLOCS  ends
 
 TSTATE   struc
-    bk      TBLKS   <>
+    alloc   TALLOCS <>
     cm      TCOMP   <>
     lnk     TLINK   <>
     lx      TLEX    <>

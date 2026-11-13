@@ -3,7 +3,7 @@
 ; ==========================================================================
 ; holds:    blk_new, blk_seg
 ; uses:     plt_heap's hbot, htop
-; data:     Blocks are packed from the arena's start, in g_state.bk.tab by
+; data:     Blocks are packed from the arena's start, in g_state.alloc.tab by
 ;           handle; the BASIC heap, hbot to htop, is what lies above the
 ;           last. A block is addressed by its offset from its base, kept
 ;           only in bk.tab, never by a stored pointer.
@@ -21,7 +21,7 @@ include x86f.inc
 ; error:  Out of memory
 ; ::::::::::::::
 blk_new:
-        mov     eax,[g_state.bk.nb]
+        mov     eax,[g_state.alloc.nb]
         cmp     eax,NBLKH
         jae     err_om
         mov     edx,[g_state.mm.hbot]
@@ -35,9 +35,9 @@ blk_new:
         cmp     edx,[g_state.mm.htop]
         pop     edx
         ja      err_om
-        mov     [g_state.bk.tab+eax*sizeof TBLK].TBLK.base,edx
-        mov     [g_state.bk.tab+eax*sizeof TBLK].TBLK.cap,ecx
-        inc     [g_state.bk.nb]
+        mov     [g_state.alloc.tab+eax*sizeof TALLOC].TALLOC.base,edx
+        mov     [g_state.alloc.tab+eax*sizeof TALLOC].TALLOC.cap,ecx
+        inc     [g_state.alloc.nb]
         push    edx
         add     edx,ecx
         mov     [g_state.mm.hbot],edx
@@ -65,15 +65,15 @@ blk_seg:
         mov     eax,[esp+28]
 @bks_b:
         mov     [esp+16],ebx
-        imul    esi,eax,sizeof TBLK
-        mov     edx,[g_state.bk.tab+esi].TBLK.base
+        imul    esi,eax,sizeof TALLOC
+        mov     edx,[g_state.alloc.tab+esi].TALLOC.base
         add     edx,[g_plat.dsbase]
         mov     ecx,edx
         shr     ecx,16
         mov     ax,0007h
         int     31h
         jc      err_om
-        mov     edx,[g_state.bk.tab+esi].TBLK.cap
+        mov     edx,[g_state.alloc.tab+esi].TALLOC.cap
         dec     edx
         mov     ecx,edx
         shr     ecx,16

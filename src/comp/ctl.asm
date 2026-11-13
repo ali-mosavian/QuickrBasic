@@ -1580,7 +1580,7 @@ ct_bif:
         call    ct_ent
         pop     esi
         inc     esi
-        mov     ebx,B_NXT
+        mov     ebx,TBLOCK.next
         call    ct_tgt
         jmp     ct_jf
 
@@ -1627,62 +1627,60 @@ ct_else:
         ret
 
 ; ::::::::::::::
-; ct_here - the target in this line at offset CX, mode AL.
+; ct_here - the target in this line at offset ECX, mode AL.
 ;
 ; out:    EAX  the target
 ; ::::::::::::::
 ct_here:
         movzx   eax,al
+        push    ecx
         cmp     [g_state.cm.cline],DLINE
-        jne     @F
-        or      ah,PDIR shr 8           ; the direct line's: its offset
-        shl     eax,16
-        mov     ax,cx
+        je      @F
+        add     ecx,[g_state.cm.cline]
+        add     ecx,HDR
+        lea     eax,[ecx*4+eax]
+        pop     ecx
         ret
 @@:
-        shl     eax,16
-        mov     ax,word ptr [g_state.cm.cline]
-        add     ax,cx
-        add     ax,HDR
+        lea     eax,[ecx*4+eax]         ; the direct line's: its offset's
+        or      eax,PDIR
+        pop     ecx
         ret
 
 ; ::::::::::::::
-; ct_tdw - emit target EAX as a jump op's: line:2 boff:2, then its mode:2,
-; which the address replaces once found (vm/flow.asm, ex_bjump). FFFFFFFFh
-; none: line FFFFh.
+; ct_tdw - emit target EAX as a jump op's TJUMP: its mode in the address's
+; place until found (vm/flow.asm, ex_bjump). FFFFFFFFh none: line -1.
 ; ::::::::::::::
 ct_tdw:
         cmp     eax,-1
         je      @ctw_w
         push    eax
-        test    eax,PDIR shl 16
+        test    eax,PDIR
         jz      @F
-        movzx   eax,ax                  ; the direct line's
-        shl     eax,16
-        mov     ax,DLINE
+        and     eax,not PDIR            ; the direct line's
+        shr     eax,2
+        mov     ecx,eax
+        mov     eax,DLINE
         jmp     @ctw_m
 @@:
-        push    ecx
+        shr     eax,2
         push    dword ptr [g_state.lnk.bln]
         call    bk_posl
-        mov     eax,ecx
-        shl     eax,16
-        mov     ax,word ptr [g_state.lnk.bln]
+        mov     eax,[g_state.lnk.bln]
         pop     dword ptr [g_state.lnk.bln]
-        pop     ecx
 @ctw_m:
-        call    cm_dw
+        push    ecx
+        call    cm_dw                   ; the line
         pop     eax
-        shr     eax,16
-        and     eax,not PDIR
-        call    cm_byt
-        xor     al,al
-        jmp     cm_byt
+        call    cm_dw                   ; the body offset
+        pop     eax
+        and     eax,3
+        jmp     cm_dw                   ; the mode
 @ctw_w:
         call    cm_dw
-        xor     al,al
-        call    cm_byt
-        jmp     cm_byt
+        xor     eax,eax
+        call    cm_dw
+        jmp     cm_dw
 
 ; ::::::::::::::
 ; ct_ent - the entry of the statement at SI.
@@ -1703,7 +1701,7 @@ ct_ent:
         sub     ecx,[g_state.cm.cbase]
         call    bk_find
         jc      err_sn
-        shl     eax,4
+        shl     eax,BLOCKSH
         lea     edx,[g_blk+eax]
         pop     ecx
         pop     ebx
@@ -1715,7 +1713,7 @@ ct_ent:
 ; ct_tgt - the entry's target at field BX.
 ;
 ; in:     EDX  the entry, 0 none
-; out:    EAX  the target; FFFFh as its line, none
+; out:    EAX  the target; FFFFFFFFh none
 ; ::::::::::::::
 ct_tgt:
         or      eax,-1
@@ -1774,7 +1772,7 @@ ct_fskip:
         mov     esi,[g_state.cm.ctks]
         call    ct_ent
         pop     esi
-        mov     ebx,B_END
+        mov     ebx,TBLOCK.done
         call    ct_tgt
         mov     ecx,eax
         mov     al,O_FSKIP
@@ -1793,7 +1791,7 @@ ct_cond:
 ct_elseif:
         call    ct_ent
         push    edx
-        mov     ebx,B_END
+        mov     ebx,TBLOCK.done
         call    ct_tgt
         call    ct_jmp
         call    ct_cond
@@ -1801,7 +1799,7 @@ ct_elseif:
         cmp     byte ptr [esi],TK_THEN
         jne     err_sn
         inc     esi
-        mov     ebx,B_NXT
+        mov     ebx,TBLOCK.next
         call    ct_tgt
         jmp     ct_jf
 
@@ -1811,7 +1809,7 @@ ct_elseif:
 ct_belse:
         call    ct_ent
         inc     esi
-        mov     ebx,B_END
+        mov     ebx,TBLOCK.done
         call    ct_tgt
         jmp     ct_jmp
 
@@ -1821,7 +1819,7 @@ ct_belse:
 ct_do:
         call    ct_ent
         inc     esi
-        mov     ebx,B_END
+        mov     ebx,TBLOCK.done
         mov     al,[esi]
         cmp     al,TK_WHILE
         je      @ctd_w
@@ -1852,7 +1850,7 @@ ct_do:
 ct_loop:
         call    ct_ent
         inc     esi
-        mov     ebx,B_NXT
+        mov     ebx,TBLOCK.next
         mov     al,[esi]
         cmp     al,TK_WHILE
         je      @ctd_u                  ; while c: back when true
@@ -1866,7 +1864,7 @@ ct_loop:
 ; ::::::::::::::
 ct_while:
         call    ct_ent
-        mov     ebx,B_END
+        mov     ebx,TBLOCK.done
         jmp     @ctd_w
 
 ; ::::::::::::::
@@ -1875,7 +1873,7 @@ ct_while:
 ct_wend:
         call    ct_ent
         inc     esi
-        mov     ebx,B_NXT
+        mov     ebx,TBLOCK.next
         call    ct_tgt
         jmp     ct_jmp
 
@@ -1895,7 +1893,7 @@ ct_exit:
         mov     al,O_FPOP
         call    cm_op
 @cex_j:
-        mov     ebx,B_END
+        mov     ebx,TBLOCK.done
         call    ct_tgt
         jmp     ct_jmp
 
@@ -1918,10 +1916,10 @@ ct_select:
         xor     eax,eax                 ; the depth
         test    edx,edx
         jz      @F
-        mov     al,[edx+B_AUX]
+        mov     al,byte ptr [edx].TBLOCK.aux
         mov     cl,[g_state.cm.cty]
         or      cl,1                    ; compiled: T_INT is 0
-        mov     [edx+B_AUX+1],cl
+        mov     byte ptr [edx].TBLOCK.aux+1,cl
 @@:
         mov     cl,[g_state.cm.cty]
         push    edx
@@ -1936,7 +1934,7 @@ ct_select:
 @@:
         call    cm_opid
         pop     edx
-        mov     ebx,B_NXT
+        mov     ebx,TBLOCK.next
         call    ct_tgt
         jmp     ct_jmp
 
@@ -1989,7 +1987,7 @@ ct_var:
 ct_case:
         call    ct_ent
         push    edx
-        mov     ebx,B_END
+        mov     ebx,TBLOCK.done
         call    ct_tgt
         call    ct_jmp
         inc     esi
@@ -2005,9 +2003,9 @@ ct_case:
         mov     cl,T_FLT
         test    edx,edx
         jz      @ctc_v
-        movzx   eax,word ptr [edx+B_AUX]
-        shl     eax,4
-        mov     cx,word ptr [g_blk+eax+B_AUX]
+        movzx   eax,[edx].TBLOCK.aux
+        shl     eax,BLOCKSH
+        mov     cx,[g_blk+eax].TBLOCK.aux
         mov     al,cl
         mov     cl,ch
         test    cl,cl
@@ -2027,7 +2025,7 @@ ct_case:
 @ctc_e:
         pop     edx
         mov     [g_state.cm.cty],T_INT
-        mov     ebx,B_NXT
+        mov     ebx,TBLOCK.next
         call    ct_tgt
         jmp     ct_jf
 

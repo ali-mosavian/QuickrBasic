@@ -325,7 +325,7 @@ ud_setnx:
         pop     eax
         cmp     al,[g_state.cm.cproc]
         jne     @usn_p
-        mov     esi,gs:[ebx].TLN.cp
+        mov     esi,gs:[ebx].TLINE.code
         add     esi,[g_state.mm.cblin]
         cmp     esi,[g_state.mm.cblin]
         jne     @F

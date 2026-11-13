@@ -122,15 +122,15 @@ oplist  macro   m
         m       NEXT,op_nx0,1,0
         m       NEXT_V,op_nextv,3,FV
         m       ERR,op_err,7,0
-        m       JMP,op_jmp,7,0
-        m       I_JF,op_ijf,7,0
-        m       F_JF,op_fjf,7,0
-        m       I_JT,op_ijt,7,0
-        m       F_JT,op_fjt,7,0
+        m       JMP,op_jmp,JSIZE,0
+        m       I_JF,op_ijf,JSIZE,0
+        m       F_JF,op_fjf,JSIZE,0
+        m       I_JT,op_ijt,JSIZE,0
+        m       F_JT,op_fjt,JSIZE,0
         m       NXLN,ex_nextln,1,0
         m       FPOP,op_fpop,1,0
-        m       FSKIP,op_jmp,7,0
-        m       PCALL,op_pcall,8,0
+        m       FSKIP,op_jmp,JSIZE,0
+        m       PCALL,op_pcall,JSIZE+1,0
         m       PRET,op_pret,1,0
         m       I_MOD,bc_I_MOD,1,FX
         m       I_XOR,bc_I_XOR,1,FX
@@ -175,7 +175,12 @@ oplist  macro   m
         m       V_ST,op_vst,4,0
         endm
 
-JSIZE   = 7                     ; a jump op: target line:2 boff+mode:2, addr:2
+TJUMP    struc                   ; a jump op's target
+    line    dd      ?
+    body    dd      ?               ; the statement's body offset
+    dest    dd      ?               ; its code's offset; under 3 the mode,
+TJUMP    ends                    ; until found (ex_bjump)
+JSIZE   = 1+sizeof TJUMP
 
 opn     = 0
 opc     macro   nm,h,sz,fl

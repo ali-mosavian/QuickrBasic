@@ -294,25 +294,25 @@ cm_dbgx:
         ret
 
 ; ::::::::::::::
-; cm_markb - record a statement at body offset AX: below the map, its
-; body offset:2 and its code's offset in xbuf:2. No room: the code is full.
+; cm_markb - record a statement at body offset EAX: below the map, a TSTMT
+; with its code's offset in xbuf. No room: the code is full.
 ;
 ; keeps:  all
 ; ::::::::::::::
 cm_markb:
         push    ebx
         push    edx
-        movzx   ebx,[g_state.cm.nst]
+        mov     ebx,[g_state.cm.nst]
         mov     edx,[g_state.cm.cmap]
-        lea     ebx,[ebx*4+4]
+        lea     ebx,[ebx*8+sizeof TSTMT]
         sub     edx,ebx                 ; the entry
         lea     ebx,[edi+8]
         cmp     edx,ebx
         jb      @cmb_f
-        mov     [edx],ax
+        mov     [edx].TSTMT.body,eax
         mov     ebx,edi
         sub     ebx,[g_state.cm.cxb]
-        mov     [edx+2],bx
+        mov     [edx].TSTMT.code,ebx
         sub     edx,12
         mov     [g_state.cm.cxlim],edx
         inc     [g_state.cm.nst]

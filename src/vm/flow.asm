@@ -90,8 +90,8 @@ ex_gsf:
         mov     [g_state.rn.cstk],edi
         mov     [edi+F_MARK],al
         mov     ecx,[g_state.rn.ln]
-        mov     [edi].TFRH.ln,ecx
-        ipst    [edi].TFRH.ip
+        mov     [edi].TFRAME.ln,ecx
+        ipst    [edi].TFRAME.ip
         ret
 
 ; ::::::::::::::
@@ -163,10 +163,10 @@ op_ret:
         jne     err_rg
         call    ev_ret
 @@:
-        mov     edx,[ebx].TFRH.ln
+        mov     edx,[ebx].TFRAME.ln
         mov     [g_state.rn.ln],edx
         movzx   ecx,byte ptr [ebx+F_MARK]
-        mov     eax,[ebx].TFRH.ip
+        mov     eax,[ebx].TFRAME.ip
         add     ebx,ecx
         mov     [g_state.rn.cstk],ebx
         tspclr
@@ -224,9 +224,9 @@ ex_nextln:
 ; ::::::::::::::
 ex_eol:
         mov     ebx,[g_state.rn.ln]
-        mov     ecx,gs:[ebx].TLN.len
+        mov     ecx,gs:[ebx].TLINE.len
         add     ebx,ecx
-        cmp     gs:[ebx].TLN.len,0
+        cmp     gs:[ebx].TLINE.len,0
         je      @F
         mov     [g_state.rn.vpt],ebx
         jmp     ex_line
@@ -246,9 +246,9 @@ ex_eol:
 ex_line:
         mov     ebx,[g_state.rn.vpt]
         mov     [g_state.rn.ln],ebx
-        cmp     gs:[ebx].TLN.len,0   ; the direct line's len
+        cmp     gs:[ebx].TLINE.len,0   ; the direct line's len
         je      @exl_x
-        mov     esi,gs:[ebx].TLN.cp
+        mov     esi,gs:[ebx].TLINE.code
         test    esi,esi
         jz      cm_cache
         add     esi,[g_state.mm.cblin]
@@ -328,9 +328,9 @@ op_for:
 @of_e:
         add     esi,JSIZE
 @of_p:
-        ipst    [ebx].TFRH.ip
+        ipst    [ebx].TFRAME.ip
         mov     eax,[g_state.rn.ln]
-        mov     [ebx].TFRH.ln,eax
+        mov     [ebx].TFRAME.ln,eax
         cmp     byte ptr [esi],O_EOL
         jne     @F
         call    ex_eol                  ; no next line: no return, the frame kept
@@ -553,9 +553,9 @@ for_any:
         jge     @fa_lp
         jmp     @fa_done
 @fa_lp:
-        mov     edx,[ebx].TFRH.ln
+        mov     edx,[ebx].TFRAME.ln
         mov     [g_state.rn.ln],edx
-        mov     eax,[ebx].TFRH.ip
+        mov     eax,[ebx].TFRAME.ip
         ipfix
         dispatch
 @fa_gen:
@@ -585,9 +585,9 @@ for_any:
 ; in:     EBX  the frame
 ; ::::::::::::::
 for_lp:
-        mov     edx,[ebx].TFRH.ln
+        mov     edx,[ebx].TFRAME.ln
         mov     [g_state.rn.ln],edx
-        mov     eax,[ebx].TFRH.ip
+        mov     eax,[ebx].TFRAME.ip
         ipfix
         dispatch
 
@@ -648,7 +648,7 @@ op_onlerr:
 @@:
         call    ex_target
 @onl_s:
-        mov     [edi].TFRPC.lhnd,ebx
+        mov     [edi].TPROC.onerr,ebx
         dispatch
 
 ; ::::::::::::::
@@ -667,7 +667,7 @@ ex_hnd:
         movzx   eax,byte ptr [edi+F_MARK]
         cmp     al,M_PC
         jne     @ehd_n
-        cmp     [edi].TFRPC.lhnd,0
+        cmp     [edi].TPROC.onerr,0
         jne     @ehd_y
 @ehd_n:
         add     edi,eax
@@ -677,7 +677,7 @@ ex_hnd:
         mov     [g_thnd],ax
         ret
 @ehd_y:
-        mov     eax,[edi].TFRPC.lhnd
+        mov     eax,[edi].TPROC.onerr
         mov     [g_thnd],ax
         mov     [g_hfr],edi
 @ehd_u:
@@ -694,9 +694,9 @@ ex_hnd:
         call    pr_pop
         lea     eax,[ebx+M_PC]
         mov     [g_state.rn.cstk],eax
-        mov     edx,[ebx].TFRH.ln           ; the error: at the call
+        mov     edx,[ebx].TFRAME.ln           ; the error: at the call
         mov     [g_state.rn.ln],edx
-        mov     eax,[ebx].TFRH.ip
+        mov     eax,[ebx].TFRAME.ip
         ipfix
         dec     esi
         mov     [g_state.rn.opip],esi
@@ -732,12 +732,12 @@ ex_trap:
         mov     ebx,ecx                 ; the statement, by the map
         mov     eax,[g_state.rn.opip]
         call    ex_smap
-        movzx   eax,word ptr [edi+2]
+        mov     eax,[edi].TSTMT.code
         mov     [g_state.rn.rc0],eax
         or      eax,-1
         cmp     ecx,1
         jbe     @F
-        movzx   eax,word ptr [edi+6]
+        mov     eax,[edi+sizeof TSTMT].TSTMT.code
 @@:
         mov     [g_state.rn.rc1],eax
         call    ch_clr
@@ -759,14 +759,14 @@ ex_erl:
 @etr_l:
         cmp     ebx,ecx
         ja      @etr_d
-        cmp     gs:[ebx].TLN.len,0
+        cmp     gs:[ebx].TLINE.len,0
         je      @etr_d
-        movzx   eax,gs:[ebx].TLN.num
+        movzx   eax,gs:[ebx].TLINE.num
         cmp     ax,NONUM
         je      @F
         mov     edx,eax
 @@:
-        mov     eax,gs:[ebx].TLN.len
+        mov     eax,gs:[ebx].TLINE.len
         add     ebx,eax
         jmp     @etr_l
 @etr_d:
@@ -776,26 +776,26 @@ ex_erl:
 ; ::::::::::::::
 ; ex_smap - the map entry of the statement holding code address EAX of
 ; line EBX: the last whose code is at EAX or before, else the first. An
-; entry: body offset:2, code offset:2; the line's EOL's last.
+; entry: a TSTMT; the line's EOL's last.
 ;
 ; out:    EDI  the entry
 ;         ECX  the entries from it on
 ; ::::::::::::::
 ex_smap:
-        mov     ebx,gs:[ebx].TLN.cp
+        mov     ebx,gs:[ebx].TLINE.code
         add     ebx,[g_state.mm.cblin]
         sub     eax,ebx
-        movzx   ecx,word ptr [ebx-2]   ; the count, after the entries
-        lea     edi,[ecx*4+2]
+        mov     ecx,[ebx-4]             ; the count, after the entries
+        lea     edi,[ecx*8+4]
         neg     edi
         add     edi,ebx
 @esm_l:
         cmp     ecx,1
         jbe     @esm_r
-        movzx   edx,word ptr [edi+6]
+        mov     edx,[edi+sizeof TSTMT].TSTMT.code
         cmp     edx,eax
         ja      @esm_r
-        add     edi,4
+        add     edi,sizeof TSTMT
         dec     ecx
         jmp     @esm_l
 @esm_r:
@@ -904,7 +904,7 @@ op_size:
 ex_resolve:
         movzx   ebx,dx
         mov     eax,esi
-        mov     esi,gs:[ebx].TLN.cp
+        mov     esi,gs:[ebx].TLINE.code
         test    esi,esi
         jnz     @exr_a
         push    eax
@@ -1014,25 +1014,24 @@ op_fpop:
 ; before that code, the mode's place in it. The address is kept in the op
 ; unless the cache was flushed meanwhile, the op with it.
 ;
-; in:     ESI  the target: line:2, boff:2, then the address:2, under 3 none:
-;              the mode
-; error:  ?SYNTAX ERROR  a target the link gave none (FFFFh)
+; in:     ESI  the target, a TJUMP
+; error:  ?SYNTAX ERROR  a target the link gave none (line -1)
 ; ::::::::::::::
 ex_bjump:
         stopchk
         tspclr
-        movzx   eax,word ptr [esi+4]
+        mov     eax,[esi].TJUMP.dest
         cmp     eax,3
         jb      @ebj_f
-        movzx   ebx,word ptr [esi]
+        mov     ebx,[esi].TJUMP.line
         mov     [g_state.rn.ln],ebx
         mov     esi,[g_state.mm.cblin]
         add     esi,eax
         dispatch
 @ebj_f:
         mov     edx,esi
-        movzx   ebx,word ptr [edx]
-        cmp     ebx,0FFFFh
+        mov     ebx,[edx].TJUMP.line
+        cmp     ebx,-1
         je      err_sn
         mov     al,[g_state.lnk.nfl]
         push    eax
@@ -1041,27 +1040,27 @@ ex_bjump:
         call    ex_line
         pop     edx
         pop     eax
-        movzx   ecx,word ptr [esi-2]    ; the map: n of boff:2 coff:2, then n:2
-        lea     edi,[ecx*4+2]
+        mov     ecx,[esi-4]             ; the map: n TSMs, then n:4
+        lea     edi,[ecx*8+4]
         neg     edi
         add     edi,esi
-        movzx   ebx,word ptr [edx+2]
+        mov     ebx,[edx].TJUMP.body
 @ebj_l:
         jecxz   @ebj_n
-        cmp     [edi],bx
+        cmp     [edi].TSTMT.body,ebx
         je      @ebj_y
-        add     edi,4
+        add     edi,sizeof TSTMT
         dec     ecx
         jmp     @ebj_l
 @ebj_y:
-        movzx   ebx,word ptr [edx+4]    ; the mode
+        mov     ebx,[edx].TJUMP.dest      ; the mode
         cmp     bl,1
-        movzx   ebx,word ptr [edi+2]
+        mov     ebx,[edi].TSTMT.code
         jb      @ebj_t
         je      @ebj_1
         cmp     ecx,1                   ; mode 2: the next statement's
         jbe     @ebj_n
-        movzx   ebx,word ptr [edi+6]
+        mov     ebx,[edi+sizeof TSTMT].TSTMT.code
         jmp     @ebj_t
 @ebj_1:
         add     ebx,JSIZE               ; mode 1: past its JMP
@@ -1071,7 +1070,7 @@ ex_bjump:
         jne     @ebj_d
         mov     eax,esi
         sub     eax,[g_state.mm.cblin]
-        mov     [edx+4],ax
+        mov     [edx].TJUMP.dest,eax
 @ebj_d:
         dispatch
 @ebj_n:
@@ -1273,11 +1272,11 @@ op_pcall:
         mov     [g_state.rn.cstk],edi
         mov     byte ptr [edi+F_MARK],M_PC
         mov     ecx,[g_state.rn.ln]
-        mov     [edi].TFRH.ln,ecx
+        mov     [edi].TFRAME.ln,ecx
         mov     al,[esi]
         mov     [edi+F_PRC],al
-        lea     esi,[esi+7]
-        ipst    [edi].TFRH.ip
+        lea     esi,[esi+1+sizeof TJUMP]
+        ipst    [edi].TFRAME.ip
         mov     eax,[g_state.rn.lsp]
         mov     [edi+F_LSP0],eax
         mov     eax,[g_state.rn.ppend]
@@ -1288,8 +1287,8 @@ op_pcall:
         mov     ax,[g_state.sg.tsp]
         mov     [g_state.sg.tspb],ax
         mov     [edi+F_SB],esp
-        mov     [edi].TFRPC.lhnd,0
-        sub     esi,6                   ; the target
+        mov     [edi].TPROC.onerr,0
+        sub     esi,sizeof TJUMP          ; the target
         jmp     ex_bjump
 
 ; ::::::::::::::
@@ -1476,9 +1475,9 @@ pr_pop:
         call    ls_mov
         dpush   edi
 @prt_j:
-        mov     edx,[ebx].TFRH.ln
+        mov     edx,[ebx].TFRAME.ln
         mov     [g_state.rn.ln],edx
-        mov     eax,[ebx].TFRH.ip
+        mov     eax,[ebx].TFRAME.ip
         add     ebx,M_PC
         mov     [g_state.rn.cstk],ebx
         ipfix

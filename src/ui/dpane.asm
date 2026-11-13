@@ -74,7 +74,7 @@ dp_frames:
         jz      @dpf_e
         cmp     ebp,NDFRM
         jae     @dpf_e
-        mov     ebx,[edx].TFRH.ln
+        mov     ebx,[edx].TFRAME.ln
         add     edx,M_PC
         jmp     @dpf_l
 @dpf_e:
@@ -123,7 +123,7 @@ dp_frm1:
         mov     esi,offset u_dpimm
         cmp     ebx,DLINE
         je      @dfr_n
-        mov     ax,gs:[ebx].TLN.num
+        mov     ax,gs:[ebx].TLINE.num
         push    ebp
         push    edx
         push    edi
@@ -691,7 +691,7 @@ dp_wval:
 @@:
         cmp     ebx,CSTOP
         jae     @F
-        cmp     [ebx].TFRH.ln,DLINE
+        cmp     [ebx].TFRAME.ln,DLINE
         je      @dwv_n
         movzx   ecx,byte ptr [ebx+F_MARK]
         add     ebx,ecx

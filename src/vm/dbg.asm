@@ -54,9 +54,9 @@ op_dbg:
 @odb_b:                                 ; the line's first statement only
         lea     eax,[esi-1]
         sub     eax,[g_state.mm.cblin]
-        cmp     eax,gs:[ebx].TLN.cp
+        cmp     eax,gs:[ebx].TLINE.code
         jne     @odb_d
-        movzx   eax,gs:[ebx].TLN.num
+        movzx   eax,gs:[ebx].TLINE.num
         cmp     [g_state.dbg.utl],0
         je      @F
         cmp     ax,[g_state.dbg.ulnum]
@@ -101,15 +101,15 @@ dbg_depth:
 ; dbg_pos - the place of code address EAX in line EBX to wnum, wb0, wb1.
 ; ::::::::::::::
 dbg_pos:
-        mov     dx,gs:[ebx].TLN.num
+        mov     dx,gs:[ebx].TLINE.num
         mov     [g_state.dbg.wnum],dx
         call    ex_smap
-        movzx   eax,word ptr [edi]
+        mov     eax,[edi].TSTMT.body
         mov     [g_state.dbg.wb0],eax
         mov     eax,BOFF
         cmp     ecx,1
         jbe     @F
-        movzx   eax,word ptr [edi+4]
+        mov     eax,[edi+sizeof TSTMT].TSTMT.body
 @@:
         mov     [g_state.dbg.wb1],eax
         ret

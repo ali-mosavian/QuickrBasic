@@ -43,9 +43,9 @@ ls_all:
 ls_range:
         mov     ebx,PROGBASE
 @ls_l:
-        cmp     gs:[ebx].TLN.len,0
+        cmp     gs:[ebx].TLINE.len,0
         je      @ls_e
-        mov     ax,gs:[ebx].TLN.num
+        mov     ax,gs:[ebx].TLINE.num
         cmp     ax,[g_state.rn.lfrom]
         jb      @ls_sk
         cmp     ax,[g_state.rn.lto]
@@ -54,7 +54,7 @@ ls_range:
         call    ls_line
         pop     ebx
 @ls_sk:
-        mov     ecx,gs:[ebx].TLN.len
+        mov     ecx,gs:[ebx].TLINE.len
         add     ebx,ecx
         jmp     @ls_l
 @ls_e:
@@ -69,7 +69,7 @@ ls_range:
 ls_line:
         push    esi
         push    ebx
-        mov     ax,gs:[ebx].TLN.num
+        mov     ax,gs:[ebx].TLINE.num
         call    io_num
         call    io_space
         pop     ebx
