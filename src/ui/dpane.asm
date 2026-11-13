@@ -3,7 +3,7 @@
 ; Watch, Locals and Call stack
 ; ==========================================================================
 ; holds:    dp_open, dp_close, dp_draw, dp_key, dp_mouse, dp_hover, dp_tip
-; uses:     cstk's frames, sy_find, vw_of, vw_goline, dr_ttl, sc_*
+; uses:     cstk's frames, lm_of, vw_of, vw_goline, dr_ttl, sc_*
 ; data:     g_ui.dp. The frames (TDFRM): the stop's, then each procedure's
 ;           caller, from cstk's M_PC frames, each with its text line and its
 ;           row: the procedure's name, or module, and its line in its view.
@@ -123,15 +123,7 @@ dp_frm1:
         mov     esi,offset u_dpimm
         cmp     ebx,DLINE
         je      @dfr_n
-        mov     ax,gs:[ebx].TLINE.num
-        push    ebp
-        push    edx
-        push    edi
-        call    sy_find
-        pop     edi
-        pop     edx
-        pop     ebp
-        mov     esi,offset u_dpimm
+        call    lm_of
         jc      @dfr_n
         mov     [edi].TDFRM.df_ln,ax
         push    edi

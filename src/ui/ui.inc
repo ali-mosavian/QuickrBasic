@@ -207,18 +207,16 @@ TMSGD    ends
 
 TTEXT    struc                   ; the text, the clipboard
     hl_len  dw      ?               ; BASIC.HLP's bytes, at hlpb
-    tx_end  dw      ?
     tx_n    dw      ?               ; the view's lines, from tx_v0 of tx_all
     tx_v0   dw      ?
     tx_all  dw      ?
     tx_hook dd      ?               ; a line added, removed (view.asm)
-    tx_ci   dw      ?               ; a line looked up last, its offset
-    tx_co   dw      ?
     cb_len  dw      ?
     cb_ln   db      ?
     tx_mod  db      ?               ; the text changed since the program was made
     tx_chg  db      ?               ; since it was saved
     syn_on  db      ?
+    tx_asis db      ?               ; the next line stored as typed
 TTEXT    ends
 
 TEDIT    struc                   ; the program window, the selection
@@ -258,16 +256,6 @@ TFIND    struc                   ; a line made canonical; Find and Change
     fd_whole db      ?
 TFIND    ends
 
-TSYNC    struc                   ; the text made the program
-    sy_md   db      ?
-    sy_tg   dw      ?
-    sy_i    dw      ?
-    sy_prev dw      ?
-    sy_on   db      ?               ; making the program: an error is at sy_i
-    sy_hid  db      ?
-    sy_cb   dd      ?               ; sy_walk's routine
-TSYNC    ends
-
 NVIEW   = 64                    ; views at most (view.asm)
 VNAME   = 40                    ; a procedure's name's characters at most
 VLSZ    = VNAME+4               ; the SUBs box's list item
@@ -295,8 +283,6 @@ TUDBG    struc                   ; the debugger's UI (ui/dbg.asm)
     hl_c0   dw      ?
     hl_c1   dw      ?
     ud_utl  dw      ?               ; F7's line + 1, 0 none
-    ud_tgt  dw      ?               ; ud_numof's line, its number
-    ud_num  dw      ?
 TUDBG    ends
 
 NWIN    = 4                     ; the windows, top down (win.asm)
@@ -496,7 +482,6 @@ TUI      struc
     tx      TTEXT   <>
     ed      TEDIT   <>
     fd      TFIND   <>
-    sy      TSYNC   <>
     im      TIMM    <>
     lp      TLOOP   <>
     mn      TMENU   <>

@@ -1,15 +1,15 @@
 ; ==========================================================================
 ; dbg.asm - the debugger's VM side: where a run stops, TRON, TROFF
 ; ==========================================================================
-; holds:    op_dbg, dbg_depth, dbg_pos, dbg_bpset, dbg_bpclr, dbg_eval,
+; holds:    op_dbg, dbg_depth, dbg_pos, dbg_eval,
 ;           dbg_evx, dbg_ever, sc_tron, sc_troff
 ; uses:     ex_stmtof, sc_stop
 ; data:     With dbg.emit set (the IDE), each program statement's code
 ;           starts with DBG. Its stops: a step (mode), a breakpoint at the
-;           line's first statement (by line number, g_dbbp), until (ulnum,
-;           once). A stop is a STOP: CONT goes on past the DBG. With trace
-;           set, each statement first goes to hook, its place in wnum, wb0,
-;           wb1. The direct line has no DBG.
+;           line's first statement (its LF_BP), until (uline, once). A stop
+;           is a STOP: CONT goes on past the DBG. With trace set, each
+;           statement first goes to hook, its place in wline, stmtfrom,
+;           stmtto. The direct line has no DBG.
 ;           dbg_eval, the probe: a direct line PRINTs an expression into
 ;           sbuf while the run is stopped; its end (sc_end, ex_end) and any
 ;           error (err_raise) come back to it by dbg_evx, and what the line
@@ -56,16 +56,15 @@ op_dbg:
         sub     eax,[g_state.mm.cachebase]
         cmp     eax,gs:[ebx].TLINE.code
         jne     @odb_d
-        movzx   eax,gs:[ebx].TLINE.num
         cmp     [g_state.dbg.utl],0
         je      @F
-        cmp     ax,[g_state.dbg.ulnum]
+        cmp     ebx,[g_state.dbg.uline]
         je      @odb_s
 @@:
         cmp     [g_state.dbg.bpon],0
         je      @odb_d
-        bt      dword ptr [g_dbbp],eax
-        jc      @odb_s
+        test    gs:[ebx].TLINE.fl,LF_BP
+        jnz     @odb_s
 @odb_d:
         dispatch
 @odb_s:
@@ -98,11 +97,11 @@ dbg_depth:
         ret
 
 ; ::::::::::::::
-; dbg_pos - the place of code address EAX in line EBX to wnum, wb0, wb1.
+; dbg_pos - the place of code address EAX in line EBX to wline, stmtfrom,
+; stmtto.
 ; ::::::::::::::
 dbg_pos:
-        mov     dx,gs:[ebx].TLINE.num
-        mov     [g_state.dbg.wnum],dx
+        mov     [g_state.dbg.wline],ebx
         call    ex_stmtof
         mov     eax,[edi].TSTMT.body
         mov     [g_state.dbg.stmtfrom],eax
@@ -112,30 +111,6 @@ dbg_pos:
         mov     eax,[edi+sizeof TSTMT].TSTMT.body
 @@:
         mov     [g_state.dbg.stmtto],eax
-        ret
-
-; ::::::::::::::
-; dbg_bpset - a breakpoint at line number AX.
-; ::::::::::::::
-dbg_bpset:
-        movzx   eax,ax
-        bts     dword ptr [g_dbbp],eax
-        mov     [g_state.dbg.bpon],1
-        ret
-
-; ::::::::::::::
-; dbg_bpclr - no breakpoints.
-; ::::::::::::::
-dbg_bpclr:
-        push    edi
-        push    ecx
-        mov     edi,offset g_dbbp
-        mov     ecx,DBBPSZ/4
-        xor     eax,eax
-        rep     stosd
-        mov     [g_state.dbg.bpon],al
-        pop     ecx
-        pop     edi
         ret
 
 ; ::::::::::::::
@@ -265,7 +240,6 @@ g_dbsvt dd      g_state.rn.rsp
         dd      0
         .data?
 g_dbsv  db      64 dup(?)
-g_dbbp  db      DBBPSZ dup(?)           ; a bit per line number
         .code
 
         end

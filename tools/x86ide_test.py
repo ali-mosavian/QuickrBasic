@@ -788,6 +788,13 @@ def play() -> None:
     press(f"0x{F5:x}")
     assert output()[0] == " 300", output()
     press("space")
+    if flat:  # past 64 KB of text: the text's buffer was 64 KB, the file cut short
+        pad = b"x = x + 1 ' " + b"pad " * 12 + b"\r\n"
+        (work / "BIG.BAS").write_bytes(b"x = 0\r\n" + pad * 2000 + b"PRINT x\r\n")
+        open_file("big.bas")
+        press(f"0x{F5:x}")
+        assert output()[0] == " 2000", output()
+        press("space")
     # Ctrl+Break stops at a statement's start, lit; the Ctrl+C is no key for the editor (a page down).
     open_file("loop.bas")
     s.send({"cmd": "key", "scancode": F5, "ascii": 0, "stop": False})  # a loop reads no key

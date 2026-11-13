@@ -2,9 +2,9 @@
 ; ui.asm - the editor: start, the key loop, the commands, running
 ; ==========================================================================
 ; holds:    ui_start, ui_loop, ui_key, ui_act, ui_ready, ui_err, ui_getkey
-; uses:     every ui/ module; rpl_enter, rpl_run, sy_build
-; data:     Page 0 the editor, page 1 the program's output. The text is
-;           edited free-form; at a run it becomes the program (sync.asm).
+; uses:     every ui/ module; rpl_enter, rpl_run, rpl_relink
+; data:     Page 0 the editor, page 1 the program's output. The text is the
+;           program's store (text.asm); a run enters it again when changed.
 ;           An error, BREAK or STOP comes back to the editor at its line.
 ;           Only when standard input and output are both the console.
 ; calls:
@@ -47,6 +47,7 @@ ui_start:
         call    wn_init
         call    ms_init
         call    hl_load
+        call    lm_init
         call    tx_init
         call    vw_reset
         xor     ax,ax
@@ -573,7 +574,7 @@ ui_asksave:
         ret
 
 ; ::::::::::::::
-; ui_reset - the editor at the text's start; the program gone.
+; ui_reset - the editor at the text's start: a new or loaded text.
 ; ::::::::::::::
 ui_reset:
         xor     ax,ax
@@ -586,8 +587,7 @@ ui_reset:
         mov     [g_ui.tx.tx_mod],1
         call    dp_close
         call    vw_reset
-        call    ed_load
-        jmp     prg_init
+        jmp     ed_load
 
 ; ::::::::::::::
 ; ui_new - File, New.
@@ -625,24 +625,6 @@ ui_load:
 @ul_n:
         call    tx_init
 @ul_k:
-        xor     ax,ax                   ; each line as the editor shows it
-@ul_l:
-        cmp     ax,[g_ui.tx.tx_n]
-        jae     @ul_f
-        push    eax
-        mov     edi,offset g_ui.bf.ed_lb.txt
-        call    tx_get
-        mov     esi,edi
-        call    ui_canon
-        pop     eax
-        jc      @ul_x
-        mov     ecx,[g_state.io.sbx]
-        mov     esi,offset g_sbuf
-        call    tx_repl
-@ul_x:
-        inc     ax
-        jmp     @ul_l
-@ul_f:
         mov     esi,offset g_ui.bf.dl_name
         mov     edi,offset g_ui.bf.ui_fn
 @ul_c:
@@ -782,20 +764,20 @@ ui_outclr:
         ret
 
 ; ::::::::::::::
-; ui_sync - the text to the program when it changed.
+; ui_sync - the program entered again when the text changed.
 ;
-; out:    CF  set: a numbering error, the cursor on its line
+; out:    CF  clear
+; error:  as rpl_relink, at its line
 ; ::::::::::::::
 ui_sync:
         call    ed_commit
         cmp     [g_ui.tx.tx_mod],0
         je      @usy_r
-        call    sy_build
-        jnc     @usy_r
-        mov     ax,[g_ui.sy.sy_i]
-        call    ui_atline
-        stc
+        call    rpl_relink
+        call    lm_build
+        and     [g_ui.tx.tx_mod],0
 @usy_r:
+        clc
         ret
 
 ; ::::::::::::::
@@ -997,21 +979,17 @@ ui_err:
         and     [g_state.io.pcol],0
         and     [g_state.rn.stpflg],0
         call    ui_in
-        cmp     [g_ui.sy.sy_on],0
-        je      @uer_l
-        and     [g_ui.sy.sy_on],0
-        and     [g_state.io.lmode],0    ; sy_build's, the error ended
-        mov     ax,[g_ui.sy.sy_i]
-        jmp     @uer_g
-@uer_l:
-        movzx   ebx,word ptr [g_state.rn.line]
-        cmp     bx,DLINE
+        xor     eax,eax                 ; rpl_relink's, the error ended it
+        mov     [g_state.io.lmode],al
+        mov     [g_state.mm.addfl],al
+        mov     [g_state.mm.addat],eax
+        mov     ebx,[g_state.rn.line]
+        cmp     ebx,DLINE
         je      @uer_m
-        mov     ax,gs:[ebx].TLINE.num
-        call    sy_find
+        call    lm_build                ; the include's lines are no line
+        call    lm_of
         jc      @uer_m
         mov     [g_ui.lp.ui_eln],1
-@uer_g:
         call    vw_goline
         call    ui_atline
 @uer_m:

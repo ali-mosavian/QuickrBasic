@@ -453,6 +453,9 @@ externdef alloc_new:near
 externdef alloc_sel:near
 ; mem/prog.asm
 externdef prg_add:near
+externdef prg_at:near
+externdef prg_body:near
+externdef prg_cut:near
 externdef prg_drop:near
 externdef prg_findw:near
 externdef prg_init:near
@@ -473,6 +476,7 @@ externdef sym_init:near
 externdef var_cell:near
 externdef var_clr:near
 externdef var_find:near
+externdef var_init:near
 ; mem/scope.asm
 externdef scp_arec:near
 externdef scp_bind:near

@@ -164,9 +164,12 @@ TMEM     struc                   ; the memory map, the program, the arrays
     vend    dd      ?
     progend dd      ?
     enterat dd      ?               ; the stored line being entered
-    oldline dd      ?
     bodyptr dd      ?               ; prg_put's body
     bodylen dd      ?
+    preptr  dd      ?               ; its text before the body; used up
+    prelen  dd      ?
+    addfl   db      ?               ; the lines stored: their fl
+    addat   dd      ?               ; prg_add's place, 0 the end
     peekseg dw      ?
 TMEM     ends
 
@@ -235,13 +238,13 @@ TPLAT    ends
 TDBG     struc                   ; the debugger (vm/dbg.asm)
     mode    db      ?               ; DM_*: the stop the next DBG looks for
     trace   db      ?               ; 1: each statement to hook (TRON)
-    bpon    db      ?               ; 1: a breakpoint is set
-    utl     db      ?               ; 1: until, a one-time stop at line ulnum
+    bpon    db      ?               ; 1: a line's LF_BP stops
+    utl     db      ?               ; 1: until, a one-time stop at line uline
     emit    db      ?               ; 1: a DBG op starts each statement
     pdep    dd      ?               ; DM_PSTEP: stop at this depth or less
-    ulnum   dw      ?
+    uline   dd      ?
     hook    dd      ?               ; trace's routine, 0 none
-    wnum    dw      ?               ; dbg_pos: the line's number
+    wline   dd      ?               ; dbg_pos: the line
     stmtfrom dd      ?               ;   its statement's body offsets, from
     stmtto  dd      ?               ;   and to (BOFF the line's end)
 TDBG     ends
@@ -255,6 +258,7 @@ TALLOC   ends
 NBLKH   = 8                     ; blocks at most
 HCACHE  = 0                     ; the code cache's block
 HPROG   = 1                     ; the program store's
+HLMAP   = 2                     ; the editor's line map (ui/lmap.asm)
 
 TALLOCS  struc                   ; the allocator
     nb      dd      ?               ; the blocks made

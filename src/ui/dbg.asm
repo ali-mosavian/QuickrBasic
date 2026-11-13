@@ -2,11 +2,10 @@
 ; dbg.asm - the debugger's UI: the Debug menu, F7 to F10, the lit statement
 ; ==========================================================================
 ; holds:    ud_init, ud_prep, ud_stop, the Debug menu's commands
-; uses:     vm/dbg.asm (g_state.dbg, dbg_*), tx_mark, sy_walk, sy_find,
+; uses:     vm/dbg.asm (g_state.dbg, dbg_*), tx_mark, lm_off, lm_of,
 ;           lx_line's lxcol, ui_contp, ui_runp
-; data:     A breakpoint is a text line's mark (text.asm), so it moves with
-;           the line; ud_prep gives the VM their line numbers before each
-;           run. A stop (STOP, Ctrl+Break, a step, a breakpoint) or a trace
+; data:     A breakpoint is a text line's mark, its record's LF_BP
+;           (text.asm), so it moves with the line. A stop (STOP, Ctrl+Break, a step, a breakpoint) or a trace
 ;           lights the statement: hl_ln, columns hl_c0 to hl_c1, found by
 ;           tokenizing the line again: the VM knows the statement by its
 ;           body offset, the tokenizer's lxcol has its column.
@@ -25,34 +24,21 @@ ud_init:
         ret
 
 ; ::::::::::::::
-; ud_prep - before a run or CONT: the VM's breakpoints and until from the
-; text, nothing lit.
+; ud_prep - before a run or CONT: breakpoints on, until's line to the VM,
+; nothing lit.
 ; ::::::::::::::
 ud_prep:
         call    dp_close
         and     [g_ui.ud.hl_on],0
         and     [g_ui.ud.stopd],0
-        call    dbg_bpclr
+        mov     [g_state.dbg.bpon],1
         and     [g_state.dbg.utl],0
-        mov     edx,offset ud_line
-        jmp     sy_walk
-
-; ud_line - sy_walk's: text line AX, numbered DX, to the VM.
-ud_line:
-        push    eax
-        call    tx_mark
-        test    al,al
-        pop     eax
+        movzx   eax,[g_ui.ud.ud_utl]
+        test    eax,eax
         jz      @F
-        push    eax
-        mov     ax,dx
-        call    dbg_bpset
-        pop     eax
-@@:
-        inc     ax
-        cmp     ax,[g_ui.ud.ud_utl]
-        jne     @F
-        mov     [g_state.dbg.ulnum],dx
+        dec     eax
+        call    lm_off
+        mov     [g_state.dbg.uline],ebx
         mov     [g_state.dbg.utl],1
 @@:
         ret
@@ -77,11 +63,12 @@ ud_stop:
         ret
 
 ; ::::::::::::::
-; ud_hlset - the statement at wnum, wb0, wb1 lit, the cursor at its start.
+; ud_hlset - the statement at wline, stmtfrom, stmtto lit, the cursor at
+; its start.
 ; ::::::::::::::
 ud_hlset:
-        mov     ax,[g_state.dbg.wnum]
-        call    sy_find
+        mov     ebx,[g_state.dbg.wline]
+        call    lm_of
         jc      @uhs_r
         mov     [g_ui.ud.hl_ln],ax      ; the text's line
         call    vw_goline
@@ -302,19 +289,7 @@ ud_setnx:
         call    ui_cancont
         jc      @usn_c
         mov     ax,[g_ui.ed.ed_line]
-        add     ax,[g_ui.tx.tx_v0]
-        mov     [g_ui.ud.ud_tgt],ax
-        or      [g_ui.ud.ud_num],-1
-        mov     edx,offset ud_numof
-        call    sy_walk
-        mov     ax,[g_ui.ud.ud_num]
-        cmp     ax,NONUM
-        je      @usn_r                  ; a blank line
-        mov     [g_state.rn.lnum],ax
-        and     [g_state.lnk.cursor],0
-        call    prg_findw
-        jnc     @usn_r
-        movzx   ebx,bx
+        call    tx_rec
         call    bk_proc
         mov     al,[g_state.cm.cproc]
         push    eax
@@ -342,16 +317,6 @@ ud_setnx:
 @usn_c:
         mov     esi,offset u_cncont
         jmp     dl_ok
-@usn_r:
-        ret
-
-; ud_numof - sy_walk's: the number of text line ud_tgt to ud_num.
-ud_numof:
-        cmp     ax,[g_ui.ud.ud_tgt]
-        jne     @F
-        mov     [g_ui.ud.ud_num],dx
-@@:
-        ret
 
         .data
 u_bnext db      'Cannot cross module/procedure boundary',0

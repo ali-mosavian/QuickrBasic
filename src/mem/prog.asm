@@ -1,11 +1,13 @@
 ; ==========================================================================
 ; prog.asm - the program store, in GS
 ; ==========================================================================
-; holds:    prg_findw, prg_put, prg_fill, prg_drop, prg_init, prg_place
+; holds:    prg_findw, prg_put, prg_add, prg_at, prg_ins, prg_cut, prg_body,
+;           prg_fill, prg_drop, prg_init, prg_place
 ; uses:     var_clr, mem_pmov
-; data:     a line: len:2 num:2 cp:2 body, the tokens lx_line made, with their
-;           0. cp is its code in the cache (cm_cache), 0 for none. A len of 0
-;           ends the lines, at pend.
+; data:     a line: TLINE, then its body, the tokens lx_line made, with
+;           their 0, then pre bytes of its text before the body (the
+;           editor's: indent, number as typed). A len of 0 ends the lines,
+;           at progend.
 ; calls:
 ;   prg_put            rpl_enter: store, replace or delete
 ;     prg_findw        BX = the first line >= lnum; CF: it is lnum
@@ -83,18 +85,27 @@ prg_findw:
 ; ::::::::::::::
 prg_put:
         movzx   ecx,cx
-        cmp     ecx,1
-        je      @pp_d
         mov     [g_state.mm.bodyptr],esi
         mov     [g_state.mm.bodylen],ecx
-        mov     eax,ecx
-        add     eax,HDR
-@pp_d:
-        push    eax
-        push    ecx
         call    prg_findw
-        jnc     @pp_i
-        mov     [g_state.mm.oldline],ebx
+        jnc     @F
+        call    prg_cut
+@@:
+        cmp     [g_state.mm.bodylen],1
+        je      prg_drop
+        call    prg_ins
+        jmp     prg_drop
+
+; ::::::::::::::
+; prg_cut - the record at EBX removed.
+;
+; out:    EAX  its size
+; keeps:  all but EAX
+; ::::::::::::::
+prg_cut:
+        push    ecx
+        push    esi
+        push    edi
         mov     eax,gs:[ebx].TLINE.len
         lea     esi,[ebx+eax]
         mov     edi,ebx
@@ -102,16 +113,25 @@ prg_put:
         sub     ecx,esi
         call    mem_pmov
         mov     [g_state.mm.progend],edi
-        mov     ebx,[g_state.mm.oldline]
-@pp_i:
+        mov     gs:[edi].TLINE.len,0
+        pop     edi
+        pop     esi
         pop     ecx
-        pop     eax
-        cmp     ecx,1
-        je      @jt_prog1
+        ret
+
+; ::::::::::::::
+; prg_ins - the line (prg_fill's) stored before the record at EBX, after
+; prg_drop: the store whole, should it not fit.
+;
+; out:    EAX  its size
+; keeps:  EBX
+; error:  Out of memory
+; ::::::::::::::
+prg_ins:
+        call    prg_size
         mov     edx,[g_state.mm.progend]
-        add     edx,eax
-        add     edx,4                   ; the terminator
-        pushad                          ; whole without it, should room fail
+        lea     edx,[edx+eax+4]         ; the terminator
+        pushad
         call    prg_drop
         popad
         call    prg_room
@@ -124,14 +144,31 @@ prg_put:
         std
         call    mem_pmov
         cld
-        pop     eax
+        mov     eax,[esp]
         add     [g_state.mm.progend],eax
+        mov     ecx,[g_state.mm.progend]
+        mov     gs:[ecx].TLINE.len,0
         call    prg_fill
-@jt_prog1:
-        jmp     prg_drop
+        pop     eax
+        ret
 
 ; ::::::::::::::
-; prg_add - a loaded line: at the end, the program not dropped.
+; prg_at - where prg_add stores: addat, else the end.
+;
+; out:    EDX  it
+; keeps:  all but EDX
+; ::::::::::::::
+prg_at:
+        mov     edx,[g_state.mm.addat]
+        test    edx,edx
+        jnz     @F
+        mov     edx,[g_state.mm.progend]
+@@:
+        ret
+
+; ::::::::::::::
+; prg_add - a loaded line: at prg_at, the program not dropped at the end;
+; addat past it.
 ;
 ; in:     lnum  its number, NONUM none
 ;         CX    the body length with its 0
@@ -142,7 +179,14 @@ prg_add:
         movzx   ecx,cx
         mov     [g_state.mm.bodyptr],esi
         mov     [g_state.mm.bodylen],ecx
-        lea     eax,[ecx+HDR]
+        mov     ebx,[g_state.mm.addat]
+        test    ebx,ebx
+        jz      @F
+        call    prg_ins
+        add     [g_state.mm.addat],eax
+        ret
+@@:
+        call    prg_size
         mov     ebx,[g_state.mm.progend]
         lea     edx,[ebx+eax+4]
         call    prg_room
@@ -153,22 +197,63 @@ prg_add:
         ret
 
 ; ::::::::::::::
-; prg_fill - write the line at EBX: the record of size EAX, lnum, the body.
+; prg_body - the body of the record at EBX, copied to EDI.
+;
+; out:    EDI  past it
+; keeps:  all but EDI
+; ::::::::::::::
+prg_body:
+        push    ecx
+        push    esi
+        mov     ecx,gs:[ebx].TLINE.len
+        sub     ecx,gs:[ebx].TLINE.pre
+        sub     ecx,HDR
+        lea     esi,[ebx+HDR]
+        add     esi,[g_state.mm.progbase]
+        rep     movsb
+        pop     esi
+        pop     ecx
+        ret
+
+; ::::::::::::::
+; prg_size - the record's size: bodylen, prelen.
+;
+; out:    EAX  it
+; ::::::::::::::
+prg_size:
+        mov     eax,[g_state.mm.bodylen]
+        add     eax,[g_state.mm.prelen]
+        add     eax,HDR
+        ret
+
+; ::::::::::::::
+; prg_fill - write the line at EBX: the record of size EAX, lnum, addfl,
+; the body, the text before it (prelen used up).
 ;
 ; in:     EAX   the record's size
 ;         EBX   the record
 ;         lnum  its number
-;         pbs, pbl  the body, its length
+;         bodyptr, bodylen, preptr, prelen
 ; ::::::::::::::
 prg_fill:
         mov     gs:[ebx].TLINE.len,eax
         mov     ax,[g_state.rn.lnum]
         mov     gs:[ebx].TLINE.num,ax
         mov     gs:[ebx].TLINE.code,0
+        mov     al,[g_state.mm.addfl]
+        mov     gs:[ebx].TLINE.fl,al
+        mov     gs:[ebx].TLINE.sep,0
+        xor     ecx,ecx
+        xchg    ecx,[g_state.mm.prelen]
+        mov     gs:[ebx].TLINE.pre,ecx
         lea     edi,[ebx+HDR]
         add     edi,[g_state.mm.progbase]
         mov     esi,[g_state.mm.bodyptr]
+        push    ecx
         mov     ecx,[g_state.mm.bodylen]
+        rep     movsb
+        pop     ecx
+        mov     esi,[g_state.mm.preptr]
         rep     movsb
         ret
 

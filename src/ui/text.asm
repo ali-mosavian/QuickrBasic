@@ -1,41 +1,42 @@
 ; ==========================================================================
-; text.asm - the editor's text, the clipboard, files
+; text.asm - the editor's text: the program store's lines; the clipboard;
+; files
 ; ==========================================================================
-; holds:    tx_init, tx_off, tx_len, tx_get, tx_repl, tx_insl, tx_dell,
-;           tx_read, tx_write, tx_mark, tx_mtog, tx_mclr, tx_view, tx_whole,
-;           cb_*
-; uses:     txb, clpb, wrkb; INT 21h
-; data:     The text is lines ended by CR, tx_end bytes, tx_n lines, at
-;           least one; a position in it is an offset in txb. tx_ci, tx_co:
-;           a line's index and offset, where the next lookup starts. The
-;           clipboard: cb_len bytes in clpb, whole
-;           lines (cb_ln 1, each ended by CR) or a piece of one. A line's
-;           mark (txmk, 0 or 1: a breakpoint) moves with it.
+; holds:    tx_init, tx_get, tx_text, tx_repl, tx_insl, tx_dell, tx_read,
+;           tx_write, tx_mark, tx_mtog, tx_mclr, tx_view, tx_whole, cb_*
+; uses:     prg_*, lx_line, ls_body, lm_* (the line map), ui_body, ui_canon
+; data:     The text is the program store: a line a record, tx_all of
+;           them, at least one, in order, each found by the line map. A
+;           line is its record's pre bytes (its indent and number as typed),
+;           then its body as LIST spells it; an LF_ASIS line is its pre
+;           alone (a line with a syntax error, kept as typed; tx_asis asks
+;           it of the next line stored). A line's mark (a breakpoint) is its
+;           LF_BP. The clipboard: cb_len bytes in clpb, whole lines (cb_ln
+;           1, each ended by CR) or a piece of one.
 ;           The editor sees a view: tx_n lines from tx_v0 of the tx_all,
 ;           its line numbers from 0 (a procedure's lines, view.asm). A line
 ;           added or removed goes to tx_hook (EAX the line, EDX 1 or -1).
 ; calls:
-;   tx_repl, tx_insl, tx_dell  tx_off; tx_move the rest along
-;   tx_read            the file to wrkb, then CR-ended lines, tabs out
+;   tx_repl, tx_insl   tx_put: tx_make, the record in, the map again
+;   tx_read            a line at a time (rd_byte) to tx_add
 ; ==========================================================================
 
 include x86f.inc
 
         .code
 
+RDSZ    = 4096                  ; a file's bytes read, written at a time
 
 ; ::::::::::::::
-; tx_init - one empty line.
+; tx_init - a new program: one empty line.
 ; ::::::::::::::
 tx_init:
-        mov     byte ptr [g_txb],NL
-        mov     [g_ui.tx.tx_end],1
-        mov     [g_ui.tx.tx_all],1
-        call    tx_whole
-        xor     ax,ax
-        mov     [g_ui.tx.tx_ci],ax
-        mov     [g_ui.tx.tx_co],ax
-        jmp     tx_mclr
+        mov     [g_ui.tx.tx_mod],1
+        call    prg_init
+        xor     ecx,ecx
+        call    tx_add
+        call    lm_build
+        jmp     tx_whole
 
 ; ::::::::::::::
 ; tx_view - the editor's view: DX lines from line AX; tx_whole - the
@@ -56,67 +57,16 @@ tx_view:
         ret
 
 ; ::::::::::::::
-; tx_off - the offset of the view's line AX.
+; tx_rec - the view's line AX's record.
 ;
-; in:     AX  the line, below tx_n
-; out:    EBX  its first byte, an offset in txb
+; out:    EBX  it
 ; keeps:  all but EBX
 ; ::::::::::::::
-tx_off:
+tx_rec:
         push    eax
         add     ax,[g_ui.tx.tx_v0]
-        call    tx_offa
+        call    lm_off
         pop     eax
-        ret
-
-; tx_offa - tx_off of the text's line AX.
-tx_offa:
-        push    ecx
-        push    edi
-        movzx   ecx,ax
-        mov     edi,offset g_txb
-        cmp     ax,[g_ui.tx.tx_ci]
-        jb      @txo_s
-        sub     cx,[g_ui.tx.tx_ci]
-        movzx   edi,[g_ui.tx.tx_co]
-        add     edi,offset g_txb
-@txo_s:
-        jecxz   @txo_d
-        push    eax
-        mov     al,NL
-@txo_l:
-        push    ecx
-        mov     ecx,10000h
-        repne   scasb
-        pop     ecx
-        loop    @txo_l
-        pop     eax
-@txo_d:
-        sub     edi,offset g_txb
-        mov     [g_ui.tx.tx_ci],ax
-        mov     [g_ui.tx.tx_co],di
-        mov     ebx,edi
-        pop     edi
-        pop     ecx
-        ret
-
-; ::::::::::::::
-; tx_len - the length of the line at offset EBX.
-;
-; out:    ECX  it, its CR not counted
-; keeps:  all but ECX
-; ::::::::::::::
-tx_len:
-        push    edi
-        push    eax
-        lea     edi,[g_txb+ebx]
-        mov     al,NL
-        mov     ecx,-1
-        repne   scasb
-        not     ecx
-        dec     ecx
-        pop     eax
-        pop     edi
         ret
 
 ; ::::::::::::::
@@ -127,169 +77,230 @@ tx_len:
 ; ::::::::::::::
 tx_get:
         push    ebx
-        push    esi
-        push    edi
-        call    tx_off
-        call    tx_len
-        lea     esi,[g_txb+ebx]
-        push    ecx
-        rep     movsb
-        pop     ecx
-        pop     edi
-        pop     esi
+        call    tx_rec
+        call    tx_text
         pop     ebx
         ret
 
 ; ::::::::::::::
-; tx_move - ECX bytes from offset ESI to offset EDI in txb, overlapping
-; either way.
+; tx_text - the line of record EBX into EDI.
 ;
-; keeps:  all
+; out:    ECX  its length
+; keeps:  all but ECX
 ; ::::::::::::::
-tx_move:
+tx_text:
+        push    eax
+        push    esi
+        push    edi
+        mov     ecx,gs:[ebx].TLINE.pre
+        mov     esi,gs:[ebx].TLINE.len
+        sub     esi,ecx
+        add     esi,ebx
+        add     esi,[g_state.mm.progbase]
+        rep     movsb
+        test    gs:[ebx].TLINE.fl,LF_ASIS
+        jnz     @txt_r
+        push    dword ptr [g_state.io.sbx]     ; sbuf's user's, kept
+        push    word ptr [g_state.io.ocap]      ; ocap, pcol
+        mov     [g_state.io.ocap],80h
+        and     [g_state.io.sbx],0
+        lea     esi,[ebx+HDR]
+        add     esi,[g_state.mm.progbase]
         pushad
-        add     esi,offset g_txb
-        add     edi,offset g_txb
-        cmp     edi,esi
-        jbe     @txm_f
-        lea     esi,[esi+ecx-1]
-        lea     edi,[edi+ecx-1]
-        std
-        rep     movsb
-        cld
-        jmp     @txm_x
-@txm_f:
-        rep     movsb
-@txm_x:
+        call    ls_body
         popad
+        mov     ecx,[g_state.io.sbx]
+        mov     esi,offset g_sbuf
+        rep     movsb
+        pop     word ptr [g_state.io.ocap]
+        pop     dword ptr [g_state.io.sbx]
+@txt_r:
+        mov     ecx,edi
+        pop     edi
+        sub     ecx,edi
+        pop     esi
+        pop     eax
         ret
 
 ; ::::::::::::::
-; tx_room - CF set, an Out of memory box, when CX more bytes do not fit.
+; tx_make - the line of ECX characters at ESI made a record's: its body in
+; cbuf, its number, its text before the body; as typed when tx_asis (used
+; up) or when LIST would spell it past an editor line.
+;
+; in:     ESI  the line, kept till prg_fill
+; out:    bodyptr, bodylen, preptr, prelen, lnum  for prg_fill
+;         AL   its fl
 ; ::::::::::::::
-tx_room:
-        push    eax
-        mov     ax,[g_ui.tx.tx_end]
-        add     ax,cx
-        jc      @txr_n
-        cmp     ax,TXMAX
-        ja      @txr_n
-        pop     eax
-        clc
-        ret
-@txr_n:
-        pop     eax
-        push    esi
-        mov     esi,offset u_oom
-        call    dl_ok
+tx_make:
+        mov     [g_state.mm.preptr],esi
+        push    esi                     ; a copy, 0-ended, worked on: the
+        push    ecx                     ; lexer changes its text
+        mov     edi,offset g_ui.bf.uc_line
+        rep     movsb
+        mov     byte ptr [edi],0
+        pop     ecx
+        mov     esi,offset g_ui.bf.uc_line
+        mov     edi,esi
+        call    ui_body
+        mov     edx,edi                 ; EDX the body
+        mov     ebx,edi
+        sub     ebx,esi
+        mov     [g_state.mm.prelen],ebx
+        mov     [g_state.rn.lnum],NONUM
+        mov     edi,esi                 ; its number, 64000 when past
+@@:
+        cmp     byte ptr [edi],' '
+        jne     @F
+        inc     edi
+        jmp     @B
+@@:
+        push    edi
+        xor     eax,eax
+@txk_d:
+        cmp     edi,edx
+        jae     @txk_n
+        movzx   ebx,byte ptr [edi]
+        sub     bl,'0'
+        cmp     bl,9
+        ja      @txk_n
+        imul    eax,10
+        add     eax,ebx
+        cmp     eax,64000
+        jb      @F
+        mov     eax,64000
+@@:
+        inc     edi
+        jmp     @txk_d
+@txk_n:
+        pop     ebx
+        cmp     edi,ebx
+        je      @txk_b
+        mov     [g_state.rn.lnum],ax
+@txk_b:
+        push    ecx
+        mov     [g_state.rn.line],DLINE
+        mov     esi,edx
+        mov     edi,offset g_cbuf
+        call    lx_line
+        sub     edi,offset g_cbuf
+        mov     [g_state.mm.bodylen],edi
+        mov     [g_state.mm.bodyptr],offset g_cbuf
+        pop     ecx
         pop     esi
-        stc
+        xor     eax,eax
+        xchg    al,[g_ui.tx.tx_asis]
+        test    al,al
+        jnz     @txk_a
+        push    ecx                     ; LIST's spelling's length
+        push    esi
+        mov     [g_state.io.ocap],80h
+        and     [g_state.io.sbx],0
+        mov     esi,offset g_cbuf
+        call    ls_body
+        and     [g_state.io.ocap],0
+        pop     esi
+        pop     ecx
+        mov     eax,[g_state.io.sbx]
+        add     eax,[g_state.mm.prelen]
+        cmp     eax,LNMAX
+        mov     al,0
+        jbe     @txk_r
+@txk_a:
+        mov     [g_state.mm.prelen],ecx
+        mov     al,LF_ASIS
+@txk_r:
+        ret
+
+; ::::::::::::::
+; tx_put - the line of ECX characters at ESI stored as text line EAX:
+; before it (DL 1), in its place (DL 0, its mark kept).
+;
+; error:  Out of memory
+; ::::::::::::::
+tx_put:
+        push    eax
+        push    edx
+        call    tx_make
+        mov     cl,al
+        pop     edx
+        pop     eax
+        call    lm_off
+        test    dl,dl
+        jnz     @F
+        mov     dl,gs:[ebx].TLINE.fl
+        and     dl,LF_BP
+        or      cl,dl
+        call    prg_cut
+@@:
+        mov     [g_state.mm.addfl],cl
+        call    prg_ins
+        mov     [g_state.mm.addfl],0
+        mov     [g_ui.tx.tx_mod],1
+        jmp     lm_build
+
+; ::::::::::::::
+; tx_add - the line of ECX characters at ESI stored after the rest, the
+; map not made.
+;
+; error:  Out of memory
+; ::::::::::::::
+tx_add:
+        call    tx_make
+        mov     [g_state.mm.addfl],al
+        and     [g_state.mm.addat],0
+        mov     esi,[g_state.mm.bodyptr]
+        mov     ecx,[g_state.mm.bodylen]
+        call    prg_add
+        mov     [g_state.mm.addfl],0
         ret
 
 ; ::::::::::::::
 ; tx_repl - line AX becomes CX characters from ESI.
 ;
-; out:    CF  set: no room, the line as it was
+; out:    CF  clear
 ; keeps:  all
 ; ::::::::::::::
 tx_repl:
         pushad
-        call    tx_off
-        movzx   edx,cx                  ; the new length
-        call    tx_len
-        mov     ebp,ecx                 ; the old
-        mov     ecx,edx
-        sub     ecx,ebp
-        jbe     @txp_s
-        call    tx_room
-        jc      @txp_x
-@txp_s:
-        movzx   ecx,[g_ui.tx.tx_end]
-        sub     ecx,ebx
-        sub     ecx,ebp                 ; the tail from the old end
-        push    esi
-        lea     esi,[ebx+ebp]
-        lea     edi,[ebx+edx]
-        call    tx_move
-        pop     esi
-        mov     eax,edx
-        sub     eax,ebp
-        add     [g_ui.tx.tx_end],ax
-        lea     edi,[g_txb+ebx]
-        mov     ecx,edx
-        rep     movsb
-        clc
-@txp_x:
+        movzx   eax,ax
+        add     ax,[g_ui.tx.tx_v0]
+        movzx   ecx,cx
+        xor     edx,edx
+        call    tx_put
         popad
+        clc
         ret
 
 ; ::::::::::::::
 ; tx_insl - a new line of CX characters from ESI before line AX.
 ;
 ; in:     AX  at most tx_n
-; out:    CF  set: no room
+; out:    CF  clear
 ; keeps:  all
 ; ::::::::::::::
 tx_insl:
         pushad
-        movzx   ecx,cx
-        inc     ecx
-        call    tx_room
-        dec     ecx
-        jc      @txi_x
-        cmp     ax,[g_ui.tx.tx_n]       ; EDX the text's line: past the view,
-        jbe     @F                      ; its end
+        cmp     ax,[g_ui.tx.tx_n]       ; past the view: its end
+        jbe     @F
         mov     ax,[g_ui.tx.tx_n]
 @@:
         add     ax,[g_ui.tx.tx_v0]
-        movzx   edx,ax
-        movzx   ebx,[g_ui.tx.tx_end]
-        cmp     dx,[g_ui.tx.tx_all]
-        jae     @txi_e
-        call    tx_offa
-@txi_e:
-        push    esi
-        push    ecx
-        mov     esi,ebx
-        lea     edi,[ebx+ecx+1]
-        movzx   ecx,[g_ui.tx.tx_end]
-        sub     ecx,ebx
-        call    tx_move
-        pop     ecx
-        pop     esi
-        lea     edi,[g_txb+ebx]
-        push    ecx
-        rep     movsb
-        mov     al,NL
-        stosb
-        pop     ecx
-        inc     ecx
-        add     [g_ui.tx.tx_end],cx
-        movzx   eax,[g_ui.tx.tx_all]    ; the marks from line EDX up one
-        inc     [g_ui.tx.tx_all]
+        movzx   eax,ax
+        movzx   ecx,cx
+        push    eax
+        mov     dl,1
+        call    tx_put
+        pop     eax
         inc     [g_ui.tx.tx_n]
-@txi_m:
-        cmp     eax,edx
-        jbe     @F
-        mov     cl,[g_txmk+eax-1]
-        mov     [g_txmk+eax],cl
-        dec     eax
-        jmp     @txi_m
-@@:
-        mov     byte ptr [g_txmk+edx],0
-        mov     eax,edx
         mov     edx,1
         call    tx_tell
-        clc
-@txi_x:
         popad
+        clc
         ret
 
-; tx_tell - line EAX added (EDX 1) or removed (-1): tx_hook told, the
-; lookup's place forgotten. Keeps all.
+; tx_tell - line EAX added (EDX 1) or removed (-1): tx_hook told. Keeps
+; all.
 tx_tell:
-        mov     [g_ui.tx.tx_ci],0
-        mov     [g_ui.tx.tx_co],0
         cmp     [g_ui.tx.tx_hook],0
         je      @F
         pushad
@@ -306,38 +317,71 @@ tx_tell:
 tx_dell:
         pushad
         cmp     [g_ui.tx.tx_n],1        ; the view's last line is emptied
-        ja      @txd_d
+        ja      @F
         xor     ecx,ecx
         call    tx_repl
         popad
         ret
-@txd_d:
-        call    tx_off
-        call    tx_len
-        inc     ecx
-        lea     esi,[ebx+ecx]
-        mov     edi,ebx
-        sub     [g_ui.tx.tx_end],cx
-        movzx   ecx,[g_ui.tx.tx_end]
-        sub     ecx,ebx
-        call    tx_move
-        dec     [g_ui.tx.tx_all]
-        dec     [g_ui.tx.tx_n]
-        movzx   eax,word ptr [esp+28]   ; the marks after the line down one
-        add     ax,[g_ui.tx.tx_v0]
-        push    eax
-@txd_m:
-        cmp     ax,[g_ui.tx.tx_all]
-        jae     @F
-        mov     cl,[g_txmk+eax+1]
-        mov     [g_txmk+eax],cl
-        inc     eax
-        jmp     @txd_m
 @@:
-        pop     eax
+        call    tx_rec
+        call    prg_cut
+        call    prg_drop
+        mov     [g_ui.tx.tx_mod],1
+        call    lm_build
+        dec     [g_ui.tx.tx_n]
+        movzx   eax,word ptr [esp+28]
+        add     ax,[g_ui.tx.tx_v0]
         mov     edx,-1
         call    tx_tell
         popad
+        ret
+
+; ::::::::::::::
+; tx_mark - the view's line AX's mark.
+;
+; out:    AL  it: 0, 1
+; keeps:  all but EAX
+; ::::::::::::::
+tx_mark:
+        push    ebx
+        call    tx_rec
+        mov     al,gs:[ebx].TLINE.fl
+        and     al,LF_BP
+        shr     al,1
+        pop     ebx
+        ret
+
+; ::::::::::::::
+; tx_mtog - the view's line AX's mark: on, off.
+;
+; keeps:  all
+; ::::::::::::::
+tx_mtog:
+        push    ebx
+        call    tx_rec
+        xor     gs:[ebx].TLINE.fl,LF_BP
+        pop     ebx
+        ret
+
+; ::::::::::::::
+; tx_mclr - no line marked.
+;
+; keeps:  all
+; ::::::::::::::
+tx_mclr:
+        push    eax
+        push    ebx
+        mov     ebx,PROGBASE
+@@:
+        mov     eax,gs:[ebx].TLINE.len
+        test    eax,eax
+        jz      @F
+        and     gs:[ebx].TLINE.fl,not LF_BP
+        add     ebx,eax
+        jmp     @B
+@@:
+        pop     ebx
+        pop     eax
         ret
 
 ; ::::::::::::::
@@ -354,85 +398,79 @@ cb_put:
         ret
 
 ; ::::::::::::::
-; cb_lines - lines AX to DX (inclusive) to the clipboard.
+; cb_lines - lines AX to DX (inclusive) to the clipboard, as many as fit.
 ; ::::::::::::::
 cb_lines:
         pushad
-        call    tx_off
-        mov     esi,ebx
-        xchg    ax,dx
-        call    tx_off
-        call    tx_len
-        lea     ecx,[ebx+ecx+1]
-        sub     ecx,esi
-        mov     [g_ui.tx.cb_len],cx
-        mov     [g_ui.tx.cb_ln],1
-        add     esi,offset g_txb
         mov     edi,offset g_clpb
+@cbl_l:
+        cmp     ax,dx
+        ja      @cbl_d
+        push    edi
+        mov     edi,offset g_ui.bf.sy_buf
+        call    tx_get
+        pop     edi
+        lea     ebx,[edi+ecx+1]
+        cmp     ebx,offset g_clpb+0FFFFh
+        ja      @cbl_d
+        mov     esi,offset g_ui.bf.sy_buf
         rep     movsb
+        mov     byte ptr [edi],NL
+        inc     edi
+        inc     eax
+        jmp     @cbl_l
+@cbl_d:
+        sub     edi,offset g_clpb
+        mov     [g_ui.tx.cb_len],di
+        mov     [g_ui.tx.cb_ln],1
         popad
         ret
 
 ; ::::::::::::::
-; tx_read - the file named at EDX into the text: CR LF and LF end lines, a
-; tab goes to the next column of 8, ^Z ends it, a long line is cut.
+; tx_read - the file named at EDX the text: CR LF and LF end lines, a tab
+; goes to the next column of 8, ^Z ends it, a long line is cut, a line
+; ending in '_' goes on in the next. Each line as the editor stores it:
+; ui_canon's syntax error keeps it as typed.
 ;
 ; out:    CF  set: AX the DOS error, the text as it was
+; error:  Out of memory
 ; ::::::::::::::
 tx_read:
         mov     ax,3D00h
         int     21h
         jc      @trd_r
-        mov     ebx,eax
-        mov     edx,offset g_wrkb
-        mov     ecx,TXMAX
-        mov     ah,3Fh
-        int     21h
-        pushf
-        push    eax
-        mov     ah,3Eh
-        int     21h
-        pop     ecx
-        popf
-        jc      @trd_r
-        movzx   ecx,cx
-        mov     esi,offset g_wrkb
-        mov     edi,offset g_txb
-        xor     edx,edx                 ; EDX the column, EBX the lines
-        xor     ebx,ebx
+        mov     [g_rdh],ax
+        and     [g_rdpos],0
+        and     [g_rdcnt],0
+        mov     [g_ui.tx.tx_mod],1
+        call    prg_init
+        and     [g_rdn],0
+@trd_0:
+        mov     edi,offset g_ui.bf.sy_buf
+        xor     edx,edx                 ; EDX the column
         call    cn_init
-        test    ecx,ecx
-        jz      @trd_e
 @trd_l:
-        lodsb
+        call    rd_byte
+        jc      @trd_e
         cmp     al,1Ah
         je      @trd_e
         cmp     al,10
         je      @trd_n
         cmp     al,NL
         jne     @trd_t
-        cmp     byte ptr [esi],10
+        call    rd_peek
+        jc      @trd_n
+        cmp     al,10
         jne     @trd_n
-        inc     esi
-        dec     ecx
-        jz      @trd_n1
+        inc     [g_rdpos]
 @trd_n:
         call    cn_eol
         pushfd
         call    cn_init
         popfd
         jc      @trd_j
-        mov     al,NL
-        stosb
-        inc     ebx
-        xor     edx,edx
-        jmp     @trd_c
-@trd_n1:
-        mov     al,NL
-        stosb
-        inc     ebx
-        xor     edx,edx
-        jmp     @trd_e
+        call    @trd_p
+        jmp     @trd_0
 @trd_j:                                 ; continued: the '_' a blank, the next
         cmp     byte ptr [edi-1],' '    ; line's indent dropped
         jne     @F
@@ -444,102 +482,105 @@ tx_read:
         jne     @trd_k
         mov     byte ptr [edi-1],' '
 @trd_k:
-        cmp     ecx,1
-        jbe     @trd_c
-        cmp     byte ptr [esi],' '
+        call    rd_peek
+        jc      @trd_l
+        cmp     al,' '
         je      @F
-        cmp     byte ptr [esi],9
-        jne     @trd_c
+        cmp     al,9
+        jne     @trd_l
 @@:
-        inc     esi
-        dec     ecx
+        inc     [g_rdpos]
         jmp     @trd_k
 @trd_t:
         call    cn_byte
         cmp     edx,LNMAX
-        jae     @trd_c
+        jae     @trd_l
         cmp     al,9
-        jne     @trd_p
+        jne     @trd_c
 @trd_s:
         mov     al,' '
         stosb
         inc     edx
         test    edx,7
-        jz      @trd_c
+        jz      @trd_l
         cmp     edx,LNMAX
         jb      @trd_s
-        jmp     @trd_c
-@trd_p:
+        jmp     @trd_l
+@trd_c:
         stosb
         inc     edx
-@trd_c:
-        cmp     edi,offset g_txb+TXMAX-1
-        jae     @trd_e
-        dec     ecx
-        jnz     @trd_l
+        jmp     @trd_l
 @trd_e:
-        cmp     edi,offset g_txb
-        je      @trd_z
-        cmp     byte ptr [edi-1],NL
-        je      @trd_f
+        cmp     edi,offset g_ui.bf.sy_buf       ; the last line, unended
+        jne     @F
+        cmp     [g_rdn],0
+        jne     @trd_z
+@@:
+        call    @trd_p
 @trd_z:
-        mov     al,NL
-        stosb
-        inc     ebx
-@trd_f:
-        sub     edi,offset g_txb
-        mov     [g_ui.tx.tx_end],di
-        mov     [g_ui.tx.tx_all],bx
+        mov     bx,[g_rdh]
+        mov     ah,3Eh
+        int     21h
+        call    lm_build
         call    tx_whole
-        mov     [g_ui.tx.tx_ci],0
-        mov     [g_ui.tx.tx_co],0
-        call    tx_mclr
         clc
 @trd_r:
         ret
+@trd_p:                                 ; the line in sy_buf stored
+        mov     esi,offset g_ui.bf.sy_buf
+        mov     ecx,edi
+        sub     ecx,esi
+        push    ecx
+        call    ui_canon
+        pop     ecx
+        jnc     @F
+        mov     [g_ui.tx.tx_asis],1
+@@:
+        mov     esi,offset g_ui.bf.sy_buf
+        call    tx_add
+        inc     [g_rdn]
+        ret
 
-; ::::::::::::::
-; tx_mark - the view's line AX's mark.
-;
-; out:    AL  it
-; keeps:  all but EAX
-; ::::::::::::::
-tx_mark:
-        add     ax,[g_ui.tx.tx_v0]
+; rd_peek - the file's next byte, not taken: AL; CF the end. Keeps all
+; but EAX.
+rd_peek:
+        push    ebx
+        push    ecx
+        push    edx
+        mov     ecx,[g_rdpos]
+        cmp     ecx,[g_rdcnt]
+        jb      @rdp_h
+        mov     bx,[g_rdh]
+        mov     ecx,RDSZ
+        mov     edx,offset g_rdb
+        mov     ah,3Fh
+        int     21h
+        jc      @rdp_e
         movzx   eax,ax
-        mov     al,[g_txmk+eax]
+        test    eax,eax
+        jz      @rdp_e
+        mov     [g_rdcnt],eax
+        xor     ecx,ecx
+        mov     [g_rdpos],ecx
+@rdp_h:
+        mov     al,[g_rdb+ecx]
+        clc
+        jmp     @rdp_r
+@rdp_e:
+        stc
+@rdp_r:
+        pop     edx
+        pop     ecx
+        pop     ebx
         ret
 
-; ::::::::::::::
-; tx_mtog - the view's line AX's mark: on, off.
-;
-; keeps:  all
-; ::::::::::::::
-tx_mtog:
-        push    eax
-        add     ax,[g_ui.tx.tx_v0]
-        movzx   eax,ax
-        xor     byte ptr [g_txmk+eax],1
-        pop     eax
+; rd_byte - the file's next byte, taken: AL; CF the end.
+rd_byte:
+        call    rd_peek
+        jc      @F
+        inc     [g_rdpos]
+@@:
         ret
-
-; ::::::::::::::
-; tx_mclr - no line marked.
-;
-; keeps:  all
-; ::::::::::::::
-tx_mclr:
-        pushad
-        mov     edi,offset g_txmk
-        mov     ecx,TXMAX/4
-        xor     eax,eax
-        rep     stosd
-        popad
-        ret
-
-        .data?
-g_txmk  db      TXMAX dup(?)            ; a byte per line
-        .code
 
 ; ::::::::::::::
 ; tx_write - the text to the file named at EDX, lines ended by CR LF.
@@ -547,42 +588,81 @@ g_txmk  db      TXMAX dup(?)            ; a byte per line
 ; out:    CF  set: AX the DOS error
 ; ::::::::::::::
 tx_write:
-        push    edx
-        mov     esi,offset g_txb
-        mov     edi,offset g_wrkb
-        movzx   ecx,[g_ui.tx.tx_end]
-@twr_l:
-        lodsb
-        stosb
-        cmp     al,NL
-        jne     @twr_n
-        mov     al,10
-        stosb
-@twr_n:
-        cmp     edi,offset g_wrkb+0FFF0h
-        jae     @twr_e
-        loop    @twr_l
-@twr_e:
-        pop     edx
-        sub     edi,offset g_wrkb
-        push    edi
         mov     ah,3Ch
         xor     ecx,ecx
         int     21h
-        pop     ecx
         jc      @twr_r
-        mov     ebx,eax
-        mov     edx,offset g_wrkb
-        mov     ah,40h
-        int     21h
-        pushf
-        push    eax
+        mov     [g_rdh],ax
+        and     [g_rdcnt],0
+        and     [g_rderr],0
+        xor     eax,eax
+@twr_l:
+        cmp     ax,[g_ui.tx.tx_all]
+        jae     @twr_d
+        call    lm_off
+        mov     edi,offset g_ui.bf.sy_buf
+        call    tx_text
+        mov     word ptr [edi+ecx],0A0Dh
+        add     ecx,2
+        mov     ebx,[g_rdcnt]
+        add     ebx,ecx
+        cmp     ebx,RDSZ
+        jbe     @F
+        call    wr_flush
+        cmp     ecx,RDSZ
+        jbe     @F
+        mov     esi,edi                 ; longer than the buffer: as it is
+        call    wr_out
+        jmp     @twr_n
+@@:
+        mov     esi,edi
+        mov     edi,[g_rdcnt]
+        add     edi,offset g_rdb
+        add     [g_rdcnt],ecx
+        rep     movsb
+@twr_n:
+        inc     eax
+        jmp     @twr_l
+@twr_d:
+        call    wr_flush
+        mov     bx,[g_rdh]
         mov     ah,3Eh
         int     21h
-        pop     eax
-        popf
+        mov     ax,[g_rderr]
+        cmp     ax,1                    ; CF: an error
+        cmc
 @twr_r:
         ret
 
+; wr_flush - the buffer's bytes written. wr_out - ECX bytes at ESI. A DOS
+; error to rderr. Keep all.
+wr_flush:
+        pushad
+        mov     ecx,[g_rdcnt]
+        mov     esi,offset g_rdb
+        and     [g_rdcnt],0
+        jmp     @F
+wr_out:
+        pushad
+@@:
+        jecxz   @wro_r
+        mov     edx,esi
+        mov     bx,[g_rdh]
+        mov     ah,40h
+        int     21h
+        jnc     @wro_r
+        mov     [g_rderr],ax
+@wro_r:
+        popad
+        ret
+
+        .data?
+g_rdh   dw      ?                       ; the file
+g_rderr dw      ?                       ; tx_write's DOS error, 0 none
+g_rdpos dd      ?                       ; g_rdb's next byte, its bytes
+g_rdcnt dd      ?
+g_rdn   dd      ?                       ; tx_read's lines
+g_rdb   db      RDSZ dup(?)
+        .code
 
         end

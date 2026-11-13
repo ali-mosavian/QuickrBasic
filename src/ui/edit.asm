@@ -342,6 +342,7 @@ ed_commit:
         mov     [g_ui.tx.tx_chg],1
         mov     esi,offset g_ui.bf.ed_lb.txt
         call    ui_canon
+        setc    [g_ui.tx.tx_asis]       ; a syntax error: kept as typed
         pushf
         jc      @edc_w
         mov     ecx,[g_state.io.sbx]

@@ -40,7 +40,7 @@ vw_reset:
         jmp     vw_apply
 
 ; ::::::::::::::
-; vw_kind - text line AX tokenized: dc_proc's answer.
+; vw_kind - text line AX's body to cbuf: dc_proc's answer.
 ;
 ; out:    AL   PK_SUB, PK_FN, PK_END, else 0
 ;         ESI  the name's M_VAR in cbuf, for PK_SUB, PK_FN
@@ -50,17 +50,9 @@ vw_kind:
         push    ebx
         push    ecx
         push    edi
-        call    tx_offa
-        call    tx_len
-        lea     esi,[g_txb+ebx]
-        mov     edi,offset g_ui.bf.uc_line      ; 0-ended for lx_line
-        rep     movsb
-        mov     byte ptr [edi],0
-        pushad
-        mov     esi,offset g_ui.bf.uc_line
+        call    lm_off
         mov     edi,offset g_cbuf
-        call    lx_line
-        popad
+        call    prg_body
         call    dc_proc
         pop     edi
         pop     ecx
@@ -73,7 +65,12 @@ vw_kind:
 ; ::::::::::::::
 vw_order:
         call    tx_whole
-        mov     edi,offset g_wrkb
+        mov     edx,[g_state.mm.progend] ; the lines copied after the store,
+        lea     edx,[edx*2+8]           ; then back
+        call    prg_room
+        mov     edi,[g_state.mm.progend]
+        add     edi,4
+        push    edi
         xor     edx,edx                 ; DL 0: the module's lines, 1 the rest
 @vor_p:
         xor     eax,eax
@@ -97,13 +94,10 @@ vw_order:
         pop     eax
         cmp     cl,dl
         jne     @vor_s
-        push    esi
-        call    tx_offa                 ; its bytes with their CR
-        call    tx_len
-        inc     ecx
-        lea     esi,[g_txb+ebx]
-        rep     movsb
-        pop     esi
+        call    lm_off                  ; its record
+        mov     ecx,gs:[ebx].TLINE.len
+        mov     esi,ebx
+        call    mem_pmov
 @vor_s:
         inc     eax
         jmp     @vor_l
@@ -111,14 +105,14 @@ vw_order:
         inc     dl
         cmp     dl,2
         jb      @vor_p
-        mov     esi,offset g_wrkb
+        pop     esi
         mov     ecx,edi
         sub     ecx,esi
-        mov     edi,offset g_txb
-        rep     movsb
-        mov     [g_ui.tx.tx_ci],0
-        mov     [g_ui.tx.tx_co],0
-        ret
+        mov     edi,PROGBASE
+        call    mem_pmov
+        mov     [g_state.mm.progend],edi
+        mov     gs:[edi].TLINE.len,0
+        jmp     lm_build
 
 ; ::::::::::::::
 ; vw_scan - the views from the text: the module, then a view from each

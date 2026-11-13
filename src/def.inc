@@ -58,8 +58,14 @@ TLINE    struc                   ; a line's record in the store, its body after
     len     dd      ?               ; the record's bytes, 0 the end
     num     dw      ?               ; its number, NONUM none
     code    dd      ?               ; its code in the cache, 0 none
-TLINE    ends
+    pre     dd      ?               ; its text before the body, after it
+    fl      db      ?               ; LF_*
+    sep     db      ?               ; 0: the compiler reads it as the
+TLINE    ends                    ; byte before the body
 HDR     = sizeof TLINE
+LF_ASIS = 1                     ; fl: its text is pre alone, as typed
+LF_BP   = 2                     ; fl: a breakpoint
+LF_INC  = 4                     ; fl: an include's, not the editor's
 NONUM   = 0FFFFh                ; a line's num: it has none
 LMAX    = 0FEE0h                ; a line's body at most: cbuf
 BOFF    = 0FFFFFFFFh            ; a statement map's body offset of the line's end
@@ -150,7 +156,6 @@ PK_FN   = 2
 PK_END  = 3
 DM_STEP = 1                     ; the debugger's stops: the next statement
 DM_PSTEP = 2                    ; the next at the depth of pdep or less
-DBBPSZ  = 65536/8               ; the breakpoints: a bit per line number
 M_PC    = sizeof TPROC
 F_PRC   = TPROC.pnum
 F_LSP0  = TPROC.save0

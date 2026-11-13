@@ -1,7 +1,7 @@
 ; ==========================================================================
 ; repl.asm - errors and the READY loop
 ; ==========================================================================
-; holds:    err_*, err_raise, rpl_ready, rpl_enter, ent_line
+; holds:    err_*, err_raise, rpl_ready, rpl_enter, ent_line, rpl_relink
 ; uses:     lx_line, prg_put, cm_line, ex_dcode, ex_lp, io_*
 ; calls:
 ;   err_raise          compiling: cm_err; else the message, then rpl_ready
@@ -622,7 +622,7 @@ rpl_enter:
         mov     esi,offset g_inbuf
         mov     edi,offset g_cbuf
         call    lx_line
-        mov     edx,[g_state.mm.progend]
+        call    prg_at
         cmp     byte ptr [g_cbuf],0
         mov     al,1
         je      @ren_r
@@ -696,6 +696,84 @@ ent_line:
         mov     edx,[g_state.mm.enterat]
         call    scp_label
         pop     edi
+        ret
+
+; ::::::::::::::
+; rpl_relink - the stored lines entered again, as a loaded file's are: the
+; names kept, the declarations, labels and variables new; an include's
+; lines stored after its line (LF_INC), those of before dropped first.
+;
+; out:    ln  the line entered last
+; error:  as ent_line, rpl_read; ln the line
+; ::::::::::::::
+rpl_relink:
+        call    rpl_noinc
+        mov     [g_state.mm.vend],VARBASE
+        call    var_init
+        call    dc_reset
+        call    prg_drop
+        mov     [g_state.io.lmode],1
+        mov     ebx,PROGBASE
+@rrl_l:
+        cmp     gs:[ebx].TLINE.len,0
+        je      @rrl_d
+        mov     [g_state.rn.line],ebx
+        mov     edi,offset g_cbuf       ; its number, then its body
+        movzx   eax,gs:[ebx].TLINE.num
+        cmp     eax,NONUM
+        je      @F
+        mov     byte ptr [edi],M_INT
+        mov     [edi+1],eax
+        add     edi,5
+@@:
+        call    prg_body
+        push    ebx
+        mov     edx,ebx
+        call    ent_line
+        pop     ebx
+        call    st_get
+        mov     ecx,gs:[ebx].TLINE.len
+        add     ebx,ecx
+        cmp     al,TK_REM
+        jne     @rrl_l
+        xor     eax,eax                 ; '$INCLUDE: the file's lines here
+        call    ls_text
+        mov     esi,offset g_sbuf
+        mov     edi,offset g_inbuf
+        mov     ecx,[g_state.io.sbx]
+        inc     ecx
+        rep     movsb
+        mov     eax,[g_state.io.sbx]
+        call    rpl_inc
+        jnc     @rrl_l
+        mov     [g_state.mm.addat],ebx
+        mov     [g_state.mm.addfl],LF_INC
+        mov     esi,offset g_finc
+        mov     eax,254
+        call    rpl_read
+        mov     ebx,[g_state.mm.addat]
+        and     [g_state.mm.addat],0
+        mov     [g_state.mm.addfl],0
+        jmp     @rrl_l
+@rrl_d:
+        mov     [g_state.io.lmode],0
+        ret
+
+; rpl_noinc - the include's lines (LF_INC) out of the store.
+rpl_noinc:
+        mov     ebx,PROGBASE
+@rni_l:
+        cmp     gs:[ebx].TLINE.len,0
+        je      @rni_r
+        test    gs:[ebx].TLINE.fl,LF_INC
+        jz      @F
+        call    prg_cut
+        jmp     @rni_l
+@@:
+        mov     eax,gs:[ebx].TLINE.len
+        add     ebx,eax
+        jmp     @rni_l
+@rni_r:
         ret
 
         .data
