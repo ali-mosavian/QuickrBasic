@@ -42,6 +42,8 @@ def play() -> None:
     s.run_until(lambda: "PRESS ESC" in s.screen().upper(), 5000, "the welcome box")  # DOS/32A's start is slower
     # The welcome box's button, of no set width, once ran past its frame.
     scr = s.screen().upper().split("\n")
+    # The box named the 6502 project it came from: Welcome to CBM BASIC V2 for DOS.
+    assert any("WELCOME TO QUICKRBASIC" in line for line in scr), scr
     r = next(i for i, line in enumerate(scr) if "PRESS ESC" in line)
     raw = bytes.fromhex(s.send({"cmd": "mem_read_linear", "addr": 0xB8000 + r * 160, "len": 160})["data"])[0::2]
     assert raw.index(b">") < raw.rindex(b"\xb3") - 1, raw

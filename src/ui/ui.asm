@@ -1426,8 +1426,8 @@ u_notsaved db   'Loaded file is not saved. Save it now?',0
 u_access   db   'Path/File access error',0
 u_wordp    db   '!#$%&.'
 u_nohelp   db   'Help is not available',0
-u_about    db   'CBM BASIC V2 for DOS||A full-screen editor',0
-u_welcome  db   'Welcome to CBM BASIC V2 for DOS||'
+u_about    db   'QuickrBasic||A full-screen editor',0
+u_welcome  db   'Welcome to QuickrBasic||'
            db   'Lines may have numbers or not; GOTO and|'
            db   'GOSUB need them. F5 runs the program.',0
 u_anykey   db   'Press any key to continue',0
