@@ -219,3 +219,30 @@ climbing. Listing spaces a line as QBasic's editor does.
 `build/x86/ide32.exe` is the same build with `IDE=1`: a QBasic-style editor. `ide32 NAME.BAS`
 opens a file. The code is in `src/ui/`. The menus' status-bar help is in `BASIC.HLP`, read from the
 program's directory.
+
+## The C build
+
+`csrc/` is the same program in C23: `make cbasic32 cide32` builds `build/c/basic32.exe` and
+`build/c/ide32.exe`, and the suites run either build (`X86_COM`, `X86_IDE`). Each asm module has a
+C module of the same part, named by a 4-letter prefix that also starts its external names
+(`csrc/PORTING.md`); `csrc/portmap/` maps every asm label to its C name.
+
+The compiler is llrm-cc for `x86_32-dos` (llrm's `release/next`, `LLRM`), over the patched clang
+(`LLRM_CLANG_M16`), linked with llrm's start-up and OS layer by its `link_objects.py`. There is no C
+library: `csrc/lib` has the string routines and setjmp.
+
+The core, `csrc/core`, is portable C. Everything a BASIC program can see, and every record that
+holds an address of it, lives in one arena (`core/base.h`): an address is a 32-bit offset in it,
+so records keep the asm's layout and the bytecode stays byte for byte the same. On DOS32 the
+arena's origin is the flat segment's 0, so an offset is the address VARPTR and PEEK see. Errors
+unwind with longjmp to the compiler, the error handler or READY (`repl_error`).
+
+The platform is `csrc/plat`: one narrow header per part (`pmem` memory, `pfil` files, `psys`
+process and the STOP key, `pkey` keyboard, `pclk` clock and tick, `pscr` text screen, `pmou` mouse,
+`pfpu` the x87's functions). `csrc/plat/dos32` implements them with `pdos_int`, a software
+interrupt from C, and jwasm files for what C cannot do: the interrupt handlers, which only set
+bits the core polls, port I/O and the x87. A host or wasm build is another directory beside it.
+
+llrm-llc at -O2 sends a switch's second case value of a shared block past the block's first load:
+no stacked case labels where the block starts with a load. Its `LL$COMMAND_LINE` reads its
+arguments a slot high, so the command tail comes from `pdos_cmdline`.
