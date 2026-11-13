@@ -1,0 +1,285 @@
+# QuickrBasic C architecture
+
+Target shape for `csrc/`, replacing the asm-mirrored layout.
+
+## Goals
+
+- **Best practices:** clean, clear code.
+- **Clear ownership:** every piece of state has exactly one owner.
+- **Clear flow:** you can follow any event from a key press to the result.
+- **DRY:** each fact lives in one place.
+- **SRP:** a module or function does one job.
+- **Open/closed:** new features are added as new entries or modules, not as edits to existing switches.
+- **Small and simple:** no over-engineering. The rules above apply only as far as they keep the code smaller and clearer.
+- **UI:** slightly more general, and hierarchical. Each component is handled by its parent automatically, so a future UI change is local.
+- **Line at a time:** each line is still parsed and compiled as it is entered or edited.
+- **Debugging:** every debugger feature stays.
+- **Idiomatic C23:**
+  - `const` on everything that does not change.
+  - Indexed `for` loops.
+  - Named load/store helpers for word access, never `memcpy`.
+- **Same behaviour:** output, errors, stored lines, bytecode and file records stay byte for byte. The asm and C builds stay side by side and pass the same suites.
+
+## Layers
+
+Dependencies point down only.
+
+```mermaid
+flowchart TD
+    app["<b>app</b><br/>basic32 · ide32<br/><i>wiring only</i>"]
+    editor["<b>editor</b> (IDE only)<br/>widget tree · commands · debugger"]
+    session["<b>session</b><br/>Program + Vm + Heap + Channels<br/><i>one API, error boundary</i>"]
+    lang["<b>lang</b><br/>lexer · parser · fold · codegen · link · lister"]
+    runtime["<b>runtime</b><br/>vm · values · builtins · io"]
+    core["<b>core</b><br/>arena · Status · utilities"]
+    plat["<b>plat</b><br/>plat/*.h"]
+    dos32["dos32/"]
+    host["host/ (tests)"]
+
+    app --> editor
+    app --> session
+    editor --> session
+    session --> lang
+    session --> runtime
+    lang --> runtime
+    runtime --> core
+    lang --> core
+    core --> plat
+    runtime --> plat
+    dos32 -. implements .-> plat
+    host -. implements .-> plat
+
+    classDef front fill:#EEEDFE,stroke:#534AB7,color:#26215C
+    classDef engine fill:#E1F5EE,stroke:#0F6E56,color:#04342C
+    classDef base fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A
+    class app,editor front
+    class session,lang,runtime engine
+    class core,plat,dos32,host base
+```
+
+## Modules
+
+| Module | Owns | Does |
+|---|---|---|
+| `core/arena` | `Arena` | `Addr`, loads and stores; what PEEK and VARPTR see |
+| `lang/lexer` | none | Text to tokens |
+| `lang/parser` | `Ast` (scratch) | Tokens to a tree, one line at a time |
+| `lang/fold` | none | Constant folding, type conversion |
+| `lang/codegen` | none | Tree to bytecode; the only code that knows the byte layout |
+| `lang/link` | none | Labels, blocks, procedures across lines |
+| `lang/lister` | none | A stored line back to text |
+| `runtime/vm` | `Vm` | Dispatch, frames, flow, runtime errors, debug stops |
+| `runtime/values` | `Heap` | Numbers, strings, arrays; one `Value` and its conversions |
+| `runtime/builtins` | none | Statements and functions (`ops.def` table) |
+| `runtime/io` | `Channels` | Channels over a `Device` vtable: console, file, null |
+| `session` | `Session` | The API both front ends use |
+| `editor/*` | `Editor` | Widget tree, text buffer, commands, debugger pane |
+
+## Ownership
+
+- `app` creates the one `Session` and the one `Editor`. There are no other globals.
+- Every module owns one struct, and its functions take it (`Vm *`, `Editor *`).
+- Headers expose functions and opaque types. No module reads another's fields.
+- Memory is the arena only. No malloc.
+
+## Flow
+
+```mermaid
+sequenceDiagram
+    actor User
+    participant W as editor: widget tree
+    participant C as editor: command
+    participant S as session
+    participant L as lang
+    participant V as runtime: vm
+    User->>W: key
+    W->>W: focus path, bubble up
+    W->>C: run command
+    alt edit a line
+        C->>S: session_edit(line, text)
+        S->>L: lang_compile_line(text)
+        L-->>S: Line or Diagnostic
+    else run
+        C->>S: session_run()
+        S->>L: link program
+        S->>V: vm_run(program)
+        V-->>S: stop, end or error
+    end
+    S-->>C: Status
+    C->>W: mark dirty
+    W->>W: redraw dirty subtrees from state
+```
+
+- Commands change state. Drawing reads state. Neither does the other's job.
+
+## Errors
+
+- `lang`, `io` and `editor` return `Status`.
+```mermaid
+flowchart LR
+    L[lang / io / editor] -- Status --> Caller[caller decides]
+    R[runtime error] --> Raise[vm_raise]
+    Raise --> H{ON ERROR set?}
+    H -- yes --> Handler[jump to handler<br/>RESUME later]
+    H -- no --> J[longjmp to session]
+    J --> D[Diagnostic to front end]
+```
+
+- Runtime errors go through `vm_raise`. The VM handles `ON ERROR`/`RESUME` itself, and otherwise does a `longjmp` to the one boundary, in `session`.
+
+## Line at a time
+
+```mermaid
+flowchart LR
+    T[line text] --> Lx[lexer] --> P[parser] --> F[fold] --> G[codegen] --> Ln[(stored Line<br/>tokens + bytecode)]
+    Ln --> Li[lister] --> T2[text in editor]
+    Ln --> K[link<br/>whole program] --> Run[ready to run]
+    P -. scratch tree, dropped .-> G
+```
+
+- `lang_compile_line(text) → Line` stores the line's tokens and bytecode. The editor calls it on every edit, and the REPL on every entered line.
+- The tree is scratch: it is built, folded, turned into code and dropped within the call.
+- `link` resolves what spans lines (labels, FOR/NEXT, IF blocks, SUB/FUNCTION) over the stored lines. It runs before RUN, or after an edit that changes block structure.
+- `lister` turns one stored line back into text for the editor.
+
+## Debugger
+
+| Feature | `runtime/vm` | `session` | `editor` |
+|---|---|---|---|
+| Step, Step Over, Step Out | DBG op, stop modes, depth | `session_step(mode)` | F8, F10, Shift+F8 |
+| Breakpoints, Clear All | `LF_BP` on the line | `session_break(line, on)` | F9, row colour |
+| Run to cursor | one-time stop line | `session_until(line)` | Ctrl+F7 |
+| Set Next Statement | moves `vm->at` in the frame | `session_set_next(line)` | menu |
+| Restart | stops at the first statement | `session_restart()` | menu |
+| Trace | trace hook per statement | `session_trace(on)` | highlights the statement |
+| Continue | resumes from the stop | `session_continue()` | F5 |
+| Call stack, Locals | frames | `session_frames()`, `session_locals(frame)` | debug pane |
+| Watches, tooltip | evaluates in a frame | `session_eval(expr, frame)` | debug pane, tip |
+
+```mermaid
+sequenceDiagram
+    participant E as editor: debugger
+    participant S as session
+    participant V as runtime: vm
+    E->>S: session_step(OVER)
+    S->>V: set stop mode, depth
+    S->>V: vm_continue()
+    V->>V: DBG op at each statement
+    V-->>S: DebugHooks.stopped(place)
+    S-->>E: Status: stopped
+    E->>S: session_frames(), session_locals(f), session_eval(watch, f)
+    S-->>E: values
+    E->>E: draw pane, light the statement
+```
+
+- The VM reports stops and trace events through a `DebugHooks` struct of function pointers that `session` installs. It never calls up into the editor.
+- Watches compile through `lang` like any other line, then run in the chosen frame.
+
+## UI: the widget tree
+
+Each widget handles its own events, passes on what it doesn't handle, and draws its children.
+
+```c
+typedef struct Widget Widget;
+
+typedef struct {
+    void (*draw)(Widget *w);                  /* itself; children drawn after it */
+    bool (*key)(Widget *w, Key k);            /* true: handled */
+    bool (*mouse)(Widget *w, MouseEvent m);   /* true: handled */
+    void (*layout)(Widget *w);                /* sets children's rects from its own */
+} WidgetOps;                                  /* any op may be null: default behaviour */
+
+struct Widget {
+    const WidgetOps *ops;
+    Rect rect;
+    Widget *parent, *children[MAX_CHILDREN];
+    uint8_t nchildren, focus;                 /* focus: index of the focused child */
+    bool visible, modal, dirty;
+};
+```
+
+```mermaid
+flowchart TD
+    screen --> menubar --> dropdown["dropdown (modal)"]
+    screen --> workspace
+    screen --> statusbar
+    screen --> dialog["dialog (modal)"]
+    workspace --> ed1[edit window 1]
+    workspace --> ed2[edit window 2]
+    workspace --> imm[immediate window]
+    workspace --> pane[debug pane]
+    pane --> frames
+    pane --> locals
+    pane --> watches
+    dialog --> field
+    dialog --> list
+    dialog --> checkbox
+    dialog --> button
+```
+
+```mermaid
+flowchart BT
+    K[key] --> Deep[deepest focused widget]
+    Deep -- not handled --> Parent[its parent]
+    Parent -- not handled --> Screen[screen: global keys]
+    Deep -- handled --> Done[done]
+    Parent -- handled --> Done
+```
+
+These four rules live once, in `editor/tree.c`:
+
+- **Keys** go down the focus path to the deepest focused widget. If it doesn't handle a key, the key bubbles up to its parent. Global keys (F-keys, Alt) are handled once, on `screen`.
+- **Mouse** events go to the deepest visible widget under the point, then bubble up. A modal widget takes everything while it is open.
+- **Drawing:** a parent draws itself, then its visible children. A `dirty` widget redraws only its own subtree.
+- **Layout:** a parent sets its children's rects. Resize and split are calls on the parent.
+
+What this makes easy:
+
+- A new dialog is a list of controls. It gets Tab, Esc and hotkeys from the dialog container.
+- A new pane is one widget added to `workspace`.
+
+What it deliberately leaves out:
+
+- No allocation: widgets are static instances.
+- No layout engine: fixed sizes and splits only.
+- No event queue: widgets call commands directly.
+
+## Extension points
+
+New behaviour is a table entry, not a new switch case:
+
+- statements and functions: `ops.def`
+- devices: the `Device` vtable
+- platform: the `plat/*.h` interfaces
+- UI: `WidgetOps`, the key-to-command table, menus, themes
+
+Only devices, the platform and widgets get vtables. Everything else is plain functions.
+
+## One of each
+
+- One `Value`, with one conversion module.
+- One error table, holding numbers and messages.
+- One key and glyph vocabulary.
+- One bytecode encoder and decoder.
+
+## Fixed by compatibility
+
+Programs and tests can see these, so they do not change:
+
+- The arena and `Addr`: PEEK, VARPTR, records in files.
+- The bytecode bytes: an error's address is a code offset. Codegen must emit today's bytes.
+
+## Testing
+
+- `plat/host` builds `lang`, `runtime` and `session` on the Mac.
+- Each module has unit tests. The lexer, lister and codegen have golden tests over their output bytes.
+- The DOSBox suites (x86f, qbconf, the IDE suite) stay as the end-to-end gate.
+
+## Migration
+
+Each step lands green on both gates:
+
+```mermaid
+flowchart LR
+    s1[1. plat/host +<br/>unit tests] --> s2[2. core +<br/>values] --> s3[3. vm<br/>from flow.c] --> s4[4. session,<br/>errors, hooks] --> s5[5. lang:<br/>tree, fold, codegen] --> s6[6. editor:<br/>widget tree]
+```
