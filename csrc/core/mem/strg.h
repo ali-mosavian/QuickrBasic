@@ -9,11 +9,14 @@
 #define MEM_STRG_H
 #include "defs.h"
 
+enum { NEAR_MAX = 255 };
+
 typedef struct {
     Addr tmp;           /* the temporaries' Descs, DSZ * NTMP bytes (g_tmpd, sg.tmplin) */
     uint16_t tmp_used;  /* the temporaries in use, DSZ bytes each (sg.tsp) */
     uint16_t tmp_floor; /* a procedure's floor of tmp_used (sg.tspb) */
     Addr low;           /* the lowest string block (mm.sfr) */
+    uint8_t near_buf[NEAR_MAX + 1]; /* strg_near's */
 } Strg;
 extern Strg strg;
 

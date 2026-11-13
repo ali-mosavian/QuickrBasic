@@ -9,17 +9,9 @@
 #include "plat/pfil.h"
 
 Decl decl;
-TypeDef decl_types[NTYPE];
-Field decl_fields[NFLD];
 const uint8_t decl_astype[5] = {ET_I2, ET_I4, ET_R4, ET_R8, ET_SD};
 const uint8_t decl_etsize[7] = {0, 4, 4, 4, 8, 0, 2};
 
-enum { NDEV = 256, NLETTERS = 26 };
-typedef struct {
-    uint32_t line;
-    uint8_t deft[NLETTERS]; /* the DEFtypes from it on */
-} DefEvent;
-static DefEvent defevs[NDEV];
 
 static const uint8_t deft0[NLETTERS] = {
     ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4,
@@ -27,7 +19,6 @@ static const uint8_t deft0[NLETTERS] = {
 };
 static const uint8_t deftype[5] = {ET_I2, ET_I4, ET_R4, ET_R8, ET_SD}; /* DEFINT .. DEFSTR */
 
-static const uint8_t *s; /* (ESI) the body's cursor */
 
 const uint8_t *decl_item(const uint8_t *p)
 {
@@ -51,10 +42,10 @@ const uint8_t *decl_item(const uint8_t *p)
 /* The name at s (M_VAR), stepped past; *sfx its suffix, 0 none. */
 static uint16_t name(uint8_t *const sfx)
 {
-    const uint16_t n = comp_nameof(s);
+    const uint16_t n = comp_nameof(decl.at);
     if (sfx)
-        *sfx = comp_suffixof(s);
-    s = comp_skipname(s);
+        *sfx = comp_suffixof(decl.at);
+    decl.at = comp_skipname(decl.at);
     return n;
 }
 
@@ -167,20 +158,20 @@ static void defevent(void)
         return;
     const uint32_t line = prog.entering;
     uint32_t n = decl.ndefev;
-    if (!n || defevs[n - 1].line != line) {
+    if (!n || decl.defevs[n - 1].line != line) {
         if (n >= NDEV)
             repl_error(E_OM);
         n = ++decl.ndefev;
     }
-    defevs[n - 1].line = line;
-    memcpy(defevs[n - 1].deft, symb.deft, NLETTERS);
+    decl.defevs[n - 1].line = line;
+    memcpy(decl.defevs[n - 1].deft, symb.deft, NLETTERS);
 }
 
 void decl_deftype(const uint32_t line)
 {
     const uint8_t *from = deft0;
-    for (uint32_t i = 0; i < decl.ndefev && line >= defevs[i].line; i++)
-        from = defevs[i].deft;
+    for (uint32_t i = 0; i < decl.ndefev && line >= decl.defevs[i].line; i++)
+        from = decl.defevs[i].deft;
     memcpy(symb.deft, from, NLETTERS);
 }
 
@@ -210,67 +201,67 @@ static void shareddim(const uint16_t n)
 static void dim1(const uint16_t n)
 {
     Binding *const b = scop_bind(decl.scope, n);
-    const bool arr = *s == '(';
+    const bool arr = *decl.at == '(';
     if (arr) {
         array(n, decl.scope);
         int32_t depth = 0; /* to the ')' that closes it */
         do {
-            const uint8_t c = *s;
+            const uint8_t c = *decl.at;
             if (!c)
                 return;
             if (c == '(')
                 depth++;
             if (c == ')')
                 depth--;
-            s = decl_item(s);
+            decl.at = decl_item(decl.at);
         } while (depth);
     }
-    if (*s != TK_AS)
+    if (*decl.at != TK_AS)
         return;
     if (b->flags == BF_USE) /* used with a suffix before */
         repl_error(E_ASF);
-    const uint8_t c = s[1];
+    const uint8_t c = decl.at[1];
     if (c == M_VAR) { /* AS a TYPE: a record, its array */
-        s++;
+        decl.at++;
         b->rec[arr] = symb_name(name(nullptr))->rec;
         return;
     }
     if (c == TK_X) {
-        if (s[2] != TK1_SHORT)
+        if (decl.at[2] != TK1_SHORT)
             return;
-        s += 3;
+        decl.at += 3;
         b->et[arr] = ET_SH;
         return;
     }
     const uint8_t i = c - TK_INTEGER;
     if (i > TK_STRING - TK_INTEGER)
         return;
-    s += 2;
+    decl.at += 2;
     b->et[arr] = decl_astype[i];
-    if (*s != TK_MUL) /* STRING * n */
+    if (*decl.at != TK_MUL) /* STRING * n */
         return;
-    s++;
-    if (*s != M_INT)
+    decl.at++;
+    if (*decl.at != M_INT)
         return;
-    b->fix[arr] = (uint16_t)load32(s + 1);
-    s = decl_item(s);
+    b->fix[arr] = (uint16_t)load32(decl.at + 1);
+    decl.at = decl_item(decl.at);
 }
 
 /* ( [BYVAL] n[()] [AS type] {, ..} ): as DIM's. */
 static void params(void)
 {
-    if (*s != '(')
+    if (*decl.at != '(')
         return;
-    s++;
+    decl.at++;
     for (;;) {
-        if (*s == TK_BYVAL)
-            s++;
-        if (*s != M_VAR)
+        if (*decl.at == TK_BYVAL)
+            decl.at++;
+        if (*decl.at != M_VAR)
             return;
         dim1(name(nullptr));
-        if (*s != ',')
+        if (*decl.at != ',')
             return;
-        s++;
+        decl.at++;
     }
 }
 
@@ -278,10 +269,10 @@ static void params(void)
 static void dimlist(const uint8_t flags)
 {
     for (;;) {
-        if (*s != M_VAR)
+        if (*decl.at != M_VAR)
             return;
         const uint16_t n = name(nullptr);
-        if (*s == '(')
+        if (*decl.at == '(')
             decl.dimmed = true;
         const uint16_t scope = decl.scope;
         redimscope(n);
@@ -289,25 +280,25 @@ static void dimlist(const uint8_t flags)
         scop_bind(decl.scope, n)->flags |= flags;
         dim1(n);
         decl.scope = scope;
-        if (*s != ',')
+        if (*decl.at != ',')
             return;
-        s++;
+        decl.at++;
     }
 }
 
 /* TYPE t: its fields from here. */
 static void typedef_(void)
 {
-    if (s[1] != M_VAR)
+    if (decl.at[1] != M_VAR)
         return;
-    s++;
+    decl.at++;
     const uint16_t n = name(nullptr);
     if (decl.ntypes >= NTYPE - 1)
         repl_error(E_OM);
     const uint16_t t = ++decl.ntypes;
     decl.type = t;
     symb_name(n)->rec = (uint8_t)t;
-    decl_types[t] = (TypeDef){.name = n, .first = decl.nfields};
+    decl.types[t] = (TypeDef){.name = n, .first = decl.nfields};
 }
 
 /* In a TYPE: f AS type [* n]. */
@@ -317,22 +308,22 @@ static void field(void)
     if (!t)
         return;
     const uint16_t n = name(nullptr);
-    if (*s != TK_AS)
+    if (*decl.at != TK_AS)
         return;
     if (decl.nfields >= NFLD)
         repl_error(E_OM);
-    Field *const f = &decl_fields[decl.nfields++];
-    TypeDef *const td = &decl_types[t];
+    Field *const f = &decl.fields[decl.nfields++];
+    TypeDef *const td = &decl.types[t];
     td->nfld++;
     *f = (Field){.name = n, .off = td->size}; /* at the TYPE's end */
     uint16_t size;
-    const uint8_t c = s[1];
+    const uint8_t c = decl.at[1];
     if (c == M_VAR) { /* another TYPE's */
-        s++;
+        decl.at++;
         f->sub = symb_name(name(nullptr))->rec;
-        size = decl_types[f->sub].size;
+        size = decl.types[f->sub].size;
     } else if (c == TK_X) {
-        if (s[2] != TK1_SHORT)
+        if (decl.at[2] != TK1_SHORT)
             return;
         f->et = ET_SH;
         size = 2;
@@ -342,11 +333,11 @@ static void field(void)
             return;
         f->et = decl_astype[i];
         size = decl_etsize[f->et];
-        s += 2;
+        decl.at += 2;
         if (f->et == ET_SD) {
             size = 0;
-            if (*s == TK_MUL && s[1] == M_INT) /* STRING * n */
-                size = f->fix = (uint16_t)load32(s + 2);
+            if (*decl.at == TK_MUL && decl.at[1] == M_INT) /* STRING * n */
+                size = f->fix = (uint16_t)load32(decl.at + 2);
         }
     }
     td->size += size;
@@ -355,30 +346,30 @@ static void field(void)
 /* OPTION BASE n, OPTION EXPLICIT. */
 static void option(void)
 {
-    if (s[1] == TK_X && s[2] == TK1_EXPLICIT) {
+    if (decl.at[1] == TK_X && decl.at[2] == TK1_EXPLICIT) {
         decl.explicit_ = true;
         return;
     }
-    if (s[1] != TK_BASE || s[2] != M_INT)
+    if (decl.at[1] != TK_BASE || decl.at[2] != M_INT)
         return;
-    if (load32(s + 3) > 1 || decl.baseset) /* 0 or 1, once, before any DIM */
+    if (load32(decl.at + 3) > 1 || decl.baseset) /* 0 or 1, once, before any DIM */
         repl_error(E_SN);
     if (decl.dimmed)
         repl_error(E_AAD);
-    decl.base = s[3];
+    decl.base = decl.at[3];
     decl.baseset = true;
-    s += 2 + INT_TOKEN_SIZE;
+    decl.at += 2 + INT_TOKEN_SIZE;
 }
 
 /* DECLARE SUB|FUNCTION n: its flag; its parameters in its own scope. */
 static void declare(void)
 {
-    s++;
-    const uint8_t flag = *s == TK_SUB ? NM_SUB : *s == TK_FUNCTION ? NM_FUNC : 0;
+    decl.at++;
+    const uint8_t flag = *decl.at == TK_SUB ? NM_SUB : *decl.at == TK_FUNCTION ? NM_FUNC : 0;
     if (!flag)
         return;
-    s++;
-    if (*s != M_VAR)
+    decl.at++;
+    if (*decl.at != M_VAR)
         return;
     const uint16_t n = name(nullptr);
     symb_name(n)->flags |= flag;
@@ -389,8 +380,8 @@ static void declare(void)
 /* DEF FNn (params): their types; its name its own. */
 static void deffn(void)
 {
-    s++;
-    if (*s != M_VAR)
+    decl.at++;
+    if (*decl.at != M_VAR)
         return;
     const uint16_t n = name(nullptr);
     decl.scope = n;
@@ -401,8 +392,8 @@ static void deffn(void)
 /* SUB n, FUNCTION n: in it from here. */
 static void subfn(const uint8_t flag)
 {
-    s++;
-    if (*s != M_VAR)
+    decl.at++;
+    if (*decl.at != M_VAR)
         return;
     const uint16_t n = name(nullptr);
     symb_name(n)->flags |= flag;
@@ -414,23 +405,23 @@ static void subfn(const uint8_t flag)
 /* SHARED (BF_REF), STATIC (BF_STAT) n[()] [AS t] {, ..} */
 static void shared(const uint8_t flag)
 {
-    s++;
+    decl.at++;
     for (;;) {
-        if (*s != M_VAR)
+        if (*decl.at != M_VAR)
             return;
         const uint16_t n = name(nullptr);
         scop_bind(decl.proc, n)->flags |= flag;
-        if (*s == '(')
+        if (*decl.at == '(')
             array(n, decl.proc);
         for (;;) { /* past ( ) and AS type */
-            const uint8_t c = *s;
+            const uint8_t c = *decl.at;
             if (!c || c == ':')
                 return;
             if (c == ',')
                 break;
-            s = decl_item(s);
+            decl.at = decl_item(decl.at);
         }
-        s++;
+        decl.at++;
     }
 }
 
@@ -438,44 +429,44 @@ static void shared(const uint8_t flag)
 static void deflist(const uint8_t et)
 {
     for (;;) {
-        if (*s != M_VAR)
+        if (*decl.at != M_VAR)
             return;
-        const uint32_t first = upcase(s[2]) - 'A';
+        const uint32_t first = upcase(decl.at[2]) - 'A';
         uint32_t last = first;
-        s = decl_item(s);
-        if (*s == TK_MINUS) {
-            s++;
-            if (*s != M_VAR)
+        decl.at = decl_item(decl.at);
+        if (*decl.at == TK_MINUS) {
+            decl.at++;
+            if (*decl.at != M_VAR)
                 return;
-            last = upcase(s[2]) - 'A';
-            s = decl_item(s);
+            last = upcase(decl.at[2]) - 'A';
+            decl.at = decl_item(decl.at);
         }
         if (last >= NLETTERS)
             return;
         for (uint32_t i = first; i <= last; i++)
             symb.deft[i] = et;
         defevent();
-        if (*s != ',')
+        if (*decl.at != ',')
             return;
-        s++;
+        decl.at++;
     }
 }
 
 /* COMMON [SHARED] [/b/]: as DIM's. */
 static void common(void)
 {
-    s += 2;
+    decl.at += 2;
     decl.scope = 0;
-    const bool shared = *s == TK_SHARED;
+    const bool shared = *decl.at == TK_SHARED;
     if (shared)
-        s++;
-    if (*s == TK_DIV) {
-        if (s[1] != M_VAR)
+        decl.at++;
+    if (*decl.at == TK_DIV) {
+        if (decl.at[1] != M_VAR)
             return;
-        s = comp_skipname(s + 1);
-        if (*s != TK_DIV)
+        decl.at = comp_skipname(decl.at + 1);
+        if (*decl.at != TK_DIV)
             return;
-        s++;
+        decl.at++;
     }
     dimlist(shared ? BF_SHR : 0);
 }
@@ -484,10 +475,10 @@ static void common(void)
 static void dim(const bool redim)
 {
     decl.redim = redim;
-    s++;
-    const bool shared = *s == TK_SHARED;
+    decl.at++;
+    const bool shared = *decl.at == TK_SHARED;
     if (shared)
-        s++;
+        decl.at++;
     decl.scope = shared ? 0 : decl.proc;
     dimlist(shared ? BF_SHR : 0);
 }
@@ -495,19 +486,19 @@ static void dim(const bool redim)
 /* CONST n = e {, n = e} */
 static void konst(void)
 {
-    s++;
+    decl.at++;
     for (;;) {
-        if (*s != M_VAR)
+        if (*decl.at != M_VAR)
             return;
         uint8_t sfx;
         const uint16_t n = name(&sfx);
-        if (*s != TK_EQ)
+        if (*decl.at != TK_EQ)
             return;
-        s++;
+        decl.at++;
         uint8_t et = ET_I4; /* the value's type: its items' */
         int32_t depth = 0;
         for (;;) {
-            const uint8_t c = *s;
+            const uint8_t c = *decl.at;
             if (!c || c == ':' || (!depth && c == ','))
                 break;
             if (c == '(')
@@ -518,7 +509,7 @@ static void konst(void)
                 et = ET_SD;
             if ((c == '.' || is_digit(c) || c == TK_DIV) && et != ET_SD)
                 et = ET_R4; /* a point, an exponent, a / */
-            s = decl_item(s);
+            decl.at = decl_item(decl.at);
         }
         if (decl.proc && scop_mshr(n)) /* a procedure's of a DIM SHARED name */
             repl_error(E_SN);
@@ -529,9 +520,9 @@ static void konst(void)
         if (sfx)
             et = comp_suffix(sfx);
         b->et[0] = et;
-        if (*s != ',')
+        if (*decl.at != ',')
             return;
-        s++;
+        decl.at++;
     }
 }
 
@@ -573,26 +564,26 @@ static void bound(const uint8_t *const p)
 static bool next(void)
 {
     for (;;) {
-        uint8_t c = *s;
+        uint8_t c = *decl.at;
         if (!c || c == TK_REM)
             return false;
         if (c == ':') {
-            s++;
+            decl.at++;
             return true;
         }
         if (c == TK_DATA) {
-            s = comp_skipdata(s + 1);
-            if (!*s)
+            decl.at = comp_skipdata(decl.at + 1);
+            if (!*decl.at)
                 return false;
-            s++;
+            decl.at++;
             return true;
         }
         if (c == M_VAR) {
-            use(s);
-            arrayuse(s);
+            use(decl.at);
+            arrayuse(decl.at);
         } else if (c == TK_LBOUND || c == TK_UBOUND)
-            bound(s);
-        s = decl_item(s);
+            bound(decl.at);
+        decl.at = decl_item(decl.at);
     }
 }
 
@@ -643,11 +634,11 @@ static void warn(const uint8_t *const body)
 void decl_line(const uint8_t *const body)
 {
     warn(body);
-    s = body;
-    if (*s == M_INT) /* a line number */
-        s += INT_TOKEN_SIZE;
+    decl.at = body;
+    if (*decl.at == M_INT) /* a line number */
+        decl.at += INT_TOKEN_SIZE;
     do {
-        const uint8_t c = *s;
+        const uint8_t c = *decl.at;
         switch (c) {
         case TK_DIM:
             dim(false);
@@ -677,9 +668,9 @@ void decl_line(const uint8_t *const body)
             shared(BF_STAT);
             break;
         case TK_END: /* END SUB, END FUNCTION: the module; END TYPE */
-            if (s[1] == TK_TYPE)
+            if (decl.at[1] == TK_TYPE)
                 decl.type = 0;
-            else if (s[1] == TK_SUB || s[1] == TK_FUNCTION)
+            else if (decl.at[1] == TK_SUB || decl.at[1] == TK_FUNCTION)
                 decl.proc = 0;
             break;
         case TK_OPTION:
@@ -692,16 +683,16 @@ void decl_line(const uint8_t *const body)
             field();
             break;
         case TK_X:
-            if (s[1] == TK1_COMMON)
+            if (decl.at[1] == TK1_COMMON)
                 common();
-            else if (s[1] == TK1_DEFSHORT) {
-                s += 2;
+            else if (decl.at[1] == TK1_DEFSHORT) {
+                decl.at += 2;
                 deflist(ET_SH);
             }
             break;
         default:
             if (c >= TK_DEFINT && c <= TK_DEFSTR) {
-                s++;
+                decl.at++;
                 deflist(deftype[c - TK_DEFINT]);
             }
         }

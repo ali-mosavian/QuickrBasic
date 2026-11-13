@@ -17,7 +17,6 @@ enum {
     NAME_HASH_MUL = 31,
 };
 
-static uint16_t vhead[HSIZE], nhead[HSIZE];
 
 static uint16_t *name_next(void) { return (uint16_t *)at(symb.names.at[1]); }
 
@@ -87,7 +86,7 @@ void symb_init(void)
 {
     symb.nnames = 1;
     symb.text_free = 0;
-    memset(nhead, 0, sizeof nhead);
+    memset(symb.nhead, 0, sizeof symb.nhead);
     symb_vars_init();
     decl_reset();
 }
@@ -95,7 +94,7 @@ void symb_init(void)
 void symb_vars_init(void)
 {
     symb.nvars = 1;
-    memset(vhead, 0, sizeof vhead);
+    memset(symb.vhead, 0, sizeof symb.vhead);
     memset(symb.first_local, 0, sizeof symb.first_local);
 }
 
@@ -116,7 +115,7 @@ uint16_t symb_find_name(const uint8_t *const text, const uint8_t len)
     for (uint8_t i = 0; i < len; i++)
         hash = hash * NAME_HASH_MUL + upcase(text[i]);
     const uint32_t h = hash & (HSIZE - 1);
-    for (uint16_t id = nhead[h]; id; id = name_next()[id])
+    for (uint16_t id = symb.nhead[h]; id; id = name_next()[id])
         if (spells(symb_text(id), text, len))
             return id;
     const uint16_t id = symb.nnames;
@@ -129,8 +128,8 @@ uint16_t symb_find_name(const uint8_t *const text, const uint8_t len)
     for (uint8_t i = 0; i < len; i++)
         d[1 + i] = upcase(text[i]);
     symb.text_free += len + 1u;
-    name_next()[id] = nhead[h];
-    nhead[h] = id;
+    name_next()[id] = symb.nhead[h];
+    symb.nhead[h] = id;
     if (len > 2 && d[1] == 'F' && d[2] == 'N')
         n->flags = NM_FN;
     symb.nnames++;
@@ -141,7 +140,7 @@ uint16_t symb_find_var(const uint16_t name, const uint8_t type, const uint8_t ki
                        const uint8_t scope, const bool stat)
 {
     const uint32_t h = (name * 5u + type * 2u + (kind >> 7) + scope * 8u) & (HSIZE - 1);
-    for (uint16_t id = vhead[h]; id; id = symb_varx(id)->next) {
+    for (uint16_t id = symb.vhead[h]; id; id = symb_varx(id)->next) {
         const Var *const v = symb_var(id);
         if (v->name == name && v->type == type && (v->info & (VI_ARR | SK_DBL | VK_MASK)) == kind &&
             symb_varx(id)->scope == scope)
@@ -153,8 +152,8 @@ uint16_t symb_find_var(const uint16_t name, const uint8_t type, const uint8_t ki
     Var *const v = symb_var(id);
     VarX *const x = symb_varx(id);
     *v = (Var){.name = name, .type = type, .info = kind};
-    *x = (VarX){.next = vhead[h], .scope = scope};
-    vhead[h] = id;
+    *x = (VarX){.next = symb.vhead[h], .scope = scope};
+    symb.vhead[h] = id;
     if (scope && !stat) { /* a local: on its procedure's list */
         x->nloc = symb.first_local[scope];
         symb.first_local[scope] = id;

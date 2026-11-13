@@ -8,29 +8,9 @@
 #include "io/repl.h"
 #include "vm/exec.h"
 
-static struct {
-    const char *line;   /* the line's text */
-    uint16_t state;     /* the automaton's state, FFFFh none */
-    uint8_t code;       /* the error, E_* */
-    uint8_t dg;         /* its DG_, 0 none */
-    uint32_t col;       /* the text's column */
-    uint32_t len;       /* its length */
-    bool first;         /* at the statement's first word */
-    const char *name;   /* the name, its length */
-    uint32_t namelen;
-    const char *what;   /* what is wrong, its words */
-    const char *todo;   /* what to do, nullptr none */
-    const char *bc;     /* its name, when no words */
-    char *keyend;       /* the key's end before " /" */
-    char stm[16];       /* the statement's word, STM_MAX letters at most */
-    char key[160];      /* a key, a word; a form's line */
-    char other[32];     /* {other} */
-    const char *form;   /* the statement's form, nullptr none */
-    bool cap;           /* fill: a capital next */
-    char last;          /* fill: the last it put */
-} dx;
+Diag diag;
 
-enum { STM_MAX = sizeof dx.stm - 1 };
+enum { STM_MAX = sizeof diag.stm - 1 };
 
 static const char *const leads[] = {
     "SUB", "FUNCTION", "TYPE", "DECLARE", "CALL", "STATIC", "SHARED", "DIM", "REDIM", "COMMON",
@@ -89,12 +69,12 @@ static const char *entry(const char *const key)
 /* The item before column col: col and len at it; none: len 0. */
 static void back(const uint32_t col)
 {
-    const char *s = dx.line;
+    const char *s = diag.line;
     uint32_t b = col;
     while (b && s[b - 1] == ' ')
         b--;
     if (!b) {
-        dx.len = 0;
+        diag.len = 0;
         return;
     }
     const uint32_t end = b--;
@@ -105,15 +85,15 @@ static void back(const uint32_t col)
         while (b && is_word(s[b - 1]))
             b--;
     }
-    dx.col = b;
-    dx.len = end - b;
+    diag.col = b;
+    diag.len = end - b;
 }
 
 /* stm: the statement's first word, if a keyword; first when the error is at that word. */
 static void statement(void)
 {
-    const char *const s = dx.line;
-    const uint32_t c = dx.col;
+    const char *const s = diag.line;
+    const uint32_t c = diag.col;
     uint32_t start = 0;
     bool quoted = false;
     for (uint32_t i = 0; i < c; i++) { /* past the last ':' out of quotes */
@@ -126,32 +106,32 @@ static void statement(void)
         start++; /* past blanks and a line number */
     const char *w = s + start;
     uint32_t n = letters(w, c - start);
-    dx.first = !n;
+    diag.first = !n;
     if (n < 2) {
-        if (!dx.first) { /* at the start: the word at the error */
-            dx.stm[0] = 0;
+        if (!diag.first) { /* at the start: the word at the error */
+            diag.stm[0] = 0;
             return;
         }
-        w = s + dx.col;
+        w = s + diag.col;
         n = letters(w, 255);
         if (n < 2) {
-            dx.stm[0] = 0;
+            diag.stm[0] = 0;
             return;
         }
     }
-    upper(dx.stm, w, n > STM_MAX ? STM_MAX : n);
-    if (form_of(dx.stm))
+    upper(diag.stm, w, n > STM_MAX ? STM_MAX : n);
+    if (form_of(diag.stm))
         return;
-    const uint8_t *p = (const uint8_t *)dx.stm; /* a keyword, if no form for it */
+    const uint8_t *p = (const uint8_t *)diag.stm; /* a keyword, if no form for it */
     if (!lexr_keyword(&p) || *p)
-        dx.stm[0] = 0;
+        diag.stm[0] = 0;
 }
 
 /* name: the first word from the error on that is no leading keyword (p in SUB p (a%)). */
 static void name(void)
 {
-    const char *b = dx.line + dx.col;
-    dx.namelen = 0;
+    const char *b = diag.line + diag.col;
+    diag.namelen = 0;
     for (;;) {
         while (*b == ' ')
             b++;
@@ -160,13 +140,13 @@ static void name(void)
             n++;
         if (!n)
             return;
-        upper(dx.key, b, n < sizeof dx.key ? n : sizeof dx.key - 1);
+        upper(diag.key, b, n < sizeof diag.key ? n : sizeof diag.key - 1);
         bool lead = false;
         for (size_t i = 0; i < countof(leads) && !lead; i++)
-            lead = !strcmp(dx.key, leads[i]);
+            lead = !strcmp(diag.key, leads[i]);
         if (!lead) {
-            dx.name = b;
-            dx.namelen = n;
+            diag.name = b;
+            diag.namelen = n;
             return;
         }
         b += n;
@@ -178,77 +158,77 @@ static const char *const s_syntax = "Syntax error";
 /* A syntax error in words: what was found where, then the statement's form. */
 static void syntax(void)
 {
-    dx.bc = s_syntax;
+    diag.bc = s_syntax;
     bool done = false;
-    if (dx.first && dx.len) { /* at the statement's first word, a word: that one is it */
-        const uint32_t n = letters(dx.line + dx.col, dx.len);
-        if (n == dx.len && n <= STM_MAX) {
-            upper(dx.stm, dx.line + dx.col, n);
-            dx.what = "`{text}` cannot be used here: it does not start a valid statement at this "
+    if (diag.first && diag.len) { /* at the statement's first word, a word: that one is it */
+        const uint32_t n = letters(diag.line + diag.col, diag.len);
+        if (n == diag.len && n <= STM_MAX) {
+            upper(diag.stm, diag.line + diag.col, n);
+            diag.what = "`{text}` cannot be used here: it does not start a valid statement at this "
                       "point";
             done = true;
         }
     }
     if (!done) {
         const char *names[256];
-        if (dx.state != DX_NOSTATE && comp_expnames(dx.state, names)) {
-            dx.what = "expected {expected} in the {stm}, but found {found}";
+        if (diag.state != DX_NOSTATE && comp_expnames(diag.state, names)) {
+            diag.what = "expected {expected} in the {stm}, but found {found}";
         } else {
-            dx.what = dx.len ? "`{text}` does not fit the {stm} here"
+            diag.what = diag.len ? "`{text}` does not fit the {stm} here"
                              : "the {stm} is incomplete: the line ends where more is needed";
         }
     }
-    dx.todo = "check the statement against the manual; the mark shows where it stopped being "
+    diag.todo = "check the statement against the manual; the mark shows where it stopped being "
               "understood";
-    const char *const f = form_of(dx.stm);
+    const char *const f = form_of(diag.stm);
     if (f) { /* STATEMENT is written: */
-        dx.form = f;
-        const size_t n = strlen(dx.stm);
-        memcpy(dx.key, dx.stm, n);
-        memcpy(dx.key + n, " is written:", sizeof " is written:");
-        dx.todo = dx.key;
+        diag.form = f;
+        const size_t n = strlen(diag.stm);
+        memcpy(diag.key, diag.stm, n);
+        memcpy(diag.key + n, " is written:", sizeof " is written:");
+        diag.todo = diag.key;
     }
 }
 
 /* The error's words: what is wrong, what to do, the name for an error with no words. */
 static void words(void)
 {
-    dx.form = nullptr;
+    diag.form = nullptr;
     const char *e = nullptr;
-    if (dx.dg) {
+    if (diag.dg) {
         e = diag_msgs; /* DG_ n: the nth message */
-        for (uint8_t i = 1; i < dx.dg; i++)
+        for (uint8_t i = 1; i < diag.dg; i++)
             e = next_msg(e);
     } else { /* by BC's name: name /TEXT, name /end, name */
-        const char *const t = emsg_text(dx.code);
+        const char *const t = emsg_text(diag.code);
         const size_t n = strlen(t);
-        memcpy(dx.key, t, n);
-        dx.keyend = dx.key + n;
-        dx.keyend[0] = ' ';
-        dx.keyend[1] = '/';
-        const uint32_t room = (uint32_t)(sizeof dx.key - 1 - (n + 2));
-        upper(dx.keyend + 2, dx.line + dx.col, dx.len < room ? dx.len : room);
-        e = entry(dx.key);
-        if (!e && !dx.len) {
-            memcpy(dx.keyend, " /end", sizeof " /end");
-            e = entry(dx.key);
+        memcpy(diag.key, t, n);
+        diag.keyend = diag.key + n;
+        diag.keyend[0] = ' ';
+        diag.keyend[1] = '/';
+        const uint32_t room = (uint32_t)(sizeof diag.key - 1 - (n + 2));
+        upper(diag.keyend + 2, diag.line + diag.col, diag.len < room ? diag.len : room);
+        e = entry(diag.key);
+        if (!e && !diag.len) {
+            memcpy(diag.keyend, " /end", sizeof " /end");
+            e = entry(diag.key);
         }
         if (!e) {
-            *dx.keyend = 0;
-            e = entry(dx.key);
+            *diag.keyend = 0;
+            e = entry(diag.key);
         }
         if (!e) {
-            dx.bc = dx.key;
-            dx.what = "{bc} (at `{text}`)";
-            dx.todo = nullptr;
-            if (dx.code == E_SN)
+            diag.bc = diag.key;
+            diag.what = "{bc} (at `{text}`)";
+            diag.todo = nullptr;
+            if (diag.code == E_SN)
                 syntax();
             return;
         }
     }
-    dx.bc = e;
-    dx.what = skip(e);
-    dx.todo = skip(dx.what);
+    diag.bc = e;
+    diag.what = skip(e);
+    diag.todo = skip(diag.what);
 }
 
 /* The item at b's length: a string to its closing quote, a word, or one sign; 0 the end. */
@@ -272,24 +252,24 @@ static uint32_t item_len(const char *const b)
 uint32_t diag_at(const char *const text, uint32_t col, const uint8_t code, const uint8_t dg,
                  const uint16_t state)
 {
-    dx.line = text;
-    dx.code = code;
-    dx.dg = dg;
-    dx.state = state;
+    diag.line = text;
+    diag.code = code;
+    diag.dg = dg;
+    diag.state = state;
     const uint32_t end = (uint32_t)strlen(text); /* the column, at most the end */
     if (col > end)
         col = end;
     while (text[col] == ' ')
         col++;
-    dx.col = col;
+    diag.col = col;
     const uint32_t n = item_len(text + col);
-    dx.len = n;
+    diag.len = n;
     if (!n && code != E_SN) /* nothing here, past what it read: that item, but for a syntax error */
         back(col);
     statement();
     name();
     words();
-    return dx.col;
+    return diag.col;
 }
 
 void diag_raise(const uint8_t code, const uint8_t dg, const uint32_t at, const uint32_t line,
@@ -300,10 +280,10 @@ void diag_raise(const uint8_t code, const uint8_t dg, const uint32_t at, const u
     vm.line = line;
     vm.opip = (uint8_t *)&op;
     vm.err.active = true;
-    if (len > sizeof dx.other - 1)
-        len = sizeof dx.other - 1;
-    memcpy(dx.other, other, len);
-    dx.other[len] = 0;
+    if (len > sizeof diag.other - 1)
+        len = sizeof diag.other - 1;
+    memcpy(diag.other, other, len);
+    diag.other[len] = 0;
     repl_error(code);
 }
 
@@ -313,7 +293,7 @@ static void put_n(const char *const s, const uint32_t n)
         cons_putc((uint8_t)s[i]);
 }
 
-static void put_text(void) { put_n(dx.line + dx.col, dx.len); }
+static void put_text(void) { put_n(diag.line + diag.col, diag.len); }
 
 /* A message's {holder}s. */
 typedef enum { H_TEXT, H_NAME, H_STATEMENT, H_STM, H_OTHER, H_BC, H_EXPECTED, H_FOUND, NHOLDERS } Holder;
@@ -338,32 +318,32 @@ static void put_holder(const Holder h)
         put_text();
         break;
     case H_NAME:
-        if (dx.namelen)
-            put_n(dx.name, dx.namelen);
+        if (diag.namelen)
+            put_n(diag.name, diag.namelen);
         else
             put_text();
         break;
     case H_STATEMENT:
-        cons_puts(dx.stm[0] ? dx.stm : "this");
+        cons_puts(diag.stm[0] ? diag.stm : "this");
         break;
     case H_STM:
-        if (dx.stm[0]) {
-            cons_puts(dx.stm);
+        if (diag.stm[0]) {
+            cons_puts(diag.stm);
             cons_putc(' ');
         }
         cons_puts("statement");
         break;
     case H_OTHER:
-        cons_puts(dx.other);
+        cons_puts(diag.other);
         break;
     case H_BC:
-        cons_puts(dx.bc);
+        cons_puts(diag.bc);
         break;
     case H_EXPECTED:
-        comp_expected(dx.state);
+        comp_expected(diag.state);
         break;
     default:
-        if (!dx.len) {
+        if (!diag.len) {
             cons_puts("the end of the statement");
         } else {
             cons_putc('`');
@@ -379,15 +359,15 @@ static void fill(const char *t)
     for (char c; (c = *t++);) {
         const Holder h = c == '{' ? holder_at(t) : NHOLDERS;
         if (c == '{') {
-            dx.cap = false;
-            dx.last = 'x';
+            diag.cap = false;
+            diag.last = 'x';
         }
         if (h == NHOLDERS) {
-            if (dx.cap) {
-                dx.cap = false;
+            if (diag.cap) {
+                diag.cap = false;
                 c = (char)upcase((uint8_t)c);
             }
-            dx.last = c;
+            diag.last = c;
             cons_putc((uint8_t)c);
             continue;
         }
@@ -399,28 +379,28 @@ static void fill(const char *t)
 /* fill as a sentence: a capital first, a period last unless it ends in one or a ':'. */
 static void sentence(const char *const t)
 {
-    dx.cap = true;
+    diag.cap = true;
     fill(t);
-    dx.cap = false;
-    if (dx.last != '.' && dx.last != ':')
+    diag.cap = false;
+    if (diag.last != '.' && diag.last != ':')
         cons_putc('.');
 }
 
-void diag_what(void) { sentence(dx.what); }
+void diag_what(void) { sentence(diag.what); }
 
 bool diag_todo(void)
 {
-    if (!dx.todo || !*dx.todo)
+    if (!diag.todo || !*diag.todo)
         return false;
-    sentence(dx.todo);
+    sentence(diag.todo);
     return true;
 }
 
 bool diag_shape(void)
 {
-    if (!dx.form)
+    if (!diag.form)
         return false;
-    cons_puts(dx.form);
+    cons_puts(diag.form);
     return true;
 }
 
@@ -430,7 +410,7 @@ void diag_say(void)
     cons_nl();
     if (diag_todo())
         cons_nl();
-    if (dx.form) {
+    if (diag.form) {
         cons_spaces(2);
         diag_shape();
         cons_nl();

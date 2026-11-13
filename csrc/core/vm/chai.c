@@ -15,16 +15,8 @@
 #include "ui/uimn.h"
 #endif
 
-enum { NCMN = 512, CHAIN_BUF_SIZE = 0x10000, CHAIN_NAME_MAX = 120 };
 
-static struct {
-    const uint8_t *next;  /* g_chr: the next value to take */
-    uint8_t *end;         /* g_che: past the last */
-    bool chained;         /* g_chf: CHAIN's run starting */
-    uint32_t n;           /* g_cmn: the ids COMMON named so far in this run */
-    uint16_t id[NCMN];    /* g_cmid */
-    uint8_t buf[CHAIN_BUF_SIZE]; /* g_chb */
-} ch;
+Chai chai;
 
 /* ---- the kinds ------------------------------------------------------------------------------ */
 
@@ -59,7 +51,7 @@ static uint32_t elem_count(const ArrayHdr *const a)
 /* n bytes from src to *p. Out of memory: past the buffer. */
 static void put(uint8_t **const p, const void *const src, const uint32_t n)
 {
-    if (*p + n > ch.buf + CHAIN_BUF_SIZE)
+    if (*p + n > chai.buf + CHAIN_BUF_SIZE)
         repl_error(E_OM);
     memcpy(*p, src, n);
     *p += n;
@@ -93,9 +85,9 @@ static void put_array(uint8_t **const p, const uint16_t id)
 /* COMMON's variables' values to the buffer. Out of memory: more than it holds. */
 static void save(void)
 {
-    uint8_t *p = ch.buf;
-    for (uint32_t i = 0; i < ch.n; i++) {
-        const uint16_t id = ch.id[i];
+    uint8_t *p = chai.buf;
+    for (uint32_t i = 0; i < chai.n; i++) {
+        const uint16_t id = chai.id[i];
         const uint8_t kind = kind_of(id);
         put(&p, &kind, 1);
         if (is_array(kind))
@@ -105,8 +97,8 @@ static void save(void)
         else
             put(&p, at(symb_cell(id)), number_size(kind));
     }
-    ch.next = ch.buf;
-    ch.end = p;
+    chai.next = chai.buf;
+    chai.end = p;
 }
 
 /* ---- in: the values from the buffer --------------------------------------------------------- */
@@ -158,11 +150,11 @@ static void get_array(const uint8_t **const p, const uint16_t id)
 void chai_cmn(Vm *const vm)
 {
     const uint16_t id = (uint16_t)exec_pop(vm).u;
-    if (ch.n >= NCMN)
+    if (chai.n >= NCMN)
         repl_error(E_OM);
-    ch.id[ch.n++] = id;
-    const uint8_t *p = ch.next;
-    if (!p || p >= ch.end)
+    chai.id[chai.n++] = id;
+    const uint8_t *p = chai.next;
+    if (!p || p >= chai.end)
         return;
     const uint8_t kind = kind_of(id);
     if (kind != *p++)
@@ -173,7 +165,7 @@ void chai_cmn(Vm *const vm)
         get_string(&p, symb_cell(id));
     else
         get(&p, at(symb_cell(id)), number_size(kind));
-    ch.next = p;
+    chai.next = p;
 }
 
 /* ---- CHAIN ---------------------------------------------------------------------------------- */
@@ -210,7 +202,7 @@ void chai_chain(Vm *const vm)
         repl_error(E_IQ);
     set_file(s);
     save();
-    ch.chained = true;
+    chai.chained = true;
     prog_init();
     repl_load();
     prog_drop();
@@ -222,8 +214,8 @@ void chai_chain(Vm *const vm)
 
 void chai_start(void)
 {
-    ch.n = 0;
-    if (!ch.chained)
-        ch.next = ch.end;
-    ch.chained = false;
+    chai.n = 0;
+    if (!chai.chained)
+        chai.next = chai.end;
+    chai.chained = false;
 }

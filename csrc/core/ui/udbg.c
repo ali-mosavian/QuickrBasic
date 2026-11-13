@@ -45,7 +45,7 @@ static void hlset(void)
     const uint32_t len = text_get(view_goline(tl), uimn.line);
     uimn.line[len] = 0;
     uint8_t *const body = edit_body(uimn.line);
-    lexr_line(body, comp_cbuf);
+    lexr_line(body, comp.cbuf);
     const uint32_t bc = (uint32_t)(body - uimn.line);
     const uint32_t c0 = lexr.col[dbug.stmt_from] + bc;
     const uint32_t c1 = trim_end(uimn.line, c0,

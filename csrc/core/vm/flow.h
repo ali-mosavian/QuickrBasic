@@ -49,4 +49,12 @@ void flow_nodir(Vm *vm);
 uint32_t flow_opsize(const uint8_t *op);
 /* Move the string descriptor at from to to, which then owns its heap block. */
 void flow_lsmove(Addr from, Addr to);
+/* A FUNCTION's result between its return and its push. A string's descriptor is in the arena,
+   where a heap block's owner must be */
+typedef struct {
+    Addr text;
+    Cell value;
+} Flow;
+extern Flow flow;
+
 #endif

@@ -19,7 +19,6 @@ enum { PROBE_RUNNING = 0, PROBE_DONE = 1, PROBE_FAILED = 2 /* + the error */ };
 
 Dbug dbug;
 
-static jmp_buf probe; /* g_dbev: dbug_eval's, while its line runs */
 
 static bool watching(void) { return dbug.mode || dbug.trace || dbug.bpon || dbug.until; }
 
@@ -140,10 +139,10 @@ static int run_probe(const char *const expr)
     memcpy(cons.inbuf, print, strlen(print));
     memcpy(cons.inbuf + strlen(print), expr, strlen(expr) + 1);
     vm.line = DLINE;
-    const int how = setjmp(probe);
+    const int how = setjmp(dbug.probe);
     if (how == PROBE_RUNNING) {
         dbug.probing = true;
-        lexr_line(cons.inbuf, comp_cbuf);
+        lexr_line(cons.inbuf, comp.cbuf);
         comp_line();
         vm.ip = flow_dcode();
         vm.rsp = vm.sp;
@@ -176,9 +175,9 @@ uint8_t dbug_eval(const char *const expr, const uint8_t proc, char out[static 80
     return (uint8_t)(how - PROBE_DONE);
 }
 
-void dbug_done(void) { longjmp(probe, PROBE_DONE); }
+void dbug_done(void) { longjmp(dbug.probe, PROBE_DONE); }
 
-void dbug_fail(const uint8_t code) { longjmp(probe, PROBE_FAILED + code); }
+void dbug_fail(const uint8_t code) { longjmp(dbug.probe, PROBE_FAILED + code); }
 
 /* TRON, TROFF: trace on, off. */
 void dbug_tron(Vm *const) { dbug.trace = true; }

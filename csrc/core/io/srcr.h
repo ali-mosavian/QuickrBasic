@@ -9,11 +9,24 @@
 
 enum { SRCAP = INMAX - 4 }; /* the window's text: then it slides */
 
+/* Where a physical line's byte is. */
+typedef enum : uint8_t { IN_CODE, IN_STRING, IN_COMMENT } Where;
+
+/* Whether the physical line continues, by its bytes */
+typedef struct {
+    Where st;
+    uint8_t letters; /* the word's letters so far */
+    bool under;     /* the last byte in code a '_' after a blank */
+    bool blank;     /* the byte before a blank */
+    char rem[3];    /* the word's first letters, small */
+} SrcrCont;
+
 typedef struct {
     uint8_t *end;  /* the window's end, its 0, in cons.inbuf (lexr reads it) */
     uint32_t pend; /* blanks in code not yet put */
     bool done;     /* the logical line is all in */
     bool any;      /* a byte or a line's end was read */
+    SrcrCont cont;
 } Srcr;
 extern Srcr srcr;
 

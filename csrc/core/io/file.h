@@ -6,12 +6,15 @@
    index: FIELD's strings point into it, so it is in the arena. */
 #ifndef CORE_IO_FILE_H
 #define CORE_IO_FILE_H
-#include "defs.h"
+#include "io/chnl.h"
 
 typedef struct {
     uint8_t mode;    /* OPEN's mode, FM_* */
     uint32_t reclen; /* OPEN's LEN */
     Addr recs;       /* NCH * RECMAX: each channel's record */
+    Chan *field_chan;        /* FIELD's channel */
+    char name2[128];  /* NAME's new name; FILES's directory */
+    char bname[264];  /* BSAVE's, BLOAD's name, .BAS added */
 } File;
 extern File file;
 

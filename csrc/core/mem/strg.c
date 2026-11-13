@@ -6,11 +6,9 @@
 #include "mem/copy.h"
 #include "mem/prog.h"
 
-enum { NEAR_MAX = 255 };
 
 Strg strg;
 
-static uint8_t near_buf[NEAR_MAX + 1];
 
 void strg_init(void) { strg.tmp = allo_carve(DSZ * NTMP); }
 
@@ -125,9 +123,9 @@ void strg_set(const Addr value, const Addr desc)
 const uint8_t *strg_near(const Desc s)
 {
     const uint16_t n = s.len > NEAR_MAX ? NEAR_MAX : s.len;
-    memcpy(near_buf, at(s.ptr), n);
-    near_buf[n] = 0;
-    return near_buf;
+    memcpy(strg.near_buf, at(s.ptr), n);
+    strg.near_buf[n] = 0;
+    return strg.near_buf;
 }
 
 void strg_print(const Desc s)

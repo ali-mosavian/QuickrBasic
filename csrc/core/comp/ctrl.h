@@ -30,6 +30,10 @@ typedef struct {
     RecRef ref;          /* g_rfet, g_rfoff, g_rffix: ctrl_recref's */
     uint8_t fieldet;     /* g_ctfet: expr_target's field (its offset in comp.tgt): ET_*, n */
     uint16_t fieldfix;   /* g_ctffix */
+    uint16_t selid;      /* g_ctvr: a SELECT's or SWAP's variable */
+    uint8_t seltype;     /* g_cttp: its T_* */
+    bool byval;          /* g_cbyv: the argument by value */
+    uint16_t param;      /* g_cpar: arg's parameter */
 } Ctrl;
 extern Ctrl ctrl;
 

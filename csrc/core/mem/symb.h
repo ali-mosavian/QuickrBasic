@@ -46,6 +46,7 @@ typedef struct {
     uint16_t nnames;             /* the next name (lx.nnams) */
     uint16_t first_local[NPROC]; /* a procedure's first local, VarX.nloc on (g_plh) */
     uint8_t deft[26];            /* DEFtype's ET_*, by first letter (g_deft) */
+    uint16_t vhead[HSIZE], nhead[HSIZE]; /* the hash chains' heads */
 } Symb;
 extern Symb symb;
 

@@ -15,16 +15,13 @@
 #include "vm/dbug.h"
 
 Comp comp;
-uint8_t *comp_cbuf;
-uint8_t comp_xbuf[XLIM + COMP_TAIL];
 const uint8_t comp_etkind[7] = {0, 1, 1, 0, SK_DBL, 2, 1};
 
-static uint64_t dmask; /* dimsubs: bit i, subscript i its hi only */
 
 void comp_init(void)
 {
-    comp_cbuf = at(allo_carve(1 + LMAX + 64)) + 1; /* the byte before: lexr's line before the body */
-    comp.buf = comp_xbuf;
+    comp.cbuf = at(allo_carve(1 + LMAX + 64)) + 1; /* the byte before: lexr's line before the body */
+    comp.buf = comp.xbuf;
     comp.dfa = 0xFFFF;
 }
 
@@ -437,9 +434,9 @@ bool comp_ispar(const uint16_t id)
 {
     if (symb_var(id)->info & VI_ARR || !comp.proc)
         return false;
-    const Proc *const p = &blok_procs[comp.proc];
+    const Proc *const p = &blok.procs[comp.proc];
     for (uint32_t i = 0; i < p->npar; i++)
-        if (blok_params[p->par + i] == id)
+        if (blok.params[p->par + i] == id)
             return true;
     return false;
 }
@@ -448,9 +445,9 @@ bool comp_param(const uint16_t name, const uint8_t array, uint16_t *const id)
 {
     if (!comp.proc)
         return false;
-    const Proc *const p = &blok_procs[comp.proc];
+    const Proc *const p = &blok.procs[comp.proc];
     for (uint32_t i = 0; i < p->npar; i++) {
-        const uint16_t v = blok_params[p->par + i];
+        const uint16_t v = blok.params[p->par + i];
         const Var *const var = symb_var(v);
         if (var->name == name && !((var->info ^ array) & VI_ARR)) {
             *id = v;
@@ -474,7 +471,7 @@ void comp_scope(const uint16_t name)
         comp.scope = 0; /* the module's */
         return;
     }
-    if (b->flags & BF_STAT || blok_procs[comp.proc].flags & PF_STAT)
+    if (b->flags & BF_STAT || blok.procs[comp.proc].flags & PF_STAT)
         comp.isstatic = true; /* STATIC */
 }
 
@@ -754,8 +751,8 @@ void comp_line(void)
     comp.line = DLINE;
     scop_proc(comp.dlproc);
     decl_deftype(0xFFFFFFFF); /* the program's end's DEFtypes */
-    comp.buf = comp_xbuf;
-    comp_text(comp_cbuf);
+    comp.buf = comp.xbuf;
+    comp_text(comp.cbuf);
 }
 
 /* ---- the actions */
@@ -862,7 +859,7 @@ static uint32_t dimsubs(void)
 {
     comp_open();
     uint32_t n = 0;
-    dmask = 0;
+    comp.dmask = 0;
     do {
         expr_compile();
         comp_toint();
@@ -872,7 +869,7 @@ static uint32_t dimsubs(void)
             comp_toint();
         } else {
             comp_int(decl.base);
-            dmask |= (uint64_t)1 << (n & 63);
+            comp.dmask |= (uint64_t)1 << (n & 63);
         }
         n++;
     } while (comp_optcomma());
@@ -886,8 +883,8 @@ static void dim1(const uint16_t id)
 {
     const uint32_t flags = (comp.isstatic ? DIM_STATIC : 0) | comp.redim;
     const uint32_t n = dimsubs();
-    comp_int((uint32_t)dmask);
-    comp_int((uint32_t)(dmask >> 32));
+    comp_int((uint32_t)comp.dmask);
+    comp_int((uint32_t)(comp.dmask >> 32));
     comp_int(id);
     comp_int(n | flags);
     comp_call(K_DIM);

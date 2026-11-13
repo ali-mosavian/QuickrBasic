@@ -29,17 +29,9 @@ enum { DATA_TEXT_SIZE = 256, PRINT_ZONE = 14 };
 /* What an INPUT field or a DATA item is read as. */
 typedef enum : uint8_t { ITEM_SNGL, ITEM_STRING, ITEM_DOUBLE } ItemKind;
 
-static struct {
-    uint8_t *data_text;        /* g_rdbuf: the DATA in hand's text, in the arena */
-    const uint8_t *data_pos;   /* READ's place in data_text, null before the first READ */
-    uint32_t data_at;          /* the DATA's first byte in the store, 0 none */
-    bool before_first;         /* data_pos is before the DATA's first item */
-    uint8_t *input_end;        /* where an INPUT's empty line goes on */
-    uint8_t *input_start;      /* REDO comes back here */
-    bool redo;                 /* a bad field: REDO FROM START after the stores */
-} st;
+StmtState stmt;
 
-void stmt_init(void) { st.data_text = at(allo_carve(DATA_TEXT_SIZE)); }
+void stmt_init(void) { stmt.data_text = at(allo_carve(DATA_TEXT_SIZE)); }
 
 /* ---- PRINT ---------------------------------------------------------------------------------- */
 
@@ -75,9 +67,9 @@ void stmt_pspc(Vm *const vm) { cons_spaces((uint8_t)exec_popi(vm)); }
 void stmt_inbeg(Vm *const vm)
 {
     flow_nodir(vm);
-    st.redo = false;
-    st.input_end = at(allo.cache + exec_u16(vm));
-    st.input_start = vm->ip;
+    stmt.redo = false;
+    stmt.input_end = at(allo.cache + exec_u16(vm));
+    stmt.input_start = vm->ip;
 }
 
 /* ? and a line. */
@@ -98,11 +90,11 @@ void stmt_inln(Vm *const) { cons_read(); }
 /* After a bad field's store: ?Redo from start, the INPUT again. true: vm->ip moved. */
 static bool redo(Vm *const vm)
 {
-    if (!st.redo)
+    if (!stmt.redo)
         return false;
-    st.redo = false;
+    stmt.redo = false;
     cons_msg(MSG_REDO);
-    vm->ip = st.input_start;
+    vm->ip = stmt.input_start;
     vm->sp = vm->rsp;
     return true;
 }
@@ -139,7 +131,7 @@ static void input(Vm *const vm, const ItemKind kind)
         return;
     if (!cons.inlen) {
         vm->sp = vm->rsp;
-        vm->ip = st.input_end;
+        vm->ip = stmt.input_end;
         return;
     }
     cons_field();
@@ -150,7 +142,7 @@ static void input(Vm *const vm, const ItemKind kind)
     if (!ok) {
         if (cons.from_file)
             repl_error(E_FD);
-        st.redo = true; /* stored as far as it went, then REDO */
+        stmt.redo = true; /* stored as far as it went, then REDO */
     }
     push_item(vm, kind, v);
 }
@@ -237,11 +229,11 @@ static bool data_after(uint32_t *const b)
 /* The text of the DATA at b to data_text, up to its ':'. */
 static void load_data(const uint32_t b)
 {
-    st.data_at = b;
+    stmt.data_at = b;
     const uint8_t *const text = at(prog_addr(b));
     const size_t n = (size_t)(comp_skipdata(text) - text);
-    memcpy(st.data_text, text, n);
-    st.data_text[n] = 0;
+    memcpy(stmt.data_text, text, n);
+    stmt.data_text[n] = 0;
 }
 
 /* READ goes on at the first DATA at or after line. */
@@ -251,33 +243,33 @@ static void seek_data(const uint32_t line)
     if (prog_line(line)->len && scan_data(&b))
         load_data(b);
     else {
-        st.data_at = 0;
-        st.data_text[0] = 0;
+        stmt.data_at = 0;
+        stmt.data_text[0] = 0;
     }
-    st.data_pos = st.data_text;
-    st.before_first = true;
+    stmt.data_pos = stmt.data_text;
+    stmt.before_first = true;
 }
 
 /* The next DATA item. Out of DATA. */
 static const uint8_t *next_data(void)
 {
-    if (!st.data_pos) {
+    if (!stmt.data_pos) {
         seek_data(PROGBASE);
-        if (!st.data_at)
+        if (!stmt.data_at)
             repl_error(E_OD);
     }
-    const uint8_t *p = st.data_pos;
-    if (st.before_first) {
-        st.before_first = false;
+    const uint8_t *p = stmt.data_pos;
+    if (stmt.before_first) {
+        stmt.before_first = false;
         return p;
     }
     if (comp_peek(&p) == ',')
         return p + 1;
-    uint32_t b = st.data_at;
+    uint32_t b = stmt.data_at;
     if (!b || !data_after(&b))
         repl_error(E_OD);
     load_data(b);
-    return st.data_text;
+    return stmt.data_text;
 }
 
 /* The next DATA item. Syntax error, in the DATA's line: a bad item. */
@@ -287,12 +279,12 @@ static void read(Vm *const vm, const ItemKind kind)
     Cell v = {};
     if (!read_item(&p, kind, &v)) {
         uint32_t line = PROGBASE;
-        while (st.data_at >= line + prog_line(line)->len)
+        while (stmt.data_at >= line + prog_line(line)->len)
             line += prog_line(line)->len;
         vm->line = line;
         repl_error(E_SN);
     }
-    st.data_pos = p;
+    stmt.data_pos = p;
     push_item(vm, kind, v);
 }
 void stmt_fread(Vm *const vm) { read(vm, ITEM_SNGL); }
@@ -301,7 +293,7 @@ void stmt_dread(Vm *const vm) { read(vm, ITEM_DOUBLE); }
 
 /* RESTORE: the first DATA. */
 void stmt_res(Vm *const) { stmt_restore(); }
-void stmt_restore(void) { st.data_pos = nullptr; }
+void stmt_restore(void) { stmt.data_pos = nullptr; }
 
 /* RESTORE line. Undefined line number. */
 void stmt_resl(Vm *const vm)

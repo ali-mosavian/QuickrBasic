@@ -15,10 +15,6 @@ Ctrl ctrl;
 /* A SELECT's entry's aux, high byte: its value's T_* | SEL_COMPILED (T_INT is 0). */
 enum : uint8_t { SEL_COMPILED = 1 };
 
-static uint16_t selid;  /* g_ctvr: a SELECT's or SWAP's variable */
-static uint8_t seltype; /* g_cttp: its T_* */
-static bool byval;      /* g_cbyv: the argument by value */
-static uint16_t param;  /* g_cpar: arg's parameter */
 
 [[noreturn]] static void synerr(void) { repl_error(E_SN); }
 [[noreturn]] static void mismatch(void) { repl_error(E_TM); }
@@ -93,7 +89,7 @@ static BlockEnt *entry(const uint8_t *const at)
     const int32_t i = blok_find(comp.line, (uint32_t)(at - comp.body));
     if (i < 0)
         synerr();
-    return &blok_blocks[i];
+    return &blok.blocks[i];
 }
 
 static uint32_t nextof(const BlockEnt *const e) { return e ? e->next : NOTARGET; }
@@ -234,19 +230,19 @@ static uint16_t selvar(const uint8_t depth, const uint8_t type)
 {
     const uint8_t nm[2] = {'#', (uint8_t)('0' + depth)};
     const uint16_t name = symb_find_name(nm, 2);
-    seltype = type;
+    ctrl.seltype = type;
     comp.scope = 0;
     comp.isstatic = false;
-    selid = symb_find_var(name, comp_pick(type, ET_I4, ET_R4, ET_R8, ET_SD),
+    ctrl.selid = symb_find_var(name, comp_pick(type, ET_I4, ET_R4, ET_R8, ET_SD),
                           comp_pick(type, VK_INT, VK_FLT, SK_DBL, VK_STR), 0, false);
-    return selid;
+    return ctrl.selid;
 }
 
 /* ct_ldop: selid's load. */
-static uint8_t ldop(void) { return comp_pick(seltype, O_I_LD_V, O_F_LD_V, O_D_LD_V, O_S_LD_V); }
+static uint8_t ldop(void) { return comp_pick(ctrl.seltype, O_I_LD_V, O_F_LD_V, O_D_LD_V, O_S_LD_V); }
 
 /* ct_stv: store to selid. */
-static void stv(void) { comp_opid(comp_pick(seltype, O_I_ST_V, O_F_ST_V, O_D_ST_V, O_S_ST_V), selid); }
+static void stv(void) { comp_opid(comp_pick(ctrl.seltype, O_I_ST_V, O_F_ST_V, O_D_ST_V, O_S_ST_V), ctrl.selid); }
 
 static void select(void)
 {
@@ -272,10 +268,10 @@ static void select(void)
 static void casecmp(const uint8_t m)
 {
     uint8_t *const left = comp.out;
-    comp_opid(ldop(), selid);
+    comp_opid(ldop(), ctrl.selid);
     uint8_t *right = comp.out;
     expr_compile();
-    if (seltype & T_STR) {
+    if (ctrl.seltype & T_STR) {
         if (!(comp.type & T_STR))
             mismatch();
         comp_opb(O_S_CMP, m);
@@ -284,7 +280,7 @@ static void casecmp(const uint8_t m)
     }
     if (comp.type & T_STR)
         mismatch();
-    if (seltype == T_INT) {
+    if (ctrl.seltype == T_INT) {
         if (comp.type == T_INT) {
             expr_icmp(REL | m, right);
             return;
@@ -337,7 +333,7 @@ static void casestmt(void)
     }
     uint8_t depth = 0, type = T_FLT;
     if (e) { /* its SELECT's depth, type */
-        const uint16_t aux = blok_blocks[e->aux].aux;
+        const uint16_t aux = blok.blocks[e->aux].aux;
         depth = (uint8_t)aux;
         type = (uint8_t)(aux >> 8);
         if (!type)
@@ -369,15 +365,15 @@ void ctrl_swap(void)
     comp.p = b;
     const uint16_t tgt = comp.tgt;
     expr_load();
-    if (comp.type != seltype)
+    if (comp.type != ctrl.seltype)
         mismatch();
     comp.tgt = tgt;
     comp_store();
     const uint8_t *const end = comp.p;
     comp.p = b; /* b = #S */
     expr_target();
-    comp_opid(ldop(), selid);
-    comp.type = seltype;
+    comp_opid(ldop(), ctrl.selid);
+    comp.type = ctrl.seltype;
     comp_store();
     comp.p = end;
 }
@@ -411,7 +407,7 @@ static void whole(const uint8_t t)
 {
     ctrl.ref.off = 0;
     ctrl.ref.et = ET_REC + t;
-    ctrl.ref.fix = decl_types[t].size;
+    ctrl.ref.fix = decl.types[t].size;
 }
 
 /* rc_path: the fields f.g.. of TYPE t, the text len long. */
@@ -426,11 +422,11 @@ static void path(uint8_t t, const uint8_t *text, uint32_t len)
         while (n < len && text[n] != '.')
             n++;
         const uint16_t name = symb_find_name(text, (uint8_t)n);
-        const TypeDef *const td = &decl_types[t];
+        const TypeDef *const td = &decl.types[t];
         f = nullptr;
         for (uint32_t i = 0; i < td->nfld && !f; i++)
-            if (decl_fields[td->first + i].name == name)
-                f = &decl_fields[td->first + i];
+            if (decl.fields[td->first + i].name == name)
+                f = &decl.fields[td->first + i];
         if (!f)
             synerr();
         ctrl.ref.off += f->off;
@@ -570,7 +566,7 @@ static const Proc *proc(uint8_t *const idx)
         return nullptr;
     comp.p = comp_skipname(p);
     *idx = n->proc;
-    return &blok_procs[n->proc];
+    return &blok.procs[n->proc];
 }
 
 /* ct_pdecl: the name at comp.p a SUB's or FUNCTION's that a DECLARE or a definition named. */
@@ -617,7 +613,7 @@ static bool aend(const uint8_t c) { return !c || c == ',' || c == ')' || c == ':
 /* ct_ptm: variable id the parameter's type; else Parameter type mismatch. */
 static void ptm(const uint16_t id)
 {
-    if (symb_var(id)->type != symb_var(param)->type)
+    if (symb_var(id)->type != symb_var(ctrl.param)->type)
         repl_error(E_PTM);
 }
 
@@ -659,13 +655,13 @@ static void arrayarg(void)
    value. */
 static void arg(const uint16_t par)
 {
-    param = par;
+    ctrl.param = par;
     const uint8_t info = symb_var(par)->info;
     if (info & VI_ARR) {
         arrayarg();
         return;
     }
-    if (!byval && comp_cur() == M_VAR) {
+    if (!ctrl.byval && comp_cur() == M_VAR) {
         const uint16_t name = comp_nameof(comp.p);
         if (!(symb_name(name)->flags & (NM_SUB | NM_FUNC | NM_FN)) && !scop_con(name)) {
             const uint8_t *const p = comp.p;
@@ -718,8 +714,8 @@ static void args(const Proc *const pr)
                 synerr();
             comp.p++;
         }
-        byval = blok_byval[pr->par + i] || def;
-        arg(blok_params[pr->par + i]);
+        ctrl.byval = blok.byval[pr->par + i] || def;
+        arg(blok.params[pr->par + i]);
     }
 }
 

@@ -146,12 +146,12 @@ static void line(const uint8_t *const text, const uint32_t len)
     uimn.line[n] = 0;
     hl.prev_col = 0;
     hl.prev_slot = SL_ED;
-    lexr_line(uimn.line, comp_cbuf);
-    const uint8_t *p = comp_cbuf;
+    lexr_line(uimn.line, comp.cbuf);
+    const uint8_t *p = comp.cbuf;
     hl.state = 0;
     hl.depth = 0;
     for (;;) {
-        const uint32_t off = (uint32_t)(p - comp_cbuf);
+        const uint32_t off = (uint32_t)(p - comp.cbuf);
         if (off >= LMAX)
             break;
         const uint32_t col = lexr.col[off];

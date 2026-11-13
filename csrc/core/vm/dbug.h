@@ -21,6 +21,7 @@ typedef struct {
     uint32_t stmt_from;    /*   its statement's body offsets, from */
     uint32_t stmt_to;      /*   and to (BOFF the line's end) */
     bool probing;          /* g_dbev: dbug_eval's line runs */
+    jmp_buf probe;         /* dbug_eval's, while its line runs */
 } Dbug;
 extern Dbug dbug;
 

@@ -15,7 +15,7 @@ Link link;
 /* cm_comp: line compiled to comp_xbuf. */
 static void compile(const uint32_t line)
 {
-    comp.buf = comp_xbuf;
+    comp.buf = comp.xbuf;
     comp.line = line;
     blok_scope(line);
     decl_deftype(line);
@@ -68,7 +68,7 @@ static void mapstmt(const uint8_t *const s, const Addr a)
     Stmt *const map = (Stmt *)at(link.map);
     for (; link.mapnext < comp.nstmt; link.mapnext++) {
         const Stmt *const e = &compiled[-1 - (int32_t)link.mapnext];
-        if (comp_xbuf + e->code != s)
+        if (comp.xbuf + e->code != s)
             return;
         map[link.mapnext] = (Stmt){.body = e->body, .code = a - link.code};
     }
@@ -89,7 +89,7 @@ bool link_xlate(Addr *where)
     wr32(a - sizeof n, n);
     link.code = a;
     link.mapnext = 0;
-    for (const uint8_t *s = comp_xbuf;;) {
+    for (const uint8_t *s = comp.xbuf;;) {
         mapstmt(s, a);
         const uint8_t op = *s;
         const uint32_t size = flow_opsize(s);

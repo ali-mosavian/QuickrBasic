@@ -79,7 +79,7 @@ static void diagnose(void)
     const ErrOp *const e = (const ErrOp *)vm.opip;
     if (!e || e->op != O_ERR)
         return;
-    const uint8_t *const body = vm.line == DLINE ? comp_cbuf : at(prog_addr(vm.line) + HDR);
+    const uint8_t *const body = vm.line == DLINE ? comp.cbuf : at(prog_addr(vm.line) + HDR);
     const uint32_t col = list_text(body, e->at);
     const uint32_t mark = diag_at((const char *)cons.sbuf, col, e->code, e->dg, e->state);
     cons_nl();
@@ -312,8 +312,8 @@ static uint16_t line_number(const uint8_t *const p)
 static const uint8_t *declare(const uint32_t place)
 {
     prog.entering = place;
-    decl_line(comp_cbuf);
-    const uint8_t *p = comp_cbuf;
+    decl_line(comp.cbuf);
+    const uint8_t *p = comp.cbuf;
     vm.lnum = NONUM;
     if (comp_peek(&p) == M_INT) {
         vm.lnum = line_number(p);
@@ -337,9 +337,9 @@ uint8_t repl_enter(const uint32_t len)
 {
     cons.inbuf[len] = 0;
     vm.line = DLINE;
-    const uint8_t *const end = lexr_line(cons.inbuf, comp_cbuf);
+    const uint8_t *const end = lexr_line(cons.inbuf, comp.cbuf);
     const uint32_t place = prog_at();
-    if (!comp_cbuf[0])
+    if (!comp.cbuf[0])
         return ENTER_EMPTY;
     if (repl.loading) { /* every line stored, at the end */
         const uint8_t *const body = enter_decls(place);
@@ -400,7 +400,7 @@ void repl_relink(void)
     repl.loading = true;
     for (uint32_t line = PROGBASE; prog_line(line)->len;) {
         vm.line = line;
-        uint8_t *d = comp_cbuf; /* its number, then its body */
+        uint8_t *d = comp.cbuf; /* its number, then its body */
         const uint32_t num = prog_line(line)->num;
         if (num != NONUM) {
             *d = M_INT;

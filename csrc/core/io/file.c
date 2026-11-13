@@ -13,9 +13,6 @@
 
 File file;
 
-static Chan *field_chan; /* FIELD's channel */
-static char name2[128];  /* NAME's new name; FILES's directory */
-static char bname[264];  /* BSAVE's, BLOAD's name, .BAS added */
 
 enum { STRING_IO_MAX = 255 }; /* a string GET reads, at most */
 
@@ -38,17 +35,17 @@ static const char *bas_name(const Addr s)
 {
     const char *const n = name_of(s);
     const size_t len = strlen(n);
-    memcpy(bname, n, len + 1);
+    memcpy(file.bname, n, len + 1);
     bool dot = false;
-    for (const char *p = bname; *p; p++) {
+    for (const char *p = file.bname; *p; p++) {
         if (*p == '.')
             dot = true;
         if (*p == '\\' || *p == ':')
             dot = false;
     }
     if (!dot)
-        memcpy(bname + len, ".BAS", 5);
-    return bname;
+        memcpy(file.bname + len, ".BAS", 5);
+    return file.bname;
 }
 
 /* c's record buffer. */
@@ -302,8 +299,8 @@ void file_chdir(Vm *vm) { dos(pfil_chdir(name_of(exec_popa(vm)))); }
 void file_rename(Vm *vm)
 {
     const char *const to = name_of(exec_popa(vm));
-    memcpy(name2, to, strlen(to) + 1);
-    const uint16_t err = pfil_rename(name_of(exec_popa(vm)), name2);
+    memcpy(file.name2, to, strlen(to) + 1);
+    const uint16_t err = pfil_rename(name_of(exec_popa(vm)), file.name2);
     if (err == PFIL_DENIED)
         repl_qberr(QB_FILE_EXISTS);
     dos(err);
@@ -342,9 +339,9 @@ void file_files(Vm *vm)
         memcpy(pattern, n, strlen(n) + 1);
     }
     cons_putc('\\'); /* the current directory */
-    if (pfil_curdir(0, name2, sizeof name2))
-        name2[0] = 0;
-    cons_puts(name2);
+    if (pfil_curdir(0, file.name2, sizeof file.name2))
+        file.name2[0] = 0;
+    cons_puts(file.name2);
     cons_nl();
     PfilFind f;
     if (pfil_first(pattern, PFIL_ADIR, &f))
@@ -504,8 +501,8 @@ void file_put(Vm *vm) { get_put(vm, true); }
 
 void file_field(Vm *vm)
 {
-    field_chan = chnl_find(exec_popi(vm));
-    field_chan->field = 0;
+    file.field_chan = chnl_find(exec_popi(vm));
+    file.field_chan->field = 0;
 }
 
 void file_fielditem(Vm *vm)
@@ -515,7 +512,7 @@ void file_fielditem(Vm *vm)
         repl_error(E_TM);
     const Addr desc = exec_popa(vm);
     const uint32_t w = vm->sp++->u;
-    Chan *const c = field_chan;
+    Chan *const c = file.field_chan;
     if ((uint16_t)(c->field + w) > c->reclen)
         repl_qberr(QB_FIELD_OVERFLOW);
     Desc *const d = (Desc *)at(desc);

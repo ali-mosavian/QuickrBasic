@@ -55,4 +55,21 @@ void scop_label(uint16_t scope, uint16_t key, uint32_t line);
 /* Label key of scope: its line, 0 when no scope has it. Subprogram error (E_SPE): another
    scope's. */
 uint32_t scop_lfind(uint16_t scope, uint16_t key);
+enum {
+    NBND = 16384, /* numbered lines' too */
+    NSCS = 4,
+    SCHASH = 1024,
+    WORD_BITS = 32,
+};
+
+typedef struct {
+    uint32_t nbnd;
+    uint32_t depth;                          /* the stack's scopes */
+    uint16_t stack[NSCS];                    /* procedures, 0 the module */
+    uint16_t heads[SCHASH];
+    uint32_t lnbit[LNUM_LIMIT / WORD_BITS]; /* the line numbers a scope has */
+    Binding bnd[NBND];
+} Scop;
+extern Scop scop;
+
 #endif

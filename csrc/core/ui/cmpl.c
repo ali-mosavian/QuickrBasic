@@ -140,8 +140,8 @@ static bool word(void)
 /* ac_lex: the 0-ended uimn.build tokenized into comp_cbuf; the body. */
 static uint8_t *lex(void)
 {
-    lexr_line(uimn.build, comp_cbuf);
-    return comp_cbuf;
+    lexr_line(uimn.build, comp.cbuf);
+    return comp.cbuf;
 }
 
 /* ac_line: text line line tokenized (the cursor's from the editor): its text in uimn.build, its
@@ -477,7 +477,7 @@ static void vars(void)
             label(p, line);
         if (ac.m & AM_VR)
             ids(p, line);
-        p = comp_cbuf;
+        p = comp.cbuf;
         decl_tail(&p); /* its last statement's keyword */
         ac.plk = is_token(*p) ? *p : 0;
     }
@@ -548,7 +548,7 @@ static void open_for(void)
 {
     ac.dp = 0;
     ac.cur = true;
-    const uint8_t *p = comp_cbuf; /* the line to the word, as context left it */
+    const uint8_t *p = comp.cbuf; /* the line to the word, as context left it */
     for (int32_t line = (int32_t)uimn.ed.line; !events(p);) {
         ac.cur = false;
         if (--line < 0)

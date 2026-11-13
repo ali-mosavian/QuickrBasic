@@ -16,6 +16,8 @@
 /* The compiled expression's target (comp.tgtsubs): FFh a record's field (ctrl.field). */
 enum : uint8_t { TGT_FIELD = 0xFF };
 
+enum { COMP_TAIL = 12 }; /* room past the code's limit: a line's ERR and EOL */
+
 typedef struct {
     /* the cursor and the code */
     const uint8_t *p;     /* (ESI) the token cursor */
@@ -68,15 +70,15 @@ typedef struct {
     /* the error */
     uint8_t dg;           /* cdg: its DG_ (io), 0 by its text */
     uint16_t dfa;         /* cdfa: the automaton's state it failed in, FFFFh none */
+
+    uint64_t dmask;       /* dimsubs: bit i, subscript i its hi only */
+    /* A typed line's body, LMAX+64 bytes after the byte before it (Line.sep's place), carved
+       from the arena at start: a literal's Addr points into it. */
+    uint8_t *cbuf;
+    /* The compiled code, before link_xlate streams it into the cache. */
+    uint8_t xbuf[XLIM + COMP_TAIL];
 } Comp;
 extern Comp comp;
-
-/* A typed line's body, LMAX+64 bytes after the byte before it (Line.sep's place), carved from the
-   arena at start: a literal's Addr points into it. */
-extern uint8_t *comp_cbuf;
-/* The compiled code, before link_xlate streams it into the cache. */
-enum { COMP_TAIL = 12 }; /* room past the code's limit: a line's ERR and EOL */
-extern uint8_t comp_xbuf[XLIM + COMP_TAIL];
 /* TVAR.info's ET_* to its kind: 0 FLOAT, 1 INT, 2 STRING, SK_DBL DOUBLE. */
 extern const uint8_t comp_etkind[7];
 

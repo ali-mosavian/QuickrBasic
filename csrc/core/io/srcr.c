@@ -5,70 +5,60 @@
 
 Srcr srcr;
 
-/* Where a physical line's byte is. */
-typedef enum : uint8_t { IN_CODE, IN_STRING, IN_COMMENT } Where;
 
-/* Whether the physical line continues, by its bytes. */
-static struct {
-    Where st;
-    uint8_t letters; /* the word's letters so far */
-    bool under;     /* the last byte in code a '_' after a blank */
-    bool blank;     /* the byte before a blank */
-    char rem[3];    /* the word's first letters, small */
-} cn;
 
 void srcr_phys_start(void)
 {
-    cn.st = IN_CODE;
-    cn.letters = 0;
-    cn.under = false;
-    cn.blank = true; /* the line's start */
+    srcr.cont.st = IN_CODE;
+    srcr.cont.letters = 0;
+    srcr.cont.under = false;
+    srcr.cont.blank = true; /* the line's start */
 }
 
 /* A word ended: REM's comment. */
 static void word_end(void)
 {
-    if (cn.letters == 3 && !memcmp(cn.rem, "rem", 3))
-        cn.st = IN_COMMENT;
-    cn.letters = 0;
+    if (srcr.cont.letters == 3 && !memcmp(srcr.cont.rem, "rem", 3))
+        srcr.cont.st = IN_COMMENT;
+    srcr.cont.letters = 0;
 }
 
 void srcr_phys_byte(const uint8_t c)
 {
-    if (cn.st == IN_COMMENT) /* to the line's end */
+    if (srcr.cont.st == IN_COMMENT) /* to the line's end */
         return;
-    if (cn.st == IN_STRING) {
+    if (srcr.cont.st == IN_STRING) {
         if (c != '"')
             return;
-        cn.st = IN_CODE;
+        srcr.cont.st = IN_CODE;
     } else if (c == '"') {
-        cn.st = IN_STRING;
+        srcr.cont.st = IN_STRING;
     } else if (c == '\'') {
-        cn.st = IN_COMMENT;
+        srcr.cont.st = IN_COMMENT;
     } else if (is_blank(c)) {
         word_end();
-        cn.blank = true;
+        srcr.cont.blank = true;
         return;
     } else if (is_letter(c)) { /* a word's letters: REM a comment */
-        if (cn.letters < 3)
-            cn.rem[cn.letters] = (char)(c | 0x20);
-        cn.letters++;
+        if (srcr.cont.letters < 3)
+            srcr.cont.rem[srcr.cont.letters] = (char)(c | 0x20);
+        srcr.cont.letters++;
     } else {
         word_end();
         if (c == '_') { /* after a blank: perhaps the end */
-            cn.under = cn.blank;
-            cn.blank = false;
+            srcr.cont.under = srcr.cont.blank;
+            srcr.cont.blank = false;
             return;
         }
     }
-    cn.under = false;
-    cn.blank = false;
+    srcr.cont.under = false;
+    srcr.cont.blank = false;
 }
 
 bool srcr_phys_end(void)
 {
     word_end();
-    return cn.st != IN_COMMENT && cn.under; /* '_' in a comment: the comment's */
+    return srcr.cont.st != IN_COMMENT && srcr.cont.under; /* '_' in a comment: the comment's */
 }
 
 /* The window filled on from end: to the logical line's end (done set) or SRCAP; 0 after. */
@@ -99,7 +89,7 @@ static void fill(void)
             continue;
         }
         srcr_phys_byte((uint8_t)b);
-        if (cn.st == IN_CODE && is_blank((uint8_t)b)) { /* a blank in code: when a byte follows */
+        if (srcr.cont.st == IN_CODE && is_blank((uint8_t)b)) { /* a blank in code: when a byte follows */
             srcr.pend++;
             continue;
         }

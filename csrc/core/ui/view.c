@@ -62,9 +62,9 @@ enum : uint8_t { SUBS_ACTIVE = 1, SUBS_SPLIT = 2, SUBS_DELETE = 3 };
 /* Text line line's body to comp_cbuf: decl_proc's answer; *name its M_VAR for PK_SUB, PK_FUNC. */
 static uint8_t kind(const uint32_t line, const uint8_t **const name)
 {
-    prog_body(lmap_off(line), comp_cbuf);
+    prog_body(lmap_off(line), comp.cbuf);
     const uint8_t *nm = nullptr;
-    const uint8_t k = decl_proc(comp_cbuf, &nm);
+    const uint8_t k = decl_proc(comp.cbuf, &nm);
     if (name)
         *name = nm;
     return k;

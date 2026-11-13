@@ -4,35 +4,24 @@
 #include "io/repl.h"
 #include "mem/symb.h"
 
-enum {
-    NBND = 16384, /* numbered lines' too */
-    NSCS = 4,
-    SCHASH = 1024,
-    WORD_BITS = 32,
-};
+Scop scop = {.nbnd = 1, .depth = 1};
 
-static uint32_t nbnd = 1;
-static uint32_t depth = 1;       /* the stack's scopes */
-static uint16_t stack[NSCS];     /* procedures, 0 the module */
-static const Binding none;       /* a binding of nothing */
-static uint16_t heads[SCHASH];
-static uint32_t lnbit[LNUM_LIMIT / WORD_BITS]; /* the line numbers a scope has */
-static Binding bnd[NBND];
+static const Binding none; /* a binding of nothing */
 
 static uint32_t hash(const uint16_t scope, const uint16_t name) { return (scope * 7u + name) & (SCHASH - 1); }
 
 void scop_init(void)
 {
-    nbnd = 1;
-    memset(heads, 0, sizeof heads);
-    memset(lnbit, 0, sizeof lnbit);
+    scop.nbnd = 1;
+    memset(scop.heads, 0, sizeof scop.heads);
+    memset(scop.lnbit, 0, sizeof scop.lnbit);
 }
 
 Binding *scop_get(const uint16_t scope, const uint16_t name)
 {
-    for (uint16_t i = heads[hash(scope, name)]; i; i = bnd[i].next)
-        if (bnd[i].scope == scope && bnd[i].name == name)
-            return &bnd[i];
+    for (uint16_t i = scop.heads[hash(scope, name)]; i; i = scop.bnd[i].next)
+        if (scop.bnd[i].scope == scope && scop.bnd[i].name == name)
+            return &scop.bnd[i];
     return nullptr;
 }
 
@@ -41,12 +30,12 @@ Binding *scop_bind(const uint16_t scope, const uint16_t name)
     Binding *const found = scop_get(scope, name);
     if (found)
         return found;
-    if (nbnd >= NBND)
+    if (scop.nbnd >= NBND)
         repl_error(E_OM);
     const uint32_t h = hash(scope, name);
-    Binding *const b = &bnd[nbnd];
-    *b = (Binding){.scope = scope, .name = name, .next = heads[h]};
-    heads[h] = (uint16_t)nbnd++;
+    Binding *const b = &scop.bnd[scop.nbnd];
+    *b = (Binding){.scope = scope, .name = name, .next = scop.heads[h]};
+    scop.heads[h] = (uint16_t)scop.nbnd++;
     return b;
 }
 
@@ -55,16 +44,16 @@ static void enter(const uint8_t proc)
 {
     if (!proc)
         return;
-    if (depth >= NSCS)
+    if (scop.depth >= NSCS)
         repl_error(E_OM);
-    stack[depth++] = proc;
+    scop.stack[scop.depth++] = proc;
 }
 
 void scop_proc(const uint8_t proc)
 {
     comp.proc = proc;
-    depth = 1;
-    stack[0] = 0;
+    scop.depth = 1;
+    scop.stack[0] = 0;
     enter(proc);
 }
 
@@ -72,17 +61,17 @@ void scop_proc(const uint8_t proc)
    of the scope under it. */
 static uint16_t frame(const uint32_t i, bool *const deffn)
 {
-    const uint16_t p = stack[i];
+    const uint16_t p = scop.stack[i];
     *deffn = false;
     if (!p)
         return 0;
-    *deffn = blok_procs[p].flags & PF_DEF;
-    return blok_procs[p].name;
+    *deffn = blok.procs[p].flags & PF_DEF;
+    return blok.procs[p].name;
 }
 
 uint16_t scop_own(void)
 {
-    uint32_t i = depth;
+    uint32_t i = scop.depth;
     bool deffn;
     uint16_t sc;
     do
@@ -93,7 +82,7 @@ uint16_t scop_own(void)
 
 const Binding *scop_look(const uint16_t name, uint16_t *const scope)
 {
-    uint32_t i = depth;
+    uint32_t i = scop.depth;
     bool shared_only = false; /* only what the scope above sees */
     bool deffn;
     do {
@@ -151,7 +140,7 @@ bool scop_mshr(const uint16_t name)
 static bool lany(const uint16_t scope, const uint16_t key)
 {
     if (scope & SC_NUM)
-        return lnbit[key / WORD_BITS] >> (key % WORD_BITS) & 1;
+        return scop.lnbit[key / WORD_BITS] >> (key % WORD_BITS) & 1;
     return symb_name(key)->flags & NM_LBL;
 }
 
@@ -160,7 +149,7 @@ void scop_label(const uint16_t scope, const uint16_t key, const uint32_t line)
     if (lany(scope, key))
         repl_error(E_DL);
     if (scope & SC_NUM)
-        lnbit[key / WORD_BITS] |= 1u << (key % WORD_BITS);
+        scop.lnbit[key / WORD_BITS] |= 1u << (key % WORD_BITS);
     else
         symb_name(key)->flags |= NM_LBL;
     Binding *const b = scop_bind(scope, key);

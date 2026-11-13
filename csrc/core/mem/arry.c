@@ -42,7 +42,7 @@ uint32_t arry_esize(const uint16_t id)
 {
     const Var *const v = symb_var(id);
     if (v->type >= ET_REC)
-        return decl_types[v->type - ET_REC].size;
+        return decl.types[v->type - ET_REC].size;
     if (v->info & SK_DBL)
         return 8;
     return (v->info & VK_MASK) == VK_STR ? DSZ : VS;

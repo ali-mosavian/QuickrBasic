@@ -30,14 +30,9 @@ enum {
 enum : uint32_t { RESOLVED = TO_NEXT_STMT + 1 };
 enum : uint32_t { NO_LINE = 0xFFFFFFFF }; /* a jump's line when the compiler found no target */
 
-/* A FUNCTION's result between its return and its push. A string's descriptor is in the arena,
-   where a heap block's owner must be. */
-static struct {
-    Addr text;
-    Cell value;
-} result;
+Flow flow;
 
-void flow_init(void) { result.text = allo_carve(DSZ + 2); }
+void flow_init(void) { flow.text = allo_carve(DSZ + 2); }
 
 static inline uint8_t *cache_at(const uint32_t off) { return at(allo.cache + off); }
 static inline uint32_t cache_off(const uint8_t *const p) { return addr_of(p) - allo.cache; }
@@ -439,7 +434,7 @@ enum : uint32_t { NO_REF = 0xFFFF }; /* an argument's ref: passed by value, or n
 static void take_args(Vm *const vm, const Proc *const p, CallVar *const b)
 {
     for (uint32_t i = p->npar; i-- > 0;) {
-        b[i] = (CallVar){.var = blok_params[p->par + i]};
+        b[i] = (CallVar){.var = blok.params[p->par + i]};
         const Var *const v = symb_var(b[i].var);
         const uint32_t ref = exec_pop(vm).u;
         if (!is_array(v) && ref != NO_REF) {
@@ -507,7 +502,7 @@ void flow_pcall(Vm *const vm)
 {
     uint8_t *const call = vm->ip;
     const uint8_t proc = *call;
-    const Proc *const p = &blok_procs[proc];
+    const Proc *const p = &blok.procs[proc];
     if (vm->sp < vm->stklim || vm->nframes == MAX_FRAMES ||
         vm->ncallvars + p->npar >= MAX_CALLVARS - 1)
         repl_error(E_OS);
@@ -533,7 +528,7 @@ void flow_pcall(Vm *const vm)
 static bool is_param(const Proc *const p, const uint16_t var)
 {
     for (uint32_t i = 0; i < p->npar; i++)
-        if (blok_params[p->par + i] == var)
+        if (blok.params[p->par + i] == var)
             return true;
     return false;
 }
@@ -544,7 +539,7 @@ static bool is_param(const Proc *const p, const uint16_t var)
 static void end_call(Vm *const vm, const Frame *const f)
 {
     const Call *const c = &f->call;
-    const Proc *const p = &blok_procs[c->proc];
+    const Proc *const p = &blok.procs[c->proc];
     CallVar *const params = vm->callvars + c->params, *const locals = vm->callvars + c->locals;
     pop_to(vm, f);
 
@@ -557,11 +552,11 @@ static void end_call(Vm *const vm, const Frame *const f)
         const Var *const v = symb_var(p->result);
         const Addr cell = symb_cell(p->result);
         if (is_double(v))
-            memcpy(&result.value, at(cell), 8);
+            memcpy(&flow.value, at(cell), 8);
         else if (is_string(v))
-            flow_lsmove(cell, result.text);
+            flow_lsmove(cell, flow.text);
         else
-            result.value.u = rd32(cell);
+            flow.value.u = rd32(cell);
     }
     for (CallVar *b = vm->callvars + vm->ncallvars; b-- > locals;) {
         Var *const v = symb_var(b->var);
@@ -595,20 +590,20 @@ void flow_pret(Vm *const vm)
     if (!f)
         repl_error(E_RG);
     end_call(vm, f);
-    const Proc *const p = &blok_procs[f->call.proc];
+    const Proc *const p = &blok.procs[f->call.proc];
     if (p->kind == PK_FUNC) {
         const Var *const v = symb_var(p->result);
         if (is_double(v))
-            exec_push(vm, result.value);
+            exec_push(vm, flow.value);
         else if (is_string(v)) {
             if (strg.tmp_used >= DSZ * NTMP)
                 repl_error(E_ST);
             const Addr t = strg.tmp + strg.tmp_used;
             strg.tmp_used += DSZ;
-            flow_lsmove(result.text, t);
+            flow_lsmove(flow.text, t);
             exec_pusha(vm, t);
         } else
-            exec_pusha(vm, result.value.u);
+            exec_pusha(vm, flow.value.u);
     }
     go_to(vm, f->ret);
 }

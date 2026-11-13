@@ -89,7 +89,7 @@ static bool spelling_fits(const uint32_t pre_len)
 {
     cons.capture = CAP_SBUF;
     cons.sblen = 0;
-    list_body(comp_cbuf);
+    list_body(comp.cbuf);
     cons.capture = 0;
     return cons.sblen + pre_len <= LNMAX;
 }
@@ -108,7 +108,7 @@ static Made make(const uint8_t *const src, const uint32_t len)
     prog.pre_len = (uint32_t)(body - text);
     m.num = number(text, prog.pre_len);
     vm.line = DLINE;
-    m.len = (uint32_t)(lexr_line(body, comp_cbuf) - comp_cbuf);
+    m.len = (uint32_t)(lexr_line(body, comp.cbuf) - comp.cbuf);
     const bool asis = uimn.text.asis;
     uimn.text.asis = false;
     if (!asis && spelling_fits(prog.pre_len))
@@ -130,7 +130,7 @@ static void put(const uint32_t line, const uint8_t *const src, const uint32_t le
         prog_cut(rec);
     }
     prog.add_flags = m.flags;
-    prog_ins(rec, m.num, comp_cbuf, m.len);
+    prog_ins(rec, m.num, comp.cbuf, m.len);
     prog.add_flags = 0;
     uimn.text.changed = true;
     lmap_build();
@@ -142,7 +142,7 @@ static void add(const uint8_t *const src, const uint32_t len)
     const Made m = make(src, len);
     prog.add_flags = m.flags;
     prog.add_at = 0;
-    prog_add(m.num, comp_cbuf, m.len);
+    prog_add(m.num, comp.cbuf, m.len);
     prog.add_flags = 0;
 }
 

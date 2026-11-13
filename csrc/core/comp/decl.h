@@ -22,6 +22,13 @@ typedef struct PACKED {
 } Field;
 static_assert(sizeof(Field) == 8);
 
+enum { NDEV = 256, NLETTERS = 26 };
+/* A DEFtype line: the DEFtypes from it on. */
+typedef struct {
+    uint32_t line;
+    uint8_t deft[NLETTERS];
+} DefEvent;
+
 typedef struct {
     uint16_t proc;    /* lx.dproc: the procedure being entered, its name; 0 the module */
     uint16_t ntypes;  /* lx.ntyps: the last TYPE's index */
@@ -34,11 +41,13 @@ typedef struct {
     bool dimmed;      /* g_odim: an array DIMmed (OPTION BASE after: an error) */
     bool explicit_;   /* g_oexp: OPTION EXPLICIT */
     uint32_t ndefev;  /* g_ndev: DEFtype lines */
+    DefEvent defevs[NDEV];
+    const uint8_t *at; /* (ESI) the body's cursor */
+    TypeDef types[NTYPE]; /* g_typ, from 1 */
+    Field fields[NFLD];   /* g_fld */
 } Decl;
 extern Decl decl;
 
-extern TypeDef decl_types[NTYPE]; /* g_typ, from 1 */
-extern Field decl_fields[NFLD];   /* g_fld */
 extern const uint8_t decl_astype[5]; /* g_dast: AS INTEGER .. AS STRING to ET_* */
 extern const uint8_t decl_etsize[7]; /* g_etsz: a field's bytes by ET_* */
 

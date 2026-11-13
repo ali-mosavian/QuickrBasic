@@ -202,8 +202,8 @@ static void tokenize(void)
 {
     memcpy(uimn.line, uc.pre, strlen((const char *)uc.pre) + 1);
     vm.line = DLINE;
-    lexr_line(uimn.line, comp_cbuf);
-    decl_line(comp_cbuf); /* a typed SUB known to the lines after */
+    lexr_line(uimn.line, comp.cbuf);
+    decl_line(comp.cbuf); /* a typed SUB known to the lines after */
 }
 
 /* The body compiled for its syntax; false: an error, its column in uc.ecol. */
@@ -213,7 +213,7 @@ static bool check(void)
     comp_line();
     comp.check = false;
     uc.err = 0;
-    link_walk(comp_xbuf, chkop);
+    link_walk(comp.xbuf, chkop);
     if (!uc.err)
         return true;
     uc.ecol = edit_dxerr(uc.src, uc.eop);
@@ -226,7 +226,7 @@ static void print_line(void)
     const size_t n = (size_t)(uc.pre - uc.src);
     for (size_t i = 0; i < n; i++)
         cons_putc(uc.src[i]);
-    list_body(comp_cbuf);
+    list_body(comp.cbuf);
 }
 
 bool edit_canon(uint8_t *const text, const uint16_t len)
@@ -272,7 +272,7 @@ uint16_t edit_dxerr(const uint8_t *const text, const ErrOp *const op)
     const uint32_t bodycol = (uint32_t)(body - text);
     memcpy(cons.inbuf, body, strlen((const char *)body) + 1);
     lexr.all = true; /* the body's bytes to columns */
-    lexr_line(cons.inbuf, comp_cbuf);
+    lexr_line(cons.inbuf, comp.cbuf);
     lexr.all = false;
     const uint16_t col = lexr_colof(op->at);
     const uint32_t at = diag_at((const char *)cons.inbuf, col, op->code, op->dg, op->state);

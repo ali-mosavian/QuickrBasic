@@ -11,20 +11,9 @@
 #include "vm/exec.h"
 
 Blok blok;
-BlockEnt blok_blocks[NBLK];
-Proc blok_procs[NPROC];
-uint16_t blok_params[NPPAR];
-uint8_t blok_byval[NPPAR];
 
-enum { NBST = 64, ELSED = 0x8000 };
+enum { ELSED = 0x8000 };
 
-/* An open block: its kind, its opener's entry, its last clause (ELSED: an ELSE, no false test
-   after it), its chain's head + 1. */
-typedef struct {
-    uint8_t kind;
-    uint16_t open, last, chain;
-} Open;
-static Open stack[NBST];
 
 /* By BK_*: an opener's word; the error a block of it left open gives. */
 static const char *const words[] = {
@@ -34,9 +23,6 @@ static const uint8_t leftopen[] = {
     [BK_IF] = E_BIF, [BK_DO] = E_DWL, [BK_WHILE] = E_WWW, [BK_SELECT] = E_SWE, [BK_FOR] = E_FWN,
 };
 
-static const uint8_t *body; /* (EBP) the body scanned */
-static uint32_t off;        /* (ECX) the statement's offset in it */
-static bool isdef;          /* g_bkdef: the procedure is a DEF FN's */
 /* By the word after END: does it end a procedure? */
 static const bool endproc[256] = {[TK_SUB] = true, [TK_FUNCTION] = true, [TK_DEF] = true};
 
@@ -48,7 +34,7 @@ static const bool endproc[256] = {[TK_SUB] = true, [TK_FUNCTION] = true, [TK_DEF
 
 [[noreturn]] static void failw(const uint8_t code, const uint8_t dg, const char *const word)
 {
-    fail(code, dg, off, blok.line, word, word ? (uint32_t)strlen(word) : 0);
+    fail(code, dg, blok.off, blok.line, word, word ? (uint32_t)strlen(word) : 0);
 }
 
 /* @bk_er: Syntax error at the line scanned. */
@@ -77,7 +63,7 @@ int32_t blok_find(const uint32_t line, const uint32_t at)
     uint32_t hi = blok.nblocks;
     while (lo < hi) {
         const uint32_t mid = (lo + hi) / 2;
-        const uint32_t pos = blok_blocks[mid].pos;
+        const uint32_t pos = blok.blocks[mid].pos;
         if (pos == key)
             return (int32_t)mid;
         if (pos > key)
@@ -92,7 +78,7 @@ int32_t blok_find(const uint32_t line, const uint32_t at)
 static uint8_t proc_of(const uint32_t line)
 {
     for (uint32_t i = blok.nprocs; i-- > 1;) {
-        const Proc *const p = &blok_procs[i];
+        const Proc *const p = &blok.procs[i];
         if ((uint16_t)line >= p->first && (uint16_t)line <= p->last)
             return (uint8_t)i;
     }
@@ -112,7 +98,7 @@ static uint16_t add(const uint8_t kind)
     if (blok.nblocks >= NBLK)
         repl_error(E_OM);
     const uint16_t i = blok.nblocks++;
-    blok_blocks[i] = (BlockEnt){.pos = blok.line + off + HDR, .kind = kind};
+    blok.blocks[i] = (BlockEnt){.pos = blok.line + blok.off + HDR, .kind = kind};
     return i;
 }
 
@@ -121,18 +107,18 @@ static void push(const uint8_t kind, const uint16_t i)
 {
     if (blok.depth >= NBST)
         synerr();
-    stack[blok.depth++] = (Open){.kind = kind, .open = i, .last = i, .chain = 0};
+    blok.open[blok.depth++] = (Open){.kind = kind, .open = i, .last = i, .chain = 0};
 }
 
 /* The innermost block, which must be of kind; else error code (X without Y), or blocks crossed. */
 static Open *top(const uint8_t kind, const uint8_t code)
 {
     if (blok.depth) {
-        Open *const o = &stack[blok.depth - 1];
+        Open *const o = &blok.open[blok.depth - 1];
         if (o->kind == kind)
             return o;
         for (uint32_t i = blok.depth; i-- > 0;)
-            if (stack[i].kind == kind) /* open further out: crossed */
+            if (blok.open[i].kind == kind) /* open further out: crossed */
                 failw(code, DG_BLOCKS_CROSSED, words[o->kind]);
     }
     failw(code, code == E_NF ? DG_NEXT_WITHOUT_FOR_END : 0, nullptr); /* by BC's name */
@@ -143,19 +129,19 @@ static void clause(Open *const o, const uint16_t i, const JumpMode mode)
 {
     if (o->last & ELSED) /* a clause after ELSE */
         synerr();
-    blok_blocks[o->last].next = target(off, mode);
+    blok.blocks[o->last].next = target(blok.off, mode);
     o->last = i;
-    if (blok_blocks[i].kind == BK_ELSE)
+    if (blok.blocks[i].kind == BK_ELSE)
         o->last |= ELSED;
-    blok_blocks[i].link = o->chain;
+    blok.blocks[i].link = o->chain;
     o->chain = i + 1;
 }
 
 /* The block o closes: its chain's clauses, its EXITs leave to t. */
 static void exits(const Open *const o, const uint32_t t)
 {
-    for (uint16_t c = o->chain; c; c = blok_blocks[c - 1].link)
-        blok_blocks[c - 1].done = t;
+    for (uint16_t c = o->chain; c; c = blok.blocks[c - 1].link)
+        blok.blocks[c - 1].done = t;
     blok.depth--;
 }
 
@@ -163,8 +149,8 @@ static void exits(const Open *const o, const uint32_t t)
 static void close(const Open *const o)
 {
     if (!(o->last & ELSED))
-        blok_blocks[o->last].next = target(off, TO_STMT);
-    exits(o, target(off, TO_STMT));
+        blok.blocks[o->last].next = target(blok.off, TO_STMT);
+    exits(o, target(blok.off, TO_STMT));
 }
 
 static void end_if(void)
@@ -179,15 +165,15 @@ static void next(const uint8_t *const v)
 {
     const Open *const o = top(BK_FOR, E_NF);
     if (v) {
-        const uint8_t *const f = at(prog.base + blok_blocks[o->open].pos + 1); /* FOR v */
+        const uint8_t *const f = at(prog.base + blok.blocks[o->open].pos + 1); /* FOR v */
         if (*f == M_VAR) {
             if (comp_nameof(f) != comp_nameof(v) || comp_suffixof(f) != comp_suffixof(v))
-                fail(E_NF, DG_NEXT_WITHOUT_FOR_MISMATCH, (uint32_t)(v - body), blok.line,
+                fail(E_NF, DG_NEXT_WITHOUT_FOR_MISMATCH, (uint32_t)(v - blok.body), blok.line,
                      (const char *)f + 2, f[1]); /* the caret at NEXT's, {other} the FOR's */
         }
     }
-    const uint32_t t = target(off, TO_NEXT_STMT);
-    blok_blocks[o->open].done = t;
+    const uint32_t t = target(blok.off, TO_NEXT_STMT);
+    blok.blocks[o->open].done = t;
     exits(o, t);
 }
 
@@ -224,8 +210,8 @@ static bool param(Proc *const p, const uint8_t **const at)
     q = comp.p;
     if (blok.nparams >= NPPAR)
         repl_error(E_OM);
-    blok_params[blok.nparams] = id;
-    blok_byval[blok.nparams] = byval;
+    blok.params[blok.nparams] = id;
+    blok.byval[blok.nparams] = byval;
     blok.nparams++;
     p->npar++;
     for (uint32_t depth = 0;; q = decl_item(q)) { /* on to its ',' or the ')' */
@@ -254,17 +240,17 @@ static bool param(Proc *const p, const uint8_t **const at)
 static void procstmt(const uint8_t *const s, const uint8_t kind)
 {
     decl_deftype(blok.line);
-    const uint32_t defoff = off;
+    const uint32_t defoff = blok.off;
     if (blok.proc || s[1] != M_VAR)
         synerr();
     if (blok.nprocs >= NPROC)
         repl_error(E_OM);
     const uint16_t i = blok.nprocs++;
     blok.proc = i;
-    Proc *const p = &blok_procs[i];
+    Proc *const p = &blok.procs[i];
     *p = (Proc){
         .kind = kind,
-        .entry = target(off, TO_NEXT_STMT), /* its body: the statement after */
+        .entry = target(blok.off, TO_NEXT_STMT), /* its body: the statement after */
         .first = (uint16_t)blok.line,
         .last = (uint16_t)blok.line,
         .par = blok.nparams,
@@ -287,8 +273,8 @@ static void procstmt(const uint8_t *const s, const uint8_t kind)
     }
     if (*q == TK_STATIC)
         p->flags |= PF_STAT;
-    if (isdef) {
-        isdef = false; /* DEF FN: its parameters known now; = e: the body is this statement's
+    if (blok.isdef) {
+        blok.isdef = false; /* DEF FN: its parameters known now; = e: the body is this statement's
                           past its JMP */
         p->flags |= PF_DEF;
         if (*q == TK_EQ) {
@@ -305,16 +291,16 @@ static void loopend(const uint8_t open, const uint8_t err, const uint8_t kind)
 {
     const Open *const o = top(open, err);
     const uint16_t i = add(kind);
-    blok_blocks[i].next = blok_blocks[o->open].pos * 4 + TO_STMT;
-    const uint32_t t = target(off, TO_NEXT_STMT);
-    blok_blocks[o->open].done = t;
+    blok.blocks[i].next = blok.blocks[o->open].pos * 4 + TO_STMT;
+    const uint32_t t = target(blok.off, TO_NEXT_STMT);
+    blok.blocks[o->open].done = t;
     exits(o, t);
 }
 
 /* The statement at s: a block statement's entry and the stack. */
 static void stmt(const uint8_t *const s)
 {
-    off = (uint32_t)(s - body);
+    blok.off = (uint32_t)(s - blok.body);
     Open *o;
     uint16_t i;
     switch (*s) {
@@ -340,14 +326,14 @@ static void stmt(const uint8_t *const s)
     case TK_SELECT: /* its depth, for its value's variable */
         i = add(BK_SELECT);
         for (uint32_t k = 0; k < blok.depth; k++)
-            if (stack[k].kind == BK_SELECT)
-                blok_blocks[i].aux++;
+            if (blok.open[k].kind == BK_SELECT)
+                blok.blocks[i].aux++;
         push(BK_SELECT, i);
         return;
     case TK_CASE: /* SELECT's or the case before's test goes here */
         o = top(BK_SELECT, E_CWS);
         i = add(BK_CASE);
-        blok_blocks[i].aux = o->open;
+        blok.blocks[i].aux = o->open;
         clause(o, i, PAST_JMP);
         return;
     case TK_DO:
@@ -386,11 +372,11 @@ static void stmt(const uint8_t *const s)
         if (!kind)
             return; /* EXIT SUB ..: not a block's */
         for (uint32_t k = blok.depth; k-- > 0;)
-            if (stack[k].kind == kind) {
+            if (blok.open[k].kind == kind) {
                 i = add(BK_EXIT);
-                blok_blocks[i].aux = kind;
-                blok_blocks[i].link = stack[k].chain;
-                stack[k].chain = i + 1;
+                blok.blocks[i].aux = kind;
+                blok.blocks[i].link = blok.open[k].chain;
+                blok.open[k].chain = i + 1;
                 return;
             }
         failw(E_EXW, 0, words[kind]);
@@ -406,7 +392,7 @@ static void stmt(const uint8_t *const s)
             return;
         if (!(symb_name(comp_nameof(s + 1))->flags & NM_FN))
             synerr();
-        isdef = true;
+        blok.isdef = true;
         procstmt(s, PK_FUNC);
         return;
     case TK_END:
@@ -415,13 +401,13 @@ static void stmt(const uint8_t *const s)
         else if (s[1] == TK_SELECT) {
             o = top(BK_SELECT, E_ESW);
             add(BK_ENDSEL);
-            blok_blocks[o->open].done = target(off, TO_STMT);
+            blok.blocks[o->open].done = target(blok.off, TO_STMT);
             close(o);
         } else if (endproc[s[1]]) {
             if (!blok.proc)
                 failw(E_EPW, 0, nullptr);
-            blok_procs[blok.proc].last = (uint16_t)blok.line;
-            blok_procs[blok.proc].skip = target(off, TO_NEXT_STMT);
+            blok.procs[blok.proc].last = (uint16_t)blok.line;
+            blok.procs[blok.proc].skip = target(blok.off, TO_NEXT_STMT);
             blok.proc = 0;
         }
         return;
@@ -431,7 +417,7 @@ static void stmt(const uint8_t *const s)
 /* The statements of the body at b, and those after THEN and ELSE. */
 static void scanline(const uint8_t *const b)
 {
-    body = b;
+    blok.body = b;
     const uint8_t *s = b;
     if (*s == M_VAR && s[s[1] + 4] == ':') /* a label: its statement after the ':' */
         s += s[1] + 5;
@@ -469,12 +455,12 @@ void blok_pair(void)
     }
     uint32_t at_;
     if (blok.proc) { /* a SUB with no END SUB */
-        const uint32_t ln = blok_lineof(blok_procs[blok.proc].entry >> 2, &at_);
+        const uint32_t ln = blok_lineof(blok.procs[blok.proc].entry >> 2, &at_);
         fail(E_PWE, 0, at_, ln, nullptr, 0);
     }
     if (blok.depth) { /* a block left open: at its opener */
-        const Open *o = &stack[blok.depth - 1];
-        const uint32_t ln = blok_lineof(blok_blocks[o->open].pos, &at_);
+        const Open *o = &blok.open[blok.depth - 1];
+        const uint32_t ln = blok_lineof(blok.blocks[o->open].pos, &at_);
         const uint8_t code = leftopen[o->kind];
         if (code == E_FWN) { /* FOR: {other} its variable */
             const uint8_t *const v = at(prog.base + ln + HDR + at_ + 1);

@@ -39,6 +39,14 @@ typedef struct PACKED {
 } Proc;
 static_assert(sizeof(Proc) == 32);
 
+enum { NBST = 64 }; /* blocks open at most */
+/* An open block: its kind, its opener's entry, its last clause (ELSED: an ELSE, no false test
+   after it), its chain's head + 1. */
+typedef struct {
+    uint8_t kind;
+    uint16_t open, last, chain;
+} Open;
+
 typedef struct {
     uint16_t nblocks; /* nblk */
     uint16_t depth;   /* bsp: the scan's stack */
@@ -46,13 +54,17 @@ typedef struct {
     uint16_t nprocs;  /* nprc: procedures + 1 */
     uint16_t nparams; /* nppar */
     uint16_t proc;    /* cprc: the procedure the scan is in, 0 none */
+    Open open[NBST];  /* the scan's open blocks */
+    const uint8_t *body; /* (EBP) the body scanned */
+    uint32_t off;     /* (ECX) the statement's offset in it */
+    bool isdef;       /* g_bkdef: the procedure is a DEF FN's */
+    BlockEnt blocks[NBLK]; /* g_blk */
+    Proc procs[NPROC];     /* g_prc, from 1 */
+    uint16_t params[NPPAR]; /* g_ppar: parameters' variables */
+    uint8_t byval[NPPAR];   /* g_pbyv: 1 BYVAL */
 } Blok;
 extern Blok blok;
 
-extern BlockEnt blok_blocks[NBLK];   /* g_blk */
-extern Proc blok_procs[NPROC];    /* g_prc, from 1 */
-extern uint16_t blok_params[NPPAR]; /* g_ppar: parameters' variables */
-extern uint8_t blok_byval[NPPAR]; /* g_pbyv: 1 BYVAL */
 
 void blok_pair(void);           /* cm_blocks: pair the program's blocks; FOR without NEXT .. */
 int32_t blok_find(uint32_t line, uint32_t off); /* the entry of line's statement at body offset

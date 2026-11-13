@@ -27,4 +27,28 @@ void diag_what(void);
 bool diag_todo(void);
 /* How the statement is written; false: not known, nothing printed. */
 bool diag_shape(void);
+/* diag's state: the line being diagnosed and what it says */
+typedef struct {
+    const char *line;   /* the line's text */
+    uint16_t state;     /* the automaton's state, FFFFh none */
+    uint8_t code;       /* the error, E_* */
+    uint8_t dg;         /* its DG_, 0 none */
+    uint32_t col;       /* the text's column */
+    uint32_t len;       /* its length */
+    bool first;         /* at the statement's first word */
+    const char *name;   /* the name, its length */
+    uint32_t namelen;
+    const char *what;   /* what is wrong, its words */
+    const char *todo;   /* what to do, nullptr none */
+    const char *bc;     /* its name, when no words */
+    char *keyend;       /* the key's end before " /" */
+    char stm[16];       /* the statement's word, STM_MAX letters at most */
+    char key[160];      /* a key, a word; a form's line */
+    char other[32];     /* {other} */
+    const char *form;   /* the statement's form, nullptr none */
+    bool cap;           /* fill: a capital next */
+    char last;          /* fill: the last it put */
+} Diag;
+extern Diag diag;
+
 #endif

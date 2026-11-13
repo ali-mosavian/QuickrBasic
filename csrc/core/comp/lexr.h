@@ -22,6 +22,9 @@ typedef struct {
     int32_t last;          /* g_lxlst: the last item's body offset, -1 none */
     uint16_t lastcol;      /* g_lxlc: its column */
     uint16_t col[LXCMAX];  /* g_lxcol: an item's column by its body offset */
+    uint8_t *in;           /* (ESI) the text read */
+    uint8_t *out;          /* (EDI) the body written */
+    const uint8_t *word;   /* lx.lxs: a word's start */
 } Lexr;
 extern Lexr lexr;
 

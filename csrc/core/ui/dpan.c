@@ -237,9 +237,9 @@ static bool is_param(const uint16_t id)
 {
     if (!dp.proc)
         return false;
-    const Proc *const p = &blok_procs[dp.proc];
+    const Proc *const p = &blok.procs[dp.proc];
     for (uint16_t k = 0; k < p->npar; k++)
-        if (blok_params[p->par + k] == id)
+        if (blok.params[p->par + k] == id)
             return true;
     return false;
 }
@@ -357,9 +357,9 @@ static void vars(void)
     find_newer(fp);
     dp.nvars = 0;
     if (dp.proc) {
-        const Proc *const p = &blok_procs[dp.proc];
+        const Proc *const p = &blok.procs[dp.proc];
         for (uint16_t k = 0; k < p->npar; k++)
-            var1(blok_params[p->par + k], k);
+            var1(blok.params[p->par + k], k);
     }
     for (uint16_t id = 1; id < symb.nvars; id++)
         if (symb_varx(id)->scope == dp.proc && !skipped(id) && !is_param(id))
@@ -638,7 +638,7 @@ static bool seen(const uint16_t id)
     const Binding *b = scop_get(0, name);
     if (b && b->flags & BF_SHR)
         return true;
-    b = scop_get(blok_procs[dp.proc].name, name);
+    b = scop_get(blok.procs[dp.proc].name, name);
     return b && b->flags & BF_REF;
 }
 
