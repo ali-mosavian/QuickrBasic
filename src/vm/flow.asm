@@ -16,9 +16,9 @@ include x86f.inc
         .code
 
 ; DST, a word = ESI's stream offset. Uses EAX.
-ipst    macro   dst
+ipsave    macro   dst
         mov     eax,esi
-        sub     eax,[g_state.mm.cblin]
+        sub     eax,[g_state.mm.cachebase]
         mov     dst,eax
         endm
 
@@ -89,9 +89,9 @@ ex_gsf:
         sub     edi,ecx
         mov     [g_state.rn.cstk],edi
         mov     [edi+F_MARK],al
-        mov     ecx,[g_state.rn.ln]
-        mov     [edi].TFRAME.ln,ecx
-        ipst    [edi].TFRAME.ip
+        mov     ecx,[g_state.rn.line]
+        mov     [edi].TFRAME.line,ecx
+        ipsave    [edi].TFRAME.resume
         ret
 
 ; ::::::::::::::
@@ -107,8 +107,8 @@ ex_jump:
         call    cm_link
         pop     ebx
 @exj_g:
-        mov     [g_state.lnk.lc],ebx
-        mov     [g_state.rn.vpt],ebx
+        mov     [g_state.lnk.cursor],ebx
+        mov     [g_state.rn.runln],ebx
         call    ex_line
         jmp     ex_lp
 
@@ -163,14 +163,14 @@ op_ret:
         jne     err_rg
         call    ev_ret
 @@:
-        mov     edx,[ebx].TFRAME.ln
-        mov     [g_state.rn.ln],edx
+        mov     edx,[ebx].TFRAME.line
+        mov     [g_state.rn.line],edx
         movzx   ecx,byte ptr [ebx+F_MARK]
-        mov     eax,[ebx].TFRAME.ip
+        mov     eax,[ebx].TFRAME.resume
         add     ebx,ecx
         mov     [g_state.rn.cstk],ebx
         tspclr
-        ipfix
+        ipload
         dispatch
 
 ; ::::::::::::::
@@ -223,16 +223,16 @@ ex_nextln:
 ; out:    ESI  the next line's code
 ; ::::::::::::::
 ex_eol:
-        mov     ebx,[g_state.rn.ln]
+        mov     ebx,[g_state.rn.line]
         mov     ecx,gs:[ebx].TLINE.len
         add     ebx,ecx
         cmp     gs:[ebx].TLINE.len,0
         je      @F
-        mov     [g_state.rn.vpt],ebx
+        mov     [g_state.rn.runln],ebx
         jmp     ex_line
 @@:
         add     esp,4
-        mov     esi,[g_state.mm.cblin]         ; contsi 0: CONT ends again
+        mov     esi,[g_state.mm.cachebase]         ; contsi 0: CONT ends again
         jmp     sc_end
 
 ; ::::::::::::::
@@ -244,14 +244,14 @@ ex_eol:
 ;         ESI  the code
 ; ::::::::::::::
 ex_line:
-        mov     ebx,[g_state.rn.vpt]
-        mov     [g_state.rn.ln],ebx
+        mov     ebx,[g_state.rn.runln]
+        mov     [g_state.rn.line],ebx
         cmp     gs:[ebx].TLINE.len,0   ; the direct line's len
         je      @exl_x
         mov     esi,gs:[ebx].TLINE.code
         test    esi,esi
         jz      cm_cache
-        add     esi,[g_state.mm.cblin]
+        add     esi,[g_state.mm.cachebase]
         ret
 @exl_x:
         call    cm_line
@@ -262,7 +262,7 @@ ex_line:
 ; out:    ESI  it
 ; ::::::::::::::
 ex_dcode:
-        mov     edi,[g_state.mm.cblin]
+        mov     edi,[g_state.mm.cachebase]
         add     edi,DCODE
         cblea   [g_state.lnk.elim],DCODE+1536
         call    cm_xlate
@@ -324,13 +324,13 @@ op_for:
         jnc     @of_e
         add     [g_state.rn.cstk],FRSIZE        ; not entered: past its NEXT
         inc     esi
-        jmp     ex_bjump
+        jmp     ex_jumpto
 @of_e:
         add     esi,JSIZE
 @of_p:
-        ipst    [ebx].TFRAME.ip
-        mov     eax,[g_state.rn.ln]
-        mov     [ebx].TFRAME.ln,eax
+        ipsave    [ebx].TFRAME.resume
+        mov     eax,[g_state.rn.line]
+        mov     [ebx].TFRAME.line,eax
         cmp     byte ptr [esi],O_EOL
         jne     @F
         call    ex_eol                  ; no next line: no return, the frame kept
@@ -553,10 +553,10 @@ for_any:
         jge     @fa_lp
         jmp     @fa_done
 @fa_lp:
-        mov     edx,[ebx].TFRAME.ln
-        mov     [g_state.rn.ln],edx
-        mov     eax,[ebx].TFRAME.ip
-        ipfix
+        mov     edx,[ebx].TFRAME.line
+        mov     [g_state.rn.line],edx
+        mov     eax,[ebx].TFRAME.resume
+        ipload
         dispatch
 @fa_gen:
         push    esi
@@ -585,10 +585,10 @@ for_any:
 ; in:     EBX  the frame
 ; ::::::::::::::
 for_lp:
-        mov     edx,[ebx].TFRAME.ln
-        mov     [g_state.rn.ln],edx
-        mov     eax,[ebx].TFRAME.ip
-        ipfix
+        mov     edx,[ebx].TFRAME.line
+        mov     [g_state.rn.line],edx
+        mov     eax,[ebx].TFRAME.resume
+        ipload
         dispatch
 
 ; ::::::::::::::
@@ -610,7 +610,7 @@ op_onerr:
         cmp     word ptr [esi],0
         jne     @one_g
         add     esi,4
-        and     [g_state.rn.ehnd],0
+        and     [g_state.rn.onerr],0
         cmp     [g_state.rn.inerr],0
         je      @one_d
         mov     ax,[g_state.rn.errn]
@@ -619,7 +619,7 @@ op_onerr:
         jmp     err_raise
 @one_g:
         call    ex_target
-        mov     [g_state.rn.ehnd],ebx
+        mov     [g_state.rn.onerr],ebx
 @one_d:
         dispatch
 
@@ -673,7 +673,7 @@ ex_hnd:
         add     edi,eax
         jmp     @ehd_f
 @ehd_m:
-        mov     eax,[g_state.rn.ehnd]
+        mov     eax,[g_state.rn.onerr]
         mov     [g_thnd],ax
         ret
 @ehd_y:
@@ -694,10 +694,10 @@ ex_hnd:
         call    pr_pop
         lea     eax,[ebx+M_PC]
         mov     [g_state.rn.cstk],eax
-        mov     edx,[ebx].TFRAME.ln           ; the error: at the call
-        mov     [g_state.rn.ln],edx
-        mov     eax,[ebx].TFRAME.ip
-        ipfix
+        mov     edx,[ebx].TFRAME.line           ; the error: at the call
+        mov     [g_state.rn.line],edx
+        mov     eax,[ebx].TFRAME.resume
+        ipload
         dec     esi
         mov     [g_state.rn.opip],esi
         jmp     @ehd_u
@@ -725,21 +725,21 @@ ex_trap:
 @@:
         mov     [g_state.rn.errn],ax
         mov     [g_state.rn.inerr],1
-        mov     ecx,[g_state.rn.ln]
-        mov     [g_state.rn.rln],ecx
+        mov     ecx,[g_state.rn.line]
+        mov     [g_state.rn.resln],ecx
         call    ex_erl
         mov     [g_state.rn.erl],dx
         mov     ebx,ecx                 ; the statement, by the map
         mov     eax,[g_state.rn.opip]
-        call    ex_smap
+        call    ex_stmtof
         mov     eax,[edi].TSTMT.code
-        mov     [g_state.rn.rc0],eax
+        mov     [g_state.rn.resat],eax
         or      eax,-1
         cmp     ecx,1
         jbe     @F
         mov     eax,[edi+sizeof TSTMT].TSTMT.code
 @@:
-        mov     [g_state.rn.rc1],eax
+        mov     [g_state.rn.resnext],eax
         call    ch_clr
         call    ex_sbase
         mov     esp,eax
@@ -774,16 +774,16 @@ ex_erl:
         ret
 
 ; ::::::::::::::
-; ex_smap - the map entry of the statement holding code address EAX of
+; ex_stmtof - the map entry of the statement holding code address EAX of
 ; line EBX: the last whose code is at EAX or before, else the first. An
 ; entry: a TSTMT; the line's EOL's last.
 ;
 ; out:    EDI  the entry
 ;         ECX  the entries from it on
 ; ::::::::::::::
-ex_smap:
+ex_stmtof:
         mov     ebx,gs:[ebx].TLINE.code
-        add     ebx,[g_state.mm.cblin]
+        add     ebx,[g_state.mm.cachebase]
         sub     eax,ebx
         mov     ecx,[ebx-4]             ; the count, after the entries
         lea     edi,[ecx*8+4]
@@ -840,15 +840,15 @@ op_resume:
         lodsb
         cmp     al,2
         je      @rsm_l
-        mov     ecx,[g_state.rn.rc0]
+        mov     ecx,[g_state.rn.resat]
         test    al,al
         jz      @F
-        mov     ecx,[g_state.rn.rc1]
+        mov     ecx,[g_state.rn.resnext]
 @@:
         tspclr
-        mov     edx,[g_state.rn.rln]
-        mov     [g_state.rn.ln],edx
-        mov     [g_state.rn.vpt],edx
+        mov     edx,[g_state.rn.resln]
+        mov     [g_state.rn.line],edx
+        mov     [g_state.rn.runln],edx
         cmp     ecx,-1
         je      @rsm_n
         mov     esi,ecx
@@ -910,10 +910,10 @@ ex_resolve:
         push    eax
         call    cm_cache
         pop     eax
-        sub     esi,[g_state.mm.cblin]
+        sub     esi,[g_state.mm.cachebase]
 @exr_a:
         lea     esi,[esi+eax]
-        add     esi,[g_state.mm.cblin]
+        add     esi,[g_state.mm.cachebase]
         ret
 
 ; ::::::::::::::
@@ -924,11 +924,11 @@ ex_resolve:
 ; keeps:  ESI
 ; ::::::::::::::
 ex_setcont:
-        mov     ebx,[g_state.rn.ln]
+        mov     ebx,[g_state.rn.line]
         cmp     ebx,DLINE
         je      @F
-        mov     [g_state.rn.contip],ebx
-        ipst    [g_state.rn.contsi]
+        mov     [g_state.rn.contln],ebx
+        ipsave    [g_state.rn.contcode]
 @@:
         ret
 
@@ -950,7 +950,7 @@ ex_end:
 ; in:     ln  the running line
 ; ::::::::::::::
 ex_nodir:
-        cmp     [g_state.rn.ln],DLINE
+        cmp     [g_state.rn.line],DLINE
         je      err_id
         ret
 
@@ -958,14 +958,14 @@ ex_nodir:
 ; op_jmp - JMP target: a block's jump (comp/block.asm).
 ; ::::::::::::::
 op_jmp:
-        jmp     ex_bjump
+        jmp     ex_jumpto
 ; ::::::::::::::
 ; op_ijf - I.JF target ( i -- ): jump when 0.
 ; ::::::::::::::
 op_ijf:
         dpop    eax
         test    eax,eax
-        jz      ex_bjump
+        jz      ex_jumpto
 @ojf_n:
         add     esi,JSIZE-1
         dispatch
@@ -975,7 +975,7 @@ op_ijf:
 op_fjf:
         dpop    eax
         test    eax,7FFFFFFFh
-        jz      ex_bjump
+        jz      ex_jumpto
         jmp     @ojf_n
 ; ::::::::::::::
 ; op_ijt - I.JT target ( i -- ): jump unless 0.
@@ -983,7 +983,7 @@ op_fjf:
 op_ijt:
         dpop    eax
         test    eax,eax
-        jnz     ex_bjump
+        jnz     ex_jumpto
         jmp     @ojf_n
 ; ::::::::::::::
 ; op_fjt - F.JT target ( f -- ): jump unless 0.
@@ -991,7 +991,7 @@ op_ijt:
 op_fjt:
         dpop    eax
         test    eax,7FFFFFFFh
-        jnz     ex_bjump
+        jnz     ex_jumpto
         jmp     @ojf_n
 
 ; ::::::::::::::
@@ -1009,7 +1009,7 @@ op_fpop:
         dispatch
 
 ; ::::::::::::::
-; ex_bjump - go to the target at ESI: its address once found, else the
+; ex_jumpto - go to the target at ESI: its address once found, else the
 ; target line's code (compiled when it has none), its statement by the map
 ; before that code, the mode's place in it. The address is kept in the op
 ; unless the cache was flushed meanwhile, the op with it.
@@ -1017,15 +1017,15 @@ op_fpop:
 ; in:     ESI  the target, a TJUMP
 ; error:  ?SYNTAX ERROR  a target the link gave none (line -1)
 ; ::::::::::::::
-ex_bjump:
+ex_jumpto:
         stopchk
         tspclr
         mov     eax,[esi].TJUMP.dest
         cmp     eax,3
         jb      @ebj_f
         mov     ebx,[esi].TJUMP.line
-        mov     [g_state.rn.ln],ebx
-        mov     esi,[g_state.mm.cblin]
+        mov     [g_state.rn.line],ebx
+        mov     esi,[g_state.mm.cachebase]
         add     esi,eax
         dispatch
 @ebj_f:
@@ -1036,7 +1036,7 @@ ex_bjump:
         mov     al,[g_state.lnk.nfl]
         push    eax
         push    edx
-        mov     [g_state.rn.vpt],ebx
+        mov     [g_state.rn.runln],ebx
         call    ex_line
         pop     edx
         pop     eax
@@ -1069,7 +1069,7 @@ ex_bjump:
         cmp     al,[g_state.lnk.nfl]
         jne     @ebj_d
         mov     eax,esi
-        sub     eax,[g_state.mm.cblin]
+        sub     eax,[g_state.mm.cachebase]
         mov     [edx].TJUMP.dest,eax
 @ebj_d:
         dispatch
@@ -1271,12 +1271,12 @@ op_pcall:
         sub     edi,M_PC
         mov     [g_state.rn.cstk],edi
         mov     byte ptr [edi+F_MARK],M_PC
-        mov     ecx,[g_state.rn.ln]
-        mov     [edi].TFRAME.ln,ecx
+        mov     ecx,[g_state.rn.line]
+        mov     [edi].TFRAME.line,ecx
         mov     al,[esi]
         mov     [edi+F_PRC],al
         lea     esi,[esi+1+sizeof TJUMP]
-        ipst    [edi].TFRAME.ip
+        ipsave    [edi].TFRAME.resume
         mov     eax,[g_state.rn.lsp]
         mov     [edi+F_LSP0],eax
         mov     eax,[g_state.rn.ppend]
@@ -1289,7 +1289,7 @@ op_pcall:
         mov     [edi+F_SB],esp
         mov     [edi].TPROC.onerr,0
         sub     esi,sizeof TJUMP          ; the target
-        jmp     ex_bjump
+        jmp     ex_jumpto
 
 ; ::::::::::::::
 ; op_pret - PRET: back from the procedure: its frame and the frames above
@@ -1475,12 +1475,12 @@ pr_pop:
         call    ls_mov
         dpush   edi
 @prt_j:
-        mov     edx,[ebx].TFRAME.ln
-        mov     [g_state.rn.ln],edx
-        mov     eax,[ebx].TFRAME.ip
+        mov     edx,[ebx].TFRAME.line
+        mov     [g_state.rn.line],edx
+        mov     eax,[ebx].TFRAME.resume
         add     ebx,M_PC
         mov     [g_state.rn.cstk],ebx
-        ipfix
+        ipload
         dispatch
 
         .data?

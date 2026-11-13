@@ -205,7 +205,7 @@ str_set:
         call    str_get
         jz      @sst_s
         mov     edx,[g_state.sg.spt]
-        sub     edx,[g_state.mm.proglin]
+        sub     edx,[g_state.mm.progfirst]
         cmp     edx,PROGSZ
         jb      @sst_s
         mov     edx,[g_state.sg.spt]

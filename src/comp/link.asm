@@ -32,11 +32,11 @@ cm_comp:
         mov     [g_state.cm.cxb],offset g_xbuf
         mov     eax,[g_state.mm.dslin]  ; compiled where it is stored
         mov     [g_state.cm.ctxlin],eax
-        mov     [g_state.cm.cline],ebx
+        mov     [g_state.cm.line],ebx
         call    bk_proc
         call    dc_deft
         lea     esi,[ebx+HDR-1]
-        add     esi,[g_state.mm.pglin]
+        add     esi,[g_state.mm.progbase]
         call    cm_text
         pop     ebx
         ret
@@ -68,7 +68,7 @@ cm_cache:
         mov     esi,[g_state.lnk.ecode]
         mov     [g_state.lnk.cend],edi
         mov     eax,esi
-        sub     eax,[g_state.mm.cblin]
+        sub     eax,[g_state.mm.cachebase]
         mov     gs:[ebx].TLINE.code,eax
         ret
 
@@ -81,27 +81,27 @@ cm_flush:
 @cfl_f:
         cmp     ebx,CSTOP
         jae     @cfl_c
-        mov     edi,[ebx].TFRAME.ln
+        mov     edi,[ebx].TFRAME.line
         cmp     edi,DLINE
         je      @cfl_n
-        mov     eax,[ebx].TFRAME.ip
+        mov     eax,[ebx].TFRAME.resume
         cmp     ax,CACHE0
         jb      @cfl_n
         sub     eax,gs:[edi].TLINE.code
-        mov     [ebx].TFRAME.ip,eax
+        mov     [ebx].TFRAME.resume,eax
 @cfl_n:
         movzx   ecx,byte ptr [ebx+F_MARK]
         add     ebx,ecx
         jmp     @cfl_f
 @cfl_c:
-        mov     edi,[g_state.rn.contip]
+        mov     edi,[g_state.rn.contln]
         test    edi,edi
         jz      @cfl_l
-        mov     eax,[g_state.rn.contsi]
+        mov     eax,[g_state.rn.contcode]
         cmp     ax,CACHE0
         jb      @cfl_l
         sub     eax,gs:[edi].TLINE.code
-        mov     [g_state.rn.contsi],eax
+        mov     [g_state.rn.contcode],eax
 @cfl_l:
         mov     ebx,PROGBASE
 @cfl_x:
@@ -120,8 +120,8 @@ cm_flush:
 ; or GOSUB's line is found now when it exists; an INPUT's
 ; end (16 bits, from cachb) are filled in. The CALL of INBEG takes 2 bytes
 ; more than in xbuf. Before the code, its statement map: for
-; each statement the compile recorded (cm_markb), a TSTMT; then their
-; count:4 (vm/flow.asm, ex_bjump).
+; each statement the compile recorded (cm_mapstmt), a TSTMT; then their
+; count:4 (vm/flow.asm, ex_jumpto).
 ;
 ; in:     EDI   where it goes
 ;         elim  its limit
@@ -132,7 +132,7 @@ cm_flush:
 ; ::::::::::::::
 cm_xlate:
         and     [g_state.lnk.einb],0
-        mov     ecx,[g_state.cm.nst]
+        mov     ecx,[g_state.cm.nstmt]
         lea     eax,[ecx*8+4]
         add     eax,edi
         cmp     eax,[g_state.lnk.elim]
@@ -141,10 +141,10 @@ cm_xlate:
         mov     [eax-4],ecx
         mov     edi,eax
         mov     [g_state.lnk.ecode],edi
-        mov     [g_state.lnk.ek],0
+        mov     [g_state.lnk.mapnext],0
         mov     esi,offset g_xbuf
 @cx_l:
-        call    cx_mark
+        call    cx_mapstmt
         movzx   ebx,byte ptr [esi]
         call    op_size
         lea     eax,[edi+ecx+XSLK]
@@ -172,7 +172,7 @@ cm_xlate:
         test    ebx,ebx
         jz      @cx_d
         mov     eax,[g_state.lnk.eeol]
-        sub     eax,[g_state.mm.cblin]
+        sub     eax,[g_state.mm.cachebase]
         mov     [ebx],ax
 @cx_d:
         clc
@@ -205,24 +205,24 @@ cm_xlate:
         jne     @cx_t
         mov     ebx,[g_state.lnk.einb]
         mov     eax,edi
-        sub     eax,[g_state.mm.cblin]
+        sub     eax,[g_state.mm.cachebase]
         mov     [ebx],ax
         and     [g_state.lnk.einb],0
         jmp     @cx_t
 
 ; ::::::::::::::
-; cx_mark - the statements whose code starts at SI: their map entries.
+; cx_mapstmt - the statements whose code starts at SI: their map entries.
 ;
 ; keeps:  all
 ; ::::::::::::::
-cx_mark:
+cx_mapstmt:
         push    eax
         push    ebx
         push    ecx
         push    edx
 @cxm_l:
-        mov     ebx,[g_state.lnk.ek]
-        cmp     ebx,[g_state.cm.nst]
+        mov     ebx,[g_state.lnk.mapnext]
+        cmp     ebx,[g_state.cm.nstmt]
         jae     @cxm_r
         lea     edx,[ebx*8+sizeof TSTMT]  ; its entry, down from the map's top
         neg     edx
@@ -238,7 +238,7 @@ cx_mark:
         mov     eax,edi
         sub     eax,[g_state.lnk.ecode]
         mov     [ecx].TSTMT.code,eax
-        inc     [g_state.lnk.ek]
+        inc     [g_state.lnk.mapnext]
         jmp     @cxm_l
 @cxm_r:
         pop     edx
@@ -273,7 +273,7 @@ cm_link:
         jne     cm_rts
         push    esi
         call    cm_blocks
-        and     [g_state.lnk.lc],0
+        and     [g_state.lnk.cursor],0
         mov     ebx,PROGBASE
 @clk_l:
         mov     ecx,gs:[ebx].TLINE.len

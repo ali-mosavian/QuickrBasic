@@ -10,7 +10,7 @@
 ;           A target is a position times 4 plus a mode: 0 the statement, 1
 ;           past the JMP it starts with, 2 the statement after it; the
 ;           direct line's (PDIR) its body offset's. A jump op holds one as a
-;           TJUMP, and the address it resolves to (vm/flow.asm, ex_bjump).
+;           TJUMP, and the address it resolves to (vm/flow.asm, ex_jumpto).
 ;           SUB and FUNCTION ... END give g_prc an entry (def.inc P_*): its
 ;           body, its lines, its parameters' variables in g_ppar, the
 ;           FUNCTION's result variable, the target past its END. DEF FN is a
@@ -52,9 +52,9 @@ cm_blocks:
 @cbk_l:
         mov     ecx,gs:[ebx].TLINE.len
         jecxz   @cbk_d
-        mov     [g_state.lnk.bln],ebx
+        mov     [g_state.lnk.scanln],ebx
         lea     esi,[ebx+HDR]
-        add     esi,[g_state.mm.pglin]
+        add     esi,[g_state.mm.progbase]
         push    ebx
         call    bk_line
         pop     ebx
@@ -68,7 +68,7 @@ cm_blocks:
         shl     eax,5
         mov     eax,dword ptr [g_prc+eax+P_ENTRY]
         shr     eax,2                   ; its position
-        call    bk_posl
+        call    bk_lineof
         mov     ax,E_PWE
         jmp     bk_fail0
 @@:
@@ -79,15 +79,15 @@ cm_blocks:
         movzx   eax,word ptr [g_bst+eax*SSIZE-SSIZE+S_OPEN]
         shl     eax,BLOCKSH
         mov     eax,[g_blk+eax].TBLOCK.pos
-        call    bk_posl
-        mov     ebx,[g_state.lnk.bln]
+        call    bk_lineof
+        mov     ebx,[g_state.lnk.scanln]
         movzx   eax,byte ptr [g_bkopen+edx]
         xor     edi,edi
         cmp     al,E_FWN                ; FOR: {other} its variable
         jne     bk_fail
         movzx   ebx,bx
         lea     esi,[ebx+HDR+ecx+1]
-        add     esi,[g_state.mm.pglin]
+        add     esi,[g_state.mm.progbase]
         cmp     byte ptr [esi],M_VAR
         jne     bk_fail
         lea     ebx,[esi+2]
@@ -236,7 +236,7 @@ bk_stmt:
         mov     dl,PK_FUNC
 @bkp_g:
         push    ebx
-        mov     ebx,[g_state.lnk.bln]
+        mov     ebx,[g_state.lnk.scanln]
         call    dc_deft
         pop     ebx
         mov     [g_bkoff],ecx
@@ -256,9 +256,9 @@ bk_stmt:
         add     edi,offset g_prc
         mov     [edi+P_KIND],dl
         mov     byte ptr [edi+P_FLAG],0
-        call    bk_here2                ; its body: the statement after
+        call    bk_target2                ; its body: the statement after
         mov     [edi+P_ENTRY],eax
-        mov     eax,[g_state.lnk.bln]
+        mov     eax,[g_state.lnk.scanln]
         mov     [edi+P_FIRST],ax
         mov     [edi+P_LAST],ax
         and     word ptr [edi+P_NPAR],0
@@ -384,9 +384,9 @@ bk_stmt:
         jne     @bkp_x
         mov     ecx,[g_bkoff]
         mov     al,1
-        call    bk_herem
+        call    bk_target
         mov     [edi+P_ENTRY],eax
-        call    bk_here2
+        call    bk_target2
         mov     [edi+P_SKIP],eax
         and     [g_state.lnk.cprc],0
 @bkp_x:
@@ -404,9 +404,9 @@ bk_stmt:
         mov     ax,E_EPW
         jz      bk_fail0
         shl     edx,5
-        mov     eax,[g_state.lnk.bln]
+        mov     eax,[g_state.lnk.scanln]
         mov     word ptr [g_prc+edx+P_LAST],ax
-        call    bk_here2
+        call    bk_target2
         mov     dword ptr [g_prc+edx+P_SKIP],eax
         and     [g_state.lnk.cprc],0
         ret
@@ -494,7 +494,7 @@ bk_stmt:
         call    bk_new
         movzx   edx,word ptr [ebx+S_OPEN]
         shl     edx,BLOCKSH
-        call    bk_here0
+        call    bk_target0
         mov     [g_blk+edx].TBLOCK.done,eax
         jmp     bk_close
 
@@ -524,7 +524,7 @@ bk_stmt:
         mov     eax,[g_blk+edx].TBLOCK.pos      ; mode 0
         shl     eax,2
         mov     [edi].TBLOCK.next,eax
-        call    bk_here2
+        call    bk_target2
         mov     [g_blk+edx].TBLOCK.done,eax
         jmp     bk_exits
 
@@ -576,7 +576,7 @@ bk_next:
         shl     eax,BLOCKSH
         mov     esi,[g_blk+eax].TBLOCK.pos
         lea     esi,[esi+1]
-        add     esi,[g_state.mm.pglin]
+        add     esi,[g_state.mm.progbase]
         cmp     byte ptr [esi],M_VAR
         jne     @bnn_c
         movzx   eax,byte ptr [esi+1]
@@ -598,7 +598,7 @@ bk_next:
         cmp     al,ah
         jne     @bnn_x
 @bnn_c:
-        call    bk_here2
+        call    bk_target2
         movzx   edx,word ptr [ebx+S_OPEN]
         shl     edx,BLOCKSH
         mov     [g_blk+edx].TBLOCK.done,eax
@@ -646,8 +646,8 @@ bk_next:
         jmp     bk_fail1
 
 @bk_er:
-        mov     eax,[g_state.lnk.bln]
-        mov     [g_state.rn.ln],eax
+        mov     eax,[g_state.lnk.scanln]
+        mov     [g_state.rn.line],eax
         jmp     err_sn
 
 ; ::::::::::::::
@@ -668,7 +668,7 @@ bk_new:
         shl     edi,BLOCKSH
         add     edi,offset g_blk
         push    eax
-        mov     eax,[g_state.lnk.bln]
+        mov     eax,[g_state.lnk.scanln]
         add     eax,ecx
         add     eax,HDR
         mov     [edi].TBLOCK.pos,eax
@@ -753,7 +753,7 @@ bk_fail1:
         jmp     @B
 bk_fail:
         movzx   ecx,cx
-        mov     edx,[g_state.lnk.bln]
+        mov     edx,[g_state.lnk.scanln]
         jmp     dx_raise
 
 ; ::::::::::::::
@@ -768,7 +768,7 @@ bk_clause:
         shl     eax,BLOCKSH
         push    edi
         lea     edi,[g_blk+eax].TBLOCK.next
-        call    bk_here
+        call    bk_targetx
         pop     edi
         pop     eax
         mov     [ebx+S_LAST],ax
@@ -798,9 +798,9 @@ bk_close:
         shl     eax,BLOCKSH
         lea     edi,[g_blk+eax].TBLOCK.next
         mov     dl,0
-        call    bk_here
+        call    bk_targetx
 @bkc_c:
-        call    bk_here0
+        call    bk_target0
         movzx   edx,word ptr [ebx+S_CHAIN]
 @bkc_l:
         test    edx,edx
@@ -822,45 +822,45 @@ bk_exits:
         jmp     @bkc_l
 
 ; ::::::::::::::
-; bk_here - the target here, mode DL, to [EDI].
+; bk_targetx - the target here, mode DL, to [EDI].
 ;
 ; in:     CX  the statement's offset
 ; keeps:  all
 ; ::::::::::::::
-bk_here:
+bk_targetx:
         push    eax
         mov     al,dl
-        call    bk_herem
+        call    bk_target
         mov     [edi],eax
         pop     eax
         ret
 
 ; ::::::::::::::
-; bk_here0, bk_here2 - EAX the target here, mode 0 or 2.
+; bk_target0, bk_target2 - EAX the target here, mode 0 or 2.
 ;
 ; in:     ECX  the statement's offset
 ; keeps:  all but EAX
 ; ::::::::::::::
-bk_here0:
+bk_target0:
         xor     al,al
-        jmp     bk_herem
-bk_here2:
+        jmp     bk_target
+bk_target2:
         mov     al,2
-bk_herem:
+bk_target:
         movzx   eax,al
         push    ecx
-        add     ecx,[g_state.lnk.bln]
+        add     ecx,[g_state.lnk.scanln]
         add     ecx,HDR
         lea     eax,[ecx*4+eax]
         pop     ecx
         ret
 
 ; ::::::::::::::
-; bk_posl - bln, ECX: the line and body offset of position EAX.
+; bk_lineof - bln, ECX: the line and body offset of position EAX.
 ;
 ; keeps:  all but ECX
 ; ::::::::::::::
-bk_posl:
+bk_lineof:
         push    eax
         push    ebx
         mov     ebx,PROGBASE
@@ -872,7 +872,7 @@ bk_posl:
         mov     ebx,ecx
         jmp     @B
 @@:
-        mov     [g_state.lnk.bln],ebx
+        mov     [g_state.lnk.scanln],ebx
         mov     ecx,eax
         sub     ecx,ebx
         sub     ecx,HDR

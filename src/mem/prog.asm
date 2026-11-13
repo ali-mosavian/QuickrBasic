@@ -1,7 +1,7 @@
 ; ==========================================================================
 ; prog.asm - the program store, in GS
 ; ==========================================================================
-; holds:    prg_findw, prg_put, prg_fill, prg_drop, prg_init, prg_seg
+; holds:    prg_findw, prg_put, prg_fill, prg_drop, prg_init, prg_place
 ; uses:     var_clr, mem_pmov
 ; data:     a line: len:2 num:2 cp:2 body, the tokens lx_line made, with their
 ;           0. cp is its code in the cache (cm_cache), 0 for none. A len of 0
@@ -46,7 +46,7 @@ prg_findw:
         ret
 @pf_o:
         pop     ecx
-        mov     ebx,[g_state.lnk.lc]
+        mov     ebx,[g_state.lnk.cursor]
         test    ebx,ebx
         jz      @pf_b
         cmp     ax,gs:[ebx].TLINE.num
@@ -85,8 +85,8 @@ prg_put:
         movzx   ecx,cx
         cmp     ecx,1
         je      @pp_d
-        mov     [g_state.mm.pbs],esi
-        mov     [g_state.mm.pbl],ecx
+        mov     [g_state.mm.bodyptr],esi
+        mov     [g_state.mm.bodylen],ecx
         mov     eax,ecx
         add     eax,HDR
         cmp     eax,LMAX
@@ -96,27 +96,27 @@ prg_put:
         push    ecx
         call    prg_findw
         jnc     @pp_i
-        mov     [g_state.mm.lyo2],ebx
+        mov     [g_state.mm.oldline],ebx
         mov     eax,gs:[ebx].TLINE.len
         lea     esi,[ebx+eax]
         mov     edi,ebx
-        mov     ecx,[g_state.mm.pend]
+        mov     ecx,[g_state.mm.progend]
         sub     ecx,esi
         call    mem_pmov
-        mov     [g_state.mm.pend],edi
-        mov     ebx,[g_state.mm.lyo2]
+        mov     [g_state.mm.progend],edi
+        mov     ebx,[g_state.mm.oldline]
 @pp_i:
         pop     ecx
         pop     eax
         cmp     ecx,1
         je      @jt_prog1
-        mov     edx,[g_state.mm.pend]
+        mov     edx,[g_state.mm.progend]
         add     edx,eax
         add     edx,4                   ; the terminator
         cmp     edx,PROGLIM
         jae     @pp_om
         push    eax
-        mov     ecx,[g_state.mm.pend]
+        mov     ecx,[g_state.mm.progend]
         mov     esi,ecx
         sub     ecx,ebx
         dec     esi
@@ -125,7 +125,7 @@ prg_put:
         call    mem_pmov
         cld
         pop     eax
-        add     [g_state.mm.pend],eax
+        add     [g_state.mm.progend],eax
         call    prg_fill
 @jt_prog1:
         jmp     prg_drop
@@ -140,18 +140,18 @@ prg_put:
 ; ::::::::::::::
 prg_add:
         movzx   ecx,cx
-        mov     [g_state.mm.pbs],esi
-        mov     [g_state.mm.pbl],ecx
+        mov     [g_state.mm.bodyptr],esi
+        mov     [g_state.mm.bodylen],ecx
         lea     eax,[ecx+HDR]
         cmp     eax,LMAX
         ja      err_om
-        mov     ebx,[g_state.mm.pend]
+        mov     ebx,[g_state.mm.progend]
         lea     edx,[ebx+eax+4]
         cmp     edx,PROGLIM
         jae     err_om
-        add     [g_state.mm.pend],eax
+        add     [g_state.mm.progend],eax
         call    prg_fill
-        mov     ebx,[g_state.mm.pend]
+        mov     ebx,[g_state.mm.progend]
         mov     gs:[ebx].TLINE.len,0
         ret
 
@@ -169,9 +169,9 @@ prg_fill:
         mov     gs:[ebx].TLINE.num,ax
         mov     gs:[ebx].TLINE.code,0
         lea     edi,[ebx+HDR]
-        add     edi,[g_state.mm.pglin]
-        mov     esi,[g_state.mm.pbs]
-        mov     ecx,[g_state.mm.pbl]
+        add     edi,[g_state.mm.progbase]
+        mov     esi,[g_state.mm.bodyptr]
+        mov     ecx,[g_state.mm.bodylen]
         rep     movsb
         ret
 
@@ -184,11 +184,11 @@ prg_fill:
 ; ::::::::::::::
 prg_drop:
         xor     eax,eax
-        mov     [g_state.rn.contip],eax
-        mov     [g_state.lnk.lc],eax
+        mov     [g_state.rn.contln],eax
+        mov     [g_state.lnk.cursor],eax
         mov     [g_state.lnk.linked],al
         mov     [g_state.rn.cstk],CSTOP
-        mov     ebx,[g_state.mm.pend]
+        mov     ebx,[g_state.mm.progend]
         mov     gs:[ebx].TLINE.len,eax
         jmp     var_clr
 @pp_om:
@@ -199,26 +199,26 @@ prg_drop:
 ; prg_init - NEW: no program, no variables, then prg_drop.
 ; ::::::::::::::
 ; ::::::::::::::
-; prg_seg - the store's block where it now is: pglin, proglin, GS.
+; prg_place - the store's block where it now is: pglin, proglin, GS.
 ; ::::::::::::::
-prg_seg:
+prg_place:
         push    eax
         push    ebx
         mov     eax,HPROG
-        mov     bx,[g_state.mm.pgsel]
-        call    blk_seg
-        mov     [g_state.mm.pgsel],bx
+        mov     bx,[g_state.mm.progsel]
+        call    alloc_sel
+        mov     [g_state.mm.progsel],bx
         mov     gs,bx
         mov     eax,[g_state.alloc.tab+HPROG*sizeof TALLOC].TALLOC.base
-        mov     [g_state.mm.pglin],eax
+        mov     [g_state.mm.progbase],eax
         add     eax,PROGBASE
-        mov     [g_state.mm.proglin],eax
+        mov     [g_state.mm.progfirst],eax
         pop     ebx
         pop     eax
         ret
 
 prg_init:
-        mov     [g_state.mm.pend],PROGBASE
+        mov     [g_state.mm.progend],PROGBASE
         mov     [g_state.mm.vend],VARBASE
         call    sym_init
         jmp     prg_drop

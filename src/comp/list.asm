@@ -74,7 +74,7 @@ ls_line:
         call    io_space
         pop     ebx
         lea     esi,[ebx+HDR]
-        add     esi,[g_state.mm.pglin]
+        add     esi,[g_state.mm.progbase]
         call    ls_body
         pop     esi
         jmp     io_nl

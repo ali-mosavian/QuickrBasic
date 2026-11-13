@@ -299,7 +299,7 @@ io_read:
         test    [g_state.rn.stpflg],SF_BRK
         jz      err_od
         and     [g_state.rn.stpflg],0              ; the STOP key: BREAK, no CONT
-        and     [g_state.rn.contip],0
+        and     [g_state.rn.contln],0
         xor     al,al                   ; E_BRK
         jmp     err_raise
 @@:

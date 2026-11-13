@@ -1,7 +1,7 @@
 ; ==========================================================================
-; blk.asm - the allocator: blocks in the heap's arena
+; alloc.asm - the allocator: blocks in the heap's arena
 ; ==========================================================================
-; holds:    blk_new, blk_seg
+; holds:    alloc_new, alloc_sel
 ; uses:     plt_heap's hbot, htop
 ; data:     Blocks are packed from the arena's start, in g_state.alloc.tab by
 ;           handle; the BASIC heap, hbot to htop, is what lies above the
@@ -13,14 +13,14 @@ include x86f.inc
         .code
 
 ; ::::::::::::::
-; blk_new - a block of ECX bytes after the last; the heap shrinks by it.
+; alloc_new - a block of ECX bytes after the last; the heap shrinks by it.
 ; Only while the heap is empty.
 ;
 ; out:    EAX  its handle
 ;         EDX  its base
 ; error:  Out of memory
 ; ::::::::::::::
-blk_new:
+alloc_new:
         mov     eax,[g_state.alloc.nb]
         cmp     eax,NBLKH
         jae     err_om
@@ -45,13 +45,13 @@ blk_new:
         ret
 
 ; ::::::::::::::
-; blk_seg - a selector for block EAX: its base and size; a new one when BX
+; alloc_sel - a selector for block EAX: its base and size; a new one when BX
 ; is 0.
 ;
 ; out:    BX   the selector
 ; error:  Out of memory: no descriptor
 ; ::::::::::::::
-blk_seg:
+alloc_sel:
         pushad
         test    bx,bx
         jnz     @bks_b

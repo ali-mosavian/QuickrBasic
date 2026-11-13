@@ -132,7 +132,7 @@ err_raise:
         je      @erx_u
         cmp     [g_state.rn.inerr],0
         jne     @erx_u
-        cmp     [g_state.rn.ln],DLINE
+        cmp     [g_state.rn.line],DLINE
         je      @erx_u
         push    eax
         call    ex_hnd
@@ -155,7 +155,7 @@ endif
         test    al,al
         jnz     @F
         call    io_msg                  ; BREAK [IN n]
-        mov     ebx,[g_state.rn.ln]
+        mov     ebx,[g_state.rn.line]
         cmp     ebx,DLINE
         je      rpl_ready
         cmp     gs:[ebx].TLINE.num,NONUM
@@ -167,11 +167,11 @@ endif
         jmp     rpl_ready
 @@:
         mov     [g_state.rn.cstk],CSTOP
-        and     [g_state.rn.contip],0
+        and     [g_state.rn.contln],0
         call    er_text
         mov     ebx,esi
         call    io_puts
-        mov     ecx,[g_state.rn.ln]
+        mov     ecx,[g_state.rn.line]
         cmp     ecx,DLINE
         je      @erx_d
         cmp     [g_state.io.batch],0
@@ -194,7 +194,7 @@ endif
         mov     ebx,offset r_eaddr
         call    io_puts
         mov     eax,[g_state.rn.opip]
-        sub     eax,[g_state.mm.cblin]
+        sub     eax,[g_state.mm.cachebase]
         push    eax
         shr     eax,16
         call    io_hex4
@@ -232,11 +232,11 @@ er_diag:
         push    dword ptr [ebx+5]       ; the automaton's state
         movzx   eax,word ptr [ebx+3]
         mov     esi,offset g_cbuf
-        mov     ebx,[g_state.rn.ln]
+        mov     ebx,[g_state.rn.line]
         cmp     ebx,DLINE
         je      @F
         lea     esi,[ebx+HDR]
-        add     esi,[g_state.mm.pglin]
+        add     esi,[g_state.mm.progbase]
 @@:
         call    ls_text
         pop     edx
@@ -353,14 +353,14 @@ rpl_run:
         call    cm_line
         call    ex_dcode
         mov     eax,[g_state.lnk.eeol]              ; an older direct line's frames: its EOL
-        sub     eax,[g_state.mm.cblin]
+        sub     eax,[g_state.mm.cachebase]
         mov     ebx,[g_state.rn.cstk]
 @rpl_f:
         cmp     ebx,CSTOP
         jae     @rpl_g
-        cmp     [ebx].TFRAME.ln,DLINE
+        cmp     [ebx].TFRAME.line,DLINE
         jne     @rpl_n
-        mov     [ebx].TFRAME.ip,eax
+        mov     [ebx].TFRAME.resume,eax
 @rpl_n:
         movzx   ecx,byte ptr [ebx+F_MARK]
         add     ebx,ecx
@@ -617,7 +617,7 @@ rpl_inc:
 rpl_enter:
         movzx   ebx,ax
         mov     byte ptr [g_inbuf+ebx],0
-        mov     [g_state.rn.ln],DLINE
+        mov     [g_state.rn.line],DLINE
         mov     esi,offset g_inbuf
         mov     edi,offset g_cbuf
         call    lx_line
@@ -672,7 +672,7 @@ rpl_enter:
 @ren_lb:                                ; label EBX here, in the scope
         push    edi
         or      ax,[g_state.lx.dproc]
-        mov     edx,[g_state.mm.pend]
+        mov     edx,[g_state.mm.progend]
         call    scp_label
         pop     edi
         ret

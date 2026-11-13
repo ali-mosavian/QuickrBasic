@@ -689,7 +689,7 @@ dc_dfev:
         cmp     [g_state.io.lmode],0
         je      @dfv_r
         pushad
-        mov     eax,[g_state.mm.pend]
+        mov     eax,[g_state.mm.progend]
         mov     ecx,[g_ndev]
         jecxz   @F
         imul    edi,ecx,DEVSZ

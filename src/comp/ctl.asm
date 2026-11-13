@@ -1310,7 +1310,7 @@ ct_pcall:
         call    cm_byt
         pop     edx
         mov     eax,[edx+P_ENTRY]
-        call    ct_tdw
+        call    ct_emitjump
         clc
         ret
 
@@ -1621,22 +1621,22 @@ ct_else:
         sub     esi,[g_state.cm.cbase]
         mov     ecx,esi
         mov     al,0
-        call    ct_here
+        call    ct_target
         pop     esi
         clc
         ret
 
 ; ::::::::::::::
-; ct_here - the target in this line at offset ECX, mode AL.
+; ct_target - the target in this line at offset ECX, mode AL.
 ;
 ; out:    EAX  the target
 ; ::::::::::::::
-ct_here:
+ct_target:
         movzx   eax,al
         push    ecx
-        cmp     [g_state.cm.cline],DLINE
+        cmp     [g_state.cm.line],DLINE
         je      @F
-        add     ecx,[g_state.cm.cline]
+        add     ecx,[g_state.cm.line]
         add     ecx,HDR
         lea     eax,[ecx*4+eax]
         pop     ecx
@@ -1648,10 +1648,10 @@ ct_here:
         ret
 
 ; ::::::::::::::
-; ct_tdw - emit target EAX as a jump op's TJUMP: its mode in the address's
-; place until found (vm/flow.asm, ex_bjump). FFFFFFFFh none: line -1.
+; ct_emitjump - emit target EAX as a jump op's TJUMP: its mode in the address's
+; place until found (vm/flow.asm, ex_jumpto). FFFFFFFFh none: line -1.
 ; ::::::::::::::
-ct_tdw:
+ct_emitjump:
         cmp     eax,-1
         je      @ctw_w
         push    eax
@@ -1664,10 +1664,10 @@ ct_tdw:
         jmp     @ctw_m
 @@:
         shr     eax,2
-        push    dword ptr [g_state.lnk.bln]
-        call    bk_posl
-        mov     eax,[g_state.lnk.bln]
-        pop     dword ptr [g_state.lnk.bln]
+        push    dword ptr [g_state.lnk.scanln]
+        call    bk_lineof
+        mov     eax,[g_state.lnk.scanln]
+        pop     dword ptr [g_state.lnk.scanln]
 @ctw_m:
         push    ecx
         call    cm_dw                   ; the line
@@ -1691,12 +1691,12 @@ ct_tdw:
 ; ::::::::::::::
 ct_ent:
         xor     edx,edx
-        cmp     [g_state.cm.cline],DLINE
+        cmp     [g_state.cm.line],DLINE
         je      @cten_r
         push    eax
         push    ebx
         push    ecx
-        mov     ebx,[g_state.cm.cline]
+        mov     ebx,[g_state.cm.line]
         mov     ecx,esi
         sub     ecx,[g_state.cm.cbase]
         call    bk_find
@@ -1758,7 +1758,7 @@ ct_jmp:
         push    ecx
         call    cm_op
         pop     eax
-        call    ct_tdw
+        call    ct_emitjump
         clc
         ret
 

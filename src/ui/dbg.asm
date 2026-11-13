@@ -63,14 +63,14 @@ ud_line:
 ; ::::::::::::::
 ud_stop:
         and     [g_ui.ud.ud_utl],0
-        mov     ebx,[g_state.rn.contip]
+        mov     ebx,[g_state.rn.contln]
         test    ebx,ebx
         jz      @F
         mov     [g_ui.ud.stopd],1
         call    dp_open
-        mov     ebx,[g_state.rn.contip]
-        mov     eax,[g_state.rn.contsi]
-        add     eax,[g_state.mm.cblin]
+        mov     ebx,[g_state.rn.contln]
+        mov     eax,[g_state.rn.contcode]
+        add     eax,[g_state.mm.cachebase]
         call    dbg_pos
         jmp     ud_hlset
 @@:
@@ -97,11 +97,11 @@ ud_hlset:
         pop     ebx
         pop     ecx
         sub     ebx,offset g_ui.bf.uc_line      ; EBX the body's column
-        mov     eax,[g_state.dbg.wb0]
+        mov     eax,[g_state.dbg.stmtfrom]
         movzx   eax,word ptr [g_lxcol+eax*2]
         add     eax,ebx
         mov     [g_ui.ud.hl_c0],ax
-        mov     edx,[g_state.dbg.wb1]
+        mov     edx,[g_state.dbg.stmtto]
         cmp     edx,BOFF
         je      @uhs_e
         movzx   edx,word ptr [g_lxcol+edx*2]
@@ -311,7 +311,7 @@ ud_setnx:
         cmp     ax,NONUM
         je      @usn_r                  ; a blank line
         mov     [g_state.rn.lnum],ax
-        and     [g_state.lnk.lc],0
+        and     [g_state.lnk.cursor],0
         call    prg_findw
         jnc     @usn_r
         movzx   ebx,bx
@@ -319,22 +319,22 @@ ud_setnx:
         mov     al,[g_state.cm.cproc]
         push    eax
         push    ebx
-        mov     ebx,[g_state.rn.contip]
+        mov     ebx,[g_state.rn.contln]
         call    bk_proc
         pop     ebx
         pop     eax
         cmp     al,[g_state.cm.cproc]
         jne     @usn_p
         mov     esi,gs:[ebx].TLINE.code
-        add     esi,[g_state.mm.cblin]
-        cmp     esi,[g_state.mm.cblin]
+        add     esi,[g_state.mm.cachebase]
+        cmp     esi,[g_state.mm.cachebase]
         jne     @F
         call    cm_cache
 @@:
-        mov     [g_state.rn.contip],ebx
+        mov     [g_state.rn.contln],ebx
         mov     eax,esi
-        sub     eax,[g_state.mm.cblin]
-        mov     [g_state.rn.contsi],eax
+        sub     eax,[g_state.mm.cachebase]
+        mov     [g_state.rn.contcode],eax
         jmp     ud_stop
 @usn_p:
         mov     esi,offset u_bnext

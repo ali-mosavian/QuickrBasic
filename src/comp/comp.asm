@@ -28,7 +28,7 @@ include x86f.inc
 ; out:    as cm_text
 ; ::::::::::::::
 cm_line:
-        mov     [g_state.cm.cline],DLINE
+        mov     [g_state.cm.line],DLINE
         push    eax
         push    ebx
         movzx   eax,[g_dlprc]
@@ -55,7 +55,7 @@ cm_text:
         mov     [g_state.rn.cplim],eax
         lea     eax,[esi+1]
         mov     [g_state.cm.cbase],eax
-        mov     [g_state.cm.nst],0
+        mov     [g_state.cm.nstmt],0
         mov     [g_state.cm.csif],0
         mov     [g_state.cm.cdg],0
         mov     [g_state.cm.cdfa],-1
@@ -164,7 +164,7 @@ cm_err:
 ; ::::::::::::::
 cm_fin:
         mov     eax,BOFF                ; the EOL's map entry
-        call    cm_markb
+        call    cm_mapstmt
         mov     al,O_EOL
         stosb
         mov     esp,[g_state.cm.csp]
@@ -253,7 +253,7 @@ cm_mark:
         push    eax
         mov     eax,esi
         sub     eax,[g_state.cm.cbase]
-        call    cm_markb
+        call    cm_mapstmt
         pop     eax
         ret
 
@@ -267,7 +267,7 @@ cm_dbg:
         and     [g_state.cm.cdbg],0
         cmp     [g_state.dbg.emit],0
         je      @F
-        cmp     [g_state.cm.cline],DLINE
+        cmp     [g_state.cm.line],DLINE
         je      @F
         cmp     byte ptr [esi],TK_SUB
         je      @F
@@ -294,15 +294,15 @@ cm_dbgx:
         ret
 
 ; ::::::::::::::
-; cm_markb - record a statement at body offset EAX: below the map, a TSTMT
+; cm_mapstmt - record a statement at body offset EAX: below the map, a TSTMT
 ; with its code's offset in xbuf. No room: the code is full.
 ;
 ; keeps:  all
 ; ::::::::::::::
-cm_markb:
+cm_mapstmt:
         push    ebx
         push    edx
-        mov     ebx,[g_state.cm.nst]
+        mov     ebx,[g_state.cm.nstmt]
         mov     edx,[g_state.cm.cmap]
         lea     ebx,[ebx*8+sizeof TSTMT]
         sub     edx,ebx                 ; the entry
@@ -315,7 +315,7 @@ cm_markb:
         mov     [edx].TSTMT.code,ebx
         sub     edx,12
         mov     [g_state.cm.cxlim],edx
-        inc     [g_state.cm.nst]
+        inc     [g_state.cm.nstmt]
 @cmb_r:
         pop     edx
         pop     ebx

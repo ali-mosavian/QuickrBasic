@@ -419,7 +419,7 @@ ui_canon:
         stosb
         test    al,al
         jnz     @uca_c
-        mov     [g_state.rn.ln],DLINE
+        mov     [g_state.rn.line],DLINE
         mov     esi,offset g_ui.bf.uc_line
         mov     edi,offset g_cbuf
         call    lx_line

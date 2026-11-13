@@ -64,7 +64,7 @@ dp_close:
 dp_frames:
         mov     edi,offset g_ui.dp.dp_fr
         xor     ebp,ebp
-        mov     ebx,[g_state.rn.contip]
+        mov     ebx,[g_state.rn.contln]
         mov     edx,[g_state.rn.cstk]
 @dpf_l:
         call    dp_pc
@@ -74,7 +74,7 @@ dp_frames:
         jz      @dpf_e
         cmp     ebp,NDFRM
         jae     @dpf_e
-        mov     ebx,[edx].TFRAME.ln
+        mov     ebx,[edx].TFRAME.line
         add     edx,M_PC
         jmp     @dpf_l
 @dpf_e:
@@ -691,7 +691,7 @@ dp_wval:
 @@:
         cmp     ebx,CSTOP
         jae     @F
-        cmp     [ebx].TFRAME.ln,DLINE
+        cmp     [ebx].TFRAME.line,DLINE
         je      @dwv_n
         movzx   ecx,byte ptr [ebx+F_MARK]
         add     ebx,ecx

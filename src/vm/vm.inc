@@ -32,7 +32,7 @@ vslot   macro
 ; ESI = a frame's or CONT's ip, DX its line, from AX: a 16-bit stream
 ; offset, or an offset in its line's code (cm_flush), under DCODE, which the
 ; direct line never has.
-ipfix   macro
+ipload   macro
         local   @ipa,@ipb
         mov     esi,eax
         cmp     esi,DCODE
@@ -42,7 +42,7 @@ ipfix   macro
         call    ex_resolve
         jmp     @ipb
 @ipa:
-        add     esi,[g_state.mm.cblin]
+        add     esi,[g_state.mm.cachebase]
 @ipb:
         endm
 

@@ -990,7 +990,7 @@ ui_err:
         test    al,al
         jz      @uer_b
         mov     [g_state.rn.cstk],CSTOP
-        and     [g_state.rn.contip],0
+        and     [g_state.rn.contln],0
         call    dp_close
 @uer_b:
         call    plt_flush
@@ -1004,7 +1004,7 @@ ui_err:
         mov     ax,[g_ui.sy.sy_i]
         jmp     @uer_g
 @uer_l:
-        movzx   ebx,word ptr [g_state.rn.ln]
+        movzx   ebx,word ptr [g_state.rn.line]
         cmp     bx,DLINE
         je      @uer_m
         mov     ax,gs:[ebx].TLINE.num

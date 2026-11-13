@@ -106,7 +106,7 @@ dx_raise:
         mov     word ptr [g_dxr+1],ax
         mov     word ptr [g_dxr+3],cx
         or      word ptr [g_dxr+5],-1
-        mov     [g_state.rn.ln],edx
+        mov     [g_state.rn.line],edx
         mov     [g_state.rn.opip],offset g_dxr
         mov     [g_state.rn.inerr],1
         mov     ecx,edi

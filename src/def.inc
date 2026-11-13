@@ -97,8 +97,8 @@ VA_I2   = 3
 ; The control stack's frames; a frame's mark is its size.
 TFRAME   struc                   ; every frame's start; a GOSUB's whole
     mark    db      ?
-    ln      dd      ?               ; the line
-    ip      dd      ?               ; where it goes on: absolute, or an offset
+    line    dd      ?               ; the line
+    resume  dd      ?               ; where it goes on: absolute, or an offset
 TFRAME   ends                    ; in its line's code (cm_flush)
 TFOR     struc                   ; FOR. With whole bounds: step:2, count:2,
     h       TFRAME  <>              ; limit:2, FFFFh (a NaN, no float)
@@ -246,14 +246,14 @@ CLIM     = 0FFF0h
 ; cblea DST, K: DST = the cache's address K. cbcmp DST, K: DST against it.
 cblea   macro   dst,k
         push    eax
-        mov     eax,[g_state.mm.cblin]
+        mov     eax,[g_state.mm.cachebase]
         add     eax,k
         mov     dst,eax
         pop     eax
         endm
 cbcmp   macro   dst,k
         push    eax
-        mov     eax,[g_state.mm.cblin]
+        mov     eax,[g_state.mm.cachebase]
         add     eax,k
         cmp     dst,eax
         pop     eax

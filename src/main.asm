@@ -42,11 +42,11 @@ rt_start:
         mov     [g_state.sg.tmplin],offset g_tmpd
         call    plt_heap
         mov     ecx,10000h              ; the cache, then the program store
-        call    blk_new
-        mov     [g_state.mm.cblin],edx
+        call    alloc_new
+        mov     [g_state.mm.cachebase],edx
         mov     ecx,10000h
-        call    blk_new
-        call    prg_seg
+        call    alloc_new
+        call    prg_place
         mov     [g_state.rn.rsp],esp
         mov     [g_state.rn.cstk],CSTOP
         mov     [g_state.rn.stklim],STKTOP-STKROOM

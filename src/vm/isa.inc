@@ -179,7 +179,7 @@ TJUMP    struc                   ; a jump op's target
     line    dd      ?
     body    dd      ?               ; the statement's body offset
     dest    dd      ?               ; its code's offset; under 3 the mode,
-TJUMP    ends                    ; until found (ex_bjump)
+TJUMP    ends                    ; until found (ex_jumpto)
 JSIZE   = 1+sizeof TJUMP
 
 opn     = 0

@@ -33,7 +33,7 @@ ex_brk:
         call    plt_kflush              ; the Ctrl+C, not a key for the editor
         cmp     [g_state.dbg.emit],0
         je      @F
-        cmp     [g_state.rn.ln],DLINE
+        cmp     [g_state.rn.line],DLINE
         je      @F
         and     [g_state.rn.stpflg],0
         mov     [g_state.dbg.mode],DM_STEP

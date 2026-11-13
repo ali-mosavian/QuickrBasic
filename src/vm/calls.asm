@@ -100,7 +100,7 @@ sc_inbeg:
         mov     [g_state.rn.iredo],0
         lodsw
         movzx   eax,ax
-        add     eax,[g_state.mm.cblin]
+        add     eax,[g_state.mm.cachebase]
         mov     [g_state.rn.inend],eax
         mov     [g_state.rn.iny0],esi
         jmp     ex_lp
@@ -321,7 +321,7 @@ sc_dread:
         pop     esi
         jmp     @vpush
 @rdv_sn:
-        mov     eax,[g_state.rn.dcp]
+        mov     eax,[g_state.rn.dataat]
         mov     ebx,PROGBASE
 @rdv_l:
         mov     ecx,gs:[ebx].TLINE.len
@@ -329,7 +329,7 @@ sc_dread:
         cmp     eax,ebx
         jae     @rdv_l
         sub     ebx,ecx
-        mov     [g_state.rn.ln],ebx
+        mov     [g_state.rn.line],ebx
         jmp     err_sn
 
 ; ::::::::::::::
@@ -345,7 +345,7 @@ rd_item:
         jnz     @ri_c
         mov     ebx,PROGBASE
         call    rd_seek
-        cmp     [g_state.rn.dcp],0
+        cmp     [g_state.rn.dataat],0
         je      @st_call1
         mov     esi,[g_state.rn.dlp]
 @ri_c:
@@ -362,7 +362,7 @@ rd_item:
         inc     esi
         ret
 @ri_nx:
-        mov     ebx,[g_state.rn.dcp]
+        mov     ebx,[g_state.rn.dataat]
         test    ebx,ebx
         jz      @st_call1
         call    rd_after
@@ -379,7 +379,7 @@ rd_item:
 ; keeps:  SI
 ; ::::::::::::::
 rd_load:
-        mov     [g_state.rn.dcp],ebx
+        mov     [g_state.rn.dataat],ebx
         push    esi
         xor     cl,cl
         mov     esi,offset g_rdbuf
@@ -537,7 +537,7 @@ rd_seek:
         call    rd_load
         jmp     @rsk_y
 @rsk_n:
-        mov     [g_state.rn.dcp],0
+        mov     [g_state.rn.dataat],0
         mov     [g_rdbuf],0
 @rsk_y:
         mov     [g_state.rn.dlp],offset g_rdbuf
@@ -672,7 +672,7 @@ ex_rungo:
         mov     esp,[g_state.rn.rsp]
         call    ev_clr
         call    chn_start
-        and     [g_state.rn.ehnd],0
+        and     [g_state.rn.onerr],0
         and     [g_state.rn.inerr],0
         and     [g_state.rn.errn],0
         and     [g_state.rn.erl],0
@@ -716,15 +716,15 @@ sc_list:
 ; error:  ?CAN'T CONTINUE  no place
 ; ::::::::::::::
 sc_cont:
-        mov     ebx,[g_state.rn.contip]
+        mov     ebx,[g_state.rn.contln]
         test    ebx,ebx
         jz      err_cn
-        mov     eax,[g_state.rn.contsi]
+        mov     eax,[g_state.rn.contcode]
         test    eax,eax
         jz      ex_ready
-        mov     [g_state.rn.ln],ebx
+        mov     [g_state.rn.line],ebx
         mov     edx,ebx
-        ipfix
+        ipload
         jmp     ex_lp
 
 ; ::::::::::::::

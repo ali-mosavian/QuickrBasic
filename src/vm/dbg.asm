@@ -3,7 +3,7 @@
 ; ==========================================================================
 ; holds:    op_dbg, dbg_depth, dbg_pos, dbg_bpset, dbg_bpclr, dbg_eval,
 ;           dbg_evx, dbg_ever, sc_tron, sc_troff
-; uses:     ex_smap, sc_stop
+; uses:     ex_stmtof, sc_stop
 ; data:     With dbg.emit set (the IDE), each program statement's code
 ;           starts with DBG. Its stops: a step (mode), a breakpoint at the
 ;           line's first statement (by line number, g_dbbp), until (ulnum,
@@ -27,7 +27,7 @@ op_dbg:
         jne     @F
         dispatch
 @@:
-        mov     ebx,[g_state.rn.ln]
+        mov     ebx,[g_state.rn.line]
         cmp     ebx,DLINE
         je      @odb_d
         cmp     [g_state.dbg.trace],0
@@ -40,7 +40,7 @@ op_dbg:
         call    dbg_pos
         call    [g_state.dbg.hook]
         pop     esi
-        mov     ebx,[g_state.rn.ln]
+        mov     ebx,[g_state.rn.line]
 @odb_m:
         mov     al,[g_state.dbg.mode]
         cmp     al,DM_STEP
@@ -50,10 +50,10 @@ op_dbg:
         call    dbg_depth
         cmp     eax,[g_state.dbg.pdep]
         jbe     @odb_s
-        mov     ebx,[g_state.rn.ln]
+        mov     ebx,[g_state.rn.line]
 @odb_b:                                 ; the line's first statement only
         lea     eax,[esi-1]
-        sub     eax,[g_state.mm.cblin]
+        sub     eax,[g_state.mm.cachebase]
         cmp     eax,gs:[ebx].TLINE.code
         jne     @odb_d
         movzx   eax,gs:[ebx].TLINE.num
@@ -103,15 +103,15 @@ dbg_depth:
 dbg_pos:
         mov     dx,gs:[ebx].TLINE.num
         mov     [g_state.dbg.wnum],dx
-        call    ex_smap
+        call    ex_stmtof
         mov     eax,[edi].TSTMT.body
-        mov     [g_state.dbg.wb0],eax
+        mov     [g_state.dbg.stmtfrom],eax
         mov     eax,BOFF
         cmp     ecx,1
         jbe     @F
         mov     eax,[edi+sizeof TSTMT].TSTMT.body
 @@:
-        mov     [g_state.dbg.wb1],eax
+        mov     [g_state.dbg.stmtto],eax
         ret
 
 ; ::::::::::::::
@@ -175,7 +175,7 @@ dbg_eval:
         stosb
         test    al,al
         jnz     @B
-        mov     [g_state.rn.ln],DLINE
+        mov     [g_state.rn.line],DLINE
         mov     [g_dbev],esp
         mov     esi,offset g_inbuf
         mov     edi,offset g_cbuf
@@ -242,8 +242,8 @@ g_dbsvt dd      g_state.rn.rsp
         db      4
         dd      g_state.rn.ppip
         db      8                       ; ppip, ppend
-        dd      g_state.rn.contip
-        db      TRUN.fid-TRUN.contip    ; contip, contsi, ln, lnum, vpt
+        dd      g_state.rn.contln
+        db      TRUN.fid-TRUN.contln    ; contip, contsi, ln, lnum, vpt
         dd      g_state.rn.opip
         db      4
         dd      g_state.rn.stpflg
