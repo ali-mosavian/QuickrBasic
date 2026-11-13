@@ -108,7 +108,29 @@ Platform: `pmem` memory, `pkey` keyboard, `pscr` text screen, `pmou` mouse, `pcl
 and tick, `pfil` files and directories, `psys` process (exit, command line, environment, SHELL,
 ports, the STOP key), `pfpu` the x87's functions, `psnd` sound.
 
-The UI (`src/ui`, `csrc/core/ui`) is ported last; its prefixes are chosen then.
+The UI (`src/ui` → `csrc/core/ui`):
+
+| asm | C | prefix |
+|---|---|---|
+| ui/scr | ui/scrn | `scrn` |
+| ui/mouse | ui/mous | `mous` |
+| ui/theme | ui/them | `them` |
+| ui/syntax | ui/synt | `synt` |
+| ui/lmap | ui/lmap | `lmap` |
+| ui/text | ui/text | `text` |
+| ui/view | ui/view | `view` |
+| ui/win | ui/wind | `wind` |
+| ui/draw | ui/draw | `draw` |
+| ui/ui | ui/uimn | `uimn` |
+| ui/edit | ui/edit | `edit` |
+| ui/menu | ui/menu | `menu` |
+| ui/dlg | ui/dlog | `dlog` |
+| ui/compl | ui/cmpl | `cmpl` |
+| ui/dbg | ui/udbg | `udbg` |
+| ui/dpane | ui/dpan | `dpan` |
+
+Their platform: `pscr` the text screen (cells, cursor, mode, the DAC's palette, retrace),
+`pmou` the mouse. Name map: `csrc/portmap/ui.md`.
 
 ## Control flow
 
