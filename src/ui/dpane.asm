@@ -14,7 +14,8 @@
 ;           Watch: expressions, each PRINTed by dbg_eval in the stop's
 ;           procedure's scope at each stop; kept across runs.
 ;           The tooltip: the Locals row of the variable under the cursor, or
-;           the mouse (tt_ms), in the selected frame's view.
+;           the mouse (tt_ms), in the selected frame's view; a module
+;           variable's the procedure sees (DIM SHARED, SHARED) too.
 ;           The windows share the edit windows' rows (dp_geo).
 ; ==========================================================================
 
@@ -873,6 +874,26 @@ dp_var1:
         cmp     ebp,NDVAR
         jae     @dv1_r
         mov     [g_ui.dp.dp_vid+ebp*2],bx
+        call    dp_vtext
+        push    ecx
+        push    esi
+        push    edi
+        call    dp_rowcut
+        pop     edi
+        pop     esi
+        pop     ecx
+        add     edi,DP_TW
+        inc     ebp
+@dv1_r:
+        ret
+
+; ::::::::::::::
+; dp_vtext - variable EBX's row at dprow, 0-ended: its name, " = ", its
+; value as the frame sees it; ECX its parameter's place or -1.
+;
+; keeps:  all
+; ::::::::::::::
+dp_vtext:
         pushad
         mov     edi,offset g_dprow
         movzx   eax,word ptr [g_vnam+ebx*2]
@@ -906,12 +927,7 @@ dp_var1:
         call    dp_cpy
 @dv1_c:
         mov     byte ptr [edi],0
-        mov     edi,[esp]
-        call    dp_rowcut
         popad
-        add     edi,DP_TW
-        inc     ebp
-@dv1_r:
         ret
 
 ; ::::::::::::::
@@ -1079,8 +1095,6 @@ dp_tip:
         call    dp_find
         jc      @dpt_p
         pop     edx
-        imul    esi,eax,DP_TW
-        add     esi,offset g_ui.dp.dp_vt
         sub     dx,[g_ui.ed.ed_top]     ; its row: under the name, else over
         add     dx,[g_ui.ed.ed_r0]
         inc     edx
@@ -1257,77 +1271,129 @@ dp_issfx:
         ret
 
 ; ::::::::::::::
-; dp_find - Locals' row of the name at ESI+EBX, ECX long, suffix DL: its
-; letters the variable's name's, its suffix, if any, its type's.
+; dp_find - the row of the name at ESI+EBX, ECX long, suffix DL: Locals'
+; variable of it, else a module one the frame's procedure sees, SHARED.
 ;
-; out:    EAX  the row
+; out:    ESI  the row, 0-ended
 ;         CF   set: none
-; keeps:  EBX, ESI
+; keeps:  EBX
 ; ::::::::::::::
 dp_find:
         push    ebx
-        push    esi
         add     esi,ebx
         xor     eax,eax
 @dfd_l:
         cmp     al,[g_ui.dp.dp_nv]
-        jae     @dfd_n
+        jae     @dfd_m
         movzx   ebx,[g_ui.dp.dp_vid+eax*2]
+        call    dp_match
+        je      @F
+        inc     eax
+        jmp     @dfd_l
+@@:
+        imul    esi,eax,DP_TW
+        add     esi,offset g_ui.dp.dp_vt
+        jmp     @dfd_y
+@dfd_m:
+        cmp     [g_dpp],0               ; the module's: all in Locals
+        je      @dfd_n
+        mov     ebx,1
+@dfd_v:
+        cmp     bx,[g_state.lx.nsyms]
+        jae     @dfd_n
+        cmp     [g_vscp+ebx],0
+        jne     @dfd_x
+        mov     al,[g_sinfo+ebx]
+        and     al,83h
+        cmp     al,3
+        je      @dfd_x
+        call    dp_match
+        jne     @dfd_x
+        call    dp_seen
+        jc      @dfd_x
+        or      ecx,-1
+        call    dp_vtext
+        mov     edi,offset g_dptip
+        call    dp_rowcut
+        mov     esi,offset g_dptip
+@dfd_y:
+        pop     ebx
+        clc
+        ret
+@dfd_x:
+        inc     ebx
+        jmp     @dfd_v
+@dfd_n:
+        pop     ebx
+        stc
+        ret
+
+; ::::::::::::::
+; dp_match - variable EBX is the name at ESI, ECX long, suffix DL: its
+; letters the name's, the suffix, if any, its type's.
+;
+; out:    ZF  set: so
+; keeps:  all
+; ::::::::::::::
+dp_match:
+        pushad
         test    dl,dl
         jz      @F
-        push    eax
-        push    edi
-        push    ecx
         mov     al,dl
         mov     edi,offset g_dpsfn
+        push    ecx
         mov     ecx,5
         repne   scasb
+        pop     ecx
         mov     al,[edi-1+g_dpsft-g_dpsfn]
         cmp     al,[g_vtyp+ebx]
-        pop     ecx
-        pop     edi
-        pop     eax
-        jne     @dfd_x
+        jne     @dmt_r
 @@:
-        push    eax
-        push    edi
         movzx   eax,word ptr [g_vnam+ebx*2]
         mov     edi,[g_nname+eax*4]
         cmp     cl,[edi]
-        jne     @dfd_c
-        push    ecx
-        push    esi
+        jne     @dmt_r
 @@:
         inc     edi
         lodsb
         cmp     al,'a'
-        jb      @dfd_u
+        jb      @dpm_u
         cmp     al,'z'
-        ja      @dfd_u
+        ja      @dpm_u
         sub     al,20h
-@dfd_u:
+@dpm_u:
         cmp     al,[edi]
-        jne     @F
+        jne     @dmt_r
         loop    @B
-@@:
-        pop     esi
-        pop     ecx
-@dfd_c:
-        pop     edi
-        pop     eax
-        je      @dfd_y
-@dfd_x:
-        inc     eax
-        jmp     @dfd_l
-@dfd_y:
-        pop     esi
-        pop     ebx
-        clc
+@dmt_r:
+        popad
         ret
-@dfd_n:
-        pop     esi
-        pop     ebx
+
+; dp_seen - CF clear: module variable EBX is seen in procedure dpp: DIM
+; SHARED, or SHARED there. Keeps all.
+dp_seen:
+        pushad
+        movzx   ebx,word ptr [g_vnam+ebx*2]
+        xor     eax,eax
+        call    scp_get
+        jc      @F
+        test    byte ptr [edi+B_FLG],BF_SHR
+        jnz     @dps_y
+@@:
+        mov     eax,[g_dpp]
+        shl     eax,5
+        movzx   eax,word ptr [g_prc+eax+P_NAM]
+        call    scp_get
+        jc      @dps_n
+        test    byte ptr [edi+B_FLG],BF_REF
+        jnz     @dps_y
+@dps_n:
+        popad
         stc
+        ret
+@dps_y:
+        popad
+        clc
         ret
 
         .data
@@ -1354,6 +1420,7 @@ dg_dpw  TDLG    <8,14,8,52,u_dpadd,3,0,5,1>
         .data?
 g_dpout db      80 dup(?)               ; dbg_eval's output
 g_dpln  db      LNBUF dup(?)            ; the line under the mouse
+g_dptip db      DP_TW dup(?)            ; the tooltip of a module variable
 g_dpp   dd      ?                       ; Locals' procedure, 0 the module
 g_dpnw  dd      ?                       ; its newer call, dp_newer's
 g_dprow db      80 dup(?)               ; a row being made

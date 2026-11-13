@@ -634,7 +634,7 @@ def play() -> None:
     def debug_pane() -> None:
         """At a stop: the code in columns 0-49; Watch, Locals, Call stack right of it; gone on a run."""
         fact = ["DECLARE SUB Fact (n%)", "DIM SHARED r&", "s$ = \"hi\"", "d# = 2.5#", "r& = 1", "Fact 4", "PRINT r&", "END",
-                "SUB Fact (n%)", "t% = n% * 10", "IF n% > 3 THEN Fact n% - 1", "r& = r& * n%", "END SUB"]
+                "SUB Fact (n%)", "t% = n% * 10", "IF n% > 3 THEN Fact n% - 1", "r& = r& * n%", "SHARED s$", "END SUB"]
         (work / "FACT.BAS").write_bytes("\r\n".join(fact).encode() + b"\r\n")
         open_file("fact.bas")
         assert "Watch" not in "".join(pane()), pane()
@@ -671,11 +671,15 @@ def play() -> None:
             end = next(i for i, r in enumerate(rows) if "Locals" in r)
             return [r[2:-1].strip() for r in rows[1:end] if r[2:-1].strip()]
 
-        # The cursor on a variable, or the mouse over one: its value under it.
+        # The cursor on a variable, or the mouse over one: its value under it; a SHARED module
+        # one's too. The stop put the cursor on r&.
+        assert b" R& = 1 " in chars(6), chars(6)
         press("end", "left")
         assert b" N% = 3 " in chars(6), chars(6)
         mouse(3, 1, False)
         assert b" T% = 30 " in chars(4), chars(4)
+        mouse(6, 8, False)
+        assert b' S$ = "hi" ' in chars(7), chars(7)
         mouse(0, 70, False)
         assert b"T% = 30" not in chars(4), chars(4)
         # Watch: Ins asks for an expression, evaluated in the stopped call's scope; an error is its
