@@ -42,17 +42,10 @@ enum : Sngl { SNGL_MINUS_ONE = 0xBF800000, SNGL_MIN_I32 = 0xCF000000 /* -2^31 */
 
 static uint32_t fmth_exponent(const Sngl a) { return a >> SNGL_EXP_SHIFT & SNGL_EXP_MASK; }
 
-/* Division by zero. */
-[[noreturn]]
-static void fmth_fail(Fault *const f, const uint8_t code)
-{
-    fault_raise(f, (Failure){.code = code, .at = FAULT_KEEP, .line = FAULT_KEEP});
-}
-
 Sngl fmth_div(Fault *const f, const Sngl a, const Sngl b)
 {
     if (!(b & ~SNGL_SIGN))
-        fmth_fail(f, E_DZ);
+        fault_error(f, E_DZ);
 
     return sngl_bits(sngl_val(a) / sngl_val(b));
 }
@@ -61,9 +54,9 @@ Sngl fmth_div(Fault *const f, const Sngl a, const Sngl b)
 static Sngl fmth_check(Fault *const f, const uint8_t st, const Sngl r)
 {
     if (st == PFPU_IQ)
-        fmth_fail(f, E_IQ);
+        fault_error(f, E_IQ);
     if (st == PFPU_OV)
-        fmth_fail(f, E_OV);
+        fault_error(f, E_OV);
 
     return r;
 }
@@ -115,7 +108,7 @@ int16_t fmth_to_i16(Fault *const f, const Sngl a)
     const int32_t v = fmth_round_to_int32(a);
 
     if (v != (int16_t)v)
-        fmth_fail(f, E_IQ);
+        fault_error(f, E_IQ);
 
     return (int16_t)v;
 }
@@ -126,7 +119,7 @@ uint16_t fmth_to_u16(Fault *const f, const Sngl a)
     const int32_t v = fmth_round_to_int32(a);
 
     if ((uint32_t)v > UINT16_MAX)
-        fmth_fail(f, E_IQ);
+        fault_error(f, E_IQ);
 
     return (uint16_t)v;
 }
@@ -137,7 +130,7 @@ int32_t fmth_to_i32(Fault *const f, const Sngl a)
     const int32_t v = fmth_round_to_int32(a);
 
     if (v == INT32_MIN && a != SNGL_MIN_I32) /* -2^31 itself is one */
-        fmth_fail(f, E_IQ);
+        fault_error(f, E_IQ);
 
     return v;
 }

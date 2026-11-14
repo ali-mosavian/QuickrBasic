@@ -27,4 +27,12 @@ static inline void fault_raise(Fault *const f, const Failure e)
     f->raise(f, &e);
     __builtin_unreachable();
 }
+
+/* Error code on the current line, no caret. Out of line and cold: a hot caller keeps no frame for
+   the Failure. */
+[[noreturn, gnu::cold, gnu::noinline]]
+static inline void fault_error(Fault *const f, const uint8_t code)
+{
+    fault_raise(f, (Failure){.code = code, .at = FAULT_KEEP, .line = FAULT_KEEP});
+}
 #endif

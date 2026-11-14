@@ -140,7 +140,7 @@ static void oper_int_op(
     }
 
     if (overflow)
-        fault_raise(f, (Failure){.code = E_OV, .at = FAULT_KEEP, .line = FAULT_KEEP});
+        fault_error(f, E_OV);
 
     top->i = r;
 }

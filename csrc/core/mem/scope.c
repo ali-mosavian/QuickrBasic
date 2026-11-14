@@ -48,7 +48,7 @@ static uint32_t scop_hash(const uint16_t scope, const uint16_t name)
 [[noreturn]]
 static void scop_fail(const Scop *const sc, const uint8_t code)
 {
-    fault_raise(sc->fault, (Failure){.code = code, .at = FAULT_KEEP, .line = FAULT_KEEP});
+    fault_error(sc->fault, code);
 }
 
 void scop_init(Scop *const sc, Fault *const f)

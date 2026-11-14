@@ -40,7 +40,7 @@ Node *ast_new(Ast *const t, const NodeKind kind)
     Node *const n = arena_alloc(&t->arena, sizeof *n);
 
     if (!n)
-        fault_raise(t->fault, (Failure){.code = E_OM, .at = FAULT_KEEP, .line = FAULT_KEEP});
+        fault_error(t->fault, E_OM);
 
     n->kind = kind;
     return n;

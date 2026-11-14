@@ -132,7 +132,7 @@ static void blok_synerr(BlokScan *const sc)
 [[noreturn]]
 static void blok_nomem(BlokScan *const sc)
 {
-    fault_raise(sc->f, (Failure){.code = E_OM, .at = FAULT_KEEP, .line = FAULT_KEEP});
+    fault_error(sc->f, E_OM);
 }
 
 static void *blok_alloc(BlokScan *const sc, const size_t size)

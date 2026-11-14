@@ -47,7 +47,7 @@ enum { LXAHEAD = 128 }; /* ahead: a word's, a number's bytes in the window */
 [[noreturn]]
 static void lexr_fail(const Lexr *const lx)
 {
-    fault_raise(lx->fault, (Failure){.code = E_OM, .at = FAULT_KEEP, .line = FAULT_KEEP});
+    fault_error(lx->fault, E_OM);
 }
 
 void lexr_init(Lexr *const lx, Fault *const f, LexrNames *const names)

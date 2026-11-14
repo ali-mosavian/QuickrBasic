@@ -45,7 +45,7 @@ static void usng_putc(Usng *const u, const uint8_t c) { usng_out(u, &c, 1); }
 [[noreturn]]
 static void usng_fail(const Usng *const u, const uint8_t code)
 {
-    fault_raise(u->fault, (Failure){.code = code, .at = FAULT_KEEP, .line = FAULT_KEEP});
+    fault_error(u->fault, code);
 }
 
 void usng_init(Usng *const u, Fault *const f, UsngOut *const out)

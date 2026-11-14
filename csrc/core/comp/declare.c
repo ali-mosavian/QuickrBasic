@@ -205,7 +205,7 @@ const uint8_t *decl_step(const uint8_t *p)
 [[noreturn]]
 static void decl_fail(const DeclScan *const ds, const uint8_t code)
 {
-    fault_raise(ds->d->fault, (Failure){.code = code, .at = FAULT_KEEP, .line = FAULT_KEEP});
+    fault_error(ds->d->fault, code);
 }
 
 /* Room in the array *t of n used, *cap, each size bytes, for one more. */
