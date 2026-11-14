@@ -12,6 +12,7 @@
 #include "mem/strg.h"
 #include "mem/symb.h"
 #include "num/dubl.h"
+#include "num/fmth.h"
 #include "num/sngl.h"
 #include "vm/flow.h"
 
@@ -169,10 +170,9 @@ static bool is_logic(const uint8_t rel) { return rel == OP_AND || rel == OP_OR; 
 static bool is_xop(const uint8_t rel) { return rel >= OP_IDIV && rel < REL; } /* \ MOD XOR EQV IMP */
 
 /* cm_sop: operator rel's result is a SHORT's when both operands are SHORTs or literals that fit,
-   one a SHORT: + - * \ MOD, QBasic's INTEGER arithmetic. lsh: the left's class. */
-static uint8_t shortop(Session *const S, const uint8_t rel, const uint8_t lsh)
+   one a SHORT: + - * \ MOD, QBasic's INTEGER arithmetic. lsh, rsh: the operands' classes. */
+static uint8_t shortop(const uint8_t rel, const uint8_t lsh, const uint8_t rsh)
 {
-    const uint8_t rsh = expr_shclass(S);
     if (!lsh || !rsh || !((lsh | rsh) & SH_SHORT))
         return SH_NONE;
     const bool arith = rel <= OP_MUL || rel == OP_IDIV || rel == OP_MOD;
@@ -198,18 +198,6 @@ uint8_t *expr_lfloat(Session *const S, uint8_t *const left, uint8_t *const right
     }
     comp_insert(S, O_I_TOF, right);
     return right + 1;
-}
-
-/* INT operator o (0..5: + - * / AND OR): the right operand's load folds into .V or .U8. */
-static void intop(Session *const S, const uint8_t o, uint8_t *const right)
-{
-    S->comp.type = T_INT;
-    if (isright(S, O_I_LD_V, 3, right))
-        *right = O_I_ADD_V + o;
-    else if (isright(S, O_I_LD_U8, 2, right))
-        *right = O_I_ADD_U8 + o;
-    else
-        comp_op(S, O_I_ADD + o);
 }
 
 void expr_icmp(Session *const S, const uint8_t rel, uint8_t *const right)
@@ -247,17 +235,6 @@ static uint8_t fltkind(Session *const S, const uint8_t *const right)
     return 0;
 }
 
-/* FLOAT operator o (0..3: + - * /): the right's load folded into .V, .VI, .U8 or .F32. */
-static void fltop(Session *const S, const uint8_t o, uint8_t *const right)
-{
-    S->comp.type = T_FLT;
-    const uint8_t k = fltkind(S, right);
-    if (k)
-        *right = k + o;
-    else
-        comp_op(S, O_F_ADD + o);
-}
-
 void expr_fcmp(Session *const S, const uint8_t rel, uint8_t *const right)
 {
     S->comp.type = T_INT;
@@ -272,81 +249,6 @@ void expr_fcmp(Session *const S, const uint8_t rel, uint8_t *const right)
         comp_opb(S, O_F_CMP, m);
     }
     S->comp.cmpend = S->comp.out;
-}
-
-/* String operator rel: + joins, a relation compares. */
-static void strop(Session *const S, const uint8_t rel)
-{
-    if (!(S->comp.type & T_STR))
-        mismatch(S);
-    if (rel == OP_ADD)
-        comp_op(S, O_S_CAT);
-    else if (!is_rel(rel))
-        mismatch(S);
-    else {
-        S->comp.cmp = S->comp.out;
-        comp_opb(S, O_S_CMP, rel & REL_MASK);
-        S->comp.cmpend = S->comp.out;
-        S->comp.type = T_INT;
-    }
-}
-
-/* A DOUBLE either side; or for a DOUBLE target ^, and unless of constants / or a SINGLE's. */
-static bool wants_double(Session *const S, const Node *const n, const uint8_t ltype, const bool bothk)
-{
-    if (ltype == T_DBL || S->comp.type == T_DBL)
-        return true;
-    if (!n->dbl)
-        return false;
-    return n->op == OP_POW || (!bothk && (n->op == OP_DIV || ltype & T_FLT || S->comp.type == T_FLT));
-}
-
-/* Number operator rel in DOUBLEs, the left converted before right. */
-static void dblop(Session *const S, const uint8_t rel, const uint8_t ltype, uint8_t *const right)
-{
-    if (ltype != T_DBL)
-        comp_insert(S, ltype == T_INT ? O_I_TOD : O_F_TOD, right);
-    comp_todouble(S);
-    S->comp.iload = S->comp.iloadend = nullptr;
-    if (rel == OP_POW)
-        comp_op(S, O_D_POW);
-    else if (is_rel(rel)) {
-        comp_opb(S, O_D_CMP, rel & REL_MASK);
-        S->comp.type = T_INT;
-    } else
-        comp_op(S, O_D_ADD + rel);
-}
-
-/* Number operator n->op: DOUBLEs, ^ a SINGLE's, INTs (but /, a FLOAT as QBasic's), or FLOATs. */
-static void numop(Session *const S, const Node *const n, const uint8_t ltype, const bool bothk, uint8_t *const left,
-                  uint8_t *right)
-{
-    const uint8_t rel = n->op;
-    if (S->comp.type & T_STR)
-        mismatch(S);
-    const bool lint = !(ltype & T_FLT);
-    if (wants_double(S, n, ltype, bothk))
-        dblop(S, rel, ltype, right);
-    else if (rel == OP_POW) {
-        if (lint)
-            expr_lfloat(S, left, right);
-        comp_tofloat(S);
-        comp_call(S, K_FPOW);
-        S->comp.type = T_FLT;
-    } else if (lint && S->comp.type == T_INT && rel != OP_DIV) {
-        if (is_rel(rel))
-            expr_icmp(S, rel, right);
-        else
-            intop(S, rel, right);
-    } else {
-        if (lint)
-            right = expr_lfloat(S, left, right);
-        comp_tofloat(S);
-        if (is_rel(rel))
-            expr_fcmp(S, rel, right);
-        else
-            fltop(S, rel, right);
-    }
 }
 
 /* The operator at c's index; false: none. */
@@ -412,31 +314,268 @@ static uint16_t parse(Session *const S, const uint8_t p)
     return left;
 }
 
-/* Binary node n: its left operand, its right, then the operator; a right load folds into it. */
+static uint8_t vtype(Session *S, uint16_t i);
+
+/* A DOUBLE either side; or for a DOUBLE target ^, and unless of constants / or a SINGLE's. */
+static bool wants_double(const Node *const n, const uint8_t lt, const uint8_t rt, const bool bothk)
+{
+    if (lt == T_DBL || rt == T_DBL)
+        return true;
+    if (!n->dbl)
+        return false;
+    return n->op == OP_POW || (!bothk && (n->op == OP_DIV || lt == T_FLT || rt == T_FLT));
+}
+
+/* How binary node n computes: its operands' type, W_* below. */
+enum : uint8_t { W_INT, W_FLT, W_DBL, W_POW, W_STR };
+
+static uint8_t work(Session *const S, const Node *const n)
+{
+    const uint8_t rel = n->op;
+    if (is_logic(rel) || is_xop(rel))
+        return W_INT;
+    const uint8_t lt = vtype(S, n->a), rt = vtype(S, n->b);
+    if (lt & T_STR)
+        return W_STR;
+    const bool bothk = rel != OP_POW && is_lit(S, n->a) && is_lit(S, n->b);
+    if (wants_double(n, lt, rt, bothk))
+        return W_DBL;
+    if (rel == OP_POW)
+        return W_POW;
+    return lt == T_INT && rt == T_INT && rel != OP_DIV ? W_INT : W_FLT;
+}
+
+/* Node i's value's type, nothing compiled; a mismatch is gen's to raise. */
+static uint8_t vtype(Session *const S, const uint16_t i)
+{
+    const Node *const n = node(S, i);
+    switch (n->kind) {
+    case N_VAR: {
+        const uint8_t info = symb_var(&S->symb, n->a)->info;
+        return expr_ktype[info & (SK_DBL | VK_MASK)];
+    }
+    case N_UN: return n->op == TK_NOT ? T_INT : vtype(S, n->a);
+    case N_BIN:
+        if (is_rel(n->op))
+            return T_INT;
+        switch (work(S, n)) {
+        case W_INT: return T_INT;
+        case W_DBL: return T_DBL;
+        case W_STR: return T_STR;
+        default: return T_FLT;
+        }
+    default: return n->type;
+    }
+}
+
+/* A leaf's value as one load of type t (T_INT or T_FLT): its op and operand in *op, b; false:
+   not one load. left: a left operand's, which converts only I.LD.V and I.LD.U8 (cm_lflt). */
+static bool one_load(Session *const S, const Node *const n, const uint8_t t, const bool left, uint8_t *const op,
+                     uint8_t b[static 4])
+{
+    if (n->kind == N_VAR) {
+        const uint16_t id = n->a;
+        const uint8_t info = symb_var(&S->symb, id)->info;
+        if (info & SK_DBL || comp_ispar(S, id))
+            return false;
+        store16(b, id);
+        switch (info & VK_MASK) {
+        case VK_INT: *op = t == T_INT ? O_I_LD_V : O_F_LD_VI; return true;
+        case VK_FLT: *op = O_F_LD_V; return t == T_FLT;
+        default: return false;
+        }
+    }
+    if (n->kind != N_LIT)
+        return false;
+    for (uint32_t k = 0; k < 4; k++)
+        b[k] = n->lit[k];
+    if (n->type == T_FLT) {
+        *op = n->op;
+        return t == T_FLT;
+    }
+    if (n->type != T_INT)
+        return false;
+    if (t == T_INT || n->op == O_I_LD_U8) {
+        *op = t == T_INT ? n->op : O_F_LD_U8;
+        return true;
+    }
+    if (left) /* an I16, I32 literal: I.TOF after it */
+        return false;
+    const uint32_t v = n->op == O_I_LD_I32 ? load32(n->lit) : load16(n->lit);
+    store32(b, n->op == O_I_LD_I32 ? fmth_from_i32((int32_t)v) : fmth_from_u16((uint16_t)v));
+    *op = O_F_LD_F32;
+    return true;
+}
+
+/* The operand bytes after a load op. */
+static uint32_t operand_size(const uint8_t op)
+{
+    const uint8_t b[1] = {op};
+    return flow_opsize(b) - 1;
+}
+
+/* Op, then load op lop's operand b: the load itself, or an operator its load folded into. */
+static void emit_load(Session *const S, const uint8_t op, const uint8_t lop, const uint8_t b[static 4])
+{
+    comp_op(S, op);
+    for (uint32_t k = 0; k < operand_size(lop); k++)
+        comp_byte(S, b[k]);
+}
+
+/* Node i's value as type t, left a left operand's. */
+static void gen_as(Session *const S, const uint16_t i, const uint8_t t, const bool left)
+{
+    uint8_t op, b[4];
+    const Node *const n = node(S, i);
+    if (t == T_FLT && vtype(S, i) == T_INT && one_load(S, n, T_FLT, left, &op, b)) {
+        S->expr.shend = nullptr;
+        emit_load(S, op, op, b);
+        S->comp.type = T_FLT;
+        return;
+    }
+    gen(S, i);
+    switch (t) {
+    case T_INT: comp_toint(S); break;
+    case T_DBL: comp_todouble(S); break;
+    case T_FLT:
+        if (left && S->comp.type == T_INT) { /* not the leaf rewritten: I.TOF after it */
+            S->comp.type = T_FLT;
+            comp_op(S, O_I_TOF);
+        } else
+            comp_tofloat(S);
+        break;
+    default: break;
+    }
+}
+
+/* Leaf n's SHORT class: a SHORT variable's, a literal's. */
+static uint8_t leaf_class(Session *const S, const Node *const n)
+{
+    if (n->kind == N_VAR)
+        return symb_var(&S->symb, n->a)->type == ET_SH ? SH_SHORT : SH_NONE;
+    return n->sh;
+}
+
+/* A relation's compare op (its right's load lop, operand b, folded in; b null none), mask m
+   after it; comp.cmp marks it for a one-line IF. */
+static void compare(Session *const S, const uint8_t op, const uint8_t lop, const uint8_t *const b, const uint8_t m)
+{
+    S->comp.cmp = S->comp.out;
+    if (b)
+        emit_load(S, op, lop, b);
+    else
+        comp_op(S, op);
+    comp_byte(S, m);
+    S->comp.cmpend = S->comp.out;
+    S->comp.type = T_INT;
+}
+
+/* INT or FLOAT operator rel (+ - * / AND OR as 0..5, a relation REL | mask) after its left
+   operand: the right one as type t, its one load folded into the op (.V, .VI, .U8, .F32). Its
+   SHORT class to *rsh. */
+static void numeric(Session *const S, const uint8_t rel, const uint16_t r, const uint8_t t, uint8_t *const rsh)
+{
+    const bool flt = t == T_FLT;
+    uint8_t lop, b[4];
+    if (one_load(S, node(S, r), t, false, &lop, b)) {
+        *rsh = leaf_class(S, node(S, r));
+        uint8_t form; /* the op group's index: .V, .VI, .U8, .F32 */
+        switch (lop) {
+        case O_I_LD_V:
+        case O_F_LD_V: form = 0; break;
+        case O_F_LD_VI: form = 1; break;
+        case O_I_LD_U8:
+        case O_F_LD_U8: form = 2; break;
+        case O_F_LD_F32: form = 3; break;
+        default: form = 0xFF; /* I16, I32, PI: no form */
+        }
+        if (form != 0xFF && (flt || form != 1)) {
+            if (is_rel(rel)) {
+                const uint8_t op = flt ? fcmpk[form] : form ? O_I_CMP_U8 : O_I_CMP_V;
+                compare(S, op, lop, b, rel & REL_MASK);
+            } else {
+                const uint8_t base = flt ? (uint8_t[]){O_F_ADD_V, O_F_ADD_VI, O_F_ADD_U8, O_F_ADD_F32}[form]
+                                         : form ? O_I_ADD_U8 : O_I_ADD_V;
+                emit_load(S, base + rel, lop, b);
+                S->comp.type = t;
+            }
+            return;
+        }
+    }
+    gen_as(S, r, t, false);
+    *rsh = expr_shclass(S);
+    if (is_rel(rel))
+        compare(S, flt ? O_F_CMP : O_I_CMP, 0, nullptr, rel & REL_MASK);
+    else {
+        comp_op(S, (flt ? O_F_ADD : O_I_ADD) + rel);
+        S->comp.type = t;
+    }
+}
+
+/* Binary node n: its operands as its work type, then the operator. */
 static void gen_binary(Session *const S, const Node *const n)
 {
     const uint8_t rel = n->op;
-    gen(S, n->a);
-    if (is_logic(rel) || is_xop(rel))
-        comp_toint(S);
-    const uint8_t ltype = S->comp.type;
-    uint8_t *const left = comp_intleaf(S);
-    const uint8_t lsh = expr_shclass(S);
-    uint8_t *const right = S->comp.out;
-    gen(S, n->b);
-    S->comp.p = n->end;
-    const uint8_t sh = shortop(S, rel, lsh);
-    const bool bothk = rel != OP_POW && is_lit(S, n->a) && is_lit(S, n->b);
-    if (is_xop(rel)) {
-        comp_toint(S);
-        comp_op(S, xop[rel - OP_IDIV]);
-    } else if (is_logic(rel)) {
-        comp_toint(S);
-        intop(S, rel - 1, right); /* AND, OR: O_I_ADD's 4th, 5th on */
-    } else if (ltype == T_STR)
-        strop(S, rel);
-    else
-        numop(S, n, ltype, bothk, left, right);
+    const uint8_t w = work(S, n);
+    uint8_t lsh = SH_NONE, rsh = SH_NONE;
+    if (w == W_STR) {
+        gen(S, n->a);
+        gen(S, n->b);
+        S->comp.p = n->end;
+        if (!(S->comp.type & T_STR))
+            mismatch(S);
+        if (rel == OP_ADD)
+            comp_op(S, O_S_CAT);
+        else if (!is_rel(rel))
+            mismatch(S);
+        else
+            compare(S, O_S_CMP, 0, nullptr, rel & REL_MASK);
+        S->expr.sh = SH_NONE;
+        S->expr.shend = S->comp.out;
+        return;
+    }
+    const uint8_t lt = w == W_INT ? T_INT : w == W_DBL ? T_DBL : T_FLT;
+    gen_as(S, n->a, lt, true);
+    lsh = expr_shclass(S);
+    if (vtype(S, n->b) & T_STR) {
+        gen(S, n->b);
+        S->comp.p = n->end;
+        mismatch(S);
+    }
+    switch (w) {
+    case W_DBL:
+        gen_as(S, n->b, T_DBL, false);
+        rsh = expr_shclass(S);
+        S->comp.p = n->end;
+        S->comp.iload = S->comp.iloadend = nullptr;
+        if (rel == OP_POW)
+            comp_op(S, O_D_POW);
+        else if (is_rel(rel)) {
+            comp_opb(S, O_D_CMP, rel & REL_MASK);
+            S->comp.type = T_INT;
+        } else
+            comp_op(S, O_D_ADD + rel);
+        break;
+    case W_POW:
+        gen_as(S, n->b, T_FLT, false);
+        rsh = expr_shclass(S);
+        S->comp.p = n->end;
+        comp_call(S, K_FPOW);
+        S->comp.type = T_FLT;
+        break;
+    default:
+        if (is_xop(rel)) {
+            gen_as(S, n->b, T_INT, false);
+            rsh = expr_shclass(S);
+            S->comp.p = n->end;
+            comp_op(S, xop[rel - OP_IDIV]);
+            S->comp.type = T_INT;
+        } else {
+            numeric(S, is_logic(rel) ? rel - 1 : rel, n->b, lt, &rsh); /* AND, OR: O_I_ADD's 4th, 5th */
+            S->comp.p = n->end;
+        }
+    }
+    const uint8_t sh = shortop(rel, lsh, rsh);
     if (sh && S->comp.type == T_INT) /* a SHORT's result checked */
         comp_op(S, O_I_CHK16);
     S->expr.sh = sh;
