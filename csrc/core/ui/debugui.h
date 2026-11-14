@@ -17,17 +17,13 @@ void udbg_row(Session *S, uint8_t row, uint8_t col, uint32_t line);
 
 /* The Debug menu's commands and the run keys. */
 /* ud_step: Step, F8: the next statement, into a procedure. */
-[[noreturn]]
 void udbg_step(Session *S);
 /* ud_pstep: Step Over, F10 (and F7 as the status bar's Over): the next statement at this depth
    or less. */
-[[noreturn]]
 void udbg_pstep(Session *S);
 /* ud_sout: Step Out, Shift+F8: on till the procedure or GOSUB stopped in has returned. */
-[[noreturn]]
 void udbg_sout(Session *S);
 /* ud_restart: Run, Restart: from the start, stopped at its first statement. */
-[[noreturn]]
 void udbg_restart(Session *S);
 /* ud_trace1: Trace On: on, off. */
 void udbg_tron(Session *S);

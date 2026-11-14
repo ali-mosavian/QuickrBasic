@@ -8,9 +8,8 @@
  * place on it is a row and a column, 0-based. Drawing names attribute slots (SL_*), which the theme
  * (theme.h) makes attributes.
  *
- * The editor runs under repl_main's setjmp (io/repl.h): uimn_start, uimn_ready and uimn_error end
- * in the key loop, which never returns. A run or an error unwinds the C stack to repl.top, then
- * comes back through uimn_ready or uimn_error: nothing the editor keeps lives on the stack.
+ * The editor's key loop never returns. Each command runs under repl_call (io/repl.h), and a run
+ * under its own: an error or a run's end unwinds the C stack to it and comes back as a Status.
  *
  * # asm structure (src/ui/ui.inc)
  * | asm | here | |

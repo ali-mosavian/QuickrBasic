@@ -4,23 +4,13 @@
 #include "io/repl.h"
 #include "ui/ui.h"
 
-/* The editor's part at the READY loop's places: uimn_start, then uimn_ready and uimn_error
-   while it is on. */
+/* The editor's part at the READY loop's places: uimn_start. */
 extern const FrontEnd uimn_front_end;
 
-/* ui_start (repl_main's REPL_START): when both standard handles are the console, the editor
-   (a file the command line names, else the welcome box), never returning; else returns, and
-   the READY loop runs. */
+/* ui_start (repl_main's start): when both standard handles are the console, the editor (a file
+   the command line names, else the welcome box), never returning; else returns, and the READY
+   loop runs. Each key's command runs under repl_call: an error comes back to the key loop. */
 void uimn_start(Session *S);
-/* ui_ready (the READY loop's place, uimn.on): the output page until a key, unless an immediate
-   line printed nothing; then the editor. */
-[[noreturn]]
-void uimn_ready(Session *S);
-/* ui_err (repl's report, uimn.on): an error code (E_*), or E_BRK for BREAK and STOP, in the
-   editor: the cursor at its line, the message in a box, a stop's debug pane. repl_error's
-   stacks are reset already. */
-[[noreturn]]
-void uimn_error(Session *S, uint8_t code);
 
 /* ui_getkey: a key (scan << 8 | char, KEY_ALT, KEY_MOUSE), the screen shown and the mouse polled
    while none waits; uimn.keyflags the shift flags then. An Alt already down at the call (after
@@ -39,11 +29,9 @@ bool uimn_stopped(void);
 /* ui_cancont: the line committed; then uimn_stopped. false: CONT cannot go on. */
 bool uimn_cancont(Session *S);
 /* ui_runp: Run, Start: the text entered again if changed, the debugger prepared, the output
-   page cleared, RUN. */
-[[noreturn]]
+   page cleared, RUN; its end or error shown. */
 void uimn_run(Session *S);
 /* ui_contp: Run, Continue: CONT after a stop, else uimn_run. */
-[[noreturn]]
 void uimn_cont(Session *S);
 /* ui_selw: the cursor at column col of the cursor's line, the word there selected. */
 void uimn_selword(uint16_t col);

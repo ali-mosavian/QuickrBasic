@@ -16,7 +16,7 @@
  * |---|---|---|
  * | ud_init, ud_prep, ud_stop | udbg_init, udbg_prep, udbg_stop | MIRROR |
  * | ud_row | udbg_row | MIRROR; D1 |
- * | ud_step, ud_pstep, ud_sout, ud_restart | udbg_step, udbg_pstep, udbg_sout, udbg_restart | MIRROR; udbg_restart noreturn |
+ * | ud_step, ud_pstep, ud_sout, ud_restart | udbg_step, udbg_pstep, udbg_sout, udbg_restart | MIRROR |
  * | ud_trace1, ud_bp, ud_bpclr, ud_until, ud_setnx | udbg_tron, udbg_bp, udbg_bpclear, udbg_until, udbg_setnext | MIRROR |
  * | ud_hlset, ud_trace | hlset, trace (DebugHooks.trace) | MIRROR |
  * | g_ui.ud.stopd | uimn.stopped (ui.h) | MOVED |
@@ -157,7 +157,6 @@ void udbg_row(Session *const S, const uint8_t row, const uint8_t col, const uint
     scrn_attr(row, (uint8_t)(col + a), b - a, SL_CUR);
 }
 
-[[noreturn]]
 static void step(Session *const S, const StepKind kind)
 {
     session_step(S, kind, uimn_cancont(S));

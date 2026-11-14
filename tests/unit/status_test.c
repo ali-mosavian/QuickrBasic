@@ -51,3 +51,25 @@ TEST(byte_error_kept_and_bytes_dropped)
     CHECK(chnl_close(cl, c) == ST_OK);
     CHECK(!pfil_delete(name));
 }
+
+static void raises(Session *const S) { repl_error(S, E_IQ); }
+static void readies(Session *const S) { repl_ready(S); }
+static void returns([[maybe_unused]] Session *const S) {}
+
+static Status inner;
+
+/* An error inside a nested call is that call's; the outer one goes on. */
+static void nests(Session *const S)
+{
+    inner = repl_call(S, raises);
+    repl_error(S, E_TM);
+}
+
+/* A command's or a run's end comes back to its caller as a Status. */
+TEST(call_returns_its_status)
+{
+    CHECK(repl_call(S, returns) == ST_OK);
+    CHECK(repl_call(S, readies) == ST_OK);
+    CHECK(repl_call(S, raises) == E_IQ);
+    CHECK(repl_call(S, nests) == E_TM && inner == E_IQ);
+}

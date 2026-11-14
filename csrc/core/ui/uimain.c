@@ -7,18 +7,18 @@
  * A run enters the text again when it changed (repl_relink); an error, BREAK or STOP comes back to
  * the editor at its line. The editor runs only when standard input and output are both the console.
  *
- * The editor runs under repl_main's setjmp: a run or an error unwinds the C stack, so nothing the
- * editor keeps lives on it.
+ * Each key's command runs under repl_call, and a run under its own: an error or a run's end comes
+ * back to its caller as a Status, the C stack below it unwound.
  *
  * # asm structure (src/ui/ui.asm)
  * | asm | here | |
  * |---|---|---|
  * | ui_start | uimn_start | MIRROR |
- * | ui_ready, ui_err | uimn_ready, uimn_error | MIRROR; noreturn |
+ * | ui_ready, ui_err | ended, erred | MIRROR; static, returning |
  * | ui_loop | loop | MIRROR; noreturn |
  * | ui_getkey, ui_key, ui_act | uimn_getkey, uimn_key, uimn_act | MIRROR |
  * | ui_stopped, ui_cancont | uimn_stopped, uimn_cancont | MIRROR; D1 |
- * | ui_runp, ui_contp | uimn_run, uimn_cont | MIRROR; noreturn |
+ * | ui_runp, ui_contp | uimn_run, uimn_cont | MIRROR; returning |
  * | ui_selw, ui_dec | uimn_selword, uimn_dec | MIRROR |
  * | ui_lin | psys_self (plat/psys.h) | MOVED |
  * | hl_load, ui_win, ui_nohelp, im_key, ed_key, ui_syntax, ui_about, ui_asksave, ui_reset, ui_new, ui_open, ui_load, ui_save, ui_saveas, ui_exit, ui_view, ui_in, ui_out, ui_outclr, ui_sync, ui_atline, ui_exec, ui_dxrun, ui_find, ui_find3, ui_search, ui_match, ui_wordc, ui_fdef, ui_change | statics | MIRROR |
@@ -80,6 +80,7 @@ enum : uint8_t { ALT_NONE = 0, ALT_DOWN = 1, ALT_HELD = 2 };
 static struct {
     uint8_t alt;         /* alt_t: ALT_DOWN Alt went down alone, ALT_HELD it was down at the call */
     bool run_wait;       /* ui_rf: a run: always wait for a key at its end */
+    uint16_t key;        /* the key take_key gives its command */
     uint8_t crow, ccol;  /* ui_cpos: the output's cursor before an immediate line */
     uint8_t ecode;       /* ui_ecode */
     bool at_error;       /* ui_eln: the cursor is at the error's line */
@@ -117,6 +118,7 @@ static const MsgButton bt_welcome[] = {{"Press Esc to clear this dialog box", 0}
 [[noreturn]]
 static void loop(Session *S);
 static void exec_line(Session *S);
+static void ran(Session *S, Status st);
 
 /* ui_win: F6. */
 static void next_window(Session *const S) { wind_next(S); }
@@ -828,7 +830,7 @@ void uimn_run(Session *const S)
     static const char cmd[] = "RUN";
     memcpy(S->cons.inbuf, cmd, sizeof cmd - 1);
     repl_enter(S, sizeof cmd - 1);
-    repl_run(S);
+    ran(S, repl_call(S, repl_run));
 }
 
 bool uimn_stopped(void) { return uimn.stopped && !uimn.text.changed; }
@@ -841,13 +843,15 @@ bool uimn_cancont(Session *const S)
 
 void uimn_cont(Session *const S)
 {
-    if (!uimn_cancont(S))
+    if (!uimn_cancont(S)) {
         uimn_run(S);
+        return;
+    }
 
     udbg_prep(S);
     page_out();
     ui.run_wait = true;
-    repl_cont(S);
+    ran(S, repl_call(S, repl_cont));
 }
 
 /* ui_exec: Enter in the immediate window: its line run on the output page. */
@@ -863,8 +867,10 @@ static void exec_line(Session *const S)
     pscr_where(PAGE_OUT, &ui.crow, &ui.ccol);
     ui.run_wait = false;
 
-    if (repl_enter(S, len) == ENTER_DIRECT)
-        repl_run(S);
+    if (repl_enter(S, len) == ENTER_DIRECT) {
+        ran(S, repl_call(S, repl_run));
+        return;
+    }
 
     page_in();
 }
@@ -888,7 +894,9 @@ static void wait_anykey(Session *const S)
     pscr_cursor(PAGE_OUT, row, col);
 }
 
-void uimn_ready(Session *const S)
+/* ui_ready: the run ended: the output page until a key, unless an immediate line printed
+   nothing; then the editor. */
+static void ended(Session *const S)
 {
     cons_flush(&S->cons);
     S->vm.stop = 0;
@@ -899,7 +907,6 @@ void uimn_ready(Session *const S)
         wait_anykey(S);
 
     page_in();
-    loop(S);
 }
 
 /* ---- the cursor at a line, an error */
@@ -948,7 +955,9 @@ static void run_error_words(Session *const S)
     uimn_selword(edit_dxerr(S, b->text, (const ErrOp *)S->vm.opip));
 }
 
-void uimn_error(Session *const S, const uint8_t code)
+/* ui_err: an error code (E_*), or E_BRK for BREAK and STOP: the cursor at its line, the message
+   in a box, a stop's debug pane. The stacks are reset already (repl_call). */
+static void erred(Session *const S, const uint8_t code)
 {
     ui.ecode = code;
     ui.at_error = false;
@@ -983,8 +992,15 @@ void uimn_error(Session *const S, const uint8_t code)
         run_error_words(S);
         dlog_err(S, uimn.errmsg);
     }
+}
 
-    loop(S);
+/* What ended a run, st: its end, else its error. */
+static void ran(Session *const S, const Status st)
+{
+    if (st == ST_OK)
+        ended(S);
+    else
+        erred(S, (uint8_t)st);
 }
 
 /* ---- the commands */
@@ -1048,8 +1064,12 @@ void uimn_act(Session *const S, const uint8_t action)
 
     case ACT_START:
         uimn_run(S);
+        break;
+
     case ACT_CONT:
         uimn_cont(S);
+        break;
+
     case ACT_SYNTAX:
         syntax();
         break;
@@ -1060,8 +1080,12 @@ void uimn_act(Session *const S, const uint8_t action)
 
     case ACT_STEP:
         udbg_step(S);
+        break;
+
     case ACT_PSTEP:
         udbg_pstep(S);
+        break;
+
     case ACT_TRACE:
         udbg_tron(S);
         break;
@@ -1080,6 +1104,8 @@ void uimn_act(Session *const S, const uint8_t action)
 
     case ACT_RESTART:
         udbg_restart(S);
+        break;
+
     case ACT_SPLIT:
         wind_split(S);
         break;
@@ -1114,6 +1140,8 @@ void uimn_act(Session *const S, const uint8_t action)
 
     case ACT_SOUT:
         udbg_sout(S);
+        break;
+
     default:
         if (action >= ACT_TH2 && action < ACT_SOUT)
             act_theme(action);
@@ -1158,28 +1186,40 @@ static bool screen_key(Widget *const w, Session *const S, const uint16_t key)
     switch (scan) {
     case FKEY(SCAN_F1, 7):
         udbg_pstep(S);
+        return true;
+
     case FKEY(SCAN_CTRL_F1, 7):
         udbg_until(S);
         return true;
 
     case FKEY(SCAN_F1, 8):
         udbg_step(S);
+        return true;
+
     case FKEY(SCAN_SHIFT_F1, 8):
         udbg_sout(S);
+        return true;
+
     case FKEY(SCAN_F1, 9):
         udbg_bp(S);
         return true;
 
     case FKEY(SCAN_F1, 10):
         udbg_pstep(S);
+        return true;
+
     case FKEY(SCAN_F1, 4):
         view_output();
         return true;
 
     case FKEY(SCAN_F1, 5):
         uimn_cont(S);
+        return true;
+
     case FKEY(SCAN_SHIFT_F1, 5):
         uimn_run(S);
+        return true;
+
     case FKEY(SCAN_F1, 6):
         next_window(S);
         return true;
@@ -1224,7 +1264,10 @@ static bool screen_key(Widget *const w, Session *const S, const uint16_t key)
     }
 }
 
-/* ui_loop: draw, a key, its command; again. */
+/* ui.key's command. */
+static void take_key(Session *const S) { uimn_key(S, ui.key); }
+
+/* ui_loop: draw, a key, its command, its error shown; again. */
 static void loop(Session *const S)
 {
     for (;;) {
@@ -1238,7 +1281,12 @@ static void loop(Session *const S)
 
         if (key != KEY_MOUSE)
             uimn.tip_mouse = false; /* a key: the tooltip by the cursor */
-        uimn_key(S, key);
+
+        ui.key = key;
+        const Status st = repl_call(S, take_key);
+
+        if (st != ST_OK)
+            erred(S, (uint8_t)st);
     }
 }
 
@@ -1394,25 +1442,16 @@ void uimn_start(Session *const S)
         uimn.fname.len = n;
         dlog_fileok(DLOG_PRESS);
         ui.load_new = true;
-        load(S);
+        const Status st = repl_call(S, load);
         ui.load_new = false;
+
+        if (st != ST_OK)
+            erred(S, (uint8_t)st);
     } else {
         dlog_msg(S, s_welcome, bt_welcome);
     }
 
     loop(S);
-}
-
-static void fe_ready(Session *const S)
-{
-    if (uimn.on)
-        uimn_ready(S);
-}
-
-static void fe_error(Session *const S, const uint8_t code)
-{
-    if (uimn.on)
-        uimn_error(S, code);
 }
 
 /* CHAIN: Advanced feature unavailable in the editor. */
@@ -1435,7 +1474,5 @@ static void regions(Session *const S)
 const FrontEnd uimn_front_end = {
     .regions = regions,
     .start = uimn_start,
-    .ready = fe_ready,
-    .error = fe_error,
     .chain = fe_chain,
 };

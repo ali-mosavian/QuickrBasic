@@ -7,12 +7,12 @@
  *   2. dbug's watch probe running: back to it (dbg_ever).
  *   3. not BREAK nor E_OS, not in the handler, not the direct line, and a handler found:
  *      flow_trap, which longjmps to vm.loop at the handler.
- *   4. else repl.top with REPL_ERROR: the message (and a file run's where, a compile error's place
- *      and words), then READY, the batch exit, or the editor's ui_err.
+ *   4. else the innermost repl_call, which resets the stacks and returns the error. The READY
+ *      loop reports it (the message, a file run's where, a compile error's place and words); the
+ *      editor shows it.
  *
- * Before any of them lexr.more is cleared and the x87 cleared. repl.top is the C stack's floor:
- * where the asm reset ESP to rn.rsp. repl_ready, the READY loop's restart, longjmps there with
- * REPL_READY.
+ * Before any of them lexr.more is cleared and the x87 cleared. repl_ready, a run's end, longjmps
+ * to the same repl_call, which returns ST_OK.
  *
  * fault_qberr (fault.h) raises E_USR with vm.err.user = the QbErr. repl_enter takes a typed line and says
  * which it was: ENTER_DIRECT, ENTER_EMPTY or ENTER_STORED. repl_main's loop reads, enters and
@@ -35,8 +35,8 @@
  * | r_* data | static | MIRROR |
  * | vm.rsp (the C stack's reset) | repl.top | D2 |
  *
- * - D1. Every `jmp rpl_ready` is repl_ready, a longjmp to repl.top; the loop itself is repl_main.
- * - D2. A jmp_buf, set by repl_main.
+ * - D1. Every `jmp rpl_ready` is repl_ready, a longjmp to repl.top; the loop itself is ready.
+ * - D2. The innermost repl_call's jmp_buf: a run or a command returns to its caller.
  */
 #include "io/repl.h"
 #include <stddef.h>
@@ -83,7 +83,7 @@ void repl_error(Session *const S, uint8_t code)
     }
 
     S->repl.err = code;
-    longjmp(S->repl.top, REPL_ERROR);
+    longjmp(*S->repl.top, REPL_ERROR);
 }
 
 [[noreturn]]
@@ -123,7 +123,7 @@ void repl_fault(Fault *const f, const Failure *const e)
     repl_error(S, e->code);
 }
 
-void repl_ready(Session *const S) { longjmp(S->repl.top, REPL_READY); }
+void repl_ready(Session *const S) { longjmp(*S->repl.top, REPL_READY); }
 
 /* A source file's channel; an include's the number below its includer's. */
 enum { SOURCE_FILENO = FILENO_MAX, MODULE_WIDTH = 8 };
@@ -185,16 +185,6 @@ static void diagnose(Session *const S)
    address s:o"; or BREAK [IN n]. The stacks reset first; the editor takes it there. */
 static void report(Session *const S, const uint8_t code)
 {
-    S->vm.err.active = false;
-    chnl_clear(&S->chnl);
-    cons_fresh(&S->cons);
-    S->vm.sp = S->vm.rsp;
-    S->strg.tmp_used = 0;
-    S->strg.tmp_floor = 0;
-
-    if (S->repl.fe->error)
-        S->repl.fe->error(S, code);
-
     const uint32_t line = S->vm.line;
 
     if (code == E_BRK) {
@@ -267,18 +257,39 @@ void repl_cont(Session *const S)
     exec_run(S);
 }
 
-/* READY., then lines read and entered. */
-[[noreturn]]
-static void ready(Session *const S)
+/* An error's end: the stacks reset, the console's channels again. */
+static void reset(Session *const S)
 {
-    if (S->repl.fe->ready)
-        S->repl.fe->ready(S);
-    if (S->repl.batch)
-        quit(S);
-
+    S->vm.err.active = false;
+    S->vm.running = false; /* its loop's frame is gone */
+    chnl_clear(&S->chnl);
     cons_fresh(&S->cons);
-    cons_msg(&S->cons, MSG_READY);
+    S->vm.sp = S->vm.rsp;
+    S->strg.tmp_used = 0;
+    S->strg.tmp_floor = 0;
+}
 
+Status repl_call(Session *const S, void (*const fn)(Session *S))
+{
+    jmp_buf here, *const outer = S->repl.top;
+    S->repl.top = &here;
+    const int how = setjmp(here);
+
+    if (how == REPL_CALLED)
+        fn(S);
+
+    S->repl.top = outer;
+
+    if (how != REPL_ERROR)
+        return ST_OK;
+
+    reset(S);
+    return S->repl.err;
+}
+
+/* Lines read and entered till a direct one, which is left to run. */
+static void read_lines(Session *const S)
+{
     for (;;) {
         const int32_t len = cons_getline(&S->cons);
 
@@ -293,9 +304,33 @@ static void ready(Session *const S)
         const uint8_t r = repl_enter(S, (uint32_t)len);
 
         if (r == ENTER_DIRECT)
-            repl_run(S);
+            return;
         if (r == ENTER_STORED)
             S->vm.nframes = 0;
+    }
+}
+
+/* Lines read till a direct one, then run. */
+static void enter_and_run(Session *const S)
+{
+    read_lines(S);
+    repl_run(S);
+}
+
+/* READY., then lines read and entered, a direct one run; again. */
+[[noreturn]]
+static void ready(Session *const S)
+{
+    for (;;) {
+        if (S->repl.batch)
+            quit(S);
+
+        cons_fresh(&S->cons);
+        cons_msg(&S->cons, MSG_READY);
+        const Status st = repl_call(S, enter_and_run);
+
+        if (st != ST_OK)
+            report(S, (uint8_t)st);
     }
 }
 
@@ -336,19 +371,11 @@ const FrontEnd repl_batch = {.start = run_file, .warn = warn_stderr};
 
 void repl_main(Session *const S)
 {
-    switch (setjmp(S->repl.top)) {
-    case REPL_START:
-        if (S->repl.fe->start)
-            S->repl.fe->start(S);
+    if (S->repl.fe->start) {
+        const Status st = repl_call(S, S->repl.fe->start);
 
-        break;
-
-    case REPL_ERROR:
-        report(S, S->repl.err);
-        break;
-
-    default:
-        break;
+        if (st != ST_OK)
+            report(S, (uint8_t)st);
     }
 
     ready(S);

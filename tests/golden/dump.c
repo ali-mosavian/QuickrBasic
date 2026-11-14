@@ -8,35 +8,17 @@
 
 static Session session;
 
-int main(const int argc, char **const argv)
+static void load(Session *const S)
 {
-    if (argc != 2)
-        return 2;
-
-    static const FrontEnd none = {};
-
-    Session *const S = &session;
-    boot(S, &none);
-
-    static volatile bool linking;
-
-    if (setjmp(S->repl.top)) {
-        printf("error %u\n", S->repl.err);
-
-        if (!linking)
-            return 0;
-
-        linking = false; /* a link error: each line's code all the same */
-        goto dump;
-    }
-
-    snprintf(S->repl.file, sizeof S->repl.file, "%s", argv[1]);
     repl_load(S);
     session_drop(S);
-    linking = true;
-    link_start(&S->comp);
-    linking = false;
-dump:;
+}
+
+static void link(Session *const S) { link_start(&S->comp); }
+
+/* Each stored line compiled: its index, its code's bytes. */
+static void dump(Session *const S)
+{
     uint32_t n = 0;
 
     for (uint32_t l = PROGBASE, len; (len = prog_line(&S->prog, l)->len); l += len, n++) {
@@ -48,6 +30,31 @@ dump:;
 
         putchar('\n');
     }
+}
+
+int main(const int argc, char **const argv)
+{
+    if (argc != 2)
+        return 2;
+
+    static const FrontEnd none = {};
+
+    Session *const S = &session;
+    boot(S, &none);
+    snprintf(S->repl.file, sizeof S->repl.file, "%s", argv[1]);
+    Status st = repl_call(S, load);
+
+    if (st != ST_OK) {
+        printf("error %u\n", st);
+        return 0;
+    }
+
+    st = repl_call(S, link);
+
+    if (st != ST_OK) /* a link error: each line's code all the same */
+        printf("error %u\n", st);
+    if ((st = repl_call(S, dump)) != ST_OK)
+        printf("error %u\n", st);
 
     return 0;
 }
