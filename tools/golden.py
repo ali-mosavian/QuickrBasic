@@ -1,0 +1,54 @@
+"""golden.py [--update]: each corpus program's lines compiled (build/host/golden_dump), against
+tests/golden/code.txt: one row per line, its program, index and a hash of its code. A changed
+line prints its new bytes. The corpus: test/corpus/bcg, and llrm's tests/run/qb when present."""
+import hashlib
+import os
+import subprocess
+import sys
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+LLRM = Path(os.environ.get("LLRM", Path.home() / "work/personal/llrm-qbmac"))
+DUMP = ROOT / "build/host/golden_dump"
+GOLDEN = ROOT / "tests/golden/code.txt"
+CORPORA = {"bcg": ROOT / "test/corpus/bcg", "qb": LLRM / "tests/run/qb"}
+
+
+def programs() -> list[tuple[str, Path]]:
+    return [(f"{name}/{p.name}", p) for name, d in CORPORA.items() if d.is_dir() for p in sorted(d.glob("*.bas"))]
+
+
+def dump(path: Path) -> list[str]:
+    return subprocess.run([str(DUMP), str(path)], capture_output=True, text=True, check=True).stdout.splitlines()
+
+
+def rows(key: str, lines: list[str]) -> dict[str, tuple[str, str]]:
+    out = {}
+    for ln in lines:
+        n, _, code = ln.partition(" ")
+        out[f"{key} {n}"] = (hashlib.sha1(code.encode()).hexdigest()[:12], code)
+    return out
+
+
+def main() -> None:
+    progs = programs()
+    with ThreadPoolExecutor(os.cpu_count()) as ex:
+        dumps = list(ex.map(lambda kp: rows(kp[0], dump(kp[1])), progs))
+    new = {k: v for d in dumps for k, v in d.items()}
+    if "--update" in sys.argv:
+        GOLDEN.write_text("".join(f"{k} {h}\n" for k, (h, _) in new.items()))
+        print(f"{len(new)} lines from {len(progs)} programs")
+        return
+    old = dict(ln.rsplit(" ", 1) for ln in GOLDEN.read_text().splitlines())
+    keys = {k.split(" ")[0] for k in new}
+    old = {k: h for k, h in old.items() if k.split(" ")[0] in keys}  # a corpus not here: not checked
+    bad = [k for k in old.keys() | new.keys() if old.get(k) != new.get(k, (None,))[0]]
+    for k in sorted(bad)[:20]:
+        print(f"CHANGED {k}: {new[k][1] if k in new else '(gone)'}")
+    print(f"{len(new) - len(bad)}/{len(new)} lines as golden" + ("" if not bad else f", {len(bad)} changed"))
+    sys.exit(1 if bad else 0)
+
+
+if __name__ == "__main__":
+    main()

@@ -12,8 +12,7 @@
 #include "vm/flow.h"
 
 
-/* cm_comp: line compiled to comp_xbuf. */
-static void compile(Session *const S, const uint32_t line)
+void link_compile(Session *const S, const uint32_t line)
 {
     S->comp.buf = S->comp.xbuf;
     S->comp.line = line;
@@ -46,7 +45,7 @@ static void flush(Session *const S)
 
 Addr link_cache(Session *const S, const uint32_t line)
 {
-    compile(S, line);
+    link_compile(S, line);
     for (;;) {
         Addr a = S->link.end;
         S->link.lim = S->allo.cache + CLIM;

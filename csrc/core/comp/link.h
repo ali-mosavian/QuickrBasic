@@ -23,6 +23,7 @@ typedef struct {
 
 
 void link_start(Session *S);           /* cm_link: before a run: blocks paired, the cache empty */
+void link_compile(Session *S, uint32_t line); /* cm_comp: line compiled to comp_xbuf */
 Addr link_cache(Session *S, uint32_t line);  /* cm_cache: line compiled into the cache; its code */
 bool link_xlate(Session *S, Addr *at);       /* comp_xbuf as a stream at *at, to its end; link.code its code;
                                     false: past link.lim */

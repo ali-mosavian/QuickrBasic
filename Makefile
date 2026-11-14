@@ -133,7 +133,19 @@ build/host/unit_tests: $(HOBJ) $(UNIT_OBJ)
 cunit: build/host/unit_tests   # the unit tests, on the host
 	build/host/unit_tests
 
-chosttest: chost cunit         # the unit tests and the suites against the host build, natively
+build/host/golden/dump.o: tests/golden/dump.c $(CHDR)
+	@mkdir -p $(@D)
+	$(HOST_CC) $(HOST_CFLAGS) -c $< -o $@
+build/host/golden_dump: $(HOBJ) build/host/golden/dump.o
+	$(HOST_CC) $^ -o $@
+
+.PHONY: cgolden cgolden-update
+cgolden: build/host/golden_dump   # each corpus line's code against tests/golden/code.txt
+	$(PY) tools/golden.py
+cgolden-update: build/host/golden_dump
+	$(PY) tools/golden.py --update
+
+chosttest: chost cunit cgolden         # the unit tests and the suites against the host build, natively
 	X86_COM=build/host/basic $(PY) tools/x86f_test.py build/host/basic
 	X86_COM=build/host/basic $(PY) tools/qbconf.py
 
