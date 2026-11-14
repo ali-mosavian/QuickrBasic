@@ -9,6 +9,7 @@ Target shape for `csrc/`, replacing the asm-mirrored layout.
 - **Clear flow:** you can follow any event from a key press to the result.
 - **DRY:** each fact lives in one place.
 - **SRP:** a module or function does one job.
+- **Clean boundaries:** no mixing across them. See [Boundaries](#boundaries).
 - **Open/closed:** new features are added as new entries or modules, not as edits to existing switches.
 - **Small and simple:** no over-engineering. The rules above apply only as far as they keep the code smaller and clearer.
 - **UI:** slightly more general, and hierarchical. Each component is handled by its parent automatically, so a future UI change is local.
@@ -41,6 +42,16 @@ Target shape for `csrc/`, replacing the asm-mirrored layout.
 | `runtime/io` | `Channels` | Channels over a `Device` vtable: console, file, null |
 | `session` | `Session` | The API both front ends use |
 | `editor/*` | `Editor` | Widget tree, text buffer, commands, debugger pane |
+
+## Boundaries
+
+Each stage does one job and hands the next a finished product. Nothing reaches across.
+
+- **Parsing builds a tree and emits nothing.** Every operand, reference and call is a node, including record fields, elements, `VARPTR` and procedure calls. No bytecode is hidden in a leaf.
+- **Name resolution answers what a name is.** It returns a description: a variable, a record field's place, a procedure. It neither parses expressions nor emits.
+- **Folding rewrites the tree.** It never emits.
+- **Codegen alone writes bytes.** Statements that need an expression or a reference build its tree and hand it to codegen.
+- **A function sits in one stage.** If it both parses and emits, split it.
 
 ## Ownership
 
@@ -261,3 +272,5 @@ Each step lands green on both gates:
 flowchart LR
     s1[1. plat/host +<br/>unit tests] --> s2[2. core +<br/>values] --> s3[3. vm<br/>from flow.c] --> s4[4. session,<br/>errors, hooks] --> s5[5. lang:<br/>tree, fold, codegen] --> s6[6. editor:<br/>widget tree]
 ```
+
+Step 5 puts expressions and references through the tree. Statements still parse and emit in one pass. They move to the tree too, so the [Boundaries](#boundaries) rule holds everywhere.

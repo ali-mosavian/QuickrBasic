@@ -6,6 +6,7 @@
 #include "comp/decl.h"
 #include "comp/dfa.h"
 #include "comp/expr.h"
+#include "comp/ref.h"
 #include "comp/fold.h"
 #include "io/cons.h"
 #include "io/msg.h"
@@ -508,7 +509,7 @@ uint16_t comp_var(Session *const S, const uint8_t shape, const uint8_t et)
             type = S->symb.deft[upcase(first) - 'A'];
     }
     declared(S, name);
-    if (type >= ET_REC) { /* a record: ctrl_recarray's, recvar's kind */
+    if (type >= ET_REC) { /* a record: ref_recarray's, recvar's kind */
         if (!kind)
             kind = VI_RECARR;
     } else
@@ -922,7 +923,7 @@ static void act_dv(Session *const S)
         const uint16_t name = symb_var(&S->symb, id)->name;
         const uint8_t t = scop_rec(S, name, true); /* a record array: its own variable */
         if (t)
-            id = ctrl_recarray(S, name, t);
+            id = ref_recarray(S, name, t);
         dim1(S, id);
         dimas(S);
         return;

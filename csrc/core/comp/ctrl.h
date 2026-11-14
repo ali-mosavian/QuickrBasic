@@ -1,5 +1,5 @@
-/* Block statements compiled (comp/ctl.asm): IF blocks, SELECT CASE, DO, WHILE, EXIT; procedures'
-   calls and arguments; records' references; ON ERROR, events, RESUME, COMMON, SWAP. Each block
+/* Block statements compiled (comp/ctl.asm): IF blocks, SELECT CASE, DO, WHILE, EXIT; CALL, a
+   record's copy (their references are comp/ref.c's); ON ERROR, events, RESUME, COMMON, SWAP. Each block
    statement finds its Block (blok_find) and jumps to the targets blok_pair gave it:
      IF c THEN         c, JF NXT
      ELSEIF c THEN     JMP END, c, JF NXT
@@ -18,22 +18,11 @@
 /* A target none: line -1 when run. */
 enum : uint32_t { NOTARGET = 0xFFFFFFFF };
 
-/* A record's reference: its field's ET_* (ET_REC + t a whole record of TYPE t), its offset, its
-   STRING * n or a record's size. */
 typedef struct {
-    uint8_t et;
-    uint16_t off;
-    uint16_t fix;
-} RecRef;
-
-typedef struct {
-    RecRef ref;          /* g_rfet, g_rfoff, g_rffix: ctrl_recref's */
     uint8_t fieldet;     /* g_ctfet: expr_target's field (its offset in comp.tgt): ET_*, n */
     uint16_t fieldfix;   /* g_ctffix */
     uint16_t selid;      /* g_ctvr: a SELECT's or SWAP's variable */
     uint8_t seltype;     /* g_cttp: its T_* */
-    bool byval;          /* g_cbyv: the argument by value */
-    uint16_t param;      /* g_cpar: arg's parameter */
 } Ctrl;
 
 bool ctrl_stmt(Session *S);          /* ct_stmt: the statement at comp.p if one of these; false none */
@@ -41,15 +30,10 @@ void ctrl_blockif(Session *S);       /* ct_bif: a block IF's test (comp.p at THE
 bool ctrl_else(Session *S, uint32_t *target); /* a one-line IF's ELSE: the target after it; false none */
 void ctrl_jf(Session *S, uint32_t target); /* JF by comp.type; Type mismatch a string */
 void ctrl_forskip(Session *S);       /* ct_fskip: FSKIP past FOR's NEXT, comp.kw the FOR */
-void ctrl_fcall(Session *S);         /* a FUNCTION's call in an expression; comp.type its result's */
-void ctrl_dropargs(Session *S, bool paren); /* ct_uarg: a DECLAREd-only call's arguments checked, dropped */
+void ctrl_pcall(Session *S, uint8_t idx); /* PCALL idx and its entry's jump */
 /* QBasic's ERR for a call of no procedure. */
 enum : uint8_t { ERR_NO_FUNCTION = 18, ERR_NO_SUB = 35 };
 void ctrl_undef(Session *S, uint8_t err);  /* ct_undef: ERROR err when run: no such procedure */
 void ctrl_swap(Session *S);          /* cm_swap: SWAP a, b */
-bool ctrl_recref(Session *S);        /* rc_ref: a record reference at comp.p to ctrl.ref, its address's
-                                  code; false none, comp.p and the code kept */
-void ctrl_recload(Session *S);       /* rc_load: the field's value; Type mismatch a whole record */
 void ctrl_recstore(Session *S);      /* rc_store: store to expr_target's field */
-uint16_t ctrl_recarray(Session *S, uint16_t name, uint8_t type); /* rc_avar: record array name's variable */
 #endif

@@ -146,10 +146,22 @@ static bool literal(Session *const S, const uint16_t i) { return S->ast.node[i].
 void fold_tree(Session *const S, const uint16_t i)
 {
     Node *const n = &S->ast.node[i];
-    if (n->kind == N_ELEM || n->kind == N_FN || n->kind == N_XFN) {
+    switch (n->kind) {
+    case N_ELEM:
+    case N_FN:
+    case N_XFN:
+    case N_REF:
+    case N_CALL: /* its arguments */
         for (uint16_t a = n->b; a != NO_NODE; a = S->ast.node[a].next)
             fold_tree(S, a);
         return;
+    case N_FIELD:
+    case N_ADDR:
+    case N_ARG:
+        if (n->a != NO_NODE)
+            fold_tree(S, n->a);
+        return;
+    default: break;
     }
     if (n->kind != N_UN && n->kind != N_BIN)
         return;

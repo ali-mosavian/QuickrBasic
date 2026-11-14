@@ -14,6 +14,15 @@ os.environ.setdefault("X86_COM", sys.argv[1] if len(sys.argv) > 1 else str(ROOT 
 import x86run  # noqa: E402
 
 CASES = {
+    # C port, the tree: a field and an element by reference (P.REF), VARPTR of a field. The golden
+    # corpus has neither by reference; the field passed at the wrong offset changed nothing it read.
+    "c_ref_args": ("TYPE T\r\na AS INTEGER\r\nb AS INTEGER\r\nEND TYPE\r\nDECLARE SUB inc (x AS INTEGER)\r\n"
+                   "DIM r AS T, v(3) AS INTEGER\r\ninc r.b: inc v(2): CALL inc(r.b)\r\n"
+                   "PRINT r.b; v(2); VARPTR(r.b) - VARPTR(r)\r\nSUB inc (x AS INTEGER)\r\nx = x + 1\r\nEND SUB\r\n",
+                   " 2  1  4 \r\n", "ERROR"),
+    # C port, the tree: a FUNCTION DECLAREd only raises Function not defined when run, not before.
+    "c_undef_function": ('DECLARE FUNCTION g% (x%)\r\nPRINT "a"\r\nPRINT 1 + g%(2)\r\n',
+                         "a\r\nFunction not defined", "Syntax"),
     # C port: llrm-cc compiled REDIM's case of decl_line's switch (shared with DIM) past its load of
     # decl.proc, so REDIM bound the array in a garbage scope: UBOUND after it was Array not defined.
     "c_redim_ubound": ("REDIM v(3)\r\nPRINT UBOUND(v); LBOUND(v)\r\n", " 3  0 \r\n", "ERROR"),

@@ -18,7 +18,6 @@ typedef struct {
     uint8_t shclass;     /* g_cshc: expr_shclass's answer */
     bool dbltgt;         /* g_cwd: the assignment's target is a DOUBLE */
     bool fixdbl;         /* g_xdbl: FIX kept a DOUBLE */
-    uint32_t vakind;     /* g_vakind: cm_addr's VA_* << 24 + its bytes */
 } Expr;
 
 /* By kind, SK_DBL a DOUBLE: its T_*. */
@@ -26,6 +25,10 @@ extern const uint8_t expr_ktype[5];
 
 void expr_compile(Session *S);   /* cm_expr: an expression at comp.p: parsed, folded, compiled */
 void expr_gen(Session *S, uint16_t node); /* the tree at node compiled */
+void expr_emit(Session *S, uint16_t root, uint16_t mark); /* root's tree folded, compiled, nodes from mark dropped */
+uint16_t expr_arg(Session *S);   /* an argument: an expression's tree of its own, not for a DOUBLE */
+void expr_args(Session *S, uint16_t node); /* ( e {, e} ): node's arguments */
+uint16_t expr_intleaf(Session *S, uint32_t v, uint8_t sh); /* an INT literal's node */
 void expr_assign(Session *S);    /* cm_lexpr: an assignment's value, for a DOUBLE target as BC */
 void expr_paren(Session *S);     /* ( expr ) */
 uint8_t expr_subs(Session *S);   /* cm_subs0: ( e {, e} ), each an INT; how many */

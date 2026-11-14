@@ -22,6 +22,9 @@ CASES = {
     "double": ("", "#", "1# / 4 + 2#", "2.25#"),
     "unary": ("", "%", "-(3 + 4) * NOT 0", "7"),
     "const": ("CONST K = 6, J = K * 2\r\n", "%", "K + J + 8", "26"),
+    # LEN of a record compiled the record's address too: a cell left on the stack each pass, and
+    # 20000 passes hung the DOS build with no output.
+    "lenrec": ("TYPE T\r\na AS INTEGER\r\nb AS LONG\r\nEND TYPE\r\nDIM r AS T\r\n", "%", "LEN(r) * 2", "16"),
 }
 
 SLACK = 1.01  # the compile's own cost, once

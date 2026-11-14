@@ -110,19 +110,22 @@ Defined in lexr.c (`DFA_DATA`), declared `extern const` for comp.c. The parser's
 | `ct_else`* | `ctrl_else(&target)` → false: none |
 | `ct_jf`* | `ctrl_jf(target)` |
 | `ct_fskip`* | `ctrl_forskip()` |
-| `ct_fcall`* | `ctrl_fcall()` |
-| `ct_uarg`* | `ctrl_dropargs(paren)` |
+| `ct_fcall`* | `ref_call(idx, pr, ARGS_PAREN)` (comp/ref.c), emitted by gen |
+| `ct_pcall` | `ctrl_pcall(idx)` |
+| `ct_uarg`* | `ref_dropargs(paren)` |
 | `ct_undef`* | `ctrl_undef(err)` |
 | `cm_swap`* | `ctrl_swap()` |
-| `rc_ref`* | `ctrl_recref()` → false: not one |
-| `rc_load`* | `ctrl_recload()` |
+| `rc_ref`* | `ref_record()` → its N_REF; NO_NODE: not one |
+| `rc_load`* | `ref_field(ref)` → its N_FIELD |
 | `rc_store`* | `ctrl_recstore()` |
-| `rc_avar`* | `ctrl_recarray(name, type)` → the variable |
-| `g_rfet`*, `g_rfoff`*, `g_rffix`* | `ctrl.ref.et`, `ctrl.ref.off`, `ctrl.ref.fix` |
+| `rc_avar`* | `ref_recarray(name, type)` → the variable |
+| `g_rfet`*, `g_rfoff`*, `g_rffix`* | an N_REF's `rec.et`, `rec.off`, `rec.fix` |
 | `g_ctfet`*, `g_ctffix`* | `ctrl.fieldet`, `ctrl.fieldfix` |
 | `ct_none`, `ct_dseg`, `ct_def`, `ct_skip0`, `ct_redim`, `ct_erase`, `ct_onerr`, `ct_evk`, `ct_evn`, `ct_evs`, `ct_xst`, `ct_common`, `cm_skvar`, `cm_skas`, `ct_mids`, `ct_skip`, `ct_sub`, `ct_pret`, `ct_pret0` | statics `none`, `defseg`, `deffn`, `skipparen`, `redim`, `erase`, `onerror`, `evkind`, `evnum`, `evstate`, `xstmt`, `common`, `skipvar`, `skipas`, `mids`, `skip`, `sub`, `pret` |
-| `ct_proc`, `ct_call`, `ct_name`, `ct_let`, `ct_rcopy`, `ct_scall`, `ct_pdecl`, `ct_pchk`, `ct_pcall`, `ct_args`, `ct_arg`, `ct_aend`, `ct_ptm` | statics `proc`, `call`, `namestmt`, `let`, `reccopy`, `subcall`, `declared`, `checkonly`, `pcall`, `args`, `arg`, `argend`, `partype` |
-| `rc_nrec`, `rc_nreca`, `rc_saddr`, `rc_whole`, `rc_path`, `rc_svar` | statics `rectype(name, array)`, `recaddr`, `whole`, `path`, `recvar` |
+| `ct_call`, `ct_name`, `ct_let`, `ct_rcopy`, `ct_scall`, `ct_pdecl`, `ct_pchk` | statics `call`, `namestmt`, `let`, `reccopy`, `subcall`, `declname`, `checkonly` |
+| `ct_proc` | `ref_proc(&idx)` |
+| `ct_args`, `ct_arg`, `ct_aend`, `ct_ptm` | ref.c's statics `args`, `arg` (N_ARG), `aend`, `ptm` |
+| `rc_nrec`, `rc_nreca`, `rc_saddr`, `rc_whole`, `rc_path`, `rc_svar` | ref.c's statics `nrec(name, array)`, `place`, `whole`, `path`, `recvar` |
 | `ct_target`, `ct_emitjump`, `ct_ent`, `ct_tgt`, `ct_jt`, `ct_jmp`, `ct_cond` | statics `here`, `jump`, `entry`, `targetof`, `jt`, `jmp`, `cond` |
 | `ct_elseif`, `ct_belse`, `ct_do`, `ct_loop`, `ct_while`, `ct_wend`, `ct_exit`, `ct_select`, `ct_var`, `ct_case`, `ct_item`, `ct_cmp`, `ct_stv`, `ct_ldop`, `ct_vop` | statics `elseif`, `blockelse`, `doloop`, `loop`, `whileloop`, `wend`, `exitblock`, `select`, `selvar`, `casestmt`, `caseitem`, `casecmp`, `selstore`, `selload`, `selop` |
 | `g_ctnm`, `g_ctvr`, `g_cttp`, `g_cbyv`, `g_cbyd`, `g_cpar`, `g_rfnt` | statics |
@@ -214,12 +217,12 @@ Defined in lexr.c (`DFA_DATA`), declared `extern const` for comp.c. The parser's
 | `cm_shv`* | `expr_shclass()` |
 | `cm_icmp`*, `cm_fcmp`* | `expr_icmp(rel, right)`, `expr_fcmp(rel, right)` |
 | `cm_lflt`* | `expr_lfloat(left, right)` → right moved |
-| `cm_p`, `cm_un`, `cm_sop`, `cm_shid`, `cm_right`, `cm_iop`, `cm_fop2`, `cm_fkind`, `cm_str`, `cm_addr`, `cm_xfn`, `cm_xarg`, `cm_farg`, `cm_nany` | statics `prec(p)` (parses; `binary`, `strop`, `numop`, `dblop` emit), `unary`, `shortop`, `shortid`, `isright`, `intop`, `fltop`, `fltkind`, `literal`, `varaddr`, `xfunc` (`xfn_at`, `xfn_args`), `xarg`, `farg`, `notstr` |
+| `cm_p`, `cm_un`, `cm_sop`, `cm_shid`, `cm_right`, `cm_iop`, `cm_fop2`, `cm_fkind`, `cm_str`, `cm_addr`, `cm_xfn`, `cm_xarg`, `cm_farg`, `cm_nany` | statics `prec(p)` (parses; `binary`, `strop`, `numop`, `dblop` emit), `unary`, `shortop`, `shortid`, `isright`, `intop`, `fltop`, `fltkind`, `literal`, `ref_place` (comp/ref.c), `xfunc` (`xfn_at`, `xfn_args`), `xarg`, `farg`, `notstr` |
 | `g_cprec` values, operator indices | `P_*`, `OP_*`; a relation `REL | DC_*` (expr.h) |
 | `g_csh`*, `g_cshe`*, `g_cshc`* | `expr.sh`, `expr.shend`, `expr.shclass` |
 | `g_ckon`* | `expr.kend` |
 | `g_ctys`* | `expr_ktype[5]` |
-| `g_cwd`, `g_cbk`, `g_xdbl`, `g_vakind` | `expr.dbltgt`, `expr.bothk`, `expr.fixdbl`, `expr.vakind` |
+| `g_cwd`, `g_cbk`, `g_xdbl`, `g_vakind` | `expr.dbltgt`, `expr.bothk`, `expr.fixdbl`, `ref_place`'s `vakind` |
 | `g_fcmpk`, `g_lda1`, `g_ldan`, `g_dfnk`, `g_fnarg`, `g_fnsig`, `g_xfn` (`XF_*`), `g_cprec`, `g_xop` | static tables (`g_xfn` an array of `XFn`) |
 
 ## link → link
