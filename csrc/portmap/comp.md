@@ -267,3 +267,11 @@ Defined in lexr.c (`DFA_DATA`), declared `extern const` for comp.c. The parser's
 | `cm_krec`, `cm_klit`, `var_kclr` | `fold_const`, `fold_load`, `fold_clear` |
 | `g_cvat`, `ctok` cleared in `cm_tok` | `comp.vat`, `comp.tok = 0` in `token` |
 | `FK`, `TVX.kop`, `kval` | `FK` (ops.def), `VarX.kop`, `symb_kval` |
+
+## The expression tree (C only)
+
+`cm_p` and `cm_un` emit as they parse; the C builds a tree instead (`comp/ast.h`): `parse` and
+`parse_unary` make nodes, `fold_tree` folds each operator whose operands are literals (through
+the VM's handlers, as `cm_fold`), and `gen` emits them with the asm's choices. A function call,
+an element, a field or a string literal is compiled where it is met and kept as an `N_CODE` leaf.
+The code is the asm's byte for byte over the golden corpus.

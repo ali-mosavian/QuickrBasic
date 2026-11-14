@@ -103,7 +103,6 @@ void comp_int(Session *const S, const uint32_t n)
     else
         comp_opb(S, O_I_LD_U8, (uint8_t)n);
     S->comp.iloadend = S->comp.out;
-    S->expr.kend = S->comp.out;
 }
 
 void comp_call(Session *const S, const uint8_t k) { comp_opb(S, O_CALL, k); }

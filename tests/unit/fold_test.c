@@ -38,3 +38,15 @@ TEST(constant_division_by_zero_is_left_to_raise)
     const uint8_t zero[] = {O_I_LD_U8, 0};
     CHECK(has(c, n, zero, sizeof zero));
 }
+
+TEST(constants_fold_inside_parentheses_and_arguments)
+{
+    const uint8_t *c;
+    const uint32_t n = compile(S, "x! = SIN(2 * 3) + (1 + 2) * y!", &c);
+    const uint8_t six[] = {O_F_LD_U8, 6};
+    CHECK(has(c, n, six, sizeof six));
+    const uint8_t three[] = {O_F_LD_U8, 3};
+    CHECK(has(c, n, three, sizeof three));
+    const uint8_t add[] = {O_I_ADD_U8};
+    CHECK(!has(c, n, add, sizeof add));
+}

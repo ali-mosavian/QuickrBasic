@@ -12,6 +12,8 @@
 #include "mem/strg.h"
 #include "mem/symb.h"
 #include "num/dubl.h"
+#include "num/sngl.h"
+#include "vm/flow.h"
 
 const uint8_t expr_ktype[5] = {T_FLT, T_INT, T_STR, T_DBL, T_DBL};
 
@@ -123,23 +125,30 @@ static const XFn xfns[] = {
 [[noreturn]] static void synerr(Session *const S) { repl_error(S, E_SN); }
 [[noreturn]] static void mismatch(Session *const S) { repl_error(S, E_TM); }
 
-static void prec(Session *S, uint8_t p);
-static void unary(Session *S);
+static uint16_t parse(Session *S, uint8_t p);
+static uint16_t parse_unary(Session *S);
+static void loadvar(Session *S, uint16_t id);
+static void gen(Session *S, uint16_t n);
 
-void expr_compile(Session *const S)
+/* An expression parsed, folded and compiled, for a DOUBLE target or not; its tree dropped. */
+static void compile(Session *const S, const bool dbl)
 {
-    const bool dbl = S->expr.dbltgt; /* not an assignment's: its own */
-    S->expr.dbltgt = false;
-    prec(S, 0);
+    const uint16_t nodes = S->ast.nnodes, code = S->ast.ncode;
+    const bool was = S->expr.dbltgt;
     S->expr.dbltgt = dbl;
+    const uint16_t root = parse(S, 0);
+    S->expr.dbltgt = was;
+    const uint8_t *const end = S->comp.p;
+    fold_tree(S, root);
+    gen(S, root);
+    S->comp.p = end;
+    S->ast.nnodes = nodes;
+    S->ast.ncode = code;
 }
 
-void expr_assign(Session *const S)
-{
-    S->expr.dbltgt = S->comp.tgtinfo & SK_DBL;
-    prec(S, 0);
-    S->expr.dbltgt = false;
-}
+void expr_compile(Session *const S) { compile(S, false); }
+
+void expr_assign(Session *const S) { compile(S, S->comp.tgtinfo & SK_DBL); }
 
 uint8_t expr_shclass(Session *const S)
 {
@@ -283,14 +292,13 @@ static void strop(Session *const S, const uint8_t rel)
 }
 
 /* A DOUBLE either side; or for a DOUBLE target ^, and unless of constants / or a SINGLE's. */
-static bool wants_double(Session *const S, const uint8_t rel, const uint8_t ltype)
+static bool wants_double(Session *const S, const Node *const n, const uint8_t ltype, const bool bothk)
 {
     if (ltype == T_DBL || S->comp.type == T_DBL)
         return true;
-    if (!S->expr.dbltgt)
+    if (!n->dbl)
         return false;
-    return rel == OP_POW ||
-           (!S->expr.bothk && (rel == OP_DIV || ltype & T_FLT || S->comp.type == T_FLT));
+    return n->op == OP_POW || (!bothk && (n->op == OP_DIV || ltype & T_FLT || S->comp.type == T_FLT));
 }
 
 /* Number operator rel in DOUBLEs, the left converted before right. */
@@ -309,13 +317,15 @@ static void dblop(Session *const S, const uint8_t rel, const uint8_t ltype, uint
         comp_op(S, O_D_ADD + rel);
 }
 
-/* Number operator rel: DOUBLEs, ^ a SINGLE's, INTs (but /, a FLOAT as QBasic's), or FLOATs. */
-static void numop(Session *const S, const uint8_t rel, const uint8_t ltype, uint8_t *const left, uint8_t *right)
+/* Number operator n->op: DOUBLEs, ^ a SINGLE's, INTs (but /, a FLOAT as QBasic's), or FLOATs. */
+static void numop(Session *const S, const Node *const n, const uint8_t ltype, const bool bothk, uint8_t *const left,
+                  uint8_t *right)
 {
+    const uint8_t rel = n->op;
     if (S->comp.type & T_STR)
         mismatch(S);
     const bool lint = !(ltype & T_FLT);
-    if (wants_double(S, rel, ltype))
+    if (wants_double(S, n, ltype, bothk))
         dblop(S, rel, ltype, right);
     else if (rel == OP_POW) {
         if (lint)
@@ -366,19 +376,57 @@ static uint8_t relation(Session *const S, uint8_t op)
     }
 }
 
-/* Operator rel after its left operand: its right one at precedence p, then the operator. */
-static void binary(Session *const S, const uint8_t rel, const uint8_t p)
+static uint16_t node_new(Session *const S, const NodeKind kind)
 {
+    if (S->ast.nnodes >= AST_NODES)
+        repl_error(S, E_OM);
+    const uint16_t i = S->ast.nnodes++;
+    S->ast.node[i] = (Node){.kind = kind};
+    return i;
+}
+
+static Node *node(Session *const S, const uint16_t i) { return &S->ast.node[i]; }
+
+static bool is_lit(Session *const S, const uint16_t i) { return node(S, i)->kind == N_LIT; }
+
+/* cm_p: the operand and the operators after it that bind tighter than precedence p. */
+static uint16_t parse(Session *const S, const uint8_t p)
+{
+    if (++S->comp.depth > COMP_MAXDEPTH)
+        repl_error(S, E_OM);
+    uint16_t left = parse_unary(S);
+    uint8_t op;
+    while (operator_of(comp_cur(&S->comp), &op) && p < prectab[op]) {
+        uint8_t rel = op;
+        if (op >= OP_GT && op <= OP_LT)
+            rel = relation(S, op);
+        else
+            S->comp.p++;
+        const uint16_t right = parse(S, prectab[op]);
+        const uint16_t n = node_new(S, N_BIN);
+        *node(S, n) = (Node){.kind = N_BIN, .op = rel, .dbl = S->expr.dbltgt, .a = left, .b = right,
+                             .end = S->comp.p};
+        left = n;
+    }
+    S->comp.depth--;
+    return left;
+}
+
+/* Binary node n: its left operand, its right, then the operator; a right load folds into it. */
+static void gen_binary(Session *const S, const Node *const n)
+{
+    const uint8_t rel = n->op;
+    gen(S, n->a);
     if (is_logic(rel) || is_xop(rel))
         comp_toint(S);
-    const bool leftk = S->comp.out == S->expr.kend; /* the left a constant */
     const uint8_t ltype = S->comp.type;
     uint8_t *const left = comp_intleaf(S);
     const uint8_t lsh = expr_shclass(S);
     uint8_t *const right = S->comp.out;
-    prec(S, p);
+    gen(S, n->b);
+    S->comp.p = n->end;
     const uint8_t sh = shortop(S, rel, lsh);
-    S->expr.bothk = rel != OP_POW && leftk && S->comp.out == S->expr.kend; /* ^ not folded */
+    const bool bothk = rel != OP_POW && is_lit(S, n->a) && is_lit(S, n->b);
     if (is_xop(rel)) {
         comp_toint(S);
         comp_op(S, xop[rel - OP_IDIV]);
@@ -388,34 +436,87 @@ static void binary(Session *const S, const uint8_t rel, const uint8_t p)
     } else if (ltype == T_STR)
         strop(S, rel);
     else
-        numop(S, rel, ltype, left, right);
+        numop(S, n, ltype, bothk, left, right);
     if (sh && S->comp.type == T_INT) /* a SHORT's result checked */
         comp_op(S, O_I_CHK16);
     S->expr.sh = sh;
     S->expr.shend = S->comp.out;
-    S->expr.kend = S->expr.bothk ? S->comp.out : nullptr; /* of constants: one */
-    S->expr.bothk = false;
 }
 
-/* cm_p: compile while the operators bind tighter than precedence p. */
-static void prec(Session *const S, const uint8_t p)
+/* Unary node n: - or NOT of its operand. */
+static void gen_unary(Session *const S, const Node *const n)
 {
-    if (++S->comp.depth > COMP_MAXDEPTH)
-        repl_error(S, E_OM);
-    uint8_t *const start = S->comp.out;
-    unary(S);
-    uint8_t op;
-    while (operator_of(comp_cur(&S->comp), &op) && p < prectab[op]) {
-        uint8_t rel = op;
-        if (op >= OP_GT && op <= OP_LT)
-            rel = relation(S, op);
-        else
-            S->comp.p++;
-        binary(S, rel, prectab[op]);
-        fold_code(S, start);
+    gen(S, n->a);
+    S->comp.p = n->end;
+    if (n->op == TK_NOT) {
+        comp_toint(S);
+        comp_op(S, O_I_NOT);
+    } else if (S->comp.type & T_STR)
+        mismatch(S);
+    else if (S->comp.type == T_DBL)
+        comp_op(S, O_D_NEG);
+    else if (S->comp.type == T_FLT)
+        comp_op(S, O_F_NEG);
+    else {
+        expr_shclass(S); /* a SHORT's negated is one */
+        comp_op(S, O_I_NEG);
+        S->expr.sh = S->expr.shclass;
+        S->expr.shend = S->comp.out;
     }
-    S->comp.depth--;
 }
+
+/* The SHORT class of the code just made, as a leaf's. */
+static void set_class(Session *const S, const uint8_t sh)
+{
+    if (sh) {
+        S->expr.sh = sh;
+        S->expr.shend = S->comp.out;
+    }
+}
+
+/* Leaf n's code. */
+static void gen_leaf(Session *const S, const Node *const n)
+{
+    switch (n->kind) {
+    case N_LIT: {
+        uint8_t *const at = S->comp.out;
+        const uint8_t b[1] = {n->op};
+        const uint32_t size = flow_opsize(b);
+        comp_op(S, n->op);
+        for (uint32_t i = 1; i < size; i++)
+            comp_byte(S, n->lit[i - 1]);
+        S->comp.type = n->type;
+        if (n->type == T_INT) {
+            S->comp.iload = at;
+            S->comp.iloadend = S->comp.out;
+        }
+        break;
+    }
+    case N_VAR:
+        loadvar(S, n->a);
+        return;
+    default: /* N_CODE */
+        for (uint32_t i = 0; i < n->len; i++)
+            comp_byte(S, S->ast.code[n->at + i]);
+        S->comp.type = n->type;
+        S->comp.iload = S->comp.iloadend = nullptr;
+        break;
+    }
+    set_class(S, n->sh);
+}
+
+static void gen(Session *const S, const uint16_t i)
+{
+    const Node *const n = node(S, i);
+    S->expr.shend = nullptr; /* not a SHORT's unless it says */
+    switch (n->kind) {
+    case N_UN: gen_unary(S, n); return;
+    case N_BIN: gen_binary(S, n); return;
+    default: gen_leaf(S, n);
+    }
+}
+
+void expr_gen(Session *const S, const uint16_t n) { gen(S, n); }
 
 void expr_paren(Session *const S)
 {
@@ -478,8 +579,6 @@ static void loadvar(Session *const S, const uint16_t id)
         expr_shortid(S, id);
         return;
     }
-    if (fold_load(S, id))
-        return;
     if (info & SK_DBL) {
         S->comp.type = T_DBL;
         comp_opid(S, O_D_LD_V, id);
@@ -501,26 +600,38 @@ static void loadvar(Session *const S, const uint16_t id)
     }
 }
 
-void expr_load(Session *const S)
+/* A variable's value at comp.p: a scalar's id, nothing compiled; else NO_ID, its code compiled
+   (a FUNCTION's call, a record's field, an element). */
+enum : uint16_t { NO_ID = 0xFFFF };
+static uint16_t load(Session *const S)
 {
     if (comp_cur(&S->comp) == M_VAR) { /* a FUNCTION's name: its call, but its result in it */
         const Name *const n = symb_name(&S->symb, comp_nameof(S->comp.p));
         if (n->flags & (NM_FUNC | NM_FN)) {
-            if (!n->proc) {
-                loadvar(S, undeclared(S));
-                return;
-            }
+            if (!n->proc)
+                return undeclared(S);
             if (*comp_skipname(S->comp.p) == '(' || n->proc != S->comp.proc) {
                 ctrl_fcall(S);
-                return;
+                return NO_ID;
             }
         }
     }
     if (comp_cur(&S->comp) == M_VAR && ctrl_recref(S)) {
         ctrl_recload(S);
-        return;
+        return NO_ID;
     }
-    loadvar(S, comp_name(S));
+    const uint16_t id = comp_name(S);
+    if (!(symb_var(&S->symb, id)->info & VI_ARR))
+        return id;
+    loadvar(S, id);
+    return NO_ID;
+}
+
+void expr_load(Session *const S)
+{
+    const uint16_t id = load(S);
+    if (id != NO_ID)
+        loadvar(S, id);
 }
 
 void expr_target(Session *const S)
@@ -830,54 +941,120 @@ static bool addr_call(const uint8_t tok, uint8_t *const k)
     }
 }
 
-/* cm_un: an operand: a variable, an element, a literal, ( expr ), - NOT +, a function. */
-static void unary(Session *const S)
+static uint16_t lit_leaf(Session *S, uint8_t op, const uint8_t *bytes, uint8_t sh);
+
+/* The code compiled from begin on as a leaf node, the code as before: one literal load (VARPTR's)
+   a literal, else its bytes kept. */
+static uint16_t code_leaf(Session *const S, uint8_t *const begin)
 {
-    S->expr.shend = nullptr; /* not a SHORT's unless it says */
+    const uint32_t len = (uint32_t)(S->comp.out - begin);
+    if (len && fold_isliteral(*begin) && flow_opsize(begin) == len) {
+        const uint8_t sh = expr_shclass(S);
+        S->comp.out = begin;
+        return lit_leaf(S, *begin, begin + 1, sh);
+    }
+    if (S->ast.ncode + len > AST_CODE)
+        repl_error(S, E_OM);
+    const uint16_t i = node_new(S, N_CODE);
+    Node *const n = node(S, i);
+    n->type = S->comp.type;
+    n->sh = expr_shclass(S);
+    n->at = S->ast.ncode;
+    n->len = (uint16_t)len;
+    for (uint32_t k = 0; k < len; k++)
+        S->ast.code[S->ast.ncode++] = begin[k];
+    S->comp.out = begin;
+    return i;
+}
+
+/* A literal load op and its operand bytes as a leaf. */
+static uint16_t lit_leaf(Session *const S, const uint8_t op, const uint8_t *const bytes, const uint8_t sh)
+{
+    const uint16_t i = node_new(S, N_LIT);
+    Node *const n = node(S, i);
+    n->op = op;
+    n->type = fold_littype(op);
+    n->sh = sh;
+    const uint8_t b[1] = {op};
+    const uint32_t size = flow_opsize(b);
+    for (uint32_t k = 1; k < size; k++)
+        n->lit[k - 1] = bytes[k - 1];
+    return i;
+}
+
+/* An INT literal as I.LD.U8, I.LD.I16 or I.LD.I32. */
+uint16_t expr_intleaf(Session *const S, const uint32_t v, const uint8_t sh)
+{
+    uint8_t b[4];
+    store32(b, v);
+    const uint8_t op = v > 0xFFFF ? O_I_LD_I32 : v > 0xFF ? O_I_LD_I16 : O_I_LD_U8;
+    return lit_leaf(S, op, b, sh);
+}
+
+/* A variable's value: a scalar's node, a CONST's literal, or its code. */
+static uint16_t var_leaf(Session *const S)
+{
+    uint8_t *const begin = S->comp.out;
+    const uint16_t id = load(S);
+    if (id == NO_ID)
+        return code_leaf(S, begin);
+    const uint8_t kop = symb_varx(&S->symb, id)->kop;
+    if (kop)
+        return lit_leaf(S, kop, symb_kval(&S->symb, id),
+                        symb_var(&S->symb, id)->type == ET_SH ? SH_SHORT : SH_NONE);
+    const uint16_t i = node_new(S, N_VAR);
+    node(S, i)->a = id;
+    return i;
+}
+
+/* A number's literal: a DOUBLE's D.LD.K, else F.LD.F32. */
+static uint16_t num_leaf(Session *const S)
+{
+    uint8_t kind;
+    const double d = dubl_in(S, &S->comp.p, &kind);
+    uint8_t b[8];
+    if (kind == DK_DBL) {
+        const uint64_t q = (Cell){.d = d}.raw;
+        store32(b, (uint32_t)q);
+        store32(b + 4, (uint32_t)(q >> 32));
+        return lit_leaf(S, O_D_LD_K, b, SH_NONE);
+    }
+    store32(b, sngl_from_dbl(d));
+    return lit_leaf(S, O_F_LD_F32, b, SH_NONE);
+}
+
+/* cm_un: an operand: a variable, an element, a literal, ( expr ), - NOT +, a function. */
+static uint16_t parse_unary(Session *const S)
+{
     for (;;) {
         const uint8_t c = comp_cur(&S->comp);
+        uint8_t *const begin = S->comp.out;
         switch (c) {
         case M_VAR:
-            expr_load(S);
-            return;
+            return var_leaf(S);
         case M_INT: {
             const uint32_t v = load32(S->comp.p + 1);
             S->comp.p += INT_TOKEN_SIZE;
-            comp_int(S, v);
-            if (v <= INT16_MAX) {
-                S->expr.sh = SH_LIT;
-                S->expr.shend = S->comp.out;
-            }
-            return;
+            return expr_intleaf(S, v, v <= INT16_MAX ? SH_LIT : SH_NONE);
         }
-        case '(':
-            expr_paren(S);
-            return;
+        case '(': { /* its own: not for a DOUBLE target */
+            comp_open(S);
+            const bool was = S->expr.dbltgt;
+            S->expr.dbltgt = false;
+            const uint16_t n = parse(S, 0);
+            S->expr.dbltgt = was;
+            comp_close(S);
+            return n;
+        }
         case TK_MINUS:
         case TK_NOT: {
-            uint8_t *const start = S->comp.out;
             S->comp.p++;
-            prec(S, c == TK_MINUS ? P_NEG : P_NOT);
-            const bool k = S->expr.kend == S->comp.out; /* a constant's, so the result */
-            if (c == TK_NOT) {
-                comp_toint(S);
-                comp_op(S, O_I_NOT);
-            } else if (S->comp.type & T_STR)
-                mismatch(S);
-            else if (S->comp.type == T_DBL)
-                comp_op(S, O_D_NEG);
-            else if (S->comp.type == T_FLT)
-                comp_op(S, O_F_NEG);
-            else {
-                expr_shclass(S); /* a SHORT's negated is one */
-                comp_op(S, O_I_NEG); /* I.LD.I16 is unsigned: no -literal fold */
-                S->expr.sh = S->expr.shclass;
-                S->expr.shend = S->comp.out;
-            }
-            if (k)
-                S->expr.kend = S->comp.out;
-            fold_code(S, start);
-            return;
+            const uint16_t a = parse(S, c == TK_MINUS ? P_NEG : P_NOT);
+            const uint16_t n = node_new(S, N_UN);
+            node(S, n)->op = c;
+            node(S, n)->a = a;
+            node(S, n)->end = S->comp.p;
+            return n;
         }
         case TK_PLUS:
             S->comp.p++;
@@ -885,28 +1062,12 @@ static void unary(Session *const S)
         case '"':
             S->comp.p++;
             expr_string(S);
-            return;
+            return code_leaf(S, begin);
         }
-        if (c >= '.' && c <= '9') {
-            uint8_t kind;
-            const double d = dubl_in(S, &S->comp.p, &kind);
-            if (kind == DK_DBL) { /* a DOUBLE: D.LD.K q */
-                S->comp.type = T_DBL;
-                comp_op(S, O_D_LD_K);
-                const uint64_t q = (Cell){.d = d}.raw;
-                comp_dword(S, (uint32_t)q);
-                comp_dword(S, (uint32_t)(q >> 32));
-                S->comp.iload = S->comp.iloadend = nullptr;
-            } else {
-                S->comp.type = T_FLT;
-                comp_op(S, O_F_LD_F32);
-                comp_dword(S, sngl_from_dbl(d));
-            }
-            S->expr.kend = S->comp.out;
-            return;
-        }
+        if (c >= '.' && c <= '9')
+            return num_leaf(S);
         if (c == TK_LEN && lensize(S))
-            return;
+            return code_leaf(S, begin);
         uint8_t k;
         if (c == TK_X && addr_call(S->comp.p[1], &k)) {
             S->comp.p += 2;
@@ -916,14 +1077,13 @@ static void unary(Session *const S)
             if (k)
                 comp_call(S, k);
             S->comp.type = T_INT;
-            S->comp.iload = S->comp.iloadend = nullptr;
-            return;
+            return code_leaf(S, begin);
         }
         const uint8_t f = c - TK_SGN;
         if (f > TK_MID - TK_SGN)
             xfunc(S);
         else
             func(S, f);
-        return;
+        return code_leaf(S, begin);
     }
 }

@@ -1,9 +1,11 @@
-/* The expression compiler (comp/expr.asm): precedence climbing over comp.p. Every operand is
-   pushed; an operator takes the cells it needs. A right operand that is one load folds into the
-   operator: F.ADD.V, I.CMP.U8 ... */
+/* The expression compiler (comp/expr.asm): precedence climbing over comp.p builds a tree
+   (comp/ast.h), fold_tree folds it, and gen turns it into code. Every operand is pushed; an
+   operator takes the cells it needs. A right operand that is one load folds into the operator:
+   F.ADD.V, I.CMP.U8 ... */
 #ifndef COMP_EXPR_H
 #define COMP_EXPR_H
 #include "comp/comp.h"
+#include "comp/ast.h"
 
 /* A SHORT's class (expr.shclass): a value of no SHORT, a SHORT's, a literal that fits one. */
 enum : uint8_t { SH_NONE = 0, SH_SHORT = 1, SH_LIT = 2 };
@@ -14,9 +16,7 @@ typedef struct {
     uint8_t sh;          /* g_csh: the SHORT class of the code ending at shend */
     uint8_t *shend;      /* g_cshe */
     uint8_t shclass;     /* g_cshc: expr_shclass's answer */
-    uint8_t *kend;       /* g_ckon: a constant's code ends here */
     bool dbltgt;         /* g_cwd: the assignment's target is a DOUBLE */
-    bool bothk;          /* g_cbk: the operator's operands are constants */
     bool fixdbl;         /* g_xdbl: FIX kept a DOUBLE */
     uint32_t vakind;     /* g_vakind: cm_addr's VA_* << 24 + its bytes */
 } Expr;
@@ -24,7 +24,8 @@ typedef struct {
 /* By kind, SK_DBL a DOUBLE: its T_*. */
 extern const uint8_t expr_ktype[5];
 
-void expr_compile(Session *S);   /* cm_expr: an expression at comp.p */
+void expr_compile(Session *S);   /* cm_expr: an expression at comp.p: parsed, folded, compiled */
+void expr_gen(Session *S, uint16_t node); /* the tree at node compiled */
 void expr_assign(Session *S);    /* cm_lexpr: an assignment's value, for a DOUBLE target as BC */
 void expr_paren(Session *S);     /* ( expr ) */
 uint8_t expr_subs(Session *S);   /* cm_subs0: ( e {, e} ), each an INT; how many */
