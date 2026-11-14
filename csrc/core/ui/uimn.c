@@ -1017,3 +1017,18 @@ void uimn_start(Session *const S)
     }
     loop(S);
 }
+
+static void fe_ready(Session *const S)
+{
+    if (uimn.on)
+        uimn_ready(S);
+}
+
+static void fe_error(Session *const S, const uint8_t code)
+{
+    if (uimn.on)
+        uimn_error(S, code);
+}
+
+const FrontEnd uimn_front_end = {
+    .regions = lmap_init, .start = uimn_start, .ready = fe_ready, .error = fe_error};

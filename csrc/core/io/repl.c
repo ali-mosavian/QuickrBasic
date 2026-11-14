@@ -24,10 +24,6 @@
 #include "vm/flow.h"
 #include "vm/stmt.h"
 
-#if IDE
-#include "ui/uimn.h"
-#endif
-
 
 void repl_qberr(Session *const S, const QbErr qb)
 {
@@ -104,10 +100,8 @@ static void report(Session *const S, const uint8_t code)
     S->vm.sp = S->vm.rsp;
     S->strg.tmp_used = 0;
     S->strg.tmp_floor = 0;
-#if IDE
-    if (uimn.on)
-        uimn_error(S, code);
-#endif
+    if (S->repl.fe->error)
+        S->repl.fe->error(S, code);
     const uint32_t line = S->vm.line;
     if (code == E_BRK) {
         cons_msg(S, E_BRK); /* BREAK [IN n] */
@@ -173,10 +167,8 @@ void repl_cont(Session *const S)
 /* READY., then lines read and entered. */
 [[noreturn]] static void ready(Session *const S)
 {
-#if IDE
-    if (uimn.on)
-        uimn_ready(S);
-#endif
+    if (S->repl.fe->ready)
+        S->repl.fe->ready(S);
     if (S->repl.batch)
         quit(S);
     cons_fresh(S);
@@ -197,9 +189,7 @@ void repl_cont(Session *const S)
     }
 }
 
-#if !IDE
-/* Run the file the command line names, then exit; no name: back. */
-static void run_file(Session *const S)
+void repl_run_file(Session *const S)
 {
     char tail[128];
     psys_cmdline(tail, sizeof tail);
@@ -218,17 +208,14 @@ static void run_file(Session *const S)
     stmt_runfirst(S);
     exec_run(S);
 }
-#endif
 
-void repl_main(Session *const S)
+void repl_main(Session *const S, const FrontEnd *const fe)
 {
+    S->repl.fe = fe;
     switch (setjmp(S->repl.top)) {
     case REPL_START:
-#if IDE
-        uimn_start(S);
-#else
-        run_file(S);
-#endif
+        if (fe->start)
+            fe->start(S);
         break;
     case REPL_ERROR:
         report(S, S->repl.err);

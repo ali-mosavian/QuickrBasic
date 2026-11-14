@@ -20,7 +20,17 @@ enum { REPL_START = 0, REPL_READY = 1, REPL_ERROR = 2 };
 /* repl_enter's result */
 enum : uint8_t { ENTER_DIRECT = 0, ENTER_EMPTY = 1, ENTER_STORED = 2 };
 
+/* A front end's part at the READY loop's places; a null entry, or one that returns: the
+   console's. */
 typedef struct {
+    void (*regions)(Session *S);             /* boot's: its arena blocks, before the variables' */
+    void (*start)(Session *S);               /* REPL_START, before the READY loop */
+    void (*ready)(Session *S);               /* READY */
+    void (*error)(Session *S, uint8_t code); /* an error's report, the stacks reset */
+} FrontEnd;
+
+typedef struct {
+    const FrontEnd *fe; /* repl_main's */
     jmp_buf top;        /* the READY loop's: every unwind but a trap's and a compile's */
     uint8_t err;        /* REPL_ERROR's error, E_* */
     uint16_t fline;     /* loading a file: its line, for a warning */
@@ -35,9 +45,10 @@ typedef struct {
 /* Raise QBasic's error qb as ERROR qb does. */
 [[noreturn]] void repl_qberr(Session *S, QbErr qb);
 
-/* The start, then the READY loop: the command line's file run (the editor in the IDE), else
-   READY., lines read and entered. repl.top's setjmp. */
-[[noreturn]] void repl_main(Session *S);
+/* The start (fe's), then the READY loop: READY., lines read and entered. repl.top's setjmp. */
+[[noreturn]] void repl_main(Session *S, const FrontEnd *fe);
+/* basic32's start: run the file the command line names, then exit; no name: back. */
+void repl_run_file(Session *S);
 /* Back to READY (asm rpl_ready): the C stack unwound to repl.top. */
 [[noreturn]] void repl_ready(Session *S);
 /* Run the direct line repl_enter left in comp_cbuf. */

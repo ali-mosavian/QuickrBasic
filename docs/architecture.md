@@ -82,6 +82,7 @@ flowchart TD
 - Hot accessors take only the part they touch (`exec_push(&S->vm, c)`), so headers need not see the whole `Session`.
 - Headers expose functions and opaque types. No module reads another's fields.
 - Memory is the arena only. No malloc.
+- The core never calls up into a front end. It reports through `FrontEnd` (`repl.h`) and `DebugHooks` (`vm/dbug.h`), which the front end installs.
 
 ## Flow
 
@@ -173,7 +174,7 @@ sequenceDiagram
     E->>E: draw pane, light the statement
 ```
 
-- The VM reports stops and trace events through a `DebugHooks` struct of function pointers that `session` installs. It never calls up into the editor.
+- The VM reports stops and trace events through a `DebugHooks` struct of function pointers, installed with `session_debug`. It never calls up into the editor.
 - Watches compile through `lang` like any other line, then run in the chosen frame.
 
 ## UI: the widget tree

@@ -4,7 +4,12 @@
    editor runs only when standard input and output are both the console. uimn itself is ui.h's. */
 #ifndef UI_UIMN_H
 #define UI_UIMN_H
+#include "io/repl.h"
 #include "ui/ui.h"
+
+/* The editor's part at the READY loop's places: uimn_start, then uimn_ready and uimn_error
+   while it is on. */
+extern const FrontEnd uimn_front_end;
 
 /* ui_start (repl_main's REPL_START): when both standard handles are the console, the editor
    (a file the command line names, else the welcome box), never returning; else returns, and

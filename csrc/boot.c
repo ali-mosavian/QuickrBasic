@@ -19,11 +19,7 @@
 #include "vm/stmt.h"
 #include "vm/syst.h"
 
-#if IDE
-#include "ui/lmap.h"
-#endif
-
-void boot(Session *const S)
+void boot(Session *const S, const FrontEnd *const fe)
 {
     session_reset(S);
     Addr lo, hi;
@@ -44,9 +40,8 @@ void boot(Session *const S)
     S->allo.cache = allo_base(&S->allo, allo_new(S, 0x10000, nullptr)); /* the cache, then the program store */
     allo_new(S, 0x10000, prog_place);
     prog_place(S);
-#if IDE
-    lmap_init(S); /* the variables, names last: they grow while code holds their cells */
-#endif
+    if (fe->regions)
+        fe->regions(S); /* the variables, names last: they grow while code holds their cells */
     symb_new(S);
     S->vm.nframes = 0;
     prog_line(&S->prog, DLINE)->len = 0; /* the direct line: len 0, num FF00h */

@@ -30,7 +30,8 @@ static Session session;
 int main(void)
 {
     Session *const S = &session;
-    boot(S);
+    static const FrontEnd none = {};
+    boot(S, &none);
     for (uint32_t i = 0; i < ntests; i++) {
         current = tests[i].name;
         tests[i].fn(S);
