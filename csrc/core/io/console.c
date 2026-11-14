@@ -58,15 +58,14 @@
 enum : uint8_t { KEY_CTRL_C = 3, KEY_BACKSPACE = '\b', KEY_ENTER = '\r' };
 enum { KEYED_MAX = 80 }; /* a keyed line's characters at most */
 
-void cons_init(Cons *const co, Allo *const al, Chnl *const cl, Fault *const f, Vm *const vm)
+void cons_init(Cons *const co, Allo *const al, Chnl *const cl, Vm *const vm)
 {
     co->chnl = cl;
-    co->fault = f;
     co->vm = vm;
     co->inbuf = at(allo_carve(al, INMAX + 1));
     co->sbuf = at(allo_carve(al, SBMAX + 1));
     co->stdin_dev = pfil_isdev(PFIL_STDIN);
-    chnl_init(cl, co, f);
+    chnl_init(cl, co);
 }
 
 void cons_putc(Cons *const co, const uint8_t c)
@@ -189,26 +188,29 @@ void cons_msg(Cons *const co, const uint8_t id) { cons_nth(co, cons_msgs, id); }
 void cons_kw(Cons *const co, const uint8_t tok) { cons_nth(co, cons_kwlist, tok & CHAR); }
 void cons_kw1(Cons *const co, const uint8_t n) { cons_nth(co, cons_kwlist1, n); }
 
-void cons_prompt(Cons *const co)
+Status cons_prompt(Cons *const co)
 {
     cons_putc(co, '?');
     cons_space(co);
-    cons_read(co);
+    return cons_read(co);
 }
 
-void cons_read(Cons *const co)
+Status cons_read(Cons *const co)
 {
     const int32_t n = cons_getline(co);
 
     if (n < 0) {
-        if (co->chnl->in)
-            fault_qberr(co->fault, QB_PAST_END);
+        if (co->chnl->in) {
+            const Status st = chnl_take(co->chnl); /* a read's error, else the end */
+            return st != ST_OK ? st : st_qb(QB_PAST_END);
+        }
+
         if (!(co->vm->stop & SF_BRK))
-            fault_error(co->fault, E_OD);
+            return E_OD;
 
         co->vm->stop = 0; /* the STOP key: BREAK, no CONT */
         co->vm->cont.line = 0;
-        fault_error(co->fault, E_BRK);
+        return E_BRK;
     }
 
     co->inlen = (uint32_t)n;
@@ -217,24 +219,27 @@ void cons_read(Cons *const co)
 
     if (!co->chnl->in) /* the console's: its Enter ended the line */
         co->col = 0;
+
+    return ST_OK;
 }
 
-void cons_field(Cons *const co)
+Status cons_field(Cons *const co)
 {
     for (;;) {
         const int32_t b = co->inpos + 1;
 
         if (b == 0 || co->inbuf[b - 1] == ',') {
             co->inpos = b;
-            return;
+            return ST_OK;
         }
 
-        if (co->from_file) {
-            cons_read(co);
-        } else {
+        if (!co->from_file)
             cons_putc(co, '?');
-            cons_prompt(co);
-        }
+
+        const Status st = co->from_file ? cons_read(co) : cons_prompt(co);
+
+        if (st != ST_OK)
+            return st;
     }
 }
 

@@ -110,6 +110,43 @@ static Addr file_record(const File *const fi, const Chan *const c)
     return fi->recs + (uint32_t)(c - fi->chnl->ch) * RECMAX;
 }
 
+/* File number num's channel. Error: Bad file name or number. */
+static Chan *find(Session *const S, const int32_t num)
+{
+    Chan *c;
+    fault_check(&S->fault, chnl_find(&S->chnl, num, &c));
+    return c;
+}
+
+/* n bytes read into p from c's place: how many. */
+static uint32_t bytes_in(Session *const S, Chan *const c, uint8_t *const p, const uint32_t n)
+{
+    uint32_t got;
+    fault_check(&S->fault, chnl_read(c, p, n, &got));
+    return got;
+}
+
+/* n bytes from p written at c's place. */
+static void bytes_out(Session *const S, Chan *const c, const uint8_t *const p, const uint32_t n)
+{
+    uint32_t done;
+    fault_check(&S->fault, chnl_write(c, p, n, &done));
+}
+
+/* c's next byte, not read: -1 none. */
+static int peek(Session *const S, Chan *const c)
+{
+    int b;
+    fault_check(&S->fault, chnl_peek(c, &b));
+    return b;
+}
+
+static void opened(Session *const S, const int32_t num, const char *const name)
+{
+    Chan *c;
+    fault_check(&S->fault, chnl_open(&S->chnl, num, name, S->file.mode, S->file.reclen, &c));
+}
+
 void file_opendef(Session *const S)
 {
     S->file.mode = FM_RND;
@@ -135,7 +172,7 @@ void file_open(Session *const S)
 {
     const int32_t num = exec_popi(&S->vm);
     const char *const name = file_name_of(&S->file, exec_popa(&S->vm));
-    chnl_open(&S->chnl, num, name, S->file.mode, S->file.reclen);
+    opened(S, num, name);
 }
 
 /* OPEN's mode string's first letter as FM_*; 0 none. */
@@ -164,7 +201,7 @@ void file_open2(Session *const S)
         fault_qberr(&S->fault, QB_BAD_FILE_MODE);
 
     S->file.mode = mode;
-    chnl_open(&S->chnl, num, name, S->file.mode, S->file.reclen);
+    opened(S, num, name);
 }
 
 void file_close(Session *const S)
@@ -172,13 +209,28 @@ void file_close(Session *const S)
     Chan *const c = chnl_look(&S->chnl, exec_popi(&S->vm));
 
     if (c)
-        chnl_close(&S->chnl, c);
+        fault_check(&S->fault, chnl_close(&S->chnl, c));
 }
 
-void file_closeall(Session *const S) { chnl_closeall(&S->chnl); }
-void file_out(Session *const S) { chnl_out(&S->chnl, chnl_find(&S->chnl, exec_popi(&S->vm))); }
-void file_in(Session *const S) { chnl_in(&S->chnl, chnl_find(&S->chnl, exec_popi(&S->vm))); }
-void file_console(Session *const S) { chnl_clear(&S->chnl); }
+void file_closeall(Session *const S) { fault_check(&S->fault, chnl_closeall(&S->chnl)); }
+
+void file_out(Session *const S)
+{
+    fault_check(&S->fault, chnl_out(&S->chnl, find(S, exec_popi(&S->vm))));
+}
+
+void file_in(Session *const S)
+{
+    fault_check(&S->fault, chnl_in(&S->chnl, find(S, exec_popi(&S->vm))));
+}
+
+/* The statement's end: the console's again; a byte's error raised. */
+void file_console(Session *const S)
+{
+    const Status st = chnl_take(&S->chnl);
+    chnl_clear(&S->chnl);
+    fault_check(&S->fault, st);
+}
 
 void file_lineinput(Session *const S)
 {
@@ -244,13 +296,13 @@ void file_write_comma(Session *const S) { cons_putc(&S->cons, ','); }
 
 void file_eof(Session *const S)
 {
-    Chan *const c = chnl_find(&S->chnl, exec_popi(&S->vm));
+    Chan *const c = find(S, exec_popi(&S->vm));
     int32_t r;
 
     if (c->mode & (FM_RND | FM_BIN))
         r = c->eof ? -1 : 0;
     else if (c->mode & FM_IN)
-        r = chnl_peek(&S->chnl, c) < 0 ? -1 : 0;
+        r = peek(S, c) < 0 ? -1 : 0;
     else
         r = -1; /* written: at its end */
     exec_pushi(&S->vm, r);
@@ -258,12 +310,14 @@ void file_eof(Session *const S)
 
 void file_lof(Session *const S)
 {
-    exec_pushi(&S->vm, (int32_t)chnl_lof(&S->chnl, chnl_find(&S->chnl, exec_popi(&S->vm))));
+    uint32_t len;
+    fault_check(&S->fault, chnl_lof(find(S, exec_popi(&S->vm)), &len));
+    exec_pushi(&S->vm, (int32_t)len);
 }
 
 void file_loc(Session *const S)
 {
-    const Chan *const c = chnl_find(&S->chnl, exec_popi(&S->vm));
+    const Chan *const c = find(S, exec_popi(&S->vm));
     uint32_t t = chnl_tell(c);
 
     if (c->mode & FM_RND)
@@ -276,7 +330,7 @@ void file_loc(Session *const S)
 
 void file_seekpos(Session *const S)
 {
-    const Chan *const c = chnl_find(&S->chnl, exec_popi(&S->vm));
+    const Chan *const c = find(S, exec_popi(&S->vm));
     uint32_t t = chnl_tell(c);
 
     if (c->mode & FM_RND)
@@ -296,10 +350,10 @@ static uint32_t file_offset_of(Fault *const f, const Chan *const c, const uint32
 
 void file_seek(Session *const S)
 {
-    Chan *const c = chnl_find(&S->chnl, S->vm.sp[1].i);
+    Chan *const c = find(S, S->vm.sp[1].i);
     const uint32_t p = S->vm.sp[0].u;
     S->vm.sp += 2;
-    chnl_seek(&S->chnl, c, file_offset_of(&S->fault, c, p));
+    fault_check(&S->fault, chnl_seek(c, file_offset_of(&S->fault, c, p)));
     c->eof = false;
 }
 
@@ -317,7 +371,7 @@ void file_input_str(Session *const S)
 {
     Chan *c = nullptr; /* nullptr: the keyboard */
     if (exec_popi(&S->vm) != 1)
-        c = chnl_find(&S->chnl, exec_popi(&S->vm));
+        c = find(S, exec_popi(&S->vm));
 
     const uint32_t n = (uint32_t)exec_popi(&S->vm);
 
@@ -330,7 +384,7 @@ void file_input_str(Session *const S)
         uint8_t b;
 
         if (c) {
-            const int v = chnl_peek(&S->chnl, c);
+            const int v = peek(S, c);
 
             if (v < 0)
                 fault_qberr(&S->fault, QB_PAST_END);
@@ -368,7 +422,7 @@ void file_attr(Session *const S)
     enum { ATTR_MODE = 1, ATTR_HANDLE = 2 };
 
     const int32_t a = exec_popi(&S->vm);
-    const Chan *const c = chnl_find(&S->chnl, exec_popi(&S->vm));
+    const Chan *const c = find(S, exec_popi(&S->vm));
 
     if (a == ATTR_HANDLE)
         exec_pushi(&S->vm, c->handle);
@@ -378,27 +432,27 @@ void file_attr(Session *const S)
         repl_error(S, E_IQ);
 }
 
-static void file_dos(Chnl *const cl, const uint16_t err)
+static void file_dos(Fault *const f, const uint16_t err)
 {
     if (err)
-        chnl_doserr(cl, err);
+        fault_status(f, chnl_doserr(err));
 }
 
 void file_kill(Session *const S)
 {
-    file_dos(&S->chnl, pfil_delete(file_name_of(&S->file, exec_popa(&S->vm))));
+    file_dos(&S->fault, pfil_delete(file_name_of(&S->file, exec_popa(&S->vm))));
 }
 void file_mkdir(Session *const S)
 {
-    file_dos(&S->chnl, pfil_mkdir(file_name_of(&S->file, exec_popa(&S->vm))));
+    file_dos(&S->fault, pfil_mkdir(file_name_of(&S->file, exec_popa(&S->vm))));
 }
 void file_rmdir(Session *const S)
 {
-    file_dos(&S->chnl, pfil_rmdir(file_name_of(&S->file, exec_popa(&S->vm))));
+    file_dos(&S->fault, pfil_rmdir(file_name_of(&S->file, exec_popa(&S->vm))));
 }
 void file_chdir(Session *const S)
 {
-    file_dos(&S->chnl, pfil_chdir(file_name_of(&S->file, exec_popa(&S->vm))));
+    file_dos(&S->fault, pfil_chdir(file_name_of(&S->file, exec_popa(&S->vm))));
 }
 
 void file_rename(Session *const S)
@@ -410,7 +464,7 @@ void file_rename(Session *const S)
     if (err == PFIL_DENIED)
         fault_qberr(&S->fault, QB_FILE_EXISTS);
 
-    file_dos(&S->chnl, err);
+    file_dos(&S->fault, err);
 }
 
 /* FILES' entry: NAME.EXT as NAME    .EXT, <DIR> after a directory's, in ENTRY_WIDTH columns. */
@@ -505,7 +559,7 @@ static void get_string(Session *const S, Chan *const c, const Addr desc)
 
     if (n > STRING_IO_MAX)
         n = STRING_IO_MAX;
-    if (chnl_read(&S->chnl, c, S->cons.sbuf, n) < n)
+    if (bytes_in(S, c, S->cons.sbuf, n) < n)
         c->eof = true;
 
     strg_set(&S->strg, strg_text(&S->strg, S->cons.sbuf, (uint16_t)n), desc);
@@ -589,11 +643,11 @@ static void binary(
 
     if (va_kind(kind) == VA_I2) {
         if (put) {
-            chnl_write(&S->chnl, c, at(p), 2);
+            bytes_out(S, c, at(p), 2);
             return;
         }
 
-        if (chnl_read(&S->chnl, c, i2, 2) < 2) /* GET an INT: 2 bytes, widened */
+        if (bytes_in(S, c, i2, 2) < 2) /* GET an INT: 2 bytes, widened */
             c->eof = true;
 
         wr32(p, widen16(load16(i2)));
@@ -601,8 +655,8 @@ static void binary(
     }
 
     if (put)
-        chnl_write(&S->chnl, c, at(p), n);
-    else if (chnl_read(&S->chnl, c, at(p), n) < n)
+        bytes_out(S, c, at(p), n);
+    else if (bytes_in(S, c, at(p), n) < n)
         c->eof = true;
 }
 
@@ -613,7 +667,7 @@ static void get_put(Session *const S, const bool put)
     const uint32_t kind = S->vm.sp[0].u;
     const Addr addr = S->vm.sp[1].a;
     uint32_t p = S->vm.sp[2].u;
-    Chan *const c = chnl_find(&S->chnl, S->vm.sp[3].i);
+    Chan *const c = find(S, S->vm.sp[3].i);
 
     if (!(c->mode & (FM_RND | FM_BIN)))
         fault_qberr(&S->fault, QB_BAD_FILE_MODE);
@@ -630,7 +684,7 @@ static void get_put(Session *const S, const bool put)
         off = file_offset_of(&S->fault, c, p);
     }
 
-    chnl_seek(&S->chnl, c, off);
+    fault_check(&S->fault, chnl_seek(c, off));
 
     if (!(c->mode & FM_RND)) {
         if (!put && va_kind(kind) == VA_DESC)
@@ -641,9 +695,9 @@ static void get_put(Session *const S, const bool put)
         if (kind)
             file_to_record(&S->file, c, addr, kind);
 
-        chnl_write(&S->chnl, c, at(file_record(&S->file, c)), c->reclen);
+        bytes_out(S, c, at(file_record(&S->file, c)), c->reclen);
     } else {
-        const uint32_t got = chnl_read(&S->chnl, c, at(file_record(&S->file, c)), c->reclen);
+        const uint32_t got = bytes_in(S, c, at(file_record(&S->file, c)), c->reclen);
 
         if (got < c->reclen) { /* past the end: the rest 0, EOF */
             c->eof = true;
@@ -662,7 +716,7 @@ void file_put(Session *const S) { get_put(S, true); }
 
 void file_field(Session *const S)
 {
-    S->file.field_chan = chnl_find(&S->chnl, exec_popi(&S->vm));
+    S->file.field_chan = find(S, exec_popi(&S->vm));
     S->file.field_chan->field = 0;
 }
 
@@ -741,7 +795,7 @@ void file_bsave(Session *const S)
     const Addr from = S->vm.sp[1].a;
     const uint16_t n = (uint16_t)S->vm.sp[0].u;
     PfilHandle h;
-    file_dos(&S->chnl, pfil_create(name, &h));
+    file_dos(&S->fault, pfil_create(name, &h));
     uint8_t hdr[BSAVE_HDR] = {BSAVE_MAGIC};
 
     store32(hdr + BSAVE_ADDR, swap_words(from));
@@ -759,7 +813,7 @@ void file_bload(Session *const S)
     const Addr given = flag ? exec_popa(&S->vm) : 0;
     const char *const name = file_bas_name(&S->file, exec_popa(&S->vm));
     PfilHandle h;
-    file_dos(&S->chnl, pfil_open(name, PFIL_READ, &h));
+    file_dos(&S->fault, pfil_open(name, PFIL_READ, &h));
     uint8_t hdr[BSAVE_HDR] = {0};
 
     uint32_t got;
@@ -777,6 +831,6 @@ void file_bload(Session *const S)
     pfil_close(h);
 }
 
-void file_lock(Session *const S) { chnl_find(&S->chnl, exec_popi(&S->vm)); }
+void file_lock(Session *const S) { find(S, exec_popi(&S->vm)); }
 void file_drop(Session *const S) { S->vm.sp++; }
 void file_noadv(Session *const S) { fault_qberr(&S->fault, QB_NO_ADVANCED); }

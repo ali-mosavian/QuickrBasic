@@ -409,7 +409,7 @@ void syst_rndq(Session *const S)
 {
     for (;;) {
         cons_puts(&S->cons, "Random-number seed (-32768 to 32767)? ");
-        cons_read(&S->cons);
+        fault_check(&S->fault, cons_read(&S->cons));
         const uint8_t *p = S->cons.inbuf;
         const double d = dubl_in(&S->fault, &p, nullptr);
 

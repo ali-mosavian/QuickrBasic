@@ -167,7 +167,7 @@ void stmt_inbeg(Session *const S)
 }
 
 /* ? and a line. */
-void stmt_inpr(Session *const S) { cons_prompt(&S->cons); }
+void stmt_inpr(Session *const S) { fault_check(&S->fault, cons_prompt(&S->cons)); }
 
 /* INPUT#'s line, empty lines skipped. */
 void stmt_infile(Session *const S)
@@ -175,12 +175,12 @@ void stmt_infile(Session *const S)
     S->cons.from_file = true;
 
     do
-        cons_read(&S->cons);
+        fault_check(&S->fault, cons_read(&S->cons));
     while (!S->cons.inlen);
 }
 
 /* A line, no ?: INPUT "prompt", .. */
-void stmt_inln(Session *const S) { cons_read(&S->cons); }
+void stmt_inln(Session *const S) { fault_check(&S->fault, cons_read(&S->cons)); }
 
 /* After a bad field's store: ?Redo from start, the INPUT again. true: vm->ip moved. */
 static bool redo(Session *const S)
@@ -237,7 +237,7 @@ static void input(Session *const S, const ItemKind kind)
         return;
     }
 
-    cons_field(&S->cons);
+    fault_check(&S->fault, cons_field(&S->cons));
     const uint8_t *p = S->cons.inbuf + S->cons.inpos;
     Cell v = {};
 
@@ -544,7 +544,7 @@ void stmt_run(Session *const S)
 
 void stmt_runfirst(Session *const S)
 {
-    chnl_closeall(&S->chnl);
+    fault_check(&S->fault, chnl_closeall(&S->chnl));
 
     if (!prog_line(&S->prog, PROGBASE)->len)
         flow_end(S);
@@ -593,7 +593,7 @@ void stmt_end(Session *const S)
     if (S->dbug.probing)
         dbug_done(S);
 
-    chnl_closeall(&S->chnl);
+    fault_check(&S->fault, chnl_closeall(&S->chnl));
     flow_setcont(&S->vm, &S->allo);
     ready(S);
 }

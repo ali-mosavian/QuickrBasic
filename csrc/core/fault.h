@@ -14,6 +14,9 @@
 typedef uint16_t Status;
 enum : Status { ST_OK = 0xFFFF };
 
+/* QBasic's error qb as a Status. */
+static inline Status st_qb(const QbErr qb) { return (Status)(qb << 8 | E_USR); }
+
 enum : uint32_t { FAULT_KEEP = UINT32_MAX }; /* line: the current one; at: no caret */
 
 typedef struct {
@@ -86,5 +89,21 @@ static inline void fault_qberr(Fault *const f, const uint16_t qb)
         }
 
     );
+}
+
+/* st raised, ST_OK nothing. */
+[[noreturn, gnu::cold, gnu::noinline]]
+static inline void fault_status(Fault *const f, const Status st)
+{
+    if ((uint8_t)st == E_USR)
+        fault_qberr(f, (uint16_t)(st >> 8));
+
+    fault_error(f, (uint8_t)st);
+}
+
+static inline void fault_check(Fault *const f, const Status st)
+{
+    if (st != ST_OK)
+        fault_status(f, st);
 }
 #endif

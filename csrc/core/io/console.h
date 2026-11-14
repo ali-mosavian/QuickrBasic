@@ -21,7 +21,6 @@ enum : uint8_t {
 
 typedef struct Cons {
     Chnl *chnl;         /* output and input to a file's channel when set */
-    Fault *fault;       /* Out of DATA, BREAK, the channels' */
     Vm *vm;             /* its stop flag: STOP while a line is read */
     uint8_t capture;    /* CAP_* */
     uint8_t col;        /* the output channel's column */
@@ -38,7 +37,7 @@ typedef struct Cons {
 } Cons;
 
 /* inbuf and sbuf carved (allo_carve); standard input's kind; the console the only channel. */
-void cons_init(Cons *co, Allo *al, Chnl *cl, Fault *f, Vm *vm);
+void cons_init(Cons *co, Allo *al, Chnl *cl, Vm *vm);
 
 /* A character to the output, its column kept; NL ends the line. */
 void cons_putc(Cons *co, uint8_t c);
@@ -65,11 +64,14 @@ void cons_kw(Cons *co, uint8_t tok);
 void cons_kw1(Cons *co, uint8_t n);
 
 /* "? " and a line read; a line read into inbuf, 0 after, inpos -1. Errors: Out of DATA at
-   standard input's end, 62 at a file's, BREAK on the STOP key. */
-void cons_prompt(Cons *co);
-void cons_read(Cons *co);
+   standard input's end, 62 at a file's (or its read's error), BREAK on the STOP key. */
+[[nodiscard]]
+Status cons_prompt(Cons *co);
+[[nodiscard]]
+Status cons_read(Cons *co);
 /* INPUT: inpos to the next field; none left: "??" and another line (INPUT#: the next line). */
-void cons_field(Cons *co);
+[[nodiscard]]
+Status cons_field(Cons *co);
 
 /* Standard output: a character, NL as CR LF (plt_putc); obuf written (plt_flush). */
 void cons_out(Cons *co, uint8_t c);

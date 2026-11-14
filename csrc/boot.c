@@ -56,7 +56,7 @@ void boot(Session *const S, const FrontEnd *const fe)
     strg_init(&S->strg, &S->allo, &S->fault, &S->prog);
     arry_init(&S->arry, &S->allo, &S->fault, &S->symb, &S->decl, &S->strg);
     exec_init(S);
-    cons_init(&S->cons, &S->allo, &S->chnl, &S->fault, &S->vm);
+    cons_init(&S->cons, &S->allo, &S->chnl, &S->vm);
     diag_init(&S->diag, &S->cons);
     srcr_init(&S->srcr, &S->cons, &S->chnl, &S->repl.fline);
     file_init(&S->file, &S->allo, &S->chnl, &S->strg, &S->cons, &S->fault);

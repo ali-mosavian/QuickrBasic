@@ -843,7 +843,7 @@ void flow_end(Session *const S)
     if (S->dbug.probing)
         dbug_done(S);
 
-    chnl_closeall(&S->chnl);
+    fault_check(&S->fault, chnl_closeall(&S->chnl));
     S->vm.sp = S->vm.rsp;
     S->vm.nframes = 0;
     repl_ready(S);

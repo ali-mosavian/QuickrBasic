@@ -242,7 +242,7 @@ static void report(Session *const S, const uint8_t code)
 [[noreturn]]
 static void quit(Session *const S)
 {
-    chnl_closeall(&S->chnl);
+    fault_check(&S->fault, chnl_closeall(&S->chnl));
     cons_exit(&S->cons, 0);
 }
 
@@ -551,10 +551,14 @@ uint8_t repl_enter(Session *const S, const uint32_t len)
    place. Then the console's again. */
 static void read_file(Session *const S, const char *const name, const int32_t num)
 {
-    chnl_in(&S->chnl, chnl_open(&S->chnl, num, name, FM_IN, RECLEN_DEFAULT));
+    Chnl *const cl = &S->chnl;
+    Chan *c;
+    fault_check(&S->fault, chnl_open(cl, num, name, FM_IN, RECLEN_DEFAULT, &c));
+    fault_check(&S->fault, chnl_in(cl, c));
 
     for (;;) {
         const int32_t len = srcr_line(&S->srcr);
+        fault_check(&S->fault, chnl_take(cl)); /* a read's error */
 
         if (len < 0)
             break;
@@ -567,12 +571,14 @@ static void read_file(Session *const S, const char *const name, const int32_t nu
 
         if (inc) { /* its lines next */
             read_file(S, S->repl.incl, num - 1);
-            chnl_in(&S->chnl, chnl_find(&S->chnl, num));
+            fault_check(&S->fault, chnl_find(cl, num, &c));
+            fault_check(&S->fault, chnl_in(cl, c));
         }
     }
 
-    chnl_close(&S->chnl, chnl_find(&S->chnl, num));
-    chnl_clear(&S->chnl);
+    fault_check(&S->fault, chnl_find(cl, num, &c));
+    fault_check(&S->fault, chnl_close(cl, c));
+    chnl_clear(cl);
 }
 
 void repl_load(Session *const S)
