@@ -5,6 +5,7 @@
 #include "defs.h"
 #include "comp/code.h"
 #include "vm/exec.h"
+#include "io/console.h"
 
 /* The compiled expression's target (comp.tgtsubs): FFh a record's field (ctrl.field). */
 enum : uint8_t { TGT_FIELD = 0xFF };
@@ -98,7 +99,7 @@ void comp_fail(Session *S, uint8_t err); /* repl_error while comp.busy: ERR, EOL
 void comp_flush(Session *S);
 void comp_dfa(Session *S, uint16_t state); /* run the statement automaton from state */
 uint8_t comp_expnames(uint16_t state, const char *names[]); /* what state wanted; PS_NC*2 room */
-void comp_expected(Session *S, uint16_t state);             /* print it, "a, b or c" */
+void comp_expected(Cons *co, uint16_t state);             /* print it, "a, b or c" */
 
 /* Steps: the statement's nodes (comp/ast.h), each checked as made (comp/sema.h), generated in order
    at comp_flush */

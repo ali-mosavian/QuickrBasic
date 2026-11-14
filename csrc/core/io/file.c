@@ -53,31 +53,45 @@
 
 enum { STRING_IO_MAX = 255 }; /* a string GET reads, at most */
 
-void file_init(Session *const S) { S->file.recs = allo_carve(&S->allo, NCH * RECMAX); }
+void file_init(
+    File *const fi,
+    Allo *const al,
+    Chnl *const cl,
+    Strg *const sg,
+    Cons *const co,
+    Fault *const f
+)
+{
+    fi->chnl = cl;
+    fi->strg = sg;
+    fi->cons = co;
+    fi->fault = f;
+    fi->recs = allo_carve(al, NCH * RECMAX);
+}
 
 /* An INT kept in 2 bytes, widened. */
 static uint32_t widen16(const uint16_t v) { return (uint32_t)(int32_t)(int16_t)v; }
 
 /* String value s as a 0-ended name. Error: Bad file name, empty. */
-static const char *name_of(Session *const S, const Addr s)
+static const char *file_name_of(File *const fi, const Addr s)
 {
-    const Desc d = strg_get(&S->strg, s);
+    const Desc d = strg_get(fi->strg, s);
 
     if (!d.len)
-        fault_qberr(&S->fault, QB_BAD_FILE_NAME);
+        fault_qberr(fi->fault, QB_BAD_FILE_NAME);
 
-    return (const char *)strg_near(&S->strg, d);
+    return (const char *)strg_near(fi->strg, d);
 }
 
 /* name_of, .BAS added when its last part has no '.'. */
-static const char *bas_name(Session *const S, const Addr s)
+static const char *file_bas_name(File *const fi, const Addr s)
 {
-    const char *const n = name_of(S, s);
+    const char *const n = file_name_of(fi, s);
     const size_t len = strlen(n);
-    memcpy(S->file.bname, n, len + 1);
+    memcpy(fi->bname, n, len + 1);
     bool dot = false;
 
-    for (const char *p = S->file.bname; *p; p++) {
+    for (const char *p = fi->bname; *p; p++) {
         if (*p == '.')
             dot = true;
         if (*p == '\\' || *p == ':')
@@ -85,15 +99,15 @@ static const char *bas_name(Session *const S, const Addr s)
     }
 
     if (!dot)
-        memcpy(S->file.bname + len, ".BAS", 5);
+        memcpy(fi->bname + len, ".BAS", 5);
 
-    return S->file.bname;
+    return fi->bname;
 }
 
 /* c's record buffer. */
-static Addr record(Session *const S, const Chan *const c)
+static Addr file_record(const File *const fi, const Chan *const c)
 {
-    return S->file.recs + (uint32_t)(c - S->chnl.ch) * RECMAX;
+    return fi->recs + (uint32_t)(c - fi->chnl->ch) * RECMAX;
 }
 
 void file_opendef(Session *const S)
@@ -120,7 +134,7 @@ void file_reclen(Session *const S)
 void file_open(Session *const S)
 {
     const int32_t num = exec_popi(&S->vm);
-    const char *const name = name_of(S, exec_popa(&S->vm));
+    const char *const name = file_name_of(&S->file, exec_popa(&S->vm));
     chnl_open(&S->chnl, num, name, S->file.mode, S->file.reclen);
 }
 
@@ -141,7 +155,7 @@ static uint8_t mode_of(const uint8_t letter)
 
 void file_open2(Session *const S)
 {
-    const char *const name = name_of(S, exec_popa(&S->vm));
+    const char *const name = file_name_of(&S->file, exec_popa(&S->vm));
     const int32_t num = exec_popi(&S->vm);
     const Desc m = strg_get(&S->strg, exec_popa(&S->vm));
     const uint8_t mode = m.len ? mode_of(rd8(m.ptr)) : 0;
@@ -174,48 +188,48 @@ void file_lineinput(Session *const S)
 }
 
 /* Output to sbuf, from its start. */
-static void capture(Session *const S)
+static void file_capture(Cons *const co)
 {
-    S->cons.capture = CAP_SBUF;
-    S->cons.sblen = 0;
+    co->capture = CAP_SBUF;
+    co->sblen = 0;
 }
 
 /* sbuf's text, its spaces left out, to the output. */
-static void write_out(Session *const S)
+static void file_write_out(Cons *const co)
 {
-    S->cons.capture = 0;
+    co->capture = 0;
 
-    for (uint32_t i = 0; i < S->cons.sblen; i++)
-        if (S->cons.sbuf[i] != ' ')
-            cons_putc(&S->cons, S->cons.sbuf[i]);
+    for (uint32_t i = 0; i < co->sblen; i++)
+        if (co->sbuf[i] != ' ')
+            cons_putc(co, co->sbuf[i]);
 }
 
 void file_write_int(Session *const S)
 {
     const int32_t v = exec_popi(&S->vm);
-    capture(S);
+    file_capture(&S->cons);
     cons_int(&S->cons, v);
-    write_out(S);
+    file_write_out(&S->cons);
 }
 
 void file_write_flt(Session *const S)
 {
     const Sngl v = exec_pop(&S->vm).u;
-    capture(S);
+    file_capture(&S->cons);
     sngl_print(&S->cons, v);
-    write_out(S);
+    file_write_out(&S->cons);
 }
 
 void file_write_dbl(Session *const S)
 {
     uint8_t text[DUBL_TXT];
     const uint32_t n = dubl_fmt(exec_popd(&S->vm), text);
-    capture(S);
+    file_capture(&S->cons);
 
     for (uint32_t i = 0; i < n; i++)
         cons_putc(&S->cons, text[i]);
 
-    write_out(S);
+    file_write_out(&S->cons);
 }
 
 void file_write_str(Session *const S)
@@ -272,10 +286,10 @@ void file_seekpos(Session *const S)
 }
 
 /* Record or byte p of c, from 1, as an offset. Error: Bad record number, under 1. */
-static uint32_t offset_of(Session *const S, const Chan *const c, const uint32_t p)
+static uint32_t file_offset_of(Fault *const f, const Chan *const c, const uint32_t p)
 {
     if ((int32_t)(p - 1) < 0)
-        fault_qberr(&S->fault, QB_BAD_RECORD_NUMBER);
+        fault_qberr(f, QB_BAD_RECORD_NUMBER);
 
     return c->mode & FM_RND ? (p - 1) * c->reclen : p - 1;
 }
@@ -285,7 +299,7 @@ void file_seek(Session *const S)
     Chan *const c = chnl_find(&S->chnl, S->vm.sp[1].i);
     const uint32_t p = S->vm.sp[0].u;
     S->vm.sp += 2;
-    chnl_seek(&S->chnl, c, offset_of(S, c, p));
+    chnl_seek(&S->chnl, c, file_offset_of(&S->fault, c, p));
     c->eof = false;
 }
 
@@ -364,31 +378,31 @@ void file_attr(Session *const S)
         repl_error(S, E_IQ);
 }
 
-static void dos(Session *const S, const uint16_t err)
+static void file_dos(Chnl *const cl, const uint16_t err)
 {
     if (err)
-        chnl_doserr(&S->chnl, err);
+        chnl_doserr(cl, err);
 }
 
-void file_kill(Session *const S) { dos(S, pfil_delete(name_of(S, exec_popa(&S->vm)))); }
-void file_mkdir(Session *const S) { dos(S, pfil_mkdir(name_of(S, exec_popa(&S->vm)))); }
-void file_rmdir(Session *const S) { dos(S, pfil_rmdir(name_of(S, exec_popa(&S->vm)))); }
-void file_chdir(Session *const S) { dos(S, pfil_chdir(name_of(S, exec_popa(&S->vm)))); }
+void file_kill(Session *const S) { file_dos(&S->chnl, pfil_delete(file_name_of(&S->file, exec_popa(&S->vm)))); }
+void file_mkdir(Session *const S) { file_dos(&S->chnl, pfil_mkdir(file_name_of(&S->file, exec_popa(&S->vm)))); }
+void file_rmdir(Session *const S) { file_dos(&S->chnl, pfil_rmdir(file_name_of(&S->file, exec_popa(&S->vm)))); }
+void file_chdir(Session *const S) { file_dos(&S->chnl, pfil_chdir(file_name_of(&S->file, exec_popa(&S->vm)))); }
 
 void file_rename(Session *const S)
 {
-    const char *const to = name_of(S, exec_popa(&S->vm));
+    const char *const to = file_name_of(&S->file, exec_popa(&S->vm));
     memcpy(S->file.name2, to, strlen(to) + 1);
-    const uint16_t err = pfil_rename(name_of(S, exec_popa(&S->vm)), S->file.name2);
+    const uint16_t err = pfil_rename(file_name_of(&S->file, exec_popa(&S->vm)), S->file.name2);
 
     if (err == PFIL_DENIED)
         fault_qberr(&S->fault, QB_FILE_EXISTS);
 
-    dos(S, err);
+    file_dos(&S->chnl, err);
 }
 
 /* FILES' entry: NAME.EXT as NAME    .EXT, <DIR> after a directory's, in ENTRY_WIDTH columns. */
-static void files_entry(Session *const S, const PfilFind *const f)
+static void file_files_entry(Cons *const co, const PfilFind *const f)
 {
     enum { NAME_WIDTH = 8, ENTRY_WIDTH = 18, DIR_MARK = 5 };
 
@@ -396,24 +410,24 @@ static void files_entry(Session *const S, const PfilFind *const f)
     uint32_t n = 0;
 
     for (; s[n] && s[n] != '.'; n++)
-        cons_putc(&S->cons, (uint8_t)s[n]);
+        cons_putc(co, (uint8_t)s[n]);
     for (uint32_t i = n; i < NAME_WIDTH; i++)
-        cons_space(&S->cons);
+        cons_space(co);
 
     s += n + (s[n] != 0);
-    cons_putc(&S->cons, '.');
-    cons_puts(&S->cons, s);
+    cons_putc(co, '.');
+    cons_puts(co, s);
     uint32_t used = NAME_WIDTH + 1 + (uint32_t)strlen(s);
 
     if (f->attr & PFIL_ADIR) {
-        cons_puts(&S->cons, "<DIR>");
+        cons_puts(co, "<DIR>");
         used += DIR_MARK;
     }
 
     for (uint32_t i = used; i < ENTRY_WIDTH - 1; i++)
-        cons_space(&S->cons);
+        cons_space(co);
 
-    cons_space(&S->cons); /* at least one */
+    cons_space(co); /* at least one */
 }
 
 void file_files(Session *const S)
@@ -423,7 +437,7 @@ void file_files(Session *const S)
     memcpy(pattern, "*.*", 4);
 
     if (exec_popi(&S->vm)) {
-        const char *n = name_of(S, exec_popa(&S->vm));
+        const char *n = file_name_of(&S->file, exec_popa(&S->vm));
         memcpy(pattern, n, strlen(n) + 1);
     }
 
@@ -438,7 +452,7 @@ void file_files(Session *const S)
     if (pfil_first(pattern, PFIL_ADIR, &f))
         fault_qberr(&S->fault, QB_FILE_NOT_FOUND);
     do {
-        files_entry(S, &f);
+        file_files_entry(&S->cons, &f);
 
         if (S->cons.col >= LAST_COL)
             cons_nl(&S->cons);
@@ -487,15 +501,15 @@ static void get_string(Session *const S, Chan *const c, const Addr desc)
 
 /* PUT: the variable into the record at its start; a variable-length string its length first.
    Error: Bad record length, longer than the record. */
-static void to_record(Session *const S, const Chan *const c, const Addr addr, const uint32_t kind)
+static void file_to_record(File *const fi, const Chan *const c, const Addr addr, const uint32_t kind)
 {
     uint32_t n;
     const Addr src = var_bytes(addr, kind, &n);
-    Addr rec = record(S, c);
+    Addr rec = file_record(fi, c);
 
     if (va_kind(kind) == VA_DESC && !va_n(kind)) {
         if ((uint16_t)(n + 2) > c->reclen)
-            fault_qberr(&S->fault, QB_BAD_RECORD_LENGTH);
+            fault_qberr(fi->fault, QB_BAD_RECORD_LENGTH);
 
         wr16(rec, (uint16_t)n);
         rec += 2;
@@ -503,16 +517,16 @@ static void to_record(Session *const S, const Chan *const c, const Addr addr, co
         if (va_kind(kind) == VA_I2)
             n = 2;
         if ((uint16_t)n > c->reclen)
-            fault_qberr(&S->fault, QB_BAD_RECORD_LENGTH);
+            fault_qberr(fi->fault, QB_BAD_RECORD_LENGTH);
     }
 
     memmove(at(rec), at(src), n);
 }
 
 /* GET: the record into the variable. */
-static void from_record(Session *const S, const Chan *const c, const Addr addr, const uint32_t kind)
+static void file_from_record(File *const fi, const Chan *const c, const Addr addr, const uint32_t kind)
 {
-    Addr rec = record(S, c);
+    Addr rec = file_record(fi, c);
     uint32_t n = va_n(kind);
 
     switch (va_kind(kind)) {
@@ -529,8 +543,8 @@ static void from_record(Session *const S, const Chan *const c, const Addr addr, 
         if (n > STRING_IO_MAX)
             n = STRING_IO_MAX;
 
-        memcpy(S->cons.sbuf, at(rec), n);
-        strg_set(&S->strg, strg_text(&S->strg, S->cons.sbuf, (uint16_t)n), addr);
+        memcpy(fi->cons->sbuf, at(rec), n);
+        strg_set(fi->strg, strg_text(fi->strg, fi->cons->sbuf, (uint16_t)n), addr);
         return;
 
     default:
@@ -591,7 +605,7 @@ static void get_put(Session *const S, const bool put)
             p = (chnl_tell(c) + c->reclen - 1) / c->reclen + 1;
 
         c->last = p;
-        off = offset_of(S, c, p);
+        off = file_offset_of(&S->fault, c, p);
     }
 
     chnl_seek(&S->chnl, c, off);
@@ -603,19 +617,19 @@ static void get_put(Session *const S, const bool put)
             binary(S, c, addr, kind, put);
     } else if (put) {
         if (kind)
-            to_record(S, c, addr, kind);
+            file_to_record(&S->file, c, addr, kind);
 
-        chnl_write(&S->chnl, c, at(record(S, c)), c->reclen);
+        chnl_write(&S->chnl, c, at(file_record(&S->file, c)), c->reclen);
     } else {
-        const uint32_t got = chnl_read(&S->chnl, c, at(record(S, c)), c->reclen);
+        const uint32_t got = chnl_read(&S->chnl, c, at(file_record(&S->file, c)), c->reclen);
 
         if (got < c->reclen) { /* past the end: the rest 0, EOF */
             c->eof = true;
-            memset(at(record(S, c) + got), 0, c->reclen - got);
+            memset(at(file_record(&S->file, c) + got), 0, c->reclen - got);
         }
 
         if (kind)
-            from_record(S, c, addr, kind);
+            file_from_record(&S->file, c, addr, kind);
     }
 
     S->vm.sp += 4;
@@ -645,7 +659,7 @@ void file_fielditem(Session *const S)
         fault_qberr(&S->fault, QB_FIELD_OVERFLOW);
 
     Desc *const d = (Desc *)at(desc);
-    d->ptr = record(S, c) + c->field;
+    d->ptr = file_record(&S->file, c) + c->field;
     d->len = (uint16_t)w;
     c->field += (uint16_t)w;
 }
@@ -701,11 +715,11 @@ static uint32_t swap_words(const uint32_t v) { return v << 16 | v >> 16; }
 
 void file_bsave(Session *const S)
 {
-    const char *const name = bas_name(S, S->vm.sp[2].a);
+    const char *const name = file_bas_name(&S->file, S->vm.sp[2].a);
     const Addr from = S->vm.sp[1].a;
     const uint16_t n = (uint16_t)S->vm.sp[0].u;
     PfilHandle h;
-    dos(S, pfil_create(name, &h));
+    file_dos(&S->chnl, pfil_create(name, &h));
     uint8_t hdr[BSAVE_HDR] = {BSAVE_MAGIC};
 
     store32(hdr + BSAVE_ADDR, swap_words(from));
@@ -721,9 +735,9 @@ void file_bload(Session *const S)
 {
     const uint32_t flag = S->vm.sp++->u;
     const Addr given = flag ? exec_popa(&S->vm) : 0;
-    const char *const name = bas_name(S, exec_popa(&S->vm));
+    const char *const name = file_bas_name(&S->file, exec_popa(&S->vm));
     PfilHandle h;
-    dos(S, pfil_open(name, PFIL_READ, &h));
+    file_dos(&S->chnl, pfil_open(name, PFIL_READ, &h));
     uint8_t hdr[BSAVE_HDR] = {0};
 
     uint32_t got;

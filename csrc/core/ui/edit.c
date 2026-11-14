@@ -315,8 +315,8 @@ bool edit_canon(Session *const S, uint8_t *const text, const uint16_t len)
     return true;
 }
 
-static void todo(Session *const S) { diag_todo(S); }
-static void shape(Session *const S) { diag_shape(S); }
+static void todo(Session *const S) { diag_todo(&S->diag); }
+static void shape(Session *const S) { diag_shape(&S->diag); }
 
 /* '|', then (and its second, when not 0) sep2, then what print prints, wrapped indent in; nothing
    printed: nothing, the separators dropped (@udx_p). */
@@ -351,7 +351,7 @@ uint16_t edit_dxerr(Session *const S, const uint8_t *const text, const ErrOp *co
     lexr_line(&S->lexr, S->cons.inbuf, S->comp.cbuf);
     S->lexr.all = false;
     const uint16_t col = lexr_colof(&S->lexr, op->at);
-    const uint32_t at = diag_at(S, (const char *)S->cons.inbuf, col, op->code, op->dg, op->state);
+    const uint32_t at = diag_at(&S->diag, S->vm.err.user, (const char *)S->cons.inbuf, col, op->code, op->dg, op->state);
 
     edit_emsg(S, op->code); /* its class, the title */
     uint8_t *d = (uint8_t *)uimn.errmsg + strlen(uimn.errmsg);

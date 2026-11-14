@@ -90,12 +90,34 @@ void repl_error(Session *const S, uint8_t code)
 }
 
 [[noreturn]]
+/* An error found off the code (the block pass), raised as if an ERR op at body offset at of
+   line (a program store offset) raised it, never trapped. vm.opip is set to an ErrOp
+   (vm/exec.h) of its own. */
+[[noreturn]]
+static void repl_raise_at(Session *const S, const Failure *const e)
+{
+    static ErrOp op;
+    op = (ErrOp){
+        .op = O_ERR,
+        .code = e->code,
+        .dg = e->dg,
+        .at = e->at,
+        .state = DX_NOSTATE,
+    };
+
+    S->vm.line = e->line;
+    S->vm.opip = (uint8_t *)&op;
+    S->vm.err.active = true;
+    diag_other(&S->diag, e->other, e->len);
+    repl_error(S, e->code);
+}
+
 void repl_fault(Fault *const f, const Failure *const e)
 {
     Session *const S = container_of(f, Session, fault);
 
     if (e->at != FAULT_KEEP)
-        diag_raise(S, e->code, e->dg, e->at, e->line, e->other, e->len);
+        repl_raise_at(S, e);
     if (e->line != FAULT_KEEP)
         S->vm.line = e->line;
     if (e->code == E_USR)
@@ -139,7 +161,7 @@ static void diagnose(Session *const S)
     const uint8_t *const body =
         S->vm.line == DLINE ? S->comp.cbuf : at(prog_addr(&S->prog, S->vm.line) + HDR);
     const uint32_t col = list_text(S, body, e->at);
-    const uint32_t mark = diag_at(S, (const char *)S->cons.sbuf, col, e->code, e->dg, e->state);
+    const uint32_t mark = diag_at(&S->diag, S->vm.err.user, (const char *)S->cons.sbuf, col, e->code, e->dg, e->state);
     cons_nl(&S->cons);
     cons_spaces(&S->cons, 2);
     cons_puts(&S->cons, (const char *)S->cons.sbuf);
@@ -151,7 +173,7 @@ static void diagnose(Session *const S)
 
     cons_putc(&S->cons, '^');
     cons_nl(&S->cons);
-    diag_say(S);
+    diag_say(&S->diag);
 }
 
 /* repl_error's message, a file run's where, as BC's: "in line n|No line number in module NAME at

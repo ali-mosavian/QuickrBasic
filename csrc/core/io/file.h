@@ -2,8 +2,14 @@
 #ifndef CORE_IO_FILE_H
 #define CORE_IO_FILE_H
 #include "io/channel.h"
+#include "io/console.h"
+#include "mem/string.h"
 
 typedef struct {
+    Chnl *chnl;       /* the channels */
+    Strg *strg;       /* names' and records' strings */
+    Cons *cons;       /* FILES' listing; sbuf a record's string's scratch */
+    Fault *fault;     /* the QBasic errors */
     uint8_t mode;     /* OPEN's mode, FM_* */
     uint32_t reclen;  /* OPEN's LEN */
     Addr recs;        /* NCH * RECMAX: each channel's record */
@@ -12,8 +18,8 @@ typedef struct {
     char bname[264];  /* BSAVE's, BLOAD's name, .BAS added */
 } File;
 
-/* The records' region carved (allo_carve). */
-void file_init(Session *S);
+/* The records' region carved from al; the links set. */
+void file_init(File *fi, Allo *al, Chnl *cl, Strg *sg, Cons *co, Fault *f);
 
 void file_opendef(Session *S);   /* OPEN's defaults: RANDOM, 128-byte records */
 void file_mode_in(Session *S);   /* FOR INPUT */

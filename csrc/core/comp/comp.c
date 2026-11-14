@@ -679,17 +679,17 @@ uint8_t comp_expnames(const uint16_t state, const char *names[])
     return expnames(state, true, names, 0);
 }
 
-void comp_expected(Session *const S, const uint16_t state)
+void comp_expected(Cons *const co, const uint16_t state)
 {
     const char *names[PS_NC * 2];
     const uint8_t n = comp_expnames(state, names);
 
     for (uint8_t i = 0; i < n; i++) {
-        cons_puts(&S->cons, names[i]);
+        cons_puts(co, names[i]);
         const uint8_t left = n - i - 1;
 
         if (left)
-            cons_puts(&S->cons, left == 1 ? " or " : ", ");
+            cons_puts(co, left == 1 ? " or " : ", ");
     }
 }
 

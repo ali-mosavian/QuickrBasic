@@ -49,7 +49,7 @@ void repl_main(Session *S);
 uint16_t repl_intern(LexrNames *names, const uint8_t *text, uint8_t len);
 /* The line's declarations entered, after its 32-bit warnings to the front end. */
 void repl_declare(Session *S, const uint8_t *body);
-/* Session.fault's raise: a module's error, reported as diag_raise or repl_error does. */
+/* Session.fault's raise: a module's error, reported as repl_error does, at its line when the block pass found it. */
 [[noreturn]]
 void repl_fault(Fault *f, const Failure *e);
 /* Back to READY (asm rpl_ready): the C stack unwound to repl.top. */

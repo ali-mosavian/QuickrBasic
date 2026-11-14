@@ -58,7 +58,8 @@ void boot(Session *const S, const FrontEnd *const fe)
     arry_init(&S->arry, &S->allo, &S->fault, &S->symb, &S->decl, &S->strg);
     exec_init(S);
     cons_init(&S->cons, &S->allo, &S->chnl, &S->fault, &S->vm);
-    file_init(S);
+    diag_init(&S->diag, &S->cons);
+    file_init(&S->file, &S->allo, &S->chnl, &S->strg, &S->cons, &S->fault);
     comp_init(S);
     flow_init(S);
     stmt_init(S);
