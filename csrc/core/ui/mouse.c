@@ -4,9 +4,10 @@
  * mous_poll turns the left button into events (press, drag, up, move), left in uimn.mouse.event at
  * uimn.mouse.row, col. uimn_getkey hands one on as KEY_MOUSE. The state is ui.h's uimn.mouse.
  *
- * mous_main acts on an event: a title opens its menu, a press puts the cursor there, a drag
- * selects; the scroll bars; another window's focus; the status bar's keys; a move the debug pane's
- * tooltip; the pane's own.
+ * The widget tree (tree.h) takes an event to the widget under it: the menu bar's title opens its
+ * menu, the status bar's key runs; in the windows a press puts the cursor there, a drag selects,
+ * the scroll bars, another window's focus, the pane's own. A move is the screen's: the debug
+ * pane's tooltip.
  *
  * # asm structure (src/ui/mous.asm)
  * | asm | here | |
@@ -14,12 +15,13 @@
  * | ms_init, ms_show, ms_hide | mous_init, mous_show, mous_hide | MIRROR |
  * | ms_poll | mous_poll | MIRROR; D1 |
  * | ms_title | mous_title | MIRROR; D1 |
- * | ms_main | mous_main | MIRROR |
+ * | ms_main | mous_screen, mous_menubar, mous_statusbar, mous_workspace | D2 |
  * | MS_PRESS, MS_DRAG, MS_UP, MS_MOVE | same (mouse.h) | MIRROR |
  * | MS_KEY | KEY_MOUSE (ui.h) | MIRROR |
  * | g_ui.ms.* | uimn.mouse (ui.h) | MOVED |
  *
  * - D1. A flag result is a bool, true the success; mous_title gives the menu through a pointer.
+ * - D2. Split by the widget whose cells the event is in, each a WidgetOps.mouse.
  */
 #include "ui/mouse.h"
 #include "session.h"
@@ -189,40 +191,52 @@ static void edit_click(Session *const S, const uint8_t w, const uint8_t row, con
     uimn.edline.col = (uint16_t)(col - e->x - 1 + e->left);
 }
 
-void mous_main(Session *const S)
+bool mous_screen(Widget *const w, Session *const S, const uint8_t row, const uint8_t col)
 {
-    const UiMouse *const m = &uimn.mouse;
-    const uint8_t row = m->row, col = m->col;
+    if (uimn.mouse.event != MS_MOVE)
+        return false;
 
-    if (m->event == MS_MOVE) {
-        dpan_hover(row, col);
-        return;
-    }
+    dpan_hover(row, col);
+    return true;
+}
 
-    if (m->event == MS_UP)
-        return;
-    if (!row) {
-        uint8_t menu;
+bool mous_menubar(Widget *const w, Session *const S, const uint8_t row, const uint8_t col)
+{
+    if (uimn.mouse.event != MS_PRESS)
+        return false;
 
-        if (m->event == MS_PRESS && mous_title(col, &menu))
-            menu_run(S, menu, true);
+    uint8_t menu;
 
-        return;
-    }
+    if (mous_title(col, &menu))
+        menu_run(S, menu, true);
 
-    if (row == STATUS_ROW) {
-        if (m->event == MS_PRESS)
-            status_bar(S, col);
+    return true;
+}
 
-        return;
-    }
+bool mous_statusbar(Widget *const w, Session *const S, const uint8_t row, const uint8_t col)
+{
+    if (uimn.mouse.event != MS_PRESS)
+        return false;
 
-    uint8_t w;
+    status_bar(S, col);
+    return true;
+}
 
-    if (!wind_at(row, col, &w))
-        return;
-    if (w == W_DBG)
+bool mous_workspace(Widget *const w, Session *const S, const uint8_t row, const uint8_t col)
+{
+    const uint8_t ev = uimn.mouse.event;
+
+    if (ev == MS_MOVE || ev == MS_UP)
+        return false;
+
+    uint8_t win;
+
+    if (!wind_at(row, col, &win))
+        return true;
+    if (win == W_DBG)
         dpan_mouse(S, row, col);
-    else if (w >= W_ED1)
-        edit_click(S, w, row, col);
+    else if (win >= W_ED1)
+        edit_click(S, win, row, col);
+
+    return true;
 }

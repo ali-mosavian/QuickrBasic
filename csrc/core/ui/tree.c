@@ -51,6 +51,41 @@ bool tree_key(Widget *const root, Session *const S, const uint16_t key)
     }
 }
 
+static bool holds(const Rect r, const uint8_t row, const uint8_t col)
+{
+    return row >= r.row && row - r.row < r.rows && col >= r.col && col - r.col < r.cols;
+}
+
+/* The deepest visible widget under w holding row, col: a shown modal child first. */
+static Widget *under(Widget *w, const uint8_t row, const uint8_t col)
+{
+    for (;;) {
+        Widget *next = nullptr;
+
+        for (uint8_t i = w->nchildren; i-- > 0 && !next;)
+            if (w->children[i]->visible && w->children[i]->modal)
+                next = w->children[i];
+        for (uint8_t i = w->nchildren; i-- > 0 && !next;) /* the last drawn is on top */
+            if (w->children[i]->visible && holds(w->children[i]->rect, row, col))
+                next = w->children[i];
+
+        if (!next)
+            return w;
+
+        w = next;
+    }
+}
+
+bool tree_mouse(Widget *const root, Session *const S, const uint8_t row, const uint8_t col)
+{
+    for (Widget *w = under(root, row, col);; w = w->parent) {
+        if (w->ops && w->ops->mouse && w->ops->mouse(w, S, row, col))
+            return true;
+        if (w == root)
+            return false;
+    }
+}
+
 void tree_draw(Widget *const root, Session *const S)
 {
     if (root->ops && root->ops->draw)

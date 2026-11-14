@@ -1134,7 +1134,7 @@ void uimn_key(Session *const S, const uint16_t key)
     }
 
     if (key == KEY_MOUSE) {
-        mous_main(S);
+        tree_mouse(&uimn.tree.screen, S, uimn.mouse.row, uimn.mouse.col);
         return;
     }
 
@@ -1285,10 +1285,10 @@ static bool pane_key(Widget *const w, Session *const S, const uint16_t key)
     return dpan_key(S, key);
 }
 
-static const WidgetOps screen_ops = {.key = screen_key};
-static const WidgetOps menubar_ops = {.draw = menubar_draw};
-static const WidgetOps workspace_ops = {.draw = workspace_draw};
-static const WidgetOps statusbar_ops = {.draw = statusbar_draw};
+static const WidgetOps screen_ops = {.key = screen_key, .mouse = mous_screen};
+static const WidgetOps menubar_ops = {.draw = menubar_draw, .mouse = mous_menubar};
+static const WidgetOps workspace_ops = {.draw = workspace_draw, .mouse = mous_workspace};
+static const WidgetOps statusbar_ops = {.draw = statusbar_draw, .mouse = mous_statusbar};
 static const WidgetOps edit_ops = {.key = edit_key};
 static const WidgetOps imm_ops = {.key = imm_key};
 static const WidgetOps pane_ops = {.key = pane_key};
@@ -1300,19 +1300,24 @@ static void build_tree(void)
     static const struct {
         Widget *w, *parent;
         const WidgetOps *ops;
+        Rect rect;
     } tree[] = {
-        {&uimn.tree.menubar, &uimn.tree.screen, &menubar_ops},
-        {&uimn.tree.workspace, &uimn.tree.screen, &workspace_ops},
-        {&uimn.tree.statusbar, &uimn.tree.screen, &statusbar_ops},
-        {&uimn.tree.edit, &uimn.tree.workspace, &edit_ops},
-        {&uimn.tree.imm, &uimn.tree.workspace, &imm_ops},
-        {&uimn.tree.pane, &uimn.tree.workspace, &pane_ops},
+        {&uimn.tree.menubar, &uimn.tree.screen, &menubar_ops, {0, 0, 1, PSCR_COLS}},
+        {&uimn.tree.workspace, &uimn.tree.screen, &workspace_ops, {1, 0, WIN_ROWS, PSCR_COLS}},
+        {&uimn.tree.statusbar, &uimn.tree.screen, &statusbar_ops, {STATUS_ROW, 0, 1, PSCR_COLS}},
+        {&uimn.tree.edit,
+         &uimn.tree.workspace,
+         &edit_ops,
+         {}}, /* the workspace's mouse: no cells */
+        {&uimn.tree.imm, &uimn.tree.workspace, &imm_ops, {}},
+        {&uimn.tree.pane, &uimn.tree.workspace, &pane_ops, {}},
     };
 
-    uimn.tree.screen = (Widget){.ops = &screen_ops, .visible = true};
+    uimn.tree.screen =
+        (Widget){.ops = &screen_ops, .rect = {0, 0, PSCR_ROWS, PSCR_COLS}, .visible = true};
 
     for (uint32_t i = 0; i < countof(tree); i++) {
-        *tree[i].w = (Widget){.ops = tree[i].ops, .visible = true};
+        *tree[i].w = (Widget){.ops = tree[i].ops, .rect = tree[i].rect, .visible = true};
 
         tree_add(tree[i].parent, tree[i].w);
     }

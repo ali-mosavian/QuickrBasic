@@ -20,8 +20,10 @@ void mous_hide(void);
 bool mous_poll(void);
 /* ms_title: the menu whose title is at column col of the bar; false: none. */
 bool mous_title(uint8_t col, uint8_t *menu);
-/* ms_main: the event in the editor: a title opens its menu, a press puts the cursor there, a drag
-   selects; the scroll bar; another window's focus; the status bar's keys; a move the debug
-   pane's tooltip; the pane's own. */
-void mous_main(Session *S);
+/* ms_main, by widget (WidgetOps.mouse): the screen's, a move: the debug pane's tooltip; the menu
+   bar's, a press on a title: its menu; the status bar's: its key; the windows'. */
+bool mous_screen(Widget *w, Session *S, uint8_t row, uint8_t col);
+bool mous_menubar(Widget *w, Session *S, uint8_t row, uint8_t col);
+bool mous_statusbar(Widget *w, Session *S, uint8_t row, uint8_t col);
+bool mous_workspace(Widget *w, Session *S, uint8_t row, uint8_t col);
 #endif

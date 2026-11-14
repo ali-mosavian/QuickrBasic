@@ -18,7 +18,13 @@ static bool key(Widget *const w, Session *const S, const uint16_t k)
     note(w);
     return k == ((const Probe *)w)->takes;
 }
-static const WidgetOps ops = {.draw = draw, .key = key};
+/* A widget handles the mouse on the row its key is. */
+static bool mouse(Widget *const w, Session *const S, const uint8_t row, const uint8_t col)
+{
+    note(w);
+    return row == ((const Probe *)w)->takes;
+}
+static const WidgetOps ops = {.draw = draw, .key = key, .mouse = mouse};
 
 /* r, its children a and b, a's child c; all shown, the focus on a then c. */
 static Probe r, a, b, c;
@@ -71,6 +77,39 @@ TEST(tree_focus_sets_the_path)
     CHECK(tree_focused(&r.w) == &b.w);
     tree_focus(&c.w);
     CHECK(tree_focused(&r.w) == &c.w);
+}
+
+/* r rows 0-9; a 0-4, its c 0-1; b 5-9. */
+static void place(void)
+{
+    r.w.rect = (Rect){0, 0, 10, 10};
+
+    a.w.rect = (Rect){0, 0, 5, 10};
+
+    c.w.rect = (Rect){0, 0, 2, 10};
+
+    b.w.rect = (Rect){5, 0, 5, 10};
+
+    nseen = 0;
+    memset(seen, 0, sizeof seen);
+}
+
+TEST(tree_mouse_goes_to_the_widget_under_it_then_up)
+{
+    build();
+    place();
+    CHECK(tree_mouse(&r.w, S, 1, 3)); /* c's cells, r's row */
+    CHECK(!strcmp(seen, "car"));
+    place();
+    CHECK(!tree_mouse(&r.w, S, 3, 3)); /* a's cells: neither a nor r takes row 3 */
+    CHECK(!strcmp(seen, "ar"));
+    place();
+    CHECK(!tree_mouse(&r.w, S, 7, 3)); /* b's cells: b takes row 3 only */
+    CHECK(!strcmp(seen, "br"));
+    place();
+    b.w.modal = true;
+    CHECK(tree_mouse(&r.w, S, 1, 3)); /* in c's cells, but a modal b has it first */
+    CHECK(!strcmp(seen, "br"));
 }
 
 TEST(tree_draw_parents_first_shown_only)
