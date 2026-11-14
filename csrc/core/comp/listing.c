@@ -138,15 +138,20 @@ void list_body(Comp *const C, const uint8_t *p)
             C->list->last = LS_WORD;
             continue;
         }
-        case M_VAR:
+        case M_VAR: { /* in its casing as first written; its suffix as here */
             lead(C);
+            const uint8_t n = p[0];
+            uint8_t name[UINT8_MAX];
+            memcpy(name, p + 1, n);
+            symb_spell(C->symb, comp_nameof(p - 1), name, n);
 
-            for (uint8_t n = *p++; n; n--)
-                cons_putc(C->cons, *p++);
+            for (uint8_t i = 0; i < n; i++)
+                cons_putc(C->cons, name[i]);
 
-            p += 2;
+            p += n + 3u;
             C->list->last = LS_WORD;
             continue;
+        }
 
         case '"': /* a string: to its quote, as it is */
             lead(C);
@@ -183,6 +188,12 @@ void list_body(Comp *const C, const uint8_t *p)
         case ':':
             cons_putc(C->cons, c);
             C->list->last = LS_SEP;
+            continue;
+        }
+
+        if (c == '.' && *p == M_VAR) { /* a ( .. )'s field: r(i).f close */
+            cons_putc(C->cons, c);
+            C->list->last = LS_NONE;
             continue;
         }
 

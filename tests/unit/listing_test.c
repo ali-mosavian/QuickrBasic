@@ -1,0 +1,42 @@
+/* LIST's spelling of a stored body (comp/listing.h). */
+#include "session.h"
+#include "comp/lexer.h"
+#include "comp/listing.h"
+#include "unit.h"
+
+static const char *const program[] = {
+    "10 TYPE foo",
+    "20 a AS INTEGER",
+    "30 END TYPE",
+    "40 DIM x(10) AS foo, r AS foo",
+    "50 Total = 1",
+    nullptr,
+};
+
+/* text lexed, then listed: in cons.sbuf. */
+static void listed(Session *const S, const char *const text)
+{
+    uint8_t buf[100];
+    strcpy((char *)buf, text);
+    lexr_line(&S->lexr, buf, S->comp.cbuf);
+    S->cons.capture = CAP_SBUF;
+    S->cons.sblen = 0;
+    list_body(&S->comp, S->comp.cbuf);
+    S->cons.capture = 0;
+}
+
+/* An element's field close to its ')': it was x(0) . a. */
+TEST(list_field_close)
+{
+    unit_store(S, program);
+    listed(S, "x(0).a = 2: print x(0) . a");
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, "x(0).a = 2: PRINT x(0).a");
+}
+
+/* A name in the casing it was first written with: each was listed as typed there. */
+TEST(list_name_as_first_written)
+{
+    unit_store(S, program);
+    listed(S, "x(0).A = TOTAL: print r.A%");
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, "x(0).a = Total: PRINT r.A%");
+}

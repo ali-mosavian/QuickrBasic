@@ -2,6 +2,7 @@
 #include "session.h"
 #include "comp/suggest.h"
 #include "unit.h"
+#include <strings.h>
 
 static Suggs out;
 
@@ -12,11 +13,11 @@ static bool suggest(Session *const S, const char *const typed)
     return sugg_find(S, (const uint8_t *)typed, n, n, S->prog.end, &out);
 }
 
-/* text's place in the list, -1 not in it. */
+/* text's place in the list in any casing, -1 not in it. */
 static int place(const char *const text)
 {
     for (uint16_t i = 0; i < out.n; i++)
-        if (!strcmp((const char *)out.list[i].text, text))
+        if (!strcasecmp((const char *)out.list[i].text, text))
             return i;
 
     return -1;
@@ -236,4 +237,26 @@ TEST(suggest_a_result)
     CHECK(out.list[place("TWICE$")].kind == SG_VAR);
     CHECK(sugg_find(S, (const uint8_t *)"x$ = tw", 7, 7, rec, &out));
     CHECK(out.list[place("TWICE$")].kind == SG_FN);
+}
+
+/* Names offered as first written: all were offered in capitals, TOTAL for Total, A for a TYPE's
+   field a. */
+TEST(suggest_names_as_written)
+{
+    static const char *const lines[] = {
+        "10 TYPE pair",
+        "20 a AS INTEGER",
+        "30 END TYPE",
+        "40 DIM x(10) AS pair",
+        "50 Total = 1",
+        "60 SUB Tally",
+        "70 END SUB",
+        nullptr,
+    };
+
+    unit_store(S, lines);
+    CHECK(suggest(S, "print TOT") && !strcmp((const char *)out.list[place("Total")].text, "Total"));
+    CHECK(suggest(S, "print x(0).") && !strcmp((const char *)out.list[0].text, "a"));
+    CHECK(suggest(S, "dim y as PA") && !strcmp((const char *)out.list[0].text, "pair"));
+    CHECK(suggest(S, "TAL") && !strcmp((const char *)out.list[place("Tally")].text, "Tally"));
 }

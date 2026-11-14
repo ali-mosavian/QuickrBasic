@@ -120,14 +120,21 @@ static bool cmpl_ghost(void)
            ac.glen == b->len && ac.gsum == cmpl_sum(b);
 }
 
-/* The word replaced by the first n characters of s, in small letters when the word is. */
-static void cmpl_put(const uint8_t *const s, const uint16_t n)
+/* e's character i as written in: a name as spelled, else in small letters when the word is. */
+static uint8_t cmpl_shown(const Sugg *const e, const uint16_t i)
+{
+    const uint8_t c = e->text[i];
+    return ac.lc && !e->spelled && is_letter(c) ? c | 0x20 : c;
+}
+
+/* The word replaced by the first n characters of e. */
+static void cmpl_put(const Sugg *const e, const uint16_t n)
 {
     LineBuf *const b = &uimn.edline;
     uint8_t t[SUGG_LEN + 2];
 
     for (uint16_t i = 0; i < n; i++)
-        t[i] = ac.lc && is_letter(s[i]) ? s[i] | 0x20 : s[i];
+        t[i] = cmpl_shown(e, i);
 
     edit_lb_cut(b, ac.s.start, b->col);
     edit_lb_insert(b, t, n);
@@ -148,14 +155,14 @@ static void cmpl_common(void)
 
         uint16_t k = 0;
 
-        while (k < n && k < e->len && e->text[k] == first->text[k])
+        while (k < n && k < e->len && upcase(e->text[k]) == upcase(first->text[k]))
             k++;
 
         n = k;
     }
 
     if (n > uimn.edline.col - ac.s.start)
-        cmpl_put(first->text, n);
+        cmpl_put(first, n);
 }
 
 /* Entry e's form in ac.sig: a function's arguments, a procedure's from its line. */
@@ -219,7 +226,7 @@ static void cmpl_show_form(Session *const S, const Sugg *const e)
 static void cmpl_insert(Session *const S, const uint16_t i)
 {
     const Sugg *const e = &ac.s.list[i];
-    cmpl_put(e->text, e->len);
+    cmpl_put(e, e->len);
     sugg_used(e);
 
     if (!cmpl_hasform(e))
@@ -461,7 +468,7 @@ void cmpl_typed(Session *const S)
         return;
 
     for (uint16_t i = wn; i < e->len; i++)
-        ac.ghost[ac.gn++] = ac.lc && is_letter(e->text[i]) ? e->text[i] | 0x20 : e->text[i];
+        ac.ghost[ac.gn++] = cmpl_shown(e, i);
 
     ac.gline = uimn.ed.line;
     ac.gcol = col;

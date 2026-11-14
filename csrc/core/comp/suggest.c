@@ -330,6 +330,25 @@ static Sugg sugg_make(
     return s;
 }
 
+/* sugg_make's for name id: its letters as first written. */
+static Sugg sugg_named(
+    const SuggSrc *const src,
+    const uint16_t id,
+    const uint8_t *const text,
+    const uint16_t len,
+    const SuggKind kind,
+    const uint8_t match,
+    const int16_t score
+)
+{
+    uint8_t shown[SUGG_LEN + 2];
+    memcpy(shown, text, len);
+    symb_spell(src->symb, id, shown, (uint8_t)len);
+    Sugg s = sugg_make(shown, len, kind, match, score);
+    s.spelled = true;
+    return s;
+}
+
 /* ---- the keywords */
 
 /* The keyword at p in a keyword list to w (capitals, 0-ended), *n its length; past it. */
@@ -761,11 +780,12 @@ static void sugg_types(
 )
 {
     for (uint16_t t = 1; t <= src->decl->ntypes; t++) {
-        const uint8_t *const text = symb_text(src->symb, decl_type(src->decl, t)->name);
+        const uint16_t id = decl_type(src->decl, t)->name;
+        const uint8_t *const text = symb_text(src->symb, id);
         const uint8_t m = sugg_match(word, wn, text + 1, text[0]);
 
         if (m && sugg_fits(src, text + 1, text[0])) {
-            const Sugg s = sugg_make(text + 1, text[0], SG_VAR, m, 45);
+            const Sugg s = sugg_named(src, id, text + 1, text[0], SG_VAR, m, 45);
             sugg_add(out, &s);
         }
     }
@@ -1124,11 +1144,12 @@ static bool sugg_fields(
     sg.broken = false; /* the line before, ending in its '.', fails alone: each field checked */
 
     for (uint32_t k = 0; k < td->nfld; k++) {
-        const uint8_t *const text = symb_text(src->symb, td->fields[k].name);
+        const uint16_t id = td->fields[k].name;
+        const uint8_t *const text = symb_text(src->symb, id);
         const uint8_t m = sugg_match(word, wn, text + 1, text[0]);
 
         if (m && sugg_fits(src, text + 1, text[0])) {
-            const Sugg s = sugg_make(text + 1, text[0], SG_VAR, m, 50);
+            const Sugg s = sugg_named(src, id, text + 1, text[0], SG_VAR, m, 50);
             sugg_add(out, &s);
         }
     }
@@ -1190,7 +1211,7 @@ static void sugg_program(
                     /* its own body's statement: the result set, no call */
                     const bool result = kind == PK_FUNC && scope == w->scope && sugg_starts();
                     const SuggKind k = kind == PK_SUB ? SG_SUB : result ? SG_VAR : SG_FN;
-                    Sugg s = sugg_make(p.text, p.len, k, m, result ? 60 : 25);
+                    Sugg s = sugg_named(src, p.name, p.text, p.len, k, m, result ? 60 : 25);
                     s.rec = rec;
                     sugg_add(out, &s);
                 }
@@ -1271,8 +1292,8 @@ static void sugg_vars(
         const uint16_t count = e->count < 10 ? e->count : 10;
         const int16_t near = (int16_t)(e->dist < 30 ? 30 - e->dist : 0);
         const bool forvar = open && !strcmp((const char *)open, (const char *)e->text);
-        Sugg s =
-            sugg_make(e->text, e->len, SG_VAR, m, (int16_t)(3 * count + near + (forvar ? 200 : 0)));
+        const int16_t score = (int16_t)(3 * count + near + (forvar ? 200 : 0));
+        Sugg s = sugg_named(src, e->name, e->text, e->len, SG_VAR, m, score);
         s.need = forvar;
         sugg_add(out, &s);
     }

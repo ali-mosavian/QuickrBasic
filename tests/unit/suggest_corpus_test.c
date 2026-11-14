@@ -7,6 +7,7 @@
 #include "comp/suggest.h"
 #include "unit.h"
 #include "corpus.h"
+#include <strings.h>
 
 static const char *const program[] = {
     "10 TYPE pair",
@@ -152,7 +153,8 @@ static const CorpusCase cases[] = {
 static int corpus_place(const Suggs *const s, const char *const text, const size_t n)
 {
     for (uint16_t i = 0; i < s->n; i++)
-        if (strlen((const char *)s->list[i].text) == n && !memcmp(s->list[i].text, text, n))
+        if (strlen((const char *)s->list[i].text) == n &&
+            !strncasecmp((const char *)s->list[i].text, text, n))
             return i;
 
     return -1;
@@ -198,8 +200,8 @@ static bool corpus_case(Session *const S, const CorpusCase *const c)
     const char *const guess = g ? (const char *)g->text + wn : "";
     const bool ok =
         (!c->first ||
-         (*c->first ? out.n && !strcmp((const char *)out.list[0].text, c->first) : !out.n)) &&
-        (!c->guess || !strcmp(guess, c->guess)) && corpus_each(&out, c->has, true) &&
+         (*c->first ? out.n && !strcasecmp((const char *)out.list[0].text, c->first) : !out.n)) &&
+        (!c->guess || !strcasecmp(guess, c->guess)) && corpus_each(&out, c->has, true) &&
         corpus_each(&out, c->hasnt, false);
 
     if (!ok) {

@@ -3,7 +3,7 @@
 #define CORPUS_H
 #include "base.h"
 
-/* The line typed; the first offered ("" none fit); the rest shown dim past the cursor ("" none);
+/* The line typed; the first offered ("" none fit), in any casing; the rest shown dim past the cursor ("" none);
    '|'-separated texts offered, and not offered; nullptr not checked. at: the line number typed
    over, 0 a new last line. */
 typedef struct {

@@ -913,6 +913,21 @@ def play() -> None:
     assert "ADD `NEXT I` AFTER THE LAST LINE" in " ".join(r.strip() for r in b), b
     press("esc")
 
+    # Names offered as first written, not in the small letters typed: they came all small, totsum.
+    (work / "CASE.BAS").write_bytes(b"TYPE pair\r\nQty AS INTEGER\r\nEND TYPE\r\nDIM pt(1) AS pair\r\nTotSum = 1\r\n")
+    open_file("case.bas")
+    press("0x75", "0x4f", "enter")  # Ctrl+End, End: a new last line
+    def as_is() -> str:  # look() is in capitals
+        return chars(7)[1:79].decode("latin-1").rstrip()
+
+    keys("print to")
+    assert as_is() == "print totSum" and attrs(7)[9] & 0x0F == 0x08, as_is()
+    press("tab")
+    assert as_is() == "print TotSum", as_is()
+    keys(" + pt(0).q")
+    press("tab")
+    assert as_is() == "print TotSum + pt(0).Qty", as_is()
+
     if flat:
         debug_pane()
 

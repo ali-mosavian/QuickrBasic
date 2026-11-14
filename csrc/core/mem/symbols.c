@@ -161,7 +161,7 @@ uint16_t symb_find_name(Symb *const sy, const uint8_t *const text, const uint8_t
 
     const uint16_t id = sy->nnames;
 
-    if (!tabl_room(&sy->names, id + 1u) || !tabl_room(&sy->text, len + sy->text_free + 1))
+    if (!tabl_room(&sy->names, id + 1u) || !tabl_room(&sy->text, 2u * len + sy->text_free + 1))
         fault_error(sy->fault, E_OM);
 
     Name *const n = symb_name(sy, id);
@@ -170,10 +170,12 @@ uint16_t symb_find_name(Symb *const sy, const uint8_t *const text, const uint8_t
     uint8_t *const d = at(sy->text.at[0] + sy->text_free);
     d[0] = len;
 
-    for (uint8_t i = 0; i < len; i++)
+    for (uint8_t i = 0; i < len; i++) {
         d[1 + i] = upcase(text[i]);
+        d[1 + len + i] = text[i]; /* as first written: LIST's */
+    }
 
-    sy->text_free += len + 1u;
+    sy->text_free += 2u * len + 1u;
     symb_name_next(sy)[id] = sy->nhead[h];
     sy->nhead[h] = id;
 

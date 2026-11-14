@@ -68,10 +68,17 @@ static inline Name *symb_name(const Symb *const sy, uint16_t id)
 {
     return (Name *)at(sy->names.at[0]) + id;
 }
-/* Name id's text: its length, then its letters. */
+/* Name id's text: its length, then its letters in capitals, then as first written. */
 static inline const uint8_t *symb_text(const Symb *const sy, uint16_t id)
 {
     return at(sy->text.at[0] + symb_name(sy, id)->text);
+}
+/* dst's n characters, name id's in any casing and maybe a suffix after: its letters as first
+   written. */
+static inline void symb_spell(const Symb *const sy, uint16_t id, uint8_t *const dst, uint8_t n)
+{
+    const uint8_t *const t = symb_text(sy, id);
+    memcpy(dst, t + 1 + t[0], t[0] < n ? t[0] : n);
 }
 
 /* The tables' blocks from al, after the program store's. */

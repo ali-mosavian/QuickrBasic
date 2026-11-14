@@ -15,9 +15,10 @@ typedef enum : uint8_t { SG_KW, SG_FN, SG_VAR, SG_SUB, SG_LABEL, SG_PUNCT } Sugg
 
 typedef struct {
     uint8_t len;
-    uint8_t text[SUGG_LEN + 2]; /* in capitals, an array's '(' after it; 0 */
+    uint8_t text[SUGG_LEN + 2]; /* an array's '(' after it; 0 */
     SuggKind kind;
     bool fuzzy;    /* the word's letters in it in order, not its start */
+    bool spelled;  /* a name as first written; else in capitals */
     uint16_t tok;  /* a keyword's token: 100h + n for TK_X n */
     uint32_t rec;  /* a line number's line, a procedure's first: its record */
     int16_t score; /* higher first */
