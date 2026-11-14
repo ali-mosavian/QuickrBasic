@@ -1,4 +1,39 @@
-/* Block statements paired across lines, before a run (comp/block.asm). */
+/* Block pairing: each block statement's jump targets and each procedure's span, found before
+ * a run.
+ *
+ * # How it works
+ * blok_pair walks the program's statements in order with a stack of the open blocks. Each
+ * block statement gets an entry (BlockEnt) in program order, so blok_find is a binary search
+ * by position. A clause joins its block's chain; when the block closes, every entry on the
+ * chain gets the target that leaves it. SUB, FUNCTION and DEF FN each get a Proc.
+ *
+ * A target is a position * 4 + a mode: 0 the statement, 1 past the JMP it starts with, 2 the
+ * statement after it. The direct line's has PDIR and its body offset. A jump op holds it as a
+ * TJUMP.
+ *
+ * # Example
+ *   10 WHILE x        WHILE.done = the statement after WEND
+ *   20   x = x - 1
+ *   30 WEND           WEND.next = WHILE
+ *
+ * # asm structure (src/comp/block.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | cm_blocks | blok_pair | MIRROR; D1, D2 |
+ * | bk_find | blok_find | MIRROR; the entry, not its index |
+ * | bk_lineof | prog_lineof (mem/program.c) | MOVED |
+ * | bk_proc | blok_procof | D3 |
+ * | bk_line, bk_stmt, bk_next, bk_new, bk_push, bk_top, bk_fail, bk_clause, bk_close, bk_exits, bk_target | blok_scanline, blok_stmt, blok_next, blok_add, blok_push, blok_top, blok_fail, blok_clause, blok_close, blok_exits, blok_target | MIRROR |
+ * | g_blk, g_prc, g_ppar, g_pbyv | Blok.blocks, Blok.procs, Proc.params | D4 |
+ * | g_bst, NBST | BlokScan.open | MIRROR |
+ *
+ * - D1. The procedures' variables (result, parameters) are declared by link_start after the
+ *   scan, in the same order.
+ * - D2. Errors raise through Fault, not repl_error.
+ * - D3. The procedure only; the caller sets the scopes (scop_proc).
+ * - D4. The tables live in Blok's arena and link by pointer: a chain's next (link) and a
+ *   CASE's SELECT (sel) are pointers, not indices.
+ */
 #include "comp/blocks.h"
 #include <string.h>
 #include "comp/comp.h"

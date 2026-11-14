@@ -80,26 +80,9 @@ Defined in lexer.c (`DFA_DATA`), declared `extern const` for comp.c. The parser'
 | `g_dft0`, `g_dett` | static `deft0`, `deftype` |
 | `g_wpre .. g_wtail`, `g_wbuf` | static strings, buffer |
 
-## block → blok
+## block → blocks
 
-| asm | C |
-|---|---|
-| `cm_blocks`* | `blok_pair()` |
-| `bk_find`* | `blok_find(line, off)` → index, -1 none |
-| `bk_lineof`* | `blok_lineof(pos, &off)` → line (no longer sets `scanln`) |
-| `bk_proc`* | `blok_scope(line)` → the procedure, the scopes set |
-| `bk_line`, `bk_stmt`, `bk_next`, `bk_new`, `bk_push`, `bk_top`, `bk_fail0/1`, `bk_fail`, `bk_clause`, `bk_close`, `bk_exits`, `bk_targetx`, `bk_target0/2`, `bk_target` | statics `scanline`, `stmt`, `next`, `add`, `push`, `top`, `fail`, `clause`, `close`, `exits`, `target(off, mode)` |
-| `TBLOCK`, `BLOCKSH` | `BlockEnt` (32 bytes), index * 32 |
-| `g_blk`* | `blok_blocks[NBLK]` |
-| `g_prc`*, `P_*`, `PSIZE` | `blok_procs[NPROC]` of `Proc`: `P_NAM P_KIND P_FLAG P_ENTRY P_FIRST P_LAST P_NPAR P_RES P_PAR P_SKIP` → `name kind flags entry first last npar result par skip` |
-| `g_ppar`* | `blok_params[NPPAR]` |
-| `g_pbyv`* | `blok_byval[NPPAR]` |
-| `g_vfs`*, `g_vft`* | gone: `comp_var(shape, et)`'s parameters |
-| `g_bst`, `S_*`, `NBST` | static stack of `{kind, open, last, chain}` |
-| `g_bkbyv`, `g_bkdef`, `g_bkoff` | statics |
-| `g_bkwd`, `g_bkopen`, `b_w*` | static tables |
-| `lnk.nblk`, `lnk.bsp`, `lnk.scanln` | `blok.nblocks`, `blok.depth`, `blok.line` |
-| `lnk.nprc`, `lnk.nppar`, `lnk.cprc` | `blok.nprocs`, `blok.nparams`, `blok.proc` |
+In `blocks.c`'s header.
 
 ## ctl → ctrl
 

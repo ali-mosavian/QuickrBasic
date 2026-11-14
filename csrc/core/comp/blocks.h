@@ -1,11 +1,4 @@
-/* Block statements paired across lines before a run (comp/block.asm). A position is a statement's
-   offset in the program store; blok_pair walks every statement in program order with a stack of
-   the open blocks and gives each block statement a Block, in that order (blok_find's binary
-   search). A target is a position * 4 + a mode: 0 the statement, 1 past the JMP it starts with, 2
-   the statement after it; the direct line's (PDIR) its body offset's. A jump op holds it as a
-   TJUMP (vm), and the address it resolves to.
-   SUB and FUNCTION .. END give blok_procs an entry; DEF FN is a FUNCTION (PF_DEF), to END DEF or,
-   with = e, its own statement. */
+/* Block pairing's interface. How it works: blocks.c. */
 #ifndef COMP_BLOCKS_H
 #define COMP_BLOCKS_H
 #include "defs.h"
