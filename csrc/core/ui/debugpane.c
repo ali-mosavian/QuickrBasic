@@ -594,7 +594,7 @@ bool dpan_key(Session *const S, const uint16_t key)
     else if (key == KEY_SHIFT_TAB)
         dp.focus = w ? w - 1 : NDP - 1;
     else if (c == CH_ESC)
-        wind_focus(S, uimn.win.active);
+        wind_focus(S, wind_active());
     else if (c == CH_ENTER) {
         if (w == DP_STK && dp.sel[w] < dp.nframes)
             go(S, dp.sel[w]);
@@ -788,7 +788,7 @@ static bool tip_at(
 
     uint8_t w;
 
-    if (!wind_at(dp.tip_row, dp.tip_col, &w) || w != uimn.win.active)
+    if (!wind_at(dp.tip_row, dp.tip_col, &w) || w != wind_active())
         return false;
     if (dp.tip_row < ed->row0 || dp.tip_row - ed->row0 >= ed->rows)
         return false;

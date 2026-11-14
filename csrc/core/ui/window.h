@@ -6,11 +6,18 @@
 /* wn_init: one edit window (20 rows) over the immediate window (3), as QBasic starts. */
 void wind_init(void);
 /* wn_layout: each window's rows and columns (uimn.ed / win[].ed row0 rows x width,
-   uimn.imm.row0 rows) from the heights, top down. */
+   uimn.imm.row0 rows, its widget's rect, shown) from the heights, top down. */
 void wind_layout(void);
-/* wn_draw: each window shown: the edit windows (the other with its state swapped in and its
-   view applied), the pane, the immediate window. */
-void wind_draw(Session *S);
+/* wn_draw, by window (WidgetOps.draw): an edit window (the other than the active one with its
+   state swapped in and its view applied), the immediate window, the pane and its tooltip. */
+void wind_ed_draw(Widget *x, Session *S);
+void wind_imm_draw(Widget *x, Session *S);
+void wind_pane_draw(Widget *x, Session *S);
+/* Window w's widget (W_ED1 .. W_DBG); the window of widget x, W_HELP none. */
+Widget *wind_widget(uint8_t w);
+uint8_t wind_of(const Widget *x);
+/* wact: the active edit window, W_ED1 or W_ED2: the editors' focus. */
+static inline uint8_t wind_active(void) { return (uint8_t)(W_ED1 + uimn.tree.editors.focus); }
 /* wn_act: edit window w the active one, the focus in it (the line committed first). */
 void wind_act(Session *S, uint8_t w);
 /* wn_focus: window w has the focus: an edit window active, the immediate window, the pane. */

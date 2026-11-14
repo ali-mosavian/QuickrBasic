@@ -56,8 +56,7 @@ static bool holds(const Rect r, const uint8_t row, const uint8_t col)
     return row >= r.row && row - r.row < r.rows && col >= r.col && col - r.col < r.cols;
 }
 
-/* The deepest visible widget under w holding row, col: a shown modal child first. */
-static Widget *under(Widget *w, const uint8_t row, const uint8_t col)
+Widget *tree_at(Widget *w, const uint8_t row, const uint8_t col) /* a shown modal child first */
 {
     for (;;) {
         Widget *next = nullptr;
@@ -78,7 +77,7 @@ static Widget *under(Widget *w, const uint8_t row, const uint8_t col)
 
 bool tree_mouse(Widget *const root, Session *const S, const uint8_t row, const uint8_t col)
 {
-    for (Widget *w = under(root, row, col);; w = w->parent) {
+    for (Widget *w = tree_at(root, row, col);; w = w->parent) {
         if (w->ops && w->ops->mouse && w->ops->mouse(w, S, row, col))
             return true;
         if (w == root)

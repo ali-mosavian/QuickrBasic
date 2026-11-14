@@ -234,7 +234,6 @@ typedef struct {
 typedef struct {
     UiWin win[NWIN];
     uint8_t cols;    /* wcols: the edit windows' columns: 80, DP_COL with the pane */
-    uint8_t active;  /* wact: the active edit window, W_ED1 or W_ED2 */
     bool maxed;      /* wmax: Ctrl+F10's; saved the heights before */
     bool vert;       /* wvert: ED2 beside ED1, in ED1's rows */
     bool vert_saved; /* wvsav: vert before Ctrl+F10 */
@@ -280,7 +279,8 @@ typedef struct {
 
     struct {
         Widget screen, menubar, workspace, statusbar; /* workspace.focus: FOC_*, lp.ui_foc */
-        Widget edit, imm, pane;                       /* the workspace's */
+        Widget editors, imm, pane; /* the workspace's; editors.focus: the active edit window */
+        Widget ed[2];              /* the editors': W_ED1, W_ED2 (wact) */
     } tree;
 
     UiText text;

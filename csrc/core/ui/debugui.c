@@ -90,7 +90,7 @@ enum { TRACE_TICKS = 2 };
 static void trace(Session *const S, const DebugPos *const at)
 {
     hlset(S, at);
-    wind_draw(S);
+    tree_draw(&uimn.tree.workspace, S);
     scrn_flip();
     pscr_page(0);
     const uint32_t until = pclk_ticks() + TRACE_TICKS;

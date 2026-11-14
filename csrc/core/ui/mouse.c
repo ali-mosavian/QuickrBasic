@@ -155,7 +155,7 @@ static void edit_click(Session *const S, const uint8_t w, const uint8_t row, con
     else {
         const uint8_t cur = wind_cur();
 
-        if (cur != uimn.win.active && cur != W_IMM)
+        if (cur != wind_active() && cur != W_IMM)
             return;
     }
 
@@ -222,21 +222,28 @@ bool mous_statusbar(Widget *const w, Session *const S, const uint8_t row, const 
     return true;
 }
 
+/* Not a move or a let go: a press or a drag, the windows'. */
+static bool pressed(void) { return uimn.mouse.event != MS_MOVE && uimn.mouse.event != MS_UP; }
+
 bool mous_workspace(Widget *const w, Session *const S, const uint8_t row, const uint8_t col)
 {
-    const uint8_t ev = uimn.mouse.event;
+    return pressed(); /* in no window */
+}
 
-    if (ev == MS_MOVE || ev == MS_UP)
+bool mous_window(Widget *const w, Session *const S, const uint8_t row, const uint8_t col)
+{
+    if (!pressed())
         return false;
 
-    uint8_t win;
+    edit_click(S, wind_of(w), row, col);
+    return true;
+}
 
-    if (!wind_at(row, col, &win))
-        return true;
-    if (win == W_DBG)
-        dpan_mouse(S, row, col);
-    else if (win >= W_ED1)
-        edit_click(S, win, row, col);
+bool mous_pane(Widget *const w, Session *const S, const uint8_t row, const uint8_t col)
+{
+    if (!pressed())
+        return false;
 
+    dpan_mouse(S, row, col);
     return true;
 }

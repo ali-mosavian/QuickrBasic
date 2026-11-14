@@ -477,7 +477,7 @@ void view_subs(Session *const S)
         if (!uimn.win.win[W_ED2].height)
             wind_split(S);
 
-        wind_act(S, uimn.win.active == W_ED2 ? W_ED1 : W_ED2);
+        wind_act(S, wind_active() == W_ED2 ? W_ED1 : W_ED2);
         show(S, v);
     } else if (b == SUBS_DELETE) {
         del(S, v);

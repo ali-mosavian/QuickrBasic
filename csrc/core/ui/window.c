@@ -58,12 +58,20 @@ void wind_layout(void)
         }
 
         const uint16_t first = row + 1; /* the first row under the title */
+        Rect help;                      /* the help window has no widget */
+        Rect *const r = w == W_HELP ? &help : &wind_widget(w)->rect;
+        *r = (Rect){row, 0, p->height, PSCR_COLS};
+
+        if (w != W_HELP)
+            wind_widget(w)->visible = p->height != 0;
+
         if (w == W_IMM) {
             uimn.imm.row0 = first;
             uimn.imm.rows = p->height ? p->height - 1 : 0;
         } else {
-            UiEdit *const e = w == ws->active ? &uimn.ed : &p->ed; /* the active one's is uimn.ed */
-            uint32_t cols = ws->cols;                              /* all, or a half */
+            UiEdit *const e =
+                w == wind_active() ? &uimn.ed : &p->ed; /* the active one's: uimn.ed */
+            uint32_t cols = ws->cols;                   /* all, or a half */
             e->x = 0;
 
             if (ws->vert && win(W_ED2)->height) {
@@ -74,19 +82,28 @@ void wind_layout(void)
             }
 
             e->width = (uint16_t)(cols - 2);
+            r->col = e->x;
+            r->cols = (uint8_t)(w == W_ED2 ? ws->cols - e->x : cols); /* ED2: the rest */
             e->row0 = first;
             e->rows = p->height >= 2 ? p->height - 2 : 0; /* the title, the bottom row */
         }
 
         row += p->height;
     }
+
+    const uint8_t imm_row = uimn.imm.row0 - 1; /* its title */
+    uimn.tree.editors.rect = (Rect){1, 0, imm_row - 1, ws->cols};
+
+    uimn.tree.pane.rect = (Rect){1, DP_COL, WIN_ROWS - win(W_IMM)->height, PSCR_COLS - DP_COL};
+
+    uimn.tree.pane.visible = uimn.pane_on;
 }
 
 void wind_init(void)
 {
     win(W_ED1)->height = ED1_INIT;
     win(W_IMM)->height = IMM_INIT;
-    uimn.win.active = W_ED1;
+    uimn.tree.editors.focus = 0;
     wind_layout();
 }
 
@@ -98,27 +115,45 @@ static void swap(const uint8_t w)
     win(w)->ed = t;
 }
 
-void wind_draw(Session *const S)
+void wind_ed_draw(Widget *const x, Session *const S)
 {
-    for (uint8_t w = W_ED1; w < W_IMM; w++) {
-        if (!win(w)->height)
-            continue;
-        if (w == uimn.win.active) {
-            draw_edit(S, false);
-            continue;
-        }
+    const uint8_t w = wind_of(x);
 
-        swap(w); /* the other edit window: its state in uimn.ed while it draws */
-        view_apply();
-        draw_edit(S, true);
-        swap(w);
-        view_apply();
+    if (w == wind_active()) {
+        draw_edit(S, false);
+        return;
     }
 
-    dpan_draw();
+    swap(w); /* the other edit window: its state in uimn.ed while it draws */
+    view_apply();
+    draw_edit(S, true);
+    swap(w);
+    view_apply();
+}
 
-    if (win(W_IMM)->height)
-        draw_imm();
+void wind_imm_draw(Widget *const x, Session *const S) { draw_imm(); }
+
+void wind_pane_draw(Widget *const x, Session *const S)
+{
+    dpan_draw();
+    dpan_tip(S);
+}
+
+Widget *wind_widget(const uint8_t w)
+{
+    if (w == W_IMM)
+        return &uimn.tree.imm;
+
+    return w == W_DBG ? &uimn.tree.pane : &uimn.tree.ed[w - W_ED1];
+}
+
+uint8_t wind_of(const Widget *const x)
+{
+    for (uint8_t w = W_ED1; w <= W_DBG; w++)
+        if (wind_widget(w) == x)
+            return w;
+
+    return W_HELP;
 }
 
 void wind_act(Session *const S, const uint8_t w)
@@ -126,12 +161,12 @@ void wind_act(Session *const S, const uint8_t w)
     edit_commit(S);
     uimn.tree.workspace.focus = FOC_EDIT;
 
-    if (w == uimn.win.active)
+    if (w == wind_active())
         return;
 
-    win(uimn.win.active)->col = uimn.edline.col; /* the old one's state to its ed */
-    swap(uimn.win.active);
-    uimn.win.active = w;
+    win(wind_active())->col = uimn.edline.col; /* the old one's state to its ed */
+    swap(wind_active());
+    uimn.tree.editors.focus = w - W_ED1;
     swap(w); /* the new one's from its ed */
     view_apply();
     const uint16_t col = win(w)->col;
@@ -153,7 +188,7 @@ void wind_focus(Session *const S, const uint8_t w)
 uint8_t wind_cur(void)
 {
     if (uimn.tree.workspace.focus == FOC_EDIT)
-        return uimn.win.active;
+        return wind_active();
 
     return uimn.tree.workspace.focus == FOC_IMM ? W_IMM : W_DBG;
 }
@@ -185,29 +220,8 @@ void wind_prev(Session *const S) { step(S, NWORD - 1); }
 
 bool wind_at(const uint8_t row, const uint8_t col, uint8_t *const w)
 {
-    if (uimn.pane_on && col >= DP_COL && row && /* the pane: its columns, the edit windows' rows */
-        row <= (uint8_t)(WIN_ROWS - win(W_IMM)->height)) {
-        *w = W_DBG;
-        return true;
-    }
-
-    uint8_t past = 1;
-
-    for (uint8_t i = 0; i < NWIN; i++) {
-        if (beside(i)) /* in ED1's rows, counted there */
-            continue;
-
-        past += win(i)->height;
-
-        if (row >= past)
-            continue;
-        if (i == W_ED1 && beside(W_ED2) && col >= uimn.win.cols >> 1)
-            i = W_ED2; /* ED1's rows, ED2's columns */
-        *w = i;
-        return true;
-    }
-
-    return false;
+    *w = wind_of(tree_at(&uimn.tree.workspace, row, col));
+    return *w != W_HELP;
 }
 
 /* The heights before Ctrl+F10, if maximised. */
@@ -236,7 +250,7 @@ static void copy_ed1(void)
 /* One window again, with the active one's state, which uimn.ed holds. */
 static void unsplit(void)
 {
-    uimn.win.active = W_ED1;
+    uimn.tree.editors.focus = 0;
 
     if (!uimn.win.vert)
         win(W_ED1)->height += win(W_ED2)->height;

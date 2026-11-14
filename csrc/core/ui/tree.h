@@ -47,6 +47,8 @@ uint8_t tree_index(const Widget *w);
 void tree_focus(Widget *w);
 /* key to the focused widget under root, then up; false: none handled it. */
 bool tree_key(Widget *root, Session *S, uint16_t key);
+/* The deepest visible widget under root whose rect holds row, col; root if none. */
+Widget *tree_at(Widget *root, uint8_t row, uint8_t col);
 /* The mouse at row, col to the widget under it under root, then up; false: none handled it. */
 bool tree_mouse(Widget *root, Session *S, uint8_t row, uint8_t col);
 /* root and its visible children drawn, parents first. */

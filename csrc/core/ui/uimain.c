@@ -343,7 +343,7 @@ static bool edit_scan(Session *const S, const uint8_t scan)
 }
 
 /* Ctrl+Q's second key, ch. */
-static void edit_ctrlq(Session *const S, const uint8_t ch)
+static void edit_ctrlq(Widget *const w, Session *const S, const uint8_t ch)
 {
     LineBuf *const b = &uimn.edline;
     const uint8_t letter = CTRL(ch);
@@ -352,7 +352,7 @@ static void edit_ctrlq(Session *const S, const uint8_t ch)
         if (wordstar_q[i].ch != letter)
             continue;
         if (wordstar_q[i].scan) {
-            edit_key(&uimn.tree.edit, S, (uint16_t)(wordstar_q[i].scan << 8));
+            edit_key(w, S, (uint16_t)(wordstar_q[i].scan << 8));
         } else { /* Ctrl+Q,Y: to the line's end out */
             uimn.ed.sel_on = false;
             edit_lb_cut(b, b->col, b->len);
@@ -414,7 +414,7 @@ static bool edit_key(Widget *const w, Session *const S, const uint16_t key)
 
     if (uimn.ed.prefix) {
         uimn.ed.prefix = 0;
-        edit_ctrlq(S, ch);
+        edit_ctrlq(w, S, ch);
         return true;
     }
 
@@ -1274,11 +1274,6 @@ static void load_help(void)
 }
 
 static void menubar_draw(Widget *const w, Session *const S) { menu_bar(); }
-static void workspace_draw(Widget *const w, Session *const S)
-{
-    wind_draw(S);
-    dpan_tip(S);
-}
 static void statusbar_draw(Widget *const w, Session *const S) { draw_status(); }
 static bool pane_key(Widget *const w, Session *const S, const uint16_t key)
 {
@@ -1287,14 +1282,15 @@ static bool pane_key(Widget *const w, Session *const S, const uint16_t key)
 
 static const WidgetOps screen_ops = {.key = screen_key, .mouse = mous_screen};
 static const WidgetOps menubar_ops = {.draw = menubar_draw, .mouse = mous_menubar};
-static const WidgetOps workspace_ops = {.draw = workspace_draw, .mouse = mous_workspace};
+static const WidgetOps workspace_ops = {.mouse = mous_workspace};
 static const WidgetOps statusbar_ops = {.draw = statusbar_draw, .mouse = mous_statusbar};
-static const WidgetOps edit_ops = {.key = edit_key};
-static const WidgetOps imm_ops = {.key = imm_key};
-static const WidgetOps pane_ops = {.key = pane_key};
+static const WidgetOps ed_ops = {.draw = wind_ed_draw, .key = edit_key, .mouse = mous_window};
+static const WidgetOps imm_ops = {.draw = wind_imm_draw, .key = imm_key, .mouse = mous_window};
+static const WidgetOps pane_ops = {.draw = wind_pane_draw, .key = pane_key, .mouse = mous_pane};
 
-/* The screen: the menu bar, the workspace and the status bar; in the workspace the windows, in
-   FOC_* order. The workspace draws its windows itself (wind_draw). */
+/* The screen: the menu bar, the workspace and the status bar. The workspace: the editors, the
+   immediate window and the pane, in FOC_* order; the editors: ED1, ED2. wind_layout sets the
+   windows' rects. */
 static void build_tree(void)
 {
     static const struct {
@@ -1305,12 +1301,11 @@ static void build_tree(void)
         {&uimn.tree.menubar, &uimn.tree.screen, &menubar_ops, {0, 0, 1, PSCR_COLS}},
         {&uimn.tree.workspace, &uimn.tree.screen, &workspace_ops, {1, 0, WIN_ROWS, PSCR_COLS}},
         {&uimn.tree.statusbar, &uimn.tree.screen, &statusbar_ops, {STATUS_ROW, 0, 1, PSCR_COLS}},
-        {&uimn.tree.edit,
-         &uimn.tree.workspace,
-         &edit_ops,
-         {}}, /* the workspace's mouse: no cells */
+        {&uimn.tree.editors, &uimn.tree.workspace, nullptr, {}},
         {&uimn.tree.imm, &uimn.tree.workspace, &imm_ops, {}},
         {&uimn.tree.pane, &uimn.tree.workspace, &pane_ops, {}},
+        {&uimn.tree.ed[0], &uimn.tree.editors, &ed_ops, {}},
+        {&uimn.tree.ed[1], &uimn.tree.editors, &ed_ops, {}},
     };
 
     uimn.tree.screen =
@@ -1322,7 +1317,7 @@ static void build_tree(void)
         tree_add(tree[i].parent, tree[i].w);
     }
 
-    tree_focus(&uimn.tree.edit);
+    tree_focus(&uimn.tree.ed[0]);
 }
 
 /* The editor's state at its start. */
