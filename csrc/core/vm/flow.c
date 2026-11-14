@@ -307,33 +307,34 @@ void flow_jmp(Session *const S)
 /* A SINGLE is true unless +0 or -0. */
 static bool sngl_true(const Cell c) { return c.u & ~SNGL_SIGN; }
 
+static void branch(Session *const S, const bool taken)
+{
+    if (taken)
+        take_jump(&S->vm, &S->strg, &S->allo, &S->fault);
+    else
+        skip_jump(&S->vm);
+}
+
+/* The stop check comes before the pop: a stop runs the op again. */
 void flow_i_jf(Session *const S)
 {
-    if (exec_popi(&S->vm))
-        skip_jump(&S->vm);
-    else
-        flow_jmp(S);
+    if (!exec_stopchk(S))
+        branch(S, !exec_popi(&S->vm));
 }
 void flow_f_jf(Session *const S)
 {
-    if (sngl_true(exec_pop(&S->vm)))
-        skip_jump(&S->vm);
-    else
-        flow_jmp(S);
+    if (!exec_stopchk(S))
+        branch(S, !sngl_true(exec_pop(&S->vm)));
 }
 void flow_i_jt(Session *const S)
 {
-    if (exec_popi(&S->vm))
-        flow_jmp(S);
-    else
-        skip_jump(&S->vm);
+    if (!exec_stopchk(S))
+        branch(S, exec_popi(&S->vm));
 }
 void flow_f_jt(Session *const S)
 {
-    if (sngl_true(exec_pop(&S->vm)))
-        flow_jmp(S);
-    else
-        skip_jump(&S->vm);
+    if (!exec_stopchk(S))
+        branch(S, sngl_true(exec_pop(&S->vm)));
 }
 
 /* ---- FOR / NEXT ----------------------------------------------------------------------------- */
@@ -368,6 +369,9 @@ static LoopCells loop_cells(Vm *const vm, const Symb *const sy)
    not entered. */
 void flow_for(Session *const S)
 {
+    if (exec_stopchk(S))
+        return;
+
     const uint8_t op = *S->vm.opip;
     const bool ints = op == O_I_FOR || op == O_I_FOR1;
     const LoopCells c = loop_cells(&S->vm, &S->symb);
@@ -377,10 +381,7 @@ void flow_for(Session *const S)
     wr32(c.step, step);
     wr32(c.limit, exec_pop(&S->vm).u);
 
-    if (past_limit(ints, rd32(c.counter), rd32(c.limit), step))
-        flow_jmp(S);
-    else
-        skip_jump(&S->vm);
+    branch(S, past_limit(ints, rd32(c.counter), rd32(c.limit), step));
 }
 
 /* NEXT counter limit step BODY: stepped, back to the body until past the limit. An INT stepped past
@@ -542,6 +543,9 @@ static void bind_params(Symb *const sy, Strg *const sg, CallVar *b, uint32_t n)
 /* PCALL proc body: call a SUB or FUNCTION, its arguments on the data stack. */
 void flow_pcall(Session *const S)
 {
+    if (exec_stopchk(S)) /* before the arguments are taken */
+        return;
+
     uint8_t *const call = S->vm.ip;
     const uint8_t proc = *call;
     const Proc *const p = blok_proc(&S->blok, proc);
@@ -568,7 +572,7 @@ void flow_pcall(Session *const S)
     S->vm.ncallvars = (uint32_t)(end - S->vm.callvars);
     S->strg.tmp_floor = S->strg.tmp_used;
     S->vm.ip = call + 1;
-    flow_jmp(S);
+    take_jump(&S->vm, &S->strg, &S->allo, &S->fault);
 }
 
 static bool is_param(const Proc *const p, const uint16_t var)
