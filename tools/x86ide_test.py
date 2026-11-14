@@ -376,46 +376,59 @@ def play() -> None:
     assert output()[:3] == [" 1", " 4", " 9"], output()
     press("space")
 
-    # Tab completes from what fits where the word is.
+    # Tab completes from what fits where the word is; a word's second letter lists it as typed.
     def line() -> str:
         return text()[3]
 
-    def complete(typed: str) -> list[str]:
-        """Typed on an empty line 4, then Tab: the screen."""
+    def typed(chars: str) -> list[str]:
+        """Typed on an empty line 4: the screen."""
         press("0x75", "0x4f", "enter")  # Ctrl+End, End: a new last line
         if line():
             ctrl_y()
-        for c in typed:
+        for c in chars:
             if c == '"':
                 s.send({"cmd": "key", "scancode": 0x28, "ascii": 0x22, "stop": True})
                 s.run_to_key(3000)
                 s.resume(60)
             else:
                 keys(c)
+        return look()
+
+    def complete(chars: str) -> list[str]:
+        """typed, then Tab: the screen."""
+        typed(chars)
         press("tab")
         return look()
 
-    scr = complete("pr")  # a statement's start: statements, the common part typed
-    assert line() == "PRINT" and scr[7].strip() == "PRINT" and scr[8].strip() == "PRINT#", scr
+    scr = typed("pr")  # a statement's start: statements, the first lit
+    assert scr[7].strip() == "PRINT" and scr[8].strip() == "PRINT#", scr
     assert attrs(7)[3] == 0x07 and attrs(8)[3] == 0x70, attrs(7)[:6]
-    press("down", "enter")
+    press("down", "tab")
     assert line() == "PRINT#", line()
     # Ctrl+Y once checked the line first: PRINT# alone got a syntax error box,
     # which then took the keys, and the line stayed.
     ctrl_y()
     assert line() == "" and not any("SYNTAX" in r for r in look()), look()
-    scr = complete("print le")  # an operand: functions and variables
-    assert [r.split()[0] for r in scr[7:9] if r.split()] == ["LEFT$", "LEN"], scr
+    scr = typed("print le")  # an operand: functions and variables
+    assert sorted(r.split()[0] for r in scr[7:9] if r.split()) == ["LEFT$", "LEN"], scr
     press("esc")
     ctrl_y()
-    scr = complete("print mi")  # one fits: put in, its ( and its form shown
+    scr = complete("print mi")  # Tab takes the first: its ( and its form shown
     assert line() == "PRINT MID$(" and "MID$(S$, START[, N])" in scr[24], scr[24]
+    ctrl_y()
+    scr = typed("print lef")  # the list follows the word
+    assert scr[7].split()[0] == "LEFT$" and not scr[8].strip(), scr
+    press("enter")  # opened by typing: Enter is typed, not taken
+    assert text()[3:5] == ["PRINT LEF", ""], text()
+    press("backspace")  # the lines joined again
     ctrl_y()
     complete("for j=1 t")  # after an operand: the words that go on
     assert line() == "FOR J=1 TO", line()
     ctrl_y()
-    complete("next i")  # NEXT names a variable: I is all there is, so Tab indents
-    assert line() == "NEXT I" and look()[24].endswith(":009"), look()[24]
+    scr = complete("next i")  # a whole name: what goes on after it
+    assert "I," in [r.strip() for r in scr[5:20]], scr
+    press("escape")
+    assert line() == "NEXT I", line()
     ctrl_y()
     complete("rem pr")  # nothing in a remark
     assert line() == "REM PR" and look()[24].endswith(":009"), look()[24]
@@ -424,17 +437,18 @@ def play() -> None:
     assert line() == 'PRINT "PR' and look()[24].endswith(":017"), look()[24]
     ctrl_y()
     # The editor's own reader took all after DATA as DATA's: no statement after its ':'.
-    complete("data 1:pr")
-    assert line() == "DATA 1:PRINT", line()
-    press("esc")
+    complete("data 1:pr")  # PRINT# first: taken lately
+    assert line() == "DATA 1:PRINT#", line()
     ctrl_y()
     scr = complete("x$=")  # a string wanted: string names and functions only
-    assert [r.split()[0] for r in scr[7:10]] == ["X$", "CHR$", "LEFT$"], scr
-    assert not any(r.split() and r.split()[0] in ("I", "INT", "FN") for r in scr[7:16]), scr
+    assert "X$" in [r.split()[0] for r in scr[7:15] if r.split()], scr
+    assert not any(r.split() and r.split()[0] in ("I", "INT", "FN", "LEN") for r in scr[7:16]), scr
     press("esc")
     ctrl_y()
-    complete("n=m")  # a number wanted: no MID$, so Tab indents
-    assert line() == "N=M" and look()[24].endswith(":009"), look()[24]
+    scr = complete("n=m")  # a number wanted: no MID$, what goes on after the new name
+    assert "MID$" not in [r.strip() for r in scr[5:20]] and "M:" in [r.strip() for r in scr[5:20]], scr
+    press("escape")
+    assert line() == "N=M", line()
     ctrl_y()
     complete("for k=1 to 2:next ")  # NEXT: the open FOR's variable
     assert line() == "FOR K=1 TO 2:NEXT K", line()

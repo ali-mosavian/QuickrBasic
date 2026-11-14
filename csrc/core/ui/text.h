@@ -11,6 +11,8 @@ void text_whole(void);
 void text_view(uint32_t first, uint32_t n);
 /* tx_rec: line's record (a program store offset). */
 uint32_t text_rec(Session *S, uint32_t line);
+/* The line of record rec to dst (LNBUF bytes room); its length. */
+uint32_t text_record(Session *S, uint32_t rec, uint8_t *dst);
 /* tx_get: line's text to dst (LNBUF bytes room); its length. */
 uint32_t text_get(Session *S, uint32_t line, uint8_t *dst);
 /* tx_repl: line becomes the len characters at src, made a record as the editor stores it (its

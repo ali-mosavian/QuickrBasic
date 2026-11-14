@@ -42,12 +42,17 @@ static Status typed(Session *const S, const char *const text)
     return repl_call(S, direct);
 }
 
-Status unit_run(Session *const S, const char *const *const lines)
+void unit_store(Session *const S, const char *const *const lines)
 {
     session_new(S);
 
     for (size_t i = 0; lines[i]; i++)
         CHECK(entered(S, lines[i]) == ENTER_STORED);
+}
+
+Status unit_run(Session *const S, const char *const *const lines)
+{
+    unit_store(S, lines);
 
     S->cons.capture = CAP_SBUF;
     S->cons.sblen = 0;

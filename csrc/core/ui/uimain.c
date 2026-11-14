@@ -436,6 +436,9 @@ static bool edit_key(Widget *const w, Session *const S, const uint16_t key)
 
     uimn.ed.sel_on = false;
     edit_lb_type(&uimn.edline, ch, LNMAX);
+#if AC
+    cmpl_typed(S);
+#endif
     return true;
 }
 

@@ -11,7 +11,9 @@ typedef void TestFn(Session *S);
 void unit_register(const char *name, TestFn *fn);
 void unit_fail(const char *file, int line, const char *what);
 
-/* The program's lines (nullptr ended) as the only ones, RUN: its output in S->cons.sbuf. */
+/* The program's lines (nullptr ended) as the only ones. */
+void unit_store(Session *S, const char *const *lines);
+/* unit_store, then RUN: its output in S->cons.sbuf. */
 Status unit_run(Session *S, const char *const *lines);
 
 #define TEST(name)                                                                                 \

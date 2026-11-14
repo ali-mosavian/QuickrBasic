@@ -84,8 +84,7 @@ uint32_t text_rec(Session *const S, const uint32_t line)
     return lmap_off(S, line + uimn.text.first);
 }
 
-/* The line of record rec into dst; its length. */
-static uint32_t text_of(Session *const S, const uint32_t rec, uint8_t *const dst)
+uint32_t text_record(Session *const S, const uint32_t rec, uint8_t *const dst)
 {
     const Line *const p = prog_line(&S->prog, rec);
     const uint32_t pre = p->pre;
@@ -109,7 +108,7 @@ static uint32_t text_of(Session *const S, const uint32_t rec, uint8_t *const dst
 
 uint32_t text_get(Session *const S, const uint32_t line, uint8_t *const dst)
 {
-    return text_of(S, text_rec(S, line), dst);
+    return text_record(S, text_rec(S, line), dst);
 }
 
 /* The line number text's first end characters start with, past blanks: LNUM_LIMIT when past;
@@ -444,7 +443,7 @@ uint16_t text_write(Session *const S, const char *const name)
     uint8_t *const buf = uimn.build;
 
     for (uint32_t line = 0; line < uimn.text.all; line++) {
-        uint32_t len = text_of(S, lmap_off(S, line), buf);
+        uint32_t len = text_record(S, lmap_off(S, line), buf);
         buf[len++] = NL;
         buf[len++] = LF;
 
