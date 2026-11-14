@@ -105,5 +105,5 @@ uint8_t dlog_change(Session *S);
 enum : uint8_t { CHANGE_VERIFY = 0, CHANGE_ALL = 1 };
 /* ui_ledit: an editing key in the one-line buffer b (a field, the immediate line): a character
    typed (FLDMAX at most), Backspace, Left, Right, Home, End, Del, Ctrl+Left, Ctrl+Right. */
-void dlog_ledit(LineBuf *b, uint16_t key);
+bool dlog_ledit(LineBuf *b, uint16_t key); /* false: not a line edit's key */
 #endif

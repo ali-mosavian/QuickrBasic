@@ -234,7 +234,10 @@ static const char *item(const uint8_t w, const uint32_t i)
     return w == DP_WAT ? dp.wv[i] : w == DP_LOC ? dp.vt[i] : dp.fr[i].text;
 }
 
-static bool has_focus(const uint8_t w) { return uimn.focus == FOC_PANE && dp.focus == w; }
+static bool has_focus(const uint8_t w)
+{
+    return uimn.tree.workspace.focus == FOC_PANE && dp.focus == w;
+}
 
 /* dp_line: row r of window w: its borders, its item. */
 static void line1(const uint8_t w, const uint8_t r)
@@ -469,8 +472,8 @@ void dpan_close(void)
 
     uimn.pane_on = false;
 
-    if (uimn.focus == FOC_PANE)
-        uimn.focus = FOC_EDIT;
+    if (uimn.tree.workspace.focus == FOC_PANE)
+        uimn.tree.workspace.focus = FOC_EDIT;
 
     wind_layout();
 }
@@ -567,7 +570,7 @@ static void sel_step(const uint8_t w, const uint8_t scan)
 }
 
 /* A key with no character (an extended one) in window w. */
-static void scan_key(Session *const S, const uint8_t w, const uint8_t scan)
+static bool scan_key(Session *const S, const uint8_t w, const uint8_t scan)
 {
     if (w == DP_WAT && scan == SCAN_INS)
         watch_add(S);
@@ -575,9 +578,13 @@ static void scan_key(Session *const S, const uint8_t w, const uint8_t scan)
         watch_del();
     else if (scan == SCAN_UP || scan == SCAN_DOWN)
         sel_step(w, scan);
+    else
+        return false;
+
+    return true;
 }
 
-void dpan_key(Session *const S, const uint16_t key)
+bool dpan_key(Session *const S, const uint16_t key)
 {
     const uint8_t w = dp.focus;
     const uint8_t c = (uint8_t)key, scan = (uint8_t)(key >> 8);
@@ -591,8 +598,10 @@ void dpan_key(Session *const S, const uint16_t key)
     else if (c == CH_ENTER) {
         if (w == DP_STK && dp.sel[w] < dp.nframes)
             go(S, dp.sel[w]);
-    } else if (!c)
-        scan_key(S, w, scan);
+    } else
+        return !c && scan_key(S, w, scan);
+
+    return true;
 }
 
 void dpan_mouse(Session *const S, const uint8_t row, const uint8_t col)
@@ -767,7 +776,7 @@ static bool tip_at(
     const UiEdit *const ed = &uimn.ed;
 
     if (!uimn.tip_mouse) {
-        if (uimn.focus != FOC_EDIT)
+        if (uimn.tree.workspace.focus != FOC_EDIT)
             return false;
 
         *col = uimn.edline.col;

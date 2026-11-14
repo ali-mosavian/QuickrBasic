@@ -26,7 +26,8 @@ void uimn_error(Session *S, uint8_t code);
    while none waits; uimn.keyflags the shift flags then. An Alt already down at the call (after
    Alt+F) is no tap when let go. */
 uint16_t uimn_getkey(void);
-/* ui_key: key: the menus, the run and window keys, then the focused window's. */
+/* ui_key: key: Alt and the mouse; else to the focused window, then up the tree to the screen's
+   run, window and menu keys. */
 void uimn_key(Session *S, uint16_t key);
 /* ui_act: menu command action (ACT_*, menu.h); ACT_NONE and past: nothing. */
 void uimn_act(Session *S, uint8_t action);

@@ -270,7 +270,7 @@ static void show(Session *const S, const uint8_t v)
     const View *const p = &vw.tab[v];
     uimn.ed.sel_on = false;
     uimn.ed.left = 0;
-    uimn.focus = FOC_EDIT;
+    uimn.tree.workspace.focus = FOC_EDIT;
     uimn.ed.top = p->top;
     uimn.edline.col = p->col;
     uint32_t line = p->line;

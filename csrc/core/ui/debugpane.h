@@ -11,7 +11,7 @@ void dpan_close(void);
 void dpan_draw(void);
 /* dp_key: key in the pane: Tab, Shift+Tab its windows; Up, Down a row; Enter a frame; Ins, Del
    in Watch a watch; Esc back to the edit window. */
-void dpan_key(Session *S, uint16_t key);
+bool dpan_key(Session *S, uint16_t key); /* false: not the pane's */
 /* dp_mouse: the mouse event at row, col in the pane: a press focuses it, selects a row, a
    frame's row the frame. */
 void dpan_mouse(Session *S, uint8_t row, uint8_t col);

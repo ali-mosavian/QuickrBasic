@@ -3,7 +3,7 @@
 #define UI_DRAW_H
 #include "ui/ui.h"
 
-/* dr_all: the whole screen (menu_bar, wind_draw, dpan_tip, draw_status) and the cursor in the
+/* dr_all: the whole screen (the widget tree, uimn.screen) and the cursor in the
    focused window, its shape the mode's (hidden in the pane). */
 void draw_all(Session *S);
 /* dr_edit: the edit window in uimn.ed: its frame and title, its lines (synt_row, udbg_row), the

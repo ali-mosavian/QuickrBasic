@@ -193,7 +193,7 @@ static bool gray(const Item *const it)
         return true;
     if ((f & MF_CLP) && !uimn.text.clip_len)
         return true;
-    if ((f & MF_ED) && uimn.focus)
+    if ((f & MF_ED) && uimn.tree.workspace.focus)
         return true;
 
     return false;

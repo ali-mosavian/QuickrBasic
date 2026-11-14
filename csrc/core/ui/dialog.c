@@ -450,53 +450,54 @@ static void step(Dlog *const d, const int dir)
     dl.fresh = true;
 }
 
-void dlog_ledit(LineBuf *const b, const uint16_t key)
+bool dlog_ledit(LineBuf *const b, const uint16_t key)
 {
     const uint8_t ch = (uint8_t)key, scan = (uint8_t)(key >> 8);
 
     if (ch == CH_BACKSPACE) {
         edit_lb_bs(b);
-        return;
+        return true;
     }
 
     if (ch && ch != CH_E0) {
-        if (ch >= ' ')
-            edit_lb_type(b, ch, FLDMAX);
+        if (ch < ' ')
+            return false;
 
-        return;
+        edit_lb_type(b, ch, FLDMAX);
+        return true;
     }
 
     switch (scan) {
     case SCAN_LEFT:
         edit_lb_left(b);
-        break;
+        return true;
 
     case SCAN_RIGHT:
         edit_lb_right(b);
-        break;
+        return true;
 
     case SCAN_HOME:
         edit_lb_home(b);
-        break;
+        return true;
 
     case SCAN_END:
         edit_lb_end(b);
-        break;
+        return true;
 
     case SCAN_DEL:
         edit_lb_del(b);
-        break;
+        return true;
 
     case SCAN_CTRL_LEFT:
         edit_lb_wleft(b);
-        break;
+        return true;
 
     case SCAN_CTRL_RIGHT:
         edit_lb_wright(b);
-        break;
+        return true;
 
     default:
-        break;
+        return false;
     }
 }
 

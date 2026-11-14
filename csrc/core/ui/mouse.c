@@ -159,7 +159,8 @@ static void edit_click(Session *const S, const uint8_t w, const uint8_t row, con
 
     UiEdit *const e = &uimn.ed;
 
-    if (uimn.focus != FOC_EDIT || row < (uint8_t)e->row0 || row >= (uint8_t)(e->row0 + e->rows))
+    if (uimn.tree.workspace.focus != FOC_EDIT || row < (uint8_t)e->row0 ||
+        row >= (uint8_t)(e->row0 + e->rows))
         return;
     if (col <= e->x)
         return;

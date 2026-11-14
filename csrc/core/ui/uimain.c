@@ -224,31 +224,31 @@ uint16_t uimn_getkey(void)
 }
 
 /* im_key: a key in the immediate window. */
-static void imm_key(Session *const S, const uint16_t key)
+static bool imm_key(Widget *const w, Session *const S, const uint16_t key)
 {
     const uint8_t ch = (uint8_t)key, scan = (uint8_t)(key >> 8);
 
     if (ch == CH_ENTER) {
         exec_line(S);
-        return;
+        return true;
     }
 
     if (!ch) {
         if (scan == SCAN_UP) {
             edit_imm_up();
-            return;
+            return true;
         }
 
         if (scan == SCAN_DOWN) {
             edit_imm_down();
-            return;
+            return true;
         }
     }
 
     if (ch >= ' ' && uimn.immline.len >= ED_COLS - 1)
-        return;
+        return true;
 
-    dlog_ledit(&uimn.immline, key);
+    return dlog_ledit(&uimn.immline, key);
 }
 
 /* Ctrl+A to Ctrl+Z as WordStar's: the scan code of the key they stand for (COW edittbls.inc). */
@@ -301,10 +301,10 @@ static const struct {
     {SCAN_CTRL_RIGHT, lb_wright},
 };
 
-static void edit_key(Session *S, uint16_t key);
+static bool edit_key(Widget *w, Session *S, uint16_t key);
 
-/* An extended key (character 0) in the program window. */
-static void edit_scan(Session *const S, const uint8_t scan)
+/* An extended key (character 0) in the program window; false: not one of its keys. */
+static bool edit_scan(Session *const S, const uint8_t scan)
 {
     const bool shift = uimn.keyflags & PKEY_SHIFT;
 
@@ -317,7 +317,7 @@ static void edit_scan(Session *const S, const uint8_t scan)
             uimn.ed.sel_on = false;
 
         moves[i].run(S);
-        return;
+        return true;
     }
 
     if (scan == SCAN_DEL) {
@@ -336,7 +336,10 @@ static void edit_scan(Session *const S, const uint8_t scan)
             uimn.ed.insert = !uimn.ed.insert;
     } else if (scan == SCAN_CTRL_INS) {
         edit_copy(S);
-    }
+    } else
+        return false;
+
+    return true;
 }
 
 /* Ctrl+Q's second key, ch. */
@@ -349,7 +352,7 @@ static void edit_ctrlq(Session *const S, const uint8_t ch)
         if (wordstar_q[i].ch != letter)
             continue;
         if (wordstar_q[i].scan) {
-            edit_key(S, (uint16_t)(wordstar_q[i].scan << 8));
+            edit_key(&uimn.tree.edit, S, (uint16_t)(wordstar_q[i].scan << 8));
         } else { /* Ctrl+Q,Y: to the line's end out */
             uimn.ed.sel_on = false;
             edit_lb_cut(b, b->col, b->len);
@@ -359,7 +362,7 @@ static void edit_ctrlq(Session *const S, const uint8_t ch)
     }
 }
 
-/* A control character ch; false: not one, ch is typed. */
+/* A control character ch the window uses; false: not one. */
 static bool edit_control(Session *const S, const uint8_t ch)
 {
     switch (ch) {
@@ -397,43 +400,41 @@ static bool edit_control(Session *const S, const uint8_t ch)
         return true;
 
     default:
-        return ch < ' ';
+        return false;
     }
 }
 
-/* ed_key: a key in the program window: a shifted move selects. */
-static void edit_key(Session *const S, const uint16_t key)
+/* ed_key: a key in the program window: a shifted move selects; false: not the window's. */
+static bool edit_key(Widget *const w, Session *const S, const uint16_t key)
 {
     const uint8_t ch = (uint8_t)key;
 
-    if (!ch) {
-        edit_scan(S, (uint8_t)(key >> 8));
-        return;
-    }
+    if (!ch)
+        return edit_scan(S, (uint8_t)(key >> 8));
 
     if (uimn.ed.prefix) {
         uimn.ed.prefix = 0;
         edit_ctrlq(S, ch);
-        return;
+        return true;
     }
 
     if (ch == CTRL('Q')) { /* a second key follows */
         uimn.ed.prefix = ch;
-        return;
+        return true;
     }
 
-    if (ch <= CTRL('Z') && wordstar[ch - 1]) {
-        edit_key(S, (uint16_t)(wordstar[ch - 1] << 8));
-        return;
-    }
-
+    if (ch <= CTRL('Z') && wordstar[ch - 1])
+        return edit_key(w, S, (uint16_t)(wordstar[ch - 1] << 8));
     if (edit_control(S, ch))
-        return;
+        return true;
+    if (ch < ' ')
+        return false;
     if (edit_sel() == SEL_PIECE)
         edit_clear(S);
 
     uimn.ed.sel_on = false;
     edit_lb_type(&uimn.edline, ch, LNMAX);
+    return true;
 }
 
 /* ---- Search */
@@ -529,7 +530,7 @@ static void find_again(Session *const S)
    just before it, else the last. */
 static void find_default(void)
 {
-    if (uimn.focus)
+    if (uimn.tree.workspace.focus)
         return;
 
     const uint8_t *const t = uimn.edline.text;
@@ -732,7 +733,7 @@ static void reset(Session *const S)
     uimn.ed.left = 0;
     uimn.edline.col = 0;
     uimn.ed.sel_on = false;
-    uimn.focus = FOC_EDIT;
+    uimn.tree.workspace.focus = FOC_EDIT;
     uimn.text.unsaved = false;
     uimn.text.changed = true;
     dpan_close();
@@ -924,7 +925,7 @@ void uimn_selword(const uint16_t col)
    statement. */
 static void at_line(Session *const S, const uint32_t line)
 {
-    uimn.focus = FOC_EDIT;
+    uimn.tree.workspace.focus = FOC_EDIT;
     edit_load(S, line);
     const LineBuf *const b = &uimn.edline;
     uint16_t col = 0;
@@ -1137,90 +1138,90 @@ void uimn_key(Session *const S, const uint16_t key)
         return;
     }
 
+    tree_key(&uimn.tree.screen, S, key);
+}
+
+/* The keys the focused window left: Repeat Last Find, the F-keys, the window keys, a menu's Alt
+   letter. */
+static bool screen_key(Widget *const w, Session *const S, const uint16_t key)
+{
     if (key == (SCAN_L << 8 | CTRL('L'))) { /* Repeat Last Find */
         find_again(S);
-        return;
+        return true;
     }
 
-    if (!(uint8_t)key) {
-        const uint8_t scan = (uint8_t)(key >> 8);
+    if ((uint8_t)key)
+        return false;
 
-        switch (scan) {
-        case FKEY(SCAN_F1, 7):
-            udbg_pstep(S);
-        case FKEY(SCAN_CTRL_F1, 7):
-            udbg_until(S);
-            return;
+    const uint8_t scan = (uint8_t)(key >> 8);
 
-        case FKEY(SCAN_F1, 8):
-            udbg_step(S);
-        case FKEY(SCAN_SHIFT_F1, 8):
-            udbg_sout(S);
-        case FKEY(SCAN_F1, 9):
-            udbg_bp(S);
-            return;
+    switch (scan) {
+    case FKEY(SCAN_F1, 7):
+        udbg_pstep(S);
+    case FKEY(SCAN_CTRL_F1, 7):
+        udbg_until(S);
+        return true;
 
-        case FKEY(SCAN_F1, 10):
-            udbg_pstep(S);
-        case FKEY(SCAN_F1, 4):
-            view_output();
-            return;
+    case FKEY(SCAN_F1, 8):
+        udbg_step(S);
+    case FKEY(SCAN_SHIFT_F1, 8):
+        udbg_sout(S);
+    case FKEY(SCAN_F1, 9):
+        udbg_bp(S);
+        return true;
 
-        case FKEY(SCAN_F1, 5):
-            uimn_cont(S);
-        case FKEY(SCAN_SHIFT_F1, 5):
-            uimn_run(S);
-        case FKEY(SCAN_F1, 6):
-            next_window(S);
-            return;
+    case FKEY(SCAN_F1, 10):
+        udbg_pstep(S);
+    case FKEY(SCAN_F1, 4):
+        view_output();
+        return true;
 
-        case FKEY(SCAN_F1, 3):
-            find_again(S);
-            return;
+    case FKEY(SCAN_F1, 5):
+        uimn_cont(S);
+    case FKEY(SCAN_SHIFT_F1, 5):
+        uimn_run(S);
+    case FKEY(SCAN_F1, 6):
+        next_window(S);
+        return true;
 
-        case SCAN_F1:
-        case SCAN_SHIFT_F1:
-            nohelp(S);
-            return;
+    case FKEY(SCAN_F1, 3):
+        find_again(S);
+        return true;
 
-        case FKEY(SCAN_SHIFT_F1, 6):
-            wind_prev(S);
-            return; /* the window before */
-        case SCAN_ALT_EQUALS:
-        case SCAN_GREY_PLUS:
-            wind_grow();
-            return; /* a row more */
-        case SCAN_ALT_MINUS:
-        case SCAN_GREY_MINUS:
-            wind_shrink();
-            return; /* a row less */
-        case FKEY(SCAN_CTRL_F1, 10):
-            wind_max();
-            return;
+    case SCAN_F1:
+    case SCAN_SHIFT_F1:
+        nohelp(S);
+        return true;
 
-        case FKEY(SCAN_F1, 2):
-            view_subs(S);
-            return; /* the views */
-        case FKEY(SCAN_SHIFT_F1, 2):
-            view_next(S);
-            return;
+    case FKEY(SCAN_SHIFT_F1, 6):
+        wind_prev(S);
+        return true; /* the window before */
+    case SCAN_ALT_EQUALS:
+    case SCAN_GREY_PLUS:
+        wind_grow();
+        return true; /* a row more */
+    case SCAN_ALT_MINUS:
+    case SCAN_GREY_MINUS:
+        wind_shrink();
+        return true; /* a row less */
+    case FKEY(SCAN_CTRL_F1, 10):
+        wind_max();
+        return true;
 
-        case FKEY(SCAN_CTRL_F1, 2):
-            view_prev(S);
-            return;
+    case FKEY(SCAN_F1, 2):
+        view_subs(S);
+        return true; /* the views */
+    case FKEY(SCAN_SHIFT_F1, 2):
+        view_next(S);
+        return true;
 
-        default:
-            if (menu_alt(S, scan))
-                return;
-        }
+    case FKEY(SCAN_CTRL_F1, 2):
+        view_prev(S);
+        return true;
+
+    default:
+        return menu_alt(S, scan);
     }
-
-    if (uimn.focus == FOC_IMM)
-        imm_key(S, key);
-    else if (uimn.focus == FOC_PANE)
-        dpan_key(S, key);
-    else
-        edit_key(S, key);
 }
 
 /* ui_loop: draw, a key, its command; again. */
@@ -1272,9 +1273,57 @@ static void load_help(void)
     pfil_close(h);
 }
 
+static void menubar_draw(Widget *const w, Session *const S) { menu_bar(); }
+static void workspace_draw(Widget *const w, Session *const S)
+{
+    wind_draw(S);
+    dpan_tip(S);
+}
+static void statusbar_draw(Widget *const w, Session *const S) { draw_status(); }
+static bool pane_key(Widget *const w, Session *const S, const uint16_t key)
+{
+    return dpan_key(S, key);
+}
+
+static const WidgetOps screen_ops = {.key = screen_key};
+static const WidgetOps menubar_ops = {.draw = menubar_draw};
+static const WidgetOps workspace_ops = {.draw = workspace_draw};
+static const WidgetOps statusbar_ops = {.draw = statusbar_draw};
+static const WidgetOps edit_ops = {.key = edit_key};
+static const WidgetOps imm_ops = {.key = imm_key};
+static const WidgetOps pane_ops = {.key = pane_key};
+
+/* The screen: the menu bar, the workspace and the status bar; in the workspace the windows, in
+   FOC_* order. The workspace draws its windows itself (wind_draw). */
+static void build_tree(void)
+{
+    static const struct {
+        Widget *w, *parent;
+        const WidgetOps *ops;
+    } tree[] = {
+        {&uimn.tree.menubar, &uimn.tree.screen, &menubar_ops},
+        {&uimn.tree.workspace, &uimn.tree.screen, &workspace_ops},
+        {&uimn.tree.statusbar, &uimn.tree.screen, &statusbar_ops},
+        {&uimn.tree.edit, &uimn.tree.workspace, &edit_ops},
+        {&uimn.tree.imm, &uimn.tree.workspace, &imm_ops},
+        {&uimn.tree.pane, &uimn.tree.workspace, &pane_ops},
+    };
+
+    uimn.tree.screen = (Widget){.ops = &screen_ops, .visible = true};
+
+    for (uint32_t i = 0; i < countof(tree); i++) {
+        *tree[i].w = (Widget){.ops = tree[i].ops, .visible = true};
+
+        tree_add(tree[i].parent, tree[i].w);
+    }
+
+    tree_focus(&uimn.tree.edit);
+}
+
 /* The editor's state at its start. */
 static void init(Session *const S)
 {
+    build_tree();
     uimn.on = true;
     uimn.edline.text = uimn.edline_text;
     uimn.immline.text = uimn.immline_text;

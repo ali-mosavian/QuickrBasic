@@ -37,6 +37,7 @@
 #define UI_UI_H
 #include "defs.h"
 #include "plat/pscr.h"
+#include "ui/tree.h"
 
 enum {
     HLPSZ = 2048,          /* BASIC.HLP's bytes at most: the menus' help lines */
@@ -157,7 +158,7 @@ enum : uint8_t {
     GLYPH_TOP_LEFT = 0xDA,
 };
 
-/* uimn.focus: which window has the keys (ui_foc). */
+/* uimn.tree.workspace.focus: which window has the keys (ui_foc), its child by index. */
 enum : uint8_t { FOC_EDIT = 0, FOC_IMM = 1, FOC_PANE = 2 };
 
 /* The windows, top down (window.h); the debug pane is beside them, not in uimn.win.win[]. */
@@ -261,7 +262,6 @@ typedef struct {
 
 typedef struct {
     bool on;          /* lp.ideon: the editor runs (the core's ui_on) */
-    uint8_t focus;    /* lp.ui_foc: FOC_* */
     uint8_t keyflags; /* lp.ui_kf: the shift flags at the last key (pkey_shift) */
     const char *help; /* lp.ui_help: the status bar's help line, nullptr the keys */
     bool pane_on;     /* dp.dp_on: the debug pane shown (a stop) */
@@ -277,6 +277,11 @@ typedef struct {
     LineBuf fname;     /* bf.dl_fn: a dialog's File Name field, DLBUF */
     LineBuf find_what; /* bf.fd_what: Find What */
     LineBuf change_to; /* bf.fd_to: Change To */
+
+    struct {
+        Widget screen, menubar, workspace, statusbar; /* workspace.focus: FOC_*, lp.ui_foc */
+        Widget edit, imm, pane;                       /* the workspace's */
+    } tree;
 
     UiText text;
     UiEdit ed; /* the active edit window's */

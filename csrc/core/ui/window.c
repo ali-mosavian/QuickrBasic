@@ -124,7 +124,7 @@ void wind_draw(Session *const S)
 void wind_act(Session *const S, const uint8_t w)
 {
     edit_commit(S);
-    uimn.focus = FOC_EDIT;
+    uimn.tree.workspace.focus = FOC_EDIT;
 
     if (w == uimn.win.active)
         return;
@@ -147,15 +147,15 @@ void wind_focus(Session *const S, const uint8_t w)
     }
 
     edit_commit(S);
-    uimn.focus = w == W_IMM ? FOC_IMM : FOC_PANE;
+    uimn.tree.workspace.focus = w == W_IMM ? FOC_IMM : FOC_PANE;
 }
 
 uint8_t wind_cur(void)
 {
-    if (uimn.focus == FOC_EDIT)
+    if (uimn.tree.workspace.focus == FOC_EDIT)
         return uimn.win.active;
 
-    return uimn.focus == FOC_IMM ? W_IMM : W_DBG;
+    return uimn.tree.workspace.focus == FOC_IMM ? W_IMM : W_DBG;
 }
 
 static const uint8_t order[] = {W_ED1, W_ED2, W_DBG, W_IMM}; /* F6's */

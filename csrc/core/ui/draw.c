@@ -54,28 +54,27 @@ static char ttl[128]; /* ui_ttl: the window's title */
 
 void draw_all(Session *const S)
 {
-    menu_bar();
-    wind_draw(S);
-    dpan_tip(S);
-    draw_status();
+    tree_draw(&uimn.tree.screen, S);
 
     /* the cursor in the window that has it, its shape the mode's */
     const uint16_t shape = uimn.ed.insert ? CURSOR_INSERT : CURSOR_OVERWRITE;
-    scrn_shape(uimn.focus == FOC_PANE ? PSCR_HIDDEN : shape); /* the pane: its row lit, no cursor */
-    if (uimn.focus == FOC_EDIT) {
+    scrn_shape(
+        uimn.tree.workspace.focus == FOC_PANE ? PSCR_HIDDEN : shape
+    ); /* the pane: its row lit, no cursor */
+    if (uimn.tree.workspace.focus == FOC_EDIT) {
         edit_ensure();
         scrn_cursor(
             (uint8_t)(uimn.ed.line - uimn.ed.top + uimn.ed.row0),
             (uint8_t)(uimn.edline.col - uimn.ed.left + 1 + uimn.ed.x)
         );
-    } else if (uimn.focus == FOC_IMM) {
+    } else if (uimn.tree.workspace.focus == FOC_IMM) {
         const uint16_t col = uimn.immline.col < ED_COLS - 1 ? uimn.immline.col : ED_COLS - 1;
         scrn_cursor((uint8_t)(uimn.imm.cur - uimn.imm.top + uimn.imm.row0), (uint8_t)(col + 1));
     }
 }
 
 /* The edit window drawn has the focus. */
-static bool has_focus(void) { return uimn.focus == FOC_EDIT && !inactive; }
+static bool has_focus(void) { return uimn.tree.workspace.focus == FOC_EDIT && !inactive; }
 
 void draw_title(
     const uint8_t row,
@@ -263,7 +262,7 @@ void draw_imm(void)
         GLYPH_V_RIGHT,
         GLYPH_V_LEFT,
         u_imm,
-        uimn.focus == FOC_IMM,
+        uimn.tree.workspace.focus == FOC_IMM,
         false
     );
 
@@ -288,7 +287,7 @@ void draw_imm(void)
 
 const StatusKeys *draw_keys(void)
 {
-    if (uimn.focus == FOC_IMM)
+    if (uimn.tree.workspace.focus == FOC_IMM)
         return &uimn_keys_imm;
 
     return uimn_stopped() ? &uimn_keys_run : &uimn_keys_edit;

@@ -111,7 +111,7 @@ cide32: $(CIDE_OBJ)
 HOST_CC ?= $(CLANG) -arch x86_64 -isysroot $(shell xcrun --show-sdk-path 2>/dev/null)
 HOST_CFLAGS := -std=c23 -O1 -g -Werror=undef -DARENA_AT_ZERO=0 -DEXEC_COUNT -Wall -Wextra -Wno-unused-parameter \
 	-Icsrc/plat/host/include -Icsrc -Icsrc/core
-HSRC := $(shell find csrc/core -name '*.c' -not -path 'csrc/core/ui/*') \
+HSRC := $(shell find csrc/core -name '*.c' -not -path 'csrc/core/ui/*') csrc/core/ui/tree.c \
 	$(wildcard csrc/plat/host/*.c) csrc/boot.c
 HOBJ := $(HSRC:csrc/%.c=build/host/obj/%.o)
 

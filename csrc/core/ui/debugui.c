@@ -77,7 +77,7 @@ static void hlset(Session *const S, const DebugPos *const pos)
     hl.c0 = (uint16_t)c0;
     hl.c1 = (uint16_t)c1;
     hl.on = true;
-    uimn.focus = FOC_EDIT;
+    uimn.tree.workspace.focus = FOC_EDIT;
     uimn.ed.sel_on = false;
     edit_load(S, hl.line - uimn.text.first);
     uimn.edline.col = hl.c0;
@@ -180,7 +180,7 @@ void udbg_tron(Session *const S) { session_trace(S, !session_tracing(S)); }
 
 void udbg_bp(Session *const S)
 {
-    if (uimn.focus == FOC_EDIT)
+    if (uimn.tree.workspace.focus == FOC_EDIT)
         text_toggle(S, uimn.ed.line);
 }
 
@@ -188,7 +188,7 @@ void udbg_bpclear(Session *const S) { text_unmark_all(S); }
 
 void udbg_until(Session *const S)
 {
-    if (uimn.focus != FOC_EDIT)
+    if (uimn.tree.workspace.focus != FOC_EDIT)
         return;
 
     hl.until = uimn.ed.line + uimn.text.first + 1;
