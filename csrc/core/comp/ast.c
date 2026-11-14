@@ -18,27 +18,29 @@
  * No asm counterpart: the asm emits code as it parses, with no tree (see expr.c).
  */
 #include "comp/ast.h"
-#include "session.h"
 #include "comp/dfa.h"
-#include "io/repl.h"
 #include "mem/symbols.h"
 
-void ast_init(Session *const S) { arena_init(&S->ast.arena, AST_CHUNK); }
-
-void ast_reset(Session *const S)
+void ast_init(Ast *const t, Fault *const f)
 {
-    arena_reset(&S->ast.arena);
-    S->ast.steps = S->ast.last = nullptr;
+    arena_init(&t->arena, AST_CHUNK);
+    t->fault = f;
+}
+
+void ast_reset(Ast *const t)
+{
+    arena_reset(&t->arena);
+    t->steps = t->last = nullptr;
 }
 
 bool ast_islit(const Node *const n) { return n->kind == N_LIT; }
 
-Node *ast_new(Session *const S, const NodeKind kind)
+Node *ast_new(Ast *const t, const NodeKind kind)
 {
-    Node *const n = arena_alloc(&S->ast.arena, sizeof *n);
+    Node *const n = arena_alloc(&t->arena, sizeof *n);
 
     if (!n)
-        repl_error(S, E_OM);
+        fault_raise(t->fault, (Failure){.code = E_OM, .at = FAULT_KEEP, .line = FAULT_KEEP});
 
     n->kind = kind;
     return n;
@@ -118,29 +120,28 @@ uint8_t ast_type(const Node *const n)
     }
 }
 
-void ast_step(Session *const S, Node *const n)
+void ast_step(Ast *const t, Node *const n)
 {
     n->next = nullptr;
 
-    if (S->ast.last)
-        S->ast.last->next = n;
+    if (t->last)
+        t->last->next = n;
     else
-        S->ast.steps = n;
+        t->steps = n;
 
-    S->ast.last = n;
+    t->last = n;
 }
 
-/* The last step becomes its conversion: the node in place, its tree a copy under it. */
-void ast_conv(Session *const S, const uint8_t cv)
+void ast_conv(Ast *const t, const uint8_t cv, const uint8_t *const end)
 {
-    Node *const last = S->ast.last;
-    Node *const a = ast_new(S, N_CONV);
+    Node *const last = t->last;
+    Node *const a = ast_new(t, N_CONV);
     *a = *last;
     a->next = nullptr;
     *last = (Node){
         .kind = N_CONV,
         .op = cv,
         .a = a,
-        .end = S->comp.p,
+        .end = end,
     };
 }

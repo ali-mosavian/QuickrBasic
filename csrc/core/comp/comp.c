@@ -67,7 +67,9 @@
 #include "comp/dfa.h"
 #include "comp/expr.h"
 #include "comp/refs.h"
+#include "comp/codegen.h"
 #include "comp/fold.h"
+#include "comp/sema.h"
 #include "io/console.h"
 #include "io/msg.h"
 #include "io/repl.h"
@@ -87,7 +89,7 @@ void comp_init(Session *const S)
         at(allo_carve(S, 1 + LMAX + 64)) + 1; /* the byte before: lexr's line before the body */
     S->code.buf = S->comp.xbuf;
     S->comp.dfa = 0xFFFF;
-    ast_init(S);
+    ast_init(&S->ast, &S->fault);
 }
 
 [[noreturn]]
@@ -514,7 +516,7 @@ static void mapstmt(Session *const S, const uint32_t bodyoff)
    error's too. */
 static void mark(Session *const S)
 {
-    ast_reset(S);
+    ast_reset(&S->ast);
     mapstmt(S, (uint32_t)(S->comp.p - S->comp.body));
 }
 
@@ -558,6 +560,7 @@ static void done(Session *const S)
 
 void comp_fail(Session *const S, const uint8_t err)
 {
+    comp_flush(S);                  /* the steps checked before the error */
     uint8_t *const o = S->code.out; /* ERR err dg at:4 state:2 */
     o[0] = O_ERR;
     o[1] = err;
@@ -569,6 +572,72 @@ void comp_fail(Session *const S, const uint8_t err)
     S->comp.dfa = 0xFFFF;
     done(S);
 }
+
+/* ---- steps: the statement's trees, checked as parsed, generated at a flush */
+
+/* Tree n the statement's next step, checked now. */
+static void step(Session *const S, Node *const n)
+{
+    const uint8_t *const p = S->comp.p;
+    sema_tree(S, n);
+    S->comp.p = p;
+    ast_step(&S->ast, n);
+}
+
+void comp_flush(Session *const S)
+{
+    for (Node *n = S->ast.steps; n; n = n->next) {
+        sema_resolve(S, n);
+        fold_tree(S, n);
+        cg_tree(&S->code, n);
+    }
+
+    S->ast.steps = S->ast.last = nullptr;
+}
+
+/* A_E: an expression. */
+static void step_expr(Session *const S) { step(S, expr_tree(S)); }
+
+/* A_TO*: the last step converted, cv; legacy when it is no expression's (a CALL's). */
+static void step_conv(Session *const S, const uint8_t cv, void (*const legacy)(Session *))
+{
+    const Node *const last = S->ast.last;
+
+    if (!last || last->kind == N_KCALL) {
+        comp_flush(S);
+        legacy(S);
+        return;
+    }
+
+    if (cv == CV_STR ? !(ast_type(last) & T_STR) : ast_type(last) & T_STR)
+        mismatch(S);
+
+    ast_conv(&S->ast, cv, S->comp.p);
+}
+
+static void step_toint(Session *const S) { step_conv(S, CV_INT, comp_toint); }
+static void step_todouble(Session *const S) { step_conv(S, CV_DBL, comp_todouble); }
+static void step_tobyte(Session *const S) { step_conv(S, CV_BYTE, comp_tobyte); }
+static void step_toaddr(Session *const S) { step_conv(S, CV_ADDR, comp_toaddr); }
+static void step_tostring(Session *const S) { step_conv(S, CV_STR, comp_tostring); }
+
+/* CALL k. */
+static void step_call(Session *const S, const uint8_t k)
+{
+    Node *const n = ast_new(&S->ast, N_KCALL);
+    n->op = k;
+    ast_step(&S->ast, n);
+}
+
+/* By A_*: the actions that make steps; the others flush the steps first. */
+static void (*const steps[A_END - A_BASE])(Session *S) = {
+    [A_E - A_BASE] = step_expr,
+    [A_TOI - A_BASE] = step_toint,
+    [A_TOD - A_BASE] = step_todouble,
+    [A_TOB - A_BASE] = step_tobyte,
+    [A_TOA - A_BASE] = step_toaddr,
+    [A_TOS - A_BASE] = step_tostring,
+};
 
 static uint32_t pslook(const uint32_t st, const uint8_t cls)
 {
@@ -593,15 +662,22 @@ void comp_dfa(Session *const S, const uint16_t state)
             st = e >> 8;
 
             if (code < A_BASE)
-                code_call(&S->code, code);
-            else
+                step_call(S, code);
+            else if (steps[code - A_BASE])
+                steps[code - A_BASE](S);
+            else {
+                comp_flush(S);
                 actions[code - A_BASE](S);
+            }
 
             continue;
         }
 
-        if (code == PS_ACC)
+        if (code == PS_ACC) {
+            comp_flush(S);
             return;
+        }
+
         if (code == PS_ERR) { /* for the error's words: what it wanted */
             S->comp.dfa = (uint16_t)st;
             synerr(S);

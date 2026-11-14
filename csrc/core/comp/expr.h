@@ -12,6 +12,8 @@ typedef struct {
 /* By kind, SK_DBL a DOUBLE: its T_*. */
 extern const uint8_t expr_ktype[5];
 
+/* An expression parsed: its tree, nothing checked or compiled. */
+Node *expr_tree(Session *S);
 void expr_compile(Session *S); /* cm_expr: an expression at comp.p: parsed, folded, compiled */
 void expr_emit(Session *S, Node *root); /* root's tree folded and compiled */
 Node *expr_arg(Session *S); /* an argument: an expression's tree of its own, not for a DOUBLE */

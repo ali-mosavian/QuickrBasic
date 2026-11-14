@@ -230,6 +230,7 @@ void fold_tree(Session *const S, Node *const i)
     case N_FIELD:
     case N_ADDR:
     case N_ARG:
+    case N_CONV:
         if (n->a != nullptr)
             fold_tree(S, n->a);
 

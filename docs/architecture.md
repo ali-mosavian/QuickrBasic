@@ -278,4 +278,4 @@ flowchart LR
     s1[1. plat/host +<br/>unit tests] --> s2[2. core +<br/>values] --> s3[3. vm<br/>from flow.c] --> s4[4. session,<br/>errors, hooks] --> s5[5. lang:<br/>tree, fold, codegen] --> s6[6. editor:<br/>widget tree]
 ```
 
-Step 5 puts expressions and references through the tree. Statements still parse and emit in one pass. They move to the tree too, so the [Boundaries](#boundaries) rule holds everywhere.
+Step 5 puts expressions and references through the tree. A statement is a list of steps: each is checked as it is parsed, and resolved, folded and generated at a flush. The automaton's CALLs, expressions and conversions are steps; the other actions flush first and still emit directly, until each moves to the tree.

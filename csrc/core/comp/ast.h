@@ -3,6 +3,7 @@
 #define COMP_AST_H
 #include "base.h"
 #include "defs.h"
+#include "fault.h"
 #include "util/arena.h"
 #include "mem/symbols.h"
 #include "vm/exec.h"
@@ -113,16 +114,22 @@ struct Node {
 /* The statement's arena; its steps, first to last. */
 typedef struct {
     Arena arena;
+    Fault *fault;
     Node *steps, *last;
 } Ast;
 
-void ast_init(Session *S);
-void ast_reset(Session *S);               /* a statement starts: every node freed */
-Node *ast_new(Session *S, NodeKind kind); /* a node, zeroed but for kind; Out of memory full */
+/* Out of memory raises through f. */
+void ast_init(Ast *t, Fault *f);
+/* A statement starts: every node freed. */
+void ast_reset(Ast *t);
+/* A node, zeroed but for kind; Out of memory when the arena is full. */
+Node *ast_new(Ast *t, NodeKind kind);
 void ast_link(Node *parent, Node **last, Node *arg); /* arg after *last, parent's first if null */
 bool ast_islit(const Node *n);
-uint8_t ast_type(const Node *n);       /* n's value's T_*, nothing compiled */
-uint8_t ast_work(const Node *n);       /* binary node n's W_* */
-void ast_step(Session *S, Node *n);    /* the statement's next step: tree n */
-void ast_conv(Session *S, uint8_t cv); /* the last step converted, CV_* */
+uint8_t ast_type(const Node *n); /* n's value's T_*, nothing compiled */
+uint8_t ast_work(const Node *n); /* binary node n's W_* */
+/* The statement's next step: tree n. */
+void ast_step(Ast *t, Node *n);
+/* The last step converted, CV_*; end its place for an error. */
+void ast_conv(Ast *t, uint8_t cv, const uint8_t *end);
 #endif

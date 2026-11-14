@@ -120,6 +120,15 @@ static void compile(Session *const S, const bool dbl)
 
 void expr_compile(Session *const S) { compile(S, false); }
 
+Node *expr_tree(Session *const S)
+{
+    const bool was = S->expr.dbltgt;
+    S->expr.dbltgt = false;
+    Node *const root = parse(S, 0);
+    S->expr.dbltgt = was;
+    return root;
+}
+
 void expr_assign(Session *const S) { compile(S, S->comp.tgtinfo & SK_DBL); }
 
 /* The operator at c's index; false: none. */
@@ -171,7 +180,7 @@ static Node *parse(Session *const S, const uint8_t p)
             S->comp.p++;
 
         Node *const right = parse(S, prectab[op]);
-        Node *const n = ast_new(S, N_BIN);
+        Node *const n = ast_new(&S->ast, N_BIN);
         *n = (Node){
             .kind = N_BIN,
             .op = rel,
@@ -315,7 +324,7 @@ Node *expr_arg(Session *const S)
 
 static Node *args_node(Session *const S, const NodeKind kind)
 {
-    Node *const n = ast_new(S, kind);
+    Node *const n = ast_new(&S->ast, kind);
     n->b = nullptr;
     return n;
 }
@@ -457,7 +466,7 @@ static Node *xfn_node(Session *const S)
 /* VARPTR, VARSEG, SSEG, SADD of place at: CALL k after it, 0 none; cm_va's when k is 0. */
 static Node *addr_node(Session *const S, Node *const at, const uint8_t k)
 {
-    Node *const n = ast_new(S, N_ADDR);
+    Node *const n = ast_new(&S->ast, N_ADDR);
     n->a = at;
     n->op = k;
     n->type = T_INT;
@@ -472,7 +481,7 @@ static Node *lit_leaf(
     const uint8_t sh
 )
 {
-    Node *const i = ast_new(S, N_LIT);
+    Node *const i = ast_new(&S->ast, N_LIT);
     Node *const n = i;
     n->op = op;
     n->type = fold_littype(op);
@@ -532,7 +541,7 @@ static Node *var_leaf(Session *const S)
             symb_var(&S->symb, id)->type == ET_SH ? SH_SHORT : SH_NONE
         );
 
-    Node *const i = ast_new(S, N_VAR);
+    Node *const i = ast_new(&S->ast, N_VAR);
     i->id = id;
     i->type = expr_ktype[symb_var(&S->symb, id)->info & (SK_DBL | VK_MASK)];
     return i;
@@ -585,7 +594,7 @@ static Node *parse_unary(Session *const S)
         case TK_NOT: {
             S->comp.p++;
             Node *const a = parse(S, c == TK_MINUS ? P_NEG : P_NOT);
-            Node *const n = ast_new(S, N_UN);
+            Node *const n = ast_new(&S->ast, N_UN);
             n->op = c;
             n->a = a;
             n->end = S->comp.p;

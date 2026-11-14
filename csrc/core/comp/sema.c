@@ -275,3 +275,17 @@ static void check(Session *const S, Node *const n)
 }
 
 void sema_tree(Session *const S, Node *const n) { check(S, n); }
+
+/* Each node of the list from n. */
+static void resolve_list(Session *const S, Node *n)
+{
+    for (; n; n = n->next)
+        sema_resolve(S, n);
+}
+
+void sema_resolve(Session *const S, Node *const n)
+{
+    resolve(S, n);
+    resolve_list(S, n->a);
+    resolve_list(S, n->b);
+}

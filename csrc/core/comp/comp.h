@@ -93,7 +93,9 @@ void comp_text(
     const uint8_t *body
 ); /* the body at body to comp.buf; comp.len its length */
 [[noreturn]]
-void comp_fail(Session *S, uint8_t err);   /* repl_error while comp.busy: ERR, EOL, unwind */
+void comp_fail(Session *S, uint8_t err); /* repl_error while comp.busy: ERR, EOL, unwind */
+/* The statement's steps resolved, folded and generated, in order. */
+void comp_flush(Session *S);
 void comp_dfa(Session *S, uint16_t state); /* run the statement automaton from state */
 uint8_t comp_expnames(uint16_t state, const char *names[]); /* what state wanted; PS_NC*2 room */
 void comp_expected(Session *S, uint16_t state);             /* print it, "a, b or c" */

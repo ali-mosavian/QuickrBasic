@@ -127,7 +127,7 @@ static RecRef path(Session *const S, uint8_t t, const uint8_t *text, uint32_t le
 /* An N_REF of op and variable id; an element's subscripts follow at comp.p. */
 static Node *place(Session *const S, const uint8_t op, const uint16_t id)
 {
-    Node *const n = ast_new(S, N_REF);
+    Node *const n = ast_new(&S->ast, N_REF);
     n->op = op;
     n->id = id;
     n->b = nullptr;
@@ -202,7 +202,7 @@ Node *ref_field(Session *const S, Node *const ref)
     if (et >= ET_REC)
         mismatch(S);
 
-    Node *const n = ast_new(S, N_FIELD);
+    Node *const n = ast_new(&S->ast, N_FIELD);
     n->a = ref;
     n->type = et == ET_SD ? T_STR : expr_ktype[comp_etkind[et]];
     n->sh = et == ET_SH ? SH_SHORT : SH_NONE;
@@ -343,7 +343,7 @@ static void ptm(Session *const S, const uint16_t id, const uint16_t par)
 
 static Node *argnode(Session *const S, const uint8_t pass, Node *const a, const uint16_t id)
 {
-    Node *const n = ast_new(S, N_ARG);
+    Node *const n = ast_new(&S->ast, N_ARG);
     n->op = pass;
     n->a = a;
     n->id = id;
@@ -455,7 +455,7 @@ static void args(Session *const S, Node *const n, const Proc *const pr)
 
 Node *ref_call(Session *const S, const uint8_t idx, const Proc *const pr, const ArgsForm form)
 {
-    Node *const n = ast_new(S, N_CALL);
+    Node *const n = ast_new(&S->ast, N_CALL);
     n->op = idx;
     n->b = nullptr;
 
@@ -482,7 +482,7 @@ Node *ref_undef(Session *const S)
         comp_close(S);
     }
 
-    Node *const n = ast_new(S, N_CALL);
+    Node *const n = ast_new(&S->ast, N_CALL);
     n->mode = CALL_UNDEF;
     n->id = id;
     n->b = nullptr;
