@@ -596,7 +596,45 @@ void comp_flush(Session *const S)
 }
 
 /* A_E: an expression. */
-static void step_expr(Session *const S) { step(S, expr_tree(S)); }
+static void step_expr(Session *const S) { step(S, expr_tree(S, false)); }
+
+/* A_LE: the value of a target, a DOUBLE's parsed as such. */
+static void step_assign(Session *const S) { step(S, expr_tree(S, S->comp.tgtinfo & SK_DBL)); }
+
+/* A_LET, A_FST: the last step stored to the target; legacy for a record's field, a CONST, a
+   value no expression gave. */
+static void step_store(Session *const S)
+{
+    const Node *const last = S->ast.last;
+
+    if (S->comp.tgtsubs == TGT_FIELD || S->comp.tok == TK_CONST || !last || last->kind == N_KCALL ||
+        last->kind == N_TARGET) {
+        comp_flush(S);
+        comp_store(S);
+        return;
+    }
+
+    const uint8_t info = S->comp.tgtinfo;
+    const bool str = ast_type(last) & T_STR;
+
+    if (info & SK_DBL || (info & VK_MASK) == VK_INT || (info & VK_MASK) == VK_FLT) {
+        if (str)
+            mismatch(S);
+    } else if ((info & VK_MASK) == VK_STR) {
+        if (!str)
+            mismatch(S);
+    } else
+        synerr(S);
+
+    const uint16_t id = S->comp.tgt;
+    const uint16_t fix = (info & (SK_DBL | VK_MASK)) == VK_STR
+                             ? scop_fix(&S->scop, symb_var(&S->symb, id)->name, S->comp.tgtsubs)
+                             : 0;
+    Node *const n = ast_wrap(&S->ast, N_STORE);
+    n->id = id;
+    n->op = S->comp.tgtsubs;
+    n->fix = fix;
+}
 
 /* A_TO*: the last step converted, cv; legacy when it is no expression's (a CALL's). */
 static void step_conv(Session *const S, const uint8_t cv, void (*const legacy)(Session *))
@@ -637,6 +675,10 @@ static void (*const steps[A_END - A_BASE])(Session *S) = {
     [A_TOB - A_BASE] = step_tobyte,
     [A_TOA - A_BASE] = step_toaddr,
     [A_TOS - A_BASE] = step_tostring,
+    [A_LV - A_BASE] = expr_target_step,
+    [A_LE - A_BASE] = step_assign,
+    [A_LET - A_BASE] = step_store,
+    [A_FST - A_BASE] = step_store,
 };
 
 static uint32_t pslook(const uint32_t st, const uint8_t cls)

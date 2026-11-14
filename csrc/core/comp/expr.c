@@ -120,10 +120,10 @@ static void compile(Session *const S, const bool dbl)
 
 void expr_compile(Session *const S) { compile(S, false); }
 
-Node *expr_tree(Session *const S)
+Node *expr_tree(Session *const S, const bool dbl)
 {
     const bool was = S->expr.dbltgt;
-    S->expr.dbltgt = false;
+    S->expr.dbltgt = dbl;
     Node *const root = parse(S, 0);
     S->expr.dbltgt = was;
     return root;
@@ -232,22 +232,28 @@ void expr_string(Session *const S) { expr_emit(S, str_leaf(S)); }
 
 void expr_load(Session *const S) { expr_emit(S, var_leaf(S)); }
 
+/* A record's field r the target: its address emitted. */
+static void target_field(Session *const S, Node *const r)
+{
+    const RecRef rec = r->rec;
+
+    if (rec.et >= ET_REC)
+        mismatch(S);
+
+    expr_emit(S, r);
+    S->comp.tgt = rec.off;
+    S->comp.tgtsubs = TGT_FIELD;
+    S->ctrl.fieldet = rec.et;
+    S->ctrl.fieldfix = rec.fix;
+    S->comp.tgtinfo = comp_etkind[rec.et];
+}
+
 void expr_target(Session *const S)
 {
     Node *const r = comp_cur(&S->comp) == M_VAR ? ref_record(S) : nullptr;
 
-    if (r != nullptr) { /* a record's field: its address */
-        const RecRef rec = r->rec;
-
-        if (rec.et >= ET_REC)
-            mismatch(S);
-
-        expr_emit(S, r);
-        S->comp.tgt = rec.off;
-        S->comp.tgtsubs = TGT_FIELD;
-        S->ctrl.fieldet = rec.et;
-        S->ctrl.fieldfix = rec.fix;
-        S->comp.tgtinfo = comp_etkind[rec.et];
+    if (r != nullptr) {
+        target_field(S, r);
         return;
     }
 
@@ -263,6 +269,63 @@ void expr_target(Session *const S)
     comp_target(S, id);
     S->comp.tgtsubs = n;
     S->comp.vat = S->code.out;
+}
+
+void expr_target_step(Session *const S)
+{
+    if (S->comp.tok == TK_CONST) { /* fold_const reads its value's code from comp.vat */
+        comp_flush(S);
+        expr_target(S);
+        return;
+    }
+
+    Node *const r = comp_cur(&S->comp) == M_VAR ? ref_record(S) : nullptr;
+
+    if (r != nullptr) {
+        comp_flush(S);
+        target_field(S, r);
+        return;
+    }
+
+    const uint16_t id = comp_name(S);
+
+    if (!(symb_var(&S->symb, id)->info & VI_ARR)) {
+        comp_target(S, id);
+        return;
+    }
+
+    Node *const t = ast_new(&S->ast, N_TARGET); /* a step now: an error's code keeps the
+                                                   subscripts before it */
+    t->id = id;
+    ast_step(&S->ast, t);
+    Node *last = nullptr;
+    uint8_t n = 0;
+    comp_open(S);
+
+    do {
+        n++;
+        Node *const e = expr_tree(S, false);
+        const uint8_t *const p = S->comp.p;
+        sema_tree(S, e);
+        S->comp.p = p;
+
+        if (ast_type(e) & T_STR)
+            mismatch(S);
+
+        Node *const cv = ast_new(&S->ast, N_CONV);
+        *cv = (Node){
+            .kind = N_CONV,
+            .op = CV_INT,
+            .a = e,
+            .end = S->comp.p,
+        };
+
+        ast_link(t, &last, cv);
+    } while (comp_optcomma(S));
+
+    comp_close(S);
+    comp_target(S, id); /* after the subscripts: a call in them has its own target */
+    S->comp.tgtsubs = n;
 }
 
 void expr_varaddr(Session *const S)

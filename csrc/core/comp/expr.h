@@ -12,8 +12,11 @@ typedef struct {
 /* By kind, SK_DBL a DOUBLE: its T_*. */
 extern const uint8_t expr_ktype[5];
 
-/* An expression parsed: its tree, nothing checked or compiled. */
-Node *expr_tree(Session *S);
+/* An expression parsed, for a DOUBLE target or not: its tree, nothing checked or compiled. */
+Node *expr_tree(Session *S, bool dbl);
+/* A_LV as a step: an element's subscripts an N_TARGET step; comp.tgt set. A record's field the old
+   way, its address emitted. */
+void expr_target_step(Session *S);
 void expr_compile(Session *S); /* cm_expr: an expression at comp.p: parsed, folded, compiled */
 void expr_emit(Session *S, Node *root); /* root's tree folded and compiled */
 Node *expr_arg(Session *S); /* an argument: an expression's tree of its own, not for a DOUBLE */

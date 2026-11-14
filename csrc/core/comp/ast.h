@@ -23,6 +23,8 @@ typedef enum : uint8_t {
     N_ARG,
     N_KCALL,
     N_CONV,
+    N_TARGET,
+    N_STORE,
 } NodeKind;
 
 enum { AST_CHUNK = 0x4000, LIT_MAX = 8 };
@@ -91,17 +93,20 @@ struct Node {
     uint8_t op;    /* N_LIT: its load op; N_UN: TK_MINUS or TK_NOT; N_BIN: its operator;
                           N_FN: the function, TK_SGN on; N_XFN: its xfns entry; N_REF: O_R_ADDR,
                           O_RA_ADDR, O_V_ADDR; N_ADDR: its CALL, 0 none; N_ARG: PA_*;
-                          N_CALL: the procedure's index; N_KCALL: its K_*; N_CONV: CV_* */
+                          N_CALL: the procedure's index; N_KCALL: its K_*; N_CONV: CV_*;
+                          N_STORE: the target's subscripts */
     bool dbl;      /* N_BIN, N_FN: parsed for a DOUBLE target (expr.dbltgt) */
     uint8_t conv;  /* an N_XFN's argument: its kind (I F D S W G X, R an array's id) */
     uint8_t mode;  /* N_XFN: XM_*; N_CALL: CALL_* */
     uint8_t nargs; /* N_ELEM, N_FN, N_XFN, N_REF, N_CALL: the arguments */
-    Node *a, *b;   /* N_UN, N_BIN: the operands; N_FIELD, N_ADDR, N_ARG, N_CONV: a the child;
-                          b: the first argument */
+    Node *a, *b;   /* N_UN, N_BIN: the operands; N_FIELD, N_ADDR, N_ARG, N_CONV, N_STORE: a the
+                          child (N_STORE's its value); b: the first argument, N_TARGET's subscript */
     Node *next;    /* an argument, a step: the next, null none */
-    uint16_t id;   /* N_VAR, N_ELEM, N_REF: the variable; N_ARG: PA_VALUE's parameter, an array's
+    uint16_t fix;  /* N_STORE: a STRING * n target's n, 0 none */
+    uint16_t
+        id; /* N_VAR, N_ELEM, N_REF, N_TARGET, N_STORE: the variable; N_ARG: PA_VALUE's parameter, an array's
                           or a record's; N_CALL CALL_UNDEF: its result */
-    RecRef rec;    /* N_REF of a record: the place in it */
+    RecRef rec; /* N_REF of a record: the place in it */
     /* Resolved by sema (comp/sema.h), for gen: */
     const Var *var;       /* id's variable */
     bool par;             /* id a scalar parameter of the procedure compiled */
@@ -130,6 +135,8 @@ uint8_t ast_type(const Node *n); /* n's value's T_*, nothing compiled */
 uint8_t ast_work(const Node *n); /* binary node n's W_* */
 /* The statement's next step: tree n. */
 void ast_step(Ast *t, Node *n);
+/* The last step as the child (a) of a new node of kind, which takes its place; that node. */
+Node *ast_wrap(Ast *t, NodeKind kind);
 /* The last step converted, CV_*; end its place for an error. */
 void ast_conv(Ast *t, uint8_t cv, const uint8_t *end);
 #endif

@@ -53,6 +53,7 @@ static void cg_addr(Code *c, const Node *n);
 static void cg_arg(Code *c, const Node *n);
 static void cg_call(Code *c, const Node *n);
 static void cg_conv(Code *c, const Node *n);
+static void cg_store(Code *c, const Node *n);
 
 /* cm_shid: variable v's load just made: a SHORT's, class 1. */
 static void shortid(Code *const c, const Var *const v)
@@ -558,6 +559,16 @@ static void gen(Code *const c, const Node *const i)
         cg_conv(c, n);
         break;
 
+    case N_TARGET: /* its subscripts */
+        for (const Node *a = n->b; a; a = a->next)
+            gen(c, a);
+
+        break;
+
+    case N_STORE:
+        cg_store(c, n);
+        break;
+
     default:
         cg_leaf(c, n);
     }
@@ -912,4 +923,54 @@ static void cg_conv(Code *const c, const Node *const n)
     default:
         code_toaddr(c); /* CV_ADDR */
     }
+}
+
+/* The value converted for the target; its store ops' offset from the INT's: 0, 1 FLOAT, 2
+   STRING. A SHORT: Overflow past 16 bits, unless the value is one; a STRING * n: n chars. */
+static uint8_t cg_convert_for(Code *const c, const Node *const n)
+{
+    switch (n->var->info & VK_MASK) {
+    case VK_INT:
+        code_shclass(c);
+        code_toint(c);
+
+        if (n->var->type == ET_SH && !c->shclass)
+            code_op(c, O_I_CHK16);
+
+        return 0;
+
+    case VK_FLT:
+        code_tofloat(c);
+        return 1;
+
+    default: /* VK_STR */
+        if (n->fix) {
+            code_int(c, n->fix);
+            code_call(c, K_SFIX);
+        }
+
+        return 2;
+    }
+}
+
+/* LET's store: the value, converted, to the scalar or the element of op subscripts. */
+static void cg_store(Code *const c, const Node *const n)
+{
+    gen(c, n->a);
+    uint8_t scalar = O_D_ST_V, one = O_D_ST_A1, many = O_D_ST_A;
+
+    if (n->var->info & SK_DBL)
+        code_todouble(c);
+    else {
+        const uint8_t k = cg_convert_for(c, n);
+        scalar = O_I_ST_V + k;
+        one = O_I_ST_A1 + k;
+        many = O_I_ST_A + k;
+    }
+
+    if (n->op > 1) {
+        code_opid(c, many, n->id, n->par);
+        code_byte(c, n->op);
+    } else
+        code_opid(c, n->op ? one : scalar, n->id, n->par);
 }

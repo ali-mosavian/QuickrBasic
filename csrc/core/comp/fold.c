@@ -216,32 +216,14 @@ void fold_tree(Session *const S, Node *const i)
 {
     Node *const n = i;
 
-    switch (n->kind) {
-    case N_ELEM:
-    case N_FN:
-    case N_XFN:
-    case N_REF:
-    case N_CALL: /* its arguments */
+    if (n->kind != N_UN && n->kind != N_BIN) { /* its children: an operand, the arguments */
+        for (Node *a = n->a; a != nullptr; a = a->next)
+            fold_tree(S, a);
         for (Node *a = n->b; a != nullptr; a = a->next)
             fold_tree(S, a);
 
         return;
-
-    case N_FIELD:
-    case N_ADDR:
-    case N_ARG:
-    case N_CONV:
-        if (n->a != nullptr)
-            fold_tree(S, n->a);
-
-        return;
-
-    default:
-        break;
     }
-
-    if (n->kind != N_UN && n->kind != N_BIN)
-        return;
 
     fold_tree(S, n->a);
 

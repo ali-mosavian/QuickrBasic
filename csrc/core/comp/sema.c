@@ -34,6 +34,8 @@ static void resolve(Session *const S, Node *const n)
     case N_VAR:
     case N_ELEM:
     case N_REF:
+    case N_TARGET:
+    case N_STORE:
         n->var = symb_var(&S->symb, n->id);
         n->par = comp_ispar(S, n->id);
         break;
@@ -267,6 +269,14 @@ static void check(Session *const S, Node *const n)
 
     case N_CONV:
         conv(S, n);
+        break;
+
+    case N_TARGET:
+        args_as_numbers(S, n);
+        break;
+
+    case N_STORE:
+        check(S, n->a);
         break;
 
     default:
