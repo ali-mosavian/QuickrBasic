@@ -33,6 +33,7 @@ void expr_target(Session *S);    /* cm_lval: a store's target, its subscripts co
 void expr_string(Session *S);    /* cm_str1: a literal after its quote, S.LD.TXT */
 void expr_varaddr(Session *S);   /* cm_va: a variable's place for GET, PUT, FIELD: ( -- addr kind ) */
 uint8_t expr_shclass(Session *S); /* cm_shv: the value just compiled's SH_*, to expr.shclass too */
+void expr_shortid(Session *S, uint16_t id); /* cm_shid: id's load just compiled: a SHORT's, class 1 */
 void expr_icmp(Session *S, uint8_t rel, uint8_t *right); /* an INT relation, rel REL + mask */
 void expr_fcmp(Session *S, uint8_t rel, uint8_t *right); /* a FLOAT relation, the right's load folded */
 /* cm_lflt: the left INT operand as a FLOAT: its load (left, null none) in place, else I.TOF

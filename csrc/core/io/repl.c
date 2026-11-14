@@ -4,6 +4,7 @@
 #include "comp/comp.h"
 #include "comp/decl.h"
 #include "comp/dfa.h"
+#include "comp/fold.h"
 #include "comp/lexr.h"
 #include "comp/link.h"
 #include "comp/list.h"
@@ -34,6 +35,7 @@ void repl_qberr(Session *const S, const QbErr qb)
 
 void repl_error(Session *const S, uint8_t code)
 {
+    fold_fail(S);
     S->lexr.more = nullptr; /* a streamed line's lexing ended */
     if (S->dbug.probing)
         dbug_fail(S, code);

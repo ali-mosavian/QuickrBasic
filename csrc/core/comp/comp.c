@@ -6,6 +6,7 @@
 #include "comp/decl.h"
 #include "comp/dfa.h"
 #include "comp/expr.h"
+#include "comp/fold.h"
 #include "io/cons.h"
 #include "io/msg.h"
 #include "io/repl.h"
@@ -302,10 +303,12 @@ void comp_store(Session *const S)
     }
     if (S->comp.tgtinfo & SK_DBL) {
         comp_todouble(S);
+        fold_const(S);
         store_to(S, O_D_ST_V, O_D_ST_A1, O_D_ST_A);
         return;
     }
     const uint8_t k = convert_for_target(S);
+    fold_const(S);
     store_to(S, O_I_ST_V + k, O_I_ST_A1 + k, O_I_ST_A + k);
 }
 
@@ -663,6 +666,7 @@ void comp_expected(Session *const S, const uint16_t state)
 /* cm_tok: the statement at comp.p. */
 static void token(Session *const S)
 {
+    S->comp.tok = 0; /* an implied LET's: none */
     mark(S);
     dbg(S);
     if (ctrl_stmt(S))

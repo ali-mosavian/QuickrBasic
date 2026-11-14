@@ -39,7 +39,7 @@ static void txt_place(Session *const S) { tabl_place(S, &S->symb.text); }
 
 void symb_new(Session *const S)
 {
-    S->symb.vars = (Table){.narr = 3, .size = {sizeof(Cell), sizeof(Var), sizeof(VarX)}, .max = IDMAX};
+    S->symb.vars = (Table){.narr = 4, .size = {sizeof(Cell), sizeof(Var), sizeof(VarX), 8}, .max = IDMAX};
     tabl_new(S, &S->symb.vars, VINIT, var_place);
     var_place(S);
     S->symb.names = (Table){.narr = 2, .size = {sizeof(Name), sizeof(uint16_t)}, .max = IDMAX};

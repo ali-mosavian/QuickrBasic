@@ -153,4 +153,5 @@ chosttest: chost cunit cgolden         # the unit tests and the suites against t
 ctest:                          # the suites against the C build
 	X86_COM=build/c/basic32.exe $(PY) tools/x86f_test.py build/c/basic32.exe
 	X86_COM=build/c/basic32.exe $(PY) tools/qbconf.py
+	$(PY) tools/x86fold_test.py build/c/basic32.exe
 	X86_IDE=build/c/ide32.exe $(PY) tools/x86ide_test.py

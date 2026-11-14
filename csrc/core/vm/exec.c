@@ -29,11 +29,27 @@ static Handler *const ops[O_NOPS] = {
 #include "vm/ops.def"
 };
 
+static const uint8_t flags[O_NOPS] = {
+#define OP(name, h, size, fl) fl,
+#include "vm/ops.def"
+};
+
 static Handler *const calls[K_N] = {
 #define K(name, h) h,
 #include "vm/ops.def"
 };
 
+
+uint8_t exec_flags(const uint8_t op) { return flags[op]; }
+
+void exec_until(Session *const S, const uint8_t *const end)
+{
+    Vm *const v = &S->vm;
+    while (v->ip != end) {
+        v->opip = v->ip;
+        ops[*v->ip++](S);
+    }
+}
 
 void exec_init(Session *const S)
 {

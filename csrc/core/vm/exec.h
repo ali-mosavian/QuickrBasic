@@ -42,7 +42,7 @@ typedef struct PACKED {
 enum : uint8_t { SF_TICK = 4 };
 
 /* An op's flags (ops.def). */
-enum : uint8_t { FX = 1, FV = 2, FB = 4 };
+enum : uint8_t { FX = 1, FV = 2, FB = 4, FK = 8 };
 
 enum : uint8_t {
 #define OP(name, h, size, fl) O_##name,
@@ -181,6 +181,10 @@ static inline uint32_t exec_u32(Vm *const vm)
 void exec_init(Session *S);
 /* ex_lp: run ops from vm.ip, from here on; leaves only by longjmp. */
 [[noreturn]] void exec_run(Session *S);
+/* Run ops from vm.ip until it reaches end. */
+void exec_until(Session *S, const uint8_t *end);
+/* Op op's flags: FX, FV, FB, FK. */
+uint8_t exec_flags(uint8_t op);
 /* ex_brk: the STOP check found vm.stop or the platform's flags set. true: the op is not to run,
    vm.ip moved (an event's GOSUB, or the IDE's step back at the op); false: go on. BREAK raises. */
 bool exec_brk(Session *S);

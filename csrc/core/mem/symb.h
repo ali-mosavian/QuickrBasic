@@ -26,7 +26,8 @@ typedef struct PACKED {
     uint16_t nloc;  /* the next local of its procedure */
     uint8_t scope;  /* 0 the module, else a procedure */
     uint8_t dyn;    /* REDIM made it; ERASE frees it */
-    uint16_t pad;
+    uint8_t kop;    /* a CONST's literal load, its operand in symb_kval; 0 none (comp/fold.h) */
+    uint8_t pad;
 } VarX;            /* TVX */
 typedef struct PACKED {
     uint32_t text; /* its text's offset in text: its length, then its letters */
@@ -38,7 +39,7 @@ typedef struct PACKED {
 static_assert(sizeof(Var) == 8 && sizeof(VarX) == 8 && sizeof(Name) == 8);
 
 typedef struct {
-    Table vars;                  /* the cells, Var, VarX */
+    Table vars;                  /* the cells, Var, VarX, a CONST's literal (8 bytes) */
     Table names;                 /* Name, the chains' next (uint16_t) */
     Table text;                  /* the names' text */
     uint32_t text_free;          /* text's next byte, an offset (sym.tfree) */
@@ -52,6 +53,7 @@ typedef struct {
 static inline Addr symb_cell(const Symb *const sy, uint16_t id) { return sy->vars.at[0] + id * (uint32_t)sizeof(Cell); }
 static inline Var *symb_var(const Symb *const sy, uint16_t id) { return (Var *)at(sy->vars.at[1]) + id; }
 static inline VarX *symb_varx(const Symb *const sy, uint16_t id) { return (VarX *)at(sy->vars.at[2]) + id; }
+static inline uint8_t *symb_kval(const Symb *const sy, uint16_t id) { return at(sy->vars.at[3]) + id * 8u; }
 static inline Name *symb_name(const Symb *const sy, uint16_t id) { return (Name *)at(sy->names.at[0]) + id; }
 /* Name id's text: its length, then its letters. */
 static inline const uint8_t *symb_text(const Symb *const sy, uint16_t id)

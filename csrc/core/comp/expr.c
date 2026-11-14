@@ -1,6 +1,7 @@
 /* The expression compiler (comp/expr.asm). Precedences: OR 46h, AND 50h, NOT 5Ah, > = < 64h,
    + - 78h, * / 7Bh, unary - 7Dh, ^ 7Fh. */
 #include "comp/expr.h"
+#include "comp/fold.h"
 #include "session.h"
 #include "comp/blok.h"
 #include "comp/ctrl.h"
@@ -146,8 +147,7 @@ uint8_t expr_shclass(Session *const S)
     return S->expr.shclass;
 }
 
-/* Id's load just compiled: a SHORT's, class 1. */
-static void shortid(Session *const S, const uint16_t id)
+void expr_shortid(Session *const S, const uint16_t id)
 {
     if (symb_var(&S->symb, id)->type == ET_SH) {
         S->expr.sh = SH_SHORT;
@@ -402,6 +402,7 @@ static void prec(Session *const S, const uint8_t p)
 {
     if (++S->comp.depth > COMP_MAXDEPTH)
         repl_error(S, E_OM);
+    uint8_t *const start = S->comp.out;
     unary(S);
     uint8_t op;
     while (operator_of(comp_cur(&S->comp), &op) && p < prectab[op]) {
@@ -411,6 +412,7 @@ static void prec(Session *const S, const uint8_t p)
         else
             S->comp.p++;
         binary(S, rel, prectab[op]);
+        fold_code(S, start);
     }
     S->comp.depth--;
 }
@@ -473,9 +475,11 @@ static void loadvar(Session *const S, const uint16_t id)
             comp_opid(S, ldan[k], id);
             comp_byte(S, n);
         }
-        shortid(S, id);
+        expr_shortid(S, id);
         return;
     }
+    if (fold_load(S, id))
+        return;
     if (info & SK_DBL) {
         S->comp.type = T_DBL;
         comp_opid(S, O_D_LD_V, id);
@@ -487,7 +491,7 @@ static void loadvar(Session *const S, const uint16_t id)
         comp_opid(S, O_I_LD_V, id);
         S->comp.iloadend = S->comp.out;
         S->comp.type = T_INT;
-        shortid(S, id);
+        expr_shortid(S, id);
     } else if (k == VK_STR) {
         S->comp.type = T_STR;
         comp_opid(S, O_S_LD_V, id);
@@ -534,11 +538,13 @@ void expr_target(Session *const S)
     const uint16_t id = comp_name(S);
     if (!(symb_var(&S->symb, id)->info & VI_ARR)) {
         comp_target(S, id);
+        S->comp.vat = S->comp.out;
         return;
     }
     const uint8_t n = expr_subs(S); /* may compile a call with its own target */
     comp_target(S, id);
     S->comp.tgtsubs = n;
+    S->comp.vat = S->comp.out;
 }
 
 
@@ -849,6 +855,7 @@ static void unary(Session *const S)
             return;
         case TK_MINUS:
         case TK_NOT: {
+            uint8_t *const start = S->comp.out;
             S->comp.p++;
             prec(S, c == TK_MINUS ? P_NEG : P_NOT);
             const bool k = S->expr.kend == S->comp.out; /* a constant's, so the result */
@@ -869,6 +876,7 @@ static void unary(Session *const S)
             }
             if (k)
                 S->expr.kend = S->comp.out;
+            fold_code(S, start);
             return;
         }
         case TK_PLUS:

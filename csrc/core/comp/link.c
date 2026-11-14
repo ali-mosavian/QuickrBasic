@@ -4,6 +4,7 @@
 #include "comp/blok.h"
 #include "comp/comp.h"
 #include "comp/decl.h"
+#include "comp/fold.h"
 #include "io/repl.h"
 #include "mem/allo.h"
 #include "mem/prog.h"
@@ -143,6 +144,7 @@ void link_start(Session *const S)
     if (S->link.linked)
         return;
     symb_size(S);
+    fold_clear(S);
     blok_pair(S);
     S->link.cursor = 0;
     uncache(S);

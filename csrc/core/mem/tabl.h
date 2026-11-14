@@ -5,7 +5,7 @@
 #define MEM_TABL_H
 #include "allo.h"
 
-enum { TMAXA = 3 }; /* a table's arrays at most */
+enum { TMAXA = 4 }; /* a table's arrays at most */
 
 typedef struct {
     uint32_t block;        /* its block's handle */

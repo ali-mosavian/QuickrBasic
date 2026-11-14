@@ -257,3 +257,13 @@ Defined in lexr.c (`DFA_DATA`), declared `extern const` for comp.c. The parser's
 | `comp_cur()`, `comp_curn()`, `comp_end()` | `st_get`, `st_getn`, `st_eos` at `comp.p` |
 | `comp_rd16`, `comp_rd32` | `load16`, `load32` (base.h): unaligned reads |
 | `comp.depth`, `COMP_MAXDEPTH` | `cplim`'s stack room as nesting levels; to calibrate |
+
+## fold.asm → comp/fold.c
+
+| asm | C |
+|---|---|
+| `cm_fold`, `op_fold` | `fold_code`: runs the code with `exec_until` up to `comp.out`; no FOLD op is executed |
+| `cf_fail`, `g_cfold`, `g_cfsp` | `fold_fail`, `comp.folding`, `comp.fold` (a `jmp_buf`) |
+| `cm_krec`, `cm_klit`, `var_kclr` | `fold_const`, `fold_load`, `fold_clear` |
+| `g_cvat`, `ctok` cleared in `cm_tok` | `comp.vat`, `comp.tok = 0` in `token` |
+| `FK`, `TVX.kop`, `kval` | `FK` (ops.def), `VarX.kop`, `symb_kval` |

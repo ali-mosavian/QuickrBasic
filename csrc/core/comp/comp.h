@@ -39,6 +39,9 @@ typedef struct {
     uint8_t *iloadend;    /* clle */
     uint8_t *cmp;         /* ccmp: the last compare, its end (a one-line IF's CMPIF) */
     uint8_t *cmpend;      /* ccmpe */
+    uint8_t *vat;         /* g_cvat: a store's value's code, its start (expr_target's end) */
+    bool folding;         /* g_cfold: fold_code's run; an error is its */
+    jmp_buf fold;         /* g_cfsp: fold_code's way back from an error */
 
     /* the target of a store */
     uint16_t tgt;         /* ctv: its variable, or a record field's offset */
