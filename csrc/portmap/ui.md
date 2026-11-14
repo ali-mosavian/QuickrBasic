@@ -32,7 +32,7 @@ implementer's unless given. Platform: `plat/pscr.h` (screen), `plat/pmou.h` (mou
 | `ui_ready()` | io/repl.c | `uimn_ready()` |
 | `ui_err(code)` | io/repl.c | `uimn_error(code)` |
 | `lm_init()` | main.c | `lmap_init()` (`ui/lmap.h`) |
-| `dbug.hook` (vm/dbug.h) | | set by `udbg_init` to udbg.c's trace routine |
+| `dbug.hook` (vm/dbug.h) | `DebugHooks.trace` | installed by `udbg_init` via `session_debug` |
 | `dbug.emit` | | set by `udbg_init` |
 | `lexr_colof`, `lexr.col`, `lexr.all` (comp/lexr.h, IDE) | | used by edit (`ui_dxerr`), synt, udbg |
 | `link_walk` (comp/link.h, IDE) | | used by edit (`ui_canon`'s `cm_walk`) |
@@ -301,7 +301,7 @@ implementer's unless given. Platform: `plat/pscr.h` (screen), `plat/pmou.h` (mou
 | `ud_row`* (DX, `lp.dr_ln`) | `udbg_row(row, col, line)` |
 | `ud_step`*, `ud_pstep`*, `ud_sout`*, `ud_restart`* | `udbg_step()`, `udbg_pstep()`, `udbg_sout()`, `udbg_restart()` (noreturn) |
 | `ud_trace1`*, `ud_bp`*, `ud_bpclr`*, `ud_until`*, `ud_setnx`* | `udbg_tron()`, `udbg_bp()`, `udbg_bpclear()`, `udbg_until()`, `udbg_setnext()` |
-| `ud_hlset`, `ud_trace` (dbug.hook) | static |
+| `ud_hlset`, `ud_trace` (DebugHooks.trace) | static |
 | `g_ui.ud.stopd` | `uimn.stopped` |
 | `g_ui.ud.hl_on hl_ln hl_c0 hl_c1 ud_utl` | static |
 | `u_bnext`, `u_cncont` | static |

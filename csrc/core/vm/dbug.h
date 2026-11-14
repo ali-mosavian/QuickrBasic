@@ -2,11 +2,21 @@
 
    With dbug.emit set (the IDE) each program statement's code starts with a DBG op. It stops for a
    step (mode), a breakpoint at its line's first statement (LF_BP), and until's line (once). A
-   stop is a STOP: CONT goes on past the DBG. With trace set each statement first goes to hook,
-   its place in wline, stmt_from, stmt_to. The direct line has no DBG. */
+   stop is a STOP: CONT goes on past the DBG. With trace set each statement first goes to
+   hooks->trace with its place. The direct line has no DBG. */
 #ifndef CORE_VM_DBUG_H
 #define CORE_VM_DBUG_H
 #include "vm/exec.h"
+
+/* A statement's place: its program line, its body offsets from and to (BOFF the line's end). */
+typedef struct {
+    uint32_t line, from, to;
+} DebugPos;
+
+/* What the VM reports to the front end, nullptr: nothing. */
+typedef struct {
+    void (*trace)(Session *S, const DebugPos *at); /* a statement starts under TRON */
+} DebugHooks;
 
 typedef struct {
     uint8_t mode;          /* DM_*: the stop the next DBG looks for */
@@ -16,18 +26,15 @@ typedef struct {
     bool emit;             /* a DBG op starts each statement (comp's) */
     uint32_t pdep;         /* DM_PSTEP: stop at this depth or less */
     uint32_t uline;
-    void (*hook)(Session *S); /* trace's routine (ui/dbg's), nullptr none */
-    uint32_t wline;        /* dbug_pos's line, */
-    uint32_t stmt_from;    /*   its statement's body offsets, from */
-    uint32_t stmt_to;      /*   and to (BOFF the line's end) */
+    const DebugHooks *hooks; /* nullptr none */
     bool probing;          /* g_dbev: dbug_eval's line runs */
     jmp_buf probe;         /* dbug_eval's, while its line runs */
 } Dbug;
 
 /* dbg_depth: the procedures and GOSUBs being run. */
 uint32_t dbug_depth(const Vm *vm);
-/* dbg_pos: the place of code in line to dbug.wline, stmt_from, stmt_to. */
-void dbug_pos(Session *S, uint32_t line, const uint8_t *code);
+/* dbg_pos: the place of code in line. */
+DebugPos dbug_pos(Session *S, uint32_t line, const uint8_t *code);
 /* dbg_eval: PRINT expr in procedure proc's scope (0 the module), its output to out, 0-ended,
    79 chars at most; the stopped run as it was. A FUNCTION it calls runs; no breakpoint, step,
    trace or event stops it. 0, else the error (E_*) + 1. */

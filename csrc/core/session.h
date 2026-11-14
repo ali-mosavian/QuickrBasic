@@ -66,4 +66,25 @@ struct Session {
 
 /* The state a session starts with before boot: what is not zero. */
 void session_reset(Session *S);
+
+/* ---- the debugger --------------------------------------------------------------------------- */
+
+typedef enum : uint8_t { STEP_INTO, STEP_OVER, STEP_OUT } StepKind;
+
+/* Every statement starts with a DBG op from now on; the VM reports to hooks. */
+void session_debug(Session *S, const DebugHooks *hooks);
+/* The next run or CONT stops after a step of kind; stopped: from the stop, else from the start. */
+void session_step(Session *S, StepKind kind, bool stopped);
+/* Before a run or CONT: breakpoints stop it, no until line. */
+void session_arm(Session *S);
+/* The run also stops once at program line line's first statement. */
+void session_until(Session *S, uint32_t line);
+void session_trace(Session *S, bool on);
+bool session_tracing(const Session *S);
+/* Where the stopped run goes on: false, none. */
+bool session_stopped_at(Session *S, DebugPos *pos);
+/* The stopped run dropped: CONT cannot go on. */
+void session_drop_stop(Session *S);
+/* CONT goes on at program line line; false: not the stopped procedure's line. */
+bool session_set_next(Session *S, uint32_t line);
 #endif

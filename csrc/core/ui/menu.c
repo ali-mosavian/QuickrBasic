@@ -8,7 +8,6 @@
 #include "ui/scrn.h"
 #include "ui/synt.h"
 #include "ui/uimn.h"
-#include "vm/dbug.h"
 
 /* An item: its command, flags, text ('&' before its hotkey), its key's name ("" none). A
    separator is {ACT_NONE, MF_SEP}; act 0 ends a menu. */
@@ -172,7 +171,7 @@ static bool checked(Session *const S, const Item *const it)
 {
     const uint8_t a = it->act;
     if (a == ACT_TRACE)
-        return S->dbug.trace;
+        return session_tracing(S);
     if (a == ACT_SYNTAX)
         return uimn.text.check;
     if (a == ACT_SYNHL)

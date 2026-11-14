@@ -18,8 +18,6 @@ enum { PROBE_OUT_MAX = 79 };
 /* How the probe's line came back to dbug_eval: setjmp's value. */
 enum { PROBE_RUNNING = 0, PROBE_DONE = 1, PROBE_FAILED = 2 /* + the error */ };
 
-
-
 static bool watching(Session *const S) { return S->dbug.mode || S->dbug.trace || S->dbug.bpon || S->dbug.until; }
 
 /* Does the run stop at op, a statement's start in line? A breakpoint and until's line stop at a
@@ -40,9 +38,9 @@ void dbug_dbg(Session *const S)
     if (!watching(S) || S->vm.line == DLINE)
         return;
     const uint8_t *const op = S->vm.ip - 1;
-    if (S->dbug.trace && S->dbug.hook) {
-        dbug_pos(S, S->vm.line, op);
-        S->dbug.hook(S);
+    if (S->dbug.trace && S->dbug.hooks && S->dbug.hooks->trace) {
+        const DebugPos at = dbug_pos(S, S->vm.line, op);
+        S->dbug.hooks->trace(S, &at);
     }
     if (!stops_at(S, S->vm.line, op))
         return;
@@ -59,13 +57,11 @@ uint32_t dbug_depth(const Vm *const vm)
     return n;
 }
 
-void dbug_pos(Session *const S, const uint32_t line, const uint8_t *const code)
+DebugPos dbug_pos(Session *const S, const uint32_t line, const uint8_t *const code)
 {
-    S->dbug.wline = line;
     uint32_t left;
     const Stmt *const s = flow_stmtof(S, line, code, &left);
-    S->dbug.stmt_from = s->body;
-    S->dbug.stmt_to = left > 1 ? s[1].body : BOFF;
+    return (DebugPos){.line = line, .from = s->body, .to = left > 1 ? s[1].body : BOFF};
 }
 
 /* ---- the probe ------------------------------------------------------------------------------ */

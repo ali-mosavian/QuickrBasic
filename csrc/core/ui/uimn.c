@@ -792,8 +792,7 @@ void uimn_error(Session *const S, const uint8_t code)
     ui.ecode = code;
     ui.at_error = false;
     if (code != E_BRK) {
-        S->vm.nframes = 0;
-        S->vm.cont.line = 0;
+        session_drop_stop(S);
         dpan_close();
     }
     cons_flush(S);

@@ -184,7 +184,7 @@ Errors: `repl_error` unwinds; `ex_trap` is `flow_trap`, which longjmps into `exe
 |---|---|
 | `TDBG`, `g_state.dbg` | `Dbug dbug` |
 | `dbg.mode`, `trace`, `bpon`, `utl`, `emit`, `pdep`, `uline`, `hook` | `dbug.mode`, `.trace`, `.bpon`, `.until`, `.emit`, `.pdep`, `.uline`, `.hook` |
-| `dbg.wline`, `stmtfrom`, `stmtto` | `dbug.wline`, `.stmt_from`, `.stmt_to` |
+| `dbg.wline`, `stmtfrom`, `stmtto` | `DebugPos` `.line`, `.from`, `.to` (returned by `dbug_pos`) |
 | `g_dbev` | `dbug.probing` (its jmp_buf static) |
 | `op_dbg` | `dbug_dbg` |
 | `dbg_depth` | `uint32_t dbug_depth()` |
