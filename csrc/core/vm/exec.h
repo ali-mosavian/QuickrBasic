@@ -97,8 +97,7 @@ enum : uint8_t {
 static_assert(K_IPOW == 42 && K_FN == 47 && K_LEFT == 67 && K_MID2 == 70 && K_FIX == 71);
 
 /* A place in the program: a line (an offset in the program store, DLINE the direct line) and an
-   offset of code from the cache's base. Under DCODE the offset is in the line's own code, which a
-   flush of the cache keeps valid (flow_place). */
+   offset of code from the cache's base. */
 typedef struct {
     uint32_t line;
     uint32_t code;

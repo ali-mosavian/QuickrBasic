@@ -74,10 +74,8 @@ bool session_set_next(Session *const S, const uint32_t line)
     if (proc != S->comp.proc)
         return false;
 
-    const uint32_t code = prog_line(&S->prog, line)->code;
-    const Addr a = code ? S->allo.cache + code : link_cache(&S->comp, line);
     S->vm.cont.line = line;
-    S->vm.cont.code = a - S->allo.cache;
+    S->vm.cont.code = prog_line(&S->prog, line)->code;
     return true;
 }
 

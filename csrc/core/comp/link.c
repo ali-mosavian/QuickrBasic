@@ -6,27 +6,28 @@
  * statement map, a Stmt per statement then their count:4, then the code; Line.code is the code's
  * offset, 0 none.
  *
- * link_start runs before a run: blocks paired (blok_pair), the procedures' variables declared, the
- * cache empty. link_cache compiles a line into the cache when it is first run. A full cache is
- * flushed: the frames' and CONT's ips become offsets in their lines' code, every line loses its
- * code.
+ * link_start runs before a run: blocks paired (blok_pair), the procedures' variables declared, then
+ * every line compiled into the cache in program order, the cache grown to fit. A run compiles
+ * nothing more but the direct line.
  *
  * # asm structure (src/comp/link.asm)
  * | asm | here | |
  * |---|---|---|
  * | cm_link | link_start | MIRROR; D1 |
- * | cm_cache | link_cache(line) | MIRROR; its code's Addr |
+ * | cm_cache | link_line(line) (static) | D3 |
  * | cm_xlate | link_xlate(&at) | MIRROR; false: no room |
  * | cm_walk | link_walk(code, each) | MIRROR |
  * | g_opsz | flow_opsize(op) (vm) | MOVED |
  * | g_opfl | | D2 |
- * | cm_comp, cm_flush, cx_mapstmt | link_compile(line), flush, mapstmt | MIRROR |
+ * | cm_comp, cm_flush, cx_mapstmt | link_compile(line), , mapstmt | MIRROR; D3 |
  * | lnk.cend, elim, eeol, einb | link.end, link.lim, link.eol, link.inbeg (Addrs) | MIRROR |
  * | lnk.emap, ecode, mapnext | link.map, link.code (Addrs), link.mapnext | MIRROR |
- * | lnk.linked, cursor, nfl | link.linked, link.cursor, link.flushes | MIRROR |
+ * | lnk.linked, cursor, nfl | link.linked, link.cursor | MIRROR; D3 |
  *
  * - D1. The procedures' variables are declared here, after the block scan (link_procvars).
  * - D2. Unused in the asm; dropped.
+ * - D3. The asm compiles a line when first run, into a fixed cache it flushes when full. Here
+ *   link_start compiles all of them and the cache grows: a run resolves nothing.
  */
 #include "comp/link.h"
 #include "comp/blocks.h"
@@ -107,42 +108,25 @@ static void uncache(Comp *const C)
         prog_line(C->prog, l)->code = 0;
 }
 
-/* cm_flush: the frames' and CONT's ips become offsets in their lines' code; the cache empty. */
-static void flush(Comp *const C)
-{
-    for (uint32_t i = 0; i < C->vm->nframes; i++) {
-        Place *const p = &C->vm->frames[i].ret;
-
-        if (p->line != DLINE && p->code >= CACHE0)
-            p->code -= prog_line(C->prog, p->line)->code;
-    }
-
-    if (C->vm->cont.line && C->vm->cont.code >= CACHE0)
-        C->vm->cont.code -= prog_line(C->prog, C->vm->cont.line)->code;
-
-    uncache(C);
-    C->link->end = C->allo->cache + CACHE0;
-    C->link->flushes++;
-}
-
-Addr link_cache(Comp *const C, const uint32_t line)
+/* Line compiled into the cache at link.end, the cache grown should it not fit. Out of memory. */
+static void link_line(Comp *const C, const uint32_t line)
 {
     link_compile(C, line);
 
     for (;;) {
         Addr a = C->link->end;
-        C->link->lim = C->allo->cache + CLIM;
+        C->link->lim = C->allo->cache + allo_cap(C->allo, HCACHE);
 
         if (link_xlate(C, &a)) {
             C->link->end = a;
             prog_line(C->prog, line)->code = C->link->code - C->allo->cache;
-            return C->link->code;
+            return;
         }
 
-        if (C->link->end == C->allo->cache + CACHE0)
-            fault_error(C->fault, E_OM);
+        const uint32_t need = C->link->end - C->allo->cache + XLIM + XSLK;
 
-        flush(C);
+        if (!allo_grow(C->allo, HCACHE, need))
+            fault_error(C->fault, E_OM);
     }
 }
 
@@ -253,5 +237,9 @@ void link_start(Comp *const C)
     C->link->cursor = 0;
     uncache(C);
     C->link->end = C->allo->cache + CACHE0;
+
+    for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)
+        link_line(C, l);
+
     C->link->linked = true;
 }

@@ -4,8 +4,8 @@
  * GOSUBs, events, FOR loops and calls are Frames on vm.frames (flow_push, flow_find). A call sets
  * its parameters and locals aside on vm.callvars and puts them back when it ends.
  *
- * A jump op holds a Jump; its target is found on first use (flow_target). A line the cache dropped
- * is compiled again when flow_place needs its code.
+ * A jump op holds a Jump; its target is found on first use (flow_target). Every line's code is in
+ * the cache while linked (link_start).
  *
  * An error goes to flow_handler: the innermost call's ON LOCAL ERROR, else ON ERROR's. flow_trap
  * sets ERR, ERL and RESUME's places, then longjmps into exec_run's loop at the handler.
@@ -27,7 +27,7 @@
  * | ex_jump | flow_jump | MIRROR |
  * | ex_nextln | flow_nextln, also NXLN's handler | MIRROR |
  * | ex_nodir | flow_nodir | MIRROR |
- * | ex_resolve | resolve, flow_place | MIRROR |
+ * | ex_resolve | flow_place | MIRROR |
  * | ex_setcont | flow_setcont | MIRROR |
  * | ex_stmtof | flow_stmtof | MIRROR |
  * | ex_target | flow_target | MIRROR |
@@ -112,25 +112,20 @@ uint8_t *flow_dcode(Session *const S)
     return at(S->link.code);
 }
 
-/* Line's code compiled: into the cache, or the direct line on its own. Cold: off the hot path. */
+/* The direct line compiled on its own. Cold: off the hot path. */
 [[gnu::cold, gnu::noinline]]
-static uint8_t *line_compiled(Session *const S, const uint32_t line, const Line *const ln)
+static uint8_t *direct_compiled(Session *const S)
 {
-    if (!ln->len) {
-        comp_line(&S->comp);
-        return flow_dcode(S);
-    }
-
-    return at(link_cache(&S->comp, line));
+    comp_line(&S->comp);
+    return flow_dcode(S);
 }
 
-/* Start running line: a program line's code from the cache, compiled into it if absent; the
-   direct line compiled on its own. */
+/* Start running line: a program line's code from the cache; the direct line compiled on its own. */
 static void enter_line(Session *const S, const uint32_t line)
 {
     S->vm.line = line;
     const Line *const ln = prog_line(&S->prog, line);
-    S->vm.ip = ln->len && ln->code ? cache_at(&S->allo, ln->code) : line_compiled(S, line, ln);
+    S->vm.ip = ln->len ? cache_at(&S->allo, ln->code) : direct_compiled(S);
 }
 
 static void next_line(Session *const S)
@@ -185,24 +180,7 @@ uint32_t flow_target(Session *const S)
     return ref_line(S, ref);
 }
 
-/* Offset off in line's code, the line compiled if the cache has none. */
-static uint8_t *resolve(Session *const S, const uint32_t line, const uint32_t off)
-{
-    uint32_t code = prog_line(&S->prog, line)->code;
-
-    if (!code)
-        code = link_cache(&S->comp, line) - S->allo.cache;
-
-    return cache_at(&S->allo, code + off);
-}
-
-uint8_t *flow_place(Session *const S, const Place p)
-{
-    if (p.code >= DCODE || p.line == DLINE)
-        return cache_at(&S->allo, p.code);
-
-    return resolve(S, p.line, p.code);
-}
+uint8_t *flow_place(Session *const S, const Place p) { return cache_at(&S->allo, p.code); }
 
 Place flow_here(Session *const S) { return (Place){S->vm.line, cache_off(&S->allo, S->vm.ip)}; }
 
@@ -339,16 +317,15 @@ void flow_eol(Session *const S)
 
 /* The Jump operand at vm->ip. Once resolved it holds its target's code offset. Until then its
    mode picks, in the target line's code, the statement, the code past its JMP, or the next
-   statement; the offset found is kept unless the cache was flushed meanwhile. */
-/* Jump j at op found: its line entered, its statement's code from the map; op resolved unless the
-   cache was flushed meanwhile. Cold: once a jump. */
+   statement. */
+/* Jump j at op found: its line entered, its statement's code from the map; op resolved. Cold: once
+   a jump. */
 [[gnu::cold, gnu::noinline]]
 static void jump_resolve(Session *const S, Jump *const op, const Jump j)
 {
     if (j.line == NO_LINE)
         repl_error(S, E_SN);
 
-    const uint8_t flushes = S->link.flushes;
     enter_line(S, j.line);
     uint32_t left;
     const Stmt *s = stmt_map(S->vm.ip, &left);
@@ -370,9 +347,7 @@ static void jump_resolve(Session *const S, Jump *const op, const Jump j)
     }
 
     S->vm.ip += code;
-
-    if (flushes == S->link.flushes)
-        op->dest = cache_off(&S->allo, S->vm.ip);
+    op->dest = cache_off(&S->allo, S->vm.ip);
 }
 
 static void take_jump(Session *const S)
@@ -832,9 +807,10 @@ void flow_trap(Session *const S, const uint8_t code, const uint32_t handler)
     S->vm.err.line = flow_erl(&S->prog, S->vm.line);
     uint32_t left;
     const Stmt *const s = flow_stmtof(S, S->vm.line, S->vm.opip, &left);
-    S->vm.err.failed = (Place){S->vm.line, s->code};
+    const uint32_t base = prog_line(&S->prog, S->vm.line)->code; /* the map's offsets are from it */
+    S->vm.err.failed = (Place){S->vm.line, base + s->code};
 
-    S->vm.err.next = (Place){S->vm.line, left > 1 ? s[1].code : LINE_END};
+    S->vm.err.next = (Place){S->vm.line, left > 1 ? base + s[1].code : LINE_END};
 
     chnl_clear(&S->chnl);
     S->vm.sp = stack_base(S);
@@ -901,7 +877,7 @@ void flow_resume(Session *const S)
     if (p.code == LINE_END)
         next_line(S);
     else
-        S->vm.ip = resolve(S, p.line, p.code);
+        S->vm.ip = flow_place(S, p);
 }
 
 /* A compile error, raised when its statement runs. */
