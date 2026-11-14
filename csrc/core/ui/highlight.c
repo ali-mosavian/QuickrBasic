@@ -40,7 +40,9 @@ static struct {
     uint32_t len;
     uint8_t prev_slot; /* the last item's slot */
     uint32_t prev_col; /* its column */
-    uint8_t cols[256]; /* the slots of the columns shown */
+    uint32_t left;     /* the columns worked out: width from left */
+    uint16_t width;
+    uint8_t cols[SYNT_KEEP]; /* their slots */
 } hl;
 
 void synt_toggle(void) { synt.on = !synt.on; }
@@ -48,8 +50,8 @@ void synt_toggle(void) { synt.on = !synt.on; }
 /* slot from column col on; the item before it to col in its own, the columns shown only. */
 static void paint(const uint32_t col, const uint8_t slot)
 {
-    const int32_t left = uimn.ed.left;
-    int32_t from = (int32_t)hl.prev_col, to = left + uimn.ed.width;
+    const int32_t left = (int32_t)hl.left;
+    int32_t from = (int32_t)hl.prev_col, to = left + hl.width;
 
     if (from < left)
         from = left;
@@ -173,9 +175,17 @@ static uint8_t item(const uint8_t c, const uint8_t **const p, uint8_t *const sta
     return SL_ED;
 }
 
-/* hl.cols for the len characters at text. */
-static void line(Session *const S, const uint8_t *const text, const uint32_t len)
+/* hl.cols for the len characters at text, width columns from left. */
+static void line(
+    Session *const S,
+    const uint8_t *const text,
+    const uint32_t len,
+    const uint32_t left,
+    const uint16_t width
+)
 {
+    hl.left = left;
+    hl.width = width;
     const uint32_t n = len > LNMAX ? LNMAX : len;
     hl.len = n;
     memmove(uimn.line, text, n); /* a copy: the lexer changes its text */
@@ -233,10 +243,30 @@ void synt_row(
     if (!synt.on)
         return;
 
-    line(S, text, len);
     const uint32_t left = uimn.ed.left;
+    line(S, text, len, left, uimn.ed.width);
 
     for (uint16_t i = 0; i < uimn.ed.width && left + i < hl.len; i++)
         if (hl.cols[i] != SL_ED)
             scrn_attr(row, (uint8_t)(col + i), 1, hl.cols[i]);
+}
+
+void synt_cols(
+    Session *const S,
+    const uint8_t *const text,
+    const uint32_t len,
+    uint8_t cols[static SYNT_KEEP]
+)
+{
+    line(S, text, len, 0, SYNT_KEEP);
+    memcpy(cols, hl.cols, len);
+}
+
+void synt_paint(const uint8_t row, const uint8_t col, const uint8_t *const cols, const uint32_t len)
+{
+    const uint32_t left = uimn.ed.left;
+
+    for (uint16_t i = 0; i < uimn.ed.width && left + i < len; i++)
+        if (cols[left + i] != SL_ED)
+            scrn_attr(row, (uint8_t)(col + i), 1, cols[left + i]);
 }

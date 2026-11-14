@@ -28,6 +28,7 @@
 #include "ui/screen.h"
 #include "ui/highlight.h"
 #include "ui/text.h"
+#include "ui/visible.h"
 #include "ui/debugui.h"
 #include "ui/uimain.h"
 #include "ui/view.h"
@@ -154,19 +155,22 @@ static void draw_row(Session *const S, const uint16_t r)
         return;
     }
 
-    const uint8_t *src = uimn.edline.text; /* uimn.edline is the active window's */
-    uint16_t len = uimn.edline.len;
+    VislLine v = {.text = uimn.edline.text, .len = uimn.edline.len}; /* the active window's */
 
-    if (inactive || line != e->line) {
-        len = (uint16_t)text_get(S, line, uimn.line);
-        src = uimn.line;
-    }
+    if (inactive || line != e->line)
+        v = visl_get(S, line);
 
+    const uint16_t len = (uint16_t)v.len;
     const uint16_t from = len > e->left ? len - e->left : 0; /* the part from left */
     const uint16_t n = from < e->width ? from : e->width;
-    const uint8_t c = scrn_strn(row, col, src + e->left, n, SL_ED);
+    const uint8_t c = scrn_strn(row, col, v.text + e->left, n, SL_ED);
     scrn_fill(row, c, SL_ED, ' ', e->width - n);
-    synt_row(S, row, col, src, len);
+
+    if (v.cols)
+        synt_paint(row, col, v.cols, len);
+    else
+        synt_row(S, row, col, v.text, len);
+
     udbg_row(S, row, col, line);
     sel_row(row, col, line);
 }
