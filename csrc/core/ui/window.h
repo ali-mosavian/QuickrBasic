@@ -9,10 +9,9 @@ void wind_init(void);
    uimn.imm.row0 rows, its widget's rect, shown) from the heights, top down. */
 void wind_layout(void);
 /* wn_draw, by window (WidgetOps.draw): an edit window (the other than the active one with its
-   state swapped in and its view applied), the immediate window, the pane and its tooltip. */
+   state swapped in and its view applied), the immediate window; the pane's are its own. */
 void wind_ed_draw(Widget *x, Session *S);
 void wind_imm_draw(Widget *x, Session *S);
-void wind_pane_draw(Widget *x, Session *S);
 /* Window w's widget (W_ED1 .. W_DBG); the window of widget x, W_HELP none. */
 Widget *wind_widget(uint8_t w);
 uint8_t wind_of(const Widget *x);

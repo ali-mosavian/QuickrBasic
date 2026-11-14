@@ -238,12 +238,3 @@ bool mous_window(Widget *const w, Session *const S, const uint8_t row, const uin
     edit_click(S, wind_of(w), row, col);
     return true;
 }
-
-bool mous_pane(Widget *const w, Session *const S, const uint8_t row, const uint8_t col)
-{
-    if (!pressed())
-        return false;
-
-    dpan_mouse(S, row, col);
-    return true;
-}

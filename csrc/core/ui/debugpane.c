@@ -11,18 +11,24 @@
  *
  * The tooltip shows the Locals row of the variable under the mouse (uimn.tip_mouse) or the cursor.
  *
+ * Each window is a widget, the pane's child (dpan_build), and the tooltip the last, drawn on top.
+ * The pane's focus is the window's; dpan_layout sets their rects.
+ *
  * # asm structure (src/ui/dpane.asm)
  * | asm | here | |
  * |---|---|---|
- * | dp_open, dp_close, dp_draw | dpan_open, dpan_close, dpan_draw | MIRROR |
- * | dp_key | dpan_key | MIRROR |
- * | dp_mouse, dp_hover | dpan_mouse, dpan_hover | MIRROR |
+ * | dp_open, dp_close | dpan_open, dpan_close | MIRROR |
+ * | dp_draw, dp_key, dp_mouse | the pane's widgets (dpan_build): child_draw, child_key, pane_key, child_mouse | D1 |
+ * | dp_hover | dpan_hover | MIRROR |
  * | dp_tip | dpan_tip | MIRROR |
  * | every other dp_* | statics | MIRROR |
  * | g_ui.dp.dp_on, tt_ms | uimn.pane_on, uimn.tip_mouse (ui.h) | MOVED |
  * | g_ui.dp.* else, TDPANE, TDFRM, g_dp*, u_dp*, dg_dpw | statics | MIRROR |
  * | DP_STK, NDFRM, NDVAR, NWATCH, WXLEN, NDP | statics | MIRROR |
  * | DP_COL, DP_W, DP_TW | ui.h | MOVED |
+ *
+ * - D1. By widget: each window draws, takes keys and clicks itself; Tab, Shift+Tab and Esc are
+ *   the pane's.
  */
 #include "ui/debugpane.h"
 #include "session.h"
@@ -69,11 +75,9 @@ typedef struct {
 
 /* TDPANE (dp_on, tt_ms are uimn's). */
 static struct {
-    uint8_t focus;              /* dp_foc: the window with the focus */
     uint8_t frame;              /* dp_frm: the frame selected, 0 the stop's */
     uint8_t nframes;            /* dp_nf */
     uint8_t sel[NDP], top[NDP]; /* each window's row selected, its first row shown */
-    uint8_t row[NDP], h[NDP];   /* its title's row, its rows with it */
     uint8_t nwatch;             /* dp_nw: kept across runs */
     char wx[NWATCH][WXLEN];
     char wv[NWATCH][DP_TW];
@@ -207,16 +211,19 @@ static void frames(Session *const S)
 
 /* dp_geo: each window's title row and rows: the edit windows' rows, three tenths to Watch and to
    Call stack, the rest to Locals. */
-static void geo(void)
+/* Window w's widget: the pane's child w (dpan_build). */
+static Widget *win(const uint8_t w) { return uimn.tree.pane.children[w]; }
+
+void dpan_layout(void)
 {
     const uint8_t all = WIN_ROWS - uimn.win.win[W_IMM].height;
     const uint8_t q = (uint8_t)(all * 3 / 10);
-    dp.h[DP_WAT] = q;
-    dp.h[DP_STK] = q;
-    dp.h[DP_LOC] = all - 2 * q;
-    dp.row[DP_WAT] = 1;
-    dp.row[DP_LOC] = q + 1;
-    dp.row[DP_STK] = q + 1 + dp.h[DP_LOC];
+    const uint8_t loc = all - 2 * q;
+    win(DP_WAT)->rect = (Rect){1, DP_COL, q, DP_W};
+
+    win(DP_LOC)->rect = (Rect){q + 1, DP_COL, loc, DP_W};
+
+    win(DP_STK)->rect = (Rect){q + 1 + loc, DP_COL, q, DP_W};
 }
 
 /* dp_cnt: window w's items. */
@@ -236,13 +243,13 @@ static const char *item(const uint8_t w, const uint32_t i)
 
 static bool has_focus(const uint8_t w)
 {
-    return uimn.tree.workspace.focus == FOC_PANE && dp.focus == w;
+    return uimn.tree.workspace.focus == FOC_PANE && uimn.tree.pane.focus == w;
 }
 
 /* dp_line: row r of window w: its borders, its item. */
 static void line1(const uint8_t w, const uint8_t r)
 {
-    const uint8_t row = dp.row[w] + 1 + r;
+    const uint8_t row = win(w)->rect.row + 1 + r;
     const uint32_t i = dp.top[w] + r;
     const uint8_t slot = has_focus(w) && (uint8_t)i == dp.sel[w] ? SL_SEL : SL_ED;
     const bool cur = w == DP_STK && (uint8_t)i == dp.frame && (uint8_t)i < dp.nframes;
@@ -263,29 +270,26 @@ static void line1(const uint8_t w, const uint8_t r)
     scrn_fill(row, DP_COL + DP_W - 1, SL_ED, GLYPH_V, 1);
 }
 
-void dpan_draw(void)
+/* dp_draw: window x, its title and rows. */
+static void child_draw(Widget *const x, Session *const S)
 {
-    if (!uimn.pane_on)
-        return;
+    dpan_layout();
+    const uint8_t w = tree_index(x);
+    const bool top = !w; /* the top window's corners, else joins */
 
-    geo();
+    draw_title(
+        x->rect.row,
+        DP_COL,
+        DP_W,
+        top ? GLYPH_TOP_LEFT : GLYPH_V_RIGHT,
+        top ? GLYPH_TOP_RIGHT : GLYPH_V_LEFT,
+        titles[w],
+        has_focus(w),
+        false
+    );
 
-    for (uint8_t w = 0; w < NDP; w++) {
-        const bool top = !w; /* the top window's corners, else joins */
-        draw_title(
-            dp.row[w],
-            DP_COL,
-            DP_W,
-            top ? GLYPH_TOP_LEFT : GLYPH_V_RIGHT,
-            top ? GLYPH_TOP_RIGHT : GLYPH_V_LEFT,
-            titles[w],
-            has_focus(w),
-            false
-        );
-
-        for (uint8_t r = 0; r + 1 < dp.h[w]; r++)
-            line1(w, r);
-    }
+    for (uint8_t r = 0; r + 1 < x->rect.rows; r++)
+        line1(w, r);
 }
 
 /* dp_ispar: id is a parameter of procedure dp.proc. */
@@ -455,7 +459,7 @@ static void watch_eval(Session *const S)
 void dpan_open(Session *const S)
 {
     uimn.pane_on = true;
-    dp.focus = 0;
+    uimn.tree.pane.focus = DP_WAT;
     dp.frame = 0;
     memset(dp.sel, 0, sizeof dp.sel);
     memset(dp.top, 0, sizeof dp.top);
@@ -481,7 +485,7 @@ void dpan_close(void)
 /* dp_vis: window w's first row shown: its selected row in view. */
 static void visible(const uint8_t w)
 {
-    geo();
+    dpan_layout();
     const uint8_t s = dp.sel[w];
 
     if (s < dp.top[w]) {
@@ -489,7 +493,7 @@ static void visible(const uint8_t w)
         return;
     }
 
-    const uint8_t rows = dp.h[w] - 1;
+    const uint8_t rows = win(w)->rect.rows - 1;
 
     if (!rows || (uint8_t)(s - dp.top[w]) < rows)
         return;
@@ -584,55 +588,88 @@ static bool scan_key(Session *const S, const uint8_t w, const uint8_t scan)
     return true;
 }
 
-bool dpan_key(Session *const S, const uint16_t key)
+/* Window x's keys: Up, Down a row; Enter a frame; Ins, Del in Watch a watch. */
+static bool child_key(Widget *const x, Session *const S, const uint16_t key)
 {
-    const uint8_t w = dp.focus;
-    const uint8_t c = (uint8_t)key, scan = (uint8_t)(key >> 8);
+    const uint8_t w = tree_index(x);
+    const uint8_t c = (uint8_t)key;
 
-    if (c == CH_TAB)
-        dp.focus = w + 1 < NDP ? w + 1 : 0;
-    else if (key == KEY_SHIFT_TAB)
-        dp.focus = w ? w - 1 : NDP - 1;
-    else if (c == CH_ESC)
-        wind_focus(S, wind_active());
-    else if (c == CH_ENTER) {
+    if (c == CH_ENTER) {
         if (w == DP_STK && dp.sel[w] < dp.nframes)
             go(S, dp.sel[w]);
-    } else
-        return !c && scan_key(S, w, scan);
+
+        return true;
+    }
+
+    return !c && key != KEY_SHIFT_TAB && scan_key(S, w, (uint8_t)(key >> 8));
+}
+
+/* The pane's: Tab, Shift+Tab its windows; Esc back to the edit window. */
+static bool pane_key(Widget *const x, Session *const S, const uint16_t key)
+{
+    const uint8_t w = x->focus;
+    const uint8_t c = (uint8_t)key;
+
+    if (c == CH_TAB)
+        x->focus = w + 1 < NDP ? w + 1 : 0;
+    else if (key == KEY_SHIFT_TAB)
+        x->focus = w ? w - 1 : NDP - 1;
+    else if (c == CH_ESC)
+        wind_focus(S, wind_active());
+    else
+        return false;
 
     return true;
 }
 
-void dpan_mouse(Session *const S, const uint8_t row, const uint8_t col)
+/* A press in window x at row: the pane's focus, x's; its row selected, a frame's row the frame. A
+   drag: nothing; a move is the screen's. */
+static bool child_mouse(Widget *const x, Session *const S, const uint8_t row, const uint8_t col)
 {
-    if (uimn.mouse.event != MS_PRESS)
-        return;
+    const uint8_t ev = uimn.mouse.event;
+
+    if (ev != MS_PRESS)
+        return ev == MS_DRAG;
 
     wind_focus(S, W_DBG);
-    geo();
-    int w = NDP - 1;
-
-    while (w >= 0 && row < dp.row[w])
-        w--;
-    if (w < 0)
-        return;
-
-    dp.focus = (uint8_t)w;
-    const uint8_t r = row - dp.row[w];
+    dpan_layout();
+    const uint8_t w = tree_index(x);
+    uimn.tree.pane.focus = w;
+    const uint8_t r = row - x->rect.row;
 
     if (!r)
-        return;
+        return true;
 
     const uint8_t i = (uint8_t)(r - 1 + dp.top[w]);
 
-    if (i >= count((uint8_t)w))
-        return;
+    if (i >= count(w))
+        return true;
 
     dp.sel[w] = i;
 
     if (w == DP_STK)
         go(S, i);
+
+    return true;
+}
+
+static void tip_draw(Widget *const x, Session *const S) { dpan_tip(S); }
+
+static const WidgetOps child_ops = {.draw = child_draw, .key = child_key, .mouse = child_mouse};
+static const WidgetOps tip_ops = {.draw = tip_draw};
+static const WidgetOps pane_ops = {.key = pane_key};
+
+static_assert(countof(uimn.tree.dp) == DPAN_KIDS);
+
+void dpan_build(Widget *const pane, Widget kids[static DPAN_KIDS])
+{
+    pane->ops = &pane_ops;
+
+    for (uint32_t i = 0; i < DPAN_KIDS; i++) {
+        kids[i] = (Widget){.ops = i < NDP ? &child_ops : &tip_ops, .visible = true};
+
+        tree_add(pane, &kids[i]);
+    }
 }
 
 void dpan_hover(const uint8_t row, const uint8_t col)

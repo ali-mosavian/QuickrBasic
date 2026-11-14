@@ -97,6 +97,7 @@ void wind_layout(void)
     uimn.tree.pane.rect = (Rect){1, DP_COL, WIN_ROWS - win(W_IMM)->height, PSCR_COLS - DP_COL};
 
     uimn.tree.pane.visible = uimn.pane_on;
+    dpan_layout();
 }
 
 void wind_init(void)
@@ -132,12 +133,6 @@ void wind_ed_draw(Widget *const x, Session *const S)
 }
 
 void wind_imm_draw(Widget *const x, Session *const S) { draw_imm(); }
-
-void wind_pane_draw(Widget *const x, Session *const S)
-{
-    dpan_draw();
-    dpan_tip(S);
-}
 
 Widget *wind_widget(const uint8_t w)
 {

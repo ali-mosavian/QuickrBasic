@@ -27,5 +27,4 @@ bool mous_menubar(Widget *w, Session *S, uint8_t row, uint8_t col);
 bool mous_statusbar(Widget *w, Session *S, uint8_t row, uint8_t col);
 bool mous_workspace(Widget *w, Session *S, uint8_t row, uint8_t col);
 bool mous_window(Widget *w, Session *S, uint8_t row, uint8_t col); /* an edit or immediate one */
-bool mous_pane(Widget *w, Session *S, uint8_t row, uint8_t col);
 #endif

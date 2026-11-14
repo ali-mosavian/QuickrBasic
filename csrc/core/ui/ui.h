@@ -281,6 +281,7 @@ typedef struct {
         Widget screen, menubar, workspace, statusbar; /* workspace.focus: FOC_*, lp.ui_foc */
         Widget editors, imm, pane; /* the workspace's; editors.focus: the active edit window */
         Widget ed[2];              /* the editors': W_ED1, W_ED2 (wact) */
+        Widget dp[4];              /* the pane's (dpan_build); pane.focus: dp_foc */
     } tree;
 
     UiText text;
