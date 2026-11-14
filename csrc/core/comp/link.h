@@ -20,10 +20,7 @@ typedef struct Link {
 void link_start(Comp *C); /* cm_link: before a run: blocks paired, the cache empty */
 void link_compile(Comp *C, uint32_t line); /* cm_comp: line compiled to comp_xbuf */
 Addr link_cache(Comp *C, uint32_t line);   /* cm_cache: line compiled into the cache; its code */
-bool link_xlate(
-    Comp *C,
-    Addr *at
-); /* comp_xbuf as a stream at *at, to its end; link.code its code;
+bool link_xlate(Comp *C, Addr *at); /* comp_xbuf as a stream at *at, to its end; link.code its code;
                                     false: past link.lim */
 void link_walk(const uint8_t *code, void (*each)(uint8_t op, const uint8_t *at)); /* each op */
 #endif

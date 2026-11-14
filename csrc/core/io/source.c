@@ -90,8 +90,7 @@ void srcr_phys_byte(SrcrCont *const cn, const uint8_t c)
 bool srcr_phys_end(SrcrCont *const cn)
 {
     srcr_word_end(cn);
-    return cn->st != IN_COMMENT &&
-           cn->under; /* '_' in a comment: the comment's */
+    return cn->st != IN_COMMENT && cn->under; /* '_' in a comment: the comment's */
 }
 
 /* The window filled on from end: to the logical line's end (done set) or SRCAP; 0 after. */
@@ -117,7 +116,7 @@ static void srcr_fill(Srcr *const sr)
         if (b == '\n' || b == '\r') {
             if (b == '\r')
                 chnl_skiplf(sr->chnl); /* CR LF: one line's end */
-            sr->pend = 0;          /* the line's last blanks go */
+            sr->pend = 0;              /* the line's last blanks go */
             if (!srcr_phys_end(&sr->cont)) {
                 sr->done = true;
                 break;

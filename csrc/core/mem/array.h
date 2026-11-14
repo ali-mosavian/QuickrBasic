@@ -12,7 +12,7 @@
 enum { ADIMS = 64 };      /* the subscript buffers' words */
 enum : Addr { AREP = 1 }; /* arry_free's rep: a mark arry_rep replaces */
 
-typedef struct {
+typedef struct Arry {
     Allo *allo;             /* the headers' region; the data from allo.bot up to allo.arrays */
     Fault *fault;           /* Subscript out of range, Out of memory, ... */
     Symb *symb;             /* the arrays' variables */

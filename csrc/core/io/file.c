@@ -384,10 +384,22 @@ static void file_dos(Chnl *const cl, const uint16_t err)
         chnl_doserr(cl, err);
 }
 
-void file_kill(Session *const S) { file_dos(&S->chnl, pfil_delete(file_name_of(&S->file, exec_popa(&S->vm)))); }
-void file_mkdir(Session *const S) { file_dos(&S->chnl, pfil_mkdir(file_name_of(&S->file, exec_popa(&S->vm)))); }
-void file_rmdir(Session *const S) { file_dos(&S->chnl, pfil_rmdir(file_name_of(&S->file, exec_popa(&S->vm)))); }
-void file_chdir(Session *const S) { file_dos(&S->chnl, pfil_chdir(file_name_of(&S->file, exec_popa(&S->vm)))); }
+void file_kill(Session *const S)
+{
+    file_dos(&S->chnl, pfil_delete(file_name_of(&S->file, exec_popa(&S->vm))));
+}
+void file_mkdir(Session *const S)
+{
+    file_dos(&S->chnl, pfil_mkdir(file_name_of(&S->file, exec_popa(&S->vm))));
+}
+void file_rmdir(Session *const S)
+{
+    file_dos(&S->chnl, pfil_rmdir(file_name_of(&S->file, exec_popa(&S->vm))));
+}
+void file_chdir(Session *const S)
+{
+    file_dos(&S->chnl, pfil_chdir(file_name_of(&S->file, exec_popa(&S->vm))));
+}
 
 void file_rename(Session *const S)
 {
@@ -501,7 +513,12 @@ static void get_string(Session *const S, Chan *const c, const Addr desc)
 
 /* PUT: the variable into the record at its start; a variable-length string its length first.
    Error: Bad record length, longer than the record. */
-static void file_to_record(File *const fi, const Chan *const c, const Addr addr, const uint32_t kind)
+static void file_to_record(
+    File *const fi,
+    const Chan *const c,
+    const Addr addr,
+    const uint32_t kind
+)
 {
     uint32_t n;
     const Addr src = var_bytes(addr, kind, &n);
@@ -524,7 +541,12 @@ static void file_to_record(File *const fi, const Chan *const c, const Addr addr,
 }
 
 /* GET: the record into the variable. */
-static void file_from_record(File *const fi, const Chan *const c, const Addr addr, const uint32_t kind)
+static void file_from_record(
+    File *const fi,
+    const Chan *const c,
+    const Addr addr,
+    const uint32_t kind
+)
 {
     Addr rec = file_record(fi, c);
     uint32_t n = va_n(kind);

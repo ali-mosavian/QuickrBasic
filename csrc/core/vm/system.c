@@ -57,10 +57,10 @@ static uint32_t skip_spaces(const char *const s, uint32_t i, const uint32_t n)
     return i;
 }
 
-void syst_init(Session *const S)
+void syst_init(Syst *const sys)
 {
-    psys_environ(S->syst.env, ENVSZ - 1);
-    S->syst.env[ENVSZ - 2] = S->syst.env[ENVSZ - 1] = 0;
+    psys_environ(sys->env, ENVSZ - 1);
+    sys->env[ENVSZ - 2] = sys->env[ENVSZ - 1] = 0;
     char tail[CMDSZ];
     const uint32_t n = psys_cmdline(tail, sizeof tail);
     uint32_t i = skip_spaces(tail, 0, n);
@@ -72,11 +72,11 @@ void syst_init(Session *const S)
     uint32_t len = 0;
 
     for (; i < n && tail[i] != '\r'; i++)
-        S->syst.cmd[len++] = (char)upcase((uint8_t)tail[i]);
-    while (len && (uint8_t)S->syst.cmd[len - 1] <= ' ') /* no trailing blanks */
+        sys->cmd[len++] = (char)upcase((uint8_t)tail[i]);
+    while (len && (uint8_t)sys->cmd[len - 1] <= ' ') /* no trailing blanks */
         len--;
 
-    S->syst.cmdlen = (uint16_t)len;
+    sys->cmdlen = (uint16_t)len;
 }
 
 void syst_ret(Session *const S, const uint32_t len)
@@ -225,7 +225,7 @@ void syst_sleep(Session *const S)
 
     for (;;) {
         if (S->vm.stop & SF_TICK)
-            evnt_poll(S);
+            evnt_poll(&S->evnt, &S->vm);
         if (S->vm.stop || pkey_ready())
             return;
         if (ticks && pclk_ticks() - start >= (uint32_t)ticks)
@@ -271,9 +271,9 @@ void syst_cmd(Session *const S)
 static char *env_next(char *const e) { return e + strlen(e) + 1; }
 
 /* The entry named by the len chars at name, case not told; null none. */
-static char *env_find(Session *const S, const uint8_t *const name, const uint32_t len)
+static char *env_find(Syst *const sys, const uint8_t *const name, const uint32_t len)
 {
-    for (char *e = S->syst.env; *e; e = env_next(e)) {
+    for (char *e = sys->env; *e; e = env_next(e)) {
         uint32_t i = 0;
 
         while (i < len && upcase((uint8_t)e[i]) == upcase(name[i]))
@@ -286,9 +286,9 @@ static char *env_find(Session *const S, const uint8_t *const name, const uint32_
 }
 
 /* The last 0, after the entries' 0s. */
-static char *env_end(Session *const S)
+static char *env_end(Syst *const sys)
 {
-    char *e = S->syst.env;
+    char *e = sys->env;
 
     while (*e)
         e = env_next(e);
@@ -311,11 +311,11 @@ static void shell(Session *const S, const Desc s)
         len = (uint8_t)(n + strlen(run));
     }
 
-    const char *const e = env_find(S, (const uint8_t *)COMSPEC, strlen(COMSPEC));
+    const char *const e = env_find(&S->syst, (const uint8_t *)COMSPEC, strlen(COMSPEC));
     const char *const path = e ? e + strlen(COMSPEC) + 1 : "COMMAND.COM";
     cons_flush(&S->cons);
 
-    if (!psys_exec(path, tail, len, S->syst.env, (uint32_t)(env_end(S) - S->syst.env) + 1))
+    if (!psys_exec(path, tail, len, S->syst.env, (uint32_t)(env_end(&S->syst) - S->syst.env) + 1))
         repl_error(S, E_IQ);
 }
 void syst_shell(Session *const S) { shell(S, strg_get(&S->strg, exec_popa(&S->vm))); }
@@ -340,7 +340,7 @@ void syst_envs(Session *const S)
 
     if (by_name) {
         const Desc s = strg_get(&S->strg, exec_popa(&S->vm));
-        const char *const e = s.len ? env_find(S, at(s.ptr), s.len) : nullptr;
+        const char *const e = s.len ? env_find(&S->syst, at(s.ptr), s.len) : nullptr;
         env_ret(S, e ? e + s.len + 1 : "");
         return;
     }
@@ -371,17 +371,17 @@ void syst_envset(Session *const S)
     if (name == s.len || !name)
         repl_error(S, E_IQ);
 
-    char *const old = env_find(S, t, name);
+    char *const old = env_find(&S->syst, t, name);
 
     if (old) {
         char *const next = env_next(old);
-        memmove(old, next, (size_t)(env_end(S) - next) + 1);
+        memmove(old, next, (size_t)(env_end(&S->syst) - next) + 1);
     }
 
     if (name + 1 >= s.len) /* no value: removed */
         return;
 
-    char *const e = env_end(S);
+    char *const e = env_end(&S->syst);
 
     if (e + s.len + 2 > S->syst.env + ENVSZ)
         repl_error(S, E_OM);

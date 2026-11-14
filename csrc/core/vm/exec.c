@@ -117,7 +117,7 @@ void exec_run(Session *const S)
 bool exec_brk(Session *const S)
 {
     if (S->vm.stop & SF_TICK)
-        evnt_poll(S);
+        evnt_poll(&S->evnt, &S->vm);
     if (!S->vm.stop)
         return false;
     if (!(S->vm.stop & SF_BRK))
@@ -154,29 +154,29 @@ int32_t exec_idiv(Fault *const f, const int32_t a, const int32_t b, int32_t *con
 /* ---- arrays and records --------------------------------------------------------------------- */
 
 /* A subscript past a word is Subscript out of range. */
-static uint16_t subscript(Session *const S, const int32_t sub)
+static uint16_t subscript(Arry *const ar, const int32_t sub)
 {
     if (sub != (int16_t)sub)
-        arry_bad_sub(&S->arry);
+        arry_bad_sub(ar);
 
     return (uint16_t)sub;
 }
 
-Addr exec_elem1(Session *const S, const uint16_t id, const int32_t sub)
+Addr exec_elem1(Arry *const ar, const uint16_t id, const int32_t sub)
 {
-    S->arry.subs[0] = subscript(S, sub);
-    return arry_ref(&S->arry, id, 1);
+    ar->subs[0] = subscript(ar, sub);
+    return arry_ref(ar, id, 1);
 }
 
-Addr exec_elem(Session *const S)
+Addr exec_elem(Arry *const ar, Vm *const vm)
 {
-    const uint16_t id = exec_u16(&S->vm);
-    const uint8_t n = exec_u8(&S->vm);
+    const uint16_t id = exec_u16(vm);
+    const uint8_t n = exec_u8(vm);
 
     for (uint8_t i = n; i-- > 0;)
-        S->arry.subs[i] = subscript(S, exec_popi(&S->vm));
+        ar->subs[i] = subscript(ar, exec_popi(vm));
 
-    return arry_ref(&S->arry, id, n);
+    return arry_ref(ar, id, n);
 }
 
 /* Element sub of the 1-D array whose id is at vm->ip, size bytes each: straight from its header
@@ -193,26 +193,26 @@ static Addr elem1(Session *const S, const int32_t sub, const uint32_t size)
             return a->data + (uint32_t)sub * size;
     }
 
-    return exec_elem1(S, id, sub);
+    return exec_elem1(&S->arry, id, sub);
 }
 
-Addr exec_record(Session *const S, const uint16_t id)
+Addr exec_record(Arry *const ar, Symb *const sy, const uint16_t id)
 {
-    const Addr hdr = symb_var(&S->symb, id)->vt;
+    const Addr hdr = symb_var(sy, id)->vt;
 
     if (hdr)
         return hdr;
 
-    S->arry.counts[0] = 1;
-    S->arry.lbounds[0] = 0;
-    return arry_new(&S->arry, id, 1, false);
+    ar->counts[0] = 1;
+    ar->lbounds[0] = 0;
+    return arry_new(ar, id, 1, false);
 }
 
 void exec_i_ld_a1(Session *const S) { exec_pusha(&S->vm, rd32(elem1(S, exec_popi(&S->vm), VS))); }
 void exec_f_ld_a1(Session *const S) { exec_i_ld_a1(S); }
 void exec_s_ld_a1(Session *const S) { exec_pusha(&S->vm, elem1(S, exec_popi(&S->vm), DSZ)); }
-void exec_i_ld_a(Session *const S) { exec_pusha(&S->vm, rd32(exec_elem(S))); }
-void exec_s_ld_a(Session *const S) { exec_pusha(&S->vm, exec_elem(S)); }
+void exec_i_ld_a(Session *const S) { exec_pusha(&S->vm, rd32(exec_elem(&S->arry, &S->vm))); }
+void exec_s_ld_a(Session *const S) { exec_pusha(&S->vm, exec_elem(&S->arry, &S->vm)); }
 
 void exec_i_st_a1(Session *const S)
 {
@@ -230,24 +230,27 @@ void exec_s_st_a1(Session *const S)
 void exec_i_st_a(Session *const S)
 {
     const uint32_t x = exec_pop(&S->vm).u;
-    wr32(exec_elem(S), x);
+    wr32(exec_elem(&S->arry, &S->vm), x);
 }
 void exec_f_st_a(Session *const S) { exec_i_st_a(S); }
 
 void exec_s_st_a(Session *const S)
 {
     const Addr s = exec_popa(&S->vm);
-    strg_set(&S->strg, s, exec_elem(S));
+    strg_set(&S->strg, s, exec_elem(&S->arry, &S->vm));
 }
 
 /* A record's address, the record made at its first use. */
 void exec_r_addr(Session *const S)
 {
-    exec_pusha(&S->vm, ((const ArrayHdr *)at(exec_record(S, exec_u16(&S->vm))))->data);
+    exec_pusha(
+        &S->vm,
+        ((const ArrayHdr *)at(exec_record(&S->arry, &S->symb, exec_u16(&S->vm))))->data
+    );
 }
 
 /* A record array's element. */
-void exec_ra_addr(Session *const S) { exec_pusha(&S->vm, exec_elem(S)); }
+void exec_ra_addr(Session *const S) { exec_pusha(&S->vm, exec_elem(&S->arry, &S->vm)); }
 
 /* Record b's n bytes over record a's. */
 void exec_r_copy(Session *const S)

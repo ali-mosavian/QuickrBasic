@@ -133,7 +133,7 @@ void comp_fail(Comp *C, uint8_t err); /* repl_error while comp.busy: ERR, EOL, u
 void comp_flush(Comp *C);
 void comp_dfa(Comp *C, uint16_t state); /* run the statement automaton from state */
 uint8_t comp_expnames(uint16_t state, const char *names[]); /* what state wanted; PS_NC*2 room */
-void comp_expected(Cons *co, uint16_t state);             /* print it, "a, b or c" */
+void comp_expected(Cons *co, uint16_t state);               /* print it, "a, b or c" */
 
 /* Steps: the statement's nodes (comp/ast.h), each checked as made (comp/sema.h), generated in order
    at comp_flush */
@@ -166,15 +166,12 @@ void comp_target(Comp *C, uint16_t id); /* variable id is the target: comp.tgt, 
 void comp_store(Comp *C);               /* the value converted and stored to the target */
 
 /* The token reader: p at a byte or the spaces before it */
-uint8_t comp_peek(const uint8_t **p); /* st_get: *p at the byte past spaces; it, 0 the end */
-uint8_t comp_next(const uint8_t **p); /* st_getn: comp_peek a byte on */
-bool comp_eos(
-    Comp *C,
-    const uint8_t **p
-); /* st_eos: *p at 0, ':', ', or ELSE in a one-line IF */
+uint8_t comp_peek(const uint8_t **p);      /* st_get: *p at the byte past spaces; it, 0 the end */
+uint8_t comp_next(const uint8_t **p);      /* st_getn: comp_peek a byte on */
+bool comp_eos(Comp *C, const uint8_t **p); /* st_eos: *p at 0, ':', ', or ELSE in a one-line IF */
 static inline uint8_t comp_cur(Comp *const c) { return comp_peek(&c->p); }  /* st_get at comp.p */
 static inline uint8_t comp_curn(Comp *const c) { return comp_next(&c->p); } /* st_getn */
-bool comp_end(Comp *C);                                                  /* st_eos at comp.p */
+bool comp_end(Comp *C);                                                     /* st_eos at comp.p */
 void comp_need(Comp *C, uint8_t b); /* cm_chk: comp.p at b, stepped past; else Syntax error */
 static inline void comp_open(Comp *const C) { comp_need(C, '('); }
 static inline void comp_close(Comp *const C) { comp_need(C, ')'); }
@@ -189,12 +186,12 @@ uint16_t comp_var(
     Comp *C,
     uint8_t shape,
     uint8_t et
-);                                        /* var_id: shape 1 a scalar, 2 an array, 0 by '(';
+);                                     /* var_id: shape 1 a scalar, 2 an array, 0 by '(';
                                             et its type, 0 by suffix, AS, DEFtype */
 bool comp_ispar(Comp *C, uint16_t id); /* a scalar parameter of the procedure compiled */
 bool comp_param(Comp *C, uint16_t name, uint8_t array, uint16_t *id); /* var_par: array 80h */
 void comp_scope(Comp *C, uint16_t name); /* var_scope: comp.scope, comp.isstatic for it */
-uint8_t comp_suffix(uint8_t c);             /* et_sfx: % & ! # $ to ET_*, 0 none */
+uint8_t comp_suffix(uint8_t c);          /* et_sfx: % & ! # $ to ET_*, 0 none */
 const uint8_t *comp_label(
     const uint8_t *body
 );                                       /* lbl_at: a label starts body: its ':', else null */

@@ -72,7 +72,7 @@ void repl_error(Session *const S, uint8_t code)
     fold_fail(&S->comp);
     S->lexr.source = nullptr; /* a streamed line's lexing ended */
     if (S->dbug.probing)
-        dbug_fail(S, code);
+        dbug_fail(&S->dbug, code);
 
     fmth_clear();
 
@@ -161,7 +161,15 @@ static void diagnose(Session *const S)
     const uint8_t *const body =
         S->vm.line == DLINE ? S->comp.cbuf : at(prog_addr(&S->prog, S->vm.line) + HDR);
     const uint32_t col = list_text(&S->comp, body, e->at);
-    const uint32_t mark = diag_at(&S->diag, S->vm.err.user, (const char *)S->cons.sbuf, col, e->code, e->dg, e->state);
+    const uint32_t mark = diag_at(
+        &S->diag,
+        S->vm.err.user,
+        (const char *)S->cons.sbuf,
+        col,
+        e->code,
+        e->dg,
+        e->state
+    );
     cons_nl(&S->cons);
     cons_spaces(&S->cons, 2);
     cons_puts(&S->cons, (const char *)S->cons.sbuf);
@@ -209,7 +217,7 @@ static void report(Session *const S, const uint8_t code)
     if (line != DLINE) {
         if (S->repl.batch) {
             cons_puts(&S->cons, " in line ");
-            const uint16_t erl = flow_erl(S, line);
+            const uint16_t erl = flow_erl(&S->prog, line);
 
             if (erl)
                 cons_uint(&S->cons, erl);

@@ -64,7 +64,7 @@ void mkcv_mks(Session *const S) { mk(S, 4); }
 void mkcv_mkd(Session *const S) { mk(S, 8); }
 
 /* MKSMBF$ ( f -- s ). 0 and denormals: 0. Overflow past MBF's range. */
-static uint32_t sngl_to_mbf(Session *const S, const uint32_t v)
+static uint32_t sngl_to_mbf(Fault *const f, const uint32_t v)
 {
     const uint32_t e = v >> F32_EXP_SHIFT & F32_EXP_MAX;
 
@@ -74,26 +74,26 @@ static uint32_t sngl_to_mbf(Session *const S, const uint32_t v)
     const uint32_t mbf_e = e + MBF_BIAS_OVER_F32;
 
     if (mbf_e > F32_EXP_MAX)
-        repl_error(S, E_OV);
+        fault_error(f, E_OV);
 
     return (v & F32_MANT) | (v >> 31) << F32_EXP_SHIFT | mbf_e << MBF_EXP_SHIFT;
 }
 
 void mkcv_mksm(Session *const S)
 {
-    S->vm.sp->u = sngl_to_mbf(S, S->vm.sp->u);
+    S->vm.sp->u = sngl_to_mbf(&S->fault, S->vm.sp->u);
     mk(S, 4);
 }
 
 /* MKDMBF$ ( d -- s ): the significand's 52 bits as 55. Too small: 0. Overflow past MBF's range. */
-static uint64_t dubl_to_mbf(Session *const S, const uint64_t v)
+static uint64_t dubl_to_mbf(Fault *const f, const uint64_t v)
 {
     const int32_t e = (int32_t)(v >> F64_EXP_SHIFT & F64_EXP_MAX) - F64_BIAS_OVER_MBF;
 
     if (e <= 0)
         return 0;
     if (e > (int32_t)F32_EXP_MAX)
-        repl_error(S, E_OV);
+        fault_error(f, E_OV);
 
     return (v << F64_EXTRA_BITS & MBF64_MANT) | (v >> 63) << MBF64_SIGN_SHIFT |
            (uint64_t)e << MBF64_EXP_SHIFT;
@@ -101,7 +101,7 @@ static uint64_t dubl_to_mbf(Session *const S, const uint64_t v)
 
 void mkcv_mkdm(Session *const S)
 {
-    S->vm.sp->raw = dubl_to_mbf(S, S->vm.sp->raw);
+    S->vm.sp->raw = dubl_to_mbf(&S->fault, S->vm.sp->raw);
     mk(S, 8);
 }
 

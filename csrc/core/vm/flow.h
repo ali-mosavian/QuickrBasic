@@ -2,6 +2,7 @@
 #ifndef CORE_VM_FLOW_H
 #define CORE_VM_FLOW_H
 #include "vm/exec.h"
+#include "mem/program.h"
 
 enum : uint32_t { LINE_END = 0xFFFFFFFF }; /* a Place's code: the start of the line after */
 
@@ -11,7 +12,7 @@ void flow_init(Session *S);
 /* Push a frame of kind, returning where the running statement goes on. Out of stack space. */
 Frame *flow_push(Session *S, FrameKind kind);
 /* The innermost frame of kind, nullptr none. */
-Frame *flow_find(Session *S, FrameKind kind);
+Frame *flow_find(Vm *vm, FrameKind kind);
 /* The place of vm->ip in the running line. */
 Place flow_here(Session *S);
 /* The code at place, its line compiled if the cache dropped it. */
@@ -33,7 +34,7 @@ uint32_t flow_handler(Session *S);
 [[noreturn]]
 void flow_trap(Session *S, uint8_t code, uint32_t handler);
 /* ERL: the last line number at or before line, 0 none. */
-uint16_t flow_erl(Session *S, uint32_t line);
+uint16_t flow_erl(Prog *pg, uint32_t line);
 /* The statement map entry of the statement holding code in line; *left the entries from it on. */
 Stmt *flow_stmtof(Session *S, uint32_t line, const uint8_t *code, uint32_t *left);
 

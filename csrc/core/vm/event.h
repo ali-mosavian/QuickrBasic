@@ -34,10 +34,10 @@ typedef struct {
 void evnt_clear(Session *S);
 /* ev_tick: the ticks and trapped keys since the last poll counted; SF_TICK cleared, SF_EV set
    for an event to run. */
-void evnt_poll(Session *S);
+void evnt_poll(Evnt *ev, Vm *vm);
 /* ev_run: vm.stop's SF_EV: an ON slot's pending event runs, a GOSUB to its line coming back to
    the op at vm.opip; true: vm.ip moved to it. */
 bool evnt_run(Session *S);
 /* ev_ret: RETURN from an event's frame: its slot's next event can run. */
-void evnt_return(Session *S, uint8_t slot);
+void evnt_return(Evnt *ev, Vm *vm, uint8_t slot);
 #endif

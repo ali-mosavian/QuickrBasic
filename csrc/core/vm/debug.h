@@ -39,5 +39,5 @@ uint8_t dbug_eval(Session *S, const char *expr, uint8_t proc, char out[static 80
 void dbug_done(Session *S);
 /* dbg_ever: the probe's line failed with code (repl_error): back to dbug_eval. */
 [[noreturn]]
-void dbug_fail(Session *S, uint8_t code);
+void dbug_fail(Dbug *db, uint8_t code);
 #endif

@@ -19,7 +19,7 @@ void ctrl_blockif(Comp *C); /* ct_bif: a block IF's test (comp.p at THEN): JF it
 bool ctrl_else(
     Comp *C,
     uint32_t *target
-); /* a one-line IF's ELSE: the target after it; false none */
+);                                      /* a one-line IF's ELSE: the target after it; false none */
 void ctrl_jf(Comp *C, uint32_t target); /* JF by comp.type; Type mismatch a string */
 void ctrl_forskip(Comp *C);             /* ct_fskip: FSKIP past FOR's NEXT, comp.kw the FOR */
 Jump ctrl_jump(

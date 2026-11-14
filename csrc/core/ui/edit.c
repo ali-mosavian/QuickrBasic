@@ -315,6 +315,7 @@ bool edit_canon(Session *const S, uint8_t *const text, const uint16_t len)
     return true;
 }
 
+static void what(Session *const S) { diag_what(&S->diag); }
 static void todo(Session *const S) { diag_todo(&S->diag); }
 static void shape(Session *const S) { diag_shape(&S->diag); }
 
@@ -351,12 +352,20 @@ uint16_t edit_dxerr(Session *const S, const uint8_t *const text, const ErrOp *co
     lexr_line(&S->lexr, S->cons.inbuf, S->comp.cbuf);
     S->lexr.all = false;
     const uint16_t col = lexr_colof(&S->lexr, op->at);
-    const uint32_t at = diag_at(&S->diag, S->vm.err.user, (const char *)S->cons.inbuf, col, op->code, op->dg, op->state);
+    const uint32_t at = diag_at(
+        &S->diag,
+        S->vm.err.user,
+        (const char *)S->cons.inbuf,
+        col,
+        op->code,
+        op->dg,
+        op->state
+    );
 
     edit_emsg(S, op->code); /* its class, the title */
     uint8_t *d = (uint8_t *)uimn.errmsg + strlen(uimn.errmsg);
     *d++ = '|';
-    const uint32_t n = captured(S, diag_what);
+    const uint32_t n = captured(S, what);
     d = dlog_wrap(d, S->cons.sbuf, n, 0);
     d = part(S, d, '|', todo, 0);
     d = part(S, d, 0, shape, 2);

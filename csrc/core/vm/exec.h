@@ -50,6 +50,8 @@
 #include "defs.h"
 #include "fault.h"
 #include <setjmp.h>
+typedef struct Arry Arry;
+typedef struct Symb Symb;
 
 /* A jump op's target. */
 typedef struct PACKED {
@@ -240,11 +242,11 @@ uint8_t exec_flags(uint8_t op);
    vm.ip moved (an event's GOSUB, or the IDE's step back at the op); false: go on. BREAK raises. */
 bool exec_brk(Session *S);
 /* arr_r1: element sub of 1-D array id, its Addr. Subscript out of range past a word. */
-Addr exec_elem1(Session *S, uint16_t id, int32_t sub);
+Addr exec_elem1(Arry *ar, uint16_t id, int32_t sub);
 /* arr_pn: the element an op's `id:2 n:1` at vm.ip names, its n subscripts popped. */
-Addr exec_elem(Session *S);
+Addr exec_elem(Arry *ar, Vm *vm);
 /* rec_get: record id's header, the record made, zeroed, at its first use. */
-Addr exec_record(Session *S, uint16_t id);
+Addr exec_record(Arry *ar, Symb *sy, uint16_t id);
 /* int_div: a / b truncated, *rem its remainder. Division by zero; Overflow -2^31 / -1. */
 int32_t exec_idiv(Fault *f, int32_t a, int32_t b, int32_t *rem);
 #endif

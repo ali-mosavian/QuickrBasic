@@ -33,7 +33,7 @@ typedef struct PACKED {
 } Name; /* TNAM */
 static_assert(sizeof(Var) == 8 && sizeof(VarX) == 8 && sizeof(Name) == 8);
 
-typedef struct {
+typedef struct Symb {
     Fault *fault;                        /* Out of memory */
     Table vars;                          /* the cells, Var, VarX, a CONST's literal (8 bytes) */
     Table names;                         /* Name, the chains' next (uint16_t) */

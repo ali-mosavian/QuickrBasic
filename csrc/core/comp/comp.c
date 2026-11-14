@@ -87,7 +87,7 @@ bool comp_end(Comp *const C) { return comp_eos(C, &C->p); }
 void comp_init(Comp *const C)
 {
     C->cbuf = at(allo_carve(C->allo, 1 + LMAX + 64)) +
-                   1; /* the byte before: lexr's line before the body */
+              1; /* the byte before: lexr's line before the body */
     C->code->buf = C->xbuf;
     C->dfa = 0xFFFF;
     ast_init(C->ast, C->fault);
@@ -172,10 +172,7 @@ void comp_word(Node *const n, const uint16_t w)
     comp_byte(n, (uint8_t)(w >> 8));
 }
 
-void comp_opid(Comp *const C, const uint8_t op, const uint16_t id)
-{
-    node(C, N_OPID, op)->id = id;
-}
+void comp_opid(Comp *const C, const uint8_t op, const uint16_t id) { node(C, N_OPID, op)->id = id; }
 
 Node *comp_jump(Comp *const C, const uint8_t op)
 {
@@ -555,8 +552,7 @@ static void dbg(Comp *const C)
 {
     C->dbg = nullptr;
 
-    if (C->dbug->emit && C->line != DLINE && *C->p != TK_SUB &&
-        *C->p != TK_FUNCTION) {
+    if (C->dbug->emit && C->line != DLINE && *C->p != TK_SUB && *C->p != TK_FUNCTION) {
         *C->code->out++ = O_DBG;
         C->dbg = C->code->out;
     }
@@ -591,7 +587,7 @@ static void done(Comp *const C)
 
 void comp_fail(Comp *const C, const uint8_t err)
 {
-    comp_flush(C);                  /* the steps checked before the error */
+    comp_flush(C);                   /* the steps checked before the error */
     uint8_t *const o = C->code->out; /* ERR err dg at:4 state:2 */
     o[0] = O_ERR;
     o[1] = err;

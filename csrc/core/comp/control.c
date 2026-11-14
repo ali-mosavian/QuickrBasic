@@ -314,7 +314,11 @@ static uint8_t ldop(Comp *const C)
 /* ct_stv: store to selid. */
 static void stv(Comp *const C)
 {
-    comp_opid(C, code_pick(C->ctrl->seltype, O_I_ST_V, O_F_ST_V, O_D_ST_V, O_S_ST_V), C->ctrl->selid);
+    comp_opid(
+        C,
+        code_pick(C->ctrl->seltype, O_I_ST_V, O_F_ST_V, O_D_ST_V, O_S_ST_V),
+        C->ctrl->selid
+    );
 }
 
 static void select(Comp *const C)

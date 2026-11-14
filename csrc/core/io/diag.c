@@ -210,9 +210,8 @@ static void diag_syntax(Diag *const d)
 
         if (n == d->len && n <= STM_MAX) {
             upper(d->stm, d->line + d->col, n);
-            d->what =
-                "`{text}` cannot be used here: it does not start a valid statement at this "
-                "point";
+            d->what = "`{text}` cannot be used here: it does not start a valid statement at this "
+                      "point";
             done = true;
         }
     }
@@ -223,14 +222,13 @@ static void diag_syntax(Diag *const d)
         if (d->state != DX_NOSTATE && comp_expnames(d->state, names)) {
             d->what = "expected {expected} in the {stm}, but found {found}";
         } else {
-            d->what = d->len
-                               ? "`{text}` does not fit the {stm} here"
-                               : "the {stm} is incomplete: the line ends where more is needed";
+            d->what = d->len ? "`{text}` does not fit the {stm} here"
+                             : "the {stm} is incomplete: the line ends where more is needed";
         }
     }
 
     d->todo = "check the statement against the manual; the mark shows where it stopped being "
-                   "understood";
+              "understood";
     const char *const f = form_of(d->stm);
 
     if (f) { /* STATEMENT is written: */
@@ -260,11 +258,7 @@ static void diag_words(Diag *const d, const uint16_t user)
         d->keyend[0] = ' ';
         d->keyend[1] = '/';
         const uint32_t room = (uint32_t)(sizeof d->key - 1 - (n + 2));
-        upper(
-            d->keyend + 2,
-            d->line + d->col,
-            d->len < room ? d->len : room
-        );
+        upper(d->keyend + 2, d->line + d->col, d->len < room ? d->len : room);
         e = entry(d->key);
 
         if (!e && !d->len) {

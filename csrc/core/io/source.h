@@ -24,7 +24,7 @@ typedef struct {
     bool done;      /* the logical line is all in */
     bool any;       /* a byte or a line's end was read */
     SrcrCont cont;
-    Cons *cons;      /* reads from */
+    Cons *cons; /* reads from */
     Chnl *chnl;
     uint16_t *fline; /* counts the physical lines joined */
 } Srcr;

@@ -92,6 +92,6 @@ void boot(Session *const S, const FrontEnd *const fe)
     S->rndm.seed = RNDM_SEED0; /* QBasic's first seed */
     fmth_init();
     psys_init(&S->vm.stop, SF_BRK);
-    syst_init(S);
+    syst_init(&S->syst);
     session_new(S);
 }

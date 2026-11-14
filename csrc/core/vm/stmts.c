@@ -218,12 +218,12 @@ static bool read_item(Session *const S, const uint8_t **const p, const ItemKind 
     return comp_eos(&S->comp, p) || **p == ',';
 }
 
-static void push_item(Session *const S, const ItemKind kind, const Cell v)
+static void push_item(Vm *const vm, const ItemKind kind, const Cell v)
 {
     if (kind == ITEM_DOUBLE)
-        exec_push(&S->vm, v);
+        exec_push(vm, v);
     else
-        exec_pusha(&S->vm, v.u);
+        exec_pusha(vm, v.u);
 }
 
 /* The next field. An empty line leaves the rest of the INPUT. File data: a bad number in INPUT#. */
@@ -251,7 +251,7 @@ static void input(Session *const S, const ItemKind kind)
         S->stmt.redo = true; /* stored as far as it went, then REDO */
     }
 
-    push_item(S, kind, v);
+    push_item(&S->vm, kind, v);
 }
 void stmt_fin(Session *const S) { input(S, ITEM_SNGL); }
 void stmt_sin(Session *const S) { input(S, ITEM_STRING); }
@@ -296,9 +296,9 @@ void stmt_sget(Session *const S)
 /* ---- READ and DATA -------------------------------------------------------------------------- */
 
 /* Past a statement: *b past its ':' or its 0, which it returns. */
-static uint8_t skip_stmt(Session *const S, uint32_t *const b)
+static uint8_t skip_stmt(Prog *const pg, uint32_t *const b)
 {
-    const uint8_t *const start = at(prog_addr(&S->prog, *b));
+    const uint8_t *const start = at(prog_addr(pg, *b));
     const uint8_t *p = start;
 
     while (*p && *p != ':')
@@ -309,12 +309,12 @@ static uint8_t skip_stmt(Session *const S, uint32_t *const b)
 }
 
 /* The first DATA at or after the statement starting at *b; *b its first byte. */
-static bool scan_data(Session *const S, uint32_t *const b)
+static bool scan_data(Prog *const pg, uint32_t *const b)
 {
     for (;;) {
         uint8_t c;
 
-        while ((c = rd8(prog_addr(&S->prog, *b))) == ' ')
+        while ((c = rd8(prog_addr(pg, *b))) == ' ')
             ++*b;
         if (c == TK_DATA) {
             ++*b;
@@ -323,9 +323,9 @@ static bool scan_data(Session *const S, uint32_t *const b)
 
         if (!c)
             ++*b;
-        else if (skip_stmt(S, b))
+        else if (skip_stmt(pg, b))
             continue;
-        if (!prog_line(&S->prog, *b)->len) /* the next line, or the end */
+        if (!prog_line(pg, *b)->len) /* the next line, or the end */
             return false;
 
         *b += HDR;
@@ -333,16 +333,16 @@ static bool scan_data(Session *const S, uint32_t *const b)
 }
 
 /* The first DATA after the statement *b is in. */
-static bool data_after(Session *const S, uint32_t *const b)
+static bool data_after(Prog *const pg, uint32_t *const b)
 {
-    if (!skip_stmt(S, b)) {
-        if (!prog_line(&S->prog, *b)->len)
+    if (!skip_stmt(pg, b)) {
+        if (!prog_line(pg, *b)->len)
             return false;
 
         *b += HDR;
     }
 
-    return scan_data(S, b);
+    return scan_data(pg, b);
 }
 
 /* The text of the DATA at b to data_text, up to its ':'. */
@@ -360,7 +360,7 @@ static void seek_data(Session *const S, const uint32_t line)
 {
     uint32_t b = line + HDR;
 
-    if (prog_line(&S->prog, line)->len && scan_data(S, &b))
+    if (prog_line(&S->prog, line)->len && scan_data(&S->prog, &b))
         load_data(S, b);
     else {
         S->stmt.data_at = 0;
@@ -393,7 +393,7 @@ static const uint8_t *next_data(Session *const S)
 
     uint32_t b = S->stmt.data_at;
 
-    if (!b || !data_after(S, &b))
+    if (!b || !data_after(&S->prog, &b))
         repl_error(S, E_OD);
 
     load_data(S, b);
@@ -417,7 +417,7 @@ static void read(Session *const S, const ItemKind kind)
     }
 
     S->stmt.data_pos = p;
-    push_item(S, kind, v);
+    push_item(&S->vm, kind, v);
 }
 void stmt_fread(Session *const S) { read(S, ITEM_SNGL); }
 void stmt_sread(Session *const S) { read(S, ITEM_STRING); }
@@ -529,7 +529,7 @@ void stmt_rungo(Session *const S, const uint32_t line)
 {
     S->vm.sp = S->vm.rsp;
     evnt_clear(S);
-    chai_start(S);
+    chai_start(&S->chai);
     S->vm.err.handler = 0;
     S->vm.err.active = false;
     S->vm.err.code = 0;
@@ -638,16 +638,16 @@ void stmt_poke(Session *const S)
 }
 
 /* WAIT ( port mask -- ): until (INP XOR flip) AND mask. */
-static void wait(Session *const S, const uint8_t flip)
+static void wait(Vm *const vm, const uint8_t flip)
 {
-    const uint8_t mask = (uint8_t)exec_pop(&S->vm).u;
-    const uint16_t port = (uint16_t)exec_pop(&S->vm).u;
+    const uint8_t mask = (uint8_t)exec_pop(vm).u;
+    const uint16_t port = (uint16_t)exec_pop(vm).u;
 
     while (!((psys_inp(port) ^ flip) & mask))
         ;
 }
-void stmt_wait(Session *const S) { wait(S, (uint8_t)exec_pop(&S->vm).u); }
-void stmt_wait2(Session *const S) { wait(S, 0); }
+void stmt_wait(Session *const S) { wait(&S->vm, (uint8_t)exec_pop(&S->vm).u); }
+void stmt_wait2(Session *const S) { wait(&S->vm, 0); }
 
 /* INP ( port -- b ); OUT ( port b -- ). */
 void stmt_inp(Session *const S) { exec_pushi(&S->vm, psys_inp((uint16_t)exec_pop(&S->vm).u)); }
@@ -669,7 +669,7 @@ void stmt_sys(Session *const S)
 /* ---- ^ and TI ------------------------------------------------------------------------------- */
 
 /* INT ^ INT: 0 for a negative power past |base| 1. Overflow past an INT. */
-static int32_t int_pow(Session *const S, const int32_t base, const int32_t power)
+static int32_t int_pow(Fault *const f, const int32_t base, const int32_t power)
 {
     if (!power || base == 1)
         return 1;
@@ -684,7 +684,7 @@ static int32_t int_pow(Session *const S, const int32_t base, const int32_t power
 
     for (int32_t i = 0; i < power; i++)
         if (__builtin_mul_overflow(r, base, &r))
-            repl_error(S, E_OV);
+            fault_error(f, E_OV);
 
     return r;
 }
@@ -693,7 +693,7 @@ void stmt_ipow(Session *const S)
 {
     const int32_t power = exec_popi(&S->vm);
     const int32_t base = exec_popi(&S->vm);
-    exec_pushi(&S->vm, int_pow(S, base, power));
+    exec_pushi(&S->vm, int_pow(&S->fault, base, power));
 }
 
 void stmt_fpow(Session *const S)

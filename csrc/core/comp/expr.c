@@ -469,12 +469,7 @@ static Node *addr_node(Comp *const C, Node *const at, const uint8_t k)
 }
 
 /* A literal load op and its operand bytes as a leaf. */
-static Node *lit_leaf(
-    Comp *const C,
-    const uint8_t op,
-    const uint8_t *const bytes,
-    const uint8_t sh
-)
+static Node *lit_leaf(Comp *const C, const uint8_t op, const uint8_t *const bytes, const uint8_t sh)
 {
     Node *const i = ast_new(C->ast, N_LIT);
     Node *const n = i;
