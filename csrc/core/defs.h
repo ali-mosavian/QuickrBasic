@@ -205,7 +205,7 @@ enum : uint8_t {
     E_LAST = E_EXW,
 };
 
-/* QBasic's ERR numbers the runtime raises (repl_qberr), as ERROR n raises them. */
+/* QBasic's ERR numbers the runtime raises (fault_qberr), as ERROR n raises them. */
 typedef enum : uint8_t {
     QB_NO_FUNCTION = 18,
     QB_RESUME_NO_ERROR = 20,

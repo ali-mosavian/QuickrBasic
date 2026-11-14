@@ -384,7 +384,7 @@ void diag_raise(
 static void put_n(Session *const S, const char *const s, const uint32_t n)
 {
     for (uint32_t i = 0; i < n; i++)
-        cons_putc(S, (uint8_t)s[i]);
+        cons_putc(&S->cons, (uint8_t)s[i]);
 }
 
 static void put_text(Session *const S) { put_n(S, S->diag.line + S->diag.col, S->diag.len); }
@@ -438,24 +438,24 @@ static void put_holder(Session *const S, const Holder h)
         break;
 
     case H_STATEMENT:
-        cons_puts(S, S->diag.stm[0] ? S->diag.stm : "this");
+        cons_puts(&S->cons, S->diag.stm[0] ? S->diag.stm : "this");
         break;
 
     case H_STM:
         if (S->diag.stm[0]) {
-            cons_puts(S, S->diag.stm);
-            cons_putc(S, ' ');
+            cons_puts(&S->cons, S->diag.stm);
+            cons_putc(&S->cons, ' ');
         }
 
-        cons_puts(S, "statement");
+        cons_puts(&S->cons, "statement");
         break;
 
     case H_OTHER:
-        cons_puts(S, S->diag.other);
+        cons_puts(&S->cons, S->diag.other);
         break;
 
     case H_BC:
-        cons_puts(S, S->diag.bc);
+        cons_puts(&S->cons, S->diag.bc);
         break;
 
     case H_EXPECTED:
@@ -464,11 +464,11 @@ static void put_holder(Session *const S, const Holder h)
 
     default:
         if (!S->diag.len) {
-            cons_puts(S, "the end of the statement");
+            cons_puts(&S->cons, "the end of the statement");
         } else {
-            cons_putc(S, '`');
+            cons_putc(&S->cons, '`');
             put_text(S);
-            cons_putc(S, '`');
+            cons_putc(&S->cons, '`');
         }
     }
 }
@@ -491,7 +491,7 @@ static void fill(Session *const S, const char *t)
             }
 
             S->diag.last = c;
-            cons_putc(S, (uint8_t)c);
+            cons_putc(&S->cons, (uint8_t)c);
             continue;
         }
 
@@ -508,7 +508,7 @@ static void sentence(Session *const S, const char *const t)
     S->diag.cap = false;
 
     if (S->diag.last != '.' && S->diag.last != ':')
-        cons_putc(S, '.');
+        cons_putc(&S->cons, '.');
 }
 
 void diag_what(Session *const S) { sentence(S, S->diag.what); }
@@ -527,20 +527,20 @@ bool diag_shape(Session *const S)
     if (!S->diag.form)
         return false;
 
-    cons_puts(S, S->diag.form);
+    cons_puts(&S->cons, S->diag.form);
     return true;
 }
 
 void diag_say(Session *const S)
 {
     diag_what(S);
-    cons_nl(S);
+    cons_nl(&S->cons);
 
     if (diag_todo(S))
-        cons_nl(S);
+        cons_nl(&S->cons);
     if (S->diag.form) {
-        cons_spaces(S, 2);
+        cons_spaces(&S->cons, 2);
         diag_shape(S);
-        cons_nl(S);
+        cons_nl(&S->cons);
     }
 }

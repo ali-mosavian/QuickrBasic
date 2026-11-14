@@ -5,7 +5,7 @@
  */
 #ifndef FAULT_H
 #define FAULT_H
-#include <stdint.h>
+#include "defs.h"
 
 enum : uint32_t { FAULT_KEEP = UINT32_MAX }; /* line: the current one; at: no caret */
 
@@ -14,6 +14,7 @@ typedef struct {
     uint32_t at, line;
     const char *other; /* {other}, len bytes */
     uint32_t len;
+    uint16_t user; /* E_USR's QBasic error number (QbErr) */
 } Failure;
 
 typedef struct Fault Fault;
@@ -34,5 +35,21 @@ static inline void fault_raise(Fault *const f, const Failure e)
 static inline void fault_error(Fault *const f, const uint8_t code)
 {
     fault_raise(f, (Failure){.code = code, .at = FAULT_KEEP, .line = FAULT_KEEP});
+}
+
+/* QBasic's error qb (QbErr), as E_USR. */
+[[noreturn, gnu::cold, gnu::noinline]]
+static inline void fault_qberr(Fault *const f, const uint16_t qb)
+{
+    fault_raise(
+        f,
+        (Failure){
+            .code = E_USR,
+            .at = FAULT_KEEP,
+            .line = FAULT_KEEP,
+            .user = qb,
+        }
+
+    );
 }
 #endif

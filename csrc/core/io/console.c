@@ -45,7 +45,6 @@
  * - INPUT's line uses pkey_wait (INT 16h AH=0); cons_getc uses pkey_poll (DOS 0Bh/07h).
  */
 #include "io/console.h"
-#include "session.h"
 #define GEN_DATA
 #include "io/gen.h"
 #include "io/channel.h"
@@ -59,57 +58,60 @@
 enum : uint8_t { KEY_CTRL_C = 3, KEY_BACKSPACE = '\b', KEY_ENTER = '\r' };
 enum { KEYED_MAX = 80 }; /* a keyed line's characters at most */
 
-void cons_init(Session *const S)
+void cons_init(Cons *const co, Allo *const al, Chnl *const cl, Fault *const f, Vm *const vm)
 {
-    S->cons.inbuf = at(allo_carve(&S->allo, INMAX + 1));
-    S->cons.sbuf = at(allo_carve(&S->allo, SBMAX + 1));
-    S->cons.stdin_dev = pfil_isdev(PFIL_STDIN);
-    chnl_init(S);
+    co->chnl = cl;
+    co->fault = f;
+    co->vm = vm;
+    co->inbuf = at(allo_carve(al, INMAX + 1));
+    co->sbuf = at(allo_carve(al, SBMAX + 1));
+    co->stdin_dev = pfil_isdev(PFIL_STDIN);
+    chnl_init(cl, co, f);
 }
 
-void cons_putc(Session *const S, const uint8_t c)
+void cons_putc(Cons *const co, const uint8_t c)
 {
-    if (S->cons.capture & CAP_SBUF) {
-        if (S->cons.sblen < SBMAX) /* full: the rest dropped */
-            S->cons.sbuf[S->cons.sblen++] = c;
+    if (co->capture & CAP_SBUF) {
+        if (co->sblen < SBMAX) /* full: the rest dropped */
+            co->sbuf[co->sblen++] = c;
 
         return;
     }
 
-    if (S->cons.capture & CAP_VERIFY) {
-        if (cons_getc(S) != c)
-            S->cons.capture |= CAP_DIFF;
+    if (co->capture & CAP_VERIFY) {
+        if (cons_getc(co) != c)
+            co->capture |= CAP_DIFF;
 
         return;
     }
 
-    S->cons.col++;
+    co->col++;
 
     if (c == NL)
-        S->cons.col = 0;
-    if (S->chnl.out)
-        chnl_putc(S, c);
+        co->col = 0;
+    if (co->chnl->out)
+        chnl_putc(co->chnl, c);
     else
-        cons_out(S, c);
+        cons_out(co, c);
 }
 
-void cons_space(Session *const S) { cons_putc(S, ' '); }
+void cons_space(Cons *const co) { cons_putc(co, ' '); }
 
-void cons_spaces(Session *const S, const uint8_t n)
+void cons_spaces(Cons *const co, const uint8_t n)
 {
     for (uint8_t i = 0; i < n; i++)
-        cons_space(S);
+        cons_space(co);
 }
 
-void cons_nl(Session *const S) { cons_putc(S, NL); }
+void cons_nl(Cons *const co) { cons_putc(co, NL); }
 
-void cons_fresh(Session *const S)
+void cons_fresh(Cons *const co)
 {
-    if (S->cons.col)
-        cons_nl(S);
+    if (co->col)
+        cons_nl(co);
 }
 
-void cons_uint(Session *const S, uint32_t v)
+void cons_uint(Cons *const co, uint32_t v)
 {
     char d[10];
     uint32_t n = 0;
@@ -118,34 +120,34 @@ void cons_uint(Session *const S, uint32_t v)
         d[n++] = (char)('0' + v % 10);
     while (v /= 10);
     for (uint32_t i = n; i > 0; i--)
-        cons_putc(S, (uint8_t)d[i - 1]);
+        cons_putc(co, (uint8_t)d[i - 1]);
 }
 
-void cons_int(Session *const S, const int32_t v)
+void cons_int(Cons *const co, const int32_t v)
 {
-    cons_putc(S, v < 0 ? '-' : ' ');
-    cons_uint(S, v < 0 ? 0u - (uint32_t)v : (uint32_t)v);
-    cons_space(S);
+    cons_putc(co, v < 0 ? '-' : ' ');
+    cons_uint(co, v < 0 ? 0u - (uint32_t)v : (uint32_t)v);
+    cons_space(co);
 }
 
-void cons_hex4(Session *const S, const uint16_t v)
+void cons_hex4(Cons *const co, const uint16_t v)
 {
     for (uint32_t i = 0; i < 4; i++)
-        cons_putc(S, (uint8_t)"0123456789ABCDEF"[(v >> (12 - 4 * i)) & 15]);
+        cons_putc(co, (uint8_t)"0123456789ABCDEF"[(v >> (12 - 4 * i)) & 15]);
 }
 
-void cons_putdesc(Session *const S, const Desc s)
+void cons_putdesc(Cons *const co, const Desc s)
 {
     const uint8_t *const p = at(s.ptr);
 
     for (uint16_t i = 0; i < s.len; i++)
-        cons_putc(S, p[i]);
+        cons_putc(co, p[i]);
 }
 
-void cons_puts(Session *const S, const char *const s)
+void cons_puts(Cons *const co, const char *const s)
 {
     for (size_t i = 0; s[i]; i++)
-        cons_putc(S, (uint8_t)s[i]);
+        cons_putc(co, (uint8_t)s[i]);
 }
 
 /* The lists (io/gen.h): an entry's last byte has LAST set. A byte from REF_HIGH refers to
@@ -159,122 +161,122 @@ enum : uint8_t {
 };
 
 /* Byte c of an entry: a character, or the message it refers to. */
-static void entry_byte(Session *const S, const uint8_t c)
+static void cons_entry_byte(Cons *const co, const uint8_t c)
 {
     if (c >= REF_HIGH)
-        cons_msg(S, c - REF_HIGH_BASE);
+        cons_msg(co, c - REF_HIGH_BASE);
     else if (c == NL || c >= ' ')
-        cons_putc(S, c);
+        cons_putc(co, c);
     else
-        cons_msg(S, (c + REF_LOW_BIAS) & CHAR);
+        cons_msg(co, (c + REF_LOW_BIAS) & CHAR);
 }
 
 /* Entry n of the list at list. */
-static void nth(Session *const S, const uint8_t *list, const uint8_t n)
+static void cons_nth(Cons *const co, const uint8_t *list, const uint8_t n)
 {
     for (uint8_t i = 0; i < n; list++)
         if (*list & LAST)
             i++;
     for (;; list++) {
-        entry_byte(S, *list & CHAR);
+        cons_entry_byte(co, *list & CHAR);
 
         if (*list & LAST)
             return;
     }
 }
 
-void cons_msg(Session *const S, const uint8_t id) { nth(S, cons_msgs, id); }
-void cons_kw(Session *const S, const uint8_t tok) { nth(S, cons_kwlist, tok & CHAR); }
-void cons_kw1(Session *const S, const uint8_t n) { nth(S, cons_kwlist1, n); }
+void cons_msg(Cons *const co, const uint8_t id) { cons_nth(co, cons_msgs, id); }
+void cons_kw(Cons *const co, const uint8_t tok) { cons_nth(co, cons_kwlist, tok & CHAR); }
+void cons_kw1(Cons *const co, const uint8_t n) { cons_nth(co, cons_kwlist1, n); }
 
-void cons_prompt(Session *const S)
+void cons_prompt(Cons *const co)
 {
-    cons_putc(S, '?');
-    cons_space(S);
-    cons_read(S);
+    cons_putc(co, '?');
+    cons_space(co);
+    cons_read(co);
 }
 
-void cons_read(Session *const S)
+void cons_read(Cons *const co)
 {
-    const int32_t n = cons_getline(S);
+    const int32_t n = cons_getline(co);
 
     if (n < 0) {
-        if (S->chnl.in)
-            repl_qberr(S, QB_PAST_END);
-        if (!(S->vm.stop & SF_BRK))
-            repl_error(S, E_OD);
+        if (co->chnl->in)
+            fault_qberr(co->fault, QB_PAST_END);
+        if (!(co->vm->stop & SF_BRK))
+            fault_error(co->fault, E_OD);
 
-        S->vm.stop = 0; /* the STOP key: BREAK, no CONT */
-        S->vm.cont.line = 0;
-        repl_error(S, E_BRK);
+        co->vm->stop = 0; /* the STOP key: BREAK, no CONT */
+        co->vm->cont.line = 0;
+        fault_error(co->fault, E_BRK);
     }
 
-    S->cons.inlen = (uint32_t)n;
-    S->cons.inbuf[n] = 0;
-    S->cons.inpos = -1;
+    co->inlen = (uint32_t)n;
+    co->inbuf[n] = 0;
+    co->inpos = -1;
 
-    if (!S->chnl.in) /* the console's: its Enter ended the line */
-        S->cons.col = 0;
+    if (!co->chnl->in) /* the console's: its Enter ended the line */
+        co->col = 0;
 }
 
-void cons_field(Session *const S)
+void cons_field(Cons *const co)
 {
     for (;;) {
-        const int32_t b = S->cons.inpos + 1;
+        const int32_t b = co->inpos + 1;
 
-        if (b == 0 || S->cons.inbuf[b - 1] == ',') {
-            S->cons.inpos = b;
+        if (b == 0 || co->inbuf[b - 1] == ',') {
+            co->inpos = b;
             return;
         }
 
-        if (S->cons.from_file) {
-            cons_read(S);
+        if (co->from_file) {
+            cons_read(co);
         } else {
-            cons_putc(S, '?');
-            cons_prompt(S);
+            cons_putc(co, '?');
+            cons_prompt(co);
         }
     }
 }
 
-void cons_flush(Session *const S)
+void cons_flush(Cons *const co)
 {
-    if (!S->cons.oblen)
+    if (!co->oblen)
         return;
 
     uint32_t put;
-    pfil_write(PFIL_STDOUT, S->cons.obuf, S->cons.oblen, &put);
-    S->cons.oblen = 0;
+    pfil_write(PFIL_STDOUT, co->obuf, co->oblen, &put);
+    co->oblen = 0;
 }
 
-static void obyte(Session *const S, const uint8_t c)
+static void cons_obyte(Cons *const co, const uint8_t c)
 {
-    S->cons.obuf[S->cons.oblen++] = c;
+    co->obuf[co->oblen++] = c;
 
-    if (S->cons.oblen >= OBSZ)
-        cons_flush(S);
+    if (co->oblen >= OBSZ)
+        cons_flush(co);
 }
 
-void cons_out(Session *const S, const uint8_t c)
+void cons_out(Cons *const co, const uint8_t c)
 {
     if (c != NL) {
-        obyte(S, c);
+        cons_obyte(co, c);
         return;
     }
 
-    obyte(S, '\r');
-    obyte(S, '\n');
-    cons_flush(S);
+    cons_obyte(co, '\r');
+    cons_obyte(co, '\n');
+    cons_flush(co);
 }
 
-static void echo(Session *const S, const uint8_t c)
+static void cons_echo(Cons *const co, const uint8_t c)
 {
-    cons_out(S, c);
-    cons_flush(S);
+    cons_out(co, c);
+    cons_flush(co);
 }
 
 /* The keyboard's line, key by key, not DOS's line input: that one restarts on Ctrl+C, so INPUT
    could not break. Its length; -1 broken. */
-static int32_t keyed_line(Session *const S)
+static int32_t cons_keyed_line(Cons *const co)
 {
     uint32_t n = 0;
 
@@ -283,22 +285,22 @@ static int32_t keyed_line(Session *const S)
         const uint8_t ch = (uint8_t)key;
 
         if (!key || ch == KEY_CTRL_C) { /* Ctrl+Break, Ctrl+C */
-            S->vm.stop = SF_BRK;
+            co->vm->stop = SF_BRK;
             pkey_flush();
             return -1;
         }
 
         if (ch == KEY_ENTER) {
-            cons_out(S, NL);
+            cons_out(co, NL);
             return (int32_t)n;
         }
 
         if (ch == KEY_BACKSPACE) {
             if (n) {
                 n--;
-                echo(S, '\b');
-                echo(S, ' ');
-                echo(S, '\b');
+                cons_echo(co, '\b');
+                cons_echo(co, ' ');
+                cons_echo(co, '\b');
             }
 
             continue;
@@ -307,19 +309,19 @@ static int32_t keyed_line(Session *const S)
         if (ch < ' ' || n >= KEYED_MAX)
             continue;
 
-        S->cons.inbuf[n++] = ch;
-        echo(S, ch);
+        co->inbuf[n++] = ch;
+        cons_echo(co, ch);
     }
 }
 
 /* The input channel's or redirected input's line, to LF (a file's CR LF too); past INMAX left
    out. Its length; -1 at the end with nothing read. */
-static int32_t stream_line(Session *const S)
+static int32_t cons_stream_line(Cons *const co)
 {
     uint32_t n = 0;
 
     for (;;) {
-        const int b = cons_getb(S);
+        const int b = cons_getb(co);
 
         if (b < 0) {
             if (!n)
@@ -331,50 +333,50 @@ static int32_t stream_line(Session *const S)
         if (b == '\n')
             break;
         if (b == '\r') {
-            if (!S->chnl.in)
+            if (!co->chnl->in)
                 continue;
 
-            chnl_skiplf(S); /* a file's CR LF: one line's end */
+            chnl_skiplf(co->chnl); /* a file's CR LF: one line's end */
             break;
         }
 
         if (n < INMAX)
-            S->cons.inbuf[n++] = (uint8_t)b;
+            co->inbuf[n++] = (uint8_t)b;
     }
 
     return (int32_t)n;
 }
 
-int32_t cons_getline(Session *const S)
+int32_t cons_getline(Cons *const co)
 {
-    cons_flush(S);
+    cons_flush(co);
 
-    if (!S->chnl.in && S->cons.stdin_dev)
-        return keyed_line(S);
+    if (!co->chnl->in && co->stdin_dev)
+        return cons_keyed_line(co);
 
-    const int32_t n = stream_line(S);
+    const int32_t n = cons_stream_line(co);
 
-    if (n >= 0 && !S->chnl.in) /* redirected input: its line echoed */
-        cons_out(S, NL);
+    if (n >= 0 && !co->chnl->in) /* redirected input: its line echoed */
+        cons_out(co, NL);
 
     return n;
 }
 
-uint8_t cons_getc(Session *const S)
+uint8_t cons_getc(Cons *const co)
 {
-    if (!S->chnl.in && S->cons.stdin_dev) {
-        cons_flush(S);
+    if (!co->chnl->in && co->stdin_dev) {
+        cons_flush(co);
         return pkey_poll();
     }
 
-    const int b = cons_getb(S);
+    const int b = cons_getb(co);
     return b < 0 ? 0 : (uint8_t)b;
 }
 
-int cons_getb(Session *const S)
+int cons_getb(Cons *const co)
 {
-    if (S->chnl.in)
-        return chnl_getb(S);
+    if (co->chnl->in)
+        return chnl_getb(co->chnl);
 
     uint8_t b;
     uint32_t got;
@@ -385,8 +387,8 @@ int cons_getb(Session *const S)
     return b;
 }
 
-void cons_exit(Session *const S, const uint8_t code)
+void cons_exit(Cons *const co, const uint8_t code)
 {
-    cons_flush(S);
+    cons_flush(co);
     psys_exit(code);
 }

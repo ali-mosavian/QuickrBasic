@@ -40,15 +40,15 @@ enum : uint8_t { LS_NONE, LS_WORD, LS_KW, LS_FN, LS_SEP, LS_REL };
 static void lead(Session *const S)
 {
     if (S->list.last != LS_NONE)
-        cons_space(S);
+        cons_space(&S->cons);
 }
 
 static void listline(Session *const S, const uint32_t l)
 {
-    cons_uint(S, prog_line(&S->prog, l)->num);
-    cons_space(S);
+    cons_uint(&S->cons, prog_line(&S->prog, l)->num);
+    cons_space(&S->cons);
     list_body(S, (const uint8_t *)prog_line(&S->prog, l) + HDR);
-    cons_nl(S);
+    cons_nl(&S->cons);
 }
 
 void list_range(Session *const S, const uint16_t from, const uint16_t to)
@@ -82,7 +82,7 @@ uint32_t list_text(Session *const S, const uint8_t *const body, const uint32_t a
 static const uint8_t *number(Session *const S, const uint8_t *p, uint8_t c)
 {
     for (;;) {
-        cons_putc(S, c);
+        cons_putc(&S->cons, c);
         const uint8_t prev = c;
         c = *p;
         const bool more = c == '.' || c == '#' || c == '!' || c == 'E' || c == 'D' || is_digit(c) ||
@@ -102,18 +102,18 @@ static void binop(Session *const S, const uint8_t t)
 
     if ((t == TK_MINUS || t == TK_PLUS) && S->list.last != LS_WORD) { /* a sign */
         if (S->list.last != LS_NONE)
-            cons_space(S);
+            cons_space(&S->cons);
 
-        cons_kw(S, t);
+        cons_kw(&S->cons, t);
         S->list.last = LS_NONE;
         return;
     }
 
     if (!(relation && S->list.last == LS_REL) &&
         S->list.last != LS_NONE) /* <= <> >=: one operator */
-        cons_space(S);
+        cons_space(&S->cons);
 
-    cons_kw(S, t);
+    cons_kw(&S->cons, t);
     S->list.last = relation ? LS_REL : LS_SEP;
 }
 
@@ -134,7 +134,7 @@ void list_body(Session *const S, const uint8_t *p)
         switch (c) {
         case M_INT: {
             lead(S);
-            cons_uint(S, load32(p));
+            cons_uint(&S->cons, load32(p));
             p += 4;
             S->list.last = LS_WORD;
             continue;
@@ -143,7 +143,7 @@ void list_body(Session *const S, const uint8_t *p)
             lead(S);
 
             for (uint8_t n = *p++; n; n--)
-                cons_putc(S, *p++);
+                cons_putc(&S->cons, *p++);
 
             p += 2;
             S->list.last = LS_WORD;
@@ -153,7 +153,7 @@ void list_body(Session *const S, const uint8_t *p)
             lead(S);
 
             for (;;) {
-                cons_putc(S, c);
+                cons_putc(&S->cons, c);
                 c = *p++;
 
                 if (!c)
@@ -162,27 +162,27 @@ void list_body(Session *const S, const uint8_t *p)
                     break;
             }
 
-            cons_putc(S, c);
+            cons_putc(&S->cons, c);
             S->list.last = LS_WORD;
             continue;
 
         case '(': /* after a name or a function, close */
             if (S->list.last >= LS_KW && S->list.last != LS_FN)
-                cons_space(S);
+                cons_space(&S->cons);
 
-            cons_putc(S, c);
+            cons_putc(&S->cons, c);
             S->list.last = LS_NONE;
             continue;
 
         case ')':
-            cons_putc(S, c);
+            cons_putc(&S->cons, c);
             S->list.last = LS_WORD;
             continue;
 
         case ',':
         case ';':
         case ':':
-            cons_putc(S, c);
+            cons_putc(&S->cons, c);
             S->list.last = LS_SEP;
             continue;
         }
@@ -193,7 +193,7 @@ void list_body(Session *const S, const uint8_t *p)
             if (c == '.' || is_digit(c))
                 p = number(S, p, c);
             else
-                cons_putc(S, c); /* any other byte: as a word */
+                cons_putc(&S->cons, c); /* any other byte: as a word */
             S->list.last = LS_WORD;
             continue;
         }
@@ -202,7 +202,7 @@ void list_body(Session *const S, const uint8_t *p)
             const uint8_t n = *p++;
             const uint8_t cls = *p == '(' ? LS_FN : LS_KW;
             lead(S);
-            cons_kw1(S, n);
+            cons_kw1(&S->cons, n);
             S->list.last = cls;
             continue;
         }
@@ -219,20 +219,20 @@ void list_body(Session *const S, const uint8_t *p)
 
         if (c == TK_REM && *p == REM_Q) { /* ' as it was written */
             p++;
-            cons_putc(S, '\'');
+            cons_putc(&S->cons, '\'');
         } else {
-            cons_kw(S, c);
+            cons_kw(&S->cons, c);
             S->list.last = cls;
 
             if (c == TK_DATA) { /* its text as it is, then its ':' */
                 const uint8_t *const end = comp_skipdata(p);
 
                 for (; p < end; p++)
-                    cons_putc(S, *p);
+                    cons_putc(&S->cons, *p);
                 if (!*p)
                     return;
 
-                cons_putc(S, *p++);
+                cons_putc(&S->cons, *p++);
                 S->list.last = LS_SEP;
                 continue;
             }
@@ -242,7 +242,7 @@ void list_body(Session *const S, const uint8_t *p)
         }
 
         while ((c = *p++)) /* REM's text: the rest, as it is */
-            cons_putc(S, c);
+            cons_putc(&S->cons, c);
 
         return;
     }

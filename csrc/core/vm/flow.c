@@ -826,7 +826,7 @@ void flow_trap(Session *const S, const uint8_t code, const uint32_t handler)
 
     S->vm.err.next = (Place){S->vm.line, left > 1 ? s[1].code : LINE_END};
 
-    chnl_clear(S);
+    chnl_clear(&S->chnl);
     S->vm.sp = stack_base(S);
     flow_jump(S, handler);
 
@@ -871,7 +871,7 @@ void flow_resume(Session *const S)
     if (exec_stopchk(S))
         return;
     if (!S->vm.err.active) {
-        repl_qberr(S, QB_RESUME_NO_ERROR);
+        fault_qberr(&S->fault, QB_RESUME_NO_ERROR);
     }
 
     S->vm.err.active = false;
@@ -920,7 +920,7 @@ void flow_end(Session *const S)
     if (S->dbug.probing)
         dbug_done(S);
 
-    chnl_closeall(S);
+    chnl_closeall(&S->chnl);
     S->vm.sp = S->vm.rsp;
     S->vm.nframes = 0;
     repl_ready(S);

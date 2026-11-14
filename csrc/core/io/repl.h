@@ -37,9 +37,6 @@ typedef struct {
 /* Raise error code (E_*): never returns (above). */
 [[noreturn]]
 void repl_error(Session *S, uint8_t code);
-/* Raise QBasic's error qb as ERROR qb does. */
-[[noreturn]]
-void repl_qberr(Session *S, QbErr qb);
 
 /* basic32's: the file the command line names run, then exit; warnings to standard error. */
 extern const FrontEnd repl_batch;

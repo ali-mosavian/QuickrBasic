@@ -146,7 +146,7 @@ void sngl_print(Session *const S, const Sngl a)
     const uint32_t n = dubl_fmtf(a, t);
 
     for (uint32_t i = 0; i < n; i++)
-        cons_putc(S, t[i]);
+        cons_putc(&S->cons, t[i]);
 
-    cons_space(S);
+    cons_space(&S->cons);
 }

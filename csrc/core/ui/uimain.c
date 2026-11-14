@@ -785,7 +785,7 @@ static void file_exit(Session *const S)
         return;
 
     pscr_mode(VIDEO_TEXT);
-    cons_exit(S, 0);
+    cons_exit(&S->cons, 0);
 }
 
 /* ui_view: F4: the output page until a key. */
@@ -871,15 +871,15 @@ static void exec_line(Session *const S)
 /* Press any key on the output's last row, the output's cursor back after. */
 static void wait_anykey(Session *const S)
 {
-    cons_fresh(S);
+    cons_fresh(&S->cons);
     uint8_t row, col;
     pscr_where(PAGE_OUT, &row, &col); /* output goes on here after the key */
     pscr_cursor(PAGE_OUT, STATUS_ROW, 0);
 
     for (uint32_t i = 0; s_anykey[i]; i++)
-        cons_putc(S, (uint8_t)s_anykey[i]);
+        cons_putc(&S->cons, (uint8_t)s_anykey[i]);
 
-    cons_flush(S);
+    cons_flush(&S->cons);
     S->cons.col = 0;
     pkey_read();
     pscr_cursor(PAGE_OUT, STATUS_ROW, 0); /* the prompt off */
@@ -889,7 +889,7 @@ static void wait_anykey(Session *const S)
 
 void uimn_ready(Session *const S)
 {
-    cons_flush(S);
+    cons_flush(&S->cons);
     S->vm.stop = 0;
     uint8_t row, col;
     pscr_where(PAGE_OUT, &row, &col);
@@ -957,7 +957,7 @@ void uimn_error(Session *const S, const uint8_t code)
         dpan_close();
     }
 
-    cons_flush(S);
+    cons_flush(&S->cons);
     S->cons.col = 0;
     S->vm.stop = 0;
     page_in();

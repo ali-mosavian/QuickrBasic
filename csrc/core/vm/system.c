@@ -219,7 +219,7 @@ void syst_stime(Session *const S)
 /* SLEEP ( n -- ): n seconds or a key, which stays; 0 a key. An event or the STOP key ends it. */
 void syst_sleep(Session *const S)
 {
-    cons_flush(S);
+    cons_flush(&S->cons);
     const int32_t ticks = exec_popi(&S->vm) * 182 / 10; /* 18.2 a second */
     const uint32_t start = pclk_ticks();
 
@@ -238,7 +238,7 @@ void syst_sleep(Session *const S)
 /* INKEY$ ( -- s ): a key waiting, else empty; an extended key is CHR$(0) and its scan code. */
 void syst_inkey(Session *const S)
 {
-    cons_flush(S);
+    cons_flush(&S->cons);
 
     if (!pkey_ready()) {
         syst_ret(S, 0);
@@ -313,7 +313,7 @@ static void shell(Session *const S, const Desc s)
 
     const char *const e = env_find(S, (const uint8_t *)COMSPEC, strlen(COMSPEC));
     const char *const path = e ? e + strlen(COMSPEC) + 1 : "COMMAND.COM";
-    cons_flush(S);
+    cons_flush(&S->cons);
 
     if (!psys_exec(path, tail, len, S->syst.env, (uint32_t)(env_end(S) - S->syst.env) + 1))
         repl_error(S, E_IQ);
@@ -408,8 +408,8 @@ void syst_erdevs(Session *const S) { syst_ret(S, 0); }
 void syst_rndq(Session *const S)
 {
     for (;;) {
-        cons_puts(S, "Random-number seed (-32768 to 32767)? ");
-        cons_read(S);
+        cons_puts(&S->cons, "Random-number seed (-32768 to 32767)? ");
+        cons_read(&S->cons);
         const uint8_t *p = S->cons.inbuf;
         const double d = dubl_in(S, &p, nullptr);
 
@@ -418,7 +418,7 @@ void syst_rndq(Session *const S)
             return;
         }
 
-        cons_puts(S, "Redo from start\r"); /* QBasic's; NL is 13 */
+        cons_puts(&S->cons, "Redo from start\r"); /* QBasic's; NL is 13 */
     }
 }
 

@@ -288,7 +288,7 @@ static void print_line(Session *const S)
     const size_t n = (size_t)(uc.pre - uc.src);
 
     for (size_t i = 0; i < n; i++)
-        cons_putc(S, uc.src[i]);
+        cons_putc(&S->cons, uc.src[i]);
 
     list_body(S, S->comp.cbuf);
 }

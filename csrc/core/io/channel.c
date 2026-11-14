@@ -31,49 +31,53 @@
  * - D1. Helpers and tables are static; the names differ.
  */
 #include "io/channel.h"
-#include "session.h"
 #include "io/console.h"
 #include "io/repl.h"
 #include "vm/exec.h"
 #include "plat/pfil.h"
 
-void chnl_init(Session *const S)
+void chnl_init(Chnl *const cl, Cons *const co, Fault *const f)
 {
-    memset(S->chnl.ch, 0, sizeof S->chnl.ch);
-    S->chnl.ch[0].kind = CK_CON;
-    S->chnl.ch[0].mode = FM_OUT | FM_IN;
-    S->chnl.out = S->chnl.in = 0;
+    cl->cons = co;
+    cl->fault = f;
+    memset(cl->ch, 0, sizeof cl->ch);
+    cl->ch[0].kind = CK_CON;
+    cl->ch[0].mode = FM_OUT | FM_IN;
+    cl->out = cl->in = 0;
 }
 
 enum { CTRL_Z = 0x1A }; /* a text file's end */
 
-static uint8_t index_of(Session *const S, const Chan *const c) { return (uint8_t)(c - S->chnl.ch); }
-
-static bool valid_number(const int32_t num) { return (uint32_t)(num - 1) < FILENO_MAX; }
-
-Chan *chnl_look(Session *const S, const int32_t num)
+static uint8_t chnl_index_of(const Chnl *const cl, const Chan *const c)
 {
-    if (!valid_number(num))
+    return (uint8_t)(c - cl->ch);
+}
+
+static bool chnl_valid_number(const int32_t num) { return (uint32_t)(num - 1) < FILENO_MAX; }
+
+Chan *chnl_look(Chnl *const cl, const int32_t num)
+{
+    if (!chnl_valid_number(num))
         return nullptr;
     for (uint32_t i = 1; i < NCH; i++)
-        if (S->chnl.ch[i].num == num)
-            return &S->chnl.ch[i];
+        if (cl->ch[i].num == num)
+            return &cl->ch[i];
 
     return nullptr;
 }
 
-Chan *chnl_find(Session *const S, const int32_t num)
+Chan *chnl_find(Chnl *const cl, const int32_t num)
 {
-    Chan *const c = chnl_look(S, num);
+    Chan *const c = chnl_look(cl, num);
 
     if (!c)
-        repl_qberr(S, QB_BAD_FILE_NUMBER);
+        fault_qberr(cl->fault, QB_BAD_FILE_NUMBER);
 
     return c;
 }
 
 /* Errors with a QBasic number of their own; the rest are Path/File access errors. */
-void chnl_doserr(Session *const S, const uint16_t dos)
+void chnl_doserr(Chnl *const cl, const uint16_t dos)
 {
     static const struct {
         uint16_t dos;
@@ -89,13 +93,13 @@ void chnl_doserr(Session *const S, const uint16_t dos)
 
     for (size_t i = 0; i < countof(map); i++)
         if (map[i].dos == dos)
-            repl_qberr(S, map[i].qb);
+            fault_qberr(cl->fault, map[i].qb);
 
-    repl_qberr(S, QB_PATH_ACCESS);
+    fault_qberr(cl->fault, QB_PATH_ACCESS);
 }
 
 /* Whether name is device, any case. */
-static bool names_device(const char *name, const char *device)
+static bool chnl_names_device(const char *name, const char *device)
 {
     for (; *device; device++, name++)
         if (upcase((uint8_t)*name) != (uint8_t)*device)
@@ -105,7 +109,7 @@ static bool names_device(const char *name, const char *device)
 }
 
 /* name a device's (SCRN: CONS: the console, NUL:): its kind, else 0. */
-static uint8_t device(const char *const name)
+static uint8_t chnl_device(const char *const name)
 {
     static const struct {
         uint8_t kind;
@@ -113,36 +117,36 @@ static uint8_t device(const char *const name)
     } devs[] = {{CK_CON, "SCRN:"}, {CK_CON, "CONS:"}, {CK_NUL, "NUL:"}};
 
     for (size_t i = 0; i < countof(devs); i++)
-        if (names_device(name, devs[i].name))
+        if (chnl_names_device(name, devs[i].name))
             return devs[i].kind;
 
     return 0;
 }
 
 /* A free channel for file number num. Errors: already open, none free. */
-static Chan *free_channel(Session *const S, const int32_t num)
+static Chan *chnl_free_channel(Chnl *const cl, const int32_t num)
 {
-    if (!valid_number(num))
-        repl_qberr(S, QB_BAD_FILE_NUMBER);
+    if (!chnl_valid_number(num))
+        fault_qberr(cl->fault, QB_BAD_FILE_NUMBER);
 
     uint32_t slot = 0;
 
     for (uint32_t i = NCH - 1; i > 0; i--) {
-        if (S->chnl.ch[i].num == num)
-            repl_qberr(S, QB_FILE_OPEN);
-        if (!S->chnl.ch[i].num)
+        if (cl->ch[i].num == num)
+            fault_qberr(cl->fault, QB_FILE_OPEN);
+        if (!cl->ch[i].num)
             slot = i;
     }
 
     if (!slot)
-        repl_qberr(S, QB_TOO_MANY_FILES);
+        fault_qberr(cl->fault, QB_TOO_MANY_FILES);
 
-    return &S->chnl.ch[slot];
+    return &cl->ch[slot];
 }
 
 /* File name opened for mode: read when it exists, else created (INPUT's: File not found); not
    OUTPUT's then read and write. */
-static PfilHandle open_file(Session *const S, const char *const name, const uint8_t mode)
+static PfilHandle chnl_open_file(Chnl *const cl, const char *const name, const uint8_t mode)
 {
     PfilHandle h;
     uint16_t err = PFIL_NOTFOUND;
@@ -151,7 +155,7 @@ static PfilHandle open_file(Session *const S, const char *const name, const uint
         err = pfil_open(name, mode & FM_IN ? PFIL_READ : PFIL_RDWR, &h);
 
         if (err && (err != PFIL_NOTFOUND || mode & FM_IN))
-            chnl_doserr(S, err);
+            chnl_doserr(cl, err);
     }
 
     if (!err)
@@ -160,39 +164,39 @@ static PfilHandle open_file(Session *const S, const char *const name, const uint
     err = pfil_create(name, &h);
 
     if (err)
-        chnl_doserr(S, err);
+        chnl_doserr(cl, err);
     if (!(mode & FM_OUT)) { /* reopened to read and write */
         pfil_close(h);
         err = pfil_open(name, PFIL_RDWR, &h);
 
         if (err)
-            chnl_doserr(S, err);
+            chnl_doserr(cl, err);
     }
 
     return h;
 }
 
 Chan *chnl_open(
-    Session *const S,
+    Chnl *const cl,
     const int32_t num,
     const char *const name,
     const uint8_t mode,
     const uint32_t reclen
 )
 {
-    Chan *const c = free_channel(S, num);
+    Chan *const c = chnl_free_channel(cl, num);
 
     if (reclen - 1 >= RECMAX)
-        repl_qberr(S, QB_BAD_RECORD_LENGTH);
+        fault_qberr(cl->fault, QB_BAD_RECORD_LENGTH);
 
     memset(c, 0, sizeof *c);
     c->reclen = (uint16_t)reclen;
     c->mode = mode;
-    c->kind = device(name);
+    c->kind = chnl_device(name);
 
     if (!c->kind) {
         c->kind = CK_DISK;
-        c->handle = open_file(S, name, mode);
+        c->handle = chnl_open_file(cl, name, mode);
 
         if (mode & FM_APP) /* at the end */
             pfil_seek(c->handle, 0, PFIL_END, &c->pos);
@@ -213,7 +217,7 @@ static void drop(Chan *const c)
 }
 
 /* c's written bytes to its file. Errors: Disk full, the file's. */
-static void flush(Session *const S, Chan *const c)
+static void chnl_flush(Chnl *const cl, Chan *const c)
 {
     if (!c->dirty)
         return;
@@ -223,9 +227,9 @@ static void flush(Session *const S, Chan *const c)
     const uint16_t err = pfil_write(c->handle, c->buf, c->count, &put);
 
     if (err)
-        chnl_doserr(S, err);
+        chnl_doserr(cl, err);
     if (put != c->count)
-        repl_qberr(S, QB_DISK_FULL);
+        fault_qberr(cl->fault, QB_DISK_FULL);
 
     c->pos += c->count;
     c->count = 0;
@@ -233,61 +237,61 @@ static void flush(Session *const S, Chan *const c)
 }
 
 /* io's column to the output channel's. */
-static void save_col(Session *const S) { S->chnl.ch[S->chnl.out].col = S->cons.col; }
+static void chnl_save_col(Chnl *const cl) { cl->ch[cl->out].col = cl->cons->col; }
 
-void chnl_close(Session *const S, Chan *const c)
+void chnl_close(Chnl *const cl, Chan *const c)
 {
-    if (c == S->chnl.ch)
+    if (c == cl->ch)
         return;
 
-    flush(S, c);
+    chnl_flush(cl, c);
 
     if (c->kind == CK_DISK)
         pfil_close(c->handle);
 
     c->num = 0;
 
-    if (S->chnl.out == index_of(S, c))
-        chnl_clear(S);
+    if (cl->out == chnl_index_of(cl, c))
+        chnl_clear(cl);
 }
 
-void chnl_closeall(Session *const S)
+void chnl_closeall(Chnl *const cl)
 {
-    chnl_clear(S);
+    chnl_clear(cl);
 
     for (uint32_t i = 1; i < NCH; i++)
-        if (S->chnl.ch[i].num)
-            chnl_close(S, &S->chnl.ch[i]);
+        if (cl->ch[i].num)
+            chnl_close(cl, &cl->ch[i]);
 }
 
-void chnl_out(Session *const S, Chan *const c)
+void chnl_out(Chnl *const cl, Chan *const c)
 {
     if (!(c->mode & (FM_OUT | FM_APP | FM_RND | FM_BIN)))
-        repl_qberr(S, QB_BAD_FILE_MODE);
+        fault_qberr(cl->fault, QB_BAD_FILE_MODE);
 
-    save_col(S);
-    S->chnl.out = index_of(S, c);
-    S->cons.col = c->col;
+    chnl_save_col(cl);
+    cl->out = chnl_index_of(cl, c);
+    cl->cons->col = c->col;
 }
 
-void chnl_in(Session *const S, Chan *const c)
+void chnl_in(Chnl *const cl, Chan *const c)
 {
     if (!(c->mode & (FM_IN | FM_RND | FM_BIN)))
-        repl_qberr(S, QB_BAD_FILE_MODE);
+        fault_qberr(cl->fault, QB_BAD_FILE_MODE);
 
-    S->chnl.in = index_of(S, c);
+    cl->in = chnl_index_of(cl, c);
 }
 
-void chnl_clear(Session *const S)
+void chnl_clear(Chnl *const cl)
 {
-    save_col(S);
-    S->chnl.out = S->chnl.in = 0;
-    S->cons.from_file = false;
-    S->cons.col = S->chnl.ch[0].col;
+    chnl_save_col(cl);
+    cl->out = cl->in = 0;
+    cl->cons->from_file = false;
+    cl->cons->col = cl->ch[0].col;
 }
 
 /* b into c's buffer, written when full; a read-ahead dropped first, its place kept. */
-static void put(Session *const S, Chan *const c, const uint8_t b)
+static void chnl_put(Chnl *const cl, Chan *const c, const uint8_t b)
 {
     if (!c->dirty) {
         drop(c);
@@ -297,30 +301,30 @@ static void put(Session *const S, Chan *const c, const uint8_t b)
     c->buf[c->count++] = b;
 
     if (c->count >= CBSZ)
-        flush(S, c);
+        chnl_flush(cl, c);
 }
 
-void chnl_putc(Session *const S, const uint8_t ch)
+void chnl_putc(Chnl *const cl, const uint8_t ch)
 {
-    Chan *const c = &S->chnl.ch[S->chnl.out];
+    Chan *const c = &cl->ch[cl->out];
 
     if (c->kind == CK_DISK) {
         if (ch == NL) {
-            put(S, c, '\r');
-            put(S, c, '\n');
+            chnl_put(cl, c, '\r');
+            chnl_put(cl, c, '\n');
         } else
-            put(S, c, ch);
+            chnl_put(cl, c, ch);
     } else if (c->kind == CK_CON) {
-        cons_out(S, ch);
+        cons_out(cl->cons, ch);
     }
 }
 
-int chnl_peek(Session *const S, Chan *const c)
+int chnl_peek(Chnl *const cl, Chan *const c)
 {
     if (c->kind != CK_DISK)
         return -1;
 
-    flush(S, c);
+    chnl_flush(cl, c);
 
     if (c->next >= c->count) { /* the next block */
         drop(c);
@@ -329,7 +333,7 @@ int chnl_peek(Session *const S, Chan *const c)
         const uint16_t err = pfil_read(c->handle, c->buf, CBSZ, &got);
 
         if (err)
-            chnl_doserr(S, err);
+            chnl_doserr(cl, err);
 
         c->count = (uint16_t)got;
 
@@ -345,10 +349,10 @@ int chnl_peek(Session *const S, Chan *const c)
     return b;
 }
 
-int chnl_getb(Session *const S)
+int chnl_getb(Chnl *const cl)
 {
-    Chan *const c = &S->chnl.ch[S->chnl.in];
-    const int b = chnl_peek(S, c);
+    Chan *const c = &cl->ch[cl->in];
+    const int b = chnl_peek(cl, c);
 
     if (b >= 0)
         c->next++;
@@ -356,69 +360,69 @@ int chnl_getb(Session *const S)
     return b;
 }
 
-void chnl_skiplf(Session *const S)
+void chnl_skiplf(Chnl *const cl)
 {
-    Chan *const c = &S->chnl.ch[S->chnl.in];
+    Chan *const c = &cl->ch[cl->in];
 
-    if (chnl_peek(S, c) == '\n')
+    if (chnl_peek(cl, c) == '\n')
         c->next++;
 }
 
 uint32_t chnl_tell(const Chan *const c) { return c->pos + (c->dirty ? c->count : c->next); }
 
-void chnl_seek(Session *const S, Chan *const c, const uint32_t at)
+void chnl_seek(Chnl *const cl, Chan *const c, const uint32_t at)
 {
-    flush(S, c);
+    chnl_flush(cl, c);
     c->count = c->next = 0;
     c->pos = at;
 }
 
-uint32_t chnl_lof(Session *const S, Chan *const c)
+uint32_t chnl_lof(Chnl *const cl, Chan *const c)
 {
     if (c->kind != CK_DISK)
         return 0;
 
-    flush(S, c);
+    chnl_flush(cl, c);
     uint32_t end = 0;
     pfil_seek(c->handle, 0, PFIL_END, &end);
     return end;
 }
 
 /* c's buffer written and dropped, its handle at its place, for a transfer. */
-static void unbuffer(Session *const S, Chan *const c)
+static void chnl_unbuffer(Chnl *const cl, Chan *const c)
 {
-    chnl_seek(S, c, chnl_tell(c));
+    chnl_seek(cl, c, chnl_tell(c));
     place(c);
 }
 
 /* A transfer of done bytes, err its error: c's place past them. */
-static uint32_t moved(Session *const S, Chan *const c, const uint16_t err, const uint32_t done)
+static uint32_t chnl_moved(Chnl *const cl, Chan *const c, const uint16_t err, const uint32_t done)
 {
     if (err)
-        chnl_doserr(S, err);
+        chnl_doserr(cl, err);
 
     c->pos += done;
     return done;
 }
 
-uint32_t chnl_read(Session *const S, Chan *const c, uint8_t *const p, const uint32_t n)
+uint32_t chnl_read(Chnl *const cl, Chan *const c, uint8_t *const p, const uint32_t n)
 {
     if (c->kind != CK_DISK)
         return 0;
 
-    unbuffer(S, c);
+    chnl_unbuffer(cl, c);
     uint32_t got;
     const uint16_t err = pfil_read(c->handle, p, n, &got);
-    return moved(S, c, err, got);
+    return chnl_moved(cl, c, err, got);
 }
 
-uint32_t chnl_write(Session *const S, Chan *const c, const uint8_t *const p, const uint32_t n)
+uint32_t chnl_write(Chnl *const cl, Chan *const c, const uint8_t *const p, const uint32_t n)
 {
     if (c->kind != CK_DISK)
         return 0;
 
-    unbuffer(S, c);
+    chnl_unbuffer(cl, c);
     uint32_t put;
     const uint16_t err = pfil_write(c->handle, p, n, &put);
-    return moved(S, c, err, put);
+    return chnl_moved(cl, c, err, put);
 }

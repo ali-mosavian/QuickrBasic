@@ -76,10 +76,10 @@ void stmt_init(Session *const S) { S->stmt.data_text = at(allo_carve(&S->allo, D
 
 /* ---- PRINT ---------------------------------------------------------------------------------- */
 
-void stmt_ipr(Session *const S) { cons_int(S, exec_popi(&S->vm)); }
+void stmt_ipr(Session *const S) { cons_int(&S->cons, exec_popi(&S->vm)); }
 void stmt_fpr(Session *const S) { sngl_print(S, exec_pop(&S->vm).u); }
-void stmt_spr(Session *const S) { cons_putdesc(S, strg_get(&S->strg, exec_popa(&S->vm))); }
-void stmt_pnl(Session *const S) { cons_nl(S); }
+void stmt_spr(Session *const S) { cons_putdesc(&S->cons, strg_get(&S->strg, exec_popa(&S->vm))); }
+void stmt_pnl(Session *const S) { cons_nl(&S->cons); }
 
 /* ---- PRINT USING: the VM's operands to the formatter (vm/using.c) ---------------------------- */
 
@@ -88,10 +88,10 @@ static void stmt_usng_put(UsngOut *const o, const uint8_t *const p, const uint32
     Session *const S = container_of(o, Session, usng_out);
 
     for (uint32_t i = 0; i < n; i++)
-        cons_putc(S, p[i]);
+        cons_putc(&S->cons, p[i]);
 }
 
-static void stmt_usng_nl(UsngOut *const o) { cons_nl(container_of(o, Session, usng_out)); }
+static void stmt_usng_nl(UsngOut *const o) { cons_nl(&container_of(o, Session, usng_out)->cons); }
 
 void stmt_usng_init(Session *const S)
 {
@@ -137,7 +137,7 @@ void stmt_usen(Session *const S) { usng_end(&S->usng, false); }
 void stmt_pzone(Session *const S)
 {
     do
-        cons_space(S);
+        cons_space(&S->cons);
     while (S->cons.col % PRINT_ZONE);
 }
 
@@ -148,12 +148,12 @@ void stmt_ptab(Session *const S)
     const uint8_t col = i > 0 ? (uint8_t)i : 0;
 
     if (col < S->cons.col)
-        cons_nl(S);
+        cons_nl(&S->cons);
     if (col > S->cons.col)
-        cons_spaces(S, col - S->cons.col);
+        cons_spaces(&S->cons, col - S->cons.col);
 }
 
-void stmt_pspc(Session *const S) { cons_spaces(S, (uint8_t)exec_popi(&S->vm)); }
+void stmt_pspc(Session *const S) { cons_spaces(&S->cons, (uint8_t)exec_popi(&S->vm)); }
 
 /* ---- INPUT ---------------------------------------------------------------------------------- */
 
@@ -167,7 +167,7 @@ void stmt_inbeg(Session *const S)
 }
 
 /* ? and a line. */
-void stmt_inpr(Session *const S) { cons_prompt(S); }
+void stmt_inpr(Session *const S) { cons_prompt(&S->cons); }
 
 /* INPUT#'s line, empty lines skipped. */
 void stmt_infile(Session *const S)
@@ -175,12 +175,12 @@ void stmt_infile(Session *const S)
     S->cons.from_file = true;
 
     do
-        cons_read(S);
+        cons_read(&S->cons);
     while (!S->cons.inlen);
 }
 
 /* A line, no ?: INPUT "prompt", .. */
-void stmt_inln(Session *const S) { cons_read(S); }
+void stmt_inln(Session *const S) { cons_read(&S->cons); }
 
 /* After a bad field's store: ?Redo from start, the INPUT again. true: vm->ip moved. */
 static bool redo(Session *const S)
@@ -189,7 +189,7 @@ static bool redo(Session *const S)
         return false;
 
     S->stmt.redo = false;
-    cons_msg(S, MSG_REDO);
+    cons_msg(&S->cons, MSG_REDO);
     S->vm.ip = S->stmt.input_start;
     S->vm.sp = S->vm.rsp;
     return true;
@@ -237,7 +237,7 @@ static void input(Session *const S, const ItemKind kind)
         return;
     }
 
-    cons_field(S);
+    cons_field(&S->cons);
     const uint8_t *p = S->cons.inbuf + S->cons.inpos;
     Cell v = {};
 
@@ -263,13 +263,13 @@ void stmt_inend(Session *const S)
     if (redo(S) || S->cons.from_file || S->cons.inpos == -1)
         return;
     if (S->cons.inbuf[S->cons.inpos])
-        cons_msg(S, MSG_EXTRA);
+        cons_msg(&S->cons, MSG_EXTRA);
 }
 
 /* GET to a number: the key waiting as a digit, 0 none. Syntax error: not a digit. */
 void stmt_fget(Session *const S)
 {
-    const uint8_t c = cons_getc(S);
+    const uint8_t c = cons_getc(&S->cons);
     const uint8_t digit = c ? c - '0' : 0;
 
     if (digit >= 10)
@@ -281,7 +281,7 @@ void stmt_fget(Session *const S)
 /* GET to a string: the key waiting, or none. */
 void stmt_sget(Session *const S)
 {
-    const uint8_t c = cons_getc(S);
+    const uint8_t c = cons_getc(&S->cons);
 
     if (!c) {
         exec_pusha(&S->vm, strg_push(&S->strg, (Desc){}));
@@ -567,7 +567,7 @@ void stmt_run(Session *const S)
 
 void stmt_runfirst(Session *const S)
 {
-    chnl_closeall(S);
+    chnl_closeall(&S->chnl);
 
     if (!prog_line(&S->prog, PROGBASE)->len)
         flow_end(S);
@@ -616,7 +616,7 @@ void stmt_end(Session *const S)
     if (S->dbug.probing)
         dbug_done(S);
 
-    chnl_closeall(S);
+    chnl_closeall(&S->chnl);
     flow_setcont(S);
     ready(S);
 }

@@ -545,9 +545,9 @@ void dubl_print(Session *const S)
     const uint32_t n = dubl_fmt(exec_popd(&S->vm), t);
 
     for (uint32_t i = 0; i < n; i++)
-        cons_putc(S, t[i]);
+        cons_putc(&S->cons, t[i]);
 
-    cons_space(S);
+    cons_space(&S->cons);
 }
 
 void dubl_str(Session *const S)

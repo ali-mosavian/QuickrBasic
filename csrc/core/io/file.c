@@ -64,7 +64,7 @@ static const char *name_of(Session *const S, const Addr s)
     const Desc d = strg_get(&S->strg, s);
 
     if (!d.len)
-        repl_qberr(S, QB_BAD_FILE_NAME);
+        fault_qberr(&S->fault, QB_BAD_FILE_NAME);
 
     return (const char *)strg_near(&S->strg, d);
 }
@@ -112,7 +112,7 @@ void file_reclen(Session *const S)
     const uint32_t n = (uint32_t)exec_popi(&S->vm);
 
     if (n - 1 > RECMAX - 1)
-        repl_qberr(S, QB_BAD_RECORD_LENGTH);
+        fault_qberr(&S->fault, QB_BAD_RECORD_LENGTH);
 
     S->file.reclen = n;
 }
@@ -121,7 +121,7 @@ void file_open(Session *const S)
 {
     const int32_t num = exec_popi(&S->vm);
     const char *const name = name_of(S, exec_popa(&S->vm));
-    chnl_open(S, num, name, S->file.mode, S->file.reclen);
+    chnl_open(&S->chnl, num, name, S->file.mode, S->file.reclen);
 }
 
 /* OPEN's mode string's first letter as FM_*; 0 none. */
@@ -147,24 +147,24 @@ void file_open2(Session *const S)
     const uint8_t mode = m.len ? mode_of(rd8(m.ptr)) : 0;
 
     if (!mode)
-        repl_qberr(S, QB_BAD_FILE_MODE);
+        fault_qberr(&S->fault, QB_BAD_FILE_MODE);
 
     S->file.mode = mode;
-    chnl_open(S, num, name, S->file.mode, S->file.reclen);
+    chnl_open(&S->chnl, num, name, S->file.mode, S->file.reclen);
 }
 
 void file_close(Session *const S)
 {
-    Chan *const c = chnl_look(S, exec_popi(&S->vm));
+    Chan *const c = chnl_look(&S->chnl, exec_popi(&S->vm));
 
     if (c)
-        chnl_close(S, c);
+        chnl_close(&S->chnl, c);
 }
 
-void file_closeall(Session *const S) { chnl_closeall(S); }
-void file_out(Session *const S) { chnl_out(S, chnl_find(S, exec_popi(&S->vm))); }
-void file_in(Session *const S) { chnl_in(S, chnl_find(S, exec_popi(&S->vm))); }
-void file_console(Session *const S) { chnl_clear(S); }
+void file_closeall(Session *const S) { chnl_closeall(&S->chnl); }
+void file_out(Session *const S) { chnl_out(&S->chnl, chnl_find(&S->chnl, exec_popi(&S->vm))); }
+void file_in(Session *const S) { chnl_in(&S->chnl, chnl_find(&S->chnl, exec_popi(&S->vm))); }
+void file_console(Session *const S) { chnl_clear(&S->chnl); }
 
 void file_lineinput(Session *const S)
 {
@@ -187,14 +187,14 @@ static void write_out(Session *const S)
 
     for (uint32_t i = 0; i < S->cons.sblen; i++)
         if (S->cons.sbuf[i] != ' ')
-            cons_putc(S, S->cons.sbuf[i]);
+            cons_putc(&S->cons, S->cons.sbuf[i]);
 }
 
 void file_write_int(Session *const S)
 {
     const int32_t v = exec_popi(&S->vm);
     capture(S);
-    cons_int(S, v);
+    cons_int(&S->cons, v);
     write_out(S);
 }
 
@@ -213,7 +213,7 @@ void file_write_dbl(Session *const S)
     capture(S);
 
     for (uint32_t i = 0; i < n; i++)
-        cons_putc(S, text[i]);
+        cons_putc(&S->cons, text[i]);
 
     write_out(S);
 }
@@ -221,22 +221,22 @@ void file_write_dbl(Session *const S)
 void file_write_str(Session *const S)
 {
     const Desc d = strg_get(&S->strg, exec_popa(&S->vm));
-    cons_putc(S, '"');
-    cons_putdesc(S, d);
-    cons_putc(S, '"');
+    cons_putc(&S->cons, '"');
+    cons_putdesc(&S->cons, d);
+    cons_putc(&S->cons, '"');
 }
 
-void file_write_comma(Session *const S) { cons_putc(S, ','); }
+void file_write_comma(Session *const S) { cons_putc(&S->cons, ','); }
 
 void file_eof(Session *const S)
 {
-    Chan *const c = chnl_find(S, exec_popi(&S->vm));
+    Chan *const c = chnl_find(&S->chnl, exec_popi(&S->vm));
     int32_t r;
 
     if (c->mode & (FM_RND | FM_BIN))
         r = c->eof ? -1 : 0;
     else if (c->mode & FM_IN)
-        r = chnl_peek(S, c) < 0 ? -1 : 0;
+        r = chnl_peek(&S->chnl, c) < 0 ? -1 : 0;
     else
         r = -1; /* written: at its end */
     exec_pushi(&S->vm, r);
@@ -244,12 +244,12 @@ void file_eof(Session *const S)
 
 void file_lof(Session *const S)
 {
-    exec_pushi(&S->vm, (int32_t)chnl_lof(S, chnl_find(S, exec_popi(&S->vm))));
+    exec_pushi(&S->vm, (int32_t)chnl_lof(&S->chnl, chnl_find(&S->chnl, exec_popi(&S->vm))));
 }
 
 void file_loc(Session *const S)
 {
-    const Chan *const c = chnl_find(S, exec_popi(&S->vm));
+    const Chan *const c = chnl_find(&S->chnl, exec_popi(&S->vm));
     uint32_t t = chnl_tell(c);
 
     if (c->mode & FM_RND)
@@ -262,7 +262,7 @@ void file_loc(Session *const S)
 
 void file_seekpos(Session *const S)
 {
-    const Chan *const c = chnl_find(S, exec_popi(&S->vm));
+    const Chan *const c = chnl_find(&S->chnl, exec_popi(&S->vm));
     uint32_t t = chnl_tell(c);
 
     if (c->mode & FM_RND)
@@ -275,17 +275,17 @@ void file_seekpos(Session *const S)
 static uint32_t offset_of(Session *const S, const Chan *const c, const uint32_t p)
 {
     if ((int32_t)(p - 1) < 0)
-        repl_qberr(S, QB_BAD_RECORD_NUMBER);
+        fault_qberr(&S->fault, QB_BAD_RECORD_NUMBER);
 
     return c->mode & FM_RND ? (p - 1) * c->reclen : p - 1;
 }
 
 void file_seek(Session *const S)
 {
-    Chan *const c = chnl_find(S, S->vm.sp[1].i);
+    Chan *const c = chnl_find(&S->chnl, S->vm.sp[1].i);
     const uint32_t p = S->vm.sp[0].u;
     S->vm.sp += 2;
-    chnl_seek(S, c, offset_of(S, c, p));
+    chnl_seek(&S->chnl, c, offset_of(S, c, p));
     c->eof = false;
 }
 
@@ -293,7 +293,7 @@ void file_freefile(Session *const S)
 {
     int32_t n = 1;
 
-    while (n <= FILENO_MAX && chnl_look(S, n))
+    while (n <= FILENO_MAX && chnl_look(&S->chnl, n))
         n++;
 
     exec_pushi(&S->vm, n);
@@ -303,7 +303,7 @@ void file_input_str(Session *const S)
 {
     Chan *c = nullptr; /* nullptr: the keyboard */
     if (exec_popi(&S->vm) != 1)
-        c = chnl_find(S, exec_popi(&S->vm));
+        c = chnl_find(&S->chnl, exec_popi(&S->vm));
 
     const uint32_t n = (uint32_t)exec_popi(&S->vm);
 
@@ -316,15 +316,15 @@ void file_input_str(Session *const S)
         uint8_t b;
 
         if (c) {
-            const int v = chnl_peek(S, c);
+            const int v = chnl_peek(&S->chnl, c);
 
             if (v < 0)
-                repl_qberr(S, QB_PAST_END);
+                fault_qberr(&S->fault, QB_PAST_END);
 
             c->next++;
             b = (uint8_t)v;
         } else {
-            cons_flush(S);
+            cons_flush(&S->cons);
             b = (uint8_t)pkey_wait();
         }
 
@@ -354,7 +354,7 @@ void file_attr(Session *const S)
     enum { ATTR_MODE = 1, ATTR_HANDLE = 2 };
 
     const int32_t a = exec_popi(&S->vm);
-    const Chan *const c = chnl_find(S, exec_popi(&S->vm));
+    const Chan *const c = chnl_find(&S->chnl, exec_popi(&S->vm));
 
     if (a == ATTR_HANDLE)
         exec_pushi(&S->vm, c->handle);
@@ -367,7 +367,7 @@ void file_attr(Session *const S)
 static void dos(Session *const S, const uint16_t err)
 {
     if (err)
-        chnl_doserr(S, err);
+        chnl_doserr(&S->chnl, err);
 }
 
 void file_kill(Session *const S) { dos(S, pfil_delete(name_of(S, exec_popa(&S->vm)))); }
@@ -382,7 +382,7 @@ void file_rename(Session *const S)
     const uint16_t err = pfil_rename(name_of(S, exec_popa(&S->vm)), S->file.name2);
 
     if (err == PFIL_DENIED)
-        repl_qberr(S, QB_FILE_EXISTS);
+        fault_qberr(&S->fault, QB_FILE_EXISTS);
 
     dos(S, err);
 }
@@ -396,24 +396,24 @@ static void files_entry(Session *const S, const PfilFind *const f)
     uint32_t n = 0;
 
     for (; s[n] && s[n] != '.'; n++)
-        cons_putc(S, (uint8_t)s[n]);
+        cons_putc(&S->cons, (uint8_t)s[n]);
     for (uint32_t i = n; i < NAME_WIDTH; i++)
-        cons_space(S);
+        cons_space(&S->cons);
 
     s += n + (s[n] != 0);
-    cons_putc(S, '.');
-    cons_puts(S, s);
+    cons_putc(&S->cons, '.');
+    cons_puts(&S->cons, s);
     uint32_t used = NAME_WIDTH + 1 + (uint32_t)strlen(s);
 
     if (f->attr & PFIL_ADIR) {
-        cons_puts(S, "<DIR>");
+        cons_puts(&S->cons, "<DIR>");
         used += DIR_MARK;
     }
 
     for (uint32_t i = used; i < ENTRY_WIDTH - 1; i++)
-        cons_space(S);
+        cons_space(&S->cons);
 
-    cons_space(S); /* at least one */
+    cons_space(&S->cons); /* at least one */
 }
 
 void file_files(Session *const S)
@@ -427,29 +427,29 @@ void file_files(Session *const S)
         memcpy(pattern, n, strlen(n) + 1);
     }
 
-    cons_putc(S, '\\'); /* the current directory */
+    cons_putc(&S->cons, '\\'); /* the current directory */
     if (pfil_curdir(0, S->file.name2, sizeof S->file.name2))
         S->file.name2[0] = 0;
 
-    cons_puts(S, S->file.name2);
-    cons_nl(S);
+    cons_puts(&S->cons, S->file.name2);
+    cons_nl(&S->cons);
     PfilFind f;
 
     if (pfil_first(pattern, PFIL_ADIR, &f))
-        repl_qberr(S, QB_FILE_NOT_FOUND);
+        fault_qberr(&S->fault, QB_FILE_NOT_FOUND);
     do {
         files_entry(S, &f);
 
         if (S->cons.col >= LAST_COL)
-            cons_nl(S);
+            cons_nl(&S->cons);
     } while (!pfil_next(&f));
 
-    cons_fresh(S);
+    cons_fresh(&S->cons);
     uint32_t free = 0;
     pfil_free(0, &free);
-    cons_int(S, (int32_t)free);
-    cons_puts(S, " Bytes free");
-    cons_nl(S);
+    cons_int(&S->cons, (int32_t)free);
+    cons_puts(&S->cons, " Bytes free");
+    cons_nl(&S->cons);
 }
 
 void file_novar(Session *const S)
@@ -479,7 +479,7 @@ static void get_string(Session *const S, Chan *const c, const Addr desc)
 
     if (n > STRING_IO_MAX)
         n = STRING_IO_MAX;
-    if (chnl_read(S, c, S->cons.sbuf, n) < n)
+    if (chnl_read(&S->chnl, c, S->cons.sbuf, n) < n)
         c->eof = true;
 
     strg_set(&S->strg, strg_text(&S->strg, S->cons.sbuf, (uint16_t)n), desc);
@@ -495,7 +495,7 @@ static void to_record(Session *const S, const Chan *const c, const Addr addr, co
 
     if (va_kind(kind) == VA_DESC && !va_n(kind)) {
         if ((uint16_t)(n + 2) > c->reclen)
-            repl_qberr(S, QB_BAD_RECORD_LENGTH);
+            fault_qberr(&S->fault, QB_BAD_RECORD_LENGTH);
 
         wr16(rec, (uint16_t)n);
         rec += 2;
@@ -503,7 +503,7 @@ static void to_record(Session *const S, const Chan *const c, const Addr addr, co
         if (va_kind(kind) == VA_I2)
             n = 2;
         if ((uint16_t)n > c->reclen)
-            repl_qberr(S, QB_BAD_RECORD_LENGTH);
+            fault_qberr(&S->fault, QB_BAD_RECORD_LENGTH);
     }
 
     memmove(at(rec), at(src), n);
@@ -553,11 +553,11 @@ static void binary(
 
     if (va_kind(kind) == VA_I2) {
         if (put) {
-            chnl_write(S, c, at(p), 2);
+            chnl_write(&S->chnl, c, at(p), 2);
             return;
         }
 
-        if (chnl_read(S, c, i2, 2) < 2) /* GET an INT: 2 bytes, widened */
+        if (chnl_read(&S->chnl, c, i2, 2) < 2) /* GET an INT: 2 bytes, widened */
             c->eof = true;
 
         wr32(p, widen16(load16(i2)));
@@ -565,8 +565,8 @@ static void binary(
     }
 
     if (put)
-        chnl_write(S, c, at(p), n);
-    else if (chnl_read(S, c, at(p), n) < n)
+        chnl_write(&S->chnl, c, at(p), n);
+    else if (chnl_read(&S->chnl, c, at(p), n) < n)
         c->eof = true;
 }
 
@@ -577,10 +577,10 @@ static void get_put(Session *const S, const bool put)
     const uint32_t kind = S->vm.sp[0].u;
     const Addr addr = S->vm.sp[1].a;
     uint32_t p = S->vm.sp[2].u;
-    Chan *const c = chnl_find(S, S->vm.sp[3].i);
+    Chan *const c = chnl_find(&S->chnl, S->vm.sp[3].i);
 
     if (!(c->mode & (FM_RND | FM_BIN)))
-        repl_qberr(S, QB_BAD_FILE_MODE);
+        fault_qberr(&S->fault, QB_BAD_FILE_MODE);
 
     uint32_t off;
 
@@ -594,7 +594,7 @@ static void get_put(Session *const S, const bool put)
         off = offset_of(S, c, p);
     }
 
-    chnl_seek(S, c, off);
+    chnl_seek(&S->chnl, c, off);
 
     if (!(c->mode & FM_RND)) {
         if (!put && va_kind(kind) == VA_DESC)
@@ -605,9 +605,9 @@ static void get_put(Session *const S, const bool put)
         if (kind)
             to_record(S, c, addr, kind);
 
-        chnl_write(S, c, at(record(S, c)), c->reclen);
+        chnl_write(&S->chnl, c, at(record(S, c)), c->reclen);
     } else {
-        const uint32_t got = chnl_read(S, c, at(record(S, c)), c->reclen);
+        const uint32_t got = chnl_read(&S->chnl, c, at(record(S, c)), c->reclen);
 
         if (got < c->reclen) { /* past the end: the rest 0, EOF */
             c->eof = true;
@@ -626,7 +626,7 @@ void file_put(Session *const S) { get_put(S, true); }
 
 void file_field(Session *const S)
 {
-    S->file.field_chan = chnl_find(S, exec_popi(&S->vm));
+    S->file.field_chan = chnl_find(&S->chnl, exec_popi(&S->vm));
     S->file.field_chan->field = 0;
 }
 
@@ -642,7 +642,7 @@ void file_fielditem(Session *const S)
     Chan *const c = S->file.field_chan;
 
     if ((uint16_t)(c->field + w) > c->reclen)
-        repl_qberr(S, QB_FIELD_OVERFLOW);
+        fault_qberr(&S->fault, QB_FIELD_OVERFLOW);
 
     Desc *const d = (Desc *)at(desc);
     d->ptr = record(S, c) + c->field;
@@ -731,7 +731,7 @@ void file_bload(Session *const S)
 
     if (hdr[0] != BSAVE_MAGIC) {
         pfil_close(h);
-        repl_qberr(S, QB_BAD_FILE_MODE);
+        fault_qberr(&S->fault, QB_BAD_FILE_MODE);
     }
 
     const Addr to =
@@ -741,6 +741,6 @@ void file_bload(Session *const S)
     pfil_close(h);
 }
 
-void file_lock(Session *const S) { chnl_find(S, exec_popi(&S->vm)); }
+void file_lock(Session *const S) { chnl_find(&S->chnl, exec_popi(&S->vm)); }
 void file_drop(Session *const S) { S->vm.sp++; }
-void file_noadv(Session *const S) { repl_qberr(S, QB_NO_ADVANCED); }
+void file_noadv(Session *const S) { fault_qberr(&S->fault, QB_NO_ADVANCED); }

@@ -15,7 +15,7 @@
  * where the asm reset ESP to rn.rsp. repl_ready, the READY loop's restart, longjmps there with
  * REPL_READY.
  *
- * repl_qberr raises E_USR with vm.err.user = the QbErr. repl_enter takes a typed line and says
+ * fault_qberr (fault.h) raises E_USR with vm.err.user = the QbErr. repl_enter takes a typed line and says
  * which it was: ENTER_DIRECT, ENTER_EMPTY or ENTER_STORED. repl_main's loop reads, enters and
  * runs lines; a front end hooks its places through its FrontEnd (null entries are the
  * console's).
@@ -25,7 +25,7 @@
  * |---|---|---|
  * | err_raise | repl_error | MIRROR |
  * | err_sn, err_id, err_rg, err_us, err_cn, err_tm, err_st, err_iq, err_om, err_os, err_od | repl_error(E_SN) etc. | MIRROR |
- * | ch_err (io/chan.asm) | repl_qberr | MOVED here |
+ * | ch_err (io/chan.asm) | fault_qberr (fault.h) | MOVED |
  * | er_diag, rpl_mod | static | MIRROR |
  * | rpl_ready | repl_ready, repl_main | D1 |
  * | rpl_run, rpl_cont | repl_run, repl_cont | MIRROR |
@@ -67,12 +67,6 @@
 #include "vm/flow.h"
 #include "vm/stmts.h"
 
-void repl_qberr(Session *const S, const QbErr qb)
-{
-    S->vm.err.user = qb;
-    repl_error(S, E_USR);
-}
-
 void repl_error(Session *const S, uint8_t code)
 {
     fold_fail(S);
@@ -104,6 +98,8 @@ void repl_fault(Fault *const f, const Failure *const e)
         diag_raise(S, e->code, e->dg, e->at, e->line, e->other, e->len);
     if (e->line != FAULT_KEEP)
         S->vm.line = e->line;
+    if (e->code == E_USR)
+        S->vm.err.user = e->user;
 
     repl_error(S, e->code);
 }
@@ -126,9 +122,9 @@ static void module_name(Session *const S)
     uint32_t n = 0;
 
     for (; n < MODULE_WIDTH && s[n] && s[n] != '.'; n++)
-        cons_putc(S, upcase((uint8_t)s[n]));
+        cons_putc(&S->cons, upcase((uint8_t)s[n]));
     for (; n < MODULE_WIDTH; n++)
-        cons_putc(S, ' ');
+        cons_putc(&S->cons, ' ');
 }
 
 /* A compile error's place and words under BC's message: the line as LIST spells it, a mark under
@@ -144,17 +140,17 @@ static void diagnose(Session *const S)
         S->vm.line == DLINE ? S->comp.cbuf : at(prog_addr(&S->prog, S->vm.line) + HDR);
     const uint32_t col = list_text(S, body, e->at);
     const uint32_t mark = diag_at(S, (const char *)S->cons.sbuf, col, e->code, e->dg, e->state);
-    cons_nl(S);
-    cons_spaces(S, 2);
-    cons_puts(S, (const char *)S->cons.sbuf);
-    cons_nl(S);
-    cons_spaces(S, 2);
+    cons_nl(&S->cons);
+    cons_spaces(&S->cons, 2);
+    cons_puts(&S->cons, (const char *)S->cons.sbuf);
+    cons_nl(&S->cons);
+    cons_spaces(&S->cons, 2);
 
     for (uint32_t i = 0; i < mark; i++)
-        cons_space(S);
+        cons_space(&S->cons);
 
-    cons_putc(S, '^');
-    cons_nl(S);
+    cons_putc(&S->cons, '^');
+    cons_nl(&S->cons);
     diag_say(S);
 }
 
@@ -163,8 +159,8 @@ static void diagnose(Session *const S)
 static void report(Session *const S, const uint8_t code)
 {
     S->vm.err.active = false;
-    chnl_clear(S);
-    cons_fresh(S);
+    chnl_clear(&S->chnl);
+    cons_fresh(&S->cons);
     S->vm.sp = S->vm.rsp;
     S->strg.tmp_used = 0;
     S->strg.tmp_floor = 0;
@@ -175,10 +171,10 @@ static void report(Session *const S, const uint8_t code)
     const uint32_t line = S->vm.line;
 
     if (code == E_BRK) {
-        cons_msg(S, E_BRK); /* BREAK [IN n] */
+        cons_msg(&S->cons, E_BRK); /* BREAK [IN n] */
         if (line != DLINE && prog_line(&S->prog, line)->num != NONUM) {
-            cons_msg(S, MSG_IN);
-            cons_uint(S, prog_line(&S->prog, line)->num);
+            cons_msg(&S->cons, MSG_IN);
+            cons_uint(&S->cons, prog_line(&S->prog, line)->num);
         }
 
         return;
@@ -186,29 +182,29 @@ static void report(Session *const S, const uint8_t code)
 
     S->vm.nframes = 0;
     S->vm.cont.line = 0;
-    cons_puts(S, emsg_text(S, code));
+    cons_puts(&S->cons, emsg_text(S, code));
 
     if (line != DLINE) {
         if (S->repl.batch) {
-            cons_puts(S, " in line ");
+            cons_puts(&S->cons, " in line ");
             const uint16_t erl = flow_erl(S, line);
 
             if (erl)
-                cons_uint(S, erl);
+                cons_uint(&S->cons, erl);
             else
-                cons_puts(S, "No line number");
+                cons_puts(&S->cons, "No line number");
 
-            cons_puts(S, " in module ");
+            cons_puts(&S->cons, " in module ");
             module_name(S);
-            cons_puts(S, " at address ");
+            cons_puts(&S->cons, " at address ");
             const uint32_t off = (uint32_t)(S->vm.opip - at(S->allo.cache));
-            cons_hex4(S, (uint16_t)(off >> 16));
-            cons_putc(S, ':');
-            cons_hex4(S, (uint16_t)off);
+            cons_hex4(&S->cons, (uint16_t)(off >> 16));
+            cons_putc(&S->cons, ':');
+            cons_hex4(&S->cons, (uint16_t)off);
         } else if (prog_line(&S->prog, line)->num !=
                    NONUM) { /* typed lines: in line n, if numbered */
-            cons_puts(S, " in line ");
-            cons_uint(S, prog_line(&S->prog, line)->num);
+            cons_puts(&S->cons, " in line ");
+            cons_uint(&S->cons, prog_line(&S->prog, line)->num);
         }
     }
 
@@ -219,8 +215,8 @@ static void report(Session *const S, const uint8_t code)
 [[noreturn]]
 static void quit(Session *const S)
 {
-    chnl_closeall(S);
-    cons_exit(S, 0);
+    chnl_closeall(&S->chnl);
+    cons_exit(&S->cons, 0);
 }
 
 void repl_run(Session *const S)
@@ -253,11 +249,11 @@ static void ready(Session *const S)
     if (S->repl.batch)
         quit(S);
 
-    cons_fresh(S);
-    cons_msg(S, MSG_READY);
+    cons_fresh(&S->cons);
+    cons_msg(&S->cons, MSG_READY);
 
     for (;;) {
-        const int32_t len = cons_getline(S);
+        const int32_t len = cons_getline(&S->cons);
 
         if (len < 0) {
             if (!(S->vm.stop & SF_BRK))
@@ -528,7 +524,7 @@ uint8_t repl_enter(Session *const S, const uint32_t len)
    place. Then the console's again. */
 static void read_file(Session *const S, const char *const name, const int32_t num)
 {
-    chnl_in(S, chnl_open(S, num, name, FM_IN, RECLEN_DEFAULT));
+    chnl_in(&S->chnl, chnl_open(&S->chnl, num, name, FM_IN, RECLEN_DEFAULT));
 
     for (;;) {
         const int32_t len = srcr_line(S);
@@ -544,12 +540,12 @@ static void read_file(Session *const S, const char *const name, const int32_t nu
 
         if (inc) { /* its lines next */
             read_file(S, S->repl.incl, num - 1);
-            chnl_in(S, chnl_find(S, num));
+            chnl_in(&S->chnl, chnl_find(&S->chnl, num));
         }
     }
 
-    chnl_close(S, chnl_find(S, num));
-    chnl_clear(S);
+    chnl_close(&S->chnl, chnl_find(&S->chnl, num));
+    chnl_clear(&S->chnl);
 }
 
 void repl_load(Session *const S)

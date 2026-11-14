@@ -107,7 +107,7 @@ static void fill(Session *const S)
         if (len >= SRCAP && (d[-1] != '_' || len >= INMAX)) /* full, a '_' not last: it slides */
             break;
 
-        const int b = cons_getb(S);
+        const int b = cons_getb(&S->cons);
 
         if (b < 0) {
             S->srcr.done = true;
@@ -118,8 +118,8 @@ static void fill(Session *const S)
 
         if (b == '\n' || b == '\r') {
             if (b == '\r')
-                chnl_skiplf(S); /* CR LF: one line's end */
-            S->srcr.pend = 0;   /* the line's last blanks go */
+                chnl_skiplf(&S->chnl); /* CR LF: one line's end */
+            S->srcr.pend = 0;          /* the line's last blanks go */
             if (!srcr_phys_end(S)) {
                 S->srcr.done = true;
                 break;
