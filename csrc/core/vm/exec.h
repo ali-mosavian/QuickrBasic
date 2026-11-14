@@ -99,7 +99,7 @@ enum : uint8_t {
     K_N,
     K_FN = K_FN_SGN, /* + a function's token - TK_SGN */
 };
-static_assert(K_IPOW == 42 && K_FN == 47 && K_LEFT == 67 && K_MID2 == 70 && K_FIX == 71);
+static_assert(K_IPOW == 40 && K_FN == 45 && K_LEFT == 65 && K_MID2 == 68 && K_FIX == 69);
 
 /* A place in the program: a line (an offset in the program store, DLINE the direct line) and an
    offset of code from the cache's base. */

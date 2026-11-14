@@ -30,8 +30,8 @@
  * | sc_ipr, sc_fpr, sc_spr, sc_pnl, sc_pzone, sc_ptab | stmt_ipr, stmt_fpr, stmt_spr, stmt_pnl, stmt_pzone, stmt_ptab | MIRROR |
  * | sc_pspc, sc_fin, sc_sin, sc_din, sc_fget, sc_sget | stmt_pspc, stmt_fin, stmt_sin, stmt_din, stmt_fget, stmt_sget | MIRROR |
  * | sc_inbeg, sc_inpr, sc_infile, sc_inend, sc_inln, sc_fread | stmt_inbeg, stmt_inpr, stmt_infile, stmt_inend, stmt_inln, stmt_fread | MIRROR |
- * | sc_sread, sc_dread, sc_res, sc_resl, sc_dim, sc_erase | stmt_sread, stmt_dread, stmt_res, stmt_resl, stmt_dim, stmt_erase | MIRROR |
- * | sc_run, sc_runl, sc_list, sc_clr, sc_new, sc_nodir | stmt_run, stmt_runl, stmt_list, stmt_clr, stmt_new, stmt_nodir | MIRROR |
+ * | sc_sread, sc_dread, sc_res, sc_resl, sc_dim, sc_erase | stmt_sread, stmt_dread, stmt_res, stmt_resl (op RESTORE_L), stmt_dim, stmt_erase | MIRROR |
+ * | sc_run, sc_runl, sc_list, sc_clr, sc_new, sc_nodir | stmt_run, stmt_runl (op RUN_L), stmt_list, stmt_clr, stmt_new, stmt_nodir | MIRROR |
  * | sc_poke, sc_wait, sc_wait2, sc_inp, sc_out, sc_sys | stmt_poke, stmt_wait, stmt_wait2, stmt_inp, stmt_out, stmt_sys | MIRROR |
  * | sc_ipow, sc_fpow, sc_fti, sc_sti, sc_ist | stmt_ipow, stmt_fpow, stmt_fti, stmt_sti, stmt_ist | MIRROR |
  * | io_redo, io_item, rd_item, rd_load, rd_scan, rd_after, rd_sk, rd_seek | redo, read_item, push_item, load_data, scan_data, data_after, skip_stmt, seek_data | MIRROR |
@@ -427,26 +427,8 @@ void stmt_dread(Session *const S) { read(S, ITEM_DOUBLE); }
 void stmt_res(Session *const S) { stmt_restore(S); }
 void stmt_restore(Session *const S) { S->stmt.data_pos = nullptr; }
 
-/* RESTORE line. Undefined line number. */
-void stmt_resl(Session *const S)
-{
-    const uint32_t x = exec_pop(&S->vm).u;
-    uint32_t line;
-
-    if (x >= LABEL_LINE) {
-        line = x - LABEL_LINE;
-
-        if (!line)
-            repl_error(S, E_US);
-    } else {
-        S->vm.lnum = (uint16_t)x;
-
-        if (!prog_find(&S->prog, S->link.cursor, (uint16_t)x, &line))
-            repl_error(S, E_US);
-    }
-
-    seek_data(S, line);
-}
+/* RESTORE line: its line set at link. */
+void stmt_resl(Session *const S) { seek_data(S, flow_target(S)); }
 
 /* ---- DIM and ERASE -------------------------------------------------------------------------- */
 
@@ -543,18 +525,13 @@ void stmt_rungo(Session *const S, const uint32_t line)
 /* RUN line. Undefined line number; a label. */
 void stmt_runl(Session *const S)
 {
-    const uint32_t num = exec_pop(&S->vm).u;
+    const uint16_t num = ((const LineRef *)S->vm.ip)->num;
+    const uint32_t line = flow_target(S);
 
-    if (num >= LABEL_LINE)
+    if (num == NONUM)
         repl_error(S, E_US); /* RUN takes a number, not a label */
     session_clear(S);
     link_start(&S->comp);
-    S->vm.lnum = (uint16_t)num;
-    uint32_t line;
-
-    if (!prog_find(&S->prog, S->link.cursor, (uint16_t)num, &line))
-        repl_error(S, E_US);
-
     stmt_rungo(S, line);
 }
 

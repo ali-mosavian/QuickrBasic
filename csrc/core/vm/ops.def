@@ -121,6 +121,8 @@ OP(DROP, oper_drop, 1, FX)
 OP(CALL, exec_call, 2, 0)
 OP(GOTO, flow_goto, 1 + sizeof(LineRef), 0)
 OP(GOSUB, flow_gosub, 1 + sizeof(LineRef), 0)
+OP(RESTORE_L, stmt_resl, 1 + sizeof(LineRef), 0)
+OP(RUN_L, stmt_runl, 1 + sizeof(LineRef), 0)
 OP(ON, flow_on, 0, 0)
 OP(RETURN, flow_return, 1, 0)
 OP(I_FOR, flow_for, JSIZE + 6, FB)
@@ -203,7 +205,6 @@ K(INEND, stmt_inend)    /* ?EXTRA IGNORED */
 K(FREAD, stmt_fread)    /* READ a FLOAT */
 K(SREAD, stmt_sread)    /* a string */
 K(RES, stmt_res)        /* RESTORE */
-K(RESL, stmt_resl)      /* RESTORE line */
 K(DIM, stmt_dim)
 K(OPEN, file_open)
 K(CLOSE, file_close)
@@ -214,7 +215,6 @@ K(LOAD, file_noadv)
 K(SAVE, file_noadv)
 K(VFY, file_noadv)
 K(RUN, stmt_run)
-K(RUNL, stmt_runl)
 K(LIST, stmt_list)
 K(CONT, stmt_cont)
 K(CLR, stmt_clr)

@@ -59,7 +59,7 @@ typedef enum : uint8_t { TO_STMT, PAST_JMP, TO_NEXT_STMT } JumpMode;
 enum : uint32_t { LNUM_LIMIT = 64000 };
 /* ON's count byte: the count, ON_GOSUB for GOSUB. */
 enum : uint8_t { ON_GOSUB = 0x80, ON_COUNT = 0x7F };
-/* RESTORE's and RUN's line operand: a line number, or LABEL_LINE plus a label's line. */
+/* LIST's line operand: a line number, or LABEL_LINE plus a label's line. */
 enum : uint32_t { LABEL_LINE = 0x10000 };
 /* DIM's flag word: the dimension count, then what kind of DIM it is. */
 enum : uint32_t { DIM_COUNT = 0x3F, DIM_REDIM = 0x40, DIM_STATIC = 0x80, DIM_PRESERVE = 0x100 };

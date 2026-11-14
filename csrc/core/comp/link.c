@@ -336,6 +336,8 @@ static void resolve_op(Comp *const C, const uint32_t line, const Addr base, uint
 
     case O_GOTO:
     case O_GOSUB:
+    case O_RESTORE_L:
+    case O_RUN_L:
         refs = (LineRef *)(op + 1);
         break;
 

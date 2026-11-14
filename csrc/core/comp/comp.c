@@ -362,7 +362,7 @@ uint8_t comp_lnum(Comp *const C)
     return comp_cur(C);
 }
 
-/* cm_lnld: I.LD.I16 of the line number; a label's line as LABEL_LINE + its line. */
+/* cm_lnld: I.LD.I16 of the line number; a label's line as LABEL_LINE + its line (LIST's). */
 static void lnumload(Comp *const C)
 {
     if (C->lnum == NONUM)
@@ -924,8 +924,8 @@ static void act_data(Comp *const C) { C->p = comp_skipdata(C->kw + 1); }
 /* REM: the line's end. */
 static void act_rem(Comp *const C) { done(C); }
 
-/* RUN, RESTORE [line]: CALL, or the line and CALL .L. */
-static void runres(Comp *const C, const uint8_t k)
+/* RUN, RESTORE [line]: CALL k, or op and the line, set at link. */
+static void runres(Comp *const C, const uint8_t k, const uint8_t op)
 {
     if (comp_end(C)) {
         comp_call(C, k);
@@ -934,11 +934,10 @@ static void runres(Comp *const C, const uint8_t k)
 
     C->modlabel = true; /* the module's label */
     comp_lnum(C);
-    lnumload(C);
-    comp_call(C, k + 1);
+    comp_jump(C, op);
 }
-static void act_run(Comp *const C) { runres(C, K_RUN); }
-static void act_res(Comp *const C) { runres(C, K_RES); }
+static void act_run(Comp *const C) { runres(C, K_RUN, O_RUN_L); }
+static void act_res(Comp *const C) { runres(C, K_RES, O_RESTORE_L); }
 
 /* DIM's ( [lo TO] hi {, ..} ): lo hi, or hi and OPTION BASE's, each an INT; how many. */
 static uint32_t dimsubs(Comp *const C)
