@@ -291,12 +291,12 @@ static uint16_t selvar(Session *const S, const uint8_t depth, const uint8_t type
 {
     const uint8_t nm[2] = {'#', (uint8_t)('0' + depth)};
 
-    const uint16_t name = symb_find_name(S, nm, 2);
+    const uint16_t name = symb_find_name(&S->symb, nm, 2);
     S->ctrl.seltype = type;
     S->comp.scope = 0;
     S->comp.isstatic = false;
     S->ctrl.selid = symb_find_var(
-        S,
+        &S->symb,
         name,
         code_pick(type, ET_I4, ET_R4, ET_R8, ET_SD),
         code_pick(type, VK_INT, VK_FLT, SK_DBL, VK_STR),

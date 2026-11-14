@@ -514,7 +514,7 @@ uint16_t comp_var(Session *const S, const uint8_t shape, const uint8_t et)
         kind |= comp_etkind[type];
 
     comp_scope(S, name);
-    return symb_find_var(S, name, type, kind, S->comp.scope, S->comp.isstatic);
+    return symb_find_var(&S->symb, name, type, kind, S->comp.scope, S->comp.isstatic);
 }
 
 uint16_t comp_name(Session *const S)

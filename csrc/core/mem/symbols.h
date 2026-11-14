@@ -2,6 +2,8 @@
 #ifndef MEM_SYMBOLS_H
 #define MEM_SYMBOLS_H
 #include "table.h"
+#include "fault.h"
+#include "mem/program.h"
 
 /* A variable's info: its kind in bits 1-0 (comp's g_etk), SK_DBL, VI_ARR. */
 enum : uint8_t { VK_FLT = 0, VK_INT = 1, VK_STR = 2, VK_MASK = 3, VI_ARR = 0x80 };
@@ -32,6 +34,7 @@ typedef struct PACKED {
 static_assert(sizeof(Var) == 8 && sizeof(VarX) == 8 && sizeof(Name) == 8);
 
 typedef struct {
+    Fault *fault;                        /* Out of memory */
     Table vars;                          /* the cells, Var, VarX, a CONST's literal (8 bytes) */
     Table names;                         /* Name, the chains' next (uint16_t) */
     Table text;                          /* the names' text */
@@ -69,25 +72,26 @@ static inline const uint8_t *symb_text(const Symb *const sy, uint16_t id)
     return at(sy->text.at[0] + symb_name(sy, id)->text);
 }
 
-/* The tables' blocks, after the program store's. */
-void symb_new(Symb *sy, Allo *al);
-/* Room for the program's variables before it runs (each M_VAR byte in the store counts one): they
+/* The tables' blocks from al, after the program store's. */
+void symb_new(Symb *sy, Allo *al, Fault *f);
+/* Room for program pg's variables before it runs (each M_VAR byte in the store counts one): they
    are made lazily, when the heap may hold strings and arrays and the block cannot grow. */
-void symb_size(Session *S);
-/* CLR: variables zeroed, arrays dropped, READ reset, the heap and the temporaries emptied. */
-void symb_clear(Session *S);
-/* No names, no variables, no declarations. */
-void symb_init(Session *S);
+void symb_size(Symb *sy, const Prog *pg);
+/* Every variable's value gone: the cells zeroed, an array's header none, a scalar's vt its own
+   cell (session_clear's part). */
+void symb_clear(Symb *sy);
+/* No names, no variables. */
+void symb_reset(Symb *sy);
 /* No variables; the names kept. */
-void symb_vars_init(Session *S);
+void symb_vars_init(Symb *sy);
 /* The name of text[0..len) (no suffix), made when new (NM_FN when it starts FN). Out of memory:
    past 65535 names, or the heap not empty. */
-uint16_t symb_find_name(Session *S, const uint8_t *text, uint8_t len);
+uint16_t symb_find_name(Symb *sy, const uint8_t *text, uint8_t len);
 /* The variable of name, type (ET_*) and kind (VI_ARR, the low bits as info's) in scope (0 the
    module, else a procedure), made when new, a scalar zeroed; a new one of a procedure joins its
    locals unless stat. Out of memory: past 65535 variables, or the heap not empty. */
 uint16_t symb_find_var(
-    Session *S,
+    Symb *sy,
     uint16_t name,
     uint8_t type,
     uint8_t kind,

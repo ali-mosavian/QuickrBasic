@@ -5,6 +5,7 @@
  * variables and next line from the VM's call frames.
  */
 #include "session.h"
+#include "vm/stmts.h"
 
 void session_debug(Session *const S, const DebugHooks *const hooks)
 {
@@ -168,4 +169,16 @@ uint8_t session_eval(
 )
 {
     return dbug_eval(S, expr, proc, out);
+}
+
+void session_clear(Session *const S)
+{
+    symb_clear(&S->symb);
+    S->allo.arrays = S->allo.bot;
+    S->allo.strings = S->allo.top;
+    S->arry.hdr = S->allo.hdr_base;
+    S->strg.tmp_used = 0;
+    S->strg.tmp_floor = 0;
+    S->vm.ncallvars = 0;
+    stmt_restore(S);
 }

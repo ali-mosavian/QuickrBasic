@@ -25,8 +25,8 @@
  * | fs:[id*8].TVAR, vxat, nmat, cellof | symb_var, symb_varx, symb_name, symb_cell | MIRROR; D1 |
  * | nmtest id, bits | symb_name(id)->flags & bits | MIRROR |
  * | [ntext.at + TNAM.text] | symb_text(id) | MIRROR |
- * | sym_new, var_size, var_clr | symb_new, symb_size, symb_clear | MIRROR |
- * | sym_init, var_init | symb_init, symb_vars_init | MIRROR |
+ * | sym_new, var_size, var_clr | symb_new, symb_size, symb_clear (session_clear the rest) | MIRROR |
+ * | sym_init, var_init | symb_reset, symb_vars_init | MIRROR |
  * | nam_find (nptr, nlen -> EAX) | symb_find_name(text, len) | MIRROR; D2 |
  * | var_find (AX, CL, DL, cscope, cstat -> EAX) | symb_find_var(name, type, kind, scope, stat) | MIRROR; D2 |
  * | var_cell (EBX -> ECX) | symb_cell(id) | MIRROR |
@@ -39,14 +39,6 @@
  *   are scope and stat.
  */
 #include "mem/symbols.h"
-#include "session.h"
-#include "comp/declare.h"
-#include "io/repl.h"
-#include "mem/array.h"
-#include "mem/program.h"
-#include "mem/string.h"
-#include "vm/exec.h"
-#include "vm/stmts.h"
 
 enum {
     VINIT = 1024, /* the first variables' room */
@@ -56,7 +48,7 @@ enum {
     NAME_HASH_MUL = 31,
 };
 
-static uint16_t *name_next(Session *const S) { return (uint16_t *)at(S->symb.names.at[1]); }
+static uint16_t *symb_name_next(const Symb *const sy) { return (uint16_t *)at(sy->names.at[1]); }
 
 /* The variables' block moved or grew: the scalars' vt by the cells' move. */
 static void symb_vars_moved(Table *const t, const Addr old)
@@ -74,8 +66,9 @@ static void symb_vars_moved(Table *const t, const Addr old)
     }
 }
 
-void symb_new(Symb *const sy, Allo *const al)
+void symb_new(Symb *const sy, Allo *const al, Fault *const f)
 {
+    sy->fault = f;
     sy->vars = (Table){
         .narr = 4,
         .size = {sizeof(Cell), sizeof(Var), sizeof(VarX), 8},
@@ -92,65 +85,56 @@ void symb_new(Symb *const sy, Allo *const al)
     tabl_new(al, &sy->text, NINIT * 8);
 }
 
-void symb_size(Session *const S)
+void symb_size(Symb *const sy, const Prog *const pg)
 {
-    uint32_t n = S->symb.nvars + VSLACK;
+    uint32_t n = sy->nvars + VSLACK;
 
-    for (uint32_t l = PROGBASE; prog_line(&S->prog, l)->len; l += prog_line(&S->prog, l)->len) {
-        const uint8_t *const p = at(prog_addr(&S->prog, l));
+    for (uint32_t l = PROGBASE; prog_line(pg, l)->len; l += prog_line(pg, l)->len) {
+        const uint8_t *const p = at(prog_addr(pg, l));
 
-        for (uint32_t i = HDR; i < prog_line(&S->prog, l)->len; i++)
+        for (uint32_t i = HDR; i < prog_line(pg, l)->len; i++)
             n += p[i] == M_VAR;
     }
 
     if (n > IDMAX)
         n = IDMAX;
 
-    tabl_room(&S->symb.vars, n); /* no room: the variable past it errs */
+    tabl_room(&sy->vars, n); /* no room: the variable past it errs */
 }
 
-void symb_clear(Session *const S)
+void symb_clear(Symb *const sy)
 {
-    memset(at(S->symb.vars.at[0]), 0, S->symb.vars.cap * sizeof(Cell));
+    memset(at(sy->vars.at[0]), 0, sy->vars.cap * sizeof(Cell));
 
-    for (uint16_t id = 0; id < S->symb.nvars; id++) {
-        Var *const v = symb_var(&S->symb, id);
+    for (uint16_t id = 0; id < sy->nvars; id++) {
+        Var *const v = symb_var(sy, id);
 
         if (v->info & VI_ARR) {
             v->vt = 0;
-            symb_varx(&S->symb, id)->dyn = 0;
+            symb_varx(sy, id)->dyn = 0;
         } else {
-            v->vt = symb_cell(&S->symb, id); /* a parameter's, bound elsewhere: back */
+            v->vt = symb_cell(sy, id); /* a parameter's, bound elsewhere: back */
         }
     }
-
-    S->allo.arrays = S->allo.bot;
-    S->allo.strings = S->allo.top;
-    S->arry.hdr = S->allo.hdr_base;
-    S->strg.tmp_used = 0;
-    S->strg.tmp_floor = 0;
-    S->vm.ncallvars = 0;
-    stmt_restore(S);
 }
 
-void symb_init(Session *const S)
+void symb_reset(Symb *const sy)
 {
-    S->symb.nnames = 1;
-    S->symb.text_free = 0;
-    memset(S->symb.nhead, 0, sizeof S->symb.nhead);
-    symb_vars_init(S);
-    decl_reset(&S->decl, &S->scop, &S->symb);
+    sy->nnames = 1;
+    sy->text_free = 0;
+    memset(sy->nhead, 0, sizeof sy->nhead);
+    symb_vars_init(sy);
 }
 
-void symb_vars_init(Session *const S)
+void symb_vars_init(Symb *const sy)
 {
-    S->symb.nvars = 1;
-    memset(S->symb.vhead, 0, sizeof S->symb.vhead);
-    memset(S->symb.first_local, 0, sizeof S->symb.first_local);
+    sy->nvars = 1;
+    memset(sy->vhead, 0, sizeof sy->vhead);
+    memset(sy->first_local, 0, sizeof sy->first_local);
 }
 
 /* Do the len chars at text, case not told, spell name text t (its length, then upper case)? */
-static bool spells(const uint8_t *const t, const uint8_t *const text, const uint8_t len)
+static bool symb_spells(const uint8_t *const t, const uint8_t *const text, const uint8_t len)
 {
     if (t[0] != len)
         return false;
@@ -161,7 +145,7 @@ static bool spells(const uint8_t *const t, const uint8_t *const text, const uint
     return true;
 }
 
-uint16_t symb_find_name(Session *const S, const uint8_t *const text, const uint8_t len)
+uint16_t symb_find_name(Symb *const sy, const uint8_t *const text, const uint8_t len)
 {
     uint32_t hash = 0;
 
@@ -170,38 +154,37 @@ uint16_t symb_find_name(Session *const S, const uint8_t *const text, const uint8
 
     const uint32_t h = hash & (HSIZE - 1);
 
-    for (uint16_t id = S->symb.nhead[h]; id; id = name_next(S)[id])
-        if (spells(symb_text(&S->symb, id), text, len))
+    for (uint16_t id = sy->nhead[h]; id; id = symb_name_next(sy)[id])
+        if (symb_spells(symb_text(sy, id), text, len))
             return id;
 
-    const uint16_t id = S->symb.nnames;
+    const uint16_t id = sy->nnames;
 
-    if (!tabl_room(&S->symb.names, id + 1u) ||
-        !tabl_room(&S->symb.text, len + S->symb.text_free + 1))
-        repl_error(S, E_OM);
+    if (!tabl_room(&sy->names, id + 1u) || !tabl_room(&sy->text, len + sy->text_free + 1))
+        fault_error(sy->fault, E_OM);
 
-    Name *const n = symb_name(&S->symb, id);
-    *n = (Name){.text = S->symb.text_free};
+    Name *const n = symb_name(sy, id);
+    *n = (Name){.text = sy->text_free};
 
-    uint8_t *const d = at(S->symb.text.at[0] + S->symb.text_free);
+    uint8_t *const d = at(sy->text.at[0] + sy->text_free);
     d[0] = len;
 
     for (uint8_t i = 0; i < len; i++)
         d[1 + i] = upcase(text[i]);
 
-    S->symb.text_free += len + 1u;
-    name_next(S)[id] = S->symb.nhead[h];
-    S->symb.nhead[h] = id;
+    sy->text_free += len + 1u;
+    symb_name_next(sy)[id] = sy->nhead[h];
+    sy->nhead[h] = id;
 
     if (len > 2 && d[1] == 'F' && d[2] == 'N')
         n->flags = NM_FN;
 
-    S->symb.nnames++;
+    sy->nnames++;
     return id;
 }
 
 uint16_t symb_find_var(
-    Session *const S,
+    Symb *const sy,
     const uint16_t name,
     const uint8_t type,
     const uint8_t kind,
@@ -211,37 +194,37 @@ uint16_t symb_find_var(
 {
     const uint32_t h = (name * 5u + type * 2u + (kind >> 7) + scope * 8u) & (HSIZE - 1);
 
-    for (uint16_t id = S->symb.vhead[h]; id; id = symb_varx(&S->symb, id)->next) {
-        const Var *const v = symb_var(&S->symb, id);
+    for (uint16_t id = sy->vhead[h]; id; id = symb_varx(sy, id)->next) {
+        const Var *const v = symb_var(sy, id);
 
         if (v->name == name && v->type == type && (v->info & (VI_ARR | SK_DBL | VK_MASK)) == kind &&
-            symb_varx(&S->symb, id)->scope == scope)
+            symb_varx(sy, id)->scope == scope)
             return id;
     }
 
-    const uint16_t id = S->symb.nvars;
+    const uint16_t id = sy->nvars;
 
-    if (id >= S->symb.vars.cap && !tabl_room(&S->symb.vars, id + 1u))
-        repl_error(S, E_OM);
+    if (id >= sy->vars.cap && !tabl_room(&sy->vars, id + 1u))
+        fault_error(sy->fault, E_OM);
 
-    Var *const v = symb_var(&S->symb, id);
-    VarX *const x = symb_varx(&S->symb, id);
+    Var *const v = symb_var(sy, id);
+    VarX *const x = symb_varx(sy, id);
     *v = (Var){.name = name, .type = type, .info = kind};
 
-    *x = (VarX){.next = S->symb.vhead[h], .scope = scope};
+    *x = (VarX){.next = sy->vhead[h], .scope = scope};
 
-    S->symb.vhead[h] = id;
+    sy->vhead[h] = id;
 
     if (scope && !stat) { /* a local: on its procedure's list */
-        x->nloc = S->symb.first_local[scope];
-        S->symb.first_local[scope] = id;
+        x->nloc = sy->first_local[scope];
+        sy->first_local[scope] = id;
     }
 
     if (!(kind & VI_ARR)) {
-        v->vt = symb_cell(&S->symb, id);
+        v->vt = symb_cell(sy, id);
         memset(at(v->vt), 0, sizeof(Cell));
     }
 
-    S->symb.nvars++;
+    sy->nvars++;
     return id;
 }

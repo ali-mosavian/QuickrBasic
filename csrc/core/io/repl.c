@@ -451,7 +451,7 @@ static void repl_warn(Session *const S, const char *const what)
 uint16_t repl_intern(LexrNames *const names, const uint8_t *const text, const uint8_t len)
 {
     Session *const S = container_of(names, Session, names);
-    return symb_find_name(S, text, len);
+    return symb_find_name(&S->symb, text, len);
 }
 
 void repl_declare(Session *const S, const uint8_t *const body)
@@ -570,7 +570,7 @@ void repl_relink(Session *const S)
         else
             line += prog_line(&S->prog, line)->len;
 
-    symb_vars_init(S);
+    symb_vars_init(&S->symb);
     decl_reset(&S->decl, &S->scop, &S->symb);
     prog_drop(S);
     S->repl.loading = true;

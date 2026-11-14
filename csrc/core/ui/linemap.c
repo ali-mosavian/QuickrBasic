@@ -44,7 +44,7 @@ void lmap_build(Session *const S)
         const uint32_t need = (n + 1) * sizeof(uint32_t);
 
         if (need > allo_cap(&S->allo, HLMAP)) {
-            symb_clear(S); /* it grows: the heap emptied first */
+            session_clear(S); /* it grows: the heap emptied first */
             if (!allo_grow(&S->allo, HLMAP, need))
                 repl_error(S, E_OM);
         }

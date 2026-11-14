@@ -184,13 +184,14 @@ void prog_drop(Session *const S)
     S->link.linked = false;
     S->vm.nframes = 0;
     terminate(S);
-    symb_clear(S);
+    session_clear(S);
 }
 
 void prog_init(Session *const S)
 {
     S->prog.end = PROGBASE;
-    symb_init(S);
+    symb_reset(&S->symb);
+    decl_reset(&S->decl, &S->scop, &S->symb);
     prog_drop(S);
 }
 
@@ -199,7 +200,7 @@ void prog_room(Session *const S, const uint32_t size)
     if (size <= allo_cap(&S->allo, HPROG))
         return;
 
-    symb_clear(S);
+    session_clear(S);
 
     if (!allo_grow(&S->allo, HPROG, size))
         repl_error(S, E_OM);

@@ -64,7 +64,7 @@ static uint8_t nrec(Session *const S, const uint16_t name, const bool array)
 static uint16_t recvar(Session *const S, const uint16_t name, const uint8_t t, const uint8_t kind)
 {
     comp_scope(S, name);
-    return symb_find_var(S, name, ET_REC + t, kind, S->comp.scope, S->comp.isstatic);
+    return symb_find_var(&S->symb, name, ET_REC + t, kind, S->comp.scope, S->comp.isstatic);
 }
 
 uint16_t ref_recarray(Session *const S, const uint16_t name, const uint8_t t)
@@ -94,7 +94,7 @@ static RecRef path(Session *const S, uint8_t t, const uint8_t *text, uint32_t le
         while (n < len && text[n] != '.')
             n++;
 
-        const uint16_t name = symb_find_name(S, text, (uint8_t)n);
+        const uint16_t name = symb_find_name(&S->symb, text, (uint8_t)n);
         const TypeDef *const td = decl_type(&S->decl, t);
         f = nullptr;
 
@@ -180,7 +180,7 @@ Node *ref_record(Session *const S)
         if (text[i] != '.')
             continue;
 
-        const uint16_t pre = symb_find_name(S, text, (uint8_t)i);
+        const uint16_t pre = symb_find_name(&S->symb, text, (uint8_t)i);
         t = nrec(S, pre, false);
 
         if (!t)

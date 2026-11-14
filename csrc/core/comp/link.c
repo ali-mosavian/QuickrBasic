@@ -247,7 +247,7 @@ void link_start(Session *const S)
     if (S->link.linked)
         return;
 
-    symb_size(S);
+    symb_size(&S->symb, &S->prog);
     fold_clear(S);
     blok_pair(&S->blok, &S->prog, &S->symb, &S->fault);
     link_procvars(S);

@@ -67,7 +67,7 @@ void boot(Session *const S, const FrontEnd *const fe)
 
     if (fe->regions)
         fe->regions(S); /* the variables, names last: they grow while code holds their cells */
-    symb_new(&S->symb, &S->allo);
+    symb_new(&S->symb, &S->allo, &S->fault);
     S->vm.nframes = 0;
     prog_line(&S->prog, DLINE)->len = 0; /* the direct line: len 0, num FF00h */
     prog_line(&S->prog, DLINE)->num = 0xFF00;

@@ -547,7 +547,7 @@ void stmt_runl(Session *const S)
 
     if (num >= LABEL_LINE)
         repl_error(S, E_US); /* RUN takes a number, not a label */
-    symb_clear(S);
+    session_clear(S);
     link_start(S);
     S->vm.lnum = (uint16_t)num;
     uint32_t line;
@@ -560,7 +560,7 @@ void stmt_runl(Session *const S)
 
 void stmt_run(Session *const S)
 {
-    symb_clear(S);
+    session_clear(S);
     link_start(S);
     stmt_runfirst(S);
 }
@@ -598,7 +598,7 @@ void stmt_cont(Session *const S)
 /* CLEAR: the variables, and the frames. */
 void stmt_clr(Session *const S)
 {
-    symb_clear(S);
+    session_clear(S);
     S->vm.nframes = 0;
 }
 
