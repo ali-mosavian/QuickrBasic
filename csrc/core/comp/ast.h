@@ -26,6 +26,8 @@ typedef enum : uint8_t {
     N_TARGET,
     N_STORE,
     N_COUNT,
+    N_OP,
+    N_JUMP,
 } NodeKind;
 
 enum { AST_CHUNK = 0x4000, LIT_MAX = 8 };
@@ -95,7 +97,7 @@ struct Node {
                           N_FN: the function, TK_SGN on; N_XFN: its xfns entry; N_REF: O_R_ADDR,
                           O_RA_ADDR, O_V_ADDR; N_ADDR: its CALL, 0 none; N_ARG: PA_*;
                           N_CALL: the procedure's index; N_KCALL: its K_*; N_CONV: CV_*;
-                          N_STORE: the target's subscripts */
+                          N_STORE: the target's subscripts; N_OP, N_JUMP: the op */
     bool dbl;      /* N_BIN, N_FN: parsed for a DOUBLE target (expr.dbltgt) */
     uint8_t conv;  /* an N_XFN's argument: its kind (I F D S W G X, R an array's id) */
     uint8_t mode;  /* N_XFN: XM_*; N_CALL: CALL_* */
@@ -104,6 +106,7 @@ struct Node {
                           child (N_STORE's its value); b: the first argument, N_TARGET's subscript */
     Node *next;    /* an argument, a step: the next, null none */
     uint16_t fix;  /* N_STORE: a STRING * n target's n, 0 none */
+    uint32_t line; /* N_JUMP: its target's line, the line number in id */
     uint16_t
         id; /* N_VAR, N_ELEM, N_REF, N_TARGET, N_STORE: the variable; N_ARG: PA_VALUE's parameter, an array's
                           or a record's; N_CALL CALL_UNDEF: its result */
@@ -117,12 +120,8 @@ struct Node {
         *end; /* N_UN, N_BIN, N_FN, N_XFN, N_CONV: past its last operand, an error's place */
 };
 
-/* n an expression's value, not a CALL's, a target's, a store or a count. */
-static inline bool ast_isvalue(const Node *const n)
-{
-    return n && n->kind != N_KCALL && n->kind != N_TARGET && n->kind != N_STORE &&
-           n->kind != N_COUNT;
-}
+/* n an expression's value: the kinds up to N_CONV. */
+static inline bool ast_isvalue(const Node *const n) { return n && n->kind <= N_CONV; }
 
 /* The statement's arena; its steps, first to last. */
 typedef struct {

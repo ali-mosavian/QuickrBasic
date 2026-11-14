@@ -559,6 +559,16 @@ static void gen(Code *const c, const Node *const i)
         code_int(c, n->nargs);
         break;
 
+    case N_OP:
+        code_op(c, n->op);
+        break;
+
+    case N_JUMP: /* comp_lref's */
+        code_op(c, n->op);
+        code_word(c, n->id);
+        code_dword(c, n->line);
+        break;
+
     case N_CONV:
         cg_conv(c, n);
         break;

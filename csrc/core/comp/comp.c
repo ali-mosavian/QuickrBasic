@@ -36,8 +36,8 @@
  * | var_id, var_ispar, var_par, var_scope | comp_var, comp_ispar, comp_param, comp_scope | MIRROR |
  * | et_sfx, lbl_at, lbl_nam | comp_suffix, comp_label, comp_nameof | MIRROR |
  * | cm_rts | | gone: a return |
- * | cm_if, cm_fv, cm_fork, cm_for, cm_for1, cm_nv, cm_on, cm_onl, cm_print, cm_list, cm_dv, cm_dat, cm_rem, cm_in, cm_rd, cm_get, cm_goto, cm_gosub, cm_run, cm_res, cm_ret, cm_write, cm_lin | act_if, act_fv, act_fork, act_for, act_for1, act_for2, act_nv, act_on, act_onl, act_print, act_list, act_dv, act_data, act_rem, act_in, act_rd, act_get, act_goto, act_gosub, act_run, act_res, act_ret, act_write, act_lin | MIRROR; D3 |
- * | cm_n0, cm_n1, cm_narg, cm_fop | step_n0, step_n1, step_narg, step_fop | MIRROR |
+ * | cm_if, cm_fv, cm_fork, cm_for, cm_for1, cm_nv, cm_on, cm_onl, cm_print, cm_list, cm_dv, cm_dat, cm_rem, cm_in, cm_rd, cm_get, cm_run, cm_res, cm_write, cm_lin | act_if, act_fv, act_fork, act_for, act_for1, act_for2, act_nv, act_on, act_onl, act_print, act_list, act_dv, act_data, act_rem, act_in, act_rd, act_get, act_run, act_res, act_write, act_lin | MIRROR; D3 |
+ * | cm_n0, cm_n1, cm_narg, cm_fop, cm_goto, cm_gosub, cm_ret | step_n0, step_n1, step_narg, step_fop, step_goto, step_gosub, step_ret | MIRROR |
  * | g_cmact | actions[] | MIRROR; `[A_x - A_BASE] = ...` |
  * | cm_new, cm_ee, cm_nx, cm_om, cm_fin, cm_mark, cm_dbg, cm_dbgx, cm_mapstmt, cm_tok, ps_look, cm_lnld, var_decl, cm_dim1, cm_dvas, cm_dsubs, cm_using | stmts (cm_new, cm_ee), ended (cm_nx, cm_om), finish, mark, dbg, dbgdrop, mapstmt, token, pslook, lnumload, declared, dim1, dimas, dimsubs, using | MIRROR |
  * | cm_do | token's dispatch | MIRROR |
@@ -667,7 +667,7 @@ static void step_call(Session *const S, const uint8_t k)
     ast_step(&S->ast, n);
 }
 
-/* A_FOP: a file statement's CALL. */
+/* A_FOP: CALL LOAD, SAVE or VERIFY by the token. */
 static void step_fop(Session *const S) { step_call(S, S->comp.tok + K_LOAD - TK_LOAD); }
 
 /* A_N0, A_N1: the arguments counted; no code. */
@@ -681,6 +681,31 @@ static void step_narg(Session *const S)
     n->nargs = S->comp.nargs;
     ast_step(&S->ast, n);
 }
+
+/* A_L: a line number or label read; no code. */
+static void step_lnum(Session *const S) { comp_lnum(S); }
+
+/* Op alone. */
+static void step_op(Session *const S, const uint8_t op)
+{
+    Node *const n = ast_new(&S->ast, N_OP);
+    n->op = op;
+    ast_step(&S->ast, n);
+}
+
+/* Op to the line A_L read. */
+static void step_jump(Session *const S, const uint8_t op)
+{
+    Node *const n = ast_new(&S->ast, N_JUMP);
+    n->op = op;
+    n->id = S->comp.lnum;
+    n->line = S->comp.jline;
+    ast_step(&S->ast, n);
+}
+
+static void step_goto(Session *const S) { step_jump(S, O_GOTO); }
+static void step_gosub(Session *const S) { step_jump(S, O_GOSUB); }
+static void step_ret(Session *const S) { step_op(S, O_RETURN); }
 
 /* By A_*: the actions that make steps; the others flush the steps first. */
 static void (*const steps[A_END - A_BASE])(Session *S) = {
@@ -698,6 +723,10 @@ static void (*const steps[A_END - A_BASE])(Session *S) = {
     [A_N0 - A_BASE] = step_n0,
     [A_N1 - A_BASE] = step_n1,
     [A_NARG - A_BASE] = step_narg,
+    [A_L - A_BASE] = step_lnum,
+    [A_GOTO - A_BASE] = step_goto,
+    [A_GOSUB - A_BASE] = step_gosub,
+    [A_RET - A_BASE] = step_ret,
 };
 
 static uint32_t pslook(const uint32_t st, const uint8_t cls)
@@ -1295,40 +1324,20 @@ static void act_onl(Session *const S)
     (*S->comp.onat)++;
 }
 
-static void act_goto(Session *const S)
-{
-    code_op(&S->code, O_GOTO);
-    comp_lref(S);
-}
-
-static void act_gosub(Session *const S)
-{
-    code_op(&S->code, O_GOSUB);
-    comp_lref(S);
-}
-
-static void act_ret(Session *const S) { code_op(&S->code, O_RETURN); }
-
-/* CALL LOAD, SAVE or VERIFY by the token. */
-
-static void act_lnum(Session *const S) { comp_lnum(S); }
-
 static void (*const actions[A_END - A_BASE])(Session *S) = {
     [A_E - A_BASE] = expr_compile,    [A_LV - A_BASE] = expr_target,
-    [A_L - A_BASE] = act_lnum,        [A_TOB - A_BASE] = comp_tobyte,
-    [A_TOA - A_BASE] = comp_toaddr,   [A_TOS - A_BASE] = comp_tostring,
-    [A_STR - A_BASE] = expr_string,   [A_FV - A_BASE] = act_fv,
-    [A_FST - A_BASE] = comp_store,    [A_FK - A_BASE] = act_fork,
-    [A_FOR - A_BASE] = act_for2,      [A_FOR1 - A_BASE] = act_for1,
-    [A_NV - A_BASE] = act_nv,         [A_IF - A_BASE] = act_if,
-    [A_ON - A_BASE] = act_on,         [A_ONL - A_BASE] = act_onl,
-    [A_PR - A_BASE] = act_print,      [A_LST - A_BASE] = act_list,
-    [A_DV - A_BASE] = act_dv,         [A_DATA - A_BASE] = act_data,
-    [A_REM - A_BASE] = act_rem,       [A_LET - A_BASE] = comp_store,
-    [A_IN - A_BASE] = act_in,         [A_RD - A_BASE] = act_rd,
-    [A_GET - A_BASE] = act_get,       [A_GOTO - A_BASE] = act_goto,
-    [A_GOSUB - A_BASE] = act_gosub,   [A_RUN - A_BASE] = act_run,
-    [A_RES - A_BASE] = act_res,       [A_RET - A_BASE] = act_ret,
+    [A_TOB - A_BASE] = comp_tobyte,   [A_TOA - A_BASE] = comp_toaddr,
+    [A_TOS - A_BASE] = comp_tostring, [A_STR - A_BASE] = expr_string,
+    [A_FV - A_BASE] = act_fv,         [A_FST - A_BASE] = comp_store,
+    [A_FK - A_BASE] = act_fork,       [A_FOR - A_BASE] = act_for2,
+    [A_FOR1 - A_BASE] = act_for1,     [A_NV - A_BASE] = act_nv,
+    [A_IF - A_BASE] = act_if,         [A_ON - A_BASE] = act_on,
+    [A_ONL - A_BASE] = act_onl,       [A_PR - A_BASE] = act_print,
+    [A_LST - A_BASE] = act_list,      [A_DV - A_BASE] = act_dv,
+    [A_DATA - A_BASE] = act_data,     [A_REM - A_BASE] = act_rem,
+    [A_LET - A_BASE] = comp_store,    [A_IN - A_BASE] = act_in,
+    [A_RD - A_BASE] = act_rd,         [A_GET - A_BASE] = act_get,
+    [A_RUN - A_BASE] = act_run,       [A_RES - A_BASE] = act_res,
     [A_SWAP - A_BASE] = ctrl_swap,    [A_TOI - A_BASE] = comp_toint,
     [A_TOD - A_BASE] = comp_todouble, [A_VA - A_BASE] = expr_varaddr,
     [A_WR - A_BASE] = act_write,      [A_LIN - A_BASE] = act_lin,
