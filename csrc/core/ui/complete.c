@@ -418,7 +418,13 @@ bool cmpl_tab(Session *const S)
         return true;
     }
 
-    if (!cmpl_find(S))
+    const LineBuf *const b = &uimn.edline;
+    uint16_t lead = 0;
+
+    while (lead < b->col && b->text[lead] == ' ')
+        lead++;
+
+    if (lead == b->col || !cmpl_find(S)) /* in the indent: Tab indents */
         return false;
 
     cmpl_common();

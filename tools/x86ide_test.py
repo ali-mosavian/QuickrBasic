@@ -122,7 +122,9 @@ def play() -> None:
         press(f"0x{0x18:x}", "h")
 
     # Free-form lines, capitalised on leaving; F5 runs them.
-    keys("for i=1 to 3\n  print i*i\n")
+    keys("for i=1 to 3\n")
+    press("backspace")  # the body's indent Enter made, a step back: 2 typed
+    keys("  print i*i\n")
     press("home")  # past the indent Enter kept
     keys("next\n")
     assert text()[:3] == ["FOR I = 1 TO 3", "  PRINT I * I", "NEXT"], text()
@@ -442,7 +444,7 @@ def play() -> None:
     assert line() == "REM PR" and look()[24].endswith(":009"), look()[24]
     ctrl_y()
     complete('print "pr')  # nor in a string
-    assert line() == 'PRINT "PR' and look()[24].endswith(":017"), look()[24]
+    assert line() == 'PRINT "PR' and look()[24].endswith(":013"), look()[24]  # Tab: the next step of 4
     ctrl_y()
     # The editor's own reader took all after DATA as DATA's: no statement after its ':'.
     complete("data 1:pr")  # a statement after DATA's ':'
@@ -461,6 +463,23 @@ def play() -> None:
     complete("for k=1 to 2:next ")  # NEXT: the open FOR's variable
     assert line() == "FOR K=1 TO 2:NEXT K", line()
     ctrl_y()
+    # Auto indent: a block's body a step (4) in, its end back at its start; Tab to the next step,
+    # Backspace in the indent to the one before.
+    typed("for k = 1 to 2")
+    press("enter")
+    keys("print k")
+    press("enter")
+    keys("next")
+    press("enter")
+    assert text()[3:6] == ["FOR K = 1 TO 2", "    PRINT K", "NEXT"], text()
+    press("tab")
+    keys("x")
+    assert text()[6].startswith("    X"), text()  # a step in; X='s '=' dim after it
+    press("backspace", "backspace")
+    assert text()[6] == "", text()
+    for _ in range(4):
+        ctrl_y()
+    assert text()[3] == "", text()
     press("0x75", "0x4f", "enter")  # GOSUB: a line after RETURN first
     keys("10 return\n20 rem b\ngosub ")
     assert text()[5] == "GOSUB 20", text()

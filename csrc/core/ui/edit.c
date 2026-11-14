@@ -40,6 +40,7 @@
  * - D2. A parameter, not a global set before the call.
  */
 #include "ui/edit.h"
+#include "ui/indent.h"
 #include "session.h"
 #include "comp/comp.h"
 #include "comp/declare.h"
@@ -506,11 +507,45 @@ static uint16_t split(LineBuf *const b, const uint16_t ind)
     return ind + rest - skip;
 }
 
+/* indt_enter's: line i of the program window's text. */
+static uint16_t text_line(void *const S, const uint32_t i, uint8_t *const dst)
+{
+    return (uint16_t)text_get(S, i, dst);
+}
+
+/* The line's indent made n spaces, the cursor kept on its character. */
+static void reindent(LineBuf *const b, const uint16_t n)
+{
+    const uint16_t lead = indent(b);
+    const uint16_t col = b->col;
+
+    if (n == lead)
+        return;
+    if (n < lead) {
+        edit_lb_cut(b, 0, lead - n);
+    } else {
+        b->col = 0;
+
+        for (uint16_t i = lead; i < n; i++)
+            edit_lb_insert(b, (const uint8_t *)" ", 1);
+    }
+
+    b->col = (uint16_t)(col + n - lead);
+    b->dirty = true;
+}
+
 void edit_enter(Session *const S)
 {
     LineBuf *const b = &uimn.edline;
     const uint16_t lead = indent(b);
-    const uint16_t ind = lead > b->col ? b->col : lead;
+    uint16_t ind = lead > b->col ? b->col : lead;
+
+    if (b->col > lead) { /* past the indent: by the blocks (indent.h) */
+        uint16_t self;
+        indt_enter(text_line, S, uimn.ed.line, b->text, b->col, &self, &ind);
+        reindent(b, self);
+    }
+
     uimn.ed.indent = ind;
     uimn.ed.nlen = split(b, ind); /* the new line: the indent, the rest */
     const uint8_t view = uimn.ed.view;
@@ -529,6 +564,13 @@ void edit_enter(Session *const S)
 void edit_bs(Session *const S)
 {
     LineBuf *const b = &uimn.edline;
+
+    if (b->col && indent(b) >= b->col) { /* in the indent: back to the step before */
+        const uint16_t k = b->col % INDT_STEP ? b->col % INDT_STEP : INDT_STEP;
+        edit_lb_cut(b, b->col - k, b->col);
+        b->dirty = true;
+        return;
+    }
 
     if (edit_lb_bs(b))
         return;
@@ -585,7 +627,7 @@ void edit_tab(void)
 {
     LineBuf *const b = &uimn.edline;
 
-    while (edit_lb_type(b, ' ', LNMAX) && b->col % TAB_STOP)
+    while (edit_lb_type(b, ' ', LNMAX) && b->col % INDT_STEP)
         ;
 }
 
