@@ -1037,5 +1037,15 @@ static void fe_chain(Session *const S)
         repl_error(S, E_AF);
 }
 
+/* The lexer's columns for the lit statement, the syntax colours and the tab completion; the
+   map's block. */
+static void regions(Session *const S)
+{
+    static uint16_t cols[LMAX];
+    S->lexr.col = cols;
+    S->lexr.ncol = LMAX;
+    lmap_init(S);
+}
+
 const FrontEnd uimn_front_end = {
-    .regions = lmap_init, .start = uimn_start, .ready = fe_ready, .error = fe_error, .chain = fe_chain};
+    .regions = regions, .start = uimn_start, .ready = fe_ready, .error = fe_error, .chain = fe_chain};

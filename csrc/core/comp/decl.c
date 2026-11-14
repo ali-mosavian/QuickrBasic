@@ -65,7 +65,6 @@ uint8_t decl_proc(const uint8_t *const body, const uint8_t **const name)
     return 0;
 }
 
-#if AC
 bool decl_tail(const uint8_t **const at)
 {
     const uint8_t *p = *at;
@@ -129,7 +128,6 @@ const uint8_t *decl_step(const uint8_t *p)
             return p;
     }
 }
-#endif
 
 void decl_reset(Session *const S)
 {

@@ -57,9 +57,7 @@ const uint8_t *decl_item(const uint8_t *p); /* dc_item: past the item at p */
 /* dc_proc: the body is a SUB's or FUNCTION's first line (PK_SUB, PK_FUNC; *name its M_VAR), their
    END (PK_END), else 0. */
 uint8_t decl_proc(const uint8_t *body, const uint8_t **name);
-#if AC
 bool decl_tail(const uint8_t **at); /* *at the body to its last statement; true ends in a string,
                                        REM's or DATA's text */
 const uint8_t *decl_step(const uint8_t *p); /* decl_item, a number kept as text whole */
-#endif
 #endif

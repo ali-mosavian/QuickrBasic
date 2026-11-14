@@ -6,12 +6,6 @@
 
 typedef struct Vm Vm; /* the virtual machine (vm/exec.h) */
 
-#ifndef IDE
-#define IDE 0
-#endif
-#ifndef AC
-#define AC IDE /* Tab completion in the editor */
-#endif
 
 /* A compiled expression's static type (cty). */
 enum : uint8_t {
@@ -87,7 +81,6 @@ enum : uint32_t {
     LMAX = 0xFEE0,     /* a line's body at most */
     BOFF = 0xFFFFFFFF, /* a statement map's body offset of the line's end */
     PDIR = 0x80000000, /* a target's flag: the direct line's */
-    LXCMAX = IDE ? 0xFEE0 : 1,
     XSLK = 48,         /* the most one op writes past its size */
     XLIM = 0xF8E0,     /* a line's code at most */
 };

@@ -67,34 +67,31 @@ CLANG ?= /opt/homebrew/opt/llvm/bin/clang
 OBJCOPY ?= $(dir $(CLANG))llvm-objcopy
 CC_OPT ?= -O2
 CFLAGS := --target=i386-pc-win32 -march=i386 -mregparm=3 -std=c23 $(CC_OPT) -ffreestanding \
-	-fno-asynchronous-unwind-tables -fno-stack-protector -mno-stack-arg-probe -mstack-alignment=4 \
+	-fno-asynchronous-unwind-tables -fno-stack-protector -mno-stack-arg-probe -mstack-alignment=4 -Werror=undef \
 	-DARENA_AT_ZERO=1 -Wall -Wextra -Wno-unused-parameter -isystem csrc/lib/include -Icsrc -Icsrc/core
 COWN := $(foreach f,memcpy memmove memset,--redefine-sym _$(f)=_lib_$(f))
 CSRC := $(shell find csrc/core csrc/lib -name '*.c' -not -path 'csrc/core/ui/*') \
-	$(wildcard csrc/plat/dos32/*.c) csrc/boot.c csrc/main.c
+	$(wildcard csrc/plat/dos32/*.c) csrc/boot.c
 CUI := $(shell find csrc/core/ui -name '*.c' 2>/dev/null)
 CASM := $(wildcard csrc/plat/dos32/*.asm)
 CHDR := $(shell find csrc -name '*.h' -o -name '*.def')
-COBJ := $(CSRC:csrc/%.c=build/c/basic32/%.obj) $(CASM:csrc/%.asm=build/c/basic32/%.obj)
-CIDE_OBJ := $(CSRC:csrc/%.c=build/c/ide32/%.obj) $(CUI:csrc/%.c=build/c/ide32/%.obj) \
-	$(CASM:csrc/%.asm=build/c/ide32/%.obj)
+CCORE := $(CSRC:csrc/%.c=build/c/obj/%.obj) $(CASM:csrc/%.asm=build/c/obj/%.obj)
+COBJ := $(CCORE) build/c/obj/app/basic32.obj
+CIDE_OBJ := $(CCORE) $(CUI:csrc/%.c=build/c/obj/%.obj) build/c/obj/app/ide32.obj
 C_LINK = python3 -I $(LLRM)/tools/dosbatch/link_objects.py x86-m32
 
 .PHONY: c cbasic32 cide32 ctest
 c: cbasic32 cide32
 
-build/c/basic32/%.obj: csrc/%.c $(CHDR)
+build/c/obj/core/ui/%.obj: csrc/core/ui/%.c $(CHDR)   # the editor: AC, its Tab completion
 	@mkdir -p $(@D)
-	$(CLANG) $(CFLAGS) -DIDE=0 -c $< -o $@
+	$(CLANG) $(CFLAGS) -DAC=$(AC) -c $< -o $@
 	$(OBJCOPY) $(COWN) $@
-build/c/ide32/%.obj: csrc/%.c $(CHDR)
+build/c/obj/%.obj: csrc/%.c $(CHDR)
 	@mkdir -p $(@D)
-	$(CLANG) $(CFLAGS) -DIDE=1 -c $< -o $@
+	$(CLANG) $(CFLAGS) -c $< -o $@
 	$(OBJCOPY) $(COWN) $@
-build/c/basic32/%.obj: csrc/%.asm
-	@mkdir -p $(@D)
-	$(LLRM)/target/release/jwasm -q -zf0 -Fo $@ $<
-build/c/ide32/%.obj: csrc/%.asm
+build/c/obj/%.obj: csrc/%.asm
 	@mkdir -p $(@D)
 	$(LLRM)/target/release/jwasm -q -zf0 -Fo $@ $<
 
@@ -109,7 +106,7 @@ cide32: $(CIDE_OBJ)
 
 # ---- The host build: the same core on this machine (x86-64; Rosetta's x87 on Apple silicon) ----
 HOST_CC ?= $(CLANG) -arch x86_64 -isysroot $(shell xcrun --show-sdk-path 2>/dev/null)
-HOST_CFLAGS := -std=c23 -O1 -g -DARENA_AT_ZERO=0 -Wall -Wextra -Wno-unused-parameter \
+HOST_CFLAGS := -std=c23 -O1 -g -Werror=undef -DARENA_AT_ZERO=0 -Wall -Wextra -Wno-unused-parameter \
 	-Icsrc/plat/host/include -Icsrc -Icsrc/core
 HSRC := $(shell find csrc/core -name '*.c' -not -path 'csrc/core/ui/*') \
 	$(wildcard csrc/plat/host/*.c) csrc/boot.c
@@ -118,17 +115,17 @@ HOBJ := $(HSRC:csrc/%.c=build/host/obj/%.o)
 .PHONY: chost chosttest
 build/host/obj/%.o: csrc/%.c $(CHDR)
 	@mkdir -p $(@D)
-	$(HOST_CC) $(HOST_CFLAGS) -DIDE=0 -c $< -o $@
+	$(HOST_CC) $(HOST_CFLAGS) -c $< -o $@
 
 chost: build/host/basic
-build/host/basic: $(HOBJ) build/host/obj/main.o
+build/host/basic: $(HOBJ) build/host/obj/app/basic32.o
 	$(HOST_CC) $^ -o $@
 
 UNIT_SRC := $(wildcard tests/unit/*.c)
 UNIT_OBJ := $(UNIT_SRC:tests/unit/%.c=build/host/unit/%.o)
 build/host/unit/%.o: tests/unit/%.c tests/unit/unit.h $(CHDR)
 	@mkdir -p $(@D)
-	$(HOST_CC) $(HOST_CFLAGS) -DIDE=0 -c $< -o $@
+	$(HOST_CC) $(HOST_CFLAGS) -c $< -o $@
 build/host/unit_tests: $(HOBJ) $(UNIT_OBJ)
 	$(HOST_CC) $^ -o $@
 

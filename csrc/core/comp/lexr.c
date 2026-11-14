@@ -50,7 +50,7 @@ static void markcol(Session *const S)
     const uint32_t off = (uint32_t)(S->lexr.out - S->lexr.dst);
     if (off >= LMAX)
         repl_error(S, E_OM);
-    if (off >= LXCMAX)
+    if (off >= S->lexr.ncol)
         return;
     if (S->lexr.all)
         for (int32_t i = S->lexr.last + 1; i < (int32_t)off; i++)

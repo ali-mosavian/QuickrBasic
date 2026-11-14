@@ -103,7 +103,7 @@ go in its header.
 | io/chan | io/chnl | `chnl` |
 | io/fio | io/file | `file` |
 | io/plat | plat/* | (below) |
-| main | main.c | `main` |
+| main | app/basic32.c, app/ide32.c | `main` |
 
 Platform: `pmem` memory, `pkey` keyboard, `pscr` text screen, `pmou` mouse, `pclk` clock, date
 and tick, `pfil` files and directories, `psys` process (exit, command line, environment, SHELL,
