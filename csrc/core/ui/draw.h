@@ -12,6 +12,9 @@ void draw_all(Session *S);
 void draw_edit(Session *S, bool inactive);
 /* dr_imm: the immediate window: its title, its lines; im_top kept so that im_i shows. */
 void draw_imm(void);
+/* The cursor (WidgetOps.cursor) in the edit window that has the focus, in the immediate window. */
+void draw_edit_cursor(Widget *w);
+void draw_imm_cursor(Widget *w);
 /* dr_status: the status bar: the keys (draw_keys) or uimn.help after "F1=Help"; the cursor's
    line and column from column 62 when they fit, ^Q pending, Caps and Num Lock, as QBasic's. */
 void draw_status(void);

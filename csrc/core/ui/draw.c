@@ -55,22 +55,32 @@ static char ttl[128]; /* ui_ttl: the window's title */
 void draw_all(Session *const S)
 {
     tree_draw(&uimn.tree.screen, S);
+    Widget *const f = tree_focused(&uimn.tree.screen);
 
-    /* the cursor in the window that has it, its shape the mode's */
-    const uint16_t shape = uimn.ed.insert ? CURSOR_INSERT : CURSOR_OVERWRITE;
-    scrn_shape(
-        uimn.tree.workspace.focus == FOC_PANE ? PSCR_HIDDEN : shape
-    ); /* the pane: its row lit, no cursor */
-    if (uimn.tree.workspace.focus == FOC_EDIT) {
-        edit_ensure();
-        scrn_cursor(
-            (uint8_t)(uimn.ed.line - uimn.ed.top + uimn.ed.row0),
-            (uint8_t)(uimn.edline.col - uimn.ed.left + 1 + uimn.ed.x)
-        );
-    } else if (uimn.tree.workspace.focus == FOC_IMM) {
-        const uint16_t col = uimn.immline.col < ED_COLS - 1 ? uimn.immline.col : ED_COLS - 1;
-        scrn_cursor((uint8_t)(uimn.imm.cur - uimn.imm.top + uimn.imm.row0), (uint8_t)(col + 1));
-    }
+    if (f->ops && f->ops->cursor)
+        f->ops->cursor(f);
+    else
+        scrn_shape(PSCR_HIDDEN); /* the pane: its row lit; a menu */
+}
+
+/* The cursor's shape: the edit mode's. */
+static void shape(void) { scrn_shape(uimn.ed.insert ? CURSOR_INSERT : CURSOR_OVERWRITE); }
+
+void draw_edit_cursor(Widget *const w)
+{
+    shape();
+    edit_ensure();
+    scrn_cursor(
+        (uint8_t)(uimn.ed.line - uimn.ed.top + uimn.ed.row0),
+        (uint8_t)(uimn.edline.col - uimn.ed.left + 1 + uimn.ed.x)
+    );
+}
+
+void draw_imm_cursor(Widget *const w)
+{
+    shape();
+    const uint16_t col = uimn.immline.col < ED_COLS - 1 ? uimn.immline.col : ED_COLS - 1;
+    scrn_cursor((uint8_t)(uimn.imm.cur - uimn.imm.top + uimn.imm.row0), (uint8_t)(col + 1));
 }
 
 /* The edit window drawn has the focus. */

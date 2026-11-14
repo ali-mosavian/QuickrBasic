@@ -163,9 +163,9 @@ typedef struct {
 } Level;
 
 static struct {
+    Widget w;  /* modal, shown while the menus run: the bar's title lit */
     uint8_t c; /* the bar's menu */
     bool open; /* its box open, else the bar lit */
-    bool on;   /* the bar's title lit */
     bool sub;  /* a sub-menu open */
     Level box, saved;
 } mn;
@@ -225,7 +225,7 @@ void menu_bar(void)
     scrn_fill(0, 0, SL_BAR, ' ', PSCR_COLS);
 
     for (uint8_t b = 0; b < NMENU; b++) {
-        if (mn.on && b == mn.c) {
+        if (mn.w.visible && b == mn.c) {
             const uint8_t title = scrn_fill(0, menu_x[b] - 1, SL_MSEL, ' ', 1);
             const uint8_t after = scrn_str(0, title, menu_title[b], SL_MSEL, SL_MHOT);
             scrn_fill(0, after, SL_MSEL, ' ', 1);
@@ -654,12 +654,9 @@ static Step on_key(const uint16_t k, const Item **const chosen)
     return NEXT;
 }
 
-/* The screen, the open box (a sub-menu's over its parent's), the status bar. */
-static void draw(Session *const S)
+/* The open box (a sub-menu's over its parent's), the status bar again over its shadow. */
+static void mn_draw(Widget *const w, Session *const S)
 {
-    uimn.help = uimn_menu_help;
-    draw_all(S);
-
     if (!mn.open)
         return;
     if (!mn.sub) {
@@ -674,33 +671,53 @@ static void draw(Session *const S)
     draw_status();
 }
 
+/* Key k, KEY_MOUSE the mouse's event: the menus hidden when one is chosen or they are left. */
+static void step(Session *const S, const uint16_t k)
+{
+    const Item *chosen = nullptr;
+    const Step next = on_key(k, &chosen);
+
+    if (next == OPEN) {
+        mn.open = true;
+        restart();
+    } else if (next == QUIT || next == CHOSEN) {
+        mn.w.visible = false;
+        uimn.help = nullptr;
+
+        if (next == CHOSEN)
+            uimn_act(S, chosen->act);
+    }
+}
+
+static bool mn_key(Widget *const w, Session *const S, const uint16_t key)
+{
+    step(S, key);
+    return true;
+}
+
+static bool mn_mouse(Widget *const w, Session *const S, const uint8_t row, const uint8_t col)
+{
+    step(S, KEY_MOUSE);
+    return true;
+}
+
+static const WidgetOps mn_ops = {.draw = mn_draw, .key = mn_key, .mouse = mn_mouse};
+
+void menu_build(Widget *const screen)
+{
+    mn.w = (Widget){.ops = &mn_ops, .modal = true};
+
+    tree_add(screen, &mn.w);
+}
+
 void menu_run(Session *const S, const uint8_t m, const bool open)
 {
     edit_commit(S);
     mn.c = m;
     mn.open = open;
-    mn.on = true;
+    uimn.help = uimn_menu_help;
     restart();
-
-    for (;;) {
-        draw(S);
-        scrn_shape(PSCR_HIDDEN);
-        const Item *chosen = nullptr;
-        const Step next = on_key(uimn_getkey(), &chosen);
-
-        if (next == OPEN) {
-            mn.open = true;
-            restart();
-        } else if (next == QUIT || next == CHOSEN) {
-            mn.on = false;
-            uimn.help = nullptr;
-
-            if (next == CHOSEN)
-                uimn_act(S, chosen->act);
-
-            return;
-        }
-    }
+    uimn_modal(S, &mn.w);
 }
 
 bool menu_alt(Session *const S, const uint8_t scan)

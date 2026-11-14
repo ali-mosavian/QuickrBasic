@@ -27,6 +27,7 @@ typedef struct {
     void (*draw)(Widget *w, Session *S);                            /* itself; children after */
     bool (*key)(Widget *w, Session *S, uint16_t key);               /* true: handled */
     bool (*mouse)(Widget *w, Session *S, uint8_t row, uint8_t col); /* uimn.mouse's event */
+    void (*cursor)(Widget *w); /* the focused one's: the cursor placed and shaped, else hidden */
 } WidgetOps;
 
 struct Widget {

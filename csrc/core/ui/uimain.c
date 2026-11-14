@@ -1279,8 +1279,18 @@ static const WidgetOps screen_ops = {.key = screen_key, .mouse = mous_screen};
 static const WidgetOps menubar_ops = {.draw = menubar_draw, .mouse = mous_menubar};
 static const WidgetOps workspace_ops = {.mouse = mous_workspace};
 static const WidgetOps statusbar_ops = {.draw = statusbar_draw, .mouse = mous_statusbar};
-static const WidgetOps ed_ops = {.draw = wind_ed_draw, .key = edit_key, .mouse = mous_window};
-static const WidgetOps imm_ops = {.draw = wind_imm_draw, .key = imm_key, .mouse = mous_window};
+static const WidgetOps ed_ops = {
+    .draw = wind_ed_draw,
+    .key = edit_key,
+    .mouse = mous_window,
+    .cursor = draw_edit_cursor,
+};
+static const WidgetOps imm_ops = {
+    .draw = wind_imm_draw,
+    .key = imm_key,
+    .mouse = mous_window,
+    .cursor = draw_imm_cursor,
+};
 
 /* The screen: the menu bar, the workspace and the status bar. The workspace: the editors, the
    immediate window and the pane, in FOC_* order; the editors: ED1, ED2. wind_layout sets the
@@ -1312,7 +1322,24 @@ static void build_tree(void)
     }
 
     dpan_build(&uimn.tree.pane, uimn.tree.dp);
+    menu_build(&uimn.tree.screen); /* the modal ones, hidden till run */
+    dlog_build(&uimn.tree.screen);
     tree_focus(&uimn.tree.ed[0]);
+}
+
+void uimn_modal(Session *const S, Widget *const w)
+{
+    w->visible = true;
+
+    while (w->visible) {
+        draw_all(S);
+        const uint16_t key = uimn_getkey();
+
+        if (key == KEY_MOUSE)
+            tree_mouse(&uimn.tree.screen, S, uimn.mouse.row, uimn.mouse.col);
+        else
+            tree_key(&uimn.tree.screen, S, key);
+    }
 }
 
 /* The editor's state at its start. */

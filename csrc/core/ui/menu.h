@@ -65,6 +65,8 @@ extern const char *const menu_title[NMENU];
 
 /* mn_bar: the menu bar; the open menu's title lit. */
 void menu_bar(void);
+/* The menus' modal widget, a child of screen, hidden till menu_run. */
+void menu_build(Widget *screen);
 /* mn_run: the menus from menu m: open, its box open, else the bar lit; until a command (then
    uimn_act) or Esc. The line committed first. */
 void menu_run(Session *S, uint8_t m, bool open);

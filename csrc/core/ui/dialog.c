@@ -80,6 +80,8 @@ static const MsgButton bt_ok[] = {{uimn_ok, 8}, {uimn_helpbtn, 8}, {}};
 static const MsgButton bt_ync[] = {{s_yes, 7}, {s_no, 8}, {uimn_cancel, 8}, {uimn_helpbtn, 8}, {}};
 
 static struct {
+    Widget w;          /* modal, shown while it runs */
+    uint8_t result;    /* the button that ended it, DLOG_ESC */
     Dlog *d;           /* dl_bx: the dialog running */
     uint16_t cur;      /* dl_cur: the cursor's place, row << 8 | col; PSCR_HIDDEN none */
     bool focused;      /* dl_hf: the control drawing has the focus */
@@ -362,7 +364,11 @@ static void draw(const Dlog *const d)
         dl.focused = i == d->focus;
         draw_ctl(d, &d->ctl[i]);
     }
+}
 
+/* The cursor where draw left it: a field's. */
+static void dl_cursor(Widget *const w)
+{
     if (dl.cur == PSCR_HIDDEN) {
         scrn_shape(PSCR_HIDDEN);
         return;
@@ -751,29 +757,65 @@ static bool act(
     }
 }
 
-/* dl_run0 */
+/* go done on the focused control c: the box hidden when it ends. */
+static void ended(const uint8_t go, DlogCtl *const c, const uint16_t sel)
+{
+    if (go == GO_ESC) {
+        dl.result = DLOG_ESC;
+        dl.w.visible = false;
+        return;
+    }
+
+    if (act(dl.d, go, c, sel, &dl.result))
+        dl.w.visible = false;
+}
+
+static bool dl_key(Widget *const w, Session *const S, const uint16_t key)
+{
+    DlogCtl *c = &dl.d->ctl[dl.d->focus];
+    uint16_t sel = 0; /* GO_SET's */
+    const uint8_t go = on_key(dl.d, key, &c, &sel);
+    ended(go, c, sel);
+    return true;
+}
+
+static bool dl_mouse(Widget *const w, Session *const S, const uint8_t row, const uint8_t col)
+{
+    DlogCtl *c = &dl.d->ctl[dl.d->focus];
+    uint16_t sel = 0;
+    const uint8_t go = on_mouse(dl.d, &c, &sel);
+    ended(go, c, sel);
+    return true;
+}
+
+static void dl_draw(Widget *const w, Session *const S) { draw(dl.d); }
+
+static const WidgetOps dl_ops = {
+    .draw = dl_draw,
+    .key = dl_key,
+    .mouse = dl_mouse,
+    .cursor = dl_cursor,
+};
+
+void dlog_build(Widget *const screen)
+{
+    dl.w = (Widget){.ops = &dl_ops, .modal = true};
+
+    tree_add(screen, &dl.w);
+}
+
+/* dl_run0: a box run inside another's hook gives the outer one back after. */
 static uint8_t run(Session *const S, Dlog *const d)
 {
+    Dlog *const outer = dl.d;
+    const bool shown = dl.w.visible;
     dl.d = d;
     dl.alt = pkey_shift() & PKEY_ALT; /* Alt down already: its letters lit */
     dl.fresh = true;
-
-    for (;;) {
-        draw_all(S);
-        draw(d);
-        const uint16_t key = uimn_getkey();
-        DlogCtl *c = &d->ctl[d->focus];
-        uint16_t sel = 0; /* GO_SET's */
-        const uint8_t go = key == KEY_MOUSE ? on_mouse(d, &c, &sel) : on_key(d, key, &c, &sel);
-
-        if (go == GO_ESC)
-            return DLOG_ESC;
-
-        uint8_t r;
-
-        if (act(d, go, c, sel, &r))
-            return r;
-    }
+    uimn_modal(S, &dl.w);
+    dl.d = outer;
+    dl.w.visible = shown;
+    return dl.result;
 }
 
 uint8_t dlog_run(Session *const S, Dlog *const d)
