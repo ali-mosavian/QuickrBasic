@@ -1,5 +1,7 @@
 /* Expressions' function and element nodes: what they evaluate to. */
 #include "session.h"
+#include "comp/lexer.h"
+#include "vm/flow.h"
 #include "unit.h"
 
 /* expr PRINTed: want, then PRINT's CR. */
@@ -26,4 +28,22 @@ TEST(numeric_functions_of_folded_arguments)
 {
     eval_is(S, "SGN(2 - 5) + ABS(-3)", " 2 ");
     eval_is(S, "STR$(2 * 3)", " 6");
+}
+
+/* A keyword not a function where an operand goes: its Syntax error was marked past it, at the
+   statement's end, so x = MKDIR read as a call wanting its '('. */
+TEST(not_a_function_marked_at_itself)
+{
+    uint8_t text[] = "x = MKDIR";
+    lexr_line(&S->lexr, text, S->comp.cbuf);
+    S->comp.check = true;
+    (void)comp_line(&S->comp);
+    S->comp.check = false;
+    const uint8_t *op = S->comp.xbuf;
+
+    while (*op != O_ERR && *op != O_EOL)
+        op += flow_opsize(op);
+
+    CHECK(*op == O_ERR);
+    CHECK(((const ErrOp *)op)->at == 6); /* x: 5 bytes, =, then MKDIR */
 }

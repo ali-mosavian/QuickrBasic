@@ -270,18 +270,16 @@ void expr_varaddr(Comp *const C)
 /* The function token at comp.p (FFh n as 100h + n), comp.p past it: its XFn. */
 static const XFn *xfn_at(Comp *const C)
 {
-    uint16_t tok = *C->p;
+    const uint16_t tok = *C->p == TK_X ? 0x100 + C->p[1] : *C->p;
 
-    if (tok == TK_X)
-        tok = 0x100 + *++C->p;
-
-    C->p++;
-
-    for (size_t i = 0; i < fns_nx; i++)
-        if (fns_x[i].tok == tok)
+    for (size_t i = 0; i < fns_nx; i++) {
+        if (fns_x[i].tok == tok) {
+            C->p += tok >= 0x100 ? 2 : 1;
             return &fns_x[i];
+        }
+    }
 
-    synerr(C);
+    synerr(C); /* at the token: not a function */
 }
 
 /* VARPTR, VARSEG, SSEG, SADD (v) after FFh: its CALL in k, 0 none; false: not one. */
