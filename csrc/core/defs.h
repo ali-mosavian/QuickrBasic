@@ -85,7 +85,7 @@ enum : uint32_t {
     BOFF = 0xFFFFFFFF, /* a statement map's body offset of the line's end */
     PDIR = 0x80000000, /* a target's flag: the direct line's */
     XSLK = 48,         /* the most one op writes past its size */
-    XLIM = 0xF8E0,     /* a line's code at most */
+    XLIM = 0x13000,    /* a line's code and statement map at most */
 };
 
 /* A statement map's entry, before a line's code; their count after them. */
@@ -236,14 +236,12 @@ enum {
     HSIZE = 1024,      /* the symbols' hash chains */
     DCODE = 0x0100,    /* the direct line's stream */
     CACHE0 = DCODE + 1536,
-    CLIM = 0xFFF0,
     HMIN = 0x40000,   /* the heap at least */
     STKSZ = 0x10000,  /* the data stack */
     STKROOM = 0x8000, /* its room for the run */
     CPROOM = 0x4000,  /* the compiler's frames */
     OBSZ = 256,       /* the output buffer */
 };
-static_assert(XLIM == CLIM - CACHE0 - 16);
 
 /* Block statements (comp/block), procedures, TYPEs: their records are comp's. */
 enum : uint8_t {

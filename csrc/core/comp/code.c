@@ -157,8 +157,15 @@ static bool parop(Code *const c, const uint8_t op, const uint16_t id)
 
 void code_opid(Code *const c, const uint8_t op, const uint16_t id, const bool par)
 {
-    if (!par || !parop(c, op, id))
-        code_opw(c, op, id);
+    if (par && parop(c, op, id))
+        return;
+
+    code_op(c, op);
+
+    if (exec_flags(op) & FV) /* the cell's VCELL, the id till linked */
+        code_dword(c, id);
+    else
+        code_word(c, id);
 }
 
 uint8_t *code_intleaf(Code *const c)

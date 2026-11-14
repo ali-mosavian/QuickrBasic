@@ -20,7 +20,7 @@
  * | TLREF | LineRef | MIRROR |
  * | CELL, dpush, dpop | Cell; exec_push, exec_pushi/a/d, exec_pop, exec_popi/a/d | MIRROR |
  * | dispatch | exec_run's loop (exec.c) | MOVED |
- * | vslot, bvar | exec_u16, symb_cell(id) | MIRROR |
+ * | vslot, bvar | exec_cell | D4 |
  * | ipload | flow_place | MOVED |
  * | subchk | subscript (exec.c) | MOVED |
  * | tspclr | strg.tmp_used = strg.tmp_floor | MOVED |
@@ -44,6 +44,7 @@
  * - D2. RESUME's places are Places in vm.err.
  * - D3. ESI and ESP are vm.ip and vm.sp; a handler returns where the asm jumps to dispatch. vm.loop
  *   is the longjmp target for flow_trap.
+ * - D4. A variable op holds its cell (VCELL), set at link, not the variable's id.
  */
 #ifndef CORE_VM_EXEC_H
 #define CORE_VM_EXEC_H
@@ -60,6 +61,8 @@ typedef struct PACKED {
     uint32_t dest; /* its code's offset in the cache; under 3 the mode, till found (flow) */
 } Jump;
 enum { JSIZE = 1 + sizeof(Jump) };
+/* An FV op's operand: the variable's id as compiled, its cell's Addr once linked. */
+enum { VCELL = 4 };
 
 /* An ERR op: a compile error met running. */
 typedef struct PACKED {
@@ -220,6 +223,8 @@ static inline uint32_t exec_u32(Vm *const vm)
     vm->ip += 4;
     return v;
 }
+/* An FV op's cell. */
+static inline Addr exec_cell(Vm *const vm) { return exec_u32(vm); }
 
 /* The data stack and the save stack carved from the arena (allo_carve); the control stack is
    mem's, allo.cs_lim .. allo.cs_top. The tick's and the trapped keys' flag pointed at vm.stop

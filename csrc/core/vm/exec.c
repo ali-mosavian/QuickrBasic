@@ -381,7 +381,7 @@ void exec_s_ld_txt(Session *const S)
 
 void exec_s_st_v(Session *const S)
 {
-    const Addr cell = symb_cell(&S->symb, exec_u16(&S->vm));
+    const Addr cell = exec_cell(&S->vm);
     strg_set(&S->strg, exec_popa(&S->vm), cell);
 }
 

@@ -23,7 +23,7 @@ void code_byte(Code *c, uint8_t b);
 static inline void code_op(Code *const c, const uint8_t op) { code_byte(c, op); }
 void code_opb(Code *c, uint8_t op, uint8_t b);  /* op, a byte */
 void code_opw(Code *c, uint8_t op, uint16_t w); /* op, a word */
-/* op, variable id; a parameter's (par) X.LD.V, X.ST.V as V.LD, V.ST id kind */
+/* op, variable id (an FV op's VCELL); a parameter's (par) X.LD.V, X.ST.V as V.LD, V.ST id kind */
 void code_opid(Code *c, uint8_t op, uint16_t id, bool par);
 void code_word(Code *c, uint16_t w);
 void code_dword(Code *c, uint32_t d);

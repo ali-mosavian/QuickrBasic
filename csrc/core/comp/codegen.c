@@ -122,7 +122,7 @@ void cg_icmp(Code *const c, const uint8_t rel, uint8_t *const right)
     const uint8_t m = rel & REL_MASK;
     uint8_t op;
 
-    if (isright(c, O_I_LD_V, 3, right))
+    if (isright(c, O_I_LD_V, 1 + VCELL, right))
         op = O_I_CMP_V;
     else if (isright(c, O_I_LD_U8, 2, right))
         op = O_I_CMP_U8;
@@ -142,9 +142,9 @@ void cg_icmp(Code *const c, const uint8_t rel, uint8_t *const right)
 /* The right operand's load that folds: the first op of its group, F_ADD_V .. F_ADD_F32; 0 none. */
 static uint8_t fltkind(Code *const c, const uint8_t *const right)
 {
-    if (isright(c, O_F_LD_V, 3, right))
+    if (isright(c, O_F_LD_V, 1 + VCELL, right))
         return O_F_ADD_V;
-    if (isright(c, O_F_LD_VI, 3, right))
+    if (isright(c, O_F_LD_VI, 1 + VCELL, right))
         return O_F_ADD_VI;
     if (isright(c, O_F_LD_U8, 2, right))
         return O_F_ADD_U8;
@@ -189,7 +189,7 @@ static bool one_load(
         if (info & SK_DBL || n->par)
             return false;
 
-        store16(b, n->id);
+        store32(b, n->id);
 
         switch (info & VK_MASK) {
         case VK_INT:

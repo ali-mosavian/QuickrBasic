@@ -2,15 +2,15 @@
  *
  * # How it works
  * The cache is mem's HCACHE block in the arena, offsets from its base (mem's cachebase): the direct
- * line's stream at DCODE (1536 bytes), the program lines' from CACHE0 to CLIM. A stream is its
+ * line's stream at DCODE (1536 bytes), the program lines' from CACHE0 on. A stream is its
  * statement map, a Stmt per statement then their count:4, then the code; Line.code is the code's
  * offset, 0 none.
  *
  * link_start runs before a run: blocks paired (blok_pair), the procedures' variables declared, then
  * every line compiled into the cache in program order, the cache grown to fit; then link_resolve
- * sets each jump's and line reference's target. A target not found goes on the ledger, whose
- * first error link_check raises before the run starts. A run compiles and resolves nothing but
- * the direct line.
+ * sets each jump's and line reference's target and each variable op's cell. A target not found goes
+ * on the ledger, whose first error link_check raises before the run starts. A run compiles and
+ * resolves nothing but the direct line.
  *
  * # asm structure (src/comp/link.asm)
  * | asm | here | |
@@ -358,6 +358,9 @@ static void resolve_op(Comp *const C, const uint32_t line, const Addr base, uint
         break;
 
     default:
+        if (exec_flags(op[0]) & FV)
+            store32(op + 1, symb_cell(C->symb, (uint16_t)load32(op + 1)));
+
         return;
     }
 

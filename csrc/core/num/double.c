@@ -334,13 +334,10 @@ uint32_t dubl_fmtf(const Sngl v, uint8_t *const out)
 static Cell cell_at(const Addr a) { return load_cell(at(a)); }
 static void cell_put(const Addr a, const Cell c) { store_cell(at(a), c); }
 
-void dubl_ldv(Session *const S)
-{
-    exec_push(&S->vm, cell_at(symb_cell(&S->symb, exec_u16(&S->vm))));
-}
+void dubl_ldv(Session *const S) { exec_push(&S->vm, cell_at(exec_cell(&S->vm))); }
 void dubl_stv(Session *const S)
 {
-    const Addr cell = symb_cell(&S->symb, exec_u16(&S->vm));
+    const Addr cell = exec_cell(&S->vm);
     cell_put(cell, exec_pop(&S->vm));
 }
 

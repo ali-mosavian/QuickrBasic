@@ -6,8 +6,9 @@
  * manager: a name, a type (ET_*) and whether an array.
  *
  * vars holds per variable its 8-byte cell, a Var and a VarX. Var.vt is a scalar's cell (its own, or
- * a parameter's argument's while its procedure runs), an array's header. Compiled code holds cells'
- * Addrs: the cells move only when an edit drops the code. Each table chains its hashes from a head,
+ * a parameter's argument's while its procedure runs), an array's header. Linked code holds cells'
+ * Addrs: the cells move only when a block before them grows, the cache while linking (before
+ * link_resolve) or the program store on an edit, which drops the code. Each table chains its hashes from a head,
  * 0 ends a chain.
  *
  * # asm structure (src/mem/sym.asm)

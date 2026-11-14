@@ -15,49 +15,43 @@
  * | asm | here | |
  * |---|---|---|
  * | bc_X, every op handler | oper_x, the op's name in lower case (bc_I_ADD_V is oper_i_add_v) | MIRROR; D1 |
- * | bvar, fcall, isrc, fsrc, ibin, fbin, ctail, icmp, fcmp | var_cell, operand, int_op, sngl_op, int_cmp, sngl_cmp_op, compared | MIRROR |
+ * | bvar, fcall, isrc, fsrc, ibin, fbin, ctail, icmp, fcmp | exec_cell, operand, int_op, sngl_op, int_cmp, sngl_cmp_op, compared | MIRROR; D2 |
  * | g_bflt, compare mask bits 1 2 4 | tables here; OPER_GT, OPER_EQ, OPER_LT | MIRROR |
  * | g_relbit (calls.asm) | compared | MOVED |
  *
  * - D1. bc_F_LD_V is oper_i_ld_v: an INT and a SINGLE load alike.
+ * - D2. A variable op holds its cell, set at link (link_resolve), not the variable's id.
  */
 #include "vm/operands.h"
 #include "session.h"
 #include "io/repl.h"
-#include "mem/symbols.h"
 #include "num/fpmath.h"
 #include "vm/flow.h"
 
 /* Where an op's right operand comes from. */
 typedef enum {
     POPPED,      /* the data stack */
-    VAR,         /* the variable whose id follows the op */
+    VAR,         /* the variable whose cell follows the op */
     U8,          /* the byte that follows, an INT */
     VAR_AS_SNGL, /* an INT variable, as a SINGLE */
     U8_AS_SNGL,  /* the byte that follows, as a SINGLE */
     F32,         /* the SINGLE that follows */
 } Source;
 
-/* The cell of the variable whose id is at vm->ip. */
-static Addr oper_var_cell(Vm *const vm, const Symb *const sy)
-{
-    return symb_cell(sy, exec_u16(vm));
-}
-
-static uint32_t oper_operand(Vm *const vm, const Symb *const sy, const Source src)
+static uint32_t oper_operand(Vm *const vm, const Source src)
 {
     switch (src) {
     case POPPED:
         return exec_pop(vm).u;
 
     case VAR:
-        return rd32(oper_var_cell(vm, sy));
+        return rd32(exec_cell(vm));
 
     case U8:
         return exec_u8(vm);
 
     case VAR_AS_SNGL:
-        return fmth_from_i32((int32_t)rd32(oper_var_cell(vm, sy)));
+        return fmth_from_i32((int32_t)rd32(exec_cell(vm)));
 
     case U8_AS_SNGL:
         return fmth_from_i32(exec_u8(vm));
@@ -71,26 +65,20 @@ static uint32_t oper_operand(Vm *const vm, const Symb *const sy, const Source sr
 
 /* ---- loads and stores ----------------------------------------------------------------------- */
 
-void oper_i_ld_v(Session *const S) { exec_pusha(&S->vm, oper_operand(&S->vm, &S->symb, VAR)); }
+void oper_i_ld_v(Session *const S) { exec_pusha(&S->vm, oper_operand(&S->vm, VAR)); }
 void oper_i_ld_i16(Session *const S) { exec_pusha(&S->vm, exec_u16(&S->vm)); } /* unsigned */
 void oper_i_ld_i32(Session *const S) { exec_pusha(&S->vm, exec_u32(&S->vm)); }
 void oper_i_ld_u8(Session *const S) { exec_pusha(&S->vm, exec_u8(&S->vm)); }
-void oper_f_ld_f32(Session *const S) { exec_pusha(&S->vm, oper_operand(&S->vm, &S->symb, F32)); }
-void oper_f_ld_u8(Session *const S)
-{
-    exec_pusha(&S->vm, oper_operand(&S->vm, &S->symb, U8_AS_SNGL));
-}
-void oper_f_ld_vi(Session *const S)
-{
-    exec_pusha(&S->vm, oper_operand(&S->vm, &S->symb, VAR_AS_SNGL));
-}
+void oper_f_ld_f32(Session *const S) { exec_pusha(&S->vm, oper_operand(&S->vm, F32)); }
+void oper_f_ld_u8(Session *const S) { exec_pusha(&S->vm, oper_operand(&S->vm, U8_AS_SNGL)); }
+void oper_f_ld_vi(Session *const S) { exec_pusha(&S->vm, oper_operand(&S->vm, VAR_AS_SNGL)); }
 void oper_f_ld_pi(Session *const S) { exec_pusha(&S->vm, SNGL_PI); }
 /* A string variable: its descriptor. */
-void oper_s_ld_v(Session *const S) { exec_pusha(&S->vm, oper_var_cell(&S->vm, &S->symb)); }
+void oper_s_ld_v(Session *const S) { exec_pusha(&S->vm, exec_cell(&S->vm)); }
 
 void oper_i_st_v(Session *const S)
 {
-    const Addr cell = oper_var_cell(&S->vm, &S->symb);
+    const Addr cell = exec_cell(&S->vm);
     wr32(cell, exec_pop(&S->vm).u);
 }
 void oper_f_st_v(Session *const S) { oper_i_st_v(S); }
@@ -100,15 +88,9 @@ void oper_f_st_v(Session *const S) { oper_i_st_v(S); }
 typedef enum { ADD, SUB, MUL, DIV, AND, OR } IntOp;
 
 /* The top cell op the right operand. Overflow. */
-static void oper_int_op(
-    Vm *const vm,
-    const Symb *const sy,
-    Fault *const f,
-    const Source src,
-    const IntOp op
-)
+static void oper_int_op(Vm *const vm, Fault *const f, const Source src, const IntOp op)
 {
-    const int32_t b = (int32_t)oper_operand(vm, sy, src);
+    const int32_t b = (int32_t)oper_operand(vm, src);
     Cell *const top = vm->sp;
     int32_t r, rem;
     bool overflow = false;
@@ -145,24 +127,24 @@ static void oper_int_op(
     top->i = r;
 }
 
-void oper_i_add(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, POPPED, ADD); }
-void oper_i_sub(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, POPPED, SUB); }
-void oper_i_mul(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, POPPED, MUL); }
-void oper_i_div(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, POPPED, DIV); }
-void oper_i_and(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, POPPED, AND); }
-void oper_i_or(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, POPPED, OR); }
-void oper_i_add_v(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, VAR, ADD); }
-void oper_i_sub_v(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, VAR, SUB); }
-void oper_i_mul_v(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, VAR, MUL); }
-void oper_i_div_v(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, VAR, DIV); }
-void oper_i_and_v(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, VAR, AND); }
-void oper_i_or_v(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, VAR, OR); }
-void oper_i_add_u8(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, U8, ADD); }
-void oper_i_sub_u8(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, U8, SUB); }
-void oper_i_mul_u8(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, U8, MUL); }
-void oper_i_div_u8(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, U8, DIV); }
-void oper_i_and_u8(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, U8, AND); }
-void oper_i_or_u8(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, U8, OR); }
+void oper_i_add(Session *const S) { oper_int_op(&S->vm, &S->fault, POPPED, ADD); }
+void oper_i_sub(Session *const S) { oper_int_op(&S->vm, &S->fault, POPPED, SUB); }
+void oper_i_mul(Session *const S) { oper_int_op(&S->vm, &S->fault, POPPED, MUL); }
+void oper_i_div(Session *const S) { oper_int_op(&S->vm, &S->fault, POPPED, DIV); }
+void oper_i_and(Session *const S) { oper_int_op(&S->vm, &S->fault, POPPED, AND); }
+void oper_i_or(Session *const S) { oper_int_op(&S->vm, &S->fault, POPPED, OR); }
+void oper_i_add_v(Session *const S) { oper_int_op(&S->vm, &S->fault, VAR, ADD); }
+void oper_i_sub_v(Session *const S) { oper_int_op(&S->vm, &S->fault, VAR, SUB); }
+void oper_i_mul_v(Session *const S) { oper_int_op(&S->vm, &S->fault, VAR, MUL); }
+void oper_i_div_v(Session *const S) { oper_int_op(&S->vm, &S->fault, VAR, DIV); }
+void oper_i_and_v(Session *const S) { oper_int_op(&S->vm, &S->fault, VAR, AND); }
+void oper_i_or_v(Session *const S) { oper_int_op(&S->vm, &S->fault, VAR, OR); }
+void oper_i_add_u8(Session *const S) { oper_int_op(&S->vm, &S->fault, U8, ADD); }
+void oper_i_sub_u8(Session *const S) { oper_int_op(&S->vm, &S->fault, U8, SUB); }
+void oper_i_mul_u8(Session *const S) { oper_int_op(&S->vm, &S->fault, U8, MUL); }
+void oper_i_div_u8(Session *const S) { oper_int_op(&S->vm, &S->fault, U8, DIV); }
+void oper_i_and_u8(Session *const S) { oper_int_op(&S->vm, &S->fault, U8, AND); }
+void oper_i_or_u8(Session *const S) { oper_int_op(&S->vm, &S->fault, U8, OR); }
 
 /* MOD: the remainder takes the left operand's sign. */
 void oper_i_mod(Session *const S)
@@ -210,15 +192,9 @@ void oper_i_not(Session *const S) { S->vm.sp->i = ~S->vm.sp->i; }
 typedef enum { FADD, FSUB, FMUL, FDIV } SnglOp;
 
 /* The left operand popped op the right. */
-static void oper_sngl_op(
-    Vm *const vm,
-    const Symb *const sy,
-    Fault *const f,
-    const Source src,
-    const SnglOp op
-)
+static void oper_sngl_op(Vm *const vm, Fault *const f, const Source src, const SnglOp op)
 {
-    const Sngl b = oper_operand(vm, sy, src);
+    const Sngl b = oper_operand(vm, src);
     Cell *const top = vm->sp;
 
     switch (op) {
@@ -240,50 +216,26 @@ static void oper_sngl_op(
     }
 }
 
-void oper_f_add(Session *const S) { oper_sngl_op(&S->vm, &S->symb, &S->fault, POPPED, FADD); }
-void oper_f_sub(Session *const S) { oper_sngl_op(&S->vm, &S->symb, &S->fault, POPPED, FSUB); }
-void oper_f_mul(Session *const S) { oper_sngl_op(&S->vm, &S->symb, &S->fault, POPPED, FMUL); }
-void oper_f_div(Session *const S) { oper_sngl_op(&S->vm, &S->symb, &S->fault, POPPED, FDIV); }
-void oper_f_add_v(Session *const S) { oper_sngl_op(&S->vm, &S->symb, &S->fault, VAR, FADD); }
-void oper_f_sub_v(Session *const S) { oper_sngl_op(&S->vm, &S->symb, &S->fault, VAR, FSUB); }
-void oper_f_mul_v(Session *const S) { oper_sngl_op(&S->vm, &S->symb, &S->fault, VAR, FMUL); }
-void oper_f_div_v(Session *const S) { oper_sngl_op(&S->vm, &S->symb, &S->fault, VAR, FDIV); }
-void oper_f_add_vi(Session *const S)
-{
-    oper_sngl_op(&S->vm, &S->symb, &S->fault, VAR_AS_SNGL, FADD);
-}
-void oper_f_sub_vi(Session *const S)
-{
-    oper_sngl_op(&S->vm, &S->symb, &S->fault, VAR_AS_SNGL, FSUB);
-}
-void oper_f_mul_vi(Session *const S)
-{
-    oper_sngl_op(&S->vm, &S->symb, &S->fault, VAR_AS_SNGL, FMUL);
-}
-void oper_f_div_vi(Session *const S)
-{
-    oper_sngl_op(&S->vm, &S->symb, &S->fault, VAR_AS_SNGL, FDIV);
-}
-void oper_f_add_u8(Session *const S)
-{
-    oper_sngl_op(&S->vm, &S->symb, &S->fault, U8_AS_SNGL, FADD);
-}
-void oper_f_sub_u8(Session *const S)
-{
-    oper_sngl_op(&S->vm, &S->symb, &S->fault, U8_AS_SNGL, FSUB);
-}
-void oper_f_mul_u8(Session *const S)
-{
-    oper_sngl_op(&S->vm, &S->symb, &S->fault, U8_AS_SNGL, FMUL);
-}
-void oper_f_div_u8(Session *const S)
-{
-    oper_sngl_op(&S->vm, &S->symb, &S->fault, U8_AS_SNGL, FDIV);
-}
-void oper_f_add_f32(Session *const S) { oper_sngl_op(&S->vm, &S->symb, &S->fault, F32, FADD); }
-void oper_f_sub_f32(Session *const S) { oper_sngl_op(&S->vm, &S->symb, &S->fault, F32, FSUB); }
-void oper_f_mul_f32(Session *const S) { oper_sngl_op(&S->vm, &S->symb, &S->fault, F32, FMUL); }
-void oper_f_div_f32(Session *const S) { oper_sngl_op(&S->vm, &S->symb, &S->fault, F32, FDIV); }
+void oper_f_add(Session *const S) { oper_sngl_op(&S->vm, &S->fault, POPPED, FADD); }
+void oper_f_sub(Session *const S) { oper_sngl_op(&S->vm, &S->fault, POPPED, FSUB); }
+void oper_f_mul(Session *const S) { oper_sngl_op(&S->vm, &S->fault, POPPED, FMUL); }
+void oper_f_div(Session *const S) { oper_sngl_op(&S->vm, &S->fault, POPPED, FDIV); }
+void oper_f_add_v(Session *const S) { oper_sngl_op(&S->vm, &S->fault, VAR, FADD); }
+void oper_f_sub_v(Session *const S) { oper_sngl_op(&S->vm, &S->fault, VAR, FSUB); }
+void oper_f_mul_v(Session *const S) { oper_sngl_op(&S->vm, &S->fault, VAR, FMUL); }
+void oper_f_div_v(Session *const S) { oper_sngl_op(&S->vm, &S->fault, VAR, FDIV); }
+void oper_f_add_vi(Session *const S) { oper_sngl_op(&S->vm, &S->fault, VAR_AS_SNGL, FADD); }
+void oper_f_sub_vi(Session *const S) { oper_sngl_op(&S->vm, &S->fault, VAR_AS_SNGL, FSUB); }
+void oper_f_mul_vi(Session *const S) { oper_sngl_op(&S->vm, &S->fault, VAR_AS_SNGL, FMUL); }
+void oper_f_div_vi(Session *const S) { oper_sngl_op(&S->vm, &S->fault, VAR_AS_SNGL, FDIV); }
+void oper_f_add_u8(Session *const S) { oper_sngl_op(&S->vm, &S->fault, U8_AS_SNGL, FADD); }
+void oper_f_sub_u8(Session *const S) { oper_sngl_op(&S->vm, &S->fault, U8_AS_SNGL, FSUB); }
+void oper_f_mul_u8(Session *const S) { oper_sngl_op(&S->vm, &S->fault, U8_AS_SNGL, FMUL); }
+void oper_f_div_u8(Session *const S) { oper_sngl_op(&S->vm, &S->fault, U8_AS_SNGL, FDIV); }
+void oper_f_add_f32(Session *const S) { oper_sngl_op(&S->vm, &S->fault, F32, FADD); }
+void oper_f_sub_f32(Session *const S) { oper_sngl_op(&S->vm, &S->fault, F32, FSUB); }
+void oper_f_mul_f32(Session *const S) { oper_sngl_op(&S->vm, &S->fault, F32, FMUL); }
+void oper_f_div_f32(Session *const S) { oper_sngl_op(&S->vm, &S->fault, F32, FDIV); }
 
 /* -0 stays 0. */
 void oper_f_neg(Session *const S)
@@ -307,28 +259,28 @@ static void oper_compared(Session *const S, const uint8_t rel, const bool cmpif)
 }
 
 /* The popped INT against the right operand: OPER_GT, OPER_EQ or OPER_LT. */
-static uint8_t oper_int_rel(Vm *const vm, const Symb *const sy, const Source src)
+static uint8_t oper_int_rel(Vm *const vm, const Source src)
 {
-    const int32_t b = (int32_t)oper_operand(vm, sy, src);
+    const int32_t b = (int32_t)oper_operand(vm, src);
     const int32_t a = exec_popi(vm);
     return a > b ? OPER_GT : a == b ? OPER_EQ : OPER_LT;
 }
 
-static uint8_t oper_sngl_rel(Vm *const vm, const Symb *const sy, const Source src)
+static uint8_t oper_sngl_rel(Vm *const vm, const Source src)
 {
-    const Sngl b = oper_operand(vm, sy, src);
+    const Sngl b = oper_operand(vm, src);
     const int c = sngl_cmp(exec_pop(vm).u, b);
     return c > 0 ? OPER_GT : c == 0 ? OPER_EQ : OPER_LT;
 }
 
 static void oper_int_cmp(Session *const S, const Source src, const bool cmpif)
 {
-    oper_compared(S, oper_int_rel(&S->vm, &S->symb, src), cmpif);
+    oper_compared(S, oper_int_rel(&S->vm, src), cmpif);
 }
 
 static void oper_sngl_cmp(Session *const S, const Source src, const bool cmpif)
 {
-    oper_compared(S, oper_sngl_rel(&S->vm, &S->symb, src), cmpif);
+    oper_compared(S, oper_sngl_rel(&S->vm, src), cmpif);
 }
 
 void oper_i_cmp(Session *const S) { oper_int_cmp(S, POPPED, false); }
