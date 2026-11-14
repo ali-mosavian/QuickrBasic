@@ -40,6 +40,7 @@
 #include <string.h>
 #include "comp/comp.h"
 #include "comp/dfa.h"
+#include "mem/program.h"
 #include "mem/scope.h"
 #include "mem/symbols.h"
 
@@ -907,6 +908,42 @@ void decl_line(
             }
         }
     } while (decl_next(ds));
+}
+
+void decl_defevents(Decl *const d, Scop *const sc, Symb *const sy, const Prog *const pg)
+{
+    d->ndefev = 0;
+    memcpy(sy->deft, deft0, NLETTERS);
+
+    for (uint32_t rec = PROGBASE, len; (len = prog_line(pg, rec)->len); rec += len) {
+        if (prog_line(pg, rec)->flags & LF_ASIS)
+            continue;
+
+        DeclScan scan = {
+            .d = d,
+            .sc = sc,
+            .sy = sy,
+            .line = rec,
+            .loading = true,
+        };
+
+        DeclScan *const ds = &scan;
+        ds->at = at(prog_addr(pg, rec + HDR));
+
+        if (*ds->at == M_INT)
+            ds->at += INT_TOKEN_SIZE;
+        do {
+            const uint8_t c = *ds->at;
+
+            if (c >= TK_DEFINT && c <= TK_DEFSTR) {
+                ds->at++;
+                decl_deflist(ds, deftype[c - TK_DEFINT]);
+            } else if (c == TK_X && ds->at[1] == TK1_DEFSHORT) {
+                ds->at += 2;
+                decl_deflist(ds, ET_SH);
+            }
+        } while (decl_next(ds));
+    }
 }
 
 const char *decl_warning(const uint8_t **const at)

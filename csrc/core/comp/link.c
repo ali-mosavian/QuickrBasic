@@ -407,6 +407,7 @@ void link_start(Comp *const C)
     symb_size(C->symb, C->prog);
     fold_clear(C);
     blok_pair(C->blok, C->prog, C->symb, C->fault);
+    decl_defevents(C->decl, C->scop, C->symb, C->prog); /* the typed lines' DEFtypes too */
     link_procvars(C);
     C->link->cursor = 0;
     uncache(C);

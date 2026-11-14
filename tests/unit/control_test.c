@@ -37,3 +37,28 @@ TEST(check_reads_next_alone)
     CHECK(check_errs(S, "next if"));
     CHECK(check_errs(S, "next i print"));
 }
+
+/* DEFINT on typed lines: the events were a file's load's only, so a typed program's variables
+   stayed SINGLE: X = 1.7 printed 1.7, and passed to an INTEGER parameter, Parameter type
+   mismatch. */
+TEST(defint_on_typed_lines)
+{
+    static const char *const lines[] = {
+        "10 DEFINT A-Z",
+        "20 x = 1.7: PRINT x; sum%(x, x);",
+        "30 FUNCTION sum% (a AS INTEGER, b AS INTEGER)",
+        "40 sum% = a + b",
+        "50 END FUNCTION",
+        nullptr,
+    };
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 2  4 ");
+}
+
+/* A DEFtype line typed last, put first by its number, holds from its place. */
+TEST(defint_typed_after)
+{
+    static const char *const lines[] = {"20 x = 1.7: PRINT x;", "10 DEFINT A-Z", nullptr};
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 2 ");
+}

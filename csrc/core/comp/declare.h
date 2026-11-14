@@ -58,6 +58,9 @@ void decl_init(Decl *d, Fault *f);
 void decl_reset(Decl *d, Scop *sc, Symb *sy);
 /* Enter the body's declarations, of the line at line; loading: from a file. */
 void decl_line(Decl *d, Scop *sc, Symb *sy, const uint8_t *body, uint32_t line, bool loading);
+/* Each DEFtype line's event, again from the program pg in its order: a line typed, or put
+   between others, has its place. */
+void decl_defevents(Decl *d, Scop *sc, Symb *sy, const Prog *pg);
 /* dc_deft: the DEFtypes (sy->deft) line sees. */
 void decl_deftype(const Decl *d, Symb *sy, uint32_t line);
 /* TYPE t. */
