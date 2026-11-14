@@ -67,4 +67,6 @@ Addr strg_sub(Strg *sg, Addr desc, uint16_t start, uint16_t most);
 Addr strg_tods(Strg *sg, Addr chars, Addr src, uint16_t len);
 /* A new temporary for a copy of the len chars at text (the asm's g_sbuf's). */
 Addr strg_text(Strg *sg, const uint8_t *text, uint16_t len);
+/* The Desc at from to to (vm's ls_mov): a heap block's owner follows. */
+void strg_move(const Strg *sg, Addr from, Addr to);
 #endif

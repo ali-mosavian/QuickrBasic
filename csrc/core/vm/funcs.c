@@ -346,7 +346,7 @@ static void bound(Session *const S, const bool upper)
 
     if (!hdr) {
         if (symb_varx(&S->symb, id)->dyn) /* ERASEd: none */
-            arry_bad_sub(S);
+            arry_bad_sub(&S->arry);
 
         exec_pushi(&S->vm, upper ? 10 : S->decl.base); /* none yet: OPTION BASE to 10 */
         return;
@@ -355,7 +355,7 @@ static void bound(Session *const S, const bool upper)
     const ArrayHdr *const a = (const ArrayHdr *)at(hdr);
 
     if (d < 1 || d > a->dims)
-        arry_bad_sub(S);
+        arry_bad_sub(&S->arry);
 
     const int32_t lower = (int16_t)a->count[d - 1 + a->dims];
     exec_pushi(&S->vm, upper ? lower + a->count[d - 1] - 1 : lower);

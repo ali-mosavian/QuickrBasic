@@ -55,6 +55,7 @@ void boot(Session *const S, const FrontEnd *const fe)
         hi
     ); /* the arrays' headers, the control stack, the POKE memory */
     strg_init(&S->strg, &S->allo, &S->fault, &S->prog);
+    arry_init(&S->arry, &S->allo, &S->fault, &S->symb, &S->decl, &S->strg);
     exec_init(S);
     cons_init(S);
     file_init(S);

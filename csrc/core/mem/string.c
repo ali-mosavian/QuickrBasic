@@ -274,3 +274,12 @@ Addr strg_text(Strg *const sg, const uint8_t *const text, const uint16_t len)
     const Addr c = strg_alloc(sg, len);
     return strg_tods(sg, c, addr_of(text), len);
 }
+
+void strg_move(const Strg *const sg, const Addr from, const Addr to)
+{
+    const Desc d = strg_peek(from);
+    strg_desc_put(to, d);
+
+    if (d.len && d.ptr >= sg->allo->strings && d.ptr < sg->allo->top)
+        strg_own(d.ptr, d.len, to);
+}

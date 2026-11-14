@@ -32,7 +32,7 @@
  * | ex_stmtof | flow_stmtof | MIRROR |
  * | ex_target | flow_target | MIRROR |
  * | g_lsav, LSAVSZ | vm.callvars, MAX_CALLVARS | D1 |
- * | ls_mov | flow_lsmove | MIRROR |
+ * | ls_mov | strg_move (mem/string.c) | MOVED |
  * | op_size | flow_opsize | MIRROR |
  * | ex_line, ex_eol, ex_gosub, ex_jumpto, ex_sbase, for_find, for_in, for_mki, for_any, for_lp, pr_pop, err_nf, ipsave | static | MIRROR |
  * | g_pres8, g_lres | Flow (flow.h) | MIRROR |
@@ -528,7 +528,7 @@ static void move_value(Session *const S, const Var *const v, const Addr from, co
     if (is_double(v))
         memcpy(at(to), at(from), 8);
     else if (is_string(v))
-        flow_lsmove(S, from, to);
+        strg_move(&S->strg, from, to);
     else
         wr32(to, rd32(from));
 }
@@ -690,7 +690,7 @@ static void end_call(Session *const S, const Frame *const f)
         if (is_double(v))
             memcpy(&S->flow.value, at(cell), 8);
         else if (is_string(v))
-            flow_lsmove(S, cell, S->flow.text);
+            strg_move(&S->strg, cell, S->flow.text);
         else
             S->flow.value.u = rd32(cell);
     }
@@ -702,7 +702,7 @@ static void end_call(Session *const S, const Frame *const f)
             move_value(S, v, addr_of(&b->value), symb_cell(&S->symb, b->var));
         else {
             if (v->vt && !is_param(S, p, b->var)) /* a parameter's array is the caller's */
-                arry_free(S, b->var, 0);
+                arry_free(&S->arry, &S->vm, b->var, 0);
 
             v->vt = b->array.hdr;
         }
@@ -747,22 +747,13 @@ void flow_pret(Session *const S)
 
             const Addr t = S->strg.tmp + S->strg.tmp_used;
             S->strg.tmp_used += DSZ;
-            flow_lsmove(S, S->flow.text, t);
+            strg_move(&S->strg, S->flow.text, t);
             exec_pusha(&S->vm, t);
         } else
             exec_pusha(&S->vm, S->flow.value.u);
     }
 
     go_to(S, f->ret);
-}
-
-void flow_lsmove(Session *const S, const Addr from, const Addr to)
-{
-    const Desc d = *(Desc *)at(from);
-    *(Desc *)at(to) = d;
-
-    if (d.len && d.ptr >= S->allo.strings && d.ptr < S->allo.top)
-        ((StrTail *)at(d.ptr + d.len))->owner = to;
 }
 
 /* ---- ON ERROR / RESUME ---------------------------------------------------------------------- */

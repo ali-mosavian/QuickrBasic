@@ -473,7 +473,7 @@ void stmt_dim(Session *const S)
 
     if (!(flags & DIM_REDIM)) {
         if (!(flags & DIM_STATIC) || !v->vt) /* a STATIC's, dimensioned: kept */
-            arry_dim(S, id, dims, false);
+            arry_dim(&S->arry, id, dims, false);
 
         return;
     }
@@ -481,23 +481,23 @@ void stmt_dim(Session *const S)
     const Addr old = v->vt;            /* REDIM: the old one goes */
     if (old && flags & DIM_PRESERVE) { /* the new one made, the old one's elements copied */
         if (dims != ((const ArrayHdr *)at(old))->dims)
-            arry_bad_sub(S);
+            arry_bad_sub(&S->arry);
 
         v->vt = 0;
-        arry_dim(S, id, dims, true);
+        arry_dim(&S->arry, id, dims, true);
         const Addr fresh = symb_var(&S->symb, id)->vt;
-        arry_keep(S, id, old, fresh);
+        arry_keep(&S->arry, id, old, fresh);
         symb_var(&S->symb, id)->vt = old;
-        const uint32_t freed = arry_free(S, id, AREP);
+        const uint32_t freed = arry_free(&S->arry, &S->vm, id, AREP);
         symb_var(&S->symb, id)->vt = fresh - freed; /* its header was after the old one's */
     } else {
         if (old)
-            arry_free(S, id, AREP);
+            arry_free(&S->arry, &S->vm, id, AREP);
 
-        arry_dim(S, id, dims, true);
+        arry_dim(&S->arry, id, dims, true);
     }
 
-    arry_rep(S, id);
+    arry_rep(&S->arry, &S->vm, id);
 }
 
 /* ERASE ( id -- ): REDIM's array freed, another's elements zeroed. */
@@ -509,9 +509,9 @@ void stmt_erase(Session *const S)
     if (!hdr)
         return;
     if (symb_varx(&S->symb, id)->dyn)
-        arry_free(S, id, 0);
+        arry_free(&S->arry, &S->vm, id, 0);
     else
-        copy_zero(((const ArrayHdr *)at(hdr))->data, arry_size(S, id, hdr));
+        copy_zero(((const ArrayHdr *)at(hdr))->data, arry_size(&S->arry, id, hdr));
 }
 
 /* ---- RUN, LIST, CONT, END, STOP ------------------------------------------------------------- */

@@ -157,7 +157,7 @@ int32_t exec_idiv(Fault *const f, const int32_t a, const int32_t b, int32_t *con
 static uint16_t subscript(Session *const S, const int32_t sub)
 {
     if (sub != (int16_t)sub)
-        arry_bad_sub(S);
+        arry_bad_sub(&S->arry);
 
     return (uint16_t)sub;
 }
@@ -165,7 +165,7 @@ static uint16_t subscript(Session *const S, const int32_t sub)
 Addr exec_elem1(Session *const S, const uint16_t id, const int32_t sub)
 {
     S->arry.subs[0] = subscript(S, sub);
-    return arry_ref(S, id, 1);
+    return arry_ref(&S->arry, id, 1);
 }
 
 Addr exec_elem(Session *const S)
@@ -176,7 +176,7 @@ Addr exec_elem(Session *const S)
     for (uint8_t i = n; i-- > 0;)
         S->arry.subs[i] = subscript(S, exec_popi(&S->vm));
 
-    return arry_ref(S, id, n);
+    return arry_ref(&S->arry, id, n);
 }
 
 /* Element sub of the 1-D array whose id is at vm->ip, size bytes each: straight from its header
@@ -205,7 +205,7 @@ Addr exec_record(Session *const S, const uint16_t id)
 
     S->arry.counts[0] = 1;
     S->arry.lbounds[0] = 0;
-    return arry_new(S, id, 1, false);
+    return arry_new(&S->arry, id, 1, false);
 }
 
 void exec_i_ld_a1(Session *const S) { exec_pusha(&S->vm, rd32(elem1(S, exec_popi(&S->vm), VS))); }

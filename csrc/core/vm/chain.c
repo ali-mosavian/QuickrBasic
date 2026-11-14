@@ -102,7 +102,7 @@ static void put_array(Session *const S, uint8_t **const p, const uint16_t id)
         for (uint32_t i = 0; i < n; i++)
             put_string(S, p, a->data + i * DSZ);
     else
-        put(S, p, at(a->data), arry_esize(S, id) * n);
+        put(S, p, at(a->data), arry_esize(&S->arry, id) * n);
 }
 
 /* COMMON's variables' values to the buffer. Out of memory: more than it holds. */
@@ -162,11 +162,11 @@ static void get_array(Session *const S, const uint8_t **const p, const uint16_t 
     if (!dims)
         return;
     if (symb_var(&S->symb, id)->vt)
-        arry_free(S, id, 0);
+        arry_free(&S->arry, &S->vm, id, 0);
 
     get(p, S->arry.counts, dims * sizeof S->arry.counts[0]);
     get(p, S->arry.lbounds, dims * sizeof S->arry.lbounds[0]);
-    const Addr hdr = arry_new(S, id, dims, true);
+    const Addr hdr = arry_new(&S->arry, id, dims, true);
     const ArrayHdr *const a = (const ArrayHdr *)at(hdr);
     const uint32_t n = elem_count(a);
 
@@ -174,7 +174,7 @@ static void get_array(Session *const S, const uint8_t **const p, const uint16_t 
         for (uint32_t i = 0; i < n; i++)
             get_string(S, p, a->data + i * DSZ);
     else
-        get(p, at(a->data), arry_esize(S, id) * n);
+        get(p, at(a->data), arry_esize(&S->arry, id) * n);
 }
 
 /* COMMON's variable ( id -- ): named, for a CHAIN; CHAIN's next value, if any, stored in it.
