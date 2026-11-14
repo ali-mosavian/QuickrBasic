@@ -80,18 +80,18 @@ static const MsgButton bt_ok[] = {{uimn_ok, 8}, {uimn_helpbtn, 8}, {}};
 static const MsgButton bt_ync[] = {{s_yes, 7}, {s_no, 8}, {uimn_cancel, 8}, {uimn_helpbtn, 8}, {}};
 
 static struct {
-    Widget w;          /* modal, shown while it runs */
-    uint8_t result;    /* the button that ended it, DLOG_ESC */
-    Dlog *d;           /* dl_bx: the dialog running */
-    uint16_t cur;      /* dl_cur: the cursor's place, row << 8 | col; PSCR_HIDDEN none */
-    bool focused;      /* dl_hf: the control drawing has the focus */
-    bool fresh;        /* dl_new: the focus just came: a field's text selected till a key */
-    bool alt;          /* dl_alt: Alt was down: the hotkeys lit */
-    uint8_t hitrow;    /* dl_hr: dl_hit's row in the control */
-    uint8_t nlines;    /* the message box's: its lines */
-    uint8_t b0;        /*   its first button's control */
-    bool adjust;       /*   msg_adj: off the cursor's line */
-    const char *title; /* msg_ttl: its title, nullptr none: its lines then left-aligned */
+    Widget w;             /* modal, shown while it runs; its focus the focused control */
+    Widget kids[NMSGCTL]; /* the controls, ctl's order */
+    uint8_t result;       /* the button that ended it, DLOG_ESC */
+    Dlog *d;              /* dl_bx: the dialog running */
+    uint16_t cur;         /* dl_cur: the cursor's place, row << 8 | col; PSCR_HIDDEN none */
+    bool focused;         /* dl_hf: the control drawing has the focus */
+    bool fresh;           /* dl_new: the focus just came: a field's text selected till a key */
+    bool alt;             /* dl_alt: Alt was down: the hotkeys lit */
+    uint8_t nlines;       /* the message box's: its lines */
+    uint8_t b0;           /*   its first button's control */
+    bool adjust;          /*   msg_adj: off the cursor's line */
+    const char *title;    /* msg_ttl: its title, nullptr none: its lines then left-aligned */
 } dl;
 
 static char files[LSMAX * NAMESZ], dirs[LSMAX * NAMESZ];
@@ -349,23 +349,6 @@ static void draw_ctl(const Dlog *const d, const DlogCtl *const c)
     }
 }
 
-/* dl_draw: the frame, the shadow, the separator, the controls, the cursor. */
-static void draw(const Dlog *const d)
-{
-    scrn_box(d->row, d->col, d->rows, d->cols, SL_DLG, d->title);
-    scrn_shadow(d->row, d->col, d->rows, d->cols);
-
-    if (d->sep)
-        scrn_sep(d->row + d->sep, d->col, d->cols, SL_DLG);
-
-    dl.cur = PSCR_HIDDEN;
-
-    for (uint8_t i = 0; i < d->n; i++) {
-        dl.focused = i == d->focus;
-        draw_ctl(d, &d->ctl[i]);
-    }
-}
-
 /* The cursor where draw left it: a field's. */
 static void dl_cursor(Widget *const w)
 {
@@ -401,47 +384,37 @@ static const char *hot_text(const DlogCtl *const c)
     return c->kind == CT_TXT ? nullptr : c->label;
 }
 
-/* dl_hit: the mouse on control c? dl.hitrow its row in it. */
-static bool hit(const Dlog *const d, const DlogCtl *const c)
+/* dl_hit's: control c's cells, the box at d. */
+static Rect ctl_rect(const Dlog *const d, const DlogCtl *const c)
 {
-    const int r = uimn.mouse.row - d->row - c->row;
-    const int x = uimn.mouse.col - d->col - c->col;
-
-    if (r < 0 || x < 0)
-        return false;
-
-    int h, w;
+    Rect r = {.row = d->row + c->row, .col = d->col + c->col};
 
     switch (c->kind) {
     case CT_FLD:
-        h = FIELD_ROWS;
-        w = c->cols + FRAME;
+        r.rows = FIELD_ROWS;
+        r.cols = c->cols + FRAME;
         break;
 
     case CT_LST:
-        h = c->rows + FRAME;
-        w = c->cols + FRAME;
+        r.rows = c->rows + FRAME;
+        r.cols = c->cols + FRAME;
         break;
 
     case CT_TXT:
-        return false;
+        break;
 
     default:
-        h = 1;
-        w = (uint8_t)(scrn_slen(c->text) + BTN_PAD);
+        r.rows = 1;
+        r.cols = (uint8_t)(scrn_slen(c->text) + BTN_PAD);
     }
 
-    if (r >= h || x >= w)
-        return false;
-
-    dl.hitrow = (uint8_t)r;
-    return true;
+    return r;
 }
 
 /* dl_step: the focus to the next control that takes it, dir 1, or the one before, -1. */
-static void step(Dlog *const d, const int dir)
+static void step(const Dlog *const d, const int dir)
 {
-    int i = d->focus;
+    int i = dl.w.focus;
 
     do {
         i += dir;
@@ -452,7 +425,7 @@ static void step(Dlog *const d, const int dir)
             i = 0;
     } while (d->ctl[i].flags & CF_NOF);
 
-    d->focus = (uint8_t)i;
+    dl.w.focus = (uint8_t)i;
     dl.fresh = true;
 }
 
@@ -510,11 +483,9 @@ bool dlog_ledit(LineBuf *const b, const uint16_t key)
 /* What a key or a click leads to: GO_LOOP nothing more; GO_ESC the box ends. */
 enum : uint8_t { GO_LOOP, GO_PRESS, GO_ENTER, GO_CHECK, GO_SET, GO_ESC };
 
-/* A click on a list's line: once selects (*sel), on the selected one opens. */
-static uint8_t list_click(const DlogCtl *const c, uint16_t *const sel)
+/* A click on a list's line r: once selects (*sel), on the selected one opens. */
+static uint8_t list_click(const DlogCtl *const c, const int r, uint16_t *const sel)
 {
-    const int r = dl.hitrow - 1;
-
     if (r < 0 || r >= c->rows)
         return GO_LOOP;
 
@@ -530,35 +501,21 @@ static uint8_t list_click(const DlogCtl *const c, uint16_t *const sel)
     return GO_SET;
 }
 
-/* A press on control i (*c): a button pressed, else the focus. */
-static uint8_t click(Dlog *const d, const uint8_t i, DlogCtl **const pc, uint16_t *const sel)
+/* A press on control i (c) at its row r: a button pressed, else the focus. */
+static uint8_t click(const DlogCtl *const c, const uint8_t i, const int r, uint16_t *const sel)
 {
-    DlogCtl *const c = &d->ctl[i];
-    *pc = c;
-
     if (c->flags & CF_NOF)
         return GO_LOOP;
     if (c->kind == CT_BTN)
         return GO_PRESS;
 
-    d->focus = i;
+    dl.w.focus = i;
     dl.fresh = false;
 
     if (c->kind == CT_CHK)
         return GO_CHECK;
     if (c->kind == CT_LST)
-        return list_click(c, sel);
-
-    return GO_LOOP;
-}
-
-static uint8_t on_mouse(Dlog *const d, DlogCtl **const pc, uint16_t *const sel)
-{
-    if (uimn.mouse.event != MS_PRESS)
-        return GO_LOOP;
-    for (uint8_t i = 0; i < d->n; i++)
-        if (hit(d, &d->ctl[i]))
-            return click(d, i, pc, sel);
+        return list_click(c, r - 1, sel);
 
     return GO_LOOP;
 }
@@ -568,7 +525,7 @@ static uint8_t on_mouse(Dlog *const d, DlogCtl **const pc, uint16_t *const sel)
 static uint8_t on_hotkey(Dlog *const d, const uint8_t key, const bool beep, DlogCtl **const pc)
 {
     const uint8_t letter = upcase(key);
-    uint8_t i = d->focus;
+    uint8_t i = dl.w.focus;
 
     for (uint8_t k = 0; k < d->n; k++) {
         if (++i >= d->n)
@@ -584,7 +541,7 @@ static uint8_t on_hotkey(Dlog *const d, const uint8_t key, const bool beep, Dlog
         if (c->kind == CT_BTN)
             return GO_PRESS;
 
-        d->focus = i;
+        dl.w.focus = i;
         dl.fresh = true;
         return c->kind == CT_CHK ? GO_CHECK : GO_LOOP;
     }
@@ -648,60 +605,32 @@ static uint8_t list_key(const DlogCtl *const c, const uint8_t scan, uint16_t *co
     return GO_SET;
 }
 
-static uint8_t on_key(Dlog *const d, uint16_t key, DlogCtl **const pc, uint16_t *const sel)
+/* key an Alt+letter? */
+static bool alt_letter(const uint16_t key)
 {
-    const uint8_t ch = (uint8_t)key;
-    uint8_t scan = (uint8_t)(key >> 8);
+    const uint8_t scan = (uint8_t)(key >> 8);
 
-    if (uimn.keyflags & PKEY_ALT) { /* Alt: the letters lit; Alt+letter */
+    return uimn.keyflags & PKEY_ALT && !(uint8_t)key && scan >= SCAN_ALT_FIRST &&
+           scan <= SCAN_ALT_LAST;
+}
+
+/* The box's keys, which a control passes up: Esc, Tab, Shift+Tab, Enter, Alt alone, an
+   Alt+letter. Alt held lights the letters; with another key, *key is that key alone. */
+static bool dialog_key(uint16_t *const key)
+{
+    if (uimn.keyflags & PKEY_ALT) {
         dl.alt = true;
 
-        if (!ch) {
-            const uint8_t alt_scan = scan;
-            scan -= SCAN_ALT_FIRST;
-            key = (uint16_t)(scan << 8 | ch);
-
-            if (alt_scan >= SCAN_ALT_FIRST && alt_scan <= SCAN_ALT_LAST) /* unmatched beeps */
-                return on_hotkey(d, menu_altchar(alt_scan), true, pc);
-        }
+        if (alt_letter(*key))
+            return true;
+        if (!(uint8_t)*key)
+            *key = (uint16_t)((uint8_t)((*key >> 8) - SCAN_ALT_FIRST) << 8);
     }
 
-    DlogCtl *const c = *pc;
+    const uint8_t ch = (uint8_t)*key;
 
-    if (key == KEY_ALT) {
-        dl.alt = true;
-        return GO_LOOP;
-    }
-
-    if (ch == CH_ESC)
-        return GO_ESC;
-    if (ch == CH_TAB) {
-        step(d, 1);
-        return GO_LOOP;
-    }
-
-    if (key == KEY_SHIFT_TAB) {
-        step(d, -1);
-        return GO_LOOP;
-    }
-
-    if (ch == CH_ENTER)
-        return GO_ENTER;
-    if (c->kind == CT_FLD) {
-        field_key(c->field, key);
-        return GO_LOOP;
-    }
-
-    if (c->kind == CT_LST)
-        return list_key(c, scan, sel);
-    if (ch != ' ')
-        return on_hotkey(d, ch, false, pc);
-    if (c->kind == CT_CHK)
-        return GO_CHECK;
-    if (c->kind == CT_BTN)
-        return GO_PRESS;
-
-    return GO_LOOP;
+    return *key == KEY_ALT || *key == KEY_SHIFT_TAB || ch == CH_ESC || ch == CH_TAB ||
+           ch == CH_ENTER;
 }
 
 /* A list's selection to sel, at most its last. */
@@ -770,32 +699,147 @@ static void ended(const uint8_t go, DlogCtl *const c, const uint16_t sel)
         dl.w.visible = false;
 }
 
+static DlogCtl *ctl_of(const Widget *const w) { return &dl.d->ctl[w - dl.kids]; }
+
+/* The box's keys, and the hotkeys a button or a check box passes up. */
 static bool dl_key(Widget *const w, Session *const S, const uint16_t key)
 {
-    DlogCtl *c = &dl.d->ctl[dl.d->focus];
-    uint16_t sel = 0; /* GO_SET's */
-    const uint8_t go = on_key(dl.d, key, &c, &sel);
-    ended(go, c, sel);
+    DlogCtl *c = &dl.d->ctl[dl.w.focus];
+    const uint8_t ch = (uint8_t)key;
+    uint16_t k = key;
+    uint8_t go = GO_LOOP;
+
+    if (alt_letter(key))
+        go = on_hotkey(dl.d, menu_altchar((uint8_t)(key >> 8)), true, &c); /* unmatched beeps */
+    else if (!dialog_key(&k))
+        go = on_hotkey(dl.d, ch, false, &c);
+    else if (k == KEY_ALT)
+        dl.alt = true;
+    else if (ch == CH_ESC)
+        go = GO_ESC;
+    else if (ch == CH_TAB)
+        step(dl.d, 1);
+    else if (k == KEY_SHIFT_TAB)
+        step(dl.d, -1);
+    else if (ch == CH_ENTER)
+        go = GO_ENTER;
+
+    ended(go, c, 0);
     return true;
 }
 
+/* The box takes the clicks off its controls. */
 static bool dl_mouse(Widget *const w, Session *const S, const uint8_t row, const uint8_t col)
 {
-    DlogCtl *c = &dl.d->ctl[dl.d->focus];
-    uint16_t sel = 0;
-    const uint8_t go = on_mouse(dl.d, &c, &sel);
+    return true;
+}
+
+/* dl_draw: the frame, the shadow, the separator; the controls after. */
+static void dl_draw(Widget *const w, Session *const S)
+{
+    const Dlog *const d = dl.d;
+    scrn_box(d->row, d->col, d->rows, d->cols, SL_DLG, d->title);
+    scrn_shadow(d->row, d->col, d->rows, d->cols);
+
+    if (d->sep)
+        scrn_sep(d->row + d->sep, d->col, d->cols, SL_DLG);
+
+    dl.cur = PSCR_HIDDEN;
+}
+
+static void ctl_draw(Widget *const w, Session *const S)
+{
+    dl.focused = w - dl.kids == dl.w.focus;
+    draw_ctl(dl.d, ctl_of(w));
+}
+
+static bool ctl_mouse(Widget *const w, Session *const S, const uint8_t row, const uint8_t col)
+{
+    if (uimn.mouse.event != MS_PRESS)
+        return false;
+
+    DlogCtl *const c = ctl_of(w);
+    uint16_t sel = 0; /* GO_SET's */
+    const uint8_t go = click(c, (uint8_t)(w - dl.kids), row - w->rect.row, &sel);
     ended(go, c, sel);
     return true;
 }
 
-static void dl_draw(Widget *const w, Session *const S) { draw(dl.d); }
+/* A field takes every key not the box's. */
+static bool fld_key(Widget *const w, Session *const S, uint16_t key)
+{
+    if (dialog_key(&key))
+        return false;
 
-static const WidgetOps dl_ops = {
-    .draw = dl_draw,
-    .key = dl_key,
-    .mouse = dl_mouse,
+    field_key(ctl_of(w)->field, key);
+    return true;
+}
+
+/* A list too: its moves. */
+static bool lst_key(Widget *const w, Session *const S, uint16_t key)
+{
+    if (dialog_key(&key))
+        return false;
+
+    DlogCtl *const c = ctl_of(w);
+    uint16_t sel = 0;
+    const uint8_t go = list_key(c, (uint8_t)(key >> 8), &sel);
+    ended(go, c, sel);
+    return true;
+}
+
+/* A button, a check box: Space presses, checks; the rest go up, hotkeys. */
+static bool press_key(Widget *const w, Session *const S, uint16_t key)
+{
+    if (dialog_key(&key) || (uint8_t)key != ' ')
+        return false;
+
+    DlogCtl *const c = ctl_of(w);
+    ended(c->kind == CT_CHK ? GO_CHECK : GO_PRESS, c, 0);
+    return true;
+}
+
+static const WidgetOps dl_ops = {.draw = dl_draw, .key = dl_key, .mouse = dl_mouse};
+static const WidgetOps fld_ops = {
+    .draw = ctl_draw,
+    .key = fld_key,
+    .mouse = ctl_mouse,
     .cursor = dl_cursor,
 };
+static const WidgetOps lst_ops = {
+    .draw = ctl_draw,
+    .key = lst_key,
+    .mouse = ctl_mouse,
+    .cursor = dl_cursor,
+};
+static const WidgetOps press_ops = {
+    .draw = ctl_draw,
+    .key = press_key,
+    .mouse = ctl_mouse,
+    .cursor = dl_cursor,
+};
+static const WidgetOps txt_ops = {.draw = ctl_draw};
+
+/* d's controls as the box's children. */
+static void bind(const Dlog *const d)
+{
+    static_assert(NMSGCTL <= TREE_MAX_CHILDREN);
+    dl.w.rect = (Rect){d->row, d->col, d->rows, d->cols};
+
+    dl.w.nchildren = 0;
+    dl.w.focus = d->focus;
+
+    for (uint8_t i = 0; i < d->n; i++) {
+        const DlogCtl *const c = &d->ctl[i];
+        const WidgetOps *const ops = c->kind == CT_FLD   ? &fld_ops
+                                     : c->kind == CT_LST ? &lst_ops
+                                     : c->kind == CT_TXT ? &txt_ops
+                                                         : &press_ops;
+        dl.kids[i] = (Widget){.ops = ops, .rect = ctl_rect(d, c), .visible = true};
+
+        tree_add(&dl.w, &dl.kids[i]);
+    }
+}
 
 void dlog_build(Widget *const screen)
 {
@@ -809,11 +853,21 @@ static uint8_t run(Session *const S, Dlog *const d)
 {
     Dlog *const outer = dl.d;
     const bool shown = dl.w.visible;
+
+    if (outer)
+        outer->focus = dl.w.focus;
+
     dl.d = d;
+    bind(d);
     dl.alt = pkey_shift() & PKEY_ALT; /* Alt down already: its letters lit */
     dl.fresh = true;
     uimn_modal(S, &dl.w);
+    d->focus = dl.w.focus;
     dl.d = outer;
+
+    if (outer)
+        bind(outer);
+
     dl.w.visible = shown;
     return dl.result;
 }

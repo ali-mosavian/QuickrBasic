@@ -14,7 +14,7 @@
 #define UI_TREE_H
 #include "base.h"
 
-enum { TREE_MAX_CHILDREN = 8 };
+enum { TREE_MAX_CHILDREN = 16 };
 
 typedef struct Widget Widget;
 
