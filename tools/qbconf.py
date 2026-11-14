@@ -88,6 +88,7 @@ def main() -> None:
         if not good and "-v" in sys.argv:
             print(got)
     print(f"{ok}/{len(pick)}" + (f", {len(SKIP)} skipped" if not args else ""))
+    sys.exit(ok != len(pick))
 
 
 if __name__ == "__main__":

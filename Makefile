@@ -149,6 +149,7 @@ cgolden-update: build/host/golden_dump
 	$(PY) tools/golden.py --update
 
 chosttest: chost cunit cgolden         # the unit tests and the suites against the host build, natively
+	$(PY) tools/qbconf_test.py
 	X86_COM=build/host/basic $(PY) tools/x86f_test.py build/host/basic
 	X86_COM=build/host/basic $(PY) tools/qbconf.py
 
