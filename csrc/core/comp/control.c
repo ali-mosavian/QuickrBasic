@@ -400,8 +400,10 @@ void ctrl_next(Comp *const C)
     const uint8_t *forat;
 
     if (C->line == DLINE) {
-        if (!C->ndfor && C->check) { /* its FOR on another line */
-            skip(C);
+        if (!C->ndfor && C->check) { /* its FOR on another line: its variable read */
+            if (comp_cur(C) == M_VAR)
+                (void)comp_var(C, 0, 0);
+
             return;
         }
 

@@ -28,4 +28,12 @@ TEST(check_passes_next_alone)
 {
     CHECK(!check_errs(S, "next"));
     CHECK(!check_errs(S, "next i"));
+    CHECK(!check_errs(S, "next i, j"));
+}
+
+/* A NEXT alone was skipped to its statement's end: NEXT IF and NEXT I PRINT passed the check. */
+TEST(check_reads_next_alone)
+{
+    CHECK(check_errs(S, "next if"));
+    CHECK(check_errs(S, "next i print"));
 }
