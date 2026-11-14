@@ -98,7 +98,7 @@ uint32_t dbug_depth(const Vm *const vm)
 DebugPos dbug_pos(Session *const S, const uint32_t line, const uint8_t *const code)
 {
     uint32_t left;
-    const Stmt *const s = flow_stmtof(S, line, code, &left);
+    const Stmt *const s = flow_stmtof(&S->prog, &S->allo, line, code, &left);
     return (DebugPos){.line = line, .from = s->body, .to = left > 1 ? s[1].body : BOFF};
 }
 

@@ -81,12 +81,15 @@ enum : uint32_t { RESOLVED = TO_NEXT_STMT + 1 };
 
 void flow_init(Session *const S) { S->flow.text = allo_carve(&S->allo, DSZ + 2); }
 
-static inline uint8_t *cache_at(Allo *const al, const uint32_t off) { return at(al->cache + off); }
-static inline uint32_t cache_off(Allo *const al, const uint8_t *const p)
+static inline uint8_t *cache_at(const Allo *const al, const uint32_t off)
+{
+    return at(al->cache + off);
+}
+static inline uint32_t cache_off(const Allo *const al, const uint8_t *const p)
 {
     return addr_of(p) - al->cache;
 }
-static inline void drop_temps(Session *const S) { S->strg.tmp_used = S->strg.tmp_floor; }
+static inline void drop_temps(Strg *const sg) { sg->tmp_used = sg->tmp_floor; }
 static inline bool is_string(const Var *const v) { return (v->info & VK_MASK) == VK_STR; }
 static inline bool is_double(const Var *const v) { return v->info & SK_DBL; }
 static inline bool is_array(const Var *const v) { return v->info & VI_ARR; }
@@ -122,16 +125,9 @@ static uint8_t *direct_compiled(Session *const S)
     return flow_dcode(S);
 }
 
-/* Start running line: a program line's code from the cache; the direct line compiled on its own. */
-static void enter_line(Session *const S, const uint32_t line)
+void flow_nextln(Session *const S)
 {
-    S->vm.line = line;
-    const Line *const ln = prog_line(&S->prog, line);
-    S->vm.ip = ln->len ? cache_at(&S->allo, ln->code) : direct_compiled(S);
-}
-
-static void next_line(Session *const S)
-{
+    drop_temps(&S->strg);
     const uint32_t next = S->vm.line + prog_line(&S->prog, S->vm.line)->len;
 
     if (!prog_line(&S->prog, next)->len) {
@@ -139,54 +135,55 @@ static void next_line(Session *const S)
         stmt_end(S);
     }
 
-    enter_line(S, next);
-}
-
-void flow_nextln(Session *const S)
-{
-    drop_temps(S);
-    next_line(S);
+    S->vm.line = next;
+    const Line *const ln = prog_line(&S->prog, next); /* len 0: the direct line, compiled */
+    S->vm.ip = ln->len ? cache_at(&S->allo, ln->code) : direct_compiled(S);
 }
 
 void flow_jump(Session *const S, const uint32_t line)
 {
-    drop_temps(S);
+    drop_temps(&S->strg);
 
     if (!S->link.linked)
         link_start(&S->comp);
 
     S->link.cursor = line;
-    enter_line(S, line);
+    S->vm.line = line;
+    const Line *const ln = prog_line(&S->prog, line); /* len 0: the direct line, compiled */
+    S->vm.ip = ln->len ? cache_at(&S->allo, ln->code) : direct_compiled(S);
 }
 
-uint32_t flow_target(Session *const S)
+uint32_t flow_target(Vm *const vm)
 {
-    const LineRef *const ref = (const LineRef *)S->vm.ip;
-    S->vm.ip += sizeof(LineRef);
+    const LineRef *const ref = (const LineRef *)vm->ip;
+    vm->ip += sizeof(LineRef);
     return ref->line;
 }
 
-uint8_t *flow_place(Session *const S, const Place p) { return cache_at(&S->allo, p.code); }
+uint8_t *flow_place(const Allo *const al, const Place p) { return cache_at(al, p.code); }
 
-Place flow_here(Session *const S) { return (Place){S->vm.line, cache_off(&S->allo, S->vm.ip)}; }
-
-static void go_to(Session *const S, const Place p)
+Place flow_here(const Vm *const vm, const Allo *const al)
 {
-    S->vm.line = p.line;
-    S->vm.ip = flow_place(S, p);
+    return (Place){vm->line, cache_off(al, vm->ip)};
+}
+
+static void go_to(Vm *const vm, const Allo *const al, const Place p)
+{
+    vm->line = p.line;
+    vm->ip = flow_place(al, p);
 }
 
 /* ---- frames --------------------------------------------------------------------------------- */
 
-Frame *flow_push(Session *const S, const FrameKind kind)
+Frame *flow_push(Vm *const vm, const Allo *const al, Fault *const f, const FrameKind kind)
 {
-    if (S->vm.nframes == MAX_FRAMES)
-        repl_error(S, E_OS);
+    if (vm->nframes == MAX_FRAMES)
+        fault_error(f, E_OS);
 
-    Frame *const f = &S->vm.frames[S->vm.nframes++];
-    *f = (Frame){.kind = kind, .ret = flow_here(S)};
+    Frame *const fr = &vm->frames[vm->nframes++];
+    *fr = (Frame){.kind = kind, .ret = flow_here(vm, al)};
 
-    return f;
+    return fr;
 }
 
 static Frame *top_frame(Vm *const vm)
@@ -208,18 +205,12 @@ Frame *flow_find(Vm *const vm, const FrameKind kind)
 
 /* ---- GOTO, GOSUB, ON ------------------------------------------------------------------------ */
 
-static void gosub(Session *const S, const uint32_t line)
-{
-    flow_push(S, FRAME_GOSUB);
-    flow_jump(S, line);
-}
-
 void flow_goto(Session *const S)
 {
     if (exec_stopchk(S))
         return;
 
-    flow_jump(S, flow_target(S));
+    flow_jump(S, flow_target(&S->vm));
 }
 
 void flow_gosub(Session *const S)
@@ -227,7 +218,9 @@ void flow_gosub(Session *const S)
     if (exec_stopchk(S))
         return;
 
-    gosub(S, flow_target(S));
+    const uint32_t line = flow_target(&S->vm);
+    flow_push(&S->vm, &S->allo, &S->fault, FRAME_GOSUB);
+    flow_jump(S, line);
 }
 
 /* RETURN. */
@@ -244,8 +237,8 @@ void flow_return(Session *const S)
         evnt_return(&S->evnt, &S->vm, f->event);
 
     pop_to(&S->vm, f);
-    drop_temps(S);
-    go_to(S, f->ret);
+    drop_temps(&S->strg);
+    go_to(&S->vm, &S->allo, f->ret);
 }
 
 /* ON k GOTO/GOSUB: k counts from 1; 0 or past the list falls through. */
@@ -266,9 +259,9 @@ void flow_on(Session *const S)
     const uint32_t line = lines[k].line;
 
     if (kind & ON_GOSUB)
-        gosub(S, line);
-    else
-        flow_jump(S, line);
+        flow_push(&S->vm, &S->allo, &S->fault, FRAME_GOSUB);
+
+    flow_jump(S, line);
 }
 
 void flow_eol(Session *const S)
@@ -281,41 +274,60 @@ void flow_eol(Session *const S)
 
 /* ---- jumps ---------------------------------------------------------------------------------- */
 
-/* The Jump operand at vm->ip: link_resolve set its target's code offset. A direct line's block
-   jump has none: Syntax error. */
-static void take_jump(Session *const S)
+/* The Jump operand at vm->ip taken: link_resolve set its target's code offset. A direct line's
+   block jump has none: Syntax error. The stop check is the caller's. */
+static void take_jump(Vm *const vm, Strg *const sg, const Allo *const al, Fault *const f)
 {
-    if (exec_stopchk(S))
-        return;
-
-    drop_temps(S);
-    const Jump j = *(const Jump *)S->vm.ip;
+    drop_temps(sg);
+    const Jump j = *(const Jump *)vm->ip;
 
     if (j.dest < RESOLVED)
-        repl_error(S, E_SN);
+        fault_error(f, E_SN);
 
-    S->vm.line = j.line;
-    S->vm.ip = cache_at(&S->allo, j.dest);
+    vm->line = j.line;
+    vm->ip = cache_at(al, j.dest);
 }
 
-/* JMP: a block's jump, and FOR's skip. */
-void flow_jmp(Session *const S) { take_jump(S); }
+static void skip_jump(Vm *const vm) { vm->ip += sizeof(Jump); }
 
-static void jump_if(Session *const S, const bool cond)
+/* JMP: a block's jump, and FOR's skip. */
+void flow_jmp(Session *const S)
 {
-    if (cond)
-        take_jump(S);
-    else
-        S->vm.ip += sizeof(Jump);
+    if (!exec_stopchk(S))
+        take_jump(&S->vm, &S->strg, &S->allo, &S->fault);
 }
 
 /* A SINGLE is true unless +0 or -0. */
 static bool sngl_true(const Cell c) { return c.u & ~SNGL_SIGN; }
 
-void flow_i_jf(Session *const S) { jump_if(S, !exec_popi(&S->vm)); }
-void flow_f_jf(Session *const S) { jump_if(S, !sngl_true(exec_pop(&S->vm))); }
-void flow_i_jt(Session *const S) { jump_if(S, exec_popi(&S->vm)); }
-void flow_f_jt(Session *const S) { jump_if(S, sngl_true(exec_pop(&S->vm))); }
+void flow_i_jf(Session *const S)
+{
+    if (exec_popi(&S->vm))
+        skip_jump(&S->vm);
+    else
+        flow_jmp(S);
+}
+void flow_f_jf(Session *const S)
+{
+    if (sngl_true(exec_pop(&S->vm)))
+        skip_jump(&S->vm);
+    else
+        flow_jmp(S);
+}
+void flow_i_jt(Session *const S)
+{
+    if (exec_popi(&S->vm))
+        flow_jmp(S);
+    else
+        skip_jump(&S->vm);
+}
+void flow_f_jt(Session *const S)
+{
+    if (sngl_true(exec_pop(&S->vm)))
+        flow_jmp(S);
+    else
+        skip_jump(&S->vm);
+}
 
 /* ---- FOR / NEXT ----------------------------------------------------------------------------- */
 
@@ -336,17 +348,13 @@ typedef struct {
     Addr counter, limit, step;
 } LoopCells;
 
-static LoopCells loop_cells(Session *const S)
+static LoopCells loop_cells(Vm *const vm, const Symb *const sy)
 {
-    const uint16_t counter = exec_u16(&S->vm);
-    const uint16_t limit = exec_u16(&S->vm);
-    const uint16_t step = exec_u16(&S->vm);
+    const uint16_t counter = exec_u16(vm);
+    const uint16_t limit = exec_u16(vm);
+    const uint16_t step = exec_u16(vm);
 
-    return (LoopCells){
-        symb_var(&S->symb, counter)->vt,
-        symb_var(&S->symb, limit)->vt,
-        symb_var(&S->symb, step)->vt,
-    };
+    return (LoopCells){symb_var(sy, counter)->vt, symb_var(sy, limit)->vt, symb_var(sy, step)->vt};
 }
 
 /* FOR counter limit step END ( limit [step] -- ): the counter has its start; past NEXT (END) when
@@ -355,7 +363,7 @@ void flow_for(Session *const S)
 {
     const uint8_t op = *S->vm.opip;
     const bool ints = op == O_I_FOR || op == O_I_FOR1;
-    const LoopCells c = loop_cells(S);
+    const LoopCells c = loop_cells(&S->vm, &S->symb);
     const uint32_t step =
         op == O_I_FOR || op == O_F_FOR ? exec_pop(&S->vm).u : (ints ? 1 : SNGL_ONE);
 
@@ -363,9 +371,9 @@ void flow_for(Session *const S)
     wr32(c.limit, exec_pop(&S->vm).u);
 
     if (past_limit(ints, rd32(c.counter), rd32(c.limit), step))
-        take_jump(S);
+        flow_jmp(S);
     else
-        S->vm.ip += sizeof(Jump);
+        skip_jump(&S->vm);
 }
 
 /* NEXT counter limit step BODY: stepped, back to the body until past the limit. An INT stepped past
@@ -375,9 +383,9 @@ void flow_next(Session *const S)
     if (exec_stopchk(S))
         return;
 
-    drop_temps(S);
+    drop_temps(&S->strg);
     const bool ints = *S->vm.opip == O_I_NEXT;
-    const LoopCells c = loop_cells(S);
+    const LoopCells c = loop_cells(&S->vm, &S->symb);
     const uint32_t step = rd32(c.step);
     uint32_t x;
 
@@ -394,7 +402,7 @@ void flow_next(Session *const S)
     wr32(c.counter, x);
 
     if (past_limit(ints, x, rd32(c.limit), step)) {
-        S->vm.ip += sizeof(Jump);
+        skip_jump(&S->vm);
         return;
     }
 
@@ -431,51 +439,64 @@ enum : uint32_t { NO_REF = 0xFFFF }; /* an argument's ref: passed by value, or n
 /* Take the arguments off the data stack into callvars b, last first. Each is a ref above a value:
    a variable's cell, passed by reference and with no value; or an array argument's id. By value,
    its CallVar holds the value till bind_params; a string is copied unless a temporary. */
-static void take_args(Session *const S, const Proc *const p, CallVar *const b)
+static void take_args(
+    Vm *const vm,
+    Symb *const sy,
+    Arry *const ar,
+    Strg *const sg,
+    const Proc *const p,
+    CallVar *const b
+)
 {
     for (uint32_t i = p->npar; i-- > 0;) {
         b[i] = (CallVar){.var = p->params[i].var};
 
-        const Var *const v = symb_var(&S->symb, b[i].var);
-        const uint32_t ref = exec_pop(&S->vm).u;
+        const Var *const v = symb_var(sy, b[i].var);
+        const uint32_t ref = exec_pop(vm).u;
 
         if (!is_array(v) && ref != NO_REF) {
             b[i].cell = ref;
-            S->vm.sp++; /* its value slot, empty */
+            vm->sp++; /* its value slot, empty */
             continue;
         }
 
-        const Cell val = exec_pop(&S->vm);
+        const Cell val = exec_pop(vm);
 
         if (is_array(v)) {
             b[i].arg = ref == NO_REF ? 0 : (uint16_t)ref;
-            b[i].array.hdr = v->info == (VI_ARR | VK_INT)
-                                 ? exec_record(&S->arry, &S->symb, (uint16_t)val.u)
-                                 : symb_var(&S->symb, (uint16_t)val.u)->vt;
+            b[i].array.hdr = v->info == (VI_ARR | VK_INT) ? exec_record(ar, sy, (uint16_t)val.u)
+                                                          : symb_var(sy, (uint16_t)val.u)->vt;
         } else if (is_string(v))
-            strg_set(&S->strg, val.a, addr_of(&b[i].value));
+            strg_set(sg, val.a, addr_of(&b[i].value));
         else
             b[i].value = val;
     }
 }
 
 /* Set the procedure's locals aside into callvars from b, emptying them; returns past the last. */
-static CallVar *save_locals(Session *const S, const uint8_t proc, CallVar *b)
+static CallVar *save_locals(
+    Vm *const vm,
+    Symb *const sy,
+    Strg *const sg,
+    Fault *const f,
+    const uint8_t proc,
+    CallVar *b
+)
 {
-    for (uint16_t id = S->symb.first_local[proc]; id; id = symb_varx(&S->symb, id)->nloc, b++) {
-        if (b >= S->vm.callvars + MAX_CALLVARS - 1)
-            repl_error(S, E_OS);
+    for (uint16_t id = sy->first_local[proc]; id; id = symb_varx(sy, id)->nloc, b++) {
+        if (b >= vm->callvars + MAX_CALLVARS - 1)
+            fault_error(f, E_OS);
 
         *b = (CallVar){.var = id};
 
-        Var *const v = symb_var(&S->symb, id);
+        Var *const v = symb_var(sy, id);
 
         if (is_array(v)) {
             b->array.hdr = v->vt;
             v->vt = 0;
         } else {
-            move_value(&S->strg, v, symb_cell(&S->symb, id), addr_of(&b->value));
-            clear_value(v, symb_cell(&S->symb, id));
+            move_value(sg, v, symb_cell(sy, id), addr_of(&b->value));
+            clear_value(v, symb_cell(sy, id));
         }
     }
 
@@ -523,12 +544,13 @@ void flow_pcall(Session *const S)
         repl_error(S, E_OS);
 
     CallVar *const params = S->vm.callvars + S->vm.ncallvars;
-    take_args(S, p, params);
-    const CallVar *const end = save_locals(S, proc, params + p->npar);
+    take_args(&S->vm, &S->symb, &S->arry, &S->strg, p, params);
+    const CallVar *const end =
+        save_locals(&S->vm, &S->symb, &S->strg, &S->fault, proc, params + p->npar);
     bind_params(&S->symb, &S->strg, params, p->npar);
 
     S->vm.ip = call + 1 + sizeof(Jump); /* the call returns past its body's Jump */
-    flow_push(S, FRAME_CALL)->call = (Call){
+    flow_push(&S->vm, &S->allo, &S->fault, FRAME_CALL)->call = (Call){
         .proc = proc,
         .params = S->vm.ncallvars,
         .locals = S->vm.ncallvars + p->npar,
@@ -539,7 +561,7 @@ void flow_pcall(Session *const S)
     S->vm.ncallvars = (uint32_t)(end - S->vm.callvars);
     S->strg.tmp_floor = S->strg.tmp_used;
     S->vm.ip = call + 1;
-    take_jump(S);
+    flow_jmp(S);
 }
 
 static bool is_param(const Proc *const p, const uint16_t var)
@@ -554,56 +576,63 @@ static bool is_param(const Proc *const p, const uint16_t var)
 /* End call f, the innermost, and drop the frames above it. The array arguments get their headers
    back as the callee left them, a FUNCTION's result is kept, the locals get the caller's values
    back, the parameters their cells. */
-static void end_call(Session *const S, const Frame *const f)
+static void end_call(
+    Vm *const vm,
+    Symb *const sy,
+    Strg *const sg,
+    Arry *const ar,
+    Flow *const fl,
+    const Proc *const p,
+    const Frame *const f
+)
 {
     const Call *const c = &f->call;
-    const Proc *const p = blok_proc(&S->blok, c->proc);
-    CallVar *const params = S->vm.callvars + c->params, *const locals = S->vm.callvars + c->locals;
-    pop_to(&S->vm, f);
+    CallVar *const params = vm->callvars + c->params, *const locals = vm->callvars + c->locals;
+    pop_to(vm, f);
 
     for (CallVar *b = params; b < locals; b++)
         if (b->arg) {
-            b->array.hdr = symb_var(&S->symb, b->var)->vt;
-            b->array.dyn = symb_varx(&S->symb, b->var)->dyn;
+            b->array.hdr = symb_var(sy, b->var)->vt;
+            b->array.dyn = symb_varx(sy, b->var)->dyn;
         }
 
     if (p->kind == PK_FUNC) {
-        const Var *const v = symb_var(&S->symb, p->result);
-        const Addr cell = symb_cell(&S->symb, p->result);
+        const Var *const v = symb_var(sy, p->result);
+        const Addr cell = symb_cell(sy, p->result);
 
         if (is_double(v))
-            memcpy(&S->flow.value, at(cell), 8);
+            memcpy(&fl->value, at(cell), 8);
         else if (is_string(v))
-            strg_move(&S->strg, cell, S->flow.text);
+            strg_move(sg, cell, fl->text);
         else
-            S->flow.value.u = rd32(cell);
+            fl->value.u = rd32(cell);
     }
 
-    for (CallVar *b = S->vm.callvars + S->vm.ncallvars; b-- > locals;) {
-        Var *const v = symb_var(&S->symb, b->var);
+    for (CallVar *b = vm->callvars + vm->ncallvars; b-- > locals;) {
+        Var *const v = symb_var(sy, b->var);
 
         if (!is_array(v))
-            move_value(&S->strg, v, addr_of(&b->value), symb_cell(&S->symb, b->var));
+            move_value(sg, v, addr_of(&b->value), symb_cell(sy, b->var));
         else {
             if (v->vt && !is_param(p, b->var)) /* a parameter's array is the caller's */
-                arry_free(&S->arry, &S->vm, b->var, 0);
+                arry_free(ar, vm, b->var, 0);
 
             v->vt = b->array.hdr;
         }
     }
 
     for (CallVar *b = params; b < locals; b++) {
-        if (!is_array(symb_var(&S->symb, b->var)))
-            symb_var(&S->symb, b->var)->vt = b->cell;
+        if (!is_array(symb_var(sy, b->var)))
+            symb_var(sy, b->var)->vt = b->cell;
         else if (b->arg) {
-            symb_var(&S->symb, b->arg)->vt = b->array.hdr;
-            symb_varx(&S->symb, b->arg)->dyn = b->array.dyn;
+            symb_var(sy, b->arg)->vt = b->array.hdr;
+            symb_varx(sy, b->arg)->dyn = b->array.dyn;
         }
     }
 
-    S->vm.ncallvars = c->params;
-    drop_temps(S); /* the callee's */
-    S->strg.tmp_floor = c->temp_floor;
+    vm->ncallvars = c->params;
+    drop_temps(sg); /* the callee's */
+    sg->tmp_floor = c->temp_floor;
 }
 
 /* PRET: return from the call, a FUNCTION's result pushed. */
@@ -617,8 +646,8 @@ void flow_pret(Session *const S)
     if (!f)
         repl_error(S, E_RG);
 
-    end_call(S, f);
     const Proc *const p = blok_proc(&S->blok, f->call.proc);
+    end_call(&S->vm, &S->symb, &S->strg, &S->arry, &S->flow, p, f);
 
     if (p->kind == PK_FUNC) {
         const Var *const v = symb_var(&S->symb, p->result);
@@ -637,25 +666,25 @@ void flow_pret(Session *const S)
             exec_pusha(&S->vm, S->flow.value.u);
     }
 
-    go_to(S, f->ret);
+    go_to(&S->vm, &S->allo, f->ret);
 }
 
 /* ---- ON ERROR / RESUME ---------------------------------------------------------------------- */
 
 /* ON [LOCAL] ERROR GOTO's line, 0 for GOTO 0. */
-static uint32_t handler_line(Session *const S)
+static uint32_t handler_line(Vm *const vm)
 {
-    if (((LineRef *)S->vm.ip)->num)
-        return flow_target(S);
+    if (((LineRef *)vm->ip)->num)
+        return flow_target(vm);
 
-    S->vm.ip += sizeof(LineRef);
+    vm->ip += sizeof(LineRef);
     return 0;
 }
 
 /* ON ERROR GOTO. GOTO 0 inside the handler raises the error being handled. */
 void flow_onerr(Session *const S)
 {
-    S->vm.err.handler = handler_line(S);
+    S->vm.err.handler = handler_line(&S->vm);
 
     if (!S->vm.err.handler && S->vm.err.active) {
         S->vm.err.user = S->vm.err.code;
@@ -669,7 +698,7 @@ void flow_onlerr(Session *const S)
     Frame *const f = flow_find(&S->vm, FRAME_CALL);
 
     if (f)
-        f->call.on_error = handler_line(S);
+        f->call.on_error = handler_line(&S->vm);
     else
         flow_onerr(S);
 }
@@ -684,8 +713,16 @@ uint32_t flow_handler(Session *const S)
     if (!h)
         return S->vm.err.handler;
     for (const Frame *f; (f = flow_find(&S->vm, FRAME_CALL)) != h;) {
-        end_call(S, f);
-        go_to(S, f->ret); /* the error is now at the call */
+        end_call(
+            &S->vm,
+            &S->symb,
+            &S->strg,
+            &S->arry,
+            &S->flow,
+            blok_proc(&S->blok, f->call.proc),
+            f
+        );
+        go_to(&S->vm, &S->allo, f->ret); /* the error is now at the call */
         S->vm.opip = --S->vm.ip;
     }
 
@@ -693,10 +730,10 @@ uint32_t flow_handler(Session *const S)
 }
 
 /* The data stack as the running procedure's body started, or the module's. */
-static Cell *stack_base(Session *const S)
+static Cell *stack_base(Vm *const vm)
 {
-    const Frame *const f = flow_find(&S->vm, FRAME_CALL);
-    return f ? f->call.stack : S->vm.rsp;
+    const Frame *const f = flow_find(vm, FRAME_CALL);
+    return f ? f->call.stack : vm->rsp;
 }
 
 void flow_trap(Session *const S, const uint8_t code, const uint32_t handler)
@@ -705,14 +742,14 @@ void flow_trap(Session *const S, const uint8_t code, const uint32_t handler)
     S->vm.err.active = true;
     S->vm.err.line = flow_erl(&S->prog, S->vm.line);
     uint32_t left;
-    const Stmt *const s = flow_stmtof(S, S->vm.line, S->vm.opip, &left);
+    const Stmt *const s = flow_stmtof(&S->prog, &S->allo, S->vm.line, S->vm.opip, &left);
     const uint32_t base = prog_line(&S->prog, S->vm.line)->code; /* the map's offsets are from it */
     S->vm.err.failed = (Place){S->vm.line, base + s->code};
 
     S->vm.err.next = (Place){S->vm.line, left > 1 ? base + s[1].code : LINE_END};
 
     chnl_clear(&S->chnl);
-    S->vm.sp = stack_base(S);
+    S->vm.sp = stack_base(&S->vm);
     flow_jump(S, handler);
 
     if (S->vm.running)
@@ -734,13 +771,14 @@ uint16_t flow_erl(Prog *const pg, const uint32_t line)
 }
 
 Stmt *flow_stmtof(
-    Session *const S,
+    const Prog *const pg,
+    const Allo *const al,
     const uint32_t line,
     const uint8_t *const code,
     uint32_t *const left
 )
 {
-    uint8_t *const base = cache_at(&S->allo, prog_line(&S->prog, line)->code);
+    uint8_t *const base = cache_at(al, prog_line(pg, line)->code);
     const uint32_t off = (uint32_t)(code - base);
     Stmt *s = stmt_map(base, left);
 
@@ -761,22 +799,22 @@ void flow_resume(Session *const S)
 
     S->vm.err.active = false;
     S->vm.err.code = 0;
-    S->vm.sp = stack_base(S);
+    S->vm.sp = stack_base(&S->vm);
     const ResumeMode mode = exec_u8(&S->vm);
 
     if (mode == RESUME_LINE) {
-        flow_jump(S, flow_target(S));
+        flow_jump(S, flow_target(&S->vm));
         return;
     }
 
     const Place p = mode == RESUME_NEXT ? S->vm.err.next : S->vm.err.failed;
-    drop_temps(S);
+    drop_temps(&S->strg);
     S->vm.line = p.line;
 
     if (p.code == LINE_END)
-        next_line(S);
+        flow_nextln(S);
     else
-        S->vm.ip = flow_place(S, p);
+        S->vm.ip = flow_place(&S->allo, p);
 }
 
 /* A compile error, raised when its statement runs. */
@@ -794,10 +832,10 @@ uint32_t flow_opsize(const uint8_t *const op)
     return op[1] + 2u; /* its length byte */
 }
 
-void flow_setcont(Session *const S)
+void flow_setcont(Vm *const vm, const Allo *const al)
 {
-    if (S->vm.line != DLINE)
-        S->vm.cont = flow_here(S);
+    if (vm->line != DLINE)
+        vm->cont = flow_here(vm, al);
 }
 
 void flow_end(Session *const S)

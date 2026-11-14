@@ -428,7 +428,7 @@ void stmt_res(Session *const S) { stmt_restore(S); }
 void stmt_restore(Session *const S) { S->stmt.data_pos = nullptr; }
 
 /* RESTORE line: its line set at link. */
-void stmt_resl(Session *const S) { seek_data(S, flow_target(S)); }
+void stmt_resl(Session *const S) { seek_data(S, flow_target(&S->vm)); }
 
 /* ---- DIM and ERASE -------------------------------------------------------------------------- */
 
@@ -526,7 +526,7 @@ void stmt_rungo(Session *const S, const uint32_t line)
 void stmt_runl(Session *const S)
 {
     const uint16_t num = ((const LineRef *)S->vm.ip)->num;
-    const uint32_t line = flow_target(S);
+    const uint32_t line = flow_target(&S->vm);
 
     if (num == NONUM)
         repl_error(S, E_US); /* RUN takes a number, not a label */
@@ -569,7 +569,7 @@ void stmt_cont(Session *const S)
         ready(S);
 
     S->vm.line = S->vm.cont.line;
-    S->vm.ip = flow_place(S, S->vm.cont);
+    S->vm.ip = flow_place(&S->allo, S->vm.cont);
 }
 
 /* CLEAR: the variables, and the frames. */
@@ -594,14 +594,14 @@ void stmt_end(Session *const S)
         dbug_done(S);
 
     chnl_closeall(&S->chnl);
-    flow_setcont(S);
+    flow_setcont(&S->vm, &S->allo);
     ready(S);
 }
 
 void stmt_stop(Session *const S)
 {
     S->vm.stop = 0;
-    flow_setcont(S);
+    flow_setcont(&S->vm, &S->allo);
     repl_error(S, E_BRK);
 }
 

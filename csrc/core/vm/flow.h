@@ -10,20 +10,20 @@ enum : uint32_t { LINE_END = 0xFFFFFFFF }; /* a Place's code: the start of the l
 void flow_init(Session *S);
 
 /* Push a frame of kind, returning where the running statement goes on. Out of stack space. */
-Frame *flow_push(Session *S, FrameKind kind);
+Frame *flow_push(Vm *vm, const Allo *al, Fault *f, FrameKind kind);
 /* The innermost frame of kind, nullptr none. */
 Frame *flow_find(Vm *vm, FrameKind kind);
 /* The place of vm->ip in the running line. */
-Place flow_here(Session *S);
+Place flow_here(const Vm *vm, const Allo *al);
 /* The code at place, its line compiled if the cache dropped it. */
-uint8_t *flow_place(Session *S, Place place);
+uint8_t *flow_place(const Allo *al, Place place);
 
 /* Go to line's start, linking the program first if it is not. */
 void flow_jump(Session *S, uint32_t line);
 /* Go to the next line; past the last the program ENDs. */
 void flow_nextln(Session *S);
 /* The LineRef operand at vm->ip: its line, found by number on first use. Undefined line number. */
-uint32_t flow_target(Session *S);
+uint32_t flow_target(Vm *vm);
 /* The direct line compiled into the cache; returns its code. Out of memory. */
 uint8_t *flow_dcode(Session *S);
 
@@ -36,10 +36,16 @@ void flow_trap(Session *S, uint8_t code, uint32_t handler);
 /* ERL: the last line number at or before line, 0 none. */
 uint16_t flow_erl(Prog *pg, uint32_t line);
 /* The statement map entry of the statement holding code in line; *left the entries from it on. */
-Stmt *flow_stmtof(Session *S, uint32_t line, const uint8_t *code, uint32_t *left);
+Stmt *flow_stmtof(
+    const Prog *pg,
+    const Allo *al,
+    uint32_t line,
+    const uint8_t *code,
+    uint32_t *left
+);
 
 /* CONT goes on at the running statement; not from the direct line. */
-void flow_setcont(Session *S);
+void flow_setcont(Vm *vm, const Allo *al);
 /* The program ends: files closed, the stacks empty, READY. */
 [[noreturn]]
 void flow_end(Session *S);
