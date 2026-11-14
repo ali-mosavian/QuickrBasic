@@ -29,7 +29,7 @@ static void resolve(Session *const S, Node *const n)
             n->var = symb_var(&S->symb, n->id);
             n->par = comp_ispar(S, n->id);
         } else
-            n->jump = ctrl_jump(S, S->blok.procs[n->op].entry);
+            n->jump = ctrl_jump(S, blok_proc(&S->blok, n->op)->entry);
         break;
     default: break;
     }

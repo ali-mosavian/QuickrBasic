@@ -2,6 +2,7 @@
    it takes the Session as S, its first parameter. */
 #ifndef SESSION_H
 #define SESSION_H
+#include "fault.h"
 #include "comp/ast.h"
 #include "comp/blok.h"
 #include "comp/comp.h"
@@ -50,6 +51,7 @@ struct Session {
     Evnt evnt;
     Expr expr;
     Code code;
+    Fault fault;
     File file;
     Flow flow;
     Lexr lexr;

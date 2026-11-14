@@ -30,6 +30,8 @@ void prog_put(Session *S, uint16_t num, const uint8_t *body, uint32_t len);
 void prog_add(Session *S, uint16_t num, const uint8_t *body, uint32_t len);
 /* Where prog_add stores: add_at, else the end. */
 uint32_t prog_at(Session *S);
+/* Position pos: its line, its body offset *off. */
+uint32_t prog_lineof(const Prog *pg, uint32_t pos, uint32_t *off);
 /* Line's body copied to dst; returns past it. */
 uint8_t *prog_body(Session *S, uint32_t line, uint8_t *dst);
 /* The record at line removed; returns its size. */

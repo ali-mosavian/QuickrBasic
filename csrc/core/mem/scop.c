@@ -65,8 +65,8 @@ static uint16_t frame(Session *const S, const uint32_t i, bool *const deffn)
     *deffn = false;
     if (!p)
         return 0;
-    *deffn = S->blok.procs[p].flags & PF_DEF;
-    return S->blok.procs[p].name;
+    *deffn = blok_proc(&S->blok, p)->flags & PF_DEF;
+    return blok_proc(&S->blok, p)->name;
 }
 
 uint16_t scop_own(Session *const S)

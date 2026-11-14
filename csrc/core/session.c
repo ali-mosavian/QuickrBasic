@@ -55,9 +55,9 @@ void session_drop_stop(Session *const S)
 
 bool session_set_next(Session *const S, const uint32_t line)
 {
-    blok_scope(S, line);
+    scop_proc(S, blok_procof(&S->blok, line));
     const uint8_t proc = S->comp.proc;
-    blok_scope(S, S->vm.cont.line);
+    scop_proc(S, blok_procof(&S->blok, S->vm.cont.line));
     if (proc != S->comp.proc)
         return false;
     const uint32_t code = prog_line(&S->prog, line)->code;

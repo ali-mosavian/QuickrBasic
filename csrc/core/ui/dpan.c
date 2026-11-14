@@ -218,9 +218,9 @@ static bool is_param(Session *const S, const uint16_t id)
 {
     if (!dp.proc)
         return false;
-    const Proc *const p = &S->blok.procs[dp.proc];
+    const Proc *const p = blok_proc(&S->blok, dp.proc);
     for (uint16_t k = 0; k < p->npar; k++)
-        if (S->blok.params[p->par + k] == id)
+        if (p->params[k].var == id)
             return true;
     return false;
 }
@@ -302,9 +302,9 @@ static void vars(Session *const S)
     dp.proc = dp.fr[dp.frame].at.proc;
     dp.nvars = 0;
     if (dp.proc) {
-        const Proc *const p = &S->blok.procs[dp.proc];
+        const Proc *const p = blok_proc(&S->blok, dp.proc);
         for (uint16_t k = 0; k < p->npar; k++)
-            var1(S, S->blok.params[p->par + k], k);
+            var1(S, p->params[k].var, k);
     }
     for (uint16_t id = 1; id < S->symb.nvars; id++)
         if (symb_varx(&S->symb, id)->scope == dp.proc && !skipped(S, id) && !is_param(S, id))
@@ -574,7 +574,7 @@ static bool seen(Session *const S, const uint16_t id)
     const Binding *b = scop_get(S, 0, name);
     if (b && b->flags & BF_SHR)
         return true;
-    b = scop_get(S, S->blok.procs[dp.proc].name, name);
+    b = scop_get(S, blok_proc(&S->blok, dp.proc)->name, name);
     return b && b->flags & BF_REF;
 }
 

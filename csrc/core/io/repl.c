@@ -1,5 +1,6 @@
 /* Errors and the READY loop (io/repl.asm). */
 #include "io/repl.h"
+#include <stddef.h>
 #include "session.h"
 #include "comp/comp.h"
 #include "comp/decl.h"
@@ -49,6 +50,16 @@ void repl_error(Session *const S, uint8_t code)
     }
     S->repl.err = code;
     longjmp(S->repl.top, REPL_ERROR);
+}
+
+[[noreturn]] void repl_fault(Fault *const f, const Failure *const e)
+{
+    Session *const S = (Session *)((uint8_t *)f - offsetof(Session, fault));
+    if (e->at != FAULT_KEEP)
+        diag_raise(S, e->code, e->dg, e->at, e->line, e->other, e->len);
+    if (e->line != FAULT_KEEP)
+        S->vm.line = e->line;
+    repl_error(S, e->code);
 }
 
 void repl_ready(Session *const S) { longjmp(S->repl.top, REPL_READY); }

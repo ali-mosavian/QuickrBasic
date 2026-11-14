@@ -52,6 +52,20 @@ void *arena_alloc(Arena *const a, const size_t size)
     return p;
 }
 
+void *arena_grow(Arena *const a, void *const old, const size_t size, const size_t newsize)
+{
+    uint8_t *const o = old;
+    if (o && o + rounded(size) == a->top && (size_t)(a->cur->end - o) >= rounded(newsize)) {
+        a->top = o + rounded(newsize);
+        memset(o + size, 0, newsize - size);
+        return o;
+    }
+    uint8_t *const p = arena_alloc(a, newsize);
+    if (p && o)
+        memcpy(p, o, size);
+    return p;
+}
+
 void arena_reset(Arena *const a)
 {
     a->cur = a->first;

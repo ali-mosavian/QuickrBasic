@@ -13,6 +13,7 @@
 #define CORE_IO_REPL_H
 #include <setjmp.h>
 #include "defs.h"
+#include "fault.h"
 
 /* setjmp(repl.top)'s values */
 enum { REPL_START = 0, REPL_READY = 1, REPL_ERROR = 2 };
@@ -53,6 +54,8 @@ extern const FrontEnd repl_batch;
 /* The start (repl.fe's), then the READY loop: READY., lines read and entered. repl.top's
    setjmp. */
 [[noreturn]] void repl_main(Session *S);
+/* Session.fault's raise: a module's error, reported as diag_raise or repl_error does. */
+[[noreturn]] void repl_fault(Fault *f, const Failure *e);
 /* Back to READY (asm rpl_ready): the C stack unwound to repl.top. */
 [[noreturn]] void repl_ready(Session *S);
 /* Run the direct line repl_enter left in comp_cbuf. */

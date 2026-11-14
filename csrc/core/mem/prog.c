@@ -137,3 +137,12 @@ void prog_room(Session *const S, const uint32_t size)
 }
 
 void prog_place(Session *const S) { S->prog.base = allo_base(&S->allo, HPROG); }
+
+uint32_t prog_lineof(const Prog *const pg, const uint32_t pos, uint32_t *const off)
+{
+    uint32_t line = PROGBASE;
+    while (pos >= line + prog_line(pg, line)->len)
+        line += prog_line(pg, line)->len;
+    *off = pos - line - HDR;
+    return line;
+}

@@ -225,7 +225,7 @@ const Proc *ref_proc(Session *const S, uint8_t *const idx)
         return nullptr;
     S->comp.p = comp_skipname(p);
     *idx = n->proc;
-    return &S->blok.procs[n->proc];
+    return blok_proc(&S->blok, n->proc);
 }
 
 void ref_dropargs(Session *const S, const bool paren)
@@ -344,8 +344,8 @@ static void args(Session *const S, Node *const n, const Proc *const pr)
                 synerr(S);
             S->comp.p++;
         }
-        const bool byval = S->blok.byval[pr->par + i] || def;
-        ast_link(n, &last, arg(S, S->blok.params[pr->par + i], byval));
+        const bool byval = pr->params[i].byval || def;
+        ast_link(n, &last, arg(S, pr->params[i].var, byval));
     }
 }
 

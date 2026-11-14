@@ -263,9 +263,9 @@ bool comp_ispar(Session *const S, const uint16_t id)
 {
     if (symb_var(&S->symb, id)->info & VI_ARR || !S->comp.proc)
         return false;
-    const Proc *const p = &S->blok.procs[S->comp.proc];
+    const Proc *const p = blok_proc(&S->blok, S->comp.proc);
     for (uint32_t i = 0; i < p->npar; i++)
-        if (S->blok.params[p->par + i] == id)
+        if (p->params[i].var == id)
             return true;
     return false;
 }
@@ -274,9 +274,9 @@ bool comp_param(Session *const S, const uint16_t name, const uint8_t array, uint
 {
     if (!S->comp.proc)
         return false;
-    const Proc *const p = &S->blok.procs[S->comp.proc];
+    const Proc *const p = blok_proc(&S->blok, S->comp.proc);
     for (uint32_t i = 0; i < p->npar; i++) {
-        const uint16_t v = S->blok.params[p->par + i];
+        const uint16_t v = p->params[i].var;
         const Var *const var = symb_var(&S->symb, v);
         if (var->name == name && !((var->info ^ array) & VI_ARR)) {
             *id = v;
@@ -300,7 +300,7 @@ void comp_scope(Session *const S, const uint16_t name)
         S->comp.scope = 0; /* the module's */
         return;
     }
-    if (b->flags & BF_STAT || S->blok.procs[S->comp.proc].flags & PF_STAT)
+    if (b->flags & BF_STAT || blok_proc(&S->blok, S->comp.proc)->flags & PF_STAT)
         S->comp.isstatic = true; /* STATIC */
 }
 

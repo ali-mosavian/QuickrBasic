@@ -32,3 +32,15 @@ TEST(arenas_allocate_apart)
     arena_reset(&a);
     CHECK(arena_alloc(&b, 16) != y);
 }
+
+TEST(arena_grow_extends_the_last_allocation_in_place_else_copies)
+{
+    Arena a;
+    arena_init(&a, 256);
+    uint8_t *p = arena_alloc(&a, 16);
+    p[15] = 7;
+    CHECK(arena_grow(&a, p, 16, 64) == p && p[15] == 7 && !p[63]);
+    uint8_t *const q = arena_alloc(&a, 16); /* p no longer the last */
+    uint8_t *const r = arena_grow(&a, p, 64, 128);
+    CHECK(r && r != p && r != q && r[15] == 7 && !r[127]);
+}

@@ -9,65 +9,60 @@
 #ifndef COMP_BLOK_H
 #define COMP_BLOK_H
 #include "defs.h"
+#include "fault.h"
+#include "mem/prog.h"
+#include "mem/symb.h"
+#include "util/arena.h"
 
 /* A block statement's entry. */
-typedef struct PACKED {
+typedef struct BlockEnt BlockEnt;
+struct BlockEnt {
     uint32_t pos;   /* its position */
     uint32_t next;  /* the target its false test, or its loop, goes to */
     uint32_t done;  /* the target leaving the block */
-    uint16_t link;  /* the next entry + 1 of its chain (ELSE, CASE, EXIT) */
-    uint16_t aux;   /* SELECT: depth, (its value's T_* | 1) << 8; CASE: its SELECT's; EXIT: BK_* */
+    BlockEnt *link; /* the next of its chain (ELSE, CASE, EXIT) */
+    BlockEnt *sel;  /* CASE: its SELECT */
+    uint16_t aux;   /* SELECT: depth, (its value's T_* | 1) << 8; EXIT: BK_* */
     uint8_t kind;   /* BK_* */
-    uint8_t pad[15];
-} BlockEnt;
-static_assert(sizeof(BlockEnt) == 32);
+};
+
+/* A parameter: its name's position, the variable link_start declares for it. */
+typedef struct {
+    uint32_t at;
+    uint16_t var;
+    bool byval;
+} Param;
 
 /* A SUB, FUNCTION or DEF FN. */
-typedef struct PACKED {
+typedef struct {
+    uint32_t at;     /* its name's position */
     uint16_t name;
-    uint8_t kind;   /* PK_SUB, PK_FUNC */
-    uint8_t flags;  /* PF_* */
-    uint32_t entry; /* its body: a target */
-    uint16_t first; /* its first line, its last (program store offsets) */
+    uint8_t kind;    /* PK_SUB, PK_FUNC */
+    uint8_t flags;   /* PF_* */
+    uint32_t entry;  /* its body: a target */
+    uint16_t first;  /* its first line, its last (program store offsets) */
     uint16_t last;
-    uint16_t npar;  /* its parameters: their variables in blok_params from par */
+    uint16_t npar;
     uint16_t result; /* a FUNCTION's result variable */
-    uint16_t par;
-    uint16_t pad0;
-    uint32_t skip;  /* past its END: a target */
-    uint8_t pad[8];
+    Param *params;
+    uint32_t skip;   /* past its END: a target */
 } Proc;
-static_assert(sizeof(Proc) == 32);
 
-enum { NBST = 64 }; /* blocks open at most */
-/* An open block: its kind, its opener's entry, its last clause (ELSED: an ELSE, no false test
-   after it), its chain's head + 1. */
+/* The program's blocks and procedures, as blok_pair found them; its arena holds them. */
 typedef struct {
-    uint8_t kind;
-    uint16_t open, last, chain;
-} Open;
-
-typedef struct {
-    uint16_t nblocks; /* nblk */
-    uint16_t depth;   /* bsp: the scan's stack */
-    uint32_t line;    /* scanln: the line scanned */
-    uint16_t nprocs;  /* nprc: procedures + 1 */
-    uint16_t nparams; /* nppar */
-    uint16_t proc;    /* cprc: the procedure the scan is in, 0 none */
-    Open open[NBST];  /* the scan's open blocks */
-    const uint8_t *body; /* (EBP) the body scanned */
-    uint32_t off;     /* (ECX) the statement's offset in it */
-    bool isdef;       /* g_bkdef: the procedure is a DEF FN's */
-    BlockEnt blocks[NBLK]; /* g_blk */
-    Proc procs[NPROC];     /* g_prc, from 1 */
-    uint16_t params[NPPAR]; /* g_ppar: parameters' variables */
-    uint8_t byval[NPPAR];   /* g_pbyv: 1 BYVAL */
+    Arena arena;
+    BlockEnt **blocks; /* by position */
+    uint16_t nblocks;
+    Proc **procs;      /* by number, from 1 */
+    uint16_t nprocs;   /* procedures + 1 */
 } Blok;
 
-
-void blok_pair(Session *S);           /* cm_blocks: pair the program's blocks; FOR without NEXT .. */
-int32_t blok_find(Session *S, uint32_t line, uint32_t off); /* the entry of line's statement at body offset
-                                                   off; -1 none */
-uint32_t blok_lineof(Session *S, uint32_t pos, uint32_t *off); /* position pos: its line, body offset */
-uint8_t blok_scope(Session *S, uint32_t line); /* bk_proc: the procedure line is in, 0 none; the scopes its */
+/* cm_blocks: pair the program's blocks; FOR without NEXT .. raise through f. */
+void blok_pair(Blok *b, const Prog *pg, const Symb *sy, Fault *f);
+/* The entry of line's statement at body offset off; null none. */
+BlockEnt *blok_find(const Blok *b, uint32_t line, uint32_t off);
+/* Procedure i; 0, or none yet, an empty one: the module. */
+const Proc *blok_proc(const Blok *b, uint8_t i);
+/* bk_proc: the procedure line is in, 0 none. */
+uint8_t blok_procof(const Blok *b, uint32_t line);
 #endif

@@ -437,7 +437,7 @@ enum : uint32_t { NO_REF = 0xFFFF }; /* an argument's ref: passed by value, or n
 static void take_args(Session *const S, const Proc *const p, CallVar *const b)
 {
     for (uint32_t i = p->npar; i-- > 0;) {
-        b[i] = (CallVar){.var = S->blok.params[p->par + i]};
+        b[i] = (CallVar){.var = p->params[i].var};
         const Var *const v = symb_var(&S->symb, b[i].var);
         const uint32_t ref = exec_pop(&S->vm).u;
         if (!is_array(v) && ref != NO_REF) {
@@ -505,7 +505,7 @@ void flow_pcall(Session *const S)
 {
     uint8_t *const call = S->vm.ip;
     const uint8_t proc = *call;
-    const Proc *const p = &S->blok.procs[proc];
+    const Proc *const p = blok_proc(&S->blok, proc);
     if (S->vm.sp < S->vm.stklim || S->vm.nframes == MAX_FRAMES ||
         S->vm.ncallvars + p->npar >= MAX_CALLVARS - 1)
         repl_error(S, E_OS);
@@ -531,7 +531,7 @@ void flow_pcall(Session *const S)
 static bool is_param(Session *const S, const Proc *const p, const uint16_t var)
 {
     for (uint32_t i = 0; i < p->npar; i++)
-        if (S->blok.params[p->par + i] == var)
+        if (p->params[i].var == var)
             return true;
     return false;
 }
@@ -542,7 +542,7 @@ static bool is_param(Session *const S, const Proc *const p, const uint16_t var)
 static void end_call(Session *const S, const Frame *const f)
 {
     const Call *const c = &f->call;
-    const Proc *const p = &S->blok.procs[c->proc];
+    const Proc *const p = blok_proc(&S->blok, c->proc);
     CallVar *const params = S->vm.callvars + c->params, *const locals = S->vm.callvars + c->locals;
     pop_to(S, f);
 
@@ -593,7 +593,7 @@ void flow_pret(Session *const S)
     if (!f)
         repl_error(S, E_RG);
     end_call(S, f);
-    const Proc *const p = &S->blok.procs[f->call.proc];
+    const Proc *const p = blok_proc(&S->blok, f->call.proc);
     if (p->kind == PK_FUNC) {
         const Var *const v = symb_var(&S->symb, p->result);
         if (is_double(v))

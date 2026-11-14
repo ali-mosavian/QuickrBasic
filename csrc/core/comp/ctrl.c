@@ -75,7 +75,7 @@ Jump ctrl_jump(Session *const S, const uint32_t t)
             j.body = (t & ~PDIR) >> 2;
         } else {
             uint32_t off;
-            j.line = blok_lineof(S, t >> 2, &off);
+            j.line = prog_lineof(&S->prog, t >> 2, &off);
             j.body = off;
         }
     }
@@ -96,10 +96,10 @@ static BlockEnt *entry(Session *const S, const uint8_t *const at)
 {
     if (S->comp.line == DLINE)
         return nullptr;
-    const int32_t i = blok_find(S, S->comp.line, (uint32_t)(at - S->comp.body));
-    if (i < 0)
+    BlockEnt *const e = blok_find(&S->blok, S->comp.line, (uint32_t)(at - S->comp.body));
+    if (!e)
         synerr(S);
-    return &S->blok.blocks[i];
+    return e;
 }
 
 static uint32_t nextof(const BlockEnt *const e) { return e ? e->next : NOTARGET; }
@@ -343,7 +343,7 @@ static void casestmt(Session *const S)
     }
     uint8_t depth = 0, type = T_FLT;
     if (e) { /* its SELECT's depth, type */
-        const uint16_t aux = S->blok.blocks[e->aux].aux;
+        const uint16_t aux = e->sel->aux;
         depth = (uint8_t)aux;
         type = (uint8_t)(aux >> 8);
         if (!type)

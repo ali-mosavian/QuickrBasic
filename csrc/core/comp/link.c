@@ -4,10 +4,12 @@
 #include "comp/blok.h"
 #include "comp/comp.h"
 #include "comp/decl.h"
+#include "comp/dfa.h"
 #include "comp/fold.h"
 #include "io/repl.h"
 #include "mem/allo.h"
 #include "mem/prog.h"
+#include "mem/scop.h"
 #include "mem/symb.h"
 #include "vm/exec.h"
 #include "vm/flow.h"
@@ -17,9 +19,51 @@ void link_compile(Session *const S, const uint32_t line)
 {
     S->code.buf = S->comp.xbuf;
     S->comp.line = line;
-    blok_scope(S, line);
+    scop_proc(S, blok_procof(&S->blok, line));
     decl_deftype(S, line);
     comp_text(S, (const uint8_t *)prog_line(&S->prog, line) + HDR);
+}
+
+/* A parameter's variable: its type by AS, as decl_line entered the name. */
+static uint16_t link_param(Session *const S, const Param *const pa)
+{
+    const uint8_t *const pv = at(S->prog.base + pa->at);
+    const uint8_t *q = decl_item(pv);
+    if (*q == '(')
+        q += 2;
+    uint8_t et = 0;
+    if (*q == TK_AS) {
+        if (q[1] == TK_X && q[2] == TK1_SHORT)
+            et = ET_SH;
+        else if ((uint8_t)(q[1] - TK_INTEGER) <= TK_STRING - TK_INTEGER)
+            et = decl_astype[q[1] - TK_INTEGER];
+        else { /* AS a TYPE: its record, its array */
+            const bool arr = pv[pv[1] + 4] == '(';
+            const uint16_t t = scop_rec(S, comp_nameof(pv), arr);
+            et = t ? (uint8_t)(t + ET_REC) : 0;
+        }
+    }
+    S->comp.p = pv;
+    return comp_var(S, 0, et);
+}
+
+/* Each procedure blok_pair found: its name's, its result's, its parameters' variables, in
+   program order. */
+static void link_procvars(Session *const S)
+{
+    for (uint8_t i = 1; i < S->blok.nprocs; i++) {
+        Proc *const p = S->blok.procs[i];
+        decl_deftype(S, p->first);
+        symb_name(&S->symb, p->name)->proc = i;
+        scop_proc(S, i);
+        if (p->kind == PK_FUNC) {
+            S->comp.p = at(S->prog.base + p->at); /* its result: a scalar of its name */
+            p->result = comp_var(S, 1, 0);
+        }
+        for (uint16_t k = 0; k < p->npar; k++)
+            p->params[k].var = link_param(S, &p->params[k]);
+        scop_proc(S, 0);
+    }
 }
 
 /* Every line loses its code. */
@@ -145,7 +189,8 @@ void link_start(Session *const S)
         return;
     symb_size(S);
     fold_clear(S);
-    blok_pair(S);
+    blok_pair(&S->blok, &S->prog, &S->symb, &S->fault);
+    link_procvars(S);
     S->link.cursor = 0;
     uncache(S);
     S->link.end = S->allo.cache + CACHE0;
