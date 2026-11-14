@@ -612,6 +612,11 @@ WARN = {
                 "Warning: line 6: DEF SEG"),
 }
 
+# A line's code past its room left an op cut short before the error's: linking it never ended,
+# or the run stopped with no word. Each line's code is cut at another place.
+CASES |= {f"qb_code_full{k}": ("Y% = 0: " * k + "X = 0: " + "X=X:" * 4400 + "PRINT X\r\n", "Out of memory", None)
+          for k in range(8)}
+
 # Typed at the prompt, not run as a file.
 REPL = {
     # A direct line ran from DCODE, its statement map's place: nothing printed.

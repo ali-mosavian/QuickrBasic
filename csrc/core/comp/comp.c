@@ -736,8 +736,11 @@ static void ended(Comp *const C)
 {
     comp_flush(C);
 
-    if (C->code->full) /* cm_om: the code is full */
+    if (C->code->full) { /* cm_om: the code is full, its last op cut short: from its statement */
+        C->code->out =
+            C->code->buf + (C->nstmt ? ((const Stmt *)C->map)[-(int32_t)C->nstmt].code : 0);
         comp_fail(C, E_OM);
+    }
 
     dbgdrop(C);
 
