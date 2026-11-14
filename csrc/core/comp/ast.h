@@ -154,7 +154,9 @@ uint8_t ast_type(const Node *n); /* n's value's T_*, nothing compiled */
 uint8_t ast_work(const Node *n); /* binary node n's W_* */
 /* The statement's next step: tree n. */
 void ast_step(Ast *t, Node *n);
-/* The last step as the child (a) of a new node of kind, which takes its place; that node. */
+/* Step n as the child (a) of a new node of kind, which takes its place; that node. */
+Node *ast_wrapat(Ast *t, Node *n, NodeKind kind);
+/* ast_wrapat the last step. */
 Node *ast_wrap(Ast *t, NodeKind kind);
 /* The last step converted, CV_*; end its place for an error. */
 void ast_conv(Ast *t, uint8_t cv, const uint8_t *end);

@@ -146,17 +146,18 @@ The VM is a stack machine over byte code. `exec_run` is its one loop: it notes t
 
 `I` ops work on INTs, `F` on SINGLEs, `D` on DOUBLEs and `S` on strings. `CALL k` runs one of 181 routines (PRINT, INPUT, MID$ ...).
 
-**Control.** GOSUB, FOR, a SUB or FUNCTION call, and an event's handler each push a `Frame` on `vm.frames`. A call sets its parameters and locals aside on `vm.callvars` and restores them when it returns. A loop compiles like this:
+**Control.** GOSUB, a SUB or FUNCTION call, and an event's handler each push a `Frame` on `vm.frames`. A call sets its parameters and locals aside on `vm.callvars` and restores them when it returns. A loop is plain loads, stores, a compare and a jump; its limit and step are hidden variables:
 
 ```text
 FOR i% = 1 TO 3: total! = total! + i% / 2: NEXT
-I_LD_U8 1 | I_ST_V i% | I_LD_U8 3 | I_FOR1 i% | FSKIP → after NEXT
-F_LD_V total! | F_LD_VI i% | F_DIV_U8 2 | F_ADD | F_ST_V total! | NEXT | EOL
+I_LD_U8 1 | I_ST_V i% | I_LD_U8 3 | I_ST_V lim | I_LD_U8 1 | I_ST_V step | I_LD_V i% | I_CMP_V lim > | I_JT → after NEXT
+F_LD_V total! | F_LD_VI i% | F_DIV_U8 2 | F_ADD | F_ST_V total!
+I_LD_V i% | I_STEP_V step | I_ST_V i% | I_LD_V i% | I_CMP_V lim > | I_JF → the body | EOL
 ```
 
 **Jumps.** A GOTO names its line by number and finds it on first use. A jump op keeps its target's code offset once found; a cache flush turns saved places back into offsets within their lines.
 
-**Stops and events.** The ops that end a statement or move between them (EOL, the jumps, GOSUB, RETURN, ON, NEXT, a procedure's return) check `vm.stop`. The platform sets it for Ctrl+Break and for the timer tick that drives ON TIMER, ON KEY and the other events. In the IDE, a `DBG` op at each statement's start is where steps, breakpoints and trace stop.
+**Stops and events.** The ops that end a statement or move between them (EOL, the jumps, GOSUB, RETURN, ON, a procedure's return) check `vm.stop`. The platform sets it for Ctrl+Break and for the timer tick that drives ON TIMER, ON KEY and the other events. In the IDE, a `DBG` op at each statement's start is where steps, breakpoints and trace stop.
 
 **Errors.** A handler raises with `repl_error`. It never returns: it unwinds with `longjmp` to whoever is waiting, in this order:
 

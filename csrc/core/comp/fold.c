@@ -17,7 +17,7 @@
  * | asm | here | |
  * |---|---|---|
  * | cm_fold, op_fold | fold_code | MIRROR; D1 |
- * | cf_fail, g_cfold, g_cfsp | eval's Catch | MIRROR |
+ * | cf_fail, g_cfold, g_cfsp | run's Catch | MIRROR |
  * | cm_krec, cm_klit | fold_const | MIRROR |
  * | var_kclr | fold_clear | MIRROR |
  * | g_cvat | comp.vat | MIRROR |
@@ -37,8 +37,8 @@
 #include "vm/exec.h"
 #include "vm/flow.h"
 
-/* Code from start to end: all FK ops, two or more. */
-static bool foldable(const uint8_t *s, const uint8_t *const end)
+/* Code from start to end: all FK ops, least or more. */
+static bool pure(const uint8_t *s, const uint8_t *const end, const uint32_t least)
 {
     uint32_t n = 0;
 
@@ -46,7 +46,7 @@ static bool foldable(const uint8_t *s, const uint8_t *const end)
         if (!(exec_flags(*s) & FK))
             return false;
 
-    return n >= 2;
+    return n >= least;
 }
 
 /* The value's one load at comp.out. */
@@ -64,12 +64,13 @@ static void emit(Comp *const C, const Cell v)
         code_dword(C->code, (uint32_t)(v.raw >> 32));
 }
 
-/* The code from start to comp.out run: its value to *v; false: not foldable, or it failed. */
-static bool eval(Comp *const C, uint8_t *const start, Cell *const v)
+/* The code from start to comp.out run: its value to *v; false: fewer than least ops, not all pure,
+   or it failed. */
+static bool run(Comp *const C, uint8_t *const start, const uint32_t least, Cell *const v)
 {
     uint8_t *const end = C->code->out;
 
-    if (!foldable(start, end) || end >= C->code->lim)
+    if (!pure(start, end, least) || end >= C->code->lim)
         return false;
 
     Vm *const vm = C->vm;
@@ -102,7 +103,7 @@ void fold_code(Comp *const C, uint8_t *const start)
     uint8_t *const end = C->code->out;
     Cell value;
 
-    if (!eval(C, start, &value))
+    if (!run(C, start, 2, &value))
         return;
 
     C->code->out = start;
@@ -225,7 +226,7 @@ void fold_tree(Comp *const C, Node *const i)
     cg_tree(C->code, i);
     const uint8_t t = C->code->type, sh = code_shclass(C->code);
     Cell v;
-    const bool ok = (t == T_INT || t == T_FLT || t == T_DBL) && eval(C, start, &v);
+    const bool ok = (t == T_INT || t == T_FLT || t == T_DBL) && run(C, start, 2, &v);
     C->code->out = start;
     C->code->iload = C->code->iloadend = C->code->cmp = C->code->cmpend = nullptr;
 
@@ -234,6 +235,17 @@ void fold_tree(Comp *const C, Node *const i)
 
     set_literal(n, t, v);
     n->sh = sh;
+}
+
+bool fold_number(Comp *const C, const Node *const n, Cell *const v)
+{
+    uint8_t *const start = C->code->out;
+    cg_tree(C->code, n);
+    const uint8_t t = C->code->type;
+    const bool ok = (t == T_INT || t == T_FLT) && run(C, start, 1, v);
+    C->code->out = start;
+    C->code->iload = C->code->iloadend = C->code->cmp = C->code->cmpend = nullptr;
+    return ok;
 }
 
 void fold_clear(Comp *const C)

@@ -13,6 +13,8 @@ void fold_code(Comp *C, uint8_t *start);
 void fold_const(Comp *C, uint8_t *start, uint16_t id);
 /* The tree at node: each operator whose operands are literals becomes the literal of its value. */
 void fold_tree(Comp *C, Node *node);
+/* Tree n's value, an INT or a SINGLE, when its code is pure (a constant); false, not one. */
+bool fold_number(Comp *C, const Node *n, Cell *v);
 /* Op a literal's load. */
 bool fold_isliteral(uint8_t op);
 /* The type literal load op gives. */

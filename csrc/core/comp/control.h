@@ -21,10 +21,10 @@ bool ctrl_else(
     uint32_t *target
 );                                      /* a one-line IF's ELSE: the target after it; false none */
 void ctrl_jf(Comp *C, uint32_t target); /* JF by comp.type; Type mismatch a string */
-/* FOR op (I.FOR .. F.FOR1, the bounds on the stack): its counter, its limit's and step's cells, past
-   its NEXT when not entered. comp.kw the FOR, comp.forvar its counter. */
-void ctrl_for(Comp *C, uint8_t op);
-/* NEXT [v] at comp.p: I.NEXT or F.NEXT, its counter, its FOR's cells, back to its FOR's body. */
+/* FOR, its last steps the limit and, if stepped, the step: both to the loop's cells, past its NEXT
+   when not entered. comp.kw the FOR, comp.forvar its counter. */
+void ctrl_for(Comp *C, bool stepped);
+/* NEXT [v] at comp.p: its counter stepped, back to its FOR's body till past the limit. */
 void ctrl_next(Comp *C);
 Jump ctrl_jump(
     Comp *C,

@@ -41,6 +41,25 @@ static inline uint8_t *flow_next_code(
     return at(al->cache + ln->code);
 }
 
+/* The Jump at ip taken: the temporaries dropped, vm->line its line, its target's code returned;
+   nullptr, nothing changed: not resolved (a direct line's block jump). */
+static inline uint8_t *flow_jump_code(
+    Vm *const vm,
+    Strg *const sg,
+    const Allo *const al,
+    const uint8_t *const ip
+)
+{
+    const Jump j = *(const Jump *)ip;
+
+    if (j.dest <= TO_NEXT_STMT) /* still its JumpMode */
+        return nullptr;
+
+    sg->tmp_used = sg->tmp_floor;
+    vm->line = j.line;
+    return at(al->cache + j.dest);
+}
+
 /* Go to the next line; past the last the program ENDs. */
 void flow_nextln(Session *S);
 /* The LineRef operand at vm->ip: its line, found by number on first use. Undefined line number. */

@@ -35,15 +35,18 @@
  * | g_lsav, LSAVSZ | vm.callvars, MAX_CALLVARS | D1 |
  * | ls_mov | strg_move (mem/string.c) | MOVED |
  * | op_size | flow_opsize | MIRROR |
- * | ex_line, ex_eol, ex_gosub, ex_jumpto, ex_sbase, for_find, for_in, for_mki, for_any, for_lp, pr_pop, err_nf, ipsave | static | MIRROR |
+ * | ex_line, ex_eol, ex_gosub, ex_jumpto, ex_sbase, pr_pop, err_nf, ipsave | static | MIRROR |
  * | g_pres8, g_lres | Flow (flow.h) | MIRROR |
- * | op_eol, op_goto, op_gosub, op_on, op_ret, op_for, op_nx0, op_nextv, op_err | flow_eol, flow_goto, flow_gosub, flow_on, flow_return, flow_for, flow_next, flow_next_v, flow_err | MIRROR |
+ * | op_eol, op_goto, op_gosub, op_on, op_ret, op_err | flow_eol, flow_goto, flow_gosub, flow_on, flow_return, flow_err | MIRROR |
+ * | op_for, op_nx0, op_nextv, for_find, for_in, for_mki, for_any, for_lp | flow_i_past, flow_f_past | D2 |
  * | op_jmp, op_ijf, op_fjf, op_ijt, op_fjt, op_fpop | flow_jmp, flow_i_jf, flow_f_jf, flow_i_jt, flow_f_jt, flow_fpop | MIRROR |
  * | op_pcall, op_pret, op_onerr, op_onlerr, op_resume | flow_pcall, flow_pret, flow_onerr, flow_onlerr, flow_resume | MIRROR |
  * | stopchk | exec_stopchk | MOVED |
  *
  * - D1. Frames are typed records in vm.frames and the saved parameters and locals are CallVars; the
  *   asm keeps both as words on its control stack and save stack.
+ * - D2. FOR and NEXT compile to loads, stores, a compare and a jump (comp/control.c); PAST is the
+ *   compare of a step whose sign is known only when run.
  */
 #include "vm/flow.h"
 #include "session.h"
@@ -75,9 +78,6 @@ static const uint8_t op_sizes[O_NOPS] = {
 enum {
     DCODE_SIZE = CACHE0 - DCODE, /* the direct line's room in the cache */
 };
-
-/* A jump not yet resolved keeps its mode (JumpMode) where its code offset will go. */
-enum : uint32_t { RESOLVED = TO_NEXT_STMT + 1 };
 
 void flow_init(Session *const S) { S->flow.text = allo_carve(&S->allo, DSZ + 2); }
 
@@ -281,18 +281,16 @@ void flow_eol(Session *const S)
 
 /* ---- jumps ---------------------------------------------------------------------------------- */
 
-/* The Jump operand at vm->ip taken: link_resolve set its target's code offset. A direct line's
-   block jump has none: Syntax error. The stop check is the caller's. */
+/* The Jump operand at vm->ip taken. A direct line's block jump has none: Syntax error. The stop
+   check is the caller's. */
 static void take_jump(Vm *const vm, Strg *const sg, const Allo *const al, Fault *const f)
 {
-    drop_temps(sg);
-    const Jump j = *(const Jump *)vm->ip;
+    uint8_t *const code = flow_jump_code(vm, sg, al, vm->ip);
 
-    if (j.dest < RESOLVED)
+    if (!code)
         fault_error(f, E_SN);
 
-    vm->line = j.line;
-    vm->ip = cache_at(al, j.dest);
+    vm->ip = code;
 }
 
 static void skip_jump(Vm *const vm) { vm->ip += sizeof(Jump); }
@@ -351,73 +349,17 @@ static bool past_limit(const bool ints, const uint32_t x, const uint32_t limit, 
     return down ? c < 0 : c > 0;
 }
 
-/* A loop op's cells: its counter's, its limit's and its step's (ctrl_for's hidden ones). */
-typedef struct {
-    Addr counter, limit, step;
-} LoopCells;
-
-static LoopCells loop_cells(Vm *const vm, const Symb *const sy)
+/* PAST ( x limit step -- flag ): a loop whose step's sign is known only when run; -1 when x is
+   past limit. */
+static void past(Vm *const vm, const bool ints)
 {
-    const uint16_t counter = exec_u16(vm);
-    const uint16_t limit = exec_u16(vm);
-    const uint16_t step = exec_u16(vm);
-
-    return (LoopCells){symb_var(sy, counter)->vt, symb_var(sy, limit)->vt, symb_var(sy, step)->vt};
+    const uint32_t step = exec_pop(vm).u;
+    const uint32_t limit = exec_pop(vm).u;
+    Cell *const x = vm->sp;
+    x->i = past_limit(ints, x->u, limit, step) ? -1 : 0;
 }
-
-/* FOR counter limit step END ( limit [step] -- ): the counter has its start; past NEXT (END) when
-   not entered. */
-void flow_for(Session *const S)
-{
-    if (exec_stopchk(S))
-        return;
-
-    const uint8_t op = *S->vm.opip;
-    const bool ints = op == O_I_FOR || op == O_I_FOR1;
-    const LoopCells c = loop_cells(&S->vm, &S->symb);
-    const uint32_t step =
-        op == O_I_FOR || op == O_F_FOR ? exec_pop(&S->vm).u : (ints ? 1 : SNGL_ONE);
-
-    wr32(c.step, step);
-    wr32(c.limit, exec_pop(&S->vm).u);
-
-    branch(S, past_limit(ints, rd32(c.counter), rd32(c.limit), step));
-}
-
-/* NEXT counter limit step BODY: stepped, back to the body until past the limit. An INT stepped past
-   its range is Illegal function call. */
-void flow_next(Session *const S)
-{
-    if (exec_stopchk(S))
-        return;
-
-    drop_temps(&S->strg);
-    const bool ints = *S->vm.opip == O_I_NEXT;
-    const LoopCells c = loop_cells(&S->vm, &S->symb);
-    const uint32_t step = rd32(c.step);
-    uint32_t x;
-
-    if (ints) {
-        int32_t sum;
-
-        if (__builtin_add_overflow((int32_t)rd32(c.counter), (int32_t)step, &sum))
-            repl_error(S, E_IQ);
-
-        x = (uint32_t)sum;
-    } else
-        x = fmth_add(rd32(c.counter), step);
-
-    wr32(c.counter, x);
-
-    if (past_limit(ints, x, rd32(c.limit), step)) {
-        skip_jump(&S->vm);
-        return;
-    }
-
-    const Jump j = *(const Jump *)S->vm.ip;
-    S->vm.line = j.line;
-    S->vm.ip = cache_at(&S->allo, j.dest);
-}
+void flow_i_past(Session *const S) { past(&S->vm, true); }
+void flow_f_past(Session *const S) { past(&S->vm, false); }
 
 /* ---- SUB and FUNCTION ----------------------------------------------------------------------- */
 

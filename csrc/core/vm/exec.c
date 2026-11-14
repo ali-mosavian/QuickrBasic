@@ -211,12 +211,26 @@ cold:
     HOT_OPS(HOT_RUN)
     HOT_INTS(HOT_RUN_INT)
 
-i_jf: /* JF not taken: past its jump; taken, flow_i_jf's */
-    if (!r.sp->i)
+i_jf: /* JF: past its jump, or to its target; a stop, a jump not resolved: flow_i_jf's */
+    if (r.sp->i) {
+        r.sp++;
+        r.ip += JSIZE;
+        goto next;
+    }
+
+    if (v->stop)
         goto cold;
 
-    r.sp++;
-    r.ip += JSIZE;
+    {
+        uint8_t *const code = flow_jump_code(v, &S->strg, &S->allo, r.ip + 1);
+
+        if (!code)
+            goto cold;
+
+        r.sp++;
+        r.ip = code;
+    }
+
     goto next;
 
 eol: /* to the next stored line; a stop, the end, the direct line: flow_eol's */

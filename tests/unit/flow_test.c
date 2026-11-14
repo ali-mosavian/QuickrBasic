@@ -1,4 +1,4 @@
-/* Jumps and calls taken by the VM. */
+/* Jumps, calls and loops taken by the VM. */
 #include "session.h"
 #include "unit.h"
 
@@ -36,4 +36,30 @@ TEST(event_at_a_call_keeps_the_stack)
     CHECK(unit_run(S, lines) == ST_OK);
     CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 6 ");
     CHECK(S->vm.sp == S->vm.stktop);
+}
+
+/* A step whose sign is known only when run counts each way; a loop past its limit is not entered. */
+TEST(for_by_a_step_known_when_run)
+{
+    static const char *const lines[] = {
+        "10 FOR d = -1 TO 1 STEP 2",
+        "20 FOR i = -2 * d TO 2 * d STEP d: PRINT i;: NEXT i",
+        "30 FOR i = 2 * d TO -2 * d STEP d: PRINT \"x\";: NEXT i",
+        "40 NEXT d",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 2  1  0 -1 -2 -2 -1  0  1  2 ");
+}
+
+/* An INT's NEXT stepped past its range is Illegal function call, not Overflow. */
+TEST(next_past_an_ints_range)
+{
+    static const char *const lines[] = {
+        "10 FOR k& = 2147483646 TO 2147483647: NEXT",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == E_IQ);
 }

@@ -87,7 +87,7 @@ static inline Status hot_i_ld_i32(Regs *const r)
 
 /* Where an INT op's right operand comes from, what the op does. */
 typedef enum { HOT_POPPED, HOT_VAR, HOT_U8 } HotSrc;
-typedef enum { HOT_ADD, HOT_SUB, HOT_MUL, HOT_DIV, HOT_AND, HOT_OR } HotOp;
+typedef enum { HOT_ADD, HOT_SUB, HOT_MUL, HOT_DIV, HOT_AND, HOT_OR, HOT_STEP } HotOp;
 
 /* An INT op's bytes, by its right operand. */
 static inline uint32_t hot_size(const HotSrc src)
@@ -111,7 +111,8 @@ static inline int32_t hot_operand(Regs *const r, const HotSrc src)
     unreachable();
 }
 
-/* The top cell op the right operand. Overflow; Division by zero. */
+/* The top cell op the right operand. Overflow (a NEXT's step: Illegal function call); Division by
+   zero. */
 static inline Status hot_int(Regs *const r, const HotSrc src, const HotOp op)
 {
     const int32_t b = hot_operand(r, src);
@@ -121,6 +122,7 @@ static inline Status hot_int(Regs *const r, const HotSrc src, const HotOp op)
 
     switch (op) {
     case HOT_ADD:
+    case HOT_STEP:
         overflow = __builtin_add_overflow(top->i, b, &v);
         break;
 
@@ -151,7 +153,7 @@ static inline Status hot_int(Regs *const r, const HotSrc src, const HotOp op)
     }
 
     if (overflow)
-        return E_OV;
+        return op == HOT_STEP ? E_IQ : E_OV;
 
     top->i = v;
     return ST_OK;
@@ -176,7 +178,8 @@ static inline Status hot_int(Regs *const r, const HotSrc src, const HotOp op)
     X(i_mul_u8, HOT_U8, HOT_MUL)                                                                   \
     X(i_div_u8, HOT_U8, HOT_DIV)                                                                   \
     X(i_and_u8, HOT_U8, HOT_AND)                                                                   \
-    X(i_or_u8, HOT_U8, HOT_OR)
+    X(i_or_u8, HOT_U8, HOT_OR)                                                                     \
+    X(i_step_v, HOT_VAR, HOT_STEP)
 
 #define X(name, src, op)                                                                           \
     static inline Status hot_##name(Regs *const r) { return hot_int(r, src, op); }

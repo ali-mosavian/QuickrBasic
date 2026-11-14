@@ -36,7 +36,7 @@
  * | var_id, var_ispar, var_par, var_scope | comp_var, comp_ispar, comp_param, comp_scope | MIRROR |
  * | et_sfx, lbl_at, lbl_nam | comp_suffix, comp_label, comp_nameof | MIRROR |
  * | cm_rts | | gone: a return |
- * | cm_if, cm_fv, cm_fork, cm_for, cm_for1, cm_nv, cm_on, cm_onl, cm_print, cm_list, cm_dv, cm_dat, cm_rem, cm_in, cm_rd, cm_get, cm_run, cm_res, cm_write, cm_lin | act_if, act_fv, act_fork, act_for, act_for1, act_for2, act_nv, act_on, act_onl, act_print, act_list, act_dv, act_data, act_rem, act_in, act_rd, act_get, act_run, act_res, act_write, act_lin | MIRROR; D3 |
+ * | cm_if, cm_fv, cm_fork, cm_for, cm_for1, cm_nv, cm_on, cm_onl, cm_print, cm_list, cm_dv, cm_dat, cm_rem, cm_in, cm_rd, cm_get, cm_run, cm_res, cm_write, cm_lin | act_if, act_fv, act_fork, act_for2, act_for1, act_nv, act_on, act_onl, act_print, act_list, act_dv, act_data, act_rem, act_in, act_rd, act_get, act_run, act_res, act_write, act_lin | MIRROR; D3 |
  * | cm_n0, cm_n1, cm_narg, cm_fop, cm_goto, cm_gosub, cm_ret | step_n0, step_n1, step_narg, step_fop, step_goto, step_gosub, step_ret | MIRROR |
  * | g_cmact | actions[] | MIRROR; `[A_x - A_BASE] = ...` |
  * | cm_new, cm_ee, cm_nx, cm_om, cm_fin, cm_mark, cm_dbg, cm_dbgx, cm_mapstmt, cm_tok, ps_look, cm_lnld, var_decl, cm_dim1, cm_dvas, cm_dsubs, cm_using | stmts (cm_new, cm_ee), ended (cm_nx, cm_om), finish, mark, dbg, dbgdrop, mapstmt, token, pslook, lnumload, declared, dim1, dimas, dimsubs, using | MIRROR |
@@ -914,12 +914,8 @@ static void act_fv(Comp *const C)
 /* The value as FOR's variable wants it. */
 static void act_fork(Comp *const C) { comp_toinfo(C, C->forkind); }
 
-static void act_for(Comp *const C, const uint8_t op)
-{
-    ctrl_for(C, C->forkind ? op : op + 1); /* F.FOR, F.FOR1 after the INT's */
-}
-static void act_for2(Comp *const C) { act_for(C, O_I_FOR); }
-static void act_for1(Comp *const C) { act_for(C, O_I_FOR1); }
+static void act_for2(Comp *const C) { ctrl_for(C, true); }
+static void act_for1(Comp *const C) { ctrl_for(C, false); }
 
 /* NEXT [v]: one of the loops it closes. */
 static void act_nv(Comp *const C) { ctrl_next(C); }

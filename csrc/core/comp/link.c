@@ -321,15 +321,6 @@ static void resolve_op(Comp *const C, const uint32_t line, const Addr base, uint
         j = (Jump *)(op + 1);
         break;
 
-    case O_I_FOR:
-    case O_F_FOR:
-    case O_I_FOR1:
-    case O_F_FOR1:
-    case O_I_NEXT:
-    case O_F_NEXT:
-        j = (Jump *)(op + 7); /* past the counter's, limit's and step's ids */
-        break;
-
     case O_PCALL:
         j = (Jump *)(op + 2);
         break;

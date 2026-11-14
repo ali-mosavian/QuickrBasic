@@ -132,16 +132,17 @@ void ast_step(Ast *const t, Node *const n)
     t->last = n;
 }
 
-Node *ast_wrap(Ast *const t, const NodeKind kind)
+Node *ast_wrapat(Ast *const t, Node *const n, const NodeKind kind)
 {
-    Node *const last = t->last;
     Node *const a = ast_new(t, kind);
-    *a = *last;
+    *a = *n;
     a->next = nullptr;
-    *last = (Node){.kind = kind, .a = a};
+    *n = (Node){.kind = kind, .a = a, .next = n->next};
 
-    return last;
+    return n;
 }
+
+Node *ast_wrap(Ast *const t, const NodeKind kind) { return ast_wrapat(t, t->last, kind); }
 
 void ast_conv(Ast *const t, const uint8_t cv, const uint8_t *const end)
 {

@@ -11,12 +11,14 @@
  *   DO [WHILE|UNTIL c]    c, JF|JT END
  *   LOOP [WHILE|UNTIL c]  JMP NXT, or c, JT|JF NXT
  *   WHILE c, WEND     c, JF END; JMP NXT
- *   FOR v = a TO b    a to v, b [, step], FOR v lim step END
- *   NEXT [v]          NEXT v lim step BODY
+ *   FOR v = a TO b    a to v, b to lim, step (or 1) to step, past, JT END
+ *   NEXT [v]          v + step to v, past, JF BODY
  *   EXIT FOR, EXIT DO JMP END
  *
  * A FOR loop's limit and step are hidden variables of its procedure (loopcell), named by the FOR's
- * position; a NEXT's entry names its FOR. The direct line pairs its own FORs and NEXTs.
+ * position; a NEXT's entry names its FOR. past is v > lim, v < lim for a constant step below 0, or
+ * PAST, by the step's sign, for one known only when run. An INT's NEXT stepped past its range is
+ * Illegal function call (I.STEP.V). The direct line pairs its own FORs and NEXTs.
  *
  * A direct line has no entries: its targets are none (NOTARGET, FFFFFFFFh), an error when run. A
  * call's arguments and a record's references are parsed by refs.c; this file emits their code.
@@ -45,13 +47,14 @@
  * - D1. The call is a tree (N_CALL, built by ref_call); comp_step makes it a step.
  * - D2. A record's place is a RecRef on the node, not globals.
  * - D3. The asm's FOR pushes a frame NEXT finds at run time by its variable; here NEXT knows its
- *   FOR when compiled and jumps back to its body.
+ *   FOR when compiled: both are loads, stores, a compare and a jump.
  */
 #include "comp/control.h"
 #include "comp/blocks.h"
 #include "comp/declare.h"
 #include "comp/dfa.h"
 #include "comp/expr.h"
+#include "comp/fold.h"
 #include "comp/refs.h"
 #include "io/msg.h"
 #include "io/repl.h"
@@ -225,36 +228,160 @@ static uint16_t loopcell(
 
 enum : uint32_t { DFOR_KEY = 0xFFFF0000 };
 
-/* op counter limit step, then the Jump. */
-static void loopop(
-    Comp *const C,
-    const uint8_t op,
-    const uint16_t counter,
-    const uint32_t key,
-    const uint32_t t
-)
+/* A loop's step's sign: known when compiled, or only when run. */
+typedef enum { STEP_UP, STEP_DOWN, STEP_RUN } StepSign;
+
+/* The sign of the STEP of the FOR at at (its token), as a value of kind; none's is up. */
+static StepSign stepsign(Comp *const C, const uint8_t *const at, const uint8_t kind)
 {
-    const uint16_t lim = loopcell(C, key, 'L', counter);
-    const uint16_t step = loopcell(C, key, 'S', counter);
-    Node *const n = comp_go(C, op, ctrl_jump(C, t));
-    comp_word(n, counter);
-    comp_word(n, lim);
-    comp_word(n, step);
+    const uint8_t *p = at + 1;
+
+    while (*p && *p != ':' && *p != TK_REM && *p != TK_ELSE && *p != TK_STEP)
+        p = decl_item(p);
+
+    if (*p != TK_STEP)
+        return STEP_UP;
+
+    const uint8_t *const keep = C->p;
+    C->p = p + 1;
+    Node *const step = ast_new(C->ast, N_CONV);
+    const bool ints = kind == VK_INT;
+    *step = (Node){
+        .kind = N_CONV,
+        .op = ints ? CV_INT : CV_FLT,
+        .type = ints ? T_INT : T_FLT,
+        .a = expr_tree(C, false),
+        .end = C->p,
+    };
+
+    comp_check(C, step);
+    C->p = keep;
+    Cell v;
+
+    if (!fold_number(C, step, &v))
+        return STEP_RUN;
+
+    return v.u >> 31 ? STEP_DOWN : STEP_UP;
 }
 
-void ctrl_for(Comp *const C, const uint8_t op)
+/* A FOR loop: its counter, its hidden limit and step, the counter's VK_* and the step's sign. */
+typedef struct {
+    uint16_t counter, limit, step;
+    uint8_t kind;
+    StepSign sign;
+} Loop;
+
+/* The loop of the FOR at at, key its hidden cells', counter its variable. */
+static Loop loopof(
+    Comp *const C,
+    const uint8_t *const at,
+    const uint32_t key,
+    const uint16_t counter
+)
+{
+    const uint8_t kind = symb_var(C->symb, counter)->info & VK_MASK;
+
+    return (Loop){
+        .counter = counter,
+        .limit = loopcell(C, key, 'L', counter),
+        .step = loopcell(C, key, 'S', counter),
+        .kind = kind,
+        .sign = stepsign(C, at, kind),
+    };
+}
+
+static uint8_t loadop(const Loop *const l) { return l->kind == VK_INT ? O_I_LD_V : O_F_LD_V; }
+
+static Node *varleaf(Comp *const C, const uint16_t id)
+{
+    Node *const n = ast_new(C->ast, N_VAR);
+    n->id = id;
+    n->type = expr_ktype[symb_var(C->symb, id)->info & (SK_DBL | VK_MASK)];
+    return n;
+}
+
+/* The flag of the counter past the limit: compared one way, or by PAST on the step's sign. */
+static void past(Comp *const C, const Loop *const l)
+{
+    if (l->sign != STEP_RUN) {
+        Node *const n = ast_new(C->ast, N_BIN);
+        *n = (Node){
+            .kind = N_BIN,
+            .op = REL | (l->sign == STEP_DOWN ? DC_LT : DC_GT),
+            .a = varleaf(C, l->counter),
+            .b = varleaf(C, l->limit),
+            .end = C->p,
+        };
+
+        comp_step(C, n);
+        return;
+    }
+
+    comp_opid(C, loadop(l), l->counter);
+    comp_opid(C, loadop(l), l->limit);
+    comp_opid(C, loadop(l), l->step);
+    comp_op(C, l->kind == VK_INT ? O_I_PAST : O_F_PAST);
+    comp_value(C, T_INT);
+}
+
+/* Step n the value stored to variable id. */
+static void storeat(Comp *const C, Node *const n, const uint16_t id)
+{
+    ast_wrapat(C->ast, n, N_STORE)->id = id;
+}
+
+/* The step before n. */
+static Node *before(const Ast *const t, const Node *const n)
+{
+    Node *p = t->steps;
+
+    while (p->next != n)
+        p = p->next;
+
+    return p;
+}
+
+/* The steps end with the limit and, if stepped, the step: each to its cell, the step 1 if not; past
+   the NEXT (done) when not entered. */
+static void forloop(Comp *const C, const uint32_t key, const uint32_t done, const bool stepped)
+{
+    const Loop l = loopof(C, C->kw, key, C->forvar);
+    Node *const last = C->ast->last;
+
+    if (stepped) {
+        storeat(C, before(C->ast, last), l.limit);
+        storeat(C, last, l.step);
+    } else {
+        storeat(C, last, l.limit);
+        Node *const one = ast_new(C->ast, N_LIT);
+        *one = (Node){
+            .kind = N_LIT,
+            .op = l.kind == VK_INT ? O_I_LD_U8 : O_F_LD_U8,
+            .type = l.kind == VK_INT ? T_INT : T_FLT,
+            .lit = {1},
+        };
+
+        comp_step(C, one);
+        storeat(C, one, l.step);
+    }
+
+    past(C, &l);
+    jt(C, done);
+}
+
+void ctrl_for(Comp *const C, const bool stepped)
 {
     if (C->line == DLINE) { /* no entries: past NEXT none, an error when not entered */
         if (C->ndfor == DFOR_MAX)
             fault_error(C->fault, E_OM);
 
         C->dfor[C->ndfor++] = (uint32_t)(C->kw - C->body);
-        loopop(C, op, C->forvar, DFOR_KEY | (C->ndfor - 1), NOTARGET);
+        forloop(C, DFOR_KEY | (C->ndfor - 1), NOTARGET, stepped);
         return;
     }
 
     const BlockEnt *const e = entry(C, C->kw);
-    loopop(C, op, C->forvar, e->pos, doneof(e));
+    forloop(C, e->pos, doneof(e), stepped);
 }
 
 /* The counter of the FOR at for (its token): its variable, comp.p kept. */
@@ -298,8 +425,14 @@ void ctrl_next(Comp *const C)
     }
 
     const uint16_t counter = comp_cur(C) == M_VAR ? comp_var(C, 0, 0) : counterof(C, forat);
-    const uint8_t kind = symb_var(C->symb, counter)->info & VK_MASK;
-    loopop(C, kind == VK_INT ? O_I_NEXT : O_F_NEXT, counter, key, back);
+    const Loop l = loopof(C, forat, key, counter);
+    comp_opid(C, loadop(&l), counter);
+    comp_opid(C, l.kind == VK_INT ? O_I_STEP_V : O_F_ADD_V, l.step);
+    comp_value(C, l.kind == VK_INT ? T_INT : T_FLT);
+    comp_target(C, counter);
+    comp_store(C);
+    past(C, &l);
+    ctrl_jf(C, back);
 }
 
 /* ct_cond: the test after the keyword. */
