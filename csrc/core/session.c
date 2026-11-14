@@ -222,5 +222,6 @@ static void session_run_until(CompRun *const r, const uint8_t *const end)
 CompRun *session_comp_run(Session *const S)
 {
     S->comp_run = (CompRun){.until = session_run_until};
+
     return &S->comp_run;
 }

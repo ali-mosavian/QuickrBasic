@@ -112,18 +112,25 @@ uint8_t *flow_dcode(Session *const S)
     return at(S->link.code);
 }
 
+/* Line's code compiled: into the cache, or the direct line on its own. Cold: off the hot path. */
+[[gnu::cold, gnu::noinline]]
+static uint8_t *line_compiled(Session *const S, const uint32_t line, const Line *const ln)
+{
+    if (!ln->len) {
+        comp_line(&S->comp);
+        return flow_dcode(S);
+    }
+
+    return at(link_cache(&S->comp, line));
+}
+
 /* Start running line: a program line's code from the cache, compiled into it if absent; the
    direct line compiled on its own. */
 static void enter_line(Session *const S, const uint32_t line)
 {
     S->vm.line = line;
     const Line *const ln = prog_line(&S->prog, line);
-
-    if (!ln->len) {
-        comp_line(&S->comp);
-        S->vm.ip = flow_dcode(S);
-    } else
-        S->vm.ip = ln->code ? cache_at(&S->allo, ln->code) : at(link_cache(&S->comp, line));
+    S->vm.ip = ln->len && ln->code ? cache_at(&S->allo, ln->code) : line_compiled(S, line, ln);
 }
 
 static void next_line(Session *const S)
@@ -333,21 +340,11 @@ void flow_eol(Session *const S)
 /* The Jump operand at vm->ip. Once resolved it holds its target's code offset. Until then its
    mode picks, in the target line's code, the statement, the code past its JMP, or the next
    statement; the offset found is kept unless the cache was flushed meanwhile. */
-static void take_jump(Session *const S)
+/* Jump j at op found: its line entered, its statement's code from the map; op resolved unless the
+   cache was flushed meanwhile. Cold: once a jump. */
+[[gnu::cold, gnu::noinline]]
+static void jump_resolve(Session *const S, Jump *const op, const Jump j)
 {
-    if (exec_stopchk(S))
-        return;
-
-    drop_temps(S);
-    Jump *const op = (Jump *)S->vm.ip;
-    const Jump j = *op;
-
-    if (j.dest >= RESOLVED) {
-        S->vm.line = j.line;
-        S->vm.ip = cache_at(&S->allo, j.dest);
-        return;
-    }
-
     if (j.line == NO_LINE)
         repl_error(S, E_SN);
 
@@ -376,6 +373,24 @@ static void take_jump(Session *const S)
 
     if (flushes == S->link.flushes)
         op->dest = cache_off(&S->allo, S->vm.ip);
+}
+
+static void take_jump(Session *const S)
+{
+    if (exec_stopchk(S))
+        return;
+
+    drop_temps(S);
+    Jump *const op = (Jump *)S->vm.ip;
+    const Jump j = *op;
+
+    if (j.dest >= RESOLVED) {
+        S->vm.line = j.line;
+        S->vm.ip = cache_at(&S->allo, j.dest);
+        return;
+    }
+
+    jump_resolve(S, op, j);
 }
 
 /* JMP: a block's jump, and FOR's skip. */
