@@ -22,6 +22,7 @@
 #include "ui/draw.h"
 #include "session.h"
 #include "plat/pkey.h"
+#include "ui/complete.h"
 #include "ui/debugpane.h"
 #include "ui/edit.h"
 #include "ui/menu.h"
@@ -71,6 +72,9 @@ void draw_edit_cursor(Widget *const w)
 {
     shape();
     edit_ensure();
+#if AC
+    cmpl_draw_ghost();
+#endif
     scrn_cursor(
         (uint8_t)(uimn.ed.line - uimn.ed.top + uimn.ed.row0),
         (uint8_t)(uimn.edline.col - uimn.ed.left + 1 + uimn.ed.x)

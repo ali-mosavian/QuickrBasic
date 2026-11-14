@@ -23,6 +23,7 @@
 static PscrCell cells[PSCR_ROWS * PSCR_COLS]; /* the screen as drawn, then shown */
 
 enum { SHADOW_COLS = 2 }; /* a shadow's columns right of a box */
+enum { LIGHT_GRAY = 0x07, DARK_GRAY = 0x08 };
 
 static PscrCell *cell(const uint8_t row, const uint8_t col)
 {
@@ -77,6 +78,18 @@ uint8_t scrn_strn(
 )
 {
     const uint8_t attr = them_attr(slot);
+    PscrCell *const p = cell(row, col);
+
+    for (uint16_t i = 0; i < n; i++)
+        p[i] = make(s[i], attr);
+
+    return col + n;
+}
+
+uint8_t scrn_dim(const uint8_t row, const uint8_t col, const uint8_t *const s, const uint16_t n)
+{
+    const uint8_t bg = them_attr(SL_ED) & 0xF0;
+    const uint8_t attr = bg | (bg == DARK_GRAY << 4 ? LIGHT_GRAY : DARK_GRAY);
     PscrCell *const p = cell(row, col);
 
     for (uint16_t i = 0; i < n; i++)

@@ -178,6 +178,7 @@ static inline void comp_close(Comp *const C) { comp_need(C, ')'); }
 static inline void comp_comma(Comp *const C) { comp_need(C, ','); }
 void comp_equals(Comp *C);   /* cm_chkeq: comp_need(TK_EQ) */
 bool comp_optcomma(Comp *C); /* past a ',', if there */
+void comp_astype(Comp *C);   /* cm_dvas: past AS type [* n], if there; not a type: Syntax error */
 uint8_t comp_lnum(Comp *C);  /* a line number or label to lnum, jline; the byte after */
 
 /* Names and variables */

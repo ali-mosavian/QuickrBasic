@@ -4,8 +4,9 @@
 #include "base.h"
 
 enum {
-    SUGG_LEN = 40, /* a name's characters at most */
-    SUGG_MAX = 64, /* suggestions kept */
+    SUGG_LEN = 40,  /* a name's characters at most */
+    SUGG_MAX = 192, /* suggestions kept */
+    SUGG_NEED = 85, /* the score of what the statement needs next */
 };
 
 /* What a suggestion is: a keyword, a function ('(' goes after it), a variable, a SUB, a line
@@ -20,6 +21,7 @@ typedef struct {
     uint16_t tok;  /* a keyword's token: 100h + n for TK_X n */
     uint32_t rec;  /* a line number's line, a procedure's first: its record */
     int16_t score; /* higher first */
+    bool need;     /* the line needs it next: FOR's TO, a jump's line, NEXT's variable */
 } Sugg;
 
 typedef struct {
@@ -33,5 +35,8 @@ typedef struct {
    string, a REM or DATA, or after a word's start. */
 bool sugg_find(Session *S, const uint8_t *text, uint16_t n, uint16_t col, uint32_t rec, Suggs *out);
 /* s was taken: it ranks higher from now on. */
+/* The likeliest of s, the word wn characters: shown past the cursor, Tab its taking. One the
+   word starts, or with no word one the line needs (FOR's TO, a jump's line); null none. */
+const Sugg *sugg_guess(const Suggs *s, uint16_t wn);
 void sugg_used(const Sugg *s);
 #endif

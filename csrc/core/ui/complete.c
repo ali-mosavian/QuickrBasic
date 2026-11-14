@@ -39,7 +39,6 @@
 enum {
     AC_ROWS = 8,  /* the list's rows */
     AC_PREV = 40, /* a line number's box: columns */
-    AC_AUTO = 2,  /* a word's letters that show the list as typed */
     SIG_LEN = 80, /* a function's form */
 };
 /* The list's box: its frame's rows; a name's column, the columns past a name; a line's text at
@@ -51,12 +50,16 @@ static struct {
     uint16_t sel; /* the one lit */
     uint16_t top; /* the first shown */
     bool lc;      /* the word in small letters */
-    bool typed;   /* the list shown by typing: Enter is typed */
     bool open;    /* the list shown */
     uint8_t at_row, at_col;
     uint8_t bw; /* the box's columns */
     uint8_t bn; /* its rows of names */
     char sig[SIG_LEN];
+    /* the rest of the likeliest, shown dim past the cursor: gn characters, its line, the cursor's
+       column, the line's length and sum when found */
+    uint8_t ghost[SUGG_LEN + 2];
+    uint16_t gn, gcol, glen;
+    uint32_t gline, gsum;
 } ac;
 
 /* the arguments of the functions not of one number */
@@ -96,6 +99,25 @@ static bool cmpl_find(Session *const S)
             ac.lc = b->text[i] >= 'a';
 
     return true;
+}
+
+/* The edit line's characters summed: its ghost still its own. */
+static uint32_t cmpl_sum(const LineBuf *const b)
+{
+    uint32_t h = 2166136261u;
+
+    for (uint16_t i = 0; i < b->len; i++)
+        h = (h ^ b->text[i]) * 16777619u;
+
+    return h;
+}
+
+/* A ghost, and the line as it was found for. */
+static bool cmpl_ghost(void)
+{
+    const LineBuf *const b = &uimn.edline;
+    return ac.gn && !ac.open && ac.gline == uimn.ed.line && ac.gcol == b->col &&
+           ac.glen == b->len && ac.gsum == cmpl_sum(b);
 }
 
 /* The word replaced by the first n characters of s, in small letters when the word is. */
@@ -343,7 +365,7 @@ static Step cmpl_key(Session *const S, const uint16_t key)
 
     const uint8_t ch = (uint8_t)key, scan = (uint8_t)(key >> 8);
 
-    if (ch == CH_TAB || (ch == CH_ENTER && !ac.typed))
+    if (ch == CH_TAB || ch == CH_ENTER)
         return STEP_TAKE;
     if (ch == CH_ESC)
         return STEP_LEAVE;
@@ -390,10 +412,15 @@ static void cmpl_popup(Session *const S)
 
 bool cmpl_tab(Session *const S)
 {
+    if (cmpl_ghost()) {
+        ac.gn = 0;
+        cmpl_insert(S, 0);
+        return true;
+    }
+
     if (!cmpl_find(S))
         return false;
 
-    ac.typed = false;
     cmpl_common();
 
     if (ac.s.n == 1)
@@ -408,19 +435,50 @@ void cmpl_typed(Session *const S)
 {
     const LineBuf *const b = &uimn.edline;
     const uint16_t col = b->col;
+    ac.gn = 0;
 
-    if (ac.open || pkey_ready() || col < AC_AUTO || (col < b->len && cmpl_wordc(b->text[col])))
+    if (ac.open || pkey_ready() || col != b->len)
         return;
 
-    uint16_t s = col;
+    const uint8_t prev = col ? b->text[col - 1] : 0; /* a word's end, or a space */
 
-    while (s && cmpl_wordc(b->text[s - 1]))
-        s--;
-
-    if (col - s != AC_AUTO || !is_letter(b->text[s]) || !cmpl_find(S))
+    if (!cmpl_wordc(prev) && !strchr("$%&!# ", prev))
+        return;
+    if (!cmpl_find(S))
         return;
 
-    ac.typed = true;
-    cmpl_popup(S);
+    const uint16_t wn = col - ac.s.start;
+
+    const Sugg *const e = sugg_guess(&ac.s, wn);
+
+    if (!e)
+        return;
+
+    for (uint16_t i = wn; i < e->len; i++)
+        ac.ghost[ac.gn++] = ac.lc && is_letter(e->text[i]) ? e->text[i] | 0x20 : e->text[i];
+
+    ac.gline = uimn.ed.line;
+    ac.gcol = col;
+    ac.glen = b->len;
+    ac.gsum = cmpl_sum(b);
+}
+
+void cmpl_draw_ghost(void)
+{
+    if (!cmpl_ghost())
+        return;
+
+    const uint16_t at = uimn.edline.col - uimn.ed.left; /* the cursor's column in the window */
+
+    if (at >= uimn.ed.width)
+        return;
+
+    const uint16_t room = uimn.ed.width - at;
+    scrn_dim(
+        (uint8_t)(uimn.ed.line - uimn.ed.top + uimn.ed.row0),
+        (uint8_t)(at + 1 + uimn.ed.x),
+        ac.ghost,
+        ac.gn < room ? ac.gn : room
+    );
 }
 #endif

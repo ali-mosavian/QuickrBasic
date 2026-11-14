@@ -9,6 +9,8 @@ uint8_t scrn_fill(uint8_t row, uint8_t col, uint8_t slot, uint8_t ch, uint16_t n
 uint8_t scrn_str(uint8_t row, uint8_t col, const char *s, uint8_t slot, uint8_t hot);
 /* sc_strn: n characters of s in slot, '&' not special; the column past them. */
 uint8_t scrn_strn(uint8_t row, uint8_t col, const uint8_t *s, uint16_t n, uint8_t slot);
+/* n characters of s dim on the edit windows' background; the column past them. */
+uint8_t scrn_dim(uint8_t row, uint8_t col, const uint8_t *s, uint16_t n);
 /* sc_slen: s's length, its '&' not counted. */
 uint16_t scrn_slen(const char *s);
 /* sc_box: a single-line frame of rows by cols at row, col, filled with spaces, in slot; title

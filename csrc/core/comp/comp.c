@@ -39,7 +39,7 @@
  * | cm_if, cm_fv, cm_fork, cm_for, cm_for1, cm_nv, cm_on, cm_onl, cm_print, cm_list, cm_dv, cm_dat, cm_rem, cm_in, cm_rd, cm_get, cm_run, cm_res, cm_write, cm_lin | act_if, act_fv, act_fork, act_for2, act_for1, act_nv, act_on, act_onl, act_print, act_list, act_dv, act_data, act_rem, act_in, act_rd, act_get, act_run, act_res, act_write, act_lin | MIRROR; D3 |
  * | cm_n0, cm_n1, cm_narg, cm_fop, cm_goto, cm_gosub, cm_ret | step_n0, step_n1, step_narg, step_fop, step_goto, step_gosub, step_ret | MIRROR |
  * | g_cmact | actions[] | MIRROR; `[A_x - A_BASE] = ...` |
- * | cm_new, cm_ee, cm_nx, cm_om, cm_fin, cm_mark, cm_dbg, cm_dbgx, cm_mapstmt, cm_tok, ps_look, cm_lnld, var_decl, cm_dim1, cm_dvas, cm_dsubs, cm_using | stmts (cm_new, cm_ee), ended (cm_nx, cm_om), finish, mark, dbg, dbgdrop, mapstmt, token, pslook, lnumload, declared, dim1, dimas, dimsubs, using | MIRROR |
+ * | cm_new, cm_ee, cm_nx, cm_om, cm_fin, cm_mark, cm_dbg, cm_dbgx, cm_mapstmt, cm_tok, ps_look, cm_lnld, var_decl, cm_dim1, cm_dvas, cm_dsubs, cm_using | stmts (cm_new, cm_ee), ended (cm_nx, cm_om), finish, mark, dbg, dbgdrop, mapstmt, token, pslook, lnumload, declared, dim1, comp_astype, dimsubs, using | MIRROR |
  * | cm_do | token's dispatch | MIRROR |
  * | cm_end, cm_w, cm_skip | done and the end of comp_text, in code_opw, comp_skipdata | MIRROR |
  * | g_cbuf (g_cbufh before it) | comp.cbuf | D4 |
@@ -981,27 +981,44 @@ static void dim1(Comp *const C, const uint16_t id)
     comp_call(C, K_DIM);
 }
 
-/* Past DIM's AS type [* n]: decl_line's. */
-static void dimas(Comp *const C)
+void comp_astype(Comp *const C)
 {
-    const uint8_t *p = C->p;
+    const uint8_t *const p = C->p;
 
     if (*p != TK_AS)
         return;
-    if (p[1] == M_VAR) { /* AS a TYPE */
+
+    C->p = p + 1;
+
+    if (p[1] == M_VAR) { /* AS a TYPE; the line checked alone: one declared */
+        if (C->check && !symb_name(C->symb, comp_nameof(p + 1))->rec)
+            synerr(C);
+
         C->p = decl_item(p + 1);
         return;
     }
 
     if (p[1] == TK_X) { /* AS SHORT: AS, FFh n */
+        if (p[2] != TK1_SHORT)
+            synerr(C);
+
         C->p = p + 3;
         return;
     }
 
+    if (p[1] < TK_INTEGER || p[1] > TK_STRING)
+        synerr(C);
+
     C->p = p + 2;
 
-    if (p[1] == TK_STRING && p[2] == TK_MUL) /* STRING * n */
-        C->p += 1 + INT_TOKEN_SIZE;
+    if (p[1] == TK_STRING && p[2] == TK_MUL) { /* STRING * n */
+        C->p++;
+
+        if (p[3] != M_INT)
+            synerr(C);
+
+        C->p += INT_TOKEN_SIZE;
+    }
 }
 
 /* A DIM item: the subscripts, its id, n, CALL DIM; a scalar STRING * n: n spaces. */
@@ -1016,11 +1033,11 @@ static void act_dv(Comp *const C)
             id = ref_recarray(C, name, t);
 
         dim1(C, id);
-        dimas(C);
+        comp_astype(C);
         return;
     }
 
-    dimas(C);
+    comp_astype(C);
     const uint16_t fix = scop_fix(C->scop, symb_var(C->symb, id)->name, false);
 
     if (!fix || symb_var(C->symb, id)->info & VI_ARR)

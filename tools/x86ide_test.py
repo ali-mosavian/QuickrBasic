@@ -400,32 +400,40 @@ def play() -> None:
         press("tab")
         return look()
 
-    scr = typed("pr")  # a statement's start: statements, the first lit
-    assert scr[7].strip() == "PRINT" and scr[8].strip() == "PRINT#", scr
-    assert attrs(7)[3] == 0x07 and attrs(8)[3] == 0x70, attrs(7)[:6]
-    press("down", "tab")
-    assert line() == "PRINT#", line()
+    def dim(col: int) -> bool:
+        """Line 4's column col (0 the first) in the likeliest's dim rest."""
+        return attrs(5)[col + 1] & 0x0F == 0x08
+
+    scr = typed("pr")  # the likeliest's rest dim past the cursor, no list
+    assert line() == "PRINT" and dim(2) and not dim(1) and not scr[7].strip(), scr
+    press("tab")  # Tab takes it
+    assert line() == "PRINT" and not dim(2), line()
     # Ctrl+Y once checked the line first: PRINT# alone got a syntax error box,
     # which then took the keys, and the line stayed.
     ctrl_y()
     assert line() == "" and not any("SYNTAX" in r for r in look()), look()
-    scr = typed("print le")  # an operand: functions and variables
-    assert sorted(r.split()[0] for r in scr[7:9] if r.split()) == ["LEFT$", "LEN"], scr
-    press("esc")
-    ctrl_y()
-    scr = complete("print mi")  # Tab takes the first: its ( and its form shown
+    scr = complete("print mi")  # Tab takes the likeliest: its ( and its form shown
     assert line() == "PRINT MID$(" and "MID$(S$, START[, N])" in scr[24], scr[24]
     ctrl_y()
-    scr = typed("print lef")  # the list follows the word
-    assert scr[7].split()[0] == "LEFT$" and not scr[8].strip(), scr
-    press("enter")  # opened by typing: Enter is typed, not taken
+    typed("print lef")  # the rest follows the word
+    assert line() == "PRINT LEFT$" and dim(9), line()
+    press("enter")  # Enter is typed: the rest left
     assert text()[3:5] == ["PRINT LEF", ""], text()
     press("backspace")  # the lines joined again
     ctrl_y()
-    complete("for j=1 t")  # after an operand: the words that go on
+    typed("function sum% ")  # after a space, nothing it needs: no guess
+    assert line() == "FUNCTION SUM%" and not dim(14), line()
+    ctrl_y()
+    typed("for j")  # what the statement needs next: FOR's '='
+    assert line() == "FOR J=" and dim(5), line()
+    ctrl_y()
+    complete("for j=1")  # its TO
     assert line() == "FOR J=1 TO", line()
     ctrl_y()
-    scr = complete("next i")  # a whole name: what goes on after it
+    complete("for j=1 t")
+    assert line() == "FOR J=1 TO", line()
+    ctrl_y()
+    scr = complete("next i")  # a whole name, nothing needed: Tab lists what goes on after it
     assert "I," in [r.strip() for r in scr[5:20]], scr
     press("escape")
     assert line() == "NEXT I", line()
@@ -437,8 +445,8 @@ def play() -> None:
     assert line() == 'PRINT "PR' and look()[24].endswith(":017"), look()[24]
     ctrl_y()
     # The editor's own reader took all after DATA as DATA's: no statement after its ':'.
-    complete("data 1:pr")  # PRINT# first: taken lately
-    assert line() == "DATA 1:PRINT#", line()
+    complete("data 1:pr")  # a statement after DATA's ':'
+    assert line() == "DATA 1:PRINT", line()
     ctrl_y()
     scr = complete("x$=")  # a string wanted: string names and functions only
     assert "X$" in [r.split()[0] for r in scr[7:15] if r.split()], scr
@@ -453,12 +461,10 @@ def play() -> None:
     complete("for k=1 to 2:next ")  # NEXT: the open FOR's variable
     assert line() == "FOR K=1 TO 2:NEXT K", line()
     ctrl_y()
-    press("0x75", "0x4f", "enter")  # GOSUB: a line after RETURN first, its text shown
+    press("0x75", "0x4f", "enter")  # GOSUB: a line after RETURN first
     keys("10 return\n20 rem b\ngosub ")
+    assert text()[5] == "GOSUB 20", text()
     press("tab")
-    scr = look()
-    assert scr[9].split()[:3] == ["20", "REM", "B"] and scr[10].split()[:2] == ["10", "RETURN"], scr
-    press("enter")
     assert text()[5] == "GOSUB 20", text()
 
     # A typed SUB, then its call without CALL: each line, checked alone, was a syntax error (the

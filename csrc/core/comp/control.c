@@ -512,11 +512,12 @@ static void exitblock(Comp *const C)
 {
     const BlockEnt *const e = entry(C, C->p);
     const uint8_t c = C->p[1];
-    C->p += 2;
+    C->p++;
 
     if (c != TK_FOR && c != TK_DO)
-        synerr(C);
+        synerr(C); /* at the word after EXIT */
 
+    C->p++;
     jmp(C, doneof(e));
 }
 
@@ -757,6 +758,35 @@ static bool reccopy(Comp *const C)
 
 /* ---- procedures */
 
+/* A SUB's or FUNCTION's parameters, checked: [(name[()] [AS type], ..)] [STATIC]. */
+static void params(Comp *const C)
+{
+    if (comp_cur(C) == '(') {
+        C->p++;
+
+        if (comp_cur(C) != ')') {
+            do {
+                if (comp_cur(C) != M_VAR)
+                    synerr(C);
+
+                skipvar(C);
+
+                if (comp_cur(C) == '(') {
+                    C->p++;
+                    comp_close(C);
+                }
+
+                comp_astype(C);
+            } while (comp_optcomma(C));
+        }
+
+        comp_close(C);
+    }
+
+    if (comp_cur(C) == TK_STATIC)
+        C->p++;
+}
+
 /* ct_pdecl: the name at comp.p a SUB's or FUNCTION's that a DECLARE or a definition named. */
 static bool declname(Comp *const C)
 {
@@ -838,6 +868,9 @@ static bool subcall(Comp *const C)
     C->p = start;
 
     if (checkonly(C)) {
+        if (*comp_skipname(C->p) == TK_EQ) /* f = e: a FUNCTION's result, checked as any */
+            return false;
+
         skip(C);
         return true;
     }
@@ -871,10 +904,17 @@ static void sub(Comp *const C)
 
     if (pr)
         jmp(C, pr->skip);
-    else if (!checkonly(C))
+    else if (!C->check)
+        synerr(C);
+    else if (comp_cur(C) == M_VAR) /* a new one: the IDE's line check, completion's probe */
+        skipvar(C);
+    else
         synerr(C);
 
-    skip(C);
+    if (C->check)
+        params(C);
+    else
+        skip(C);
 }
 
 /* END or EXIT SUB, FUNCTION, DEF: PRET. */
@@ -1158,27 +1198,7 @@ static void common(Comp *const C)
             C->p++;
         }
 
-        if (comp_cur(C) == TK_AS) { /* AS type [* n] */
-            C->p++;
-            const uint8_t c = comp_cur(C);
-
-            if (c == M_VAR)
-                skipvar(C);
-            else if (c == TK_X)
-                C->p += 2;
-            else {
-                C->p++;
-
-                if (comp_cur(C) == TK_MUL) {
-                    C->p++;
-
-                    if (comp_cur(C) != M_INT)
-                        synerr(C);
-
-                    C->p += INT_TOKEN_SIZE;
-                }
-            }
-        }
+        comp_astype(C);
 
         comp_int(C, id);
         comp_call(C, K_CMN);

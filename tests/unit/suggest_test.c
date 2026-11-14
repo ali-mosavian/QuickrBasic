@@ -151,7 +151,7 @@ TEST(suggest_punctuation)
     CHECK(suggest(S, "print left$("));
     CHECK(place(")") < 0);
     CHECK(suggest(S, "print left$(title$"));
-    CHECK(place(",") >= 0 && place(")") < 0);
+    CHECK(place("TITLE$,") >= 0 && place("TITLE$)") < 0);
     CHECK(suggest(S, "print prevval"));
     CHECK(place("PREVVAL;") >= 0);
     CHECK(suggest(S, "pr"));
@@ -167,7 +167,9 @@ TEST(suggest_what_follows)
 {
     unit_store(S, program);
     CHECK(suggest(S, "for i"));
-    CHECK(place("I=") == 0);
+    CHECK(place("I=") == 0 && out.list[0].score == SUGG_NEED); /* nothing else lets it go on */
+    CHECK(suggest(S, "n = m"));
+    CHECK(out.list[0].score < SUGG_NEED); /* the statement whole: nothing it needs */
     CHECK(suggest(S, "for i = 1"));
     CHECK(place("1 TO") == 0);
     CHECK(suggest(S, "for i = limit"));
@@ -188,4 +190,50 @@ TEST(suggest_what_was_taken)
     sugg_used(&out.list[i]);
     CHECK(suggest(S, "pr"));
     CHECK(place("PRINT#") == 0);
+}
+/* After AS a type alone: the line check once took any word there, and INP came first. */
+TEST(suggest_a_type)
+{
+    unit_store(S, program);
+    CHECK(suggest(S, "dim x as in"));
+    CHECK(out.n == 1 && place("INTEGER") == 0);
+    CHECK(suggest(S, "function sum% (a as in"));
+    CHECK(out.n == 1 && place("INTEGER") == 0);
+    CHECK(!suggest(S, "function sum% (a as inp") || !out.n);
+}
+
+/* A new FUNCTION's parameter: ')', ',' or AS after it; the line check once skipped the line,
+   so anything fit. */
+TEST(suggest_a_parameter)
+{
+    unit_store(S, program);
+    CHECK(suggest(S, "function sum% (a"));
+    CHECK(place("A)") >= 0 && place("A AS") >= 0 && place("A=") < 0 && place("A THEN") < 0);
+}
+
+/* A name some other starts: what goes on after it not needed, it may be the other's start. */
+TEST(suggest_a_start_not_needed)
+{
+    static const char *const two[] = {"10 i = 1: index = 2", nullptr};
+
+    unit_store(S, two);
+    CHECK(suggest(S, "for i"));
+    CHECK(place("INDEX") >= 0 && place("I=") >= 0 && !out.list[place("I=")].need);
+    CHECK(suggest(S, "for index"));
+    CHECK(out.list[place("INDEX=")].need);
+}
+
+/* A FUNCTION's name starting a statement in its body sets the result: no '(' after it. */
+TEST(suggest_a_result)
+{
+    unit_store(S, program);
+    uint32_t rec = PROGBASE; /* in twice$: line 150's record */
+
+    for (uint32_t i = 0; i < 11; i++)
+        rec += prog_line(&S->prog, rec)->len;
+
+    CHECK(sugg_find(S, (const uint8_t *)"tw", 2, 2, rec, &out));
+    CHECK(out.list[place("TWICE$")].kind == SG_VAR);
+    CHECK(sugg_find(S, (const uint8_t *)"x$ = tw", 7, 7, rec, &out));
+    CHECK(out.list[place("TWICE$")].kind == SG_FN);
 }
