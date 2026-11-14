@@ -861,7 +861,8 @@ static bool subcall(Comp *const C)
             return true;
         }
 
-        if (idx != C->proc && comp_cur(C) == TK_EQ) /* f = e: in FUNCTION f only */
+        /* f = e: in FUNCTION f only; a line checked alone is at the module, its place the link's */
+        if (idx != C->proc && comp_cur(C) == TK_EQ && !C->check)
             fault_error(C->fault, E_VR);
     }
 
