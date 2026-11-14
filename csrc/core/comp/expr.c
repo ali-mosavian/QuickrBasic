@@ -130,6 +130,9 @@ static uint16_t parse(Session *S, uint8_t p);
 static uint16_t parse_unary(Session *S);
 static void loadvar(Session *S, uint16_t id);
 static void gen(Session *S, uint16_t n);
+static void gen_elem(Session *S, const Node *n);
+static void gen_fn(Session *S, const Node *n);
+static void gen_xfn(Session *S, const Node *n);
 
 /* An expression parsed, folded and compiled, for a DOUBLE target or not; its tree dropped. */
 static void compile(Session *const S, const bool dbl)
@@ -651,6 +654,9 @@ static void gen(Session *const S, const uint16_t i)
     switch (n->kind) {
     case N_UN: gen_unary(S, n); return;
     case N_BIN: gen_binary(S, n); return;
+    case N_ELEM: gen_elem(S, n); return;
+    case N_FN: gen_fn(S, n); break;
+    case N_XFN: gen_xfn(S, n); break;
     default: gen_leaf(S, n);
     }
 }
@@ -739,8 +745,8 @@ static void loadvar(Session *const S, const uint16_t id)
     }
 }
 
-/* A variable's value at comp.p: a scalar's id, nothing compiled; else NO_ID, its code compiled
-   (a FUNCTION's call, a record's field, an element). */
+/* A variable at comp.p: its id, nothing compiled (an array's: its subscripts next); else NO_ID,
+   its code compiled (a FUNCTION's call, a record's field). */
 enum : uint16_t { NO_ID = 0xFFFF };
 static uint16_t load(Session *const S)
 {
@@ -759,11 +765,7 @@ static uint16_t load(Session *const S)
         ctrl_recload(S);
         return NO_ID;
     }
-    const uint16_t id = comp_name(S);
-    if (!(symb_var(&S->symb, id)->info & VI_ARR))
-        return id;
-    loadvar(S, id);
-    return NO_ID;
+    return comp_name(S);
 }
 
 void expr_load(Session *const S)
@@ -907,62 +909,6 @@ static const XFn *xfn_at(Session *const S)
     synerr(S);
 }
 
-/* f's ( arguments ), each converted to its kind; their count after them when it varies. */
-static void xfn_args(Session *const S, const XFn *const f)
-{
-    comp_open(S);
-    uint32_t n = 0, i = 0; /* the arguments, the kind's index */
-    for (;;) {
-        char k = f->arg[i];
-        if (k == 'R') { /* an array, n or n(): its id */
-            if (comp_cur(&S->comp) != M_VAR)
-                synerr(S);
-            const uint16_t id = comp_var(S, 2, 0);
-            if (*S->comp.p == '(') {
-                if (S->comp.p[1] != ')')
-                    synerr(S);
-                S->comp.p += 2;
-            }
-            comp_int(S, id);
-        } else {
-            if (k == 'H') { /* a file number, its # or not */
-                if (comp_cur(&S->comp) == '#')
-                    S->comp.p++;
-                k = 'I';
-            }
-            expr_compile(S);
-            if (!n && f->min & XF_LEAD && S->comp.type == T_STR && k != 'S') /* a leading optional
-                                                                             left out */
-                k = f->arg[++i];
-            xarg(S, k);
-        }
-        n++;
-        i++;
-        if (i >= f->max || !comp_optcomma(S))
-            break;
-    }
-    if (i < (f->min & XF_MIN))
-        synerr(S);
-    comp_close(S);
-    if ((f->min & XF_MIN) != f->max)
-        comp_int(S, n);
-}
-
-/* QBasic's other functions, by xfns: f(args), then CALL k, or none. */
-static void xfunc(Session *const S)
-{
-    const XFn *const f = xfn_at(S);
-    if (f->max && ((f->min & XF_MIN) || comp_cur(&S->comp) == '('))
-        xfn_args(S, f);
-    else if (f->max) /* all optional, ( ) left out */
-        comp_int(S, 0);
-    if (f->k)
-        comp_call(S, f->k);
-    S->comp.type = S->expr.fixdbl ? T_DBL : f->res;
-    S->expr.fixdbl = false;
-    S->comp.iload = S->comp.iloadend = nullptr;
-}
-
 /* Function f's (TK_SGN on) argument converted; comp.type its result. */
 static void farg(Session *const S, const uint8_t f)
 {
@@ -1012,42 +958,171 @@ static bool lensize(Session *const S)
     return false;
 }
 
-/* SGN .. MID$, from cm_un's @cu_7a: f the function, TK_SGN on. */
-static void func(Session *const S, const uint8_t f)
+/* VARPTR, VARSEG, SSEG, SADD (v) after FFh: its CALL in k, 0 none; false: not one. */
+static bool addr_call(const uint8_t tok, uint8_t *const k)
 {
-    if (f == TK_RND - TK_SGN && S->comp.p[1] != '(') { /* RND alone: RND(1) */
-        S->comp.p++;
+    switch (tok) {
+    case TK1_VARPTR: *k = 0; return true;
+    case TK1_VARSEG:
+    case TK1_SSEG: *k = K_VSEG; return true;
+    case TK1_SADD: *k = K_SADD; return true;
+    default: return false;
+    }
+}
+
+static uint16_t lit_leaf(Session *S, uint8_t op, const uint8_t *bytes, uint8_t sh);
+uint16_t expr_intleaf(Session *S, uint32_t v, uint8_t sh);
+
+/* An argument: an expression of its own, not for a DOUBLE target. */
+static uint16_t parse_arg(Session *const S)
+{
+    const bool was = S->expr.dbltgt;
+    S->expr.dbltgt = false;
+    const uint16_t n = parse(S, 0);
+    S->expr.dbltgt = was;
+    return n;
+}
+
+/* Argument a after *last (NO_NODE: the first, to n->b). */
+static void link_arg(Session *const S, const uint16_t n, uint16_t *const last, const uint16_t a)
+{
+    node(S, a)->next = NO_NODE;
+    if (*last == NO_NODE)
+        node(S, n)->b = a;
+    else
+        node(S, *last)->next = a;
+    *last = a;
+    node(S, n)->nargs++;
+}
+
+static uint16_t args_node(Session *const S, const NodeKind kind)
+{
+    const uint16_t n = node_new(S, kind);
+    node(S, n)->b = NO_NODE;
+    return n;
+}
+
+/* Array id's element: ( e {, e} ). */
+static uint16_t elem_node(Session *const S, const uint16_t id)
+{
+    const uint16_t n = args_node(S, N_ELEM);
+    node(S, n)->a = id;
+    node(S, n)->type = expr_ktype[symb_var(&S->symb, id)->info & (SK_DBL | VK_MASK)];
+    uint16_t last = NO_NODE;
+    comp_open(S);
+    do
+        link_arg(S, n, &last, parse_arg(S));
+    while (comp_optcomma(S));
+    comp_close(S);
+    return n;
+}
+
+static void gen_elem(Session *const S, const Node *const n)
+{
+    for (uint16_t a = n->b; a != NO_NODE; a = node(S, a)->next)
+        gen_as(S, a, T_INT, false);
+    const uint16_t id = n->a;
+    const uint8_t k = symb_var(&S->symb, id)->info & (SK_DBL | VK_MASK);
+    S->comp.type = expr_ktype[k];
+    S->comp.iload = S->comp.iloadend = nullptr;
+    if (n->nargs == 1)
+        comp_opid(S, lda1[k], id);
+    else {
+        comp_opid(S, ldan[k], id);
+        comp_byte(S, n->nargs);
+    }
+    S->expr.shend = nullptr;
+    expr_shortid(S, id);
+}
+
+/* A string literal after its quote: S.LD.TXT len, its text's Addr. */
+static uint16_t str_leaf(Session *const S)
+{
+    const uint8_t *const start = S->comp.p;
+    const uint8_t *q = start;
+    uint8_t b[5];
+    b[0] = (uint8_t)strg_span(&q, '"', '"');
+    store32(b + 1, addr_of(start));
+    S->comp.p = strg_skipq(q);
+    return lit_leaf(S, O_S_LD_TXT, b, SH_NONE);
+}
+
+/* SGN .. MID$'s result, its argument's type at: as func compiles it. */
+static uint8_t fn_type(const uint8_t f, const uint8_t at, const bool dbl)
+{
+    if (f >= TK_MID - TK_SGN - 2)
+        return T_STR;
+    const uint8_t df = dfnk[f];
+    const bool todbl = (at == T_INT && df == DFN_STR) || (dbl && !(at & (T_STR | T_DBL)) && df < DFN_STR);
+    if ((at == T_DBL || todbl) && df != DFN_NONE)
+        return df == DFN_STR ? T_STR : df == DF_SGN ? T_INT : T_DBL;
+    if (f == TK_VAL - TK_SGN)
+        return T_DBL;
+    const uint8_t res = fnsig[f] & FR_MASK;
+    return res == FR_S ? T_STR : res;
+}
+
+/* SGN .. MID$ (f, TK_SGN on): (e), LEFT$ RIGHT$ (s, n), MID$ (s, n [, n]); RND alone. */
+static uint16_t fn_node(Session *const S, const uint8_t f)
+{
+    const uint16_t n = args_node(S, N_FN);
+    node(S, n)->op = f;
+    node(S, n)->dbl = S->expr.dbltgt;
+    S->comp.p++;
+    if (f == TK_RND - TK_SGN && *S->comp.p != '(') { /* RND alone: RND(1) */
+        node(S, n)->type = T_FLT;
+        return n;
+    }
+    uint16_t last = NO_NODE;
+    comp_open(S);
+    link_arg(S, n, &last, parse_arg(S));
+    if (f >= TK_MID - TK_SGN - 2) {
+        comp_comma(S);
+        link_arg(S, n, &last, parse_arg(S));
+        if (f == TK_MID - TK_SGN && comp_optcomma(S))
+            link_arg(S, n, &last, parse_arg(S));
+    }
+    comp_close(S);
+    node(S, n)->type = fn_type(f, vtype(S, node(S, n)->b), S->expr.dbltgt);
+    node(S, n)->end = S->comp.p;
+    return n;
+}
+
+static void gen_fn(Session *const S, const Node *const n)
+{
+    const uint8_t f = n->op;
+    S->comp.iload = S->comp.iloadend = nullptr;
+    if (!n->nargs) { /* RND alone */
         comp_int(S, 1);
         farg(S, f);
         comp_call(S, K_FN + f);
         return;
     }
-    S->comp.p++;
-    comp_open(S);
-    expr_compile(S);
+    const uint16_t a = n->b;
+    gen(S, a);
+    S->comp.p = n->end;
     if (f >= TK_MID - TK_SGN - 2) { /* LEFT$, RIGHT$, MID$ */
-        comp_comma(S);
         comp_tostring(S);
-        expr_compile(S);
+        const uint16_t b = node(S, a)->next;
+        gen(S, b);
         comp_toaddr(S);
         uint8_t k = f;
         if (f == TK_MID - TK_SGN) {
-            if (comp_optcomma(S)) {
-                expr_compile(S);
+            const uint16_t c = node(S, b)->next;
+            if (c != NO_NODE) {
+                gen(S, c);
                 comp_toaddr(S);
             } else
                 k = K_MID2 - K_FN;
         }
-        comp_close(S);
         S->comp.type = T_STR;
         comp_call(S, K_FN + k);
         return;
     }
-    comp_close(S);
     const uint8_t df = dfnk[f];
     if (S->comp.type == T_INT && df == DFN_STR) /* STR$ of an INT: through a DOUBLE, every digit */
         comp_todouble(S);
-    else if (S->expr.dbltgt && !(S->comp.type & (T_STR | T_DBL)) && df < DFN_STR)
+    else if (n->dbl && !(S->comp.type & (T_STR | T_DBL)) && df < DFN_STR)
         comp_todouble(S); /* for a DOUBLE: of an INT or a SINGLE a DOUBLE's, as BC */
     if (S->comp.type == T_DBL && df != DFN_NONE) {
         if (df == DFN_STR) {
@@ -1068,19 +1143,81 @@ static void func(Session *const S, const uint8_t f)
         comp_call(S, K_FN + f);
 }
 
-/* VARPTR, VARSEG, SSEG, SADD (v) after FFh: its CALL in k, 0 none; false: not one. */
-static bool addr_call(const uint8_t tok, uint8_t *const k)
+/* QBasic's other functions, by xfns: f(args) each of its kind, their count when it varies. */
+static uint16_t xfn_node(Session *const S)
 {
-    switch (tok) {
-    case TK1_VARPTR: *k = 0; return true;
-    case TK1_VARSEG:
-    case TK1_SSEG: *k = K_VSEG; return true;
-    case TK1_SADD: *k = K_SADD; return true;
-    default: return false;
+    const XFn *const f = xfn_at(S);
+    const uint16_t n = args_node(S, N_XFN);
+    node(S, n)->op = (uint8_t)(f - xfns);
+    node(S, n)->type = f->res;
+    if (!f->max)
+        return n;
+    if (!(f->min & XF_MIN) && comp_cur(&S->comp) != '(') { /* all optional, ( ) left out */
+        node(S, n)->mode = XM_NONE;
+        return n;
     }
+    uint16_t last = NO_NODE;
+    comp_open(S);
+    for (uint32_t i = 0;; i++) {
+        char k = f->arg[i];
+        uint16_t a;
+        if (k == 'R') { /* an array, n or n(): its id */
+            if (comp_cur(&S->comp) != M_VAR)
+                synerr(S);
+            const uint16_t id = comp_var(S, 2, 0);
+            if (*S->comp.p == '(') {
+                if (S->comp.p[1] != ')')
+                    synerr(S);
+                S->comp.p += 2;
+            }
+            a = expr_intleaf(S, id, SH_NONE);
+        } else {
+            if (k == 'H') { /* a file number, its # or not */
+                if (comp_cur(&S->comp) == '#')
+                    S->comp.p++;
+                k = 'I';
+            }
+            a = parse_arg(S);
+            if (node(S, n)->nargs == 0 && f->min & XF_LEAD && vtype(S, a) == T_STR && k != 'S')
+                k = f->arg[++i]; /* a leading optional left out */
+            if (k == 'G' && vtype(S, a) == T_DBL) /* FIX of a DOUBLE: D.FN's */
+                node(S, n)->type = T_DBL;
+        }
+        node(S, a)->conv = (uint8_t)k;
+        link_arg(S, n, &last, a);
+        if (i + 1 >= f->max || !comp_optcomma(S)) {
+            if (i + 1 < (f->min & XF_MIN))
+                synerr(S);
+            break;
+        }
+    }
+    comp_close(S);
+    node(S, n)->mode = (f->min & XF_MIN) != f->max ? XM_COUNT : XM_ARGS;
+    node(S, n)->end = S->comp.p;
+    return n;
 }
 
-static uint16_t lit_leaf(Session *S, uint8_t op, const uint8_t *bytes, uint8_t sh);
+static void gen_xfn(Session *const S, const Node *const n)
+{
+    const XFn *const f = &xfns[n->op];
+    if (n->mode == XM_NONE)
+        comp_int(S, 0);
+    for (uint16_t a = n->b; a != NO_NODE; a = node(S, a)->next) {
+        gen(S, a);
+        S->comp.p = n->end;
+        if (node(S, a)->conv != 'R')
+            xarg(S, (char)node(S, a)->conv);
+    }
+    if (n->mode == XM_COUNT)
+        comp_int(S, n->nargs);
+    if (f->k)
+        comp_call(S, f->k);
+    S->comp.type = S->expr.fixdbl ? T_DBL : f->res;
+    S->expr.fixdbl = false;
+    S->comp.iload = S->comp.iloadend = nullptr;
+}
+
+
 
 /* The code compiled from begin on as a leaf node, the code as before: one literal load (VARPTR's)
    a literal, else its bytes kept. */
@@ -1137,6 +1274,8 @@ static uint16_t var_leaf(Session *const S)
     const uint16_t id = load(S);
     if (id == NO_ID)
         return code_leaf(S, begin);
+    if (symb_var(&S->symb, id)->info & VI_ARR)
+        return elem_node(S, id);
     const uint8_t kop = symb_varx(&S->symb, id)->kop;
     if (kop)
         return lit_leaf(S, kop, symb_kval(&S->symb, id),
@@ -1200,8 +1339,7 @@ static uint16_t parse_unary(Session *const S)
             continue;
         case '"':
             S->comp.p++;
-            expr_string(S);
-            return code_leaf(S, begin);
+            return str_leaf(S);
         }
         if (c >= '.' && c <= '9')
             return num_leaf(S);
@@ -1219,10 +1357,6 @@ static uint16_t parse_unary(Session *const S)
             return code_leaf(S, begin);
         }
         const uint8_t f = c - TK_SGN;
-        if (f > TK_MID - TK_SGN)
-            xfunc(S);
-        else
-            func(S, f);
-        return code_leaf(S, begin);
+        return f > TK_MID - TK_SGN ? xfn_node(S) : fn_node(S, f);
     }
 }
