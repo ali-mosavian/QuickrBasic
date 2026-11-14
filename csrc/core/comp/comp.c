@@ -8,9 +8,8 @@
  * any cursor as `const uint8_t **p`. A body is in the arena (comp.cbuf or the program store), so a
  * string literal's operand is addr_of() its text.
  *
- * Errors: while comp.busy, repl_error(code) calls comp_fail(code), which ends the line's code with
- * ERR code dg at state, EOL and longjmps to comp_text's setjmp; comp_text then returns normally.
- * The error is raised when the code runs.
+ * Errors: comp_text catches its own (fault.h) and ends the line's code with ERR code dg at state,
+ * EOL; it returns the code. The error is raised when the code runs.
  *
  * Each action parses its statement's operands (expr.c, refs.c) and emits through code.c. A store
  * converts the value to its target's type (comp_store). Statement kinds with blocks, calls or
@@ -23,7 +22,7 @@
  * | asm | here | |
  * |---|---|---|
  * | cm_line, cm_text | comp_line, comp_text | MIRROR; D1 |
- * | cm_err | comp_fail | MIRROR; noreturn |
+ * | cm_err | fail | MIRROR; comp_text's catch |
  * | cm_expn, cm_expect, cm_dfa | comp_expnames, comp_expected, comp_dfa | MIRROR |
  * | cm_toi, cm_tof, cm_tod, cm_tos, cm_tob, cm_toa, cm_dnz | comp_toint, comp_tofloat, comp_todouble, comp_tostring, comp_tobyte, comp_toaddr, comp_dtest | MIRROR |
  * | cm_byt, cm_op, cm_opx, cm_opw, cm_dw, cm_ins, cm_lint, cm_call, cm_ileaf, cm_shv | code_byte, code_op, code_opb, code_opw, code_dword, code_insert, code_int, code_call, code_intleaf, code_shclass (code.c) | MOVED |
@@ -588,10 +587,11 @@ static void done(Comp *const C)
 {
     comp_flush(C);
     finish(C);
-    longjmp(C->unwind, 1);
+    fault_throw(C->fault, ST_OK);
 }
 
-void comp_fail(Comp *const C, const uint8_t err)
+/* An error: the line's code ends with ERR err, raised when it runs. */
+static void fail(Comp *const C, const uint8_t err)
 {
     comp_flush(C);                   /* the steps checked before the error */
     uint8_t *const o = C->code->out; /* ERR err dg at:4 state:2 */
@@ -603,7 +603,8 @@ void comp_fail(Comp *const C, const uint8_t err)
     C->code->out = o + 9;
     C->dg = 0;
     C->dfa = 0xFFFF;
-    done(C);
+    comp_flush(C);
+    finish(C);
 }
 
 static uint32_t pslook(const uint32_t st, const uint8_t cls)
@@ -739,7 +740,7 @@ static void ended(Comp *const C)
     if (C->code->full) { /* cm_om: the code is full, its last op cut short: from its statement */
         C->code->out =
             C->code->buf + (C->nstmt ? ((const Stmt *)C->map)[-(int32_t)C->nstmt].code : 0);
-        comp_fail(C, E_OM);
+        fault_throw(C->fault, E_OM);
     }
 
     dbgdrop(C);
@@ -783,9 +784,8 @@ static void stmts(Comp *const C)
     }
 }
 
-void comp_text(Comp *const C, const uint8_t *const body)
+Status comp_text(Comp *const C, const uint8_t *const body)
 {
-    C->busy = true;
     C->depth = 0;
     C->body = body;
     C->nstmt = 0;
@@ -801,13 +801,19 @@ void comp_text(Comp *const C, const uint8_t *const body)
     const uint8_t *colon = comp_label(body); /* a label: on from its ':' */
     C->p = colon ? colon : body - 1;
 
-    if (!setjmp(C->unwind)) {
+    Catch c;
+    fault_push(C->fault, &c);
+
+    if (!setjmp(c.jb)) {
         stmts(C);
         finish(C);
-    }
+        fault_pop(C->fault);
+        c.code = ST_OK;
+    } else if (c.code != ST_OK)
+        fail(C, (uint8_t)c.code);
 
-    C->busy = false;
     C->len = (uint8_t)(C->code->out - C->code->buf);
+    return c.code;
 }
 
 void comp_proc(Comp *const C, const uint8_t proc)
@@ -816,14 +822,14 @@ void comp_proc(Comp *const C, const uint8_t proc)
     scop_enter(C->scop, proc ? blok_proc(C->blok, proc) : nullptr);
 }
 
-void comp_line(Comp *const C)
+Status comp_line(Comp *const C)
 {
     C->line = DLINE;
     C->ndfor = 0;
     comp_proc(C, C->dlproc);
     decl_deftype(C->decl, C->symb, 0xFFFFFFFF); /* the program's end's DEFtypes */
     C->code->buf = C->xbuf;
-    comp_text(C, C->cbuf);
+    return comp_text(C, C->cbuf);
 }
 
 /* ---- the actions: each makes the statement's steps */

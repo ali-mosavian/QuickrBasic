@@ -3,8 +3,8 @@
  * # How it works
  * Code of FK ops only (vm/ops.def) runs as it compiles, through the VM's own handlers, so its value
  * is the run's to the bit, and becomes one load of it. fold_code runs the code with exec_until up
- * to comp.out; no FOLD op is executed. An error while it runs (fold_fail) leaves the code as it
- * was, to raise when run.
+ * to comp.out; no FOLD op is executed. An error while it runs, caught (fault.h), leaves the code as
+ * it was, to raise when run.
  *
  * A CONST whose value folds to one literal load keeps that load (VarX.kop, symb_kval): a use
  * compiled after it loads the literal instead of the variable. The CONST still stores the variable,
@@ -17,7 +17,7 @@
  * | asm | here | |
  * |---|---|---|
  * | cm_fold, op_fold | fold_code | MIRROR; D1 |
- * | cf_fail, g_cfold, g_cfsp | fold_fail, comp.folding, comp.fold (a jmp_buf) | MIRROR |
+ * | cf_fail, g_cfold, g_cfsp | eval's Catch | MIRROR |
  * | cm_krec, cm_klit | fold_const | MIRROR |
  * | var_kclr | fold_clear | MIRROR |
  * | g_cvat | comp.vat | MIRROR |
@@ -75,16 +75,17 @@ static bool eval(Comp *const C, uint8_t *const start, Cell *const v)
     Vm *const vm = C->vm;
     uint8_t *const ip = vm->ip, *const opip = vm->opip;
     Cell *const sp = vm->sp;
-    C->folding = true;
-    const bool failed = setjmp(C->fold);
+    Catch c;
+    fault_push(C->fault, &c);
+    const bool failed = setjmp(c.jb);
 
     if (!failed) {
         vm->ip = start;
         C->run->until(C->run, end);
         *v = *vm->sp;
+        fault_pop(C->fault);
     }
 
-    C->folding = false;
     vm->ip = ip;
     vm->opip = opip;
     vm->sp = sp;
@@ -115,12 +116,6 @@ void fold_code(Comp *const C, uint8_t *const start)
 
     if (C->code->shend == end) /* the SHORT's class as it was */
         C->code->shend = C->code->out;
-}
-
-void fold_fail(Comp *const C)
-{
-    if (C->folding)
-        longjmp(C->fold, 1);
 }
 
 bool fold_isliteral(const uint8_t op)

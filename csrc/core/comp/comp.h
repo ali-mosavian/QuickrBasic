@@ -56,13 +56,9 @@ typedef struct Comp {
     const uint8_t *body; /* cbase: the body's start */
     uint32_t line;       /* the line's offset in the program store, DLINE direct */
     uint8_t len;         /* xo: the code's length, mod 256 */
-    bool busy;           /* csp: compiling; an error is comp_fail's */
-    jmp_buf unwind;      /* csp: comp_fail's way back to comp_text */
     uint16_t depth;      /* cplim: expression nesting, Out of memory past COMP_MAXDEPTH */
 
     /* the expression */
-    bool folding; /* g_cfold: fold_code's run; an error is its */
-    jmp_buf fold; /* g_cfsp: fold_code's way back from an error */
 
     /* the target of a store */
     uint16_t tgt;    /* ctv: its variable, or a record field's offset */
@@ -129,13 +125,10 @@ static inline uint8_t comp_suffixof(const uint8_t *const p)
 void comp_init(Comp *C); /* comp_cbuf carved (allo_carve) */
 /* Procedure proc compiled, 0 the module: its scopes seen. */
 void comp_proc(Comp *C, uint8_t proc);
-void comp_line(Comp *C); /* the direct line in comp_cbuf, to comp_xbuf */
-void comp_text(
-    Comp *C,
-    const uint8_t *body
-); /* the body at body to comp.buf; comp.len its length */
-[[noreturn]]
-void comp_fail(Comp *C, uint8_t err); /* repl_error while comp.busy: ERR, EOL, unwind */
+Status comp_line(Comp *C); /* the direct line in comp_cbuf, to comp_xbuf: comp_text's */
+/* The body at body to comp.buf, comp.len its length. An error ends the code with ERR, raised
+   when it runs: its code, else ST_OK. */
+Status comp_text(Comp *C, const uint8_t *body);
 /* The statement's steps resolved, folded and generated, in order. */
 void comp_flush(Comp *C);
 void comp_dfa(Comp *C, uint16_t state); /* run the statement automaton from state */

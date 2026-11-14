@@ -8,8 +8,6 @@ typedef struct Comp Comp;
 /* cm_fold (for a CONST's value after its conversion): the code from start to comp.out, of type comp.type: all FK ops, two or more, becomes
    one load of its value. */
 void fold_code(Comp *C, uint8_t *start);
-/* cf_fail: repl_error while fold_code runs: back to it, the code as it was. */
-void fold_fail(Comp *C);
 /* cm_krec: a CONST's scalar store, variable id's: its value's code from start folded; one literal
    load is kept as the variable's. */
 void fold_const(Comp *C, uint8_t *start, uint16_t id);

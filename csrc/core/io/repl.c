@@ -3,9 +3,8 @@
  * # How it works
  * repl_error never returns. It unwinds with longjmp to the first of these that holds:
  *
- *   1. dbug's watch probe running: back to it (dbg_ever).
- *   2. compiling (comp.busy): comp_fail, which ends the line with an ERR op and longjmps to its
- *      compile's start.
+ *   1. a stage's catch (fault.h): compiling's, which ends the line with an ERR op, or folding's.
+ *   2. dbug's watch probe running: back to it (dbg_ever).
  *   3. not BREAK nor E_OS, not in the handler, not the direct line, and a handler found:
  *      flow_trap, which longjmps to vm.loop at the handler.
  *   4. else repl.top with REPL_ERROR: the message (and a file run's where, a compile error's place
@@ -69,15 +68,13 @@
 
 void repl_error(Session *const S, uint8_t code)
 {
-    fold_fail(&S->comp);
     S->lexr.source = nullptr; /* a streamed line's lexing ended */
-    if (S->dbug.probing)
-        dbug_fail(&S->dbug, code);
-
     fmth_clear();
 
-    if (S->comp.busy)
-        comp_fail(&S->comp, code);
+    if (S->fault.catch) /* compiling, folding: theirs */
+        fault_throw(&S->fault, code);
+    if (S->dbug.probing)
+        dbug_fail(&S->dbug, code);
     if (code != E_BRK && code != E_OS && !S->vm.err.active && S->vm.line != DLINE) {
         uint32_t handler = flow_handler(S);
 

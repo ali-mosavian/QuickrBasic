@@ -221,7 +221,6 @@ uint8_t dbug_eval(Session *const S, const char *const expr, const uint8_t proc, 
     memcpy(out, S->cons.sbuf, n);
     out[n] = 0;
     restore(S, &s);
-    S->comp.busy = false;
     S->comp.dlproc = 0;
     fmth_clear();
     return (uint8_t)(how - PROBE_DONE);
