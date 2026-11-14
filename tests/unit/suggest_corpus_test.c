@@ -87,8 +87,12 @@ static const Case cases[] = {
     {"dim p as pa", "PAIR", "IR", "", "", 0},
     {"dim a as ", nullptr, "", "INTEGER|LONG|STRING|PAIR", "PRINT|LEN", 0},
     {"function f% (a as in", "INTEGER", "TEGER", "", "", 0},
+    {"function sum%(a as i", "INTEGER", "NTEGER", "", "INT|INPUT", 0},
+    {"function sum%(a as integer", "INTEGER,", ",", "INTEGER)", "", 0},
+    {"function sum%(a as integer, b", nullptr, nullptr, "B AS|B)|B,", "", 0},
+    {"function sum%(a as integer, b as integer", "INTEGER,", ",", "INTEGER)", "", 0},
     {"sub foo (a", nullptr, nullptr, "A)|A AS|A,", "A=|A THEN", 0},
-    {"sub foo (a as integer", nullptr, ")", "INTEGER)|INTEGER,", "INTEGER=", 0},
+    {"sub foo (a as integer", "INTEGER,", ",", "INTEGER)", "INTEGER=", 0},
     /* procedures' scope */
     {"print am", "AMOUNT", "OUNT", "", "", 230},
     {"print am", nullptr, nullptr, "", "AMOUNT", 0},

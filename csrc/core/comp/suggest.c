@@ -562,6 +562,22 @@ static void sugg_follow(
         fit[nfit++].need = ends;
     }
 
+    /* a parameter list being declared: another parameter, more likely than its end */
+    const bool header = sg.last == TK_SUB || sg.last == TK_FUNCTION || sg.last == TK_DECLARE;
+    Sugg *comma = nullptr;
+
+    for (uint32_t i = 0; i < nfit; i++)
+        comma = fit[i].text[wn] == ',' ? &fit[i] : comma;
+
+    for (uint32_t i = 0; i < nfit && header && shut && comma; i++) {
+        if (fit[i].text[wn] == ')' && fit[i].need) {
+            comma->score = fit[i].score;
+            comma->need = true;
+            fit[i].score = 65;
+            fit[i].need = false;
+        }
+    }
+
     for (uint32_t i = 0; i < nfit; i++) {
         if (open && !longer && !ended && nmore == 1 && fit[i].text[wn] != '(') {
             fit[i].score = SUGG_NEED;
