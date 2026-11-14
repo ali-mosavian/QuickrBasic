@@ -224,7 +224,7 @@ void exec_f_st_a1(Session *const S) { exec_i_st_a1(S); }
 void exec_s_st_a1(Session *const S)
 {
     const Addr s = exec_popa(&S->vm);
-    strg_set(S, s, elem1(S, exec_popi(&S->vm), DSZ));
+    strg_set(&S->strg, s, elem1(S, exec_popi(&S->vm), DSZ));
 }
 
 void exec_i_st_a(Session *const S)
@@ -237,7 +237,7 @@ void exec_f_st_a(Session *const S) { exec_i_st_a(S); }
 void exec_s_st_a(Session *const S)
 {
     const Addr s = exec_popa(&S->vm);
-    strg_set(S, s, exec_elem(S));
+    strg_set(&S->strg, s, exec_elem(S));
 }
 
 /* A record's address, the record made at its first use. */
@@ -306,16 +306,16 @@ void exec_sf_ld(Session *const S)
 {
     const uint16_t off = exec_u16(&S->vm);
     const uint16_t n = exec_u16(&S->vm);
-    const Addr chars = strg_alloc(S, n); /* the record does not move */
+    const Addr chars = strg_alloc(&S->strg, n); /* the record does not move */
     const Addr a = exec_popa(&S->vm) + off;
     memcpy(at(chars), at(a), n);
-    exec_pusha(&S->vm, strg_new(S, chars, n));
+    exec_pusha(&S->vm, strg_new(&S->strg, chars, n));
 }
 
 /* Into a STRING * n field: cut, or padded with spaces. */
 void exec_sf_st(Session *const S)
 {
-    const Desc s = strg_get(S, exec_popa(&S->vm));
+    const Desc s = strg_get(&S->strg, exec_popa(&S->vm));
     const Addr a = exec_popa(&S->vm) + exec_u16(&S->vm);
     const uint16_t n = exec_u16(&S->vm);
     const uint16_t k = s.len < n ? s.len : n;
@@ -361,7 +361,7 @@ void exec_v_st(Session *const S)
     if (kind == CELL_DOUBLE)
         store_cell(at(cell), x);
     else if (kind == CELL_STRING)
-        strg_set(S, x.a, cell);
+        strg_set(&S->strg, x.a, cell);
     else
         wr32(cell, x.u);
 }
@@ -373,13 +373,13 @@ void exec_s_ld_txt(Session *const S)
 {
     const uint8_t len = exec_u8(&S->vm);
     const Addr text = exec_u32(&S->vm);
-    exec_pusha(&S->vm, strg_push(S, (Desc){.len = len, .ptr = text}));
+    exec_pusha(&S->vm, strg_push(&S->strg, (Desc){.len = len, .ptr = text}));
 }
 
 void exec_s_st_v(Session *const S)
 {
     const Addr cell = symb_cell(&S->symb, exec_u16(&S->vm));
-    strg_set(S, exec_popa(&S->vm), cell);
+    strg_set(&S->strg, exec_popa(&S->vm), cell);
 }
 
 /* A compare pushes -1 or 0; a CMPIF's false ends the line. */
@@ -388,7 +388,7 @@ void exec_s_cmp(Session *const S)
     const uint8_t op = *S->vm.opip;
     const Addr right = exec_popa(&S->vm);
     const Addr left = exec_popa(&S->vm);
-    const bool yes = strg_cmp(S, left, right) & exec_u8(&S->vm);
+    const bool yes = strg_cmp(&S->strg, left, right) & exec_u8(&S->vm);
 
     if (op < O_I_CMPIF)
         exec_pushi(&S->vm, yes ? -1 : 0);
@@ -399,7 +399,7 @@ void exec_s_cmp(Session *const S)
 /* IF on a string: empty ends the line. */
 void exec_s_if(Session *const S)
 {
-    if (!strg_get(S, exec_popa(&S->vm)).len)
+    if (!strg_get(&S->strg, exec_popa(&S->vm)).len)
         flow_nextln(S);
 }
 
@@ -408,7 +408,7 @@ void exec_s_cat(Session *const S)
 {
     const Addr right = exec_popa(&S->vm);
     const Addr left = exec_popa(&S->vm);
-    exec_pusha(&S->vm, strg_cat(S, left, right));
+    exec_pusha(&S->vm, strg_cat(&S->strg, left, right));
 }
 
 /* CALL k: routine k. */

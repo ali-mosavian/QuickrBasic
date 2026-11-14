@@ -81,7 +81,7 @@ void syst_init(Session *const S)
 
 void syst_ret(Session *const S, const uint32_t len)
 {
-    exec_pusha(&S->vm, strg_buftmp(S, (uint16_t)len));
+    exec_pusha(&S->vm, strg_text(&S->strg, S->cons.sbuf, (uint16_t)len));
 }
 
 /* ---- the clock ------------------------------------------------------------------------------ */
@@ -141,7 +141,7 @@ static uint32_t parts(
     uint16_t part[static 3]
 )
 {
-    const Desc s = strg_get(S, S->vm.sp->a);
+    const Desc s = strg_get(&S->strg, S->vm.sp->a);
 
     for (uint32_t i = 0; i < 3; i++)
         part[i] = NO_PART;
@@ -318,7 +318,7 @@ static void shell(Session *const S, const Desc s)
     if (!psys_exec(path, tail, len, S->syst.env, (uint32_t)(env_end(S) - S->syst.env) + 1))
         repl_error(S, E_IQ);
 }
-void syst_shell(Session *const S) { shell(S, strg_get(S, exec_popa(&S->vm))); }
+void syst_shell(Session *const S) { shell(S, strg_get(&S->strg, exec_popa(&S->vm))); }
 void syst_shell0(Session *const S) { shell(S, (Desc){}); }
 
 /* The 0-ended text at t as a string, ENV_VALUE_MAX chars at most. */
@@ -339,7 +339,7 @@ void syst_envs(Session *const S)
     const bool by_name = exec_pop(&S->vm).u;
 
     if (by_name) {
-        const Desc s = strg_get(S, exec_popa(&S->vm));
+        const Desc s = strg_get(&S->strg, exec_popa(&S->vm));
         const char *const e = s.len ? env_find(S, at(s.ptr), s.len) : nullptr;
         env_ret(S, e ? e + s.len + 1 : "");
         return;
@@ -362,7 +362,7 @@ void syst_envs(Session *const S)
    call: no '=' or no name. Out of memory: no room. */
 void syst_envset(Session *const S)
 {
-    const Desc s = strg_get(S, exec_popa(&S->vm));
+    const Desc s = strg_get(&S->strg, exec_popa(&S->vm));
     const uint8_t *const t = at(s.ptr);
     uint32_t name = 0;
 
@@ -396,7 +396,7 @@ void syst_envset(Session *const S)
 void syst_setmem(Session *const S)
 {
     S->vm.sp++;
-    strg_gc(S);
+    strg_gc(&S->strg);
     exec_pushi(&S->vm, (int32_t)(S->allo.strings - S->allo.arrays));
 }
 

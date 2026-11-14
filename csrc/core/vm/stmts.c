@@ -78,7 +78,7 @@ void stmt_init(Session *const S) { S->stmt.data_text = at(allo_carve(&S->allo, D
 
 void stmt_ipr(Session *const S) { cons_int(S, exec_popi(&S->vm)); }
 void stmt_fpr(Session *const S) { sngl_print(S, exec_pop(&S->vm).u); }
-void stmt_spr(Session *const S) { strg_print(S, strg_get(S, exec_popa(&S->vm))); }
+void stmt_spr(Session *const S) { cons_putdesc(S, strg_get(&S->strg, exec_popa(&S->vm))); }
 void stmt_pnl(Session *const S) { cons_nl(S); }
 
 /* ---- PRINT USING: the VM's operands to the formatter (vm/using.c) ---------------------------- */
@@ -102,13 +102,13 @@ void stmt_usng_init(Session *const S)
 
 void stmt_usb(Session *const S)
 {
-    const Desc s = strg_get(S, exec_popa(&S->vm));
+    const Desc s = strg_get(&S->strg, exec_popa(&S->vm));
     usng_begin(&S->usng, at(s.ptr), s.len);
 }
 
 void stmt_uss(Session *const S)
 {
-    const Desc s = strg_get(S, exec_popa(&S->vm));
+    const Desc s = strg_get(&S->strg, exec_popa(&S->vm));
     usng_string(&S->usng, at(s.ptr), s.len);
 }
 
@@ -202,7 +202,7 @@ static bool read_item(Session *const S, const uint8_t **const p, const ItemKind 
     switch (kind) {
     case ITEM_STRING: {
         Addr pos = addr_of(*p);
-        v->a = strg_item(S, &pos);
+        v->a = strg_item(&S->strg, &pos);
         *p = at(pos);
         break;
     }
@@ -284,13 +284,13 @@ void stmt_sget(Session *const S)
     const uint8_t c = cons_getc(S);
 
     if (!c) {
-        exec_pusha(&S->vm, strg_push(S, (Desc){}));
+        exec_pusha(&S->vm, strg_push(&S->strg, (Desc){}));
 
         return;
     }
 
     S->cons.sbuf[0] = c;
-    exec_pusha(&S->vm, strg_buftmp(S, 1));
+    exec_pusha(&S->vm, strg_text(&S->strg, S->cons.sbuf, 1));
 }
 
 /* ---- READ and DATA -------------------------------------------------------------------------- */
@@ -722,7 +722,7 @@ void stmt_sti(Session *const S)
         S->cons.sbuf[i + 1] = '0' + d % 10;
     }
 
-    exec_pusha(&S->vm, strg_buftmp(S, 6));
+    exec_pusha(&S->vm, strg_text(&S->strg, S->cons.sbuf, 6));
 }
 
 /* ST: the I/O status. */

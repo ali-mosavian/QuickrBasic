@@ -61,12 +61,12 @@ static uint32_t widen16(const uint16_t v) { return (uint32_t)(int32_t)(int16_t)v
 /* String value s as a 0-ended name. Error: Bad file name, empty. */
 static const char *name_of(Session *const S, const Addr s)
 {
-    const Desc d = strg_get(S, s);
+    const Desc d = strg_get(&S->strg, s);
 
     if (!d.len)
         repl_qberr(S, QB_BAD_FILE_NAME);
 
-    return (const char *)strg_near(S, d);
+    return (const char *)strg_near(&S->strg, d);
 }
 
 /* name_of, .BAS added when its last part has no '.'. */
@@ -143,7 +143,7 @@ void file_open2(Session *const S)
 {
     const char *const name = name_of(S, exec_popa(&S->vm));
     const int32_t num = exec_popi(&S->vm);
-    const Desc m = strg_get(S, exec_popa(&S->vm));
+    const Desc m = strg_get(&S->strg, exec_popa(&S->vm));
     const uint8_t mode = m.len ? mode_of(rd8(m.ptr)) : 0;
 
     if (!mode)
@@ -169,8 +169,8 @@ void file_console(Session *const S) { chnl_clear(S); }
 void file_lineinput(Session *const S)
 {
     const uint16_t len = (uint16_t)S->cons.inlen;
-    const Addr chars = strg_alloc(S, len);
-    exec_pusha(&S->vm, strg_tods(S, chars, addr_of(S->cons.inbuf), len));
+    const Addr chars = strg_alloc(&S->strg, len);
+    exec_pusha(&S->vm, strg_tods(&S->strg, chars, addr_of(S->cons.inbuf), len));
 }
 
 /* Output to sbuf, from its start. */
@@ -220,9 +220,9 @@ void file_write_dbl(Session *const S)
 
 void file_write_str(Session *const S)
 {
-    const Desc d = strg_get(S, exec_popa(&S->vm));
+    const Desc d = strg_get(&S->strg, exec_popa(&S->vm));
     cons_putc(S, '"');
-    strg_print(S, d);
+    cons_putdesc(S, d);
     cons_putc(S, '"');
 }
 
@@ -310,7 +310,7 @@ void file_input_str(Session *const S)
     if (n - 1 > INMAX - 1)
         repl_error(S, E_IQ);
 
-    const Addr chars = strg_alloc(S, (uint16_t)n);
+    const Addr chars = strg_alloc(&S->strg, (uint16_t)n);
 
     for (uint32_t i = 0; i < n; i++) {
         uint8_t b;
@@ -331,7 +331,7 @@ void file_input_str(Session *const S)
         wr8(chars + i, b);
     }
 
-    exec_pusha(&S->vm, strg_new(S, chars, (uint16_t)n));
+    exec_pusha(&S->vm, strg_new(&S->strg, chars, (uint16_t)n));
 }
 
 /* FILEATTR's mode numbers: INPUT OUTPUT RANDOM APPEND BINARY. */
@@ -482,7 +482,7 @@ static void get_string(Session *const S, Chan *const c, const Addr desc)
     if (chnl_read(S, c, S->cons.sbuf, n) < n)
         c->eof = true;
 
-    strg_set(S, strg_buftmp(S, (uint16_t)n), desc);
+    strg_set(&S->strg, strg_text(&S->strg, S->cons.sbuf, (uint16_t)n), desc);
 }
 
 /* PUT: the variable into the record at its start; a variable-length string its length first.
@@ -530,7 +530,7 @@ static void from_record(Session *const S, const Chan *const c, const Addr addr, 
             n = STRING_IO_MAX;
 
         memcpy(S->cons.sbuf, at(rec), n);
-        strg_set(S, strg_buftmp(S, (uint16_t)n), addr);
+        strg_set(&S->strg, strg_text(&S->strg, S->cons.sbuf, (uint16_t)n), addr);
         return;
 
     default:
@@ -670,7 +670,7 @@ static void justify(
    gets a new value; a record's STRING * n its bytes. */
 static void set(Session *const S, const bool right)
 {
-    const Desc s = strg_get(S, S->vm.sp[0].a);
+    const Desc s = strg_get(&S->strg, S->vm.sp[0].a);
     const uint32_t kind = S->vm.sp[1].u;
     const Addr addr = S->vm.sp[2].a;
     const uint8_t *const src = at(s.ptr);
@@ -685,7 +685,7 @@ static void set(Session *const S, const bool right)
         } else { /* built in sbuf, then stored */
             const uint16_t len = d->len;
             justify(S->cons.sbuf, len, src, s.len, right);
-            strg_set(S, strg_buftmp(S, len), addr);
+            strg_set(&S->strg, strg_text(&S->strg, S->cons.sbuf, len), addr);
         }
     }
 

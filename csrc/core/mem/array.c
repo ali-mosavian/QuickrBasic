@@ -157,7 +157,7 @@ Addr arry_new(Session *const S, const uint16_t id, const uint8_t n, const bool d
     if (S->arry.hdr + hdr_size(n) > S->allo.hdr_base + HDRSZ)
         repl_error(S, E_OM);
     if (aligned_end(S->allo.arrays, (uint32_t)size) > S->allo.strings) {
-        strg_gc(S);
+        strg_gc(&S->strg);
 
         if (aligned_end(S->allo.arrays, (uint32_t)size) > S->allo.strings)
             repl_error(S, E_OM);

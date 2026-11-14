@@ -553,5 +553,5 @@ void dubl_print(Session *const S)
 void dubl_str(Session *const S)
 {
     const uint32_t n = dubl_fmt(exec_popd(&S->vm), S->cons.sbuf);
-    exec_pusha(&S->vm, strg_buftmp(S, (uint16_t)n));
+    exec_pusha(&S->vm, strg_text(&S->strg, S->cons.sbuf, (uint16_t)n));
 }

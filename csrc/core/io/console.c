@@ -134,6 +134,14 @@ void cons_hex4(Session *const S, const uint16_t v)
         cons_putc(S, (uint8_t)"0123456789ABCDEF"[(v >> (12 - 4 * i)) & 15]);
 }
 
+void cons_putdesc(Session *const S, const Desc s)
+{
+    const uint8_t *const p = at(s.ptr);
+
+    for (uint16_t i = 0; i < s.len; i++)
+        cons_putc(S, p[i]);
+}
+
 void cons_puts(Session *const S, const char *const s)
 {
     for (size_t i = 0; s[i]; i++)

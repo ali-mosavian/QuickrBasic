@@ -49,6 +49,8 @@ void cons_uint(Session *S, uint32_t v);
 void cons_hex4(Session *S, uint16_t v);
 /* A 0-ended text. */
 void cons_puts(Session *S, const char *s);
+/* s's chars, through cons_putc (asm io_putc). */
+void cons_putdesc(Session *S, Desc s);
 /* Message E_* or MSG_* of the message list. */
 void cons_msg(Session *S, uint8_t id);
 /* The keyword of token tok (80h..FEh); of FFh n. */

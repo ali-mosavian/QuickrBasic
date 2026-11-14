@@ -144,7 +144,7 @@ static void get_string(Session *const S, const uint8_t **const p, const Addr des
     Addr chars = 0;
 
     if (len) {
-        chars = strg_alloc(S, len);
+        chars = strg_alloc(&S->strg, len);
         get(p, at(chars), len);
         strg_own(chars, len, desc);
     }
@@ -238,7 +238,7 @@ void chai_chain(Session *const S)
     if (S->repl.fe->chain)
         S->repl.fe->chain(S);
 
-    const Desc s = strg_get(S, exec_popa(&S->vm));
+    const Desc s = strg_get(&S->strg, exec_popa(&S->vm));
 
     if (s.len > CHAIN_NAME_MAX)
         repl_error(S, E_IQ);

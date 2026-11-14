@@ -108,7 +108,7 @@ void mkcv_mkdm(Session *const S)
 /* The string on top, its first n bytes in the cell instead. Illegal function call: shorter. */
 static void cv(Session *const S, const uint32_t n)
 {
-    const Desc s = strg_get(S, S->vm.sp->a);
+    const Desc s = strg_get(&S->strg, S->vm.sp->a);
 
     if (s.len < n)
         repl_error(S, E_IQ);

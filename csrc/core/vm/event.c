@@ -171,7 +171,7 @@ void evnt_evst(Session *const S)
    screen's, not kept. Illegal function call: n not 1..25, 30, 31. */
 void evnt_keydef(Session *const S)
 {
-    const Desc s = strg_get(S, exec_popa(&S->vm));
+    const Desc s = strg_get(&S->strg, exec_popa(&S->vm));
     const uint32_t n = exec_pop(&S->vm).u;
 
     if (n < 1 || (n > UKEY_LAST && n < 30) || n > NKEYS)

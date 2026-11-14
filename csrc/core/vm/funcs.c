@@ -49,7 +49,7 @@ static uint32_t f_usr(Session *const S, const uint32_t)
 /* FRE: the heap's free bytes. */
 static uint32_t f_fre(Session *const S, const uint32_t)
 {
-    strg_gc(S);
+    strg_gc(&S->strg);
     return fmth_from_i32((int32_t)(S->allo.strings - S->allo.arrays));
 }
 
@@ -63,7 +63,7 @@ static uint32_t f_sin(Session *const S, const uint32_t a) { return fmth_sin(&S->
 static uint32_t f_tan(Session *const S, const uint32_t a) { return fmth_tan(&S->fault, a); }
 static uint32_t f_atn(Session *const S, const uint32_t a) { return fmth_atn(&S->fault, a); }
 static uint32_t f_peek(Session *const S, const uint32_t a) { return rd8(a); }
-static uint32_t f_len(Session *const S, const uint32_t a) { return strg_get(S, a).len; }
+static uint32_t f_len(Session *const S, const uint32_t a) { return strg_get(&S->strg, a).len; }
 
 /* STR$: PRINT's text captured, its trailing space left out. */
 static uint32_t f_str(Session *const S, const uint32_t a)
@@ -72,13 +72,13 @@ static uint32_t f_str(Session *const S, const uint32_t a)
     S->cons.sblen = 0;
     sngl_print(S, a);
     S->cons.capture &= ~CAP_SBUF;
-    return strg_buftmp(S, (uint16_t)(S->cons.sblen - 1));
+    return strg_text(&S->strg, S->cons.sbuf, (uint16_t)(S->cons.sblen - 1));
 }
 
 /* ASC. Illegal function call: empty. */
 static uint32_t f_asc(Session *const S, const uint32_t a)
 {
-    const Desc s = strg_get(S, a);
+    const Desc s = strg_get(&S->strg, a);
 
     if (!s.len)
         repl_error(S, E_IQ);
@@ -89,7 +89,7 @@ static uint32_t f_asc(Session *const S, const uint32_t a)
 static uint32_t f_chr(Session *const S, const uint32_t a)
 {
     S->cons.sbuf[0] = (uint8_t)a;
-    return strg_buftmp(S, 1);
+    return strg_text(&S->strg, S->cons.sbuf, 1);
 }
 
 /* By K_FN_SGN .. K_FN_CHRS; VAL is K_DVAL. */
@@ -112,7 +112,7 @@ void func_fn1(Session *const S)
 void func_left(Session *const S)
 {
     const uint16_t n = (uint16_t)exec_pop(&S->vm).u;
-    exec_pusha(&S->vm, strg_sub(S, exec_popa(&S->vm), 0, n));
+    exec_pusha(&S->vm, strg_sub(&S->strg, exec_popa(&S->vm), 0, n));
 }
 
 /* RIGHT$ ( s n -- s ). */
@@ -121,7 +121,7 @@ void func_right(Session *const S)
     const uint16_t n = (uint16_t)exec_pop(&S->vm).u;
     const Addr s = exec_popa(&S->vm);
     const uint16_t len = strg_len(s);
-    exec_pusha(&S->vm, strg_sub(S, s, n > len ? 0 : len - n, n));
+    exec_pusha(&S->vm, strg_sub(&S->strg, s, n > len ? 0 : len - n, n));
 }
 
 /* MID$ ( s i n -- s ), ( s i -- s ). Illegal function call: i 0. */
@@ -133,7 +133,7 @@ static void mid(Session *const S, const uint16_t n)
     if (!i)
         repl_error(S, E_IQ);
 
-    exec_pusha(&S->vm, strg_sub(S, s, i - 1, n));
+    exec_pusha(&S->vm, strg_sub(&S->strg, s, i - 1, n));
 }
 void func_mid(Session *const S) { mid(S, (uint16_t)exec_pop(&S->vm).u); }
 void func_mid2(Session *const S) { mid(S, SMAX); }
@@ -147,7 +147,7 @@ void func_ltrim(Session *const S)
     while (k < s.len && rd8(s.ptr + k) == ' ')
         k++;
 
-    exec_pusha(&S->vm, strg_sub(S, exec_popa(&S->vm), k, SMAX));
+    exec_pusha(&S->vm, strg_sub(&S->strg, exec_popa(&S->vm), k, SMAX));
 }
 
 /* RTRIM$ ( s -- s ): without the trailing spaces. */
@@ -159,7 +159,7 @@ void func_rtrim(Session *const S)
     while (len && rd8(s.ptr + len - 1) == ' ')
         len--;
 
-    exec_pusha(&S->vm, strg_sub(S, exec_popa(&S->vm), 0, len));
+    exec_pusha(&S->vm, strg_sub(&S->strg, exec_popa(&S->vm), 0, len));
 }
 
 /* INSTR ( [n] s t count -- i ): where t is in s from n, 1 the first; 0 none. Illegal function
@@ -180,8 +180,8 @@ static int32_t instr(const Desc s, const Desc t, const int32_t from)
 void func_instr(Session *const S)
 {
     const uint32_t count = exec_pop(&S->vm).u;
-    const Desc t = strg_get(S, exec_popa(&S->vm));
-    const Desc s = strg_get(S, exec_popa(&S->vm));
+    const Desc t = strg_get(&S->strg, exec_popa(&S->vm));
+    const Desc s = strg_get(&S->strg, exec_popa(&S->vm));
     const int32_t from = count == 3 ? exec_popi(&S->vm) : 1;
 
     if (from < 1)
@@ -201,7 +201,7 @@ void func_mids(Session *const S)
     if (i < 1)
         repl_error(S, E_IQ);
 
-    const Addr r = strg_sub(S, exec_popa(&S->vm), 0, SMAX);
+    const Addr r = strg_sub(&S->strg, exec_popa(&S->vm), 0, SMAX);
     const Desc dst = strg_peek(r);
     const int32_t room = dst.len - (i - 1);
 
@@ -221,9 +221,9 @@ static void repeat(Session *const S, const uint32_t n, const uint8_t c)
     if (n > SMAX)
         repl_error(S, E_IQ);
 
-    const Addr chars = strg_alloc(S, (uint16_t)n);
+    const Addr chars = strg_alloc(&S->strg, (uint16_t)n);
     memset(at(chars), c, n);
-    exec_pusha(&S->vm, strg_new(S, chars, (uint16_t)n));
+    exec_pusha(&S->vm, strg_new(&S->strg, chars, (uint16_t)n));
 }
 
 /* SPACE$ ( n -- s ). */
@@ -238,7 +238,7 @@ void func_strg(Session *const S)
     uint8_t c;
 
     if (is_string) {
-        const Desc s = strg_get(S, x);
+        const Desc s = strg_get(&S->strg, x);
 
         if (!s.len)
             repl_error(S, E_IQ);
@@ -257,7 +257,7 @@ void func_strg(Session *const S)
 /* UCASE$, LCASE$ ( s -- s ): a copy, its letters from first..last turned. */
 static void recase(Session *const S, const uint8_t first, const uint8_t last)
 {
-    const Addr r = strg_sub(S, exec_popa(&S->vm), 0, SMAX);
+    const Addr r = strg_sub(&S->strg, exec_popa(&S->vm), 0, SMAX);
     const Desc s = strg_peek(r);
     uint8_t *const p = at(s.ptr);
 
@@ -285,7 +285,7 @@ static void radix(Session *const S, const uint8_t bits)
     } while (v);
 
     memcpy(S->cons.sbuf, digits + size - n, n);
-    exec_pusha(&S->vm, strg_buftmp(S, (uint16_t)n));
+    exec_pusha(&S->vm, strg_text(&S->strg, S->cons.sbuf, (uint16_t)n));
 }
 void func_hex(Session *const S) { radix(S, 4); }
 void func_oct(Session *const S) { radix(S, 3); }
@@ -294,12 +294,12 @@ void func_oct(Session *const S) { radix(S, 3); }
 void func_sfix(Session *const S)
 {
     const uint16_t n = (uint16_t)exec_pop(&S->vm).u;
-    const Addr chars = strg_alloc(S, n);
-    const Desc s = strg_get(S, exec_popa(&S->vm));
+    const Addr chars = strg_alloc(&S->strg, n);
+    const Desc s = strg_get(&S->strg, exec_popa(&S->vm));
     const uint16_t k = s.len < n ? s.len : n;
     memcpy(at(chars), at(s.ptr), k);
     memset(at(chars + k), ' ', n - k);
-    exec_pusha(&S->vm, strg_new(S, chars, n));
+    exec_pusha(&S->vm, strg_new(&S->strg, chars, n));
 }
 
 /* ---- the rest ------------------------------------------------------------------------------- */
@@ -307,7 +307,7 @@ void func_sfix(Session *const S)
 /* VAL ( s -- d ), of a copy with a 0 after it: a DOUBLE, as BC's. */
 void func_dval(Session *const S)
 {
-    const uint8_t *p = strg_near(S, strg_get(S, S->vm.sp->a));
+    const uint8_t *p = strg_near(&S->strg, strg_get(&S->strg, S->vm.sp->a));
     S->vm.sp->d = dubl_in(S, &p, nullptr);
 }
 

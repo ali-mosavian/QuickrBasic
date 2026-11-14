@@ -569,7 +569,7 @@ static void take_args(Session *const S, const Proc *const p, CallVar *const b)
             b[i].array.hdr = v->info == (VI_ARR | VK_INT) ? exec_record(S, (uint16_t)val.u)
                                                           : symb_var(&S->symb, (uint16_t)val.u)->vt;
         } else if (is_string(v))
-            strg_set(S, val.a, addr_of(&b[i].value));
+            strg_set(&S->strg, val.a, addr_of(&b[i].value));
         else
             b[i].value = val;
     }
