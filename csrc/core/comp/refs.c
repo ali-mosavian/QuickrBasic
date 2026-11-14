@@ -257,7 +257,7 @@ Node *ref_place(Comp *const C, uint32_t *const vk)
     if (comp_ispar(C, id)) /* a parameter's: its cell, the argument's */
         return place(C, O_V_ADDR, id);
 
-    return expr_intleaf(C, symb_cell(C->symb, id), SH_NONE);
+    return place(C, O_V_CELL, id); /* its cell set at link: the cells move while linking */
 }
 
 bool ref_len(Comp *const C, uint32_t *const size)

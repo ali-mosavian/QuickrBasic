@@ -851,7 +851,7 @@ static void cg_xfn(Code *const c, const Node *const n)
     c->iload = c->iloadend = nullptr;
 }
 
-/* A place's address: the subscripts and RA.ADDR id n, R.ADDR id, V.ADDR id. */
+/* A place's address: the subscripts and RA.ADDR id n, R.ADDR id, V.ADDR id, V.CELL cell. */
 static void cg_ref(Code *const c, const Node *const n)
 {
     if (n->op == O_RA_ADDR) {

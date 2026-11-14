@@ -582,6 +582,11 @@ CASES = {
 
 # Run as files with 8 MB: the heap is the memory free.
 BIG = {
+    # VARPTR's cell was a literal from the compile: the cache grown past 64 KB while linking moved
+    # the cells, and line 1's POKE missed a% (" 1  9").
+    "qb_varptr_link": ("a% = 1: POKE VARPTR(a%), 7: PRINT a%;\r\n"
+                       + "".join("b = 1" + "".join(f": b = b * 3 + {k}" for k in range(20)) + "\r\n" for _ in range(600))
+                       + "POKE VARPTR(a%), 9: PRINT a%\r\n", " 7  9 \r\n", "ERROR"),
     # The heap was a fixed 4 MB whatever the machine had: 4.8 MB of arrays were Out of memory.
     "qb_heap": ('DIM a(999, 99) AS DOUBLE, b(999, 99) AS DOUBLE, c(999, 99) AS DOUBLE\r\n'
                 'DIM d(999, 99) AS DOUBLE, e(999, 99) AS DOUBLE, f(999, 99) AS DOUBLE\r\n'
