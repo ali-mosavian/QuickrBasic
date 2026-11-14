@@ -14,6 +14,9 @@ os.environ.setdefault("X86_COM", sys.argv[1] if len(sys.argv) > 1 else str(ROOT 
 import x86run  # noqa: E402
 
 CASES = {
+    # C port, the tree: a line's syntax error left its nodes taken; 340 such lines and the next
+    # line's expression was Out of memory.
+    "c_tree_leak": ("IF 0 THEN a = 1 + (2 * (3 +\r\n" * 400 + "PRINT 5\r\n", " 5 \r\n", "memory"),
     # C port, the tree: a field and an element by reference (P.REF), VARPTR of a field. The golden
     # corpus has neither by reference; the field passed at the wrong offset changed nothing it read.
     "c_ref_args": ("TYPE T\r\na AS INTEGER\r\nb AS INTEGER\r\nEND TYPE\r\nDECLARE SUB inc (x AS INTEGER)\r\n"

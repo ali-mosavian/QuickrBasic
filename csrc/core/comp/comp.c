@@ -733,6 +733,7 @@ void comp_text(Session *const S, const uint8_t *const body)
 {
     S->comp.busy = true;
     S->comp.depth = 0;
+    S->ast.nnodes = 0; /* an error's longjmp left its line's nodes taken */
     S->comp.body = body;
     S->comp.nstmt = 0;
     S->comp.oneif = false;
