@@ -10,5 +10,5 @@ typedef struct {
 enum : uint32_t { RNDM_SEED0 = 0x50000 }; /* QBasic's first seed, set at start (main) */
 
 /* RND(x): 0 repeats the last, a negative x seeds from its bits first; then the next. */
-Sngl rndm_rnd(Session *S, Sngl x);
+Sngl rndm_rnd(Rndm *r, Sngl x);
 #endif

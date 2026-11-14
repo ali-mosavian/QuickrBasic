@@ -182,7 +182,7 @@ static void report(Session *const S, const uint8_t code)
 
     S->vm.nframes = 0;
     S->vm.cont.line = 0;
-    cons_puts(&S->cons, emsg_text(S, code));
+    cons_puts(&S->cons, emsg_text(S->vm.err.user, code));
 
     if (line != DLINE) {
         if (S->repl.batch) {

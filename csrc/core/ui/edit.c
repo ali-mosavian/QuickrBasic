@@ -366,7 +366,7 @@ uint16_t edit_dxerr(Session *const S, const uint8_t *const text, const ErrOp *co
 
 void edit_emsg(Session *const S, const uint8_t code)
 {
-    const char *const s = emsg_text(S, code);
+    const char *const s = emsg_text(S->vm.err.user, code);
     memcpy(uimn.errmsg, s, strlen(s) + 1);
 }
 

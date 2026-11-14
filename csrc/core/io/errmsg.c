@@ -102,15 +102,15 @@ static const struct {
     {255, "Out of stack space"},
 };
 
-const char *emsg_text(Session *const S, const uint8_t code)
+const char *emsg_text(const uint16_t user, const uint8_t code)
 {
     uint8_t num = emsg_errnum[code];
 
     if (code == E_USR) {
-        if (S->vm.err.user > 0xFE)
+        if (user > 0xFE)
             return "Unprintable error";
 
-        num = (uint8_t)S->vm.err.user;
+        num = (uint8_t)user;
     }
 
     for (size_t i = 0; num && i < countof(msgs); i++)

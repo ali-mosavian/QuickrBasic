@@ -29,7 +29,7 @@ enum : uint8_t { DC_GT = 1, DC_EQ = 2, DC_LT = 4 }; /* NaN against anything: DC_
 /* Reads &H|&O digits, or [sign] digits [. digits] [E|D [sign] digits] [# | !] at *p, spaces
    between skipped (BC's VAL and INPUT); *p past it. *kind (may be nullptr): DK_DBL by D, # or
    past 7 digits (zeros after the point counted), DK_SNGL by !. ?OVERFLOW past the largest. */
-double dubl_in(Session *S, const uint8_t **p, uint8_t *kind);
+double dubl_in(Fault *f, const uint8_t **p, uint8_t *kind);
 
 /* v (over 0, finite) as ndig (7 or 16) digits rounded once, trailing zeros left out: dig gets
    them as '0'..'9', *dp the first's power of ten; returns their count. */

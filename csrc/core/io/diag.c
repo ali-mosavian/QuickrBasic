@@ -256,7 +256,7 @@ static void words(Session *const S)
         for (uint8_t i = 1; i < S->diag.dg; i++)
             e = next_msg(e);
     } else { /* by BC's name: name /TEXT, name /end, name */
-        const char *const t = emsg_text(S, S->diag.code);
+        const char *const t = emsg_text(S->vm.err.user, S->diag.code);
         const size_t n = strlen(t);
         memcpy(S->diag.key, t, n);
         S->diag.keyend = S->diag.key + n;

@@ -13,21 +13,20 @@
  * | g_kone | SNGL_ONE | MOVED: single.h |
  */
 #include "num/random.h"
-#include "session.h"
 
 /* QBasic's generator: seed' = seed * MUL + ADD, mod 2^24. */
 enum : uint32_t { RND_MUL = 16598013, RND_ADD = 12820163, RND_MASK = 0xFFFFFF, RND_BITS = 24 };
 
-Sngl rndm_rnd(Session *const S, const Sngl x)
+Sngl rndm_rnd(Rndm *const r, const Sngl x)
 {
     if (x << 1) { /* not 0 */
         if (x & SNGL_SIGN)
-            S->rndm.seed = (x + (x >> RND_BITS)) & RND_MASK;
+            r->seed = (x + (x >> RND_BITS)) & RND_MASK;
 
-        S->rndm.seed = (S->rndm.seed * RND_MUL + RND_ADD) & RND_MASK;
+        r->seed = (r->seed * RND_MUL + RND_ADD) & RND_MASK;
     }
 
-    const uint32_t s = S->rndm.seed;
+    const uint32_t s = r->seed;
 
     if (!s)
         return 0;

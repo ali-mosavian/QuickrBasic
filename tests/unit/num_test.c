@@ -17,17 +17,28 @@ TEST(print_spells_doubles_as_qbasic)
     CHECK_TEXT(t, n, " 0");
 }
 
+/* A fault none of these raise. */
+[[noreturn]]
+static void unraised(Fault *const f, const Failure *const e)
+{
+    (void)f;
+    (void)e;
+    __builtin_trap();
+}
+
+static Fault none = {.raise = unraised};
+
 TEST(val_reads_kind_from_spelling)
 {
     const uint8_t *p = (const uint8_t *)"1.5D3";
     uint8_t kind;
-    CHECK(dubl_in(S, &p, &kind) == 1500 && kind == DK_DBL && !*p);
+    CHECK(dubl_in(&none, &p, &kind) == 1500 && kind == DK_DBL && !*p);
     p = (const uint8_t *)"&H10 ";
-    CHECK(dubl_in(S, &p, nullptr) == 16);
+    CHECK(dubl_in(&none, &p, nullptr) == 16);
     p = (const uint8_t *)"12345678";
-    CHECK(dubl_in(S, &p, &kind) == 12345678 && kind == DK_DBL);
+    CHECK(dubl_in(&none, &p, &kind) == 12345678 && kind == DK_DBL);
     p = (const uint8_t *)"2!";
-    CHECK(dubl_in(S, &p, &kind) == 2 && kind == DK_SNGL);
+    CHECK(dubl_in(&none, &p, &kind) == 2 && kind == DK_SNGL);
 }
 
 TEST(print_rounds_once_at_64_bits)

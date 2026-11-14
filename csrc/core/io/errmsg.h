@@ -9,5 +9,5 @@ extern const uint8_t emsg_errnum[E_LAST + 1];
 
 /* The message of error code (E_*), 0-ended; E_USR's by exec's uerr; "Unprintable error" when
    the number has none. */
-const char *emsg_text(Session *S, uint8_t code);
+const char *emsg_text(uint16_t user, uint8_t code);
 #endif

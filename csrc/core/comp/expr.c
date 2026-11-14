@@ -547,7 +547,7 @@ static Node *var_leaf(Session *const S)
 static Node *num_leaf(Session *const S)
 {
     uint8_t kind;
-    const double d = dubl_in(S, &S->comp.p, &kind);
+    const double d = dubl_in(&S->fault, &S->comp.p, &kind);
     uint8_t b[8];
 
     if (kind == DK_DBL) {

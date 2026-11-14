@@ -77,7 +77,7 @@ void stmt_init(Session *const S) { S->stmt.data_text = at(allo_carve(&S->allo, D
 /* ---- PRINT ---------------------------------------------------------------------------------- */
 
 void stmt_ipr(Session *const S) { cons_int(&S->cons, exec_popi(&S->vm)); }
-void stmt_fpr(Session *const S) { sngl_print(S, exec_pop(&S->vm).u); }
+void stmt_fpr(Session *const S) { sngl_print(&S->cons, exec_pop(&S->vm).u); }
 void stmt_spr(Session *const S) { cons_putdesc(&S->cons, strg_get(&S->strg, exec_popa(&S->vm))); }
 void stmt_pnl(Session *const S) { cons_nl(&S->cons); }
 
@@ -207,11 +207,11 @@ static bool read_item(Session *const S, const uint8_t **const p, const ItemKind 
         break;
     }
     case ITEM_DOUBLE:
-        v->d = dubl_in(S, p, nullptr);
+        v->d = dubl_in(&S->fault, p, nullptr);
         break;
 
     case ITEM_SNGL:
-        v->u = sngl_in(S, p);
+        v->u = sngl_in(&S->fault, p);
         break;
     }
 

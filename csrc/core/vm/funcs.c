@@ -55,7 +55,7 @@ static uint32_t f_fre(Session *const S, const uint32_t)
 
 static uint32_t f_pos(Session *const S, const uint32_t) { return S->cons.col; }
 static uint32_t f_sqr(Session *const S, const uint32_t a) { return fmth_sqr(&S->fault, a); }
-static uint32_t f_rnd(Session *const S, const uint32_t a) { return rndm_rnd(S, a); }
+static uint32_t f_rnd(Session *const S, const uint32_t a) { return rndm_rnd(&S->rndm, a); }
 static uint32_t f_log(Session *const S, const uint32_t a) { return fmth_log(&S->fault, a); }
 static uint32_t f_exp(Session *const S, const uint32_t a) { return fmth_exp(&S->fault, a); }
 static uint32_t f_cos(Session *const S, const uint32_t a) { return fmth_cos(&S->fault, a); }
@@ -70,7 +70,7 @@ static uint32_t f_str(Session *const S, const uint32_t a)
 {
     S->cons.capture = CAP_SBUF;
     S->cons.sblen = 0;
-    sngl_print(S, a);
+    sngl_print(&S->cons, a);
     S->cons.capture &= ~CAP_SBUF;
     return strg_text(&S->strg, S->cons.sbuf, (uint16_t)(S->cons.sblen - 1));
 }
@@ -308,7 +308,7 @@ void func_sfix(Session *const S)
 void func_dval(Session *const S)
 {
     const uint8_t *p = strg_near(&S->strg, strg_get(&S->strg, S->vm.sp->a));
-    S->vm.sp->d = dubl_in(S, &p, nullptr);
+    S->vm.sp->d = dubl_in(&S->fault, &p, nullptr);
 }
 
 /* VARSEG ( a -- 0 ): flat, no segment. */

@@ -202,7 +202,7 @@ void file_write_flt(Session *const S)
 {
     const Sngl v = exec_pop(&S->vm).u;
     capture(S);
-    sngl_print(S, v);
+    sngl_print(&S->cons, v);
     write_out(S);
 }
 

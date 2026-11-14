@@ -69,18 +69,18 @@ static bool special(const uint64_t u) { return exponent(u) == DBL_EXP_MASK; } /*
 static bool is_zero(const uint64_t u) { return !(u << 1); }
 
 /* Overflow past the largest. */
-static void check(Session *const S, const Cell *const c)
+static void dubl_check(Fault *const f, const Cell *const c)
 {
     if (special(c->raw))
-        repl_error(S, E_OV);
+        fault_error(f, E_OV);
 }
 
-static void status(Session *const S, const uint8_t st)
+static void dubl_status(Fault *const f, const uint8_t st)
 {
     if (st == PFPU_IQ)
-        repl_error(S, E_IQ);
+        fault_error(f, E_IQ);
     if (st == PFPU_OV)
-        repl_error(S, E_OV);
+        fault_error(f, E_OV);
 }
 
 /* ---- text in -------------------------------------------------------------------------------- */
@@ -182,7 +182,7 @@ static int32_t read_exponent(const uint8_t **const p, uint8_t *const kind)
     return neg ? -e : e;
 }
 
-double dubl_in(Session *const S, const uint8_t **const p, uint8_t *const kind)
+double dubl_in(Fault *const f, const uint8_t **const p, uint8_t *const kind)
 {
     skip(p);
 
@@ -223,7 +223,7 @@ double dubl_in(Session *const S, const uint8_t **const p, uint8_t *const kind)
     if (neg)
         r.raw ^= DBL_SIGN;
 
-    check(S, &r);
+    dubl_check(f, &r);
 
     if (kind)
         *kind = k;
@@ -377,21 +377,21 @@ void dubl_add(Session *const S)
 {
     const double b = exec_popd(&S->vm);
     S->vm.sp->d += b;
-    check(S, S->vm.sp);
+    dubl_check(&S->fault, S->vm.sp);
 }
 
 void dubl_sub(Session *const S)
 {
     const double b = exec_popd(&S->vm);
     S->vm.sp->d -= b;
-    check(S, S->vm.sp);
+    dubl_check(&S->fault, S->vm.sp);
 }
 
 void dubl_mul(Session *const S)
 {
     const double b = exec_popd(&S->vm);
     S->vm.sp->d *= b;
-    check(S, S->vm.sp);
+    dubl_check(&S->fault, S->vm.sp);
 }
 
 /* Division by zero: the divisor 0. */
@@ -402,7 +402,7 @@ void dubl_div(Session *const S)
 
     const double b = exec_popd(&S->vm);
     S->vm.sp->d /= b;
-    check(S, S->vm.sp);
+    dubl_check(&S->fault, S->vm.sp);
 }
 
 void dubl_neg(Session *const S)
@@ -510,11 +510,11 @@ void dubl_fn(Session *const S)
         break;
 
     case DF_SQR:
-        status(S, pfpu_dfn(PF_SQR, c->d, &c->d));
+        dubl_status(&S->fault, pfpu_dfn(PF_SQR, c->d, &c->d));
         return;
 
     case DF_EXP:
-        status(S, pfpu_dfn(PF_EXP, c->d, &c->d));
+        dubl_status(&S->fault, pfpu_dfn(PF_EXP, c->d, &c->d));
         return;
 
     default: {
@@ -526,17 +526,17 @@ void dubl_fn(Session *const S)
             [DF_LOG] = PF_LOG
         };
 
-        status(S, pfpu_dfn(pf[k], c->d, &c->d));
+        dubl_status(&S->fault, pfpu_dfn(pf[k], c->d, &c->d));
     }
     }
 
-    check(S, c);
+    dubl_check(&S->fault, c);
 }
 
 void dubl_pow(Session *const S)
 {
     const double b = exec_popd(&S->vm);
-    status(S, pfpu_dpow(S->vm.sp->d, b, &S->vm.sp->d));
+    dubl_status(&S->fault, pfpu_dpow(S->vm.sp->d, b, &S->vm.sp->d));
 }
 
 void dubl_print(Session *const S)

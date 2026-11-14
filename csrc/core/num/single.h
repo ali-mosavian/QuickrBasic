@@ -2,6 +2,9 @@
 #ifndef NUM_SINGLE_H
 #define NUM_SINGLE_H
 #include "defs.h"
+#include "fault.h"
+
+typedef struct Cons Cons;
 
 typedef uint32_t Sngl;
 
@@ -38,7 +41,7 @@ bool sngl_hexoct(const uint8_t **p, uint32_t *val);
 /* A DOUBLE rounded to a SINGLE (flt_dv). */
 Sngl sngl_from_dbl(double d);
 /* dubl_in's number at *p as a SINGLE, *p past it. */
-Sngl sngl_in(Session *S, const uint8_t **p);
+Sngl sngl_in(Fault *f, const uint8_t **p);
 /* Prints a as PRINT: a space or -, its digits (dubl_fmtf), a space. */
-void sngl_print(Session *S, Sngl a);
+void sngl_print(Cons *co, Sngl a);
 #endif
