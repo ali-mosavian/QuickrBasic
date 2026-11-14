@@ -1,5 +1,6 @@
 /* QBasic's error numbers and messages (io/errmsg.asm). */
 #include "io/emsg.h"
+#include "session.h"
 #include "vm/exec.h"
 
 const uint8_t emsg_errnum[E_LAST + 1] = {
@@ -85,13 +86,13 @@ static const struct {
     {255, "Out of stack space"},
 };
 
-const char *emsg_text(const uint8_t code)
+const char *emsg_text(Session *const S, const uint8_t code)
 {
     uint8_t num = emsg_errnum[code];
     if (code == E_USR) {
-        if (vm.err.user > 0xFE)
+        if (S->vm.err.user > 0xFE)
             return "Unprintable error";
-        num = (uint8_t)vm.err.user;
+        num = (uint8_t)S->vm.err.user;
     }
     for (size_t i = 0; num && i < countof(msgs); i++)
         if (msgs[i].num == num)

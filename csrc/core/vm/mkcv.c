@@ -1,6 +1,7 @@
 /* Numbers as their bytes (src/vm/bin.asm): MKI$ .. CVD and the MBF forms. A cell's bytes are the
    value's, low first. */
 #include "vm/mkcv.h"
+#include "session.h"
 #include "io/cons.h"
 #include "io/repl.h"
 #include "mem/strg.h"
@@ -24,78 +25,78 @@ enum { F64_EXP_SHIFT = 52, F64_EXP_MAX = 0x7FF, MBF64_EXP_SHIFT = 56, MBF64_SIGN
 enum { F64_BIAS_OVER_MBF = 1023 - 129, F64_EXTRA_BITS = 3 };
 
 /* The top cell's first n bytes, a string, instead of it. */
-static void mk(Vm *const vm, const uint32_t n)
+static void mk(Session *const S, const uint32_t n)
 {
-    const Cell c = exec_pop(vm);
-    memcpy(cons.sbuf, &c, n);
-    syst_ret(vm, n);
+    const Cell c = exec_pop(&S->vm);
+    memcpy(S->cons.sbuf, &c, n);
+    syst_ret(S, n);
 }
 
 /* MKI$ ( i -- s ): its low 2 bytes. Overflow outside -32768 to 32767. */
-void mkcv_mki(Vm *const vm)
+void mkcv_mki(Session *const S)
 {
-    if (vm->sp->i != (int16_t)vm->sp->i)
-        repl_error(E_OV);
-    mk(vm, 2);
+    if (S->vm.sp->i != (int16_t)S->vm.sp->i)
+        repl_error(S, E_OV);
+    mk(S, 2);
 }
-void mkcv_mkl(Vm *const vm) { mk(vm, 4); }
-void mkcv_mks(Vm *const vm) { mk(vm, 4); }
-void mkcv_mkd(Vm *const vm) { mk(vm, 8); }
+void mkcv_mkl(Session *const S) { mk(S, 4); }
+void mkcv_mks(Session *const S) { mk(S, 4); }
+void mkcv_mkd(Session *const S) { mk(S, 8); }
 
 /* MKSMBF$ ( f -- s ). 0 and denormals: 0. Overflow past MBF's range. */
-static uint32_t sngl_to_mbf(const uint32_t v)
+static uint32_t sngl_to_mbf(Session *const S, const uint32_t v)
 {
     const uint32_t e = v >> F32_EXP_SHIFT & F32_EXP_MAX;
     if (!e)
         return 0;
     const uint32_t mbf_e = e + MBF_BIAS_OVER_F32;
     if (mbf_e > F32_EXP_MAX)
-        repl_error(E_OV);
+        repl_error(S, E_OV);
     return (v & F32_MANT) | (v >> 31) << F32_EXP_SHIFT | mbf_e << MBF_EXP_SHIFT;
 }
 
-void mkcv_mksm(Vm *const vm)
+void mkcv_mksm(Session *const S)
 {
-    vm->sp->u = sngl_to_mbf(vm->sp->u);
-    mk(vm, 4);
+    S->vm.sp->u = sngl_to_mbf(S, S->vm.sp->u);
+    mk(S, 4);
 }
 
 /* MKDMBF$ ( d -- s ): the significand's 52 bits as 55. Too small: 0. Overflow past MBF's range. */
-static uint64_t dubl_to_mbf(const uint64_t v)
+static uint64_t dubl_to_mbf(Session *const S, const uint64_t v)
 {
     const int32_t e = (int32_t)(v >> F64_EXP_SHIFT & F64_EXP_MAX) - F64_BIAS_OVER_MBF;
     if (e <= 0)
         return 0;
     if (e > (int32_t)F32_EXP_MAX)
-        repl_error(E_OV);
+        repl_error(S, E_OV);
     return (v << F64_EXTRA_BITS & MBF64_MANT) | (v >> 63) << MBF64_SIGN_SHIFT |
            (uint64_t)e << MBF64_EXP_SHIFT;
 }
 
-void mkcv_mkdm(Vm *const vm)
+void mkcv_mkdm(Session *const S)
 {
-    vm->sp->raw = dubl_to_mbf(vm->sp->raw);
-    mk(vm, 8);
+    S->vm.sp->raw = dubl_to_mbf(S, S->vm.sp->raw);
+    mk(S, 8);
 }
 
 /* The string on top, its first n bytes in the cell instead. Illegal function call: shorter. */
-static void cv(Vm *const vm, const uint32_t n)
+static void cv(Session *const S, const uint32_t n)
 {
-    const Desc s = strg_get(vm->sp->a);
+    const Desc s = strg_get(S, S->vm.sp->a);
     if (s.len < n)
-        repl_error(E_IQ);
-    memcpy(&vm->sp->raw, at(s.ptr), 8);
+        repl_error(S, E_IQ);
+    memcpy(&S->vm.sp->raw, at(s.ptr), 8);
 }
 
 /* CVI ( s -- i ); CVL; CVS ( s -- f ); CVD ( s -- d ). */
-void mkcv_cvi(Vm *const vm)
+void mkcv_cvi(Session *const S)
 {
-    cv(vm, 2);
-    vm->sp->i = (int16_t)vm->sp->u;
+    cv(S, 2);
+    S->vm.sp->i = (int16_t)S->vm.sp->u;
 }
-void mkcv_cvl(Vm *const vm) { cv(vm, 4); }
-void mkcv_cvs(Vm *const vm) { cv(vm, 4); }
-void mkcv_cvd(Vm *const vm) { cv(vm, 8); }
+void mkcv_cvl(Session *const S) { cv(S, 4); }
+void mkcv_cvs(Session *const S) { cv(S, 4); }
+void mkcv_cvd(Session *const S) { cv(S, 8); }
 
 /* CVSMBF ( s -- f ). 0, and under the SINGLE's range: 0. */
 static uint32_t mbf_to_sngl(const uint32_t v)
@@ -106,10 +107,10 @@ static uint32_t mbf_to_sngl(const uint32_t v)
     return (v >> F32_EXP_SHIFT & 1) << 31 | (v & F32_MANT) | (e - MBF_BIAS_OVER_F32) << F32_EXP_SHIFT;
 }
 
-void mkcv_cvsm(Vm *const vm)
+void mkcv_cvsm(Session *const S)
 {
-    cv(vm, 4);
-    vm->sp->u = mbf_to_sngl(vm->sp->u);
+    cv(S, 4);
+    S->vm.sp->u = mbf_to_sngl(S->vm.sp->u);
 }
 
 /* CVDMBF ( s -- d ): 55 bits rounded to 52. */
@@ -125,8 +126,8 @@ static uint64_t mbf_to_dubl(const uint64_t v)
     return (rounded & F64_MANT) | e << F64_EXP_SHIFT | sign << 63;
 }
 
-void mkcv_cvdm(Vm *const vm)
+void mkcv_cvdm(Session *const S)
 {
-    cv(vm, 8);
-    vm->sp->raw = mbf_to_dubl(vm->sp->raw);
+    cv(S, 8);
+    S->vm.sp->raw = mbf_to_dubl(S->vm.sp->raw);
 }

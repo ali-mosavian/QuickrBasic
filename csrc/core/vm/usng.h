@@ -41,6 +41,5 @@ typedef struct {
     uint8_t body[FMTMAX + NDIG];
     uint8_t line[FMTMAX + NDIG + 8];
 } Usng;
-extern Usng usng;
 
 #endif

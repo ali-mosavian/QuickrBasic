@@ -56,9 +56,10 @@ go in its header.
   `program_store_find_line_by_number`. Parameters too: `len`, `name`, `line`, `at`.
 - Types are CamelCase (`Line`, `Desc`, `Frame`). Constants and enum members are UPPER; `defs.h`
   keeps the asm's (`E_SN`, `T_INT`, `NONUM`).
-- A module's state is one struct, `typedef struct { ... } Comp;` and `extern Comp comp;` named by
-  its prefix, its fields readable (`comp.type`, not `cty`). Only what other modules use is
-  extern; the rest is `static`.
+- A module's state is one struct, `typedef struct { ... } Comp;`, its fields readable
+  (`comp.type`, not `cty`). The `Session` (`core/session.h`) holds one of each; a function that
+  touches any of it takes `Session *S` first and reads `S->comp.type`. No module state is a
+  global or a file `static`; constant tables are.
 - One `.c` and one `.h` per asm module, in the same directory, named by the prefix.
 
 | asm | C | prefix |

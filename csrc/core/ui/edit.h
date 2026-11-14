@@ -39,33 +39,33 @@ void edit_lb_wright(LineBuf *b);
 
 /* The program window. */
 /* ed_load: line into uimn.edline, not dirty; the column stays. */
-void edit_load(uint32_t line);
+void edit_load(Session *S, uint32_t line);
 /* ed_commit: a dirty line back to the text (above), uimn.text.changed, unsaved; a SUB or
    FUNCTION line typed gets its view (view_commit). false: a syntax error, shown in a box with its
    word selected; the line is stored as typed. */
-bool edit_commit(void);
+bool edit_commit(Session *S);
 /* ed_goto: the cursor to line, this one committed first; false: it stayed (a syntax error). */
-bool edit_goto(uint32_t line);
+bool edit_goto(Session *S, uint32_t line);
 /* ed_up, ed_down, ed_pgup, ed_pgdn, ed_first, ed_last: the cursor a line up, down, a window up,
    down; to the first line (column 0), the last (past its end). */
-void edit_up(void);
-void edit_down(void);
-void edit_pgup(void);
-void edit_pgdn(void);
-void edit_first(void);
-void edit_last(void);
+void edit_up(Session *S);
+void edit_down(Session *S);
+void edit_pgup(Session *S);
+void edit_pgdn(Session *S);
+void edit_first(Session *S);
+void edit_last(Session *S);
 /* ed_ensure: uimn.ed.top and left so that the cursor shows. */
 void edit_ensure(void);
 /* ed_enter: Enter: the line split at the cursor, the new line indented as this one. */
-void edit_enter(void);
+void edit_enter(Session *S);
 /* ed_bs: Backspace: at column 0 the line joins the one above. */
-void edit_bs(void);
+void edit_bs(Session *S);
 /* ed_del: Del: past the end the next line joins this one. */
-void edit_del(void);
+void edit_del(Session *S);
 /* ed_tab: Tab: spaces to the next column of 8. */
 void edit_tab(void);
 /* ed_ctrly: Ctrl+Y: the line to the clipboard, out of the text. */
-void edit_ctrly(void);
+void edit_ctrly(Session *S);
 
 /* sel_mark: a shifted move: the selection starts at the cursor if not on yet. */
 void edit_sel_mark(void);
@@ -73,14 +73,14 @@ void edit_sel_mark(void);
    SEL_LINES (sel_a to sel_b lines; a lower end at column 0 not its line's), SEL_NONE. */
 uint8_t edit_sel(void);
 /* ed_copy: the selection to the clipboard; edit_sel's. */
-uint8_t edit_copy(void);
+uint8_t edit_copy(Session *S);
 /* ed_clear: the selection out of the text; off. */
-void edit_clear(void);
+void edit_clear(Session *S);
 /* ed_cut: edit_copy, edit_clear. */
-void edit_cut(void);
+void edit_cut(Session *S);
 /* ed_paste: the clipboard at the cursor, over the selection: a piece into the line, lines
    before it. */
-void edit_paste(void);
+void edit_paste(Session *S);
 
 /* The immediate window. */
 /* im_load: line uimn.imm.cur into uimn.immline. */
@@ -90,7 +90,7 @@ void edit_imm_up(void);
 void edit_imm_down(void);
 /* im_next: Enter: the line kept, its text in cons.inbuf; the cursor to the next line, a new one
    at the end, the oldest dropped when IMN are kept. The text's length. */
-uint16_t edit_imm_next(void);
+uint16_t edit_imm_next(Session *S);
 
 /* Lines as the editor stores them. */
 /* ui_body: past text's indent, its number and the blanks after: at its body. */
@@ -99,11 +99,11 @@ uint8_t *edit_body(uint8_t *text);
    indent kept, in cons.sbuf, cons.sblen long (as typed when past LNMAX or bodiless); the body's
    declarations entered (decl_line), checked when uimn.text.check. false: a syntax error,
    uimn.errmsg its message, edit's error column set for edit_commit; sbuf not made. */
-bool edit_canon(uint8_t *text, uint16_t len);
+bool edit_canon(Session *S, uint8_t *text, uint16_t len);
 /* ui_dxerr: a compile error's words in uimn.errmsg: its class, what is wrong, then what to do,
    wrapped for a box (diag's). text the line's, 0-ended; op its ERR op. The column in text it is
    at. Uses cons.inbuf and comp_cbuf. */
-uint16_t edit_dxerr(const uint8_t *text, const ErrOp *op);
+uint16_t edit_dxerr(Session *S, const uint8_t *text, const ErrOp *op);
 /* ui_emsg: error code's message (emsg_text) in uimn.errmsg. */
-void edit_emsg(uint8_t code);
+void edit_emsg(Session *S, uint8_t code);
 #endif

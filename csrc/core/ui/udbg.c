@@ -1,5 +1,6 @@
 /* The debugger's UI (src/ui/dbg.asm). */
 #include "ui/udbg.h"
+#include "session.h"
 #include "comp/blok.h"
 #include "comp/comp.h"
 #include "comp/lexr.h"
@@ -36,26 +37,26 @@ static uint32_t trim_end(const uint8_t *const s, const uint32_t c0, uint32_t c1)
     return c1;
 }
 
-static void hlset(void)
+static void hlset(Session *const S)
 {
     uint32_t tl;
-    if (!lmap_of(dbug.wline, &tl))
+    if (!lmap_of(S, S->dbug.wline, &tl))
         return;
     hl.line = tl;
-    const uint32_t len = text_get(view_goline(tl), uimn.line);
+    const uint32_t len = text_get(S, view_goline(S, tl), uimn.line);
     uimn.line[len] = 0;
     uint8_t *const body = edit_body(uimn.line);
-    lexr_line(body, comp.cbuf);
+    lexr_line(S, body, S->comp.cbuf);
     const uint32_t bc = (uint32_t)(body - uimn.line);
-    const uint32_t c0 = lexr.col[dbug.stmt_from] + bc;
+    const uint32_t c0 = S->lexr.col[S->dbug.stmt_from] + bc;
     const uint32_t c1 = trim_end(uimn.line, c0,
-                                 dbug.stmt_to == BOFF ? len : lexr.col[dbug.stmt_to] + bc);
+                                 S->dbug.stmt_to == BOFF ? len : S->lexr.col[S->dbug.stmt_to] + bc);
     hl.c0 = (uint16_t)c0;
     hl.c1 = (uint16_t)c1;
     hl.on = true;
     uimn.focus = FOC_EDIT;
     uimn.ed.sel_on = false;
-    edit_load(hl.line - uimn.text.first);
+    edit_load(S, hl.line - uimn.text.first);
     uimn.edline.col = hl.c0;
     edit_ensure();
 }
@@ -63,10 +64,10 @@ static void hlset(void)
 enum { TRACE_TICKS = 2 };
 
 /* ud_trace (dbug.hook): the statement lit on the editor's page for two ticks. */
-static void trace(void)
+static void trace(Session *const S)
 {
-    hlset();
-    wind_draw();
+    hlset(S);
+    wind_draw(S);
     scrn_flip();
     pscr_page(0);
     const uint32_t until = pclk_ticks() + TRACE_TICKS;
@@ -76,39 +77,39 @@ static void trace(void)
     hl.on = false;
 }
 
-void udbg_init(void)
+void udbg_init(Session *const S)
 {
-    dbug.emit = true;
-    dbug.hook = trace;
+    S->dbug.emit = true;
+    S->dbug.hook = trace;
 }
 
-void udbg_prep(void)
+void udbg_prep(Session *const S)
 {
     dpan_close();
     hl.on = false;
     uimn.stopped = false;
-    dbug.bpon = true;
-    dbug.until = false;
+    S->dbug.bpon = true;
+    S->dbug.until = false;
     if (hl.until) {
-        dbug.uline = lmap_off(hl.until - 1);
-        dbug.until = true;
+        S->dbug.uline = lmap_off(S, hl.until - 1);
+        S->dbug.until = true;
     }
 }
 
-void udbg_stop(void)
+void udbg_stop(Session *const S)
 {
     hl.until = 0;
-    if (!vm.cont.line)
+    if (!S->vm.cont.line)
         return;
     uimn.stopped = true;
-    dpan_open();
-    dbug_pos(vm.cont.line, at(allo.cache + vm.cont.code));
-    hlset();
+    dpan_open(S);
+    dbug_pos(S, S->vm.cont.line, at(S->allo.cache + S->vm.cont.code));
+    hlset(S);
 }
 
-void udbg_row(const uint8_t row, const uint8_t col, const uint32_t line)
+void udbg_row(Session *const S, const uint8_t row, const uint8_t col, const uint32_t line)
 {
-    if (text_mark(line))
+    if (text_mark(S, line))
         scrn_attr(row, col, uimn.ed.width, SL_BPL);
     if (!hl.on || uimn.text.changed || line + uimn.text.first != hl.line)
         return;
@@ -125,68 +126,68 @@ void udbg_row(const uint8_t row, const uint8_t col, const uint32_t line)
     scrn_attr(row, (uint8_t)(col + a), b - a, SL_CUR);
 }
 
-void udbg_step(void)
+void udbg_step(Session *const S)
 {
-    dbug.mode = DM_STEP;
-    uimn_cont();
+    S->dbug.mode = DM_STEP;
+    uimn_cont(S);
 }
 
-void udbg_pstep(void)
+void udbg_pstep(Session *const S)
 {
-    dbug.pdep = uimn_cancont() ? dbug_depth(&vm) : 0;
-    dbug.mode = DM_PSTEP;
-    uimn_cont();
+    S->dbug.pdep = uimn_cancont(S) ? dbug_depth(&S->vm) : 0;
+    S->dbug.mode = DM_PSTEP;
+    uimn_cont(S);
 }
 
-void udbg_sout(void)
+void udbg_sout(Session *const S)
 {
-    const uint32_t d = uimn_cancont() ? dbug_depth(&vm) : 0;
-    dbug.pdep = d ? d - 1 : 0;
-    dbug.mode = DM_PSTEP;
-    uimn_cont();
+    const uint32_t d = uimn_cancont(S) ? dbug_depth(&S->vm) : 0;
+    S->dbug.pdep = d ? d - 1 : 0;
+    S->dbug.mode = DM_PSTEP;
+    uimn_cont(S);
 }
 
-void udbg_restart(void)
+void udbg_restart(Session *const S)
 {
-    dbug.mode = DM_STEP;
-    uimn_run();
+    S->dbug.mode = DM_STEP;
+    uimn_run(S);
 }
 
-void udbg_tron(void) { dbug.trace = !dbug.trace; }
+void udbg_tron(Session *const S) { S->dbug.trace = !S->dbug.trace; }
 
-void udbg_bp(void)
+void udbg_bp(Session *const S)
 {
     if (uimn.focus == FOC_EDIT)
-        text_toggle(uimn.ed.line);
+        text_toggle(S, uimn.ed.line);
 }
 
-void udbg_bpclear(void) { text_unmark_all(); }
+void udbg_bpclear(Session *const S) { text_unmark_all(S); }
 
-void udbg_until(void)
+void udbg_until(Session *const S)
 {
     if (uimn.focus != FOC_EDIT)
         return;
     hl.until = uimn.ed.line + uimn.text.first + 1;
-    uimn_cont();
+    uimn_cont(S);
 }
 
-void udbg_setnext(void)
+void udbg_setnext(Session *const S)
 {
-    if (!uimn_cancont()) {
-        dlog_ok("Cannot continue");
+    if (!uimn_cancont(S)) {
+        dlog_ok(S, "Cannot continue");
         return;
     }
-    const uint32_t rec = text_rec(uimn.ed.line);
-    blok_scope(rec);
-    const uint8_t proc = comp.proc;
-    blok_scope(vm.cont.line);
-    if (proc != comp.proc) {
-        dlog_ok("Cannot cross module/procedure boundary");
+    const uint32_t rec = text_rec(S, uimn.ed.line);
+    blok_scope(S, rec);
+    const uint8_t proc = S->comp.proc;
+    blok_scope(S, S->vm.cont.line);
+    if (proc != S->comp.proc) {
+        dlog_ok(S, "Cannot cross module/procedure boundary");
         return;
     }
-    const uint32_t code = prog_line(rec)->code;
-    const Addr a = code ? allo.cache + code : link_cache(rec);
-    vm.cont.line = rec;
-    vm.cont.code = a - allo.cache;
-    udbg_stop();
+    const uint32_t code = prog_line(&S->prog, rec)->code;
+    const Addr a = code ? S->allo.cache + code : link_cache(S, rec);
+    S->vm.cont.line = rec;
+    S->vm.cont.code = a - S->allo.cache;
+    udbg_stop(S);
 }

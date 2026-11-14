@@ -13,6 +13,9 @@
    segment's 0: an Addr is the address, as VARPTR and PEEK see it. */
 typedef uint32_t Addr;
 
+/* A BASIC session's state (session.h). */
+typedef struct Session Session;
+
 #if ARENA_AT_ZERO /* the platform's arena starts at address 0 (DOS32's flat segment) */
 static inline uint8_t *at(const Addr a) { return (uint8_t *)(uintptr_t)a; }
 static inline Addr addr_of(const void *const p) { return (Addr)(uintptr_t)p; }

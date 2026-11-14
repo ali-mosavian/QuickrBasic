@@ -1,5 +1,6 @@
 /* Views: the module and each SUB or FUNCTION on its own (src/ui/view.asm). */
 #include "ui/view.h"
+#include "session.h"
 #include "ui/dlog.h"
 #include "ui/edit.h"
 #include "ui/lmap.h"
@@ -60,11 +61,11 @@ enum : uint8_t { VNEW_OK = 1 };
 enum : uint8_t { SUBS_ACTIVE = 1, SUBS_SPLIT = 2, SUBS_DELETE = 3 };
 
 /* Text line line's body to comp_cbuf: decl_proc's answer; *name its M_VAR for PK_SUB, PK_FUNC. */
-static uint8_t kind(const uint32_t line, const uint8_t **const name)
+static uint8_t kind(Session *const S, const uint32_t line, const uint8_t **const name)
 {
-    prog_body(lmap_off(line), comp.cbuf);
+    prog_body(S, lmap_off(S, line), S->comp.cbuf);
     const uint8_t *nm = nullptr;
-    const uint8_t k = decl_proc(comp.cbuf, &nm);
+    const uint8_t k = decl_proc(S->comp.cbuf, &nm);
     if (name)
         *name = nm;
     return k;
@@ -78,16 +79,16 @@ static const char *end_line(const uint8_t k) { return k == PK_SUB ? "END SUB" : 
 
 /* The text's module lines first, then the procedures', each from its SUB or FUNCTION line to its
    END; in their order. */
-static void order(void)
+static void order(Session *const S)
 {
     text_whole();
-    prog_room(prog.end * 2 + 8); /* the lines copied after the store, then back */
-    const uint32_t start = prog.end + 4;
+    prog_room(S, S->prog.end * 2 + 8); /* the lines copied after the store, then back */
+    const uint32_t start = S->prog.end + 4;
     uint32_t to = start;
     for (uint8_t pass = 0; pass < 2; pass++) { /* 0: the module's lines, 1 the rest */
         bool in_proc = false;
         for (uint32_t line = 0; line < uimn.text.all; line++) {
-            const uint8_t k = kind(line, nullptr);
+            const uint8_t k = kind(S, line, nullptr);
             uint8_t mine = in_proc;
             if (k == PK_END)
                 in_proc = false; /* the END is the procedure's */
@@ -95,15 +96,15 @@ static void order(void)
                 in_proc = mine = true;
             if (mine != pass)
                 continue;
-            const uint32_t rec = lmap_off(line), len = prog_line(rec)->len;
-            copy_prog(to, rec, len);
+            const uint32_t rec = lmap_off(S, line), len = prog_line(&S->prog, rec)->len;
+            copy_prog(S, to, rec, len);
             to += len;
         }
     }
-    copy_prog(PROGBASE, start, to - start);
-    prog.end = PROGBASE + (to - start);
-    prog_line(prog.end)->len = 0;
-    lmap_build();
+    copy_prog(S, PROGBASE, start, to - start);
+    S->prog.end = PROGBASE + (to - start);
+    prog_line(&S->prog, S->prog.end)->len = 0;
+    lmap_build(S);
 }
 
 /* uimn.text.hook: a line added (delta 1) or removed (-1) in the active window's view: it and the
@@ -118,12 +119,12 @@ static void shift(const uint32_t line, const int32_t delta)
 
 /* The views from the text: the module, then a view from each SUB or FUNCTION line; the module
    never empty. */
-static void scan(void)
+static void scan(Session *const S)
 {
     text_whole();
     uimn.text.hook = nullptr; /* not told of the module's line */
-    if (is_proc(kind(0, nullptr)))
-        text_insert(0, vw.new_line, 0); /* a blank line before */
+    if (is_proc(kind(S, 0, nullptr)))
+        text_insert(S, 0, vw.new_line, 0); /* a blank line before */
     uimn.text.hook = shift;
     vw.tab[0].first = 0;
     vw.tab[0].kind = 0;
@@ -131,7 +132,7 @@ static void scan(void)
     uint32_t n = 1;
     for (uint32_t line = 1; line < uimn.text.all; line++) {
         const uint8_t *name;
-        const uint8_t k = kind(line, &name);
+        const uint8_t k = kind(S, line, &name);
         if (!is_proc(k) || n >= NVIEW)
             continue;
         View *const v = &vw.tab[n++];
@@ -161,11 +162,11 @@ static void touched(void)
     uimn.text.unsaved = true;
 }
 
-void view_reset(void)
+void view_reset(Session *const S)
 {
     uimn.text.hook = shift;
-    order();
-    scan();
+    order(S);
+    scan(S);
     for (uint32_t i = 0; i < NVIEW; i++) { /* no kept places */
         vw.tab[i].line = 0;
         vw.tab[i].top = 0;
@@ -184,9 +185,9 @@ void view_apply(void)
 }
 
 /* View v in the active window, the cursor where it was left. */
-static void show(const uint8_t v)
+static void show(Session *const S, const uint8_t v)
 {
-    edit_commit();
+    edit_commit(S);
     View *const left = &vw.tab[uimn.ed.view]; /* the place left */
     left->line = uimn.ed.line;
     left->top = uimn.ed.top;
@@ -204,7 +205,7 @@ static void show(const uint8_t v)
         line = 0;
         uimn.ed.top = 0;
     }
-    edit_load(line);
+    edit_load(S, line);
     edit_ensure();
 }
 
@@ -218,11 +219,11 @@ uint8_t view_of(const uint32_t line)
 
 const View *view_at(const uint8_t v) { return &vw.tab[v]; }
 
-uint32_t view_goline(const uint32_t line)
+uint32_t view_goline(Session *const S, const uint32_t line)
 {
     const uint8_t v = view_of(line);
     if (v != uimn.ed.view)
-        show(v);
+        show(S, v);
     view_apply();
     return line - uimn.text.first;
 }
@@ -236,52 +237,52 @@ void view_title(char *const title)
     copy_str(title + n + 1, vw.tab[uimn.ed.view].name);
 }
 
-void view_next(void)
+void view_next(Session *const S)
 {
     const uint8_t v = uimn.ed.view + 1;
-    show(v < vw.n ? v : 0);
+    show(S, v < vw.n ? v : 0);
 }
 
-void view_prev(void)
+void view_prev(Session *const S)
 {
-    show(uimn.ed.view ? uimn.ed.view - 1 : vw.n - 1);
+    show(S, uimn.ed.view ? uimn.ed.view - 1 : vw.n - 1);
 }
 
 /* A procedure at the text's end: vw.new_line, a blank, its END (kind PK_SUB, PK_FUNC); shown,
    the cursor on the blank. */
-static void add(const uint8_t k)
+static void add(Session *const S, const uint8_t k)
 {
     text_whole();
     uimn.text.hook = nullptr;
     const uint32_t line = uimn.text.all;
     const char *const end = end_line(k);
-    text_insert(line, vw.new_line, vw.new_len);
-    text_insert(line + 1, vw.new_line, 0);
-    text_insert(line + 2, (const uint8_t *)end, (uint16_t)strlen(end));
+    text_insert(S, line, vw.new_line, vw.new_len);
+    text_insert(S, line + 1, vw.new_line, 0);
+    text_insert(S, line + 2, (const uint8_t *)end, (uint16_t)strlen(end));
     touched();
-    scan();
+    scan(S);
     View *const v = &vw.tab[vw.n - 1]; /* the last view, at its blank */
     v->line = 1;
     v->top = 0;
     v->col = 0;
     view_apply(); /* the old view's place kept */
-    show(vw.n - 1);
+    show(S, vw.n - 1);
 }
 
-void view_commit(void)
+void view_commit(Session *const S)
 {
     const uint32_t line = uimn.ed.line;
     if (!line && uimn.ed.view) {
-        scan(); /* its name may be another */
+        scan(S); /* its name may be another */
         view_apply();
         return;
     }
-    const uint8_t k = kind(line + uimn.text.first, nullptr);
+    const uint8_t k = kind(S, line + uimn.text.first, nullptr);
     if (!is_proc(k))
         return;
-    vw.new_len = (uint16_t)text_get(uimn.ed.line, vw.new_line);
-    text_delete(uimn.ed.line); /* out of its view */
-    add(k);
+    vw.new_len = (uint16_t)text_get(S, uimn.ed.line, vw.new_line);
+    text_delete(S, uimn.ed.line); /* out of its view */
+    add(S, k);
 }
 
 /* Name s the field's, case aside. */
@@ -306,17 +307,17 @@ static bool find(uint8_t *const v)
 }
 
 /* New SUB, New FUNCTION: kind k's name asked. */
-static void new_proc(const uint8_t k, const char *const title)
+static void new_proc(Session *const S, const uint8_t k, const char *const title)
 {
     dg_vnew.title = title;
     dg_vnew.focus = 0;
     name_field.len = 0;
     name_field.col = 0;
-    if (dlog_run(&dg_vnew) != VNEW_OK || !name_field.len)
+    if (dlog_run(S, &dg_vnew) != VNEW_OK || !name_field.len)
         return;
     uint8_t v;
     if (find(&v)) {
-        show(v);
+        show(S, v);
         return;
     }
     const char *const kw = keyword(k); /* "SUB name" */
@@ -325,28 +326,28 @@ static void new_proc(const uint8_t k, const char *const title)
     vw.new_line[n] = ' ';
     memcpy(vw.new_line + n + 1, name_field.text, name_field.len);
     vw.new_len = (uint16_t)(n + 1 + name_field.len);
-    add(k);
+    add(S, k);
 }
 
-void view_newsub(void) { new_proc(PK_SUB, u_nsub); }
-void view_newfn(void) { new_proc(PK_FUNC, u_nfn); }
+void view_newsub(Session *const S) { new_proc(S, PK_SUB, u_nsub); }
+void view_newfn(Session *const S) { new_proc(S, PK_FUNC, u_nfn); }
 
 /* View v's procedure out of the text, after asking; the module stays. */
-static void del(const uint8_t v)
+static void del(Session *const S, const uint8_t v)
 {
-    if (!v || dlog_ync(u_delp) != YNC_YES)
+    if (!v || dlog_ync(S, u_delp) != YNC_YES)
         return;
     const uint32_t first = vw.tab[v].first, n = vw.tab[v].n; /* at least its SUB line */
     text_whole();
     uimn.text.hook = nullptr;
     for (uint32_t i = 0; i < n; i++)
-        text_delete(first);
+        text_delete(S, first);
     touched();
-    scan();
+    scan(S);
     windows_on_module(); /* the windows on it */
     view_apply();
     uimn.ed.top = 0;
-    edit_load(0);
+    edit_load(S, 0);
 }
 
 /* The SUBs box's list: the file's name, then each procedure's indented. */
@@ -368,21 +369,21 @@ static void list_fill(void)
     list.size = VLSZ;
 }
 
-void view_subs(void)
+void view_subs(Session *const S)
 {
-    edit_commit();
+    edit_commit(S);
     list_fill();
     dg_subs.focus = 0;
-    const uint8_t b = dlog_run(&dg_subs);
+    const uint8_t b = dlog_run(S, &dg_subs);
     const uint8_t v = (uint8_t)list.sel;
     if (b == SUBS_ACTIVE) {
-        show(v);
+        show(S, v);
     } else if (b == SUBS_SPLIT) { /* the split's other window shows it */
         if (!uimn.win.win[W_ED2].height)
-            wind_split();
-        wind_act(uimn.win.active == W_ED2 ? W_ED1 : W_ED2);
-        show(v);
+            wind_split(S);
+        wind_act(S, uimn.win.active == W_ED2 ? W_ED1 : W_ED2);
+        show(S, v);
     } else if (b == SUBS_DELETE) {
-        del(v);
+        del(S, v);
     }
 }

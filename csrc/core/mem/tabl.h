@@ -18,9 +18,9 @@ typedef struct {
 } Table;
 
 /* t's block for entries entries; narr, size and max set by the caller. Out of memory. */
-void tabl_new(Table *t, uint32_t entries, AlloMoved moved);
+void tabl_new(Session *S, Table *t, uint32_t entries, AlloMoved moved);
 /* t holds entries entries at least, grown if need be. false: past max, or the heap not empty. */
-bool tabl_room(Table *t, uint32_t entries);
+bool tabl_room(Session *S, Table *t, uint32_t entries);
 /* t where its block now is: its arrays moved up to a larger cap, at set. Returns the old base. */
-Addr tabl_place(Table *t);
+Addr tabl_place(Session *S, Table *t);
 #endif

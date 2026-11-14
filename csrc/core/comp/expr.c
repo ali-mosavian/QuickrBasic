@@ -1,6 +1,7 @@
 /* The expression compiler (comp/expr.asm). Precedences: OR 46h, AND 50h, NOT 5Ah, > = < 64h,
    + - 78h, * / 7Bh, unary - 7Dh, ^ 7Fh. */
 #include "comp/expr.h"
+#include "session.h"
 #include "comp/blok.h"
 #include "comp/ctrl.h"
 #include "comp/decl.h"
@@ -11,7 +12,6 @@
 #include "mem/symb.h"
 #include "num/dubl.h"
 
-Expr expr;
 const uint8_t expr_ktype[5] = {T_FLT, T_INT, T_STR, T_DBL, T_DBL};
 
 /* An operator's index: + - * / ^ AND OR > = < from TK_PLUS, then \ MOD XOR EQV IMP. A relation
@@ -119,39 +119,39 @@ static const XFn xfns[] = {
     {0x100 + TK1_FILEATTR, K_FATTR, 2, 2, T_INT, "HI"},
 };
 
-[[noreturn]] static void synerr(void) { repl_error(E_SN); }
-[[noreturn]] static void mismatch(void) { repl_error(E_TM); }
+[[noreturn]] static void synerr(Session *const S) { repl_error(S, E_SN); }
+[[noreturn]] static void mismatch(Session *const S) { repl_error(S, E_TM); }
 
-static void prec(uint8_t p);
-static void unary(void);
+static void prec(Session *S, uint8_t p);
+static void unary(Session *S);
 
-void expr_compile(void)
+void expr_compile(Session *const S)
 {
-    const bool dbl = expr.dbltgt; /* not an assignment's: its own */
-    expr.dbltgt = false;
-    prec(0);
-    expr.dbltgt = dbl;
+    const bool dbl = S->expr.dbltgt; /* not an assignment's: its own */
+    S->expr.dbltgt = false;
+    prec(S, 0);
+    S->expr.dbltgt = dbl;
 }
 
-void expr_assign(void)
+void expr_assign(Session *const S)
 {
-    expr.dbltgt = comp.tgtinfo & SK_DBL;
-    prec(0);
-    expr.dbltgt = false;
+    S->expr.dbltgt = S->comp.tgtinfo & SK_DBL;
+    prec(S, 0);
+    S->expr.dbltgt = false;
 }
 
-uint8_t expr_shclass(void)
+uint8_t expr_shclass(Session *const S)
 {
-    expr.shclass = comp.out == expr.shend ? expr.sh : SH_NONE;
-    return expr.shclass;
+    S->expr.shclass = S->comp.out == S->expr.shend ? S->expr.sh : SH_NONE;
+    return S->expr.shclass;
 }
 
 /* Id's load just compiled: a SHORT's, class 1. */
-static void shortid(const uint16_t id)
+static void shortid(Session *const S, const uint16_t id)
 {
-    if (symb_var(id)->type == ET_SH) {
-        expr.sh = SH_SHORT;
-        expr.shend = comp.out;
+    if (symb_var(&S->symb, id)->type == ET_SH) {
+        S->expr.sh = SH_SHORT;
+        S->expr.shend = S->comp.out;
     }
 }
 
@@ -161,21 +161,21 @@ static bool is_xop(const uint8_t rel) { return rel >= OP_IDIV && rel < REL; } /*
 
 /* cm_sop: operator rel's result is a SHORT's when both operands are SHORTs or literals that fit,
    one a SHORT: + - * \ MOD, QBasic's INTEGER arithmetic. lsh: the left's class. */
-static uint8_t shortop(const uint8_t rel, const uint8_t lsh)
+static uint8_t shortop(Session *const S, const uint8_t rel, const uint8_t lsh)
 {
-    const uint8_t rsh = expr_shclass();
+    const uint8_t rsh = expr_shclass(S);
     if (!lsh || !rsh || !((lsh | rsh) & SH_SHORT))
         return SH_NONE;
     const bool arith = rel <= OP_MUL || rel == OP_IDIV || rel == OP_MOD;
     return arith ? SH_SHORT : SH_NONE;
 }
 
-static bool isright(const uint8_t op, const uint32_t size, const uint8_t *const right)
+static bool isright(Session *const S, const uint8_t op, const uint32_t size, const uint8_t *const right)
 {
-    return (uint32_t)(comp.out - right) == size && *right == op;
+    return (uint32_t)(S->comp.out - right) == size && *right == op;
 }
 
-uint8_t *expr_lfloat(uint8_t *const left, uint8_t *const right)
+uint8_t *expr_lfloat(Session *const S, uint8_t *const left, uint8_t *const right)
 {
     if (left) {
         if (*left == O_I_LD_V) {
@@ -187,155 +187,155 @@ uint8_t *expr_lfloat(uint8_t *const left, uint8_t *const right)
             return right;
         }
     }
-    comp_insert(O_I_TOF, right);
+    comp_insert(S, O_I_TOF, right);
     return right + 1;
 }
 
 /* INT operator o (0..5: + - * / AND OR): the right operand's load folds into .V or .U8. */
-static void intop(const uint8_t o, uint8_t *const right)
+static void intop(Session *const S, const uint8_t o, uint8_t *const right)
 {
-    comp.type = T_INT;
-    if (isright(O_I_LD_V, 3, right))
+    S->comp.type = T_INT;
+    if (isright(S, O_I_LD_V, 3, right))
         *right = O_I_ADD_V + o;
-    else if (isright(O_I_LD_U8, 2, right))
+    else if (isright(S, O_I_LD_U8, 2, right))
         *right = O_I_ADD_U8 + o;
     else
-        comp_op(O_I_ADD + o);
+        comp_op(S, O_I_ADD + o);
 }
 
-void expr_icmp(const uint8_t rel, uint8_t *const right)
+void expr_icmp(Session *const S, const uint8_t rel, uint8_t *const right)
 {
-    comp.type = T_INT;
+    S->comp.type = T_INT;
     const uint8_t m = rel & REL_MASK;
     uint8_t op;
-    if (isright(O_I_LD_V, 3, right))
+    if (isright(S, O_I_LD_V, 3, right))
         op = O_I_CMP_V;
-    else if (isright(O_I_LD_U8, 2, right))
+    else if (isright(S, O_I_LD_U8, 2, right))
         op = O_I_CMP_U8;
     else {
-        comp.cmp = comp.out;
-        comp_opb(O_I_CMP, m);
-        comp.cmpend = comp.out;
+        S->comp.cmp = S->comp.out;
+        comp_opb(S, O_I_CMP, m);
+        S->comp.cmpend = S->comp.out;
         return;
     }
-    comp.cmp = right;
+    S->comp.cmp = right;
     *right = op;
-    comp_byte(m);
-    comp.cmpend = comp.out;
+    comp_byte(S, m);
+    S->comp.cmpend = S->comp.out;
 }
 
 /* The right operand's load that folds: the first op of its group, F_ADD_V .. F_ADD_F32; 0 none. */
-static uint8_t fltkind(const uint8_t *const right)
+static uint8_t fltkind(Session *const S, const uint8_t *const right)
 {
-    if (isright(O_F_LD_V, 3, right))
+    if (isright(S, O_F_LD_V, 3, right))
         return O_F_ADD_V;
-    if (isright(O_F_LD_VI, 3, right))
+    if (isright(S, O_F_LD_VI, 3, right))
         return O_F_ADD_VI;
-    if (isright(O_F_LD_U8, 2, right))
+    if (isright(S, O_F_LD_U8, 2, right))
         return O_F_ADD_U8;
-    if (isright(O_F_LD_F32, 5, right))
+    if (isright(S, O_F_LD_F32, 5, right))
         return O_F_ADD_F32;
     return 0;
 }
 
 /* FLOAT operator o (0..3: + - * /): the right's load folded into .V, .VI, .U8 or .F32. */
-static void fltop(const uint8_t o, uint8_t *const right)
+static void fltop(Session *const S, const uint8_t o, uint8_t *const right)
 {
-    comp.type = T_FLT;
-    const uint8_t k = fltkind(right);
+    S->comp.type = T_FLT;
+    const uint8_t k = fltkind(S, right);
     if (k)
         *right = k + o;
     else
-        comp_op(O_F_ADD + o);
+        comp_op(S, O_F_ADD + o);
 }
 
-void expr_fcmp(const uint8_t rel, uint8_t *const right)
+void expr_fcmp(Session *const S, const uint8_t rel, uint8_t *const right)
 {
-    comp.type = T_INT;
+    S->comp.type = T_INT;
     const uint8_t m = rel & REL_MASK;
-    const uint8_t k = fltkind(right);
+    const uint8_t k = fltkind(S, right);
     if (k) {
-        comp.cmp = right;
+        S->comp.cmp = right;
         *right = fcmpk[(k - O_F_ADD_V) >> 2];
-        comp_byte(m);
+        comp_byte(S, m);
     } else {
-        comp.cmp = comp.out;
-        comp_opb(O_F_CMP, m);
+        S->comp.cmp = S->comp.out;
+        comp_opb(S, O_F_CMP, m);
     }
-    comp.cmpend = comp.out;
+    S->comp.cmpend = S->comp.out;
 }
 
 /* String operator rel: + joins, a relation compares. */
-static void strop(const uint8_t rel)
+static void strop(Session *const S, const uint8_t rel)
 {
-    if (!(comp.type & T_STR))
-        mismatch();
+    if (!(S->comp.type & T_STR))
+        mismatch(S);
     if (rel == OP_ADD)
-        comp_op(O_S_CAT);
+        comp_op(S, O_S_CAT);
     else if (!is_rel(rel))
-        mismatch();
+        mismatch(S);
     else {
-        comp.cmp = comp.out;
-        comp_opb(O_S_CMP, rel & REL_MASK);
-        comp.cmpend = comp.out;
-        comp.type = T_INT;
+        S->comp.cmp = S->comp.out;
+        comp_opb(S, O_S_CMP, rel & REL_MASK);
+        S->comp.cmpend = S->comp.out;
+        S->comp.type = T_INT;
     }
 }
 
 /* A DOUBLE either side; or for a DOUBLE target ^, and unless of constants / or a SINGLE's. */
-static bool wants_double(const uint8_t rel, const uint8_t ltype)
+static bool wants_double(Session *const S, const uint8_t rel, const uint8_t ltype)
 {
-    if (ltype == T_DBL || comp.type == T_DBL)
+    if (ltype == T_DBL || S->comp.type == T_DBL)
         return true;
-    if (!expr.dbltgt)
+    if (!S->expr.dbltgt)
         return false;
     return rel == OP_POW ||
-           (!expr.bothk && (rel == OP_DIV || ltype & T_FLT || comp.type == T_FLT));
+           (!S->expr.bothk && (rel == OP_DIV || ltype & T_FLT || S->comp.type == T_FLT));
 }
 
 /* Number operator rel in DOUBLEs, the left converted before right. */
-static void dblop(const uint8_t rel, const uint8_t ltype, uint8_t *const right)
+static void dblop(Session *const S, const uint8_t rel, const uint8_t ltype, uint8_t *const right)
 {
     if (ltype != T_DBL)
-        comp_insert(ltype == T_INT ? O_I_TOD : O_F_TOD, right);
-    comp_todouble();
-    comp.iload = comp.iloadend = nullptr;
+        comp_insert(S, ltype == T_INT ? O_I_TOD : O_F_TOD, right);
+    comp_todouble(S);
+    S->comp.iload = S->comp.iloadend = nullptr;
     if (rel == OP_POW)
-        comp_op(O_D_POW);
+        comp_op(S, O_D_POW);
     else if (is_rel(rel)) {
-        comp_opb(O_D_CMP, rel & REL_MASK);
-        comp.type = T_INT;
+        comp_opb(S, O_D_CMP, rel & REL_MASK);
+        S->comp.type = T_INT;
     } else
-        comp_op(O_D_ADD + rel);
+        comp_op(S, O_D_ADD + rel);
 }
 
 /* Number operator rel: DOUBLEs, ^ a SINGLE's, INTs (but /, a FLOAT as QBasic's), or FLOATs. */
-static void numop(const uint8_t rel, const uint8_t ltype, uint8_t *const left, uint8_t *right)
+static void numop(Session *const S, const uint8_t rel, const uint8_t ltype, uint8_t *const left, uint8_t *right)
 {
-    if (comp.type & T_STR)
-        mismatch();
+    if (S->comp.type & T_STR)
+        mismatch(S);
     const bool lint = !(ltype & T_FLT);
-    if (wants_double(rel, ltype))
-        dblop(rel, ltype, right);
+    if (wants_double(S, rel, ltype))
+        dblop(S, rel, ltype, right);
     else if (rel == OP_POW) {
         if (lint)
-            expr_lfloat(left, right);
-        comp_tofloat();
-        comp_call(K_FPOW);
-        comp.type = T_FLT;
-    } else if (lint && comp.type == T_INT && rel != OP_DIV) {
+            expr_lfloat(S, left, right);
+        comp_tofloat(S);
+        comp_call(S, K_FPOW);
+        S->comp.type = T_FLT;
+    } else if (lint && S->comp.type == T_INT && rel != OP_DIV) {
         if (is_rel(rel))
-            expr_icmp(rel, right);
+            expr_icmp(S, rel, right);
         else
-            intop(rel, right);
+            intop(S, rel, right);
     } else {
         if (lint)
-            right = expr_lfloat(left, right);
-        comp_tofloat();
+            right = expr_lfloat(S, left, right);
+        comp_tofloat(S);
         if (is_rel(rel))
-            expr_fcmp(rel, right);
+            expr_fcmp(S, rel, right);
         else
-            fltop(rel, right);
+            fltop(S, rel, right);
     }
 }
 
@@ -354,12 +354,12 @@ static bool operator_of(const uint8_t c, uint8_t *const op)
 }
 
 /* A run of > = < from op: REL and their mask, comp.p past it. */
-static uint8_t relation(uint8_t op)
+static uint8_t relation(Session *const S, uint8_t op)
 {
     uint8_t rel = REL;
     for (;;) {
         rel |= relbit[op - OP_GT];
-        const uint8_t c = comp_curn();
+        const uint8_t c = comp_curn(&S->comp);
         if (c < TK_GT || c > TK_LT)
             return rel;
         op = c - TK_PLUS;
@@ -367,449 +367,449 @@ static uint8_t relation(uint8_t op)
 }
 
 /* Operator rel after its left operand: its right one at precedence p, then the operator. */
-static void binary(const uint8_t rel, const uint8_t p)
+static void binary(Session *const S, const uint8_t rel, const uint8_t p)
 {
     if (is_logic(rel) || is_xop(rel))
-        comp_toint();
-    const bool leftk = comp.out == expr.kend; /* the left a constant */
-    const uint8_t ltype = comp.type;
-    uint8_t *const left = comp_intleaf();
-    const uint8_t lsh = expr_shclass();
-    uint8_t *const right = comp.out;
-    prec(p);
-    const uint8_t sh = shortop(rel, lsh);
-    expr.bothk = rel != OP_POW && leftk && comp.out == expr.kend; /* ^ not folded */
+        comp_toint(S);
+    const bool leftk = S->comp.out == S->expr.kend; /* the left a constant */
+    const uint8_t ltype = S->comp.type;
+    uint8_t *const left = comp_intleaf(S);
+    const uint8_t lsh = expr_shclass(S);
+    uint8_t *const right = S->comp.out;
+    prec(S, p);
+    const uint8_t sh = shortop(S, rel, lsh);
+    S->expr.bothk = rel != OP_POW && leftk && S->comp.out == S->expr.kend; /* ^ not folded */
     if (is_xop(rel)) {
-        comp_toint();
-        comp_op(xop[rel - OP_IDIV]);
+        comp_toint(S);
+        comp_op(S, xop[rel - OP_IDIV]);
     } else if (is_logic(rel)) {
-        comp_toint();
-        intop(rel - 1, right); /* AND, OR: O_I_ADD's 4th, 5th on */
+        comp_toint(S);
+        intop(S, rel - 1, right); /* AND, OR: O_I_ADD's 4th, 5th on */
     } else if (ltype == T_STR)
-        strop(rel);
+        strop(S, rel);
     else
-        numop(rel, ltype, left, right);
-    if (sh && comp.type == T_INT) /* a SHORT's result checked */
-        comp_op(O_I_CHK16);
-    expr.sh = sh;
-    expr.shend = comp.out;
-    expr.kend = expr.bothk ? comp.out : nullptr; /* of constants: one */
-    expr.bothk = false;
+        numop(S, rel, ltype, left, right);
+    if (sh && S->comp.type == T_INT) /* a SHORT's result checked */
+        comp_op(S, O_I_CHK16);
+    S->expr.sh = sh;
+    S->expr.shend = S->comp.out;
+    S->expr.kend = S->expr.bothk ? S->comp.out : nullptr; /* of constants: one */
+    S->expr.bothk = false;
 }
 
 /* cm_p: compile while the operators bind tighter than precedence p. */
-static void prec(const uint8_t p)
+static void prec(Session *const S, const uint8_t p)
 {
-    if (++comp.depth > COMP_MAXDEPTH)
-        repl_error(E_OM);
-    unary();
+    if (++S->comp.depth > COMP_MAXDEPTH)
+        repl_error(S, E_OM);
+    unary(S);
     uint8_t op;
-    while (operator_of(comp_cur(), &op) && p < prectab[op]) {
+    while (operator_of(comp_cur(&S->comp), &op) && p < prectab[op]) {
         uint8_t rel = op;
         if (op >= OP_GT && op <= OP_LT)
-            rel = relation(op);
+            rel = relation(S, op);
         else
-            comp.p++;
-        binary(rel, prectab[op]);
+            S->comp.p++;
+        binary(S, rel, prectab[op]);
     }
-    comp.depth--;
+    S->comp.depth--;
 }
 
-void expr_paren(void)
+void expr_paren(Session *const S)
 {
-    comp_open();
-    expr_compile();
-    comp_close();
+    comp_open(S);
+    expr_compile(S);
+    comp_close(S);
 }
 
-uint8_t expr_subs(void)
+uint8_t expr_subs(Session *const S)
 {
-    comp_open();
+    comp_open(S);
     uint8_t n = 0;
     do {
         n++;
-        expr_compile();
-        comp_toint();
-    } while (comp_optcomma());
-    comp_close();
+        expr_compile(S);
+        comp_toint(S);
+    } while (comp_optcomma(S));
+    comp_close(S);
     return n;
 }
 
-void expr_string(void)
+void expr_string(Session *const S)
 {
-    comp.type = T_STR;
-    const uint8_t *const start = comp.p;
+    S->comp.type = T_STR;
+    const uint8_t *const start = S->comp.p;
     const uint8_t *q = start;
     const uint32_t len = strg_span(&q, '"', '"');
-    comp_opb(O_S_LD_TXT, (uint8_t)len);
-    comp_dword(addr_of(start));
-    comp.p = strg_skipq(q);
+    comp_opb(S, O_S_LD_TXT, (uint8_t)len);
+    comp_dword(S, addr_of(start));
+    S->comp.p = strg_skipq(q);
 }
 
 /* A FUNCTION DECLAREd only: its arguments, Function not defined when run; its result's id. */
-static uint16_t undeclared(void)
+static uint16_t undeclared(Session *const S)
 {
-    const uint16_t id = comp_var(1, 0);
-    if (*comp.p == '(') {
-        comp.p++;
-        ctrl_dropargs(true);
-        comp_close();
+    const uint16_t id = comp_var(S, 1, 0);
+    if (*S->comp.p == '(') {
+        S->comp.p++;
+        ctrl_dropargs(S, true);
+        comp_close(S);
     }
-    ctrl_undef(QB_NO_FUNCTION);
+    ctrl_undef(S, QB_NO_FUNCTION);
     return id;
 }
 
 /* A variable's value, its id's: X.LD.V, or the subscripts and X.LD.A1 id, X.LD.A id n. */
-static void loadvar(const uint16_t id)
+static void loadvar(Session *const S, const uint16_t id)
 {
-    const uint8_t info = symb_var(id)->info;
+    const uint8_t info = symb_var(&S->symb, id)->info;
     if (info & VI_ARR) {
-        const uint8_t n = expr_subs();
+        const uint8_t n = expr_subs(S);
         const uint8_t k = info & (SK_DBL | VK_MASK);
-        comp.type = expr_ktype[k];
+        S->comp.type = expr_ktype[k];
         if (n == 1)
-            comp_opid(lda1[k], id);
+            comp_opid(S, lda1[k], id);
         else {
-            comp_opid(ldan[k], id);
-            comp_byte(n);
+            comp_opid(S, ldan[k], id);
+            comp_byte(S, n);
         }
-        shortid(id);
+        shortid(S, id);
         return;
     }
     if (info & SK_DBL) {
-        comp.type = T_DBL;
-        comp_opid(O_D_LD_V, id);
+        S->comp.type = T_DBL;
+        comp_opid(S, O_D_LD_V, id);
         return;
     }
     const uint8_t k = info & VK_MASK;
     if (k == VK_INT) {
-        comp.iload = comp.out;
-        comp_opid(O_I_LD_V, id);
-        comp.iloadend = comp.out;
-        comp.type = T_INT;
-        shortid(id);
+        S->comp.iload = S->comp.out;
+        comp_opid(S, O_I_LD_V, id);
+        S->comp.iloadend = S->comp.out;
+        S->comp.type = T_INT;
+        shortid(S, id);
     } else if (k == VK_STR) {
-        comp.type = T_STR;
-        comp_opid(O_S_LD_V, id);
+        S->comp.type = T_STR;
+        comp_opid(S, O_S_LD_V, id);
     } else {
-        comp.type = T_FLT;
-        comp_opid(O_F_LD_V, id);
+        S->comp.type = T_FLT;
+        comp_opid(S, O_F_LD_V, id);
     }
 }
 
-void expr_load(void)
+void expr_load(Session *const S)
 {
-    if (comp_cur() == M_VAR) { /* a FUNCTION's name: its call, but its result in it */
-        const Name *const n = symb_name(comp_nameof(comp.p));
+    if (comp_cur(&S->comp) == M_VAR) { /* a FUNCTION's name: its call, but its result in it */
+        const Name *const n = symb_name(&S->symb, comp_nameof(S->comp.p));
         if (n->flags & (NM_FUNC | NM_FN)) {
             if (!n->proc) {
-                loadvar(undeclared());
+                loadvar(S, undeclared(S));
                 return;
             }
-            if (*comp_skipname(comp.p) == '(' || n->proc != comp.proc) {
-                ctrl_fcall();
+            if (*comp_skipname(S->comp.p) == '(' || n->proc != S->comp.proc) {
+                ctrl_fcall(S);
                 return;
             }
         }
     }
-    if (comp_cur() == M_VAR && ctrl_recref()) {
-        ctrl_recload();
+    if (comp_cur(&S->comp) == M_VAR && ctrl_recref(S)) {
+        ctrl_recload(S);
         return;
     }
-    loadvar(comp_name());
+    loadvar(S, comp_name(S));
 }
 
-void expr_target(void)
+void expr_target(Session *const S)
 {
-    if (comp_cur() == M_VAR && ctrl_recref()) { /* a record's field: its address */
-        comp.tgt = ctrl.ref.off;
-        comp.tgtsubs = TGT_FIELD;
-        ctrl.fieldet = ctrl.ref.et;
-        if (ctrl.ref.et >= ET_REC)
-            mismatch();
-        ctrl.fieldfix = ctrl.ref.fix;
-        comp.tgtinfo = comp_etkind[ctrl.ref.et];
+    if (comp_cur(&S->comp) == M_VAR && ctrl_recref(S)) { /* a record's field: its address */
+        S->comp.tgt = S->ctrl.ref.off;
+        S->comp.tgtsubs = TGT_FIELD;
+        S->ctrl.fieldet = S->ctrl.ref.et;
+        if (S->ctrl.ref.et >= ET_REC)
+            mismatch(S);
+        S->ctrl.fieldfix = S->ctrl.ref.fix;
+        S->comp.tgtinfo = comp_etkind[S->ctrl.ref.et];
         return;
     }
-    const uint16_t id = comp_name();
-    if (!(symb_var(id)->info & VI_ARR)) {
-        comp_target(id);
+    const uint16_t id = comp_name(S);
+    if (!(symb_var(&S->symb, id)->info & VI_ARR)) {
+        comp_target(S, id);
         return;
     }
-    const uint8_t n = expr_subs(); /* may compile a call with its own target */
-    comp_target(id);
-    comp.tgtsubs = n;
+    const uint8_t n = expr_subs(S); /* may compile a call with its own target */
+    comp_target(S, id);
+    S->comp.tgtsubs = n;
 }
 
 
 /* Variable id's place: its kind and bytes; a string's Desc and its STRING * n. */
-static uint32_t vakind(const uint16_t id)
+static uint32_t vakind(Session *const S, const uint16_t id)
 {
-    const Var *const v = symb_var(id);
+    const Var *const v = symb_var(&S->symb, id);
     if (v->info & SK_DBL)
         return va_pack(VA_RAW, 8);
     switch (v->info & VK_MASK) {
     case VK_INT: /* 2 bytes but a LONG's */
         return va_pack(v->type == ET_I4 ? VA_RAW : VA_I2, 4);
     case VK_STR:
-        return va_pack(VA_DESC, scop_fix(v->name, v->info & VI_ARR));
+        return va_pack(VA_DESC, scop_fix(S, v->name, v->info & VI_ARR));
     default:
         return va_pack(VA_RAW, 4);
     }
 }
 
 /* ctrl.ref's field: its bytes. */
-static uint32_t field_size(void)
+static uint32_t field_size(Session *const S)
 {
-    const uint8_t et = ctrl.ref.et;
-    return et >= ET_REC || et == ET_SD ? ctrl.ref.fix : decl_etsize[et];
+    const uint8_t et = S->ctrl.ref.et;
+    return et >= ET_REC || et == ET_SD ? S->ctrl.ref.fix : decl_etsize[et];
 }
 
 /* cm_addr: a variable's address: a record's or a field's code, else its slot's, its Desc's. */
-static void varaddr(void)
+static void varaddr(Session *const S)
 {
-    if (comp_cur() != M_VAR)
-        synerr();
-    if (ctrl_recref()) {
-        expr.vakind = va_pack(ctrl.ref.et == ET_I2 ? VA_I2 : VA_RAW, field_size());
-        if (ctrl.ref.off) {
-            comp_int(ctrl.ref.off);
-            comp_op(O_I_ADD);
+    if (comp_cur(&S->comp) != M_VAR)
+        synerr(S);
+    if (ctrl_recref(S)) {
+        S->expr.vakind = va_pack(S->ctrl.ref.et == ET_I2 ? VA_I2 : VA_RAW, field_size(S));
+        if (S->ctrl.ref.off) {
+            comp_int(S, S->ctrl.ref.off);
+            comp_op(S, O_I_ADD);
         }
         return;
     }
-    const uint16_t id = comp_var(0, 0);
-    expr.vakind = vakind(id);
-    if (symb_var(id)->info & VI_ARR) { /* an element: RA.ADDR's */
-        const uint8_t n = expr_subs();
-        comp_opw(O_RA_ADDR, id);
-        comp_byte(n);
-    } else if (comp_ispar(id)) /* a parameter's: its cell, the argument's */
-        comp_opid(O_V_ADDR, id);
+    const uint16_t id = comp_var(S, 0, 0);
+    S->expr.vakind = vakind(S, id);
+    if (symb_var(&S->symb, id)->info & VI_ARR) { /* an element: RA.ADDR's */
+        const uint8_t n = expr_subs(S);
+        comp_opw(S, O_RA_ADDR, id);
+        comp_byte(S, n);
+    } else if (comp_ispar(S, id)) /* a parameter's: its cell, the argument's */
+        comp_opid(S, O_V_ADDR, id);
     else
-        comp_int(symb_cell(id));
+        comp_int(S, symb_cell(&S->symb, id));
 }
 
-void expr_varaddr(void)
+void expr_varaddr(Session *const S)
 {
-    varaddr();
-    comp_int(expr.vakind);
+    varaddr(S);
+    comp_int(S, S->expr.vakind);
 }
 
 /* The value as kind k (an XFn's). */
-static void xarg(const char k)
+static void xarg(Session *const S, const char k)
 {
     switch (k) {
     case 'D':
-        comp_todouble();
+        comp_todouble(S);
         return;
     case 'G': /* FIX's: a DOUBLE's D.FN 3, else CALL FIX */
-        if (comp.type == T_DBL) {
-            expr.fixdbl = true;
-            comp_opb(O_D_FN, DF_FIX);
+        if (S->comp.type == T_DBL) {
+            S->expr.fixdbl = true;
+            comp_opb(S, O_D_FN, DF_FIX);
         } else {
-            comp_tofloat();
-            comp_call(K_FIX);
+            comp_tofloat(S);
+            comp_call(S, K_FIX);
         }
         return;
     case 'W': /* HEX$, OCT$: a SHORT's 16 bits */
-        expr_shclass();
-        comp_toint();
-        if (expr.shclass == SH_SHORT) {
-            comp_int(0xFFFF);
-            comp_op(O_I_AND);
+        expr_shclass(S);
+        comp_toint(S);
+        if (S->expr.shclass == SH_SHORT) {
+            comp_int(S, 0xFFFF);
+            comp_op(S, O_I_AND);
         }
         return;
     case 'I':
-        comp_toint();
+        comp_toint(S);
         return;
     case 'F':
-        comp_tofloat();
+        comp_tofloat(S);
         return;
     case 'S':
-        comp_tostring();
+        comp_tostring(S);
         return;
     }
-    if (comp.type & T_STR) /* X: a string or a number, then 1 or 0 */
-        comp_int(1);
+    if (S->comp.type & T_STR) /* X: a string or a number, then 1 or 0 */
+        comp_int(S, 1);
     else {
-        comp_toint();
-        comp_int(0);
+        comp_toint(S);
+        comp_int(S, 0);
     }
 }
 
 /* The function token at comp.p (FFh n as 100h + n), comp.p past it: its XFn. */
-static const XFn *xfn_at(void)
+static const XFn *xfn_at(Session *const S)
 {
-    uint16_t tok = *comp.p;
+    uint16_t tok = *S->comp.p;
     if (tok == TK_X)
-        tok = 0x100 + *++comp.p;
-    comp.p++;
+        tok = 0x100 + *++S->comp.p;
+    S->comp.p++;
     for (size_t i = 0; i < countof(xfns); i++)
         if (xfns[i].tok == tok)
             return &xfns[i];
-    synerr();
+    synerr(S);
 }
 
 /* f's ( arguments ), each converted to its kind; their count after them when it varies. */
-static void xfn_args(const XFn *const f)
+static void xfn_args(Session *const S, const XFn *const f)
 {
-    comp_open();
+    comp_open(S);
     uint32_t n = 0, i = 0; /* the arguments, the kind's index */
     for (;;) {
         char k = f->arg[i];
         if (k == 'R') { /* an array, n or n(): its id */
-            if (comp_cur() != M_VAR)
-                synerr();
-            const uint16_t id = comp_var(2, 0);
-            if (*comp.p == '(') {
-                if (comp.p[1] != ')')
-                    synerr();
-                comp.p += 2;
+            if (comp_cur(&S->comp) != M_VAR)
+                synerr(S);
+            const uint16_t id = comp_var(S, 2, 0);
+            if (*S->comp.p == '(') {
+                if (S->comp.p[1] != ')')
+                    synerr(S);
+                S->comp.p += 2;
             }
-            comp_int(id);
+            comp_int(S, id);
         } else {
             if (k == 'H') { /* a file number, its # or not */
-                if (comp_cur() == '#')
-                    comp.p++;
+                if (comp_cur(&S->comp) == '#')
+                    S->comp.p++;
                 k = 'I';
             }
-            expr_compile();
-            if (!n && f->min & XF_LEAD && comp.type == T_STR && k != 'S') /* a leading optional
+            expr_compile(S);
+            if (!n && f->min & XF_LEAD && S->comp.type == T_STR && k != 'S') /* a leading optional
                                                                              left out */
                 k = f->arg[++i];
-            xarg(k);
+            xarg(S, k);
         }
         n++;
         i++;
-        if (i >= f->max || !comp_optcomma())
+        if (i >= f->max || !comp_optcomma(S))
             break;
     }
     if (i < (f->min & XF_MIN))
-        synerr();
-    comp_close();
+        synerr(S);
+    comp_close(S);
     if ((f->min & XF_MIN) != f->max)
-        comp_int(n);
+        comp_int(S, n);
 }
 
 /* QBasic's other functions, by xfns: f(args), then CALL k, or none. */
-static void xfunc(void)
+static void xfunc(Session *const S)
 {
-    const XFn *const f = xfn_at();
-    if (f->max && ((f->min & XF_MIN) || comp_cur() == '('))
-        xfn_args(f);
+    const XFn *const f = xfn_at(S);
+    if (f->max && ((f->min & XF_MIN) || comp_cur(&S->comp) == '('))
+        xfn_args(S, f);
     else if (f->max) /* all optional, ( ) left out */
-        comp_int(0);
+        comp_int(S, 0);
     if (f->k)
-        comp_call(f->k);
-    comp.type = expr.fixdbl ? T_DBL : f->res;
-    expr.fixdbl = false;
-    comp.iload = comp.iloadend = nullptr;
+        comp_call(S, f->k);
+    S->comp.type = S->expr.fixdbl ? T_DBL : f->res;
+    S->expr.fixdbl = false;
+    S->comp.iload = S->comp.iloadend = nullptr;
 }
 
 /* Function f's (TK_SGN on) argument converted; comp.type its result. */
-static void farg(const uint8_t f)
+static void farg(Session *const S, const uint8_t f)
 {
     const uint8_t sig = fnsig[f];
     switch (sig & FA_MASK) {
-    case FA_F: comp_tofloat(); break;
-    case FA_A: comp_toaddr(); break;
-    case FA_S: comp_tostring(); break;
-    case FA_B: comp_tobyte(); break;
+    case FA_F: comp_tofloat(S); break;
+    case FA_A: comp_toaddr(S); break;
+    case FA_S: comp_tostring(S); break;
+    case FA_B: comp_tobyte(S); break;
     case FA_N: /* POS's: a number */
-        if (comp.type & T_STR)
-            mismatch();
+        if (S->comp.type & T_STR)
+            mismatch(S);
         break;
-    case FA_I: comp_toint(); break;
+    case FA_I: comp_toint(S); break;
     }
     const uint8_t res = sig & FR_MASK;
-    comp.type = res == FR_S ? T_STR : res;
+    S->comp.type = res == FR_S ? T_STR : res;
 }
 
 /* LEN(r): a record's, a field's, a number's size; false: LEN's own call, nothing compiled. */
-static bool lensize(void)
+static bool lensize(Session *const S)
 {
-    const uint8_t *const p = comp.p;
-    uint8_t *const out = comp.out;
-    comp.p++;
-    if (comp_cur() == '(' && comp_curn() == M_VAR) {
-        if (ctrl_recref()) {
-            if (comp_cur() == ')') {
-                comp.p++;
-                comp_int(field_size());
+    const uint8_t *const p = S->comp.p;
+    uint8_t *const out = S->comp.out;
+    S->comp.p++;
+    if (comp_cur(&S->comp) == '(' && comp_curn(&S->comp) == M_VAR) {
+        if (ctrl_recref(S)) {
+            if (comp_cur(&S->comp) == ')') {
+                S->comp.p++;
+                comp_int(S, field_size(S));
                 return true;
             }
         } else { /* a scalar: % 2, & ! 4, # 8 */
-            const uint16_t id = comp_var(0, 0);
-            if (!(symb_var(id)->info & VI_ARR)) {
-                const uint32_t v = vakind(id);
-                if (comp_cur() == ')' && va_kind(v) != VA_DESC) {
-                    comp.p++;
-                    comp_int(va_kind(v) == VA_I2 ? 2 : (uint8_t)v);
+            const uint16_t id = comp_var(S, 0, 0);
+            if (!(symb_var(&S->symb, id)->info & VI_ARR)) {
+                const uint32_t v = vakind(S, id);
+                if (comp_cur(&S->comp) == ')' && va_kind(v) != VA_DESC) {
+                    S->comp.p++;
+                    comp_int(S, va_kind(v) == VA_I2 ? 2 : (uint8_t)v);
                     return true;
                 }
             }
         }
     }
-    comp.p = p;
-    comp.out = out;
+    S->comp.p = p;
+    S->comp.out = out;
     return false;
 }
 
 /* SGN .. MID$, from cm_un's @cu_7a: f the function, TK_SGN on. */
-static void func(const uint8_t f)
+static void func(Session *const S, const uint8_t f)
 {
-    if (f == TK_RND - TK_SGN && comp.p[1] != '(') { /* RND alone: RND(1) */
-        comp.p++;
-        comp_int(1);
-        farg(f);
-        comp_call(K_FN + f);
+    if (f == TK_RND - TK_SGN && S->comp.p[1] != '(') { /* RND alone: RND(1) */
+        S->comp.p++;
+        comp_int(S, 1);
+        farg(S, f);
+        comp_call(S, K_FN + f);
         return;
     }
-    comp.p++;
-    comp_open();
-    expr_compile();
+    S->comp.p++;
+    comp_open(S);
+    expr_compile(S);
     if (f >= TK_MID - TK_SGN - 2) { /* LEFT$, RIGHT$, MID$ */
-        comp_comma();
-        comp_tostring();
-        expr_compile();
-        comp_toaddr();
+        comp_comma(S);
+        comp_tostring(S);
+        expr_compile(S);
+        comp_toaddr(S);
         uint8_t k = f;
         if (f == TK_MID - TK_SGN) {
-            if (comp_optcomma()) {
-                expr_compile();
-                comp_toaddr();
+            if (comp_optcomma(S)) {
+                expr_compile(S);
+                comp_toaddr(S);
             } else
                 k = K_MID2 - K_FN;
         }
-        comp_close();
-        comp.type = T_STR;
-        comp_call(K_FN + k);
+        comp_close(S);
+        S->comp.type = T_STR;
+        comp_call(S, K_FN + k);
         return;
     }
-    comp_close();
+    comp_close(S);
     const uint8_t df = dfnk[f];
-    if (comp.type == T_INT && df == DFN_STR) /* STR$ of an INT: through a DOUBLE, every digit */
-        comp_todouble();
-    else if (expr.dbltgt && !(comp.type & (T_STR | T_DBL)) && df < DFN_STR)
-        comp_todouble(); /* for a DOUBLE: of an INT or a SINGLE a DOUBLE's, as BC */
-    if (comp.type == T_DBL && df != DFN_NONE) {
+    if (S->comp.type == T_INT && df == DFN_STR) /* STR$ of an INT: through a DOUBLE, every digit */
+        comp_todouble(S);
+    else if (S->expr.dbltgt && !(S->comp.type & (T_STR | T_DBL)) && df < DFN_STR)
+        comp_todouble(S); /* for a DOUBLE: of an INT or a SINGLE a DOUBLE's, as BC */
+    if (S->comp.type == T_DBL && df != DFN_NONE) {
         if (df == DFN_STR) {
-            comp_call(K_DSTR);
-            comp.type = T_STR;
+            comp_call(S, K_DSTR);
+            S->comp.type = T_STR;
             return;
         }
-        comp_opb(O_D_FN, df);
-        comp.type = df == DF_SGN ? T_INT : T_DBL;
-        comp.iload = comp.iloadend = nullptr;
+        comp_opb(S, O_D_FN, df);
+        S->comp.type = df == DF_SGN ? T_INT : T_DBL;
+        S->comp.iload = S->comp.iloadend = nullptr;
         return;
     }
-    farg(f);
+    farg(S, f);
     if (f == TK_VAL - TK_SGN) { /* VAL: a DOUBLE, as BC's */
-        comp.type = T_DBL;
-        comp_call(K_DVAL);
+        S->comp.type = T_DBL;
+        comp_call(S, K_DVAL);
     } else
-        comp_call(K_FN + f);
+        comp_call(S, K_FN + f);
 }
 
 /* VARPTR, VARSEG, SSEG, SADD (v) after FFh: its CALL in k, 0 none; false: not one. */
@@ -825,97 +825,97 @@ static bool addr_call(const uint8_t tok, uint8_t *const k)
 }
 
 /* cm_un: an operand: a variable, an element, a literal, ( expr ), - NOT +, a function. */
-static void unary(void)
+static void unary(Session *const S)
 {
-    expr.shend = nullptr; /* not a SHORT's unless it says */
+    S->expr.shend = nullptr; /* not a SHORT's unless it says */
     for (;;) {
-        const uint8_t c = comp_cur();
+        const uint8_t c = comp_cur(&S->comp);
         switch (c) {
         case M_VAR:
-            expr_load();
+            expr_load(S);
             return;
         case M_INT: {
-            const uint32_t v = load32(comp.p + 1);
-            comp.p += INT_TOKEN_SIZE;
-            comp_int(v);
+            const uint32_t v = load32(S->comp.p + 1);
+            S->comp.p += INT_TOKEN_SIZE;
+            comp_int(S, v);
             if (v <= INT16_MAX) {
-                expr.sh = SH_LIT;
-                expr.shend = comp.out;
+                S->expr.sh = SH_LIT;
+                S->expr.shend = S->comp.out;
             }
             return;
         }
         case '(':
-            expr_paren();
+            expr_paren(S);
             return;
         case TK_MINUS:
         case TK_NOT: {
-            comp.p++;
-            prec(c == TK_MINUS ? P_NEG : P_NOT);
-            const bool k = expr.kend == comp.out; /* a constant's, so the result */
+            S->comp.p++;
+            prec(S, c == TK_MINUS ? P_NEG : P_NOT);
+            const bool k = S->expr.kend == S->comp.out; /* a constant's, so the result */
             if (c == TK_NOT) {
-                comp_toint();
-                comp_op(O_I_NOT);
-            } else if (comp.type & T_STR)
-                mismatch();
-            else if (comp.type == T_DBL)
-                comp_op(O_D_NEG);
-            else if (comp.type == T_FLT)
-                comp_op(O_F_NEG);
+                comp_toint(S);
+                comp_op(S, O_I_NOT);
+            } else if (S->comp.type & T_STR)
+                mismatch(S);
+            else if (S->comp.type == T_DBL)
+                comp_op(S, O_D_NEG);
+            else if (S->comp.type == T_FLT)
+                comp_op(S, O_F_NEG);
             else {
-                expr_shclass(); /* a SHORT's negated is one */
-                comp_op(O_I_NEG); /* I.LD.I16 is unsigned: no -literal fold */
-                expr.sh = expr.shclass;
-                expr.shend = comp.out;
+                expr_shclass(S); /* a SHORT's negated is one */
+                comp_op(S, O_I_NEG); /* I.LD.I16 is unsigned: no -literal fold */
+                S->expr.sh = S->expr.shclass;
+                S->expr.shend = S->comp.out;
             }
             if (k)
-                expr.kend = comp.out;
+                S->expr.kend = S->comp.out;
             return;
         }
         case TK_PLUS:
-            comp.p++;
+            S->comp.p++;
             continue;
         case '"':
-            comp.p++;
-            expr_string();
+            S->comp.p++;
+            expr_string(S);
             return;
         }
         if (c >= '.' && c <= '9') {
             uint8_t kind;
-            const double d = dubl_in(&comp.p, &kind);
+            const double d = dubl_in(S, &S->comp.p, &kind);
             if (kind == DK_DBL) { /* a DOUBLE: D.LD.K q */
-                comp.type = T_DBL;
-                comp_op(O_D_LD_K);
+                S->comp.type = T_DBL;
+                comp_op(S, O_D_LD_K);
                 const uint64_t q = (Cell){.d = d}.raw;
-                comp_dword((uint32_t)q);
-                comp_dword((uint32_t)(q >> 32));
-                comp.iload = comp.iloadend = nullptr;
+                comp_dword(S, (uint32_t)q);
+                comp_dword(S, (uint32_t)(q >> 32));
+                S->comp.iload = S->comp.iloadend = nullptr;
             } else {
-                comp.type = T_FLT;
-                comp_op(O_F_LD_F32);
-                comp_dword(sngl_from_dbl(d));
+                S->comp.type = T_FLT;
+                comp_op(S, O_F_LD_F32);
+                comp_dword(S, sngl_from_dbl(d));
             }
-            expr.kend = comp.out;
+            S->expr.kend = S->comp.out;
             return;
         }
-        if (c == TK_LEN && lensize())
+        if (c == TK_LEN && lensize(S))
             return;
         uint8_t k;
-        if (c == TK_X && addr_call(comp.p[1], &k)) {
-            comp.p += 2;
-            comp_open();
-            varaddr();
-            comp_close();
+        if (c == TK_X && addr_call(S->comp.p[1], &k)) {
+            S->comp.p += 2;
+            comp_open(S);
+            varaddr(S);
+            comp_close(S);
             if (k)
-                comp_call(k);
-            comp.type = T_INT;
-            comp.iload = comp.iloadend = nullptr;
+                comp_call(S, k);
+            S->comp.type = T_INT;
+            S->comp.iload = S->comp.iloadend = nullptr;
             return;
         }
         const uint8_t f = c - TK_SGN;
         if (f > TK_MID - TK_SGN)
-            xfunc();
+            xfunc(S);
         else
-            func(f);
+            func(S, f);
         return;
     }
 }

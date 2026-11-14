@@ -11,10 +11,9 @@ typedef struct {
     uint32_t col;      /* g_lscol: its column */
     uint8_t last;      /* io.lq: the last item's class (list.c's LS_*) */
 } List;
-extern List list;
 
-void list_range(uint16_t from, uint16_t to); /* ls_range: the lines numbered from..to */
-void list_body(const uint8_t *body);         /* ls_body: print a token body */
-uint32_t list_text(const uint8_t *body, uint32_t at); /* ls_text: body spelled into io's sbuf,
+void list_range(Session *S, uint16_t from, uint16_t to); /* ls_range: the lines numbered from..to */
+void list_body(Session *S, const uint8_t *body);         /* ls_body: print a token body */
+uint32_t list_text(Session *S, const uint8_t *body, uint32_t at); /* ls_text: body spelled into io's sbuf,
                                                          0 after; the column of its byte at */
 #endif

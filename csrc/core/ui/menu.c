@@ -1,5 +1,6 @@
 /* The menu bar, its menus, their commands (src/ui/menu.asm). */
 #include "ui/menu.h"
+#include "session.h"
 #include "plat/pscr.h"
 #include "ui/draw.h"
 #include "ui/edit.h"
@@ -167,11 +168,11 @@ static bool gray(const Item *const it)
 }
 
 /* mn_chk: check item it on (mn_flags). */
-static bool checked(const Item *const it)
+static bool checked(Session *const S, const Item *const it)
 {
     const uint8_t a = it->act;
     if (a == ACT_TRACE)
-        return dbug.trace;
+        return S->dbug.trace;
     if (a == ACT_SYNTAX)
         return uimn.text.check;
     if (a == ACT_SYNHL)
@@ -268,7 +269,7 @@ static void size(void)
 enum : uint8_t { CHECK_MARK = 0x07 }; /* CP437's bullet */
 
 /* Item i of the box on row row. */
-static void box_item(const Level *const b, const uint8_t i, const uint8_t row)
+static void box_item(Session *const S, const Level *const b, const uint8_t i, const uint8_t row)
 {
     const Item *const it = item(i);
     const bool off = gray(it);
@@ -279,7 +280,7 @@ static void box_item(const Level *const b, const uint8_t i, const uint8_t row)
         help(i);
     }
     scrn_fill(row, b->l + 1, slot, ' ', b->w - 2);
-    if ((it->flags & MF_CHK) && checked(it))
+    if ((it->flags & MF_CHK) && checked(S, it))
         scrn_fill(row, b->l + 1, slot, CHECK_MARK, 1);
     scrn_str(row, b->l + 2, it->text, slot, hot);
     const uint16_t k = scrn_slen(it->key);
@@ -290,7 +291,7 @@ static void box_item(const Level *const b, const uint8_t i, const uint8_t row)
 }
 
 /* mn_box: the box at its column and row, the lit item's help on the status bar. */
-static void box(void)
+static void box(Session *const S)
 {
     const Level *const b = &mn.box;
     scrn_box(b->top, b->l, b->cnt + 2, b->w, SL_BAR, nullptr);
@@ -300,12 +301,12 @@ static void box(void)
         if (item(i)->flags == MF_SEP)
             scrn_sep(row, b->l, b->w, SL_BAR);
         else
-            box_item(b, i, row);
+            box_item(S, b, i, row);
     }
 }
 
 /* mn_drop: the bar's menu's box under its title. */
-static void drop(void)
+static void drop(Session *const S)
 {
     size();
     uint8_t l = menu_x[mn.c] - 2;
@@ -313,7 +314,7 @@ static void drop(void)
         l = (PSCR_COLS - 1) - mn.box.w;
     mn.box.l = l;
     mn.box.top = 1;
-    box();
+    box(S);
 }
 
 /* mn_move: the item lit stepped by d past separators. */
@@ -552,32 +553,32 @@ static Step on_key(const uint16_t k, const Item **const chosen)
 }
 
 /* The screen, the open box (a sub-menu's over its parent's), the status bar. */
-static void draw(void)
+static void draw(Session *const S)
 {
     uimn.help = uimn_menu_help;
-    draw_all();
+    draw_all(S);
     if (!mn.open)
         return;
     if (!mn.sub) {
-        drop();
+        drop(S);
     } else {
         swap();
-        drop();
+        drop(S);
         swap();
-        box();
+        box(S);
     }
     draw_status();
 }
 
-void menu_run(const uint8_t m, const bool open)
+void menu_run(Session *const S, const uint8_t m, const bool open)
 {
-    edit_commit();
+    edit_commit(S);
     mn.c = m;
     mn.open = open;
     mn.on = true;
     restart();
     for (;;) {
-        draw();
+        draw(S);
         scrn_shape(PSCR_HIDDEN);
         const Item *chosen = nullptr;
         const Step next = on_key(uimn_getkey(), &chosen);
@@ -588,17 +589,17 @@ void menu_run(const uint8_t m, const bool open)
             mn.on = false;
             uimn.help = nullptr;
             if (next == CHOSEN)
-                uimn_act(chosen->act);
+                uimn_act(S, chosen->act);
             return;
         }
     }
 }
 
-bool menu_alt(const uint8_t scan)
+bool menu_alt(Session *const S, const uint8_t scan)
 {
     for (uint8_t b = 0; b < NMENU; b++) {
         if (alt_scan[b] == scan) {
-            menu_run(b, true);
+            menu_run(S, b, true);
             return true;
         }
     }

@@ -1,125 +1,125 @@
 /* A source file's lines, streamed to the lexer (io/srd.asm). */
 #include "io/srcr.h"
+#include "session.h"
 #include "io/chnl.h"
 #include "io/repl.h"
 
-Srcr srcr;
 
 
 
-void srcr_phys_start(void)
+void srcr_phys_start(Session *const S)
 {
-    srcr.cont.st = IN_CODE;
-    srcr.cont.letters = 0;
-    srcr.cont.under = false;
-    srcr.cont.blank = true; /* the line's start */
+    S->srcr.cont.st = IN_CODE;
+    S->srcr.cont.letters = 0;
+    S->srcr.cont.under = false;
+    S->srcr.cont.blank = true; /* the line's start */
 }
 
 /* A word ended: REM's comment. */
-static void word_end(void)
+static void word_end(Session *const S)
 {
-    if (srcr.cont.letters == 3 && !memcmp(srcr.cont.rem, "rem", 3))
-        srcr.cont.st = IN_COMMENT;
-    srcr.cont.letters = 0;
+    if (S->srcr.cont.letters == 3 && !memcmp(S->srcr.cont.rem, "rem", 3))
+        S->srcr.cont.st = IN_COMMENT;
+    S->srcr.cont.letters = 0;
 }
 
-void srcr_phys_byte(const uint8_t c)
+void srcr_phys_byte(Session *const S, const uint8_t c)
 {
-    if (srcr.cont.st == IN_COMMENT) /* to the line's end */
+    if (S->srcr.cont.st == IN_COMMENT) /* to the line's end */
         return;
-    if (srcr.cont.st == IN_STRING) {
+    if (S->srcr.cont.st == IN_STRING) {
         if (c != '"')
             return;
-        srcr.cont.st = IN_CODE;
+        S->srcr.cont.st = IN_CODE;
     } else if (c == '"') {
-        srcr.cont.st = IN_STRING;
+        S->srcr.cont.st = IN_STRING;
     } else if (c == '\'') {
-        srcr.cont.st = IN_COMMENT;
+        S->srcr.cont.st = IN_COMMENT;
     } else if (is_blank(c)) {
-        word_end();
-        srcr.cont.blank = true;
+        word_end(S);
+        S->srcr.cont.blank = true;
         return;
     } else if (is_letter(c)) { /* a word's letters: REM a comment */
-        if (srcr.cont.letters < 3)
-            srcr.cont.rem[srcr.cont.letters] = (char)(c | 0x20);
-        srcr.cont.letters++;
+        if (S->srcr.cont.letters < 3)
+            S->srcr.cont.rem[S->srcr.cont.letters] = (char)(c | 0x20);
+        S->srcr.cont.letters++;
     } else {
-        word_end();
+        word_end(S);
         if (c == '_') { /* after a blank: perhaps the end */
-            srcr.cont.under = srcr.cont.blank;
-            srcr.cont.blank = false;
+            S->srcr.cont.under = S->srcr.cont.blank;
+            S->srcr.cont.blank = false;
             return;
         }
     }
-    srcr.cont.under = false;
-    srcr.cont.blank = false;
+    S->srcr.cont.under = false;
+    S->srcr.cont.blank = false;
 }
 
-bool srcr_phys_end(void)
+bool srcr_phys_end(Session *const S)
 {
-    word_end();
-    return srcr.cont.st != IN_COMMENT && srcr.cont.under; /* '_' in a comment: the comment's */
+    word_end(S);
+    return S->srcr.cont.st != IN_COMMENT && S->srcr.cont.under; /* '_' in a comment: the comment's */
 }
 
 /* The window filled on from end: to the logical line's end (done set) or SRCAP; 0 after. */
-static void fill(void)
+static void fill(Session *const S)
 {
-    uint8_t *d = srcr.end;
+    uint8_t *d = S->srcr.end;
     for (;;) {
-        const uint32_t len = (uint32_t)(d - cons.inbuf);
+        const uint32_t len = (uint32_t)(d - S->cons.inbuf);
         if (len >= SRCAP && (d[-1] != '_' || len >= INMAX)) /* full, a '_' not last: it slides */
             break;
-        const int b = cons_getb();
+        const int b = cons_getb(S);
         if (b < 0) {
-            srcr.done = true;
+            S->srcr.done = true;
             break;
         }
-        srcr.any = true;
+        S->srcr.any = true;
         if (b == '\n' || b == '\r') {
             if (b == '\r')
-                chnl_skiplf(); /* CR LF: one line's end */
-            srcr.pend = 0; /* the line's last blanks go */
-            if (!srcr_phys_end()) {
-                srcr.done = true;
+                chnl_skiplf(S); /* CR LF: one line's end */
+            S->srcr.pend = 0; /* the line's last blanks go */
+            if (!srcr_phys_end(S)) {
+                S->srcr.done = true;
                 break;
             }
-            repl.fline++; /* continued: the '_' a blank, then the next line's bytes */
+            S->repl.fline++; /* continued: the '_' a blank, then the next line's bytes */
             d[-1] = ' ';
-            srcr_phys_start();
+            srcr_phys_start(S);
             continue;
         }
-        srcr_phys_byte((uint8_t)b);
-        if (srcr.cont.st == IN_CODE && is_blank((uint8_t)b)) { /* a blank in code: when a byte follows */
-            srcr.pend++;
+        srcr_phys_byte(S, (uint8_t)b);
+        if (S->srcr.cont.st == IN_CODE && is_blank((uint8_t)b)) { /* a blank in code: when a byte follows */
+            S->srcr.pend++;
             continue;
         }
-        for (; srcr.pend; srcr.pend--)
+        for (; S->srcr.pend; S->srcr.pend--)
             *d++ = ' ';
         *d++ = (uint8_t)b;
     }
     *d = 0;
-    srcr.end = d;
+    S->srcr.end = d;
 }
 
-int32_t srcr_line(void)
+int32_t srcr_line(Session *const S)
 {
-    srcr.end = cons.inbuf;
-    srcr.done = false;
-    srcr.pend = 0;
-    srcr.any = false;
-    srcr_phys_start();
-    fill();
-    return srcr.any ? (int32_t)(srcr.end - cons.inbuf) : -1;
+    S->srcr.end = S->cons.inbuf;
+    S->srcr.done = false;
+    S->srcr.pend = 0;
+    S->srcr.any = false;
+    srcr_phys_start(S);
+    fill(S);
+    return S->srcr.any ? (int32_t)(S->srcr.end - S->cons.inbuf) : -1;
 }
 
-bool srcr_more(const uint8_t **const keep)
+bool srcr_more(Session *const S, const uint8_t **const keep)
 {
-    if (srcr.done)
+    if (S->srcr.done)
         return false;
-    const uint32_t n = (uint32_t)(srcr.end - *keep);
-    memmove(cons.inbuf, *keep, n);
-    srcr.end = cons.inbuf + n;
-    fill();
-    *keep = cons.inbuf;
+    const uint32_t n = (uint32_t)(S->srcr.end - *keep);
+    memmove(S->cons.inbuf, *keep, n);
+    S->srcr.end = S->cons.inbuf + n;
+    fill(S);
+    *keep = S->cons.inbuf;
     return true;
 }

@@ -1,6 +1,7 @@
 /* The simple ops: loads, stores, INT and SINGLE operators, compares, IF, conversions, DROP. An INT
    op works on the top cell's low dword. */
 #include "vm/oper.h"
+#include "session.h"
 #include "io/repl.h"
 #include "mem/symb.h"
 #include "num/fmth.h"
@@ -17,257 +18,257 @@ typedef enum {
 } Source;
 
 /* The cell of the variable whose id is at vm->ip. */
-static Addr var_cell(Vm *const vm) { return symb_cell(exec_u16(vm)); }
+static Addr var_cell(Session *const S) { return symb_cell(&S->symb, exec_u16(&S->vm)); }
 
-static uint32_t operand(Vm *const vm, const Source src)
+static uint32_t operand(Session *const S, const Source src)
 {
     switch (src) {
-    case POPPED: return exec_pop(vm).u;
-    case VAR: return rd32(var_cell(vm));
-    case U8: return exec_u8(vm);
-    case VAR_AS_SNGL: return fmth_from_i32((int32_t)rd32(var_cell(vm)));
-    case U8_AS_SNGL: return fmth_from_i32(exec_u8(vm));
-    case F32: return exec_u32(vm);
+    case POPPED: return exec_pop(&S->vm).u;
+    case VAR: return rd32(var_cell(S));
+    case U8: return exec_u8(&S->vm);
+    case VAR_AS_SNGL: return fmth_from_i32((int32_t)rd32(var_cell(S)));
+    case U8_AS_SNGL: return fmth_from_i32(exec_u8(&S->vm));
+    case F32: return exec_u32(&S->vm);
     }
     unreachable();
 }
 
 /* ---- loads and stores ----------------------------------------------------------------------- */
 
-void oper_i_ld_v(Vm *const vm) { exec_pusha(vm, operand(vm, VAR)); }
-void oper_i_ld_i16(Vm *const vm) { exec_pusha(vm, exec_u16(vm)); } /* unsigned */
-void oper_i_ld_i32(Vm *const vm) { exec_pusha(vm, exec_u32(vm)); }
-void oper_i_ld_u8(Vm *const vm) { exec_pusha(vm, exec_u8(vm)); }
-void oper_f_ld_f32(Vm *const vm) { exec_pusha(vm, operand(vm, F32)); }
-void oper_f_ld_u8(Vm *const vm) { exec_pusha(vm, operand(vm, U8_AS_SNGL)); }
-void oper_f_ld_vi(Vm *const vm) { exec_pusha(vm, operand(vm, VAR_AS_SNGL)); }
-void oper_f_ld_pi(Vm *const vm) { exec_pusha(vm, SNGL_PI); }
+void oper_i_ld_v(Session *const S) { exec_pusha(&S->vm, operand(S, VAR)); }
+void oper_i_ld_i16(Session *const S) { exec_pusha(&S->vm, exec_u16(&S->vm)); } /* unsigned */
+void oper_i_ld_i32(Session *const S) { exec_pusha(&S->vm, exec_u32(&S->vm)); }
+void oper_i_ld_u8(Session *const S) { exec_pusha(&S->vm, exec_u8(&S->vm)); }
+void oper_f_ld_f32(Session *const S) { exec_pusha(&S->vm, operand(S, F32)); }
+void oper_f_ld_u8(Session *const S) { exec_pusha(&S->vm, operand(S, U8_AS_SNGL)); }
+void oper_f_ld_vi(Session *const S) { exec_pusha(&S->vm, operand(S, VAR_AS_SNGL)); }
+void oper_f_ld_pi(Session *const S) { exec_pusha(&S->vm, SNGL_PI); }
 /* A string variable: its descriptor. */
-void oper_s_ld_v(Vm *const vm) { exec_pusha(vm, var_cell(vm)); }
+void oper_s_ld_v(Session *const S) { exec_pusha(&S->vm, var_cell(S)); }
 
-void oper_i_st_v(Vm *const vm)
+void oper_i_st_v(Session *const S)
 {
-    const Addr cell = var_cell(vm);
-    wr32(cell, exec_pop(vm).u);
+    const Addr cell = var_cell(S);
+    wr32(cell, exec_pop(&S->vm).u);
 }
-void oper_f_st_v(Vm *const vm) { oper_i_st_v(vm); }
+void oper_f_st_v(Session *const S) { oper_i_st_v(S); }
 
 /* ---- INT ------------------------------------------------------------------------------------ */
 
 typedef enum { ADD, SUB, MUL, DIV, AND, OR } IntOp;
 
 /* The top cell op the right operand. Overflow. */
-static void int_op(Vm *const vm, const Source src, const IntOp op)
+static void int_op(Session *const S, const Source src, const IntOp op)
 {
-    const int32_t b = (int32_t)operand(vm, src);
-    Cell *const top = vm->sp;
+    const int32_t b = (int32_t)operand(S, src);
+    Cell *const top = S->vm.sp;
     int32_t r, rem;
     bool overflow = false;
     switch (op) {
     case ADD: overflow = __builtin_add_overflow(top->i, b, &r); break;
     case SUB: overflow = __builtin_sub_overflow(top->i, b, &r); break;
     case MUL: overflow = __builtin_mul_overflow(top->i, b, &r); break;
-    case DIV: r = exec_idiv(top->i, b, &rem); break;
+    case DIV: r = exec_idiv(S, top->i, b, &rem); break;
     case AND: r = top->i & b; break;
     case OR: r = top->i | b; break;
     }
     if (overflow)
-        repl_error(E_OV);
+        repl_error(S, E_OV);
     top->i = r;
 }
 
-void oper_i_add(Vm *const vm) { int_op(vm, POPPED, ADD); }
-void oper_i_sub(Vm *const vm) { int_op(vm, POPPED, SUB); }
-void oper_i_mul(Vm *const vm) { int_op(vm, POPPED, MUL); }
-void oper_i_div(Vm *const vm) { int_op(vm, POPPED, DIV); }
-void oper_i_and(Vm *const vm) { int_op(vm, POPPED, AND); }
-void oper_i_or(Vm *const vm) { int_op(vm, POPPED, OR); }
-void oper_i_add_v(Vm *const vm) { int_op(vm, VAR, ADD); }
-void oper_i_sub_v(Vm *const vm) { int_op(vm, VAR, SUB); }
-void oper_i_mul_v(Vm *const vm) { int_op(vm, VAR, MUL); }
-void oper_i_div_v(Vm *const vm) { int_op(vm, VAR, DIV); }
-void oper_i_and_v(Vm *const vm) { int_op(vm, VAR, AND); }
-void oper_i_or_v(Vm *const vm) { int_op(vm, VAR, OR); }
-void oper_i_add_u8(Vm *const vm) { int_op(vm, U8, ADD); }
-void oper_i_sub_u8(Vm *const vm) { int_op(vm, U8, SUB); }
-void oper_i_mul_u8(Vm *const vm) { int_op(vm, U8, MUL); }
-void oper_i_div_u8(Vm *const vm) { int_op(vm, U8, DIV); }
-void oper_i_and_u8(Vm *const vm) { int_op(vm, U8, AND); }
-void oper_i_or_u8(Vm *const vm) { int_op(vm, U8, OR); }
+void oper_i_add(Session *const S) { int_op(S, POPPED, ADD); }
+void oper_i_sub(Session *const S) { int_op(S, POPPED, SUB); }
+void oper_i_mul(Session *const S) { int_op(S, POPPED, MUL); }
+void oper_i_div(Session *const S) { int_op(S, POPPED, DIV); }
+void oper_i_and(Session *const S) { int_op(S, POPPED, AND); }
+void oper_i_or(Session *const S) { int_op(S, POPPED, OR); }
+void oper_i_add_v(Session *const S) { int_op(S, VAR, ADD); }
+void oper_i_sub_v(Session *const S) { int_op(S, VAR, SUB); }
+void oper_i_mul_v(Session *const S) { int_op(S, VAR, MUL); }
+void oper_i_div_v(Session *const S) { int_op(S, VAR, DIV); }
+void oper_i_and_v(Session *const S) { int_op(S, VAR, AND); }
+void oper_i_or_v(Session *const S) { int_op(S, VAR, OR); }
+void oper_i_add_u8(Session *const S) { int_op(S, U8, ADD); }
+void oper_i_sub_u8(Session *const S) { int_op(S, U8, SUB); }
+void oper_i_mul_u8(Session *const S) { int_op(S, U8, MUL); }
+void oper_i_div_u8(Session *const S) { int_op(S, U8, DIV); }
+void oper_i_and_u8(Session *const S) { int_op(S, U8, AND); }
+void oper_i_or_u8(Session *const S) { int_op(S, U8, OR); }
 
 /* MOD: the remainder takes the left operand's sign. */
-void oper_i_mod(Vm *const vm)
+void oper_i_mod(Session *const S)
 {
-    const int32_t b = exec_popi(vm);
+    const int32_t b = exec_popi(&S->vm);
     int32_t rem = 0;
     if (b != -1)
-        exec_idiv(vm->sp->i, b, &rem);
-    vm->sp->i = rem;
+        exec_idiv(S, S->vm.sp->i, b, &rem);
+    S->vm.sp->i = rem;
 }
 
-void oper_i_xor(Vm *const vm)
+void oper_i_xor(Session *const S)
 {
-    const int32_t b = exec_popi(vm);
-    vm->sp->i ^= b;
+    const int32_t b = exec_popi(&S->vm);
+    S->vm.sp->i ^= b;
 }
 
-void oper_i_eqv(Vm *const vm)
+void oper_i_eqv(Session *const S)
 {
-    const int32_t b = exec_popi(vm);
-    vm->sp->i = ~(vm->sp->i ^ b);
+    const int32_t b = exec_popi(&S->vm);
+    S->vm.sp->i = ~(S->vm.sp->i ^ b);
 }
 
-void oper_i_imp(Vm *const vm)
+void oper_i_imp(Session *const S)
 {
-    const int32_t b = exec_popi(vm);
-    vm->sp->i = ~vm->sp->i | b;
+    const int32_t b = exec_popi(&S->vm);
+    S->vm.sp->i = ~S->vm.sp->i | b;
 }
 
 /* Overflow at -2^31. */
-void oper_i_neg(Vm *const vm)
+void oper_i_neg(Session *const S)
 {
-    if (vm->sp->i == INT32_MIN)
-        repl_error(E_OV);
-    vm->sp->i = -vm->sp->i;
+    if (S->vm.sp->i == INT32_MIN)
+        repl_error(S, E_OV);
+    S->vm.sp->i = -S->vm.sp->i;
 }
 
-void oper_i_not(Vm *const vm) { vm->sp->i = ~vm->sp->i; }
+void oper_i_not(Session *const S) { S->vm.sp->i = ~S->vm.sp->i; }
 
 /* ---- SINGLE --------------------------------------------------------------------------------- */
 
 typedef enum { FADD, FSUB, FMUL, FDIV } SnglOp;
 
 /* The left operand popped op the right. */
-static void sngl_op(Vm *const vm, const Source src, const SnglOp op)
+static void sngl_op(Session *const S, const Source src, const SnglOp op)
 {
-    const Sngl b = operand(vm, src);
-    Cell *const top = vm->sp;
+    const Sngl b = operand(S, src);
+    Cell *const top = S->vm.sp;
     switch (op) {
     case FADD: top->u = fmth_add(top->u, b); break;
     case FSUB: top->u = fmth_sub(top->u, b); break;
     case FMUL: top->u = fmth_mul(top->u, b); break;
-    case FDIV: top->u = fmth_div(top->u, b); break;
+    case FDIV: top->u = fmth_div(S, top->u, b); break;
     }
 }
 
-void oper_f_add(Vm *const vm) { sngl_op(vm, POPPED, FADD); }
-void oper_f_sub(Vm *const vm) { sngl_op(vm, POPPED, FSUB); }
-void oper_f_mul(Vm *const vm) { sngl_op(vm, POPPED, FMUL); }
-void oper_f_div(Vm *const vm) { sngl_op(vm, POPPED, FDIV); }
-void oper_f_add_v(Vm *const vm) { sngl_op(vm, VAR, FADD); }
-void oper_f_sub_v(Vm *const vm) { sngl_op(vm, VAR, FSUB); }
-void oper_f_mul_v(Vm *const vm) { sngl_op(vm, VAR, FMUL); }
-void oper_f_div_v(Vm *const vm) { sngl_op(vm, VAR, FDIV); }
-void oper_f_add_vi(Vm *const vm) { sngl_op(vm, VAR_AS_SNGL, FADD); }
-void oper_f_sub_vi(Vm *const vm) { sngl_op(vm, VAR_AS_SNGL, FSUB); }
-void oper_f_mul_vi(Vm *const vm) { sngl_op(vm, VAR_AS_SNGL, FMUL); }
-void oper_f_div_vi(Vm *const vm) { sngl_op(vm, VAR_AS_SNGL, FDIV); }
-void oper_f_add_u8(Vm *const vm) { sngl_op(vm, U8_AS_SNGL, FADD); }
-void oper_f_sub_u8(Vm *const vm) { sngl_op(vm, U8_AS_SNGL, FSUB); }
-void oper_f_mul_u8(Vm *const vm) { sngl_op(vm, U8_AS_SNGL, FMUL); }
-void oper_f_div_u8(Vm *const vm) { sngl_op(vm, U8_AS_SNGL, FDIV); }
-void oper_f_add_f32(Vm *const vm) { sngl_op(vm, F32, FADD); }
-void oper_f_sub_f32(Vm *const vm) { sngl_op(vm, F32, FSUB); }
-void oper_f_mul_f32(Vm *const vm) { sngl_op(vm, F32, FMUL); }
-void oper_f_div_f32(Vm *const vm) { sngl_op(vm, F32, FDIV); }
+void oper_f_add(Session *const S) { sngl_op(S, POPPED, FADD); }
+void oper_f_sub(Session *const S) { sngl_op(S, POPPED, FSUB); }
+void oper_f_mul(Session *const S) { sngl_op(S, POPPED, FMUL); }
+void oper_f_div(Session *const S) { sngl_op(S, POPPED, FDIV); }
+void oper_f_add_v(Session *const S) { sngl_op(S, VAR, FADD); }
+void oper_f_sub_v(Session *const S) { sngl_op(S, VAR, FSUB); }
+void oper_f_mul_v(Session *const S) { sngl_op(S, VAR, FMUL); }
+void oper_f_div_v(Session *const S) { sngl_op(S, VAR, FDIV); }
+void oper_f_add_vi(Session *const S) { sngl_op(S, VAR_AS_SNGL, FADD); }
+void oper_f_sub_vi(Session *const S) { sngl_op(S, VAR_AS_SNGL, FSUB); }
+void oper_f_mul_vi(Session *const S) { sngl_op(S, VAR_AS_SNGL, FMUL); }
+void oper_f_div_vi(Session *const S) { sngl_op(S, VAR_AS_SNGL, FDIV); }
+void oper_f_add_u8(Session *const S) { sngl_op(S, U8_AS_SNGL, FADD); }
+void oper_f_sub_u8(Session *const S) { sngl_op(S, U8_AS_SNGL, FSUB); }
+void oper_f_mul_u8(Session *const S) { sngl_op(S, U8_AS_SNGL, FMUL); }
+void oper_f_div_u8(Session *const S) { sngl_op(S, U8_AS_SNGL, FDIV); }
+void oper_f_add_f32(Session *const S) { sngl_op(S, F32, FADD); }
+void oper_f_sub_f32(Session *const S) { sngl_op(S, F32, FSUB); }
+void oper_f_mul_f32(Session *const S) { sngl_op(S, F32, FMUL); }
+void oper_f_div_f32(Session *const S) { sngl_op(S, F32, FDIV); }
 
 /* -0 stays 0. */
-void oper_f_neg(Vm *const vm)
+void oper_f_neg(Session *const S)
 {
-    if (vm->sp->u & ~SNGL_SIGN)
-        vm->sp->u ^= SNGL_SIGN;
+    if (S->vm.sp->u & ~SNGL_SIGN)
+        S->vm.sp->u ^= SNGL_SIGN;
 }
 
 /* ---- compares ------------------------------------------------------------------------------- */
 
 /* The relation's bit against the op's mask: a compare pushes -1 or 0; a CMPIF's false ends the
    line. */
-static void compared(Vm *const vm, const uint8_t rel, const bool cmpif)
+static void compared(Session *const S, const uint8_t rel, const bool cmpif)
 {
-    const bool yes = rel & exec_u8(vm);
+    const bool yes = rel & exec_u8(&S->vm);
     if (!cmpif)
-        exec_pushi(vm, yes ? -1 : 0);
+        exec_pushi(&S->vm, yes ? -1 : 0);
     else if (!yes)
-        flow_nextln(vm);
+        flow_nextln(S);
 }
 
-static void int_cmp(Vm *const vm, const Source src, const bool cmpif)
+static void int_cmp(Session *const S, const Source src, const bool cmpif)
 {
-    const int32_t b = (int32_t)operand(vm, src);
-    const int32_t a = exec_popi(vm);
-    compared(vm, a > b ? OPER_GT : a == b ? OPER_EQ : OPER_LT, cmpif);
+    const int32_t b = (int32_t)operand(S, src);
+    const int32_t a = exec_popi(&S->vm);
+    compared(S, a > b ? OPER_GT : a == b ? OPER_EQ : OPER_LT, cmpif);
 }
 
-static void sngl_cmp_op(Vm *const vm, const Source src, const bool cmpif)
+static void sngl_cmp_op(Session *const S, const Source src, const bool cmpif)
 {
-    const Sngl b = operand(vm, src);
-    const int c = sngl_cmp(exec_pop(vm).u, b);
-    compared(vm, c > 0 ? OPER_GT : c == 0 ? OPER_EQ : OPER_LT, cmpif);
+    const Sngl b = operand(S, src);
+    const int c = sngl_cmp(exec_pop(&S->vm).u, b);
+    compared(S, c > 0 ? OPER_GT : c == 0 ? OPER_EQ : OPER_LT, cmpif);
 }
 
-void oper_i_cmp(Vm *const vm) { int_cmp(vm, POPPED, false); }
-void oper_i_cmp_v(Vm *const vm) { int_cmp(vm, VAR, false); }
-void oper_i_cmp_u8(Vm *const vm) { int_cmp(vm, U8, false); }
-void oper_i_cmpif(Vm *const vm) { int_cmp(vm, POPPED, true); }
-void oper_i_cmpif_v(Vm *const vm) { int_cmp(vm, VAR, true); }
-void oper_i_cmpif_u8(Vm *const vm) { int_cmp(vm, U8, true); }
-void oper_f_cmp(Vm *const vm) { sngl_cmp_op(vm, POPPED, false); }
-void oper_f_cmp_v(Vm *const vm) { sngl_cmp_op(vm, VAR, false); }
-void oper_f_cmp_vi(Vm *const vm) { sngl_cmp_op(vm, VAR_AS_SNGL, false); }
-void oper_f_cmp_u8(Vm *const vm) { sngl_cmp_op(vm, U8_AS_SNGL, false); }
-void oper_f_cmp_f32(Vm *const vm) { sngl_cmp_op(vm, F32, false); }
-void oper_f_cmpif(Vm *const vm) { sngl_cmp_op(vm, POPPED, true); }
-void oper_f_cmpif_v(Vm *const vm) { sngl_cmp_op(vm, VAR, true); }
-void oper_f_cmpif_vi(Vm *const vm) { sngl_cmp_op(vm, VAR_AS_SNGL, true); }
-void oper_f_cmpif_u8(Vm *const vm) { sngl_cmp_op(vm, U8_AS_SNGL, true); }
-void oper_f_cmpif_f32(Vm *const vm) { sngl_cmp_op(vm, F32, true); }
+void oper_i_cmp(Session *const S) { int_cmp(S, POPPED, false); }
+void oper_i_cmp_v(Session *const S) { int_cmp(S, VAR, false); }
+void oper_i_cmp_u8(Session *const S) { int_cmp(S, U8, false); }
+void oper_i_cmpif(Session *const S) { int_cmp(S, POPPED, true); }
+void oper_i_cmpif_v(Session *const S) { int_cmp(S, VAR, true); }
+void oper_i_cmpif_u8(Session *const S) { int_cmp(S, U8, true); }
+void oper_f_cmp(Session *const S) { sngl_cmp_op(S, POPPED, false); }
+void oper_f_cmp_v(Session *const S) { sngl_cmp_op(S, VAR, false); }
+void oper_f_cmp_vi(Session *const S) { sngl_cmp_op(S, VAR_AS_SNGL, false); }
+void oper_f_cmp_u8(Session *const S) { sngl_cmp_op(S, U8_AS_SNGL, false); }
+void oper_f_cmp_f32(Session *const S) { sngl_cmp_op(S, F32, false); }
+void oper_f_cmpif(Session *const S) { sngl_cmp_op(S, POPPED, true); }
+void oper_f_cmpif_v(Session *const S) { sngl_cmp_op(S, VAR, true); }
+void oper_f_cmpif_vi(Session *const S) { sngl_cmp_op(S, VAR_AS_SNGL, true); }
+void oper_f_cmpif_u8(Session *const S) { sngl_cmp_op(S, U8_AS_SNGL, true); }
+void oper_f_cmpif_f32(Session *const S) { sngl_cmp_op(S, F32, true); }
 
 /* IF: false ends the line. A SINGLE is false at +0 and -0. */
-void oper_i_if(Vm *const vm)
+void oper_i_if(Session *const S)
 {
-    if (!exec_popi(vm))
-        flow_nextln(vm);
+    if (!exec_popi(&S->vm))
+        flow_nextln(S);
 }
 
-void oper_f_if(Vm *const vm)
+void oper_f_if(Session *const S)
 {
-    if (!(exec_pop(vm).u & ~SNGL_SIGN))
-        flow_nextln(vm);
+    if (!(exec_pop(&S->vm).u & ~SNGL_SIGN))
+        flow_nextln(S);
 }
 
 /* ---- conversions ---------------------------------------------------------------------------- */
 
-void oper_i_tof(Vm *const vm) { vm->sp->u = fmth_from_i32(vm->sp->i); }
-void oper_f_toi(Vm *const vm) { vm->sp->i = fmth_to_i32(vm->sp->u); }
+void oper_i_tof(Session *const S) { S->vm.sp->u = fmth_from_i32(S->vm.sp->i); }
+void oper_f_toi(Session *const S) { S->vm.sp->i = fmth_to_i32(S, S->vm.sp->u); }
 
 /* A byte, 0..255. Illegal function call. */
-void oper_f_tob(Vm *const vm)
+void oper_f_tob(Session *const S)
 {
-    const int16_t v = fmth_to_i16(vm->sp->u);
+    const int16_t v = fmth_to_i16(S, S->vm.sp->u);
     if ((uint16_t)v > 255)
-        repl_error(E_IQ);
-    exec_pop(vm);
-    exec_pushi(vm, v);
+        repl_error(S, E_IQ);
+    exec_pop(&S->vm);
+    exec_pushi(&S->vm, v);
 }
 
 /* An address, 0..65535. */
-void oper_f_toa(Vm *const vm)
+void oper_f_toa(Session *const S)
 {
-    const uint16_t v = fmth_to_u16(vm->sp->u);
-    exec_pop(vm);
-    exec_pushi(vm, v);
+    const uint16_t v = fmth_to_u16(S, S->vm.sp->u);
+    exec_pop(&S->vm);
+    exec_pushi(&S->vm, v);
 }
 
-void oper_i_tob(Vm *const vm)
+void oper_i_tob(Session *const S)
 {
-    if (vm->sp->u > 255)
-        repl_error(E_IQ);
+    if (S->vm.sp->u > 255)
+        repl_error(S, E_IQ);
 }
 
-void oper_i_toa(Vm *const vm)
+void oper_i_toa(Session *const S)
 {
-    if (vm->sp->u > 65535)
-        repl_error(E_IQ);
+    if (S->vm.sp->u > 65535)
+        repl_error(S, E_IQ);
 }
 
-void oper_drop(Vm *const vm) { vm->sp++; }
+void oper_drop(Session *const S) { S->vm.sp++; }

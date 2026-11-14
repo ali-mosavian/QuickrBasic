@@ -48,34 +48,33 @@ typedef struct {
     uint8_t deft[26];            /* DEFtype's ET_*, by first letter (g_deft) */
     uint16_t vhead[HSIZE], nhead[HSIZE]; /* the hash chains' heads */
 } Symb;
-extern Symb symb;
 
-static inline Addr symb_cell(uint16_t id) { return symb.vars.at[0] + id * (uint32_t)sizeof(Cell); }
-static inline Var *symb_var(uint16_t id) { return (Var *)at(symb.vars.at[1]) + id; }
-static inline VarX *symb_varx(uint16_t id) { return (VarX *)at(symb.vars.at[2]) + id; }
-static inline Name *symb_name(uint16_t id) { return (Name *)at(symb.names.at[0]) + id; }
+static inline Addr symb_cell(const Symb *const sy, uint16_t id) { return sy->vars.at[0] + id * (uint32_t)sizeof(Cell); }
+static inline Var *symb_var(const Symb *const sy, uint16_t id) { return (Var *)at(sy->vars.at[1]) + id; }
+static inline VarX *symb_varx(const Symb *const sy, uint16_t id) { return (VarX *)at(sy->vars.at[2]) + id; }
+static inline Name *symb_name(const Symb *const sy, uint16_t id) { return (Name *)at(sy->names.at[0]) + id; }
 /* Name id's text: its length, then its letters. */
-static inline const uint8_t *symb_text(uint16_t id)
+static inline const uint8_t *symb_text(const Symb *const sy, uint16_t id)
 {
-    return at(symb.text.at[0] + symb_name(id)->text);
+    return at(sy->text.at[0] + symb_name(sy, id)->text);
 }
 
 /* The tables' blocks, after the program store's. */
-void symb_new(void);
+void symb_new(Session *S);
 /* Room for the program's variables before it runs (each M_VAR byte in the store counts one): they
    are made lazily, when the heap may hold strings and arrays and the block cannot grow. */
-void symb_size(void);
+void symb_size(Session *S);
 /* CLR: variables zeroed, arrays dropped, READ reset, the heap and the temporaries emptied. */
-void symb_clear(void);
+void symb_clear(Session *S);
 /* No names, no variables, no declarations. */
-void symb_init(void);
+void symb_init(Session *S);
 /* No variables; the names kept. */
-void symb_vars_init(void);
+void symb_vars_init(Session *S);
 /* The name of text[0..len) (no suffix), made when new (NM_FN when it starts FN). Out of memory:
    past 65535 names, or the heap not empty. */
-uint16_t symb_find_name(const uint8_t *text, uint8_t len);
+uint16_t symb_find_name(Session *S, const uint8_t *text, uint8_t len);
 /* The variable of name, type (ET_*) and kind (VI_ARR, the low bits as info's) in scope (0 the
    module, else a procedure), made when new, a scalar zeroed; a new one of a procedure joins its
    locals unless stat. Out of memory: past 65535 variables, or the heap not empty. */
-uint16_t symb_find_var(uint16_t name, uint8_t type, uint8_t kind, uint8_t scope, bool stat);
+uint16_t symb_find_var(Session *S, uint16_t name, uint8_t type, uint8_t kind, uint8_t scope, bool stat);
 #endif

@@ -23,38 +23,38 @@ typedef struct PACKED {
 static_assert(sizeof(Binding) == 20);
 
 /* No bindings. */
-void scop_init(void);
+void scop_init(Session *S);
 /* Scope's binding of name, nullptr none. */
-Binding *scop_get(uint16_t scope, uint16_t name);
+Binding *scop_get(Session *S, uint16_t scope, uint16_t name);
 /* Scope's binding of name, made (zeroed) when none. Out of memory past NBND. */
-Binding *scop_bind(uint16_t scope, uint16_t name);
+Binding *scop_bind(Session *S, uint16_t scope, uint16_t name);
 /* Procedure proc compiled (sets comp's cproc), 0 the module: the stack the module, then it. */
-void scop_proc(uint8_t proc);
+void scop_proc(Session *S, uint8_t proc);
 /* The scope a new name is made in: the top one not a DEF FN's. */
-uint16_t scop_own(void);
+uint16_t scop_own(Session *S);
 /* Name's binding from the top of the stack down, a zero one for none; *scope its scope, for none
    scop_own's. */
-const Binding *scop_look(uint16_t name, uint16_t *scope);
+const Binding *scop_look(Session *S, uint16_t name, uint16_t *scope);
 /* Name's declared type (ET_*), record TYPE and STRING * n, the array's when array, as the
    procedure compiled sees it; 0 none. */
-uint8_t scop_type(uint16_t name, bool array);
-uint8_t scop_rec(uint16_t name, bool array);
-uint16_t scop_fix(uint16_t name, bool array);
+uint8_t scop_type(Session *S, uint16_t name, bool array);
+uint8_t scop_rec(Session *S, uint16_t name, bool array);
+uint16_t scop_fix(Session *S, uint16_t name, bool array);
 /* Name used with suffix type (ET_*), the array when array: a CONST's type for a CONST, else type.
    Duplicate definition (E_RD): DIM AS another type, or a record. */
-uint8_t scop_sfx(uint16_t name, uint8_t type, bool array);
+uint8_t scop_sfx(Session *S, uint16_t name, uint8_t type, bool array);
 /* Name a CONST, as the procedure compiled sees it? */
-bool scop_con(uint16_t name);
+bool scop_con(Session *S, uint16_t name);
 /* Name bound, as the procedure compiled sees it? (The asm's CF is the opposite.) */
-bool scop_known(uint16_t name);
+bool scop_known(Session *S, uint16_t name);
 /* Name a variable the module shares: DIM SHARED, not a CONST? */
-bool scop_mshr(uint16_t name);
+bool scop_mshr(Session *S, uint16_t name);
 /* Label key (a name, or a line number when scope has SC_NUM) of scope at line. Duplicate label
    (E_DL): any scope has it. */
-void scop_label(uint16_t scope, uint16_t key, uint32_t line);
+void scop_label(Session *S, uint16_t scope, uint16_t key, uint32_t line);
 /* Label key of scope: its line, 0 when no scope has it. Subprogram error (E_SPE): another
    scope's. */
-uint32_t scop_lfind(uint16_t scope, uint16_t key);
+uint32_t scop_lfind(Session *S, uint16_t scope, uint16_t key);
 enum {
     NBND = 16384, /* numbered lines' too */
     NSCS = 4,
@@ -70,6 +70,5 @@ typedef struct {
     uint32_t lnbit[LNUM_LIMIT / WORD_BITS]; /* the line numbers a scope has */
     Binding bnd[NBND];
 } Scop;
-extern Scop scop;
 
 #endif

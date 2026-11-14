@@ -1,5 +1,6 @@
 /* The editor's screen (src/ui/draw.asm). */
 #include "ui/draw.h"
+#include "session.h"
 #include "plat/pkey.h"
 #include "ui/dpan.h"
 #include "ui/edit.h"
@@ -31,11 +32,11 @@ static bool inactive; /* dr_ina: drawing an edit window without the focus */
 static uint8_t sel;   /* dr_sk: edit_sel's for the window drawn */
 static char ttl[128]; /* ui_ttl: the window's title */
 
-void draw_all(void)
+void draw_all(Session *const S)
 {
     menu_bar();
-    wind_draw();
-    dpan_tip();
+    wind_draw(S);
+    dpan_tip(S);
     draw_status();
     /* the cursor in the window that has it, its shape the mode's */
     const uint16_t shape = uimn.ed.insert ? CURSOR_INSERT : CURSOR_OVERWRITE;
@@ -94,7 +95,7 @@ static void sel_row(const uint8_t row, const uint8_t col, const uint32_t line)
 }
 
 /* Text row r of the edit window. */
-static void draw_row(const uint16_t r)
+static void draw_row(Session *const S, const uint16_t r)
 {
     const UiEdit *const e = &uimn.ed;
     const uint8_t row = (uint8_t)(r + e->row0), col = e->x + 1;
@@ -106,15 +107,15 @@ static void draw_row(const uint16_t r)
     const uint8_t *src = uimn.edline.text; /* uimn.edline is the active window's */
     uint16_t len = uimn.edline.len;
     if (inactive || line != e->line) {
-        len = (uint16_t)text_get(line, uimn.line);
+        len = (uint16_t)text_get(S, line, uimn.line);
         src = uimn.line;
     }
     const uint16_t from = len > e->left ? len - e->left : 0; /* the part from left */
     const uint16_t n = from < e->width ? from : e->width;
     const uint8_t c = scrn_strn(row, col, src + e->left, n, SL_ED);
     scrn_fill(row, c, SL_ED, ' ', e->width - n);
-    synt_row(row, col, src, len);
-    udbg_row(row, col, line);
+    synt_row(S, row, col, src, len);
+    udbg_row(S, row, col, line);
     sel_row(row, col, line);
 }
 
@@ -153,7 +154,7 @@ static void draw_hbar(void)
     scrn_fill(row, (uint8_t)((uint8_t)thumb + 2 + e->x), SL_THB, ' ', 1);
 }
 
-void draw_edit(const bool ina)
+void draw_edit(Session *const S, const bool ina)
 {
     inactive = ina;
     const UiEdit *const e = &uimn.ed;
@@ -166,7 +167,7 @@ void draw_edit(const bool ina)
                top ? GLYPH_TOP_RIGHT : GLYPH_V_LEFT, ttl, has_focus(), true);
     sel = inactive ? SEL_NONE : edit_sel();
     for (uint16_t r = 0; r < e->rows; r++)
-        draw_row(r);
+        draw_row(S, r);
     if (has_focus()) { /* the bars: the window with the focus */
         draw_vbar();
         draw_hbar();

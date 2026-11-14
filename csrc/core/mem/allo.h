@@ -19,7 +19,7 @@ enum {
     POKESZ = 0x10000,
 };
 
-typedef void (*AlloMoved)(void); /* a block's: called when it moves or grows */
+typedef void (*AlloMoved)(Session *S); /* a block's: called when it moves or grows */
 
 typedef struct {
     Addr base;       /* its first byte */
@@ -37,21 +37,20 @@ typedef struct {
     Addr cs_top;        /* its top, frames down from it (CSTOP) */
     Addr poke;          /* the POKE memory, POKESZ bytes (g_pokeb) */
 } Allo;
-extern Allo allo;
 
 /* The arena [lo, hi): the heap all of it; then carves the headers, the control stack and the
    POKE memory. */
-void allo_init(Addr lo, Addr hi);
+void allo_init(Session *S, Addr lo, Addr hi);
 /* A fixed region of size bytes, zeroed, 16-aligned, from the heap's bottom. Only before the
    first allo_new. Out of memory past HMIN left. */
-Addr allo_carve(uint32_t size);
+Addr allo_carve(Session *S, uint32_t size);
 /* A block of size bytes after the last, the heap smaller by it; only while the heap is empty.
    Returns its handle. Out of memory: no room for it and HMIN, or NBLKH made. */
-uint32_t allo_new(uint32_t size, AlloMoved moved);
+uint32_t allo_new(Session *S, uint32_t size, AlloMoved moved);
 /* Block h to size bytes at least, half as many again: the blocks after it move up and each from
    it on is told. false: not grown, the heap not empty or without room. */
-bool allo_grow(uint32_t h, uint32_t size);
+bool allo_grow(Session *S, uint32_t h, uint32_t size);
 
-static inline Addr allo_base(uint32_t h) { return allo.block[h].base; }
-static inline uint32_t allo_cap(uint32_t h) { return allo.block[h].cap; }
+static inline Addr allo_base(const Allo *const al, uint32_t h) { return al->block[h].base; }
+static inline uint32_t allo_cap(const Allo *const al, uint32_t h) { return al->block[h].cap; }
 #endif

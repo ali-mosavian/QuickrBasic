@@ -78,7 +78,8 @@ flowchart TD
 ## Ownership
 
 - `app` creates the one `Session` and the one `Editor`. There are no other globals.
-- Every module owns one struct, and its functions take it (`Vm *`, `Editor *`).
+- Every module's state is one struct, a field of the `Session`. A function that reads or changes any of it takes `Session *S` first; the editor's take `Editor *`.
+- Hot accessors take only the part they touch (`exec_push(&S->vm, c)`), so headers need not see the whole `Session`.
 - Headers expose functions and opaque types. No module reads another's fields.
 - Memory is the arena only. No malloc.
 

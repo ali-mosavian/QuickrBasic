@@ -78,7 +78,6 @@ typedef struct {
     /* The compiled code, before link_xlate streams it into the cache. */
     uint8_t xbuf[XLIM + COMP_TAIL];
 } Comp;
-extern Comp comp;
 /* TVAR.info's ET_* to its kind: 0 FLOAT, 1 INT, 2 STRING, SK_DBL DOUBLE. */
 extern const uint8_t comp_etkind[7];
 
@@ -99,27 +98,27 @@ static inline uint8_t comp_suffixof(const uint8_t *const p)
 }
 
 /* Compiling */
-void comp_init(void);                    /* comp_cbuf carved (allo_carve) */
-void comp_line(void);                    /* the direct line in comp_cbuf, to comp_xbuf */
-void comp_text(const uint8_t *body);     /* the body at body to comp.buf; comp.len its length */
-[[noreturn]] void comp_fail(uint8_t err); /* repl_error while comp.busy: ERR, EOL, unwind */
-void comp_dfa(uint16_t state);           /* run the statement automaton from state */
+void comp_init(Session *S);                    /* comp_cbuf carved (allo_carve) */
+void comp_line(Session *S);                    /* the direct line in comp_cbuf, to comp_xbuf */
+void comp_text(Session *S, const uint8_t *body);     /* the body at body to comp.buf; comp.len its length */
+[[noreturn]] void comp_fail(Session *S, uint8_t err); /* repl_error while comp.busy: ERR, EOL, unwind */
+void comp_dfa(Session *S, uint16_t state);           /* run the statement automaton from state */
 uint8_t comp_expnames(uint16_t state, const char *names[]); /* what state wanted; PS_NC*2 room */
-void comp_expected(uint16_t state);      /* print it, "a, b or c" */
+void comp_expected(Session *S, uint16_t state);      /* print it, "a, b or c" */
 
 /* Emitters */
-void comp_byte(uint8_t b);               /* Out of memory past comp.lim */
-static inline void comp_op(uint8_t op) { comp_byte(op); }
-void comp_opb(uint8_t op, uint8_t b);    /* op, a byte */
-void comp_opw(uint8_t op, uint16_t w);   /* op, a word */
-void comp_opid(uint8_t op, uint16_t id); /* op, a variable; a parameter's X.LD.V/X.ST.V as V.LD/V.ST */
-void comp_word(uint16_t w);
-void comp_dword(uint32_t d);
-void comp_insert(uint8_t b, uint8_t *at); /* b at at, the code after it moved up */
-void comp_int(uint32_t n);               /* an INT load: I.LD.U8, I.LD.I16 or I.LD.I32 */
-void comp_call(uint8_t k);               /* CALL k */
-void comp_lref(void);                    /* a TLREF: comp.lnum, comp.jline */
-uint8_t *comp_intleaf(void);             /* the code's last op if an INT load, else null */
+void comp_byte(Session *S, uint8_t b);               /* Out of memory past comp.lim */
+static inline void comp_op(Session *const S, uint8_t op) { comp_byte(S, op); }
+void comp_opb(Session *S, uint8_t op, uint8_t b);    /* op, a byte */
+void comp_opw(Session *S, uint8_t op, uint16_t w);   /* op, a word */
+void comp_opid(Session *S, uint8_t op, uint16_t id); /* op, a variable; a parameter's X.LD.V/X.ST.V as V.LD/V.ST */
+void comp_word(Session *S, uint16_t w);
+void comp_dword(Session *S, uint32_t d);
+void comp_insert(Session *S, uint8_t b, uint8_t *at); /* b at at, the code after it moved up */
+void comp_int(Session *S, uint32_t n);               /* an INT load: I.LD.U8, I.LD.I16 or I.LD.I32 */
+void comp_call(Session *S, uint8_t k);               /* CALL k */
+void comp_lref(Session *S);                    /* a TLREF: comp.lnum, comp.jline */
+uint8_t *comp_intleaf(Session *S);             /* the code's last op if an INT load, else null */
 
 /* Type's one of four: INT, FLOAT, DOUBLE, STRING. */
 static inline uint8_t comp_pick(const uint8_t type, const uint8_t i, const uint8_t f, const uint8_t d,
@@ -134,39 +133,39 @@ static inline uint8_t comp_pick(const uint8_t type, const uint8_t i, const uint8
 }
 
 /* The value's type (comp.type); Type mismatch from a string where a number goes */
-void comp_toint(void);
-void comp_tofloat(void);                 /* an INT load just made loads a FLOAT instead */
-void comp_todouble(void);
-void comp_tostring(void);
-void comp_toinfo(uint8_t info);          /* as a variable of TVAR.info info holds it */
-void comp_tobyte(void);
-void comp_toaddr(void);
-void comp_dtest(void);                   /* cm_dnz: a DOUBLE test as an INT, D.NZ */
-void comp_target(uint16_t id);           /* variable id is the target: comp.tgt, tgtinfo */
-void comp_store(void);                   /* the value converted and stored to the target */
+void comp_toint(Session *S);
+void comp_tofloat(Session *S);                 /* an INT load just made loads a FLOAT instead */
+void comp_todouble(Session *S);
+void comp_tostring(Session *S);
+void comp_toinfo(Session *S, uint8_t info);          /* as a variable of TVAR.info info holds it */
+void comp_tobyte(Session *S);
+void comp_toaddr(Session *S);
+void comp_dtest(Session *S);                   /* cm_dnz: a DOUBLE test as an INT, D.NZ */
+void comp_target(Session *S, uint16_t id);           /* variable id is the target: comp.tgt, tgtinfo */
+void comp_store(Session *S);                   /* the value converted and stored to the target */
 
 /* The token reader: p at a byte or the spaces before it */
 uint8_t comp_peek(const uint8_t **p);    /* st_get: *p at the byte past spaces; it, 0 the end */
 uint8_t comp_next(const uint8_t **p);    /* st_getn: comp_peek a byte on */
-bool comp_eos(const uint8_t **p);        /* st_eos: *p at 0, ':', ', or ELSE in a one-line IF */
-static inline uint8_t comp_cur(void) { return comp_peek(&comp.p); }  /* st_get at comp.p */
-static inline uint8_t comp_curn(void) { return comp_next(&comp.p); } /* st_getn */
-static inline bool comp_end(void) { return comp_eos(&comp.p); }      /* st_eos */
-void comp_need(uint8_t b);               /* cm_chk: comp.p at b, stepped past; else Syntax error */
-static inline void comp_open(void) { comp_need('('); }
-static inline void comp_close(void) { comp_need(')'); }
-static inline void comp_comma(void) { comp_need(','); }
-void comp_equals(void);                  /* cm_chkeq: comp_need(TK_EQ) */
-bool comp_optcomma(void);                /* past a ',', if there */
-uint8_t comp_lnum(void);                 /* a line number or label to lnum, jline; the byte after */
+bool comp_eos(Session *S, const uint8_t **p);        /* st_eos: *p at 0, ':', ', or ELSE in a one-line IF */
+static inline uint8_t comp_cur(Comp *const c) { return comp_peek(&c->p); }  /* st_get at comp.p */
+static inline uint8_t comp_curn(Comp *const c) { return comp_next(&c->p); } /* st_getn */
+bool comp_end(Session *S); /* st_eos at comp.p */
+void comp_need(Session *S, uint8_t b);               /* cm_chk: comp.p at b, stepped past; else Syntax error */
+static inline void comp_open(Session *const S) { comp_need(S, '('); }
+static inline void comp_close(Session *const S) { comp_need(S, ')'); }
+static inline void comp_comma(Session *const S) { comp_need(S, ','); }
+void comp_equals(Session *S);                  /* cm_chkeq: comp_need(TK_EQ) */
+bool comp_optcomma(Session *S);                /* past a ',', if there */
+uint8_t comp_lnum(Session *S);                 /* a line number or label to lnum, jline; the byte after */
 
 /* Names and variables */
-uint16_t comp_name(void);                /* cm_name: the M_VAR at comp.p as comp_var(0, 0) */
-uint16_t comp_var(uint8_t shape, uint8_t et); /* var_id: shape 1 a scalar, 2 an array, 0 by '(';
+uint16_t comp_name(Session *S);                /* cm_name: the M_VAR at comp.p as comp_var(0, 0) */
+uint16_t comp_var(Session *S, uint8_t shape, uint8_t et); /* var_id: shape 1 a scalar, 2 an array, 0 by '(';
                                             et its type, 0 by suffix, AS, DEFtype */
-bool comp_ispar(uint16_t id);            /* a scalar parameter of the procedure compiled */
-bool comp_param(uint16_t name, uint8_t array, uint16_t *id); /* var_par: array 80h */
-void comp_scope(uint16_t name);          /* var_scope: comp.scope, comp.isstatic for it */
+bool comp_ispar(Session *S, uint16_t id);            /* a scalar parameter of the procedure compiled */
+bool comp_param(Session *S, uint16_t name, uint8_t array, uint16_t *id); /* var_par: array 80h */
+void comp_scope(Session *S, uint16_t name);          /* var_scope: comp.scope, comp.isstatic for it */
 uint8_t comp_suffix(uint8_t c);          /* et_sfx: % & ! # $ to ET_*, 0 none */
 const uint8_t *comp_label(const uint8_t *body); /* lbl_at: a label starts body: its ':', else null */
 uint16_t comp_nameof(const uint8_t *at); /* lbl_nam: the name of the M_VAR at at */

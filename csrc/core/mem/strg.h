@@ -18,15 +18,14 @@ typedef struct {
     Addr low;           /* the lowest string block (mm.sfr) */
     uint8_t near_buf[NEAR_MAX + 1]; /* strg_near's */
 } Strg;
-extern Strg strg;
 
 /* The comparison's result (strg_cmp). */
 enum : uint8_t { SCMP_GT = 1, SCMP_EQ = 2, SCMP_LT = 4 };
 
 /* The temporaries' region carved. */
-void strg_init(void);
+void strg_init(Session *S);
 /* The length and chars of the Desc at desc; the top temporary is popped. */
-Desc strg_get(Addr desc);
+Desc strg_get(Session *S, Addr desc);
 /* The Desc at desc, the temporaries untouched. */
 static inline Desc strg_peek(const Addr desc)
 {
@@ -35,26 +34,26 @@ static inline Desc strg_peek(const Addr desc)
     return s;
 }
 /* A new temporary for s. String formula too complex (E_ST): NTMP in use. */
-Addr strg_push(Desc s);
+Addr strg_push(Session *S, Desc s);
 /* A heap block for len chars, no owner yet; returns its chars. Collects when full. Out of
    memory. */
-Addr strg_alloc(uint16_t len);
+Addr strg_alloc(Session *S, uint16_t len);
 /* A new temporary for the block strg_alloc made, which it owns. */
-Addr strg_new(Addr chars, uint16_t len);
+Addr strg_new(Session *S, Addr chars, uint16_t len);
 /* The block of len chars at chars owned by the Desc at owner. */
 void strg_own(Addr chars, uint16_t len, Addr owner);
 /* Collect the heap: the live blocks slide up, their owners follow, the dead go; low set. */
-void strg_gc(void);
+void strg_gc(Session *S);
 /* Store value in the Desc at desc: pointed at when empty or in the program store, a temporary's
    own block taken over, else copied. Out of memory. */
-void strg_set(Addr value, Addr desc);
+void strg_set(Session *S, Addr value, Addr desc);
 /* s's first 255 chars, a 0 after them, in a buffer of strg's. */
-const uint8_t *strg_near(Desc s);
+const uint8_t *strg_near(Session *S, Desc s);
 /* Print s's chars through cons (asm io_putc), 255 at a time. */
-void strg_print(Desc s);
+void strg_print(Session *S, Desc s);
 /* A READ or INPUT item at *pos (spaces before it skipped): "quoted", or up to ',' ':' or the end;
    a temporary for its text in place. *pos at its end (past a closing quote). */
-Addr strg_item(Addr *pos);
+Addr strg_item(Session *S, Addr *pos);
 /* Past the closing quote at p, if p is not at the 0. */
 const uint8_t *strg_skipq(const uint8_t *p);
 /* The text at *p up to a 0, stop1 or stop2: its length; *p at the stop. */
@@ -62,13 +61,13 @@ uint32_t strg_span(const uint8_t **p, uint8_t stop1, uint8_t stop2);
 /* The length in the Desc at desc (no pop). */
 uint16_t strg_len(Addr desc);
 /* left + right, a new temporary. String too long (E_LS): over SMAX. */
-Addr strg_cat(Addr left, Addr right);
+Addr strg_cat(Session *S, Addr left, Addr right);
 /* left against right, a prefix less: SCMP_*. */
-uint8_t strg_cmp(Addr left, Addr right);
+uint8_t strg_cmp(Session *S, Addr left, Addr right);
 /* A new temporary of desc's chars from start (0 the first), most of them. */
-Addr strg_sub(Addr desc, uint16_t start, uint16_t most);
+Addr strg_sub(Session *S, Addr desc, uint16_t start, uint16_t most);
 /* len chars from src copied to the block at chars (strg_alloc's): a new temporary. */
-Addr strg_tods(Addr chars, Addr src, uint16_t len);
+Addr strg_tods(Session *S, Addr chars, Addr src, uint16_t len);
 /* A new temporary for the first len chars of cons's sbuf (asm g_sbuf). */
-Addr strg_buftmp(uint16_t len);
+Addr strg_buftmp(Session *S, uint16_t len);
 #endif

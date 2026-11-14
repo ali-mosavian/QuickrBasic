@@ -1,5 +1,6 @@
 /* The mouse in the editor (src/ui/mouse.asm). */
 #include "ui/mous.h"
+#include "session.h"
 #include "plat/pkey.h"
 #include "ui/dpan.h"
 #include "ui/draw.h"
@@ -76,45 +77,45 @@ bool mous_title(const uint8_t col, uint8_t *const menu)
 }
 
 /* A press on the edit window's scroll bar at row. */
-static void scroll_bar(const uint8_t row)
+static void scroll_bar(Session *const S, const uint8_t row)
 {
     const UiEdit *const e = &uimn.ed;
     if (row == e->row0) {
-        edit_up();
+        edit_up(S);
         return;
     }
     if (row == (uint8_t)(e->row0 + e->rows - 1)) {
-        edit_down();
+        edit_down(S);
         return;
     }
     uint32_t thumb = e->line * (uint32_t)(e->rows - 3); /* above the thumb or below it */
     if (uimn.text.n)
         thumb /= uimn.text.n;
     if (row < (uint8_t)(thumb + e->row0 + 1))
-        edit_pgup();
+        edit_pgup(S);
     else
-        edit_pgdn();
+        edit_pgdn(S);
 }
 
 /* A press on the status bar at col: the key there run. */
-static void status_bar(const uint8_t col)
+static void status_bar(Session *const S, const uint8_t col)
 {
     if (uimn.help)
         return;
     for (const StatusKey *k = draw_keys()->keys; k->run; k++)
         if (col <= k->last) {
-            k->run();
+            k->run(S);
             return;
         }
 }
 
 /* The event in edit window w at row, col: its focus on a press, the cursor there, a selection
    on a drag or a Shift+click; a press on its scroll bar. */
-static void edit_click(const uint8_t w, const uint8_t row, const uint8_t col)
+static void edit_click(Session *const S, const uint8_t w, const uint8_t row, const uint8_t col)
 {
     const UiMouse *const m = &uimn.mouse;
     if (m->event == MS_PRESS) /* a press: the focus there; a drag stays in its window */
-        wind_focus(w);
+        wind_focus(S, w);
     else {
         const uint8_t cur = wind_cur();
         if (cur != uimn.win.active && cur != W_IMM)
@@ -129,7 +130,7 @@ static void edit_click(const uint8_t w, const uint8_t row, const uint8_t col)
     const uint8_t c = (uint8_t)(col - e->x - 1); /* the text's column */
     if (c == (uint8_t)e->width) {
         if (m->event == MS_PRESS)
-            scroll_bar(row);
+            scroll_bar(S, row);
         return;
     }
     if (c > (uint8_t)e->width)
@@ -140,12 +141,12 @@ static void edit_click(const uint8_t w, const uint8_t row, const uint8_t col)
         edit_sel_mark();
     else
         e->sel_on = false;
-    if (!edit_goto(line))
+    if (!edit_goto(S, line))
         return;
     uimn.edline.col = (uint16_t)(col - e->x - 1 + e->left);
 }
 
-void mous_main(void)
+void mous_main(Session *const S)
 {
     const UiMouse *const m = &uimn.mouse;
     const uint8_t row = m->row, col = m->col;
@@ -158,19 +159,19 @@ void mous_main(void)
     if (!row) {
         uint8_t menu;
         if (m->event == MS_PRESS && mous_title(col, &menu))
-            menu_run(menu, true);
+            menu_run(S, menu, true);
         return;
     }
     if (row == STATUS_ROW) {
         if (m->event == MS_PRESS)
-            status_bar(col);
+            status_bar(S, col);
         return;
     }
     uint8_t w;
     if (!wind_at(row, col, &w))
         return;
     if (w == W_DBG)
-        dpan_mouse(row, col);
+        dpan_mouse(S, row, col);
     else if (w >= W_ED1)
-        edit_click(w, row, col);
+        edit_click(S, w, row, col);
 }

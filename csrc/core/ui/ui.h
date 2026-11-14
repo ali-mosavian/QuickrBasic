@@ -119,7 +119,7 @@ typedef struct {
    command; text the bar's line. */
 typedef struct {
     uint8_t last;
-    void (*run)(void);
+    void (*run)(Session *S);
 } StatusKey;
 typedef struct {
     const char *text;

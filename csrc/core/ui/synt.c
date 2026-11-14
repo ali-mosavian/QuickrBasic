@@ -3,6 +3,7 @@
    item makes of the next: after AS or TYPE a type; after SUB, FUNCTION, DEF a name being
    declared, then its parameters in the ( ) after it, depth deep. */
 #include "ui/synt.h"
+#include "session.h"
 #include "ui/scrn.h"
 #include "comp/comp.h"
 #include "comp/dfa.h"
@@ -138,7 +139,7 @@ static uint8_t item(const uint8_t c, const uint8_t **const p, uint8_t *const sta
 }
 
 /* hl.cols for the len characters at text. */
-static void line(const uint8_t *const text, const uint32_t len)
+static void line(Session *const S, const uint8_t *const text, const uint32_t len)
 {
     const uint32_t n = len > LNMAX ? LNMAX : len;
     hl.len = n;
@@ -146,15 +147,15 @@ static void line(const uint8_t *const text, const uint32_t len)
     uimn.line[n] = 0;
     hl.prev_col = 0;
     hl.prev_slot = SL_ED;
-    lexr_line(uimn.line, comp.cbuf);
-    const uint8_t *p = comp.cbuf;
+    lexr_line(S, uimn.line, S->comp.cbuf);
+    const uint8_t *p = S->comp.cbuf;
     hl.state = 0;
     hl.depth = 0;
     for (;;) {
-        const uint32_t off = (uint32_t)(p - comp.cbuf);
+        const uint32_t off = (uint32_t)(p - S->comp.cbuf);
         if (off >= LMAX)
             break;
-        const uint32_t col = lexr.col[off];
+        const uint32_t col = S->lexr.col[off];
         const uint8_t c = *p++;
         if (!c)
             break;
@@ -177,11 +178,11 @@ static void line(const uint8_t *const text, const uint32_t len)
     paint(hl.len, hl.prev_slot);
 }
 
-void synt_row(const uint8_t row, const uint8_t col, const uint8_t *const text, const uint32_t len)
+void synt_row(Session *const S, const uint8_t row, const uint8_t col, const uint8_t *const text, const uint32_t len)
 {
     if (!synt.on)
         return;
-    line(text, len);
+    line(S, text, len);
     const uint32_t left = uimn.ed.left;
     for (uint16_t i = 0; i < uimn.ed.width && left + i < hl.len; i++)
         if (hl.cols[i] != SL_ED)

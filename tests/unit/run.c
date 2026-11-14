@@ -1,6 +1,7 @@
 /* Runs every TEST, once the core is booted; exits 1 when one failed. */
 #include <stdio.h>
 #include "boot.h"
+#include "session.h"
 #include "unit.h"
 
 enum { MAX_TESTS = 256 };
@@ -24,12 +25,15 @@ void unit_fail(const char *const file, const int line, const char *const what)
     fprintf(stderr, "FAIL %s: %s:%d: %s\n", current, file, line, what);
 }
 
+static Session session;
+
 int main(void)
 {
-    boot();
+    Session *const S = &session;
+    boot(S);
     for (uint32_t i = 0; i < ntests; i++) {
         current = tests[i].name;
-        tests[i].fn();
+        tests[i].fn(S);
     }
     printf("%u tests, %u failures\n", ntests, failures);
     return failures ? 1 : 0;

@@ -5,19 +5,19 @@
 #include "vm/exec.h"
 
 /* READ's buffer carved (g_rdbuf: a READ item's temporary points into it). */
-void stmt_init(void);
+void stmt_init(Session *S);
 /* ex_runfirst: run from the first line (END at once with none); vm.ip set, files closed. */
-void stmt_runfirst(void);
+void stmt_runfirst(Session *S);
 /* ex_rungo: both stacks emptied, events, COMMON and ON ERROR cleared; on at line. */
-void stmt_rungo(uint32_t line);
+void stmt_rungo(Session *S, uint32_t line);
 /* rd_first: the next READ starts at the first DATA. */
-void stmt_restore(void);
+void stmt_restore(Session *S);
 /* sc_cont, K_CONT: on where the run stopped. Can't continue: no place. */
-void stmt_cont(Vm *vm);
+void stmt_cont(Session *S);
 /* sc_end, K_END: CONT goes on after it; READY. */
-[[noreturn]] void stmt_end(Vm *vm);
+[[noreturn]] void stmt_end(Session *S);
 /* sc_stop, K_STOP: CONT goes on at vm.ip; BREAK. */
-[[noreturn]] void stmt_stop(Vm *vm);
+[[noreturn]] void stmt_stop(Session *S);
 /* READ's and INPUT's state */
 typedef struct {
     uint8_t *data_text;        /* g_rdbuf: the DATA in hand's text, in the arena */
@@ -28,6 +28,5 @@ typedef struct {
     uint8_t *input_start;      /* REDO comes back here */
     bool redo;                 /* a bad field: REDO FROM START after the stores */
 } StmtState;
-extern StmtState stmt;
 
 #endif

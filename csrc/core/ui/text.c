@@ -1,5 +1,6 @@
 /* The editor's text, the clipboard, files (src/ui/text.asm). */
 #include "ui/text.h"
+#include "session.h"
 #include "ui/edit.h"
 #include "ui/lmap.h"
 #include "comp/comp.h"
@@ -42,30 +43,30 @@ void text_view(const uint32_t first, const uint32_t n)
     uimn.text.n = n;
 }
 
-uint32_t text_rec(const uint32_t line) { return lmap_off(line + uimn.text.first); }
+uint32_t text_rec(Session *const S, const uint32_t line) { return lmap_off(S, line + uimn.text.first); }
 
 /* The line of record rec into dst; its length. */
-static uint32_t text_of(const uint32_t rec, uint8_t *const dst)
+static uint32_t text_of(Session *const S, const uint32_t rec, uint8_t *const dst)
 {
-    const Line *const p = prog_line(rec);
+    const Line *const p = prog_line(&S->prog, rec);
     const uint32_t pre = p->pre;
-    memcpy(dst, at(prog_addr(rec + p->len - pre)), pre);
+    memcpy(dst, at(prog_addr(&S->prog, rec + p->len - pre)), pre);
     if (p->flags & LF_ASIS)
         return pre;
-    const uint32_t sblen = cons.sblen; /* sbuf's user's, kept */
-    const uint8_t capture = cons.capture, col = cons.col;
-    cons.capture = CAP_SBUF;
-    cons.sblen = 0;
-    list_body(at(prog_addr(rec + HDR)));
-    const uint32_t n = pre + cons.sblen;
-    memcpy(dst + pre, cons.sbuf, cons.sblen);
-    cons.capture = capture;
-    cons.col = col;
-    cons.sblen = sblen;
+    const uint32_t sblen = S->cons.sblen; /* sbuf's user's, kept */
+    const uint8_t capture = S->cons.capture, col = S->cons.col;
+    S->cons.capture = CAP_SBUF;
+    S->cons.sblen = 0;
+    list_body(S, at(prog_addr(&S->prog, rec + HDR)));
+    const uint32_t n = pre + S->cons.sblen;
+    memcpy(dst + pre, S->cons.sbuf, S->cons.sblen);
+    S->cons.capture = capture;
+    S->cons.col = col;
+    S->cons.sblen = sblen;
     return n;
 }
 
-uint32_t text_get(const uint32_t line, uint8_t *const dst) { return text_of(text_rec(line), dst); }
+uint32_t text_get(Session *const S, const uint32_t line, uint8_t *const dst) { return text_of(S, text_rec(S, line), dst); }
 
 /* The line number text's first end characters start with, past blanks: LNUM_LIMIT when past;
    NONUM none. */
@@ -85,79 +86,79 @@ static uint16_t number(const uint8_t *const text, const uint32_t end)
 }
 
 /* LIST's spelling of the body in comp_cbuf, after pre_len characters, fits an editor line. */
-static bool spelling_fits(const uint32_t pre_len)
+static bool spelling_fits(Session *const S, const uint32_t pre_len)
 {
-    cons.capture = CAP_SBUF;
-    cons.sblen = 0;
-    list_body(comp.cbuf);
-    cons.capture = 0;
-    return cons.sblen + pre_len <= LNMAX;
+    S->cons.capture = CAP_SBUF;
+    S->cons.sblen = 0;
+    list_body(S, S->comp.cbuf);
+    S->cons.capture = 0;
+    return S->cons.sblen + pre_len <= LNMAX;
 }
 
 /* The line of len characters at src made a record's: its body in comp_cbuf, its number, its text
    before the body (prog.pre); as typed when uimn.text.asis (used up) or when LIST would spell it
    past an editor line. src is kept till the record is filled. */
-static Made make(const uint8_t *const src, const uint32_t len)
+static Made make(Session *const S, const uint8_t *const src, const uint32_t len)
 {
     Made m = {};
-    prog.pre = src;
+    S->prog.pre = src;
     uint8_t *const text = uimn.line; /* a copy, 0-ended, worked on: the lexer changes its text */
     memmove(text, src, len);
     text[len] = 0;
     uint8_t *const body = edit_body(text);
-    prog.pre_len = (uint32_t)(body - text);
-    m.num = number(text, prog.pre_len);
-    vm.line = DLINE;
-    m.len = (uint32_t)(lexr_line(body, comp.cbuf) - comp.cbuf);
+    S->prog.pre_len = (uint32_t)(body - text);
+    m.num = number(text, S->prog.pre_len);
+    S->vm.line = DLINE;
+    m.len = (uint32_t)(lexr_line(S, body, S->comp.cbuf) - S->comp.cbuf);
     const bool asis = uimn.text.asis;
     uimn.text.asis = false;
-    if (!asis && spelling_fits(prog.pre_len))
+    if (!asis && spelling_fits(S, S->prog.pre_len))
         return m;
-    prog.pre_len = len;
+    S->prog.pre_len = len;
     m.flags = LF_ASIS;
     return m;
 }
 
 /* The line of len characters at src stored as text line line: before it (insert), else in its
    place, its mark kept. */
-static void put(const uint32_t line, const uint8_t *const src, const uint32_t len,
+static void put(Session *const S, const uint32_t line, const uint8_t *const src, const uint32_t len,
                 const bool insert)
 {
-    Made m = make(src, len);
-    const uint32_t rec = lmap_off(line);
+    Made m = make(S, src, len);
+    const uint32_t rec = lmap_off(S, line);
     if (!insert) {
-        m.flags |= prog_line(rec)->flags & LF_BP;
-        prog_cut(rec);
+        m.flags |= prog_line(&S->prog, rec)->flags & LF_BP;
+        prog_cut(S, rec);
     }
-    prog.add_flags = m.flags;
-    prog_ins(rec, m.num, comp.cbuf, m.len);
-    prog.add_flags = 0;
+    S->prog.add_flags = m.flags;
+    prog_ins(S, rec, m.num, S->comp.cbuf, m.len);
+    S->prog.add_flags = 0;
     uimn.text.changed = true;
-    lmap_build();
+    lmap_build(S);
 }
 
 /* The line of len characters at src stored after the rest, the map not made. */
-static void add(const uint8_t *const src, const uint32_t len)
+static void add(Session *const S, const uint8_t *const src, const uint32_t len)
 {
-    const Made m = make(src, len);
-    prog.add_flags = m.flags;
-    prog.add_at = 0;
-    prog_add(m.num, comp.cbuf, m.len);
-    prog.add_flags = 0;
+    const Made m = make(S, src, len);
+    S->prog.add_flags = m.flags;
+    S->prog.add_at = 0;
+    prog_add(S, m.num, S->comp.cbuf, m.len);
+    S->prog.add_flags = 0;
 }
 
-void text_init(void)
+void text_init(Session *const S)
 {
     uimn.text.changed = true;
-    prog_init();
-    add(uimn.build, 0);
-    lmap_build();
+    prog_init(S);
+    add(S, uimn.build, 0);
+    lmap_build(S);
     text_whole();
 }
 
-void text_repl(const uint32_t line, const uint8_t *const src, const uint16_t len)
+void text_repl(Session *const S, const uint32_t line, const uint8_t *const src, const uint16_t len)
 {
-    put(line + uimn.text.first, src, len, false);
+    put(S, line + uimn.text.first, src, len, false);
 }
 
 /* A line added (delta 1) or removed (-1): the hook told. */
@@ -167,37 +168,37 @@ static void tell(const uint32_t line, const int32_t delta)
         uimn.text.hook(line, delta);
 }
 
-void text_insert(const uint32_t line, const uint8_t *const src, const uint16_t len)
+void text_insert(Session *const S, const uint32_t line, const uint8_t *const src, const uint16_t len)
 {
     const uint32_t in_view = line > uimn.text.n ? uimn.text.n : line; /* past the view: its end */
     const uint32_t whole = in_view + uimn.text.first;
-    put(whole, src, len, true);
+    put(S, whole, src, len, true);
     uimn.text.n++;
     tell(whole, 1);
 }
 
-void text_delete(const uint32_t line)
+void text_delete(Session *const S, const uint32_t line)
 {
     if (uimn.text.n <= 1) { /* the view's last line is emptied */
-        text_repl(line, uimn.build, 0);
+        text_repl(S, line, uimn.build, 0);
         return;
     }
-    prog_cut(text_rec(line));
-    prog_drop();
+    prog_cut(S, text_rec(S, line));
+    prog_drop(S);
     uimn.text.changed = true;
-    lmap_build();
+    lmap_build(S);
     uimn.text.n--;
     tell(line + uimn.text.first, -1);
 }
 
-bool text_mark(const uint32_t line) { return prog_line(text_rec(line))->flags & LF_BP; }
+bool text_mark(Session *const S, const uint32_t line) { return prog_line(&S->prog, text_rec(S, line))->flags & LF_BP; }
 
-void text_toggle(const uint32_t line) { prog_line(text_rec(line))->flags ^= LF_BP; }
+void text_toggle(Session *const S, const uint32_t line) { prog_line(&S->prog, text_rec(S, line))->flags ^= LF_BP; }
 
-void text_unmark_all(void)
+void text_unmark_all(Session *const S)
 {
-    for (uint32_t rec = PROGBASE; prog_line(rec)->len; rec += prog_line(rec)->len)
-        prog_line(rec)->flags &= ~LF_BP;
+    for (uint32_t rec = PROGBASE; prog_line(&S->prog, rec)->len; rec += prog_line(&S->prog, rec)->len)
+        prog_line(&S->prog, rec)->flags &= ~LF_BP;
 }
 
 void text_clip_put(const uint8_t *const src, const uint16_t len, const bool lines)
@@ -207,11 +208,11 @@ void text_clip_put(const uint8_t *const src, const uint16_t len, const bool line
     memmove(uimn.text.clip, src, len);
 }
 
-void text_clip_lines(const uint32_t from, const uint32_t to)
+void text_clip_lines(Session *const S, const uint32_t from, const uint32_t to)
 {
     uint32_t n = 0;
     for (uint32_t line = from; line <= to; line++) {
-        const uint32_t len = text_get(line, uimn.build);
+        const uint32_t len = text_get(S, line, uimn.build);
         if (n + len + 1 > UINT16_MAX)
             break;
         memcpy(uimn.text.clip + n, uimn.build, len);
@@ -246,26 +247,26 @@ static bool next(uint8_t *const c)
 }
 
 /* The line read, len long in uimn.build, stored. */
-static void read_line(const uint32_t len)
+static void read_line(Session *const S, const uint32_t len)
 {
-    if (!edit_canon(uimn.build, (uint16_t)len))
+    if (!edit_canon(S, uimn.build, (uint16_t)len))
         uimn.text.asis = true;
-    add(uimn.build, len);
+    add(S, uimn.build, len);
     io.lines++;
 }
 
 /* A line's end c (CR, CR LF, LF) after n characters in uimn.build: the line stored, or, continued
    with '_', the '_' a blank and the next line's indent dropped; the characters kept. */
-static uint32_t line_end(const uint8_t c, uint32_t n)
+static uint32_t line_end(Session *const S, const uint8_t c, uint32_t n)
 {
     uint8_t *const buf = uimn.build;
     uint8_t after;
     if (c == NL && peek(&after) && after == LF)
         io.pos++;
-    const bool more = srcr_phys_end();
-    srcr_phys_start();
+    const bool more = srcr_phys_end(S);
+    srcr_phys_start(S);
     if (!more) {
-        read_line(n);
+        read_line(S, n);
         return 0;
     }
     while (n && buf[n - 1] == ' ')
@@ -279,10 +280,10 @@ static uint32_t line_end(const uint8_t c, uint32_t n)
 
 /* Character c after n in uimn.build: a tab spaces to the next stop, past LNMAX cut; the
    characters now. */
-static uint32_t line_char(const uint8_t c, uint32_t n)
+static uint32_t line_char(Session *const S, const uint8_t c, uint32_t n)
 {
     uint8_t *const buf = uimn.build;
-    srcr_phys_byte(c);
+    srcr_phys_byte(S, c);
     if (n >= LNMAX)
         return n;
     if (c != CH_TAB) {
@@ -295,24 +296,24 @@ static uint32_t line_char(const uint8_t c, uint32_t n)
     return n;
 }
 
-uint16_t text_read(const char *const name)
+uint16_t text_read(Session *const S, const char *const name)
 {
     const uint16_t e = pfil_open(name, PFIL_READ, &io.h);
     if (e != PFIL_OK)
         return e;
     io.pos = io.cnt = 0;
     uimn.text.changed = true;
-    prog_init();
+    prog_init(S);
     io.lines = 0;
     uint32_t n = 0; /* the line's characters, its column */
-    srcr_phys_start();
+    srcr_phys_start(S);
     uint8_t c;
     while (next(&c) && c != CH_EOF)
-        n = c == LF || c == NL ? line_end(c, n) : line_char(c, n);
+        n = c == LF || c == NL ? line_end(S, c, n) : line_char(S, c, n);
     if (n || !io.lines) /* the last line, unended */
-        read_line(n);
+        read_line(S, n);
     pfil_close(io.h);
-    lmap_build();
+    lmap_build(S);
     text_whole();
     return PFIL_OK;
 }
@@ -335,7 +336,7 @@ static void flush(void)
     out(io.buf, n);
 }
 
-uint16_t text_write(const char *const name)
+uint16_t text_write(Session *const S, const char *const name)
 {
     const uint16_t e = pfil_create(name, &io.h);
     if (e != PFIL_OK)
@@ -344,7 +345,7 @@ uint16_t text_write(const char *const name)
     io.err = 0;
     uint8_t *const buf = uimn.build;
     for (uint32_t line = 0; line < uimn.text.all; line++) {
-        uint32_t len = text_of(lmap_off(line), buf);
+        uint32_t len = text_of(S, lmap_off(S, line), buf);
         buf[len++] = NL;
         buf[len++] = LF;
         if (io.cnt + len > RDSZ) {

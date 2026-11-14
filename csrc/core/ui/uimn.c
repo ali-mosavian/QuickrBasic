@@ -1,5 +1,6 @@
 /* The editor: its start, the key loop, the menu commands, running the program (src/ui/ui.asm). */
 #include "ui/uimn.h"
+#include "session.h"
 #include "io/cons.h"
 #include "io/repl.h"
 #include "mem/allo.h"
@@ -73,14 +74,14 @@ static const char s_welcome[] = "Welcome to QuickrBasic||"
 static const char s_anykey[] = "Press any key to continue";
 static const MsgButton bt_welcome[] = {{"Press Esc to clear this dialog box", 0}, {}};
 
-[[noreturn]] static void loop(void);
-static void exec_line(void);
+[[noreturn]] static void loop(Session *S);
+static void exec_line(Session *S);
 
 /* ui_win: F6. */
-static void next_window(void) { wind_next(); }
+static void next_window(Session *const S) { wind_next(S); }
 
 /* ui_nohelp: F1. */
-static void nohelp(void) { dlog_ok(s_nohelp); }
+static void nohelp(Session *const S) { dlog_ok(S, s_nohelp); }
 
 /* QBasic's status lines (qbasmsgs.txt) less the keys we lack; their keys for the mouse. */
 const StatusKeys uimn_keys_edit = {
@@ -126,13 +127,13 @@ static void page_out(void)
 }
 
 /* ui_outclr: page 1 shown and cleared. */
-static void page_clear(void)
+static void page_clear(Session *const S)
 {
     them_out();
     pscr_page(PAGE_OUT);
     pscr_scroll(0, 0, 0, PSCR_ROWS - 1, PSCR_COLS - 1, ATTR_PLAIN);
     pscr_cursor(PAGE_OUT, 0, 0);
-    cons.col = 0;
+    S->cons.col = 0;
 }
 
 /* ---- keys */
@@ -176,11 +177,11 @@ uint16_t uimn_getkey(void)
 }
 
 /* im_key: a key in the immediate window. */
-static void imm_key(const uint16_t key)
+static void imm_key(Session *const S, const uint16_t key)
 {
     const uint8_t ch = (uint8_t)key, scan = (uint8_t)(key >> 8);
     if (ch == CH_ENTER) {
-        exec_line();
+        exec_line(S);
         return;
     }
     if (!ch) {
@@ -213,17 +214,17 @@ static const struct {
     {CTRL('C'), SCAN_CTRL_END}, {CTRL('Y'), 0},
 };
 
-static void lb_left(void) { edit_lb_left(&uimn.edline); }
-static void lb_right(void) { edit_lb_right(&uimn.edline); }
-static void lb_home(void) { edit_lb_home(&uimn.edline); }
-static void lb_end(void) { edit_lb_end(&uimn.edline); }
-static void lb_wleft(void) { edit_lb_wleft(&uimn.edline); }
-static void lb_wright(void) { edit_lb_wright(&uimn.edline); }
+static void lb_left(Session *const S) { edit_lb_left(&uimn.edline); }
+static void lb_right(Session *const S) { edit_lb_right(&uimn.edline); }
+static void lb_home(Session *const S) { edit_lb_home(&uimn.edline); }
+static void lb_end(Session *const S) { edit_lb_end(&uimn.edline); }
+static void lb_wleft(Session *const S) { edit_lb_wleft(&uimn.edline); }
+static void lb_wright(Session *const S) { edit_lb_wright(&uimn.edline); }
 
 /* The keys that move the cursor. */
 static const struct {
     uint8_t scan;
-    void (*run)(void);
+    void (*run)(Session *S);
 } moves[] = {
     {SCAN_UP, edit_up},         {SCAN_DOWN, edit_down},     {SCAN_LEFT, lb_left},
     {SCAN_RIGHT, lb_right},     {SCAN_HOME, lb_home},       {SCAN_END, lb_end},
@@ -231,10 +232,10 @@ static const struct {
     {SCAN_CTRL_END, edit_last}, {SCAN_CTRL_LEFT, lb_wleft}, {SCAN_CTRL_RIGHT, lb_wright},
 };
 
-static void edit_key(uint16_t key);
+static void edit_key(Session *S, uint16_t key);
 
 /* An extended key (character 0) in the program window. */
-static void edit_scan(const uint8_t scan)
+static void edit_scan(Session *const S, const uint8_t scan)
 {
     const bool shift = uimn.keyflags & PKEY_SHIFT;
     for (uint32_t i = 0; i < countof(moves); i++) {
@@ -244,30 +245,30 @@ static void edit_scan(const uint8_t scan)
             edit_sel_mark();
         else
             uimn.ed.sel_on = false;
-        moves[i].run();
+        moves[i].run(S);
         return;
     }
     if (scan == SCAN_DEL) {
         if (shift) {
-            edit_cut();
+            edit_cut(S);
         } else if (edit_sel()) {
-            edit_clear();
+            edit_clear(S);
         } else {
             uimn.ed.sel_on = false;
-            edit_del();
+            edit_del(S);
         }
     } else if (scan == SCAN_INS) {
         if (shift)
-            edit_paste();
+            edit_paste(S);
         else
             uimn.ed.insert = !uimn.ed.insert;
     } else if (scan == SCAN_CTRL_INS) {
-        edit_copy();
+        edit_copy(S);
     }
 }
 
 /* Ctrl+Q's second key, ch. */
-static void edit_ctrlq(const uint8_t ch)
+static void edit_ctrlq(Session *const S, const uint8_t ch)
 {
     LineBuf *const b = &uimn.edline;
     const uint8_t letter = CTRL(ch);
@@ -275,7 +276,7 @@ static void edit_ctrlq(const uint8_t ch)
         if (wordstar_q[i].ch != letter)
             continue;
         if (wordstar_q[i].scan) {
-            edit_key((uint16_t)(wordstar_q[i].scan << 8));
+            edit_key(S, (uint16_t)(wordstar_q[i].scan << 8));
         } else { /* Ctrl+Q,Y: to the line's end out */
             uimn.ed.sel_on = false;
             edit_lb_cut(b, b->col, b->len);
@@ -285,30 +286,30 @@ static void edit_ctrlq(const uint8_t ch)
 }
 
 /* A control character ch; false: not one, ch is typed. */
-static bool edit_control(const uint8_t ch)
+static bool edit_control(Session *const S, const uint8_t ch)
 {
     switch (ch) {
     case CH_ENTER:
         uimn.ed.sel_on = false;
-        edit_enter();
+        edit_enter(S);
         return true;
     case CH_BACKSPACE:
         if (edit_sel())
-            edit_clear();
+            edit_clear(S);
         else
-            edit_bs();
+            edit_bs(S);
         return true;
     case CH_TAB:
         uimn.ed.sel_on = false;
 #if AC
-        if (cmpl_tab())
+        if (cmpl_tab(S))
             return true;
 #endif
         edit_tab();
         return true;
     case CTRL('Y'):
         uimn.ed.sel_on = false;
-        edit_ctrly();
+        edit_ctrly(S);
         return true;
     case CH_ESC:
         uimn.ed.sel_on = false;
@@ -319,16 +320,16 @@ static bool edit_control(const uint8_t ch)
 }
 
 /* ed_key: a key in the program window: a shifted move selects. */
-static void edit_key(const uint16_t key)
+static void edit_key(Session *const S, const uint16_t key)
 {
     const uint8_t ch = (uint8_t)key;
     if (!ch) {
-        edit_scan((uint8_t)(key >> 8));
+        edit_scan(S, (uint8_t)(key >> 8));
         return;
     }
     if (uimn.ed.prefix) {
         uimn.ed.prefix = 0;
-        edit_ctrlq(ch);
+        edit_ctrlq(S, ch);
         return;
     }
     if (ch == CTRL('Q')) { /* a second key follows */
@@ -336,13 +337,13 @@ static void edit_key(const uint16_t key)
         return;
     }
     if (ch <= CTRL('Z') && wordstar[ch - 1]) {
-        edit_key((uint16_t)(wordstar[ch - 1] << 8));
+        edit_key(S, (uint16_t)(wordstar[ch - 1] << 8));
         return;
     }
-    if (edit_control(ch))
+    if (edit_control(S, ch))
         return;
     if (edit_sel() == SEL_PIECE)
-        edit_clear();
+        edit_clear(S);
     uimn.ed.sel_on = false;
     edit_lb_type(&uimn.edline, ch, LNMAX);
 }
@@ -378,22 +379,22 @@ static bool match(const uint16_t col)
 }
 
 /* ui_search: Find What from past the cursor, wrapping (ui.wrap): found, it is selected. */
-static bool search(void)
+static bool search(Session *const S)
 {
     const uint16_t len = uimn.find_what.len;
     if (!len)
         return false;
-    edit_commit();
+    edit_commit(S);
     ui.at_line = uimn.ed.line;
     ui.at_col = uimn.edline.col + 1;
     for (uint32_t n = uimn.text.n + 1; n; n--) { /* every line, this one twice */
-        const uint16_t got = (uint16_t)text_get(ui.at_line, uimn.line);
+        const uint16_t got = (uint16_t)text_get(S, ui.at_line, uimn.line);
         if (got >= len) {
             const uint16_t last = got - len;
             for (uint16_t col = ui.at_col; col <= last; col++) {
                 if (!match(col))
                     continue;
-                edit_load(ui.at_line);
+                edit_load(S, ui.at_line);
                 uimn.ed.sel_col = col;
                 uimn.ed.sel_line = ui.at_line;
                 uimn.ed.sel_on = true;
@@ -414,10 +415,10 @@ static bool search(void)
 }
 
 /* ui_find3: F3: the text found again, from past the cursor; it wraps. */
-static void find_again(void)
+static void find_again(Session *const S)
 {
-    if (!search())
-        dlog_ok(s_nomatch);
+    if (!search(S))
+        dlog_ok(S, s_nomatch);
 }
 
 /* ui_fdef: Find's text to start from: the selection on one line, else the word at the cursor or
@@ -459,36 +460,36 @@ static void find_default(void)
 }
 
 /* ui_find: Search, Find. */
-static void find(void)
+static void find(Session *const S)
 {
     find_default();
-    if (dlog_find())
-        find_again();
+    if (dlog_find(S))
+        find_again(S);
 }
 
 /* ui_change: Search, Change: Change All, or each one asked. */
-static void change(void)
+static void change(Session *const S)
 {
     find_default();
-    const uint8_t r = dlog_change();
+    const uint8_t r = dlog_change(S);
     if (r > CHANGE_ALL)
         return;
     ui.change_all = r == CHANGE_ALL;
     ui.changed_one = false;
     ui.wrap = false;
-    edit_commit();
+    edit_commit(S);
     uimn.ed.sel_on = false;
     LineBuf *const b = &uimn.edline;
     if (ui.change_all) { /* from the start, the cursor back after */
         ui.start_line = uimn.ed.line;
         ui.start_col = b->col;
-        edit_load(0);
+        edit_load(S, 0);
         b->col = UINT16_MAX; /* search's from column 0 */
     }
-    while (search()) {
+    while (search(S)) {
         ui.changed_one = true;
         if (!ui.change_all) {
-            const uint8_t c = dlog_conf();
+            const uint8_t c = dlog_conf(S);
             if (c == CONF_SKIP)
                 continue;
             if (c > CONF_SKIP) { /* Cancel: no word more (uisearch.c) */
@@ -500,42 +501,42 @@ static void change(void)
         edit_lb_insert(b, uimn.change_to.text, uimn.change_to.len);
         uimn.ed.sel_on = false;
         b->col--;
-        edit_commit();
+        edit_commit(S);
     }
     ui.wrap = true;
     uimn.ed.sel_on = false;
     if (ui.change_all) {
-        edit_commit();
+        edit_commit(S);
         uint32_t line = ui.start_line;
         if (line > uimn.text.n)
             line = uimn.text.n;
-        edit_load(line);
+        edit_load(S, line);
         b->col = ui.start_col;
     }
-    dlog_ok(ui.changed_one ? s_chdone : s_nomatch);
+    dlog_ok(S, ui.changed_one ? s_chdone : s_nomatch);
 }
 
 /* ---- File */
 
 /* ui_save: File, Save: to its name, else Save As. false: not saved. */
-static bool save_as(void);
+static bool save_as(Session *S);
 
-static bool write_file(void)
+static bool write_file(Session *const S)
 {
-    if (text_write(uimn.file) != PFIL_OK) {
-        dlog_ok(s_access);
+    if (text_write(S, uimn.file) != PFIL_OK) {
+        dlog_ok(S, s_access);
         return false;
     }
     uimn.text.unsaved = false;
     return true;
 }
 
-static bool save(void)
+static bool save(Session *const S)
 {
-    edit_commit();
+    edit_commit(S);
     if (!uimn.file[0])
-        return save_as();
-    return write_file();
+        return save_as(S);
+    return write_file(S);
 }
 
 static bool same_name(const char *const a, const char *const b)
@@ -549,43 +550,43 @@ static bool same_name(const char *const a, const char *const b)
 }
 
 /* ui_saveas: File, Save As. false: not saved. */
-static bool save_as(void)
+static bool save_as(Session *const S)
 {
-    edit_commit();
+    edit_commit(S);
     for (;;) {
-        if (!dlog_saveas())
+        if (!dlog_saveas(S))
             return false;
         if (same_name(uimn.chosen, uimn.file))
             break;
         uint8_t attr;
         if (pfil_getattr(uimn.chosen, &attr) != PFIL_OK)
             break;
-        const uint8_t r = dlog_ync(s_overw); /* another file there */
+        const uint8_t r = dlog_ync(S, s_overw); /* another file there */
         if (r == YNC_YES)
             break;
         if (r > YNC_NO)
             return false;
     }
     memcpy(uimn.file, uimn.chosen, sizeof uimn.file);
-    return write_file();
+    return write_file(S);
 }
 
 /* ui_asksave: a changed text: save it first? Yes saves, No goes on. false: cancelled. */
-static bool ask_save(void)
+static bool ask_save(Session *const S)
 {
-    edit_commit();
+    edit_commit(S);
     if (!uimn.text.unsaved)
         return true;
-    const uint8_t r = dlog_ync(s_notsaved);
+    const uint8_t r = dlog_ync(S, s_notsaved);
     if (r == YNC_NO)
         return true;
     if (r > YNC_NO)
         return false;
-    return save();
+    return save(S);
 }
 
 /* ui_reset: the editor at the text's start: a new or loaded text. */
-static void reset(void)
+static void reset(Session *const S)
 {
     uimn.ed.top = 0;
     uimn.ed.left = 0;
@@ -595,52 +596,52 @@ static void reset(void)
     uimn.text.unsaved = false;
     uimn.text.changed = true;
     dpan_close();
-    view_reset();
-    edit_load(0);
+    view_reset(S);
+    edit_load(S, 0);
 }
 
 /* ui_new: File, New. */
-static void file_new(void)
+static void file_new(Session *const S)
 {
-    if (!ask_save())
+    if (!ask_save(S))
         return;
-    text_init();
+    text_init(S);
     uimn.file[0] = 0;
-    reset();
+    reset(S);
 }
 
 /* ui_load: the file uimn.chosen into the text; not found: a new one of that name, from the
    command line, else a box. */
-static void load(void)
+static void load(Session *const S)
 {
-    if (text_read(uimn.chosen) != PFIL_OK) {
+    if (text_read(S, uimn.chosen) != PFIL_OK) {
         if (!ui.load_new) {
-            dlog_ok(s_notfound);
+            dlog_ok(S, s_notfound);
             return;
         }
-        text_init();
+        text_init(S);
     }
     memcpy(uimn.file, uimn.chosen, sizeof uimn.file);
-    reset();
+    reset(S);
 }
 
 /* ui_open: File, Open. */
-static void file_open(Vm *vm)
+static void open_program(Session *const S)
 {
-    if (ask_save() && dlog_open())
-        load();
+    if (ask_save(S) && dlog_open(S))
+        load(S);
 }
 
-static void file_save(void) { save(); }
-static void file_saveas(void) { save_as(); }
+static void file_save(Session *const S) { save(S); }
+static void file_saveas(Session *const S) { save_as(S); }
 
 /* ui_exit: File, Exit: back to DOS. */
-static void file_exit(void)
+static void file_exit(Session *const S)
 {
-    if (!ask_save())
+    if (!ask_save(S))
         return;
     pscr_mode(VIDEO_TEXT);
-    cons_exit(0);
+    cons_exit(S, 0);
 }
 
 /* ui_view: F4: the output page until a key. */
@@ -655,94 +656,94 @@ static void view_output(void)
 static void syntax(void) { uimn.text.check = !uimn.text.check; }
 
 /* ui_about: Help, About. */
-static void about(void) { dlog_ok(s_about); }
+static void about(Session *const S) { dlog_ok(S, s_about); }
 
 /* ---- running */
 
 /* ui_sync: the program entered again when the text changed. Errors: as repl_relink, at its
    line. */
-static void sync(void)
+static void sync(Session *const S)
 {
-    edit_commit();
+    edit_commit(S);
     if (!uimn.text.changed)
         return;
-    repl_relink();
-    lmap_build();
+    repl_relink(S);
+    lmap_build(S);
     uimn.text.changed = false;
 }
 
-void uimn_run(void)
+void uimn_run(Session *const S)
 {
-    sync();
-    udbg_prep();
-    page_clear();
+    sync(S);
+    udbg_prep(S);
+    page_clear(S);
     ui.run_wait = true;
     static const char cmd[] = "RUN";
-    memcpy(cons.inbuf, cmd, sizeof cmd - 1);
-    repl_enter(sizeof cmd - 1);
-    repl_run();
+    memcpy(S->cons.inbuf, cmd, sizeof cmd - 1);
+    repl_enter(S, sizeof cmd - 1);
+    repl_run(S);
 }
 
 bool uimn_stopped(void) { return uimn.stopped && !uimn.text.changed; }
 
-bool uimn_cancont(void)
+bool uimn_cancont(Session *const S)
 {
-    edit_commit();
+    edit_commit(S);
     return uimn_stopped();
 }
 
-void uimn_cont(void)
+void uimn_cont(Session *const S)
 {
-    if (!uimn_cancont())
-        uimn_run();
-    udbg_prep();
+    if (!uimn_cancont(S))
+        uimn_run(S);
+    udbg_prep(S);
     page_out();
     ui.run_wait = true;
-    repl_cont();
+    repl_cont(S);
 }
 
 /* ui_exec: Enter in the immediate window: its line run on the output page. */
-static void exec_line(void)
+static void exec_line(Session *const S)
 {
-    sync();
-    const uint16_t len = edit_imm_next();
+    sync(S);
+    const uint16_t len = edit_imm_next(S);
     if (!len)
         return;
     page_out();
     pscr_where(PAGE_OUT, &ui.crow, &ui.ccol);
     ui.run_wait = false;
-    if (repl_enter(len) == ENTER_DIRECT)
-        repl_run();
+    if (repl_enter(S, len) == ENTER_DIRECT)
+        repl_run(S);
     page_in();
 }
 
 /* Press any key on the output's last row, the output's cursor back after. */
-static void wait_anykey(void)
+static void wait_anykey(Session *const S)
 {
-    cons_fresh();
+    cons_fresh(S);
     uint8_t row, col;
     pscr_where(PAGE_OUT, &row, &col); /* output goes on here after the key */
     pscr_cursor(PAGE_OUT, STATUS_ROW, 0);
     for (uint32_t i = 0; s_anykey[i]; i++)
-        cons_putc((uint8_t)s_anykey[i]);
-    cons_flush();
-    cons.col = 0;
+        cons_putc(S, (uint8_t)s_anykey[i]);
+    cons_flush(S);
+    S->cons.col = 0;
     pkey_read();
     pscr_cursor(PAGE_OUT, STATUS_ROW, 0); /* the prompt off */
     pscr_fill(PAGE_OUT, STATUS_ROW, 0, ATTR_PLAIN << 8 | ' ', PSCR_COLS);
     pscr_cursor(PAGE_OUT, row, col);
 }
 
-void uimn_ready(void)
+void uimn_ready(Session *const S)
 {
-    cons_flush();
-    vm.stop = 0;
+    cons_flush(S);
+    S->vm.stop = 0;
     uint8_t row, col;
     pscr_where(PAGE_OUT, &row, &col);
     if (ui.run_wait || row != ui.crow || col != ui.ccol)
-        wait_anykey();
+        wait_anykey(S);
     page_in();
-    loop();
+    loop(S);
 }
 
 /* ---- the cursor at a line, an error */
@@ -764,10 +765,10 @@ void uimn_selword(const uint16_t col)
 
 /* ui_atline: the cursor at line's first word, the word selected, as QBasic shows an error's
    statement. */
-static void at_line(const uint32_t line)
+static void at_line(Session *const S, const uint32_t line)
 {
     uimn.focus = FOC_EDIT;
-    edit_load(line);
+    edit_load(S, line);
     const LineBuf *const b = &uimn.edline;
     uint16_t col = 0;
     while (col < b->len && b->text[col] == ' ')
@@ -777,89 +778,89 @@ static void at_line(const uint32_t line)
 
 /* ui_dxrun: a compile error met running, at the cursor's line: its words in uimn.errmsg, the
    word it is at selected. */
-static void run_error_words(void)
+static void run_error_words(Session *const S)
 {
-    if (!ui.at_error || !vm.opip || *vm.opip != O_ERR)
+    if (!ui.at_error || !S->vm.opip || *S->vm.opip != O_ERR)
         return;
     LineBuf *const b = &uimn.edline;
     b->text[b->len] = 0;
-    uimn_selword(edit_dxerr(b->text, (const ErrOp *)vm.opip));
+    uimn_selword(edit_dxerr(S, b->text, (const ErrOp *)S->vm.opip));
 }
 
-void uimn_error(const uint8_t code)
+void uimn_error(Session *const S, const uint8_t code)
 {
     ui.ecode = code;
     ui.at_error = false;
     if (code != E_BRK) {
-        vm.nframes = 0;
-        vm.cont.line = 0;
+        S->vm.nframes = 0;
+        S->vm.cont.line = 0;
         dpan_close();
     }
-    cons_flush();
-    cons.col = 0;
-    vm.stop = 0;
+    cons_flush(S);
+    S->cons.col = 0;
+    S->vm.stop = 0;
     page_in();
-    repl.loading = false; /* repl_relink's, the error ended it */
-    prog.add_flags = 0;
-    prog.add_at = 0;
-    if (vm.line != DLINE) {
-        lmap_build(); /* the include's lines are no line */
+    S->repl.loading = false; /* repl_relink's, the error ended it */
+    S->prog.add_flags = 0;
+    S->prog.add_at = 0;
+    if (S->vm.line != DLINE) {
+        lmap_build(S); /* the include's lines are no line */
         uint32_t line;
-        if (lmap_of(vm.line, &line)) {
+        if (lmap_of(S, S->vm.line, &line)) {
             ui.at_error = true;
-            at_line(view_goline(line));
+            at_line(S, view_goline(S, line));
         }
     }
     if (ui.ecode == E_BRK) {
-        udbg_stop();
+        udbg_stop(S);
     } else {
-        edit_emsg(ui.ecode);
-        run_error_words();
-        dlog_err(uimn.errmsg);
+        edit_emsg(S, ui.ecode);
+        run_error_words(S);
+        dlog_err(S, uimn.errmsg);
     }
-    loop();
+    loop(S);
 }
 
 /* ---- the commands */
 
 static void act_theme(const uint8_t action) { them_pick(action); }
 
-void uimn_act(const uint8_t action)
+void uimn_act(Session *const S, const uint8_t action)
 {
     switch (action) {
-    case ACT_NEW: file_new(); break;
-    case ACT_OPEN: file_open(&vm); break;
-    case ACT_SAVE: file_save(); break;
-    case ACT_SAVEAS: file_saveas(); break;
-    case ACT_EXIT: file_exit(); break;
-    case ACT_CUT: edit_cut(); break;
-    case ACT_COPY: edit_copy(); break;
-    case ACT_PASTE: edit_paste(); break;
-    case ACT_CLEAR: edit_clear(); break;
+    case ACT_NEW: file_new(S); break;
+    case ACT_OPEN: open_program(S); break;
+    case ACT_SAVE: file_save(S); break;
+    case ACT_SAVEAS: file_saveas(S); break;
+    case ACT_EXIT: file_exit(S); break;
+    case ACT_CUT: edit_cut(S); break;
+    case ACT_COPY: edit_copy(S); break;
+    case ACT_PASTE: edit_paste(S); break;
+    case ACT_CLEAR: edit_clear(S); break;
     case ACT_OUT: view_output(); break;
-    case ACT_FIND: find(); break;
-    case ACT_FIND3: find_again(); break;
-    case ACT_CHANGE: change(); break;
-    case ACT_START: uimn_run();
-    case ACT_CONT: uimn_cont();
+    case ACT_FIND: find(S); break;
+    case ACT_FIND3: find_again(S); break;
+    case ACT_CHANGE: change(S); break;
+    case ACT_START: uimn_run(S);
+    case ACT_CONT: uimn_cont(S);
     case ACT_SYNTAX: syntax(); break;
-    case ACT_ABOUT: about(); break;
-    case ACT_STEP: udbg_step();
-    case ACT_PSTEP: udbg_pstep();
-    case ACT_TRACE: udbg_tron(); break;
-    case ACT_BP: udbg_bp(); break;
-    case ACT_BPCLR: udbg_bpclear(); break;
-    case ACT_SETNX: udbg_setnext(); break;
-    case ACT_RESTART: udbg_restart();
-    case ACT_SPLIT: wind_split(); break;
-    case ACT_SUBS: view_subs(); break;
-    case ACT_NSUB: view_newsub(); break;
-    case ACT_NFN: view_newfn(); break;
+    case ACT_ABOUT: about(S); break;
+    case ACT_STEP: udbg_step(S);
+    case ACT_PSTEP: udbg_pstep(S);
+    case ACT_TRACE: udbg_tron(S); break;
+    case ACT_BP: udbg_bp(S); break;
+    case ACT_BPCLR: udbg_bpclear(S); break;
+    case ACT_SETNX: udbg_setnext(S); break;
+    case ACT_RESTART: udbg_restart(S);
+    case ACT_SPLIT: wind_split(S); break;
+    case ACT_SUBS: view_subs(S); break;
+    case ACT_NSUB: view_newsub(S); break;
+    case ACT_NFN: view_newfn(S); break;
     case ACT_THQB: them_qbasic(); break;
     case ACT_THDK: them_dark(); break;
     case ACT_SYNHL: synt_toggle(); break;
-    case ACT_VSPLIT: wind_vsplit(); break;
-    case ACT_SOUT: udbg_sout();
+    case ACT_VSPLIT: wind_vsplit(S); break;
+    case ACT_SOUT: udbg_sout(S);
     default:
         if (action >= ACT_TH2 && action < ACT_SOUT)
             act_theme(action);
@@ -867,75 +868,75 @@ void uimn_act(const uint8_t action)
     }
 }
 
-void uimn_key(const uint16_t key)
+void uimn_key(Session *const S, const uint16_t key)
 {
 #if AC
     uimn.help = nullptr; /* a completion's form, shown till now */
 #endif
     if (key == KEY_ALT) {
-        menu_run(0, false);
+        menu_run(S, 0, false);
         return;
     }
     if (key == KEY_MOUSE) {
-        mous_main();
+        mous_main(S);
         return;
     }
     if (key == (SCAN_L << 8 | CTRL('L'))) { /* Repeat Last Find */
-        find_again();
+        find_again(S);
         return;
     }
     if (!(uint8_t)key) {
         const uint8_t scan = (uint8_t)(key >> 8);
         switch (scan) {
-        case FKEY(SCAN_F1, 7): udbg_pstep();
-        case FKEY(SCAN_CTRL_F1, 7): udbg_until(); return;
-        case FKEY(SCAN_F1, 8): udbg_step();
-        case FKEY(SCAN_SHIFT_F1, 8): udbg_sout();
-        case FKEY(SCAN_F1, 9): udbg_bp(); return;
-        case FKEY(SCAN_F1, 10): udbg_pstep();
+        case FKEY(SCAN_F1, 7): udbg_pstep(S);
+        case FKEY(SCAN_CTRL_F1, 7): udbg_until(S); return;
+        case FKEY(SCAN_F1, 8): udbg_step(S);
+        case FKEY(SCAN_SHIFT_F1, 8): udbg_sout(S);
+        case FKEY(SCAN_F1, 9): udbg_bp(S); return;
+        case FKEY(SCAN_F1, 10): udbg_pstep(S);
         case FKEY(SCAN_F1, 4): view_output(); return;
-        case FKEY(SCAN_F1, 5): uimn_cont();
-        case FKEY(SCAN_SHIFT_F1, 5): uimn_run();
-        case FKEY(SCAN_F1, 6): next_window(); return;
-        case FKEY(SCAN_F1, 3): find_again(); return;
+        case FKEY(SCAN_F1, 5): uimn_cont(S);
+        case FKEY(SCAN_SHIFT_F1, 5): uimn_run(S);
+        case FKEY(SCAN_F1, 6): next_window(S); return;
+        case FKEY(SCAN_F1, 3): find_again(S); return;
         case SCAN_F1:
-        case SCAN_SHIFT_F1: nohelp(); return;
-        case FKEY(SCAN_SHIFT_F1, 6): wind_prev(); return; /* the window before */
+        case SCAN_SHIFT_F1: nohelp(S); return;
+        case FKEY(SCAN_SHIFT_F1, 6): wind_prev(S); return; /* the window before */
         case SCAN_ALT_EQUALS:
         case SCAN_GREY_PLUS: wind_grow(); return;         /* a row more */
         case SCAN_ALT_MINUS:
         case SCAN_GREY_MINUS: wind_shrink(); return;      /* a row less */
         case FKEY(SCAN_CTRL_F1, 10): wind_max(); return;
-        case FKEY(SCAN_F1, 2): view_subs(); return;       /* the views */
-        case FKEY(SCAN_SHIFT_F1, 2): view_next(); return;
-        case FKEY(SCAN_CTRL_F1, 2): view_prev(); return;
+        case FKEY(SCAN_F1, 2): view_subs(S); return;       /* the views */
+        case FKEY(SCAN_SHIFT_F1, 2): view_next(S); return;
+        case FKEY(SCAN_CTRL_F1, 2): view_prev(S); return;
         default:
-            if (menu_alt(scan))
+            if (menu_alt(S, scan))
                 return;
         }
     }
     if (uimn.focus == FOC_IMM)
-        imm_key(key);
+        imm_key(S, key);
     else if (uimn.focus == FOC_PANE)
-        dpan_key(key);
+        dpan_key(S, key);
     else
-        edit_key(key);
+        edit_key(S, key);
 }
 
 /* ui_loop: draw, a key, its command; again. */
-static void loop(void)
+static void loop(Session *const S)
 {
     for (;;) {
 #if !AC
         uimn.help = nullptr; /* else uimn_key: a completion shows it */
 #endif
-        draw_all();
+        draw_all(S);
         uimn.mouse.hover = true;
         const uint16_t key = uimn_getkey();
         uimn.mouse.hover = false;
         if (key != KEY_MOUSE)
             uimn.tip_mouse = false; /* a key: the tooltip by the cursor */
-        uimn_key(key);
+        uimn_key(S, key);
     }
 }
 
@@ -964,7 +965,7 @@ static void load_help(void)
 }
 
 /* The editor's state at its start. */
-static void init(void)
+static void init(Session *const S)
 {
     uimn.on = true;
     uimn.edline.text = uimn.edline_text;
@@ -977,13 +978,13 @@ static void init(void)
     uimn.text.check = true;
     uimn.ed.insert = true;
     ui.wrap = true;
-    udbg_init();
+    udbg_init(S);
     wind_init();
     mous_init();
     load_help();
-    text_init();
-    view_reset();
-    edit_load(0);
+    text_init(S);
+    view_reset(S);
+    edit_load(S, 0);
     edit_imm_load();
 }
 
@@ -998,11 +999,11 @@ static uint16_t cmdline_file(void)
     return n;
 }
 
-void uimn_start(void)
+void uimn_start(Session *const S)
 {
-    if (!cons.stdin_dev || !pfil_isdev(PFIL_STDOUT))
+    if (!S->cons.stdin_dev || !pfil_isdev(PFIL_STDOUT))
         return;
-    init();
+    init(S);
     pscr_mode(VIDEO_TEXT);
     them_qbasic();
     const uint16_t n = cmdline_file();
@@ -1010,10 +1011,10 @@ void uimn_start(void)
         uimn.fname.len = n;
         dlog_fileok(DLOG_PRESS);
         ui.load_new = true;
-        load();
+        load(S);
         ui.load_new = false;
     } else {
-        dlog_msg(s_welcome, bt_welcome);
+        dlog_msg(S, s_welcome, bt_welcome);
     }
-    loop();
+    loop(S);
 }

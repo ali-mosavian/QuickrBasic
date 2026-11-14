@@ -33,50 +33,49 @@ typedef struct {
     uint8_t *sbuf;    /* SBMAX+1: output captured (CAP_SBUF), LIST's text, scratch */
     uint8_t obuf[OBSZ]; /* standard output's, flushed on NL, before a read, at the exit */
 } Cons;
-extern Cons cons;
 
 /* inbuf and sbuf carved (allo_carve); standard input's kind; the console the only channel. */
-void cons_init(void);
+void cons_init(Session *S);
 
 /* A character to the output, its column kept; NL ends the line. */
-void cons_putc(uint8_t c);
+void cons_putc(Session *S, uint8_t c);
 /* A space; n spaces. */
-void cons_space(void);
-void cons_spaces(uint8_t n);
+void cons_space(Session *S);
+void cons_spaces(Session *S, uint8_t n);
 /* End the line; end it when it has text. */
-void cons_nl(void);
-void cons_fresh(void);
+void cons_nl(Session *S);
+void cons_fresh(Session *S);
 /* An INT as PRINT prints it: " " or "-", digits, " ". */
-void cons_int(int32_t v);
+void cons_int(Session *S, int32_t v);
 /* Digits only, unsigned (io_u24, io_num). */
-void cons_uint(uint32_t v);
+void cons_uint(Session *S, uint32_t v);
 /* 4 hex digits. */
-void cons_hex4(uint16_t v);
+void cons_hex4(Session *S, uint16_t v);
 /* A 0-ended text. */
-void cons_puts(const char *s);
+void cons_puts(Session *S, const char *s);
 /* Message E_* or MSG_* of the message list. */
-void cons_msg(uint8_t id);
+void cons_msg(Session *S, uint8_t id);
 /* The keyword of token tok (80h..FEh); of FFh n. */
-void cons_kw(uint8_t tok);
-void cons_kw1(uint8_t n);
+void cons_kw(Session *S, uint8_t tok);
+void cons_kw1(Session *S, uint8_t n);
 
 /* "? " and a line read; a line read into inbuf, 0 after, inpos -1. Errors: Out of DATA at
    standard input's end, 62 at a file's, BREAK on the STOP key. */
-void cons_prompt(void);
-void cons_read(void);
+void cons_prompt(Session *S);
+void cons_read(Session *S);
 /* INPUT: inpos to the next field; none left: "??" and another line (INPUT#: the next line). */
-void cons_field(void);
+void cons_field(Session *S);
 
 /* Standard output: a character, NL as CR LF (plt_putc); obuf written (plt_flush). */
-void cons_out(uint8_t c);
-void cons_flush(void);
+void cons_out(Session *S, uint8_t c);
+void cons_flush(Session *S);
 /* A line of the input into inbuf: the console key by key, else bytes to LF (CR LF in a file);
    its length, or -1 at the end of the input or on the STOP key (exec's stop flag set). */
-int32_t cons_getline(void);
+int32_t cons_getline(Session *S);
 /* The next input byte, 0 at the end; a console with no key waiting: 0. */
-uint8_t cons_getc(void);
+uint8_t cons_getc(Session *S);
 /* The next input byte, standard input's or the input channel's; -1 at the end. */
-int cons_getb(void);
+int cons_getb(Session *S);
 /* Output flushed, the platform restored, exit. */
-[[noreturn]] void cons_exit(uint8_t code);
+[[noreturn]] void cons_exit(Session *S, uint8_t code);
 #endif

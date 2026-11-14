@@ -20,12 +20,11 @@ typedef struct {
     uint32_t cursor;   /* mem/prog's and vm/flow's line cursor; 0 when linked */
     uint8_t flushes;   /* nfl: cache flushes, mod 256 */
 } Link;
-extern Link link;
 
 
-void link_start(void);           /* cm_link: before a run: blocks paired, the cache empty */
-Addr link_cache(uint32_t line);  /* cm_cache: line compiled into the cache; its code */
-bool link_xlate(Addr *at);       /* comp_xbuf as a stream at *at, to its end; link.code its code;
+void link_start(Session *S);           /* cm_link: before a run: blocks paired, the cache empty */
+Addr link_cache(Session *S, uint32_t line);  /* cm_cache: line compiled into the cache; its code */
+bool link_xlate(Session *S, Addr *at);       /* comp_xbuf as a stream at *at, to its end; link.code its code;
                                     false: past link.lim */
 #if IDE
 void link_walk(const uint8_t *code, void (*each)(uint8_t op, const uint8_t *at)); /* each op */

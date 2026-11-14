@@ -17,23 +17,23 @@ void wind_init(void);
 void wind_layout(void);
 /* wn_draw: each window shown: the edit windows (the other with its state swapped in and its
    view applied), the pane, the immediate window. */
-void wind_draw(void);
+void wind_draw(Session *S);
 /* wn_act: edit window w the active one, the focus in it (the line committed first). */
-void wind_act(uint8_t w);
+void wind_act(Session *S, uint8_t w);
 /* wn_focus: window w has the focus: an edit window active, the immediate window, the pane. */
-void wind_focus(uint8_t w);
+void wind_focus(Session *S, uint8_t w);
 /* wn_cur: the window with the focus. */
 uint8_t wind_cur(void);
 /* wn_next, wn_prev: F6, Shift+F6: the focus to the next window shown (ED1 ED2 pane IMM), the
    one before. */
-void wind_next(void);
-void wind_prev(void);
+void wind_next(Session *S);
+void wind_prev(Session *S);
 /* wn_at: the window at row, col; false: none (the menu or status bar, a hidden one's). */
 bool wind_at(uint8_t row, uint8_t col, uint8_t *w);
 /* wn_split: View, Split: the edit window in two, the same text in both; again, one. */
-void wind_split(void);
+void wind_split(Session *S);
 /* wn_vsplit: View, Split Vertically: side by side; again, one. */
-void wind_vsplit(void);
+void wind_vsplit(Session *S);
 /* wn_grow, wn_shrink: Alt+Plus, Alt+Minus: the focused window a row taller, from the one under
    it, else over it; a row shorter, to the same. */
 void wind_grow(void);

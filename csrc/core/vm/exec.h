@@ -148,28 +148,27 @@ typedef struct Vm {
     bool running; /* exec_run's loop is on the C stack: vm.loop holds */
     jmp_buf loop; /* exec_run's: flow_trap comes back into the loop */
 } Vm;
-extern Vm vm;
 
 /* The data stack. */
-static inline void exec_push(Vm *vm, Cell c) { *--vm->sp = c; }
+static inline void exec_push(Vm *const vm, Cell c) { *--vm->sp = c; }
 /* An INT or an Addr fills only the cell's low dword. */
-static inline void exec_pushi(Vm *vm, int32_t v) { (--vm->sp)->i = v; }
-static inline void exec_pusha(Vm *vm, Addr a) { (--vm->sp)->a = a; }
-static inline void exec_pushd(Vm *vm, double d) { *--vm->sp = (Cell){.d = d}; }
-static inline Cell exec_pop(Vm *vm) { return *vm->sp++; }
-static inline int32_t exec_popi(Vm *vm) { return vm->sp++->i; }
-static inline Addr exec_popa(Vm *vm) { return vm->sp++->a; }
-static inline double exec_popd(Vm *vm) { return vm->sp++->d; }
+static inline void exec_pushi(Vm *const vm, int32_t v) { (--vm->sp)->i = v; }
+static inline void exec_pusha(Vm *const vm, Addr a) { (--vm->sp)->a = a; }
+static inline void exec_pushd(Vm *const vm, double d) { *--vm->sp = (Cell){.d = d}; }
+static inline Cell exec_pop(Vm *const vm) { return *vm->sp++; }
+static inline int32_t exec_popi(Vm *const vm) { return vm->sp++->i; }
+static inline Addr exec_popa(Vm *const vm) { return vm->sp++->a; }
+static inline double exec_popd(Vm *const vm) { return vm->sp++->d; }
 
 /* The operands at vm->ip, vm->ip past them. */
-static inline uint8_t exec_u8(Vm *vm) { return *vm->ip++; }
-static inline uint16_t exec_u16(Vm *vm)
+static inline uint8_t exec_u8(Vm *const vm) { return *vm->ip++; }
+static inline uint16_t exec_u16(Vm *const vm)
 {
     const uint16_t v = load16(vm->ip);
     vm->ip += 2;
     return v;
 }
-static inline uint32_t exec_u32(Vm *vm)
+static inline uint32_t exec_u32(Vm *const vm)
 {
     const uint32_t v = load32(vm->ip);
     vm->ip += 4;
@@ -179,20 +178,18 @@ static inline uint32_t exec_u32(Vm *vm)
 /* The data stack and the save stack carved from the arena (allo_carve); the control stack is
    mem's, allo.cs_lim .. allo.cs_top. The tick's and the trapped keys' flag pointed at vm.stop
    (SF_TICK); psys_exit takes the tick out. */
-void exec_init(void);
+void exec_init(Session *S);
 /* ex_lp: run ops from vm.ip, from here on; leaves only by longjmp. */
-[[noreturn]] void exec_run(void);
+[[noreturn]] void exec_run(Session *S);
 /* ex_brk: the STOP check found vm.stop or the platform's flags set. true: the op is not to run,
    vm.ip moved (an event's GOSUB, or the IDE's step back at the op); false: go on. BREAK raises. */
-bool exec_brk(Vm *vm);
-/* stopchk: the STOP check at jumps, line ends, RETURN, NEXT; true: return from the handler. */
-static inline bool exec_stopchk(Vm *vm) { return vm->stop && exec_brk(vm); }
+bool exec_brk(Session *S);
 /* arr_r1: element sub of 1-D array id, its Addr. Subscript out of range past a word. */
-Addr exec_elem1(uint16_t id, int32_t sub);
+Addr exec_elem1(Session *S, uint16_t id, int32_t sub);
 /* arr_pn: the element an op's `id:2 n:1` at vm.ip names, its n subscripts popped. */
-Addr exec_elem(Vm *vm);
+Addr exec_elem(Session *S);
 /* rec_get: record id's header, the record made, zeroed, at its first use. */
-Addr exec_record(uint16_t id);
+Addr exec_record(Session *S, uint16_t id);
 /* int_div: a / b truncated, *rem its remainder. Division by zero; Overflow -2^31 / -1. */
-int32_t exec_idiv(int32_t a, int32_t b, int32_t *rem);
+int32_t exec_idiv(Session *S, int32_t a, int32_t b, int32_t *rem);
 #endif

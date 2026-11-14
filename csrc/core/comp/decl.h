@@ -46,14 +46,13 @@ typedef struct {
     TypeDef types[NTYPE]; /* g_typ, from 1 */
     Field fields[NFLD];   /* g_fld */
 } Decl;
-extern Decl decl;
 
 extern const uint8_t decl_astype[5]; /* g_dast: AS INTEGER .. AS STRING to ET_* */
 extern const uint8_t decl_etsize[7]; /* g_etsz: a field's bytes by ET_* */
 
-void decl_reset(void);               /* no declarations; the names kept */
-void decl_line(const uint8_t *body); /* enter the body's declarations */
-void decl_deftype(uint32_t line);    /* dc_deft: the DEFtypes (mem/sym's g_deft) line sees */
+void decl_reset(Session *S);               /* no declarations; the names kept */
+void decl_line(Session *S, const uint8_t *body); /* enter the body's declarations */
+void decl_deftype(Session *S, uint32_t line);    /* dc_deft: the DEFtypes (mem/sym's g_deft) line sees */
 const uint8_t *decl_item(const uint8_t *p); /* dc_item: past the item at p */
 /* dc_proc: the body is a SUB's or FUNCTION's first line (PK_SUB, PK_FUNC; *name its M_VAR), their
    END (PK_END), else 0. */

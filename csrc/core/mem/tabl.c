@@ -1,4 +1,5 @@
 #include "mem/tabl.h"
+#include "session.h"
 
 /* An entry's bytes, all its arrays'. */
 static uint32_t row(const Table *const t)
@@ -9,21 +10,21 @@ static uint32_t row(const Table *const t)
     return n;
 }
 
-void tabl_new(Table *const t, const uint32_t entries, const AlloMoved moved)
+void tabl_new(Session *const S, Table *const t, const uint32_t entries, const AlloMoved moved)
 {
-    t->block = allo_new(entries * row(t), moved);
-    t->base = allo_base(t->block);
+    t->block = allo_new(S, entries * row(t), moved);
+    t->base = allo_base(&S->allo, t->block);
     t->cap = 0;
-    tabl_place(t);
+    tabl_place(S, t);
 }
 
-bool tabl_room(Table *const t, const uint32_t entries)
+bool tabl_room(Session *const S, Table *const t, const uint32_t entries)
 {
     if (entries <= t->cap)
         return true;
     if (t->max < entries)
         return false;
-    return allo_grow(t->block, entries * row(t));
+    return allo_grow(S, t->block, entries * row(t));
 }
 
 /* The bytes per entry of the arrays before array i. */
@@ -35,10 +36,10 @@ static uint32_t before(const Table *const t, const uint32_t i)
     return n;
 }
 
-Addr tabl_place(Table *const t)
+Addr tabl_place(Session *const S, Table *const t)
 {
-    const Addr base = allo_base(t->block);
-    const uint32_t fit = allo_cap(t->block) / row(t);
+    const Addr base = allo_base(&S->allo, t->block);
+    const uint32_t fit = allo_cap(&S->allo, t->block) / row(t);
     const uint32_t cap = fit < t->max ? fit : t->max;
     /* The block's bytes are at base in the old layout: the arrays after the first move up, the
        last first. */

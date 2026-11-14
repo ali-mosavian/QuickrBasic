@@ -63,12 +63,11 @@ typedef struct {
     uint16_t params[NPPAR]; /* g_ppar: parameters' variables */
     uint8_t byval[NPPAR];   /* g_pbyv: 1 BYVAL */
 } Blok;
-extern Blok blok;
 
 
-void blok_pair(void);           /* cm_blocks: pair the program's blocks; FOR without NEXT .. */
-int32_t blok_find(uint32_t line, uint32_t off); /* the entry of line's statement at body offset
+void blok_pair(Session *S);           /* cm_blocks: pair the program's blocks; FOR without NEXT .. */
+int32_t blok_find(Session *S, uint32_t line, uint32_t off); /* the entry of line's statement at body offset
                                                    off; -1 none */
-uint32_t blok_lineof(uint32_t pos, uint32_t *off); /* position pos: its line, body offset */
-uint8_t blok_scope(uint32_t line); /* bk_proc: the procedure line is in, 0 none; the scopes its */
+uint32_t blok_lineof(Session *S, uint32_t pos, uint32_t *off); /* position pos: its line, body offset */
+uint8_t blok_scope(Session *S, uint32_t line); /* bk_proc: the procedure line is in, 0 none; the scopes its */
 #endif

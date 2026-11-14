@@ -1,6 +1,7 @@
 /* Tab completion (src/ui/compl.asm). An entry of the list: the length, the text and 0 (AC_LEN at
    most); the kind (AK_*); the rank, 0 first; a token or a line. */
 #include "ui/cmpl.h"
+#include "session.h"
 #if AC
 #include "comp/comp.h"
 #include "comp/decl.h"
@@ -138,24 +139,24 @@ static bool word(void)
 }
 
 /* ac_lex: the 0-ended uimn.build tokenized into comp_cbuf; the body. */
-static uint8_t *lex(void)
+static uint8_t *lex(Session *const S)
 {
-    lexr_line(uimn.build, comp.cbuf);
-    return comp.cbuf;
+    lexr_line(S, uimn.build, S->comp.cbuf);
+    return S->comp.cbuf;
 }
 
 /* ac_line: text line line tokenized (the cursor's from the editor): its text in uimn.build, its
    body in comp_cbuf. */
-static uint8_t *line_body(const uint32_t line)
+static uint8_t *line_body(Session *const S, const uint32_t line)
 {
     uint16_t len;
     if (line == uimn.ed.line) {
         len = uimn.edline.len;
         memcpy(uimn.build, uimn.edline.text, len);
     } else
-        len = (uint16_t)text_get(line, uimn.build);
+        len = (uint16_t)text_get(S, line, uimn.build);
     uimn.build[len] = 0;
-    return lex();
+    return lex(S);
 }
 
 /* ac_tkty: the types keyword tok gives: a function's value, what an operator wants. */
@@ -291,11 +292,11 @@ static void ctx_punct(const uint8_t c)
 /* ac_ctx: what fits at the word: the line before it tokenized, its last statement read item by
    item; the type each operand gives (ac.lt) and the one the expression wants (ac.ty). false:
    nothing (a string, REM, DATA). */
-static bool context(void)
+static bool context(Session *const S)
 {
     memcpy(uimn.build, uimn.edline.text, ac.ps);
     uimn.build[ac.ps] = 0;
-    const uint8_t *p = lex();
+    const uint8_t *p = lex(S);
     if (decl_tail(&p))
         return false;
     ac.st = 0;
@@ -466,18 +467,18 @@ static void ids(const uint8_t *p, const uint32_t line)
 
 /* ac_vars: the program's variables or labels that start with the word. GOSUB ranks first a
    label after a RETURN, END, STOP or GOTO: a start. */
-static void vars(void)
+static void vars(Session *const S)
 {
     if (!(ac.m & (AM_VR | AM_LB)))
         return;
     ac.plk = 0;
     for (uint32_t line = 0; line < uimn.text.n; line++) {
-        const uint8_t *p = line_body(line);
+        const uint8_t *p = line_body(S, line);
         if (ac.m & AM_LB && line != uimn.ed.line) /* not the word's own line */
             label(p, line);
         if (ac.m & AM_VR)
             ids(p, line);
-        p = comp.cbuf;
+        p = S->comp.cbuf;
         decl_tail(&p); /* its last statement's keyword */
         ac.plk = is_token(*p) ? *p : 0;
     }
@@ -544,16 +545,16 @@ static bool match_events(const uint32_t k)
 static bool events(const uint8_t *const p) { return match_events(collect_events(p)); }
 
 /* ac_open: the variable of the innermost FOR that no NEXT closes before the word, to ac.on. */
-static void open_for(void)
+static void open_for(Session *const S)
 {
     ac.dp = 0;
     ac.cur = true;
-    const uint8_t *p = comp.cbuf; /* the line to the word, as context left it */
+    const uint8_t *p = S->comp.cbuf; /* the line to the word, as context left it */
     for (int32_t line = (int32_t)uimn.ed.line; !events(p);) {
         ac.cur = false;
         if (--line < 0)
             return;
-        p = line_body((uint32_t)line);
+        p = line_body(S, (uint32_t)line);
     }
 }
 
@@ -642,14 +643,14 @@ static void insert(const uint16_t i)
 }
 
 /* ac_prev: label entry e's line after the label, at row, col + PV_COL in the box. */
-static void preview(const Entry *const e, const uint8_t row, const uint8_t col)
+static void preview(Session *const S, const Entry *const e, const uint8_t row, const uint8_t col)
 {
-    const uint8_t *const p = line_body(e->xt);
+    const uint8_t *const p = line_body(S, e->xt);
     uint32_t off = 0; /* its text from the item after the label */
     if (p[0] == M_INT) {
         if (!p[INT_SZ])
             return;
-        off = lexr.col[INT_SZ];
+        off = S->lexr.col[INT_SZ];
     }
     const uint8_t *const s = uimn.build + off;
     const uint16_t len = (uint16_t)strlen((const char *)s); /* its length, to the box's edge */
@@ -657,7 +658,7 @@ static void preview(const Entry *const e, const uint8_t row, const uint8_t col)
 }
 
 /* ac_draw: the list's box, ac.sel lit. */
-static void draw(void)
+static void draw(Session *const S)
 {
     scrn_box(ac.at_row, ac.at_col, ac.bn + BOX_FRAME, ac.bw, SL_BAR, nullptr);
     scrn_shadow(ac.at_row, ac.at_col, ac.bn + BOX_FRAME, ac.bw);
@@ -666,7 +667,7 @@ static void draw(void)
         const Entry *const e = &ac.list[ac.top + b];
         scrn_strn(row, col, e->text, e->len, SL_BAR);
         if (e->kind == AK_LB)
-            preview(e, row, col);
+            preview(S, e, row, col);
         if (ac.top + b == ac.sel)
             scrn_attr(row, col - 1, ac.bw - 2, SL_DSEL);
     }
@@ -737,7 +738,7 @@ static void move(const uint8_t scan)
 }
 
 /* key in the list: Enter or Tab takes, Esc leaves, another key leaves it typed as ever. */
-static Step on_key(const uint16_t key)
+static Step on_key(Session *const S, const uint16_t key)
 {
     if (key == KEY_MOUSE)
         return on_mouse();
@@ -747,7 +748,7 @@ static Step on_key(const uint16_t key)
     if (ch == CH_ESC)
         return STEP_LEAVE;
     if (ch || !is_move(scan)) {
-        uimn_key(key);
+        uimn_key(S, key);
         return STEP_LEAVE;
     }
     move(scan);
@@ -756,7 +757,7 @@ static Step on_key(const uint16_t key)
 
 /* ac_pop: the list under the word: arrows choose, Enter or Tab takes, Esc or another key leaves
    it, the key then typed. */
-static void popup(void)
+static void popup(Session *const S)
 {
     place();
     Step step;
@@ -764,35 +765,35 @@ static void popup(void)
         uimn.help = nullptr; /* a function's form on the status bar */
         if (ac.list[ac.sel].kind == AK_FN)
             show_form(&ac.list[ac.sel]);
-        draw_all();
-        draw();
-        step = on_key(uimn_getkey());
+        draw_all(S);
+        draw(S);
+        step = on_key(S, uimn_getkey());
     } while (step == STEP_STAY);
     uimn.help = nullptr;
     if (step == STEP_TAKE)
         insert(ac.sel);
 }
 
-bool cmpl_tab(void)
+bool cmpl_tab(Session *const S)
 {
-    if (!word() || !context())
+    if (!word() || !context(S))
         return false;
     ac.n = 0;
     ac.on[0] = 0;
     if (ac.m == AM_VR && ac.st == TK_NEXT) { /* NEXT: the open FOR's variable */
-        open_for();
+        open_for(S);
         if (!ac.pn) /* no word: that alone */
             add(ac.on + 1, ac.on[0], AK_VR, 0, 0);
         else {
             keys();
-            vars();
+            vars(S);
         }
     } else {
         if (!ac.pn && !(ac.m & AM_LB) && /* no word: labels, or what has the type wanted */
             (ac.ty == AT_ANY || !(ac.m & (AM_FN | AM_VR))))
             return false;
         keys();
-        vars();
+        vars(S);
     }
     if (!ac.n)
         return false;
@@ -800,7 +801,7 @@ bool cmpl_tab(void)
     if (ac.n == 1)
         insert(0);
     else
-        popup();
+        popup(S);
     return true;
 }
 #endif

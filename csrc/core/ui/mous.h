@@ -25,5 +25,5 @@ bool mous_title(uint8_t col, uint8_t *menu);
 /* ms_main: the event in the editor: a title opens its menu, a press puts the cursor there, a drag
    selects; the scroll bar; another window's focus; the status bar's keys; a move the debug
    pane's tooltip; the pane's own. */
-void mous_main(void);
+void mous_main(Session *S);
 #endif

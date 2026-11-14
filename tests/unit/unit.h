@@ -4,15 +4,16 @@
 #define UNIT_H
 #include <stdint.h>
 #include <string.h>
+#include "base.h"
 
-typedef void TestFn(void);
+typedef void TestFn(Session *S);
 void unit_register(const char *name, TestFn *fn);
 void unit_fail(const char *file, int line, const char *what);
 
 #define TEST(name)                                                                                 \
-    static void name(void);                                                                        \
+    static void name(Session *S);                                                                  \
     [[gnu::constructor]] static void name##_register(void) { unit_register(#name, name); }        \
-    static void name(void)
+    static void name([[maybe_unused]] Session *const S)
 
 #define CHECK(cond)                                                                                \
     do {                                                                                           \

@@ -1,5 +1,6 @@
 /* The start (main.asm's rt_start): the arena, its fixed regions, the blocks, the parts' state. */
 #include "boot.h"
+#include "session.h"
 #include "comp/comp.h"
 #include "io/cons.h"
 #include "io/file.h"
@@ -22,8 +23,9 @@
 #include "ui/lmap.h"
 #endif
 
-void boot(void)
+void boot(Session *const S)
 {
+    session_reset(S);
     Addr lo, hi;
     if (!pmem_init(HMIN, &lo, &hi)) {
         static const char msg[] = "Out of memory\r\n";
@@ -31,27 +33,27 @@ void boot(void)
         pfil_write(PFIL_STDERR, msg, sizeof msg - 1, &put);
         psys_exit(1);
     }
-    allo_init(lo, hi); /* the arrays' headers, the control stack, the POKE memory */
-    strg_init();
-    exec_init();
-    cons_init();
-    file_init();
-    comp_init();
-    flow_init();
-    stmt_init();
-    allo.cache = allo_base(allo_new(0x10000, nullptr)); /* the cache, then the program store */
-    allo_new(0x10000, prog_place);
-    prog_place();
+    allo_init(S, lo, hi); /* the arrays' headers, the control stack, the POKE memory */
+    strg_init(S);
+    exec_init(S);
+    cons_init(S);
+    file_init(S);
+    comp_init(S);
+    flow_init(S);
+    stmt_init(S);
+    S->allo.cache = allo_base(&S->allo, allo_new(S, 0x10000, nullptr)); /* the cache, then the program store */
+    allo_new(S, 0x10000, prog_place);
+    prog_place(S);
 #if IDE
-    lmap_init(); /* the variables, names last: they grow while code holds their cells */
+    lmap_init(S); /* the variables, names last: they grow while code holds their cells */
 #endif
-    symb_new();
-    vm.nframes = 0;
-    prog_line(DLINE)->len = 0; /* the direct line: len 0, num FF00h */
-    prog_line(DLINE)->num = 0xFF00;
-    rndm.seed = RNDM_SEED0; /* QBasic's first seed */
+    symb_new(S);
+    S->vm.nframes = 0;
+    prog_line(&S->prog, DLINE)->len = 0; /* the direct line: len 0, num FF00h */
+    prog_line(&S->prog, DLINE)->num = 0xFF00;
+    S->rndm.seed = RNDM_SEED0; /* QBasic's first seed */
     fmth_init();
-    psys_init(&vm.stop, SF_BRK);
-    syst_init();
-    prog_init();
+    psys_init(&S->vm.stop, SF_BRK);
+    syst_init(S);
+    prog_init(S);
 }

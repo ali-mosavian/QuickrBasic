@@ -11,7 +11,7 @@
 
 /* Streamed text's reader: the window used up, its bytes from *keep on slid to its start and more
    read after them; *keep moved. False: the line has no more, nothing moved. */
-typedef bool LexrMore(const uint8_t **keep);
+typedef bool LexrMore(Session *S, const uint8_t **keep);
 
 typedef struct {
     const uint8_t *src;    /* lxsrc: lexr_line's text, body: for the columns */
@@ -26,13 +26,12 @@ typedef struct {
     uint8_t *out;          /* (EDI) the body written */
     const uint8_t *word;   /* lx.lxs: a word's start */
 } Lexr;
-extern Lexr lexr;
 
-uint8_t *lexr_line(uint8_t *text, uint8_t *body); /* text, 0-ended, to body; past its 0. The text
+uint8_t *lexr_line(Session *S, uint8_t *text, uint8_t *body); /* text, 0-ended, to body; past its 0. The text
                                                       is changed: FN joined, E and D upper case */
 uint16_t lexr_keyword(const uint8_t **at); /* lx_kw: the keyword the word at *at spells, stepped
                                               past: its token (100h + n for TK_X n), 0 a name */
 #if IDE
-uint16_t lexr_colof(uint32_t off); /* the text's column of the body's byte off, lexr.all set */
+uint16_t lexr_colof(Session *S, uint32_t off); /* the text's column of the body's byte off, lexr.all set */
 #endif
 #endif

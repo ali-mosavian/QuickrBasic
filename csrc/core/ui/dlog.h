@@ -74,26 +74,26 @@ typedef struct {
 
 /* dl_run: d until a button: its index, DLOG_ESC for Esc; uimn.help the dialog's status line
    meanwhile. */
-uint8_t dlog_run(Dlog *d);
+uint8_t dlog_run(Session *S, Dlog *d);
 /* dl_msg: a message box: text's lines split at '|', centred (dlog_err: left-aligned under a
    title), the buttons; the button's index, DLOG_ESC for Esc. */
-uint8_t dlog_msg(const char *text, const MsgButton *buttons);
+uint8_t dlog_msg(Session *S, const char *text, const MsgButton *buttons);
 /* dl_ok: a message box with OK (and Help). */
-void dlog_ok(const char *text);
+void dlog_ok(Session *S, const char *text);
 /* dl_ync: a message box with Yes, No, Cancel (and Help): 0 Yes, 1 No, 2 Cancel or Esc. */
-uint8_t dlog_ync(const char *text);
+uint8_t dlog_ync(Session *S, const char *text);
 enum : uint8_t { YNC_YES = 0, YNC_NO = 1 };
 /* dl_err: dlog_ok for an error at the cursor's line: the box off that line; text past its first
    '|' (the '|' made 0) left-aligned under the first line, its title; the selection off after. */
-void dlog_err(char *text);
+void dlog_err(Session *S, char *text);
 /* dl_wrap: len bytes at src to dst as a box's lines, each indent spaces in: '|' at a space past
    44 columns; a '|' of src a box's line drawing character (B3h). Past them in dst. */
 uint8_t *dlog_wrap(uint8_t *dst, const uint8_t *src, uint32_t len, uint8_t indent);
 
 /* dl_open: File, Open's box (*.BAS); true: uimn.chosen the file. */
-bool dlog_open(void);
+bool dlog_open(Session *S);
 /* dl_saveas: Save As's box, the field the file's name; true: uimn.chosen the file. */
-bool dlog_saveas(void);
+bool dlog_saveas(Session *S);
 /* dl_fok: OK in Open and Save As (a button's hook, also uimn_start's): uimn.fname a mask (* ?)
    lists it, the box stays (true); empty: stays; else the name, .BAS added when it has no dot, in
    uimn.chosen (false). */
@@ -101,13 +101,13 @@ bool dlog_fileok(uint8_t why);
 /* dl_bhelp: a Help button's hook: no help to show; a beep, the box stays (true). */
 bool dlog_nohelp(uint8_t why);
 /* dl_find: Search, Find's box (uimn.find_what, match_case, whole_word); true: OK. */
-bool dlog_find(void);
+bool dlog_find(Session *S);
 /* dl_conf: Find and Verify's question: its buttons only, at row 19, or row 2 when the cursor
    is that low: 0 Change, 1 Skip, else cancelled. */
-uint8_t dlog_conf(void);
+uint8_t dlog_conf(Session *S);
 enum : uint8_t { CONF_CHANGE = 0, CONF_SKIP = 1 };
 /* dl_change: Search, Change's box: 0 Find and Verify, 1 Change All, else cancelled. */
-uint8_t dlog_change(void);
+uint8_t dlog_change(Session *S);
 enum : uint8_t { CHANGE_VERIFY = 0, CHANGE_ALL = 1 };
 /* ui_ledit: an editing key in the one-line buffer b (a field, the immediate line): a character
    typed (FLDMAX at most), Backspace, Left, Right, Home, End, Del, Ctrl+Left, Ctrl+Right. */

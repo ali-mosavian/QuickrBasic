@@ -14,10 +14,9 @@ typedef struct {
     char cmd[CMDSZ]; /* g_cmd: COMMAND$, the command line after the program's file, upper case */
     uint16_t cmdlen; /* g_cmdn */
 } Syst;
-extern Syst syst;
 
 /* sys_init: the environment and the command line, from the platform's (psys). */
-void syst_init(void);
+void syst_init(Session *S);
 /* sx_sret: cons.sbuf's first len chars pushed as a temporary string. */
-void syst_ret(Vm *vm, uint32_t len);
+void syst_ret(Session *S, uint32_t len);
 #endif

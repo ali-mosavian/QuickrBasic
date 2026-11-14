@@ -12,36 +12,36 @@
 #include "ui/ui.h"
 
 /* ud_init: dbug.emit, dbug.hook. */
-void udbg_init(void);
+void udbg_init(Session *S);
 /* ud_prep: before a run or CONT: the pane closed, nothing lit, uimn.stopped off, breakpoints
    on, Ctrl+F7's line to dbug (until, uline). */
-void udbg_prep(void);
+void udbg_prep(Session *S);
 /* ud_stop: a stop CONT goes on from (vm.cont.line): uimn.stopped, the debug pane, its
    statement lit, the cursor at it. No cont_line: nothing. */
-void udbg_stop(void);
+void udbg_stop(Session *S);
 /* ud_row: the edit window's row at row, col shows view line line: a breakpoint's colour, the lit
    statement's (not while that line is being changed). */
-void udbg_row(uint8_t row, uint8_t col, uint32_t line);
+void udbg_row(Session *S, uint8_t row, uint8_t col, uint32_t line);
 
 /* The Debug menu's commands and the run keys. */
 /* ud_step: Step, F8: the next statement, into a procedure. */
-[[noreturn]] void udbg_step(void);
+[[noreturn]] void udbg_step(Session *S);
 /* ud_pstep: Step Over, F10 (and F7 as the status bar's Over): the next statement at this depth
    or less. */
-[[noreturn]] void udbg_pstep(void);
+[[noreturn]] void udbg_pstep(Session *S);
 /* ud_sout: Step Out, Shift+F8: on till the procedure or GOSUB stopped in has returned. */
-[[noreturn]] void udbg_sout(void);
+[[noreturn]] void udbg_sout(Session *S);
 /* ud_restart: Run, Restart: from the start, stopped at its first statement. */
-[[noreturn]] void udbg_restart(void);
+[[noreturn]] void udbg_restart(Session *S);
 /* ud_trace1: Trace On: dbug.trace on, off. */
-void udbg_tron(void);
+void udbg_tron(Session *S);
 /* ud_bp: Toggle Breakpoint, F9: the cursor's line (the program window's only). */
-void udbg_bp(void);
+void udbg_bp(Session *S);
 /* ud_bpclr: Clear All Breakpoints. */
-void udbg_bpclear(void);
+void udbg_bpclear(Session *S);
 /* ud_until: Ctrl+F7: on to the cursor's line (the program window's only; else nothing). */
-void udbg_until(void);
+void udbg_until(Session *S);
 /* ud_setnx: Set Next Statement: CONT goes on at the cursor's line, in the procedure stopped in;
    else a box (cannot continue; another procedure's line). */
-void udbg_setnext(void);
+void udbg_setnext(Session *S);
 #endif

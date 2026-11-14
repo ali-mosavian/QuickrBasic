@@ -1,5 +1,6 @@
 /* The windows (src/ui/win.asm). */
 #include "ui/wind.h"
+#include "session.h"
 #include "ui/dpan.h"
 #include "ui/draw.h"
 #include "ui/edit.h"
@@ -67,18 +68,18 @@ static void swap(const uint8_t w)
     win(w)->ed = t;
 }
 
-void wind_draw(void)
+void wind_draw(Session *const S)
 {
     for (uint8_t w = W_ED1; w < W_IMM; w++) {
         if (!win(w)->height)
             continue;
         if (w == uimn.win.active) {
-            draw_edit(false);
+            draw_edit(S, false);
             continue;
         }
         swap(w); /* the other edit window: its state in uimn.ed while it draws */
         view_apply();
-        draw_edit(true);
+        draw_edit(S, true);
         swap(w);
         view_apply();
     }
@@ -87,9 +88,9 @@ void wind_draw(void)
         draw_imm();
 }
 
-void wind_act(const uint8_t w)
+void wind_act(Session *const S, const uint8_t w)
 {
-    edit_commit();
+    edit_commit(S);
     uimn.focus = FOC_EDIT;
     if (w == uimn.win.active)
         return;
@@ -99,17 +100,17 @@ void wind_act(const uint8_t w)
     swap(w); /* the new one's from its ed */
     view_apply();
     const uint16_t col = win(w)->col;
-    edit_load(uimn.ed.line);
+    edit_load(S, uimn.ed.line);
     uimn.edline.col = col;
 }
 
-void wind_focus(const uint8_t w)
+void wind_focus(Session *const S, const uint8_t w)
 {
     if (w != W_IMM && w != W_DBG) {
-        wind_act(w);
+        wind_act(S, w);
         return;
     }
-    edit_commit();
+    edit_commit(S);
     uimn.focus = w == W_IMM ? FOC_IMM : FOC_PANE;
 }
 
@@ -124,7 +125,7 @@ static const uint8_t order[] = {W_ED1, W_ED2, W_DBG, W_IMM}; /* F6's */
 enum { NWORD = countof(order) };
 
 /* The focus to the window shown d places on in order. */
-static void step(const uint32_t d)
+static void step(Session *const S, const uint32_t d)
 {
     const uint8_t cur = wind_cur();
     uint32_t i = 0;
@@ -134,14 +135,14 @@ static void step(const uint32_t d)
         i = (i + d) % NWORD;
         const uint8_t w = order[i];
         if (w == W_DBG ? uimn.pane_on : win(w)->height != 0) {
-            wind_focus(w);
+            wind_focus(S, w);
             return;
         }
     }
 }
 
-void wind_next(void) { step(1); }
-void wind_prev(void) { step(NWORD - 1); }
+void wind_next(Session *const S) { step(S, 1); }
+void wind_prev(Session *const S) { step(S, NWORD - 1); }
 
 bool wind_at(const uint8_t row, const uint8_t col, uint8_t *const w)
 {
@@ -197,10 +198,10 @@ static void unsplit(void)
     wind_layout();
 }
 
-void wind_split(void)
+void wind_split(Session *const S)
 {
     unmax();
-    edit_commit();
+    edit_commit(S);
     if (win(W_ED2)->height) {
         unsplit();
         return;
@@ -213,10 +214,10 @@ void wind_split(void)
     copy_ed1();
 }
 
-void wind_vsplit(void)
+void wind_vsplit(Session *const S)
 {
     unmax();
-    edit_commit();
+    edit_commit(S);
     if (win(W_ED2)->height) {
         unsplit();
         return;

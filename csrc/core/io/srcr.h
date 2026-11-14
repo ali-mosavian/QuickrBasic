@@ -28,18 +28,17 @@ typedef struct {
     bool any;      /* a byte or a line's end was read */
     SrcrCont cont;
 } Srcr;
-extern Srcr srcr;
 
 /* The input channel's next logical line into the window; its length there, -1 at the end with
    nothing read. */
-int32_t srcr_line(void);
+int32_t srcr_line(Session *S);
 /* lexr's reader (LexrMore): the window used up, its bytes from *keep on moved to its start,
    then more of the line after them; *keep moved. false: the line has no more, nothing moved. */
-bool srcr_more(const uint8_t **keep);
+bool srcr_more(Session *S, const uint8_t **keep);
 
 /* Whether a physical line continues, by its bytes (cn_*; the editor's too): a line starts; its
    next byte; it ended, true when it continues. */
-void srcr_phys_start(void);
-void srcr_phys_byte(uint8_t c);
-bool srcr_phys_end(void);
+void srcr_phys_start(Session *S);
+void srcr_phys_byte(Session *S, uint8_t c);
+bool srcr_phys_end(Session *S);
 #endif

@@ -1,5 +1,6 @@
 /* Dialog boxes: the engine, message boxes, Open, Save As, Find, Change (src/ui/dlg.asm). */
 #include "ui/dlog.h"
+#include "session.h"
 #include "plat/pfil.h"
 #include "plat/pkey.h"
 #include "plat/pscr.h"
@@ -520,13 +521,13 @@ static bool act(const Dlog *const d, const uint8_t go, DlogCtl *c, const uint16_
 }
 
 /* dl_run0 */
-static uint8_t run(Dlog *const d)
+static uint8_t run(Session *const S, Dlog *const d)
 {
     dl.d = d;
     dl.alt = pkey_shift() & PKEY_ALT; /* Alt down already: its letters lit */
     dl.fresh = true;
     for (;;) {
-        draw_all();
+        draw_all(S);
         draw(d);
         const uint16_t key = uimn_getkey();
         DlogCtl *c = &d->ctl[d->focus];
@@ -540,10 +541,10 @@ static uint8_t run(Dlog *const d)
     }
 }
 
-uint8_t dlog_run(Dlog *const d)
+uint8_t dlog_run(Session *const S, Dlog *const d)
 {
     uimn.help = uimn_dlog_help;
-    const uint8_t r = run(d);
+    const uint8_t r = run(S, d);
     uimn.help = nullptr;
     return r;
 }
@@ -620,7 +621,7 @@ static uint8_t msg_buttons(const Dlog *const m, const MsgButton *const buttons, 
     return i;
 }
 
-uint8_t dlog_msg(const char *const text, const MsgButton *const buttons)
+uint8_t dlog_msg(Session *const S, const char *const text, const MsgButton *const buttons)
 {
     uint8_t widest;
     const uint8_t nl = split_lines(text, &widest);
@@ -642,7 +643,7 @@ uint8_t dlog_msg(const char *const text, const MsgButton *const buttons)
     msg_lines(m, nl);
     m->focus = m->def = dl.b0 = nl;
     m->n = msg_buttons(m, buttons, nl, MSG_TOP + nl + 2, bw);
-    uint8_t r = dlog_run(m);
+    uint8_t r = dlog_run(S, m);
     if (r != DLOG_ESC)
         r -= dl.b0;
     uimn.help = nullptr;
@@ -655,7 +656,7 @@ bool dlog_nohelp(const uint8_t why)
     return true;
 }
 
-void dlog_err(char *text)
+void dlog_err(Session *const S, char *text)
 {
     dl.adjust = true;
     char *const bar = strchr(text, '|');
@@ -664,7 +665,7 @@ void dlog_err(char *text)
         dl.title = text;
         text = bar + 1;
     }
-    dlog_ok(text);
+    dlog_ok(S, text);
     dl.title = nullptr;
     dl.adjust = false;
     uimn.ed.sel_on = false; /* the error's word, shown till now */
@@ -696,11 +697,11 @@ uint8_t *dlog_wrap(uint8_t *dst, const uint8_t *const src, const uint32_t len,
     return dst;
 }
 
-void dlog_ok(const char *const text) { dlog_msg(text, bt_ok); }
+void dlog_ok(Session *const S, const char *const text) { dlog_msg(S, text, bt_ok); }
 
-uint8_t dlog_ync(const char *const text)
+uint8_t dlog_ync(Session *const S, const char *const text)
 {
-    const uint8_t r = dlog_msg(text, bt_ync);
+    const uint8_t r = dlog_msg(S, text, bt_ync);
     return r == DLOG_ESC ? 2 : r;
 }
 
@@ -791,43 +792,43 @@ bool dlog_fileok(const uint8_t why)
     return true;
 }
 
-bool dlog_open(void)
+bool dlog_open(Session *const S)
 {
     memcpy(mask, "*.BAS", 6);
     set_field(mask);
     list_files();
     dg_open.focus = 0;
-    return dlog_run(&dg_open) == DO_OK;
+    return dlog_run(S, &dg_open) == DO_OK;
 }
 
-bool dlog_saveas(void)
+bool dlog_saveas(Session *const S)
 {
     set_field(uimn.file);
     memcpy(mask, "*.*", 4);
     list_files();
     dg_save.focus = 0;
-    return dlog_run(&dg_save) == DS_OK;
+    return dlog_run(S, &dg_save) == DS_OK;
 }
 
 /* ---- Find, Change */
 
-bool dlog_find(void)
+bool dlog_find(Session *const S)
 {
     dg_find.focus = 0;
-    return dlog_run(&dg_find) == DF_OK;
+    return dlog_run(S, &dg_find) == DF_OK;
 }
 
-uint8_t dlog_conf(void)
+uint8_t dlog_conf(Session *const S)
 {
     edit_ensure();
     const uint16_t at = (uint16_t)(uimn.ed.line - uimn.ed.top + uimn.ed.row0);
     dg_conf.row = at < CONF_LOW ? CONF_LOW : CONF_HIGH;
     dg_conf.focus = 0;
-    return dlog_run(&dg_conf);
+    return dlog_run(S, &dg_conf);
 }
 
-uint8_t dlog_change(void)
+uint8_t dlog_change(Session *const S)
 {
     dg_chg.focus = 0;
-    return (uint8_t)(dlog_run(&dg_chg) - DC_FV);
+    return (uint8_t)(dlog_run(S, &dg_chg) - DC_FV);
 }

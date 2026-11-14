@@ -2,5 +2,7 @@
    memory" when the host gives too little. */
 #ifndef BOOT_H
 #define BOOT_H
-void boot(void);
+#include "base.h"
+
+void boot(Session *S);
 #endif

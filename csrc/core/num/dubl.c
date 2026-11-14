@@ -1,6 +1,7 @@
 /* A D op's result is stored to its Cell before it is looked at: llrm keeps a double at the x87's
    precision until stored, and the store is the asm's fstp qword. */
 #include "num/dubl.h"
+#include "session.h"
 #include "io/cons.h"
 #include "io/repl.h"
 #include "mem/strg.h"
@@ -28,18 +29,18 @@ static bool special(const uint64_t u) { return exponent(u) == DBL_EXP_MASK; } /*
 static bool is_zero(const uint64_t u) { return !(u << 1); }
 
 /* Overflow past the largest. */
-static void check(const Cell *const c)
+static void check(Session *const S, const Cell *const c)
 {
     if (special(c->raw))
-        repl_error(E_OV);
+        repl_error(S, E_OV);
 }
 
-static void status(const uint8_t st)
+static void status(Session *const S, const uint8_t st)
 {
     if (st == PFPU_IQ)
-        repl_error(E_IQ);
+        repl_error(S, E_IQ);
     if (st == PFPU_OV)
-        repl_error(E_OV);
+        repl_error(S, E_OV);
 }
 
 /* ---- text in -------------------------------------------------------------------------------- */
@@ -123,7 +124,7 @@ static int32_t read_exponent(const uint8_t **const p, uint8_t *const kind)
     return neg ? -e : e;
 }
 
-double dubl_in(const uint8_t **const p, uint8_t *const kind)
+double dubl_in(Session *const S, const uint8_t **const p, uint8_t *const kind)
 {
     skip(p);
     if (**p == '&') {
@@ -154,7 +155,7 @@ double dubl_in(const uint8_t **const p, uint8_t *const kind)
     pfpu_scale10(m.mant, m.pow10, &r.d);
     if (neg)
         r.raw ^= DBL_SIGN;
-    check(&r);
+    check(S, &r);
     if (kind)
         *kind = k;
     return r.d;
@@ -239,91 +240,91 @@ uint32_t dubl_fmtf(const Sngl v, uint8_t *const out) { return fmt(sngl_val(v), S
 static Cell cell_at(const Addr a) { return load_cell(at(a)); }
 static void cell_put(const Addr a, const Cell c) { store_cell(at(a), c); }
 
-void dubl_ldv(Vm *const vm) { exec_push(vm, cell_at(symb_cell(exec_u16(vm)))); }
-void dubl_stv(Vm *const vm)
+void dubl_ldv(Session *const S) { exec_push(&S->vm, cell_at(symb_cell(&S->symb, exec_u16(&S->vm)))); }
+void dubl_stv(Session *const S)
 {
-    const Addr cell = symb_cell(exec_u16(vm));
-    cell_put(cell, exec_pop(vm));
+    const Addr cell = symb_cell(&S->symb, exec_u16(&S->vm));
+    cell_put(cell, exec_pop(&S->vm));
 }
 
-void dubl_ldk(Vm *const vm)
+void dubl_ldk(Session *const S)
 {
-    exec_push(vm, load_cell(vm->ip));
-    vm->ip += sizeof(Cell);
+    exec_push(&S->vm, load_cell(S->vm.ip));
+    S->vm.ip += sizeof(Cell);
 }
 
-void dubl_lda1(Vm *const vm)
+void dubl_lda1(Session *const S)
 {
-    const int32_t i = exec_popi(vm);
-    exec_push(vm, cell_at(exec_elem1(exec_u16(vm), i)));
+    const int32_t i = exec_popi(&S->vm);
+    exec_push(&S->vm, cell_at(exec_elem1(S, exec_u16(&S->vm), i)));
 }
 
-void dubl_lda(Vm *const vm) { exec_push(vm, cell_at(exec_elem(vm))); }
+void dubl_lda(Session *const S) { exec_push(&S->vm, cell_at(exec_elem(S))); }
 
-void dubl_sta1(Vm *const vm)
+void dubl_sta1(Session *const S)
 {
-    const Cell d = exec_pop(vm);
-    const int32_t i = exec_popi(vm);
-    cell_put(exec_elem1(exec_u16(vm), i), d);
+    const Cell d = exec_pop(&S->vm);
+    const int32_t i = exec_popi(&S->vm);
+    cell_put(exec_elem1(S, exec_u16(&S->vm), i), d);
 }
 
-void dubl_sta(Vm *const vm)
+void dubl_sta(Session *const S)
 {
-    const Cell d = exec_pop(vm);
-    cell_put(exec_elem(vm), d);
+    const Cell d = exec_pop(&S->vm);
+    cell_put(exec_elem(S), d);
 }
 
 /* ---- arithmetic ----------------------------------------------------------------------------- */
 
-void dubl_add(Vm *const vm)
+void dubl_add(Session *const S)
 {
-    const double b = exec_popd(vm);
-    vm->sp->d += b;
-    check(vm->sp);
+    const double b = exec_popd(&S->vm);
+    S->vm.sp->d += b;
+    check(S, S->vm.sp);
 }
 
-void dubl_sub(Vm *const vm)
+void dubl_sub(Session *const S)
 {
-    const double b = exec_popd(vm);
-    vm->sp->d -= b;
-    check(vm->sp);
+    const double b = exec_popd(&S->vm);
+    S->vm.sp->d -= b;
+    check(S, S->vm.sp);
 }
 
-void dubl_mul(Vm *const vm)
+void dubl_mul(Session *const S)
 {
-    const double b = exec_popd(vm);
-    vm->sp->d *= b;
-    check(vm->sp);
+    const double b = exec_popd(&S->vm);
+    S->vm.sp->d *= b;
+    check(S, S->vm.sp);
 }
 
 /* Division by zero: the divisor 0. */
-void dubl_div(Vm *const vm)
+void dubl_div(Session *const S)
 {
-    if (is_zero(vm->sp->raw))
-        repl_error(E_DZ);
-    const double b = exec_popd(vm);
-    vm->sp->d /= b;
-    check(vm->sp);
+    if (is_zero(S->vm.sp->raw))
+        repl_error(S, E_DZ);
+    const double b = exec_popd(&S->vm);
+    S->vm.sp->d /= b;
+    check(S, S->vm.sp);
 }
 
-void dubl_neg(Vm *const vm)
+void dubl_neg(Session *const S)
 {
-    if (!is_zero(vm->sp->raw))
-        vm->sp->raw ^= DBL_SIGN;
+    if (!is_zero(S->vm.sp->raw))
+        S->vm.sp->raw ^= DBL_SIGN;
 }
 
-void dubl_cmp(Vm *const vm)
+void dubl_cmp(Session *const S)
 {
-    const double b = exec_popd(vm);
-    const double a = vm->sp->d;
+    const double b = exec_popd(&S->vm);
+    const double a = S->vm.sp->d;
     const uint8_t rel = a > b ? DC_GT : a < b ? DC_LT : DC_EQ;
-    vm->sp->u = rel & exec_u8(vm) ? UINT32_MAX : 0;
+    S->vm.sp->u = rel & exec_u8(&S->vm) ? UINT32_MAX : 0;
 }
 
-void dubl_nz(Vm *const vm) { vm->sp->u = is_zero(vm->sp->raw) ? 0 : UINT32_MAX; }
-void dubl_itod(Vm *const vm) { vm->sp->d = vm->sp->i; }
-void dubl_ftod(Vm *const vm) { vm->sp->d = vm->sp->f; }
-void dubl_tof(Vm *const vm) { vm->sp->u = sngl_from_dbl(vm->sp->d); }
+void dubl_nz(Session *const S) { S->vm.sp->u = is_zero(S->vm.sp->raw) ? 0 : UINT32_MAX; }
+void dubl_itod(Session *const S) { S->vm.sp->d = S->vm.sp->i; }
+void dubl_ftod(Session *const S) { S->vm.sp->d = S->vm.sp->f; }
+void dubl_tof(Session *const S) { S->vm.sp->u = sngl_from_dbl(S->vm.sp->d); }
 
 /* fistp qword: to the nearest, a half to even; INT64_MIN past the range (the indefinite). */
 static int64_t round_to_int64(const uint64_t u)
@@ -350,12 +351,12 @@ static int64_t round_to_int64(const uint64_t u)
 }
 
 /* Overflow past an INT. */
-void dubl_toi(Vm *const vm)
+void dubl_toi(Session *const S)
 {
-    const int64_t v = round_to_int64(vm->sp->raw);
-    vm->sp->raw = (uint64_t)v;
+    const int64_t v = round_to_int64(S->vm.sp->raw);
+    S->vm.sp->raw = (uint64_t)v;
     if (v != (int32_t)v)
-        repl_error(E_OV);
+        repl_error(S, E_OV);
 }
 
 /* frndint, down or toward 0. */
@@ -378,43 +379,43 @@ static uint64_t round_whole(uint64_t u, const bool down)
     return u & ~frac;
 }
 
-void dubl_fn(Vm *const vm)
+void dubl_fn(Session *const S)
 {
-    const uint8_t k = exec_u8(vm);
-    Cell *const c = vm->sp;
+    const uint8_t k = exec_u8(&S->vm);
+    Cell *const c = S->vm.sp;
     switch (k) {
     case DF_ABS: c->raw &= ~DBL_SIGN; break;
     case DF_SGN: c->i = c->d > 0 ? 1 : c->d < 0 ? -1 : 0; return; /* NaN 0 */
     case DF_INT: c->raw = round_whole(c->raw, true); break;
     case DF_FIX: c->raw = round_whole(c->raw, false); break;
-    case DF_SQR: status(pfpu_dfn(PF_SQR, c->d, &c->d)); return;
-    case DF_EXP: status(pfpu_dfn(PF_EXP, c->d, &c->d)); return;
+    case DF_SQR: status(S, pfpu_dfn(PF_SQR, c->d, &c->d)); return;
+    case DF_EXP: status(S, pfpu_dfn(PF_EXP, c->d, &c->d)); return;
     default: {
         static const uint8_t pf[] = {[DF_SIN] = PF_SIN, [DF_COS] = PF_COS, [DF_TAN] = PF_TAN,
                                      [DF_ATN] = PF_ATN, [DF_LOG] = PF_LOG};
-        status(pfpu_dfn(pf[k], c->d, &c->d));
+        status(S, pfpu_dfn(pf[k], c->d, &c->d));
     }
     }
-    check(c);
+    check(S, c);
 }
 
-void dubl_pow(Vm *const vm)
+void dubl_pow(Session *const S)
 {
-    const double b = exec_popd(vm);
-    status(pfpu_dpow(vm->sp->d, b, &vm->sp->d));
+    const double b = exec_popd(&S->vm);
+    status(S, pfpu_dpow(S->vm.sp->d, b, &S->vm.sp->d));
 }
 
-void dubl_print(Vm *const vm)
+void dubl_print(Session *const S)
 {
     uint8_t t[DUBL_TXT];
-    const uint32_t n = dubl_fmt(exec_popd(vm), t);
+    const uint32_t n = dubl_fmt(exec_popd(&S->vm), t);
     for (uint32_t i = 0; i < n; i++)
-        cons_putc(t[i]);
-    cons_space();
+        cons_putc(S, t[i]);
+    cons_space(S);
 }
 
-void dubl_str(Vm *const vm)
+void dubl_str(Session *const S)
 {
-    const uint32_t n = dubl_fmt(exec_popd(vm), cons.sbuf);
-    exec_pusha(vm, strg_buftmp((uint16_t)n));
+    const uint32_t n = dubl_fmt(exec_popd(&S->vm), S->cons.sbuf);
+    exec_pusha(&S->vm, strg_buftmp(S, (uint16_t)n));
 }

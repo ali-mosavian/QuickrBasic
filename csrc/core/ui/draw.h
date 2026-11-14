@@ -6,11 +6,11 @@
 
 /* dr_all: the whole screen (menu_bar, wind_draw, dpan_tip, draw_status) and the cursor in the
    focused window, its shape the mode's (hidden in the pane). */
-void draw_all(void);
+void draw_all(Session *S);
 /* dr_edit: the edit window in uimn.ed: its frame and title, its lines (synt_row, udbg_row), the
    selection, its scroll bars when it has the focus. inactive (dr_ina): the window drawn is not
    the active one (wind_draw swapped its state in): no selection, no bars, uimn.edline not its. */
-void draw_edit(bool inactive);
+void draw_edit(Session *S, bool inactive);
 /* dr_imm: the immediate window: its title, its lines; im_top kept so that im_i shows. */
 void draw_imm(void);
 /* dr_status: the status bar: the keys (draw_keys) or uimn.help after "F1=Help"; the cursor's

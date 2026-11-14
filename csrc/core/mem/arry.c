@@ -1,4 +1,5 @@
 #include "mem/arry.h"
+#include "session.h"
 #include "comp/decl.h"
 #include "io/repl.h"
 #include "mem/allo.h"
@@ -10,7 +11,6 @@
 
 enum { DATA_MAX = 0x100000, DATA_ALIGN = 4 };
 
-Arry arry;
 
 static ArrayHdr *hdr_at(const Addr h) { return (ArrayHdr *)at(h); }
 
@@ -34,92 +34,92 @@ static uint64_t aligned_end(const Addr a, const uint32_t size)
     return ((uint64_t)a + size + DATA_ALIGN - 1) & ~(uint64_t)(DATA_ALIGN - 1);
 }
 
-static bool is_array_var(const uint16_t id) { return symb_var(id)->info & VI_ARR; }
+static bool is_array_var(Session *const S, const uint16_t id) { return symb_var(&S->symb, id)->info & VI_ARR; }
 
-[[noreturn]] void arry_bad_sub(void) { repl_error(E_BS); }
+[[noreturn]] void arry_bad_sub(Session *const S) { repl_error(S, E_BS); }
 
-uint32_t arry_esize(const uint16_t id)
+uint32_t arry_esize(Session *const S, const uint16_t id)
 {
-    const Var *const v = symb_var(id);
+    const Var *const v = symb_var(&S->symb, id);
     if (v->type >= ET_REC)
-        return decl.types[v->type - ET_REC].size;
+        return S->decl.types[v->type - ET_REC].size;
     if (v->info & SK_DBL)
         return 8;
     return (v->info & VK_MASK) == VK_STR ? DSZ : VS;
 }
 
-Addr arry_ref(const uint16_t id, const uint8_t n)
+Addr arry_ref(Session *const S, const uint16_t id, const uint8_t n)
 {
-    Addr h = symb_var(id)->vt;
+    Addr h = symb_var(&S->symb, id)->vt;
     if (!h) {
-        if (symb_varx(id)->dyn) /* ERASE freed it: not made again */
-            arry_bad_sub();
+        if (symb_varx(&S->symb, id)->dyn) /* ERASE freed it: not made again */
+            arry_bad_sub(S);
         for (uint32_t i = 0; i < n; i++) { /* OPTION BASE to 10 */
-            arry.counts[i] = 11 - decl.base;
-            arry.lbounds[i] = decl.base;
+            S->arry.counts[i] = 11 - S->decl.base;
+            S->arry.lbounds[i] = S->decl.base;
         }
-        h = arry_new(id, n, false);
+        h = arry_new(S, id, n, false);
     }
     const ArrayHdr *const a = hdr_at(h);
     if (n != a->dims)
-        arry_bad_sub();
+        arry_bad_sub(S);
     uint32_t idx = 0; /* the last subscript the fastest */
     for (uint32_t i = 0; i < n; i++) {
-        const uint16_t r = arry.subs[i] - (uint16_t)lbound(a, i);
+        const uint16_t r = S->arry.subs[i] - (uint16_t)lbound(a, i);
         if (r >= count(a, i))
-            arry_bad_sub();
+            arry_bad_sub(S);
         idx = idx * count(a, i) + r;
     }
-    return a->data + idx * arry_esize(id);
+    return a->data + idx * arry_esize(S, id);
 }
 
-void arry_dim(const uint16_t id, const uint8_t n, const bool dyn)
+void arry_dim(Session *const S, const uint16_t id, const uint8_t n, const bool dyn)
 {
     for (uint32_t i = n; i-- > 0;) {
-        if ((int16_t)arry.subs[i] < 0)
-            repl_error(E_IQ);
-        arry.counts[i] = arry.subs[i] + 1;
+        if ((int16_t)S->arry.subs[i] < 0)
+            repl_error(S, E_IQ);
+        S->arry.counts[i] = S->arry.subs[i] + 1;
     }
-    if (symb_var(id)->vt)
-        repl_error(E_RD);
-    arry_new(id, n, dyn);
+    if (symb_var(&S->symb, id)->vt)
+        repl_error(S, E_RD);
+    arry_new(S, id, n, dyn);
 }
 
-Addr arry_new(const uint16_t id, const uint8_t n, const bool dyn)
+Addr arry_new(Session *const S, const uint16_t id, const uint8_t n, const bool dyn)
 {
-    uint64_t size = arry_esize(id);
+    uint64_t size = arry_esize(S, id);
     for (uint32_t i = 0; i < n; i++) {
-        size *= arry.counts[i];
+        size *= S->arry.counts[i];
         if (size > DATA_MAX)
-            repl_error(E_OM);
+            repl_error(S, E_OM);
     }
-    if (arry.hdr + hdr_size(n) > allo.hdr_base + HDRSZ)
-        repl_error(E_OM);
-    if (aligned_end(arry.end, (uint32_t)size) > strg.low) {
-        strg_gc();
-        if (aligned_end(arry.end, (uint32_t)size) > strg.low)
-            repl_error(E_OM);
+    if (S->arry.hdr + hdr_size(n) > S->allo.hdr_base + HDRSZ)
+        repl_error(S, E_OM);
+    if (aligned_end(S->arry.end, (uint32_t)size) > S->strg.low) {
+        strg_gc(S);
+        if (aligned_end(S->arry.end, (uint32_t)size) > S->strg.low)
+            repl_error(S, E_OM);
     }
-    const Addr data = arry.end;
-    arry.end = (Addr)aligned_end(data, (uint32_t)size);
+    const Addr data = S->arry.end;
+    S->arry.end = (Addr)aligned_end(data, (uint32_t)size);
     copy_zero(data, (uint32_t)size);
 
-    const Addr h = arry.hdr;
+    const Addr h = S->arry.hdr;
     ArrayHdr *const a = hdr_at(h);
     a->dims = n;
     a->data = data;
-    a->fast = n == 1 && arry.lbounds[0] == 0 ? arry.counts[0] : 0; /* 1-D from 0 */
-    memcpy(&a->count[0], arry.counts, n * sizeof arry.counts[0]);
-    memcpy(&a->count[n], arry.lbounds, n * sizeof arry.lbounds[0]);
-    arry.hdr = h + hdr_size(n);
-    symb_var(id)->vt = h;
-    symb_varx(id)->dyn = dyn;
+    a->fast = n == 1 && S->arry.lbounds[0] == 0 ? S->arry.counts[0] : 0; /* 1-D from 0 */
+    memcpy(&a->count[0], S->arry.counts, n * sizeof S->arry.counts[0]);
+    memcpy(&a->count[n], S->arry.lbounds, n * sizeof S->arry.lbounds[0]);
+    S->arry.hdr = h + hdr_size(n);
+    symb_var(&S->symb, id)->vt = h;
+    symb_varx(&S->symb, id)->dyn = dyn;
     return h;
 }
 
-uint32_t arry_size(const uint16_t id, const Addr hdr)
+uint32_t arry_size(Session *const S, const uint16_t id, const Addr hdr)
 {
-    return arry_esize(id) * elem_count(hdr_at(hdr));
+    return arry_esize(S, id) * elem_count(hdr_at(hdr));
 }
 
 /* ---- freeing -------------------------------------------------------------------------------- */
@@ -136,13 +136,13 @@ typedef struct {
 } Freed;
 
 /* A header kept: past the dropped one it moves down; the dropped one's becomes rep. */
-static Addr moved_hdr(const Freed *const f, const Addr h)
+static Addr moved_hdr(Session *const S, const Freed *const f, const Addr h)
 {
     if (h < f->hdr)
         return h;
     if (h == f->hdr)
         return f->rep;
-    return h < arry.hdr + f->hdr_size ? h - f->hdr_size : h;
+    return h < S->arry.hdr + f->hdr_size ? h - f->hdr_size : h;
 }
 
 /* A parameter's cell kept: in the data moved down, it follows. */
@@ -153,9 +153,9 @@ static Addr moved_cell(const Freed *const f, const Addr c)
 }
 
 /* The moved string blocks' owners follow. */
-static void follow_owners(const Freed *const f)
+static void follow_owners(Session *const S, const Freed *const f)
 {
-    for (Addr b = allo.top; b > strg.low;) {
+    for (Addr b = S->allo.top; b > S->strg.low;) {
         b -= BHDR;
         StrTail *const tail = (StrTail *)at(b);
         if (tail->owner >= f->data && tail->owner < f->old_end)
@@ -164,9 +164,9 @@ static void follow_owners(const Freed *const f)
     }
 }
 
-uint32_t arry_free(const uint16_t id, const Addr rep)
+uint32_t arry_free(Session *const S, const uint16_t id, const Addr rep)
 {
-    Var *const v = symb_var(id);
+    Var *const v = symb_var(&S->symb, id);
     const Addr h = v->vt;
     v->vt = 0;
     const ArrayHdr *const a = hdr_at(h);
@@ -174,28 +174,28 @@ uint32_t arry_free(const uint16_t id, const Addr rep)
         .hdr = h,
         .hdr_size = hdr_size(a->dims),
         .data = a->data,
-        .size = (uint32_t)(aligned_end(a->data, arry_size(id, h)) - a->data),
-        .old_end = arry.end,
+        .size = (uint32_t)(aligned_end(a->data, arry_size(S, id, h)) - a->data),
+        .old_end = S->arry.end,
         .rep = rep,
     };
-    copy_mem(f.data, f.data + f.size, arry.end - (f.data + f.size));
-    arry.end -= f.size;
-    copy_mem(h, h + f.hdr_size, arry.hdr - (h + f.hdr_size));
-    arry.hdr -= f.hdr_size;
-    for (Addr p = allo.hdr_base; p < arry.hdr; p += hdr_size(hdr_at(p)->dims)) {
+    copy_mem(f.data, f.data + f.size, S->arry.end - (f.data + f.size));
+    S->arry.end -= f.size;
+    copy_mem(h, h + f.hdr_size, S->arry.hdr - (h + f.hdr_size));
+    S->arry.hdr -= f.hdr_size;
+    for (Addr p = S->allo.hdr_base; p < S->arry.hdr; p += hdr_size(hdr_at(p)->dims)) {
         ArrayHdr *const kept = hdr_at(p);
         if (kept->data > f.data)
             kept->data -= f.size;
     }
-    follow_owners(&f);
-    for (uint16_t c = symb.nvars; c-- > 1;) {
-        Var *const var = symb_var(c);
-        var->vt = is_array_var(c) ? moved_hdr(&f, var->vt) : moved_cell(&f, var->vt);
+    follow_owners(S, &f);
+    for (uint16_t c = S->symb.nvars; c-- > 1;) {
+        Var *const var = symb_var(&S->symb, c);
+        var->vt = is_array_var(S, c) ? moved_hdr(S, &f, var->vt) : moved_cell(&f, var->vt);
     }
-    for (uint32_t i = 0; i < vm.ncallvars; i++) {
-        CallVar *const cv = &vm.callvars[i];
-        if (is_array_var(cv->var))
-            cv->array.hdr = moved_hdr(&f, cv->array.hdr);
+    for (uint32_t i = 0; i < S->vm.ncallvars; i++) {
+        CallVar *const cv = &S->vm.callvars[i];
+        if (is_array_var(S, cv->var))
+            cv->array.hdr = moved_hdr(S, &f, cv->array.hdr);
         else if (cv->cell) /* a parameter's cell before */
             cv->cell = moved_cell(&f, cv->cell);
     }
@@ -223,12 +223,12 @@ static bool index_in(const ArrayHdr *const old, const ArrayHdr *const fresh, uin
     return true;
 }
 
-void arry_keep(const uint16_t id, const Addr old_hdr, const Addr fresh_hdr)
+void arry_keep(Session *const S, const uint16_t id, const Addr old_hdr, const Addr fresh_hdr)
 {
     const ArrayHdr *const old = hdr_at(old_hdr);
     const ArrayHdr *const fresh = hdr_at(fresh_hdr);
-    const uint32_t esize = arry_esize(id);
-    const Var *const v = symb_var(id);
+    const uint32_t esize = arry_esize(S, id);
+    const Var *const v = symb_var(&S->symb, id);
     const bool strings = (v->info & (SK_DBL | VK_MASK)) == VK_STR && v->type < ET_REC;
     const uint32_t total = elem_count(old);
     for (uint32_t k = 0; k < total; k++) {
@@ -238,21 +238,21 @@ void arry_keep(const uint16_t id, const Addr old_hdr, const Addr fresh_hdr)
         const Addr src = old->data + k * esize;
         const Addr dst = fresh->data + idx * esize;
         if (strings)
-            flow_lsmove(src, dst); /* its block moves too */
+            flow_lsmove(S, src, dst); /* its block moves too */
         else
             copy_mem(dst, src, esize);
     }
 }
 
-void arry_rep(const uint16_t id)
+void arry_rep(Session *const S, const uint16_t id)
 {
-    const Addr h = symb_var(id)->vt;
-    for (uint16_t c = symb.nvars; c-- > 1;)
-        if (symb_var(c)->vt == AREP)
-            symb_var(c)->vt = h;
-    for (uint32_t i = 0; i < vm.ncallvars; i++) {
-        CallVar *const cv = &vm.callvars[i];
-        if (is_array_var(cv->var) && cv->array.hdr == AREP)
+    const Addr h = symb_var(&S->symb, id)->vt;
+    for (uint16_t c = S->symb.nvars; c-- > 1;)
+        if (symb_var(&S->symb, c)->vt == AREP)
+            symb_var(&S->symb, c)->vt = h;
+    for (uint32_t i = 0; i < S->vm.ncallvars; i++) {
+        CallVar *const cv = &S->vm.callvars[i];
+        if (is_array_var(S, cv->var) && cv->array.hdr == AREP)
             cv->array.hdr = h;
     }
 }

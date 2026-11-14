@@ -15,42 +15,42 @@
 #include "ui/ui.h"
 
 /* tx_init: a new program: one empty line, the whole text the view; uimn.text.changed. */
-void text_init(void);
+void text_init(Session *S);
 /* tx_whole: the whole text the view. */
 void text_whole(void);
 /* tx_view: the view n lines from text line first. */
 void text_view(uint32_t first, uint32_t n);
 /* tx_rec: line's record (a program store offset). */
-uint32_t text_rec(uint32_t line);
+uint32_t text_rec(Session *S, uint32_t line);
 /* tx_get: line's text to dst (LNBUF bytes room); its length. */
-uint32_t text_get(uint32_t line, uint8_t *dst);
+uint32_t text_get(Session *S, uint32_t line, uint8_t *dst);
 /* tx_repl: line becomes the len characters at src, made a record as the editor stores it (its
    number, its body tokenized, LIST's spelling; as typed when uimn.text.asis, used up, or when
    that spelling is past LNMAX); its mark kept. */
-void text_repl(uint32_t line, const uint8_t *src, uint16_t len);
+void text_repl(Session *S, uint32_t line, const uint8_t *src, uint16_t len);
 /* tx_insl: a new line of len characters at src before line (past the view's end: at its end);
    the hook told. */
-void text_insert(uint32_t line, const uint8_t *src, uint16_t len);
+void text_insert(Session *S, uint32_t line, const uint8_t *src, uint16_t len);
 /* tx_dell: line out, the hook told; the view's last line left is emptied instead. */
-void text_delete(uint32_t line);
+void text_delete(Session *S, uint32_t line);
 /* tx_mark: line's mark (a breakpoint). */
-bool text_mark(uint32_t line);
+bool text_mark(Session *S, uint32_t line);
 /* tx_mtog: line's mark on, off. */
-void text_toggle(uint32_t line);
+void text_toggle(Session *S, uint32_t line);
 /* tx_mclr: no line marked, in the whole store. */
-void text_unmark_all(void);
+void text_unmark_all(Session *S);
 
 /* cb_put: len bytes at src the clipboard; lines: whole lines. */
 void text_clip_put(const uint8_t *src, uint16_t len, bool lines);
 /* cb_lines: lines from to to (inclusive) the clipboard, each ended by NL, as many as fit. */
-void text_clip_lines(uint32_t from, uint32_t to);
+void text_clip_lines(Session *S, uint32_t from, uint32_t to);
 
 /* tx_read: the file name the text, the whole the view: CR LF and LF end lines, a tab to the next
    column of 8, ^Z ends it, a long line is cut, a line ending in '_' goes on in the next (srcr's
    physical lines); each line as edit_canon makes it, a syntax error's kept as typed.
    PFIL_OK, else the DOS error of opening it, the text as it was. Errors: Out of memory. */
-uint16_t text_read(const char *name);
+uint16_t text_read(Session *S, const char *name);
 /* tx_write: the whole text to the file name, lines ended by CR LF; PFIL_OK, else the DOS error
    (creating it, or the last write's). */
-uint16_t text_write(const char *name);
+uint16_t text_write(Session *S, const char *name);
 #endif

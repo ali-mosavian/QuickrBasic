@@ -35,16 +35,15 @@ typedef struct {
     bool on;             /* g_evon: events are counted */
     uint32_t tick;       /* the platform's tick count last counted */
 } Evnt;
-extern Evnt evnt;
 
 /* ev_clr: no events: a run's start, READY. */
-void evnt_clear(void);
+void evnt_clear(Session *S);
 /* ev_tick: the ticks and trapped keys since the last poll counted; SF_TICK cleared, SF_EV set
    for an event to run. */
-void evnt_poll(Vm *vm);
+void evnt_poll(Session *S);
 /* ev_run: vm.stop's SF_EV: an ON slot's pending event runs, a GOSUB to its line coming back to
    the op at vm.opip; true: vm.ip moved to it. */
-bool evnt_run(Vm *vm);
+bool evnt_run(Session *S);
 /* ev_ret: RETURN from an event's frame: its slot's next event can run. */
-void evnt_return(Vm *vm, uint8_t slot);
+void evnt_return(Session *S, uint8_t slot);
 #endif

@@ -1,4 +1,5 @@
 #include "num/sngl.h"
+#include "session.h"
 #include "io/cons.h"
 #include "num/dubl.h"
 
@@ -95,13 +96,13 @@ bool sngl_hexoct(const uint8_t **const p, uint32_t *const val)
 
 Sngl sngl_from_dbl(const double d) { return sngl_bits((float)d); }
 
-Sngl sngl_in(const uint8_t **const p) { return sngl_from_dbl(dubl_in(p, nullptr)); }
+Sngl sngl_in(Session *const S, const uint8_t **const p) { return sngl_from_dbl(dubl_in(S, p, nullptr)); }
 
-void sngl_print(const Sngl a)
+void sngl_print(Session *const S, const Sngl a)
 {
     uint8_t t[DUBL_TXT];
     const uint32_t n = dubl_fmtf(a, t);
     for (uint32_t i = 0; i < n; i++)
-        cons_putc(t[i]);
-    cons_space();
+        cons_putc(S, t[i]);
+    cons_space(S);
 }

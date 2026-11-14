@@ -43,9 +43,9 @@ extern const char *const menu_title[NMENU];
 void menu_bar(void);
 /* mn_run: the menus from menu m: open, its box open, else the bar lit; until a command (then
    uimn_act) or Esc. The line committed first. */
-void menu_run(uint8_t m, bool open);
+void menu_run(Session *S, uint8_t m, bool open);
 /* mn_alt: the menu whose Alt+letter has scan code scan, opened (menu_run); false: not one. */
-bool menu_alt(uint8_t scan);
+bool menu_alt(Session *S, uint8_t scan);
 /* mn_altl: the letter of the key with scan code scan (10h .. 32h), as Alt+letter gives no
    character; 0 out of that range, ' ' none there. */
 uint8_t menu_altchar(uint8_t scan);
