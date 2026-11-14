@@ -7,8 +7,10 @@
  * offset, 0 none.
  *
  * link_start runs before a run: blocks paired (blok_pair), the procedures' variables declared, then
- * every line compiled into the cache in program order, the cache grown to fit. A run compiles
- * nothing more but the direct line.
+ * every line compiled into the cache in program order, the cache grown to fit; then link_resolve
+ * sets each jump's and line reference's target. A target not found goes on the ledger, whose
+ * first error link_check raises before the run starts. A run compiles and resolves nothing but
+ * the direct line.
  *
  * # asm structure (src/comp/link.asm)
  * | asm | here | |
@@ -32,6 +34,7 @@
 #include "comp/link.h"
 #include "comp/blocks.h"
 #include "comp/comp.h"
+#include "comp/control.h"
 #include "comp/declare.h"
 #include "comp/dfa.h"
 #include "comp/fold.h"
@@ -199,14 +202,6 @@ bool link_xlate(Comp *const C, Addr *where)
         a += size;
         s += size;
 
-        if (op == O_GOTO || op == O_GOSUB) { /* its line, found now if it exists */
-            LineRef *const r = (LineRef *)at(a - sizeof(LineRef));
-            uint32_t line;
-
-            if (prog_find(C->prog, C->link->cursor, r->num, &line))
-                r->line = line;
-        }
-
         if (op == O_EOL)
             break;
     }
@@ -216,6 +211,168 @@ bool link_xlate(Comp *const C, Addr *where)
 
     *where = a;
     return true;
+}
+
+/* A stream's map: its entries before its code, their count just before the code. */
+static Stmt *map_of(const Addr code, uint32_t *const count)
+{
+    *count = rd32(code - 4);
+    return (Stmt *)at(code - 4 - *count * sizeof(Stmt));
+}
+
+/* Line's code: an offset in the cache; the direct line's is the stream link_xlate made last. */
+static uint32_t code_of(const Comp *const C, const uint32_t line)
+{
+    return line == DLINE ? C->link->code - C->allo->cache : prog_line(C->prog, line)->code;
+}
+
+/* The ledger gets code at body offset at of line. */
+static void note(Comp *const C, const uint32_t line, const uint32_t at, const uint8_t code)
+{
+    if (C->link->nmiss < LINK_MISSES)
+        C->link->miss[C->link->nmiss] = (LinkMiss){.line = line, .at = at, .code = code};
+
+    C->link->nmiss++;
+}
+
+/* The ledger gets code at the statement of op, off bytes into line's code at base. */
+static void miss(
+    Comp *const C,
+    const uint32_t line,
+    const Addr base,
+    const uint32_t off,
+    const uint8_t code
+)
+{
+    uint32_t n;
+    const Stmt *s = map_of(base, &n);
+
+    for (; n > 1 && s[1].code <= off; s++)
+        n--;
+
+    note(C, line, s->body, code);
+}
+
+/* Jump j's target: its statement's code in its line, by its mode; false not found. */
+static bool jump_dest(const Comp *const C, Jump *const j)
+{
+    if (j->line == NOTARGET)
+        return false;
+
+    const uint32_t code = code_of(C, j->line);
+    uint32_t left;
+    const Stmt *s = map_of(C->allo->cache + code, &left);
+
+    for (; left && s->body != j->body; s++, left--)
+        ;
+    if (!left || (j->dest == TO_NEXT_STMT && left == 1))
+        return false;
+
+    j->dest =
+        code + (j->dest == TO_NEXT_STMT ? s[1].code : s->code + (j->dest == PAST_JMP ? JSIZE : 0));
+    return true;
+}
+
+/* LineRef r's line: the one the compiler found, else any numbered num; false none, *at its label's
+   body offset. */
+static bool ref_line(const Comp *const C, LineRef *const r, uint32_t *const at)
+{
+    uint32_t line = r->line;
+
+    if (!(line & LREF_AT))
+        return true;
+
+    *at = line & ~LREF_AT;
+
+    if (!prog_find(C->prog, 0, r->num, &line))
+        return false;
+
+    r->line = line;
+    return true;
+}
+
+/* The jumps and references of the op at op. */
+static void resolve_op(Comp *const C, const uint32_t line, const Addr base, uint8_t *const op)
+{
+    const uint32_t off = (uint32_t)(addr_of(op) - base);
+    LineRef *refs = nullptr;
+    uint32_t nrefs = 1;
+    Jump *j = nullptr;
+
+    switch (op[0]) {
+    case O_JMP:
+    case O_I_JF:
+    case O_F_JF:
+    case O_I_JT:
+    case O_F_JT:
+    case O_FSKIP:
+        j = (Jump *)(op + 1);
+        break;
+
+    case O_PCALL:
+        j = (Jump *)(op + 2);
+        break;
+
+    case O_GOTO:
+    case O_GOSUB:
+        refs = (LineRef *)(op + 1);
+        break;
+
+    case O_ONERR:
+    case O_ONLERR:
+        refs = ((LineRef *)(op + 1))->num ? (LineRef *)(op + 1) : nullptr; /* GOTO 0: none */
+        break;
+
+    case O_ONEV:
+        refs = ((LineRef *)(op + 2))->num ? (LineRef *)(op + 2) : nullptr;
+        break;
+
+    case O_RESUME:
+        refs = op[1] == RESUME_LINE ? (LineRef *)(op + 2) : nullptr;
+        break;
+
+    case O_ON:
+        refs = (LineRef *)(op + 2);
+        nrefs = op[1] & ON_COUNT;
+        break;
+
+    default:
+        return;
+    }
+
+    if (j && !jump_dest(C, j) && line != DLINE)
+        miss(C, line, base, off, E_SN);
+
+    for (uint32_t i = 0; refs && i < nrefs; i++) {
+        uint32_t at;
+
+        if (!ref_line(C, &refs[i], &at))
+            note(C, line, at, E_US);
+    }
+}
+
+/* The size in a cache stream of the op at op: INPUT's start has its end's offset after it. */
+static uint32_t stream_opsize(const uint8_t *const op)
+{
+    return op[0] == O_CALL && op[1] == K_INBEG ? 4 : flow_opsize(op);
+}
+
+void link_resolve(Comp *const C, const uint32_t line, const uint32_t code)
+{
+    const Addr base = C->allo->cache + code;
+
+    for (uint8_t *op = at(base); *op != O_EOL; op += stream_opsize(op))
+        resolve_op(C, line, base, op);
+}
+
+void link_check(Comp *const C)
+{
+    if (!C->link->nmiss)
+        return;
+
+    const LinkMiss m = C->link->miss[0];
+    C->link->nmiss = 0;
+    fault_raise(C->fault, (Failure){.code = m.code, .line = m.line, .at = m.at});
 }
 
 void link_walk(const uint8_t *code, void (*each)(uint8_t op, const uint8_t *at))
@@ -241,5 +398,11 @@ void link_start(Comp *const C)
     for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)
         link_line(C, l);
 
+    C->link->nmiss = 0;
+
+    for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)
+        link_resolve(C, l, prog_line(C->prog, l)->code);
+
+    link_check(C); /* not linked: the next run reports it again */
     C->link->linked = true;
 }

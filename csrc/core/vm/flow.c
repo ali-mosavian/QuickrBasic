@@ -4,8 +4,8 @@
  * GOSUBs, events, FOR loops and calls are Frames on vm.frames (flow_push, flow_find). A call sets
  * its parameters and locals aside on vm.callvars and puts them back when it ends.
  *
- * A jump op holds a Jump; its target is found on first use (flow_target). Every line's code is in
- * the cache while linked (link_start).
+ * A jump op holds a Jump, a GOTO a LineRef; link_resolve set both before the run. Every line's
+ * code is in the cache while linked (link_start).
  *
  * An error goes to flow_handler: the innermost call's ON LOCAL ERROR, else ON ERROR's. flow_trap
  * sets ERR, ERL and RESUME's places, then longjmps into exec_run's loop at the handler.
@@ -77,7 +77,6 @@ enum {
 
 /* A jump not yet resolved keeps its mode (JumpMode) where its code offset will go. */
 enum : uint32_t { RESOLVED = TO_NEXT_STMT + 1 };
-enum : uint32_t { NO_LINE = 0xFFFFFFFF }; /* a jump's line when the compiler found no target */
 
 void flow_init(Session *const S) { S->flow.text = allo_carve(&S->allo, DSZ + 2); }
 
@@ -109,6 +108,9 @@ uint8_t *flow_dcode(Session *const S)
     if (!link_xlate(&S->comp, &stream))
         repl_error(S, E_OM);
 
+    S->link.nmiss = 0;
+    link_resolve(&S->comp, DLINE, S->link.code - S->allo.cache);
+    link_check(&S->comp);
     return at(S->link.code);
 }
 
@@ -157,27 +159,11 @@ void flow_jump(Session *const S, const uint32_t line)
     enter_line(S, line);
 }
 
-/* The line a LineRef names, found by number on first use and kept in it. */
-static uint32_t ref_line(Session *const S, LineRef *const ref)
-{
-    S->vm.lnum = ref->num;
-
-    if (ref->line)
-        return ref->line;
-
-    uint32_t line;
-
-    if (!prog_find(&S->prog, S->link.cursor, ref->num, &line))
-        repl_error(S, E_US);
-
-    return ref->line = line;
-}
-
 uint32_t flow_target(Session *const S)
 {
-    LineRef *const ref = (LineRef *)S->vm.ip;
+    const LineRef *const ref = (const LineRef *)S->vm.ip;
     S->vm.ip += sizeof(LineRef);
-    return ref_line(S, ref);
+    return ref->line;
 }
 
 uint8_t *flow_place(Session *const S, const Place p) { return cache_at(&S->allo, p.code); }
@@ -297,7 +283,7 @@ void flow_on(Session *const S)
     if (k >= count)
         return;
 
-    const uint32_t line = ref_line(S, &lines[k]);
+    const uint32_t line = lines[k].line;
 
     if (kind & ON_GOSUB)
         gosub(S, line);
@@ -315,57 +301,21 @@ void flow_eol(Session *const S)
 
 /* ---- jumps ---------------------------------------------------------------------------------- */
 
-/* The Jump operand at vm->ip. Once resolved it holds its target's code offset. Until then its
-   mode picks, in the target line's code, the statement, the code past its JMP, or the next
-   statement. */
-/* Jump j at op found: its line entered, its statement's code from the map; op resolved. Cold: once
-   a jump. */
-[[gnu::cold, gnu::noinline]]
-static void jump_resolve(Session *const S, Jump *const op, const Jump j)
-{
-    if (j.line == NO_LINE)
-        repl_error(S, E_SN);
-
-    enter_line(S, j.line);
-    uint32_t left;
-    const Stmt *s = stmt_map(S->vm.ip, &left);
-
-    for (; left && s->body != j.body; s++, left--)
-        ;
-    if (!left)
-        repl_error(S, E_SN);
-
-    uint32_t code = s->code;
-
-    if (j.dest == PAST_JMP)
-        code += JSIZE;
-    else if (j.dest == TO_NEXT_STMT) {
-        if (left == 1)
-            repl_error(S, E_SN);
-
-        code = s[1].code;
-    }
-
-    S->vm.ip += code;
-    op->dest = cache_off(&S->allo, S->vm.ip);
-}
-
+/* The Jump operand at vm->ip: link_resolve set its target's code offset. A direct line's block
+   jump has none: Syntax error. */
 static void take_jump(Session *const S)
 {
     if (exec_stopchk(S))
         return;
 
     drop_temps(S);
-    Jump *const op = (Jump *)S->vm.ip;
-    const Jump j = *op;
+    const Jump j = *(const Jump *)S->vm.ip;
 
-    if (j.dest >= RESOLVED) {
-        S->vm.line = j.line;
-        S->vm.ip = cache_at(&S->allo, j.dest);
-        return;
-    }
+    if (j.dest < RESOLVED)
+        repl_error(S, E_SN);
 
-    jump_resolve(S, op, j);
+    S->vm.line = j.line;
+    S->vm.ip = cache_at(&S->allo, j.dest);
 }
 
 /* JMP: a block's jump, and FOR's skip. */

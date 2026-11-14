@@ -70,11 +70,13 @@ typedef struct PACKED {
     uint16_t state; /* the automaton's state, FFFFh none */
 } ErrOp;
 
-/* A GOTO's line: its number, the line (0 till the first jump finds it, flow_target). */
+/* A GOTO's line: its number (NONUM a label's) and the line, link_resolve's. Until then a line the
+   compiler did not find is LREF_AT and the label's body offset, where its error points. */
 typedef struct PACKED {
     uint16_t num;
     uint32_t line;
 } LineRef;
+enum : uint32_t { LREF_AT = 0x80000000 };
 
 /* vm.stop's bits past defs.h's SF_BRK, SF_EV: a tick or a trapped key to count (evnt_poll). */
 enum : uint8_t { SF_TICK = 4 };

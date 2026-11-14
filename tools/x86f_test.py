@@ -543,6 +543,10 @@ CASES = {
     "qb_blk_cross2": ("FOR i = 1 TO 3\r\nDO\r\nNEXT i\r\n", "the DO block started inside it is still open",
                       None),
     "qb_blk_loop": ("PRINT 1\r\nLOOP\r\n", "LOOP without DO in line", " 1"),
+    # An undefined label was found when its GOTO ran, after the program's output: now at RUN.
+    "qb_lbl_goto": ("PRINT 1\r\nIF 0 THEN GOTO nowhere\r\n", "There is no label `nowhere`", " 1"),
+    "qb_lbl_on": ("PRINT 1\r\nON 2 GOSUB a, b\r\nEND\r\na: RETURN\r\n", "There is no label `b`", " 1"),
+    "qb_lbl_resume": ("ON ERROR GOTO h\r\nPRINT 1\r\nEND\r\nh: RESUME 90\r\n", "Label not defined in line", " 1"),
     # &H and &O took no type suffix: &HFF& was a Syntax error at the &.
     "qb_hex_sfx": ("CONST a% = &H10%, b& = &HFF&: PRINT a%; b&; &O17&; &HFFFF&\r\n", " 16  255  15  65535 \r\n", "ERROR"),
     # A call of a SUB or FUNCTION only DECLAREd was a syntax error; as BC's, it compiles and fails when run.

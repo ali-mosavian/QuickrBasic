@@ -79,7 +79,8 @@ typedef struct Comp {
     struct Node *on, *onlast; /* ON's node, its last line */
     uint16_t redim;           /* credim: DIM_REDIM, DIM_PRESERVE or 0 */
     uint16_t lnum;            /* wv: a jump's line number, NONUM a label's */
-    uint32_t jline;           /* jline: its line, 0 until the first jump finds it */
+    uint32_t jline;           /* jline: its line, 0 not found */
+    uint32_t lnumat;          /* the line number's or label's body offset */
     bool modlabel;            /* g_lmod: comp_lnum's label is the module's (cleared) */
 
     /* scopes */

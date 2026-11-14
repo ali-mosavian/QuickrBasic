@@ -18,15 +18,25 @@ int main(const int argc, char **const argv)
     Session *const S = &session;
     boot(S, &none);
 
+    static volatile bool linking;
+
     if (setjmp(S->repl.top)) {
         printf("error %u\n", S->repl.err);
-        return 0;
+
+        if (!linking)
+            return 0;
+
+        linking = false; /* a link error: each line's code all the same */
+        goto dump;
     }
 
     snprintf(S->repl.file, sizeof S->repl.file, "%s", argv[1]);
     repl_load(S);
     session_drop(S);
+    linking = true;
     link_start(&S->comp);
+    linking = false;
+dump:;
     uint32_t n = 0;
 
     for (uint32_t l = PROGBASE, len; (len = prog_line(&S->prog, l)->len); l += len, n++) {

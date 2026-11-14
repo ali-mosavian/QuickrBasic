@@ -178,7 +178,7 @@ Node *comp_jump(Comp *const C, const uint8_t op)
 {
     Node *const n = node(C, N_JUMP, op);
     n->id = C->lnum;
-    n->num = C->jline;
+    n->num = C->jline ? C->jline : LREF_AT | C->lnumat;
     return n;
 }
 
@@ -326,6 +326,7 @@ static void lfind(Comp *const C, const uint16_t key, const uint16_t kind)
 uint8_t comp_lnum(Comp *const C)
 {
     C->jline = 0;
+    C->lnumat = (uint32_t)(C->p - C->body);
     const uint8_t c = comp_cur(C);
 
     if (c == M_VAR) {
@@ -1198,7 +1199,7 @@ static void act_onl(Comp *const C)
     comp_lnum(C);
     Node *const r = ast_new(C->ast, N_JUMP);
     r->id = C->lnum;
-    r->num = C->jline;
+    r->num = C->jline ? C->jline : LREF_AT | C->lnumat;
     ast_link(C->on, &C->onlast, r);
 }
 
