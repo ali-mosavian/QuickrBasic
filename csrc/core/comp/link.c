@@ -14,7 +14,6 @@
 #include "vm/exec.h"
 #include "vm/flow.h"
 
-
 void link_compile(Session *const S, const uint32_t line)
 {
     S->code.buf = S->comp.xbuf;
@@ -29,9 +28,12 @@ static uint16_t link_param(Session *const S, const Param *const pa)
 {
     const uint8_t *const pv = at(S->prog.base + pa->at);
     const uint8_t *q = decl_item(pv);
+
     if (*q == '(')
         q += 2;
+
     uint8_t et = 0;
+
     if (*q == TK_AS) {
         if (q[1] == TK_X && q[2] == TK1_SHORT)
             et = ET_SH;
@@ -43,6 +45,7 @@ static uint16_t link_param(Session *const S, const Param *const pa)
             et = t ? (uint8_t)(t + ET_REC) : 0;
         }
     }
+
     S->comp.p = pv;
     return comp_var(S, 0, et);
 }
@@ -56,12 +59,15 @@ static void link_procvars(Session *const S)
         decl_deftype(S, p->first);
         symb_name(&S->symb, p->name)->proc = i;
         scop_proc(S, i);
+
         if (p->kind == PK_FUNC) {
             S->comp.p = at(S->prog.base + p->at); /* its result: a scalar of its name */
             p->result = comp_var(S, 1, 0);
         }
+
         for (uint16_t k = 0; k < p->npar; k++)
             p->params[k].var = link_param(S, &p->params[k]);
+
         scop_proc(S, 0);
     }
 }
@@ -78,11 +84,14 @@ static void flush(Session *const S)
 {
     for (uint32_t i = 0; i < S->vm.nframes; i++) {
         Place *const p = &S->vm.frames[i].ret;
+
         if (p->line != DLINE && p->code >= CACHE0)
             p->code -= prog_line(&S->prog, p->line)->code;
     }
+
     if (S->vm.cont.line && S->vm.cont.code >= CACHE0)
         S->vm.cont.code -= prog_line(&S->prog, S->vm.cont.line)->code;
+
     uncache(S);
     S->link.end = S->allo.cache + CACHE0;
     S->link.flushes++;
@@ -91,16 +100,20 @@ static void flush(Session *const S)
 Addr link_cache(Session *const S, const uint32_t line)
 {
     link_compile(S, line);
+
     for (;;) {
         Addr a = S->link.end;
         S->link.lim = S->allo.cache + CLIM;
+
         if (link_xlate(S, &a)) {
             S->link.end = a;
             prog_line(&S->prog, line)->code = S->link.code - S->allo.cache;
             return S->link.code;
         }
+
         if (S->link.end == S->allo.cache + CACHE0)
             repl_error(S, E_OM);
+
         flush(S);
     }
 }
@@ -110,10 +123,13 @@ static void mapstmt(Session *const S, const uint8_t *const s, const Addr a)
 {
     const Stmt *const compiled = (const Stmt *)S->comp.map; /* down from the top */
     Stmt *const map = (Stmt *)at(S->link.map);
+
     for (; S->link.mapnext < S->comp.nstmt; S->link.mapnext++) {
         const Stmt *const e = &compiled[-1 - (int32_t)S->link.mapnext];
+
         if (S->comp.xbuf + e->code != s)
             return;
+
         map[S->link.mapnext] = (Stmt){.body = e->body, .code = a - S->link.code};
     }
 }
@@ -126,28 +142,35 @@ bool link_xlate(Session *const S, Addr *where)
     S->link.inbeg = 0;
     const uint32_t n = S->comp.nstmt;
     Addr a = *where;
+
     if (a + map_size(n) > S->link.lim)
         return false;
+
     S->link.map = a;
     a += map_size(n);
     wr32(a - sizeof n, n);
     S->link.code = a;
     S->link.mapnext = 0;
+
     for (const uint8_t *s = S->comp.xbuf;;) {
         mapstmt(S, s, a);
         const uint8_t op = *s;
         const uint32_t size = flow_opsize(s);
+
         if (a + size + XSLK > S->link.lim)
             return false;
         if (op == O_EOL)
             S->link.eol = a;
+
         uint8_t *const d = at(a);
+
         if (op == O_CALL) { /* CALL INBEG: 2 bytes more, its INPUT's end */
             const uint8_t k = s[1];
             d[0] = op;
             d[1] = k;
             a += 2;
             s += 2;
+
             if (k == K_INBEG) {
                 S->link.inbeg = a;
                 wr16(a, 0);
@@ -156,22 +179,29 @@ bool link_xlate(Session *const S, Addr *where)
                 wr16(S->link.inbeg, (uint16_t)(a - S->allo.cache));
                 S->link.inbeg = 0;
             }
+
             continue;
         }
+
         memcpy(d, s, size);
         a += size;
         s += size;
+
         if (op == O_GOTO || op == O_GOSUB) { /* its line, found now if it exists */
             LineRef *const r = (LineRef *)at(a - sizeof(LineRef));
             uint32_t line;
+
             if (prog_find(S, r->num, &line))
                 r->line = line;
         }
+
         if (op == O_EOL)
             break;
     }
+
     if (S->link.inbeg)
         wr16(S->link.inbeg, (uint16_t)(S->link.eol - S->allo.cache));
+
     *where = a;
     return true;
 }
@@ -187,6 +217,7 @@ void link_start(Session *const S)
     S->comp.check = false; /* a check an error left */
     if (S->link.linked)
         return;
+
     symb_size(S);
     fold_clear(S);
     blok_pair(&S->blok, &S->prog, &S->symb, &S->fault);

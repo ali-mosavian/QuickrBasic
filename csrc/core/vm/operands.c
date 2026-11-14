@@ -23,13 +23,25 @@ static Addr var_cell(Session *const S) { return symb_cell(&S->symb, exec_u16(&S-
 static uint32_t operand(Session *const S, const Source src)
 {
     switch (src) {
-    case POPPED: return exec_pop(&S->vm).u;
-    case VAR: return rd32(var_cell(S));
-    case U8: return exec_u8(&S->vm);
-    case VAR_AS_SNGL: return fmth_from_i32((int32_t)rd32(var_cell(S)));
-    case U8_AS_SNGL: return fmth_from_i32(exec_u8(&S->vm));
-    case F32: return exec_u32(&S->vm);
+    case POPPED:
+        return exec_pop(&S->vm).u;
+
+    case VAR:
+        return rd32(var_cell(S));
+
+    case U8:
+        return exec_u8(&S->vm);
+
+    case VAR_AS_SNGL:
+        return fmth_from_i32((int32_t)rd32(var_cell(S)));
+
+    case U8_AS_SNGL:
+        return fmth_from_i32(exec_u8(&S->vm));
+
+    case F32:
+        return exec_u32(&S->vm);
     }
+
     unreachable();
 }
 
@@ -64,16 +76,36 @@ static void int_op(Session *const S, const Source src, const IntOp op)
     Cell *const top = S->vm.sp;
     int32_t r, rem;
     bool overflow = false;
+
     switch (op) {
-    case ADD: overflow = __builtin_add_overflow(top->i, b, &r); break;
-    case SUB: overflow = __builtin_sub_overflow(top->i, b, &r); break;
-    case MUL: overflow = __builtin_mul_overflow(top->i, b, &r); break;
-    case DIV: r = exec_idiv(S, top->i, b, &rem); break;
-    case AND: r = top->i & b; break;
-    case OR: r = top->i | b; break;
+    case ADD:
+        overflow = __builtin_add_overflow(top->i, b, &r);
+        break;
+
+    case SUB:
+        overflow = __builtin_sub_overflow(top->i, b, &r);
+        break;
+
+    case MUL:
+        overflow = __builtin_mul_overflow(top->i, b, &r);
+        break;
+
+    case DIV:
+        r = exec_idiv(S, top->i, b, &rem);
+        break;
+
+    case AND:
+        r = top->i & b;
+        break;
+
+    case OR:
+        r = top->i | b;
+        break;
     }
+
     if (overflow)
         repl_error(S, E_OV);
+
     top->i = r;
 }
 
@@ -101,8 +133,10 @@ void oper_i_mod(Session *const S)
 {
     const int32_t b = exec_popi(&S->vm);
     int32_t rem = 0;
+
     if (b != -1)
         exec_idiv(S, S->vm.sp->i, b, &rem);
+
     S->vm.sp->i = rem;
 }
 
@@ -129,6 +163,7 @@ void oper_i_neg(Session *const S)
 {
     if (S->vm.sp->i == INT32_MIN)
         repl_error(S, E_OV);
+
     S->vm.sp->i = -S->vm.sp->i;
 }
 
@@ -143,11 +178,23 @@ static void sngl_op(Session *const S, const Source src, const SnglOp op)
 {
     const Sngl b = operand(S, src);
     Cell *const top = S->vm.sp;
+
     switch (op) {
-    case FADD: top->u = fmth_add(top->u, b); break;
-    case FSUB: top->u = fmth_sub(top->u, b); break;
-    case FMUL: top->u = fmth_mul(top->u, b); break;
-    case FDIV: top->u = fmth_div(S, top->u, b); break;
+    case FADD:
+        top->u = fmth_add(top->u, b);
+        break;
+
+    case FSUB:
+        top->u = fmth_sub(top->u, b);
+        break;
+
+    case FMUL:
+        top->u = fmth_mul(top->u, b);
+        break;
+
+    case FDIV:
+        top->u = fmth_div(S, top->u, b);
+        break;
     }
 }
 
@@ -186,6 +233,7 @@ void oper_f_neg(Session *const S)
 static void compared(Session *const S, const uint8_t rel, const bool cmpif)
 {
     const bool yes = rel & exec_u8(&S->vm);
+
     if (!cmpif)
         exec_pushi(&S->vm, yes ? -1 : 0);
     else if (!yes)
@@ -245,8 +293,10 @@ void oper_f_toi(Session *const S) { S->vm.sp->i = fmth_to_i32(S, S->vm.sp->u); }
 void oper_f_tob(Session *const S)
 {
     const int16_t v = fmth_to_i16(S, S->vm.sp->u);
+
     if ((uint16_t)v > 255)
         repl_error(S, E_IQ);
+
     exec_pop(&S->vm);
     exec_pushi(&S->vm, v);
 }

@@ -17,11 +17,13 @@ extern const FrontEnd uimn_front_end;
 void uimn_start(Session *S);
 /* ui_ready (the READY loop's place, uimn.on): the output page until a key, unless an immediate
    line printed nothing; then the editor. */
-[[noreturn]] void uimn_ready(Session *S);
+[[noreturn]]
+void uimn_ready(Session *S);
 /* ui_err (repl's report, uimn.on): an error code (E_*), or E_BRK for BREAK and STOP, in the
    editor: the cursor at its line, the message in a box, a stop's debug pane. repl_error's
    stacks are reset already. */
-[[noreturn]] void uimn_error(Session *S, uint8_t code);
+[[noreturn]]
+void uimn_error(Session *S, uint8_t code);
 
 /* ui_getkey: a key (scan << 8 | char, KEY_ALT, KEY_MOUSE), the screen shown and the mouse polled
    while none waits; uimn.keyflags the shift flags then. An Alt already down at the call (after
@@ -38,9 +40,11 @@ bool uimn_stopped(void);
 bool uimn_cancont(Session *S);
 /* ui_runp: Run, Start: the text entered again if changed, the debugger prepared, the output
    page cleared, RUN. */
-[[noreturn]] void uimn_run(Session *S);
+[[noreturn]]
+void uimn_run(Session *S);
 /* ui_contp: Run, Continue: CONT after a stop, else uimn_run. */
-[[noreturn]] void uimn_cont(Session *S);
+[[noreturn]]
+void uimn_cont(Session *S);
 /* ui_selw: the cursor at column col of the cursor's line, the word there selected. */
 void uimn_selword(uint16_t col);
 /* ui_dec: v in decimal at dst; past it. */

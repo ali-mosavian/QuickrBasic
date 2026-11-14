@@ -10,9 +10,12 @@ bool pmem_init(const uint32_t least, Addr *const lo, Addr *const hi)
 {
     if (ARENA_SIZE - ARENA_LOW < least)
         return false;
+
     mem_base = calloc(1, ARENA_SIZE);
+
     if (!mem_base)
         return false;
+
     *lo = ARENA_LOW;
     *hi = ARENA_SIZE;
     return true;

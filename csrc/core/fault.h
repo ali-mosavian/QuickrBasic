@@ -18,7 +18,8 @@ struct Fault {
     void (*raise)(Fault *f, const Failure *e);
 };
 
-[[noreturn]] static inline void fault_raise(Fault *const f, const Failure e)
+[[noreturn]]
+static inline void fault_raise(Fault *const f, const Failure e)
 {
     f->raise(f, &e);
     __builtin_unreachable();

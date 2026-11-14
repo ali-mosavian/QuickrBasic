@@ -30,12 +30,12 @@ typedef struct {
 typedef struct {
     uint32_t nblocks;
     AlloBlock block[NBLKH]; /* by handle */
-    Addr bot, top;      /* the heap (mm.hbot, mm.htop) */
-    Addr cache;         /* the code cache's block, which never moves (mm.cachebase) */
-    Addr hdr_base;      /* the arrays' headers, to hdr_base + HDRSZ (HDRBASE, HDRLIM) */
-    Addr cs_lim;        /* the control stack's floor (CSLIM) */
-    Addr cs_top;        /* its top, frames down from it (CSTOP) */
-    Addr poke;          /* the POKE memory, POKESZ bytes (g_pokeb) */
+    Addr bot, top;          /* the heap (mm.hbot, mm.htop) */
+    Addr cache;             /* the code cache's block, which never moves (mm.cachebase) */
+    Addr hdr_base;          /* the arrays' headers, to hdr_base + HDRSZ (HDRBASE, HDRLIM) */
+    Addr cs_lim;            /* the control stack's floor (CSLIM) */
+    Addr cs_top;            /* its top, frames down from it (CSTOP) */
+    Addr poke;              /* the POKE memory, POKESZ bytes (g_pokeb) */
 } Allo;
 
 /* The arena [lo, hi): the heap all of it; then carves the headers, the control stack and the

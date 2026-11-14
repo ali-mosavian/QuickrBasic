@@ -15,16 +15,16 @@
 #include "plat/pscr.h"
 
 enum {
-    HLPSZ = 2048,     /* BASIC.HLP's bytes at most: the menus' help lines */
-    DLBUF = 260,      /* a dialog's line buffer's text */
-    FLDMAX = 80,      /* a dialog field's characters at most */
-    TXMAX = 0xFF00,   /* the text's bytes at most */
+    HLPSZ = 2048,          /* BASIC.HLP's bytes at most: the menus' help lines */
+    DLBUF = 260,           /* a dialog's line buffer's text */
+    FLDMAX = 80,           /* a dialog field's characters at most */
+    TXMAX = 0xFF00,        /* the text's bytes at most */
     LNMAX = TXMAX - 0x100, /* an editor line's characters at most */
     LNBUF = LNMAX + 4,     /* an editor line buffer's text */
-    ED_COLS = 78,     /* the immediate window's text columns */
-    IMN = 10,         /* the immediate window's lines kept */
-    IMW = 80,         /* each: its length, its text */
-    CLIPSZ = 0x10000, /* the clipboard's bytes (the asm's g_clpb) */
+    ED_COLS = 78,          /* the immediate window's text columns */
+    IMN = 10,              /* the immediate window's lines kept */
+    IMW = 80,              /* each: its length, its text */
+    CLIPSZ = 0x10000,      /* the clipboard's bytes (the asm's g_clpb) */
 };
 
 /* Attribute slots (the asm's A_ED ..): each theme's attribute for it (theme.h). */
@@ -66,16 +66,42 @@ enum : uint16_t {
 
 /* A key's scan code (its high byte). */
 enum : uint8_t {
-    SCAN_F1 = 0x3B, SCAN_F10 = 0x44, SCAN_SHIFT_F1 = 0x54, SCAN_CTRL_F1 = 0x5E, SCAN_ALT_F1 = 0x68,
-    SCAN_HOME = 0x47, SCAN_UP = 0x48, SCAN_PGUP = 0x49, SCAN_LEFT = 0x4B, SCAN_RIGHT = 0x4D,
-    SCAN_END = 0x4F, SCAN_DOWN = 0x50, SCAN_PGDN = 0x51, SCAN_INS = 0x52, SCAN_DEL = 0x53,
-    SCAN_CTRL_LEFT = 0x73, SCAN_CTRL_RIGHT = 0x74, SCAN_CTRL_END = 0x75, SCAN_CTRL_PGDN = 0x76,
-    SCAN_CTRL_HOME = 0x77, SCAN_CTRL_PGUP = 0x84,
-    SCAN_ESC = 0x01, SCAN_ENTER = 0x1C, SCAN_L = 0x26, SCAN_GREY_MINUS = 0x4A,
-    SCAN_GREY_PLUS = 0x4E, SCAN_ALT_MINUS = 0x82, SCAN_ALT_EQUALS = 0x83, SCAN_CTRL_INS = 0x92,
-    SCAN_ALT_UP = 0x98, SCAN_ALT_LEFT = 0x9B, SCAN_ALT_RIGHT = 0x9D, SCAN_ALT_DOWN = 0xA0,
+    SCAN_F1 = 0x3B,
+    SCAN_F10 = 0x44,
+    SCAN_SHIFT_F1 = 0x54,
+    SCAN_CTRL_F1 = 0x5E,
+    SCAN_ALT_F1 = 0x68,
+    SCAN_HOME = 0x47,
+    SCAN_UP = 0x48,
+    SCAN_PGUP = 0x49,
+    SCAN_LEFT = 0x4B,
+    SCAN_RIGHT = 0x4D,
+    SCAN_END = 0x4F,
+    SCAN_DOWN = 0x50,
+    SCAN_PGDN = 0x51,
+    SCAN_INS = 0x52,
+    SCAN_DEL = 0x53,
+    SCAN_CTRL_LEFT = 0x73,
+    SCAN_CTRL_RIGHT = 0x74,
+    SCAN_CTRL_END = 0x75,
+    SCAN_CTRL_PGDN = 0x76,
+    SCAN_CTRL_HOME = 0x77,
+    SCAN_CTRL_PGUP = 0x84,
+    SCAN_ESC = 0x01,
+    SCAN_ENTER = 0x1C,
+    SCAN_L = 0x26,
+    SCAN_GREY_MINUS = 0x4A,
+    SCAN_GREY_PLUS = 0x4E,
+    SCAN_ALT_MINUS = 0x82,
+    SCAN_ALT_EQUALS = 0x83,
+    SCAN_CTRL_INS = 0x92,
+    SCAN_ALT_UP = 0x98,
+    SCAN_ALT_LEFT = 0x9B,
+    SCAN_ALT_RIGHT = 0x9D,
+    SCAN_ALT_DOWN = 0xA0,
     SCAN_ALT_PAD_ENTER = 0xA6,
-    SCAN_ALT_FIRST = 0x10, SCAN_ALT_LAST = 0x32, /* Alt+letter's: Q .. M */
+    SCAN_ALT_FIRST = 0x10,
+    SCAN_ALT_LAST = 0x32, /* Alt+letter's: Q .. M */
 };
 enum : uint16_t { KEY_SHIFT_TAB = 0x0F00 };
 /* A key's character (its low byte). */
@@ -90,10 +116,21 @@ enum : uint8_t {
 enum : uint16_t { CURSOR_INSERT = 0x0607, CURSOR_OVERWRITE = 0x0407 };
 /* Code page 437's glyphs the screens draw. */
 enum : uint8_t {
-    GLYPH_POINT_RIGHT = 0x10, GLYPH_POINT_LEFT = 0x11, GLYPH_UP = 0x18, GLYPH_DOWN = 0x19,
-    GLYPH_RIGHT = 0x1A, GLYPH_LEFT = 0x1B, GLYPH_SHADE = 0xB0, GLYPH_V = 0xB3, GLYPH_V_LEFT = 0xB4,
-    GLYPH_TOP_RIGHT = 0xBF, GLYPH_BOTTOM_LEFT = 0xC0, GLYPH_V_RIGHT = 0xC3, GLYPH_H = 0xC4,
-    GLYPH_BOTTOM_RIGHT = 0xD9, GLYPH_TOP_LEFT = 0xDA,
+    GLYPH_POINT_RIGHT = 0x10,
+    GLYPH_POINT_LEFT = 0x11,
+    GLYPH_UP = 0x18,
+    GLYPH_DOWN = 0x19,
+    GLYPH_RIGHT = 0x1A,
+    GLYPH_LEFT = 0x1B,
+    GLYPH_SHADE = 0xB0,
+    GLYPH_V = 0xB3,
+    GLYPH_V_LEFT = 0xB4,
+    GLYPH_TOP_RIGHT = 0xBF,
+    GLYPH_BOTTOM_LEFT = 0xC0,
+    GLYPH_V_RIGHT = 0xC3,
+    GLYPH_H = 0xC4,
+    GLYPH_BOTTOM_RIGHT = 0xD9,
+    GLYPH_TOP_LEFT = 0xDA,
 };
 
 /* uimn.focus: which window has the keys (ui_foc). */
@@ -109,9 +146,9 @@ enum { DP_COL = 50, DP_W = 30, DP_TW = DP_W - 2 };
    field or the immediate line, LNBUF for the editor's line. The cursor may be past the text:
    typing there pads it with spaces. */
 typedef struct {
-    uint16_t col;  /* the cursor's column */
+    uint16_t col; /* the cursor's column */
     uint16_t len;
-    bool dirty;    /* changed since loaded (dty) */
+    bool dirty; /* changed since loaded (dty) */
     uint8_t *text;
 } LineBuf;
 
@@ -128,45 +165,45 @@ typedef struct {
 
 /* The text: the program store's lines and the editor's view of them (TTEXT); text.h. */
 typedef struct {
-    uint32_t n;      /* tx_n: the view's lines, from first */
-    uint32_t first;  /* tx_v0: the view's first line in the text */
-    uint32_t all;    /* tx_all: the text's lines */
+    uint32_t n;                                 /* tx_n: the view's lines, from first */
+    uint32_t first;                             /* tx_v0: the view's first line in the text */
+    uint32_t all;                               /* tx_all: the text's lines */
     void (*hook)(uint32_t line, int32_t delta); /* tx_hook: text line added (1), removed (-1) */
-    bool changed;    /* tx_mod: since the program was entered (a run enters it again) */
-    bool unsaved;    /* tx_chg: since it was saved */
-    bool check;      /* syn_on: Options, Syntax Checking */
-    bool asis;       /* tx_asis: the next line stored as typed */
-    uint16_t clip_len;  /* cb_len: the clipboard's bytes */
-    bool clip_lines;    /* cb_ln: whole lines, each ended by NL; else a piece of one */
+    bool changed;         /* tx_mod: since the program was entered (a run enters it again) */
+    bool unsaved;         /* tx_chg: since it was saved */
+    bool check;           /* syn_on: Options, Syntax Checking */
+    bool asis;            /* tx_asis: the next line stored as typed */
+    uint16_t clip_len;    /* cb_len: the clipboard's bytes */
+    bool clip_lines;      /* cb_ln: whole lines, each ended by NL; else a piece of one */
     uint8_t clip[CLIPSZ]; /* g_clpb */
 } UiText;
 
 /* An edit window: its view, the cursor, the selection, its place (TEDIT). The active window's
    is uimn.ed, the other's waits in uimn.win.win[w].ed (window.h swaps them). */
 typedef struct {
-    uint32_t line;    /* ed_line: the cursor's line in the view */
-    uint32_t top;     /* ed_top: the first shown */
-    uint16_t left;    /* ed_left: the first column shown */
-    bool insert;      /* ed_ins: insert, else overtype */
-    uint16_t indent;  /* ed_ind: ed_enter's new line's indent */
-    uint16_t nlen;    /* ed_nlen: a line kept while lines join or split */
-    uint8_t prefix;   /* ed_pfx: Ctrl+Q waiting for its second key (11h), else 0 */
-    bool sel_on;      /* a selection from (sel_line, sel_col) to the cursor */
+    uint32_t line;   /* ed_line: the cursor's line in the view */
+    uint32_t top;    /* ed_top: the first shown */
+    uint16_t left;   /* ed_left: the first column shown */
+    bool insert;     /* ed_ins: insert, else overtype */
+    uint16_t indent; /* ed_ind: ed_enter's new line's indent */
+    uint16_t nlen;   /* ed_nlen: a line kept while lines join or split */
+    uint8_t prefix;  /* ed_pfx: Ctrl+Q waiting for its second key (11h), else 0 */
+    bool sel_on;     /* a selection from (sel_line, sel_col) to the cursor */
     uint32_t sel_line;
     uint16_t sel_col;
     uint32_t sel_a, sel_b; /* edit_sel's: columns of the cursor's line, or lines */
-    uint8_t view;     /* ed_vw: the view shown (view.h) */
-    uint16_t row0;    /* ed_r0: the first text row */
-    uint16_t rows;    /* ed_rows: text rows */
-    uint8_t x;        /* ed_x: the frame's first column */
-    uint16_t width;   /* ed_tw: the text's columns, the frame's less 2 */
+    uint8_t view;          /* ed_vw: the view shown (view.h) */
+    uint16_t row0;         /* ed_r0: the first text row */
+    uint16_t rows;         /* ed_rows: text rows */
+    uint8_t x;             /* ed_x: the frame's first column */
+    uint16_t width;        /* ed_tw: the text's columns, the frame's less 2 */
 } UiEdit;
 
 /* A window: its rows, an edit window's state while not active (TWIN). */
 typedef struct {
-    uint8_t height;  /* wh: its rows with its title, 0 hidden */
-    uint16_t col;    /* wcol: an inactive edit window's cursor column (edline.col) */
-    UiEdit ed;       /* wed */
+    uint8_t height; /* wh: its rows with its title, 0 hidden */
+    uint16_t col;   /* wcol: an inactive edit window's cursor column (edline.col) */
+    UiEdit ed;      /* wed */
 } UiWin;
 
 typedef struct {
@@ -181,21 +218,21 @@ typedef struct {
 
 /* The immediate window (TIMM, im_h, im_lb). */
 typedef struct {
-    uint16_t n;     /* im_n: lines kept */
-    uint16_t cur;   /* im_i: the one being edited */
-    uint16_t top;   /* im_top: the first shown */
-    uint16_t row0;  /* im_r0: the window's first text row */
-    uint16_t rows;  /* im_rows */
+    uint16_t n;             /* im_n: lines kept */
+    uint16_t cur;           /* im_i: the one being edited */
+    uint16_t top;           /* im_top: the first shown */
+    uint16_t row0;          /* im_r0: the window's first text row */
+    uint16_t rows;          /* im_rows */
     uint8_t hist[IMN][IMW]; /* im_h: each line's length, then its text */
 } UiImm;
 
 /* The mouse (TMOUSE); mouse.h. */
 typedef struct {
-    bool on;        /* ms_on: a driver answered */
-    uint8_t button; /* ms_b: the left button as last polled */
-    uint8_t event;  /* ms_ev: MS_* (mouse.h) */
+    bool on;          /* ms_on: a driver answered */
+    uint8_t button;   /* ms_b: the left button as last polled */
+    uint8_t event;    /* ms_ev: MS_* (mouse.h) */
     uint8_t row, col; /* ms_pos: its cell at the event */
-    bool hover;     /* ms_hov: a move with no button is an event (the key loop's wait) */
+    bool hover;       /* ms_hov: a move with no button is an event (the key loop's wait) */
 } UiMouse;
 
 typedef struct {
@@ -209,16 +246,16 @@ typedef struct {
 
     /* Before the big arrays: dialog.c's static tables point at these, and llrm-cc's
        object writer keeps only 16 bits of a data pointer's offset. */
-    bool match_case;  /* fd.fd_case: Find's Match Upper/Lowercase */
-    bool whole_word;  /* fd.fd_whole: Whole Word */
-    LineBuf edline;        /* bf.ed_lb: the cursor's line, LNBUF */
-    LineBuf immline;       /* bf.im_lb: the immediate line, DLBUF */
-    LineBuf fname;         /* bf.dl_fn: a dialog's File Name field, DLBUF */
-    LineBuf find_what;     /* bf.fd_what: Find What */
-    LineBuf change_to;     /* bf.fd_to: Change To */
+    bool match_case;   /* fd.fd_case: Find's Match Upper/Lowercase */
+    bool whole_word;   /* fd.fd_whole: Whole Word */
+    LineBuf edline;    /* bf.ed_lb: the cursor's line, LNBUF */
+    LineBuf immline;   /* bf.im_lb: the immediate line, DLBUF */
+    LineBuf fname;     /* bf.dl_fn: a dialog's File Name field, DLBUF */
+    LineBuf find_what; /* bf.fd_what: Find What */
+    LineBuf change_to; /* bf.fd_to: Change To */
 
     UiText text;
-    UiEdit ed;        /* the active edit window's */
+    UiEdit ed; /* the active edit window's */
     UiWins win;
     UiImm imm;
     UiMouse mouse;
@@ -226,11 +263,11 @@ typedef struct {
     uint16_t help_len;     /* tx.hl_len: BASIC.HLP's bytes */
     char help_text[HLPSZ]; /* g_hlpb: BASIC.HLP, a line per menu item */
 
-    uint8_t line[LNBUF];   /* bf.uc_line: a line got from the text, a copy the lexer may change */
-    uint8_t build[LNBUF];  /* bf.sy_buf: a line being built */
-    char file[80];         /* bf.ui_fn: the file's name, "" none */
-    char chosen[80];       /* bf.dl_name: the file a dialog chose */
-    char errmsg[600];      /* bf.ui_ebuf: an error's message, '|' between lines */
+    uint8_t line[LNBUF];  /* bf.uc_line: a line got from the text, a copy the lexer may change */
+    uint8_t build[LNBUF]; /* bf.sy_buf: a line being built */
+    char file[80];        /* bf.ui_fn: the file's name, "" none */
+    char chosen[80];      /* bf.dl_name: the file a dialog chose */
+    char errmsg[600];     /* bf.ui_ebuf: an error's message, '|' between lines */
 
     /* The line buffers' texts (edline.text .. point here). */
     uint8_t edline_text[LNBUF];

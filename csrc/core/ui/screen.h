@@ -17,8 +17,14 @@ uint8_t scrn_strn(uint8_t row, uint8_t col, const uint8_t *s, uint16_t n, uint8_
 uint16_t scrn_slen(const char *s);
 /* sc_box: a single-line frame of rows by cols at row, col, filled with spaces, in slot; title
    centred in it, nullptr none. */
-void scrn_box(uint8_t row, uint8_t col, uint8_t rows, uint8_t cols, uint8_t slot,
-              const char *title);
+void scrn_box(
+    uint8_t row,
+    uint8_t col,
+    uint8_t rows,
+    uint8_t cols,
+    uint8_t slot,
+    const char *title
+);
 /* sc_sep: a separator ├──┤ cols wide at row, col, in slot. */
 void scrn_sep(uint8_t row, uint8_t col, uint8_t cols, uint8_t slot);
 /* sc_attr: n cells from row, col take slot's attribute; their characters stay. */

@@ -39,12 +39,12 @@ static Handler *const calls[K_N] = {
 #include "vm/ops.def"
 };
 
-
 uint8_t exec_flags(const uint8_t op) { return flags[op]; }
 
 void exec_until(Session *const S, const uint8_t *const end)
 {
     Vm *const v = &S->vm;
+
     while (v->ip != end) {
         v->opip = v->ip;
         ops[*v->ip++](S);
@@ -67,6 +67,7 @@ void exec_run(Session *const S)
     Vm *const v = &S->vm;
     setjmp(v->loop);
     v->running = true;
+
     for (;;) {
         v->opip = v->ip;
         ops[*v->ip++](S);
@@ -81,13 +82,16 @@ bool exec_brk(Session *const S)
         return false;
     if (!(S->vm.stop & SF_BRK))
         return evnt_run(S);
+
     pkey_flush(); /* the Ctrl+C, not a key for the editor */
     S->vm.ip = S->vm.opip;
+
     if (S->dbug.emit && S->vm.line != DLINE) { /* the IDE: on to the next statement's start */
         S->vm.stop = 0;
         S->dbug.mode = DM_STEP;
         return true;
     }
+
     stmt_stop(S);
 }
 
@@ -98,8 +102,10 @@ int32_t exec_idiv(Session *const S, const int32_t a, const int32_t b, int32_t *c
     if (b == -1) {
         if (a == INT32_MIN)
             repl_error(S, E_OV);
+
         return -a; /* *rem kept: MOD does -1 itself */
     }
+
     *rem = a % b;
     return a / b;
 }
@@ -111,6 +117,7 @@ static uint16_t subscript(Session *const S, const int32_t sub)
 {
     if (sub != (int16_t)sub)
         arry_bad_sub(S);
+
     return (uint16_t)sub;
 }
 
@@ -124,8 +131,10 @@ Addr exec_elem(Session *const S)
 {
     const uint16_t id = exec_u16(&S->vm);
     const uint8_t n = exec_u8(&S->vm);
+
     for (uint8_t i = n; i-- > 0;)
         S->arry.subs[i] = subscript(S, exec_popi(&S->vm));
+
     return arry_ref(S, id, n);
 }
 
@@ -135,19 +144,24 @@ static Addr elem1(Session *const S, const int32_t sub, const uint32_t size)
 {
     const uint16_t id = exec_u16(&S->vm);
     const Addr hdr = symb_var(&S->symb, id)->vt;
+
     if (hdr) {
         const ArrayHdr *const a = (const ArrayHdr *)at(hdr);
+
         if (a->dims == 1 && (uint32_t)sub < a->fast)
             return a->data + (uint32_t)sub * size;
     }
+
     return exec_elem1(S, id, sub);
 }
 
 Addr exec_record(Session *const S, const uint16_t id)
 {
     const Addr hdr = symb_var(&S->symb, id)->vt;
+
     if (hdr)
         return hdr;
+
     S->arry.counts[0] = 1;
     S->arry.lbounds[0] = 0;
     return arry_new(S, id, 1, false);
@@ -211,6 +225,7 @@ void exec_fl_ld(Session *const S)
 {
     const Addr a = exec_popa(&S->vm) + exec_u16(&S->vm);
     const uint8_t type = exec_u8(&S->vm);
+
     if (type == ET_SH)
         exec_pushi(&S->vm, (int16_t)rd16(a));
     else if (type == ET_R8)
@@ -226,11 +241,13 @@ void exec_fl_st(Session *const S)
     const uint8_t type = exec_u8(&S->vm);
     const Cell x = exec_pop(&S->vm);
     const Addr a = exec_popa(&S->vm) + off;
+
     if (type == ET_R8)
         store_cell(at(a), x);
     else if (type == ET_SH) {
         if (x.i != (int16_t)x.i)
             repl_error(S, E_OV);
+
         wr16(a, (uint16_t)x.u);
     } else
         wr32(a, x.u);
@@ -285,6 +302,7 @@ void exec_v_ld(Session *const S)
 {
     const Addr cell = symb_var(&S->symb, exec_u16(&S->vm))->vt;
     const CellKind kind = exec_u8(&S->vm);
+
     if (kind == CELL_DOUBLE)
         exec_push(&S->vm, cell_at(cell));
     else if (kind == CELL_STRING)
@@ -298,6 +316,7 @@ void exec_v_st(Session *const S)
     const Addr cell = symb_var(&S->symb, exec_u16(&S->vm))->vt;
     const CellKind kind = exec_u8(&S->vm);
     const Cell x = exec_pop(&S->vm);
+
     if (kind == CELL_DOUBLE)
         store_cell(at(cell), x);
     else if (kind == CELL_STRING)
@@ -329,6 +348,7 @@ void exec_s_cmp(Session *const S)
     const Addr right = exec_popa(&S->vm);
     const Addr left = exec_popa(&S->vm);
     const bool yes = strg_cmp(S, left, right) & exec_u8(&S->vm);
+
     if (op < O_I_CMPIF)
         exec_pushi(&S->vm, yes ? -1 : 0);
     else if (!yes)

@@ -9,12 +9,11 @@
 #include "io/repl.h"
 #include "vm/exec.h"
 
-
-enum { STM_MAX = sizeof ((Diag *)nullptr)->stm - 1 };
+enum { STM_MAX = sizeof((Diag *)nullptr)->stm - 1 };
 
 static const char *const leads[] = {
-    "SUB", "FUNCTION", "TYPE", "DECLARE", "CALL", "STATIC", "SHARED", "DIM", "REDIM", "COMMON",
-    "CONST", "DEF", "END", "EXIT", "ERASE", "SELECT", "CASE", "GOTO", "GOSUB", "RETURN",
+    "SUB",   "FUNCTION", "TYPE", "DECLARE", "CALL",  "STATIC", "SHARED", "DIM",  "REDIM", "COMMON",
+    "CONST", "DEF",      "END",  "EXIT",    "ERASE", "SELECT", "CASE",   "GOTO", "GOSUB", "RETURN",
 };
 
 /* A name's or a number's byte: a letter, a digit or . _ $ % & ! # @. */
@@ -22,6 +21,7 @@ static bool is_word(const char c)
 {
     if (is_digit((uint8_t)c) || is_letter((uint8_t)c))
         return true;
+
     return c && strchr("._$%&!#@", c);
 }
 
@@ -29,8 +29,10 @@ static bool is_word(const char c)
 static uint32_t letters(const char *const s, const uint32_t max)
 {
     uint32_t n = 0;
+
     while (n < max && is_letter((uint8_t)s[n]))
         n++;
+
     return n;
 }
 
@@ -39,6 +41,7 @@ static void upper(char *const d, const char *const s, const uint32_t n)
 {
     for (uint32_t i = 0; i < n; i++)
         d[i] = (char)upcase((uint8_t)s[i]);
+
     d[n] = 0;
 }
 
@@ -54,6 +57,7 @@ static const char *form_of(const char *const w)
     for (const char *e = diag_forms; *e; e = next_form(e))
         if (!strcmp(e, w))
             return skip(e);
+
     return nullptr;
 }
 
@@ -63,6 +67,7 @@ static const char *entry(const char *const key)
     for (const char *e = diag_msgs; *e; e = next_msg(e))
         if (!strcmp(e, key))
             return e;
+
     return nullptr;
 }
 
@@ -71,13 +76,16 @@ static void back(Session *const S, const uint32_t col)
 {
     const char *s = S->diag.line;
     uint32_t b = col;
+
     while (b && s[b - 1] == ' ')
         b--;
     if (!b) {
         S->diag.len = 0;
         return;
     }
+
     const uint32_t end = b--;
+
     if (s[b] == '"') {
         while (b && s[--b] != '"') {
         }
@@ -85,6 +93,7 @@ static void back(Session *const S, const uint32_t col)
         while (b && is_word(s[b - 1]))
             b--;
     }
+
     S->diag.col = b;
     S->diag.len = end - b;
 }
@@ -96,32 +105,40 @@ static void statement(Session *const S)
     const uint32_t c = S->diag.col;
     uint32_t start = 0;
     bool quoted = false;
+
     for (uint32_t i = 0; i < c; i++) { /* past the last ':' out of quotes */
         if (s[i] == '"')
             quoted = !quoted;
         if (s[i] == ':' && !quoted)
             start = i + 1;
     }
+
     while (start < c && (s[start] == ' ' || is_digit((uint8_t)s[start])))
         start++; /* past blanks and a line number */
     const char *w = s + start;
     uint32_t n = letters(w, c - start);
     S->diag.first = !n;
+
     if (n < 2) {
         if (!S->diag.first) { /* at the start: the word at the error */
             S->diag.stm[0] = 0;
             return;
         }
+
         w = s + S->diag.col;
         n = letters(w, 255);
+
         if (n < 2) {
             S->diag.stm[0] = 0;
             return;
         }
     }
+
     upper(S->diag.stm, w, n > STM_MAX ? STM_MAX : n);
+
     if (form_of(S->diag.stm))
         return;
+
     const uint8_t *p = (const uint8_t *)S->diag.stm; /* a keyword, if no form for it */
     if (!lexr_keyword(&p) || *p)
         S->diag.stm[0] = 0;
@@ -132,16 +149,21 @@ static void name(Session *const S)
 {
     const char *b = S->diag.line + S->diag.col;
     S->diag.namelen = 0;
+
     for (;;) {
         while (*b == ' ')
             b++;
+
         uint32_t n = 0;
+
         while (is_word(b[n]))
             n++;
         if (!n)
             return;
+
         upper(S->diag.key, b, n < sizeof S->diag.key ? n : sizeof S->diag.key - 1);
         bool lead = false;
+
         for (size_t i = 0; i < countof(leads) && !lead; i++)
             lead = !strcmp(S->diag.key, leads[i]);
         if (!lead) {
@@ -149,6 +171,7 @@ static void name(Session *const S)
             S->diag.namelen = n;
             return;
         }
+
         b += n;
     }
 }
@@ -160,27 +183,35 @@ static void syntax(Session *const S)
 {
     S->diag.bc = s_syntax;
     bool done = false;
+
     if (S->diag.first && S->diag.len) { /* at the statement's first word, a word: that one is it */
         const uint32_t n = letters(S->diag.line + S->diag.col, S->diag.len);
+
         if (n == S->diag.len && n <= STM_MAX) {
             upper(S->diag.stm, S->diag.line + S->diag.col, n);
-            S->diag.what = "`{text}` cannot be used here: it does not start a valid statement at this "
-                      "point";
+            S->diag.what =
+                "`{text}` cannot be used here: it does not start a valid statement at this "
+                "point";
             done = true;
         }
     }
+
     if (!done) {
         const char *names[256];
+
         if (S->diag.state != DX_NOSTATE && comp_expnames(S->diag.state, names)) {
             S->diag.what = "expected {expected} in the {stm}, but found {found}";
         } else {
-            S->diag.what = S->diag.len ? "`{text}` does not fit the {stm} here"
-                             : "the {stm} is incomplete: the line ends where more is needed";
+            S->diag.what = S->diag.len
+                               ? "`{text}` does not fit the {stm} here"
+                               : "the {stm} is incomplete: the line ends where more is needed";
         }
     }
+
     S->diag.todo = "check the statement against the manual; the mark shows where it stopped being "
-              "understood";
+                   "understood";
     const char *const f = form_of(S->diag.stm);
+
     if (f) { /* STATEMENT is written: */
         S->diag.form = f;
         const size_t n = strlen(S->diag.stm);
@@ -195,6 +226,7 @@ static void words(Session *const S)
 {
     S->diag.form = nullptr;
     const char *e = nullptr;
+
     if (S->diag.dg) {
         e = diag_msgs; /* DG_ n: the nth message */
         for (uint8_t i = 1; i < S->diag.dg; i++)
@@ -207,25 +239,35 @@ static void words(Session *const S)
         S->diag.keyend[0] = ' ';
         S->diag.keyend[1] = '/';
         const uint32_t room = (uint32_t)(sizeof S->diag.key - 1 - (n + 2));
-        upper(S->diag.keyend + 2, S->diag.line + S->diag.col, S->diag.len < room ? S->diag.len : room);
+        upper(
+            S->diag.keyend + 2,
+            S->diag.line + S->diag.col,
+            S->diag.len < room ? S->diag.len : room
+        );
         e = entry(S->diag.key);
+
         if (!e && !S->diag.len) {
             memcpy(S->diag.keyend, " /end", sizeof " /end");
             e = entry(S->diag.key);
         }
+
         if (!e) {
             *S->diag.keyend = 0;
             e = entry(S->diag.key);
         }
+
         if (!e) {
             S->diag.bc = S->diag.key;
             S->diag.what = "{bc} (at `{text}`)";
             S->diag.todo = nullptr;
+
             if (S->diag.code == E_SN)
                 syntax(S);
+
             return;
         }
     }
+
     S->diag.bc = e;
     S->diag.what = skip(e);
     S->diag.todo = skip(S->diag.what);
@@ -236,7 +278,9 @@ static uint32_t item_len(const char *const b)
 {
     if (!*b)
         return 0;
+
     uint32_t n = 1;
+
     if (*b == '"') {
         while (b[n] && b[n] != '"')
             n++;
@@ -246,11 +290,18 @@ static uint32_t item_len(const char *const b)
         while (is_word(b[n]))
             n++;
     }
+
     return n;
 }
 
-uint32_t diag_at(Session *const S, const char *const text, uint32_t col, const uint8_t code, const uint8_t dg,
-                 const uint16_t state)
+uint32_t diag_at(
+    Session *const S,
+    const char *const text,
+    uint32_t col,
+    const uint8_t code,
+    const uint8_t dg,
+    const uint16_t state
+)
 {
     S->diag.line = text;
     S->diag.code = code;
@@ -261,27 +312,46 @@ uint32_t diag_at(Session *const S, const char *const text, uint32_t col, const u
         col = end;
     while (text[col] == ' ')
         col++;
+
     S->diag.col = col;
     const uint32_t n = item_len(text + col);
     S->diag.len = n;
+
     if (!n && code != E_SN) /* nothing here, past what it read: that item, but for a syntax error */
         back(S, col);
+
     statement(S);
     name(S);
     words(S);
     return S->diag.col;
 }
 
-void diag_raise(Session *const S, const uint8_t code, const uint8_t dg, const uint32_t at, const uint32_t line,
-                const char *const other, uint32_t len)
+void diag_raise(
+    Session *const S,
+    const uint8_t code,
+    const uint8_t dg,
+    const uint32_t at,
+    const uint32_t line,
+    const char *const other,
+    uint32_t len
+)
 {
     static ErrOp op;
-    op = (ErrOp){.op = O_ERR, .code = code, .dg = dg, .at = at, .state = DX_NOSTATE};
+    op = (ErrOp){
+        .op = O_ERR,
+        .code = code,
+        .dg = dg,
+        .at = at,
+        .state = DX_NOSTATE,
+    };
+
     S->vm.line = line;
     S->vm.opip = (uint8_t *)&op;
     S->vm.err.active = true;
+
     if (len > sizeof S->diag.other - 1)
         len = sizeof S->diag.other - 1;
+
     memcpy(S->diag.other, other, len);
     S->diag.other[len] = 0;
     repl_error(S, code);
@@ -296,10 +366,26 @@ static void put_n(Session *const S, const char *const s, const uint32_t n)
 static void put_text(Session *const S) { put_n(S, S->diag.line + S->diag.col, S->diag.len); }
 
 /* A message's {holder}s. */
-typedef enum { H_TEXT, H_NAME, H_STATEMENT, H_STM, H_OTHER, H_BC, H_EXPECTED, H_FOUND, NHOLDERS } Holder;
+typedef enum {
+    H_TEXT,
+    H_NAME,
+    H_STATEMENT,
+    H_STM,
+    H_OTHER,
+    H_BC,
+    H_EXPECTED,
+    H_FOUND,
+    NHOLDERS
+} Holder;
 static const char *const holders[NHOLDERS] = {
-    [H_TEXT] = "text}",   [H_NAME] = "name}", [H_STATEMENT] = "statement}", [H_STM] = "stm}",
-    [H_OTHER] = "other}", [H_BC] = "bc}",     [H_EXPECTED] = "expected}",   [H_FOUND] = "found}",
+    [H_TEXT] = "text}",
+    [H_NAME] = "name}",
+    [H_STATEMENT] = "statement}",
+    [H_STM] = "stm}",
+    [H_OTHER] = "other}",
+    [H_BC] = "bc}",
+    [H_EXPECTED] = "expected}",
+    [H_FOUND] = "found}",
 };
 
 /* The holder after a '{' at t; NHOLDERS none. */
@@ -308,6 +394,7 @@ static Holder holder_at(const char *const t)
     for (uint32_t h = 0; h < NHOLDERS; h++)
         if (!strncmp(t, holders[h], strlen(holders[h])))
             return (Holder)h;
+
     return NHOLDERS;
 }
 
@@ -317,31 +404,40 @@ static void put_holder(Session *const S, const Holder h)
     case H_TEXT:
         put_text(S);
         break;
+
     case H_NAME:
         if (S->diag.namelen)
             put_n(S, S->diag.name, S->diag.namelen);
         else
             put_text(S);
+
         break;
+
     case H_STATEMENT:
         cons_puts(S, S->diag.stm[0] ? S->diag.stm : "this");
         break;
+
     case H_STM:
         if (S->diag.stm[0]) {
             cons_puts(S, S->diag.stm);
             cons_putc(S, ' ');
         }
+
         cons_puts(S, "statement");
         break;
+
     case H_OTHER:
         cons_puts(S, S->diag.other);
         break;
+
     case H_BC:
         cons_puts(S, S->diag.bc);
         break;
+
     case H_EXPECTED:
         comp_expected(S, S->diag.state);
         break;
+
     default:
         if (!S->diag.len) {
             cons_puts(S, "the end of the statement");
@@ -358,19 +454,23 @@ static void fill(Session *const S, const char *t)
 {
     for (char c; (c = *t++);) {
         const Holder h = c == '{' ? holder_at(t) : NHOLDERS;
+
         if (c == '{') {
             S->diag.cap = false;
             S->diag.last = 'x';
         }
+
         if (h == NHOLDERS) {
             if (S->diag.cap) {
                 S->diag.cap = false;
                 c = (char)upcase((uint8_t)c);
             }
+
             S->diag.last = c;
             cons_putc(S, (uint8_t)c);
             continue;
         }
+
         t += strlen(holders[h]);
         put_holder(S, h);
     }
@@ -382,6 +482,7 @@ static void sentence(Session *const S, const char *const t)
     S->diag.cap = true;
     fill(S, t);
     S->diag.cap = false;
+
     if (S->diag.last != '.' && S->diag.last != ':')
         cons_putc(S, '.');
 }
@@ -392,6 +493,7 @@ bool diag_todo(Session *const S)
 {
     if (!S->diag.todo || !*S->diag.todo)
         return false;
+
     sentence(S, S->diag.todo);
     return true;
 }
@@ -400,6 +502,7 @@ bool diag_shape(Session *const S)
 {
     if (!S->diag.form)
         return false;
+
     cons_puts(S, S->diag.form);
     return true;
 }
@@ -408,6 +511,7 @@ void diag_say(Session *const S)
 {
     diag_what(S);
     cons_nl(S);
+
     if (diag_todo(S))
         cons_nl(S);
     if (S->diag.form) {

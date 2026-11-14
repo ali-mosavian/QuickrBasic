@@ -37,6 +37,7 @@ void mkcv_mki(Session *const S)
 {
     if (S->vm.sp->i != (int16_t)S->vm.sp->i)
         repl_error(S, E_OV);
+
     mk(S, 2);
 }
 void mkcv_mkl(Session *const S) { mk(S, 4); }
@@ -47,11 +48,15 @@ void mkcv_mkd(Session *const S) { mk(S, 8); }
 static uint32_t sngl_to_mbf(Session *const S, const uint32_t v)
 {
     const uint32_t e = v >> F32_EXP_SHIFT & F32_EXP_MAX;
+
     if (!e)
         return 0;
+
     const uint32_t mbf_e = e + MBF_BIAS_OVER_F32;
+
     if (mbf_e > F32_EXP_MAX)
         repl_error(S, E_OV);
+
     return (v & F32_MANT) | (v >> 31) << F32_EXP_SHIFT | mbf_e << MBF_EXP_SHIFT;
 }
 
@@ -65,10 +70,12 @@ void mkcv_mksm(Session *const S)
 static uint64_t dubl_to_mbf(Session *const S, const uint64_t v)
 {
     const int32_t e = (int32_t)(v >> F64_EXP_SHIFT & F64_EXP_MAX) - F64_BIAS_OVER_MBF;
+
     if (e <= 0)
         return 0;
     if (e > (int32_t)F32_EXP_MAX)
         repl_error(S, E_OV);
+
     return (v << F64_EXTRA_BITS & MBF64_MANT) | (v >> 63) << MBF64_SIGN_SHIFT |
            (uint64_t)e << MBF64_EXP_SHIFT;
 }
@@ -83,8 +90,10 @@ void mkcv_mkdm(Session *const S)
 static void cv(Session *const S, const uint32_t n)
 {
     const Desc s = strg_get(S, S->vm.sp->a);
+
     if (s.len < n)
         repl_error(S, E_IQ);
+
     memcpy(&S->vm.sp->raw, at(s.ptr), 8);
 }
 
@@ -102,9 +111,12 @@ void mkcv_cvd(Session *const S) { cv(S, 8); }
 static uint32_t mbf_to_sngl(const uint32_t v)
 {
     const uint32_t e = v >> MBF_EXP_SHIFT;
+
     if (e <= MBF_BIAS_OVER_F32)
         return 0;
-    return (v >> F32_EXP_SHIFT & 1) << 31 | (v & F32_MANT) | (e - MBF_BIAS_OVER_F32) << F32_EXP_SHIFT;
+
+    return (v >> F32_EXP_SHIFT & 1) << 31 | (v & F32_MANT) |
+           (e - MBF_BIAS_OVER_F32) << F32_EXP_SHIFT;
 }
 
 void mkcv_cvsm(Session *const S)
@@ -117,8 +129,10 @@ void mkcv_cvsm(Session *const S)
 static uint64_t mbf_to_dubl(const uint64_t v)
 {
     const uint32_t mbf_e = (uint32_t)(v >> MBF64_EXP_SHIFT);
+
     if (!mbf_e)
         return 0;
+
     const uint64_t sign = v >> MBF64_SIGN_SHIFT & 1;
     const uint64_t rounded = ((v & MBF64_MANT) + (1 << (F64_EXTRA_BITS - 1))) >> F64_EXTRA_BITS;
     const bool carry = rounded & F64_CARRY;

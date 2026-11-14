@@ -8,13 +8,13 @@
 enum { TMAXA = 4 }; /* a table's arrays at most */
 
 typedef struct {
-    uint32_t block;        /* its block's handle */
-    uint32_t cap;          /* its entries */
-    uint32_t max;          /*   at most */
-    Addr base;             /* the block's base when placed */
-    uint32_t narr;         /* its arrays */
-    uint32_t size[TMAXA];  /* each one's bytes per entry */
-    Addr at[TMAXA];        /* each one's first byte */
+    uint32_t block;       /* its block's handle */
+    uint32_t cap;         /* its entries */
+    uint32_t max;         /*   at most */
+    Addr base;            /* the block's base when placed */
+    uint32_t narr;        /* its arrays */
+    uint32_t size[TMAXA]; /* each one's bytes per entry */
+    Addr at[TMAXA];       /* each one's first byte */
 } Table;
 
 /* t's block for entries entries; narr, size and max set by the caller. Out of memory. */

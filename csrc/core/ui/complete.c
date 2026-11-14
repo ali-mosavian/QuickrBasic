@@ -55,29 +55,29 @@ static_assert(sizeof(Entry) == AC_SZ);
 
 /* TCOMPL, ac_list, ac_ev. */
 static struct {
-    uint16_t n;      /* the list's names */
-    uint16_t sel;    /* the one lit */
-    uint16_t top;    /* the first shown */
-    uint16_t pn;     /* the word's length */
-    uint16_t ps;     /* its column */
-    uint8_t at_row, at_col; /* the list's box */
-    uint8_t m;       /* what fits (AM_*) */
-    uint8_t st;      /* the statement's keyword */
-    uint8_t pv;      /* what came last (AP_*, a token) */
-    bool lc;         /* the word in small letters */
-    uint8_t bw;      /* the box's columns */
-    uint8_t bn;      /* its rows of names */
-    uint8_t pfx[AC_SZ]; /* the word in capitals */
-    uint8_t ty;      /* the type the expression wants (AT_*) */
-    uint8_t lt;      /* the last operand's type */
-    uint8_t fn;      /* the function whose ( is open, AF_ARRAY an array */
-    uint8_t flt;     /* its value's type */
-    uint8_t plk;     /* the line before's last statement */
-    bool cur;        /* ac_evs on the word's own line */
-    uint16_t dp;     /* NEXTs not yet matched */
-    uint8_t nm[AC_SZ]; /* a name: its length, it, 0 */
-    uint8_t on[AC_SZ]; /* the open FOR's variable */
-    char sig[32];    /* a function's form */
+    uint16_t n;                    /* the list's names */
+    uint16_t sel;                  /* the one lit */
+    uint16_t top;                  /* the first shown */
+    uint16_t pn;                   /* the word's length */
+    uint16_t ps;                   /* its column */
+    uint8_t at_row, at_col;        /* the list's box */
+    uint8_t m;                     /* what fits (AM_*) */
+    uint8_t st;                    /* the statement's keyword */
+    uint8_t pv;                    /* what came last (AP_*, a token) */
+    bool lc;                       /* the word in small letters */
+    uint8_t bw;                    /* the box's columns */
+    uint8_t bn;                    /* its rows of names */
+    uint8_t pfx[AC_SZ];            /* the word in capitals */
+    uint8_t ty;                    /* the type the expression wants (AT_*) */
+    uint8_t lt;                    /* the last operand's type */
+    uint8_t fn;                    /* the function whose ( is open, AF_ARRAY an array */
+    uint8_t flt;                   /* its value's type */
+    uint8_t plk;                   /* the line before's last statement */
+    bool cur;                      /* ac_evs on the word's own line */
+    uint16_t dp;                   /* NEXTs not yet matched */
+    uint8_t nm[AC_SZ];             /* a name: its length, it, 0 */
+    uint8_t on[AC_SZ];             /* the open FOR's variable */
+    char sig[32];                  /* a function's form */
     uint8_t ev[AC_EVN + 1][AC_SZ]; /* a line's FORs (the name) and NEXTs (0, a count); the
                                       asm's past-the-end slot made one */
     Entry list[AC_MAX];
@@ -85,16 +85,23 @@ static struct {
 
 static const uint8_t var_stmts[] = {TK_FOR, TK_NEXT, TK_DIM, TK_READ, TK_INPUT, TK_INPUTN, TK_GET};
 /* the words that go on after an operand, by statement */
-static const uint8_t ops[][3] = {
-    {TK_IF, TK_THEN, TK_GOTO}, {TK_FOR, TK_TO, TK_STEP}, {TK_ON, TK_GOTO, TK_GOSUB}};
+static const uint8_t ops[][3] =
+    {{TK_IF, TK_THEN, TK_GOTO}, {TK_FOR, TK_TO, TK_STEP}, {TK_ON, TK_GOTO, TK_GOSUB}};
 /* the arguments of the functions not of one number */
 static const struct {
     uint8_t tok;
     const char *args;
 } func_args[] = {
-    {TK_PEEK, "address"}, {TK_LEN, "s$"}, {TK_VAL, "s$"}, {TK_ASC, "s$"},
-    {TK_CHRS, "code"}, {TK_LEFTS, "s$, n"}, {TK_RIGHTS, "s$, n"},
-    {TK_MID, "s$, start[, n]"}, {TK_TAB, "column"}, {TK_SPC, "n"},
+    {TK_PEEK, "address"},
+    {TK_LEN, "s$"},
+    {TK_VAL, "s$"},
+    {TK_ASC, "s$"},
+    {TK_CHRS, "code"},
+    {TK_LEFTS, "s$, n"},
+    {TK_RIGHTS, "s$, n"},
+    {TK_MID, "s$, start[, n]"},
+    {TK_TAB, "column"},
+    {TK_SPC, "n"},
 };
 
 /* What a key in the list does. */
@@ -113,6 +120,7 @@ static uint16_t word_start(const LineBuf *const b, const uint16_t col)
     for (uint16_t s = col; s; s--)
         if (!is_alnum(b->text[s - 1]))
             return s;
+
     return 0;
 }
 
@@ -121,19 +129,25 @@ static bool word(void)
 {
     const LineBuf *const b = &uimn.edline;
     const uint16_t col = b->col;
+
     if (col > b->len || (col < b->len && is_alnum(b->text[col])))
         return false;
+
     const uint16_t s = word_start(b, col);
     ac.ps = s;
     ac.pn = col - s;
+
     if (ac.pn >= AC_SZ - 2)
         return false;
+
     ac.lc = false;
+
     for (uint16_t i = 0; i < ac.pn; i++) {
         const uint8_t c = b->text[s + i];
         ac.lc = c >= 'a';
         ac.pfx[i] = upcase(c);
     }
+
     ac.pfx[ac.pn] = 0;
     return true;
 }
@@ -150,11 +164,13 @@ static uint8_t *lex(Session *const S)
 static uint8_t *line_body(Session *const S, const uint32_t line)
 {
     uint16_t len;
+
     if (line == uimn.ed.line) {
         len = uimn.edline.len;
         memcpy(uimn.build, uimn.edline.text, len);
     } else
         len = (uint16_t)text_get(S, line, uimn.build);
+
     uimn.build[len] = 0;
     return lex(S);
 }
@@ -169,13 +185,16 @@ static uint8_t tok_type(const uint8_t tok)
         ac.lt = t;
         return t;
     }
+
     const uint8_t other = ac.lt; /* + = < >: the other operand's type */
     if (tok == TK_PLUS || is_comparison(tok)) {
         ac.ty = other;
         return other;
     }
+
     if (tok >= TK_GT)
         return other;
+
     const uint8_t t = tok > TK_PLUS || tok == TK_NOT || tok == TK_TO || tok == TK_STEP ||
                               tok == TK_FOR || tok == TK_NEXT
                           ? AT_NUM /* - * / ^ AND OR NOT TO STEP FOR NEXT */
@@ -191,10 +210,12 @@ static const uint8_t *var_name(const uint8_t *const p)
     const uint32_t len = p[VAR_LEN];
     const uint8_t *const next = p + len + VAR_FIXED;
     uint32_t n = len > AC_LEN ? AC_LEN : len;
+
     for (uint32_t i = 0; i < n; i++)
         ac.nm[1 + i] = upcase(p[VAR_TEXT + i]);
     if (*next == '(' && n < AC_LEN)
         ac.nm[1 + n++] = '(';
+
     ac.nm[0] = (uint8_t)n;
     ac.nm[1 + n] = 0;
     return next;
@@ -213,6 +234,7 @@ static bool names_vars(const uint8_t st, const uint8_t pv)
     for (uint32_t i = 0; i < countof(var_stmts); i++)
         if (st == var_stmts[i] && (pv == var_stmts[i] || pv == AP_COM))
             return true;
+
     return false;
 }
 
@@ -220,6 +242,7 @@ static bool names_vars(const uint8_t st, const uint8_t pv)
 static void mask(void)
 {
     const uint8_t pv = ac.pv, st = ac.st;
+
     if (pv == AP_ST)
         ac.m = AM_ST | AM_VR;
     else if (pv == TK_THEN)
@@ -237,12 +260,16 @@ static void mask(void)
 static const uint8_t *ctx_keyword(const uint8_t *const p, const uint8_t c)
 {
     const uint8_t *const next = decl_item(p);
+
     if (ac.pv == TK_THEN || ac.pv == AP_ST)
         ac.st = c;
+
     ac.pv = c;
     tok_type(c);
+
     if (is_operator(c))
         ac.pv = AP_SEP;
+
     return next;
 }
 
@@ -252,12 +279,14 @@ static const uint8_t *ctx_var(const uint8_t *const p)
     const uint8_t *const next = var_name(p);
     const uint8_t t = name_type();
     ac.lt = t;
+
     if (ac.pv == AP_ST)
         ac.st = AP_ID; /* an assignment */
     if (*next != '(') {
         ac.pv = AP_ID;
         return next;
     }
+
     ac.flt = t;
     ac.fn = AF_ARRAY;
     ac.ty = AT_NUM;
@@ -270,6 +299,7 @@ static void ctx_punct(const uint8_t c)
 {
     uint8_t pv = AP_SEP;
     const uint8_t fn = ac.fn;
+
     if (c == '(') { /* a function's argument: its type */
         if (fn) {
             ac.ty = AT_STR; /* LEN, VAL, ASC, LEFT$, RIGHT$, MID$ */
@@ -278,6 +308,7 @@ static void ctx_punct(const uint8_t c)
         }
     } else if (c == ')') {
         pv = AP_ID;
+
         if (fn) { /* the call's value */
             ac.lt = ac.flt;
             ac.fn = 0;
@@ -286,6 +317,7 @@ static void ctx_punct(const uint8_t c)
         pv = AP_COM;
         ac.ty = fn >= TK_LEFTS ? AT_NUM : AT_ANY; /* LEFT$( s$, n */
     }
+
     ac.pv = pv;
 }
 
@@ -297,12 +329,15 @@ static bool context(Session *const S)
     memcpy(uimn.build, uimn.edline.text, ac.ps);
     uimn.build[ac.ps] = 0;
     const uint8_t *p = lex(S);
+
     if (decl_tail(&p))
         return false;
+
     ac.st = 0;
     ac.pv = AP_ST;
     ac.ty = AT_ANY;
     ac.fn = 0;
+
     for (uint8_t c; (c = *p);) {
         if (is_token(c))
             p = ctx_keyword(p, c);
@@ -321,9 +356,12 @@ static bool context(Session *const S)
             ctx_punct(c);
         }
     }
+
     mask();
+
     if (starts_number(ac.pfx[0])) /* a number is a label */
         ac.m &= AM_LB;
+
     return ac.m != 0;
 }
 
@@ -342,6 +380,7 @@ static bool wanted(const uint8_t tok)
     for (uint32_t i = 0; i < countof(ops); i++)
         if (ops[i][0] == ac.st && (tok == ops[i][1] || tok == ops[i][2]))
             return true;
+
     return false;
 }
 
@@ -351,37 +390,53 @@ static uint16_t place_of(const uint8_t *const up, const uint8_t rank)
 {
     for (uint16_t i = 0; i < ac.n; i++) {
         const Entry *const e = &ac.list[i];
+
         if (rank < e->rank)
             return i;
         if (rank > e->rank)
             continue;
+
         const int d = strcmp((const char *)up, (const char *)e->text);
+
         if (!d)
             return PLACE_THERE;
         if (d < 0)
             return i;
     }
+
     return ac.n;
 }
 
 /* ac_add: n characters at s to the list, in capitals, once, in order of rank then text; when
    they start with the word and are longer. A variable ranks first when it is the open FOR's. */
-static void add(const uint8_t *const s, const uint32_t n, const uint8_t kind, uint8_t rank,
-                const uint32_t xt)
+static void add(
+    const uint8_t *const s,
+    const uint32_t n,
+    const uint8_t kind,
+    uint8_t rank,
+    const uint32_t xt
+)
 {
     if (n <= ac.pn || n > AC_LEN)
         return;
+
     uint8_t up[AC_LEN + 1];
+
     for (uint32_t i = 0; i < n; i++)
         up[i] = upcase(s[i]);
+
     up[n] = 0;
+
     if (memcmp(up, ac.pfx, ac.pn))
         return;
     if (kind == AK_VR && ac.on[0]) /* the open FOR's variable first */
         rank = memcmp(up, ac.on + 1, n + 1) ? 1 : 0;
+
     const uint16_t i = place_of(up, rank);
+
     if (i == PLACE_THERE || ac.n >= AC_MAX)
         return;
+
     memmove(&ac.list[i + 1], &ac.list[i], (ac.n - i) * sizeof(Entry));
     Entry *const e = &ac.list[i];
     e->len = (uint8_t)n;
@@ -396,8 +451,10 @@ static void add(const uint8_t *const s, const uint32_t n, const uint8_t kind, ui
 static const uint8_t *kw_word(const uint8_t *const p, uint8_t *const w, uint32_t *const n)
 {
     uint32_t i = 0;
+
     for (; !(p[i] & KW_LAST); i++)
         w[i] = p[i] & KW_CHAR;
+
     w[i] = p[i] & KW_CHAR;
     w[i + 1] = 0;
     *n = i + 1;
@@ -415,6 +472,7 @@ static uint8_t kw_kind(const uint8_t tok, const uint8_t c0)
         return ac.st == TK_PRINT || ac.st == TK_PRINTN ? AK_FN : AK_NONE;
     if (tok < TK_SGN)
         return AK_KW;
+
     const uint8_t t = tok_type(tok); /* a function: its value's type */
     return ac.ty && ac.ty != t ? AK_NONE : AK_FN;
 }
@@ -425,10 +483,12 @@ static void keys(void)
 {
     const uint8_t *p = cons_kwlist;
     uint8_t w[64];
+
     for (uint8_t tok = TK_END; *p; tok++) {
         uint32_t n;
         p = kw_word(p, w, &n);
         const uint8_t kind = kw_kind(tok, w[0]);
+
         if (kind != AK_NONE)
             add(w, n, kind, tok <= TK_NEW ? 0 : 1, tok); /* a function after the variables */
     }
@@ -438,11 +498,13 @@ static void keys(void)
 static void label(const uint8_t *const p, const uint32_t line)
 {
     const uint32_t num = load32(p + INT_VALUE);
+
     if (p[0] != M_INT || num > UINT16_MAX)
         return;
+
     const char *const e = uimn_dec((char *)ac.nm, (uint16_t)num);
-    const bool start = ac.plk == TK_RET || ac.plk == TK_END || ac.plk == TK_STOP ||
-                       ac.plk == TK_GOTO;
+    const bool start =
+        ac.plk == TK_RET || ac.plk == TK_END || ac.plk == TK_STOP || ac.plk == TK_GOTO;
     const uint8_t rank = ac.pv == TK_GOSUB && start ? 0 : 1; /* GOSUB: a start first */
     add(ac.nm, (uint32_t)(e - (char *)ac.nm), AK_LB, rank, line);
 }
@@ -456,11 +518,14 @@ static void ids(const uint8_t *p, const uint32_t line)
             p = decl_step(p);
             continue;
         }
+
         p = var_name(p);
+
         if (ac.ty && name_type() != ac.ty)
             continue;
         if (ac.nm[ac.nm[0]] == '(' && ac.m == AM_VR && (ac.st == TK_FOR || ac.st == TK_NEXT))
             continue;
+
         add(ac.nm + 1, ac.nm[0], AK_VR, 0, line);
     }
 }
@@ -471,13 +536,17 @@ static void vars(Session *const S)
 {
     if (!(ac.m & (AM_VR | AM_LB)))
         return;
+
     ac.plk = 0;
+
     for (uint32_t line = 0; line < uimn.text.n; line++) {
         const uint8_t *p = line_body(S, line);
+
         if (ac.m & AM_LB && line != uimn.ed.line) /* not the word's own line */
             label(p, line);
         if (ac.m & AM_VR)
             ids(p, line);
+
         p = S->comp.cbuf;
         decl_tail(&p); /* its last statement's keyword */
         ac.plk = is_token(*p) ? *p : 0;
@@ -488,6 +557,7 @@ static void vars(Session *const S)
 static const uint8_t *next_names(const uint8_t *p, uint8_t *const n)
 {
     *n = 0;
+
     for (;;) {
         if (*p == ',')
             p++;
@@ -503,8 +573,10 @@ static const uint8_t *next_names(const uint8_t *p, uint8_t *const n)
 static uint32_t collect_events(const uint8_t *p)
 {
     uint32_t k = 0;
+
     for (uint8_t c; (c = *p) && c != TK_REM && c != TK_DATA;) {
         p = decl_step(p);
+
         if (c == TK_FOR && *p == M_VAR) {
             p = var_name(p);
             memcpy(ac.ev[k], ac.nm, AC_SZ);
@@ -515,9 +587,11 @@ static uint32_t collect_events(const uint8_t *p)
             ac.ev[k][1] = n;
         } else
             continue;
+
         if (k < AC_EVN)
             k++;
     }
+
     return k;
 }
 
@@ -527,6 +601,7 @@ static bool match_events(const uint32_t k)
 {
     for (uint32_t i = k; i > 0; i--) {
         const uint8_t *const e = ac.ev[i - 1];
+
         if (!e[0]) { /* NEXT: a bare one closes one, but not the one being written */
             ac.dp += !e[1] && !ac.cur ? 1 : e[1];
             ac.cur = false;
@@ -537,6 +612,7 @@ static bool match_events(const uint32_t k)
             return true;
         }
     }
+
     return false;
 }
 
@@ -552,8 +628,10 @@ static void open_for(Session *const S)
     const uint8_t *p = S->comp.cbuf; /* the line to the word, as context left it */
     for (int32_t line = (int32_t)uimn.ed.line; !events(p);) {
         ac.cur = false;
+
         if (--line < 0)
             return;
+
         p = line_body(S, (uint32_t)line);
     }
 }
@@ -564,12 +642,15 @@ static void put(const uint8_t *const s, const uint16_t upto)
 {
     if (upto <= ac.pn)
         return;
+
     uint8_t t[AC_SZ];
     const uint16_t n = upto - ac.pn;
+
     for (uint16_t i = 0; i < n; i++) {
         const uint8_t c = s[ac.pn + i];
         t[i] = ac.lc && is_letter(c) ? c | CASE_BIT : c;
     }
+
     ac.pn = upto;
     edit_lb_insert(&uimn.edline, t, n);
     uimn.text.changed = true;
@@ -579,13 +660,16 @@ static void put(const uint8_t *const s, const uint16_t upto)
 static bool agree(const uint16_t b)
 {
     const Entry *const first = &ac.list[0];
+
     if ((uint8_t)b >= first->len)
         return false;
     for (uint16_t i = 0; i < ac.n; i++) {
         const Entry *const e = &ac.list[i];
+
         if ((uint8_t)b >= e->len || e->text[b] != first->text[b])
             return false;
     }
+
     return true;
 }
 
@@ -593,6 +677,7 @@ static bool agree(const uint16_t b)
 static void common(void)
 {
     uint16_t b = ac.pn;
+
     while (agree(b))
         b++;
     if (b != ac.pn)
@@ -605,6 +690,7 @@ static const char *args_of(const uint8_t tok)
     for (uint32_t i = 0; i < countof(func_args); i++)
         if (func_args[i].tok == tok)
             return func_args[i].args;
+
     return "x";
 }
 
@@ -613,8 +699,10 @@ static void signature(const Entry *const e)
 {
     uint32_t n = e->len;
     memcpy(ac.sig, e->text, n);
+
     if (ac.sig[n - 1] != '(')
         ac.sig[n++] = '(';
+
     const char *const a = args_of((uint8_t)e->xt);
     const uint32_t an = (uint32_t)strlen(a);
     memcpy(ac.sig + n, a, an);
@@ -635,10 +723,12 @@ static void insert(const uint16_t i)
 {
     const Entry *const e = &ac.list[i];
     put(e->text, e->len);
+
     if (e->kind != AK_FN)
         return;
     if (e->text[e->len - 1] != '(')
         edit_lb_insert(&uimn.edline, (const uint8_t *)"(", 1);
+
     show_form(e);
 }
 
@@ -650,8 +740,10 @@ static void preview(Session *const S, const Entry *const e, const uint8_t row, c
     if (p[0] == M_INT) {
         if (!p[INT_SZ])
             return;
+
         off = S->lexr.col[INT_SZ];
     }
+
     const uint8_t *const s = uimn.build + off;
     const uint16_t len = (uint16_t)strlen((const char *)s); /* its length, to the box's edge */
     scrn_strn(row, (uint8_t)(col + PV_COL), s, len > PV_LEN ? PV_LEN : len, SL_BAR);
@@ -662,10 +754,12 @@ static void draw(Session *const S)
 {
     scrn_box(ac.at_row, ac.at_col, ac.bn + BOX_FRAME, ac.bw, SL_BAR, nullptr);
     scrn_shadow(ac.at_row, ac.at_col, ac.bn + BOX_FRAME, ac.bw);
+
     for (uint8_t b = 0; b < ac.bn; b++) {
         const uint8_t row = ac.at_row + b + 1, col = ac.at_col + NAME_COL;
         const Entry *const e = &ac.list[ac.top + b];
         scrn_strn(row, col, e->text, e->len, SL_BAR);
+
         if (e->kind == AK_LB)
             preview(S, e, row, col);
         if (ac.top + b == ac.sel)
@@ -685,16 +779,20 @@ static void place(void)
         if (w > bw)
             bw = w;
     }
+
     ac.bw = bw;
     ac.bn = (uint8_t)(ac.n > AC_ROWS ? AC_ROWS : ac.n);
     const uint8_t h = ac.bn + BOX_FRAME;
     uint8_t row = (uint8_t)(uimn.ed.line - uimn.ed.top + uimn.ed.row0 + 1); /* under, else over */
     if ((uint8_t)(row + h) > STATUS_ROW)
         row = row - h - 1;
+
     const uint16_t c = ac.ps > uimn.ed.left ? ac.ps - uimn.ed.left : 0;
     uint8_t col = (uint8_t)c;
+
     if ((uint8_t)(col + bw) > PSCR_COLS)
         col = PSCR_COLS - bw;
+
     ac.at_row = row;
     ac.at_col = col;
 }
@@ -704,10 +802,13 @@ static Step on_mouse(void)
 {
     if (uimn.mouse.event != MS_PRESS)
         return STEP_STAY;
+
     const uint8_t r = uimn.mouse.row - ac.at_row;
     const uint8_t x = uimn.mouse.col - ac.at_col;
+
     if (uimn.mouse.row <= ac.at_row || r > ac.bn || uimn.mouse.col <= ac.at_col || x >= ac.bw)
         return STEP_LEAVE;
+
     ac.sel = (uint16_t)(r - 1 + ac.top);
     return STEP_TAKE;
 }
@@ -721,16 +822,20 @@ static bool is_move(const uint8_t scan)
 static void move(const uint8_t scan)
 {
     int32_t s = ac.sel;
+
     if (scan == SCAN_UP)
         s = s ? s - 1 : 0;
     else if (scan == SCAN_PGUP)
         s = s >= AC_ROWS ? s - AC_ROWS : 0;
     else {
         s += scan == SCAN_PGDN ? AC_ROWS : 1;
+
         if (s >= ac.n)
             s = ac.n - 1;
     }
+
     ac.sel = (uint16_t)s;
+
     if (s < ac.top)
         ac.top = (uint16_t)s;
     if (s >= ac.bn + ac.top)
@@ -742,7 +847,9 @@ static Step on_key(Session *const S, const uint16_t key)
 {
     if (key == KEY_MOUSE)
         return on_mouse();
+
     const uint8_t ch = (uint8_t)key, scan = (uint8_t)(key >> 8);
+
     if (ch == CH_ENTER || ch == CH_TAB)
         return STEP_TAKE;
     if (ch == CH_ESC)
@@ -751,6 +858,7 @@ static Step on_key(Session *const S, const uint16_t key)
         uimn_key(S, key);
         return STEP_LEAVE;
     }
+
     move(scan);
     return STEP_STAY;
 }
@@ -761,15 +869,19 @@ static void popup(Session *const S)
 {
     place();
     Step step;
+
     do {
         uimn.help = nullptr; /* a function's form on the status bar */
         if (ac.list[ac.sel].kind == AK_FN)
             show_form(&ac.list[ac.sel]);
+
         draw_all(S);
         draw(S);
         step = on_key(S, uimn_getkey());
     } while (step == STEP_STAY);
+
     uimn.help = nullptr;
+
     if (step == STEP_TAKE)
         insert(ac.sel);
 }
@@ -778,10 +890,13 @@ bool cmpl_tab(Session *const S)
 {
     if (!word() || !context(S))
         return false;
+
     ac.n = 0;
     ac.on[0] = 0;
+
     if (ac.m == AM_VR && ac.st == TK_NEXT) { /* NEXT: the open FOR's variable */
         open_for(S);
+
         if (!ac.pn) /* no word: that alone */
             add(ac.on + 1, ac.on[0], AK_VR, 0, 0);
         else {
@@ -792,16 +907,21 @@ bool cmpl_tab(Session *const S)
         if (!ac.pn && !(ac.m & AM_LB) && /* no word: labels, or what has the type wanted */
             (ac.ty == AT_ANY || !(ac.m & (AM_FN | AM_VR))))
             return false;
+
         keys();
         vars(S);
     }
+
     if (!ac.n)
         return false;
+
     common();
+
     if (ac.n == 1)
         insert(0);
     else
         popup(S);
+
     return true;
 }
 #endif

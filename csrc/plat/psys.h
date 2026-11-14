@@ -11,7 +11,8 @@
    an interrupt: ON TIMER's and ON KEY's tick is pclk's (pclk_init), polled by the core. */
 void psys_init(volatile uint8_t *stop, uint8_t bit);
 /* The handlers out, exit with code. Standard output is the caller's to flush first. */
-[[noreturn]] CDECL void psys_exit(uint8_t code);
+[[noreturn]]
+CDECL void psys_exit(uint8_t code);
 
 /* The command line after the program's name, its leading blanks skipped (DOS's PSP tail);
    cap bytes at most, 0-ended; its length. */
@@ -24,8 +25,7 @@ uint32_t psys_environ(char *buf, uint32_t cap);
 uint32_t psys_self(char *buf, uint32_t cap);
 /* Run the program at path with the command tail (len bytes, no count nor CR), the child given
    env (envlen bytes, as psys_environ's); false: it did not run. */
-bool psys_exec(const char *path, const char *tail, uint8_t len, const char *env,
-               uint32_t envlen);
+bool psys_exec(const char *path, const char *tail, uint8_t len, const char *env, uint32_t envlen);
 
 /* INP, OUT: an I/O port's byte. */
 CDECL uint8_t psys_inp(uint16_t port);

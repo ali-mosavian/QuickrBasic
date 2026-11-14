@@ -20,17 +20,17 @@ enum : uint8_t {
 };
 
 typedef struct {
-    uint8_t capture;  /* CAP_* */
-    uint8_t col;      /* the output channel's column */
-    uint32_t sblen;   /* sbuf's bytes, to SBMAX */
-    uint32_t inlen;   /* inbuf's line, its length */
-    int32_t inpos;    /* INPUT: the end of the last field, -1 before the first */
-    bool from_file;   /* INPUT#: no prompts, a field past the line reads the next */
-    bool stdin_dev;   /* standard input is a device (the console), read key by key */
-    uint8_t status;   /* the I/O status (I.LD.ST), always 0 */
-    uint16_t oblen;   /* obuf's bytes */
-    uint8_t *inbuf;   /* INMAX+1: a line read, 0 after; srcr's window */
-    uint8_t *sbuf;    /* SBMAX+1: output captured (CAP_SBUF), LIST's text, scratch */
+    uint8_t capture;    /* CAP_* */
+    uint8_t col;        /* the output channel's column */
+    uint32_t sblen;     /* sbuf's bytes, to SBMAX */
+    uint32_t inlen;     /* inbuf's line, its length */
+    int32_t inpos;      /* INPUT: the end of the last field, -1 before the first */
+    bool from_file;     /* INPUT#: no prompts, a field past the line reads the next */
+    bool stdin_dev;     /* standard input is a device (the console), read key by key */
+    uint8_t status;     /* the I/O status (I.LD.ST), always 0 */
+    uint16_t oblen;     /* obuf's bytes */
+    uint8_t *inbuf;     /* INMAX+1: a line read, 0 after; srcr's window */
+    uint8_t *sbuf;      /* SBMAX+1: output captured (CAP_SBUF), LIST's text, scratch */
     uint8_t obuf[OBSZ]; /* standard output's, flushed on NL, before a read, at the exit */
 } Cons;
 
@@ -77,5 +77,6 @@ uint8_t cons_getc(Session *S);
 /* The next input byte, standard input's or the input channel's; -1 at the end. */
 int cons_getb(Session *S);
 /* Output flushed, the platform restored, exit. */
-[[noreturn]] void cons_exit(Session *S, uint8_t code);
+[[noreturn]]
+void cons_exit(Session *S, uint8_t code);
 #endif

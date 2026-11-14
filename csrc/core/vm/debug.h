@@ -19,16 +19,16 @@ typedef struct {
 } DebugHooks;
 
 typedef struct {
-    uint8_t mode;          /* DM_*: the stop the next DBG looks for */
-    bool trace;            /* each statement to hook (TRON) */
-    bool bpon;             /* a line's LF_BP stops */
-    bool until;            /* utl: a one-time stop at line uline */
-    bool emit;             /* a DBG op starts each statement (comp's) */
-    uint32_t pdep;         /* DM_PSTEP: stop at this depth or less */
+    uint8_t mode;  /* DM_*: the stop the next DBG looks for */
+    bool trace;    /* each statement to hook (TRON) */
+    bool bpon;     /* a line's LF_BP stops */
+    bool until;    /* utl: a one-time stop at line uline */
+    bool emit;     /* a DBG op starts each statement (comp's) */
+    uint32_t pdep; /* DM_PSTEP: stop at this depth or less */
     uint32_t uline;
     const DebugHooks *hooks; /* nullptr none */
-    bool probing;          /* g_dbev: dbug_eval's line runs */
-    jmp_buf probe;         /* dbug_eval's, while its line runs */
+    bool probing;            /* g_dbev: dbug_eval's line runs */
+    jmp_buf probe;           /* dbug_eval's, while its line runs */
 } Dbug;
 
 /* dbg_depth: the procedures and GOSUBs being run. */
@@ -40,7 +40,9 @@ DebugPos dbug_pos(Session *S, uint32_t line, const uint8_t *code);
    trace or event stops it. 0, else the error (E_*) + 1. */
 uint8_t dbug_eval(Session *S, const char *expr, uint8_t proc, char out[static 80]);
 /* dbg_evx: the probe's line ended (sc_end, ex_end): back to dbug_eval. */
-[[noreturn]] void dbug_done(Session *S);
+[[noreturn]]
+void dbug_done(Session *S);
 /* dbg_ever: the probe's line failed with code (repl_error): back to dbug_eval. */
-[[noreturn]] void dbug_fail(Session *S, uint8_t code);
+[[noreturn]]
+void dbug_fail(Session *S, uint8_t code);
 #endif

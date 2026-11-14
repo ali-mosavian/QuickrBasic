@@ -10,12 +10,12 @@
 #include "defs.h"
 
 typedef struct PACKED {
-    uint16_t scope;  /* 0 the module, a procedure's name; | SC_NUM a line number's */
-    uint16_t name;   /* the name, or the line number */
-    uint16_t next;   /* its hash chain's next, 0 none */
-    uint8_t flags;   /* BF_* */
-    uint8_t et[2];   /* the declared type: the scalar's, the array's */
-    uint8_t rec[2];  /* the record's TYPE: the scalar's, the array's */
+    uint16_t scope; /* 0 the module, a procedure's name; | SC_NUM a line number's */
+    uint16_t name;  /* the name, or the line number */
+    uint16_t next;  /* its hash chain's next, 0 none */
+    uint8_t flags;  /* BF_* */
+    uint8_t et[2];  /* the declared type: the scalar's, the array's */
+    uint8_t rec[2]; /* the record's TYPE: the scalar's, the array's */
     uint8_t pad;
     uint16_t fix[2]; /* STRING * n: the scalar's, the array's */
     uint32_t line;   /* a label's line */
@@ -64,8 +64,8 @@ enum {
 
 typedef struct {
     uint32_t nbnd;
-    uint32_t depth;                          /* the stack's scopes */
-    uint16_t stack[NSCS];                    /* procedures, 0 the module */
+    uint32_t depth;       /* the stack's scopes */
+    uint16_t stack[NSCS]; /* procedures, 0 the module */
     uint16_t heads[SCHASH];
     uint32_t lnbit[LNUM_LIMIT / WORD_BITS]; /* the line numbers a scope has */
     Binding bnd[NBND];

@@ -35,17 +35,17 @@ typedef struct {
 
 /* A SUB, FUNCTION or DEF FN. */
 typedef struct {
-    uint32_t at;     /* its name's position */
+    uint32_t at; /* its name's position */
     uint16_t name;
-    uint8_t kind;    /* PK_SUB, PK_FUNC */
-    uint8_t flags;   /* PF_* */
-    uint32_t entry;  /* its body: a target */
-    uint16_t first;  /* its first line, its last (program store offsets) */
+    uint8_t kind;   /* PK_SUB, PK_FUNC */
+    uint8_t flags;  /* PF_* */
+    uint32_t entry; /* its body: a target */
+    uint16_t first; /* its first line, its last (program store offsets) */
     uint16_t last;
     uint16_t npar;
     uint16_t result; /* a FUNCTION's result variable */
     Param *params;
-    uint32_t skip;   /* past its END: a target */
+    uint32_t skip; /* past its END: a target */
 } Proc;
 
 /* The program's blocks and procedures, as blok_pair found them; its arena holds them. */
@@ -53,8 +53,8 @@ typedef struct {
     Arena arena;
     BlockEnt **blocks; /* by position */
     uint16_t nblocks;
-    Proc **procs;      /* by number, from 1 */
-    uint16_t nprocs;   /* procedures + 1 */
+    Proc **procs;    /* by number, from 1 */
+    uint16_t nprocs; /* procedures + 1 */
 } Blok;
 
 /* cm_blocks: pair the program's blocks; FOR without NEXT .. raise through f. */

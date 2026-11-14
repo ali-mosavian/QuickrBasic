@@ -15,6 +15,7 @@ Target shape for `csrc/`, replacing the asm-mirrored layout.
 - **UI:** slightly more general, and hierarchical. Each component is handled by its parent automatically, so a future UI change is local.
 - **Line at a time:** each line is still parsed and compiled as it is entered or edited.
 - **Debugging:** every debugger feature stays.
+- **Readable layout:** `make cstyle` formats every C file: one parameter per line when a signature does not fit, a blank line between a function's steps.
 - **Idiomatic C23:**
   - `const` on everything that does not change.
   - Indexed `for` loops.

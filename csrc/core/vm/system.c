@@ -15,11 +15,11 @@
 #include "vm/event.h"
 
 enum {
-    TAIL_SIZE = 128,         /* a DOS command tail */
-    SHELL_MAX = 122,         /* SHELL's command, after " /C " and before the tail's CR */
-    ENV_VALUE_MAX = 255,     /* ENVIRON$'s chars */
-    DATE_PART_MAX = 9999,    /* a DATE$ or TIME$ part */
-    EXTENDED_KEY = 0xE0,     /* an enhanced keyboard's prefix for its own keys */
+    TAIL_SIZE = 128,      /* a DOS command tail */
+    SHELL_MAX = 122,      /* SHELL's command, after " /C " and before the tail's CR */
+    ENV_VALUE_MAX = 255,  /* ENVIRON$'s chars */
+    DATE_PART_MAX = 9999, /* a DATE$ or TIME$ part */
+    EXTENDED_KEY = 0xE0,  /* an enhanced keyboard's prefix for its own keys */
 };
 
 /* A DATE$ or TIME$ part not given. */
@@ -27,11 +27,11 @@ static constexpr uint16_t NO_PART = UINT16_MAX;
 
 static const char COMSPEC[] = "COMSPEC";
 
-
 static uint32_t skip_spaces(const char *const s, uint32_t i, const uint32_t n)
 {
     while (i < n && s[i] == ' ')
         i++;
+
     return i;
 }
 
@@ -42,18 +42,25 @@ void syst_init(Session *const S)
     char tail[CMDSZ];
     const uint32_t n = psys_cmdline(tail, sizeof tail);
     uint32_t i = skip_spaces(tail, 0, n);
+
     while (i < n && (uint8_t)tail[i] > ' ') /* past the file's name */
         i++;
+
     i = skip_spaces(tail, i, n);
     uint32_t len = 0;
+
     for (; i < n && tail[i] != '\r'; i++)
         S->syst.cmd[len++] = (char)upcase((uint8_t)tail[i]);
     while (len && (uint8_t)S->syst.cmd[len - 1] <= ' ') /* no trailing blanks */
         len--;
+
     S->syst.cmdlen = (uint16_t)len;
 }
 
-void syst_ret(Session *const S, const uint32_t len) { exec_pusha(&S->vm, strg_buftmp(S, (uint16_t)len)); }
+void syst_ret(Session *const S, const uint32_t len)
+{
+    exec_pusha(&S->vm, strg_buftmp(S, (uint16_t)len));
+}
 
 /* ---- the clock ------------------------------------------------------------------------------ */
 
@@ -105,32 +112,49 @@ void syst_time(Session *const S)
 
 /* The string on top as up to 3 numbers apart by sep1 or sep2, NO_PART none; how many. Illegal
    function call: another char, a number past DATE_PART_MAX, an empty part. */
-static uint32_t parts(Session *const S, const uint8_t sep1, const uint8_t sep2, uint16_t part[static 3])
+static uint32_t parts(
+    Session *const S,
+    const uint8_t sep1,
+    const uint8_t sep2,
+    uint16_t part[static 3]
+)
 {
     const Desc s = strg_get(S, S->vm.sp->a);
+
     for (uint32_t i = 0; i < 3; i++)
         part[i] = NO_PART;
+
     uint32_t k = 0;
     uint32_t digits = 0;
+
     for (uint16_t i = 0; i < s.len; i++) {
         const uint8_t c = rd8(s.ptr + i);
+
         if (c == sep1 || c == sep2) {
             if (!digits || ++k >= 3)
                 repl_error(S, E_IQ);
+
             digits = 0;
             continue;
         }
+
         const uint8_t digit = c - '0';
+
         if (digit > 9)
             repl_error(S, E_IQ);
+
         const uint32_t v = (part[k] == NO_PART ? 0 : part[k]) * 10u + digit;
+
         if (v > DATE_PART_MAX)
             repl_error(S, E_IQ);
+
         part[k] = (uint16_t)v;
         digits++;
     }
+
     if (!digits)
         repl_error(S, E_IQ);
+
     return k + 1;
 }
 
@@ -138,13 +162,17 @@ static uint32_t parts(Session *const S, const uint8_t sep1, const uint8_t sep2, 
 void syst_sdate(Session *const S)
 {
     uint16_t part[3];
+
     if (parts(S, '-', '/', part) != 3)
         repl_error(S, E_IQ);
+
     const uint16_t y = part[2];
     const uint16_t year = y >= 100 ? y : y + (y < 80 ? 2000 : 1900);
     const PclkDate d = {.year = year, .month = (uint8_t)part[0], .day = (uint8_t)part[1]};
+
     if (!pclk_set_date(&d))
         repl_error(S, E_IQ);
+
     S->vm.sp++;
 }
 
@@ -153,12 +181,16 @@ void syst_stime(Session *const S)
 {
     uint16_t part[3];
     parts(S, ':', ':', part);
+
     for (uint32_t i = 1; i < 3; i++)
         if (part[i] == NO_PART)
             part[i] = 0;
+
     const PclkTime t = {.hour = (uint8_t)part[0], .min = (uint8_t)part[1], .sec = (uint8_t)part[2]};
+
     if (!pclk_set_time(&t))
         repl_error(S, E_IQ);
+
     S->vm.sp++;
 }
 
@@ -168,6 +200,7 @@ void syst_sleep(Session *const S)
     cons_flush(S);
     const int32_t ticks = exec_popi(&S->vm) * 182 / 10; /* 18.2 a second */
     const uint32_t start = pclk_ticks();
+
     for (;;) {
         if (S->vm.stop & SF_TICK)
             evnt_poll(S);
@@ -184,17 +217,21 @@ void syst_sleep(Session *const S)
 void syst_inkey(Session *const S)
 {
     cons_flush(S);
+
     if (!pkey_ready()) {
         syst_ret(S, 0);
         return;
     }
+
     const PkeyKey k = pkey_read();
+
     if (!k.ch || (k.ch == EXTENDED_KEY && k.scan)) {
         S->cons.sbuf[0] = 0;
         S->cons.sbuf[1] = k.scan;
         syst_ret(S, 2);
         return;
     }
+
     S->cons.sbuf[0] = k.ch;
     syst_ret(S, 1);
 }
@@ -216,11 +253,13 @@ static char *env_find(Session *const S, const uint8_t *const name, const uint32_
 {
     for (char *e = S->syst.env; *e; e = env_next(e)) {
         uint32_t i = 0;
+
         while (i < len && upcase((uint8_t)e[i]) == upcase(name[i]))
             i++;
         if (i == len && e[i] == '=')
             return e;
     }
+
     return nullptr;
 }
 
@@ -228,8 +267,10 @@ static char *env_find(Session *const S, const uint8_t *const name, const uint32_
 static char *env_end(Session *const S)
 {
     char *e = S->syst.env;
+
     while (*e)
         e = env_next(e);
+
     return e;
 }
 
@@ -240,15 +281,18 @@ static void shell(Session *const S, const Desc s)
     static const char run[] = " /C ";
     char tail[TAIL_SIZE];
     uint8_t len = 0;
+
     if (s.len) {
         const uint16_t n = s.len > SHELL_MAX ? SHELL_MAX : s.len;
         memcpy(tail, run, strlen(run));
         memcpy(tail + strlen(run), at(s.ptr), n);
         len = (uint8_t)(n + strlen(run));
     }
+
     const char *const e = env_find(S, (const uint8_t *)COMSPEC, strlen(COMSPEC));
     const char *const path = e ? e + strlen(COMSPEC) + 1 : "COMMAND.COM";
     cons_flush(S);
+
     if (!psys_exec(path, tail, len, S->syst.env, (uint32_t)(env_end(S) - S->syst.env) + 1))
         repl_error(S, E_IQ);
 }
@@ -259,8 +303,10 @@ void syst_shell0(Session *const S) { shell(S, (Desc){}); }
 static void env_ret(Session *const S, const char *const t)
 {
     uint32_t n = 0;
+
     for (; t[n] && n < ENV_VALUE_MAX; n++)
         S->cons.sbuf[n] = (uint8_t)t[n];
+
     syst_ret(S, n);
 }
 
@@ -269,18 +315,24 @@ static void env_ret(Session *const S, const char *const t)
 void syst_envs(Session *const S)
 {
     const bool by_name = exec_pop(&S->vm).u;
+
     if (by_name) {
         const Desc s = strg_get(S, exec_popa(&S->vm));
         const char *const e = s.len ? env_find(S, at(s.ptr), s.len) : nullptr;
         env_ret(S, e ? e + s.len + 1 : "");
         return;
     }
+
     const int32_t n = exec_popi(&S->vm);
+
     if (n < 1)
         repl_error(S, E_IQ);
+
     char *e = S->syst.env;
+
     for (int32_t i = 1; i < n && *e; i++)
         e = env_next(e);
+
     env_ret(S, e);
 }
 
@@ -291,20 +343,27 @@ void syst_envset(Session *const S)
     const Desc s = strg_get(S, exec_popa(&S->vm));
     const uint8_t *const t = at(s.ptr);
     uint32_t name = 0;
+
     while (name < s.len && t[name] != '=')
         name++;
     if (name == s.len || !name)
         repl_error(S, E_IQ);
+
     char *const old = env_find(S, t, name);
+
     if (old) {
         char *const next = env_next(old);
         memmove(old, next, (size_t)(env_end(S) - next) + 1);
     }
+
     if (name + 1 >= s.len) /* no value: removed */
         return;
+
     char *const e = env_end(S);
+
     if (e + s.len + 2 > S->syst.env + ENVSZ)
         repl_error(S, E_OM);
+
     memcpy(e, t, s.len);
     e[s.len] = e[s.len + 1] = 0;
 }
@@ -331,10 +390,12 @@ void syst_rndq(Session *const S)
         cons_read(S);
         const uint8_t *p = S->cons.inbuf;
         const double d = dubl_in(S, &p, nullptr);
+
         if (!*p) {
             exec_pushd(&S->vm, d);
             return;
         }
+
         cons_puts(S, "Redo from start\r"); /* QBasic's; NL is 13 */
     }
 }

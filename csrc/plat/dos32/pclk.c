@@ -36,12 +36,19 @@ uint32_t pclk_ticks(void)
 void pclk_time(PclkTime *const t)
 {
     const PdosRegs r = int21((PdosRegs){.eax = pdos_fn(DOS_GET_TIME, 0)});
-    *t = (PclkTime){.hour = r.ecx >> 8, .min = r.ecx, .sec = r.edx >> 8, .hund = r.edx};
+
+    *t = (PclkTime){
+        .hour = r.ecx >> 8,
+        .min = r.ecx,
+        .sec = r.edx >> 8,
+        .hund = r.edx,
+    };
 }
 
 void pclk_date(PclkDate *const d)
 {
     const PdosRegs r = int21((PdosRegs){.eax = pdos_fn(DOS_GET_DATE, 0)});
+
     *d = (PclkDate){.year = r.ecx, .month = r.edx >> 8, .day = r.edx};
 }
 
@@ -50,13 +57,16 @@ bool pclk_set_time(const PclkTime *const t)
     const PdosRegs r = int21((PdosRegs){.eax = pdos_fn(DOS_SET_TIME, 0),
                                         .ecx = t->hour << 8 | t->min,
                                         .edx = t->sec << 8 | t->hund});
+
     return (r.eax & 0xFF) == 0;
 }
 
 bool pclk_set_date(const PclkDate *const d)
 {
-    const PdosRegs r = int21((PdosRegs){.eax = pdos_fn(DOS_SET_DATE, 0), .ecx = d->year,
-                                        .edx = d->month << 8 | d->day});
+    const PdosRegs r = int21(
+        (PdosRegs){.eax = pdos_fn(DOS_SET_DATE, 0), .ecx = d->year, .edx = d->month << 8 | d->day}
+
+    );
     return (r.eax & 0xFF) == 0;
 }
 

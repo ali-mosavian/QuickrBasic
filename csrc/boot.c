@@ -25,12 +25,14 @@ void boot(Session *const S, const FrontEnd *const fe)
     S->repl.fe = fe;
     S->fault.raise = repl_fault;
     Addr lo, hi;
+
     if (!pmem_init(HMIN, &lo, &hi)) {
         static const char msg[] = "Out of memory\r\n";
         uint32_t put;
         pfil_write(PFIL_STDERR, msg, sizeof msg - 1, &put);
         psys_exit(1);
     }
+
     allo_init(S, lo, hi); /* the arrays' headers, the control stack, the POKE memory */
     strg_init(S);
     exec_init(S);
@@ -39,9 +41,11 @@ void boot(Session *const S, const FrontEnd *const fe)
     comp_init(S);
     flow_init(S);
     stmt_init(S);
-    S->allo.cache = allo_base(&S->allo, allo_new(S, 0x10000, nullptr)); /* the cache, then the program store */
+    S->allo.cache =
+        allo_base(&S->allo, allo_new(S, 0x10000, nullptr)); /* the cache, then the program store */
     allo_new(S, 0x10000, prog_place);
     prog_place(S);
+
     if (fe->regions)
         fe->regions(S); /* the variables, names last: they grow while code holds their cells */
     symb_new(S);

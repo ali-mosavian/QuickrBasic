@@ -8,9 +8,7 @@
 #include "mem/symbols.h"
 #include "num/single.h"
 
-
 enum { LXAHEAD = 128 }; /* ahead: a word's, a number's bytes in the window */
-
 
 static void room(Session *const S)
 {
@@ -24,9 +22,12 @@ static bool more(Session *const S)
 {
     if (!S->lexr.more)
         return false;
+
     const uint8_t *keep = S->lexr.in;
+
     if (!S->lexr.more(S, &keep))
         return false;
+
     const ptrdiff_t moved = S->lexr.in - keep;
     S->lexr.src -= moved;
     S->lexr.word -= moved;
@@ -48,6 +49,7 @@ static void ahead(Session *const S)
 static void markcol(Session *const S)
 {
     const uint32_t off = (uint32_t)(S->lexr.out - S->lexr.dst);
+
     if (off >= LMAX)
         repl_error(S, E_OM);
     if (off >= S->lexr.ncol)
@@ -55,6 +57,7 @@ static void markcol(Session *const S)
     if (S->lexr.all)
         for (int32_t i = S->lexr.last + 1; i < (int32_t)off; i++)
             S->lexr.col[i] = S->lexr.lastcol;
+
     const uint16_t col = (uint16_t)(S->lexr.in - 1 - S->lexr.src);
     S->lexr.col[off] = col;
     S->lexr.lastcol = col;
@@ -67,6 +70,7 @@ uint16_t lexr_colof(Session *const S, uint32_t off)
         return 0;
     if (off > (uint32_t)S->lexr.last)
         off = (uint32_t)S->lexr.last;
+
     return S->lexr.col[off];
 }
 
@@ -75,11 +79,14 @@ static void joinfn(Session *const S)
 {
     if (upcase(S->lexr.in[0]) != 'F' || upcase(S->lexr.in[1]) != 'N' || !is_blank(S->lexr.in[2]))
         return;
+
     uint8_t *b = S->lexr.in + 2;
+
     while (is_blank(*b))
         b++;
     if (!is_letter(*b))
         return;
+
     const uint8_t f = S->lexr.in[0];
     const uint8_t n = S->lexr.in[1];
     S->lexr.in[0] = S->lexr.in[1] = ' '; /* blanks first: one may overlap */
@@ -94,28 +101,39 @@ static void number(Session *const S)
     uint8_t *const start = S->lexr.out;
     int64_t v = 0;
     bool text = false;
+
     for (;;) {
         room(S);
+
         if (*S->lexr.in == 0)
             more(S);
+
         const uint8_t c = *S->lexr.in;
+
         if (is_digit(c)) {
             *S->lexr.out++ = *S->lexr.in++;
+
             if (text)
                 continue;
+
             v = v * 10 + (c - '0');
+
             if (v > INT32_MAX)
                 text = true; /* 2^31 and over */
             continue;
         }
+
         if (c == '.') {
             *S->lexr.out++ = *S->lexr.in++;
             text = true;
             continue;
         }
+
         const uint8_t u = upcase(c);
+
         if (u == 'E' || u == 'D') { /* an exponent when a digit or sign follows */
             const uint8_t b = S->lexr.in[1];
+
             if (b == '+' || b == '-') {
                 *S->lexr.in = u;
                 *S->lexr.out++ = *S->lexr.in++;
@@ -123,6 +141,7 @@ static void number(Session *const S)
                 text = true;
                 continue;
             }
+
             if (is_digit(b)) {
                 *S->lexr.in = u;
                 *S->lexr.out++ = *S->lexr.in++;
@@ -130,16 +149,20 @@ static void number(Session *const S)
                 continue;
             }
         }
+
         break;
     }
+
     if (*S->lexr.in == '#' || *S->lexr.in == '!') { /* a DOUBLE's, a SINGLE's */
         *S->lexr.out++ = *S->lexr.in++;
         text = true;
     }
+
     if (text)
         return;
     if (*S->lexr.in == '%' || *S->lexr.in == '&') /* an INTEGER's, a LONG's: one type */
         S->lexr.in++;
+
     S->lexr.out = start;
     *S->lexr.out++ = M_INT;
     store32(S->lexr.out, (uint32_t)v);
@@ -151,13 +174,17 @@ static void hexnum(Session *const S)
 {
     uint32_t v;
     const uint8_t *p = S->lexr.in;
+
     if (!sngl_hexoct(&p, &v)) {
         *S->lexr.out++ = '&';
         return;
     }
+
     S->lexr.in = (uint8_t *)p;
+
     if (*S->lexr.in == '%' || *S->lexr.in == '&')
         S->lexr.in++;
+
     *S->lexr.out++ = M_INT;
     store32(S->lexr.out, v);
     S->lexr.out += 4;
@@ -168,6 +195,7 @@ static uint16_t kwstep(const uint16_t st, const uint8_t cls)
     for (uint32_t i = lexr_kw_first[st]; i < lexr_kw_first[st + 1]; i++)
         if (lexr_kw_char[i] == cls)
             return lexr_kw_next[i];
+
     return 0;
 }
 
@@ -175,15 +203,18 @@ uint16_t lexr_keyword(const uint8_t **const at)
 {
     const uint8_t *p = *at;
     uint16_t st = KW_START;
+
     while (is_letter(*p) || is_digit(*p) || *p == '.')
         st = kwstep(st, lexr_kw_class[upcase(*p++)]);
     if (*p == '$') { /* a '$' when the keyword has one */
         const uint16_t s2 = kwstep(st, lexr_kw_class['$']);
+
         if (lexr_kw_token[s2]) {
             st = s2;
             p++;
         }
     }
+
     *at = p;
     return lexr_kw_token[st];
 }
@@ -199,8 +230,10 @@ static void name(Session *const S)
     memcpy(S->lexr.out, S->lexr.word, n);
     S->lexr.out += n;
     const uint8_t c = *S->lexr.in;
+
     if (c == '%' || c == '&' || c == '!' || c == '#' || c == '$')
         *S->lexr.out++ = *S->lexr.in++;
+
     *len = (uint8_t)(S->lexr.out - text);
     const uint16_t id = symb_find_name(S, text, n);
     store16(S->lexr.out, id);
@@ -214,12 +247,15 @@ static uint8_t word(Session *const S)
     const uint8_t *p = S->lexr.in;
     const uint16_t t = lexr_keyword(&p);
     S->lexr.in = (uint8_t *)p;
+
     if (!t) {
         name(S);
         return 0;
     }
+
     if (t >= 0x100)
         *S->lexr.out++ = TK_X;
+
     *S->lexr.out++ = (uint8_t)t;
     return (uint8_t)t;
 }
@@ -238,6 +274,7 @@ static uint8_t next_char(Session *const S)
 {
     while (!*S->lexr.in && more(S))
         ;
+
     return *S->lexr.in++;
 }
 
@@ -247,9 +284,12 @@ static bool copy_string(Session *const S)
     for (;;) {
         room(S);
         const uint8_t c = next_char(S);
+
         if (!c)
             return false;
+
         *S->lexr.out++ = c;
+
         if (c == '"')
             return true;
     }
@@ -259,14 +299,18 @@ static bool copy_string(Session *const S)
 static bool copy_data(Session *const S)
 {
     bool quoted = false;
+
     for (;;) {
         room(S);
         const uint8_t c = next_char(S);
+
         if (!c)
             return false;
         if (c == '"')
             quoted = !quoted;
+
         *S->lexr.out++ = c;
+
         if (!quoted && c == ':')
             return true;
     }
@@ -279,11 +323,11 @@ static uint8_t *copy_rest(Session *const S)
         room(S);
         const uint8_t c = next_char(S);
         *S->lexr.out++ = c;
+
         if (!c)
             return S->lexr.out;
     }
 }
-
 
 uint8_t *lexr_line(Session *const S, uint8_t *const text, uint8_t *const body)
 {
@@ -293,16 +337,21 @@ uint8_t *lexr_line(Session *const S, uint8_t *const text, uint8_t *const body)
     S->lexr.dst = body;
     S->lexr.end = body + LMAX;
     S->lexr.last = -1;
+
     for (;;) {
         const uint8_t c = next_char(S);
+
         if (!c)
             return finish(S);
         if (is_blank(c))
             continue;
+
         ahead(S);
         markcol(S);
+
         if (c == '"') {
             *S->lexr.out++ = c;
+
             if (!copy_string(S))
                 return finish(S);
         } else if (c == '\'') {
@@ -320,6 +369,7 @@ uint8_t *lexr_line(Session *const S, uint8_t *const text, uint8_t *const body)
             S->lexr.in--;
             joinfn(S);
             const uint8_t t = word(S);
+
             if (t == TK_REM)
                 return copy_rest(S);
             if (t == TK_DATA && !copy_data(S))

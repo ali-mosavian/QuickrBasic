@@ -31,11 +31,14 @@ int main(void)
 {
     Session *const S = &session;
     static const FrontEnd none = {};
+
     boot(S, &none);
+
     for (uint32_t i = 0; i < ntests; i++) {
         current = tests[i].name;
         tests[i].fn(S);
     }
+
     printf("%u tests, %u failures\n", ntests, failures);
     return failures ? 1 : 0;
 }

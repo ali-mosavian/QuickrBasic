@@ -14,13 +14,18 @@ enum : uint16_t {
     CW_DOWN = 0x047F,
 };
 
-static constexpr float BIG = 2147483648.0f; /* 2^31 */
+static constexpr float BIG = 2147483648.0f;  /* 2^31 */
 static constexpr float EXP_LIMIT = 32767.5f; /* in powers of 2 */
 static constexpr double DMAX = 1.7976931348623157E308;
-static const double p10[23] = {1e0,  1e1,  1e2,  1e3,  1e4,  1e5,  1e6,  1e7,  1e8,  1e9,  1e10, 1e11,
-                               1e12, 1e13, 1e14, 1e15, 1e16, 1e17, 1e18, 1e19, 1e20, 1e21, 1e22};
+static const double p10[23] = {1e0,  1e1,  1e2,  1e3,  1e4,  1e5,  1e6,  1e7,
+                               1e8,  1e9,  1e10, 1e11, 1e12, 1e13, 1e14, 1e15,
+                               1e16, 1e17, 1e18, 1e19, 1e20, 1e21, 1e22};
 
-[[gnu::noinline]] static void control(const uint16_t cw) { __asm__ volatile("fldcw %0" ::"m"(cw) : "memory"); }
+[[gnu::noinline]]
+static void control(const uint16_t cw)
+{
+    __asm__ volatile("fldcw %0" ::"m"(cw) : "memory");
+}
 
 static X rndint(X x)
 {
@@ -120,8 +125,10 @@ static X pow2(const X t) /* fx_x2x */
 static R fx_exp(const X x)
 {
     const X t = x * log2e();
+
     if (t >= EXP_LIMIT)
         return fail(PFPU_OV);
+
     return ok(pow2(t));
 }
 
@@ -129,6 +136,7 @@ static R fx_log(const X x)
 {
     if (!(x > 0))
         return fail(PFPU_IQ);
+
     return ok(yl2x(ln2(), x));
 }
 
@@ -143,6 +151,7 @@ static R f_sqr(const X x) /* FLOAT: Illegal quantity under 0 (NaN too: ftst unor
 {
     if (!(x >= 0))
         return fail(PFPU_IQ);
+
     return ok(root(x));
 }
 static R d_sqr(const X x) { return ok(root(x)); } /* DOUBLE: NaN under 0 */
@@ -152,6 +161,7 @@ static R checked(const X r, const X a, const X b)
 {
     if (fabsx(r) > DMAX && yl2x(b, fabsx(a)) >= EXP_LIMIT)
         return fail(PFPU_OV);
+
     return ok(r);
 }
 
@@ -162,22 +172,29 @@ static R fx_pow(const X a, const X b)
         const int32_t i = to_int32(b);
         uint32_t n = i < 0 ? 0u - (uint32_t)i : (uint32_t)i;
         X r = 1, m = a;
+
         for (; n; n >>= 1) {
             if (n & 1)
                 r *= m;
+
             m *= m;
         }
+
         if (i < 0) {
             if (r == 0 || is_nan(r)) /* ftst: zero or unordered */
                 return fail(PFPU_IQ);
+
             r = 1 / r;
         }
+
         return checked(r, a, b);
     }
+
     if (!(a >= 0))
         return fail(PFPU_IQ);
     if (a == 0)
         return b > 0 ? checked(0, a, b) : fail(PFPU_IQ);
+
     return checked(pow2(yl2x(b, a)), a, b);
 }
 
@@ -187,13 +204,26 @@ void pfpu_reset(void) { control(CW_DEF); }
 static R by_function(const uint8_t f, const X x, const bool dbl)
 {
     switch (f) {
-    case PF_SQR: return dbl ? d_sqr(x) : f_sqr(x);
-    case PF_SIN: return fx_sin(x);
-    case PF_COS: return fx_cos(x);
-    case PF_TAN: return fx_tan(x);
-    case PF_ATN: return fx_atn(x);
-    case PF_LOG: return fx_log(x);
-    default: return fx_exp(x);
+    case PF_SQR:
+        return dbl ? d_sqr(x) : f_sqr(x);
+
+    case PF_SIN:
+        return fx_sin(x);
+
+    case PF_COS:
+        return fx_cos(x);
+
+    case PF_TAN:
+        return fx_tan(x);
+
+    case PF_ATN:
+        return fx_atn(x);
+
+    case PF_LOG:
+        return fx_log(x);
+
+    default:
+        return fx_exp(x);
     }
 }
 
@@ -214,8 +244,10 @@ uint8_t pfpu_fn(const uint8_t f, const uint32_t x, uint32_t *const out)
 {
     control(f == PF_EXP ? CW_64 : CW_24);
     const R r = by_function(f, as_float(x), false);
+
     if (!r.err)
         *out = float_bits((float)r.v);
+
     control(CW_DEF);
     return r.err;
 }
@@ -224,8 +256,10 @@ uint8_t pfpu_dfn(const uint8_t f, const double x, double *const out)
 {
     control(CW_64);
     const R r = by_function(f, x, true);
+
     if (!r.err)
         *out = (double)r.v;
+
     control(CW_DEF);
     return r.err;
 }
@@ -234,8 +268,10 @@ uint8_t pfpu_pow(const uint32_t a, const uint32_t b, uint32_t *const out)
 {
     control(CW_64);
     const R r = fx_pow(as_float(a), as_float(b));
+
     if (!r.err)
         *out = float_bits((float)r.v);
+
     control(CW_DEF);
     return r.err;
 }
@@ -244,8 +280,10 @@ uint8_t pfpu_dpow(const double a, const double b, double *const out)
 {
     control(CW_64);
     const R r = fx_pow(a, b);
+
     if (!r.err)
         *out = (double)r.v;
+
     control(CW_DEF);
     return r.err;
 }
@@ -257,6 +295,7 @@ static X scale10(X x, int32_t p)
         x *= p10[22];
     for (; p < -22; p += 22)
         x /= p10[22];
+
     return p >= 0 ? x * p10[p] : x / p10[-p];
 }
 
@@ -275,16 +314,21 @@ uint64_t pfpu_digits(const double v, const uint32_t ndig, int32_t *const dp)
     int32_t p = to_int32(lg);
     control(CW_64);
     X n;
+
     for (uint32_t tries = 4;; p--) {
         n = scale10(x, (int32_t)ndig - 1 - p);
+
         if (!--tries || n >= p10[ndig - 1])
             break;
     }
+
     n = rndint(n);
+
     if (n >= p10[ndig]) {
         n = p10[ndig - 1];
         p++;
     }
+
     const uint64_t digits = (uint64_t)to_int64(n);
     *dp = p;
     control(CW_DEF);

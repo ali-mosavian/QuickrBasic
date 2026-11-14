@@ -20,6 +20,7 @@ Sngl fmth_div(Session *const S, const Sngl a, const Sngl b)
 {
     if (!(b & ~SNGL_SIGN))
         repl_error(S, E_DZ);
+
     return sngl_bits(sngl_val(a) / sngl_val(b));
 }
 
@@ -30,6 +31,7 @@ static Sngl check(Session *const S, const uint8_t st, const Sngl r)
         repl_error(S, E_IQ);
     if (st == PFPU_OV)
         repl_error(S, E_OV);
+
     return r;
 }
 
@@ -45,12 +47,15 @@ Sngl fmth_pow(Session *const S, const Sngl a, const Sngl b)
 static int32_t round_to_int32(const Sngl a)
 {
     const uint32_t e = exponent(a);
+
     if (e == SNGL_EXP_MASK || e >= FBIAS + 31)
         return INT32_MIN;
     if (e < FBIAS - 1)
         return 0;
+
     const uint64_t m = (a & SNGL_MANT) | SNGL_IMPLICIT;
     uint64_t q;
+
     if (e >= SNGL_POINT)
         q = m << (e - SNGL_POINT);
     else {
@@ -58,12 +63,16 @@ static int32_t round_to_int32(const Sngl a)
         const uint64_t rem = m & ((1ull << shift) - 1);
         const uint64_t half = 1ull << (shift - 1);
         q = m >> shift;
+
         if (rem > half || (rem == half && (q & 1)))
             q++;
     }
+
     const bool neg = a & SNGL_SIGN;
+
     if (q > (neg ? 0x80000000u : (uint32_t)INT32_MAX))
         return INT32_MIN;
+
     return neg ? (int32_t)(0 - q) : (int32_t)q;
 }
 
@@ -71,8 +80,10 @@ static int32_t round_to_int32(const Sngl a)
 int16_t fmth_to_i16(Session *const S, const Sngl a)
 {
     const int32_t v = round_to_int32(a);
+
     if (v != (int16_t)v)
         repl_error(S, E_IQ);
+
     return (int16_t)v;
 }
 
@@ -80,8 +91,10 @@ int16_t fmth_to_i16(Session *const S, const Sngl a)
 uint16_t fmth_to_u16(Session *const S, const Sngl a)
 {
     const int32_t v = round_to_int32(a);
+
     if ((uint32_t)v > UINT16_MAX)
         repl_error(S, E_IQ);
+
     return (uint16_t)v;
 }
 
@@ -89,8 +102,10 @@ uint16_t fmth_to_u16(Session *const S, const Sngl a)
 int32_t fmth_to_i32(Session *const S, const Sngl a)
 {
     const int32_t v = round_to_int32(a);
+
     if (v == INT32_MIN && a != SNGL_MIN_I32) /* -2^31 itself is one */
         repl_error(S, E_IQ);
+
     return v;
 }
 
@@ -99,18 +114,23 @@ static Sngl round_whole(Sngl a, const bool down)
 {
     const uint32_t e = exponent(a);
     const uint32_t sign = a & SNGL_SIGN;
+
     if (e >= SNGL_POINT) /* whole already */
         return a;
     if (e < FBIAS) { /* under 1 */
         if (down && sign && (a & ~SNGL_SIGN))
             return SNGL_MINUS_ONE;
+
         return sign;
     }
+
     const uint32_t frac = (1u << (SNGL_POINT - e)) - 1;
+
     if (!(a & frac))
         return a;
     if (down && sign)
         a += frac + 1;
+
     return a & ~frac;
 }
 

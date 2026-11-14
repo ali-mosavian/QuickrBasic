@@ -11,20 +11,24 @@ enum : PfilHandle { PFIL_STDIN = 0, PFIL_STDOUT = 1, PFIL_STDERR = 2 };
 /* DOS's error codes. */
 enum : uint16_t {
     PFIL_OK = 0,
-    PFIL_NOTFOUND = 2,   /* file not found */
-    PFIL_NOPATH = 3,     /* path not found */
-    PFIL_TOOMANY = 4,    /* no handle left */
-    PFIL_DENIED = 5,     /* access denied; NAME's target exists */
+    PFIL_NOTFOUND = 2, /* file not found */
+    PFIL_NOPATH = 3,   /* path not found */
+    PFIL_TOOMANY = 4,  /* no handle left */
+    PFIL_DENIED = 5,   /* access denied; NAME's target exists */
     PFIL_BADHANDLE = 6,
     PFIL_BADDRIVE = 15,
-    PFIL_NOMORE = 18,    /* find: no more files */
+    PFIL_NOMORE = 18, /* find: no more files */
 };
 
-enum : uint8_t { PFIL_READ = 0, PFIL_WRITE = 1, PFIL_RDWR = 2 };    /* open's access */
-enum : uint8_t { PFIL_SET = 0, PFIL_CUR = 1, PFIL_END = 2 };        /* seek's origin */
-enum : uint8_t {                                                    /* attributes */
-    PFIL_ARDONLY = 1, PFIL_AHIDDEN = 2, PFIL_ASYSTEM = 4, PFIL_ALABEL = 8, PFIL_ADIR = 0x10,
-    PFIL_AARCH = 0x20,
+enum : uint8_t { PFIL_READ = 0, PFIL_WRITE = 1, PFIL_RDWR = 2 }; /* open's access */
+enum : uint8_t { PFIL_SET = 0, PFIL_CUR = 1, PFIL_END = 2 };     /* seek's origin */
+enum : uint8_t {                                                 /* attributes */
+                 PFIL_ARDONLY = 1,
+                 PFIL_AHIDDEN = 2,
+                 PFIL_ASYSTEM = 4,
+                 PFIL_ALABEL = 8,
+                 PFIL_ADIR = 0x10,
+                 PFIL_AARCH = 0x20,
 };
 
 uint16_t pfil_open(const char *name, uint8_t access, PfilHandle *h);
@@ -61,7 +65,7 @@ typedef struct PACKED {
     uint8_t attr;     /* PFIL_A* */
     uint16_t time, date;
     uint32_t size;
-    char name[13];    /* NAME.EXT, 0-ended */
+    char name[13]; /* NAME.EXT, 0-ended */
 } PfilFind;
 static_assert(sizeof(PfilFind) == 43);
 /* The first entry matching pattern (wildcards * ?) with attributes within attrs (plain files

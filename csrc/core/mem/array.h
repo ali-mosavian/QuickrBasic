@@ -6,15 +6,15 @@
 #define MEM_ARRAY_H
 #include "defs.h"
 
-enum { ADIMS = 64 }; /* the subscript buffers' words */
+enum { ADIMS = 64 };      /* the subscript buffers' words */
 enum : Addr { AREP = 1 }; /* arry_free's rep: a mark arry_rep replaces */
 
 typedef struct {
-    Addr end;              /* past the arrays' data (mm.aend) */
-    Addr hdr;              /* past the headers (mm.ahd) */
-    uint16_t subs[ADIMS];  /* the subscripts (g_dimbuf) */
-    uint16_t counts[ADIMS];/* the counts (g_cntbuf) */
-    int16_t lbounds[ADIMS];/* the lower bounds (g_lbbuf) */
+    Addr end;               /* past the arrays' data (mm.aend) */
+    Addr hdr;               /* past the headers (mm.ahd) */
+    uint16_t subs[ADIMS];   /* the subscripts (g_dimbuf) */
+    uint16_t counts[ADIMS]; /* the counts (g_cntbuf) */
+    int16_t lbounds[ADIMS]; /* the lower bounds (g_lbbuf) */
 } Arry;
 
 /* Array id's element at arry.subs[0..n); a new array has every subscript OPTION BASE to 10.
@@ -22,7 +22,8 @@ typedef struct {
    Out of memory. */
 Addr arry_ref(Session *S, uint16_t id, uint8_t n);
 /* Subscript out of range (E_BS). */
-[[noreturn]] void arry_bad_sub(Session *S);
+[[noreturn]]
+void arry_bad_sub(Session *S);
 /* Array id's element size. */
 uint32_t arry_esize(Session *S, uint16_t id);
 /* DIM: array id made, its counts arry.subs[0..n) + 1; dyn a REDIM's. Illegal function call: a

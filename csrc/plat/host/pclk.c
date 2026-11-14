@@ -9,8 +9,8 @@ static constexpr double TICKS_PER_SECOND = 1193180.0 / 65536.0;
 
 static volatile uint8_t *tick_flag;
 static uint8_t tick_bit;
-static int32_t day_offset;  /* seconds the clock was set ahead */
-static uint32_t toff;       /* the jiffy clock's offset */
+static int32_t day_offset; /* seconds the clock was set ahead */
+static uint32_t toff;      /* the jiffy clock's offset */
 
 static void on_tick(int sig) { *tick_flag |= tick_bit; }
 
@@ -20,12 +20,14 @@ void pclk_init(volatile uint8_t *const flag, const uint8_t bit)
     tick_bit = bit;
     signal(SIGALRM, on_tick);
     const struct itimerval every = {{0, 54925}, {0, 54925}};
+
     setitimer(ITIMER_REAL, &every, nullptr);
 }
 
 void pclk_done(void)
 {
     const struct itimerval off = {};
+
     setitimer(ITIMER_REAL, &off, nullptr);
 }
 
@@ -51,15 +53,20 @@ void pclk_time(PclkTime *const t)
 {
     double s;
     const struct tm tm = local_now(&s);
-    *t = (PclkTime){.hour = (uint8_t)tm.tm_hour, .min = (uint8_t)tm.tm_min,
-                    .sec = (uint8_t)tm.tm_sec, .hund = (uint8_t)((s - (uint32_t)s) * 100)};
+    *t = (PclkTime){
+        .hour = (uint8_t)tm.tm_hour,
+        .min = (uint8_t)tm.tm_min,
+        .sec = (uint8_t)tm.tm_sec,
+        .hund = (uint8_t)((s - (uint32_t)s) * 100),
+    };
 }
 
 void pclk_date(PclkDate *const d)
 {
     double s;
     const struct tm tm = local_now(&s);
-    *d = (PclkDate){.year = (uint16_t)(tm.tm_year + 1900), .month = (uint8_t)(tm.tm_mon + 1),
+    *d = (PclkDate){.year = (uint16_t)(tm.tm_year + 1900),
+                    .month = (uint8_t)(tm.tm_mon + 1),
                     .day = (uint8_t)tm.tm_mday};
 }
 
@@ -68,6 +75,7 @@ bool pclk_set_time(const PclkTime *const t)
 {
     if (t->hour > 23 || t->min > 59 || t->sec > 59 || t->hund > 99)
         return false;
+
     double s;
     local_now(&s);
     day_offset += (int32_t)(t->hour * 3600 + t->min * 60 + t->sec) - (int32_t)s;
@@ -78,6 +86,7 @@ bool pclk_set_date(const PclkDate *const d)
 {
     if (d->year < 1980 || d->year > 2099 || !d->month || d->month > 12 || !d->day || d->day > 31)
         return false;
+
     double s;
     struct tm tm = local_now(&s);
     const time_t now = mktime(&tm);

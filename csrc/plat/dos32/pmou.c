@@ -7,6 +7,7 @@ enum { RESET_OK = 0xFFFF, CELL_SHIFT = 3 }; /* a text cell is 8 mickeys square *
 static PdosRegs int33(const uint16_t ax)
 {
     PdosRegs r = {.eax = ax};
+
     pdos_int(INT_MOUSE, &r);
     return r;
 }
@@ -16,6 +17,7 @@ bool pmou_init(void)
     volatile const uint8_t *const v = pdos_lin(INT_MOUSE * 4); /* the real-mode vector, linear */
     if (!(v[0] | v[1] | v[2] | v[3]))
         return false;
+
     return (int33(MOUSE_RESET).eax & 0xFFFF) == RESET_OK;
 }
 

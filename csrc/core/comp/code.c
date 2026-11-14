@@ -11,6 +11,7 @@ void code_byte(Code *const c, const uint8_t b)
         c->full = true;
         return;
     }
+
     *c->out++ = b;
 }
 
@@ -53,6 +54,7 @@ void code_insert(Code *const c, const uint8_t b, uint8_t *const where)
         c->full = true;
         return;
     }
+
     memmove(where + 1, where, (size_t)(c->out - where));
     c->out++;
     *where = b;
@@ -64,6 +66,7 @@ void code_int(Code *const c, const uint32_t n)
 {
     c->type = T_INT;
     c->iload = c->out;
+
     if (n > 0xFFFF) {
         code_op(c, O_I_LD_I32);
         code_dword(c, n);
@@ -71,6 +74,7 @@ void code_int(Code *const c, const uint32_t n)
         code_opw(c, O_I_LD_I16, (uint16_t)n);
     else
         code_opb(c, O_I_LD_U8, (uint8_t)n);
+
     c->iloadend = c->out;
 }
 
@@ -81,15 +85,44 @@ void code_call(Code *const c, const uint8_t k) { code_opb(c, O_CALL, k); }
 static bool parop(Code *const c, const uint8_t op, const uint16_t id)
 {
     uint8_t vop, kind;
+
     switch (op) {
-    case O_I_LD_V: case O_F_LD_V: vop = O_V_LD; kind = 0; break;
-    case O_D_LD_V: vop = O_V_LD; kind = 1; break;
-    case O_S_LD_V: vop = O_V_LD; kind = 2; break;
-    case O_I_ST_V: case O_F_ST_V: vop = O_V_ST; kind = 0; break;
-    case O_D_ST_V: vop = O_V_ST; kind = 1; break;
-    case O_S_ST_V: vop = O_V_ST; kind = 2; break;
-    default: return false;
+    case O_I_LD_V:
+    case O_F_LD_V:
+        vop = O_V_LD;
+        kind = 0;
+        break;
+
+    case O_D_LD_V:
+        vop = O_V_LD;
+        kind = 1;
+        break;
+
+    case O_S_LD_V:
+        vop = O_V_LD;
+        kind = 2;
+        break;
+
+    case O_I_ST_V:
+    case O_F_ST_V:
+        vop = O_V_ST;
+        kind = 0;
+        break;
+
+    case O_D_ST_V:
+        vop = O_V_ST;
+        kind = 1;
+        break;
+
+    case O_S_ST_V:
+        vop = O_V_ST;
+        kind = 2;
+        break;
+
+    default:
+        return false;
     }
+
     code_opw(c, vop, id);
     code_byte(c, kind);
     return true;
@@ -105,8 +138,10 @@ uint8_t *code_intleaf(Code *const c)
 {
     if (c->out != c->iloadend)
         return nullptr;
+
     const uint8_t op = *c->iload;
-    return op == O_I_LD_V || op == O_I_LD_U8 || op == O_I_LD_I32 || op == O_I_LD_I16 ? c->iload : nullptr;
+    return op == O_I_LD_V || op == O_I_LD_U8 || op == O_I_LD_I32 || op == O_I_LD_I16 ? c->iload
+                                                                                     : nullptr;
 }
 
 uint8_t code_shclass(Code *const c)
@@ -119,6 +154,7 @@ void code_toint(Code *const c)
 {
     if (c->type == T_INT)
         return;
+
     const uint8_t op = c->type == T_DBL ? O_D_TOI : O_F_TOI;
     c->type = T_INT;
     code_op(c, op);
@@ -127,12 +163,14 @@ void code_toint(Code *const c)
 void code_todouble(Code *const c)
 {
     uint8_t op;
+
     if (c->type == T_INT)
         op = O_I_TOD;
     else if (c->type == T_FLT)
         op = O_F_TOD;
     else
         return;
+
     c->type = T_DBL;
     code_op(c, op);
 }
@@ -141,6 +179,7 @@ void code_dtest(Code *const c)
 {
     if (c->type != T_DBL)
         return;
+
     c->type = T_INT;
     code_op(c, O_D_NZ);
 }
@@ -150,12 +189,16 @@ static void tonarrow(Code *const c, const uint8_t fop, const uint8_t iop)
 {
     if (c->type == T_DBL)
         code_toint(c);
+
     const bool is_int = c->type == T_INT;
+
     if (is_int) {
         const uint8_t *const leaf = code_intleaf(c);
+
         if (leaf && *leaf == O_I_LD_U8)
             return;
     }
+
     c->type = T_INT;
     code_op(c, is_int ? iop : fop);
 }
@@ -172,21 +215,27 @@ void code_tofloat(Code *const c)
         code_op(c, O_D_TOF);
         return;
     }
+
     c->type = T_FLT;
     uint8_t *const leaf = code_intleaf(c);
+
     if (!leaf) {
         code_op(c, O_I_TOF);
         return;
     }
+
     switch (*leaf) {
     case O_I_LD_V:
         *leaf = O_F_LD_VI;
         return;
+
     case O_I_LD_U8:
         *leaf = O_F_LD_U8;
         return;
     }
-    const Sngl f = *leaf == O_I_LD_I32 ? fmth_from_i32((int32_t)load32(leaf + 1)) : fmth_from_u16(load16(leaf + 1));
+
+    const Sngl f = *leaf == O_I_LD_I32 ? fmth_from_i32((int32_t)load32(leaf + 1))
+                                       : fmth_from_u16(load16(leaf + 1));
     c->out = leaf; /* F.LD.F32 in its place */
     code_op(c, O_F_LD_F32);
     code_dword(c, f);

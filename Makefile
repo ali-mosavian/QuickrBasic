@@ -81,7 +81,9 @@ COBJ := $(CCORE) build/c/obj/app/basic32.obj
 CIDE_OBJ := $(CCORE) $(CUI:csrc/%.c=build/c/obj/%.obj) build/c/obj/app/ide32.obj
 C_LINK = python3 -I $(LLRM)/tools/dosbatch/link_objects.py x86-m32
 
-.PHONY: c cbasic32 cide32 ctest
+.PHONY: c cbasic32 cide32 ctest cstyle
+cstyle:                         # formats the C sources (tools/cfmt.py)
+	git ls-files 'csrc/*.[ch]' 'tests/*.[ch]' | grep -v -e comp/dfa.h -e io/gen.h -e io/msg.h | xargs $(PY) tools/cfmt.py
 c: cbasic32 cide32
 
 build/c/obj/core/ui/%.obj: csrc/core/ui/%.c $(CHDR)   # the editor: AC, its Tab completion

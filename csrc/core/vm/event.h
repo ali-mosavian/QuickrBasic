@@ -25,15 +25,15 @@ enum {
     UKEY_LAST = 25,
     NUKEY = UKEY_LAST - UKEY_FIRST + 1,
 };
-enum : uint8_t { EF_PENDING = 1, EF_RUNNING = 2 };        /* its flags */
+enum : uint8_t { EF_PENDING = 1, EF_RUNNING = 2 }; /* its flags */
 
 typedef struct {
-    EventSlot slot[NEV]; /* g_evtab */
-    uint32_t interval;   /* g_evti: ON TIMER's ticks */
-    uint32_t count;      /* g_evtc: its count down */
+    EventSlot slot[NEV];  /* g_evtab */
+    uint32_t interval;    /* g_evti: ON TIMER's ticks */
+    uint32_t count;       /* g_evtc: its count down */
     uint16_t ukey[NUKEY]; /* g_evuk: KEY 15 .. 25's key: shift flags, scan code */
-    bool on;             /* g_evon: events are counted */
-    uint32_t tick;       /* the platform's tick count last counted */
+    bool on;              /* g_evon: events are counted */
+    uint32_t tick;        /* the platform's tick count last counted */
 } Evnt;
 
 /* ev_clr: no events: a run's start, READY. */

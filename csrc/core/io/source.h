@@ -16,9 +16,9 @@ typedef enum : uint8_t { IN_CODE, IN_STRING, IN_COMMENT } Where;
 typedef struct {
     Where st;
     uint8_t letters; /* the word's letters so far */
-    bool under;     /* the last byte in code a '_' after a blank */
-    bool blank;     /* the byte before a blank */
-    char rem[3];    /* the word's first letters, small */
+    bool under;      /* the last byte in code a '_' after a blank */
+    bool blank;      /* the byte before a blank */
+    char rem[3];     /* the word's first letters, small */
 } SrcrCont;
 
 typedef struct {

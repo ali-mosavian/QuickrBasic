@@ -36,8 +36,14 @@ void pscr_shape(uint16_t lines);
 
 /* The window rows top .. bottom, columns left .. right of the page shown scrolled up by lines,
    the rows uncovered blank in attr (INT 10h AH=6); lines 0 blanks the window. */
-void pscr_scroll(uint8_t lines, uint8_t top, uint8_t left, uint8_t bottom, uint8_t right,
-                 uint8_t attr);
+void pscr_scroll(
+    uint8_t lines,
+    uint8_t top,
+    uint8_t left,
+    uint8_t bottom,
+    uint8_t right,
+    uint8_t attr
+);
 
 /* The 16 text colours' RGB, 6 bits each, colour 0's red first: each to the DAC register the
    attribute controller maps that colour to (the BIOS's: 0 1 2 3 4 5 20 7 56 .. 63). */

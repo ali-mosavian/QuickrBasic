@@ -7,17 +7,20 @@
 #include "defs.h"
 
 typedef struct {
-    Addr base;           /* the block's base (mm.progbase) */
-    uint32_t end;        /* the terminator's offset (mm.progend) */
-    uint32_t entering;   /* the stored line being entered (mm.enterat) */
-    const uint8_t *pre;  /* the next line's text before its body; used up by a store */
+    Addr base;          /* the block's base (mm.progbase) */
+    uint32_t end;       /* the terminator's offset (mm.progend) */
+    uint32_t entering;  /* the stored line being entered (mm.enterat) */
+    const uint8_t *pre; /* the next line's text before its body; used up by a store */
     uint32_t pre_len;
-    uint8_t add_flags;   /* the lines stored: their LF_* */
-    uint32_t add_at;     /* prog_add's place, 0 the end */
+    uint8_t add_flags; /* the lines stored: their LF_* */
+    uint32_t add_at;   /* prog_add's place, 0 the end */
 } Prog;
 
 static inline Addr prog_addr(const Prog *const pg, const uint32_t line) { return pg->base + line; }
-static inline Line *prog_line(const Prog *const pg, const uint32_t line) { return (Line *)at(pg->base + line); }
+static inline Line *prog_line(const Prog *const pg, const uint32_t line)
+{
+    return (Line *)at(pg->base + line);
+}
 
 /* The line numbered num: any so numbered, else the place by number, from the link's cursor (asm
    lnk.cursor) when that is not above it. *line: the line, else the first numbered more, or the

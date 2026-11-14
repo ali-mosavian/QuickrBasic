@@ -19,7 +19,10 @@ typedef uint32_t Fn1(Session *S, uint32_t);
 static uint32_t f_sgn(Session *const S, const uint32_t a) { return (uint32_t)sngl_sgn(a); }
 static uint32_t f_int(Session *const S, const uint32_t a) { return fmth_floor(a); }
 static uint32_t f_abs(Session *const S, const uint32_t a) { return sngl_abs(a); }
-static uint32_t f_usr(Session *const S, const uint32_t) { repl_error(S, E_IQ); } /* no routine is set */
+static uint32_t f_usr(Session *const S, const uint32_t)
+{
+    repl_error(S, E_IQ);
+} /* no routine is set */
 
 /* FRE: the heap's free bytes. */
 static uint32_t f_fre(Session *const S, const uint32_t)
@@ -54,8 +57,10 @@ static uint32_t f_str(Session *const S, const uint32_t a)
 static uint32_t f_asc(Session *const S, const uint32_t a)
 {
     const Desc s = strg_get(S, a);
+
     if (!s.len)
         repl_error(S, E_IQ);
+
     return rd8(s.ptr);
 }
 
@@ -67,7 +72,7 @@ static uint32_t f_chr(Session *const S, const uint32_t a)
 
 /* By K_FN_SGN .. K_FN_CHRS; VAL is K_DVAL. */
 static Fn1 *const fns[] = {
-    f_sgn, f_int, f_abs, f_usr, f_fre, f_pos, f_sqr, f_rnd, f_log, f_exp,
+    f_sgn, f_int, f_abs, f_usr, f_fre,  f_pos, f_sqr, f_rnd,   f_log, f_exp,
     f_cos, f_sin, f_tan, f_atn, f_peek, f_len, f_str, nullptr, f_asc, f_chr,
 };
 static_assert(countof(fns) == K_FN_CHRS - K_FN + 1);
@@ -102,8 +107,10 @@ static void mid(Session *const S, const uint16_t n)
 {
     const uint16_t i = (uint16_t)exec_pop(&S->vm).u;
     const Addr s = exec_popa(&S->vm);
+
     if (!i)
         repl_error(S, E_IQ);
+
     exec_pusha(&S->vm, strg_sub(S, s, i - 1, n));
 }
 void func_mid(Session *const S) { mid(S, (uint16_t)exec_pop(&S->vm).u); }
@@ -114,8 +121,10 @@ void func_ltrim(Session *const S)
 {
     const Desc s = strg_peek(S->vm.sp->a);
     uint16_t k = 0;
+
     while (k < s.len && rd8(s.ptr + k) == ' ')
         k++;
+
     exec_pusha(&S->vm, strg_sub(S, exec_popa(&S->vm), k, SMAX));
 }
 
@@ -124,8 +133,10 @@ void func_rtrim(Session *const S)
 {
     const Desc s = strg_peek(S->vm.sp->a);
     uint16_t len = s.len;
+
     while (len && rd8(s.ptr + len - 1) == ' ')
         len--;
+
     exec_pusha(&S->vm, strg_sub(S, exec_popa(&S->vm), 0, len));
 }
 
@@ -140,6 +151,7 @@ static int32_t instr(const Desc s, const Desc t, const int32_t from)
     for (int32_t i = from - 1; i <= s.len - t.len; i++)
         if (!memcmp(at(s.ptr + i), at(t.ptr), t.len))
             return i + 1;
+
     return 0;
 }
 
@@ -149,8 +161,10 @@ void func_instr(Session *const S)
     const Desc t = strg_get(S, exec_popa(&S->vm));
     const Desc s = strg_get(S, exec_popa(&S->vm));
     const int32_t from = count == 3 ? exec_popi(&S->vm) : 1;
+
     if (from < 1)
         repl_error(S, E_IQ);
+
     exec_pushi(&S->vm, instr(s, t, from));
 }
 
@@ -161,15 +175,19 @@ void func_mids(Session *const S)
     const Desc v = strg_peek(exec_popa(&S->vm));
     const uint32_t n = exec_pop(&S->vm).u;
     const int32_t i = exec_popi(&S->vm);
+
     if (i < 1)
         repl_error(S, E_IQ);
+
     const Addr r = strg_sub(S, exec_popa(&S->vm), 0, SMAX);
     const Desc dst = strg_peek(r);
     const int32_t room = dst.len - (i - 1);
+
     if (room > 0) {
         const uint32_t k = n < (uint32_t)room ? n : (uint32_t)room;
         memcpy(at(dst.ptr + i - 1), at(v.ptr), k < v.len ? k : v.len);
     }
+
     exec_pusha(&S->vm, r);
 }
 
@@ -180,6 +198,7 @@ static void repeat(Session *const S, const uint32_t n, const uint8_t c)
 {
     if (n > SMAX)
         repl_error(S, E_IQ);
+
     const Addr chars = strg_alloc(S, (uint16_t)n);
     memset(at(chars), c, n);
     exec_pusha(&S->vm, strg_new(S, chars, (uint16_t)n));
@@ -195,16 +214,21 @@ void func_strg(Session *const S)
     const bool is_string = exec_pop(&S->vm).u;
     const uint32_t x = exec_pop(&S->vm).u;
     uint8_t c;
+
     if (is_string) {
         const Desc s = strg_get(S, x);
+
         if (!s.len)
             repl_error(S, E_IQ);
+
         c = rd8(s.ptr);
     } else {
         if (x > UINT8_MAX)
             repl_error(S, E_IQ);
+
         c = (uint8_t)x;
     }
+
     repeat(S, exec_pop(&S->vm).u, c);
 }
 
@@ -214,9 +238,11 @@ static void recase(Session *const S, const uint8_t first, const uint8_t last)
     const Addr r = strg_sub(S, exec_popa(&S->vm), 0, SMAX);
     const Desc s = strg_peek(r);
     uint8_t *const p = at(s.ptr);
+
     for (uint16_t i = 0; i < s.len; i++)
         if (p[i] >= first && p[i] <= last)
             p[i] ^= 'a' - 'A';
+
     exec_pusha(&S->vm, r);
 }
 void func_ucase(Session *const S) { recase(S, 'a', 'z'); }
@@ -229,11 +255,13 @@ static void radix(Session *const S, const uint8_t bits)
     uint8_t digits[32];
     const uint32_t size = sizeof digits;
     uint32_t n = 0;
+
     do {
         const uint8_t d = v & ((1u << bits) - 1);
         digits[size - ++n] = d < 10 ? '0' + d : 'A' + d - 10;
         v >>= bits;
     } while (v);
+
     memcpy(S->cons.sbuf, digits + size - n, n);
     exec_pusha(&S->vm, strg_buftmp(S, (uint16_t)n));
 }
@@ -271,8 +299,10 @@ void func_erl(Session *const S) { exec_pushi(&S->vm, S->vm.err.line); }
 void func_error(Session *const S)
 {
     const uint32_t n = exec_pop(&S->vm).u;
+
     if (n < 1 || n > UINT8_MAX)
         repl_error(S, E_IQ);
+
     S->vm.err.user = (uint16_t)n;
     repl_error(S, E_USR);
 }
@@ -291,15 +321,20 @@ static void bound(Session *const S, const bool upper)
     const uint32_t d = count == 2 ? exec_pop(&S->vm).u : 1;
     const uint16_t id = (uint16_t)exec_pop(&S->vm).u;
     const Addr hdr = symb_var(&S->symb, id)->vt;
+
     if (!hdr) {
         if (symb_varx(&S->symb, id)->dyn) /* ERASEd: none */
             arry_bad_sub(S);
+
         exec_pushi(&S->vm, upper ? 10 : S->decl.base); /* none yet: OPTION BASE to 10 */
         return;
     }
+
     const ArrayHdr *const a = (const ArrayHdr *)at(hdr);
+
     if (d < 1 || d > a->dims)
         arry_bad_sub(S);
+
     const int32_t lower = (int16_t)a->count[d - 1 + a->dims];
     exec_pushi(&S->vm, upper ? lower + a->count[d - 1] - 1 : lower);
 }

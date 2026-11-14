@@ -10,6 +10,7 @@ extern volatile uint8_t ptick_traps[2 * PKEY_NTRAP];
 static uint32_t int16(const uint8_t fn, PdosRegs *const r)
 {
     *r = (PdosRegs){.eax = pdos_fn(fn, 0)};
+
     return pdos_int(INT_KEYBOARD, r);
 }
 
@@ -38,6 +39,7 @@ uint8_t pkey_shift(void) { return *pdos_lin(BDA_SHIFT); }
 void pkey_flush(void)
 {
     PdosRegs r;
+
     while (!(int16(KBD_STATUS, &r) & PDOS_ZF))
         int16(KBD_READ, &r);
 }
@@ -45,9 +47,12 @@ void pkey_flush(void)
 uint8_t pkey_poll(void)
 {
     PdosRegs r = {.eax = pdos_fn(DOS_INPUT_STATUS, 0)};
+
     pdos_int(INT_DOS, &r);
+
     if (!(r.eax & 0xFF))
         return 0;
+
     r.eax = pdos_fn(DOS_READ_KEY, 0);
     pdos_int(INT_DOS, &r);
     return r.eax;

@@ -27,7 +27,6 @@
 #include "vm/flow.h"
 #include "vm/stmts.h"
 
-
 void repl_qberr(Session *const S, const QbErr qb)
 {
     S->vm.err.user = qb;
@@ -40,25 +39,32 @@ void repl_error(Session *const S, uint8_t code)
     S->lexr.more = nullptr; /* a streamed line's lexing ended */
     if (S->dbug.probing)
         dbug_fail(S, code);
+
     fmth_clear();
+
     if (S->comp.busy)
         comp_fail(S, code);
     if (code != E_BRK && code != E_OS && !S->vm.err.active && S->vm.line != DLINE) {
         uint32_t handler = flow_handler(S);
+
         if (handler)
             flow_trap(S, code, handler);
     }
+
     S->repl.err = code;
     longjmp(S->repl.top, REPL_ERROR);
 }
 
-[[noreturn]] void repl_fault(Fault *const f, const Failure *const e)
+[[noreturn]]
+void repl_fault(Fault *const f, const Failure *const e)
 {
     Session *const S = (Session *)((uint8_t *)f - offsetof(Session, fault));
+
     if (e->at != FAULT_KEEP)
         diag_raise(S, e->code, e->dg, e->at, e->line, e->other, e->len);
     if (e->line != FAULT_KEEP)
         S->vm.line = e->line;
+
     repl_error(S, e->code);
 }
 
@@ -72,10 +78,13 @@ enum { SOURCE_FILENO = FILENO_MAX, MODULE_WIDTH = 8 };
 static void module_name(Session *const S)
 {
     const char *s = S->repl.file;
+
     for (const char *p = s; *p; p++)
         if (*p == '\\' || *p == ':')
             s = p + 1;
+
     uint32_t n = 0;
+
     for (; n < MODULE_WIDTH && s[n] && s[n] != '.'; n++)
         cons_putc(S, upcase((uint8_t)s[n]));
     for (; n < MODULE_WIDTH; n++)
@@ -87,9 +96,12 @@ static void module_name(Session *const S)
 static void diagnose(Session *const S)
 {
     const ErrOp *const e = (const ErrOp *)S->vm.opip;
+
     if (!e || e->op != O_ERR)
         return;
-    const uint8_t *const body = S->vm.line == DLINE ? S->comp.cbuf : at(prog_addr(&S->prog, S->vm.line) + HDR);
+
+    const uint8_t *const body =
+        S->vm.line == DLINE ? S->comp.cbuf : at(prog_addr(&S->prog, S->vm.line) + HDR);
     const uint32_t col = list_text(S, body, e->at);
     const uint32_t mark = diag_at(S, (const char *)S->cons.sbuf, col, e->code, e->dg, e->state);
     cons_nl(S);
@@ -97,8 +109,10 @@ static void diagnose(Session *const S)
     cons_puts(S, (const char *)S->cons.sbuf);
     cons_nl(S);
     cons_spaces(S, 2);
+
     for (uint32_t i = 0; i < mark; i++)
         cons_space(S);
+
     cons_putc(S, '^');
     cons_nl(S);
     diag_say(S);
@@ -114,28 +128,36 @@ static void report(Session *const S, const uint8_t code)
     S->vm.sp = S->vm.rsp;
     S->strg.tmp_used = 0;
     S->strg.tmp_floor = 0;
+
     if (S->repl.fe->error)
         S->repl.fe->error(S, code);
+
     const uint32_t line = S->vm.line;
+
     if (code == E_BRK) {
         cons_msg(S, E_BRK); /* BREAK [IN n] */
         if (line != DLINE && prog_line(&S->prog, line)->num != NONUM) {
             cons_msg(S, MSG_IN);
             cons_uint(S, prog_line(&S->prog, line)->num);
         }
+
         return;
     }
+
     S->vm.nframes = 0;
     S->vm.cont.line = 0;
     cons_puts(S, emsg_text(S, code));
+
     if (line != DLINE) {
         if (S->repl.batch) {
             cons_puts(S, " in line ");
             const uint16_t erl = flow_erl(S, line);
+
             if (erl)
                 cons_uint(S, erl);
             else
                 cons_puts(S, "No line number");
+
             cons_puts(S, " in module ");
             module_name(S);
             cons_puts(S, " at address ");
@@ -143,16 +165,19 @@ static void report(Session *const S, const uint8_t code)
             cons_hex4(S, (uint16_t)(off >> 16));
             cons_putc(S, ':');
             cons_hex4(S, (uint16_t)off);
-        } else if (prog_line(&S->prog, line)->num != NONUM) { /* typed lines: in line n, if numbered */
+        } else if (prog_line(&S->prog, line)->num !=
+                   NONUM) { /* typed lines: in line n, if numbered */
             cons_puts(S, " in line ");
             cons_uint(S, prog_line(&S->prog, line)->num);
         }
     }
+
     diagnose(S);
 }
 
 /* The input's end in a file run, or at READY: files closed, exit. */
-[[noreturn]] static void quit(Session *const S)
+[[noreturn]]
+static void quit(Session *const S)
 {
     chnl_closeall(S);
     cons_exit(S, 0);
@@ -167,6 +192,7 @@ void repl_run(Session *const S)
     for (uint32_t i = 0; i < S->vm.nframes; i++)
         if (S->vm.frames[i].ret.line == DLINE)
             S->vm.frames[i].ret.code = eol;
+
     S->vm.ip = at(S->link.code); /* past its statement map */
     exec_run(S);
 }
@@ -179,23 +205,30 @@ void repl_cont(Session *const S)
 }
 
 /* READY., then lines read and entered. */
-[[noreturn]] static void ready(Session *const S)
+[[noreturn]]
+static void ready(Session *const S)
 {
     if (S->repl.fe->ready)
         S->repl.fe->ready(S);
     if (S->repl.batch)
         quit(S);
+
     cons_fresh(S);
     cons_msg(S, MSG_READY);
+
     for (;;) {
         const int32_t len = cons_getline(S);
+
         if (len < 0) {
             if (!(S->vm.stop & SF_BRK))
                 quit(S);
+
             S->vm.stop = 0; /* the STOP key at READY: nothing */
             continue;
         }
+
         const uint8_t r = repl_enter(S, (uint32_t)len);
+
         if (r == ENTER_DIRECT)
             repl_run(S);
         if (r == ENTER_STORED)
@@ -209,14 +242,20 @@ static void run_file(Session *const S)
     char tail[128];
     psys_cmdline(tail, sizeof tail);
     const char *s = tail;
+
     while (*s == ' ')
         s++;
+
     size_t n = 0;
+
     while ((uint8_t)*s > ' ' && n < sizeof S->repl.file - 1)
         S->repl.file[n++] = *s++;
+
     S->repl.file[n] = 0;
+
     if (!n)
         return;
+
     repl_load(S);
     prog_drop(S);
     link_start(S);
@@ -238,13 +277,17 @@ void repl_main(Session *const S)
     case REPL_START:
         if (S->repl.fe->start)
             S->repl.fe->start(S);
+
         break;
+
     case REPL_ERROR:
         report(S, S->repl.err);
         break;
+
     default:
         break;
     }
+
     ready(S);
 }
 
@@ -252,6 +295,7 @@ static const uint8_t *blanks(const uint8_t *p, const uint8_t *const end)
 {
     while (p < end && is_blank(*p))
         p++;
+
     return p;
 }
 
@@ -260,11 +304,13 @@ static bool word(const uint8_t **const p, const uint8_t *const end, const char *
 {
     const uint8_t *const q = *p;
     const size_t n = strlen(w);
+
     if ((size_t)(end - q) < n)
         return false;
     for (size_t i = 0; i < n; i++)
         if (upcase(q[i]) != (uint8_t)w[i])
             return false;
+
     *p = q + n;
     return true;
 }
@@ -275,33 +321,46 @@ static bool is_include(Session *const S, const uint32_t len)
     const uint8_t *p = S->cons.inbuf;
     const uint8_t *const end = p + len;
     p = blanks(p, end);
+
     while (p < end && is_digit(*p)) /* past a line number */
         p++;
+
     p = blanks(p, end);
+
     if (p >= end)
         return false;
     if (*p == '\'')
         p++;
     else if (!word(&p, end, "REM"))
         return false;
+
     p = blanks(p, end);
+
     if (!word(&p, end, "$INCLUDE"))
         return false;
+
     p = blanks(p, end);
+
     if (p >= end || *p++ != ':')
         return false;
+
     p = blanks(p, end);
+
     if (p >= end || *p++ != '\'')
         return false;
     for (size_t n = 0;;) {
         if (p >= end)
             return false;
+
         const uint8_t c = *p++;
+
         if (c == '\'') {
             S->repl.incl[n] = 0;
             return true;
         }
+
         S->repl.incl[n++] = (char)c;
+
         if (n >= sizeof S->repl.incl - 1)
             return false;
     }
@@ -311,8 +370,10 @@ static bool is_include(Session *const S, const uint32_t len)
 static uint16_t line_number(Session *const S, const uint8_t *const p)
 {
     const uint32_t num = load32(p + 1);
+
     if (num >= LNUM_LIMIT)
         repl_error(S, E_SN);
+
     return (uint16_t)num;
 }
 
@@ -324,10 +385,12 @@ static const uint8_t *declare(Session *const S, const uint32_t place)
     decl_line(S, S->comp.cbuf);
     const uint8_t *p = S->comp.cbuf;
     S->vm.lnum = NONUM;
+
     if (comp_peek(&p) == M_INT) {
         S->vm.lnum = line_number(S, p);
         p += INT_TOKEN_SIZE;
     }
+
     return p;
 }
 
@@ -335,10 +398,12 @@ static const uint8_t *declare(Session *const S, const uint32_t place)
 static const uint8_t *enter_decls(Session *const S, const uint32_t place)
 {
     const uint8_t *const p = declare(S, place);
+
     if (S->vm.lnum != NONUM)
         scop_label(S, SC_NUM | S->decl.proc, S->vm.lnum, S->prog.entering);
     if (comp_label(p))
         scop_label(S, S->decl.proc, comp_nameof(p), S->prog.entering);
+
     return p;
 }
 
@@ -348,6 +413,7 @@ uint8_t repl_enter(Session *const S, const uint32_t len)
     S->vm.line = DLINE;
     const uint8_t *const end = lexr_line(S, S->cons.inbuf, S->comp.cbuf);
     const uint32_t place = prog_at(S);
+
     if (!S->comp.cbuf[0])
         return ENTER_EMPTY;
     if (S->repl.loading) { /* every line stored, at the end */
@@ -355,9 +421,12 @@ uint8_t repl_enter(Session *const S, const uint32_t len)
         prog_add(S, S->vm.lnum, body, (uint32_t)(end - body));
         return ENTER_STORED;
     }
+
     const uint8_t *p = declare(S, place);
+
     if (S->vm.lnum == NONUM)
         return ENTER_DIRECT;
+
     comp_peek(&p);
     prog_put(S, S->vm.lnum, p, (uint32_t)(end - p));
     return ENTER_STORED;
@@ -368,20 +437,25 @@ uint8_t repl_enter(Session *const S, const uint32_t len)
 static void read_file(Session *const S, const char *const name, const int32_t num)
 {
     chnl_in(S, chnl_open(S, num, name, FM_IN, RECLEN_DEFAULT));
+
     for (;;) {
         const int32_t len = srcr_line(S);
+
         if (len < 0)
             break;
+
         S->repl.fline++;
         const bool inc = is_include(S, (uint32_t)len);
         S->lexr.more = srcr_more;
         repl_enter(S, (uint32_t)len);
         S->lexr.more = nullptr;
+
         if (inc) { /* its lines next */
             read_file(S, S->repl.incl, num - 1);
             chnl_in(S, chnl_find(S, num));
         }
     }
+
     chnl_close(S, chnl_find(S, num));
     chnl_clear(S);
 }
@@ -403,29 +477,37 @@ void repl_relink(Session *const S)
             prog_cut(S, line);
         else
             line += prog_line(&S->prog, line)->len;
+
     symb_vars_init(S);
     decl_reset(S);
     prog_drop(S);
     S->repl.loading = true;
+
     for (uint32_t line = PROGBASE; prog_line(&S->prog, line)->len;) {
         S->vm.line = line;
         uint8_t *d = S->comp.cbuf; /* its number, then its body */
         const uint32_t num = prog_line(&S->prog, line)->num;
+
         if (num != NONUM) {
             *d = M_INT;
             store32(d + 1, num);
             d += INT_TOKEN_SIZE;
         }
+
         prog_body(S, line, d);
         const uint8_t *body = enter_decls(S, line);
         const uint8_t tok = comp_peek(&body);
         line += prog_line(&S->prog, line)->len;
+
         if (tok != TK_REM)
             continue;
+
         list_text(S, body, 0); /* '$INCLUDE: the file's lines here */
         memcpy(S->cons.inbuf, S->cons.sbuf, S->cons.sblen + 1);
+
         if (!is_include(S, S->cons.sblen))
             continue;
+
         S->prog.add_at = line;
         S->prog.add_flags = LF_INC;
         read_file(S, S->repl.incl, SOURCE_FILENO - 1);
@@ -433,5 +515,6 @@ void repl_relink(Session *const S)
         S->prog.add_at = 0;
         S->prog.add_flags = 0;
     }
+
     S->repl.loading = false;
 }

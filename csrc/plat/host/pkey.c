@@ -24,15 +24,20 @@ static struct {
 static bool trapped(const uint16_t key)
 {
     const uint8_t scan = (uint8_t)(key >> 8);
+
     for (uint32_t i = 1; i < PKEY_NTRAP; i++) {
         const PkeyTrap t = trap.traps[i];
+
         if (t.scan && t.scan == scan && (t.shift == PKEY_ANY || t.shift == (pkey_shift() & 0x0F))) {
             trap.taken |= 1u << i;
+
             if (trap.flag)
                 *trap.flag |= trap.bit;
+
             return true;
         }
     }
+
     return false;
 }
 
@@ -40,6 +45,7 @@ void host_key_push(const uint16_t key)
 {
     if (queue.count == NKEY || trapped(key))
         return;
+
     queue.keys[(queue.head + queue.count++) % NKEY] = key;
 }
 
@@ -47,6 +53,7 @@ static uint16_t next_key(void)
 {
     if (!queue.count)
         return KEY_ENTER;
+
     const uint16_t k = queue.keys[queue.head];
     queue.head = (queue.head + 1) % NKEY;
     queue.count--;
@@ -68,9 +75,12 @@ void pkey_flush(void) { queue.count = 0; }
 uint8_t pkey_poll(void)
 {
     struct pollfd p = {.fd = STDIN_FILENO, .events = POLLIN};
+
     uint8_t b;
+
     if (poll(&p, 1, 0) <= 0 || read(STDIN_FILENO, &b, 1) != 1)
         return 0;
+
     return b;
 }
 

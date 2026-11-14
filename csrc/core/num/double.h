@@ -19,7 +19,17 @@ enum : uint8_t { DK_ANY = 0, DK_DBL = 1, DK_SNGL = 2 };
 
 /* D.FN's operand byte. SGN's result is an INT. */
 enum : uint8_t {
-    DF_ABS, DF_SGN, DF_INT, DF_FIX, DF_SQR, DF_SIN, DF_COS, DF_TAN, DF_ATN, DF_LOG, DF_EXP,
+    DF_ABS,
+    DF_SGN,
+    DF_INT,
+    DF_FIX,
+    DF_SQR,
+    DF_SIN,
+    DF_COS,
+    DF_TAN,
+    DF_ATN,
+    DF_LOG,
+    DF_EXP,
 };
 
 /* D.CMP's mask: the relations that give -1. */
@@ -60,8 +70,8 @@ void dubl_itod(Session *S); /* I.TOD ( i -- d ) */
 void dubl_ftod(Session *S); /* F.TOD ( f -- d ) */
 void dubl_tof(Session *S);  /* D.TOF ( d -- f ) rounded; infinity past the range, no error */
 void dubl_toi(Session *S);  /* D.TOI ( d -- i ) a half to even; ?OVERFLOW past an INT */
-void dubl_fn(Session *S);   /* D.FN k ( d -- d ) DF_*; ?ILLEGAL QUANTITY as fmth's, SQR under 0 NaN */
-void dubl_pow(Session *S);  /* D.POW ( a b -- a^b ) as fmth_pow */
+void dubl_fn(Session *S); /* D.FN k ( d -- d ) DF_*; ?ILLEGAL QUANTITY as fmth's, SQR under 0 NaN */
+void dubl_pow(Session *S);   /* D.POW ( a b -- a^b ) as fmth_pow */
 void dubl_print(Session *S); /* DPR ( d -- ) as PRINT, a space after */
-void dubl_str(Session *S);  /* DSTR ( d -- s ) STR$ */
+void dubl_str(Session *S);   /* DSTR ( d -- s ) STR$ */
 #endif

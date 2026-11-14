@@ -15,17 +15,24 @@ void lmap_init(Session *const S) { allo_new(S, LMINIT, nullptr); }
 void lmap_build(Session *const S)
 {
     uint32_t n = 0;
-    for (uint32_t rec = PROGBASE; prog_line(&S->prog, rec)->len; rec += prog_line(&S->prog, rec)->len) {
+
+    for (uint32_t rec = PROGBASE; prog_line(&S->prog, rec)->len;
+
+         rec += prog_line(&S->prog, rec)->len) {
         if (prog_line(&S->prog, rec)->flags & LF_INC)
             continue;
+
         const uint32_t need = (n + 1) * sizeof(uint32_t);
+
         if (need > allo_cap(&S->allo, HLMAP)) {
             symb_clear(S); /* it grows: the heap emptied first */
             if (!allo_grow(S, HLMAP, need))
                 repl_error(S, E_OM);
         }
+
         map(S)[n++] = rec;
     }
+
     uimn.text.all = n;
 }
 
@@ -42,11 +49,13 @@ bool lmap_of(Session *const S, const uint32_t rec, uint32_t *const line)
         return false;
     while (lo + 1 < hi) {
         const uint32_t mid = (lo + hi) / 2;
+
         if (rec < m[mid])
             hi = mid;
         else
             lo = mid;
     }
+
     *line = lo;
     return true;
 }

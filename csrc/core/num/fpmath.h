@@ -11,9 +11,18 @@ void fmth_init(void);
 /* After an error: the x87's stack empty, its control word the default (ex_fclr). */
 void fmth_clear(void);
 
-static inline Sngl fmth_add(const Sngl a, const Sngl b) { return sngl_bits(sngl_val(a) + sngl_val(b)); }
-static inline Sngl fmth_sub(const Sngl a, const Sngl b) { return sngl_bits(sngl_val(a) - sngl_val(b)); }
-static inline Sngl fmth_mul(const Sngl a, const Sngl b) { return sngl_bits(sngl_val(a) * sngl_val(b)); }
+static inline Sngl fmth_add(const Sngl a, const Sngl b)
+{
+    return sngl_bits(sngl_val(a) + sngl_val(b));
+}
+static inline Sngl fmth_sub(const Sngl a, const Sngl b)
+{
+    return sngl_bits(sngl_val(a) - sngl_val(b));
+}
+static inline Sngl fmth_mul(const Sngl a, const Sngl b)
+{
+    return sngl_bits(sngl_val(a) * sngl_val(b));
+}
 /* a / b; ?DIVISION BY ZERO when b is 0 or -0. */
 Sngl fmth_div(Session *S, Sngl a, Sngl b);
 /* a ^ b, at 64 bits; a whole power by squaring. ?ILLEGAL QUANTITY a negative base to a fraction,

@@ -18,8 +18,20 @@
 #include "vm/exec.h"
 
 typedef enum : uint8_t {
-    N_LIT, N_VAR, N_UN, N_BIN, N_ELEM, N_FN, N_XFN, N_REF, N_FIELD, N_ADDR, N_CALL, N_ARG,
-    N_KCALL, N_CONV,
+    N_LIT,
+    N_VAR,
+    N_UN,
+    N_BIN,
+    N_ELEM,
+    N_FN,
+    N_XFN,
+    N_REF,
+    N_FIELD,
+    N_ADDR,
+    N_CALL,
+    N_ARG,
+    N_KCALL,
+    N_CONV,
 } NodeKind;
 
 enum { AST_CHUNK = 0x4000, LIT_MAX = 8 };
@@ -30,14 +42,31 @@ enum : uint8_t { CV_INT, CV_FLT, CV_DBL, CV_STR, CV_BYTE, CV_ADDR };
 /* An operator's index: + - * / ^ AND OR > = < from TK_PLUS, then \ MOD XOR EQV IMP. A relation
    compiles as REL and its DC_* mask. */
 enum : uint8_t {
-    OP_ADD, OP_SUB, OP_MUL, OP_DIV, OP_POW, OP_AND, OP_OR, OP_GT, OP_EQ, OP_LT,
-    OP_IDIV, OP_MOD, OP_XOR, OP_EQV, OP_IMP, NOPS,
+    OP_ADD,
+    OP_SUB,
+    OP_MUL,
+    OP_DIV,
+    OP_POW,
+    OP_AND,
+    OP_OR,
+    OP_GT,
+    OP_EQ,
+    OP_LT,
+    OP_IDIV,
+    OP_MOD,
+    OP_XOR,
+    OP_EQV,
+    OP_IMP,
+    NOPS,
 };
 /* A relation's operator byte: REL and its DC_* mask. */
 enum : uint8_t { REL = 0x80, REL_MASK = 7 };
 static inline bool ast_isrel(const uint8_t op) { return op & REL; }
 static inline bool ast_islogic(const uint8_t op) { return op == OP_AND || op == OP_OR; }
-static inline bool ast_isxop(const uint8_t op) { return op >= OP_IDIV && op < REL; } /* \ MOD XOR EQV IMP */
+static inline bool ast_isxop(const uint8_t op)
+{
+    return op >= OP_IDIV && op < REL;
+} /* \ MOD XOR EQV IMP */
 
 /* A SHORT's class: a value of no SHORT, a SHORT's, a literal that fits one. */
 enum : uint8_t { SH_NONE = 0, SH_SHORT = 1, SH_LIT = 2 };
@@ -66,28 +95,29 @@ typedef struct {
 typedef struct Node Node;
 struct Node {
     NodeKind kind;
-    uint8_t type;      /* its value's T_* */
-    uint8_t sh;        /* its SHORT class, SH_* */
-    uint8_t op;        /* N_LIT: its load op; N_UN: TK_MINUS or TK_NOT; N_BIN: its operator;
+    uint8_t type;  /* its value's T_* */
+    uint8_t sh;    /* its SHORT class, SH_* */
+    uint8_t op;    /* N_LIT: its load op; N_UN: TK_MINUS or TK_NOT; N_BIN: its operator;
                           N_FN: the function, TK_SGN on; N_XFN: its xfns entry; N_REF: O_R_ADDR,
                           O_RA_ADDR, O_V_ADDR; N_ADDR: its CALL, 0 none; N_ARG: PA_*;
                           N_CALL: the procedure's index; N_KCALL: its K_*; N_CONV: CV_* */
-    bool dbl;          /* N_BIN, N_FN: parsed for a DOUBLE target (expr.dbltgt) */
-    uint8_t conv;      /* an N_XFN's argument: its kind (I F D S W G X, R an array's id) */
-    uint8_t mode;      /* N_XFN: XM_*; N_CALL: CALL_* */
-    uint8_t nargs;     /* N_ELEM, N_FN, N_XFN, N_REF, N_CALL: the arguments */
-    Node *a, *b;       /* N_UN, N_BIN: the operands; N_FIELD, N_ADDR, N_ARG, N_CONV: a the child;
+    bool dbl;      /* N_BIN, N_FN: parsed for a DOUBLE target (expr.dbltgt) */
+    uint8_t conv;  /* an N_XFN's argument: its kind (I F D S W G X, R an array's id) */
+    uint8_t mode;  /* N_XFN: XM_*; N_CALL: CALL_* */
+    uint8_t nargs; /* N_ELEM, N_FN, N_XFN, N_REF, N_CALL: the arguments */
+    Node *a, *b;   /* N_UN, N_BIN: the operands; N_FIELD, N_ADDR, N_ARG, N_CONV: a the child;
                           b: the first argument */
-    Node *next;        /* an argument, a step: the next, null none */
-    uint16_t id;       /* N_VAR, N_ELEM, N_REF: the variable; N_ARG: PA_VALUE's parameter, an array's
+    Node *next;    /* an argument, a step: the next, null none */
+    uint16_t id;   /* N_VAR, N_ELEM, N_REF: the variable; N_ARG: PA_VALUE's parameter, an array's
                           or a record's; N_CALL CALL_UNDEF: its result */
-    RecRef rec;        /* N_REF of a record: the place in it */
+    RecRef rec;    /* N_REF of a record: the place in it */
     /* Resolved by sema (comp/sema.h), for gen: */
-    const Var *var;    /* id's variable */
-    bool par;          /* id a scalar parameter of the procedure compiled */
-    Jump jump;         /* N_CALL CALL_PROC: its procedure's entry */
+    const Var *var;       /* id's variable */
+    bool par;             /* id a scalar parameter of the procedure compiled */
+    Jump jump;            /* N_CALL CALL_PROC: its procedure's entry */
     uint8_t lit[LIT_MAX]; /* N_LIT: its operand bytes */
-    const uint8_t *end; /* N_UN, N_BIN, N_FN, N_XFN, N_CONV: past its last operand, an error's place */
+    const uint8_t
+        *end; /* N_UN, N_BIN, N_FN, N_XFN, N_CONV: past its last operand, an error's place */
 };
 
 /* The statement's arena; its steps, first to last. */
@@ -97,12 +127,12 @@ typedef struct {
 } Ast;
 
 void ast_init(Session *S);
-void ast_reset(Session *S);                   /* a statement starts: every node freed */
-Node *ast_new(Session *S, NodeKind kind);     /* a node, zeroed but for kind; Out of memory full */
+void ast_reset(Session *S);               /* a statement starts: every node freed */
+Node *ast_new(Session *S, NodeKind kind); /* a node, zeroed but for kind; Out of memory full */
 void ast_link(Node *parent, Node **last, Node *arg); /* arg after *last, parent's first if null */
 bool ast_islit(const Node *n);
-uint8_t ast_type(const Node *n);              /* n's value's T_*, nothing compiled */
-uint8_t ast_work(const Node *n);              /* binary node n's W_* */
-void ast_step(Session *S, Node *n);           /* the statement's next step: tree n */
-void ast_conv(Session *S, uint8_t cv);        /* the last step converted, CV_* */
+uint8_t ast_type(const Node *n);       /* n's value's T_*, nothing compiled */
+uint8_t ast_work(const Node *n);       /* binary node n's W_* */
+void ast_step(Session *S, Node *n);    /* the statement's next step: tree n */
+void ast_conv(Session *S, uint8_t cv); /* the last step converted, CV_* */
 #endif

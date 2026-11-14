@@ -8,35 +8,57 @@
 #include "vm/flow.h"
 
 enum : uint32_t {
-    TICKS_A_DAY = 0x1800B0,         /* the BIOS's */
+    TICKS_A_DAY = 0x1800B0, /* the BIOS's */
     TICKS_PER_10000_SECONDS = 182065,
 };
 enum { TIMER_MAX_SECONDS = 86400, STRIG_MAX = 7 /* STRIG(0) .. STRIG(6), two numbers a slot */ };
 
 /* KEY n's scan code: F1..F10, up, left, right, down, then the user's, F11, F12. */
 static const uint8_t keyscan[NKEYS + 1] = {
-    [1] = 0x3B, 0x3C, 0x3D, 0x3E, 0x3F, 0x40, 0x41, 0x42, 0x43, 0x44, 0x48, 0x4B, 0x4D, 0x50,
-    [30] = 0x85, 0x86,
+    [1] = 0x3B,
+    0x3C,
+    0x3D,
+    0x3E,
+    0x3F,
+    0x40,
+    0x41,
+    0x42,
+    0x43,
+    0x44,
+    0x48,
+    0x4B,
+    0x4D,
+    0x50,
+    [30] = 0x85,
+    0x86,
 };
-
 
 /* The slot of kind (EK_*) and n. Illegal function call: no such n. */
 static uint32_t slot_of(Session *const S, const uint8_t kind, const int32_t n)
 {
     switch (kind) {
-    case EK_TIMER: return EV_TIMER;
+    case EK_TIMER:
+        return EV_TIMER;
+
     case EK_KEY:
         if (n < 1 || n > NKEYS)
             repl_error(S, E_IQ);
+
         return EV_KEY + (uint32_t)n - 1;
+
     case EK_COM:
         if (n < 1 || n > NCOMS)
             repl_error(S, E_IQ);
+
         return EV_COM + (uint32_t)n - 1;
-    case EK_PEN: return EV_PEN;
+
+    case EK_PEN:
+        return EV_PEN;
+
     default:
         if (n < 0 || n > STRIG_MAX)
             repl_error(S, E_IQ);
+
         return EV_STRIG + (uint32_t)n / 2;
     }
 }
@@ -60,6 +82,7 @@ static bool is_user_key(const uint32_t i) { return i >= UKEY_FIRST && i <= UKEY_
 static void traps(Session *const S)
 {
     PkeyTrap t[PKEY_NTRAP] = {};
+
     for (uint32_t i = EV_KEY; i < PKEY_NTRAP; i++) {
         if (S->evnt.slot[i].state == ES_OFF)
             continue;
@@ -69,6 +92,7 @@ static void traps(Session *const S)
         } else
             t[i] = (PkeyTrap){.scan = keyscan[i], .shift = PKEY_ANY};
     }
+
     pkey_trap(t);
 }
 
@@ -78,16 +102,21 @@ void evnt_onev(Session *const S)
 {
     const int32_t n = exec_popi(&S->vm);
     const uint32_t i = slot_of(S, exec_u8(&S->vm), n);
+
     if (i == EV_TIMER) {
         if (n < 1 || n > TIMER_MAX_SECONDS)
             repl_error(S, E_IQ);
+
         S->evnt.interval = S->evnt.count = ((uint32_t)n * TICKS_PER_10000_SECONDS + 5000) / 10000;
     }
+
     uint32_t line = 0;
+
     if (!rd16(addr_of(S->vm.ip)))
         S->vm.ip += sizeof(LineRef);
     else
         line = flow_target(S);
+
     S->evnt.slot[i].line = line;
 }
 
@@ -100,10 +129,12 @@ void evnt_evst(Session *const S)
     EventSlot *const s = &S->evnt.slot[i];
     const uint8_t old = s->state;
     s->state = kind_state & 3;
+
     if (s->state == ES_OFF)
         s->flags &= ~EF_PENDING;
     if (i == EV_TIMER && old == ES_OFF) /* the TIMER started: a whole interval */
         S->evnt.count = S->evnt.interval;
+
     signal(S, i);
     traps(S);
 }
@@ -114,12 +145,14 @@ void evnt_keydef(Session *const S)
 {
     const Desc s = strg_get(S, exec_popa(&S->vm));
     const uint32_t n = exec_pop(&S->vm).u;
+
     if (n < 1 || (n > UKEY_LAST && n < 30) || n > NKEYS)
         repl_error(S, E_IQ);
     if (!is_user_key(n))
         return;
     if (s.len < 2)
         repl_error(S, E_IQ);
+
     S->evnt.ukey[n - UKEY_FIRST] = rd16(s.ptr);
     traps(S);
 }
@@ -138,6 +171,7 @@ void evnt_poll(Session *const S)
     const uint32_t n = now >= S->evnt.tick ? now - S->evnt.tick : now + TICKS_A_DAY - S->evnt.tick;
     S->evnt.tick = now;
     const uint32_t keys = pkey_taken();
+
     if (!S->evnt.on)
         return;
     if (S->evnt.slot[EV_TIMER].state != ES_OFF && S->evnt.interval && n) {
@@ -148,6 +182,7 @@ void evnt_poll(Session *const S)
             pend(S, EV_TIMER);
         }
     }
+
     for (uint32_t i = EV_KEY; i < PKEY_NTRAP && keys >> i; i++)
         if (keys >> i & 1)
             pend(S, i);
@@ -157,8 +192,10 @@ bool evnt_run(Session *const S)
 {
     S->vm.stop &= ~SF_EV;
     S->vm.ip = S->vm.opip;
+
     for (uint32_t i = 0; i < NEV; i++) {
         EventSlot *const s = &S->evnt.slot[i];
+
         if (runnable(s)) {
             s->flags = EF_RUNNING; /* no longer pending */
             flow_push(S, FRAME_EVENT)->event = (uint8_t)i;
@@ -166,6 +203,7 @@ bool evnt_run(Session *const S)
             break;
         }
     }
+
     return true;
 }
 

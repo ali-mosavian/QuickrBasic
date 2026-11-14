@@ -33,7 +33,8 @@ uint8_t *flow_dcode(Session *S);
    as if the error were at their call; else ON ERROR's. 0 none. */
 uint32_t flow_handler(Session *S);
 /* Run handler for error code: sets ERR, ERL and RESUME's places, then back into the loop. */
-[[noreturn]] void flow_trap(Session *S, uint8_t code, uint32_t handler);
+[[noreturn]]
+void flow_trap(Session *S, uint8_t code, uint32_t handler);
 /* ERL: the last line number at or before line, 0 none. */
 uint16_t flow_erl(Session *S, uint32_t line);
 /* The statement map entry of the statement holding code in line; *left the entries from it on. */
@@ -42,7 +43,8 @@ Stmt *flow_stmtof(Session *S, uint32_t line, const uint8_t *code, uint32_t *left
 /* CONT goes on at the running statement; not from the direct line. */
 void flow_setcont(Session *S);
 /* The program ends: files closed, the stacks empty, READY. */
-[[noreturn]] void flow_end(Session *S);
+[[noreturn]]
+void flow_end(Session *S);
 /* Illegal direct when running the direct line. */
 void flow_nodir(Session *S);
 /* The size of the op at op, with its operands. */

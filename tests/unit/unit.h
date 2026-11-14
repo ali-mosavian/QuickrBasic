@@ -12,7 +12,11 @@ void unit_fail(const char *file, int line, const char *what);
 
 #define TEST(name)                                                                                 \
     static void name(Session *S);                                                                  \
-    [[gnu::constructor]] static void name##_register(void) { unit_register(#name, name); }        \
+    [[gnu::constructor]]                                                                           \
+    static void name##_register(void)                                                              \
+    {                                                                                              \
+        unit_register(#name, name);                                                                \
+    }                                                                                              \
     static void name([[maybe_unused]] Session *const S)
 
 #define CHECK(cond)                                                                                \

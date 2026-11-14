@@ -22,6 +22,14 @@ const StatusKeys *draw_keys(void);
 /* dr_ttl: a window's title row: from col, width wide; left, right its corners; title centred,
    lit (SL_TTL) when lit; arrow: the maximise arrow before the right corner. ttlx, ttlw were the
    asm's globals for col, width. */
-void draw_title(uint8_t row, uint8_t col, uint8_t width, uint8_t left, uint8_t right,
-                const char *title, bool lit, bool arrow);
+void draw_title(
+    uint8_t row,
+    uint8_t col,
+    uint8_t width,
+    uint8_t left,
+    uint8_t right,
+    const char *title,
+    bool lit,
+    bool arrow
+);
 #endif

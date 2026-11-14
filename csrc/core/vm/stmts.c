@@ -30,7 +30,6 @@ enum { DATA_TEXT_SIZE = 256, PRINT_ZONE = 14 };
 /* What an INPUT field or a DATA item is read as. */
 typedef enum : uint8_t { ITEM_SNGL, ITEM_STRING, ITEM_DOUBLE } ItemKind;
 
-
 void stmt_init(Session *const S) { S->stmt.data_text = at(allo_carve(S, DATA_TEXT_SIZE)); }
 
 /* ---- PRINT ---------------------------------------------------------------------------------- */
@@ -53,6 +52,7 @@ void stmt_ptab(Session *const S)
 {
     const int32_t i = exec_popi(&S->vm) - 1;
     const uint8_t col = i > 0 ? (uint8_t)i : 0;
+
     if (col < S->cons.col)
         cons_nl(S);
     if (col > S->cons.col)
@@ -79,6 +79,7 @@ void stmt_inpr(Session *const S) { cons_prompt(S); }
 void stmt_infile(Session *const S)
 {
     S->cons.from_file = true;
+
     do
         cons_read(S);
     while (!S->cons.inlen);
@@ -92,6 +93,7 @@ static bool redo(Session *const S)
 {
     if (!S->stmt.redo)
         return false;
+
     S->stmt.redo = false;
     cons_msg(S, MSG_REDO);
     S->vm.ip = S->stmt.input_start;
@@ -110,9 +112,15 @@ static bool read_item(Session *const S, const uint8_t **const p, const ItemKind 
         *p = at(pos);
         break;
     }
-    case ITEM_DOUBLE: v->d = dubl_in(S, p, nullptr); break;
-    case ITEM_SNGL: v->u = sngl_in(S, p); break;
+    case ITEM_DOUBLE:
+        v->d = dubl_in(S, p, nullptr);
+        break;
+
+    case ITEM_SNGL:
+        v->u = sngl_in(S, p);
+        break;
     }
+
     return comp_eos(S, p) || **p == ',';
 }
 
@@ -134,16 +142,21 @@ static void input(Session *const S, const ItemKind kind)
         S->vm.ip = S->stmt.input_end;
         return;
     }
+
     cons_field(S);
     const uint8_t *p = S->cons.inbuf + S->cons.inpos;
     Cell v = {};
+
     const bool ok = read_item(S, &p, kind, &v);
     S->cons.inpos = (int32_t)(p - S->cons.inbuf);
+
     if (!ok) {
         if (S->cons.from_file)
             repl_error(S, E_FD);
+
         S->stmt.redo = true; /* stored as far as it went, then REDO */
     }
+
     push_item(S, kind, v);
 }
 void stmt_fin(Session *const S) { input(S, ITEM_SNGL); }
@@ -164,8 +177,10 @@ void stmt_fget(Session *const S)
 {
     const uint8_t c = cons_getc(S);
     const uint8_t digit = c ? c - '0' : 0;
+
     if (digit >= 10)
         repl_error(S, E_SN);
+
     exec_pusha(&S->vm, fmth_from_i16(digit));
 }
 
@@ -173,10 +188,13 @@ void stmt_fget(Session *const S)
 void stmt_sget(Session *const S)
 {
     const uint8_t c = cons_getc(S);
+
     if (!c) {
         exec_pusha(&S->vm, strg_push(S, (Desc){}));
+
         return;
     }
+
     S->cons.sbuf[0] = c;
     exec_pusha(&S->vm, strg_buftmp(S, 1));
 }
@@ -188,8 +206,10 @@ static uint8_t skip_stmt(Session *const S, uint32_t *const b)
 {
     const uint8_t *const start = at(prog_addr(&S->prog, *b));
     const uint8_t *p = start;
+
     while (*p && *p != ':')
         p = decl_item(p);
+
     *b += (uint32_t)(p - start) + 1;
     return *p;
 }
@@ -199,18 +219,21 @@ static bool scan_data(Session *const S, uint32_t *const b)
 {
     for (;;) {
         uint8_t c;
+
         while ((c = rd8(prog_addr(&S->prog, *b))) == ' ')
             ++*b;
         if (c == TK_DATA) {
             ++*b;
             return true;
         }
+
         if (!c)
             ++*b;
         else if (skip_stmt(S, b))
             continue;
         if (!prog_line(&S->prog, *b)->len) /* the next line, or the end */
             return false;
+
         *b += HDR;
     }
 }
@@ -221,8 +244,10 @@ static bool data_after(Session *const S, uint32_t *const b)
     if (!skip_stmt(S, b)) {
         if (!prog_line(&S->prog, *b)->len)
             return false;
+
         *b += HDR;
     }
+
     return scan_data(S, b);
 }
 
@@ -240,12 +265,14 @@ static void load_data(Session *const S, const uint32_t b)
 static void seek_data(Session *const S, const uint32_t line)
 {
     uint32_t b = line + HDR;
+
     if (prog_line(&S->prog, line)->len && scan_data(S, &b))
         load_data(S, b);
     else {
         S->stmt.data_at = 0;
         S->stmt.data_text[0] = 0;
     }
+
     S->stmt.data_pos = S->stmt.data_text;
     S->stmt.before_first = true;
 }
@@ -255,19 +282,26 @@ static const uint8_t *next_data(Session *const S)
 {
     if (!S->stmt.data_pos) {
         seek_data(S, PROGBASE);
+
         if (!S->stmt.data_at)
             repl_error(S, E_OD);
     }
+
     const uint8_t *p = S->stmt.data_pos;
+
     if (S->stmt.before_first) {
         S->stmt.before_first = false;
         return p;
     }
+
     if (comp_peek(&p) == ',')
         return p + 1;
+
     uint32_t b = S->stmt.data_at;
+
     if (!b || !data_after(S, &b))
         repl_error(S, E_OD);
+
     load_data(S, b);
     return S->stmt.data_text;
 }
@@ -277,13 +311,17 @@ static void read(Session *const S, const ItemKind kind)
 {
     const uint8_t *p = next_data(S);
     Cell v = {};
+
     if (!read_item(S, &p, kind, &v)) {
         uint32_t line = PROGBASE;
+
         while (S->stmt.data_at >= line + prog_line(&S->prog, line)->len)
             line += prog_line(&S->prog, line)->len;
+
         S->vm.line = line;
         repl_error(S, E_SN);
     }
+
     S->stmt.data_pos = p;
     push_item(S, kind, v);
 }
@@ -300,15 +338,19 @@ void stmt_resl(Session *const S)
 {
     const uint32_t x = exec_pop(&S->vm).u;
     uint32_t line;
+
     if (x >= LABEL_LINE) {
         line = x - LABEL_LINE;
+
         if (!line)
             repl_error(S, E_US);
     } else {
         S->vm.lnum = (uint16_t)x;
+
         if (!prog_find(S, (uint16_t)x, &line))
             repl_error(S, E_US);
     }
+
     seek_data(S, line);
 }
 
@@ -322,6 +364,7 @@ void stmt_dim(Session *const S)
     const uint16_t id = (uint16_t)exec_pop(&S->vm).u;
     const uint32_t mask_hi = exec_pop(&S->vm).u;
     const uint64_t swapped = (uint64_t)mask_hi << 32 | exec_pop(&S->vm).u;
+
     for (uint8_t i = dims; i-- > 0;) { /* lo TO hi, or hi and the base */
         const int32_t second = exec_popi(&S->vm);
         const int32_t first = exec_popi(&S->vm);
@@ -331,16 +374,21 @@ void stmt_dim(Session *const S)
         S->arry.subs[i] = (uint16_t)(hi - lo);
         S->arry.lbounds[i] = (int16_t)lo;
     }
+
     Var *const v = symb_var(&S->symb, id);
+
     if (!(flags & DIM_REDIM)) {
         if (!(flags & DIM_STATIC) || !v->vt) /* a STATIC's, dimensioned: kept */
             arry_dim(S, id, dims, false);
+
         return;
     }
-    const Addr old = v->vt; /* REDIM: the old one goes */
+
+    const Addr old = v->vt;            /* REDIM: the old one goes */
     if (old && flags & DIM_PRESERVE) { /* the new one made, the old one's elements copied */
         if (dims != ((const ArrayHdr *)at(old))->dims)
             arry_bad_sub(S);
+
         v->vt = 0;
         arry_dim(S, id, dims, true);
         const Addr fresh = symb_var(&S->symb, id)->vt;
@@ -351,8 +399,10 @@ void stmt_dim(Session *const S)
     } else {
         if (old)
             arry_free(S, id, AREP);
+
         arry_dim(S, id, dims, true);
     }
+
     arry_rep(S, id);
 }
 
@@ -361,6 +411,7 @@ void stmt_erase(Session *const S)
 {
     const uint16_t id = (uint16_t)exec_pop(&S->vm).u;
     const Addr hdr = symb_var(&S->symb, id)->vt;
+
     if (!hdr)
         return;
     if (symb_varx(&S->symb, id)->dyn)
@@ -372,7 +423,8 @@ void stmt_erase(Session *const S)
 /* ---- RUN, LIST, CONT, END, STOP ------------------------------------------------------------- */
 
 /* Back to READY, the frames kept. */
-[[noreturn]] static void ready(Session *const S)
+[[noreturn]]
+static void ready(Session *const S)
 {
     evnt_clear(S);
     S->vm.stop &= ~SF_EV;
@@ -398,14 +450,17 @@ void stmt_rungo(Session *const S, const uint32_t line)
 void stmt_runl(Session *const S)
 {
     const uint32_t num = exec_pop(&S->vm).u;
+
     if (num >= LABEL_LINE)
         repl_error(S, E_US); /* RUN takes a number, not a label */
     symb_clear(S);
     link_start(S);
     S->vm.lnum = (uint16_t)num;
     uint32_t line;
+
     if (!prog_find(S, (uint16_t)num, &line))
         repl_error(S, E_US);
+
     stmt_rungo(S, line);
 }
 
@@ -419,8 +474,10 @@ void stmt_run(Session *const S)
 void stmt_runfirst(Session *const S)
 {
     chnl_closeall(S);
+
     if (!prog_line(&S->prog, PROGBASE)->len)
         flow_end(S);
+
     stmt_rungo(S, PROGBASE);
 }
 
@@ -439,6 +496,7 @@ void stmt_cont(Session *const S)
         repl_error(S, E_CN);
     if (!S->vm.cont.code)
         ready(S);
+
     S->vm.line = S->vm.cont.line;
     S->vm.ip = flow_place(S, S->vm.cont);
 }
@@ -463,6 +521,7 @@ void stmt_end(Session *const S)
 {
     if (S->dbug.probing)
         dbug_done(S);
+
     chnl_closeall(S);
     flow_setcont(S);
     ready(S);
@@ -489,6 +548,7 @@ static void wait(Session *const S, const uint8_t flip)
 {
     const uint8_t mask = (uint8_t)exec_pop(&S->vm).u;
     const uint16_t port = (uint16_t)exec_pop(&S->vm).u;
+
     while (!((psys_inp(port) ^ flip) & mask))
         ;
 }
@@ -507,6 +567,7 @@ void stmt_out(Session *const S)
 void stmt_sys(Session *const S)
 {
     const Addr a = S->allo.poke + (uint16_t)exec_pop(&S->vm).u;
+
     if (rd8(a))
         psys_call(a);
 }
@@ -524,10 +585,13 @@ static int32_t int_pow(Session *const S, const int32_t base, const int32_t power
         return power & 1 ? -1 : 1;
     if (power < 0)
         return 0;
+
     int32_t r = 1;
+
     for (int32_t i = 0; i < power; i++)
         if (__builtin_mul_overflow(r, base, &r))
             repl_error(S, E_OV);
+
     return r;
 }
 
@@ -556,12 +620,14 @@ void stmt_fti(Session *const S)
 void stmt_sti(Session *const S)
 {
     uint32_t t = pclk_jiffies() / 100;
+
     for (int i = 4; i >= 0; i -= 2) {
         const uint32_t d = t % 60;
         t /= 60;
         S->cons.sbuf[i] = '0' + d / 10;
         S->cons.sbuf[i + 1] = '0' + d % 10;
     }
+
     exec_pusha(&S->vm, strg_buftmp(S, 6));
 }
 

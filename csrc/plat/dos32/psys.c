@@ -16,7 +16,9 @@ void psys_exit(const uint8_t code)
     pstop_unhook();
     ptick_unhook();
     PdosRegs r = {.eax = pdos_fn(DOS_EXIT, code)};
+
     pdos_int(INT_DOS, &r);
+
     for (;;) {
     }
 }
@@ -31,9 +33,11 @@ uint32_t psys_cmdline(char *const buf, const uint32_t cap)
 uint32_t psys_environ(char *const buf, const uint32_t cap)
 {
     const uint32_t n = pdos_environ(0, (uint8_t *)buf, cap - 1);
+
     for (uint32_t i = 0; i < n; i++)
         if (!buf[i] && (!i || !buf[i - 1]))
             return i + 1;
+
     buf[n] = 0;
     return n + 1;
 }
@@ -43,12 +47,16 @@ uint32_t psys_self(char *const buf, const uint32_t cap)
     static char env[0x8000];
     const uint32_t n = pdos_environ(0, (uint8_t *)env, sizeof env);
     uint32_t i = 0;
+
     while (i + 1 < n && (env[i] || env[i + 1])) /* the variables, a 0 after the last */
         i++;
+
     i += 4; /* the two 0s, the strings' count */
     uint32_t len = 0;
+
     for (; i < n && env[i] && len + 1 < cap; i++)
         buf[len++] = env[i];
+
     buf[len] = 0;
     return len;
 }
@@ -76,8 +84,10 @@ typedef struct {
 static bool dos_alloc(const uint32_t size, DosBlock *const b)
 {
     PdosRegs r = {.eax = DPMI_DOS_ALLOC, .ebx = (size + 15) >> 4};
+
     if (pdos_int(INT_DPMI, &r) & PDOS_CF)
         return false;
+
     b->seg = (uint16_t)r.eax;
     b->sel = (uint16_t)r.edx;
     b->at = (uint8_t *)(uintptr_t)((uint32_t)b->seg * 16 - pdos_ds_base());
@@ -87,29 +97,45 @@ static bool dos_alloc(const uint32_t size, DosBlock *const b)
 static void dos_free(const DosBlock *const b)
 {
     PdosRegs r = {.eax = DPMI_DOS_FREE, .edx = b->sel};
+
     pdos_int(INT_DPMI, &r);
 }
 
 /* The environment at the block's start, the EXEC block at xenv. */
-static void fill(const DosBlock *const b, const uint32_t xenv, const char *const path,
-                 const char *const tail, const uint8_t len, const char *const env,
-                 const uint32_t envlen)
+static void fill(
+    const DosBlock *const b,
+    const uint32_t xenv,
+    const char *const path,
+    const char *const tail,
+    const uint8_t len,
+    const char *const env,
+    const uint32_t envlen
+)
 {
     memset(b->at, 0, xenv + sizeof(ExecBlock));
+
     for (uint32_t i = 0; i < envlen; i++)
         b->at[i] = (uint8_t)env[i];
+
     ExecBlock *const x = (ExecBlock *)(b->at + xenv);
     const uint16_t base = (uint16_t)xenv;
     x->params = (ExecParams){
         .env_seg = b->seg,
-        .tail_off = base + offsetof(ExecBlock, tail), .tail_seg = b->seg,
-        .fcb1_off = base + offsetof(ExecBlock, fcb[0]), .fcb1_seg = b->seg,
-        .fcb2_off = base + offsetof(ExecBlock, fcb[1]), .fcb2_seg = b->seg,
+        .tail_off = base + offsetof(ExecBlock, tail),
+        .tail_seg = b->seg,
+        .fcb1_off = base + offsetof(ExecBlock, fcb[0]),
+        .fcb1_seg = b->seg,
+        .fcb2_off = base + offsetof(ExecBlock, fcb[1]),
+        .fcb2_seg = b->seg,
     };
+
     x->tail[0] = len;
+
     for (uint32_t i = 0; i < len; i++)
         x->tail[1 + i] = (uint8_t)tail[i];
+
     x->tail[1 + len] = CH_CR;
+
     for (uint32_t i = 0; i < PATH_MAX && (x->path[i] = path[i]); i++) {
     }
 }
@@ -125,9 +151,12 @@ static bool exec(const DosBlock *const b, const uint32_t xenv)
         .es = b->seg,
         .ds = b->seg,
     };
+
     PdosRegs v22 = {.eax = DPMI_GET_RM_VECTOR, .ebx = INT_TERMINATE};
+
     pdos_int(INT_DPMI, &v22);
     PdosRegs r = {.eax = DPMI_RM_INT, .ebx = INT_DOS, .edi = (uint32_t)(uintptr_t)&rm};
+
     const bool ran = !(pdos_int(INT_DPMI, &r) & PDOS_CF) && !(rm.flags & PDOS_CF);
     v22.eax = DPMI_SET_RM_VECTOR;
     v22.ebx = INT_TERMINATE;
@@ -135,13 +164,20 @@ static bool exec(const DosBlock *const b, const uint32_t xenv)
     return ran;
 }
 
-bool psys_exec(const char *const path, const char *const tail, const uint8_t len,
-               const char *const env, const uint32_t envlen)
+bool psys_exec(
+    const char *const path,
+    const char *const tail,
+    const uint8_t len,
+    const char *const env,
+    const uint32_t envlen
+)
 {
     const uint32_t xenv = (envlen + 16) & ~15u; /* the environment and a 0, on a paragraph */
     DosBlock b;
+
     if (!dos_alloc(xenv + sizeof(ExecBlock), &b))
         return false;
+
     fill(&b, xenv, path, tail, len, env, envlen);
     const bool ran = exec(&b, xenv);
     dos_free(&b);

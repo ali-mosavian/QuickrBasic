@@ -2,7 +2,10 @@
 #include "session.h"
 #include "mem/program.h"
 
-void copy_mem(const Addr dst, const Addr src, const uint32_t len) { memmove(at(dst), at(src), len); }
+void copy_mem(const Addr dst, const Addr src, const uint32_t len)
+{
+    memmove(at(dst), at(src), len);
+}
 
 Addr copy_zero(const Addr a, const uint32_t len)
 {

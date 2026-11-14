@@ -15,10 +15,10 @@ typedef struct {
     size_t chunk;      /* a new block's least size */
 } Arena;
 
-void arena_init(Arena *a, size_t chunk); /* empty: no block taken yet */
+void arena_init(Arena *a, size_t chunk);  /* empty: no block taken yet */
 void *arena_alloc(Arena *a, size_t size); /* zeroed, aligned for any object; null: no memory left */
 /* old's size bytes as newsize (larger), the new ones zeroed: in place when old is the last
    allocation and there is room, else a copy. Null: no memory left, old kept. */
 void *arena_grow(Arena *a, void *old, size_t size, size_t newsize);
-void arena_reset(Arena *a);               /* every allocation freed */
+void arena_reset(Arena *a); /* every allocation freed */
 #endif

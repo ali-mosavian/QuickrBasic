@@ -37,7 +37,8 @@ Chan *chnl_look(Session *S, int32_t num);
 /* chnl_look, or Bad file name or number (not open, or out of 1..255). */
 Chan *chnl_find(Session *S, int32_t num);
 /* A platform (DOS) error raised as QBasic's (QB_*). */
-[[noreturn]] void chnl_doserr(Session *S, uint16_t dos);
+[[noreturn]]
+void chnl_doserr(Session *S, uint16_t dos);
 
 /* Open file number num on name, mode FM_*, records of reclen bytes; a device's name (SCRN:
    CONS: NUL:) no file. Errors: QB_BAD_FILE_NUMBER, QB_FILE_OPEN, QB_TOO_MANY_FILES,

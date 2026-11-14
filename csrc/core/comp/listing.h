@@ -14,6 +14,10 @@ typedef struct {
 
 void list_range(Session *S, uint16_t from, uint16_t to); /* ls_range: the lines numbered from..to */
 void list_body(Session *S, const uint8_t *body);         /* ls_body: print a token body */
-uint32_t list_text(Session *S, const uint8_t *body, uint32_t at); /* ls_text: body spelled into io's sbuf,
+uint32_t list_text(
+    Session *S,
+    const uint8_t *body,
+    uint32_t at
+); /* ls_text: body spelled into io's sbuf,
                                                          0 after; the column of its byte at */
 #endif

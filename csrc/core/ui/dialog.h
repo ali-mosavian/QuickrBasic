@@ -32,25 +32,26 @@ typedef bool (*DlogHook)(uint8_t why);
 
 /* TLIST: a dialog's list. */
 typedef struct {
-    uint16_t n;     /* its items */
-    uint16_t sel;   /* the one selected */
-    uint16_t top;   /* the first shown */
-    char *items;    /* n items, size bytes each, 0-ended */
+    uint16_t n;   /* its items */
+    uint16_t sel; /* the one selected */
+    uint16_t top; /* the first shown */
+    char *items;  /* n items, size bytes each, 0-ended */
     uint8_t size;
 } DlogList;
 
 /* TCTL */
 typedef struct {
-    uint8_t kind;   /* CT_* */
+    uint8_t kind; /* CT_* */
     uint8_t row, col, cols, rows;
-    uint8_t flags;  /* CF_* */
+    uint8_t flags; /* CF_* */
     union {
-        LineBuf *field;    /* CT_FLD */
-        DlogList *list;    /* CT_LST */
-        const char *text;  /* CT_BTN, CT_CHK: its label; CT_TXT: its text (a buffer it shows) */
+        LineBuf *field;   /* CT_FLD */
+        DlogList *list;   /* CT_LST */
+        const char *text; /* CT_BTN, CT_CHK: its label; CT_TXT: its text (a buffer it shows) */
     };
-    DlogHook hook;  /* CT_BTN, CT_LST: nullptr none */
-    bool *check;    /* CT_CHK: its flag */
+
+    DlogHook hook;     /* CT_BTN, CT_LST: nullptr none */
+    bool *check;       /* CT_CHK: its flag */
     const char *label; /* nullptr none */
     uint8_t lrow, lcol;
 } DlogCtl;
@@ -59,11 +60,11 @@ typedef struct {
 typedef struct {
     uint8_t row, col, rows, cols;
     const char *title; /* nullptr none */
-    uint8_t n;      /* its controls */
-    uint8_t focus;  /* the one with the focus */
-    uint8_t sep;    /* the separator's row, 0 none */
-    uint8_t def;    /* the default button */
-    DlogCtl *ctl;   /* n of them */
+    uint8_t n;         /* its controls */
+    uint8_t focus;     /* the one with the focus */
+    uint8_t sep;       /* the separator's row, 0 none */
+    uint8_t def;       /* the default button */
+    DlogCtl *ctl;      /* n of them */
 } Dlog;
 
 /* TBTN: a message box's button; a list of them ends with text nullptr. */

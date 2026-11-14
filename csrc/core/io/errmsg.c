@@ -4,9 +4,10 @@
 #include "vm/exec.h"
 
 const uint8_t emsg_errnum[E_LAST + 1] = {
-    0, 0, 2, 3, 4, 5, 7, 8, 9, 10, 11, 13, 17, 0, 6, 1, 16, 15, 12, 0, 0, 0, 0,
-    67, 55, 52, 53, 68, 54, 54, 64, 52, 0, 13, 18, 0, 0xFF, 73, 33, 40, 0xF0, 0xF1, 0xF2, 0xF3, 0xF4, 38,
-    26, 29, 30, 0xE0, 0xE1, 0xE2, 0xE3, 0xE4, 0xE5, 0xE6, 0xE7, 0xE8, 0xE9, 0xEA,
+    0,  0,  2,  3,  4,    5,    7,    8,    9,    10,   11,   13,   17,   0,    6,
+    1,  16, 15, 12, 0,    0,    0,    0,    67,   55,   52,   53,   68,   54,   54,
+    64, 52, 0,  13, 18,   0,    0xFF, 73,   33,   40,   0xF0, 0xF1, 0xF2, 0xF3, 0xF4,
+    38, 26, 29, 30, 0xE0, 0xE1, 0xE2, 0xE3, 0xE4, 0xE5, 0xE6, 0xE7, 0xE8, 0xE9, 0xEA,
 };
 
 static const struct {
@@ -89,13 +90,17 @@ static const struct {
 const char *emsg_text(Session *const S, const uint8_t code)
 {
     uint8_t num = emsg_errnum[code];
+
     if (code == E_USR) {
         if (S->vm.err.user > 0xFE)
             return "Unprintable error";
+
         num = (uint8_t)S->vm.err.user;
     }
+
     for (size_t i = 0; num && i < countof(msgs); i++)
         if (msgs[i].num == num)
             return msgs[i].text;
+
     return "Unprintable error";
 }

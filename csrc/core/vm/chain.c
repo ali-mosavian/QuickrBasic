@@ -12,9 +12,6 @@
 #include "vm/flow.h"
 #include "vm/stmts.h"
 
-
-
-
 /* ---- the kinds ------------------------------------------------------------------------------ */
 
 static const uint8_t KIND_MASK = VI_ARR | SK_DBL | VK_MASK;
@@ -26,8 +23,10 @@ static bool is_string(const uint8_t kind) { return (kind & (SK_DBL | VK_MASK)) =
 static uint8_t kind_of(Session *const S, const uint16_t id)
 {
     const Var *const v = symb_var(&S->symb, id);
+
     if (v->type >= ET_REC)
         repl_error(S, E_TM);
+
     return v->info & KIND_MASK;
 }
 
@@ -38,8 +37,10 @@ static uint32_t number_size(const uint8_t kind) { return kind & SK_DBL ? 8 : 4; 
 static uint32_t elem_count(const ArrayHdr *const a)
 {
     uint32_t n = 1;
+
     for (uint32_t i = 0; i < a->dims; i++)
         n *= a->count[i];
+
     return n;
 }
 
@@ -50,6 +51,7 @@ static void put(Session *const S, uint8_t **const p, const void *const src, cons
 {
     if (*p + n > S->chai.buf + CHAIN_BUF_SIZE)
         repl_error(S, E_OM);
+
     memcpy(*p, src, n);
     *p += n;
 }
@@ -67,11 +69,14 @@ static void put_array(Session *const S, uint8_t **const p, const uint16_t id)
     const Addr hdr = symb_var(&S->symb, id)->vt;
     const uint8_t dims = hdr ? ((const ArrayHdr *)at(hdr))->dims : 0;
     put(S, p, &dims, 1);
+
     if (!hdr)
         return;
+
     const ArrayHdr *const a = (const ArrayHdr *)at(hdr);
     put(S, p, a->count, dims * 2u * sizeof a->count[0]); /* the counts, the lower bounds */
     const uint32_t n = elem_count(a);
+
     if (is_string(kind_of(S, id)))
         for (uint32_t i = 0; i < n; i++)
             put_string(S, p, a->data + i * DSZ);
@@ -83,10 +88,12 @@ static void put_array(Session *const S, uint8_t **const p, const uint16_t id)
 static void save(Session *const S)
 {
     uint8_t *p = S->chai.buf;
+
     for (uint32_t i = 0; i < S->chai.n; i++) {
         const uint16_t id = S->chai.id[i];
         const uint8_t kind = kind_of(S, id);
         put(S, &p, &kind, 1);
+
         if (is_array(kind))
             put_array(S, &p, id);
         else if (is_string(kind))
@@ -94,6 +101,7 @@ static void save(Session *const S)
         else
             put(S, &p, at(symb_cell(&S->symb, id)), number_size(kind));
     }
+
     S->chai.next = S->chai.buf;
     S->chai.end = p;
 }
@@ -113,12 +121,15 @@ static void get_string(Session *const S, const uint8_t **const p, const Addr des
     uint16_t len;
     get(p, &len, sizeof len);
     Addr chars = 0;
+
     if (len) {
         chars = strg_alloc(S, len);
         get(p, at(chars), len);
         strg_own(chars, len, desc);
     }
+
     const Desc s = {.len = len, .ptr = chars};
+
     memcpy(at(desc), &s, DSZ);
 }
 
@@ -126,15 +137,18 @@ static void get_array(Session *const S, const uint8_t **const p, const uint16_t 
 {
     uint8_t dims;
     get(p, &dims, 1);
+
     if (!dims)
         return;
     if (symb_var(&S->symb, id)->vt)
         arry_free(S, id, 0);
+
     get(p, S->arry.counts, dims * sizeof S->arry.counts[0]);
     get(p, S->arry.lbounds, dims * sizeof S->arry.lbounds[0]);
     const Addr hdr = arry_new(S, id, dims, true);
     const ArrayHdr *const a = (const ArrayHdr *)at(hdr);
     const uint32_t n = elem_count(a);
+
     if (is_string(kind_of(S, id)))
         for (uint32_t i = 0; i < n; i++)
             get_string(S, p, a->data + i * DSZ);
@@ -147,13 +161,18 @@ static void get_array(Session *const S, const uint8_t **const p, const uint16_t 
 void chai_cmn(Session *const S)
 {
     const uint16_t id = (uint16_t)exec_pop(&S->vm).u;
+
     if (S->chai.n >= NCMN)
         repl_error(S, E_OM);
+
     S->chai.id[S->chai.n++] = id;
     const uint8_t *p = S->chai.next;
+
     if (!p || p >= S->chai.end)
         return;
+
     const uint8_t kind = kind_of(S, id);
+
     if (kind != *p++)
         repl_error(S, E_TM);
     if (is_array(kind))
@@ -162,6 +181,7 @@ void chai_cmn(Session *const S)
         get_string(S, &p, symb_cell(&S->symb, id));
     else
         get(&p, at(symb_cell(&S->symb, id)), number_size(kind));
+
     S->chai.next = p;
 }
 
@@ -171,15 +191,19 @@ void chai_cmn(Session *const S)
 static void set_file(Session *const S, const Desc s)
 {
     bool ext = false;
+
     for (uint16_t i = 0; i < s.len; i++) {
         const char c = (char)rd8(s.ptr + i);
         S->repl.file[i] = c;
+
         if (c == '.')
             ext = true;
         else if (c == '\\')
             ext = false;
     }
+
     char *const end = S->repl.file + s.len;
+
     if (ext)
         *end = 0;
     else
@@ -192,9 +216,12 @@ void chai_chain(Session *const S)
 {
     if (S->repl.fe->chain)
         S->repl.fe->chain(S);
+
     const Desc s = strg_get(S, exec_popa(&S->vm));
+
     if (s.len > CHAIN_NAME_MAX)
         repl_error(S, E_IQ);
+
     set_file(S, s);
     save(S);
     S->chai.chained = true;
@@ -202,15 +229,19 @@ void chai_chain(Session *const S)
     repl_load(S);
     prog_drop(S);
     link_start(S);
+
     if (!prog_line(&S->prog, PROGBASE)->len)
         flow_end(S);
+
     stmt_rungo(S, PROGBASE);
 }
 
 void chai_start(Session *const S)
 {
     S->chai.n = 0;
+
     if (!S->chai.chained)
         S->chai.next = S->chai.end;
+
     S->chai.chained = false;
 }

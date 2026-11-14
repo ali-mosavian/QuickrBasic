@@ -44,24 +44,31 @@ typedef struct {
 } Repl;
 
 /* Raise error code (E_*): never returns (above). */
-[[noreturn]] void repl_error(Session *S, uint8_t code);
+[[noreturn]]
+void repl_error(Session *S, uint8_t code);
 /* Raise QBasic's error qb as ERROR qb does. */
-[[noreturn]] void repl_qberr(Session *S, QbErr qb);
+[[noreturn]]
+void repl_qberr(Session *S, QbErr qb);
 
 /* basic32's: the file the command line names run, then exit; warnings to standard error. */
 extern const FrontEnd repl_batch;
 
 /* The start (repl.fe's), then the READY loop: READY., lines read and entered. repl.top's
    setjmp. */
-[[noreturn]] void repl_main(Session *S);
+[[noreturn]]
+void repl_main(Session *S);
 /* Session.fault's raise: a module's error, reported as diag_raise or repl_error does. */
-[[noreturn]] void repl_fault(Fault *f, const Failure *e);
+[[noreturn]]
+void repl_fault(Fault *f, const Failure *e);
 /* Back to READY (asm rpl_ready): the C stack unwound to repl.top. */
-[[noreturn]] void repl_ready(Session *S);
+[[noreturn]]
+void repl_ready(Session *S);
 /* Run the direct line repl_enter left in comp_cbuf. */
-[[noreturn]] void repl_run(Session *S);
+[[noreturn]]
+void repl_run(Session *S);
 /* CONT from the editor. */
-[[noreturn]] void repl_cont(Session *S);
+[[noreturn]]
+void repl_cont(Session *S);
 /* Enter the lines of the file repl.file names, its includes' in place; then the console's
    again. Errors: as chnl_open. */
 void repl_load(Session *S);

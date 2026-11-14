@@ -6,7 +6,6 @@
 
 typedef struct Vm Vm; /* the virtual machine (vm/exec.h) */
 
-
 /* A compiled expression's static type (cty). */
 enum : uint8_t {
     T_INT = 0,
@@ -98,7 +97,10 @@ enum : uint8_t { FM_IN = 1, FM_OUT = 2, FM_APP = 4, FM_RND = 8, FM_BIN = 16 };
 /* A variable's place (cm_va): its kind (VA_*) in the top byte, its bytes below (a Desc's: its
    STRING * n, 0 none). */
 enum : uint8_t { VA_DESC = 1, VA_RAW = 2, VA_I2 = 3 };
-static inline uint32_t va_pack(const uint8_t kind, const uint32_t n) { return (uint32_t)kind << 24 | n; }
+static inline uint32_t va_pack(const uint8_t kind, const uint32_t n)
+{
+    return (uint32_t)kind << 24 | n;
+}
 static inline uint8_t va_kind(const uint32_t v) { return (uint8_t)(v >> 24); }
 static inline uint16_t va_n(const uint32_t v) { return (uint16_t)v; }
 
@@ -144,17 +146,58 @@ typedef struct PACKED {
 
 /* Errors and messages: E_* QBasic's errors, MSG_* the other messages. */
 enum : uint8_t {
-    E_BRK = 0, MSG_READY = 1, E_SN = 2, E_RG = 3, E_OD = 4, E_IQ = 5, E_OM = 6, E_US = 7,
-    E_BS = 8, E_RD = 9, E_DZ = 10, E_TM = 11, E_CN = 12, MSG_OK = 13, E_OV = 14, E_NF = 15,
-    E_ST = 16, E_LS = 17, E_ID = 18, MSG_ERR = 19, MSG_IN = 20, MSG_REDO = 21, MSG_EXTRA = 22,
+    E_BRK = 0,
+    MSG_READY = 1,
+    E_SN = 2,
+    E_RG = 3,
+    E_OD = 4,
+    E_IQ = 5,
+    E_OM = 6,
+    E_US = 7,
+    E_BS = 8,
+    E_RD = 9,
+    E_DZ = 10,
+    E_TM = 11,
+    E_CN = 12,
+    MSG_OK = 13,
+    E_OV = 14,
+    E_NF = 15,
+    E_ST = 16,
+    E_LS = 17,
+    E_ID = 18,
+    MSG_ERR = 19,
+    MSG_IN = 20,
+    MSG_REDO = 21,
+    MSG_EXTRA = 22,
     E_TMF = 23,
-    E_VF = 32, E_FD = 33, E_UF = 34,
+    E_VF = 32,
+    E_FD = 33,
+    E_UF = 34,
     E_USR = 35, /* ERROR n */
     E_OS = 36,  /* Out of stack space: not trapped */
-    E_AF = 37, E_DL = 38, E_VR = 39, E_SPE = 40, E_ASF = 41, E_AAD = 42, E_VND = 43,
-    E_PTM = 44, E_AND = 45, E_FWN = 46, E_WWW = 47, E_WEW = 48, E_BIF = 49, E_EIF = 50,
-    E_ELS = 51, E_DWL = 52, E_LWD = 53, E_SWE = 54, E_ESW = 55, E_CWS = 56, E_PWE = 57,
-    E_EPW = 58, E_EXW = 59,
+    E_AF = 37,
+    E_DL = 38,
+    E_VR = 39,
+    E_SPE = 40,
+    E_ASF = 41,
+    E_AAD = 42,
+    E_VND = 43,
+    E_PTM = 44,
+    E_AND = 45,
+    E_FWN = 46,
+    E_WWW = 47,
+    E_WEW = 48,
+    E_BIF = 49,
+    E_EIF = 50,
+    E_ELS = 51,
+    E_DWL = 52,
+    E_LWD = 53,
+    E_SWE = 54,
+    E_ESW = 55,
+    E_CWS = 56,
+    E_PWE = 57,
+    E_EPW = 58,
+    E_EXW = 59,
     E_LAST = E_EXW,
 };
 
@@ -184,24 +227,35 @@ typedef enum : uint8_t {
 
 /* The memory map: offsets in the program store and the code cache. */
 enum {
-    DLINE = 0,          /* the direct line, len 0, num FFxxh */
-    PROGBASE = 0x0110,  /* then the program */
-    HSIZE = 1024,       /* the symbols' hash chains */
-    DCODE = 0x0100,     /* the direct line's stream */
+    DLINE = 0,         /* the direct line, len 0, num FFxxh */
+    PROGBASE = 0x0110, /* then the program */
+    HSIZE = 1024,      /* the symbols' hash chains */
+    DCODE = 0x0100,    /* the direct line's stream */
     CACHE0 = DCODE + 1536,
     CLIM = 0xFFF0,
-    HMIN = 0x40000,     /* the heap at least */
-    STKSZ = 0x10000,    /* the data stack */
-    STKROOM = 0x8000,   /* its room for the run */
-    CPROOM = 0x4000,    /* the compiler's frames */
-    OBSZ = 256,         /* the output buffer */
+    HMIN = 0x40000,   /* the heap at least */
+    STKSZ = 0x10000,  /* the data stack */
+    STKROOM = 0x8000, /* its room for the run */
+    CPROOM = 0x4000,  /* the compiler's frames */
+    OBSZ = 256,       /* the output buffer */
 };
 static_assert(XLIM == CLIM - CACHE0 - 16);
 
 /* Block statements (comp/block), procedures, TYPEs: their records are comp's. */
 enum : uint8_t {
-    BK_IF = 1, BK_ELSEIF, BK_ELSE, BK_ENDIF, BK_DO, BK_LOOP, BK_WHILE, BK_WEND, BK_SELECT,
-    BK_CASE, BK_ENDSEL, BK_EXIT, BK_FOR,
+    BK_IF = 1,
+    BK_ELSEIF,
+    BK_ELSE,
+    BK_ENDIF,
+    BK_DO,
+    BK_LOOP,
+    BK_WHILE,
+    BK_WEND,
+    BK_SELECT,
+    BK_CASE,
+    BK_ENDSEL,
+    BK_EXIT,
+    BK_FOR,
 };
 enum : uint8_t { PK_SUB = 1, PK_FUNC = 2, PK_END = 3 };
 enum : uint8_t { PF_STAT = 1, PF_DEF = 2 };

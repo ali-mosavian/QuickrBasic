@@ -6,5 +6,6 @@
 typedef unsigned jmp_buf[6]; /* ebx esi edi ebp esp eip */
 
 CDECL int setjmp(jmp_buf env);
-[[noreturn]] CDECL void longjmp(jmp_buf env, int value);
+[[noreturn]]
+CDECL void longjmp(jmp_buf env, int value);
 #endif

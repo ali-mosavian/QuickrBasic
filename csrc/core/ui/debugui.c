@@ -28,6 +28,7 @@ static uint32_t trim_end(const uint8_t *const s, const uint32_t c0, uint32_t c1)
 {
     while (c1 > c0 && (s[c1 - 1] == ' ' || s[c1 - 1] == ':'))
         c1--;
+
     return c1;
 }
 
@@ -35,8 +36,10 @@ static uint32_t trim_end(const uint8_t *const s, const uint32_t c0, uint32_t c1)
 static void hlset(Session *const S, const DebugPos *const pos)
 {
     uint32_t tl;
+
     if (!lmap_of(S, pos->line, &tl))
         return;
+
     hl.line = tl;
     const uint32_t len = text_get(S, view_goline(S, tl), uimn.line);
     uimn.line[len] = 0;
@@ -65,8 +68,10 @@ static void trace(Session *const S, const DebugPos *const at)
     scrn_flip();
     pscr_page(0);
     const uint32_t until = pclk_ticks() + TRACE_TICKS;
+
     while (until > pclk_ticks())
         ;
+
     pscr_page(1);
     hl.on = false;
 }
@@ -74,6 +79,7 @@ static void trace(Session *const S, const DebugPos *const at)
 void udbg_init(Session *const S)
 {
     static const DebugHooks hooks = {.trace = trace};
+
     session_debug(S, &hooks);
 }
 
@@ -83,6 +89,7 @@ void udbg_prep(Session *const S)
     hl.on = false;
     uimn.stopped = false;
     session_arm(S);
+
     if (hl.until)
         session_until(S, lmap_off(S, hl.until - 1));
 }
@@ -91,8 +98,10 @@ void udbg_stop(Session *const S)
 {
     hl.until = 0;
     DebugPos pos;
+
     if (!session_stopped_at(S, &pos))
         return;
+
     uimn.stopped = true;
     dpan_open(S);
     hlset(S, &pos);
@@ -106,18 +115,24 @@ void udbg_row(Session *const S, const uint8_t row, const uint8_t col, const uint
         return;
     if (line == uimn.ed.line && uimn.edline.dirty) /* not while it is being changed */
         return;
+
     const uint16_t left = uimn.ed.left;
     const uint16_t a = hl.c0 > left ? hl.c0 - left : 0;
+
     if (hl.c1 <= left)
         return;
+
     const uint16_t end = hl.c1 - left;
     const uint16_t b = end > uimn.ed.width ? uimn.ed.width : end;
+
     if (a >= b)
         return;
+
     scrn_attr(row, (uint8_t)(col + a), b - a, SL_CUR);
 }
 
-[[noreturn]] static void step(Session *const S, const StepKind kind)
+[[noreturn]]
+static void step(Session *const S, const StepKind kind)
 {
     session_step(S, kind, uimn_cancont(S));
     uimn_cont(S);
@@ -149,6 +164,7 @@ void udbg_until(Session *const S)
 {
     if (uimn.focus != FOC_EDIT)
         return;
+
     hl.until = uimn.ed.line + uimn.text.first + 1;
     uimn_cont(S);
 }
@@ -159,9 +175,11 @@ void udbg_setnext(Session *const S)
         dlog_ok(S, "Cannot continue");
         return;
     }
+
     if (!session_set_next(S, text_rec(S, uimn.ed.line))) {
         dlog_ok(S, "Cannot cross module/procedure boundary");
         return;
     }
+
     udbg_stop(S);
 }

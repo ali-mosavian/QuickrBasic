@@ -12,8 +12,8 @@ enum {
 };
 
 typedef struct {
-    uint8_t cur;          /* g_thn: the theme shown, 0 QBasic's */
-    uint8_t attr[NSLOT];  /* g_tha: its attributes, by slot */
+    uint8_t cur;         /* g_thn: the theme shown, 0 QBasic's */
+    uint8_t attr[NSLOT]; /* g_tha: its attributes, by slot */
 } Them;
 extern Them them;
 

@@ -18,7 +18,10 @@ enum { PROBE_OUT_MAX = 79 };
 /* How the probe's line came back to dbug_eval: setjmp's value. */
 enum { PROBE_RUNNING = 0, PROBE_DONE = 1, PROBE_FAILED = 2 /* + the error */ };
 
-static bool watching(Session *const S) { return S->dbug.mode || S->dbug.trace || S->dbug.bpon || S->dbug.until; }
+static bool watching(Session *const S)
+{
+    return S->dbug.mode || S->dbug.trace || S->dbug.bpon || S->dbug.until;
+}
 
 /* Does the run stop at op, a statement's start in line? A breakpoint and until's line stop at a
    line's first statement only. */
@@ -26,9 +29,12 @@ static bool stops_at(Session *const S, const uint32_t line, const uint8_t *const
 {
     if (S->dbug.mode == DM_STEP || (S->dbug.mode == DM_PSTEP && dbug_depth(&S->vm) <= S->dbug.pdep))
         return true;
+
     const Line *const ln = prog_line(&S->prog, line);
+
     if ((uint32_t)(addr_of(op) - S->allo.cache) != ln->code)
         return false;
+
     return (S->dbug.until && line == S->dbug.uline) || (S->dbug.bpon && ln->flags & LF_BP);
 }
 
@@ -37,13 +43,17 @@ void dbug_dbg(Session *const S)
 {
     if (!watching(S) || S->vm.line == DLINE)
         return;
+
     const uint8_t *const op = S->vm.ip - 1;
+
     if (S->dbug.trace && S->dbug.hooks && S->dbug.hooks->trace) {
         const DebugPos at = dbug_pos(S, S->vm.line, op);
         S->dbug.hooks->trace(S, &at);
     }
+
     if (!stops_at(S, S->vm.line, op))
         return;
+
     S->dbug.mode = 0;
     S->dbug.until = false;
     stmt_stop(S);
@@ -52,8 +62,10 @@ void dbug_dbg(Session *const S)
 uint32_t dbug_depth(const Vm *const vm)
 {
     uint32_t n = 0;
+
     for (uint32_t i = 0; i < vm->nframes; i++)
         n += vm->frames[i].kind == FRAME_CALL || vm->frames[i].kind == FRAME_GOSUB;
+
     return n;
 }
 
@@ -88,15 +100,31 @@ typedef struct {
 static void save(Session *const S, Saved *const s)
 {
     *s = (Saved){
-        .ip = S->vm.ip, .opip = S->vm.opip, .sp = S->vm.sp, .rsp = S->vm.rsp,
-        .nframes = S->vm.nframes, .ncallvars = S->vm.ncallvars, .cont = S->vm.cont,
-        .line = S->vm.line, .lnum = S->vm.lnum, .stop = S->vm.stop,
-        .in_error = S->vm.err.active, .running = S->vm.running,
-        .tmp_used = S->strg.tmp_used, .tmp_floor = S->strg.tmp_floor,
-        .capture = S->cons.capture, .col = S->cons.col, .sblen = S->cons.sblen,
-        .mode = S->dbug.mode, .trace = S->dbug.trace, .bpon = S->dbug.bpon, .until = S->dbug.until,
-        .events_on = S->evnt.on, .out = S->chnl.out,
+        .ip = S->vm.ip,
+        .opip = S->vm.opip,
+        .sp = S->vm.sp,
+        .rsp = S->vm.rsp,
+        .nframes = S->vm.nframes,
+        .ncallvars = S->vm.ncallvars,
+        .cont = S->vm.cont,
+        .line = S->vm.line,
+        .lnum = S->vm.lnum,
+        .stop = S->vm.stop,
+        .in_error = S->vm.err.active,
+        .running = S->vm.running,
+        .tmp_used = S->strg.tmp_used,
+        .tmp_floor = S->strg.tmp_floor,
+        .capture = S->cons.capture,
+        .col = S->cons.col,
+        .sblen = S->cons.sblen,
+        .mode = S->dbug.mode,
+        .trace = S->dbug.trace,
+        .bpon = S->dbug.bpon,
+        .until = S->dbug.until,
+        .events_on = S->evnt.on,
+        .out = S->chnl.out,
     };
+
     memcpy(s->loop, S->vm.loop, sizeof s->loop);
 }
 
@@ -136,6 +164,7 @@ static int run_probe(Session *const S, const char *const expr)
     memcpy(S->cons.inbuf + strlen(print), expr, strlen(expr) + 1);
     S->vm.line = DLINE;
     const int how = setjmp(S->dbug.probe);
+
     if (how == PROBE_RUNNING) {
         S->dbug.probing = true;
         lexr_line(S, S->cons.inbuf, S->comp.cbuf);
@@ -145,6 +174,7 @@ static int run_probe(Session *const S, const char *const expr)
         S->vm.running = false;
         exec_run(S);
     }
+
     S->dbug.probing = false;
     return how;
 }
@@ -173,7 +203,10 @@ uint8_t dbug_eval(Session *const S, const char *const expr, const uint8_t proc, 
 
 void dbug_done(Session *const S) { longjmp(S->dbug.probe, PROBE_DONE); }
 
-void dbug_fail(Session *const S, const uint8_t code) { longjmp(S->dbug.probe, PROBE_FAILED + code); }
+void dbug_fail(Session *const S, const uint8_t code)
+{
+    longjmp(S->dbug.probe, PROBE_FAILED + code);
+}
 
 /* TRON, TROFF: trace on, off. */
 void dbug_tron(Session *const S) { S->dbug.trace = true; }

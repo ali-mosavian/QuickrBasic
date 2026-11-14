@@ -29,24 +29,24 @@
 Uimn uimn; /* zeroed: its line buffers' texts are set by uimn_start */
 
 enum : uint8_t { PAGE_EDIT = 0, PAGE_OUT = 1 };
-enum : uint8_t { VIDEO_TEXT = 3 }; /* pscr_mode's 80x25 colour text */
+enum : uint8_t { VIDEO_TEXT = 3 };    /* pscr_mode's 80x25 colour text */
 enum : uint8_t { ATTR_PLAIN = 0x07 }; /* gray on black */
 /* ui.alt. */
 enum : uint8_t { ALT_NONE = 0, ALT_DOWN = 1, ALT_HELD = 2 };
 
-#define CTRL(c) ((c) & 0x1F)          /* Ctrl+letter's character */
+#define CTRL(c) ((c) & 0x1F)         /* Ctrl+letter's character */
 #define FKEY(f1, n) ((f1) + (n) - 1) /* Fn's scan code, from SCAN_F1, SCAN_SHIFT_F1, .. */
 
 static struct {
-    uint8_t alt;      /* alt_t: ALT_DOWN Alt went down alone, ALT_HELD it was down at the call */
-    bool run_wait;    /* ui_rf: a run: always wait for a key at its end */
-    uint8_t crow, ccol; /* ui_cpos: the output's cursor before an immediate line */
-    uint8_t ecode;    /* ui_ecode */
-    bool at_error;    /* ui_eln: the cursor is at the error's line */
-    bool wrap;        /* ui_wrap: a search wraps at the end */
-    bool load_new;    /* ul_new: a file not found is a new one (the command line's) */
-    bool change_all;  /* uc_all */
-    bool changed_one; /* uc_f: Change found one */
+    uint8_t alt;         /* alt_t: ALT_DOWN Alt went down alone, ALT_HELD it was down at the call */
+    bool run_wait;       /* ui_rf: a run: always wait for a key at its end */
+    uint8_t crow, ccol;  /* ui_cpos: the output's cursor before an immediate line */
+    uint8_t ecode;       /* ui_ecode */
+    bool at_error;       /* ui_eln: the cursor is at the error's line */
+    bool wrap;           /* ui_wrap: a search wraps at the end */
+    bool load_new;       /* ul_new: a file not found is a new one (the command line's) */
+    bool change_all;     /* uc_all */
+    bool changed_one;    /* uc_f: Change found one */
     uint32_t start_line; /* uc_sl, uc_sc: Change All's cursor, back after */
     uint16_t start_col;
     uint32_t at_line; /* us_l, us_c: the search's place */
@@ -74,7 +74,8 @@ static const char s_welcome[] = "Welcome to QuickrBasic||"
 static const char s_anykey[] = "Press any key to continue";
 static const MsgButton bt_welcome[] = {{"Press Esc to clear this dialog box", 0}, {}};
 
-[[noreturn]] static void loop(Session *S);
+[[noreturn]]
+static void loop(Session *S);
 static void exec_line(Session *S);
 
 /* ui_win: F6. */
@@ -101,12 +102,15 @@ char *uimn_dec(char *const dst, uint16_t v)
 {
     char digits[5];
     int n = 0;
+
     do {
         digits[n++] = (char)('0' + v % 10);
         v /= 10;
     } while (v);
+
     for (int i = 0; i < n; i++)
         dst[i] = digits[n - 1 - i];
+
     return dst + n;
 }
 
@@ -156,10 +160,13 @@ static uint16_t wait_key(void)
         if (pkey_shift() & PKEY_ALT) {
             if (ui.alt == ALT_NONE)
                 ui.alt = ALT_DOWN;
+
             continue;
         }
+
         const bool tap = ui.alt == ALT_DOWN;
         ui.alt = ALT_NONE;
+
         if (tap)
             return KEY_ALT;
     }
@@ -180,38 +187,52 @@ uint16_t uimn_getkey(void)
 static void imm_key(Session *const S, const uint16_t key)
 {
     const uint8_t ch = (uint8_t)key, scan = (uint8_t)(key >> 8);
+
     if (ch == CH_ENTER) {
         exec_line(S);
         return;
     }
+
     if (!ch) {
         if (scan == SCAN_UP) {
             edit_imm_up();
             return;
         }
+
         if (scan == SCAN_DOWN) {
             edit_imm_down();
             return;
         }
     }
+
     if (ch >= ' ' && uimn.immline.len >= ED_COLS - 1)
         return;
+
     dlog_ledit(&uimn.immline, key);
 }
 
 /* Ctrl+A to Ctrl+Z as WordStar's: the scan code of the key they stand for (COW edittbls.inc). */
 static const uint8_t wordstar[26] = {
-    [CTRL('A') - 1] = SCAN_CTRL_LEFT, [CTRL('C') - 1] = SCAN_PGDN, [CTRL('D') - 1] = SCAN_RIGHT,
-    [CTRL('E') - 1] = SCAN_UP,        [CTRL('F') - 1] = SCAN_CTRL_RIGHT,
-    [CTRL('G') - 1] = SCAN_DEL,       [CTRL('R') - 1] = SCAN_PGUP, [CTRL('S') - 1] = SCAN_LEFT,
-    [CTRL('V') - 1] = SCAN_INS,       [CTRL('X') - 1] = SCAN_DOWN,
+    [CTRL('A') - 1] = SCAN_CTRL_LEFT,
+    [CTRL('C') - 1] = SCAN_PGDN,
+    [CTRL('D') - 1] = SCAN_RIGHT,
+    [CTRL('E') - 1] = SCAN_UP,
+    [CTRL('F') - 1] = SCAN_CTRL_RIGHT,
+    [CTRL('G') - 1] = SCAN_DEL,
+    [CTRL('R') - 1] = SCAN_PGUP,
+    [CTRL('S') - 1] = SCAN_LEFT,
+    [CTRL('V') - 1] = SCAN_INS,
+    [CTRL('X') - 1] = SCAN_DOWN,
 };
 /* Ctrl+Q's second key: the letter's code, the scan code (0 erases to the line's end). */
 static const struct {
     uint8_t ch, scan;
 } wordstar_q[] = {
-    {CTRL('S'), SCAN_HOME},     {CTRL('D'), SCAN_END}, {CTRL('R'), SCAN_CTRL_HOME},
-    {CTRL('C'), SCAN_CTRL_END}, {CTRL('Y'), 0},
+    {CTRL('S'), SCAN_HOME},
+    {CTRL('D'), SCAN_END},
+    {CTRL('R'), SCAN_CTRL_HOME},
+    {CTRL('C'), SCAN_CTRL_END},
+    {CTRL('Y'), 0},
 };
 
 static void lb_left(Session *const S) { edit_lb_left(&uimn.edline); }
@@ -226,10 +247,18 @@ static const struct {
     uint8_t scan;
     void (*run)(Session *S);
 } moves[] = {
-    {SCAN_UP, edit_up},         {SCAN_DOWN, edit_down},     {SCAN_LEFT, lb_left},
-    {SCAN_RIGHT, lb_right},     {SCAN_HOME, lb_home},       {SCAN_END, lb_end},
-    {SCAN_PGUP, edit_pgup},     {SCAN_PGDN, edit_pgdn},     {SCAN_CTRL_HOME, edit_first},
-    {SCAN_CTRL_END, edit_last}, {SCAN_CTRL_LEFT, lb_wleft}, {SCAN_CTRL_RIGHT, lb_wright},
+    {SCAN_UP, edit_up},
+    {SCAN_DOWN, edit_down},
+    {SCAN_LEFT, lb_left},
+    {SCAN_RIGHT, lb_right},
+    {SCAN_HOME, lb_home},
+    {SCAN_END, lb_end},
+    {SCAN_PGUP, edit_pgup},
+    {SCAN_PGDN, edit_pgdn},
+    {SCAN_CTRL_HOME, edit_first},
+    {SCAN_CTRL_END, edit_last},
+    {SCAN_CTRL_LEFT, lb_wleft},
+    {SCAN_CTRL_RIGHT, lb_wright},
 };
 
 static void edit_key(Session *S, uint16_t key);
@@ -238,6 +267,7 @@ static void edit_key(Session *S, uint16_t key);
 static void edit_scan(Session *const S, const uint8_t scan)
 {
     const bool shift = uimn.keyflags & PKEY_SHIFT;
+
     for (uint32_t i = 0; i < countof(moves); i++) {
         if (moves[i].scan != scan)
             continue;
@@ -245,9 +275,11 @@ static void edit_scan(Session *const S, const uint8_t scan)
             edit_sel_mark();
         else
             uimn.ed.sel_on = false;
+
         moves[i].run(S);
         return;
     }
+
     if (scan == SCAN_DEL) {
         if (shift) {
             edit_cut(S);
@@ -272,6 +304,7 @@ static void edit_ctrlq(Session *const S, const uint8_t ch)
 {
     LineBuf *const b = &uimn.edline;
     const uint8_t letter = CTRL(ch);
+
     for (uint32_t i = 0; i < countof(wordstar_q); i++) {
         if (wordstar_q[i].ch != letter)
             continue;
@@ -281,6 +314,7 @@ static void edit_ctrlq(Session *const S, const uint8_t ch)
             uimn.ed.sel_on = false;
             edit_lb_cut(b, b->col, b->len);
         }
+
         return;
     }
 }
@@ -293,27 +327,35 @@ static bool edit_control(Session *const S, const uint8_t ch)
         uimn.ed.sel_on = false;
         edit_enter(S);
         return true;
+
     case CH_BACKSPACE:
         if (edit_sel())
             edit_clear(S);
         else
             edit_bs(S);
+
         return true;
+
     case CH_TAB:
         uimn.ed.sel_on = false;
 #if AC
+
         if (cmpl_tab(S))
             return true;
 #endif
+
         edit_tab();
         return true;
+
     case CTRL('Y'):
         uimn.ed.sel_on = false;
         edit_ctrly(S);
         return true;
+
     case CH_ESC:
         uimn.ed.sel_on = false;
         return true;
+
     default:
         return ch < ' ';
     }
@@ -323,27 +365,33 @@ static bool edit_control(Session *const S, const uint8_t ch)
 static void edit_key(Session *const S, const uint16_t key)
 {
     const uint8_t ch = (uint8_t)key;
+
     if (!ch) {
         edit_scan(S, (uint8_t)(key >> 8));
         return;
     }
+
     if (uimn.ed.prefix) {
         uimn.ed.prefix = 0;
         edit_ctrlq(S, ch);
         return;
     }
+
     if (ch == CTRL('Q')) { /* a second key follows */
         uimn.ed.prefix = ch;
         return;
     }
+
     if (ch <= CTRL('Z') && wordstar[ch - 1]) {
         edit_key(S, (uint16_t)(wordstar[ch - 1] << 8));
         return;
     }
+
     if (edit_control(S, ch))
         return;
     if (edit_sel() == SEL_PIECE)
         edit_clear(S);
+
     uimn.ed.sel_on = false;
     edit_lb_type(&uimn.edline, ch, LNMAX);
 }
@@ -362,19 +410,24 @@ static bool match(const uint16_t col)
 {
     const uint8_t *const s = uimn.line + col, *const w = uimn.find_what.text;
     const uint16_t n = uimn.find_what.len;
+
     for (uint16_t i = 0; i < n; i++) {
         uint8_t a = s[i], b = w[i];
+
         if (!uimn.match_case) {
             a = upcase(a);
             b = upcase(b);
         }
+
         if (a != b)
             return false;
     }
+
     if (!uimn.whole_word)
         return true;
     if (wordc(s[n])) /* a whole word: no letter or digit on either side */
         return false;
+
     return !col || !wordc(s[-1]);
 }
 
@@ -382,18 +435,24 @@ static bool match(const uint16_t col)
 static bool search(Session *const S)
 {
     const uint16_t len = uimn.find_what.len;
+
     if (!len)
         return false;
+
     edit_commit(S);
     ui.at_line = uimn.ed.line;
     ui.at_col = uimn.edline.col + 1;
+
     for (uint32_t n = uimn.text.n + 1; n; n--) { /* every line, this one twice */
         const uint16_t got = (uint16_t)text_get(S, ui.at_line, uimn.line);
+
         if (got >= len) {
             const uint16_t last = got - len;
+
             for (uint16_t col = ui.at_col; col <= last; col++) {
                 if (!match(col))
                     continue;
+
                 edit_load(S, ui.at_line);
                 uimn.ed.sel_col = col;
                 uimn.ed.sel_line = ui.at_line;
@@ -402,15 +461,20 @@ static bool search(Session *const S)
                 return true;
             }
         }
+
         ui.at_col = 0;
         uint32_t next = ui.at_line + 1;
+
         if (next >= uimn.text.n) {
             if (!ui.wrap)
                 return false;
+
             next = 0;
         }
+
         ui.at_line = next;
     }
+
     return false;
 }
 
@@ -427,12 +491,16 @@ static void find_default(void)
 {
     if (uimn.focus)
         return;
+
     const uint8_t *const t = uimn.edline.text;
     uint16_t to = uimn.edline.col, len = uimn.edline.len, from;
+
     if (uimn.ed.sel_on) {
         if (uimn.ed.sel_line != uimn.ed.line)
             return;
+
         from = uimn.ed.sel_col;
+
         if (from > to) {
             uint16_t x = from;
             from = to;
@@ -442,19 +510,26 @@ static void find_default(void)
         if (!(to < len && wordc(t[to]))) {
             if (!to)
                 return;
+
             to--;
+
             if (to >= len || !wordc(t[to]))
                 return;
         }
+
         from = to;
+
         while (from && wordc(t[from - 1]))
             from--;
         while (to < len && wordc(t[to]))
             to++;
     }
+
     const uint16_t n = to - from;
+
     if (!n || n > FLDMAX)
         return;
+
     uimn.find_what.len = uimn.find_what.col = n;
     memcpy(uimn.find_what.text, t + from, n);
 }
@@ -463,6 +538,7 @@ static void find_default(void)
 static void find(Session *const S)
 {
     find_default();
+
     if (dlog_find(S))
         find_again(S);
 }
@@ -472,24 +548,30 @@ static void change(Session *const S)
 {
     find_default();
     const uint8_t r = dlog_change(S);
+
     if (r > CHANGE_ALL)
         return;
+
     ui.change_all = r == CHANGE_ALL;
     ui.changed_one = false;
     ui.wrap = false;
     edit_commit(S);
     uimn.ed.sel_on = false;
     LineBuf *const b = &uimn.edline;
+
     if (ui.change_all) { /* from the start, the cursor back after */
         ui.start_line = uimn.ed.line;
         ui.start_col = b->col;
         edit_load(S, 0);
         b->col = UINT16_MAX; /* search's from column 0 */
     }
+
     while (search(S)) {
         ui.changed_one = true;
+
         if (!ui.change_all) {
             const uint8_t c = dlog_conf(S);
+
             if (c == CONF_SKIP)
                 continue;
             if (c > CONF_SKIP) { /* Cancel: no word more (uisearch.c) */
@@ -497,22 +579,28 @@ static void change(Session *const S)
                 return;
             }
         }
+
         edit_lb_cut(b, uimn.ed.sel_col, b->col);
         edit_lb_insert(b, uimn.change_to.text, uimn.change_to.len);
         uimn.ed.sel_on = false;
         b->col--;
         edit_commit(S);
     }
+
     ui.wrap = true;
     uimn.ed.sel_on = false;
+
     if (ui.change_all) {
         edit_commit(S);
         uint32_t line = ui.start_line;
+
         if (line > uimn.text.n)
             line = uimn.text.n;
+
         edit_load(S, line);
         b->col = ui.start_col;
     }
+
     dlog_ok(S, ui.changed_one ? s_chdone : s_nomatch);
 }
 
@@ -527,6 +615,7 @@ static bool write_file(Session *const S)
         dlog_ok(S, s_access);
         return false;
     }
+
     uimn.text.unsaved = false;
     return true;
 }
@@ -534,8 +623,10 @@ static bool write_file(Session *const S)
 static bool save(Session *const S)
 {
     edit_commit(S);
+
     if (!uimn.file[0])
         return save_as(S);
+
     return write_file(S);
 }
 
@@ -553,20 +644,25 @@ static bool same_name(const char *const a, const char *const b)
 static bool save_as(Session *const S)
 {
     edit_commit(S);
+
     for (;;) {
         if (!dlog_saveas(S))
             return false;
         if (same_name(uimn.chosen, uimn.file))
             break;
+
         uint8_t attr;
+
         if (pfil_getattr(uimn.chosen, &attr) != PFIL_OK)
             break;
+
         const uint8_t r = dlog_ync(S, s_overw); /* another file there */
         if (r == YNC_YES)
             break;
         if (r > YNC_NO)
             return false;
     }
+
     memcpy(uimn.file, uimn.chosen, sizeof uimn.file);
     return write_file(S);
 }
@@ -575,13 +671,17 @@ static bool save_as(Session *const S)
 static bool ask_save(Session *const S)
 {
     edit_commit(S);
+
     if (!uimn.text.unsaved)
         return true;
+
     const uint8_t r = dlog_ync(S, s_notsaved);
+
     if (r == YNC_NO)
         return true;
     if (r > YNC_NO)
         return false;
+
     return save(S);
 }
 
@@ -605,6 +705,7 @@ static void file_new(Session *const S)
 {
     if (!ask_save(S))
         return;
+
     text_init(S);
     uimn.file[0] = 0;
     reset(S);
@@ -619,8 +720,10 @@ static void load(Session *const S)
             dlog_ok(S, s_notfound);
             return;
         }
+
         text_init(S);
     }
+
     memcpy(uimn.file, uimn.chosen, sizeof uimn.file);
     reset(S);
 }
@@ -640,6 +743,7 @@ static void file_exit(Session *const S)
 {
     if (!ask_save(S))
         return;
+
     pscr_mode(VIDEO_TEXT);
     cons_exit(S, 0);
 }
@@ -665,8 +769,10 @@ static void about(Session *const S) { dlog_ok(S, s_about); }
 static void sync(Session *const S)
 {
     edit_commit(S);
+
     if (!uimn.text.changed)
         return;
+
     repl_relink(S);
     lmap_build(S);
     uimn.text.changed = false;
@@ -696,6 +802,7 @@ void uimn_cont(Session *const S)
 {
     if (!uimn_cancont(S))
         uimn_run(S);
+
     udbg_prep(S);
     page_out();
     ui.run_wait = true;
@@ -707,13 +814,17 @@ static void exec_line(Session *const S)
 {
     sync(S);
     const uint16_t len = edit_imm_next(S);
+
     if (!len)
         return;
+
     page_out();
     pscr_where(PAGE_OUT, &ui.crow, &ui.ccol);
     ui.run_wait = false;
+
     if (repl_enter(S, len) == ENTER_DIRECT)
         repl_run(S);
+
     page_in();
 }
 
@@ -724,8 +835,10 @@ static void wait_anykey(Session *const S)
     uint8_t row, col;
     pscr_where(PAGE_OUT, &row, &col); /* output goes on here after the key */
     pscr_cursor(PAGE_OUT, STATUS_ROW, 0);
+
     for (uint32_t i = 0; s_anykey[i]; i++)
         cons_putc(S, (uint8_t)s_anykey[i]);
+
     cons_flush(S);
     S->cons.col = 0;
     pkey_read();
@@ -740,8 +853,10 @@ void uimn_ready(Session *const S)
     S->vm.stop = 0;
     uint8_t row, col;
     pscr_where(PAGE_OUT, &row, &col);
+
     if (ui.run_wait || row != ui.crow || col != ui.ccol)
         wait_anykey(S);
+
     page_in();
     loop(S);
 }
@@ -754,10 +869,12 @@ void uimn_selword(const uint16_t col)
     LineBuf *const b = &uimn.edline;
     b->col = col;
     uint16_t end = col;
+
     while (end < b->len && wordc(b->text[end]))
         end++;
     if (end == col)
         return;
+
     uimn.ed.sel_col = end;
     uimn.ed.sel_line = uimn.ed.line;
     uimn.ed.sel_on = true;
@@ -771,8 +888,10 @@ static void at_line(Session *const S, const uint32_t line)
     edit_load(S, line);
     const LineBuf *const b = &uimn.edline;
     uint16_t col = 0;
+
     while (col < b->len && b->text[col] == ' ')
         col++;
+
     uimn_selword(col);
 }
 
@@ -782,6 +901,7 @@ static void run_error_words(Session *const S)
 {
     if (!ui.at_error || !S->vm.opip || *S->vm.opip != O_ERR)
         return;
+
     LineBuf *const b = &uimn.edline;
     b->text[b->len] = 0;
     uimn_selword(edit_dxerr(S, b->text, (const ErrOp *)S->vm.opip));
@@ -791,10 +911,12 @@ void uimn_error(Session *const S, const uint8_t code)
 {
     ui.ecode = code;
     ui.at_error = false;
+
     if (code != E_BRK) {
         session_drop_stop(S);
         dpan_close();
     }
+
     cons_flush(S);
     S->cons.col = 0;
     S->vm.stop = 0;
@@ -802,14 +924,17 @@ void uimn_error(Session *const S, const uint8_t code)
     S->repl.loading = false; /* repl_relink's, the error ended it */
     S->prog.add_flags = 0;
     S->prog.add_at = 0;
+
     if (S->vm.line != DLINE) {
         lmap_build(S); /* the include's lines are no line */
         uint32_t line;
+
         if (lmap_of(S, S->vm.line, &line)) {
             ui.at_error = true;
             at_line(S, view_goline(S, line));
         }
     }
+
     if (ui.ecode == E_BRK) {
         udbg_stop(S);
     } else {
@@ -817,6 +942,7 @@ void uimn_error(Session *const S, const uint8_t code)
         run_error_words(S);
         dlog_err(S, uimn.errmsg);
     }
+
     loop(S);
 }
 
@@ -827,42 +953,130 @@ static void act_theme(const uint8_t action) { them_pick(action); }
 void uimn_act(Session *const S, const uint8_t action)
 {
     switch (action) {
-    case ACT_NEW: file_new(S); break;
-    case ACT_OPEN: open_program(S); break;
-    case ACT_SAVE: file_save(S); break;
-    case ACT_SAVEAS: file_saveas(S); break;
-    case ACT_EXIT: file_exit(S); break;
-    case ACT_CUT: edit_cut(S); break;
-    case ACT_COPY: edit_copy(S); break;
-    case ACT_PASTE: edit_paste(S); break;
-    case ACT_CLEAR: edit_clear(S); break;
-    case ACT_OUT: view_output(); break;
-    case ACT_FIND: find(S); break;
-    case ACT_FIND3: find_again(S); break;
-    case ACT_CHANGE: change(S); break;
-    case ACT_START: uimn_run(S);
-    case ACT_CONT: uimn_cont(S);
-    case ACT_SYNTAX: syntax(); break;
-    case ACT_ABOUT: about(S); break;
-    case ACT_STEP: udbg_step(S);
-    case ACT_PSTEP: udbg_pstep(S);
-    case ACT_TRACE: udbg_tron(S); break;
-    case ACT_BP: udbg_bp(S); break;
-    case ACT_BPCLR: udbg_bpclear(S); break;
-    case ACT_SETNX: udbg_setnext(S); break;
-    case ACT_RESTART: udbg_restart(S);
-    case ACT_SPLIT: wind_split(S); break;
-    case ACT_SUBS: view_subs(S); break;
-    case ACT_NSUB: view_newsub(S); break;
-    case ACT_NFN: view_newfn(S); break;
-    case ACT_THQB: them_qbasic(); break;
-    case ACT_THDK: them_dark(); break;
-    case ACT_SYNHL: synt_toggle(); break;
-    case ACT_VSPLIT: wind_vsplit(S); break;
-    case ACT_SOUT: udbg_sout(S);
+    case ACT_NEW:
+        file_new(S);
+        break;
+
+    case ACT_OPEN:
+        open_program(S);
+        break;
+
+    case ACT_SAVE:
+        file_save(S);
+        break;
+
+    case ACT_SAVEAS:
+        file_saveas(S);
+        break;
+
+    case ACT_EXIT:
+        file_exit(S);
+        break;
+
+    case ACT_CUT:
+        edit_cut(S);
+        break;
+
+    case ACT_COPY:
+        edit_copy(S);
+        break;
+
+    case ACT_PASTE:
+        edit_paste(S);
+        break;
+
+    case ACT_CLEAR:
+        edit_clear(S);
+        break;
+
+    case ACT_OUT:
+        view_output();
+        break;
+
+    case ACT_FIND:
+        find(S);
+        break;
+
+    case ACT_FIND3:
+        find_again(S);
+        break;
+
+    case ACT_CHANGE:
+        change(S);
+        break;
+
+    case ACT_START:
+        uimn_run(S);
+    case ACT_CONT:
+        uimn_cont(S);
+    case ACT_SYNTAX:
+        syntax();
+        break;
+
+    case ACT_ABOUT:
+        about(S);
+        break;
+
+    case ACT_STEP:
+        udbg_step(S);
+    case ACT_PSTEP:
+        udbg_pstep(S);
+    case ACT_TRACE:
+        udbg_tron(S);
+        break;
+
+    case ACT_BP:
+        udbg_bp(S);
+        break;
+
+    case ACT_BPCLR:
+        udbg_bpclear(S);
+        break;
+
+    case ACT_SETNX:
+        udbg_setnext(S);
+        break;
+
+    case ACT_RESTART:
+        udbg_restart(S);
+    case ACT_SPLIT:
+        wind_split(S);
+        break;
+
+    case ACT_SUBS:
+        view_subs(S);
+        break;
+
+    case ACT_NSUB:
+        view_newsub(S);
+        break;
+
+    case ACT_NFN:
+        view_newfn(S);
+        break;
+
+    case ACT_THQB:
+        them_qbasic();
+        break;
+
+    case ACT_THDK:
+        them_dark();
+        break;
+
+    case ACT_SYNHL:
+        synt_toggle();
+        break;
+
+    case ACT_VSPLIT:
+        wind_vsplit(S);
+        break;
+
+    case ACT_SOUT:
+        udbg_sout(S);
     default:
         if (action >= ACT_TH2 && action < ACT_SOUT)
             act_theme(action);
+
         break;
     }
 }
@@ -872,48 +1086,95 @@ void uimn_key(Session *const S, const uint16_t key)
 #if AC
     uimn.help = nullptr; /* a completion's form, shown till now */
 #endif
+
     if (key == KEY_ALT) {
         menu_run(S, 0, false);
         return;
     }
+
     if (key == KEY_MOUSE) {
         mous_main(S);
         return;
     }
+
     if (key == (SCAN_L << 8 | CTRL('L'))) { /* Repeat Last Find */
         find_again(S);
         return;
     }
+
     if (!(uint8_t)key) {
         const uint8_t scan = (uint8_t)(key >> 8);
+
         switch (scan) {
-        case FKEY(SCAN_F1, 7): udbg_pstep(S);
-        case FKEY(SCAN_CTRL_F1, 7): udbg_until(S); return;
-        case FKEY(SCAN_F1, 8): udbg_step(S);
-        case FKEY(SCAN_SHIFT_F1, 8): udbg_sout(S);
-        case FKEY(SCAN_F1, 9): udbg_bp(S); return;
-        case FKEY(SCAN_F1, 10): udbg_pstep(S);
-        case FKEY(SCAN_F1, 4): view_output(); return;
-        case FKEY(SCAN_F1, 5): uimn_cont(S);
-        case FKEY(SCAN_SHIFT_F1, 5): uimn_run(S);
-        case FKEY(SCAN_F1, 6): next_window(S); return;
-        case FKEY(SCAN_F1, 3): find_again(S); return;
+        case FKEY(SCAN_F1, 7):
+            udbg_pstep(S);
+        case FKEY(SCAN_CTRL_F1, 7):
+            udbg_until(S);
+            return;
+
+        case FKEY(SCAN_F1, 8):
+            udbg_step(S);
+        case FKEY(SCAN_SHIFT_F1, 8):
+            udbg_sout(S);
+        case FKEY(SCAN_F1, 9):
+            udbg_bp(S);
+            return;
+
+        case FKEY(SCAN_F1, 10):
+            udbg_pstep(S);
+        case FKEY(SCAN_F1, 4):
+            view_output();
+            return;
+
+        case FKEY(SCAN_F1, 5):
+            uimn_cont(S);
+        case FKEY(SCAN_SHIFT_F1, 5):
+            uimn_run(S);
+        case FKEY(SCAN_F1, 6):
+            next_window(S);
+            return;
+
+        case FKEY(SCAN_F1, 3):
+            find_again(S);
+            return;
+
         case SCAN_F1:
-        case SCAN_SHIFT_F1: nohelp(S); return;
-        case FKEY(SCAN_SHIFT_F1, 6): wind_prev(S); return; /* the window before */
+        case SCAN_SHIFT_F1:
+            nohelp(S);
+            return;
+
+        case FKEY(SCAN_SHIFT_F1, 6):
+            wind_prev(S);
+            return; /* the window before */
         case SCAN_ALT_EQUALS:
-        case SCAN_GREY_PLUS: wind_grow(); return;         /* a row more */
+        case SCAN_GREY_PLUS:
+            wind_grow();
+            return; /* a row more */
         case SCAN_ALT_MINUS:
-        case SCAN_GREY_MINUS: wind_shrink(); return;      /* a row less */
-        case FKEY(SCAN_CTRL_F1, 10): wind_max(); return;
-        case FKEY(SCAN_F1, 2): view_subs(S); return;       /* the views */
-        case FKEY(SCAN_SHIFT_F1, 2): view_next(S); return;
-        case FKEY(SCAN_CTRL_F1, 2): view_prev(S); return;
+        case SCAN_GREY_MINUS:
+            wind_shrink();
+            return; /* a row less */
+        case FKEY(SCAN_CTRL_F1, 10):
+            wind_max();
+            return;
+
+        case FKEY(SCAN_F1, 2):
+            view_subs(S);
+            return; /* the views */
+        case FKEY(SCAN_SHIFT_F1, 2):
+            view_next(S);
+            return;
+
+        case FKEY(SCAN_CTRL_F1, 2):
+            view_prev(S);
+            return;
+
         default:
             if (menu_alt(S, scan))
                 return;
         }
     }
+
     if (uimn.focus == FOC_IMM)
         imm_key(S, key);
     else if (uimn.focus == FOC_PANE)
@@ -933,6 +1194,7 @@ static void loop(Session *const S)
         uimn.mouse.hover = true;
         const uint16_t key = uimn_getkey();
         uimn.mouse.hover = false;
+
         if (key != KEY_MOUSE)
             uimn.tip_mouse = false; /* a key: the tooltip by the cursor */
         uimn_key(S, key);
@@ -947,19 +1209,26 @@ static void load_help(void)
     static const char file[] = "BASIC.HLP";
     char name[160];
     const uint32_t n = psys_self(name, sizeof name - sizeof file);
+
     if (!n)
         return;
+
     uint32_t dir = 0; /* past the last '\' */
     for (uint32_t i = 0; i < n; i++)
         if (name[i] == '\\')
             dir = i + 1;
+
     memcpy(name + dir, file, sizeof file);
     PfilHandle h;
+
     if (pfil_open(name, PFIL_READ, &h) != PFIL_OK)
         return;
+
     uint32_t got;
+
     if (pfil_read(h, uimn.help_text, HLPSZ, &got) == PFIL_OK)
         uimn.help_len = (uint16_t)got;
+
     pfil_close(h);
 }
 
@@ -993,8 +1262,10 @@ static uint16_t cmdline_file(void)
     char tail[128];
     psys_cmdline(tail, sizeof tail);
     uint16_t n = 0;
+
     for (; (uint8_t)tail[n] > ' ' && n < FLDMAX; n++)
         uimn.fname.text[n] = (uint8_t)tail[n];
+
     return n;
 }
 
@@ -1002,10 +1273,12 @@ void uimn_start(Session *const S)
 {
     if (!S->cons.stdin_dev || !pfil_isdev(PFIL_STDOUT))
         return;
+
     init(S);
     pscr_mode(VIDEO_TEXT);
     them_qbasic();
     const uint16_t n = cmdline_file();
+
     if (n) {
         uimn.fname.len = n;
         dlog_fileok(DLOG_PRESS);
@@ -1015,6 +1288,7 @@ void uimn_start(Session *const S)
     } else {
         dlog_msg(S, s_welcome, bt_welcome);
     }
+
     loop(S);
 }
 
@@ -1048,4 +1322,9 @@ static void regions(Session *const S)
 }
 
 const FrontEnd uimn_front_end = {
-    .regions = regions, .start = uimn_start, .ready = fe_ready, .error = fe_error, .chain = fe_chain};
+    .regions = regions,
+    .start = uimn_start,
+    .ready = fe_ready,
+    .error = fe_error,
+    .chain = fe_chain,
+};

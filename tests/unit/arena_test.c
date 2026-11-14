@@ -8,13 +8,16 @@ TEST(arena_grows_past_its_chunk_and_reuses_blocks_after_reset)
     Arena a;
     arena_init(&a, 64);
     uint8_t *p[10];
+
     for (uint32_t i = 0; i < 10; i++) {
         p[i] = arena_alloc(&a, 40);
         CHECK(p[i] && !p[i][0] && !p[i][39]);
         p[i][0] = 0xAA;
+
         for (uint32_t j = 0; j < i; j++)
             CHECK(p[j] != p[i]);
     }
+
     uint8_t *const big = arena_alloc(&a, 1000); /* past the chunk: a block of its own */
     CHECK(big);
     arena_reset(&a);

@@ -109,6 +109,7 @@ typedef struct PACKED {
             uint8_t dyn; /* REDIM made it */
         } array;
     };
+
     Addr cell; /* a scalar parameter's; 0 for a local */
 } CallVar;
 static_assert(sizeof(CallVar) == 16);
@@ -180,7 +181,8 @@ static inline uint32_t exec_u32(Vm *const vm)
    (SF_TICK); psys_exit takes the tick out. */
 void exec_init(Session *S);
 /* ex_lp: run ops from vm.ip, from here on; leaves only by longjmp. */
-[[noreturn]] void exec_run(Session *S);
+[[noreturn]]
+void exec_run(Session *S);
 /* Run ops from vm.ip until it reaches end. */
 void exec_until(Session *S, const uint8_t *end);
 /* Op op's flags: FX, FV, FB, FK. */
