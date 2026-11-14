@@ -50,7 +50,7 @@ Errors: `repl_error` unwinds; `ex_trap` is `flow_trap`, which longjmps into `exe
 | `lfrom`, `lto` | `list_range`'s parameters (comp) |
 | `narr` | `arry_*`'s `n` parameter (mem) |
 | `stv`, `aret`, `cnarg`, `cop`, `fid`, `flim`, `fstep`, `fop`, `fvp`, `fsv`, `isw_si`, `lk`, `onk`, `runl`, `ppip`, `ppend`, `pres` | locals / statics |
-| `dlp`, `dataat`, `dyo`, `inend`, `iny0`, `iredo` | static in stmt.c (READ, INPUT) |
+| `dlp`, `dataat`, `dyo`, `inend`, `iny0`, `iredo` | static in stmts.c (READ, INPUT) |
 | — | `vm.ip`, `vm.sp`, `vm.stktop`, `vm.lsav`, `vm.loop` (new) |
 
 ## exec.asm → exec
@@ -65,8 +65,8 @@ Errors: `repl_error` unwinds; `ex_trap` is `flow_trap`, which longjmps into `exe
 | `int_div` | `int32_t exec_idiv(a, b, &rem)` |
 | `g_ops` | static table in exec.c from ops.def |
 | `g_calls` | static table in exec.c from ops.def |
-| `g_bflt` | static in oper.c |
-| `g_fntab` | static in func.c |
+| `g_bflt` | static in operands.c |
+| `g_fntab` | static in funcs.c |
 | `op_call` | `exec_call` |
 | `op_sldt` | `exec_s_ld_txt` |
 | `op_raddr`, `op_raddra`, `op_pref`, `op_vaddr`, `op_vld`, `op_vst` | `exec_r_addr`, `exec_ra_addr`, `exec_p_ref`, `exec_v_addr`, `exec_v_ld`, `exec_v_st` |
@@ -123,7 +123,7 @@ Errors: `repl_error` unwinds; `ex_trap` is `flow_trap`, which longjmps into `exe
 | `sc_cont` | `stmt_cont()` |
 | `sc_end` | `stmt_end()` (noreturn) |
 | `sc_stop` | `stmt_stop()` (noreturn) |
-| `g_relbit` | `compared` (oper.c): a compare's relation as `OPER_GT`, `OPER_EQ` or `OPER_LT` |
+| `g_relbit` | `compared` (operands.c): a compare's relation as `OPER_GT`, `OPER_EQ` or `OPER_LT` |
 | `sc_ipr`, `sc_fpr`, `sc_spr`, `sc_pnl`, `sc_pzone`, `sc_ptab` | `stmt_ipr`, `stmt_fpr`, `stmt_spr`, `stmt_pnl`, `stmt_pzone`, `stmt_ptab` |
 | `sc_pspc`, `sc_fin`, `sc_sin`, `sc_din`, `sc_fget`, `sc_sget` | `stmt_pspc`, `stmt_fin`, `stmt_sin`, `stmt_din`, `stmt_fget`, `stmt_sget` |
 | `sc_inbeg`, `sc_inpr`, `sc_infile`, `sc_inend`, `sc_inln`, `sc_fread` | `stmt_inbeg`, `stmt_inpr`, `stmt_infile`, `stmt_inend`, `stmt_inln`, `stmt_fread` |

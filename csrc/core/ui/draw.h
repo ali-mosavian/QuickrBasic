@@ -1,5 +1,5 @@
 /* The editor's screen: the windows, their titles and scroll bars, the status bar, the cursor
-   (src/ui/draw.asm). Row 0 the menu bar; the windows' rows (wind.h); row 24 the status bar. */
+   (src/ui/draw.asm). Row 0 the menu bar; the windows' rows (window.h); row 24 the status bar. */
 #ifndef UI_DRAW_H
 #define UI_DRAW_H
 #include "ui/ui.h"

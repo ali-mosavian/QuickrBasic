@@ -3,7 +3,7 @@
 #include "session.h"
 #include "comp/dfa.h"
 #include "io/repl.h"
-#include "mem/symb.h"
+#include "mem/symbols.h"
 
 void ast_init(Session *const S) { arena_init(&S->ast.arena, AST_CHUNK); }
 

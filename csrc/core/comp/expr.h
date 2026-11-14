@@ -1,10 +1,10 @@
 /* The expression parser (comp/expr.asm): precedence climbing over comp.p builds a tree
-   (comp/ast.h); fold_tree folds it and gen_tree (comp/gen.h) turns it into code. */
+   (comp/ast.h); fold_tree folds it and cg_tree (comp/codegen.h) turns it into code. */
 #ifndef COMP_EXPR_H
 #define COMP_EXPR_H
 #include "comp/comp.h"
 #include "comp/ast.h"
-#include "comp/gen.h"
+#include "comp/codegen.h"
 
 typedef struct {
     bool dbltgt;         /* g_cwd: the assignment's target is a DOUBLE */

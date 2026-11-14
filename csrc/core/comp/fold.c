@@ -5,7 +5,7 @@
 #include "comp/comp.h"
 #include "comp/dfa.h"
 #include "comp/expr.h"
-#include "mem/symb.h"
+#include "mem/symbols.h"
 #include "vm/exec.h"
 #include "vm/flow.h"
 
@@ -171,7 +171,7 @@ void fold_tree(Session *const S, Node *const i)
     if (!literal(S, n->a) || (n->kind == N_BIN && !literal(S, n->b)))
         return;
     uint8_t *const start = S->code.out;
-    gen_tree(&S->code, i);
+    cg_tree(&S->code, i);
     const uint8_t t = S->code.type, sh = code_shclass(&S->code);
     Cell v;
     const bool ok = (t == T_INT || t == T_FLT || t == T_DBL) && eval(S, start, &v);

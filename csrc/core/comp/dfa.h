@@ -2,7 +2,7 @@
    minimized. States x classes: scanner 662 x 27, parser 308 x 23; each
    sparse: the scanner's transitions a list per state, the parser's a default and its
    exceptions, an entry its code | the next state << 8. The tables are defined where DFA_DATA
-   is (comp/lexr.c). */
+   is (comp/lexer.c). */
 #ifndef COMP_DFA_H
 #define COMP_DFA_H
 #include "vm/exec.h"

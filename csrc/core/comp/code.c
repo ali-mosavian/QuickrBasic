@@ -1,8 +1,8 @@
 #include "comp/code.h"
 #include <string.h>
 #include "comp/ast.h"
-#include "mem/symb.h"
-#include "num/fmth.h"
+#include "mem/symbols.h"
+#include "num/fpmath.h"
 #include "vm/exec.h"
 
 void code_byte(Code *const c, const uint8_t b)

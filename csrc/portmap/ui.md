@@ -13,10 +13,10 @@ implementer's unless given. Platform: `plat/pscr.h` (screen), `plat/pmou.h` (mou
 - A key `AX` is a `uint16_t`, scan << 8 | char; `0FFFFh` `KEY_ALT`, `MS_KEY` `KEY_MOUSE`.
 - A flag result is a `bool`, true the success: `CF set: none` → false. Each prototype says which.
 - `TLBUF` and `TEDBUF` are one `LineBuf` whose `text` points at its storage (`uimn.edline_text`
-  ..); `uimn_start` sets them (uimn stays zeroed, out of the image's data), view.c and dpan.c
+  ..); `uimn_start` sets them (uimn stays zeroed, out of the image's data), view.c and debugpane.c
   their own fields'.
 - The clipboard `g_clpb` (regions.asm, IDE only) is `uimn.text.clip[CLIPSZ]`: no Addr reaches it,
-  so it is not carved from the arena. `g_scrb` is scrn.c's static `PscrCell[2000]`.
+  so it is not carved from the arena. `g_scrb` is screen.c's static `PscrCell[2000]`.
 - `g_state.io.ocap = 80h; sbx = 0; ...; ocap = 0` (capture to sbuf) is `cons.capture = CAP_SBUF;
   cons.sblen = 0; ...; cons.capture = 0`; `g_sbuf` `cons.sbuf`, `g_inbuf` `cons.inbuf`, `g_cbuf`
   `comp_cbuf`, `g_xbuf` `comp_xbuf`.
@@ -27,18 +27,18 @@ implementer's unless given. Platform: `plat/pscr.h` (screen), `plat/pmou.h` (mou
 
 | C now | file | C name |
 |---|---|---|
-| `extern bool ui_on` | io/repl.c, vm/chai.c | `uimn.on` (`#include "ui/uimn.h"` under `#if IDE`) |
+| `extern bool ui_on` | io/repl.c, vm/chain.c | `uimn.on` (`#include "ui/uimain.h"` under `#if IDE`) |
 | `ui_start()` | io/repl.c | `uimn_start()` |
 | `ui_ready()` | io/repl.c | `uimn_ready()` |
 | `ui_err(code)` | io/repl.c | `uimn_error(code)` |
-| `lm_init()` | main.c | `lmap_init()` (`ui/lmap.h`) |
-| `dbug.hook` (vm/dbug.h) | `DebugHooks.trace` | installed by `udbg_init` via `session_debug` |
+| `lm_init()` | main.c | `lmap_init()` (`ui/linemap.h`) |
+| `dbug.hook` (vm/debug.h) | `DebugHooks.trace` | installed by `udbg_init` via `session_debug` |
 | `dbug.emit` | | set by `udbg_init` |
-| `lexr_colof`, `lexr.col`, `lexr.all` (comp/lexr.h, IDE) | | used by edit (`ui_dxerr`), synt, udbg |
+| `lexr_colof`, `lexr.col`, `lexr.all` (comp/lexer.h, IDE) | | used by edit (`ui_dxerr`), synt, udbg |
 | `link_walk` (comp/link.h, IDE) | | used by edit (`ui_canon`'s `cm_walk`) |
-| `decl_proc` (comp/decl.h, IDE) | | used by view (`dc_proc`) |
-| `decl_tail`, `decl_step` (comp/decl.h, AC) | | used by cmpl |
-| `list_body` (comp/list.h) | | used by text, edit (`ls_body`) |
+| `decl_proc` (comp/declare.h, IDE) | | used by view (`dc_proc`) |
+| `decl_tail`, `decl_step` (comp/declare.h, AC) | | used by cmpl |
+| `list_body` (comp/listing.h) | | used by text, edit (`ls_body`) |
 | `comp.check` (`cm.cchk`) | | set by edit around `comp_line` |
 
 ## Core names the UI uses
@@ -115,7 +115,7 @@ implementer's unless given. Platform: `plat/pscr.h` (screen), `plat/pmou.h` (mou
 | `ms_poll`* (CF) | `bool mous_poll()` |
 | `ms_title`* (DL → AL, CF set none) | `bool mous_title(col, &menu)` |
 | `ms_main`* | `mous_main()` |
-| `MS_PRESS MS_DRAG MS_UP MS_MOVE` | same (mous.h) |
+| `MS_PRESS MS_DRAG MS_UP MS_MOVE` | same (mouse.h) |
 | `MS_KEY` | `KEY_MOUSE` (ui.h) |
 | `g_ui.ms.ms_on ms_b ms_ev ms_pos ms_hov` | `uimn.mouse.on button event row,col hover` |
 
@@ -289,7 +289,7 @@ implementer's unless given. Platform: `plat/pscr.h` (screen), `plat/pmou.h` (mou
 | `TMSGD`, `g_ui.dg.*` but `ls_v`, `bf.msg_txt msg_d ls_fl ls_dl dl_mask dl_path dl_dta` | static (`ls_f`, `ls_d` statically initialised with their item buffers: ui_start's setup) |
 | `g_ui.bf.dl_fn`, `dl_name` | `uimn.fname`, `uimn.chosen` |
 | `g_ui.bf.fd_what`, `fd_to`, `g_ui.fd.fd_case`, `fd_whole` | `uimn.find_what`, `uimn.change_to`, `uimn.match_case`, `uimn.whole_word` |
-| `CT_* CF_NOF DO_OK DS_OK DF_OK DC_FV` | same (dlog.h); `DLOG_ESC` FFh |
+| `CT_* CF_NOF DO_OK DS_OK DF_OK DC_FV` | same (dialog.h); `DLOG_ESC` FFh |
 | `u_open u_saveas u_find u_change u_fname u_files u_dirs u_skip u_chg1 u_fwhat u_cto u_case u_whole u_fverify u_chall u_mbas u_bas u_star u_yes u_no` | static |
 | `DL_WRAP` | static (44) |
 
@@ -326,7 +326,7 @@ implementer's unless given. Platform: `plat/pscr.h` (screen), `plat/pmou.h` (mou
 | `ac_tab`* (CF set: nothing fits) | `bool cmpl_tab()` |
 | every other `ac_*`, `ac_vst ac_ops ac_lpar ac_args ac_x` | static |
 | `g_ui.ac.*` (TCOMPL), `bf.ac_ev`, `bf.ac_list`, `TACE` | static |
-| `AM_* AP_* AC_ROWS AC_LEN AK_* AT_* AC_PREV AC_MAX AC_SZ AC_EVN` | static (cmpl.c) |
+| `AM_* AP_* AC_ROWS AC_LEN AK_* AT_* AC_PREV AC_MAX AC_SZ AC_EVN` | static (complete.c) |
 
 ## ui → uimn
 
@@ -350,7 +350,7 @@ implementer's unless given. Platform: `plat/pscr.h` (screen), `plat/pmou.h` (mou
 | `u_kedit`*, `u_krun`*, `u_kimm`* (text, then last column, routine) | `uimn_keys_edit`, `uimn_keys_run`, `uimn_keys_imm` (`StatusKeys`) |
 | `u_ok`*, `u_cancel`*, `u_bhelp`*, `u_untl`*, `u_mbar`*, `u_dlg`* | `uimn_ok`, `uimn_cancel`, `uimn_helpbtn`, `uimn_untitled`, `uimn_menu_help`, `uimn_dlog_help` |
 | `u_imm`*, `u_f1`*, `u_f1s`* | draw.c's statics |
-| `u_open` .. `u_star`* (dlg's), `bt_ok`*, `bt_ync`* | dlog.c's statics |
+| `u_open` .. `u_star`* (dlg's), `bt_ok`*, `bt_ync`* | dialog.c's statics |
 | `u_oom`, `u_range`, `u_order` | unused, dropped |
 | `u_notfound u_overw u_nomatch u_chdone u_notsaved u_access u_wordp u_nohelp u_about u_welcome u_anykey u_esc`, `bt_wel` | static |
 | `g_ui`* | `uimn` (ui.h) |
@@ -361,7 +361,7 @@ implementer's unless given. Platform: `plat/pscr.h` (screen), `plat/pmou.h` (mou
 | `g_ui.bf.uc_line`, `sy_buf`, `ui_fn`, `ui_ebuf` | `uimn.line`, `uimn.build`, `uimn.file`, `uimn.errmsg` |
 | `IMN IMW ED_COLS DLBUF FLDMAX TXMAX LNMAX LNBUF HLPSZ` | ui.h |
 | `VIDEO` | dos32 pscr's |
-| `LSMAX` | dlog.c's |
+| `LSMAX` | dialog.c's |
 
 ## Platform declarations added
 

@@ -1,5 +1,5 @@
 /* Numbers' text: PRINT's spelling and VAL's reading (num/dubl). */
-#include "num/dubl.h"
+#include "num/double.h"
 #include "unit.h"
 
 static uint32_t fmt(const double v, uint8_t out[static DUBL_TXT]) { return dubl_fmt(v, out); }

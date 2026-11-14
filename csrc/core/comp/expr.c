@@ -1,22 +1,22 @@
 /* The expression compiler (comp/expr.asm). Precedences: OR 46h, AND 50h, NOT 5Ah, > = < 64h,
    + - 78h, * / 7Bh, unary - 7Dh, ^ 7Fh. */
 #include "comp/expr.h"
-#include "comp/fns.h"
+#include "comp/builtins.h"
 #include "comp/fold.h"
-#include "comp/ref.h"
+#include "comp/refs.h"
 #include "comp/sema.h"
 #include "session.h"
-#include "comp/blok.h"
-#include "comp/ctrl.h"
-#include "comp/decl.h"
+#include "comp/blocks.h"
+#include "comp/control.h"
+#include "comp/declare.h"
 #include "comp/dfa.h"
 #include "io/repl.h"
-#include "mem/scop.h"
-#include "mem/strg.h"
-#include "mem/symb.h"
-#include "num/dubl.h"
-#include "num/fmth.h"
-#include "num/sngl.h"
+#include "mem/scope.h"
+#include "mem/string.h"
+#include "mem/symbols.h"
+#include "num/double.h"
+#include "num/fpmath.h"
+#include "num/single.h"
 #include "vm/flow.h"
 
 const uint8_t expr_ktype[5] = {T_FLT, T_INT, T_STR, T_DBL, T_DBL};
@@ -112,7 +112,7 @@ void expr_emit(Session *const S, Node *const root)
     const uint8_t *const end = S->comp.p;
     sema_tree(S, root);
     fold_tree(S, root);
-    gen_tree(&S->code, root);
+    cg_tree(&S->code, root);
     S->comp.p = end;
 }
 

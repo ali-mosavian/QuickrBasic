@@ -6,7 +6,7 @@
    index: FIELD's strings point into it, so it is in the arena. */
 #ifndef CORE_IO_FILE_H
 #define CORE_IO_FILE_H
-#include "io/chnl.h"
+#include "io/channel.h"
 
 typedef struct {
     uint8_t mode;    /* OPEN's mode, FM_* */

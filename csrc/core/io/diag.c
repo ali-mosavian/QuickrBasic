@@ -3,9 +3,9 @@
 #include "io/diag.h"
 #include "session.h"
 #include "comp/comp.h"
-#include "comp/lexr.h"
-#include "io/cons.h"
-#include "io/emsg.h"
+#include "comp/lexer.h"
+#include "io/console.h"
+#include "io/errmsg.h"
 #include "io/repl.h"
 #include "vm/exec.h"
 

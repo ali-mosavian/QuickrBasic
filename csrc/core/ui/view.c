@@ -1,16 +1,16 @@
 /* Views: the module and each SUB or FUNCTION on its own (src/ui/view.asm). */
 #include "ui/view.h"
 #include "session.h"
-#include "ui/dlog.h"
+#include "ui/dialog.h"
 #include "ui/edit.h"
-#include "ui/lmap.h"
+#include "ui/linemap.h"
 #include "ui/text.h"
-#include "ui/uimn.h"
-#include "ui/wind.h"
+#include "ui/uimain.h"
+#include "ui/window.h"
 #include "comp/comp.h"
-#include "comp/decl.h"
+#include "comp/declare.h"
 #include "mem/copy.h"
-#include "mem/prog.h"
+#include "mem/program.h"
 
 /* The 0-ended s to d, its 0 too. */
 static void copy_str(char *const d, const char *const s) { memcpy(d, s, strlen(s) + 1); }

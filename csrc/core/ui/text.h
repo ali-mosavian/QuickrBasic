@@ -1,7 +1,7 @@
 /* The editor's text: the program store's lines; the clipboard; files (src/ui/text.asm).
 
    The text is the program store: a line a record, uimn.text.all of them, at least one, in
-   order, each found by the line map (lmap.h). A line is its record's pre bytes (its indent and
+   order, each found by the line map (linemap.h). A line is its record's pre bytes (its indent and
    number as typed), then its body as LIST spells it; an LF_ASIS line is its pre alone (a line
    with a syntax error, kept as typed; uimn.text.asis asks it of the next line stored). A line's
    mark (a breakpoint) is its LF_BP. The clipboard: uimn.text.clip_len bytes of

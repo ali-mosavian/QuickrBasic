@@ -4,10 +4,10 @@
 #include "plat/pscr.h"
 #include "ui/draw.h"
 #include "ui/edit.h"
-#include "ui/mous.h"
-#include "ui/scrn.h"
-#include "ui/synt.h"
-#include "ui/uimn.h"
+#include "ui/mouse.h"
+#include "ui/screen.h"
+#include "ui/highlight.h"
+#include "ui/uimain.h"
 
 /* An item: its command, flags, text ('&' before its hotkey), its key's name ("" none). A
    separator is {ACT_NONE, MF_SEP}; act 0 ends a menu. */

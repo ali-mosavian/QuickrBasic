@@ -1,4 +1,4 @@
-/* A line's trees: built by the parser (expr.c, ref.c), folded (fold.c), turned into code (gen.c).
+/* A line's trees: built by the parser (expr.c, refs.c), folded (fold.c), turned into code (gen.c).
    Their nodes come from the statement's arena, freed all at once when the next statement starts.
 
    Leaves: a literal load (N_LIT: a number, a string, a CONST's value, a size), a scalar variable
@@ -14,7 +14,7 @@
 #include "base.h"
 #include "defs.h"
 #include "util/arena.h"
-#include "mem/symb.h"
+#include "mem/symbols.h"
 #include "vm/exec.h"
 
 typedef enum : uint8_t {

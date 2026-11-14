@@ -52,7 +52,7 @@ every `jmp rpl_ready` (ex_end, ex_ready) is `repl_ready()`, a longjmp there.
 | `io_prompt` | `cons_prompt()` |
 | `io_read` | `cons_read()` |
 | `io_field` | `cons_field()` |
-| `g_msgs`, `g_kwlist`, `g_kwlist1` (gen.inc) | `cons_msgs`, `cons_kwlist`, `cons_kwlist1` (io/gen.h, x86dfa.py; defined in cons.c) |
+| `g_msgs`, `g_kwlist`, `g_kwlist1` (gen.inc) | `cons_msgs`, `cons_kwlist`, `cons_kwlist1` (io/gen.h, x86dfa.py; defined in console.c) |
 
 ### `g_state.io` (TIO)
 

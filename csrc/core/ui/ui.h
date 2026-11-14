@@ -1,10 +1,10 @@
 /* The editor's shared constants, records and state (src/ui/ui.inc's g_ui), for every csrc/core/ui
-   module. uimn (ui/uimn.c) defines uimn; a g_ui field only one module used is that module's
+   module. uimn (ui/uimain.c) defines uimn; a g_ui field only one module used is that module's
    static instead (csrc/portmap/ui.md says where each went).
 
-   The screen: row 0 the menu bar, rows 1 to 23 the windows (wind.h), row 24 the status bar. A
+   The screen: row 0 the menu bar, rows 1 to 23 the windows (window.h), row 24 the status bar. A
    place on it is a row and a column, 0-based. Drawing names attribute slots (SL_*), which the
-   theme (them.h) makes attributes.
+   theme (theme.h) makes attributes.
 
    The editor runs under repl_main's setjmp (io/repl.h): uimn_start, uimn_ready and uimn_error
    end in the key loop, which never returns. A run or an error unwinds the C stack to repl.top,
@@ -27,7 +27,7 @@ enum {
     CLIPSZ = 0x10000, /* the clipboard's bytes (the asm's g_clpb) */
 };
 
-/* Attribute slots (the asm's A_ED ..): each theme's attribute for it (them.h). */
+/* Attribute slots (the asm's A_ED ..): each theme's attribute for it (theme.h). */
 enum : uint8_t {
     SL_ED,   /* the edit windows' text, frames */
     SL_SEL,  /* the selection */
@@ -99,10 +99,10 @@ enum : uint8_t {
 /* uimn.focus: which window has the keys (ui_foc). */
 enum : uint8_t { FOC_EDIT = 0, FOC_IMM = 1, FOC_PANE = 2 };
 
-/* The windows, top down (wind.h); the debug pane is beside them, not in uimn.win.win[]. */
+/* The windows, top down (window.h); the debug pane is beside them, not in uimn.win.win[]. */
 enum : uint8_t { W_HELP = 0, W_ED1 = 1, W_ED2 = 2, W_IMM = 3, NWIN = 4, W_DBG = NWIN };
 
-/* The debug pane's columns (dpan.h): the edit windows have DP_COL while it is shown. */
+/* The debug pane's columns (debugpane.h): the edit windows have DP_COL while it is shown. */
 enum { DP_COL = 50, DP_W = 30, DP_TW = DP_W - 2 };
 
 /* A line being edited (TLBUF, TEDBUF): its text where text points, DLBUF bytes for a dialog
@@ -142,7 +142,7 @@ typedef struct {
 } UiText;
 
 /* An edit window: its view, the cursor, the selection, its place (TEDIT). The active window's
-   is uimn.ed, the other's waits in uimn.win.win[w].ed (wind.h swaps them). */
+   is uimn.ed, the other's waits in uimn.win.win[w].ed (window.h swaps them). */
 typedef struct {
     uint32_t line;    /* ed_line: the cursor's line in the view */
     uint32_t top;     /* ed_top: the first shown */
@@ -189,11 +189,11 @@ typedef struct {
     uint8_t hist[IMN][IMW]; /* im_h: each line's length, then its text */
 } UiImm;
 
-/* The mouse (TMOUSE); mous.h. */
+/* The mouse (TMOUSE); mouse.h. */
 typedef struct {
     bool on;        /* ms_on: a driver answered */
     uint8_t button; /* ms_b: the left button as last polled */
-    uint8_t event;  /* ms_ev: MS_* (mous.h) */
+    uint8_t event;  /* ms_ev: MS_* (mouse.h) */
     uint8_t row, col; /* ms_pos: its cell at the event */
     bool hover;     /* ms_hov: a move with no button is an event (the key loop's wait) */
 } UiMouse;
@@ -207,7 +207,7 @@ typedef struct {
     bool tip_mouse;   /* dp.tt_ms: the tooltip by the mouse, else by the cursor */
     bool stopped;     /* ud.stopd: stopped, CONT goes on (not after END) */
 
-    /* Before the big arrays: dlog.c's static tables point at these, and llrm-cc's
+    /* Before the big arrays: dialog.c's static tables point at these, and llrm-cc's
        object writer keeps only 16 bits of a data pointer's offset. */
     bool match_case;  /* fd.fd_case: Find's Match Upper/Lowercase */
     bool whole_word;  /* fd.fd_whole: Whole Word */

@@ -8,7 +8,7 @@
    rounding the asm's 24-bit control word gives (53 >= 2*24+2). Each function sets the precision
    and rounding its asm routine used and puts 027Fh back.
 
-   A FLOAT goes in and out as its bits (num/sngl.h's Sngl), a result stored by fstp straight from
+   A FLOAT goes in and out as its bits (num/single.h's Sngl), a result stored by fstp straight from
    the 80-bit register, so it rounds once. A function that can fail returns PFPU_OK or the error;
    it never leaves anything on the x87's stack. */
 #ifndef PLAT_PFPU_H

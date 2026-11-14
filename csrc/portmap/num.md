@@ -28,8 +28,8 @@ other `err_*` are `repl_error(E_*)`.
 |---|---|
 | g_state.ft.rs | `rndm.seed`; main sets `RNDM_SEED0` |
 | fn_rnd | `rndm_rnd` |
-| flt_pi, g_kpi | `SNGL_PI` (sngl.h) |
-| g_kone | `SNGL_ONE` (sngl.h) |
+| flt_pi, g_kpi | `SNGL_PI` (single.h) |
+| g_kone | `SNGL_ONE` (single.h) |
 
 ## fpu.asm → fmth, pfpu
 

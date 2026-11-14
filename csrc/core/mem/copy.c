@@ -1,6 +1,6 @@
 #include "mem/copy.h"
 #include "session.h"
-#include "mem/prog.h"
+#include "mem/program.h"
 
 void copy_mem(const Addr dst, const Addr src, const uint32_t len) { memmove(at(dst), at(src), len); }
 

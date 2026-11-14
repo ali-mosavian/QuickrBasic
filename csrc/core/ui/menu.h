@@ -6,7 +6,7 @@
 #ifndef UI_MENU_H
 #define UI_MENU_H
 #include "ui/ui.h"
-#include "ui/them.h"
+#include "ui/theme.h"
 
 enum { NMENU = 8 };
 

@@ -1,0 +1,108 @@
+#include "num/single.h"
+#include "session.h"
+#include "io/console.h"
+#include "num/double.h"
+
+enum : uint8_t { TOK_PLUS = 0xAA, TOK_MINUS = 0xAB }; /* comp/dfa.h's TK_PLUS, TK_MINUS */
+
+Sngl sngl_abs(const Sngl a) { return a & ~SNGL_SIGN; }
+
+/* a's place in the order of SINGLEs: sign and magnitude as a signed integer. */
+static int32_t order_key(const Sngl a)
+{
+    const int32_t k = (int32_t)(a & ~SNGL_SIGN);
+    return a & SNGL_SIGN ? -k : k;
+}
+
+int sngl_cmp(const Sngl a, const Sngl b)
+{
+    const int32_t ka = order_key(a);
+    const int32_t kb = order_key(b);
+    return ka == kb ? 0 : ka > kb ? 1 : -1;
+}
+
+int sngl_sgn(const Sngl a)
+{
+    if (!(a & ~SNGL_SIGN))
+        return 0;
+    return a & SNGL_SIGN ? -1 : 1;
+}
+
+Sngl sngl_norm(const uint32_t mag, const bool neg)
+{
+    const int top = 31 - __builtin_clz(mag);
+    return ((mag << (SNGL_EXP_SHIFT - top)) & SNGL_MANT) | (uint32_t)(top + FBIAS) << SNGL_EXP_SHIFT |
+           (neg ? SNGL_SIGN : 0);
+}
+
+bool sngl_w16(const Sngl a, int16_t *const out)
+{
+    const uint32_t e = a >> SNGL_EXP_SHIFT & SNGL_EXP_MASK;
+    if (!e) {
+        if (a & SNGL_MANT)
+            return false; /* a denormal */
+        *out = 0;
+        return true;
+    }
+    if (e < FBIAS || e - FBIAS >= 15)
+        return false;
+    const uint32_t m = (a & SNGL_MANT) | SNGL_IMPLICIT;
+    const uint32_t shift = SNGL_EXP_SHIFT - (e - FBIAS);
+    if (m & ((1u << shift) - 1)) /* not whole */
+        return false;
+    const int16_t v = (int16_t)(m >> shift);
+    *out = a & SNGL_SIGN ? (int16_t)-v : v;
+    return true;
+}
+
+bool sngl_skipsign(const uint8_t **const p)
+{
+    while (**p == ' ')
+        ++*p;
+    const uint8_t c = **p;
+    if (c == '-' || c == TOK_MINUS) {
+        ++*p;
+        return true;
+    }
+    if (c == '+' || c == TOK_PLUS)
+        ++*p;
+    return false;
+}
+
+/* c as a digit of base 1 << bits; -1 none. */
+static int digit_of(const uint8_t c, const uint8_t bits)
+{
+    const uint8_t d = c - '0';
+    if (d < 10)
+        return d < 1u << bits ? d : -1;
+    const uint8_t x = upcase(c) - 'A';
+    return bits == 4 && x < 6 ? x + 10 : -1;
+}
+
+bool sngl_hexoct(const uint8_t **const p, uint32_t *const val)
+{
+    const uint8_t base = upcase(**p);
+    const uint8_t bits = base == 'H' ? 4 : base == 'O' ? 3 : 0;
+    if (!bits)
+        return false;
+    const uint8_t *s = *p + 1;
+    uint32_t v = 0;
+    for (int d; (d = digit_of(*s, bits)) >= 0; s++)
+        v = v << bits | (uint32_t)d;
+    *p = s;
+    *val = v;
+    return true;
+}
+
+Sngl sngl_from_dbl(const double d) { return sngl_bits((float)d); }
+
+Sngl sngl_in(Session *const S, const uint8_t **const p) { return sngl_from_dbl(dubl_in(S, p, nullptr)); }
+
+void sngl_print(Session *const S, const Sngl a)
+{
+    uint8_t t[DUBL_TXT];
+    const uint32_t n = dubl_fmtf(a, t);
+    for (uint32_t i = 0; i < n; i++)
+        cons_putc(S, t[i]);
+    cons_space(S);
+}

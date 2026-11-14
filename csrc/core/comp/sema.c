@@ -1,10 +1,10 @@
 #include "comp/sema.h"
 #include "session.h"
-#include "comp/ctrl.h"
+#include "comp/control.h"
 #include "comp/dfa.h"
-#include "comp/fns.h"
+#include "comp/builtins.h"
 #include "io/repl.h"
-#include "mem/symb.h"
+#include "mem/symbols.h"
 
 [[noreturn]] static void mismatch(Session *const S) { repl_error(S, E_TM); }
 
@@ -51,7 +51,7 @@ static void string(Session *const S, Node *const n)
         mismatch(S);
 }
 
-/* gen_as's: n as a number. */
+/* cg_as's: n as a number. */
 static void as_number(Session *const S, Node *const n)
 {
     check(S, n);
