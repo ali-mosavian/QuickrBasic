@@ -6,6 +6,7 @@
 #include "session.h"
 #include "comp/suggest.h"
 #include "unit.h"
+#include "corpus.h"
 
 static const char *const program[] = {
     "10 TYPE pair",
@@ -31,12 +32,7 @@ static const char *const program[] = {
     nullptr,
 };
 
-typedef struct {
-    const char *typed, *first, *guess, *has, *hasnt;
-    uint16_t at;
-} Case;
-
-static const Case cases[] = {
+static const CorpusCase cases[] = {
     /* a statement's start */
     {"pr", "PRINT", "INT", "PRINT#", "LEN|COUNTER", 0},
     {"go", "GOTO", "TO", "GOSUB", "", 0},
@@ -188,7 +184,7 @@ static uint32_t corpus_rec(const Session *const S, const uint16_t num)
     return S->prog.end;
 }
 
-static bool corpus_case(Session *const S, const Case *const c)
+static bool corpus_case(Session *const S, const CorpusCase *const c)
 {
     static Suggs out;
     const uint16_t n = (uint16_t)strlen(c->typed);
@@ -218,14 +214,21 @@ static bool corpus_case(Session *const S, const Case *const c)
     return ok;
 }
 
-/* Every case as expected. */
-TEST(suggest_corpus)
+uint32_t corpus_run(
+    Session *const S,
+    const char *const *const program,
+    const CorpusCase *const cases,
+    const uint32_t n
+)
 {
     unit_store(S, program);
     uint32_t bad = 0;
 
-    for (uint32_t i = 0; i < countof(cases); i++)
+    for (uint32_t i = 0; i < n; i++)
         bad += !corpus_case(S, &cases[i]);
 
-    CHECK(!bad);
+    return bad;
 }
+
+/* Every case as expected. */
+TEST(suggest_corpus) { CHECK(!corpus_run(S, program, cases, countof(cases))); }

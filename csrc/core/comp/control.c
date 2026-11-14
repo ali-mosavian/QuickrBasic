@@ -870,8 +870,13 @@ static bool subcall(Comp *const C)
     if (checkonly(C)) {
         if (*comp_skipname(C->p) == TK_EQ) /* f = e: a FUNCTION's result, checked as any */
             return false;
+        if (!(symb_name(C->symb, comp_nameof(C->p))->flags & NM_SUB)) {
+            skip(C);
+            return true;
+        }
 
-        skip(C);
+        skipvar(C); /* a SUB's call: its arguments checked, their count the link's */
+        ref_dropargs(C, false);
         return true;
     }
 

@@ -74,11 +74,15 @@ typedef struct {
     Lexr *lexr;
     const Prog *prog;
     const Scop *scop;
+    const Decl *decl; /* the TYPEs */
+    Symb *symb;       /* the names, found by their texts */
 } SuggSrc;
 
 static struct {
     uint8_t before[TEXT_MAX]; /* the line before the word */
     bool either;              /* after THEN or ELSE: a line number or a statement */
+    bool as;                  /* after AS: a type, the program's TYPEs too */
+    bool hash;                /* after '#': a file's number */
     uint16_t nbefore;
     bool broken;  /* it fails before its end: no verdicts */
     bool str_ok;  /* a string fits after it */
@@ -211,6 +215,10 @@ static void sugg_tail(const uint8_t *const body, const uint32_t len)
     const uint8_t c = last ? *last : 0;
     const bool resume = c == TK_X && last[1] == TK1_RESUME;
     sg.either = c == TK_THEN || c == TK_ELSE;
+    sg.as = c == TK_AS;
+    sg.hash = c == '#';
+    sg.as = c == TK_AS;
+    sg.hash = c == '#';
     sg.jump = c == TK_GOTO || c == TK_GOSUB || c == TK_RUN || c == TK_LIST || c == TK_RES ||
               resume || (on && c == ',');
 }
@@ -491,6 +499,13 @@ static uint8_t sugg_last(void)
     return n ? sg.before[n - 1] : 0;
 }
 
+static bool sugg_suffix(const uint8_t c)
+{
+    return c == '$' || c == '%' || c == '&' || c == '!' || c == '#';
+}
+
+static int32_t sugg_left(const SuggSrc *src);
+
 /* What goes on after the word (wn characters at typed, wn capitals at word): a mark right after
    it, a joining keyword after a space; the word with it. One the statement needs, SUGG_NEED: it
    ends the statement (FOR's TO, IF's THEN), or nothing else lets it go on (FOR i's '='). A word
@@ -505,7 +520,7 @@ static void sugg_follow(
 {
     static const char *const follows[] = {
         "(",  ")",   ",",   ";",   "=",   ":",  "TO",   "STEP",  "THEN", "ELSE",  "AND",
-        "OR", "XOR", "MOD", "EQV", "IMP", "AS", "GOTO", "GOSUB", "IS",   "USING",
+        "OR", "XOR", "MOD", "EQV", "IMP", "AS", "GOTO", "GOSUB", "IS",   "USING", "#",
     };
 
     if (wn && out->n && !sugg_known(word, wn)) /* a word being typed */
@@ -518,6 +533,9 @@ static void sugg_follow(
 
     const bool open = sugg_probe(src, typed, wn) == PROBE_MORE;       /* the statement wants more */
     const bool shut = sugg_depth() > 0 && (wn || sugg_last() != '('); /* its ')', not "()" */
+    /* a call's parameters still to come; a header being written: its own count */
+    const bool header = sg.last == TK_SUB || sg.last == TK_FUNCTION || sg.last == TK_DECLARE;
+    const int32_t left = header ? -1 : sugg_left(src);
     const bool known = wn && sugg_known(word, wn);
     Sugg fit[countof(follows)];
     uint32_t nfit = 0, nmore = 0; /* those fitting; of them, those the statement goes on by */
@@ -528,7 +546,7 @@ static void sugg_follow(
             continue;
 
         const uint16_t fn = (uint16_t)strlen(follows[i]);
-        const bool mark = fn == 1 && !is_letter((uint8_t)follows[i][0]);
+        const bool mark = fn == 1 && !is_letter((uint8_t)follows[i][0]) && follows[i][0] != '#';
         const uint16_t gap = !mark && wn ? 1 : 0;
         const uint16_t pn = wn + gap + fn;
 
@@ -542,13 +560,16 @@ static void sugg_follow(
         memcpy(probe + wn + gap, follows[i], fn);
         memcpy(text + wn + gap, follows[i], fn);
 
+        if ((left > 0 && follows[i][0] == ')') || (!left && follows[i][0] == ','))
+            continue; /* a call of the program's: its parameters' count */
         if (!sugg_fits(src, probe, pn))
             continue;
 
         memcpy(probe + pn, " 0", 2);
-        const bool close = shut && follows[i][0] == ')';
+        const bool close = shut && left <= 0 && follows[i][0] == ')';
+        const bool more = left > 0 && follows[i][0] == ',';
         const bool ends =
-            close || (open && !longer && sugg_probe(src, probe, pn + 2u) == PROBE_DONE);
+            close || more || (open && !longer && sugg_probe(src, probe, pn + 2u) == PROBE_DONE);
         /* needed: first by the list's order, THEN before GOTO; a word it may start: after it */
         const int16_t score = ends                   ? (int16_t)(SUGG_NEED + countof(follows) - i)
                               : longer               ? 0
@@ -563,7 +584,6 @@ static void sugg_follow(
     }
 
     /* a parameter list being declared: another parameter, more likely than its end */
-    const bool header = sg.last == TK_SUB || sg.last == TK_FUNCTION || sg.last == TK_DECLARE;
     Sugg *comma = nullptr;
 
     for (uint32_t i = 0; i < nfit; i++)
@@ -651,14 +671,18 @@ static void sugg_names(
 )
 {
     const uint8_t *p = body;
+    uint8_t prev = 0;
 
     for (uint8_t c; (len ? p < body + len : true) && (c = *p) && c != TK_REM && c != TK_DATA;) {
-        if (c != M_VAR) {
+        if (c != M_VAR || prev == '.' ||
+            prev == TK_AS) { /* r.f's field, AS t's TYPE: no variable */
+            prev = c;
             p = decl_step(p);
             continue;
         }
 
         SuggName n;
+        prev = c;
 
         if (sugg_name(p, &n, &p))
             sugg_use(&n, scope, dist);
@@ -726,6 +750,70 @@ static uint16_t sugg_decimal(const uint16_t n, uint8_t *const s)
 
     s[k] = 0;
     return k;
+}
+
+/* After AS: the program's TYPEs the word starts. */
+static void sugg_types(
+    const SuggSrc *const src,
+    Suggs *const out,
+    const uint8_t *const word,
+    const uint16_t wn
+)
+{
+    for (uint16_t t = 1; t <= src->decl->ntypes; t++) {
+        const uint8_t *const text = symb_text(src->symb, decl_type(src->decl, t)->name);
+        const uint8_t m = sugg_match(word, wn, text + 1, text[0]);
+
+        if (m && sugg_fits(src, text + 1, text[0])) {
+            const Sugg s = sugg_make(text + 1, text[0], SG_VAR, m, 45);
+            sugg_add(out, &s);
+        }
+    }
+}
+
+/* The file numbers the program's lines name after a '#', that the word starts and fit; the
+   program's one file needed. */
+static void sugg_files(
+    const SuggSrc *const src,
+    Suggs *const out,
+    const uint8_t *const word,
+    const uint16_t wn
+)
+{
+    const Prog *const pg = src->prog;
+    uint16_t nums[16];
+    uint32_t n = 0;
+
+    for (uint32_t rec = PROGBASE; prog_line(pg, rec)->len; rec += prog_line(pg, rec)->len) {
+        if (prog_line(pg, rec)->flags & LF_ASIS)
+            continue;
+
+        for (const uint8_t *p = at(prog_addr(pg, rec + HDR)); *p; p = decl_step(p)) {
+            if (*p != '#' || p[1] != M_INT)
+                continue;
+
+            const uint16_t v = (uint16_t)load32(p + 2);
+            uint32_t k = 0;
+
+            while (k < n && nums[k] != v)
+                k++;
+
+            if (k == n && n < countof(nums))
+                nums[n++] = v;
+        }
+    }
+
+    for (uint32_t k = 0; k < n; k++) {
+        uint8_t digits[8];
+        const uint16_t len = sugg_decimal(nums[k], digits);
+        const uint8_t m = sugg_match(word, wn, digits, len);
+
+        if ((m || !wn) && sugg_fits(src, digits, len)) {
+            Sugg s = sugg_make(digits, len, SG_LABEL, m ? m : 2, 80);
+            s.need = n == 1 && !wn;
+            sugg_add(out, &s);
+        }
+    }
 }
 
 /* Where the word is: its line's ordinal, its procedure, and what the scan found of it. */
@@ -802,6 +890,252 @@ static bool sugg_endsin(const uint16_t n, const char *const kw)
     return true;
 }
 
+/* The program's SUB or FUNCTION of n capitals at name: its parameters; -1 none. */
+static int32_t sugg_params(const SuggSrc *const src, const uint8_t *const name, const uint16_t n)
+{
+    const Prog *const pg = src->prog;
+
+    for (uint32_t rec = PROGBASE; prog_line(pg, rec)->len; rec += prog_line(pg, rec)->len) {
+        const uint8_t *const body = at(prog_addr(pg, rec + HDR));
+        const uint8_t *nm, *p;
+        SuggName sn;
+        const uint8_t kind = decl_proc(body, &nm);
+
+        if ((kind != PK_SUB && kind != PK_FUNC) || !sugg_name(nm, &sn, &p))
+            continue;
+        if (sn.len - (*p == '(') != n || memcmp(sn.text, name, n))
+            continue;
+        if (*p != '(')
+            return 0;
+
+        p = decl_step(p);
+        int32_t count = *p != ')';
+
+        for (uint32_t depth = 1; *p && depth; p = decl_step(p)) {
+            depth += *p == '(' ? 1 : *p == ')' ? -1 : 0;
+            count += depth == 1 && *p == ',';
+        }
+
+        return count;
+    }
+
+    return -1;
+}
+
+/* The innermost '(' open in the line before the word, its index; -1 none. */
+static int32_t sugg_paren(void)
+{
+    int32_t stack[16];
+    uint32_t depth = 0;
+    bool str = false;
+
+    for (uint16_t i = 0; i < sg.nbefore; i++) {
+        const uint8_t c = sg.before[i];
+        str ^= c == '"';
+
+        if (str)
+            continue;
+        if (c == '(' && depth < countof(stack))
+            stack[depth++] = i;
+        else if (c == ')' && depth)
+            depth--;
+    }
+
+    return depth ? stack[depth - 1] : -1;
+}
+
+/* The name before the '(' at open in the line before the word, in capitals to name; its length,
+   0 none. */
+static uint16_t sugg_callee(const int32_t open, uint8_t *const name)
+{
+    int32_t e = open;
+
+    while (e > 0 && sg.before[e - 1] == ' ')
+        e--;
+
+    int32_t b = e;
+
+    while (b > 0 && (is_letter(sg.before[b - 1]) || is_digit(sg.before[b - 1]) ||
+                     sugg_suffix(sg.before[b - 1])))
+        b--;
+
+    if (open < 0 || b == e || e - b > SUGG_LEN)
+        return 0;
+
+    for (int32_t i = b; i < e; i++)
+        name[i - b] = upcase(sg.before[i]);
+
+    name[e - b] = 0;
+    return (uint16_t)(e - b);
+}
+
+/* The statement the word is in: a name and a blank, its arguments after: the name in capitals to
+   name, its length (0 none), *open the blank's index. */
+static uint16_t sugg_bare(int32_t *const open, uint8_t *const name)
+{
+    int32_t s = 0;
+    bool str = false;
+
+    for (int32_t i = 0; i < sg.nbefore; i++) { /* past the statements before it */
+        str ^= sg.before[i] == '"';
+        s = !str && sg.before[i] == ':' ? i + 1 : s;
+    }
+
+    while (s < sg.nbefore && sg.before[s] == ' ')
+        s++;
+
+    int32_t e = s;
+
+    while (e < sg.nbefore && (is_letter(sg.before[e]) || is_digit(sg.before[e])))
+        e++;
+
+    if (e == s || e >= sg.nbefore || sg.before[e] != ' ' || e - s > SUGG_LEN)
+        return 0;
+
+    for (int32_t i = s; i < e; i++)
+        name[i - s] = upcase(sg.before[i]);
+
+    *open = e;
+    return (uint16_t)(e - s);
+}
+
+/* A call of the program's procedures open at the word: its parameters after the word's
+   argument; -1 none, or not one of the program's. */
+static int32_t sugg_left(const SuggSrc *const src)
+{
+    int32_t open = sugg_paren();
+    uint8_t name[SUGG_LEN + 1];
+    uint16_t nn = sugg_callee(open, name);
+
+    if (!nn && open < 0) /* a SUB's call without CALL: its name, a space, its arguments */
+        nn = sugg_bare(&open, name);
+    if (!nn)
+        return -1;
+
+    uint32_t arg = 0, depth = 0;
+    bool str = false;
+
+    for (uint16_t i = (uint16_t)open + 1u; i < sg.nbefore; i++) {
+        const uint8_t c = sg.before[i];
+        str ^= c == '"';
+        depth += !str && c == '(' ? 1 : !str && c == ')' ? -1 : 0;
+        arg += !str && !depth && c == ',';
+    }
+
+    const int32_t n = sugg_params(src, name, nn);
+    return n < 0 || (int32_t)arg >= n ? -1 : n - 1 - (int32_t)arg;
+}
+
+/* Past the ( .. ) ending before b[e] backwards: the '(''s index; -1 none matched. */
+static int32_t sugg_back(const uint8_t *const b, int32_t e)
+{
+    for (int32_t depth = 0; e > 0;) {
+        const uint8_t c = b[--e];
+        depth += c == ')' ? 1 : c == '(' ? -1 : 0;
+
+        if (!depth)
+            return e;
+    }
+
+    return -1;
+}
+
+/* The TYPE of the record the line before the word ends in, a '.' after it: a variable's, an
+   element's, down its fields' path; 0 none. */
+static uint8_t sugg_record(const SuggSrc *const src)
+{
+    const uint8_t *const b = sg.before;
+    const int32_t e = sg.nbefore - 1;
+
+    if (e < 1 || b[e] != '.')
+        return 0;
+
+    int32_t s = e; /* the reference's start: names, dots, ( .. ) */
+
+    while (s > 0) {
+        const uint8_t c = b[s - 1];
+
+        if (c == ')')
+            s = sugg_back(b, s);
+        else if (is_letter(c) || is_digit(c) || c == '.' || sugg_suffix(c))
+            s--;
+        else
+            break;
+
+        if (s < 0)
+            return 0;
+    }
+
+    int32_t i = s;
+
+    while (i < e && (is_letter(b[i]) || is_digit(b[i])))
+        i++;
+
+    if (i == s || !is_letter(b[s]))
+        return 0;
+
+    const uint16_t name = symb_find_name(src->symb, b + s, (uint8_t)(i - s));
+    const bool arr = b[i] == '(';
+
+    if (arr) {
+        int32_t depth = 0;
+
+        do
+            depth += b[i] == '(' ? 1 : b[i] == ')' ? -1 : 0;
+        while (++i < e && depth);
+    }
+
+    uint8_t t = scop_rec(src->scop, name, arr);
+
+    while (t && i < e && b[i] == '.') { /* .f: its TYPE's field, a record */
+        const int32_t f0 = ++i;
+
+        while (i < e && (is_letter(b[i]) || is_digit(b[i])))
+            i++;
+
+        const uint16_t fn = symb_find_name(src->symb, b + f0, (uint8_t)(i - f0));
+        const TypeDef *const td = decl_type(src->decl, t);
+        uint8_t sub = 0;
+
+        for (uint32_t k = 0; k < td->nfld; k++)
+            if (td->fields[k].name == fn)
+                sub = (uint8_t)td->fields[k].sub;
+
+        t = sub;
+    }
+
+    return i == e ? t : 0;
+}
+
+/* After a record's '.': its fields the word starts, that fit; false not after one. */
+static bool sugg_fields(
+    const SuggSrc *const src,
+    Suggs *const out,
+    const uint8_t *const word,
+    const uint16_t wn
+)
+{
+    const uint8_t t = sugg_record(src);
+
+    if (!t)
+        return false;
+
+    const TypeDef *const td = decl_type(src->decl, t);
+    sg.broken = false; /* the line before, ending in its '.', fails alone: each field checked */
+
+    for (uint32_t k = 0; k < td->nfld; k++) {
+        const uint8_t *const text = symb_text(src->symb, td->fields[k].name);
+        const uint8_t m = sugg_match(word, wn, text + 1, text[0]);
+
+        if (m && sugg_fits(src, text + 1, text[0])) {
+            const Sugg s = sugg_make(text + 1, text[0], SG_VAR, m, 50);
+            sugg_add(out, &s);
+        }
+    }
+
+    return true;
+}
+
 /* The word starts a statement: the line, ':', THEN or ELSE before it. */
 static bool sugg_starts(void)
 {
@@ -825,6 +1159,7 @@ static void sugg_program(
     uint16_t scope = 0;
     uint32_t ord = 0;
     uint8_t prior = 0;
+    bool intype = false;
 
     for (uint32_t rec = PROGBASE; prog_line(pg, rec)->len; rec += prog_line(pg, rec)->len, ord++) {
         const Line *const ln = prog_line(pg, rec);
@@ -885,8 +1220,10 @@ static void sugg_program(
             }
         }
 
-        sugg_names(body, ln->len - HDR, scope, dist);
+        intype = (intype || *body == TK_TYPE) && !(*body == TK_END && body[1] == TK_TYPE);
 
+        if (!intype && !(*body == TK_END && body[1] == TK_TYPE)) /* a TYPE's fields: no variables */
+            sugg_names(body, ln->len - HDR, scope, dist);
         if (kind == PK_END)
             scope = 0;
 
@@ -944,11 +1281,6 @@ static void sugg_vars(
 /* ---- the suggestions */
 
 /* The word before col in text: its start; false none fits (inside a word, past the line). */
-static bool sugg_suffix(const uint8_t c)
-{
-    return c == '$' || c == '%' || c == '&' || c == '!' || c == '#';
-}
-
 static bool sugg_word(
     const uint8_t *const text,
     const uint16_t n,
@@ -965,9 +1297,19 @@ static bool sugg_word(
         s--;
     while (s && (is_letter(text[s - 1]) || is_digit(text[s - 1])))
         s--;
+    if (s < col && is_digit(text[s]) && s >= 2 && text[s - 1] == '.' && is_digit(text[s - 2]))
+        for (s--; s && is_digit(text[s - 1]); s--) /* a number's whole part */
+            ;
 
     *start = s;
     return col - s <= SUGG_LEN;
+}
+
+/* One thing alone goes on: it is needed. */
+static void sugg_one(Suggs *const out)
+{
+    if (out->n == 1 && !out->list[0].fuzzy)
+        out->list[0].need = true;
 }
 
 bool sugg_find(
@@ -1004,7 +1346,7 @@ bool sugg_find(
     if (decl_tail(&tail))
         return false;
 
-    const SuggSrc src = {&S->comp, &S->lexr, &S->prog, &S->scop};
+    const SuggSrc src = {&S->comp, &S->lexr, &S->prog, &S->scop, &S->decl, &S->symb};
 
     sugg_tail(sg.body, blen);
     SuggAt w = {.rec = rec};
@@ -1015,6 +1357,13 @@ bool sugg_find(
 
     if (sg.either) /* THEN 0: a line number, not an operand */
         sg.str_ok = sg.num_ok = false;
+    if (sugg_fields(&src, out, word, wn)) /* r.f: the record's fields alone */
+        return out->n > 0;
+    if (sg.hash) { /* #n: the program's files */
+        sugg_files(&src, out, word, wn);
+        sugg_one(out);
+        return out->n > 0;
+    }
 
     const bool number =
         wn && is_digit(word[0]) && !sg.jump && !sg.either; /* what goes on after it */
@@ -1042,7 +1391,16 @@ bool sugg_find(
         sugg_vars(&src, &w, out, word, wn);
     if (!sg.jump)
         sugg_follow(&src, out, text + start, word, wn);
+    if (sg.as)
+        sugg_types(&src, out, word, wn);
 
+    uint8_t fn[SUGG_LEN + 1];
+
+    if (sugg_callee(sugg_paren(), fn) == 3 && /* EOF(, LOF(, LOC(: a file */
+        (!memcmp(fn, "EOF", 3) || !memcmp(fn, "LOF", 3) || !memcmp(fn, "LOC", 3)))
+        sugg_files(&src, out, word, wn);
+
+    sugg_one(out);
     return out->n > 0;
 }
 
