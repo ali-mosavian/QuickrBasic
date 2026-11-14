@@ -1030,5 +1030,12 @@ static void fe_error(Session *const S, const uint8_t code)
         uimn_error(S, code);
 }
 
+/* CHAIN: Advanced feature unavailable in the editor. */
+static void fe_chain(Session *const S)
+{
+    if (uimn.on)
+        repl_error(S, E_AF);
+}
+
 const FrontEnd uimn_front_end = {
-    .regions = lmap_init, .start = uimn_start, .ready = fe_ready, .error = fe_error};
+    .regions = lmap_init, .start = uimn_start, .ready = fe_ready, .error = fe_error, .chain = fe_chain};

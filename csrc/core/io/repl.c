@@ -18,6 +18,7 @@
 #include "mem/strg.h"
 #include "mem/symb.h"
 #include "num/fmth.h"
+#include "plat/pfil.h"
 #include "plat/psys.h"
 #include "vm/dbug.h"
 #include "vm/exec.h"
@@ -189,7 +190,8 @@ void repl_cont(Session *const S)
     }
 }
 
-void repl_run_file(Session *const S)
+/* Run the file the command line names, then exit; no name: back. */
+static void run_file(Session *const S)
 {
     char tail[128];
     psys_cmdline(tail, sizeof tail);
@@ -209,13 +211,20 @@ void repl_run_file(Session *const S)
     exec_run(S);
 }
 
-void repl_main(Session *const S, const FrontEnd *const fe)
+static void warn_stderr(Session *const S, const char *const text, const uint32_t len)
 {
-    S->repl.fe = fe;
+    uint32_t put;
+    pfil_write(PFIL_STDERR, text, len, &put);
+}
+
+const FrontEnd repl_batch = {.start = run_file, .warn = warn_stderr};
+
+void repl_main(Session *const S)
+{
     switch (setjmp(S->repl.top)) {
     case REPL_START:
-        if (fe->start)
-            fe->start(S);
+        if (S->repl.fe->start)
+            S->repl.fe->start(S);
         break;
     case REPL_ERROR:
         report(S, S->repl.err);

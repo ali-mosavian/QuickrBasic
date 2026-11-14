@@ -7,7 +7,6 @@
 #include "mem/prog.h"
 #include "mem/scop.h"
 #include "mem/symb.h"
-#include "plat/pfil.h"
 
 const uint8_t decl_astype[5] = {ET_I2, ET_I4, ET_R4, ET_R8, ET_SD};
 const uint8_t decl_etsize[7] = {0, 4, 4, 4, 8, 0, 2};
@@ -587,11 +586,11 @@ static bool next(Session *const S)
     }
 }
 
-/* On standard error, a warning for each DEF SEG, VARSEG, SSEG: no effect, flat. Not in the
-   editor. */
+/* To the front end's warn, a warning for each DEF SEG, VARSEG, SSEG: no effect, flat. */
 static void warn(Session *const S, const uint8_t *const body)
 {
-#if !IDE
+    if (!S->repl.fe->warn)
+        return;
     for (const uint8_t *p = body; *p && *p != TK_REM && *p != TK_DATA; p = decl_item(p)) {
         const char *what = nullptr;
         if (p[0] == TK_DEF && p[1] == TK_X && p[2] == TK1_SEG)
@@ -623,12 +622,8 @@ static void warn(Session *const S, const uint8_t *const body)
         w += len;
         memcpy(w, tail, sizeof tail - 1);
         w += sizeof tail - 1;
-        uint32_t put;
-        pfil_write(PFIL_STDERR, buf, (uint32_t)(w - buf), &put);
+        S->repl.fe->warn(S, buf, (uint32_t)(w - buf));
     }
-#else
-    (void)body;
-#endif
 }
 
 void decl_line(Session *const S, const uint8_t *const body)

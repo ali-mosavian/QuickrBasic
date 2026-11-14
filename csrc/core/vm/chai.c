@@ -12,9 +12,6 @@
 #include "vm/flow.h"
 #include "vm/stmt.h"
 
-#if IDE
-#include "ui/uimn.h"
-#endif
 
 
 
@@ -190,13 +187,11 @@ static void set_file(Session *const S, const Desc s)
 }
 
 /* CHAIN ( s -- ): COMMON's values kept, the file s loaded and run. Advanced feature unavailable:
-   in the editor. Illegal function call: a name past CHAIN_NAME_MAX chars. As repl_load. */
+   the front end's chain. Illegal function call: a name past CHAIN_NAME_MAX chars. As repl_load. */
 void chai_chain(Session *const S)
 {
-#if IDE
-    if (uimn.on)
-        repl_error(S, E_AF);
-#endif
+    if (S->repl.fe->chain)
+        S->repl.fe->chain(S);
     const Desc s = strg_get(S, exec_popa(&S->vm));
     if (s.len > CHAIN_NAME_MAX)
         repl_error(S, E_IQ);

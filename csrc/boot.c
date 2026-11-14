@@ -22,6 +22,7 @@
 void boot(Session *const S, const FrontEnd *const fe)
 {
     session_reset(S);
+    S->repl.fe = fe;
     Addr lo, hi;
     if (!pmem_init(HMIN, &lo, &hi)) {
         static const char msg[] = "Out of memory\r\n";

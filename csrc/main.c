@@ -13,10 +13,9 @@ int main(void)
 #if IDE
     const FrontEnd *const fe = &uimn_front_end;
 #else
-    static const FrontEnd batch = {.start = repl_run_file};
-    const FrontEnd *const fe = &batch;
+    const FrontEnd *const fe = &repl_batch;
 #endif
     Session *const S = &session;
     boot(S, fe);
-    repl_main(S, fe);
+    repl_main(S);
 }

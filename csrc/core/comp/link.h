@@ -26,7 +26,5 @@ void link_start(Session *S);           /* cm_link: before a run: blocks paired, 
 Addr link_cache(Session *S, uint32_t line);  /* cm_cache: line compiled into the cache; its code */
 bool link_xlate(Session *S, Addr *at);       /* comp_xbuf as a stream at *at, to its end; link.code its code;
                                     false: past link.lim */
-#if IDE
 void link_walk(const uint8_t *code, void (*each)(uint8_t op, const uint8_t *at)); /* each op */
-#endif
 #endif

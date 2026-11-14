@@ -61,7 +61,6 @@ static void markcol(Session *const S)
     S->lexr.last = (int32_t)off;
 }
 
-#if IDE
 uint16_t lexr_colof(Session *const S, uint32_t off)
 {
     if (S->lexr.last < 0)
@@ -70,7 +69,6 @@ uint16_t lexr_colof(Session *const S, uint32_t off)
         off = (uint32_t)S->lexr.last;
     return S->lexr.col[off];
 }
-#endif
 
 /* DEF FN name, FN name: FN and the name after its blanks made one name, the blanks moved before. */
 static void joinfn(Session *const S)

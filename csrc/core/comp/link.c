@@ -132,13 +132,11 @@ bool link_xlate(Session *const S, Addr *where)
     return true;
 }
 
-#if IDE
 void link_walk(const uint8_t *code, void (*each)(uint8_t op, const uint8_t *at))
 {
     for (; *code != O_EOL; code += flow_opsize(code))
         each(*code, code);
 }
-#endif
 
 void link_start(Session *const S)
 {
