@@ -3,6 +3,7 @@
 
 Each case: its program, run as a file, the output it must print and one it must not."""
 
+import re
 import os
 import sys
 import tempfile
@@ -603,7 +604,18 @@ MSGS = x86run.messages()
 
 def forbidden(forbid: str, out: str) -> bool:
     lines = "\n" + out.replace("\r", "")
-    return any("\n" + m in lines for m in MSGS) if forbid == "ERROR" else forbid in out
+    if forbid == "ERROR":
+        return any("\n" + m in lines for m in MSGS)
+    if re.fullmatch(r" -?\d+", forbid):  # a number PRINTed: at a line's start, its space after
+        return "\n" + forbid + " " in lines
+    return forbid in out
+
+
+def check_forbidden() -> None:
+    """A forbidden " 1" matched the error's address ("at address 1732:BAA0"): qb_blk_loop failed
+    when the code moved, though PRINT 1 never ran."""
+    assert not forbidden(" 1", "LOOP without DO in line No line number in module X at address 1732:BAA0\r\n")
+    assert forbidden(" 1", " 1 \r\nLOOP without DO in line")
 
 
 # What the host build (plat/host) cannot show as DOS does, each for its reason.
@@ -611,6 +623,7 @@ HOST_SKIP = {"qb_shell": "SHELL runs /bin/sh, whose SET lists its own variables"
 
 
 def main() -> None:
+    check_forbidden()
     if x86run.is_host(x86run.COM):
         for k in HOST_SKIP:
             CASES.pop(k)
