@@ -191,4 +191,87 @@ def pipeline():
     s.save(f"{OUT}/pipeline.svg")
 
 
-layers(); ownership(); debugger(); widgets(); pipeline()
+def vm():
+    s = Svg(W, 600, "The VM", "A byte-coded stack machine: one loop calls each op's handler; values live on a stack of 8-byte cells.")
+    ec, fc = THEME["engine"], THEME["front"]
+    # code cache
+    s.panel(32, 90, 300, 400, "engine", "code cache", "64 KB")
+    s.text(48, 134, "x% = 2 * y% + 1", size=12, mono=True, fill=MUTED)
+    ops = [("03 02", "I_LD_U8 2"), ("23 01 00", "I_MUL_V y%"), ("27 01", "I_ADD_U8 1"),
+           ("12 02 00", "I_ST_V x%"), ("00", "EOL")]
+    y = 150
+    for i, (b, n) in enumerate(ops):
+        cur = i == 1
+        s.box(48, y, 268, 36, "front" if cur else "base", r=6, strong=cur)
+        s.text(60, y + 23, b, size=12, mono=True)
+        s.text(150, y + 23, n, size=12, mono=True, fill=ec[2])
+        y += 44
+    s.arrow([(352, 204), (320, 204)], color=fc[1], label="opip: the op running", lx=358, ly=208, lanchor="start")
+    s.arrow([(352, 222), (320, 222)], color=fc[1], label="ip: its operands, then the next op", lx=358, ly=226, lanchor="start")
+    s.text(48, 392, "a line's code, compiled when first", size=12, fill=MUTED)
+    s.text(48, 410, "reached; the cache flushes when full", size=12, fill=MUTED)
+    s.text(48, 436, "before it: the statement map", size=12, fill=MUTED)
+    s.text(48, 454, "(body offset → code offset)", size=12, fill=MUTED)
+
+    # loop
+    s.panel(370, 250, 280, 170, "front", "exec_run")
+    for i, t in enumerate(["for (;;) {", "    vm.opip = vm.ip;", "    ops[*vm.ip++](S);", "}"]):
+        ind = len(t) - len(t.lstrip())
+        s.text(390 + ind * 8, 294 + i * 20, t.strip(), size=13, mono=True)
+    s.text(390, 392, "160 ops (ops.def); CALL k: 181", size=12, fill=MUTED)
+    s.text(390, 410, "routines (PRINT, INPUT, MID$ ...)", size=12, fill=MUTED)
+
+    # data stack
+    s.panel(690, 90, 278, 260, "engine", "data stack", "push: sp moves up here")
+    cells = ["", "", "", "", "8"]
+    for i in range(5):
+        y = 132 + i * 36
+        top = i == 4
+        s.box(740, y, 140, 32, "front" if top else "base", r=4, strong=top)
+        if cells[i]:
+            s.text(810, y + 21, cells[i], size=13, mono=True, anchor="middle")
+    s.arrow([(910, 292), (884, 292)], color=fc[1], label="sp", lx=916, ly=296, lanchor="start")
+    s.arrow([(910, 314), (884, 312)], color=MUTED, label="rsp", lx=916, ly=322, lanchor="start")
+    s.text(706, 338, "after I_MUL_V; a Cell: INT, SINGLE, Addr, DOUBLE", size=11, fill=MUTED)
+
+    # frames / callvars
+    s.panel(690, 370, 278, 120, "base", "control")
+    s.chips(706, 408, ["GOSUB", "FOR", "CALL", "EVENT"], "base")
+    s.text(706, 466, "vm.frames; a call's params and", size=12, fill=MUTED)
+    s.text(706, 482, "locals set aside on vm.callvars", size=12, fill=MUTED)
+    s.arrow([(650, 320), (688, 230)], color=LINE)
+    s.arrow([(650, 360), (688, 420)], color=LINE)
+
+    s.box(32, 512, 936, 56, "warn")
+    s.text(48, 536, "leaving the loop", size=13, weight=700, fill=THEME["warn"][2])
+    s.text(48, 555, "only by longjmp: an error (repl_error → ON ERROR's handler, or READY), END, STOP, a step.",
+           size=12, fill=THEME["warn"][2])
+    s.save(f"{OUT}/vm.svg")
+
+
+def vm_trace():
+    s = Svg(W, 330, "One line, op by op", "x% = 2 * y% + 1 with y% = 4: each op takes its operands off the stack and pushes its result.")
+    rows = [("I_LD_U8 2", "push 2", ["2"]), ("I_MUL_V y%", "pop, × y%, push", ["8"]),
+            ("I_ADD_U8 1", "pop, + 1, push", ["9"]), ("I_ST_V x%", "pop into x%", []),
+            ("EOL", "stop check, next line", [])]
+    for i, (op, what, st) in enumerate(rows):
+        y = 96 + i * 44
+        s.box(32, y, 180, 34, "engine", r=6)
+        s.text(44, y + 22, op, size=12, mono=True, fill=THEME["engine"][2])
+        s.text(232, y + 22, what, size=12, fill=MUTED)
+        s.arrow([(420, y + 17), (470, y + 17)], color=LINE)
+        if st:
+            for j, c in enumerate(st):
+                s.box(480 + j * 60, y + 2, 52, 30, "front", r=4)
+                s.text(506 + j * 60, y + 22, c, size=13, mono=True, anchor="middle")
+        else:
+            s.text(480, y + 22, "empty: sp = rsp", size=12, fill=MUTED, italic=True)
+    s.text(640, 118, "Operands folded into the op:", size=12, weight=600)
+    s.text(640, 140, "_V a variable, _U8 a byte literal.", size=12, fill=MUTED)
+    s.text(640, 162, "2 * y% + 1 is 4 ops, not 6.", size=12, fill=MUTED)
+    s.text(640, 196, "Constants fold as they compile:", size=12, weight=600)
+    s.text(640, 218, "2 * 3 + 4 * 5 is one I_LD_U8 26.", size=12, fill=MUTED)
+    s.save(f"{OUT}/vm-trace.svg")
+
+
+layers(); ownership(); debugger(); widgets(); pipeline(); vm(); vm_trace()

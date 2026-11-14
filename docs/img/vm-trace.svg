@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="330" viewBox="0 0 1000 330"><defs><marker id="ah9ca3af" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#9ca3af"/></marker></defs>
+<rect width="1000" height="330" fill="#ffffff"/>
+<text x="32" y="40" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" font-weight="700" fill="#1f2937" text-anchor="start">One line, op by op</text>
+<text x="32" y="64" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#6b7280" text-anchor="start">x% = 2 * y% + 1 with y% = 4: each op takes its operands off the stack and pushes its result.</text>
+<rect x="32" y="96" width="180" height="34" rx="6" fill="#ecfdf5" stroke="#059669" stroke-width="1.25"/>
+<text x="44" y="118" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="start">I_LD_U8 2</text>
+<text x="232" y="118" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="start">push 2</text>
+<path d="M420,113 L470,113" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
+<rect x="480" y="98" width="52" height="30" rx="4" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.25"/>
+<text x="506" y="118" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1f2937" text-anchor="middle">2</text>
+<rect x="32" y="140" width="180" height="34" rx="6" fill="#ecfdf5" stroke="#059669" stroke-width="1.25"/>
+<text x="44" y="162" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="start">I_MUL_V y%</text>
+<text x="232" y="162" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="start">pop, × y%, push</text>
+<path d="M420,157 L470,157" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
+<rect x="480" y="142" width="52" height="30" rx="4" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.25"/>
+<text x="506" y="162" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1f2937" text-anchor="middle">8</text>
+<rect x="32" y="184" width="180" height="34" rx="6" fill="#ecfdf5" stroke="#059669" stroke-width="1.25"/>
+<text x="44" y="206" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="start">I_ADD_U8 1</text>
+<text x="232" y="206" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="start">pop, + 1, push</text>
+<path d="M420,201 L470,201" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
+<rect x="480" y="186" width="52" height="30" rx="4" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.25"/>
+<text x="506" y="206" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1f2937" text-anchor="middle">9</text>
+<rect x="32" y="228" width="180" height="34" rx="6" fill="#ecfdf5" stroke="#059669" stroke-width="1.25"/>
+<text x="44" y="250" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="start">I_ST_V x%</text>
+<text x="232" y="250" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="start">pop into x%</text>
+<path d="M420,245 L470,245" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
+<text x="480" y="250" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="start" font-style="italic">empty: sp = rsp</text>
+<rect x="32" y="272" width="180" height="34" rx="6" fill="#ecfdf5" stroke="#059669" stroke-width="1.25"/>
+<text x="44" y="294" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#064e3b" text-anchor="start">EOL</text>
+<text x="232" y="294" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="start">stop check, next line</text>
+<path d="M420,289 L470,289" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
+<text x="480" y="294" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="start" font-style="italic">empty: sp = rsp</text>
+<text x="640" y="118" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2937" text-anchor="start">Operands folded into the op:</text>
+<text x="640" y="140" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="start">_V a variable, _U8 a byte literal.</text>
+<text x="640" y="162" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="start">2 * y% + 1 is 4 ops, not 6.</text>
+<text x="640" y="196" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2937" text-anchor="start">Constants fold as they compile:</text>
+<text x="640" y="218" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="start">2 * 3 + 4 * 5 is one I_LD_U8 26.</text>
+</svg>

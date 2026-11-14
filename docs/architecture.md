@@ -107,6 +107,56 @@ flowchart LR
 - `link` resolves what spans lines (labels, FOR/NEXT, IF blocks, SUB/FUNCTION) over the stored lines. It runs before RUN, or after an edit that changes block structure.
 - `lister` turns one stored line back into text for the editor.
 
+## The VM
+
+![The VM](img/vm.svg)
+
+The VM is a stack machine over byte code. `exec_run` is its one loop: it notes the op's place in `vm.opip` and calls the op's handler. The handler reads its operands at `vm.ip`, moves `vm.ip` past them or to a jump's target, and returns.
+
+**Code.** Each stored line is compiled once into the 64 KB code cache, the first time the run reaches it. Its code starts with a statement map (each statement's body offset to its code offset), then the ops. An op is one byte, then its operands. When the cache is full it is flushed, and lines compile again as they are reached.
+
+**Values.** The data stack holds 8-byte `Cell`s: an INT, a SINGLE's bits, an `Addr` or a DOUBLE. An op pops its operands and pushes its result. At a statement's start `sp` is `rsp`, so the stack is empty.
+
+![One line, op by op](img/vm-trace.svg)
+
+**Operand forms.** Common right operands are folded into the op, so `2 * y% + 1` is three ops rather than five:
+
+| Suffix | Operand | Example |
+|---|---|---|
+| none | the stack | `I_ADD` |
+| `_V` | a variable's id | `I_MUL_V y%` |
+| `_U8`, `_I16`, `_F32` | a literal | `I_ADD_U8 1` |
+| `_A1`, `_A` | an array element: one or n subscripts | `I_LD_A1 a%` |
+
+`I` ops work on INTs, `F` on SINGLEs, `D` on DOUBLEs and `S` on strings. `CALL k` runs one of 181 routines (PRINT, INPUT, MID$ ...).
+
+**Control.** GOSUB, FOR, a SUB or FUNCTION call, and an event's handler each push a `Frame` on `vm.frames`. A call sets its parameters and locals aside on `vm.callvars` and restores them when it returns. A loop compiles like this:
+
+```text
+FOR i% = 1 TO 3: total! = total! + i% / 2: NEXT
+I_LD_U8 1 | I_ST_V i% | I_LD_U8 3 | I_FOR1 i% | FSKIP → after NEXT
+F_LD_V total! | F_LD_VI i% | F_DIV_U8 2 | F_ADD | F_ST_V total! | NEXT | EOL
+```
+
+**Jumps.** A GOTO names its line by number and finds it on first use. A jump op keeps its target's code offset once found; a cache flush turns saved places back into offsets within their lines.
+
+**Stops and events.** The ops that end a statement or move between them (EOL, the jumps, GOSUB, RETURN, ON, NEXT, a procedure's return) check `vm.stop`. The platform sets it for Ctrl+Break and for the timer tick that drives ON TIMER, ON KEY and the other events. In the IDE, a `DBG` op at each statement's start is where steps, breakpoints and trace stop.
+
+**Errors.** A handler raises with `repl_error`. It never returns: it unwinds with `longjmp` to whoever is waiting, in this order:
+
+```mermaid
+flowchart LR
+    E[repl_error] --> F{folding?}
+    F -- yes --> F1[fold_code: leave the code as it was]
+    F -- no --> P{watch probe?}
+    P -- yes --> P1[dbug_eval]
+    P -- no --> C{compiling?}
+    C -- yes --> C1[ERR op ends the line's code]
+    C -- no --> H{ON ERROR handler?}
+    H -- yes --> H1[back into exec_run at the handler]
+    H -- no --> R[READY, or the editor]
+```
+
 ## Debugger
 
 | Feature | `runtime/vm` | `session` | `editor` |
