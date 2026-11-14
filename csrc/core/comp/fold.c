@@ -141,12 +141,8 @@ bool fold_isliteral(const uint8_t op)
     }
 }
 
-void fold_const(Session *const S)
+void fold_const(Session *const S, uint8_t *const start, const uint16_t id)
 {
-    if (S->comp.tok != TK_CONST || S->comp.tgtsubs)
-        return;
-
-    uint8_t *const start = S->comp.vat;
     fold_code(S, start);
     const uint8_t op = *start;
 
@@ -158,7 +154,6 @@ void fold_const(Session *const S)
     if (start + size != S->code.out)
         return;
 
-    const uint16_t id = S->comp.tgt;
     symb_varx(&S->symb, id)->kop = op;
     uint8_t *const k = symb_kval(&S->symb, id);
 

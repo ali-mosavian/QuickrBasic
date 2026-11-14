@@ -54,6 +54,19 @@ static void cg_arg(Code *c, const Node *n);
 static void cg_call(Code *c, const Node *n);
 static void cg_conv(Code *c, const Node *n);
 static void cg_store(Code *c, const Node *n);
+static void cg_op(Code *c, const Node *n);
+
+/* A statement's node that leaves a value: its type. */
+static void cg_value(Code *const c, const Node *const n)
+{
+    if (n->val)
+        c->type = n->type;
+}
+static void cg_jump(Code *c, Jump j);
+static void cg_cond(Code *c, const Node *n);
+static void cg_if(Code *c);
+static void cg_on(Code *c, const Node *n);
+static void cg_casecmp(Code *c, const Node *n);
 
 /* cm_shid: variable v's load just made: a SHORT's, class 1. */
 static void shortid(Code *const c, const Var *const v)
@@ -553,20 +566,54 @@ static void gen(Code *const c, const Node *const i)
 
     case N_KCALL:
         code_call(c, n->op);
+        cg_value(c, n);
         break;
 
-    case N_COUNT:
-        code_int(c, n->nargs);
+    case N_INT:
+        code_int(c, n->num);
         break;
 
     case N_OP:
-        code_op(c, n->op);
+        cg_op(c, n);
+        cg_value(c, n);
         break;
 
-    case N_JUMP: /* comp_lref's */
-        code_op(c, n->op);
+    case N_OPID:
+        code_opid(c, n->op, n->id, n->par);
+        cg_value(c, n);
+        break;
+
+    case N_JUMP: /* a line number's or label's: num addr */
+        if (n->op)
+            cg_op(c, n);
+
         code_word(c, n->id);
-        code_dword(c, n->line);
+        code_dword(c, n->num);
+        break;
+
+    case N_GO:
+        code_op(c, n->op);
+        cg_jump(c, n->jump);
+        break;
+
+    case N_COND:
+        cg_cond(c, n);
+        break;
+
+    case N_TEST:
+        code_dtest(c);
+        break;
+
+    case N_IF:
+        cg_if(c);
+        break;
+
+    case N_ON:
+        cg_on(c, n);
+        break;
+
+    case N_CASECMP:
+        cg_casecmp(c, n);
         break;
 
     case N_CONV:
@@ -968,15 +1015,24 @@ static uint8_t cg_convert_for(Code *const c, const Node *const n)
 }
 
 /* LET's store: the value, converted, to the scalar or the element of op subscripts. */
-static void cg_store(Code *const c, const Node *const n)
+void cg_store_value(Code *const c, const Node *const n)
 {
     gen(c, n->a);
-    uint8_t scalar = O_D_ST_V, one = O_D_ST_A1, many = O_D_ST_A;
 
     if (n->var->info & SK_DBL)
         code_todouble(c);
-    else {
-        const uint8_t k = cg_convert_for(c, n);
+    else
+        cg_convert_for(c, n);
+}
+
+void cg_store_op(Code *const c, const Node *const n)
+{
+    uint8_t scalar = O_D_ST_V, one = O_D_ST_A1, many = O_D_ST_A;
+
+    if (!(n->var->info & SK_DBL)) {
+        const uint8_t k = (n->var->info & VK_MASK) == VK_INT   ? 0
+                          : (n->var->info & VK_MASK) == VK_FLT ? 1
+                                                               : 2;
         scalar = O_I_ST_V + k;
         one = O_I_ST_A1 + k;
         many = O_I_ST_A + k;
@@ -987,4 +1043,94 @@ static void cg_store(Code *const c, const Node *const n)
         code_byte(c, n->op);
     } else
         code_opid(c, n->op ? one : scalar, n->id, n->par);
+}
+
+static void cg_store(Code *const c, const Node *const n)
+{
+    cg_store_value(c, n);
+    cg_store_op(c, n);
+}
+
+/* ---- statements' nodes */
+
+/* Its op and operand bytes. */
+static void cg_op(Code *const c, const Node *const n)
+{
+    code_op(c, n->op);
+
+    for (uint32_t i = 0; i < n->nargs; i++)
+        code_byte(c, n->lit[i]);
+}
+
+/* ct_emitjump: a block's target. */
+static void cg_jump(Code *const c, const Jump j)
+{
+    code_dword(c, j.line);
+    code_dword(c, j.body);
+    code_dword(c, j.dest);
+}
+
+/* A jump on the value made: tested, F.JF or F.JT after the INT's. */
+static void cg_cond(Code *const c, const Node *const n)
+{
+    code_dtest(c);
+    code_op(c, c->type == T_FLT ? n->op + 1 : n->op);
+    cg_jump(c, n->jump);
+}
+
+/* A one-line IF's test of the value made: a compare just made becomes its CMPIF, else X.IF. */
+static void cg_if(Code *const c)
+{
+    code_dtest(c);
+
+    if (c->out == c->cmpend)
+        *c->cmp += O_I_CMPIF - O_I_CMP;
+    else /* code_dtest made a DOUBLE an INT */
+        code_op(c, code_pick(c->type, O_I_IF, O_F_IF, O_I_IF, O_S_IF));
+}
+
+/* ON's byte made: ON kind + n, then its n lines. */
+static void cg_on(Code *const c, const Node *const n)
+{
+    uint8_t lines = 0;
+
+    for (const Node *a = n->b; a; a = a->next)
+        lines++;
+
+    code_opb(c, O_ON, n->op + lines);
+
+    for (const Node *a = n->b; a; a = a->next)
+        gen(c, a);
+}
+
+/* ct_cmp: the SELECT's variable id against the expression a, relation op: an INT. */
+static void cg_casecmp(Code *const c, const Node *const n)
+{
+    const uint8_t t = n->conv;
+    uint8_t *const left = c->out;
+    code_opid(c, code_pick(t, O_I_LD_V, O_F_LD_V, O_D_LD_V, O_S_LD_V), n->id, n->par);
+    c->type = t;
+    uint8_t *right = c->out;
+
+    if (n->a)
+        gen(c, n->a);
+    if (!n->mode)
+        return;
+    if (t & T_STR) {
+        code_opb(c, O_S_CMP, n->op);
+        c->type = T_INT;
+        return;
+    }
+
+    if (t == T_INT) {
+        if (c->type == T_INT) {
+            cg_icmp(c, REL | n->op, right);
+            return;
+        }
+
+        right = cg_lfloat(c, left, right);
+    }
+
+    code_tofloat(c);
+    cg_fcmp(c, REL | n->op, right);
 }

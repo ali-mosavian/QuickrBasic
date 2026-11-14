@@ -1,0 +1,1 @@
+10 OPEN "x" FOR INPUT AS 1

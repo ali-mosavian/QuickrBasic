@@ -1,0 +1,3 @@
+IF x THEN
+ELSEIF a$ THEN
+END IF

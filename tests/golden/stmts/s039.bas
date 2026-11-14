@@ -1,0 +1,1 @@
+10 DIM a$(5) AS STRING * 3

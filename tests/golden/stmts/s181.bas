@@ -1,0 +1,3 @@
+SELECT CASE x
+CASE 1, "a"
+END SELECT

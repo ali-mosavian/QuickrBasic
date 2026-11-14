@@ -36,6 +36,8 @@ static void resolve(Session *const S, Node *const n)
     case N_REF:
     case N_TARGET:
     case N_STORE:
+    case N_OPID:
+    case N_CASECMP:
         n->var = symb_var(&S->symb, n->id);
         n->par = comp_ispar(S, n->id);
         break;
@@ -280,7 +282,7 @@ static void check(Session *const S, Node *const n)
         break;
 
     default:
-        break; /* N_LIT, N_VAR, N_KCALL, N_COUNT, N_OP, N_JUMP */
+        break; /* N_LIT, N_VAR, the statements' nodes */
     }
 }
 

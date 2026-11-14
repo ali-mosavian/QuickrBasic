@@ -1,6 +1,7 @@
 """golden.py [--update]: each corpus program's lines compiled (build/host/golden_dump), against
 tests/golden/code.txt: one row per line, its program, index and a hash of its code. A changed
-line prints its new bytes. The corpus: test/corpus/bcg, and llrm's tests/run/qb when present."""
+line prints its new bytes. The corpus: test/corpus/bcg, tests/golden/stmts (each statement's code and its errors', one
+file each), and llrm's tests/run/qb when present."""
 import hashlib
 import os
 import subprocess
@@ -12,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 LLRM = Path(os.environ.get("LLRM", Path.home() / "work/personal/llrm-qbmac"))
 DUMP = ROOT / "build/host/golden_dump"
 GOLDEN = ROOT / "tests/golden/code.txt"
-CORPORA = {"bcg": ROOT / "test/corpus/bcg", "qb": LLRM / "tests/run/qb"}
+CORPORA = {"bcg": ROOT / "test/corpus/bcg", "qb": LLRM / "tests/run/qb", "stmts": ROOT / "tests/golden/stmts"}
 
 
 def programs() -> list[tuple[str, Path]]:

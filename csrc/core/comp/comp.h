@@ -4,6 +4,7 @@
 #include <setjmp.h>
 #include "defs.h"
 #include "comp/code.h"
+#include "vm/exec.h"
 
 /* The compiled expression's target (comp.tgtsubs): FFh a record's field (ctrl.field). */
 enum : uint8_t { TGT_FIELD = 0xFF };
@@ -23,7 +24,6 @@ typedef struct {
     uint16_t depth;      /* cplim: expression nesting, Out of memory past COMP_MAXDEPTH */
 
     /* the expression */
-    uint8_t *vat; /* g_cvat: a store's value's code, its start (expr_target's end) */
     bool folding; /* g_cfold: fold_code's run; an error is its */
     jmp_buf fold; /* g_cfsp: fold_code's way back from an error */
 
@@ -33,19 +33,19 @@ typedef struct {
     uint8_t tgtsubs; /* ctn: its subscripts, TGT_FIELD a record's field */
 
     /* the statement */
-    const uint8_t *kw; /* ctks: its keyword */
-    uint8_t tok;       /* ctok: that token (LOAD, SAVE, VERIFY) */
-    bool then;         /* cth: it follows a THEN */
-    bool oneif;        /* csif: in a one-line IF: ELSE ends a statement */
-    uint8_t *dbg;      /* cdbg: past its DBG op, null none */
-    uint8_t nargs;     /* ccnt: a CALL's counted arguments */
-    uint8_t forkind;   /* cfk: FOR's variable's kind, 0 a FLOAT */
-    uint16_t forvar;   /* cfid: FOR's variable */
-    uint8_t *onat;     /* onp: ON's count byte */
-    uint16_t redim;    /* credim: DIM_REDIM, DIM_PRESERVE or 0 */
-    uint16_t lnum;     /* wv: a jump's line number, NONUM a label's */
-    uint32_t jline;    /* jline: its line, 0 until the first jump finds it */
-    bool modlabel;     /* g_lmod: comp_lnum's label is the module's (cleared) */
+    const uint8_t *kw;        /* ctks: its keyword */
+    uint8_t tok;              /* ctok: that token (LOAD, SAVE, VERIFY) */
+    bool then;                /* cth: it follows a THEN */
+    bool oneif;               /* csif: in a one-line IF: ELSE ends a statement */
+    uint8_t *dbg;             /* cdbg: past its DBG op, null none */
+    uint8_t nargs;            /* ccnt: a CALL's counted arguments */
+    uint8_t forkind;          /* cfk: FOR's variable's kind, 0 a FLOAT */
+    uint16_t forvar;          /* cfid: FOR's variable */
+    struct Node *on, *onlast; /* ON's node, its last line */
+    uint16_t redim;           /* credim: DIM_REDIM, DIM_PRESERVE or 0 */
+    uint16_t lnum;            /* wv: a jump's line number, NONUM a label's */
+    uint32_t jline;           /* jline: its line, 0 until the first jump finds it */
+    bool modlabel;            /* g_lmod: comp_lnum's label is the module's (cleared) */
 
     /* scopes */
     uint8_t proc;   /* cproc: the procedure the line is in, 0 the module (mem/scope sets it) */
@@ -100,39 +100,26 @@ void comp_dfa(Session *S, uint16_t state); /* run the statement automaton from s
 uint8_t comp_expnames(uint16_t state, const char *names[]); /* what state wanted; PS_NC*2 room */
 void comp_expected(Session *S, uint16_t state);             /* print it, "a, b or c" */
 
-/* Emitters: the statements' own (the rest are code_*'s, comp/code.h) */
-void comp_opid(
-    Session *S,
-    uint8_t op,
-    uint16_t id
-);                          /* op, a variable; a parameter's X.LD.V/X.ST.V as V.LD/V.ST */
-void comp_lref(Session *S); /* a TLREF: comp.lnum, comp.jline */
+/* Steps: the statement's nodes (comp/ast.h), each checked as made (comp/sema.h), generated in order
+   at comp_flush */
+typedef struct Node Node;
+void comp_step(Session *S, Node *n);       /* tree n checked, the statement's next step */
+void comp_check(Session *S, Node *n);      /* tree n checked, comp.p kept: a step's child */
+uint8_t comp_type(Session *S);             /* the last step's value's T_* */
+void comp_value(Session *S, uint8_t type); /* the last step leaves a value of type */
+void comp_call(Session *S, uint8_t k);     /* CALL k */
+void comp_int(Session *S, uint32_t n);     /* an INT's load */
+Node *comp_op(Session *S, uint8_t op);     /* op; its operands after, by comp_byte, comp_word */
+void comp_byte(Node *n, uint8_t b);
+void comp_word(Node *n, uint16_t w);
+/* op, a variable; a parameter's X.LD.V/X.ST.V as V.LD/V.ST */
+void comp_opid(Session *S, uint8_t op, uint16_t id);
+/* op (0 none), its operands by comp_byte, then comp.lnum's line: num addr */
+Node *comp_jump(Session *S, uint8_t op);
+void comp_go(Session *S, uint8_t op, Jump j);   /* op to a block's target */
+void comp_cond(Session *S, uint8_t op, Jump j); /* JF or JT on the value: a number */
 
-/* Type's one of four: INT, FLOAT, DOUBLE, STRING. */
-static inline uint8_t comp_pick(
-    const uint8_t type,
-    const uint8_t i,
-    const uint8_t f,
-    const uint8_t d,
-    const uint8_t s
-)
-{
-    switch (type) {
-    case T_INT:
-        return i;
-
-    case T_FLT:
-        return f;
-
-    case T_DBL:
-        return d;
-
-    default:
-        return s;
-    }
-}
-
-/* The value (code.type) converted, code_to*'s; Type mismatch from a string where a number goes */
+/* The last step's value converted; Type mismatch from a string where a number goes */
 void comp_toint(Session *S);
 void comp_tofloat(Session *S);
 void comp_todouble(Session *S);

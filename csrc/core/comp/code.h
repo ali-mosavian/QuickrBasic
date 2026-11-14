@@ -41,4 +41,28 @@ void code_tobyte(Code *c);
 void code_toaddr(Code *c);
 void code_toinfo(Code *c, uint8_t info); /* as a variable of TVAR.info info holds it */
 void code_dtest(Code *c);                /* cm_dnz: a DOUBLE test as an INT, D.NZ */
+
+/* Type's one of four: INT, FLOAT, DOUBLE, STRING. */
+static inline uint8_t code_pick(
+    const uint8_t type,
+    const uint8_t i,
+    const uint8_t f,
+    const uint8_t d,
+    const uint8_t s
+)
+{
+    switch (type) {
+    case T_INT:
+        return i;
+
+    case T_FLT:
+        return f;
+
+    case T_DBL:
+        return d;
+
+    default:
+        return s;
+    }
+}
 #endif

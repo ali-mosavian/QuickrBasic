@@ -5,6 +5,10 @@
 #include "comp/code.h"
 
 void cg_tree(Code *c, const Node *n); /* n's tree compiled: a checked one (comp/sema.h) */
+/* A CONST's N_STORE n in two: its value converted for the target; then, the value folded, the
+   store. */
+void cg_store_value(Code *c, const Node *n);
+void cg_store_op(Code *c, const Node *n);
 void cg_icmp(Code *c, uint8_t rel, uint8_t *right); /* an INT relation, rel REL + mask */
 void cg_fcmp(Code *c, uint8_t rel, uint8_t *right); /* a FLOAT relation, the right's load folded */
 /* cm_lflt: the left INT operand as a FLOAT: its load (left, null none) in place, else I.TOF

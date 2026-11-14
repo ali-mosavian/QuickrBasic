@@ -1,0 +1,1 @@
+10 DIM s AS STRING * 4

@@ -37,7 +37,7 @@
  * | ct_elseif, ct_belse, ct_do, ct_loop, ct_while, ct_wend, ct_exit, ct_select, ct_var, ct_case, ct_item, ct_cmp, ct_stv, ct_ldop, ct_vop | elseif, blockelse, doloop, loop, whileloop, wend, exitblock, select, selvar, casestmt, caseitem, casecmp, stv, ldop, code_opid | MIRROR |
  * | g_ctnm, g_ctvr, g_cttp, g_cbyv, g_cbyd, g_cpar, g_rfnt | statics; ctrl.selid, ctrl.seltype | MIRROR |
  *
- * - D1. The call is a tree (N_CALL, built by ref_call); expr_emit emits it.
+ * - D1. The call is a tree (N_CALL, built by ref_call); comp_step makes it a step.
  * - D2. A record's place is a RecRef on the node, not globals.
  */
 #include "comp/control.h"
@@ -138,15 +138,6 @@ Jump ctrl_jump(Session *const S, const uint32_t t)
     return j;
 }
 
-/* ct_emitjump: target t's Jump. */
-static void emitjump(Session *const S, const uint32_t t)
-{
-    const Jump j = ctrl_jump(S, t);
-    code_dword(&S->code, j.line);
-    code_dword(&S->code, j.body);
-    code_dword(&S->code, j.dest);
-}
-
 /* ct_ent: the entry of the statement at at; null in the direct line. */
 static BlockEnt *entry(Session *const S, const uint8_t *const at)
 {
@@ -166,24 +157,13 @@ static uint32_t doneof(const BlockEnt *const e) { return e ? e->done : NOTARGET;
 
 static void jump(Session *const S, const uint8_t op, const uint32_t t)
 {
-    code_op(&S->code, op);
-    emitjump(S, t);
+    comp_go(S, op, ctrl_jump(S, t));
 }
 
 static void jmp(Session *const S, const uint32_t t) { jump(S, O_JMP, t); }
 
-static void jcond(Session *const S, const uint8_t op, const uint32_t t)
-{
-    code_dtest(&S->code);
-
-    if (S->code.type & T_STR)
-        mismatch(S);
-
-    jump(S, S->code.type == T_FLT ? op + 1 : op, t); /* F.JF, F.JT after the INT's */
-}
-
-void ctrl_jf(Session *const S, const uint32_t t) { jcond(S, O_I_JF, t); }
-static void jt(Session *const S, const uint32_t t) { jcond(S, O_I_JT, t); }
+void ctrl_jf(Session *const S, const uint32_t t) { comp_cond(S, O_I_JF, ctrl_jump(S, t)); }
+static void jt(Session *const S, const uint32_t t) { comp_cond(S, O_I_JT, ctrl_jump(S, t)); }
 
 void ctrl_blockif(Session *const S)
 {
@@ -297,7 +277,7 @@ static void exitblock(Session *const S)
     S->comp.p += 2;
 
     if (c == TK_FOR)
-        code_op(&S->code, O_FPOP);
+        comp_op(S, O_FPOP);
     else if (c != TK_DO)
         synerr(S);
 
@@ -318,8 +298,8 @@ static uint16_t selvar(Session *const S, const uint8_t depth, const uint8_t type
     S->ctrl.selid = symb_find_var(
         S,
         name,
-        comp_pick(type, ET_I4, ET_R4, ET_R8, ET_SD),
-        comp_pick(type, VK_INT, VK_FLT, SK_DBL, VK_STR),
+        code_pick(type, ET_I4, ET_R4, ET_R8, ET_SD),
+        code_pick(type, VK_INT, VK_FLT, SK_DBL, VK_STR),
         0,
         false
     );
@@ -329,13 +309,13 @@ static uint16_t selvar(Session *const S, const uint8_t depth, const uint8_t type
 /* ct_ldop: selid's load. */
 static uint8_t ldop(Session *const S)
 {
-    return comp_pick(S->ctrl.seltype, O_I_LD_V, O_F_LD_V, O_D_LD_V, O_S_LD_V);
+    return code_pick(S->ctrl.seltype, O_I_LD_V, O_F_LD_V, O_D_LD_V, O_S_LD_V);
 }
 
 /* ct_stv: store to selid. */
 static void stv(Session *const S)
 {
-    comp_opid(S, comp_pick(S->ctrl.seltype, O_I_ST_V, O_F_ST_V, O_D_ST_V, O_S_ST_V), S->ctrl.selid);
+    comp_opid(S, code_pick(S->ctrl.seltype, O_I_ST_V, O_F_ST_V, O_D_ST_V, O_S_ST_V), S->ctrl.selid);
 }
 
 static void select(Session *const S)
@@ -349,17 +329,18 @@ static void select(Session *const S)
     S->comp.p++;
     expr_compile(S);
 
-    if (S->code.type == T_DBL)
+    if (comp_type(S) == T_DBL)
         comp_tofloat(S);
 
+    const uint8_t type = comp_type(S);
     uint8_t depth = 0;
 
     if (e) {
         depth = (uint8_t)e->aux;
-        e->aux = (uint16_t)((e->aux & 0xFF) | (S->code.type | SEL_COMPILED) << 8);
+        e->aux = (uint16_t)((e->aux & 0xFF) | (type | SEL_COMPILED) << 8);
     }
 
-    selvar(S, depth, S->code.type);
+    selvar(S, depth, type);
     stv(S);
     jmp(S, nextof(e));
 }
@@ -367,33 +348,20 @@ static void select(Session *const S)
 /* ct_cmp: the SELECT's value, relation m (DC_*), the expression: an INT. */
 static void casecmp(Session *const S, const uint8_t m)
 {
-    uint8_t *const left = S->code.out;
-    comp_opid(S, ldop(S), S->ctrl.selid);
-    uint8_t *right = S->code.out;
-    expr_compile(S);
+    Node *const n = ast_new(&S->ast, N_CASECMP); /* a step first: an error's code has the load */
+    n->op = m;
+    n->id = S->ctrl.selid;
+    n->conv = S->ctrl.seltype;
+    ast_step(&S->ast, n);
+    Node *const e = expr_tree(S, false);
+    comp_check(S, e);
+    n->a = e; /* checked: a mismatch's code has it */
 
-    if (S->ctrl.seltype & T_STR) {
-        if (!(S->code.type & T_STR))
-            mismatch(S);
-
-        code_opb(&S->code, O_S_CMP, m);
-        S->code.type = T_INT;
-        return;
-    }
-
-    if (S->code.type & T_STR)
+    if ((S->ctrl.seltype & T_STR) != (ast_type(e) & T_STR))
         mismatch(S);
-    if (S->ctrl.seltype == T_INT) {
-        if (S->code.type == T_INT) {
-            cg_icmp(&S->code, REL | m, right);
-            return;
-        }
 
-        right = cg_lfloat(&S->code, left, right);
-    }
-
-    comp_tofloat(S);
-    cg_fcmp(&S->code, REL | m, right);
+    n->mode = 1;
+    comp_value(S, T_INT);
 }
 
 /* ct_item: IS rel e, e TO e, e. */
@@ -433,7 +401,8 @@ static void caseitem(Session *const S)
 
     S->comp.p++;
     casecmp(S, DC_EQ | DC_LT);
-    code_op(&S->code, O_I_AND);
+    comp_op(S, O_I_AND);
+    comp_value(S, T_INT);
 }
 
 static void casestmt(Session *const S)
@@ -465,10 +434,10 @@ static void casestmt(Session *const S)
     while (*S->comp.p == ',') {
         S->comp.p++;
         caseitem(S);
-        code_op(&S->code, O_I_OR);
+        comp_op(S, O_I_OR);
+        comp_value(S, T_INT);
     }
 
-    S->code.type = T_INT;
     ctrl_jf(S, nextof(e));
 }
 
@@ -476,7 +445,7 @@ void ctrl_swap(Session *const S)
 {
     const uint8_t *const a = S->comp.p;
     expr_load(S);
-    selvar(S, 'S' - '0', S->code.type);
+    selvar(S, 'S' - '0', comp_type(S));
     stv(S);
 
     if (comp_cur(&S->comp) != ',')
@@ -489,7 +458,7 @@ void ctrl_swap(Session *const S)
     const uint16_t tgt = S->comp.tgt;
     expr_load(S);
 
-    if (S->code.type != S->ctrl.seltype)
+    if (comp_type(S) != S->ctrl.seltype)
         mismatch(S);
 
     S->comp.tgt = tgt;
@@ -498,7 +467,7 @@ void ctrl_swap(Session *const S)
     S->comp.p = b; /* b = #S */
     expr_target(S);
     comp_opid(S, ldop(S), S->ctrl.selid);
-    S->code.type = S->ctrl.seltype;
+    comp_value(S, S->ctrl.seltype);
     comp_store(S);
     S->comp.p = end;
 }
@@ -511,14 +480,16 @@ void ctrl_recstore(Session *const S)
 
     if (et == ET_SD) {
         comp_tostring(S);
-        code_opw(&S->code, O_SF_ST, S->comp.tgt);
-        code_word(&S->code, S->ctrl.fieldfix);
+        Node *const n = comp_op(S, O_SF_ST);
+        comp_word(n, S->comp.tgt);
+        comp_word(n, S->ctrl.fieldfix);
         return;
     }
 
     comp_toinfo(S, comp_etkind[et]);
-    code_opw(&S->code, O_FL_ST, S->comp.tgt);
-    code_byte(&S->code, et);
+    Node *const n = comp_op(S, O_FL_ST);
+    comp_word(n, S->comp.tgt);
+    comp_byte(n, et);
 }
 
 /* ct_rcopy: a = b of two records of one TYPE: their addresses, R.COPY. */
@@ -533,9 +504,9 @@ static bool reccopy(Session *const S)
         Node *const b = comp_cur(&S->comp) == M_VAR ? ref_record(S) : nullptr;
 
         if (b != nullptr && b->rec.et == rec.et && comp_end(S)) {
-            expr_emit(S, a);
-            expr_emit(S, b);
-            code_opw(&S->code, O_R_COPY, rec.fix);
+            comp_step(S, a);
+            comp_step(S, b);
+            comp_word(comp_op(S, O_R_COPY), rec.fix);
             return true;
         }
     }
@@ -559,14 +530,14 @@ static bool checkonly(Session *const S) { return S->comp.check && declname(S); }
 
 void ctrl_undef(Session *const S, const uint8_t err)
 {
-    code_int(&S->code, err);
-    code_call(&S->code, K_ERROR);
+    comp_int(S, err);
+    comp_call(S, K_ERROR);
 }
 
 /* Procedure idx's call, its arguments as form writes them. */
 static void pcall(Session *const S, const uint8_t idx, const Proc *const pr, const ArgsForm form)
 {
-    expr_emit(S, ref_call(S, idx, pr, form));
+    comp_step(S, ref_call(S, idx, pr, form));
 }
 
 /* CALL n [( args )]. */
@@ -670,7 +641,7 @@ static void sub(Session *const S)
 static void pret(Session *const S)
 {
     S->comp.p += 2;
-    code_op(&S->code, O_PRET);
+    comp_op(S, O_PRET);
 }
 
 /* DEF FNn [(params)]: passed as a FUNCTION; with = e, JMP past it, then the result e, PRET. */
@@ -702,7 +673,7 @@ static void deffn(Session *const S)
     S->comp.p = eq + 1;
     expr_compile(S);
     comp_store(S);
-    code_op(&S->code, O_PRET);
+    comp_op(S, O_PRET);
 }
 
 /* DEF SEG [= s]: no code, flat; DEF FN. */
@@ -749,8 +720,8 @@ static void erase(Session *const S)
         if (t)
             id = ref_recarray(S, name, t);
 
-        code_int(&S->code, id);
-        code_call(&S->code, K_ERASE);
+        comp_int(S, id);
+        comp_call(S, K_ERASE);
     } while (comp_optcomma(S));
 }
 
@@ -800,7 +771,7 @@ static void evnum(Session *const S, const uint8_t kind)
             synerr(S);
     }
 
-    code_int(&S->code, 0);
+    comp_int(S, 0);
 }
 
 /* ON [LOCAL] ERROR GOTO line: ONERR or ONLERR num addr; ON event(n) GOSUB line: ONEV kind num
@@ -825,8 +796,7 @@ static bool onerror(Session *const S)
         S->comp.p++;
         S->comp.modlabel = true; /* an event's handler: the module's */
         comp_lnum(S);
-        code_opb(&S->code, O_ONEV, kind);
-        comp_lref(S);
+        comp_byte(comp_jump(S, O_ONEV), kind);
         return true;
     }
 
@@ -856,8 +826,7 @@ static bool onerror(Session *const S)
     S->comp.p++;
     S->comp.modlabel = op == O_ONERR; /* ON ERROR's handler: the module's */
     comp_lnum(S);
-    code_op(&S->code, op);
-    comp_lref(S);
+    comp_jump(S, op);
     return true;
 }
 
@@ -888,7 +857,7 @@ static bool evstate(Session *const S)
             comp_comma(S);
             expr_compile(S);
             comp_tostring(S);
-            code_call(&S->code, K_KEYDEF);
+            comp_call(S, K_KEYDEF);
             return true;
         }
     }
@@ -911,8 +880,8 @@ static bool evstate(Session *const S)
         synerr(S);
 
     S->comp.p++;
-    code_int(&S->code, kind * 4u + state);
-    code_call(&S->code, K_EVST);
+    comp_int(S, kind * 4u + state);
+    comp_call(S, K_EVST);
     return true;
 }
 
@@ -971,8 +940,8 @@ static void common(Session *const S)
             }
         }
 
-        code_int(&S->code, id);
-        code_call(&S->code, K_CMN);
+        comp_int(S, id);
+        comp_call(S, K_CMN);
     } while (comp_optcomma(S));
 }
 
@@ -994,8 +963,7 @@ static void resume(Session *const S)
             mode = RESUME_LINE;
     }
 
-    code_opb(&S->code, O_RESUME, mode);
-    comp_lref(S);
+    comp_byte(comp_jump(S, O_RESUME), mode);
 }
 
 static bool xstmt(Session *const S)
@@ -1039,15 +1007,15 @@ static void mids(Session *const S)
         expr_compile(S);
         comp_toint(S);
     } else
-        code_int(&S->code, SMAX);
+        comp_int(S, SMAX);
 
     comp_close(S);
     comp_equals(S);
     expr_compile(S);
     comp_tostring(S);
-    code_call(&S->code, K_MIDS);
+    comp_call(S, K_MIDS);
+    comp_value(S, T_STR);
     S->comp.tgt = tgt;
-    S->code.type = T_STR;
     comp_store(S);
 }
 

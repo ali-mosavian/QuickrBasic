@@ -1,0 +1,1 @@
+10 IF a$ THEN PRINT 1

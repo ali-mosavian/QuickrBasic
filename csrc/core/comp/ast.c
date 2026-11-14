@@ -145,7 +145,17 @@ Node *ast_wrap(Ast *const t, const NodeKind kind)
 
 void ast_conv(Ast *const t, const uint8_t cv, const uint8_t *const end)
 {
+    static const uint8_t type[] = {
+        [CV_INT] = T_INT,
+        [CV_FLT] = T_FLT,
+        [CV_DBL] = T_DBL,
+        [CV_STR] = T_STR,
+        [CV_BYTE] = T_INT,
+        [CV_ADDR] = T_INT,
+    };
+
     Node *const n = ast_wrap(t, N_CONV);
     n->op = cv;
+    n->type = type[cv];
     n->end = end;
 }

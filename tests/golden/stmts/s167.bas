@@ -1,0 +1,1 @@
+10 IF x# THEN 10 ELSE 20

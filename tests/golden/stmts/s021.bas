@@ -1,0 +1,1 @@
+10 IF x# > 1 THEN PRINT

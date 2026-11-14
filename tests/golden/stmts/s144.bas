@@ -1,0 +1,3 @@
+SELECT CASE x%
+CASE 1, 2.5, y
+END SELECT

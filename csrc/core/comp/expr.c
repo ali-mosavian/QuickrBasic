@@ -16,7 +16,7 @@
  * |---|---|---|
  * | cm_expr | expr_compile | MIRROR; D1 |
  * | cm_lexpr, cm_str1, cm_va | expr_assign, expr_string, expr_varaddr | MIRROR; actions |
- * | cm_paren, cm_subs0, cm_load, cm_lval | expr_paren, expr_subs (-> count), expr_load, expr_target | MIRROR |
+ * | cm_paren, cm_subs0, cm_load, cm_lval | expr_paren, expr_target's N_TARGET, expr_load, expr_target | MIRROR |
  * | cm_shv, cm_icmp, cm_fcmp, cm_lflt | code_shclass (code.c), cg_icmp, cg_fcmp, cg_lfloat (codegen.c) | MOVED |
  * | cm_p, cm_un | parse, parse_unary | D1 |
  * | cm_sop, cm_shid, cm_iop, cm_fop2, cm_fkind, cm_str | shortop, shortid, cg_binary, fltkind (codegen.c) | MOVED; D1 |
@@ -108,17 +108,7 @@ static Node *addr_node(Session *S, Node *at, uint8_t k);
 static Node *var_leaf(Session *S);
 static Node *str_leaf(Session *S);
 
-/* An expression parsed, folded and compiled, for a DOUBLE target or not. */
-static void compile(Session *const S, const bool dbl)
-{
-    const bool was = S->expr.dbltgt;
-    S->expr.dbltgt = dbl;
-    Node *const root = parse(S, 0);
-    S->expr.dbltgt = was;
-    expr_emit(S, root);
-}
-
-void expr_compile(Session *const S) { compile(S, false); }
+void expr_compile(Session *const S) { comp_step(S, expr_tree(S, false)); }
 
 Node *expr_tree(Session *const S, const bool dbl)
 {
@@ -128,8 +118,6 @@ Node *expr_tree(Session *const S, const bool dbl)
     S->expr.dbltgt = was;
     return root;
 }
-
-void expr_assign(Session *const S) { compile(S, S->comp.tgtinfo & SK_DBL); }
 
 /* The operator at c's index; false: none. */
 static bool operator_of(const uint8_t c, uint8_t *const op)
@@ -197,15 +185,6 @@ static Node *parse(Session *const S, const uint8_t p)
     return left;
 }
 
-void expr_emit(Session *const S, Node *const root)
-{
-    const uint8_t *const end = S->comp.p;
-    sema_tree(S, root);
-    fold_tree(S, root);
-    cg_tree(&S->code, root);
-    S->comp.p = end;
-}
-
 void expr_paren(Session *const S)
 {
     comp_open(S);
@@ -213,24 +192,9 @@ void expr_paren(Session *const S)
     comp_close(S);
 }
 
-uint8_t expr_subs(Session *const S)
-{
-    comp_open(S);
-    uint8_t n = 0;
+void expr_string(Session *const S) { comp_step(S, str_leaf(S)); }
 
-    do {
-        n++;
-        expr_compile(S);
-        comp_toint(S);
-    } while (comp_optcomma(S));
-
-    comp_close(S);
-    return n;
-}
-
-void expr_string(Session *const S) { expr_emit(S, str_leaf(S)); }
-
-void expr_load(Session *const S) { expr_emit(S, var_leaf(S)); }
+void expr_load(Session *const S) { comp_step(S, var_leaf(S)); }
 
 /* A record's field r the target: its address emitted. */
 static void target_field(Session *const S, Node *const r)
@@ -240,7 +204,7 @@ static void target_field(Session *const S, Node *const r)
     if (rec.et >= ET_REC)
         mismatch(S);
 
-    expr_emit(S, r);
+    comp_step(S, r);
     S->comp.tgt = rec.off;
     S->comp.tgtsubs = TGT_FIELD;
     S->ctrl.fieldet = rec.et;
@@ -253,36 +217,6 @@ void expr_target(Session *const S)
     Node *const r = comp_cur(&S->comp) == M_VAR ? ref_record(S) : nullptr;
 
     if (r != nullptr) {
-        target_field(S, r);
-        return;
-    }
-
-    const uint16_t id = comp_name(S);
-
-    if (!(symb_var(&S->symb, id)->info & VI_ARR)) {
-        comp_target(S, id);
-        S->comp.vat = S->code.out;
-        return;
-    }
-
-    const uint8_t n = expr_subs(S); /* may compile a call with its own target */
-    comp_target(S, id);
-    S->comp.tgtsubs = n;
-    S->comp.vat = S->code.out;
-}
-
-void expr_target_step(Session *const S)
-{
-    if (S->comp.tok == TK_CONST) { /* fold_const reads its value's code from comp.vat */
-        comp_flush(S);
-        expr_target(S);
-        return;
-    }
-
-    Node *const r = comp_cur(&S->comp) == M_VAR ? ref_record(S) : nullptr;
-
-    if (r != nullptr) {
-        comp_flush(S);
         target_field(S, r);
         return;
     }
@@ -305,9 +239,7 @@ void expr_target_step(Session *const S)
     do {
         n++;
         Node *const e = expr_tree(S, false);
-        const uint8_t *const p = S->comp.p;
-        sema_tree(S, e);
-        S->comp.p = p;
+        comp_check(S, e);
 
         if (ast_type(e) & T_STR)
             mismatch(S);
@@ -316,6 +248,7 @@ void expr_target_step(Session *const S)
         *cv = (Node){
             .kind = N_CONV,
             .op = CV_INT,
+            .type = T_INT,
             .a = e,
             .end = S->comp.p,
         };
@@ -331,8 +264,8 @@ void expr_target_step(Session *const S)
 void expr_varaddr(Session *const S)
 {
     uint32_t vk;
-    expr_emit(S, addr_node(S, ref_place(S, &vk), 0));
-    code_int(&S->code, vk);
+    comp_step(S, addr_node(S, ref_place(S, &vk), 0));
+    comp_int(S, vk);
 }
 
 /* The function token at comp.p (FFh n as 100h + n), comp.p past it: its XFn. */

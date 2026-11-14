@@ -1,0 +1,1 @@
+10 ON KEY(1) GOSUB 10

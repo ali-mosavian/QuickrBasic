@@ -1,0 +1,6 @@
+DECLARE FUNCTION g (n)
+y = g(2)
+FUNCTION g (n)
+g = n + 1
+EXIT FUNCTION
+END FUNCTION

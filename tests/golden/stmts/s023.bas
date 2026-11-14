@@ -1,0 +1,1 @@
+10 IF x THEN PRINT 1 +

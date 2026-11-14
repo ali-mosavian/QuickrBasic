@@ -2,8 +2,9 @@
  *
  * # How it works
  * A statement is run by the generated automaton (comp/dfa.h): each state's entry for the byte at
- * the cursor steps past a token, goes on at the statement's end, or runs an action, an emitter
- * (A_*) or CALL K_*. The token cursor is comp.p, the code's next byte comp.out. The helpers here also take
+ * the cursor steps past a token, goes on at the statement's end, or runs an action (A_*) or CALL
+ * K_*. Each makes the statement's steps (comp/ast.h): checked as made, generated in order at
+ * comp_flush, when the statement ends. The token cursor is comp.p. The helpers here also take
  * any cursor as `const uint8_t **p`. A body is in the arena (comp.cbuf or the program store), so a
  * string literal's operand is addr_of() its text.
  *
@@ -27,7 +28,7 @@
  * | cm_toi, cm_tof, cm_tod, cm_tos, cm_tob, cm_toa, cm_dnz | comp_toint, comp_tofloat, comp_todouble, comp_tostring, comp_tobyte, comp_toaddr, comp_dtest | MIRROR |
  * | cm_byt, cm_op, cm_opx, cm_opw, cm_dw, cm_ins, cm_lint, cm_call, cm_ileaf, cm_shv | code_byte, code_op, code_opb, code_opw, code_dword, code_insert, code_int, code_call, code_intleaf, code_shclass (code.c) | MOVED |
  * | cm_icmp, cm_fcmp, cm_lflt | cg_icmp, cg_fcmp, cg_lfloat (codegen.c) | MOVED |
- * | (by kind) | comp_toinfo: a variable's kind; comp_pick: one of four by T_* | D2 |
+ * | (by kind) | comp_toinfo: a variable's kind; code_pick: one of four by T_* | D2 |
  * | cm_opid | comp_opid | MIRROR |
  * | cm_tgt, cm_store, cm_fst | comp_target, comp_store | MIRROR; A_FST's store too |
  * | cm_chkcl, cm_chkop, cm_chkcm, cm_chkeq, cm_chk | comp_close, comp_open, comp_comma, comp_equals, comp_need | MIRROR |
@@ -104,66 +105,124 @@ static void mismatch(Session *const S)
     repl_error(S, E_TM);
 }
 
-/* ---- emitting: the statements' own, their checks with them */
+/* ---- steps: the statement's nodes, checked as made, generated at a flush */
 
-void comp_lref(Session *const S)
+void comp_check(Session *const S, Node *const n)
 {
-    code_word(&S->code, S->comp.lnum);
-    code_dword(&S->code, S->comp.jline);
+    const uint8_t *const p = S->comp.p;
+    sema_tree(S, n);
+    S->comp.p = p;
+}
+
+void comp_step(Session *const S, Node *const n)
+{
+    comp_check(S, n);
+    ast_step(&S->ast, n);
+}
+
+void comp_flush(Session *const S)
+{
+    Node *const first = S->ast.steps; /* taken: an error in them flushes none twice */
+    S->ast.steps = S->ast.last = nullptr;
+
+    for (Node *n = first; n; n = n->next) {
+        sema_resolve(S, n);
+        fold_tree(S, n);
+
+        if (n->kind == N_STORE && n->mode) { /* a CONST's: its value folded before the store */
+            uint8_t *const at = S->code.out;
+            cg_store_value(&S->code, n);
+            fold_const(S, at, n->id);
+            cg_store_op(&S->code, n);
+        } else
+            cg_tree(&S->code, n);
+    }
+}
+
+/* A statement's node of kind, op, the next step. */
+static Node *node(Session *const S, const NodeKind kind, const uint8_t op)
+{
+    Node *const n = ast_new(&S->ast, kind);
+    n->op = op;
+    ast_step(&S->ast, n);
+    return n;
+}
+
+uint8_t comp_type(Session *const S)
+{
+    if (!ast_isvalue(S->ast.last))
+        synerr(S);
+
+    return ast_type(S->ast.last);
+}
+
+void comp_value(Session *const S, const uint8_t type)
+{
+    S->ast.last->val = true;
+    S->ast.last->type = type;
+}
+
+void comp_call(Session *const S, const uint8_t k) { node(S, N_KCALL, k); }
+void comp_int(Session *const S, const uint32_t n) { node(S, N_INT, 0)->num = n; }
+Node *comp_op(Session *const S, const uint8_t op) { return node(S, N_OP, op); }
+void comp_byte(Node *const n, const uint8_t b) { n->lit[n->nargs++] = b; }
+
+void comp_word(Node *const n, const uint16_t w)
+{
+    comp_byte(n, (uint8_t)w);
+    comp_byte(n, (uint8_t)(w >> 8));
 }
 
 void comp_opid(Session *const S, const uint8_t op, const uint16_t id)
 {
-    code_opid(&S->code, op, id, comp_ispar(S, id));
+    node(S, N_OPID, op)->id = id;
 }
 
-/* The value a number; else Type mismatch. */
-static void number(Session *const S)
+Node *comp_jump(Session *const S, const uint8_t op)
 {
-    if (S->code.type & T_STR)
+    Node *const n = node(S, N_JUMP, op);
+    n->id = S->comp.lnum;
+    n->num = S->comp.jline;
+    return n;
+}
+
+void comp_go(Session *const S, const uint8_t op, const Jump j) { node(S, N_GO, op)->jump = j; }
+
+void comp_cond(Session *const S, const uint8_t op, const Jump j)
+{
+    if (comp_type(S) & T_STR)
         mismatch(S);
+
+    node(S, N_COND, op)->jump = j;
 }
 
-void comp_toint(Session *const S)
+/* The last step's value converted, cv; Type mismatch from a string where a number goes, a number
+   where a string. */
+static void conv(Session *const S, const uint8_t cv)
 {
-    number(S);
-    code_toint(&S->code);
-}
-void comp_tofloat(Session *const S)
-{
-    number(S);
-    code_tofloat(&S->code);
-}
-void comp_todouble(Session *const S)
-{
-    number(S);
-    code_todouble(&S->code);
-}
-void comp_tobyte(Session *const S)
-{
-    number(S);
-    code_tobyte(&S->code);
-}
-void comp_toaddr(Session *const S)
-{
-    number(S);
-    code_toaddr(&S->code);
-}
-
-void comp_tostring(Session *const S)
-{
-    if (!(S->code.type & T_STR))
+    if (cv == CV_STR ? !(comp_type(S) & T_STR) : comp_type(S) & T_STR)
         mismatch(S);
+
+    ast_conv(&S->ast, cv, S->comp.p);
 }
+
+void comp_toint(Session *const S) { conv(S, CV_INT); }
+void comp_tofloat(Session *const S) { conv(S, CV_FLT); }
+void comp_todouble(Session *const S) { conv(S, CV_DBL); }
+void comp_tobyte(Session *const S) { conv(S, CV_BYTE); }
+void comp_toaddr(Session *const S) { conv(S, CV_ADDR); }
+void comp_tostring(Session *const S) { conv(S, CV_STR); }
 
 void comp_toinfo(Session *const S, const uint8_t info)
 {
-    if ((info & (SK_DBL | VK_MASK)) == VK_STR)
-        comp_tostring(S);
+    if (info & SK_DBL)
+        conv(S, CV_DBL);
+    else if ((info & VK_MASK) == VK_INT)
+        conv(S, CV_INT);
+    else if ((info & VK_MASK) == VK_FLT)
+        conv(S, CV_FLT);
     else
-        number(S);
-
-    code_toinfo(&S->code, info);
+        conv(S, CV_STR);
 }
 
 void comp_target(Session *const S, const uint16_t id)
@@ -173,52 +232,8 @@ void comp_target(Session *const S, const uint16_t id)
     S->comp.tgtsubs = 0;
 }
 
-/* The target's store by its subscripts: none, one, or many and their count. */
-static void store_to(Session *const S, const uint8_t scalar, const uint8_t one, const uint8_t many)
-{
-    const uint8_t subs = S->comp.tgtsubs;
-
-    if (subs > 1) {
-        comp_opid(S, many, S->comp.tgt);
-        code_byte(&S->code, subs);
-    } else
-        comp_opid(S, subs ? one : scalar, S->comp.tgt);
-}
-
-/* The value converted for the target; its store ops' offset from the INT's: 0, 1 FLOAT, 2 STRING. */
-static uint8_t convert_for_target(Session *const S)
-{
-    switch (S->comp.tgtinfo & VK_MASK) {
-    case VK_INT: /* a SHORT: Overflow past 16 bits, unless it is one */
-        code_shclass(&S->code);
-        comp_toint(S);
-
-        if (symb_var(&S->symb, S->comp.tgt)->type == ET_SH && !S->code.shclass)
-            code_op(&S->code, O_I_CHK16);
-
-        return 0;
-
-    case VK_FLT:
-        comp_tofloat(S);
-        return 1;
-
-    case VK_STR: { /* a STRING * n: n chars */
-        comp_tostring(S);
-        const uint16_t fix =
-            scop_fix(&S->scop, symb_var(&S->symb, S->comp.tgt)->name, S->comp.tgtsubs != 0);
-
-        if (fix) {
-            code_int(&S->code, fix);
-            code_call(&S->code, K_SFIX);
-        }
-
-        return 2;
-    }
-    default:
-        synerr(S);
-    }
-}
-
+/* The last step's value stored to the target. A CONST's is generated now: its value, folded, is
+   the next item's. */
 void comp_store(Session *const S)
 {
     if (S->comp.tgtsubs == TGT_FIELD) {
@@ -226,16 +241,30 @@ void comp_store(Session *const S)
         return;
     }
 
-    if (S->comp.tgtinfo & SK_DBL) {
-        comp_todouble(S);
-        fold_const(S);
-        store_to(S, O_D_ST_V, O_D_ST_A1, O_D_ST_A);
-        return;
-    }
+    const uint8_t info = S->comp.tgtinfo;
+    const bool str = comp_type(S) & T_STR;
 
-    const uint8_t k = convert_for_target(S);
-    fold_const(S);
-    store_to(S, O_I_ST_V + k, O_I_ST_A1 + k, O_I_ST_A + k);
+    if (info & SK_DBL || (info & VK_MASK) == VK_INT || (info & VK_MASK) == VK_FLT) {
+        if (str)
+            mismatch(S);
+    } else if ((info & VK_MASK) == VK_STR) {
+        if (!str)
+            mismatch(S);
+    } else
+        synerr(S);
+
+    const uint16_t id = S->comp.tgt;
+    const uint16_t fix = (info & (SK_DBL | VK_MASK)) == VK_STR
+                             ? scop_fix(&S->scop, symb_var(&S->symb, id)->name, S->comp.tgtsubs)
+                             : 0;
+    Node *const n = ast_wrap(&S->ast, N_STORE);
+    n->id = id;
+    n->op = S->comp.tgtsubs;
+    n->fix = fix;
+    n->mode = S->comp.tok == TK_CONST && !S->comp.tgtsubs;
+
+    if (n->mode)
+        comp_flush(S);
 }
 
 /* ---- the token reader */
@@ -335,9 +364,9 @@ uint8_t comp_lnum(Session *const S)
 static void lnumload(Session *const S)
 {
     if (S->comp.lnum == NONUM)
-        code_int(&S->code, S->comp.jline + LABEL_LINE);
+        comp_int(S, S->comp.jline + LABEL_LINE);
     else
-        code_opw(&S->code, O_I_LD_I16, S->comp.lnum);
+        comp_word(comp_op(S, O_I_LD_I16), S->comp.lnum);
 }
 
 /* ---- names and variables */
@@ -517,6 +546,7 @@ static void mapstmt(Session *const S, const uint32_t bodyoff)
    error's too. */
 static void mark(Session *const S)
 {
+    comp_flush(S); /* an IF's before its THEN's statement */
     ast_reset(&S->ast);
     mapstmt(S, (uint32_t)(S->comp.p - S->comp.body));
 }
@@ -555,6 +585,7 @@ static void finish(Session *const S)
 [[noreturn]]
 static void done(Session *const S)
 {
+    comp_flush(S);
     finish(S);
     longjmp(S->comp.unwind, 1);
 }
@@ -573,161 +604,6 @@ void comp_fail(Session *const S, const uint8_t err)
     S->comp.dfa = 0xFFFF;
     done(S);
 }
-
-/* ---- steps: the statement's trees, checked as parsed, generated at a flush */
-
-/* Tree n the statement's next step, checked now. */
-static void step(Session *const S, Node *const n)
-{
-    const uint8_t *const p = S->comp.p;
-    sema_tree(S, n);
-    S->comp.p = p;
-    ast_step(&S->ast, n);
-}
-
-void comp_flush(Session *const S)
-{
-    for (Node *n = S->ast.steps; n; n = n->next) {
-        sema_resolve(S, n);
-        fold_tree(S, n);
-        cg_tree(&S->code, n);
-    }
-
-    S->ast.steps = S->ast.last = nullptr;
-}
-
-/* A_E: an expression. */
-static void step_expr(Session *const S) { step(S, expr_tree(S, false)); }
-
-/* A_LE: the value of a target, a DOUBLE's parsed as such. */
-static void step_assign(Session *const S) { step(S, expr_tree(S, S->comp.tgtinfo & SK_DBL)); }
-
-/* A_LET, A_FST: the last step stored to the target; legacy for a record's field, a CONST, a
-   value no expression gave. */
-static void step_store(Session *const S)
-{
-    const Node *const last = S->ast.last;
-
-    if (S->comp.tgtsubs == TGT_FIELD || S->comp.tok == TK_CONST || !ast_isvalue(last)) {
-        comp_flush(S);
-        comp_store(S);
-        return;
-    }
-
-    const uint8_t info = S->comp.tgtinfo;
-    const bool str = ast_type(last) & T_STR;
-
-    if (info & SK_DBL || (info & VK_MASK) == VK_INT || (info & VK_MASK) == VK_FLT) {
-        if (str)
-            mismatch(S);
-    } else if ((info & VK_MASK) == VK_STR) {
-        if (!str)
-            mismatch(S);
-    } else
-        synerr(S);
-
-    const uint16_t id = S->comp.tgt;
-    const uint16_t fix = (info & (SK_DBL | VK_MASK)) == VK_STR
-                             ? scop_fix(&S->scop, symb_var(&S->symb, id)->name, S->comp.tgtsubs)
-                             : 0;
-    Node *const n = ast_wrap(&S->ast, N_STORE);
-    n->id = id;
-    n->op = S->comp.tgtsubs;
-    n->fix = fix;
-}
-
-/* A_TO*: the last step converted, cv; legacy when it is no expression's (a CALL's). */
-static void step_conv(Session *const S, const uint8_t cv, void (*const legacy)(Session *))
-{
-    const Node *const last = S->ast.last;
-
-    if (!ast_isvalue(last)) {
-        comp_flush(S);
-        legacy(S);
-        return;
-    }
-
-    if (cv == CV_STR ? !(ast_type(last) & T_STR) : ast_type(last) & T_STR)
-        mismatch(S);
-
-    ast_conv(&S->ast, cv, S->comp.p);
-}
-
-static void step_toint(Session *const S) { step_conv(S, CV_INT, comp_toint); }
-static void step_todouble(Session *const S) { step_conv(S, CV_DBL, comp_todouble); }
-static void step_tobyte(Session *const S) { step_conv(S, CV_BYTE, comp_tobyte); }
-static void step_toaddr(Session *const S) { step_conv(S, CV_ADDR, comp_toaddr); }
-static void step_tostring(Session *const S) { step_conv(S, CV_STR, comp_tostring); }
-
-/* CALL k. */
-static void step_call(Session *const S, const uint8_t k)
-{
-    Node *const n = ast_new(&S->ast, N_KCALL);
-    n->op = k;
-    ast_step(&S->ast, n);
-}
-
-/* A_FOP: CALL LOAD, SAVE or VERIFY by the token. */
-static void step_fop(Session *const S) { step_call(S, S->comp.tok + K_LOAD - TK_LOAD); }
-
-/* A_N0, A_N1: the arguments counted; no code. */
-static void step_n0(Session *const S) { S->comp.nargs = 0; }
-static void step_n1(Session *const S) { S->comp.nargs++; }
-
-/* A_NARG: their count. */
-static void step_narg(Session *const S)
-{
-    Node *const n = ast_new(&S->ast, N_COUNT);
-    n->nargs = S->comp.nargs;
-    ast_step(&S->ast, n);
-}
-
-/* A_L: a line number or label read; no code. */
-static void step_lnum(Session *const S) { comp_lnum(S); }
-
-/* Op alone. */
-static void step_op(Session *const S, const uint8_t op)
-{
-    Node *const n = ast_new(&S->ast, N_OP);
-    n->op = op;
-    ast_step(&S->ast, n);
-}
-
-/* Op to the line A_L read. */
-static void step_jump(Session *const S, const uint8_t op)
-{
-    Node *const n = ast_new(&S->ast, N_JUMP);
-    n->op = op;
-    n->id = S->comp.lnum;
-    n->line = S->comp.jline;
-    ast_step(&S->ast, n);
-}
-
-static void step_goto(Session *const S) { step_jump(S, O_GOTO); }
-static void step_gosub(Session *const S) { step_jump(S, O_GOSUB); }
-static void step_ret(Session *const S) { step_op(S, O_RETURN); }
-
-/* By A_*: the actions that make steps; the others flush the steps first. */
-static void (*const steps[A_END - A_BASE])(Session *S) = {
-    [A_E - A_BASE] = step_expr,
-    [A_TOI - A_BASE] = step_toint,
-    [A_TOD - A_BASE] = step_todouble,
-    [A_TOB - A_BASE] = step_tobyte,
-    [A_TOA - A_BASE] = step_toaddr,
-    [A_TOS - A_BASE] = step_tostring,
-    [A_LV - A_BASE] = expr_target_step,
-    [A_LE - A_BASE] = step_assign,
-    [A_LET - A_BASE] = step_store,
-    [A_FST - A_BASE] = step_store,
-    [A_FOP - A_BASE] = step_fop,
-    [A_N0 - A_BASE] = step_n0,
-    [A_N1 - A_BASE] = step_n1,
-    [A_NARG - A_BASE] = step_narg,
-    [A_L - A_BASE] = step_lnum,
-    [A_GOTO - A_BASE] = step_goto,
-    [A_GOSUB - A_BASE] = step_gosub,
-    [A_RET - A_BASE] = step_ret,
-};
 
 static uint32_t pslook(const uint32_t st, const uint8_t cls)
 {
@@ -752,21 +628,15 @@ void comp_dfa(Session *const S, const uint16_t state)
             st = e >> 8;
 
             if (code < A_BASE)
-                step_call(S, code);
-            else if (steps[code - A_BASE])
-                steps[code - A_BASE](S);
-            else {
-                comp_flush(S);
+                comp_call(S, code);
+            else
                 actions[code - A_BASE](S);
-            }
 
             continue;
         }
 
-        if (code == PS_ACC) {
-            comp_flush(S);
+        if (code == PS_ACC)
             return;
-        }
 
         if (code == PS_ERR) { /* for the error's words: what it wanted */
             S->comp.dfa = (uint16_t)st;
@@ -863,6 +733,8 @@ static void token(Session *const S)
 /* cm_nx: the statement compiled, its end next. */
 static void ended(Session *const S)
 {
+    comp_flush(S);
+
     if (S->code.full) /* cm_om: the code is full */
         comp_fail(S, E_OM);
 
@@ -948,9 +820,9 @@ void comp_line(Session *const S)
     comp_text(S, S->comp.cbuf);
 }
 
-/* ---- the actions */
+/* ---- the actions: each makes the statement's steps */
 
-/* The one of four for the value's type. */
+/* The one of four for the last step's value's type. */
 static uint8_t by_type(
     Session *const S,
     const uint8_t i,
@@ -959,14 +831,22 @@ static uint8_t by_type(
     const uint8_t s
 )
 {
-    return comp_pick(S->code.type, i, f, d, s);
+    return code_pick(comp_type(S), i, f, d, s);
 }
 
-/* IF expr THEN|GOTO line or statements: a compare just made becomes its CMPIF, else X.IF. */
+/* A_E: an expression. */
+static void act_expr(Session *const S) { comp_step(S, expr_tree(S, false)); }
+
+/* A_LE: the value of a target, a DOUBLE's parsed as such. */
+static void act_assign(Session *const S) { comp_step(S, expr_tree(S, S->comp.tgtinfo & SK_DBL)); }
+
+/* IF expr THEN|GOTO line or statements: false past the ELSE, else the one-line IF's test. */
 static void act_if(Session *const S)
 {
     expr_compile(S);
-    code_dtest(&S->code);
+    const uint8_t type = comp_type(S);
+    node(S, N_TEST, 0); /* a DOUBLE's D.NZ: before the THEN's check, as an error's code has it */
+    comp_value(S, type == T_DBL ? T_INT : type);
     uint8_t c = *S->comp.p;
 
     if (c != TK_THEN && c != TK_GOTO)
@@ -981,10 +861,10 @@ static void act_if(Session *const S)
 
     if (ctrl_else(S, &t))
         ctrl_jf(S, t); /* false: past the ELSE */
-    else if (S->code.out == S->code.cmpend)
-        *S->code.cmp += O_I_CMPIF - O_I_CMP;
-    else /* comp_dtest made a DOUBLE an INT */
-        code_op(&S->code, by_type(S, O_I_IF, O_F_IF, O_I_IF, O_S_IF));
+    else {
+        comp_type(S);
+        node(S, N_IF, 0);
+    }
 
     S->comp.then = true;
     const uint8_t kw = *S->comp.p; /* THEN or GOTO */
@@ -1036,7 +916,7 @@ static void act_nv(Session *const S)
     if (comp_cur(&S->comp) == M_VAR)
         comp_opid(S, O_NEXT_V, comp_var(S, 0, 0));
     else
-        code_op(&S->code, O_NEXT);
+        comp_op(S, O_NEXT);
 }
 
 /* DATA: no code, READ finds the text in the body. */
@@ -1049,14 +929,14 @@ static void act_rem(Session *const S) { done(S); }
 static void runres(Session *const S, const uint8_t k)
 {
     if (comp_end(S)) {
-        code_call(&S->code, k);
+        comp_call(S, k);
         return;
     }
 
     S->comp.modlabel = true; /* the module's label */
     comp_lnum(S);
     lnumload(S);
-    code_call(&S->code, k + 1);
+    comp_call(S, k + 1);
 }
 static void act_run(Session *const S) { runres(S, K_RUN); }
 static void act_res(Session *const S) { runres(S, K_RES); }
@@ -1077,7 +957,7 @@ static uint32_t dimsubs(Session *const S)
             expr_compile(S);
             comp_toint(S);
         } else {
-            code_int(&S->code, S->decl.base);
+            comp_int(S, S->decl.base);
             S->comp.dmask |= (uint64_t)1 << (n & 63);
         }
 
@@ -1094,11 +974,11 @@ static void dim1(Session *const S, const uint16_t id)
 {
     const uint32_t flags = (S->comp.isstatic ? DIM_STATIC : 0) | S->comp.redim;
     const uint32_t n = dimsubs(S);
-    code_int(&S->code, (uint32_t)S->comp.dmask);
-    code_int(&S->code, (uint32_t)(S->comp.dmask >> 32));
-    code_int(&S->code, id);
-    code_int(&S->code, n | flags);
-    code_call(&S->code, K_DIM);
+    comp_int(S, (uint32_t)S->comp.dmask);
+    comp_int(S, (uint32_t)(S->comp.dmask >> 32));
+    comp_int(S, id);
+    comp_int(S, n | flags);
+    comp_call(S, K_DIM);
 }
 
 /* Past DIM's AS type [* n]: decl_line's. */
@@ -1146,26 +1026,27 @@ static void act_dv(Session *const S)
     if (!fix || symb_var(&S->symb, id)->info & VI_ARR)
         return;
 
-    code_int(&S->code, fix);
-    code_call(&S->code, K_SPACE);
+    comp_int(S, fix);
+    comp_call(S, K_SPACE);
     comp_opid(S, O_S_ST_V, id);
 }
 
 /* INPUT's, READ's, GET's value for the target, stored. */
 static void readto(Session *const S, uint8_t k)
 {
-    S->code.type = T_FLT;
+    uint8_t type = T_FLT;
     const uint8_t info = S->comp.tgtinfo;
 
     if (info & SK_DBL && k != K_FGET) {
         k = k == K_FIN ? K_DIN : K_DREAD;
-        S->code.type = T_DBL;
+        type = T_DBL;
     } else if ((info & VK_MASK) == VK_STR) {
         k++;
-        S->code.type = T_STR;
+        type = T_STR;
     }
 
-    code_call(&S->code, k);
+    comp_call(S, k);
+    comp_value(S, type);
     comp_store(S);
 }
 static void act_in(Session *const S) { readto(S, K_FIN); }
@@ -1180,7 +1061,7 @@ static void using(Session *const S)
             break;
 
         expr_compile(S);
-        code_call(&S->code, by_type(S, K_USI, K_USF, K_USD, K_USS));
+        comp_call(S, by_type(S, K_USI, K_USF, K_USD, K_USS));
 
         if (comp_end(S))
             break;
@@ -1190,12 +1071,12 @@ static void using(Session *const S)
         if (c != ',' && c != ';')
             synerr(S);
         if (eosnext(S)) {
-            code_call(&S->code, K_USEN);
+            comp_call(S, K_USEN);
             return;
         }
     }
 
-    code_call(&S->code, K_USE);
+    comp_call(S, K_USE);
 }
 
 /* PRINT items; PR.NL unless the list ends with ; , TAB( or SPC(. USING: using's items. */
@@ -1205,7 +1086,7 @@ static void act_print(Session *const S)
         S->comp.p += 2; /* USING format; items */
         expr_compile(S);
         comp_tostring(S);
-        code_call(&S->code, K_USB);
+        comp_call(S, K_USB);
 
         if (comp_cur(&S->comp) != ';')
             synerr(S);
@@ -1216,7 +1097,7 @@ static void act_print(Session *const S)
     }
 
     if (comp_end(S)) {
-        code_call(&S->code, K_PNL);
+        comp_call(S, K_PNL);
         return;
     }
 
@@ -1224,19 +1105,19 @@ static void act_print(Session *const S)
         const uint8_t c = *S->comp.p;
 
         if (c == ',')
-            code_call(&S->code, K_PZONE);
+            comp_call(S, K_PZONE);
         else if (c == TK_TAB || c == TK_SPC) {
             S->comp.p++;
             expr_paren(S);
             comp_tobyte(S);
             S->comp.p--;
-            code_call(&S->code, c == TK_TAB ? K_PTAB : K_PSPC);
+            comp_call(S, c == TK_TAB ? K_PTAB : K_PSPC);
         } else if (c != ';') {
             expr_compile(S);
-            code_call(&S->code, by_type(S, K_IPR, K_FPR, K_DPR, K_SPR));
+            comp_call(S, by_type(S, K_IPR, K_FPR, K_DPR, K_SPR));
 
             if (comp_end(S)) {
-                code_call(&S->code, K_PNL);
+                comp_call(S, K_PNL);
                 return;
             }
 
@@ -1256,7 +1137,7 @@ static void act_write(Session *const S)
             break;
 
         expr_compile(S);
-        code_call(&S->code, by_type(S, K_WI, K_WF, K_WD, K_WS));
+        comp_call(S, by_type(S, K_WI, K_WF, K_WD, K_WS));
 
         if (comp_end(S))
             break;
@@ -1267,17 +1148,17 @@ static void act_write(Session *const S)
             synerr(S);
 
         S->comp.p++;
-        code_call(&S->code, K_WCOM);
+        comp_call(S, K_WCOM);
     }
 
-    code_call(&S->code, K_PNL);
+    comp_call(S, K_PNL);
 }
 
 /* LINE INPUT's target: the line, stored. */
 static void act_lin(Session *const S)
 {
-    code_call(&S->code, K_SLINE);
-    S->code.type = T_STR;
+    comp_call(S, K_SLINE);
+    comp_value(S, T_STR);
     comp_store(S);
 }
 
@@ -1297,10 +1178,10 @@ static void act_list(Session *const S)
         S->comp.lnum = 0xFFFF;
 
     lnumload(S);
-    code_call(&S->code, K_LIST);
+    comp_call(S, K_LIST);
 }
 
-/* GOTO|GOSUB after ON's expression: ON kn, n 0 yet. */
+/* GOTO|GOSUB after ON's expression: ON kind + n, its lines after. */
 static void act_on(Session *const S)
 {
     comp_tobyte(S);
@@ -1311,35 +1192,58 @@ static void act_on(Session *const S)
         synerr(S);
     }
 
-    code_opb(&S->code, O_ON, c == TK_GOSUB ? ON_GOSUB : 0);
-    S->comp.onat = S->code.out - 1;
+    S->comp.on = node(S, N_ON, c == TK_GOSUB ? ON_GOSUB : 0);
+    S->comp.onlast = nullptr;
     S->comp.p++;
 }
 
-/* One of ON's lines: num addr; n + 1. */
+/* One of ON's lines: num addr. */
 static void act_onl(Session *const S)
 {
     comp_lnum(S);
-    comp_lref(S);
-    (*S->comp.onat)++;
+    Node *const r = ast_new(&S->ast, N_JUMP);
+    r->id = S->comp.lnum;
+    r->num = S->comp.jline;
+    ast_link(S->comp.on, &S->comp.onlast, r);
 }
 
+/* A_FOP: CALL LOAD, SAVE or VERIFY by the token. */
+static void act_fop(Session *const S) { comp_call(S, S->comp.tok + K_LOAD - TK_LOAD); }
+
+/* A_N0, A_N1: the arguments counted; no code. */
+static void act_n0(Session *const S) { S->comp.nargs = 0; }
+static void act_n1(Session *const S) { S->comp.nargs++; }
+
+/* A_NARG: their count. */
+static void act_narg(Session *const S) { comp_int(S, S->comp.nargs); }
+
+/* A_L: a line number or label read; no code. */
+static void act_lnum(Session *const S) { comp_lnum(S); }
+
+static void act_goto(Session *const S) { comp_jump(S, O_GOTO); }
+static void act_gosub(Session *const S) { comp_jump(S, O_GOSUB); }
+static void act_ret(Session *const S) { comp_op(S, O_RETURN); }
+
 static void (*const actions[A_END - A_BASE])(Session *S) = {
-    [A_E - A_BASE] = expr_compile,    [A_LV - A_BASE] = expr_target,
-    [A_TOB - A_BASE] = comp_tobyte,   [A_TOA - A_BASE] = comp_toaddr,
-    [A_TOS - A_BASE] = comp_tostring, [A_STR - A_BASE] = expr_string,
-    [A_FV - A_BASE] = act_fv,         [A_FST - A_BASE] = comp_store,
+    [A_E - A_BASE] = act_expr,        [A_LV - A_BASE] = expr_target,
+    [A_LE - A_BASE] = act_assign,     [A_LET - A_BASE] = comp_store,
+    [A_FST - A_BASE] = comp_store,    [A_TOI - A_BASE] = comp_toint,
+    [A_TOD - A_BASE] = comp_todouble, [A_TOB - A_BASE] = comp_tobyte,
+    [A_TOA - A_BASE] = comp_toaddr,   [A_TOS - A_BASE] = comp_tostring,
+    [A_STR - A_BASE] = expr_string,   [A_VA - A_BASE] = expr_varaddr,
+    [A_L - A_BASE] = act_lnum,        [A_FV - A_BASE] = act_fv,
     [A_FK - A_BASE] = act_fork,       [A_FOR - A_BASE] = act_for2,
     [A_FOR1 - A_BASE] = act_for1,     [A_NV - A_BASE] = act_nv,
     [A_IF - A_BASE] = act_if,         [A_ON - A_BASE] = act_on,
     [A_ONL - A_BASE] = act_onl,       [A_PR - A_BASE] = act_print,
-    [A_LST - A_BASE] = act_list,      [A_DV - A_BASE] = act_dv,
+    [A_LST - A_BASE] = act_list,      [A_WR - A_BASE] = act_write,
+    [A_LIN - A_BASE] = act_lin,       [A_DV - A_BASE] = act_dv,
     [A_DATA - A_BASE] = act_data,     [A_REM - A_BASE] = act_rem,
-    [A_LET - A_BASE] = comp_store,    [A_IN - A_BASE] = act_in,
-    [A_RD - A_BASE] = act_rd,         [A_GET - A_BASE] = act_get,
-    [A_RUN - A_BASE] = act_run,       [A_RES - A_BASE] = act_res,
-    [A_SWAP - A_BASE] = ctrl_swap,    [A_TOI - A_BASE] = comp_toint,
-    [A_TOD - A_BASE] = comp_todouble, [A_VA - A_BASE] = expr_varaddr,
-    [A_WR - A_BASE] = act_write,      [A_LIN - A_BASE] = act_lin,
-    [A_LE - A_BASE] = expr_assign,
+    [A_IN - A_BASE] = act_in,         [A_RD - A_BASE] = act_rd,
+    [A_GET - A_BASE] = act_get,       [A_RUN - A_BASE] = act_run,
+    [A_RES - A_BASE] = act_res,       [A_SWAP - A_BASE] = ctrl_swap,
+    [A_FOP - A_BASE] = act_fop,       [A_N0 - A_BASE] = act_n0,
+    [A_N1 - A_BASE] = act_n1,         [A_NARG - A_BASE] = act_narg,
+    [A_GOTO - A_BASE] = act_goto,     [A_GOSUB - A_BASE] = act_gosub,
+    [A_RET - A_BASE] = act_ret,
 };
