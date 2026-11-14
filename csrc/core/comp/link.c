@@ -179,7 +179,7 @@ bool link_xlate(Comp *const C, Addr *where)
 
         uint8_t *const d = at(a);
 
-        if (op == O_CALL) { /* CALL INBEG: 2 bytes more, its INPUT's end */
+        if (op == O_CALL) { /* CALL INBEG: 4 bytes more, its INPUT's end */
             const uint8_t k = s[1];
             d[0] = op;
             d[1] = k;
@@ -188,10 +188,10 @@ bool link_xlate(Comp *const C, Addr *where)
 
             if (k == K_INBEG) {
                 C->link->inbeg = a;
-                wr16(a, 0);
-                a += 2;
+                wr32(a, 0);
+                a += 4;
             } else if (k == K_INEND && C->link->inbeg) {
-                wr16(C->link->inbeg, (uint16_t)(a - C->allo->cache));
+                wr32(C->link->inbeg, a - C->allo->cache);
                 C->link->inbeg = 0;
             }
 
@@ -207,7 +207,7 @@ bool link_xlate(Comp *const C, Addr *where)
     }
 
     if (C->link->inbeg)
-        wr16(C->link->inbeg, (uint16_t)(C->link->eol - C->allo->cache));
+        wr32(C->link->inbeg, C->link->eol - C->allo->cache);
 
     *where = a;
     return true;
@@ -378,7 +378,7 @@ static void resolve_op(Comp *const C, const uint32_t line, const Addr base, uint
 /* The size in a cache stream of the op at op: INPUT's start has its end's offset after it. */
 static uint32_t stream_opsize(const uint8_t *const op)
 {
-    return op[0] == O_CALL && op[1] == K_INBEG ? 4 : flow_opsize(op);
+    return op[0] == O_CALL && op[1] == K_INBEG ? 6 : flow_opsize(op);
 }
 
 void link_resolve(Comp *const C, const uint32_t line, const uint32_t code)

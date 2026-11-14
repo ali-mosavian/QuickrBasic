@@ -75,6 +75,9 @@ CASES = {
     # INPUT "p", x printed "p? ": a comma means no ?. Redirected input is not echoed.
     "qb_input": (('INPUT "a", x\r\nINPUT "b"; y\r\nINPUT z\r\nPRINT x; y; z\r\n', "1\r\n2\r\n3\r\n"),
                  "a\r\nb? \r\n? \r\n 1  2  3 \r\n", "ERROR"),
+    # INPUT's end was 16 bits of a cache offset: past 64 KB of code an empty reply went elsewhere.
+    "qb_input_far": (("".join("b = 1" + "".join(f": b = b * 3 + {k}" for k in range(20)) + "\r\n" for _ in range(600))
+                      + "INPUT x, y: PRINT 1\r\nPRINT 2\r\n", "\r\n"), "? \r\n 1 \r\n 2 \r\n", "ERROR"),
     # RESTORE took a line number only: a label was ?UNDEF'D STATEMENT.
     "qb_restore": ("READ a\r\nRESTORE two\r\nREAD b\r\nPRINT a; b\r\nDATA 1\r\ntwo:\r\nDATA 2\r\n",
                    " 1  2 \r\n", "ERROR"),

@@ -162,7 +162,7 @@ void stmt_inbeg(Session *const S)
 {
     flow_nodir(S);
     S->stmt.redo = false;
-    S->stmt.input_end = at(S->allo.cache + exec_u16(&S->vm));
+    S->stmt.input_end = at(S->allo.cache + exec_u32(&S->vm));
     S->stmt.input_start = S->vm.ip;
 }
 
