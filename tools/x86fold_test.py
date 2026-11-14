@@ -49,7 +49,9 @@ def main() -> None:
     bad = []
     for name in CASES:
         got, want = res[name], res[name + "_k"]
-        if got.out != want.out or got.instructions > want.instructions * SLACK:
+        if not got.instructions or not want.instructions:  # a build that counts nothing passes all
+            bad.append(f"FAIL {name}: no count from {exe}")
+        elif got.out != want.out or got.instructions > want.instructions * SLACK:
             bad.append(f"FAIL {name}: {got.out!r} {got.instructions} vs {want.out!r} {want.instructions}")
     print("\n".join(bad) or f"ok {exe}")
     sys.exit(1 if bad else 0)

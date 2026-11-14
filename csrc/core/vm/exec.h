@@ -182,9 +182,22 @@ typedef struct Vm {
         Place next;       /* RESUME NEXT's; code LINE_END the next line */
     } err;
 
+#ifdef EXEC_COUNT
+
+    uint64_t count; /* the ops dispatched: the host build's instruction count */
+#endif
     bool running; /* exec_run's loop is on the C stack: vm.loop holds */
     jmp_buf loop; /* exec_run's: flow_trap comes back into the loop */
 } Vm;
+
+static inline void exec_counted(Vm *const vm)
+{
+#ifdef EXEC_COUNT
+    vm->count++;
+#else
+    (void)vm;
+#endif
+}
 
 /* The data stack. */
 static inline void exec_push(Vm *const vm, Cell c) { *--vm->sp = c; }

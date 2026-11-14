@@ -85,6 +85,7 @@ void exec_until(Session *const S, const uint8_t *const end)
 
     while (v->ip != end) {
         v->opip = v->ip;
+        exec_counted(v);
         ops[*v->ip++](S);
     }
 }
@@ -108,6 +109,7 @@ void exec_run(Session *const S)
 
     for (;;) {
         v->opip = v->ip;
+        exec_counted(v);
         ops[*v->ip++](S);
     }
 }

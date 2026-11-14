@@ -138,11 +138,14 @@ def run_host(jobs: dict[str, str | tuple], work: Path, limit_ms: int, file: bool
             argv += [bas, *args.split()]
         data = (stdin if file else prog).encode("latin-1")
         try:
-            p = subprocess.run(argv, cwd=work, input=data, capture_output=True, timeout=limit_ms / 1000)
+            p = subprocess.run(argv, cwd=work, input=data, capture_output=True, timeout=limit_ms / 1000,
+                               env=os.environ | {"QB_OPS": "1"})
             reason, text, err = "exit", p.stdout, p.stderr
         except subprocess.TimeoutExpired as e:
             reason, text, err = "timeout", e.stdout or b"", e.stderr or b""
-        out[name] = Result(name, text.decode("latin-1"), reason, 0, 0, err.decode("latin-1").replace("\r\n", "\n"))
+        m = re.search(rb"\nops (\d+)\n$", err)  # the ops run: the instruction count
+        count, err = (int(m[1]), err[: m.start()]) if m else (0, err)
+        out[name] = Result(name, text.decode("latin-1"), reason, count, 0, err.decode("latin-1").replace("\r\n", "\n"))
     return out
 
 

@@ -109,7 +109,7 @@ cide32: $(CIDE_OBJ)
 
 # ---- The host build: the same core on this machine (x86-64; Rosetta's x87 on Apple silicon) ----
 HOST_CC ?= $(CLANG) -arch x86_64 -isysroot $(shell xcrun --show-sdk-path 2>/dev/null)
-HOST_CFLAGS := -std=c23 -O1 -g -Werror=undef -DARENA_AT_ZERO=0 -Wall -Wextra -Wno-unused-parameter \
+HOST_CFLAGS := -std=c23 -O1 -g -Werror=undef -DARENA_AT_ZERO=0 -DEXEC_COUNT -Wall -Wextra -Wno-unused-parameter \
 	-Icsrc/plat/host/include -Icsrc -Icsrc/core
 HSRC := $(shell find csrc/core -name '*.c' -not -path 'csrc/core/ui/*') \
 	$(wildcard csrc/plat/host/*.c) csrc/boot.c
@@ -152,6 +152,7 @@ chosttest: chost cunit cgolden         # the unit tests and the suites against t
 	$(PY) tools/qbconf_test.py
 	X86_COM=build/host/basic $(PY) tools/x86f_test.py build/host/basic
 	X86_COM=build/host/basic $(PY) tools/qbconf.py
+	$(PY) tools/x86fold_test.py build/host/basic
 
 ctest:                          # the suites against the C build
 	X86_COM=build/c/basic32.exe $(PY) tools/x86f_test.py build/c/basic32.exe
