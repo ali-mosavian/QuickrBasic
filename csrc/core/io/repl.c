@@ -297,7 +297,7 @@ static void run_file(Session *const S)
         return;
 
     repl_load(S);
-    prog_drop(S);
+    session_drop(S);
     link_start(S);
     stmt_runfirst(S);
     exec_run(S);
@@ -504,13 +504,13 @@ uint8_t repl_enter(Session *const S, const uint32_t len)
     S->cons.inbuf[len] = 0;
     S->vm.line = DLINE;
     const uint8_t *const end = lexr_line(&S->lexr, S->cons.inbuf, S->comp.cbuf);
-    const uint32_t place = prog_at(S);
+    const uint32_t place = prog_at(&S->prog);
 
     if (!S->comp.cbuf[0])
         return ENTER_EMPTY;
     if (S->repl.loading) { /* every line stored, at the end */
         const uint8_t *const body = enter_decls(S, place);
-        prog_add(S, S->vm.lnum, body, (uint32_t)(end - body));
+        prog_add(&S->prog, S->vm.lnum, body, (uint32_t)(end - body));
         return ENTER_STORED;
     }
 
@@ -520,7 +520,7 @@ uint8_t repl_enter(Session *const S, const uint32_t len)
         return ENTER_DIRECT;
 
     comp_peek(&p);
-    prog_put(S, S->vm.lnum, p, (uint32_t)(end - p));
+    prog_put(&S->prog, S->link.cursor, S->vm.lnum, p, (uint32_t)(end - p));
     return ENTER_STORED;
 }
 
@@ -566,13 +566,13 @@ void repl_relink(Session *const S)
 {
     for (uint32_t line = PROGBASE; prog_line(&S->prog, line)->len;) /* the include's lines out */
         if (prog_line(&S->prog, line)->flags & LF_INC)
-            prog_cut(S, line);
+            prog_cut(&S->prog, line);
         else
             line += prog_line(&S->prog, line)->len;
 
     symb_vars_init(&S->symb);
     decl_reset(&S->decl, &S->scop, &S->symb);
-    prog_drop(S);
+    session_drop(S);
     S->repl.loading = true;
 
     for (uint32_t line = PROGBASE; prog_line(&S->prog, line)->len;) {
@@ -586,7 +586,7 @@ void repl_relink(Session *const S)
             d += INT_TOKEN_SIZE;
         }
 
-        prog_body(S, line, d);
+        prog_body(&S->prog, line, d);
         const uint8_t *body = enter_decls(S, line);
         const uint8_t tok = comp_peek(&body);
         line += prog_line(&S->prog, line)->len;

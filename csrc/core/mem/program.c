@@ -33,29 +33,25 @@
  * - D3. Returns true when found, where the asm's CF is the flag.
  */
 #include "mem/program.h"
-#include "session.h"
-#include "comp/link.h"
-#include "io/repl.h"
-#include "mem/alloc.h"
-#include "mem/copy.h"
-#include "mem/symbols.h"
-#include "vm/exec.h"
 
-static void terminate(Session *const S) { prog_line(&S->prog, S->prog.end)->len = 0; }
+void prog_copy(Prog *const pg, const uint32_t dst, const uint32_t src, const uint32_t len)
+{
+    memmove(at(pg->base + dst), at(pg->base + src), len);
+}
+
+void prog_terminate(Prog *const pg) { prog_line(pg, pg->end)->len = 0; }
 
 /* The first line numbered num from l on, before the first numbered more when sorted; else that
    place. */
-static bool find_from(
-    Session *const S,
+static bool prog_find_from(
+    const Prog *const pg,
     uint32_t l,
     const uint16_t num,
     const bool sorted,
     uint32_t *const line
 )
 {
-    for (const Line *p; (p = prog_line(&S->prog, l))->len && (!sorted || num >= p->num);
-
-         l += p->len)
+    for (const Line *p; (p = prog_line(pg, l))->len && (!sorted || num >= p->num); l += p->len)
         if (p->num == num) {
             *line = l;
             return true;
@@ -65,25 +61,29 @@ static bool find_from(
     return false;
 }
 
-bool prog_find(Session *const S, const uint16_t num, uint32_t *const line)
+bool prog_find(
+    const Prog *const pg,
+    const uint32_t cursor,
+    const uint16_t num,
+    uint32_t *const line
+)
 {
     if (num == NONUM) {
         *line = PROGBASE;
         return false;
     }
 
-    if (find_from(S, PROGBASE, num, false, line))
+    if (prog_find_from(pg, PROGBASE, num, false, line))
         return true;
 
-    const uint32_t cursor = S->link.cursor;
-    const bool from_cursor = cursor && num >= prog_line(&S->prog, cursor)->num;
-    return find_from(S, from_cursor ? cursor : PROGBASE, num, true, line);
+    const bool from_cursor = cursor && num >= prog_line(pg, cursor)->num;
+    return prog_find_from(pg, from_cursor ? cursor : PROGBASE, num, true, line);
 }
 
 /* The record of size bytes at line: num, add_flags, the body, then the text before it (pre,
    used up). */
-static void fill(
-    Session *const S,
+static void prog_fill(
+    Prog *const pg,
     const uint32_t line,
     const uint32_t size,
     const uint16_t num,
@@ -91,119 +91,107 @@ static void fill(
     const uint32_t len
 )
 {
-    *prog_line(&S->prog, line) = (Line){
+    *prog_line(pg, line) = (Line){
         .len = size,
         .num = num,
-        .flags = S->prog.add_flags,
-        .pre = S->prog.pre_len,
+        .flags = pg->add_flags,
+        .pre = pg->pre_len,
     };
 
-    uint8_t *const d = at(prog_addr(&S->prog, line + HDR));
+    uint8_t *const d = at(prog_addr(pg, line + HDR));
     memcpy(d, body, len);
-    memcpy(d + len, S->prog.pre, S->prog.pre_len);
-    S->prog.pre_len = 0;
+    memcpy(d + len, pg->pre, pg->pre_len);
+    pg->pre_len = 0;
 }
 
-void prog_put(Session *const S, const uint16_t num, const uint8_t *const body, const uint32_t len)
+void prog_put(
+    Prog *const pg,
+    const uint32_t cursor,
+    const uint16_t num,
+    const uint8_t *const body,
+    const uint32_t len
+)
 {
     uint32_t line;
 
-    if (prog_find(S, num, &line))
-        prog_cut(S, line);
+    if (prog_find(pg, cursor, num, &line))
+        prog_cut(pg, line);
     if (len != 1)
-        prog_ins(S, line, num, body, len);
+        prog_ins(pg, line, num, body, len);
 
-    prog_drop(S);
+    pg->user->edited(pg->user);
 }
 
-uint32_t prog_cut(Session *const S, const uint32_t line)
+uint32_t prog_cut(Prog *const pg, const uint32_t line)
 {
-    const uint32_t size = prog_line(&S->prog, line)->len;
-    copy_prog(S, line, line + size, S->prog.end - (line + size));
-    S->prog.end -= size;
-    terminate(S);
+    const uint32_t size = prog_line(pg, line)->len;
+    prog_copy(pg, line, line + size, pg->end - (line + size));
+    pg->end -= size;
+    prog_terminate(pg);
     return size;
 }
 
 /* A record's size: its header, the body, the text before it. */
-static uint32_t record_size(Session *const S, const uint32_t len)
+static uint32_t prog_record_size(const Prog *const pg, const uint32_t len)
 {
-    return HDR + len + S->prog.pre_len;
+    return HDR + len + pg->pre_len;
 }
 
 enum { TERMINATOR = 4 };
 
 uint32_t prog_ins(
-    Session *const S,
+    Prog *const pg,
     const uint32_t line,
     const uint16_t num,
     const uint8_t *const body,
     const uint32_t len
 )
 {
-    const uint32_t size = record_size(S, len);
-    const uint32_t need = S->prog.end + size + TERMINATOR;
-    prog_drop(S);
-    prog_room(S, need);
-    copy_prog(S, line + size, line, S->prog.end - line);
-    S->prog.end += size;
-    terminate(S);
-    fill(S, line, size, num, body, len);
+    const uint32_t size = prog_record_size(pg, len);
+    const uint32_t need = pg->end + size + TERMINATOR;
+    pg->user->edited(pg->user);
+    prog_room(pg, need);
+    prog_copy(pg, line + size, line, pg->end - line);
+    pg->end += size;
+    prog_terminate(pg);
+    prog_fill(pg, line, size, num, body, len);
     return size;
 }
 
-uint32_t prog_at(Session *const S) { return S->prog.add_at ? S->prog.add_at : S->prog.end; }
+uint32_t prog_at(const Prog *const pg) { return pg->add_at ? pg->add_at : pg->end; }
 
-void prog_add(Session *const S, const uint16_t num, const uint8_t *const body, const uint32_t len)
+void prog_add(Prog *const pg, const uint16_t num, const uint8_t *const body, const uint32_t len)
 {
-    if (S->prog.add_at) {
-        S->prog.add_at += prog_ins(S, S->prog.add_at, num, body, len);
+    if (pg->add_at) {
+        pg->add_at += prog_ins(pg, pg->add_at, num, body, len);
         return;
     }
 
-    const uint32_t size = record_size(S, len);
-    const uint32_t line = S->prog.end;
-    prog_room(S, line + size + TERMINATOR);
-    S->prog.end += size;
-    fill(S, line, size, num, body, len);
-    terminate(S);
+    const uint32_t size = prog_record_size(pg, len);
+    const uint32_t line = pg->end;
+    prog_room(pg, line + size + TERMINATOR);
+    pg->end += size;
+    prog_fill(pg, line, size, num, body, len);
+    prog_terminate(pg);
 }
 
-uint8_t *prog_body(Session *const S, const uint32_t line, uint8_t *const dst)
+uint8_t *prog_body(const Prog *const pg, const uint32_t line, uint8_t *const dst)
 {
-    const Line *const p = prog_line(&S->prog, line);
+    const Line *const p = prog_line(pg, line);
     const uint32_t n = p->len - p->pre - HDR;
-    memcpy(dst, at(prog_addr(&S->prog, line + HDR)), n);
+    memcpy(dst, at(prog_addr(pg, line + HDR)), n);
     return dst + n;
 }
 
-void prog_drop(Session *const S)
+void prog_room(Prog *const pg, const uint32_t size)
 {
-    S->vm.cont.line = 0;
-    S->link.cursor = 0;
-    S->link.linked = false;
-    S->vm.nframes = 0;
-    terminate(S);
-    session_clear(S);
-}
-
-void prog_init(Session *const S)
-{
-    S->prog.end = PROGBASE;
-    symb_reset(&S->symb);
-    decl_reset(&S->decl, &S->scop, &S->symb);
-    prog_drop(S);
-}
-
-void prog_room(Session *const S, const uint32_t size)
-{
-    if (size <= allo_cap(&S->allo, HPROG))
+    if (size <= allo_cap(pg->allo, HPROG))
         return;
 
-    session_clear(S);
+    pg->user->growing(pg->user);
 
-    if (!allo_grow(&S->allo, HPROG, size))
-        repl_error(S, E_OM);
+    if (!allo_grow(pg->allo, HPROG, size))
+        fault_error(pg->fault, E_OM);
 }
 
 static void prog_moved(AlloOwner *const o)
@@ -212,10 +200,12 @@ static void prog_moved(AlloOwner *const o)
     pg->base = allo_base(pg->allo, HPROG);
 }
 
-void prog_new(Prog *const pg, Allo *const al)
+void prog_new(Prog *const pg, Allo *const al, Fault *const f, ProgUser *const user)
 {
     pg->owner.moved = prog_moved;
     pg->allo = al;
+    pg->fault = f;
+    pg->user = user;
     allo_new(al, 0x10000, &pg->owner);
     prog_moved(&pg->owner);
 }

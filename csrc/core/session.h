@@ -64,6 +64,7 @@ struct Session {
     Link link;
     List list;
     Prog prog;
+    ProgUser prog_user;
     Repl repl;
     Rndm rndm;
     Scop scop;
@@ -83,6 +84,13 @@ typedef enum : uint8_t { STEP_INTO, STEP_OVER, STEP_OUT } StepKind;
 /* Every statement starts with a DBG op from now on; the VM reports to hooks. */
 /* CLR: variables zeroed, arrays dropped, READ reset, the heap and the temporaries emptied. */
 void session_clear(Session *S);
+/* After an edit: CONT and the link's cursor end, the frames drop, the store's terminator, then
+   session_clear. The next link empties the cache. */
+void session_drop(Session *S);
+/* NEW: no program, no names, no variables, no declarations, then session_drop. */
+void session_new(Session *S);
+/* The store's user: session_drop when edited, session_clear before it grows. */
+ProgUser *session_prog_user(Session *S);
 void session_debug(Session *S, const DebugHooks *hooks);
 /* The next run or CONT stops after a step of kind; stopped: from the stop, else from the start. */
 void session_step(Session *S, StepKind kind, bool stopped);

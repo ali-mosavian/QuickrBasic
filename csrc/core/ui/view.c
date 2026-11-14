@@ -120,7 +120,7 @@ enum : uint8_t { SUBS_ACTIVE = 1, SUBS_SPLIT = 2, SUBS_DELETE = 3 };
 /* Text line line's body to comp_cbuf: decl_proc's answer; *name its M_VAR for PK_SUB, PK_FUNC. */
 static uint8_t kind(Session *const S, const uint32_t line, const uint8_t **const name)
 {
-    prog_body(S, lmap_off(S, line), S->comp.cbuf);
+    prog_body(&S->prog, lmap_off(S, line), S->comp.cbuf);
     const uint8_t *nm = nullptr;
     const uint8_t k = decl_proc(S->comp.cbuf, &nm);
 
@@ -141,7 +141,7 @@ static const char *end_line(const uint8_t k) { return k == PK_SUB ? "END SUB" : 
 static void order(Session *const S)
 {
     text_whole();
-    prog_room(S, S->prog.end * 2 + 8); /* the lines copied after the store, then back */
+    prog_room(&S->prog, S->prog.end * 2 + 8); /* the lines copied after the store, then back */
     const uint32_t start = S->prog.end + 4;
     uint32_t to = start;
 
@@ -160,12 +160,12 @@ static void order(Session *const S)
                 continue;
 
             const uint32_t rec = lmap_off(S, line), len = prog_line(&S->prog, rec)->len;
-            copy_prog(S, to, rec, len);
+            prog_copy(&S->prog, to, rec, len);
             to += len;
         }
     }
 
-    copy_prog(S, PROGBASE, start, to - start);
+    prog_copy(&S->prog, PROGBASE, start, to - start);
     S->prog.end = PROGBASE + (to - start);
     prog_line(&S->prog, S->prog.end)->len = 0;
     lmap_build(S);

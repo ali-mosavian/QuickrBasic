@@ -441,7 +441,7 @@ void stmt_resl(Session *const S)
     } else {
         S->vm.lnum = (uint16_t)x;
 
-        if (!prog_find(S, (uint16_t)x, &line))
+        if (!prog_find(&S->prog, S->link.cursor, (uint16_t)x, &line))
             repl_error(S, E_US);
     }
 
@@ -552,7 +552,7 @@ void stmt_runl(Session *const S)
     S->vm.lnum = (uint16_t)num;
     uint32_t line;
 
-    if (!prog_find(S, (uint16_t)num, &line))
+    if (!prog_find(&S->prog, S->link.cursor, (uint16_t)num, &line))
         repl_error(S, E_US);
 
     stmt_rungo(S, line);
@@ -604,7 +604,7 @@ void stmt_clr(Session *const S)
 
 void stmt_new(Session *const S)
 {
-    prog_init(S);
+    session_new(S);
     flow_end(S);
 }
 

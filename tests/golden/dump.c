@@ -25,7 +25,7 @@ int main(const int argc, char **const argv)
 
     snprintf(S->repl.file, sizeof S->repl.file, "%s", argv[1]);
     repl_load(S);
-    prog_drop(S);
+    session_drop(S);
     link_start(S);
     uint32_t n = 0;
 

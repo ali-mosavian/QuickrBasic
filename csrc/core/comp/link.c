@@ -220,7 +220,7 @@ bool link_xlate(Session *const S, Addr *where)
             LineRef *const r = (LineRef *)at(a - sizeof(LineRef));
             uint32_t line;
 
-            if (prog_find(S, r->num, &line))
+            if (prog_find(&S->prog, S->link.cursor, r->num, &line))
                 r->line = line;
         }
 

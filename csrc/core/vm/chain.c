@@ -246,9 +246,9 @@ void chai_chain(Session *const S)
     set_file(S, s);
     save(S);
     S->chai.chained = true;
-    prog_init(S);
+    session_new(S);
     repl_load(S);
-    prog_drop(S);
+    session_drop(S);
     link_start(S);
 
     if (!prog_line(&S->prog, PROGBASE)->len)

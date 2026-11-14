@@ -168,7 +168,7 @@ static uint32_t ref_line(Session *const S, LineRef *const ref)
 
     uint32_t line;
 
-    if (!prog_find(S, ref->num, &line))
+    if (!prog_find(&S->prog, S->link.cursor, ref->num, &line))
         repl_error(S, E_US);
 
     return ref->line = line;

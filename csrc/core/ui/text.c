@@ -186,11 +186,11 @@ static void put(
 
     if (!insert) {
         m.flags |= prog_line(&S->prog, rec)->flags & LF_BP;
-        prog_cut(S, rec);
+        prog_cut(&S->prog, rec);
     }
 
     S->prog.add_flags = m.flags;
-    prog_ins(S, rec, m.num, S->comp.cbuf, m.len);
+    prog_ins(&S->prog, rec, m.num, S->comp.cbuf, m.len);
     S->prog.add_flags = 0;
     uimn.text.changed = true;
     lmap_build(S);
@@ -202,14 +202,14 @@ static void add(Session *const S, const uint8_t *const src, const uint32_t len)
     const Made m = make(S, src, len);
     S->prog.add_flags = m.flags;
     S->prog.add_at = 0;
-    prog_add(S, m.num, S->comp.cbuf, m.len);
+    prog_add(&S->prog, m.num, S->comp.cbuf, m.len);
     S->prog.add_flags = 0;
 }
 
 void text_init(Session *const S)
 {
     uimn.text.changed = true;
-    prog_init(S);
+    session_new(S);
     add(S, uimn.build, 0);
     lmap_build(S);
     text_whole();
@@ -248,8 +248,8 @@ void text_delete(Session *const S, const uint32_t line)
         return;
     }
 
-    prog_cut(S, text_rec(S, line));
-    prog_drop(S);
+    prog_cut(&S->prog, text_rec(S, line));
+    session_drop(S);
     uimn.text.changed = true;
     lmap_build(S);
     uimn.text.n--;
@@ -395,7 +395,7 @@ uint16_t text_read(Session *const S, const char *const name)
 
     io.pos = io.cnt = 0;
     uimn.text.changed = true;
-    prog_init(S);
+    session_new(S);
     io.lines = 0;
     uint32_t n = 0; /* the line's characters, its column */
     srcr_phys_start(S);

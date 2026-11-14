@@ -182,3 +182,34 @@ void session_clear(Session *const S)
     S->vm.ncallvars = 0;
     stmt_restore(S);
 }
+
+void session_drop(Session *const S)
+{
+    S->vm.cont.line = 0;
+    S->link.cursor = 0;
+    S->link.linked = false;
+    S->vm.nframes = 0;
+    prog_terminate(&S->prog);
+    session_clear(S);
+}
+
+void session_new(Session *const S)
+{
+    S->prog.end = PROGBASE;
+    symb_reset(&S->symb);
+    decl_reset(&S->decl, &S->scop, &S->symb);
+    session_drop(S);
+}
+
+static void session_edited(ProgUser *const u) { session_drop(container_of(u, Session, prog_user)); }
+static void session_growing(ProgUser *const u)
+{
+    session_clear(container_of(u, Session, prog_user));
+}
+
+ProgUser *session_prog_user(Session *const S)
+{
+    S->prog_user = (ProgUser){.edited = session_edited, .growing = session_growing};
+
+    return &S->prog_user;
+}
