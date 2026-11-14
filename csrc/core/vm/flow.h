@@ -3,6 +3,7 @@
 #define CORE_VM_FLOW_H
 #include "vm/exec.h"
 #include "mem/program.h"
+#include "mem/string.h"
 
 enum : uint32_t { LINE_END = 0xFFFFFFFF }; /* a Place's code: the start of the line after */
 
@@ -20,6 +21,26 @@ uint8_t *flow_place(const Allo *al, Place place);
 
 /* Go to line's start, linking the program first if it is not. */
 void flow_jump(Session *S, uint32_t line);
+/* flow_nextln when the next line is a stored one: the temporaries dropped, vm->line that line,
+   its code returned; nullptr, nothing changed: the program's end or the direct line. */
+static inline uint8_t *flow_next_code(
+    Vm *const vm,
+    Strg *const sg,
+    const Prog *const pg,
+    const Allo *const al
+)
+{
+    const uint32_t next = vm->line + prog_line(pg, vm->line)->len;
+    const Line *const ln = prog_line(pg, next);
+
+    if (!ln->len)
+        return nullptr;
+
+    sg->tmp_used = sg->tmp_floor;
+    vm->line = next;
+    return at(al->cache + ln->code);
+}
+
 /* Go to the next line; past the last the program ENDs. */
 void flow_nextln(Session *S);
 /* The LineRef operand at vm->ip: its line, found by number on first use. Undefined line number. */

@@ -127,6 +127,13 @@ static uint8_t *direct_compiled(Session *const S)
 
 void flow_nextln(Session *const S)
 {
+    uint8_t *const code = flow_next_code(&S->vm, &S->strg, &S->prog, &S->allo);
+
+    if (code) {
+        S->vm.ip = code;
+        return;
+    }
+
     drop_temps(&S->strg);
     const uint32_t next = S->vm.line + prog_line(&S->prog, S->vm.line)->len;
 

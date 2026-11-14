@@ -53,6 +53,7 @@
 #include "vm/debug.h"
 #include "vm/event.h"
 #include "vm/flow.h"
+#include "vm/hot.h"
 #include "vm/stmts.h"
 
 #define OP(name, h, size, fl) void h(Session *S);
@@ -101,17 +102,170 @@ void exec_init(Session *const S)
     pclk_init(&S->vm.stop, SF_TICK);
 }
 
+/* Element sub of 1-D array id, size bytes each, straight from its header to *e; false: it does
+   not count from 0, or sub is out of its range, for arry_ref. */
+static inline bool elem1_fast(
+    const Symb *const sy,
+    const uint16_t id,
+    const int32_t sub,
+    const uint32_t size,
+    Addr *const e
+)
+{
+    const Addr hdr = symb_var(sy, id)->vt;
+
+    if (!hdr)
+        return false;
+
+    const ArrayHdr *const a = (const ArrayHdr *)at(hdr);
+
+    if (a->dims != 1 || (uint32_t)sub >= a->fast)
+        return false;
+
+    *e = a->data + (uint32_t)sub * size;
+    return true;
+}
+
+/* The ops exec_run runs inline (vm/hot.h): name, handler. */
+#define HOT_OPS(X)                                                                                 \
+    X(i_ld_v, oper_i_ld_v)                                                                         \
+    X(i_st_v, oper_i_st_v)                                                                         \
+    X(f_st_v, oper_f_st_v)                                                                         \
+    X(i_ld_u8, oper_i_ld_u8)                                                                       \
+    X(i_ld_i16, oper_i_ld_i16)                                                                     \
+    X(i_ld_i32, oper_i_ld_i32)                                                                     \
+    X(f_ld_f32, oper_f_ld_f32)                                                                     \
+    X(i_cmp, oper_i_cmp)                                                                           \
+    X(i_cmp_v, oper_i_cmp_v)                                                                       \
+    X(i_cmp_u8, oper_i_cmp_u8)
+
+/* f_ld_f32's and f_st_v's run as i_ld_i32's and i_st_v's. */
+static inline Status hot_f_st_v(Regs *const r) { return hot_i_st_v(r); }
+static inline Status hot_f_ld_f32(Regs *const r) { return hot_i_ld_i32(r); }
+
+/* exec_run's parts for each hot op: its label for its handler's opcodes; its code, which a
+   failing INT op leaves through fail at its own start. */
+#define HOT_AT(name, handler)                                                                      \
+    if (h == handler)                                                                              \
+        at_op[i] = &&hot_##name;
+#define HOT_AT_INT(name, src, op) HOT_AT(name, oper_##name)
+#define HOT_RUN(name, handler)                                                                     \
+    hot_##name : r.ip++;                                                                           \
+    hot_##name(&r);                                                                                \
+    goto next;
+#define HOT_RUN_INT(name, src, oper)                                                               \
+    hot_##name : r.ip++;                                                                           \
+    st = hot_##name(&r);                                                                           \
+    if (st != ST_OK) {                                                                             \
+        op = r.ip - hot_size(src);                                                                 \
+        goto fail;                                                                                 \
+    }                                                                                              \
+    goto next;
+
+/* The loop: ip and sp in registers (r), a hot op inline, the rest through the ops table with
+   vm.ip, vm.sp and vm.opip stored around it. */
 void exec_run(Session *const S)
 {
     Vm *const v = &S->vm;
+    static void *at_op[256]; /* each op's label: its hot code, else cold */
     setjmp(v->loop);
     v->running = true;
 
-    for (;;) {
-        v->opip = v->ip;
-        exec_counted(v);
-        ops[*v->ip++](S);
+    if (!at_op[0]) {
+        for (uint32_t i = 0; i < countof(at_op); i++) {
+            Handler *const h = i < O_NOPS ? ops[i] : nullptr;
+            at_op[i] = &&cold;
+            HOT_OPS(HOT_AT)
+            HOT_INTS(HOT_AT_INT)
+
+            if (h == flow_i_jf)
+                at_op[i] = &&i_jf;
+
+            if (h == flow_eol)
+                at_op[i] = &&eol;
+            if (h == exec_i_ld_a1 || h == exec_f_ld_a1)
+                at_op[i] = &&i_ld_a1;
+            if (h == exec_i_st_a1 || h == exec_f_st_a1)
+                at_op[i] = &&i_st_a1;
+        }
     }
+
+    Regs r = {v->ip, v->sp};
+
+    uint8_t *op; /* a failed op's */
+    Status st;
+
+next: /* r.ip at the op: each label steps past it */
+    exec_counted(v);
+    goto *at_op[*r.ip];
+
+cold:
+    v->ip = r.ip + 1;
+    v->sp = r.sp;
+    v->opip = r.ip;
+    ops[*r.ip](S);
+    r = (Regs){v->ip, v->sp};
+
+    goto next;
+
+    HOT_OPS(HOT_RUN)
+    HOT_INTS(HOT_RUN_INT)
+
+i_jf: /* JF not taken: past its jump; taken, flow_i_jf's */
+    if (!r.sp->i)
+        goto cold;
+
+    r.sp++;
+    r.ip += JSIZE;
+    goto next;
+
+eol: /* to the next stored line; a stop, the end, the direct line: flow_eol's */
+    if (v->stop)
+        goto cold;
+
+    {
+        uint8_t *const code = flow_next_code(v, &S->strg, &S->prog, &S->allo);
+
+        if (!code)
+            goto cold;
+
+        r.ip = code;
+    }
+
+    goto next;
+
+i_ld_a1: /* a 1-D array's element counting from 0, in range; else exec_i_ld_a1's */
+{
+    Addr e;
+
+    if (!elem1_fast(&S->symb, load16(r.ip + 1), r.sp->i, VS, &e))
+        goto cold;
+
+    r.ip += 3;
+    r.sp->a = rd32(e);
+}
+
+    goto next;
+
+i_st_a1: /* ( sub x -- ) */
+{
+    Addr e;
+
+    if (!elem1_fast(&S->symb, load16(r.ip + 1), r.sp[1].i, VS, &e))
+        goto cold;
+
+    r.ip += 3;
+    wr32(e, r.sp->u);
+    r.sp += 2;
+}
+
+    goto next;
+
+fail:
+    v->ip = r.ip;
+    v->sp = r.sp;
+    v->opip = op;
+    fault_status(&S->fault, st);
 }
 
 bool exec_brk(Session *const S)
@@ -137,18 +291,9 @@ bool exec_brk(Session *const S)
 
 int32_t exec_idiv(Fault *const f, const int32_t a, const int32_t b, int32_t *const rem)
 {
-    if (!b)
-        fault_error(f, E_DZ);
-
-    if (b == -1) {
-        if (a == INT32_MIN)
-            fault_error(f, E_OV);
-
-        return -a; /* *rem kept: MOD does -1 itself */
-    }
-
-    *rem = a % b;
-    return a / b;
+    int32_t q;
+    fault_check(f, hot_idiv(a, b, &q, rem));
+    return q;
 }
 
 /* ---- arrays and records --------------------------------------------------------------------- */
@@ -184,16 +329,8 @@ Addr exec_elem(Arry *const ar, Vm *const vm)
 static Addr elem1(Session *const S, const int32_t sub, const uint32_t size)
 {
     const uint16_t id = exec_u16(&S->vm);
-    const Addr hdr = symb_var(&S->symb, id)->vt;
-
-    if (hdr) {
-        const ArrayHdr *const a = (const ArrayHdr *)at(hdr);
-
-        if (a->dims == 1 && (uint32_t)sub < a->fast)
-            return a->data + (uint32_t)sub * size;
-    }
-
-    return exec_elem1(&S->arry, id, sub);
+    Addr e;
+    return elem1_fast(&S->symb, id, sub, size, &e) ? e : exec_elem1(&S->arry, id, sub);
 }
 
 Addr exec_record(Arry *const ar, Symb *const sy, const uint16_t id)
