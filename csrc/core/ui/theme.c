@@ -1,4 +1,24 @@
-/* The editor's colours (src/ui/theme.asm). */
+/* The editor's colours: themes of attributes and palettes.
+ *
+ * # How it works
+ * A theme is NSLOT attributes, one per slot (SL_*), and the 16 text colours' RGB for the DAC
+ * (pscr_palette): a theme can change what a colour looks like.
+ *
+ * The editor's page shows the theme's colours (them_in), the program's page VGA's, theme 0's
+ * (them_out).
+ *
+ * # asm structure (src/ui/them.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | th_set | them_set | MIRROR |
+ * | th_qb, th_dark, th_pick | them_qbasic, them_dark, them_pick | MIRROR |
+ * | th_in, th_out | them_in, them_out | MIRROR |
+ * | th_ah | them_attr | MIRROR; inline |
+ * | g_thn, g_tha | them.cur, them.attr | MIRROR |
+ * | g_ths, zeda | themes (static) | MIRROR |
+ * | g_acpal | the dos32 screen platform's | MOVED |
+ * | NATTR, NTHEME, TH_SZ | NSLOT (ui.h), NTHEME, TH_SZ | MIRROR |
+ */
 #include "ui/theme.h"
 #include "ui/menu.h"
 #include "plat/pscr.h"

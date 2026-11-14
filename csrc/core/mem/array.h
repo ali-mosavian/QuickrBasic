@@ -1,7 +1,4 @@
-/* Arrays (src/mem/arr.asm). Var.vt is an array's header (ArrayHdr) in the headers' region, from
-   allo.hdr_base to arry.hdr: its dimensions, its data's Addr, the count when 1-D from 0 (else 0),
-   the counts, then the lower bounds (words). Its data is on the heap from allo.bot to arry.end,
-   zeroed, 4-aligned: VS a number or an INT, 8 a DOUBLE, DSZ a string, a TYPE's size a record. */
+/* Arrays' interface. How it works: array.c. */
 #ifndef MEM_ARRAY_H
 #define MEM_ARRAY_H
 #include "defs.h"

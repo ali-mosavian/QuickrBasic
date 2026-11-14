@@ -1,4 +1,48 @@
-/* Dialog boxes: the engine, message boxes, Open, Save As, Find, Change (src/ui/dlg.asm). */
+/* Dialog boxes: the engine, message boxes, Open, Save As, Find and Change.
+ *
+ * # How it works
+ * A dialog (Dlog) has controls (DlogCtl); a control's place is from the dialog's corner. A field
+ * edits a LineBuf (FLDMAX characters), a list a DlogList, a check box flips a bool, a button ends
+ * the dialog with its index unless its hook keeps it.
+ *
+ * The keys: Tab, Shift+Tab the focus; Esc; Enter the focused button or the default; Alt+letter, or
+ * a letter outside a field, a control's hotkey; the mouse. The editor is drawn under the box.
+ * uimn.help is the dialog's status line meanwhile.
+ *
+ * A message box splits its text's lines at '|' and wraps them to 44 columns. The Open and Save As
+ * lists, the message box and each dialog's state are static. The dialog tables are not const: focus
+ * and row change.
+ *
+ * # asm structure (src/ui/dlg.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | dl_run | dlog_run | MIRROR |
+ * | dl_msg, dl_ok, dl_ync | dlog_msg, dlog_ok, dlog_ync | MIRROR |
+ * | dl_err | dlog_err | MIRROR; writes a 0 at its first '|' |
+ * | dl_wrap, wr_ind | dlog_wrap, its indent | MIRROR; D1 |
+ * | dl_open, dl_saveas, dl_find | dlog_open, dlog_saveas, dlog_find | MIRROR; D2 |
+ * | dl_conf, dl_change | dlog_conf, dlog_change | MIRROR |
+ * | dl_fok | dlog_fileok | MIRROR; D2 |
+ * | dl_bhelp | dlog_nohelp | MIRROR; D2 |
+ * | ui_ledit | dlog_ledit | MIRROR |
+ * | dl_ctl, dl_pos, dl_draw, dl_one, dl_dfld, dl_dlst, dl_dbtn, dl_hk, dl_acc, dl_dchk, dl_hit, dl_step, dl_run0, dl_bw, dl_files, dl_fsel, dl_dsel, dl_name1 | statics | MIRROR |
+ * | dg_open, dg_save, dg_find, dg_conf, dg_chg | static Dlogs | MIRROR |
+ * | TDLG, TCTL, TLIST | Dlog, DlogCtl, DlogList | D3 |
+ * | TBTN, bt_ok, bt_ync | MsgButton; static lists | MIRROR |
+ * | TMSGD, g_ui.dg.*, bf.msg_txt, msg_d, ls_fl, ls_dl, dl_mask, dl_path, dl_dta | statics | D4 |
+ * | g_ui.bf.dl_fn, dl_name | uimn.fname, uimn.chosen | MOVED (ui.h) |
+ * | g_ui.bf.fd_what, fd_to, g_ui.fd.fd_case, fd_whole | uimn.find_what, change_to, match_case, whole_word | MOVED (ui.h) |
+ * | CT_*, CF_NOF, DO_OK, DS_OK, DF_OK, DC_FV | same (dialog.h); DLOG_ESC 0xFF | MIRROR |
+ * | u_open, u_saveas, u_find, u_change, u_fname, u_files, u_dirs, u_skip, u_chg1, u_fwhat, u_cto, u_case, u_whole, u_fverify, u_chall, u_mbas, u_bas, u_star, u_yes, u_no | statics | MIRROR |
+ * | DL_WRAP | static (44) | MIRROR |
+ * | LSMAX | static | MIRROR |
+ *
+ * - D1. A parameter, not a global set before the call.
+ * - D2. A flag result is a bool, true the success. A hook's true keeps the box: the asm's CF set
+ *   for a button, clear for a list's Enter.
+ * - D3. A control's cb is hook, or a check box's check; TDLG's controls are the ctl array.
+ * - D4. ls_f and ls_d are initialised statically with their item buffers: the asm's start-up setup.
+ */
 #include "ui/dialog.h"
 #include "session.h"
 #include "plat/pfil.h"

@@ -1,6 +1,4 @@
-/* The line map: each editor line's record in the program store (src/ui/lmap.asm). A block
-   (allo's HLMAP) of uint32_t: text line i's record's offset, uimn.text.all of them, rising. An
-   include's records (LF_INC) are no line's. */
+/* The line map's interface. How it works: linemap.c. */
 #ifndef UI_LINEMAP_H
 #define UI_LINEMAP_H
 #include "ui/ui.h"

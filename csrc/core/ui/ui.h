@@ -1,14 +1,38 @@
-/* The editor's shared constants, records and state (src/ui/ui.inc's g_ui), for every csrc/core/ui
-   module. uimn (ui/uimain.c) defines uimn; a g_ui field only one module used is that module's
-   static instead (csrc/portmap/ui.md says where each went).
-
-   The screen: row 0 the menu bar, rows 1 to 23 the windows (window.h), row 24 the status bar. A
-   place on it is a row and a column, 0-based. Drawing names attribute slots (SL_*), which the
-   theme (theme.h) makes attributes.
-
-   The editor runs under repl_main's setjmp (io/repl.h): uimn_start, uimn_ready and uimn_error
-   end in the key loop, which never returns. A run or an error unwinds the C stack to repl.top,
-   then comes back through uimn_ready or uimn_error: nothing the editor keeps lives on the stack. */
+/* The editor's shared constants, records and state, for every module in csrc/core/ui.
+ *
+ * # How it works
+ * uimn (uimain.c) defines uimn. A field of the asm's g_ui that only one module used is that
+ * module's static instead.
+ *
+ * The screen: row 0 the menu bar, rows 1 to 23 the windows (window.h), row 24 the status bar. A
+ * place on it is a row and a column, 0-based. Drawing names attribute slots (SL_*), which the theme
+ * (theme.h) makes attributes.
+ *
+ * The editor runs under repl_main's setjmp (io/repl.h): uimn_start, uimn_ready and uimn_error end
+ * in the key loop, which never returns. A run or an error unwinds the C stack to repl.top, then
+ * comes back through uimn_ready or uimn_error: nothing the editor keeps lives on the stack.
+ *
+ * # asm structure (src/ui/ui.inc)
+ * | asm | here | |
+ * |---|---|---|
+ * | g_ui | uimn | MIRROR; D1 |
+ * | TLBUF, TEDBUF | LineBuf | D2 |
+ * | TTEXT | UiText | MIRROR |
+ * | TEDIT, TWIN, TIMM, TMOUSE | UiEdit, UiWin, UiImm, UiMouse | MIRROR |
+ * | data after u_kedit .. | StatusKey, StatusKeys | MIRROR |
+ * | A_ED .. (NATTR) | SL_ED .. (NSLOT) | D3 |
+ * | MS_KEY | KEY_MOUSE | MIRROR |
+ * | IMN, IMW, ED_COLS, DLBUF, FLDMAX, TXMAX, LNMAX, LNBUF, HLPSZ | same | MIRROR |
+ * | NWIN, W_HELP, W_ED1, W_ED2, W_IMM, W_DBG | same | MIRROR |
+ * | DP_COL, DP_W, DP_TW | same | MIRROR |
+ * | g_clpb | uimn.text.clip[CLIPSZ] | MIRROR |
+ *
+ * - D1. Zeroed, so out of the image's data: uimn_start sets what needs a value. The line buffers'
+ *   texts are arrays in it, their LineBufs pointing at them.
+ * - D2. text points at the storage; a field's and the immediate line's hold DLBUF bytes, the
+ *   editor's LNBUF.
+ * - D3. Renamed: comp's dfa.h has an A_STR.
+ */
 #ifndef UI_UI_H
 #define UI_UI_H
 #include "defs.h"

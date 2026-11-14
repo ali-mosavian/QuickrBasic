@@ -1,6 +1,27 @@
-/* CHAIN and COMMON (src/vm/chain.asm). The buffer holds COMMON's values in order: an entry is the
-   kind (Var.info's VI_ARR, SK_DBL, VK_MASK), then a number's 4 or 8 bytes, a string's len:2 and
-   chars; an array's dims:1 (0 none), its counts and lower bounds (words), then its elements so. */
+/* CHAIN and COMMON: carry named variables' values from one program to the next.
+ *
+ * # How it works
+ * COMMON names its variables in order as a run reaches them (chai_cmn). CHAIN copies their values
+ * into a buffer, loads its file (repl_load) and runs it; each COMMON there takes the next value by
+ * position, an array with its bounds. Files stay open. In the editor CHAIN is Advanced feature
+ * unavailable.
+ *
+ * A buffer entry is the kind (Var.info's VI_ARR, SK_DBL, VK_MASK), then a number's 4 or 8 bytes, a
+ * string's len:2 and chars; an array's dims:1 (0 none), its counts and lower bounds (words), then
+ * its elements so.
+ *
+ * # Example
+ *   main:  COMMON n%, s$ : n% = 5 : s$ = "hi" : CHAIN "NEXT"
+ *   NEXT:  COMMON a%, b$ : PRINT a%; b$        ' 5 hi
+ *
+ * # asm structure (src/vm/chain.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | chn_start | chai_start | MIRROR |
+ * | sc_cmn, sc_chain | chai_cmn, chai_chain | MIRROR |
+ * | chn_kind, chn_cell, chn_elems, chn_room, chn_sout, chn_sin, chn_save | kind_of, elem_count, put*, get*, save, set_file | MIRROR |
+ * | g_chr, g_che, g_chf, g_cmn, g_cmid, g_chb, NCMN, CHBSZ | Chai.next, end, chained, n, id, buf; NCMN, CHAIN_BUF_SIZE (chain.h) | MIRROR |
+ */
 #include "vm/chain.h"
 #include "session.h"
 #include "comp/link.h"

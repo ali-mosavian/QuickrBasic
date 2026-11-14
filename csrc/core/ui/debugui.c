@@ -1,4 +1,30 @@
-/* The debugger's UI (src/ui/dbg.asm). */
+/* The debugger's UI: the Debug menu, F7 to F10 and the lit statement.
+ *
+ * # How it works
+ * It drives the session's debugger (session.h). udbg_init installs the trace hook: the statement is
+ * lit on the editor's page for two ticks, then the output's page shows again.
+ *
+ * A breakpoint is a text line's mark, its record's LF_BP (text.h), so it moves with the line. A
+ * step, a breakpoint or until's line stops the run as STOP does: repl_error(E_BRK),
+ * uimn_error(E_BRK), udbg_stop.
+ *
+ * The stopped statement is found by tokenizing its line again: lexr.col gives the columns of the
+ * stop's statement from its body offsets.
+ *
+ * # asm structure (src/ui/dbg.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | ud_init, ud_prep, ud_stop | udbg_init, udbg_prep, udbg_stop | MIRROR |
+ * | ud_row | udbg_row | MIRROR; D1 |
+ * | ud_step, ud_pstep, ud_sout, ud_restart | udbg_step, udbg_pstep, udbg_sout, udbg_restart | MIRROR; udbg_restart noreturn |
+ * | ud_trace1, ud_bp, ud_bpclr, ud_until, ud_setnx | udbg_tron, udbg_bp, udbg_bpclear, udbg_until, udbg_setnext | MIRROR |
+ * | ud_hlset, ud_trace | hlset, trace (DebugHooks.trace) | MIRROR |
+ * | g_ui.ud.stopd | uimn.stopped (ui.h) | MOVED |
+ * | g_ui.ud.hl_on, hl_ln, hl_c0, hl_c1, ud_utl | hl (static) | MIRROR |
+ * | u_bnext, u_cncont | statics | MIRROR |
+ *
+ * - D1. The line comes as a parameter, not lp.dr_ln.
+ */
 #include "ui/debugui.h"
 #include "session.h"
 #include "comp/comp.h"

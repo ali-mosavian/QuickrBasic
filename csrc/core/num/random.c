@@ -1,3 +1,17 @@
+/* RND: QBasic's 24-bit generator.
+ *
+ * # How it works
+ * seed' = seed * MUL + ADD, mod 2^24. RND(x): 0 repeats the last; a negative x seeds from its bits
+ * first; then the next. The first seed, RNDM_SEED0, is set at start (boot).
+ *
+ * # asm structure (src/float/ftr.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | g_state.ft.rs | Rndm.seed | MIRROR |
+ * | fn_rnd | rndm_rnd | MIRROR |
+ * | flt_pi, g_kpi | SNGL_PI | MOVED: single.h |
+ * | g_kone | SNGL_ONE | MOVED: single.h |
+ */
 #include "num/random.h"
 #include "session.h"
 

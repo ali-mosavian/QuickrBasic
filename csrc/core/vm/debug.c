@@ -1,4 +1,33 @@
-/* The debugger's VM side (src/vm/dbg.asm): where a run stops, TRON, TROFF, the watch probe. */
+/* The debugger's VM side: where a run stops, TRON, TROFF and the watch probe.
+ *
+ * # How it works
+ * With dbug.emit set (the IDE) each program statement's code starts with a DBG op (dbug_dbg). It
+ * stops for a step (mode), a breakpoint at its line's first statement (LF_BP) and until's line
+ * (once). A stop is a STOP: CONT goes on past the DBG. With trace set each statement first goes to
+ * hooks->trace with its place. The direct line has no DBG.
+ *
+ * The probe (dbug_eval) runs PRINT expr in a procedure's scope as a nested exec_run, the stopped
+ * run's fields saved and restored around it. A FUNCTION it calls runs; no breakpoint, step, trace
+ * or event stops it. Its end (dbug_done) or error (dbug_fail) longjmps back to dbug_eval.
+ *
+ * # asm structure (src/vm/dbg.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | TDBG, g_state.dbg | Dbug | MIRROR |
+ * | dbg.mode, trace, bpon, utl, emit, pdep, uline, hook | Dbug.mode, trace, bpon, until, emit, pdep, uline, hooks | MIRROR |
+ * | dbg.wline, stmtfrom, stmtto | DebugPos.line, from, to | D1 |
+ * | g_dbev | Dbug.probing, Dbug.probe | D2 |
+ * | op_dbg | dbug_dbg | MIRROR |
+ * | dbg_depth | dbug_depth | MIRROR |
+ * | dbg_pos | dbug_pos | D1 |
+ * | dbg_eval | dbug_eval | MIRROR |
+ * | dbg_evx, dbg_ever | dbug_done, dbug_fail | D2 |
+ * | sc_tron, sc_troff | dbug_tron, dbug_troff | MIRROR |
+ * | g_dbsvt, g_dbsv, g_dlprc | Saved, save, restore | MIRROR |
+ *
+ * - D1. A statement's place is a DebugPos that dbug_pos returns, not fields and registers.
+ * - D2. The probe's return is a longjmp to a jmp_buf in Dbug; the asm unwinds its stack by hand.
+ */
 #include "vm/debug.h"
 #include "session.h"
 #include "comp/comp.h"

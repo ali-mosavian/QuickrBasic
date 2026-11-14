@@ -1,14 +1,4 @@
-/* Errors and the READY loop (io/repl.asm). repl_error is the asm's err_raise: it never returns,
-   it unwinds with longjmp to the first of these that holds:
-     1. dbug's watch probe running (g_dbev): back to it (dbg_ever).
-     2. compiling (comp.busy): comp_fail, which ends the line with an ERR op and longjmps to
-        its compile's start.
-     3. not BREAK nor E_OS, not in the handler, not the direct line, and a handler found
-        (flow's ex_hnd): flow_trap (ex_trap), which longjmps to vm.loop at the handler.
-     4. else repl.top with REPL_ERROR: the message (and a file run's where, a compile error's
-        place and words), then READY, the batch exit, or the editor's ui_err.
-   Before any of them: lexr.more is cleared, the x87 cleared (ex_fclr). repl.top is where the
-   asm reset ESP to rn.rsp: the C stack's floor. */
+/* Errors and the READY loop's interface. How it works: repl.c. */
 #ifndef CORE_IO_REPL_H
 #define CORE_IO_REPL_H
 #include <setjmp.h>

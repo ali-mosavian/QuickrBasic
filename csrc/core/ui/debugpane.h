@@ -1,12 +1,4 @@
-/* The debug pane: at a stop, right of the code (columns DP_COL on, the edit windows' rows), its
-   windows Watch, Locals and Call stack (src/ui/dpane.asm).
-
-   The frames: session_frames', each with its text line and its row. Locals: the selected
-   frame's procedure's variables, its parameters first, as that frame sees them (session_cell).
-   Watch: expressions, each PRINTed by session_eval in the stop's procedure's scope at each stop;
-   kept across runs. The tooltip:
-   the Locals row of the variable under the mouse (uimn.tip_mouse) or the cursor. uimn.pane_on is
-   ui.h's; the rest is debugpane.c's. */
+/* The debug pane's interface. How it works: debugpane.c. */
 #ifndef UI_DEBUGPANE_H
 #define UI_DEBUGPANE_H
 #include "ui/ui.h"

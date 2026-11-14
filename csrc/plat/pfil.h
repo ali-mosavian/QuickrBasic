@@ -1,6 +1,12 @@
-/* Files and directories. A handle is the host's file number (on DOS32 a DOS handle; FILEATTR's
-   2 shows it). Every call that can fail returns PFIL_OK or the host's error as a DOS error code,
-   which BASIC's errors map from (chnl_doserr); a host translates its own to the nearest. */
+/* Files and directories.
+ *
+ * # How it works
+ * A handle is the host's file number (on DOS32 a DOS handle; FILEATTR's 2 shows it). Every call
+ * that can fail returns PFIL_OK or the host's error as a DOS error code, which BASIC's errors map
+ * from (chnl_doserr); a host translates its own to the nearest.
+ *
+ * A directory search keeps its place in the PfilFind it fills, which is DOS's DTA byte for byte.
+ */
 #ifndef PLAT_PFIL_H
 #define PLAT_PFIL_H
 #include "base.h"

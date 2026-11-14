@@ -1,9 +1,4 @@
-/* QBasic's file statements and functions, over the channels (io/fio.asm). Each is an op's
-   handler, its stack effect ( in -- out ) on exec's data stack.
-   A variable's place, as the compiler's va gives it: its address and a kind in the top byte,
-   VA_DESC (a string's Desc; n its STRING * n), VA_RAW (n bytes), VA_I2 (an INT kept as 2
-   bytes); n in the low word. A RANDOM channel's record is RECMAX bytes of file.recs at its
-   index: FIELD's strings point into it, so it is in the arena. */
+/* QBasic's file statements' interface. How it works: file.c. */
 #ifndef CORE_IO_FILE_H
 #define CORE_IO_FILE_H
 #include "io/channel.h"

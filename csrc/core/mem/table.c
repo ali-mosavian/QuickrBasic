@@ -1,3 +1,19 @@
+/* Tables: parallel arrays, an entry of each per id, in one block.
+ *
+ * # How it works
+ * The arrays lie in the block one after another, cap entries each. As the block grows the arrays
+ * after the first move up (tabl_place, from the block's moved routine).
+ *
+ * # asm structure (src/mem/tab.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | TTAB | Table (.block .cap .max .base .narr .size[] .at[]); TMAXA | MIRROR |
+ * | tab_new (ESI, ECX, EBX) | tabl_new(t, entries, moved) | MIRROR |
+ * | tab_room (ESI, ECX; CF) | tabl_room(t, entries) | MIRROR; D1 |
+ * | tab_place (ESI -> EDX) | tabl_place(t) | MIRROR; returns the old base |
+ *
+ * - D1. Returns true when there is room.
+ */
 #include "mem/table.h"
 #include "session.h"
 

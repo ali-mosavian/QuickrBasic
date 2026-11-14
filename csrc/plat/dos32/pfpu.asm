@@ -1,5 +1,8 @@
-; The x87's functions (plat/pfpu.h), cdecl. The cores are src/float/fpu.asm's and dbl.asm's,
-; instruction for instruction; an error unwinds to the entry's frame (fail) instead of err_raise.
+; The x87's functions (plat/pfpu.h), cdecl.
+;
+; # How it works
+; The cores are src/float/fpu.asm's and dbl.asm's, instruction for instruction. An error unwinds to
+; the entry's frame (fail) instead of err_raise.
         .386
         .387
         .model  flat

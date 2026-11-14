@@ -1,5 +1,24 @@
-/* Numbers as their bytes (src/vm/bin.asm): MKI$ .. CVD and the MBF forms. A cell's bytes are the
-   value's, low first. */
+/* Numbers as their bytes: MKI$ .. CVD, and the Microsoft Binary Format forms.
+ *
+ * # How it works
+ * A cell's bytes are the value's, low first. mk turns the top cell's first n bytes into a string;
+ * cv turns a string's first n bytes into a cell.
+ *
+ * MBF: the significand low first, its sign in the top bit of the byte under the exponent; the
+ * exponent last, 0 for zero, biased 129 with the point before the hidden 1 (IEEE's + 2 single,
+ * - 894 double).
+ *
+ * # Example
+ *   MKI$(258)         is CHR$(2) + CHR$(1)
+ *   CVI(MKI$(258))    is 258
+ *
+ * # asm structure (src/vm/bin.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | sc_mki, sc_mkl, sc_mks, sc_mkd, sc_mksm, sc_mkdm | mkcv_mki, mkcv_mkl, mkcv_mks, mkcv_mkd, mkcv_mksm, mkcv_mkdm | MIRROR |
+ * | sc_cvi, sc_cvl, sc_cvs, sc_cvd, sc_cvsm, sc_cvdm | mkcv_cvi, mkcv_cvl, mkcv_cvs, mkcv_cvd, mkcv_cvsm, mkcv_cvdm | MIRROR |
+ * | bn_mk, bn_cv | mk, cv | MIRROR |
+ */
 #include "vm/convert.h"
 #include "session.h"
 #include "io/console.h"

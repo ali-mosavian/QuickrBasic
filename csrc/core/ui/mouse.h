@@ -1,6 +1,4 @@
-/* The mouse in the editor, when a driver is there (src/ui/mouse.asm). mous_poll turns the left
-   button into events, uimn.mouse.event at uimn.mouse.row, col; uimn_getkey gives one as
-   KEY_MOUSE. Its state is ui.h's uimn.mouse. */
+/* The mouse's interface. How it works: mouse.c. */
 #ifndef UI_MOUSE_H
 #define UI_MOUSE_H
 #include "ui/ui.h"

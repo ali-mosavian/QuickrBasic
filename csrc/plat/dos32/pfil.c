@@ -1,4 +1,8 @@
-/* Files and directories on DOS32: INT 21h's handle calls, DOS/32A passing 32-bit pointers. */
+/* Files and directories on DOS32.
+ *
+ * # How it works
+ * INT 21h's handle calls, DOS/32A passing 32-bit pointers.
+ */
 #include "dos.h"
 #include "plat/pfil.h"
 

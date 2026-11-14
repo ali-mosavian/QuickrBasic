@@ -1,5 +1,25 @@
-/* Tab completion (src/ui/compl.asm). An entry of the list: the length, the text and 0 (AC_LEN at
-   most); the kind (AK_*); the rank, 0 first; a token or a line. */
+/* Tab completion: the word at the cursor, from what fits there. AC builds only.
+ *
+ * # How it works
+ * The line before the word tells what fits: a statement or a variable at a statement's start; a
+ * label after GOTO, GOSUB, THEN, RUN, LIST, ON's list; a variable after FOR, NEXT, DIM, READ,
+ * INPUT, GET; after an operand the words that go on; else a function or a variable of the type the
+ * expression wants.
+ *
+ * An entry of the list is the length, the text and 0 (AC_LEN at most), the kind (AK_*), the rank (0
+ * first), and a token or a line. The state, the list and the constants (AM_*, AP_*, AK_*, AT_*) are
+ * static.
+ *
+ * # asm structure (src/ui/compl.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | ac_tab | cmpl_tab | MIRROR; D1 |
+ * | every other ac_*, ac_vst, ac_ops, ac_lpar, ac_args, ac_x | statics | MIRROR |
+ * | g_ui.ac.*, bf.ac_ev, bf.ac_list, TACE | statics, Entry | MIRROR |
+ * | AM_*, AP_*, AC_ROWS, AC_LEN, AK_*, AT_*, AC_PREV, AC_MAX, AC_SZ, AC_EVN | same (static) | MIRROR |
+ *
+ * - D1. A flag result is a bool, true the success.
+ */
 #include "ui/complete.h"
 #include "session.h"
 #if AC

@@ -1,4 +1,8 @@
 ; pdos_int: a software interrupt with the registers of a PdosRegs (plat/dos32/dos.h), cdecl.
+;
+; # How it works
+; The vector is patched into the INT instruction's operand, as the code is writable under DOS/32A.
+; Also holds pdos_ds, pdos_cmdline and pdos_environ.
         .386
         .model  flat
         public  _pdos_int, _pdos_ds, _pdos_cmdline, _pdos_environ

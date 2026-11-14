@@ -1,5 +1,8 @@
-/* An error a module raises without the Session. The session's handler reports it and unwinds;
-   fault_raise does not return. */
+/* An error a module raises without the Session.
+ *
+ * # How it works
+ * The session's handler reports it and unwinds; fault_raise does not return.
+ */
 #ifndef FAULT_H
 #define FAULT_H
 #include <stdint.h>

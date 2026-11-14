@@ -1,4 +1,8 @@
-/* The text screen on the host: pages in memory, for tests to read (host.h). */
+/* The text screen on the host.
+ *
+ * # How it works
+ * Pages in memory, for tests to read (host.h).
+ */
 #include "plat/host/host.h"
 #include "plat/pscr.h"
 

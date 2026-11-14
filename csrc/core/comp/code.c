@@ -1,3 +1,30 @@
+/* Writes code: bytes and ops, and conversions of the value the code so far leaves.
+ *
+ * # How it works
+ * A Code holds the buffer, where the next byte goes and what the code so far ends with: its value's
+ * type, its last INT load, its last compare, its SHORT class. The emitters write a checked tree's
+ * code and raise nothing: past lim they drop bytes and set full, for the caller.
+ *
+ * A conversion (code_toint, code_tofloat, ...) looks at the value's type and appends the op that
+ * changes it; an INT load just made is rewritten in place where it can be (code_tofloat).
+ *
+ * # asm structure (src/comp/comp.asm, expr.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | cm_byt, cm_op | code_byte, code_op | MIRROR; D1 |
+ * | cm_opx, cm_opw, cm_dw, cm_ins, cm_lint, cm_call | code_opb, code_opw, code_dword (code_word), code_insert, code_int, code_call | MIRROR; D1 |
+ * | cm_opid, cm_vop | code_opid, parop | MIRROR |
+ * | cm_ileaf | code_intleaf | MIRROR |
+ * | cm_shv | code_shclass | MIRROR |
+ * | cm_toi, cm_tof, cm_tod, cm_tob, cm_toa, cm_dnz | code_toint, code_tofloat, code_todouble, code_tobyte, code_toaddr, code_dtest | MIRROR |
+ * | cm_tos, cm_tgt, cm_store, cm_fst | comp_tostring, comp_target, comp_store (comp.c) | MOVED |
+ * | cm_shid, cm_sop | shortid, shortop (codegen.c) | MOVED |
+ * | g_csh, g_cshe, g_cshc, g_xdbl | Code.sh, Code.shend, Code.shclass, Code.fixdbl | D2 |
+ * | cty, cll, clle, ccmp, ccmpe, cxb, cxlim, (EDI) | Code.type, iload, iloadend, cmp, cmpend, buf, lim, out | D2 |
+ *
+ * - D1. A byte past lim is dropped and sets Code.full, not an Out of memory error.
+ * - D2. The state is a Code, not module globals, so the generator runs on any buffer.
+ */
 #include "comp/code.h"
 #include <string.h>
 #include "comp/ast.h"

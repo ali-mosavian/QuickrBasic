@@ -1,6 +1,9 @@
-; The STOP key for psys (plat/psys.h): INT 23h, Ctrl+C as DOS sees it, and the tick (INT 1Ch)
-; scanning the BIOS key buffer for a Ctrl+C or Ctrl+Break (0), which DOS sees only when it reads
-; the console. Each ORs the bit into the flag; no C runs in them.
+; The STOP key for psys (plat/psys.h).
+;
+; # How it works
+; Two handlers: INT 23h, Ctrl+C as DOS sees it, and the tick (INT 1Ch) scanning the BIOS key
+; buffer for a Ctrl+C or Ctrl+Break (0), which DOS sees only when it reads the console. Each ORs
+; the bit into the flag; no C runs in them.
         .386
         .model  flat
         public  _pstop_hook, _pstop_unhook

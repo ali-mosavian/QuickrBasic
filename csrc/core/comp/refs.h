@@ -1,6 +1,4 @@
-/* References parsed into the tree (comp/ast.h): a record's field or all of a record, an element's
-   or a variable's place, a procedure's call and its arguments. Names are resolved and nodes built
-   here; nothing is emitted (expr.c's gen does). */
+/* Reference parsing's interface. How it works: refs.c. */
 #ifndef COMP_REFS_H
 #define COMP_REFS_H
 #include "comp/ast.h"

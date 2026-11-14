@@ -1,16 +1,20 @@
 /* The x87's functions: what C cannot say (FSIN, FYL2X, F2XM1, FPTAN, FPATAN, FSCALE, FRNDINT,
-   FBSTP, 80-bit intermediates, the control word). On DOS32 a jwasm file, cdecl, each the asm's
-   instructions so results match it bit for bit, under DOSBox's x87 too.
-
-   The control word between calls is 027Fh: 53-bit precision, to nearest, exceptions masked. So
-   C's double + - * / are IEEE double's, as the asm's D ops at its 53 bits, and C's float ops
-   round once to 53 bits and once to 24 on the store, which for + - * / and sqrt is the single
-   rounding the asm's 24-bit control word gives (53 >= 2*24+2). Each function sets the precision
-   and rounding its asm routine used and puts 027Fh back.
-
-   A FLOAT goes in and out as its bits (num/single.h's Sngl), a result stored by fstp straight from
-   the 80-bit register, so it rounds once. A function that can fail returns PFPU_OK or the error;
-   it never leaves anything on the x87's stack. */
+ * FBSTP, 80-bit intermediates, the control word).
+ *
+ * # How it works
+ * Each function is the asm's instructions, so results match it bit for bit, under DOSBox's x87
+ * too. On DOS32 it is a jwasm file, cdecl.
+ *
+ * The control word between calls is 027Fh: 53-bit precision, to nearest, exceptions masked. So
+ * C's double + - * / are IEEE double's, as the asm's D ops at its 53 bits, and C's float ops
+ * round once to 53 bits and once to 24 on the store, which for + - * / and sqrt is the single
+ * rounding the asm's 24-bit control word gives (53 >= 2*24+2). Each function sets the precision
+ * and rounding its asm routine used and puts 027Fh back.
+ *
+ * A FLOAT goes in and out as its bits (num/single.h's Sngl), a result stored by fstp straight from
+ * the 80-bit register, so it rounds once. A function that can fail returns PFPU_OK or the error;
+ * it never leaves anything on the x87's stack.
+ */
 #ifndef PLAT_PFPU_H
 #define PLAT_PFPU_H
 #include <cdecl.h>

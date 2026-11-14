@@ -1,3 +1,43 @@
+/* The name table and the variables.
+ *
+ * # How it works
+ * A name, 1 .. nnames-1, as QBasic's name table: a Name in names, its text in text, its length then
+ * its letters in upper case, a suffix left out. A variable, 1 .. nvars-1, as QBasic's variable
+ * manager: a name, a type (ET_*) and whether an array.
+ *
+ * vars holds per variable its 8-byte cell, a Var and a VarX. Var.vt is a scalar's cell (its own, or
+ * a parameter's argument's while its procedure runs), an array's header. Compiled code holds cells'
+ * Addrs: the cells move only when an edit drops the code. Each table chains its hashes from a head,
+ * 0 ends a chain.
+ *
+ * # asm structure (src/mem/sym.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | TVAR (vt nam typ info) | Var (.vt .name .type .info) | MIRROR |
+ * | TVX (next nloc scp dyn) | VarX (.next .nloc .scope .dyn) | MIRROR |
+ * | TNAM (text flag typ prc) | Name (.text .flags .rec .proc) | MIRROR |
+ * | TSYM, g_state.sym | Symb | MIRROR |
+ * | sym.vars, sym.nams, sym.ntext | Symb.vars, Symb.names, Symb.text | MIRROR |
+ * | sym.tfree | Symb.text_free | MIRROR |
+ * | lx.nsyms, lx.nnams | Symb.nvars, Symb.nnames | MOVED: declared here, not by the lexer |
+ * | g_plh, g_deft | Symb.first_local[], Symb.deft[] | MIRROR |
+ * | g_vhead, g_nhead | Symb.vhead, Symb.nhead | MIRROR |
+ * | fs:[id*8].TVAR, vxat, nmat, cellof | symb_var, symb_varx, symb_name, symb_cell | MIRROR; D1 |
+ * | nmtest id, bits | symb_name(id)->flags & bits | MIRROR |
+ * | [ntext.at + TNAM.text] | symb_text(id) | MIRROR |
+ * | sym_new, var_size, var_clr | symb_new, symb_size, symb_clear | MIRROR |
+ * | sym_init, var_init | symb_init, symb_vars_init | MIRROR |
+ * | nam_find (nptr, nlen -> EAX) | symb_find_name(text, len) | MIRROR; D2 |
+ * | var_find (AX, CL, DL, cscope, cstat -> EAX) | symb_find_var(name, type, kind, scope, stat) | MIRROR; D2 |
+ * | var_cell (EBX -> ECX) | symb_cell(id) | MIRROR |
+ * | var_place, nam_place, txt_place | var_place, nam_place, txt_place | MIRROR; static |
+ * | VINIT NINIT IDMAX VSLACK | same | MIRROR; static |
+ * | sym.vsel | | D1 |
+ *
+ * - D1. No selector: an id indexes a table by Addr.
+ * - D2. The asm's globals are parameters: nptr and nlen are text and len; cm.cscope and cm.cstat
+ *   are scope and stat.
+ */
 #include "mem/symbols.h"
 #include "session.h"
 #include "comp/declare.h"

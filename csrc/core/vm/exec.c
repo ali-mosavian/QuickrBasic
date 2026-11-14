@@ -1,5 +1,43 @@
-/* The executor: the dispatch loop, the STOP check, array, record and parameter access, the string
-   ops, CALL. */
+/* The executor: the dispatch loop, the STOP check, array, record and parameter access, the
+ * string ops, CALL.
+ *
+ * # How it works
+ * exec_run reads the op at vm.ip, keeps its place in vm.opip and calls its handler through a table
+ * built from ops.def (exec.h). exec_until runs ops to an end address. exec_brk is the STOP check:
+ * it counts ticks, runs an event, or raises BREAK.
+ *
+ * An array element is found by exec_elem1 (one subscript) or exec_elem (n subscripts), straight
+ * from its header when it counts from 0 and the subscript is in range. A record is made, zeroed,
+ * at its first use (exec_record). A parameter's cell is its argument's.
+ *
+ * K handlers (ops.def) are called by CALL through a second table.
+ *
+ * # Example
+ *   A(3) = 7      pushes the value, then I_ST_A1 stores it at A's element 3
+ *
+ * # asm structure (src/vm/exec.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | ex_lp | exec_run | MIRROR |
+ * | ex_brk | exec_brk | MIRROR |
+ * | arr_r1, arr_pn | exec_elem1, exec_elem | MIRROR |
+ * | rec_get | exec_record | MIRROR |
+ * | int_div | exec_idiv | MIRROR |
+ * | g_ops, g_calls | ops, calls (tables from ops.def) | MIRROR |
+ * | g_bflt | operands.c's tables | MOVED |
+ * | g_fntab | funcs.c's fn1 table | MOVED |
+ * | op_call | exec_call | MIRROR |
+ * | op_sldt | exec_s_ld_txt | MIRROR |
+ * | op_raddr, op_raddra, op_pref, op_vaddr, op_vld, op_vst | exec_r_addr, exec_ra_addr, exec_p_ref, exec_v_addr, exec_v_ld, exec_v_st | MIRROR |
+ * | op_flld, op_flst, op_ichk16, op_sfld, op_sfst, op_rcopy | exec_fl_ld, exec_fl_st, exec_i_chk16, exec_sf_ld, exec_sf_st, exec_r_copy | MIRROR |
+ * | op_ilda1, op_flda1, op_slda1, op_lda, op_slda | exec_i_ld_a1, exec_f_ld_a1, exec_s_ld_a1, exec_i_ld_a, exec_s_ld_a | MIRROR |
+ * | op_sstv, op_ista1, op_fsta1, op_ssta1, op_istan, op_fstan, op_sstan | exec_s_st_v, exec_i_st_a1, exec_f_st_a1, exec_s_st_a1, exec_i_st_a, exec_f_st_a, exec_s_st_a | MIRROR |
+ * | ex_cmpt | static | MIRROR |
+ * | op_scmp, op_sif, op_scat | exec_s_cmp, exec_s_if, exec_s_cat | MIRROR |
+ * | g_stkb, STKTOP | carved by exec_init; vm.stktop | D1 |
+ *
+ * - D1. exec_init carves the data stack from the arena; the asm's is a fixed buffer.
+ */
 #include "vm/exec.h"
 #include "session.h"
 #include "io/file.h"

@@ -1,6 +1,4 @@
-/* The semantic pass: a parsed tree's names resolved to the facts gen needs (Node.var, par, jump)
-   and its types checked, every error raised, so gen (comp/codegen.h) gets a tree it compiles without
-   one. The walk is gen's, so an error's place (comp.p) is where gen's was. */
+/* The semantic pass's interface. How it works: sema.c. */
 #ifndef COMP_SEMA_H
 #define COMP_SEMA_H
 #include "comp/ast.h"

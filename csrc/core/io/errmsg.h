@@ -1,4 +1,4 @@
-/* QBasic's error numbers and messages (io/errmsg.asm). */
+/* QBasic's error numbers and messages: the interface. How it works: errmsg.c. */
 #ifndef CORE_IO_EMSG_H
 #define CORE_IO_EMSG_H
 #include "defs.h"

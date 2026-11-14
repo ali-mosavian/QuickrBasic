@@ -1,4 +1,40 @@
-/* The editor's text, the clipboard, files (src/ui/text.asm). */
+/* The editor's text: the program store's lines, the clipboard, and reading and writing files.
+ *
+ * # How it works
+ * The text is the program store: a line a record, uimn.text.all of them, at least one, in order,
+ * each found by the line map (linemap.h). A line is its record's pre bytes (its indent and number
+ * as typed), then its body as LIST spells it. An LF_ASIS line is its pre alone: a line with a
+ * syntax error, kept as typed; uimn.text.asis asks it of the next line stored. A line's mark (a
+ * breakpoint) is its LF_BP.
+ *
+ * The editor sees a view: uimn.text.n lines from line uimn.text.first, numbered from 0 (a
+ * procedure's lines, view.h). Lines below are the view's unless said. A line added or removed goes
+ * to uimn.text.hook (the text's line, 1 or -1). Storing a line can raise Out of memory.
+ *
+ * The clipboard is uimn.text.clip_len bytes of uimn.text.clip: whole lines (uimn.text.clip_lines,
+ * each ended by NL) or a piece of one.
+ *
+ * text_read and text_write go RDSZ bytes at a time. Reading splits physical lines as the source
+ * reader does (CR LF, LF, '_' continuation).
+ *
+ * # asm structure (src/ui/text.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | tx_init | text_init | MIRROR |
+ * | tx_whole, tx_view | text_whole, text_view | MIRROR |
+ * | tx_rec, tx_get | text_rec, text_get | MIRROR |
+ * | tx_repl, tx_insl, tx_dell | text_repl, text_insert, text_delete | MIRROR |
+ * | tx_mark, tx_mtog, tx_mclr | text_mark, text_toggle, text_unmark_all | MIRROR |
+ * | cb_put, cb_lines | text_clip_put, text_clip_lines | MIRROR |
+ * | tx_read, tx_write | text_read, text_write | MIRROR; D1 |
+ * | tx_text, tx_make, tx_put, tx_add, tx_tell, rd_peek, rd_byte, wr_flush, wr_out | statics | MIRROR |
+ * | g_rdh, g_rderr, g_rdpos, g_rdcnt, g_rdn, g_rdb, RDSZ | statics, RDSZ | MIRROR |
+ * | cn_init, cn_byte, cn_eol | srcr_phys_start, srcr_phys_byte, srcr_phys_end (io) | MOVED |
+ * | g_ui.tx.*, g_clpb, g_ui.tx.hl_len | uimn.text.*, uimn.help_len (ui.h) | MOVED; D2 |
+ *
+ * - D1. They return PFIL_OK or the DOS error, not CF and AX.
+ * - D2. The clipboard is uimn.text.clip, not carved from the arena: no Addr reaches it.
+ */
 #include "ui/text.h"
 #include "session.h"
 #include "ui/edit.h"

@@ -1,4 +1,11 @@
-/* The platform's memory: the arena (core/base.h), as one block; blocks for the C side's allocators. */
+/* The platform's memory: the arena (core/base.h) as one block, and blocks for the C side's
+ * allocators.
+ *
+ * # How it works
+ * pmem_init sets mem_base and returns the free part [*lo, *hi) as Addrs: the largest block the host
+ * gives, less what it keeps for itself. pmem_block's blocks are never freed and are not the arena;
+ * a program does not see them.
+ */
 #ifndef PLAT_PMEM_H
 #define PLAT_PMEM_H
 #include "base.h"

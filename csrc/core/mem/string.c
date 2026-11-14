@@ -1,3 +1,42 @@
+/* Strings: their descriptors, temporaries and heap, with collection.
+ *
+ * # How it works
+ * A string value is the Addr of its Desc: a variable's cell, an array element, a record's field or a
+ * temporary. The temporaries are NTMP Descs at strg.tmp, tmp_used bytes of them in use. A Desc's
+ * ptr may point into the program store, a text buffer in the arena or a heap block.
+ *
+ * The heap's strings run down from allo.top to low; a block is the chars, then a StrTail (len,
+ * owner: the Desc's Addr), live while that Desc points at the chars. At most SMAX chars. When the
+ * heap is full strg_gc slides the live blocks up and their owners follow.
+ *
+ * # asm structure (src/mem/str.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | TSTR, g_state.sg | Strg | MIRROR |
+ * | sg.tsp, sg.tspb | Strg.tmp_used, Strg.tmp_floor | MIRROR |
+ * | sg.tmplin, g_tmpd | Strg.tmp | MIRROR |
+ * | mm.sfr | Strg.low | MIRROR |
+ * | g_nbuf | Strg.near_buf | MIRROR |
+ * | sg.sln, sg.spt, sg.dpv, sg.sn, sg.bpo, sg.s0v, sg.s1v | Desc, return values, parameters | D1 |
+ * | sg.sac sg.sab sg.gq sg.gd | locals | D1 |
+ * | str_get, str_getd | strg_get | MIRROR; D2 |
+ * | str_push, str_alloc, str_new, str_own | strg_push, strg_alloc, strg_new, strg_own | MIRROR |
+ * | str_gc | strg_gc | MIRROR; D3 |
+ * | str_set | strg_set(value, desc) | MIRROR |
+ * | str_near, str_print | strg_near, strg_print | MIRROR; D4 |
+ * | str_item, str_skq, str_span | strg_item, strg_skipq, strg_span | MIRROR; D5 |
+ * | str_dlen, str_cat, str_sub | strg_len, strg_cat, strg_sub | MIRROR |
+ * | str_cmp (EDX, EAX -> CL 1, 2, 4) | strg_cmp -> SCMP_GT, SCMP_EQ, SCMP_LT | MIRROR |
+ * | str_tods, str_buftmp | strg_tods, strg_buftmp | MIRROR |
+ * | str_lit, str_scan, str_fit, str_cpy, str_cpyd | | MIRROR; static |
+ *
+ * - D1. The routines' register and global inputs and outputs are a Desc (.len, .ptr), return values
+ *   and parameters.
+ * - D2. Returns the Desc; empty is `.len == 0`.
+ * - D3. FRE is `strg.low - arry.end` after it.
+ * - D4. Length min(s.len, 255).
+ * - D5. The position is an Addr in `*pos`; strg_span's start is `*p` before the call.
+ */
 #include "mem/string.h"
 #include "session.h"
 #include "io/console.h"

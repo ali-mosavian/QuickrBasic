@@ -1,4 +1,8 @@
-/* Files and directories on the host: POSIX calls, DOS's names and error codes. */
+/* Files and directories on the host.
+ *
+ * # How it works
+ * POSIX calls, with DOS's names and error codes.
+ */
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>

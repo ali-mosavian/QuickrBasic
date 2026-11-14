@@ -1,5 +1,9 @@
-/* The constants and the arena's records every part shares (src/def.inc). A record whose layout a
-   BASIC program, the bytecode or a file can see is PACKED, as the asm lays it. */
+/* The constants and the arena's records every part shares (src/def.inc).
+ *
+ * # How it works
+ * A record whose layout a BASIC program, the bytecode or a file can see is PACKED, as the asm lays
+ * it.
+ */
 #ifndef CORE_DEFS_H
 #define CORE_DEFS_H
 #include "base.h"

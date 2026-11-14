@@ -1,10 +1,4 @@
-/* Strings and their heap (src/mem/str.asm).
-
-   A string value is the Addr of its Desc: a variable's cell, an array element, a record's field or
-   a temporary. The temporaries are NTMP Descs at strg.tmp, tmp_used bytes of them in use. A Desc's
-   ptr may point into the program store, a text buffer in the arena or a heap block. The heap's
-   strings run down from allo.top to low; a block is the chars, then a StrTail (len, owner: the
-   Desc's Addr), live while that Desc points at the chars. At most SMAX chars. */
+/* Strings' interface. How it works: string.c. */
 #ifndef MEM_STRING_H
 #define MEM_STRING_H
 #include "defs.h"

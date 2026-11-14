@@ -1,4 +1,49 @@
-/* Control flow: lines, jumps, GOSUB, FOR and NEXT, SUB and FUNCTION calls, ON ERROR and RESUME. */
+/* Control flow: lines, jumps, GOSUB, FOR and NEXT, SUB and FUNCTION calls, ON ERROR and RESUME.
+ *
+ * # How it works
+ * GOSUBs, events, FOR loops and calls are Frames on vm.frames (flow_push, flow_find). A call sets
+ * its parameters and locals aside on vm.callvars and puts them back when it ends.
+ *
+ * A jump op holds a Jump; its target is found on first use (flow_target). A line the cache dropped
+ * is compiled again when flow_place needs its code.
+ *
+ * An error goes to flow_handler: the innermost call's ON LOCAL ERROR, else ON ERROR's. flow_trap
+ * sets ERR, ERL and RESUME's places, then longjmps into exec_run's loop at the handler.
+ *
+ * # Example
+ *   10 FOR i = 1 TO 3     FOR pushes a FOR frame
+ *   20   PRINT i
+ *   30 NEXT i             steps it, jumps back to line 20 until i is past 3
+ *
+ * # asm structure (src/vm/flow.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | ex_dcode, ex_line (the direct line) | flow_dcode | MIRROR |
+ * | ex_end | flow_end | MIRROR |
+ * | ex_erl | flow_erl | MIRROR |
+ * | ex_gsf | flow_push | D1 |
+ * | ex_hnd, g_thnd | flow_handler | MIRROR |
+ * | ex_trap | flow_trap | MIRROR |
+ * | ex_jump | flow_jump | MIRROR |
+ * | ex_nextln | flow_nextln, also NXLN's handler | MIRROR |
+ * | ex_nodir | flow_nodir | MIRROR |
+ * | ex_resolve | resolve, flow_place | MIRROR |
+ * | ex_setcont | flow_setcont | MIRROR |
+ * | ex_stmtof | flow_stmtof | MIRROR |
+ * | ex_target | flow_target | MIRROR |
+ * | g_lsav, LSAVSZ | vm.callvars, MAX_CALLVARS | D1 |
+ * | ls_mov | flow_lsmove | MIRROR |
+ * | op_size | flow_opsize | MIRROR |
+ * | ex_line, ex_eol, ex_gosub, ex_jumpto, ex_sbase, for_find, for_in, for_mki, for_any, for_lp, pr_pop, err_nf, ipsave | static | MIRROR |
+ * | g_pres8, g_lres | Flow (flow.h) | MIRROR |
+ * | op_eol, op_goto, op_gosub, op_on, op_ret, op_for, op_nx0, op_nextv, op_err | flow_eol, flow_goto, flow_gosub, flow_on, flow_return, flow_for, flow_next, flow_next_v, flow_err | MIRROR |
+ * | op_jmp, op_ijf, op_fjf, op_ijt, op_fjt, op_fpop | flow_jmp, flow_i_jf, flow_f_jf, flow_i_jt, flow_f_jt, flow_fpop | MIRROR |
+ * | op_pcall, op_pret, op_onerr, op_onlerr, op_resume | flow_pcall, flow_pret, flow_onerr, flow_onlerr, flow_resume | MIRROR |
+ * | stopchk | exec_stopchk | MOVED |
+ *
+ * - D1. Frames are typed records in vm.frames and the saved parameters and locals are CallVars; the
+ *   asm keeps both as words on its control stack and save stack.
+ */
 #include "vm/flow.h"
 #include "session.h"
 #include "comp/blocks.h"

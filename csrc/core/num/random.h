@@ -1,4 +1,4 @@
-/* RND (float/ftr.asm): QBasic's 24-bit generator. */
+/* RND's interface. How it works: random.c. */
 #ifndef NUM_RANDOM_H
 #define NUM_RANDOM_H
 #include "single.h"

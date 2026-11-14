@@ -1,4 +1,8 @@
-/* The clock on the host: local time; the 18.2 Hz tick a SIGALRM timer. */
+/* The clock on the host.
+ *
+ * # How it works
+ * Local time; the 18.2 Hz tick is a SIGALRM timer.
+ */
 #include <signal.h>
 #include <sys/time.h>
 #include <time.h>

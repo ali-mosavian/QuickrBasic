@@ -1,10 +1,4 @@
-/* Event trapping (src/vm/event.asm): ON TIMER, KEY, COM, PEN, STRIG GOSUB.
-
-   A slot per event (EventSlot, defs.h): 0 TIMER, 1 .. 31 KEY(n), 32 .. 33 COM(n), 34 PEN, 35 .. 38
-   STRIG(0, 2, 4, 6). The platform's tick and its trapped keys set vm.stop's SF_TICK; the STOP
-   check then counts them (evnt_poll), and an event an ON slot can run sets SF_EV, so the check
-   runs it (evnt_run): a GOSUB to its line that comes back to the op that checked. Its slot runs
-   no other event till that RETURN. COM, PEN and STRIG are accepted and never fire. */
+/* Event trapping's interface. How it works: event.c. */
 #ifndef CORE_VM_EVNT_H
 #define CORE_VM_EVNT_H
 #include "vm/exec.h"

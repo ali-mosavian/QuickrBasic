@@ -1,3 +1,16 @@
+/* The semantic pass: names resolved and types checked on a parsed tree, before it is emitted.
+ *
+ * # How it works
+ * sema_tree resolves a tree's names to the facts codegen needs (Node.var, par, jump) and checks its
+ * types, raising every error, so codegen.c gets a tree it compiles without one. The walk is
+ * codegen's, so an error's place (comp.p) is where codegen's was.
+ *
+ * # Example
+ *    a$ + 1     Type mismatch, raised here, not while emitting
+ *
+ * # asm structure
+ * No asm counterpart: the asm checks types while it emits.
+ */
 #include "comp/sema.h"
 #include "session.h"
 #include "comp/control.h"

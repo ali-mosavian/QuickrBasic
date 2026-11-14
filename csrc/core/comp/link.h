@@ -1,9 +1,4 @@
-/* The code cache (comp/link.asm): lines compiled to streams. The cache is mem's HCACHE block in
-   the arena, offsets from its base (mem's cachebase): the direct line's stream at DCODE (1536
-   bytes), the program lines' from CACHE0 to CLIM. A stream is its statement map, a Stmt per
-   statement then their count:4, then the code; Line.code is the code's offset, 0 none. A full
-   cache is flushed: the frames' and CONT's ips become offsets in their lines' code, every line
-   loses its code. */
+/* The code cache's interface. How it works: link.c. */
 #ifndef COMP_LINK_H
 #define COMP_LINK_H
 #include "defs.h"

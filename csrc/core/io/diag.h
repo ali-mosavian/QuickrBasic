@@ -1,7 +1,4 @@
-/* A compile error in words, for the person who wrote the line (io/diag.asm, from llrm's
-   front/explain.rs). An error is its E_*, its DG_ (io/msg.h; 0: found by BC's name and the text
-   at the error) and its column in the line's text. diag_at reads the place; diag_say prints what
-   is wrong, what to do, and the statement's form. */
+/* Compile errors in words: the interface. How it works: diag.c. */
 #ifndef CORE_IO_DIAG_H
 #define CORE_IO_DIAG_H
 #include "defs.h"

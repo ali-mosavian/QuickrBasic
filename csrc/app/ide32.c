@@ -1,4 +1,5 @@
-/* ide32: the session with the editor as its front end. */
+/* ide32: the session with the editor as its front end.
+ */
 #include "boot.h"
 #include "session.h"
 #include "ui/uimain.h"

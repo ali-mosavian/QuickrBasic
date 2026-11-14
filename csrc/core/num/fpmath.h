@@ -1,7 +1,4 @@
-/* SINGLE's arithmetic, conversions and functions (float/fpu.asm). + - * / and the conversions
-   are C; the functions are the x87's, through plat/pfpu.h. Past the range a result is infinity,
-   under it a denormal, as BC's. Binary ops are a OP b, a the left operand (the asm's ARG, EDX),
-   b the right (its FAC, EAX); they share one signature for vm/exec's g_bflt. */
+/* SINGLE arithmetic's interface. How it works: fpmath.c. */
 #ifndef NUM_FPMATH_H
 #define NUM_FPMATH_H
 #include "single.h"

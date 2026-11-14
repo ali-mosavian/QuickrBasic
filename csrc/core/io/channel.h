@@ -1,9 +1,4 @@
-/* Channels: the files OPEN makes, by number, and where output and input go (io/chan.asm).
-   Channel 0 is the console, always open; the rest free (num 0) or file num's. A channel's kind
-   (CK_*) says where its bytes go: the console, a file handle, nowhere. Its buffer holds the
-   file's bytes from pos: read ahead (count of them, next read) or written (count, dirty).
-   chnl.out and chnl.in are the channels output and input use now, 0 the console (standard
-   output, standard input); cons.col is out's column, kept in its col while another is used. */
+/* Channels' interface. How it works: channel.c. */
 #ifndef CORE_IO_CHNL_H
 #define CORE_IO_CHNL_H
 #include "defs.h"

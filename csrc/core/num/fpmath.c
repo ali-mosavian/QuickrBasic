@@ -1,6 +1,35 @@
-/* + - * / in C round as the asm's: a result goes out as a Sngl, stored by fstp dword, and the
-   x87 at 53 bits (plat/pfpu.h) rounds + - * / once more harmlessly. Rounding to an integer is
-   bit work, exact. */
+/* SINGLE's arithmetic, conversions and functions.
+ *
+ * # How it works
+ * + - * / and the conversions are C: a result goes out as a Sngl, stored by fstp dword, and the x87
+ * at 53 bits (plat/pfpu.h) rounds + - * / once more harmlessly. Rounding to an integer is bit
+ * work, exact. The functions and ^ are the x87's, through plat/pfpu.h. Past the range a result is
+ * infinity, under it a denormal, as BC's.
+ *
+ * A binary op is a OP b: a the left operand (the asm's EDX, ARG), b the right (EAX, FAC). They share
+ * one signature for vm/exec's g_bflt.
+ *
+ * # asm structure (src/float/fpu.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | flt_finit, g_nofpu | fmth_init -> pfpu_init | MIRROR |
+ * | ex_fclr | fmth_clear -> pfpu_reset | MIRROR |
+ * | flt_add, flt_sub, flt_mul, flt_div | fmth_add, fmth_sub, fmth_mul, fmth_div | MIRROR; D1 |
+ * | fn_pow | fmth_pow -> pfpu_pow | MIRROR |
+ * | flt_from16, flt_fromu16, flt_from32 | fmth_from_i16, fmth_from_u16, fmth_from_i32 | MIRROR |
+ * | flt_fix16, flt_fixu16, flt_fix32, flt_xfix | fmth_to_i16, fmth_to_u16, fmth_to_i32 | MIRROR |
+ * | flt_int | fmth_floor | MIRROR |
+ * | sc_fix's inline FRNDINT (vm/builtins) | fmth_fix | MOVED: here |
+ * | fn_sqr, fn_exp, fn_log, fn_sin, fn_cos, fn_tan, fn_atn | fmth_sqr .. fmth_atn -> pfpu_fn(PF_*) | MIRROR |
+ * | fx_exp, fx_x2x, fx_pow, fx_log, fx_sin, fx_cos, fx_tan, fx_trg, fx_atn | | MOVED: plat/pfpu.h |
+ * | flt_fld, flt_fst, flt_xin, flt_xtst, flt_xfn | | D2 |
+ * | g_fcw, g_fcwx, g_fcwd, g_dmax, g_pwa, g_pwb, g_pwi | | MOVED: plat/pfpu.h; D3 |
+ * | g_state.ft.fpa, fpb, fpi, fpw | | D2 |
+ *
+ * - D1. fmth_add, fmth_sub and fmth_mul are inline in fpmath.h.
+ * - D2. Gone: C does it, or pfpu does.
+ * - D3. The default control word is 027Fh (53 bits), not 007Fh; see pfpu.h.
+ */
 #include "num/fpmath.h"
 #include "session.h"
 #include "io/repl.h"

@@ -1,4 +1,4 @@
-/* The code generator (comp/codegen.c): a tree to stack-machine code. */
+/* The code generator's interface. How it works: codegen.c. */
 #ifndef COMP_CODEGEN_H
 #define COMP_CODEGEN_H
 #include "comp/ast.h"

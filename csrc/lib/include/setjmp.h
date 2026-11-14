@@ -1,4 +1,8 @@
-/* setjmp and longjmp for targets without a C library (dos32: plat/dos32/jump.asm). */
+/* setjmp and longjmp for targets without a C library.
+ *
+ * # How it works
+ * dos32 implements them in plat/dos32/jump.asm. A jmp_buf holds ebx, esi, edi, ebp, esp and eip.
+ */
 #ifndef SETJMP_H
 #define SETJMP_H
 #include <cdecl.h>

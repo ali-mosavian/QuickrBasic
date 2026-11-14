@@ -1,7 +1,4 @@
-/* The editor's colours: themes of attributes and palettes (src/ui/theme.asm). A theme is NSLOT
-   attributes, one per slot (SL_*), and the 16 text colours' RGB for the DAC (pscr_palette): a
-   theme can change what a colour looks like. The editor's page shows the theme's colours, the
-   program's page VGA's, theme 0's. */
+/* The theme's interface. How it works: theme.c. */
 #ifndef UI_THEME_H
 #define UI_THEME_H
 #include "ui/ui.h"

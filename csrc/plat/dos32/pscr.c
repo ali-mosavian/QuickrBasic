@@ -1,4 +1,8 @@
-/* The text screen on DOS32: colour text memory at B8000h, INT 10h, the DAC's ports. */
+/* The text screen on DOS32.
+ *
+ * # How it works
+ * Colour text memory at B8000h, INT 10h, the DAC's ports.
+ */
 #include "dos.h"
 #include "plat/pscr.h"
 #include "plat/psys.h"

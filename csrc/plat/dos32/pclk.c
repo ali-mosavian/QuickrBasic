@@ -1,4 +1,8 @@
-/* The clock on DOS32: INT 21h's date and time, the BIOS tick count, the tick (ptick.asm). */
+/* The clock on DOS32.
+ *
+ * # How it works
+ * Time and date are INT 21h's, the ticks the BIOS count; the tick is INT 1Ch (ptick.asm).
+ */
 #include "dos.h"
 #include "plat/pclk.h"
 

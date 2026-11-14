@@ -1,3 +1,37 @@
+/* The program store: numbered lines kept in a block, found, stored, replaced and deleted.
+ *
+ * # How it works
+ * The store is a block (HPROG) of Line records, each its body (the lexer's tokens and their 0) then
+ * pre bytes of its text before the body (the editor's indent, the number as typed). The direct line
+ * is at DLINE, the program from PROGBASE; a len of 0 ends it, at end. A line is named by its
+ * offset in the store, which stays when the block moves.
+ *
+ * prog_find looks from the link's cursor when that is not above the number. Any edit ends with
+ * prog_drop: CONT and the link's cursor end, the frames drop and the variables are cleared, so the
+ * next link empties the code cache.
+ *
+ * # asm structure (src/mem/prog.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | mm.progbase, mm.progend, mm.enterat | Prog.base, Prog.end, Prog.entering | MIRROR |
+ * | mm.preptr, mm.prelen | Prog.pre, Prog.pre_len | MIRROR |
+ * | mm.addfl, mm.addat | Prog.add_flags, Prog.add_at | MIRROR |
+ * | mm.progfirst, mm.progsel | | D1 |
+ * | mm.bodyptr, mm.bodylen | prog_ins's body, len | D2 |
+ * | prg_findw (rn.lnum, lnk.cursor -> EBX, CF) | prog_find(num, &line) | MIRROR; D3 |
+ * | prg_put, prg_add (lnum, ESI, CX) | prog_put, prog_add (num, body, len) | MIRROR |
+ * | prg_at | prog_at | MIRROR |
+ * | prg_body (EBX, EDI -> EDI) | prog_body(line, dst) | MIRROR; returns past it |
+ * | prg_cut, prg_ins | prog_cut, prog_ins | MIRROR |
+ * | prg_drop, prg_init, prg_place | prog_drop, prog_init, prog_place | MIRROR |
+ * | prg_room (EDX) | prog_room(size) | MIRROR |
+ * | prg_fill, prg_size | fill, record_size | MIRROR; static |
+ * | bk_lineof (comp/block.asm) | prog_lineof | MOVED: here |
+ *
+ * - D1. No selectors: the first line is Prog.base + PROGBASE.
+ * - D2. The body and its length are parameters, not globals.
+ * - D3. Returns true when found, where the asm's CF is the flag.
+ */
 #include "mem/program.h"
 #include "session.h"
 #include "comp/link.h"

@@ -1,10 +1,4 @@
-/* Constant folding (comp/fold.asm): code of FK ops only (vm/ops.def) runs as it compiles,
-   through the VM's own handlers, so its value is the run's to the bit, and becomes one load of
-   it. An error while it runs leaves the code as it was, to raise when run.
-
-   A CONST whose value folds to one literal load keeps that load (VarX.kop, symb_kval): a use
-   compiled after it loads the literal instead of the variable. The CONST still stores the
-   variable, for the uses compiled before. */
+/* Constant folding's interface. How it works: fold.c. */
 #ifndef COMP_FOLD_H
 #define COMP_FOLD_H
 #include "defs.h"

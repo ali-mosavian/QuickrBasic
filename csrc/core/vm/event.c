@@ -1,4 +1,32 @@
-/* Event trapping (src/vm/event.asm): ON TIMER, KEY, COM, PEN, STRIG GOSUB. */
+/* Event trapping: ON TIMER, KEY, COM, PEN and STRIG GOSUB.
+ *
+ * # How it works
+ * Each event has a slot (EventSlot, defs.h). The platform's tick and its trapped keys set vm.stop's
+ * SF_TICK; the STOP check then counts them (evnt_poll), and an event an ON slot can run sets
+ * SF_EV, so the check runs it (evnt_run): a GOSUB to its line that comes back to the op that
+ * checked. Its slot runs no other event till that RETURN (evnt_return). COM, PEN and STRIG are
+ * accepted and never fire.
+ *
+ * # Example
+ *   10 ON TIMER(5) GOSUB tick : TIMER ON      tick runs every 5 seconds, between statements
+ *
+ * # asm structure (src/vm/event.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | NEV, g_evtab | NEV, Evnt.slot[] | MIRROR |
+ * | slot states 0 1 2, flags 1 2 | ES_OFF, ES_ON, ES_STOP; EF_PENDING, EF_RUNNING | MIRROR |
+ * | g_evti, g_evtc, g_evuk, g_evon | Evnt.interval, count, ukey[], on | MIRROR |
+ * | g_evsc | static | MIRROR |
+ * | ev_clr | evnt_clear | MIRROR |
+ * | ev_tick | evnt_poll | D1 |
+ * | ev_run | evnt_run | MIRROR |
+ * | ev_ret | evnt_return | MIRROR |
+ * | ev_slot, ev_sig | slot_of, signal | MIRROR |
+ * | op_onev, sc_evst, sc_keydef | evnt_onev, evnt_evst, evnt_keydef | MIRROR |
+ *
+ * - D1. Polled at the STOP check on SF_TICK, not called from the tick interrupt. The key buffer's
+ *   work is the platform's (pkey_trap, pkey_taken).
+ */
 #include "vm/event.h"
 #include "session.h"
 #include "io/repl.h"

@@ -1,5 +1,9 @@
-/* The keyboard on the host: the BIOS's keys from a queue tests fill (host.h); DOS's console
-   input (pkey_poll) from standard input, as DOS reads it when redirected. */
+/* The keyboard on the host.
+ *
+ * # How it works
+ * The BIOS's keys come from a queue tests fill (host.h); DOS's console input (pkey_poll) from
+ * standard input, as DOS reads it when redirected.
+ */
 #include <poll.h>
 #include <unistd.h>
 #include "plat/host/host.h"

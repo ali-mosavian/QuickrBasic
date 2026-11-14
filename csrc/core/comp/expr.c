@@ -1,5 +1,40 @@
-/* The expression compiler (comp/expr.asm). Precedences: OR 46h, AND 50h, NOT 5Ah, > = < 64h,
-   + - 78h, * / 7Bh, unary - 7Dh, ^ 7Fh. */
+/* The expression parser: precedence climbing over the token cursor, into a tree.
+ *
+ * # How it works
+ * expr_compile parses an expression at comp.p by precedence climbing (prec), builds a tree
+ * (comp/ast.h), has sema_tree check it, fold_tree fold it and cg_tree emit it. Precedences: OR 46h,
+ * AND 50h, NOT 5Ah, > = < 64h, + - 78h, * / 7Bh, unary - 7Dh, ^ 7Fh. A relation is REL | DC_*.
+ *
+ * A function call, an element, a field or a string literal is built where it is met, by the helpers
+ * here and in refs.c. expr_target compiles a store's target and its subscripts.
+ *
+ * # Example
+ *    x% = 2 + 3 * y%     the tree + (2, * (3, y%)); the 2 loads, y% * 3 folds into one op
+ *
+ * # asm structure (src/comp/expr.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | cm_expr | expr_compile | MIRROR; D1 |
+ * | cm_lexpr, cm_str1, cm_va | expr_assign, expr_string, expr_varaddr | MIRROR; actions |
+ * | cm_paren, cm_subs0, cm_load, cm_lval | expr_paren, expr_subs (-> count), expr_load, expr_target | MIRROR |
+ * | cm_shv, cm_icmp, cm_fcmp, cm_lflt | code_shclass (code.c), cg_icmp, cg_fcmp, cg_lfloat (codegen.c) | MOVED |
+ * | cm_p, cm_un | parse, parse_unary | D1 |
+ * | cm_sop, cm_shid, cm_iop, cm_fop2, cm_fkind, cm_str | shortop, shortid, cg_binary, fltkind (codegen.c) | MOVED; D1 |
+ * | cm_right | isright (codegen.c) | MOVED |
+ * | cm_nany | | D3 |
+ * | cm_addr | ref_place (refs.c) | MOVED |
+ * | cm_xfn, cm_xarg, cm_farg | xfn_at, xfn_node; xarg, farg (codegen.c) | D1 |
+ * | g_cprec, operator indices | prectab, OP_*, P_*; a relation REL \| DC_* | MIRROR |
+ * | g_ckon | expr_ktype[5]; kind end | D2 |
+ * | g_cwd, g_cbk, g_vakind | Expr.dbltgt, Node.dbl, ref_place's vakind | MIRROR |
+ * | g_xfn, g_fcmpk, g_lda1, g_ldan, g_dfnk, g_fnarg, g_fnsig, g_xop | builtins.c's tables; codegen.c's | MOVED |
+ *
+ * - D1. The asm emits as it parses; the C builds a tree. parse and parse_unary make nodes,
+ *   sema_tree checks, fold_tree folds each operator whose operands are literals (through the VM's
+ *   handlers, as cm_fold does), cg_tree emits with the asm's choices.
+ * - D2. g_ckon is gone; the kind is Var.info's.
+ * - D3. Not carried over.
+ */
 #include "comp/expr.h"
 #include "comp/builtins.h"
 #include "comp/fold.h"

@@ -1,5 +1,16 @@
-/* The clock: the date and time of day, and the 18.2 Hz tick ON TIMER counts. On DOS32 the time and
-   date are INT 21h's, the ticks the BIOS count at 0040:006Ch, the tick INT 1Ch. */
+/* The clock: the date and time of day, and the 18.2 Hz tick that ON TIMER counts.
+ *
+ * # How it works
+ * pclk_init gives the tick a flag and a bit: each tick ORs the bit into the flag (exec's stop
+ * flags) and the core polls it. pclk_ticks counts ticks since midnight and wraps there. pclk_done
+ * takes the tick's handler out before the exit; pkey's trapping shares that handler.
+ *
+ * The jiffy clock (TI, TI$) is the ticks plus an offset pclk_set_jiffies sets, mod 5184000 (a
+ * day of 60 Hz jiffies, as the asm's plt_rdtim).
+ *
+ * On DOS32 the time and date are INT 21h's, the ticks the BIOS count at 0040:006Ch, the tick
+ * INT 1Ch.
+ */
 #ifndef PLAT_PCLK_H
 #define PLAT_PCLK_H
 #include "base.h"

@@ -1,3 +1,34 @@
+/* Arrays: their headers and data, made, indexed, freed and resized.
+ *
+ * # How it works
+ * Var.vt is an array's header (ArrayHdr) in the headers' region, from allo.hdr_base to arry.hdr:
+ * its dimensions, its data's Addr, the count when 1-D from 0 (else 0), the counts, then the lower
+ * bounds (words). Its data is on the heap from allo.bot to arry.end, zeroed, 4-aligned: VS a number
+ * or an INT, 8 a DOUBLE, DSZ a string, a TYPE's size a record.
+ *
+ * arry_free drops an array: its header and data go and what follows moves down. The headers' data
+ * Addrs, the moved string blocks' owners, the headers in Var.vt and on the save stack, and the
+ * parameters' cells in the moved data follow.
+ *
+ * # asm structure (src/mem/arr.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | mm.aend, mm.ahd | Arry.end, Arry.hdr | MIRROR |
+ * | g_dimbuf, g_cntbuf, g_lbbuf | Arry.subs, Arry.counts, Arry.lbounds (ADIMS) | MIRROR |
+ * | AH_PTR AH_FAST AH_CNT | ArrayHdr (defs.h) .data .fast .count[] | MOVED: defs.h; D1 |
+ * | arr_ref (EBX, narr, dimbuf -> EDI) | arry_ref(id, n) | MIRROR; D2 |
+ * | arr_bs | arry_bad_sub | MIRROR |
+ * | arr_esz | arry_esize | MIRROR |
+ * | arr_dim, arr_new, arr_size | arry_dim, arry_new, arry_size | MIRROR; D2 |
+ * | arr_free | arry_free(id, rep) | MIRROR; D2, D3 |
+ * | arr_keep, arr_rep | arry_keep, arry_rep | MIRROR; D2 |
+ * | arr_chk | static | MIRROR |
+ *
+ * - D1. The lower bounds follow the counts in the header.
+ * - D2. Parameters, not globals: mm.aid is id, rn.narr is n, g_dyn is dyn, g_pold and g_pnew are
+ *   old and fresh. The other scratch globals (mm.asz, g_afh, g_kn ...) are locals.
+ * - D3. rep is 0 or AREP (g_afrep); the return value is the header's bytes (g_afhs).
+ */
 #include "mem/array.h"
 #include "session.h"
 #include "comp/declare.h"

@@ -1,7 +1,4 @@
-/* The program store (src/mem/prog.asm): a block (HPROG) of Line records, each its body (the
-   lexer's tokens and their 0) then pre bytes of its text before the body (the editor's indent, the
-   number as typed). The direct line at DLINE, the program from PROGBASE; a len of 0 ends it, at
-   end. A line is named by its offset in the store, which stays when the block moves. */
+/* The program store's interface. How it works: program.c. */
 #ifndef MEM_PROGRAM_H
 #define MEM_PROGRAM_H
 #include "defs.h"

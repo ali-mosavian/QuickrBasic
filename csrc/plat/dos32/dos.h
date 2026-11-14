@@ -1,4 +1,4 @@
-/* The DOS32 layer's own: software interrupts, the BIOS data area. Only plat/dos32 includes it. */
+/* The DOS32 layer's own: software interrupts and the BIOS data area. Only plat/dos32 includes it. */
 #ifndef PLAT_DOS32_DOS_H
 #define PLAT_DOS32_DOS_H
 #include <cdecl.h>

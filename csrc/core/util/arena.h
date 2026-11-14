@@ -1,6 +1,4 @@
-/* A bump allocator: any number at once, each growing by blocks from the platform (pmem_block).
-   Its allocations live until it is reset, all at once; its blocks are kept for the next use. Not
-   the BASIC arena (base.h), which a program sees. */
+/* The bump allocator's interface. How it works: arena.c. */
 #ifndef UTIL_ARENA_H
 #define UTIL_ARENA_H
 #include <stddef.h>

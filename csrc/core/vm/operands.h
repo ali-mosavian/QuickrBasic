@@ -1,11 +1,8 @@
-/* The simple ops: loads, stores, INT and SINGLE operators, compares, IF, conversions, DROP;
-   reached only through the op table (vm/ops.def).
-
-   A compare op's operand is its mask, the relations it is true for: OPER_GT, OPER_EQ, OPER_LT.
-   A compare pushes -1 or 0; a CMPIF's false, like a false IF, ends the line (flow_nextln). */
+/* The simple ops' interface. How it works: operands.c. */
 #ifndef CORE_VM_OPER_H
 #define CORE_VM_OPER_H
 #include "vm/exec.h"
 
+/* A compare op's operand: the relations it is true for. */
 enum : uint8_t { OPER_GT = 1, OPER_EQ = 2, OPER_LT = 4 };
 #endif

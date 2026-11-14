@@ -1,3 +1,41 @@
+/* The arena's layout and the allocator: fixed regions and blocks packed from the heap's start.
+ *
+ * # How it works
+ * The arena, [lo, hi) from pmem_init, is carved at start: first the fixed regions (allo_carve: the
+ * arrays' headers and the control stack, the POKE memory, and any other module's region a stored
+ * Addr can reach), then the blocks (allo_new: the code cache, the program store, the editor's line
+ * map, the symbol tables), then the BASIC heap, bot to top: arrays up from bot (arry.end), strings
+ * down from top (strg.low).
+ *
+ * A block is reached by its handle, never by a stored Addr: it moves when one before it grows.
+ * allo_grow moves the blocks after it up and tells each one's moved routine.
+ *
+ * # asm structure (src/mem/alloc.asm, src/regions.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | TALLOC, g_state.alloc.tab[h] | AlloBlock, Allo.block[h] (.base .cap .moved) | MIRROR |
+ * | alloc.nb | Allo.nblocks | MIRROR |
+ * | NBLKH HCACHE HPROG HLMAP | same | MIRROR |
+ * | mm.hbot, mm.htop | Allo.bot, Allo.top | MIRROR |
+ * | mm.cachebase, cblea, cbcmp | Allo.cache | MIRROR |
+ * | alloc_new (ECX, EBX -> EAX, EDX) | allo_new(size, moved); base: allo_base(h) | MIRROR; D1 |
+ * | alloc_grow (EAX, ECX; CF) | allo_grow(h, size) | MIRROR; D2 |
+ * | alloc_sel, sel_set, mm.peekseg | | D1 |
+ * | plt_heap's hbot/htop | pmem_init, then allo_init(lo, hi) | MIRROR |
+ * | g_dsb+0BC00h HDRBASE, HDRLIM | Allo.hdr_base, Allo.hdr_base + HDRSZ | MIRROR |
+ * | CSLIM, CSTOP | Allo.cs_lim, Allo.cs_top | MIRROR |
+ * | g_pokeb | Allo.poke (POKESZ) | MIRROR |
+ * | g_tmpd, sg.tmplin | Strg.tmp | MOVED: strg_init (mem/string.c) |
+ * | g_stkb, g_lsav, g_inbuf, g_clpb | | MOVED: each owner's init carves its own |
+ * | alloc_new for the cache and the program store, prg_place | | MOVED: boot (boot.c) |
+ * | | allo_init, allo_carve | D3 |
+ *
+ * - D1. Blocks are reached by handle and base: no selectors (alloc_sel, sel_set); the peek segment
+ *   (always 0) is dropped.
+ * - D2. allo_grow returns true when grown, where the asm's CF is clear.
+ * - D3. New: allo_init sets the heap and carves the fixed regions; allo_carve is for any other
+ *   module's.
+ */
 #include "mem/alloc.h"
 #include "session.h"
 #include "io/repl.h"

@@ -1,6 +1,32 @@
-/* The code generator: a tree (comp/ast.h) to stack-machine code. The only module that writes an
-   expression's or a reference's bytes. Every operand is pushed; an operator takes the cells it
-   needs. A right operand that is one load folds into the operator: F.ADD.V, I.CMP.U8 ... */
+/* The code generator: a checked tree to stack-machine code.
+ *
+ * # How it works
+ * The only module that writes an expression's or a reference's bytes. Every operand is pushed; an
+ * operator takes the cells it needs. A right operand that is one load folds into the operator:
+ * F.ADD.V, I.CMP.U8 ... The code is the asm's byte for byte over the golden corpus.
+ *
+ * cg_tree walks the tree depth first, one cg_* per node kind. Each emitter converts its operands to
+ * the operator's type (cg_as), then writes the op. cg_icmp, cg_fcmp and cg_lfloat pick the
+ * compare's and the left operand's form from the right operand's load.
+ *
+ * # Example
+ *    a% + 1      I.LD.V a, I.ADD.U8 1       (the 1 folds into the add)
+ *
+ * # asm structure (src/comp/expr.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | cm_icmp, cm_fcmp, cm_lflt | cg_icmp, cg_fcmp, cg_lfloat | MIRROR |
+ * | cm_shid, cm_sop | shortid, shortop | MIRROR |
+ * | cm_fkind | fltkind | MIRROR |
+ * | cm_iop, cm_fop2 | cg_binary | D1 |
+ * | cm_un | cg_unary | D1 |
+ * | cm_xfn, cm_xarg, cm_farg | cg_xfn, xarg, farg | D1 |
+ * | cm_addr, cm_str | cg_ref, cg_addr; cg_leaf (a string literal) | D1 |
+ * | g_fcmpk, g_lda1, g_ldan, g_xop | fcmpk, lda1, ldan, xop | MIRROR |
+ * | cm_p, cm_load, cm_lval | parse (expr.c), cg_elem, cg_ref | D1 |
+ *
+ * - D1. The asm emits as it parses; the C parses to a tree first (ast.c), and these walk it.
+ */
 #include "comp/codegen.h"
 #include "session.h"
 #include "comp/control.h"

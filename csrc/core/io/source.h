@@ -1,8 +1,4 @@
-/* A source file's lines, streamed to the lexer (io/srd.asm). A logical line is physical lines
-   joined where one ends in a blank and '_', outside a string and a comment (BC's continuation);
-   the '_' becomes a space. The window, cons.inbuf, holds what of it fits, 0 after; srcr_more
-   slides it for the lexer and reads on, so a line is as long as the store takes. Blanks in code
-   wait until a byte follows them: a line's last ones go. */
+/* A source file's lines' interface. How it works: source.c. */
 #ifndef CORE_IO_SRCR_H
 #define CORE_IO_SRCR_H
 #include "io/console.h"

@@ -1,5 +1,13 @@
 /* What every core module includes: the fixed-width types, the arena and its addresses, a data
-   stack cell. Portable C23; the platform is behind plat/. */
+ * stack cell.
+ *
+ * # How it works
+ * Portable C23; the platform is behind plat/. Memory a BASIC program can see (variables, strings,
+ * arrays, records, the POKE memory) and every structure that keeps an address of it lives in one
+ * arena. An Addr is an offset in it, 32 bits on every host, so records keep the asm build's layout.
+ * On DOS32 the arena's origin is the flat segment's 0: an Addr is the address, as VARPTR and PEEK
+ * see it.
+ */
 #ifndef CORE_BASE_H
 #define CORE_BASE_H
 #include <stdbool.h>

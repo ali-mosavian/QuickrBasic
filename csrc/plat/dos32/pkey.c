@@ -1,5 +1,8 @@
-/* The keyboard on DOS32: INT 16h, the BIOS shift flags, DOS's 0Bh and 07h; the traps are taken
-   by the tick (ptick.asm). */
+/* The keyboard on DOS32.
+ *
+ * # How it works
+ * INT 16h, the BIOS shift flags, DOS's 0Bh and 07h. The traps are taken by the tick (ptick.asm).
+ */
 #include "dos.h"
 #include "plat/pkey.h"
 

@@ -1,4 +1,26 @@
-/* The mouse in the editor (src/ui/mouse.asm). */
+/* The mouse in the editor, when a driver is there.
+ *
+ * # How it works
+ * mous_poll turns the left button into events (press, drag, up, move), left in uimn.mouse.event at
+ * uimn.mouse.row, col. uimn_getkey hands one on as KEY_MOUSE. The state is ui.h's uimn.mouse.
+ *
+ * mous_main acts on an event: a title opens its menu, a press puts the cursor there, a drag
+ * selects; the scroll bars; another window's focus; the status bar's keys; a move the debug pane's
+ * tooltip; the pane's own.
+ *
+ * # asm structure (src/ui/mous.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | ms_init, ms_show, ms_hide | mous_init, mous_show, mous_hide | MIRROR |
+ * | ms_poll | mous_poll | MIRROR; D1 |
+ * | ms_title | mous_title | MIRROR; D1 |
+ * | ms_main | mous_main | MIRROR |
+ * | MS_PRESS, MS_DRAG, MS_UP, MS_MOVE | same (mouse.h) | MIRROR |
+ * | MS_KEY | KEY_MOUSE (ui.h) | MIRROR |
+ * | g_ui.ms.* | uimn.mouse (ui.h) | MOVED |
+ *
+ * - D1. A flag result is a bool, true the success; mous_title gives the menu through a pointer.
+ */
 #include "ui/mouse.h"
 #include "session.h"
 #include "plat/pkey.h"

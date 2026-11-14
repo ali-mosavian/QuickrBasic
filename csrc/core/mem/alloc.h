@@ -1,12 +1,4 @@
-/* The arena's layout and the allocator: blocks packed from the heap's start (src/mem/alloc.asm,
-   the regions of src/regions.asm and rt_start).
-
-   The arena, [lo, hi) from pmem_init, is carved at start: first the fixed regions (allo_carve:
-   the arrays' headers and the control stack, the POKE memory, and any other module's region a
-   stored Addr can reach), then the blocks (allo_new: the code cache, the program store, the
-   editor's line map, the symbol tables), then the BASIC heap, bot to top: arrays up from bot
-   (arry.end), strings down from top (strg.low). A block is reached by its handle, never by a
-   stored Addr: it moves when one before it grows. */
+/* The arena allocator's interface. How it works: alloc.c. */
 #ifndef MEM_ALLOC_H
 #define MEM_ALLOC_H
 #include "defs.h"

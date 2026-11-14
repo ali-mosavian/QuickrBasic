@@ -1,8 +1,4 @@
-/* The menu bar, its menus, their commands (src/ui/menu.asm). A menu: its title, its column, its
-   items. An item: its command (ACT_*), flags (MF_*), its text with '&' before the hotkey, its
-   key's name; MF_SEP alone a separator. An MF_SUB item's command is its sub-menu's index past
-   the bar's (NMENU on); the sub-menu's box is drawn over its parent's. A command chosen goes to
-   uimn_act. The tables and the menus' state are menu.c's. */
+/* The menu bar's interface. How it works: menu.c. */
 #ifndef UI_MENU_H
 #define UI_MENU_H
 #include "ui/ui.h"

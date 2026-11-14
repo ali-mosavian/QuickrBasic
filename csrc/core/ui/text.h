@@ -1,15 +1,4 @@
-/* The editor's text: the program store's lines; the clipboard; files (src/ui/text.asm).
-
-   The text is the program store: a line a record, uimn.text.all of them, at least one, in
-   order, each found by the line map (linemap.h). A line is its record's pre bytes (its indent and
-   number as typed), then its body as LIST spells it; an LF_ASIS line is its pre alone (a line
-   with a syntax error, kept as typed; uimn.text.asis asks it of the next line stored). A line's
-   mark (a breakpoint) is its LF_BP. The clipboard: uimn.text.clip_len bytes of
-   uimn.text.clip, whole lines (clip_lines, each ended by NL) or a piece of one.
-
-   The editor sees a view: uimn.text.n lines from line uimn.text.first, numbered from 0 (a
-   procedure's lines, view.h). Lines below are the view's unless said. A line added or removed
-   goes to uimn.text.hook (the text's line, 1 or -1). Storing a line can raise Out of memory. */
+/* The text's interface. How it works: text.c. */
 #ifndef UI_TEXT_H
 #define UI_TEXT_H
 #include "ui/ui.h"

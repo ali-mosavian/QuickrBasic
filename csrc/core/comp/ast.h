@@ -1,14 +1,4 @@
-/* A line's trees: built by the parser (expr.c, refs.c), folded (fold.c), turned into code (gen.c).
-   Their nodes come from the statement's arena, freed all at once when the next statement starts.
-
-   Leaves: a literal load (N_LIT: a number, a string, a CONST's value, a size), a scalar variable
-   (N_VAR). An element (N_ELEM), QBasic's functions (N_FN: SGN .. MID$; N_XFN: the others), a
-   place (N_REF) and a procedure's call (N_CALL) have their arguments as children, linked by
-   next. A record's field (N_FIELD), an address (N_ADDR), a call's argument (N_ARG) and a
-   conversion (N_CONV) have one child, a.
-
-   A statement is its steps (Ast.step): trees gen emits in order at the statement's end. A step is
-   an expression, a conversion of one, or a CALL of the VM's (N_KCALL). */
+/* The expression tree's interface. How it works: ast.c. */
 #ifndef COMP_AST_H
 #define COMP_AST_H
 #include "base.h"

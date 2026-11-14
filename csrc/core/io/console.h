@@ -1,8 +1,4 @@
-/* Console output and INPUT's lines (io/io.asm, and plat.asm's output buffer and standard
-   input). Everything printed goes through cons_putc: to sbuf while captured, else to the output
-   channel (io/chnl), the console's being standard output through obuf. inbuf and sbuf are
-   carved from the arena (cons_init): strg reads INPUT's items and LINE INPUT's line in inbuf
-   by Addr. */
+/* Console output's and input's interface. How it works: console.c. */
 #ifndef CORE_IO_CONS_H
 #define CORE_IO_CONS_H
 #include "defs.h"

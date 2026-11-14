@@ -1,4 +1,19 @@
-/* QBasic's error numbers and messages (io/errmsg.asm). */
+/* QBasic's error numbers and messages.
+ *
+ * # How it works
+ * emsg_errnum maps an error code (E_*) to its ERR number: 0 none; FFh Out of stack space, never
+ * trapped; E0h.. BC's compile errors, which have no ERR of their own.
+ *
+ * emsg_text gives a code's message, 0-ended; E_USR's comes from exec's uerr. A number with no
+ * message gives "Unprintable error".
+ *
+ * # asm structure (src/io/errmsg.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | er_text | emsg_text | MIRROR |
+ * | g_qberr | emsg_errnum | MIRROR |
+ * | g_qbmsg, g_qbunp | static | MIRROR |
+ */
 #include "io/errmsg.h"
 #include "session.h"
 #include "vm/exec.h"

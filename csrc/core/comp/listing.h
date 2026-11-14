@@ -1,7 +1,4 @@
-/* LIST, SAVE and VERIFY: a stored body back to text (comp/list.asm), spaced as QBasic's editor:
-   keywords from their tokens, a name from its M_VAR, a whole number from its M_INT; strings, REM
-   and DATA verbatim. A space between words, around an operator but a sign, after , ; : and none
-   inside ( ). Output goes through io's current channel. */
+/* Listing's interface. How it works: listing.c. */
 #ifndef COMP_LISTING_H
 #define COMP_LISTING_H
 #include "defs.h"

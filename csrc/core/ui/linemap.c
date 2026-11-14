@@ -1,4 +1,23 @@
-/* The line map (src/ui/lmap.asm). */
+/* The line map: each editor line's record in the program store.
+ *
+ * # How it works
+ * A block of uint32_t: text line i's record's offset, uimn.text.all of them, rising. An include's
+ * records (LF_INC) are no line's.
+ *
+ * lmap_init takes the block from the heap (main, after the store's, before the symbols').
+ * lmap_build rebuilds the map from the store; growing it empties the heap first (symb_clear).
+ *
+ * # asm structure (src/ui/lmap.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | lm_init, lm_build | lmap_init, lmap_build | MIRROR |
+ * | lm_off | lmap_off | MIRROR |
+ * | lm_of | lmap_of | MIRROR; D1 |
+ * | HLMAP | HLMAP (mem/alloc.h) | MOVED |
+ * | LMINIT | LMINIT (static) | MIRROR |
+ *
+ * - D1. A flag result is a bool, true the success; the line is returned through a pointer.
+ */
 #include "ui/linemap.h"
 #include "session.h"
 #include "io/repl.h"

@@ -1,4 +1,29 @@
-/* LIST, SAVE and VERIFY: a stored body back to text (comp/list.asm). */
+/* LIST, SAVE and VERIFY: a stored body back to text.
+ *
+ * # How it works
+ * Spaced as QBasic's editor: keywords from their tokens, a name from its M_VAR, a whole number from
+ * its M_INT; strings, REM and DATA verbatim. A space between words, around an operator but a sign,
+ * after , ; : and none inside ( ). The last item's class (LS_*) decides the space before the next.
+ * Output goes through io's current channel; list_text spells a body into io's sbuf instead.
+ *
+ * # Example
+ *    10 print x+1:goto 10       10 PRINT x + 1: GOTO 10
+ *
+ * # asm structure (src/comp/list.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | ls_range | list_range(from, to) | MIRROR |
+ * | ls_text | list_text(body, at) | MIRROR; the column |
+ * | ls_body | list_body(body) | MIRROR |
+ * | ls_all | | D1 |
+ * | ls_line, ls_lead, ls_space | listline, lead; cons_space | MIRROR |
+ * | g_lsat, g_lscol | list.at (null none), list.col | MIRROR |
+ * | io.lq, LS_* | list.last, the LS_* enum | MIRROR |
+ * | rn.lfrom, rn.lto | list_range's parameters | D2 |
+ *
+ * - D1. Unused: list_range(0, 0xFFFF).
+ * - D2. Parameters, not globals.
+ */
 #include "comp/listing.h"
 #include "session.h"
 #include "comp/comp.h"

@@ -1,5 +1,4 @@
-/* The expression parser (comp/expr.asm): precedence climbing over comp.p builds a tree
-   (comp/ast.h); fold_tree folds it and cg_tree (comp/codegen.h) turns it into code. */
+/* The expression parser's interface. How it works: expr.c. */
 #ifndef COMP_EXPR_H
 #define COMP_EXPR_H
 #include "comp/comp.h"

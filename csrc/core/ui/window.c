@@ -1,4 +1,31 @@
-/* The windows (src/ui/win.asm). */
+/* The windows: their rows, focus, Split, grow, shrink and maximise.
+ *
+ * # How it works
+ * They stack from row 1 to row 23: W_ED1, W_ED2 (Split) and W_IMM, each uimn.win.win[w].height rows
+ * with its title, 0 hidden. With uimn.win.vert, ED2 is beside ED1, in its rows, each half the
+ * columns.
+ *
+ * An edit window has a bottom row: the sideways scroll bar's with the focus. The active edit
+ * window's state is uimn.ed and uimn.edline.col; the other's waits in its win[].ed and win[].col.
+ *
+ * With the debug pane (uimn.pane_on) the edit windows have DP_COL columns, the pane the rest. A
+ * window is W_ED1, W_ED2, W_IMM, or W_DBG for the pane.
+ *
+ * # asm structure (src/ui/wind.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | wn_init, wn_layout, wn_draw | wind_init, wind_layout, wind_draw | MIRROR |
+ * | wn_act, wn_focus, wn_cur | wind_act, wind_focus, wind_cur | MIRROR |
+ * | wn_next, wn_prev | wind_next, wind_prev | MIRROR |
+ * | wn_at | wind_at | MIRROR; D1 |
+ * | wn_split, wn_vsplit, wn_grow, wn_shrink, wn_max | wind_split, wind_vsplit, wind_grow, wind_shrink, wind_max | MIRROR |
+ * | wn_beside, wn_ptr, wn_swap, wn_curh, wn_move, wn_shown, wn_spare, wn_min, wn_unmax, g_wnord | statics | MIRROR |
+ * | TWIN | UiWin (ui.h) | MOVED |
+ * | g_ui.wn.* | uimn.win (UiWins, ui.h) | MOVED |
+ * | NWIN, W_HELP, W_ED1, W_ED2, W_IMM, W_DBG | same (ui.h) | MOVED |
+ *
+ * - D1. A flag result is a bool, true the success; the window is returned through a pointer.
+ */
 #include "ui/window.h"
 #include "session.h"
 #include "ui/debugpane.h"

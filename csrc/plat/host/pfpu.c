@@ -1,6 +1,10 @@
-/* The x87's functions on an x86-64 host (Rosetta's x87 off x86): DOS32's pfpu.asm in C over
-   long double, the x87's own instructions where C has none. Control words and order of
-   operations are the asm's, so results match it wherever the host's x87 matches a real one. */
+/* The x87's functions on an x86-64 host (Rosetta's x87 off x86).
+ *
+ * # How it works
+ * DOS32's pfpu.asm in C over long double, the x87's own instructions where C has none. Control
+ * words and order of operations are the asm's, so results match it wherever the host's x87
+ * matches a real one.
+ */
 #include "plat/pfpu.h"
 
 #pragma STDC FENV_ACCESS ON /* no FP operation moves across control() */

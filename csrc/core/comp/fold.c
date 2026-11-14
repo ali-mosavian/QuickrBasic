@@ -1,4 +1,33 @@
-/* Constant folding (comp/fold.asm). */
+/* Constant folding: code made only of constant ops runs at compile time and becomes one load.
+ *
+ * # How it works
+ * Code of FK ops only (vm/ops.def) runs as it compiles, through the VM's own handlers, so its value
+ * is the run's to the bit, and becomes one load of it. fold_code runs the code with exec_until up
+ * to comp.out; no FOLD op is executed. An error while it runs (fold_fail) leaves the code as it
+ * was, to raise when run.
+ *
+ * A CONST whose value folds to one literal load keeps that load (VarX.kop, symb_kval): a use
+ * compiled after it loads the literal instead of the variable. The CONST still stores the variable,
+ * for the uses compiled before. fold_tree folds a tree's operators whose operands are literals.
+ *
+ * # Example
+ *    CONST k = 2 * 3     k is 6: a later PRINT k loads the literal 6
+ *
+ * # asm structure (src/comp/fold.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | cm_fold, op_fold | fold_code | MIRROR; D1 |
+ * | cf_fail, g_cfold, g_cfsp | fold_fail, comp.folding, comp.fold (a jmp_buf) | MIRROR |
+ * | cm_krec, cm_klit | fold_const | MIRROR |
+ * | var_kclr | fold_clear | MIRROR |
+ * | g_cvat | comp.vat | MIRROR |
+ * | ctok, cleared in cm_tok | comp.tok = 0 in token (comp.c) | MOVED |
+ * | FK, TVX.kop, kval | FK (ops.def), VarX.kop, symb_kval | MIRROR |
+ * | (new) | fold_tree, fold_isliteral, fold_littype | D2 |
+ *
+ * - D1. The asm's FOLD op is never executed; the code runs through exec_until.
+ * - D2. The tree is folded before codegen, operator by operator.
+ */
 #include "comp/fold.h"
 #include "comp/ast.h"
 #include "session.h"

@@ -1,10 +1,4 @@
-/* The tokenizer (comp/lex.asm): a typed line becomes the body of a stored line. In the body:
-     M_VAR len name nam:2  a name as typed, its suffix too; nam its entry in the name table
-     M_INT n:4             a whole number under 2^31, &H, &O
-     a token               80h..FEh, or TK_X and a byte (comp/dfa.h)
-   Spaces go, but in strings, REM and DATA. A number with a point, an exponent or 2^31 and over
-   stays text. A keyword is a whole word (the scanner's automaton), any other word a name.
-   lexr.col: an item's column in the text, by its body offset. */
+/* The tokenizer's interface. How it works: lexer.c. */
 #ifndef COMP_LEXER_H
 #define COMP_LEXER_H
 #include "defs.h"

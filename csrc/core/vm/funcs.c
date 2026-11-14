@@ -1,5 +1,27 @@
-/* The functions' CALL routines (src/vm/builtins.asm): SGN .. CHR$ by token, LEFT$, RIGHT$, MID$,
-   and QBasic's string, bound and error functions. */
+/* The functions' CALL routines: SGN .. CHR$ by token, LEFT$, RIGHT$, MID$, and QBasic's string,
+ * bound and error functions.
+ *
+ * # How it works
+ * SGN .. CHR$ share one handler, func_fn1, that picks a function of one value from a table by the
+ * token (K_FN + token - TK_SGN). Each of the others has its own K handler (ops.def); nothing else
+ * is called from outside. A string result is a temporary.
+ *
+ * # Example
+ *   PRINT LEFT$("hello", 2)     he
+ *
+ * # asm structure (src/vm/builtins.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | sc_fn1 | func_fn1 (all of K_FN_SGN .. K_FN_CHRS) | MIRROR |
+ * | sc_left, sc_right, sc_mid, sc_mid2 | func_left, func_right, func_mid, func_mid2 | MIRROR |
+ * | sc_fix, sc_instr, sc_lbnd, sc_ubnd, sc_space, sc_strg | func_fix, func_instr, func_lbnd, func_ubnd, func_space, func_strg | MIRROR |
+ * | sc_ltrim, sc_rtrim, sc_ucase, sc_lcase, sc_hex, sc_oct | func_ltrim, func_rtrim, func_ucase, func_lcase, func_hex, func_oct | MIRROR |
+ * | sc_sfix, sc_mids, sc_vseg, sc_sadd, sc_err, sc_erl | func_sfix, func_mids, func_vseg, func_sadd, func_err, func_erl | MIRROR |
+ * | sc_error, sc_dval | func_error, func_dval | MIRROR |
+ * | fn_sgn, fn_int, fn_abs, fn_usr, fn_fre, fn_pos, fn_peek, fn_len, fn_asc, fn_chr, fn_fstr | f_sgn .. f_chr, rows of the fn1 table (with num's fmth_sqr .. rndm_rnd) | MIRROR |
+ * | fn_left, fn_right, fn_mid, str_from | static | MIRROR |
+ * | g_fixcw | fmth_fix (num) | MOVED |
+ */
 #include "vm/funcs.h"
 #include "session.h"
 #include "comp/declare.h"

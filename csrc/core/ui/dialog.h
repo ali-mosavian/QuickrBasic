@@ -1,11 +1,4 @@
-/* Dialog boxes: the engine, message boxes, Open, Save As, Find, Change (src/ui/dlg.asm).
-
-   A dialog (TDLG) and its controls (TCTL): a control's place is from the dialog's corner. A
-   field edits a LineBuf (FLDMAX characters), a list a DlogList, a check box flips a bool, a
-   button ends the dialog with its index unless its hook keeps it. The keys: Tab, Shift+Tab the
-   focus; Esc; Enter the focused button or the default; Alt+letter or a letter (not in a field)
-   a control's hotkey; the mouse. The editor is drawn under the box. The Open and Save As lists,
-   the message box and the dialogs' own state are dialog.c's. */
+/* The dialogs's interface. How it works: dialog.c. */
 #ifndef UI_DIALOG_H
 #define UI_DIALOG_H
 #include "ui/ui.h"

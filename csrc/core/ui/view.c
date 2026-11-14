@@ -1,4 +1,28 @@
-/* Views: the module and each SUB or FUNCTION on its own (src/ui/view.asm). */
+/* Views: the module and each SUB or FUNCTION on its own.
+ *
+ * # How it works
+ * The text keeps the module's lines first, then each procedure from its SUB or FUNCTION line to the
+ * next one's (view_reset orders it so). A view is a part: first, n lines. A window's uimn.ed.view
+ * is its view, applied to the text (text_view) by view_apply.
+ *
+ * A line added or removed (uimn.text.hook) moves the views after the active window's. The cursor's
+ * place in a view is kept when another is shown.
+ *
+ * # asm structure (src/ui/view.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | vw_reset, vw_apply | view_reset, view_apply | MIRROR |
+ * | vw_goline, vw_of | view_goline, view_of; view_at | MIRROR; D1 |
+ * | vw_title | view_title (appends) | MIRROR |
+ * | vw_next, vw_prev, vw_commit, vw_newsub, vw_newfn, vw_subs | view_next, view_prev, view_commit, view_newsub, view_newfn, view_subs | MIRROR |
+ * | vw_kind, vw_order, vw_scan, vw_shift, vw_ptr, vw_show, vw_cpy, vw_find, vw_add, vw_del | statics | MIRROR |
+ * | TVIEW | View (first, n, kind, line, top, col, name) | MIRROR |
+ * | g_ui.vw.*, bf.vw_new, vw_fld, vw_list, dg.ls_v | statics | MIRROR |
+ * | NVIEW, VNAME, VLSZ | view.h; VLSZ static | MIRROR |
+ * | u_kwsub .. u_delp, dg_vnew, dg_subs | statics | MIRROR |
+ *
+ * - D1. vw_of's second result, the table entry, is view_at(v).
+ */
 #include "ui/view.h"
 #include "session.h"
 #include "ui/dialog.h"

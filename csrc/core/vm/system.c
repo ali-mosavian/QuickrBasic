@@ -1,5 +1,27 @@
-/* QBasic's system routines (src/vm/sys.asm): the clock, INKEY$, SLEEP, COMMAND$, the environment,
-   SHELL, SETMEM, ERDEV, RANDOMIZE. */
+/* QBasic's system routines: the clock, INKEY$, SLEEP, COMMAND$, the environment, SHELL, SETMEM,
+ * ERDEV and RANDOMIZE.
+ *
+ * # How it works
+ * syst_init copies the environment and the command line from the platform. ENVIRON changes the
+ * copy, as QBasic's own does; SHELL's child gets it. The clock and keyboard come from the platform
+ * (plat/pclk, plat/pkey). A string result goes through cons.sbuf and syst_ret.
+ *
+ * # Example
+ *   ENVIRON "A=1" : PRINT ENVIRON$("A")      1
+ *
+ * # asm structure (src/vm/sys.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | sys_init | syst_init | MIRROR |
+ * | sx_sret | syst_ret | MIRROR |
+ * | g_env, ENVSZ | Syst.env, ENVSZ | MIRROR |
+ * | g_cmd, g_cmdn | Syst.cmd, Syst.cmdlen | MIRROR |
+ * | sc_timer, sc_date, sc_time, sc_sdate, sc_stime, sc_inkey | syst_timer, syst_date, syst_time, syst_sdate, syst_stime, syst_inkey | MIRROR |
+ * | sc_shell, sc_shell0, sc_cmd, sc_envs, sc_envset, sc_setmem | syst_shell, syst_shell0, syst_cmd, syst_envs, syst_envset, syst_setmem | MIRROR |
+ * | sc_erdev, sc_erdevs, sc_sleep, sc_rndq, sc_rndz | syst_erdev, syst_erdevs, syst_sleep, syst_rndq, syst_rndz | MIRROR |
+ * | sx_d2, sx_parts, sx_find | two_digits, env_find, static | MIRROR |
+ * | g_part, g_shtl, g_shcs, g_shcm, g_k100, u_seed, u_redo | static | MIRROR |
+ */
 #include "vm/system.h"
 #include "session.h"
 #include "io/console.h"

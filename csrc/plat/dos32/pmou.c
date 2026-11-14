@@ -1,4 +1,8 @@
-/* The mouse on DOS32: INT 33h; a null INT 33h vector is no driver. */
+/* The mouse on DOS32.
+ *
+ * # How it works
+ * INT 33h; a null INT 33h vector is no driver.
+ */
 #include "dos.h"
 #include "plat/pmou.h"
 

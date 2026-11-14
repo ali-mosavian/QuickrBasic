@@ -1,7 +1,15 @@
-/* The process: the exit, the command line, the environment, SHELL's EXEC, the I/O ports, and
-   the STOP key. On DOS32 the STOP key is Ctrl+C or Ctrl+Break: INT 23h when DOS sees it, and
-   the tick (INT 1Ch) scanning the BIOS key buffer for one, as DOS sees one only when it reads
-   the console, which a running loop never does. */
+/* The process: the exit, the command line, the environment, SHELL's EXEC, the I/O ports, and the
+ * STOP key.
+ *
+ * # How it works
+ * psys_init puts the STOP key's handlers in; each ORs a bit into the stop flags (SF_BRK). No C runs
+ * in an interrupt: ON TIMER's and ON KEY's tick is pclk's (pclk_init), polled by the core.
+ * psys_exit takes the handlers out; standard output is the caller's to flush first.
+ *
+ * On DOS32 the STOP key is Ctrl+C or Ctrl+Break: INT 23h when DOS sees it, and the tick (INT 1Ch)
+ * scanning the BIOS key buffer for one, as DOS sees one only when it reads the console, which a
+ * running loop never does. The command line is the PSP's tail.
+ */
 #ifndef PLAT_PSYS_H
 #define PLAT_PSYS_H
 #include <cdecl.h>

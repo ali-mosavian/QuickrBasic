@@ -1,5 +1,39 @@
-/* A D op's result is stored to its Cell before it is looked at: llrm keeps a double at the x87's
-   precision until stored, and the store is the asm's fstp qword. */
+/* DOUBLE: its D.* ops, the number reader and number text.
+ *
+ * # How it works
+ * A DOUBLE is an IEEE double filling a data stack Cell (`.d`), a scalar's its 8-byte cell. A D op's
+ * result is stored to its Cell before it is looked at: llrm keeps a double at the x87's precision
+ * until stored, and the store is the asm's fstp qword. Each D op rounds its result to 53 bits once;
+ * ?OVERFLOW when it is infinity or NaN, but for SQR, EXP, ^ and D.TOF, which keep it. A binary op
+ * takes a at [esp+CELL] and b at [esp] and leaves a OP b in a's cell.
+ *
+ * Number text is one path: dubl_digits gives a value's digits rounded once on the x87 at 64 bits
+ * (pfpu_digits), dubl_fmt spells them as PRINT. SINGLE's text is its value as a DOUBLE, 7 digits
+ * and E; DOUBLE's 16 and D, as QB45's.
+ *
+ * # asm structure (src/float/dbl.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | dbl_in, g_dval | dubl_in | MIRROR; D1 |
+ * | dbl_scale | pfpu_scale10 | MOVED: plat/pfpu.h |
+ * | dbl_digits, g_ndig, g_dig, g_dp | dubl_digits(v, ndig, dig, &dp) | MIRROR |
+ * | dbl_fmt, g_dbuf | dubl_fmt(v, out) | MIRROR; D2 |
+ * | flt_fmt, g_dsgl | dubl_fmtf | MIRROR |
+ * | num_fmt, g_expc, dbl_chk | fmt, check | MIRROR; static |
+ * | g_dbig, g_dovf, g_fcwq, g_fcwc, g_p10 | | MOVED: plat/pfpu.h |
+ * | g_dfn, @dfn_* | dubl_fn's switch on DF_* | MIRROR |
+ * | g_dstv, g_dn, g_dm, g_dbcd, g_dtmp, g_dsg, g_dnz | locals | MIRROR |
+ * | op_dldv, op_dstv, op_dldk | dubl_ldv, dubl_stv, dubl_ldk | MIRROR |
+ * | op_dlda1, op_dlda, op_dsta1, op_dstan | dubl_lda1, dubl_lda, dubl_sta1, dubl_sta | MIRROR |
+ * | op_dadd, op_dsub, op_dmul, op_ddiv | dubl_add, dubl_sub, dubl_mul, dubl_div | MIRROR |
+ * | op_dneg, op_dcmp, op_dnz | dubl_neg, dubl_cmp (mask DC_*), dubl_nz | MIRROR |
+ * | op_itod, op_ftod, op_dtof, op_dtoi | dubl_itod, dubl_ftod, dubl_tof, dubl_toi | MIRROR |
+ * | op_dfn, op_dpow | dubl_fn (operand DF_*), dubl_pow | MIRROR |
+ * | sc_dpr, sc_dstr | dubl_print, dubl_str | MIRROR |
+ *
+ * - D1. Returns the value; AL is `*kind`: DK_ANY, DK_DBL or DK_SNGL.
+ * - D2. Returns the length; the text is DUBL_TXT bytes at most.
+ */
 #include "num/double.h"
 #include "session.h"
 #include "io/console.h"

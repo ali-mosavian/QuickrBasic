@@ -1,4 +1,4 @@
-/* Copies in the arena and in the program store (src/mem/far.asm). */
+/* Copies' interface. How it works: copy.c. */
 #ifndef MEM_COPY_H
 #define MEM_COPY_H
 #include "defs.h"

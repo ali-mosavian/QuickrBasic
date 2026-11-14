@@ -1,3 +1,11 @@
+/* A bump allocator: any number at once, each growing by blocks from the platform.
+ *
+ * # How it works
+ * Blocks come from pmem_block. An allocation is zeroed and aligned for any object, and lives until
+ * the arena is reset, all at once; the blocks are kept for the next use. arena_grow extends the
+ * last allocation in place when there is room, else copies. Not the BASIC arena (base.h), which a
+ * program sees.
+ */
 #include "util/arena.h"
 #include <string.h>
 #include "plat/pmem.h"

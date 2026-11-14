@@ -1,5 +1,4 @@
-/* The statements' CALL routines (src/vm/calls.asm): PRINT, INPUT, READ and DATA, DIM, RUN, LIST,
-   CONT, END, STOP, POKE, WAIT, INP, OUT, SYS, ^. The rest are K handlers (vm/ops.def). */
+/* The statements' interface. How it works: stmts.c. */
 #ifndef CORE_VM_STMT_H
 #define CORE_VM_STMT_H
 #include "vm/exec.h"

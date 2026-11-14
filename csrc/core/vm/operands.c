@@ -1,5 +1,26 @@
-/* The simple ops: loads, stores, INT and SINGLE operators, compares, IF, conversions, DROP. An INT
-   op works on the top cell's low dword. */
+/* The simple ops: loads, stores, INT and SINGLE operators, compares, IF, conversions, DROP.
+ *
+ * # How it works
+ * An INT op works on the top cell's low dword. int_op and sngl_op do each operator once; the op's
+ * variants differ only in where the right operand comes from (Source): the stack, a variable, a
+ * byte, a SINGLE.
+ *
+ * A compare op's operand is its mask of the relations it is true for (OPER_GT, OPER_EQ, OPER_LT).
+ * It pushes -1 or 0. A CMPIF's false, like a false IF, ends the line (flow_nextln).
+ *
+ * # Example
+ *   x% + 5     I_LD_V x%, then I_ADD_U8 5
+ *
+ * # asm structure (src/vm/bc.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | bc_X, every op handler | oper_x, the op's name in lower case (bc_I_ADD_V is oper_i_add_v) | MIRROR; D1 |
+ * | bvar, fcall, isrc, fsrc, ibin, fbin, ctail, icmp, fcmp | var_cell, operand, int_op, sngl_op, int_cmp, sngl_cmp_op, compared | MIRROR |
+ * | g_bflt, compare mask bits 1 2 4 | tables here; OPER_GT, OPER_EQ, OPER_LT | MIRROR |
+ * | g_relbit (calls.asm) | compared | MOVED |
+ *
+ * - D1. bc_F_LD_V is oper_i_ld_v: an INT and a SINGLE load alike.
+ */
 #include "vm/operands.h"
 #include "session.h"
 #include "io/repl.h"

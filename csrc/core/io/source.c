@@ -1,4 +1,35 @@
-/* A source file's lines, streamed to the lexer (io/srd.asm). */
+/* A source file's lines, streamed to the lexer.
+ *
+ * # How it works
+ * A logical line is physical lines joined where one ends in a blank and '_', outside a string and
+ * a comment (BC's continuation); the '_' becomes a space. The window, cons.inbuf, holds what of it
+ * fits, 0 after. srcr_more slides it for the lexer and reads on, so a line is as long as the store
+ * takes. Blanks in code wait until a byte follows them: a line's last ones go.
+ *
+ * srcr_phys_* decide, byte by byte, whether a physical line continues (the editor uses them too):
+ * a line starts; its next byte; it ended, true when it continues. SrcrCont tracks where the byte
+ * is (Where: code, string, comment), the word's letters so far (REM starts a comment), and whether
+ * the last code byte was a '_' after a blank.
+ *
+ * # Example
+ *   x = 1 + _      ->  x = 1 + 2
+ *       2
+ *
+ * # asm structure (src/io/srd.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | sr_line | srcr_line | MIRROR; -1 at the end |
+ * | sr_more | srcr_more | MIRROR; takes a LexrMore keep |
+ * | sr_mem |  | D1 |
+ * | sr_fill | static | MIRROR |
+ * | cn_init, cn_byte, cn_eol | srcr_phys_start, srcr_phys_byte, srcr_phys_end | MIRROR |
+ * | g_srfe | srcr.end | D2 |
+ * | g_srpend, g_srend, g_srany | srcr.pend, srcr.done, srcr.any | MIRROR |
+ * | g_srmem, g_cn* | static | MIRROR |
+ *
+ * - D1. Dropped: no caller.
+ * - D2. A pointer into cons.inbuf.
+ */
 #include "io/source.h"
 #include "session.h"
 #include "io/channel.h"

@@ -1,9 +1,4 @@
-/* The debugger's VM side (src/vm/dbg.asm): where a run stops, TRON, TROFF, the watch probe.
-
-   With dbug.emit set (the IDE) each program statement's code starts with a DBG op. It stops for a
-   step (mode), a breakpoint at its line's first statement (LF_BP), and until's line (once). A
-   stop is a STOP: CONT goes on past the DBG. With trace set each statement first goes to
-   hooks->trace with its place. The direct line has no DBG. */
+/* The debugger's interface. How it works: debug.c. */
 #ifndef CORE_VM_DBUG_H
 #define CORE_VM_DBUG_H
 #include "vm/exec.h"

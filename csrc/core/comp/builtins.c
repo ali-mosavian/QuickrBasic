@@ -1,3 +1,20 @@
+/* QBasic's built-in functions: the tables the parser checks and the code generator reads.
+ *
+ * # How it works
+ * Functions SGN .. CHR$ are indexed from TK_SGN: fns_sig gives each one's argument conversion
+ * (FA_*) and result (FR_*), fns_dfnk its DOUBLE form (a DF_* or DFN_*). The other functions are
+ * fns_x, one XFn each: token, CALL, argument counts, result and each argument's kind. fns_type
+ * gives a result's type.
+ *
+ * # asm structure (src/comp/expr.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | g_dfnk | fns_dfnk | MIRROR |
+ * | g_fnarg, g_fnsig | fns_sig | D1 |
+ * | g_xfn, XF_* | fns_x, XFn, XF_* | MIRROR |
+ *
+ * - D1. A function's argument and result are one byte: FA_* + FR_*.
+ */
 #include "comp/builtins.h"
 #include "comp/dfa.h"
 #include "num/double.h"

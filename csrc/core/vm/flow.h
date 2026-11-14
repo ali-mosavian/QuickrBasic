@@ -1,7 +1,4 @@
-/* Control flow: lines, jumps, GOSUB, FOR and NEXT, SUB and FUNCTION calls, ON ERROR and RESUME.
-
-   GOSUBs, events, FOR loops and calls are Frames on vm.frames. A call sets its parameters and
-   locals aside on vm.callvars. */
+/* Control flow's interface. How it works: flow.c. */
 #ifndef CORE_VM_FLOW_H
 #define CORE_VM_FLOW_H
 #include "vm/exec.h"

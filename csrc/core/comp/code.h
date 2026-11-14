@@ -1,6 +1,4 @@
-/* Code being written: a buffer, where the next byte goes, and what the code so far ends with (its
-   value's type, its last INT load, its last compare, its SHORT class). The emitters write a
-   checked tree's code and raise nothing: past lim they drop bytes and set full, for the caller. */
+/* Code writing's interface. How it works: code.c. */
 #ifndef COMP_CODE_H
 #define COMP_CODE_H
 #include "defs.h"

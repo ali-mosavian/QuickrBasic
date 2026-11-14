@@ -1,5 +1,9 @@
-/* The arena on DOS32: the flat segment from 0, and DPMI's largest free block, less what the host
-   keeps (64K) and the pool pmem_block hands out from its top. */
+/* The arena on DOS32.
+ *
+ * # How it works
+ * The flat segment from 0, and DPMI's largest free block, less what the host keeps (64K) and the
+ * pool pmem_block hands out from its top.
+ */
 #include "dos.h"
 #include "plat/pmem.h"
 

@@ -1,7 +1,4 @@
-/* The editor: its start, the key loop, the menu commands, running the program (src/ui/ui.asm).
-   Page 0 is the editor's, page 1 the program's output. A run enters the text again when it
-   changed (repl_relink); an error, BREAK or STOP comes back to the editor at its line. The
-   editor runs only when standard input and output are both the console. uimn itself is ui.h's. */
+/* The editor's interface. How it works: uimain.c. */
 #ifndef UI_UIMAIN_H
 #define UI_UIMAIN_H
 #include "io/repl.h"

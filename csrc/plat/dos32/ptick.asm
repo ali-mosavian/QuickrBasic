@@ -1,6 +1,9 @@
 ; The tick (INT 1Ch) for pclk and pkey (plat/pclk.h, plat/pkey.h), and the I/O ports and SYS for
-; psys (plat/psys.h). The handler runs no C: it ORs pclk's bit into its flag and, with traps set,
-; takes a trapped key at the BIOS buffer's head, as the asm's ev_tick.
+; psys (plat/psys.h).
+;
+; # How it works
+; The handler runs no C: it ORs pclk's bit into its flag and, with traps set, takes a trapped key
+; at the BIOS buffer's head, as the asm's ev_tick.
         .386
         .model  flat
         public  _ptick_flag, _ptick_bit, _ptick_kflag, _ptick_kbit, _ptick_traps

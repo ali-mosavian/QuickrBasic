@@ -1,5 +1,11 @@
 /* The keyboard: keys waiting, read with their scan codes, the shift flags; ON KEY's trapping.
-   On DOS32 the keys are INT 16h's, the shift flags 0040:0017h's. */
+ *
+ * # How it works
+ * A key is its character as the host gives it (0, or E0h with a scan code: an extended key) and
+ * its scan code. pkey_shift returns the PKEY_* shift flags.
+ *
+ * On DOS32 the keys are INT 16h's, the shift flags 0040:0017h's, pkey_poll DOS's 0Bh and 07h.
+ */
 #ifndef PLAT_PKEY_H
 #define PLAT_PKEY_H
 #include <cdecl.h>

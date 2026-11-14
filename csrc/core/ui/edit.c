@@ -1,5 +1,44 @@
-/* Editing: a line buffer, the program window, the selection, the clipboard, the immediate window
-   (src/ui/edit.asm). */
+/* Editing: the one-line buffer, the program window's lines, the selection, the clipboard and the
+ * immediate window.
+ *
+ * # How it works
+ * The program window edits its line, uimn.ed.line, in uimn.edline and stores it when the cursor
+ * leaves (edit_commit): spaces at its end cut, keywords capitalised, the syntax checked. A syntax
+ * error is shown and the cursor stays.
+ *
+ * A selection from (sel_line, sel_col) to the cursor is a piece of one line, or whole lines when it
+ * spans several. The insert mode, uimn.ed.insert, is every line buffer's.
+ *
+ * The immediate window keeps its last lines (uimn.imm); edit_imm_up and edit_imm_down recall them
+ * into uimn.immline.
+ *
+ * # Example
+ *   print x   typed, then the cursor leaves    stored as: PRINT x
+ *
+ * # asm structure (src/ui/edit.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | le_ins, le_insn, le_cut | edit_lb_type, edit_lb_insert, edit_lb_cut | MIRROR; D1 |
+ * | le_bs, le_del | edit_lb_bs, edit_lb_del | MIRROR; D1 |
+ * | le_home, le_end, le_left, le_right, le_wleft, le_wright | edit_lb_home, edit_lb_end, edit_lb_left, edit_lb_right, edit_lb_wleft, edit_lb_wright | MIRROR |
+ * | le_pad, le_indent | pad, spaces (static) | MIRROR |
+ * | ed_load, ed_commit, ed_goto | edit_load, edit_commit, edit_goto | MIRROR; D1 |
+ * | ed_up, ed_down, ed_pgup, ed_pgdn, ed_first, ed_last | edit_up, edit_down, edit_pgup, edit_pgdn, edit_first, edit_last | MIRROR |
+ * | ed_ensure, ed_enter, ed_bs, ed_del, ed_tab, ed_ctrly | edit_ensure, edit_enter, edit_bs, edit_del, edit_tab, edit_ctrly | MIRROR |
+ * | sel_mark, sel_get | edit_sel_mark, edit_sel (SEL_NONE, SEL_PIECE, SEL_LINES) | MIRROR |
+ * | ed_copy, ed_clear, ed_cut, ed_paste | edit_copy, edit_clear, edit_cut, edit_paste | MIRROR |
+ * | im_load, im_up, im_down, im_next | edit_imm_load, edit_imm_up, edit_imm_down, edit_imm_next | MIRROR |
+ * | im_store | imm_store (static) | MIRROR |
+ * | ui_body, ui_canon, ui_dxerr, ui_emsg | edit_body, edit_canon, edit_dxerr, edit_emsg | MIRROR; D1 |
+ * | ui_chkop | chkop (static) | MIRROR; link_walk's each |
+ * | g_ui.fd.uc_pre, uc_err, uc_eop, uc_ecol, uc_src, uc_n | static (canon's state) | MIRROR; edit_commit reads uc_ecol |
+ * | g_ui.dg.wr_ind | dlog_wrap's indent | D2 |
+ * | g_ui.ed.*, g_ui.im.*, bf.im_h | uimn.ed (UiEdit), uimn.imm (UiImm) | MOVED (ui.h) |
+ * | g_ui.bf.ed_lb, im_lb | uimn.edline, uimn.immline | MOVED (ui.h) |
+ *
+ * - D1. A flag result is a bool, true the success; edit_commit false means a syntax error shown.
+ * - D2. A parameter, not a global set before the call.
+ */
 #include "ui/edit.h"
 #include "session.h"
 #include "comp/comp.h"

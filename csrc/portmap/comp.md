@@ -40,224 +40,52 @@ Defined in lexer.c (`DFA_DATA`), declared `extern const` for comp.c. The parser'
 
 ## lex → lexr
 
-| asm | C |
-|---|---|
-| `lx_line`* | `lexr_line(text, body)` → past the body's 0 |
-| `lx_kw`* | `lexr_keyword(&at)` → token, 0 a name |
-| `lx_colof`* (IDE) | `lexr_colof(off)` → column |
-| `lx_item`, `lx_more`, `lx_ahead`, `lx_col`, `lx_fn`, `lx_num`, `lx_hex`, `lx_word`, `kw_step`, `lx_name` | statics `item`, `more`, `ahead`, `markcol`, `joinfn`, `number`, `hexnum`, `word`, `kwstep`, `name` |
-| `g_lxcol`* (IDE) | `lexr.col` |
-| `g_lxall`* (IDE) | `lexr.all` |
-| `g_lxfill`* | `lexr.more` (a `LexrMore *`) |
-| `g_lxlst`, `g_lxend`, `g_lxlc` | `lexr.last`, `lexr.end`, `lexr.lastcol` |
-| `lx.nsyms`, `lx.nnams` | `symb.nvars`, `symb.nnames` (mem's) |
-| `lx.lxsrc`, `lx.lxdst` | `lexr.src`, `lexr.dst` |
-| `lx.lxf`, `lx.lxn`, `lx.lxs` | locals |
-| `lx.nlen`, `lx.nptr` | gone: `symb_find_name(text, len)`'s parameters |
-| `lx.dproc`, `lx.ntyps`, `lx.nflds`, `lx.dtype` | `decl.proc`, `decl.ntypes`, `decl.nfields`, `decl.type` |
-| `lx.lxst`, `lx.nkey`, `lx.nlenp`, `lx.lxv`, `lx.lxm` | unused, dropped |
+In `lexer.c`'s header.
 
-## decl → decl
+## decl → declare
 
-| asm | C |
-|---|---|
-| `dc_reset`* | `decl_reset()` |
-| `dc_line`* | `decl_line(body)` (the asm's is `g_cbuf`) |
-| `dc_deft`* | `decl_deftype(line)` |
-| `dc_item`* | `decl_item(p)` → past it |
-| `dc_proc`* (IDE) | `decl_proc(body, &name)` → `PK_*`, 0 |
-| `dc_tail`* (AC) | `decl_tail(&at)` → true: ends in text |
-| `dc_step`* (AC) | `decl_step(p)` |
-| `dc_dfev`, `dc_redim`, `dc_shdim`, `dc_bind`, `dc_warn`, `dc_nam`, `dc_use`, `dc_arr`, `dc_ause`, `dc_bnd`, `dc_next` | statics `defevent`, `redimscope`, `shareddim`, `bind`, `warn`, `name`, `use`, `array`, `arrayuse`, `bound`, `next` |
-| `g_typ`* | `decl_types[NTYPE]` (`TypeDef`: `T_NAM T_FST T_NF T_SIZE` → `name first nfld size`) |
-| `g_fld`* | `decl_fields[NFLD]` (`Field`: `F_NAM F_ET F_SUB F_FIX F_OFF` → `name et sub fix off`) |
-| `g_obase`* | `decl.base` |
-| `g_oexp`* | `decl.explicit_` |
-| `g_obset`, `g_odim`, `g_ndev`, `g_dscope`, `g_dredim` | `decl.baseset`, `decl.dimmed`, `decl.ndefev`, `decl.scope`, `decl.redim` |
-| `g_dfev`, `TDEFEV`, `NDEV`, `DEVSZ` | static `defevs[NDEV]` of `DefEvent {line, deft[26]}` |
-| `g_dast`* | `decl_astype[5]` |
-| `g_etsz`* | `decl_etsize[7]` |
-| `g_dft0`, `g_dett` | static `deft0`, `deftype` |
-| `g_wpre .. g_wtail`, `g_wbuf` | static strings, buffer |
+In `declare.c`'s header.
 
 ## block → blocks
 
 In `blocks.c`'s header.
 
-## ctl → ctrl
+## ctl → control
 
-| asm | C |
-|---|---|
-| `ct_stmt`* | `ctrl_stmt()` → false: not one |
-| `ct_bif`* | `ctrl_blockif()` |
-| `ct_else`* | `ctrl_else(&target)` → false: none |
-| `ct_jf`* | `ctrl_jf(target)` |
-| `ct_fskip`* | `ctrl_forskip()` |
-| `ct_fcall`* | `ref_call(idx, pr, ARGS_PAREN)` (comp/refs.c), emitted by gen |
-| `ct_pcall` | `ctrl_pcall(idx)` |
-| `ct_uarg`* | `ref_dropargs(paren)` |
-| `ct_undef`* | `ctrl_undef(err)` |
-| `cm_swap`* | `ctrl_swap()` |
-| `rc_ref`* | `ref_record()` → its N_REF; NO_NODE: not one |
-| `rc_load`* | `ref_field(ref)` → its N_FIELD |
-| `rc_store`* | `ctrl_recstore()` |
-| `rc_avar`* | `ref_recarray(name, type)` → the variable |
-| `g_rfet`*, `g_rfoff`*, `g_rffix`* | an N_REF's `rec.et`, `rec.off`, `rec.fix` |
-| `g_ctfet`*, `g_ctffix`* | `ctrl.fieldet`, `ctrl.fieldfix` |
-| `ct_none`, `ct_dseg`, `ct_def`, `ct_skip0`, `ct_redim`, `ct_erase`, `ct_onerr`, `ct_evk`, `ct_evn`, `ct_evs`, `ct_xst`, `ct_common`, `cm_skvar`, `cm_skas`, `ct_mids`, `ct_skip`, `ct_sub`, `ct_pret`, `ct_pret0` | statics `none`, `defseg`, `deffn`, `skipparen`, `redim`, `erase`, `onerror`, `evkind`, `evnum`, `evstate`, `xstmt`, `common`, `skipvar`, `skipas`, `mids`, `skip`, `sub`, `pret` |
-| `ct_call`, `ct_name`, `ct_let`, `ct_rcopy`, `ct_scall`, `ct_pdecl`, `ct_pchk` | statics `call`, `namestmt`, `let`, `reccopy`, `subcall`, `declname`, `checkonly` |
-| `ct_proc` | `ref_proc(&idx)` |
-| `ct_args`, `ct_arg`, `ct_aend`, `ct_ptm` | refs.c's statics `args`, `arg` (N_ARG), `aend`, `ptm` |
-| `rc_nrec`, `rc_nreca`, `rc_saddr`, `rc_whole`, `rc_path`, `rc_svar` | refs.c's statics `nrec(name, array)`, `place`, `whole`, `path`, `recvar` |
-| `ct_target`, `ct_emitjump`, `ct_ent`, `ct_tgt`, `ct_jt`, `ct_jmp`, `ct_cond` | statics `here`, `jump`, `entry`, `targetof`, `jt`, `jmp`, `cond` |
-| `ct_elseif`, `ct_belse`, `ct_do`, `ct_loop`, `ct_while`, `ct_wend`, `ct_exit`, `ct_select`, `ct_var`, `ct_case`, `ct_item`, `ct_cmp`, `ct_stv`, `ct_ldop`, `ct_vop` | statics `elseif`, `blockelse`, `doloop`, `loop`, `whileloop`, `wend`, `exitblock`, `select`, `selvar`, `casestmt`, `caseitem`, `casecmp`, `selstore`, `selload`, `selop` |
-| `g_ctnm`, `g_ctvr`, `g_cttp`, `g_cbyv`, `g_cbyd`, `g_cpar`, `g_rfnt` | statics |
+In `control.c`'s header.
+
+## ctl (records, calls) → refs
+
+In `refs.c`'s header.
 
 ## comp → comp
 
-| asm | C |
-|---|---|
-| `cm_line`* | `comp_line()` |
-| `cm_text`* | `comp_text(body)` (the asm's SI is before the body) |
-| `cm_err`* | `comp_fail(err)`, `[[noreturn]]` |
-| `cm_expn`* | `comp_expnames(state, names)` → count |
-| `cm_expect`* | `comp_expected(state)` |
-| `cm_dfa`* | `comp_dfa(state)` |
-| `cm_byt`*, `cm_op`* | `comp_byte(b)`, `comp_op(op)` |
-| `cm_opx`* | `comp_opb(op, b)` |
-| `cm_opw`* | `comp_opw(op, w)` |
-| `cm_opid`* | `comp_opid(op, id)` |
-| `cm_dw`* | `comp_dword(d)`; its halves `comp_word(w)` |
-| `cm_ins`* | `comp_insert(b, at)` |
-| `cm_lint`* | `comp_int(n)` |
-| `cm_call`* | `comp_call(k)` |
-| `cm_jw`* | `comp_lref()` |
-| `cm_ileaf`* | `comp_intleaf()` → the load, null |
-| `cm_toi`*, `cm_tof`*, `cm_tod`*, `cm_tos`*, `cm_tob`*, `cm_toa`*, `cm_dnz`* | `comp_toint`, `comp_tofloat`, `comp_todouble`, `comp_tostring`, `comp_tobyte`, `comp_toaddr`, `comp_dtest` |
-| `cm_tgt`* | `comp_target(id)` |
-| (by kind) | `comp_toinfo(info)`: a variable's kind; `comp_pick(type, i, f, d, s)`: one of four by `T_*` |
-| `cm_store`*, `cm_fst`* | `comp_store()` (`A_FST`'s too) |
-| `cm_chkcl`*, `cm_chkop`*, `cm_chkcm`*, `cm_chkeq`*, `cm_chk` | `comp_close`, `comp_open`, `comp_comma`, `comp_equals`, `comp_need(b)` |
-| `cm_optcm`* | `comp_optcomma()` → true: there was one |
-| `cm_lnum`* | `comp_lnum()` → the byte after |
-| `cm_name`* | `comp_name()` |
-| `st_get`*, `st_getn` | `comp_peek(&p)`, `comp_next(&p)` |
-| `st_eos`*, `st_eosn` | `comp_eos(&p)`, static `eosnext` |
-| `var_id`* | `comp_var(shape, et)` (`g_vfs`, `g_vft` its parameters) |
-| `var_ispar`* | `comp_ispar(id)` |
-| `var_par`* | `comp_param(name, array, &id)` |
-| `var_scope`* | `comp_scope(name)` |
-| `et_sfx`* | `comp_suffix(c)` |
-| `lbl_at`* | `comp_label(body)` → its ':', null |
-| `lbl_nam`* | `comp_nameof(at)` |
-| `cm_rts`* | gone (a `ret`) |
-| `cm_if`*, `cm_fv`*, `cm_fork`*, `cm_for`*, `cm_for1`*, `cm_nv`*, `cm_on`*, `cm_onl`*, `cm_print`*, `cm_list`*, `cm_dv`*, `cm_dat`*, `cm_rem`*, `cm_in`*, `cm_rd`*, `cm_get`*, `cm_goto`*, `cm_gosub`*, `cm_run`*, `cm_res`*, `cm_ret`*, `cm_n0`*, `cm_n1`*, `cm_narg`*, `cm_fop`*, `cm_write`*, `cm_lin`* | static actions `act_if`, `act_fv`, `act_fork`, `act_for`, `act_for1`, `act_nv`, `act_on`, `act_onl`, `act_print`, `act_list`, `act_dv`, `act_data`, `act_rem`, `act_in`, `act_rd`, `act_get`, `act_goto`, `act_gosub`, `act_run`, `act_res`, `act_ret`, `act_n0`, `act_n1`, `act_narg`, `act_fop`, `act_write`, `act_lin` |
-| `g_cmact`* (expr.asm) | static `actions[]` in comp.c, `[A_x - A_BASE] = ...` |
-| `cm_new`, `cm_nx`, `cm_ee`, `cm_om`, `cm_fin`, `cm_end`, `cm_mark`, `cm_dbg`, `cm_dbgx`, `cm_mapstmt`, `cm_tok`, `ps_look`, `cm_do`, `cm_w`, `cm_lnld`, `var_decl`, `cm_vop`, `cm_dim1`, `cm_dvas`, `cm_dsubs`, `cm_using`, `cm_skip` | statics `stmt`, `after`, `atend`, (`repl_error(E_OM)`), `finish`, (end of `comp_text`), `mark`, `dbg`, `dbgdrop`, `mapstmt`, `token`, `pslook`, `act`, (in `comp_opw`), `lnumload`, `declared`, `parop`, `dim1`, `skipas`, `dimsubs`, `using`, `comp_skipdata` |
-| `g_cbuf`* (`g_cbufh` before it) | `comp_cbuf` (arena, its byte before it too) |
-| `g_xbuf`* | `comp_xbuf[XLIM + COMP_TAIL]` |
-| `g_dlprc`* | `comp.dlproc` |
-| `g_lmod`* | `comp.modlabel` |
-| `g_etk`* | `comp_etkind[7]` |
-| `g_psexp`, `g_psor`, `g_pscm`, `g_dmask` | statics |
+In `comp.c`'s header.
 
-### `g_state.cm` (TCOMP) → `comp`
+## comp (emitters, code) → code, codegen
 
-| asm | C | asm | C |
-|---|---|---|---|
-| `cty` | `type` | `csp` | `busy`, `unwind` (a `jmp_buf`) |
-| `cll`, `clle` | `iload`, `iloadend` | `cbase` | `body` |
-| `ccmp`, `ccmpe` | `cmp`, `cmpend` | `line` | `line` |
-| `ccnt` | `nargs` | `nstmt` | `nstmt` |
-| `ctv` | `tgt` | `cmap` | `map` |
-| `ctk` | `tgtinfo` | `csif` | `oneif` |
-| `ctn` | `tgtsubs` (`TGT_FIELD`) | `cscope` | `scope` (to `symb_find_var`) |
-| `cfk` | `forkind` | `cstat` | `isstatic` (to `symb_find_var`) |
-| `xo` | `len` | `credim` | `redim` |
-| `ctxlin` | gone: a literal is `addr_of` its text | `cchk` | `check` |
-| `cxb` | `buf` | `cdbg` | `dbg` |
-| `cxlim` | `lim` | `cproc` | `proc` |
-| `ctks` | `kw` | `cdg` | `dg` |
-| `cth` | `then` | `cdfa` | `dfa` |
-| `wv` | `lnum` (and `comp_opw`'s word) | `ctok` | `tok` |
-| `jline` | `jline` | `cfid` | `forvar` |
-| `onp` | `onat` | `cst` | a local of `act_list` |
-| (ESI) | `p` | (EDI) | `out` |
-| `rn.cplim` | `depth`: `cm_p`'s stack check as a nesting count | | |
+In `code.c`'s and `codegen.c`'s headers.
 
 ## expr → expr
 
-| asm | C |
-|---|---|
-| `cm_expr`* | `expr_compile()` |
-| `cm_lexpr` | `expr_assign()` (an action) |
-| `cm_paren`* | `expr_paren()` |
-| `cm_subs0`* | `expr_subs()` → count |
-| `cm_load`* | `expr_load()` |
-| `cm_lval`* | `expr_target()` |
-| `cm_str1` | `expr_string()` (an action) |
-| `cm_va` | `expr_varaddr()` (an action) |
-| `cm_shv`* | `cg_shclass()` |
-| `cm_icmp`*, `cm_fcmp`* | `cg_icmp(rel, right)`, `cg_fcmp(rel, right)` |
-| `cm_lflt`* | `cg_lfloat(left, right)` → right moved |
-| `cm_p`, `cm_un`, `cm_sop`, `cm_shid`, `cm_right`, `cm_iop`, `cm_fop2`, `cm_fkind`, `cm_str`, `cm_addr`, `cm_xfn`, `cm_xarg`, `cm_farg`, `cm_nany` | statics `prec(p)` (parses; `binary`, `strop`, `numop`, `dblop` emit), `unary`, `shortop`, `shortid`, `isright`, `intop`, `fltop`, `fltkind`, `literal`, `ref_place` (comp/refs.c), `xfunc` (`xfn_at`, `xfn_args`), `xarg`, `farg`, `notstr` |
-| `g_cprec` values, operator indices | `P_*`, `OP_*`; a relation `REL | DC_*` (expr.h) |
-| `g_csh`*, `g_cshe`*, `g_cshc`* | `gen.sh`, `gen.shend`, `gen.shclass` |
-| `g_ckon`* | `expr.kend` |
-| `g_ctys`* | `expr_ktype[5]` |
-| `g_cwd`, `g_cbk`, `g_xdbl`, `g_vakind` | `expr.dbltgt`, `expr.bothk`, `gen.fixdbl`, `ref_place`'s `vakind` |
-| `g_fcmpk`, `g_lda1`, `g_ldan`, `g_dfnk`, `g_fnarg`, `g_fnsig`, `g_xfn` (`XF_*`), `g_cprec`, `g_xop` | static tables (`g_xfn` an array of `XFn`) |
+In `expr.c`'s header.
 
 ## link → link
 
-| asm | C |
-|---|---|
-| `cm_link`* | `link_start()` |
-| `cm_cache`* | `link_cache(line)` → its code's Addr |
-| `cm_xlate`* | `link_xlate(&at)` → false: no room |
-| `cm_walk`* (IDE) | `link_walk(code, each)` |
-| `g_opsz`* | vm's `flow_opsize(op)` |
-| `g_opfl` | unused, dropped |
-| `cm_comp`, `cm_flush`, `cx_mapstmt` | statics `compile(line)`, `flush`, `mapstmt` |
-| `lnk.cend`, `elim`, `eeol`, `einb` | `link.end`, `link.lim`, `link.eol`, `link.inbeg` (Addrs) |
-| `lnk.emap`, `ecode`, `mapnext` | `link.map`, `link.code` (Addrs), `link.mapnext` |
-| `lnk.linked`, `cursor`, `nfl` | `link.linked`, `link.cursor`, `link.flushes` |
+In `link.c`'s header.
 
-## list → list
+## list → listing
 
-| asm | C |
-|---|---|
-| `ls_range`* | `list_range(from, to)` (`rn.lfrom`, `rn.lto` its parameters) |
-| `ls_text`* | `list_text(body, at)` → the column |
-| `ls_body`* (IDE) | `list_body(body)` |
-| `ls_all` | unused: `list_range(0, 0xFFFF)` |
-| `ls_line`, `ls_lead`, `ls_space` | statics `listline`, `lead`; `cons_space` |
-| `g_lsat`, `g_lscol` | `list.at` (null none), `list.col` |
-| `io.lq`, `LS_*` | `list.last`, listing.c's enum |
+In `listing.c`'s header.
 
 ## Added in C
 
-| C | what |
-|---|---|
-| `comp_init()` | carves `comp_cbuf` (`allo_carve`); main.c calls it |
-| `comp_cur()`, `comp_curn()`, `comp_end()` | `st_get`, `st_getn`, `st_eos` at `comp.p` |
-| `comp_rd16`, `comp_rd32` | `load16`, `load32` (base.h): unaligned reads |
-| `comp.depth`, `COMP_MAXDEPTH` | `cplim`'s stack room as nesting levels; to calibrate |
+`comp_init`, `comp_cur`, `comp_curn`, `comp_end`, `comp_rd16`, `comp_rd32`: in `comp.c`'s header.
 
-## fold.asm → comp/fold.c
+## fold → fold
 
-| asm | C |
-|---|---|
-| `cm_fold`, `op_fold` | `fold_code`: runs the code with `exec_until` up to `comp.out`; no FOLD op is executed |
-| `cf_fail`, `g_cfold`, `g_cfsp` | `fold_fail`, `comp.folding`, `comp.fold` (a `jmp_buf`) |
-| `cm_krec`, `cm_klit`, `var_kclr` | `fold_const`, `fold_load`, `fold_clear` |
-| `g_cvat`, `ctok` cleared in `cm_tok` | `comp.vat`, `comp.tok = 0` in `token` |
-| `FK`, `TVX.kop`, `kval` | `FK` (ops.def), `VarX.kop`, `symb_kval` |
+In `fold.c`'s header.
 
 ## The expression tree (C only)
 
-`cm_p` and `cm_un` emit as they parse; the C builds a tree instead (`comp/ast.h`): `parse` and
-`parse_unary` make nodes, `fold_tree` folds each operator whose operands are literals (through
-the VM's handlers, as `cm_fold`), and `gen` emits them with the asm's choices. A function call,
-an element, a field or a string literal is compiled where it is met and kept as an `N_CODE` leaf.
-The code is the asm's byte for byte over the golden corpus.
+In `ast.c`'s, `expr.c`'s and `codegen.c`'s headers.

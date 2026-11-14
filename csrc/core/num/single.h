@@ -1,9 +1,4 @@
-/* SINGLE (float/flt.asm): compares, conversions, number text in. The arithmetic is fmth's.
-
-   A FLOAT is an IEEE single kept packed, a Sngl, as the asm's EAX: in a Cell's low dword (`.u`),
-   its high dword undefined. Every routine of the num group takes and returns a Sngl, never a C
-   float: llrm keeps a float result at the x87's precision until it is stored, and a Sngl is
-   stored, so each operation rounds once, as the asm's fstp. */
+/* SINGLE's interface. How it works: single.c. */
 #ifndef NUM_SINGLE_H
 #define NUM_SINGLE_H
 #include "defs.h"

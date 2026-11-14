@@ -1,6 +1,4 @@
-/* Tables: parallel arrays, an entry of each per id, in one block (src/mem/tab.asm). The arrays lie
-   in the block one after another, cap entries each; as the block grows the arrays after the first
-   move up (tabl_place, from the block's moved routine). */
+/* Tables' interface. How it works: table.c. */
 #ifndef MEM_TABLE_H
 #define MEM_TABLE_H
 #include "alloc.h"

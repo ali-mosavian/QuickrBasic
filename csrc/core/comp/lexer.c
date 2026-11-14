@@ -1,4 +1,39 @@
-/* The tokenizer (comp/lex.asm). */
+/* The tokenizer: a typed line becomes the body of a stored line.
+ *
+ * # How it works
+ * In the body:
+ *   M_VAR len name nam:2  a name as typed, its suffix too; nam its entry in the name table
+ *   M_INT n:4             a whole number under 2^31, &H, &O
+ *   a token               80h..FEh, or TK_X and a byte (comp/dfa.h)
+ * Spaces go, but in strings, REM and DATA. A number with a point, an exponent or 2^31 and over
+ * stays text. A keyword is a whole word (the scanner's automaton, kwstep), any other word a name.
+ * FN is joined to its name; E and D of an exponent go upper case.
+ *
+ * lexr.col: an item's column in the text, by its body offset (the editor's). A streamed text is
+ * read through a window: more refills it. This file also defines dfa.h's tables (DFA_DATA).
+ *
+ * # Example
+ *    x = 5 + y     M_VAR 1 "x" nam, TK_EQ, M_INT 5, TK_PLUS, M_VAR 1 "y" nam
+ *
+ * # asm structure (src/comp/lex.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | lx_line | lexr_line(text, body) | MIRROR; past the body's 0 |
+ * | lx_kw | lexr_keyword(&at) | MIRROR; token, 0 a name |
+ * | lx_colof | lexr_colof(off) | MIRROR; the column |
+ * | lx_item, lx_more, lx_ahead, lx_col, lx_fn, lx_num, lx_hex, lx_word, kw_step, lx_name | item, more, ahead, markcol, joinfn, number, hexnum, word, kwstep, name | MIRROR |
+ * | g_lxcol, g_lxall, g_lxfill | lexr.col, lexr.all, lexr.more (a LexrMore *) | MIRROR |
+ * | g_lxlst, g_lxend, g_lxlc | lexr.last, lexr.end, lexr.lastcol | MIRROR |
+ * | lx.lxsrc, lx.lxdst | lexr.src, lexr.dst | MIRROR |
+ * | lx.nsyms, lx.nnams | symb.nvars, symb.nnames (mem's) | MOVED |
+ * | lx.dproc, lx.ntyps, lx.nflds, lx.dtype | decl.proc, decl.ntypes, decl.nfields, decl.type (declare.c) | MOVED |
+ * | lx.lxf, lx.lxn, lx.lxs | locals | MIRROR |
+ * | lx.nlen, lx.nptr | symb_find_name's parameters | D1 |
+ * | lx.lxst, lx.nkey, lx.nlenp, lx.lxv, lx.lxm | | D2 |
+ *
+ * - D1. The name's length and pointer are parameters, not globals.
+ * - D2. Unused in the asm; dropped.
+ */
 #define DFA_DATA
 #include "comp/lexer.h"
 #include "session.h"

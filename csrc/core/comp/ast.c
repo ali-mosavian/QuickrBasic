@@ -1,4 +1,22 @@
-/* The tree's nodes and what they compute: their types, a binary node's work. */
+/* The expression tree's nodes: making them, and the type and work of each.
+ *
+ * # How it works
+ * The parsers (expr.c, refs.c) build a line's trees; sema.c checks them, fold.c folds them and
+ * codegen.c emits them. Nodes come from the statement's arena (Ast), freed all at once when the
+ * next statement starts.
+ *
+ * Leaves are a literal load (N_LIT: a number, a string, a CONST's value, a size) and a scalar
+ * variable (N_VAR). An element (N_ELEM), QBasic's functions (N_FN: SGN .. MID$; N_XFN: the others),
+ * a place (N_REF) and a procedure's call (N_CALL) hold their arguments as children linked by next.
+ * A record's field (N_FIELD), an address (N_ADDR), a call's argument (N_ARG) and a conversion
+ * (N_CONV) have one child, a.
+ *
+ * A statement is its steps (Ast.step): trees codegen emits in order at the statement's end. A step
+ * is an expression, a conversion of one, or a CALL of the VM's (N_KCALL).
+ *
+ * # asm structure
+ * No asm counterpart: the asm emits code as it parses, with no tree (see expr.c).
+ */
 #include "comp/ast.h"
 #include "session.h"
 #include "comp/dfa.h"

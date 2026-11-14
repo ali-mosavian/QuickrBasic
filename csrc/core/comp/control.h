@@ -1,16 +1,4 @@
-/* Block statements compiled (comp/ctl.asm): IF blocks, SELECT CASE, DO, WHILE, EXIT; CALL, a
-   record's copy (their references are comp/refs.c's); ON ERROR, events, RESUME, COMMON, SWAP. Each block
-   statement finds its Block (blok_find) and jumps to the targets blok_pair gave it:
-     IF c THEN         c, JF NXT
-     ELSEIF c THEN     JMP END, c, JF NXT
-     ELSE              JMP END
-     SELECT CASE e     e to its value's variable #n (n its depth), JMP NXT
-     CASE tests        JMP END, the tests or'd, JF NXT
-     DO [WHILE|UNTIL c]    c, JF|JT END
-     LOOP [WHILE|UNTIL c]  JMP NXT, or c, JT|JF NXT
-     WHILE c, WEND     c, JF END; JMP NXT
-     EXIT FOR, EXIT DO FPOP, JMP END; JMP END
-   A direct line has no entries: its targets are none (FFFFFFFFh), an error when run. */
+/* Control statements' compiler's interface. How it works: control.c. */
 #ifndef COMP_CONTROL_H
 #define COMP_CONTROL_H
 #include "comp/comp.h"

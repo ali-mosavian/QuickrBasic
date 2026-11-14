@@ -1,4 +1,11 @@
-/* The mouse, when a driver is there. On DOS32 INT 33h; a null INT 33h vector is no driver. */
+/* The mouse, when a driver is there.
+ *
+ * # How it works
+ * pmou_init resets the driver and reports whether one is there; its cursor is hidden after it.
+ * pmou_show and pmou_hide are counted, as INT 33h counts them.
+ *
+ * On DOS32 it is INT 33h; a null INT 33h vector is no driver.
+ */
 #ifndef PLAT_PMOU_H
 #define PLAT_PMOU_H
 #include "base.h"

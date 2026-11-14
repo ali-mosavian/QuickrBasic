@@ -1,10 +1,4 @@
-/* Views: the module and each SUB or FUNCTION on its own (src/ui/view.asm).
-
-   The text keeps the module's lines first, then each procedure from its SUB or FUNCTION line to
-   the next one's (view_reset orders it so). A view per part, from first, n lines; a window's
-   uimn.ed.view its view, applied to the text (text_view) by view_apply. A line added or removed
-   (uimn.text.hook) moves the views after the active window's. The cursor's place in a view is
-   kept when another is shown. The views' table is view.c's. */
+/* The views's interface. How it works: view.c. */
 #ifndef UI_VIEW_H
 #define UI_VIEW_H
 #include "ui/ui.h"

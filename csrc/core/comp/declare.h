@@ -1,9 +1,4 @@
-/* A line's declarations, into the scopes as it is entered (comp/decl.asm), so lines compiled before
-   it know them, as QBasic: DEFtype, DIM [SHARED] .. AS, CONST, SUB, FUNCTION, DECLARE, DEF FN and
-   their parameters, SHARED, STATIC, COMMON, TYPE's fields, OPTION BASE and EXPLICIT; n( an array
-   known in scope from there on. Each goes into the binding of decl.scope: the module's or the
-   procedure being entered's. DEFtype holds from its line to the file's end: each loading line's
-   is an event, decl_deftype sets the DEFtypes for the line compiled. */
+/* Declarations' compiler's interface. How it works: declare.c. */
 #ifndef COMP_DECLARE_H
 #define COMP_DECLARE_H
 #include "defs.h"

@@ -1,5 +1,45 @@
-/* The statements' CALL routines (src/vm/calls.asm): PRINT, INPUT, READ and DATA, DIM, RUN, LIST,
-   CONT, END, STOP, POKE, WAIT, INP, OUT, SYS, ^. */
+/* The statements' CALL routines: PRINT, INPUT, READ and DATA, DIM, RUN, LIST, CONT, END, STOP,
+ * POKE, WAIT, INP, OUT, SYS and ^.
+ *
+ * # How it works
+ * PRINT is one routine per item kind (stmt_ipr, stmt_fpr, stmt_spr) plus the separators. INPUT
+ * reads a line (stmt_inbeg, stmt_infile), each field then takes its next item (stmt_fin, stmt_sin,
+ * stmt_din); a bad field redoes the line from its start after the stores (StmtState.redo).
+ *
+ * READ finds the next DATA statement in the program store (next_data), copies its text to a buffer
+ * in the arena and parses an item from it. RESTORE starts again at the first DATA.
+ *
+ * RUN clears both stacks, events, COMMON and ON ERROR, then goes on at its line (stmt_rungo). END
+ * and STOP leave CONT a place to go on from, then READY or BREAK.
+ *
+ * # Example
+ *   10 DATA 1, 2
+ *   20 READ a, b          a is 1, b is 2
+ *
+ * # asm structure (src/vm/calls.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | ex_runfirst | stmt_runfirst | MIRROR |
+ * | ex_rungo | stmt_rungo | MIRROR |
+ * | ex_ready | ready | MIRROR |
+ * | rd_first | stmt_restore | MIRROR |
+ * | sc_cont | stmt_cont | MIRROR |
+ * | sc_end | stmt_end | MIRROR |
+ * | sc_stop | stmt_stop | MIRROR |
+ * | g_relbit | compared (operands.c) | MOVED |
+ * | sc_ipr, sc_fpr, sc_spr, sc_pnl, sc_pzone, sc_ptab | stmt_ipr, stmt_fpr, stmt_spr, stmt_pnl, stmt_pzone, stmt_ptab | MIRROR |
+ * | sc_pspc, sc_fin, sc_sin, sc_din, sc_fget, sc_sget | stmt_pspc, stmt_fin, stmt_sin, stmt_din, stmt_fget, stmt_sget | MIRROR |
+ * | sc_inbeg, sc_inpr, sc_infile, sc_inend, sc_inln, sc_fread | stmt_inbeg, stmt_inpr, stmt_infile, stmt_inend, stmt_inln, stmt_fread | MIRROR |
+ * | sc_sread, sc_dread, sc_res, sc_resl, sc_dim, sc_erase | stmt_sread, stmt_dread, stmt_res, stmt_resl, stmt_dim, stmt_erase | MIRROR |
+ * | sc_run, sc_runl, sc_list, sc_clr, sc_new, sc_nodir | stmt_run, stmt_runl, stmt_list, stmt_clr, stmt_new, stmt_nodir | MIRROR |
+ * | sc_poke, sc_wait, sc_wait2, sc_inp, sc_out, sc_sys | stmt_poke, stmt_wait, stmt_wait2, stmt_inp, stmt_out, stmt_sys | MIRROR |
+ * | sc_ipow, sc_fpow, sc_fti, sc_sti, sc_ist | stmt_ipow, stmt_fpow, stmt_fti, stmt_sti, stmt_ist | MIRROR |
+ * | io_redo, io_item, rd_item, rd_load, rd_scan, rd_after, rd_sk, rd_seek | redo, read_item, push_item, load_data, scan_data, data_after, skip_stmt, seek_data | MIRROR |
+ * | g_dimst, g_dmsk | static | MIRROR |
+ * | g_rdbuf, dlp, dataat, dyo, inend, iny0, iredo | StmtState (stmts.h) | D1 |
+ *
+ * - D1. READ's and INPUT's state is a StmtState in the session, not statics.
+ */
 #include "vm/stmts.h"
 #include "session.h"
 #include "comp/comp.h"

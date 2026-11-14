@@ -1,8 +1,4 @@
-/* Syntax highlighting: a line's keywords, strings, numbers, comments and names in the theme's
-   colours (src/ui/syntax.asm). The line is tokenized as the compiler does (lexr_line with
-   lexr.col); each item of the body gives its slot to the columns from its column to the next
-   item's. After AS or TYPE a type; after SUB, FUNCTION, DEF a name being declared, then its
-   parameters in the ( ) after it. */
+/* Syntax highlighting's interface. How it works: highlight.c. */
 #ifndef UI_HIGHLIGHT_H
 #define UI_HIGHLIGHT_H
 #include "ui/ui.h"

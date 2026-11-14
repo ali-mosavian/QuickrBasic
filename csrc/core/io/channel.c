@@ -1,4 +1,35 @@
-/* Channels (io/chan.asm). */
+/* Channels: the files OPEN makes, by number, and where output and input go.
+ *
+ * # How it works
+ * Channel 0 is the console, always open; the rest are free (num 0) or hold file num. A channel's
+ * kind (CK_*) says where its bytes go: the console, a file handle, nowhere. Its buffer holds the
+ * file's bytes from pos: read ahead (count of them, next is the next read) or written (count,
+ * dirty).
+ *
+ * chnl.out and chnl.in are the channels output and input use now, 0 the console (standard output,
+ * standard input). cons.col is out's column, kept in the channel's col while another is used.
+ *
+ * A channel is a Chan *; the asm's index is c - chnl.ch.
+ *
+ * # asm structure (src/io/chan.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | ch_init | chnl_init | MIRROR |
+ * | ch_look, ch_find | chnl_look, chnl_find | MIRROR; null for none |
+ * | ch_err | repl_qberr (repl.c) | MOVED |
+ * | ch_doserr | chnl_doserr | MIRROR |
+ * | ch_open, ch_close, ch_clall | chnl_open, chnl_close, chnl_closeall | MIRROR |
+ * | ch_out, ch_in, ch_clr | chnl_out, chnl_in, chnl_clear | MIRROR |
+ * | ch_putc, ch_getb, ch_skiplf | chnl_putc, chnl_getb, chnl_skiplf | MIRROR; getb -1 at the end |
+ * | ch_peek, ch_tell, ch_seek, ch_lof | chnl_peek, chnl_tell, chnl_seek, chnl_lof | MIRROR; peek -1 for none |
+ * | ch_rw AH=3Fh / 40h | chnl_read, chnl_write | MIRROR |
+ * | ch_ptr, ch_dev, ch_swcol, ch_wb, ch_flush, ch_drop, ch_at, ch_e52 | static | D1 |
+ * | g_ch, g_och, g_ich | chnl.ch, chnl.out, chnl.in | MIRROR |
+ * | g_dose, g_devs | static | D1 |
+ * | TCHAN: cnum, ckind, cmode, ccol, chnd, creclen, cbn, cbp, cdirty, ceof, cpos, clast, cfld, cbuf | Chan: num, kind, mode, col, handle, reclen, count, next, dirty, eof, pos, last, field, buf | MIRROR |
+ *
+ * - D1. Helpers and tables are static; the names differ.
+ */
 #include "io/channel.h"
 #include "session.h"
 #include "io/console.h"

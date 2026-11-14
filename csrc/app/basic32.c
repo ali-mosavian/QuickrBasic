@@ -1,4 +1,5 @@
-/* basic32: the session with the console's READY loop; a file the command line names is run. */
+/* basic32: the session with the console's READY loop; a file the command line names is run.
+ */
 #include "boot.h"
 #include "session.h"
 

@@ -1,4 +1,8 @@
-/* The process on the host: argv, environ, SIGINT as the STOP key, SHELL through /bin/sh. */
+/* The process on the host.
+ *
+ * # How it works
+ * argv, environ, SIGINT as the STOP key, SHELL through /bin/sh.
+ */
 #include <crt_externs.h>
 #include <mach-o/dyld.h>
 #include <signal.h>

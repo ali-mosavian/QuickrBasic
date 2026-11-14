@@ -1,4 +1,24 @@
-/* The editor's screen (src/ui/draw.asm). */
+/* The editor's screen: the windows, their titles and scroll bars, the status bar and the cursor.
+ *
+ * # How it works
+ * Row 0 is the menu bar, the windows' rows are window.h's, row 24 is the status bar. draw_all draws
+ * the lot; draw_edit, draw_imm and draw_status each part.
+ *
+ * # asm structure (src/ui/draw.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | dr_all, dr_edit, dr_imm, dr_status | draw_all, draw_edit, draw_imm, draw_status | MIRROR; D1 |
+ * | dr_skeys | draw_keys | MIRROR; D2 |
+ * | dr_ttl | draw_title | MIRROR |
+ * | g_ttlx, g_ttlw | draw_title's col, width | D2 |
+ * | dr_hasfoc, dr_row, dr_vbar, dr_barx, dr_hbar, dr_cursor, ui_decn, ui_title | statics | MIRROR |
+ * | g_drls, g_drln, lp.dr_sk, lp.dr_ln, lp.ui_pos, bf.ui_ttl | statics | MIRROR |
+ * | u_imm, u_f1, u_f1s | statics | MOVED from uimain |
+ *
+ * - D1. dr_edit's flag (lp.dr_ina) is draw_edit's parameter.
+ * - D2. draw_keys returns the StatusKeys; the title's column and width are draw_title's parameters,
+ *   not globals.
+ */
 #include "ui/draw.h"
 #include "session.h"
 #include "plat/pkey.h"

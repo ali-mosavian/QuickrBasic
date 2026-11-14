@@ -1,8 +1,4 @@
-/* The editor's screen: cells, strings, boxes, shadows (src/ui/scr.asm). Drawing goes to a copy of
-   page 0 (the asm's g_scrb, static here); scrn_flip shows it. A place is row, col; slot an
-   attribute slot (SL_*), made the theme's attribute (them_attr) as it is drawn. A string's '&'
-   marks its hotkey, drawn in slot hot; a plain one has hot == slot. A run goes on into the next
-   row past column 79. */
+/* The screen's interface. How it works: screen.c. */
 #ifndef UI_SCREEN_H
 #define UI_SCREEN_H
 #include "ui/ui.h"

@@ -1,11 +1,4 @@
-/* The name table and the variables (src/mem/sym.asm).
-
-   A name, 1 .. nnames-1, as QBasic's name table: a Name in names, its text in text, its length
-   then its letters in upper case, a suffix left out. A variable, 1 .. nvars-1, as QBasic's
-   variable manager: a name, a type (ET_*) and whether an array. vars holds per variable its 8-byte
-   cell, a Var and a VarX. Var.vt is a scalar's cell (its own, or a parameter's argument's while
-   its procedure runs), an array's header. Compiled code holds cells' Addrs: the cells move only
-   when an edit drops the code. Each table chains its hashes from a head, 0 ends a chain. */
+/* The name table's and the variables' interface. How it works: symbols.c. */
 #ifndef MEM_SYMBOLS_H
 #define MEM_SYMBOLS_H
 #include "table.h"

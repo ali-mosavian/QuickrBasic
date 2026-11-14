@@ -1,8 +1,13 @@
 /* The text screen: 80 by 25 cells on pages, the cursor, the video mode, the 16 text colours.
-   On DOS32 the cells are colour text memory (B800h + page * 1000h), the rest INT 10h, the DAC's
-   ports 3C8h/3C9h and the input status port 3DAh. The editor draws page 0 from its own copy
-   (ui/scrn) and leaves page 1 to the program's output, which DOS writes there while it is the
-   page shown. */
+ *
+ * # How it works
+ * A cell is text memory's: the character in the low byte, the attribute in the high. The editor
+ * draws page 0 from its own copy (ui/scrn) and leaves page 1 to the program's output, which DOS
+ * writes there while it is the page shown.
+ *
+ * On DOS32 the cells are colour text memory (B800h + page * 1000h), the rest INT 10h, the DAC's
+ * ports 3C8h/3C9h and the input status port 3DAh.
+ */
 #ifndef PLAT_PSCR_H
 #define PLAT_PSCR_H
 #include "base.h"

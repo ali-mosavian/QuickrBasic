@@ -1,11 +1,4 @@
-/* The debugger's UI: the Debug menu, F7 to F10, the lit statement (src/ui/dbg.asm).
-
-   It drives the session's debugger (session.h). udbg_init installs the trace hook: the
-   statement lit on the editor's page for two ticks, then the output's page again. A breakpoint is a text line's mark, its
-   record's LF_BP (text.h), so it moves with the line. A step, a breakpoint or until's line stops
-   the run as STOP does: repl_error(E_BRK) → uimn_error(E_BRK) → udbg_stop. The stopped
-   statement is lit: found by tokenizing its line again, lexr.col giving the column of the stop's
-   statement body offsets. */
+/* The debugger UI's interface. How it works: debugui.c. */
 #ifndef UI_DEBUGUI_H
 #define UI_DEBUGUI_H
 #include "ui/ui.h"

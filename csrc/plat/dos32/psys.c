@@ -1,5 +1,9 @@
-/* The process on DOS32: the STOP key's vectors (pstop.asm), the PSP's command line and
-   environment (llrm's OS layer), SHELL's EXEC through DPMI in DOS memory. */
+/* The process on DOS32.
+ *
+ * # How it works
+ * The STOP key's vectors (pstop.asm), the PSP's command line and environment (llrm's OS layer),
+ * SHELL's EXEC through DPMI in DOS memory.
+ */
 #include "dos.h"
 #include "plat/psys.h"
 

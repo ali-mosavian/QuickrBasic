@@ -1,13 +1,4 @@
-/* DOUBLE (float/dbl.asm): its D.* ops, the number reader, number text.
-
-   A DOUBLE is an IEEE double filling a data stack Cell (`.d`), a scalar's its 8-byte cell. Each
-   D op rounds its result to 53 bits once, stored to its Cell; ?OVERFLOW when it is infinity or
-   NaN (dbl_chk), but for SQR, EXP, ^ and D.TOF, which keep it. In the asm's stack terms a binary
-   op takes a at [esp+CELL] and b at [esp] and leaves a OP b in a's cell.
-
-   Number text is one path: dubl_digits gives a value's digits rounded once on the x87 at 64 bits
-   (pfpu_digits), dubl_fmt spells them as PRINT. SINGLE's text is its value as a DOUBLE, 7
-   digits and E; DOUBLE's 16 and D, as QB45's. */
+/* DOUBLE's interface. How it works: double.c. */
 #ifndef NUM_DOUBLE_H
 #define NUM_DOUBLE_H
 #include "single.h"

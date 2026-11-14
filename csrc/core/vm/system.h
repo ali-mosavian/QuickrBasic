@@ -1,6 +1,4 @@
-/* QBasic's system routines (src/vm/sys.asm): TIMER, DATE$, TIME$ and their statements, INKEY$,
-   SLEEP, COMMAND$, ENVIRON and ENVIRON$, SHELL, SETMEM, ERDEV, RANDOMIZE. Their CALL routines
-   are K handlers (vm/ops.def). */
+/* The system routines' interface. How it works: system.c. */
 #ifndef CORE_VM_SYST_H
 #define CORE_VM_SYST_H
 #include "vm/exec.h"

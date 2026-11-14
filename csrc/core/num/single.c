@@ -1,3 +1,26 @@
+/* SINGLE: compares, conversions and number text in.
+ *
+ * # How it works
+ * A FLOAT is an IEEE single kept packed, a Sngl, as the asm's EAX: in a Cell's low dword (`.u`),
+ * its high dword undefined. Every routine of the num group takes and returns a Sngl, never a C
+ * float: llrm keeps a float result at the x87's precision until it is stored, and a Sngl is
+ * stored, so each operation rounds once, as the asm's fstp. The arithmetic is fpmath.c's.
+ *
+ * # asm structure (src/float/flt.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | err_ov | repl_error(E_OV) | MOVED: io/repl.c |
+ * | flt_neg | inline `a ^ SNGL_SIGN` unless +-0 | D1 |
+ * | flt_abs, flt_sgn, flt_norm, flt_w16 | sngl_abs, sngl_sgn, sngl_norm, sngl_w16 | MIRROR |
+ * | flt_cmp, flt_key | sngl_cmp, order_key | MIRROR; static |
+ * | flt_insg | sngl_skipsign | MIRROR |
+ * | num_amp | sngl_hexoct | MIRROR |
+ * | flt_in | sngl_in | MIRROR |
+ * | flt_dv | sngl_from_dbl(dubl_in(...)) | MIRROR |
+ * | flt_out | sngl_print | MIRROR |
+ *
+ * - D1. No function: callers inline it.
+ */
 #include "num/single.h"
 #include "session.h"
 #include "io/console.h"

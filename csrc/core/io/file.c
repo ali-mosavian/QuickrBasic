@@ -1,4 +1,43 @@
-/* QBasic's file statements and functions (io/fio.asm). */
+/* QBasic's file statements and functions, over the channels.
+ *
+ * # How it works
+ * Each is an op's handler, its stack effect ( in -- out ) on exec's data stack.
+ *
+ * OPEN is built from parts: file_opendef sets the defaults (RANDOM, 128-byte records), the mode and
+ * LEN handlers set file.mode and file.reclen, file_open takes the name and number.
+ *
+ * A variable's place, as the compiler's va gives it, is its address and a kind in the top byte,
+ * VA_DESC (a string's Desc; n its STRING * n), VA_RAW (n bytes), VA_I2 (an INT kept as 2 bytes);
+ * n in the low word. A RANDOM channel's record is RECMAX bytes of file.recs at its index: FIELD's
+ * strings point into it, so it is in the arena.
+ *
+ * # asm structure (src/io/fio.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | sc_odef | file_opendef | MIRROR |
+ * | sc_omi, sc_omo, sc_oma, sc_omr, sc_omb | file_mode_in, file_mode_out, file_mode_app, file_mode_rnd, file_mode_bin | MIRROR |
+ * | sc_orec, sc_open, sc_open2 | file_reclen, file_open, file_open2 | MIRROR |
+ * | sc_close, sc_clall | file_close, file_closeall | MIRROR |
+ * | sc_fiout, sc_fiin, sc_ficlr | file_out, file_in, file_console | MIRROR |
+ * | sc_sline | file_lineinput | MIRROR |
+ * | sc_wi, sc_wf, sc_wd, sc_ws, sc_wcom | file_write_int, file_write_flt, file_write_dbl, file_write_str, file_write_comma | MIRROR |
+ * | sc_eof, sc_lof, sc_loc | file_eof, file_lof, file_loc | MIRROR |
+ * | sc_seekf, sc_seek | file_seekpos, file_seek | MIRROR |
+ * | sc_freef, sc_inps, sc_fattr | file_freefile, file_input_str, file_attr | MIRROR |
+ * | sc_kill, sc_name | file_kill, file_rename | MIRROR |
+ * | sc_mkdir, sc_rmdir, sc_chdir, sc_files | file_mkdir, file_rmdir, file_chdir, file_files | MIRROR |
+ * | sc_gnv, sc_get, sc_put | file_novar, file_get, file_put | MIRROR |
+ * | sc_fldb, sc_fld | file_field, file_fielditem | MIRROR |
+ * | sc_lset, sc_rset | file_lset, file_rset | MIRROR |
+ * | sc_bsave, sc_bload | file_bsave, file_bload | MIRROR |
+ * | sc_lock, sc_drop, sc_nfa | file_lock, file_drop, file_noadv | MIRROR |
+ * | g_omode, g_orec | file.mode, file.reclen | MIRROR |
+ * | g_recb | file.recs | D1 |
+ * | fx_*, g_rwdir, g_dosfn, g_rwbase, g_rwtmp, g_fldch, g_fn2, g_dta, g_omodes, u_* | static | D2 |
+ *
+ * - D1. Carved from the arena by file_init (allo_carve): NCH * RECMAX.
+ * - D2. Helpers and scratch are static, or file's fields (field_chan, name2, bname).
+ */
 #include "io/file.h"
 #include "session.h"
 #include "io/channel.h"

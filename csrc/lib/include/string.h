@@ -1,4 +1,8 @@
-/* The C library's string routines the core uses, for targets without one (dos32). */
+/* The C library's string routines the core uses, for targets without one (dos32).
+ *
+ * # How it works
+ * lib/string.c implements them.
+ */
 #ifndef STRING_H
 #define STRING_H
 #include <stddef.h>

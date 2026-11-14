@@ -1,4 +1,32 @@
-/* The menu bar, its menus, their commands (src/ui/menu.asm). */
+/* The menu bar, its menus and their commands.
+ *
+ * # How it works
+ * A menu has its title, its column and its items. An item has its command (ACT_*), its flags
+ * (MF_*), its text with '&' before the hotkey, and its key's name; MF_SEP alone is a separator.
+ *
+ * An MF_SUB item's command is its sub-menu's index past the bar's (NMENU on); the sub-menu's box is
+ * drawn over its parent's. A command chosen goes to uimn_act.
+ *
+ * menu_run runs the bar from menu m, its box open or not. The tables and the menus' state are
+ * static.
+ *
+ * # asm structure (src/ui/menu.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | mn_bar | menu_bar | MIRROR |
+ * | mn_run | menu_run | MIRROR |
+ * | mn_alt | menu_alt | MIRROR; D1 |
+ * | mn_altl | menu_altchar | MIRROR |
+ * | mn_x, mn_tt | menu_x, menu_title | MIRROR |
+ * | ui_upper | upcase (base.h); is_letter, is_digit, is_blank beside it | MOVED |
+ * | mn_skip, mn_help, mn_off, mn_item, mn_size, mn_drop, mn_box, mn_move, mn_unalt, mn_swap, mn_find, mn_chk | statics | MIRROR |
+ * | mn_flags, mn_scan, mn_alta, mn_it, t_*, m_*, g_ui.mn.*, bf.ui_hbuf | statics | MIRROR |
+ * | MF_*, NMENU | menu.h | MIRROR |
+ * | A_NEW .. A_NONE | ACT_NEW .. ACT_NONE (menu.h) | D2 |
+ *
+ * - D1. A flag result is a bool, true the success.
+ * - D2. Renamed: comp's dfa.h has the A_ prefix.
+ */
 #include "ui/menu.h"
 #include "session.h"
 #include "plat/pscr.h"

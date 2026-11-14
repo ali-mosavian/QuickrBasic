@@ -1,4 +1,44 @@
-/* The editor: its start, the key loop, the menu commands, running the program (src/ui/ui.asm). */
+/* The editor: its start, the key loop, the menu commands and running the program.
+ *
+ * # How it works
+ * Page 0 is the editor's, page 1 the program's output. uimn_start sets the editor up and enters the
+ * key loop, which never returns.
+ *
+ * A run enters the text again when it changed (repl_relink); an error, BREAK or STOP comes back to
+ * the editor at its line. The editor runs only when standard input and output are both the console.
+ *
+ * The editor runs under repl_main's setjmp: a run or an error unwinds the C stack, so nothing the
+ * editor keeps lives on it.
+ *
+ * # asm structure (src/ui/ui.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | ui_start | uimn_start | MIRROR |
+ * | ui_ready, ui_err | uimn_ready, uimn_error | MIRROR; noreturn |
+ * | ui_loop | loop | MIRROR; noreturn |
+ * | ui_getkey, ui_key, ui_act | uimn_getkey, uimn_key, uimn_act | MIRROR |
+ * | ui_stopped, ui_cancont | uimn_stopped, uimn_cancont | MIRROR; D1 |
+ * | ui_runp, ui_contp | uimn_run, uimn_cont | MIRROR; noreturn |
+ * | ui_selw, ui_dec | uimn_selword, uimn_dec | MIRROR |
+ * | ui_lin | psys_self (plat/psys.h) | MOVED |
+ * | hl_load, ui_win, ui_nohelp, im_key, ed_key, ui_syntax, ui_about, ui_asksave, ui_reset, ui_new, ui_open, ui_load, ui_save, ui_saveas, ui_exit, ui_view, ui_in, ui_out, ui_outclr, ui_sync, ui_atline, ui_exec, ui_dxrun, ui_find, ui_find3, ui_search, ui_match, ui_wordc, ui_fdef, ui_change | statics | MIRROR |
+ * | ed_ws, ed_wsq, ed_moves, ui_acts | static tables | MIRROR |
+ * | u_kedit, u_krun, u_kimm | uimn_keys_edit, uimn_keys_run, uimn_keys_imm (StatusKeys) | MIRROR |
+ * | u_ok, u_cancel, u_bhelp, u_untl, u_mbar, u_dlg | uimn_ok, uimn_cancel, uimn_helpbtn, uimn_untitled, uimn_menu_help, uimn_dlog_help | MIRROR |
+ * | u_imm, u_f1, u_f1s | draw.c's statics | MOVED |
+ * | u_open .. u_star, bt_ok, bt_ync | dialog.c's statics | MOVED |
+ * | u_oom, u_range, u_order | - | dropped, unused |
+ * | u_notfound, u_overw, u_nomatch, u_chdone, u_notsaved, u_access, u_wordp, u_nohelp, u_about, u_welcome, u_anykey, u_esc, bt_wel | statics | MIRROR |
+ * | g_hlpb | uimn.help_text | MOVED (ui.h) |
+ * | g_ui.lp.ideon, ui_foc, ui_help, ui_kf | uimn.on, focus, help, keyflags | MOVED (ui.h) |
+ * | g_ui.lp.alt_t, ui_rf, ui_cpos, ui_rpos, ui_ecode, ui_eln, ui_wrap, ul_new | statics (ui_wrap starts true) | MIRROR |
+ * | g_ui.fd.uc_all, uc_f, uc_sl, uc_sc, us_l, us_c | statics | MIRROR |
+ * | g_ui.bf.uc_line, sy_buf, ui_fn, ui_ebuf | uimn.line, build, file, errmsg | MOVED (ui.h) |
+ * | VIDEO | the dos32 screen platform's | MOVED |
+ *
+ * - D1. A flag result is a bool, true the success: uimn_stopped true when stopped, uimn_cancont
+ *   true when it can.
+ */
 #include "ui/uimain.h"
 #include "session.h"
 #include "io/console.h"

@@ -1,4 +1,21 @@
-/* The editor's screen (src/ui/scr.asm). */
+/* The editor's screen: cells, strings, boxes and shadows, drawn off-screen and shown in one flip.
+ *
+ * # How it works
+ * Drawing goes to a copy of page 0; scrn_flip shows it. A place is row, col; a slot is an attribute
+ * slot (SL_*), made the theme's attribute (them_attr) as it is drawn.
+ *
+ * A string's '&' marks its hotkey, drawn in slot hot; a plain one has hot == slot. A run goes on
+ * into the next row past column 79.
+ *
+ * # asm structure (src/ui/scr.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | sc_fill, sc_str, sc_strn, sc_slen | scrn_fill, scrn_str, scrn_strn, scrn_slen | MIRROR |
+ * | sc_box, sc_sep, sc_attr, sc_shadow | scrn_box, scrn_sep, scrn_attr, scrn_shadow | MIRROR |
+ * | sc_cur, sc_shape, sc_flip | scrn_cursor, scrn_shape, scrn_flip | MIRROR |
+ * | sc_at | cell | MIRROR |
+ * | g_scrb | cells (static) | MIRROR |
+ */
 #include "ui/screen.h"
 #include "ui/theme.h"
 #include "plat/pscr.h"

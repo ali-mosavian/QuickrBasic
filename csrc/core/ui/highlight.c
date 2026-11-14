@@ -1,7 +1,27 @@
-/* Syntax highlighting (src/ui/syntax.asm). The line's body, each item at its column
-   (lexr.col), gives its slot to the columns from there to the next item's. state: what the last
-   item makes of the next: after AS or TYPE a type; after SUB, FUNCTION, DEF a name being
-   declared, then its parameters in the ( ) after it, depth deep. */
+/* Syntax highlighting: a line's keywords, strings, numbers, comments and names in the theme's
+ * colours.
+ *
+ * # How it works
+ * synt_row tokenizes the line as the compiler does (lexr_line with lexr.col). Each item of the
+ * body, at its column, gives its slot to the columns from there to the next item's. The columns
+ * SL_ED has are left as drawn. Off (synt.on false): nothing.
+ *
+ * A state carries what the last item makes of the next: after AS or TYPE a type; after SUB,
+ * FUNCTION, DEF a name being declared, then its parameters in the ( ) after it, depth deep.
+ *
+ * The text is copied to uimn.line first: the lexer changes it.
+ *
+ * # Example
+ *   FOR i = 1 TO 10 ' loop    FOR, TO: SL_KW; i: SL_NAM; 1, 10: SL_NUM; ' loop: SL_COM
+ *
+ * # asm structure (src/ui/synt.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | hl_toggle | synt_toggle | MIRROR |
+ * | hl_row | synt_row | MIRROR |
+ * | g_hlon | synt.on (starts true) | MIRROR |
+ * | hl_line, g_hls, g_hld, g_hlen, g_hlpa, g_hlpc, g_hlc, HS_* | line and its statics | MIRROR |
+ */
 #include "ui/highlight.h"
 #include "session.h"
 #include "ui/screen.h"

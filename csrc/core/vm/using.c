@@ -1,5 +1,28 @@
-/* PRINT USING (src/vm/using.asm, as llrm's runtime/qb/using.c). A number is digits: its value is
-   0.digits * 10^ni. */
+/* PRINT USING, as llrm's runtime/qb/using.c.
+ *
+ * # How it works
+ * US.BEGIN takes the format (usng_usb); each item goes to the format's next field (usng_usi,
+ * usng_usf, usng_usd, usng_uss); US.END writes the text up to the next field (usng_use,
+ * usng_usen). The format starts again past its last field.
+ *
+ * The format is literal text and fields: ! the first character, & all of it, \  \ as wide as
+ * that, or a number: # a digit, a point, commas, a leading + or $$ or ** or **$, a trailing + or -,
+ * ^^^^ an exponent; _ makes the next character literal.
+ *
+ * A number is digits: its value is 0.digits * 10^scale, rounded to the field's places, then
+ * written with its signs, fill and exponent.
+ *
+ * # Example
+ *   PRINT USING "###.##"; 3.14159       "  3.14"
+ *
+ * # asm structure (src/vm/using.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | sc_usb, sc_usi, sc_usf, sc_usd, sc_uss, sc_use | usng_usb, usng_usi, usng_usf, usng_usd, usng_uss, usng_use | MIRROR |
+ * | sc_usen | usng_usen | MIRROR |
+ * | TUSF | UsngField (using.h) | MIRROR |
+ * | us_*, g_ufmt .. g_utc, u_numc | static; Usng (using.h) | MIRROR |
+ */
 #include "vm/using.h"
 #include "session.h"
 #include "io/console.h"

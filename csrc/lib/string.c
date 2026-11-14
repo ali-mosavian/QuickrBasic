@@ -1,6 +1,10 @@
-/* The string routines of lib/include/string.h. clang calls memcpy, memmove and memset in the
-   build's convention (-mregparm=3), not llrm's runtime's: they are here, renamed in the objects
-   (Makefile) so as not to clash with the runtime's. */
+/* The string routines of lib/include/string.h.
+ *
+ * # How it works
+ * clang calls memcpy, memmove and memset in the build's convention (-mregparm=3), not llrm's
+ * runtime's: they are here, renamed in the objects (Makefile) so as not to clash with the
+ * runtime's. A copy or a fill moves a dword at a time.
+ */
 #include <stdint.h>
 #include <string.h>
 

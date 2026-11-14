@@ -1,15 +1,50 @@
-/* The executor (src/vm/exec.asm): the run's state, the dispatch loop, the data stack, the ops'
-   records and numbers (vm/ops.def).
-
-   The code is a stream of byte ops in the code cache, each its op then its operands. The loop
-   reads the op at vm.ip, keeps its place in vm.opip and calls its handler with vm.ip at its
-   operands; the handler moves vm.ip past them, or to a jump's target, and returns. The data
-   stack is 8-byte Cells in the arena, growing down from its top: vm.sp the top cell. Every op
-   takes its operands off it and pushes its result; at a statement's start sp is vm.rsp.
-
-   Errors unwind with longjmp: repl_error (io/repl) to READY or to the compiler; an error ON ERROR
-   handles goes back into the loop at the handler (flow_trap). A run ends at READY (repl_ready,
-   io/repl), never by returning from exec_run. */
+/* The executor's interface. How it works: exec.c.
+ *
+ * The VM's state, the data stack, the ops' records and numbers, and how code is encoded.
+ *
+ * The code is a stream of byte ops in the code cache, each its op then its operands. The loop reads
+ * the op at vm.ip, keeps its place in vm.opip and calls its handler with vm.ip at its operands; the
+ * handler moves vm.ip past them, or to a jump's target, and returns. The data stack is 8-byte Cells
+ * in the arena, growing down from its top: vm.sp the top cell. Every op takes its operands off it
+ * and pushes its result; at a statement's start sp is vm.rsp.
+ *
+ * Errors unwind with longjmp: repl_error (io/repl) to READY or to the compiler; an error ON ERROR
+ * handles goes back into the loop at the handler (flow_trap). A run ends at READY (repl_ready,
+ * io/repl), never by returning from exec_run.
+ *
+ * # asm structure (src/vm/vm.inc, state.inc)
+ * | asm | here | |
+ * |---|---|---|
+ * | TJUMP, JSIZE | Jump, JSIZE | MIRROR |
+ * | TERR | ErrOp | MIRROR |
+ * | TLREF | LineRef | MIRROR |
+ * | CELL, dpush, dpop | Cell; exec_push, exec_pushi/a/d, exec_pop, exec_popi/a/d | MIRROR |
+ * | dispatch | exec_run's loop (exec.c) | MOVED |
+ * | vslot, bvar | exec_u16, symb_cell(id) | MIRROR |
+ * | ipload | flow_place | MOVED |
+ * | subchk | subscript (exec.c) | MOVED |
+ * | tspclr | strg.tmp_used = strg.tmp_floor | MOVED |
+ * | stopchk | exec_stopchk (flow.c) | MOVED |
+ * | a1get | inside exec_*_a1 (exec.c) | MOVED |
+ * | TRUN (g_state.rn) | Vm | MIRROR |
+ * | opip, rsp, stklim, cstk, lsp | vm.opip, vm.rsp, vm.stklim, vm.frames, vm.callvars | D1 |
+ * | cplim | comp.depth (comp's) | MOVED |
+ * | line, runln, lnum | vm.line, vm.runln, vm.lnum | MIRROR |
+ * | stpflg | vm.stop (volatile) | MIRROR |
+ * | contln, contcode | vm.cont.line, vm.cont.code | MIRROR |
+ * | onerr, inerr, errn, erl, uerr | vm.err.handler, active, code, line, user | MIRROR |
+ * | resln, resat, resnext | vm.err.failed, vm.err.next | D2 |
+ * | lfrom, lto | list_range's parameters (comp) | MOVED |
+ * | narr | arry_*'s n parameter (mem) | MOVED |
+ * | stv, aret, cnarg, cop, fid, flim, fstep, fop, fvp, fsv, isw_si, lk, onk, runl, ppip, ppend, pres | locals, statics | MIRROR |
+ * | dlp, dataat, dyo, inend, iny0, iredo | StmtState (stmts.h) | MOVED |
+ * | (none) | vm.ip, vm.sp, vm.stktop, vm.loop, vm.running | D3 |
+ *
+ * - D1. The control stack is vm.frames and the save stack vm.callvars, typed records.
+ * - D2. RESUME's places are Places in vm.err.
+ * - D3. ESI and ESP are vm.ip and vm.sp; a handler returns where the asm jumps to dispatch. vm.loop
+ *   is the longjmp target for flow_trap.
+ */
 #ifndef CORE_VM_EXEC_H
 #define CORE_VM_EXEC_H
 #include "defs.h"

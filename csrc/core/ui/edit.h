@@ -1,10 +1,4 @@
-/* Editing: a line buffer, the program window, the selection, the clipboard, the immediate window
-   (src/ui/edit.asm).
-
-   The program window edits its line uimn.ed.line in uimn.edline and stores it when the cursor
-   leaves (edit_commit): spaces at its end cut, keywords capitalised, the syntax checked. A
-   selection from (sel_line, sel_col) to the cursor is a piece of one line, or whole lines when it
-   spans several. The insert mode, uimn.ed.insert, is every line buffer's. */
+/* The editing's interface. How it works: edit.c. */
 #ifndef UI_EDIT_H
 #define UI_EDIT_H
 #include "ui/ui.h"

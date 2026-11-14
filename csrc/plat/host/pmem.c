@@ -1,4 +1,8 @@
-/* The arena on the host: one zeroed block. Addr 0 stays unused, as on DOS32. */
+/* The arena on the host.
+ *
+ * # How it works
+ * One zeroed block. Addr 0 stays unused, as on DOS32.
+ */
 #include <stdlib.h>
 #include "plat/pmem.h"
 

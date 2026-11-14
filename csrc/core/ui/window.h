@@ -1,11 +1,4 @@
-/* The windows: their rows, focus, Split, grow, shrink, maximise (src/ui/win.asm).
-
-   They stack from row 1 to row 23: W_ED1, W_ED2 (Split), W_IMM, each uimn.win.win[w].height rows
-   with its title, 0 hidden. uimn.win.vert: ED2 beside ED1, in its rows, each half the columns.
-   An edit window has a bottom row, the sideways scroll bar's with the focus. The active edit
-   window's state is uimn.ed and uimn.edline.col; the other's waits in its win[].ed, win[].col.
-   With the debug pane (uimn.pane_on) the edit windows have DP_COL columns, the pane the rest.
-   A window is W_ED1, W_ED2, W_IMM, or W_DBG for the pane. */
+/* Window management's interface. How it works: window.c. */
 #ifndef UI_WINDOW_H
 #define UI_WINDOW_H
 #include "ui/ui.h"

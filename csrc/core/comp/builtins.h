@@ -1,4 +1,4 @@
-/* QBasic's built-in functions: what the parser checks and the code generator calls. */
+/* The built-in functions' tables's interface. How it works: builtins.c. */
 #ifndef COMP_BUILTINS_H
 #define COMP_BUILTINS_H
 #include "defs.h"
