@@ -139,7 +139,7 @@ void symb_init(Session *const S)
     S->symb.text_free = 0;
     memset(S->symb.nhead, 0, sizeof S->symb.nhead);
     symb_vars_init(S);
-    decl_reset(S);
+    decl_reset(&S->decl, &S->scop, &S->symb);
 }
 
 void symb_vars_init(Session *const S)

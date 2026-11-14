@@ -1,4 +1,12 @@
-/* The start (main.asm's rt_start): the arena, its fixed regions, the blocks, the parts' state. */
+/* The start: the arena, its fixed regions, the blocks, the parts' state.
+ *
+ * # How it works
+ * boot sets the error handler, takes the arena from the platform (exiting with "Out of memory" when
+ * it gives too little), then runs each module's init in the asm's order (main.asm's rt_start):
+ * fixed regions first, then the blocks (code cache, program store), the front end's regions, and
+ * the symbol tables last, as they grow while code holds their cells. The front end's regions are
+ * placed with the program's.
+ */
 #include "boot.h"
 #include "session.h"
 #include "comp/comp.h"
@@ -21,9 +29,10 @@
 
 void boot(Session *const S, const FrontEnd *const fe)
 {
-    session_reset(S);
     S->repl.fe = fe;
     S->fault.raise = repl_fault;
+    scop_init(&S->scop, &S->fault);
+    decl_init(&S->decl, &S->fault);
     Addr lo, hi;
 
     if (!pmem_init(HMIN, &lo, &hi)) {

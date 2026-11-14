@@ -1,4 +1,64 @@
-/* The compiler (comp/comp.asm): a token body to stack-machine code. */
+/* The compiler: a token body to stack-machine code, one statement at a time.
+ *
+ * # How it works
+ * A statement is run by the generated automaton (comp/dfa.h): each state's entry for the byte at
+ * the cursor steps past a token, goes on at the statement's end, or runs an action, an emitter
+ * (A_*) or CALL K_*. The token cursor is comp.p, the code's next byte comp.out. The helpers here also take
+ * any cursor as `const uint8_t **p`. A body is in the arena (comp.cbuf or the program store), so a
+ * string literal's operand is addr_of() its text.
+ *
+ * Errors: while comp.busy, repl_error(code) calls comp_fail(code), which ends the line's code with
+ * ERR code dg at state, EOL and longjmps to comp_text's setjmp; comp_text then returns normally.
+ * The error is raised when the code runs.
+ *
+ * Each action parses its statement's operands (expr.c, refs.c) and emits through code.c. A store
+ * converts the value to its target's type (comp_store). Statement kinds with blocks, calls or
+ * records go to control.c; declarations were entered when the line was (declare.c).
+ *
+ * # Example
+ *    10 FOR i = 1 TO 3      act_for: the bounds, the variable, FOR; a statement map entry
+ *
+ * # asm structure (src/comp/comp.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | cm_line, cm_text | comp_line, comp_text | MIRROR; D1 |
+ * | cm_err | comp_fail | MIRROR; noreturn |
+ * | cm_expn, cm_expect, cm_dfa | comp_expnames, comp_expected, comp_dfa | MIRROR |
+ * | cm_toi, cm_tof, cm_tod, cm_tos, cm_tob, cm_toa, cm_dnz | comp_toint, comp_tofloat, comp_todouble, comp_tostring, comp_tobyte, comp_toaddr, comp_dtest | MIRROR |
+ * | cm_byt, cm_op, cm_opx, cm_opw, cm_dw, cm_ins, cm_lint, cm_call, cm_ileaf, cm_shv | code_byte, code_op, code_opb, code_opw, code_dword, code_insert, code_int, code_call, code_intleaf, code_shclass (code.c) | MOVED |
+ * | cm_icmp, cm_fcmp, cm_lflt | cg_icmp, cg_fcmp, cg_lfloat (codegen.c) | MOVED |
+ * | (by kind) | comp_toinfo: a variable's kind; comp_pick: one of four by T_* | D2 |
+ * | cm_opid | comp_opid | MIRROR |
+ * | cm_tgt, cm_store, cm_fst | comp_target, comp_store | MIRROR; A_FST's store too |
+ * | cm_chkcl, cm_chkop, cm_chkcm, cm_chkeq, cm_chk | comp_close, comp_open, comp_comma, comp_equals, comp_need | MIRROR |
+ * | cm_optcm, cm_lnum, cm_name, cm_jw | comp_optcomma, comp_lnum, comp_name, comp_lref | MIRROR |
+ * | st_get, st_getn, st_eos, st_eosn | comp_peek, comp_next, comp_eos, eosnext | MIRROR |
+ * | var_id, var_ispar, var_par, var_scope | comp_var, comp_ispar, comp_param, comp_scope | MIRROR |
+ * | et_sfx, lbl_at, lbl_nam | comp_suffix, comp_label, comp_nameof | MIRROR |
+ * | cm_rts | | gone: a return |
+ * | cm_if, cm_fv, cm_fork, cm_for, cm_for1, cm_nv, cm_on, cm_onl, cm_print, cm_list, cm_dv, cm_dat, cm_rem, cm_in, cm_rd, cm_get, cm_goto, cm_gosub, cm_run, cm_res, cm_ret, cm_n0, cm_n1, cm_narg, cm_fop, cm_write, cm_lin | act_if, act_fv, act_fork, act_for, act_for1, act_for2, act_nv, act_on, act_onl, act_print, act_list, act_dv, act_data, act_rem, act_in, act_rd, act_get, act_goto, act_gosub, act_run, act_res, act_ret, act_n0, act_n1, act_narg, act_fop, act_write, act_lin | MIRROR; D3 |
+ * | g_cmact | actions[] | MIRROR; `[A_x - A_BASE] = ...` |
+ * | cm_new, cm_ee, cm_nx, cm_om, cm_fin, cm_mark, cm_dbg, cm_dbgx, cm_mapstmt, cm_tok, ps_look, cm_lnld, var_decl, cm_dim1, cm_dvas, cm_dsubs, cm_using | stmts (cm_new, cm_ee), ended (cm_nx, cm_om), finish, mark, dbg, dbgdrop, mapstmt, token, pslook, lnumload, declared, dim1, dimas, dimsubs, using | MIRROR |
+ * | cm_do | token's dispatch | MIRROR |
+ * | cm_end, cm_w, cm_skip | done and the end of comp_text, in code_opw, comp_skipdata | MIRROR |
+ * | g_cbuf (g_cbufh before it) | comp.cbuf | D4 |
+ * | g_xbuf | comp.xbuf[XLIM + COMP_TAIL] | MIRROR |
+ * | g_etk | comp_etkind[7] | MIRROR |
+ * | g_dlprc, g_lmod | comp.dlproc, comp.modlabel | MIRROR |
+ * | g_psexp, g_psor, g_pscm, g_dmask | statics; comp.dmask | MIRROR |
+ * | g_state.cm (TCOMP) | Comp; each field's comment names its asm field | D5 |
+ * | (new) | comp_init: carves comp.cbuf (allo_carve); main.c calls it | |
+ * | (new) | comp_cur, comp_curn, comp_end: st_get, st_getn, st_eos at comp.p | |
+ * | (new) | comp_rd16, comp_rd32: load16, load32 (base.h), unaligned reads | |
+ *
+ * - D1. comp_text takes the body; the asm's SI is before it.
+ * - D2. The asm picks by kind inline.
+ * - D3. The actions are static, in one table.
+ * - D4. comp.cbuf is an arena block with its byte before it.
+ * - D5. ctxlin is gone: a literal is addr_of its text. cst is a local of act_list. csp is busy and
+ *   unwind (a jmp_buf). rn.cplim is depth, cm_p's stack check as a nesting count (COMP_MAXDEPTH,
+ *   to calibrate). wv is lnum, and comp_opw's word.
+ */
 #include "comp/comp.h"
 #include "session.h"
 #include "comp/blocks.h"
@@ -142,7 +202,7 @@ static uint8_t convert_for_target(Session *const S)
     case VK_STR: { /* a STRING * n: n chars */
         comp_tostring(S);
         const uint16_t fix =
-            scop_fix(S, symb_var(&S->symb, S->comp.tgt)->name, S->comp.tgtsubs != 0);
+            scop_fix(&S->scop, symb_var(&S->symb, S->comp.tgt)->name, S->comp.tgtsubs != 0);
 
         if (fix) {
             code_int(&S->code, fix);
@@ -230,9 +290,9 @@ bool comp_optcomma(Session *const S)
 /* Label key of DX's kind: jline, in the scope's own or, when modlabel (cleared), the module's. */
 static void lfind(Session *const S, const uint16_t key, const uint16_t kind)
 {
-    const uint16_t scope = S->comp.modlabel ? 0 : scop_own(S);
+    const uint16_t scope = S->comp.modlabel ? 0 : scop_own(&S->scop);
     S->comp.modlabel = false;
-    S->comp.jline = scop_lfind(S, scope | kind, key);
+    S->comp.jline = scop_lfind(&S->scop, &S->symb, scope | kind, key);
 }
 
 uint8_t comp_lnum(Session *const S)
@@ -370,7 +430,7 @@ void comp_scope(Session *const S, const uint16_t name)
     const Binding *b = nullptr;
 
     if (!(symb_name(&S->symb, name)->flags & NM_LBL))
-        b = scop_look(S, name, &scope);
+        b = scop_look(&S->scop, name, &scope);
     if (!b || !scope) {
         S->comp.scope = 0; /* the module's */
         return;
@@ -385,7 +445,7 @@ static void declared(Session *const S, const uint16_t name)
 {
     if (!S->decl.explicit_ || symb_name(&S->symb, name)->flags & (NM_SUB | NM_FUNC | NM_FN))
         return;
-    if (!scop_known(S, name))
+    if (!scop_known(&S->scop, name))
         repl_error(S, E_VND);
 }
 
@@ -400,14 +460,14 @@ uint16_t comp_var(Session *const S, const uint8_t shape, const uint8_t et)
     uint8_t type = et;
 
     if (!type && sfx)
-        type = scop_sfx(S, name, sfx, kind != 0);
+        type = scop_sfx(&S->scop, name, sfx, kind != 0);
     else if (!type) {
         uint16_t id;
 
         if (comp_param(S, name, kind, &id)) /* no suffix: a parameter's own type */
             return id;
 
-        type = scop_type(S, name, kind != 0);
+        type = scop_type(&S->scop, name, kind != 0);
 
         if (!type)
             type = S->symb.deft[upcase(first) - 'A'];
@@ -707,11 +767,17 @@ void comp_text(Session *const S, const uint8_t *const body)
     S->comp.len = (uint8_t)(S->code.out - S->code.buf);
 }
 
+void comp_proc(Session *const S, const uint8_t proc)
+{
+    S->comp.proc = proc;
+    scop_enter(&S->scop, proc ? blok_proc(&S->blok, proc) : nullptr);
+}
+
 void comp_line(Session *const S)
 {
     S->comp.line = DLINE;
-    scop_proc(S, S->comp.dlproc);
-    decl_deftype(S, 0xFFFFFFFF); /* the program's end's DEFtypes */
+    comp_proc(S, S->comp.dlproc);
+    decl_deftype(&S->decl, &S->symb, 0xFFFFFFFF); /* the program's end's DEFtypes */
     S->code.buf = S->comp.xbuf;
     comp_text(S, S->comp.cbuf);
 }
@@ -903,7 +969,7 @@ static void act_dv(Session *const S)
 
     if (*S->comp.p == '(') {
         const uint16_t name = symb_var(&S->symb, id)->name;
-        const uint8_t t = scop_rec(S, name, true); /* a record array: its own variable */
+        const uint8_t t = scop_rec(&S->scop, name, true); /* a record array: its own variable */
         if (t)
             id = ref_recarray(S, name, t);
 
@@ -913,7 +979,7 @@ static void act_dv(Session *const S)
     }
 
     dimas(S);
-    const uint16_t fix = scop_fix(S, symb_var(&S->symb, id)->name, false);
+    const uint16_t fix = scop_fix(&S->scop, symb_var(&S->symb, id)->name, false);
 
     if (!fix || symb_var(&S->symb, id)->info & VI_ARR)
         return;

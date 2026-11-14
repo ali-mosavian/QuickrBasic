@@ -47,6 +47,8 @@ extern const FrontEnd repl_batch;
    setjmp. */
 [[noreturn]]
 void repl_main(Session *S);
+/* The line's declarations entered, after its 32-bit warnings to the front end. */
+void repl_declare(Session *S, const uint8_t *body);
 /* Session.fault's raise: a module's error, reported as diag_raise or repl_error does. */
 [[noreturn]]
 void repl_fault(Fault *f, const Failure *e);

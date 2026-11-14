@@ -263,7 +263,7 @@ static void tokenize(Session *const S)
     memcpy(uimn.line, uc.pre, strlen((const char *)uc.pre) + 1);
     S->vm.line = DLINE;
     lexr_line(S, uimn.line, S->comp.cbuf);
-    decl_line(S, S->comp.cbuf); /* a typed SUB known to the lines after */
+    repl_declare(S, S->comp.cbuf); /* a typed SUB known to the lines after */
 }
 
 /* The body compiled for its syntax; false: an error, its column in uc.ecol. */

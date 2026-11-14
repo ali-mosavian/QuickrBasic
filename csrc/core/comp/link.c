@@ -1,4 +1,33 @@
-/* The code cache (comp/link.asm). */
+/* The code cache: lines compiled to streams, and a run's start.
+ *
+ * # How it works
+ * The cache is mem's HCACHE block in the arena, offsets from its base (mem's cachebase): the direct
+ * line's stream at DCODE (1536 bytes), the program lines' from CACHE0 to CLIM. A stream is its
+ * statement map, a Stmt per statement then their count:4, then the code; Line.code is the code's
+ * offset, 0 none.
+ *
+ * link_start runs before a run: blocks paired (blok_pair), the procedures' variables declared, the
+ * cache empty. link_cache compiles a line into the cache when it is first run. A full cache is
+ * flushed: the frames' and CONT's ips become offsets in their lines' code, every line loses its
+ * code.
+ *
+ * # asm structure (src/comp/link.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | cm_link | link_start | MIRROR; D1 |
+ * | cm_cache | link_cache(line) | MIRROR; its code's Addr |
+ * | cm_xlate | link_xlate(&at) | MIRROR; false: no room |
+ * | cm_walk | link_walk(code, each) | MIRROR |
+ * | g_opsz | flow_opsize(op) (vm) | MOVED |
+ * | g_opfl | | D2 |
+ * | cm_comp, cm_flush, cx_mapstmt | link_compile(line), flush, mapstmt | MIRROR |
+ * | lnk.cend, elim, eeol, einb | link.end, link.lim, link.eol, link.inbeg (Addrs) | MIRROR |
+ * | lnk.emap, ecode, mapnext | link.map, link.code (Addrs), link.mapnext | MIRROR |
+ * | lnk.linked, cursor, nfl | link.linked, link.cursor, link.flushes | MIRROR |
+ *
+ * - D1. The procedures' variables are declared here, after the block scan (link_procvars).
+ * - D2. Unused in the asm; dropped.
+ */
 #include "comp/link.h"
 #include "session.h"
 #include "comp/blocks.h"
@@ -18,8 +47,8 @@ void link_compile(Session *const S, const uint32_t line)
 {
     S->code.buf = S->comp.xbuf;
     S->comp.line = line;
-    scop_proc(S, blok_procof(&S->blok, line));
-    decl_deftype(S, line);
+    comp_proc(S, blok_procof(&S->blok, line));
+    decl_deftype(&S->decl, &S->symb, line);
     comp_text(S, (const uint8_t *)prog_line(&S->prog, line) + HDR);
 }
 
@@ -41,7 +70,7 @@ static uint16_t link_param(Session *const S, const Param *const pa)
             et = decl_astype[q[1] - TK_INTEGER];
         else { /* AS a TYPE: its record, its array */
             const bool arr = pv[pv[1] + 4] == '(';
-            const uint16_t t = scop_rec(S, comp_nameof(pv), arr);
+            const uint16_t t = scop_rec(&S->scop, comp_nameof(pv), arr);
             et = t ? (uint8_t)(t + ET_REC) : 0;
         }
     }
@@ -56,9 +85,9 @@ static void link_procvars(Session *const S)
 {
     for (uint8_t i = 1; i < S->blok.nprocs; i++) {
         Proc *const p = S->blok.procs[i];
-        decl_deftype(S, p->first);
+        decl_deftype(&S->decl, &S->symb, p->first);
         symb_name(&S->symb, p->name)->proc = i;
-        scop_proc(S, i);
+        comp_proc(S, i);
 
         if (p->kind == PK_FUNC) {
             S->comp.p = at(S->prog.base + p->at); /* its result: a scalar of its name */
@@ -68,7 +97,7 @@ static void link_procvars(Session *const S)
         for (uint16_t k = 0; k < p->npar; k++)
             p->params[k].var = link_param(S, &p->params[k]);
 
-        scop_proc(S, 0);
+        comp_proc(S, 0);
     }
 }
 

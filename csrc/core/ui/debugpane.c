@@ -1,4 +1,29 @@
-/* The debug pane (src/ui/dpane.asm). */
+/* The debug pane: Watch, Locals and Call stack, right of the code at a stop.
+ *
+ * # How it works
+ * At a stop the pane takes columns DP_COL on, the edit windows' rows. uimn.pane_on is ui.h's; the
+ * rest is static.
+ *
+ * The frames are session_frames', each with its text line and its row. Locals are the selected
+ * frame's procedure's variables, its parameters first, as that frame sees them (session_cell).
+ * Watch holds expressions, each PRINTed by session_eval in the stop's procedure's scope at each
+ * stop; they are kept across runs.
+ *
+ * The tooltip shows the Locals row of the variable under the mouse (uimn.tip_mouse) or the cursor.
+ *
+ * # asm structure (src/ui/dpane.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | dp_open, dp_close, dp_draw | dpan_open, dpan_close, dpan_draw | MIRROR |
+ * | dp_key | dpan_key | MIRROR |
+ * | dp_mouse, dp_hover | dpan_mouse, dpan_hover | MIRROR |
+ * | dp_tip | dpan_tip | MIRROR |
+ * | every other dp_* | statics | MIRROR |
+ * | g_ui.dp.dp_on, tt_ms | uimn.pane_on, uimn.tip_mouse (ui.h) | MOVED |
+ * | g_ui.dp.* else, TDPANE, TDFRM, g_dp*, u_dp*, dg_dpw | statics | MIRROR |
+ * | DP_STK, NDFRM, NDVAR, NWATCH, WXLEN, NDP | statics | MIRROR |
+ * | DP_COL, DP_W, DP_TW | ui.h | MOVED |
+ */
 #include "ui/debugpane.h"
 #include "session.h"
 #include "comp/blocks.h"
@@ -692,12 +717,12 @@ static bool match(
 static bool seen(Session *const S, const uint16_t id)
 {
     const uint16_t name = symb_var(&S->symb, id)->name;
-    const Binding *b = scop_get(S, 0, name);
+    const Binding *b = scop_get(&S->scop, 0, name);
 
     if (b && b->flags & BF_SHR)
         return true;
 
-    b = scop_get(S, blok_proc(&S->blok, dp.proc)->name, name);
+    b = scop_get(&S->scop, blok_proc(&S->blok, dp.proc)->name, name);
     return b && b->flags & BF_REF;
 }
 

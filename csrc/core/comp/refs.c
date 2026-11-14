@@ -1,3 +1,28 @@
+/* Parses references into the tree: a record's field or all of a record, a variable's place, a call and its arguments.
+ *
+ * # How it works
+ * Names are resolved and nodes built here; nothing is emitted (codegen.c does). A record reference
+ * (ref_record) is an N_REF with its place in the record (RecRef: the field's ET_*, offset, size);
+ * ref_field makes its value, an N_FIELD. ref_place gives a variable's place for GET, PUT and FIELD.
+ *
+ * A call (ref_call) is an N_CALL whose arguments are N_ARG children, each passed by value, by
+ * reference, as an array or as a record whole (PA_*); how they are written is an ArgsForm. A
+ * procedure DECLAREd only is an N_CALL CALL_UNDEF.
+ *
+ * # asm structure (src/comp/ctl.asm, expr.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | rc_ref, rc_load, rc_avar | ref_record, ref_field, ref_recarray | MIRROR |
+ * | rc_nrec, rc_nreca, rc_saddr, rc_whole, rc_path, rc_svar | nrec(name, array), place, whole, path, recvar | MIRROR |
+ * | cm_addr | ref_place | MIRROR |
+ * | ct_proc, ct_fcall, ct_uarg | ref_proc(&idx), ref_call, ref_dropargs | MIRROR; D1 |
+ * | ct_args, ct_arg, ct_aend, ct_ptm | args, arg (an N_ARG), argnode, ptm | MIRROR; D1 |
+ * | g_vakind | vakind | MIRROR |
+ * | g_rfet, g_rfoff, g_rffix | RecRef.et, off, fix | D2 |
+ *
+ * - D1. The asm emits a call's code as it parses; the C builds the N_CALL and codegen.c emits it.
+ * - D2. A record's place is a RecRef on the node, not globals.
+ */
 #include "comp/refs.h"
 #include "session.h"
 #include "comp/declare.h"
@@ -33,7 +58,7 @@ static uint8_t nrec(Session *const S, const uint16_t name, const bool array)
 
     if (!array && comp_param(S, name, 0, &id))
         return 0; /* a parameter, not a record */
-    return scop_rec(S, name, array);
+    return scop_rec(&S->scop, name, array);
 }
 
 static uint16_t recvar(Session *const S, const uint16_t name, const uint8_t t, const uint8_t kind)
@@ -50,7 +75,7 @@ uint16_t ref_recarray(Session *const S, const uint16_t name, const uint8_t t)
 /* rc_whole: all of a record of TYPE t, at off. */
 static RecRef whole(Session *const S, const uint8_t t, const uint16_t off)
 {
-    return (RecRef){.et = ET_REC + t, .off = off, .fix = S->decl.types[t].size};
+    return (RecRef){.et = ET_REC + t, .off = off, .fix = decl_type(&S->decl, t)->size};
 }
 
 /* rc_path: the fields f.g.. of TYPE t, the text len long. */
@@ -70,12 +95,12 @@ static RecRef path(Session *const S, uint8_t t, const uint8_t *text, uint32_t le
             n++;
 
         const uint16_t name = symb_find_name(S, text, (uint8_t)n);
-        const TypeDef *const td = &S->decl.types[t];
+        const TypeDef *const td = decl_type(&S->decl, t);
         f = nullptr;
 
         for (uint32_t i = 0; i < td->nfld && !f; i++)
-            if (S->decl.fields[td->first + i].name == name)
-                f = &S->decl.fields[td->first + i];
+            if (td->fields[i].name == name)
+                f = &td->fields[i];
         if (!f)
             synerr(S);
 
@@ -198,7 +223,7 @@ static uint32_t vakind(Session *const S, const uint16_t id)
         return va_pack(v->type == ET_I4 ? VA_RAW : VA_I2, 4);
 
     case VK_STR:
-        return va_pack(VA_DESC, scop_fix(S, v->name, v->info & VI_ARR));
+        return va_pack(VA_DESC, scop_fix(&S->scop, v->name, v->info & VI_ARR));
 
     default:
         return va_pack(VA_RAW, 4);
@@ -335,7 +360,7 @@ static Node *arrayarg(Session *const S, const uint16_t par)
     const uint8_t *const after = comp_skipname(S->comp.p);
 
     if (*after == '(') {
-        const uint8_t t = scop_rec(S, name, true);
+        const uint8_t t = scop_rec(&S->scop, name, true);
         uint16_t id;
 
         if (t) {
@@ -353,7 +378,7 @@ static Node *arrayarg(Session *const S, const uint16_t par)
         return argnode(S, PA_ARRAY, nullptr, id);
     }
 
-    const uint8_t t = scop_rec(S, name, false);
+    const uint8_t t = scop_rec(&S->scop, name, false);
 
     if (!t)
         synerr(S);
@@ -372,7 +397,7 @@ static Node *arg(Session *const S, const uint16_t par, const bool byval)
         const uint16_t name = comp_nameof(S->comp.p);
 
         if (!(symb_name(&S->symb, name)->flags & (NM_SUB | NM_FUNC | NM_FN)) &&
-            !scop_con(S, name)) {
+            !scop_con(&S->scop, name)) {
             const uint8_t *const p = S->comp.p;
             const uint8_t *const after = comp_skipname(p);
             const uint8_t ptype = symb_var(&S->symb, par)->type;
@@ -388,7 +413,7 @@ static Node *arg(Session *const S, const uint16_t par, const bool byval)
                 const uint16_t id = comp_var(S, 0, 0);
                 const Var *const v = symb_var(&S->symb, id);
 
-                if (v->info & VI_ARR && !scop_fix(S, v->name, true) && v->type == ptype) {
+                if (v->info & VI_ARR && !scop_fix(&S->scop, v->name, true) && v->type == ptype) {
                     Node *const e = place(S, O_RA_ADDR, id);
 
                     if (aend(comp_cur(&S->comp)))

@@ -1,4 +1,45 @@
-/* Block statements, procedures' calls, records' references (comp/ctl.asm). */
+/* Compiles block statements, procedure calls, records' copies, and event and other control statements.
+ *
+ * # How it works
+ * ctrl_stmt takes the statement at comp.p if it is one of these, else returns false. A block
+ * statement finds its entry (blok_find) and jumps to the targets blok_pair gave it:
+ *   IF c THEN         c, JF NXT
+ *   ELSEIF c THEN     JMP END, c, JF NXT
+ *   ELSE              JMP END
+ *   SELECT CASE e     e to its value's variable #n (n its depth), JMP NXT
+ *   CASE tests        JMP END, the tests or'd, JF NXT
+ *   DO [WHILE|UNTIL c]    c, JF|JT END
+ *   LOOP [WHILE|UNTIL c]  JMP NXT, or c, JT|JF NXT
+ *   WHILE c, WEND     c, JF END; JMP NXT
+ *   EXIT FOR, EXIT DO FPOP, JMP END; JMP END
+ *
+ * A direct line has no entries: its targets are none (NOTARGET, FFFFFFFFh), an error when run. A
+ * call's arguments and a record's references are parsed by refs.c; this file emits their code.
+ * Also here: ON ERROR, events, RESUME, COMMON, SWAP, REDIM, ERASE, DEF FN.
+ *
+ * # asm structure (src/comp/ctl.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | ct_stmt | ctrl_stmt | MIRROR |
+ * | ct_bif, ct_else, ct_jf, ct_fskip | ctrl_blockif, ctrl_else, ctrl_jf, ctrl_forskip | MIRROR |
+ * | ct_fcall, ct_uarg, ct_proc | ref_call, ref_dropargs, ref_proc (refs.c) | MOVED; D1 |
+ * | ct_pcall | pcall | MIRROR |
+ * | ct_undef, cm_swap | ctrl_undef, ctrl_swap | MIRROR |
+ * | rc_ref, rc_load, rc_avar | ref_record, ref_field, ref_recarray (refs.c) | MOVED |
+ * | rc_store | ctrl_recstore | MIRROR |
+ * | g_rfet, g_rfoff, g_rffix | an N_REF's rec.et, rec.off, rec.fix | D2 |
+ * | g_ctfet, g_ctffix | ctrl.fieldet, ctrl.fieldfix | MIRROR |
+ * | ct_none, ct_dseg, ct_def, ct_skip0, ct_redim, ct_erase, ct_onerr, ct_evk, ct_evn, ct_evs, ct_xst, ct_common, cm_skvar, ct_skip, ct_sub, ct_pret | statics none, defseg, deffn, skipparen, redim, erase, onerror, evkind, evnum, evstate, xstmt, common, skipvar, skip, sub, pret | MIRROR |
+ * | cm_skas, ct_mids | the asm's skips; mids | MIRROR |
+ * | ct_call, ct_name, ct_let, ct_rcopy, ct_scall, ct_pdecl, ct_pchk | call, namestmt, let, reccopy, subcall, declname, checkonly | MIRROR |
+ * | ct_args, ct_arg, ct_aend, ct_ptm, rc_nrec, rc_nreca, rc_saddr, rc_whole, rc_path, rc_svar | args, arg, ptm, nrec, place, whole, path, recvar (refs.c) | MOVED |
+ * | ct_target, ct_emitjump, ct_ent, ct_tgt, ct_jt, ct_jmp, ct_cond | target, emitjump (ctrl_jump), entry, target, jt, jump, cond | MIRROR |
+ * | ct_elseif, ct_belse, ct_do, ct_loop, ct_while, ct_wend, ct_exit, ct_select, ct_var, ct_case, ct_item, ct_cmp, ct_stv, ct_ldop, ct_vop | elseif, blockelse, doloop, loop, whileloop, wend, exitblock, select, selvar, casestmt, caseitem, casecmp, stv, ldop, code_opid | MIRROR |
+ * | g_ctnm, g_ctvr, g_cttp, g_cbyv, g_cbyd, g_cpar, g_rfnt | statics; ctrl.selid, ctrl.seltype | MIRROR |
+ *
+ * - D1. The call is a tree (N_CALL, built by ref_call); expr_emit emits it.
+ * - D2. A record's place is a RecRef on the node, not globals.
+ */
 #include "comp/control.h"
 #include "session.h"
 #include "comp/blocks.h"
@@ -704,7 +745,7 @@ static void erase(Session *const S)
     do {
         uint16_t id = shaped(S, 2);
         const uint16_t name = symb_var(&S->symb, id)->name;
-        const uint8_t t = scop_rec(S, name, true); /* a record array: its own variable */
+        const uint8_t t = scop_rec(&S->scop, name, true); /* a record array: its own variable */
         if (t)
             id = ref_recarray(S, name, t);
 

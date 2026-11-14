@@ -1,10 +1,10 @@
+/* The debugger's view of a session: its hooks, stepping, and a stopped run's state.
+ *
+ * # How it works
+ * The functions set the debug hooks and stepping state, and read a stopped run's frames,
+ * variables and next line from the VM's call frames.
+ */
 #include "session.h"
-
-void session_reset(Session *const S)
-{
-    S->scop.nbnd = 1;
-    S->scop.depth = 1;
-}
 
 void session_debug(Session *const S, const DebugHooks *const hooks)
 {
@@ -66,9 +66,9 @@ void session_drop_stop(Session *const S)
 
 bool session_set_next(Session *const S, const uint32_t line)
 {
-    scop_proc(S, blok_procof(&S->blok, line));
+    comp_proc(S, blok_procof(&S->blok, line));
     const uint8_t proc = S->comp.proc;
-    scop_proc(S, blok_procof(&S->blok, S->vm.cont.line));
+    comp_proc(S, blok_procof(&S->blok, S->vm.cont.line));
 
     if (proc != S->comp.proc)
         return false;

@@ -1,5 +1,9 @@
-/* A BASIC session: every module's state, one owner. Each function that reads or changes any of
-   it takes the Session as S, its first parameter. */
+/* A BASIC session: every module's state, one owner.
+ *
+ * # How it works
+ * Each function that reads or changes any of the state takes the Session as S, its first
+ * parameter. The debugger's functions (session_*) are implemented in session.c.
+ */
 #ifndef SESSION_H
 #define SESSION_H
 #include "fault.h"
@@ -69,9 +73,6 @@ struct Session {
     Usng usng;
     Vm vm;
 };
-
-/* The state a session starts with before boot: what is not zero. */
-void session_reset(Session *S);
 
 /* ---- the debugger --------------------------------------------------------------------------- */
 

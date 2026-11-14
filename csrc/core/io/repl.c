@@ -1,4 +1,44 @@
-/* Errors and the READY loop (io/repl.asm). */
+/* Errors and the READY loop: reading a line, running it, reporting what went wrong.
+ *
+ * # How it works
+ * repl_error never returns. It unwinds with longjmp to the first of these that holds:
+ *
+ *   1. dbug's watch probe running: back to it (dbg_ever).
+ *   2. compiling (comp.busy): comp_fail, which ends the line with an ERR op and longjmps to its
+ *      compile's start.
+ *   3. not BREAK nor E_OS, not in the handler, not the direct line, and a handler found:
+ *      flow_trap, which longjmps to vm.loop at the handler.
+ *   4. else repl.top with REPL_ERROR: the message (and a file run's where, a compile error's place
+ *      and words), then READY, the batch exit, or the editor's ui_err.
+ *
+ * Before any of them lexr.more is cleared and the x87 cleared. repl.top is the C stack's floor:
+ * where the asm reset ESP to rn.rsp. repl_ready, the READY loop's restart, longjmps there with
+ * REPL_READY.
+ *
+ * repl_qberr raises E_USR with vm.err.user = the QbErr. repl_enter takes a typed line and says
+ * which it was: ENTER_DIRECT, ENTER_EMPTY or ENTER_STORED. repl_main's loop reads, enters and
+ * runs lines; a front end hooks its places through its FrontEnd (null entries are the
+ * console's).
+ *
+ * # asm structure (src/io/repl.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | err_raise | repl_error | MIRROR |
+ * | err_sn, err_id, err_rg, err_us, err_cn, err_tm, err_st, err_iq, err_om, err_os, err_od | repl_error(E_SN) etc. | MIRROR |
+ * | ch_err (io/chan.asm) | repl_qberr | MOVED here |
+ * | er_diag, rpl_mod | static | MIRROR |
+ * | rpl_ready | repl_ready, repl_main | D1 |
+ * | rpl_run, rpl_cont | repl_run, repl_cont | MIRROR |
+ * | rpl_file | static | MIRROR; run by repl_main at the start |
+ * | rpl_load, rpl_enter, rpl_relink | repl_load, repl_enter, repl_relink | MIRROR |
+ * | ent_line, rpl_incl, rpl_line, rpl_read, rpl_inc, rpl_noinc | static | MIRROR |
+ * | g_fnmb, g_finc | repl.file, repl.incl | MIRROR |
+ * | r_* data | static | MIRROR |
+ * | vm.rsp (the C stack's reset) | repl.top | D2 |
+ *
+ * - D1. Every `jmp rpl_ready` is repl_ready, a longjmp to repl.top; the loop itself is repl_main.
+ * - D2. A jmp_buf, set by repl_main.
+ */
 #include "io/repl.h"
 #include <stddef.h>
 #include "session.h"
@@ -377,12 +417,58 @@ static uint16_t line_number(Session *const S, const uint8_t *const p)
     return (uint16_t)num;
 }
 
+/* To the front end's warn: "Warning: [line n: ]what has no effect in 32-bit mode". */
+static void repl_warn(Session *const S, const char *const what)
+{
+    char buf[80], *w = buf;
+    memcpy(w, "Warning: ", 9);
+    w += 9;
+
+    if (S->repl.fline) {
+        memcpy(w, "line ", 5);
+        w += 5;
+        char dig[5];
+        int n = 0;
+
+        for (uint32_t v = S->repl.fline; v; v /= 10)
+            dig[n++] = (char)('0' + v % 10);
+        while (n)
+            *w++ = dig[--n];
+
+        *w++ = ':';
+        *w++ = ' ';
+    }
+
+    static const char tail[] = " has no effect in 32-bit mode\r\n";
+    const uint32_t len = (uint32_t)strlen(what);
+    memcpy(w, what, len);
+    w += len;
+    memcpy(w, tail, sizeof tail - 1);
+    w += sizeof tail - 1;
+    S->repl.fe->warn(S, buf, (uint32_t)(w - buf));
+}
+
+void repl_declare(Session *const S, const uint8_t *const body)
+{
+    if (S->repl.fe->warn)
+        for (const uint8_t *p = body; *p;) {
+            const char *const what = decl_warning(&p);
+
+            if (!what)
+                break;
+
+            repl_warn(S, what);
+        }
+
+    decl_line(&S->decl, &S->scop, &S->symb, body, S->prog.entering, S->repl.loading);
+}
+
 /* The line in comp_cbuf, to be stored at place: its declarations. vm.lnum its number, NONUM
    none; returns its body past the number. */
 static const uint8_t *declare(Session *const S, const uint32_t place)
 {
     S->prog.entering = place;
-    decl_line(S, S->comp.cbuf);
+    repl_declare(S, S->comp.cbuf);
     const uint8_t *p = S->comp.cbuf;
     S->vm.lnum = NONUM;
 
@@ -400,9 +486,9 @@ static const uint8_t *enter_decls(Session *const S, const uint32_t place)
     const uint8_t *const p = declare(S, place);
 
     if (S->vm.lnum != NONUM)
-        scop_label(S, SC_NUM | S->decl.proc, S->vm.lnum, S->prog.entering);
+        scop_label(&S->scop, &S->symb, SC_NUM | S->decl.proc, S->vm.lnum, S->prog.entering);
     if (comp_label(p))
-        scop_label(S, S->decl.proc, comp_nameof(p), S->prog.entering);
+        scop_label(&S->scop, &S->symb, S->decl.proc, comp_nameof(p), S->prog.entering);
 
     return p;
 }
@@ -479,7 +565,7 @@ void repl_relink(Session *const S)
             line += prog_line(&S->prog, line)->len;
 
     symb_vars_init(S);
-    decl_reset(S);
+    decl_reset(&S->decl, &S->scop, &S->symb);
     prog_drop(S);
     S->repl.loading = true;
 

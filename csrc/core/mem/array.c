@@ -88,7 +88,7 @@ uint32_t arry_esize(Session *const S, const uint16_t id)
     const Var *const v = symb_var(&S->symb, id);
 
     if (v->type >= ET_REC)
-        return S->decl.types[v->type - ET_REC].size;
+        return decl_type(&S->decl, v->type - ET_REC)->size;
     if (v->info & SK_DBL)
         return 8;
 

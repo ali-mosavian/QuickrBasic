@@ -1,149 +1,177 @@
+/* Scoped declarations: what each name means in the module and in each procedure.
+ *
+ * # How it works
+ * A binding is a name's in one scope, the module's (0) or a procedure's (its name), holding the
+ * declared type, record and STRING * n of the scalar and of the array, a label's line and BF_*
+ * flags. A procedure's binding, any but BF_USE alone, makes the name its own there.
+ *
+ * A label is a binding too; a line number's is in its scope | SC_NUM, keyed by the number. The
+ * compiler's scopes are a stack of procedures, the module at its bottom; a name is looked up from
+ * the top down. From a SUB or FUNCTION the module's names are seen only when BF_SHR, or BF_REF
+ * there; from a DEF FN all.
+ *
+ * # asm structure (src/mem/scope.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | B_SC B_NAM B_NXT B_FLG B_ET B_REC B_FIX B_LINE, BSZ | Binding | MIRROR |
+ * | g_bnd, g_nbnd, g_bhead, g_lnbit, g_scs, g_scn | Scop.arena, nbnd, heads, lnbit, stack, depth | D5 |
+ * | g_bzero | `none` | MIRROR; static |
+ * | scp_init | scop_init, scop_reset | MIRROR |
+ * | scp_get, scp_bind | scop_get, scop_bind | MIRROR; D1 |
+ * | scp_proc | scop_enter | D2 |
+ * | scp_own, scp_look | scop_own, scop_look | MIRROR; D1 |
+ * | scp_decl | scop_type, scop_rec, scop_fix | D3 |
+ * | scp_arec | scop_rec(name, true) | D3 |
+ * | scp_sfx | scop_sfx | MIRROR |
+ * | scp_con, scp_mshr | scop_con, scop_mshr | MIRROR; D1 |
+ * | scp_known | scop_known | MIRROR; D4 |
+ * | scp_label, scp_lfind | scop_label, scop_lfind | MIRROR |
+ * | scp_enter, scp_leave, scp_frame, scp_hash, scp_lany | enter, frame, hash, lany | MIRROR; static |
+ *
+ * - D1. Return values replace registers and CF: nullptr for none, true for is.
+ * - D2. scop_enter takes the procedure itself; the caller (comp_proc) sets comp's cproc.
+ * - D3. One routine per field of the declaration, each taking `array`.
+ * - D4. True when bound; the asm's CF is the opposite.
+ * - D5. Bindings come from Scop's arena and chain by pointer; a frame keeps its procedure's
+ *   name and DEF FN flag. Errors raise through Fault.
+ */
 #include "mem/scope.h"
-#include "session.h"
-#include "comp/blocks.h"
-#include "comp/comp.h"
-#include "io/repl.h"
-#include "mem/symbols.h"
+#include <string.h>
 
 static const Binding none; /* a binding of nothing */
 
-static uint32_t hash(const uint16_t scope, const uint16_t name)
+static uint32_t scop_hash(const uint16_t scope, const uint16_t name)
 {
     return (scope * 7u + name) & (SCHASH - 1);
 }
 
-void scop_init(Session *const S)
+[[noreturn]]
+static void scop_fail(const Scop *const sc, const uint8_t code)
 {
-    S->scop.nbnd = 1;
-    memset(S->scop.heads, 0, sizeof S->scop.heads);
-    memset(S->scop.lnbit, 0, sizeof S->scop.lnbit);
+    fault_raise(sc->fault, (Failure){.code = code, .at = FAULT_KEEP, .line = FAULT_KEEP});
 }
 
-Binding *scop_get(Session *const S, const uint16_t scope, const uint16_t name)
+void scop_init(Scop *const sc, Fault *const f)
 {
-    for (uint16_t i = S->scop.heads[hash(scope, name)]; i; i = S->scop.bnd[i].next)
-        if (S->scop.bnd[i].scope == scope && S->scop.bnd[i].name == name)
-            return &S->scop.bnd[i];
+    arena_init(&sc->arena, 0x4000);
+    sc->fault = f;
+    scop_reset(sc);
+}
+
+void scop_reset(Scop *const sc)
+{
+    arena_reset(&sc->arena);
+    sc->nbnd = 1;
+    sc->depth = 1;
+    sc->stack[0] = (ScopFrame){};
+
+    memset(sc->heads, 0, sizeof sc->heads);
+    memset(sc->lnbit, 0, sizeof sc->lnbit);
+}
+
+Binding *scop_get(const Scop *const sc, const uint16_t scope, const uint16_t name)
+{
+    for (Binding *b = sc->heads[scop_hash(scope, name)]; b; b = b->next)
+        if (b->scope == scope && b->name == name)
+            return b;
 
     return nullptr;
 }
 
-Binding *scop_bind(Session *const S, const uint16_t scope, const uint16_t name)
+Binding *scop_bind(Scop *const sc, const uint16_t scope, const uint16_t name)
 {
-    Binding *const found = scop_get(S, scope, name);
+    Binding *const found = scop_get(sc, scope, name);
 
     if (found)
         return found;
-    if (S->scop.nbnd >= NBND)
-        repl_error(S, E_OM);
 
-    const uint32_t h = hash(scope, name);
-    Binding *const b = &S->scop.bnd[S->scop.nbnd];
-    *b = (Binding){.scope = scope, .name = name, .next = S->scop.heads[h]};
+    Binding *const b = sc->nbnd < NBND ? arena_alloc(&sc->arena, sizeof *b) : nullptr;
 
-    S->scop.heads[h] = (uint16_t)S->scop.nbnd++;
+    if (!b)
+        scop_fail(sc, E_OM);
+
+    const uint32_t h = scop_hash(scope, name);
+    *b = (Binding){.scope = scope, .name = name, .next = sc->heads[h]};
+
+    sc->heads[h] = b;
+    sc->nbnd++;
     return b;
 }
 
-/* Push procedure proc's scope; none for 0. */
-static void enter(Session *const S, const uint8_t proc)
+void scop_enter(Scop *const sc, const Proc *const p)
 {
-    if (!proc)
-        return;
-    if (S->scop.depth >= NSCS)
-        repl_error(S, E_OM);
+    sc->depth = 1;
+    sc->stack[0] = (ScopFrame){};
 
-    S->scop.stack[S->scop.depth++] = proc;
+    if (p)
+        sc->stack[sc->depth++] = (ScopFrame){.name = p->name, .deffn = p->flags & PF_DEF};
 }
 
-void scop_proc(Session *const S, const uint8_t proc)
+uint16_t scop_own(const Scop *const sc)
 {
-    S->comp.proc = proc;
-    S->scop.depth = 1;
-    S->scop.stack[0] = 0;
-    enter(S, proc);
-}
-
-/* Stack entry i's scope: its procedure's name, 0 the module; *deffn a DEF FN's, which sees all
-   of the scope under it. */
-static uint16_t frame(Session *const S, const uint32_t i, bool *const deffn)
-{
-    const uint16_t p = S->scop.stack[i];
-    *deffn = false;
-
-    if (!p)
-        return 0;
-
-    *deffn = blok_proc(&S->blok, p)->flags & PF_DEF;
-    return blok_proc(&S->blok, p)->name;
-}
-
-uint16_t scop_own(Session *const S)
-{
-    uint32_t i = S->scop.depth;
-    bool deffn;
-    uint16_t sc;
+    uint32_t i = sc->depth;
 
     do
-        sc = frame(S, --i, &deffn);
-    while (deffn && i);
+        i--;
+    while (sc->stack[i].deffn && i);
 
-    return sc;
+    return sc->stack[i].name;
 }
 
-const Binding *scop_look(Session *const S, const uint16_t name, uint16_t *const scope)
+const Binding *scop_look(const Scop *const sc, const uint16_t name, uint16_t *const scope)
 {
-    uint32_t i = S->scop.depth;
+    uint32_t i = sc->depth;
     bool shared_only = false; /* only what the scope above sees */
-    bool deffn;
 
     do {
-        uint16_t sc = frame(S, --i, &deffn);
-        const Binding *b = scop_get(S, sc, name);
+        const ScopFrame *f = &sc->stack[--i];
+        const Binding *b = scop_get(sc, f->name, name);
 
         if (b && b->flags != BF_USE && (!shared_only || (b->flags & BF_SHR))) {
             if ((b->flags & BF_REF) && i) { /* SHARED: the scope under it's, declared or not */
-                sc = frame(S, --i, &deffn);
-                b = scop_get(S, sc, name);
+                f = &sc->stack[--i];
+                b = scop_get(sc, f->name, name);
 
                 if (!b)
                     b = &none;
             }
 
-            *scope = sc;
+            *scope = f->name;
             return b;
         }
 
-        shared_only = !deffn; /* under it, seen only when shared, unless a DEF FN's */
+        shared_only = !f->deffn; /* under it, seen only when shared, unless a DEF FN's */
     } while (i);
 
-    *scope = scop_own(S);
+    *scope = scop_own(sc);
     return &none;
 }
 
 /* Name's binding as the procedure compiled sees it. */
-static const Binding *seen(Session *const S, const uint16_t name)
+static const Binding *scop_seen(const Scop *const sc, const uint16_t name)
 {
     uint16_t scope;
-    return scop_look(S, name, &scope);
+    return scop_look(sc, name, &scope);
 }
 
-uint8_t scop_type(Session *const S, const uint16_t name, const bool array)
+uint8_t scop_type(const Scop *const sc, const uint16_t name, const bool array)
 {
-    return seen(S, name)->et[array];
-}
-uint8_t scop_rec(Session *const S, const uint16_t name, const bool array)
-{
-    return seen(S, name)->rec[array];
-}
-uint16_t scop_fix(Session *const S, const uint16_t name, const bool array)
-{
-    return seen(S, name)->fix[array];
+    return scop_seen(sc, name)->et[array];
 }
 
-uint8_t scop_sfx(Session *const S, const uint16_t name, const uint8_t type, const bool array)
+uint8_t scop_rec(const Scop *const sc, const uint16_t name, const bool array)
 {
-    const Binding *const b = seen(S, name);
+    return scop_seen(sc, name)->rec[array];
+}
+
+uint16_t scop_fix(const Scop *const sc, const uint16_t name, const bool array)
+{
+    return scop_seen(sc, name)->fix[array];
+}
+
+uint8_t scop_sfx(const Scop *const sc, const uint16_t name, const uint8_t type, const bool array)
+{
+    const Binding *const b = scop_seen(sc, name);
 
     if (b->flags & BF_CON)
         return b->et[0];
@@ -151,52 +179,71 @@ uint8_t scop_sfx(Session *const S, const uint16_t name, const uint8_t type, cons
     const uint8_t et = b->et[array];
 
     if (b->rec[array] || (et && et != type))
-        repl_error(S, E_RD);
+        scop_fail(sc, E_RD);
 
     return type;
 }
 
-bool scop_con(Session *const S, const uint16_t name) { return seen(S, name)->flags & BF_CON; }
-
-bool scop_known(Session *const S, const uint16_t name) { return seen(S, name) != &none; }
-
-bool scop_mshr(Session *const S, const uint16_t name)
+bool scop_con(const Scop *const sc, const uint16_t name)
 {
-    const Binding *const b = scop_get(S, 0, name);
+    return scop_seen(sc, name)->flags & BF_CON;
+}
+
+bool scop_known(const Scop *const sc, const uint16_t name) { return scop_seen(sc, name) != &none; }
+
+bool scop_mshr(const Scop *const sc, const uint16_t name)
+{
+    const Binding *const b = scop_get(sc, 0, name);
     return b && (b->flags & (BF_SHR | BF_CON)) == BF_SHR;
 }
 
 /* Has a scope label key: a name, a line number when scope has SC_NUM? */
-static bool lany(Session *const S, const uint16_t scope, const uint16_t key)
+static bool scop_lany(
+    const Scop *const sc,
+    const Symb *const sy,
+    const uint16_t scope,
+    const uint16_t key
+)
 {
     if (scope & SC_NUM)
-        return S->scop.lnbit[key / WORD_BITS] >> (key % WORD_BITS) & 1;
+        return sc->lnbit[key / WORD_BITS] >> (key % WORD_BITS) & 1;
 
-    return symb_name(&S->symb, key)->flags & NM_LBL;
+    return symb_name(sy, key)->flags & NM_LBL;
 }
 
-void scop_label(Session *const S, const uint16_t scope, const uint16_t key, const uint32_t line)
+void scop_label(
+    Scop *const sc,
+    Symb *const sy,
+    const uint16_t scope,
+    const uint16_t key,
+    const uint32_t line
+)
 {
-    if (lany(S, scope, key))
-        repl_error(S, E_DL);
+    if (scop_lany(sc, sy, scope, key))
+        scop_fail(sc, E_DL);
     if (scope & SC_NUM)
-        S->scop.lnbit[key / WORD_BITS] |= 1u << (key % WORD_BITS);
+        sc->lnbit[key / WORD_BITS] |= 1u << (key % WORD_BITS);
     else
-        symb_name(&S->symb, key)->flags |= NM_LBL;
+        symb_name(sy, key)->flags |= NM_LBL;
 
-    Binding *const b = scop_bind(S, scope, key);
+    Binding *const b = scop_bind(sc, scope, key);
     b->flags |= BF_LBL;
     b->line = line;
 }
 
-uint32_t scop_lfind(Session *const S, const uint16_t scope, const uint16_t key)
+uint32_t scop_lfind(
+    const Scop *const sc,
+    const Symb *const sy,
+    const uint16_t scope,
+    const uint16_t key
+)
 {
-    const Binding *const b = scop_get(S, scope, key);
+    const Binding *const b = scop_get(sc, scope, key);
 
     if (b && (b->flags & BF_LBL))
         return b->line;
-    if (lany(S, scope, key))
-        repl_error(S, E_SPE);
+    if (scop_lany(sc, sy, scope, key))
+        scop_fail(sc, E_SPE);
 
     return 0;
 }

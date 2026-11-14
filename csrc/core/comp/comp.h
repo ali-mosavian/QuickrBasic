@@ -1,13 +1,4 @@
-/* The compiler (comp/comp.asm): a token body to stack-machine code. A statement is run by the
-   generated automaton (comp/dfa.h): each state's entry for the byte at the cursor steps past a
-   token, goes on at the statement's end, or runs an action, an emitter below (A_*) or CALL K_*.
-
-   The token cursor is comp.p, the code's next byte comp.out. A body is in the arena (comp_cbuf or
-   the program store), so a string literal's operand is addr_of() its text.
-
-   Errors: while comp.busy, repl_error(code) calls comp_fail(code), which ends the line's code with
-   ERR code dg at state, EOL and longjmps to comp_text's setjmp; comp_text then returns normally.
-   The error is raised when the code runs. */
+/* The compiler's interface. How it works: comp.c. */
 #ifndef COMP_COMP_H
 #define COMP_COMP_H
 #include <setjmp.h>
@@ -94,6 +85,8 @@ static inline uint8_t comp_suffixof(const uint8_t *const p)
 
 /* Compiling */
 void comp_init(Session *S); /* comp_cbuf carved (allo_carve) */
+/* Procedure proc compiled, 0 the module: its scopes seen. */
+void comp_proc(Session *S, uint8_t proc);
 void comp_line(Session *S); /* the direct line in comp_cbuf, to comp_xbuf */
 void comp_text(
     Session *S,
