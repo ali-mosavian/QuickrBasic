@@ -1,7 +1,8 @@
 /* Control flow: lines, jumps, GOSUB, FOR and NEXT, SUB and FUNCTION calls, ON ERROR and RESUME.
  *
  * # How it works
- * GOSUBs, events, FOR loops and calls are Frames on vm.frames (flow_push, flow_find). A call sets
+ * GOSUBs, events and calls are Frames on vm.frames (flow_push, flow_find). A FOR loop is none: its
+ * limit and step are cells the compiler gave it, its NEXT jumps back to its body. A call sets
  * its parameters and locals aside on vm.callvars and puts them back when it ends.
  *
  * A jump op holds a Jump, a GOTO a LineRef; link_resolve set both before the run. Every line's
@@ -87,7 +88,6 @@ static inline uint32_t cache_off(Allo *const al, const uint8_t *const p)
 }
 static inline void drop_temps(Session *const S) { S->strg.tmp_used = S->strg.tmp_floor; }
 static inline bool is_string(const Var *const v) { return (v->info & VK_MASK) == VK_STR; }
-static inline bool is_int(const Var *const v) { return (v->info & VK_MASK) == VK_INT; }
 static inline bool is_double(const Var *const v) { return v->info & SK_DBL; }
 static inline bool is_array(const Var *const v) { return v->info & VI_ARR; }
 
@@ -206,26 +206,6 @@ Frame *flow_find(Vm *const vm, const FrameKind kind)
     return nullptr;
 }
 
-/* The first frame under the FOR loops on top, nullptr none. */
-static Frame *under_loops(Vm *const vm)
-{
-    for (uint32_t i = vm->nframes; i-- > 0;)
-        if (vm->frames[i].kind != FRAME_FOR)
-            return &vm->frames[i];
-
-    return nullptr;
-}
-
-/* The loop of var among the FOR loops on top: the frame count with it on top, 0 none. */
-static uint32_t find_loop(const Vm *const vm, const uint16_t var)
-{
-    for (uint32_t i = vm->nframes; i-- > 0 && vm->frames[i].kind == FRAME_FOR;)
-        if (vm->frames[i].loop.var == var)
-            return i + 1;
-
-    return 0;
-}
-
 /* ---- GOTO, GOSUB, ON ------------------------------------------------------------------------ */
 
 static void gosub(Session *const S, const uint32_t line)
@@ -250,13 +230,13 @@ void flow_gosub(Session *const S)
     gosub(S, flow_target(S));
 }
 
-/* RETURN: the FOR loops inside the subroutine end too. */
+/* RETURN. */
 void flow_return(Session *const S)
 {
     if (exec_stopchk(S))
         return;
 
-    Frame *const f = under_loops(&S->vm);
+    Frame *const f = top_frame(&S->vm);
 
     if (!f || (f->kind != FRAME_GOSUB && f->kind != FRAME_EVENT))
         repl_error(S, E_RG);
@@ -339,119 +319,88 @@ void flow_f_jt(Session *const S) { jump_if(S, sngl_true(exec_pop(&S->vm))); }
 
 /* ---- FOR / NEXT ----------------------------------------------------------------------------- */
 
-static bool counts_down(const ForLoop *const l) { return l->step >> 31; }
-
-/* Is x past the loop's limit? */
-static bool past_limit(const ForLoop *const l, const bool int_var, const uint32_t x)
+/* Is x past limit, counting by step: INTs, or SINGLEs' bits? */
+static bool past_limit(const bool ints, const uint32_t x, const uint32_t limit, const uint32_t step)
 {
-    if (int_var)
-        return counts_down(l) ? (int32_t)x<(int32_t)l->limit : (int32_t)x>(int32_t) l->limit;
+    const bool down = step >> 31;
 
-    const int c = sngl_cmp(x, l->limit);
-    return counts_down(l) ? c < 0 : c > 0;
+    if (ints)
+        return down ? (int32_t)x<(int32_t)limit : (int32_t)x>(int32_t) limit;
+
+    const int c = sngl_cmp(x, limit);
+    return down ? c < 0 : c > 0;
 }
 
-/* FOR var = start TO limit [STEP step], start stored, limit and step on the data stack. A loop of
-   the same var still running restarts. A loop not entered goes past its NEXT. */
+/* A loop op's cells: its counter's, its limit's and its step's (ctrl_for's hidden ones). */
+typedef struct {
+    Addr counter, limit, step;
+} LoopCells;
+
+static LoopCells loop_cells(Session *const S)
+{
+    const uint16_t counter = exec_u16(&S->vm);
+    const uint16_t limit = exec_u16(&S->vm);
+    const uint16_t step = exec_u16(&S->vm);
+
+    return (LoopCells){
+        symb_var(&S->symb, counter)->vt,
+        symb_var(&S->symb, limit)->vt,
+        symb_var(&S->symb, step)->vt,
+    };
+}
+
+/* FOR counter limit step END ( limit [step] -- ): the counter has its start; past NEXT (END) when
+   not entered. */
 void flow_for(Session *const S)
 {
     const uint8_t op = *S->vm.opip;
-    const uint16_t var = exec_u16(&S->vm);
+    const bool ints = op == O_I_FOR || op == O_I_FOR1;
+    const LoopCells c = loop_cells(S);
     const uint32_t step =
-        op == O_I_FOR || op == O_F_FOR ? exec_pop(&S->vm).u : (op == O_F_FOR1 ? SNGL_ONE : 1);
-    const ForLoop loop = {var, exec_pop(&S->vm).u, step};
+        op == O_I_FOR || op == O_F_FOR ? exec_pop(&S->vm).u : (ints ? 1 : SNGL_ONE);
 
-    const uint32_t old = find_loop(&S->vm, var);
+    wr32(c.step, step);
+    wr32(c.limit, exec_pop(&S->vm).u);
 
-    if (old)
-        S->vm.nframes = old - 1;
-    if (*S->vm.ip == O_FSKIP) {
-        const Var *const v = symb_var(&S->symb, var);
-
-        if (past_limit(&loop, is_int(v), rd32(v->vt))) {
-            S->vm.ip++;
-            take_jump(S);
-            return;
-        }
-
-        S->vm.ip += JSIZE;
-    }
-
-    while (*S->vm.ip == O_EOL) /* the body starts on a later line */
-        next_line(S);
-
-    flow_push(S, FRAME_FOR)->loop = loop;
+    if (past_limit(ints, rd32(c.counter), rd32(c.limit), step))
+        take_jump(S);
+    else
+        S->vm.ip += sizeof(Jump);
 }
 
-/* Step the loop on top of depth frames; back to its body until it is done. An INT stepped past
+/* NEXT counter limit step BODY: stepped, back to the body until past the limit. An INT stepped past
    its range is Illegal function call. */
-static void step_loop(Session *const S, const uint32_t depth)
-{
-    const Frame *const f = &S->vm.frames[depth - 1];
-    const ForLoop *const l = &f->loop;
-    const Var *const v = symb_var(&S->symb, l->var);
-    const Addr cell = v->vt;
-    const bool int_var = is_int(v);
-    uint32_t x;
-
-    if (int_var) {
-        int32_t sum;
-
-        if (__builtin_add_overflow((int32_t)rd32(cell), (int32_t)l->step, &sum))
-            repl_error(S, E_IQ);
-
-        x = (uint32_t)sum;
-    } else
-        x = fmth_add(rd32(cell), l->step);
-
-    wr32(cell, x);
-
-    if (past_limit(l, int_var, x)) {
-        S->vm.nframes = depth - 1;
-        return;
-    }
-
-    S->vm.nframes = depth; /* the loops inside it end */
-    go_to(S, f->ret);
-}
-
-/* NEXT var. */
-void flow_next_v(Session *const S)
-{
-    if (exec_stopchk(S))
-        return;
-
-    drop_temps(S);
-    const uint32_t depth = find_loop(&S->vm, exec_u16(&S->vm));
-
-    if (!depth)
-        repl_error(S, E_NF);
-
-    step_loop(S, depth);
-}
-
-/* NEXT: the innermost loop. */
 void flow_next(Session *const S)
 {
     if (exec_stopchk(S))
         return;
 
     drop_temps(S);
-    const uint32_t depth = S->vm.nframes;
+    const bool ints = *S->vm.opip == O_I_NEXT;
+    const LoopCells c = loop_cells(S);
+    const uint32_t step = rd32(c.step);
+    uint32_t x;
 
-    if (!depth || S->vm.frames[depth - 1].kind != FRAME_FOR)
-        repl_error(S, E_NF);
+    if (ints) {
+        int32_t sum;
 
-    step_loop(S, depth);
-}
+        if (__builtin_add_overflow((int32_t)rd32(c.counter), (int32_t)step, &sum))
+            repl_error(S, E_IQ);
 
-/* EXIT FOR. */
-void flow_fpop(Session *const S)
-{
-    const Frame *const f = top_frame(&S->vm);
+        x = (uint32_t)sum;
+    } else
+        x = fmth_add(rd32(c.counter), step);
 
-    if (f && f->kind == FRAME_FOR)
-        pop_to(&S->vm, f);
+    wr32(c.counter, x);
+
+    if (past_limit(ints, x, rd32(c.limit), step)) {
+        S->vm.ip += sizeof(Jump);
+        return;
+    }
+
+    const Jump j = *(const Jump *)S->vm.ip;
+    S->vm.line = j.line;
+    S->vm.ip = cache_at(&S->allo, j.dest);
 }
 
 /* ---- SUB and FUNCTION ----------------------------------------------------------------------- */

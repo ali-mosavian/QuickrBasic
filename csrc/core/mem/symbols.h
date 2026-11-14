@@ -7,6 +7,8 @@
 
 /* A variable's info: its kind in bits 1-0 (comp's g_etk), SK_DBL, VI_ARR. */
 enum : uint8_t { VK_FLT = 0, VK_INT = 1, VK_STR = 2, VK_MASK = 3, VI_ARR = 0x80 };
+/* A hidden name's first byte: a FOR loop's limit or step (comp/control.c). */
+enum : uint8_t { LOOP_NAME = 1 };
 /* A record array's info. */
 enum : uint8_t { VI_RECARR = VI_ARR | VK_INT };
 

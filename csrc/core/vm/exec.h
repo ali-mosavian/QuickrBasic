@@ -105,13 +105,7 @@ typedef struct {
     uint32_t code;
 } Place;
 
-typedef enum : uint8_t { FRAME_GOSUB, FRAME_EVENT, FRAME_FOR, FRAME_CALL } FrameKind;
-
-/* A FOR loop's variable, limit and step: INTs, or SINGLEs' bits. */
-typedef struct {
-    uint16_t var;
-    uint32_t limit, step;
-} ForLoop;
+typedef enum : uint8_t { FRAME_GOSUB, FRAME_EVENT, FRAME_CALL } FrameKind;
 
 /* A SUB or FUNCTION running. Its parameters' CallVars start at params, its locals' at locals; they
    end at vm.ncallvars once the frames above it are gone. */
@@ -125,9 +119,8 @@ typedef struct {
 
 typedef struct {
     FrameKind kind;
-    Place ret; /* where RETURN, the call's end or NEXT goes: a FOR's is its body */
+    Place ret; /* where RETURN or the call's end goes */
     union {
-        ForLoop loop;
         Call call;
         uint8_t event; /* the event's slot */
     };

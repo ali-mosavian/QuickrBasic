@@ -14,7 +14,7 @@ struct BlockEnt {
     uint32_t next;  /* the target its false test, or its loop, goes to */
     uint32_t done;  /* the target leaving the block */
     BlockEnt *link; /* the next of its chain (ELSE, CASE, EXIT) */
-    BlockEnt *sel;  /* CASE: its SELECT */
+    BlockEnt *sel;  /* CASE: its SELECT; NEXT: its FOR */
     uint16_t aux;   /* SELECT: depth, (its value's T_* | 1) << 8; EXIT: BK_* */
     uint8_t kind;   /* BK_* */
 };

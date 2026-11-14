@@ -182,7 +182,12 @@ Node *comp_jump(Comp *const C, const uint8_t op)
     return n;
 }
 
-void comp_go(Comp *const C, const uint8_t op, const Jump j) { node(C, N_GO, op)->jump = j; }
+Node *comp_go(Comp *const C, const uint8_t op, const Jump j)
+{
+    Node *const n = node(C, N_GO, op);
+    n->jump = j;
+    return n;
+}
 
 void comp_cond(Comp *const C, const uint8_t op, const Jump j)
 {
@@ -781,6 +786,7 @@ void comp_text(Comp *const C, const uint8_t *const body)
     C->depth = 0;
     C->body = body;
     C->nstmt = 0;
+    C->nextkw = nullptr;
     C->oneif = false;
     C->dg = 0;
     C->dfa = 0xFFFF;
@@ -810,6 +816,7 @@ void comp_proc(Comp *const C, const uint8_t proc)
 void comp_line(Comp *const C)
 {
     C->line = DLINE;
+    C->ndfor = 0;
     comp_proc(C, C->dlproc);
     decl_deftype(C->decl, C->symb, 0xFFFFFFFF); /* the program's end's DEFtypes */
     C->code->buf = C->xbuf;
@@ -900,20 +907,13 @@ static void act_fork(Comp *const C) { comp_toinfo(C, C->forkind); }
 
 static void act_for(Comp *const C, const uint8_t op)
 {
-    comp_opid(C, C->forkind ? op : op + 1, C->forvar); /* F.FOR, F.FOR1 after the INT's */
-    ctrl_forskip(C);
+    ctrl_for(C, C->forkind ? op : op + 1); /* F.FOR, F.FOR1 after the INT's */
 }
 static void act_for2(Comp *const C) { act_for(C, O_I_FOR); }
 static void act_for1(Comp *const C) { act_for(C, O_I_FOR1); }
 
-/* NEXT.V id, or NEXT. */
-static void act_nv(Comp *const C)
-{
-    if (comp_cur(C) == M_VAR)
-        comp_opid(C, O_NEXT_V, comp_var(C, 0, 0));
-    else
-        comp_op(C, O_NEXT);
-}
+/* NEXT [v]: one of the loops it closes. */
+static void act_nv(Comp *const C) { ctrl_next(C); }
 
 /* DATA: no code, READ finds the text in the body. */
 static void act_data(Comp *const C) { C->p = comp_skipdata(C->kw + 1); }

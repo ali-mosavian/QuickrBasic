@@ -543,6 +543,14 @@ CASES = {
     "qb_blk_cross2": ("FOR i = 1 TO 3\r\nDO\r\nNEXT i\r\n", "the DO block started inside it is still open",
                       None),
     "qb_blk_loop": ("PRINT 1\r\nLOOP\r\n", "LOOP without DO in line", " 1"),
+    # A FOR's limit and step are the procedure's locals: a recursive call's loop keeps its own.
+    "qb_for_rec": ("DECLARE SUB r (n%)\r\nr 3\r\nSUB r (n%)\r\nFOR i% = 1 TO n%\r\n"
+                   "IF i% = 1 AND n% > 1 THEN r n% - 1\r\nPRINT n%;\r\nNEXT\r\nEND SUB\r\n",
+                   " 1  2  2  3  3  3 ", "ERROR"),
+    # NEXT j, i closes both; a FOR ending its line loops to the next; EXIT FOR leaves at once.
+    "qb_for_next2": ("FOR i = 1 TO 2\r\nFOR j = 1 TO 2: PRINT i * 10 + j;: NEXT j, i\r\n"
+                     "FOR k = 1 TO 9: IF k = 3 THEN EXIT FOR\r\nNEXT: PRINT k\r\n",
+                     " 11  12  21  22  3 \r\n", "ERROR"),
     # An undefined label was found when its GOTO ran, after the program's output: now at RUN.
     "qb_lbl_goto": ("PRINT 1\r\nIF 0 THEN GOTO nowhere\r\n", "There is no label `nowhere`", " 1"),
     "qb_lbl_on": ("PRINT 1\r\nON 2 GOSUB a, b\r\nEND\r\na: RETURN\r\n", "There is no label `b`", " 1"),

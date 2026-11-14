@@ -27,6 +27,8 @@ enum : uint8_t { TGT_FIELD = 0xFF };
 
 enum { COMP_TAIL = 12 }; /* room past the code's limit: a line's ERR and EOL */
 
+enum { DFOR_MAX = 16 }; /* FORs open in the direct line at most */
+
 typedef struct Comp {
     /* what it works with, set before comp_init */
     Fault *fault;
@@ -76,6 +78,10 @@ typedef struct Comp {
     uint8_t nargs;            /* ccnt: a CALL's counted arguments */
     uint8_t forkind;          /* cfk: FOR's variable's kind, 0 a FLOAT */
     uint16_t forvar;          /* cfid: FOR's variable */
+    const uint8_t *nextkw;    /* the NEXT statement compiled last, its variables' entries from */
+    struct BlockEnt *nextent; /* the entry of the variable it closed last */
+    uint32_t dfor[DFOR_MAX];  /* the direct line's open FORs: their body offsets */
+    uint32_t ndfor;
     struct Node *on, *onlast; /* ON's node, its last line */
     uint16_t redim;           /* credim: DIM_REDIM, DIM_PRESERVE or 0 */
     uint16_t lnum;            /* wv: a jump's line number, NONUM a label's */
@@ -152,7 +158,7 @@ void comp_word(Node *n, uint16_t w);
 void comp_opid(Comp *C, uint8_t op, uint16_t id);
 /* op (0 none), its operands by comp_byte, then comp.lnum's line: num addr */
 Node *comp_jump(Comp *C, uint8_t op);
-void comp_go(Comp *C, uint8_t op, Jump j);   /* op to a block's target */
+Node *comp_go(Comp *C, uint8_t op, Jump j);  /* op to a block's target; operands by comp_byte */
 void comp_cond(Comp *C, uint8_t op, Jump j); /* JF or JT on the value: a number */
 
 /* The last step's value converted; Type mismatch from a string where a number goes */

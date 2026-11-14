@@ -270,6 +270,19 @@ static bool jump_dest(const Comp *const C, Jump *const j)
 
     j->dest =
         code + (j->dest == TO_NEXT_STMT ? s[1].code : s->code + (j->dest == PAST_JMP ? JSIZE : 0));
+
+    /* Jump threading: a target that only ends its line is the next line's start. A jump does the
+       line end's STOP check and drops the temporaries itself. */
+    while (j->line != DLINE && rd8(C->allo->cache + j->dest) == O_EOL) {
+        const uint32_t next = j->line + prog_line(C->prog, j->line)->len;
+
+        if (!prog_line(C->prog, next)->len) /* the program's end: END's */
+            break;
+
+        j->line = next;
+        j->dest = prog_line(C->prog, next)->code;
+    }
+
     return true;
 }
 
@@ -305,8 +318,16 @@ static void resolve_op(Comp *const C, const uint32_t line, const Addr base, uint
     case O_F_JF:
     case O_I_JT:
     case O_F_JT:
-    case O_FSKIP:
         j = (Jump *)(op + 1);
+        break;
+
+    case O_I_FOR:
+    case O_F_FOR:
+    case O_I_FOR1:
+    case O_F_FOR1:
+    case O_I_NEXT:
+    case O_F_NEXT:
+        j = (Jump *)(op + 7); /* past the counter's, limit's and step's ids */
         break;
 
     case O_PCALL:

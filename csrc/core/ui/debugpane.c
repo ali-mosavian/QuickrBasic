@@ -373,10 +373,11 @@ static void var1(Session *const S, const uint16_t id, const int32_t par)
     dp.nvars++;
 }
 
-/* A variable Locals and the tooltip leave out (a DEF FN's). */
+/* A variable Locals and the tooltip leave out: a DEF FN's, a FOR loop's hidden limit or step. */
 static bool skipped(Session *const S, const uint16_t id)
 {
-    return (symb_var(&S->symb, id)->info & (VI_ARR | VK_MASK)) == VK_FN;
+    const Var *const v = symb_var(&S->symb, id);
+    return (v->info & (VI_ARR | VK_MASK)) == VK_FN || symb_text(&S->symb, v->name)[1] == LOOP_NAME;
 }
 
 /* dp_vars: Locals: the selected frame's procedure's variables, the module's at the module; its

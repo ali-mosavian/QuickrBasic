@@ -233,11 +233,12 @@ def play() -> None:
 
     # A runtime error: its statement's word selected, the error in a box,
     # moved to the foot when it would cover that line (uiedit.asm).
-    keys("next\n" + "rem\n" * 3 + "  goto 99\n")  # the pasted FOR closed: QBasic pairs blocks first
+    # ERROR 8 is Label not defined when run; a GOTO to no label is reported at RUN, before it runs.
+    keys("next\n" + "rem\n" * 3 + "  error 8\n")  # the pasted FOR closed: QBasic pairs blocks first
     press(f"0x{F5:x}")
     scr = look("error")
     assert next(i for i, r in enumerate(scr) if "LABEL NOT DEFINED" in r) == 19, scr
-    assert attrs(10)[2:8] == bytes([0x17, 0x71, 0x71, 0x71, 0x71, 0x17]), attrs(10)[:9]
+    assert attrs(10)[2:9] == bytes([0x17, 0x71, 0x71, 0x71, 0x71, 0x71, 0x17]), attrs(10)[:9]  # ERROR
     assert any("LABEL NOT DEFINED" in r for r in scr) and scr[24].startswith(" F1=HELP   ENTER=EXECUTE"), scr
     # QBasic's message box (msgbox.c): text +6 wide, OK and Help 8 wide, 3 apart.
     row = next(r for r in scr if "< HELP >" in r)

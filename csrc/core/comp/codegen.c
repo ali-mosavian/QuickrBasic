@@ -592,7 +592,7 @@ static void gen(Code *const c, const Node *const i)
         break;
 
     case N_GO:
-        code_op(c, n->op);
+        cg_op(c, n);
         cg_jump(c, n->jump);
         break;
 

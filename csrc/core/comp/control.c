@@ -11,7 +11,12 @@
  *   DO [WHILE|UNTIL c]    c, JF|JT END
  *   LOOP [WHILE|UNTIL c]  JMP NXT, or c, JT|JF NXT
  *   WHILE c, WEND     c, JF END; JMP NXT
- *   EXIT FOR, EXIT DO FPOP, JMP END; JMP END
+ *   FOR v = a TO b    a to v, b [, step], FOR v lim step END
+ *   NEXT [v]          NEXT v lim step BODY
+ *   EXIT FOR, EXIT DO JMP END
+ *
+ * A FOR loop's limit and step are hidden variables of its procedure (loopcell), named by the FOR's
+ * position; a NEXT's entry names its FOR. The direct line pairs its own FORs and NEXTs.
  *
  * A direct line has no entries: its targets are none (NOTARGET, FFFFFFFFh), an error when run. A
  * call's arguments and a record's references are parsed by refs.c; this file emits their code.
@@ -21,7 +26,7 @@
  * | asm | here | |
  * |---|---|---|
  * | ct_stmt | ctrl_stmt | MIRROR |
- * | ct_bif, ct_else, ct_jf, ct_fskip | ctrl_blockif, ctrl_else, ctrl_jf, ctrl_forskip | MIRROR |
+ * | ct_bif, ct_else, ct_jf, ct_fskip | ctrl_blockif, ctrl_else, ctrl_jf, ctrl_for | MIRROR; D3 |
  * | ct_fcall, ct_uarg, ct_proc | ref_call, ref_dropargs, ref_proc (refs.c) | MOVED; D1 |
  * | ct_pcall | pcall | MIRROR |
  * | ct_undef, cm_swap | ctrl_undef, ctrl_swap | MIRROR |
@@ -39,6 +44,8 @@
  *
  * - D1. The call is a tree (N_CALL, built by ref_call); comp_step makes it a step.
  * - D2. A record's place is a RecRef on the node, not globals.
+ * - D3. The asm's FOR pushes a frame NEXT finds at run time by its variable; here NEXT knows its
+ *   FOR when compiled and jumps back to its body.
  */
 #include "comp/control.h"
 #include "comp/blocks.h"
@@ -196,7 +203,104 @@ bool ctrl_else(Comp *const C, uint32_t *const t)
     return true;
 }
 
-void ctrl_forskip(Comp *const C) { jump(C, O_FSKIP, doneof(entry(C, C->kw))); }
+/* FOR loop key's hidden cell, which 'L' its limit, 'S' its step: a variable of counter's type, local
+   to the procedure. key: the FOR's position; in the direct line, DFOR_KEY and its depth. */
+static uint16_t loopcell(
+    Comp *const C,
+    const uint32_t key,
+    const uint8_t which,
+    const uint16_t counter
+)
+{
+    const Var v = *symb_var(C->symb, counter); /* the tables move as names are made */
+    uint8_t text[2 + 8] = {LOOP_NAME, which};
+
+    for (uint32_t i = 0; i < 8; i++)
+        text[2 + i] = "0123456789ABCDEF"[(key >> (28 - 4 * i)) & 15];
+
+    const uint16_t name = symb_find_name(C->symb, text, sizeof text);
+    const bool stat = C->proc && blok_proc(C->blok, C->proc)->flags & PF_STAT;
+    return symb_find_var(C->symb, name, v.type, v.info & VK_MASK, C->proc, stat);
+}
+
+enum : uint32_t { DFOR_KEY = 0xFFFF0000 };
+
+/* op counter limit step, then the Jump. */
+static void loopop(
+    Comp *const C,
+    const uint8_t op,
+    const uint16_t counter,
+    const uint32_t key,
+    const uint32_t t
+)
+{
+    const uint16_t lim = loopcell(C, key, 'L', counter);
+    const uint16_t step = loopcell(C, key, 'S', counter);
+    Node *const n = comp_go(C, op, ctrl_jump(C, t));
+    comp_word(n, counter);
+    comp_word(n, lim);
+    comp_word(n, step);
+}
+
+void ctrl_for(Comp *const C, const uint8_t op)
+{
+    if (C->line == DLINE) { /* no entries: past NEXT none, an error when not entered */
+        if (C->ndfor == DFOR_MAX)
+            fault_error(C->fault, E_OM);
+
+        C->dfor[C->ndfor++] = (uint32_t)(C->kw - C->body);
+        loopop(C, op, C->forvar, DFOR_KEY | (C->ndfor - 1), NOTARGET);
+        return;
+    }
+
+    const BlockEnt *const e = entry(C, C->kw);
+    loopop(C, op, C->forvar, e->pos, doneof(e));
+}
+
+/* The counter of the FOR at for (its token): its variable, comp.p kept. */
+static uint16_t counterof(Comp *const C, const uint8_t *const at)
+{
+    const uint8_t *const p = C->p;
+    C->p = at + 1;
+    const uint16_t id = comp_var(C, 0, 0);
+    C->p = p;
+    return id;
+}
+
+void ctrl_next(Comp *const C)
+{
+    uint32_t key, back;
+    const uint8_t *forat;
+
+    if (C->line == DLINE) {
+        if (!C->ndfor && C->check) { /* its FOR on another line */
+            skip(C);
+            return;
+        }
+
+        if (!C->ndfor)
+            fault_error(C->fault, E_NF);
+
+        const uint32_t off = C->dfor[--C->ndfor];
+        key = DFOR_KEY | C->ndfor;
+        back = target(C, off, TO_NEXT_STMT);
+        forat = C->body + off;
+    } else {
+        C->nextent = C->nextkw == C->kw ? C->nextent->link : entry(C, C->kw);
+        C->nextkw = C->kw;
+
+        if (!C->nextent || C->nextent->kind != BK_NEXT)
+            synerr(C);
+
+        key = C->nextent->sel->pos;
+        back = C->nextent->next;
+        forat = at(C->prog->base + key);
+    }
+
+    const uint16_t counter = comp_cur(C) == M_VAR ? comp_var(C, 0, 0) : counterof(C, forat);
+    const uint8_t kind = symb_var(C->symb, counter)->info & VK_MASK;
+    loopop(C, kind == VK_INT ? O_I_NEXT : O_F_NEXT, counter, key, back);
+}
 
 /* ct_cond: the test after the keyword. */
 static void cond(Comp *const C)
@@ -275,9 +379,7 @@ static void exitblock(Comp *const C)
     const uint8_t c = C->p[1];
     C->p += 2;
 
-    if (c == TK_FOR)
-        comp_op(C, O_FPOP);
-    else if (c != TK_DO)
+    if (c != TK_FOR && c != TK_DO)
         synerr(C);
 
     jmp(C, doneof(e));

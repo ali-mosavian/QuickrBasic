@@ -290,8 +290,9 @@ static void blok_endif(BlokScan *const sc)
     blok_close(sc, o);
 }
 
-/* NEXT closes the innermost FOR, which counts with the variable at v (null any). */
-static void blok_next(BlokScan *const sc, const uint8_t *const v)
+/* NEXT closes the innermost FOR, which counts with the variable at v (null any). Its entry, after
+   prev (the NEXT's last, null none): next its FOR's body, sel its FOR. */
+static BlockEnt *blok_next(BlokScan *const sc, const uint8_t *const v, BlockEnt *const prev)
 {
     const BlokOpen *const o = blok_top(sc, BK_FOR, E_NF);
 
@@ -311,9 +312,23 @@ static void blok_next(BlokScan *const sc, const uint8_t *const v)
         }
     }
 
+    BlockEnt *e;
+
+    if (prev) { /* NEXT a, b: b's on a's chain, not indexed */
+        e = blok_alloc(sc, sizeof *e);
+        *e = (BlockEnt){.pos = prev->pos, .kind = BK_NEXT};
+
+        prev->link = e;
+    } else
+        e = blok_add(sc, BK_NEXT);
+
+    e->sel = o->open;
+    e->next = o->open->pos * 4 + TO_NEXT_STMT;
+
     const uint32_t t = blok_target(sc, sc->off, TO_NEXT_STMT);
     o->open->done = t;
     blok_exits(sc, o, t);
+    return e;
 }
 
 /* The parameter list at q, past the '(': ( [BYVAL] n[()] [AS type] ), each into out (null: only
@@ -510,6 +525,7 @@ static void blok_stmt(BlokScan *const sc, const uint8_t *const s)
 
     case TK_NEXT: { /* NEXT a, b: a FOR closed for each, which must count with it */
         const uint8_t *v = nullptr;
+        BlockEnt *e = nullptr;
 
         for (const uint8_t *q = s + 1;; q = decl_item(q)) {
             const uint8_t c = *q;
@@ -517,7 +533,7 @@ static void blok_stmt(BlokScan *const sc, const uint8_t *const s)
             if (!c || c == ':' || c == TK_ELSE || c == TK_REM)
                 break;
             if (c == ',') {
-                blok_next(sc, v);
+                e = blok_next(sc, v, e);
                 v = nullptr;
             }
 
@@ -525,7 +541,7 @@ static void blok_stmt(BlokScan *const sc, const uint8_t *const s)
                 v = q;
         }
 
-        blok_next(sc, v);
+        blok_next(sc, v, e);
         return;
     }
     case TK_EXIT: { /* EXIT FOR, EXIT DO: on the chain of the innermost such block */
