@@ -31,10 +31,11 @@ VSLACK  = 256                   ; variables past the program's: direct lines'
 ; ::::::::::::::
 sym_new:
         mov     esi,offset g_state.sym.vars
-        mov     [esi].TTAB.narr,3
-        mov     [esi].TTAB.sz,8         ; the cells, TVAR, TVX
+        mov     [esi].TTAB.narr,4
+        mov     [esi].TTAB.sz,8         ; the cells, TVAR, TVX, kval
         mov     dword ptr [esi+4].TTAB.sz,8
         mov     dword ptr [esi+8].TTAB.sz,8
+        mov     dword ptr [esi+12].TTAB.sz,8
         mov     [esi].TTAB.max,IDMAX
         mov     ecx,VINIT
         mov     ebx,offset var_place
@@ -400,6 +401,7 @@ var_find:
         mov     [esi+ebx*8].TVX.scp,al
         and     [esi+ebx*8].TVX.nloc,0
         mov     [esi+ebx*8].TVX.dyn,0
+        mov     [esi+ebx*8].TVX.kop,0
         test    al,al
         jz      @vf_m
         cmp     [g_state.cm.cstat],0

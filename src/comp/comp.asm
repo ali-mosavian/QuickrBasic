@@ -332,6 +332,7 @@ cm_mapstmt:
 ; error:  ?SYNTAX ERROR  not a statement's keyword or a name
 ; ::::::::::::::
 cm_tok:
+        mov     [g_state.cm.ctok],0     ; an implied LET's: none
         call    cm_mark
         call    cm_dbg
         call    ct_stmt
@@ -619,6 +620,7 @@ cm_store:
         jmp     @cst_e
 @cst_d:                                 ; a DOUBLE: D.ST.V, .A1, .A
         call    cm_tod
+        call    cm_krec
         movzx   ecx,[g_state.cm.ctv]
         mov     al,[g_state.cm.ctn]
         mov     dl,O_D_ST_V
@@ -638,6 +640,7 @@ cm_store:
         mov     al,[g_state.cm.ctn]
         jmp     cm_byt
 @cst_e:
+        call    cm_krec
         movzx   ecx,[g_state.cm.ctv]
         mov     al,[g_state.cm.ctn]
         test    al,al

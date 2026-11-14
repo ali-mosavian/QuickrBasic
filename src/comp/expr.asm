@@ -55,6 +55,7 @@ cm_lexpr:
 ; error:  ?OUT OF MEMORY  the stack is nearly full
 ; ::::::::::::::
 cm_p:
+        push    edi                     ; [ESP+4] the code's start
         push    eax
         cmp     esp,[g_state.rn.cplim]
         jb      err_om
@@ -79,6 +80,8 @@ cm_p:
 @@:
         mov     [g_ckon],eax
         mov     [g_cbk],0
+        mov     ebx,[esp+4]
+        call    cm_fold
 @cp_l0:
         call    st_get
         mov     ah,10                   ; \ MOD XOR EQV IMP: 10 .. 14
@@ -318,6 +321,7 @@ cm_p:
         jmp     @cp_l
 @cp_e:
         pop     eax
+        lea     esp,[esp+4]
         ret
 
 ; ::::::::::::::
@@ -622,6 +626,7 @@ cm_lval:
         pop     dword ptr [g_state.cm.ctv]
         mov     [g_state.cm.ctn],cl
 @rt_exp1:
+        mov     [g_cvat],edi
         ret
 
 ; @cld_u - a FUNCTION DECLAREd only: its arguments, Function not defined
@@ -677,6 +682,8 @@ cm_load:
         mov     dl,fs:[ebx*8].TVAR.info
         test    dl,dl
         js      @cld_a
+        call    cm_klit
+        jc      cm_rts
         mov     ecx,ebx
         test    dl,SK_DBL
         jz      @F
@@ -841,6 +848,7 @@ cm_un:
         cmp     al,TK_NOT
         jne     @cu_4
 @cu_u:
+        push    edi                     ; the operand's start
         push    ecx
         mov     al,cl
         inc     esi
@@ -854,7 +862,8 @@ cm_un:
         jnz     @F
         mov     [g_ckon],edi
 @@:
-        ret
+        pop     ebx
+        jmp     cm_fold
 @cu_ng:
         cmp     ch,O_F_NEG
         je      @cu_nf

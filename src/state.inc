@@ -258,7 +258,7 @@ HCACHE  = 0                     ; the code cache's block
 HPROG   = 1                     ; the program store's
 HLMAP   = 2                     ; the editor's line map (ui/lmap.asm)
 
-TMAXA   = 3                     ; a table's arrays at most
+TMAXA   = 4                     ; a table's arrays at most
 
 TTAB     struc                   ; a table (mem/tab.asm)
     hnd     dd      ?               ; its block
@@ -282,7 +282,8 @@ TVX      struc                   ; a variable's rest, at vars.at[8]+id*8
     nloc    dw      ?               ; the next local of its procedure
     scp     db      ?               ; its scope: 0 the module, a procedure
     dyn     db      ?               ; REDIM made it; ERASE frees it
-            dw      ?
+    kop     db      ?               ; a CONST's literal load, its operand
+            db      ?               ;   in kval; 0 none (comp/fold.asm)
 TVX      ends
 
 TNAM     struc                   ; a name, at nams.at+id*8
@@ -294,7 +295,7 @@ TNAM     struc                   ; a name, at nams.at+id*8
 TNAM     ends
 
 TSYM     struc                   ; the variables and names (mem/sym.asm)
-    vars    TTAB    <>              ; cells, TVAR, TVX
+    vars    TTAB    <>              ; cells, TVAR, TVX, kval
     nams    TTAB    <>              ; TNAM, the hash chains' next
     ntext   TTAB    <>              ; the names' text
     tfree   dd      ?               ; ntext's next byte, an offset
