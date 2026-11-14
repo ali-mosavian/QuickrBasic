@@ -334,11 +334,13 @@ void ref_dropargs(Comp *const C, const bool paren)
 /* ct_aend: c ends an argument. */
 static bool aend(const uint8_t c) { return !c || c == ',' || c == ')' || c == ':' || c == TK_REM; }
 
-/* ct_ptm: variable id parameter par's type; else Parameter type mismatch. */
-static void ptm(Comp *const C, const uint16_t id, const uint16_t par)
+/* ct_ptm: variable id parameter par's type; else Parameter type mismatch, at the argument arg. */
+static void ptm(Comp *const C, const uint16_t id, const uint16_t par, const uint8_t *const arg)
 {
-    if (symb_var(C->symb, id)->type != symb_var(C->symb, par)->type)
+    if (symb_var(C->symb, id)->type != symb_var(C->symb, par)->type) {
+        C->p = arg;
         fault_error(C->fault, E_PTM);
+    }
 }
 
 static Node *argnode(Comp *const C, const uint8_t pass, Node *const a, const uint16_t id)
@@ -353,6 +355,8 @@ static Node *argnode(Comp *const C, const uint8_t pass, Node *const a, const uin
 /* An array parameter's argument: n() an array whole; a record parameter's n a record whole. */
 static Node *arrayarg(Comp *const C, const uint16_t par)
 {
+    const uint8_t *const arg = C->p;
+
     if (comp_cur(C) != M_VAR)
         synerr(C);
 
@@ -372,7 +376,7 @@ static Node *arrayarg(Comp *const C, const uint16_t par)
         if (!(symb_var(C->symb, id)->info & VI_ARR))
             synerr(C);
 
-        ptm(C, id, par);
+        ptm(C, id, par, arg);
         comp_open(C);
         comp_close(C);
         return argnode(C, PA_ARRAY, nullptr, id);
@@ -425,7 +429,7 @@ static Node *arg(Comp *const C, const uint16_t par, const bool byval)
 
             if (aend(*after)) { /* a variable alone: its cell */
                 const uint16_t id = comp_var(C, 0, 0);
-                ptm(C, id, par);
+                ptm(C, id, par, p);
                 return argnode(C, PA_VAR, place(C, O_V_ADDR, id), par);
             }
         }

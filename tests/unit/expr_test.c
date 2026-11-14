@@ -47,3 +47,30 @@ TEST(not_a_function_marked_at_itself)
     CHECK(*op == O_ERR);
     CHECK(((const ErrOp *)op)->at == 6); /* x: 5 bytes, =, then MKDIR */
 }
+
+/* A variable of another type than its parameter: the error at the argument; it was at the ','
+   after it. */
+TEST(parameter_mismatch_marked_at_its_argument)
+{
+    static const char *const lines[] = {
+        "10 a = 1: b = 2",
+        "20 FUNCTION sum% (a AS INTEGER, b AS INTEGER)",
+        "30 sum% = a + b",
+        "40 END FUNCTION",
+        nullptr,
+    };
+
+    (void)unit_run(S, lines); /* linked: the call checked against its parameters */
+    uint8_t text[] = "x = sum%(a, b)";
+    lexr_line(&S->lexr, text, S->comp.cbuf);
+    S->comp.check = true;
+    (void)comp_line(&S->comp);
+    S->comp.check = false;
+    const uint8_t *op = S->comp.xbuf;
+
+    while (*op != O_ERR && *op != O_EOL)
+        op += flow_opsize(op);
+
+    CHECK(*op == O_ERR);
+    CHECK(((const ErrOp *)op)->at == 15); /* x: 5 bytes, =, sum%: 8, (, then a */
+}
