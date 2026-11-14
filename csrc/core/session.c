@@ -66,3 +66,69 @@ bool session_set_next(Session *const S, const uint32_t line)
     S->vm.cont.code = a - S->allo.cache;
     return true;
 }
+
+/* The newest call frame at index i or older, -1 none. */
+static int32_t call_from(const Vm *const vm, int32_t i)
+{
+    for (; i >= 0; i--)
+        if (vm->frames[i].kind == FRAME_CALL)
+            return i;
+    return -1;
+}
+
+uint32_t session_frames(const Session *const S, DebugFrame out[], const uint32_t max)
+{
+    uint32_t n = 0;
+    uint32_t line = S->vm.cont.line;
+    for (int32_t i = (int32_t)S->vm.nframes - 1; n < max;) {
+        const int32_t c = call_from(&S->vm, i);
+        out[n++] = (DebugFrame){.line = line, .call = c, .proc = c < 0 ? 0 : S->vm.frames[c].call.proc};
+        if (c < 0)
+            break;
+        line = S->vm.frames[c].ret.line;
+        i = c - 1;
+    }
+    return n;
+}
+
+/* The oldest call of f's procedure newer than f, which saved what f sees; nullptr none. */
+static const Call *newer_call(const Vm *const vm, const DebugFrame *const f)
+{
+    const Call *newer = nullptr;
+    if (f->call < 0)
+        return nullptr;
+    for (uint32_t i = vm->nframes - 1; i > (uint32_t)f->call; i--)
+        if (vm->frames[i].kind == FRAME_CALL && vm->frames[i].call.proc == f->proc)
+            newer = &vm->frames[i].call;
+    return newer;
+}
+
+Addr session_cell(const Session *const S, const DebugFrame *const f, const uint16_t id, const int32_t par)
+{
+    const Addr vt = symb_var(&S->symb, id)->vt;
+    const Call *const c = newer_call(&S->vm, f);
+    if (!c)
+        return vt;
+    /* a parameter: its cell before the newer call */
+    const Addr cell = par >= 0 ? S->vm.callvars[c->params + (uint32_t)par].cell : vt;
+    if (cell != symb_cell(&S->symb, id))
+        return cell;
+    uint32_t n = 0; /* its own: the value saved */
+    for (uint16_t v = S->symb.first_local[f->proc]; v; v = symb_varx(&S->symb, v)->nloc, n++)
+        if (v == id)
+            return addr_of(&S->vm.callvars[c->locals + n].value);
+    return cell;
+}
+
+bool session_in_direct(const Session *const S)
+{
+    for (uint32_t i = 0; i < S->vm.nframes; i++)
+        if (S->vm.frames[i].ret.line == DLINE)
+            return true;
+    return false;
+}
+
+uint8_t session_eval(Session *const S, const char *const expr, const uint8_t proc, char out[static 80])
+{
+    return dbug_eval(S, expr, proc, out);
+}

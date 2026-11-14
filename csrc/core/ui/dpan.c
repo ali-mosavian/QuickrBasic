@@ -17,7 +17,6 @@
 #include "ui/uimn.h"
 #include "ui/view.h"
 #include "ui/wind.h"
-#include "vm/dbug.h"
 
 enum {
     NDP = 3,     /* its windows: Watch, Locals, Call stack */
@@ -38,7 +37,7 @@ enum {
 /* TDFRM: a call stack's frame. */
 typedef struct {
     int32_t line;    /* df_ln: its text line, -1 the immediate's */
-    const Frame *fp; /* its procedure's call frame, nullptr the module */
+    DebugFrame at;
     uint8_t view;    /* df_vw: its view, VIEW_NONE none */
     char text[DP_TW + 1];
 } PaneFrame;
@@ -59,7 +58,6 @@ static struct {
     char vt[NDVAR][DP_TW];
     PaneFrame fr[NDFRM];
     uint8_t proc;    /* g_dpp: Locals' procedure, 0 the module */
-    const Frame *newer; /* its newer call, find_newer's */
     char row_text[ROWSZ]; /* g_dprow */
     char tip[DP_TW];      /* g_dptip: a module variable's tooltip */
 } dp;
@@ -118,27 +116,16 @@ static void rowcut(char *const d)
     d[i] = 0;
 }
 
-/* The newest call frame at index i or older, nullptr none. */
-static const Frame *call_from(Session *const S, int32_t i)
+/* dp_frm1: the stop's frame at: its text line, view and row. */
+static void frame1(Session *const S, PaneFrame *const f, const DebugFrame *const at)
 {
-    for (; i >= 0; i--)
-        if (S->vm.frames[i].kind == FRAME_CALL)
-            return &S->vm.frames[i];
-    return nullptr;
-}
-
-static uint8_t frame_proc(const Frame *const fp) { return fp ? fp->call.proc : 0; }
-
-/* dp_frm1: frame f: program line line, its procedure's frame fp. */
-static void frame1(Session *const S, PaneFrame *const f, const uint32_t line, const Frame *const fp)
-{
-    f->fp = fp;
+    f->at = *at;
     f->line = -1;
     f->view = VIEW_NONE;
     memset(f->text, ' ', DP_TW);
     f->text[DP_TW] = 0;
     uint32_t tl;
-    if (line == DLINE || !lmap_of(S, line, &tl)) {
+    if (at->line == DLINE || !lmap_of(S, at->line, &tl)) {
         cpy(f->text, "Immediate");
         return;
     }
@@ -153,20 +140,13 @@ static void frame1(Session *const S, PaneFrame *const f, const uint32_t line, co
     dec(cpy(f->text + FRAME_LINE, "line "), (uint16_t)n);
 }
 
-/* dp_frames: the stop's line, then each M_PC frame's caller. */
+/* dp_frames: the stop's frames, newest first. */
 static void frames(Session *const S)
 {
-    uint8_t n = 0;
-    uint32_t line = S->vm.cont.line;
-    for (int32_t i = (int32_t)S->vm.nframes - 1;;) {
-        const Frame *f = call_from(S, i);
-        frame1(S, &dp.fr[n++], line, f);
-        if (!f || n >= NDFRM)
-            break;
-        line = f->ret.line;
-        i = (int32_t)(f - S->vm.frames) - 1;
-    }
-    dp.nframes = n;
+    DebugFrame at[NDFRM];
+    dp.nframes = (uint8_t)session_frames(S, at, NDFRM);
+    for (uint8_t i = 0; i < dp.nframes; i++)
+        frame1(S, &dp.fr[i], &at[i]);
 }
 
 /* dp_geo: each window's title row and rows: the edit windows' rows, three tenths to Watch and to
@@ -245,40 +225,6 @@ static bool is_param(Session *const S, const uint16_t id)
     return false;
 }
 
-/* dp_newer: the oldest call of procedure dp.proc newer than frame fp, which saved what that
-   frame sees; 0 none, or the module. */
-static void find_newer(Session *const S, const Frame *const fp)
-{
-    dp.newer = nullptr;
-    if (!fp)
-        return;
-    const uint32_t at = (uint32_t)(fp - S->vm.frames);
-    for (uint32_t i = S->vm.nframes - 1; i > at; i--) {
-        const Frame *const f = &S->vm.frames[i];
-        if (f->kind == FRAME_CALL && f->call.proc == dp.proc)
-            dp.newer = f;
-    }
-}
-
-/* dp_cell: variable id's cell as the frame sees it: vt's, else a newer call's saved one; par its
-   parameter's place, -1 none. */
-static Addr cell_of(Session *const S, const uint16_t id, const int32_t par)
-{
-    const Addr vt = symb_var(&S->symb, id)->vt;
-    if (!dp.newer)
-        return vt;
-    const Call *const c = &dp.newer->call;
-    /* a parameter: its cell before the newer call */
-    const Addr cell = par >= 0 ? S->vm.callvars[c->params + (uint32_t)par].cell : vt;
-    if (cell != symb_cell(&S->symb, id))
-        return cell;
-    uint32_t n = 0; /* its own: the value saved */
-    for (uint16_t v = S->symb.first_local[dp.proc]; v; v = symb_varx(&S->symb, v)->nloc, n++)
-        if (v == id)
-            return addr_of(&S->vm.callvars[c->locals + n].value);
-    return cell;
-}
-
 /* dp_val: the value of variable id's kind in cell, as text at d: a number as PRINT's without
    its sign's space, a string in quotes. Past it. */
 static char *value(Session *const S, char *d, const uint16_t id, const Addr cell)
@@ -328,7 +274,7 @@ static void var_text(Session *const S, const uint16_t id, const int32_t par)
     else if (v->type >= ET_REC)
         d = cpy(d, "(record)");
     else
-        d = value(S, d, id, cell_of(S, id, par));
+        d = value(S, d, id, session_cell(S, &dp.fr[dp.frame].at, id, par));
     *d = 0;
 }
 
@@ -353,9 +299,7 @@ static bool skipped(Session *const S, const uint16_t id)
    parameters first, then by id. */
 static void vars(Session *const S)
 {
-    const Frame *const fp = dp.fr[dp.frame].fp;
-    dp.proc = frame_proc(fp);
-    find_newer(S, fp);
+    dp.proc = dp.fr[dp.frame].at.proc;
     dp.nvars = 0;
     if (dp.proc) {
         const Proc *const p = &S->blok.procs[dp.proc];
@@ -367,10 +311,7 @@ static void vars(Session *const S)
             var1(S, id, -1);
 }
 
-/* dp_wval: expression expr's value as text at d (in dp.row_text): dbug_eval's output, its spaces
-   and end of line left out; an error's message. A ':' (another statement) or a direct line's
-   frame on cstk (its code would go): none. Past it. */
-/* dbug_eval's output out at d, its spaces and end of line left out; past it. */
+/* session_eval's output out at d, its spaces and end of line left out; past it. */
 static char *eval_text(char *d, const char *const out)
 {
     uint32_t a = 0;
@@ -385,23 +326,17 @@ static char *eval_text(char *d, const char *const out)
     return d;
 }
 
-/* A direct line's frame on cstk. */
-static bool direct_called(Session *const S)
-{
-    for (uint32_t i = 0; i < S->vm.nframes; i++)
-        if (S->vm.frames[i].ret.line == DLINE)
-            return true;
-    return false;
-}
-
+/* dp_wval: expression expr's value as text at d (in dp.row_text): session_eval's output, its
+   spaces and end of line left out; an error's message. A ':' (another statement) or a direct
+   line's frame on cstk (its code would go): none. Past it. */
 static char *watch_value(Session *const S, char *const d, const char *const expr)
 {
     if (strchr(expr, ':'))
         return cpy(d, emsg_text(S, E_SN));
-    if (direct_called(S))
+    if (session_in_direct(S))
         return cpy(d, "(not here)");
     char out[80];
-    const uint8_t err = dbug_eval(S, expr, dp.proc, out);
+    const uint8_t err = session_eval(S, expr, dp.proc, out);
     return err ? cpy(d, emsg_text(S, err - 1)) : eval_text(d, out);
 }
 
@@ -409,7 +344,7 @@ static char *watch_value(Session *const S, char *const d, const char *const expr
    procedure, or its error's message. */
 static void watch_eval(Session *const S)
 {
-    dp.proc = frame_proc(dp.fr[0].fp);
+    dp.proc = dp.fr[0].at.proc;
     for (uint8_t i = 0; i < dp.nwatch; i++) {
         char *d = cpy(cpy(dp.row_text, dp.wx[i]), " = ");
         d = watch_value(S, d, dp.wx[i]);

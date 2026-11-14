@@ -87,4 +87,21 @@ bool session_stopped_at(Session *S, DebugPos *pos);
 void session_drop_stop(Session *S);
 /* CONT goes on at program line line; false: not the stopped procedure's line. */
 bool session_set_next(Session *S, uint32_t line);
+
+/* A frame of the stopped run: the program line it is at, its procedure (0 the module) and that
+   procedure's call frame (-1 the module). */
+typedef struct {
+    uint32_t line;
+    uint8_t proc;
+    int32_t call;
+} DebugFrame;
+
+/* The stopped run's frames to out, newest first, at most max; how many. */
+uint32_t session_frames(const Session *S, DebugFrame out[], uint32_t max);
+/* Variable id's cell as frame f sees it; par its parameter's place, -1 none. */
+Addr session_cell(const Session *S, const DebugFrame *f, uint16_t id, int32_t par);
+/* A direct line called into the stopped run: evaluating would drop its code. */
+bool session_in_direct(const Session *S);
+/* PRINT expr in procedure proc's scope to out (dbug_eval): 0, else the error + 1. */
+uint8_t session_eval(Session *S, const char *expr, uint8_t proc, char out[static 80]);
 #endif
