@@ -36,7 +36,8 @@
  * | var_id, var_ispar, var_par, var_scope | comp_var, comp_ispar, comp_param, comp_scope | MIRROR |
  * | et_sfx, lbl_at, lbl_nam | comp_suffix, comp_label, comp_nameof | MIRROR |
  * | cm_rts | | gone: a return |
- * | cm_if, cm_fv, cm_fork, cm_for, cm_for1, cm_nv, cm_on, cm_onl, cm_print, cm_list, cm_dv, cm_dat, cm_rem, cm_in, cm_rd, cm_get, cm_goto, cm_gosub, cm_run, cm_res, cm_ret, cm_n0, cm_n1, cm_narg, cm_fop, cm_write, cm_lin | act_if, act_fv, act_fork, act_for, act_for1, act_for2, act_nv, act_on, act_onl, act_print, act_list, act_dv, act_data, act_rem, act_in, act_rd, act_get, act_goto, act_gosub, act_run, act_res, act_ret, act_n0, act_n1, act_narg, act_fop, act_write, act_lin | MIRROR; D3 |
+ * | cm_if, cm_fv, cm_fork, cm_for, cm_for1, cm_nv, cm_on, cm_onl, cm_print, cm_list, cm_dv, cm_dat, cm_rem, cm_in, cm_rd, cm_get, cm_goto, cm_gosub, cm_run, cm_res, cm_ret, cm_write, cm_lin | act_if, act_fv, act_fork, act_for, act_for1, act_for2, act_nv, act_on, act_onl, act_print, act_list, act_dv, act_data, act_rem, act_in, act_rd, act_get, act_goto, act_gosub, act_run, act_res, act_ret, act_write, act_lin | MIRROR; D3 |
+ * | cm_n0, cm_n1, cm_narg, cm_fop | step_n0, step_n1, step_narg, step_fop | MIRROR |
  * | g_cmact | actions[] | MIRROR; `[A_x - A_BASE] = ...` |
  * | cm_new, cm_ee, cm_nx, cm_om, cm_fin, cm_mark, cm_dbg, cm_dbgx, cm_mapstmt, cm_tok, ps_look, cm_lnld, var_decl, cm_dim1, cm_dvas, cm_dsubs, cm_using | stmts (cm_new, cm_ee), ended (cm_nx, cm_om), finish, mark, dbg, dbgdrop, mapstmt, token, pslook, lnumload, declared, dim1, dimas, dimsubs, using | MIRROR |
  * | cm_do | token's dispatch | MIRROR |
@@ -607,8 +608,7 @@ static void step_store(Session *const S)
 {
     const Node *const last = S->ast.last;
 
-    if (S->comp.tgtsubs == TGT_FIELD || S->comp.tok == TK_CONST || !last || last->kind == N_KCALL ||
-        last->kind == N_TARGET) {
+    if (S->comp.tgtsubs == TGT_FIELD || S->comp.tok == TK_CONST || !ast_isvalue(last)) {
         comp_flush(S);
         comp_store(S);
         return;
@@ -641,7 +641,7 @@ static void step_conv(Session *const S, const uint8_t cv, void (*const legacy)(S
 {
     const Node *const last = S->ast.last;
 
-    if (!last || last->kind == N_KCALL) {
+    if (!ast_isvalue(last)) {
         comp_flush(S);
         legacy(S);
         return;
@@ -667,6 +667,21 @@ static void step_call(Session *const S, const uint8_t k)
     ast_step(&S->ast, n);
 }
 
+/* A_FOP: a file statement's CALL. */
+static void step_fop(Session *const S) { step_call(S, S->comp.tok + K_LOAD - TK_LOAD); }
+
+/* A_N0, A_N1: the arguments counted; no code. */
+static void step_n0(Session *const S) { S->comp.nargs = 0; }
+static void step_n1(Session *const S) { S->comp.nargs++; }
+
+/* A_NARG: their count. */
+static void step_narg(Session *const S)
+{
+    Node *const n = ast_new(&S->ast, N_COUNT);
+    n->nargs = S->comp.nargs;
+    ast_step(&S->ast, n);
+}
+
 /* By A_*: the actions that make steps; the others flush the steps first. */
 static void (*const steps[A_END - A_BASE])(Session *S) = {
     [A_E - A_BASE] = step_expr,
@@ -679,6 +694,10 @@ static void (*const steps[A_END - A_BASE])(Session *S) = {
     [A_LE - A_BASE] = step_assign,
     [A_LET - A_BASE] = step_store,
     [A_FST - A_BASE] = step_store,
+    [A_FOP - A_BASE] = step_fop,
+    [A_N0 - A_BASE] = step_n0,
+    [A_N1 - A_BASE] = step_n1,
+    [A_NARG - A_BASE] = step_narg,
 };
 
 static uint32_t pslook(const uint32_t st, const uint8_t cls)
@@ -1013,10 +1032,6 @@ static void runres(Session *const S, const uint8_t k)
 static void act_run(Session *const S) { runres(S, K_RUN); }
 static void act_res(Session *const S) { runres(S, K_RES); }
 
-static void act_n0(Session *const S) { S->comp.nargs = 0; }
-static void act_n1(Session *const S) { S->comp.nargs++; }
-static void act_narg(Session *const S) { code_int(&S->code, S->comp.nargs); }
-
 /* DIM's ( [lo TO] hi {, ..} ): lo hi, or hi and OPTION BASE's, each an INT; how many. */
 static uint32_t dimsubs(Session *const S)
 {
@@ -1295,7 +1310,6 @@ static void act_gosub(Session *const S)
 static void act_ret(Session *const S) { code_op(&S->code, O_RETURN); }
 
 /* CALL LOAD, SAVE or VERIFY by the token. */
-static void act_fop(Session *const S) { code_call(&S->code, S->comp.tok + K_LOAD - TK_LOAD); }
 
 static void act_lnum(Session *const S) { comp_lnum(S); }
 
@@ -1315,8 +1329,6 @@ static void (*const actions[A_END - A_BASE])(Session *S) = {
     [A_GET - A_BASE] = act_get,       [A_GOTO - A_BASE] = act_goto,
     [A_GOSUB - A_BASE] = act_gosub,   [A_RUN - A_BASE] = act_run,
     [A_RES - A_BASE] = act_res,       [A_RET - A_BASE] = act_ret,
-    [A_N0 - A_BASE] = act_n0,         [A_N1 - A_BASE] = act_n1,
-    [A_NARG - A_BASE] = act_narg,     [A_FOP - A_BASE] = act_fop,
     [A_SWAP - A_BASE] = ctrl_swap,    [A_TOI - A_BASE] = comp_toint,
     [A_TOD - A_BASE] = comp_todouble, [A_VA - A_BASE] = expr_varaddr,
     [A_WR - A_BASE] = act_write,      [A_LIN - A_BASE] = act_lin,

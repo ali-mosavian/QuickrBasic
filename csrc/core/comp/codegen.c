@@ -555,6 +555,10 @@ static void gen(Code *const c, const Node *const i)
         code_call(c, n->op);
         break;
 
+    case N_COUNT:
+        code_int(c, n->nargs);
+        break;
+
     case N_CONV:
         cg_conv(c, n);
         break;

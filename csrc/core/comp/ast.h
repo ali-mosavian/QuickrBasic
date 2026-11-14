@@ -25,6 +25,7 @@ typedef enum : uint8_t {
     N_CONV,
     N_TARGET,
     N_STORE,
+    N_COUNT,
 } NodeKind;
 
 enum { AST_CHUNK = 0x4000, LIT_MAX = 8 };
@@ -98,7 +99,7 @@ struct Node {
     bool dbl;      /* N_BIN, N_FN: parsed for a DOUBLE target (expr.dbltgt) */
     uint8_t conv;  /* an N_XFN's argument: its kind (I F D S W G X, R an array's id) */
     uint8_t mode;  /* N_XFN: XM_*; N_CALL: CALL_* */
-    uint8_t nargs; /* N_ELEM, N_FN, N_XFN, N_REF, N_CALL: the arguments */
+    uint8_t nargs; /* N_ELEM, N_FN, N_XFN, N_REF, N_CALL: the arguments; N_COUNT: its INT */
     Node *a, *b;   /* N_UN, N_BIN: the operands; N_FIELD, N_ADDR, N_ARG, N_CONV, N_STORE: a the
                           child (N_STORE's its value); b: the first argument, N_TARGET's subscript */
     Node *next;    /* an argument, a step: the next, null none */
@@ -115,6 +116,13 @@ struct Node {
     const uint8_t
         *end; /* N_UN, N_BIN, N_FN, N_XFN, N_CONV: past its last operand, an error's place */
 };
+
+/* n an expression's value, not a CALL's, a target's, a store or a count. */
+static inline bool ast_isvalue(const Node *const n)
+{
+    return n && n->kind != N_KCALL && n->kind != N_TARGET && n->kind != N_STORE &&
+           n->kind != N_COUNT;
+}
 
 /* The statement's arena; its steps, first to last. */
 typedef struct {

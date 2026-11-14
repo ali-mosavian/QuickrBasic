@@ -280,7 +280,7 @@ static void check(Session *const S, Node *const n)
         break;
 
     default:
-        break; /* N_LIT, N_VAR, N_KCALL */
+        break; /* N_LIT, N_VAR, N_KCALL, N_COUNT */
     }
 }
 
