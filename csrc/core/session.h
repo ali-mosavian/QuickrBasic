@@ -65,6 +65,7 @@ struct Session {
     List list;
     Prog prog;
     ProgUser prog_user;
+    CompRun comp_run;
     Repl repl;
     Rndm rndm;
     Scop scop;
@@ -91,6 +92,8 @@ void session_drop(Session *S);
 void session_new(Session *S);
 /* The store's user: session_drop when edited, session_clear before it grows. */
 ProgUser *session_prog_user(Session *S);
+/* The session as the compiler's runner. */
+CompRun *session_comp_run(Session *S);
 void session_debug(Session *S, const DebugHooks *hooks);
 /* The next run or CONT stops after a step of kind; stopped: from the stop, else from the start. */
 void session_step(Session *S, StepKind kind, bool stopped);

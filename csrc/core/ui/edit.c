@@ -270,7 +270,7 @@ static void tokenize(Session *const S)
 static bool check(Session *const S)
 {
     S->comp.check = true;
-    comp_line(S);
+    comp_line(&S->comp);
     S->comp.check = false;
     uc.err = 0;
     link_walk(S->comp.xbuf, chkop);
@@ -290,7 +290,7 @@ static void print_line(Session *const S)
     for (size_t i = 0; i < n; i++)
         cons_putc(&S->cons, uc.src[i]);
 
-    list_body(S, S->comp.cbuf);
+    list_body(&S->comp, S->comp.cbuf);
 }
 
 bool edit_canon(Session *const S, uint8_t *const text, const uint16_t len)

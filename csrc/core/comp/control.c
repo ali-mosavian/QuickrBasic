@@ -41,7 +41,6 @@
  * - D2. A record's place is a RecRef on the node, not globals.
  */
 #include "comp/control.h"
-#include "session.h"
 #include "comp/blocks.h"
 #include "comp/declare.h"
 #include "comp/dfa.h"
@@ -57,51 +56,51 @@
 enum : uint8_t { SEL_COMPILED = 1 };
 
 [[noreturn]]
-static void synerr(Session *const S)
+static void synerr(Comp *const C)
 {
-    repl_error(S, E_SN);
+    fault_error(C->fault, E_SN);
 }
 [[noreturn]]
-static void mismatch(Session *const S)
+static void mismatch(Comp *const C)
 {
-    repl_error(S, E_TM);
+    fault_error(C->fault, E_TM);
 }
 
-static void skipvar(Session *const S) { S->comp.p = comp_skipname(S->comp.p); }
+static void skipvar(Comp *const C) { C->p = comp_skipname(C->p); }
 
 /* cm_name with g_vfs: the M_VAR at comp.p as comp_var(shape, 0). */
-static uint16_t shaped(Session *const S, const uint8_t shape)
+static uint16_t shaped(Comp *const C, const uint8_t shape)
 {
-    if (comp_cur(&S->comp) != M_VAR)
-        synerr(S);
+    if (comp_cur(C) != M_VAR)
+        synerr(C);
 
-    return comp_var(S, shape, 0);
+    return comp_var(C, shape, 0);
 }
 
 /* ct_skip: to the statement's end: 0, ':' or '. */
-static void skip(Session *const S)
+static void skip(Comp *const C)
 {
-    while (*S->comp.p && *S->comp.p != ':' && *S->comp.p != TK_REM)
-        S->comp.p = decl_item(S->comp.p);
+    while (*C->p && *C->p != ':' && *C->p != TK_REM)
+        C->p = decl_item(C->p);
 }
 
 /* ct_skip0: past a ( .. ), if there. */
-static void skipparen(Session *const S)
+static void skipparen(Comp *const C)
 {
-    if (*S->comp.p != '(')
+    if (*C->p != '(')
         return;
 
     uint32_t n = 0;
 
     for (;;) {
-        const uint8_t c = *S->comp.p;
+        const uint8_t c = *C->p;
 
         if (!c)
             return;
         if (c == '(')
             n++;
 
-        S->comp.p = decl_item(S->comp.p);
+        C->p = decl_item(C->p);
 
         if (c == ')' && !--n)
             return;
@@ -111,15 +110,15 @@ static void skipparen(Session *const S)
 /* ---- targets and jumps */
 
 /* ct_target: the target in this line at body offset off, mode. */
-static uint32_t target(Session *const S, const uint32_t off, const JumpMode mode)
+static uint32_t target(Comp *const C, const uint32_t off, const JumpMode mode)
 {
-    if (S->comp.line == DLINE)
+    if (C->line == DLINE)
         return (off * 4 + mode) | PDIR;
 
-    return (off + S->comp.line + HDR) * 4 + mode;
+    return (off + C->line + HDR) * 4 + mode;
 }
 
-Jump ctrl_jump(Session *const S, const uint32_t t)
+Jump ctrl_jump(Comp *const C, const uint32_t t)
 {
     Jump j = {.line = NOTARGET};
 
@@ -130,7 +129,7 @@ Jump ctrl_jump(Session *const S, const uint32_t t)
             j.body = (t & ~PDIR) >> 2;
         } else {
             uint32_t off;
-            j.line = prog_lineof(&S->prog, t >> 2, &off);
+            j.line = prog_lineof(C->prog, t >> 2, &off);
             j.body = off;
         }
     }
@@ -139,15 +138,15 @@ Jump ctrl_jump(Session *const S, const uint32_t t)
 }
 
 /* ct_ent: the entry of the statement at at; null in the direct line. */
-static BlockEnt *entry(Session *const S, const uint8_t *const at)
+static BlockEnt *entry(Comp *const C, const uint8_t *const at)
 {
-    if (S->comp.line == DLINE)
+    if (C->line == DLINE)
         return nullptr;
 
-    BlockEnt *const e = blok_find(&S->blok, S->comp.line, (uint32_t)(at - S->comp.body));
+    BlockEnt *const e = blok_find(C->blok, C->line, (uint32_t)(at - C->body));
 
     if (!e)
-        synerr(S);
+        synerr(C);
 
     return e;
 }
@@ -155,26 +154,26 @@ static BlockEnt *entry(Session *const S, const uint8_t *const at)
 static uint32_t nextof(const BlockEnt *const e) { return e ? e->next : NOTARGET; }
 static uint32_t doneof(const BlockEnt *const e) { return e ? e->done : NOTARGET; }
 
-static void jump(Session *const S, const uint8_t op, const uint32_t t)
+static void jump(Comp *const C, const uint8_t op, const uint32_t t)
 {
-    comp_go(S, op, ctrl_jump(S, t));
+    comp_go(C, op, ctrl_jump(C, t));
 }
 
-static void jmp(Session *const S, const uint32_t t) { jump(S, O_JMP, t); }
+static void jmp(Comp *const C, const uint32_t t) { jump(C, O_JMP, t); }
 
-void ctrl_jf(Session *const S, const uint32_t t) { comp_cond(S, O_I_JF, ctrl_jump(S, t)); }
-static void jt(Session *const S, const uint32_t t) { comp_cond(S, O_I_JT, ctrl_jump(S, t)); }
+void ctrl_jf(Comp *const C, const uint32_t t) { comp_cond(C, O_I_JF, ctrl_jump(C, t)); }
+static void jt(Comp *const C, const uint32_t t) { comp_cond(C, O_I_JT, ctrl_jump(C, t)); }
 
-void ctrl_blockif(Session *const S)
+void ctrl_blockif(Comp *const C)
 {
-    const BlockEnt *const e = entry(S, S->comp.kw);
-    S->comp.p++;
-    ctrl_jf(S, nextof(e));
+    const BlockEnt *const e = entry(C, C->kw);
+    C->p++;
+    ctrl_jf(C, nextof(e));
 }
 
-bool ctrl_else(Session *const S, uint32_t *const t)
+bool ctrl_else(Comp *const C, uint32_t *const t)
 {
-    const uint8_t *p = S->comp.p;
+    const uint8_t *p = C->p;
     uint32_t n = 0; /* inner IFs */
     for (;;) {
         const uint8_t c = *p;
@@ -193,146 +192,146 @@ bool ctrl_else(Session *const S, uint32_t *const t)
         p = decl_item(p);
     }
 
-    *t = target(S, (uint32_t)(p + 1 - S->comp.body), TO_STMT);
+    *t = target(C, (uint32_t)(p + 1 - C->body), TO_STMT);
     return true;
 }
 
-void ctrl_forskip(Session *const S) { jump(S, O_FSKIP, doneof(entry(S, S->comp.kw))); }
+void ctrl_forskip(Comp *const C) { jump(C, O_FSKIP, doneof(entry(C, C->kw))); }
 
 /* ct_cond: the test after the keyword. */
-static void cond(Session *const S)
+static void cond(Comp *const C)
 {
-    S->comp.p++;
-    expr_compile(S);
+    C->p++;
+    expr_compile(C);
 }
 
-static void elseif(Session *const S)
+static void elseif(Comp *const C)
 {
-    const BlockEnt *e = entry(S, S->comp.p);
-    jmp(S, doneof(e));
-    cond(S);
+    const BlockEnt *e = entry(C, C->p);
+    jmp(C, doneof(e));
+    cond(C);
 
-    if (*S->comp.p != TK_THEN)
-        synerr(S);
+    if (*C->p != TK_THEN)
+        synerr(C);
 
-    S->comp.p++;
-    ctrl_jf(S, nextof(e));
+    C->p++;
+    ctrl_jf(C, nextof(e));
 }
 
-static void blockelse(Session *const S)
+static void blockelse(Comp *const C)
 {
-    const BlockEnt *e = entry(S, S->comp.p);
-    S->comp.p++;
-    jmp(S, doneof(e));
+    const BlockEnt *e = entry(C, C->p);
+    C->p++;
+    jmp(C, doneof(e));
 }
 
-static void doloop(Session *const S)
+static void doloop(Comp *const C)
 {
-    const BlockEnt *e = entry(S, S->comp.p);
-    S->comp.p++;
+    const BlockEnt *e = entry(C, C->p);
+    C->p++;
 
-    if (*S->comp.p == TK_WHILE) {
-        cond(S);
-        ctrl_jf(S, doneof(e));
-    } else if (*S->comp.p == TK_UNTIL) {
-        cond(S);
-        jt(S, doneof(e));
+    if (*C->p == TK_WHILE) {
+        cond(C);
+        ctrl_jf(C, doneof(e));
+    } else if (*C->p == TK_UNTIL) {
+        cond(C);
+        jt(C, doneof(e));
     }
 }
 
-static void loop(Session *const S)
+static void loop(Comp *const C)
 {
-    const BlockEnt *e = entry(S, S->comp.p);
-    S->comp.p++;
+    const BlockEnt *e = entry(C, C->p);
+    C->p++;
 
-    if (*S->comp.p == TK_WHILE) { /* back when true */
-        cond(S);
-        jt(S, nextof(e));
-    } else if (*S->comp.p == TK_UNTIL) { /* back when false */
-        cond(S);
-        ctrl_jf(S, nextof(e));
+    if (*C->p == TK_WHILE) { /* back when true */
+        cond(C);
+        jt(C, nextof(e));
+    } else if (*C->p == TK_UNTIL) { /* back when false */
+        cond(C);
+        ctrl_jf(C, nextof(e));
     } else
-        jmp(S, nextof(e));
+        jmp(C, nextof(e));
 }
 
-static void whileloop(Session *const S)
+static void whileloop(Comp *const C)
 {
-    const BlockEnt *e = entry(S, S->comp.p);
-    cond(S);
-    ctrl_jf(S, doneof(e));
+    const BlockEnt *e = entry(C, C->p);
+    cond(C);
+    ctrl_jf(C, doneof(e));
 }
 
-static void wend(Session *const S)
+static void wend(Comp *const C)
 {
-    const BlockEnt *e = entry(S, S->comp.p);
-    S->comp.p++;
-    jmp(S, nextof(e));
+    const BlockEnt *e = entry(C, C->p);
+    C->p++;
+    jmp(C, nextof(e));
 }
 
 /* EXIT FOR, EXIT DO. */
-static void exitblock(Session *const S)
+static void exitblock(Comp *const C)
 {
-    const BlockEnt *const e = entry(S, S->comp.p);
-    const uint8_t c = S->comp.p[1];
-    S->comp.p += 2;
+    const BlockEnt *const e = entry(C, C->p);
+    const uint8_t c = C->p[1];
+    C->p += 2;
 
     if (c == TK_FOR)
-        comp_op(S, O_FPOP);
+        comp_op(C, O_FPOP);
     else if (c != TK_DO)
-        synerr(S);
+        synerr(C);
 
-    jmp(S, doneof(e));
+    jmp(C, doneof(e));
 }
 
 /* ---- SELECT CASE, SWAP */
 
 /* ct_var: the variable #n of a SELECT at depth n ('S' SWAP's), of type T_*. */
-static uint16_t selvar(Session *const S, const uint8_t depth, const uint8_t type)
+static uint16_t selvar(Comp *const C, const uint8_t depth, const uint8_t type)
 {
     const uint8_t nm[2] = {'#', (uint8_t)('0' + depth)};
 
-    const uint16_t name = symb_find_name(&S->symb, nm, 2);
-    S->ctrl.seltype = type;
-    S->comp.scope = 0;
-    S->comp.isstatic = false;
-    S->ctrl.selid = symb_find_var(
-        &S->symb,
+    const uint16_t name = symb_find_name(C->symb, nm, 2);
+    C->ctrl->seltype = type;
+    C->scope = 0;
+    C->isstatic = false;
+    C->ctrl->selid = symb_find_var(
+        C->symb,
         name,
         code_pick(type, ET_I4, ET_R4, ET_R8, ET_SD),
         code_pick(type, VK_INT, VK_FLT, SK_DBL, VK_STR),
         0,
         false
     );
-    return S->ctrl.selid;
+    return C->ctrl->selid;
 }
 
 /* ct_ldop: selid's load. */
-static uint8_t ldop(Session *const S)
+static uint8_t ldop(Comp *const C)
 {
-    return code_pick(S->ctrl.seltype, O_I_LD_V, O_F_LD_V, O_D_LD_V, O_S_LD_V);
+    return code_pick(C->ctrl->seltype, O_I_LD_V, O_F_LD_V, O_D_LD_V, O_S_LD_V);
 }
 
 /* ct_stv: store to selid. */
-static void stv(Session *const S)
+static void stv(Comp *const C)
 {
-    comp_opid(S, code_pick(S->ctrl.seltype, O_I_ST_V, O_F_ST_V, O_D_ST_V, O_S_ST_V), S->ctrl.selid);
+    comp_opid(C, code_pick(C->ctrl->seltype, O_I_ST_V, O_F_ST_V, O_D_ST_V, O_S_ST_V), C->ctrl->selid);
 }
 
-static void select(Session *const S)
+static void select(Comp *const C)
 {
-    BlockEnt *const e = entry(S, S->comp.p);
-    S->comp.p++;
+    BlockEnt *const e = entry(C, C->p);
+    C->p++;
 
-    if (*S->comp.p != TK_CASE)
-        synerr(S);
+    if (*C->p != TK_CASE)
+        synerr(C);
 
-    S->comp.p++;
-    expr_compile(S);
+    C->p++;
+    expr_compile(C);
 
-    if (comp_type(S) == T_DBL)
-        comp_tofloat(S);
+    if (comp_type(C) == T_DBL)
+        comp_tofloat(C);
 
-    const uint8_t type = comp_type(S);
+    const uint8_t type = comp_type(C);
     uint8_t depth = 0;
 
     if (e) {
@@ -340,53 +339,53 @@ static void select(Session *const S)
         e->aux = (uint16_t)((e->aux & 0xFF) | (type | SEL_COMPILED) << 8);
     }
 
-    selvar(S, depth, type);
-    stv(S);
-    jmp(S, nextof(e));
+    selvar(C, depth, type);
+    stv(C);
+    jmp(C, nextof(e));
 }
 
 /* ct_cmp: the SELECT's value, relation m (DC_*), the expression: an INT. */
-static void casecmp(Session *const S, const uint8_t m)
+static void casecmp(Comp *const C, const uint8_t m)
 {
-    Node *const n = ast_new(&S->ast, N_CASECMP); /* a step first: an error's code has the load */
+    Node *const n = ast_new(C->ast, N_CASECMP); /* a step first: an error's code has the load */
     n->op = m;
-    n->id = S->ctrl.selid;
-    n->conv = S->ctrl.seltype;
-    ast_step(&S->ast, n);
-    Node *const e = expr_tree(S, false);
-    comp_check(S, e);
+    n->id = C->ctrl->selid;
+    n->conv = C->ctrl->seltype;
+    ast_step(C->ast, n);
+    Node *const e = expr_tree(C, false);
+    comp_check(C, e);
     n->a = e; /* checked: a mismatch's code has it */
 
-    if ((S->ctrl.seltype & T_STR) != (ast_type(e) & T_STR))
-        mismatch(S);
+    if ((C->ctrl->seltype & T_STR) != (ast_type(e) & T_STR))
+        mismatch(C);
 
     n->mode = 1;
-    comp_value(S, T_INT);
+    comp_value(C, T_INT);
 }
 
 /* ct_item: IS rel e, e TO e, e. */
-static void caseitem(Session *const S)
+static void caseitem(Comp *const C)
 {
-    if (*S->comp.p == TK_IS) {
+    if (*C->p == TK_IS) {
         static const uint8_t bit[3] = {DC_GT, DC_EQ, DC_LT};
 
-        S->comp.p++;
+        C->p++;
         uint8_t m = 0;
 
-        for (uint8_t r; (r = (uint8_t)(*S->comp.p - TK_GT)) < 3; S->comp.p++)
+        for (uint8_t r; (r = (uint8_t)(*C->p - TK_GT)) < 3; C->p++)
             m |= bit[r];
         if (!m)
-            synerr(S);
+            synerr(C);
 
-        casecmp(S, m);
+        casecmp(C, m);
         return;
     }
 
-    for (const uint8_t *p = S->comp.p;; p = decl_item(p)) { /* a TO before ',' or the end */
+    for (const uint8_t *p = C->p;; p = decl_item(p)) { /* a TO before ',' or the end */
         const uint8_t c = *p;
 
         if (!c || c == ':' || c == ',') {
-            casecmp(S, DC_EQ);
+            casecmp(C, DC_EQ);
             return;
         }
 
@@ -394,25 +393,25 @@ static void caseitem(Session *const S)
             break;
     }
 
-    casecmp(S, DC_GT | DC_EQ);
+    casecmp(C, DC_GT | DC_EQ);
 
-    if (*S->comp.p != TK_TO)
-        synerr(S);
+    if (*C->p != TK_TO)
+        synerr(C);
 
-    S->comp.p++;
-    casecmp(S, DC_EQ | DC_LT);
-    comp_op(S, O_I_AND);
-    comp_value(S, T_INT);
+    C->p++;
+    casecmp(C, DC_EQ | DC_LT);
+    comp_op(C, O_I_AND);
+    comp_value(C, T_INT);
 }
 
-static void casestmt(Session *const S)
+static void casestmt(Comp *const C)
 {
-    const BlockEnt *const e = entry(S, S->comp.p);
-    jmp(S, doneof(e));
-    S->comp.p++;
+    const BlockEnt *const e = entry(C, C->p);
+    jmp(C, doneof(e));
+    C->p++;
 
-    if (*S->comp.p == TK_ELSE) {
-        S->comp.p++;
+    if (*C->p == TK_ELSE) {
+        C->p++;
         return;
     }
 
@@ -424,311 +423,311 @@ static void casestmt(Session *const S)
         type = (uint8_t)(aux >> 8);
 
         if (!type)
-            synerr(S); /* its SELECT not compiled */
+            synerr(C); /* its SELECT not compiled */
         type &= (uint8_t)~SEL_COMPILED;
     }
 
-    selvar(S, depth, type);
-    caseitem(S);
+    selvar(C, depth, type);
+    caseitem(C);
 
-    while (*S->comp.p == ',') {
-        S->comp.p++;
-        caseitem(S);
-        comp_op(S, O_I_OR);
-        comp_value(S, T_INT);
+    while (*C->p == ',') {
+        C->p++;
+        caseitem(C);
+        comp_op(C, O_I_OR);
+        comp_value(C, T_INT);
     }
 
-    ctrl_jf(S, nextof(e));
+    ctrl_jf(C, nextof(e));
 }
 
-void ctrl_swap(Session *const S)
+void ctrl_swap(Comp *const C)
 {
-    const uint8_t *const a = S->comp.p;
-    expr_load(S);
-    selvar(S, 'S' - '0', comp_type(S));
-    stv(S);
+    const uint8_t *const a = C->p;
+    expr_load(C);
+    selvar(C, 'S' - '0', comp_type(C));
+    stv(C);
 
-    if (comp_cur(&S->comp) != ',')
-        synerr(S);
+    if (comp_cur(C) != ',')
+        synerr(C);
 
-    const uint8_t *const b = ++S->comp.p;
-    S->comp.p = a; /* a = b */
-    expr_target(S);
-    S->comp.p = b;
-    const uint16_t tgt = S->comp.tgt;
-    expr_load(S);
+    const uint8_t *const b = ++C->p;
+    C->p = a; /* a = b */
+    expr_target(C);
+    C->p = b;
+    const uint16_t tgt = C->tgt;
+    expr_load(C);
 
-    if (comp_type(S) != S->ctrl.seltype)
-        mismatch(S);
+    if (comp_type(C) != C->ctrl->seltype)
+        mismatch(C);
 
-    S->comp.tgt = tgt;
-    comp_store(S);
-    const uint8_t *const end = S->comp.p;
-    S->comp.p = b; /* b = #S */
-    expr_target(S);
-    comp_opid(S, ldop(S), S->ctrl.selid);
-    comp_value(S, S->ctrl.seltype);
-    comp_store(S);
-    S->comp.p = end;
+    C->tgt = tgt;
+    comp_store(C);
+    const uint8_t *const end = C->p;
+    C->p = b; /* b = #S */
+    expr_target(C);
+    comp_opid(C, ldop(C), C->ctrl->selid);
+    comp_value(C, C->ctrl->seltype);
+    comp_store(C);
+    C->p = end;
 }
 
 /* ---- records */
 
-void ctrl_recstore(Session *const S)
+void ctrl_recstore(Comp *const C)
 {
-    const uint8_t et = S->ctrl.fieldet;
+    const uint8_t et = C->ctrl->fieldet;
 
     if (et == ET_SD) {
-        comp_tostring(S);
-        Node *const n = comp_op(S, O_SF_ST);
-        comp_word(n, S->comp.tgt);
-        comp_word(n, S->ctrl.fieldfix);
+        comp_tostring(C);
+        Node *const n = comp_op(C, O_SF_ST);
+        comp_word(n, C->tgt);
+        comp_word(n, C->ctrl->fieldfix);
         return;
     }
 
-    comp_toinfo(S, comp_etkind[et]);
-    Node *const n = comp_op(S, O_FL_ST);
-    comp_word(n, S->comp.tgt);
+    comp_toinfo(C, comp_etkind[et]);
+    Node *const n = comp_op(C, O_FL_ST);
+    comp_word(n, C->tgt);
     comp_byte(n, et);
 }
 
 /* ct_rcopy: a = b of two records of one TYPE: their addresses, R.COPY. */
-static bool reccopy(Session *const S)
+static bool reccopy(Comp *const C)
 {
-    const uint8_t *const p = S->comp.p;
-    Node *const a = ref_record(S);
+    const uint8_t *const p = C->p;
+    Node *const a = ref_record(C);
 
-    if (a != nullptr && a->rec.et >= ET_REC && comp_cur(&S->comp) == TK_EQ) {
+    if (a != nullptr && a->rec.et >= ET_REC && comp_cur(C) == TK_EQ) {
         const RecRef rec = a->rec;
-        S->comp.p++;
-        Node *const b = comp_cur(&S->comp) == M_VAR ? ref_record(S) : nullptr;
+        C->p++;
+        Node *const b = comp_cur(C) == M_VAR ? ref_record(C) : nullptr;
 
-        if (b != nullptr && b->rec.et == rec.et && comp_end(S)) {
-            comp_step(S, a);
-            comp_step(S, b);
-            comp_word(comp_op(S, O_R_COPY), rec.fix);
+        if (b != nullptr && b->rec.et == rec.et && comp_end(C)) {
+            comp_step(C, a);
+            comp_step(C, b);
+            comp_word(comp_op(C, O_R_COPY), rec.fix);
             return true;
         }
     }
 
-    S->comp.p = p;
+    C->p = p;
     return false;
 }
 
 /* ---- procedures */
 
 /* ct_pdecl: the name at comp.p a SUB's or FUNCTION's that a DECLARE or a definition named. */
-static bool declname(Session *const S)
+static bool declname(Comp *const C)
 {
-    return *S->comp.p == M_VAR &&
-           symb_name(&S->symb, comp_nameof(S->comp.p))->flags & (NM_SUB | NM_FUNC | NM_FN);
+    return *C->p == M_VAR &&
+           symb_name(C->symb, comp_nameof(C->p))->flags & (NM_SUB | NM_FUNC | NM_FN);
 }
 
 /* ct_pchk: in the IDE's check of a line alone, a procedure its declaration named passes:
    blok_procs has it only once linked. */
-static bool checkonly(Session *const S) { return S->comp.check && declname(S); }
+static bool checkonly(Comp *const C) { return C->check && declname(C); }
 
-void ctrl_undef(Session *const S, const uint8_t err)
+void ctrl_undef(Comp *const C, const uint8_t err)
 {
-    comp_int(S, err);
-    comp_call(S, K_ERROR);
+    comp_int(C, err);
+    comp_call(C, K_ERROR);
 }
 
 /* Procedure idx's call, its arguments as form writes them. */
-static void pcall(Session *const S, const uint8_t idx, const Proc *const pr, const ArgsForm form)
+static void pcall(Comp *const C, const uint8_t idx, const Proc *const pr, const ArgsForm form)
 {
-    comp_step(S, ref_call(S, idx, pr, form));
+    comp_step(C, ref_call(C, idx, pr, form));
 }
 
 /* CALL n [( args )]. */
-static void call(Session *const S)
+static void call(Comp *const C)
 {
-    S->comp.p++;
+    C->p++;
     uint8_t idx;
-    const Proc *const pr = ref_proc(S, &idx);
+    const Proc *const pr = ref_proc(C, &idx);
 
     if (!pr) {
-        if (!declname(S))
-            synerr(S);
-        if (S->comp.check) {
-            skip(S);
+        if (!declname(C))
+            synerr(C);
+        if (C->check) {
+            skip(C);
             return;
         }
 
-        skipvar(S); /* DECLAREd only: its arguments, then Subprogram not defined when run */
-        if (*S->comp.p == '(') {
-            S->comp.p++;
-            ref_dropargs(S, true);
-            comp_close(S);
+        skipvar(C); /* DECLAREd only: its arguments, then Subprogram not defined when run */
+        if (*C->p == '(') {
+            C->p++;
+            ref_dropargs(C, true);
+            comp_close(C);
         }
 
-        ctrl_undef(S, QB_NO_SUB);
+        ctrl_undef(C, QB_NO_SUB);
         return;
     }
 
-    pcall(S, idx, pr, ARGS_PAREN);
+    pcall(C, idx, pr, ARGS_PAREN);
 }
 
 /* ct_scall: n args, a SUB's call without CALL; another name is not one. */
-static bool subcall(Session *const S)
+static bool subcall(Comp *const C)
 {
-    const uint8_t *const start = S->comp.p;
+    const uint8_t *const start = C->p;
     uint8_t idx;
-    const Proc *const pr = ref_proc(S, &idx);
+    const Proc *const pr = ref_proc(C, &idx);
 
     if (pr) {
         if (pr->kind == PK_SUB) {
             ArgsForm form = ARGS_NONE;
 
-            if (!comp_end(S)) {
-                if (comp_cur(&S->comp) == TK_EQ) /* a SUB's name assigned */
-                    synerr(S);
+            if (!comp_end(C)) {
+                if (comp_cur(C) == TK_EQ) /* a SUB's name assigned */
+                    synerr(C);
 
                 form = ARGS_BARE;
             }
 
-            pcall(S, idx, pr, form);
+            pcall(C, idx, pr, form);
             return true;
         }
 
-        if (idx != S->comp.proc && comp_cur(&S->comp) == TK_EQ) /* f = e: in FUNCTION f only */
-            repl_error(S, E_VR);
+        if (idx != C->proc && comp_cur(C) == TK_EQ) /* f = e: in FUNCTION f only */
+            fault_error(C->fault, E_VR);
     }
 
-    S->comp.p = start;
+    C->p = start;
 
-    if (checkonly(S)) {
-        skip(S);
+    if (checkonly(C)) {
+        skip(C);
         return true;
     }
 
-    if (*S->comp.p != M_VAR)
+    if (*C->p != M_VAR)
         return false;
 
-    const Name *const n = symb_name(&S->symb, comp_nameof(S->comp.p));
+    const Name *const n = symb_name(C->symb, comp_nameof(C->p));
 
     if (!(n->flags & NM_SUB) || n->proc)
         return false;
 
-    skipvar(S); /* a SUB DECLAREd only */
-    if (!comp_end(S)) {
-        if (comp_cur(&S->comp) == TK_EQ)
-            synerr(S);
+    skipvar(C); /* a SUB DECLAREd only */
+    if (!comp_end(C)) {
+        if (comp_cur(C) == TK_EQ)
+            synerr(C);
 
-        ref_dropargs(S, false);
+        ref_dropargs(C, false);
     }
 
-    ctrl_undef(S, QB_NO_SUB);
+    ctrl_undef(C, QB_NO_SUB);
     return true;
 }
 
 /* SUB, FUNCTION: run into, passed: JMP past its END. */
-static void sub(Session *const S)
+static void sub(Comp *const C)
 {
-    S->comp.p++;
+    C->p++;
     uint8_t idx;
-    const Proc *const pr = ref_proc(S, &idx);
+    const Proc *const pr = ref_proc(C, &idx);
 
     if (pr)
-        jmp(S, pr->skip);
-    else if (!checkonly(S))
-        synerr(S);
+        jmp(C, pr->skip);
+    else if (!checkonly(C))
+        synerr(C);
 
-    skip(S);
+    skip(C);
 }
 
 /* END or EXIT SUB, FUNCTION, DEF: PRET. */
-static void pret(Session *const S)
+static void pret(Comp *const C)
 {
-    S->comp.p += 2;
-    comp_op(S, O_PRET);
+    C->p += 2;
+    comp_op(C, O_PRET);
 }
 
 /* DEF FNn [(params)]: passed as a FUNCTION; with = e, JMP past it, then the result e, PRET. */
-static void deffn(Session *const S)
+static void deffn(Comp *const C)
 {
-    const uint8_t *const name = ++S->comp.p;
+    const uint8_t *const name = ++C->p;
     uint8_t idx;
-    const Proc *const pr = ref_proc(S, &idx);
+    const Proc *const pr = ref_proc(C, &idx);
 
     if (!pr) {
-        if (!checkonly(S))
-            synerr(S);
+        if (!checkonly(C))
+            synerr(C);
 
-        skip(S);
+        skip(C);
         return;
     }
 
-    jmp(S, pr->skip);
-    skipparen(S);
+    jmp(C, pr->skip);
+    skipparen(C);
 
-    if (comp_cur(&S->comp) != TK_EQ) {
-        skip(S);
+    if (comp_cur(C) != TK_EQ) {
+        skip(C);
         return;
     }
 
-    const uint8_t *const eq = S->comp.p;
-    S->comp.p = name;
-    comp_target(S, shaped(S, 1)); /* its result */
-    S->comp.p = eq + 1;
-    expr_compile(S);
-    comp_store(S);
-    comp_op(S, O_PRET);
+    const uint8_t *const eq = C->p;
+    C->p = name;
+    comp_target(C, shaped(C, 1)); /* its result */
+    C->p = eq + 1;
+    expr_compile(C);
+    comp_store(C);
+    comp_op(C, O_PRET);
 }
 
 /* DEF SEG [= s]: no code, flat; DEF FN. */
-static bool defseg(Session *const S)
+static bool defseg(Comp *const C)
 {
-    if (S->comp.p[1] == TK_X && S->comp.p[2] == TK1_SEG) {
-        skip(S);
+    if (C->p[1] == TK_X && C->p[2] == TK1_SEG) {
+        skip(C);
         return true;
     }
 
-    if (S->comp.p[1] != M_VAR)
+    if (C->p[1] != M_VAR)
         return false;
 
-    deffn(S);
+    deffn(C);
     return true;
 }
 
 /* ---- other statements */
 
 /* REDIM [PRESERVE]: DIM's grammar, each CALL DIM marked REDIM's. */
-static void redim(Session *const S)
+static void redim(Comp *const C)
 {
-    S->comp.p++;
-    S->comp.redim = DIM_REDIM;
+    C->p++;
+    C->redim = DIM_REDIM;
 
-    if (S->comp.p[0] == TK_X && S->comp.p[1] == TK1_PRESERVE) {
-        S->comp.p += 2;
-        S->comp.redim = DIM_REDIM | DIM_PRESERVE;
+    if (C->p[0] == TK_X && C->p[1] == TK1_PRESERVE) {
+        C->p += 2;
+        C->redim = DIM_REDIM | DIM_PRESERVE;
     }
 
-    comp_dfa(S, lexr_ps_entry[TK_DIM - 0x80]);
-    S->comp.redim = 0;
+    comp_dfa(C, lexr_ps_entry[TK_DIM - 0x80]);
+    C->redim = 0;
 }
 
 /* ERASE a {, a}: each array's id, CALL ERASE. */
-static void erase(Session *const S)
+static void erase(Comp *const C)
 {
-    S->comp.p++;
+    C->p++;
 
     do {
-        uint16_t id = shaped(S, 2);
-        const uint16_t name = symb_var(&S->symb, id)->name;
-        const uint8_t t = scop_rec(&S->scop, name, true); /* a record array: its own variable */
+        uint16_t id = shaped(C, 2);
+        const uint16_t name = symb_var(C->symb, id)->name;
+        const uint8_t t = scop_rec(C->scop, name, true); /* a record array: its own variable */
         if (t)
-            id = ref_recarray(S, name, t);
+            id = ref_recarray(C, name, t);
 
-        comp_int(S, id);
-        comp_call(S, K_ERASE);
-    } while (comp_optcomma(S));
+        comp_int(C, id);
+        comp_call(C, K_ERASE);
+    } while (comp_optcomma(C));
 }
 
 /* ct_evk: the TK_X word at comp.p an event's: its EK_*, comp.p past it. */
-static bool evkind(Session *const S, uint8_t *const kind)
+static bool evkind(Comp *const C, uint8_t *const kind)
 {
-    switch (S->comp.p[1]) {
+    switch (C->p[1]) {
     case TK1_TIMER:
         *kind = EK_TIMER;
         break;
@@ -753,396 +752,396 @@ static bool evkind(Session *const S, uint8_t *const kind)
         return false;
     }
 
-    S->comp.p += 2;
+    C->p += 2;
     return true;
 }
 
 /* ct_evn: the event's (n): KEY's, COM's, STRIG's; TIMER's in ON TIMER; else 0. */
-static void evnum(Session *const S, const uint8_t kind)
+static void evnum(Comp *const C, const uint8_t kind)
 {
     if (kind != EK_PEN) {
-        if (comp_cur(&S->comp) == '(') {
-            expr_paren(S);
-            comp_toint(S);
+        if (comp_cur(C) == '(') {
+            expr_paren(C);
+            comp_toint(C);
             return;
         }
 
         if (kind != EK_TIMER)
-            synerr(S);
+            synerr(C);
     }
 
-    comp_int(S, 0);
+    comp_int(C, 0);
 }
 
 /* ON [LOCAL] ERROR GOTO line: ONERR or ONLERR num addr; ON event(n) GOSUB line: ONEV kind num
    addr; another ON is not one. */
-static bool onerror(Session *const S)
+static bool onerror(Comp *const C)
 {
-    const uint8_t *const start = S->comp.p++;
+    const uint8_t *const start = C->p++;
 
-    if (comp_cur(&S->comp) != TK_X) {
-        S->comp.p = start;
+    if (comp_cur(C) != TK_X) {
+        C->p = start;
         return false;
     }
 
     uint8_t kind;
 
-    if (evkind(S, &kind)) {
-        evnum(S, kind);
+    if (evkind(C, &kind)) {
+        evnum(C, kind);
 
-        if (comp_cur(&S->comp) != TK_GOSUB)
-            synerr(S);
+        if (comp_cur(C) != TK_GOSUB)
+            synerr(C);
 
-        S->comp.p++;
-        S->comp.modlabel = true; /* an event's handler: the module's */
-        comp_lnum(S);
-        comp_byte(comp_jump(S, O_ONEV), kind);
+        C->p++;
+        C->modlabel = true; /* an event's handler: the module's */
+        comp_lnum(C);
+        comp_byte(comp_jump(C, O_ONEV), kind);
         return true;
     }
 
     uint8_t op = O_ONERR;
 
-    if (S->comp.p[1] == TK1_LOCAL) { /* PDS's ON LOCAL ERROR */
-        S->comp.p += 2;
+    if (C->p[1] == TK1_LOCAL) { /* PDS's ON LOCAL ERROR */
+        C->p += 2;
 
-        if (comp_cur(&S->comp) != TK_X)
-            synerr(S);
+        if (comp_cur(C) != TK_X)
+            synerr(C);
 
         op = O_ONLERR;
     }
 
-    if (S->comp.p[1] != TK1_ERROR) {
-        S->comp.p = start;
+    if (C->p[1] != TK1_ERROR) {
+        C->p = start;
         return false;
     }
 
-    S->comp.p += 2;
+    C->p += 2;
 
-    if (comp_cur(&S->comp) != TK_GOTO) {
-        S->comp.dg = DG_GOTO_MISSING;
-        synerr(S);
+    if (comp_cur(C) != TK_GOTO) {
+        C->dg = DG_GOTO_MISSING;
+        synerr(C);
     }
 
-    S->comp.p++;
-    S->comp.modlabel = op == O_ONERR; /* ON ERROR's handler: the module's */
-    comp_lnum(S);
-    comp_jump(S, op);
+    C->p++;
+    C->modlabel = op == O_ONERR; /* ON ERROR's handler: the module's */
+    comp_lnum(C);
+    comp_jump(C, op);
     return true;
 }
 
 /* ct_evs: event(n) ON | OFF | STOP: CALL EVST ( n kind*4+state -- ); KEY n, s: CALL KEYDEF; KEY
    ON, OFF, LIST: the screen's, nothing. */
-static bool evstate(Session *const S)
+static bool evstate(Comp *const C)
 {
     uint8_t kind;
 
-    if (!evkind(S, &kind))
+    if (!evkind(C, &kind))
         return false;
     if (kind == EK_KEY) {
-        const uint8_t c = comp_cur(&S->comp);
+        const uint8_t c = comp_cur(C);
 
         if (c == TK_ON || c == TK_LIST) {
-            S->comp.p++;
+            C->p++;
             return true;
         }
 
-        if (c == TK_X && S->comp.p[1] == TK1_OFF) {
-            S->comp.p += 2;
+        if (c == TK_X && C->p[1] == TK1_OFF) {
+            C->p += 2;
             return true;
         }
 
         if (c != '(') {
-            expr_compile(S);
-            comp_toint(S);
-            comp_comma(S);
-            expr_compile(S);
-            comp_tostring(S);
-            comp_call(S, K_KEYDEF);
+            expr_compile(C);
+            comp_toint(C);
+            comp_comma(C);
+            expr_compile(C);
+            comp_tostring(C);
+            comp_call(C, K_KEYDEF);
             return true;
         }
     }
 
-    evnum(S, kind);
-    const uint8_t c = comp_cur(&S->comp);
+    evnum(C, kind);
+    const uint8_t c = comp_cur(C);
     uint8_t state;
 
     if (c == TK_X) {
-        if (S->comp.p[1] != TK1_OFF)
-            synerr(S);
+        if (C->p[1] != TK1_OFF)
+            synerr(C);
 
-        S->comp.p++;
+        C->p++;
         state = ES_OFF;
     } else if (c == TK_ON)
         state = ES_ON;
     else if (c == TK_STOP)
         state = ES_STOP;
     else
-        synerr(S);
+        synerr(C);
 
-    S->comp.p++;
-    comp_int(S, kind * 4u + state);
-    comp_call(S, K_EVST);
+    C->p++;
+    comp_int(C, kind * 4u + state);
+    comp_call(C, K_EVST);
     return true;
 }
 
 /* COMMON [SHARED] [/block/] v[()] [AS type] {, ..}: each variable's id, CALL CMN. */
-static void common(Session *const S)
+static void common(Comp *const C)
 {
-    S->comp.p += 2;
+    C->p += 2;
 
-    if (comp_cur(&S->comp) == TK_SHARED)
-        S->comp.p++;
-    if (comp_cur(&S->comp) == TK_DIV) {
-        S->comp.p++;
+    if (comp_cur(C) == TK_SHARED)
+        C->p++;
+    if (comp_cur(C) == TK_DIV) {
+        C->p++;
 
-        if (comp_cur(&S->comp) != M_VAR)
-            synerr(S);
+        if (comp_cur(C) != M_VAR)
+            synerr(C);
 
-        skipvar(S);
+        skipvar(C);
 
-        if (comp_cur(&S->comp) != TK_DIV)
-            synerr(S);
+        if (comp_cur(C) != TK_DIV)
+            synerr(C);
 
-        S->comp.p++;
+        C->p++;
     }
 
     do {
-        const uint16_t id = comp_name(S);
+        const uint16_t id = comp_name(C);
 
-        if (comp_cur(&S->comp) == '(') {
-            S->comp.p++;
+        if (comp_cur(C) == '(') {
+            C->p++;
 
-            if (comp_cur(&S->comp) != ')')
-                synerr(S);
+            if (comp_cur(C) != ')')
+                synerr(C);
 
-            S->comp.p++;
+            C->p++;
         }
 
-        if (comp_cur(&S->comp) == TK_AS) { /* AS type [* n] */
-            S->comp.p++;
-            const uint8_t c = comp_cur(&S->comp);
+        if (comp_cur(C) == TK_AS) { /* AS type [* n] */
+            C->p++;
+            const uint8_t c = comp_cur(C);
 
             if (c == M_VAR)
-                skipvar(S);
+                skipvar(C);
             else if (c == TK_X)
-                S->comp.p += 2;
+                C->p += 2;
             else {
-                S->comp.p++;
+                C->p++;
 
-                if (comp_cur(&S->comp) == TK_MUL) {
-                    S->comp.p++;
+                if (comp_cur(C) == TK_MUL) {
+                    C->p++;
 
-                    if (comp_cur(&S->comp) != M_INT)
-                        synerr(S);
+                    if (comp_cur(C) != M_INT)
+                        synerr(C);
 
-                    S->comp.p += INT_TOKEN_SIZE;
+                    C->p += INT_TOKEN_SIZE;
                 }
             }
         }
 
-        comp_int(S, id);
-        comp_call(S, K_CMN);
-    } while (comp_optcomma(S));
+        comp_int(C, id);
+        comp_call(C, K_CMN);
+    } while (comp_optcomma(C));
 }
 
 /* RESUME [NEXT | 0 | line]: RESUME mode num addr. */
-static void resume(Session *const S)
+static void resume(Comp *const C)
 {
-    S->comp.p += 2;
-    S->comp.lnum = 0;
-    S->comp.jline = 0;
+    C->p += 2;
+    C->lnum = 0;
+    C->jline = 0;
     ResumeMode mode = RESUME_AGAIN;
 
-    if (comp_cur(&S->comp) == TK_NEXT) {
-        S->comp.p++;
+    if (comp_cur(C) == TK_NEXT) {
+        C->p++;
         mode = RESUME_NEXT;
-    } else if (!comp_end(S)) {
-        comp_lnum(S);
+    } else if (!comp_end(C)) {
+        comp_lnum(C);
 
-        if (S->comp.lnum || S->comp.jline) /* not RESUME 0 */
+        if (C->lnum || C->jline) /* not RESUME 0 */
             mode = RESUME_LINE;
     }
 
-    comp_byte(comp_jump(S, O_RESUME), mode);
+    comp_byte(comp_jump(C, O_RESUME), mode);
 }
 
-static bool xstmt(Session *const S)
+static bool xstmt(Comp *const C)
 {
-    switch (S->comp.p[1]) {
+    switch (C->p[1]) {
     case TK1_COMMON:
-        common(S);
+        common(C);
         return true;
 
     case TK1_DEFSHORT:
-        skip(S);
+        skip(C);
         return true;
 
     case TK1_RESUME:
-        resume(S);
+        resume(C);
         return true;
     }
 
-    return evstate(S);
+    return evstate(C);
 }
 
 /* MID$(v, i [, n]) = s: v = its value with s over it. */
-static void mids(Session *const S)
+static void mids(Comp *const C)
 {
-    S->comp.p++;
-    comp_open(S);
-    const uint8_t *const v = S->comp.p;
-    expr_target(S);
+    C->p++;
+    comp_open(C);
+    const uint8_t *const v = C->p;
+    expr_target(C);
 
-    if ((S->comp.tgtinfo & VK_MASK) != VK_STR)
-        mismatch(S);
+    if ((C->tgtinfo & VK_MASK) != VK_STR)
+        mismatch(C);
 
-    const uint16_t tgt = S->comp.tgt;
-    S->comp.p = v;
-    expr_load(S);
-    comp_comma(S);
-    expr_compile(S);
-    comp_toint(S);
+    const uint16_t tgt = C->tgt;
+    C->p = v;
+    expr_load(C);
+    comp_comma(C);
+    expr_compile(C);
+    comp_toint(C);
 
-    if (comp_optcomma(S)) {
-        expr_compile(S);
-        comp_toint(S);
+    if (comp_optcomma(C)) {
+        expr_compile(C);
+        comp_toint(C);
     } else
-        comp_int(S, SMAX);
+        comp_int(C, SMAX);
 
-    comp_close(S);
-    comp_equals(S);
-    expr_compile(S);
-    comp_tostring(S);
-    comp_call(S, K_MIDS);
-    comp_value(S, T_STR);
-    S->comp.tgt = tgt;
-    comp_store(S);
+    comp_close(C);
+    comp_equals(C);
+    expr_compile(C);
+    comp_tostring(C);
+    comp_call(C, K_MIDS);
+    comp_value(C, T_STR);
+    C->tgt = tgt;
+    comp_store(C);
 }
 
 /* A statement starting with a name: a TYPE's field, a record's copy, a SUB's call. */
-static bool namestmt(Session *const S)
+static bool namestmt(Comp *const C)
 {
-    if (*comp_skipname(S->comp.p) == TK_AS) {
-        skip(S);
+    if (*comp_skipname(C->p) == TK_AS) {
+        skip(C);
         return true;
     }
 
-    return reccopy(S) || subcall(S);
+    return reccopy(C) || subcall(C);
 }
 
 /* LET: a record's copy, else not one. */
-static bool let(Session *const S)
+static bool let(Comp *const C)
 {
-    S->comp.p++;
+    C->p++;
 
-    if (*S->comp.p == M_VAR && reccopy(S))
+    if (*C->p == M_VAR && reccopy(C))
         return true;
 
-    S->comp.p--;
+    C->p--;
     return false;
 }
 
-bool ctrl_stmt(Session *const S)
+bool ctrl_stmt(Comp *const C)
 {
-    const uint8_t c = S->comp.p[0];
-    const uint8_t n = S->comp.p[1];
+    const uint8_t c = C->p[0];
+    const uint8_t n = C->p[1];
 
     switch (c) {
     case TK_ELSEIF:
-        elseif(S);
+        elseif(C);
         return true;
 
     case TK_ELSE:
-        blockelse(S);
+        blockelse(C);
         return true;
 
     case TK_ENDIF:
-        S->comp.p++;
+        C->p++;
         return true;
 
     case TK_SELECT:
-        select(S);
+        select(C);
         return true;
 
     case TK_CASE:
-        casestmt(S);
+        casestmt(C);
         return true;
 
     case TK_DO:
-        doloop(S);
+        doloop(C);
         return true;
 
     case TK_LOOP:
-        loop(S);
+        loop(C);
         return true;
 
     case TK_WHILE:
-        whileloop(S);
+        whileloop(C);
         return true;
 
     case TK_WEND:
-        wend(S);
+        wend(C);
         return true;
 
     case M_VAR:
-        return namestmt(S);
+        return namestmt(C);
 
     case TK_LET:
-        return let(S);
+        return let(C);
 
     case TK_CALL:
-        call(S);
+        call(C);
         return true;
 
     case TK_SUB:
     case TK_FUNCTION:
-        sub(S);
+        sub(C);
         return true;
 
     case TK_DEF:
-        return defseg(S);
+        return defseg(C);
 
     case TK_MID:
-        mids(S);
+        mids(C);
         return true;
 
     case TK_ON:
-        return onerror(S);
+        return onerror(C);
 
     case TK_REDIM:
-        redim(S);
+        redim(C);
         return true;
 
     case TK_ERASE:
-        erase(S);
+        erase(C);
         return true;
 
     case TK_X:
-        return xstmt(S);
+        return xstmt(C);
 
     case TK_TYPE:
     case TK_DECLARE:
     case TK_OPTION:
     case TK_SHARED:
     case TK_STATIC:
-        skip(S);
+        skip(C);
         return true; /* entered with the line (decl_line), no code */
     case TK_EXIT:
         if (n == TK_SUB || n == TK_FUNCTION || n == TK_DEF)
-            pret(S);
+            pret(C);
         else
-            exitblock(S);
+            exitblock(C);
 
         return true;
 
     case TK_END:
         if (n == TK_IF || n == TK_SELECT || n == TK_TYPE) { /* no code */
-            S->comp.p += 2;
+            C->p += 2;
             return true;
         }
 
         if (n == TK_SUB || n == TK_FUNCTION || n == TK_DEF) {
-            pret(S);
+            pret(C);
             return true;
         }
     }

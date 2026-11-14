@@ -37,7 +37,6 @@ void boot(Session *const S, const FrontEnd *const fe)
     decl_init(&S->decl, &S->fault);
     S->names.intern = repl_intern;
     lexr_init(&S->lexr, &S->fault, &S->names);
-    S->srcr.src.more = srcr_more;
     stmt_usng_init(S);
     Addr lo, hi;
 
@@ -59,8 +58,26 @@ void boot(Session *const S, const FrontEnd *const fe)
     exec_init(S);
     cons_init(&S->cons, &S->allo, &S->chnl, &S->fault, &S->vm);
     diag_init(&S->diag, &S->cons);
+    srcr_init(&S->srcr, &S->cons, &S->chnl, &S->repl.fline);
     file_init(&S->file, &S->allo, &S->chnl, &S->strg, &S->cons, &S->fault);
-    comp_init(S);
+    S->comp.fault = &S->fault;
+    S->comp.allo = &S->allo;
+    S->comp.prog = &S->prog;
+    S->comp.symb = &S->symb;
+    S->comp.scop = &S->scop;
+    S->comp.decl = &S->decl;
+    S->comp.blok = &S->blok;
+    S->comp.code = &S->code;
+    S->comp.ast = &S->ast;
+    S->comp.ctrl = &S->ctrl;
+    S->comp.expr = &S->expr;
+    S->comp.link = &S->link;
+    S->comp.list = &S->list;
+    S->comp.cons = &S->cons;
+    S->comp.vm = &S->vm;
+    S->comp.dbug = &S->dbug;
+    S->comp.run = session_comp_run(S);
+    comp_init(&S->comp);
     flow_init(S);
     stmt_init(S);
     S->allo.cache = allo_base(&S->allo, allo_new(&S->allo, 0x10000, nullptr)); /* then the store */

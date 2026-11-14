@@ -26,11 +26,11 @@ int main(const int argc, char **const argv)
     snprintf(S->repl.file, sizeof S->repl.file, "%s", argv[1]);
     repl_load(S);
     session_drop(S);
-    link_start(S);
+    link_start(&S->comp);
     uint32_t n = 0;
 
     for (uint32_t l = PROGBASE, len; (len = prog_line(&S->prog, l)->len); l += len, n++) {
-        link_compile(S, l);
+        link_compile(&S->comp, l);
         printf("%u", n);
 
         for (const uint8_t *b = S->comp.xbuf; b < S->code.out; b++)

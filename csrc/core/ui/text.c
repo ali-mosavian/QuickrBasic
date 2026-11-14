@@ -98,7 +98,7 @@ static uint32_t text_of(Session *const S, const uint32_t rec, uint8_t *const dst
     const uint8_t capture = S->cons.capture, col = S->cons.col;
     S->cons.capture = CAP_SBUF;
     S->cons.sblen = 0;
-    list_body(S, at(prog_addr(&S->prog, rec + HDR)));
+    list_body(&S->comp, at(prog_addr(&S->prog, rec + HDR)));
     const uint32_t n = pre + S->cons.sblen;
     memcpy(dst + pre, S->cons.sbuf, S->cons.sblen);
     S->cons.capture = capture;
@@ -139,7 +139,7 @@ static bool spelling_fits(Session *const S, const uint32_t pre_len)
 {
     S->cons.capture = CAP_SBUF;
     S->cons.sblen = 0;
-    list_body(S, S->comp.cbuf);
+    list_body(&S->comp, S->comp.cbuf);
     S->cons.capture = 0;
     return S->cons.sblen + pre_len <= LNMAX;
 }
@@ -347,8 +347,8 @@ static uint32_t line_end(Session *const S, const uint8_t c, uint32_t n)
     if (c == NL && peek(&after) && after == LF)
         io.pos++;
 
-    const bool more = srcr_phys_end(S);
-    srcr_phys_start(S);
+    const bool more = srcr_phys_end(&S->srcr.cont);
+    srcr_phys_start(&S->srcr.cont);
 
     if (!more) {
         read_line(S, n);
@@ -370,7 +370,7 @@ static uint32_t line_end(Session *const S, const uint8_t c, uint32_t n)
 static uint32_t line_char(Session *const S, const uint8_t c, uint32_t n)
 {
     uint8_t *const buf = uimn.build;
-    srcr_phys_byte(S, c);
+    srcr_phys_byte(&S->srcr.cont, c);
 
     if (n >= LNMAX)
         return n;
@@ -398,7 +398,7 @@ uint16_t text_read(Session *const S, const char *const name)
     session_new(S);
     io.lines = 0;
     uint32_t n = 0; /* the line's characters, its column */
-    srcr_phys_start(S);
+    srcr_phys_start(&S->srcr.cont);
     uint8_t c;
 
     while (next(&c) && c != CH_EOF)

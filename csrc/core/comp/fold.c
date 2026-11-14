@@ -30,7 +30,6 @@
  */
 #include "comp/fold.h"
 #include "comp/ast.h"
-#include "session.h"
 #include "comp/comp.h"
 #include "comp/dfa.h"
 #include "comp/expr.h"
@@ -51,77 +50,77 @@ static bool foldable(const uint8_t *s, const uint8_t *const end)
 }
 
 /* The value's one load at comp.out. */
-static void emit(Session *const S, const Cell v)
+static void emit(Comp *const C, const Cell v)
 {
-    if (S->code.type == T_INT) {
-        code_int(&S->code, v.u);
+    if (C->code->type == T_INT) {
+        code_int(C->code, v.u);
         return;
     }
 
-    code_op(&S->code, S->code.type == T_FLT ? O_F_LD_F32 : O_D_LD_K);
-    code_dword(&S->code, (uint32_t)v.raw);
+    code_op(C->code, C->code->type == T_FLT ? O_F_LD_F32 : O_D_LD_K);
+    code_dword(C->code, (uint32_t)v.raw);
 
-    if (S->code.type == T_DBL)
-        code_dword(&S->code, (uint32_t)(v.raw >> 32));
+    if (C->code->type == T_DBL)
+        code_dword(C->code, (uint32_t)(v.raw >> 32));
 }
 
 /* The code from start to comp.out run: its value to *v; false: not foldable, or it failed. */
-static bool eval(Session *const S, uint8_t *const start, Cell *const v)
+static bool eval(Comp *const C, uint8_t *const start, Cell *const v)
 {
-    uint8_t *const end = S->code.out;
+    uint8_t *const end = C->code->out;
 
-    if (!foldable(start, end) || end >= S->code.lim)
+    if (!foldable(start, end) || end >= C->code->lim)
         return false;
 
-    Vm *const vm = &S->vm;
+    Vm *const vm = C->vm;
     uint8_t *const ip = vm->ip, *const opip = vm->opip;
     Cell *const sp = vm->sp;
-    S->comp.folding = true;
-    const bool failed = setjmp(S->comp.fold);
+    C->folding = true;
+    const bool failed = setjmp(C->fold);
 
     if (!failed) {
         vm->ip = start;
-        exec_until(S, end);
+        C->run->until(C->run, end);
         *v = *vm->sp;
     }
 
-    S->comp.folding = false;
+    C->folding = false;
     vm->ip = ip;
     vm->opip = opip;
     vm->sp = sp;
     return !failed;
 }
 
-void fold_code(Session *const S, uint8_t *const start)
+void fold_code(Comp *const C, uint8_t *const start)
 {
-    const uint8_t t = S->code.type;
+    const uint8_t t = C->code->type;
 
     if (t != T_INT && t != T_FLT && t != T_DBL)
         return;
 
-    uint8_t *const end = S->code.out;
+    uint8_t *const end = C->code->out;
     Cell value;
 
-    if (!eval(S, start, &value))
+    if (!eval(C, start, &value))
         return;
 
-    S->code.out = start;
+    C->code->out = start;
 
-    if (S->code.iloadend > start) /* marks inside the code go */
-        S->code.iload = S->code.iloadend = nullptr;
-    if (S->code.cmpend > start) /* no relation left for an IF to take */
-        S->code.cmpend = nullptr;
+    if (C->code->iloadend > start) /* marks inside the code go */
+        C->code->iload = C->code->iloadend = nullptr;
+    if (C->code->cmpend > start) /* no relation left for an IF to take */
+        C->code->cmpend = nullptr;
 
-    emit(S, value);
+    emit(C, value);
 
-    if (S->code.shend == end) /* the SHORT's class as it was */
-        S->code.shend = S->code.out;
+    if (C->code->shend == end) /* the SHORT's class as it was */
+        C->code->shend = C->code->out;
 }
 
-void fold_fail(Session *const S)
+void fold_fail(Comp *const C)
 {
-    if (S->comp.folding)
-        longjmp(S->comp.fold, 1);
+    if (C->folding)
+        longjmp(C->fold, 1);
 }
 
 bool fold_isliteral(const uint8_t op)
@@ -141,9 +140,9 @@ bool fold_isliteral(const uint8_t op)
     }
 }
 
-void fold_const(Session *const S, uint8_t *const start, const uint16_t id)
+void fold_const(Comp *const C, uint8_t *const start, const uint16_t id)
 {
-    fold_code(S, start);
+    fold_code(C, start);
     const uint8_t op = *start;
 
     if (!fold_isliteral(op))
@@ -151,11 +150,11 @@ void fold_const(Session *const S, uint8_t *const start, const uint16_t id)
 
     const uint32_t size = flow_opsize(start);
 
-    if (start + size != S->code.out)
+    if (start + size != C->code->out)
         return;
 
-    symb_varx(&S->symb, id)->kop = op;
-    uint8_t *const k = symb_kval(&S->symb, id);
+    symb_varx(C->symb, id)->kop = op;
+    uint8_t *const k = symb_kval(C->symb, id);
 
     for (uint32_t i = 1; i < size; i++)
         k[i - 1] = start[i];
@@ -205,35 +204,35 @@ static void set_literal(Node *const n, const uint8_t t, const Cell v)
     store32(n->lit + 4, (uint32_t)(v.raw >> 32));
 }
 
-static bool literal(Session *const S, Node *const i) { return i->kind == N_LIT; }
+static bool literal(Comp *const C, Node *const i) { return i->kind == N_LIT; }
 
-void fold_tree(Session *const S, Node *const i)
+void fold_tree(Comp *const C, Node *const i)
 {
     Node *const n = i;
 
     if (n->kind != N_UN && n->kind != N_BIN) { /* its children: an operand, the arguments */
         for (Node *a = n->a; a != nullptr; a = a->next)
-            fold_tree(S, a);
+            fold_tree(C, a);
         for (Node *a = n->b; a != nullptr; a = a->next)
-            fold_tree(S, a);
+            fold_tree(C, a);
 
         return;
     }
 
-    fold_tree(S, n->a);
+    fold_tree(C, n->a);
 
     if (n->kind == N_BIN)
-        fold_tree(S, n->b);
-    if (!literal(S, n->a) || (n->kind == N_BIN && !literal(S, n->b)))
+        fold_tree(C, n->b);
+    if (!literal(C, n->a) || (n->kind == N_BIN && !literal(C, n->b)))
         return;
 
-    uint8_t *const start = S->code.out;
-    cg_tree(&S->code, i);
-    const uint8_t t = S->code.type, sh = code_shclass(&S->code);
+    uint8_t *const start = C->code->out;
+    cg_tree(C->code, i);
+    const uint8_t t = C->code->type, sh = code_shclass(C->code);
     Cell v;
-    const bool ok = (t == T_INT || t == T_FLT || t == T_DBL) && eval(S, start, &v);
-    S->code.out = start;
-    S->code.iload = S->code.iloadend = S->code.cmp = S->code.cmpend = nullptr;
+    const bool ok = (t == T_INT || t == T_FLT || t == T_DBL) && eval(C, start, &v);
+    C->code->out = start;
+    C->code->iload = C->code->iloadend = C->code->cmp = C->code->cmpend = nullptr;
 
     if (!ok)
         return;
@@ -242,8 +241,8 @@ void fold_tree(Session *const S, Node *const i)
     n->sh = sh;
 }
 
-void fold_clear(Session *const S)
+void fold_clear(Comp *const C)
 {
-    for (uint16_t id = 0; id < S->symb.nvars; id++)
-        symb_varx(&S->symb, id)->kop = 0;
+    for (uint16_t id = 0; id < C->symb->nvars; id++)
+        symb_varx(C->symb, id)->kop = 0;
 }

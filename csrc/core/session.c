@@ -67,15 +67,15 @@ void session_drop_stop(Session *const S)
 
 bool session_set_next(Session *const S, const uint32_t line)
 {
-    comp_proc(S, blok_procof(&S->blok, line));
+    comp_proc(&S->comp, blok_procof(&S->blok, line));
     const uint8_t proc = S->comp.proc;
-    comp_proc(S, blok_procof(&S->blok, S->vm.cont.line));
+    comp_proc(&S->comp, blok_procof(&S->blok, S->vm.cont.line));
 
     if (proc != S->comp.proc)
         return false;
 
     const uint32_t code = prog_line(&S->prog, line)->code;
-    const Addr a = code ? S->allo.cache + code : link_cache(S, line);
+    const Addr a = code ? S->allo.cache + code : link_cache(&S->comp, line);
     S->vm.cont.line = line;
     S->vm.cont.code = a - S->allo.cache;
     return true;
@@ -212,4 +212,15 @@ ProgUser *session_prog_user(Session *const S)
     S->prog_user = (ProgUser){.edited = session_edited, .growing = session_growing};
 
     return &S->prog_user;
+}
+
+static void session_run_until(CompRun *const r, const uint8_t *const end)
+{
+    exec_until(container_of(r, Session, comp_run), end);
+}
+
+CompRun *session_comp_run(Session *const S)
+{
+    S->comp_run = (CompRun){.until = session_run_until};
+    return &S->comp_run;
 }

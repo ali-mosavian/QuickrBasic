@@ -69,7 +69,7 @@
 
 void repl_error(Session *const S, uint8_t code)
 {
-    fold_fail(S);
+    fold_fail(&S->comp);
     S->lexr.source = nullptr; /* a streamed line's lexing ended */
     if (S->dbug.probing)
         dbug_fail(S, code);
@@ -77,7 +77,7 @@ void repl_error(Session *const S, uint8_t code)
     fmth_clear();
 
     if (S->comp.busy)
-        comp_fail(S, code);
+        comp_fail(&S->comp, code);
     if (code != E_BRK && code != E_OS && !S->vm.err.active && S->vm.line != DLINE) {
         uint32_t handler = flow_handler(S);
 
@@ -160,7 +160,7 @@ static void diagnose(Session *const S)
 
     const uint8_t *const body =
         S->vm.line == DLINE ? S->comp.cbuf : at(prog_addr(&S->prog, S->vm.line) + HDR);
-    const uint32_t col = list_text(S, body, e->at);
+    const uint32_t col = list_text(&S->comp, body, e->at);
     const uint32_t mark = diag_at(&S->diag, S->vm.err.user, (const char *)S->cons.sbuf, col, e->code, e->dg, e->state);
     cons_nl(&S->cons);
     cons_spaces(&S->cons, 2);
@@ -244,7 +244,7 @@ static void quit(Session *const S)
 void repl_run(Session *const S)
 {
     S->vm.stop = 0; /* a key the editor or READY kept */
-    comp_line(S);
+    comp_line(&S->comp);
     flow_dcode(S);
     const uint32_t eol = S->link.eol - S->allo.cache; /* an older direct line's frames: its EOL */
     for (uint32_t i = 0; i < S->vm.nframes; i++)
@@ -316,7 +316,7 @@ static void run_file(Session *const S)
 
     repl_load(S);
     session_drop(S);
-    link_start(S);
+    link_start(&S->comp);
     stmt_runfirst(S);
     exec_run(S);
 }
@@ -549,7 +549,7 @@ static void read_file(Session *const S, const char *const name, const int32_t nu
     chnl_in(&S->chnl, chnl_open(&S->chnl, num, name, FM_IN, RECLEN_DEFAULT));
 
     for (;;) {
-        const int32_t len = srcr_line(S);
+        const int32_t len = srcr_line(&S->srcr);
 
         if (len < 0)
             break;
@@ -612,7 +612,7 @@ void repl_relink(Session *const S)
         if (tok != TK_REM)
             continue;
 
-        list_text(S, body, 0); /* '$INCLUDE: the file's lines here */
+        list_text(&S->comp, body, 0); /* '$INCLUDE: the file's lines here */
         memcpy(S->cons.inbuf, S->cons.sbuf, S->cons.sblen + 1);
 
         if (!is_include(S, S->cons.sblen))

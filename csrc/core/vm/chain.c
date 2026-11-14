@@ -249,7 +249,7 @@ void chai_chain(Session *const S)
     session_new(S);
     repl_load(S);
     session_drop(S);
-    link_start(S);
+    link_start(&S->comp);
 
     if (!prog_line(&S->prog, PROGBASE)->len)
         flow_end(S);

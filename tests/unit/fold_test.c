@@ -8,7 +8,7 @@ static uint32_t compile(Session *const S, const char *const text, const uint8_t 
     const uint32_t n = (uint32_t)strlen(text);
     memcpy(S->cons.inbuf, text, n);
     CHECK(repl_enter(S, n) == ENTER_DIRECT);
-    comp_line(S);
+    comp_line(&S->comp);
     *code = S->comp.xbuf;
     return (uint32_t)(S->code.out - S->comp.xbuf);
 }

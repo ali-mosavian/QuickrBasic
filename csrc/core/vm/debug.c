@@ -197,7 +197,7 @@ static int run_probe(Session *const S, const char *const expr)
     if (how == PROBE_RUNNING) {
         S->dbug.probing = true;
         lexr_line(&S->lexr, S->cons.inbuf, S->comp.cbuf);
-        comp_line(S);
+        comp_line(&S->comp);
         S->vm.ip = flow_dcode(S);
         S->vm.rsp = S->vm.sp;
         S->vm.running = false;

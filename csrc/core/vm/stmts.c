@@ -215,7 +215,7 @@ static bool read_item(Session *const S, const uint8_t **const p, const ItemKind 
         break;
     }
 
-    return comp_eos(S, p) || **p == ',';
+    return comp_eos(&S->comp, p) || **p == ',';
 }
 
 static void push_item(Session *const S, const ItemKind kind, const Cell v)
@@ -548,7 +548,7 @@ void stmt_runl(Session *const S)
     if (num >= LABEL_LINE)
         repl_error(S, E_US); /* RUN takes a number, not a label */
     session_clear(S);
-    link_start(S);
+    link_start(&S->comp);
     S->vm.lnum = (uint16_t)num;
     uint32_t line;
 
@@ -561,7 +561,7 @@ void stmt_runl(Session *const S)
 void stmt_run(Session *const S)
 {
     session_clear(S);
-    link_start(S);
+    link_start(&S->comp);
     stmt_runfirst(S);
 }
 
@@ -580,7 +580,7 @@ void stmt_list(Session *const S)
 {
     const uint16_t to = (uint16_t)exec_pop(&S->vm).u;
     const uint16_t from = (uint16_t)exec_pop(&S->vm).u;
-    list_range(S, from, to);
+    list_range(&S->comp, from, to);
     ready(S);
 }
 

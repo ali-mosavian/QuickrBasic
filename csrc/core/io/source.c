@@ -32,145 +32,151 @@
  */
 #include "io/source.h"
 #include <stddef.h>
-#include "session.h"
 #include "io/channel.h"
-#include "io/repl.h"
 
-void srcr_phys_start(Session *const S)
+void srcr_phys_start(SrcrCont *const cn)
 {
-    S->srcr.cont.st = IN_CODE;
-    S->srcr.cont.letters = 0;
-    S->srcr.cont.under = false;
-    S->srcr.cont.blank = true; /* the line's start */
+    cn->st = IN_CODE;
+    cn->letters = 0;
+    cn->under = false;
+    cn->blank = true; /* the line's start */
 }
 
 /* A word ended: REM's comment. */
-static void word_end(Session *const S)
+static void srcr_word_end(SrcrCont *const cn)
 {
-    if (S->srcr.cont.letters == 3 && !memcmp(S->srcr.cont.rem, "rem", 3))
-        S->srcr.cont.st = IN_COMMENT;
+    if (cn->letters == 3 && !memcmp(cn->rem, "rem", 3))
+        cn->st = IN_COMMENT;
 
-    S->srcr.cont.letters = 0;
+    cn->letters = 0;
 }
 
-void srcr_phys_byte(Session *const S, const uint8_t c)
+void srcr_phys_byte(SrcrCont *const cn, const uint8_t c)
 {
-    if (S->srcr.cont.st == IN_COMMENT) /* to the line's end */
+    if (cn->st == IN_COMMENT) /* to the line's end */
         return;
-    if (S->srcr.cont.st == IN_STRING) {
+    if (cn->st == IN_STRING) {
         if (c != '"')
             return;
 
-        S->srcr.cont.st = IN_CODE;
+        cn->st = IN_CODE;
     } else if (c == '"') {
-        S->srcr.cont.st = IN_STRING;
+        cn->st = IN_STRING;
     } else if (c == '\'') {
-        S->srcr.cont.st = IN_COMMENT;
+        cn->st = IN_COMMENT;
     } else if (is_blank(c)) {
-        word_end(S);
-        S->srcr.cont.blank = true;
+        srcr_word_end(cn);
+        cn->blank = true;
         return;
     } else if (is_letter(c)) { /* a word's letters: REM a comment */
-        if (S->srcr.cont.letters < 3)
-            S->srcr.cont.rem[S->srcr.cont.letters] = (char)(c | 0x20);
+        if (cn->letters < 3)
+            cn->rem[cn->letters] = (char)(c | 0x20);
 
-        S->srcr.cont.letters++;
+        cn->letters++;
     } else {
-        word_end(S);
+        srcr_word_end(cn);
 
         if (c == '_') { /* after a blank: perhaps the end */
-            S->srcr.cont.under = S->srcr.cont.blank;
-            S->srcr.cont.blank = false;
+            cn->under = cn->blank;
+            cn->blank = false;
             return;
         }
     }
 
-    S->srcr.cont.under = false;
-    S->srcr.cont.blank = false;
+    cn->under = false;
+    cn->blank = false;
 }
 
-bool srcr_phys_end(Session *const S)
+bool srcr_phys_end(SrcrCont *const cn)
 {
-    word_end(S);
-    return S->srcr.cont.st != IN_COMMENT &&
-           S->srcr.cont.under; /* '_' in a comment: the comment's */
+    srcr_word_end(cn);
+    return cn->st != IN_COMMENT &&
+           cn->under; /* '_' in a comment: the comment's */
 }
 
 /* The window filled on from end: to the logical line's end (done set) or SRCAP; 0 after. */
-static void fill(Session *const S)
+static void srcr_fill(Srcr *const sr)
 {
-    uint8_t *d = S->srcr.src.end;
+    uint8_t *d = sr->src.end;
 
     for (;;) {
-        const uint32_t len = (uint32_t)(d - S->cons.inbuf);
+        const uint32_t len = (uint32_t)(d - sr->cons->inbuf);
 
         if (len >= SRCAP && (d[-1] != '_' || len >= INMAX)) /* full, a '_' not last: it slides */
             break;
 
-        const int b = cons_getb(&S->cons);
+        const int b = cons_getb(sr->cons);
 
         if (b < 0) {
-            S->srcr.done = true;
+            sr->done = true;
             break;
         }
 
-        S->srcr.any = true;
+        sr->any = true;
 
         if (b == '\n' || b == '\r') {
             if (b == '\r')
-                chnl_skiplf(&S->chnl); /* CR LF: one line's end */
-            S->srcr.pend = 0;          /* the line's last blanks go */
-            if (!srcr_phys_end(S)) {
-                S->srcr.done = true;
+                chnl_skiplf(sr->chnl); /* CR LF: one line's end */
+            sr->pend = 0;          /* the line's last blanks go */
+            if (!srcr_phys_end(&sr->cont)) {
+                sr->done = true;
                 break;
             }
 
-            S->repl.fline++; /* continued: the '_' a blank, then the next line's bytes */
+            ++*sr->fline; /* continued: the '_' a blank, then the next line's bytes */
             d[-1] = ' ';
-            srcr_phys_start(S);
+            srcr_phys_start(&sr->cont);
             continue;
         }
 
-        srcr_phys_byte(S, (uint8_t)b);
+        srcr_phys_byte(&sr->cont, (uint8_t)b);
 
-        if (S->srcr.cont.st == IN_CODE &&
+        if (sr->cont.st == IN_CODE &&
             is_blank((uint8_t)b)) { /* a blank in code: when a byte follows */
-            S->srcr.pend++;
+            sr->pend++;
             continue;
         }
 
-        for (; S->srcr.pend; S->srcr.pend--)
+        for (; sr->pend; sr->pend--)
             *d++ = ' ';
 
         *d++ = (uint8_t)b;
     }
 
     *d = 0;
-    S->srcr.src.end = d;
+    sr->src.end = d;
 }
 
-int32_t srcr_line(Session *const S)
+int32_t srcr_line(Srcr *const sr)
 {
-    S->srcr.src.end = S->cons.inbuf;
-    S->srcr.done = false;
-    S->srcr.pend = 0;
-    S->srcr.any = false;
-    srcr_phys_start(S);
-    fill(S);
-    return S->srcr.any ? (int32_t)(S->srcr.src.end - S->cons.inbuf) : -1;
+    sr->src.end = sr->cons->inbuf;
+    sr->done = false;
+    sr->pend = 0;
+    sr->any = false;
+    srcr_phys_start(&sr->cont);
+    srcr_fill(sr);
+    return sr->any ? (int32_t)(sr->src.end - sr->cons->inbuf) : -1;
 }
 
 bool srcr_more(LexrSource *const src, const uint8_t **const keep)
 {
-    Session *const S = container_of(container_of(src, Srcr, src), Session, srcr);
+    Srcr *const sr = container_of(src, Srcr, src);
 
-    if (S->srcr.done)
+    if (sr->done)
         return false;
 
-    const uint32_t n = (uint32_t)(S->srcr.src.end - *keep);
-    memmove(S->cons.inbuf, *keep, n);
-    S->srcr.src.end = S->cons.inbuf + n;
-    fill(S);
-    *keep = S->cons.inbuf;
+    const uint32_t n = (uint32_t)(sr->src.end - *keep);
+    memmove(sr->cons->inbuf, *keep, n);
+    sr->src.end = sr->cons->inbuf + n;
+    srcr_fill(sr);
+    *keep = sr->cons->inbuf;
     return true;
+}
+
+void srcr_init(Srcr *const sr, Cons *const co, Chnl *const ch, uint16_t *const fline)
+{
+    sr->src.more = srcr_more;
+    sr->cons = co;
+    sr->chnl = ch;
+    sr->fline = fline;
 }

@@ -109,7 +109,7 @@ uint8_t *flow_dcode(Session *const S)
     Addr stream = S->allo.cache + DCODE;
     S->link.lim = stream + DCODE_SIZE;
 
-    if (!link_xlate(S, &stream))
+    if (!link_xlate(&S->comp, &stream))
         repl_error(S, E_OM);
 
     return at(S->link.code);
@@ -123,10 +123,10 @@ static void enter_line(Session *const S, const uint32_t line)
     const Line *const ln = prog_line(&S->prog, line);
 
     if (!ln->len) {
-        comp_line(S);
+        comp_line(&S->comp);
         S->vm.ip = flow_dcode(S);
     } else
-        S->vm.ip = ln->code ? cache_at(S, ln->code) : at(link_cache(S, line));
+        S->vm.ip = ln->code ? cache_at(S, ln->code) : at(link_cache(&S->comp, line));
 }
 
 static void next_line(Session *const S)
@@ -152,7 +152,7 @@ void flow_jump(Session *const S, const uint32_t line)
     drop_temps(S);
 
     if (!S->link.linked)
-        link_start(S);
+        link_start(&S->comp);
 
     S->link.cursor = line;
     enter_line(S, line);
@@ -187,7 +187,7 @@ static uint8_t *resolve(Session *const S, const uint32_t line, const uint32_t of
     uint32_t code = prog_line(&S->prog, line)->code;
 
     if (!code)
-        code = link_cache(S, line) - S->allo.cache;
+        code = link_cache(&S->comp, line) - S->allo.cache;
 
     return cache_at(S, code + off);
 }

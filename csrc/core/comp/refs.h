@@ -9,33 +9,33 @@
 typedef enum : uint8_t { ARGS_PAREN, ARGS_BARE, ARGS_NONE } ArgsForm;
 
 Node *ref_record(
-    Session *S
+    Comp *C
 ); /* rc_ref: a record reference at comp.p, its N_REF; nullptr none, comp.p kept */
 Node *ref_field(
-    Session *S,
+    Comp *C,
     Node *ref
 ); /* rc_load: ref's field's value; Type mismatch a whole record */
 Node *ref_place(
-    Session *S,
+    Comp *C,
     uint32_t *vakind
 ); /* cm_addr: a variable's place at comp.p, its VA_* kind */
 bool ref_len(
-    Session *S,
+    Comp *C,
     uint32_t *size
 ); /* LEN(r) at comp.p: a record's, a field's, a number's size */
 uint16_t ref_recarray(
-    Session *S,
+    Comp *C,
     uint16_t name,
     uint8_t type
 ); /* rc_avar: record array name's variable */
 const Proc *ref_proc(
-    Session *S,
+    Comp *C,
     uint8_t *idx
 ); /* ct_proc: the procedure named at comp.p; null none */
-Node *ref_call(Session *S, uint8_t idx, const Proc *pr, ArgsForm form); /* its N_CALL */
-Node *ref_undef(Session *S); /* a FUNCTION DECLAREd only, at comp.p: its N_CALL CALL_UNDEF */
+Node *ref_call(Comp *C, uint8_t idx, const Proc *pr, ArgsForm form); /* its N_CALL */
+Node *ref_undef(Comp *C); /* a FUNCTION DECLAREd only, at comp.p: its N_CALL CALL_UNDEF */
 void ref_dropargs(
-    Session *S,
+    Comp *C,
     bool paren
 ); /* ct_uarg: a DECLAREd-only call's arguments checked, dropped */
 #endif

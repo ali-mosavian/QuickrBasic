@@ -13,7 +13,7 @@ typedef struct {
     void (*trace)(Session *S, const DebugPos *at); /* a statement starts under TRON */
 } DebugHooks;
 
-typedef struct {
+typedef struct Dbug {
     uint8_t mode;  /* DM_*: the stop the next DBG looks for */
     bool trace;    /* each statement to hook (TRON) */
     bool bpon;     /* a line's LF_BP stops */
