@@ -273,9 +273,9 @@ static uint8_t convert_for_target(Session *const S)
 {
     switch (S->comp.tgtinfo & VK_MASK) {
     case VK_INT: /* a SHORT: Overflow past 16 bits, unless it is one */
-        expr_shclass(S);
+        gen_shclass(S);
         comp_toint(S);
-        if (symb_var(&S->symb, S->comp.tgt)->type == ET_SH && !S->expr.shclass)
+        if (symb_var(&S->symb, S->comp.tgt)->type == ET_SH && !S->gen.shclass)
             comp_op(S, O_I_CHK16);
         return 0;
     case VK_FLT:

@@ -283,13 +283,13 @@ static void casecmp(Session *const S, const uint8_t m)
         mismatch(S);
     if (S->ctrl.seltype == T_INT) {
         if (S->comp.type == T_INT) {
-            expr_icmp(S, REL | m, right);
+            gen_icmp(S, REL | m, right);
             return;
         }
-        right = expr_lfloat(S, left, right);
+        right = gen_lfloat(S, left, right);
     }
     comp_tofloat(S);
-    expr_fcmp(S, REL | m, right);
+    gen_fcmp(S, REL | m, right);
 }
 
 /* ct_item: IS rel e, e TO e, e. */

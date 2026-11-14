@@ -214,15 +214,15 @@ Defined in lexr.c (`DFA_DATA`), declared `extern const` for comp.c. The parser's
 | `cm_lval`* | `expr_target()` |
 | `cm_str1` | `expr_string()` (an action) |
 | `cm_va` | `expr_varaddr()` (an action) |
-| `cm_shv`* | `expr_shclass()` |
-| `cm_icmp`*, `cm_fcmp`* | `expr_icmp(rel, right)`, `expr_fcmp(rel, right)` |
-| `cm_lflt`* | `expr_lfloat(left, right)` → right moved |
+| `cm_shv`* | `gen_shclass()` |
+| `cm_icmp`*, `cm_fcmp`* | `gen_icmp(rel, right)`, `gen_fcmp(rel, right)` |
+| `cm_lflt`* | `gen_lfloat(left, right)` → right moved |
 | `cm_p`, `cm_un`, `cm_sop`, `cm_shid`, `cm_right`, `cm_iop`, `cm_fop2`, `cm_fkind`, `cm_str`, `cm_addr`, `cm_xfn`, `cm_xarg`, `cm_farg`, `cm_nany` | statics `prec(p)` (parses; `binary`, `strop`, `numop`, `dblop` emit), `unary`, `shortop`, `shortid`, `isright`, `intop`, `fltop`, `fltkind`, `literal`, `ref_place` (comp/ref.c), `xfunc` (`xfn_at`, `xfn_args`), `xarg`, `farg`, `notstr` |
 | `g_cprec` values, operator indices | `P_*`, `OP_*`; a relation `REL | DC_*` (expr.h) |
-| `g_csh`*, `g_cshe`*, `g_cshc`* | `expr.sh`, `expr.shend`, `expr.shclass` |
+| `g_csh`*, `g_cshe`*, `g_cshc`* | `gen.sh`, `gen.shend`, `gen.shclass` |
 | `g_ckon`* | `expr.kend` |
 | `g_ctys`* | `expr_ktype[5]` |
-| `g_cwd`, `g_cbk`, `g_xdbl`, `g_vakind` | `expr.dbltgt`, `expr.bothk`, `expr.fixdbl`, `ref_place`'s `vakind` |
+| `g_cwd`, `g_cbk`, `g_xdbl`, `g_vakind` | `expr.dbltgt`, `expr.bothk`, `gen.fixdbl`, `ref_place`'s `vakind` |
 | `g_fcmpk`, `g_lda1`, `g_ldan`, `g_dfnk`, `g_fnarg`, `g_fnsig`, `g_xfn` (`XF_*`), `g_cprec`, `g_xop` | static tables (`g_xfn` an array of `XFn`) |
 
 ## link → link

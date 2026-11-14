@@ -18,6 +18,24 @@ typedef enum : uint8_t {
 
 enum { AST_NODES = 1024, LIT_MAX = 8, NO_NODE = 0xFFFF };
 
+/* An operator's index: + - * / ^ AND OR > = < from TK_PLUS, then \ MOD XOR EQV IMP. A relation
+   compiles as REL and its DC_* mask. */
+enum : uint8_t {
+    OP_ADD, OP_SUB, OP_MUL, OP_DIV, OP_POW, OP_AND, OP_OR, OP_GT, OP_EQ, OP_LT,
+    OP_IDIV, OP_MOD, OP_XOR, OP_EQV, OP_IMP, NOPS,
+};
+/* A relation's operator byte: REL and its DC_* mask. */
+enum : uint8_t { REL = 0x80, REL_MASK = 7 };
+static inline bool ast_isrel(const uint8_t op) { return op & REL; }
+static inline bool ast_islogic(const uint8_t op) { return op == OP_AND || op == OP_OR; }
+static inline bool ast_isxop(const uint8_t op) { return op >= OP_IDIV && op < REL; } /* \ MOD XOR EQV IMP */
+
+/* A SHORT's class: a value of no SHORT, a SHORT's, a literal that fits one. */
+enum : uint8_t { SH_NONE = 0, SH_SHORT = 1, SH_LIT = 2 };
+
+/* How a binary node computes: its operands' type. */
+enum : uint8_t { W_INT, W_FLT, W_DBL, W_POW, W_STR };
+
 /* N_XFN's mode: its arguments only, their count after them, or none given: a 0. */
 enum : uint8_t { XM_ARGS, XM_COUNT, XM_NONE };
 
@@ -66,4 +84,7 @@ typedef struct {
 uint16_t ast_new(Session *S, NodeKind kind); /* a node, zeroed but for kind; Out of memory full */
 Node *ast_node(Session *S, uint16_t i);
 void ast_link(Session *S, uint16_t parent, uint16_t *last, uint16_t arg); /* arg after *last */
+bool ast_islit(Session *S, uint16_t i);
+uint8_t ast_type(Session *S, uint16_t i);      /* node i's value's T_*, nothing compiled */
+uint8_t ast_work(Session *S, const Node *n);   /* binary node n's W_* */
 #endif

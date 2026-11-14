@@ -70,8 +70,8 @@ void fold_code(Session *const S, uint8_t *const start)
     if (S->comp.cmpend > start) /* no relation left for an IF to take */
         S->comp.cmpend = nullptr;
     emit(S, value);
-    if (S->expr.shend == end) /* the SHORT's class as it was */
-        S->expr.shend = S->comp.out;
+    if (S->gen.shend == end) /* the SHORT's class as it was */
+        S->gen.shend = S->comp.out;
 }
 
 void fold_fail(Session *const S)
@@ -171,8 +171,8 @@ void fold_tree(Session *const S, const uint16_t i)
     if (!literal(S, n->a) || (n->kind == N_BIN && !literal(S, n->b)))
         return;
     uint8_t *const start = S->comp.out;
-    expr_gen(S, i);
-    const uint8_t t = S->comp.type, sh = expr_shclass(S);
+    gen_tree(S, i);
+    const uint8_t t = S->comp.type, sh = gen_shclass(S);
     Cell v;
     const bool ok = (t == T_INT || t == T_FLT || t == T_DBL) && eval(S, start, &v);
     S->comp.out = start;

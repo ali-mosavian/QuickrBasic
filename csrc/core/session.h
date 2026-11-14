@@ -8,6 +8,7 @@
 #include "comp/ctrl.h"
 #include "comp/decl.h"
 #include "comp/expr.h"
+#include "comp/gen.h"
 #include "comp/lexr.h"
 #include "comp/link.h"
 #include "comp/list.h"
@@ -48,6 +49,7 @@ struct Session {
     Diag diag;
     Evnt evnt;
     Expr expr;
+    Gen gen;
     File file;
     Flow flow;
     Lexr lexr;
