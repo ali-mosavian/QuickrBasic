@@ -27,10 +27,17 @@ CASES = {
 SLACK = 1.01  # the compile's own cost, once
 
 
-def main() -> None:
-    exe = sys.argv[1] if len(sys.argv) > 1 else os.environ.get("X86_COM")
+def use(exe: str | None) -> Path:
+    """The program measured. x86run reads X86_COM on import: setting only the variable after it
+    measured build/x86/basic32.exe whatever EXE named, so a build without folding passed or failed
+    for another build's reason."""
     if exe:
-        os.environ["X86_COM"] = exe
+        x86run.COM = Path(exe)
+    return x86run.COM
+
+
+def main() -> None:
+    exe = use(sys.argv[1] if len(sys.argv) > 1 else os.environ.get("X86_COM"))
     jobs = {}
     for name, (decl, sfx, expr, value) in CASES.items():
         jobs[name] = decl + LOOP.format(sfx, expr, sfx)
@@ -41,7 +48,7 @@ def main() -> None:
         got, want = res[name], res[name + "_k"]
         if got.out != want.out or got.instructions > want.instructions * SLACK:
             bad.append(f"FAIL {name}: {got.out!r} {got.instructions} vs {want.out!r} {want.instructions}")
-    print("\n".join(bad) or "ok")
+    print("\n".join(bad) or f"ok {exe}")
     sys.exit(1 if bad else 0)
 
 
