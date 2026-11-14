@@ -12,6 +12,7 @@
 #define COMP_COMP_H
 #include <setjmp.h>
 #include "defs.h"
+#include "comp/code.h"
 
 /* The compiled expression's target (comp.tgtsubs): FFh a record's field (ctrl.field). */
 enum : uint8_t { TGT_FIELD = 0xFF };
@@ -21,9 +22,6 @@ enum { COMP_TAIL = 12 }; /* room past the code's limit: a line's ERR and EOL */
 typedef struct {
     /* the cursor and the code */
     const uint8_t *p;     /* (ESI) the token cursor */
-    uint8_t *out;         /* (EDI) where the next byte goes */
-    uint8_t *buf;         /* cxb: the code's start, comp_xbuf */
-    uint8_t *lim;         /* cxlim: the code's limit, below the map */
     uint8_t *map;         /* cmap: the statement map's top; its Stmt entries grow down */
     uint32_t nstmt;       /* statements recorded */
     const uint8_t *body;  /* cbase: the body's start */
@@ -34,11 +32,6 @@ typedef struct {
     uint16_t depth;       /* cplim: expression nesting, Out of memory past COMP_MAXDEPTH */
 
     /* the expression */
-    uint8_t type;         /* cty: its T_* */
-    uint8_t *iload;       /* cll: the last INT load emitted, its end */
-    uint8_t *iloadend;    /* clle */
-    uint8_t *cmp;         /* ccmp: the last compare, its end (a one-line IF's CMPIF) */
-    uint8_t *cmpend;      /* ccmpe */
     uint8_t *vat;         /* g_cvat: a store's value's code, its start (expr_target's end) */
     bool folding;         /* g_cfold: fold_code's run; an error is its */
     jmp_buf fold;         /* g_cfsp: fold_code's way back from an error */
@@ -109,19 +102,9 @@ void comp_dfa(Session *S, uint16_t state);           /* run the statement automa
 uint8_t comp_expnames(uint16_t state, const char *names[]); /* what state wanted; PS_NC*2 room */
 void comp_expected(Session *S, uint16_t state);      /* print it, "a, b or c" */
 
-/* Emitters */
-void comp_byte(Session *S, uint8_t b);               /* Out of memory past comp.lim */
-static inline void comp_op(Session *const S, uint8_t op) { comp_byte(S, op); }
-void comp_opb(Session *S, uint8_t op, uint8_t b);    /* op, a byte */
-void comp_opw(Session *S, uint8_t op, uint16_t w);   /* op, a word */
+/* Emitters: the statements' own (the rest are code_*'s, comp/code.h) */
 void comp_opid(Session *S, uint8_t op, uint16_t id); /* op, a variable; a parameter's X.LD.V/X.ST.V as V.LD/V.ST */
-void comp_word(Session *S, uint16_t w);
-void comp_dword(Session *S, uint32_t d);
-void comp_insert(Session *S, uint8_t b, uint8_t *at); /* b at at, the code after it moved up */
-void comp_int(Session *S, uint32_t n);               /* an INT load: I.LD.U8, I.LD.I16 or I.LD.I32 */
-void comp_call(Session *S, uint8_t k);               /* CALL k */
 void comp_lref(Session *S);                    /* a TLREF: comp.lnum, comp.jline */
-uint8_t *comp_intleaf(Session *S);             /* the code's last op if an INT load, else null */
 
 /* Type's one of four: INT, FLOAT, DOUBLE, STRING. */
 static inline uint8_t comp_pick(const uint8_t type, const uint8_t i, const uint8_t f, const uint8_t d,
@@ -135,15 +118,14 @@ static inline uint8_t comp_pick(const uint8_t type, const uint8_t i, const uint8
     }
 }
 
-/* The value's type (comp.type); Type mismatch from a string where a number goes */
+/* The value (code.type) converted, code_to*'s; Type mismatch from a string where a number goes */
 void comp_toint(Session *S);
-void comp_tofloat(Session *S);                 /* an INT load just made loads a FLOAT instead */
+void comp_tofloat(Session *S);
 void comp_todouble(Session *S);
 void comp_tostring(Session *S);
-void comp_toinfo(Session *S, uint8_t info);          /* as a variable of TVAR.info info holds it */
+void comp_toinfo(Session *S, uint8_t info);
 void comp_tobyte(Session *S);
 void comp_toaddr(Session *S);
-void comp_dtest(Session *S);                   /* cm_dnz: a DOUBLE test as an INT, D.NZ */
 void comp_target(Session *S, uint16_t id);           /* variable id is the target: comp.tgt, tgtinfo */
 void comp_store(Session *S);                   /* the value converted and stored to the target */
 

@@ -49,7 +49,7 @@ struct Session {
     Diag diag;
     Evnt evnt;
     Expr expr;
-    Gen gen;
+    Code code;
     File file;
     Flow flow;
     Lexr lexr;

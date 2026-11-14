@@ -10,7 +10,7 @@ static uint32_t compile(Session *const S, const char *const text, const uint8_t 
     CHECK(repl_enter(S, n) == ENTER_DIRECT);
     comp_line(S);
     *code = S->comp.xbuf;
-    return (uint32_t)(S->comp.out - S->comp.xbuf);
+    return (uint32_t)(S->code.out - S->comp.xbuf);
 }
 
 static bool has(const uint8_t *const c, const uint32_t n, const uint8_t *const seq, const uint32_t len)

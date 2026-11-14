@@ -14,6 +14,7 @@
 #ifndef COMP_CTRL_H
 #define COMP_CTRL_H
 #include "comp/comp.h"
+#include "comp/ast.h"
 
 /* A target none: line -1 when run. */
 enum : uint32_t { NOTARGET = 0xFFFFFFFF };
@@ -30,7 +31,7 @@ void ctrl_blockif(Session *S);       /* ct_bif: a block IF's test (comp.p at THE
 bool ctrl_else(Session *S, uint32_t *target); /* a one-line IF's ELSE: the target after it; false none */
 void ctrl_jf(Session *S, uint32_t target); /* JF by comp.type; Type mismatch a string */
 void ctrl_forskip(Session *S);       /* ct_fskip: FSKIP past FOR's NEXT, comp.kw the FOR */
-void ctrl_pcall(Session *S, uint8_t idx); /* PCALL idx and its entry's jump */
+Jump ctrl_jump(Session *S, uint32_t target); /* ct_emitjump's: a target (ct_target's) as code holds it */
 /* QBasic's ERR for a call of no procedure. */
 enum : uint8_t { ERR_NO_FUNCTION = 18, ERR_NO_SUB = 35 };
 void ctrl_undef(Session *S, uint8_t err);  /* ct_undef: ERROR err when run: no such procedure */

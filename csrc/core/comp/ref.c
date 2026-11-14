@@ -10,8 +10,6 @@
 [[noreturn]] static void synerr(Session *const S) { repl_error(S, E_SN); }
 [[noreturn]] static void mismatch(Session *const S) { repl_error(S, E_TM); }
 
-static Node *node(Session *const S, const uint16_t i) { return ast_node(S, i); }
-
 /* ---- records */
 
 /* rc_nrec, rc_nreca: the TYPE of record name, of its array; 0 none. A parameter of the procedure
@@ -78,19 +76,19 @@ static RecRef path(Session *const S, uint8_t t, const uint8_t *text, uint32_t le
 }
 
 /* An N_REF of op and variable id; an element's subscripts follow at comp.p. */
-static uint16_t place(Session *const S, const uint8_t op, const uint16_t id)
+static Node *place(Session *const S, const uint8_t op, const uint16_t id)
 {
-    const uint16_t n = ast_new(S, N_REF);
-    node(S, n)->op = op;
-    node(S, n)->id = id;
-    node(S, n)->b = NO_NODE;
-    node(S, n)->type = T_INT;
+    Node *const n = ast_new(S, N_REF);
+    n->op = op;
+    n->id = id;
+    n->b = nullptr;
+    n->type = T_INT;
     if (op == O_RA_ADDR)
         expr_args(S, n);
     return n;
 }
 
-uint16_t ref_record(Session *const S)
+Node *ref_record(Session *const S)
 {
     const uint8_t *const p = S->comp.p;
     const uint8_t len = p[1];
@@ -100,22 +98,22 @@ uint16_t ref_record(Session *const S)
     if (*after == '(') { /* a(i) */
         t = nrec(S, name, true);
         if (!t)
-            return NO_NODE;
+            return nullptr;
         S->comp.p = after;
-        const uint16_t n = place(S, O_RA_ADDR, ref_recarray(S, name, t));
+        Node *const n = place(S, O_RA_ADDR, ref_recarray(S, name, t));
         if (S->comp.p[0] == '.' && S->comp.p[1] == M_VAR) { /* .f */
             S->comp.p++;
-            node(S, n)->rec = path(S, t, S->comp.p + 2, S->comp.p[1]);
+            n->rec = path(S, t, S->comp.p + 2, S->comp.p[1]);
             S->comp.p = decl_item(S->comp.p);
         } else
-            node(S, n)->rec = whole(S, t, 0);
+            n->rec = whole(S, t, 0);
         return n;
     }
     t = nrec(S, name, false);
     if (t) { /* r */
         S->comp.p = after;
-        const uint16_t n = place(S, O_R_ADDR, recvar(S, name, t, VI_RECARR));
-        node(S, n)->rec = whole(S, t, 0);
+        Node *const n = place(S, O_R_ADDR, recvar(S, name, t, VI_RECARR));
+        n->rec = whole(S, t, 0);
         return n;
     }
     const uint8_t *const text = p + 2; /* r.f: the longest prefix a record's */
@@ -126,23 +124,23 @@ uint16_t ref_record(Session *const S)
         t = nrec(S, pre, false);
         if (!t)
             continue;
-        const uint16_t n = place(S, O_R_ADDR, recvar(S, pre, t, VI_RECARR));
-        node(S, n)->rec = path(S, t, text + i + 1, len - i - 1);
+        Node *const n = place(S, O_R_ADDR, recvar(S, pre, t, VI_RECARR));
+        n->rec = path(S, t, text + i + 1, len - i - 1);
         S->comp.p = after;
         return n;
     }
-    return NO_NODE;
+    return nullptr;
 }
 
-uint16_t ref_field(Session *const S, const uint16_t ref)
+Node *ref_field(Session *const S, Node *const ref)
 {
-    const uint8_t et = node(S, ref)->rec.et;
+    const uint8_t et = ref->rec.et;
     if (et >= ET_REC)
         mismatch(S);
-    const uint16_t n = ast_new(S, N_FIELD);
-    node(S, n)->a = ref;
-    node(S, n)->type = et == ET_SD ? T_STR : expr_ktype[comp_etkind[et]];
-    node(S, n)->sh = et == ET_SH ? SH_SHORT : SH_NONE;
+    Node *const n = ast_new(S, N_FIELD);
+    n->a = ref;
+    n->type = et == ET_SD ? T_STR : expr_ktype[comp_etkind[et]];
+    n->sh = et == ET_SH ? SH_SHORT : SH_NONE;
     return n;
 }
 
@@ -170,13 +168,13 @@ static uint32_t field_size(const RecRef *const r)
     return r->et >= ET_REC || r->et == ET_SD ? r->fix : decl_etsize[r->et];
 }
 
-uint16_t ref_place(Session *const S, uint32_t *const vk)
+Node *ref_place(Session *const S, uint32_t *const vk)
 {
     if (comp_cur(&S->comp) != M_VAR)
         synerr(S);
-    const uint16_t r = ref_record(S);
-    if (r != NO_NODE) {
-        const RecRef *const rec = &node(S, r)->rec;
+    Node *const r = ref_record(S);
+    if (r != nullptr) {
+        const RecRef *const rec = &r->rec;
         *vk = va_pack(rec->et == ET_I2 ? VA_I2 : VA_RAW, field_size(rec));
         return r;
     }
@@ -192,13 +190,12 @@ uint16_t ref_place(Session *const S, uint32_t *const vk)
 bool ref_len(Session *const S, uint32_t *const size)
 {
     const uint8_t *const p = S->comp.p;
-    const uint16_t nodes = S->ast.nnodes;
     S->comp.p++;
     bool found = false;
     if (comp_cur(&S->comp) == '(' && comp_curn(&S->comp) == M_VAR) {
-        const uint16_t r = ref_record(S);
-        if (r != NO_NODE) {
-            *size = field_size(&node(S, r)->rec);
+        Node *const r = ref_record(S);
+        if (r != nullptr) {
+            *size = field_size(&r->rec);
             found = comp_cur(&S->comp) == ')';
         } else { /* a scalar: % 2, & ! 4, # 8 */
             const uint16_t id = comp_var(S, 0, 0);
@@ -208,8 +205,7 @@ bool ref_len(Session *const S, uint32_t *const size)
                 found = comp_cur(&S->comp) == ')' && va_kind(v) != VA_DESC;
             }
         }
-    }
-    S->ast.nnodes = nodes; /* a size: the place's nodes not needed */
+    } /* a size: the place's nodes not needed */
     if (found)
         S->comp.p++;
     else
@@ -234,7 +230,6 @@ const Proc *ref_proc(Session *const S, uint8_t *const idx)
 
 void ref_dropargs(Session *const S, const bool paren)
 {
-    const uint16_t nodes = S->ast.nnodes;
     for (;;) {
         if (paren ? *S->comp.p == ')' : comp_end(S))
             break;
@@ -250,7 +245,6 @@ void ref_dropargs(Session *const S, const bool paren)
             break;
         S->comp.p++;
     }
-    S->ast.nnodes = nodes;
 }
 
 /* ct_aend: c ends an argument. */
@@ -263,17 +257,17 @@ static void ptm(Session *const S, const uint16_t id, const uint16_t par)
         repl_error(S, E_PTM);
 }
 
-static uint16_t argnode(Session *const S, const uint8_t pass, const uint16_t a, const uint16_t id)
+static Node *argnode(Session *const S, const uint8_t pass, Node *const a, const uint16_t id)
 {
-    const uint16_t n = ast_new(S, N_ARG);
-    node(S, n)->op = pass;
-    node(S, n)->a = a;
-    node(S, n)->id = id;
+    Node *const n = ast_new(S, N_ARG);
+    n->op = pass;
+    n->a = a;
+    n->id = id;
     return n;
 }
 
 /* An array parameter's argument: n() an array whole; a record parameter's n a record whole. */
-static uint16_t arrayarg(Session *const S, const uint16_t par)
+static Node *arrayarg(Session *const S, const uint16_t par)
 {
     if (comp_cur(&S->comp) != M_VAR)
         synerr(S);
@@ -292,18 +286,18 @@ static uint16_t arrayarg(Session *const S, const uint16_t par)
         ptm(S, id, par);
         comp_open(S);
         comp_close(S);
-        return argnode(S, PA_ARRAY, NO_NODE, id);
+        return argnode(S, PA_ARRAY, nullptr, id);
     }
     const uint8_t t = scop_rec(S, name, false);
     if (!t)
         synerr(S);
     S->comp.p = after;
-    return argnode(S, PA_RECORD, NO_NODE, recvar(S, name, t, VI_RECARR));
+    return argnode(S, PA_RECORD, nullptr, recvar(S, name, t, VI_RECARR));
 }
 
 /* ct_arg: an argument to parameter par: a variable alone by reference, an element or a record's
    number field by P.REF, else the value. A CONST, BYVAL's, a DEF FN's: the value. */
-static uint16_t arg(Session *const S, const uint16_t par, const bool byval)
+static Node *arg(Session *const S, const uint16_t par, const bool byval)
 {
     if (symb_var(&S->symb, par)->info & VI_ARR)
         return arrayarg(S, par);
@@ -312,11 +306,10 @@ static uint16_t arg(Session *const S, const uint16_t par, const bool byval)
         if (!(symb_name(&S->symb, name)->flags & (NM_SUB | NM_FUNC | NM_FN)) && !scop_con(S, name)) {
             const uint8_t *const p = S->comp.p;
             const uint8_t *const after = comp_skipname(p);
-            const uint16_t nodes = S->ast.nnodes;
             const uint8_t ptype = symb_var(&S->symb, par)->type;
-            const uint16_t r = ref_record(S);
-            if (r != NO_NODE) { /* a field */
-                const RecRef *const rec = &node(S, r)->rec;
+            Node *const r = ref_record(S);
+            if (r != nullptr) { /* a field */
+                const RecRef *const rec = &r->rec;
                 if (!(rec->et == ET_SD && rec->fix) && rec->et != ET_SH && rec->et < ET_REC &&
                     rec->et == ptype && aend(comp_cur(&S->comp)))
                     return argnode(S, PA_PREF, r, par);
@@ -324,13 +317,12 @@ static uint16_t arg(Session *const S, const uint16_t par, const bool byval)
                 const uint16_t id = comp_var(S, 0, 0);
                 const Var *const v = symb_var(&S->symb, id);
                 if (v->info & VI_ARR && !scop_fix(S, v->name, true) && v->type == ptype) {
-                    const uint16_t e = place(S, O_RA_ADDR, id);
+                    Node *const e = place(S, O_RA_ADDR, id);
                     if (aend(comp_cur(&S->comp)))
                         return argnode(S, PA_PREF, e, par);
                 }
             }
             S->comp.p = p;
-            S->ast.nnodes = nodes;
             if (aend(*after)) { /* a variable alone: its cell */
                 const uint16_t id = comp_var(S, 0, 0);
                 ptm(S, id, par);
@@ -342,10 +334,10 @@ static uint16_t arg(Session *const S, const uint16_t par, const bool byval)
 }
 
 /* ct_args: for each of the procedure's parameters, its argument, to call n. */
-static void args(Session *const S, const uint16_t n, const Proc *const pr)
+static void args(Session *const S, Node *const n, const Proc *const pr)
 {
     const bool def = pr->flags & PF_DEF; /* a DEF FN's: by value */
-    uint16_t last = NO_NODE;
+    Node *last = nullptr;
     for (uint32_t i = 0; i < pr->npar; i++) {
         if (i) {
             if (comp_cur(&S->comp) != ',')
@@ -353,17 +345,17 @@ static void args(Session *const S, const uint16_t n, const Proc *const pr)
             S->comp.p++;
         }
         const bool byval = S->blok.byval[pr->par + i] || def;
-        ast_link(S, n, &last, arg(S, S->blok.params[pr->par + i], byval));
+        ast_link(n, &last, arg(S, S->blok.params[pr->par + i], byval));
     }
 }
 
-uint16_t ref_call(Session *const S, const uint8_t idx, const Proc *const pr, const ArgsForm form)
+Node *ref_call(Session *const S, const uint8_t idx, const Proc *const pr, const ArgsForm form)
 {
-    const uint16_t n = ast_new(S, N_CALL);
-    node(S, n)->op = idx;
-    node(S, n)->b = NO_NODE;
+    Node *const n = ast_new(S, N_CALL);
+    n->op = idx;
+    n->b = nullptr;
     if (pr->result)
-        node(S, n)->type = expr_ktype[symb_var(&S->symb, pr->result)->info & (SK_DBL | VK_MASK)];
+        n->type = expr_ktype[symb_var(&S->symb, pr->result)->info & (SK_DBL | VK_MASK)];
     if (form == ARGS_BARE)
         args(S, n, pr);
     else if (form == ARGS_PAREN && *S->comp.p == '(') {
@@ -374,7 +366,7 @@ uint16_t ref_call(Session *const S, const uint8_t idx, const Proc *const pr, con
     return n;
 }
 
-uint16_t ref_undef(Session *const S)
+Node *ref_undef(Session *const S)
 {
     const uint16_t id = comp_var(S, 1, 0);
     if (*S->comp.p == '(') {
@@ -382,10 +374,10 @@ uint16_t ref_undef(Session *const S)
         ref_dropargs(S, true);
         comp_close(S);
     }
-    const uint16_t n = ast_new(S, N_CALL);
-    node(S, n)->mode = CALL_UNDEF;
-    node(S, n)->id = id;
-    node(S, n)->b = NO_NODE;
-    node(S, n)->type = expr_ktype[symb_var(&S->symb, id)->info & (SK_DBL | VK_MASK)];
+    Node *const n = ast_new(S, N_CALL);
+    n->mode = CALL_UNDEF;
+    n->id = id;
+    n->b = nullptr;
+    n->type = expr_ktype[symb_var(&S->symb, id)->info & (SK_DBL | VK_MASK)];
     return n;
 }

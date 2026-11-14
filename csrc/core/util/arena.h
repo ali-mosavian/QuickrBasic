@@ -1,0 +1,21 @@
+/* A bump allocator: any number at once, each growing by blocks from the platform (pmem_block).
+   Its allocations live until it is reset, all at once; its blocks are kept for the next use. Not
+   the BASIC arena (base.h), which a program sees. */
+#ifndef UTIL_ARENA_H
+#define UTIL_ARENA_H
+#include <stddef.h>
+#include <stdint.h>
+
+typedef struct ArenaBlock ArenaBlock;
+
+typedef struct {
+    ArenaBlock *first; /* its blocks, in the order taken */
+    ArenaBlock *cur;   /* the one allocations come from */
+    uint8_t *top;      /* the next free byte in cur */
+    size_t chunk;      /* a new block's least size */
+} Arena;
+
+void arena_init(Arena *a, size_t chunk); /* empty: no block taken yet */
+void *arena_alloc(Arena *a, size_t size); /* zeroed, aligned for any object; null: no memory left */
+void arena_reset(Arena *a);               /* every allocation freed */
+#endif

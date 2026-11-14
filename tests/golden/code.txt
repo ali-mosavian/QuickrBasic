@@ -9607,7 +9607,7 @@ bcg/83_stockmarket.bas 134 fb96549631c8
 bcg/83_stockmarket.bas 135 fb96549631c8
 bcg/83_stockmarket.bas 136 997bc25d18ea
 bcg/83_stockmarket.bas 137 355b0030e33d
-bcg/83_stockmarket.bas 138 a708a4b93b30
+bcg/83_stockmarket.bas 138 0d9d6d8c8ee7
 bcg/83_stockmarket.bas 139 a14914da22fb
 bcg/83_stockmarket.bas 140 2957e6ce2073
 bcg/83_stockmarket.bas 141 fb96549631c8

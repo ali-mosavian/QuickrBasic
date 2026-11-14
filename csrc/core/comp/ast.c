@@ -5,30 +5,34 @@
 #include "io/repl.h"
 #include "mem/symb.h"
 
-static Node *node(Session *const S, const uint16_t i) { return ast_node(S, i); }
+void ast_init(Session *const S) { arena_init(&S->ast.arena, AST_CHUNK); }
 
-bool ast_islit(Session *const S, const uint16_t i) { return node(S, i)->kind == N_LIT; }
-
-uint16_t ast_new(Session *const S, const NodeKind kind)
+void ast_reset(Session *const S)
 {
-    if (S->ast.nnodes >= AST_NODES)
-        repl_error(S, E_OM);
-    const uint16_t i = S->ast.nnodes++;
-    S->ast.node[i] = (Node){.kind = kind};
-    return i;
+    arena_reset(&S->ast.arena);
+    S->ast.steps = S->ast.last = nullptr;
 }
 
-Node *ast_node(Session *const S, const uint16_t i) { return &S->ast.node[i]; }
+bool ast_islit(const Node *const n) { return n->kind == N_LIT; }
 
-void ast_link(Session *const S, const uint16_t n, uint16_t *const last, const uint16_t a)
+Node *ast_new(Session *const S, const NodeKind kind)
 {
-    ast_node(S, a)->next = NO_NODE;
-    if (*last == NO_NODE)
-        ast_node(S, n)->b = a;
+    Node *const n = arena_alloc(&S->ast.arena, sizeof *n);
+    if (!n)
+        repl_error(S, E_OM);
+    n->kind = kind;
+    return n;
+}
+
+void ast_link(Node *const parent, Node **const last, Node *const arg)
+{
+    arg->next = nullptr;
+    if (*last)
+        (*last)->next = arg;
     else
-        ast_node(S, *last)->next = a;
-    *last = a;
-    ast_node(S, n)->nargs++;
+        parent->b = arg;
+    *last = arg;
+    parent->nargs++;
 }
 
 /* A DOUBLE either side; or for a DOUBLE target ^, and unless of constants / or a SINGLE's. */
@@ -41,15 +45,15 @@ static bool wants_double(const Node *const n, const uint8_t lt, const uint8_t rt
     return n->op == OP_POW || (!bothk && (n->op == OP_DIV || lt == T_FLT || rt == T_FLT));
 }
 
-uint8_t ast_work(Session *const S, const Node *const n)
+uint8_t ast_work(const Node *const n)
 {
     const uint8_t rel = n->op;
     if (ast_islogic(rel) || ast_isxop(rel))
         return W_INT;
-    const uint8_t lt = ast_type(S, n->a), rt = ast_type(S, n->b);
+    const uint8_t lt = ast_type(n->a), rt = ast_type(n->b);
     if (lt & T_STR)
         return W_STR;
-    const bool bothk = rel != OP_POW && ast_islit(S, n->a) && ast_islit(S, n->b);
+    const bool bothk = rel != OP_POW && ast_islit(n->a) && ast_islit(n->b);
     if (wants_double(n, lt, rt, bothk))
         return W_DBL;
     if (rel == OP_POW)
@@ -57,19 +61,14 @@ uint8_t ast_work(Session *const S, const Node *const n)
     return lt == T_INT && rt == T_INT && rel != OP_DIV ? W_INT : W_FLT;
 }
 
-uint8_t ast_type(Session *const S, const uint16_t i)
+uint8_t ast_type(const Node *const n)
 {
-    const Node *const n = node(S, i);
     switch (n->kind) {
-    case N_VAR: {
-        const uint8_t info = symb_var(&S->symb, n->id)->info;
-        return expr_ktype[info & (SK_DBL | VK_MASK)];
-    }
-    case N_UN: return n->op == TK_NOT ? T_INT : ast_type(S, n->a);
+    case N_UN: return n->op == TK_NOT ? T_INT : ast_type(n->a);
     case N_BIN:
         if (ast_isrel(n->op))
             return T_INT;
-        switch (ast_work(S, n)) {
+        switch (ast_work(n)) {
         case W_INT: return T_INT;
         case W_DBL: return T_DBL;
         case W_STR: return T_STR;
@@ -77,4 +76,24 @@ uint8_t ast_type(Session *const S, const uint16_t i)
         }
     default: return n->type;
     }
+}
+
+void ast_step(Session *const S, Node *const n)
+{
+    n->next = nullptr;
+    if (S->ast.last)
+        S->ast.last->next = n;
+    else
+        S->ast.steps = n;
+    S->ast.last = n;
+}
+
+/* The last step becomes its conversion: the node in place, its tree a copy under it. */
+void ast_conv(Session *const S, const uint8_t cv)
+{
+    Node *const last = S->ast.last;
+    Node *const a = ast_new(S, N_CONV);
+    *a = *last;
+    a->next = nullptr;
+    *last = (Node){.kind = N_CONV, .op = cv, .a = a, .end = S->comp.p};
 }

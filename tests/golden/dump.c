@@ -27,7 +27,7 @@ int main(const int argc, char **const argv)
     for (uint32_t l = PROGBASE, len; (len = prog_line(&S->prog, l)->len); l += len, n++) {
         link_compile(S, l);
         printf("%u", n);
-        for (const uint8_t *b = S->comp.xbuf; b < S->comp.out; b++)
+        for (const uint8_t *b = S->comp.xbuf; b < S->code.out; b++)
             printf(" %02x", *b);
         putchar('\n');
     }

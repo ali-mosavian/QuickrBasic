@@ -22,21 +22,21 @@ static bool foldable(const uint8_t *s, const uint8_t *const end)
 /* The value's one load at comp.out. */
 static void emit(Session *const S, const Cell v)
 {
-    if (S->comp.type == T_INT) {
-        comp_int(S, v.u);
+    if (S->code.type == T_INT) {
+        code_int(&S->code, v.u);
         return;
     }
-    comp_op(S, S->comp.type == T_FLT ? O_F_LD_F32 : O_D_LD_K);
-    comp_dword(S, (uint32_t)v.raw);
-    if (S->comp.type == T_DBL)
-        comp_dword(S, (uint32_t)(v.raw >> 32));
+    code_op(&S->code, S->code.type == T_FLT ? O_F_LD_F32 : O_D_LD_K);
+    code_dword(&S->code, (uint32_t)v.raw);
+    if (S->code.type == T_DBL)
+        code_dword(&S->code, (uint32_t)(v.raw >> 32));
 }
 
 /* The code from start to comp.out run: its value to *v; false: not foldable, or it failed. */
 static bool eval(Session *const S, uint8_t *const start, Cell *const v)
 {
-    uint8_t *const end = S->comp.out;
-    if (!foldable(start, end) || end >= S->comp.lim)
+    uint8_t *const end = S->code.out;
+    if (!foldable(start, end) || end >= S->code.lim)
         return false;
     Vm *const vm = &S->vm;
     uint8_t *const ip = vm->ip, *const opip = vm->opip;
@@ -57,21 +57,21 @@ static bool eval(Session *const S, uint8_t *const start, Cell *const v)
 
 void fold_code(Session *const S, uint8_t *const start)
 {
-    const uint8_t t = S->comp.type;
+    const uint8_t t = S->code.type;
     if (t != T_INT && t != T_FLT && t != T_DBL)
         return;
-    uint8_t *const end = S->comp.out;
+    uint8_t *const end = S->code.out;
     Cell value;
     if (!eval(S, start, &value))
         return;
-    S->comp.out = start;
-    if (S->comp.iloadend > start) /* marks inside the code go */
-        S->comp.iload = S->comp.iloadend = nullptr;
-    if (S->comp.cmpend > start) /* no relation left for an IF to take */
-        S->comp.cmpend = nullptr;
+    S->code.out = start;
+    if (S->code.iloadend > start) /* marks inside the code go */
+        S->code.iload = S->code.iloadend = nullptr;
+    if (S->code.cmpend > start) /* no relation left for an IF to take */
+        S->code.cmpend = nullptr;
     emit(S, value);
-    if (S->gen.shend == end) /* the SHORT's class as it was */
-        S->gen.shend = S->comp.out;
+    if (S->code.shend == end) /* the SHORT's class as it was */
+        S->code.shend = S->code.out;
 }
 
 void fold_fail(Session *const S)
@@ -104,7 +104,7 @@ void fold_const(Session *const S)
     if (!fold_isliteral(op))
         return;
     const uint32_t size = flow_opsize(start);
-    if (start + size != S->comp.out)
+    if (start + size != S->code.out)
         return;
     const uint16_t id = S->comp.tgt;
     symb_varx(&S->symb, id)->kop = op;
@@ -141,24 +141,24 @@ static void set_literal(Node *const n, const uint8_t t, const Cell v)
     store32(n->lit + 4, (uint32_t)(v.raw >> 32));
 }
 
-static bool literal(Session *const S, const uint16_t i) { return S->ast.node[i].kind == N_LIT; }
+static bool literal(Session *const S, Node *const i) { return i->kind == N_LIT; }
 
-void fold_tree(Session *const S, const uint16_t i)
+void fold_tree(Session *const S, Node *const i)
 {
-    Node *const n = &S->ast.node[i];
+    Node *const n = i;
     switch (n->kind) {
     case N_ELEM:
     case N_FN:
     case N_XFN:
     case N_REF:
     case N_CALL: /* its arguments */
-        for (uint16_t a = n->b; a != NO_NODE; a = S->ast.node[a].next)
+        for (Node *a = n->b; a != nullptr; a = a->next)
             fold_tree(S, a);
         return;
     case N_FIELD:
     case N_ADDR:
     case N_ARG:
-        if (n->a != NO_NODE)
+        if (n->a != nullptr)
             fold_tree(S, n->a);
         return;
     default: break;
@@ -170,13 +170,13 @@ void fold_tree(Session *const S, const uint16_t i)
         fold_tree(S, n->b);
     if (!literal(S, n->a) || (n->kind == N_BIN && !literal(S, n->b)))
         return;
-    uint8_t *const start = S->comp.out;
-    gen_tree(S, i);
-    const uint8_t t = S->comp.type, sh = gen_shclass(S);
+    uint8_t *const start = S->code.out;
+    gen_tree(&S->code, i);
+    const uint8_t t = S->code.type, sh = code_shclass(&S->code);
     Cell v;
     const bool ok = (t == T_INT || t == T_FLT || t == T_DBL) && eval(S, start, &v);
-    S->comp.out = start;
-    S->comp.iload = S->comp.iloadend = S->comp.cmp = S->comp.cmpend = nullptr;
+    S->code.out = start;
+    S->code.iload = S->code.iloadend = S->code.cmp = S->code.cmpend = nullptr;
     if (!ok)
         return;
     set_literal(n, t, v);

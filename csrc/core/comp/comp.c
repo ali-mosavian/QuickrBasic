@@ -25,229 +25,53 @@ bool comp_end(Session *const S) { return comp_eos(S, &S->comp.p); }
 void comp_init(Session *const S)
 {
     S->comp.cbuf = at(allo_carve(S, 1 + LMAX + 64)) + 1; /* the byte before: lexr's line before the body */
-    S->comp.buf = S->comp.xbuf;
+    S->code.buf = S->comp.xbuf;
     S->comp.dfa = 0xFFFF;
+    ast_init(S);
 }
 
 [[noreturn]] static void synerr(Session *const S) { repl_error(S, E_SN); }
 [[noreturn]] static void mismatch(Session *const S) { repl_error(S, E_TM); }
 
-/* ---- emitting */
-
-void comp_byte(Session *const S, const uint8_t b)
-{
-    if (S->comp.out >= S->comp.lim)
-        comp_fail(S, E_OM); /* cm_om: the code is full */
-    *S->comp.out++ = b;
-}
-
-void comp_opb(Session *const S, const uint8_t op, const uint8_t b)
-{
-    comp_op(S, op);
-    comp_byte(S, b);
-}
-
-void comp_word(Session *const S, const uint16_t w)
-{
-    comp_byte(S, (uint8_t)w);
-    comp_byte(S, (uint8_t)(w >> 8));
-}
-
-void comp_opw(Session *const S, const uint8_t op, const uint16_t w)
-{
-    S->comp.lnum = w; /* the asm's wv: the word */
-    comp_op(S, op);
-    comp_word(S, w);
-}
-
-void comp_dword(Session *const S, const uint32_t d)
-{
-    comp_word(S, (uint16_t)d);
-    comp_word(S, (uint16_t)(d >> 16));
-}
+/* ---- emitting: the statements' own, their checks with them */
 
 void comp_lref(Session *const S)
 {
-    comp_word(S, S->comp.lnum);
-    comp_dword(S, S->comp.jline);
-}
-
-/* A mark into the code, at or past where: moved up a byte with it. Null is below any. */
-static void follow(uint8_t **const start, uint8_t **const end, const uint8_t *const where)
-{
-    if ((uintptr_t)*start >= (uintptr_t)where) {
-        ++*start;
-        ++*end;
-    }
-}
-
-void comp_insert(Session *const S, const uint8_t b, uint8_t *const where)
-{
-    if (S->comp.out >= S->comp.lim)
-        comp_fail(S, E_OM);
-    memmove(where + 1, where, (size_t)(S->comp.out - where));
-    S->comp.out++;
-    *where = b;
-    follow(&S->comp.iload, &S->comp.iloadend, where);
-    follow(&S->comp.cmp, &S->comp.cmpend, where);
-}
-
-void comp_int(Session *const S, const uint32_t n)
-{
-    S->comp.type = T_INT;
-    S->comp.iload = S->comp.out;
-    if (n > 0xFFFF) {
-        comp_op(S, O_I_LD_I32);
-        comp_dword(S, n);
-    } else if (n > 0xFF)
-        comp_opw(S, O_I_LD_I16, (uint16_t)n);
-    else
-        comp_opb(S, O_I_LD_U8, (uint8_t)n);
-    S->comp.iloadend = S->comp.out;
-}
-
-void comp_call(Session *const S, const uint8_t k) { comp_opb(S, O_CALL, k); }
-
-/* cm_vop: X.LD.V or X.ST.V of a scalar parameter of the procedure compiled: V.LD, V.ST id kind
-   instead (kind 0 4 bytes, 1 8, 2 a Desc). */
-static bool parop(Session *const S, const uint8_t op, const uint16_t id)
-{
-    uint8_t vop, kind;
-    switch (op) {
-    case O_I_LD_V: case O_F_LD_V: vop = O_V_LD; kind = 0; break;
-    case O_D_LD_V: vop = O_V_LD; kind = 1; break;
-    case O_S_LD_V: vop = O_V_LD; kind = 2; break;
-    case O_I_ST_V: case O_F_ST_V: vop = O_V_ST; kind = 0; break;
-    case O_D_ST_V: vop = O_V_ST; kind = 1; break;
-    case O_S_ST_V: vop = O_V_ST; kind = 2; break;
-    default: return false;
-    }
-    if (!comp_ispar(S, id))
-        return false;
-    comp_opw(S, vop, id);
-    comp_byte(S, kind);
-    return true;
+    code_word(&S->code, S->comp.lnum);
+    code_dword(&S->code, S->comp.jline);
 }
 
 void comp_opid(Session *const S, const uint8_t op, const uint16_t id)
 {
-    if (!parop(S, op, id))
-        comp_opw(S, op, id);
+    code_opid(&S->code, op, id, comp_ispar(S, id));
 }
 
-uint8_t *comp_intleaf(Session *const S)
+/* The value a number; else Type mismatch. */
+static void number(Session *const S)
 {
-    if (S->comp.out != S->comp.iloadend)
-        return nullptr;
-    const uint8_t op = *S->comp.iload;
-    return op == O_I_LD_V || op == O_I_LD_U8 || op == O_I_LD_I32 || op == O_I_LD_I16 ? S->comp.iload
-                                                                                     : nullptr;
-}
-
-/* ---- types */
-
-void comp_toint(Session *const S)
-{
-    if (S->comp.type & T_STR)
+    if (S->code.type & T_STR)
         mismatch(S);
-    if (S->comp.type == T_INT)
-        return;
-    const uint8_t op = S->comp.type == T_DBL ? O_D_TOI : O_F_TOI;
-    S->comp.type = T_INT;
-    comp_op(S, op);
 }
 
-void comp_todouble(Session *const S)
-{
-    if (S->comp.type & T_STR)
-        mismatch(S);
-    uint8_t op;
-    if (S->comp.type == T_INT)
-        op = O_I_TOD;
-    else if (S->comp.type == T_FLT)
-        op = O_F_TOD;
-    else
-        return;
-    S->comp.type = T_DBL;
-    comp_op(S, op);
-}
-
-void comp_dtest(Session *const S)
-{
-    if (S->comp.type != T_DBL)
-        return;
-    S->comp.type = T_INT;
-    comp_op(S, O_D_NZ);
-}
-
-/* A byte or an address: a U8 load needs nothing. */
-static void tonarrow(Session *const S, const uint8_t fop, const uint8_t iop)
-{
-    if (S->comp.type & T_STR)
-        mismatch(S);
-    if (S->comp.type == T_DBL)
-        comp_toint(S);
-    const bool is_int = S->comp.type == T_INT;
-    if (is_int) {
-        const uint8_t *const leaf = comp_intleaf(S);
-        if (leaf && *leaf == O_I_LD_U8)
-            return;
-    }
-    S->comp.type = T_INT;
-    comp_op(S, is_int ? iop : fop);
-}
-
-void comp_tobyte(Session *const S) { tonarrow(S, O_F_TOB, O_I_TOB); }
-void comp_toaddr(Session *const S) { tonarrow(S, O_F_TOA, O_I_TOA); }
+void comp_toint(Session *const S) { number(S); code_toint(&S->code); }
+void comp_tofloat(Session *const S) { number(S); code_tofloat(&S->code); }
+void comp_todouble(Session *const S) { number(S); code_todouble(&S->code); }
+void comp_tobyte(Session *const S) { number(S); code_tobyte(&S->code); }
+void comp_toaddr(Session *const S) { number(S); code_toaddr(&S->code); }
 
 void comp_tostring(Session *const S)
 {
-    if (!(S->comp.type & T_STR))
+    if (!(S->code.type & T_STR))
         mismatch(S);
-}
-
-void comp_tofloat(Session *const S)
-{
-    if (S->comp.type & T_STR)
-        mismatch(S);
-    if (S->comp.type == T_FLT)
-        return;
-    if (S->comp.type == T_DBL) {
-        S->comp.type = T_FLT;
-        comp_op(S, O_D_TOF);
-        return;
-    }
-    S->comp.type = T_FLT;
-    uint8_t *const leaf = comp_intleaf(S);
-    if (!leaf) {
-        comp_op(S, O_I_TOF);
-        return;
-    }
-    switch (*leaf) {
-    case O_I_LD_V:
-        *leaf = O_F_LD_VI;
-        return;
-    case O_I_LD_U8:
-        *leaf = O_F_LD_U8;
-        return;
-    }
-    const Sngl f = *leaf == O_I_LD_I32 ? fmth_from_i32((int32_t)load32(leaf + 1))
-                                 : fmth_from_u16(load16(leaf + 1));
-    S->comp.out = leaf; /* F.LD.F32 in its place */
-    comp_op(S, O_F_LD_F32);
-    comp_dword(S, f);
 }
 
 void comp_toinfo(Session *const S, const uint8_t info)
 {
-    if (info & SK_DBL)
-        comp_todouble(S);
+    if ((info & (SK_DBL | VK_MASK)) == VK_STR)
+        comp_tostring(S);
     else
-        switch (info & VK_MASK) {
-        case VK_INT: comp_toint(S); break;
-        case VK_FLT: comp_tofloat(S); break;
-        default: comp_tostring(S);
-        }
+        number(S);
+    code_toinfo(&S->code, info);
 }
 
 void comp_target(Session *const S, const uint16_t id)
@@ -263,7 +87,7 @@ static void store_to(Session *const S, const uint8_t scalar, const uint8_t one, 
     const uint8_t subs = S->comp.tgtsubs;
     if (subs > 1) {
         comp_opid(S, many, S->comp.tgt);
-        comp_byte(S, subs);
+        code_byte(&S->code, subs);
     } else
         comp_opid(S, subs ? one : scalar, S->comp.tgt);
 }
@@ -273,10 +97,10 @@ static uint8_t convert_for_target(Session *const S)
 {
     switch (S->comp.tgtinfo & VK_MASK) {
     case VK_INT: /* a SHORT: Overflow past 16 bits, unless it is one */
-        gen_shclass(S);
+        code_shclass(&S->code);
         comp_toint(S);
-        if (symb_var(&S->symb, S->comp.tgt)->type == ET_SH && !S->gen.shclass)
-            comp_op(S, O_I_CHK16);
+        if (symb_var(&S->symb, S->comp.tgt)->type == ET_SH && !S->code.shclass)
+            code_op(&S->code, O_I_CHK16);
         return 0;
     case VK_FLT:
         comp_tofloat(S);
@@ -285,8 +109,8 @@ static uint8_t convert_for_target(Session *const S)
         comp_tostring(S);
         const uint16_t fix = scop_fix(S, symb_var(&S->symb, S->comp.tgt)->name, S->comp.tgtsubs != 0);
         if (fix) {
-            comp_int(S, fix);
-            comp_call(S, K_SFIX);
+            code_int(&S->code, fix);
+            code_call(&S->code, K_SFIX);
         }
         return 2;
     }
@@ -397,9 +221,9 @@ uint8_t comp_lnum(Session *const S)
 static void lnumload(Session *const S)
 {
     if (S->comp.lnum == NONUM)
-        comp_int(S, S->comp.jline + LABEL_LINE);
+        code_int(&S->code, S->comp.jline + LABEL_LINE);
     else
-        comp_opw(S, O_I_LD_I16, S->comp.lnum);
+        code_opw(&S->code, O_I_LD_I16, S->comp.lnum);
 }
 
 /* ---- names and variables */
@@ -530,33 +354,38 @@ uint16_t comp_name(Session *const S)
 static void mapstmt(Session *const S, const uint32_t bodyoff)
 {
     uint8_t *const e = S->comp.map - (S->comp.nstmt + 1) * sizeof(Stmt);
-    if (e < S->comp.out + sizeof(Stmt)) { /* no room: the code is full */
-        S->comp.lim = S->comp.out;
+    if (e < S->code.out + sizeof(Stmt)) { /* no room: the code is full */
+        S->code.lim = S->code.out;
         return;
     }
-    *(Stmt *)e = (Stmt){.body = bodyoff, .code = (uint32_t)(S->comp.out - S->comp.buf)}; /* packed: any address */
-    S->comp.lim = e - COMP_TAIL;
+    *(Stmt *)e = (Stmt){.body = bodyoff, .code = (uint32_t)(S->code.out - S->code.buf)}; /* packed: any address */
+    S->code.lim = e - COMP_TAIL;
     S->comp.nstmt++;
 }
 
-/* The statement at comp.p: its body offset, its code's place. */
-static void mark(Session *const S) { mapstmt(S, (uint32_t)(S->comp.p - S->comp.body)); }
+/* The statement at comp.p: its body offset, its code's place; the last statement's nodes freed, an
+   error's too. */
+static void mark(Session *const S)
+{
+    ast_reset(S);
+    mapstmt(S, (uint32_t)(S->comp.p - S->comp.body));
+}
 
 /* DBG before a program statement's code, when the debugger wants it; not SUB's, FUNCTION's. */
 static void dbg(Session *const S)
 {
     S->comp.dbg = nullptr;
     if (S->dbug.emit && S->comp.line != DLINE && *S->comp.p != TK_SUB && *S->comp.p != TK_FUNCTION) {
-        *S->comp.out++ = O_DBG;
-        S->comp.dbg = S->comp.out;
+        *S->code.out++ = O_DBG;
+        S->comp.dbg = S->code.out;
     }
 }
 
 /* After the statement: its DBG gone when it made no code (DECLARE, DEFINT, ...). */
 static void dbgdrop(Session *const S)
 {
-    if (S->comp.dbg == S->comp.out)
-        S->comp.out--;
+    if (S->comp.dbg == S->code.out)
+        S->code.out--;
     S->comp.dbg = nullptr;
 }
 
@@ -566,7 +395,7 @@ static void dbgdrop(Session *const S)
 static void finish(Session *const S)
 {
     mapstmt(S, BOFF);
-    *S->comp.out++ = O_EOL;
+    *S->code.out++ = O_EOL;
 }
 
 /* REM: the compile is over. */
@@ -578,13 +407,13 @@ static void finish(Session *const S)
 
 void comp_fail(Session *const S, const uint8_t err)
 {
-    uint8_t *const o = S->comp.out; /* ERR err dg at:4 state:2 */
+    uint8_t *const o = S->code.out; /* ERR err dg at:4 state:2 */
     o[0] = O_ERR;
     o[1] = err;
     o[2] = S->comp.dg;
     store32(o + 3, (uint32_t)(S->comp.p - S->comp.body));
     store16(o + 7, S->comp.dfa);
-    S->comp.out = o + 9;
+    S->code.out = o + 9;
     S->comp.dg = 0;
     S->comp.dfa = 0xFFFF;
     done(S);
@@ -609,7 +438,7 @@ void comp_dfa(Session *const S, const uint16_t state)
         if (code < PS_ACC) {
             st = e >> 8;
             if (code < A_BASE)
-                comp_call(S, code);
+                code_call(&S->code, code);
             else
                 actions[code - A_BASE](S);
             continue;
@@ -695,6 +524,8 @@ static void token(Session *const S)
 /* cm_nx: the statement compiled, its end next. */
 static void ended(Session *const S)
 {
+    if (S->code.full) /* cm_om: the code is full */
+        comp_fail(S, E_OM);
     dbgdrop(S);
     if (!comp_end(S))
         synerr(S);
@@ -715,7 +546,7 @@ static void stmts(Session *const S)
                 return;
             if (c == ':')
                 break;
-            comp_op(S, O_NXLN); /* ELSE: the THEN part leaves the line */
+            code_op(&S->code, O_NXLN); /* ELSE: the THEN part leaves the line */
             c = comp_curn(&S->comp);
             if (!c)
                 synerr(S);
@@ -733,16 +564,16 @@ void comp_text(Session *const S, const uint8_t *const body)
 {
     S->comp.busy = true;
     S->comp.depth = 0;
-    S->ast.nnodes = 0; /* an error's longjmp left its line's nodes taken */
     S->comp.body = body;
     S->comp.nstmt = 0;
     S->comp.oneif = false;
     S->comp.dg = 0;
     S->comp.dfa = 0xFFFF;
-    S->comp.iload = S->comp.iloadend = S->comp.cmpend = nullptr;
-    S->comp.out = S->comp.buf;
-    S->comp.map = S->comp.buf + XLIM + COMP_TAIL; /* the map grows down from the top */
-    S->comp.lim = S->comp.map - COMP_TAIL;
+    S->code.iload = S->code.iloadend = S->code.cmpend = nullptr;
+    S->code.out = S->code.buf;
+    S->code.full = false;
+    S->comp.map = S->code.buf + XLIM + COMP_TAIL; /* the map grows down from the top */
+    S->code.lim = S->comp.map - COMP_TAIL;
     const uint8_t *colon = comp_label(body); /* a label: on from its ':' */
     S->comp.p = colon ? colon : body - 1;
     if (!setjmp(S->comp.unwind)) {
@@ -750,7 +581,7 @@ void comp_text(Session *const S, const uint8_t *const body)
         finish(S);
     }
     S->comp.busy = false;
-    S->comp.len = (uint8_t)(S->comp.out - S->comp.buf);
+    S->comp.len = (uint8_t)(S->code.out - S->code.buf);
 }
 
 void comp_line(Session *const S)
@@ -758,7 +589,7 @@ void comp_line(Session *const S)
     S->comp.line = DLINE;
     scop_proc(S, S->comp.dlproc);
     decl_deftype(S, 0xFFFFFFFF); /* the program's end's DEFtypes */
-    S->comp.buf = S->comp.xbuf;
+    S->code.buf = S->comp.xbuf;
     comp_text(S, S->comp.cbuf);
 }
 
@@ -767,14 +598,14 @@ void comp_line(Session *const S)
 /* The one of four for the value's type. */
 static uint8_t by_type(Session *const S, const uint8_t i, const uint8_t f, const uint8_t d, const uint8_t s)
 {
-    return comp_pick(S->comp.type, i, f, d, s);
+    return comp_pick(S->code.type, i, f, d, s);
 }
 
 /* IF expr THEN|GOTO line or statements: a compare just made becomes its CMPIF, else X.IF. */
 static void act_if(Session *const S)
 {
     expr_compile(S);
-    comp_dtest(S);
+    code_dtest(&S->code);
     uint8_t c = *S->comp.p;
     if (c != TK_THEN && c != TK_GOTO)
         synerr(S);
@@ -786,10 +617,10 @@ static void act_if(Session *const S)
     uint32_t t;
     if (ctrl_else(S, &t))
         ctrl_jf(S, t); /* false: past the ELSE */
-    else if (S->comp.out == S->comp.cmpend)
-        *S->comp.cmp += O_I_CMPIF - O_I_CMP;
+    else if (S->code.out == S->code.cmpend)
+        *S->code.cmp += O_I_CMPIF - O_I_CMP;
     else /* comp_dtest made a DOUBLE an INT */
-        comp_op(S, by_type(S, O_I_IF, O_F_IF, O_I_IF, O_S_IF));
+        code_op(&S->code, by_type(S, O_I_IF, O_F_IF, O_I_IF, O_S_IF));
     S->comp.then = true;
     const uint8_t kw = *S->comp.p; /* THEN or GOTO */
     c = comp_curn(&S->comp);
@@ -833,7 +664,7 @@ static void act_nv(Session *const S)
     if (comp_cur(&S->comp) == M_VAR)
         comp_opid(S, O_NEXT_V, comp_var(S, 0, 0));
     else
-        comp_op(S, O_NEXT);
+        code_op(&S->code, O_NEXT);
 }
 
 /* DATA: no code, READ finds the text in the body. */
@@ -846,20 +677,20 @@ static void act_rem(Session *const S) { done(S); }
 static void runres(Session *const S, const uint8_t k)
 {
     if (comp_end(S)) {
-        comp_call(S, k);
+        code_call(&S->code, k);
         return;
     }
     S->comp.modlabel = true; /* the module's label */
     comp_lnum(S);
     lnumload(S);
-    comp_call(S, k + 1);
+    code_call(&S->code, k + 1);
 }
 static void act_run(Session *const S) { runres(S, K_RUN); }
 static void act_res(Session *const S) { runres(S, K_RES); }
 
 static void act_n0(Session *const S) { S->comp.nargs = 0; }
 static void act_n1(Session *const S) { S->comp.nargs++; }
-static void act_narg(Session *const S) { comp_int(S, S->comp.nargs); }
+static void act_narg(Session *const S) { code_int(&S->code, S->comp.nargs); }
 
 /* DIM's ( [lo TO] hi {, ..} ): lo hi, or hi and OPTION BASE's, each an INT; how many. */
 static uint32_t dimsubs(Session *const S)
@@ -875,7 +706,7 @@ static uint32_t dimsubs(Session *const S)
             expr_compile(S);
             comp_toint(S);
         } else {
-            comp_int(S, S->decl.base);
+            code_int(&S->code, S->decl.base);
             S->comp.dmask |= (uint64_t)1 << (n & 63);
         }
         n++;
@@ -890,11 +721,11 @@ static void dim1(Session *const S, const uint16_t id)
 {
     const uint32_t flags = (S->comp.isstatic ? DIM_STATIC : 0) | S->comp.redim;
     const uint32_t n = dimsubs(S);
-    comp_int(S, (uint32_t)S->comp.dmask);
-    comp_int(S, (uint32_t)(S->comp.dmask >> 32));
-    comp_int(S, id);
-    comp_int(S, n | flags);
-    comp_call(S, K_DIM);
+    code_int(&S->code, (uint32_t)S->comp.dmask);
+    code_int(&S->code, (uint32_t)(S->comp.dmask >> 32));
+    code_int(&S->code, id);
+    code_int(&S->code, n | flags);
+    code_call(&S->code, K_DIM);
 }
 
 /* Past DIM's AS type [* n]: decl_line's. */
@@ -933,24 +764,24 @@ static void act_dv(Session *const S)
     const uint16_t fix = scop_fix(S, symb_var(&S->symb, id)->name, false);
     if (!fix || symb_var(&S->symb, id)->info & VI_ARR)
         return;
-    comp_int(S, fix);
-    comp_call(S, K_SPACE);
+    code_int(&S->code, fix);
+    code_call(&S->code, K_SPACE);
     comp_opid(S, O_S_ST_V, id);
 }
 
 /* INPUT's, READ's, GET's value for the target, stored. */
 static void readto(Session *const S, uint8_t k)
 {
-    S->comp.type = T_FLT;
+    S->code.type = T_FLT;
     const uint8_t info = S->comp.tgtinfo;
     if (info & SK_DBL && k != K_FGET) {
         k = k == K_FIN ? K_DIN : K_DREAD;
-        S->comp.type = T_DBL;
+        S->code.type = T_DBL;
     } else if ((info & VK_MASK) == VK_STR) {
         k++;
-        S->comp.type = T_STR;
+        S->code.type = T_STR;
     }
-    comp_call(S, k);
+    code_call(&S->code, k);
     comp_store(S);
 }
 static void act_in(Session *const S) { readto(S, K_FIN); }
@@ -964,18 +795,18 @@ static void using(Session *const S)
         if (comp_end(S))
             break;
         expr_compile(S);
-        comp_call(S, by_type(S, K_USI, K_USF, K_USD, K_USS));
+        code_call(&S->code, by_type(S, K_USI, K_USF, K_USD, K_USS));
         if (comp_end(S))
             break;
         const uint8_t c = *S->comp.p;
         if (c != ',' && c != ';')
             synerr(S);
         if (eosnext(S)) {
-            comp_call(S, K_USEN);
+            code_call(&S->code, K_USEN);
             return;
         }
     }
-    comp_call(S, K_USE);
+    code_call(&S->code, K_USE);
 }
 
 /* PRINT items; PR.NL unless the list ends with ; , TAB( or SPC(. USING: using's items. */
@@ -985,7 +816,7 @@ static void act_print(Session *const S)
         S->comp.p += 2; /* USING format; items */
         expr_compile(S);
         comp_tostring(S);
-        comp_call(S, K_USB);
+        code_call(&S->code, K_USB);
         if (comp_cur(&S->comp) != ';')
             synerr(S);
         S->comp.p++;
@@ -993,24 +824,24 @@ static void act_print(Session *const S)
         return;
     }
     if (comp_end(S)) {
-        comp_call(S, K_PNL);
+        code_call(&S->code, K_PNL);
         return;
     }
     for (;;) {
         const uint8_t c = *S->comp.p;
         if (c == ',')
-            comp_call(S, K_PZONE);
+            code_call(&S->code, K_PZONE);
         else if (c == TK_TAB || c == TK_SPC) {
             S->comp.p++;
             expr_paren(S);
             comp_tobyte(S);
             S->comp.p--;
-            comp_call(S, c == TK_TAB ? K_PTAB : K_PSPC);
+            code_call(&S->code, c == TK_TAB ? K_PTAB : K_PSPC);
         } else if (c != ';') {
             expr_compile(S);
-            comp_call(S, by_type(S, K_IPR, K_FPR, K_DPR, K_SPR));
+            code_call(&S->code, by_type(S, K_IPR, K_FPR, K_DPR, K_SPR));
             if (comp_end(S)) {
-                comp_call(S, K_PNL);
+                code_call(&S->code, K_PNL);
                 return;
             }
             continue;
@@ -1027,23 +858,23 @@ static void act_write(Session *const S)
         if (comp_end(S))
             break;
         expr_compile(S);
-        comp_call(S, by_type(S, K_WI, K_WF, K_WD, K_WS));
+        code_call(&S->code, by_type(S, K_WI, K_WF, K_WD, K_WS));
         if (comp_end(S))
             break;
         const uint8_t c = *S->comp.p;
         if (c != ',' && c != ';')
             synerr(S);
         S->comp.p++;
-        comp_call(S, K_WCOM);
+        code_call(&S->code, K_WCOM);
     }
-    comp_call(S, K_PNL);
+    code_call(&S->code, K_PNL);
 }
 
 /* LINE INPUT's target: the line, stored. */
 static void act_lin(Session *const S)
 {
-    comp_call(S, K_SLINE);
-    S->comp.type = T_STR;
+    code_call(&S->code, K_SLINE);
+    S->code.type = T_STR;
     comp_store(S);
 }
 
@@ -1061,7 +892,7 @@ static void act_list(Session *const S)
     } else if (S->comp.p == start)
         S->comp.lnum = 0xFFFF;
     lnumload(S);
-    comp_call(S, K_LIST);
+    code_call(&S->code, K_LIST);
 }
 
 /* GOTO|GOSUB after ON's expression: ON kn, n 0 yet. */
@@ -1073,8 +904,8 @@ static void act_on(Session *const S)
         S->comp.dg = DG_GOTO_MISSING;
         synerr(S);
     }
-    comp_opb(S, O_ON, c == TK_GOSUB ? ON_GOSUB : 0);
-    S->comp.onat = S->comp.out - 1;
+    code_opb(&S->code, O_ON, c == TK_GOSUB ? ON_GOSUB : 0);
+    S->comp.onat = S->code.out - 1;
     S->comp.p++;
 }
 
@@ -1088,20 +919,20 @@ static void act_onl(Session *const S)
 
 static void act_goto(Session *const S)
 {
-    comp_op(S, O_GOTO);
+    code_op(&S->code, O_GOTO);
     comp_lref(S);
 }
 
 static void act_gosub(Session *const S)
 {
-    comp_op(S, O_GOSUB);
+    code_op(&S->code, O_GOSUB);
     comp_lref(S);
 }
 
-static void act_ret(Session *const S) { comp_op(S, O_RETURN); }
+static void act_ret(Session *const S) { code_op(&S->code, O_RETURN); }
 
 /* CALL LOAD, SAVE or VERIFY by the token. */
-static void act_fop(Session *const S) { comp_call(S, S->comp.tok + K_LOAD - TK_LOAD); }
+static void act_fop(Session *const S) { code_call(&S->code, S->comp.tok + K_LOAD - TK_LOAD); }
 
 static void act_lnum(Session *const S) { comp_lnum(S); }
 

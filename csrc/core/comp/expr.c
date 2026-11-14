@@ -4,6 +4,7 @@
 #include "comp/fns.h"
 #include "comp/fold.h"
 #include "comp/ref.h"
+#include "comp/sema.h"
 #include "session.h"
 #include "comp/blok.h"
 #include "comp/ctrl.h"
@@ -36,25 +37,20 @@ static const uint8_t relbit[] = {DC_GT, DC_EQ, DC_LT};                      /* f
 [[noreturn]] static void synerr(Session *const S) { repl_error(S, E_SN); }
 [[noreturn]] static void mismatch(Session *const S) { repl_error(S, E_TM); }
 
-static uint16_t parse(Session *S, uint8_t p);
-static uint16_t parse_unary(Session *S);
-static uint16_t addr_node(Session *S, uint16_t at, uint8_t k);
-static uint16_t var_leaf(Session *S);
-static uint16_t str_leaf(Session *S);
+static Node *parse(Session *S, uint8_t p);
+static Node *parse_unary(Session *S);
+static Node *addr_node(Session *S, Node *at, uint8_t k);
+static Node *var_leaf(Session *S);
+static Node *str_leaf(Session *S);
 
-/* An expression parsed, folded and compiled, for a DOUBLE target or not; its tree dropped. */
+/* An expression parsed, folded and compiled, for a DOUBLE target or not. */
 static void compile(Session *const S, const bool dbl)
 {
-    const uint16_t nodes = S->ast.nnodes;
     const bool was = S->expr.dbltgt;
     S->expr.dbltgt = dbl;
-    const uint16_t root = parse(S, 0);
+    Node *const root = parse(S, 0);
     S->expr.dbltgt = was;
-    const uint8_t *const end = S->comp.p;
-    fold_tree(S, root);
-    gen_tree(S, root);
-    S->comp.p = end;
-    S->ast.nnodes = nodes;
+    expr_emit(S, root);
 }
 
 void expr_compile(Session *const S) { compile(S, false); }
@@ -88,14 +84,12 @@ static uint8_t relation(Session *const S, uint8_t op)
     }
 }
 
-static Node *node(Session *const S, const uint16_t i) { return ast_node(S, i); }
-
 /* cm_p: the operand and the operators after it that bind tighter than precedence p. */
-static uint16_t parse(Session *const S, const uint8_t p)
+static Node *parse(Session *const S, const uint8_t p)
 {
     if (++S->comp.depth > COMP_MAXDEPTH)
         repl_error(S, E_OM);
-    uint16_t left = parse_unary(S);
+    Node *left = parse_unary(S);
     uint8_t op;
     while (operator_of(comp_cur(&S->comp), &op) && p < prectab[op]) {
         uint8_t rel = op;
@@ -103,9 +97,9 @@ static uint16_t parse(Session *const S, const uint8_t p)
             rel = relation(S, op);
         else
             S->comp.p++;
-        const uint16_t right = parse(S, prectab[op]);
-        const uint16_t n = ast_new(S, N_BIN);
-        *node(S, n) = (Node){.kind = N_BIN, .op = rel, .dbl = S->expr.dbltgt, .a = left, .b = right,
+        Node *const right = parse(S, prectab[op]);
+        Node *const n = ast_new(S, N_BIN);
+        *n = (Node){.kind = N_BIN, .op = rel, .dbl = S->expr.dbltgt, .a = left, .b = right,
                              .end = S->comp.p};
         left = n;
     }
@@ -113,13 +107,13 @@ static uint16_t parse(Session *const S, const uint8_t p)
     return left;
 }
 
-void expr_emit(Session *const S, const uint16_t root, const uint16_t mark)
+void expr_emit(Session *const S, Node *const root)
 {
     const uint8_t *const end = S->comp.p;
+    sema_tree(S, root);
     fold_tree(S, root);
-    gen_tree(S, root);
+    gen_tree(&S->code, root);
     S->comp.p = end;
-    S->ast.nnodes = mark;
 }
 
 void expr_paren(Session *const S)
@@ -144,25 +138,22 @@ uint8_t expr_subs(Session *const S)
 
 void expr_string(Session *const S)
 {
-    const uint16_t mark = S->ast.nnodes;
-    expr_emit(S, str_leaf(S), mark);
+    expr_emit(S, str_leaf(S));
 }
 
 void expr_load(Session *const S)
 {
-    const uint16_t mark = S->ast.nnodes;
-    expr_emit(S, var_leaf(S), mark);
+    expr_emit(S, var_leaf(S));
 }
 
 void expr_target(Session *const S)
 {
-    const uint16_t mark = S->ast.nnodes;
-    const uint16_t r = comp_cur(&S->comp) == M_VAR ? ref_record(S) : NO_NODE;
-    if (r != NO_NODE) { /* a record's field: its address */
-        const RecRef rec = node(S, r)->rec;
+    Node *const r = comp_cur(&S->comp) == M_VAR ? ref_record(S) : nullptr;
+    if (r != nullptr) { /* a record's field: its address */
+        const RecRef rec = r->rec;
         if (rec.et >= ET_REC)
             mismatch(S);
-        expr_emit(S, r, mark);
+        expr_emit(S, r);
         S->comp.tgt = rec.off;
         S->comp.tgtsubs = TGT_FIELD;
         S->ctrl.fieldet = rec.et;
@@ -173,22 +164,21 @@ void expr_target(Session *const S)
     const uint16_t id = comp_name(S);
     if (!(symb_var(&S->symb, id)->info & VI_ARR)) {
         comp_target(S, id);
-        S->comp.vat = S->comp.out;
+        S->comp.vat = S->code.out;
         return;
     }
     const uint8_t n = expr_subs(S); /* may compile a call with its own target */
     comp_target(S, id);
     S->comp.tgtsubs = n;
-    S->comp.vat = S->comp.out;
+    S->comp.vat = S->code.out;
 }
 
 
 void expr_varaddr(Session *const S)
 {
-    const uint16_t mark = S->ast.nnodes;
     uint32_t vk;
-    expr_emit(S, addr_node(S, ref_place(S, &vk), 0), mark);
-    comp_int(S, vk);
+    expr_emit(S, addr_node(S, ref_place(S, &vk), 0));
+    code_int(&S->code, vk);
 }
 
 /* The function token at comp.p (FFh n as 100h + n), comp.p past it: its XFn. */
@@ -216,46 +206,46 @@ static bool addr_call(const uint8_t tok, uint8_t *const k)
     }
 }
 
-static uint16_t lit_leaf(Session *S, uint8_t op, const uint8_t *bytes, uint8_t sh);
+static Node *lit_leaf(Session *S, uint8_t op, const uint8_t *bytes, uint8_t sh);
 
-uint16_t expr_arg(Session *const S)
+Node *expr_arg(Session *const S)
 {
     const bool was = S->expr.dbltgt;
     S->expr.dbltgt = false;
-    const uint16_t n = parse(S, 0);
+    Node *const n = parse(S, 0);
     S->expr.dbltgt = was;
     return n;
 }
 
-static uint16_t args_node(Session *const S, const NodeKind kind)
+static Node *args_node(Session *const S, const NodeKind kind)
 {
-    const uint16_t n = ast_new(S, kind);
-    node(S, n)->b = NO_NODE;
+    Node *const n = ast_new(S, kind);
+    n->b = nullptr;
     return n;
 }
 
 /* Array id's element: ( e {, e} ). */
-static uint16_t elem_node(Session *const S, const uint16_t id)
+static Node *elem_node(Session *const S, const uint16_t id)
 {
-    const uint16_t n = args_node(S, N_ELEM);
-    node(S, n)->id = id;
-    node(S, n)->type = expr_ktype[symb_var(&S->symb, id)->info & (SK_DBL | VK_MASK)];
+    Node *const n = args_node(S, N_ELEM);
+    n->id = id;
+    n->type = expr_ktype[symb_var(&S->symb, id)->info & (SK_DBL | VK_MASK)];
     expr_args(S, n);
     return n;
 }
 
-void expr_args(Session *const S, const uint16_t n)
+void expr_args(Session *const S, Node *const n)
 {
-    uint16_t last = NO_NODE;
+    Node *last = nullptr;
     comp_open(S);
     do
-        ast_link(S, n, &last, expr_arg(S));
+        ast_link(n, &last, expr_arg(S));
     while (comp_optcomma(S));
     comp_close(S);
 }
 
 /* A string literal after its quote: S.LD.TXT len, its text's Addr. */
-static uint16_t str_leaf(Session *const S)
+static Node *str_leaf(Session *const S)
 {
     const uint8_t *const start = S->comp.p;
     const uint8_t *q = start;
@@ -267,49 +257,49 @@ static uint16_t str_leaf(Session *const S)
 }
 
 /* SGN .. MID$ (f, TK_SGN on): (e), LEFT$ RIGHT$ (s, n), MID$ (s, n [, n]); RND alone. */
-static uint16_t fn_node(Session *const S, const uint8_t f)
+static Node *fn_node(Session *const S, const uint8_t f)
 {
-    const uint16_t n = args_node(S, N_FN);
-    node(S, n)->op = f;
-    node(S, n)->dbl = S->expr.dbltgt;
+    Node *const n = args_node(S, N_FN);
+    n->op = f;
+    n->dbl = S->expr.dbltgt;
     S->comp.p++;
     if (f == TK_RND - TK_SGN && *S->comp.p != '(') { /* RND alone: RND(1) */
-        node(S, n)->type = T_FLT;
+        n->type = T_FLT;
         return n;
     }
-    uint16_t last = NO_NODE;
+    Node *last = nullptr;
     comp_open(S);
-    ast_link(S, n, &last, expr_arg(S));
+    ast_link(n, &last, expr_arg(S));
     if (f >= TK_MID - TK_SGN - 2) {
         comp_comma(S);
-        ast_link(S, n, &last, expr_arg(S));
+        ast_link(n, &last, expr_arg(S));
         if (f == TK_MID - TK_SGN && comp_optcomma(S))
-            ast_link(S, n, &last, expr_arg(S));
+            ast_link(n, &last, expr_arg(S));
     }
     comp_close(S);
-    node(S, n)->type = fns_type(f, ast_type(S, node(S, n)->b), S->expr.dbltgt);
-    node(S, n)->end = S->comp.p;
+    n->type = fns_type(f, ast_type(n->b), S->expr.dbltgt);
+    n->end = S->comp.p;
     return n;
 }
 
 /* QBasic's other functions, by fns_x: f(args) each of its kind, their count when it varies. */
-static uint16_t xfn_node(Session *const S)
+static Node *xfn_node(Session *const S)
 {
     const XFn *const f = xfn_at(S);
-    const uint16_t n = args_node(S, N_XFN);
-    node(S, n)->op = (uint8_t)(f - fns_x);
-    node(S, n)->type = f->res;
+    Node *const n = args_node(S, N_XFN);
+    n->op = (uint8_t)(f - fns_x);
+    n->type = f->res;
     if (!f->max)
         return n;
     if (!(f->min & XF_MIN) && comp_cur(&S->comp) != '(') { /* all optional, ( ) left out */
-        node(S, n)->mode = XM_NONE;
+        n->mode = XM_NONE;
         return n;
     }
-    uint16_t last = NO_NODE;
+    Node *last = nullptr;
     comp_open(S);
     for (uint32_t i = 0;; i++) {
         char k = f->arg[i];
-        uint16_t a;
+        Node *a;
         if (k == 'R') { /* an array, n or n(): its id */
             if (comp_cur(&S->comp) != M_VAR)
                 synerr(S);
@@ -327,13 +317,13 @@ static uint16_t xfn_node(Session *const S)
                 k = 'I';
             }
             a = expr_arg(S);
-            if (node(S, n)->nargs == 0 && f->min & XF_LEAD && ast_type(S, a) == T_STR && k != 'S')
+            if (n->nargs == 0 && f->min & XF_LEAD && ast_type(a) == T_STR && k != 'S')
                 k = f->arg[++i]; /* a leading optional left out */
-            if (k == 'G' && ast_type(S, a) == T_DBL) /* FIX of a DOUBLE: D.FN's */
-                node(S, n)->type = T_DBL;
+            if (k == 'G' && ast_type(a) == T_DBL) /* FIX of a DOUBLE: D.FN's */
+                n->type = T_DBL;
         }
-        node(S, a)->conv = (uint8_t)k;
-        ast_link(S, n, &last, a);
+        a->conv = (uint8_t)k;
+        ast_link(n, &last, a);
         if (i + 1 >= f->max || !comp_optcomma(S)) {
             if (i + 1 < (f->min & XF_MIN))
                 synerr(S);
@@ -341,28 +331,28 @@ static uint16_t xfn_node(Session *const S)
         }
     }
     comp_close(S);
-    node(S, n)->mode = (f->min & XF_MIN) != f->max ? XM_COUNT : XM_ARGS;
-    node(S, n)->end = S->comp.p;
+    n->mode = (f->min & XF_MIN) != f->max ? XM_COUNT : XM_ARGS;
+    n->end = S->comp.p;
     return n;
 }
 
 
 
 /* VARPTR, VARSEG, SSEG, SADD of place at: CALL k after it, 0 none; cm_va's when k is 0. */
-static uint16_t addr_node(Session *const S, const uint16_t at, const uint8_t k)
+static Node *addr_node(Session *const S, Node *const at, const uint8_t k)
 {
-    const uint16_t n = ast_new(S, N_ADDR);
-    node(S, n)->a = at;
-    node(S, n)->op = k;
-    node(S, n)->type = T_INT;
+    Node *const n = ast_new(S, N_ADDR);
+    n->a = at;
+    n->op = k;
+    n->type = T_INT;
     return n;
 }
 
 /* A literal load op and its operand bytes as a leaf. */
-static uint16_t lit_leaf(Session *const S, const uint8_t op, const uint8_t *const bytes, const uint8_t sh)
+static Node *lit_leaf(Session *const S, const uint8_t op, const uint8_t *const bytes, const uint8_t sh)
 {
-    const uint16_t i = ast_new(S, N_LIT);
-    Node *const n = node(S, i);
+    Node *const i = ast_new(S, N_LIT);
+    Node *const n = i;
     n->op = op;
     n->type = fold_littype(op);
     n->sh = sh;
@@ -374,7 +364,7 @@ static uint16_t lit_leaf(Session *const S, const uint8_t op, const uint8_t *cons
 }
 
 /* An INT literal as I.LD.U8, I.LD.I16 or I.LD.I32. */
-uint16_t expr_intleaf(Session *const S, const uint32_t v, const uint8_t sh)
+Node *expr_intleaf(Session *const S, const uint32_t v, const uint8_t sh)
 {
     uint8_t b[4];
     store32(b, v);
@@ -384,7 +374,7 @@ uint16_t expr_intleaf(Session *const S, const uint32_t v, const uint8_t sh)
 
 /* A variable's value at comp.p: a FUNCTION's call, a record's field, an element, a CONST's
    literal, a scalar. */
-static uint16_t var_leaf(Session *const S)
+static Node *var_leaf(Session *const S)
 {
     const Name *const nm = symb_name(&S->symb, comp_nameof(S->comp.p));
     if (nm->flags & (NM_FUNC | NM_FN)) { /* in FUNCTION f, f alone is its result */
@@ -396,8 +386,8 @@ static uint16_t var_leaf(Session *const S)
             return ref_call(S, idx, pr, ARGS_PAREN);
         }
     }
-    const uint16_t r = ref_record(S);
-    if (r != NO_NODE)
+    Node *const r = ref_record(S);
+    if (r != nullptr)
         return ref_field(S, r);
     const uint16_t id = comp_name(S);
     if (symb_var(&S->symb, id)->info & VI_ARR)
@@ -406,13 +396,14 @@ static uint16_t var_leaf(Session *const S)
     if (kop)
         return lit_leaf(S, kop, symb_kval(&S->symb, id),
                         symb_var(&S->symb, id)->type == ET_SH ? SH_SHORT : SH_NONE);
-    const uint16_t i = ast_new(S, N_VAR);
-    node(S, i)->id = id;
+    Node *const i = ast_new(S, N_VAR);
+    i->id = id;
+    i->type = expr_ktype[symb_var(&S->symb, id)->info & (SK_DBL | VK_MASK)];
     return i;
 }
 
 /* A number's literal: a DOUBLE's D.LD.K, else F.LD.F32. */
-static uint16_t num_leaf(Session *const S)
+static Node *num_leaf(Session *const S)
 {
     uint8_t kind;
     const double d = dubl_in(S, &S->comp.p, &kind);
@@ -428,7 +419,7 @@ static uint16_t num_leaf(Session *const S)
 }
 
 /* cm_un: an operand: a variable, an element, a literal, ( expr ), - NOT +, a function. */
-static uint16_t parse_unary(Session *const S)
+static Node *parse_unary(Session *const S)
 {
     for (;;) {
         const uint8_t c = comp_cur(&S->comp);
@@ -444,7 +435,7 @@ static uint16_t parse_unary(Session *const S)
             comp_open(S);
             const bool was = S->expr.dbltgt;
             S->expr.dbltgt = false;
-            const uint16_t n = parse(S, 0);
+            Node *const n = parse(S, 0);
             S->expr.dbltgt = was;
             comp_close(S);
             return n;
@@ -452,11 +443,11 @@ static uint16_t parse_unary(Session *const S)
         case TK_MINUS:
         case TK_NOT: {
             S->comp.p++;
-            const uint16_t a = parse(S, c == TK_MINUS ? P_NEG : P_NOT);
-            const uint16_t n = ast_new(S, N_UN);
-            node(S, n)->op = c;
-            node(S, n)->a = a;
-            node(S, n)->end = S->comp.p;
+            Node *const a = parse(S, c == TK_MINUS ? P_NEG : P_NOT);
+            Node *const n = ast_new(S, N_UN);
+            n->op = c;
+            n->a = a;
+            n->end = S->comp.p;
             return n;
         }
         case TK_PLUS:
@@ -476,9 +467,9 @@ static uint16_t parse_unary(Session *const S)
             S->comp.p += 2;
             comp_open(S);
             uint32_t vk;
-            const uint16_t at = ref_place(S, &vk);
+            Node *const at = ref_place(S, &vk);
             comp_close(S);
-            return k || !ast_islit(S, at) ? addr_node(S, at, k) : at;
+            return k || !ast_islit(at) ? addr_node(S, at, k) : at;
         }
         const uint8_t f = c - TK_SGN;
         return f > TK_MID - TK_SGN ? xfn_node(S) : fn_node(S, f);

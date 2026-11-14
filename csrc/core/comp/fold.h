@@ -8,6 +8,7 @@
 #ifndef COMP_FOLD_H
 #define COMP_FOLD_H
 #include "defs.h"
+#include "comp/ast.h"
 
 /* cm_fold (for a CONST's value after its conversion): the code from start to comp.out, of type comp.type: all FK ops, two or more, becomes
    one load of its value. */
@@ -18,7 +19,7 @@ void fold_fail(Session *S);
    as the variable's. */
 void fold_const(Session *S);
 /* The tree at node: each operator whose operands are literals becomes the literal of its value. */
-void fold_tree(Session *S, uint16_t node);
+void fold_tree(Session *S, Node *node);
 /* Op a literal's load. */
 bool fold_isliteral(uint8_t op);
 /* The type literal load op gives. */

@@ -1,22 +1,31 @@
-/* An expression's tree: scratch, built by the parser (expr.c, ref.c), folded (fold.c), turned into
-   code (expr.c's gen) and dropped within one expression. A nested tree builds above the one
-   that holds it: nodes are a stack, released when that tree's code is made.
+/* A line's trees: built by the parser (expr.c, ref.c), folded (fold.c), turned into code (gen.c).
+   Their nodes come from the statement's arena, freed all at once when the next statement starts.
 
    Leaves: a literal load (N_LIT: a number, a string, a CONST's value, a size), a scalar variable
    (N_VAR). An element (N_ELEM), QBasic's functions (N_FN: SGN .. MID$; N_XFN: the others), a
    place (N_REF) and a procedure's call (N_CALL) have their arguments as children, linked by
-   next. A record's field (N_FIELD), an address (N_ADDR) and a call's argument (N_ARG) have one
-   child, a. */
+   next. A record's field (N_FIELD), an address (N_ADDR), a call's argument (N_ARG) and a
+   conversion (N_CONV) have one child, a.
+
+   A statement is its steps (Ast.step): trees gen emits in order at the statement's end. A step is
+   an expression, a conversion of one, or a CALL of the VM's (N_KCALL). */
 #ifndef COMP_AST_H
 #define COMP_AST_H
 #include "base.h"
 #include "defs.h"
+#include "util/arena.h"
+#include "mem/symb.h"
+#include "vm/exec.h"
 
 typedef enum : uint8_t {
-    N_LIT, N_VAR, N_UN, N_BIN, N_ELEM, N_FN, N_XFN, N_REF, N_FIELD, N_ADDR, N_CALL, N_ARG
+    N_LIT, N_VAR, N_UN, N_BIN, N_ELEM, N_FN, N_XFN, N_REF, N_FIELD, N_ADDR, N_CALL, N_ARG,
+    N_KCALL, N_CONV,
 } NodeKind;
 
-enum { AST_NODES = 1024, LIT_MAX = 8, NO_NODE = 0xFFFF };
+enum { AST_CHUNK = 0x4000, LIT_MAX = 8 };
+
+/* N_CONV's conversion of its child: to an INT, a FLOAT, a DOUBLE, a string, a byte, an address. */
+enum : uint8_t { CV_INT, CV_FLT, CV_DBL, CV_STR, CV_BYTE, CV_ADDR };
 
 /* An operator's index: + - * / ^ AND OR > = < from TK_PLUS, then \ MOD XOR EQV IMP. A relation
    compiles as REL and its DC_* mask. */
@@ -54,37 +63,46 @@ typedef struct {
     uint16_t fix;
 } RecRef;
 
-typedef struct {
+typedef struct Node Node;
+struct Node {
     NodeKind kind;
     uint8_t type;      /* its value's T_* */
     uint8_t sh;        /* its SHORT class, SH_* */
     uint8_t op;        /* N_LIT: its load op; N_UN: TK_MINUS or TK_NOT; N_BIN: its operator;
                           N_FN: the function, TK_SGN on; N_XFN: its xfns entry; N_REF: O_R_ADDR,
                           O_RA_ADDR, O_V_ADDR; N_ADDR: its CALL, 0 none; N_ARG: PA_*;
-                          N_CALL: the procedure's index */
+                          N_CALL: the procedure's index; N_KCALL: its K_*; N_CONV: CV_* */
     bool dbl;          /* N_BIN, N_FN: parsed for a DOUBLE target (expr.dbltgt) */
     uint8_t conv;      /* an N_XFN's argument: its kind (I F D S W G X, R an array's id) */
     uint8_t mode;      /* N_XFN: XM_*; N_CALL: CALL_* */
     uint8_t nargs;     /* N_ELEM, N_FN, N_XFN, N_REF, N_CALL: the arguments */
-    uint16_t a, b;     /* N_UN, N_BIN: the operands; N_FIELD, N_ADDR, N_ARG: a the child;
+    Node *a, *b;       /* N_UN, N_BIN: the operands; N_FIELD, N_ADDR, N_ARG, N_CONV: a the child;
                           b: the first argument */
-    uint16_t next;     /* an argument: the next, NO_NODE none */
+    Node *next;        /* an argument, a step: the next, null none */
     uint16_t id;       /* N_VAR, N_ELEM, N_REF: the variable; N_ARG: PA_VALUE's parameter, an array's
                           or a record's; N_CALL CALL_UNDEF: its result */
     RecRef rec;        /* N_REF of a record: the place in it */
+    /* Resolved by sema (comp/sema.h), for gen: */
+    const Var *var;    /* id's variable */
+    bool par;          /* id a scalar parameter of the procedure compiled */
+    Jump jump;         /* N_CALL CALL_PROC: its procedure's entry */
     uint8_t lit[LIT_MAX]; /* N_LIT: its operand bytes */
-    const uint8_t *end; /* N_UN, N_BIN, N_FN, N_XFN: past its last operand, an error's place */
-} Node;
+    const uint8_t *end; /* N_UN, N_BIN, N_FN, N_XFN, N_CONV: past its last operand, an error's place */
+};
 
+/* The statement's arena; its steps, first to last. */
 typedef struct {
-    Node node[AST_NODES];
-    uint16_t nnodes;
+    Arena arena;
+    Node *steps, *last;
 } Ast;
 
-uint16_t ast_new(Session *S, NodeKind kind); /* a node, zeroed but for kind; Out of memory full */
-Node *ast_node(Session *S, uint16_t i);
-void ast_link(Session *S, uint16_t parent, uint16_t *last, uint16_t arg); /* arg after *last */
-bool ast_islit(Session *S, uint16_t i);
-uint8_t ast_type(Session *S, uint16_t i);      /* node i's value's T_*, nothing compiled */
-uint8_t ast_work(Session *S, const Node *n);   /* binary node n's W_* */
+void ast_init(Session *S);
+void ast_reset(Session *S);                   /* a statement starts: every node freed */
+Node *ast_new(Session *S, NodeKind kind);     /* a node, zeroed but for kind; Out of memory full */
+void ast_link(Node *parent, Node **last, Node *arg); /* arg after *last, parent's first if null */
+bool ast_islit(const Node *n);
+uint8_t ast_type(const Node *n);              /* n's value's T_*, nothing compiled */
+uint8_t ast_work(const Node *n);              /* binary node n's W_* */
+void ast_step(Session *S, Node *n);           /* the statement's next step: tree n */
+void ast_conv(Session *S, uint8_t cv);        /* the last step converted, CV_* */
 #endif

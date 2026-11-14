@@ -17,3 +17,5 @@ bool pmem_init(const uint32_t least, Addr *const lo, Addr *const hi)
     *hi = ARENA_SIZE;
     return true;
 }
+
+void *pmem_block(const size_t size) { return malloc(size); }

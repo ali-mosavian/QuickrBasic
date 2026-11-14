@@ -49,9 +49,13 @@ Each stage does one job and hands the next a finished product. Nothing reaches a
 
 - **Parsing builds a tree and emits nothing.** Every operand, reference and call is a node, including record fields, elements, `VARPTR` and procedure calls. No bytecode is hidden in a leaf.
 - **Name resolution answers what a name is.** It returns a description: a variable, a record field's place, a procedure. It neither parses expressions nor emits.
+- **The semantic pass makes the tree valid.** `sema` resolves each name to the facts codegen needs (`const` pointers to the variable, the parameter flag, a call's jump) and raises every type error. A tree that passed it compiles without error.
 - **Folding rewrites the tree.** It never emits.
-- **Codegen alone writes bytes.** Statements that need an expression or a reference build its tree and hand it to codegen.
+- **Codegen alone writes bytes.** `gen_tree(Code *, const Node *)`: a checked tree in, bytes out. No `Session`, no symbol table, no errors. Statements that need an expression or a reference build its tree and hand it over.
 - **A function sits in one stage.** If it both parses and emits, split it.
+- **Only top-level functions take the `Session`.** A REPL command, a statement driver or a UI event handler takes it and passes each module just its own state and inputs, e.g. `blok_find(Blok *, ...)`. A function below that level never sees the whole session.
+- **A function's name starts with its owner's prefix,** static ones too: `ast_`, `sema_`, `fold_`, `cg_` (codegen), `blok_`. The name says which boundary it sits in.
+- **Tables are allocated, not fixed.** Compile-time tables live in arenas and link by pointer. Ids stay only where they are stored, such as a procedure's number in bytecode.
 
 ## Ownership
 
@@ -61,7 +65,7 @@ Each stage does one job and hands the next a finished product. Nothing reaches a
 - Every module's state is one struct, a field of the `Session`. A function that reads or changes any of it takes `Session *S` first; the editor's take `Editor *`.
 - Hot accessors take only the part they touch (`exec_push(&S->vm, c)`), so headers need not see the whole `Session`.
 - Headers expose functions and opaque types. No module reads another's fields.
-- Memory is the arena only. No malloc.
+- A program's memory is the BASIC arena only. The C side's scratch, such as a statement's tree, comes from bump arenas (`util/arena.h`) that grow by blocks from the platform and are freed all at once. No malloc in the core.
 - The core never calls up into a front end. It reports through `FrontEnd` (`repl.h`) and `DebugHooks` (`vm/dbug.h`), which the front end installs.
 
 ## Flow

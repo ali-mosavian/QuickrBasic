@@ -15,7 +15,7 @@
 
 void link_compile(Session *const S, const uint32_t line)
 {
-    S->comp.buf = S->comp.xbuf;
+    S->code.buf = S->comp.xbuf;
     S->comp.line = line;
     blok_scope(S, line);
     decl_deftype(S, line);
