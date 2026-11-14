@@ -3,7 +3,7 @@
  * # How it works
  * Var.vt is an array's header (ArrayHdr) in the headers' region, from allo.hdr_base to arry.hdr:
  * its dimensions, its data's Addr, the count when 1-D from 0 (else 0), the counts, then the lower
- * bounds (words). Its data is on the heap from allo.bot to arry.end, zeroed, 4-aligned: VS a number
+ * bounds (words). Its data is on the heap from allo.bot to allo.arrays, zeroed, 4-aligned: VS a number
  * or an INT, 8 a DOUBLE, DSZ a string, a TYPE's size a record.
  *
  * arry_free drops an array: its header and data go and what follows moves down. The headers' data
@@ -156,15 +156,15 @@ Addr arry_new(Session *const S, const uint16_t id, const uint8_t n, const bool d
 
     if (S->arry.hdr + hdr_size(n) > S->allo.hdr_base + HDRSZ)
         repl_error(S, E_OM);
-    if (aligned_end(S->arry.end, (uint32_t)size) > S->strg.low) {
+    if (aligned_end(S->allo.arrays, (uint32_t)size) > S->allo.strings) {
         strg_gc(S);
 
-        if (aligned_end(S->arry.end, (uint32_t)size) > S->strg.low)
+        if (aligned_end(S->allo.arrays, (uint32_t)size) > S->allo.strings)
             repl_error(S, E_OM);
     }
 
-    const Addr data = S->arry.end;
-    S->arry.end = (Addr)aligned_end(data, (uint32_t)size);
+    const Addr data = S->allo.arrays;
+    S->allo.arrays = (Addr)aligned_end(data, (uint32_t)size);
     copy_zero(data, (uint32_t)size);
 
     const Addr h = S->arry.hdr;
@@ -219,7 +219,7 @@ static Addr moved_cell(const Freed *const f, const Addr c)
 /* The moved string blocks' owners follow. */
 static void follow_owners(Session *const S, const Freed *const f)
 {
-    for (Addr b = S->allo.top; b > S->strg.low;) {
+    for (Addr b = S->allo.top; b > S->allo.strings;) {
         b -= BHDR;
         StrTail *const tail = (StrTail *)at(b);
 
@@ -241,12 +241,12 @@ uint32_t arry_free(Session *const S, const uint16_t id, const Addr rep)
         .hdr_size = hdr_size(a->dims),
         .data = a->data,
         .size = (uint32_t)(aligned_end(a->data, arry_size(S, id, h)) - a->data),
-        .old_end = S->arry.end,
+        .old_end = S->allo.arrays,
         .rep = rep,
     };
 
-    copy_mem(f.data, f.data + f.size, S->arry.end - (f.data + f.size));
-    S->arry.end -= f.size;
+    copy_mem(f.data, f.data + f.size, S->allo.arrays - (f.data + f.size));
+    S->allo.arrays -= f.size;
     copy_mem(h, h + f.hdr_size, S->arry.hdr - (h + f.hdr_size));
     S->arry.hdr -= f.hdr_size;
 

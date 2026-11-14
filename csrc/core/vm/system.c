@@ -397,7 +397,7 @@ void syst_setmem(Session *const S)
 {
     S->vm.sp++;
     strg_gc(S);
-    exec_pushi(&S->vm, (int32_t)(S->strg.low - S->arry.end));
+    exec_pushi(&S->vm, (int32_t)(S->allo.strings - S->allo.arrays));
 }
 
 /* ERDEV, ERDEV$: no device error is kept. */

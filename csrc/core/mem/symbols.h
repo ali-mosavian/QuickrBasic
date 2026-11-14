@@ -70,7 +70,7 @@ static inline const uint8_t *symb_text(const Symb *const sy, uint16_t id)
 }
 
 /* The tables' blocks, after the program store's. */
-void symb_new(Session *S);
+void symb_new(Symb *sy, Allo *al);
 /* Room for the program's variables before it runs (each M_VAR byte in the store counts one): they
    are made lazily, when the heap may hold strings and arrays and the block cannot grow. */
 void symb_size(Session *S);

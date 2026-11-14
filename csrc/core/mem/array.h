@@ -7,7 +7,6 @@ enum { ADIMS = 64 };      /* the subscript buffers' words */
 enum : Addr { AREP = 1 }; /* arry_free's rep: a mark arry_rep replaces */
 
 typedef struct {
-    Addr end;               /* past the arrays' data (mm.aend) */
     Addr hdr;               /* past the headers (mm.ahd) */
     uint16_t subs[ADIMS];   /* the subscripts (g_dimbuf) */
     uint16_t counts[ADIMS]; /* the counts (g_cntbuf) */
@@ -27,7 +26,7 @@ uint32_t arry_esize(Session *S, uint16_t id);
    subscript under 0. Duplicate definition: it exists. Out of memory. */
 void arry_dim(Session *S, uint16_t id, uint8_t n, bool dyn);
 /* Array id made: its header at arry.hdr, arry.counts and arry.lbounds [0..n), its data zeroed at
-   arry.end; dyn a REDIM's. Returns the header. Out of memory. */
+   allo.arrays; dyn a REDIM's. Returns the header. Out of memory. */
 Addr arry_new(Session *S, uint16_t id, uint8_t n, bool dyn);
 /* The data's bytes of array id with header hdr. */
 uint32_t arry_size(Session *S, uint16_t id, Addr hdr);

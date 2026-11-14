@@ -72,7 +72,7 @@ enum { DATA_TEXT_SIZE = 256, PRINT_ZONE = 14 };
 /* What an INPUT field or a DATA item is read as. */
 typedef enum : uint8_t { ITEM_SNGL, ITEM_STRING, ITEM_DOUBLE } ItemKind;
 
-void stmt_init(Session *const S) { S->stmt.data_text = at(allo_carve(S, DATA_TEXT_SIZE)); }
+void stmt_init(Session *const S) { S->stmt.data_text = at(allo_carve(&S->allo, DATA_TEXT_SIZE)); }
 
 /* ---- PRINT ---------------------------------------------------------------------------------- */
 
@@ -85,16 +85,13 @@ void stmt_pnl(Session *const S) { cons_nl(S); }
 
 static void stmt_usng_put(UsngOut *const o, const uint8_t *const p, const uint32_t n)
 {
-    Session *const S = (Session *)((uint8_t *)o - offsetof(Session, usng_out));
+    Session *const S = container_of(o, Session, usng_out);
 
     for (uint32_t i = 0; i < n; i++)
         cons_putc(S, p[i]);
 }
 
-static void stmt_usng_nl(UsngOut *const o)
-{
-    cons_nl((Session *)((uint8_t *)o - offsetof(Session, usng_out)));
-}
+static void stmt_usng_nl(UsngOut *const o) { cons_nl(container_of(o, Session, usng_out)); }
 
 void stmt_usng_init(Session *const S)
 {

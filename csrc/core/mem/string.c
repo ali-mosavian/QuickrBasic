@@ -33,7 +33,7 @@
  * - D1. The routines' register and global inputs and outputs are a Desc (.len, .ptr), return values
  *   and parameters.
  * - D2. Returns the Desc; empty is `.len == 0`.
- * - D3. FRE is `strg.low - arry.end` after it.
+ * - D3. FRE is `allo.strings - allo.arrays` after it.
  * - D4. Length min(s.len, 255).
  * - D5. The position is an Addr in `*pos`; strg_span's start is `*p` before the call.
  */
@@ -46,7 +46,7 @@
 #include "mem/copy.h"
 #include "mem/program.h"
 
-void strg_init(Session *const S) { S->strg.tmp = allo_carve(S, DSZ * NTMP); }
+void strg_init(Session *const S) { S->strg.tmp = allo_carve(&S->allo, DSZ * NTMP); }
 
 static void desc_put(const Addr d, const Desc s) { memcpy(at(d), &s, DSZ); }
 
@@ -95,8 +95,8 @@ Addr strg_new(Session *const S, const Addr chars, const uint16_t len)
 /* A block of len chars under low fits above the arrays: its chars, else 0. */
 static Addr fit(Session *const S, const uint16_t len)
 {
-    const Addr c = S->strg.low - len - BHDR;
-    return S->arry.end < c ? c : 0;
+    const Addr c = S->allo.strings - len - BHDR;
+    return S->allo.arrays < c ? c : 0;
 }
 
 Addr strg_alloc(Session *const S, const uint16_t len)
@@ -111,7 +111,7 @@ Addr strg_alloc(Session *const S, const uint16_t len)
             repl_error(S, E_OM);
     }
 
-    S->strg.low = c;
+    S->allo.strings = c;
     *tail_of(c, len) = (StrTail){.len = len, .owner = 0};
 
     return c;
@@ -127,7 +127,7 @@ void strg_gc(Session *const S)
 {
     Addr dst = S->allo.top;
 
-    for (Addr end = S->allo.top; end > S->strg.low;) {
+    for (Addr end = S->allo.top; end > S->allo.strings;) {
         const StrTail tail = *(const StrTail *)at(end - BHDR);
         const Addr chars = end - BHDR - tail.len;
         end = chars; /* the next block's end */
@@ -139,7 +139,7 @@ void strg_gc(Session *const S)
         wr32(tail.owner + offsetof(Desc, ptr), dst);
     }
 
-    S->strg.low = dst;
+    S->allo.strings = dst;
 }
 
 /* Are s's chars in the program's text? */
@@ -152,7 +152,7 @@ static bool in_program(Session *const S, const Desc s)
 /* Is s's block the temporary value's own, to be taken over? */
 static bool owned_by_tmp(Session *const S, const Desc s, const Addr value)
 {
-    return s.ptr >= S->strg.low && s.ptr < S->allo.top && is_tmp(S, value) &&
+    return s.ptr >= S->allo.strings && s.ptr < S->allo.top && is_tmp(S, value) &&
            tail_of(s.ptr, s.len)->owner == value;
 }
 

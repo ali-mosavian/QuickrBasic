@@ -87,8 +87,8 @@ bool comp_end(Session *const S) { return comp_eos(S, &S->comp.p); }
 
 void comp_init(Session *const S)
 {
-    S->comp.cbuf =
-        at(allo_carve(S, 1 + LMAX + 64)) + 1; /* the byte before: lexr's line before the body */
+    S->comp.cbuf = at(allo_carve(&S->allo, 1 + LMAX + 64)) +
+                   1; /* the byte before: lexr's line before the body */
     S->code.buf = S->comp.xbuf;
     S->comp.dfa = 0xFFFF;
     ast_init(&S->ast, &S->fault);

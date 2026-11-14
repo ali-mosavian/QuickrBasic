@@ -92,11 +92,11 @@ void exec_until(Session *const S, const uint8_t *const end)
 
 void exec_init(Session *const S)
 {
-    const Addr stack = allo_carve(S, STKSZ);
+    const Addr stack = allo_carve(&S->allo, STKSZ);
     S->vm.stktop = (Cell *)at(stack + STKSZ - 16);
     S->vm.sp = S->vm.rsp = S->vm.stktop;
     S->vm.stklim = S->vm.stktop - STKROOM / sizeof(Cell);
-    S->vm.callvars = (CallVar *)at(allo_carve(S, LSAVSZ));
+    S->vm.callvars = (CallVar *)at(allo_carve(&S->allo, LSAVSZ));
     pkey_init(&S->vm.stop, SF_TICK);
     pclk_init(&S->vm.stop, SF_TICK);
 }

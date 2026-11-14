@@ -21,6 +21,9 @@
    segment's 0: an Addr is the address, as VARPTR and PEEK see it. */
 typedef uint32_t Addr;
 
+/* The type whose member p points to. */
+#define container_of(p, type, member) ((type *)((uint8_t *)(p) - offsetof(type, member)))
+
 /* A BASIC session's state (session.h). */
 typedef struct Session Session;
 

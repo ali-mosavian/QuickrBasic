@@ -4,8 +4,8 @@
  * The arena, [lo, hi) from pmem_init, is carved at start: first the fixed regions (allo_carve: the
  * arrays' headers and the control stack, the POKE memory, and any other module's region a stored
  * Addr can reach), then the blocks (allo_new: the code cache, the program store, the editor's line
- * map, the symbol tables), then the BASIC heap, bot to top: arrays up from bot (arry.end), strings
- * down from top (strg.low).
+ * map, the symbol tables), then the BASIC heap, bot to top: arrays up from bot (allo.arrays), strings
+ * down from top (allo.strings).
  *
  * A block is reached by its handle, never by a stored Addr: it moves when one before it grows.
  * allo_grow moves the blocks after it up and tells each one's moved routine.
@@ -37,100 +37,97 @@
  *   module's.
  */
 #include "mem/alloc.h"
-#include "session.h"
-#include "io/repl.h"
-#include "mem/array.h"
-#include "mem/string.h"
 
 /* The control stack's region keeps the asm's tail above CSTOP (g_dsb+FC00h .. 10000h). */
 enum { CSTAIL = 0x400, ALIGN = 16 };
 
-static Addr align(const Addr a) { return (a + ALIGN - 1) & ~(Addr)(ALIGN - 1); }
+static Addr allo_align(const Addr a) { return (a + ALIGN - 1) & ~(Addr)(ALIGN - 1); }
 
 /* Do size more bytes fit at a, HMIN left after them? */
-static bool fits(Session *const S, const Addr a, const uint32_t size)
+static bool allo_fits(const Allo *const al, const Addr a, const uint32_t size)
 {
-    return (uint64_t)a + size + HMIN <= S->allo.top;
+    return (uint64_t)a + size + HMIN <= al->top;
 }
 
-void allo_init(Session *const S, const Addr lo, const Addr hi)
+void allo_init(Allo *const al, Fault *const f, const Addr lo, const Addr hi)
 {
-    S->allo.bot = lo;
-    S->allo.top = hi;
-    S->allo.hdr_base = allo_carve(S, HDRSZ + CSSZ + CSTAIL);
-    S->allo.cs_lim = S->allo.hdr_base + HDRSZ;
-    S->allo.cs_top = S->allo.cs_lim + CSSZ;
-    S->allo.poke = allo_carve(S, POKESZ);
+    al->fault = f;
+    al->bot = lo;
+    al->top = hi;
+    al->hdr_base = allo_carve(al, HDRSZ + CSSZ + CSTAIL);
+    al->cs_lim = al->hdr_base + HDRSZ;
+    al->cs_top = al->cs_lim + CSSZ;
+    al->poke = allo_carve(al, POKESZ);
 }
 
 /* The heap's bottom aligned to 16, with size bytes after it and HMIN left; 0 no room. */
-static Addr room(Session *const S, const uint32_t size)
+static Addr allo_room(const Allo *const al, const uint32_t size)
 {
-    const Addr a = align(S->allo.bot);
-    return fits(S, a, size) ? a : 0;
+    const Addr a = allo_align(al->bot);
+    return allo_fits(al, a, size) ? a : 0;
 }
 
-Addr allo_carve(Session *const S, const uint32_t size)
+Addr allo_carve(Allo *const al, const uint32_t size)
 {
-    const Addr a = room(S, size);
+    const Addr a = allo_room(al, size);
 
     if (!a)
-        repl_error(S, E_OM);
+        fault_error(al->fault, E_OM);
 
     memset(at(a), 0, size);
-    S->allo.bot = a + size;
+    al->bot = a + size;
     return a;
 }
 
-uint32_t allo_new(Session *const S, const uint32_t size, const AlloMoved moved)
+uint32_t allo_new(Allo *const al, const uint32_t size, AlloOwner *const owner)
 {
-    const uint32_t h = S->allo.nblocks;
-    const Addr a = room(S, size);
+    const uint32_t h = al->nblocks;
+    const Addr a = allo_room(al, size);
 
     if (h >= NBLKH || !a)
-        repl_error(S, E_OM);
+        fault_error(al->fault, E_OM);
 
-    S->allo.block[h] = (AlloBlock){.base = a, .cap = size, .moved = moved};
+    al->block[h] = (AlloBlock){.base = a, .cap = size, .owner = owner};
 
-    S->allo.nblocks++;
-    S->allo.bot = a + size;
+    al->nblocks++;
+    al->bot = a + size;
     return h;
 }
 
-static void tell(Session *const S, const AlloBlock *const b)
+static void allo_tell(const AlloBlock *const b)
 {
-    if (b->moved)
-        b->moved(S);
+    if (b->owner)
+        b->owner->moved(b->owner);
 }
 
-bool allo_grow(Session *const S, const uint32_t h, const uint32_t size)
+bool allo_grow(Allo *const al, const uint32_t h, const uint32_t size)
 {
-    AlloBlock *const b = &S->allo.block[h];
+    AlloBlock *const b = &al->block[h];
 
     if (size <= b->cap)
         return true;
 
     const uint32_t half_again = b->cap + b->cap / 2;
-    const uint32_t cap = align(half_again < size ? size : half_again);
+    const uint32_t cap = allo_align(half_again < size ? size : half_again);
 
-    if (S->arry.end != S->allo.bot || S->strg.low != S->allo.top) /* the heap not empty */
+    if (al->arrays != al->bot || al->strings != al->top) /* the heap not empty */
         return false;
 
     const uint32_t grow = cap - b->cap;
 
-    if (!fits(S, S->allo.bot, grow))
+    if (!allo_fits(al, al->bot, grow))
         return false;
 
     const Addr end = b->base + b->cap;
     b->cap = cap;
-    memmove(at(end + grow), at(end), S->allo.bot - end);
-    S->allo.bot += grow;
-    S->arry.end = S->allo.bot;
-    tell(S, b);
+    memmove(at(end + grow), at(end), al->bot - end);
+    al->bot += grow;
+    al->arrays = al->bot;
+    allo_tell(b);
 
-    for (uint32_t i = h + 1; i < S->allo.nblocks; i++) {
-        S->allo.block[i].base += grow;
-        tell(S, &S->allo.block[i]);
+    for (uint32_t i = h + 1; i < al->nblocks; i++) {
+        al->block[i].base += grow;
+        allo_tell(&al->block[i]);
     }
 
     return true;

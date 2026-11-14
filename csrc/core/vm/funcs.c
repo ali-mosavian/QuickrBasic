@@ -50,7 +50,7 @@ static uint32_t f_usr(Session *const S, const uint32_t)
 static uint32_t f_fre(Session *const S, const uint32_t)
 {
     strg_gc(S);
-    return fmth_from_i32((int32_t)(S->strg.low - S->arry.end));
+    return fmth_from_i32((int32_t)(S->allo.strings - S->allo.arrays));
 }
 
 static uint32_t f_pos(Session *const S, const uint32_t) { return S->cons.col; }

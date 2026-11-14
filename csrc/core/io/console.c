@@ -61,8 +61,8 @@ enum { KEYED_MAX = 80 }; /* a keyed line's characters at most */
 
 void cons_init(Session *const S)
 {
-    S->cons.inbuf = at(allo_carve(S, INMAX + 1));
-    S->cons.sbuf = at(allo_carve(S, SBMAX + 1));
+    S->cons.inbuf = at(allo_carve(&S->allo, INMAX + 1));
+    S->cons.sbuf = at(allo_carve(&S->allo, SBMAX + 1));
     S->cons.stdin_dev = pfil_isdev(PFIL_STDIN);
     chnl_init(S);
 }

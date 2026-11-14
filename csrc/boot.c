@@ -48,7 +48,12 @@ void boot(Session *const S, const FrontEnd *const fe)
         psys_exit(1);
     }
 
-    allo_init(S, lo, hi); /* the arrays' headers, the control stack, the POKE memory */
+    allo_init(
+        &S->allo,
+        &S->fault,
+        lo,
+        hi
+    ); /* the arrays' headers, the control stack, the POKE memory */
     strg_init(S);
     exec_init(S);
     cons_init(S);
@@ -56,14 +61,12 @@ void boot(Session *const S, const FrontEnd *const fe)
     comp_init(S);
     flow_init(S);
     stmt_init(S);
-    S->allo.cache =
-        allo_base(&S->allo, allo_new(S, 0x10000, nullptr)); /* the cache, then the program store */
-    allo_new(S, 0x10000, prog_place);
-    prog_place(S);
+    S->allo.cache = allo_base(&S->allo, allo_new(&S->allo, 0x10000, nullptr)); /* then the store */
+    prog_new(&S->prog, &S->allo);
 
     if (fe->regions)
         fe->regions(S); /* the variables, names last: they grow while code holds their cells */
-    symb_new(S);
+    symb_new(&S->symb, &S->allo);
     S->vm.nframes = 0;
     prog_line(&S->prog, DLINE)->len = 0; /* the direct line: len 0, num FF00h */
     prog_line(&S->prog, DLINE)->num = 0xFF00;

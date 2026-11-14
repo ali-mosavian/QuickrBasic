@@ -98,7 +98,7 @@ void repl_error(Session *const S, uint8_t code)
 [[noreturn]]
 void repl_fault(Fault *const f, const Failure *const e)
 {
-    Session *const S = (Session *)((uint8_t *)f - offsetof(Session, fault));
+    Session *const S = container_of(f, Session, fault);
 
     if (e->at != FAULT_KEEP)
         diag_raise(S, e->code, e->dg, e->at, e->line, e->other, e->len);
@@ -450,7 +450,7 @@ static void repl_warn(Session *const S, const char *const what)
 
 uint16_t repl_intern(LexrNames *const names, const uint8_t *const text, const uint8_t len)
 {
-    Session *const S = (Session *)((uint8_t *)names - offsetof(Session, names));
+    Session *const S = container_of(names, Session, names);
     return symb_find_name(S, text, len);
 }
 

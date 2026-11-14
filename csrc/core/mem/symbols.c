@@ -59,37 +59,37 @@ enum {
 static uint16_t *name_next(Session *const S) { return (uint16_t *)at(S->symb.names.at[1]); }
 
 /* The variables' block moved or grew: the scalars' vt by the cells' move. */
-static void var_place(Session *const S)
+static void symb_vars_moved(Table *const t, const Addr old)
 {
-    const Addr old = tabl_place(S, &S->symb.vars);
-    const uint32_t delta = S->symb.vars.base - old;
+    Symb *const sy = container_of(t, Symb, vars);
+    const uint32_t delta = t->base - old;
 
     if (!delta)
         return;
-    for (uint16_t id = 1; id < S->symb.nvars; id++) {
-        Var *const v = symb_var(&S->symb, id);
+    for (uint16_t id = 1; id < sy->nvars; id++) {
+        Var *const v = symb_var(sy, id);
 
         if (!(v->info & VI_ARR) && v->vt)
             v->vt += delta;
     }
 }
 
-static void nam_place(Session *const S) { tabl_place(S, &S->symb.names); }
-static void txt_place(Session *const S) { tabl_place(S, &S->symb.text); }
-
-void symb_new(Session *const S)
+void symb_new(Symb *const sy, Allo *const al)
 {
-    S->symb.vars =
-        (Table){.narr = 4, .size = {sizeof(Cell), sizeof(Var), sizeof(VarX), 8}, .max = IDMAX};
+    sy->vars = (Table){
+        .narr = 4,
+        .size = {sizeof(Cell), sizeof(Var), sizeof(VarX), 8},
+        .max = IDMAX,
+        .moved = symb_vars_moved,
+    };
 
-    tabl_new(S, &S->symb.vars, VINIT, var_place);
-    var_place(S);
-    S->symb.names = (Table){.narr = 2, .size = {sizeof(Name), sizeof(uint16_t)}, .max = IDMAX};
+    tabl_new(al, &sy->vars, VINIT);
+    sy->names = (Table){.narr = 2, .size = {sizeof(Name), sizeof(uint16_t)}, .max = IDMAX};
 
-    tabl_new(S, &S->symb.names, NINIT, nam_place);
-    S->symb.text = (Table){.narr = 1, .size = {1}, .max = IDMAX * 256};
+    tabl_new(al, &sy->names, NINIT);
+    sy->text = (Table){.narr = 1, .size = {1}, .max = IDMAX * 256};
 
-    tabl_new(S, &S->symb.text, NINIT * 8, txt_place);
+    tabl_new(al, &sy->text, NINIT * 8);
 }
 
 void symb_size(Session *const S)
@@ -106,7 +106,7 @@ void symb_size(Session *const S)
     if (n > IDMAX)
         n = IDMAX;
 
-    tabl_room(S, &S->symb.vars, n); /* no room: the variable past it errs */
+    tabl_room(&S->symb.vars, n); /* no room: the variable past it errs */
 }
 
 void symb_clear(Session *const S)
@@ -124,8 +124,8 @@ void symb_clear(Session *const S)
         }
     }
 
-    S->arry.end = S->allo.bot;
-    S->strg.low = S->allo.top;
+    S->allo.arrays = S->allo.bot;
+    S->allo.strings = S->allo.top;
     S->arry.hdr = S->allo.hdr_base;
     S->strg.tmp_used = 0;
     S->strg.tmp_floor = 0;
@@ -176,8 +176,8 @@ uint16_t symb_find_name(Session *const S, const uint8_t *const text, const uint8
 
     const uint16_t id = S->symb.nnames;
 
-    if (!tabl_room(S, &S->symb.names, id + 1u) ||
-        !tabl_room(S, &S->symb.text, len + S->symb.text_free + 1))
+    if (!tabl_room(&S->symb.names, id + 1u) ||
+        !tabl_room(&S->symb.text, len + S->symb.text_free + 1))
         repl_error(S, E_OM);
 
     Name *const n = symb_name(&S->symb, id);
@@ -221,7 +221,7 @@ uint16_t symb_find_var(
 
     const uint16_t id = S->symb.nvars;
 
-    if (id >= S->symb.vars.cap && !tabl_room(S, &S->symb.vars, id + 1u))
+    if (id >= S->symb.vars.cap && !tabl_room(&S->symb.vars, id + 1u))
         repl_error(S, E_OM);
 
     Var *const v = symb_var(&S->symb, id);

@@ -162,7 +162,7 @@ int32_t srcr_line(Session *const S)
 
 bool srcr_more(LexrSource *const src, const uint8_t **const keep)
 {
-    Session *const S = (Session *)((uint8_t *)src - offsetof(Session, srcr) - offsetof(Srcr, src));
+    Session *const S = container_of(container_of(src, Srcr, src), Session, srcr);
 
     if (S->srcr.done)
         return false;

@@ -23,7 +23,7 @@
  * | prg_at | prog_at | MIRROR |
  * | prg_body (EBX, EDI -> EDI) | prog_body(line, dst) | MIRROR; returns past it |
  * | prg_cut, prg_ins | prog_cut, prog_ins | MIRROR |
- * | prg_drop, prg_init, prg_place | prog_drop, prog_init, prog_place | MIRROR |
+ * | prg_drop, prg_init, prg_place | prog_drop, prog_init, prog_new (its owner) | MIRROR |
  * | prg_room (EDX) | prog_room(size) | MIRROR |
  * | prg_fill, prg_size | fill, record_size | MIRROR; static |
  * | bk_lineof (comp/block.asm) | prog_lineof | MOVED: here |
@@ -201,11 +201,23 @@ void prog_room(Session *const S, const uint32_t size)
 
     symb_clear(S);
 
-    if (!allo_grow(S, HPROG, size))
+    if (!allo_grow(&S->allo, HPROG, size))
         repl_error(S, E_OM);
 }
 
-void prog_place(Session *const S) { S->prog.base = allo_base(&S->allo, HPROG); }
+static void prog_moved(AlloOwner *const o)
+{
+    Prog *const pg = container_of(o, Prog, owner);
+    pg->base = allo_base(pg->allo, HPROG);
+}
+
+void prog_new(Prog *const pg, Allo *const al)
+{
+    pg->owner.moved = prog_moved;
+    pg->allo = al;
+    allo_new(al, 0x10000, &pg->owner);
+    prog_moved(&pg->owner);
+}
 
 uint32_t prog_lineof(const Prog *const pg, const uint32_t pos, uint32_t *const off)
 {

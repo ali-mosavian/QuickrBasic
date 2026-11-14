@@ -29,7 +29,7 @@ enum { LMINIT = 4096 * 4 }; /* the map's first bytes */
 
 static uint32_t *map(Session *const S) { return (uint32_t *)at(allo_base(&S->allo, HLMAP)); }
 
-void lmap_init(Session *const S) { allo_new(S, LMINIT, nullptr); }
+void lmap_init(Session *const S) { allo_new(&S->allo, LMINIT, nullptr); }
 
 void lmap_build(Session *const S)
 {
@@ -45,7 +45,7 @@ void lmap_build(Session *const S)
 
         if (need > allo_cap(&S->allo, HLMAP)) {
             symb_clear(S); /* it grows: the heap emptied first */
-            if (!allo_grow(S, HLMAP, need))
+            if (!allo_grow(&S->allo, HLMAP, need))
                 repl_error(S, E_OM);
         }
 

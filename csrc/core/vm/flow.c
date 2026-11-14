@@ -79,7 +79,7 @@ enum {
 enum : uint32_t { RESOLVED = TO_NEXT_STMT + 1 };
 enum : uint32_t { NO_LINE = 0xFFFFFFFF }; /* a jump's line when the compiler found no target */
 
-void flow_init(Session *const S) { S->flow.text = allo_carve(S, DSZ + 2); }
+void flow_init(Session *const S) { S->flow.text = allo_carve(&S->allo, DSZ + 2); }
 
 static inline uint8_t *cache_at(Session *const S, const uint32_t off)
 {
@@ -761,7 +761,7 @@ void flow_lsmove(Session *const S, const Addr from, const Addr to)
     const Desc d = *(Desc *)at(from);
     *(Desc *)at(to) = d;
 
-    if (d.len && d.ptr >= S->strg.low && d.ptr < S->allo.top)
+    if (d.len && d.ptr >= S->allo.strings && d.ptr < S->allo.top)
         ((StrTail *)at(d.ptr + d.len))->owner = to;
 }
 

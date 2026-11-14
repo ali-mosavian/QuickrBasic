@@ -2,8 +2,11 @@
 #ifndef MEM_PROGRAM_H
 #define MEM_PROGRAM_H
 #include "defs.h"
+#include "mem/alloc.h"
 
 typedef struct {
+    AlloOwner owner; /* its block's */
+    Allo *allo;
     Addr base;          /* the block's base (mm.progbase) */
     uint32_t end;       /* the terminator's offset (mm.progend) */
     uint32_t entering;  /* the stored line being entered (mm.enterat) */
@@ -46,6 +49,6 @@ void prog_drop(Session *S);
 void prog_init(Session *S);
 /* The store size bytes at least: grown, the variables dropped first. Out of memory. */
 void prog_room(Session *S, uint32_t size);
-/* The store's block where it now is: base. Its block's moved routine; main calls it once. */
-void prog_place(Session *S);
+/* The store's block, 64 KB from al, after the cache's. */
+void prog_new(Prog *pg, Allo *al);
 #endif

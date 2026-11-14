@@ -53,7 +53,7 @@
 
 enum { STRING_IO_MAX = 255 }; /* a string GET reads, at most */
 
-void file_init(Session *const S) { S->file.recs = allo_carve(S, NCH * RECMAX); }
+void file_init(Session *const S) { S->file.recs = allo_carve(&S->allo, NCH * RECMAX); }
 
 /* An INT kept in 2 bytes, widened. */
 static uint32_t widen16(const uint16_t v) { return (uint32_t)(int32_t)(int16_t)v; }
