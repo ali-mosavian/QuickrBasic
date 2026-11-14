@@ -44,9 +44,6 @@
 
 enum { PROBE_OUT_MAX = 79 };
 
-/* How the probe's line came back to dbug_eval: setjmp's value. */
-enum { PROBE_RUNNING = 0, PROBE_DONE = 1, PROBE_FAILED = 2 /* + the error */ };
-
 static bool watching(Dbug *const db) { return db->mode || db->trace || db->bpon || db->until; }
 
 /* Does the run stop at op, a statement's start in line? A breakpoint and until's line stop at a
@@ -182,16 +179,18 @@ static void restore(Session *const S, const Saved *const s)
     S->chnl.out = s->out;
 }
 
-/* Run "PRINT expr" as the direct line, its output to cons.sbuf; how it came back. */
-static int run_probe(Session *const S, const char *const expr)
+/* Run "PRINT expr" as the direct line, its output to cons.sbuf, under its own catch: its
+   error, else ST_OK. */
+static Status run_probe(Session *const S, const char *const expr)
 {
     static const char print[] = "PRINT ";
     memcpy(S->cons.inbuf, print, strlen(print));
     memcpy(S->cons.inbuf + strlen(print), expr, strlen(expr) + 1);
     S->vm.line = DLINE;
-    const int how = setjmp(S->dbug.probe);
+    Catch c;
+    fault_push(&S->fault, &c);
 
-    if (how == PROBE_RUNNING) {
+    if (!setjmp(c.jb)) {
         S->dbug.probing = true;
         lexr_line(&S->lexr, S->cons.inbuf, S->comp.cbuf);
         comp_line(&S->comp);
@@ -202,10 +201,10 @@ static int run_probe(Session *const S, const char *const expr)
     }
 
     S->dbug.probing = false;
-    return how;
+    return c.code;
 }
 
-uint8_t dbug_eval(Session *const S, const char *const expr, const uint8_t proc, char out[static 80])
+Status dbug_eval(Session *const S, const char *const expr, const uint8_t proc, char out[static 80])
 {
     static Saved s; /* one probe at a time: no line of its can run another */
     save(S, &s);
@@ -216,19 +215,17 @@ uint8_t dbug_eval(Session *const S, const char *const expr, const uint8_t proc, 
     S->evnt.on = false;
     S->cons.capture = CAP_SBUF;
     S->cons.sblen = 0;
-    const int how = run_probe(S, expr);
+    const Status st = run_probe(S, expr);
     const uint32_t n = S->cons.sblen < PROBE_OUT_MAX ? S->cons.sblen : PROBE_OUT_MAX;
     memcpy(out, S->cons.sbuf, n);
     out[n] = 0;
     restore(S, &s);
     S->comp.dlproc = 0;
     fmth_clear();
-    return (uint8_t)(how - PROBE_DONE);
+    return st;
 }
 
-void dbug_done(Session *const S) { longjmp(S->dbug.probe, PROBE_DONE); }
-
-void dbug_fail(Dbug *const db, const uint8_t code) { longjmp(db->probe, PROBE_FAILED + code); }
+void dbug_done(Session *const S) { fault_throw(&S->fault, ST_OK); }
 
 /* TRON, TROFF: trace on, off. */
 void dbug_tron(Session *const S) { S->dbug.trace = true; }

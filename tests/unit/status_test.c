@@ -73,3 +73,11 @@ TEST(call_returns_its_status)
     CHECK(repl_call(S, raises) == E_IQ);
     CHECK(repl_call(S, nests) == E_TM && inner == E_IQ);
 }
+
+/* A watch's probe catches its own error. */
+TEST(probe_error_is_its_status)
+{
+    char out[80];
+    CHECK(session_eval(S, "1 / 0", 0, out) == E_DZ);
+    CHECK(session_eval(S, "1 + 1", 0, out) == ST_OK);
+}

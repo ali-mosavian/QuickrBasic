@@ -159,7 +159,7 @@ bool session_in_direct(const Session *const S)
     return false;
 }
 
-uint8_t session_eval(
+Status session_eval(
     Session *const S,
     const char *const expr,
     const uint8_t proc,

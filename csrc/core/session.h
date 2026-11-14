@@ -124,6 +124,6 @@ uint32_t session_frames(const Session *S, DebugFrame out[], uint32_t max);
 Addr session_cell(const Session *S, const DebugFrame *f, uint16_t id, int32_t par);
 /* A direct line called into the stopped run: evaluating would drop its code. */
 bool session_in_direct(const Session *S);
-/* PRINT expr in procedure proc's scope to out (dbug_eval): 0, else the error + 1. */
-uint8_t session_eval(Session *S, const char *expr, uint8_t proc, char out[static 80]);
+/* PRINT expr in procedure proc's scope to out (dbug_eval): its error, else ST_OK. */
+Status session_eval(Session *S, const char *expr, uint8_t proc, char out[static 80]);
 #endif

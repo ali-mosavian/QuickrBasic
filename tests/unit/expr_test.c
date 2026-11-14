@@ -6,7 +6,7 @@
 static void eval_is(Session *const S, const char *const expr, const char *const want)
 {
     char out[80];
-    CHECK(session_eval(S, expr, 0, out) == 0);
+    CHECK(session_eval(S, expr, 0, out) == ST_OK);
     const size_t n = strlen(want);
     CHECK(!memcmp(out, want, n) && out[n] == '\r' && !out[n + 1]);
 }

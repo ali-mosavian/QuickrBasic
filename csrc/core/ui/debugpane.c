@@ -438,8 +438,8 @@ static char *watch_value(Session *const S, char *const d, const char *const expr
         return cpy(d, "(not here)");
 
     char out[80];
-    const uint8_t err = session_eval(S, expr, dp.proc, out);
-    return err ? cpy(d, emsg_text(S->vm.err.user, err - 1)) : eval_text(d, out);
+    const Status st = session_eval(S, expr, dp.proc, out);
+    return st != ST_OK ? cpy(d, emsg_text(S->vm.err.user, (uint8_t)st)) : eval_text(d, out);
 }
 
 /* dp_weval: each watch's row: its expression, " = ", what PRINT shows of it in the stop's
