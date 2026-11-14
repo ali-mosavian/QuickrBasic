@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="530" viewBox="0 0 1000 530"><defs><marker id="ah9ca3af" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#9ca3af"/></marker></defs>
+<rect width="1000" height="530" fill="#ffffff"/>
+<text x="32" y="40" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" font-weight="700" fill="#1f2937" text-anchor="start">UI: the widget tree</text>
+<text x="32" y="64" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#6b7280" text-anchor="start">Keys go down the focus path and bubble up; parents draw and lay out their children.</text>
+<rect x="425.0" y="96" width="150" height="34" rx="8" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.25"/>
+<text x="500" y="118" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#312e81" text-anchor="middle">screen</text>
+<rect x="35.0" y="180" width="130" height="34" rx="8" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.25"/>
+<text x="100" y="202" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#312e81" text-anchor="middle">menubar</text>
+<rect x="305.0" y="180" width="150" height="34" rx="8" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.25"/>
+<text x="380" y="202" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#312e81" text-anchor="middle">workspace</text>
+<rect x="545.0" y="180" width="150" height="34" rx="8" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.25"/>
+<text x="620" y="202" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#312e81" text-anchor="middle">statusbar</text>
+<rect x="751.0" y="180" width="150" height="34" rx="8" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.25" stroke-dasharray="6 4"/>
+<text x="826" y="202" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#312e81" text-anchor="middle">dialog</text>
+<path d="M500,130 L500,146 L100,146 L100,178" fill="none" stroke="#9ca3af" stroke-width="1.6"/>
+<path d="M500,130 L500,146 L380,146 L380,178" fill="none" stroke="#9ca3af" stroke-width="1.6"/>
+<path d="M500,130 L500,146 L620,146 L620,178" fill="none" stroke="#9ca3af" stroke-width="1.6"/>
+<path d="M500,130 L500,146 L826,146 L826,178" fill="none" stroke="#9ca3af" stroke-width="1.6"/>
+<rect x="40.0" y="264" width="120" height="34" rx="8" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.25" stroke-dasharray="6 4"/>
+<text x="100" y="286" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#312e81" text-anchor="middle">dropdown</text>
+<path d="M100,214 L100,230 L100,230 L100,262" fill="none" stroke="#9ca3af" stroke-width="1.6"/>
+<rect x="202.0" y="264" width="96" height="34" rx="8" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.25"/>
+<text x="250" y="286" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#312e81" text-anchor="middle">edit 1</text>
+<rect x="302.0" y="264" width="96" height="34" rx="8" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.25"/>
+<text x="350" y="286" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#312e81" text-anchor="middle">edit 2</text>
+<rect x="402.0" y="264" width="96" height="34" rx="8" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.25"/>
+<text x="450" y="286" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#312e81" text-anchor="middle">immediate</text>
+<rect x="505.0" y="264" width="110" height="34" rx="8" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.25"/>
+<text x="560" y="286" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#312e81" text-anchor="middle">debug pane</text>
+<path d="M380,214 L380,230 L350,230 L350,262" fill="none" stroke="#9ca3af" stroke-width="1.6"/>
+<path d="M380,214 L380,230 L450,230 L450,262" fill="none" stroke="#9ca3af" stroke-width="1.6"/>
+<path d="M380,214 L380,230 L560,230 L560,262" fill="none" stroke="#9ca3af" stroke-width="1.6"/>
+<path d="M380,214 L380,230 L250,230 L250,262" fill="none" stroke="#9ca3af" stroke-width="1.6"/>
+<rect x="428.0" y="348" width="84" height="34" rx="8" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.25"/>
+<text x="470" y="370" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#312e81" text-anchor="middle">frames</text>
+<path d="M560,298 L560,314 L470,314 L470,346" fill="none" stroke="#9ca3af" stroke-width="1.6"/>
+<rect x="518.0" y="348" width="84" height="34" rx="8" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.25"/>
+<text x="560" y="370" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#312e81" text-anchor="middle">locals</text>
+<path d="M560,298 L560,314 L560,314 L560,346" fill="none" stroke="#9ca3af" stroke-width="1.6"/>
+<rect x="608.0" y="348" width="84" height="34" rx="8" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.25"/>
+<text x="650" y="370" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#312e81" text-anchor="middle">watches</text>
+<path d="M560,298 L560,314 L650,314 L650,346" fill="none" stroke="#9ca3af" stroke-width="1.6"/>
+<rect x="677.0" y="264" width="70" height="34" rx="8" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.25"/>
+<text x="712" y="286" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#312e81" text-anchor="middle">field</text>
+<path d="M826,214 L826,230 L712,230 L712,262" fill="none" stroke="#9ca3af" stroke-width="1.6"/>
+<rect x="753.0" y="264" width="70" height="34" rx="8" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.25"/>
+<text x="788" y="286" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#312e81" text-anchor="middle">list</text>
+<path d="M826,214 L826,230 L788,230 L788,262" fill="none" stroke="#9ca3af" stroke-width="1.6"/>
+<rect x="829.0" y="264" width="70" height="34" rx="8" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.25"/>
+<text x="864" y="286" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#312e81" text-anchor="middle">checkbox</text>
+<path d="M826,214 L826,230 L864,230 L864,262" fill="none" stroke="#9ca3af" stroke-width="1.6"/>
+<rect x="905.0" y="264" width="70" height="34" rx="8" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.25"/>
+<text x="940" y="286" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#312e81" text-anchor="middle">button</text>
+<path d="M826,214 L826,230 L940,230 L940,262" fill="none" stroke="#9ca3af" stroke-width="1.6"/>
+<rect x="32" y="410" width="936" height="70" rx="10" fill="#f5f5f4" stroke="#78716c" stroke-width="1.25"/>
+<text x="48" y="436" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#1f2937" text-anchor="start">keys</text>
+<text x="104" y="436" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="start">deepest focused widget, then up to screen</text>
+<text x="516" y="436" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#1f2937" text-anchor="start">mouse</text>
+<text x="572" y="436" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="start">deepest visible widget under the point</text>
+<text x="48" y="462" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#1f2937" text-anchor="start">draw</text>
+<text x="104" y="462" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="start">parent, then its visible children</text>
+<text x="516" y="462" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#1f2937" text-anchor="start">layout</text>
+<text x="572" y="462" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="start">parent sets its children&#x27;s rects</text>
+<rect x="32" y="492" width="28" height="16" rx="4" fill="#eef2ff" stroke="#4f46e5" stroke-width="1.25" stroke-dasharray="6 4"/>
+<text x="68" y="505" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="start">modal: takes every event while open</text>
+</svg>

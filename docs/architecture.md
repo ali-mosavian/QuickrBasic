@@ -22,40 +22,7 @@ Target shape for `csrc/`, replacing the asm-mirrored layout.
 
 ## Layers
 
-Dependencies point down only.
-
-```mermaid
-flowchart TD
-    app["<b>app</b><br/>basic32 · ide32<br/><i>wiring only</i>"]
-    editor["<b>editor</b> (IDE only)<br/>widget tree · commands · debugger"]
-    session["<b>session</b><br/>Program + Vm + Heap + Channels<br/><i>one API, error boundary</i>"]
-    lang["<b>lang</b><br/>lexer · parser · fold · codegen · link · lister"]
-    runtime["<b>runtime</b><br/>vm · values · builtins · io"]
-    core["<b>core</b><br/>arena · Status · utilities"]
-    plat["<b>plat</b><br/>plat/*.h"]
-    dos32["dos32/"]
-    host["host/ (tests)"]
-
-    app --> editor
-    app --> session
-    editor --> session
-    session --> lang
-    session --> runtime
-    lang --> runtime
-    runtime --> core
-    lang --> core
-    core --> plat
-    runtime --> plat
-    dos32 -. implements .-> plat
-    host -. implements .-> plat
-
-    classDef front fill:#EEEDFE,stroke:#534AB7,color:#26215C
-    classDef engine fill:#E1F5EE,stroke:#0F6E56,color:#04342C
-    classDef base fill:#F1EFE8,stroke:#5F5E5A,color:#2C2C2A
-    class app,editor front
-    class session,lang,runtime engine
-    class core,plat,dos32,host base
-```
+![Layers](img/layers.svg)
 
 ## Modules
 
@@ -76,6 +43,8 @@ flowchart TD
 | `editor/*` | `Editor` | Widget tree, text buffer, commands, debugger pane |
 
 ## Ownership
+
+![Ownership](img/ownership.svg)
 
 - `app` creates the one `Session` and the one `Editor`. There are no other globals.
 - Every module's state is one struct, a field of the `Session`. A function that reads or changes any of it takes `Session *S` first; the editor's take `Editor *`.
@@ -131,13 +100,7 @@ flowchart LR
 
 ## Line at a time
 
-```mermaid
-flowchart LR
-    T[line text] --> Lx[lexer] --> P[parser] --> F[fold] --> G[codegen] --> Ln[(stored Line<br/>tokens + bytecode)]
-    Ln --> Li[lister] --> T2[text in editor]
-    Ln --> K[link<br/>whole program] --> Run[ready to run]
-    P -. scratch tree, dropped .-> G
-```
+![A line at a time](img/pipeline.svg)
 
 - `lang_compile_line(text) → Line` stores the line's tokens and bytecode. The editor calls it on every edit, and the REPL on every entered line.
 - The tree is scratch: it is built, folded, turned into code and dropped within the call.
@@ -158,21 +121,7 @@ flowchart LR
 | Call stack, Locals | frames | `session_frames()`, `session_locals(frame)` | debug pane |
 | Watches, tooltip | evaluates in a frame | `session_eval(expr, frame)` | debug pane, tip |
 
-```mermaid
-sequenceDiagram
-    participant E as editor: debugger
-    participant S as session
-    participant V as runtime: vm
-    E->>S: session_step(OVER)
-    S->>V: set stop mode, depth
-    S->>V: vm_continue()
-    V->>V: DBG op at each statement
-    V-->>S: DebugHooks.stopped(place)
-    S-->>E: Status: stopped
-    E->>S: session_frames(), session_locals(f), session_eval(watch, f)
-    S-->>E: values
-    E->>E: draw pane, light the statement
-```
+![Debugger](img/debugger.svg)
 
 - The VM reports stops and trace events through a `DebugHooks` struct of function pointers, installed with `session_debug`. It never calls up into the editor.
 - Watches compile through `lang` like any other line, then run in the chosen frame.
@@ -200,33 +149,9 @@ struct Widget {
 };
 ```
 
-```mermaid
-flowchart TD
-    screen --> menubar --> dropdown["dropdown (modal)"]
-    screen --> workspace
-    screen --> statusbar
-    screen --> dialog["dialog (modal)"]
-    workspace --> ed1[edit window 1]
-    workspace --> ed2[edit window 2]
-    workspace --> imm[immediate window]
-    workspace --> pane[debug pane]
-    pane --> frames
-    pane --> locals
-    pane --> watches
-    dialog --> field
-    dialog --> list
-    dialog --> checkbox
-    dialog --> button
-```
+![The widget tree](img/widgets.svg)
 
-```mermaid
-flowchart BT
-    K[key] --> Deep[deepest focused widget]
-    Deep -- not handled --> Parent[its parent]
-    Parent -- not handled --> Screen[screen: global keys]
-    Deep -- handled --> Done[done]
-    Parent -- handled --> Done
-```
+
 
 These four rules live once, in `editor/tree.c`:
 
