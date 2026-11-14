@@ -39,28 +39,31 @@ typedef enum {
 } Source;
 
 /* The cell of the variable whose id is at vm->ip. */
-static Addr var_cell(Session *const S) { return symb_cell(&S->symb, exec_u16(&S->vm)); }
+static Addr oper_var_cell(Vm *const vm, const Symb *const sy)
+{
+    return symb_cell(sy, exec_u16(vm));
+}
 
-static uint32_t operand(Session *const S, const Source src)
+static uint32_t oper_operand(Vm *const vm, const Symb *const sy, const Source src)
 {
     switch (src) {
     case POPPED:
-        return exec_pop(&S->vm).u;
+        return exec_pop(vm).u;
 
     case VAR:
-        return rd32(var_cell(S));
+        return rd32(oper_var_cell(vm, sy));
 
     case U8:
-        return exec_u8(&S->vm);
+        return exec_u8(vm);
 
     case VAR_AS_SNGL:
-        return fmth_from_i32((int32_t)rd32(var_cell(S)));
+        return fmth_from_i32((int32_t)rd32(oper_var_cell(vm, sy)));
 
     case U8_AS_SNGL:
-        return fmth_from_i32(exec_u8(&S->vm));
+        return fmth_from_i32(exec_u8(vm));
 
     case F32:
-        return exec_u32(&S->vm);
+        return exec_u32(vm);
     }
 
     unreachable();
@@ -68,20 +71,26 @@ static uint32_t operand(Session *const S, const Source src)
 
 /* ---- loads and stores ----------------------------------------------------------------------- */
 
-void oper_i_ld_v(Session *const S) { exec_pusha(&S->vm, operand(S, VAR)); }
+void oper_i_ld_v(Session *const S) { exec_pusha(&S->vm, oper_operand(&S->vm, &S->symb, VAR)); }
 void oper_i_ld_i16(Session *const S) { exec_pusha(&S->vm, exec_u16(&S->vm)); } /* unsigned */
 void oper_i_ld_i32(Session *const S) { exec_pusha(&S->vm, exec_u32(&S->vm)); }
 void oper_i_ld_u8(Session *const S) { exec_pusha(&S->vm, exec_u8(&S->vm)); }
-void oper_f_ld_f32(Session *const S) { exec_pusha(&S->vm, operand(S, F32)); }
-void oper_f_ld_u8(Session *const S) { exec_pusha(&S->vm, operand(S, U8_AS_SNGL)); }
-void oper_f_ld_vi(Session *const S) { exec_pusha(&S->vm, operand(S, VAR_AS_SNGL)); }
+void oper_f_ld_f32(Session *const S) { exec_pusha(&S->vm, oper_operand(&S->vm, &S->symb, F32)); }
+void oper_f_ld_u8(Session *const S)
+{
+    exec_pusha(&S->vm, oper_operand(&S->vm, &S->symb, U8_AS_SNGL));
+}
+void oper_f_ld_vi(Session *const S)
+{
+    exec_pusha(&S->vm, oper_operand(&S->vm, &S->symb, VAR_AS_SNGL));
+}
 void oper_f_ld_pi(Session *const S) { exec_pusha(&S->vm, SNGL_PI); }
 /* A string variable: its descriptor. */
-void oper_s_ld_v(Session *const S) { exec_pusha(&S->vm, var_cell(S)); }
+void oper_s_ld_v(Session *const S) { exec_pusha(&S->vm, oper_var_cell(&S->vm, &S->symb)); }
 
 void oper_i_st_v(Session *const S)
 {
-    const Addr cell = var_cell(S);
+    const Addr cell = oper_var_cell(&S->vm, &S->symb);
     wr32(cell, exec_pop(&S->vm).u);
 }
 void oper_f_st_v(Session *const S) { oper_i_st_v(S); }
@@ -91,10 +100,16 @@ void oper_f_st_v(Session *const S) { oper_i_st_v(S); }
 typedef enum { ADD, SUB, MUL, DIV, AND, OR } IntOp;
 
 /* The top cell op the right operand. Overflow. */
-static void int_op(Session *const S, const Source src, const IntOp op)
+static void oper_int_op(
+    Vm *const vm,
+    const Symb *const sy,
+    Fault *const f,
+    const Source src,
+    const IntOp op
+)
 {
-    const int32_t b = (int32_t)operand(S, src);
-    Cell *const top = S->vm.sp;
+    const int32_t b = (int32_t)oper_operand(vm, sy, src);
+    Cell *const top = vm->sp;
     int32_t r, rem;
     bool overflow = false;
 
@@ -112,7 +127,7 @@ static void int_op(Session *const S, const Source src, const IntOp op)
         break;
 
     case DIV:
-        r = exec_idiv(S, top->i, b, &rem);
+        r = exec_idiv(f, top->i, b, &rem);
         break;
 
     case AND:
@@ -125,29 +140,29 @@ static void int_op(Session *const S, const Source src, const IntOp op)
     }
 
     if (overflow)
-        repl_error(S, E_OV);
+        fault_raise(f, (Failure){.code = E_OV, .at = FAULT_KEEP, .line = FAULT_KEEP});
 
     top->i = r;
 }
 
-void oper_i_add(Session *const S) { int_op(S, POPPED, ADD); }
-void oper_i_sub(Session *const S) { int_op(S, POPPED, SUB); }
-void oper_i_mul(Session *const S) { int_op(S, POPPED, MUL); }
-void oper_i_div(Session *const S) { int_op(S, POPPED, DIV); }
-void oper_i_and(Session *const S) { int_op(S, POPPED, AND); }
-void oper_i_or(Session *const S) { int_op(S, POPPED, OR); }
-void oper_i_add_v(Session *const S) { int_op(S, VAR, ADD); }
-void oper_i_sub_v(Session *const S) { int_op(S, VAR, SUB); }
-void oper_i_mul_v(Session *const S) { int_op(S, VAR, MUL); }
-void oper_i_div_v(Session *const S) { int_op(S, VAR, DIV); }
-void oper_i_and_v(Session *const S) { int_op(S, VAR, AND); }
-void oper_i_or_v(Session *const S) { int_op(S, VAR, OR); }
-void oper_i_add_u8(Session *const S) { int_op(S, U8, ADD); }
-void oper_i_sub_u8(Session *const S) { int_op(S, U8, SUB); }
-void oper_i_mul_u8(Session *const S) { int_op(S, U8, MUL); }
-void oper_i_div_u8(Session *const S) { int_op(S, U8, DIV); }
-void oper_i_and_u8(Session *const S) { int_op(S, U8, AND); }
-void oper_i_or_u8(Session *const S) { int_op(S, U8, OR); }
+void oper_i_add(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, POPPED, ADD); }
+void oper_i_sub(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, POPPED, SUB); }
+void oper_i_mul(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, POPPED, MUL); }
+void oper_i_div(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, POPPED, DIV); }
+void oper_i_and(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, POPPED, AND); }
+void oper_i_or(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, POPPED, OR); }
+void oper_i_add_v(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, VAR, ADD); }
+void oper_i_sub_v(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, VAR, SUB); }
+void oper_i_mul_v(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, VAR, MUL); }
+void oper_i_div_v(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, VAR, DIV); }
+void oper_i_and_v(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, VAR, AND); }
+void oper_i_or_v(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, VAR, OR); }
+void oper_i_add_u8(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, U8, ADD); }
+void oper_i_sub_u8(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, U8, SUB); }
+void oper_i_mul_u8(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, U8, MUL); }
+void oper_i_div_u8(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, U8, DIV); }
+void oper_i_and_u8(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, U8, AND); }
+void oper_i_or_u8(Session *const S) { oper_int_op(&S->vm, &S->symb, &S->fault, U8, OR); }
 
 /* MOD: the remainder takes the left operand's sign. */
 void oper_i_mod(Session *const S)
@@ -156,7 +171,7 @@ void oper_i_mod(Session *const S)
     int32_t rem = 0;
 
     if (b != -1)
-        exec_idiv(S, S->vm.sp->i, b, &rem);
+        exec_idiv(&S->fault, S->vm.sp->i, b, &rem);
 
     S->vm.sp->i = rem;
 }
@@ -195,10 +210,16 @@ void oper_i_not(Session *const S) { S->vm.sp->i = ~S->vm.sp->i; }
 typedef enum { FADD, FSUB, FMUL, FDIV } SnglOp;
 
 /* The left operand popped op the right. */
-static void sngl_op(Session *const S, const Source src, const SnglOp op)
+static void oper_sngl_op(
+    Vm *const vm,
+    const Symb *const sy,
+    Fault *const f,
+    const Source src,
+    const SnglOp op
+)
 {
-    const Sngl b = operand(S, src);
-    Cell *const top = S->vm.sp;
+    const Sngl b = oper_operand(vm, sy, src);
+    Cell *const top = vm->sp;
 
     switch (op) {
     case FADD:
@@ -214,31 +235,55 @@ static void sngl_op(Session *const S, const Source src, const SnglOp op)
         break;
 
     case FDIV:
-        top->u = fmth_div(S, top->u, b);
+        top->u = fmth_div(f, top->u, b);
         break;
     }
 }
 
-void oper_f_add(Session *const S) { sngl_op(S, POPPED, FADD); }
-void oper_f_sub(Session *const S) { sngl_op(S, POPPED, FSUB); }
-void oper_f_mul(Session *const S) { sngl_op(S, POPPED, FMUL); }
-void oper_f_div(Session *const S) { sngl_op(S, POPPED, FDIV); }
-void oper_f_add_v(Session *const S) { sngl_op(S, VAR, FADD); }
-void oper_f_sub_v(Session *const S) { sngl_op(S, VAR, FSUB); }
-void oper_f_mul_v(Session *const S) { sngl_op(S, VAR, FMUL); }
-void oper_f_div_v(Session *const S) { sngl_op(S, VAR, FDIV); }
-void oper_f_add_vi(Session *const S) { sngl_op(S, VAR_AS_SNGL, FADD); }
-void oper_f_sub_vi(Session *const S) { sngl_op(S, VAR_AS_SNGL, FSUB); }
-void oper_f_mul_vi(Session *const S) { sngl_op(S, VAR_AS_SNGL, FMUL); }
-void oper_f_div_vi(Session *const S) { sngl_op(S, VAR_AS_SNGL, FDIV); }
-void oper_f_add_u8(Session *const S) { sngl_op(S, U8_AS_SNGL, FADD); }
-void oper_f_sub_u8(Session *const S) { sngl_op(S, U8_AS_SNGL, FSUB); }
-void oper_f_mul_u8(Session *const S) { sngl_op(S, U8_AS_SNGL, FMUL); }
-void oper_f_div_u8(Session *const S) { sngl_op(S, U8_AS_SNGL, FDIV); }
-void oper_f_add_f32(Session *const S) { sngl_op(S, F32, FADD); }
-void oper_f_sub_f32(Session *const S) { sngl_op(S, F32, FSUB); }
-void oper_f_mul_f32(Session *const S) { sngl_op(S, F32, FMUL); }
-void oper_f_div_f32(Session *const S) { sngl_op(S, F32, FDIV); }
+void oper_f_add(Session *const S) { oper_sngl_op(&S->vm, &S->symb, &S->fault, POPPED, FADD); }
+void oper_f_sub(Session *const S) { oper_sngl_op(&S->vm, &S->symb, &S->fault, POPPED, FSUB); }
+void oper_f_mul(Session *const S) { oper_sngl_op(&S->vm, &S->symb, &S->fault, POPPED, FMUL); }
+void oper_f_div(Session *const S) { oper_sngl_op(&S->vm, &S->symb, &S->fault, POPPED, FDIV); }
+void oper_f_add_v(Session *const S) { oper_sngl_op(&S->vm, &S->symb, &S->fault, VAR, FADD); }
+void oper_f_sub_v(Session *const S) { oper_sngl_op(&S->vm, &S->symb, &S->fault, VAR, FSUB); }
+void oper_f_mul_v(Session *const S) { oper_sngl_op(&S->vm, &S->symb, &S->fault, VAR, FMUL); }
+void oper_f_div_v(Session *const S) { oper_sngl_op(&S->vm, &S->symb, &S->fault, VAR, FDIV); }
+void oper_f_add_vi(Session *const S)
+{
+    oper_sngl_op(&S->vm, &S->symb, &S->fault, VAR_AS_SNGL, FADD);
+}
+void oper_f_sub_vi(Session *const S)
+{
+    oper_sngl_op(&S->vm, &S->symb, &S->fault, VAR_AS_SNGL, FSUB);
+}
+void oper_f_mul_vi(Session *const S)
+{
+    oper_sngl_op(&S->vm, &S->symb, &S->fault, VAR_AS_SNGL, FMUL);
+}
+void oper_f_div_vi(Session *const S)
+{
+    oper_sngl_op(&S->vm, &S->symb, &S->fault, VAR_AS_SNGL, FDIV);
+}
+void oper_f_add_u8(Session *const S)
+{
+    oper_sngl_op(&S->vm, &S->symb, &S->fault, U8_AS_SNGL, FADD);
+}
+void oper_f_sub_u8(Session *const S)
+{
+    oper_sngl_op(&S->vm, &S->symb, &S->fault, U8_AS_SNGL, FSUB);
+}
+void oper_f_mul_u8(Session *const S)
+{
+    oper_sngl_op(&S->vm, &S->symb, &S->fault, U8_AS_SNGL, FMUL);
+}
+void oper_f_div_u8(Session *const S)
+{
+    oper_sngl_op(&S->vm, &S->symb, &S->fault, U8_AS_SNGL, FDIV);
+}
+void oper_f_add_f32(Session *const S) { oper_sngl_op(&S->vm, &S->symb, &S->fault, F32, FADD); }
+void oper_f_sub_f32(Session *const S) { oper_sngl_op(&S->vm, &S->symb, &S->fault, F32, FSUB); }
+void oper_f_mul_f32(Session *const S) { oper_sngl_op(&S->vm, &S->symb, &S->fault, F32, FMUL); }
+void oper_f_div_f32(Session *const S) { oper_sngl_op(&S->vm, &S->symb, &S->fault, F32, FDIV); }
 
 /* -0 stays 0. */
 void oper_f_neg(Session *const S)
@@ -251,7 +296,7 @@ void oper_f_neg(Session *const S)
 
 /* The relation's bit against the op's mask: a compare pushes -1 or 0; a CMPIF's false ends the
    line. */
-static void compared(Session *const S, const uint8_t rel, const bool cmpif)
+static void oper_compared(Session *const S, const uint8_t rel, const bool cmpif)
 {
     const bool yes = rel & exec_u8(&S->vm);
 
@@ -261,36 +306,47 @@ static void compared(Session *const S, const uint8_t rel, const bool cmpif)
         flow_nextln(S);
 }
 
-static void int_cmp(Session *const S, const Source src, const bool cmpif)
+/* The popped INT against the right operand: OPER_GT, OPER_EQ or OPER_LT. */
+static uint8_t oper_int_rel(Vm *const vm, const Symb *const sy, const Source src)
 {
-    const int32_t b = (int32_t)operand(S, src);
-    const int32_t a = exec_popi(&S->vm);
-    compared(S, a > b ? OPER_GT : a == b ? OPER_EQ : OPER_LT, cmpif);
+    const int32_t b = (int32_t)oper_operand(vm, sy, src);
+    const int32_t a = exec_popi(vm);
+    return a > b ? OPER_GT : a == b ? OPER_EQ : OPER_LT;
 }
 
-static void sngl_cmp_op(Session *const S, const Source src, const bool cmpif)
+static uint8_t oper_sngl_rel(Vm *const vm, const Symb *const sy, const Source src)
 {
-    const Sngl b = operand(S, src);
-    const int c = sngl_cmp(exec_pop(&S->vm).u, b);
-    compared(S, c > 0 ? OPER_GT : c == 0 ? OPER_EQ : OPER_LT, cmpif);
+    const Sngl b = oper_operand(vm, sy, src);
+    const int c = sngl_cmp(exec_pop(vm).u, b);
+    return c > 0 ? OPER_GT : c == 0 ? OPER_EQ : OPER_LT;
 }
 
-void oper_i_cmp(Session *const S) { int_cmp(S, POPPED, false); }
-void oper_i_cmp_v(Session *const S) { int_cmp(S, VAR, false); }
-void oper_i_cmp_u8(Session *const S) { int_cmp(S, U8, false); }
-void oper_i_cmpif(Session *const S) { int_cmp(S, POPPED, true); }
-void oper_i_cmpif_v(Session *const S) { int_cmp(S, VAR, true); }
-void oper_i_cmpif_u8(Session *const S) { int_cmp(S, U8, true); }
-void oper_f_cmp(Session *const S) { sngl_cmp_op(S, POPPED, false); }
-void oper_f_cmp_v(Session *const S) { sngl_cmp_op(S, VAR, false); }
-void oper_f_cmp_vi(Session *const S) { sngl_cmp_op(S, VAR_AS_SNGL, false); }
-void oper_f_cmp_u8(Session *const S) { sngl_cmp_op(S, U8_AS_SNGL, false); }
-void oper_f_cmp_f32(Session *const S) { sngl_cmp_op(S, F32, false); }
-void oper_f_cmpif(Session *const S) { sngl_cmp_op(S, POPPED, true); }
-void oper_f_cmpif_v(Session *const S) { sngl_cmp_op(S, VAR, true); }
-void oper_f_cmpif_vi(Session *const S) { sngl_cmp_op(S, VAR_AS_SNGL, true); }
-void oper_f_cmpif_u8(Session *const S) { sngl_cmp_op(S, U8_AS_SNGL, true); }
-void oper_f_cmpif_f32(Session *const S) { sngl_cmp_op(S, F32, true); }
+static void oper_int_cmp(Session *const S, const Source src, const bool cmpif)
+{
+    oper_compared(S, oper_int_rel(&S->vm, &S->symb, src), cmpif);
+}
+
+static void oper_sngl_cmp(Session *const S, const Source src, const bool cmpif)
+{
+    oper_compared(S, oper_sngl_rel(&S->vm, &S->symb, src), cmpif);
+}
+
+void oper_i_cmp(Session *const S) { oper_int_cmp(S, POPPED, false); }
+void oper_i_cmp_v(Session *const S) { oper_int_cmp(S, VAR, false); }
+void oper_i_cmp_u8(Session *const S) { oper_int_cmp(S, U8, false); }
+void oper_i_cmpif(Session *const S) { oper_int_cmp(S, POPPED, true); }
+void oper_i_cmpif_v(Session *const S) { oper_int_cmp(S, VAR, true); }
+void oper_i_cmpif_u8(Session *const S) { oper_int_cmp(S, U8, true); }
+void oper_f_cmp(Session *const S) { oper_sngl_cmp(S, POPPED, false); }
+void oper_f_cmp_v(Session *const S) { oper_sngl_cmp(S, VAR, false); }
+void oper_f_cmp_vi(Session *const S) { oper_sngl_cmp(S, VAR_AS_SNGL, false); }
+void oper_f_cmp_u8(Session *const S) { oper_sngl_cmp(S, U8_AS_SNGL, false); }
+void oper_f_cmp_f32(Session *const S) { oper_sngl_cmp(S, F32, false); }
+void oper_f_cmpif(Session *const S) { oper_sngl_cmp(S, POPPED, true); }
+void oper_f_cmpif_v(Session *const S) { oper_sngl_cmp(S, VAR, true); }
+void oper_f_cmpif_vi(Session *const S) { oper_sngl_cmp(S, VAR_AS_SNGL, true); }
+void oper_f_cmpif_u8(Session *const S) { oper_sngl_cmp(S, U8_AS_SNGL, true); }
+void oper_f_cmpif_f32(Session *const S) { oper_sngl_cmp(S, F32, true); }
 
 /* IF: false ends the line. A SINGLE is false at +0 and -0. */
 void oper_i_if(Session *const S)
@@ -308,12 +364,12 @@ void oper_f_if(Session *const S)
 /* ---- conversions ---------------------------------------------------------------------------- */
 
 void oper_i_tof(Session *const S) { S->vm.sp->u = fmth_from_i32(S->vm.sp->i); }
-void oper_f_toi(Session *const S) { S->vm.sp->i = fmth_to_i32(S, S->vm.sp->u); }
+void oper_f_toi(Session *const S) { S->vm.sp->i = fmth_to_i32(&S->fault, S->vm.sp->u); }
 
 /* A byte, 0..255. Illegal function call. */
 void oper_f_tob(Session *const S)
 {
-    const int16_t v = fmth_to_i16(S, S->vm.sp->u);
+    const int16_t v = fmth_to_i16(&S->fault, S->vm.sp->u);
 
     if ((uint16_t)v > 255)
         repl_error(S, E_IQ);
@@ -325,7 +381,7 @@ void oper_f_tob(Session *const S)
 /* An address, 0..65535. */
 void oper_f_toa(Session *const S)
 {
-    const uint16_t v = fmth_to_u16(S, S->vm.sp->u);
+    const uint16_t v = fmth_to_u16(&S->fault, S->vm.sp->u);
     exec_pop(&S->vm);
     exec_pushi(&S->vm, v);
 }

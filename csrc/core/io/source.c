@@ -31,6 +31,7 @@
  * - D2. A pointer into cons.inbuf.
  */
 #include "io/source.h"
+#include <stddef.h>
 #include "session.h"
 #include "io/channel.h"
 #include "io/repl.h"
@@ -98,7 +99,7 @@ bool srcr_phys_end(Session *const S)
 /* The window filled on from end: to the logical line's end (done set) or SRCAP; 0 after. */
 static void fill(Session *const S)
 {
-    uint8_t *d = S->srcr.end;
+    uint8_t *d = S->srcr.src.end;
 
     for (;;) {
         const uint32_t len = (uint32_t)(d - S->cons.inbuf);
@@ -145,28 +146,30 @@ static void fill(Session *const S)
     }
 
     *d = 0;
-    S->srcr.end = d;
+    S->srcr.src.end = d;
 }
 
 int32_t srcr_line(Session *const S)
 {
-    S->srcr.end = S->cons.inbuf;
+    S->srcr.src.end = S->cons.inbuf;
     S->srcr.done = false;
     S->srcr.pend = 0;
     S->srcr.any = false;
     srcr_phys_start(S);
     fill(S);
-    return S->srcr.any ? (int32_t)(S->srcr.end - S->cons.inbuf) : -1;
+    return S->srcr.any ? (int32_t)(S->srcr.src.end - S->cons.inbuf) : -1;
 }
 
-bool srcr_more(Session *const S, const uint8_t **const keep)
+bool srcr_more(LexrSource *const src, const uint8_t **const keep)
 {
+    Session *const S = (Session *)((uint8_t *)src - offsetof(Session, srcr) - offsetof(Srcr, src));
+
     if (S->srcr.done)
         return false;
 
-    const uint32_t n = (uint32_t)(S->srcr.end - *keep);
+    const uint32_t n = (uint32_t)(S->srcr.src.end - *keep);
     memmove(S->cons.inbuf, *keep, n);
-    S->srcr.end = S->cons.inbuf + n;
+    S->srcr.src.end = S->cons.inbuf + n;
     fill(S);
     *keep = S->cons.inbuf;
     return true;

@@ -175,7 +175,7 @@ static bool word(void)
 /* ac_lex: the 0-ended uimn.build tokenized into comp_cbuf; the body. */
 static uint8_t *lex(Session *const S)
 {
-    lexr_line(S, uimn.build, S->comp.cbuf);
+    lexr_line(&S->lexr, uimn.build, S->comp.cbuf);
     return S->comp.cbuf;
 }
 

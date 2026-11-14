@@ -182,7 +182,7 @@ static void line(Session *const S, const uint8_t *const text, const uint32_t len
     uimn.line[n] = 0;
     hl.prev_col = 0;
     hl.prev_slot = SL_ED;
-    lexr_line(S, uimn.line, S->comp.cbuf);
+    lexr_line(&S->lexr, uimn.line, S->comp.cbuf);
     const uint8_t *p = S->comp.cbuf;
     hl.state = 0;
     hl.depth = 0;

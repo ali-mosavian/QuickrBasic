@@ -133,13 +133,14 @@ bool exec_brk(Session *const S)
     stmt_stop(S);
 }
 
-int32_t exec_idiv(Session *const S, const int32_t a, const int32_t b, int32_t *const rem)
+int32_t exec_idiv(Fault *const f, const int32_t a, const int32_t b, int32_t *const rem)
 {
     if (!b)
-        repl_error(S, E_DZ);
+        fault_raise(f, (Failure){.code = E_DZ, .at = FAULT_KEEP, .line = FAULT_KEEP});
+
     if (b == -1) {
         if (a == INT32_MIN)
-            repl_error(S, E_OV);
+            fault_raise(f, (Failure){.code = E_OV, .at = FAULT_KEEP, .line = FAULT_KEEP});
 
         return -a; /* *rem kept: MOD does -1 itself */
     }

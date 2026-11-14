@@ -56,6 +56,8 @@ struct Session {
     Expr expr;
     Code code;
     Fault fault;
+    LexrNames names;
+    UsngOut usng_out;
     File file;
     Flow flow;
     Lexr lexr;

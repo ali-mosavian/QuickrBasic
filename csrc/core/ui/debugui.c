@@ -70,7 +70,7 @@ static void hlset(Session *const S, const DebugPos *const pos)
     const uint32_t len = text_get(S, view_goline(S, tl), uimn.line);
     uimn.line[len] = 0;
     uint8_t *const body = edit_body(uimn.line);
-    lexr_line(S, body, S->comp.cbuf);
+    lexr_line(&S->lexr, body, S->comp.cbuf);
     const uint32_t bc = (uint32_t)(body - uimn.line);
     const uint32_t c0 = S->lexr.col[pos->from] + bc;
     const uint32_t c1 = trim_end(uimn.line, c0, pos->to == BOFF ? len : S->lexr.col[pos->to] + bc);

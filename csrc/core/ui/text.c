@@ -159,7 +159,7 @@ static Made make(Session *const S, const uint8_t *const src, const uint32_t len)
     S->prog.pre_len = (uint32_t)(body - text);
     m.num = number(text, S->prog.pre_len);
     S->vm.line = DLINE;
-    m.len = (uint32_t)(lexr_line(S, body, S->comp.cbuf) - S->comp.cbuf);
+    m.len = (uint32_t)(lexr_line(&S->lexr, body, S->comp.cbuf) - S->comp.cbuf);
     const bool asis = uimn.text.asis;
     uimn.text.asis = false;
 

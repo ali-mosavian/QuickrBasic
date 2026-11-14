@@ -31,8 +31,6 @@
  * - D3. The default control word is 027Fh (53 bits), not 007Fh; see pfpu.h.
  */
 #include "num/fpmath.h"
-#include "session.h"
-#include "io/repl.h"
 #include "plat/pfpu.h"
 
 void fmth_init(void) { pfpu_init(); }
@@ -42,40 +40,46 @@ void fmth_clear(void) { pfpu_reset(); }
 enum { SNGL_POINT = FBIAS + SNGL_EXP_SHIFT };
 enum : Sngl { SNGL_MINUS_ONE = 0xBF800000, SNGL_MIN_I32 = 0xCF000000 /* -2^31 */ };
 
-static uint32_t exponent(const Sngl a) { return a >> SNGL_EXP_SHIFT & SNGL_EXP_MASK; }
+static uint32_t fmth_exponent(const Sngl a) { return a >> SNGL_EXP_SHIFT & SNGL_EXP_MASK; }
 
 /* Division by zero. */
-Sngl fmth_div(Session *const S, const Sngl a, const Sngl b)
+[[noreturn]]
+static void fmth_fail(Fault *const f, const uint8_t code)
+{
+    fault_raise(f, (Failure){.code = code, .at = FAULT_KEEP, .line = FAULT_KEEP});
+}
+
+Sngl fmth_div(Fault *const f, const Sngl a, const Sngl b)
 {
     if (!(b & ~SNGL_SIGN))
-        repl_error(S, E_DZ);
+        fmth_fail(f, E_DZ);
 
     return sngl_bits(sngl_val(a) / sngl_val(b));
 }
 
 /* r, after the status st of the routine that made it. */
-static Sngl check(Session *const S, const uint8_t st, const Sngl r)
+static Sngl fmth_check(Fault *const f, const uint8_t st, const Sngl r)
 {
     if (st == PFPU_IQ)
-        repl_error(S, E_IQ);
+        fmth_fail(f, E_IQ);
     if (st == PFPU_OV)
-        repl_error(S, E_OV);
+        fmth_fail(f, E_OV);
 
     return r;
 }
 
-Sngl fmth_pow(Session *const S, const Sngl a, const Sngl b)
+Sngl fmth_pow(Fault *const f, const Sngl a, const Sngl b)
 {
     Sngl r;
     const uint8_t st = pfpu_pow(a, b, &r); /* before r is read */
-    return check(S, st, r);
+    return fmth_check(f, st, r);
 }
 
 /* fistp dword: to the nearest, a half to even; INT32_MIN past the range (the x87's
    indefinite). */
-static int32_t round_to_int32(const Sngl a)
+static int32_t fmth_round_to_int32(const Sngl a)
 {
-    const uint32_t e = exponent(a);
+    const uint32_t e = fmth_exponent(a);
 
     if (e == SNGL_EXP_MASK || e >= FBIAS + 31)
         return INT32_MIN;
@@ -106,42 +110,42 @@ static int32_t round_to_int32(const Sngl a)
 }
 
 /* Illegal function call outside -32768 to 32767. */
-int16_t fmth_to_i16(Session *const S, const Sngl a)
+int16_t fmth_to_i16(Fault *const f, const Sngl a)
 {
-    const int32_t v = round_to_int32(a);
+    const int32_t v = fmth_round_to_int32(a);
 
     if (v != (int16_t)v)
-        repl_error(S, E_IQ);
+        fmth_fail(f, E_IQ);
 
     return (int16_t)v;
 }
 
 /* Illegal function call outside 0 to 65535. */
-uint16_t fmth_to_u16(Session *const S, const Sngl a)
+uint16_t fmth_to_u16(Fault *const f, const Sngl a)
 {
-    const int32_t v = round_to_int32(a);
+    const int32_t v = fmth_round_to_int32(a);
 
     if ((uint32_t)v > UINT16_MAX)
-        repl_error(S, E_IQ);
+        fmth_fail(f, E_IQ);
 
     return (uint16_t)v;
 }
 
 /* Illegal function call past a LONG. */
-int32_t fmth_to_i32(Session *const S, const Sngl a)
+int32_t fmth_to_i32(Fault *const f, const Sngl a)
 {
-    const int32_t v = round_to_int32(a);
+    const int32_t v = fmth_round_to_int32(a);
 
     if (v == INT32_MIN && a != SNGL_MIN_I32) /* -2^31 itself is one */
-        repl_error(S, E_IQ);
+        fmth_fail(f, E_IQ);
 
     return v;
 }
 
 /* frndint, down or toward 0. */
-static Sngl round_whole(Sngl a, const bool down)
+static Sngl fmth_round_whole(Sngl a, const bool down)
 {
-    const uint32_t e = exponent(a);
+    const uint32_t e = fmth_exponent(a);
     const uint32_t sign = a & SNGL_SIGN;
 
     if (e >= SNGL_POINT) /* whole already */
@@ -163,20 +167,20 @@ static Sngl round_whole(Sngl a, const bool down)
     return a & ~frac;
 }
 
-Sngl fmth_floor(const Sngl a) { return round_whole(a, true); }
-Sngl fmth_fix(const Sngl a) { return round_whole(a, false); }
+Sngl fmth_floor(const Sngl a) { return fmth_round_whole(a, true); }
+Sngl fmth_fix(const Sngl a) { return fmth_round_whole(a, false); }
 
-static Sngl fn(Session *const S, const uint8_t f, const Sngl a)
+static Sngl fmth_fn(Fault *const f, const uint8_t fn, const Sngl a)
 {
     Sngl r;
-    const uint8_t st = pfpu_fn(f, a, &r); /* before r is read */
-    return check(S, st, r);
+    const uint8_t st = pfpu_fn(fn, a, &r); /* before r is read */
+    return fmth_check(f, st, r);
 }
 
-Sngl fmth_sqr(Session *const S, const Sngl a) { return fn(S, PF_SQR, a); }
-Sngl fmth_exp(Session *const S, const Sngl a) { return fn(S, PF_EXP, a); }
-Sngl fmth_log(Session *const S, const Sngl a) { return fn(S, PF_LOG, a); }
-Sngl fmth_sin(Session *const S, const Sngl a) { return fn(S, PF_SIN, a); }
-Sngl fmth_cos(Session *const S, const Sngl a) { return fn(S, PF_COS, a); }
-Sngl fmth_tan(Session *const S, const Sngl a) { return fn(S, PF_TAN, a); }
-Sngl fmth_atn(Session *const S, const Sngl a) { return fn(S, PF_ATN, a); }
+Sngl fmth_sqr(Fault *const f, const Sngl a) { return fmth_fn(f, PF_SQR, a); }
+Sngl fmth_exp(Fault *const f, const Sngl a) { return fmth_fn(f, PF_EXP, a); }
+Sngl fmth_log(Fault *const f, const Sngl a) { return fmth_fn(f, PF_LOG, a); }
+Sngl fmth_sin(Fault *const f, const Sngl a) { return fmth_fn(f, PF_SIN, a); }
+Sngl fmth_cos(Fault *const f, const Sngl a) { return fmth_fn(f, PF_COS, a); }
+Sngl fmth_tan(Fault *const f, const Sngl a) { return fmth_fn(f, PF_TAN, a); }
+Sngl fmth_atn(Fault *const f, const Sngl a) { return fmth_fn(f, PF_ATN, a); }

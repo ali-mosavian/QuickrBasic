@@ -48,6 +48,7 @@
 #ifndef CORE_VM_EXEC_H
 #define CORE_VM_EXEC_H
 #include "defs.h"
+#include "fault.h"
 #include <setjmp.h>
 
 /* A jump op's target. */
@@ -232,5 +233,5 @@ Addr exec_elem(Session *S);
 /* rec_get: record id's header, the record made, zeroed, at its first use. */
 Addr exec_record(Session *S, uint16_t id);
 /* int_div: a / b truncated, *rem its remainder. Division by zero; Overflow -2^31 / -1. */
-int32_t exec_idiv(Session *S, int32_t a, int32_t b, int32_t *rem);
+int32_t exec_idiv(Fault *f, int32_t a, int32_t b, int32_t *rem);
 #endif

@@ -76,7 +76,7 @@ void repl_qberr(Session *const S, const QbErr qb)
 void repl_error(Session *const S, uint8_t code)
 {
     fold_fail(S);
-    S->lexr.more = nullptr; /* a streamed line's lexing ended */
+    S->lexr.source = nullptr; /* a streamed line's lexing ended */
     if (S->dbug.probing)
         dbug_fail(S, code);
 
@@ -448,6 +448,12 @@ static void repl_warn(Session *const S, const char *const what)
     S->repl.fe->warn(S, buf, (uint32_t)(w - buf));
 }
 
+uint16_t repl_intern(LexrNames *const names, const uint8_t *const text, const uint8_t len)
+{
+    Session *const S = (Session *)((uint8_t *)names - offsetof(Session, names));
+    return symb_find_name(S, text, len);
+}
+
 void repl_declare(Session *const S, const uint8_t *const body)
 {
     if (S->repl.fe->warn)
@@ -497,7 +503,7 @@ uint8_t repl_enter(Session *const S, const uint32_t len)
 {
     S->cons.inbuf[len] = 0;
     S->vm.line = DLINE;
-    const uint8_t *const end = lexr_line(S, S->cons.inbuf, S->comp.cbuf);
+    const uint8_t *const end = lexr_line(&S->lexr, S->cons.inbuf, S->comp.cbuf);
     const uint32_t place = prog_at(S);
 
     if (!S->comp.cbuf[0])
@@ -532,9 +538,9 @@ static void read_file(Session *const S, const char *const name, const int32_t nu
 
         S->repl.fline++;
         const bool inc = is_include(S, (uint32_t)len);
-        S->lexr.more = srcr_more;
+        S->lexr.source = &S->srcr.src;
         repl_enter(S, (uint32_t)len);
-        S->lexr.more = nullptr;
+        S->lexr.source = nullptr;
 
         if (inc) { /* its lines next */
             read_file(S, S->repl.incl, num - 1);

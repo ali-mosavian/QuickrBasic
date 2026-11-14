@@ -9,8 +9,9 @@
  * stays text. A keyword is a whole word (the scanner's automaton, kwstep), any other word a name.
  * FN is joined to its name; E and D of an exponent go upper case.
  *
- * lexr.col: an item's column in the text, by its body offset (the editor's). A streamed text is
- * read through a window: more refills it. This file also defines dfa.h's tables (DFA_DATA).
+ * Lexr.col: an item's column in the text, by its body offset (the editor's). A streamed text is
+ * read through a window: its LexrSource refills it. Names come from a LexrNames. This file also
+ * defines dfa.h's tables (DFA_DATA).
  *
  * # Example
  *    x = 5 + y     M_VAR 1 "x" nam, TK_EQ, M_INT 5, TK_PLUS, M_VAR 1 "y" nam
@@ -18,11 +19,11 @@
  * # asm structure (src/comp/lex.asm)
  * | asm | here | |
  * |---|---|---|
- * | lx_line | lexr_line(text, body) | MIRROR; past the body's 0 |
+ * | lx_line | lexr_line | MIRROR; past the body's 0; D3 |
  * | lx_kw | lexr_keyword(&at) | MIRROR; token, 0 a name |
  * | lx_colof | lexr_colof(off) | MIRROR; the column |
- * | lx_item, lx_more, lx_ahead, lx_col, lx_fn, lx_num, lx_hex, lx_word, kw_step, lx_name | item, more, ahead, markcol, joinfn, number, hexnum, word, kwstep, name | MIRROR |
- * | g_lxcol, g_lxall, g_lxfill | lexr.col, lexr.all, lexr.more (a LexrMore *) | MIRROR |
+ * | lx_item, lx_more, lx_ahead, lx_col, lx_fn, lx_num, lx_hex, lx_word, kw_step, lx_name | lexr_line's loop, lexr_more, lexr_ahead, lexr_markcol, lexr_joinfn, lexr_number, lexr_hexnum, lexr_word, lexr_kwstep, lexr_name | MIRROR |
+ * | g_lxcol, g_lxall, g_lxfill | Lexr.col, Lexr.all, Lexr.source | D3 |
  * | g_lxlst, g_lxend, g_lxlc | lexr.last, lexr.end, lexr.lastcol | MIRROR |
  * | lx.lxsrc, lx.lxdst | lexr.src, lexr.dst | MIRROR |
  * | lx.nsyms, lx.nnams | symb.nvars, symb.nnames (mem's) | MOVED |
@@ -33,120 +34,130 @@
  *
  * - D1. The name's length and pointer are parameters, not globals.
  * - D2. Unused in the asm; dropped.
+ * - D3. It takes its own state; names, streamed text and errors come through LexrNames,
+ *   LexrSource and Fault, which the session provides.
  */
 #define DFA_DATA
 #include "comp/lexer.h"
-#include "session.h"
 #include "comp/dfa.h"
-#include "io/repl.h"
-#include "io/source.h"
-#include "mem/symbols.h"
 #include "num/single.h"
 
 enum { LXAHEAD = 128 }; /* ahead: a word's, a number's bytes in the window */
 
-static void room(Session *const S)
+[[noreturn]]
+static void lexr_fail(const Lexr *const lx)
 {
-    if (S->lexr.out >= S->lexr.end)
-        repl_error(S, E_OM);
+    fault_raise(lx->fault, (Failure){.code = E_OM, .at = FAULT_KEEP, .line = FAULT_KEEP});
+}
+
+void lexr_init(Lexr *const lx, Fault *const f, LexrNames *const names)
+{
+    lx->fault = f;
+    lx->names = names;
+}
+
+static void lexr_room(Lexr *const lx)
+{
+    if (lx->out >= lx->end)
+        lexr_fail(lx);
 }
 
 /* Streamed text: the window's end at src; the window slid, its bytes from src on kept, and read
    on. False: the line has no more. */
-static bool more(Session *const S)
+static bool lexr_more(Lexr *const lx)
 {
-    if (!S->lexr.more)
+    if (!lx->source)
         return false;
 
-    const uint8_t *keep = S->lexr.in;
+    const uint8_t *keep = lx->in;
 
-    if (!S->lexr.more(S, &keep))
+    if (!lx->source->more(lx->source, &keep))
         return false;
 
-    const ptrdiff_t moved = S->lexr.in - keep;
-    S->lexr.src -= moved;
-    S->lexr.word -= moved;
-    S->lexr.in = (uint8_t *)keep;
+    const ptrdiff_t moved = lx->in - keep;
+    lx->src -= moved;
+    lx->word -= moved;
+    lx->in = (uint8_t *)keep;
     return true;
 }
 
 /* Streamed: the item at src-1 and LXAHEAD bytes after it in the window. */
-static void ahead(Session *const S)
+static void lexr_ahead(Lexr *const lx)
 {
-    if (S->lexr.more && S->srcr.end - S->lexr.in < LXAHEAD) {
-        S->lexr.in--;
-        more(S);
-        S->lexr.in++;
+    if (lx->source && lx->source->end - lx->in < LXAHEAD) {
+        lx->in--;
+        lexr_more(lx);
+        lx->in++;
     }
 }
 
 /* The item at src-1: its column to lexr.col at the body's offset. */
-static void markcol(Session *const S)
+static void lexr_markcol(Lexr *const lx)
 {
-    const uint32_t off = (uint32_t)(S->lexr.out - S->lexr.dst);
+    const uint32_t off = (uint32_t)(lx->out - lx->dst);
 
     if (off >= LMAX)
-        repl_error(S, E_OM);
-    if (off >= S->lexr.ncol)
+        lexr_fail(lx);
+    if (off >= lx->ncol)
         return;
-    if (S->lexr.all)
-        for (int32_t i = S->lexr.last + 1; i < (int32_t)off; i++)
-            S->lexr.col[i] = S->lexr.lastcol;
+    if (lx->all)
+        for (int32_t i = lx->last + 1; i < (int32_t)off; i++)
+            lx->col[i] = lx->lastcol;
 
-    const uint16_t col = (uint16_t)(S->lexr.in - 1 - S->lexr.src);
-    S->lexr.col[off] = col;
-    S->lexr.lastcol = col;
-    S->lexr.last = (int32_t)off;
+    const uint16_t col = (uint16_t)(lx->in - 1 - lx->src);
+    lx->col[off] = col;
+    lx->lastcol = col;
+    lx->last = (int32_t)off;
 }
 
-uint16_t lexr_colof(Session *const S, uint32_t off)
+uint16_t lexr_colof(const Lexr *const lx, uint32_t off)
 {
-    if (S->lexr.last < 0)
+    if (lx->last < 0)
         return 0;
-    if (off > (uint32_t)S->lexr.last)
-        off = (uint32_t)S->lexr.last;
+    if (off > (uint32_t)lx->last)
+        off = (uint32_t)lx->last;
 
-    return S->lexr.col[off];
+    return lx->col[off];
 }
 
 /* DEF FN name, FN name: FN and the name after its blanks made one name, the blanks moved before. */
-static void joinfn(Session *const S)
+static void lexr_joinfn(Lexr *const lx)
 {
-    if (upcase(S->lexr.in[0]) != 'F' || upcase(S->lexr.in[1]) != 'N' || !is_blank(S->lexr.in[2]))
+    if (upcase(lx->in[0]) != 'F' || upcase(lx->in[1]) != 'N' || !is_blank(lx->in[2]))
         return;
 
-    uint8_t *b = S->lexr.in + 2;
+    uint8_t *b = lx->in + 2;
 
     while (is_blank(*b))
         b++;
     if (!is_letter(*b))
         return;
 
-    const uint8_t f = S->lexr.in[0];
-    const uint8_t n = S->lexr.in[1];
-    S->lexr.in[0] = S->lexr.in[1] = ' '; /* blanks first: one may overlap */
+    const uint8_t f = lx->in[0];
+    const uint8_t n = lx->in[1];
+    lx->in[0] = lx->in[1] = ' '; /* blanks first: one may overlap */
     b[-2] = f;
     b[-1] = n;
-    S->lexr.in = b - 2;
+    lx->in = b - 2;
 }
 
 /* A number: M_INT n:4 when whole and under 2^31, else its text. */
-static void number(Session *const S)
+static void lexr_number(Lexr *const lx)
 {
-    uint8_t *const start = S->lexr.out;
+    uint8_t *const start = lx->out;
     int64_t v = 0;
     bool text = false;
 
     for (;;) {
-        room(S);
+        lexr_room(lx);
 
-        if (*S->lexr.in == 0)
-            more(S);
+        if (*lx->in == 0)
+            lexr_more(lx);
 
-        const uint8_t c = *S->lexr.in;
+        const uint8_t c = *lx->in;
 
         if (is_digit(c)) {
-            *S->lexr.out++ = *S->lexr.in++;
+            *lx->out++ = *lx->in++;
 
             if (text)
                 continue;
@@ -159,7 +170,7 @@ static void number(Session *const S)
         }
 
         if (c == '.') {
-            *S->lexr.out++ = *S->lexr.in++;
+            *lx->out++ = *lx->in++;
             text = true;
             continue;
         }
@@ -167,19 +178,19 @@ static void number(Session *const S)
         const uint8_t u = upcase(c);
 
         if (u == 'E' || u == 'D') { /* an exponent when a digit or sign follows */
-            const uint8_t b = S->lexr.in[1];
+            const uint8_t b = lx->in[1];
 
             if (b == '+' || b == '-') {
-                *S->lexr.in = u;
-                *S->lexr.out++ = *S->lexr.in++;
-                *S->lexr.out++ = *S->lexr.in++;
+                *lx->in = u;
+                *lx->out++ = *lx->in++;
+                *lx->out++ = *lx->in++;
                 text = true;
                 continue;
             }
 
             if (is_digit(b)) {
-                *S->lexr.in = u;
-                *S->lexr.out++ = *S->lexr.in++;
+                *lx->in = u;
+                *lx->out++ = *lx->in++;
                 text = true;
                 continue;
             }
@@ -188,44 +199,44 @@ static void number(Session *const S)
         break;
     }
 
-    if (*S->lexr.in == '#' || *S->lexr.in == '!') { /* a DOUBLE's, a SINGLE's */
-        *S->lexr.out++ = *S->lexr.in++;
+    if (*lx->in == '#' || *lx->in == '!') { /* a DOUBLE's, a SINGLE's */
+        *lx->out++ = *lx->in++;
         text = true;
     }
 
     if (text)
         return;
-    if (*S->lexr.in == '%' || *S->lexr.in == '&') /* an INTEGER's, a LONG's: one type */
-        S->lexr.in++;
+    if (*lx->in == '%' || *lx->in == '&') /* an INTEGER's, a LONG's: one type */
+        lx->in++;
 
-    S->lexr.out = start;
-    *S->lexr.out++ = M_INT;
-    store32(S->lexr.out, (uint32_t)v);
-    S->lexr.out += 4;
+    lx->out = start;
+    *lx->out++ = M_INT;
+    store32(lx->out, (uint32_t)v);
+    lx->out += 4;
 }
 
 /* &H or &O, its digits, a % or & after: M_INT n:4; '&' alone is the byte. src after '&'. */
-static void hexnum(Session *const S)
+static void lexr_hexnum(Lexr *const lx)
 {
     uint32_t v;
-    const uint8_t *p = S->lexr.in;
+    const uint8_t *p = lx->in;
 
     if (!sngl_hexoct(&p, &v)) {
-        *S->lexr.out++ = '&';
+        *lx->out++ = '&';
         return;
     }
 
-    S->lexr.in = (uint8_t *)p;
+    lx->in = (uint8_t *)p;
 
-    if (*S->lexr.in == '%' || *S->lexr.in == '&')
-        S->lexr.in++;
+    if (*lx->in == '%' || *lx->in == '&')
+        lx->in++;
 
-    *S->lexr.out++ = M_INT;
-    store32(S->lexr.out, v);
-    S->lexr.out += 4;
+    *lx->out++ = M_INT;
+    store32(lx->out, v);
+    lx->out += 4;
 }
 
-static uint16_t kwstep(const uint16_t st, const uint8_t cls)
+static uint16_t lexr_kwstep(const uint16_t st, const uint8_t cls)
 {
     for (uint32_t i = lexr_kw_first[st]; i < lexr_kw_first[st + 1]; i++)
         if (lexr_kw_char[i] == cls)
@@ -240,9 +251,9 @@ uint16_t lexr_keyword(const uint8_t **const at)
     uint16_t st = KW_START;
 
     while (is_letter(*p) || is_digit(*p) || *p == '.')
-        st = kwstep(st, lexr_kw_class[upcase(*p++)]);
+        st = lexr_kwstep(st, lexr_kw_class[upcase(*p++)]);
     if (*p == '$') { /* a '$' when the keyword has one */
-        const uint16_t s2 = kwstep(st, lexr_kw_class['$']);
+        const uint16_t s2 = lexr_kwstep(st, lexr_kw_class['$']);
 
         if (lexr_kw_token[s2]) {
             st = s2;
@@ -256,74 +267,74 @@ uint16_t lexr_keyword(const uint8_t **const at)
 
 /* The word from wstart to src is a name: M_VAR len name nam:2, a suffix in the text but not the
    name's key. */
-static void name(Session *const S)
+static void lexr_name(Lexr *const lx)
 {
-    *S->lexr.out++ = M_VAR;
-    uint8_t *const len = S->lexr.out++;
-    uint8_t *const text = S->lexr.out;
-    const uint8_t n = (uint8_t)(S->lexr.in - S->lexr.word);
-    memcpy(S->lexr.out, S->lexr.word, n);
-    S->lexr.out += n;
-    const uint8_t c = *S->lexr.in;
+    *lx->out++ = M_VAR;
+    uint8_t *const len = lx->out++;
+    uint8_t *const text = lx->out;
+    const uint8_t n = (uint8_t)(lx->in - lx->word);
+    memcpy(lx->out, lx->word, n);
+    lx->out += n;
+    const uint8_t c = *lx->in;
 
     if (c == '%' || c == '&' || c == '!' || c == '#' || c == '$')
-        *S->lexr.out++ = *S->lexr.in++;
+        *lx->out++ = *lx->in++;
 
-    *len = (uint8_t)(S->lexr.out - text);
-    const uint16_t id = symb_find_name(S, text, n);
-    store16(S->lexr.out, id);
-    S->lexr.out += 2;
+    *len = (uint8_t)(lx->out - text);
+    const uint16_t id = lx->names->intern(lx->names, text, n);
+    store16(lx->out, id);
+    lx->out += 2;
 }
 
 /* A word: its keyword's token written, else a name; the token, 0 a name. */
-static uint8_t word(Session *const S)
+static uint8_t lexr_word(Lexr *const lx)
 {
-    S->lexr.word = S->lexr.in;
-    const uint8_t *p = S->lexr.in;
+    lx->word = lx->in;
+    const uint8_t *p = lx->in;
     const uint16_t t = lexr_keyword(&p);
-    S->lexr.in = (uint8_t *)p;
+    lx->in = (uint8_t *)p;
 
     if (!t) {
-        name(S);
+        lexr_name(lx);
         return 0;
     }
 
     if (t >= 0x100)
-        *S->lexr.out++ = TK_X;
+        *lx->out++ = TK_X;
 
-    *S->lexr.out++ = (uint8_t)t;
+    *lx->out++ = (uint8_t)t;
     return (uint8_t)t;
 }
 
 /* The line's end: its column, its 0. */
-static uint8_t *finish(Session *const S)
+static uint8_t *lexr_finish(Lexr *const lx)
 {
-    markcol(S);
-    *S->lexr.out++ = 0;
-    return S->lexr.out;
+    lexr_markcol(lx);
+    *lx->out++ = 0;
+    return lx->out;
 }
 
 /* The next byte of the text, the window refilled first, src past it: 0 at the line's end, src
    past the 0 too (its column is the end's). */
-static uint8_t next_char(Session *const S)
+static uint8_t lexr_next_char(Lexr *const lx)
 {
-    while (!*S->lexr.in && more(S))
+    while (!*lx->in && lexr_more(lx))
         ;
 
-    return *S->lexr.in++;
+    return *lx->in++;
 }
 
 /* A string's rest, to its quote, as it is. false: the line ended. */
-static bool copy_string(Session *const S)
+static bool lexr_copy_string(Lexr *const lx)
 {
     for (;;) {
-        room(S);
-        const uint8_t c = next_char(S);
+        lexr_room(lx);
+        const uint8_t c = lexr_next_char(lx);
 
         if (!c)
             return false;
 
-        *S->lexr.out++ = c;
+        *lx->out++ = c;
 
         if (c == '"')
             return true;
@@ -331,20 +342,20 @@ static bool copy_string(Session *const S)
 }
 
 /* DATA's text: to a ':' out of quotes. false: the line ended. */
-static bool copy_data(Session *const S)
+static bool lexr_copy_data(Lexr *const lx)
 {
     bool quoted = false;
 
     for (;;) {
-        room(S);
-        const uint8_t c = next_char(S);
+        lexr_room(lx);
+        const uint8_t c = lexr_next_char(lx);
 
         if (!c)
             return false;
         if (c == '"')
             quoted = !quoted;
 
-        *S->lexr.out++ = c;
+        *lx->out++ = c;
 
         if (!quoted && c == ':')
             return true;
@@ -352,66 +363,66 @@ static bool copy_data(Session *const S)
 }
 
 /* REM's text: the rest, as it is, then the 0. */
-static uint8_t *copy_rest(Session *const S)
+static uint8_t *lexr_copy_rest(Lexr *const lx)
 {
     for (;;) {
-        room(S);
-        const uint8_t c = next_char(S);
-        *S->lexr.out++ = c;
+        lexr_room(lx);
+        const uint8_t c = lexr_next_char(lx);
+        *lx->out++ = c;
 
         if (!c)
-            return S->lexr.out;
+            return lx->out;
     }
 }
 
-uint8_t *lexr_line(Session *const S, uint8_t *const text, uint8_t *const body)
+uint8_t *lexr_line(Lexr *const lx, uint8_t *const text, uint8_t *const body)
 {
-    S->lexr.in = text;
-    S->lexr.out = body;
-    S->lexr.src = text;
-    S->lexr.dst = body;
-    S->lexr.end = body + LMAX;
-    S->lexr.last = -1;
+    lx->in = text;
+    lx->out = body;
+    lx->src = text;
+    lx->dst = body;
+    lx->end = body + LMAX;
+    lx->last = -1;
 
     for (;;) {
-        const uint8_t c = next_char(S);
+        const uint8_t c = lexr_next_char(lx);
 
         if (!c)
-            return finish(S);
+            return lexr_finish(lx);
         if (is_blank(c))
             continue;
 
-        ahead(S);
-        markcol(S);
+        lexr_ahead(lx);
+        lexr_markcol(lx);
 
         if (c == '"') {
-            *S->lexr.out++ = c;
+            *lx->out++ = c;
 
-            if (!copy_string(S))
-                return finish(S);
+            if (!lexr_copy_string(lx))
+                return lexr_finish(lx);
         } else if (c == '\'') {
-            *S->lexr.out++ = TK_REM;
-            *S->lexr.out++ = REM_Q;
-            return copy_rest(S);
+            *lx->out++ = TK_REM;
+            *lx->out++ = REM_Q;
+            return lexr_copy_rest(lx);
         } else if (c == '&')
-            hexnum(S);
-        else if (c == '.' && !is_digit(*S->lexr.in)) /* a '.' alone */
-            *S->lexr.out++ = c;
+            lexr_hexnum(lx);
+        else if (c == '.' && !is_digit(*lx->in)) /* a '.' alone */
+            *lx->out++ = c;
         else if (c == '.' || is_digit(c)) {
-            S->lexr.in--;
-            number(S);
+            lx->in--;
+            lexr_number(lx);
         } else if (is_letter(c)) {
-            S->lexr.in--;
-            joinfn(S);
-            const uint8_t t = word(S);
+            lx->in--;
+            lexr_joinfn(lx);
+            const uint8_t t = lexr_word(lx);
 
             if (t == TK_REM)
-                return copy_rest(S);
-            if (t == TK_DATA && !copy_data(S))
-                return finish(S);
+                return lexr_copy_rest(lx);
+            if (t == TK_DATA && !lexr_copy_data(lx))
+                return lexr_finish(lx);
         } else {
             const uint8_t t = lexr_char_token[c];
-            *S->lexr.out++ = t ? t : c;
+            *lx->out++ = t ? t : c;
         }
     }
 }

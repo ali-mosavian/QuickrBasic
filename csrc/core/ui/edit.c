@@ -262,7 +262,7 @@ static void tokenize(Session *const S)
 {
     memcpy(uimn.line, uc.pre, strlen((const char *)uc.pre) + 1);
     S->vm.line = DLINE;
-    lexr_line(S, uimn.line, S->comp.cbuf);
+    lexr_line(&S->lexr, uimn.line, S->comp.cbuf);
     repl_declare(S, S->comp.cbuf); /* a typed SUB known to the lines after */
 }
 
@@ -348,9 +348,9 @@ uint16_t edit_dxerr(Session *const S, const uint8_t *const text, const ErrOp *co
     const uint32_t bodycol = (uint32_t)(body - text);
     memcpy(S->cons.inbuf, body, strlen((const char *)body) + 1);
     S->lexr.all = true; /* the body's bytes to columns */
-    lexr_line(S, S->cons.inbuf, S->comp.cbuf);
+    lexr_line(&S->lexr, S->cons.inbuf, S->comp.cbuf);
     S->lexr.all = false;
-    const uint16_t col = lexr_colof(S, op->at);
+    const uint16_t col = lexr_colof(&S->lexr, op->at);
     const uint32_t at = diag_at(S, (const char *)S->cons.inbuf, col, op->code, op->dg, op->state);
 
     edit_emsg(S, op->code); /* its class, the title */

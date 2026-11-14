@@ -41,6 +41,7 @@
  * - D1. READ's and INPUT's state is a StmtState in the session, not statics.
  */
 #include "vm/stmts.h"
+#include <stddef.h>
 #include "session.h"
 #include "comp/comp.h"
 #include "comp/declare.h"
@@ -64,6 +65,7 @@
 #include "vm/debug.h"
 #include "vm/event.h"
 #include "vm/flow.h"
+#include "vm/using.h"
 
 enum { DATA_TEXT_SIZE = 256, PRINT_ZONE = 14 };
 
@@ -78,6 +80,61 @@ void stmt_ipr(Session *const S) { cons_int(S, exec_popi(&S->vm)); }
 void stmt_fpr(Session *const S) { sngl_print(S, exec_pop(&S->vm).u); }
 void stmt_spr(Session *const S) { strg_print(S, strg_get(S, exec_popa(&S->vm))); }
 void stmt_pnl(Session *const S) { cons_nl(S); }
+
+/* ---- PRINT USING: the VM's operands to the formatter (vm/using.c) ---------------------------- */
+
+static void stmt_usng_put(UsngOut *const o, const uint8_t *const p, const uint32_t n)
+{
+    Session *const S = (Session *)((uint8_t *)o - offsetof(Session, usng_out));
+
+    for (uint32_t i = 0; i < n; i++)
+        cons_putc(S, p[i]);
+}
+
+static void stmt_usng_nl(UsngOut *const o)
+{
+    cons_nl((Session *)((uint8_t *)o - offsetof(Session, usng_out)));
+}
+
+void stmt_usng_init(Session *const S)
+{
+    S->usng_out = (UsngOut){.put = stmt_usng_put, .nl = stmt_usng_nl};
+
+    usng_init(&S->usng, &S->fault, &S->usng_out);
+}
+
+void stmt_usb(Session *const S)
+{
+    const Desc s = strg_get(S, exec_popa(&S->vm));
+    usng_begin(&S->usng, at(s.ptr), s.len);
+}
+
+void stmt_uss(Session *const S)
+{
+    const Desc s = strg_get(S, exec_popa(&S->vm));
+    usng_string(&S->usng, at(s.ptr), s.len);
+}
+
+void stmt_usi(Session *const S)
+{
+    usng_int(&S->usng, S->vm.sp->i);
+    S->vm.sp++;
+}
+
+void stmt_usf(Session *const S)
+{
+    usng_real(&S->usng, S->vm.sp->f, 7);
+    S->vm.sp++;
+}
+
+void stmt_usd(Session *const S)
+{
+    usng_real(&S->usng, S->vm.sp->d, 16);
+    S->vm.sp++;
+}
+
+void stmt_use(Session *const S) { usng_end(&S->usng, true); }
+void stmt_usen(Session *const S) { usng_end(&S->usng, false); }
 
 /* PR.ZONE: to the next zone. */
 void stmt_pzone(Session *const S)
@@ -646,7 +703,7 @@ void stmt_fpow(Session *const S)
 {
     const Sngl power = exec_pop(&S->vm).u;
     const Sngl base = exec_pop(&S->vm).u;
-    exec_pusha(&S->vm, fmth_pow(S, base, power));
+    exec_pusha(&S->vm, fmth_pow(&S->fault, base, power));
 }
 
 /* TI: the jiffies. */

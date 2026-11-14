@@ -1,6 +1,7 @@
 /* A source file's lines' interface. How it works: source.c. */
 #ifndef CORE_IO_SRCR_H
 #define CORE_IO_SRCR_H
+#include "comp/lexer.h"
 #include "io/console.h"
 
 enum { SRCAP = INMAX - 4 }; /* the window's text: then it slides */
@@ -18,19 +19,19 @@ typedef struct {
 } SrcrCont;
 
 typedef struct {
-    uint8_t *end;  /* the window's end, its 0, in cons.inbuf (lexr reads it) */
-    uint32_t pend; /* blanks in code not yet put */
-    bool done;     /* the logical line is all in */
-    bool any;      /* a byte or a line's end was read */
+    LexrSource src; /* the window's end, its 0, in cons.inbuf; the lexer reads it */
+    uint32_t pend;  /* blanks in code not yet put */
+    bool done;      /* the logical line is all in */
+    bool any;       /* a byte or a line's end was read */
     SrcrCont cont;
 } Srcr;
 
 /* The input channel's next logical line into the window; its length there, -1 at the end with
    nothing read. */
 int32_t srcr_line(Session *S);
-/* lexr's reader (LexrMore): the window used up, its bytes from *keep on moved to its start,
-   then more of the line after them; *keep moved. false: the line has no more, nothing moved. */
-bool srcr_more(Session *S, const uint8_t **keep);
+/* The lexer's reader (Srcr.src's more): the window used up, its bytes from *keep on moved to its
+   start, then more of the line after them; *keep moved. False: the line has no more. */
+bool srcr_more(LexrSource *src, const uint8_t **keep);
 
 /* Whether a physical line continues, by its bytes (cn_*; the editor's too): a line starts; its
    next byte; it ended, true when it continues. */

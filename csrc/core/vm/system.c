@@ -100,7 +100,7 @@ void syst_timer(Session *const S)
     PclkTime t;
     pclk_time(&t);
     const int32_t hundredths = ((t.hour * 60 + t.min) * 60 + t.sec) * 100 + t.hund;
-    exec_pusha(&S->vm, fmth_div(S, fmth_from_i32(hundredths), SNGL_HUNDRED));
+    exec_pusha(&S->vm, fmth_div(&S->fault, fmth_from_i32(hundredths), SNGL_HUNDRED));
 }
 
 /* DATE$ ( -- s ): mm-dd-yyyy. */

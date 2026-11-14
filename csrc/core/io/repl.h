@@ -4,6 +4,7 @@
 #include <setjmp.h>
 #include "defs.h"
 #include "fault.h"
+#include "comp/lexer.h"
 
 /* setjmp(repl.top)'s values */
 enum { REPL_START = 0, REPL_READY = 1, REPL_ERROR = 2 };
@@ -47,6 +48,8 @@ extern const FrontEnd repl_batch;
    setjmp. */
 [[noreturn]]
 void repl_main(Session *S);
+/* Session.names' intern: the symbol table's name. */
+uint16_t repl_intern(LexrNames *names, const uint8_t *text, uint8_t len);
 /* The line's declarations entered, after its 32-bit warnings to the front end. */
 void repl_declare(Session *S, const uint8_t *body);
 /* Session.fault's raise: a module's error, reported as diag_raise or repl_error does. */

@@ -30,4 +30,6 @@ typedef struct {
     bool redo;               /* a bad field: REDO FROM START after the stores */
 } StmtState;
 
+/* PRINT USING's output to the console; the formatter's errors through the session. */
+void stmt_usng_init(Session *S);
 #endif

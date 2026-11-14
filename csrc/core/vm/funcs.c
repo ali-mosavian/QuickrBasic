@@ -54,14 +54,14 @@ static uint32_t f_fre(Session *const S, const uint32_t)
 }
 
 static uint32_t f_pos(Session *const S, const uint32_t) { return S->cons.col; }
-static uint32_t f_sqr(Session *const S, const uint32_t a) { return fmth_sqr(S, a); }
+static uint32_t f_sqr(Session *const S, const uint32_t a) { return fmth_sqr(&S->fault, a); }
 static uint32_t f_rnd(Session *const S, const uint32_t a) { return rndm_rnd(S, a); }
-static uint32_t f_log(Session *const S, const uint32_t a) { return fmth_log(S, a); }
-static uint32_t f_exp(Session *const S, const uint32_t a) { return fmth_exp(S, a); }
-static uint32_t f_cos(Session *const S, const uint32_t a) { return fmth_cos(S, a); }
-static uint32_t f_sin(Session *const S, const uint32_t a) { return fmth_sin(S, a); }
-static uint32_t f_tan(Session *const S, const uint32_t a) { return fmth_tan(S, a); }
-static uint32_t f_atn(Session *const S, const uint32_t a) { return fmth_atn(S, a); }
+static uint32_t f_log(Session *const S, const uint32_t a) { return fmth_log(&S->fault, a); }
+static uint32_t f_exp(Session *const S, const uint32_t a) { return fmth_exp(&S->fault, a); }
+static uint32_t f_cos(Session *const S, const uint32_t a) { return fmth_cos(&S->fault, a); }
+static uint32_t f_sin(Session *const S, const uint32_t a) { return fmth_sin(&S->fault, a); }
+static uint32_t f_tan(Session *const S, const uint32_t a) { return fmth_tan(&S->fault, a); }
+static uint32_t f_atn(Session *const S, const uint32_t a) { return fmth_atn(&S->fault, a); }
 static uint32_t f_peek(Session *const S, const uint32_t a) { return rd8(a); }
 static uint32_t f_len(Session *const S, const uint32_t a) { return strg_get(S, a).len; }
 

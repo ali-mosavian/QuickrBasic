@@ -10,6 +10,8 @@
 #include "boot.h"
 #include "session.h"
 #include "comp/comp.h"
+#include "comp/lexer.h"
+#include "io/source.h"
 #include "io/console.h"
 #include "io/file.h"
 #include "io/repl.h"
@@ -33,6 +35,10 @@ void boot(Session *const S, const FrontEnd *const fe)
     S->fault.raise = repl_fault;
     scop_init(&S->scop, &S->fault);
     decl_init(&S->decl, &S->fault);
+    S->names.intern = repl_intern;
+    lexr_init(&S->lexr, &S->fault, &S->names);
+    S->srcr.src.more = srcr_more;
+    stmt_usng_init(S);
     Addr lo, hi;
 
     if (!pmem_init(HMIN, &lo, &hi)) {
