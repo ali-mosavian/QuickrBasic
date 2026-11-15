@@ -141,6 +141,9 @@ void qbrt_clock_set(const PclkTime *t);
 void B_SOND(short hertz, float ticks);
 void B_SPLY(QbrtStr *commands);
 unsigned music_waiting(void);
+/* VARPTR$ of the variable at address of QBasic's type byte type: the type, then the address. */
+enum { QBRT_VARPTR = 5 };
+void qbrt_varptr(uint32_t address, uint8_t type, char out[static QBRT_VARPTR]);
 /* STICK(n), STRIG(n), PEN(n). */
 short B_STIK(short which);
 short B_FSTG(short which);

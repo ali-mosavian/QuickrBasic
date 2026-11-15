@@ -5,6 +5,11 @@
 
 #include "qb.h"
 
+/* An interpreter's variables: the one at a VARPTR$ string's address, and a string variable's
+   descriptor as an SD; null, the address and the descriptor themselves. */
+extern void *(*varptr_at)(unsigned address);
+extern const SD *(*varptr_desc)(const void *variable);
+
 /* After an `=` in a macro string: the VARPTR$ string at *at (a type byte and
    the address of the variable) names an integer or a number, which is returned
    as an integer; *at moves past it.  A string, a LONG (BC refuses it), or a string too short,

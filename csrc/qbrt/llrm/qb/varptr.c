@@ -42,6 +42,9 @@ static long rounded(double value)
     return whole;
 }
 
+void *(*varptr_at)(unsigned address);
+const SD *(*varptr_desc)(const void *variable);
+
 static void *address_at(const char **at, const char *end, int *type)
 {
     unsigned address = 0, i;
@@ -52,7 +55,7 @@ static void *address_at(const char **at, const char *end, int *type)
     for (i = 0; i < sizeof address; i++)
         address |= (unsigned)(unsigned char)(*at)[1 + i] << (8 * i);
     *at += 1 + sizeof address;
-    return (void *)(unsigned long)address;
+    return varptr_at ? varptr_at(address) : (void *)(unsigned long)address;
 }
 
 long varptr_integer(const char **at, const char *end)
@@ -80,7 +83,7 @@ const SD *varptr_string(const char **at, const char *end)
 
     if (type != TYPE_STRING)
         qb_error(BE_ILLFUN);
-    return (const SD *)variable;
+    return varptr_desc ? varptr_desc(variable) : (const SD *)variable;
 }
 
 

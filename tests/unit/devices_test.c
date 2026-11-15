@@ -125,3 +125,22 @@ TEST(lprint_counts_the_printers_column)
     printed(S, none, out, sizeof out);
     CHECK(!strcmp(out, " 68  68 "));
 }
+
+/* VARPTR$ was a Syntax error: QBasic's type byte, then the address, 4 bytes here and 2 there; a
+   LONG's, which DRAW takes not: Illegal function call. */
+TEST(varptr_string_is_the_type_and_address)
+{
+    static const char *const lines[] = {
+        "10 ON ERROR GOTO 90",
+        "20 a% = 1: b$ = \"x\": c# = 1: d& = 1: e! = 1",
+        "30 PRINT LEN(VARPTR$(a%)); ASC(VARPTR$(a%)); ASC(VARPTR$(b$)); ASC(VARPTR$(c#));",
+        "40 PRINT ASC(VARPTR$(d&)); ASC(VARPTR$(e!));",
+        "50 SCREEN 13: DRAW \"R=\" + VARPTR$(d&)",
+        "60 END",
+        "90 PRINT \"e\"; ERR;: RESUME NEXT",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 5  2  3  8  20  4 e 5 ");
+}

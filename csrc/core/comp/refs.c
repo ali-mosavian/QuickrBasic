@@ -260,6 +260,26 @@ Node *ref_place(Comp *const C, uint32_t *const vk)
     return place(C, O_V_CELL, id); /* its cell set at link: the cells move while linking */
 }
 
+uint8_t ref_vtype(Comp *const C, const Node *const at)
+{
+    static const uint8_t byte[ET_SH + 1] = {0, 2, 20, 4, 8, 3, 2}; /* by ET_* */
+    uint8_t et = at->rec.et;
+
+    if (!et) {
+        const Var *const v = symb_var(C->symb, at->id);
+        const uint8_t kind = v->info & VK_MASK;
+        et = v->info & SK_DBL ? ET_R8
+             : kind == VK_INT ? (v->type == ET_I4 ? ET_I4 : ET_I2)
+             : kind == VK_STR ? ET_SD
+                              : ET_R4;
+    }
+
+    if (et > ET_SH) /* a record */
+        mismatch(C);
+
+    return byte[et];
+}
+
 bool ref_len(Comp *const C, uint32_t *const size)
 {
     const uint8_t *const p = C->p;

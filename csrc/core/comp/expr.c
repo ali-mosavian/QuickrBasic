@@ -282,7 +282,7 @@ static const XFn *xfn_at(Comp *const C)
     synerr(C); /* at the token: not a function */
 }
 
-/* VARPTR, VARSEG, SSEG, SADD (v) after FFh: its CALL in k, 0 none; false: not one. */
+/* VARPTR, VARPTR$, VARSEG, SSEG, SADD (v) after FFh: its CALL in k, 0 none; false: not one. */
 static bool addr_call(const uint8_t tok, uint8_t *const k)
 {
     switch (tok) {
@@ -297,6 +297,10 @@ static bool addr_call(const uint8_t tok, uint8_t *const k)
 
     case TK1_SADD:
         *k = K_SADD;
+        return true;
+
+    case TK1_VARPTRS:
+        *k = K_VARPS;
         return true;
 
     default:
@@ -613,6 +617,14 @@ static Node *parse_unary(Comp *const C)
             uint32_t vk;
             Node *const at = ref_place(C, &vk);
             comp_close(C);
+
+            if (k == K_VARPS) {
+                Node *const n = addr_node(C, at, k);
+                n->type = T_STR;
+                n->num = ref_vtype(C, at);
+                return n;
+            }
+
             return k || !ast_islit(at) ? addr_node(C, at, k) : at;
         }
 

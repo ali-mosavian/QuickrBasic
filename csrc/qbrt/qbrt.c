@@ -14,7 +14,7 @@
  * # asm structure
  * | asm | here | |
  * |---|---|---|
- * | (none) | qbrt_init, module_*, md_*, qbrt_land, qbrt_palette_using, qbrt_get, qbrt_put, qbrt_screen, qbrt_idle, qbrt_done | NEW |
+ * | (none) | qbrt_init, module_*, md_*, qbrt_land, qbrt_palette_using, qbrt_get, qbrt_put, qbrt_screen, qbrt_idle, qbrt_done, qbrt_varptr | NEW |
  */
 #include "qbrt/qbrt.h"
 #include "ad.h"
@@ -24,6 +24,8 @@
 #include "gfx.h"
 #include "module.h"
 #include "rtinit.h"
+#include "varptr.h"
+#include "base.h"
 
 struct ModuleData {
     char unused;
@@ -185,6 +187,28 @@ void qbrt_done(void)
     dev_tick_stop();
 }
 
+/* VARPTR$'s address, an Addr: its variable. */
+static void *vm_variable(const unsigned address) { return at(address); }
+
+/* A VARPTR$'s string variable, the VM's packed Desc {len, ptr}: as an SD. */
+static const SD *vm_string(const void *const desc)
+{
+    static SD s;
+    s.len = load16(desc);
+    s.ptr = (char *)at(load32((const uint8_t *)desc + 2));
+    return &s;
+}
+
+SD *B_VARP(unsigned address, short type); /* varptr.c, nhstutil.c */
+void str_tmp_free(SD *sd);
+
+void qbrt_varptr(const uint32_t address, const uint8_t type, char out[static QBRT_VARPTR])
+{
+    SD *const s = B_VARP(address, type);
+    memcpy(out, s->ptr, QBRT_VARPTR);
+    str_tmp_free(s);
+}
+
 void qbrt_init(Fault *const f, volatile uint8_t *const brk, void *const room, const uint32_t bytes)
 {
     static bool started;
@@ -198,6 +222,8 @@ void qbrt_init(Fault *const f, volatile uint8_t *const brk, void *const room, co
 
     started = true;
     qb_lander = qbrt_land;
+    varptr_at = vm_variable;
+    varptr_desc = vm_string;
     qbrt_device();
     qb_start();
 }

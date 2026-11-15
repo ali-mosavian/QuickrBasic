@@ -33,6 +33,7 @@
 #include "num/double.h"
 #include "num/fpmath.h"
 #include "num/random.h"
+#include "qbrt/qbrt.h"
 
 /* ---- functions of one value, by token ------------------------------------------------------- */
 
@@ -327,6 +328,15 @@ void func_error(Session *const S)
 
     S->vm.err.user = (uint16_t)n;
     repl_error(S, E_USR);
+}
+
+/* VARPTR$ ( a type -- s ): the runtime's, of QBasic's type byte. */
+void func_varps(Session *const S)
+{
+    const uint8_t type = (uint8_t)exec_pop(&S->vm).u;
+    const Addr chars = strg_alloc(&S->strg, QBRT_VARPTR);
+    qbrt_varptr(S->vm.sp->a, type, (char *)at(chars));
+    S->vm.sp->a = strg_new(&S->strg, chars, QBRT_VARPTR);
 }
 
 /* SADD ( Desc -- a ): its chars' address. */

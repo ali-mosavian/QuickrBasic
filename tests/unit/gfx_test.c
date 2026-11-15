@@ -70,6 +70,20 @@ TEST(draw_moves_and_lines)
     CHECK(pixel(55, 50) == 2 && pixel(60, 55) == 2);
 }
 
+/* VARPTR$ was a Syntax error: DRAW's =v and X take its strings, a number rounded, a string's
+   commands run. */
+TEST(draw_takes_varptr_strings)
+{
+    CHECK(
+        draw(
+            S,
+            "20 n% = 40: f! = 4.6: c$ = \"C2 R5\": DRAW \"BM10,10 C15 R=\" + VARPTR$(n%) + \"X\" + "
+            "VARPTR$(c$) + \"D=\" + VARPTR$(f!)"
+        ) == ST_OK
+    );
+    CHECK(pixel(49, 10) == 15 && pixel(55, 10) == 2 && pixel(55, 15) == 2);
+}
+
 TEST(view_moves_the_origin)
 {
     CHECK(draw(S, "20 VIEW (100, 100)-(150, 150): PSET (1, 1), 4: VIEW: PSET (1, 1), 6") == ST_OK);

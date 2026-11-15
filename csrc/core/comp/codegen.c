@@ -899,10 +899,12 @@ static void cg_addr(Code *const c, const Node *const n)
         code_op(c, O_I_ADD);
     }
 
+    if (n->op == K_VARPS)
+        code_int(c, n->num);
     if (n->op)
         code_call(c, n->op);
 
-    c->type = T_INT;
+    c->type = n->type;
     c->iload = c->iloadend = nullptr;
 }
 

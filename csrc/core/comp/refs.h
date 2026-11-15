@@ -15,6 +15,9 @@ Node *ref_field(
     Comp *C,
     Node *ref
 ); /* rc_load: ref's field's value; Type mismatch a whole record */
+/* VARPTR$'s type byte of place at, QBasic's: 2 INTEGER, 20 LONG, 4 SINGLE, 8 DOUBLE, 3 STRING.
+   Type mismatch: a record. */
+uint8_t ref_vtype(Comp *C, const Node *at);
 Node *ref_place(
     Comp *C,
     uint32_t *vakind
