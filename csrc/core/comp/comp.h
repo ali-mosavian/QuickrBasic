@@ -91,6 +91,7 @@ typedef struct Comp {
     bool isstatic;  /* cstat: var_find makes a STATIC, not a local */
     uint8_t dlproc; /* g_dlprc: the direct line's procedure (the debugger's probe) */
     bool check;     /* cchk: the IDE's check of a line alone, unlinked */
+    bool nofuse;    /* the code as the asm's: no fused ops (comp/fuse.c) */
 
     /* the error */
     uint8_t dg;   /* cdg: its DG_ (io), 0 by its text */

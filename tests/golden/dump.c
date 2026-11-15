@@ -1,5 +1,5 @@
 /* codegen's golden dump: the file argv[1] loaded and linked, each stored line compiled; per line,
-   its index and its code's bytes in hex. A load error: "error n". */
+   its index and its code's bytes in hex. A load error: "error n". -f FILE: the code fused, as run. */
 #include <stdio.h>
 #include <string.h>
 #include "boot.h"
@@ -34,14 +34,17 @@ static void dump(Session *const S)
 
 int main(const int argc, char **const argv)
 {
-    if (argc != 2)
+    const bool fused = argc == 3 && !strcmp(argv[1], "-f");
+
+    if (argc != 2 && !fused)
         return 2;
 
     static const FrontEnd none = {};
 
     Session *const S = &session;
     boot(S, &none);
-    snprintf(S->repl.file, sizeof S->repl.file, "%s", argv[1]);
+    S->comp.nofuse = !fused; /* else the asm's code, byte for byte */
+    snprintf(S->repl.file, sizeof S->repl.file, "%s", argv[argc - 1]);
     Status st = repl_call(S, load);
 
     if (st != ST_OK) {

@@ -206,6 +206,22 @@ static inline Status hot_i_cmp(Regs *const r) { return hot_cmp(r, HOT_POPPED); }
 static inline Status hot_i_cmp_v(Regs *const r) { return hot_cmp(r, HOT_VAR); }
 static inline Status hot_i_cmp_u8(Regs *const r) { return hot_cmp(r, HOT_U8); }
 
+/* I.NEXT at op: its counter plus its step stored; *back, not past its limit by its mask. Illegal
+   function call past an INT's range, nothing stored. */
+static inline Status hot_next(const uint8_t *const op, bool *const back)
+{
+    const Addr cell = load32(op + 1);
+    int32_t n;
+
+    if (__builtin_add_overflow((int32_t)rd32(cell), (int32_t)rd32(load32(op + 5)), &n))
+        return E_IQ;
+
+    wr32(cell, (uint32_t)n);
+    const int32_t lim = (int32_t)rd32(load32(op + 9));
+    *back = !((n > lim ? OPER_GT : n == lim ? OPER_EQ : OPER_LT) & op[13]);
+    return ST_OK;
+}
+
 /* fn on vm.ip and vm.sp: its error raised. */
 [[gnu::always_inline]]
 static inline void hot_op(Session *const S, Status (*const fn)(Regs *r))

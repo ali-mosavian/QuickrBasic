@@ -63,6 +63,8 @@ typedef struct PACKED {
 enum { JSIZE = 1 + sizeof(Jump) };
 /* An FV op's operand: the variable's id as compiled, its cell's Addr once linked. */
 enum { VCELL = 4 };
+/* I.NEXT: counter, step, limit cells, the past mask, the Jump back */
+enum { NEXT_SIZE = 1 + 3 * VCELL + 1 + sizeof(Jump) };
 
 /* An ERR op: a compile error met running. */
 typedef struct PACKED {

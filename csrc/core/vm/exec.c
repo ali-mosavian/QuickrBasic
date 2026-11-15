@@ -181,6 +181,9 @@ void exec_run(Session *const S)
             if (h == flow_i_jf)
                 at_op[i] = &&i_jf;
 
+            if (h == flow_i_next)
+                at_op[i] = &&i_next;
+
             if (h == flow_eol)
                 at_op[i] = &&eol;
             if (h == dbug_dbg)
@@ -231,6 +234,28 @@ i_jf: /* JF: past its jump, or to its target; a stop, a jump not resolved: flow_
 
         r.sp++;
         r.ip = code;
+    }
+
+    goto next;
+
+i_next: /* NEXT: stepped, back to the body until past; a stop, a jump not resolved: flow_i_next's */
+    if (v->stop || ((const Jump *)(r.ip + NEXT_SIZE - sizeof(Jump)))->dest <= TO_NEXT_STMT)
+        goto cold;
+
+    {
+        bool back;
+
+        if ((st = hot_next(r.ip, &back)) != ST_OK) {
+            op = r.ip;
+            goto fail;
+        }
+
+        if (!back) {
+            r.ip += NEXT_SIZE;
+            goto next;
+        }
+
+        r.ip = flow_jump_code(v, &S->strg, &S->allo, r.ip + NEXT_SIZE - sizeof(Jump));
     }
 
     goto next;

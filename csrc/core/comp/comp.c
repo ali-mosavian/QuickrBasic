@@ -69,6 +69,7 @@
 #include "comp/refs.h"
 #include "comp/codegen.h"
 #include "comp/fold.h"
+#include "comp/fuse.h"
 #include "comp/sema.h"
 #include "io/console.h"
 #include "io/msg.h"
@@ -122,6 +123,7 @@ void comp_flush(Comp *const C)
 {
     Node *const first = C->ast->steps; /* taken: an error in them flushes none twice */
     C->ast->steps = C->ast->last = nullptr;
+    uint8_t *const start = C->code->out;
 
     for (Node *n = first; n; n = n->next) {
         sema_resolve(C, n);
@@ -134,6 +136,11 @@ void comp_flush(Comp *const C)
             cg_store_op(C->code, n);
         } else
             cg_tree(C->code, n);
+    }
+
+    if (!C->nofuse && C->code->out != start) {
+        C->code->out = fuse_code(start, C->code->out);
+        C->code->iload = C->code->iloadend = C->code->cmpend = C->code->shend = nullptr;
     }
 }
 

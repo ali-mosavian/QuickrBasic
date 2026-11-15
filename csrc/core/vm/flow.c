@@ -49,6 +49,7 @@
  *   compare of a step whose sign is known only when run.
  */
 #include "vm/flow.h"
+#include "vm/hot.h"
 #include "session.h"
 #include "comp/blocks.h"
 #include "comp/comp.h"
@@ -336,6 +337,24 @@ void flow_f_jt(Session *const S)
 }
 
 /* ---- FOR / NEXT ----------------------------------------------------------------------------- */
+
+/* I.NEXT (comp/fuse.c): the counter stepped, back to the body unless past. The stop check comes
+   first: a stop runs the op again, not stepped twice. */
+void flow_i_next(Session *const S)
+{
+    if (exec_stopchk(S))
+        return;
+
+    const uint8_t *const op = S->vm.ip - 1;
+    bool back;
+    fault_check(&S->fault, hot_next(op, &back));
+    S->vm.ip = (uint8_t *)op + NEXT_SIZE - sizeof(Jump);
+
+    if (back)
+        take_jump(&S->vm, &S->strg, &S->allo, &S->fault);
+    else
+        skip_jump(&S->vm);
+}
 
 /* Is x past limit, counting by step: INTs, or SINGLEs' bits? */
 static bool past_limit(const bool ints, const uint32_t x, const uint32_t limit, const uint32_t step)

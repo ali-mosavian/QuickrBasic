@@ -338,6 +338,13 @@ static void resolve_op(Comp *const C, const uint32_t line, const Addr base, uint
         j = (Jump *)(op + 2);
         break;
 
+    case O_I_NEXT: /* its three cells, then its Jump */
+        for (uint32_t i = 0; i < 3; i++)
+            store32(op + 1 + i * VCELL, symb_cell(C->symb, (uint16_t)load32(op + 1 + i * VCELL)));
+
+        j = (Jump *)(op + 2 + 3 * VCELL);
+        break;
+
     case O_GOTO:
     case O_GOSUB:
     case O_RESTORE_L:
