@@ -63,9 +63,14 @@ def blank_lines(text):
     frames = []  # per open brace: the kind of its last statement, None at its start
     at_start = True  # the line starts a statement
     in_comment = False  # inside a /* .. */ of several lines
+    in_define = False  # a directive's line ended with a backslash: this one is its
     for line in text.split("\n"):
         s = line.strip()
-        if in_comment or not s or s.startswith("#"):
+        if in_define or s.startswith("#"):
+            in_define = s.endswith("\\")
+            out.append(line)
+            continue
+        if in_comment or not s:
             in_comment = in_comment and "*/" not in s
             out.append(line)
             continue
