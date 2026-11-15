@@ -72,7 +72,7 @@ CFLAGS := --target=i386-pc-win32 -march=i386 -mregparm=3 -std=c23 $(CC_OPT) -ffr
 	-DARENA_AT_ZERO=1 -Wall -Wextra -Wno-unused-parameter -isystem csrc/lib/include -Icsrc -Icsrc/core
 COWN := $(foreach f,memcpy memmove memset,--redefine-sym _$(f)=_lib_$(f))
 CSRC := $(shell find csrc/core csrc/lib -name '*.c' -not -path 'csrc/core/ui/*') \
-	$(wildcard csrc/plat/dos32/*.c) csrc/boot.c
+	$(wildcard csrc/plat/dos32/*.c) csrc/boot.c csrc/qbrt/qbrt_none.c
 CUI := $(shell find csrc/core/ui -name '*.c' 2>/dev/null)
 CASM := $(wildcard csrc/plat/dos32/*.asm)
 CHDR := $(shell find csrc -name '*.h' -o -name '*.def')
@@ -115,13 +115,28 @@ HSRC := $(shell find csrc/core -name '*.c' -not -path 'csrc/core/ui/*') csrc/cor
 	$(wildcard csrc/plat/host/*.c) csrc/boot.c
 HOBJ := $(HSRC:csrc/%.c=build/host/obj/%.o)
 
+# llrm's QB runtime (graphics, sound), from its tree, on its headless device (csrc/qbrt)
+QBRT := $(LLRM)/runtime
+QBRT_HSRC := $(addprefix qb/,console.c cntext.c cngfx.c gfx.c gline.c gcirc.c gpaint.c gputget.c \
+	gdraw.c play.c screen.c sleep.c varptr.c error.c rtinit.c nhstutil.c nheap.c \
+	posix/startup.c posix/block.c posix/ad.c posix/mathops.c posix/paintq.c \
+	dev/headless/headless.c dev/host/video.c dev/host/vgadata.c dev/host/tick.c) shared/posix/os.c
+QBRT_HINC := $(addprefix -I$(QBRT)/,qb/posix qb qb/dev qb/dev/headless qb/dev/host shared/posix)
+QBRT_HOBJ := $(QBRT_HSRC:%.c=build/host/qbrt/%.o) build/host/obj/qbrt/qbrt.o build/host/obj/qbrt/qbrt_host.o
+build/host/qbrt/%.o: $(QBRT)/%.c
+	@mkdir -p $(@D)
+	$(HOST_CC) -std=gnu11 -w -D__cdecl= $(QBRT_HINC) -c $< -o $@
+build/host/obj/qbrt/%.o: csrc/qbrt/%.c $(CHDR)
+	@mkdir -p $(@D)
+	$(HOST_CC) $(HOST_CFLAGS) $(QBRT_HINC) -c $< -o $@
+
 .PHONY: chost chosttest
 build/host/obj/%.o: csrc/%.c $(CHDR)
 	@mkdir -p $(@D)
 	$(HOST_CC) $(HOST_CFLAGS) -c $< -o $@
 
 chost: build/host/basic
-build/host/basic: $(HOBJ) build/host/obj/app/basic32.o
+build/host/basic: $(HOBJ) $(QBRT_HOBJ) build/host/obj/app/basic32.o
 	$(HOST_CC) $^ -o $@
 
 UNIT_SRC := $(wildcard tests/unit/*.c)
@@ -129,7 +144,7 @@ UNIT_OBJ := $(UNIT_SRC:tests/unit/%.c=build/host/unit/%.o)
 build/host/unit/%.o: tests/unit/%.c tests/unit/unit.h $(CHDR)
 	@mkdir -p $(@D)
 	$(HOST_CC) $(HOST_CFLAGS) -c $< -o $@
-build/host/unit_tests: $(HOBJ) $(UNIT_OBJ)
+build/host/unit_tests: $(HOBJ) $(QBRT_HOBJ) $(UNIT_OBJ)
 	$(HOST_CC) $^ -o $@
 
 .PHONY: cunit
@@ -139,7 +154,7 @@ cunit: build/host/unit_tests   # the unit tests, on the host
 build/host/golden/dump.o: tests/golden/dump.c $(CHDR)
 	@mkdir -p $(@D)
 	$(HOST_CC) $(HOST_CFLAGS) -c $< -o $@
-build/host/golden_dump: $(HOBJ) build/host/golden/dump.o
+build/host/golden_dump: $(HOBJ) $(QBRT_HOBJ) build/host/golden/dump.o
 	$(HOST_CC) $^ -o $@
 
 .PHONY: cgolden cgolden-update
