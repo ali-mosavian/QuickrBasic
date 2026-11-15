@@ -92,6 +92,9 @@ static uint32_t slot_of(Fault *const f, const uint8_t kind, const int32_t n)
     case EK_PLAY:
         return EV_PLAY;
 
+    case EK_UEVENT: /* PDS's and QB's, not QBasic's */
+        fault_qberr(f, QB_NO_ADVANCED);
+
     default:
         if (n < 0 || n > STRIG_MAX)
             fault_error(f, E_IQ);

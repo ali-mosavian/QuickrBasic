@@ -1051,6 +1051,10 @@ static bool evkind(Comp *const C, uint8_t *const kind)
         *kind = EK_PLAY;
         break;
 
+    case TK1_UEVENT:
+        *kind = EK_UEVENT;
+        break;
+
     default:
         return false;
     }
@@ -1062,7 +1066,7 @@ static bool evkind(Comp *const C, uint8_t *const kind)
 /* ct_evn: the event's (n): KEY's, COM's, STRIG's; TIMER's and PLAY's in their ON; else 0. */
 static void evnum(Comp *const C, const uint8_t kind)
 {
-    if (kind != EK_PEN) {
+    if (kind != EK_PEN && kind != EK_UEVENT) {
         if (comp_cur(C) == '(') {
             expr_paren(C);
             comp_toint(C);
