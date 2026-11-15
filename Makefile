@@ -72,8 +72,9 @@ CFLAGS := --target=i386-pc-win32 -march=i386 -mregparm=3 -std=c23 $(CC_OPT) -ffr
 	-DARENA_AT_ZERO=1 -Wall -Wextra -Wno-unused-parameter -isystem csrc/lib/include -Icsrc -Icsrc/core
 COWN := $(foreach f,memcpy memmove memset,--redefine-sym _$(f)=_lib_$(f))
 
-# llrm's QB runtime (graphics, sound), from its tree (csrc/qbrt): the portable part, then each target's
-QBRT := $(LLRM)/runtime
+# llrm's QB runtime (graphics, sound), ours since llrm-next f4197e19b2 (csrc/qbrt/llrm): the portable
+# part, then each target's
+QBRT := csrc/qbrt/llrm
 QBRT_PORTABLE := $(addprefix qb/,console.c cntext.c cngfx.c gfx.c gline.c gcirc.c gpaint.c gputget.c \
 	gdraw.c play.c screen.c sleep.c varptr.c error.c rtinit.c nhstutil.c nheap.c)
 # DOS32: its own device and asm, by clang and jwasm; the asm's names given to clang's C (names.h)
@@ -82,7 +83,7 @@ QBRT_DSRC := $(QBRT_PORTABLE) $(addprefix qb/,dos/m32/ad.c posix/block.c dev/dos
 QBRT_DASM := $(addprefix qb/dev/dos/m32/,bios.asm gdcirc.asm gdfill.asm gdline.asm gdscan.asm gdxfer.asm \
 	ports.asm tick.asm) qb/dos/m32/block.asm
 QBRT_DINC := -Icsrc/qbrt/include $(addprefix -I$(QBRT)/qb/,dos/m32 . dev dev/dos/m32 dev/dos) \
-	-I$(LLRM)/toolchain/clang/os/x86-m32
+	-I$(QBRT)/os/x86-m32
 QBRT_DOBJ := $(QBRT_DSRC:%.c=build/c/qbrt/%.obj) $(QBRT_DASM:%.asm=build/c/qbrt/%.obj) \
 	build/c/obj/qbrt/qbrt.obj build/c/obj/qbrt/qbrt_dos.obj
 build/c/qbrt/names.h: $(QBRT)/qb/dev/dos/m32/device.h $(QBRT)/qb/dev/dos/m32/devsym.h
@@ -114,7 +115,7 @@ C_LINK = python3 -I $(LLRM)/tools/dosbatch/link_objects.py x86-m32
 
 .PHONY: c cbasic32 cide32 ctest cstyle
 cstyle:                         # formats the C sources (tools/cfmt.py)
-	git ls-files 'csrc/*.[ch]' 'tests/*.[ch]' | grep -v -e comp/dfa.h -e io/gen.h -e io/msg.h | xargs $(PY) tools/cfmt.py
+	git ls-files 'csrc/*.[ch]' 'tests/*.[ch]' | grep -v -e qbrt/llrm/ -e comp/dfa.h -e io/gen.h -e io/msg.h | xargs $(PY) tools/cfmt.py
 c: cbasic32 cide32
 
 build/c/obj/core/ui/%.obj: csrc/core/ui/%.c $(CHDR)   # the editor: AC, its Tab completion
