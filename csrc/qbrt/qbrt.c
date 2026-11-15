@@ -4,12 +4,13 @@
  * The runtime is built from llrm's tree (Makefile, QBRT_*). It asks for the compiled module's data
  * (module.h): this program has one, empty, whose ON ERROR handler is always there, so every error
  * the runtime raises comes to qbrt_land rather than ending the process. qbrt_land raises it as
- * QBasic's error through the session's fault, which unwinds out of the runtime.
+ * QBasic's error through the session's fault, which unwinds out of the runtime. A wait for the
+ * music (play.c's QB_IDLE, the Makefile's) is qbrt_idle: BREAK empties the queue so it ends.
  *
  * # asm structure
  * | asm | here | |
  * |---|---|---|
- * | (none) | qbrt_init, module_*, md_*, qbrt_land, qbrt_palette_using, qbrt_get, qbrt_put, qbrt_screen | NEW |
+ * | (none) | qbrt_init, module_*, md_*, qbrt_land, qbrt_palette_using, qbrt_get, qbrt_put, qbrt_screen, qbrt_idle | NEW |
  */
 #include "qbrt/qbrt.h"
 #include "ad.h"
@@ -24,6 +25,7 @@ struct ModuleData {
 
 static ModuleData module;
 static Fault *fault;
+static volatile uint8_t *stop;
 
 extern void (*qb_lander)(void); /* error.c's: ON ERROR's landing */
 
@@ -91,10 +93,19 @@ void qbrt_put(void *const data, const uint32_t bytes, const uint32_t elem, const
 
 bool qbrt_screen(void) { return dev_stdout_is_screen(); }
 
-void qbrt_init(Fault *const f)
+void qbrt_idle(void)
+{
+    if (*stop & SF_BRK)
+        music_clear();
+    else
+        qbrt_tick_wait();
+}
+
+void qbrt_init(Fault *const f, volatile uint8_t *const brk)
 {
     static bool started;
     fault = f;
+    stop = brk;
 
     if (started)
         return;

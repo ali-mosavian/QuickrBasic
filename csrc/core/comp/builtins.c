@@ -89,6 +89,7 @@ const XFn fns_x[] = {
     {0x100 + TK1_POINT, 0, 2, 2, T_INT, "FF", SC_POINT},
     {0x100 + TK1_PMAP, 0, 2, 2, T_FLT, "FI", SC_PMAP},
     {0x100 + TK1_CSRLIN, 0, 0, 0, T_INT, "", SC_CSRLIN},
+    {0x100 + TK1_PLAY, 0, 1, 1, T_INT, "I", SC_PLAYN},
 };
 
 const uint32_t fns_nx = sizeof fns_x / sizeof fns_x[0];

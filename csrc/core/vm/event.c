@@ -1,11 +1,12 @@
-/* Event trapping: ON TIMER, KEY, COM, PEN and STRIG GOSUB.
+/* Event trapping: ON TIMER, KEY, COM, PEN, STRIG and PLAY GOSUB.
  *
  * # How it works
  * Each event has a slot (EventSlot, defs.h). The platform's tick and its trapped keys set vm.stop's
  * SF_TICK; the STOP check then counts them (evnt_poll), and an event an ON slot can run sets
  * SF_EV, so the check runs it (evnt_run): a GOSUB to its line that comes back to the op that
- * checked. Its slot runs no other event till that RETURN (evnt_return). COM, PEN and STRIG are
- * accepted and never fire.
+ * checked. Its slot runs no other event till that RETURN (evnt_return). PLAY's happens when the
+ * notes waiting in the background music fall below its n. COM, PEN and STRIG are accepted and
+ * never fire.
  *
  * # Example
  *   10 ON TIMER(5) GOSUB tick : TIMER ON      tick runs every 5 seconds, between statements
@@ -33,13 +34,18 @@
 #include "mem/string.h"
 #include "plat/pclk.h"
 #include "plat/pkey.h"
+#include "qbrt/qbrt.h"
 #include "vm/flow.h"
 
 enum : uint32_t {
     TICKS_A_DAY = 0x1800B0, /* the BIOS's */
     TICKS_PER_10000_SECONDS = 182065,
 };
-enum { TIMER_MAX_SECONDS = 86400, STRIG_MAX = 7 /* STRIG(0) .. STRIG(6), two numbers a slot */ };
+enum {
+    TIMER_MAX_SECONDS = 86400,
+    STRIG_MAX = 7, /* STRIG(0) .. STRIG(6), two numbers a slot */
+    PLAY_MAX_NOTES = 32,
+};
 
 /* KEY n's scan code: F1..F10, up, left, right, down, then the user's, F11, F12. */
 static const uint8_t keyscan[NKEYS + 1] = {
@@ -82,6 +88,9 @@ static uint32_t slot_of(Fault *const f, const uint8_t kind, const int32_t n)
 
     case EK_PEN:
         return EV_PEN;
+
+    case EK_PLAY:
+        return EV_PLAY;
 
     default:
         if (n < 0 || n > STRIG_MAX)
@@ -138,6 +147,13 @@ void evnt_onev(Session *const S)
         S->evnt.interval = S->evnt.count = ((uint32_t)n * TICKS_PER_10000_SECONDS + 5000) / 10000;
     }
 
+    if (i == EV_PLAY) {
+        if (n < 1 || n > PLAY_MAX_NOTES)
+            repl_error(S, E_IQ);
+
+        S->evnt.notes = (uint32_t)n;
+    }
+
     uint32_t line = 0;
 
     if (!rd16(addr_of(S->vm.ip)))
@@ -162,6 +178,8 @@ void evnt_evst(Session *const S)
         s->flags &= ~EF_PENDING;
     if (i == EV_TIMER && old == ES_OFF) /* the TIMER started: a whole interval */
         S->evnt.count = S->evnt.interval;
+    if (i == EV_PLAY && old == ES_OFF)
+        S->evnt.waiting = music_waiting();
 
     signal(&S->evnt, &S->vm, i);
     traps(&S->evnt);
@@ -214,6 +232,15 @@ void evnt_poll(Evnt *const ev, Vm *const vm)
     for (uint32_t i = EV_KEY; i < PKEY_NTRAP && keys >> i; i++)
         if (keys >> i & 1)
             pend(ev, vm, i);
+
+    if (ev->slot[EV_PLAY].state != ES_OFF) {
+        const uint32_t waiting = music_waiting();
+
+        if (ev->waiting >= ev->notes && waiting < ev->notes)
+            pend(ev, vm, EV_PLAY);
+
+        ev->waiting = waiting;
+    }
 }
 
 bool evnt_run(Session *const S)

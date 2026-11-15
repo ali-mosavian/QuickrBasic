@@ -10,10 +10,18 @@ typedef struct {
     char *ptr;
 } QbrtStr;
 
-/* The runtime started, once; its errors raised through f as QBasic's. */
-void qbrt_init(Fault *f);
+/* The runtime started, once; its errors raised through f as QBasic's; BREAK (stop's SF_BRK) ends
+   a wait for the music. */
+void qbrt_init(Fault *f, volatile uint8_t *stop);
 /* The target's device ready (qbrt_host.c, ...): text mode, nothing typed or sounding. */
 void qbrt_device(void);
+/* The music's tick in real time (the default), or only while the program waits for it, a tick a
+   wait: the same notes every time, for tests. */
+void qbrt_realtime(bool yes);
+/* A wait for the music (QB_IDLE): BREAK drops what is queued; else the device waits a while or,
+   not in real time, ticks. */
+void qbrt_idle(void);
+void qbrt_tick_wait(void);
 
 /* Standard output is the screen: the console's text goes through the runtime's (cn_*), which keeps
    the cursor, the colours and the PRINT window, in text and graphics modes alike. */
@@ -95,4 +103,11 @@ int B_PNR4(float x, float y);
 
 /* PMAP(value, function): function 0, 1 a logical x, y to a pixel; 2, 3 back. */
 float *B_PMAP(float value, short function);
+
+/* SOUND hertz, ticks; PLAY's commands; the notes waiting in the background music; nothing queued
+   or sounding. */
+void B_SOND(short hertz, float ticks);
+void B_SPLY(QbrtStr *commands);
+unsigned music_waiting(void);
+void music_clear(void);
 #endif

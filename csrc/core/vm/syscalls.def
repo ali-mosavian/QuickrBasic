@@ -39,5 +39,8 @@ SC(VIEWPRINT, vgfx_viewprint) /* ( top bottom -- ): VIEW PRINT, -1 -1 the whole 
 SC(WIDTH, vgfx_width)   /* ( columns rows -- ): the screen's WIDTH, -1 one left out */
 SC(BEEP, vgfx_beep)     /* ( -- ) */
 SC(CSRLIN, vgfx_csrlin) /* ( -- row ): the cursor's, from 1 */
+SC(SOUND, snd_sound)    /* ( hertz ticks -- ) */
+SC(PLAY, snd_play)      /* ( commands -- ) */
+SC(PLAYN, snd_waiting)  /* ( n -- notes ): PLAY(n), the notes waiting */
 #undef SC
 #endif

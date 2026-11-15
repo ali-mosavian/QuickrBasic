@@ -123,9 +123,12 @@ QBRT_HSRC := $(addprefix qb/,console.c cntext.c cngfx.c gfx.c gline.c gcirc.c gp
 	dev/headless/headless.c dev/host/video.c dev/host/vgadata.c dev/host/tick.c) shared/posix/os.c
 QBRT_HINC := $(addprefix -I$(QBRT)/,qb/posix qb qb/dev qb/dev/headless qb/dev/host shared/posix)
 QBRT_HOBJ := $(QBRT_HSRC:%.c=build/host/qbrt/%.o) build/host/obj/qbrt/qbrt.o build/host/obj/qbrt/qbrt_host.o
+# play.c's waits for the tick come to qbrt_idle (BREAK, the tick in tests); the flag is here, so is its rebuild
+build/host/qbrt/qb/play.o: QBRT_DEF = '-DQB_IDLE()=do { extern void qbrt_idle(void); qbrt_idle(); } while (0)'
+build/host/qbrt/qb/play.o: Makefile
 build/host/qbrt/%.o: $(QBRT)/%.c
 	@mkdir -p $(@D)
-	$(HOST_CC) -std=gnu11 -w -D__cdecl= $(QBRT_HINC) -c $< -o $@
+	$(HOST_CC) -std=gnu11 -w -D__cdecl= $(QBRT_DEF) $(QBRT_HINC) -c $< -o $@
 build/host/obj/qbrt/%.o: csrc/qbrt/%.c $(CHDR)
 	@mkdir -p $(@D)
 	$(HOST_CC) $(HOST_CFLAGS) $(subst -I,-isystem ,$(QBRT_HINC)) -c $< -o $@

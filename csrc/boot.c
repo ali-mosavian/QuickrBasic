@@ -34,7 +34,7 @@ void boot(Session *const S, const FrontEnd *const fe)
 {
     S->repl.fe = fe;
     S->fault.raise = repl_fault;
-    qbrt_init(&S->fault);
+    qbrt_init(&S->fault, &S->vm.stop);
     scop_init(&S->scop, &S->fault);
     decl_init(&S->decl, &S->fault);
     S->names.intern = repl_intern;

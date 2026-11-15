@@ -4,7 +4,7 @@
 
 static Fault *fault;
 
-void qbrt_init(Fault *const f) { fault = f; }
+void qbrt_init(Fault *const f, volatile uint8_t *const stop) { fault = f; }
 
 bool qbrt_screen(void) { return false; }
 
@@ -67,3 +67,10 @@ void B_SCLS(const short selector) { none(); }
 void B_VWPT(const short top, const short bottom) { none(); }
 void B_WIDT(const short columns, const short rows) { none(); }
 void B_BEEP(void) { none(); }
+void B_SOND(const short hertz, const float ticks) { none(); }
+void B_SPLY(QbrtStr *const commands) { none(); }
+unsigned music_waiting(void) { return 0; }
+void music_clear(void) {}
+void qbrt_realtime(const bool yes) {}
+void qbrt_idle(void) {}
+void qbrt_tick_wait(void) {}

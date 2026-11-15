@@ -117,7 +117,7 @@ typedef struct PACKED {
     uint16_t pad;
 } EventSlot;
 static_assert(sizeof(EventSlot) == 8);
-enum : uint8_t { EK_TIMER, EK_KEY, EK_COM, EK_PEN, EK_STRIG };
+enum : uint8_t { EK_TIMER, EK_KEY, EK_COM, EK_PEN, EK_STRIG, EK_PLAY };
 enum : uint8_t { ES_OFF = 0, ES_ON = 1, ES_STOP = 2 }; /* an event's state */
 /* RESUME's operand: the failed statement, the one after it, or a line. */
 typedef enum : uint8_t { RESUME_AGAIN, RESUME_NEXT, RESUME_LINE } ResumeMode;

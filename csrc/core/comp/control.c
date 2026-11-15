@@ -56,6 +56,7 @@
 #include "comp/expr.h"
 #include "comp/fold.h"
 #include "comp/gfxstmt.h"
+#include "comp/sndstmt.h"
 #include "comp/refs.h"
 #include "io/msg.h"
 #include "io/repl.h"
@@ -1036,6 +1037,10 @@ static bool evkind(Comp *const C, uint8_t *const kind)
         *kind = EK_STRIG;
         break;
 
+    case TK1_PLAY:
+        *kind = EK_PLAY;
+        break;
+
     default:
         return false;
     }
@@ -1044,7 +1049,7 @@ static bool evkind(Comp *const C, uint8_t *const kind)
     return true;
 }
 
-/* ct_evn: the event's (n): KEY's, COM's, STRIG's; TIMER's in ON TIMER; else 0. */
+/* ct_evn: the event's (n): KEY's, COM's, STRIG's; TIMER's and PLAY's in their ON; else 0. */
 static void evnum(Comp *const C, const uint8_t kind)
 {
     if (kind != EK_PEN) {
@@ -1054,7 +1059,7 @@ static void evnum(Comp *const C, const uint8_t kind)
             return;
         }
 
-        if (kind != EK_TIMER)
+        if (kind != EK_TIMER && kind != EK_PLAY)
             synerr(C);
     }
 
@@ -1311,7 +1316,7 @@ static bool let(Comp *const C)
 
 bool ctrl_stmt(Comp *const C)
 {
-    if (gstm_stmt(C))
+    if (gstm_stmt(C) || snds_stmt(C))
         return true;
 
     const uint8_t c = C->p[0];

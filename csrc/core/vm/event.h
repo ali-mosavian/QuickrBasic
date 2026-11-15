@@ -3,8 +3,8 @@
 #define CORE_VM_EVNT_H
 #include "vm/exec.h"
 
-/* The slots: TIMER, KEY(1) .. KEY(31), COM(1), COM(2), PEN, STRIG(0, 2, 4, 6); KEY 15 .. 25 the
-   user's keys. */
+/* The slots: TIMER, KEY(1) .. KEY(31), COM(1), COM(2), PEN, STRIG(0, 2, 4, 6), PLAY; KEY 15 .. 25
+   the user's keys. */
 enum {
     EV_TIMER = 0,
     EV_KEY = 1,
@@ -14,7 +14,8 @@ enum {
     EV_PEN = EV_COM + NCOMS,
     EV_STRIG = EV_PEN + 1,
     NSTRIGS = 4,
-    NEV = EV_STRIG + NSTRIGS,
+    EV_PLAY = EV_STRIG + NSTRIGS,
+    NEV = EV_PLAY + 1,
     UKEY_FIRST = 15,
     UKEY_LAST = 25,
     NUKEY = UKEY_LAST - UKEY_FIRST + 1,
@@ -28,6 +29,8 @@ typedef struct {
     uint16_t ukey[NUKEY]; /* g_evuk: KEY 15 .. 25's key: shift flags, scan code */
     bool on;              /* g_evon: events are counted */
     uint32_t tick;        /* the platform's tick count last counted */
+    uint32_t notes;       /* ON PLAY's n: fewer notes waiting than this, an event */
+    uint32_t waiting;     /* the notes waiting at the last poll */
 } Evnt;
 
 /* ev_clr: no events: a run's start, READY. */

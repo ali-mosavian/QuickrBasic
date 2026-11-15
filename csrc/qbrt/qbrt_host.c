@@ -1,10 +1,34 @@
-/* The runtime's device on the host: llrm's headless one, a framebuffer tests read (video.h).
-   Standard output stays a stream: the screen is the framebuffer only where a test says so. */
+/* The runtime's device on the host: llrm's headless one, a framebuffer tests read (video.h), a
+   speaker that is a log. Standard output stays a stream: the screen is the framebuffer only where a
+   test says so. The music's tick is a thread in real time; else each wait for it is a tick. */
+#define _POSIX_C_SOURCE 200809L
+#include <time.h>
 #include "qbrt/qbrt.h"
 #include "headless.h"
+
+enum { HUNDREDTHS_A_TICK = 6, WAIT_NANOSECONDS = 1000000 };
+
+static bool realtime = true;
 
 void qbrt_device(void)
 {
     headless_reset();
     headless_set_stdout_is_screen(0);
+    headless_set_tick_thread(realtime);
+}
+
+void qbrt_realtime(const bool yes)
+{
+    realtime = yes;
+    headless_set_tick_thread(yes);
+}
+
+void qbrt_tick_wait(void)
+{
+    if (realtime) {
+        const struct timespec wait = {0, WAIT_NANOSECONDS};
+
+        nanosleep(&wait, 0);
+    } else
+        headless_run(HUNDREDTHS_A_TICK);
 }
