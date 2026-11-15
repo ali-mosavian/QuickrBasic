@@ -45,5 +45,6 @@ SC(PLAYN, snd_waiting)  /* ( n -- notes ): PLAY(n), the notes waiting */
 SC(STICK, vdev_stick)   /* ( n -- i ): STICK(n) */
 SC(STRIG, vdev_strig)   /* ( n -- i ): STRIG(n) */
 SC(PEN, vdev_pen)       /* ( n -- i ): PEN(n) */
+SC(SCRN, vdev_screen)   /* ( r c [f] count -- i ): SCREEN(r, c[, f]) */
 #undef SC
 #endif

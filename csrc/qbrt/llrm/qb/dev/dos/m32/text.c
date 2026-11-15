@@ -80,6 +80,11 @@ void dev_text_cursor_show(int visible)
     dev_int10(&r);
 }
 
+unsigned dev_text_get(unsigned row, unsigned column)
+{
+    return *cell(row, column);
+}
+
 void dev_text_put(unsigned row, unsigned column, unsigned character, unsigned attribute)
 {
     *cell(row, column) = (u16)(attribute << 8 | character);

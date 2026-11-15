@@ -563,6 +563,11 @@ void dev_text_cursor_show(int visible)
     host_state_unlock();
 }
 
+unsigned dev_text_get(unsigned row, unsigned column)
+{
+    return row < HOST_TEXT_ROWS && column < HOST_TEXT_COLUMNS ? cells[row][column] : 0;
+}
+
 void dev_text_put(unsigned row, unsigned column, unsigned character, unsigned attribute)
 {
     if (row < HOST_TEXT_ROWS && column < HOST_TEXT_COLUMNS) {

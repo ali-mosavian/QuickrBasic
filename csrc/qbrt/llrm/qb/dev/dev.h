@@ -14,6 +14,7 @@ unsigned dev_text_size(void);   /* rows in the high byte, columns in the low */
 unsigned dev_text_cursor(void); /* row in the high byte */
 void dev_text_move(unsigned row, unsigned column);
 void dev_text_cursor_show(int visible);
+unsigned dev_text_get(unsigned row, unsigned column); /* the attribute in the high byte */
 void dev_text_put(unsigned row, unsigned column, unsigned character, unsigned attribute);
 void dev_text_write(unsigned row, unsigned column, const char *text, unsigned count,
                     unsigned attribute);

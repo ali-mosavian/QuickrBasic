@@ -60,3 +60,25 @@ TEST(locate_out_of_range)
 
     CHECK(shown(S, lines) == E_USR);
 }
+
+/* SCREEN(r, c[, f]) was a Syntax error. QBasic 1.1's: the character there, f nonzero its
+   attribute; a graphics mode's character recognised from its pixels, attribute 0, none a space;
+   past the screen, Illegal function call. */
+TEST(screen_function_reads_a_cell)
+{
+    static const char *const lines[] = {
+        "10 ON ERROR GOTO 90: SCREEN 0: CLS: COLOR 14, 1: LOCATE 1, 1: PRINT \"QB\";: COLOR 7, 0",
+        "20 a = SCREEN(1, 1): b = SCREEN(1, 2): c = SCREEN(1, 1, 1): d = SCREEN(2, 1)",
+        "30 x = SCREEN(0, 1): x = SCREEN(26, 1): x = SCREEN(1, 81): x = SCREEN(1, 0): x = "
+        "SCREEN(25, 80)",
+        "40 SCREEN 13: LOCATE 1, 1: PRINT \"H\";: COLOR 4: PRINT \"j\";",
+        "50 g = SCREEN(1, 1): h = SCREEN(1, 2): i = SCREEN(1, 2, 1): j = SCREEN(3, 3)",
+        "60 SCREEN 0: LOCATE 10, 1: PRINT a; b; c; d; e$; g; h; i; j;",
+        "70 END",
+        "90 e$ = e$ + STR$(ERR): RESUME NEXT",
+        nullptr,
+    };
+
+    CHECK(shown(S, lines) == ST_OK);
+    CHECK(shows(9, 0, " 81  66  30  32  5 5 5 5 72  106  0  32 "));
+}
