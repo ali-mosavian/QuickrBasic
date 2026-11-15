@@ -38,6 +38,7 @@
 #include "io/console.h"
 #include "vm/exec.h"
 #include "plat/pfil.h"
+#include "qbrt/qbrt.h"
 
 void chnl_init(Chnl *const cl, Cons *const co)
 {
@@ -46,7 +47,11 @@ void chnl_init(Chnl *const cl, Cons *const co)
     memset(cl->ch, 0, sizeof cl->ch);
     cl->ch[0].kind = CK_CON;
     cl->ch[0].mode = FM_OUT | FM_IN;
+    cl->ch[CH_LPT].kind = CK_LPT;
+    cl->ch[CH_LPT].mode = FM_OUT;
     cl->out = cl->in = 0;
+    cl->lpt_col = 0;
+    cl->lpt_width = LPT_WIDTH;
 }
 
 enum { CTRL_Z = 0x1A }; /* a text file's end */
@@ -113,7 +118,7 @@ static uint8_t chnl_device(const char *const name)
     static const struct {
         uint8_t kind;
         const char *name;
-    } devs[] = {{CK_CON, "SCRN:"}, {CK_CON, "CONS:"}, {CK_NUL, "NUL:"}};
+    } devs[] = {{CK_CON, "SCRN:"}, {CK_CON, "CONS:"}, {CK_NUL, "NUL:"}, {CK_LPT, "LPT1:"}};
 
     for (size_t i = 0; i < countof(devs); i++)
         if (chnl_names_device(name, devs[i].name))
@@ -141,6 +146,23 @@ static Status chnl_free_channel(Chnl *const cl, const int32_t num, Chan **const 
         return st_qb(QB_TOO_MANY_FILES);
 
     *c = &cl->ch[slot];
+    return ST_OK;
+}
+
+/* The printer's handle, opened once. Device unavailable: not ready. */
+static Status chnl_printer(Chnl *const cl)
+{
+    if (!qbrt_printer_ready())
+        return st_qb(QB_DEVICE_UNAVAILABLE);
+    if (!cl->lpt_open) {
+        const uint16_t err = pfil_printer(&cl->lpt_handle);
+
+        if (err)
+            return chnl_doserr(err);
+
+        cl->lpt_open = true;
+    }
+
     return ST_OK;
 }
 
@@ -197,6 +219,15 @@ Status chnl_open(
     c->mode = mode;
     c->kind = chnl_device(name);
 
+    if (c->kind == CK_LPT) {
+        st = chnl_printer(cl);
+
+        if (st != ST_OK)
+            return st;
+
+        cl->lpt_col = 0;
+    }
+
     if (!c->kind) {
         c->kind = CK_DISK;
         st = chnl_open_file(name, mode, &c->handle);
@@ -243,8 +274,14 @@ static Status chnl_flush(Chan *const c)
     return ST_OK;
 }
 
+/* Channel c's column: LPT1's, shared by its channels. */
+static uint8_t *chnl_col(Chnl *const cl, Chan *const c)
+{
+    return c->kind == CK_LPT ? &cl->lpt_col : &c->col;
+}
+
 /* io's column to the output channel's. */
-static void chnl_save_col(Chnl *const cl) { cl->ch[cl->out].col = cl->cons->col; }
+static void chnl_save_col(Chnl *const cl) { *chnl_col(cl, &cl->ch[cl->out]) = cl->cons->col; }
 
 Status chnl_close(Chnl *const cl, Chan *const c)
 {
@@ -256,7 +293,7 @@ Status chnl_close(Chnl *const cl, Chan *const c)
     if (st != ST_OK)
         return st;
     if (c->kind == CK_DISK)
-        pfil_close(c->handle);
+        pfil_close(c->handle); /* LPT1's handle stays the printer's */
 
     c->num = 0;
 
@@ -290,8 +327,24 @@ Status chnl_out(Chnl *const cl, Chan *const c)
 
     chnl_save_col(cl);
     cl->out = chnl_index_of(cl, c);
-    cl->cons->col = c->col;
+    cl->cons->col = *chnl_col(cl, c);
     return ST_OK;
+}
+
+Status chnl_lprint(Chnl *const cl)
+{
+    const Status st = chnl_printer(cl);
+    return st != ST_OK ? st : chnl_out(cl, &cl->ch[CH_LPT]);
+}
+
+uint8_t chnl_lpos(const Chnl *const cl)
+{
+    return cl->ch[cl->out].kind == CK_LPT ? cl->cons->col : cl->lpt_col;
+}
+
+bool chnl_wraps(const Chnl *const cl, const uint8_t col)
+{
+    return cl->ch[cl->out].kind == CK_LPT && cl->lpt_width != LPT_NOWRAP && col >= cl->lpt_width;
 }
 
 Status chnl_in(Chnl *const cl, Chan *const c)
@@ -354,6 +407,15 @@ void chnl_putc(Chnl *const cl, const uint8_t ch)
             chnl_put(cl, c, ch);
     } else if (c->kind == CK_CON) {
         cons_out(cl->cons, ch);
+    } else if (c->kind == CK_LPT && cl->err == ST_OK) {
+        static const uint8_t crlf[] = {'\r', '\n'};
+
+        uint32_t put;
+        const uint16_t err = ch == NL ? pfil_write(cl->lpt_handle, crlf, 2, &put)
+                                      : pfil_write(cl->lpt_handle, &ch, 1, &put);
+
+        if (err)
+            keep(cl, chnl_doserr(err));
     }
 }
 

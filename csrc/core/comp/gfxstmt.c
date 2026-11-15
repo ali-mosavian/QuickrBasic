@@ -445,6 +445,12 @@ bool gstm_stmt(Comp *const C)
     case TK1_WIDTH:
         if (C->p[2] == '#' || C->p[2] == '"')
             return false; /* a file's or a device's */
+        if (C->p[2] == TK_X && C->p[3] == TK1_LPRINT) {
+            C->p += 4;
+            gstm_int(C);
+            comp_call(C, K_LPWID);
+            return true;
+        }
 
         C->p += 2;
         gstm_optint(C);

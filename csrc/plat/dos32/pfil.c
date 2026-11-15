@@ -87,6 +87,14 @@ uint16_t pfil_close(const PfilHandle h)
     return dos(&r);
 }
 
+enum : PfilHandle { DOS_STDPRN = 4 }; /* the standard printer's handle, PRN */
+
+uint16_t pfil_printer(PfilHandle *const h)
+{
+    *h = DOS_STDPRN;
+    return PFIL_OK;
+}
+
 bool pfil_isdev(const PfilHandle h)
 {
     PdosRegs r = {.eax = pdos_fn(DOS_IOCTL, 0), .ebx = h};

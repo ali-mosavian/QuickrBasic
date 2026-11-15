@@ -47,6 +47,8 @@ uint16_t pfil_write(PfilHandle h, const void *p, uint32_t n, uint32_t *put);
 /* To off from origin PFIL_*; *pos the new offset (nullptr: not wanted). */
 uint16_t pfil_seek(PfilHandle h, int32_t off, uint8_t origin, uint32_t *pos);
 uint16_t pfil_close(PfilHandle h);
+/* The printer's handle, LPRINT's and LPT1's; it stays open. */
+uint16_t pfil_printer(PfilHandle *h);
 /* The handle is a device (the console, NUL), not a disk file. */
 bool pfil_isdev(PfilHandle h);
 

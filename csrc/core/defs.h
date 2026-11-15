@@ -96,7 +96,7 @@ typedef struct PACKED {
 /* Channels (io/chan). */
 enum { NL = 13, NCH = 16, CBSZ = 512, RECMAX = 4096 };
 enum { RECLEN_DEFAULT = 128, FILENO_MAX = 255 }; /* OPEN's record length; file numbers 1 .. */
-enum : uint8_t { CK_CON = 1, CK_DISK = 2, CK_NUL = 3 };
+enum : uint8_t { CK_CON = 1, CK_DISK = 2, CK_NUL = 3, CK_LPT = 4 }; /* LPT1, unbuffered */
 enum : uint8_t { FM_IN = 1, FM_OUT = 2, FM_APP = 4, FM_RND = 8, FM_BIN = 16 };
 /* A variable's place (cm_va): its kind (VA_*) in the top byte, its bytes below (a Desc's: its
    STRING * n, 0 none). */

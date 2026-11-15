@@ -101,6 +101,8 @@ void qbrt_put(void *const data, const uint32_t bytes, const uint32_t elem, const
 }
 
 /* DOS's answer, asked once: an IOCTL is a mode switch, and PRINT asks for each character. */
+bool qbrt_printer_ready(void) { return dev_printer_ready(); }
+
 bool qbrt_screen(void)
 {
     static int8_t screen = -1;

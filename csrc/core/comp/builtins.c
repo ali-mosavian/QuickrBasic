@@ -87,6 +87,7 @@ const XFn fns_x[] = {
     {0x100 + TK1_INPUTS, K_INPS, 1, 2, T_STR, "IH", SC_NONE},
     {0x100 + TK1_FILEATTR, K_FATTR, 2, 2, T_INT, "HI", SC_NONE},
     {0x100 + TK1_IOCTLS, K_IOCTLS, 1, 1, T_STR, "H", SC_NONE},
+    {0x100 + TK1_LPOS, K_LPOS, 1, 1, T_INT, "I", SC_NONE},
     {0x100 + TK1_POINT, 0, 2, 2, T_INT, "FF", SC_POINT},
     {0x100 + TK1_PMAP, 0, 2, 2, T_FLT, "FI", SC_PMAP},
     {0x100 + TK1_CSRLIN, 0, 0, 0, T_INT, "", SC_CSRLIN},

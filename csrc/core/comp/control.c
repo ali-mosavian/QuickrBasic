@@ -1278,9 +1278,22 @@ static void ioctl(Comp *const C)
     comp_call(C, K_IOCTL);
 }
 
+/* LPRINT [USING] list: PRINT's, to the printer: CALL LPRT, PRINT's code, CALL FICLR. */
+static void lprint(Comp *const C)
+{
+    C->p += 2;
+    comp_call(C, K_LPRT);
+    comp_dfa(C, lexr_ps_entry[TK_PRINT - 0x80]);
+    comp_call(C, K_FICLR);
+}
+
 static bool xstmt(Comp *const C)
 {
     switch (C->p[1]) {
+    case TK1_LPRINT:
+        lprint(C);
+        return true;
+
     case TK1_IOCTL:
         ioctl(C);
         return true;

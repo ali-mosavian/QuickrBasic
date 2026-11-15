@@ -34,6 +34,8 @@ void qbrt_tick_wait(void);
 /* Standard output is the screen: the console's text goes through the runtime's (cn_*), which keeps
    the cursor, the colours and the PRINT window, in text and graphics modes alike. */
 bool qbrt_screen(void);
+/* The printer is ready: LPT1's status. */
+bool qbrt_printer_ready(void);
 /* A graphics mode is on; back to text (SCREEN 0), the runtime's state with it. */
 bool qbrt_graphics(void);
 void qbrt_text(void);

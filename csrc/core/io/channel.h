@@ -23,11 +23,18 @@ typedef struct {
     uint8_t buf[CBSZ];
 } Chan;
 
+enum { CH_LPT = NCH }; /* LPRINT's channel, past the files' */
+enum : uint8_t { LPT_WIDTH = 80, LPT_NOWRAP = 255 };
+
 typedef struct {
     Cons *cons; /* the console: channel 0, and the output column */
-    Chan ch[NCH];
-    uint8_t out, in; /* output's and input's channel, 0 the console */
-    Status err;      /* the byte path's first error since chnl_take, ST_OK none */
+    Chan ch[NCH + 1];
+    uint8_t out, in;   /* output's and input's channel, 0 the console */
+    Status err;        /* the byte path's first error since chnl_take, ST_OK none */
+    uint8_t lpt_col;   /* LPT1's column, its channels' and LPRINT's, while not used */
+    uint8_t lpt_width; /* WIDTH LPRINT's, LPT_NOWRAP none */
+    bool lpt_open;     /* lpt_handle is the printer's */
+    uint16_t lpt_handle;
 } Chnl;
 
 /* The console the only channel. */
@@ -55,6 +62,13 @@ Status chnl_closeall(Chnl *cl);
 /* Output to c, its column cons's. Error: QB_BAD_FILE_MODE, not one written to. */
 [[nodiscard]]
 Status chnl_out(Chnl *cl, Chan *c);
+/* Output to the printer, LPRINT's. Error: QB_DEVICE_UNAVAILABLE, not ready. */
+[[nodiscard]]
+Status chnl_lprint(Chnl *cl);
+/* LPT1's column: col's (0 the first) while output is LPT1's. */
+uint8_t chnl_lpos(const Chnl *cl);
+/* A character at output column col goes on the next line: LPT1's width reached. */
+bool chnl_wraps(const Chnl *cl, uint8_t col);
 /* Input from c. Error: QB_BAD_FILE_MODE, not one read. */
 [[nodiscard]]
 Status chnl_in(Chnl *cl, Chan *c);

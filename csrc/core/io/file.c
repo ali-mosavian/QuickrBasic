@@ -833,6 +833,30 @@ void file_bload(Session *const S)
 
 void file_lock(Session *const S) { find(S, exec_popi(&S->vm)); }
 
+void file_lprint(Session *const S) { fault_check(&S->fault, chnl_lprint(&S->chnl)); }
+
+void file_lpwidth(Session *const S)
+{
+    const int32_t n = exec_popi(&S->vm);
+
+    if (n < 1 || n > LPT_NOWRAP)
+        fault_error(&S->fault, E_IQ);
+
+    S->chnl.lpt_width = (uint8_t)n;
+}
+
+enum { LPT_LAST = 3 };
+
+void file_lpos(Session *const S)
+{
+    const int32_t n = exec_popi(&S->vm);
+
+    if (n < 0 || n > LPT_LAST)
+        fault_error(&S->fault, E_IQ);
+
+    exec_pushi(&S->vm, n <= 1 ? chnl_lpos(&S->chnl) + 1 : 1);
+}
+
 /* A device's control string: none here takes one (QBasic's CON and files: Illegal function call). */
 void file_ioctl(Session *const S)
 {

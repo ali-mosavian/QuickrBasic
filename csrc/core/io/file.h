@@ -45,6 +45,9 @@ void file_eof(Session *S);         /* EOF ( n -- i ): read to its end, or a GET 
 void file_lof(Session *S);         /* LOF ( n -- i ) */
 void file_ioctl(Session *S);       /* IOCTL ( n s -- ): its file open, no device takes one */
 void file_ioctls(Session *S);      /* IOCTL$ ( n -- s ): the same */
+void file_lprint(Session *S);      /* LPRINT's start: output the printer's */
+void file_lpwidth(Session *S);     /* WIDTH LPRINT ( n -- ): 1 .. 255, 255 no wrap */
+void file_lpos(Session *S);        /* LPOS ( n -- i ): LPT1's column, from 1; LPT2's, LPT3's 1 */
 void file_loc(Session *S);      /* LOC ( n -- i ): RANDOM's last record, BINARY's byte, else /128 */
 void file_seekpos(Session *S);  /* SEEK ( n -- i ): the next record, or byte, from 1 */
 void file_seek(Session *S);     /* SEEK #n, p ( n p -- ); 63 Bad record number */

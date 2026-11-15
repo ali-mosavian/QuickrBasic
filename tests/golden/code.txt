@@ -14715,7 +14715,7 @@ stmts/s005.bas 0 b114ce69e1da
 stmts/s006.bas 0 786555d148f1
 stmts/s007.bas 0 cfab1cb50e27
 stmts/s008.bas 0 116141d216a4
-stmts/s009.bas 0 727a4b6b829c
+stmts/s009.bas 0 200359b3bb4c
 stmts/s010.bas 0 bebb442a0660
 stmts/s011.bas 0 7d6666706a48
 stmts/s012.bas 0 094142c42072

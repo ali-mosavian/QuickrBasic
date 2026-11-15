@@ -1,6 +1,7 @@
 /* The built-ins of devices this machine has not: QBasic 1.1's answers. */
 #include "session.h"
 #include "unit.h"
+#include <stdio.h>
 
 /* UEVENT was a Syntax error: QBasic compiles each form, and running one is Advanced feature
    unavailable. */
@@ -60,4 +61,67 @@ TEST(joystick_and_pen_of_a_machine_without)
         "e 5  0  0  0  0 e 5 |e 5  0  0  0  0  0  0  0  0 e 5 |e 5  0  0  0  0  0  0  1  1 "
         " 1  1 e 5 "
     );
+}
+
+void headless_set_printer_ready(int yes);
+
+/* What a program run uncaptured (its LPRINTs the printer's) wrote to LPOS.TMP. */
+static void printed(
+    Session *const S,
+    const char *const *const lines,
+    char *const out,
+    const size_t cap
+)
+{
+    unit_run_shown(S, lines);
+    FILE *const f = fopen("LPOS.TMP", "rb");
+    const size_t n = f ? fread(out, 1, cap - 1, f) : 0;
+    out[n] = 0;
+
+    if (f)
+        fclose(f);
+
+    remove("LPOS.TMP");
+    remove("LPT1.OUT");
+}
+
+/* LPRINT, WIDTH LPRINT and LPOS were Syntax errors. The printer's column as QBasic 1.1 counts it
+   with a printer: zones, USING, TAB and SPC as the screen's, WIDTH's wrap, LPOS(1) LPT1's;
+   without one, Device unavailable. */
+TEST(lprint_counts_the_printers_column)
+{
+    static const char *const lines[] = {
+        "10 ON ERROR GOTO 90: OPEN \"LPOS.TMP\" FOR OUTPUT AS #9",
+        "20 PRINT #9, LPOS(0);: LPRINT \"abc\";: PRINT #9, LPOS(0); LPOS(1); LPOS(2); LPOS(3);",
+        "30 LPRINT \"x\", \"y\";: PRINT #9, LPOS(0);: LPRINT USING \"##.#\"; 2.25;: PRINT #9, "
+        "LPOS(0);",
+        "40 LPRINT: PRINT #9, LPOS(0);: WIDTH LPRINT 10: LPRINT STRING$(12, \"z\");: PRINT #9, "
+        "LPOS(0);",
+        "50 LPRINT TAB(5); \"q\";: PRINT #9, LPOS(0);: LPRINT SPC(3); \"q\";: PRINT #9, LPOS(0);",
+        "60 OPEN \"LPT1:\" FOR OUTPUT AS #3: PRINT #3, \"ab\";: PRINT #9, LPOS(0);: CLOSE #3",
+        "70 WIDTH LPRINT 0: WIDTH LPRINT 256: PRINT #9, LPOS(4);",
+        "80 CLOSE #9",
+        "85 END",
+        "90 PRINT #9, \"e\"; ERR;: RESUME NEXT",
+        nullptr,
+    };
+
+    char out[200];
+
+    headless_set_printer_ready(1);
+    printed(S, lines, out, sizeof out);
+    CHECK(!strcmp(out, " 1  4  4  1  1  16  20  1  3  6  10  3 e 5 e 5 e 5 "));
+
+    static const char *const none[] = {
+        "10 ON ERROR GOTO 90: OPEN \"LPOS.TMP\" FOR OUTPUT AS #9",
+        "20 LPRINT \"x\": OPEN \"LPT1:\" FOR OUTPUT AS #3",
+        "30 CLOSE #9",
+        "35 END",
+        "90 PRINT #9, ERR;: RESUME NEXT",
+        nullptr,
+    };
+
+    headless_set_printer_ready(0);
+    printed(S, none, out, sizeof out);
+    CHECK(!strcmp(out, " 68  68 "));
 }

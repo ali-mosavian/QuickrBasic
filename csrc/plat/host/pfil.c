@@ -116,6 +116,15 @@ uint16_t pfil_seek(const PfilHandle h, const int32_t off, const uint8_t origin, 
 
 uint16_t pfil_close(const PfilHandle h) { return result(close(h)); }
 
+/* The printer's pages: LPT1.OUT, appended to. */
+uint16_t pfil_printer(PfilHandle *const h)
+{
+    char p[PATH_CAP];
+    const int fd = open(host_path("LPT1.OUT", p), O_WRONLY | O_CREAT | O_APPEND, 0644);
+    *h = (PfilHandle)fd;
+    return result(fd);
+}
+
 bool pfil_isdev(const PfilHandle h)
 {
     struct stat st;

@@ -87,6 +87,9 @@ void cons_putc(Cons *const co, const uint8_t c)
         return;
     }
 
+    if (c != NL && co->chnl->out && chnl_wraps(co->chnl, co->col))
+        cons_putc(co, NL);
+
     co->col++;
 
     if (c == NL)
