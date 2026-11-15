@@ -99,8 +99,7 @@ static struct {
     uint8_t nrecent;
     uint16_t procs[NPROCS]; /* the procedures' names */
     uint16_t nprocs;
-    uint8_t open[NFOR][SUGG_LEN + 2]; /* the open FORs' variables, innermost last */
-    uint16_t openid[NFOR];            /* their names' entries */
+    SuggName open[NFOR]; /* the open FORs' variables, innermost last */
     uint8_t nopen;
     uint8_t ndo, nwhile, nsel; /* DO, WHILE, SELECT CASE open at the word */
 } sg;
@@ -741,10 +740,8 @@ static void sugg_events(const uint8_t *const body, const uint8_t *const end)
         if (c == TK_FOR && *p == M_VAR) {
             SuggName n;
 
-            if (sugg_name(p, &n, &p) && sg.nopen < NFOR) {
-                memcpy(sg.open[sg.nopen], n.text, n.len + 1u);
-                sg.openid[sg.nopen++] = n.name;
-            }
+            if (sugg_name(p, &n, &p) && sg.nopen < NFOR)
+                sg.open[sg.nopen++] = n;
         } else if (c == TK_NEXT) {
             uint8_t k = 0;
 
@@ -1266,7 +1263,7 @@ static void sugg_vars(
     const uint16_t n
 )
 {
-    const uint8_t *const open = sg.nopen && sg.last == TK_NEXT ? sg.open[sg.nopen - 1] : nullptr;
+    const SuggName *const open = sg.nopen && sg.last == TK_NEXT ? &sg.open[sg.nopen - 1] : nullptr;
 
     for (uint16_t i = 0; i < sg.nnames; i++) {
         const SuggName *const e = &sg.names[i];
@@ -1294,7 +1291,7 @@ static void sugg_vars(
 
         const uint16_t count = e->count < 10 ? e->count : 10;
         const int16_t near = (int16_t)(e->dist < 30 ? 30 - e->dist : 0);
-        const bool forvar = open && !strcmp((const char *)open, (const char *)e->text);
+        const bool forvar = open && open->name == e->name;
         const int16_t score = (int16_t)(3 * count + near + (forvar ? 200 : 0));
         Sugg s = sugg_named(src, e->name, e->text, e->len, SG_VAR, m, score);
         s.need = forvar;
@@ -1397,9 +1394,8 @@ bool sugg_find(
     sugg_names(sg.body, blen, w.scope, 0);
 
     if (!wn && sg.last == TK_NEXT && sg.nopen) { /* NEXT: the open FOR's variable alone */
-        const uint8_t *const v = sg.open[sg.nopen - 1];
-        const uint16_t id = sg.openid[sg.nopen - 1];
-        Sugg s = sugg_named(&src, id, v, (uint16_t)strlen((const char *)v), SG_VAR, 2, 0);
+        const SuggName *const v = &sg.open[sg.nopen - 1];
+        Sugg s = sugg_named(&src, v->name, v->text, v->len, SG_VAR, 2, 0);
         s.need = true;
         sugg_add(out, &s);
         return true;
