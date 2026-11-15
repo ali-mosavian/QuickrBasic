@@ -57,3 +57,57 @@ TEST(screen_bad_mode)
 
     CHECK(unit_run(S, lines) == E_USR);
 }
+
+TEST(paint_fills_a_box)
+{
+    CHECK(draw(S, "20 LINE (0, 0)-(20, 20), 3, B: PAINT (10, 10), 5, 3") == ST_OK);
+    CHECK(pixel(10, 10) == 5 && pixel(0, 10) == 3 && pixel(25, 25) == 0);
+}
+
+TEST(draw_moves_and_lines)
+{
+    CHECK(draw(S, "20 PSET (50, 50), 0: DRAW \"C2 R10 D10\"") == ST_OK);
+    CHECK(pixel(55, 50) == 2 && pixel(60, 55) == 2);
+}
+
+TEST(view_moves_the_origin)
+{
+    CHECK(draw(S, "20 VIEW (100, 100)-(150, 150): PSET (1, 1), 4: VIEW: PSET (1, 1), 6") == ST_OK);
+    CHECK(pixel(101, 101) == 4 && pixel(1, 1) == 6);
+}
+
+TEST(window_maps_points)
+{
+    CHECK(draw(S, "20 WINDOW SCREEN (0, 0)-(31.9, 19.9): PSET (1, 1), 7") == ST_OK);
+    CHECK(pixel(10, 10) == 7);
+}
+
+TEST(point_and_pmap)
+{
+    static const char *const lines[] = {
+        "10 SCREEN 13: PSET (3, 4), 9",
+        "20 PRINT POINT(3, 4); POINT(400, 4)",
+        "30 WINDOW (0, 0)-(319, 199): PRINT PMAP(0, 1)",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 9 -1 \r 199 \r");
+}
+
+TEST(get_and_put)
+{
+    CHECK(
+        draw(S, "20 DIM a(100): PSET (1, 1), 4: GET (0, 0)-(3, 3), a: PUT (10, 10), a, PSET") ==
+        ST_OK
+    );
+    CHECK(pixel(11, 11) == 4 && pixel(10, 10) == 0);
+}
+
+TEST(palette_needs_graphics)
+{
+    static const char *const lines[] = {"10 SCREEN 0: PALETTE 1, 2", nullptr};
+
+    CHECK(unit_run(S, lines) == E_USR);
+    CHECK(draw(S, "20 PALETTE 1, 2") == ST_OK);
+}

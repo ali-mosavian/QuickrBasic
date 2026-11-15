@@ -1235,9 +1235,6 @@ static void resume(Comp *const C)
 
 static bool xstmt(Comp *const C)
 {
-    if (gstm_stmt(C))
-        return true;
-
     switch (C->p[1]) {
     case TK1_COMMON:
         common(C);
@@ -1314,6 +1311,9 @@ static bool let(Comp *const C)
 
 bool ctrl_stmt(Comp *const C)
 {
+    if (gstm_stmt(C))
+        return true;
+
     const uint8_t c = C->p[0];
     const uint8_t n = C->p[1];
 

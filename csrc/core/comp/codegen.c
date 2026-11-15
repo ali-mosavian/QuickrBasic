@@ -845,6 +845,8 @@ static void cg_xfn(Code *const c, const Node *const n)
         code_int(c, n->nargs);
     if (f->k)
         code_call(c, f->k);
+    if (f->sc)
+        code_opb(c, O_SYSCALL, f->sc);
 
     c->type = c->fixdbl ? T_DBL : f->res;
     c->fixdbl = false;

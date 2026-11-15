@@ -19,7 +19,7 @@
 typedef void Handler(Session *S);
 
 static Handler *const calls[SC_N] = {
-#define SC(name, h) h,
+#define SC(name, h) [SC_##name] = h,
 #include "vm/syscalls.def"
 };
 

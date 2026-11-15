@@ -5,7 +5,8 @@
  * A statement's points come first, each its own service (SC_N1 ..), then the statement's. A
  * point's coordinates are DOUBLEs, given to the runtime as SINGLEs: it rounds them, or maps them
  * through WINDOW. SCREEN's arguments are each a value and whether it was given, made the runtime's
- * block.
+ * block. A string goes as the runtime's descriptor of its chars; an array as its id and the
+ * element named (0 the first), the bytes from there to its end.
  *
  * # asm structure
  * | asm | here | |
@@ -13,6 +14,10 @@
  * | (none) | vgfx_* | NEW |
  */
 #include "session.h"
+#include "io/repl.h"
+#include "mem/array.h"
+#include "mem/string.h"
+#include "mem/symbols.h"
 #include "qbrt/qbrt.h"
 
 enum { SCREEN_ARGS = 4 };
@@ -111,4 +116,123 @@ void vgfx_circle(Session *const S)
 {
     const short color = (short)exec_popi(&S->vm);
     B_CIRC((float)exec_popd(&S->vm), color);
+}
+
+/* ( desc -- ) to the runtime's string. */
+static QbrtStr vgfx_str(Session *const S)
+{
+    const Desc d = strg_get(&S->strg, exec_popa(&S->vm));
+    return (QbrtStr){.len = d.len, .ptr = (char *)at(d.ptr)};
+}
+
+/* An array's part ( id element kind -- ): its chars from the element named (0 the first) to its
+   end, their count, an element's bytes. Illegal function call: not made. */
+typedef struct {
+    uint8_t *data;
+    uint32_t bytes, elem;
+} Span;
+
+static Span vgfx_array(Session *const S)
+{
+    (void)exec_popi(&S->vm); /* the element's kind */
+    const Addr el = exec_popa(&S->vm);
+    const uint16_t id = (uint16_t)exec_popi(&S->vm);
+    const Addr hdr = symb_var(&S->symb, id)->vt;
+
+    if (!hdr)
+        repl_error(S, E_IQ);
+
+    const Addr data = ((const ArrayHdr *)at(hdr))->data;
+    const Addr end = data + arry_size(&S->arry, id, hdr);
+    const Addr from = el ? el : data;
+
+    if (from < data || from >= end)
+        arry_bad_sub(&S->arry);
+
+    return (Span){at(from), end - from, arry_esize(&S->arry, id)};
+}
+
+void vgfx_paint(Session *const S)
+{
+    const short border = (short)exec_popi(&S->vm);
+    B_PAIN((short)exec_popi(&S->vm), border);
+}
+
+void vgfx_paintt(Session *const S)
+{
+    if (exec_popi(&S->vm))
+        (void)vgfx_str(S); /* the background tile: the runtime's PAINT takes none */
+
+    const short border = (short)exec_popi(&S->vm);
+    QbrtStr tile = vgfx_str(S);
+    B_PNTC(&tile, border, -1);
+}
+
+void vgfx_draw(Session *const S)
+{
+    QbrtStr commands = vgfx_str(S);
+    B_DRAW(&commands);
+}
+
+void vgfx_view(Session *const S)
+{
+    const short screen = (short)exec_popi(&S->vm);
+    const short border = (short)exec_popi(&S->vm);
+    const short fill = (short)exec_popi(&S->vm);
+    const short y2 = (short)exec_popi(&S->vm);
+    const short x2 = (short)exec_popi(&S->vm);
+    const short y1 = (short)exec_popi(&S->vm);
+    B_VIEW((short)exec_popi(&S->vm), y1, x2, y2, fill, border, screen);
+}
+
+void vgfx_view0(Session *const S) { B_VEW0(); }
+
+void vgfx_window(Session *const S)
+{
+    const short screen = (short)exec_popi(&S->vm);
+    float x1, y1, x2, y2;
+    vgfx_xy(&S->vm, &x2, &y2);
+    vgfx_xy(&S->vm, &x1, &y1);
+    B_WIND(x1, y1, x2, y2, screen);
+}
+
+void vgfx_window0(Session *const S) { B_WIN0(); }
+
+void vgfx_palette(Session *const S)
+{
+    const long color = exec_popi(&S->vm);
+    B_PAL2((short)exec_popi(&S->vm), color);
+}
+
+void vgfx_paletteu(Session *const S)
+{
+    const Span a = vgfx_array(S);
+    qbrt_palette_using(a.data, a.bytes, a.elem);
+}
+
+void vgfx_get(Session *const S)
+{
+    const Span a = vgfx_array(S);
+    qbrt_get(a.data, a.bytes, a.elem);
+}
+
+void vgfx_put(Session *const S)
+{
+    const short how = (short)exec_popi(&S->vm);
+    const Span a = vgfx_array(S);
+    qbrt_put(a.data, a.bytes, a.elem, how);
+}
+
+void vgfx_point(Session *const S)
+{
+    const float y = exec_pop(&S->vm).f;
+    const float x = exec_pop(&S->vm).f;
+    exec_pushi(&S->vm, B_PNR4(x, y));
+}
+
+void vgfx_pmap(Session *const S)
+{
+    const short function = (short)exec_popi(&S->vm);
+    const float value = exec_pop(&S->vm).f;
+    exec_push(&S->vm, (Cell){.f = *B_PMAP(value, function)});
 }

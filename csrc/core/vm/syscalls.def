@@ -19,5 +19,18 @@ SC(CEND, vgfx_cend)     /* ( end -- ): its end angle */
 SC(CASPECT, vgfx_caspect) /* ( aspect -- ): its aspect */
 SC(CIRCLE, vgfx_circle) /* ( radius color -- ): CIRCLE round the first point */
 SC(LAST, vgfx_last)     /* ( -- ): the first point the last one */
+SC(PAINT, vgfx_paint)   /* ( fill border -- ): PAINT from the first point */
+SC(PAINTT, vgfx_paintt) /* ( tile$ border [background$] given -- ): PAINT with a tile */
+SC(DRAW, vgfx_draw)     /* ( commands$ -- ) */
+SC(VIEW, vgfx_view)     /* ( x1 y1 x2 y2 fill border screen -- ): VIEW [SCREEN] (..)-(..) */
+SC(VIEW0, vgfx_view0)   /* ( -- ): VIEW alone, the whole screen */
+SC(WINDOW, vgfx_window) /* ( x1 y1 x2 y2 screen -- ): WINDOW [SCREEN] (..)-(..) */
+SC(WINDOW0, vgfx_window0) /* ( -- ): WINDOW alone, none */
+SC(PALETTE, vgfx_palette) /* ( attribute color -- ) */
+SC(PALETTEU, vgfx_paletteu) /* ( id element kind -- ): PALETTE USING array(element) */
+SC(GET, vgfx_get)       /* ( id element kind -- ): GET between the points into array(element) */
+SC(PUT, vgfx_put)       /* ( id element kind how -- ): PUT at the first point; how 0 OR .. 4 XOR */
+SC(POINT, vgfx_point)   /* ( x y -- color ): POINT(x, y), -1 off the screen */
+SC(PMAP, vgfx_pmap)     /* ( value function -- mapped ) */
 #undef SC
 #endif

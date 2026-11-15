@@ -16,11 +16,13 @@ extern const uint8_t fns_sig[20];
 /* QBasic's other functions: the token (100h + n for TK_X n), the CALL (0 none), the arguments at
    least (| XF_LEAD: a leading one optional), at most (0: no ( ); least 0: ( ) optional), the
    result, each argument's kind: I an INT, W a SHORT's 16 bits, F a FLOAT, D a DOUBLE, S a string,
-   X a string or a number, G FIX's, H a file number, R an array. */
+   X a string or a number, G FIX's, H a file number, R an array; or the runtime's service sc
+   (vm/syscalls.def) in the CALL's place. */
 typedef struct {
     uint16_t tok;
     uint8_t k, min, max, res;
     char arg[3];
+    uint8_t sc;
 } XFn;
 enum : uint8_t { XF_LEAD = 0x80, XF_MIN = 0x7F };
 extern const XFn fns_x[];

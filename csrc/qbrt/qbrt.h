@@ -45,6 +45,34 @@ void B_CSTO(float end);
 void B_CASP(float aspect);
 void B_CIRC(float radius, short color);
 
+/* PAINT from the first point: fill and border -1 the foreground, the fill's; or with a tile. */
+void B_PAIN(short fill, short border);
+void B_PNTC(QbrtStr *tile, short border, short background);
+
+/* DRAW's commands. */
+void B_DRAW(QbrtStr *commands);
+
+/* VIEW [SCREEN] (x1, y1)-(x2, y2), fill and border -1 none; VIEW alone. */
+void B_VIEW(short x1, short y1, short x2, short y2, short fill, short border, short screen);
+void B_VEW0(void);
+
+/* WINDOW [SCREEN] (x1, y1)-(x2, y2); WINDOW alone. */
+void B_WIND(float x1, float y1, float x2, float y2, short screen);
+void B_WIN0(void);
+
+/* PALETTE attribute, color. */
+void B_PAL2(short attribute, long color);
+
+/* An array's elements from data on, bytes of them, each elem bytes: PALETTE USING's colours, GET's
+   and PUT's picture (how 0 OR, 1 AND, 2 PRESET, 3 PSET, 4 XOR). */
+void qbrt_palette_using(void *data, uint32_t bytes, uint32_t elem);
+void qbrt_get(void *data, uint32_t bytes, uint32_t elem);
+void qbrt_put(void *data, uint32_t bytes, uint32_t elem, short how);
+
 /* POINT(x, y): the colour, -1 off the screen. */
 int B_PNI2(short x, short y);
+int B_PNR4(float x, float y);
+
+/* PMAP(value, function): function 0, 1 a logical x, y to a pixel; 2, 3 back. */
+float *B_PMAP(float value, short function);
 #endif
