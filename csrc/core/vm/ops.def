@@ -180,6 +180,7 @@ OP(V_CELL, oper_s_ld_v, 1 + VCELL, FX + FV) /* a scalar's cell, as S.LD.V a desc
 OP(V_LD, exec_v_ld, 4, FX)
 OP(V_ST, exec_v_st, 4, 0)
 OP(SYSCALL, sysc_call, 2, 0) /* the runtime's service n (vm/syscalls.def) */
+OP(D_PAST, flow_d_past, 1, FX)
 #undef OP
 #endif
 

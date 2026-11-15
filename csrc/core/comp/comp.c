@@ -900,15 +900,10 @@ static void act_fv(Comp *const C)
     C->forvar = id;
     comp_target(C, id);
 
-    if (info & SK_DBL) /* a DOUBLE's FOR: not yet */
+    if ((info & VK_MASK) == VK_STR)
         mismatch(C);
 
-    const uint8_t kind = info & VK_MASK;
-
-    if (kind == VK_STR)
-        mismatch(C);
-
-    C->forkind = kind;
+    C->forkind = info & (SK_DBL | VK_MASK);
 }
 
 /* The value as FOR's variable wants it. */

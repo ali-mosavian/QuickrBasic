@@ -361,6 +361,15 @@ static void past(Vm *const vm, const bool ints)
 void flow_i_past(Session *const S) { past(&S->vm, true); }
 void flow_f_past(Session *const S) { past(&S->vm, false); }
 
+/* D.PAST ( x limit step -- flag ): PAST's of DOUBLEs. */
+void flow_d_past(Session *const S)
+{
+    const double step = exec_popd(&S->vm);
+    const double limit = exec_popd(&S->vm);
+    Cell *const x = S->vm.sp;
+    x->i = (step < 0 ? x->d < limit : x->d > limit) ? -1 : 0;
+}
+
 /* ---- SUB and FUNCTION ----------------------------------------------------------------------- */
 
 /* A scalar's value from cell from to cell to; a string's heap block follows its descriptor. */

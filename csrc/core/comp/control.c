@@ -225,7 +225,7 @@ static uint16_t loopcell(
 
     const uint16_t name = symb_find_name(C->symb, text, sizeof text);
     const bool stat = C->proc && blok_proc(C->blok, C->proc)->flags & PF_STAT;
-    return symb_find_var(C->symb, name, v.type, v.info & VK_MASK, C->proc, stat);
+    return symb_find_var(C->symb, name, v.type, v.info & (SK_DBL | VK_MASK), C->proc, stat);
 }
 
 enum : uint32_t { DFOR_KEY = 0xFFFF0000 };
@@ -266,7 +266,8 @@ static StepSign stepsign(Comp *const C, const uint8_t *const at, const uint8_t k
     return v.u >> 31 ? STEP_DOWN : STEP_UP;
 }
 
-/* A FOR loop: its counter, its hidden limit and step, the counter's VK_* and the step's sign. */
+/* A FOR loop: its counter, its hidden limit and step, the counter's VK_* (SK_DBL a DOUBLE's) and
+   the step's sign. */
 typedef struct {
     uint16_t counter, limit, step;
     uint8_t kind;
@@ -281,7 +282,7 @@ static Loop loopof(
     const uint16_t counter
 )
 {
-    const uint8_t kind = symb_var(C->symb, counter)->info & VK_MASK;
+    const uint8_t kind = symb_var(C->symb, counter)->info & (SK_DBL | VK_MASK);
 
     return (Loop){
         .counter = counter,
@@ -292,7 +293,10 @@ static Loop loopof(
     };
 }
 
-static uint8_t loadop(const Loop *const l) { return l->kind == VK_INT ? O_I_LD_V : O_F_LD_V; }
+static uint8_t loadop(const Loop *const l)
+{
+    return l->kind == VK_INT ? O_I_LD_V : l->kind & SK_DBL ? O_D_LD_V : O_F_LD_V;
+}
 
 static Node *varleaf(Comp *const C, const uint16_t id)
 {
@@ -322,7 +326,7 @@ static void past(Comp *const C, const Loop *const l)
     comp_opid(C, loadop(l), l->counter);
     comp_opid(C, loadop(l), l->limit);
     comp_opid(C, loadop(l), l->step);
-    comp_op(C, l->kind == VK_INT ? O_I_PAST : O_F_PAST);
+    comp_op(C, l->kind == VK_INT ? O_I_PAST : l->kind & SK_DBL ? O_D_PAST : O_F_PAST);
     comp_value(C, T_INT);
 }
 
@@ -431,8 +435,14 @@ void ctrl_next(Comp *const C)
     const uint16_t counter = comp_cur(C) == M_VAR ? comp_var(C, 0, 0) : counterof(C, forat);
     const Loop l = loopof(C, forat, key, counter);
     comp_opid(C, loadop(&l), counter);
-    comp_opid(C, l.kind == VK_INT ? O_I_STEP_V : O_F_ADD_V, l.step);
-    comp_value(C, l.kind == VK_INT ? T_INT : T_FLT);
+
+    if (l.kind & SK_DBL) {
+        comp_opid(C, O_D_LD_V, l.step);
+        comp_op(C, O_D_ADD);
+    } else
+        comp_opid(C, l.kind == VK_INT ? O_I_STEP_V : O_F_ADD_V, l.step);
+
+    comp_value(C, l.kind == VK_INT ? T_INT : l.kind & SK_DBL ? T_DBL : T_FLT);
     comp_target(C, counter);
     comp_store(C);
     past(C, &l);

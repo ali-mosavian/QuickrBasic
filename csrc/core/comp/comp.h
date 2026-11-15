@@ -72,7 +72,7 @@ typedef struct Comp {
     bool oneif;               /* csif: in a one-line IF: ELSE ends a statement */
     uint8_t *dbg;             /* cdbg: past its DBG op, null none */
     uint8_t nargs;            /* ccnt: a CALL's counted arguments */
-    uint8_t forkind;          /* cfk: FOR's variable's kind, 0 a FLOAT */
+    uint8_t forkind;          /* cfk: FOR's variable's kind, 0 a FLOAT, SK_DBL a DOUBLE */
     uint16_t forvar;          /* cfid: FOR's variable */
     const uint8_t *nextkw;    /* the NEXT statement compiled last, its variables' entries from */
     struct BlockEnt *nextent; /* the entry of the variable it closed last */

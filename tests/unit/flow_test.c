@@ -53,6 +53,21 @@ TEST(for_by_a_step_known_when_run)
     CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 2  1  0 -1 -2 -2 -1  0  1  2 ");
 }
 
+/* A DOUBLE's FOR was a Type mismatch (GORILLAS.BAS's explosion): its counter counts in DOUBLEs, by
+   a step known when compiled or only when run, past where a SINGLE's would stall. */
+TEST(for_by_a_double)
+{
+    static const char *const lines[] = {
+        "10 FOR c# = 1 TO 2 STEP .5: PRINT c#;: NEXT",
+        "20 d# = -.5: FOR c# = 1 TO 0 STEP d#: PRINT c#;: NEXT",
+        "30 FOR c# = 16777216# TO 16777218#: PRINT c# - 16777216#;: NEXT c#",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 1  1.5  2  1  .5  0  0  1  2 ");
+}
+
 /* An INT's NEXT stepped past its range is Illegal function call, not Overflow. */
 TEST(next_past_an_ints_range)
 {
