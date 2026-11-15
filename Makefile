@@ -76,7 +76,7 @@ COWN := $(foreach f,memcpy memmove memset,--redefine-sym _$(f)=_lib_$(f))
 # part, then each target's
 QBRT := csrc/qbrt/llrm
 QBRT_PORTABLE := $(addprefix qb/,console.c cntext.c cngfx.c gfx.c gline.c gcirc.c gpaint.c gputget.c \
-	gdraw.c play.c screen.c sleep.c timer.c varptr.c error.c rtinit.c nhstutil.c nheap.c)
+	gdraw.c play.c screen.c sleep.c sticks.c timer.c varptr.c error.c rtinit.c nhstutil.c nheap.c)
 # DOS32: its own device and asm, by clang and jwasm; the asm's names given to clang's C (names.h)
 QBRT_DSRC := $(QBRT_PORTABLE) $(addprefix qb/,dos/m32/ad.c posix/block.c dev/dos/gfxdev.c \
 	$(addprefix dev/dos/m32/,clock.c con.c key.c prn.c text.c tone.c))

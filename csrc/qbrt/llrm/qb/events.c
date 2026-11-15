@@ -65,9 +65,6 @@ static Trap *trap_of(short device, long number)
     return 0;
 }
 
-#pragma aux B_STIK "B$STIK"
-#pragma aux B_FSTG "B$FSTG"
-#pragma aux B_FPEN "B$FPEN"
 #pragma aux B_EVAR "B$EVAR"
 #pragma aux B_EVSW "B$EVSW"
 #pragma aux B_EVAN "B$EVAN"
@@ -226,22 +223,3 @@ short B_FPLY(short ignored)
     return (short)music_waiting();
 }
 
-/* B$STIK, B$FSTG and B$FPEN: STICK(n), STRIG(n) and PEN(n) of a machine
-   without a joystick or a light pen: nothing moves and nothing is pressed. */
-short B_STIK(short which)
-{
-    (void)which;
-    return 0;
-}
-
-short B_FSTG(short which)
-{
-    (void)which;
-    return 0;
-}
-
-short B_FPEN(short which)
-{
-    (void)which;
-    return 0;
-}

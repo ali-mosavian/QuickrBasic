@@ -36,3 +36,28 @@ TEST(ioctl_is_an_illegal_function_call)
     CHECK(unit_run(S, lines) == ST_OK);
     CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 52  52  5  5 ");
 }
+
+/* STICK, STRIG and PEN were Syntax errors, STRIG ON too: no joystick nor pen, nothing moves and
+   nothing is pressed; PEN's character row and column are 1. Past QBasic's n, Illegal function
+   call. */
+TEST(joystick_and_pen_of_a_machine_without)
+{
+    static const char *const lines[] = {
+        "10 ON ERROR GOTO 90",
+        "20 STRIG ON: STRIG OFF",
+        "30 FOR k = -1 TO 4: PRINT STICK(k);: NEXT: PRINT \"|\";",
+        "40 FOR k = -1 TO 8: PRINT STRIG(k);: NEXT: PRINT \"|\";",
+        "50 FOR k = -1 TO 10: PRINT PEN(k);: NEXT",
+        "60 END",
+        "90 PRINT \"e\"; ERR;: RESUME NEXT",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(
+        S->cons.sbuf,
+        S->cons.sblen,
+        "e 5  0  0  0  0 e 5 |e 5  0  0  0  0  0  0  0  0 e 5 |e 5  0  0  0  0  0  0  1  1 "
+        " 1  1 e 5 "
+    );
+}

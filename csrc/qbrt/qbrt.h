@@ -139,5 +139,9 @@ void qbrt_clock_set(const PclkTime *t);
 void B_SOND(short hertz, float ticks);
 void B_SPLY(QbrtStr *commands);
 unsigned music_waiting(void);
+/* STICK(n), STRIG(n), PEN(n). */
+short B_STIK(short which);
+short B_FSTG(short which);
+short B_FPEN(short which);
 void music_clear(void);
 #endif

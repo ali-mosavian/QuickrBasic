@@ -1168,6 +1168,16 @@ static bool evstate(Comp *const C)
         }
     }
 
+    if (kind == EK_STRIG && comp_cur(C) != '(') { /* BASICA's STRIG ON, OFF: the joystick read */
+        const uint8_t c = comp_cur(C);
+
+        if (c != TK_ON && !(c == TK_X && C->p[1] == TK1_OFF))
+            synerr(C);
+
+        C->p += c == TK_ON ? 1 : 2;
+        return true;
+    }
+
     evnum(C, kind);
     const uint8_t c = comp_cur(C);
     uint8_t state;
