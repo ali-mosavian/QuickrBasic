@@ -205,5 +205,6 @@ ctest:                          # the suites against the C build
 	X86_COM=build/c/basic32.exe $(PY) tools/x86f_test.py build/c/basic32.exe
 	X86_COM=build/c/basic32.exe $(PY) tools/qbconf.py
 	$(PY) tools/x86fold_test.py build/c/basic32.exe
+	X86_COM=build/c/basic32.exe $(PY) tools/x86cost_test.py build/c/basic32.exe
 	X86_COM=build/c/basic32.exe $(PY) tools/x86gfx_test.py
 	X86_IDE=build/c/ide32.exe $(PY) tools/x86ide_test.py
