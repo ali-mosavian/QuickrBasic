@@ -367,5 +367,7 @@ K(USS, stmt_uss)
 K(USE, stmt_use)
 K(USEN, stmt_usen)
 K(DVAL, func_dval)
+K(IOCTL, file_ioctl)   /* IOCTL [#]n, s$ */
+K(IOCTLS, file_ioctls) /* IOCTL$([#]n) */
 #undef K
 #endif

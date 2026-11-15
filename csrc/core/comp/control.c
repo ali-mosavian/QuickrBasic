@@ -1252,9 +1252,29 @@ static void resume(Comp *const C)
     comp_byte(comp_jump(C, O_RESUME), mode);
 }
 
+/* IOCTL [#]n, s$: CALL IOCTL. */
+static void ioctl(Comp *const C)
+{
+    C->p += 2;
+
+    if (comp_cur(C) == '#')
+        C->p++;
+
+    expr_compile(C);
+    comp_toint(C);
+    comp_comma(C);
+    expr_compile(C);
+    comp_tostring(C);
+    comp_call(C, K_IOCTL);
+}
+
 static bool xstmt(Comp *const C)
 {
     switch (C->p[1]) {
+    case TK1_IOCTL:
+        ioctl(C);
+        return true;
+
     case TK1_COMMON:
         common(C);
         return true;

@@ -43,6 +43,8 @@ void file_write_str(Session *S); /* WRITE a string ( s -- ): in quotes */
 void file_write_comma(Session *S); /* WRITE's comma between */
 void file_eof(Session *S);         /* EOF ( n -- i ): read to its end, or a GET past it */
 void file_lof(Session *S);         /* LOF ( n -- i ) */
+void file_ioctl(Session *S);       /* IOCTL ( n s -- ): its file open, no device takes one */
+void file_ioctls(Session *S);      /* IOCTL$ ( n -- s ): the same */
 void file_loc(Session *S);      /* LOC ( n -- i ): RANDOM's last record, BINARY's byte, else /128 */
 void file_seekpos(Session *S);  /* SEEK ( n -- i ): the next record, or byte, from 1 */
 void file_seek(Session *S);     /* SEEK #n, p ( n p -- ); 63 Bad record number */

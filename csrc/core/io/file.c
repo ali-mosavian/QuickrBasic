@@ -832,5 +832,18 @@ void file_bload(Session *const S)
 }
 
 void file_lock(Session *const S) { find(S, exec_popi(&S->vm)); }
+
+/* A device's control string: none here takes one (QBasic's CON and files: Illegal function call). */
+void file_ioctl(Session *const S)
+{
+    S->vm.sp++;
+    file_ioctls(S);
+}
+
+void file_ioctls(Session *const S)
+{
+    find(S, exec_popi(&S->vm));
+    fault_error(&S->fault, E_IQ);
+}
 void file_drop(Session *const S) { S->vm.sp++; }
 void file_noadv(Session *const S) { fault_qberr(&S->fault, QB_NO_ADVANCED); }
