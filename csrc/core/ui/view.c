@@ -27,6 +27,7 @@
 #include "session.h"
 #include "ui/dialog.h"
 #include "ui/edit.h"
+#include "ui/indent.h"
 #include "ui/linemap.h"
 #include "ui/text.h"
 #include "ui/uimain.h"
@@ -325,23 +326,25 @@ void view_next(Session *const S)
 
 void view_prev(Session *const S) { show(S, uimn.ed.view ? uimn.ed.view - 1 : vw.n - 1); }
 
-/* A procedure at the text's end: vw.new_line, a blank, its END (kind PK_SUB, PK_FUNC); shown,
-   the cursor on the blank. */
+/* A procedure at the text's end: vw.new_line, a blank a step in, its END (kind PK_SUB,
+   PK_FUNC); shown, the cursor on the blank. */
 static void add(Session *const S, const uint8_t k)
 {
     text_whole();
     uimn.text.hook = nullptr;
     const uint32_t line = uimn.text.all;
     const char *const end = end_line(k);
+    uint8_t body[INDT_STEP];
+    memset(body, ' ', sizeof body);
     text_insert(S, line, vw.new_line, vw.new_len);
-    text_insert(S, line + 1, vw.new_line, 0);
+    text_insert(S, line + 1, body, sizeof body);
     text_insert(S, line + 2, (const uint8_t *)end, (uint16_t)strlen(end));
     touched();
     scan(S);
     View *const v = &vw.tab[vw.n - 1]; /* the last view, at its blank */
     v->line = 1;
     v->top = 0;
-    v->col = 0;
+    v->col = INDT_STEP;
     view_apply(); /* the old view's place kept */
     show(S, vw.n - 1);
 }

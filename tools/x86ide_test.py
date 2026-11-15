@@ -495,8 +495,9 @@ def play() -> None:
     press("home")
     keys("sub hi\n")
     assert chars(2)[1:7] == b"SUB hi" and text()[:3] == ["SUB HI", "", "END SUB"], look()
-    assert look()[1].strip() == "UNTITLED:HI", look()[1]
+    assert look()[1].strip() == "UNTITLED:HI" and look()[24].endswith(":005"), look()  # its body a step in
     keys("print 7\n")
+    assert text()[1] == "    PRINT 7", text()
     assert not any(m.upper() in r for m in MSGS for r in look()), look()
     press("0x5f")
     keys("hi\n")
@@ -542,6 +543,7 @@ def play() -> None:
     press("0x12", "f")
     keys("g\n")
     assert look()[1].strip() == "VW.BAS:G" and text()[:3] == ["FUNCTION G", "", "END FUNCTION"], look()
+    assert look()[24].endswith(":005"), look()[24]
     press("0x55")
     assert look()[1].strip() == "VW.BAS", look()[1]
     # A FUNCTION typed in a SUB's view was left there, missing from F2's list.
@@ -550,7 +552,7 @@ def play() -> None:
     assert look()[1].strip() == "VW.BAS:H" and text()[:3] == ["FUNCTION H", "", "END FUNCTION"], look()
     # A number with an exponent, kept as text, was listed a character a word: 6 E 6, a syntax error.
     keys("h = 6e6 + 1.5e-2 + 2d3 + 1.5#\n")
-    assert chars(3)[1:30] == b"h = 6E6 + 1.5E-2 + 2D3 + 1.5#", chars(3)
+    assert chars(3)[1:34] == b"    h = 6E6 + 1.5E-2 + 2D3 + 1.5#", chars(3)
     press("0x55")
 
     # Windows: Split, Alt+Plus and Alt+Minus a row, Ctrl+F10 the whole screen and back.
