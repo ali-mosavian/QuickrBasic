@@ -7,7 +7,7 @@ import re
 import shutil
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -46,6 +46,7 @@ class Result:
     instructions: int
     ms: int
     screen: str = ""  # the console's lines: what standard error wrote, with DOSBox's own
+    calls: dict[str, int] = field(default_factory=dict)  # profile: each function run, its calls
 
 
 def messages() -> list[str]:
@@ -57,16 +58,18 @@ def messages() -> list[str]:
 
 def run(jobs: dict[str, str | tuple], work: Path, limit_ms: int = 60000, file: bool = False,
         files: dict[str, bytes] | None = None, mem: int = 4, screen: bool = False,
-        before: tuple[str, ...] = (), keyboard: bool = False) -> dict[str, Result]:
+        before: tuple[str, ...] = (), keyboard: bool = False, profile: bool = False) -> dict[str, Result]:
     """Run each program text as stdin of BASIC.COM, or with file as the file BASIC.COM runs, its
     stdin a job's (program, input[, arguments]) second, the arguments after the file's name; files
     are put beside them. One DOSBox, one job per program. screen: standard output not redirected,
     the screen's path run; out is then empty. before: DOS commands ahead of each job's; keyboard: standard input not redirected
-    either (the IDE's own run)."""
+    either (the IDE's own run). profile: each function's calls counted, by the map beside COM."""
     if work.exists():
         shutil.rmtree(work)
     work.mkdir(parents=True)
     shutil.copy(COM, work / "BASIC.COM")
+    if profile:
+        shutil.copy(COM.with_suffix(".map"), work / "BASIC.MAP")
     # stub32a loads DOS32A.EXE from the program's directory
     if (COM.parent / "DOS32A.EXE").exists() and COM.suffix.lower() == ".exe":
         shutil.copy(COM.parent / "DOS32A.EXE", work / "DOS32A.EXE")
@@ -85,7 +88,7 @@ def run(jobs: dict[str, str | tuple], work: Path, limit_ms: int = 60000, file: b
             (work / bas.replace("\\", "/")).write_bytes(prog.encode("latin-1"))
         (work / f"J{i}.IN").write_bytes((stdin if file else prog).encode("latin-1"))
         run = f"BASIC.COM {bas} {args}".rstrip() + ("" if keyboard else f" < J{i}.IN") if file else f"BASIC.COM < J{i}.IN"
-        lines += [f":ms {limit_ms}", f"mount c {work}", "c:", *before, run if screen else f"{run} > J{i}.TXT", "."]
+        lines += [":profile"] * profile + [f":ms {limit_ms}", f"mount c {work}", "c:", *before, run if screen else f"{run} > J{i}.TXT", "."]
     fpu = "" if os.environ.get("X86_FPU", "1") == "1" else "fpu=false\n"
     # mem: DOSBox's MB. DOS/32A's start costs about 0.35 s a MB, the heap takes what is free
     (work / "job.conf").write_text(CONF.format(mem=mem).replace("[dos]", f"{fpu}[dos]"))
@@ -104,8 +107,11 @@ def run(jobs: dict[str, str | tuple], work: Path, limit_ms: int = 60000, file: b
     evs = [json.loads(x) for x in (work / "events.txt").read_text().splitlines()]
     ends = [e for e in evs if e.get("ev") == "end"]
     screens = [[] for _ in names]
+    calls: list[dict[str, int]] = [{} for _ in names]
     k = 0
     for e in evs:
+        if e.get("ev") == "profile" and k < len(names):
+            calls[k] = {f["name"]: f["calls"] for f in e["functions"] if f["calls"] or f["self"]}
         if e.get("ev") == "end":
             k += 1
         elif e.get("ev") == "line" and k < len(names):
@@ -116,7 +122,7 @@ def run(jobs: dict[str, str | tuple], work: Path, limit_ms: int = 60000, file: b
         f = work / f"J{i}.TXT"
         text = f.read_bytes().decode("latin-1") if f.exists() else ""
         out[name] = Result(name, text, e.get("reason", "none"), e.get("instructions", 0), e.get("ms", 0),
-                           "\n".join(screens[i]))
+                           "\n".join(screens[i]), calls[i])
     return out
 
 

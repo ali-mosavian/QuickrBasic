@@ -141,7 +141,8 @@ cide32: $(CIDE_OBJ)
 	$(PY) tools/x86d32a.py $(DOS32A)/dos32a.exe build/c/DOS32A.EXE
 
 # ---- LTO (make clto): the C objects as bitcode (build/clto), one module optimized whole by
-# tools/clto.py, linked with the asm's objects: build/clto/basic32.exe and ide32.exe
+# tools/clto.py, linked with the asm's objects: build/clto/basic32.exe and ide32.exe. PGO=1: what
+# a training run calls not is cold (tools/x86pgo.py, build/clto/*.hot)
 CASM_OBJ := $(CASM:csrc/%.asm=build/c/obj/%.obj) $(QBRT_DASM:%.asm=build/c/qbrt/%.obj)
 CBC = $(patsubst build/c/%.obj,build/clto/%.bc,$(filter-out $(CASM_OBJ),$1))
 .PHONY: clto
@@ -162,13 +163,25 @@ build/clto/obj/%.bc: csrc/%.c $(CHDR)
 	@mkdir -p $(@D)
 	$(CLANG) $(CFLAGS) -flto -c $< -o $@
 
-build/clto/basic32.exe: $(call CBC,$(COBJ)) $(CASM_OBJ)
-	$(PY) tools/clto.py $(CLANG) build/clto/basic32.obj $(call CBC,$(COBJ)) -- $(CASM_OBJ)
+build/clto/prof/%.obj: build/clto/%.bclist
+	@mkdir -p $(@D)
+	$(PY) tools/clto.py $(CLANG) $@ --profiling $(shell cat $<) -- $(CASM_OBJ)
+build/clto/basic32.bclist: $(call CBC,$(COBJ))
+	echo $^ > $@
+build/clto/ide32.bclist: $(call CBC,$(CIDE_OBJ))
+	echo $^ > $@
+build/clto/%.hot: build/clto/prof/%.obj $(CASM_OBJ)
+	$(PY) tools/x86pgo.py $@ build/clto/prof/$*.exe $(if $(findstring ide,$*),ide) -- $< $(CASM_OBJ)
+CHOT = $(if $(PGO),--hot build/clto/$1.hot)
+.SECONDARY: build/clto/prof/basic32.obj build/clto/prof/ide32.obj
+
+build/clto/basic32.exe: $(call CBC,$(COBJ)) $(CASM_OBJ) $(if $(PGO),build/clto/basic32.hot)
+	$(PY) tools/clto.py $(CLANG) build/clto/basic32.obj $(call CHOT,basic32) $(call CBC,$(COBJ)) -- $(CASM_OBJ)
 	$(C_LINK) $(abspath $@) $(abspath build/clto/basic32.obj $(CASM_OBJ))
 	$(PY) tools/x86d32a.py $(DOS32A)/dos32a.exe build/clto/DOS32A.EXE
 	$(PY) tools/x86lto_test.py $@
-build/clto/ide32.exe: $(call CBC,$(CIDE_OBJ)) $(CASM_OBJ)
-	$(PY) tools/clto.py $(CLANG) build/clto/ide32.obj $(call CBC,$(CIDE_OBJ)) -- $(CASM_OBJ)
+build/clto/ide32.exe: $(call CBC,$(CIDE_OBJ)) $(CASM_OBJ) $(if $(PGO),build/clto/ide32.hot)
+	$(PY) tools/clto.py $(CLANG) build/clto/ide32.obj $(call CHOT,ide32) $(call CBC,$(CIDE_OBJ)) -- $(CASM_OBJ)
 	$(C_LINK) $(abspath $@) $(abspath build/clto/ide32.obj $(CASM_OBJ))
 	cp src/ui/basic.hlp build/clto/BASIC.HLP
 	$(PY) tools/x86d32a.py $(DOS32A)/dos32a.exe build/clto/DOS32A.EXE
