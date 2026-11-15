@@ -84,3 +84,19 @@ int main(void)
     printf("%u tests, %u failures\n", ntests, failures);
     return failures ? 1 : 0;
 }
+
+Status unit_run_file(Session *const S, const char *const *const lines)
+{
+    session_new(S);
+    S->repl.loading = true;
+
+    for (size_t i = 0; lines[i]; i++)
+        CHECK(entered(S, lines[i]) == ENTER_STORED);
+
+    S->repl.loading = false;
+    S->cons.capture = CAP_SBUF;
+    S->cons.sblen = 0;
+    const Status st = typed(S, "RUN");
+    S->cons.capture = 0;
+    return st;
+}

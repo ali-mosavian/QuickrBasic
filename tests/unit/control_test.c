@@ -51,6 +51,7 @@ TEST(defint_on_typed_lines)
         "50 END FUNCTION",
         nullptr,
     };
+
     CHECK(unit_run(S, lines) == ST_OK);
     CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 2  4 ");
 }
@@ -59,6 +60,7 @@ TEST(defint_on_typed_lines)
 TEST(defint_typed_after)
 {
     static const char *const lines[] = {"20 x = 1.7: PRINT x;", "10 DEFINT A-Z", nullptr};
+
     CHECK(unit_run(S, lines) == ST_OK);
     CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 2 ");
 }
@@ -81,4 +83,40 @@ TEST(an_argless_statement_ends_at_a_colon)
 
     CHECK(unit_run(S, lines) == ST_OK);
     CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 1  2  3  4  5 ");
+}
+/* The status of lines run with SELECT i's body given (its END SELECT after). */
+static Status select_body(Session *const S, const char *const a, const char *const b)
+{
+    const char *const lines[] = {"i = 1", "SELECT CASE i", a, b, "END SELECT", nullptr};
+
+    return unit_run_file(S, lines);
+}
+
+/* A statement, label or line number between SELECT CASE and its first CASE compiled, a statement
+   never run; QBasic's and BC's: Statements/labels illegal between SELECT CASE and CASE. A blank
+   line, ':' or a comment may be there. */
+TEST(nothing_between_select_and_case)
+{
+    CHECK(select_body(S, "PRINT 9;", "CASE 1") == E_SLC);
+    CHECK(select_body(S, "DATA 1", "CASE 1") == E_SLC);
+    CHECK(select_body(S, "here: CASE 1", "CASE 2") == E_SLC);
+    CHECK(select_body(S, "100 CASE 1", "CASE 2") == E_SLC);
+
+    static const char *const same[] =
+        {"i = 1", "SELECT CASE i: PRINT 9;", "CASE 1", "END SELECT", nullptr};
+
+    CHECK(unit_run_file(S, same) == E_SLC);
+
+    CHECK(select_body(S, "' a comment", "CASE 1: PRINT 1;") == ST_OK);
+    CHECK(select_body(S, "REM x: CASE 9", ":") == ST_OK);
+
+    static const char *const ok[] = {
+        "i = 1",
+        "SELECT CASE i: CASE 1: PRINT 1;: END SELECT",
+        "SELECT CASE i",
+        "END SELECT",
+        nullptr
+    };
+
+    CHECK(unit_run_file(S, ok) == ST_OK);
 }

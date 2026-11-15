@@ -63,8 +63,9 @@ typedef struct {
     uint16_t depth;      /* bsp */
     BlokOpen open[NBST]; /* the open blocks */
     uint16_t blockcap, proccap;
-    Proc *proc; /* the procedure the scan is in, null none */
-    bool isdef; /* g_bkdef: the procedure is a DEF FN's */
+    Proc *proc;   /* the procedure the scan is in, null none */
+    bool isdef;   /* g_bkdef: the procedure is a DEF FN's */
+    bool selcase; /* a SELECT scanned, its first CASE not yet */
 } BlokScan;
 
 /* By BK_*: an opener's word; the error a block of it left open gives. */
@@ -461,6 +462,13 @@ static void blok_stmt(BlokScan *const sc, const uint8_t *const s)
     BlokOpen *o;
     BlockEnt *e;
 
+    if (*s == TK_REM)
+        return;
+    if (sc->selcase && *s != TK_CASE && !(*s == TK_END && s[1] == TK_SELECT))
+        blok_failw(sc, E_SLC, 0, nullptr);
+
+    sc->selcase = false;
+
     switch (*s) {
     case TK_IF: { /* a block when THEN ends the line */
         const uint8_t *q = s;
@@ -494,6 +502,7 @@ static void blok_stmt(BlokScan *const sc, const uint8_t *const s)
                 e->aux++;
 
         blok_push(sc, BK_SELECT, e);
+        sc->selcase = true;
         return;
 
     case TK_CASE: /* SELECT's or the case before's test goes here */
@@ -605,7 +614,14 @@ static void blok_scanline(BlokScan *const sc, const uint8_t *const b)
     sc->body = b;
     const uint8_t *s = b;
 
-    if (*s == M_VAR && s[s[1] + 4] == ':') /* a label: its statement after the ':' */
+    const bool label = *s == M_VAR && s[s[1] + 4] == ':';
+
+    if (sc->selcase && (label || prog_line(sc->pg, sc->line)->num != NONUM)) {
+        sc->off = 0;
+        blok_failw(sc, E_SLC, 0, nullptr);
+    }
+
+    if (label) /* its statement after the ':' */
         s += s[1] + 5;
     for (;;) {
         while (*s == ':')
