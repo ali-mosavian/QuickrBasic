@@ -29,6 +29,21 @@ CASES = {
 }
 
 
+# The IDE's debugger op at each statement, over the same loop's in basic32 (IDE32.EXE beside EXE).
+# With a breakpoint possible it looked up the statement's place in its line: 47.
+IDE_BUDGET = 25
+
+
+def per_pass(exe: Path, ide: bool) -> float:
+    """An empty FOR's instructions a pass, run by exe: the IDE's F5, else the file given."""
+    x86run.COM = exe
+    jobs = {"a": f"FOR i% = 1 TO {N}: NEXT\r\nSYSTEM\r\n", "b": f"FOR i% = 1 TO {2 * N}: NEXT\r\nSYSTEM\r\n"}
+    more = dict(files={"BASIC.HLP": (x86run.ROOT / "src/ui/basic.hlp").read_bytes()},
+                before=("AUTOTYPE -w 2 f5",), keyboard=True) if ide else {}
+    r = x86run.run(jobs, Path(tempfile.mkdtemp()) / "w", 60000, file=True, screen=True, **more)
+    return (r["b"].instructions - r["a"].instructions) / N
+
+
 def use(exe: str | None) -> Path:
     if exe:
         x86run.COM = Path(exe)
@@ -52,6 +67,12 @@ def main() -> None:
         report.append(f"{name} {each:.1f}/{budget}")
         if each > budget:
             bad.append(f"FAIL {name}: {each:.1f} instructions each, budget {budget}")
+    ide = exe.parent / "ide32.exe"
+    if ide.exists():
+        each = per_pass(ide, True) - per_pass(exe, False)
+        report.append(f"ide_stmt {each:.1f}/{IDE_BUDGET}")
+        if each > IDE_BUDGET:
+            bad.append(f"FAIL ide_stmt: {each:.1f} instructions a statement, budget {IDE_BUDGET}")
     print("\n".join(bad) or f"ok {exe}: {' '.join(report)}")
     sys.exit(1 if bad else 0)
 

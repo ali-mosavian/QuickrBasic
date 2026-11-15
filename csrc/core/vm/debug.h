@@ -25,6 +25,18 @@ typedef struct Dbug {
     bool probing;            /* g_dbev: dbug_eval's line runs, under its catch */
 } Dbug;
 
+/* Whether a DBG has anything to look for: a step, TRON, a breakpoint, until's line. */
+static inline bool dbug_watching(const Dbug *const db)
+{
+    return db->mode || db->trace || db->bpon || db->until;
+}
+
+/* Whether a DBG in a line of flags may stop: all but breakpoints watched, or the line has one. */
+static inline bool dbug_may_stop(const Dbug *const db, const uint8_t flags)
+{
+    return db->mode || db->trace || db->until || (db->bpon && flags & LF_BP);
+}
+
 /* dbg_depth: the procedures and GOSUBs being run. */
 uint32_t dbug_depth(const Vm *vm);
 /* dbg_pos: the place of code in line. */

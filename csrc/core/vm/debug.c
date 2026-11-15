@@ -44,8 +44,6 @@
 
 enum { PROBE_OUT_MAX = 79 };
 
-static bool watching(Dbug *const db) { return db->mode || db->trace || db->bpon || db->until; }
-
 /* Does the run stop at op, a statement's start in line? A breakpoint and until's line stop at a
    line's first statement only. */
 static bool stops_at(Session *const S, const uint32_t line, const uint8_t *const op)
@@ -64,7 +62,7 @@ static bool stops_at(Session *const S, const uint32_t line, const uint8_t *const
 /* DBG: a statement starts. */
 void dbug_dbg(Session *const S)
 {
-    if (!watching(&S->dbug) || S->vm.line == DLINE)
+    if (!dbug_watching(&S->dbug) || S->vm.line == DLINE)
         return;
 
     const uint8_t *const op = S->vm.ip - 1;

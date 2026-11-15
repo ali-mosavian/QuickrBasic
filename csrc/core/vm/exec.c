@@ -183,6 +183,8 @@ void exec_run(Session *const S)
 
             if (h == flow_eol)
                 at_op[i] = &&eol;
+            if (h == dbug_dbg)
+                at_op[i] = &&dbg;
             if (h == exec_i_ld_a1 || h == exec_f_ld_a1)
                 at_op[i] = &&i_ld_a1;
             if (h == exec_i_st_a1 || h == exec_f_st_a1)
@@ -231,6 +233,13 @@ i_jf: /* JF: past its jump, or to its target; a stop, a jump not resolved: flow_
         r.ip = code;
     }
 
+    goto next;
+
+dbg: /* a statement's start, where nothing could stop; else dbug_dbg's */
+    if (v->line != DLINE && dbug_may_stop(&S->dbug, prog_line(&S->prog, v->line)->flags))
+        goto cold;
+
+    r.ip++;
     goto next;
 
 eol: /* to the next stored line; a stop, the end, the direct line: flow_eol's */

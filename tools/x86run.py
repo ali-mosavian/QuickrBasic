@@ -56,11 +56,13 @@ def messages() -> list[str]:
 
 
 def run(jobs: dict[str, str | tuple], work: Path, limit_ms: int = 60000, file: bool = False,
-        files: dict[str, bytes] | None = None, mem: int = 4, screen: bool = False) -> dict[str, Result]:
+        files: dict[str, bytes] | None = None, mem: int = 4, screen: bool = False,
+        before: tuple[str, ...] = (), keyboard: bool = False) -> dict[str, Result]:
     """Run each program text as stdin of BASIC.COM, or with file as the file BASIC.COM runs, its
     stdin a job's (program, input[, arguments]) second, the arguments after the file's name; files
     are put beside them. One DOSBox, one job per program. screen: standard output not redirected,
-    the screen's path run; out is then empty."""
+    the screen's path run; out is then empty. before: DOS commands ahead of each job's; keyboard: standard input not redirected
+    either (the IDE's own run)."""
     if work.exists():
         shutil.rmtree(work)
     work.mkdir(parents=True)
@@ -82,8 +84,8 @@ def run(jobs: dict[str, str | tuple], work: Path, limit_ms: int = 60000, file: b
             (work / f"J{i}").mkdir()
             (work / bas.replace("\\", "/")).write_bytes(prog.encode("latin-1"))
         (work / f"J{i}.IN").write_bytes((stdin if file else prog).encode("latin-1"))
-        run = f"BASIC.COM {bas} {args}".rstrip() + f" < J{i}.IN" if file else f"BASIC.COM < J{i}.IN"
-        lines += [f":ms {limit_ms}", f"mount c {work}", "c:", run if screen else f"{run} > J{i}.TXT", "."]
+        run = f"BASIC.COM {bas} {args}".rstrip() + ("" if keyboard else f" < J{i}.IN") if file else f"BASIC.COM < J{i}.IN"
+        lines += [f":ms {limit_ms}", f"mount c {work}", "c:", *before, run if screen else f"{run} > J{i}.TXT", "."]
     fpu = "" if os.environ.get("X86_FPU", "1") == "1" else "fpu=false\n"
     # mem: DOSBox's MB. DOS/32A's start costs about 0.35 s a MB, the heap takes what is free
     (work / "job.conf").write_text(CONF.format(mem=mem).replace("[dos]", f"{fpu}[dos]"))
