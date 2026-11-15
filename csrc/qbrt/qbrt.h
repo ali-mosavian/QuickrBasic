@@ -49,6 +49,7 @@ void qbrt_console_reset(void);
 void qbrt_where(uint8_t *row, uint8_t *col);
 void qbrt_move(uint8_t row, uint8_t col);
 void cn_putc(char c);
+void cn_write(const char *s, unsigned n);
 void cn_crlf(void);
 uint8_t cn_pos(void);
 uint8_t cn_line(void);

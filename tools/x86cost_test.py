@@ -20,7 +20,8 @@ LOOP = "CLS\r\nFOR i% = 1 TO {}: LOCATE 1, 1: {}: NEXT\r\n"
 # name: (the loop's statement, the base's, the parts a pass, the budget for each)
 CASES = {
     # PRINT asked DOS whether standard output was the screen for each character: 466 a character.
-    "print_char": ('PRINT "abcdefghijklmnopqrstuvwx";', 'PRINT "a";', 23, 250),
+    # Then the runtime's console took one at a time: 188.
+    "print_char": ('PRINT "abcdefghijklmnopqrstuvwx";', 'PRINT "a";', 23, 40),
 }
 
 

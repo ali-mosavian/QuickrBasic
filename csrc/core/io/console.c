@@ -142,6 +142,12 @@ void cons_putdesc(Cons *const co, const Desc s)
 {
     const uint8_t *const p = at(s.ptr);
 
+    if (!co->capture && !co->chnl->out && qbrt_screen()) { /* the runtime's console: in one call */
+        cn_write((const char *)p, s.len);
+        co->col = cn_pos();
+        return;
+    }
+
     for (uint16_t i = 0; i < s.len; i++)
         cons_putc(co, p[i]);
 }
