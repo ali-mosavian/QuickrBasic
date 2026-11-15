@@ -395,18 +395,30 @@ static void clear_value(const Var *const v, const Addr cell)
 
 enum : uint32_t { NO_REF = 0xFFFF }; /* an argument's ref: passed by value, or no array */
 
+/* Whether cell is a variable's of procedure proc. */
+static bool own_cell(const Symb *const sy, const uint8_t proc, const Addr cell)
+{
+    const uint32_t off = cell - symb_cell(sy, 0);
+    return off < sy->nvars * (uint32_t)sizeof(Cell) &&
+           symb_varx(sy, (uint16_t)(off / sizeof(Cell)))->scope == proc;
+}
+
 /* Take the arguments off the data stack into callvars b, last first. Each is a ref above a value:
    a variable's cell, passed by reference and with no value; or an array argument's id. By value,
-   its CallVar holds the value till bind_params; a string is copied unless a temporary. */
-static void take_args(
+   its CallVar holds the value till bind_params; a string is copied unless a temporary. Whether
+   one by reference is a variable of proc's own. */
+static bool take_args(
     Vm *const vm,
     Symb *const sy,
     Arry *const ar,
     Strg *const sg,
+    const uint8_t proc,
     const Proc *const p,
     CallVar *const b
 )
 {
+    bool own = false;
+
     for (uint32_t i = p->npar; i-- > 0;) {
         b[i] = (CallVar){.var = p->params[i].var};
 
@@ -415,6 +427,7 @@ static void take_args(
 
         if (!is_array(v) && ref != NO_REF) {
             b[i].cell = ref;
+            own |= own_cell(sy, proc, ref);
             vm->sp++; /* its value slot, empty */
             continue;
         }
@@ -430,6 +443,8 @@ static void take_args(
         else
             b[i].value = val;
     }
+
+    return own;
 }
 
 /* Set the procedure's locals aside into callvars from b, emptying them; returns past the last. A
@@ -465,6 +480,33 @@ static CallVar *save_locals(
     }
 
     return b;
+}
+
+/* An argument by reference naming the procedure's own variable, the caller's: a local, set aside
+   in locals..end, or a parameter by value, whose CallVar is to keep the cell's value. The argument
+   is that place instead of the cell this call takes over. */
+static void own_args(
+    const Symb *const sy,
+    const uint8_t proc,
+    CallVar *const params,
+    const uint32_t npar,
+    const CallVar *const locals,
+    const CallVar *const end
+)
+{
+    for (CallVar *a = params; a < params + npar; a++) {
+        if (!a->cell || !own_cell(sy, proc, a->cell))
+            continue;
+
+        const uint16_t id = (uint16_t)((a->cell - symb_cell(sy, 0)) / sizeof(Cell));
+
+        for (const CallVar *b = locals; b < end; b++)
+            if (b->var == id)
+                a->cell = addr_of(&b->value);
+        for (const CallVar *b = params; b < params + npar; b++)
+            if (b->var == id && !b->cell)
+                a->cell = addr_of(&b->value);
+    }
 }
 
 /* Point the parameters at their arguments: a scalar by reference at the argument's cell, by value
@@ -529,9 +571,13 @@ void flow_pcall(Session *const S)
         repl_error(S, E_OS);
 
     CallVar *const params = S->vm.callvars + S->vm.ncallvars;
-    take_args(&S->vm, &S->symb, &S->arry, &S->strg, p, params);
+    const bool own = take_args(&S->vm, &S->symb, &S->arry, &S->strg, proc, p, params);
     const CallVar *const end =
         save_locals(&S->vm, &S->symb, &S->strg, &S->fault, proc, params + p->npar);
+
+    if (own)
+        own_args(&S->symb, proc, params, p->npar, params + p->npar, end);
+
     bind_params(&S->symb, &S->strg, params, p->npar, S->flow.text);
 
     S->vm.ip = call + 1 + sizeof(Jump); /* the call returns past its body's Jump */

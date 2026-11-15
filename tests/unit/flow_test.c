@@ -78,3 +78,30 @@ TEST(next_past_an_ints_range)
 
     CHECK(unit_run(S, lines) == E_IQ);
 }
+
+/* An argument by reference naming the procedure's own local or by-value parameter, to a call of
+   the same procedure, is the caller's variable: the call set the cell aside, and Q 3 printed
+   1 2 3. QBasic 1.1's output. */
+TEST(a_recursive_calls_reference_is_the_callers)
+{
+    static const char *const lines[] = {
+        "10 q 3: p 1, 2, 2",
+        "20 SUB q (n%)",
+        "30 IF n% > 0 THEN k% = n% - 1: q k%: q (k%): PRINT n%;",
+        "40 END SUB",
+        "50 SUB p (a%, b%, d%)",
+        "60 PRINT a%; b%; \"|\";",
+        "70 IF d% > 0 THEN p b%, (a% * 10), d% - 1: a% = a% + 100: p a%, b%, 0",
+        "80 PRINT a%; b%; \"/\";",
+        "90 END SUB",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(
+        S->cons.sbuf,
+        S->cons.sblen,
+        " 1  1  2  1  1  2  3  1  2 | 2  10 | 10  20 | 10  20 / 102  10 | 102  10 / 102  10 / "
+        "101  102 | 101  102 / 101  102 /"
+    );
+}
