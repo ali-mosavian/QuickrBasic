@@ -41,6 +41,8 @@ void qbrt_realtime(const bool yes) {}
 
 void qbrt_tick_wait(void) {}
 
+void qbrt_clock_set(const PclkTime *const t) {}
+
 enum {
     MODE_LINEAR = 0x13,
     MODE_CGA4 = 4,

@@ -14,6 +14,9 @@ os.environ.setdefault("X86_COM", sys.argv[1] if len(sys.argv) > 1 else str(ROOT 
 import x86run  # noqa: E402
 
 CASES = {
+    # C port: TIMER was DOS's time, in 55 ms steps; it is llrm's (B$TIMR), the timer chip's count
+    # within the tick. NIBBLES.BAS's waits of curSpeed / 2000 s took a whole tick each.
+    "c_timer_fine": ("t = TIMER: DO: u = TIMER: LOOP WHILE u = t: PRINT \"fine\"; u - t < .02\r\n", "fine-1 ", None),
     # C port, the tree: a line's syntax error left its nodes taken; 340 such lines and the next
     # line's expression was Out of memory.
     "c_tree_leak": ("IF 0 THEN a = 1 + (2 * (3 +\r\n" * 400 + "PRINT 5\r\n", " 5 \r\n", "memory"),

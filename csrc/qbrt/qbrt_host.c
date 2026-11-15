@@ -10,9 +10,18 @@ enum { HUNDREDTHS_A_TICK = 6, WAIT_NANOSECONDS = 1000000 };
 
 static bool realtime = true;
 
+void qbrt_clock_set(const PclkTime *const t)
+{
+    headless_clock_set(((t->hour * 60L + t->min) * 60 + t->sec) * 100 + t->hund, 0);
+    headless_set_real_time(1);
+}
+
 void qbrt_device(void)
 {
     headless_reset();
+    PclkTime now;
+    pclk_time(&now);
+    qbrt_clock_set(&now);
     headless_set_stdout_is_screen(0);
     headless_set_tick_thread(realtime);
 }

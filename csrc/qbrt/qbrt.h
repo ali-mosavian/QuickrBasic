@@ -3,6 +3,7 @@
 #ifndef QBRT_QBRT_H
 #define QBRT_QBRT_H
 #include "fault.h"
+#include "plat/pclk.h"
 
 /* A string as the runtime takes it (its SD): length, then the bytes. */
 typedef struct {
@@ -124,6 +125,13 @@ int B_PNR4(float x, float y);
 
 /* PMAP(value, function): function 0, 1 a logical x, y to a pixel; 2, 3 back. */
 float *B_PMAP(float value, short function);
+
+/* TIMER: the seconds since midnight, as finely as the device keeps them (DOS: the timer chip's
+   count within the tick). */
+float *B_TIMR(void);
+/* TIME$ set: the runtime's clock with it. The host's is its own, in real time from t; DOS's the
+   BIOS's, which DOS sets. */
+void qbrt_clock_set(const PclkTime *t);
 
 /* SOUND hertz, ticks; PLAY's commands; the notes waiting in the background music; nothing queued
    or sounding. */

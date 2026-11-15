@@ -34,6 +34,7 @@
 #include "plat/pclk.h"
 #include "plat/pkey.h"
 #include "plat/psys.h"
+#include "qbrt/qbrt.h"
 #include "vm/event.h"
 
 enum {
@@ -94,14 +95,8 @@ static uint8_t *two_digits(uint8_t *const p, const uint8_t v)
     return p + 2;
 }
 
-/* TIMER ( -- f ): the seconds since midnight, to 1/100. */
-void syst_timer(Session *const S)
-{
-    PclkTime t;
-    pclk_time(&t);
-    const int32_t hundredths = ((t.hour * 60 + t.min) * 60 + t.sec) * 100 + t.hund;
-    exec_pusha(&S->vm, fmth_div(&S->fault, fmth_from_i32(hundredths), SNGL_HUNDRED));
-}
+/* TIMER ( -- f ): the seconds since midnight, the runtime's. */
+void syst_timer(Session *const S) { exec_push(&S->vm, (Cell){.f = *B_TIMR()}); }
 
 /* DATE$ ( -- s ): mm-dd-yyyy. */
 void syst_date(Session *const S)
@@ -213,6 +208,7 @@ void syst_stime(Session *const S)
     if (!pclk_set_time(&t))
         repl_error(S, E_IQ);
 
+    qbrt_clock_set(&t);
     S->vm.sp++;
 }
 
