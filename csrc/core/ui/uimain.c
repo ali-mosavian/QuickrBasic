@@ -58,6 +58,7 @@
 #include "ui/linemap.h"
 #include "ui/menu.h"
 #include "ui/mouse.h"
+#include "ui/pages.h"
 #include "ui/screen.h"
 #include "ui/highlight.h"
 #include "ui/text.h"
@@ -69,9 +70,6 @@
 
 Uimn uimn; /* zeroed: its line buffers' texts are set by uimn_start */
 
-enum : uint8_t { PAGE_EDIT = 0, PAGE_OUT = 1 };
-enum : uint8_t { VIDEO_TEXT = 3 };    /* pscr_mode's 80x25 colour text */
-enum : uint8_t { ATTR_PLAIN = 0x07 }; /* gray on black */
 /* ui.alt. */
 enum : uint8_t { ALT_NONE = 0, ALT_DOWN = 1, ALT_HELD = 2 };
 
@@ -155,32 +153,6 @@ char *uimn_dec(char *const dst, uint16_t v)
         dst[i] = digits[n - 1 - i];
 
     return dst + n;
-}
-
-/* ---- pages */
-
-/* ui_in: page 0, the editor, shown. */
-static void page_in(void)
-{
-    pscr_page(PAGE_EDIT);
-    them_in();
-}
-
-/* ui_out: page 1, the output, shown. */
-static void page_out(void)
-{
-    pscr_page(PAGE_OUT);
-    them_out();
-}
-
-/* ui_outclr: page 1 shown and cleared. */
-static void page_clear(Session *const S)
-{
-    them_out();
-    pscr_page(PAGE_OUT);
-    pscr_scroll(0, 0, 0, PSCR_ROWS - 1, PSCR_COLS - 1, ATTR_PLAIN);
-    pscr_cursor(PAGE_OUT, 0, 0);
-    S->cons.col = 0;
 }
 
 /* ---- keys */
@@ -796,11 +768,11 @@ static void file_exit(Session *const S)
 }
 
 /* ui_view: F4: the output page until a key. */
-static void view_output(void)
+static void view_output(Session *const S)
 {
-    page_out();
+    upag_out(S);
     uimn_getkey();
-    page_in();
+    upag_in(S);
 }
 
 /* ui_syntax: Options, Syntax Checking. */
@@ -829,7 +801,7 @@ void uimn_run(Session *const S)
 {
     sync(S);
     udbg_prep(S);
-    page_clear(S);
+    upag_clear(S);
     ui.run_wait = true;
     static const char cmd[] = "RUN";
     memcpy(S->cons.inbuf, cmd, sizeof cmd - 1);
@@ -853,7 +825,7 @@ void uimn_cont(Session *const S)
     }
 
     udbg_prep(S);
-    page_out();
+    upag_out(S);
     ui.run_wait = true;
     ran(S, repl_call(S, repl_cont));
 }
@@ -867,7 +839,7 @@ static void exec_line(Session *const S)
     if (!len)
         return;
 
-    page_out();
+    upag_out(S);
     pscr_where(PAGE_OUT, &ui.crow, &ui.ccol);
     ui.run_wait = false;
 
@@ -876,16 +848,18 @@ static void exec_line(Session *const S)
         return;
     }
 
-    page_in();
+    upag_in(S);
 }
 
-/* Press any key on the output's last row, the output's cursor back after. */
+/* Press any key on the output's last row, the output's cursor back after: on the output's page,
+   or a graphics mode's only one. */
 static void wait_anykey(Session *const S)
 {
     cons_fresh(&S->cons);
+    const uint8_t page = upag_output();
     uint8_t row, col;
-    pscr_where(PAGE_OUT, &row, &col); /* output goes on here after the key */
-    pscr_cursor(PAGE_OUT, STATUS_ROW, 0);
+    pscr_where(page, &row, &col); /* output goes on here after the key */
+    pscr_cursor(page, STATUS_ROW, 0);
 
     for (uint32_t i = 0; s_anykey[i]; i++)
         cons_putc(&S->cons, (uint8_t)s_anykey[i]);
@@ -893,13 +867,16 @@ static void wait_anykey(Session *const S)
     cons_flush(&S->cons);
     S->cons.col = 0;
     pkey_read();
-    pscr_cursor(PAGE_OUT, STATUS_ROW, 0); /* the prompt off */
-    pscr_fill(PAGE_OUT, STATUS_ROW, 0, ATTR_PLAIN << 8 | ' ', PSCR_COLS);
-    pscr_cursor(PAGE_OUT, row, col);
+    pscr_cursor(page, STATUS_ROW, 0); /* the prompt off */
+
+    if (page == PAGE_OUT)
+        pscr_fill(PAGE_OUT, STATUS_ROW, 0, ATTR_PLAIN << 8 | ' ', PSCR_COLS);
+
+    pscr_cursor(page, row, col);
 }
 
 /* ui_ready: the run ended: the output page until a key, unless an immediate line printed
-   nothing and left no graphics mode; then the editor, in text mode. */
+   nothing and left no graphics mode; then the editor. */
 static void ended(Session *const S)
 {
     cons_flush(&S->cons);
@@ -910,12 +887,7 @@ static void ended(Session *const S)
     if (ui.run_wait || row != ui.crow || col != ui.ccol || qbrt_graphics())
         wait_anykey(S);
 
-    if (qbrt_graphics()) { /* its mode set took both pages: the editor is drawn again */
-        qbrt_text();
-        pscr_mode(VIDEO_TEXT);
-    }
-
-    page_in();
+    upag_in(S);
 }
 
 /* ---- the cursor at a line, an error */
@@ -979,7 +951,7 @@ static void erred(Session *const S, const uint8_t code)
     cons_flush(&S->cons);
     S->cons.col = 0;
     S->vm.stop = 0;
-    page_in();
+    upag_in(S);
     S->repl.loading = false; /* repl_relink's, the error ended it */
     S->prog.add_flags = 0;
     S->prog.add_at = 0;
@@ -1056,7 +1028,7 @@ void uimn_act(Session *const S, const uint8_t action)
         break;
 
     case ACT_OUT:
-        view_output();
+        view_output(S);
         break;
 
     case ACT_FIND:
@@ -1218,7 +1190,7 @@ static bool screen_key(Widget *const w, Session *const S, const uint16_t key)
         return true;
 
     case FKEY(SCAN_F1, 4):
-        view_output();
+        view_output(S);
         return true;
 
     case FKEY(SCAN_F1, 5):
@@ -1478,7 +1450,8 @@ static void regions(Session *const S)
     static uint16_t cols[LMAX];
     S->lexr.col = cols;
     S->lexr.ncol = LMAX;
-    lmap_init(S);
+    lmap_init(S); /* HLMAP: the third block */
+    upag_init(S);
 }
 
 const FrontEnd uimn_front_end = {

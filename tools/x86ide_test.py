@@ -19,7 +19,7 @@ import x86run  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 IMG = ROOT / "docs/img"
-ALT_F, ALT_S, F5 = 0x21, 0x1F, 0x3F
+ALT_F, ALT_S, F4, F5 = 0x21, 0x1F, 0x3E, 0x3F
 MSGS = x86run.messages()
 # X86_IDE=build/x86/ide32.exe plays the flat build, DOS32A.EXE beside it
 IDE = Path(os.environ.get("X86_IDE", ROOT / "build/x86/ide32.exe"))
@@ -185,11 +185,27 @@ def play() -> None:
     assert " 42" in out and " 8" in out and out.count("PRESS ANY KEY TO CONTINUE") == 1, out
     press("space")
     # A line that leaves SCREEN 13: the editor came back drawn on a screen still in it, unseen.
-    keys("screen 13\n")  # short: the immediate line shows beside a box drawn over its row later
+    # The lines short: the immediate window's last shows beside a box drawn over its row later.
+    def peek(addr: int) -> int:
+        return bytes.fromhex(s.send({"cmd": "mem_read_linear", "addr": addr, "len": 1})["data"])[0]
+
+    keys("screen 13\n")
     press("space")
-    mode = bytes.fromhex(s.send({"cmd": "mem_read_linear", "addr": 0x449, "len": 1})["data"])[0]
-    assert mode == 3 and "UNTITLED" in look()[1], (mode, look()[:2])
+    assert peek(0x449) == 3 and "UNTITLED" in look()[1], (peek(0x449), look()[:2])
+    # The program's screen kept: F4 shows it again, and a line goes on drawing in its mode.
+    keys("pset (1,1),4\n")
+    press("space")
+    press(f"0x{F4:x}")
+    assert peek(0x449) == 0x13 and peek(0xA0000 + 321) == 4, (peek(0x449), peek(0xA0000 + 321))
+    press("space")
+    assert peek(0x449) == 3 and "UNTITLED" in look()[1], (peek(0x449), look()[:2])
     press("f6")
+    # RUN starts the program in text mode: F4 after shows its text, not the last SCREEN 13's.
+    press(f"0x{F5:x}")
+    press("space")
+    press(f"0x{F4:x}")
+    assert peek(0x449) == 3 and output()[:3] == [" 1", " 4", " 9"], (peek(0x449), output()[:3])
+    press("space")
 
     # Alt+F with Alt still held: letting Alt go once counted as an Alt tap
     # and closed the menu, so it could not be moved in.
@@ -838,6 +854,21 @@ def play() -> None:
     press(f"0x{F5:x}")
     assert output()[0] == " 300", output()
     press("space")
+    # A graphics program stepped, then traced: the editor shown in text mode at each stop, the
+    # program's screen kept. A trace drew the editor on SCREEN 13's page: the PSETs were lost.
+    (work / "GFX.BAS").write_bytes(b"SCREEN 13\r\nPSET (1, 1), 4\r\nPSET (2, 1), 5\r\nEND\r\n")
+    open_file("gfx.bas")
+    for want in [(0, "SCREEN 13"), (1, "PSET (1, 1), 4"), (2, "PSET (2, 1), 5")]:
+        step(F8, want)
+        assert peek(0x449) == 3, peek(0x449)
+    press(f"0x{F4:x}")
+    assert peek(0x449) == 0x13 and peek(0xA0000 + 321) == 4, (peek(0x449), peek(0xA0000 + 321))
+    press("space")
+    press(f"0x{ALT_D:x}", "t", f"0x{ALT_R:x}", "r", f"0x{F5:x}")
+    press("space")
+    press(f"0x{F4:x}")
+    assert peek(0x449) == 0x13 and [peek(0xA0000 + 320 + x) for x in (1, 2)] == [4, 5], look()
+    press("space", f"0x{ALT_D:x}", "t")
     if flat:  # past 64 KB of text: the text's buffer was 64 KB, the file cut short
         pad = b"x = x + 1 ' " + b"pad " * 12 + b"\r\n"
         (work / "BIG.BAS").write_bytes(b"x = 0\r\n" + pad * 2000 + b"PRINT x\r\n")

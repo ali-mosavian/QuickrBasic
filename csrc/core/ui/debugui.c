@@ -35,6 +35,7 @@
 #include "ui/debugpane.h"
 #include "ui/edit.h"
 #include "ui/linemap.h"
+#include "ui/pages.h"
 #include "ui/screen.h"
 #include "ui/text.h"
 #include "ui/uimain.h"
@@ -86,19 +87,21 @@ static void hlset(Session *const S, const DebugPos *const pos)
 
 enum { TRACE_TICKS = 2 };
 
-/* ud_trace (DebugHooks.trace): the statement lit on the editor's page for two ticks. */
+/* ud_trace (DebugHooks.trace): the statement lit on the editor's page for two ticks. The page is
+   shown first: a graphics screen is put away, the text mode taking the page the editor is drawn
+   on. */
 static void trace(Session *const S, const DebugPos *const at)
 {
     hlset(S, at);
+    upag_in(S);
     tree_draw(&uimn.tree.workspace, S);
     scrn_flip();
-    pscr_page(0);
     const uint32_t until = pclk_ticks() + TRACE_TICKS;
 
     while (until > pclk_ticks())
         ;
 
-    pscr_page(1);
+    upag_out(S);
     hl.on = false;
 }
 

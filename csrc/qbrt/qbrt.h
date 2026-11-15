@@ -36,6 +36,12 @@ bool qbrt_screen(void);
 /* A graphics mode is on; back to text (SCREEN 0), the runtime's state with it. */
 bool qbrt_graphics(void);
 void qbrt_text(void);
+/* The program's graphics screen, kept while a front end shows its own in text mode: the bytes it
+   takes at most; taken (its visible page, palette and display start); shown again, its mode set
+   without clearing and the runtime's state as the program left it. DOS32's (qbrt_dos.c). */
+uint32_t qbrt_shot_size(void);
+void qbrt_shot_take(void *shot);
+void qbrt_shot_show(const void *shot);
 /* A front end draws the screen itself (the IDE): standard output is not the runtime's. */
 void qbrt_screen_taken(bool yes);
 void cn_putc(char c);
