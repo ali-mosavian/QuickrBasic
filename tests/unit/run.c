@@ -50,6 +50,12 @@ void unit_store(Session *const S, const char *const *const lines)
         CHECK(entered(S, lines[i]) == ENTER_STORED);
 }
 
+Status unit_run_shown(Session *const S, const char *const *const lines)
+{
+    unit_store(S, lines);
+    return typed(S, "RUN");
+}
+
 Status unit_run(Session *const S, const char *const *const lines)
 {
     unit_store(S, lines);

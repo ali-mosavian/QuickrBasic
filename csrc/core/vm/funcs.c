@@ -53,7 +53,7 @@ static uint32_t f_fre(Session *const S, const uint32_t)
     return fmth_from_i32((int32_t)(S->allo.strings - S->allo.arrays));
 }
 
-static uint32_t f_pos(Session *const S, const uint32_t) { return S->cons.col; }
+static uint32_t f_pos(Session *const S, const uint32_t) { return S->cons.col + 1u; } /* from 1 */
 static uint32_t f_sqr(Session *const S, const uint32_t a) { return fmth_sqr(&S->fault, a); }
 static uint32_t f_rnd(Session *const S, const uint32_t a) { return rndm_rnd(&S->rndm, a); }
 static uint32_t f_log(Session *const S, const uint32_t a) { return fmth_log(&S->fault, a); }

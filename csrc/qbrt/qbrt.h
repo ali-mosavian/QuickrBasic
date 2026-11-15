@@ -15,6 +15,26 @@ void qbrt_init(Fault *f);
 /* The target's device ready (qbrt_host.c, ...): text mode, nothing typed or sounding. */
 void qbrt_device(void);
 
+/* Standard output is the screen: the console's text goes through the runtime's (cn_*), which keeps
+   the cursor, the colours and the PRINT window, in text and graphics modes alike. */
+bool qbrt_screen(void);
+void cn_putc(char c);
+void cn_crlf(void);
+uint8_t cn_pos(void);
+uint8_t cn_line(void);
+
+/* COLOR's, LOCATE's arguments as a block, as screen_mode's: foreground, background, border; row,
+   column, cursor, start, stop. */
+void screen_color(const int *block);
+void screen_locate(const int *block);
+
+/* CLS; VIEW PRINT top TO bottom, -1 -1 the whole screen; WIDTH columns, rows, -1 one left out;
+   BEEP. */
+void B_SCLS(short selector);
+void B_VWPT(short top, short bottom);
+void B_WIDT(short columns, short rows);
+void B_BEEP(void);
+
 /* SCREEN mode: 0 text; not a mode it has, Illegal function call. */
 void gfx_screen(int mode);
 /* SCREEN's arguments as a block: its count of words, then from the top down each argument's flag

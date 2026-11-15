@@ -2,7 +2,9 @@
  *
  * # How it works
  * Everything printed goes through cons_putc: to sbuf while captured, else to the output channel
- * (channel.c); the console channel is standard output, through obuf. cons_flush writes obuf.
+ * (channel.c); the console channel is standard output, through obuf. cons_flush writes obuf. Where
+ * standard output is the screen, the runtime's console (qbrt) takes each character instead: it
+ * keeps the cursor, the colours and the PRINT window, and its cursor is the column.
  *
  * inbuf and sbuf are carved from the arena (cons_init). strg reads INPUT's items and LINE INPUT's
  * line in inbuf by Addr. sbuf holds a line's LIST spelled; the rest is dropped past SBMAX.
@@ -54,6 +56,7 @@
 #include "plat/pfil.h"
 #include "plat/pkey.h"
 #include "plat/psys.h"
+#include "qbrt/qbrt.h"
 
 enum : uint8_t { KEY_CTRL_C = 3, KEY_BACKSPACE = '\b', KEY_ENTER = '\r' };
 enum { KEYED_MAX = 80 }; /* a keyed line's characters at most */
@@ -263,6 +266,16 @@ static void cons_obyte(Cons *const co, const uint8_t c)
 
 void cons_out(Cons *const co, const uint8_t c)
 {
+    if (qbrt_screen()) { /* the runtime's console: its cursor the column */
+        if (c == NL)
+            cn_crlf();
+        else
+            cn_putc((char)c);
+
+        co->col = cn_pos();
+        return;
+    }
+
     if (c != NL) {
         cons_obyte(co, c);
         return;

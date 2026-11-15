@@ -1,5 +1,5 @@
-/* The graphics statements compiled: SCREEN, PSET, PRESET, LINE, CIRCLE, PAINT, DRAW, VIEW, WINDOW,
- * PALETTE, GET and PUT of the screen.
+/* The screen's statements compiled: SCREEN, PSET, PRESET, LINE, CIRCLE, PAINT, DRAW, VIEW, WINDOW,
+ * PALETTE, GET and PUT of the screen; CLS, COLOR, LOCATE, VIEW PRINT, WIDTH, BEEP.
  *
  * # How it works
  * A statement's operands are pushed, then an O_SYSCALL of its service (vm/syscalls.def). A point,
@@ -21,7 +21,7 @@
 #include "vm/exec.h"
 #include "vm/syscall.h"
 
-enum { SCREEN_ARGS = 4, NONE = -1 };
+enum { SCREEN_ARGS = 4, COLOR_ARGS = 3, LOCATE_ARGS = 5, NONE = -1 };
 
 static void gstm_op(Comp *const C, const Syscall n) { comp_byte(comp_op(C, O_SYSCALL), n); }
 
@@ -62,10 +62,11 @@ static void gstm_point(Comp *const C, const Syscall absolute, const Syscall step
     gstm_op(C, stepped ? step : absolute);
 }
 
-/* SCREEN [mode] [, [colorswitch] [, [apage] [, vpage]]]: each a value and whether given. */
-static void gstm_screen(Comp *const C)
+/* Up to n optional INT arguments, comma separated, each a value and whether given, then service
+   sc: SCREEN's, COLOR's, LOCATE's. */
+static void gstm_block(Comp *const C, const uint32_t n, const Syscall sc)
 {
-    for (uint32_t i = 0; i < SCREEN_ARGS; i++) {
+    for (uint32_t i = 0; i < n; i++) {
         const bool given = (!i || comp_optcomma(C)) && gstm_given(C);
 
         if (given)
@@ -76,7 +77,7 @@ static void gstm_screen(Comp *const C)
         comp_int(C, given);
     }
 
-    gstm_op(C, SC_SCREEN);
+    gstm_op(C, sc);
 }
 
 /* PSET or PRESET [STEP] (x, y) [, color]. */
@@ -354,8 +355,50 @@ static bool gstm_screens(const Comp *const C)
     return c == '(' || c == TK_STEP;
 }
 
+/* VIEW PRINT [top TO bottom]. */
+static void gstm_viewprint(Comp *const C)
+{
+    if (comp_end(C)) {
+        comp_int(C, (uint32_t)NONE);
+        comp_int(C, (uint32_t)NONE);
+    } else {
+        gstm_int(C);
+        comp_need(C, TK_TO);
+        gstm_int(C);
+    }
+
+    gstm_op(C, SC_VIEWPRINT);
+}
+
+/* The text screen's one-byte statements: CLS [n], COLOR [..], LOCATE [..]; false not one. */
+static bool gstm_text(Comp *const C)
+{
+    switch (C->p[0]) {
+    case TK_CLS:
+        C->p++;
+        gstm_optint(C);
+        gstm_op(C, SC_CLS);
+        return true;
+
+    case TK_COLOR:
+        C->p++;
+        gstm_block(C, COLOR_ARGS, SC_COLOR);
+        return true;
+
+    case TK_LOCATE:
+        C->p++;
+        gstm_block(C, LOCATE_ARGS, SC_LOCATE);
+        return true;
+    }
+
+    return false;
+}
+
 bool gstm_stmt(Comp *const C)
 {
+    if (gstm_text(C))
+        return true;
+
     if (C->p[0] == TK_GET) {
         C->p++;
 
@@ -391,7 +434,27 @@ bool gstm_stmt(Comp *const C)
     switch (t) {
     case TK1_SCREEN:
         C->p += 2;
-        gstm_screen(C);
+        gstm_block(C, SCREEN_ARGS, SC_SCREEN);
+        return true;
+
+    case TK1_BEEP:
+        C->p += 2;
+        gstm_op(C, SC_BEEP);
+        return true;
+
+    case TK1_WIDTH:
+        if (C->p[2] == '#' || C->p[2] == '"')
+            return false; /* a file's or a device's */
+
+        C->p += 2;
+        gstm_optint(C);
+
+        if (comp_optcomma(C))
+            gstm_int(C);
+        else
+            comp_int(C, (uint32_t)NONE);
+
+        gstm_op(C, SC_WIDTH);
         return true;
 
     case TK1_PSET:
@@ -422,10 +485,14 @@ bool gstm_stmt(Comp *const C)
         return true;
 
     case TK1_VIEW:
-        if (C->p[2] == TK_PRINT)
-            return false;
-
         C->p += 2;
+
+        if (comp_cur(C) == TK_PRINT) {
+            C->p++;
+            gstm_viewprint(C);
+            return true;
+        }
+
         gstm_view(C);
         return true;
 

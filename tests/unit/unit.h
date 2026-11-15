@@ -15,6 +15,8 @@ void unit_fail(const char *file, int line, const char *what);
 void unit_store(Session *S, const char *const *lines);
 /* unit_store, then RUN: its output in S->cons.sbuf. */
 Status unit_run(Session *S, const char *const *lines);
+/* unit_store, then RUN: its output where it goes, the screen when standard output is. */
+Status unit_run_shown(Session *S, const char *const *lines);
 
 #define TEST(name)                                                                                 \
     static void name(Session *S);                                                                  \

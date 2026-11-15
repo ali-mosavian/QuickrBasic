@@ -9,10 +9,11 @@
  * # asm structure
  * | asm | here | |
  * |---|---|---|
- * | (none) | qbrt_init, module_*, md_*, qbrt_land, qbrt_palette_using, qbrt_get, qbrt_put | NEW |
+ * | (none) | qbrt_init, module_*, md_*, qbrt_land, qbrt_palette_using, qbrt_get, qbrt_put, qbrt_screen | NEW |
  */
 #include "qbrt/qbrt.h"
 #include "ad.h"
+#include "dev.h"
 #include "error.h"
 #include "module.h"
 #include "rtinit.h"
@@ -87,6 +88,8 @@ void qbrt_put(void *const data, const uint32_t bytes, const uint32_t elem, const
     const AD ad = qbrt_ad(data, bytes, elem);
     B_GPUT(data, &ad, how);
 }
+
+bool qbrt_screen(void) { return dev_stdout_is_screen(); }
 
 void qbrt_init(Fault *const f)
 {

@@ -6,6 +6,8 @@ static Fault *fault;
 
 void qbrt_init(Fault *const f) { fault = f; }
 
+bool qbrt_screen(void) { return false; }
+
 [[noreturn]]
 static void none(void)
 {
@@ -55,3 +57,13 @@ void qbrt_put(void *const data, const uint32_t bytes, const uint32_t elem, const
 }
 int B_PNR4(const float x, const float y) { none(); }
 float *B_PMAP(const float value, const short function) { none(); }
+void cn_putc(const char c) { none(); }
+void cn_crlf(void) { none(); }
+uint8_t cn_pos(void) { none(); }
+uint8_t cn_line(void) { none(); }
+void screen_color(const int *const block) { none(); }
+void screen_locate(const int *const block) { none(); }
+void B_SCLS(const short selector) { none(); }
+void B_VWPT(const short top, const short bottom) { none(); }
+void B_WIDT(const short columns, const short rows) { none(); }
+void B_BEEP(void) { none(); }

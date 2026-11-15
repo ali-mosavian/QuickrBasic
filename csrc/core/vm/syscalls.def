@@ -32,5 +32,12 @@ SC(GET, vgfx_get)       /* ( id element kind -- ): GET between the points into a
 SC(PUT, vgfx_put)       /* ( id element kind how -- ): PUT at the first point; how 0 OR .. 4 XOR */
 SC(POINT, vgfx_point)   /* ( x y -- color ): POINT(x, y), -1 off the screen */
 SC(PMAP, vgfx_pmap)     /* ( value function -- mapped ) */
+SC(CLS, vgfx_cls)       /* ( selector -- ) */
+SC(COLOR, vgfx_color)   /* ( (value given) * 3 -- ): COLOR foreground, background, border */
+SC(LOCATE, vgfx_locate) /* ( (value given) * 5 -- ): LOCATE row, column, cursor, start, stop */
+SC(VIEWPRINT, vgfx_viewprint) /* ( top bottom -- ): VIEW PRINT, -1 -1 the whole screen */
+SC(WIDTH, vgfx_width)   /* ( columns rows -- ): the screen's WIDTH, -1 one left out */
+SC(BEEP, vgfx_beep)     /* ( -- ) */
+SC(CSRLIN, vgfx_csrlin) /* ( -- row ): the cursor's, from 1 */
 #undef SC
 #endif

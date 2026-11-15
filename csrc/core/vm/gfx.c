@@ -1,5 +1,5 @@
-/* The graphics services (syscalls.def): each pops its arguments and calls llrm's QB runtime
- * (qbrt/qbrt.h).
+/* The screen's services (syscalls.def), graphics and text: each pops its arguments and calls
+ * llrm's QB runtime (qbrt/qbrt.h).
  *
  * # How it works
  * A statement's points come first, each its own service (SC_N1 ..), then the statement's. A
@@ -20,7 +20,7 @@
 #include "mem/symbols.h"
 #include "qbrt/qbrt.h"
 
-enum { SCREEN_ARGS = 4 };
+enum { SCREEN_ARGS = 4, COLOR_ARGS = 3, LOCATE_ARGS = 5, BLOCK_ARGS = 5 };
 
 /* ( x y -- ): two coordinates, y on top. */
 static void vgfx_xy(Vm *const vm, float *const x, float *const y)
@@ -33,7 +33,7 @@ static void vgfx_xy(Vm *const vm, float *const x, float *const y)
    argument's flag and, when given, its value. */
 static void vgfx_block(Vm *const vm, const uint32_t n, int *const block)
 {
-    int given[SCREEN_ARGS], value[SCREEN_ARGS];
+    int given[BLOCK_ARGS], value[BLOCK_ARGS];
 
     for (uint32_t i = n; i--;) {
         given[i] = exec_popi(vm);
@@ -236,3 +236,49 @@ void vgfx_pmap(Session *const S)
     const float value = exec_pop(&S->vm).f;
     exec_push(&S->vm, (Cell){.f = *B_PMAP(value, function)});
 }
+
+/* After the runtime moved the cursor: the console's column its. */
+static void vgfx_column(Session *const S)
+{
+    if (qbrt_screen())
+        S->cons.col = cn_pos();
+}
+
+void vgfx_cls(Session *const S)
+{
+    B_SCLS((short)exec_popi(&S->vm));
+    vgfx_column(S);
+}
+
+void vgfx_color(Session *const S)
+{
+    int block[1 + 2 * COLOR_ARGS];
+    vgfx_block(&S->vm, COLOR_ARGS, block);
+    screen_color(block);
+}
+
+void vgfx_locate(Session *const S)
+{
+    int block[1 + 2 * LOCATE_ARGS];
+    vgfx_block(&S->vm, LOCATE_ARGS, block);
+    screen_locate(block);
+    vgfx_column(S);
+}
+
+void vgfx_viewprint(Session *const S)
+{
+    const short bottom = (short)exec_popi(&S->vm);
+    B_VWPT((short)exec_popi(&S->vm), bottom);
+    vgfx_column(S);
+}
+
+void vgfx_width(Session *const S)
+{
+    const short rows = (short)exec_popi(&S->vm);
+    B_WIDT((short)exec_popi(&S->vm), rows);
+    vgfx_column(S);
+}
+
+void vgfx_beep(Session *const S) { B_BEEP(); }
+
+void vgfx_csrlin(Session *const S) { exec_pushi(&S->vm, qbrt_screen() ? cn_line() + 1 : 1); }
