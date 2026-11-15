@@ -276,7 +276,9 @@ GRAMMAR: dict[str, str] = {
     "SHELL": "( $ !SHELL0 | e tos !SHELL )",
     "CHAIN": "e tos !CHAIN",
 }
-EOS = (0, ord(":"))
+# what ends a statement (st_eos): its own classes, ':' kept apart from FFh 3Ah's second byte only
+# where that keyword is wanted
+EOS = (0, ord(":"), TK_REM, TOKENS["ELSE"])
 
 
 def ptoken(w: str) -> list[int]:
@@ -374,7 +376,7 @@ def closure(nfa: list[NState], ss: frozenset[int]) -> frozenset[int]:
 def parser() -> tuple[Dfa, list[int], dict[str, int]]:
     words = {w for g in GRAMMAR.values() for w in g.split()}
     toks = sorted({b for w in words if not (w in "[]{}()|$" or w.startswith("!") or w.islower()) for b in ptoken(w)})
-    cls = classes([set(EOS), *({b} for b in toks)])
+    cls = classes([*({b} for b in EOS), *({b} for b in toks)])
     ncls = max(cls) + 1
     nfa: list[NState] = []
     starts = {name: thompson(GRAMMAR[name], nfa) for name in GRAMMAR}
@@ -410,8 +412,11 @@ def parser() -> tuple[Dfa, list[int], dict[str, int]]:
         for sym, ts in by.items():
             if sym[0] == "tok":
                 d.delta[me][cls[sym[1]]] = ("tok", get(frozenset(ts)))
-            elif sym[0] == "eos":
-                d.delta[me][cls[0]] = ("eos", get(frozenset(ts)))
+        for sym, ts in by.items():  # after the tokens: a class one shares stays the token's
+            if sym[0] == "eos":
+                for b in EOS:
+                    if d.delta[me][cls[b]][0] != "tok":
+                        d.delta[me][cls[b]] = ("eos", get(frozenset(ts)))
     m, named = minimize(d, named)
     assert len(m.delta) < 0xFFFF
     return m, cls, named

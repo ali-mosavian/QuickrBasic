@@ -62,3 +62,23 @@ TEST(defint_typed_after)
     CHECK(unit_run(S, lines) == ST_OK);
     CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 2 ");
 }
+
+/* A statement whose arguments may be left out ended only at the line's end: CLOSE:, CLOSE ' and
+   CLOSE ELSE were Syntax errors, the rest of the line not run. */
+TEST(an_argless_statement_ends_at_a_colon)
+{
+    static const char *const lines[] = {
+        "10 ON ERROR GOTO 90",
+        "20 CLOSE: PRINT 1;: CLOSE : PRINT 2;",
+        "30 CLOSE ' all",
+        "40 IF 1 THEN CLOSE ELSE PRINT 9;",
+        "50 IF 0 THEN PRINT 9; ELSE CLOSE: PRINT 3;",
+        "60 RANDOMIZE 1: PRINT 4;: CLOSE #1, 2: PRINT 5;",
+        "70 END",
+        "90 PRINT \"e\"; ERR;: RESUME NEXT",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 1  2  3  4  5 ");
+}
