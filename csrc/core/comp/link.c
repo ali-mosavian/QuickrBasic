@@ -86,6 +86,9 @@ static uint16_t link_param(Comp *const C, const Param *const pa)
    program order. */
 static void link_procvars(Comp *const C)
 {
+    for (uint16_t id = 1; id < C->symb->nvars; id++)
+        symb_varx(C->symb, id)->par = 0;
+
     for (uint8_t i = 1; i < C->blok->nprocs; i++) {
         Proc *const p = C->blok->procs[i];
         decl_deftype(C->decl, C->symb, p->first);
@@ -97,8 +100,10 @@ static void link_procvars(Comp *const C)
             p->result = comp_var(C, 1, 0);
         }
 
-        for (uint16_t k = 0; k < p->npar; k++)
+        for (uint16_t k = 0; k < p->npar; k++) {
             p->params[k].var = link_param(C, &p->params[k]);
+            symb_varx(C->symb, p->params[k].var)->par = 1;
+        }
 
         comp_proc(C, 0);
     }

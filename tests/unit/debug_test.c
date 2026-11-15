@@ -36,3 +36,26 @@ TEST(frames_list_the_stop_then_each_callers_line)
     CHECK(session_frames(S, f, 2) == 2);
     session_drop_stop(S);
 }
+
+/* Each call's by-value parameter as its frame sees it: an older call's is its own cell's value as
+   the newer call found it, kept in the newer call's CallVar. */
+TEST(an_older_calls_parameter_by_value_is_its_own)
+{
+    static const char *const lines[] = {
+        "10 r 3",
+        "20 SUB r (n%)",
+        "30 IF n% > 1 THEN r n% - 1 ELSE STOP",
+        "40 END SUB",
+        nullptr,
+    };
+
+    unit_run(S, lines);
+    DebugFrame f[4];
+    CHECK(session_frames(S, f, 4) == 4);
+    const uint16_t n = blok_proc(&S->blok, f[0].proc)->params[0].var;
+
+    for (int32_t i = 0; i < 3; i++)
+        CHECK((int16_t)rd32(session_cell(S, &f[i], n, 0)) == i + 1);
+
+    session_drop_stop(S);
+}

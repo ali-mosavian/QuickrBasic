@@ -141,11 +141,21 @@ Addr session_cell(
 
     if (cell != symb_cell(&S->symb, id))
         return cell;
+    if (par >= 0) { /* its own: the value before, if the newer call took it */
+        const CallVar *const p = &S->vm.callvars[c->params + (uint32_t)par];
+        return p->arg == CV_OWN ? addr_of(&p->value) : cell;
+    }
 
     uint32_t n = 0; /* its own: the value saved */
-    for (uint16_t v = S->symb.first_local[f->proc]; v; v = symb_varx(&S->symb, v)->nloc, n++)
+    for (uint16_t v = S->symb.first_local[f->proc]; v; v = symb_varx(&S->symb, v)->nloc) {
+        const bool saved =
+            exec_saved_local(symb_var(&S->symb, v)->info & VI_ARR, symb_varx(&S->symb, v)->par);
+
         if (v == id)
-            return addr_of(&S->vm.callvars[c->locals + n].value);
+            return saved ? addr_of(&S->vm.callvars[c->locals + n].value) : cell;
+        if (saved)
+            n++;
+    }
 
     return cell;
 }

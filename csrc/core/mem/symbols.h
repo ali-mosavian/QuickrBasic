@@ -24,8 +24,8 @@ typedef struct PACKED {
     uint8_t scope; /* 0 the module, else a procedure */
     uint8_t dyn;   /* REDIM made it; ERASE frees it */
     uint8_t kop;   /* a CONST's literal load, its operand in symb_kval; 0 none (comp/fold.h) */
-    uint8_t pad;
-} VarX; /* TVX */
+    uint8_t par;   /* a parameter of its procedure (link) */
+} VarX;            /* TVX */
 typedef struct PACKED {
     uint32_t text; /* its text's offset in text: its length, then its letters */
     uint8_t flags; /* NM_* */

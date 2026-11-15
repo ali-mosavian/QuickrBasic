@@ -147,6 +147,13 @@ typedef struct PACKED {
 
     Addr cell; /* a scalar parameter's; 0 for a local */
 } CallVar;
+
+/* A scalar parameter's CallVar.arg: passed by value, its own cell's value before the call in
+   value. */
+enum : uint16_t { CV_OWN = 1 };
+
+/* A local set aside in callvars: all but a scalar parameter, whose CallVar keeps its own cell. */
+static inline bool exec_saved_local(const bool array, const bool par) { return array || !par; }
 static_assert(sizeof(CallVar) == 16);
 
 enum { MAX_CALLVARS = LSAVSZ / sizeof(CallVar) };

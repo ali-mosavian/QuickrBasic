@@ -15,13 +15,17 @@ sys.path.insert(0, str(Path(__file__).parent))
 import x86run
 
 N = 2000
-LOOP = "CLS\r\nFOR i% = 1 TO {}: LOCATE 1, 1: {}: NEXT\r\n"
+LOOP = "{}CLS\r\nFOR i% = 1 TO {}: LOCATE 1, 1: {}: NEXT\r\nEND\r\n{}"
+SUBS = ("DECLARE SUB A (x%, y%)\r\nDECLARE SUB Z ()\r\n",
+        "SUB A (x%, y%)\r\nEND SUB\r\nSUB Z\r\nEND SUB\r\n")
 
-# name: (the loop's statement, the base's, the parts a pass, the budget for each)
+# name: (the loop's statement, the base's, the parts a pass, the budget for each, (head, tail))
 CASES = {
     # PRINT asked DOS whether standard output was the screen for each character: 466 a character.
     # Then the runtime's console took one at a time: 188.
-    "print_char": ('PRINT "abcdefghijklmnopqrstuvwx";', 'PRINT "a";', 23, 40),
+    "print_char": ('PRINT "abcdefghijklmnopqrstuvwx";', 'PRINT "a";', 23, 40, ("", "")),
+    # A parameter was set aside and back as a local too, its own cell unused by reference: 182.
+    "sub_arg": ("A i%, i%", "Z", 2, 150, SUBS),
 }
 
 
@@ -34,12 +38,12 @@ def use(exe: str | None) -> Path:
 def main() -> None:
     exe = use(sys.argv[1] if len(sys.argv) > 1 else os.environ.get("X86_COM"))
     jobs = {}
-    for name, (stmt, base, _, _) in CASES.items():
-        jobs[name] = LOOP.format(N, stmt)
-        jobs[name + "_base"] = LOOP.format(N, base)
+    for name, (stmt, base, _, _, (head, tail)) in CASES.items():
+        jobs[name] = LOOP.format(head, N, stmt, tail)
+        jobs[name + "_base"] = LOOP.format(head, N, base, tail)
     res = x86run.run(jobs, Path(tempfile.mkdtemp()) / "w", 60000, file=True, screen=True)
     bad, report = [], []
-    for name, (_, _, parts, budget) in CASES.items():
+    for name, (_, _, parts, budget, _) in CASES.items():
         got, base = res[name].instructions, res[name + "_base"].instructions
         if not got or not base:
             bad.append(f"FAIL {name}: no count from {exe}")

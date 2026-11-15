@@ -432,7 +432,8 @@ static void take_args(
     }
 }
 
-/* Set the procedure's locals aside into callvars from b, emptying them; returns past the last. */
+/* Set the procedure's locals aside into callvars from b, emptying them; returns past the last. A
+   scalar parameter is not one: bind_params keeps its own cell. */
 static CallVar *save_locals(
     Vm *const vm,
     Symb *const sy,
@@ -442,13 +443,15 @@ static CallVar *save_locals(
     CallVar *b
 )
 {
-    for (uint16_t id = sy->first_local[proc]; id; id = symb_varx(sy, id)->nloc, b++) {
+    for (uint16_t id = sy->first_local[proc]; id; id = symb_varx(sy, id)->nloc) {
+        Var *const v = symb_var(sy, id);
+
+        if (!exec_saved_local(is_array(v), symb_varx(sy, id)->par))
+            continue;
         if (b >= vm->callvars + MAX_CALLVARS - 1)
             fault_error(f, E_OS);
 
         *b = (CallVar){.var = id};
-
-        Var *const v = symb_var(sy, id);
 
         if (is_array(v)) {
             b->array.hdr = v->vt;
@@ -457,15 +460,17 @@ static CallVar *save_locals(
             move_value(sg, v, symb_cell(sy, id), addr_of(&b->value));
             clear_value(v, symb_cell(sy, id));
         }
+
+        b++;
     }
 
     return b;
 }
 
 /* Point the parameters at their arguments: a scalar by reference at the argument's cell, by value
-   at its own cell given the value; an array at the argument's header. A scalar's cell before is
-   kept in its CallVar. */
-static void bind_params(Symb *const sy, Strg *const sg, CallVar *b, uint32_t n)
+   at its own cell given the value, the cell's value before kept in its CallVar's (tmp a string's
+   on the way); an array at the argument's header. A scalar's cell before is kept in its CallVar. */
+static void bind_params(Symb *const sy, Strg *const sg, CallVar *b, uint32_t n, const Addr tmp)
 {
     for (; n--; b++) {
         Var *const v = symb_var(sy, b->var);
@@ -482,11 +487,29 @@ static void bind_params(Symb *const sy, Strg *const sg, CallVar *b, uint32_t n)
         const Addr arg_cell = b->cell;
         b->cell = v->vt;
 
-        if (arg_cell)
+        if (arg_cell) {
             v->vt = arg_cell;
-        else {
-            v->vt = symb_cell(sy, b->var);
-            move_value(sg, v, addr_of(&b->value), v->vt);
+            continue;
+        }
+
+        const Addr own = symb_cell(sy, b->var), value = addr_of(&b->value);
+        v->vt = own;
+        b->arg = CV_OWN;
+
+        if (is_string(v)) {
+            strg_move(sg, own, tmp);
+            strg_move(sg, value, own);
+            strg_move(sg, tmp, value);
+        } else {
+            const uint32_t lo = b->value.u;
+            b->value.u = rd32(own);
+            wr32(own, lo);
+
+            if (is_double(v)) {
+                const uint32_t hi = rd32(value + 4);
+                wr32(value + 4, rd32(own + 4));
+                wr32(own + 4, hi);
+            }
         }
     }
 }
@@ -509,7 +532,7 @@ void flow_pcall(Session *const S)
     take_args(&S->vm, &S->symb, &S->arry, &S->strg, p, params);
     const CallVar *const end =
         save_locals(&S->vm, &S->symb, &S->strg, &S->fault, proc, params + p->npar);
-    bind_params(&S->symb, &S->strg, params, p->npar);
+    bind_params(&S->symb, &S->strg, params, p->npar, S->flow.text);
 
     S->vm.ip = call + 1 + sizeof(Jump); /* the call returns past its body's Jump */
     flow_push(&S->vm, &S->allo, &S->fault, FRAME_CALL)->call = (Call){
@@ -553,7 +576,7 @@ static void end_call(
     pop_to(vm, f);
 
     for (CallVar *b = params; b < locals; b++)
-        if (b->arg) {
+        if (b->arg && is_array(symb_var(sy, b->var))) {
             b->array.hdr = symb_var(sy, b->var)->vt;
             b->array.dyn = symb_varx(sy, b->var)->dyn;
         }
@@ -584,9 +607,14 @@ static void end_call(
     }
 
     for (CallVar *b = params; b < locals; b++) {
-        if (!is_array(symb_var(sy, b->var)))
-            symb_var(sy, b->var)->vt = b->cell;
-        else if (b->arg) {
+        Var *const v = symb_var(sy, b->var);
+
+        if (!is_array(v)) {
+            v->vt = b->cell;
+
+            if (b->arg == CV_OWN)
+                move_value(sg, v, addr_of(&b->value), symb_cell(sy, b->var));
+        } else if (b->arg) {
             symb_var(sy, b->arg)->vt = b->array.hdr;
             symb_varx(sy, b->arg)->dyn = b->array.dyn;
         }
