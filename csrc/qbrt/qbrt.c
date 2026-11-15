@@ -4,18 +4,23 @@
  * The runtime is built from llrm's tree (Makefile, QBRT_*). It asks for the compiled module's data
  * (module.h): this program has one, empty, whose ON ERROR handler is always there, so every error
  * the runtime raises comes to qbrt_land rather than ending the process. qbrt_land raises it as
- * QBasic's error through the session's fault, which unwinds out of the runtime. A wait for the
+ * QBasic's error through the session's fault, which unwinds out of the runtime.
+ *
+ * Its memory is the arena's: its strings and local heap a region boot carves (they hold still); a
+ * PAINT's queue the BASIC heap's free part, lent for the fill (nothing else allocates during one).
+ * Its initializers are called here, in its modules' order (xi.h only declares them). A wait for the
  * music (play.c's QB_IDLE, the Makefile's) is qbrt_idle: BREAK empties the queue so it ends.
  *
  * # asm structure
  * | asm | here | |
  * |---|---|---|
- * | (none) | qbrt_init, module_*, md_*, qbrt_land, qbrt_palette_using, qbrt_get, qbrt_put, qbrt_screen, qbrt_idle | NEW |
+ * | (none) | qbrt_init, module_*, md_*, qbrt_land, qbrt_palette_using, qbrt_get, qbrt_put, qbrt_screen, qbrt_idle, qbrt_done | NEW |
  */
 #include "qbrt/qbrt.h"
 #include "ad.h"
 #include "dev.h"
 #include "error.h"
+#include "gfx.h"
 #include "module.h"
 #include "rtinit.h"
 
@@ -26,6 +31,10 @@ struct ModuleData {
 static ModuleData module;
 static Fault *fault;
 static volatile uint8_t *stop;
+static char *heap, *heap_top;
+static void *lent;
+static uint32_t lent_bytes;
+static bool taken;
 
 extern void (*qb_lander)(void); /* error.c's: ON ERROR's landing */
 
@@ -91,7 +100,52 @@ void qbrt_put(void *const data, const uint32_t bytes, const uint32_t elem, const
     B_GPUT(data, &ad, how);
 }
 
-bool qbrt_screen(void) { return dev_stdout_is_screen(); }
+bool qbrt_screen(void) { return !taken && dev_stdout_is_screen(); }
+
+void qbrt_screen_taken(const bool yes) { taken = yes; }
+
+bool qbrt_graphics(void) { return gfx_current && gfx_current->number; }
+
+void qbrt_text(void)
+{
+    if (qbrt_graphics())
+        gfx_screen(0);
+}
+
+void cn_text_xinit(void);
+void cn_gfx_xinit(void);
+void nh_xinit(void);
+void gfx_xinit(void);
+void play_xinit(void);
+
+void qb_run_initializers(void)
+{
+    nh_xinit();
+    cn_text_xinit();
+    cn_gfx_xinit();
+    gfx_xinit();
+    play_xinit();
+}
+
+void qb_dynamic_region(char **const first, char **const top)
+{
+    *first = heap;
+    *top = heap_top;
+}
+
+void qbrt_lend(void *const room, const uint32_t bytes)
+{
+    lent = room;
+    lent_bytes = bytes;
+}
+
+void *qb_paint_queue_open(unsigned long *const bytes)
+{
+    *bytes = lent_bytes;
+    return lent;
+}
+
+void qb_paint_queue_close(void) { qbrt_lend(nullptr, 0); }
 
 void qbrt_idle(void)
 {
@@ -101,11 +155,20 @@ void qbrt_idle(void)
         qbrt_tick_wait();
 }
 
-void qbrt_init(Fault *const f, volatile uint8_t *const brk)
+void qbrt_done(void)
+{
+    qbrt_text();
+    dev_tone(0);
+    dev_tick_stop();
+}
+
+void qbrt_init(Fault *const f, volatile uint8_t *const brk, void *const room, const uint32_t bytes)
 {
     static bool started;
     fault = f;
     stop = brk;
+    heap = room;
+    heap_top = heap + bytes;
 
     if (started)
         return;

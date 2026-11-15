@@ -13,7 +13,7 @@
 #include "vm/syscall.h"
 
 /* After PLAY (comp.p): its event's ON, OFF or STOP. */
-static bool snds_event(const Comp *const C)
+static bool snds_event(Comp *const C)
 {
     const uint8_t c = comp_cur(C);
     return c == TK_ON || c == TK_STOP || (c == TK_X && C->p[1] == TK1_OFF);

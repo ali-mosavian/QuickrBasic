@@ -49,6 +49,7 @@
 #include "plat/pkey.h"
 #include "plat/pscr.h"
 #include "plat/psys.h"
+#include "qbrt/qbrt.h"
 #include "ui/complete.h"
 #include "ui/dialog.h"
 #include "ui/debugpane.h"
@@ -898,7 +899,7 @@ static void wait_anykey(Session *const S)
 }
 
 /* ui_ready: the run ended: the output page until a key, unless an immediate line printed
-   nothing; then the editor. */
+   nothing and left no graphics mode; then the editor, in text mode. */
 static void ended(Session *const S)
 {
     cons_flush(&S->cons);
@@ -906,8 +907,13 @@ static void ended(Session *const S)
     uint8_t row, col;
     pscr_where(PAGE_OUT, &row, &col);
 
-    if (ui.run_wait || row != ui.crow || col != ui.ccol)
+    if (ui.run_wait || row != ui.crow || col != ui.ccol || qbrt_graphics())
         wait_anykey(S);
+
+    if (qbrt_graphics()) { /* its mode set took both pages: the editor is drawn again */
+        qbrt_text();
+        pscr_mode(VIDEO_TEXT);
+    }
 
     page_in();
 }
@@ -1437,6 +1443,7 @@ void uimn_start(Session *const S)
         return;
 
     init(S);
+    qbrt_screen_taken(true);
     pscr_mode(VIDEO_TEXT);
     them_qbasic();
     const uint16_t n = cmdline_file();

@@ -183,7 +183,13 @@ def play() -> None:
     keys("print 8\n")
     out = output()
     assert " 42" in out and " 8" in out and out.count("PRESS ANY KEY TO CONTINUE") == 1, out
-    press("space", "f6")
+    press("space")
+    # A line that leaves SCREEN 13: the editor came back drawn on a screen still in it, unseen.
+    keys("screen 13\n")  # short: the immediate line shows beside a box drawn over its row later
+    press("space")
+    mode = bytes.fromhex(s.send({"cmd": "mem_read_linear", "addr": 0x449, "len": 1})["data"])[0]
+    assert mode == 3 and "UNTITLED" in look()[1], (mode, look()[:2])
+    press("f6")
 
     # Alt+F with Alt still held: letting Alt go once counted as an Alt tap
     # and closed the menu, so it could not be moved in.

@@ -10,9 +10,16 @@ typedef struct {
     char *ptr;
 } QbrtStr;
 
+enum { QBRT_HEAP = 0x4000 }; /* the runtime's strings and local heap: DRAW's and PLAY's pieces */
+
 /* The runtime started, once; its errors raised through f as QBasic's; BREAK (stop's SF_BRK) ends
-   a wait for the music. */
-void qbrt_init(Fault *f, volatile uint8_t *stop);
+   a wait for the music; heap its strings' and local heap's bytes, carved from the arena. */
+void qbrt_init(Fault *f, volatile uint8_t *stop, void *heap, uint32_t bytes);
+/* The next PAINT's queue: room of bytes, free until it ends (the BASIC heap's free part). */
+void qbrt_lend(void *room, uint32_t bytes);
+/* The program's end: text mode, the speaker quiet, the runtime's tick out (before the platform's: DOS32's
+   chains to it). */
+void qbrt_done(void);
 /* The target's device ready (qbrt_host.c, ...): text mode, nothing typed or sounding. */
 void qbrt_device(void);
 /* The music's tick in real time (the default), or only while the program waits for it, a tick a
@@ -26,6 +33,11 @@ void qbrt_tick_wait(void);
 /* Standard output is the screen: the console's text goes through the runtime's (cn_*), which keeps
    the cursor, the colours and the PRINT window, in text and graphics modes alike. */
 bool qbrt_screen(void);
+/* A graphics mode is on; back to text (SCREEN 0), the runtime's state with it. */
+bool qbrt_graphics(void);
+void qbrt_text(void);
+/* A front end draws the screen itself (the IDE): standard output is not the runtime's. */
+void qbrt_screen_taken(bool yes);
 void cn_putc(char c);
 void cn_crlf(void);
 uint8_t cn_pos(void);

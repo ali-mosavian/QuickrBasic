@@ -6,7 +6,8 @@
  * point's coordinates are DOUBLEs, given to the runtime as SINGLEs: it rounds them, or maps them
  * through WINDOW. SCREEN's arguments are each a value and whether it was given, made the runtime's
  * block. A string goes as the runtime's descriptor of its chars; an array as its id and the
- * element named (0 the first), the bytes from there to its end.
+ * element named (0 the first), the bytes from there to its end. A PAINT's queue is the BASIC heap's
+ * free part, lent for the fill.
  *
  * # asm structure
  * | asm | here | |
@@ -152,14 +153,25 @@ static Span vgfx_array(Session *const S)
     return (Span){at(from), end - from, arry_esize(&S->arry, id)};
 }
 
+/* The BASIC heap's free part, the strings packed, lent to the PAINT that follows: before a string
+   operand is read, since the packing moves strings. */
+static void vgfx_lend(Session *const S)
+{
+    strg_gc(&S->strg);
+    qbrt_lend(at(S->allo.arrays), S->allo.strings - S->allo.arrays);
+}
+
 void vgfx_paint(Session *const S)
 {
+    vgfx_lend(S);
     const short border = (short)exec_popi(&S->vm);
     B_PAIN((short)exec_popi(&S->vm), border);
 }
 
 void vgfx_paintt(Session *const S)
 {
+    vgfx_lend(S);
+
     if (exec_popi(&S->vm))
         (void)vgfx_str(S); /* the background tile: the runtime's PAINT takes none */
 

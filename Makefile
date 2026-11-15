@@ -71,12 +71,43 @@ CFLAGS := --target=i386-pc-win32 -march=i386 -mregparm=3 -std=c23 $(CC_OPT) -ffr
 	-fno-asynchronous-unwind-tables -fno-stack-protector -mno-stack-arg-probe -mstack-alignment=4 -Werror=undef \
 	-DARENA_AT_ZERO=1 -Wall -Wextra -Wno-unused-parameter -isystem csrc/lib/include -Icsrc -Icsrc/core
 COWN := $(foreach f,memcpy memmove memset,--redefine-sym _$(f)=_lib_$(f))
+
+# llrm's QB runtime (graphics, sound), from its tree (csrc/qbrt): the portable part, then each target's
+QBRT := $(LLRM)/runtime
+QBRT_PORTABLE := $(addprefix qb/,console.c cntext.c cngfx.c gfx.c gline.c gcirc.c gpaint.c gputget.c \
+	gdraw.c play.c screen.c sleep.c varptr.c error.c rtinit.c nhstutil.c nheap.c)
+# DOS32: its own device and asm, by clang and jwasm; the asm's names given to clang's C (names.h)
+QBRT_DSRC := $(QBRT_PORTABLE) $(addprefix qb/,dos/m32/ad.c posix/block.c dev/dos/gfxdev.c \
+	$(addprefix dev/dos/m32/,clock.c con.c key.c prn.c text.c tone.c))
+QBRT_DASM := $(addprefix qb/dev/dos/m32/,bios.asm gdcirc.asm gdfill.asm gdline.asm gdscan.asm gdxfer.asm \
+	ports.asm tick.asm) qb/dos/m32/block.asm
+QBRT_DINC := -Icsrc/qbrt/include $(addprefix -I$(QBRT)/qb/,dos/m32 . dev dev/dos/m32 dev/dos) \
+	-I$(LLRM)/toolchain/clang/os/x86-m32
+QBRT_DOBJ := $(QBRT_DSRC:%.c=build/c/qbrt/%.obj) $(QBRT_DASM:%.asm=build/c/qbrt/%.obj) \
+	build/c/obj/qbrt/qbrt.obj build/c/obj/qbrt/qbrt_dos.obj
+build/c/qbrt/names.h: $(QBRT)/qb/dev/dos/m32/device.h $(QBRT)/qb/dev/dos/m32/devsym.h
+	@mkdir -p $(@D)
+	sed -n 's/^#pragma aux \([a-z_0-9]*\) "\(B\$$[A-Z0-9]*\)"/#pragma redefine_extname \1 \2/p' $^ > $@
+	echo '#pragma redefine_extname music_tick B$$MUSICTICK' >> $@
+build/c/qbrt/%.obj: $(QBRT)/%.c build/c/qbrt/names.h
+	@mkdir -p $(@D)
+	$(CLANG) $(subst -std=c23,-std=gnu11,$(CFLAGS)) -w -D__cdecl= -include build/c/qbrt/names.h $(QBRT_DINC) \
+		-c $< -o $@
+	$(OBJCOPY) $(COWN) $@
+build/c/qbrt/%.obj: $(QBRT)/%.asm
+	@mkdir -p $(@D)
+	$(LLRM)/target/release/jwasm -q -coff -I$(QBRT)/qb/dev/dos/m32 -Fo$@ $<
+build/c/obj/qbrt/%.obj: csrc/qbrt/%.c $(CHDR) build/c/qbrt/names.h
+	@mkdir -p $(@D)
+	$(CLANG) $(CFLAGS) -D__cdecl= -include build/c/qbrt/names.h $(subst -I,-isystem ,$(QBRT_DINC)) -c $< -o $@
+	$(OBJCOPY) $(COWN) $@
+
 CSRC := $(shell find csrc/core csrc/lib -name '*.c' -not -path 'csrc/core/ui/*') \
-	$(wildcard csrc/plat/dos32/*.c) csrc/boot.c csrc/qbrt/qbrt_none.c
+	$(wildcard csrc/plat/dos32/*.c) csrc/boot.c
 CUI := $(shell find csrc/core/ui -name '*.c' 2>/dev/null)
 CASM := $(wildcard csrc/plat/dos32/*.asm)
 CHDR := $(shell find csrc -name '*.h' -o -name '*.def')
-CCORE := $(CSRC:csrc/%.c=build/c/obj/%.obj) $(CASM:csrc/%.asm=build/c/obj/%.obj)
+CCORE := $(CSRC:csrc/%.c=build/c/obj/%.obj) $(CASM:csrc/%.asm=build/c/obj/%.obj) $(QBRT_DOBJ)
 COBJ := $(CCORE) build/c/obj/app/basic32.obj
 CIDE_OBJ := $(CCORE) $(CUI:csrc/%.c=build/c/obj/%.obj) build/c/obj/app/ide32.obj
 C_LINK = python3 -I $(LLRM)/tools/dosbatch/link_objects.py x86-m32
@@ -115,13 +146,10 @@ HSRC := $(shell find csrc/core -name '*.c' -not -path 'csrc/core/ui/*') csrc/cor
 	$(wildcard csrc/plat/host/*.c) csrc/boot.c
 HOBJ := $(HSRC:csrc/%.c=build/host/obj/%.o)
 
-# llrm's QB runtime (graphics, sound), from its tree, on its headless device (csrc/qbrt)
-QBRT := $(LLRM)/runtime
-QBRT_HSRC := $(addprefix qb/,console.c cntext.c cngfx.c gfx.c gline.c gcirc.c gpaint.c gputget.c \
-	gdraw.c play.c screen.c sleep.c varptr.c error.c rtinit.c nhstutil.c nheap.c \
-	posix/startup.c posix/block.c posix/ad.c posix/mathops.c posix/paintq.c \
+# the host: llrm's headless device
+QBRT_HSRC := $(QBRT_PORTABLE) $(addprefix qb/,posix/block.c posix/ad.c posix/mathops.c \
 	dev/headless/headless.c dev/host/video.c dev/host/vgadata.c dev/host/tick.c) shared/posix/os.c
-QBRT_HINC := $(addprefix -I$(QBRT)/,qb/posix qb qb/dev qb/dev/headless qb/dev/host shared/posix)
+QBRT_HINC := -Icsrc/qbrt/include $(addprefix -I$(QBRT)/,qb/posix qb qb/dev qb/dev/headless qb/dev/host shared/posix)
 QBRT_HOBJ := $(QBRT_HSRC:%.c=build/host/qbrt/%.o) build/host/obj/qbrt/qbrt.o build/host/obj/qbrt/qbrt_host.o
 # play.c's waits for the tick come to qbrt_idle (BREAK, the tick in tests); the flag is here, so is its rebuild
 build/host/qbrt/qb/play.o: QBRT_DEF = '-DQB_IDLE()=do { extern void qbrt_idle(void); qbrt_idle(); } while (0)'
@@ -176,4 +204,5 @@ ctest:                          # the suites against the C build
 	X86_COM=build/c/basic32.exe $(PY) tools/x86f_test.py build/c/basic32.exe
 	X86_COM=build/c/basic32.exe $(PY) tools/qbconf.py
 	$(PY) tools/x86fold_test.py build/c/basic32.exe
+	X86_COM=build/c/basic32.exe $(PY) tools/x86gfx_test.py
 	X86_IDE=build/c/ide32.exe $(PY) tools/x86ide_test.py

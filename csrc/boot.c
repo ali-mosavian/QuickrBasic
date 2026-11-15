@@ -34,7 +34,6 @@ void boot(Session *const S, const FrontEnd *const fe)
 {
     S->repl.fe = fe;
     S->fault.raise = repl_fault;
-    qbrt_init(&S->fault, &S->vm.stop);
     scop_init(&S->scop, &S->fault);
     decl_init(&S->decl, &S->fault);
     S->names.intern = repl_intern;
@@ -55,6 +54,7 @@ void boot(Session *const S, const FrontEnd *const fe)
         lo,
         hi
     ); /* the arrays' headers, the control stack, the POKE memory */
+    qbrt_init(&S->fault, &S->vm.stop, at(allo_carve(&S->allo, QBRT_HEAP)), QBRT_HEAP);
     strg_init(&S->strg, &S->allo, &S->fault, &S->prog);
     arry_init(&S->arry, &S->allo, &S->fault, &S->symb, &S->decl, &S->strg);
     exec_init(S);

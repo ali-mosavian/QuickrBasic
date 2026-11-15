@@ -408,5 +408,6 @@ int cons_getb(Cons *const co)
 void cons_exit(Cons *const co, const uint8_t code)
 {
     cons_flush(co);
+    qbrt_done();
     psys_exit(code);
 }
