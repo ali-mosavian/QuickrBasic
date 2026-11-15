@@ -89,6 +89,15 @@ const XFn fns_x[] = {
 
 const uint32_t fns_nx = sizeof fns_x / sizeof fns_x[0];
 
+bool fns_isx(const uint16_t tok)
+{
+    for (uint32_t i = 0; i < fns_nx; i++)
+        if (fns_x[i].tok == tok)
+            return true;
+
+    return false;
+}
+
 /* SGN .. MID$'s result, its argument's type at: as func compiles it. */
 uint8_t fns_type(const uint8_t f, const uint8_t at, const bool dbl)
 {

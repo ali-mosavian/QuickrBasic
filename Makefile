@@ -128,7 +128,7 @@ build/host/qbrt/%.o: $(QBRT)/%.c
 	$(HOST_CC) -std=gnu11 -w -D__cdecl= $(QBRT_HINC) -c $< -o $@
 build/host/obj/qbrt/%.o: csrc/qbrt/%.c $(CHDR)
 	@mkdir -p $(@D)
-	$(HOST_CC) $(HOST_CFLAGS) $(QBRT_HINC) -c $< -o $@
+	$(HOST_CC) $(HOST_CFLAGS) $(subst -I,-isystem ,$(QBRT_HINC)) -c $< -o $@
 
 .PHONY: chost chosttest
 build/host/obj/%.o: csrc/%.c $(CHDR)

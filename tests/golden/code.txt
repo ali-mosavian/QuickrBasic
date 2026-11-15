@@ -13918,7 +13918,7 @@ qb/palette_using_pds71.bas 1 fb96549631c8
 qb/palette_using_pds71.bas 2 fb96549631c8
 qb/palette_using_pds71.bas 3 fb96549631c8
 qb/palette_using_pds71.bas 4 8aa0e02eb6ce
-qb/palette_using_pds71.bas 5 727a4b6b829c
+qb/palette_using_pds71.bas 5 af9d92634f08
 qb/palette_using_pds71.bas 6 b35816f0b07e
 qb/palette_using_pds71.bas 7 24a642ac6cb7
 qb/palette_using_pds71.bas 8 e2cbfde35c34
@@ -13939,7 +13939,7 @@ qb/palette_using_pds71.bas 22 727a4b6b829c
 qb/palette_using_pds71.bas 23 727a4b6b829c
 qb/palette_using_pds71.bas 24 7b1b244afd58
 qb/palette_using_pds71.bas 25 727a4b6b829c
-qb/palette_using_pds71.bas 26 727a4b6b829c
+qb/palette_using_pds71.bas 26 f8481653be26
 qb/palette_using_pds71.bas 27 6d047af59cce
 qb/palette_using_pds71.bas 28 fb96549631c8
 qb/palette_using_pds71.bas 29 a27411277fd4
@@ -14843,10 +14843,10 @@ stmts/s128.bas 0 727a4b6b829c
 stmts/s129.bas 0 6a25a3004373
 stmts/s130.bas 0 056215d387db
 stmts/s131.bas 0 0bb53db59eca
-stmts/s132.bas 0 8b6aba6d5bfb
-stmts/s133.bas 0 727a4b6b829c
-stmts/s134.bas 0 727a4b6b829c
-stmts/s135.bas 0 727a4b6b829c
+stmts/s132.bas 0 844e304f61c5
+stmts/s133.bas 0 82c3779adec3
+stmts/s134.bas 0 bb8f56a2ba59
+stmts/s135.bas 0 74d86d453d97
 stmts/s136.bas 0 46f21c6fffd1
 stmts/s137.bas 0 05df4e9537de
 stmts/s138.bas 0 2b00b921eb9e

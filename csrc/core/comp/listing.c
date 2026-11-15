@@ -25,6 +25,7 @@
  * - D2. Parameters, not globals.
  */
 #include "comp/listing.h"
+#include "comp/builtins.h"
 #include "comp/comp.h"
 #include "comp/dfa.h"
 #include "io/console.h"
@@ -119,6 +120,8 @@ static void binop(Comp *const C, const uint8_t t)
 void list_body(Comp *const C, const uint8_t *p)
 {
     C->list->last = LS_NONE;
+    C->list->points = false;
+    uint8_t prior = 0;
 
     for (;;) {
         if (C->list->at && p >= C->list->at) { /* list_text's byte: its column */
@@ -127,6 +130,8 @@ void list_body(Comp *const C, const uint8_t *p)
         }
 
         uint8_t c = *p++;
+        const uint8_t after = prior;
+        prior = c;
 
         if (!c)
             return;
@@ -186,6 +191,7 @@ void list_body(Comp *const C, const uint8_t *p)
         case ',':
         case ';':
         case ':':
+            C->list->points &= c != ':';
             cons_putc(C->cons, c);
             C->list->last = LS_SEP;
             continue;
@@ -208,12 +214,19 @@ void list_body(Comp *const C, const uint8_t *p)
             continue;
         }
 
-        if (c == TK_X) { /* FFh n: a function when '(' follows */
+        if (c == TK_X) { /* FFh n: a function's when one and '(' follows */
             const uint8_t n = *p++;
-            const uint8_t cls = *p == '(' ? LS_FN : LS_KW;
+            const uint8_t cls = *p == '(' && fns_isx(0x100 + n) ? LS_FN : LS_KW;
+            C->list->points |= n == TK1_LINE || n == TK1_VIEW || n == TK1_WINDOW;
             lead(C);
             cons_kw1(C->cons, n);
             C->list->last = cls;
+            continue;
+        }
+
+        if (c == TK_MINUS && C->list->points && after == ')' && (*p == '(' || *p == TK_STEP)) {
+            cons_putc(C->cons, '-'); /* between two points */
+            C->list->last = LS_NONE;
             continue;
         }
 
@@ -225,6 +238,7 @@ void list_body(Comp *const C, const uint8_t *p)
         const uint8_t cls =
             (c >= TK_SGN && c <= TK_MID) || c == TK_TAB || c == TK_SPC || c >= TK_LBOUND ? LS_FN
                                                                                          : LS_KW;
+        C->list->points |= c == TK_GET && (*p == '(' || *p == TK_STEP);
         lead(C);
 
         if (c == TK_REM && *p == REM_Q) { /* ' as it was written */

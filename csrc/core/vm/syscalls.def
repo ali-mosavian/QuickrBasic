@@ -1,0 +1,23 @@
+/* The runtime's services (O_SYSCALL n): each call's number SC_name and its handler. Include it
+ * after defining SC; it is undefined at the end.
+ *
+ * SC(name, handler): a handler is `void h(Session *S)`, its arguments on vm.sp, the last pushed
+ * first popped. An argument left out is -1, the runtime's "none". Append: a number is code.
+ */
+#ifdef SC
+SC(N1, vgfx_n1)         /* ( x y -- ): the first point */
+SC(S1, vgfx_s1)         /* ( dx dy -- ): the first point, STEP from the last */
+SC(N2, vgfx_n2)         /* ( x y -- ): the second point */
+SC(S2, vgfx_s2)         /* ( dx dy -- ): the second point, STEP from the first */
+SC(SCREEN, vgfx_screen) /* ( (value given) * 4 -- ): SCREEN mode, colorswitch, apage, vpage */
+SC(PSET, vgfx_pset)     /* ( -- ): PSET at the first point */
+SC(PRESET, vgfx_preset) /* ( -- ): PRESET there */
+SC(PSETC, vgfx_psetc)   /* ( color -- ): PSET or PRESET there in color */
+SC(LINE, vgfx_line)     /* ( color how style -- ): LINE between the points; how 0, 1 B, 2 BF */
+SC(CSTART, vgfx_cstart) /* ( start -- ): the next CIRCLE's start angle */
+SC(CEND, vgfx_cend)     /* ( end -- ): its end angle */
+SC(CASPECT, vgfx_caspect) /* ( aspect -- ): its aspect */
+SC(CIRCLE, vgfx_circle) /* ( radius color -- ): CIRCLE round the first point */
+SC(LAST, vgfx_last)     /* ( -- ): the first point the last one */
+#undef SC
+#endif

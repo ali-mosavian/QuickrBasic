@@ -26,6 +26,9 @@ enum : uint8_t { XF_LEAD = 0x80, XF_MIN = 0x7F };
 extern const XFn fns_x[];
 extern const uint32_t fns_nx;
 
+/* tok (100h + n for TK_X n) one of fns_x: a function. */
+bool fns_isx(uint16_t tok);
+
 /* SGN .. MID$'s result (f TK_SGN on), its argument's type at, for a DOUBLE target or not. */
 uint8_t fns_type(uint8_t f, uint8_t at, bool dbl);
 #endif

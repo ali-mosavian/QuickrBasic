@@ -40,3 +40,15 @@ TEST(list_name_as_first_written)
     listed(S, "x(0).A = TOTAL: print r.A%");
     CHECK_TEXT(S->cons.sbuf, S->cons.sblen, "x(0).a = Total: PRINT r.A%");
 }
+
+/* A statement's keyword before '(' a word, not a function, and a '-' between two points close:
+   PSET (1, 1) was PSET(1, 1), LINE's points (0, 0) - (2, 2). */
+TEST(list_statement_before_paren)
+{
+    listed(S, "pset (1, 1): line (0, 0)-step(2, 2): x = cint(2)-(1)");
+    CHECK_TEXT(
+        S->cons.sbuf,
+        S->cons.sblen,
+        "PSET (1, 1): LINE (0, 0)-STEP (2, 2): x = CINT(2) - (1)"
+    );
+}

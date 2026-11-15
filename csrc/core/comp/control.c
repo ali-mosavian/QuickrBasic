@@ -55,6 +55,7 @@
 #include "comp/dfa.h"
 #include "comp/expr.h"
 #include "comp/fold.h"
+#include "comp/gfxstmt.h"
 #include "comp/refs.h"
 #include "io/msg.h"
 #include "io/repl.h"
@@ -1234,6 +1235,9 @@ static void resume(Comp *const C)
 
 static bool xstmt(Comp *const C)
 {
+    if (gstm_stmt(C))
+        return true;
+
     switch (C->p[1]) {
     case TK1_COMMON:
         common(C);

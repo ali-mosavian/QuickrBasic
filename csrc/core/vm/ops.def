@@ -179,6 +179,7 @@ OP(V_ADDR, exec_v_addr, 3, 0)
 OP(V_CELL, oper_s_ld_v, 1 + VCELL, FX + FV) /* a scalar's cell, as S.LD.V a descriptor's */
 OP(V_LD, exec_v_ld, 4, FX)
 OP(V_ST, exec_v_st, 4, 0)
+OP(SYSCALL, sysc_call, 2, 0) /* the runtime's service n (vm/syscalls.def) */
 #undef OP
 #endif
 
