@@ -69,7 +69,8 @@ OBJCOPY ?= $(dir $(CLANG))llvm-objcopy
 CC_OPT ?= -O2
 CFLAGS := --target=i386-pc-win32 -march=i386 -mregparm=3 -std=c23 $(CC_OPT) -ffreestanding \
 	-fno-asynchronous-unwind-tables -fno-stack-protector -mno-stack-arg-probe -mstack-alignment=4 -Werror=undef \
-	-DARENA_AT_ZERO=1 -Wall -Wextra -Wno-unused-parameter -isystem csrc/lib/include -Icsrc -Icsrc/core
+	-DARENA_AT_ZERO=1 -Wall -Wextra -Wno-unused-parameter -isystem csrc/lib/include \
+	-Icsrc -Icsrc/core
 COWN := $(foreach f,memcpy memmove memset,--redefine-sym _$(f)=_lib_$(f))
 
 # llrm's QB runtime (graphics, sound), ours since llrm-next f4197e19b2 (csrc/qbrt/llrm): the portable
@@ -138,6 +139,39 @@ cide32: $(CIDE_OBJ)
 	$(C_LINK) $(abspath build/c/ide32.exe) $(abspath $(CIDE_OBJ))
 	cp src/ui/basic.hlp build/c/BASIC.HLP
 	$(PY) tools/x86d32a.py $(DOS32A)/dos32a.exe build/c/DOS32A.EXE
+
+# ---- LTO (make clto): the C objects as bitcode (build/clto), one module optimized whole by
+# tools/clto.py, linked with the asm's objects: build/clto/basic32.exe and ide32.exe
+CASM_OBJ := $(CASM:csrc/%.asm=build/c/obj/%.obj) $(QBRT_DASM:%.asm=build/c/qbrt/%.obj)
+CBC = $(patsubst build/c/%.obj,build/clto/%.bc,$(filter-out $(CASM_OBJ),$1))
+.PHONY: clto
+clto: build/clto/basic32.exe build/clto/ide32.exe
+
+build/clto/qbrt/%.bc: $(QBRT)/%.c build/c/qbrt/names.h
+	@mkdir -p $(@D)
+	$(CLANG) $(subst -std=c23,-std=gnu11,$(CFLAGS)) -flto -w -D__cdecl= -include build/c/qbrt/names.h \
+		$(QBRT_DINC) -c $< -o $@
+build/clto/obj/qbrt/%.bc: csrc/qbrt/%.c $(CHDR) build/c/qbrt/names.h
+	@mkdir -p $(@D)
+	$(CLANG) $(CFLAGS) -flto -D__cdecl= -include build/c/qbrt/names.h $(subst -I,-isystem ,$(QBRT_DINC)) \
+		-c $< -o $@
+build/clto/obj/core/ui/%.bc: csrc/core/ui/%.c $(CHDR)
+	@mkdir -p $(@D)
+	$(CLANG) $(CFLAGS) -flto -DAC=$(AC) -c $< -o $@
+build/clto/obj/%.bc: csrc/%.c $(CHDR)
+	@mkdir -p $(@D)
+	$(CLANG) $(CFLAGS) -flto -c $< -o $@
+
+build/clto/basic32.exe: $(call CBC,$(COBJ)) $(CASM_OBJ)
+	$(PY) tools/clto.py $(CLANG) build/clto/basic32.obj $(call CBC,$(COBJ)) -- $(CASM_OBJ)
+	$(C_LINK) $(abspath $@) $(abspath build/clto/basic32.obj $(CASM_OBJ))
+	$(PY) tools/x86d32a.py $(DOS32A)/dos32a.exe build/clto/DOS32A.EXE
+	$(PY) tools/x86lto_test.py $@
+build/clto/ide32.exe: $(call CBC,$(CIDE_OBJ)) $(CASM_OBJ)
+	$(PY) tools/clto.py $(CLANG) build/clto/ide32.obj $(call CBC,$(CIDE_OBJ)) -- $(CASM_OBJ)
+	$(C_LINK) $(abspath $@) $(abspath build/clto/ide32.obj $(CASM_OBJ))
+	cp src/ui/basic.hlp build/clto/BASIC.HLP
+	$(PY) tools/x86d32a.py $(DOS32A)/dos32a.exe build/clto/DOS32A.EXE
 
 # ---- The host build: the same core on this machine (x86-64; Rosetta's x87 on Apple silicon) ----
 HOST_CC ?= $(CLANG) -arch x86_64 -isysroot $(shell xcrun --show-sdk-path 2>/dev/null)
