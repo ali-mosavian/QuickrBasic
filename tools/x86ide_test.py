@@ -869,6 +869,14 @@ def play() -> None:
     press(f"0x{F4:x}")
     assert peek(0x449) == 0x13 and [peek(0xA0000 + 320 + x) for x in (1, 2)] == [4, 5], look()
     press("space", f"0x{ALT_D:x}", "t")
+    # READ past indented lines (GORILLAS.BAS): the editor keeps a line's indent after its 0, and the
+    # scan took it for the next line's record. Out of DATA, or 0.
+    (work / "DAT.BAS").write_bytes(b"RESTORE L2\r\nREAD a, b\r\nPRINT a; b\r\nEND\r\nL1:\r\n  DATA 1\r\n"
+                                   b"L2:\r\n  'c\r\n  DATA 3\r\n  DATA 4\r\n")
+    open_file("dat.bas")
+    press(f"0x{F5:x}")
+    assert output()[0] == " 3  4", output()
+    press("space")
     if flat:  # past 64 KB of text: the text's buffer was 64 KB, the file cut short
         pad = b"x = x + 1 ' " + b"pad " * 12 + b"\r\n"
         (work / "BIG.BAS").write_bytes(b"x = 0\r\n" + pad * 2000 + b"PRINT x\r\n")

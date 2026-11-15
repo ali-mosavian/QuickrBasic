@@ -308,8 +308,17 @@ static uint8_t skip_stmt(Prog *const pg, uint32_t *const b)
     return *p;
 }
 
-/* The first DATA at or after the statement starting at *b; *b its first byte. */
-static bool scan_data(Prog *const pg, uint32_t *const b)
+/* The next line's body: *line on, *b its first byte; false at the end. By the record's length: the
+   line's pre bytes (the editor's indent) follow its 0. */
+static bool next_line(Prog *const pg, uint32_t *const line, uint32_t *const b)
+{
+    *line += prog_line(pg, *line)->len;
+    *b = *line + HDR;
+    return prog_line(pg, *line)->len;
+}
+
+/* The first DATA at or after the statement starting at *b, in *line; *b its first byte. */
+static bool scan_data(Prog *const pg, uint32_t *const line, uint32_t *const b)
 {
     for (;;) {
         uint8_t c;
@@ -321,33 +330,26 @@ static bool scan_data(Prog *const pg, uint32_t *const b)
             return true;
         }
 
-        if (!c)
-            ++*b;
-        else if (skip_stmt(pg, b))
+        if (c && skip_stmt(pg, b))
             continue;
-        if (!prog_line(pg, *b)->len) /* the next line, or the end */
+        if (!next_line(pg, line, b))
             return false;
-
-        *b += HDR;
     }
 }
 
-/* The first DATA after the statement *b is in. */
-static bool data_after(Prog *const pg, uint32_t *const b)
+/* The first DATA after the statement *b is in, in *line. */
+static bool data_after(Prog *const pg, uint32_t *const line, uint32_t *const b)
 {
-    if (!skip_stmt(pg, b)) {
-        if (!prog_line(pg, *b)->len)
-            return false;
+    if (!skip_stmt(pg, b) && !next_line(pg, line, b))
+        return false;
 
-        *b += HDR;
-    }
-
-    return scan_data(pg, b);
+    return scan_data(pg, line, b);
 }
 
-/* The text of the DATA at b to data_text, up to its ':'. */
-static void load_data(Session *const S, const uint32_t b)
+/* The text of the DATA at b, in line, to data_text, up to its ':'. */
+static void load_data(Session *const S, const uint32_t line, const uint32_t b)
 {
+    S->stmt.data_line = line;
     S->stmt.data_at = b;
     const uint8_t *const text = at(prog_addr(&S->prog, b));
     const size_t n = (size_t)(comp_skipdata(text) - text);
@@ -358,10 +360,10 @@ static void load_data(Session *const S, const uint32_t b)
 /* READ goes on at the first DATA at or after line. */
 static void seek_data(Session *const S, const uint32_t line)
 {
-    uint32_t b = line + HDR;
+    uint32_t at_line = line, b = line + HDR;
 
-    if (prog_line(&S->prog, line)->len && scan_data(&S->prog, &b))
-        load_data(S, b);
+    if (prog_line(&S->prog, line)->len && scan_data(&S->prog, &at_line, &b))
+        load_data(S, at_line, b);
     else {
         S->stmt.data_at = 0;
         S->stmt.data_text[0] = 0;
@@ -391,12 +393,12 @@ static const uint8_t *next_data(Session *const S)
     if (comp_peek(&p) == ',')
         return p + 1;
 
-    uint32_t b = S->stmt.data_at;
+    uint32_t line = S->stmt.data_line, b = S->stmt.data_at;
 
-    if (!b || !data_after(&S->prog, &b))
+    if (!b || !data_after(&S->prog, &line, &b))
         repl_error(S, E_OD);
 
-    load_data(S, b);
+    load_data(S, line, b);
     return S->stmt.data_text;
 }
 
@@ -407,12 +409,7 @@ static void read(Session *const S, const ItemKind kind)
     Cell v = {};
 
     if (!read_item(S, &p, kind, &v)) {
-        uint32_t line = PROGBASE;
-
-        while (S->stmt.data_at >= line + prog_line(&S->prog, line)->len)
-            line += prog_line(&S->prog, line)->len;
-
-        S->vm.line = line;
+        S->vm.line = S->stmt.data_line;
         repl_error(S, E_SN);
     }
 

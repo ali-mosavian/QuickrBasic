@@ -24,6 +24,7 @@ typedef struct {
     uint8_t *data_text;      /* g_rdbuf: the DATA in hand's text, in the arena */
     const uint8_t *data_pos; /* READ's place in data_text, null before the first READ */
     uint32_t data_at;        /* the DATA's first byte in the store, 0 none */
+    uint32_t data_line;      /* the line it is in */
     bool before_first;       /* data_pos is before the DATA's first item */
     uint8_t *input_end;      /* where an INPUT's empty line goes on */
     uint8_t *input_start;    /* REDO comes back here */
