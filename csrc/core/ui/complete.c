@@ -120,11 +120,11 @@ static bool cmpl_ghost(void)
            ac.glen == b->len && ac.gsum == cmpl_sum(b);
 }
 
-/* e's character i as written in: a name as spelled, else in small letters when the word is. */
+/* e's character i as written in: as written, else in small letters when the word is. */
 static uint8_t cmpl_shown(const Sugg *const e, const uint16_t i)
 {
     const uint8_t c = e->text[i];
-    return ac.lc && !e->spelled && is_letter(c) ? c | 0x20 : c;
+    return ac.lc && i >= e->asis && is_letter(c) ? c | 0x20 : c;
 }
 
 /* The word replaced by the first n characters of e. */

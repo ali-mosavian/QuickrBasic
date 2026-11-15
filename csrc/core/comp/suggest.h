@@ -18,7 +18,8 @@ typedef struct {
     uint8_t text[SUGG_LEN + 2]; /* an array's '(' after it; 0 */
     SuggKind kind;
     bool fuzzy;    /* the word's letters in it in order, not its start */
-    bool spelled;  /* a name as first written; else in capitals */
+    uint8_t asis;  /* its first characters as written: a name's, the word typed before a mark; the
+                      rest in capitals */
     uint16_t tok;  /* a keyword's token: 100h + n for TK_X n */
     uint32_t rec;  /* a line number's line, a procedure's first: its record */
     int16_t score; /* higher first */

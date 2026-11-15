@@ -261,3 +261,13 @@ TEST(suggest_names_as_written)
     CHECK(suggest(S, "TAL") && !strcmp((const char *)out.list[place("Tally")].text, "Tally"));
     CHECK(suggest(S, "for i = 1 to 2: next ") && !strcmp((const char *)out.list[0].text, "i"));
 }
+
+/* A mark after the word keeps the word as typed: Tab rewrote it, Counterofitems to COUNTEROFITEMS;. */
+TEST(suggest_mark_keeps_the_word)
+{
+    unit_store(S, program);
+    CHECK(suggest(S, "print Counterofitems"));
+    const int i = place("Counterofitems;");
+    CHECK(i >= 0 && !strcmp((const char *)out.list[i].text, "Counterofitems;"));
+    CHECK(out.list[i].asis == 14);
+}

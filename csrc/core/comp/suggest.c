@@ -345,7 +345,7 @@ static Sugg sugg_named(
     memcpy(shown, text, len);
     symb_spell(src->symb, id, shown, (uint8_t)len);
     Sugg s = sugg_make(shown, len, kind, match, score);
-    s.spelled = true;
+    s.asis = s.len;
     return s;
 }
 
@@ -572,12 +572,10 @@ static void sugg_follow(
         if (pn > SUGG_LEN)
             continue;
 
-        uint8_t probe[SUGG_LEN + 4], text[SUGG_LEN + 2];
+        uint8_t probe[SUGG_LEN + 4]; /* its text, then " 0" after it */
         memcpy(probe, typed, wn);
-        memcpy(text, word, wn);
-        probe[wn] = text[wn] = ' ';
+        probe[wn] = ' ';
         memcpy(probe + wn + gap, follows[i], fn);
-        memcpy(text + wn + gap, follows[i], fn);
 
         if ((left > 0 && follows[i][0] == ')') || (!left && follows[i][0] == ','))
             continue; /* a call of the program's: its parameters' count */
@@ -598,7 +596,8 @@ static void sugg_follow(
                                                      : 55;
         ended |= ends;
         nmore += follows[i][0] != '(';
-        fit[nfit] = sugg_make(text, pn, SG_PUNCT, 2, score);
+        fit[nfit] = sugg_make(probe, pn, SG_PUNCT, 2, score);
+        fit[nfit].asis = (uint8_t)wn;
         fit[nfit++].need = ends;
     }
 
