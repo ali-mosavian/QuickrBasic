@@ -895,6 +895,19 @@ def play() -> None:
     attr = bytes.fromhex(s.send({"cmd": "mem_read_linear", "addr": 0xB9000 + 160 + 18, "len": 2})["data"])[1]
     assert out[4][19:] == "A" and out[1][9:] == "B" and attr == 0x1E, (out[:6], hex(attr))
     press("space")
+    # Targets past a statement's JMP (a CASE, ELSE, a one-line DEF FN) ignored the debugger's DBG
+    # before it: they landed in the JMP. Every CASE but the first was skipped (GORILLAS.BAS drew one
+    # gorilla of three); a call of FnR from a SUB ran the caller's line again for ever.
+    (work / "CS.BAS").write_bytes(b'FOR a = 1 TO 3\r\nSELECT CASE a\r\nCASE 1\r\nPRINT "one";\r\nCASE 2\r\n'
+                                  b'PRINT "two";\r\nCASE ELSE\r\nPRINT "else";\r\nEND SELECT\r\nNEXT\r\n')
+    open_file("cs.bas")
+    assert run_out()[0] == "ONETWOELSE", output()
+    press("space")
+    (work / "FN.BAS").write_bytes(b"DECLARE SUB s ()\r\n  DEF FnR (x) = x + 1\r\nPRINT \"a\";\r\ns\r\nEND\r\n"
+                                  b"SUB s\r\nPRINT FnR(1)\r\nEND SUB\r\n")
+    open_file("fn.bas")
+    assert run_out()[0] == "A 2", output()
+    press("space")
     if flat:  # past 64 KB of text: the text's buffer was 64 KB, the file cut short
         pad = b"x = x + 1 ' " + b"pad " * 12 + b"\r\n"
         (work / "BIG.BAS").write_bytes(b"x = 0\r\n" + pad * 2000 + b"PRINT x\r\n")

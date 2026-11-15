@@ -268,8 +268,16 @@ static bool jump_dest(const Comp *const C, Jump *const j)
     if (!left || (j->dest == TO_NEXT_STMT && left == 1))
         return false;
 
-    j->dest =
-        code + (j->dest == TO_NEXT_STMT ? s[1].code : s->code + (j->dest == PAST_JMP ? JSIZE : 0));
+    uint32_t dest = code + (j->dest == TO_NEXT_STMT ? s[1].code : s->code);
+
+    if (j->dest == PAST_JMP) { /* past the statement's JMP, and the debugger's DBG before it */
+        if (rd8(C->allo->cache + dest) == O_DBG)
+            dest += flow_opsize(at(C->allo->cache + dest));
+
+        dest += JSIZE;
+    }
+
+    j->dest = dest;
 
     /* Jump threading: a target that only ends its line is the next line's start. A jump does the
        line end's STOP check and drops the temporaries itself. */
