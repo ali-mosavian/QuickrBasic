@@ -1,4 +1,4 @@
-/* The text screen: cells in video memory, the BIOS for the cursor. */
+/* The text screen: cells in video memory, the BIOS for the cursor; both on the active page. */
 #include "device.h"
 
 enum {
@@ -6,6 +6,8 @@ enum {
     BIOS_MODE = 0x49,
     BIOS_ROWS = 0x84,
     BIOS_CURSOR_SHAPE = 0x60,
+    BIOS_PAGE_START = 0x4E,
+    BIOS_PAGE = 0x62,
     MONO_MODE = 7,
     DEFAULT_ROWS = 25,
     SET_CURSOR_SHAPE = 0x0100,
@@ -25,8 +27,14 @@ static unsigned columns_of(void)
 static u16 QB_FAR *cell(unsigned row, unsigned column)
 {
     u16 *base = QB_VIDEO_MEMORY(bios[BIOS_MODE] == MONO_MODE ? 0xB000 : 0xB800);
+    unsigned start = *(const volatile u16 QB_FAR *)(bios + BIOS_PAGE_START);
 
-    return base + (row * columns_of() + column);
+    return base + start / 2 + (row * columns_of() + column);
+}
+
+static unsigned page_of(void)
+{
+    return (unsigned)bios[BIOS_PAGE] << 8;
 }
 
 unsigned dev_text_size(void)
@@ -41,7 +49,7 @@ unsigned dev_text_cursor(void)
     Regs r;
 
     r.rax = GET_CURSOR_POSITION;
-    r.rbx = 0;
+    r.rbx = page_of();
     dev_int10(&r);
     return r.rdx;
 }
@@ -51,7 +59,7 @@ void dev_text_move(unsigned row, unsigned column)
     Regs r;
 
     r.rax = SET_CURSOR_POSITION;
-    r.rbx = 0;
+    r.rbx = page_of();
     r.rdx = row << 8 | column;
     dev_int10(&r);
 }

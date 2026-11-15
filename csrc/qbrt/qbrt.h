@@ -42,8 +42,11 @@ void qbrt_text(void);
 uint32_t qbrt_shot_size(void);
 void qbrt_shot_take(void *shot);
 void qbrt_shot_show(const void *shot);
-/* A front end draws the screen itself (the IDE): standard output is not the runtime's. */
-void qbrt_screen_taken(bool yes);
+/* A front end's (the IDE's): the console takes the screen again (its active page, the cursor
+   there) and clears it; its cursor, from 0; moved there. */
+void qbrt_console_reset(void);
+void qbrt_where(uint8_t *row, uint8_t *col);
+void qbrt_move(uint8_t row, uint8_t col);
 void cn_putc(char c);
 void cn_crlf(void);
 uint8_t cn_pos(void);

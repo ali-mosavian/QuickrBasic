@@ -682,6 +682,16 @@ def play() -> None:
         press(f"0x{key:x}")
         assert lit()[0] == want, (want, lit(), look())
 
+    def run_out() -> list[str]:
+        """F5 to the run's Press any key: press() ends at the first key poll, and DOS's Ctrl+C check
+        in a run's INT 21h is one."""
+        press(f"0x{F5:x}")
+        for _ in range(100):
+            if output()[24]:
+                break
+            s.resume(100)
+        return output()
+
     def open_file(name: str) -> None:
         press(f"0x{ALT_F:x}", "o")
         if any("NOT SAVED" in r for r in look()):
@@ -851,8 +861,7 @@ def play() -> None:
     press("space")
     # A line was cut at 255 characters on load and at 250 on Run: it printed nothing.
     open_file("lng.bas")
-    press(f"0x{F5:x}")
-    assert output()[0] == " 300", output()
+    assert run_out()[0] == " 300", output()
     press("space")
     # A graphics program stepped, then traced: the editor shown in text mode at each stop, the
     # program's screen kept. A trace drew the editor on SCREEN 13's page: the PSETs were lost.
@@ -877,12 +886,20 @@ def play() -> None:
     press(f"0x{F5:x}")
     assert output()[0] == " 3  4", output()
     press("space")
+    # LOCATE and COLOR on the output's page (NIBBLES.BAS): they went to the runtime's console on the
+    # editor's page, PRINT to the output's; the text ran on line after line.
+    (work / "LOC.BAS").write_bytes(b'CLS\r\nLOCATE 5, 20: PRINT "A";\r\nCOLOR 14, 1: LOCATE 2, 10: PRINT "B"\r\n')
+    open_file("loc.bas")
+    press(f"0x{F5:x}")
+    out = output()
+    attr = bytes.fromhex(s.send({"cmd": "mem_read_linear", "addr": 0xB9000 + 160 + 18, "len": 2})["data"])[1]
+    assert out[4][19:] == "A" and out[1][9:] == "B" and attr == 0x1E, (out[:6], hex(attr))
+    press("space")
     if flat:  # past 64 KB of text: the text's buffer was 64 KB, the file cut short
         pad = b"x = x + 1 ' " + b"pad " * 12 + b"\r\n"
         (work / "BIG.BAS").write_bytes(b"x = 0\r\n" + pad * 2000 + b"PRINT x\r\n")
         open_file("big.bas")
-        press(f"0x{F5:x}")
-        assert output()[0] == " 2000", output()
+        assert run_out()[0] == " 2000", output()
         press("space")
         # Past 65,535 lines: the line counters were words, the last lines out of reach.
         (work / "LONG.BAS").write_bytes(b"x = 0\r\n" + b"x = x + 1\r\n" * 66000 + b"PRINT x\r\n")

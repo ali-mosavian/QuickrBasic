@@ -5,13 +5,13 @@
  * screen is kept (qbrt_shot_take) in an arena block and the screen put in text mode; the runtime's
  * state stays as the program left it, so a continue, a step or an immediate line draws on. The
  * output shown again sets the mode back and the screen with it (qbrt_shot_show). A run starts in
- * text mode.
+ * text mode. The program's console is the runtime's, on the page shown (the BIOS's active one).
  *
  * # asm structure (src/ui/ui.asm)
  * | asm | here | |
  * |---|---|---|
  * | ui_in, ui_out, ui_outclr | upag_in, upag_out, upag_clear | MIRROR |
- * | (none) | upag_init, upag_output, the kept screen | NEW |
+ * | (none) | upag_init, the kept screen | NEW |
  */
 #include "ui/pages.h"
 #include "io/console.h"
@@ -62,9 +62,6 @@ void upag_clear(Session *const S)
 
     them_out();
     pscr_page(PAGE_OUT);
-    pscr_scroll(0, 0, 0, PSCR_ROWS - 1, PSCR_COLS - 1, ATTR_PLAIN);
-    pscr_cursor(PAGE_OUT, 0, 0);
+    qbrt_console_reset();
     S->cons.col = 0;
 }
-
-uint8_t upag_output(void) { return qbrt_graphics() ? PAGE_EDIT : PAGE_OUT; }

@@ -18,6 +18,7 @@
  */
 #include "qbrt/qbrt.h"
 #include "ad.h"
+#include "cndriver.h"
 #include "dev.h"
 #include "error.h"
 #include "gfx.h"
@@ -34,7 +35,6 @@ static volatile uint8_t *stop;
 static char *heap, *heap_top;
 static void *lent;
 static uint32_t lent_bytes;
-static bool taken;
 
 extern void (*qb_lander)(void); /* error.c's: ON ERROR's landing */
 
@@ -100,9 +100,21 @@ void qbrt_put(void *const data, const uint32_t bytes, const uint32_t elem, const
     B_GPUT(data, &ad, how);
 }
 
-bool qbrt_screen(void) { return !taken && dev_stdout_is_screen(); }
+bool qbrt_screen(void) { return dev_stdout_is_screen(); }
 
-void qbrt_screen_taken(const bool yes) { taken = yes; }
+void qbrt_console_reset(void)
+{
+    cn_mode_changed();
+    cn_cls();
+}
+
+void qbrt_where(uint8_t *const row, uint8_t *const col)
+{
+    *row = cn_line();
+    *col = cn_pos();
+}
+
+void qbrt_move(const uint8_t row, const uint8_t col) { cn_locate(row + 1, col + 1, -1); }
 
 bool qbrt_graphics(void) { return gfx_current && gfx_current->number; }
 

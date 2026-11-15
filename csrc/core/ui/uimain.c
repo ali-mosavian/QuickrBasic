@@ -840,7 +840,7 @@ static void exec_line(Session *const S)
         return;
 
     upag_out(S);
-    pscr_where(PAGE_OUT, &ui.crow, &ui.ccol);
+    qbrt_where(&ui.crow, &ui.ccol);
     ui.run_wait = false;
 
     if (repl_enter(S, len) == ENTER_DIRECT) {
@@ -851,28 +851,28 @@ static void exec_line(Session *const S)
     upag_in(S);
 }
 
-/* Press any key on the output's last row, the output's cursor back after: on the output's page,
-   or a graphics mode's only one. */
+/* The prompt on the output's last row through the console, in any mode; or its place blanked. */
+static void status_prompt(Session *const S, const bool blank)
+{
+    qbrt_move(STATUS_ROW, 0);
+
+    for (uint32_t i = 0; s_anykey[i]; i++)
+        cons_putc(&S->cons, blank ? ' ' : (uint8_t)s_anykey[i]);
+
+    cons_flush(&S->cons);
+}
+
+/* Press any key, the output's cursor back after. */
 static void wait_anykey(Session *const S)
 {
     cons_fresh(&S->cons);
-    const uint8_t page = upag_output();
     uint8_t row, col;
-    pscr_where(page, &row, &col); /* output goes on here after the key */
-    pscr_cursor(page, STATUS_ROW, 0);
-
-    for (uint32_t i = 0; s_anykey[i]; i++)
-        cons_putc(&S->cons, (uint8_t)s_anykey[i]);
-
-    cons_flush(&S->cons);
-    S->cons.col = 0;
+    qbrt_where(&row, &col); /* output goes on here after the key */
+    status_prompt(S, false);
     pkey_read();
-    pscr_cursor(page, STATUS_ROW, 0); /* the prompt off */
-
-    if (page == PAGE_OUT)
-        pscr_fill(PAGE_OUT, STATUS_ROW, 0, ATTR_PLAIN << 8 | ' ', PSCR_COLS);
-
-    pscr_cursor(page, row, col);
+    status_prompt(S, true);
+    qbrt_move(row, col);
+    S->cons.col = col;
 }
 
 /* ui_ready: the run ended: the output page until a key, unless an immediate line printed
@@ -882,7 +882,7 @@ static void ended(Session *const S)
     cons_flush(&S->cons);
     S->vm.stop = 0;
     uint8_t row, col;
-    pscr_where(PAGE_OUT, &row, &col);
+    qbrt_where(&row, &col);
 
     if (ui.run_wait || row != ui.crow || col != ui.ccol || qbrt_graphics())
         wait_anykey(S);
@@ -1415,7 +1415,6 @@ void uimn_start(Session *const S)
         return;
 
     init(S);
-    qbrt_screen_taken(true);
     pscr_mode(VIDEO_TEXT);
     them_qbasic();
     const uint16_t n = cmdline_file();
