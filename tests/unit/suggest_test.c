@@ -259,4 +259,5 @@ TEST(suggest_names_as_written)
     CHECK(suggest(S, "print x(0).") && !strcmp((const char *)out.list[0].text, "a"));
     CHECK(suggest(S, "dim y as PA") && !strcmp((const char *)out.list[0].text, "pair"));
     CHECK(suggest(S, "TAL") && !strcmp((const char *)out.list[place("Tally")].text, "Tally"));
+    CHECK(suggest(S, "for i = 1 to 2: next ") && !strcmp((const char *)out.list[0].text, "i"));
 }

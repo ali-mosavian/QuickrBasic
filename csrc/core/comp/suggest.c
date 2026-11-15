@@ -100,6 +100,7 @@ static struct {
     uint16_t procs[NPROCS]; /* the procedures' names */
     uint16_t nprocs;
     uint8_t open[NFOR][SUGG_LEN + 2]; /* the open FORs' variables, innermost last */
+    uint16_t openid[NFOR];            /* their names' entries */
     uint8_t nopen;
     uint8_t ndo, nwhile, nsel; /* DO, WHILE, SELECT CASE open at the word */
 } sg;
@@ -740,8 +741,10 @@ static void sugg_events(const uint8_t *const body, const uint8_t *const end)
         if (c == TK_FOR && *p == M_VAR) {
             SuggName n;
 
-            if (sugg_name(p, &n, &p) && sg.nopen < NFOR)
-                memcpy(sg.open[sg.nopen++], n.text, n.len + 1u);
+            if (sugg_name(p, &n, &p) && sg.nopen < NFOR) {
+                memcpy(sg.open[sg.nopen], n.text, n.len + 1u);
+                sg.openid[sg.nopen++] = n.name;
+            }
         } else if (c == TK_NEXT) {
             uint8_t k = 0;
 
@@ -1395,7 +1398,8 @@ bool sugg_find(
 
     if (!wn && sg.last == TK_NEXT && sg.nopen) { /* NEXT: the open FOR's variable alone */
         const uint8_t *const v = sg.open[sg.nopen - 1];
-        Sugg s = sugg_make(v, (uint16_t)strlen((const char *)v), SG_VAR, 2, 0);
+        const uint16_t id = sg.openid[sg.nopen - 1];
+        Sugg s = sugg_named(&src, id, v, (uint16_t)strlen((const char *)v), SG_VAR, 2, 0);
         s.need = true;
         sugg_add(out, &s);
         return true;
