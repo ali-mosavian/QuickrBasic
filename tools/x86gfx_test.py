@@ -35,8 +35,32 @@ WHOLE = "\r\n".join([
     "",
 ])
 
+
+def screen_error() -> str:
+    """An error in a graphics mode, standard output the screen: its message was printed on the
+    graphics screen, which the exit's text mode cleared (GORILLAS.BAS left without a word)."""
+    llrm = Path("/Users/alim/work/personal/llrm-qbmac/tools")
+    sys.path[:0] = [str(llrm), str(llrm / "dosbatch")]
+    import llrmbin
+    llrmbin.stale_binaries = lambda *a, **k: []
+    import qbplay
+
+    work = Path(tempfile.mkdtemp())
+    (work / "B.EXE").write_bytes(x86run.COM.read_bytes())
+    (work / "DOS32A.EXE").write_bytes((x86run.COM.parent / "DOS32A.EXE").read_bytes())
+    (work / "E.BAS").write_bytes(b"SCREEN 13\r\nERROR 5\r\n")
+    s = qbplay.Session(work)
+    s.keys_in_lockstep(["b", "space", "e", ".", "b", "a", "s"], 3000)
+    s.keys_in_lockstep(["enter"], 3000)
+    s.resume(3000)
+    return s.screen()
+
+
 if __name__ == "__main__":
     for name, program, want in (("gfx", PROGRAM, " 9  9  12  1  14 "), ("whole", WHOLE, " 2  2 ")):
         out = x86run.run({name: program}, Path(tempfile.mkdtemp()) / "w", 60000, mem=4)[name].out
         assert want in out and "Out of memory" not in out, (name, out[-400:])
+    if not x86run.is_host(x86run.COM):
+        shown = screen_error()
+        assert "Illegal function call" in shown, shown
     print("ok")

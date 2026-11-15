@@ -61,6 +61,7 @@
 #include "num/fpmath.h"
 #include "plat/pfil.h"
 #include "plat/psys.h"
+#include "qbrt/qbrt.h"
 #include "vm/debug.h"
 #include "vm/exec.h"
 #include "vm/flow.h"
@@ -372,8 +373,10 @@ void repl_main(Session *const S)
     if (S->repl.fe->start) {
         const Status st = repl_call(S, S->repl.fe->start);
 
-        if (st != ST_OK)
+        if (st != ST_OK) {
+            qbrt_text(); /* the message stays: the exit's text mode would clear a graphics screen */
             report(S, (uint8_t)st);
+        }
     }
 
     ready(S);
