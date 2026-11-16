@@ -171,8 +171,57 @@ static void mapstmt(Comp *const C, const uint8_t *const s, const Addr a)
 /* A stream's head: its map, then the count. */
 static uint32_t map_size(const uint32_t n) { return n * sizeof(Stmt) + sizeof(uint32_t); }
 
+/* link_xlate of a line with no INPUT: its code copied whole, its map the compiled one; the offsets
+   are the same. False, nothing written: it has an INPUT, or no room (*fits false). Op by op, a
+   link spent 4% here. */
+static bool xlate_whole(Comp *const C, Addr *const where, bool *const fits)
+{
+    const uint8_t *s = C->xbuf;
+
+    for (; *s != O_EOL; s += flow_opsize(s))
+        if (s[0] == O_CALL && s[1] == K_INBEG)
+            return *fits = true, false;
+
+    const uint32_t n = C->nstmt, len = (uint32_t)(s - C->xbuf);
+    const bool stored = C->line != DLINE;
+    const Addr a = *where, code = a + map_size(n), eol = code + len;
+    const Addr end = eol + (stored ? EOL_TO_SIZE : 1);
+
+    if (end + XSLK > C->link->lim)
+        return *fits = false, false;
+
+    const Stmt *const compiled = (const Stmt *)C->map; /* down from the top */
+    Stmt *const map = (Stmt *)at(a);
+
+    for (uint32_t i = 0; i < n; i++)
+        map[i] = compiled[-1 - (int32_t)i];
+
+    wr32(code - sizeof n, n);
+    memcpy(at(code), C->xbuf, len);
+    uint8_t *const d = at(eol);
+    d[0] = stored ? O_EOL_TO : O_EOL;
+
+    if (stored) { /* link_resolve sets the next */
+        store32(d + 1, 0);
+        store32(d + 5, 0);
+    }
+
+    C->link->inbeg = 0;
+    C->link->map = a;
+    C->link->code = code;
+    C->link->eol = eol;
+    C->link->mapnext = n;
+    *where = end;
+    return true;
+}
+
 bool link_xlate(Comp *const C, Addr *where)
 {
+    bool fits = true;
+
+    if (xlate_whole(C, where, &fits) || !fits)
+        return fits;
+
     C->link->inbeg = 0;
     const uint32_t n = C->nstmt;
     Addr a = *where;
