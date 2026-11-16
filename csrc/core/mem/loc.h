@@ -14,6 +14,8 @@ typedef struct {
 static inline Loc loc_cell(const Addr a) { return (Loc){(int32_t)a}; }
 static inline Loc loc_frame(const int32_t off) { return (Loc){off}; }
 static inline Loc loc_ref(const uint32_t off) { return (Loc){-(int32_t)off - 4}; }
+/* A local before its frame is laid out (comp/frame.c). */
+static inline Loc loc_local(void) { return (Loc){-8}; }
 
 /* In the frame: a local's or a parameter's. */
 static inline bool loc_in_frame(const Loc p) { return p.w < 0; }

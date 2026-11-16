@@ -9,7 +9,7 @@
  * or an INT, 8 a DOUBLE, DSZ a string, a TYPE's size a record.
  *
  * A local array DIMmed with constant bounds has its header and data in its call's frame
- * (comp/link.c link_frames), zeroed by PCALL, gone with the frame; never freed or REDIMmed.
+ * (comp/frame.c), zeroed by PCALL, gone with the frame; never freed or REDIMmed.
  *
  * arry_free drops an array: its header and data go and what follows moves down. The headers' data
  * Addrs, the moved string blocks' owners, the headers in the cells, the frames' too, and the
@@ -130,7 +130,7 @@ bool arry_heap(const Arry *const ay, const Addr h)
     return h >= ay->allo->hdr_base && h < ay->hdr;
 }
 
-/* Array id's header made in its frame (link_frames'), arry.counts and arry.lbounds [0..n) its
+/* Array id's header made in its frame (comp/frame.c), arry.counts and arry.lbounds [0..n) its
    shape; false: none there, or too small for it. */
 static bool arry_in_frame(Arry *const ay, const uint16_t id, const uint8_t n)
 {
@@ -141,7 +141,7 @@ static bool arry_in_frame(Arry *const ay, const uint16_t id, const uint8_t n)
         elems *= ay->counts[i];
 
     if (!fa->at || fa->shape >> 24 != n ||
-        elems > (fa->shape & 0xFFFFFF)) /* at: a local's (link_frames) */
+        elems > (fa->shape & 0xFFFFFF)) /* at: a local's (comp/frame.c) */
         return false;
 
     const Addr h = *ay->fp + (uint32_t)fa->at; /* the data after it, zeroed by PCALL */

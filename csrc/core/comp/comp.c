@@ -998,7 +998,7 @@ static uint32_t dimsubs(Comp *const C, uint32_t *const elems)
     return n;
 }
 
-/* A local array's DIM: the shape its frame keeps room for (link_frames), the largest asked; a
+/* A local array's DIM: the shape its frame keeps room for (comp/frame.c), the largest asked; a
    REDIM, bounds not constant or another count of dimensions: none. */
 static void frame_shape(Comp *const C, const uint16_t id, const uint32_t dims, const uint32_t elems)
 {

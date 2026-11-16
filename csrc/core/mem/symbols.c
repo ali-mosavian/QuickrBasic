@@ -125,8 +125,6 @@ void symb_vars_init(Symb *const sy)
     sy->nvars = 1;
     memset(sy->vhead, 0, sizeof sy->vhead);
     memset(sy->first_local, 0, sizeof sy->first_local);
-    memset(sy->nslots, 0, sizeof sy->nslots);
-    memset(sy->nframe, 0, sizeof sy->nframe);
 }
 
 /* Do the len chars at text, case not told, spell name text t (its length, then upper case)? */
@@ -214,12 +212,13 @@ uint16_t symb_find_var(
     sy->vhead[h] = id;
 
     *symb_loc(sy, id) = (Loc){};
+
     *symb_farr(sy, id) = (FrameArr){};
 
     if (scope && !stat) { /* a local: on its procedure's list, a cell of its frame */
         x->nloc = sy->first_local[scope];
         sy->first_local[scope] = id;
-        *symb_loc(sy, id) = symb_slot(sy, scope);
+        *symb_loc(sy, id) = loc_local();
     }
 
     v->vt = symb_cell(sy, id);

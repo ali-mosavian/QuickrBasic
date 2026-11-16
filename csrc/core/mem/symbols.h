@@ -54,8 +54,6 @@ typedef struct Symb {
     uint16_t nvars;                      /* the next variable (lx.nsyms) */
     uint16_t nnames;                     /* the next name (lx.nnams) */
     uint16_t first_local[NPROC];         /* a procedure's first local, VarX.nloc on (g_plh) */
-    uint16_t nslots[NPROC];              /* a procedure's frame: its locals' cells */
-    uint16_t nframe[NPROC];              /* and its arrays': all its frame's (link's) */
     uint8_t deft[26];                    /* DEFtype's ET_*, by first letter (g_deft) */
     uint16_t vhead[HSIZE], nhead[HSIZE]; /* the hash chains' heads */
 } Symb;
@@ -106,11 +104,6 @@ static inline bool symb_is_local(const Symb *const sy, uint16_t id)
 static inline FrameArr *symb_farr(const Symb *const sy, uint16_t id)
 {
     return (FrameArr *)at(sy->vars.at[5]) + id;
-}
-/* A new cell in procedure proc's frame. */
-static inline Loc symb_slot(Symb *const sy, const uint8_t proc)
-{
-    return loc_frame(-(int32_t)sizeof(Cell) * ++sy->nslots[proc]);
 }
 static inline uint8_t *symb_kval(const Symb *const sy, uint16_t id)
 {

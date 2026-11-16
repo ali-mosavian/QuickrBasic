@@ -38,6 +38,7 @@
 #include "comp/declare.h"
 #include "comp/dfa.h"
 #include "comp/fold.h"
+#include "comp/frame.h"
 #include "io/repl.h"
 #include "mem/alloc.h"
 #include "mem/array.h"
@@ -117,7 +118,7 @@ static void link_procvars(Comp *const C)
             continue;
 
         x->par = 0;
-        *symb_loc(C->symb, id) = x->scope ? symb_slot(C->symb, x->scope) : (Loc){};
+        *symb_loc(C->symb, id) = x->scope ? loc_local() : (Loc){};
     }
 }
 
@@ -453,7 +454,7 @@ static void resolve_op(Comp *const C, const uint32_t line, const Addr base, uint
         break;
 
     case O_PCALL: /* the procedure, its locals' cells, its parameters, the Jump */
-        store16(op + 2, C->symb->nframe[op[1]]);
+        store16(op + 2, blok_proc(C->blok, op[1])->nframe);
         op[4] = (uint8_t)blok_proc(C->blok, op[1])->npar;
 
         j = (Jump *)(op + 5);
@@ -555,55 +556,6 @@ void link_walk(const uint8_t *code, void (*each)(uint8_t op, const uint8_t *at))
         each(*code, code);
 }
 
-/* Each procedure with a local array or record in its frame: PF_ARRAYS, its return frees them
-   (vm/flow.c). */
-static void link_arrays(Comp *const C)
-{
-    for (uint8_t i = 1; i < C->blok->nprocs; i++) {
-        Proc *const p = C->blok->procs[i];
-        p->flags &= ~PF_ARRAYS;
-
-        for (uint16_t id = C->symb->first_local[i]; id; id = symb_varx(C->symb, id)->nloc)
-            if (symb_var(C->symb, id)->info & VI_ARR && symb_is_local(C->symb, id))
-                p->flags |= PF_ARRAYS;
-    }
-}
-
-/* Each procedure's frame: its locals' cells, then room for each local array a DIM gave constant
-   bounds, its header then its data, up to FRAME_ARRAYS bytes; the rest the heap's. */
-static void link_frames(Comp *const C)
-{
-    enum { FRAME_ARRAYS = 0x2000 };
-
-    Symb *const sy = C->symb;
-
-    for (uint8_t i = 1; i < C->blok->nprocs; i++) {
-        uint32_t cells = sy->nslots[i], bytes = 0;
-
-        for (uint16_t id = sy->first_local[i]; id; id = symb_varx(sy, id)->nloc) {
-            FrameArr *const fa = symb_farr(sy, id);
-            fa->at = 0;
-
-            if (!fa->shape || fa->shape == FARR_NEVER || !symb_is_local(sy, id))
-                continue;
-
-            const uint8_t dims = (uint8_t)(fa->shape >> 24);
-            const uint64_t data =
-                (uint64_t)(fa->shape & 0xFFFFFF) * arry_elem_size(sy, C->decl, id);
-            const uint32_t size = arry_frame_hdr(dims) + (uint32_t)((data + 7) & ~7ull);
-
-            if (data > FRAME_ARRAYS || bytes + size > FRAME_ARRAYS)
-                continue;
-
-            bytes += size;
-            cells += size / sizeof(Cell);
-            fa->at = -(int32_t)(cells * sizeof(Cell));
-        }
-
-        sy->nframe[i] = (uint16_t)cells;
-    }
-}
-
 void link_start(Comp *const C)
 {
     C->check = false; /* a check an error left */
@@ -623,8 +575,9 @@ void link_start(Comp *const C)
         link_line(C, l);
 
     C->link->nmiss = 0;
-    link_arrays(C);
-    link_frames(C); /* every line compiled: every local made */
+
+    for (uint8_t i = 1; i < C->blok->nprocs; i++) /* every line compiled: every local made */
+        frame_layout(C->symb, C->decl, C->blok->procs[i], i);
 
     for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)
         link_resolve(C, l, prog_line(C->prog, l)->code);
