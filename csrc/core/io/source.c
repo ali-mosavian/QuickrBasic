@@ -104,7 +104,7 @@ static void srcr_fill(Srcr *const sr)
         if (len >= SRCAP && (d[-1] != '_' || len >= INMAX)) /* full, a '_' not last: it slides */
             break;
 
-        const int b = cons_getb(sr->cons);
+        const int b = sr->chnl->in ? chnl_getb(sr->chnl) : cons_getb(sr->cons);
 
         if (b < 0) {
             sr->done = true;

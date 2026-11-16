@@ -55,8 +55,6 @@ void chnl_init(Chnl *const cl, Cons *const co)
     cl->lpt_width = LPT_WIDTH;
 }
 
-enum { CTRL_Z = 0x1A }; /* a text file's end */
-
 static uint8_t chnl_index_of(const Chnl *const cl, const Chan *const c)
 {
     return (uint8_t)(c - cl->ch);
@@ -468,7 +466,7 @@ static int peek_in(Chnl *const cl)
     return b;
 }
 
-int chnl_getb(Chnl *const cl)
+int chnl_getb_slow(Chnl *const cl)
 {
     const int b = peek_in(cl);
 

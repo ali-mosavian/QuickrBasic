@@ -81,9 +81,22 @@ Status chnl_take(Chnl *cl);
 /* A character to the output channel (not the console's), NL as CR LF. An error: chnl.err, and
    the file's bytes dropped till it is taken. */
 void chnl_putc(Chnl *cl, uint8_t ch);
+enum { CTRL_Z = 0x1A }; /* a text file's end */
+
+/* chnl_getb past its fast path: a block read, the end, a ^Z, another kind. */
+int chnl_getb_slow(Chnl *cl);
+
 /* The input channel's next byte; -1 at the end or a ^Z (a text file's end), or an error
-   (chnl.err). */
-int chnl_getb(Chnl *cl);
+   (chnl.err). Inline: straight from the file's buffer while it has bytes. */
+static inline int chnl_getb(Chnl *const cl)
+{
+    Chan *const c = &cl->ch[cl->in];
+
+    if (c->kind == CK_DISK && !c->dirty && c->next < c->count && c->buf[c->next] != CTRL_Z)
+        return c->buf[c->next++];
+
+    return chnl_getb_slow(cl);
+}
 /* Past the input channel's next byte if it is LF. An error: chnl.err. */
 void chnl_skiplf(Chnl *cl);
 /* c's next byte, not read, to *b; -1 none: the end, or ^Z in a sequential file. */
