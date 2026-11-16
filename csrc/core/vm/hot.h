@@ -222,44 +222,29 @@ static inline Status hot_int(Regs *const r, const HotSrc src, const HotOp op)
 }
 
 /* The INT ops: name, right operand, what it does. */
+/* The INT operations in one mode, the right operand's: popped, a variable's, a local's, a byte or a
+   word after the op. Mode by mode, as exec_run's labels have always been laid out: by operation,
+   int_index ran 1% more instructions. */
+#define HOT_INT_OPS(X, mode, src)                                                                  \
+    X(i_add##mode, src, HOT_ADD)                                                                   \
+    X(i_sub##mode, src, HOT_SUB)                                                                   \
+    X(i_mul##mode, src, HOT_MUL)                                                                   \
+    X(i_div##mode, src, HOT_DIV)                                                                   \
+    X(i_and##mode, src, HOT_AND)                                                                   \
+    X(i_or##mode, src, HOT_OR)
 #define HOT_INTS(X)                                                                                \
-    X(i_add, HOT_POPPED, HOT_ADD)                                                                  \
-    X(i_sub, HOT_POPPED, HOT_SUB)                                                                  \
-    X(i_mul, HOT_POPPED, HOT_MUL)                                                                  \
-    X(i_div, HOT_POPPED, HOT_DIV)                                                                  \
-    X(i_and, HOT_POPPED, HOT_AND)                                                                  \
-    X(i_or, HOT_POPPED, HOT_OR)                                                                    \
-    X(i_add_v, HOT_VAR, HOT_ADD)                                                                   \
-    X(i_sub_v, HOT_VAR, HOT_SUB)                                                                   \
-    X(i_mul_v, HOT_VAR, HOT_MUL)                                                                   \
-    X(i_div_v, HOT_VAR, HOT_DIV)                                                                   \
-    X(i_and_v, HOT_VAR, HOT_AND)                                                                   \
-    X(i_or_v, HOT_VAR, HOT_OR)                                                                     \
-    X(i_add_u8, HOT_U8, HOT_ADD)                                                                   \
-    X(i_sub_u8, HOT_U8, HOT_SUB)                                                                   \
-    X(i_mul_u8, HOT_U8, HOT_MUL)                                                                   \
-    X(i_div_u8, HOT_U8, HOT_DIV)                                                                   \
-    X(i_and_u8, HOT_U8, HOT_AND)                                                                   \
-    X(i_or_u8, HOT_U8, HOT_OR)                                                                     \
+    HOT_INT_OPS(X, , HOT_POPPED)                                                                   \
+    HOT_INT_OPS(X, _v, HOT_VAR)                                                                    \
+    HOT_INT_OPS(X, _u8, HOT_U8)                                                                    \
     X(i_step_v, HOT_VAR, HOT_STEP)                                                                 \
     X(i_mod, HOT_POPPED, HOT_MOD)                                                                  \
     X(i_xor, HOT_POPPED, HOT_XOR)                                                                  \
     X(i_eqv, HOT_POPPED, HOT_EQV)                                                                  \
     X(i_imp, HOT_POPPED, HOT_IMP)                                                                  \
     X(i_mod_u8, HOT_U8, HOT_MOD)                                                                   \
-    X(i_add_i16, HOT_I16, HOT_ADD)                                                                 \
-    X(i_sub_i16, HOT_I16, HOT_SUB)                                                                 \
-    X(i_mul_i16, HOT_I16, HOT_MUL)                                                                 \
-    X(i_div_i16, HOT_I16, HOT_DIV)                                                                 \
-    X(i_and_i16, HOT_I16, HOT_AND)                                                                 \
-    X(i_or_i16, HOT_I16, HOT_OR)                                                                   \
+    HOT_INT_OPS(X, _i16, HOT_I16)                                                                  \
     X(i_mod_i16, HOT_I16, HOT_MOD)                                                                 \
-    X(i_add_l, HOT_LOC, HOT_ADD)                                                                   \
-    X(i_sub_l, HOT_LOC, HOT_SUB)                                                                   \
-    X(i_mul_l, HOT_LOC, HOT_MUL)                                                                   \
-    X(i_div_l, HOT_LOC, HOT_DIV)                                                                   \
-    X(i_and_l, HOT_LOC, HOT_AND)                                                                   \
-    X(i_or_l, HOT_LOC, HOT_OR)                                                                     \
+    HOT_INT_OPS(X, _l, HOT_LOC)                                                                    \
     X(i_step_l, HOT_LOC, HOT_STEP)
 
 #define X(name, src, op)                                                                           \
@@ -356,36 +341,25 @@ static inline Status hot_flt(Regs *const r, const HotFsrc src, const HotFop op)
     return ST_OK;
 }
 
-/* The SINGLE ops: name, right operand, what it does. */
-#define HOT_FLTS(X)                                                                                \
-    X(f_add, HF_POPPED, HF_ADD)                                                                    \
-    X(f_sub, HF_POPPED, HF_SUB)                                                                    \
-    X(f_mul, HF_POPPED, HF_MUL)                                                                    \
-    X(f_div, HF_POPPED, HF_DIV)                                                                    \
-    X(f_add_v, HF_VAR, HF_ADD)                                                                     \
-    X(f_sub_v, HF_VAR, HF_SUB)                                                                     \
-    X(f_mul_v, HF_VAR, HF_MUL)                                                                     \
-    X(f_div_v, HF_VAR, HF_DIV)                                                                     \
-    X(f_add_vi, HF_VARI, HF_ADD)                                                                   \
-    X(f_sub_vi, HF_VARI, HF_SUB)                                                                   \
-    X(f_mul_vi, HF_VARI, HF_MUL)                                                                   \
-    X(f_div_vi, HF_VARI, HF_DIV)                                                                   \
-    X(f_add_u8, HF_U8, HF_ADD)                                                                     \
-    X(f_sub_u8, HF_U8, HF_SUB)                                                                     \
-    X(f_mul_u8, HF_U8, HF_MUL)                                                                     \
-    X(f_div_u8, HF_U8, HF_DIV)                                                                     \
-    X(f_add_f32, HF_F32, HF_ADD)                                                                   \
-    X(f_sub_f32, HF_F32, HF_SUB)                                                                   \
-    X(f_mul_f32, HF_F32, HF_MUL)                                                                   \
-    X(f_div_f32, HF_F32, HF_DIV)                                                                   \
-    X(f_add_l, HF_LOC, HF_ADD)                                                                     \
-    X(f_sub_l, HF_LOC, HF_SUB)                                                                     \
-    X(f_mul_l, HF_LOC, HF_MUL)                                                                     \
-    X(f_div_l, HF_LOC, HF_DIV)                                                                     \
-    X(f_add_li, HF_LOCI, HF_ADD)                                                                   \
-    X(f_sub_li, HF_LOCI, HF_SUB)                                                                   \
-    X(f_mul_li, HF_LOCI, HF_MUL)                                                                   \
-    X(f_div_li, HF_LOCI, HF_DIV)
+/* The SINGLE operations in one mode: popped, a variable's, an INT variable's, a byte, a SINGLE after
+   the op, a local's, an INT local's. */
+#define HOT_FLT_OPS(X, mode, src)                                                                  \
+    X(f_add##mode, src, HF_ADD)                                                                    \
+    X(f_sub##mode, src, HF_SUB)                                                                    \
+    X(f_mul##mode, src, HF_MUL)                                                                    \
+    X(f_div##mode, src, HF_DIV)
+/* Each SINGLE mode's row: ROW(X, mode, src). */
+#define HOT_FLT_MODES(X, ROW)                                                                      \
+    ROW(X, , HF_POPPED)                                                                            \
+    ROW(X, _v, HF_VAR)                                                                             \
+    ROW(X, _vi, HF_VARI)                                                                           \
+    ROW(X, _u8, HF_U8)                                                                             \
+    ROW(X, _f32, HF_F32)                                                                           \
+    ROW(X, _l, HF_LOC)                                                                             \
+    ROW(X, _li, HF_LOCI)
+#define HOT_FCMP_OP(X, mode, src) X(f_cmp##mode, src)
+#define HOT_FLTS(X) HOT_FLT_MODES(X, HOT_FLT_OPS)
+#define HOT_FCMPS(X) HOT_FLT_MODES(X, HOT_FCMP_OP)
 
 #define X(name, src, op)                                                                           \
     static inline Status hot_##name(Regs *const r) { return hot_flt(r, src, op); }
@@ -399,15 +373,6 @@ static inline uint8_t hot_frel(Regs *const r, const HotFsrc src)
     const int c = sngl_cmp(r->sp++->u, b);
     return c > 0 ? OPER_GT : c == 0 ? OPER_EQ : OPER_LT;
 }
-
-#define HOT_FCMPS(X)                                                                               \
-    X(f_cmp, HF_POPPED)                                                                            \
-    X(f_cmp_v, HF_VAR)                                                                             \
-    X(f_cmp_vi, HF_VARI)                                                                           \
-    X(f_cmp_u8, HF_U8)                                                                             \
-    X(f_cmp_f32, HF_F32)                                                                           \
-    X(f_cmp_l, HF_LOC)                                                                             \
-    X(f_cmp_li, HF_LOCI)
 
 #define X(name, src)                                                                               \
     static inline Status hot_##name(Regs *const r)                                                 \
