@@ -42,6 +42,10 @@ void wind_max(void);
 /* The windows fitted to the screen's rows (uimn_rows): ED1 takes the difference, else the start's
    layout. */
 void wind_fit(void);
+/* The mouse's event on a line between windows: a press there holds it (a title row's is its
+   window's too), a drag moves it (the debug pane's, ED2's beside ED1, a window's title row), a let
+   go leaves it; false: the windows'. */
+bool wind_drag(void);
 /* The debug pane's: the immediate window hidden, its rows the window over it's; shown again with
    its height, as the rows over it can spare. */
 void wind_imm_hide(void);

@@ -1150,7 +1150,7 @@ void uimn_key(Session *const S, const uint16_t key)
     }
 
     if (key == KEY_MOUSE) {
-        if (!dpan_split())
+        if (!wind_drag())
             tree_mouse(&uimn.tree.screen, S, uimn.mouse.row, uimn.mouse.col);
 
         return;
@@ -1378,7 +1378,7 @@ void uimn_modal(Session *const S, Widget *const w)
         const uint16_t key = uimn_getkey();
 
         if (key == KEY_MOUSE) {
-            if (!dpan_split())
+            if (!wind_drag())
                 tree_mouse(&uimn.tree.screen, S, uimn.mouse.row, uimn.mouse.col);
         } else
             tree_key(&uimn.tree.screen, S, key);

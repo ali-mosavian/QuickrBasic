@@ -31,6 +31,7 @@
 #include "ui/debugpane.h"
 #include "ui/draw.h"
 #include "ui/edit.h"
+#include "ui/mouse.h"
 #include "ui/view.h"
 
 enum : uint8_t {
@@ -43,6 +44,15 @@ static UiWin *win(const uint8_t w) { return &uimn.win.win[w]; }
 
 /* Window w is ED2 beside ED1, shown. */
 static bool beside(const uint8_t w) { return w == W_ED2 && uimn.win.vert && win(W_ED2)->height; }
+
+enum : uint8_t { COLS_MIN = 10 }; /* an edit window's columns beside another, at least */
+
+/* ED1's columns beside ED2: a drag's, within both windows' least, else half. */
+static uint8_t ed1_cols(void)
+{
+    const uint8_t all = uimn.win.cols, want = uimn.win.ed1_cols ? uimn.win.ed1_cols : all / 2;
+    return want < COLS_MIN ? COLS_MIN : want > all - COLS_MIN ? (uint8_t)(all - COLS_MIN) : want;
+}
 
 void wind_layout(void)
 {
@@ -75,15 +85,21 @@ void wind_layout(void)
             e->x = 0;
 
             if (ws->vert && win(W_ED2)->height) {
-                cols >>= 1;
+                cols = ed1_cols();
 
-                if (w == W_ED2)
-                    e->x = (uint8_t)cols;
+                if (w == W_ED2) /* on ED1's right border: one line between them */
+                    e->x = (uint8_t)(cols - 1);
             }
 
-            e->width = (uint16_t)(cols - 2);
             r->col = e->x;
             r->cols = (uint8_t)(w == W_ED2 ? ws->cols - e->x : cols); /* ED2: the rest */
+            e->width = (uint16_t)(r->cols - 2);
+
+            if (beside(w)) { /* the shared line ED1's: its scroll bar's clicks */
+                r->col++;
+                r->cols--;
+            }
+
             e->row0 = first;
             e->rows = p->height >= 2 ? p->height - 2 : 0; /* the title, the bottom row */
         }
@@ -124,14 +140,18 @@ void wind_ed_draw(Widget *const x, Session *const S)
 
     if (w == wind_active()) {
         draw_edit(S, false);
-        return;
+    } else {
+        swap(w); /* the other edit window: its state in uimn.ed while it draws */
+        view_apply();
+        draw_edit(S, true);
+        swap(w);
+        view_apply();
     }
 
-    swap(w); /* the other edit window: its state in uimn.ed while it draws */
-    view_apply();
-    draw_edit(S, true);
-    swap(w);
-    view_apply();
+    if (w == W_ED2 && beside(w)) { /* drawn over ED1's border: it again, its bar if it has one */
+        const bool act1 = wind_active() == W_ED1;
+        draw_seam(act1 ? &uimn.ed : &win(W_ED1)->ed, act1 && uimn.tree.workspace.focus == FOC_EDIT);
+    }
 }
 
 void wind_imm_draw(Widget *const x, Session *const S) { draw_imm(); }
@@ -346,6 +366,85 @@ void wind_shrink(void)
 
     if (shown(w, 1, &n) || shown(w, -1, &n))
         move(w, n);
+}
+
+/* A drag's line: none, the debug pane's, ED1's and ED2's beside it, a window's title row. */
+enum : uint8_t { SEAM_NONE, SEAM_PANE, SEAM_BESIDE, SEAM_TITLE };
+
+/* The line under the press at row, col; *w the window whose title row it is. */
+static uint8_t seam_at(const uint8_t row, const uint8_t col, uint8_t *const w)
+{
+    const Rect *const pane = &uimn.tree.pane.rect;
+
+    if (uimn.pane_on && col == pane->col && row >= pane->row && row < pane->row + pane->rows)
+        return SEAM_PANE;
+
+    if (beside(W_ED2)) {
+        const UiEdit *const e2 = wind_active() == W_ED2 ? &uimn.ed : &win(W_ED2)->ed;
+        const bool bar = wind_active() == W_ED1 && uimn.tree.workspace.focus == FOC_EDIT &&
+                         !uimn.pane_on; /* ED1's scroll bar on it: its title and foot rows */
+        const bool ends = row == e2->row0 - 1 || row == e2->row0 + e2->rows;
+
+        if (col == e2->x && row >= e2->row0 - 1 && row <= e2->row0 + e2->rows && (!bar || ends))
+            return SEAM_BESIDE;
+    }
+
+    uint8_t over;
+
+    for (uint8_t i = W_ED1; i < NWIN; i++)
+        if (win(i)->height && !beside(i) && wind_widget(i)->rect.row == row &&
+            shown(i, -1, &over) && over != W_HELP) {
+            *w = i;
+            return SEAM_TITLE;
+        }
+
+    return SEAM_NONE;
+}
+
+bool wind_drag(void)
+{
+    static uint8_t held, title; /* the line pressed, not let go; a title row's window */
+    const UiMouse *const m = &uimn.mouse;
+
+    if (m->event == MS_PRESS) { /* a title row's press is its window's still: a click as ever */
+        held = uimn.win.maxed ? SEAM_NONE : seam_at(m->row, m->col, &title);
+        return held && held != SEAM_TITLE;
+    }
+
+    if (!held)
+        return false;
+    if (m->event == MS_UP) {
+        held = SEAM_NONE;
+        return true;
+    }
+
+    if (m->event != MS_DRAG)
+        return true;
+
+    if (held == SEAM_PANE && uimn.pane_on) {
+        const uint8_t to = m->col + 1; /* the line at the mouse */
+        uimn.dp_col = to < DP_COLMIN ? DP_COLMIN : to > DP_COLMAX ? DP_COLMAX : to;
+    } else if (held == SEAM_BESIDE) {
+        uimn.win.ed1_cols = m->col + 1;
+    } else if (held == SEAM_TITLE) {
+        uint8_t over;
+
+        if (!win(title)->height || !shown(title, -1, &over))
+            return true;
+
+        const uint8_t top = wind_widget(over == W_ED2 && beside(W_ED2) ? W_ED1 : over)->rect.row;
+        const int moved = m->row - wind_widget(title)->rect.row; /* down: the one over it grows */
+        const int a = win(over)->height + moved, b = win(title)->height - moved;
+
+        if (m->row <= top || a < least(over) || b < least(title))
+            return true;
+
+        win(over)->height = (uint8_t)a;
+        win(title)->height = (uint8_t)b;
+    }
+
+    wind_layout();
+    return true;
 }
 
 void wind_fit(void)

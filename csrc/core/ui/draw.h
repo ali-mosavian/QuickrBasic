@@ -10,6 +10,9 @@ void draw_all(Session *S);
    selection, its scroll bars when it has the focus. inactive (dr_ina): the window drawn is not
    the active one (wind_ed_draw swapped its state in): no selection, no bars, uimn.edline not its. */
 void draw_edit(Session *S, bool inactive);
+/* The line edit window e (ED1) shares with ED2 beside it, over ED2's border: a joint at the
+   top; bar: e's scroll bar on it (e has the focus). */
+void draw_seam(const UiEdit *e, bool bar);
 /* dr_imm: the immediate window: its title, its lines; im_top kept so that im_i shows. */
 void draw_imm(void);
 /* The cursor (WidgetOps.cursor) in the edit window that has the focus, in the immediate window. */

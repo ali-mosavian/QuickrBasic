@@ -241,10 +241,11 @@ typedef struct {
 
 typedef struct {
     UiWin win[NWIN];
-    uint8_t cols;    /* wcols: the edit windows' columns: 80, DP_COL with the pane */
-    bool maxed;      /* wmax: Ctrl+F10's; saved the heights before */
-    bool vert;       /* wvert: ED2 beside ED1, in ED1's rows */
-    bool vert_saved; /* wvsav: vert before Ctrl+F10 */
+    uint8_t cols;     /* wcols: the edit windows' columns: 80, DP_COL with the pane */
+    bool maxed;       /* wmax: Ctrl+F10's; saved the heights before */
+    bool vert;        /* wvert: ED2 beside ED1, in ED1's rows */
+    bool vert_saved;  /* wvsav: vert before Ctrl+F10 */
+    uint8_t ed1_cols; /* ED1's columns beside ED2 (a drag's), 0 half */
     uint8_t saved[NWIN];
     uint8_t imm_saved; /* the immediate window's height the debug pane hid, 0 none */
 } UiWins;

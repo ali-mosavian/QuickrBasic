@@ -2,7 +2,7 @@
  *
  * # How it works
  * At a stop the pane takes columns uimn.dp_col on, the edit windows' rows; a drag of its border
- * moves that (dpan_split). uimn.pane_on is ui.h's; the
+ * moves that (wind_drag). uimn.pane_on is ui.h's; the
  * rest is static.
  *
  * The frames are session_frames', each with its text line and its row. Locals are the selected
@@ -561,34 +561,6 @@ void dpan_open(Session *const S)
     watch_eval(S);
     wind_imm_hide();
     wind_layout();
-}
-
-bool dpan_split(void)
-{
-    static bool held; /* the border pressed, not let go */
-    const UiMouse *const m = &uimn.mouse;
-    const Rect *const r = &uimn.tree.pane.rect;
-
-    if (!uimn.pane_on) {
-        held = false;
-        return false;
-    }
-
-    if (m->event == MS_PRESS) /* the line between the pane and the edit windows */
-        held = m->col == r->col && m->row >= r->row && m->row < r->row + r->rows;
-    if (!held)
-        return false;
-
-    if (m->event == MS_UP) {
-        held = false;
-    } else if (m->event == MS_DRAG) {
-        const uint8_t to = m->col + 1; /* the line at the mouse */
-        const uint8_t col = to < DP_COLMIN ? DP_COLMIN : to > DP_COLMAX ? DP_COLMAX : to;
-        uimn.dp_col = col;
-        wind_layout();
-    }
-
-    return true;
 }
 
 void dpan_close(void)

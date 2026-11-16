@@ -179,18 +179,13 @@ static void draw_row(Session *const S, const uint16_t r)
     sel_row(row, col, line);
 }
 
-/* The scroll bar's column, the frame's last. */
-static uint8_t bar_col(void) { return (uint8_t)(uimn.ed.x + uimn.ed.width + 1); }
-
-/* The scroll bar: arrows, the track, the thumb at the cursor's line. */
-static void draw_vbar(void)
+/* Edit window e's scroll bar: arrows, the track, the thumb at the cursor's line. */
+static void draw_vbar(const UiEdit *const e)
 {
-    const UiEdit *const e = &uimn.ed;
-
     if (e->rows < 3)
         return;
 
-    const uint8_t row = (uint8_t)e->row0, col = bar_col();
+    const uint8_t row = (uint8_t)e->row0, col = (uint8_t)(e->x + e->width + 1);
     scrn_fill(row, col, SL_BAR, GLYPH_UP, 1);
 
     for (uint16_t i = 1; i < e->rows - 1; i++)
@@ -248,12 +243,23 @@ void draw_edit(Session *const S, const bool ina)
     if (uimn.pane_on) /* by the pane: no bars, the border on down; the pane's line its place */
         scrn_fill(last, scrn_fill(last, e->x, SL_ED, GLYPH_V, 1), SL_ED, ' ', e->width);
     else if (has_focus()) { /* the bars: the window with the focus */
-        draw_vbar();
+        draw_vbar(e);
         draw_hbar();
     } else
         scrn_fill(last, e->x + 1, SL_ED, ' ', e->width);
 
     inactive = false;
+}
+
+void draw_seam(const UiEdit *const e, const bool bar)
+{
+    const uint8_t col = (uint8_t)(e->x + e->width + 1);
+    scrn_fill((uint8_t)(e->row0 - 1), col, SL_ED, GLYPH_T_DOWN, 1);
+
+    for (uint16_t r = 0; r <= e->rows; r++) /* its rows and the bottom one */
+        scrn_fill((uint8_t)(e->row0 + r), col, SL_ED, GLYPH_V, 1);
+    if (bar)
+        draw_vbar(e);
 }
 
 /* Line i of the immediate window's history, *len long; nullptr none. */

@@ -84,7 +84,7 @@ def play() -> None:
         s.send({"cmd": "mem_write_linear", "addr": 0x33 * 4, "data": "20050000"})
 
     def mouse(row: int, col: int, down: bool) -> None:
-        state = bytes([int(down), 0, col * 8 % 256, col * 8 // 256, row * 8, 0])
+        state = bytes([int(down), 0, col * 8 % 256, col * 8 // 256, row * 8 % 256, row * 8 // 256])
         s.send({"cmd": "mem_write_linear", "addr": 0x540, "data": state.hex()})
         s.resume(60)
 
@@ -670,14 +670,21 @@ def play() -> None:
         assert set(attrs(2)[1:21]) == {0x17}, attrs(2)[1:21].hex()
         press(f"0x{0x18:x}", "h")
         press(f"0x{0x2F:x}", "v")
-        assert chars(1)[0] == chars(1)[40] == 0xDA and chars(2)[41:61] == chars(2)[1:21], (chars(1), chars(2))
-        assert attrs(2)[41] == 0x1B, attrs(2).hex()
+        # One line between them, column 39 (there were two): a joint on top, ED1's scroll bar on it.
+        assert chars(1)[0] == 0xDA and chars(1)[39] == 0xC2 and chars(2)[40:60] == chars(2)[1:21], (chars(1), chars(2))
+        assert chars(2)[39] == 0x18 and attrs(2)[40] == 0x1B, (chars(2), attrs(2).hex())
         def lit_title() -> list[bool]:  # each window's title lit (the arrows always are)
             return [0x71 in attrs(1)[c : c + 30] for c in (5, 45)]
 
         assert lit_title() == [True, False], attrs(1).hex()
         click(2, 45)  # the window under the click by its column too
         assert lit_title() == [False, True], attrs(1).hex()
+        assert chars(2)[39] == 0xB3 and chars(1)[39] == 0xC2, (chars(1), chars(2))  # ED2's bar at its right
+        # Any line between windows drags: this one too, not the debug pane's alone.
+        mouse(5, 39, True)
+        mouse(5, 29, True)
+        mouse(5, 29, False)
+        assert chars(1)[29] == 0xC2 and chars(2)[30:50] == chars(2)[1:21], (chars(1), chars(2))
         press(f"0x{0x2F:x}", "v")
         assert chars(1)[60] == 0xC4 and look()[21].strip() == "IMMEDIATE", look()
         press(f"0x{0x18:x}", "h")
@@ -1083,6 +1090,12 @@ def play() -> None:
         press(f"0x{0x18:x}", "z", "5")
         assert b"<Shift+F1=Help>" in chars(49), chars(49)
         assert any(b"Immediate" in chars(r) for r in range(40, 49)), [chars(r) for r in range(40, 49)]
+        # A window's title row drags: the immediate window's up a row-count, the code's shorter.
+        top = next(r for r in range(40, 49) if b"Immediate" in chars(r))
+        mouse(top, 40, True)
+        mouse(top - 5, 40, True)
+        mouse(top - 5, 40, False)
+        assert b"Immediate" in chars(top - 5), [chars(r) for r in range(top - 6, top + 1)]
         press(f"0x{F5:x}")
 
         def mem(addr: int, n: int) -> bytes:
