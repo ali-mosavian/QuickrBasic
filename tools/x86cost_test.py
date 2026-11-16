@@ -44,6 +44,23 @@ def per_pass(exe: Path, ide: bool) -> float:
     return (r["b"].instructions - r["a"].instructions) / N
 
 
+# The IDE's open of a file and its F5, a line: each line was tokenized and spelled by LIST twice,
+# each keyword spelled found by a scan of the list: 76,400.
+OPEN_LINE = "IF a THEN PRINT LEN(b$); TAB(5); ELSE LOCATE 1, 1: COLOR 7"
+OPEN_LINES = 400
+OPEN_BUDGET = 55000
+
+
+def open_per_line(ide: Path) -> float:
+    """The IDE's instructions to open a file and F5 it, a line of OPEN_LINE, over SYSTEM alone."""
+    x86run.COM = ide
+    jobs = {"a": "SYSTEM\r\n", "b": "SYSTEM\r\n" + (OPEN_LINE + "\r\n") * OPEN_LINES}
+    r = x86run.run(jobs, Path(tempfile.mkdtemp()) / "w", 60000, file=True, screen=True, keyboard=True,
+                   files={"BASIC.HLP": (x86run.ROOT / "src/ui/basic.hlp").read_bytes()},
+                   before=("AUTOTYPE -w 2 f5",))
+    return (r["b"].instructions - r["a"].instructions) / OPEN_LINES
+
+
 def use(exe: str | None) -> Path:
     if exe:
         x86run.COM = Path(exe)
@@ -73,6 +90,10 @@ def main() -> None:
         report.append(f"ide_stmt {each:.1f}/{IDE_BUDGET}")
         if each > IDE_BUDGET:
             bad.append(f"FAIL ide_stmt: {each:.1f} instructions a statement, budget {IDE_BUDGET}")
+        line = open_per_line(ide)
+        report.append(f"ide_open {line:.0f}/{OPEN_BUDGET}")
+        if line > OPEN_BUDGET:
+            bad.append(f"FAIL ide_open: {line:.0f} instructions a line, budget {OPEN_BUDGET}")
     print("\n".join(bad) or f"ok {exe}: {' '.join(report)}")
     sys.exit(1 if bad else 0)
 

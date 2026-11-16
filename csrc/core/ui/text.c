@@ -337,13 +337,25 @@ static bool next(uint8_t *const c)
     return true;
 }
 
-/* The line read, len long in uimn.build, stored. */
+/* The line read, len long in uimn.build, stored: as edit_canon tokenized and spelled it, else
+   made again. */
 static void read_line(Session *const S, const uint32_t len)
 {
-    if (!edit_canon(S, uimn.build.text, (uint16_t)len))
+    uint8_t *const text = uimn.build.text;
+    uint32_t lexed;
+
+    if (!edit_canon(S, text, (uint16_t)len, &lexed))
         uimn.text.asis = true;
 
-    add(S, uimn.build.text, len);
+    if (lexed) {
+        S->prog.pre = text;
+        S->prog.pre_len = (uint32_t)(edit_body(text) - text);
+        S->prog.add_at = 0;
+        prog_add(&S->prog, number(text, S->prog.pre_len), S->comp.cbuf, lexed);
+    } else {
+        add(S, text, len);
+    }
+
     io.lines++;
 }
 

@@ -283,14 +283,16 @@ static void chkop(const uint8_t op, const uint8_t *const at)
     uc.eop = (const ErrOp *)at;
 }
 
-/* The body at uc.pre tokenized into comp_cbuf, its declarations entered. */
-static void tokenize(Session *const S)
+/* The body at uc.pre, n characters, tokenized into comp_cbuf, its declarations entered; the
+   tokens' length. */
+static uint32_t tokenize(Session *const S, const uint32_t n)
 {
-    const uint32_t n = (uint32_t)strlen((const char *)uc.pre);
     memcpy(edit_lb_need(S, &uimn.line, n), uc.pre, n + 1);
     S->vm.line = DLINE;
-    lexr_line(&S->lexr, uimn.line.text, S->comp.cbuf);
+    const uint32_t len =
+        (uint32_t)(lexr_line(&S->lexr, uimn.line.text, S->comp.cbuf) - S->comp.cbuf);
     repl_declare(S, S->comp.cbuf); /* a typed SUB known to the lines after */
+    return len;
 }
 
 /* The body compiled for its syntax; false: an error, its column in uc.ecol. */
@@ -320,21 +322,24 @@ static void print_line(Session *const S)
     list_body(&S->comp, S->comp.cbuf);
 }
 
-bool edit_canon(Session *const S, uint8_t *const text, const uint16_t len)
+bool edit_canon(Session *const S, uint8_t *const text, const uint16_t len, uint32_t *const lexed)
 {
     uc.src = text;
     uc.n = len;
     text[len] = 0;
     uint8_t *const body = edit_body(text);
+    *lexed = 0;
 
     if (*body) {
         uc.pre = body;
-        tokenize(S);
+        const uint32_t n = tokenize(S, (uint32_t)(text + len - body));
 
         if (uimn.text.check && !check(S))
             return false;
-        if (captured(S, print_line) <= LNMAX)
+        if (captured(S, print_line) <= LNMAX) {
+            *lexed = n;
             return true;
+        }
     }
 
     S->cons.sblen = uc.n; /* as typed */
@@ -429,7 +434,9 @@ bool edit_commit(Session *const S)
 
     changed();
 
-    if (!edit_canon(S, b->text, b->len)) { /* a syntax error: kept as typed */
+    uint32_t lexed;
+
+    if (!edit_canon(S, b->text, b->len, &lexed)) { /* a syntax error: kept as typed */
         uimn.text.asis = true;
         text_repl(S, uimn.ed.line, b->text, b->len);
         uimn_selword(uc.ecol); /* the error's word */

@@ -182,13 +182,10 @@ static void cons_entry_byte(Cons *const co, const uint8_t c)
         cons_msg(co, (c + REF_LOW_BIAS) & CHAR);
 }
 
-/* Entry n of the list at list. */
-static void cons_nth(Cons *const co, const uint8_t *list, const uint8_t n)
+/* Entry n of the list whose entries' offsets are at. */
+static void cons_nth(Cons *const co, const uint16_t *const at, const uint8_t n)
 {
-    for (uint8_t i = 0; i < n; list++)
-        if (*list & LAST)
-            i++;
-    for (;; list++) {
+    for (const uint8_t *list = cons_lists + at[n];; list++) {
         cons_entry_byte(co, *list & CHAR);
 
         if (*list & LAST)
@@ -196,9 +193,9 @@ static void cons_nth(Cons *const co, const uint8_t *list, const uint8_t n)
     }
 }
 
-void cons_msg(Cons *const co, const uint8_t id) { cons_nth(co, cons_msgs, id); }
-void cons_kw(Cons *const co, const uint8_t tok) { cons_nth(co, cons_kwlist, tok & CHAR); }
-void cons_kw1(Cons *const co, const uint8_t n) { cons_nth(co, cons_kwlist1, n); }
+void cons_msg(Cons *const co, const uint8_t id) { cons_nth(co, cons_msgs_at, id); }
+void cons_kw(Cons *const co, const uint8_t tok) { cons_nth(co, cons_kwlist_at, tok & CHAR); }
+void cons_kw1(Cons *const co, const uint8_t n) { cons_nth(co, cons_kwlist1_at, n); }
 
 Status cons_prompt(Cons *const co)
 {

@@ -97,8 +97,9 @@ uint8_t *edit_body(uint8_t *text);
 /* ui_canon: the len characters at text (text[len] is set to 0) as LIST shows it, its label and
    indent kept, in cons.sbuf, cons.sblen long (as typed when past LNMAX or bodiless); the body's
    declarations entered (decl_line), checked when uimn.text.check. false: a syntax error,
-   uimn.errmsg its message, edit's error column set for edit_commit; sbuf not made. */
-bool edit_canon(Session *S, uint8_t *text, uint16_t len);
+   uimn.errmsg its message, edit's error column set for edit_commit; sbuf not made. *lexed: the
+   body's tokens' length in comp_cbuf when sbuf is LIST's spelling, else 0. */
+bool edit_canon(Session *S, uint8_t *text, uint16_t len, uint32_t *lexed);
 /* ui_dxerr: a compile error's words in uimn.errmsg: its class, what is wrong, then what to do,
    wrapped for a box (diag's). text the line's, 0-ended; op its ERR op. The column in text it is
    at. Uses cons.inbuf and comp_cbuf. */
