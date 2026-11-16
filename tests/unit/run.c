@@ -1,5 +1,6 @@
 /* Runs every TEST, once the core is booted; exits 1 when one failed. */
 #include <stdio.h>
+#include <stdlib.h>
 #include "boot.h"
 #include "session.h"
 #include "unit.h"
@@ -83,6 +84,27 @@ int main(void)
 
     printf("%u tests, %u failures\n", ntests, failures);
     return failures ? 1 : 0;
+}
+
+Status unit_run_bytes(Session *const S, const char *const src, const size_t n)
+{
+    char path[] = "/tmp/qb_unit_XXXXXX";
+    FILE *const f = fdopen(mkstemp(path), "wb");
+    CHECK(f && fwrite(src, 1, n, f) == n);
+    fclose(f);
+    session_new(S);
+    snprintf(S->repl.file, sizeof S->repl.file, "%s", path);
+    Status st = repl_call(S, repl_load);
+    remove(path);
+
+    if (st != ST_OK)
+        return st;
+
+    S->cons.capture = CAP_SBUF;
+    S->cons.sblen = 0;
+    st = typed(S, "RUN");
+    S->cons.capture = 0;
+    return st;
 }
 
 Status unit_run_file(Session *const S, const char *const *const lines)

@@ -97,6 +97,13 @@ static inline int chnl_getb(Chnl *const cl)
 
     return chnl_getb_slow(cl);
 }
+/* The input channel's bytes read ahead, the next block read if none: *n of them; 0 none, at the
+   end, or not a file. chnl_skip(cl, k) reads k of them. */
+const uint8_t *chnl_span(Chnl *cl, uint32_t *n);
+static inline void chnl_skip(Chnl *const cl, const uint32_t k)
+{
+    cl->ch[cl->in].next += (uint16_t)k;
+}
 /* Past the input channel's next byte if it is LF. An error: chnl.err. */
 void chnl_skiplf(Chnl *cl);
 /* c's next byte, not read, to *b; -1 none: the end, or ^Z in a sequential file. */

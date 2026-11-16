@@ -146,8 +146,38 @@ static void srcr_fill(Srcr *const sr)
     sr->src.end = d;
 }
 
+/* A physical line whole in the file's read-ahead, its last byte neither a blank nor '_': copied
+   as it is, true. False, nothing read: srcr_fill's, byte by byte. */
+static bool srcr_whole(Srcr *const sr)
+{
+    uint32_t n;
+    const uint8_t *const p = chnl_span(sr->chnl, &n);
+    uint32_t k = 0;
+
+    while (k < n && p[k] != '\n' && p[k] != '\r' && p[k] != CTRL_Z)
+        k++;
+
+    if (k == n || p[k] == CTRL_Z || k >= SRCAP || (k && (is_blank(p[k - 1]) || p[k - 1] == '_')))
+        return false;
+
+    memcpy(sr->cons->inbuf, p, k);
+    sr->cons->inbuf[k] = 0;
+    sr->src.end = sr->cons->inbuf + k;
+    const bool cr = p[k] == '\r';
+    chnl_skip(sr->chnl, k + 1);
+
+    if (cr)
+        chnl_skiplf(sr->chnl);
+
+    sr->done = sr->any = true;
+    return true;
+}
+
 int32_t srcr_line(Srcr *const sr)
 {
+    if (sr->chnl->in && srcr_whole(sr))
+        return (int32_t)(sr->src.end - sr->cons->inbuf);
+
     sr->src.end = sr->cons->inbuf;
     sr->done = false;
     sr->pend = 0;

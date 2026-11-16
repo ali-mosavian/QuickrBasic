@@ -20,6 +20,9 @@ Status unit_run_shown(Session *S, const char *const *lines);
 /* lines, unnumbered as a file's may be, stored as a file's load does, then RUN: its output in
    S->cons.sbuf. */
 Status unit_run_file(Session *S, const char *const *lines);
+/* The n bytes of src written to a file, loaded as a program file is (repl_load), then RUN: its
+   output in S->cons.sbuf. */
+Status unit_run_bytes(Session *S, const char *src, size_t n);
 
 #define TEST(name)                                                                                 \
     static void name(Session *S);                                                                  \

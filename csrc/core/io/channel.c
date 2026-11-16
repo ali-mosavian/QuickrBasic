@@ -466,6 +466,18 @@ static int peek_in(Chnl *const cl)
     return b;
 }
 
+const uint8_t *chnl_span(Chnl *const cl, uint32_t *const n)
+{
+    Chan *const c = &cl->ch[cl->in];
+    *n = 0;
+
+    if (peek_in(cl) < 0)
+        return nullptr;
+
+    *n = (uint32_t)(c->count - c->next);
+    return c->buf + c->next;
+}
+
 int chnl_getb_slow(Chnl *const cl)
 {
     const int b = peek_in(cl);
