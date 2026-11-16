@@ -35,7 +35,7 @@
  * | CT_*, CF_NOF, DO_OK, DS_OK, DF_OK, DC_FV | same (dialog.h); DLOG_ESC 0xFF | MIRROR |
  * | u_open, u_saveas, u_find, u_change, u_fname, u_files, u_dirs, u_skip, u_chg1, u_fwhat, u_cto, u_case, u_whole, u_fverify, u_chall, u_mbas, u_bas, u_star, u_yes, u_no | statics | MIRROR |
  * | DL_WRAP | static (44) | MIRROR |
- * | LSMAX | static | MIRROR |
+ * | LSMAX | static: the lists' most, grown to | MIRROR |
  *
  * - D1. A parameter, not a global set before the call.
  * - D2. A flag result is a bool, true the success. A hook's true keeps the box: the asm's CF set
@@ -44,6 +44,7 @@
  * - D4. ls_f and ls_d are initialised statically with their item buffers: the asm's start-up setup.
  */
 #include "ui/dialog.h"
+#include "util/grow.h"
 #include "session.h"
 #include "plat/pfil.h"
 #include "plat/pkey.h"
@@ -94,12 +95,12 @@ static struct {
     const char *title;    /* msg_ttl: its title, nullptr none: its lines then left-aligned */
 } dl;
 
-static char files[LSMAX * NAMESZ], dirs[LSMAX * NAMESZ];
-static DlogList ls_files = {.items = files, .size = NAMESZ};
-static DlogList ls_dirs = {.items = dirs, .size = NAMESZ};
-static char mask[80]; /* dl_mask: the Open box's */
-static char path[80]; /* dl_path: the current directory */
-static PfilFind dta;  /* dl_dta */
+static DlogList ls_files = {.size = NAMESZ}; /* items grown as names come, LSMAX at most */
+static DlogList ls_dirs = {.size = NAMESZ};
+static uint32_t files_cap, dirs_cap; /* their items' room */
+static char mask[80];                /* dl_mask: the Open box's */
+static char path[80];                /* dl_path: the current directory */
+static PfilFind dta;                 /* dl_dta */
 static char msg_text[640];
 static DlogCtl msg_ctl[NMSGCTL];
 static Dlog msg_dlog = {.ctl = msg_ctl};
@@ -1079,19 +1080,24 @@ uint8_t dlog_ync(Session *const S, const char *const text)
 
 /* ---- Open, Save As */
 
-/* The names matching pattern with attrs (PFIL_ADIR: directories only, "." left out) to list's
-   items; their count. */
-static uint16_t find(char *const items, const char *const pattern, const uint8_t attrs)
+/* The names matching pattern with attrs (PFIL_ADIR: directories only, "." left out) to l's items,
+   cap of room, grown; their count, as many as fit. */
+static uint16_t find(
+    DlogList *const l,
+    uint32_t *const cap,
+    const char *const pattern,
+    const uint8_t attrs
+)
 {
     uint16_t n = 0;
 
     for (uint16_t e = pfil_first(pattern, attrs, &dta); e == PFIL_OK; e = pfil_next(&dta)) {
         if (attrs == PFIL_ADIR && (!(dta.attr & PFIL_ADIR) || !strcmp(dta.name, ".")))
             continue;
-        if (n >= LSMAX)
+        if (n >= LSMAX || !grow_room(&l->items, cap, n + 1u, NAMESZ))
             break;
 
-        memcpy(items + n * NAMESZ, dta.name, NAMESZ);
+        memcpy(l->items + n * NAMESZ, dta.name, NAMESZ);
         n++;
     }
 
@@ -1101,8 +1107,8 @@ static uint16_t find(char *const items, const char *const pattern, const uint8_t
 /* dl_files: the lists: the files matching the mask, the directories; the current path. */
 static void list_files(void)
 {
-    ls_files.n = find(files, mask, 0);
-    ls_dirs.n = find(dirs, "*.*", PFIL_ADIR);
+    ls_files.n = find(&ls_files, &files_cap, mask, 0);
+    ls_dirs.n = find(&ls_dirs, &dirs_cap, "*.*", PFIL_ADIR);
     ls_files.sel = ls_files.top = ls_dirs.sel = ls_dirs.top = 0;
     path[0] = (char)('A' + pfil_curdrive()); /* drive, colon, \, directory */
     path[1] = ':';
@@ -1124,7 +1130,7 @@ static bool files_pick(const uint8_t why)
     if (!ls_files.n)
         return false;
 
-    set_field(files + ls_files.sel * NAMESZ);
+    set_field(ls_files.items + ls_files.sel * NAMESZ);
     return why == DLOG_MOVED;
 }
 
@@ -1134,7 +1140,7 @@ static bool dirs_pick(const uint8_t why)
     if (why != DLOG_ENTER || !ls_dirs.n)
         return false;
 
-    pfil_chdir(dirs + ls_dirs.sel * NAMESZ);
+    pfil_chdir(ls_dirs.items + ls_dirs.sel * NAMESZ);
     list_files();
     return true;
 }
