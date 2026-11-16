@@ -36,6 +36,7 @@
  *   name and DEF FN flag. Errors raise through Fault.
  */
 #include "mem/scope.h"
+#include "util/grow.h"
 #include <string.h>
 
 static const Binding none; /* a binding of nothing */
@@ -65,8 +66,12 @@ void scop_reset(Scop *const sc)
     sc->depth = 1;
     sc->stack[0] = (ScopFrame){};
 
-    memset(sc->heads, 0, sizeof sc->heads);
-    memset(sc->lnbit, 0, sizeof sc->lnbit);
+    sc->heads = arena_alloc(&sc->arena, SCHASH * sizeof *sc->heads);
+
+    if (!sc->heads)
+        scop_fail(sc, E_OM);
+    if (sc->lnbit)
+        memset(sc->lnbit, 0, sc->nlnbit * sizeof *sc->lnbit);
 }
 
 Binding *scop_get(const Scop *const sc, const uint16_t scope, const uint16_t name)
@@ -206,7 +211,7 @@ static bool scop_lany(
 )
 {
     if (scope & SC_NUM)
-        return sc->lnbit[key / WORD_BITS] >> (key % WORD_BITS) & 1;
+        return key / WORD_BITS < sc->nlnbit && sc->lnbit[key / WORD_BITS] >> (key % WORD_BITS) & 1;
 
     return symb_name(sy, key)->flags & NM_LBL;
 }
@@ -221,9 +226,12 @@ void scop_label(
 {
     if (scop_lany(sc, sy, scope, key))
         scop_fail(sc, E_DL);
-    if (scope & SC_NUM)
+    if (scope & SC_NUM) {
+        if (!GROW(sc->lnbit, sc->nlnbit, key / WORD_BITS + 1u))
+            scop_fail(sc, E_OM);
+
         sc->lnbit[key / WORD_BITS] |= 1u << (key % WORD_BITS);
-    else
+    } else
         symb_name(sy, key)->flags |= NM_LBL;
 
     Binding *const b = scop_bind(sc, scope, key);

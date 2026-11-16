@@ -20,7 +20,7 @@ typedef struct {
     uint32_t pos;    /* the file's offset of buf */
     uint32_t last;   /* LOC: the last record, or byte */
     uint16_t field;  /* FIELD's next offset */
-    uint8_t buf[CBSZ];
+    uint8_t *buf;    /* CBSZ bytes, a file's: made at its first OPEN */
 } Chan;
 
 enum { CH_LPT = NCH }; /* LPRINT's channel, past the files' */

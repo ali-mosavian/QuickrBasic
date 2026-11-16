@@ -38,6 +38,7 @@
 #include "io/console.h"
 #include "vm/exec.h"
 #include "plat/pfil.h"
+#include "plat/pmem.h"
 #include "qbrt/qbrt.h"
 
 void chnl_init(Chnl *const cl, Cons *const co)
@@ -214,7 +215,13 @@ Status chnl_open(
     if (reclen - 1 >= RECMAX)
         return st_qb(QB_BAD_RECORD_LENGTH);
 
+    uint8_t *const buf = c->buf ? c->buf : pmem_resize(nullptr, CBSZ); /* kept for the slot */
+
+    if (!buf)
+        return E_OM;
+
     memset(c, 0, sizeof *c);
+    c->buf = buf;
     c->reclen = (uint16_t)reclen;
     c->mode = mode;
     c->kind = chnl_device(name);

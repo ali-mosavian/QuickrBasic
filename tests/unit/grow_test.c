@@ -69,3 +69,13 @@ TEST(a_long_lines_code_grows_its_buffer)
     CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 2000 \r");
     CHECK(S->comp.xcap > 0x1000);
 }
+
+/* A line number past the scopes' first line-number bits: they grow, the label found. */
+TEST(line_number_bits_grow)
+{
+    static const char *const lines[] = {"10 GOTO 63999", "20 PRINT 2", "63999 PRINT 1", nullptr};
+
+    CHECK(unit_run_file(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 1 \r");
+    CHECK(S->scop.nlnbit > 63999 / WORD_BITS);
+}

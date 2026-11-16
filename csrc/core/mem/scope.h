@@ -38,8 +38,9 @@ typedef struct {
     uint32_t nbnd;
     uint32_t depth; /* the stack's scopes */
     ScopFrame stack[NSCS];
-    Binding *heads[SCHASH];
-    uint32_t lnbit[LNUM_LIMIT / WORD_BITS]; /* the line numbers a scope has */
+    Binding **heads; /* SCHASH, from the arena */
+    uint32_t *lnbit; /* the line numbers a scope has: nlnbit words, grown as numbers come */
+    uint32_t nlnbit;
 } Scop;
 
 /* Errors raise through f. No bindings. */
