@@ -1,4 +1,4 @@
-/* The instruction set, for the compiler and the VM. Include it after defining OP and/or K; each
+/* The instruction set, for the compiler and the VM. Include it after defining OP, K or FRAME; each
  * is undefined at the end.
  *
  * OP(name, handler, size, flags): op O_name, its handler, its bytes with the op (0 varies: ON,
@@ -274,6 +274,51 @@ OP(F_ST_A1F, exec_f_st_a1f, 3 + VCELL, 0)
 OP(S_ST_A1F, exec_s_st_a1f, 3 + VCELL, 0)
 OP(D_ST_A1F, dubl_sta1f, 3 + VCELL, 0)
 #undef OP
+#endif
+
+#ifdef FRAME
+/* FRAME(op, twin): op's twin on a variable in the frame (comp/select.c). */
+FRAME(I_LD_V, I_LD_L)
+FRAME(F_LD_V, F_LD_L)
+FRAME(F_LD_VI, F_LD_LI)
+FRAME(S_LD_V, S_LD_L)
+FRAME(V_CELL, L_CELL)
+FRAME(I_ST_V, I_ST_L)
+FRAME(F_ST_V, F_ST_L)
+FRAME(S_ST_V, S_ST_L)
+FRAME(I_ADD_V, I_ADD_L)
+FRAME(I_SUB_V, I_SUB_L)
+FRAME(I_MUL_V, I_MUL_L)
+FRAME(I_DIV_V, I_DIV_L)
+FRAME(I_AND_V, I_AND_L)
+FRAME(I_OR_V, I_OR_L)
+FRAME(F_ADD_V, F_ADD_L)
+FRAME(F_SUB_V, F_SUB_L)
+FRAME(F_MUL_V, F_MUL_L)
+FRAME(F_DIV_V, F_DIV_L)
+FRAME(F_ADD_VI, F_ADD_LI)
+FRAME(F_SUB_VI, F_SUB_LI)
+FRAME(F_MUL_VI, F_MUL_LI)
+FRAME(F_DIV_VI, F_DIV_LI)
+FRAME(I_CMP_V, I_CMP_L)
+FRAME(F_CMP_V, F_CMP_L)
+FRAME(F_CMP_VI, F_CMP_LI)
+FRAME(I_CMPIF_V, I_CMPIF_L)
+FRAME(F_CMPIF_V, F_CMPIF_L)
+FRAME(F_CMPIF_VI, F_CMPIF_LI)
+FRAME(I_STEP_V, I_STEP_L)
+FRAME(D_LD_V, D_LD_L)
+FRAME(D_ST_V, D_ST_L)
+FRAME(I_JFC_V, I_JFC_L)
+FRAME(I_LD_A1, I_LD_A1F)
+FRAME(F_LD_A1, F_LD_A1F)
+FRAME(S_LD_A1, S_LD_A1F)
+FRAME(D_LD_A1, D_LD_A1F)
+FRAME(I_ST_A1, I_ST_A1F)
+FRAME(F_ST_A1, F_ST_A1F)
+FRAME(S_ST_A1, S_ST_A1F)
+FRAME(D_ST_A1, D_ST_A1F)
+#undef FRAME
 #endif
 
 #ifdef K

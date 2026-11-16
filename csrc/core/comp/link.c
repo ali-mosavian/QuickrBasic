@@ -8,8 +8,8 @@
  *
  * link_start runs before a run: blocks paired (blok_pair), the procedures' variables declared, then
  * every line compiled into the cache in program order, the cache grown to fit; then link_resolve
- * sets each jump's and line reference's target and each variable op's cell. A target not found goes
- * on the ledger, whose first error link_check raises before the run starts. A run compiles and
+ * sets each op's mode (comp/select.c), then each jump's and line reference's target. A target not
+ * found goes on the ledger, whose first error link_check raises before the run starts. A run compiles and
  * resolves nothing but the direct line.
  *
  * # asm structure (src/comp/link.asm)
@@ -39,6 +39,7 @@
 #include "comp/dfa.h"
 #include "comp/fold.h"
 #include "comp/frame.h"
+#include "comp/select.h"
 #include "io/repl.h"
 #include "mem/alloc.h"
 #include "mem/array.h"
@@ -340,88 +341,6 @@ static bool ref_line(const Comp *const C, LineRef *const r, uint32_t *const at)
     return true;
 }
 
-/* A one-cell op on a procedure's local: its frame twin, the cell its offset from the frame. False:
-   the variable is not in a frame. comp/fuse.c fuses no local into a many-cell op. */
-static bool local_op(const Symb *const sy, uint8_t *const op)
-{
-    static const uint8_t twins[][2] = {
-        {O_I_LD_V, O_I_LD_L},         {O_F_LD_V, O_F_LD_L},       {O_F_LD_VI, O_F_LD_LI},
-        {O_S_LD_V, O_S_LD_L},         {O_V_CELL, O_L_CELL},       {O_I_ST_V, O_I_ST_L},
-        {O_F_ST_V, O_F_ST_L},         {O_S_ST_V, O_S_ST_L},       {O_I_ADD_V, O_I_ADD_L},
-        {O_I_SUB_V, O_I_SUB_L},       {O_I_MUL_V, O_I_MUL_L},     {O_I_DIV_V, O_I_DIV_L},
-        {O_I_AND_V, O_I_AND_L},       {O_I_OR_V, O_I_OR_L},       {O_F_ADD_V, O_F_ADD_L},
-        {O_F_SUB_V, O_F_SUB_L},       {O_F_MUL_V, O_F_MUL_L},     {O_F_DIV_V, O_F_DIV_L},
-        {O_F_ADD_VI, O_F_ADD_LI},     {O_F_SUB_VI, O_F_SUB_LI},   {O_F_MUL_VI, O_F_MUL_LI},
-        {O_F_DIV_VI, O_F_DIV_LI},     {O_I_CMP_V, O_I_CMP_L},     {O_F_CMP_V, O_F_CMP_L},
-        {O_F_CMP_VI, O_F_CMP_LI},     {O_I_CMPIF_V, O_I_CMPIF_L}, {O_F_CMPIF_V, O_F_CMPIF_L},
-        {O_F_CMPIF_VI, O_F_CMPIF_LI}, {O_I_STEP_V, O_I_STEP_L},   {O_D_LD_V, O_D_LD_L},
-        {O_D_ST_V, O_D_ST_L},         {O_I_JFC_V, O_I_JFC_L},
-    };
-
-    const Loc p = *symb_loc(sy, (uint16_t)load32(op + 1));
-
-    if (!loc_in_frame(p))
-        return false;
-
-    for (uint32_t i = 0; i < countof(twins); i++)
-        if (op[0] == twins[i][0]) {
-            op[0] = twins[i][1];
-            store32(op + 1, (uint32_t)loc_off(p));
-            return true;
-        }
-
-    return false; /* none: comp/fuse.c's guard failed; the cell is wrong */
-}
-
-/* A 1-D array op on an array in its frame: its twin, the header's offset from the frame. False:
-   the array is not in a frame. */
-static bool frame_op(const Symb *const sy, uint8_t *const op)
-{
-    static const uint8_t twins[][2] = {
-        {O_I_LD_A1, O_I_LD_A1F},
-        {O_F_LD_A1, O_F_LD_A1F},
-        {O_S_LD_A1, O_S_LD_A1F},
-        {O_D_LD_A1, O_D_LD_A1F},
-        {O_I_ST_A1, O_I_ST_A1F},
-        {O_F_ST_A1, O_F_ST_A1F},
-        {O_S_ST_A1, O_S_ST_A1F},
-        {O_D_ST_A1, O_D_ST_A1F},
-    };
-
-    const FrameArr *const fa = symb_farr(sy, load16(op + 1));
-
-    if (!fa->at || fa->shape >> 24 != 1)
-        return false;
-
-    for (uint32_t i = 0; i < countof(twins); i++)
-        if (op[0] == twins[i][0]) {
-            op[0] = twins[i][1];
-            store32(op + 3, (uint32_t)fa->at);
-            return true;
-        }
-
-    return false;
-}
-
-/* PRET for its procedure: a SUB's; a FUNCTION's number, its result's cell or offset in the frame;
-   local arrays to free, a string to keep: PRET.X. */
-static void link_pret(Comp *const C, uint8_t *const op)
-{
-    const Proc *const p = blok_proc(C->blok, op[1]);
-    const uint16_t res = p->result;
-
-    if (p->flags & PF_ARRAYS ||
-        (p->kind == PK_FUNC && (symb_var(C->symb, res)->info & VK_MASK) == VK_STR))
-        op[0] = O_PRET_X;
-    else if (p->kind == PK_FUNC && symb_in_frame(C->symb, res)) {
-        op[0] = O_PRET_FL;
-        store32(op + 2, (uint32_t)loc_off(*symb_loc(C->symb, res)));
-    } else if (p->kind == PK_FUNC) {
-        op[0] = O_PRET_FV;
-        store32(op + 2, symb_cell(C->symb, res));
-    }
-}
-
 /* The jumps and references of the op at op. */
 static void resolve_op(Comp *const C, const uint32_t line, const Addr base, uint8_t *const op)
 {
@@ -429,20 +348,6 @@ static void resolve_op(Comp *const C, const uint32_t line, const Addr base, uint
     LineRef *refs = nullptr;
     uint32_t nrefs = 1;
     Jump *j = nullptr;
-    const uint8_t fl = exec_flags(op[0]);
-
-    static const uint8_t cells[] = {FV, FV2, FV3}; /* the op's variables: ids to cells */
-
-    if (fl & FV && local_op(C->symb, op))
-        ;
-    else
-        for (uint32_t i = 0; i < countof(cells) && fl & cells[i]; i++)
-            store32(op + 1 + i * VCELL, symb_cell(C->symb, (uint16_t)load32(op + 1 + i * VCELL)));
-
-    if (fl & FA && !frame_op(C->symb, op)) /* an array's or a record's cell */
-        store32(op + 3, (uint32_t)symb_placed(C->symb, load16(op + 1)).w);
-    if (fl & FP) /* a parameter: its ref cell in the frame */
-        store16(op + 1, (uint16_t)loc_off(*symb_loc(C->symb, load16(op + 1))));
 
     switch (op[0]) {
     case O_JMP:
@@ -458,10 +363,6 @@ static void resolve_op(Comp *const C, const uint32_t line, const Addr base, uint
         op[4] = (uint8_t)blok_proc(C->blok, op[1])->npar;
 
         j = (Jump *)(op + 5);
-        break;
-
-    case O_PRET:
-        link_pret(C, op);
         break;
 
     case O_I_NEXT_UP: /* comp/fuse.c's: three cells (FV3), then the Jump */
@@ -529,8 +430,10 @@ void link_resolve(Comp *const C, const uint32_t line, const uint32_t code)
 
     uint8_t *op = at(base);
 
-    for (; *op != O_EOL && *op != O_EOL_TO; op += stream_opsize(op))
+    for (; *op != O_EOL && *op != O_EOL_TO; op += stream_opsize(op)) {
+        select_op(C->symb, C->blok, op);
         resolve_op(C, line, base, op);
+    }
 
     const uint32_t next = line + prog_line(C->prog, line)->len;
 

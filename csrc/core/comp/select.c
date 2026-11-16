@@ -1,0 +1,92 @@
+/* Each op's addressing mode, picked from its operands' Locs once the frames are laid out.
+ *
+ * # How it works
+ * Codegen names a variable by its id. Here an op on a variable in a frame becomes its frame twin
+ * (ops.def FRAME), its operand the offset from the frame; any other gets its cell. A PRET gets the
+ * form its procedure's result and arrays need. comp/link.c then resolves jumps and procedures.
+ */
+#include "comp/select.h"
+#include "vm/exec.h"
+
+static const uint8_t twins[][2] = {
+#define FRAME(op, twin) {O_##op, O_##twin},
+#include "vm/ops.def"
+};
+
+/* Op's frame twin; 0 none. */
+static uint8_t twin(const uint8_t op)
+{
+    for (uint32_t i = 0; i < countof(twins); i++)
+        if (twins[i][0] == op)
+            return twins[i][1];
+
+    return 0;
+}
+
+/* An FV op on a local: its twin, the offset of the cell. False: not in a frame, or a many-cell op
+   (comp/fuse.c fuses no local into one). */
+static bool local_op(const Symb *const sy, uint8_t *const op)
+{
+    const Loc p = *symb_loc(sy, (uint16_t)load32(op + 1));
+    const uint8_t t = twin(op[0]);
+
+    if (!loc_in_frame(p) || !t)
+        return false;
+
+    op[0] = t;
+    store32(op + 1, (uint32_t)loc_off(p));
+    return true;
+}
+
+/* A 1-D array op on an array in its frame: its twin, the header's offset. False: not in a frame. */
+static bool frame_op(const Symb *const sy, uint8_t *const op)
+{
+    const FrameArr *const fa = symb_farr(sy, load16(op + 1));
+    const uint8_t t = twin(op[0]);
+
+    if (!fa->at || fa->shape >> 24 != 1 || !t)
+        return false;
+
+    op[0] = t;
+    store32(op + 3, (uint32_t)fa->at);
+    return true;
+}
+
+/* PRET for its procedure: a SUB's; a FUNCTION's, its result's cell or offset in the frame; local
+   arrays to free, a string to keep: PRET.X. */
+static void select_pret(const Symb *const sy, const Blok *const b, uint8_t *const op)
+{
+    const Proc *const p = blok_proc(b, op[1]);
+    const uint16_t res = p->result;
+
+    if (p->flags & PF_ARRAYS ||
+        (p->kind == PK_FUNC && (symb_var(sy, res)->info & VK_MASK) == VK_STR))
+        op[0] = O_PRET_X;
+    else if (p->kind == PK_FUNC && symb_in_frame(sy, res)) {
+        op[0] = O_PRET_FL;
+        store32(op + 2, (uint32_t)loc_off(*symb_loc(sy, res)));
+    } else if (p->kind == PK_FUNC) {
+        op[0] = O_PRET_FV;
+        store32(op + 2, symb_cell(sy, res));
+    }
+}
+
+void select_op(const Symb *const sy, const Blok *const b, uint8_t *const op)
+{
+    static const uint8_t cells[] = {FV, FV2, FV3};
+
+    const uint8_t fl = exec_flags(op[0]);
+
+    if (fl & FV && local_op(sy, op))
+        ;
+    else
+        for (uint32_t i = 0; i < countof(cells) && fl & cells[i]; i++)
+            store32(op + 1 + i * VCELL, symb_cell(sy, (uint16_t)load32(op + 1 + i * VCELL)));
+
+    if (fl & FA && !frame_op(sy, op)) /* an array's or a record's cell */
+        store32(op + 3, (uint32_t)symb_placed(sy, load16(op + 1)).w);
+    if (fl & FP) /* a parameter: its ref cell in the frame */
+        store16(op + 1, (uint16_t)loc_off(*symb_loc(sy, load16(op + 1))));
+    if (op[0] == O_PRET)
+        select_pret(sy, b, op);
+}
