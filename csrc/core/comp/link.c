@@ -417,8 +417,7 @@ static void resolve_op(Comp *const C, const uint32_t line, const Addr base, uint
     }
 }
 
-/* The size in a cache stream of the op at op: INPUT's start has its end's offset after it. */
-static uint32_t stream_opsize(const uint8_t *const op)
+uint32_t link_opsize(const uint8_t *const op)
 {
     return op[0] == O_CALL && op[1] == K_INBEG ? 6 : flow_opsize(op);
 }
@@ -429,7 +428,7 @@ void link_resolve(Comp *const C, const uint32_t line, const uint32_t code)
 
     uint8_t *op = at(base);
 
-    for (; *op != O_EOL && *op != O_EOL_TO; op += stream_opsize(op)) {
+    for (; *op != O_EOL && *op != O_EOL_TO; op += link_opsize(op)) {
         select_op(C->symb, C->blok, op);
         resolve_op(C, line, base, op);
     }

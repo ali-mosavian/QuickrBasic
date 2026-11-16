@@ -1,13 +1,15 @@
 """golden.py [--update]: each corpus program's lines compiled (build/host/golden_dump), against
-tests/golden/code.txt: one row per line, its program, index and a hash of its code. A changed
-line prints its new bytes. The corpus: test/corpus/bcg, tests/golden/stmts (each statement's code and its errors', one
-file each), and llrm's tests/run/qb when present."""
-import hashlib
+tests/golden/code.txt: one row per line, its program, index and a hash of its code; a second row,
+key "L", the line as linked (comp/select.c's modes, cells, jumps). A changed line prints its new
+bytes. A dump that hangs fails. The corpus: test/corpus/bcg, tests/golden/stmts (each statement's
+code and its errors', one file each), and llrm's tests/run/qb when present."""
+
 import os
-import subprocess
 import sys
-from concurrent.futures import ThreadPoolExecutor
+import hashlib
+import subprocess
 from pathlib import Path
+from concurrent.futures import ThreadPoolExecutor
 
 ROOT = Path(__file__).resolve().parents[1]
 LLRM = Path(os.environ.get("LLRM", Path.home() / "work/personal/llrm-qbmac"))
@@ -20,8 +22,9 @@ def programs() -> list[tuple[str, Path]]:
     return [(f"{name}/{p.name}", p) for name, d in CORPORA.items() if d.is_dir() for p in sorted(d.glob("*.bas"))]
 
 
-def dump(path: Path) -> list[str]:
-    return subprocess.run([str(DUMP), str(path)], capture_output=True, text=True, check=True).stdout.splitlines()
+def dump(path: Path, *mode: str) -> list[str]:
+    args = [str(DUMP), *mode, str(path)]
+    return subprocess.run(args, capture_output=True, text=True, check=True, timeout=30).stdout.splitlines()
 
 
 def rows(key: str, lines: list[str]) -> dict[str, tuple[str, str]]:
@@ -35,7 +38,7 @@ def rows(key: str, lines: list[str]) -> dict[str, tuple[str, str]]:
 def main() -> None:
     progs = programs()
     with ThreadPoolExecutor(os.cpu_count()) as ex:
-        dumps = list(ex.map(lambda kp: rows(kp[0], dump(kp[1])), progs))
+        dumps = list(ex.map(lambda kp: rows(kp[0], dump(kp[1])) | rows(f"{kp[0]} L", dump(kp[1], "-l")), progs))
     new = {k: v for d in dumps for k, v in d.items()}
     if "--update" in sys.argv:
         GOLDEN.write_text("".join(f"{k} {h}\n" for k, (h, _) in new.items()))

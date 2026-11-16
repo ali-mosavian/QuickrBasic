@@ -35,5 +35,7 @@ bool link_xlate(Comp *C, Addr *at); /* comp_xbuf as a stream at *at, to its end;
 void link_resolve(Comp *C, uint32_t line, uint32_t code);
 /* The ledger's first error raised, if any: Label not defined, or a block's Syntax error. */
 void link_check(Comp *C);
+/* The size in a cache stream of the op at op: INPUT's start has its end's offset after it. */
+uint32_t link_opsize(const uint8_t *op);
 void link_walk(const uint8_t *code, void (*each)(uint8_t op, const uint8_t *at)); /* each op */
 #endif

@@ -44,10 +44,10 @@ static void dump_linked(Session *const S)
         const uint8_t *b = at(S->allo.cache + prog_line(&S->prog, l)->code);
         const uint8_t *end = b;
 
-        for (; *end != O_EOL; end += flow_opsize(end))
-            ;
+        while (*end != O_EOL && *end != O_EOL_TO) /* a stored line ends in EOL.TO */
+            end += link_opsize(end);
 
-        for (; b <= end; b++)
+        for (const uint8_t *const last = end + flow_opsize(end); b < last; b++)
             printf(" %02x", *b);
 
         putchar('\n');
