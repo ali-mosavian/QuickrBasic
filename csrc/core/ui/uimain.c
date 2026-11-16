@@ -1452,6 +1452,7 @@ static uint16_t cmdline_file(bool *const most)
 void uimn_rows(const uint8_t rows)
 {
     uimn.rows = pscr_text(rows);
+    them_in(); /* the mode's change loaded VGA's colours */
     scrn_size(uimn.rows);
     uimn.tree.screen.rect = (Rect){0, 0, uimn.rows, PSCR_COLS};
 

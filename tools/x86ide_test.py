@@ -1087,8 +1087,15 @@ def play() -> None:
         if any("NOT SAVED" in r for r in look()):
             press("n")
         keys("z.bas\n")
+        press(f"0x{0x18:x}", "t", "g")
         press(f"0x{0x18:x}", "z", "5")
         assert b"<Shift+F1=Help>" in chars(49), chars(49)
+        # The theme's colours kept: the mode's change loaded VGA's, Gruvbox's ground came out blue.
+        shot = Path(tempfile.mkdtemp()) / "rows.png"
+        s.snap(shot)
+        px = Image.open(shot).convert("RGB").getpixel((364, 168))
+        assert all(abs(a - b) <= 8 for a, b in zip(px, (0x32, 0x30, 0x2F))), px
+        press(f"0x{0x18:x}", "t", "q")
         assert any(b"Immediate" in chars(r) for r in range(40, 49)), [chars(r) for r in range(40, 49)]
         # A window's title row drags: the immediate window's up a row-count, the code's shorter.
         top = next(r for r in range(40, 49) if b"Immediate" in chars(r))
