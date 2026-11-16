@@ -6,7 +6,8 @@
     bench.py size [REV] [--functions]            the DOS executables' loaded bytes, REV's (default HEAD) and ours
     bench.py gate [--save]                       the suite and sizes against tools/bench/baseline.json
     bench.py qbasic                              qbasic/BENCH.BAS in QBasic 1.1 and our IDE under DOSBox
-    bench.py profile FILE.bas | -e CODE [-n N]   DOS: the functions a program spends its instructions in
+    bench.py profile FILE.bas | -e CODE [-n N] [--link]  DOS: the functions a program spends its
+                                                 instructions in; --link: RUN's link alone
 
 Native (the default) runs build/hostperf/basic for retired instructions, the least of RUNS runs less
 an empty program's, builds compared run interleaved; and build/host/basic for the ops dispatched,
@@ -406,7 +407,7 @@ def profiled(b: Build, d: Path) -> Path:
         sys.exit("profile: make printed no COBJ")
     objs = [b.root / o for o in m.group(1).split()]
     sys.path.insert(0, str(Path(os.environ.get("LLRM", Path.home() / "work/personal/llrm-next")) / "tools/dosbatch"))
-    import dosbatch  # ty: ignore[unresolved-import]
+    import dosbatch  # ty: ignore[import-not-found]
 
     exe = d / "basic32.exe"
     listing = exe.with_suffix(".map")
@@ -426,10 +427,13 @@ def profiled(b: Build, d: Path) -> Path:
 
 def cmd_profile(a: argparse.Namespace) -> int:
     """The DOS build relinked with a map, DOSBox's profiler naming each function's own instructions:
-    the program's less an empty one's."""
+    the program's less an empty one's. --link: its lines typed, then RUN, less them typed alone: the
+    link before the run (a numbered program that ENDs at once)."""
+    text = program(a)
+    jobs: dict[str, str | tuple] = {"": text, "prog": text + "\nRUN\n"} if a.link else {"": "", "prog": text}
     with tempfile.TemporaryDirectory() as d:
         x86run.COM = profiled(build(".", True), Path(d))
-        r = x86run.run({"": "", "prog": program(a)}, Path(d) / "w", limit_ms=600000, file=True, profile=True)
+        r = x86run.run(jobs, Path(d) / "w", limit_ms=600000, file=not a.link, profile=True)
     base, got = r[""].selfs, r["prog"].selfs
     own = {f: n - base.get(f, 0) for f, n in got.items() if n > base.get(f, 0)}
     total = sum(own.values())
@@ -467,6 +471,7 @@ def main() -> int:
     p.add_argument("file", nargs="?")
     p.add_argument("-e")
     p.add_argument("-n", type=int, default=25)
+    p.add_argument("--link", action="store_true", help="RUN's link alone, the lines typed")
     a = ap.parse_args()
     return {
         "run": cmd_run,
