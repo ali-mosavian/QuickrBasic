@@ -234,8 +234,7 @@ def functions(b: Build) -> dict[str, int]:
     for o in sorted(objs.rglob("*.obj")):
         heads = subprocess.run([llvm / "llvm-objdump", "-h", o], capture_output=True, text=True).stdout
         text = re.search(r"^\s*\d+ \.text\s+([0-9a-f]+)", heads, re.M)
-        syms = subprocess.run([llvm / "llvm-nm", "-n", "--defined-only", o], capture_output=True, text=True).stdout
-        fns = [(int(f[0], 16), f[2]) for f in (ln.split() for ln in syms.splitlines()) if len(f) == 3 and f[1] in "tT"]
+        fns = [(off, n) for off, k, n in nm(o) if k in "tT"]
         if not fns or not text:
             continue
         ends = [a for a, _ in fns[1:]] + [int(text[1], 16)]
@@ -363,10 +362,44 @@ def cmd_qbasic(a: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_profile(a: argparse.Namespace) -> int:
-    """The DOS build relinked with a map, DOSBox's profiler naming each function's own instructions:
-    the program's less an empty one's."""
-    b = build(".", True)
+def nm(o: Path) -> list[tuple[int, str, str]]:
+    """Object o's defined symbols: offset, kind (t local, T global, ...), name."""
+    llvm = Path(shutil.which("llvm-nm") or "/opt/homebrew/opt/llvm/bin/llvm-nm").parent
+    out = subprocess.run([llvm / "llvm-nm", "-n", "--defined-only", o], capture_output=True, text=True).stdout
+    return [(int(f[0], 16), f[1], f[2]) for f in (ln.split() for ln in out.splitlines()) if len(f) == 3]
+
+
+def with_statics(listing: str, objs: list[Path]) -> str:
+    """The link map, each module's static functions added: the map lists globals alone, so the
+    profiler counted a static's instructions under the global before it. A static's address is its
+    module's code base, from a global the map and the object both place, plus its offset."""
+    lines = listing.splitlines()
+    by_path = {str(o): o for o in objs}
+    out: list[str] = []
+    i = 0
+    while i < len(lines):
+        out.append(lines[i])
+        m = re.match(r"Module: (.*?)\(", lines[i])
+        i += 1
+        if not m or m[1] not in by_path:
+            continue
+        placed: dict[str, int] = {}
+        while i < len(lines) and re.match(r"[0-9a-f]{4}:", lines[i]):
+            at = re.match(r"0001:([0-9a-f]{8})\*?\s+(\S+)", lines[i])
+            if at:
+                placed[at[2]] = int(at[1], 16)
+            out.append(lines[i])
+            i += 1
+        syms = nm(by_path[m[1]])
+        bases = {placed[n] - off for off, k, n in syms if k == "T" and n in placed}
+        if len(bases) == 1:
+            base = bases.pop()
+            out += [f"0001:{base + off:08x}  {n}" for off, k, n in syms if k == "t"]
+    return "\n".join(out) + "\n"
+
+
+def profiled(b: Build, d: Path) -> Path:
+    """b's basic32 relinked in d with a map that names its static functions too."""
     db = subprocess.run(["make", "-pnq", "cbasic32"], cwd=b.root, capture_output=True, text=True).stdout
     m = re.search(r"^COBJ := (.*)$", db, re.M)
     if not m:
@@ -375,19 +408,27 @@ def cmd_profile(a: argparse.Namespace) -> int:
     sys.path.insert(0, str(Path(os.environ.get("LLRM", Path.home() / "work/personal/llrm-next")) / "tools/dosbatch"))
     import dosbatch  # ty: ignore[unresolved-import]
 
+    exe = d / "basic32.exe"
+    listing = exe.with_suffix(".map")
+    dosbatch.link_target(
+        "x86-m32",
+        objs[0],
+        exe,
+        d,
+        listing=listing,
+        objects_after=tuple(objs[1:]),
+        defines=dosbatch.entry_defines("x86-m32", None, near=False),
+    )
+    listing.write_text(with_statics(listing.read_text(), objs))
+    shutil.copy(b.dos.parent / "DOS32A.EXE", d / "DOS32A.EXE")
+    return exe
+
+
+def cmd_profile(a: argparse.Namespace) -> int:
+    """The DOS build relinked with a map, DOSBox's profiler naming each function's own instructions:
+    the program's less an empty one's."""
     with tempfile.TemporaryDirectory() as d:
-        exe = Path(d) / "basic32.exe"
-        dosbatch.link_target(
-            "x86-m32",
-            objs[0],
-            exe,
-            Path(d),
-            listing=exe.with_suffix(".map"),
-            objects_after=tuple(objs[1:]),
-            defines=dosbatch.entry_defines("x86-m32", None, near=False),
-        )
-        shutil.copy(b.dos.parent / "DOS32A.EXE", Path(d) / "DOS32A.EXE")
-        x86run.COM = exe
+        x86run.COM = profiled(build(".", True), Path(d))
         r = x86run.run({"": "", "prog": program(a)}, Path(d) / "w", limit_ms=600000, file=True, profile=True)
     base, got = r[""].selfs, r["prog"].selfs
     own = {f: n - base.get(f, 0) for f, n in got.items() if n > base.get(f, 0)}

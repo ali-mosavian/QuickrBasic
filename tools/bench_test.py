@@ -1,7 +1,11 @@
 """bench_test.py: bench.py's native cost grows with the work and repeats. Counted from process start,
-the loader's ~45M instructions swamped it; under Rosetta the address layout moved a count by a third."""
+the loader's ~45M instructions swamped it; under Rosetta the address layout moved a count by a third.
+Its DOS profile names static functions: the link map has globals alone, and the lexer's statics
+read as lexr_line's, 19% of a load."""
 
+import re
 import sys
+import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -10,6 +14,19 @@ import bench
 
 def loop(n: int) -> str:
     return f"FOR i& = 1 TO {n}: a& = a& + 1: NEXT: PRINT a&"
+
+
+def profile_map() -> None:
+    """A static's map entry: its module's base plus its object offset, between the globals around it."""
+    lexer = bench.ROOT / "build/c/obj/core/comp/lexer.obj"
+    statics = [(off, n) for off, k, n in bench.nm(lexer) if k == "t" and n.startswith("_lexr_")]
+    assert statics, "lexer.obj has no static lexr_ function"
+    with tempfile.TemporaryDirectory() as d:
+        listing = bench.profiled(bench.build(".", True), Path(d)).with_suffix(".map").read_text()
+    at = {n: int(a, 16) for a, n in re.findall(r"^0001:([0-9a-f]{8})\*?\s+(\S+)$", listing, re.M)}
+    line = next(off for off, k, n in bench.nm(lexer) if n == "_lexr_line")
+    for off, n in statics:
+        assert at.get(n) == at["_lexr_line"] - line + off, (n, at.get(n))
 
 
 def main() -> int:
@@ -23,6 +40,7 @@ def main() -> int:
     exe = bench.ROOT / "build/c/basic32.exe"
     if exe.exists():  # the loaded bytes, not the file's: its fixups moved with layout
         assert bench.image(exe) > 100_000 and bench.image(exe) != exe.stat().st_size, bench.image(exe)
+        profile_map()
     print("ok")
     return 0
 
