@@ -227,8 +227,9 @@ static void frames(Session *const S)
 /* Window w's widget: the pane's child w (dpan_build). */
 static Widget *win(const uint8_t w) { return uimn.tree.pane.children[w]; }
 
-/* The pane's columns, a row's characters within its borders. */
-static uint8_t width(void) { return (uint8_t)(PSCR_COLS - uimn.dp_col); }
+/* The pane's columns, from the line it shares with the edit windows, and a row's characters
+   within its borders. */
+static uint8_t width(void) { return (uint8_t)(PSCR_COLS - uimn.dp_col + 1); }
 static uint8_t text_width(void) { return (uint8_t)(width() - 2); }
 
 void dpan_layout(void)
@@ -236,11 +237,12 @@ void dpan_layout(void)
     const uint8_t all = WIN_ROWS - uimn.win.win[W_IMM].height;
     const uint8_t q = (uint8_t)(all * 3 / 10);
     const uint8_t loc = all - 2 * q;
-    win(DP_WAT)->rect = (Rect){1, uimn.dp_col, q, width()};
+    const uint8_t col = uimn.dp_col - 1;
+    win(DP_WAT)->rect = (Rect){1, col, q, width()};
 
-    win(DP_LOC)->rect = (Rect){q + 1, uimn.dp_col, loc, width()};
+    win(DP_LOC)->rect = (Rect){q + 1, col, loc, width()};
 
-    win(DP_STK)->rect = (Rect){q + 1 + loc, uimn.dp_col, q, width()};
+    win(DP_STK)->rect = (Rect){q + 1 + loc, col, q, width()};
 }
 
 /* dp_cnt: window w's items. */
@@ -263,7 +265,20 @@ static bool has_focus(const uint8_t w)
     return uimn.tree.workspace.focus == FOC_PANE && uimn.tree.pane.focus == w;
 }
 
-/* dp_line: row r of window w: its borders, its item. */
+/* Screen row row the active edit window's place in its text: the line's square. */
+static bool marks(const uint8_t row)
+{
+    const UiEdit *const e = &uimn.ed;
+
+    if (!e->rows || row < e->row0 || row >= e->row0 + e->rows)
+        return false;
+
+    const uint32_t last = uimn.text.n > 1 ? uimn.text.n - 1 : 1;
+    return row == e->row0 + e->line * (uint32_t)(e->rows - 1) / last;
+}
+
+/* dp_line: row r of window w: the line it shares, the square at the code's place on it; its
+   border; its item. */
 static void line1(const uint8_t w, const uint8_t r)
 {
     const uint8_t row = win(w)->rect.row + 1 + r;
@@ -271,7 +286,7 @@ static void line1(const uint8_t w, const uint8_t r)
     const uint8_t slot = has_focus(w) && (uint8_t)i == dp.sel[w] ? SL_SEL : SL_ED;
     const bool cur = w == DP_STK && (uint8_t)i == dp.frame && (uint8_t)i < dp.nframes;
     const uint8_t tw = text_width();
-    uint8_t col = scrn_fill(row, uimn.dp_col, SL_ED, GLYPH_V, 1);
+    uint8_t col = scrn_fill(row, win(w)->rect.col, SL_ED, marks(row) ? GLYPH_SQUARE : GLYPH_V, 1);
     col = scrn_fill(row, col, slot, cur ? GLYPH_POINT_RIGHT : ' ', 1);
     scrn_fill(row, col, slot, ' ', tw - 1);
     const char *const s = item(w, i);
@@ -297,9 +312,9 @@ static void child_draw(Widget *const x, Session *const S)
 
     draw_title(
         x->rect.row,
-        uimn.dp_col,
+        x->rect.col,
         width(),
-        top ? GLYPH_TOP_LEFT : GLYPH_V_RIGHT,
+        top ? GLYPH_T_DOWN : GLYPH_V_RIGHT,
         top ? GLYPH_TOP_RIGHT : GLYPH_V_LEFT,
         titles[w],
         has_focus(w),
@@ -559,18 +574,16 @@ bool dpan_split(void)
         return false;
     }
 
-    if (m->event == MS_PRESS) /* the pane's border, or the edit windows' beside it */
-        held = (m->col == r->col || m->col + 1 == r->col) && m->row >= r->row &&
-               m->row < r->row + r->rows;
+    if (m->event == MS_PRESS) /* the line between the pane and the edit windows */
+        held = m->col == r->col && m->row >= r->row && m->row < r->row + r->rows;
     if (!held)
         return false;
 
     if (m->event == MS_UP) {
         held = false;
     } else if (m->event == MS_DRAG) {
-        const uint8_t col = m->col < DP_COLMIN   ? DP_COLMIN
-                            : m->col > DP_COLMAX ? DP_COLMAX
-                                                 : m->col;
+        const uint8_t to = m->col + 1; /* the line at the mouse */
+        const uint8_t col = to < DP_COLMIN ? DP_COLMIN : to > DP_COLMAX ? DP_COLMAX : to;
         uimn.dp_col = col;
         wind_layout();
     }

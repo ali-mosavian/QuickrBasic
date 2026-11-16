@@ -153,6 +153,8 @@ enum : uint8_t {
     GLYPH_TOP_RIGHT = 0xBF,
     GLYPH_BOTTOM_LEFT = 0xC0,
     GLYPH_V_RIGHT = 0xC3,
+    GLYPH_T_DOWN = 0xC2,
+    GLYPH_SQUARE = 0xFE,
     GLYPH_H = 0xC4,
     GLYPH_BOTTOM_RIGHT = 0xD9,
     GLYPH_TOP_LEFT = 0xDA,
@@ -164,14 +166,14 @@ enum : uint8_t { FOC_EDIT = 0, FOC_IMM = 1, FOC_PANE = 2 };
 /* The windows, top down (window.h); the debug pane is beside them, not in uimn.win.win[]. */
 enum : uint8_t { W_HELP = 0, W_ED1 = 1, W_ED2 = 2, W_IMM = 3, NWIN = 4, W_DBG = NWIN };
 
-/* The debug pane's columns (debugpane.h): from uimn.dp_col, DP_COL at first, a drag of its border
-   moving it within DP_COLMIN .. DP_COLMAX; the edit windows have the columns before it. A row of it
-   holds DP_TWMAX characters at most. */
+/* The debug pane's columns (debugpane.h): the edit windows have uimn.dp_col, DP_COL at first, the
+   pane the rest, their last one the line between them; a drag of it moves it within DP_COLMIN ..
+   DP_COLMAX. A row of the pane holds DP_TWMAX characters at most. */
 enum {
     DP_COL = 50,
     DP_COLMIN = 20,
     DP_COLMAX = PSCR_COLS - 20,
-    DP_TWMAX = PSCR_COLS - DP_COLMIN - 2,
+    DP_TWMAX = PSCR_COLS - DP_COLMIN - 1,
 };
 
 /* A line being edited (TLBUF, TEDBUF): its text where text points, cap bytes: DLBUF for a dialog

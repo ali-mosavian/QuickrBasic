@@ -724,8 +724,9 @@ def play() -> None:
             press("down")
 
     def pane() -> list[str]:
-        """The debug pane's rows, columns 50 to 79: to row 23, the immediate window hidden."""
-        return [chars(r)[50:80].decode("latin-1") for r in range(1, 24)]
+        """The debug pane's rows, from the line it shares with the code, column 49: to row 23, the
+        immediate window hidden."""
+        return [chars(r)[49:80].decode("latin-1") for r in range(1, 24)]
 
     def debug_pane() -> None:
         """At a stop: the code in columns 0-49; Watch, Locals, Call stack right of it; gone on a run."""
@@ -749,20 +750,22 @@ def play() -> None:
             return [r[2:-1].strip() for r in rows[top + 1 : end] if r[2:-1].strip()]
 
         rows = pane()
-        assert rows[0].startswith("\xda") and "Watch" in rows[0] and "\xbf" == rows[0][-1], rows
+        assert rows[0].startswith("\xc2") and "Watch" in rows[0] and "\xbf" == rows[0][-1], rows
         # The immediate window took the stop's rows from the code: hidden while the pane shows.
         assert not any("IMMEDIATE" in r for r in look()), look()
-        # The code window's scroll bars are left out beside the pane: its border, no arrow.
-        assert chars(2)[49] == 0xB3, chars(2)
-        # A drag of the pane's border, or the code's beside it, moves the split.
-        mouse(5, 50, True)
-        mouse(5, 40, True)
-        mouse(5, 40, False)
-        assert chars(1)[40] == 0xDA and chars(2)[39] == 0xB3, (chars(1), chars(2))
+        # Beside the pane the code has no scroll bars: one line between them, column 49, a square on
+        # it the code's place.
+        line = [chars(r)[49] for r in range(2, 23)]
+        assert chars(1)[49] == 0xC2 and line.count(0xFE) == 1 and set(line) <= {0xB3, 0xFE, 0xC3}, line
+        # A drag of the line moves the split.
+        mouse(5, 49, True)
         mouse(5, 39, True)
-        mouse(5, 50, True)
-        mouse(5, 50, False)
-        assert chars(1)[50] == 0xDA and chars(2)[49] == 0xB3, (chars(1), chars(2))
+        mouse(5, 39, False)
+        assert chars(1)[39] == 0xC2 and chars(2)[39] in (0xB3, 0xFE), (chars(1), chars(2))
+        mouse(5, 39, True)
+        mouse(5, 49, True)
+        mouse(5, 49, False)
+        assert chars(1)[49] == 0xC2, chars(1)
         assert locals_() == ["N% = 3", "T% = 30"], pane()  # the parameter first
 
         def typed(text: str) -> None:  # keys() has no shifted symbols

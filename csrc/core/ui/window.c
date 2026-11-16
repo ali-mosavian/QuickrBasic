@@ -95,7 +95,7 @@ void wind_layout(void)
     uimn.tree.editors.rect = (Rect){1, 0, imm_row - 1, ws->cols};
 
     uimn.tree.pane.rect =
-        (Rect){1, uimn.dp_col, WIN_ROWS - win(W_IMM)->height, PSCR_COLS - uimn.dp_col};
+        (Rect){1, uimn.dp_col - 1, WIN_ROWS - win(W_IMM)->height, PSCR_COLS - uimn.dp_col + 1};
 
     uimn.tree.pane.visible = uimn.pane_on;
     dpan_layout();

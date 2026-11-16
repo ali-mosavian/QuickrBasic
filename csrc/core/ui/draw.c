@@ -236,17 +236,22 @@ void draw_edit(Session *const S, const bool ina)
         top ? GLYPH_TOP_RIGHT : GLYPH_V_LEFT,
         ttl,
         has_focus(),
-        true
+        !uimn.pane_on /* the maximise arrow, none by the pane */
     );
     sel = inactive ? SEL_NONE : edit_sel();
 
     for (uint16_t r = 0; r < e->rows; r++)
         draw_row(S, r);
-    if (has_focus() && !uimn.pane_on) { /* the bars: the window with the focus, no debug pane */
+
+    const uint8_t last = (uint8_t)(e->row0 + e->rows);
+
+    if (uimn.pane_on) /* by the pane: no bars, the border on down; the pane's line its place */
+        scrn_fill(last, scrn_fill(last, e->x, SL_ED, GLYPH_V, 1), SL_ED, ' ', e->width);
+    else if (has_focus()) { /* the bars: the window with the focus */
         draw_vbar();
         draw_hbar();
     } else
-        scrn_fill((uint8_t)(e->row0 + e->rows), e->x + 1, SL_ED, ' ', e->width);
+        scrn_fill(last, e->x + 1, SL_ED, ' ', e->width);
 
     inactive = false;
 }
