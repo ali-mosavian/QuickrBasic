@@ -1,5 +1,5 @@
 /* QB_INSNS set: the instructions this thread retired from here to the exit, on standard error, for
-   tools/bench.py, run by noaslr.c. The thread's own (thread_selfcounts); in-process, the loader's
+   tools/bench.py. The thread's own (thread_selfcounts); in-process, the loader's
    start-up left out. */
 #include <dlfcn.h>
 #include <stdio.h>

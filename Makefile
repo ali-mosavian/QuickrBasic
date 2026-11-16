@@ -218,18 +218,26 @@ chost: build/host/basic
 build/host/basic: $(HOBJ) $(QBRT_HOBJ) build/host/obj/app/basic32.o build/host/obj/plat/host/app/term.o
 	$(HOST_CC) $^ -o $@
 
-# tools/bench.py's native build: optimized, no op count; QB_INSNS reports the instructions it ran
+# tools/bench.py's native build: this machine's own CPU (no Rosetta), optimized, no op count;
+# QB_INSNS reports the instructions it ran
 .PHONY: chostperf
+HPERF_CC ?= $(CLANG) -isysroot $(shell xcrun --show-sdk-path 2>/dev/null)
 HPERF_CFLAGS := $(filter-out -O1 -g -DEXEC_COUNT,$(HOST_CFLAGS)) -O2
 HPERF_OBJ := $(HSRC:csrc/%.c=build/hostperf/obj/%.o)
+HPERF_QBRT := $(QBRT_HSRC:%.c=build/hostperf/qbrt/%.o) build/hostperf/obj/qbrt/qbrt.o build/hostperf/obj/qbrt/qbrt_host.o
+build/hostperf/qbrt/qb/play.o: QBRT_DEF = '-DQB_IDLE()=do { extern void qbrt_idle(void); qbrt_idle(); } while (0)'
+build/hostperf/qbrt/%.o: $(QBRT)/%.c
+	@mkdir -p $(@D)
+	$(HPERF_CC) -O2 -std=gnu11 -w -D__cdecl= $(QBRT_DEF) $(QBRT_HINC) -c $< -o $@
+build/hostperf/obj/qbrt/%.o: csrc/qbrt/%.c $(CHDR)
+	@mkdir -p $(@D)
+	$(HPERF_CC) $(HPERF_CFLAGS) $(subst -I,-isystem ,$(QBRT_HINC)) -c $< -o $@
 build/hostperf/obj/%.o: csrc/%.c $(CHDR)
 	@mkdir -p $(@D)
-	$(HOST_CC) $(HPERF_CFLAGS) -c $< -o $@
-chostperf: build/hostperf/basic build/hostperf/noaslr
-build/hostperf/noaslr: build/hostperf/obj/plat/host/app/noaslr.o
-	$(HOST_CC) $^ -o $@
-build/hostperf/basic: $(HPERF_OBJ) $(QBRT_HOBJ) build/hostperf/obj/app/basic32.o build/hostperf/obj/plat/host/app/insns.o
-	$(HOST_CC) $^ -o $@
+	$(HPERF_CC) $(HPERF_CFLAGS) -c $< -o $@
+chostperf: build/hostperf/basic
+build/hostperf/basic: $(HPERF_OBJ) $(HPERF_QBRT) build/hostperf/obj/app/basic32.o build/hostperf/obj/plat/host/app/insns.o
+	$(HPERF_CC) $^ -o $@
 
 UNIT_SRC := $(wildcard tests/unit/*.c)
 UNIT_OBJ := $(UNIT_SRC:tests/unit/%.c=build/host/unit/%.o)

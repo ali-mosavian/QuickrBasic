@@ -55,8 +55,11 @@ static inline int32_t pfpu_rint32(const float x)
     int32_t v;
 #if defined(__i386__)
     __asm__("fistpl %0" : "=m"(v) : "t"(x) : "st");
-#else
+#elif defined(__x86_64__)
     __asm__("cvtss2si %1, %0" : "=r"(v) : "x"(x));
+#else
+    const float r = __builtin_rintf(x); /* past the range or a NaN: the indefinite, as the x87's */
+    v = r >= -2147483648.0f && r < 2147483648.0f ? (int32_t)r : INT32_MIN;
 #endif
     return v;
 }
@@ -66,8 +69,11 @@ static inline int64_t pfpu_rint64(const double x)
     int64_t v;
 #if defined(__i386__)
     __asm__("fistpll %0" : "=m"(v) : "t"(x) : "st");
-#else
+#elif defined(__x86_64__)
     __asm__("cvtsd2si %1, %0" : "=r"(v) : "x"(x));
+#else
+    const double r = __builtin_rint(x);
+    v = r >= -9223372036854775808.0 && r < 9223372036854775808.0 ? (int64_t)r : INT64_MIN;
 #endif
     return v;
 }

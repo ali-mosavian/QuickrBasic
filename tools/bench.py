@@ -33,9 +33,9 @@ SUITE = ROOT / "tools/bench"
 BASELINE = SUITE / "baseline.json"
 REVS = ROOT / "build/bench"
 EXES = ("build/c/basic32.exe", "build/c/ide32.exe")
-INSTRUMENT_SRC = ("csrc/plat/host/app/insns.c", "csrc/plat/host/app/noaslr.c")
+INSTRUMENT_SRC = ("csrc/plat/host/app/insns.c", "csrc/plat/host/pfpu.c", "csrc/plat/pfpu.h")  # arm64 too
 RUNS = 3
-INSNS_SLACK = 0.01  # under noaslr a count repeats to 0.15%
+INSNS_SLACK = 0.01  # on the native CPU a count repeats to 0.1%
 
 type Programs = dict[str, str]
 
@@ -54,10 +54,6 @@ class Build:
     @property
     def perf(self) -> Path:
         return self.root / "build/hostperf/basic"
-
-    @property
-    def noaslr(self) -> Path:
-        return self.root / "build/hostperf/noaslr"
 
     @property
     def counted(self) -> Path:
@@ -104,10 +100,10 @@ def source(prog: str) -> bytes:
     return (prog.rstrip("\n") + "\nSYSTEM\n").replace("\r\n", "\n").replace("\n", "\r\n").encode("latin-1")
 
 
-def count(exe: Path, bas: Path, env: str, key: bytes, *wrap: Path) -> tuple[int, str]:
-    """exe's count of key for program bas, and its output; wrap: the command exe runs under."""
+def count(exe: Path, bas: Path, env: str, key: bytes) -> tuple[int, str]:
+    """exe's count of key for program bas, and its output."""
     p = subprocess.run(
-        [*map(str, wrap), str(exe), bas.name],
+        [str(exe), bas.name],
         cwd=bas.parent,
         input=b"",
         capture_output=True,
@@ -130,7 +126,7 @@ def run_natives(builds: list[Build], progs: Programs, runs: int = RUNS) -> list[
             least = [1 << 62] * len(builds)
             for _ in range(runs):
                 for i, b in enumerate(builds):
-                    least[i] = min(least[i], count(b.perf, bas, "QB_INSNS", b"insns", b.noaslr)[0])
+                    least[i] = min(least[i], count(b.perf, bas, "QB_INSNS", b"insns")[0])
             for i, b in enumerate(builds):
                 ops, out = count(b.counted, bas, "QB_OPS", b"ops")
                 res[i][name] = Cost(out, least[i], ops)

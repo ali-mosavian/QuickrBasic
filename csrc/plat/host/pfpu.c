@@ -1,4 +1,4 @@
-/* The x87's functions on an x86-64 host (Rosetta's x87 off x86).
+/* The x87's functions on the host: its own instructions on x86-64, C's on another CPU.
  *
  * # How it works
  * DOS32's pfpu.asm in C over long double, the x87's own instructions where C has none. Control
@@ -25,6 +25,7 @@ static const double p10[23] = {1e0,  1e1,  1e2,  1e3,  1e4,  1e5,  1e6,  1e7,
                                1e8,  1e9,  1e10, 1e11, 1e12, 1e13, 1e14, 1e15,
                                1e16, 1e17, 1e18, 1e19, 1e20, 1e21, 1e22};
 
+#if defined(__x86_64__)
 [[gnu::noinline]]
 static void control(const uint16_t cw)
 {
@@ -108,6 +109,41 @@ static X root(X x)
     __asm__ volatile("fsqrt" : "+t"(x));
     return x;
 }
+#else /* another CPU: C's long double, the control word's rounding only */
+#include <fenv.h>
+#include <math.h>
+
+static void control(const uint16_t cw)
+{
+    static const int modes[4] = {FE_TONEAREST, FE_DOWNWARD, FE_UPWARD, FE_TOWARDZERO};
+
+    fesetround(modes[cw >> 10 & 3]);
+}
+
+static X rndint(const X x) { return rintl(x); }
+static X x2m1(const X x) { return exp2l(x) - 1; }
+static X scale2(const X x, const X e) { return ldexpl(x, (int)e); }
+static X yl2x(const X y, const X x) { return y * log2l(x); }
+static X sine(const X x) { return sinl(x); }
+static X cosine(const X x) { return cosl(x); }
+static X tangent(const X x) { return tanl(x); }
+static X arctan(const X x) { return atanl(x); }
+static X log2e(void) { return 1.4426950408889634074L; }
+static X ln2(void) { return 0.6931471805599453094L; }
+static X lg2(void) { return 0.3010299956639811952L; }
+static int32_t to_int32(const X x) /* the x87's indefinite past the range */
+{
+    const X r = rintl(x);
+    return r >= -2147483648.0L && r < 2147483648.0L ? (int32_t)r : INT32_MIN;
+}
+static int64_t to_int64(const X x)
+{
+    const X r = rintl(x);
+    return r >= -9223372036854775808.0L && r < 9223372036854775808.0L ? (int64_t)r : INT64_MIN;
+}
+static X root(const X x) { return sqrtl(x); }
+#endif
+
 static X fabsx(const X x) { return x < 0 ? -x : x; }
 static bool is_nan(const X x) { return x != x; }
 
