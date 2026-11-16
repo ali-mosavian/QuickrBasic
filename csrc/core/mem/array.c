@@ -113,9 +113,8 @@ uint32_t arry_esize(const Arry *const ay, const uint16_t id)
     return (v->info & VK_MASK) == VK_STR ? DSZ : VS;
 }
 
-Addr arry_ref(Arry *const ay, const uint16_t id, const uint8_t n)
+Addr arry_ref(Arry *const ay, ArrSlot *const s, const uint16_t id, const uint8_t n)
 {
-    const ArrSlot *const s = arry_slot(ay, id);
     Addr h = s->hdr;
 
     if (!h) {

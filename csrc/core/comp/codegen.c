@@ -860,7 +860,7 @@ static void cg_ref(Code *const c, const Node *const n)
         for (const Node *a = n->b; a != nullptr; a = a->next)
             cg_as(c, a, T_INT, false);
 
-        code_opw(c, O_RA_ADDR, n->id);
+        code_opid(c, O_RA_ADDR, n->id, false);
         code_byte(c, n->nargs);
     } else
         code_opid(c, n->op, n->id, n->par);

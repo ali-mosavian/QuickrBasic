@@ -410,6 +410,8 @@ static void resolve_op(Comp *const C, const uint32_t line, const Addr base, uint
         for (uint32_t i = 0; i < countof(cells) && fl & cells[i]; i++)
             store32(op + 1 + i * VCELL, symb_cell(C->symb, (uint16_t)load32(op + 1 + i * VCELL)));
 
+    if (fl & FA) /* an array's or a record's cell */
+        store32(op + 3, (uint32_t)flow_where(C->symb, load16(op + 1)));
     if (fl & FP) /* a parameter: its ref cell in the frame */
         store16(op + 1, (uint16_t)(*symb_frame(C->symb, load16(op + 1)) - 1));
 

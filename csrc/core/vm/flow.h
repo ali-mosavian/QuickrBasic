@@ -55,6 +55,27 @@ static inline Addr flow_cell(const Symb *const sy, const Addr fp, const uint16_t
 
     return off < 0 ? fp + (uint32_t)off : rd32(fp + (uint32_t)off - 1);
 }
+/* An FA op's cell operand for array id (link's): a global's cell (positive), a local's offset from
+   the frame (-8k), a parameter's ref cell's offset k as -k - 4 (bit 2 set). */
+static inline int32_t flow_where(const Symb *const sy, const uint16_t id)
+{
+    const int32_t off = *symb_frame(sy, id);
+
+    if (!off)
+        return (int32_t)symb_cell(sy, id);
+
+    return off < 0 ? off : -(off - 1) - 4;
+}
+
+/* The cell an FA op's operand w names in the frame at fp. */
+static inline Addr flow_at(const Addr fp, const int32_t w)
+{
+    if (w > 0)
+        return (Addr)w;
+
+    return w & 4 ? rd32(fp + (uint32_t)(-w - 4)) : fp + (uint32_t)w;
+}
+
 /* The data stack at a statement's start: the innermost call's body's, else vm.rsp. */
 Cell *flow_stack_base(Vm *vm);
 

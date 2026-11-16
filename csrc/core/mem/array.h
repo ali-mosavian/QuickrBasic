@@ -30,10 +30,10 @@ void arry_init(Arry *ay, Allo *al, Fault *f, Symb *sy, const Decl *d, Strg *sg, 
 /* Array id's cell in the running call: its own, a local's in the frame, a parameter's its
    argument's. */
 ArrSlot *arry_slot(const Arry *ay, uint16_t id);
-/* Array id's element at arry.subs[0..n); a new array has every subscript OPTION BASE to 10.
+/* Array id's element at arry.subs[0..n), s its cell; a new array has every subscript OPTION BASE to 10.
    Subscript out of range: n not the array's, a subscript out of its bounds, or ERASE freed it.
    Out of memory. */
-Addr arry_ref(Arry *ay, uint16_t id, uint8_t n);
+Addr arry_ref(Arry *ay, ArrSlot *s, uint16_t id, uint8_t n);
 /* Subscript out of range (E_BS). */
 [[noreturn]]
 void arry_bad_sub(const Arry *ay);

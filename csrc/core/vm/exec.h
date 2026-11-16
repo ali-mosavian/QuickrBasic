@@ -90,7 +90,7 @@ enum : uint32_t { LREF_AT = 0x80000000 };
 enum : uint8_t { SF_TICK = 4 };
 
 /* An op's flags (ops.def). */
-enum : uint8_t { FX = 1, FV = 2, FB = 4, FK = 8, FV2 = 16, FV3 = 32, FP = 64 };
+enum : uint8_t { FX = 1, FV = 2, FB = 4, FK = 8, FV2 = 16, FV3 = 32, FP = 64, FA = 128 };
 
 enum : uint8_t {
 #define OP(name, h, size, fl) O_##name,
@@ -225,12 +225,13 @@ uint8_t exec_flags(uint8_t op);
 /* ex_brk: the STOP check found vm.stop or the platform's flags set. true: the op is not to run,
    vm.ip moved (an event's GOSUB, or the IDE's step back at the op); false: go on. BREAK raises. */
 bool exec_brk(Session *S);
-/* arr_r1: element sub of 1-D array id, its Addr. Subscript out of range past a word. */
-Addr exec_elem1(Arry *ar, uint16_t id, int32_t sub);
-/* arr_pn: the element an op's `id:2 n:1` at vm.ip names, its n subscripts popped. */
+/* arr_r1: element sub of the 1-D array the FA op at vm.ip names, its Addr. Subscript out of range
+   past a word. */
+Addr exec_elem1(Arry *ar, Vm *vm, int32_t sub);
+/* arr_pn: the element an FA op's `id:2 cell:4 n:1` at vm.ip names, its n subscripts popped. */
 Addr exec_elem(Arry *ar, Vm *vm);
-/* rec_get: record id's header, the record made, zeroed, at its first use. */
-Addr exec_record(Arry *ar, uint16_t id);
+/* rec_get: record id's header (s its cell), the record made, zeroed, at its first use. */
+Addr exec_record(Arry *ar, ArrSlot *s, uint16_t id);
 /* int_div: a / b truncated, *rem its remainder. Division by zero; Overflow -2^31 / -1. */
 int32_t exec_idiv(Fault *f, int32_t a, int32_t b, int32_t *rem);
 #endif

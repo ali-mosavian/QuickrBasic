@@ -106,18 +106,16 @@ void exec_init(Session *const S)
     pclk_init(&S->vm.stop, SF_TICK);
 }
 
-/* Element sub of 1-D array id, size bytes each, straight from its header to *e; false: it does
-   not count from 0, or sub is out of its range, for arry_ref. */
+/* Element sub of the 1-D array whose cell is cell, size bytes each, straight from its header to
+   *e; false: it does not count from 0, or sub is out of its range, for arry_ref. */
 static inline bool elem1_fast(
-    const Symb *const sy,
-    const Addr fp,
-    const uint16_t id,
+    const Addr cell,
     const int32_t sub,
     const uint32_t size,
     Addr *const e
 )
 {
-    const Addr hdr = ((const ArrSlot *)at(flow_cell(sy, fp, id)))->hdr;
+    const Addr hdr = ((const ArrSlot *)at(cell))->hdr;
 
     if (!hdr)
         return false;
@@ -652,10 +650,10 @@ i_ld_a1: /* a 1-D array's element counting from 0, in range; else exec_i_ld_a1's
 {
     Addr e;
 
-    if (!elem1_fast(&S->symb, r.fp, load16(r.ip + 1), r.sp->i, VS, &e))
+    if (!elem1_fast(flow_at(r.fp, (int32_t)load32(r.ip + 3)), r.sp->i, VS, &e))
         goto slow;
 
-    r.ip += 3;
+    r.ip += 3 + VCELL;
     r.sp->a = rd32(e);
 }
 
@@ -665,10 +663,10 @@ i_st_a1: /* ( sub x -- ) */
 {
     Addr e;
 
-    if (!elem1_fast(&S->symb, r.fp, load16(r.ip + 1), r.sp[1].i, VS, &e))
+    if (!elem1_fast(flow_at(r.fp, (int32_t)load32(r.ip + 3)), r.sp[1].i, VS, &e))
         goto slow;
 
-    r.ip += 3;
+    r.ip += 3 + VCELL;
     wr32(e, r.sp->u);
     r.sp += 2;
 }
@@ -730,38 +728,51 @@ static uint16_t subscript(Arry *const ar, const int32_t sub)
     return (uint16_t)sub;
 }
 
-Addr exec_elem1(Arry *const ar, const uint16_t id, const int32_t sub)
+/* An FA op's operands at vm->ip: its id to *id, its cell. */
+static ArrSlot *op_slot(Vm *const vm, uint16_t *const id)
 {
+    *id = exec_u16(vm);
+    return (ArrSlot *)at(flow_at(vm->fp, (int32_t)exec_u32(vm)));
+}
+
+Addr exec_elem1(Arry *const ar, Vm *const vm, const int32_t sub)
+{
+    uint16_t id;
+    ArrSlot *const s = op_slot(vm, &id);
     ar->subs[0] = subscript(ar, sub);
-    return arry_ref(ar, id, 1);
+    return arry_ref(ar, s, id, 1);
 }
 
 Addr exec_elem(Arry *const ar, Vm *const vm)
 {
-    const uint16_t id = exec_u16(vm);
+    uint16_t id;
+    ArrSlot *const s = op_slot(vm, &id);
     const uint8_t n = exec_u8(vm);
 
     for (uint8_t i = n; i-- > 0;)
         ar->subs[i] = subscript(ar, exec_popi(vm));
 
-    return arry_ref(ar, id, n);
+    return arry_ref(ar, s, id, n);
 }
 
-/* Element sub of the 1-D array whose id is at vm->ip, size bytes each: straight from its header
-   when it counts from 0 and sub is in range, else through arry_ref. */
+/* Element sub of the 1-D array the FA op at vm->ip names, size bytes each: straight from its
+   header when it counts from 0 and sub is in range, else through arry_ref. */
 static Addr elem1(Session *const S, const int32_t sub, const uint32_t size)
 {
-    const uint16_t id = exec_u16(&S->vm);
+    Vm *const vm = &S->vm;
     Addr e;
-    return elem1_fast(&S->symb, S->vm.fp, id, sub, size, &e) ? e : exec_elem1(&S->arry, id, sub);
+
+    if (!elem1_fast(flow_at(vm->fp, (int32_t)load32(vm->ip + 2)), sub, size, &e))
+        return exec_elem1(&S->arry, vm, sub);
+
+    vm->ip += 2 + VCELL;
+    return e;
 }
 
-Addr exec_record(Arry *const ar, const uint16_t id)
+Addr exec_record(Arry *const ar, ArrSlot *const s, const uint16_t id)
 {
-    const Addr hdr = arry_slot(ar, id)->hdr;
-
-    if (hdr)
-        return hdr;
+    if (s->hdr)
+        return s->hdr;
 
     ar->counts[0] = 1;
     ar->lbounds[0] = 0;
@@ -803,7 +814,9 @@ void exec_s_st_a(Session *const S)
 /* A record's address, the record made at its first use. */
 void exec_r_addr(Session *const S)
 {
-    exec_pusha(&S->vm, ((const ArrayHdr *)at(exec_record(&S->arry, exec_u16(&S->vm))))->data);
+    uint16_t id;
+    ArrSlot *const s = op_slot(&S->vm, &id);
+    exec_pusha(&S->vm, ((const ArrayHdr *)at(exec_record(&S->arry, s, id)))->data);
 }
 
 /* A record array's element. */

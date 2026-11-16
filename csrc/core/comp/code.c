@@ -166,6 +166,9 @@ void code_opid(Code *const c, const uint8_t op, const uint16_t id, const bool pa
         code_dword(c, id);
     else
         code_word(c, id);
+
+    if (exec_flags(op) & FA) /* the array's cell, link's */
+        code_dword(c, 0);
 }
 
 uint8_t *code_intleaf(Code *const c)

@@ -342,7 +342,7 @@ void dubl_ldk(Session *const S) { hot_op(S, hot_d_ld_k); }
 void dubl_lda1(Session *const S)
 {
     const int32_t i = exec_popi(&S->vm);
-    exec_push(&S->vm, cell_at(exec_elem1(&S->arry, exec_u16(&S->vm), i)));
+    exec_push(&S->vm, cell_at(exec_elem1(&S->arry, &S->vm, i)));
 }
 
 void dubl_lda(Session *const S) { exec_push(&S->vm, cell_at(exec_elem(&S->arry, &S->vm))); }
@@ -351,7 +351,7 @@ void dubl_sta1(Session *const S)
 {
     const Cell d = exec_pop(&S->vm);
     const int32_t i = exec_popi(&S->vm);
-    cell_put(exec_elem1(&S->arry, exec_u16(&S->vm), i), d);
+    cell_put(exec_elem1(&S->arry, &S->vm, i), d);
 }
 
 void dubl_sta(Session *const S)
