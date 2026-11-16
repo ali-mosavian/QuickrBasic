@@ -505,6 +505,7 @@ def tables() -> dict:
         "kw_cls": scls,
         "kw_tab": [nx for row in sd.delta for _, nx in row],
         **sparse_kw(sd.delta),
+        "kw_start": [nx for _, nx in sd.delta[kstart]],  # the start's row whole: every word's first step
         "kw_acc": [lab for lab in sd.label],
         "chr_tok": [CHAR_TOK.get(b, 0) for b in range(256)],
         "ps_cls": pcls,
@@ -585,7 +586,8 @@ def c_emit(T: dict) -> str:
     assert acts <= {f"A_{a}" for a in ACTIONS}, acts
     tabs = [("uint8_t", "lexr_kw_class", T["kw_cls"]), ("uint16_t", "lexr_kw_first", T["kw_off"]),
             ("uint8_t", "lexr_kw_char", T["kw_tc"]), ("uint16_t", "lexr_kw_next", T["kw_tn"]),
-            ("uint16_t", "lexr_kw_token", T["kw_acc"]), ("uint8_t", "lexr_char_token", T["chr_tok"]),
+            ("uint16_t", "lexr_kw_token", T["kw_acc"]),
+            ("uint16_t", "lexr_kw_start", T["kw_start"]), ("uint8_t", "lexr_char_token", T["chr_tok"]),
             ("uint8_t", "lexr_ps_class", T["ps_cls"]), ("uint32_t", "lexr_ps_default", ps(T["ps_def"])),
             ("uint16_t", "lexr_ps_first", T["ps_off"]), ("uint8_t", "lexr_ps_xclass", T["ps_xc"]),
             ("uint32_t", "lexr_ps_xentry", ps(T["ps_xv"])), ("uint16_t", "lexr_ps_entry", T["ps_ent"]),

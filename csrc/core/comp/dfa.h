@@ -325,6 +325,7 @@ extern const uint16_t lexr_kw_first[663];
 extern const uint8_t lexr_kw_char[660];
 extern const uint16_t lexr_kw_next[660];
 extern const uint16_t lexr_kw_token[662];
+extern const uint16_t lexr_kw_start[27];
 extern const uint8_t lexr_char_token[256];
 extern const uint8_t lexr_ps_class[256];
 extern const uint32_t lexr_ps_default[308];
@@ -474,6 +475,10 @@ const uint16_t lexr_kw_token[662] = {
     0, 0, 222, 0, 0, 0, 0, 0, 251, 0, 0, 0, 0, 359, 0, 0, 0, 0, 360, 0, 0, 0, 0, 361, 0, 0, 213, 0,
     0, 0, 362, 0, 0, 197, 0, 0, 0, 363, 364, 0, 0, 365, 0, 0, 366, 0, 0, 0, 146, 0, 0, 212, 0, 0, 0,
     211, 0, 0, 0, 367, 0, 0, 0, 368, 0, 0, 0, 369, 0, 0, 246,
+};
+const uint16_t lexr_kw_start[27] = {
+    0, 0, 2, 26, 50, 123, 164, 205, 234, 243, 247, 274, 280, 330, 355, 364, 384, 0, 431, 482, 573,
+    594, 622, 636, 659, 0, 0,
 };
 const uint8_t lexr_char_token[256] = {
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,

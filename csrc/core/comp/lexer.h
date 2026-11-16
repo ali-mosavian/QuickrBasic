@@ -34,6 +34,7 @@ typedef struct {
     uint8_t *in;         /* (ESI) the text read */
     uint8_t *out;        /* (EDI) the body written */
     const uint8_t *word; /* lx.lxs: a word's start */
+    bool drained;        /* the source has no more of the line */
 } Lexr;
 
 /* Errors raise through f; words become names through names. */

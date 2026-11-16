@@ -67,13 +67,15 @@ static void lexr_room(Lexr *const lx)
    on. False: the line has no more. */
 static bool lexr_more(Lexr *const lx)
 {
-    if (!lx->source)
+    if (!lx->source || lx->drained)
         return false;
 
     const uint8_t *keep = lx->in;
 
-    if (!lx->source->more(lx->source, &keep))
+    if (!lx->source->more(lx->source, &keep)) {
+        lx->drained = true; /* asked again before each item: a call each */
         return false;
+    }
 
     const ptrdiff_t moved = lx->in - keep;
     lx->src -= moved;
@@ -85,7 +87,7 @@ static bool lexr_more(Lexr *const lx)
 /* Streamed: the item at src-1 and LXAHEAD bytes after it in the window. */
 static void lexr_ahead(Lexr *const lx)
 {
-    if (lx->source && lx->source->end - lx->in < LXAHEAD) {
+    if (lx->source && !lx->drained && lx->source->end - lx->in < LXAHEAD) {
         lx->in--;
         lexr_more(lx);
         lx->in++;
@@ -145,8 +147,34 @@ static void lexr_joinfn(Lexr *const lx)
 }
 
 /* A number: M_INT n:4 when whole and under 2^31, else its text. */
+/* A whole number of up to 9 digits, nothing after it that makes it text: M_INT n:4, true. False,
+   nothing read: lexr_number's. */
+static bool lexr_int(Lexr *const lx)
+{
+    const uint8_t *p = lx->in;
+    uint32_t v = 0;
+
+    for (; is_digit(*p) && p - lx->in < 9; p++)
+        v = v * 10 + (uint32_t)(*p - '0');
+
+    const uint8_t u = upcase(*p);
+
+    if (is_digit(*p) || *p == '.' || *p == '#' || *p == '!' || u == 'E' || u == 'D' ||
+        (!*p && lx->source && !lx->drained) || lx->end - lx->out < 5)
+        return false;
+
+    lx->in = (uint8_t *)p + (*p == '%' || *p == '&'); /* an INTEGER's, a LONG's: one type */
+    *lx->out++ = M_INT;
+    store32(lx->out, v);
+    lx->out += 4;
+    return true;
+}
+
 static void lexr_number(Lexr *const lx)
 {
+    if (lexr_int(lx))
+        return;
+
     uint8_t *const start = lx->out;
     int64_t v = 0;
     bool text = false;
@@ -252,6 +280,9 @@ uint16_t lexr_keyword(const uint8_t **const at)
 {
     const uint8_t *p = *at;
     uint16_t st = KW_START;
+
+    if (is_letter(*p) || is_digit(*p) || *p == '.') /* the start's step: its row is whole */
+        st = lexr_kw_start[lexr_kw_class[upcase(*p++)]];
 
     while (is_letter(*p) || is_digit(*p) || *p == '.')
         st = lexr_kwstep(st, lexr_kw_class[upcase(*p++)]);
@@ -386,6 +417,7 @@ uint8_t *lexr_line(Lexr *const lx, uint8_t *const text, uint8_t *const body)
     lx->dst = body;
     lx->end = body + LMAX;
     lx->last = -1;
+    lx->drained = false;
 
     for (;;) {
         const uint8_t c = lexr_next_char(lx);
