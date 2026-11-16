@@ -384,39 +384,9 @@ void dubl_itod(Session *const S) { hot_op(S, hot_i_tod); }
 void dubl_ftod(Session *const S) { hot_op(S, hot_f_tod); }
 void dubl_tof(Session *const S) { hot_op(S, hot_d_tof); }
 
-/* fistp qword: to the nearest, a half to even; INT64_MIN past the range (the indefinite). */
-static int64_t round_to_int64(const uint64_t u)
-{
-    const uint32_t e = exponent(u);
-
-    if (e >= DBL_BIAS + 63)
-        return INT64_MIN; /* -2^63 itself too */
-    if (e < DBL_BIAS - 1)
-        return 0;
-
-    const uint64_t m = (u & DBL_MANT) | DBL_IMPLICIT;
-    const uint32_t point = DBL_BIAS + DBL_MANT_BITS; /* the exponent of a whole significand */
-    uint64_t q;
-
-    if (e >= point)
-        q = m << (e - point);
-    else {
-        const uint32_t shift = point - e;
-        const uint64_t rem = m & ((1ull << shift) - 1);
-        const uint64_t half = 1ull << (shift - 1);
-        q = m >> shift;
-
-        if (rem > half || (rem == half && (q & 1)))
-            q++;
-    }
-
-    return u & DBL_SIGN ? (int64_t)(0 - q) : (int64_t)q;
-}
-
-/* Overflow past an INT. */
 void dubl_toi(Session *const S)
 {
-    const int64_t v = round_to_int64(S->vm.sp->raw);
+    const int64_t v = pfpu_rint64(val(S->vm.sp->raw)); /* INT64_MIN past the range */
     S->vm.sp->raw = (uint64_t)v;
 
     if (v != (int32_t)v)

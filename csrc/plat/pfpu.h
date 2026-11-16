@@ -47,6 +47,31 @@ CDECL uint8_t pfpu_dpow(double a, double b, double *out);
    rounding while |p| <= 22, the last the store's (dbl_in's dbl_scale). m under 2^63. */
 CDECL void pfpu_scale10(uint64_t m, int32_t p, double *out);
 
+/* fistp: x to the nearest whole, a half to even; past the range or a NaN, the indefinite (INT32_MIN,
+   INT64_MIN). Inline, one instruction: the x87's on DOS32 (the control word's rounding), SSE's on
+   the host (MXCSR's, to nearest too), the same results. */
+static inline int32_t pfpu_rint32(const float x)
+{
+    int32_t v;
+#if defined(__i386__)
+    __asm__("fistpl %0" : "=m"(v) : "t"(x) : "st");
+#else
+    __asm__("cvtss2si %1, %0" : "=r"(v) : "x"(x));
+#endif
+    return v;
+}
+
+static inline int64_t pfpu_rint64(const double x)
+{
+    int64_t v;
+#if defined(__i386__)
+    __asm__("fistpll %0" : "=m"(v) : "t"(x) : "st");
+#else
+    __asm__("cvtsd2si %1, %0" : "=r"(v) : "x"(x));
+#endif
+    return v;
+}
+
 /* v (over 0, finite) as an ndig-digit integer, rounded once at 64 bits: v ~ N * 10^(*dp-ndig+1),
    *dp the first digit's power of ten; returns N, 10^(ndig-1) .. 10^ndig-1 (dbl_digits). */
 CDECL uint64_t pfpu_digits(double v, uint32_t ndig, int32_t *dp);
