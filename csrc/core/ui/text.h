@@ -11,10 +11,10 @@ void text_whole(void);
 void text_view(uint32_t first, uint32_t n);
 /* tx_rec: line's record (a program store offset). */
 uint32_t text_rec(Session *S, uint32_t line);
-/* The line of record rec to dst (LNBUF bytes room); its length. */
-uint32_t text_record(Session *S, uint32_t rec, uint8_t *dst);
-/* tx_get: line's text to dst (LNBUF bytes room); its length. */
-uint32_t text_get(Session *S, uint32_t line, uint8_t *dst);
+/* The line of record rec to b's text, grown to fit; its length. Out of memory. */
+uint32_t text_record(Session *S, uint32_t rec, LineBuf *b);
+/* tx_get: line's text to b's, grown to fit; its length. Out of memory. */
+uint32_t text_get(Session *S, uint32_t line, LineBuf *b);
 /* tx_repl: line becomes the len characters at src, made a record as the editor stores it (its
    number, its body tokenized, LIST's spelling; as typed when uimn.text.asis, used up, or when
    that spelling is past LNMAX); its mark kept. */
@@ -31,8 +31,8 @@ void text_toggle(Session *S, uint32_t line);
 /* tx_mclr: no line marked, in the whole store. */
 void text_unmark_all(Session *S);
 
-/* cb_put: len bytes at src the clipboard; lines: whole lines. */
-void text_clip_put(const uint8_t *src, uint16_t len, bool lines);
+/* cb_put: len bytes at src the clipboard; lines: whole lines. Out of memory. */
+void text_clip_put(Session *S, const uint8_t *src, uint16_t len, bool lines);
 /* cb_lines: lines from to to (inclusive) the clipboard, each ended by NL, as many as fit. */
 void text_clip_lines(Session *S, uint32_t from, uint32_t to);
 

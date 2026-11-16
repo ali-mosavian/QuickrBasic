@@ -6,6 +6,9 @@
  */
 #include "dos.h"
 #include "plat/psys.h"
+#include "plat/pmem.h"
+
+enum { ENV_MAX = 0x10000 }; /* the environment and the program's path at most */
 
 CDECL void pstop_hook(volatile uint8_t *flag, uint8_t bit);
 CDECL void pstop_unhook(void);
@@ -48,8 +51,22 @@ uint32_t psys_environ(char *const buf, const uint32_t cap)
 
 uint32_t psys_self(char *const buf, const uint32_t cap)
 {
-    static char env[0x8000];
-    const uint32_t n = pdos_environ(0, (uint8_t *)env, sizeof env);
+    char *env = nullptr;
+    uint32_t n = 0;
+
+    for (uint32_t size = 0x400; size <= ENV_MAX; size *= 2) { /* till the block fits */
+        char *const grown = pmem_resize(env, size);
+
+        if (!grown)
+            break;
+
+        env = grown;
+        n = pdos_environ(0, (uint8_t *)env, size);
+
+        if (n < size)
+            break;
+    }
+
     uint32_t i = 0;
 
     while (i + 1 < n && (env[i] || env[i + 1])) /* the variables, a 0 after the last */
@@ -62,6 +79,7 @@ uint32_t psys_self(char *const buf, const uint32_t cap)
         buf[len++] = env[i];
 
     buf[len] = 0;
+    pmem_free(env);
     return len;
 }
 

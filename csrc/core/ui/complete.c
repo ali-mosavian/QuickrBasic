@@ -172,9 +172,9 @@ static void cmpl_form(Session *const S, const Sugg *const e)
     memcpy(ac.sig, e->text, n);
 
     if (e->rec) { /* a SUB or FUNCTION: the parameters on its line */
-        const uint32_t len = text_record(S, e->rec, uimn.build);
-        uimn.build[len] = 0;
-        const char *const open = strchr((const char *)uimn.build, '(');
+        const uint32_t len = text_record(S, e->rec, &uimn.build);
+        uimn.build.text[len] = 0;
+        const char *const open = strchr((const char *)uimn.build.text, '(');
         const char *close = nullptr; /* its last ')' */
 
         for (const char *c = open; c && *c; c++)
@@ -246,16 +246,17 @@ static void cmpl_preview(
     const uint8_t col
 )
 {
-    const uint32_t len = text_record(S, e->rec, uimn.build);
+    const uint32_t len = text_record(S, e->rec, &uimn.build);
+    const uint8_t *const build = uimn.build.text;
     uint32_t off = 0;
 
-    while (off < len && is_digit(uimn.build[off]))
+    while (off < len && is_digit(build[off]))
         off++;
-    while (off < len && uimn.build[off] == ' ')
+    while (off < len && build[off] == ' ')
         off++;
 
     const uint32_t n = len - off;
-    scrn_strn(row, (uint8_t)(col + PV_COL), uimn.build + off, n > PV_LEN ? PV_LEN : n, SL_BAR);
+    scrn_strn(row, (uint8_t)(col + PV_COL), build + off, n > PV_LEN ? PV_LEN : n, SL_BAR);
 }
 
 /* The list's box, ac.sel lit. */

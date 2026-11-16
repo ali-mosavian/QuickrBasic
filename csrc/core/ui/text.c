@@ -36,6 +36,7 @@
  * - D2. The clipboard is uimn.text.clip, not carved from the arena: no Addr reaches it.
  */
 #include "ui/text.h"
+#include "util/grow.h"
 #include "session.h"
 #include "ui/edit.h"
 #include "ui/linemap.h"
@@ -84,11 +85,11 @@ uint32_t text_rec(Session *const S, const uint32_t line)
     return lmap_off(S, line + uimn.text.first);
 }
 
-uint32_t text_record(Session *const S, const uint32_t rec, uint8_t *const dst)
+uint32_t text_record(Session *const S, const uint32_t rec, LineBuf *const b)
 {
     const Line *const p = prog_line(&S->prog, rec);
     const uint32_t pre = p->pre;
-    memcpy(dst, at(prog_addr(&S->prog, rec + p->len - pre)), pre);
+    memcpy(edit_lb_need(S, b, pre), at(prog_addr(&S->prog, rec + p->len - pre)), pre);
 
     if (p->flags & LF_ASIS)
         return pre;
@@ -99,16 +100,16 @@ uint32_t text_record(Session *const S, const uint32_t rec, uint8_t *const dst)
     S->cons.sblen = 0;
     list_body(&S->comp, at(prog_addr(&S->prog, rec + HDR)));
     const uint32_t n = pre + S->cons.sblen;
-    memcpy(dst + pre, S->cons.sbuf, S->cons.sblen);
+    memcpy(edit_lb_need(S, b, n) + pre, S->cons.sbuf, S->cons.sblen);
     S->cons.capture = capture;
     S->cons.col = col;
     S->cons.sblen = sblen;
     return n;
 }
 
-uint32_t text_get(Session *const S, const uint32_t line, uint8_t *const dst)
+uint32_t text_get(Session *const S, const uint32_t line, LineBuf *const b)
 {
-    return text_record(S, text_rec(S, line), dst);
+    return text_record(S, text_rec(S, line), b);
 }
 
 /* The line number text's first end characters start with, past blanks: LNUM_LIMIT when past;
@@ -151,7 +152,8 @@ static Made make(Session *const S, const uint8_t *const src, const uint32_t len)
     Made m = {};
 
     S->prog.pre = src;
-    uint8_t *const text = uimn.line; /* a copy, 0-ended, worked on: the lexer changes its text */
+    uint8_t *const text = edit_lb_need(S, &uimn.line, len); /* a copy, 0-ended, worked on: the
+                                                                 lexer changes its text */
     memmove(text, src, len);
     text[len] = 0;
     uint8_t *const body = edit_body(text);
@@ -209,7 +211,7 @@ void text_init(Session *const S)
 {
     uimn.text.changed = true;
     session_new(S);
-    add(S, uimn.build, 0);
+    add(S, (const uint8_t *)"", 0);
     lmap_build(S);
     text_whole();
 }
@@ -243,7 +245,7 @@ void text_insert(
 void text_delete(Session *const S, const uint32_t line)
 {
     if (uimn.text.n <= 1) { /* the view's last line is emptied */
-        text_repl(S, line, uimn.build, 0);
+        text_repl(S, line, (const uint8_t *)"", 0);
         return;
     }
 
@@ -273,11 +275,20 @@ void text_unmark_all(Session *const S)
         prog_line(&S->prog, rec)->flags &= ~LF_BP;
 }
 
-void text_clip_put(const uint8_t *const src, const uint16_t len, const bool lines)
+/* The clipboard holds len bytes. Out of memory. */
+static uint8_t *clip_room(Session *const S, const uint32_t len)
 {
+    if (!GROW(uimn.text.clip, uimn.text.clip_cap, len))
+        repl_error(S, E_OM);
+
+    return uimn.text.clip;
+}
+
+void text_clip_put(Session *const S, const uint8_t *const src, const uint16_t len, const bool lines)
+{
+    memmove(clip_room(S, len), src, len);
     uimn.text.clip_lines = lines;
     uimn.text.clip_len = len;
-    memmove(uimn.text.clip, src, len);
 }
 
 void text_clip_lines(Session *const S, const uint32_t from, const uint32_t to)
@@ -285,12 +296,12 @@ void text_clip_lines(Session *const S, const uint32_t from, const uint32_t to)
     uint32_t n = 0;
 
     for (uint32_t line = from; line <= to; line++) {
-        const uint32_t len = text_get(S, line, uimn.build);
+        const uint32_t len = text_get(S, line, &uimn.build);
 
         if (n + len + 1 > UINT16_MAX)
             break;
 
-        memcpy(uimn.text.clip + n, uimn.build, len);
+        memcpy(clip_room(S, n + len + 1) + n, uimn.build.text, len);
         n += len;
         uimn.text.clip[n++] = NL;
     }
@@ -329,10 +340,10 @@ static bool next(uint8_t *const c)
 /* The line read, len long in uimn.build, stored. */
 static void read_line(Session *const S, const uint32_t len)
 {
-    if (!edit_canon(S, uimn.build, (uint16_t)len))
+    if (!edit_canon(S, uimn.build.text, (uint16_t)len))
         uimn.text.asis = true;
 
-    add(S, uimn.build, len);
+    add(S, uimn.build.text, len);
     io.lines++;
 }
 
@@ -340,7 +351,7 @@ static void read_line(Session *const S, const uint32_t len)
    with '_', the '_' a blank and the next line's indent dropped; the characters kept. */
 static uint32_t line_end(Session *const S, const uint8_t c, uint32_t n)
 {
-    uint8_t *const buf = uimn.build;
+    uint8_t *const buf = uimn.build.text;
     uint8_t after;
 
     if (c == NL && peek(&after) && after == LF)
@@ -368,11 +379,13 @@ static uint32_t line_end(Session *const S, const uint8_t c, uint32_t n)
    characters now. */
 static uint32_t line_char(Session *const S, const uint8_t c, uint32_t n)
 {
-    uint8_t *const buf = uimn.build;
     srcr_phys_byte(&S->srcr.cont, c);
 
     if (n >= LNMAX)
         return n;
+
+    uint8_t *const buf = edit_lb_need(S, &uimn.build, n + TAB_STOP);
+
     if (c != CH_TAB) {
         buf[n++] = c;
         return n;
@@ -440,10 +453,10 @@ uint16_t text_write(Session *const S, const char *const name)
 
     io.cnt = 0;
     io.err = 0;
-    uint8_t *const buf = uimn.build;
 
     for (uint32_t line = 0; line < uimn.text.all; line++) {
-        uint32_t len = text_record(S, lmap_off(S, line), buf);
+        uint32_t len = text_record(S, lmap_off(S, line), &uimn.build);
+        uint8_t *const buf = uimn.build.text;
         buf[len++] = NL;
         buf[len++] = LF;
 

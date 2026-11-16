@@ -1005,6 +1005,27 @@ def play() -> None:
     press("tab")
     assert as_is() == "print TotSum + pt(0).Qty", as_is()
 
+    # The line buffers and the clipboard start small: a line past their first bytes typed, copied
+    # and pasted whole.
+    long = "rem " + "z" * 66
+    before = text()
+    press("end", "enter")
+    keys(long + "\n")
+    press("up")
+    shift(True)
+    press("down")
+    shift(False)
+    press("0x92", "up")  # Ctrl+Ins; the selection dropped
+    shift(True)
+    press("0x52")  # Shift+Ins: before it
+    shift(False)
+    assert [r for r in text() if "REM Z" in r] == [long.upper()] * 2, text()
+    ctrl_y()
+    press("up")
+    ctrl_y()
+    ctrl_y()
+    assert text() == before, text()
+
     if flat:
         debug_pane()
 

@@ -4,16 +4,18 @@
  * A ring of VISL_RING slots holds a line's text and colours at the slot of its line in the store
  * (the view's first line on), modulo the ring. A slot stays good while the line's record has the
  * bytes it was listed from: a line's text is its record's alone. A record past VISL_REC bytes or a
- * text past SYNT_KEEP characters is not kept; it is listed into uimn.line each time.
+ * text past SYNT_KEEP characters is not kept; it is listed into uimn.line each time. A slot is made
+ * at its first use; none made (no memory), its lines are not kept either.
  */
 #include "ui/visible.h"
 #include "session.h"
 #include "ui/highlight.h"
 #include "ui/text.h"
+#include "plat/pmem.h"
 
 enum { VISL_RING = 64, VISL_REC = 512 };
 
-static struct {
+typedef struct {
     uint32_t line; /* the store's line + 1, 0 none */
     uint32_t n;    /* the record's bytes past its header, kept in rec */
     uint8_t asis;  /* its LF_ASIS */
@@ -22,7 +24,18 @@ static struct {
     uint8_t rec[VISL_REC];
     uint8_t text[SYNT_KEEP];
     uint8_t cols[SYNT_KEEP];
-} ring[VISL_RING];
+} Slot;
+
+static Slot *ring[VISL_RING];
+
+/* Slot i, made zeroed at its first use; null none. */
+static Slot *slot(const uint32_t i)
+{
+    if (!ring[i] && (ring[i] = pmem_resize(nullptr, sizeof(Slot))))
+        memset(ring[i], 0, sizeof(Slot));
+
+    return ring[i];
+}
 
 VislLine visl_get(Session *const S, const uint32_t line)
 {
@@ -32,14 +45,16 @@ VislLine visl_get(Session *const S, const uint32_t line)
     const uint8_t *const body = at(prog_addr(&S->prog, rec + HDR));
     const uint32_t n = p->len - HDR;
     const uint8_t asis = p->flags & LF_ASIS;
-    typeof(&ring[0]) const r = &ring[key % VISL_RING];
+    Slot *const r = slot(key % VISL_RING);
 
-    if (r->line != key || r->n != n || r->asis != asis || memcmp(r->rec, body, n)) {
-        const uint32_t len = text_get(S, line, uimn.line);
+    if (!r || r->line != key || r->n != n || r->asis != asis || memcmp(r->rec, body, n)) {
+        const uint32_t len = text_get(S, line, &uimn.line);
 
-        if (n > VISL_REC || len > SYNT_KEEP) {
-            r->line = 0;
-            return (VislLine){.text = uimn.line, .len = len};
+        if (!r || n > VISL_REC || len > SYNT_KEEP) {
+            if (r)
+                r->line = 0;
+
+            return (VislLine){.text = uimn.line.text, .len = len};
         }
 
         r->line = key;
@@ -49,7 +64,7 @@ VislLine visl_get(Session *const S, const uint32_t line)
         r->len = len;
 
         memcpy(r->rec, body, n);
-        memcpy(r->text, uimn.line, len);
+        memcpy(r->text, uimn.line.text, len);
     }
 
     if (!synt.on)

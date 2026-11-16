@@ -40,6 +40,7 @@
  * - D2. A parameter, not a global set before the call.
  */
 #include "ui/edit.h"
+#include "util/grow.h"
 #include "ui/indent.h"
 #include "session.h"
 #include "comp/comp.h"
@@ -76,6 +77,27 @@ static void changed(void)
 
 /* ---- a line buffer */
 
+enum { LB_TAIL = LNBUF - LNMAX }; /* the bytes past a line's characters: a 0, an LF */
+
+bool edit_lb_room(LineBuf *const b, const uint32_t n)
+{
+    return n + LB_TAIL <= b->cap || (b->grows && GROW(b->text, b->cap, n + LB_TAIL));
+}
+
+uint8_t *edit_lb_need(Session *const S, LineBuf *const b, const uint32_t n)
+{
+    if (!edit_lb_room(b, n))
+        repl_error(S, E_OM);
+
+    return b->text;
+}
+
+/* n characters past the cursor (the text padded to it) or past the end, whichever is further. */
+static uint32_t beyond(const LineBuf *const b, const uint32_t n)
+{
+    return (b->col > b->len ? b->col : b->len) + n;
+}
+
 /* le_pad: the text padded with spaces to the cursor. */
 static void pad(LineBuf *const b)
 {
@@ -90,7 +112,7 @@ bool edit_lb_type(LineBuf *const b, const uint8_t c, const uint16_t most)
 {
     const uint16_t at = b->col;
 
-    if (at >= most)
+    if (at >= most || !edit_lb_room(b, beyond(b, 1)))
         return false;
 
     pad(b);
@@ -206,6 +228,9 @@ void edit_lb_wright(LineBuf *const b)
 
 bool edit_lb_insert(LineBuf *const b, const uint8_t *const s, const uint16_t n)
 {
+    if (!edit_lb_room(b, beyond(b, n)))
+        return false;
+
     pad(b);
 
     if ((uint16_t)(b->len + n) > LNMAX)
@@ -261,9 +286,10 @@ static void chkop(const uint8_t op, const uint8_t *const at)
 /* The body at uc.pre tokenized into comp_cbuf, its declarations entered. */
 static void tokenize(Session *const S)
 {
-    memcpy(uimn.line, uc.pre, strlen((const char *)uc.pre) + 1);
+    const uint32_t n = (uint32_t)strlen((const char *)uc.pre);
+    memcpy(edit_lb_need(S, &uimn.line, n), uc.pre, n + 1);
     S->vm.line = DLINE;
-    lexr_line(&S->lexr, uimn.line, S->comp.cbuf);
+    lexr_line(&S->lexr, uimn.line.text, S->comp.cbuf);
     repl_declare(S, S->comp.cbuf); /* a typed SUB known to the lines after */
 }
 
@@ -385,7 +411,7 @@ void edit_emsg(Session *const S, const uint8_t code)
 void edit_load(Session *const S, const uint32_t line)
 {
     uimn.ed.line = line;
-    uimn.edline.len = (uint16_t)text_get(S, line, uimn.edline.text);
+    uimn.edline.len = (uint16_t)text_get(S, line, &uimn.edline);
     uimn.edline.dirty = false;
 }
 
@@ -413,7 +439,7 @@ bool edit_commit(Session *const S)
 
     uimn.text.asis = false;
     b->len = (uint16_t)S->cons.sblen;
-    memcpy(b->text, S->cons.sbuf, S->cons.sblen);
+    memcpy(edit_lb_need(S, b, b->len), S->cons.sbuf, S->cons.sblen);
     text_repl(S, uimn.ed.line, b->text, b->len);
     view_commit(S);
     return true;
@@ -490,9 +516,11 @@ void edit_ensure(void)
 
 /* edit_enter's: the line split at the cursor, the rest (its spaces dropped) after ind spaces in
    uimn.build; its length. */
-static uint16_t split(LineBuf *const b, const uint16_t ind)
+static uint16_t split(Session *const S, LineBuf *const b, const uint16_t ind)
 {
-    memset(uimn.build, ' ', ind);
+    uint8_t *const build =
+        edit_lb_need(S, &uimn.build, ind + (b->col < b->len ? b->len - b->col : 0));
+    memset(build, ' ', ind);
     const uint16_t at = b->col;
 
     if (at >= b->len)
@@ -503,14 +531,16 @@ static uint16_t split(LineBuf *const b, const uint16_t ind)
     b->dirty = true;
     const uint8_t *const s = b->text + at;
     const uint16_t skip = spaces(s, rest);
-    memcpy(uimn.build + ind, s + skip, rest - skip);
+    memcpy(build + ind, s + skip, rest - skip);
     return ind + rest - skip;
 }
 
 /* indt_enter's: line i of the program window's text. */
 static uint16_t text_line(void *const S, const uint32_t i, uint8_t *const dst)
 {
-    return (uint16_t)text_get(S, i, dst);
+    const uint32_t n = text_get(S, i, &uimn.line);
+    memcpy(dst, uimn.line.text, n);
+    return (uint16_t)n;
 }
 
 /* The line's indent made n spaces, the cursor kept on its character. */
@@ -547,7 +577,7 @@ void edit_enter(Session *const S)
     }
 
     uimn.ed.indent = ind;
-    uimn.ed.nlen = split(b, ind); /* the new line: the indent, the rest */
+    uimn.ed.nlen = split(S, b, ind); /* the new line: the indent, the rest */
     const uint8_t view = uimn.ed.view;
     edit_commit(S);
 
@@ -555,7 +585,7 @@ void edit_enter(Session *const S)
         return;
 
     const uint32_t line = uimn.ed.line + 1;
-    text_insert(S, line, uimn.build, uimn.ed.nlen);
+    text_insert(S, line, uimn.build.text, uimn.ed.nlen);
     changed();
     edit_load(S, line);
     b->col = uimn.ed.indent;
@@ -581,8 +611,8 @@ void edit_bs(Session *const S)
         return;
 
     uimn.ed.nlen = b->len; /* this line, kept */
-    memcpy(uimn.build, b->text, b->len);
-    const uint16_t above = (uint16_t)text_get(S, line - 1, uimn.line);
+    memcpy(edit_lb_need(S, &uimn.build, b->len), b->text, b->len);
+    const uint16_t above = (uint16_t)text_get(S, line - 1, &uimn.line);
 
     if ((uint16_t)(above + uimn.ed.nlen) > LNMAX)
         return;
@@ -590,7 +620,7 @@ void edit_bs(Session *const S)
     text_delete(S, line);
     edit_load(S, line - 1);
     b->col = b->len;
-    edit_lb_insert(b, uimn.build, uimn.ed.nlen);
+    edit_lb_insert(b, uimn.build.text, uimn.ed.nlen);
     b->col = b->len - uimn.ed.nlen;
     b->dirty = true;
     changed();
@@ -608,8 +638,9 @@ void edit_del(Session *const S)
     if (next >= uimn.text.n)
         return;
 
-    const uint16_t n = (uint16_t)text_get(S, next, uimn.build);
+    const uint16_t n = (uint16_t)text_get(S, next, &uimn.build);
     uimn.ed.nlen = n;
+    edit_lb_need(S, b, beyond(b, n));
     pad(b);
 
     if ((uint16_t)(b->len + n) > LNMAX)
@@ -617,7 +648,7 @@ void edit_del(Session *const S)
 
     text_delete(S, next);
     const uint16_t col = b->col;
-    edit_lb_insert(b, uimn.build, uimn.ed.nlen);
+    edit_lb_insert(b, uimn.build.text, uimn.ed.nlen);
     b->col = col;
     b->dirty = true;
     changed();
@@ -701,7 +732,7 @@ uint8_t edit_copy(Session *const S)
         const LineBuf *const b = &uimn.edline;
         const uint32_t end = uimn.ed.sel_b <= b->len ? uimn.ed.sel_b : b->len;
         const uint32_t n = end >= uimn.ed.sel_a ? end - uimn.ed.sel_a : 0;
-        text_clip_put(b->text + uimn.ed.sel_a, (uint16_t)n, false);
+        text_clip_put(S, b->text + uimn.ed.sel_a, (uint16_t)n, false);
     } else if (s == SEL_LINES) {
         edit_commit(S);
         text_clip_lines(S, uimn.ed.sel_a, uimn.ed.sel_b);
@@ -745,14 +776,11 @@ void edit_cut(Session *const S)
     edit_clear(S);
 }
 
-/* The clipboard's line at s, to its NL, in uimn.build; its length. */
-static uint32_t clip_line(const uint8_t *const s)
+/* The clipboard's line at s, to its NL (within most bytes), in uimn.build; its length. */
+static uint32_t clip_line(Session *const S, const uint8_t *const s, const uint32_t most)
 {
-    uint32_t n = 0;
-
-    for (; s[n] != NL; n++)
-        uimn.build[n] = s[n];
-
+    const uint32_t n = (uint32_t)((const uint8_t *)memchr(s, NL, most) - s);
+    memcpy(edit_lb_need(S, &uimn.build, n), s, n);
     return n;
 }
 
@@ -764,8 +792,7 @@ void edit_paste(Session *const S)
     if (!len)
         return;
     if (!uimn.text.clip_lines) {
-        memcpy(uimn.build, uimn.text.clip, len);
-        edit_lb_insert(&uimn.edline, uimn.build, len);
+        edit_lb_insert(&uimn.edline, uimn.text.clip, len);
         return;
     }
 
@@ -773,9 +800,9 @@ void edit_paste(Session *const S)
     uint32_t line = uimn.ed.line;
 
     for (uint32_t at = 0; (uint16_t)at < len; line++) {
-        const uint32_t n = clip_line(uimn.text.clip + at);
+        const uint32_t n = clip_line(S, uimn.text.clip + at, len - at);
         at += n + 1;
-        text_insert(S, line, uimn.build, (uint16_t)n);
+        text_insert(S, line, uimn.build.text, (uint16_t)n);
     }
 
     changed();

@@ -29,7 +29,8 @@ typedef struct {
 typedef struct {
     uint16_t start; /* the word's column */
     uint16_t n;
-    Sugg list[SUGG_MAX];
+    Sugg *list; /* cap of them, grown to SUGG_MAX */
+    uint32_t cap;
 } Suggs;
 
 /* The suggestions for the word ending at col of the line text (n characters), in the program's

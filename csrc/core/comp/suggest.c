@@ -306,10 +306,14 @@ static void sugg_add(Suggs *const out, const Sugg *const s)
     while (i < out->n && !sugg_before_in(s, &out->list[i]))
         i++;
 
-    if (i == SUGG_MAX)
+    /* the list's most: SUGG_MAX, those it holds when it cannot grow */
+    const uint16_t most =
+        out->n >= SUGG_MAX || GROW(out->list, out->cap, out->n + 1u) ? SUGG_MAX : out->n;
+
+    if (i == most)
         return;
 
-    const uint16_t keep = out->n < SUGG_MAX ? out->n : SUGG_MAX - 1;
+    const uint16_t keep = out->n < most ? out->n : most - 1;
     memmove(&out->list[i + 1], &out->list[i], (keep - i) * sizeof(Sugg));
     out->list[i] = *s;
     out->n = keep + 1;

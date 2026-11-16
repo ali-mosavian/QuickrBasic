@@ -45,14 +45,13 @@ enum { VLSZ = VNAME + 4 }; /* the SUBs box's list item */
 static struct {
     uint8_t name_text[DLBUF]; /* first: name_field points here (ui.h's 16-bit note) */
     uint8_t n;                /* vw_n: the views */
-    uint16_t new_len;         /* vw_nlen: add's line's length */
     View tab[NVIEW];
-    uint8_t new_line[LNBUF]; /* vw_new: add's line */
+    LineBuf new_line; /* vw_new, vw_nlen: add's line, grown to fit */
     char list_text[NVIEW * VLSZ];
-} vw;
+} vw = {.new_line = {.grows = true}};
 
-static LineBuf name_field = {.text = vw.name_text}; /* vw_fld: New SUB's name */
-static DlogList list;                               /* ls_v: the SUBs box's */
+static LineBuf name_field = {.text = vw.name_text, .cap = DLBUF}; /* vw_fld: New SUB's name */
+static DlogList list;                                             /* ls_v: the SUBs box's */
 
 static const char u_nsub[] = "New SUB", u_nfn[] = "New FUNCTION",
                   u_vname[] = "&Name:", u_subs[] = "SUBs",
@@ -190,7 +189,7 @@ static void scan(Session *const S)
     text_whole();
     uimn.text.hook = nullptr; /* not told of the module's line */
     if (is_proc(kind(S, 0, nullptr)))
-        text_insert(S, 0, vw.new_line, 0); /* a blank line before */
+        text_insert(S, 0, (const uint8_t *)"", 0); /* a blank line before */
     uimn.text.hook = shift;
     vw.tab[0].first = 0;
     vw.tab[0].kind = 0;
@@ -336,7 +335,7 @@ static void add(Session *const S, const uint8_t k)
     const char *const end = end_line(k);
     uint8_t body[INDT_STEP];
     memset(body, ' ', sizeof body);
-    text_insert(S, line, vw.new_line, vw.new_len);
+    text_insert(S, line, vw.new_line.text, vw.new_line.len);
     text_insert(S, line + 1, body, sizeof body);
     text_insert(S, line + 2, (const uint8_t *)end, (uint16_t)strlen(end));
     touched();
@@ -364,7 +363,7 @@ void view_commit(Session *const S)
     if (!is_proc(k))
         return;
 
-    vw.new_len = (uint16_t)text_get(S, uimn.ed.line, vw.new_line);
+    vw.new_line.len = (uint16_t)text_get(S, uimn.ed.line, &vw.new_line);
     text_delete(S, uimn.ed.line); /* out of its view */
     add(S, k);
 }
@@ -413,10 +412,11 @@ static void new_proc(Session *const S, const uint8_t k, const char *const title)
 
     const char *const kw = keyword(k); /* "SUB name" */
     const size_t n = strlen(kw);
-    memcpy(vw.new_line, kw, n);
-    vw.new_line[n] = ' ';
-    memcpy(vw.new_line + n + 1, name_field.text, name_field.len);
-    vw.new_len = (uint16_t)(n + 1 + name_field.len);
+    vw.new_line.len = (uint16_t)(n + 1 + name_field.len);
+    uint8_t *const t = edit_lb_need(S, &vw.new_line, vw.new_line.len);
+    memcpy(t, kw, n);
+    t[n] = ' ';
+    memcpy(t + n + 1, name_field.text, name_field.len);
     add(S, k);
 }
 

@@ -92,7 +92,7 @@ static struct {
 } dp;
 
 static uint8_t fld_text[DLBUF];
-static LineBuf fld = {.text = fld_text}; /* dp_fld: Ins's expression */
+static LineBuf fld = {.text = fld_text, .cap = DLBUF}; /* dp_fld: Ins's expression */
 
 static DlogCtl add_ctl[] = {
     {.kind = CT_FLD,
@@ -842,8 +842,8 @@ static bool tip_at(
 
     *col = c + ed->left;
     *line = (uint16_t)l;
-    *len = text_get(S, *line, uimn.line);
-    *text = uimn.line;
+    *len = text_get(S, *line, &uimn.line);
+    *text = uimn.line.text;
     return true;
 }
 

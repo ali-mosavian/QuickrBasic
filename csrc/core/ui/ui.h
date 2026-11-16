@@ -24,12 +24,13 @@
  * | IMN, IMW, ED_COLS, DLBUF, FLDMAX, TXMAX, LNMAX, LNBUF, HLPSZ | same | MIRROR |
  * | NWIN, W_HELP, W_ED1, W_ED2, W_IMM, W_DBG | same | MIRROR |
  * | DP_COL, DP_W, DP_TW | same | MIRROR |
- * | g_clpb | uimn.text.clip[CLIPSZ] | MIRROR |
+ * | g_clpb | uimn.text.clip, clip_cap (CLIPSZ at most) | MIRROR; grown |
  *
- * - D1. Zeroed, so out of the image's data: uimn_start sets what needs a value. The line buffers'
- *   texts are arrays in it, their LineBufs pointing at them.
+ * - D1. Zeroed, so out of the image's data: uimn_start sets what needs a value. The dialog line
+ *   buffers' texts are arrays in it, their LineBufs pointing at them; the editor's lines, the
+ *   clipboard and BASIC.HLP's text are on the C side's heap, grown as they fill.
  * - D2. text points at the storage; a field's and the immediate line's hold DLBUF bytes, the
- *   editor's LNBUF.
+ *   editor's lines grow to LNBUF.
  * - D3. Renamed: comp's dfa.h has an A_STR.
  */
 #ifndef UI_UI_H
@@ -166,14 +167,16 @@ enum : uint8_t { W_HELP = 0, W_ED1 = 1, W_ED2 = 2, W_IMM = 3, NWIN = 4, W_DBG = 
 /* The debug pane's columns (debugpane.h): the edit windows have DP_COL while it is shown. */
 enum { DP_COL = 50, DP_W = 30, DP_TW = DP_W - 2 };
 
-/* A line being edited (TLBUF, TEDBUF): its text where text points, DLBUF bytes for a dialog
-   field or the immediate line, LNBUF for the editor's line. The cursor may be past the text:
-   typing there pads it with spaces. */
+/* A line being edited (TLBUF, TEDBUF): its text where text points, cap bytes: DLBUF for a dialog
+   field or the immediate line; the editor's lines' grow, as they fill, to LNBUF (edit_lb_room).
+   The cursor may be past the text: typing there pads it with spaces. */
 typedef struct {
     uint16_t col; /* the cursor's column */
     uint16_t len;
     bool dirty; /* changed since loaded (dty) */
+    bool grows; /* text on the C side's heap */
     uint8_t *text;
+    uint32_t cap;
 } LineBuf;
 
 /* The status bar's keys for the mouse (the data after u_kedit ..): a key's last column, its
@@ -193,13 +196,14 @@ typedef struct {
     uint32_t first;                             /* tx_v0: the view's first line in the text */
     uint32_t all;                               /* tx_all: the text's lines */
     void (*hook)(uint32_t line, int32_t delta); /* tx_hook: text line added (1), removed (-1) */
-    bool changed;         /* tx_mod: since the program was entered (a run enters it again) */
-    bool unsaved;         /* tx_chg: since it was saved */
-    bool check;           /* syn_on: Options, Syntax Checking */
-    bool asis;            /* tx_asis: the next line stored as typed */
-    uint16_t clip_len;    /* cb_len: the clipboard's bytes */
-    bool clip_lines;      /* cb_ln: whole lines, each ended by NL; else a piece of one */
-    uint8_t clip[CLIPSZ]; /* g_clpb */
+    bool changed;      /* tx_mod: since the program was entered (a run enters it again) */
+    bool unsaved;      /* tx_chg: since it was saved */
+    bool check;        /* syn_on: Options, Syntax Checking */
+    bool asis;         /* tx_asis: the next line stored as typed */
+    uint16_t clip_len; /* cb_len: the clipboard's bytes */
+    bool clip_lines;   /* cb_ln: whole lines, each ended by NL; else a piece of one */
+    uint8_t *clip;     /* g_clpb: clip_cap bytes, grown to CLIPSZ */
+    uint32_t clip_cap;
 } UiText;
 
 /* An edit window: its view, the cursor, the selection, its place (TEDIT). The active window's
@@ -289,17 +293,16 @@ typedef struct {
     UiImm imm;
     UiMouse mouse;
 
-    uint16_t help_len;     /* tx.hl_len: BASIC.HLP's bytes */
-    char help_text[HLPSZ]; /* g_hlpb: BASIC.HLP, a line per menu item */
+    uint16_t help_len; /* tx.hl_len: BASIC.HLP's bytes */
+    char *help_text;   /* g_hlpb: BASIC.HLP, a line per menu item; HLPSZ at most */
 
-    uint8_t line[LNBUF];  /* bf.uc_line: a line got from the text, a copy the lexer may change */
-    uint8_t build[LNBUF]; /* bf.sy_buf: a line being built */
-    char file[80];        /* bf.ui_fn: the file's name, "" none */
-    char chosen[80];      /* bf.dl_name: the file a dialog chose */
-    char errmsg[600];     /* bf.ui_ebuf: an error's message, '|' between lines */
+    LineBuf line;     /* bf.uc_line: a line got from the text, a copy the lexer may change */
+    LineBuf build;    /* bf.sy_buf: a line being built */
+    char file[80];    /* bf.ui_fn: the file's name, "" none */
+    char chosen[80];  /* bf.dl_name: the file a dialog chose */
+    char errmsg[600]; /* bf.ui_ebuf: an error's message, '|' between lines */
 
-    /* The line buffers' texts (edline.text .. point here). */
-    uint8_t edline_text[LNBUF];
+    /* The dialog line buffers' texts (immline.text .. point here). */
     uint8_t immline_text[DLBUF];
     uint8_t fname_text[DLBUF];
     uint8_t find_what_text[DLBUF];

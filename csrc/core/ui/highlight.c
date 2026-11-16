@@ -24,6 +24,7 @@
  */
 #include "ui/highlight.h"
 #include "session.h"
+#include "ui/edit.h"
 #include "ui/screen.h"
 #include "comp/comp.h"
 #include "comp/dfa.h"
@@ -188,11 +189,12 @@ static void line(
     hl.width = width;
     const uint32_t n = len > LNMAX ? LNMAX : len;
     hl.len = n;
-    memmove(uimn.line, text, n); /* a copy: the lexer changes its text */
-    uimn.line[n] = 0;
+    uint8_t *const line = edit_lb_need(S, &uimn.line, n);
+    memmove(line, text, n); /* a copy: the lexer changes its text */
+    line[n] = 0;
     hl.prev_col = 0;
     hl.prev_slot = SL_ED;
-    lexr_line(&S->lexr, uimn.line, S->comp.cbuf);
+    lexr_line(&S->lexr, line, S->comp.cbuf);
     const uint8_t *p = S->comp.cbuf;
     hl.state = 0;
     hl.depth = 0;

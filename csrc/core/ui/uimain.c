@@ -47,6 +47,7 @@
 #include "mem/program.h"
 #include "plat/pfil.h"
 #include "plat/pkey.h"
+#include "plat/pmem.h"
 #include "plat/pscr.h"
 #include "plat/psys.h"
 #include "qbrt/qbrt.h"
@@ -427,7 +428,7 @@ static bool wordc(const uint8_t c)
 /* ui_match: Find What at column col of uimn.line. */
 static bool match(const uint16_t col)
 {
-    const uint8_t *const s = uimn.line + col, *const w = uimn.find_what.text;
+    const uint8_t *const s = uimn.line.text + col, *const w = uimn.find_what.text;
     const uint16_t n = uimn.find_what.len;
 
     for (uint16_t i = 0; i < n; i++) {
@@ -463,7 +464,7 @@ static bool search(Session *const S)
     ui.at_col = uimn.edline.col + 1;
 
     for (uint32_t n = uimn.text.n + 1; n; n--) { /* every line, this one twice */
-        const uint16_t got = (uint16_t)text_get(S, ui.at_line, uimn.line);
+        const uint16_t got = (uint16_t)text_get(S, ui.at_line, &uimn.line);
 
         if (got >= len) {
             const uint16_t last = got - len;
@@ -932,7 +933,7 @@ static void run_error_words(Session *const S)
         return;
 
     LineBuf *const b = &uimn.edline;
-    b->text[b->len] = 0;
+    edit_lb_need(S, b, b->len)[b->len] = 0;
     uimn_selword(edit_dxerr(S, b->text, (const ErrOp *)S->vm.opip));
 }
 
@@ -1294,10 +1295,15 @@ static void load_help(void)
     if (pfil_open(name, PFIL_READ, &h) != PFIL_OK)
         return;
 
-    uint32_t got;
+    uint32_t size, got;
 
-    if (pfil_read(h, uimn.help_text, HLPSZ, &got) == PFIL_OK)
-        uimn.help_len = (uint16_t)got;
+    if (pfil_seek(h, 0, PFIL_END, &size) == PFIL_OK && pfil_seek(h, 0, PFIL_SET, &got) == PFIL_OK) {
+        size = size < HLPSZ ? size : HLPSZ;
+        uimn.help_text = pmem_resize(nullptr, size);
+
+        if (uimn.help_text && pfil_read(h, uimn.help_text, size, &got) == PFIL_OK)
+            uimn.help_len = (uint16_t)got;
+    }
 
     pfil_close(h);
 }
@@ -1376,11 +1382,21 @@ static void init(Session *const S)
 {
     build_tree();
     uimn.on = true;
-    uimn.edline.text = uimn.edline_text;
-    uimn.immline.text = uimn.immline_text;
-    uimn.fname.text = uimn.fname_text;
-    uimn.find_what.text = uimn.find_what_text;
-    uimn.change_to.text = uimn.change_to_text;
+    LineBuf *const lines[] = {&uimn.edline, &uimn.line, &uimn.build};
+
+    for (uint32_t i = 0; i < sizeof lines / sizeof lines[0]; i++) {
+        lines[i]->grows = true;
+        edit_lb_need(S, lines[i], 0);
+    }
+
+    LineBuf *const fields[] = {&uimn.immline, &uimn.fname, &uimn.find_what, &uimn.change_to};
+
+    uint8_t *const texts[] =
+        {uimn.immline_text, uimn.fname_text, uimn.find_what_text, uimn.change_to_text};
+
+    for (uint32_t i = 0; i < sizeof fields / sizeof fields[0]; i++)
+        *fields[i] = (LineBuf){.text = texts[i], .cap = DLBUF};
+
     uimn.file[0] = 0;
     uimn.imm.n = 1;
     uimn.text.check = true;

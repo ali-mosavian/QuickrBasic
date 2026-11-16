@@ -8,6 +8,11 @@
 enum : uint8_t { SEL_NONE = 0, SEL_PIECE = 1, SEL_LINES = 2 };
 
 /* A line buffer b (le_*). */
+/* b's text holds n characters and a few bytes past them, grown when it grows. false: no memory,
+   or a fixed one too small. */
+bool edit_lb_room(LineBuf *b, uint32_t n);
+/* edit_lb_room, else Out of memory. */
+uint8_t *edit_lb_need(Session *S, LineBuf *b, uint32_t n);
 /* le_ins: c typed at the cursor, inserted or over the character there (padded first); false:
    full (the cursor at most, or the text at most in insert mode), nothing done. */
 bool edit_lb_type(LineBuf *b, uint8_t c, uint16_t most);
