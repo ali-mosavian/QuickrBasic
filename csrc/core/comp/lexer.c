@@ -39,6 +39,7 @@
  */
 #define DFA_DATA
 #include "comp/lexer.h"
+#include "util/grow.h"
 #include "comp/dfa.h"
 #include "num/single.h"
 
@@ -98,8 +99,10 @@ static void lexr_markcol(Lexr *const lx)
 
     if (off >= LMAX)
         lexr_fail(lx);
-    if (off >= lx->ncol)
+    if (!lx->cols)
         return;
+    if (off >= lx->ncol && !GROW(lx->col, lx->ncol, off + 1))
+        lexr_fail(lx);
     if (lx->all)
         for (int32_t i = lx->last + 1; i < (int32_t)off; i++)
             lx->col[i] = lx->lastcol;

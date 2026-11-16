@@ -38,6 +38,7 @@
 #include "mem/program.h"
 #include "mem/scope.h"
 #include "vm/flow.h"
+#include "util/grow.h"
 
 enum {
     NNAMES = 512,   /* the names kept of a scan */
@@ -91,9 +92,10 @@ static struct {
     uint8_t last; /* its last statement's keyword */
     uint8_t text[TEXT_MAX];
     uint8_t body[TEXT_MAX];
-    Verdict verdict[NVERDICT];
-    SuggName names[NNAMES];
+    Verdict *verdict; /* NVERDICT, made at the first find */
+    SuggName *names;  /* ncap, grown to NNAMES */
     uint16_t nnames;
+    uint32_t ncap;
     int16_t head[NHASH];
     uint8_t recent[NRECENT][SUGG_LEN + 2];
     uint8_t nrecent;
@@ -232,7 +234,7 @@ static void sugg_before(const SuggSrc *const src, const uint8_t *const text, con
 
     memcpy(sg.before, text, n);
     sg.nbefore = n;
-    memset(sg.verdict, 0xFF, sizeof sg.verdict);
+    memset(sg.verdict, 0xFF, NVERDICT * sizeof *sg.verdict);
     sg.broken = false;
     sugg_compose((const uint8_t *)"", 0);
     uint32_t len, at;
@@ -668,7 +670,7 @@ static void sugg_use(const SuggName *const n, const uint16_t scope, const uint32
         }
     }
 
-    if (sg.nnames == NNAMES)
+    if (sg.nnames == NNAMES || !GROW(sg.names, sg.ncap, sg.nnames + 1u))
         return;
 
     SuggName *const e = &sg.names[sg.nnames];
@@ -1345,6 +1347,14 @@ bool sugg_find(
 
     if (!sugg_word(text, n, col, &start) || start >= TEXT_MAX)
         return false;
+    if (!sg.verdict) {
+        sg.verdict = pmem_resize(nullptr, NVERDICT * sizeof *sg.verdict);
+
+        if (!sg.verdict)
+            return false;
+
+        sg.nbefore = UINT16_MAX; /* the verdicts made at the first line */
+    }
 
     out->start = start;
     out->n = 0;

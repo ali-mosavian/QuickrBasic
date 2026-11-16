@@ -1446,9 +1446,7 @@ static void fe_chain(Session *const S)
    map's block. */
 static void regions(Session *const S)
 {
-    static uint16_t cols[LMAX];
-    S->lexr.col = cols;
-    S->lexr.ncol = LMAX;
+    S->lexr.cols = true;
     lmap_init(S); /* HLMAP: the third block */
     upag_init(S);
 }

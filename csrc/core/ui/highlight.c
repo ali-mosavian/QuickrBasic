@@ -203,7 +203,7 @@ static void line(
         if (off >= LMAX)
             break;
 
-        const uint32_t col = S->lexr.col[off];
+        const uint32_t col = lexr_colof(&S->lexr, off);
         const uint8_t c = *p++;
 
         if (!c)

@@ -2,6 +2,7 @@
 #include "session.h"
 #include "comp/suggest.h"
 #include "unit.h"
+#include <stdio.h>
 #include <strings.h>
 
 static Suggs out;
@@ -270,4 +271,20 @@ TEST(suggest_mark_keeps_the_word)
     const int i = place("Counterofitems;");
     CHECK(i >= 0 && !strcmp((const char *)out.list[i].text, "Counterofitems;"));
     CHECK(out.list[i].asis == 14);
+}
+
+/* A program's names past the names' first block: they grow, the last one offered. */
+TEST(suggest_past_the_first_names)
+{
+    static char text[100][16];
+    static const char *lines[101];
+
+    for (uint32_t i = 0; i < 100; i++) {
+        snprintf(text[i], sizeof text[i], "%u zv%u = 1", (i + 1) * 10, i);
+        lines[i] = text[i];
+    }
+
+    unit_store(S, lines);
+    CHECK(suggest(S, "print zv9"));
+    CHECK(place("zv99") >= 0);
 }

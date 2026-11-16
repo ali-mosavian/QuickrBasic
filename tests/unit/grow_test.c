@@ -79,3 +79,19 @@ TEST(line_number_bits_grow)
     CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 1 \r");
     CHECK(S->scop.nlnbit > 63999 / WORD_BITS);
 }
+
+/* The editor's columns past their first ones: grown, the end.s column right. */
+TEST(lexer_columns_grow)
+{
+    static uint8_t text[1024];
+    uint32_t n = (uint32_t)snprintf((char *)text, sizeof text, "PRINT 1");
+
+    for (uint32_t i = 0; i < 100; i++)
+        n += (uint32_t)snprintf((char *)text + n, sizeof text - n, ": PRINT 1");
+
+    S->lexr.cols = true;
+    lexr_line(&S->lexr, text, S->comp.cbuf);
+    S->lexr.cols = false;
+    CHECK(S->lexr.ncol > (uint32_t)S->lexr.last);
+    CHECK(lexr_colof(&S->lexr, (uint32_t)S->lexr.last) == n); /* the end, past the last 1 */
+}

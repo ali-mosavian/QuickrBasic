@@ -73,8 +73,9 @@ static void hlset(Session *const S, const DebugPos *const pos)
     uint8_t *const body = edit_body(uimn.line);
     lexr_line(&S->lexr, body, S->comp.cbuf);
     const uint32_t bc = (uint32_t)(body - uimn.line);
-    const uint32_t c0 = S->lexr.col[pos->from] + bc;
-    const uint32_t c1 = trim_end(uimn.line, c0, pos->to == BOFF ? len : S->lexr.col[pos->to] + bc);
+    const uint32_t c0 = lexr_colof(&S->lexr, pos->from) + bc;
+    const uint32_t c1 =
+        trim_end(uimn.line, c0, pos->to == BOFF ? len : lexr_colof(&S->lexr, pos->to) + bc);
     hl.c0 = (uint16_t)c0;
     hl.c1 = (uint16_t)c1;
     hl.on = true;

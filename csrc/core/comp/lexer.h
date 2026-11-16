@@ -28,8 +28,8 @@ typedef struct {
     bool all;           /* g_lxall: every byte's column, for lexr_colof */
     int32_t last;       /* g_lxlst: the last item's body offset, -1 none */
     uint16_t lastcol;   /* g_lxlc: its column */
-    uint16_t *col;      /* g_lxcol: an item's column by its body offset, ncol of them; the
-                            editor's, null none */
+    bool cols;          /* the editor's: each item's column kept */
+    uint16_t *col;      /* g_lxcol: an item's column by its body offset, ncol of them, grown */
     uint32_t ncol;
     uint8_t *in;         /* (ESI) the text read */
     uint8_t *out;        /* (EDI) the body written */
