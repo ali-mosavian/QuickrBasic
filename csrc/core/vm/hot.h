@@ -18,9 +18,6 @@ typedef struct {
     Addr fp; /* the running procedure's frame (vm.fp) */
 } Regs;
 
-/* A local's cell: its operand an offset from the frame. */
-static inline Addr hot_local(Regs *const r, const uint32_t off) { return r->fp + off; }
-
 static inline uint8_t hot_u8(Regs *const r) { return *r->ip++; }
 
 static inline uint32_t hot_u32(Regs *const r)
@@ -28,6 +25,13 @@ static inline uint32_t hot_u32(Regs *const r)
     const uint32_t v = load32(r->ip);
     r->ip += 4;
     return v;
+}
+
+/* A variable op's cell: its operand the cell, or a local's offset from the frame. */
+static inline Addr hot_cell(Regs *const r, const bool local)
+{
+    const uint32_t c = hot_u32(r);
+    return local ? r->fp + c : c;
 }
 
 /* a / b truncated, *q, *rem its remainder (b -1: kept). Division by zero; Overflow -2^31 / -1. */
@@ -54,33 +58,24 @@ static inline Status hot_idiv(
     return ST_OK;
 }
 
-static inline Status hot_i_ld_v(Regs *const r)
+static inline Status hot_ld(Regs *const r, const bool local)
 {
-    const Addr cell = hot_u32(r);
+    const Addr cell = hot_cell(r, local);
     (--r->sp)->a = rd32(cell);
     return ST_OK;
 }
 
-static inline Status hot_i_st_v(Regs *const r)
+static inline Status hot_st(Regs *const r, const bool local)
 {
-    const Addr cell = hot_u32(r);
+    const Addr cell = hot_cell(r, local);
     wr32(cell, r->sp++->u);
     return ST_OK;
 }
 
-static inline Status hot_i_ld_l(Regs *const r)
-{
-    const Addr cell = hot_local(r, hot_u32(r));
-    (--r->sp)->a = rd32(cell);
-    return ST_OK;
-}
-
-static inline Status hot_i_st_l(Regs *const r)
-{
-    const Addr cell = hot_local(r, hot_u32(r));
-    wr32(cell, r->sp++->u);
-    return ST_OK;
-}
+static inline Status hot_i_ld_v(Regs *const r) { return hot_ld(r, false); }
+static inline Status hot_i_st_v(Regs *const r) { return hot_st(r, false); }
+static inline Status hot_i_ld_l(Regs *const r) { return hot_ld(r, true); }
+static inline Status hot_i_st_l(Regs *const r) { return hot_st(r, true); }
 
 static inline Status hot_i_ld_u8(Regs *const r)
 {
@@ -136,10 +131,8 @@ static inline int32_t hot_operand(Regs *const r, const HotSrc src)
         return r->sp++->i;
 
     case HOT_VAR:
-        return (int32_t)rd32(hot_u32(r));
-
     case HOT_LOC:
-        return (int32_t)rd32(hot_local(r, hot_u32(r)));
+        return (int32_t)rd32(hot_cell(r, src == HOT_LOC));
 
     case HOT_U8:
         return hot_u8(r);
@@ -316,16 +309,12 @@ static inline Sngl hot_foperand(Regs *const r, const HotFsrc src)
         return r->sp++->u;
 
     case HF_VAR:
-        return rd32(hot_u32(r));
+    case HF_LOC:
+        return rd32(hot_cell(r, src == HF_LOC));
 
     case HF_VARI: /* an INT variable */
-        return fmth_from_i32((int32_t)rd32(hot_u32(r)));
-
-    case HF_LOC:
-        return rd32(hot_local(r, hot_u32(r)));
-
     case HF_LOCI:
-        return fmth_from_i32((int32_t)rd32(hot_local(r, hot_u32(r))));
+        return fmth_from_i32((int32_t)rd32(hot_cell(r, src == HF_LOCI)));
 
     case HF_U8:
         return fmth_from_i32(hot_u8(r));
@@ -610,33 +599,24 @@ static inline uint32_t hot_dhi(const Cell *const c) { return (uint32_t)(c->raw >
    8-aligned stack temporary, and the frame realigned for it takes the loop's seventh register. */
 static inline bool hot_dzero(const Cell *const c) { return !(c->u | hot_dhi(c) << 1); }
 
-static inline Status hot_d_ld_v(Regs *const r)
+static inline Status hot_dld(Regs *const r, const bool local)
 {
-    const Addr cell = hot_u32(r);
+    const Addr cell = hot_cell(r, local);
     *--r->sp = load_cell(at(cell));
     return ST_OK;
 }
 
-static inline Status hot_d_st_v(Regs *const r)
+static inline Status hot_dst(Regs *const r, const bool local)
 {
-    const Addr cell = hot_u32(r);
+    const Addr cell = hot_cell(r, local);
     store_cell(at(cell), *r->sp++);
     return ST_OK;
 }
 
-static inline Status hot_d_ld_l(Regs *const r)
-{
-    const Addr cell = hot_local(r, hot_u32(r));
-    *--r->sp = load_cell(at(cell));
-    return ST_OK;
-}
-
-static inline Status hot_d_st_l(Regs *const r)
-{
-    const Addr cell = hot_local(r, hot_u32(r));
-    store_cell(at(cell), *r->sp++);
-    return ST_OK;
-}
+static inline Status hot_d_ld_v(Regs *const r) { return hot_dld(r, false); }
+static inline Status hot_d_st_v(Regs *const r) { return hot_dst(r, false); }
+static inline Status hot_d_ld_l(Regs *const r) { return hot_dld(r, true); }
+static inline Status hot_d_st_l(Regs *const r) { return hot_dst(r, true); }
 
 static inline Status hot_d_ld_k(Regs *const r)
 {
