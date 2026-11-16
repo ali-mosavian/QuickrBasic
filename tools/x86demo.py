@@ -87,6 +87,9 @@ class Film:
         self.caption = ""
 
     def add(self, screen: Image.Image, ms: int) -> None:
+        # one size for all: a graphics mode's smaller picture left the GIF's later frames stale
+        if self.frames:
+            screen = screen.resize((self.frames[0][0].width, self.frames[0][0].height - BAR), Image.Resampling.NEAREST)
         img = Image.new("RGB", (screen.width, screen.height + BAR), BAR_BG)
         img.paste(screen)
         draw = ImageDraw.Draw(img)
@@ -99,14 +102,17 @@ class Film:
         else:
             self.frames.append((img, ms))
 
-    def save(self, path: Path) -> None:
+    def save_to(self, path: Path | str) -> None:
         frames = [
             f.quantize(colors=64, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE) for f, _ in self.frames
         ]
         frames[0].save(
             path, save_all=True, append_images=frames[1:], duration=[ms for _, ms in self.frames], loop=0, optimize=True
         )
-        print(f"{path.relative_to(ROOT)}: {len(frames)} frames, {path.stat().st_size // 1024} KB")
+
+    def save(self, path: Path) -> None:
+        self.save_to(path)
+        print(f"{path.relative_to(ROOT)}: {len(self.frames)} frames, {path.stat().st_size // 1024} KB")
 
 
 class Ide:
