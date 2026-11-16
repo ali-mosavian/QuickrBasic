@@ -106,26 +106,62 @@ void exec_init(Session *const S)
     pclk_init(&S->vm.stop, SF_TICK);
 }
 
-/* Element sub of the 1-D array whose cell is cell, size bytes each, straight from its header to
-   *e; false: it does not count from 0, or sub is out of its range, for arry_ref. */
+/* The header of the 1-D array an X.A1 op's cell operand names: in the frame (X.A1F), or its slot's
+   (0: none yet). */
+static inline Addr hdr1(const uint8_t *const cell, const Addr fp, const bool frame)
+{
+    if (frame)
+        return fp + load32(cell);
+
+    return ((const ArrSlot *)at(loc_at((Loc){(int32_t)load32(cell)}, fp)))->hdr;
+}
+
+/* Element sub of the 1-D array at hdr, size bytes each, to *e; false: no header, it does not count
+   from 0 (fast 0: not 1-D either), or sub is out of its range, for arry_ref. */
 static inline bool elem1_fast(
-    const Addr cell,
+    const Addr hdr,
     const int32_t sub,
     const uint32_t size,
+    const bool frame,
     Addr *const e
 )
 {
-    const Addr hdr = ((const ArrSlot *)at(cell))->hdr;
-
-    if (!hdr)
+    if (!frame && !hdr)
         return false;
 
     const ArrayHdr *const a = (const ArrayHdr *)at(hdr);
 
-    if (a->dims != 1 || (uint32_t)sub >= a->fast)
+    if ((uint32_t)sub >= a->fast)
         return false;
 
-    *e = a->data + (uint32_t)sub * size;
+    *e = (frame ? hdr + ARRY_FRAME_HDR1 : a->data) + (uint32_t)sub * size;
+    return true;
+}
+
+/* X.LD.A1 ( sub -- x ) in range; false: the handler's. */
+static inline bool ld_a1(Regs *const r, const Addr fp, const bool frame)
+{
+    Addr e;
+
+    if (!elem1_fast(hdr1(r->ip + 3, fp, frame), r->sp->i, VS, frame, &e))
+        return false;
+
+    r->ip += 3 + VCELL;
+    r->sp->a = rd32(e);
+    return true;
+}
+
+/* X.ST.A1 ( sub x -- ) in range; false: the handler's. */
+static inline bool st_a1(Regs *const r, const Addr fp, const bool frame)
+{
+    Addr e;
+
+    if (!elem1_fast(hdr1(r->ip + 3, fp, frame), r->sp[1].i, VS, frame, &e))
+        return false;
+
+    r->ip += 3 + VCELL;
+    wr32(e, r->sp->u);
+    r->sp += 2;
     return true;
 }
 
@@ -651,60 +687,28 @@ eol_to: /* to the next line link_resolve set; a stop, the last line: flow_eol's 
     goto next;
 
 i_ld_a1: /* a 1-D array's element counting from 0, in range; else exec_i_ld_a1's */
-{
-    Addr e;
-
-    if (!elem1_fast(loc_at((Loc){(int32_t)load32(r.ip + 3)}, r.fp), r.sp->i, VS, &e))
+    if (!ld_a1(&r, r.fp, false))
         goto slow;
-
-    r.ip += 3 + VCELL;
-    r.sp->a = rd32(e);
-}
 
     goto next;
 
-i_ld_a1f: /* a 1-D array in the frame, counting from 0, sub in range; else exec_i_ld_a1f's */
-{
-    const Addr h =
-        v->fp + load32(r.ip + 3); /* vm.fp: reading r.fp kept it in a register, 6% on every loop */
-    const uint32_t sub = (uint32_t)r.sp->i;
-
-    if (sub >= ((const ArrayHdr *)at(h))->fast)
+i_ld_a1f: /* vm.fp: reading r.fp kept it in a register, 6% on every loop */
+    if (!ld_a1(&r, v->fp, true))
         goto slow;
-
-    r.ip += 3 + VCELL;
-    r.sp->a = rd32(h + ARRY_FRAME_HDR1 + sub * VS);
-}
 
     goto next;
 
-i_st_a1f: /* ( sub x -- ) */
-{
-    const Addr h =
-        v->fp + load32(r.ip + 3); /* vm.fp: reading r.fp kept it in a register, 6% on every loop */
-    const uint32_t sub = (uint32_t)r.sp[1].i;
+i_st_a1:
 
-    if (sub >= ((const ArrayHdr *)at(h))->fast)
+    if (!st_a1(&r, r.fp, false))
         goto slow;
-
-    r.ip += 3 + VCELL;
-    wr32(h + ARRY_FRAME_HDR1 + sub * VS, r.sp->u);
-    r.sp += 2;
-}
 
     goto next;
 
-i_st_a1: /* ( sub x -- ) */
-{
-    Addr e;
+i_st_a1f:
 
-    if (!elem1_fast(loc_at((Loc){(int32_t)load32(r.ip + 3)}, r.fp), r.sp[1].i, VS, &e))
+    if (!st_a1(&r, v->fp, true))
         goto slow;
-
-    r.ip += 3 + VCELL;
-    wr32(e, r.sp->u);
-    r.sp += 2;
-}
 
     goto next;
 
@@ -770,12 +774,23 @@ static ArrSlot *op_slot(Vm *const vm, uint16_t *const id)
     return (ArrSlot *)at(loc_at((Loc){(int32_t)exec_u32(vm)}, vm->fp));
 }
 
-Addr exec_elem1(Arry *const ar, Vm *const vm, const int32_t sub)
+Addr exec_elem1(Session *const S, const int32_t sub, const uint32_t size, const bool frame)
 {
-    uint16_t id;
-    ArrSlot *const s = op_slot(vm, &id);
-    ar->subs[0] = subscript(ar, sub);
-    return arry_ref(ar, s, id, 1);
+    Vm *const vm = &S->vm;
+    const Addr h = hdr1(vm->ip + 2, vm->fp, frame);
+    Addr e;
+
+    if (elem1_fast(h, sub, size, frame, &e)) {
+        vm->ip += 2 + VCELL;
+        return e;
+    }
+
+    const uint16_t id = exec_u16(vm);
+    const Loc c = {(int32_t)exec_u32(vm)};
+
+    ArrSlot *const s = frame ? arry_slot(&S->arry, id) : (ArrSlot *)at(loc_at(c, vm->fp));
+    S->arry.subs[0] = subscript(&S->arry, sub);
+    return arry_ref(&S->arry, s, id, 1); /* frame: DIMmed not yet, or from 1 */
 }
 
 Addr exec_elem(Arry *const ar, Vm *const vm)
@@ -790,20 +805,6 @@ Addr exec_elem(Arry *const ar, Vm *const vm)
     return arry_ref(ar, s, id, n);
 }
 
-/* Element sub of the 1-D array the FA op at vm->ip names, size bytes each: straight from its
-   header when it counts from 0 and sub is in range, else through arry_ref. */
-static Addr elem1(Session *const S, const int32_t sub, const uint32_t size)
-{
-    Vm *const vm = &S->vm;
-    Addr e;
-
-    if (!elem1_fast(loc_at((Loc){(int32_t)load32(vm->ip + 2)}, vm->fp), sub, size, &e))
-        return exec_elem1(&S->arry, vm, sub);
-
-    vm->ip += 2 + VCELL;
-    return e;
-}
-
 Addr exec_record(Arry *const ar, ArrSlot *const s, const uint16_t id)
 {
     if (s->hdr)
@@ -814,60 +815,52 @@ Addr exec_record(Arry *const ar, ArrSlot *const s, const uint16_t id)
     return arry_new(ar, id, 1, false);
 }
 
-Addr exec_elem1_frame(Session *const S, const int32_t sub, const uint32_t size)
+void exec_i_ld_a1(Session *const S)
 {
-    Vm *const vm = &S->vm;
-    const Addr h = vm->fp + load32(vm->ip + 2);
-    const uint16_t id = exec_u16(vm);
-    vm->ip += VCELL;
-
-    if ((uint32_t)sub < ((const ArrayHdr *)at(h))->fast)
-        return h + ARRY_FRAME_HDR1 + (uint32_t)sub * size;
-
-    S->arry.subs[0] = subscript(&S->arry, sub);
-    return arry_ref(&S->arry, arry_slot(&S->arry, id), id, 1); /* DIMmed not yet, or from 1 */
+    exec_pusha(&S->vm, rd32(exec_elem1(S, exec_popi(&S->vm), VS, false)));
 }
-
-void exec_i_ld_a1(Session *const S) { exec_pusha(&S->vm, rd32(elem1(S, exec_popi(&S->vm), VS))); }
 void exec_f_ld_a1(Session *const S) { exec_i_ld_a1(S); }
-void exec_s_ld_a1(Session *const S) { exec_pusha(&S->vm, elem1(S, exec_popi(&S->vm), DSZ)); }
+void exec_s_ld_a1(Session *const S)
+{
+    exec_pusha(&S->vm, exec_elem1(S, exec_popi(&S->vm), DSZ, false));
+}
 void exec_i_ld_a(Session *const S) { exec_pusha(&S->vm, rd32(exec_elem(&S->arry, &S->vm))); }
 void exec_s_ld_a(Session *const S) { exec_pusha(&S->vm, exec_elem(&S->arry, &S->vm)); }
 
 void exec_i_st_a1(Session *const S)
 {
     const uint32_t x = exec_pop(&S->vm).u;
-    wr32(elem1(S, exec_popi(&S->vm), VS), x);
+    wr32(exec_elem1(S, exec_popi(&S->vm), VS, false), x);
 }
 void exec_f_st_a1(Session *const S) { exec_i_st_a1(S); }
 
 void exec_s_st_a1(Session *const S)
 {
     const Addr s = exec_popa(&S->vm);
-    strg_set(&S->strg, s, elem1(S, exec_popi(&S->vm), DSZ));
+    strg_set(&S->strg, s, exec_elem1(S, exec_popi(&S->vm), DSZ, false));
 }
 
 void exec_i_ld_a1f(Session *const S)
 {
-    exec_pusha(&S->vm, rd32(exec_elem1_frame(S, exec_popi(&S->vm), VS)));
+    exec_pusha(&S->vm, rd32(exec_elem1(S, exec_popi(&S->vm), VS, true)));
 }
 void exec_f_ld_a1f(Session *const S) { exec_i_ld_a1f(S); }
 void exec_s_ld_a1f(Session *const S)
 {
-    exec_pusha(&S->vm, exec_elem1_frame(S, exec_popi(&S->vm), DSZ));
+    exec_pusha(&S->vm, exec_elem1(S, exec_popi(&S->vm), DSZ, true));
 }
 
 void exec_i_st_a1f(Session *const S)
 {
     const uint32_t x = exec_pop(&S->vm).u;
-    wr32(exec_elem1_frame(S, exec_popi(&S->vm), VS), x);
+    wr32(exec_elem1(S, exec_popi(&S->vm), VS, true), x);
 }
 void exec_f_st_a1f(Session *const S) { exec_i_st_a1f(S); }
 
 void exec_s_st_a1f(Session *const S)
 {
     const Addr s = exec_popa(&S->vm);
-    strg_set(&S->strg, s, exec_elem1_frame(S, exec_popi(&S->vm), DSZ));
+    strg_set(&S->strg, s, exec_elem1(S, exec_popi(&S->vm), DSZ, true));
 }
 
 void exec_i_st_a(Session *const S)

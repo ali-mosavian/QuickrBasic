@@ -225,11 +225,9 @@ uint8_t exec_flags(uint8_t op);
 /* ex_brk: the STOP check found vm.stop or the platform's flags set. true: the op is not to run,
    vm.ip moved (an event's GOSUB, or the IDE's step back at the op); false: go on. BREAK raises. */
 bool exec_brk(Session *S);
-/* arr_r1: element sub of the 1-D array the FA op at vm.ip names, its Addr. Subscript out of range
-   past a word. */
-Addr exec_elem1(Arry *ar, Vm *vm, int32_t sub);
-/* Element sub of the 1-D array in the frame an X.A1F op at vm.ip names, size bytes each. */
-Addr exec_elem1_frame(Session *S, int32_t sub, uint32_t size);
+/* arr_r1: element sub, size bytes each, of the 1-D array the X.A1 op at vm.ip names; frame: an
+   X.A1F's, the array in the frame. Subscript out of range past a word. */
+Addr exec_elem1(Session *S, int32_t sub, uint32_t size, bool frame);
 /* arr_pn: the element an FA op's `id:2 cell:4 n:1` at vm.ip names, its n subscripts popped. */
 Addr exec_elem(Arry *ar, Vm *vm);
 /* rec_get: record id's header (s its cell), the record made, zeroed, at its first use. */
