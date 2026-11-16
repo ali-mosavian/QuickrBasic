@@ -31,6 +31,8 @@ uint32_t view_goline(Session *S, uint32_t line);
 uint8_t view_of(uint32_t line);
 /* View v, one view_of gave (the asm's EDI out of vw_of). */
 const View *view_at(uint8_t v);
+/* View v's procedure: its name; 0 the module's. Uses comp_cbuf. */
+uint16_t view_proc(Session *S, uint8_t v);
 /* vw_title: ":" and the active window's view's name appended to the 0-ended title; the module:
    nothing. */
 void view_title(char *title);

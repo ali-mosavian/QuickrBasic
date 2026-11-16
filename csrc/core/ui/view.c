@@ -296,6 +296,12 @@ uint8_t view_of(const uint32_t line)
 
 const View *view_at(const uint8_t v) { return &vw.tab[v]; }
 
+uint16_t view_proc(Session *const S, const uint8_t v)
+{
+    const uint8_t *nm = nullptr;
+    return vw.tab[v].kind && is_proc(kind(S, vw.tab[v].first, &nm)) ? comp_nameof(nm) : 0;
+}
+
 uint32_t view_goline(Session *const S, const uint32_t line)
 {
     const uint8_t v = view_of(line);

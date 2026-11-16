@@ -112,6 +112,11 @@ void scop_enter(Scop *const sc, const Proc *const p)
         sc->stack[sc->depth++] = (ScopFrame){.name = p->name, .deffn = p->flags & PF_DEF};
 }
 
+void scop_inside(Scop *const sc, const uint16_t name)
+{
+    sc->stack[sc->depth++] = (ScopFrame){.name = name};
+}
+
 uint16_t scop_own(const Scop *const sc)
 {
     uint32_t i = sc->depth;

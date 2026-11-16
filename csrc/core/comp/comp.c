@@ -839,6 +839,10 @@ Status comp_line(Comp *const C)
     C->line = DLINE;
     C->ndfor = 0;
     comp_proc(C, C->dlproc);
+
+    if (C->check && !C->proc && C->decl->proc) /* a line alone: in the procedure being entered */
+        scop_inside(C->scop, C->decl->proc);
+
     decl_deftype(C->decl, C->symb, 0xFFFFFFFF); /* the program's end's DEFtypes */
     return comp_text(C, C->cbuf);
 }

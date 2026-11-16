@@ -433,7 +433,7 @@ bool edit_commit(Session *const S)
         b->len--;
 
     changed();
-
+    decl_enter(&S->decl, view_proc(S, uimn.ed.view)); /* its declarations its procedure's */
     uint32_t lexed;
 
     if (!edit_canon(S, b->text, b->len, &lexed)) { /* a syntax error: kept as typed */

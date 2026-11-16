@@ -540,6 +540,25 @@ def play() -> None:
         assert output()[0] == " 42", output()
         press("space")
 
+    # A line edited in a SUB's view was checked as the module's, whichever procedure the file's last
+    # line left: its record array parameter's field, b(1).x = 1, a syntax error.
+    (work / "REC.BAS").write_bytes(b"TYPE P\r\nx AS INTEGER\r\nEND TYPE\r\nSUB s (b() AS P)\r\nEND SUB\r\n")
+    press(f"0x{ALT_F:x}", "o")
+    if any("NOT SAVED" in r for r in look()):
+        press("n")
+    keys("rec.bas\n")
+    press("0x55")  # Shift+F2: the SUB's view
+    assert look()[1].strip() == "REC.BAS:S", look()
+    press("end")
+    keys("\nb")
+    for c, code in (("(", 0x0A), ("1", 0x02), (")", 0x0B)):
+        s.send({"cmd": "key", "scancode": code, "ascii": ord(c), "stop": True})
+        s.run_to_key(3000)
+        s.resume(60)
+    keys(".x = 1\n")
+    assert not any(m.upper() in r for m in MSGS for r in look()), look()
+    assert text()[1] == "    B(1).X = 1", text()  # LIST's spelling: not kept as typed
+
     # Views: the module first, each procedure its own, as QBasic loads a file. Shift+F2 the next,
     # Ctrl+F2 the one before, F2 the list; Edit, New FUNCTION.
     (work / "VW.BAS").write_bytes(b"SUB a\r\nPRINT 1\r\nEND SUB\r\na\r\nFUNCTION f\r\nf = 2\r\nEND FUNCTION\r\n")

@@ -53,6 +53,8 @@ Binding *scop_get(const Scop *sc, uint16_t scope, uint16_t name);
 Binding *scop_bind(Scop *sc, uint16_t scope, uint16_t name);
 /* The stack: the module, then procedure p (null none). */
 void scop_enter(Scop *sc, const Proc *p);
+/* Name's scope pushed on the stack: a line checked alone in the procedure being entered. */
+void scop_inside(Scop *sc, uint16_t name);
 /* The scope a new name is made in: the top one not a DEF FN's. */
 uint16_t scop_own(const Scop *sc);
 /* Name's binding from the top of the stack down, a zero one for none; *scope its scope, for none

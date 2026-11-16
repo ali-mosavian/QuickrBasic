@@ -564,6 +564,13 @@ static void decl_deffn(DeclScan *const ds)
     decl_params(ds);
 }
 
+void decl_enter(Decl *const d, const uint16_t proc)
+{
+    d->proc = proc;
+    d->scope = proc;
+    d->type = 0;
+}
+
 /* SUB n, FUNCTION n: in it from here. */
 static void decl_subfn(DeclScan *const ds, const uint8_t flag)
 {
