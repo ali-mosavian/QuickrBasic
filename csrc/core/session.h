@@ -40,6 +40,7 @@
 #include "vm/using.h"
 
 struct Session {
+    Vm vm; /* first: every op handler reads it, at offset 0 */
     Allo allo;
     Ast ast;
     Arry arry;
@@ -75,7 +76,6 @@ struct Session {
     Symb symb;
     Syst syst;
     Usng usng;
-    Vm vm;
 };
 
 /* ---- the debugger --------------------------------------------------------------------------- */
