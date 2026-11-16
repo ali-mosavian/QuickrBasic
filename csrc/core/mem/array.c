@@ -293,7 +293,7 @@ static void arry_each_slot(
         if (arry_is_array(ay, c))
             each(ay, (ArrSlot *)at(symb_cell(sy, c)), f);
 
-    for (uint32_t i = 0; i < vm->nframes; i++) {
+    for (uint32_t i = 0; i < vm_nframes(vm); i++) {
         const Frame *const fr = &vm->frames[i];
 
         if (fr->kind != FRAME_CALL)
@@ -356,7 +356,7 @@ uint32_t arry_free(Arry *const ay, Vm *const vm, const uint16_t id, const Addr r
 
     arry_each_slot(ay, vm, arry_slot_moved, &f);
 
-    for (uint32_t i = 0; i < vm->nframes; i++) { /* the arguments: an element's address */
+    for (uint32_t i = 0; i < vm_nframes(vm); i++) { /* the arguments: an element's address */
         const Call *const c = &vm->frames[i].call;
 
         if (vm->frames[i].kind != FRAME_CALL)

@@ -7,7 +7,7 @@ TEST(step_over_and_out_stop_at_the_stopped_depth)
 {
     S->vm.frames[0].kind = FRAME_CALL;
     S->vm.frames[1].kind = FRAME_GOSUB;
-    S->vm.nframes = 2;
+    S->vm.ftop = S->vm.frames + 2;
     session_step(S, STEP_OVER, true);
     CHECK(S->dbug.mode == DM_PSTEP && S->dbug.pdep == 2);
     session_step(S, STEP_OUT, true);
@@ -28,7 +28,7 @@ TEST(frames_list_the_stop_then_each_callers_line)
 
     S->vm.frames[2] = (Frame){.kind = FRAME_CALL, .ret.line = 25, .call.proc = 2};
 
-    S->vm.nframes = 3;
+    S->vm.ftop = S->vm.frames + 3;
     DebugFrame f[4];
     CHECK(session_frames(S, f, 4) == 3);
     CHECK(f[0].line == 30 && f[0].proc == 2 && f[0].call == 2);

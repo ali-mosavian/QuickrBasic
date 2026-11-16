@@ -469,7 +469,7 @@ nxln: /* to the next stored line; the program's end, the direct line: flow_nextl
 
 gosub: /* a frame to come back to, then the line; a stop, not linked, frames to grow, the direct line:
           flow_gosub's */
-    if (v->stop || !S->link.linked || v->nframes == v->fcap)
+    if (v->stop || !S->link.linked || v->ftop == v->fend)
         goto slow;
 
     {
@@ -481,7 +481,7 @@ gosub: /* a frame to come back to, then the line; a stop, not linked, frames to 
 
         const Place back = {v->line, addr_of(r.ip + 1 + sizeof(LineRef)) - S->allo.cache};
 
-        Frame *const f = &v->frames[v->nframes++];
+        Frame *const f = v->ftop++;
         f->kind = FRAME_GOSUB;
         f->ret = back;
 
@@ -494,11 +494,11 @@ gosub: /* a frame to come back to, then the line; a stop, not linked, frames to 
     goto next;
 
 ret: /* RETURN to a GOSUB's frame; a stop, an event's frame, none: flow_return's */
-    if (v->stop || !v->nframes || v->frames[v->nframes - 1].kind != FRAME_GOSUB)
+    if (v->stop || v->ftop[-1].kind != FRAME_GOSUB) /* none: the floor's FRAME_NONE */
         goto slow;
 
     {
-        const Place back = v->frames[--v->nframes].ret;
+        const Place back = (--v->ftop)->ret;
         S->strg.tmp_used = S->strg.tmp_floor;
         v->line = back.line;
         r.ip = at(S->allo.cache + back.code);
@@ -515,12 +515,12 @@ pcall: /* PCALL proc n npar body: the frame at the arguments, n local cells zero
         const uint32_t n = load16(r.ip + 2);
         const Jump *const j = (const Jump *)(r.ip + 5);
 
-        if (r.sp < v->stklim || (uint32_t)(r.sp - v->stklim) < n || v->nframes == v->fcap ||
+        if (r.sp < v->stklim || (uint32_t)(r.sp - v->stklim) < n || v->ftop == v->fend ||
             j->dest <= TO_NEXT_STMT)
             goto slow;
 
         const Addr fp = addr_of(r.sp);
-        Frame *const f = &v->frames[v->nframes++]; /* field by field: no padding zeroed */
+        Frame *const f = v->ftop++; /* field by field: no padding zeroed */
         f->kind = FRAME_CALL;
         f->ret = (Place){v->line, addr_of(r.ip + 5 + sizeof(Jump)) - S->allo.cache};
 
@@ -547,16 +547,16 @@ pcall: /* PCALL proc n npar body: the frame at the arguments, n local cells zero
 /* PRET: the call on the top frame ended, its arguments popped; a stop, another frame on top:
    flow_pret's. */
 #define PRET_RUN(result)                                                                           \
-    if (v->stop || !v->nframes || v->frames[v->nframes - 1].kind != FRAME_CALL)                    \
+    if (v->stop || v->ftop[-1].kind != FRAME_CALL)                                                 \
         goto slow;                                                                                 \
                                                                                                    \
     {                                                                                              \
-        const Frame *const f = &v->frames[v->nframes - 1];                                         \
+        const Frame *const f = v->ftop - 1;                                                        \
         const Call c = f->call;                                                                    \
         const Place back = f->ret;                                                                 \
         [[maybe_unused]]                                                                           \
         const Cell x = (result);                                                                   \
-        v->nframes--;                                                                              \
+        v->ftop--;                                                                                 \
         r.sp = (Cell *)at(c.fp) + 2 * c.npar;                                                      \
         r.fp = v->fp = c.caller;                                                                   \
         S->strg.tmp_used = S->strg.tmp_floor; /* the callee's */                                   \

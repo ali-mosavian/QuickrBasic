@@ -83,7 +83,15 @@ enum {
     DCODE_SIZE = CACHE0 - DCODE, /* the direct line's room in the cache */
 };
 
-void flow_init(Session *const S) { S->flow.text = allo_carve(&S->allo, DSZ + 2); }
+static bool frames_hold(Vm *vm, uint32_t n);
+
+void flow_init(Session *const S)
+{
+    S->flow.text = allo_carve(&S->allo, DSZ + 2);
+
+    if (!S->vm.frames && !frames_hold(&S->vm, 0))
+        fault_error(&S->fault, E_OM);
+}
 
 static inline uint8_t *cache_at(const Allo *const al, const uint32_t off)
 {
@@ -185,10 +193,27 @@ static void go_to(Vm *const vm, const Allo *const al, const Place p)
 
 /* ---- frames --------------------------------------------------------------------------------- */
 
+/* Room for n frames, the floor below them: false, past MAX_FRAMES or no memory. */
+static bool frames_hold(Vm *const vm, const uint32_t n)
+{
+    const uint32_t had = vm->frames ? vm_nframes(vm) : 0;
+    Frame *floor = vm->frames ? vm->frames - 1 : nullptr;
+    uint32_t cap = vm->frames ? (uint32_t)(vm->fend - floor) : 0;
+
+    if (n > MAX_FRAMES || !GROW(floor, cap, n + 1))
+        return false;
+
+    floor->kind = FRAME_NONE;
+    vm->frames = floor + 1;
+    vm->ftop = vm->frames + had;
+    vm->fend = floor + cap;
+    return true;
+}
+
 /* Room for one more frame: false, MAX_FRAMES of them or no memory. */
 static bool frame_room(Vm *const vm)
 {
-    return vm->nframes < MAX_FRAMES && GROW(vm->frames, vm->fcap, vm->nframes + 1);
+    return vm->ftop < vm->fend || frames_hold(vm, vm_nframes(vm) + 1);
 }
 
 Frame *flow_push(Vm *const vm, const Allo *const al, Fault *const f, const FrameKind kind)
@@ -196,23 +221,20 @@ Frame *flow_push(Vm *const vm, const Allo *const al, Fault *const f, const Frame
     if (!frame_room(vm))
         fault_error(f, E_OS);
 
-    Frame *const fr = &vm->frames[vm->nframes++];
+    Frame *const fr = vm->ftop++;
     *fr = (Frame){.kind = kind, .ret = flow_here(vm, al)};
 
     return fr;
 }
 
-static Frame *top_frame(Vm *const vm)
-{
-    return vm->nframes ? &vm->frames[vm->nframes - 1] : nullptr;
-}
+static Frame *top_frame(Vm *const vm) { return vm->ftop > vm->frames ? vm->ftop - 1 : nullptr; }
 
 /* Drop f and the frames above it. */
-static void pop_to(Vm *const vm, const Frame *const f) { vm->nframes = (uint32_t)(f - vm->frames); }
+static void pop_to(Vm *const vm, const Frame *const f) { vm->ftop = vm->frames + (f - vm->frames); }
 
 Frame *flow_find(Vm *const vm, const FrameKind kind)
 {
-    for (uint32_t i = vm->nframes; i-- > 0;)
+    for (uint32_t i = vm_nframes(vm); i-- > 0;)
         if (vm->frames[i].kind == kind)
             return &vm->frames[i];
 
@@ -437,7 +459,7 @@ void flow_pcall(Session *const S)
     vm->fp = addr_of(vm->sp);
     vm->sp -= n;
     memset(vm->sp, 0, n * sizeof(Cell));
-    vm->frames[vm->nframes++] = (Frame){
+    *vm->ftop++ = (Frame){
         .kind = FRAME_CALL,
         .ret = {vm->line, cache_off(&S->allo, call + 4 + sizeof(Jump))},
         .call = {
@@ -570,7 +592,7 @@ uint32_t flow_handler(Session *const S)
 {
     Frame *h = nullptr;
 
-    for (uint32_t i = S->vm.nframes; i-- > 0 && !h;)
+    for (uint32_t i = vm_nframes(&S->vm); i-- > 0 && !h;)
         if (S->vm.frames[i].kind == FRAME_CALL && S->vm.frames[i].call.on_error)
             h = &S->vm.frames[i];
     if (!h)
@@ -701,7 +723,7 @@ void flow_end(Session *const S)
 
     fault_check(&S->fault, chnl_closeall(&S->chnl));
     S->vm.sp = S->vm.rsp;
-    S->vm.nframes = 0;
+    S->vm.ftop = S->vm.frames;
     S->vm.fp = 0;
     repl_ready(S);
 }

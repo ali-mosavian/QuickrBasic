@@ -113,7 +113,8 @@ typedef struct {
     uint32_t code;
 } Place;
 
-typedef enum : uint8_t { FRAME_GOSUB, FRAME_EVENT, FRAME_CALL } FrameKind;
+/* NONE: the floor below the first frame. */
+typedef enum : uint8_t { FRAME_GOSUB, FRAME_EVENT, FRAME_CALL, FRAME_NONE } FrameKind;
 
 /* A SUB or FUNCTION running. */
 typedef struct {
@@ -147,9 +148,9 @@ typedef struct Vm {
     Cell *stktop;  /* the data stack's region's top; its base stktop - STKSZ/8 */
     Addr fp;       /* the running procedure's frame: its link cell, locals below, arguments above */
 
-    Frame *frames; /* fcap of them, grown to MAX_FRAMES as calls nest */
-    uint32_t nframes;
-    uint32_t fcap;
+    Frame *frames; /* the first; frames[-1] the floor, FRAME_NONE */
+    Frame *ftop;   /* past the last */
+    Frame *fend;   /* past the room, grown to MAX_FRAMES as calls nest */
 
     uint32_t line;         /* the running line */
     uint16_t lnum;         /* a line number to find, as prog_find's */
@@ -174,6 +175,8 @@ typedef struct Vm {
     bool running; /* exec_run's loop is on the C stack: vm.loop holds */
     jmp_buf loop; /* exec_run's: flow_trap comes back into the loop */
 } Vm;
+
+static inline uint32_t vm_nframes(const Vm *const v) { return (uint32_t)(v->ftop - v->frames); }
 
 static inline void exec_counted(Vm *const vm)
 {

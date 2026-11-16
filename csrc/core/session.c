@@ -62,7 +62,7 @@ bool session_stopped_at(Session *const S, DebugPos *const pos)
 
 void session_drop_stop(Session *const S)
 {
-    S->vm.nframes = 0;
+    S->vm.ftop = S->vm.frames;
     S->vm.fp = 0;
     S->vm.cont.line = 0;
 }
@@ -96,7 +96,7 @@ uint32_t session_frames(const Session *const S, DebugFrame out[], const uint32_t
     uint32_t n = 0;
     uint32_t line = S->vm.cont.line;
 
-    for (int32_t i = (int32_t)S->vm.nframes - 1; n < max;) {
+    for (int32_t i = (int32_t)vm_nframes(&S->vm) - 1; n < max;) {
         const int32_t c = call_from(&S->vm, i);
         out[n++] =
             (DebugFrame){.line = line, .call = c, .proc = c < 0 ? 0 : S->vm.frames[c].call.proc};
@@ -125,7 +125,7 @@ Addr session_cell(
 
 bool session_in_direct(const Session *const S)
 {
-    for (uint32_t i = 0; i < S->vm.nframes; i++)
+    for (uint32_t i = 0; i < vm_nframes(&S->vm); i++)
         if (S->vm.frames[i].ret.line == DLINE)
             return true;
 
@@ -158,7 +158,7 @@ void session_drop(Session *const S)
     S->vm.cont.line = 0;
     S->link.cursor = 0;
     S->link.linked = false;
-    S->vm.nframes = 0;
+    S->vm.ftop = S->vm.frames;
     S->vm.fp = 0;
     prog_terminate(&S->prog);
     session_clear(S);

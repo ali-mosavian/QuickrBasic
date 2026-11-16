@@ -84,7 +84,7 @@ uint32_t dbug_depth(const Vm *const vm)
 {
     uint32_t n = 0;
 
-    for (uint32_t i = 0; i < vm->nframes; i++)
+    for (uint32_t i = 0; i < vm_nframes(vm); i++)
         n += vm->frames[i].kind == FRAME_CALL || vm->frames[i].kind == FRAME_GOSUB;
 
     return n;
@@ -126,7 +126,7 @@ static void save(Session *const S, Saved *const s)
         .opip = S->vm.opip,
         .sp = S->vm.sp,
         .rsp = S->vm.rsp,
-        .nframes = S->vm.nframes,
+        .nframes = vm_nframes(&S->vm),
         .fp = S->vm.fp,
         .cont = S->vm.cont,
         .line = S->vm.line,
@@ -156,7 +156,7 @@ static void restore(Session *const S, const Saved *const s)
     S->vm.opip = s->opip;
     S->vm.sp = s->sp;
     S->vm.rsp = s->rsp;
-    S->vm.nframes = s->nframes;
+    S->vm.ftop = S->vm.frames + s->nframes;
     S->vm.fp = s->fp;
     S->vm.cont = s->cont;
     S->vm.line = s->line;

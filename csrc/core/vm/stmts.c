@@ -518,7 +518,7 @@ void stmt_rungo(Session *const S, const uint32_t line)
     S->vm.err.active = false;
     S->vm.err.code = 0;
     S->vm.err.line = 0;
-    S->vm.nframes = 0;
+    S->vm.ftop = S->vm.frames;
     S->vm.fp = 0;
     S->strg.tmp_floor = 0;
     flow_jump(S, line);
@@ -578,7 +578,7 @@ void stmt_cont(Session *const S)
 void stmt_clr(Session *const S)
 {
     session_clear(S);
-    S->vm.nframes = 0;
+    S->vm.ftop = S->vm.frames;
     S->vm.fp = 0;
 }
 

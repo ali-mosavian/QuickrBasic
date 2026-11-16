@@ -196,7 +196,7 @@ static void report(Session *const S, const uint8_t code)
         return;
     }
 
-    S->vm.nframes = 0;
+    S->vm.ftop = S->vm.frames;
 
     S->vm.fp = 0;
     S->vm.cont.line = 0;
@@ -243,7 +243,7 @@ void repl_run(Session *const S)
     comp_line(&S->comp);
     flow_dcode(S);
     const uint32_t eol = S->link.eol - S->allo.cache; /* an older direct line's frames: its EOL */
-    for (uint32_t i = 0; i < S->vm.nframes; i++)
+    for (uint32_t i = 0; i < vm_nframes(&S->vm); i++)
         if (S->vm.frames[i].ret.line == DLINE)
             S->vm.frames[i].ret.code = eol;
 
@@ -307,7 +307,7 @@ static void read_lines(Session *const S)
         if (r == ENTER_DIRECT)
             return;
         if (r == ENTER_STORED) {
-            S->vm.nframes = 0;
+            S->vm.ftop = S->vm.frames;
             S->vm.fp = 0;
         }
     }
