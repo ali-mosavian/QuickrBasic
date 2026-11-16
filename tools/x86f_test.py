@@ -242,6 +242,9 @@ CASES = {
     "qb_chain": ('COMMON a%, s$, d#, x(), t AS SHORT\r\nDIM x(1 TO 3)\r\na% = 7: s$ = "hi": d# = 1.25: x(3) = 9: t = -2\r\n'
                  'OPEN "QB_CH.TXT" FOR OUTPUT AS #1\r\nPRINT "a"\r\nCHAIN "QB_CH2"\r\nPRINT "no"\r\n',
                  "a\r\n 7 hi 1.25  9  1 -2  0 \r\ne 53 \r\n", "no"),
+    # COMMON's values past the CHAIN buffer's first bytes: it grows.
+    "qb_chainbig": ('COMMON s$, x()\r\nDIM x(600)\r\nx(500) = 5: s$ = STRING$(3000, "z")\r\nCHAIN "QB_CH3"\r\n',
+                    " 3000 z 5 \r\n", None),
     # Declarations were by name, program-wide: a module's DIM AS typed a SUB's local, a SUB's DIM AS
     # and CONST the module's and other SUBs' (Type mismatch; the module's k became 2), and a GOSUB
     # took another procedure's label. Each scope is now its own, the module's seen when shared.
@@ -637,6 +640,7 @@ REPL = {
 
 # Companions the cases read, beside them.
 FILES = {
+    "QB_CH3.BAS": b'COMMON q$, y()\r\nPRINT LEN(q$); RIGHT$(q$, 1); y(500)\r\n',
     "QB_CH2.BAS": b'COMMON b%, q$, e#, y(), u AS SHORT\r\nPRINT b%; q$; e#; y(3); LBOUND(y); u; t\r\n'
                   b'PRINT #1, "kept": CLOSE #1\r\nON ERROR GOTO h\r\nCHAIN "NONE"\r\nEND\r\nh: PRINT "e"; ERR: RESUME NEXT\r\n',
 }

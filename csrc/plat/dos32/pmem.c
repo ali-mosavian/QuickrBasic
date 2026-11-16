@@ -2,14 +2,15 @@
  *
  * # How it works
  * The flat segment from 0, and DPMI's largest free block, less what the host keeps (64K) and the
- * pool pmem_block hands out from its top.
+ * C side's heap (util/heap.h) at its top.
  */
 #include "dos.h"
 #include "plat/pmem.h"
+#include "util/heap.h"
 
-enum { HOST_ROOM = 0x10000, POOL = 0x20000, PAGE_MASK = 0xFFF };
+enum { HOST_ROOM = 0x10000, POOL = 0x100000, PAGE_MASK = 0xFFF };
 
-static uint8_t *pool, *pool_end; /* pmem_block's, sbrk's way */
+static Heap heap;
 
 static uint32_t dpmi_info[12]; /* DPMI 0500h's buffer: the largest free block first */
 
@@ -36,17 +37,10 @@ bool pmem_init(const uint32_t least, Addr *const lo, Addr *const hi)
     const uint32_t linear = pdos_pair(r.ebx, r.ecx);
     *lo = linear - pdos_ds_base();
     *hi = *lo + size - POOL;
-    pool = at(*hi);
-    pool_end = pool + POOL;
+    heap_init(&heap, at(*hi), POOL);
     return true;
 }
 
-void *pmem_block(const size_t size)
-{
-    if ((size_t)(pool_end - pool) < size)
-        return nullptr;
+void *pmem_resize(void *const p, const size_t size) { return heap_resize(&heap, p, size); }
 
-    void *const p = pool;
-    pool += size;
-    return p;
-}
+void pmem_free(void *const p) { heap_free(&heap, p); }

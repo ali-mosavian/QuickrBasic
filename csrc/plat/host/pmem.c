@@ -25,4 +25,6 @@ bool pmem_init(const uint32_t least, Addr *const lo, Addr *const hi)
     return true;
 }
 
-void *pmem_block(const size_t size) { return malloc(size); }
+void *pmem_resize(void *const p, const size_t size) { return realloc(p, size ? size : 1); }
+
+void pmem_free(void *const p) { free(p); }

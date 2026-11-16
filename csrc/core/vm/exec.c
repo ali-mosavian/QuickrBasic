@@ -467,9 +467,9 @@ nxln: /* to the next stored line; the program's end, the direct line: flow_nextl
 
     goto next;
 
-gosub: /* a frame to come back to, then the line; a stop, not linked, frames full, the direct line:
+gosub: /* a frame to come back to, then the line; a stop, not linked, frames to grow, the direct line:
           flow_gosub's */
-    if (v->stop || !S->link.linked || v->nframes == MAX_FRAMES)
+    if (v->stop || !S->link.linked || v->nframes == v->fcap)
         goto slow;
 
     {
@@ -515,7 +515,7 @@ pcall: /* PCALL proc n npar body: the frame at the arguments, n local cells zero
         const uint32_t n = load16(r.ip + 2);
         const Jump *const j = (const Jump *)(r.ip + 5);
 
-        if (r.sp < v->stklim || (uint32_t)(r.sp - v->stklim) < n || v->nframes == MAX_FRAMES ||
+        if (r.sp < v->stklim || (uint32_t)(r.sp - v->stklim) < n || v->nframes == v->fcap ||
             j->dest <= TO_NEXT_STMT)
             goto slow;
 

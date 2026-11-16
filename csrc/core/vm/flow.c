@@ -69,6 +69,7 @@
 #include "vm/debug.h"
 #include "vm/event.h"
 #include "vm/stmts.h"
+#include "util/grow.h"
 
 /* stopchk: the STOP check at jumps, line ends, RETURN, NEXT; true: return from the handler. */
 static inline bool exec_stopchk(Session *const S) { return S->vm.stop && exec_brk(S); }
@@ -184,9 +185,15 @@ static void go_to(Vm *const vm, const Allo *const al, const Place p)
 
 /* ---- frames --------------------------------------------------------------------------------- */
 
+/* Room for one more frame: false, MAX_FRAMES of them or no memory. */
+static bool frame_room(Vm *const vm)
+{
+    return vm->nframes < MAX_FRAMES && GROW(vm->frames, vm->fcap, vm->nframes + 1);
+}
+
 Frame *flow_push(Vm *const vm, const Allo *const al, Fault *const f, const FrameKind kind)
 {
-    if (vm->nframes == MAX_FRAMES)
+    if (!frame_room(vm))
         fault_error(f, E_OS);
 
     Frame *const fr = &vm->frames[vm->nframes++];
@@ -423,7 +430,7 @@ void flow_pcall(Session *const S)
     const uint8_t proc = *call;
     const uint32_t n = load16(call + 1);
 
-    if (vm->sp < vm->stklim || (uint32_t)(vm->sp - vm->stklim) < n || vm->nframes == MAX_FRAMES)
+    if (vm->sp < vm->stklim || (uint32_t)(vm->sp - vm->stklim) < n || !frame_room(vm))
         repl_error(S, E_OS);
 
     const Addr caller = vm->fp;

@@ -147,8 +147,9 @@ typedef struct Vm {
     Cell *stktop;  /* the data stack's region's top; its base stktop - STKSZ/8 */
     Addr fp;       /* the running procedure's frame: its link cell, locals below, arguments above */
 
-    Frame frames[MAX_FRAMES];
+    Frame *frames; /* fcap of them, grown to MAX_FRAMES as calls nest */
     uint32_t nframes;
+    uint32_t fcap;
 
     uint32_t line;         /* the running line */
     uint16_t lnum;         /* a line number to find, as prog_find's */

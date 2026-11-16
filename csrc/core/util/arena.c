@@ -1,7 +1,7 @@
 /* A bump allocator: any number at once, each growing by blocks from the platform.
  *
  * # How it works
- * Blocks come from pmem_block. An allocation is zeroed and aligned for any object, and lives until
+ * Blocks come from pmem_resize. An allocation is zeroed and aligned for any object, and lives until
  * the arena is reset, all at once; the blocks are kept for the next use. arena_grow extends the
  * last allocation in place when there is room, else copies. Not the BASIC arena (base.h), which a
  * program sees.
@@ -32,7 +32,7 @@ static bool next_block(Arena *const a, const size_t size)
             break;
     if (!b) {
         const size_t room = size > a->chunk ? size : a->chunk;
-        b = pmem_block(sizeof *b + room);
+        b = pmem_resize(nullptr, sizeof *b + room);
 
         if (!b)
             return false;

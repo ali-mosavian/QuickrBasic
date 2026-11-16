@@ -101,8 +101,10 @@ typedef struct Comp {
     /* A typed line's body, LMAX+64 bytes after the byte before it (Line.sep's place), carved
        from the arena at start: a literal's Addr points into it. */
     uint8_t *cbuf;
-    /* The compiled code, before link_xlate streams it into the cache. */
-    uint8_t xbuf[XLIM + COMP_TAIL];
+    /* The compiled code, before link_xlate streams it into the cache: xcap bytes, grown to
+       XLIM + COMP_TAIL as a line needs. */
+    uint8_t *xbuf;
+    uint32_t xcap;
 } Comp;
 /* TVAR.info's ET_* to its kind: 0 FLOAT, 1 INT, 2 STRING, SK_DBL DOUBLE. */
 extern const uint8_t comp_etkind[7];
@@ -123,7 +125,7 @@ static inline uint8_t comp_suffixof(const uint8_t *const p)
 }
 
 /* Compiling */
-void comp_init(Comp *C); /* comp_cbuf carved (allo_carve) */
+void comp_init(Comp *C); /* comp_cbuf carved (allo_carve), comp_xbuf's first bytes */
 /* Procedure proc compiled, 0 the module: its scopes seen. */
 void comp_proc(Comp *C, uint8_t proc);
 Status comp_line(Comp *C); /* the direct line in comp_cbuf, to comp_xbuf: comp_text's */

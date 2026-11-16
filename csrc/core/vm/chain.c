@@ -32,6 +32,7 @@
 #include "mem/symbols.h"
 #include "vm/flow.h"
 #include "vm/stmts.h"
+#include "util/grow.h"
 
 /* ---- the kinds ------------------------------------------------------------------------------ */
 
@@ -67,35 +68,29 @@ static uint32_t elem_count(const ArrayHdr *const a)
 
 /* ---- out: the values to the buffer ---------------------------------------------------------- */
 
-/* n bytes from src to *p. Out of memory: past the buffer. */
-static void put(
-    Chai *const ch,
-    Fault *const f,
-    uint8_t **const p,
-    const void *const src,
-    const uint32_t n
-)
+/* n bytes from src after the buffer's len. Out of memory: past CHAIN_BUF_SIZE. */
+static void put(Chai *const ch, Fault *const f, const void *const src, const uint32_t n)
 {
-    if (*p + n > ch->buf + CHAIN_BUF_SIZE)
+    if (ch->len + n > CHAIN_BUF_SIZE || !GROW(ch->buf, ch->cap, ch->len + n))
         fault_error(f, E_OM);
 
-    memcpy(*p, src, n);
-    *p += n;
+    memcpy(ch->buf + ch->len, src, n);
+    ch->len += n;
 }
 
 /* The string of the Desc at desc: len:2, chars. */
-static void put_string(Chai *const ch, Fault *const f, uint8_t **const p, const Addr desc)
+static void put_string(Chai *const ch, Fault *const f, const Addr desc)
 {
     const Desc s = strg_peek(desc);
-    put(ch, f, p, &s.len, sizeof s.len);
-    put(ch, f, p, at(s.ptr), s.len);
+    put(ch, f, &s.len, sizeof s.len);
+    put(ch, f, at(s.ptr), s.len);
 }
 
-static void put_array(Session *const S, uint8_t **const p, const uint16_t id)
+static void put_array(Session *const S, const uint16_t id)
 {
     const Addr hdr = arry_slot(&S->arry, id)->hdr;
     const uint8_t dims = hdr ? ((const ArrayHdr *)at(hdr))->dims : 0;
-    put(&S->chai, &S->fault, p, &dims, 1);
+    put(&S->chai, &S->fault, &dims, 1);
 
     if (!hdr)
         return;
@@ -103,38 +98,37 @@ static void put_array(Session *const S, uint8_t **const p, const uint16_t id)
     const ArrayHdr *const a = (const ArrayHdr *)at(hdr);
     put(&S->chai,
         &S->fault,
-        p,
         a->count,
         dims * 2u * sizeof a->count[0]); /* the counts, the lower bounds */
     const uint32_t n = elem_count(a);
 
     if (is_string(kind_of(&S->symb, &S->fault, id)))
         for (uint32_t i = 0; i < n; i++)
-            put_string(&S->chai, &S->fault, p, a->data + i * DSZ);
+            put_string(&S->chai, &S->fault, a->data + i * DSZ);
     else
-        put(&S->chai, &S->fault, p, at(a->data), arry_esize(&S->arry, id) * n);
+        put(&S->chai, &S->fault, at(a->data), arry_esize(&S->arry, id) * n);
 }
 
 /* COMMON's variables' values to the buffer. Out of memory: more than it holds. */
 static void save(Session *const S)
 {
-    uint8_t *p = S->chai.buf;
+    S->chai.len = 0;
 
     for (uint32_t i = 0; i < S->chai.n; i++) {
         const uint16_t id = S->chai.id[i];
         const uint8_t kind = kind_of(&S->symb, &S->fault, id);
-        put(&S->chai, &S->fault, &p, &kind, 1);
+        put(&S->chai, &S->fault, &kind, 1);
 
         if (is_array(kind))
-            put_array(S, &p, id);
+            put_array(S, id);
         else if (is_string(kind))
-            put_string(&S->chai, &S->fault, &p, symb_cell(&S->symb, id));
+            put_string(&S->chai, &S->fault, symb_cell(&S->symb, id));
         else
-            put(&S->chai, &S->fault, &p, at(symb_cell(&S->symb, id)), number_size(kind));
+            put(&S->chai, &S->fault, at(symb_cell(&S->symb, id)), number_size(kind));
     }
 
     S->chai.next = S->chai.buf;
-    S->chai.end = p;
+    S->chai.end = S->chai.buf + S->chai.len;
 }
 
 /* ---- in: the values from the buffer --------------------------------------------------------- */

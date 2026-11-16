@@ -51,7 +51,6 @@
 
 void link_compile(Comp *const C, const uint32_t line)
 {
-    C->code->buf = C->xbuf;
     C->line = line;
     comp_proc(C, blok_procof(C->blok, line));
     decl_deftype(C->decl, C->symb, line);

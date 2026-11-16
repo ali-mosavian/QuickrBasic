@@ -1,0 +1,71 @@
+/* Buffers that grow on demand: util/heap, and the session's past their first bytes. */
+#include <stdio.h>
+#include "session.h"
+#include "unit.h"
+#include "util/heap.h"
+
+/* In place into the free bytes after it; else moved, its bytes kept; freed bytes taken again. */
+TEST(heap_grows_in_place_moves_and_reuses)
+{
+    static alignas(max_align_t) uint8_t mem[4096];
+    Heap h;
+    heap_init(&h, mem, sizeof mem);
+    uint8_t *const a = heap_resize(&h, nullptr, 100);
+    CHECK(a);
+    memset(a, 7, 100);
+    CHECK(heap_resize(&h, a, 1000) == a); /* the rest is free */
+    uint8_t *const b = heap_resize(&h, nullptr, 100);
+    CHECK(b && b > a);
+    uint8_t *const c = heap_resize(&h, a, 2000); /* b after it: moved */
+    CHECK(c && c != a && c[0] == 7 && c[99] == 7);
+    CHECK(heap_resize(&h, nullptr, 900) == a);     /* a's bytes free again */
+    CHECK(!heap_resize(&h, b, 8000) && b[0] == 0); /* no room: b kept */
+    heap_free(&h, c);
+    CHECK(heap_resize(&h, b, 2500) == b); /* into c's freed bytes */
+}
+
+/* Calls nest past the frames' first block, to MAX_FRAMES: each frame kept as more grow. */
+TEST(frames_grow_as_calls_nest)
+{
+    static const char *const lines[] = {
+        "10 PRINT f&(700)",
+        "20 FUNCTION f& (n%)",
+        "30 IF n% > 0 THEN f& = n% + f&(n% - 1)",
+        "40 END FUNCTION",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 245350 \r");
+}
+
+TEST(endless_calls_end_out_of_stack_space)
+{
+    static const char *const lines[] = {
+        "10 s 0",
+        "20 SUB s (n%)",
+        "30 s n% + 1",
+        "40 END SUB",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == E_OS);
+}
+
+/* A line whose code is past the code buffer's first bytes: compiled again into a larger one, its
+   CONST no Duplicate definition. */
+TEST(a_long_lines_code_grows_its_buffer)
+{
+    static char line[16384];
+    int n = snprintf(line, sizeof line, "10 CONST k = 2: a = 0");
+
+    for (uint32_t i = 0; i < 1000; i++)
+        n += snprintf(line + n, sizeof line - (size_t)n, ": a = a + 1");
+
+    snprintf(line + n, sizeof line - (size_t)n, ": PRINT a * k");
+    const char *const lines[] = {line, nullptr};
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 2000 \r");
+    CHECK(S->comp.xcap > 0x1000);
+}

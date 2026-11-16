@@ -43,7 +43,7 @@
  * | cm_do | token's dispatch | MIRROR |
  * | cm_end, cm_w, cm_skip | done and the end of comp_text, in code_opw, comp_skipdata | MIRROR |
  * | g_cbuf (g_cbufh before it) | comp.cbuf | D4 |
- * | g_xbuf | comp.xbuf[XLIM + COMP_TAIL] | MIRROR |
+ * | g_xbuf | comp.xbuf, xcap | MIRROR; grown, the line compiled again |
  * | g_etk | comp_etkind[7] | MIRROR |
  * | g_dlprc, g_lmod | comp.dlproc, comp.modlabel | MIRROR |
  * | g_psexp, g_psor, g_pscm, g_dmask | statics; comp.dmask | MIRROR |
@@ -78,7 +78,10 @@
 #include "mem/scope.h"
 #include "mem/symbols.h"
 #include "num/fpmath.h"
+#include "util/grow.h"
 #include "vm/debug.h"
+
+enum { XINIT = 0x1000, XMAX = XLIM + COMP_TAIL }; /* comp.xbuf's bytes at first, at most */
 
 const uint8_t comp_etkind[7] = {0, 1, 1, 0, SK_DBL, 2, 1};
 
@@ -88,6 +91,9 @@ void comp_init(Comp *const C)
 {
     C->cbuf = at(allo_carve(C->allo, 1 + LMAX + 64)) +
               1; /* the byte before: lexr's line before the body */
+    if (!GROW(C->xbuf, C->xcap, XINIT))
+        fault_error(C->fault, E_OM);
+
     C->code->buf = C->xbuf;
     C->dfa = 0xFFFF;
     ast_init(C->ast, C->fault);
@@ -778,7 +784,7 @@ static void stmts(Comp *const C)
     }
 }
 
-Status comp_text(Comp *const C, const uint8_t *const body)
+static Status comp_try(Comp *const C, const uint8_t *const body)
 {
     C->depth = 0;
     C->body = body;
@@ -790,7 +796,7 @@ Status comp_text(Comp *const C, const uint8_t *const body)
     C->code->iload = C->code->iloadend = C->code->cmpend = nullptr;
     C->code->out = C->code->buf;
     C->code->full = false;
-    C->map = C->code->buf + XLIM + COMP_TAIL; /* the map grows down from the top */
+    C->map = C->code->buf + (C->xcap < XMAX ? C->xcap : XMAX); /* the map grows down from the top */
     C->code->lim = C->map - COMP_TAIL;
     const uint8_t *colon = comp_label(body); /* a label: on from its ':' */
     C->p = colon ? colon : body - 1;
@@ -810,6 +816,18 @@ Status comp_text(Comp *const C, const uint8_t *const body)
     return c.code;
 }
 
+Status comp_text(Comp *const C, const uint8_t *const body)
+{
+    for (;;) {
+        C->code->buf = C->xbuf;
+        const Status st = comp_try(C, body);
+        const uint32_t twice = 2 * C->xcap < XMAX ? 2 * C->xcap : XMAX;
+
+        if (!C->code->full || C->xcap >= XMAX || !GROW(C->xbuf, C->xcap, twice))
+            return st;
+    }
+}
+
 void comp_proc(Comp *const C, const uint8_t proc)
 {
     C->proc = proc;
@@ -822,7 +840,6 @@ Status comp_line(Comp *const C)
     C->ndfor = 0;
     comp_proc(C, C->dlproc);
     decl_deftype(C->decl, C->symb, 0xFFFFFFFF); /* the program's end's DEFtypes */
-    C->code->buf = C->xbuf;
     return comp_text(C, C->cbuf);
 }
 
