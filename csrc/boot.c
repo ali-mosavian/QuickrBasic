@@ -34,7 +34,6 @@ void boot(Session *const S, const FrontEnd *const fe)
 {
     S->repl.fe = fe;
     S->fault.raise = repl_fault;
-    scop_init(&S->scop, &S->fault);
     decl_init(&S->decl, &S->fault);
     S->names.intern = repl_intern;
     lexr_init(&S->lexr, &S->fault, &S->names);
@@ -47,6 +46,8 @@ void boot(Session *const S, const FrontEnd *const fe)
         pfil_write(PFIL_STDERR, msg, sizeof msg - 1, &put);
         psys_exit(1);
     }
+
+    scop_init(&S->scop, &S->fault); /* its arena's first block from the C side's heap */
 
     allo_init(
         &S->allo,

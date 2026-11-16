@@ -1,7 +1,8 @@
 /* The arena on the host.
  *
  * # How it works
- * One zeroed block. Addr 0 stays unused, as on DOS32.
+ * One zeroed block. Addr 0 stays unused, as on DOS32. The C side's heap is libc's, from pmem_init
+ * on.
  */
 #include <stdlib.h>
 #include "plat/pmem.h"
@@ -25,6 +26,10 @@ bool pmem_init(const uint32_t least, Addr *const lo, Addr *const hi)
     return true;
 }
 
-void *pmem_resize(void *const p, const size_t size) { return realloc(p, size ? size : 1); }
+/* Null before pmem_init, as DOS32's heap is. */
+void *pmem_resize(void *const p, const size_t size)
+{
+    return mem_base ? realloc(p, size ? size : 1) : nullptr;
+}
 
 void pmem_free(void *const p) { free(p); }
