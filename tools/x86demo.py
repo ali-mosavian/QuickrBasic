@@ -12,7 +12,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 LLRM = Path("/Users/alim/work/personal/llrm-qbmac/tools")
 sys.path[:0] = [str(LLRM), str(LLRM / "dosbatch")]
@@ -26,8 +26,10 @@ IMG = ROOT / "docs/img"
 IDE = Path(os.environ.get("X86_IDE", ROOT / "build/c/ide32.exe"))
 
 ALT_F, ALT_O, ALT_V = 0x21, 0x18, 0x2F
+BAR, BAR_BG, BAR_FG = 40, (24, 24, 27), (235, 235, 240)  # the caption's strip under the screen
+FONT = ImageFont.truetype("/System/Library/Fonts/Helvetica.ttc", 20)
 F2, F5, F6, F8, F9, SHIFT_F2, CTRL_F2, INS = 0x3C, 0x3F, 0x40, 0x42, 0x43, 0x55, 0x5F, 0x52
-TAB, ENTER, ESC, BKSP, DOWN, CTRL_HOME, CTRL_END, END = 0x0F, 0x1C, 0x01, 0x0E, 0x50, 0x77, 0x75, 0x4F
+TAB, ENTER, ESC, BKSP, UP, DOWN, CTRL_HOME, CTRL_END, END = 0x0F, 0x1C, 0x01, 0x0E, 0x48, 0x50, 0x77, 0x75, 0x4F
 
 # The themes as Options > Theme lists them: their names and hot letters.
 THEMES = [
@@ -78,12 +80,19 @@ END SUB
 
 
 class Film:
-    """Frames and how long each shows."""
+    """Frames, each with the caption under it, and how long each shows."""
 
     def __init__(self) -> None:
         self.frames: list[tuple[Image.Image, int]] = []
+        self.caption = ""
 
-    def add(self, img: Image.Image, ms: int) -> None:
+    def add(self, screen: Image.Image, ms: int) -> None:
+        img = Image.new("RGB", (screen.width, screen.height + BAR), BAR_BG)
+        img.paste(screen)
+        draw = ImageDraw.Draw(img)
+        box = draw.textbbox((0, 0), self.caption, font=FONT)
+        x, y = (img.width - box[2]) // 2, screen.height + (BAR - box[3]) // 2
+        draw.text((x, y), self.caption, font=FONT, fill=BAR_FG)
         if self.frames and self.frames[-1][0].tobytes() == img.tobytes():
             prev, was = self.frames[-1]
             self.frames[-1] = (prev, was + ms)
@@ -112,18 +121,35 @@ class Ide:
         (self.work / "BASIC.HLP").write_bytes((ROOT / "src/ui/basic.hlp").read_bytes())
         (self.work / "DEMO.BAS").write_bytes(DEMO.replace("\n", "\r\n").encode())
         self.s = qbplay.Session(self.work)
-        # INT 33h answering nothing: no mouse, so no mouse cursor in the pictures
-        self.s.send({"cmd": "mem_write_linear", "addr": 0x520, "data": "cf"})
+        # INT 33h replaced: AX=3 answers from 0:0540h, the rest return; no cursor in the pictures
+        stub = "3d030075102e8b1e40052e8b0e42052e8b164405cfcf"
+        self.s.send({"cmd": "mem_write_linear", "addr": 0x520, "data": stub})
         self.s.send({"cmd": "mem_write_linear", "addr": 0x33 * 4, "data": "20050000"})
+        self.mouse(0, 0, False)
         self.s.launch(3000, exe)
         self.s.keys_in_lockstep(["esc"], 3000)  # the first key after the launch is lost
         self.s.resume(100)
         self.s.run_until(lambda: "PRESS ESC" in self.s.screen().upper(), 5000, "the welcome box")
         self.shot = self.work / "shot.png"
 
+    def caption(self, text: str) -> None:
+        self.film.caption = text
+
     def frame(self, ms: int) -> None:
         self.s.snap(self.shot)
         self.film.add(Image.open(self.shot).convert("RGB"), ms)
+
+    def mouse(self, row: int, col: int, down: bool) -> None:
+        state = bytes([int(down), 0, col * 8 % 256, col * 8 // 256, row * 8 % 256, row * 8 // 256])
+        self.s.send({"cmd": "mem_write_linear", "addr": 0x540, "data": state.hex()})
+        self.s.resume(60)
+
+    def drag(self, row: int, cols: range, ms: int) -> None:
+        """The mouse pressed at the first column, moved through the rest, let go: a frame a step."""
+        for col in cols:
+            self.mouse(row, col, True)
+            self.frame(ms)
+        self.mouse(row, cols[-1], False)
 
     def scan(self, code: int, ascii_: int = 0, ms: int = 0) -> None:
         ascii_ = ascii_ or {ESC: 27, ENTER: 13, TAB: 9, BKSP: 8}.get(code, 0)
@@ -172,54 +198,79 @@ class Ide:
 def tour() -> None:
     film = Film()
     ide = Ide(film)
-    ide.frame(1800)  # the welcome box
+    ide.caption("QuickrBasic: QBasic's IDE, rebuilt for 32-bit DOS")
+    ide.frame(2200)
     ide.scan(ESC)
     ide.theme("d")
-    # Open: the code highlighted by the compiler's own lexer
-    ide.menu(ALT_F, "o", ms=500)
+    ide.caption("Syntax highlighting from the compiler's own lexer")
+    ide.menu(ALT_F, "o", ms=400)
     ide.type("demo.bas", ms=60)
     ide.scan(ENTER, 13, 2500)
-    # Typing: free-form lines capitalised, Tab completes, the indent follows the block
+    ide.caption("Completion: only what fits, as the compiler decides")
     ide.keys(CTRL_END)
-    ide.type("\nfor r% = 10 to 90 step 8\n", ms=70)
-    ide.type("cir\t", ms=70)
-    ide.type(" (160, 100), r%, 15\nnext\n", ms=70)
-    ide.frame(1500)
-    # The procedures, F2's list
-    ide.scan(F2, ms=1500)
+    ide.type("\nmsg$ = l", ms=90)
+    ide.frame(2200)
+    ide.type("\t", ms=600)
+    ide.type('"QuickrBasic", 6)\n', ms=60)
+    ide.caption("Tab completes; the indent follows the block")
+    ide.type("for r% = 10 to 90 step 8\n", ms=60)
+    ide.type("cir\t", ms=90)
+    ide.type(" (160, 100), r%, 15\nnext\n", ms=60)
+    ide.frame(1200)
+    ide.caption("Each line checked as it is entered")
+    ide.type("print (1 +\n", ms=70)
+    ide.frame(2200)
     ide.scan(ESC)
-    # Run: the program's own screen, graphics from QBasic's runtime
+    ide.scan(UP)
+    ide.scan(0x15, 0x19, 900)  # Ctrl+Y: the line deleted
+    ide.caption("F2: the program's SUBs and FUNCTIONs")
+    ide.scan(F2, ms=1800)
+    ide.scan(ESC)
+    ide.caption("F5 runs it: QBasic's graphics, sound and runtime")
     ide.run_until_key()
     ide.frame(3000)
     ide.scan(ENTER, 13)
-    # Debug: a breakpoint in Fib, F5 to it, the pane's Watch, Locals and Call stack; F8 steps
+    ide.caption("Windows side by side; drag any line between them")
+    ide.menu(ALT_V, "v")
+    ide.frame(900)
+    ide.drag(5, range(39, 56, 2), 90)
+    ide.frame(500)
+    ide.drag(5, range(55, 26, -2), 90)
+    ide.frame(1200)
+    ide.menu(ALT_V, "v")
+    ide.caption("Debugger: breakpoints, stepping, the call stack")
     ide.scan(SHIFT_F2, ms=900)
     ide.keys(DOWN, DOWN)
     ide.scan(F9, ms=900)
     ide.scan(CTRL_F2)
     ide.scan(F5, ms=1800)
-    # a watch: F6 to the pane, Ins, an expression in the stopped call's scope
+    ide.caption("Watches, in the stopped call's scope")
     ide.scan(F6)
     ide.scan(INS, ms=600)
     ide.type("n% * n%", ms=70)
     ide.scan(ENTER, ms=1200)
     ide.scan(ESC)
+    ide.caption("Locals, the last changed first")
     for _ in range(3):
         ide.scan(F5, ms=1000)
-    # the call stack: a caller's frame, its locals and the line it called from
+    ide.caption("Any caller's frame: its locals, the line it called from")
     ide.scan(F6)
     ide.keys(TAB, TAB, ms=500)
     ide.keys(DOWN, DOWN, ms=500)
     ide.scan(ENTER, ms=2000)
     ide.scan(ESC)
-    for _ in range(3):
+    for _ in range(2):
         ide.scan(F8, ms=800)
-    ide.frame(1200)
-    # Themes, from the Options menu
+    ide.caption("43 and 50 line text modes")
+    ide.menu(ALT_O, "z", ms=900)
+    ide.scan(SCAN["5"], ord("5"), 2500)
+    ide.menu(ALT_O, "z", "2")
+    ide.caption("Nine themes")
     ide.menu(ALT_O, "t", ms=1500)
     ide.scan(ESC)
     ide.scan(ESC)
-    for _, letter in THEMES[2:]:
+    for name, letter in THEMES[2:]:
+        ide.caption(f"Theme: {name}")
         ide.theme(letter, ms=1200)
     ide.close()
     film.save(IMG / "tour.gif")
@@ -231,7 +282,8 @@ def themes() -> None:
     ide.scan(ESC)
     ide.menu(ALT_F, "o")
     ide.type("demo.bas\n", ms=0)
-    for _, letter in THEMES:
+    for name, letter in THEMES:
+        ide.caption(name)
         ide.theme(letter, ms=1600)
     ide.close()
     film.save(IMG / "themes.gif")
