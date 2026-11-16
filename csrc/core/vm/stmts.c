@@ -458,7 +458,10 @@ void stmt_dim(Session *const S)
         return;
     }
 
-    const Addr old = s->hdr;           /* REDIM: the old one goes */
+    const Addr old = s->hdr; /* REDIM: the old one goes; a frame's is fixed */
+
+    if (old && !arry_heap(&S->arry, old))
+        repl_error(S, E_RD);
     if (old && flags & DIM_PRESERVE) { /* the new one made, the old one's elements copied */
         if (dims != ((const ArrayHdr *)at(old))->dims)
             arry_bad_sub(&S->arry);

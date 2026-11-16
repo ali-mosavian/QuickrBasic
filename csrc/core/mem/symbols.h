@@ -35,6 +35,15 @@ typedef struct PACKED {
 } Name; /* TNAM */
 static_assert(sizeof(Var) == 8 && sizeof(VarX) == 8 && sizeof(Name) == 8);
 
+/* A local array's place in its frame (vm/flow.c): what its DIMs asked (dims << 24 | elements;
+   FARR_NEVER: one not constant, or a REDIM), and where link put its header (from vm.fp; 0 the
+   heap's). */
+typedef struct {
+    uint32_t shape;
+    int32_t at;
+} FrameArr;
+enum : uint32_t { FARR_NEVER = 0xFFFFFFFF };
+
 typedef struct Symb {
     Fault *fault;                        /* Out of memory */
     Table vars;                          /* the cells, Var, VarX, a CONST's literal (8 bytes) */
@@ -45,6 +54,7 @@ typedef struct Symb {
     uint16_t nnames;                     /* the next name (lx.nnams) */
     uint16_t first_local[NPROC];         /* a procedure's first local, VarX.nloc on (g_plh) */
     uint16_t nslots[NPROC];              /* a procedure's frame: its locals' cells */
+    uint16_t nframe[NPROC];              /* and its arrays': all its frame's (link's) */
     uint8_t deft[26];                    /* DEFtype's ET_*, by first letter (g_deft) */
     uint16_t vhead[HSIZE], nhead[HSIZE]; /* the hash chains' heads */
 } Symb;
@@ -67,6 +77,10 @@ static inline VarX *symb_varx(const Symb *const sy, uint16_t id)
 static inline int32_t *symb_frame(const Symb *const sy, uint16_t id)
 {
     return (int32_t *)at(sy->vars.at[4]) + id;
+}
+static inline FrameArr *symb_farr(const Symb *const sy, uint16_t id)
+{
+    return (FrameArr *)at(sy->vars.at[5]) + id;
 }
 /* A new cell in procedure proc's frame: its offset. */
 static inline int32_t symb_slot(Symb *const sy, const uint8_t proc)

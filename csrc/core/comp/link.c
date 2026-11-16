@@ -40,6 +40,7 @@
 #include "comp/fold.h"
 #include "io/repl.h"
 #include "mem/alloc.h"
+#include "mem/array.h"
 #include "mem/program.h"
 #include "mem/scope.h"
 #include "mem/symbols.h"
@@ -374,6 +375,36 @@ static bool local_op(const Symb *const sy, uint8_t *const op)
     return false; /* none: comp/fuse.c's guard failed; the cell is wrong */
 }
 
+/* A 1-D array op on an array in its frame: its twin, the header's offset from the frame. False:
+   the array is not in a frame. */
+static bool frame_op(const Symb *const sy, uint8_t *const op)
+{
+    static const uint8_t twins[][2] = {
+        {O_I_LD_A1, O_I_LD_A1F},
+        {O_F_LD_A1, O_F_LD_A1F},
+        {O_S_LD_A1, O_S_LD_A1F},
+        {O_D_LD_A1, O_D_LD_A1F},
+        {O_I_ST_A1, O_I_ST_A1F},
+        {O_F_ST_A1, O_F_ST_A1F},
+        {O_S_ST_A1, O_S_ST_A1F},
+        {O_D_ST_A1, O_D_ST_A1F},
+    };
+
+    const FrameArr *const fa = symb_farr(sy, load16(op + 1));
+
+    if (!fa->at || fa->shape >> 24 != 1)
+        return false;
+
+    for (uint32_t i = 0; i < countof(twins); i++)
+        if (op[0] == twins[i][0]) {
+            op[0] = twins[i][1];
+            store32(op + 3, (uint32_t)fa->at);
+            return true;
+        }
+
+    return false;
+}
+
 /* PRET for its procedure: a SUB's; a FUNCTION's number, its result's cell or offset in the frame;
    local arrays to free, a string to keep: PRET.X. */
 static void link_pret(Comp *const C, uint8_t *const op)
@@ -410,7 +441,7 @@ static void resolve_op(Comp *const C, const uint32_t line, const Addr base, uint
         for (uint32_t i = 0; i < countof(cells) && fl & cells[i]; i++)
             store32(op + 1 + i * VCELL, symb_cell(C->symb, (uint16_t)load32(op + 1 + i * VCELL)));
 
-    if (fl & FA) /* an array's or a record's cell */
+    if (fl & FA && !frame_op(C->symb, op)) /* an array's or a record's cell */
         store32(op + 3, (uint32_t)flow_where(C->symb, load16(op + 1)));
     if (fl & FP) /* a parameter: its ref cell in the frame */
         store16(op + 1, (uint16_t)(*symb_frame(C->symb, load16(op + 1)) - 1));
@@ -425,7 +456,7 @@ static void resolve_op(Comp *const C, const uint32_t line, const Addr base, uint
         break;
 
     case O_PCALL: /* the procedure, its locals' cells, its parameters, the Jump */
-        store16(op + 2, C->symb->nslots[op[1]]);
+        store16(op + 2, C->symb->nframe[op[1]]);
         op[4] = (uint8_t)blok_proc(C->blok, op[1])->npar;
 
         j = (Jump *)(op + 5);
@@ -541,6 +572,41 @@ static void link_arrays(Comp *const C)
     }
 }
 
+/* Each procedure's frame: its locals' cells, then room for each local array a DIM gave constant
+   bounds, its header then its data, up to FRAME_ARRAYS bytes; the rest the heap's. */
+static void link_frames(Comp *const C)
+{
+    enum { FRAME_ARRAYS = 0x2000 };
+
+    Symb *const sy = C->symb;
+
+    for (uint8_t i = 1; i < C->blok->nprocs; i++) {
+        uint32_t cells = sy->nslots[i], bytes = 0;
+
+        for (uint16_t id = sy->first_local[i]; id; id = symb_varx(sy, id)->nloc) {
+            FrameArr *const fa = symb_farr(sy, id);
+            fa->at = 0;
+
+            if (!fa->shape || fa->shape == FARR_NEVER || *symb_frame(sy, id) >= 0)
+                continue;
+
+            const uint8_t dims = (uint8_t)(fa->shape >> 24);
+            const uint64_t data =
+                (uint64_t)(fa->shape & 0xFFFFFF) * arry_elem_size(sy, C->decl, id);
+            const uint32_t size = arry_frame_hdr(dims) + (uint32_t)((data + 7) & ~7ull);
+
+            if (data > FRAME_ARRAYS || bytes + size > FRAME_ARRAYS)
+                continue;
+
+            bytes += size;
+            cells += size / sizeof(Cell);
+            fa->at = -(int32_t)(cells * sizeof(Cell));
+        }
+
+        sy->nframe[i] = (uint16_t)cells;
+    }
+}
+
 void link_start(Comp *const C)
 {
     C->check = false; /* a check an error left */
@@ -561,6 +627,7 @@ void link_start(Comp *const C)
 
     C->link->nmiss = 0;
     link_arrays(C);
+    link_frames(C); /* every line compiled: every local made */
 
     for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)
         link_resolve(C, l, prog_line(C->prog, l)->code);

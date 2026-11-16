@@ -345,6 +345,10 @@ static void exec_loop(Session *const S)
                 at_op[i] = &&i_ld_a1;
             if (h == exec_i_st_a1 || h == exec_f_st_a1)
                 at_op[i] = &&i_st_a1;
+            if (h == exec_i_ld_a1f || h == exec_f_ld_a1f)
+                at_op[i] = &&i_ld_a1f;
+            if (h == exec_i_st_a1f || h == exec_f_st_a1f)
+                at_op[i] = &&i_st_a1f;
         }
     }
 
@@ -659,6 +663,37 @@ i_ld_a1: /* a 1-D array's element counting from 0, in range; else exec_i_ld_a1's
 
     goto next;
 
+i_ld_a1f: /* a 1-D array in the frame, counting from 0, sub in range; else exec_i_ld_a1f's */
+{
+    const Addr h =
+        v->fp + load32(r.ip + 3); /* vm.fp: reading r.fp kept it in a register, 6% on every loop */
+    const uint32_t sub = (uint32_t)r.sp->i;
+
+    if (sub >= ((const ArrayHdr *)at(h))->fast)
+        goto slow;
+
+    r.ip += 3 + VCELL;
+    r.sp->a = rd32(h + ARRY_FRAME_HDR1 + sub * VS);
+}
+
+    goto next;
+
+i_st_a1f: /* ( sub x -- ) */
+{
+    const Addr h =
+        v->fp + load32(r.ip + 3); /* vm.fp: reading r.fp kept it in a register, 6% on every loop */
+    const uint32_t sub = (uint32_t)r.sp[1].i;
+
+    if (sub >= ((const ArrayHdr *)at(h))->fast)
+        goto slow;
+
+    r.ip += 3 + VCELL;
+    wr32(h + ARRY_FRAME_HDR1 + sub * VS, r.sp->u);
+    r.sp += 2;
+}
+
+    goto next;
+
 i_st_a1: /* ( sub x -- ) */
 {
     Addr e;
@@ -779,6 +814,20 @@ Addr exec_record(Arry *const ar, ArrSlot *const s, const uint16_t id)
     return arry_new(ar, id, 1, false);
 }
 
+Addr exec_elem1_frame(Session *const S, const int32_t sub, const uint32_t size)
+{
+    Vm *const vm = &S->vm;
+    const Addr h = vm->fp + load32(vm->ip + 2);
+    const uint16_t id = exec_u16(vm);
+    vm->ip += VCELL;
+
+    if ((uint32_t)sub < ((const ArrayHdr *)at(h))->fast)
+        return h + ARRY_FRAME_HDR1 + (uint32_t)sub * size;
+
+    S->arry.subs[0] = subscript(&S->arry, sub);
+    return arry_ref(&S->arry, arry_slot(&S->arry, id), id, 1); /* DIMmed not yet, or from 1 */
+}
+
 void exec_i_ld_a1(Session *const S) { exec_pusha(&S->vm, rd32(elem1(S, exec_popi(&S->vm), VS))); }
 void exec_f_ld_a1(Session *const S) { exec_i_ld_a1(S); }
 void exec_s_ld_a1(Session *const S) { exec_pusha(&S->vm, elem1(S, exec_popi(&S->vm), DSZ)); }
@@ -796,6 +845,29 @@ void exec_s_st_a1(Session *const S)
 {
     const Addr s = exec_popa(&S->vm);
     strg_set(&S->strg, s, elem1(S, exec_popi(&S->vm), DSZ));
+}
+
+void exec_i_ld_a1f(Session *const S)
+{
+    exec_pusha(&S->vm, rd32(exec_elem1_frame(S, exec_popi(&S->vm), VS)));
+}
+void exec_f_ld_a1f(Session *const S) { exec_i_ld_a1f(S); }
+void exec_s_ld_a1f(Session *const S)
+{
+    exec_pusha(&S->vm, exec_elem1_frame(S, exec_popi(&S->vm), DSZ));
+}
+
+void exec_i_st_a1f(Session *const S)
+{
+    const uint32_t x = exec_pop(&S->vm).u;
+    wr32(exec_elem1_frame(S, exec_popi(&S->vm), VS), x);
+}
+void exec_f_st_a1f(Session *const S) { exec_i_st_a1f(S); }
+
+void exec_s_st_a1f(Session *const S)
+{
+    const Addr s = exec_popa(&S->vm);
+    strg_set(&S->strg, s, exec_elem1_frame(S, exec_popi(&S->vm), DSZ));
 }
 
 void exec_i_st_a(Session *const S)

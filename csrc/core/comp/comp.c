@@ -949,31 +949,89 @@ static void runres(Comp *const C, const uint8_t k, const uint8_t op)
 static void act_run(Comp *const C) { runres(C, K_RUN, O_RUN_L); }
 static void act_res(Comp *const C) { runres(C, K_RES, O_RESTORE_L); }
 
-/* DIM's ( [lo TO] hi {, ..} ): lo hi, or hi and OPTION BASE's, each an INT; how many. */
-static uint32_t dimsubs(Comp *const C)
+/* A bound's expression, as an INT; true and *v: an INT literal, or one negated. */
+static bool bound(Comp *const C, int32_t *const v)
+{
+    Node *const tree = expr_tree(C, false);
+    const bool neg = tree->kind == N_UN && tree->op == TK_MINUS;
+    const Node *const n = neg ? tree->a : tree;
+    const uint8_t op = n->kind == N_LIT ? n->op : 0;
+    uint8_t lit[4];
+    memcpy(lit, n->lit, sizeof lit);
+    comp_step(C, tree); /* comp_toint may wrap the node: its literal read first */
+    comp_toint(C);
+    int64_t x;
+
+    switch (op) {
+    case O_I_LD_U8:
+        x = lit[0];
+        break;
+
+    case O_I_LD_I16:
+        x = load16(lit);
+        break;
+
+    case O_I_LD_I32:
+        x = (int32_t)load32(lit);
+        break;
+
+    default:
+        return false;
+    }
+
+    x = neg ? -x : x;
+    *v = (int32_t)x;
+    return x == *v;
+}
+
+/* DIM's ( [lo TO] hi {, ..} ): lo hi, or hi and OPTION BASE's, each an INT; how many. *elems: the
+   elements when every bound is a constant, else 0. */
+static uint32_t dimsubs(Comp *const C, uint32_t *const elems)
 {
     comp_open(C);
     uint32_t n = 0;
+    uint64_t count = 1;
     C->dmask = 0;
 
     do {
-        expr_compile(C);
-        comp_toint(C);
+        int32_t lo, hi;
+        bool constant = bound(C, &lo);
 
         if (comp_cur(C) == TK_TO) {
             C->p++;
-            expr_compile(C);
-            comp_toint(C);
+            constant &= bound(C, &hi);
         } else {
+            hi = lo;
+            lo = C->decl->base;
             comp_int(C, C->decl->base);
             C->dmask |= (uint64_t)1 << (n & 63);
         }
 
+        count = constant && hi >= lo && count ? count * (uint64_t)(hi - lo + 1) : 0;
+        count = count > 0xFFFFFF ? 0 : count;
         n++;
     } while (comp_optcomma(C));
 
     comp_close(C);
+    *elems = (uint32_t)count;
     return n;
+}
+
+/* A local array's DIM: the shape its frame keeps room for (link_frames), the largest asked; a
+   REDIM, bounds not constant or another count of dimensions: none. */
+static void frame_shape(Comp *const C, const uint16_t id, const uint32_t dims, const uint32_t elems)
+{
+    FrameArr *const fa = symb_farr(C->symb, id);
+
+    if (*symb_frame(C->symb, id) >= 0 || fa->shape == FARR_NEVER)
+        return;
+
+    const uint32_t old = fa->shape & 0xFFFFFF;
+
+    if (C->redim || !elems || dims > 0xFF || (fa->shape && fa->shape >> 24 != dims))
+        fa->shape = FARR_NEVER;
+    else
+        fa->shape = dims << 24 | (elems > old ? elems : old);
 }
 
 /* DIM's array id: ( subscripts ), the mask as 2 INTs, its id, the count, CALL DIM. A STATIC's
@@ -981,7 +1039,9 @@ static uint32_t dimsubs(Comp *const C)
 static void dim1(Comp *const C, const uint16_t id)
 {
     const uint32_t flags = (C->isstatic ? DIM_STATIC : 0) | C->redim;
-    const uint32_t n = dimsubs(C);
+    uint32_t elems;
+    const uint32_t n = dimsubs(C, &elems);
+    frame_shape(C, id, n, elems);
     comp_int(C, (uint32_t)C->dmask);
     comp_int(C, (uint32_t)(C->dmask >> 32));
     comp_int(C, id);

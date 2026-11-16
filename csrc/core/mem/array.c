@@ -8,6 +8,9 @@
  * bounds (words). Its data is on the heap from allo.bot to allo.arrays, zeroed, 4-aligned: VS a number
  * or an INT, 8 a DOUBLE, DSZ a string, a TYPE's size a record.
  *
+ * A local array DIMmed with constant bounds has its header and data in its call's frame
+ * (comp/link.c link_frames), zeroed by PCALL, gone with the frame; never freed or REDIMmed.
+ *
  * arry_free drops an array: its header and data go and what follows moves down. The headers' data
  * Addrs, the moved string blocks' owners, the headers in the cells, the frames' too, and the
  * parameters' cells in the moved data follow.
@@ -101,16 +104,56 @@ void arry_bad_sub(const Arry *const ay)
     fault_error(ay->fault, E_BS);
 }
 
-uint32_t arry_esize(const Arry *const ay, const uint16_t id)
+uint32_t arry_elem_size(const Symb *const sy, const Decl *const d, const uint16_t id)
 {
-    const Var *const v = symb_var(ay->symb, id);
+    const Var *const v = symb_var(sy, id);
 
     if (v->type >= ET_REC)
-        return decl_type(ay->decl, v->type - ET_REC)->size;
+        return decl_type(d, v->type - ET_REC)->size;
     if (v->info & SK_DBL)
         return 8;
 
     return (v->info & VK_MASK) == VK_STR ? DSZ : VS;
+}
+
+uint32_t arry_esize(const Arry *const ay, const uint16_t id)
+{
+    return arry_elem_size(ay->symb, ay->decl, id);
+}
+
+uint32_t arry_frame_hdr(const uint8_t dims) { return (arry_hdr_size(dims) + 7) & ~7u; }
+
+static_assert(ARRY_FRAME_HDR1 == ((sizeof(ArrayHdr) + 2 * sizeof(uint16_t) + 7) & ~7u));
+
+bool arry_heap(const Arry *const ay, const Addr h)
+{
+    return h >= ay->allo->hdr_base && h < ay->hdr;
+}
+
+/* Array id's header made in its frame (link_frames'), arry.counts and arry.lbounds [0..n) its
+   shape; false: none there, or too small for it. */
+static bool arry_in_frame(Arry *const ay, const uint16_t id, const uint8_t n)
+{
+    const FrameArr *const fa = symb_farr(ay->symb, id);
+    uint32_t elems = 1;
+
+    for (uint32_t i = 0; i < n; i++)
+        elems *= ay->counts[i];
+
+    if (!fa->at || *symb_frame(ay->symb, id) >= 0 || fa->shape >> 24 != n ||
+        elems > (fa->shape & 0xFFFFFF))
+        return false;
+
+    const Addr h = *ay->fp + (uint32_t)fa->at; /* the data after it, zeroed by PCALL */
+    ArrayHdr *const a = arry_hdr_at(h);
+    a->dims = n;
+    a->data = h + arry_frame_hdr(n);
+    a->fast = n == 1 && ay->lbounds[0] == 0 ? ay->counts[0] : 0;
+    memcpy(&a->count[0], ay->counts, n * sizeof ay->counts[0]);
+    memcpy(&a->count[n], ay->lbounds, n * sizeof ay->lbounds[0]);
+    *arry_slot(ay, id) = (ArrSlot){h, false};
+
+    return true;
 }
 
 Addr arry_ref(Arry *const ay, ArrSlot *const s, const uint16_t id, const uint8_t n)
@@ -157,6 +200,8 @@ void arry_dim(Arry *const ay, const uint16_t id, const uint8_t n, const bool dyn
 
     if (arry_slot(ay, id)->hdr)
         fault_error(ay->fault, E_RD);
+    if (!dyn && arry_in_frame(ay, id, n))
+        return;
 
     arry_new(ay, id, n, dyn);
 }
@@ -262,7 +307,7 @@ static void arry_each_slot(
 
 static void arry_slot_moved(const Arry *const ay, ArrSlot *const s, const Freed *const f)
 {
-    if (s->hdr)
+    if (s->hdr) /* a frame's is past the headers' region: it stays */
         s->hdr = arry_moved_hdr(ay, f, s->hdr);
 }
 

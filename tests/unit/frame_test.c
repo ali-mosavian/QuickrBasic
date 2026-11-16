@@ -104,3 +104,63 @@ TEST(an_array_parameter_is_its_argument)
     CHECK(unit_run(S, lines) != ST_OK); /* LBOUND of the ERASEd: Subscript out of range */
     CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 10  11  99 \r");
 }
+
+/* A local array DIMmed with constant bounds is in the frame: the heap gives it nothing. The bounds'
+   literals were missed (wrapped by the INT conversion), and every such array took the heap. */
+TEST(a_constant_local_array_is_in_the_frame)
+{
+    static const char *const lines[] = {
+        "10 a = FRE(-1): s a",
+        "20 SUB s (a)",
+        "30 DIM x(100), y(-2 TO 2): x(100) = 1: y(-2) = 2: PRINT a - FRE(-1); x(100); y(-2)",
+        "40 END SUB",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 0  1  2 \r");
+}
+
+/* Freeing a heap array moves the headers after it; a frame's header, past their region, stays. */
+TEST(a_frame_arrays_header_stays_when_the_heap_moves)
+{
+    static const char *const lines[] = {
+        "10 s",
+        "20 SUB s",
+        "30 REDIM x(3): DIM y(5): y(2) = 7: ERASE x: PRINT y(2)",
+        "40 END SUB",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 7 \r");
+}
+
+/* The last heap header follows a freed one: a test of the region's new end missed it. */
+TEST(the_last_heap_header_follows_a_free)
+{
+    static const char *const lines[] = {
+        "10 REDIM a(3): REDIM b(3): b(1) = 5: ERASE a: PRINT b(1)",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 5 \r");
+}
+
+/* A frame array REDIMmed through a parameter: Duplicate definition, not arry_free on the frame. */
+TEST(a_frame_array_is_not_redimmed)
+{
+    static const char *const lines[] = {
+        "10 s",
+        "20 SUB s",
+        "30 DIM y(5): t y()",
+        "40 END SUB",
+        "50 SUB t (z())",
+        "60 REDIM z(9)",
+        "70 END SUB",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == E_RD);
+}

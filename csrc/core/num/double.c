@@ -354,6 +354,17 @@ void dubl_sta1(Session *const S)
     cell_put(exec_elem1(&S->arry, &S->vm, i), d);
 }
 
+void dubl_lda1f(Session *const S)
+{
+    exec_push(&S->vm, cell_at(exec_elem1_frame(S, exec_popi(&S->vm), 8)));
+}
+
+void dubl_sta1f(Session *const S)
+{
+    const Cell d = exec_pop(&S->vm);
+    cell_put(exec_elem1_frame(S, exec_popi(&S->vm), 8), d);
+}
+
 void dubl_sta(Session *const S)
 {
     const Cell d = exec_pop(&S->vm);

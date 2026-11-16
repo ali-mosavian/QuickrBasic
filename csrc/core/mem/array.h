@@ -39,6 +39,13 @@ Addr arry_ref(Arry *ay, ArrSlot *s, uint16_t id, uint8_t n);
 void arry_bad_sub(const Arry *ay);
 /* Array id's element size. */
 uint32_t arry_esize(const Arry *ay, uint16_t id);
+uint32_t arry_elem_size(const Symb *sy, const Decl *d, uint16_t id);
+/* A 1-D header in a frame: its bytes to the data. */
+enum { ARRY_FRAME_HDR1 = (sizeof(ArrayHdr) + 2 * sizeof(uint16_t) + 7) & ~7 };
+/* A header of dims dimensions in a frame: its bytes to the data, 8-aligned. */
+uint32_t arry_frame_hdr(uint8_t dims);
+/* Header h is the heap's (arry_new's), not a frame's. */
+bool arry_heap(const Arry *ay, Addr h);
 /* DIM: array id made, its counts arry.subs[0..n) + 1; dyn a REDIM's. Illegal function call: a
    subscript under 0. Duplicate definition: it exists. Out of memory. */
 void arry_dim(Arry *ay, uint16_t id, uint8_t n, bool dyn);

@@ -71,8 +71,8 @@ void symb_new(Symb *const sy, Allo *const al, Fault *const f)
 {
     sy->fault = f;
     sy->vars = (Table){
-        .narr = 5,
-        .size = {sizeof(Cell), sizeof(Var), sizeof(VarX), 8, sizeof(int32_t)},
+        .narr = 6,
+        .size = {sizeof(Cell), sizeof(Var), sizeof(VarX), 8, sizeof(int32_t), sizeof(FrameArr)},
         .max = IDMAX,
         .moved = symb_vars_moved,
     };
@@ -126,6 +126,7 @@ void symb_vars_init(Symb *const sy)
     memset(sy->vhead, 0, sizeof sy->vhead);
     memset(sy->first_local, 0, sizeof sy->first_local);
     memset(sy->nslots, 0, sizeof sy->nslots);
+    memset(sy->nframe, 0, sizeof sy->nframe);
 }
 
 /* Do the len chars at text, case not told, spell name text t (its length, then upper case)? */
@@ -213,6 +214,7 @@ uint16_t symb_find_var(
     sy->vhead[h] = id;
 
     *symb_frame(sy, id) = 0;
+    *symb_farr(sy, id) = (FrameArr){};
 
     if (scope && !stat) { /* a local: on its procedure's list, a cell of its frame */
         x->nloc = sy->first_local[scope];

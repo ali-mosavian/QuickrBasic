@@ -465,8 +465,9 @@ static void end_call(
         for (uint16_t id = sy->first_local[c.proc]; id; id = symb_varx(sy, id)->nloc) {
             const int32_t off = *symb_frame(sy, id);
 
-            if (is_array(symb_var(sy, id)) && off < 0 && ((ArrSlot *)at(c.fp + (uint32_t)off))->hdr)
-                arry_free(ar, vm, id, 0);
+            if (is_array(symb_var(sy, id)) && off < 0 &&
+                arry_heap(ar, ((ArrSlot *)at(c.fp + (uint32_t)off))->hdr))
+                arry_free(ar, vm, id, 0); /* a frame's goes with the frame */
         }
 
     pop_to(vm, f);
