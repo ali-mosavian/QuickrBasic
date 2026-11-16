@@ -234,12 +234,29 @@ double dubl_in(Fault *const f, const uint8_t **const p, uint8_t *const kind)
 
 /* ---- text out ------------------------------------------------------------------------------- */
 
+/* n / 10, n % 10 returned: 16 bits a step, no 64-bit division (at -Os a compiler helper the link
+   lacks). */
+static uint32_t div10(uint64_t *const n)
+{
+    uint64_t q = 0;
+    uint32_t r = 0;
+
+    for (int32_t s = 48; s >= 0; s -= 16) {
+        const uint32_t part = r << 16 | (uint32_t)(*n >> s & 0xFFFF);
+        q |= (uint64_t)(part / 10) << s;
+        r = part % 10;
+    }
+
+    *n = q;
+    return r;
+}
+
 uint32_t dubl_digits(const double v, const uint32_t ndig, uint8_t *const dig, int32_t *const dp)
 {
     uint64_t num = pfpu_digits(v, ndig, dp);
 
-    for (uint32_t i = ndig; i-- > 0; num /= 10)
-        dig[i] = (uint8_t)('0' + num % 10);
+    for (uint32_t i = ndig; i-- > 0;)
+        dig[i] = (uint8_t)('0' + div10(&num));
 
     uint32_t n = ndig;
 
