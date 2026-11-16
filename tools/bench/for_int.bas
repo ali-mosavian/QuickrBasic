@@ -1,0 +1,1 @@
+FOR r% = 1 TO 100: FOR i% = 1 TO 30000: NEXT: NEXT r%: PRINT i%

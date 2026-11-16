@@ -1,0 +1,79 @@
+{
+ "rev": "2162a19",
+ "size": {
+  "build/c/basic32.exe": 354956,
+  "build/c/ide32.exe": 453520
+ },
+ "cost": {
+  "arrays": {
+   "out": "500000",
+   "insns": 210394974,
+   "ops": 6513520
+  },
+  "arrparam": {
+   "out": "200000",
+   "insns": 139819576,
+   "ops": 3200021
+  },
+  "calls": {
+   "out": "28657",
+   "insns": 67670839,
+   "ops": 1020089
+  },
+  "dbl_fn": {
+   "out": "-2.587947577920907",
+   "insns": 908763273,
+   "ops": 1100909
+  },
+  "for_int": {
+   "out": "30001",
+   "insns": 158043779,
+   "ops": 3000609
+  },
+  "int_index": {
+   "out": "500",
+   "insns": 105146409,
+   "ops": 3006017
+  },
+  "int_math": {
+   "out": "0",
+   "insns": 155462008,
+   "ops": 5000709
+  },
+  "intloop": {
+   "out": "8999997",
+   "insns": 518180221,
+   "ops": 18000009
+  },
+  "localarr": {
+   "out": "ok",
+   "insns": 71066818,
+   "ops": 950013
+  },
+  "locelem": {
+   "out": "500000",
+   "insns": 206809018,
+   "ops": 6514025
+  },
+  "single": {
+   "out": "2.500095E+08",
+   "insns": 133082464,
+   "ops": 4511512
+  },
+  "sng_math": {
+   "out": "3245.197",
+   "insns": 72466920,
+   "ops": 2500809
+  },
+  "strings": {
+   "out": "8 BCDEFGHIJKLMNOPQRSTUVWXYZABCDEFGHIJKLMNOPQRSTUVWXY",
+   "insns": 563173184,
+   "ops": 5180611
+  },
+  "subcalls": {
+   "out": "5001",
+   "insns": 236207159,
+   "ops": 3500609
+  }
+ }
+}

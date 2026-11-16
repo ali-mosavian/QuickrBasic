@@ -218,6 +218,17 @@ chost: build/host/basic
 build/host/basic: $(HOBJ) $(QBRT_HOBJ) build/host/obj/app/basic32.o build/host/obj/plat/host/app/term.o
 	$(HOST_CC) $^ -o $@
 
+# tools/bench.py's native build: optimized, no op count; QB_INSNS reports the instructions it ran
+.PHONY: chostperf
+HPERF_CFLAGS := $(filter-out -O1 -g -DEXEC_COUNT,$(HOST_CFLAGS)) -O2
+HPERF_OBJ := $(HSRC:csrc/%.c=build/hostperf/obj/%.o)
+build/hostperf/obj/%.o: csrc/%.c $(CHDR)
+	@mkdir -p $(@D)
+	$(HOST_CC) $(HPERF_CFLAGS) -c $< -o $@
+chostperf: build/hostperf/basic
+build/hostperf/basic: $(HPERF_OBJ) $(QBRT_HOBJ) build/hostperf/obj/app/basic32.o build/hostperf/obj/plat/host/app/insns.o
+	$(HOST_CC) $^ -o $@
+
 UNIT_SRC := $(wildcard tests/unit/*.c)
 UNIT_OBJ := $(UNIT_SRC:tests/unit/%.c=build/host/unit/%.o)
 build/host/unit/%.o: tests/unit/%.c tests/unit/unit.h $(CHDR)
@@ -242,12 +253,13 @@ cgolden: build/host/golden_dump   # each corpus line's code against tests/golden
 cgolden-update: build/host/golden_dump
 	$(PY) tools/golden.py --update
 
-chosttest: chost cunit cgolden         # the unit tests and the suites against the host build, natively
+chosttest: chost chostperf cunit cgolden  # the unit tests and the suites against the host build, natively
 	$(PY) tools/qbconf_test.py
 	X86_COM=build/host/basic $(PY) tools/x86f_test.py build/host/basic
 	X86_COM=build/host/basic $(PY) tools/qbconf.py
 	$(PY) tools/x86fold_test.py build/host/basic
 	$(PY) tools/pterm_test.py build/host/basic
+	$(PY) tools/bench_test.py
 
 ctest:                          # the suites against the C build
 	X86_COM=build/c/basic32.exe $(PY) tools/x86f_test.py build/c/basic32.exe
