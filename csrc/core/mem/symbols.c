@@ -90,12 +90,12 @@ void symb_size(Symb *const sy, const Prog *const pg)
 {
     uint32_t n = sy->nvars + VSLACK;
 
-    for (uint32_t l = PROGBASE; prog_line(pg, l)->len; l += prog_line(pg, l)->len) {
-        const uint8_t *const p = at(prog_addr(pg, l));
-
-        for (uint32_t i = HDR; i < prog_line(pg, l)->len; i++)
-            n += p[i] == M_VAR;
-    }
+    for (uint32_t l = PROGBASE; prog_line(pg, l)->len; l += prog_line(pg, l)->len)
+        n += count_byte(
+            (const uint8_t *)at(prog_addr(pg, l)) + HDR,
+            prog_line(pg, l)->len - HDR,
+            M_VAR
+        );
 
     if (n > IDMAX)
         n = IDMAX;

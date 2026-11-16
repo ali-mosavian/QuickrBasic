@@ -59,6 +59,23 @@ static inline bool is_letter(const uint8_t c) { return (uint8_t)(upcase(c) - 'A'
 static inline bool is_digit(const uint8_t c) { return (uint8_t)(c - '0') < 10; }
 static inline bool is_blank(const uint8_t c) { return c == ' ' || c == '\t'; }
 
+/* The bytes b in [p, p+n), four at a time: byte by byte, symb_size spent 3% of a link. */
+static inline uint32_t count_byte(const uint8_t *p, uint32_t n, const uint8_t b)
+{
+    uint32_t c = 0;
+
+    for (; n >= 4; p += 4, n -= 4) {
+        const uint32_t x = load32(p) ^ b * 0x01010101u; /* a 0 byte where b was */
+        const uint32_t z = ~((x & 0x7F7F7F7Fu) + 0x7F7F7F7Fu | x | 0x7F7F7F7Fu); /* its bit 7 */
+        c += (z >> 7) * 0x01010101u >> 24;
+    }
+
+    for (; n; n--)
+        c += *p++ == b;
+
+    return c;
+}
+
 /* A data stack cell: an INT, a FLOAT, or an Addr (a string's Desc) in its low dword; a DOUBLE
    fills it. */
 typedef union {
