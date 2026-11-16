@@ -37,7 +37,7 @@ typedef struct {
 /* Is the variable whose id is at p a global, not in a frame? */
 static bool global(const Tail *const t, const uint8_t *const p)
 {
-    return *symb_frame(t->sy, (uint16_t)load32(p)) >= 0;
+    return !symb_in_frame(t->sy, (uint16_t)load32(p));
 }
 
 /* The op k back from the last (0 the last). */

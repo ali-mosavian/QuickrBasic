@@ -463,10 +463,8 @@ static void end_call(
 
     if (p->flags & PF_ARRAYS)
         for (uint16_t id = sy->first_local[c.proc]; id; id = symb_varx(sy, id)->nloc) {
-            const int32_t off = *symb_frame(sy, id);
-
-            if (is_array(symb_var(sy, id)) && off < 0 &&
-                arry_heap(ar, ((ArrSlot *)at(c.fp + (uint32_t)off))->hdr))
+            if (is_array(symb_var(sy, id)) && symb_is_local(sy, id) &&
+                arry_heap(ar, ((ArrSlot *)at(loc_frame_at(*symb_loc(sy, id), c.fp)))->hdr))
                 arry_free(ar, vm, id, 0); /* a frame's goes with the frame */
         }
 
@@ -494,7 +492,7 @@ void flow_pret(Session *const S)
     Cell result = {};
 
     if (fn) { /* out of its frame before the frame goes */
-        const Addr cell = flow_cell(&S->symb, f->call.fp, p->result);
+        const Addr cell = symb_at(&S->symb, f->call.fp, p->result);
 
         if (text)
             strg_move(&S->strg, cell, S->flow.text);

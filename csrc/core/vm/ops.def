@@ -7,7 +7,7 @@
  * the handler serves several ops and reads which at vm.opip, FK pure: the stack alone, so a
  * constant expression runs as it compiles (comp/fold.h), FP a scalar parameter's id after the op, its
  * ref cell's offset in the frame once linked, FA an array's or a record's id after the op, then its
- * cell as link resolved it (VCELL, vm/flow.h flow_where).
+ * cell as link resolved it (VCELL, a Loc: mem/loc.h).
  *
  * K(name, handler): the CALL op's routine K_name. The statements' first, from K_IPOW an
  * expression's; K_FN_SGN .. K_FN_CHRS are SGN .. CHR$ by token (TK_SGN ..), all func_fn1.

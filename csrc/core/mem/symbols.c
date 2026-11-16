@@ -72,7 +72,7 @@ void symb_new(Symb *const sy, Allo *const al, Fault *const f)
     sy->fault = f;
     sy->vars = (Table){
         .narr = 6,
-        .size = {sizeof(Cell), sizeof(Var), sizeof(VarX), 8, sizeof(int32_t), sizeof(FrameArr)},
+        .size = {sizeof(Cell), sizeof(Var), sizeof(VarX), 8, sizeof(Loc), sizeof(FrameArr)},
         .max = IDMAX,
         .moved = symb_vars_moved,
     };
@@ -213,13 +213,13 @@ uint16_t symb_find_var(
 
     sy->vhead[h] = id;
 
-    *symb_frame(sy, id) = 0;
+    *symb_loc(sy, id) = (Loc){};
     *symb_farr(sy, id) = (FrameArr){};
 
     if (scope && !stat) { /* a local: on its procedure's list, a cell of its frame */
         x->nloc = sy->first_local[scope];
         sy->first_local[scope] = id;
-        *symb_frame(sy, id) = symb_slot(sy, scope);
+        *symb_loc(sy, id) = symb_slot(sy, scope);
     }
 
     v->vt = symb_cell(sy, id);

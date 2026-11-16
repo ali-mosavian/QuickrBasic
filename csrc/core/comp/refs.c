@@ -375,7 +375,7 @@ static Node *argnode(Comp *const C, const uint8_t pass, Node *const a, const uin
 /* Variable id's cell, an argument's ref: a parameter's is its argument's. */
 static Node *cell(Comp *const C, const uint16_t id)
 {
-    return place(C, comp_isparam(C, id) ? O_V_ADDR : O_V_CELL, id);
+    return place(C, symb_is_ref(C->symb, id) ? O_V_ADDR : O_V_CELL, id);
 }
 
 /* An array parameter's argument: n() an array whole; a record parameter's n a record whole. */

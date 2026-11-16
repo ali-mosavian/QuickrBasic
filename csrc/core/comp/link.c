@@ -104,7 +104,7 @@ static void link_procvars(Comp *const C)
         for (uint16_t k = 0; k < p->npar; k++) { /* its ref cell's offset in the frame */
             const uint16_t id = p->params[k].var = link_param(C, &p->params[k]);
             symb_varx(C->symb, id)->par = 1;
-            *symb_frame(C->symb, id) = (int32_t)(2 * sizeof(Cell) * (p->npar - 1u - k)) + 1;
+            *symb_loc(C->symb, id) = loc_ref((uint32_t)(2 * sizeof(Cell) * (p->npar - 1u - k)));
         }
 
         comp_proc(C, 0);
@@ -117,10 +117,7 @@ static void link_procvars(Comp *const C)
             continue;
 
         x->par = 0;
-        *symb_frame(C->symb, id) = 0;
-
-        if (x->scope)
-            *symb_frame(C->symb, id) = symb_slot(C->symb, x->scope);
+        *symb_loc(C->symb, id) = x->scope ? symb_slot(C->symb, x->scope) : (Loc){};
     }
 }
 
@@ -360,15 +357,15 @@ static bool local_op(const Symb *const sy, uint8_t *const op)
         {O_D_ST_V, O_D_ST_L},         {O_I_JFC_V, O_I_JFC_L},
     };
 
-    const int32_t off = *symb_frame(sy, (uint16_t)load32(op + 1));
+    const Loc p = *symb_loc(sy, (uint16_t)load32(op + 1));
 
-    if (off >= 0)
+    if (!loc_in_frame(p))
         return false;
 
     for (uint32_t i = 0; i < countof(twins); i++)
         if (op[0] == twins[i][0]) {
             op[0] = twins[i][1];
-            store32(op + 1, (uint32_t)off);
+            store32(op + 1, (uint32_t)loc_off(p));
             return true;
         }
 
@@ -415,9 +412,9 @@ static void link_pret(Comp *const C, uint8_t *const op)
     if (p->flags & PF_ARRAYS ||
         (p->kind == PK_FUNC && (symb_var(C->symb, res)->info & VK_MASK) == VK_STR))
         op[0] = O_PRET_X;
-    else if (p->kind == PK_FUNC && *symb_frame(C->symb, res) < 0) {
+    else if (p->kind == PK_FUNC && symb_in_frame(C->symb, res)) {
         op[0] = O_PRET_FL;
-        store32(op + 2, (uint32_t)*symb_frame(C->symb, res));
+        store32(op + 2, (uint32_t)loc_off(*symb_loc(C->symb, res)));
     } else if (p->kind == PK_FUNC) {
         op[0] = O_PRET_FV;
         store32(op + 2, symb_cell(C->symb, res));
@@ -442,9 +439,9 @@ static void resolve_op(Comp *const C, const uint32_t line, const Addr base, uint
             store32(op + 1 + i * VCELL, symb_cell(C->symb, (uint16_t)load32(op + 1 + i * VCELL)));
 
     if (fl & FA && !frame_op(C->symb, op)) /* an array's or a record's cell */
-        store32(op + 3, (uint32_t)flow_where(C->symb, load16(op + 1)));
+        store32(op + 3, (uint32_t)symb_placed(C->symb, load16(op + 1)).w);
     if (fl & FP) /* a parameter: its ref cell in the frame */
-        store16(op + 1, (uint16_t)(*symb_frame(C->symb, load16(op + 1)) - 1));
+        store16(op + 1, (uint16_t)loc_off(*symb_loc(C->symb, load16(op + 1))));
 
     switch (op[0]) {
     case O_JMP:
@@ -567,7 +564,7 @@ static void link_arrays(Comp *const C)
         p->flags &= ~PF_ARRAYS;
 
         for (uint16_t id = C->symb->first_local[i]; id; id = symb_varx(C->symb, id)->nloc)
-            if (symb_var(C->symb, id)->info & VI_ARR && *symb_frame(C->symb, id) < 0)
+            if (symb_var(C->symb, id)->info & VI_ARR && symb_is_local(C->symb, id))
                 p->flags |= PF_ARRAYS;
     }
 }
@@ -587,7 +584,7 @@ static void link_frames(Comp *const C)
             FrameArr *const fa = symb_farr(sy, id);
             fa->at = 0;
 
-            if (!fa->shape || fa->shape == FARR_NEVER || *symb_frame(sy, id) >= 0)
+            if (!fa->shape || fa->shape == FARR_NEVER || !symb_is_local(sy, id))
                 continue;
 
             const uint8_t dims = (uint8_t)(fa->shape >> 24);

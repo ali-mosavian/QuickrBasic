@@ -118,7 +118,7 @@ Addr session_cell(
     const int32_t par
 )
 {
-    const Addr c = flow_cell(&S->symb, f->call < 0 ? 0 : S->vm.frames[f->call].call.fp, id);
+    const Addr c = symb_at(&S->symb, f->call < 0 ? 0 : S->vm.frames[f->call].call.fp, id);
     return symb_var(&S->symb, id)->info & VI_ARR ? ((const ArrSlot *)at(c))->hdr
                                                  : c; /* its header */
 }

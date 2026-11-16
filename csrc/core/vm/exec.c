@@ -654,7 +654,7 @@ i_ld_a1: /* a 1-D array's element counting from 0, in range; else exec_i_ld_a1's
 {
     Addr e;
 
-    if (!elem1_fast(flow_at(r.fp, (int32_t)load32(r.ip + 3)), r.sp->i, VS, &e))
+    if (!elem1_fast(loc_at((Loc){(int32_t)load32(r.ip + 3)}, r.fp), r.sp->i, VS, &e))
         goto slow;
 
     r.ip += 3 + VCELL;
@@ -698,7 +698,7 @@ i_st_a1: /* ( sub x -- ) */
 {
     Addr e;
 
-    if (!elem1_fast(flow_at(r.fp, (int32_t)load32(r.ip + 3)), r.sp[1].i, VS, &e))
+    if (!elem1_fast(loc_at((Loc){(int32_t)load32(r.ip + 3)}, r.fp), r.sp[1].i, VS, &e))
         goto slow;
 
     r.ip += 3 + VCELL;
@@ -767,7 +767,7 @@ static uint16_t subscript(Arry *const ar, const int32_t sub)
 static ArrSlot *op_slot(Vm *const vm, uint16_t *const id)
 {
     *id = exec_u16(vm);
-    return (ArrSlot *)at(flow_at(vm->fp, (int32_t)exec_u32(vm)));
+    return (ArrSlot *)at(loc_at((Loc){(int32_t)exec_u32(vm)}, vm->fp));
 }
 
 Addr exec_elem1(Arry *const ar, Vm *const vm, const int32_t sub)
@@ -797,7 +797,7 @@ static Addr elem1(Session *const S, const int32_t sub, const uint32_t size)
     Vm *const vm = &S->vm;
     Addr e;
 
-    if (!elem1_fast(flow_at(vm->fp, (int32_t)load32(vm->ip + 2)), sub, size, &e))
+    if (!elem1_fast(loc_at((Loc){(int32_t)load32(vm->ip + 2)}, vm->fp), sub, size, &e))
         return exec_elem1(&S->arry, vm, sub);
 
     vm->ip += 2 + VCELL;

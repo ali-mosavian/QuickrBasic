@@ -424,25 +424,6 @@ const uint8_t *comp_skipdata(const uint8_t *p)
     return p;
 }
 
-bool comp_ispar(Comp *const C, const uint16_t id)
-{
-    return !(symb_var(C->symb, id)->info & VI_ARR) && comp_isparam(C, id);
-}
-
-bool comp_isparam(Comp *const C, const uint16_t id)
-{
-    if (!C->proc)
-        return false;
-
-    const Proc *const p = blok_proc(C->blok, C->proc);
-
-    for (uint32_t i = 0; i < p->npar; i++)
-        if (p->params[i].var == id)
-            return true;
-
-    return false;
-}
-
 bool comp_param(Comp *const C, const uint16_t name, const uint8_t array, uint16_t *const id)
 {
     if (!C->proc)
@@ -1023,7 +1004,7 @@ static void frame_shape(Comp *const C, const uint16_t id, const uint32_t dims, c
 {
     FrameArr *const fa = symb_farr(C->symb, id);
 
-    if (*symb_frame(C->symb, id) >= 0 || fa->shape == FARR_NEVER)
+    if (!symb_is_local(C->symb, id) || fa->shape == FARR_NEVER)
         return;
 
     const uint32_t old = fa->shape & 0xFFFFFF;

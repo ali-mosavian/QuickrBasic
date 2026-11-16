@@ -3,7 +3,7 @@
  * # How it works
  * An array's cell (ArrSlot) holds its header (ArrayHdr) in the headers' region, from allo.hdr_base
  * to arry.hdr. The cell is the variable's own, a local's in its call's frame, a parameter's its
- * argument's (vm/flow.h flow_cell). The header:
+ * argument's (symbols.h symb_at). The header:
  * its dimensions, its data's Addr, the count when 1-D from 0 (else 0), the counts, then the lower
  * bounds (words). Its data is on the heap from allo.bot to allo.arrays, zeroed, 4-aligned: VS a number
  * or an INT, 8 a DOUBLE, DSZ a string, a TYPE's size a record.
@@ -62,7 +62,7 @@ static ArrayHdr *arry_hdr_at(const Addr h) { return (ArrayHdr *)at(h); }
 
 ArrSlot *arry_slot(const Arry *const ay, const uint16_t id)
 {
-    return (ArrSlot *)at(flow_cell(ay->symb, *ay->fp, id));
+    return (ArrSlot *)at(symb_at(ay->symb, *ay->fp, id));
 }
 
 /* A header's bytes: the fixed part, then a count and a lower bound a dimension. */
@@ -140,8 +140,8 @@ static bool arry_in_frame(Arry *const ay, const uint16_t id, const uint8_t n)
     for (uint32_t i = 0; i < n; i++)
         elems *= ay->counts[i];
 
-    if (!fa->at || *symb_frame(ay->symb, id) >= 0 || fa->shape >> 24 != n ||
-        elems > (fa->shape & 0xFFFFFF))
+    if (!fa->at || fa->shape >> 24 != n ||
+        elems > (fa->shape & 0xFFFFFF)) /* at: a local's (link_frames) */
         return false;
 
     const Addr h = *ay->fp + (uint32_t)fa->at; /* the data after it, zeroed by PCALL */
@@ -300,8 +300,8 @@ static void arry_each_slot(
             continue;
 
         for (uint16_t c = sy->first_local[fr->call.proc]; c; c = symb_varx(sy, c)->nloc)
-            if (arry_is_array(ay, c) && *symb_frame(sy, c) < 0)
-                each(ay, (ArrSlot *)at(fr->call.fp + (uint32_t)*symb_frame(sy, c)), f);
+            if (arry_is_array(ay, c) && symb_is_local(sy, c))
+                each(ay, (ArrSlot *)at(loc_frame_at(*symb_loc(sy, c), fr->call.fp)), f);
     }
 }
 

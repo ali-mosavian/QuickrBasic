@@ -4,6 +4,7 @@
 #include "table.h"
 #include "fault.h"
 #include "mem/program.h"
+#include "mem/loc.h"
 
 /* A variable's info: its kind in bits 1-0 (comp's g_etk), SK_DBL, VI_ARR. */
 enum : uint8_t { VK_FLT = 0, VK_INT = 1, VK_STR = 2, VK_MASK = 3, VI_ARR = 0x80 };
@@ -71,21 +72,45 @@ static inline VarX *symb_varx(const Symb *const sy, uint16_t id)
 {
     return (VarX *)at(sy->vars.at[2]) + id;
 }
-/* A variable's place in its procedure's frame, from vm.fp: a local's cell (negative); a
-   parameter's ref cell, the argument's address, plus 1 (positive: link_procvars); 0 neither, its
-   own cell. One load tells the three apart (vm/flow.h flow_cell). */
-static inline int32_t *symb_frame(const Symb *const sy, uint16_t id)
+/* Where variable id's cell is: a local's in its frame, a parameter's through its ref cell
+   (link_procvars); 0 its own cell, symb_cell. */
+static inline Loc *symb_loc(const Symb *const sy, uint16_t id)
 {
-    return (int32_t *)at(sy->vars.at[4]) + id;
+    return (Loc *)at(sy->vars.at[4]) + id;
+}
+/* symb_loc with its own cell's address: an op's operand (link). */
+static inline Loc symb_placed(const Symb *const sy, uint16_t id)
+{
+    const Loc p = *symb_loc(sy, id);
+    return p.w ? p : loc_cell(symb_cell(sy, id));
+}
+/* Variable id's cell, in the frame at fp. */
+static inline Addr symb_at(const Symb *const sy, const Addr fp, uint16_t id)
+{
+    const Loc p = *symb_loc(sy, id);
+    return p.w ? loc_frame_at(p, fp) : symb_cell(sy, id);
+}
+/* In its procedure's frame: a local's cell, or a parameter's ref cell. */
+static inline bool symb_in_frame(const Symb *const sy, uint16_t id)
+{
+    return loc_in_frame(*symb_loc(sy, id));
+}
+static inline bool symb_is_ref(const Symb *const sy, uint16_t id)
+{
+    return loc_is_ref(*symb_loc(sy, id));
+}
+static inline bool symb_is_local(const Symb *const sy, uint16_t id)
+{
+    return loc_is_local(*symb_loc(sy, id));
 }
 static inline FrameArr *symb_farr(const Symb *const sy, uint16_t id)
 {
     return (FrameArr *)at(sy->vars.at[5]) + id;
 }
-/* A new cell in procedure proc's frame: its offset. */
-static inline int32_t symb_slot(Symb *const sy, const uint8_t proc)
+/* A new cell in procedure proc's frame. */
+static inline Loc symb_slot(Symb *const sy, const uint8_t proc)
 {
-    return -(int32_t)sizeof(Cell) * ++sy->nslots[proc];
+    return loc_frame(-(int32_t)sizeof(Cell) * ++sy->nslots[proc]);
 }
 static inline uint8_t *symb_kval(const Symb *const sy, uint16_t id)
 {
