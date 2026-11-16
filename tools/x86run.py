@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """x86run.py: run DOS jobs of the x86 port under llrm's headless DOSBox-X."""
 
-import json
 import os
 import re
+import json
 import shutil
 import subprocess
-from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass, field
 from pathlib import Path
+from dataclasses import field
+from dataclasses import dataclass
+from concurrent.futures import ThreadPoolExecutor
 
 ROOT = Path(__file__).resolve().parents[1]
 # llrm release/next's DOSBox: DOSBOX_BIN, else the dosrun fork at the commit
@@ -47,6 +48,7 @@ class Result:
     ms: int
     screen: str = ""  # the console's lines: what standard error wrote, with DOSBox's own
     calls: dict[str, int] = field(default_factory=dict)  # profile: each function run, its calls
+    selfs: dict[str, int] = field(default_factory=dict)  # profile: each function's own instructions
 
 
 def messages() -> list[str]:
@@ -108,10 +110,12 @@ def run(jobs: dict[str, str | tuple], work: Path, limit_ms: int = 60000, file: b
     ends = [e for e in evs if e.get("ev") == "end"]
     screens = [[] for _ in names]
     calls: list[dict[str, int]] = [{} for _ in names]
+    selfs: list[dict[str, int]] = [{} for _ in names]
     k = 0
     for e in evs:
         if e.get("ev") == "profile" and k < len(names):
             calls[k] = {f["name"]: f["calls"] for f in e["functions"] if f["calls"] or f["self"]}
+            selfs[k] = {f["name"]: f["self"] for f in e["functions"] if f["self"]}
         if e.get("ev") == "end":
             k += 1
         elif e.get("ev") == "line" and k < len(names):
@@ -122,7 +126,7 @@ def run(jobs: dict[str, str | tuple], work: Path, limit_ms: int = 60000, file: b
         f = work / f"J{i}.TXT"
         text = f.read_bytes().decode("latin-1") if f.exists() else ""
         out[name] = Result(name, text, e.get("reason", "none"), e.get("instructions", 0), e.get("ms", 0),
-                           "\n".join(screens[i]), calls[i])
+                           "\n".join(screens[i]), calls[i], selfs[i])
     return out
 
 

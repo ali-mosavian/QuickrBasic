@@ -6,6 +6,7 @@
     bench.py size [REV] [--functions]            the DOS executables' loaded bytes, REV's (default HEAD) and ours
     bench.py gate [--save]                       the suite and sizes against tools/bench/baseline.json
     bench.py qbasic                              qbasic/BENCH.BAS in QBasic 1.1 and our IDE under DOSBox
+    bench.py profile FILE.bas | -e CODE [-n N]   DOS: the functions a program spends its instructions in
 
 Native (the default) runs build/hostperf/basic for retired instructions, the least of RUNS runs less
 an empty program's, builds compared run interleaved; and build/host/basic for the ops dispatched,
@@ -362,6 +363,42 @@ def cmd_qbasic(a: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_profile(a: argparse.Namespace) -> int:
+    """The DOS build relinked with a map, DOSBox's profiler naming each function's own instructions:
+    the program's less an empty one's."""
+    b = build(".", True)
+    db = subprocess.run(["make", "-pnq", "cbasic32"], cwd=b.root, capture_output=True, text=True).stdout
+    m = re.search(r"^COBJ := (.*)$", db, re.M)
+    if not m:
+        sys.exit("profile: make printed no COBJ")
+    objs = [b.root / o for o in m.group(1).split()]
+    sys.path.insert(0, str(Path(os.environ.get("LLRM", Path.home() / "work/personal/llrm-next")) / "tools/dosbatch"))
+    import dosbatch  # ty: ignore[unresolved-import]
+
+    with tempfile.TemporaryDirectory() as d:
+        exe = Path(d) / "basic32.exe"
+        dosbatch.link_target(
+            "x86-m32",
+            objs[0],
+            exe,
+            Path(d),
+            listing=exe.with_suffix(".map"),
+            objects_after=tuple(objs[1:]),
+            defines=dosbatch.entry_defines("x86-m32", None, near=False),
+        )
+        shutil.copy(b.dos.parent / "DOS32A.EXE", Path(d) / "DOS32A.EXE")
+        x86run.COM = exe
+        r = x86run.run({"": "", "prog": program(a)}, Path(d) / "w", limit_ms=600000, file=True, profile=True)
+    base, got = r[""].selfs, r["prog"].selfs
+    own = {f: n - base.get(f, 0) for f, n in got.items() if n > base.get(f, 0)}
+    total = sum(own.values())
+    print(f"{total:,} instructions ({r['prog'].instructions - r[''].instructions:,} counted)")
+    for f, n in sorted(own.items(), key=lambda kv: -kv[1])[: a.n]:
+        calls = r["prog"].calls.get(f, 0) - r[""].calls.get(f, 0)
+        print(f"{n:>12,} {n / total:6.1%} {calls:>9,} calls  {f}")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -385,10 +422,20 @@ def main() -> int:
     p = sub.add_parser("gate")
     p.add_argument("--save", action="store_true")
     sub.add_parser("qbasic")
+    p = sub.add_parser("profile")
+    p.add_argument("file", nargs="?")
+    p.add_argument("-e")
+    p.add_argument("-n", type=int, default=25)
     a = ap.parse_args()
-    return {"run": cmd_run, "iter": cmd_iter, "cmp": cmd_cmp, "size": cmd_size, "gate": cmd_gate, "qbasic": cmd_qbasic}[
-        a.cmd
-    ](a)
+    return {
+        "run": cmd_run,
+        "iter": cmd_iter,
+        "cmp": cmd_cmp,
+        "size": cmd_size,
+        "gate": cmd_gate,
+        "qbasic": cmd_qbasic,
+        "profile": cmd_profile,
+    }[a.cmd](a)
 
 
 if __name__ == "__main__":
