@@ -95,3 +95,18 @@ TEST(lexer_columns_grow)
     CHECK(S->lexr.ncol > (uint32_t)S->lexr.last);
     CHECK(lexr_colof(&S->lexr, (uint32_t)S->lexr.last) == n); /* the end, past the last 1 */
 }
+
+/* ENVIRON past the environment's first bytes: it grows, the value read back. */
+TEST(environ_grows)
+{
+    static const char *const lines[] = {
+        "10 ENVIRON \"QBGROW=\" + STRING$(200, \"e\")",
+        "20 PRINT LEN(ENVIRON$(\"QBGROW\"))",
+        "30 ENVIRON \"QBGROW=\"",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 200 \r");
+    CHECK(S->syst.envcap > 200);
+}

@@ -7,8 +7,10 @@ enum { ENVSZ = 4096, CMDSZ = 128 };
 
 typedef struct {
     /* g_env: the environment, copied at the start: NAME=value 0 each, a 0 after the last;
-       ENVIRON changes the copy, as QBasic's own; SHELL's child gets it. */
-    char env[ENVSZ];
+       ENVIRON changes the copy, as QBasic's own; SHELL's child gets it. envcap bytes, grown to
+       ENVSZ. */
+    char *env;
+    uint32_t envcap;
     char cmd[CMDSZ]; /* g_cmd: COMMAND$, the command line after the program's file, upper case */
     uint16_t cmdlen; /* g_cmdn */
 } Syst;

@@ -14,7 +14,7 @@
  * |---|---|---|
  * | sys_init | syst_init | MIRROR |
  * | sx_sret | syst_ret | MIRROR |
- * | g_env, ENVSZ | Syst.env, ENVSZ | MIRROR |
+ * | g_env, ENVSZ | Syst.env, envcap; ENVSZ | MIRROR; grown |
  * | g_cmd, g_cmdn | Syst.cmd, Syst.cmdlen | MIRROR |
  * | sc_timer, sc_date, sc_time, sc_sdate, sc_stime, sc_inkey | syst_timer, syst_date, syst_time, syst_sdate, syst_stime, syst_inkey | MIRROR |
  * | sc_shell, sc_shell0, sc_cmd, sc_envs, sc_envset, sc_setmem | syst_shell, syst_shell0, syst_cmd, syst_envs, syst_envset, syst_setmem | MIRROR |
@@ -23,6 +23,7 @@
  * | g_part, g_shtl, g_shcs, g_shcm, g_k100, u_seed, u_redo | static | MIRROR |
  */
 #include "vm/system.h"
+#include "util/grow.h"
 #include "session.h"
 #include "io/console.h"
 #include "io/repl.h"
@@ -58,10 +59,23 @@ static uint32_t skip_spaces(const char *const s, uint32_t i, const uint32_t n)
     return i;
 }
 
+/* The environment holds n bytes, ENVSZ at most. */
+static bool env_room(Syst *const sys, const uint32_t n)
+{
+    return n <= ENVSZ && GROW(sys->env, sys->envcap, n);
+}
+
 void syst_init(Syst *const sys)
 {
-    psys_environ(sys->env, ENVSZ - 1);
-    sys->env[ENVSZ - 2] = sys->env[ENVSZ - 1] = 0;
+    for (uint32_t size = GROW_LEAST; env_room(sys, size); size *= 2) /* till it fits */
+        if (psys_environ(sys->env, sys->envcap - 1) + 2 < sys->envcap)
+            break;
+
+    if (!sys->env) /* none: an empty one, ENVIRON's Out of memory */
+        sys->env = (char *)"\0";
+    else
+        sys->env[sys->envcap - 2] = sys->env[sys->envcap - 1] = 0;
+
     char tail[CMDSZ];
     const uint32_t n = psys_cmdline(tail, sizeof tail);
     uint32_t i = skip_spaces(tail, 0, n);
@@ -377,10 +391,12 @@ void syst_envset(Session *const S)
     if (name + 1 >= s.len) /* no value: removed */
         return;
 
-    char *const e = env_end(&S->syst);
+    const uint32_t used = (uint32_t)(env_end(&S->syst) - S->syst.env);
 
-    if (e + s.len + 2 > S->syst.env + ENVSZ)
+    if (!S->syst.envcap || !env_room(&S->syst, used + s.len + 2))
         repl_error(S, E_OM);
+
+    char *const e = S->syst.env + used;
 
     memcpy(e, t, s.len);
     e[s.len] = e[s.len + 1] = 0;
