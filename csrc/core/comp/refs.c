@@ -46,7 +46,8 @@ static void mismatch(Comp *const C)
 /* ---- records */
 
 /* rc_nrec, rc_nreca: the TYPE of record name, of its array; 0 none. A parameter of the procedure
-   compiled is its own, else as DIM declared the name. */
+   compiled is its own, else as DIM declared the name; a line checked alone sees the declarations of
+   the procedure being entered too. */
 static uint8_t nrec(Comp *const C, const uint16_t name, const bool array)
 {
     uint16_t id;
@@ -58,6 +59,14 @@ static uint8_t nrec(Comp *const C, const uint16_t name, const bool array)
 
     if (!array && comp_param(C, name, 0, &id))
         return 0; /* a parameter, not a record */
+
+    if (C->check && C->decl->proc) { /* a line alone, compiled at the module: its procedure's own */
+        const Binding *const own = scop_get(C->scop, C->decl->proc, name);
+
+        if (own && own->rec[array])
+            return own->rec[array];
+    }
+
     return scop_rec(C->scop, name, array);
 }
 

@@ -610,6 +610,16 @@ static void casecmp(Comp *const C, const uint8_t m)
     comp_check(C, e);
     n->a = e; /* checked: a mismatch's code has it */
 
+    if (C->ctrl->selfree) { /* its SELECT unseen: of the first item's kind */
+        C->ctrl->selfree = false;
+
+        if (ast_type(e) & T_STR) {
+            selvar(C, C->ctrl->seldepth, T_STR);
+            n->id = C->ctrl->selid;
+            n->conv = T_STR;
+        }
+    }
+
     if ((C->ctrl->seltype & T_STR) != (ast_type(e) & T_STR))
         mismatch(C);
 
@@ -682,6 +692,8 @@ static void casestmt(Comp *const C)
     }
 
     selvar(C, depth, type);
+    C->ctrl->seldepth = depth;
+    C->ctrl->selfree = !e && C->check;
     caseitem(C);
 
     while (*C->p == ',') {

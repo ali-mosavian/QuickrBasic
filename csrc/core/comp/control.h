@@ -12,6 +12,8 @@ typedef struct Ctrl {
     uint16_t fieldfix; /* g_ctffix */
     uint16_t selid;    /* g_ctvr: a SELECT's or SWAP's variable */
     uint8_t seltype;   /* g_cttp: its T_* */
+    uint8_t seldepth;  /* its SELECT's depth */
+    bool selfree;      /* a CASE checked alone: its type its first item's */
 } Ctrl;
 
 bool ctrl_stmt(Comp *C);    /* ct_stmt: the statement at comp.p if one of these; false none */

@@ -120,3 +120,52 @@ TEST(nothing_between_select_and_case)
 
     CHECK(unit_run_file(S, ok) == ST_OK);
 }
+
+/* Lines typed into the editor one by one, each declared then checked alone as edit_canon does:
+   the last one's check an error? */
+static bool typed_errs(Session *const S, const char *const *const lines)
+{
+    for (const char *const *l = lines; *l; l++) {
+        uint8_t text[256];
+        memcpy(text, *l, strlen(*l) + 1);
+        S->vm.line = DLINE;
+        lexr_line(&S->lexr, text, S->comp.cbuf);
+        repl_declare(S, S->comp.cbuf);
+        S->comp.check = true;
+        comp_line(&S->comp);
+        S->comp.check = false;
+        erred = false;
+        link_walk(S->comp.xbuf, each);
+    }
+
+    return erred;
+}
+
+/* A string CASE checked alone took its SELECT for a number's: GORILLA.BAS's CASE "." and
+   CASE CHR$(13) opened as Type mismatch, kept as typed. */
+TEST(check_passes_string_case_alone)
+{
+    CHECK(!check_errs(S, "case \".\""));
+    CHECK(!check_errs(S, "case \"0\" to \"9\""));
+    CHECK(!check_errs(S, "case chr$(13), \"a\""));
+    CHECK(!check_errs(S, "case is < \"m\""));
+    CHECK(!check_errs(S, "case 1 to 9"));
+    CHECK(check_errs(S, "case \"a\", 1"));
+}
+
+/* A record array's parameter's element's field, checked alone in its SUB: GORILLA.BAS's
+   BCoor(i).XCoor = x opened as Syntax error, kept as typed. */
+TEST(check_passes_record_parameter_field)
+{
+    static const char *const lines[] = {
+        "TYPE XYPoint",
+        "XCoor AS INTEGER",
+        "YCoor AS INTEGER",
+        "END TYPE",
+        "SUB MakeCityScape (BCoor() AS XYPoint)",
+        "BCoor(i).XCoor = x",
+        nullptr,
+    };
+
+    CHECK(!typed_errs(S, lines));
+}
