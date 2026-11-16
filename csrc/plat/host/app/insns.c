@@ -1,17 +1,20 @@
-/* QB_INSNS set: the instructions the process retired from here to its exit, on standard error, for
-   tools/bench.py. Taken in-process, the loader's and Rosetta's start-up costs are left out. */
-#include <libproc.h>
+/* QB_INSNS set: the instructions this thread retired from here to the exit, on standard error, for
+   tools/bench.py, run by noaslr.c. The thread's own (thread_selfcounts); in-process, the loader's
+   start-up left out. */
+#include <dlfcn.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
 
+enum { THSC_CPI = 1 }; /* instructions, then cycles */
+
+static int (*selfcounts)(int, void *, size_t);
 static uint64_t start;
 
 static uint64_t retired(void)
 {
-    struct rusage_info_v4 ri;
+    uint64_t c[2] = {};
 
-    return proc_pid_rusage(getpid(), RUSAGE_INFO_V4, (rusage_info_t *)&ri) ? 0 : ri.ri_instructions;
+    return selfcounts(THSC_CPI, c, sizeof c) ? 0 : c[0];
 }
 
 static void report(void)
@@ -24,6 +27,13 @@ static void count_from_here(void)
 {
     if (!getenv("QB_INSNS"))
         return;
+
+    selfcounts = (int (*)(int, void *, size_t))dlsym(RTLD_DEFAULT, "thread_selfcounts");
+
+    if (!selfcounts) {
+        fprintf(stderr, "insns: no thread_selfcounts\n");
+        exit(1);
+    }
 
     start = retired();
     atexit(report);

@@ -225,7 +225,9 @@ HPERF_OBJ := $(HSRC:csrc/%.c=build/hostperf/obj/%.o)
 build/hostperf/obj/%.o: csrc/%.c $(CHDR)
 	@mkdir -p $(@D)
 	$(HOST_CC) $(HPERF_CFLAGS) -c $< -o $@
-chostperf: build/hostperf/basic
+chostperf: build/hostperf/basic build/hostperf/noaslr
+build/hostperf/noaslr: build/hostperf/obj/plat/host/app/noaslr.o
+	$(HOST_CC) $^ -o $@
 build/hostperf/basic: $(HPERF_OBJ) $(QBRT_HOBJ) build/hostperf/obj/app/basic32.o build/hostperf/obj/plat/host/app/insns.o
 	$(HOST_CC) $^ -o $@
 

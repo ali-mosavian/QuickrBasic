@@ -3,14 +3,14 @@
     bench.py run FILE.bas | -e CODE [--dos]      one program: its output and cost
     bench.py iter -e BODY [--setup CODE] [--dos] one loop iteration's cost
     bench.py cmp [REV...] [--dos]                tools/bench/*.bas per build (default HEAD .; . the tree)
-    bench.py size [REV]                          the DOS executables' bytes, REV's (default HEAD) and ours
+    bench.py size [REV] [--functions]            the DOS executables' bytes, REV's (default HEAD) and ours
     bench.py gate [--save]                       the suite and sizes against tools/bench/baseline.json
     bench.py qbasic                              qbasic/BENCH.BAS in QBasic 1.1 and our IDE under DOSBox
 
 Native (the default) runs build/hostperf/basic for retired instructions, the least of RUNS runs less
-an empty program's, and build/host/basic for the ops dispatched, which are exact. --dos runs
-build/c/basic32.exe under x86run, whose instruction count is exact. A REV is built once in its own
-worktree under build/bench/.
+an empty program's, builds compared run interleaved; and build/host/basic for the ops dispatched,
+which are exact. --dos runs build/c/basic32.exe under x86run, whose instruction count is exact.
+A REV is built once in its own worktree under build/bench/.
 """
 
 import os
@@ -33,9 +33,9 @@ SUITE = ROOT / "tools/bench"
 BASELINE = SUITE / "baseline.json"
 REVS = ROOT / "build/bench"
 EXES = ("build/c/basic32.exe", "build/c/ide32.exe")
-INSNS_SRC = "csrc/plat/host/app/insns.c"
-RUNS = 10
-INSNS_SLACK = 0.03  # past boot, a count varies by ±3M: identical builds differed by up to 2.3%
+INSTRUMENT_SRC = ("csrc/plat/host/app/insns.c", "csrc/plat/host/app/noaslr.c")
+RUNS = 3
+INSNS_SLACK = 0.01  # under noaslr a count repeats to 0.15%
 
 type Programs = dict[str, str]
 
@@ -56,6 +56,10 @@ class Build:
         return self.root / "build/hostperf/basic"
 
     @property
+    def noaslr(self) -> Path:
+        return self.root / "build/hostperf/noaslr"
+
+    @property
     def counted(self) -> Path:
         return self.root / "build/host/basic"
 
@@ -64,10 +68,9 @@ class Build:
         return self.root / "build/c/basic32.exe"
 
     def make(self, dos: bool) -> None:
-        """The builds, by our Makefile: an older rev has neither the perf build nor its counter."""
-        counter = self.root / INSNS_SRC
-        if not counter.exists():
-            shutil.copy(ROOT / INSNS_SRC, counter)
+        """The builds, by our Makefile and instruments: an older rev may lack them, or count otherwise."""
+        for src in INSTRUMENT_SRC:
+            shutil.copy(ROOT / src, self.root / src)
         targets = ["chostperf", "build/host/basic"] + ["c"] * dos
         p = subprocess.run(
             ["nice", "-n", "10", "make", "-f", str(ROOT / "Makefile"), "-j4", *targets],
@@ -100,31 +103,41 @@ def source(prog: str) -> bytes:
     return (prog.rstrip("\n") + "\nSYSTEM\n").replace("\r\n", "\n").replace("\n", "\r\n").encode("latin-1")
 
 
-def run_native(b: Build, progs: Programs, runs: int = RUNS) -> dict[str, Cost]:
-    def count(exe: Path, bas: Path, env: str, key: bytes) -> tuple[int, str]:
-        p = subprocess.run(
-            [str(exe), bas.name],
-            cwd=bas.parent,
-            input=b"",
-            capture_output=True,
-            env=os.environ | {env: "1"},
-            timeout=600,
-        )
-        m = re.search(rb"\n" + key + rb" (\d+)\n", p.stderr)
-        if not m:
-            sys.exit(f"{bas.stem}: no {key.decode()} count from {exe}\n{p.stderr.decode(errors='replace')}")
-        return int(m[1]), p.stdout.decode("latin-1").strip()
+def count(exe: Path, bas: Path, env: str, key: bytes, *wrap: Path) -> tuple[int, str]:
+    """exe's count of key for program bas, and its output; wrap: the command exe runs under."""
+    p = subprocess.run(
+        [*map(str, wrap), str(exe), bas.name],
+        cwd=bas.parent,
+        input=b"",
+        capture_output=True,
+        env=os.environ | {env: "1"},
+        timeout=600,
+    )
+    m = re.search(rb"\n" + key + rb" (\d+)\n", p.stderr)
+    if not m:
+        sys.exit(f"{bas.stem}: no {key.decode()} count from {exe}\n{p.stderr.decode(errors='replace')}")
+    return int(m[1]), p.stdout.decode("latin-1").strip()
 
-    res: dict[str, Cost] = {}
+
+def run_natives(builds: list[Build], progs: Programs, runs: int = RUNS) -> list[dict[str, Cost]]:
+    """Each build's costs, their runs interleaved: the machine's load drifts alike for all."""
+    res: list[dict[str, Cost]] = [{} for _ in builds]
     with tempfile.TemporaryDirectory() as d:
         for name, prog in {"": "", **progs}.items():
             bas = Path(d) / f"{name[:8].upper() or 'EMPTY'}.BAS"
             bas.write_bytes(source(prog))
-            insns = min(count(b.perf, bas, "QB_INSNS", b"insns")[0] for _ in range(runs))
-            ops, out = count(b.counted, bas, "QB_OPS", b"ops")
-            res[name] = Cost(out, insns, ops)
-    empty = res.pop("")
-    return {k: Cost(c.out, c.insns - empty.insns, c.ops - empty.ops) for k, c in res.items()}
+            least = [1 << 62] * len(builds)
+            for _ in range(runs):
+                for i, b in enumerate(builds):
+                    least[i] = min(least[i], count(b.perf, bas, "QB_INSNS", b"insns", b.noaslr)[0])
+            for i, b in enumerate(builds):
+                ops, out = count(b.counted, bas, "QB_OPS", b"ops")
+                res[i][name] = Cost(out, least[i], ops)
+    return [{k: Cost(c.out, c.insns - r[""].insns, c.ops - r[""].ops) for k, c in r.items() if k} for r in res]
+
+
+def run_native(b: Build, progs: Programs, runs: int = RUNS) -> dict[str, Cost]:
+    return run_natives([b], progs, runs)[0]
 
 
 def run_dos(b: Build, progs: Programs) -> dict[str, Cost]:
@@ -181,7 +194,8 @@ def cmd_iter(a: argparse.Namespace) -> int:
 
 def cmd_cmp(a: argparse.Namespace) -> int:
     names: list[str] = a.revs or ["HEAD", "."]
-    res = [measure(build(r, a.dos), suite(), a.dos) for r in names]
+    builds = [build(r, a.dos) for r in names]
+    res = [run_dos(b, suite()) for b in builds] if a.dos else run_natives(builds, suite())
     heads = ["tree" if n == "." else n for n in names]
     print(f"{'':10}" + "".join(f"{n:>14}" for n in heads) + "".join(f"{n:>8}" for n in heads[1:]))
     for k in res[0]:
@@ -196,48 +210,68 @@ def cmd_cmp(a: argparse.Namespace) -> int:
     return 0
 
 
+def functions(b: Build) -> dict[str, int]:
+    """Each DOS object's functions' bytes, by object and name: COFF gives no sizes, so each runs to
+    the next function, the last to .text's end."""
+    llvm = Path(shutil.which("llvm-nm") or "/opt/homebrew/opt/llvm/bin/llvm-nm").parent
+    objs = b.root / "build/c/obj"
+    res: dict[str, int] = {}
+    for o in sorted(objs.rglob("*.obj")):
+        heads = subprocess.run([llvm / "llvm-objdump", "-h", o], capture_output=True, text=True).stdout
+        text = re.search(r"^\s*\d+ \.text\s+([0-9a-f]+)", heads, re.M)
+        syms = subprocess.run([llvm / "llvm-nm", "-n", "--defined-only", o], capture_output=True, text=True).stdout
+        fns = [(int(f[0], 16), f[2]) for f in (ln.split() for ln in syms.splitlines()) if len(f) == 3 and f[1] in "tT"]
+        if not fns or not text:
+            continue
+        ends = [a for a, _ in fns[1:]] + [int(text[1], 16)]
+        for (start, name), end in zip(fns, ends, strict=True):
+            res[f"{o.relative_to(objs)}:{name}"] = end - start
+    return res
+
+
 def cmd_size(a: argparse.Namespace) -> int:
-    old, new = sizes(build(a.rev, True)), sizes(build(".", True))
+    was, now = build(a.rev, True), build(".", True)
+    old, new = sizes(was), sizes(now)
     for e in EXES:
         print(f"{Path(e).name:12} {old[e]:>10,} {new[e]:>10,} {new[e] - old[e]:>+8,}")
+    if a.functions:
+        fo, fn = functions(was), functions(now)
+        for k in sorted(fo.keys() | fn.keys()):
+            if fo.get(k, 0) != fn.get(k, 0):
+                print(f"{k:60} {fo.get(k, 0):>8} {fn.get(k, 0):>8} {fn.get(k, 0) - fo.get(k, 0):>+6}")
     return 0
 
 
 def cmd_gate(a: argparse.Namespace) -> int:
+    """ops, outputs and sizes against the baseline's record, exact; retired instructions against
+    the baseline's rev built and run now, beside ours."""
     b = build(".", True)
-    now = measure(b, suite(), False)
     if a.save:
-        BASELINE.write_text(
-            json.dumps(
-                {
-                    "rev": git("rev-parse", "--short", "HEAD"),
-                    "size": sizes(b),
-                    "cost": {k: vars(c) for k, c in now.items()},
-                },
-                indent=1,
-            )
-            + "\n"
-        )
+        now = run_native(b, suite())
+        record = {
+            "rev": git("rev-parse", "--short", "HEAD"),
+            "size": sizes(b),
+            "cost": {k: vars(c) for k, c in now.items()},
+        }
+        BASELINE.write_text(json.dumps(record, indent=1) + "\n")
         print(f"saved {BASELINE.relative_to(ROOT)}")
         return 0
 
     base = json.loads(BASELINE.read_text())
+    then, now = run_natives([build(base["rev"], False), b], suite())
     fail = False
     print(f"against {base['rev']}{'':4}{'ops':>14}{'':8}{'insns':>14}")
     for k, c in now.items():
         was = Cost(**base["cost"][k])
+        ratio = c.insns / then[k].insns
         bad = [
             why
-            for why, hit in (
-                ("ops", c.ops > was.ops),
-                ("insns", c.insns > was.insns * (1 + INSNS_SLACK)),
-                ("output", c.out != was.out),
-            )
+            for why, hit in (("ops", c.ops > was.ops), ("insns", ratio > 1 + INSNS_SLACK), ("output", c.out != was.out))
             if hit
         ]
         fail |= bool(bad)
         print(
-            f"{k:16}{c.ops:>14,}{c.ops / was.ops:>8.3f}{c.insns:>14,}{c.insns / was.insns:>8.3f}"
+            f"{k:16}{c.ops:>14,}{c.ops / was.ops:>8.3f}{c.insns:>14,}{ratio:>8.3f}"
             + (f"  FAIL {' '.join(bad)}" if bad else "")
         )
     for e, s in sizes(b).items():
@@ -333,6 +367,7 @@ def main() -> int:
     p.add_argument("--dos", action="store_true")
     p = sub.add_parser("size")
     p.add_argument("rev", nargs="?", default="HEAD")
+    p.add_argument("--functions", action="store_true", help="each function whose bytes changed")
     p = sub.add_parser("gate")
     p.add_argument("--save", action="store_true")
     sub.add_parser("qbasic")
