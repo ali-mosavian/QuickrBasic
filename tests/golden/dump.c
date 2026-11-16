@@ -1,10 +1,12 @@
 /* codegen's golden dump: the file argv[1] loaded and linked, each stored line compiled; per line,
-   its index and its code's bytes in hex. A load error: "error n". -f FILE: the code fused, as run. */
+   its index and its code's bytes in hex. A load error: "error n". -f FILE: the code fused, as run;
+   -l FILE: as linked, its cells and frames resolved. */
 #include <stdio.h>
 #include <string.h>
 #include "boot.h"
 #include "session.h"
 #include "comp/link.h"
+#include "vm/flow.h"
 
 static Session session;
 
@@ -32,18 +34,39 @@ static void dump(Session *const S)
     }
 }
 
+/* Each stored line's code as linked, in the cache. */
+static void dump_linked(Session *const S)
+{
+    uint32_t n = 0;
+
+    for (uint32_t l = PROGBASE, len; (len = prog_line(&S->prog, l)->len); l += len, n++) {
+        printf("%u", n);
+        const uint8_t *b = at(S->allo.cache + prog_line(&S->prog, l)->code);
+        const uint8_t *end = b;
+
+        for (; *end != O_EOL; end += flow_opsize(end))
+            ;
+
+        for (; b <= end; b++)
+            printf(" %02x", *b);
+
+        putchar('\n');
+    }
+}
+
 int main(const int argc, char **const argv)
 {
     const bool fused = argc == 3 && !strcmp(argv[1], "-f");
+    const bool linked = argc == 3 && !strcmp(argv[1], "-l");
 
-    if (argc != 2 && !fused)
+    if (argc != 2 && !fused && !linked)
         return 2;
 
     static const FrontEnd none = {};
 
     Session *const S = &session;
     boot(S, &none);
-    S->comp.nofuse = !fused; /* else the asm's code, byte for byte */
+    S->comp.nofuse = !fused && !linked; /* else the asm's code, byte for byte */
     snprintf(S->repl.file, sizeof S->repl.file, "%s", argv[argc - 1]);
     Status st = repl_call(S, load);
 
@@ -56,7 +79,7 @@ int main(const int argc, char **const argv)
 
     if (st != ST_OK) /* a link error: each line's code all the same */
         printf("error %u\n", st);
-    if ((st = repl_call(S, dump)) != ST_OK)
+    if ((st = repl_call(S, linked ? dump_linked : dump)) != ST_OK)
         printf("error %u\n", st);
 
     return 0;

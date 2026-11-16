@@ -187,7 +187,8 @@ build/clto/ide32.exe: $(call CBC,$(CIDE_OBJ)) $(CASM_OBJ) $(if $(PGO),build/clto
 	$(PY) tools/x86d32a.py $(DOS32A)/dos32a.exe build/clto/DOS32A.EXE
 
 # ---- The host build: the same core on this machine's own CPU (plat/host/pfpu.c: the x87's on x86-64, C's on another) ----
-HOST_CC ?= $(CLANG) -isysroot $(shell xcrun --show-sdk-path 2>/dev/null)
+SDK := $(shell xcrun --show-sdk-path 2>/dev/null)
+HOST_CC ?= $(CLANG) -isysroot $(SDK)
 HOST_CFLAGS := -std=c23 -O1 -g -Werror=undef -DARENA_AT_ZERO=0 -DEXEC_COUNT -Wall -Wextra -Wno-unused-parameter \
 	-Icsrc/plat/host/include -Icsrc -Icsrc/core
 HSRC := $(shell find csrc/core -name '*.c' -not -path 'csrc/core/ui/*') csrc/core/ui/tree.c csrc/core/ui/indent.c \

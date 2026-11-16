@@ -2,7 +2,7 @@
 
     bench.py run FILE.bas | -e CODE [--dos]      one program: its output and cost
     bench.py iter -e BODY [--setup CODE] [--dos] one loop iteration's cost
-    bench.py cmp [REV...] [--dos]                tools/bench/*.bas per build (default HEAD .; . the tree)
+    bench.py cmp [REV...] [-e CODE] [--file F] [--dos]  the suite, or these programs, per build (HEAD .)
     bench.py size [REV] [--functions]            the DOS executables' loaded bytes, REV's (default HEAD) and ours
     bench.py gate [--save]                       the suite and sizes against tools/bench/baseline.json
     bench.py qbasic                              qbasic/BENCH.BAS in QBasic 1.1 and our IDE under DOSBox
@@ -20,6 +20,7 @@ import json
 import time
 import shutil
 import struct
+import hashlib
 import argparse
 import tempfile
 import subprocess
@@ -90,7 +91,8 @@ def build(rev: str, dos: bool) -> Build:
         b = Build(ROOT)
     else:
         sha = git("rev-parse", "--short", rev)
-        b = Build(REVS / sha)
+        rules = hashlib.sha1((ROOT / "Makefile").read_bytes()).hexdigest()[:8]
+        b = Build(REVS / f"{sha}-{rules}")  # our Makefile builds it: another's objects mislink
         if not b.root.exists():
             git("worktree", "add", "-q", "--detach", str(b.root), sha)
     b.make(dos)
@@ -111,6 +113,8 @@ def count(exe: Path, bas: Path, env: str, key: bytes) -> tuple[int, str]:
         env=os.environ | {env: "1"},
         timeout=600,
     )
+    if re.search(rb" in line .* in module ", p.stdout):  # stopped by an error: its cost is not the program's
+        sys.exit(f"{bas.stem}: {p.stdout.decode('latin-1').strip()}")
     m = re.search(rb"\n" + key + rb" (\d+)\n", p.stderr)
     if not m:
         sys.exit(f"{bas.stem}: no {key.decode()} count from {exe}\n{p.stderr.decode(errors='replace')}")
@@ -203,8 +207,9 @@ def cmd_iter(a: argparse.Namespace) -> int:
 
 def cmd_cmp(a: argparse.Namespace) -> int:
     names: list[str] = a.revs or ["HEAD", "."]
+    progs = {f"e{i}": e for i, e in enumerate(a.e)} | {Path(f).stem: Path(f).read_text() for f in a.file} or suite()
     builds = [build(r, a.dos) for r in names]
-    res = [run_dos(b, suite()) for b in builds] if a.dos else run_natives(builds, suite())
+    res = [run_dos(b, progs) for b in builds] if a.dos else run_natives(builds, progs)
     heads = ["tree" if n == "." else n for n in names]
     print(f"{'':10}" + "".join(f"{n:>14}" for n in heads) + "".join(f"{n:>8}" for n in heads[1:]))
     for k in res[0]:
@@ -371,6 +376,8 @@ def main() -> int:
     p.add_argument("--dos", action="store_true")
     p = sub.add_parser("cmp")
     p.add_argument("revs", nargs="*")
+    p.add_argument("-e", action="append", default=[], help="a program instead of the suite")
+    p.add_argument("--file", action="append", default=[], help="a .bas file instead of the suite")
     p.add_argument("--dos", action="store_true")
     p = sub.add_parser("size")
     p.add_argument("rev", nargs="?", default="HEAD")
