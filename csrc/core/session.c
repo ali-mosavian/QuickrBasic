@@ -158,6 +158,7 @@ void session_drop(Session *const S)
     S->vm.cont.line = 0;
     S->link.cursor = 0;
     S->link.linked = false;
+    S->link.lmask = 0;
     S->vm.ftop = S->vm.frames;
     S->vm.fp = 0;
     prog_terminate(&S->prog);

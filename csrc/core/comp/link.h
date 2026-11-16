@@ -23,6 +23,8 @@ typedef struct Link {
     uint32_t cursor;            /* mem/prog's and vm/flow's line cursor; 0 when linked */
     LinkMiss miss[LINK_MISSES]; /* the ledger: targets not found, in program order */
     uint32_t nmiss;
+    uint32_t *lines; /* the numbered lines by number, hashed, while linked: ref_line's */
+    uint32_t lmask;  /* its slots less 1; 0 none */
 } Link;
 
 void link_start(Comp *C); /* cm_link: before a run: blocks paired, every line compiled */

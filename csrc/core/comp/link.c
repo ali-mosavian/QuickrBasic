@@ -46,6 +46,7 @@
 #include "mem/program.h"
 #include "mem/scope.h"
 #include "mem/symbols.h"
+#include "plat/pmem.h"
 #include "vm/exec.h"
 #include "vm/flow.h"
 
@@ -322,6 +323,64 @@ static bool jump_dest(const Comp *const C, Jump *const j)
     return true;
 }
 
+static uint32_t line_slot(const uint16_t num, const uint32_t mask) { return num * 40503u & mask; }
+
+/* The numbered lines, hashed by number: a reference's search was a walk from the first line,
+   9% of a link. The first of a number wins, as prog_find's. */
+static void index_lines(Comp *const C)
+{
+    uint32_t n = 0;
+
+    for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)
+        n += prog_line(C->prog, l)->num != NONUM;
+
+    uint32_t slots = 16;
+
+    while (slots < 2 * n)
+        slots *= 2;
+
+    uint32_t *const t = pmem_resize(C->link->lines, slots * sizeof *t);
+    C->link->lmask = 0;
+
+    if (!t)
+        return; /* prog_find's walk */
+
+    C->link->lines = t;
+    memset(t, 0, slots * sizeof *t);
+
+    for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len) {
+        const uint16_t num = prog_line(C->prog, l)->num;
+        uint32_t s = line_slot(num, slots - 1);
+
+        if (num == NONUM)
+            continue;
+
+        while (t[s] && prog_line(C->prog, t[s])->num != num)
+            s = (s + 1) & (slots - 1);
+        if (!t[s])
+            t[s] = l;
+    }
+
+    C->link->lmask = slots - 1;
+}
+
+/* The line numbered num, hashed or walked to; false none. */
+static bool find_line(const Comp *const C, const uint16_t num, uint32_t *const line)
+{
+    const uint32_t mask = C->link->lmask;
+
+    if (!mask || num == NONUM)
+        return prog_find(C->prog, 0, num, line);
+
+    for (uint32_t s = line_slot(num, mask); C->link->lines[s]; s = (s + 1) & mask)
+        if (prog_line(C->prog, C->link->lines[s])->num == num) {
+            *line = C->link->lines[s];
+            return true;
+        }
+
+    return false;
+}
+
 /* LineRef r's line: the one the compiler found, else any numbered num; false none, *at its label's
    body offset. */
 static bool ref_line(const Comp *const C, LineRef *const r, uint32_t *const at)
@@ -333,7 +392,7 @@ static bool ref_line(const Comp *const C, LineRef *const r, uint32_t *const at)
 
     *at = line & ~LREF_AT;
 
-    if (!prog_find(C->prog, 0, r->num, &line))
+    if (!find_line(C, r->num, &line))
         return false;
 
     r->line = line;
@@ -479,6 +538,8 @@ void link_start(Comp *const C)
 
     for (uint8_t i = 1; i < C->blok->nprocs; i++) /* every line compiled: every local made */
         frame_layout(C->symb, C->decl, C->blok->procs[i], i);
+
+    index_lines(C);
 
     for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)
         link_resolve(C, l, prog_line(C->prog, l)->code);
