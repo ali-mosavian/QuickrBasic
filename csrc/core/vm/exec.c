@@ -1027,7 +1027,7 @@ void exec_s_cmp(Session *const S)
     const Addr left = exec_popa(&S->vm);
     const bool yes = strg_cmp(&S->strg, left, right) & exec_u8(&S->vm);
 
-    if (op < O_I_CMPIF)
+    if (op == O_S_CMP)
         exec_pushi(&S->vm, yes ? -1 : 0);
     else if (!yes)
         flow_nextln(S);

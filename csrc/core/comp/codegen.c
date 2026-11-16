@@ -39,6 +39,12 @@
 
 static const uint8_t xop[] = {O_I_DIV, O_I_MOD, O_I_XOR, O_I_EQV, O_I_IMP}; /* from OP_IDIV */
 static const uint8_t fcmpk[4] = {O_F_CMP_V, O_F_CMP_VI, O_F_CMP_U8, O_F_CMP_F32};
+/* The binary ops with a right operand folded in, by its form (V, U8; SINGLE's V, VI, U8, F32) and
+   the operator, OP_ADD .. OP_OR. */
+#define IARITH(M) {O_I_ADD_##M, O_I_SUB_##M, O_I_MUL_##M, O_I_DIV_##M, O_I_AND_##M, O_I_OR_##M}
+#define FARITH(M) {O_F_ADD_##M, O_F_SUB_##M, O_F_MUL_##M, O_F_DIV_##M}
+static const uint8_t iarith[2][6] = {IARITH(V), IARITH(U8)};
+static const uint8_t farith[4][4] = {FARITH(V), FARITH(VI), FARITH(U8), FARITH(F32)};
 static const uint8_t lda1[5] = {O_F_LD_A1, O_I_LD_A1, O_S_LD_A1, O_D_LD_A1, O_D_LD_A1};
 static const uint8_t ldan[5] = {O_F_LD_A, O_I_LD_A, O_S_LD_A, O_D_LD_A, O_D_LD_A};
 
@@ -139,17 +145,17 @@ void cg_icmp(Code *const c, const uint8_t rel, uint8_t *const right)
     c->cmpend = c->out;
 }
 
-/* The right operand's load that folds: the first op of its group, F_ADD_V .. F_ADD_F32; 0 none. */
+/* The right operand's load that folds: its form, farith's row, plus 1; 0 none. */
 static uint8_t fltkind(Code *const c, const uint8_t *const right)
 {
     if (isright(c, O_F_LD_V, 1 + VCELL, right))
-        return O_F_ADD_V;
+        return 1;
     if (isright(c, O_F_LD_VI, 1 + VCELL, right))
-        return O_F_ADD_VI;
+        return 2;
     if (isright(c, O_F_LD_U8, 2, right))
-        return O_F_ADD_U8;
+        return 3;
     if (isright(c, O_F_LD_F32, 5, right))
-        return O_F_ADD_F32;
+        return 4;
 
     return 0;
 }
@@ -162,7 +168,7 @@ void cg_fcmp(Code *const c, const uint8_t rel, uint8_t *const right)
 
     if (k) {
         c->cmp = right;
-        *right = fcmpk[(k - O_F_ADD_V) >> 2];
+        *right = fcmpk[k - 1];
         code_byte(c, m);
     } else {
         c->cmp = c->out;
@@ -361,12 +367,7 @@ static void numeric(
                 const uint8_t op = flt ? fcmpk[form] : form ? O_I_CMP_U8 : O_I_CMP_V;
                 compare(c, op, lop, b, rel & REL_MASK);
             } else {
-                const uint8_t base =
-                    flt    ? (uint8_t[]){O_F_ADD_V, O_F_ADD_VI, O_F_ADD_U8, O_F_ADD_F32}[form]
-                    : form ? O_I_ADD_U8
-                           : O_I_ADD_V;
-
-                emit_load(c, base + rel, lop, b);
+                emit_load(c, flt ? farith[form][rel] : iarith[form != 0][rel], lop, b);
                 c->type = t;
             }
 
@@ -1031,8 +1032,10 @@ void cg_store_op(Code *const c, const Node *const n)
         const uint8_t k = (n->var->info & VK_MASK) == VK_INT   ? 0
                           : (n->var->info & VK_MASK) == VK_FLT ? 1
                                                                : 2;
-        scalar = O_I_ST_V + k;
-        one = O_I_ST_A1 + k;
+        scalar = (const uint8_t[]){O_I_ST_V, O_F_ST_V, O_S_ST_V}[k];
+
+        one = (const uint8_t[]){O_I_ST_A1, O_F_ST_A1, O_S_ST_A1}[k];
+
         many = O_I_ST_A + k;
     }
 
@@ -1076,13 +1079,33 @@ static void cg_cond(Code *const c, const Node *const n)
     cg_jump(c, n->jump);
 }
 
+/* Compare op's CMPIF. */
+static uint8_t cmpif(const uint8_t op)
+{
+    static const uint8_t pairs[][2] = {
+        {O_I_CMP, O_I_CMPIF},
+        {O_I_CMP_V, O_I_CMPIF_V},
+        {O_I_CMP_U8, O_I_CMPIF_U8},
+        {O_F_CMP, O_F_CMPIF},
+        {O_F_CMP_V, O_F_CMPIF_V},
+        {O_F_CMP_VI, O_F_CMPIF_VI},
+        {O_F_CMP_U8, O_F_CMPIF_U8},
+        {O_F_CMP_F32, O_F_CMPIF_F32},
+        {O_S_CMP, O_S_CMPIF},
+    };
+
+    for (uint32_t i = 0;; i++)
+        if (pairs[i][0] == op)
+            return pairs[i][1];
+}
+
 /* A one-line IF's test of the value made: a compare just made becomes its CMPIF, else X.IF. */
 static void cg_if(Code *const c)
 {
     code_dtest(c);
 
     if (c->out == c->cmpend)
-        *c->cmp += O_I_CMPIF - O_I_CMP;
+        *c->cmp = cmpif(*c->cmp);
     else /* code_dtest made a DOUBLE an INT */
         code_op(c, code_pick(c->type, O_I_IF, O_F_IF, O_I_IF, O_S_IF));
 }
