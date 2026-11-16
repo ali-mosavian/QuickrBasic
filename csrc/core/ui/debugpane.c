@@ -466,6 +466,7 @@ void dpan_open(Session *const S)
     frames(S);
     vars(S);
     watch_eval(S);
+    wind_imm_hide();
     wind_layout();
 }
 
@@ -479,6 +480,7 @@ void dpan_close(void)
     if (uimn.tree.workspace.focus == FOC_PANE)
         uimn.tree.workspace.focus = FOC_EDIT;
 
+    wind_imm_show();
     wind_layout();
 }
 

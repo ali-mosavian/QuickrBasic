@@ -241,6 +241,7 @@ typedef struct {
     bool vert;       /* wvert: ED2 beside ED1, in ED1's rows */
     bool vert_saved; /* wvsav: vert before Ctrl+F10 */
     uint8_t saved[NWIN];
+    uint8_t imm_saved; /* the immediate window's height the debug pane hid, 0 none */
 } UiWins;
 
 /* The immediate window (TIMM, im_h, im_lb). */

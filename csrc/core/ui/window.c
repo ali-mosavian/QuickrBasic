@@ -346,6 +346,43 @@ void wind_shrink(void)
         move(w, n);
 }
 
+void wind_imm_hide(void)
+{
+    unmax();
+    const uint8_t h = win(W_IMM)->height;
+    uint8_t over;
+
+    if (!h || !shown(W_IMM, -1, &over))
+        return;
+
+    uimn.win.imm_saved = h;
+    win(over)->height += h;
+    win(W_IMM)->height = 0;
+
+    if (uimn.tree.workspace.focus == FOC_IMM)
+        uimn.tree.workspace.focus = FOC_EDIT;
+}
+
+void wind_imm_show(void)
+{
+    unmax();
+    const uint8_t h = uimn.win.imm_saved;
+    uimn.win.imm_saved = 0;
+    uint8_t over;
+
+    if (!h || win(W_IMM)->height || !shown(W_IMM, -1, &over))
+        return;
+
+    const uint8_t spare = win(over)->height - least(over); /* the rows over it can give */
+    const uint8_t give = h < spare ? h : spare;
+
+    if (give < least(W_IMM))
+        return;
+
+    win(over)->height -= give;
+    win(W_IMM)->height = give;
+}
+
 void wind_max(void)
 {
     UiWins *const ws = &uimn.win;

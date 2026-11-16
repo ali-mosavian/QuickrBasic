@@ -724,8 +724,8 @@ def play() -> None:
             press("down")
 
     def pane() -> list[str]:
-        """The debug pane's rows, columns 50 to 79."""
-        return [chars(r)[50:80].decode("latin-1") for r in range(1, 21)]
+        """The debug pane's rows, columns 50 to 79: to row 23, the immediate window hidden."""
+        return [chars(r)[50:80].decode("latin-1") for r in range(1, 24)]
 
     def debug_pane() -> None:
         """At a stop: the code in columns 0-49; Watch, Locals, Call stack right of it; gone on a run."""
@@ -750,6 +750,8 @@ def play() -> None:
 
         rows = pane()
         assert rows[0].startswith("\xda") and "Watch" in rows[0] and "\xbf" == rows[0][-1], rows
+        # The immediate window took the stop's rows from the code: hidden while the pane shows.
+        assert not any("IMMEDIATE" in r for r in look()), look()
         assert locals_() == ["N% = 3", "T% = 30"], pane()  # the parameter first
 
         def typed(text: str) -> None:  # keys() has no shifted symbols
@@ -804,6 +806,7 @@ def play() -> None:
         assert output()[0] == " 12", output()
         press("space")
         assert "Watch" not in "".join(pane()), pane()
+        assert look()[21].strip() == "IMMEDIATE", look()  # back, its height as it was
         press(f"0x{ALT_D:x}", "c")
 
     dbg = ["DECLARE SUB s ()", "PRINT 1", "FOR i = 1 TO 2: PRINT i: NEXT", "GOSUB g", "s", "PRINT 9", "END",
