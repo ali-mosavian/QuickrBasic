@@ -1,5 +1,6 @@
 /* The session's debugger: what a step asks the VM's next DBG op for. */
 #include "session.h"
+#include "io/repl.h"
 #include "unit.h"
 
 TEST(step_over_and_out_stop_at_the_stopped_depth)
@@ -57,4 +58,47 @@ TEST(an_older_calls_parameter_by_value_is_its_own)
         CHECK((int16_t)rd32(session_cell(S, &f[i], n, 0)) == i + 1);
 
     session_drop_stop(S);
+}
+
+/* A stop left the data stack at the module's base, above the calls' frames: a watch's "1 / 0"
+   folded 1.0 over the outer call's argument, its N% then 1065353216. */
+TEST(a_probe_leaves_an_older_calls_argument)
+{
+    static const char *const lines[] = {
+        "10 r 4",
+        "20 SUB r (n%)",
+        "30 IF n% > 3 THEN r n% - 1 ELSE STOP",
+        "40 END SUB",
+        nullptr,
+    };
+
+    unit_run(S, lines);
+    DebugFrame f[3];
+    CHECK(session_frames(S, f, 3) == 3);
+    const uint16_t n = blok_proc(&S->blok, f[0].proc)->params[0].var;
+    char out[80];
+    CHECK(dbug_eval(S, "1 / 0", f[0].proc, out) != ST_OK);
+    CHECK((int16_t)rd32(session_cell(S, &f[1], n, 0)) == 4);
+    session_drop_stop(S);
+}
+
+/* CONT after a stop ran on the module's stack base: the inner call's PRINT n% pushed 3 over the
+   outer call's argument, which then printed 3, not 4. */
+TEST(cont_leaves_an_older_calls_argument)
+{
+    static const char *const lines[] = {
+        "10 r 4",
+        "20 SUB r (n%)",
+        "30 IF n% > 3 THEN r n% - 1 ELSE STOP",
+        "40 PRINT n%;",
+        "50 END SUB",
+        nullptr,
+    };
+
+    unit_run(S, lines);
+    S->cons.capture = CAP_SBUF;
+    S->cons.sblen = 0;
+    repl_call(S, repl_cont);
+    S->cons.capture = 0;
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 3  4 ");
 }

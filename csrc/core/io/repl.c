@@ -265,7 +265,7 @@ static void reset(Session *const S)
     S->vm.running = false; /* its loop's frame is gone */
     chnl_clear(&S->chnl);
     cons_fresh(&S->cons);
-    S->vm.sp = S->vm.rsp;
+    S->vm.sp = flow_stack_base(&S->vm); /* below a stop's frames, which CONT and probes keep */
     S->strg.tmp_used = 0;
     S->strg.tmp_floor = 0;
 }
