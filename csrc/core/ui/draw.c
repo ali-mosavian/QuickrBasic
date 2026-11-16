@@ -242,7 +242,7 @@ void draw_edit(Session *const S, const bool ina)
 
     for (uint16_t r = 0; r < e->rows; r++)
         draw_row(S, r);
-    if (has_focus()) { /* the bars: the window with the focus */
+    if (has_focus() && !uimn.pane_on) { /* the bars: the window with the focus, no debug pane */
         draw_vbar();
         draw_hbar();
     } else

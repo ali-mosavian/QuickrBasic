@@ -752,6 +752,17 @@ def play() -> None:
         assert rows[0].startswith("\xda") and "Watch" in rows[0] and "\xbf" == rows[0][-1], rows
         # The immediate window took the stop's rows from the code: hidden while the pane shows.
         assert not any("IMMEDIATE" in r for r in look()), look()
+        # The code window's scroll bars are left out beside the pane: its border, no arrow.
+        assert chars(2)[49] == 0xB3, chars(2)
+        # A drag of the pane's border, or the code's beside it, moves the split.
+        mouse(5, 50, True)
+        mouse(5, 40, True)
+        mouse(5, 40, False)
+        assert chars(1)[40] == 0xDA and chars(2)[39] == 0xB3, (chars(1), chars(2))
+        mouse(5, 39, True)
+        mouse(5, 50, True)
+        mouse(5, 50, False)
+        assert chars(1)[50] == 0xDA and chars(2)[49] == 0xB3, (chars(1), chars(2))
         assert locals_() == ["N% = 3", "T% = 30"], pane()  # the parameter first
 
         def typed(text: str) -> None:  # keys() has no shifted symbols
@@ -808,6 +819,15 @@ def play() -> None:
         assert "Watch" not in "".join(pane()), pane()
         assert look()[21].strip() == "IMMEDIATE", look()  # back, its height as it was
         press(f"0x{ALT_D:x}", "c")
+        # Locals: the last changed first. B, changed after the first stop, came after A.
+        (work / "CHG.BAS").write_bytes(b"a = 1: b = 2: STOP: b = 3: STOP: PRINT a\r\n")
+        open_file("chg.bas")
+        press(f"0x{F5:x}")
+        assert locals_() == ["A = 1", "B = 2"], pane()
+        press(f"0x{F5:x}")
+        assert locals_() == ["B = 3", "A = 1", "N% = 0"], pane()  # N%: the watch's, made by it
+        press(f"0x{F5:x}")
+        press("space")
 
     dbg = ["DECLARE SUB s ()", "PRINT 1", "FOR i = 1 TO 2: PRINT i: NEXT", "GOSUB g", "s", "PRINT 9", "END",
            "g: PRINT 7", "RETURN", "SUB s", "PRINT 5", "END SUB"]

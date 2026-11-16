@@ -1,7 +1,8 @@
 /* The debug pane: Watch, Locals and Call stack, right of the code at a stop.
  *
  * # How it works
- * At a stop the pane takes columns DP_COL on, the edit windows' rows. uimn.pane_on is ui.h's; the
+ * At a stop the pane takes columns uimn.dp_col on, the edit windows' rows; a drag of its border
+ * moves that (dpan_split). uimn.pane_on is ui.h's; the
  * rest is static.
  *
  * The frames are session_frames', each with its text line and its row. Locals are the selected
@@ -63,14 +64,22 @@ enum {
     FRAME_NAME = 15, /* a frame's row: its view's name, 15 characters at most, */
     FRAME_LINE = 16, /*   "line n" from column 16 */
     VK_FN = 3,       /* a DEF FN's kind (Var.info) */
+    NSEEN = 256,     /* variables whose last change is kept */
 };
+
+/* A variable's row at the stop it last changed at: its text's hash, that stop. */
+typedef struct {
+    uint16_t id, name; /* a relinked program's id may be another's: its name too */
+    uint32_t hash;
+    uint32_t stop;
+} Seen;
 
 /* TDFRM: a call stack's frame. */
 typedef struct {
     int32_t line; /* df_ln: its text line, -1 the immediate's */
     DebugFrame at;
     uint8_t view; /* df_vw: its view, VIEW_NONE none */
-    char text[DP_TW + 1];
+    char text[DP_TWMAX + 1];
 } PaneFrame;
 
 /* TDPANE (dp_on, tt_ms are uimn's). */
@@ -80,15 +89,19 @@ static struct {
     uint8_t sel[NDP], top[NDP]; /* each window's row selected, its first row shown */
     uint8_t nwatch;             /* dp_nw: kept across runs */
     char wx[NWATCH][WXLEN];
-    char wv[NWATCH][DP_TW];
+    char wv[NWATCH][DP_TWMAX];
     uint8_t tip_row, tip_col; /* tt_pos */
     uint16_t vid[NDVAR];      /* Locals' variables' ids */
     uint8_t nvars;
-    char vt[NDVAR][DP_TW];
+    char vt[NDVAR][DP_TWMAX];
     PaneFrame fr[NDFRM];
     uint8_t proc;         /* g_dpp: Locals' procedure, 0 the module */
     char row_text[ROWSZ]; /* g_dprow */
-    char tip[DP_TW];      /* g_dptip: a module variable's tooltip */
+    char tip[DP_TWMAX];   /* g_dptip: a module variable's tooltip */
+    uint32_t stops;       /* the stops so far: each a step of the clock seen counts by */
+    uint16_t nseen;
+    Seen seen[NSEEN];
+    uint32_t vstop[NDVAR]; /* Locals' rows' last changes */
 } dp;
 
 static uint8_t fld_text[DLBUF];
@@ -160,12 +173,12 @@ static char *dec(char *d, const int32_t v)
     return d + n;
 }
 
-/* dp_rowcut: dp.row_text to d, cut to DP_TW-1 characters, 0-ended. */
+/* dp_rowcut: dp.row_text to d, cut to DP_TWMAX-1 characters, 0-ended. */
 static void rowcut(char *const d)
 {
     uint32_t i = 0;
 
-    for (; i < DP_TW - 1 && dp.row_text[i]; i++)
+    for (; i < DP_TWMAX - 1 && dp.row_text[i]; i++)
         d[i] = dp.row_text[i];
 
     d[i] = 0;
@@ -177,8 +190,8 @@ static void frame1(Session *const S, PaneFrame *const f, const DebugFrame *const
     f->at = *at;
     f->line = -1;
     f->view = VIEW_NONE;
-    memset(f->text, ' ', DP_TW);
-    f->text[DP_TW] = 0;
+    memset(f->text, ' ', DP_TWMAX);
+    f->text[DP_TWMAX] = 0;
     uint32_t tl;
 
     if (at->line == DLINE || !lmap_of(S, at->line, &tl)) {
@@ -214,16 +227,20 @@ static void frames(Session *const S)
 /* Window w's widget: the pane's child w (dpan_build). */
 static Widget *win(const uint8_t w) { return uimn.tree.pane.children[w]; }
 
+/* The pane's columns, a row's characters within its borders. */
+static uint8_t width(void) { return (uint8_t)(PSCR_COLS - uimn.dp_col); }
+static uint8_t text_width(void) { return (uint8_t)(width() - 2); }
+
 void dpan_layout(void)
 {
     const uint8_t all = WIN_ROWS - uimn.win.win[W_IMM].height;
     const uint8_t q = (uint8_t)(all * 3 / 10);
     const uint8_t loc = all - 2 * q;
-    win(DP_WAT)->rect = (Rect){1, DP_COL, q, DP_W};
+    win(DP_WAT)->rect = (Rect){1, uimn.dp_col, q, width()};
 
-    win(DP_LOC)->rect = (Rect){q + 1, DP_COL, loc, DP_W};
+    win(DP_LOC)->rect = (Rect){q + 1, uimn.dp_col, loc, width()};
 
-    win(DP_STK)->rect = (Rect){q + 1 + loc, DP_COL, q, DP_W};
+    win(DP_STK)->rect = (Rect){q + 1 + loc, uimn.dp_col, q, width()};
 }
 
 /* dp_cnt: window w's items. */
@@ -253,21 +270,22 @@ static void line1(const uint8_t w, const uint8_t r)
     const uint32_t i = dp.top[w] + r;
     const uint8_t slot = has_focus(w) && (uint8_t)i == dp.sel[w] ? SL_SEL : SL_ED;
     const bool cur = w == DP_STK && (uint8_t)i == dp.frame && (uint8_t)i < dp.nframes;
-    uint8_t col = scrn_fill(row, DP_COL, SL_ED, GLYPH_V, 1);
+    const uint8_t tw = text_width();
+    uint8_t col = scrn_fill(row, uimn.dp_col, SL_ED, GLYPH_V, 1);
     col = scrn_fill(row, col, slot, cur ? GLYPH_POINT_RIGHT : ' ', 1);
-    scrn_fill(row, col, slot, ' ', DP_TW - 1);
+    scrn_fill(row, col, slot, ' ', tw - 1);
     const char *const s = item(w, i);
 
     if (s) {
         uint16_t n = 0;
 
-        while (s[n] && n < DP_TW - 1)
+        while (s[n] && n < tw - 1)
             n++;
 
         scrn_strn(row, col, (const uint8_t *)s, n, slot);
     }
 
-    scrn_fill(row, DP_COL + DP_W - 1, SL_ED, GLYPH_V, 1);
+    scrn_fill(row, PSCR_COLS - 1, SL_ED, GLYPH_V, 1);
 }
 
 /* dp_draw: window x, its title and rows. */
@@ -279,8 +297,8 @@ static void child_draw(Widget *const x, Session *const S)
 
     draw_title(
         x->rect.row,
-        DP_COL,
-        DP_W,
+        uimn.dp_col,
+        width(),
         top ? GLYPH_TOP_LEFT : GLYPH_V_RIGHT,
         top ? GLYPH_TOP_RIGHT : GLYPH_V_LEFT,
         titles[w],
@@ -320,7 +338,7 @@ static char *value(Session *const S, char *d, const uint16_t id, const Addr cell
         n = dubl_fmt(x, buf);
     } else if ((v->info & VK_MASK) == VK_STR) {
         const Desc *const s = (const Desc *)at(cell);
-        const uint32_t len = s->len > DP_TW ? DP_TW : s->len;
+        const uint32_t len = s->len > DP_TWMAX ? DP_TWMAX : s->len;
         *d++ = '"';
         memcpy(d, at(s->ptr), len);
         d += len;
@@ -368,16 +386,70 @@ static void var_text(Session *const S, const uint16_t id, const int32_t par)
     *d = 0;
 }
 
-/* dp_var1: Locals' next row: variable id, parameter par of its procedure or -1. */
-static void var1(Session *const S, const uint16_t id, const int32_t par)
+static uint32_t hash(const char *s)
+{
+    uint32_t h = 2166136261u;
+
+    while (*s)
+        h = (h ^ (uint8_t)*s++) * 16777619u;
+
+    return h;
+}
+
+/* The stop variable id's row last changed at, its text in dp.row_text; now (its procedure's newest
+   frame) a change is this stop's. 0: not changed since first seen. */
+static uint32_t changed_at(Session *const S, const uint16_t id, const bool now)
+{
+    const uint32_t h = hash(dp.row_text);
+    const uint16_t name = symb_var(&S->symb, id)->name;
+    Seen *e = nullptr;
+
+    for (uint16_t i = 0; i < dp.nseen && !e; i++)
+        if (dp.seen[i].id == id)
+            e = &dp.seen[i];
+
+    if (e && e->name != name) { /* another program's */
+        *e = (Seen){.id = id, .name = name, .hash = h};
+
+        return 0;
+    }
+
+    if (!now)
+        return e ? e->stop : 0;
+    if (!e) {
+        if (dp.nseen >= NSEEN)
+            return 0;
+
+        e = &dp.seen[dp.nseen++];
+        *e = (Seen){.id = id, .name = name, .hash = h};
+    } else if (e->hash != h) {
+        e->hash = h;
+        e->stop = dp.stops;
+    }
+
+    return e->stop;
+}
+
+/* dp_var1: Locals' next row, after the rows changed as late or later: variable id, parameter par
+   of its procedure or -1; now as changed_at's. */
+static void var1(Session *const S, const uint16_t id, const int32_t par, const bool now)
 {
     if (dp.nvars >= NDVAR)
         return;
 
-    dp.vid[dp.nvars] = id;
     var_text(S, id, par);
-    rowcut(dp.vt[dp.nvars]);
-    dp.nvars++;
+    const uint32_t stop = changed_at(S, id, now);
+    uint8_t i = dp.nvars++;
+
+    for (; i && dp.vstop[i - 1] < stop; i--) {
+        dp.vid[i] = dp.vid[i - 1];
+        dp.vstop[i] = dp.vstop[i - 1];
+        memcpy(dp.vt[i], dp.vt[i - 1], sizeof dp.vt[i]);
+    }
+
+    dp.vid[i] = id;
+    dp.vstop[i] = stop;
+    rowcut(dp.vt[i]);
 }
 
 /* A variable Locals and the tooltip leave out: a DEF FN's, a FOR loop's hidden limit or step. */
@@ -387,23 +459,28 @@ static bool skipped(Session *const S, const uint16_t id)
     return (v->info & (VI_ARR | VK_MASK)) == VK_FN || symb_text(&S->symb, v->name)[1] == LOOP_NAME;
 }
 
-/* dp_vars: Locals: the selected frame's procedure's variables, the module's at the module; its
-   parameters first, then by id. */
+/* dp_vars: Locals: the selected frame's procedure's variables, the module's at the module; the
+   last changed first, else its parameters first, then by id. */
 static void vars(Session *const S)
 {
     dp.proc = dp.fr[dp.frame].at.proc;
     dp.nvars = 0;
+    bool now = true; /* the procedure's newest frame: an older one's are another call's values */
+
+    for (uint8_t j = 0; j < dp.frame; j++)
+        if (dp.fr[j].at.proc == dp.proc)
+            now = false;
 
     if (dp.proc) {
         const Proc *const p = blok_proc(&S->blok, dp.proc);
 
         for (uint16_t k = 0; k < p->npar; k++)
-            var1(S, p->params[k].var, k);
+            var1(S, p->params[k].var, k, now);
     }
 
     for (uint16_t id = 1; id < S->symb.nvars; id++)
         if (symb_varx(&S->symb, id)->scope == dp.proc && !skipped(S, id) && !is_param(S, id))
-            var1(S, id, -1);
+            var1(S, id, -1, now);
 }
 
 /* session_eval's output out at d, its spaces and end of line left out; past it. */
@@ -459,6 +536,7 @@ static void watch_eval(Session *const S)
 void dpan_open(Session *const S)
 {
     uimn.pane_on = true;
+    dp.stops++;
     uimn.tree.pane.focus = DP_WAT;
     dp.frame = 0;
     memset(dp.sel, 0, sizeof dp.sel);
@@ -468,6 +546,36 @@ void dpan_open(Session *const S)
     watch_eval(S);
     wind_imm_hide();
     wind_layout();
+}
+
+bool dpan_split(void)
+{
+    static bool held; /* the border pressed, not let go */
+    const UiMouse *const m = &uimn.mouse;
+    const Rect *const r = &uimn.tree.pane.rect;
+
+    if (!uimn.pane_on) {
+        held = false;
+        return false;
+    }
+
+    if (m->event == MS_PRESS) /* the pane's border, or the edit windows' beside it */
+        held = (m->col == r->col || m->col + 1 == r->col) && m->row >= r->row &&
+               m->row < r->row + r->rows;
+    if (!held)
+        return false;
+
+    if (m->event == MS_UP) {
+        held = false;
+    } else if (m->event == MS_DRAG) {
+        const uint8_t col = m->col < DP_COLMIN   ? DP_COLMIN
+                            : m->col > DP_COLMAX ? DP_COLMAX
+                                                 : m->col;
+        uimn.dp_col = col;
+        wind_layout();
+    }
+
+    return true;
 }
 
 void dpan_close(void)
@@ -556,7 +664,7 @@ static void watch_del(void)
     dp.nwatch--;
     const uint32_t after = dp.nwatch - i;
     memmove(dp.wx[i], dp.wx[i + 1], after * WXLEN);
-    memmove(dp.wv[i], dp.wv[i + 1], after * DP_TW);
+    memmove(dp.wv[i], dp.wv[i + 1], after * sizeof dp.wv[0]);
 
     if (i >= dp.nwatch && i > 0)
         dp.sel[DP_WAT] = i - 1;

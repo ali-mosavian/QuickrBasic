@@ -7,6 +7,9 @@
 void dpan_open(Session *S);
 /* dp_close: no pane; its focus to the edit window. */
 void dpan_close(void);
+/* The mouse's event on the pane's border: a press holds it, a drag moves it, a let go leaves it;
+   false: not the border's. */
+bool dpan_split(void);
 /* The pane's widgets: its ops and children kids, Watch, Locals, Call stack, the tooltip. Keys:
    Tab, Shift+Tab its windows; Up, Down a row; Enter a frame; Ins, Del in Watch a watch; Esc back
    to the edit window. A press focuses a window, selects a row, a frame's row the frame. */

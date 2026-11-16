@@ -8,7 +8,7 @@
  * An edit window has a bottom row: the sideways scroll bar's with the focus. The active edit
  * window's state is uimn.ed and uimn.edline.col; the other's waits in its win[].ed and win[].col.
  *
- * With the debug pane (uimn.pane_on) the edit windows have DP_COL columns, the pane the rest. A
+ * With the debug pane (uimn.pane_on) the edit windows have uimn.dp_col columns, the pane the rest. A
  * window is W_ED1, W_ED2, W_IMM, or W_DBG for the pane.
  *
  * # asm structure (src/ui/wind.asm)
@@ -47,7 +47,7 @@ static bool beside(const uint8_t w) { return w == W_ED2 && uimn.win.vert && win(
 void wind_layout(void)
 {
     UiWins *const ws = &uimn.win;
-    ws->cols = uimn.pane_on ? DP_COL : PSCR_COLS;
+    ws->cols = uimn.pane_on ? uimn.dp_col : PSCR_COLS;
     uint8_t row = 1; /* the next window's title row */
     for (uint8_t w = 0; w < NWIN; w++) {
         UiWin *const p = win(w);
@@ -94,7 +94,8 @@ void wind_layout(void)
     const uint8_t imm_row = uimn.imm.row0 - 1; /* its title */
     uimn.tree.editors.rect = (Rect){1, 0, imm_row - 1, ws->cols};
 
-    uimn.tree.pane.rect = (Rect){1, DP_COL, WIN_ROWS - win(W_IMM)->height, PSCR_COLS - DP_COL};
+    uimn.tree.pane.rect =
+        (Rect){1, uimn.dp_col, WIN_ROWS - win(W_IMM)->height, PSCR_COLS - uimn.dp_col};
 
     uimn.tree.pane.visible = uimn.pane_on;
     dpan_layout();
@@ -104,6 +105,7 @@ void wind_init(void)
 {
     win(W_ED1)->height = ED1_INIT;
     win(W_IMM)->height = IMM_INIT;
+    uimn.dp_col = DP_COL;
     uimn.tree.editors.focus = 0;
     wind_layout();
 }

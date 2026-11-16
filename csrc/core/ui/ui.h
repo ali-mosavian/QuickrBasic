@@ -164,8 +164,15 @@ enum : uint8_t { FOC_EDIT = 0, FOC_IMM = 1, FOC_PANE = 2 };
 /* The windows, top down (window.h); the debug pane is beside them, not in uimn.win.win[]. */
 enum : uint8_t { W_HELP = 0, W_ED1 = 1, W_ED2 = 2, W_IMM = 3, NWIN = 4, W_DBG = NWIN };
 
-/* The debug pane's columns (debugpane.h): the edit windows have DP_COL while it is shown. */
-enum { DP_COL = 50, DP_W = 30, DP_TW = DP_W - 2 };
+/* The debug pane's columns (debugpane.h): from uimn.dp_col, DP_COL at first, a drag of its border
+   moving it within DP_COLMIN .. DP_COLMAX; the edit windows have the columns before it. A row of it
+   holds DP_TWMAX characters at most. */
+enum {
+    DP_COL = 50,
+    DP_COLMIN = 20,
+    DP_COLMAX = PSCR_COLS - 20,
+    DP_TWMAX = PSCR_COLS - DP_COLMIN - 2,
+};
 
 /* A line being edited (TLBUF, TEDBUF): its text where text points, cap bytes: DLBUF for a dialog
    field or the immediate line; the editor's lines' grow, as they fill, to LNBUF (edit_lb_room).
@@ -268,6 +275,7 @@ typedef struct {
     uint8_t keyflags; /* lp.ui_kf: the shift flags at the last key (pkey_shift) */
     const char *help; /* lp.ui_help: the status bar's help line, nullptr the keys */
     bool pane_on;     /* dp.dp_on: the debug pane shown (a stop) */
+    uint8_t dp_col;   /* the debug pane's first column */
     bool tip_mouse;   /* dp.tt_ms: the tooltip by the mouse, else by the cursor */
     bool stopped;     /* ud.stopd: stopped, CONT goes on (not after END) */
 
