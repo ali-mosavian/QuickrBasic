@@ -38,7 +38,9 @@ static inline uint8_t *flow_next_code(
 
     sg->tmp_used = sg->tmp_floor;
     vm->line = next;
-    return at(al->cache + ln->code);
+    uint8_t *const code = at(al->cache + ln->code);
+    __builtin_assume(code != nullptr); /* as flow_jump_code's */
+    return code;
 }
 
 /* The Jump at ip taken: the temporaries dropped, vm->line its line, its target's code returned;
@@ -57,7 +59,9 @@ static inline uint8_t *flow_jump_code(
 
     sg->tmp_used = sg->tmp_floor;
     vm->line = j.line;
-    return at(al->cache + j.dest);
+    uint8_t *const code = at(al->cache + j.dest);
+    __builtin_assume(code != nullptr); /* the cache is past 0: a caller's null test is the mode's */
+    return code;
 }
 
 /* Go to the next line; past the last the program ENDs. */
