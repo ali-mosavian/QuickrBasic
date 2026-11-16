@@ -218,34 +218,24 @@ static inline Status hot_f_st_v(Regs *const r) { return hot_i_st_v(r); }
 static inline Status hot_f_st_l(Regs *const r) { return hot_i_st_l(r); }
 static inline Status hot_f_ld_f32(Regs *const r) { return hot_i_ld_i32(r); }
 
-/* exec_run's parts for each hot op: its label for its handler's opcodes; its code, which a
-   failing INT op leaves through fail at its own start. */
-#define HOT_AT(name, handler)                                                                      \
-    if (h == handler)                                                                              \
-        at_op[i] = &&hot_##name;
-#define HOT_AT_INT(name, src, op) HOT_AT(name, oper_##name)
-#define HOT_AT_FAIL(name, handler) HOT_AT(name, handler)
-#define HOT_AT_FLT(name, src, op) HOT_AT(name, oper_##name)
-#define HOT_RUN(name, handler)                                                                     \
-    hot_##name : r.ip++;                                                                           \
-    hot_##name(&r);                                                                                \
-    goto next;
-#define HOT_RUN_FAIL(name, handler)                                                                \
-    hot_##name : st = hot_##name(&r);                                                              \
-    if (st != ST_OK) {                                                                             \
-        op = r.ip;                                                                                 \
-        goto fail;                                                                                 \
-    }                                                                                              \
-    r.ip++;                                                                                        \
-    goto next;
-#define HOT_RUN_FLT(name, src, oper)                                                               \
-    hot_##name : r.ip++;                                                                           \
-    st = hot_##name(&r);                                                                           \
-    if (st != ST_OK) {                                                                             \
-        op = r.ip - hot_fsize(src);                                                                \
-        goto fail;                                                                                 \
-    }                                                                                              \
-    goto next;
+/* Every hot op, as HOT_EACH(name, handler, size): exec_run's label hot_name for the handler's
+   opcodes, which runs hot_name inline. A failing one leaves through fail at its own start, size
+   bytes back: kept apart, it held a register in every op. Size 0: a one-byte op that may fail,
+   stepped past once it ran, its failure at r.ip; stepped first, int_index ran 2% more
+   instructions. */
+#define HOT_OP_EACH(name, handler) HOT_EACH(name, handler, 1)
+#define HOT_FAIL_EACH(name, handler) HOT_EACH(name, handler, 0)
+#define HOT_INT_EACH(name, src, op) HOT_EACH(name, oper_##name, hot_size(src))
+#define HOT_FLT_EACH(name, src, op) HOT_EACH(name, oper_##name, hot_fsize(src))
+#define HOT_INT_ST_EACH(NAME, name, src, op)                                                       \
+    HOT_EACH(name##_st, oper_##name##_st, hot_size(src) + 2 * VCELL)
+#define HOT_ALL()                                                                                  \
+    HOT_OPS(HOT_OP_EACH)                                                                           \
+    HOT_INTS(HOT_INT_EACH)                                                                         \
+    HOT_FLTS(HOT_FLT_EACH)                                                                         \
+    HOT_INT_STS(HOT_INT_ST_EACH)                                                                   \
+    HOT_FAILS(HOT_FAIL_EACH)
+
 /* A CMPIF, an IF: true, on; false, the line ends (flow_nextln) unless it is the program's last or
    the direct line: then the op's handler, which nothing here has changed. */
 #define CMPIF_RUN(name, handler, src, rel)                                                         \
@@ -297,24 +287,6 @@ static inline Status hot_f_ld_f32(Regs *const r) { return hot_i_ld_i32(r); }
     }                                                                                              \
     goto next;
 
-#define HOT_AT_INT_ST(NAME, name, src, op) HOT_AT(name##_st, oper_##name##_st)
-#define HOT_RUN_INT_ST(NAME, name, src, oper)                                                      \
-    hot_##name##_st : r.ip++;                                                                      \
-    st = hot_##name##_st(&r);                                                                      \
-    if (st != ST_OK) {                                                                             \
-        op = r.ip - hot_size(src) - 2 * VCELL;                                                     \
-        goto fail;                                                                                 \
-    }                                                                                              \
-    goto next;
-#define HOT_RUN_INT(name, src, oper)                                                               \
-    hot_##name : r.ip++;                                                                           \
-    st = hot_##name(&r);                                                                           \
-    if (st != ST_OK) {                                                                             \
-        op = r.ip - hot_size(src);                                                                 \
-        goto fail;                                                                                 \
-    }                                                                                              \
-    goto next;
-
 /* The loop: ip and sp in registers (r), a hot op inline, the rest through the ops table with
    vm.ip, vm.sp and vm.opip stored around it. */
 [[noreturn, gnu::noinline]]
@@ -327,11 +299,11 @@ static void exec_loop(Session *const S)
         for (uint32_t i = 0; i < countof(at_op); i++) {
             Handler *const h = i < O_NOPS ? ops[i] : nullptr;
             at_op[i] = &&cold;
-            HOT_OPS(HOT_AT)
-            HOT_INTS(HOT_AT_INT)
-            HOT_FLTS(HOT_AT_FLT)
-            HOT_INT_STS(HOT_AT_INT_ST)
-            HOT_FAILS(HOT_AT_FAIL)
+#define HOT_EACH(name, handler, size)                                                              \
+    if (h == handler)                                                                              \
+        at_op[i] = &&hot_##name;
+            HOT_ALL()
+#undef HOT_EACH
             HOT_CMPIFS(CMPIF_AT)
 
             if (h == flow_i_jt)
@@ -413,11 +385,18 @@ cold:
 slow:
     COLD_RUN()
 
-    HOT_OPS(HOT_RUN)
-    HOT_INTS(HOT_RUN_INT)
-    HOT_FLTS(HOT_RUN_FLT)
-    HOT_INT_STS(HOT_RUN_INT_ST)
-    HOT_FAILS(HOT_RUN_FAIL)
+#define HOT_EACH(name, handler, size)                                                              \
+    hot_##name : if (size) r.ip++;                                                                 \
+    st = hot_##name(&r);                                                                           \
+    if (st != ST_OK) {                                                                             \
+        op = r.ip - (size);                                                                        \
+        goto fail;                                                                                 \
+    }                                                                                              \
+    if (!(size))                                                                                   \
+        r.ip++;                                                                                    \
+    goto next;
+    HOT_ALL()
+#undef HOT_EACH
     HOT_CMPIFS(CMPIF_RUN)
 
 /* A jump: past it, or to its target; a stop, a jump not resolved: its handler's. */
