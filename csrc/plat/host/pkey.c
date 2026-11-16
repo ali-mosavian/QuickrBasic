@@ -1,8 +1,8 @@
 /* The keyboard on the host.
  *
  * # How it works
- * The BIOS's keys come from a queue tests fill (host.h); DOS's console input (pkey_poll) from
- * standard input, as DOS reads it when redirected.
+ * The BIOS's keys come from a queue tests fill (host.h), else from the terminal when it is on
+ * (pterm.c); DOS's console input (pkey_poll) from standard input, as DOS reads it when redirected.
  */
 #include <poll.h>
 #include <unistd.h>
@@ -56,7 +56,7 @@ void host_key_push(const uint16_t key)
 static uint16_t next_key(void)
 {
     if (!queue.count)
-        return KEY_ENTER;
+        return host_term_on() ? host_term_key() : KEY_ENTER;
 
     const uint16_t k = queue.keys[queue.head];
     queue.head = (queue.head + 1) % NKEY;
@@ -64,7 +64,7 @@ static uint16_t next_key(void)
     return k;
 }
 
-bool pkey_ready(void) { return queue.count > 0; }
+bool pkey_ready(void) { return queue.count > 0 || (host_term_on() && host_term_ready()); }
 
 PkeyKey pkey_read(void)
 {

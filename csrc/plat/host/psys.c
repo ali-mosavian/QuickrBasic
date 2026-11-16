@@ -17,8 +17,20 @@ extern char **environ;
 
 static volatile uint8_t *stop_flag;
 static uint8_t stop_bit;
+static volatile sig_atomic_t stopped;
 
-static void on_stop(int sig) { *stop_flag |= stop_bit; }
+static void on_stop(int sig)
+{
+    *stop_flag |= stop_bit;
+    stopped = 1;
+}
+
+bool host_stop_taken(void)
+{
+    const bool s = stopped;
+    stopped = 0;
+    return s;
+}
 
 void psys_init(volatile uint8_t *const stop, const uint8_t bit)
 {
@@ -108,12 +120,12 @@ bool psys_exec(
     char *const shell[] = {"/bin/sh", nullptr};
 
     pid_t pid;
-
-    if (posix_spawn(&pid, "/bin/sh", nullptr, nullptr, len ? argv : shell, vars))
-        return false;
-
+    host_term_pause(true);
+    const bool ran = !posix_spawn(&pid, "/bin/sh", nullptr, nullptr, len ? argv : shell, vars);
     int status;
-    return waitpid(pid, &status, 0) == pid;
+    const bool done = ran && waitpid(pid, &status, 0) == pid;
+    host_term_pause(false);
+    return done;
 }
 
 /* ---- the ports programs use: the VGA's DAC and status, the 8042's command to type a key ---- */

@@ -215,7 +215,7 @@ build/host/obj/%.o: csrc/%.c $(CHDR)
 	$(HOST_CC) $(HOST_CFLAGS) -c $< -o $@
 
 chost: build/host/basic
-build/host/basic: $(HOBJ) $(QBRT_HOBJ) build/host/obj/app/basic32.o
+build/host/basic: $(HOBJ) $(QBRT_HOBJ) build/host/obj/app/basic32.o build/host/obj/plat/host/app/term.o
 	$(HOST_CC) $^ -o $@
 
 UNIT_SRC := $(wildcard tests/unit/*.c)
@@ -247,6 +247,7 @@ chosttest: chost cunit cgolden         # the unit tests and the suites against t
 	X86_COM=build/host/basic $(PY) tools/x86f_test.py build/host/basic
 	X86_COM=build/host/basic $(PY) tools/qbconf.py
 	$(PY) tools/x86fold_test.py build/host/basic
+	$(PY) tools/pterm_test.py build/host/basic
 
 ctest:                          # the suites against the C build
 	X86_COM=build/c/basic32.exe $(PY) tools/x86f_test.py build/c/basic32.exe
