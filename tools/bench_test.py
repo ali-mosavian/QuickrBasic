@@ -13,7 +13,7 @@ def loop(n: int) -> str:
 
 
 def main() -> int:
-    b = bench.Build(bench.ROOT)
+    b = bench.build(".", False)  # the tree's own instruments: copying them onto themselves raised
     r = bench.run_native(b, {"one": loop(1000000), "two": loop(2000000)}, runs=5)
     ratio = r["two"].insns / r["one"].insns
     assert (r["one"].out, r["two"].out) == ("1000000", "2000000"), r

@@ -69,8 +69,9 @@ class Build:
 
     def make(self, dos: bool) -> None:
         """The builds, by our Makefile and instruments: an older rev may lack them, or count otherwise."""
-        for src in INSTRUMENT_SRC:
-            shutil.copy(ROOT / src, self.root / src)
+        if self.root != ROOT:
+            for src in INSTRUMENT_SRC:
+                shutil.copy(ROOT / src, self.root / src)
         targets = ["chostperf", "build/host/basic"] + ["c"] * dos
         p = subprocess.run(
             ["nice", "-n", "10", "make", "-f", str(ROOT / "Makefile"), "-j4", *targets],
