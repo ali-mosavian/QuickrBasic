@@ -263,8 +263,8 @@ def cmd_gate(a: argparse.Namespace) -> int:
         return 0
 
     base = json.loads(BASELINE.read_text())
-    was = build(base["rev"], True)
-    then, now = run_natives([was, b], suite())
+    base_build = build(base["rev"], True)
+    then, now = run_natives([base_build, b], suite())
     fail = False
     print(f"against {base['rev']}{'':4}{'ops':>14}{'':8}{'insns':>14}")
     for k, c in now.items():
@@ -280,7 +280,7 @@ def cmd_gate(a: argparse.Namespace) -> int:
             f"{k:16}{c.ops:>14,}{c.ops / was.ops:>8.3f}{c.insns:>14,}{ratio:>8.3f}"
             + (f"  FAIL {' '.join(bad)}" if bad else "")
         )
-    old = sizes(was)
+    old = sizes(base_build)
     for e, s in sizes(b).items():
         was_s = old[e]
         fail |= s > was_s
