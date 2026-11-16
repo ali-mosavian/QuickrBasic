@@ -86,8 +86,8 @@ static uint16_t link_param(Comp *const C, const Param *const pa)
    program order. */
 static void link_procvars(Comp *const C)
 {
-    for (uint16_t id = 1; id < C->symb->nvars; id++)
-        symb_varx(C->symb, id)->par = 0;
+    for (uint16_t id = 1; id < C->symb->nvars; id++) /* each parameter till now: 2 */
+        symb_varx(C->symb, id)->par *= 2;
 
     for (uint8_t i = 1; i < C->blok->nprocs; i++) {
         Proc *const p = C->blok->procs[i];
@@ -100,12 +100,26 @@ static void link_procvars(Comp *const C)
             p->result = comp_var(C, 1, 0);
         }
 
-        for (uint16_t k = 0; k < p->npar; k++) {
-            p->params[k].var = link_param(C, &p->params[k]);
-            symb_varx(C->symb, p->params[k].var)->par = 1;
+        for (uint16_t k = 0; k < p->npar; k++) { /* a scalar's frame: its ref cell's offset */
+            const uint16_t id = p->params[k].var = link_param(C, &p->params[k]);
+            symb_varx(C->symb, id)->par = 1;
+            *symb_frame(C->symb, id) = (int32_t)(2 * sizeof(Cell) * (p->npar - 1u - k));
         }
 
         comp_proc(C, 0);
+    }
+
+    for (uint16_t id = 1; id < C->symb->nvars; id++) { /* no longer a parameter: a local again */
+        VarX *const x = symb_varx(C->symb, id);
+
+        if (x->par != 2)
+            continue;
+
+        x->par = 0;
+        *symb_frame(C->symb, id) = 0;
+
+        if (!(symb_var(C->symb, id)->info & VI_ARR) && x->scope)
+            *symb_frame(C->symb, id) = symb_slot(C->symb, x->scope);
     }
 }
 
@@ -327,6 +341,58 @@ static bool ref_line(const Comp *const C, LineRef *const r, uint32_t *const at)
     return true;
 }
 
+/* A one-cell op on a procedure's local: its frame twin, the cell its offset from the frame. False:
+   the variable is not in a frame. comp/fuse.c fuses no local into a many-cell op. */
+static bool local_op(const Symb *const sy, uint8_t *const op)
+{
+    static const uint8_t twins[][2] = {
+        {O_I_LD_V, O_I_LD_L},         {O_F_LD_V, O_F_LD_L},       {O_F_LD_VI, O_F_LD_LI},
+        {O_S_LD_V, O_S_LD_L},         {O_V_CELL, O_L_CELL},       {O_I_ST_V, O_I_ST_L},
+        {O_F_ST_V, O_F_ST_L},         {O_S_ST_V, O_S_ST_L},       {O_I_ADD_V, O_I_ADD_L},
+        {O_I_SUB_V, O_I_SUB_L},       {O_I_MUL_V, O_I_MUL_L},     {O_I_DIV_V, O_I_DIV_L},
+        {O_I_AND_V, O_I_AND_L},       {O_I_OR_V, O_I_OR_L},       {O_F_ADD_V, O_F_ADD_L},
+        {O_F_SUB_V, O_F_SUB_L},       {O_F_MUL_V, O_F_MUL_L},     {O_F_DIV_V, O_F_DIV_L},
+        {O_F_ADD_VI, O_F_ADD_LI},     {O_F_SUB_VI, O_F_SUB_LI},   {O_F_MUL_VI, O_F_MUL_LI},
+        {O_F_DIV_VI, O_F_DIV_LI},     {O_I_CMP_V, O_I_CMP_L},     {O_F_CMP_V, O_F_CMP_L},
+        {O_F_CMP_VI, O_F_CMP_LI},     {O_I_CMPIF_V, O_I_CMPIF_L}, {O_F_CMPIF_V, O_F_CMPIF_L},
+        {O_F_CMPIF_VI, O_F_CMPIF_LI}, {O_I_STEP_V, O_I_STEP_L},   {O_D_LD_V, O_D_LD_L},
+        {O_D_ST_V, O_D_ST_L},         {O_I_JFC_V, O_I_JFC_L},
+    };
+
+    const int32_t off = *symb_frame(sy, (uint16_t)load32(op + 1));
+
+    if (off >= 0)
+        return false;
+
+    for (uint32_t i = 0; i < countof(twins); i++)
+        if (op[0] == twins[i][0]) {
+            op[0] = twins[i][1];
+            store32(op + 1, (uint32_t)off);
+            return true;
+        }
+
+    return false; /* none: comp/fuse.c's guard failed; the cell is wrong */
+}
+
+/* PRET for its procedure: a SUB's; a FUNCTION's number, its result's cell or offset in the frame;
+   arrays to set back, a string to keep: PRET.X. */
+static void link_pret(Comp *const C, uint8_t *const op)
+{
+    const Proc *const p = blok_proc(C->blok, op[1]);
+    const uint16_t res = p->result;
+
+    if (p->flags & PF_ARRAYS ||
+        (p->kind == PK_FUNC && (symb_var(C->symb, res)->info & VK_MASK) == VK_STR))
+        op[0] = O_PRET_X;
+    else if (p->kind == PK_FUNC && *symb_frame(C->symb, res) < 0) {
+        op[0] = O_PRET_FL;
+        store32(op + 2, (uint32_t)*symb_frame(C->symb, res));
+    } else if (p->kind == PK_FUNC) {
+        op[0] = O_PRET_FV;
+        store32(op + 2, symb_cell(C->symb, res));
+    }
+}
+
 /* The jumps and references of the op at op. */
 static void resolve_op(Comp *const C, const uint32_t line, const Addr base, uint8_t *const op)
 {
@@ -338,8 +404,14 @@ static void resolve_op(Comp *const C, const uint32_t line, const Addr base, uint
 
     static const uint8_t cells[] = {FV, FV2, FV3}; /* the op's variables: ids to cells */
 
-    for (uint32_t i = 0; i < countof(cells) && fl & cells[i]; i++)
-        store32(op + 1 + i * VCELL, symb_cell(C->symb, (uint16_t)load32(op + 1 + i * VCELL)));
+    if (fl & FV && local_op(C->symb, op))
+        ;
+    else
+        for (uint32_t i = 0; i < countof(cells) && fl & cells[i]; i++)
+            store32(op + 1 + i * VCELL, symb_cell(C->symb, (uint16_t)load32(op + 1 + i * VCELL)));
+
+    if (fl & FP) /* a parameter: its ref cell in the frame */
+        store16(op + 1, (uint16_t)*symb_frame(C->symb, load16(op + 1)));
 
     switch (op[0]) {
     case O_JMP:
@@ -350,8 +422,18 @@ static void resolve_op(Comp *const C, const uint32_t line, const Addr base, uint
         j = (Jump *)(op + 1);
         break;
 
-    case O_PCALL:
-        j = (Jump *)(op + 2);
+    case O_PCALL: /* the procedure, its locals' cells, its parameters, the Jump */
+        store16(op + 2, C->symb->nslots[op[1]]);
+        op[4] = (uint8_t)blok_proc(C->blok, op[1])->npar;
+
+        if (blok_proc(C->blok, op[1])->flags & PF_ARRAYS)
+            op[0] = O_PCALL_A;
+
+        j = (Jump *)(op + 5);
+        break;
+
+    case O_PRET:
+        link_pret(C, op);
         break;
 
     case O_I_NEXT_UP: /* comp/fuse.c's: three cells (FV3), then the Jump */
@@ -360,6 +442,7 @@ static void resolve_op(Comp *const C, const uint32_t line, const Addr base, uint
         break;
 
     case O_I_JFC_V: /* a cell (FV), a mask, then the Jump */
+    case O_I_JFC_L:
     case O_I_JFC:
     case O_I_JFC_U8:
     case O_I_JFC_I16: /* the Jump ends the op */
@@ -445,6 +528,22 @@ void link_walk(const uint8_t *code, void (*each)(uint8_t op, const uint8_t *at))
         each(*code, code);
 }
 
+/* Each procedure with an array parameter or local: PF_ARRAYS, its calls bind them (vm/flow.c). */
+static void link_arrays(Comp *const C)
+{
+    for (uint8_t i = 1; i < C->blok->nprocs; i++) {
+        Proc *const p = C->blok->procs[i];
+        p->flags &= ~PF_ARRAYS;
+
+        for (uint16_t id = C->symb->first_local[i]; id; id = symb_varx(C->symb, id)->nloc)
+            if (symb_var(C->symb, id)->info & VI_ARR)
+                p->flags |= PF_ARRAYS;
+        for (uint16_t k = 0; k < p->npar; k++)
+            if (symb_var(C->symb, p->params[k].var)->info & VI_ARR)
+                p->flags |= PF_ARRAYS;
+    }
+}
+
 void link_start(Comp *const C)
 {
     C->check = false; /* a check an error left */
@@ -464,6 +563,7 @@ void link_start(Comp *const C)
         link_line(C, l);
 
     C->link->nmiss = 0;
+    link_arrays(C);
 
     for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)
         link_resolve(C, l, prog_line(C->prog, l)->code);

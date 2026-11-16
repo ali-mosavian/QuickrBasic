@@ -15,7 +15,11 @@
 typedef struct {
     uint8_t *ip;
     Cell *sp;
+    Addr fp; /* the running procedure's frame (vm.fp) */
 } Regs;
+
+/* A local's cell: its operand an offset from the frame. */
+static inline Addr hot_local(Regs *const r, const uint32_t off) { return r->fp + off; }
 
 static inline uint8_t hot_u8(Regs *const r) { return *r->ip++; }
 
@@ -64,6 +68,20 @@ static inline Status hot_i_st_v(Regs *const r)
     return ST_OK;
 }
 
+static inline Status hot_i_ld_l(Regs *const r)
+{
+    const Addr cell = hot_local(r, hot_u32(r));
+    (--r->sp)->a = rd32(cell);
+    return ST_OK;
+}
+
+static inline Status hot_i_st_l(Regs *const r)
+{
+    const Addr cell = hot_local(r, hot_u32(r));
+    wr32(cell, r->sp++->u);
+    return ST_OK;
+}
+
 static inline Status hot_i_ld_u8(Regs *const r)
 {
     const uint8_t v = hot_u8(r);
@@ -87,7 +105,7 @@ static inline Status hot_i_ld_i32(Regs *const r)
 }
 
 /* Where an INT op's right operand comes from, what the op does. */
-typedef enum { HOT_POPPED, HOT_VAR, HOT_U8, HOT_I16 } HotSrc;
+typedef enum { HOT_POPPED, HOT_VAR, HOT_LOC, HOT_U8, HOT_I16 } HotSrc;
 typedef enum {
     HOT_ADD,
     HOT_SUB,
@@ -105,7 +123,10 @@ typedef enum {
 /* An INT op's bytes, by its right operand. */
 static inline uint32_t hot_size(const HotSrc src)
 {
-    return src == HOT_VAR ? 1 + VCELL : src == HOT_U8 ? 2 : src == HOT_I16 ? 3 : 1;
+    return src == HOT_VAR || src == HOT_LOC ? 1 + VCELL
+           : src == HOT_U8                  ? 2
+           : src == HOT_I16                 ? 3
+                                            : 1;
 }
 
 static inline int32_t hot_operand(Regs *const r, const HotSrc src)
@@ -116,6 +137,9 @@ static inline int32_t hot_operand(Regs *const r, const HotSrc src)
 
     case HOT_VAR:
         return (int32_t)rd32(hot_u32(r));
+
+    case HOT_LOC:
+        return (int32_t)rd32(hot_local(r, hot_u32(r)));
 
     case HOT_U8:
         return hot_u8(r);
@@ -236,7 +260,14 @@ static inline Status hot_int(Regs *const r, const HotSrc src, const HotOp op)
     X(i_div_i16, HOT_I16, HOT_DIV)                                                                 \
     X(i_and_i16, HOT_I16, HOT_AND)                                                                 \
     X(i_or_i16, HOT_I16, HOT_OR)                                                                   \
-    X(i_mod_i16, HOT_I16, HOT_MOD)
+    X(i_mod_i16, HOT_I16, HOT_MOD)                                                                 \
+    X(i_add_l, HOT_LOC, HOT_ADD)                                                                   \
+    X(i_sub_l, HOT_LOC, HOT_SUB)                                                                   \
+    X(i_mul_l, HOT_LOC, HOT_MUL)                                                                   \
+    X(i_div_l, HOT_LOC, HOT_DIV)                                                                   \
+    X(i_and_l, HOT_LOC, HOT_AND)                                                                   \
+    X(i_or_l, HOT_LOC, HOT_OR)                                                                     \
+    X(i_step_l, HOT_LOC, HOT_STEP)
 
 #define X(name, src, op)                                                                           \
     static inline Status hot_##name(Regs *const r) { return hot_int(r, src, op); }
@@ -262,13 +293,14 @@ static inline Status hot_cmp(Regs *const r, const HotSrc src)
 
 static inline Status hot_i_cmp(Regs *const r) { return hot_cmp(r, HOT_POPPED); }
 static inline Status hot_i_cmp_v(Regs *const r) { return hot_cmp(r, HOT_VAR); }
+static inline Status hot_i_cmp_l(Regs *const r) { return hot_cmp(r, HOT_LOC); }
 static inline Status hot_i_cmp_u8(Regs *const r) { return hot_cmp(r, HOT_U8); }
 static inline Status hot_i_cmp_i16(Regs *const r) { return hot_cmp(r, HOT_I16); }
 
 /* ---- SINGLE: an x87 operation each, its result rounded once as stored (num/single.c) ---- */
 
 /* Where a SINGLE op's right operand comes from, what the op does. */
-typedef enum { HF_POPPED, HF_VAR, HF_VARI, HF_U8, HF_F32 } HotFsrc;
+typedef enum { HF_POPPED, HF_VAR, HF_VARI, HF_LOC, HF_LOCI, HF_U8, HF_F32 } HotFsrc;
 typedef enum { HF_ADD, HF_SUB, HF_MUL, HF_DIV } HotFop;
 
 /* A SINGLE op's bytes, by its right operand. */
@@ -288,6 +320,12 @@ static inline Sngl hot_foperand(Regs *const r, const HotFsrc src)
 
     case HF_VARI: /* an INT variable */
         return fmth_from_i32((int32_t)rd32(hot_u32(r)));
+
+    case HF_LOC:
+        return rd32(hot_local(r, hot_u32(r)));
+
+    case HF_LOCI:
+        return fmth_from_i32((int32_t)rd32(hot_local(r, hot_u32(r))));
 
     case HF_U8:
         return fmth_from_i32(hot_u8(r));
@@ -350,7 +388,15 @@ static inline Status hot_flt(Regs *const r, const HotFsrc src, const HotFop op)
     X(f_add_f32, HF_F32, HF_ADD)                                                                   \
     X(f_sub_f32, HF_F32, HF_SUB)                                                                   \
     X(f_mul_f32, HF_F32, HF_MUL)                                                                   \
-    X(f_div_f32, HF_F32, HF_DIV)
+    X(f_div_f32, HF_F32, HF_DIV)                                                                   \
+    X(f_add_l, HF_LOC, HF_ADD)                                                                     \
+    X(f_sub_l, HF_LOC, HF_SUB)                                                                     \
+    X(f_mul_l, HF_LOC, HF_MUL)                                                                     \
+    X(f_div_l, HF_LOC, HF_DIV)                                                                     \
+    X(f_add_li, HF_LOCI, HF_ADD)                                                                   \
+    X(f_sub_li, HF_LOCI, HF_SUB)                                                                   \
+    X(f_mul_li, HF_LOCI, HF_MUL)                                                                   \
+    X(f_div_li, HF_LOCI, HF_DIV)
 
 #define X(name, src, op)                                                                           \
     static inline Status hot_##name(Regs *const r) { return hot_flt(r, src, op); }
@@ -370,7 +416,9 @@ static inline uint8_t hot_frel(Regs *const r, const HotFsrc src)
     X(f_cmp_v, HF_VAR)                                                                             \
     X(f_cmp_vi, HF_VARI)                                                                           \
     X(f_cmp_u8, HF_U8)                                                                             \
-    X(f_cmp_f32, HF_F32)
+    X(f_cmp_f32, HF_F32)                                                                           \
+    X(f_cmp_l, HF_LOC)                                                                             \
+    X(f_cmp_li, HF_LOCI)
 
 #define X(name, src)                                                                               \
     static inline Status hot_##name(Regs *const r)                                                 \
@@ -392,7 +440,10 @@ HOT_FCMPS(X)
     X(f_v, oper_f_cmpif_v, HF_VAR, hot_frel)                                                       \
     X(f_vi, oper_f_cmpif_vi, HF_VARI, hot_frel)                                                    \
     X(f_u8, oper_f_cmpif_u8, HF_U8, hot_frel)                                                      \
-    X(f_f32, oper_f_cmpif_f32, HF_F32, hot_frel)
+    X(f_f32, oper_f_cmpif_f32, HF_F32, hot_frel)                                                   \
+    X(i_l, oper_i_cmpif_l, HOT_LOC, hot_rel)                                                       \
+    X(f_l, oper_f_cmpif_l, HF_LOC, hot_frel)                                                       \
+    X(f_li, oper_f_cmpif_li, HF_LOCI, hot_frel)
 
 /* ---- one cell's ops: loads, unary ops, conversions -------------------------------------------- */
 
@@ -406,6 +457,13 @@ static inline Status hot_f_ld_u8(Regs *const r)
 static inline Status hot_f_ld_vi(Regs *const r)
 {
     const Sngl v = hot_foperand(r, HF_VARI);
+    (--r->sp)->a = v;
+    return ST_OK;
+}
+
+static inline Status hot_f_ld_li(Regs *const r)
+{
+    const Sngl v = hot_foperand(r, HF_LOCI);
     (--r->sp)->a = v;
     return ST_OK;
 }
@@ -531,7 +589,8 @@ static inline Status hot_next(const uint8_t *const op, const bool up, bool *cons
     X(i_jfc, HOT_POPPED)                                                                           \
     X(i_jfc_v, HOT_VAR)                                                                            \
     X(i_jfc_u8, HOT_U8)                                                                            \
-    X(i_jfc_i16, HOT_I16)
+    X(i_jfc_i16, HOT_I16)                                                                          \
+    X(i_jfc_l, HOT_LOC)
 
 /* A compare-and-branch at r->ip (past its op): r->ip at its Jump; its compare true, so not taken. */
 static inline bool hot_jfc(Regs *const r, const HotSrc src)
@@ -561,6 +620,20 @@ static inline Status hot_d_ld_v(Regs *const r)
 static inline Status hot_d_st_v(Regs *const r)
 {
     const Addr cell = hot_u32(r);
+    store_cell(at(cell), *r->sp++);
+    return ST_OK;
+}
+
+static inline Status hot_d_ld_l(Regs *const r)
+{
+    const Addr cell = hot_local(r, hot_u32(r));
+    *--r->sp = load_cell(at(cell));
+    return ST_OK;
+}
+
+static inline Status hot_d_st_l(Regs *const r)
+{
+    const Addr cell = hot_local(r, hot_u32(r));
     store_cell(at(cell), *r->sp++);
     return ST_OK;
 }
@@ -660,7 +733,7 @@ static inline Status hot_int_st(Regs *const r, const HotSrc src, const HotOp op)
     const Addr x = hot_u32(r);
     Cell top = {.a = rd32(hot_u32(r))};
 
-    Regs t = {r->ip, &top};
+    Regs t = {r->ip, &top, r->fp};
 
     const Status st = hot_int(&t, src, op);
     r->ip = t.ip;
@@ -733,7 +806,7 @@ static inline Status hot_i_mov(Regs *const r)
 [[gnu::always_inline]]
 static inline void hot_op(Session *const S, Status (*const fn)(Regs *r))
 {
-    Regs r = {S->vm.ip, S->vm.sp};
+    Regs r = {S->vm.ip, S->vm.sp, S->vm.fp};
 
     const Status st = fn(&r);
     S->vm.ip = r.ip;

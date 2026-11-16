@@ -44,6 +44,15 @@ void oper_s_ld_v(Session *const S) { exec_pusha(&S->vm, exec_cell(&S->vm)); }
 void oper_i_st_v(Session *const S) { hot_op(S, hot_i_st_v); }
 void oper_f_st_v(Session *const S) { hot_op(S, hot_i_st_v); }
 
+void oper_i_ld_l(Session *const S) { hot_op(S, hot_i_ld_l); }
+void oper_f_ld_li(Session *const S) { hot_op(S, hot_f_ld_li); }
+void oper_i_st_l(Session *const S) { hot_op(S, hot_i_st_l); }
+void oper_f_st_l(Session *const S) { hot_op(S, hot_i_st_l); }
+void oper_d_ld_l(Session *const S) { hot_op(S, hot_d_ld_l); }
+void oper_d_st_l(Session *const S) { hot_op(S, hot_d_st_l); }
+/* A string local: its descriptor in the frame. */
+void oper_s_ld_l(Session *const S) { exec_pusha(&S->vm, S->vm.fp + exec_cell(&S->vm)); }
+
 /* ---- INT ------------------------------------------------------------------------------------ */
 
 #define X(name, src, op)                                                                           \
@@ -77,6 +86,7 @@ void oper_f_neg(Session *const S) { hot_op(S, hot_f_neg); }
 
 void oper_i_cmp(Session *const S) { hot_op(S, hot_i_cmp); }
 void oper_i_cmp_v(Session *const S) { hot_op(S, hot_i_cmp_v); }
+void oper_i_cmp_l(Session *const S) { hot_op(S, hot_i_cmp_l); }
 void oper_i_cmp_u8(Session *const S) { hot_op(S, hot_i_cmp_u8); }
 void oper_i_cmp_i16(Session *const S) { hot_op(S, hot_i_cmp_i16); }
 #define X(name, src)                                                                               \
@@ -88,7 +98,7 @@ HOT_FCMPS(X)
 #define X(name, handler, src, rel)                                                                 \
     void handler(Session *const S)                                                                 \
     {                                                                                              \
-        Regs r = {S->vm.ip, S->vm.sp};                                                             \
+        Regs r = {S->vm.ip, S->vm.sp, S->vm.fp};                                                   \
         const uint8_t got = rel(&r, src);                                                          \
         const bool yes = got & hot_u8(&r);                                                         \
         S->vm.ip = r.ip;                                                                           \

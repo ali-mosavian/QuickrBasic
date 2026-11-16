@@ -935,11 +935,20 @@ static void sub(Comp *const C)
         skip(C);
 }
 
+/* PRET for procedure proc: its result's cell link's. */
+static void ret(Comp *const C, const uint8_t proc)
+{
+    Node *const n = comp_op(C, O_PRET);
+    comp_byte(n, proc);
+    comp_word(n, 0);
+    comp_word(n, 0);
+}
+
 /* END or EXIT SUB, FUNCTION, DEF: PRET. */
 static void pret(Comp *const C)
 {
     C->p += 2;
-    comp_op(C, O_PRET);
+    ret(C, C->proc);
 }
 
 /* DEF FNn [(params)]: passed as a FUNCTION; with = e, JMP past it, then the result e, PRET. */
@@ -971,7 +980,7 @@ static void deffn(Comp *const C)
     C->p = eq + 1;
     expr_compile(C);
     comp_store(C);
-    comp_op(C, O_PRET);
+    ret(C, idx);
 }
 
 /* DEF SEG [= s]: no code, flat; DEF FN. */

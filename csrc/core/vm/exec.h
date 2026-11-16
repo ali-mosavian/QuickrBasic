@@ -89,7 +89,7 @@ enum : uint32_t { LREF_AT = 0x80000000 };
 enum : uint8_t { SF_TICK = 4 };
 
 /* An op's flags (ops.def). */
-enum : uint8_t { FX = 1, FV = 2, FB = 4, FK = 8, FV2 = 16, FV3 = 32 };
+enum : uint8_t { FX = 1, FV = 2, FB = 4, FK = 8, FV2 = 16, FV3 = 32, FP = 64 };
 
 enum : uint8_t {
 #define OP(name, h, size, fl) O_##name,
@@ -120,8 +120,11 @@ typedef struct {
     uint8_t proc;
     uint32_t params, locals;
     uint16_t temp_floor; /* the caller's floor of string temporaries */
-    Cell *stack;         /* the data stack at its body's start */
-    uint32_t on_error;   /* ON LOCAL ERROR's line, 0 none */
+    Cell *stack;         /* the data stack at its body's start, past its locals */
+    Addr fp;             /* its frame (vm.fp): npar arguments above it */
+    uint16_t npar;
+    Addr caller;       /* the caller's */
+    uint32_t on_error; /* ON LOCAL ERROR's line, 0 none */
 } Call;
 
 typedef struct {
@@ -170,6 +173,7 @@ typedef struct Vm {
     Cell *rsp;     /* the stack empty, at a statement's start */
     Cell *stklim;  /* PCALL's floor of sp */
     Cell *stktop;  /* the data stack's region's top; its base stktop - STKSZ/8 */
+    Addr fp;       /* the running procedure's frame: its link cell, locals below, arguments above */
 
     Frame frames[MAX_FRAMES];
     uint32_t nframes;

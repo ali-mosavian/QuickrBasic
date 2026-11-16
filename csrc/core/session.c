@@ -5,6 +5,7 @@
  * variables and next line from the VM's call frames.
  */
 #include "session.h"
+#include "vm/flow.h"
 #include "vm/stmts.h"
 
 void session_debug(Session *const S, const DebugHooks *const hooks)
@@ -62,6 +63,7 @@ bool session_stopped_at(Session *const S, DebugPos *const pos)
 void session_drop_stop(Session *const S)
 {
     S->vm.nframes = 0;
+    S->vm.fp = 0;
     S->vm.cont.line = 0;
 }
 
@@ -109,20 +111,6 @@ uint32_t session_frames(const Session *const S, DebugFrame out[], const uint32_t
     return n;
 }
 
-/* The oldest call of f's procedure newer than f, which saved what f sees; nullptr none. */
-static const Call *newer_call(const Vm *const vm, const DebugFrame *const f)
-{
-    const Call *newer = nullptr;
-
-    if (f->call < 0)
-        return nullptr;
-    for (uint32_t i = vm->nframes - 1; i > (uint32_t)f->call; i--)
-        if (vm->frames[i].kind == FRAME_CALL && vm->frames[i].call.proc == f->proc)
-            newer = &vm->frames[i].call;
-
-    return newer;
-}
-
 Addr session_cell(
     const Session *const S,
     const DebugFrame *const f,
@@ -130,34 +118,10 @@ Addr session_cell(
     const int32_t par
 )
 {
-    const Addr vt = symb_var(&S->symb, id)->vt;
-    const Call *const c = newer_call(&S->vm, f);
+    if (symb_var(&S->symb, id)->info & VI_ARR) /* its header, the newest call's */
+        return symb_var(&S->symb, id)->vt;
 
-    if (!c)
-        return vt;
-
-    /* a parameter: its cell before the newer call */
-    const Addr cell = par >= 0 ? S->vm.callvars[c->params + (uint32_t)par].cell : vt;
-
-    if (cell != symb_cell(&S->symb, id))
-        return cell;
-    if (par >= 0) { /* its own: the value before, if the newer call took it */
-        const CallVar *const p = &S->vm.callvars[c->params + (uint32_t)par];
-        return p->arg == CV_OWN ? addr_of(&p->value) : cell;
-    }
-
-    uint32_t n = 0; /* its own: the value saved */
-    for (uint16_t v = S->symb.first_local[f->proc]; v; v = symb_varx(&S->symb, v)->nloc) {
-        const bool saved =
-            exec_saved_local(symb_var(&S->symb, v)->info & VI_ARR, symb_varx(&S->symb, v)->par);
-
-        if (v == id)
-            return saved ? addr_of(&S->vm.callvars[c->locals + n].value) : cell;
-        if (saved)
-            n++;
-    }
-
-    return cell;
+    return flow_cell(&S->symb, f->call < 0 ? 0 : S->vm.frames[f->call].call.fp, id);
 }
 
 bool session_in_direct(const Session *const S)
@@ -197,6 +161,7 @@ void session_drop(Session *const S)
     S->link.cursor = 0;
     S->link.linked = false;
     S->vm.nframes = 0;
+    S->vm.fp = 0;
     prog_terminate(&S->prog);
     session_clear(S);
 }

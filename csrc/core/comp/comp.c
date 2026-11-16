@@ -139,7 +139,7 @@ void comp_flush(Comp *const C)
     }
 
     if (!C->nofuse && C->code->out != start) {
-        C->code->out = fuse_code(start, C->code->out);
+        C->code->out = fuse_code(C->symb, start, C->code->out);
         C->code->iload = C->code->iloadend = C->code->cmpend = C->code->shend = nullptr;
     }
 }
@@ -476,8 +476,9 @@ void comp_scope(Comp *const C, const uint16_t name)
         return;
     }
 
-    if (b->flags & BF_STAT || blok_proc(C->blok, C->proc)->flags & PF_STAT)
-        C->isstatic = true; /* STATIC */
+    /* STATIC; or new in the direct line, where the running call's frame has no cell for it */
+    if (b->flags & BF_STAT || blok_proc(C->blok, C->proc)->flags & PF_STAT || C->line == DLINE)
+        C->isstatic = true;
 }
 
 /* var_decl: under OPTION EXPLICIT, name declared, or a procedure's; else Variable not declared. */

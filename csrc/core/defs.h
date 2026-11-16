@@ -262,5 +262,9 @@ enum : uint8_t {
     BK_NEXT, /* one per variable a NEXT closes; sel its FOR */
 };
 enum : uint8_t { PK_SUB = 1, PK_FUNC = 2, PK_END = 3 };
-enum : uint8_t { PF_STAT = 1, PF_DEF = 2 };
+enum : uint8_t {
+    PF_STAT = 1,
+    PF_DEF = 2,
+    PF_ARRAYS = 4
+}; /* PF_ARRAYS: an array parameter or local */
 #endif

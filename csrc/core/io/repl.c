@@ -197,6 +197,8 @@ static void report(Session *const S, const uint8_t code)
     }
 
     S->vm.nframes = 0;
+
+    S->vm.fp = 0;
     S->vm.cont.line = 0;
     cons_puts(&S->cons, emsg_text(S->vm.err.user, code));
 
@@ -304,8 +306,10 @@ static void read_lines(Session *const S)
 
         if (r == ENTER_DIRECT)
             return;
-        if (r == ENTER_STORED)
+        if (r == ENTER_STORED) {
             S->vm.nframes = 0;
+            S->vm.fp = 0;
+        }
     }
 }
 

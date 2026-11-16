@@ -275,11 +275,19 @@ uint32_t arry_free(Arry *const ay, Vm *const vm, const uint16_t id, const Addr r
 
     for (uint32_t i = 0; i < vm->ncallvars; i++) {
         CallVar *const cv = &vm->callvars[i];
+        cv->array.hdr = arry_moved_hdr(ay, &f, cv->array.hdr);
+    }
 
-        if (arry_is_array(ay, cv->var))
-            cv->array.hdr = arry_moved_hdr(ay, &f, cv->array.hdr);
-        else if (cv->cell) /* a parameter's cell before */
-            cv->cell = arry_moved_cell(&f, cv->cell);
+    for (uint32_t i = 0; i < vm->nframes; i++) { /* the arguments: an element's address */
+        const Call *const c = &vm->frames[i].call;
+
+        if (vm->frames[i].kind != FRAME_CALL)
+            continue;
+
+        Cell *const refs = (Cell *)at(c->fp);
+
+        for (uint32_t k = 0; k < c->npar; k++)
+            refs[2 * k].a = arry_moved_cell(&f, refs[2 * k].a);
     }
 
     return f.hdr_size;
@@ -349,7 +357,7 @@ void arry_rep(Arry *const ay, Vm *const vm, const uint16_t id)
     for (uint32_t i = 0; i < vm->ncallvars; i++) {
         CallVar *const cv = &vm->callvars[i];
 
-        if (arry_is_array(ay, cv->var) && cv->array.hdr == AREP)
+        if (cv->array.hdr == AREP)
             cv->array.hdr = h;
     }
 }

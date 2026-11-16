@@ -450,7 +450,8 @@ static Node *arg(Comp *const C, const uint16_t par, const bool byval)
             if (aend(*after)) { /* a variable alone: its cell */
                 const uint16_t id = comp_var(C, 0, 0);
                 ptm(C, id, par, p);
-                return argnode(C, PA_VAR, place(C, O_V_ADDR, id), par);
+                const uint8_t op = comp_ispar(C, id) ? O_V_ADDR : O_V_CELL; /* as ref_place's */
+                return argnode(C, PA_VAR, place(C, op, id), par);
             }
         }
     }

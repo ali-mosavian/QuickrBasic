@@ -2,7 +2,8 @@
 #ifndef COMP_FUSE_H
 #define COMP_FUSE_H
 #include "defs.h"
+#include "mem/symbols.h"
 
 /* The code from start to end with each fusable sequence one op; returns its new end. */
-uint8_t *fuse_code(uint8_t *start, uint8_t *end);
+uint8_t *fuse_code(const Symb *sy, uint8_t *start, uint8_t *end);
 #endif

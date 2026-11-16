@@ -15,7 +15,8 @@
  *   x = a op b   I.LD.V a, I.ADD.V b .. I.MOD.I16 k, I.ST.V x                  I.ADD.V.ST x a b ..
  *   x = k, x = a I.LD.U8|I16|I32 k or I.LD.V a, I.ST.V x                       I.SET.U8 .. x k, I.MOV x a
  *
- * A JT is a JF on the other relations: its mask's complement.
+ * A JT is a JF on the other relations: its mask's complement. A procedure's local has a frame twin
+ * of each one-cell op only (comp/link.c), so it is in no fused op of more cells, nor I.SET.
  *
  * The fused ops have no asm counterpart; tests/golden compares the code unfused.
  */
@@ -28,9 +29,16 @@
 enum { MAX_OPS = 512 }; /* a statement's ops fused; past them the rest are copied as they are */
 
 typedef struct {
+    const Symb *sy;
     uint8_t *at[MAX_OPS]; /* each copied op's start */
     uint32_t n;
 } Tail;
+
+/* Is the variable whose id is at p a global, not in a frame? */
+static bool global(const Tail *const t, const uint8_t *const p)
+{
+    return *symb_frame(t->sy, (uint16_t)load32(p)) >= 0;
+}
 
 /* The op k back from the last (0 the last). */
 static uint8_t *back(const Tail *const t, const uint32_t k) { return t->at[t->n - 1 - k]; }
@@ -66,7 +74,8 @@ static uint8_t *next(Tail *const t)
     const uint32_t c = load32(ld + 1);
     const uint8_t m = cmp[1 + VCELL];
 
-    if (load32(st + 1) != c || load32(ld2 + 1) != c || (m != DC_GT && m != DC_LT))
+    if (load32(st + 1) != c || load32(ld2 + 1) != c || (m != DC_GT && m != DC_LT) ||
+        !global(t, ld + 1) || !global(t, step + 1) || !global(t, cmp + 1))
         return nullptr;
 
     uint8_t op[NEXT_SIZE];
@@ -175,7 +184,7 @@ static uint8_t *store(Tail *const t)
     const uint8_t *const st = back(t, 0), *const prev = back(t, 1);
     uint8_t op[1 + 3 * VCELL];
 
-    if (*st != O_I_ST_V && *st != O_F_ST_V)
+    if ((*st != O_I_ST_V && *st != O_F_ST_V) || !global(t, st + 1))
         return nullptr;
 
     memcpy(op + 1, st + 1, VCELL); /* the cell stored to first */
@@ -183,6 +192,9 @@ static uint8_t *store(Tail *const t)
     if (*st == O_I_ST_V && t->n >= 3 && *back(t, 2) == O_I_LD_V)
         for (uint32_t i = 0; i < countof(with); i++)
             if (*prev == with[i].op) {
+                if (!global(t, back(t, 2) + 1) || (exec_flags(*prev) & FV && !global(t, prev + 1)))
+                    return nullptr;
+
                 const uint32_t n = flow_opsize(prev) - 1; /* its operand */
                 op[0] = with[i].st;
                 memcpy(op + 1 + VCELL, back(t, 2) + 1, VCELL);
@@ -208,6 +220,9 @@ static uint8_t *store(Tail *const t)
 
     case O_I_LD_V:
     case O_F_LD_V:
+        if (!global(t, prev + 1))
+            return nullptr;
+
         op[0] = O_I_MOV;
         break;
 
@@ -220,9 +235,10 @@ static uint8_t *store(Tail *const t)
     return replace(t, 2, op, 1 + VCELL + n);
 }
 
-uint8_t *fuse_code(uint8_t *const start, uint8_t *const end)
+uint8_t *fuse_code(const Symb *const sy, uint8_t *const start, uint8_t *const end)
 {
     static Tail t;
+    t.sy = sy;
     t.n = 0;
     uint8_t *out = start;
 

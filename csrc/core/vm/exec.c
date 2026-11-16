@@ -99,6 +99,9 @@ void exec_init(Session *const S)
     S->vm.stktop = (Cell *)at(stack + STKSZ - 16);
     S->vm.sp = S->vm.rsp = S->vm.stktop;
     S->vm.stklim = S->vm.stktop - STKROOM / sizeof(Cell);
+    S->strg.stack = stack;
+    S->strg.stack_end = stack + STKSZ;
+    S->strg.sp = &S->vm.sp;
     S->vm.callvars = (CallVar *)at(allo_carve(&S->allo, LSAVSZ));
     pkey_init(&S->vm.stop, SF_TICK);
     pclk_init(&S->vm.stop, SF_TICK);
@@ -165,10 +168,20 @@ static inline bool elem1_fast(
     X(d_nz, dubl_nz)                                                                               \
     X(i_tod, dubl_itod)                                                                            \
     X(f_tod, dubl_ftod)                                                                            \
-    X(d_tof, dubl_tof)
+    X(d_tof, dubl_tof)                                                                             \
+    X(i_ld_l, oper_i_ld_l)                                                                         \
+    X(i_st_l, oper_i_st_l)                                                                         \
+    X(f_st_l, oper_f_st_l)                                                                         \
+    X(f_ld_li, oper_f_ld_li)                                                                       \
+    X(i_cmp_l, oper_i_cmp_l)                                                                       \
+    X(f_cmp_l, oper_f_cmp_l)                                                                       \
+    X(f_cmp_li, oper_f_cmp_li)                                                                     \
+    X(d_ld_l, oper_d_ld_l)                                                                         \
+    X(d_st_l, oper_d_st_l)
 
 /* f_ld_f32's and f_st_v's run as i_ld_i32's and i_st_v's. */
 static inline Status hot_f_st_v(Regs *const r) { return hot_i_st_v(r); }
+static inline Status hot_f_st_l(Regs *const r) { return hot_i_st_l(r); }
 static inline Status hot_f_ld_f32(Regs *const r) { return hot_i_ld_i32(r); }
 
 /* exec_run's parts for each hot op: its label for its handler's opcodes; its code, which a
@@ -204,7 +217,7 @@ static inline Status hot_f_ld_f32(Regs *const r) { return hot_i_ld_i32(r); }
 #define CMPIF_RUN(name, handler, src, rel)                                                         \
     cmpif_##name:                                                                                  \
     {                                                                                              \
-        Regs t = {r.ip + 1, r.sp};                                                                 \
+        Regs t = {r.ip + 1, r.sp, r.fp};                                                           \
         const uint8_t got = rel(&t, src);                                                          \
                                                                                                    \
         if (got & hot_u8(&t)) {                                                                    \
@@ -217,7 +230,7 @@ static inline Status hot_f_ld_f32(Regs *const r) { return hot_i_ld_i32(r); }
         if (!code)                                                                                 \
             goto slow;                                                                             \
                                                                                                    \
-        r = (Regs){code, t.sp};                                                                    \
+        r = (Regs){code, t.sp, t.fp};                                                              \
     }                                                                                              \
     goto next;
 #define CMPIF_AT(name, handler, src, rel)                                                          \
@@ -231,10 +244,10 @@ static inline Status hot_f_ld_f32(Regs *const r) { return hot_i_ld_i32(r); }
         at_op[i] = &&name;
 #define JFC_RUN(name, src)                                                                         \
     name: {                                                                                        \
-        Regs t = {r.ip + 1, r.sp};                                                                 \
+        Regs t = {r.ip + 1, r.sp, r.fp};                                                           \
                                                                                                    \
         if (hot_jfc(&t, src)) {                                                                    \
-            r = (Regs){t.ip + sizeof(Jump), t.sp};                                                 \
+            r = (Regs){t.ip + sizeof(Jump), t.sp, t.fp};                                           \
             goto next;                                                                             \
         }                                                                                          \
                                                                                                    \
@@ -246,7 +259,7 @@ static inline Status hot_f_ld_f32(Regs *const r) { return hot_i_ld_i32(r); }
         if (!code)                                                                                 \
             goto slow;                                                                             \
                                                                                                    \
-        r = (Regs){code, t.sp};                                                                    \
+        r = (Regs){code, t.sp, t.fp};                                                              \
     }                                                                                              \
     goto next;
 
@@ -306,6 +319,14 @@ static void exec_loop(Session *const S)
                 at_op[i] = &&gosub;
             if (h == flow_return)
                 at_op[i] = &&ret;
+            if (h == flow_pcall)
+                at_op[i] = &&pcall;
+            if (h == flow_pret)
+                at_op[i] = &&pret;
+            if (h == flow_pret_fv)
+                at_op[i] = &&pret_fv;
+            if (h == flow_pret_fl)
+                at_op[i] = &&pret_fl;
 
             if (h == flow_i_jf)
                 at_op[i] = &&i_jf;
@@ -329,7 +350,7 @@ static void exec_loop(Session *const S)
         }
     }
 
-    Regs r = {v->ip, v->sp};
+    Regs r = {v->ip, v->sp, v->fp};
 
     uint8_t *op; /* a failed op's */
     Status st;
@@ -346,7 +367,7 @@ next: /* r.ip at the op: each label steps past it */
     v->sp = r.sp;                                                                                  \
     v->opip = r.ip;                                                                                \
     ops[*r.ip](S);                                                                                 \
-    r = (Regs){v->ip, v->sp};                                                                      \
+    r = (Regs){v->ip, v->sp, v->fp};                                                               \
     goto next;
 
 cold:
@@ -443,7 +464,9 @@ gosub: /* a frame to come back to, then the line; a stop, not linked, frames ful
 
         const Place back = {v->line, addr_of(r.ip + 1 + sizeof(LineRef)) - S->allo.cache};
 
-        v->frames[v->nframes++] = (Frame){.kind = FRAME_GOSUB, .ret = back};
+        Frame *const f = &v->frames[v->nframes++];
+        f->kind = FRAME_GOSUB;
+        f->ret = back;
 
         S->strg.tmp_used = S->strg.tmp_floor;
         S->link.cursor = line;
@@ -465,6 +488,81 @@ ret: /* RETURN to a GOSUB's frame; a stop, an event's frame, none: flow_return's
     }
 
     goto next;
+
+pcall: /* PCALL proc n npar body: the frame at the arguments, n local cells zeroed below it, pushed,
+          into the body; a stop, a limit: flow_pcall's */
+    if (v->stop)
+        goto slow;
+
+    {
+        const uint32_t n = load16(r.ip + 2);
+        const Jump *const j = (const Jump *)(r.ip + 5);
+
+        if (r.sp < v->stklim || (uint32_t)(r.sp - v->stklim) < n || v->nframes == MAX_FRAMES ||
+            j->dest <= TO_NEXT_STMT)
+            goto slow;
+
+        const Addr fp = addr_of(r.sp);
+        Frame *const f = &v->frames[v->nframes++]; /* field by field: no padding zeroed */
+        f->kind = FRAME_CALL;
+        f->ret = (Place){v->line, addr_of(r.ip + 5 + sizeof(Jump)) - S->allo.cache};
+
+        f->call.proc = r.ip[1];
+        f->call.params = f->call.locals = v->ncallvars;
+        f->call.temp_floor = S->strg.tmp_floor;
+        f->call.fp = fp;
+        f->call.npar = r.ip[4];
+        f->call.caller = r.fp;
+        f->call.on_error = 0;
+        r.fp = v->fp = fp;
+        r.sp -= n;
+
+        for (uint32_t i = 0; i < n; i++)
+            r.sp[i] = (Cell){};
+
+        f->call.stack = r.sp;
+        S->strg.tmp_floor = S->strg.tmp_used;
+        v->line = j->line;
+        r.ip = at(S->allo.cache + j->dest);
+    }
+
+    goto next;
+
+/* PRET: the call on the top frame ended, its arguments popped; a stop, another frame on top:
+   flow_pret's. */
+#define PRET_RUN(result)                                                                           \
+    if (v->stop || !v->nframes || v->frames[v->nframes - 1].kind != FRAME_CALL)                    \
+        goto slow;                                                                                 \
+                                                                                                   \
+    {                                                                                              \
+        const Frame *const f = &v->frames[v->nframes - 1];                                         \
+        const Call c = f->call;                                                                    \
+        const Place back = f->ret;                                                                 \
+        [[maybe_unused]]                                                                           \
+        const Cell x = (result);                                                                   \
+        v->nframes--;                                                                              \
+        v->ncallvars = c.params;                                                                   \
+        r.sp = (Cell *)at(c.fp) + 2 * c.npar;                                                      \
+        r.fp = v->fp = c.caller;                                                                   \
+        S->strg.tmp_used = S->strg.tmp_floor; /* the callee's */                                   \
+        S->strg.tmp_floor = c.temp_floor;                                                          \
+        v->line = back.line;                                                                       \
+        r.ip = at(S->allo.cache + back.code);                                                      \
+        PRET_PUSH                                                                                  \
+    }                                                                                              \
+    goto next;
+
+#define PRET_PUSH
+
+pret: /* a SUB's */
+    PRET_RUN((Cell){})
+#undef PRET_PUSH
+#define PRET_PUSH *--r.sp = x;
+pret_fv: /* a FUNCTION's number: its result's cell */
+    PRET_RUN(load_cell(at(load32(r.ip + 2))))
+pret_fl: /*   in the frame */
+    PRET_RUN(load_cell(at(r.fp + load32(r.ip + 2))))
+#undef PRET_PUSH
 
 i_jf: /* JF: past its jump, or to its target; a stop, a jump not resolved: flow_i_jf's */
     if (r.sp->i) {
@@ -796,15 +894,17 @@ void exec_p_ref(Session *const S)
     exec_pusha(&S->vm, a);
 }
 
-/* A scalar's cell; a parameter's is its argument's. */
-void exec_v_addr(Session *const S) { exec_pusha(&S->vm, symb_var(&S->symb, exec_u16(&S->vm))->vt); }
+/* A scalar parameter's argument's address: in its ref cell, at its offset from the frame. */
+static Addr param_cell(Vm *const vm) { return rd32(vm->fp + exec_u16(vm)); }
+
+void exec_v_addr(Session *const S) { exec_pusha(&S->vm, param_cell(&S->vm)); }
 
 typedef enum : uint8_t { CELL_NUMBER, CELL_DOUBLE, CELL_STRING } CellKind;
 
-/* A parameter's value through its cell. */
+/* A parameter's value through its argument's address. */
 void exec_v_ld(Session *const S)
 {
-    const Addr cell = symb_var(&S->symb, exec_u16(&S->vm))->vt;
+    const Addr cell = param_cell(&S->vm);
     const CellKind kind = exec_u8(&S->vm);
 
     if (kind == CELL_DOUBLE)
@@ -817,7 +917,7 @@ void exec_v_ld(Session *const S)
 
 void exec_v_st(Session *const S)
 {
-    const Addr cell = symb_var(&S->symb, exec_u16(&S->vm))->vt;
+    const Addr cell = param_cell(&S->vm);
     const CellKind kind = exec_u8(&S->vm);
     const Cell x = exec_pop(&S->vm);
 
@@ -827,6 +927,22 @@ void exec_v_st(Session *const S)
         strg_set(&S->strg, x.a, cell);
     else
         wr32(cell, x.u);
+}
+
+/* BYVAL kind: an argument by value, its address pushed above it: the parameter is its own cell. A
+   string (kind 1) is copied into the cell, the cell its owner. */
+void exec_byval(Session *const S)
+{
+    Cell *const v = S->vm.sp;
+
+    if (exec_u8(&S->vm)) {
+        const Addr value = v->a;
+        *v = (Cell){};
+
+        strg_set(&S->strg, value, addr_of(v));
+    }
+
+    exec_pusha(&S->vm, addr_of(v));
 }
 
 /* ---- strings -------------------------------------------------------------------------------- */
@@ -842,6 +958,12 @@ void exec_s_ld_txt(Session *const S)
 void exec_s_st_v(Session *const S)
 {
     const Addr cell = exec_cell(&S->vm);
+    strg_set(&S->strg, exec_popa(&S->vm), cell);
+}
+
+void exec_s_st_l(Session *const S)
+{
+    const Addr cell = S->vm.fp + exec_cell(&S->vm);
     strg_set(&S->strg, exec_popa(&S->vm), cell);
 }
 

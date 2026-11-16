@@ -44,6 +44,7 @@ typedef struct Symb {
     uint16_t nvars;                      /* the next variable (lx.nsyms) */
     uint16_t nnames;                     /* the next name (lx.nnams) */
     uint16_t first_local[NPROC];         /* a procedure's first local, VarX.nloc on (g_plh) */
+    uint16_t nslots[NPROC];              /* a procedure's frame: its locals' cells */
     uint8_t deft[26];                    /* DEFtype's ET_*, by first letter (g_deft) */
     uint16_t vhead[HSIZE], nhead[HSIZE]; /* the hash chains' heads */
 } Symb;
@@ -59,6 +60,17 @@ static inline Var *symb_var(const Symb *const sy, uint16_t id)
 static inline VarX *symb_varx(const Symb *const sy, uint16_t id)
 {
     return (VarX *)at(sy->vars.at[2]) + id;
+}
+/* A variable's place in its procedure's frame, from vm.fp: a scalar local's cell (negative); a
+   scalar parameter's argument's address (link_procvars); 0 neither. */
+static inline int32_t *symb_frame(const Symb *const sy, uint16_t id)
+{
+    return (int32_t *)at(sy->vars.at[4]) + id;
+}
+/* A new cell in procedure proc's frame: its offset. */
+static inline int32_t symb_slot(Symb *const sy, const uint8_t proc)
+{
+    return -(int32_t)sizeof(Cell) * ++sy->nslots[proc];
 }
 static inline uint8_t *symb_kval(const Symb *const sy, uint16_t id)
 {

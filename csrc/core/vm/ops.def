@@ -5,7 +5,8 @@
  * S.LD.TXT, see flow_opsize), FX an expression's op, FV a variable's VCELL after the op (exec.h), FV2
  * and FV3 a second and third after it (a fused op's), FB
  * the handler serves several ops and reads which at vm.opip, FK pure: the stack alone, so a
- * constant expression runs as it compiles (comp/fold.h).
+ * constant expression runs as it compiles (comp/fold.h), FP a scalar parameter's id after the op, its
+ * ref cell's offset in the frame once linked.
  *
  * K(name, handler): the CALL op's routine K_name. The statements' first, from K_IPOW an
  * expression's; K_FN_SGN .. K_FN_CHRS are SGN .. CHR$ by token (TK_SGN ..), all func_fn1.
@@ -136,8 +137,8 @@ OP(F_JF, flow_f_jf, JSIZE, 0)
 OP(I_JT, flow_i_jt, JSIZE, 0)
 OP(F_JT, flow_f_jt, JSIZE, 0)
 OP(NXLN, flow_nextln, 1, 0)
-OP(PCALL, flow_pcall, JSIZE + 1, 0)
-OP(PRET, flow_pret, 1, 0)
+OP(PCALL, flow_pcall, JSIZE + 4, 0) /* proc, its locals' cells and parameters (link's), body's Jump */
+OP(PRET, flow_pret, 2 + VCELL, 0) /* proc; link's: a FUNCTION's result's cell, or PRET.X */
 OP(I_MOD, oper_i_mod, 1, FX + FK)
 OP(I_XOR, oper_i_xor, 1, FX + FK)
 OP(I_EQV, oper_i_eqv, 1, FX + FK)
@@ -176,10 +177,10 @@ OP(D_FN, dubl_fn, 2, FX)
 OP(D_POW, dubl_pow, 1, FX)
 OP(DBG, dbug_dbg, 1, 0)
 OP(P_REF, exec_p_ref, 3, 0)
-OP(V_ADDR, exec_v_addr, 3, 0)
+OP(V_ADDR, exec_v_addr, 3, FP)
 OP(V_CELL, oper_s_ld_v, 1 + VCELL, FX + FV) /* a scalar's cell, as S.LD.V a descriptor's */
-OP(V_LD, exec_v_ld, 4, FX)
-OP(V_ST, exec_v_st, 4, 0)
+OP(V_LD, exec_v_ld, 4, FX + FP)
+OP(V_ST, exec_v_st, 4, FP)
 OP(SYSCALL, sysc_call, 2, 0) /* the runtime's service n (vm/syscalls.def) */
 OP(D_PAST, flow_d_past, 1, FX)
 /* fused (comp/fuse.c), no asm counterpart */
@@ -224,6 +225,45 @@ OP(I_SET_I32, oper_i_set_i32, 5 + VCELL, FV)
 OP(I_MOV, oper_i_mov, 1 + 2 * VCELL, FV + FV2)
 /* link_xlate's line end of a stored line: the next line, its code; 0 none */
 OP(EOL_TO, flow_eol, EOL_TO_SIZE, 0)
+/* A procedure's local, its cell an offset from the frame (vm.fp): the ops above with FV, linked so
+   (comp/link.c). */
+OP(I_LD_L, oper_i_ld_l, 1 + VCELL, FX)
+OP(F_LD_L, oper_i_ld_l, 1 + VCELL, FX)
+OP(F_LD_LI, oper_f_ld_li, 1 + VCELL, FX)
+OP(S_LD_L, oper_s_ld_l, 1 + VCELL, FX)
+OP(L_CELL, oper_s_ld_l, 1 + VCELL, FX)
+OP(I_ST_L, oper_i_st_l, 1 + VCELL, 0)
+OP(F_ST_L, oper_f_st_l, 1 + VCELL, 0)
+OP(S_ST_L, exec_s_st_l, 1 + VCELL, 0)
+OP(I_ADD_L, oper_i_add_l, 1 + VCELL, FX)
+OP(I_SUB_L, oper_i_sub_l, 1 + VCELL, FX)
+OP(I_MUL_L, oper_i_mul_l, 1 + VCELL, FX)
+OP(I_DIV_L, oper_i_div_l, 1 + VCELL, FX)
+OP(I_AND_L, oper_i_and_l, 1 + VCELL, FX)
+OP(I_OR_L, oper_i_or_l, 1 + VCELL, FX)
+OP(F_ADD_L, oper_f_add_l, 1 + VCELL, FX + FB)
+OP(F_SUB_L, oper_f_sub_l, 1 + VCELL, FX + FB)
+OP(F_MUL_L, oper_f_mul_l, 1 + VCELL, FX + FB)
+OP(F_DIV_L, oper_f_div_l, 1 + VCELL, FX + FB)
+OP(F_ADD_LI, oper_f_add_li, 1 + VCELL, FX + FB)
+OP(F_SUB_LI, oper_f_sub_li, 1 + VCELL, FX + FB)
+OP(F_MUL_LI, oper_f_mul_li, 1 + VCELL, FX + FB)
+OP(F_DIV_LI, oper_f_div_li, 1 + VCELL, FX + FB)
+OP(I_CMP_L, oper_i_cmp_l, 2 + VCELL, FX + FB)
+OP(F_CMP_L, oper_f_cmp_l, 2 + VCELL, FX + FB)
+OP(F_CMP_LI, oper_f_cmp_li, 2 + VCELL, FX + FB)
+OP(I_CMPIF_L, oper_i_cmpif_l, 2 + VCELL, FB)
+OP(F_CMPIF_L, oper_f_cmpif_l, 2 + VCELL, FB)
+OP(F_CMPIF_LI, oper_f_cmpif_li, 2 + VCELL, FB)
+OP(I_STEP_L, oper_i_step_l, 1 + VCELL, FX)
+OP(D_LD_L, oper_d_ld_l, 1 + VCELL, FX)
+OP(D_ST_L, oper_d_st_l, 1 + VCELL, 0)
+OP(I_JFC_L, flow_i_jfc_l, 2 + VCELL + sizeof(Jump), 0)
+OP(BYVAL, exec_byval, 2, 0)
+OP(PCALL_A, flow_pcall_a, JSIZE + 4, 0) /* PCALL to a procedure with array parameters or locals */
+OP(PRET_FV, flow_pret_fv, 2 + VCELL, 0) /* a FUNCTION's number, its result a cell */
+OP(PRET_FL, flow_pret_fl, 2 + VCELL, 0) /*   its result in the frame */
+OP(PRET_X, flow_pret_x, 2 + VCELL, 0)   /* arrays, or a string result */ /* the address of the value on top, a string's copied there */
 #undef OP
 #endif
 

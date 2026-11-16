@@ -915,7 +915,7 @@ static void cg_arg(Code *const c, const Node *const n)
     case PA_VALUE:
         gen(c, n->a);
         code_toinfo(c, n->var->info);
-        code_int(c, 0xFFFF);
+        code_opb(c, O_BYVAL, (n->var->info & VK_MASK) == VK_STR);
         break;
 
     case PA_VAR:
@@ -952,7 +952,9 @@ static void cg_call(Code *const c, const Node *const n)
     for (const Node *a = n->b; a != nullptr; a = a->next)
         gen(c, a);
 
-    code_opb(c, O_PCALL, n->op); /* its entry's Jump after it */
+    code_opb(c, O_PCALL, n->op); /* its locals' cells, its parameters (link's), its entry's Jump */
+    code_word(c, 0);
+    code_byte(c, 0);
     code_dword(c, n->jump.line);
     code_dword(c, n->jump.body);
     code_dword(c, n->jump.dest);

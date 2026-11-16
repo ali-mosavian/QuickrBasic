@@ -104,6 +104,7 @@ typedef struct {
     uint8_t *ip, *opip;
     Cell *sp, *rsp;
     uint32_t nframes, ncallvars;
+    Addr fp;
     Place cont;
     uint32_t line;
     uint16_t lnum;
@@ -126,6 +127,7 @@ static void save(Session *const S, Saved *const s)
         .sp = S->vm.sp,
         .rsp = S->vm.rsp,
         .nframes = S->vm.nframes,
+        .fp = S->vm.fp,
         .ncallvars = S->vm.ncallvars,
         .cont = S->vm.cont,
         .line = S->vm.line,
@@ -156,6 +158,7 @@ static void restore(Session *const S, const Saved *const s)
     S->vm.sp = s->sp;
     S->vm.rsp = s->rsp;
     S->vm.nframes = s->nframes;
+    S->vm.fp = s->fp;
     S->vm.ncallvars = s->ncallvars;
     S->vm.cont = s->cont;
     S->vm.line = s->line;

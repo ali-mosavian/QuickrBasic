@@ -191,7 +191,7 @@ static bool redo(Session *const S)
     S->stmt.redo = false;
     cons_msg(&S->cons, MSG_REDO);
     S->vm.ip = S->stmt.input_start;
-    S->vm.sp = S->vm.rsp;
+    S->vm.sp = flow_stack_base(&S->vm);
     return true;
 }
 
@@ -232,7 +232,7 @@ static void input(Session *const S, const ItemKind kind)
     if (redo(S))
         return;
     if (!S->cons.inlen) {
-        S->vm.sp = S->vm.rsp;
+        S->vm.sp = flow_stack_base(&S->vm);
         S->vm.ip = S->stmt.input_end;
         return;
     }
@@ -514,6 +514,7 @@ void stmt_rungo(Session *const S, const uint32_t line)
     S->vm.err.code = 0;
     S->vm.err.line = 0;
     S->vm.nframes = 0;
+    S->vm.fp = 0;
     S->vm.ncallvars = 0;
     S->strg.tmp_floor = 0;
     flow_jump(S, line);
@@ -574,6 +575,7 @@ void stmt_clr(Session *const S)
 {
     session_clear(S);
     S->vm.nframes = 0;
+    S->vm.fp = 0;
 }
 
 void stmt_new(Session *const S)

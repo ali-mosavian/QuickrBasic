@@ -3,7 +3,7 @@
 #define MEM_TABLE_H
 #include "alloc.h"
 
-enum { TMAXA = 4 }; /* a table's arrays at most */
+enum { TMAXA = 5 }; /* a table's arrays at most */
 
 typedef struct Table Table;
 struct Table {

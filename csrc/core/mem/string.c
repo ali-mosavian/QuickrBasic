@@ -121,9 +121,16 @@ Addr strg_alloc(Strg *const sg, const uint16_t len)
 }
 
 /* Is the block at chars live: its owner a Desc still pointing at them? */
+/* Is d a Desc of the data stack's below its top: a frame gone? */
+static bool strg_is_popped_frame(const Strg *const sg, const Addr d)
+{
+    return d >= sg->stack && d < sg->stack_end && d < addr_of(*sg->sp);
+}
+
 static bool strg_is_live(const Strg *const sg, const Addr chars, const Addr owner)
 {
-    return owner && !strg_is_popped_tmp(sg, owner) && strg_peek(owner).ptr == chars;
+    return owner && !strg_is_popped_tmp(sg, owner) && !strg_is_popped_frame(sg, owner) &&
+           strg_peek(owner).ptr == chars;
 }
 
 void strg_gc(Strg *const sg)

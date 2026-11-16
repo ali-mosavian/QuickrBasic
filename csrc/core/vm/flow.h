@@ -4,6 +4,7 @@
 #include "vm/exec.h"
 #include "mem/program.h"
 #include "mem/string.h"
+#include "mem/symbols.h"
 
 enum : uint32_t { LINE_END = 0xFFFFFFFF }; /* a Place's code: the start of the line after */
 
@@ -42,6 +43,22 @@ static inline uint8_t *flow_next_code(
     __builtin_assume(code != nullptr); /* as flow_jump_code's */
     return code;
 }
+
+enum : uint32_t { FLOW_NO_REF = 0xFFFF }; /* an argument's ref: passed by value, or no array */
+
+/* Variable id's cell in the frame at fp: a local's there, a parameter's its argument's; else its
+   own. */
+static inline Addr flow_cell(const Symb *const sy, const Addr fp, const uint16_t id)
+{
+    const int32_t off = *symb_frame(sy, id);
+
+    if (symb_varx(sy, id)->par && !(symb_var(sy, id)->info & VI_ARR))
+        return rd32(fp + (uint32_t)off);
+
+    return off < 0 ? fp + (uint32_t)off : symb_cell(sy, id);
+}
+/* The data stack at a statement's start: the innermost call's body's, else vm.rsp. */
+Cell *flow_stack_base(Vm *vm);
 
 /* The Jump at ip taken: the temporaries dropped, vm->line its line, its target's code returned;
    nullptr, nothing changed: not resolved (a direct line's block jump). */
