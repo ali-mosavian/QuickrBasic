@@ -3,7 +3,7 @@
     bench.py run FILE.bas | -e CODE [--dos]      one program: its output and cost
     bench.py iter -e BODY [--setup CODE] [--dos] one loop iteration's cost
     bench.py cmp [REV...] [--dos]                tools/bench/*.bas per build (default HEAD .; . the tree)
-    bench.py size [REV] [--functions]            the DOS executables' bytes, REV's (default HEAD) and ours
+    bench.py size [REV] [--functions]            the DOS executables' loaded bytes, REV's (default HEAD) and ours
     bench.py gate [--save]                       the suite and sizes against tools/bench/baseline.json
     bench.py qbasic                              qbasic/BENCH.BAS in QBasic 1.1 and our IDE under DOSBox
 
@@ -19,6 +19,7 @@ import sys
 import json
 import time
 import shutil
+import struct
 import argparse
 import tempfile
 import subprocess
@@ -164,8 +165,19 @@ def program(a: argparse.Namespace) -> str:
     return a.e if a.e is not None else Path(a.file).read_text()
 
 
+def image(exe: Path) -> int:
+    """The bytes an LE executable loads: its objects' sizes, code, data and BSS; not its fixups or
+    the pages' padding, which move with layout."""
+    b = exe.read_bytes()
+    le = b.find(b"LE\0\0")
+    if le < 0:
+        sys.exit(f"{exe}: not an LE executable")
+    table, n = struct.unpack_from("<II", b, le + 0x40)
+    return sum(struct.unpack_from("<I", b, le + table + 24 * i)[0] for i in range(n))
+
+
 def sizes(b: Build) -> dict[str, int]:
-    return {e: (b.root / e).stat().st_size for e in EXES}
+    return {e: image(b.root / e) for e in EXES}
 
 
 def cmd_run(a: argparse.Namespace) -> int:
@@ -240,22 +252,19 @@ def cmd_size(a: argparse.Namespace) -> int:
 
 
 def cmd_gate(a: argparse.Namespace) -> int:
-    """ops, outputs and sizes against the baseline's record, exact; retired instructions against
-    the baseline's rev built and run now, beside ours."""
+    """ops and outputs against the baseline's record, exact; retired instructions and loaded bytes
+    against the baseline's rev built and run now, beside ours."""
     b = build(".", True)
     if a.save:
         now = run_native(b, suite())
-        record = {
-            "rev": git("rev-parse", "--short", "HEAD"),
-            "size": sizes(b),
-            "cost": {k: vars(c) for k, c in now.items()},
-        }
+        record = {"rev": git("rev-parse", "--short", "HEAD"), "cost": {k: vars(c) for k, c in now.items()}}
         BASELINE.write_text(json.dumps(record, indent=1) + "\n")
         print(f"saved {BASELINE.relative_to(ROOT)}")
         return 0
 
     base = json.loads(BASELINE.read_text())
-    then, now = run_natives([build(base["rev"], False), b], suite())
+    was = build(base["rev"], True)
+    then, now = run_natives([was, b], suite())
     fail = False
     print(f"against {base['rev']}{'':4}{'ops':>14}{'':8}{'insns':>14}")
     for k, c in now.items():
@@ -271,8 +280,9 @@ def cmd_gate(a: argparse.Namespace) -> int:
             f"{k:16}{c.ops:>14,}{c.ops / was.ops:>8.3f}{c.insns:>14,}{ratio:>8.3f}"
             + (f"  FAIL {' '.join(bad)}" if bad else "")
         )
+    old = sizes(was)
     for e, s in sizes(b).items():
-        was_s = base["size"][e]
+        was_s = old[e]
         fail |= s > was_s
         print(f"{Path(e).name:16}{was_s:>14,}{s:>14,}{s - was_s:>+8,}" + ("  FAIL" if s > was_s else ""))
     return int(fail)

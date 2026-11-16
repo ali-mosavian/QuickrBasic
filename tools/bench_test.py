@@ -20,6 +20,9 @@ def main() -> int:
     assert 1.95 < ratio < 2.05, f"twice the loop cost {ratio:.3f}x"
     again = [bench.run_native(b, {"two": loop(2000000)}, runs=1)["two"].insns for _ in range(5)]
     assert max(again) / min(again) < 1 + bench.INSNS_SLACK, f"one program's counts {again}"
+    exe = bench.ROOT / "build/c/basic32.exe"
+    if exe.exists():  # the loaded bytes, not the file's: its fixups moved with layout
+        assert bench.image(exe) > 100_000 and bench.image(exe) != exe.stat().st_size, bench.image(exe)
     print("ok")
     return 0
 

@@ -1,9 +1,5 @@
 {
  "rev": "2162a19",
- "size": {
-  "build/c/basic32.exe": 354956,
-  "build/c/ide32.exe": 453520
- },
  "cost": {
   "arrays": {
    "out": "500000",
