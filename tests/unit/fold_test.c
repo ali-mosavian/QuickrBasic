@@ -2,13 +2,15 @@
 #include "session.h"
 #include "unit.h"
 
-/* The direct line text compiled; its code's bytes in code, how many. */
+/* The direct line text compiled, unfused (comp/fuse.c); its code's bytes in code, how many. */
 static uint32_t compile(Session *const S, const char *const text, const uint8_t **const code)
 {
     const uint32_t n = (uint32_t)strlen(text);
     memcpy(S->cons.inbuf, text, n);
     CHECK(repl_enter(S, n) == ENTER_DIRECT);
+    S->comp.nofuse = true;
     comp_line(&S->comp);
+    S->comp.nofuse = false;
     *code = S->comp.xbuf;
     return (uint32_t)(S->code.out - S->comp.xbuf);
 }

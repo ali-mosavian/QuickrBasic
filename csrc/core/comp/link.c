@@ -177,12 +177,20 @@ bool link_xlate(Comp *const C, Addr *where)
         const uint8_t op = *s;
         const uint32_t size = flow_opsize(s);
 
-        if (a + size + XSLK > C->link->lim)
+        if (a + (op == O_EOL ? EOL_TO_SIZE : size) + XSLK > C->link->lim)
             return false;
         if (op == O_EOL)
             C->link->eol = a;
 
         uint8_t *const d = at(a);
+
+        if (op == O_EOL && C->line != DLINE) { /* a stored line's: link_resolve sets the next */
+            d[0] = O_EOL_TO;
+            store32(d + 1, 0);
+            store32(d + 5, 0);
+            a += EOL_TO_SIZE;
+            break;
+        }
 
         if (op == O_CALL) { /* CALL INBEG: 4 bytes more, its INPUT's end */
             const uint8_t k = s[1];
@@ -258,6 +266,8 @@ static void miss(
     note(C, line, s->body, code);
 }
 
+static bool line_end(const uint8_t op) { return op == O_EOL || op == O_EOL_TO; }
+
 /* Jump j's target: its statement's code in its line, by its mode; false not found. */
 static bool jump_dest(const Comp *const C, Jump *const j)
 {
@@ -286,7 +296,7 @@ static bool jump_dest(const Comp *const C, Jump *const j)
 
     /* Jump threading: a target that only ends its line is the next line's start. A jump does the
        line end's STOP check and drops the temporaries itself. */
-    while (j->line != DLINE && rd8(C->allo->cache + j->dest) == O_EOL) {
+    while (j->line != DLINE && line_end(rd8(C->allo->cache + j->dest))) {
         const uint32_t next = j->line + prog_line(C->prog, j->line)->len;
 
         if (!prog_line(C->prog, next)->len) /* the program's end: END's */
@@ -324,6 +334,12 @@ static void resolve_op(Comp *const C, const uint32_t line, const Addr base, uint
     LineRef *refs = nullptr;
     uint32_t nrefs = 1;
     Jump *j = nullptr;
+    const uint8_t fl = exec_flags(op[0]);
+
+    static const uint8_t cells[] = {FV, FV2, FV3}; /* the op's variables: ids to cells */
+
+    for (uint32_t i = 0; i < countof(cells) && fl & cells[i]; i++)
+        store32(op + 1 + i * VCELL, symb_cell(C->symb, (uint16_t)load32(op + 1 + i * VCELL)));
 
     switch (op[0]) {
     case O_JMP:
@@ -338,11 +354,16 @@ static void resolve_op(Comp *const C, const uint32_t line, const Addr base, uint
         j = (Jump *)(op + 2);
         break;
 
-    case O_I_NEXT: /* its three cells, then its Jump */
-        for (uint32_t i = 0; i < 3; i++)
-            store32(op + 1 + i * VCELL, symb_cell(C->symb, (uint16_t)load32(op + 1 + i * VCELL)));
+    case O_I_NEXT_UP: /* comp/fuse.c's: three cells (FV3), then the Jump */
+    case O_I_NEXT_DN:
+        j = (Jump *)(op + 1 + 3 * VCELL);
+        break;
 
-        j = (Jump *)(op + 2 + 3 * VCELL);
+    case O_I_JFC_V: /* a cell (FV), a mask, then the Jump */
+    case O_I_JFC:
+    case O_I_JFC_U8:
+    case O_I_JFC_I16: /* the Jump ends the op */
+        j = (Jump *)(op + flow_opsize(op) - sizeof(Jump));
         break;
 
     case O_GOTO:
@@ -371,9 +392,6 @@ static void resolve_op(Comp *const C, const uint32_t line, const Addr base, uint
         break;
 
     default:
-        if (exec_flags(op[0]) & FV)
-            store32(op + 1, symb_cell(C->symb, (uint16_t)load32(op + 1)));
-
         return;
     }
 
@@ -398,8 +416,17 @@ void link_resolve(Comp *const C, const uint32_t line, const uint32_t code)
 {
     const Addr base = C->allo->cache + code;
 
-    for (uint8_t *op = at(base); *op != O_EOL; op += stream_opsize(op))
+    uint8_t *op = at(base);
+
+    for (; *op != O_EOL && *op != O_EOL_TO; op += stream_opsize(op))
         resolve_op(C, line, base, op);
+
+    const uint32_t next = line + prog_line(C->prog, line)->len;
+
+    if (*op == O_EOL_TO && prog_line(C->prog, next)->len) {
+        store32(op + 1, next);
+        store32(op + 5, prog_line(C->prog, next)->code);
+    }
 }
 
 void link_check(Comp *const C)

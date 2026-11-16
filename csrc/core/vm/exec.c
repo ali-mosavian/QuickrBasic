@@ -40,6 +40,7 @@
  */
 #include "vm/exec.h"
 #include "session.h"
+#include "comp/link.h"
 #include "io/file.h"
 #include "io/repl.h"
 #include "mem/alloc.h"
@@ -47,6 +48,7 @@
 #include "mem/copy.h"
 #include "mem/string.h"
 #include "mem/symbols.h"
+#include "mem/program.h"
 #include "num/double.h"
 #include "plat/pclk.h"
 #include "plat/pkey.h"
@@ -137,7 +139,33 @@ static inline bool elem1_fast(
     X(f_ld_f32, oper_f_ld_f32)                                                                     \
     X(i_cmp, oper_i_cmp)                                                                           \
     X(i_cmp_v, oper_i_cmp_v)                                                                       \
-    X(i_cmp_u8, oper_i_cmp_u8)
+    X(i_cmp_u8, oper_i_cmp_u8)                                                                     \
+    X(f_ld_u8, oper_f_ld_u8)                                                                       \
+    X(f_ld_vi, oper_f_ld_vi)                                                                       \
+    X(f_ld_pi, oper_f_ld_pi)                                                                       \
+    X(f_neg, oper_f_neg)                                                                           \
+    X(i_not, oper_i_not)                                                                           \
+    X(drop, oper_drop)                                                                             \
+    X(i_tof, oper_i_tof)                                                                           \
+    X(f_cmp, oper_f_cmp)                                                                           \
+    X(f_cmp_v, oper_f_cmp_v)                                                                       \
+    X(f_cmp_vi, oper_f_cmp_vi)                                                                     \
+    X(f_cmp_u8, oper_f_cmp_u8)                                                                     \
+    X(f_cmp_f32, oper_f_cmp_f32)                                                                   \
+    X(i_cmp_i16, oper_i_cmp_i16)                                                                   \
+    X(i_set_u8, oper_i_set_u8)                                                                     \
+    X(i_set_i16, oper_i_set_i16)                                                                   \
+    X(i_set_i32, oper_i_set_i32)                                                                   \
+    X(i_mov, oper_i_mov)                                                                           \
+    X(d_ld_v, dubl_ldv)                                                                            \
+    X(d_st_v, dubl_stv)                                                                            \
+    X(d_ld_k, dubl_ldk)                                                                            \
+    X(d_neg, dubl_neg)                                                                             \
+    X(d_cmp, dubl_cmp)                                                                             \
+    X(d_nz, dubl_nz)                                                                               \
+    X(i_tod, dubl_itod)                                                                            \
+    X(f_tod, dubl_ftod)                                                                            \
+    X(d_tof, dubl_tof)
 
 /* f_ld_f32's and f_st_v's run as i_ld_i32's and i_st_v's. */
 static inline Status hot_f_st_v(Regs *const r) { return hot_i_st_v(r); }
@@ -149,9 +177,87 @@ static inline Status hot_f_ld_f32(Regs *const r) { return hot_i_ld_i32(r); }
     if (h == handler)                                                                              \
         at_op[i] = &&hot_##name;
 #define HOT_AT_INT(name, src, op) HOT_AT(name, oper_##name)
+#define HOT_AT_FAIL(name, handler) HOT_AT(name, handler)
+#define HOT_AT_FLT(name, src, op) HOT_AT(name, oper_##name)
 #define HOT_RUN(name, handler)                                                                     \
     hot_##name : r.ip++;                                                                           \
     hot_##name(&r);                                                                                \
+    goto next;
+#define HOT_RUN_FAIL(name, handler)                                                                \
+    hot_##name : st = hot_##name(&r);                                                              \
+    if (st != ST_OK) {                                                                             \
+        op = r.ip;                                                                                 \
+        goto fail;                                                                                 \
+    }                                                                                              \
+    r.ip++;                                                                                        \
+    goto next;
+#define HOT_RUN_FLT(name, src, oper)                                                               \
+    hot_##name : r.ip++;                                                                           \
+    st = hot_##name(&r);                                                                           \
+    if (st != ST_OK) {                                                                             \
+        op = r.ip - hot_fsize(src);                                                                \
+        goto fail;                                                                                 \
+    }                                                                                              \
+    goto next;
+/* A CMPIF, an IF: true, on; false, the line ends (flow_nextln) unless it is the program's last or
+   the direct line: then the op's handler, which nothing here has changed. */
+#define CMPIF_RUN(name, handler, src, rel)                                                         \
+    cmpif_##name:                                                                                  \
+    {                                                                                              \
+        Regs t = {r.ip + 1, r.sp};                                                                 \
+        const uint8_t got = rel(&t, src);                                                          \
+                                                                                                   \
+        if (got & hot_u8(&t)) {                                                                    \
+            r = t;                                                                                 \
+            goto next;                                                                             \
+        }                                                                                          \
+                                                                                                   \
+        uint8_t *const code = flow_next_code(v, &S->strg, &S->prog, &S->allo);                     \
+                                                                                                   \
+        if (!code)                                                                                 \
+            goto slow;                                                                             \
+                                                                                                   \
+        r = (Regs){code, t.sp};                                                                    \
+    }                                                                                              \
+    goto next;
+#define CMPIF_AT(name, handler, src, rel)                                                          \
+    if (h == handler)                                                                              \
+        at_op[i] = &&cmpif_##name;
+
+/* An INT compare-and-branch: its compare true, past it; else JF's jump, a stop and a jump not
+   resolved its handler's. */
+#define JFC_AT(name, src)                                                                          \
+    if (h == flow_##name)                                                                          \
+        at_op[i] = &&name;
+#define JFC_RUN(name, src)                                                                         \
+    name: {                                                                                        \
+        Regs t = {r.ip + 1, r.sp};                                                                 \
+                                                                                                   \
+        if (hot_jfc(&t, src)) {                                                                    \
+            r = (Regs){t.ip + sizeof(Jump), t.sp};                                                 \
+            goto next;                                                                             \
+        }                                                                                          \
+                                                                                                   \
+        if (v->stop)                                                                               \
+            goto slow;                                                                             \
+                                                                                                   \
+        uint8_t *const code = flow_jump_code(v, &S->strg, &S->allo, t.ip);                         \
+                                                                                                   \
+        if (!code)                                                                                 \
+            goto slow;                                                                             \
+                                                                                                   \
+        r = (Regs){code, t.sp};                                                                    \
+    }                                                                                              \
+    goto next;
+
+#define HOT_AT_INT_ST(NAME, name, src, op) HOT_AT(name##_st, oper_##name##_st)
+#define HOT_RUN_INT_ST(NAME, name, src, oper)                                                      \
+    hot_##name##_st : r.ip++;                                                                      \
+    st = hot_##name##_st(&r);                                                                      \
+    if (st != ST_OK) {                                                                             \
+        op = r.ip - hot_size(src) - 2 * VCELL;                                                     \
+        goto fail;                                                                                 \
+    }                                                                                              \
     goto next;
 #define HOT_RUN_INT(name, src, oper)                                                               \
     hot_##name : r.ip++;                                                                           \
@@ -164,12 +270,11 @@ static inline Status hot_f_ld_f32(Regs *const r) { return hot_i_ld_i32(r); }
 
 /* The loop: ip and sp in registers (r), a hot op inline, the rest through the ops table with
    vm.ip, vm.sp and vm.opip stored around it. */
-void exec_run(Session *const S)
+[[noreturn, gnu::noinline]]
+static void exec_loop(Session *const S)
 {
     Vm *const v = &S->vm;
     static void *at_op[256]; /* each op's label: its hot code, else cold */
-    setjmp(v->loop);
-    v->running = true;
 
     if (!at_op[0]) {
         for (uint32_t i = 0; i < countof(at_op); i++) {
@@ -177,15 +282,44 @@ void exec_run(Session *const S)
             at_op[i] = &&cold;
             HOT_OPS(HOT_AT)
             HOT_INTS(HOT_AT_INT)
+            HOT_FLTS(HOT_AT_FLT)
+            HOT_INT_STS(HOT_AT_INT_ST)
+            HOT_FAILS(HOT_AT_FAIL)
+            HOT_CMPIFS(CMPIF_AT)
+
+            if (h == flow_i_jt)
+                at_op[i] = &&i_jt;
+
+            if (h == flow_f_jf)
+                at_op[i] = &&f_jf;
+            if (h == flow_f_jt)
+                at_op[i] = &&f_jt;
+            if (h == flow_jmp)
+                at_op[i] = &&jmp;
+            if (h == oper_i_if)
+                at_op[i] = &&i_if;
+            if (h == oper_f_if)
+                at_op[i] = &&f_if;
+            if (h == flow_nextln)
+                at_op[i] = &&nxln;
+            if (h == flow_gosub)
+                at_op[i] = &&gosub;
+            if (h == flow_return)
+                at_op[i] = &&ret;
 
             if (h == flow_i_jf)
                 at_op[i] = &&i_jf;
 
-            if (h == flow_i_next)
-                at_op[i] = &&i_next;
+            if (h == flow_i_next_up)
+                at_op[i] = &&i_next_up;
+            if (h == flow_i_next_dn)
+                at_op[i] = &&i_next_dn;
+
+            HOT_JFCS(JFC_AT)
 
             if (h == flow_eol)
-                at_op[i] = &&eol;
+                at_op[i] = i == O_EOL_TO ? &&eol_to : &&eol;
+
             if (h == dbug_dbg)
                 at_op[i] = &&dbg;
             if (h == exec_i_ld_a1 || h == exec_f_ld_a1)
@@ -204,17 +338,133 @@ next: /* r.ip at the op: each label steps past it */
     exec_counted(v);
     goto *at_op[*r.ip];
 
-cold:
-    v->ip = r.ip + 1;
-    v->sp = r.sp;
-    v->opip = r.ip;
-    ops[*r.ip](S);
-    r = (Regs){v->ip, v->sp};
-
+/* An op's handler, from the ops table: vm.ip, vm.sp and vm.opip stored around it. cold is the
+   dispatch's, slow a hot op's way out: one label for both had every dispatch copy ip and sp into
+   the registers the fallbacks left them in, three instructions an op. */
+#define COLD_RUN()                                                                                 \
+    v->ip = r.ip + 1;                                                                              \
+    v->sp = r.sp;                                                                                  \
+    v->opip = r.ip;                                                                                \
+    ops[*r.ip](S);                                                                                 \
+    r = (Regs){v->ip, v->sp};                                                                      \
     goto next;
+
+cold:
+    COLD_RUN()
+slow:
+    COLD_RUN()
 
     HOT_OPS(HOT_RUN)
     HOT_INTS(HOT_RUN_INT)
+    HOT_FLTS(HOT_RUN_FLT)
+    HOT_INT_STS(HOT_RUN_INT_ST)
+    HOT_FAILS(HOT_RUN_FAIL)
+    HOT_CMPIFS(CMPIF_RUN)
+
+/* A jump: past it, or to its target; a stop, a jump not resolved: its handler's. */
+#define JUMP_ON(taken, pop)                                                                        \
+    if (!(taken)) {                                                                                \
+        r.sp++;                                                                                    \
+        r.ip += JSIZE;                                                                             \
+        goto next;                                                                                 \
+    }                                                                                              \
+                                                                                                   \
+    if (v->stop)                                                                                   \
+        goto slow;                                                                                 \
+                                                                                                   \
+    {                                                                                              \
+        uint8_t *const code = flow_jump_code(v, &S->strg, &S->allo, r.ip + 1);                     \
+                                                                                                   \
+        if (!code)                                                                                 \
+            goto slow;                                                                             \
+                                                                                                   \
+        r.sp += (pop);                                                                             \
+        r.ip = code;                                                                               \
+    }                                                                                              \
+    goto next;
+
+i_jt:
+    JUMP_ON(r.sp->i, 1)
+f_jf:
+    JUMP_ON(!(r.sp->u & ~SNGL_SIGN), 1)
+f_jt:
+    JUMP_ON(r.sp->u & ~SNGL_SIGN, 1)
+
+jmp:
+    JUMP_ON(true, 0)
+
+/* IF: true, on; false, the line ends as a CMPIF's. */
+#define IF_RUN(yes)                                                                                \
+    if (yes) {                                                                                     \
+        r.sp++;                                                                                    \
+        r.ip++;                                                                                    \
+        goto next;                                                                                 \
+    }                                                                                              \
+                                                                                                   \
+    {                                                                                              \
+        uint8_t *const code = flow_next_code(v, &S->strg, &S->prog, &S->allo);                     \
+                                                                                                   \
+        if (!code)                                                                                 \
+            goto slow;                                                                             \
+                                                                                                   \
+        r.sp++;                                                                                    \
+        r.ip = code;                                                                               \
+    }                                                                                              \
+    goto next;
+
+i_if:
+    IF_RUN(r.sp->i)
+f_if:
+    IF_RUN(r.sp->u & ~SNGL_SIGN)
+
+nxln: /* to the next stored line; the program's end, the direct line: flow_nextln's */
+{
+    uint8_t *const code = flow_next_code(v, &S->strg, &S->prog, &S->allo);
+
+    if (!code)
+        goto slow;
+
+    r.ip = code;
+}
+
+    goto next;
+
+gosub: /* a frame to come back to, then the line; a stop, not linked, frames full, the direct line:
+          flow_gosub's */
+    if (v->stop || !S->link.linked || v->nframes == MAX_FRAMES)
+        goto slow;
+
+    {
+        const uint32_t line = ((const LineRef *)(r.ip + 1))->line;
+        const Line *const ln = prog_line(&S->prog, line);
+
+        if (!ln->len)
+            goto slow;
+
+        const Place back = {v->line, addr_of(r.ip + 1 + sizeof(LineRef)) - S->allo.cache};
+
+        v->frames[v->nframes++] = (Frame){.kind = FRAME_GOSUB, .ret = back};
+
+        S->strg.tmp_used = S->strg.tmp_floor;
+        S->link.cursor = line;
+        v->line = line;
+        r.ip = at(S->allo.cache + ln->code);
+    }
+
+    goto next;
+
+ret: /* RETURN to a GOSUB's frame; a stop, an event's frame, none: flow_return's */
+    if (v->stop || !v->nframes || v->frames[v->nframes - 1].kind != FRAME_GOSUB)
+        goto slow;
+
+    {
+        const Place back = v->frames[--v->nframes].ret;
+        S->strg.tmp_used = S->strg.tmp_floor;
+        v->line = back.line;
+        r.ip = at(S->allo.cache + back.code);
+    }
+
+    goto next;
 
 i_jf: /* JF: past its jump, or to its target; a stop, a jump not resolved: flow_i_jf's */
     if (r.sp->i) {
@@ -224,13 +474,13 @@ i_jf: /* JF: past its jump, or to its target; a stop, a jump not resolved: flow_
     }
 
     if (v->stop)
-        goto cold;
+        goto slow;
 
     {
         uint8_t *const code = flow_jump_code(v, &S->strg, &S->allo, r.ip + 1);
 
         if (!code)
-            goto cold;
+            goto slow;
 
         r.sp++;
         r.ip = code;
@@ -238,48 +488,68 @@ i_jf: /* JF: past its jump, or to its target; a stop, a jump not resolved: flow_
 
     goto next;
 
-i_next: /* NEXT: stepped, back to the body until past; a stop, a jump not resolved: flow_i_next's */
-    if (v->stop || ((const Jump *)(r.ip + NEXT_SIZE - sizeof(Jump)))->dest <= TO_NEXT_STMT)
-        goto cold;
-
-    {
-        bool back;
-
-        if ((st = hot_next(r.ip, &back)) != ST_OK) {
-            op = r.ip;
-            goto fail;
-        }
-
-        if (!back) {
-            r.ip += NEXT_SIZE;
-            goto next;
-        }
-
-        r.ip = flow_jump_code(v, &S->strg, &S->allo, r.ip + NEXT_SIZE - sizeof(Jump));
-    }
-
+/* NEXT: stepped, back to the body until past; a stop, a jump not resolved: its handler's. */
+#define NEXT_RUN(up)                                                                               \
+    {                                                                                              \
+        const Jump *const j = (const Jump *)(r.ip + NEXT_SIZE - sizeof(Jump));                     \
+                                                                                                   \
+        if (v->stop || j->dest <= TO_NEXT_STMT)                                                    \
+            goto slow;                                                                             \
+                                                                                                   \
+        bool back;                                                                                 \
+                                                                                                   \
+        if ((st = hot_next(r.ip, up, &back)) != ST_OK) {                                           \
+            op = r.ip;                                                                             \
+            goto fail;                                                                             \
+        }                                                                                          \
+                                                                                                   \
+        if (!back) {                                                                               \
+            r.ip += NEXT_SIZE;                                                                     \
+            goto next;                                                                             \
+        }                                                                                          \
+                                                                                                   \
+        S->strg.tmp_used = S->strg.tmp_floor;                                                      \
+        v->line = j->line;                                                                         \
+        r.ip = at(S->allo.cache + j->dest);                                                        \
+    }                                                                                              \
     goto next;
+
+i_next_up:
+    NEXT_RUN(true)
+i_next_dn:
+    NEXT_RUN(false)
+
+    HOT_JFCS(JFC_RUN)
 
 dbg: /* a statement's start, where nothing could stop; else dbug_dbg's */
     if (v->line != DLINE && dbug_may_stop(&S->dbug, prog_line(&S->prog, v->line)->flags))
-        goto cold;
+        goto slow;
 
     r.ip++;
     goto next;
 
 eol: /* to the next stored line; a stop, the end, the direct line: flow_eol's */
     if (v->stop)
-        goto cold;
+        goto slow;
 
     {
         uint8_t *const code = flow_next_code(v, &S->strg, &S->prog, &S->allo);
 
         if (!code)
-            goto cold;
+            goto slow;
 
         r.ip = code;
     }
 
+    goto next;
+
+eol_to: /* to the next line link_resolve set; a stop, the last line: flow_eol's */
+    if (v->stop || !load32(r.ip + 1))
+        goto slow;
+
+    S->strg.tmp_used = S->strg.tmp_floor;
+    v->line = load32(r.ip + 1);
+    r.ip = at(S->allo.cache + load32(r.ip + 5));
     goto next;
 
 i_ld_a1: /* a 1-D array's element counting from 0, in range; else exec_i_ld_a1's */
@@ -287,7 +557,7 @@ i_ld_a1: /* a 1-D array's element counting from 0, in range; else exec_i_ld_a1's
     Addr e;
 
     if (!elem1_fast(&S->symb, load16(r.ip + 1), r.sp->i, VS, &e))
-        goto cold;
+        goto slow;
 
     r.ip += 3;
     r.sp->a = rd32(e);
@@ -300,7 +570,7 @@ i_st_a1: /* ( sub x -- ) */
     Addr e;
 
     if (!elem1_fast(&S->symb, load16(r.ip + 1), r.sp[1].i, VS, &e))
-        goto cold;
+        goto slow;
 
     r.ip += 3;
     wr32(e, r.sp->u);
@@ -314,6 +584,15 @@ fail:
     v->sp = r.sp;
     v->opip = op;
     fault_status(&S->fault, st);
+}
+
+/* The loop is its own function: setjmp here, where it wants the frame pointer, leaves the loop its
+   seventh register. */
+void exec_run(Session *const S)
+{
+    setjmp(S->vm.loop);
+    S->vm.running = true;
+    exec_loop(S);
 }
 
 bool exec_brk(Session *const S)
@@ -483,11 +762,7 @@ void exec_fl_st(Session *const S)
 }
 
 /* A SHORT's value. Overflow past 16 bits. */
-void exec_i_chk16(Session *const S)
-{
-    if (S->vm.sp->i != (int16_t)S->vm.sp->i)
-        repl_error(S, E_OV);
-}
+void exec_i_chk16(Session *const S) { hot_op(S, hot_i_chk16); }
 
 /* A STRING * n field, as a temporary. */
 void exec_sf_ld(Session *const S)

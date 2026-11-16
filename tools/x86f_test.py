@@ -621,8 +621,9 @@ WARN = {
 }
 
 # A line's code past its room left an op cut short before the error's: linking it never ended,
-# or the run stopped with no word. Each line's code is cut at another place.
-CASES |= {f"qb_code_full{k}": ("Y% = 0: " * k + "X = 0: " + "X=X:" * 4400 + "PRINT X\r\n", "Out of memory", None)
+# or the run stopped with no word. Each line's code is cut at another place. 4800 statements: past
+# the room fused too (comp/fuse.c), each X=X one op.
+CASES |= {f"qb_code_full{k}": ("Y% = 0: " * k + "X = 0: " + "X=X:" * 4800 + "PRINT X\r\n", "Out of memory", None)
           for k in range(8)}
 
 # Typed at the prompt, not run as a file.

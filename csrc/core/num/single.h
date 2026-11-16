@@ -25,8 +25,20 @@ enum { SNGL_EXP_SHIFT = 23, SNGL_EXP_MASK = 0xFF };
 
 /* |a|. */
 Sngl sngl_abs(Sngl a);
+/* a's place in the order of SINGLEs: sign and magnitude as a signed integer. */
+static inline int32_t sngl_key(const Sngl a)
+{
+    const int32_t k = (int32_t)(a & ~SNGL_SIGN);
+    return a & SNGL_SIGN ? -k : k;
+}
+
 /* a against b: 1 above, 0 equal (+0 and -0 too), -1 below; by the bits' order. */
-int sngl_cmp(Sngl a, Sngl b);
+static inline int sngl_cmp(const Sngl a, const Sngl b)
+{
+    const int32_t ka = sngl_key(a);
+    const int32_t kb = sngl_key(b);
+    return ka == kb ? 0 : ka > kb ? 1 : -1;
+}
 /* a's sign: 1, 0 or -1. */
 int sngl_sgn(Sngl a);
 /* mag (not 0, under 2^24) with neg's sign, exactly. */

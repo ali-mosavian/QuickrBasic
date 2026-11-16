@@ -42,6 +42,7 @@
 #include "mem/symbols.h"
 #include "plat/pfpu.h"
 #include "vm/exec.h"
+#include "vm/hot.h"
 
 /* An IEEE double's fields. */
 enum : uint64_t {
@@ -334,18 +335,9 @@ uint32_t dubl_fmtf(const Sngl v, uint8_t *const out)
 static Cell cell_at(const Addr a) { return load_cell(at(a)); }
 static void cell_put(const Addr a, const Cell c) { store_cell(at(a), c); }
 
-void dubl_ldv(Session *const S) { exec_push(&S->vm, cell_at(exec_cell(&S->vm))); }
-void dubl_stv(Session *const S)
-{
-    const Addr cell = exec_cell(&S->vm);
-    cell_put(cell, exec_pop(&S->vm));
-}
-
-void dubl_ldk(Session *const S)
-{
-    exec_push(&S->vm, load_cell(S->vm.ip));
-    S->vm.ip += sizeof(Cell);
-}
+void dubl_ldv(Session *const S) { hot_op(S, hot_d_ld_v); }
+void dubl_stv(Session *const S) { hot_op(S, hot_d_st_v); }
+void dubl_ldk(Session *const S) { hot_op(S, hot_d_ld_k); }
 
 void dubl_lda1(Session *const S)
 {
@@ -370,56 +362,16 @@ void dubl_sta(Session *const S)
 
 /* ---- arithmetic ----------------------------------------------------------------------------- */
 
-void dubl_add(Session *const S)
-{
-    const double b = exec_popd(&S->vm);
-    S->vm.sp->d += b;
-    dubl_check(&S->fault, S->vm.sp);
-}
-
-void dubl_sub(Session *const S)
-{
-    const double b = exec_popd(&S->vm);
-    S->vm.sp->d -= b;
-    dubl_check(&S->fault, S->vm.sp);
-}
-
-void dubl_mul(Session *const S)
-{
-    const double b = exec_popd(&S->vm);
-    S->vm.sp->d *= b;
-    dubl_check(&S->fault, S->vm.sp);
-}
-
-/* Division by zero: the divisor 0. */
-void dubl_div(Session *const S)
-{
-    if (is_zero(S->vm.sp->raw))
-        repl_error(S, E_DZ);
-
-    const double b = exec_popd(&S->vm);
-    S->vm.sp->d /= b;
-    dubl_check(&S->fault, S->vm.sp);
-}
-
-void dubl_neg(Session *const S)
-{
-    if (!is_zero(S->vm.sp->raw))
-        S->vm.sp->raw ^= DBL_SIGN;
-}
-
-void dubl_cmp(Session *const S)
-{
-    const double b = exec_popd(&S->vm);
-    const double a = S->vm.sp->d;
-    const uint8_t rel = a > b ? DC_GT : a < b ? DC_LT : DC_EQ;
-    S->vm.sp->u = rel & exec_u8(&S->vm) ? UINT32_MAX : 0;
-}
-
-void dubl_nz(Session *const S) { S->vm.sp->u = is_zero(S->vm.sp->raw) ? 0 : UINT32_MAX; }
-void dubl_itod(Session *const S) { S->vm.sp->d = S->vm.sp->i; }
-void dubl_ftod(Session *const S) { S->vm.sp->d = S->vm.sp->f; }
-void dubl_tof(Session *const S) { S->vm.sp->u = sngl_from_dbl(S->vm.sp->d); }
+void dubl_add(Session *const S) { hot_op(S, hot_d_add); }
+void dubl_sub(Session *const S) { hot_op(S, hot_d_sub); }
+void dubl_mul(Session *const S) { hot_op(S, hot_d_mul); }
+void dubl_div(Session *const S) { hot_op(S, hot_d_div); }
+void dubl_neg(Session *const S) { hot_op(S, hot_d_neg); }
+void dubl_cmp(Session *const S) { hot_op(S, hot_d_cmp); }
+void dubl_nz(Session *const S) { hot_op(S, hot_d_nz); }
+void dubl_itod(Session *const S) { hot_op(S, hot_i_tod); }
+void dubl_ftod(Session *const S) { hot_op(S, hot_f_tod); }
+void dubl_tof(Session *const S) { hot_op(S, hot_d_tof); }
 
 /* fistp qword: to the nearest, a half to even; INT64_MIN past the range (the indefinite). */
 static int64_t round_to_int64(const uint64_t u)

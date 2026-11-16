@@ -2,7 +2,8 @@
  * is undefined at the end.
  *
  * OP(name, handler, size, flags): op O_name, its handler, its bytes with the op (0 varies: ON,
- * S.LD.TXT, see flow_opsize), FX an expression's op, FV a variable's VCELL after the op (exec.h), FB
+ * S.LD.TXT, see flow_opsize), FX an expression's op, FV a variable's VCELL after the op (exec.h), FV2
+ * and FV3 a second and third after it (a fused op's), FB
  * the handler serves several ops and reads which at vm.opip, FK pure: the stack alone, so a
  * constant expression runs as it compiles (comp/fold.h).
  *
@@ -182,7 +183,47 @@ OP(V_ST, exec_v_st, 4, 0)
 OP(SYSCALL, sysc_call, 2, 0) /* the runtime's service n (vm/syscalls.def) */
 OP(D_PAST, flow_d_past, 1, FX)
 /* fused (comp/fuse.c), no asm counterpart */
-OP(I_NEXT, flow_i_next, NEXT_SIZE, 0)
+OP(I_NEXT_UP, flow_i_next_up, NEXT_SIZE, FV + FV2 + FV3)
+OP(I_NEXT_DN, flow_i_next_dn, NEXT_SIZE, FV + FV2 + FV3)
+OP(I_MOD_U8, oper_i_mod_u8, 2, FX)
+OP(I_ADD_I16, oper_i_add_i16, 3, FX)
+OP(I_SUB_I16, oper_i_sub_i16, 3, FX)
+OP(I_MUL_I16, oper_i_mul_i16, 3, FX)
+OP(I_DIV_I16, oper_i_div_i16, 3, FX)
+OP(I_AND_I16, oper_i_and_i16, 3, FX)
+OP(I_OR_I16, oper_i_or_i16, 3, FX)
+OP(I_MOD_I16, oper_i_mod_i16, 3, FX)
+OP(I_CMP_I16, oper_i_cmp_i16, 4, FX)
+OP(I_JFC, flow_i_jfc, 2 + sizeof(Jump), 0)
+OP(I_JFC_V, flow_i_jfc_v, 2 + VCELL + sizeof(Jump), FV)
+OP(I_JFC_U8, flow_i_jfc_u8, 3 + sizeof(Jump), 0)
+OP(I_JFC_I16, flow_i_jfc_i16, 4 + sizeof(Jump), 0)
+OP(I_ADD_V_ST, oper_i_add_v_st, 3 * VCELL + 1, FV + FV2 + FV3)
+OP(I_SUB_V_ST, oper_i_sub_v_st, 3 * VCELL + 1, FV + FV2 + FV3)
+OP(I_MUL_V_ST, oper_i_mul_v_st, 3 * VCELL + 1, FV + FV2 + FV3)
+OP(I_DIV_V_ST, oper_i_div_v_st, 3 * VCELL + 1, FV + FV2 + FV3)
+OP(I_AND_V_ST, oper_i_and_v_st, 3 * VCELL + 1, FV + FV2 + FV3)
+OP(I_OR_V_ST, oper_i_or_v_st, 3 * VCELL + 1, FV + FV2 + FV3)
+OP(I_ADD_U8_ST, oper_i_add_u8_st, 2 * VCELL + 2, FV + FV2)
+OP(I_SUB_U8_ST, oper_i_sub_u8_st, 2 * VCELL + 2, FV + FV2)
+OP(I_MUL_U8_ST, oper_i_mul_u8_st, 2 * VCELL + 2, FV + FV2)
+OP(I_DIV_U8_ST, oper_i_div_u8_st, 2 * VCELL + 2, FV + FV2)
+OP(I_AND_U8_ST, oper_i_and_u8_st, 2 * VCELL + 2, FV + FV2)
+OP(I_OR_U8_ST, oper_i_or_u8_st, 2 * VCELL + 2, FV + FV2)
+OP(I_MOD_U8_ST, oper_i_mod_u8_st, 2 * VCELL + 2, FV + FV2)
+OP(I_ADD_I16_ST, oper_i_add_i16_st, 2 * VCELL + 3, FV + FV2)
+OP(I_SUB_I16_ST, oper_i_sub_i16_st, 2 * VCELL + 3, FV + FV2)
+OP(I_MUL_I16_ST, oper_i_mul_i16_st, 2 * VCELL + 3, FV + FV2)
+OP(I_DIV_I16_ST, oper_i_div_i16_st, 2 * VCELL + 3, FV + FV2)
+OP(I_AND_I16_ST, oper_i_and_i16_st, 2 * VCELL + 3, FV + FV2)
+OP(I_OR_I16_ST, oper_i_or_i16_st, 2 * VCELL + 3, FV + FV2)
+OP(I_MOD_I16_ST, oper_i_mod_i16_st, 2 * VCELL + 3, FV + FV2)
+OP(I_SET_U8, oper_i_set_u8, 2 + VCELL, FV)
+OP(I_SET_I16, oper_i_set_i16, 3 + VCELL, FV)
+OP(I_SET_I32, oper_i_set_i32, 5 + VCELL, FV)
+OP(I_MOV, oper_i_mov, 1 + 2 * VCELL, FV + FV2)
+/* link_xlate's line end of a stored line: the next line, its code; 0 none */
+OP(EOL_TO, flow_eol, EOL_TO_SIZE, 0)
 #undef OP
 #endif
 

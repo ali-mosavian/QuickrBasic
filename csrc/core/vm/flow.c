@@ -338,23 +338,38 @@ void flow_f_jt(Session *const S)
 
 /* ---- FOR / NEXT ----------------------------------------------------------------------------- */
 
-/* I.NEXT (comp/fuse.c): the counter stepped, back to the body unless past. The stop check comes
-   first: a stop runs the op again, not stepped twice. */
-void flow_i_next(Session *const S)
+/* I.NEXT.UP, I.NEXT.DN (comp/fuse.c): the counter stepped, back to the body unless past. The stop
+   check comes first: a stop runs the op again, not stepped twice. */
+static void next(Session *const S, const bool up)
 {
     if (exec_stopchk(S))
         return;
 
     const uint8_t *const op = S->vm.ip - 1;
     bool back;
-    fault_check(&S->fault, hot_next(op, &back));
+    fault_check(&S->fault, hot_next(op, up, &back));
     S->vm.ip = (uint8_t *)op + NEXT_SIZE - sizeof(Jump);
-
-    if (back)
-        take_jump(&S->vm, &S->strg, &S->allo, &S->fault);
-    else
-        skip_jump(&S->vm);
+    branch(S, back);
 }
+
+void flow_i_next_up(Session *const S) { next(S, true); }
+void flow_i_next_dn(Session *const S) { next(S, false); }
+
+/* I.JFC ... (comp/fuse.c): an INT compare, then JF's jump unless it is true. */
+#define X(name, src)                                                                               \
+    void flow_##name(Session *const S)                                                             \
+    {                                                                                              \
+        if (exec_stopchk(S))                                                                       \
+            return;                                                                                \
+                                                                                                   \
+        Regs r = {S->vm.ip, S->vm.sp};                                                             \
+        const bool yes = hot_jfc(&r, src);                                                         \
+        S->vm.ip = r.ip;                                                                           \
+        S->vm.sp = r.sp;                                                                           \
+        branch(S, !yes);                                                                           \
+    }
+HOT_JFCS(X)
+#undef X
 
 /* Is x past limit, counting by step: INTs, or SINGLEs' bits? */
 static bool past_limit(const bool ints, const uint32_t x, const uint32_t limit, const uint32_t step)

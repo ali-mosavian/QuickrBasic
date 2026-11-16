@@ -30,6 +30,46 @@ Sngl fmth_pow(Fault *f, Sngl a, Sngl b);
 static inline Sngl fmth_from_i16(const int16_t v) { return sngl_bits((float)v); }
 static inline Sngl fmth_from_u16(const uint16_t v) { return sngl_bits((float)v); }
 static inline Sngl fmth_from_i32(const int32_t v) { return sngl_bits((float)v); }
+/* The exponent of a SINGLE whose significand is whole. */
+enum { SNGL_POINT = FBIAS + SNGL_EXP_SHIFT };
+enum : Sngl { SNGL_MIN_I32 = 0xCF000000 /* -2^31 */ };
+
+static inline uint32_t fmth_exponent(const Sngl a) { return a >> SNGL_EXP_SHIFT & SNGL_EXP_MASK; }
+
+/* fistp dword: to the nearest, a half to even; INT32_MIN past the range (the x87's
+   indefinite). */
+static inline int32_t fmth_rint32(const Sngl a)
+{
+    const uint32_t e = fmth_exponent(a);
+
+    if (e == SNGL_EXP_MASK || e >= FBIAS + 31)
+        return INT32_MIN;
+    if (e < FBIAS - 1)
+        return 0;
+
+    const uint64_t m = (a & SNGL_MANT) | SNGL_IMPLICIT;
+    uint64_t q;
+
+    if (e >= SNGL_POINT)
+        q = m << (e - SNGL_POINT);
+    else {
+        const uint32_t shift = SNGL_POINT - e;
+        const uint64_t rem = m & ((1ull << shift) - 1);
+        const uint64_t half = 1ull << (shift - 1);
+        q = m >> shift;
+
+        if (rem > half || (rem == half && (q & 1)))
+            q++;
+    }
+
+    const bool neg = a & SNGL_SIGN;
+
+    if (q > (neg ? 0x80000000u : (uint32_t)INT32_MAX))
+        return INT32_MIN;
+
+    return neg ? (int32_t)(0 - q) : (int32_t)q;
+}
+
 /* a rounded to the nearest, a half to even; ?ILLEGAL QUANTITY out of the type's range. */
 int16_t fmth_to_i16(Fault *f, Sngl a);
 uint16_t fmth_to_u16(Fault *f, Sngl a);

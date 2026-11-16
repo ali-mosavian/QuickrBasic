@@ -30,20 +30,6 @@ enum : uint8_t { TOK_PLUS = 0xAA, TOK_MINUS = 0xAB }; /* comp/dfa.h's TK_PLUS, T
 
 Sngl sngl_abs(const Sngl a) { return a & ~SNGL_SIGN; }
 
-/* a's place in the order of SINGLEs: sign and magnitude as a signed integer. */
-static int32_t order_key(const Sngl a)
-{
-    const int32_t k = (int32_t)(a & ~SNGL_SIGN);
-    return a & SNGL_SIGN ? -k : k;
-}
-
-int sngl_cmp(const Sngl a, const Sngl b)
-{
-    const int32_t ka = order_key(a);
-    const int32_t kb = order_key(b);
-    return ka == kb ? 0 : ka > kb ? 1 : -1;
-}
-
 int sngl_sgn(const Sngl a)
 {
     if (!(a & ~SNGL_SIGN))

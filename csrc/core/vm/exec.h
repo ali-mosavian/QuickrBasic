@@ -63,8 +63,10 @@ typedef struct PACKED {
 enum { JSIZE = 1 + sizeof(Jump) };
 /* An FV op's operand: the variable's id as compiled, its cell's Addr once linked. */
 enum { VCELL = 4 };
-/* I.NEXT: counter, step, limit cells, the past mask, the Jump back */
-enum { NEXT_SIZE = 1 + 3 * VCELL + 1 + sizeof(Jump) };
+/* I.NEXT.UP, I.NEXT.DN: counter, step, limit cells, the Jump back */
+enum { NEXT_SIZE = 1 + 3 * VCELL + sizeof(Jump) };
+/* EOL.TO: the next line, its code's offset in the cache */
+enum { EOL_TO_SIZE = 1 + 2 * sizeof(uint32_t) };
 
 /* An ERR op: a compile error met running. */
 typedef struct PACKED {
@@ -87,7 +89,7 @@ enum : uint32_t { LREF_AT = 0x80000000 };
 enum : uint8_t { SF_TICK = 4 };
 
 /* An op's flags (ops.def). */
-enum : uint8_t { FX = 1, FV = 2, FB = 4, FK = 8 };
+enum : uint8_t { FX = 1, FV = 2, FB = 4, FK = 8, FV2 = 16, FV3 = 32 };
 
 enum : uint8_t {
 #define OP(name, h, size, fl) O_##name,
