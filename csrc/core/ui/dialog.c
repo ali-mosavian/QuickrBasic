@@ -924,7 +924,7 @@ static uint16_t buttons_width(const MsgButton *const buttons)
 /* The box's top row: centred; at the foot when over the error's line. */
 static uint8_t msg_row(const uint8_t rows)
 {
-    const uint8_t row = (uint8_t)(PSCR_ROWS - rows) >> 1;
+    const uint8_t row = (uint8_t)(uimn.rows - rows) >> 1;
 
     if (!dl.adjust)
         return row;
@@ -933,7 +933,7 @@ static uint8_t msg_row(const uint8_t rows)
     const uint8_t at = (uint8_t)(uimn.ed.line - uimn.ed.top + uimn.ed.row0);
 
     if (at >= row && at < (uint8_t)(row + rows))
-        return (uint8_t)(PSCR_ROWS - 1 - rows);
+        return (uint8_t)(uimn.rows - 1 - rows);
 
     return row;
 }

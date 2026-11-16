@@ -68,7 +68,7 @@ implementer's unless given. Platform: `plat/pscr.h` (screen), `plat/pmou.h` (mou
 
 | asm | C |
 |---|---|
-| INT 10h AH=0 (mode 3) | `pscr_mode(3)` |
+| INT 10h AH=0 (mode 3), AX=1112h | `pscr_text(rows)` |
 | INT 10h AH=5 (0500h, 0501h) | `pscr_page(0)`, `pscr_page(1)` |
 | INT 10h AH=2, AH=3 | `pscr_cursor(page, row, col)`, `pscr_where(page, &row, &col)` |
 | INT 10h AH=1 | `pscr_shape(lines)` (`scrn_shape`) |

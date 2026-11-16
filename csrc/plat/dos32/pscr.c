@@ -7,7 +7,8 @@
 #include "plat/pscr.h"
 #include "plat/psys.h"
 
-enum : uint32_t { VIDEO = 0xB8000, PAGESZ = 0x1000 };
+enum : uint32_t { VIDEO = 0xB8000, BIOS_PAGESZ = 0x44C, BIOS_ROWS = 0x484 };
+enum : uint8_t { FONT_8X8 = 0x12, ALT_LINES = 0x30, LINES_350 = 1, LINES_400 = 2, ROWS_STD = 25 };
 enum : uint16_t { DAC_INDEX = 0x3C8, DAC_DATA = 0x3C9, INPUT_STATUS = 0x3DA };
 enum { RETRACE = 8, CH_BEL = 7 };
 
@@ -16,7 +17,8 @@ static const uint8_t acpal[16] = {0, 1, 2, 3, 4, 5, 20, 7, 56, 57, 58, 59, 60, 6
 
 static volatile uint16_t *cell(const uint8_t page, const uint8_t row, const uint8_t col)
 {
-    return (volatile uint16_t *)pdos_lin(VIDEO + page * PAGESZ + (row * PSCR_COLS + col) * 2);
+    const uint32_t size = *(volatile uint16_t *)pdos_lin(BIOS_PAGESZ); /* the BIOS's page's bytes */
+    return (volatile uint16_t *)pdos_lin(VIDEO + page * size + (row * PSCR_COLS + col) * 2u);
 }
 
 /* INT 10h function fn, al, with BX, CX, DX. */
@@ -38,7 +40,22 @@ static void int10(
     pdos_int(INT_VIDEO, &r);
 }
 
-void pscr_mode(const uint8_t mode) { int10(VID_MODE, mode, 0, 0, 0); }
+uint8_t pscr_text(const uint8_t rows)
+{
+    int10(VID_ALT, rows == 43 ? LINES_350 : LINES_400, ALT_LINES, 0, 0); /* an EGA: no change */
+    int10(VID_MODE, 3, 0, 0, 0);
+
+    if (rows > ROWS_STD)
+        int10(VID_FONT, FONT_8X8, 0, 0, 0);
+
+    return pscr_rows();
+}
+
+uint8_t pscr_rows(void)
+{
+    const uint8_t last = *pdos_lin(BIOS_ROWS);
+    return last ? last + 1 : ROWS_STD;
+}
 
 void pscr_page(const uint8_t page) { int10(VID_PAGE, page, 0, 0, 0); }
 

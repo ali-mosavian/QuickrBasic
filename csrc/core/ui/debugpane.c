@@ -234,7 +234,7 @@ static uint8_t text_width(void) { return (uint8_t)(width() - 2); }
 
 void dpan_layout(void)
 {
-    const uint8_t all = WIN_ROWS - uimn.win.win[W_IMM].height;
+    const uint8_t all = win_rows() - uimn.win.win[W_IMM].height;
     const uint8_t q = (uint8_t)(all * 3 / 10);
     const uint8_t loc = all - 2 * q;
     const uint8_t col = uimn.dp_col - 1;

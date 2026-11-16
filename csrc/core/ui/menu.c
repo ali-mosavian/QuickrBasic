@@ -100,6 +100,7 @@ static const Item m_dbg[] = {
 };
 static const Item m_opt[] = {
     {NMENU, MF_SUB, "&Theme", ""},
+    {NMENU + 1, MF_SUB, "Display Si&ze", ""},
     {ACT_SYNHL, MF_CHK, "Syntax &Highlighting", ""},
     SEP,
     {ACT_NONE, MF_GRAY, "Help &Path...", ""},
@@ -118,6 +119,12 @@ static const Item m_theme[] = {
     {ACT_TH2 + 6, MF_CHK, "JetBrains Ligh&t", ""},
     {},
 };
+static const Item m_size[] = {
+    {ACT_ROWS25, MF_CHK, "&25 Lines", ""},
+    {ACT_ROWS43, MF_CHK, "&43 Lines", ""},
+    {ACT_ROWS50, MF_CHK, "&50 Lines", ""},
+    {},
+};
 static const Item m_help[] = {
     {ACT_NONE, MF_GRAY, "&Index", ""},
     {ACT_NONE, MF_GRAY, "&Contents", ""},
@@ -131,7 +138,7 @@ static_assert(ACT_TH2 + 6 == ACT_SOUT - 1);
 
 /* mn_it: the menus, then the sub-menus from NMENU on. */
 static const Item *const menus[] =
-    {m_file, m_edit, m_view, m_srch, m_run, m_dbg, m_opt, m_help, m_theme};
+    {m_file, m_edit, m_view, m_srch, m_run, m_dbg, m_opt, m_help, m_theme, m_size};
 
 const uint8_t menu_x[NMENU] = {3, 9, 15, 21, 29, 34, 41, 74}; /* QBasic's (uirsrcc.c) */
 const char *const menu_title[NMENU] =
@@ -216,6 +223,8 @@ static bool checked(Session *const S, const Item *const it)
         return them.cur == 1;
     if (a >= ACT_TH2 && a < ACT_TH2 + NTHEME - 2)
         return them.cur == a - ACT_TH2 + 2;
+    if (a >= ACT_ROWS25 && a <= ACT_ROWS50)
+        return uimn.rows == rows_of(a);
 
     return false;
 }

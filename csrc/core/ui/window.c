@@ -95,7 +95,7 @@ void wind_layout(void)
     uimn.tree.editors.rect = (Rect){1, 0, imm_row - 1, ws->cols};
 
     uimn.tree.pane.rect =
-        (Rect){1, uimn.dp_col - 1, WIN_ROWS - win(W_IMM)->height, PSCR_COLS - uimn.dp_col + 1};
+        (Rect){1, uimn.dp_col - 1, win_rows() - win(W_IMM)->height, PSCR_COLS - uimn.dp_col + 1};
 
     uimn.tree.pane.visible = uimn.pane_on;
     dpan_layout();
@@ -103,7 +103,7 @@ void wind_layout(void)
 
 void wind_init(void)
 {
-    win(W_ED1)->height = ED1_INIT;
+    win(W_ED1)->height = ED1_INIT; /* 25 rows'; wind_fit fits them to the screen's */
     win(W_IMM)->height = IMM_INIT;
     uimn.dp_col = DP_COL;
     uimn.tree.editors.focus = 0;
@@ -348,6 +348,30 @@ void wind_shrink(void)
         move(w, n);
 }
 
+void wind_fit(void)
+{
+    unmax();
+    uint8_t sum = 0;
+
+    for (uint8_t w = 0; w < NWIN; w++)
+        if (!beside(w))
+            sum += win(w)->height;
+
+    const int delta = win_rows() - sum; /* to ED1, else the heights as at the start */
+
+    if (win(W_ED1)->height + delta >= least(W_ED1)) {
+        win(W_ED1)->height = (uint8_t)(win(W_ED1)->height + delta);
+    } else {
+        win(W_HELP)->height = win(W_ED2)->height = 0;
+        uimn.win.vert = false;
+        uimn.tree.editors.focus = 0;
+        win(W_IMM)->height = uimn.pane_on ? 0 : IMM_INIT;
+        win(W_ED1)->height = win_rows() - win(W_IMM)->height;
+    }
+
+    wind_layout();
+}
+
 void wind_imm_hide(void)
 {
     unmax();
@@ -402,7 +426,7 @@ void wind_max(void)
         win(w)->height = 0;
     }
 
-    win(cur_rows())->height = WIN_ROWS;
+    win(cur_rows())->height = win_rows();
     ws->maxed = true;
     wind_layout();
 }

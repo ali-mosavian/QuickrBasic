@@ -28,6 +28,7 @@ Sets/clears breakpoint at cursor location
 Removes all breakpoints
 Makes the statement at the cursor the next statement to execute
 Chooses the editor's colors
+Chooses the screen's lines: 25, 43 or 50
 Colors keywords, strings, numbers and comments
 Sets search path for Help files
 Turns editor's syntax checking on or off.
@@ -45,3 +46,6 @@ Shows the editor in Gruvbox Dark Soft's colors
 Shows the editor in Gruvbox Light's colors
 Shows the editor in JetBrains Dark's colors
 Shows the editor in JetBrains Light's colors
+Shows 25 lines
+Shows 43 lines (EGA, VGA)
+Shows 50 lines (VGA)

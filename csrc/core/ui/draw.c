@@ -331,26 +331,26 @@ static bool status_left(void)
     const char *const help = uimn.help;
 
     if (!help) {
-        scrn_str(STATUS_ROW, 1, draw_keys()->text, SL_STAT, SL_STAT);
+        scrn_str(status_row(), 1, draw_keys()->text, SL_STAT, SL_STAT);
         return true;
     }
 
     const char *const f1 = help == uimn_menu_help || help == uimn_dlog_help ? u_f1s : u_f1;
-    const uint8_t c = scrn_str(STATUS_ROW, 1, f1, SL_STAT, SL_STAT); /* F1=Help and a bar */
-    return scrn_str(STATUS_ROW, c, help, SL_STAT, SL_STAT) <= STATUS_BAR_COL;
+    const uint8_t c = scrn_str(status_row(), 1, f1, SL_STAT, SL_STAT); /* F1=Help and a bar */
+    return scrn_str(status_row(), c, help, SL_STAT, SL_STAT) <= STATUS_BAR_COL;
 }
 
 /* ^Q pending, Caps Lock, Num Lock. */
 static void status_flags(void)
 {
     if (uimn.ed.prefix) {
-        scrn_fill(STATUS_ROW, STATUS_PREFIX_COL, SL_STAT, '^', 1);
-        scrn_fill(STATUS_ROW, STATUS_PREFIX_COL + 1, SL_STAT, 'Q', 1);
+        scrn_fill(status_row(), STATUS_PREFIX_COL, SL_STAT, '^', 1);
+        scrn_fill(status_row(), STATUS_PREFIX_COL + 1, SL_STAT, 'Q', 1);
     } else
-        scrn_fill(STATUS_ROW, STATUS_PREFIX_COL, SL_STAT, ' ', 2);
+        scrn_fill(status_row(), STATUS_PREFIX_COL, SL_STAT, ' ', 2);
 
-    scrn_fill(STATUS_ROW, STATUS_CAPS_COL, SL_STAT, uimn.keyflags & PKEY_CAPS ? 'C' : ' ', 1);
-    scrn_fill(STATUS_ROW, STATUS_NUM_COL, SL_STAT, uimn.keyflags & PKEY_NUM ? 'N' : ' ', 1);
+    scrn_fill(status_row(), STATUS_CAPS_COL, SL_STAT, uimn.keyflags & PKEY_CAPS ? 'C' : ' ', 1);
+    scrn_fill(status_row(), STATUS_NUM_COL, SL_STAT, uimn.keyflags & PKEY_NUM ? 'N' : ' ', 1);
 }
 
 /* The cursor's line:column. */
@@ -362,17 +362,17 @@ static void status_pos(void)
     const uint32_t col = uimn.edline.col + 1u;
     const bool wide = (uint16_t)col >= 1000; /* past 999: 5 digits, 2 columns left */
     *decimal(p + 1, col, wide ? 5 : 3) = 0;
-    scrn_str(STATUS_ROW, wide ? STATUS_POS_COL - 2 : STATUS_POS_COL, pos, SL_STAT, SL_STAT);
+    scrn_str(status_row(), wide ? STATUS_POS_COL - 2 : STATUS_POS_COL, pos, SL_STAT, SL_STAT);
 }
 
 void draw_status(void)
 {
-    scrn_fill(STATUS_ROW, 0, SL_STAT, ' ', PSCR_COLS);
+    scrn_fill(status_row(), 0, SL_STAT, ' ', PSCR_COLS);
 
     if (!status_left())
         return;
 
-    scrn_fill(STATUS_ROW, STATUS_BAR_COL, SL_STAT, GLYPH_V, 1);
+    scrn_fill(status_row(), STATUS_BAR_COL, SL_STAT, GLYPH_V, 1);
     status_flags();
     status_pos();
 }

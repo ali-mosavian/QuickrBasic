@@ -132,11 +132,7 @@ enum : uint16_t { KEY_SHIFT_TAB = 0x0F00 };
 /* A key's character (its low byte). */
 enum : uint8_t { CH_BACKSPACE = 0x08, CH_TAB = 0x09, CH_ENTER = 0x0D, CH_ESC = 0x1B, CH_E0 = 0xE0 };
 
-enum : uint8_t {
-    STATUS_ROW = PSCR_ROWS - 1, /* the status bar */
-    WIN_ROWS = PSCR_ROWS - 2,   /* the windows': the screen's less the menu and status bars */
-    TAB_STOP = 8,
-};
+enum : uint8_t { TAB_STOP = 8 };
 /* The cursor's shapes (pscr_shape). */
 enum : uint16_t { CURSOR_INSERT = 0x0607, CURSOR_OVERWRITE = 0x0407 };
 /* Code page 437's glyphs the screens draw. */
@@ -276,6 +272,7 @@ typedef struct {
     bool on;          /* lp.ideon: the editor runs (the core's ui_on) */
     uint8_t keyflags; /* lp.ui_kf: the shift flags at the last key (pkey_shift) */
     const char *help; /* lp.ui_help: the status bar's help line, nullptr the keys */
+    uint8_t rows;     /* the screen's: 25, 43 or 50 (uimn_rows) */
     bool pane_on;     /* dp.dp_on: the debug pane shown (a stop) */
     uint8_t dp_col;   /* the debug pane's first column */
     bool tip_mouse;   /* dp.tt_ms: the tooltip by the mouse, else by the cursor */
@@ -320,6 +317,10 @@ typedef struct {
     uint8_t change_to_text[DLBUF];
 } Uimn;
 extern Uimn uimn;
+
+/* The status bar's row; the windows' rows, the screen's less the menu and status bars. */
+static inline uint8_t status_row(void) { return (uint8_t)(uimn.rows - 1); }
+static inline uint8_t win_rows(void) { return (uint8_t)(uimn.rows - 2); }
 static_assert(offsetof(Uimn, change_to) + sizeof(LineBuf) <= 0x10000);
 
 /* c in capitals, a to z only (ui_upper, menu.asm's). */

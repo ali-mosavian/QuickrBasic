@@ -55,6 +55,8 @@ enum : uint8_t {
     VID_SCROLL = 0x06,
     VID_WRITE = 0x09,
     VID_TELETYPE = 0x0E,
+    VID_FONT = 0x11, /* AL=12h: the 8x8 font, rows to fill the scan lines */
+    VID_ALT = 0x12,  /* BL=30h: AL the next mode's scan lines, 1 350, 2 400 */
 };
 /* INT 33h's (AX). */
 enum : uint16_t { MOUSE_RESET = 0, MOUSE_SHOW = 1, MOUSE_HIDE = 2, MOUSE_STATE = 3 };

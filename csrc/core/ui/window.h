@@ -39,6 +39,9 @@ void wind_grow(void);
 void wind_shrink(void);
 /* wn_max: Ctrl+F10: the focused window the whole screen; again, the windows as they were. */
 void wind_max(void);
+/* The windows fitted to the screen's rows (uimn_rows): ED1 takes the difference, else the start's
+   layout. */
+void wind_fit(void);
 /* The debug pane's: the immediate window hidden, its rows the window over it's; shown again with
    its height, as the rows over it can spare. */
 void wind_imm_hide(void);

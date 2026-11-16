@@ -1073,11 +1073,33 @@ def play() -> None:
 
     if flat:
         debug_pane()
+        # Options, Display Size: 50 lines, the windows fitted; a run's output in them too. The exit
+        # leaves DOS in 25.
+        (work / "Z.BAS").write_bytes(b'PRINT "Z"\r\n')
+        press(f"0x{ALT_F:x}", "o")
+        if any("NOT SAVED" in r for r in look()):
+            press("n")
+        keys("z.bas\n")
+        press(f"0x{0x18:x}", "z", "5")
+        assert b"<Shift+F1=Help>" in chars(49), chars(49)
+        assert any(b"Immediate" in chars(r) for r in range(40, 49)), [chars(r) for r in range(40, 49)]
+        press(f"0x{F5:x}")
+
+        def mem(addr: int, n: int) -> bytes:
+            return bytes.fromhex(s.send({"cmd": "mem_read_linear", "addr": addr, "len": n})["data"])
+
+        page = 0xB8000 + int.from_bytes(mem(0x44C, 2), "little")  # page 1: the BIOS's page size on
+        assert b"Press any key" in mem(page + 49 * 160, 160)[0::2], mem(page, 50 * 160)[0::2]
+        press("space")
+        assert b"<Shift+F1=Help>" in chars(49), chars(49)
 
     press(f"0x{ALT_F:x}", "x")
     if any("NOT SAVED" in r for r in look()):
         press("n")
     assert "C:\\>" in look(), look()
+    if flat:
+        rows = bytes.fromhex(s.send({"cmd": "mem_read_linear", "addr": 0x484, "len": 1})["data"])[0] + 1
+        assert rows == 25, rows
     s.close()
     print("ok")
 

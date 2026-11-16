@@ -295,7 +295,7 @@ static void cmpl_place(void)
     const uint8_t h = ac.bn + BOX_FRAME;
     uint8_t row = (uint8_t)(uimn.ed.line - uimn.ed.top + uimn.ed.row0 + 1); /* under, else over */
 
-    if ((uint8_t)(row + h) > STATUS_ROW)
+    if ((uint8_t)(row + h) > status_row())
         row = row - h - 1;
 
     const uint16_t c = ac.s.start > uimn.ed.left ? ac.s.start - uimn.ed.left : 0;

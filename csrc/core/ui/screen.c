@@ -20,7 +20,8 @@
 #include "ui/theme.h"
 #include "plat/pscr.h"
 
-static PscrCell cells[PSCR_ROWS * PSCR_COLS]; /* the screen as drawn, then shown */
+static PscrCell cells[PSCR_ROWS_MAX * PSCR_COLS]; /* the screen as drawn, then shown */
+static uint8_t rows = 25;                         /* the screen's (scrn_size) */
 
 enum { SHADOW_COLS = 2 }; /* a shadow's columns right of a box */
 enum { LIGHT_GRAY = 0x07, DARK_GRAY = 0x08 };
@@ -178,7 +179,7 @@ void scrn_shadow(const uint8_t row, const uint8_t col, const uint8_t rows, const
 {
     const uint8_t right = col + cols;
     uint8_t left = rows; /* rows 0: 256 */
-    for (uint8_t r = row + 1; r < PSCR_ROWS; r++) {
+    for (uint8_t r = row + 1; r < rows; r++) {
         if (right < PSCR_COLS)
             scrn_attr(r, right, right == PSCR_COLS - 1 ? 1 : SHADOW_COLS, SL_SHD);
         if (!--left)
@@ -187,7 +188,7 @@ void scrn_shadow(const uint8_t row, const uint8_t col, const uint8_t rows, const
 
     const uint8_t below = row + rows, from = col + SHADOW_COLS;
 
-    if (below >= PSCR_ROWS || from >= PSCR_COLS)
+    if (below >= rows || from >= PSCR_COLS)
         return;
 
     scrn_attr(below, from, cols < PSCR_COLS - from ? cols : PSCR_COLS - from, SL_SHD);
@@ -197,8 +198,10 @@ void scrn_cursor(const uint8_t row, const uint8_t col) { pscr_cursor(0, row, col
 
 void scrn_shape(const uint16_t lines) { pscr_shape(lines); }
 
+void scrn_size(const uint8_t n) { rows = n; }
+
 void scrn_flip(void)
 {
     pscr_retrace();
-    pscr_put(0, 0, 0, cells, PSCR_ROWS * PSCR_COLS);
+    pscr_put(0, 0, 0, cells, rows * PSCR_COLS);
 }

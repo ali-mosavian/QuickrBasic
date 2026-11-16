@@ -11,6 +11,9 @@ extern const FrontEnd uimn_front_end;
    the command line names, else the welcome box), never returning; else returns, and the READY
    loop runs. Each key's command runs under repl_call: an error comes back to the key loop. */
 void uimn_start(Session *S);
+/* The screen rows rows (25, 43, 50), as many as the card has: the text mode set, the windows
+   fitted to it. */
+void uimn_rows(uint8_t rows);
 
 /* ui_getkey: a key (scan << 8 | char, KEY_ALT, KEY_MOUSE), the screen shown and the mouse polled
    while none waits; uimn.keyflags the shift flags then. An Alt already down at the call (after

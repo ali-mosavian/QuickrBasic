@@ -764,7 +764,7 @@ static void file_exit(Session *const S)
     if (!ask_save(S))
         return;
 
-    pscr_mode(VIDEO_TEXT);
+    pscr_text(25);
     cons_exit(&S->cons, 0);
 }
 
@@ -855,7 +855,7 @@ static void exec_line(Session *const S)
 /* The prompt on the output's last row through the console, in any mode; or its place blanked. */
 static void status_prompt(Session *const S, const bool blank)
 {
-    qbrt_move(STATUS_ROW, 0);
+    qbrt_move(status_row(), 0);
 
     for (uint32_t i = 0; s_anykey[i]; i++)
         cons_putc(&S->cons, blank ? ' ' : (uint8_t)s_anykey[i]);
@@ -1124,6 +1124,12 @@ void uimn_act(Session *const S, const uint8_t action)
         udbg_sout(S);
         break;
 
+    case ACT_ROWS25:
+    case ACT_ROWS43:
+    case ACT_ROWS50:
+        uimn_rows(rows_of(action));
+        break;
+
     default:
         if (action >= ACT_TH2 && action < ACT_SOUT)
             act_theme(action);
@@ -1340,8 +1346,8 @@ static void build_tree(void)
         Rect rect;
     } tree[] = {
         {&uimn.tree.menubar, &uimn.tree.screen, &menubar_ops, {0, 0, 1, PSCR_COLS}},
-        {&uimn.tree.workspace, &uimn.tree.screen, &workspace_ops, {1, 0, WIN_ROWS, PSCR_COLS}},
-        {&uimn.tree.statusbar, &uimn.tree.screen, &statusbar_ops, {STATUS_ROW, 0, 1, PSCR_COLS}},
+        {&uimn.tree.workspace, &uimn.tree.screen, &workspace_ops, {}}, /* sized by uimn_rows */
+        {&uimn.tree.statusbar, &uimn.tree.screen, &statusbar_ops, {}},
         {&uimn.tree.editors, &uimn.tree.workspace, nullptr, {}},
         {&uimn.tree.imm, &uimn.tree.workspace, &imm_ops, {}},
         {&uimn.tree.pane, &uimn.tree.workspace, nullptr, {}}, /* dpan_build's */
@@ -1349,8 +1355,7 @@ static void build_tree(void)
         {&uimn.tree.ed[1], &uimn.tree.editors, &ed_ops, {}},
     };
 
-    uimn.tree.screen =
-        (Widget){.ops = &screen_ops, .rect = {0, 0, PSCR_ROWS, PSCR_COLS}, .visible = true};
+    uimn.tree.screen = (Widget){.ops = &screen_ops, .visible = true};
 
     for (uint32_t i = 0; i < countof(tree); i++) {
         *tree[i].w = (Widget){.ops = tree[i].ops, .rect = tree[i].rect, .visible = true};
@@ -1383,6 +1388,7 @@ void uimn_modal(Session *const S, Widget *const w)
 /* The editor's state at its start. */
 static void init(Session *const S)
 {
+    uimn.rows = 25; /* till uimn_rows */
     build_tree();
     uimn.on = true;
     LineBuf *const lines[] = {&uimn.edline, &uimn.line, &uimn.build};
@@ -1415,17 +1421,45 @@ static void init(Session *const S)
     edit_imm_load();
 }
 
-/* uimn.fname's text the command line's first word, FLDMAX at most; its length. */
-static uint16_t cmdline_file(void)
+/* uimn.fname's text the command line's first word not a switch, FLDMAX at most; its length.
+   *most: /H given (QBasic's: the most rows the card has). */
+static uint16_t cmdline_file(bool *const most)
 {
     char tail[128];
     psys_cmdline(tail, sizeof tail);
     uint16_t n = 0;
+    *most = false;
 
-    for (; (uint8_t)tail[n] > ' ' && n < FLDMAX; n++)
-        uimn.fname.text[n] = (uint8_t)tail[n];
+    for (const char *p = tail; *p;) {
+        while (*p && (uint8_t)*p <= ' ')
+            p++;
+
+        const char *const word = p;
+
+        while ((uint8_t)*p > ' ')
+            p++;
+
+        if (word[0] == '/' && (word[1] | 0x20) == 'h' && p == word + 2)
+            *most = true;
+        else if (!n && p > word && word[0] != '/')
+            for (; word + n < p && n < FLDMAX; n++)
+                uimn.fname.text[n] = (uint8_t)word[n];
+    }
 
     return n;
+}
+
+void uimn_rows(const uint8_t rows)
+{
+    uimn.rows = pscr_text(rows);
+    scrn_size(uimn.rows);
+    uimn.tree.screen.rect = (Rect){0, 0, uimn.rows, PSCR_COLS};
+
+    uimn.tree.workspace.rect = (Rect){1, 0, win_rows(), PSCR_COLS};
+
+    uimn.tree.statusbar.rect = (Rect){status_row(), 0, 1, PSCR_COLS};
+
+    wind_fit();
 }
 
 void uimn_start(Session *const S)
@@ -1434,9 +1468,10 @@ void uimn_start(Session *const S)
         return;
 
     init(S);
-    pscr_mode(VIDEO_TEXT);
+    bool most;
+    const uint16_t n = cmdline_file(&most);
+    uimn_rows(most ? 50 : 25); /* /H: the most the card has */
     them_qbasic();
-    const uint16_t n = cmdline_file();
 
     if (n) {
         uimn.fname.len = n;

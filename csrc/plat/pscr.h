@@ -12,16 +12,19 @@
 #define PLAT_PSCR_H
 #include "base.h"
 
-enum { PSCR_ROWS = 25, PSCR_COLS = 80 };
+enum { PSCR_ROWS_MAX = 50, PSCR_COLS = 80 }; /* the screen's rows: pscr_rows */
 
 /* A cell as text memory holds it: the character in the low byte, the attribute in the high. */
 typedef uint16_t PscrCell;
 
 enum : uint16_t { PSCR_HIDDEN = 0x2000 }; /* pscr_shape's: no cursor */
 
-/* The video mode (INT 10h AH=0; 3 the 80 by 25 colour text): every page cleared, page 0 shown,
-   the BIOS palette. */
-void pscr_mode(uint8_t mode);
+/* 80-column colour text of rows rows (25, 43, 50; INT 10h mode 3, then the 8x8 font past 25):
+   every page cleared, page 0 shown, the BIOS palette. The rows it has: fewer when the card has
+   not as many (an EGA's 43 for 50). */
+uint8_t pscr_text(uint8_t rows);
+/* The text screen's rows now. */
+uint8_t pscr_rows(void);
 /* The page shown (INT 10h AH=5). */
 void pscr_page(uint8_t page);
 

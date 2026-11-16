@@ -9,7 +9,8 @@
 enum { NPAGE = 8, CH_BEL = 7 };
 enum : PscrCell { BLANK = 0x0720 };
 
-static PscrCell pages[NPAGE][PSCR_ROWS * PSCR_COLS];
+static PscrCell pages[NPAGE][PSCR_ROWS_MAX * PSCR_COLS];
+static uint8_t rows = 25;
 static struct {
     uint8_t row, col;
 } cursors[NPAGE];
@@ -17,7 +18,7 @@ static uint8_t shown;
 
 static PscrCell *cell(const uint8_t page, const uint8_t row, const uint8_t col)
 {
-    return &pages[page % NPAGE][(row * PSCR_COLS + col) % (PSCR_ROWS * PSCR_COLS)];
+    return &pages[page % NPAGE][(row * PSCR_COLS + col) % (rows * PSCR_COLS)];
 }
 
 PscrCell host_cell(const uint8_t page, const uint8_t row, const uint8_t col)
@@ -25,13 +26,18 @@ PscrCell host_cell(const uint8_t page, const uint8_t row, const uint8_t col)
     return *cell(page, row, col);
 }
 
-void pscr_mode(const uint8_t mode)
+uint8_t pscr_rows(void) { return rows; }
+
+uint8_t pscr_text(const uint8_t want)
 {
+    rows = want == 43 || want == 50 ? want : 25;
+
     for (uint32_t p = 0; p < NPAGE; p++)
-        for (uint32_t i = 0; i < PSCR_ROWS * PSCR_COLS; i++)
+        for (uint32_t i = 0; i < PSCR_ROWS_MAX * PSCR_COLS; i++)
             pages[p][i] = BLANK;
 
     shown = 0;
+    return rows;
 }
 
 void pscr_page(const uint8_t page) { shown = page % NPAGE; }
