@@ -40,7 +40,7 @@ void boot(Session *const S, const FrontEnd *const fe)
     stmt_usng_init(S);
     Addr lo, hi;
 
-    if (!pmem_init(HMIN, &lo, &hi)) {
+    if (!pmem_init(HMIN, fe->heap ? fe->heap : C_HEAP, &lo, &hi)) {
         static const char msg[] = "Out of memory\r\n";
         uint32_t put;
         pfil_write(PFIL_STDERR, msg, sizeof msg - 1, &put);

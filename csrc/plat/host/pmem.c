@@ -11,7 +11,7 @@ enum : uint32_t { ARENA_SIZE = 16u << 20, ARENA_LOW = 0x1000 };
 
 uint8_t *mem_base;
 
-bool pmem_init(const uint32_t least, Addr *const lo, Addr *const hi)
+bool pmem_init(const uint32_t least, const uint32_t heap, Addr *const lo, Addr *const hi)
 {
     if (ARENA_SIZE - ARENA_LOW < least)
         return false;

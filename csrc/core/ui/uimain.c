@@ -1468,6 +1468,7 @@ static void regions(Session *const S)
 }
 
 const FrontEnd uimn_front_end = {
+    .heap = 0xE0000, /* C_HEAP and the editor's buffers */
     .regions = regions,
     .start = uimn_start,
     .chain = fe_chain,
