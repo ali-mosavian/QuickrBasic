@@ -146,7 +146,7 @@ The VM is a stack machine over byte code. `exec_run` is its one loop: it notes t
 
 `I` ops work on INTs, `F` on SINGLEs, `D` on DOUBLEs and `S` on strings. `CALL k` runs one of 181 routines (PRINT, INPUT, MID$ ...).
 
-**Control.** GOSUB, a SUB or FUNCTION call, and an event's handler each push a `Frame` on `vm.frames`. A call sets its parameters and locals aside on `vm.callvars` and restores them when it returns. A loop is plain loads, stores, a compare and a jump; its limit and step are hidden variables:
+**Control.** GOSUB, a SUB or FUNCTION call, and an event's handler each push a `Frame` on `vm.frames`. A call's frame is on the data stack: its arguments' addresses above `vm.fp`, its locals' cells below, an array's among them. A loop is plain loads, stores, a compare and a jump; its limit and step are hidden variables:
 
 ```text
 FOR i% = 1 TO 3: total! = total! + i% / 2: NEXT

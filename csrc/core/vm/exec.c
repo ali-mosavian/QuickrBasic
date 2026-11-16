@@ -102,7 +102,6 @@ void exec_init(Session *const S)
     S->strg.stack = stack;
     S->strg.stack_end = stack + STKSZ;
     S->strg.sp = &S->vm.sp;
-    S->vm.callvars = (CallVar *)at(allo_carve(&S->allo, LSAVSZ));
     pkey_init(&S->vm.stop, SF_TICK);
     pclk_init(&S->vm.stop, SF_TICK);
 }
@@ -111,13 +110,14 @@ void exec_init(Session *const S)
    not count from 0, or sub is out of its range, for arry_ref. */
 static inline bool elem1_fast(
     const Symb *const sy,
+    const Addr fp,
     const uint16_t id,
     const int32_t sub,
     const uint32_t size,
     Addr *const e
 )
 {
-    const Addr hdr = symb_var(sy, id)->vt;
+    const Addr hdr = ((const ArrSlot *)at(flow_cell(sy, fp, id)))->hdr;
 
     if (!hdr)
         return false;
@@ -508,7 +508,6 @@ pcall: /* PCALL proc n npar body: the frame at the arguments, n local cells zero
         f->ret = (Place){v->line, addr_of(r.ip + 5 + sizeof(Jump)) - S->allo.cache};
 
         f->call.proc = r.ip[1];
-        f->call.params = f->call.locals = v->ncallvars;
         f->call.temp_floor = S->strg.tmp_floor;
         f->call.fp = fp;
         f->call.npar = r.ip[4];
@@ -541,7 +540,6 @@ pcall: /* PCALL proc n npar body: the frame at the arguments, n local cells zero
         [[maybe_unused]]                                                                           \
         const Cell x = (result);                                                                   \
         v->nframes--;                                                                              \
-        v->ncallvars = c.params;                                                                   \
         r.sp = (Cell *)at(c.fp) + 2 * c.npar;                                                      \
         r.fp = v->fp = c.caller;                                                                   \
         S->strg.tmp_used = S->strg.tmp_floor; /* the callee's */                                   \
@@ -654,7 +652,7 @@ i_ld_a1: /* a 1-D array's element counting from 0, in range; else exec_i_ld_a1's
 {
     Addr e;
 
-    if (!elem1_fast(&S->symb, load16(r.ip + 1), r.sp->i, VS, &e))
+    if (!elem1_fast(&S->symb, r.fp, load16(r.ip + 1), r.sp->i, VS, &e))
         goto slow;
 
     r.ip += 3;
@@ -667,7 +665,7 @@ i_st_a1: /* ( sub x -- ) */
 {
     Addr e;
 
-    if (!elem1_fast(&S->symb, load16(r.ip + 1), r.sp[1].i, VS, &e))
+    if (!elem1_fast(&S->symb, r.fp, load16(r.ip + 1), r.sp[1].i, VS, &e))
         goto slow;
 
     r.ip += 3;
@@ -755,12 +753,12 @@ static Addr elem1(Session *const S, const int32_t sub, const uint32_t size)
 {
     const uint16_t id = exec_u16(&S->vm);
     Addr e;
-    return elem1_fast(&S->symb, id, sub, size, &e) ? e : exec_elem1(&S->arry, id, sub);
+    return elem1_fast(&S->symb, S->vm.fp, id, sub, size, &e) ? e : exec_elem1(&S->arry, id, sub);
 }
 
-Addr exec_record(Arry *const ar, Symb *const sy, const uint16_t id)
+Addr exec_record(Arry *const ar, const uint16_t id)
 {
-    const Addr hdr = symb_var(sy, id)->vt;
+    const Addr hdr = arry_slot(ar, id)->hdr;
 
     if (hdr)
         return hdr;
@@ -805,10 +803,7 @@ void exec_s_st_a(Session *const S)
 /* A record's address, the record made at its first use. */
 void exec_r_addr(Session *const S)
 {
-    exec_pusha(
-        &S->vm,
-        ((const ArrayHdr *)at(exec_record(&S->arry, &S->symb, exec_u16(&S->vm))))->data
-    );
+    exec_pusha(&S->vm, ((const ArrayHdr *)at(exec_record(&S->arry, exec_u16(&S->vm))))->data);
 }
 
 /* A record array's element. */

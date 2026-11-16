@@ -352,10 +352,11 @@ static void bound(Session *const S, const bool upper)
     const uint32_t count = exec_pop(&S->vm).u;
     const uint32_t d = count == 2 ? exec_pop(&S->vm).u : 1;
     const uint16_t id = (uint16_t)exec_pop(&S->vm).u;
-    const Addr hdr = symb_var(&S->symb, id)->vt;
+    const ArrSlot s = *arry_slot(&S->arry, id);
+    const Addr hdr = s.hdr;
 
     if (!hdr) {
-        if (symb_varx(&S->symb, id)->dyn) /* ERASEd: none */
+        if (s.dyn) /* ERASEd: none */
             arry_bad_sub(&S->arry);
 
         exec_pushi(&S->vm, upper ? 10 : S->decl.base); /* none yet: OPTION BASE to 10 */

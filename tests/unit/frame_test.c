@@ -52,3 +52,55 @@ TEST(an_elements_reference_follows_its_array)
     CHECK(unit_run(S, lines) == ST_OK);
     CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 8 \r");
 }
+
+/* Each activation has its own local arrays: the inner calls' DIMs changed none of the outer's. */
+TEST(each_call_its_own_local_arrays)
+{
+    static const char *const lines[] = {
+        "10 PRINT f%(4)",
+        "20 FUNCTION f% (n%)",
+        "30 DIM m%(2): m%(1) = n%",
+        "40 IF n% > 1 THEN f% = f%(n% - 1) + m%(1) ELSE f% = m%(1)",
+        "50 END FUNCTION",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 10 \r");
+}
+
+/* A return frees every local array: x's header, after y's once REDIM made it again, moved down
+   when y's was freed and was fixed in the frame, still there; else x freed a stale header and the
+   memory and the module's array were wrong. */
+TEST(a_returns_local_arrays_are_all_freed)
+{
+    static const char *const lines[] = {
+        "10 a = FRE(-1): s: s: PRINT a - FRE(-1); g(1)",
+        "20 SUB s",
+        "30 REDIM x(100): REDIM y(200): REDIM x(50): y(5) = 1",
+        "40 END SUB",
+        "5 DIM g(3): g(1) = 9",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 0  9 \r");
+}
+
+/* An array parameter is its argument's cell: REDIM and ERASE in the callee are the caller's. */
+TEST(an_array_parameter_is_its_argument)
+{
+    static const char *const lines[] = {
+        "10 REDIM d(3): d(1) = 11: g d(): PRINT UBOUND(d); d(1); d(9): e d(): PRINT FRE(-1) > 0",
+        "20 SUB g (z())",
+        "30 REDIM PRESERVE z(10): z(9) = 99",
+        "40 END SUB",
+        "50 SUB e (z())",
+        "60 ERASE z: PRINT LBOUND(z)",
+        "70 END SUB",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) != ST_OK); /* LBOUND of the ERASEd: Subscript out of range */
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 10  11  99 \r");
+}

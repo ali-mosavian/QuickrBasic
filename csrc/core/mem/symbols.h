@@ -13,7 +13,7 @@ enum : uint8_t { LOOP_NAME = 1 };
 enum : uint8_t { VI_RECARR = VI_ARR | VK_INT };
 
 typedef struct PACKED {
-    Addr vt; /* its cell; an array's header, 0 none */
+    Addr vt; /* its cell; an array's holds its ArrSlot */
     uint16_t name;
     uint8_t type; /* ET_* */
     uint8_t info; /* VI_ARR, SK_DBL, the kind */
@@ -22,10 +22,10 @@ typedef struct PACKED {
     uint16_t next; /* its hash chain's next */
     uint16_t nloc; /* the next local of its procedure */
     uint8_t scope; /* 0 the module, else a procedure */
-    uint8_t dyn;   /* REDIM made it; ERASE frees it */
-    uint8_t kop;   /* a CONST's literal load, its operand in symb_kval; 0 none (comp/fold.h) */
-    uint8_t par;   /* a parameter of its procedure (link) */
-} VarX;            /* TVX */
+    uint8_t pad;
+    uint8_t kop; /* a CONST's literal load, its operand in symb_kval; 0 none (comp/fold.h) */
+    uint8_t par; /* a parameter of its procedure (link) */
+} VarX;          /* TVX */
 typedef struct PACKED {
     uint32_t text; /* its text's offset in text: its length, then its letters */
     uint8_t flags; /* NM_* */
@@ -61,8 +61,9 @@ static inline VarX *symb_varx(const Symb *const sy, uint16_t id)
 {
     return (VarX *)at(sy->vars.at[2]) + id;
 }
-/* A variable's place in its procedure's frame, from vm.fp: a scalar local's cell (negative); a
-   scalar parameter's argument's address (link_procvars); 0 neither. */
+/* A variable's place in its procedure's frame, from vm.fp: a local's cell (negative); a
+   parameter's ref cell, the argument's address, plus 1 (positive: link_procvars); 0 neither, its
+   own cell. One load tells the three apart (vm/flow.h flow_cell). */
 static inline int32_t *symb_frame(const Symb *const sy, uint16_t id)
 {
     return (int32_t *)at(sy->vars.at[4]) + id;
@@ -98,8 +99,8 @@ void symb_new(Symb *sy, Allo *al, Fault *f);
 /* Room for program pg's variables before it runs (each M_VAR byte in the store counts one): they
    are made lazily, when the heap may hold strings and arrays and the block cannot grow. */
 void symb_size(Symb *sy, const Prog *pg);
-/* Every variable's value gone: the cells zeroed, an array's header none, a scalar's vt its own
-   cell (session_clear's part). */
+/* Every variable's value gone: the cells zeroed, an array's header none, vt its own cell
+   (session_clear's part). */
 void symb_clear(Symb *sy);
 /* No names, no variables. */
 void symb_reset(Symb *sy);

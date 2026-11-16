@@ -44,18 +44,16 @@ static inline uint8_t *flow_next_code(
     return code;
 }
 
-enum : uint32_t { FLOW_NO_REF = 0xFFFF }; /* an argument's ref: passed by value, or no array */
-
 /* Variable id's cell in the frame at fp: a local's there, a parameter's its argument's; else its
    own. */
 static inline Addr flow_cell(const Symb *const sy, const Addr fp, const uint16_t id)
 {
     const int32_t off = *symb_frame(sy, id);
 
-    if (symb_varx(sy, id)->par && !(symb_var(sy, id)->info & VI_ARR))
-        return rd32(fp + (uint32_t)off);
+    if (!off)
+        return symb_cell(sy, id);
 
-    return off < 0 ? fp + (uint32_t)off : symb_cell(sy, id);
+    return off < 0 ? fp + (uint32_t)off : rd32(fp + (uint32_t)off - 1);
 }
 /* The data stack at a statement's start: the innermost call's body's, else vm.rsp. */
 Cell *flow_stack_base(Vm *vm);

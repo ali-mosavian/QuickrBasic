@@ -93,7 +93,7 @@ static void put_string(Chai *const ch, Fault *const f, uint8_t **const p, const 
 
 static void put_array(Session *const S, uint8_t **const p, const uint16_t id)
 {
-    const Addr hdr = symb_var(&S->symb, id)->vt;
+    const Addr hdr = arry_slot(&S->arry, id)->hdr;
     const uint8_t dims = hdr ? ((const ArrayHdr *)at(hdr))->dims : 0;
     put(&S->chai, &S->fault, p, &dims, 1);
 
@@ -171,7 +171,7 @@ static void get_array(Session *const S, const uint8_t **const p, const uint16_t 
 
     if (!dims)
         return;
-    if (symb_var(&S->symb, id)->vt)
+    if (arry_slot(&S->arry, id)->hdr)
         arry_free(&S->arry, &S->vm, id, 0);
 
     get(p, S->arry.counts, dims * sizeof S->arry.counts[0]);

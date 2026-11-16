@@ -37,8 +37,7 @@ TEST(frames_list_the_stop_then_each_callers_line)
     session_drop_stop(S);
 }
 
-/* Each call's by-value parameter as its frame sees it: an older call's is its own cell's value as
-   the newer call found it, kept in the newer call's CallVar. */
+/* Each call's by-value parameter as its frame sees it: each call's is its own value cell. */
 TEST(an_older_calls_parameter_by_value_is_its_own)
 {
     static const char *const lines[] = {

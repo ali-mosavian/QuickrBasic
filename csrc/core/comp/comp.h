@@ -188,9 +188,10 @@ uint16_t comp_var(
     Comp *C,
     uint8_t shape,
     uint8_t et
-);                                     /* var_id: shape 1 a scalar, 2 an array, 0 by '(';
+);                                       /* var_id: shape 1 a scalar, 2 an array, 0 by '(';
                                             et its type, 0 by suffix, AS, DEFtype */
-bool comp_ispar(Comp *C, uint16_t id); /* a scalar parameter of the procedure compiled */
+bool comp_ispar(Comp *C, uint16_t id);   /* a scalar parameter of the procedure compiled */
+bool comp_isparam(Comp *C, uint16_t id); /* a parameter of it, an array's too */
 bool comp_param(Comp *C, uint16_t name, uint8_t array, uint16_t *id); /* var_par: array 80h */
 void comp_scope(Comp *C, uint16_t name); /* var_scope: comp.scope, comp.isstatic for it */
 uint8_t comp_suffix(uint8_t c);          /* et_sfx: % & ! # $ to ET_*, 0 none */

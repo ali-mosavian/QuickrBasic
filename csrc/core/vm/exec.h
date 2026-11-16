@@ -27,7 +27,7 @@
  * | stopchk | exec_stopchk (flow.c) | MOVED |
  * | a1get | inside exec_*_a1 (exec.c) | MOVED |
  * | TRUN (g_state.rn) | Vm | MIRROR |
- * | opip, rsp, stklim, cstk, lsp | vm.opip, vm.rsp, vm.stklim, vm.frames, vm.callvars | D1 |
+ * | opip, rsp, stklim, cstk, lsp | vm.opip, vm.rsp, vm.stklim, vm.frames, vm.fp | D1 |
  * | cplim | comp.depth (comp's) | MOVED |
  * | line, runln, lnum | vm.line, vm.runln, vm.lnum | MIRROR |
  * | stpflg | vm.stop (volatile) | MIRROR |
@@ -40,7 +40,8 @@
  * | dlp, dataat, dyo, inend, iny0, iredo | StmtState (stmts.h) | MOVED |
  * | (none) | vm.ip, vm.sp, vm.stktop, vm.loop, vm.running | D3 |
  *
- * - D1. The control stack is vm.frames and the save stack vm.callvars, typed records.
+ * - D1. The control stack is vm.frames, typed records; no save stack: a call's locals and
+ *   arguments are its frame on the data stack (vm/flow.c).
  * - D2. RESUME's places are Places in vm.err.
  * - D3. ESI and ESP are vm.ip and vm.sp; a handler returns where the asm jumps to dispatch. vm.loop
  *   is the longjmp target for flow_trap.
@@ -114,11 +115,9 @@ typedef struct {
 
 typedef enum : uint8_t { FRAME_GOSUB, FRAME_EVENT, FRAME_CALL } FrameKind;
 
-/* A SUB or FUNCTION running. Its parameters' CallVars start at params, its locals' at locals; they
-   end at vm.ncallvars once the frames above it are gone. */
+/* A SUB or FUNCTION running. */
 typedef struct {
     uint8_t proc;
-    uint32_t params, locals;
     uint16_t temp_floor; /* the caller's floor of string temporaries */
     Cell *stack;         /* the data stack at its body's start, past its locals */
     Addr fp;             /* its frame (vm.fp): npar arguments above it */
@@ -138,33 +137,6 @@ typedef struct {
 
 enum { MAX_FRAMES = 800 };
 
-/* A procedure's parameter or local, set aside while its call runs. A local's value (an array's
-   header) is the caller's; an array parameter's header is the argument's, handed back at the end;
-   a scalar parameter's cell is its cell before the call. */
-typedef struct PACKED {
-    uint16_t var;
-    uint16_t arg; /* an array parameter's argument, 0 none */
-    union {
-        Cell value;
-        struct PACKED {
-            Addr hdr;
-            uint8_t dyn; /* REDIM made it */
-        } array;
-    };
-
-    Addr cell; /* a scalar parameter's; 0 for a local */
-} CallVar;
-
-/* A scalar parameter's CallVar.arg: passed by value, its own cell's value before the call in
-   value. */
-enum : uint16_t { CV_OWN = 1 };
-
-/* A local set aside in callvars: all but a scalar parameter, whose CallVar keeps its own cell. */
-static inline bool exec_saved_local(const bool array, const bool par) { return array || !par; }
-static_assert(sizeof(CallVar) == 16);
-
-enum { MAX_CALLVARS = LSAVSZ / sizeof(CallVar) };
-
 /* The run's state. */
 typedef struct Vm {
     uint8_t *ip;   /* the running op's operands, the next op */
@@ -177,8 +149,6 @@ typedef struct Vm {
 
     Frame frames[MAX_FRAMES];
     uint32_t nframes;
-    CallVar *callvars; /* in the arena: a string set aside names its CallVar as its block's owner */
-    uint32_t ncallvars;
 
     uint32_t line;         /* the running line */
     uint16_t lnum;         /* a line number to find, as prog_find's */
@@ -241,7 +211,7 @@ static inline uint32_t exec_u32(Vm *const vm)
 /* An FV op's cell. */
 static inline Addr exec_cell(Vm *const vm) { return exec_u32(vm); }
 
-/* The data stack and the save stack carved from the arena (allo_carve); the control stack is
+/* The data stack carved from the arena (allo_carve); the control stack is
    mem's, allo.cs_lim .. allo.cs_top. The tick's and the trapped keys' flag pointed at vm.stop
    (SF_TICK); psys_exit takes the tick out. */
 void exec_init(Session *S);
@@ -260,7 +230,7 @@ Addr exec_elem1(Arry *ar, uint16_t id, int32_t sub);
 /* arr_pn: the element an op's `id:2 n:1` at vm.ip names, its n subscripts popped. */
 Addr exec_elem(Arry *ar, Vm *vm);
 /* rec_get: record id's header, the record made, zeroed, at its first use. */
-Addr exec_record(Arry *ar, Symb *sy, uint16_t id);
+Addr exec_record(Arry *ar, uint16_t id);
 /* int_div: a / b truncated, *rem its remainder. Division by zero; Overflow -2^31 / -1. */
 int32_t exec_idiv(Fault *f, int32_t a, int32_t b, int32_t *rem);
 #endif

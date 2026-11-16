@@ -124,8 +124,6 @@ typedef enum : uint8_t { RESUME_AGAIN, RESUME_NEXT, RESUME_LINE } ResumeMode;
 
 enum : uint8_t { DM_STEP = 1, DM_PSTEP = 2 };
 
-enum { LSAVSZ = 0x15000 }; /* the bindings' bytes (vm/exec.h) */
-
 /* A string's Desc. */
 typedef struct PACKED {
     uint16_t len;
@@ -147,6 +145,11 @@ typedef struct PACKED {
     uint16_t fast;
     uint16_t count[];
 } ArrayHdr;
+/* An array's cell: its header (0 none) and whether REDIM made it (ERASE frees it). */
+typedef struct {
+    Addr hdr;
+    uint32_t dyn;
+} ArrSlot;
 
 /* Errors and messages: E_* QBasic's errors, MSG_* the other messages. */
 enum : uint8_t {
@@ -266,5 +269,5 @@ enum : uint8_t {
     PF_STAT = 1,
     PF_DEF = 2,
     PF_ARRAYS = 4
-}; /* PF_ARRAYS: an array parameter or local */
+}; /* PF_ARRAYS: a local array or record in its frame */
 #endif

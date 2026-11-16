@@ -5,8 +5,8 @@
  * its letters in upper case, a suffix left out. A variable, 1 .. nvars-1, as QBasic's variable
  * manager: a name, a type (ET_*) and whether an array.
  *
- * vars holds per variable its 8-byte cell, a Var and a VarX. Var.vt is a scalar's cell (its own, or
- * a parameter's argument's while its procedure runs), an array's header. Linked code holds cells'
+ * vars holds per variable its 8-byte cell, a Var and a VarX. Var.vt is its cell; an array's holds
+ * its ArrSlot. A local's and a parameter's cells are in their call's frame (vm/flow.h). Linked code holds cells'
  * Addrs: the cells move only when a block before them grows, the cache while linking (before
  * link_resolve) or the program store on an edit, which drops the code. Each table chains its hashes from a head,
  * 0 ends a chain.
@@ -15,7 +15,7 @@
  * | asm | here | |
  * |---|---|---|
  * | TVAR (vt nam typ info) | Var (.vt .name .type .info) | MIRROR |
- * | TVX (next nloc scp dyn) | VarX (.next .nloc .scope .dyn) | MIRROR |
+ * | TVX (next nloc scp dyn) | VarX (.next .nloc .scope .pad) | DIVERGES: dyn is the array's cell's |
  * | TNAM (text flag typ prc) | Name (.text .flags .rec .proc) | MIRROR |
  * | TSYM, g_state.sym | Symb | MIRROR |
  * | sym.vars, sym.nams, sym.ntext | Symb.vars, Symb.names, Symb.text | MIRROR |
@@ -51,7 +51,7 @@ enum {
 
 static uint16_t *symb_name_next(const Symb *const sy) { return (uint16_t *)at(sy->names.at[1]); }
 
-/* The variables' block moved or grew: the scalars' vt by the cells' move. */
+/* The variables' block moved or grew: vt by the cells' move. */
 static void symb_vars_moved(Table *const t, const Addr old)
 {
     Symb *const sy = container_of(t, Symb, vars);
@@ -62,7 +62,7 @@ static void symb_vars_moved(Table *const t, const Addr old)
     for (uint16_t id = 1; id < sy->nvars; id++) {
         Var *const v = symb_var(sy, id);
 
-        if (!(v->info & VI_ARR) && v->vt)
+        if (v->vt)
             v->vt += delta;
     }
 }
@@ -108,14 +108,7 @@ void symb_clear(Symb *const sy)
     memset(at(sy->vars.at[0]), 0, sy->vars.cap * sizeof(Cell));
 
     for (uint16_t id = 0; id < sy->nvars; id++) {
-        Var *const v = symb_var(sy, id);
-
-        if (v->info & VI_ARR) {
-            v->vt = 0;
-            symb_varx(sy, id)->dyn = 0;
-        } else {
-            v->vt = symb_cell(sy, id); /* a parameter's, bound elsewhere: back */
-        }
+        symb_var(sy, id)->vt = symb_cell(sy, id);
     }
 }
 
@@ -221,18 +214,14 @@ uint16_t symb_find_var(
 
     *symb_frame(sy, id) = 0;
 
-    if (scope && !stat) { /* a local: on its procedure's list; a scalar, a cell of its frame */
+    if (scope && !stat) { /* a local: on its procedure's list, a cell of its frame */
         x->nloc = sy->first_local[scope];
         sy->first_local[scope] = id;
-
-        if (!(kind & VI_ARR))
-            *symb_frame(sy, id) = symb_slot(sy, scope);
+        *symb_frame(sy, id) = symb_slot(sy, scope);
     }
 
-    if (!(kind & VI_ARR)) {
-        v->vt = symb_cell(sy, id);
-        memset(at(v->vt), 0, sizeof(Cell));
-    }
+    v->vt = symb_cell(sy, id);
+    memset(at(v->vt), 0, sizeof(Cell));
 
     sy->nvars++;
     return id;

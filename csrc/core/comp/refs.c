@@ -372,6 +372,12 @@ static Node *argnode(Comp *const C, const uint8_t pass, Node *const a, const uin
     return n;
 }
 
+/* Variable id's cell, an argument's ref: a parameter's is its argument's. */
+static Node *cell(Comp *const C, const uint16_t id)
+{
+    return place(C, comp_isparam(C, id) ? O_V_ADDR : O_V_CELL, id);
+}
+
 /* An array parameter's argument: n() an array whole; a record parameter's n a record whole. */
 static Node *arrayarg(Comp *const C, const uint16_t par)
 {
@@ -399,7 +405,7 @@ static Node *arrayarg(Comp *const C, const uint16_t par)
         ptm(C, id, par, arg);
         comp_open(C);
         comp_close(C);
-        return argnode(C, PA_ARRAY, nullptr, id);
+        return argnode(C, PA_ARRAY, cell(C, id), id);
     }
 
     const uint8_t t = scop_rec(C->scop, name, false);
@@ -408,7 +414,8 @@ static Node *arrayarg(Comp *const C, const uint16_t par)
         synerr(C);
 
     C->p = after;
-    return argnode(C, PA_RECORD, nullptr, recvar(C, name, t, VI_RECARR));
+    const uint16_t id = recvar(C, name, t, VI_RECARR);
+    return argnode(C, PA_RECORD, cell(C, id), id);
 }
 
 /* ct_arg: an argument to parameter par: a variable alone by reference, an element or a record's
@@ -450,8 +457,7 @@ static Node *arg(Comp *const C, const uint16_t par, const bool byval)
             if (aend(*after)) { /* a variable alone: its cell */
                 const uint16_t id = comp_var(C, 0, 0);
                 ptm(C, id, par, p);
-                const uint8_t op = comp_ispar(C, id) ? O_V_ADDR : O_V_CELL; /* as ref_place's */
-                return argnode(C, PA_VAR, place(C, op, id), par);
+                return argnode(C, PA_VAR, cell(C, id), par);
             }
         }
     }

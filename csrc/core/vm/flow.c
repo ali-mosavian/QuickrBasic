@@ -3,8 +3,8 @@
  * # How it works
  * GOSUBs, events and calls are Frames on vm.frames (flow_push, flow_find). A FOR loop is none: its
  * limit and step are cells the compiler gave it, its NEXT jumps back to its body. A call's frame
- * is on the data stack: its arguments' addresses above vm.fp, its locals below; exec_run runs
- * PCALL and PRET inline. Only array parameters and locals are set aside on vm.callvars.
+ * is on the data stack: its arguments' addresses above vm.fp, its locals below, an array's cell
+ * among them (mem/array.c); exec_run runs PCALL and PRET inline.
  *
  * A jump op holds a Jump, a GOTO a LineRef; link_resolve set both before the run. Every line's
  * code is in the cache while linked (link_start).
@@ -33,7 +33,7 @@
  * | ex_setcont | flow_setcont | MIRROR |
  * | ex_stmtof | flow_stmtof | MIRROR |
  * | ex_target | flow_target | MIRROR |
- * | g_lsav, LSAVSZ | vm.callvars, MAX_CALLVARS | D1 |
+ * | g_lsav, LSAVSZ | none: a call's frame on the data stack | DIVERGES |
  * | ls_mov | strg_move (mem/string.c) | MOVED |
  * | op_size | flow_opsize | MIRROR |
  * | ex_line, ex_eol, ex_gosub, ex_jumpto, ex_sbase, pr_pop, err_nf, ipsave | static | MIRROR |
@@ -45,8 +45,8 @@
  * | op_onerr, op_onlerr, op_resume | flow_onerr, flow_onlerr, flow_resume | MIRROR |
  * | stopchk | exec_stopchk | MOVED |
  *
- * - D1. Frames are typed records in vm.frames and the saved parameters and locals are CallVars; the
- *   asm keeps both as words on its control stack and save stack.
+ * - D1. Frames are typed records in vm.frames; the asm keeps them as words on its control stack,
+ *   the parameters and locals on its save stack.
  * - D2. FOR and NEXT compile to loads, stores, a compare and a jump (comp/control.c); PAST is the
  *   compare of a step whose sign is known only when run.
  */
@@ -408,74 +408,8 @@ void flow_d_past(Session *const S)
 /* ---- SUB and FUNCTION ----------------------------------------------------------------------- */
 
 /* A call's frame on the data stack: each argument a value cell, then its ref cell above it (the
-   address its parameter is); vm.fp the last argument's ref cell, the locals ENTER made below it. An
-   array or record argument's cells hold the argument's id instead: it and the procedure's local
-   arrays are bound through Var.vt, set aside in vm.callvars (PF_ARRAYS, link's). */
-
-/* Parameter i's ref cell, of npar, in the frame at fp. */
-static Cell *param_ref(const Addr fp, const uint32_t npar, const uint32_t i)
-{
-    return (Cell *)at(fp) + 2 * (npar - 1 - i);
-}
-
-/* Bind the array parameters to their arguments' headers and set the local arrays aside, emptied,
-   into callvars from b; returns past the last. The parameters' CallVars come first: *locals is
-   where the locals' start. */
-static CallVar *bind_arrays(
-    Vm *const vm,
-    Symb *const sy,
-    Arry *const ar,
-    Fault *const f,
-    const uint8_t proc,
-    const Proc *const p,
-    CallVar *b,
-    uint32_t *const locals
-)
-{
-    CallVar *const end = vm->callvars + MAX_CALLVARS - 1;
-    CallVar *const params = b;
-
-    for (uint32_t i = 0; i < p->npar; i++) { /* the headers first: an argument may be a local */
-        const uint16_t id = p->params[i].var;
-        const Var *const v = symb_var(sy, id);
-
-        if (!is_array(v))
-            continue;
-        if (b >= end)
-            fault_error(f, E_OS);
-
-        const Cell *const ref = param_ref(vm->fp, p->npar, i);
-        const uint16_t arg = (uint16_t)ref[1].u;
-        *b = (CallVar){.var = id, .arg = ref->u == FLOW_NO_REF ? 0 : (uint16_t)ref->u};
-
-        b->array.hdr = v->info == VI_RECARR ? exec_record(ar, sy, arg) : symb_var(sy, arg)->vt;
-        b++;
-    }
-
-    *locals = (uint32_t)(b - vm->callvars);
-
-    for (uint16_t id = sy->first_local[proc]; id; id = symb_varx(sy, id)->nloc) {
-        Var *const v = symb_var(sy, id);
-
-        if (!is_array(v))
-            continue;
-        if (b >= end)
-            fault_error(f, E_OS);
-
-        *b++ = (CallVar){.var = id, .array.hdr = v->vt};
-
-        v->vt = 0;
-    }
-
-    for (CallVar *c = params; c < vm->callvars + *locals; c++) {
-        symb_var(sy, c->var)->vt = c->array.hdr;
-
-        if (c->arg) /* dynamic as the argument */
-            symb_varx(sy, c->var)->dyn = symb_varx(sy, c->arg)->dyn;
-    }
-
-    return b;
-}
+   address its parameter is: a scalar's cell, an array's or a record's ArrSlot); vm.fp the last
+   argument's ref cell, the locals' cells below it (a local array's its ArrSlot). */
 
 /* PCALL proc n body: the frame at the arguments on the data stack, its n locals' cells below it
    zeroed, its frame pushed, into the body. */
@@ -487,24 +421,13 @@ void flow_pcall(Session *const S)
     Vm *const vm = &S->vm;
     uint8_t *const call = vm->ip;
     const uint8_t proc = *call;
-    const Proc *const p = blok_proc(&S->blok, proc);
-
     const uint32_t n = load16(call + 1);
 
     if (vm->sp < vm->stklim || (uint32_t)(vm->sp - vm->stklim) < n || vm->nframes == MAX_FRAMES)
         repl_error(S, E_OS);
 
     const Addr caller = vm->fp;
-    const uint32_t first = vm->ncallvars;
-    uint32_t locals = first;
     vm->fp = addr_of(vm->sp);
-
-    if (p->flags & PF_ARRAYS) {
-        CallVar *const end =
-            bind_arrays(vm, &S->symb, &S->arry, &S->fault, proc, p, vm->callvars + first, &locals);
-        vm->ncallvars = (uint32_t)(end - vm->callvars);
-    }
-
     vm->sp -= n;
     memset(vm->sp, 0, n * sizeof(Cell));
     vm->frames[vm->nframes++] = (Frame){
@@ -512,12 +435,10 @@ void flow_pcall(Session *const S)
         .ret = {vm->line, cache_off(&S->allo, call + 4 + sizeof(Jump))},
         .call = {
             .proc = proc,
-            .params = first,
-            .locals = locals,
             .temp_floor = S->strg.tmp_floor,
             .stack = vm->sp,
             .fp = vm->fp,
-            .npar = p->npar,
+            .npar = blok_proc(&S->blok, proc)->npar,
             .caller = caller,
         },
     };
@@ -527,20 +448,8 @@ void flow_pcall(Session *const S)
     take_jump(vm, &S->strg, &S->allo, &S->fault);
 }
 
-void flow_pcall_a(Session *const S) { flow_pcall(S); }
-
-static bool is_param(const Proc *const p, const uint16_t var)
-{
-    for (uint32_t i = 0; i < p->npar; i++)
-        if (p->params[i].var == var)
-            return true;
-
-    return false;
-}
-
-/* End call f, the innermost, and drop the frames above it: the array arguments get their headers
-   back as the callee left them, the local arrays the caller's; its frame popped, its arguments
-   with it. */
+/* End call f, the innermost, and drop the frames above it: its local arrays freed (PF_ARRAYS,
+   while its frame is there for arry_free to fix), its frame popped, its arguments with it. */
 static void end_call(
     Vm *const vm,
     Symb *const sy,
@@ -551,30 +460,16 @@ static void end_call(
 )
 {
     const Call c = f->call;
-    CallVar *const params = vm->callvars + c.params, *const locals = vm->callvars + c.locals;
-    pop_to(vm, f);
 
-    for (CallVar *b = params; b < locals; b++) {
-        b->array.hdr = symb_var(sy, b->var)->vt;
-        b->array.dyn = symb_varx(sy, b->var)->dyn;
-    }
+    if (p->flags & PF_ARRAYS)
+        for (uint16_t id = sy->first_local[c.proc]; id; id = symb_varx(sy, id)->nloc) {
+            const int32_t off = *symb_frame(sy, id);
 
-    for (CallVar *b = vm->callvars + vm->ncallvars; b-- > locals;) {
-        Var *const v = symb_var(sy, b->var);
-
-        if (v->vt && !is_param(p, b->var)) /* a parameter's array is the caller's */
-            arry_free(ar, vm, b->var, 0);
-
-        v->vt = b->array.hdr;
-    }
-
-    for (CallVar *b = params; b < locals; b++)
-        if (b->arg) {
-            symb_var(sy, b->arg)->vt = b->array.hdr;
-            symb_varx(sy, b->arg)->dyn = b->array.dyn;
+            if (is_array(symb_var(sy, id)) && off < 0 && ((ArrSlot *)at(c.fp + (uint32_t)off))->hdr)
+                arry_free(ar, vm, id, 0);
         }
 
-    vm->ncallvars = c.params;
+    pop_to(vm, f);
     vm->sp = (Cell *)at(c.fp) + 2 * c.npar;
     vm->fp = c.caller;
     drop_temps(sg); /* the callee's */

@@ -426,7 +426,12 @@ const uint8_t *comp_skipdata(const uint8_t *p)
 
 bool comp_ispar(Comp *const C, const uint16_t id)
 {
-    if (symb_var(C->symb, id)->info & VI_ARR || !C->proc)
+    return !(symb_var(C->symb, id)->info & VI_ARR) && comp_isparam(C, id);
+}
+
+bool comp_isparam(Comp *const C, const uint16_t id)
+{
+    if (!C->proc)
         return false;
 
     const Proc *const p = blok_proc(C->blok, C->proc);

@@ -260,10 +260,9 @@ OP(D_LD_L, oper_d_ld_l, 1 + VCELL, FX)
 OP(D_ST_L, oper_d_st_l, 1 + VCELL, 0)
 OP(I_JFC_L, flow_i_jfc_l, 2 + VCELL + sizeof(Jump), 0)
 OP(BYVAL, exec_byval, 2, 0)
-OP(PCALL_A, flow_pcall_a, JSIZE + 4, 0) /* PCALL to a procedure with array parameters or locals */
 OP(PRET_FV, flow_pret_fv, 2 + VCELL, 0) /* a FUNCTION's number, its result a cell */
 OP(PRET_FL, flow_pret_fl, 2 + VCELL, 0) /*   its result in the frame */
-OP(PRET_X, flow_pret_x, 2 + VCELL, 0)   /* arrays, or a string result */ /* the address of the value on top, a string's copied there */
+OP(PRET_X, flow_pret_x, 2 + VCELL, 0)   /* local arrays, or a string result */ /* the address of the value on top, a string's copied there */
 #undef OP
 #endif
 

@@ -103,7 +103,7 @@ DebugPos dbug_pos(Session *const S, const uint32_t line, const uint8_t *const co
 typedef struct {
     uint8_t *ip, *opip;
     Cell *sp, *rsp;
-    uint32_t nframes, ncallvars;
+    uint32_t nframes;
     Addr fp;
     Place cont;
     uint32_t line;
@@ -128,7 +128,6 @@ static void save(Session *const S, Saved *const s)
         .rsp = S->vm.rsp,
         .nframes = S->vm.nframes,
         .fp = S->vm.fp,
-        .ncallvars = S->vm.ncallvars,
         .cont = S->vm.cont,
         .line = S->vm.line,
         .lnum = S->vm.lnum,
@@ -159,7 +158,6 @@ static void restore(Session *const S, const Saved *const s)
     S->vm.rsp = s->rsp;
     S->vm.nframes = s->nframes;
     S->vm.fp = s->fp;
-    S->vm.ncallvars = s->ncallvars;
     S->vm.cont = s->cont;
     S->vm.line = s->line;
     S->vm.lnum = s->lnum;

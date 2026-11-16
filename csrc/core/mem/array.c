@@ -1,13 +1,15 @@
 /* Arrays: their headers and data, made, indexed, freed and resized.
  *
  * # How it works
- * Var.vt is an array's header (ArrayHdr) in the headers' region, from allo.hdr_base to arry.hdr:
+ * An array's cell (ArrSlot) holds its header (ArrayHdr) in the headers' region, from allo.hdr_base
+ * to arry.hdr. The cell is the variable's own, a local's in its call's frame, a parameter's its
+ * argument's (vm/flow.h flow_cell). The header:
  * its dimensions, its data's Addr, the count when 1-D from 0 (else 0), the counts, then the lower
  * bounds (words). Its data is on the heap from allo.bot to allo.arrays, zeroed, 4-aligned: VS a number
  * or an INT, 8 a DOUBLE, DSZ a string, a TYPE's size a record.
  *
  * arry_free drops an array: its header and data go and what follows moves down. The headers' data
- * Addrs, the moved string blocks' owners, the headers in Var.vt and on the save stack, and the
+ * Addrs, the moved string blocks' owners, the headers in the cells, the frames' too, and the
  * parameters' cells in the moved data follow.
  *
  * # asm structure (src/mem/arr.asm)
@@ -31,6 +33,7 @@
  */
 #include "mem/array.h"
 #include "mem/copy.h"
+#include "vm/flow.h"
 
 enum { DATA_MAX = 0x100000, DATA_ALIGN = 4 };
 
@@ -40,9 +43,11 @@ void arry_init(
     Fault *const f,
     Symb *const sy,
     const Decl *const d,
-    Strg *const sg
+    Strg *const sg,
+    const Addr *const fp
 )
 {
+    ay->fp = fp;
     ay->allo = al;
     ay->fault = f;
     ay->symb = sy;
@@ -51,6 +56,11 @@ void arry_init(
 }
 
 static ArrayHdr *arry_hdr_at(const Addr h) { return (ArrayHdr *)at(h); }
+
+ArrSlot *arry_slot(const Arry *const ay, const uint16_t id)
+{
+    return (ArrSlot *)at(flow_cell(ay->symb, *ay->fp, id));
+}
 
 /* A header's bytes: the fixed part, then a count and a lower bound a dimension. */
 static uint32_t arry_hdr_size(const uint8_t dims)
@@ -105,10 +115,11 @@ uint32_t arry_esize(const Arry *const ay, const uint16_t id)
 
 Addr arry_ref(Arry *const ay, const uint16_t id, const uint8_t n)
 {
-    Addr h = symb_var(ay->symb, id)->vt;
+    const ArrSlot *const s = arry_slot(ay, id);
+    Addr h = s->hdr;
 
     if (!h) {
-        if (symb_varx(ay->symb, id)->dyn) /* ERASE freed it: not made again */
+        if (s->dyn) /* ERASE freed it: not made again */
             arry_bad_sub(ay);
         for (uint32_t i = 0; i < n; i++) { /* OPTION BASE to 10 */
             ay->counts[i] = 11 - ay->decl->base;
@@ -145,7 +156,7 @@ void arry_dim(Arry *const ay, const uint16_t id, const uint8_t n, const bool dyn
         ay->counts[i] = ay->subs[i] + 1;
     }
 
-    if (symb_var(ay->symb, id)->vt)
+    if (arry_slot(ay, id)->hdr)
         fault_error(ay->fault, E_RD);
 
     arry_new(ay, id, n, dyn);
@@ -183,8 +194,8 @@ Addr arry_new(Arry *const ay, const uint16_t id, const uint8_t n, const bool dyn
     memcpy(&a->count[0], ay->counts, n * sizeof ay->counts[0]);
     memcpy(&a->count[n], ay->lbounds, n * sizeof ay->lbounds[0]);
     ay->hdr = h + arry_hdr_size(n);
-    symb_var(ay->symb, id)->vt = h;
-    symb_varx(ay->symb, id)->dyn = dyn;
+    *arry_slot(ay, id) = (ArrSlot){h, dyn};
+
     return h;
 }
 
@@ -224,6 +235,38 @@ static Addr arry_moved_cell(const Freed *const f, const Addr c)
     return moved ? c - f->size : c;
 }
 
+/* Each array's cell holding a header: the variables' own, then each call's locals' in its frame. */
+static void arry_each_slot(
+    const Arry *const ay,
+    const Vm *const vm,
+    void (*const each)(const Arry *, ArrSlot *, const Freed *),
+    const Freed *const f
+)
+{
+    const Symb *const sy = ay->symb;
+
+    for (uint16_t c = sy->nvars; c-- > 1;)
+        if (arry_is_array(ay, c))
+            each(ay, (ArrSlot *)at(symb_cell(sy, c)), f);
+
+    for (uint32_t i = 0; i < vm->nframes; i++) {
+        const Frame *const fr = &vm->frames[i];
+
+        if (fr->kind != FRAME_CALL)
+            continue;
+
+        for (uint16_t c = sy->first_local[fr->call.proc]; c; c = symb_varx(sy, c)->nloc)
+            if (arry_is_array(ay, c) && *symb_frame(sy, c) < 0)
+                each(ay, (ArrSlot *)at(fr->call.fp + (uint32_t)*symb_frame(sy, c)), f);
+    }
+}
+
+static void arry_slot_moved(const Arry *const ay, ArrSlot *const s, const Freed *const f)
+{
+    if (s->hdr)
+        s->hdr = arry_moved_hdr(ay, f, s->hdr);
+}
+
 /* The moved string blocks' owners follow. */
 static void arry_follow_owners(const Arry *const ay, const Freed *const f)
 {
@@ -240,9 +283,9 @@ static void arry_follow_owners(const Arry *const ay, const Freed *const f)
 
 uint32_t arry_free(Arry *const ay, Vm *const vm, const uint16_t id, const Addr rep)
 {
-    Var *const v = symb_var(ay->symb, id);
-    const Addr h = v->vt;
-    v->vt = 0;
+    ArrSlot *const s = arry_slot(ay, id);
+    const Addr h = s->hdr;
+    s->hdr = 0;
     const ArrayHdr *const a = arry_hdr_at(h);
     const Freed f = {
         .hdr = h,
@@ -267,16 +310,7 @@ uint32_t arry_free(Arry *const ay, Vm *const vm, const uint16_t id, const Addr r
 
     arry_follow_owners(ay, &f);
 
-    for (uint16_t c = ay->symb->nvars; c-- > 1;) {
-        Var *const var = symb_var(ay->symb, c);
-        var->vt =
-            arry_is_array(ay, c) ? arry_moved_hdr(ay, &f, var->vt) : arry_moved_cell(&f, var->vt);
-    }
-
-    for (uint32_t i = 0; i < vm->ncallvars; i++) {
-        CallVar *const cv = &vm->callvars[i];
-        cv->array.hdr = arry_moved_hdr(ay, &f, cv->array.hdr);
-    }
+    arry_each_slot(ay, vm, arry_slot_moved, &f);
 
     for (uint32_t i = 0; i < vm->nframes; i++) { /* the arguments: an element's address */
         const Call *const c = &vm->frames[i].call;
@@ -347,17 +381,15 @@ void arry_keep(Arry *const ay, const uint16_t id, const Addr old_hdr, const Addr
     }
 }
 
+static void arry_slot_rep(const Arry *const ay, ArrSlot *const s, const Freed *const f)
+{
+    if (s->hdr == AREP)
+        s->hdr = f->rep;
+}
+
 void arry_rep(Arry *const ay, Vm *const vm, const uint16_t id)
 {
-    const Addr h = symb_var(ay->symb, id)->vt;
+    const Freed f = {.rep = arry_slot(ay, id)->hdr};
 
-    for (uint16_t c = ay->symb->nvars; c-- > 1;)
-        if (symb_var(ay->symb, c)->vt == AREP)
-            symb_var(ay->symb, c)->vt = h;
-    for (uint32_t i = 0; i < vm->ncallvars; i++) {
-        CallVar *const cv = &vm->callvars[i];
-
-        if (cv->array.hdr == AREP)
-            cv->array.hdr = h;
-    }
+    arry_each_slot(ay, vm, arry_slot_rep, &f);
 }

@@ -448,27 +448,28 @@ void stmt_dim(Session *const S)
         S->arry.lbounds[i] = (int16_t)lo;
     }
 
-    Var *const v = symb_var(&S->symb, id);
+    ArrSlot *const s =
+        arry_slot(&S->arry, id); /* in the symbols or the frame: arry_free keeps it */
 
     if (!(flags & DIM_REDIM)) {
-        if (!(flags & DIM_STATIC) || !v->vt) /* a STATIC's, dimensioned: kept */
+        if (!(flags & DIM_STATIC) || !s->hdr) /* a STATIC's, dimensioned: kept */
             arry_dim(&S->arry, id, dims, false);
 
         return;
     }
 
-    const Addr old = v->vt;            /* REDIM: the old one goes */
+    const Addr old = s->hdr;           /* REDIM: the old one goes */
     if (old && flags & DIM_PRESERVE) { /* the new one made, the old one's elements copied */
         if (dims != ((const ArrayHdr *)at(old))->dims)
             arry_bad_sub(&S->arry);
 
-        v->vt = 0;
+        s->hdr = 0;
         arry_dim(&S->arry, id, dims, true);
-        const Addr fresh = symb_var(&S->symb, id)->vt;
+        const Addr fresh = s->hdr;
         arry_keep(&S->arry, id, old, fresh);
-        symb_var(&S->symb, id)->vt = old;
+        s->hdr = old;
         const uint32_t freed = arry_free(&S->arry, &S->vm, id, AREP);
-        symb_var(&S->symb, id)->vt = fresh - freed; /* its header was after the old one's */
+        s->hdr = fresh - freed; /* its header was after the old one's */
     } else {
         if (old)
             arry_free(&S->arry, &S->vm, id, AREP);
@@ -483,11 +484,12 @@ void stmt_dim(Session *const S)
 void stmt_erase(Session *const S)
 {
     const uint16_t id = (uint16_t)exec_pop(&S->vm).u;
-    const Addr hdr = symb_var(&S->symb, id)->vt;
+    const ArrSlot s = *arry_slot(&S->arry, id);
+    const Addr hdr = s.hdr;
 
     if (!hdr)
         return;
-    if (symb_varx(&S->symb, id)->dyn)
+    if (s.dyn)
         arry_free(&S->arry, &S->vm, id, 0);
     else
         copy_zero(((const ArrayHdr *)at(hdr))->data, arry_size(&S->arry, id, hdr));
@@ -515,7 +517,6 @@ void stmt_rungo(Session *const S, const uint32_t line)
     S->vm.err.line = 0;
     S->vm.nframes = 0;
     S->vm.fp = 0;
-    S->vm.ncallvars = 0;
     S->strg.tmp_floor = 0;
     flow_jump(S, line);
 }

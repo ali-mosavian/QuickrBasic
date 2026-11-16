@@ -61,8 +61,8 @@
 <text x="853.0" y="426.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#292524" text-anchor="middle">CALL</text>
 <rect x="887.1999999999999" y="408" width="60.0" height="28" rx="6" fill="#ffffff" stroke="#78716c" stroke-opacity="0.55"/>
 <text x="917.1999999999999" y="426.5" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#292524" text-anchor="middle">EVENT</text>
-<text x="706" y="466" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="start">vm.frames; a call&#x27;s params and</text>
-<text x="706" y="482" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="start">locals set aside on vm.callvars</text>
+<text x="706" y="466" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="start">vm.frames; a call&#x27;s args and</text>
+<text x="706" y="482" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="start">locals on the data stack (vm.fp)</text>
 <path d="M650,320 L688,230" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
 <path d="M650,360 L688,420" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
 <rect x="32" y="512" width="936" height="56" rx="10" fill="#fff7ed" stroke="#ea580c" stroke-width="1.25"/>

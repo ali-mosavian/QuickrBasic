@@ -118,10 +118,9 @@ Addr session_cell(
     const int32_t par
 )
 {
-    if (symb_var(&S->symb, id)->info & VI_ARR) /* its header, the newest call's */
-        return symb_var(&S->symb, id)->vt;
-
-    return flow_cell(&S->symb, f->call < 0 ? 0 : S->vm.frames[f->call].call.fp, id);
+    const Addr c = flow_cell(&S->symb, f->call < 0 ? 0 : S->vm.frames[f->call].call.fp, id);
+    return symb_var(&S->symb, id)->info & VI_ARR ? ((const ArrSlot *)at(c))->hdr
+                                                 : c; /* its header */
 }
 
 bool session_in_direct(const Session *const S)
@@ -151,7 +150,6 @@ void session_clear(Session *const S)
     S->arry.hdr = S->allo.hdr_base;
     S->strg.tmp_used = 0;
     S->strg.tmp_floor = 0;
-    S->vm.ncallvars = 0;
     stmt_restore(S);
 }
 
