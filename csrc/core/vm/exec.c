@@ -257,15 +257,9 @@ static inline Status hot_f_ld_f32(Regs *const r) { return hot_i_ld_i32(r); }
         r = (Regs){code, t.sp, t.fp};                                                              \
     }                                                                                              \
     goto next;
-#define CMPIF_AT(name, handler, src, rel)                                                          \
-    if (h == handler)                                                                              \
-        at_op[i] = &&cmpif_##name;
 
 /* An INT compare-and-branch: its compare true, past it; else JF's jump, a stop and a jump not
    resolved its handler's. */
-#define JFC_AT(name, src)                                                                          \
-    if (h == flow_##name)                                                                          \
-        at_op[i] = &&name;
 #define JFC_RUN(name, src)                                                                         \
     name: {                                                                                        \
         Regs t = {r.ip + 1, r.sp, r.fp};                                                           \
@@ -287,6 +281,46 @@ static inline Status hot_f_ld_f32(Regs *const r) { return hot_i_ld_i32(r); }
     }                                                                                              \
     goto next;
 
+/* A handler and the label exec_loop runs its ops at. */
+typedef struct {
+    Handler *h;
+    void *at;
+} HotAt;
+
+/* Each op's label, by its handler's entry in hot (to the null handler's, cold's); EOL.TO's eol_to.
+   A hash of the handlers: comparing each op's against each entry ran 190K instructions a run. */
+static void label_ops(void *at_op[static 256], const HotAt *const hot, void *const eol_to)
+{
+    enum { SLOTS = 512 };
+
+    const HotAt *slot[SLOTS] = {};
+
+    uint32_t n = 0;
+
+    for (; hot[n].h; n++) {
+        uint32_t s = (uint32_t)((uintptr_t)hot[n].h >> 2) * 2654435761u >> 23;
+
+        while (slot[s] && slot[s]->h != hot[n].h)
+            s = (s + 1) & (SLOTS - 1);
+
+        slot[s] = &hot[n]; /* a handler listed again: the later entry's, as the ifs had it */
+    }
+
+    for (uint32_t i = 0; i < 256; i++) {
+        Handler *const h = i < O_NOPS ? ops[i] : nullptr;
+        uint32_t s = (uint32_t)((uintptr_t)h >> 2) * 2654435761u >> 23;
+        at_op[i] = hot[n].at;
+
+        for (; h && slot[s]; s = (s + 1) & (SLOTS - 1))
+            if (slot[s]->h == h) {
+                at_op[i] = slot[s]->at;
+                break;
+            }
+    }
+
+    at_op[O_EOL_TO] = eol_to;
+}
+
 /* The loop: ip and sp in registers (r), a hot op inline, the rest through the ops table with
    vm.ip, vm.sp and vm.opip stored around it. */
 [[noreturn, gnu::noinline]]
@@ -295,70 +329,47 @@ static void exec_loop(Session *const S)
     Vm *const v = &S->vm;
     static void *at_op[256]; /* each op's label: its hot code, else cold */
 
-    if (!at_op[0]) {
-        for (uint32_t i = 0; i < countof(at_op); i++) {
-            Handler *const h = i < O_NOPS ? ops[i] : nullptr;
-            at_op[i] = &&cold;
-#define HOT_EACH(name, handler, size)                                                              \
-    if (h == handler)                                                                              \
-        at_op[i] = &&hot_##name;
-            HOT_ALL()
+    if (!at_op[0])
+        label_ops(
+            at_op,
+            (const HotAt[]){
+#define HOT_EACH(name, handler, size) {handler, &&hot_##name},
+#define CMPIF_EACH(name, handler, src, rel) {handler, &&cmpif_##name},
+#define JFC_EACH(name, src) {flow_##name, &&name},
+                HOT_ALL() HOT_CMPIFS(CMPIF_EACH) HOT_JFCS(JFC_EACH)
 #undef HOT_EACH
-            HOT_CMPIFS(CMPIF_AT)
-
-            if (h == flow_i_jt)
-                at_op[i] = &&i_jt;
-
-            if (h == flow_f_jf)
-                at_op[i] = &&f_jf;
-            if (h == flow_f_jt)
-                at_op[i] = &&f_jt;
-            if (h == flow_jmp)
-                at_op[i] = &&jmp;
-            if (h == oper_i_if)
-                at_op[i] = &&i_if;
-            if (h == oper_f_if)
-                at_op[i] = &&f_if;
-            if (h == flow_nextln)
-                at_op[i] = &&nxln;
-            if (h == flow_gosub)
-                at_op[i] = &&gosub;
-            if (h == flow_return)
-                at_op[i] = &&ret;
-            if (h == flow_pcall)
-                at_op[i] = &&pcall;
-            if (h == flow_pret)
-                at_op[i] = &&pret;
-            if (h == flow_pret_fv)
-                at_op[i] = &&pret_fv;
-            if (h == flow_pret_fl)
-                at_op[i] = &&pret_fl;
-
-            if (h == flow_i_jf)
-                at_op[i] = &&i_jf;
-
-            if (h == flow_i_next_up)
-                at_op[i] = &&i_next_up;
-            if (h == flow_i_next_dn)
-                at_op[i] = &&i_next_dn;
-
-            HOT_JFCS(JFC_AT)
-
-            if (h == flow_eol)
-                at_op[i] = i == O_EOL_TO ? &&eol_to : &&eol;
-
-            if (h == dbug_dbg)
-                at_op[i] = &&dbg;
-            if (h == exec_i_ld_a1 || h == exec_f_ld_a1)
-                at_op[i] = &&i_ld_a1;
-            if (h == exec_i_st_a1 || h == exec_f_st_a1)
-                at_op[i] = &&i_st_a1;
-            if (h == exec_i_ld_a1f || h == exec_f_ld_a1f)
-                at_op[i] = &&i_ld_a1f;
-            if (h == exec_i_st_a1f || h == exec_f_st_a1f)
-                at_op[i] = &&i_st_a1f;
-        }
-    }
+#undef CMPIF_EACH
+#undef JFC_EACH
+                    {flow_i_jt, &&i_jt},
+                {flow_f_jf, &&f_jf},
+                {flow_f_jt, &&f_jt},
+                {flow_jmp, &&jmp},
+                {oper_i_if, &&i_if},
+                {oper_f_if, &&f_if},
+                {flow_nextln, &&nxln},
+                {flow_gosub, &&gosub},
+                {flow_return, &&ret},
+                {flow_pcall, &&pcall},
+                {flow_pret, &&pret},
+                {flow_pret_fv, &&pret_fv},
+                {flow_pret_fl, &&pret_fl},
+                {flow_i_jf, &&i_jf},
+                {flow_i_next_up, &&i_next_up},
+                {flow_i_next_dn, &&i_next_dn},
+                {flow_eol, &&eol},
+                {dbug_dbg, &&dbg},
+                {exec_i_ld_a1, &&i_ld_a1},
+                {exec_f_ld_a1, &&i_ld_a1},
+                {exec_i_st_a1, &&i_st_a1},
+                {exec_f_st_a1, &&i_st_a1},
+                {exec_i_ld_a1f, &&i_ld_a1f},
+                {exec_f_ld_a1f, &&i_ld_a1f},
+                {exec_i_st_a1f, &&i_st_a1f},
+                {exec_f_st_a1f, &&i_st_a1f},
+                {nullptr, &&cold},
+            },
+            &&eol_to
+        );
 
     Regs r = {v->ip, v->sp, v->fp};
 
