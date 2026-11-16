@@ -6,7 +6,7 @@
     bench.py size [REV] [--functions]            the DOS executables' loaded bytes, REV's (default HEAD) and ours
     bench.py gate [--save]                       the suite and sizes against tools/bench/baseline.json
     bench.py qbasic                              qbasic/BENCH.BAS in QBasic 1.1 and our IDE under DOSBox
-    bench.py profile FILE.bas | -e CODE [-n N] [--link]  DOS: the functions a program spends its
+    bench.py profile FILE.bas | -e CODE [-n N] [--link | --ide]  DOS: the functions a program spends its
                                                  instructions in; --link: RUN's link alone
 
 Native (the default) runs build/hostperf/basic for retired instructions, the least of RUNS runs less
@@ -399,17 +399,20 @@ def with_statics(listing: str, objs: list[Path]) -> str:
     return "\n".join(out) + "\n"
 
 
-def profiled(b: Build, d: Path) -> Path:
-    """b's basic32 relinked in d with a map that names its static functions too."""
-    db = subprocess.run(["make", "-pnq", "cbasic32"], cwd=b.root, capture_output=True, text=True).stdout
-    m = re.search(r"^COBJ := (.*)$", db, re.M)
+def profiled(b: Build, d: Path, ide: bool = False) -> Path:
+    """b's basic32 (ide: ide32) relinked in d with a map that names its static functions too."""
+    var = "CIDE_OBJ" if ide else "COBJ"
+    db = subprocess.run(
+        ["make", "-pnq", "cide32" if ide else "cbasic32"], cwd=b.root, capture_output=True, text=True
+    ).stdout
+    m = re.search(rf"^{var} := (.*)$", db, re.M)
     if not m:
-        sys.exit("profile: make printed no COBJ")
+        sys.exit(f"profile: make printed no {var}")
     objs = [b.root / o for o in m.group(1).split()]
     sys.path.insert(0, str(Path(os.environ.get("LLRM", Path.home() / "work/personal/llrm-next")) / "tools/dosbatch"))
     import dosbatch  # ty: ignore[import-not-found]
 
-    exe = d / "basic32.exe"
+    exe = d / ("ide32.exe" if ide else "basic32.exe")
     listing = exe.with_suffix(".map")
     dosbatch.link_target(
         "x86-m32",
@@ -428,12 +431,21 @@ def profiled(b: Build, d: Path) -> Path:
 def cmd_profile(a: argparse.Namespace) -> int:
     """The DOS build relinked with a map, DOSBox's profiler naming each function's own instructions:
     the program's less an empty one's. --link: its lines typed, then RUN, less them typed alone: the
-    link before the run (a numbered program that ENDs at once)."""
+    link before the run (a numbered program that ENDs at once). --ide: the IDE's open of the file,
+    left waiting for keys till --ms, less an empty file's."""
     text = program(a)
     jobs: dict[str, str | tuple] = {"": text, "prog": text + "\nRUN\n"} if a.link else {"": "", "prog": text}
     with tempfile.TemporaryDirectory() as d:
-        x86run.COM = profiled(build(".", True), Path(d))
-        r = x86run.run(jobs, Path(d) / "w", limit_ms=600000, file=not a.link, profile=True)
+        x86run.COM = profiled(build(".", True), Path(d), a.ide)
+        r = x86run.run(
+            jobs,
+            Path(d) / "w",
+            limit_ms=a.ms if a.ide else 600000,
+            file=not a.link,
+            profile=True,
+            keyboard=a.ide,
+            screen=a.ide,
+        )
     base, got = r[""].selfs, r["prog"].selfs
     own = {f: n - base.get(f, 0) for f, n in got.items() if n > base.get(f, 0)}
     total = sum(own.values())
@@ -472,6 +484,8 @@ def main() -> int:
     p.add_argument("-e")
     p.add_argument("-n", type=int, default=25)
     p.add_argument("--link", action="store_true", help="RUN's link alone, the lines typed")
+    p.add_argument("--ide", action="store_true", help="the IDE's open of the file")
+    p.add_argument("--ms", type=int, default=30000, help="--ide: the emulated time each run is given")
     a = ap.parse_args()
     return {
         "run": cmd_run,
