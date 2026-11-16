@@ -72,6 +72,14 @@ CFLAGS := --target=i386-pc-win32 -march=i386 -mregparm=3 -std=c23 $(CC_OPT) -ffr
 	-DARENA_AT_ZERO=1 -Wall -Wextra -Wno-unused-parameter -isystem csrc/lib/include \
 	-Icsrc -Icsrc/core
 COWN := $(foreach f,memcpy memmove memset,--redefine-sym _$(f)=_lib_$(f))
+# GCC=1: i686-elf-gcc, its assembly made COFF (tools/gas2coff.py) and assembled by clang, in build/cgcc
+GCC_CC ?= i686-elf-gcc
+B := $(if $(GCC),build/cgcc,build/c)
+GFLAGS = $(filter-out --target=i386-pc-win32 -mno-stack-arg-probe -mstack-alignment=4,$1) \
+	-mpreferred-stack-boundary=2 -fleading-underscore -fno-pic \
+	-fno-delete-null-pointer-checks --param=min-pagesize=0 # the arena and BIOS data start at address 0
+cc = $(if $(GCC),$(GCC_CC) $(GFLAGS) -S $< -o $@.s && $(PY) tools/gas2coff.py $@.s $@.s && \
+	$(CLANG) --target=i386-pc-win32 -march=i386 -c $@.s -o $@,$(CLANG) $1 -c $< -o $@)
 
 # llrm's QB runtime (graphics, sound), ours since llrm-next f4197e19b2 (csrc/qbrt/llrm): the portable
 # part, then each target's
@@ -85,23 +93,23 @@ QBRT_DASM := $(addprefix qb/dev/dos/m32/,bios.asm gdcirc.asm gdfill.asm gdline.a
 	ports.asm tick.asm) qb/dos/m32/block.asm
 QBRT_DINC := -Icsrc/qbrt/include $(addprefix -I$(QBRT)/qb/,dos/m32 . dev dev/dos/m32 dev/dos) \
 	-I$(QBRT)/os/x86-m32
-QBRT_DOBJ := $(QBRT_DSRC:%.c=build/c/qbrt/%.obj) $(QBRT_DASM:%.asm=build/c/qbrt/%.obj) \
-	build/c/obj/qbrt/qbrt.obj build/c/obj/qbrt/qbrt_dos.obj
-build/c/qbrt/names.h: $(QBRT)/qb/dev/dos/m32/device.h $(QBRT)/qb/dev/dos/m32/devsym.h
+QBRT_DOBJ := $(QBRT_DSRC:%.c=$(B)/qbrt/%.obj) $(QBRT_DASM:%.asm=$(B)/qbrt/%.obj) \
+	$(B)/obj/qbrt/qbrt.obj $(B)/obj/qbrt/qbrt_dos.obj
+$(B)/qbrt/names.h: $(QBRT)/qb/dev/dos/m32/device.h $(QBRT)/qb/dev/dos/m32/devsym.h
 	@mkdir -p $(@D)
 	sed -n 's/^#pragma aux \([a-z_0-9]*\) "\(B\$$[A-Z0-9]*\)"/#pragma redefine_extname \1 \2/p' $^ > $@
 	echo '#pragma redefine_extname music_tick B$$MUSICTICK' >> $@
-build/c/qbrt/%.obj: $(QBRT)/%.c build/c/qbrt/names.h
+	echo 'void music_tick(void); /* gcc renames a declaration, not a first definition */' >> $@
+$(B)/qbrt/%.obj: $(QBRT)/%.c $(B)/qbrt/names.h
 	@mkdir -p $(@D)
-	$(CLANG) $(subst -std=c23,-std=gnu11,$(CFLAGS)) -w -D__cdecl= -include build/c/qbrt/names.h $(QBRT_DINC) \
-		-c $< -o $@
+	$(call cc,$(subst -std=c23,-std=gnu11,$(CFLAGS)) -w -D__cdecl= -include $(B)/qbrt/names.h $(QBRT_DINC))
 	$(OBJCOPY) $(COWN) $@
-build/c/qbrt/%.obj: $(QBRT)/%.asm
+$(B)/qbrt/%.obj: $(QBRT)/%.asm
 	@mkdir -p $(@D)
 	$(LLRM)/target/release/jwasm -q -coff -I$(QBRT)/qb/dev/dos/m32 -Fo$@ $<
-build/c/obj/qbrt/%.obj: csrc/qbrt/%.c $(CHDR) build/c/qbrt/names.h
+$(B)/obj/qbrt/%.obj: csrc/qbrt/%.c $(CHDR) $(B)/qbrt/names.h
 	@mkdir -p $(@D)
-	$(CLANG) $(CFLAGS) -D__cdecl= -include build/c/qbrt/names.h $(subst -I,-isystem ,$(QBRT_DINC)) -c $< -o $@
+	$(call cc,$(CFLAGS) -D__cdecl= -include $(B)/qbrt/names.h $(subst -I,-isystem ,$(QBRT_DINC)))
 	$(OBJCOPY) $(COWN) $@
 
 CSRC := $(shell find csrc/core csrc/lib -name '*.c' -not -path 'csrc/core/ui/*') \
@@ -109,9 +117,9 @@ CSRC := $(shell find csrc/core csrc/lib -name '*.c' -not -path 'csrc/core/ui/*')
 CUI := $(shell find csrc/core/ui -name '*.c' 2>/dev/null)
 CASM := $(wildcard csrc/plat/dos32/*.asm)
 CHDR := $(shell find csrc -name '*.h' -o -name '*.def')
-CCORE := $(CSRC:csrc/%.c=build/c/obj/%.obj) $(CASM:csrc/%.asm=build/c/obj/%.obj) $(QBRT_DOBJ)
-COBJ := $(CCORE) build/c/obj/app/basic32.obj
-CIDE_OBJ := $(CCORE) $(CUI:csrc/%.c=build/c/obj/%.obj) build/c/obj/app/ide32.obj
+CCORE := $(CSRC:csrc/%.c=$(B)/obj/%.obj) $(CASM:csrc/%.asm=$(B)/obj/%.obj) $(QBRT_DOBJ)
+COBJ := $(CCORE) $(B)/obj/app/basic32.obj
+CIDE_OBJ := $(CCORE) $(CUI:csrc/%.c=$(B)/obj/%.obj) $(B)/obj/app/ide32.obj
 C_LINK = python3 -I $(LLRM)/tools/dosbatch/link_objects.py x86-m32
 
 .PHONY: c cbasic32 cide32 ctest cstyle
@@ -119,26 +127,26 @@ cstyle:                         # formats the C sources (tools/cfmt.py)
 	git ls-files 'csrc/*.[ch]' 'tests/*.[ch]' | grep -v -e qbrt/llrm/ -e comp/dfa.h -e io/gen.h -e io/msg.h | xargs $(PY) tools/cfmt.py
 c: cbasic32 cide32
 
-build/c/obj/core/ui/%.obj: csrc/core/ui/%.c $(CHDR)   # the editor: AC, its Tab completion
+$(B)/obj/core/ui/%.obj: csrc/core/ui/%.c $(CHDR)   # the editor: AC, its Tab completion
 	@mkdir -p $(@D)
-	$(CLANG) $(CFLAGS) -DAC=$(AC) -c $< -o $@
+	$(call cc,$(CFLAGS) -DAC=$(AC))
 	$(OBJCOPY) $(COWN) $@
-build/c/obj/%.obj: csrc/%.c $(CHDR)
+$(B)/obj/%.obj: csrc/%.c $(CHDR)
 	@mkdir -p $(@D)
-	$(CLANG) $(CFLAGS) -c $< -o $@
+	$(call cc,$(CFLAGS))
 	$(OBJCOPY) $(COWN) $@
-build/c/obj/%.obj: csrc/%.asm
+$(B)/obj/%.obj: csrc/%.asm
 	@mkdir -p $(@D)
 	$(LLRM)/target/release/jwasm -q -zf0 -Fo $@ $<
 
 cbasic32: $(COBJ)
-	$(C_LINK) $(abspath build/c/basic32.exe) $(abspath $(COBJ))
-	$(PY) tools/x86d32a.py $(DOS32A)/dos32a.exe build/c/DOS32A.EXE
+	$(C_LINK) $(abspath $(B)/basic32.exe) $(abspath $(COBJ))
+	$(PY) tools/x86d32a.py $(DOS32A)/dos32a.exe $(B)/DOS32A.EXE
 
 cide32: $(CIDE_OBJ)
-	$(C_LINK) $(abspath build/c/ide32.exe) $(abspath $(CIDE_OBJ))
-	cp src/ui/basic.hlp build/c/BASIC.HLP
-	$(PY) tools/x86d32a.py $(DOS32A)/dos32a.exe build/c/DOS32A.EXE
+	$(C_LINK) $(abspath $(B)/ide32.exe) $(abspath $(CIDE_OBJ))
+	cp src/ui/basic.hlp $(B)/BASIC.HLP
+	$(PY) tools/x86d32a.py $(DOS32A)/dos32a.exe $(B)/DOS32A.EXE
 
 # ---- LTO (make clto): the C objects as bitcode (build/clto), one module optimized whole by
 # tools/clto.py, linked with the asm's objects: build/clto/basic32.exe and ide32.exe. PGO=1: what
@@ -271,10 +279,12 @@ chosttest: chost chostperf cunit cgolden  # the unit tests and the suites agains
 	$(PY) tools/pterm_test.py build/host/basic
 	$(PY) tools/bench_test.py
 
-ctest:                          # the suites against the C build
-	X86_COM=build/c/basic32.exe $(PY) tools/x86f_test.py build/c/basic32.exe
-	X86_COM=build/c/basic32.exe $(PY) tools/qbconf.py
-	$(PY) tools/x86fold_test.py build/c/basic32.exe
-	X86_COM=build/c/basic32.exe $(PY) tools/x86cost_test.py build/c/basic32.exe
-	X86_COM=build/c/basic32.exe $(PY) tools/x86gfx_test.py
-	X86_IDE=build/c/ide32.exe $(PY) tools/x86ide_test.py
+ctest:                          # the suites against the C build (GCC=1: gcc's)
+	$(PY) tools/chelpers_test.py
+	cd tools && $(PY) gas2coff_test.py
+	X86_COM=$(B)/basic32.exe $(PY) tools/x86f_test.py $(B)/basic32.exe
+	X86_COM=$(B)/basic32.exe $(PY) tools/qbconf.py
+	$(PY) tools/x86fold_test.py $(B)/basic32.exe
+	X86_COM=$(B)/basic32.exe $(PY) tools/x86cost_test.py $(B)/basic32.exe
+	X86_COM=$(B)/basic32.exe $(PY) tools/x86gfx_test.py
+	X86_IDE=$(B)/ide32.exe $(PY) tools/x86ide_test.py

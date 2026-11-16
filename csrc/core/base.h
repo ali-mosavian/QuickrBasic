@@ -21,6 +21,10 @@
    segment's 0: an Addr is the address, as VARPTR and PEEK see it. */
 typedef uint32_t Addr;
 
+#if !__has_builtin(__builtin_assume) /* gcc */
+#define __builtin_assume(x) ((x) ? (void)0 : __builtin_unreachable())
+#endif
+
 /* The type whose member p points to. */
 #define container_of(p, type, member) ((type *)((uint8_t *)(p) - offsetof(type, member)))
 
@@ -88,11 +92,16 @@ typedef union {
 } Cell;
 static_assert(sizeof(Cell) == 8);
 
-typedef Cell __attribute__((aligned(1), may_alias)) AnyCell;
+/* The 8 bytes at p as a Cell, and back. A copy, not an aligned(1) may_alias typedef: gcc drops
+   those attributes on a union already defined. */
+static inline Cell load_cell(const void *const p)
+{
+    Cell c;
+    __builtin_memcpy(&c, p, sizeof c);
+    return c;
+}
 
-/* The 8 bytes at p as a Cell, and back. */
-static inline Cell load_cell(const void *const p) { return *(const AnyCell *)p; }
-static inline void store_cell(void *const p, const Cell c) { *(AnyCell *)p = c; }
+static inline void store_cell(void *const p, const Cell c) { __builtin_memcpy(p, &c, sizeof c); }
 
 /* A record laid out byte for byte as the asm's struc: no padding. */
 #define PACKED [[gnu::packed]]
