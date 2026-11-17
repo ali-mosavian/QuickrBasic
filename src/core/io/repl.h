@@ -27,12 +27,13 @@ typedef struct {
 enum { C_HEAP = 0x60000 }; /* the batch's C side: the compiler's and the run's buffers */
 
 typedef struct {
-    const FrontEnd *fe; /* boot's */
-    jmp_buf *top;       /* the innermost repl_call's: every unwind but a trap's and a stage's */
-    uint8_t err;        /* REPL_ERROR's error, E_* */
-    uint16_t fline;     /* loading a file: its line, for a warning */
-    bool loading;       /* loading a file: every line is stored, at the end */
-    bool batch;         /* a file run: its end exits */
+    const FrontEnd *fe;   /* boot's */
+    jmp_buf *top;         /* the innermost repl_call's: every unwind but a trap's and a stage's */
+    uint8_t err;          /* REPL_ERROR's error, E_* */
+    uint16_t fline;       /* loading a file: its line, for a warning */
+    bool loading;         /* loading a file: every line is stored, at the end */
+    bool batch;           /* a file run: its end exits */
+    bool checking;        /* --check's: the file compiled, not run */
     char file[PFIL_PATH]; /* the command line's file name; CHAIN's */
     char incl[PFIL_PATH]; /* an '$INCLUDE's */
 } Repl;

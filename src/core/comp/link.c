@@ -559,22 +559,34 @@ void link_check(Comp *const C)
     fault_raise(C->fault, (Failure){.code = m.code, .line = m.line, .at = m.at});
 }
 
-/* The first line's compile error, raised before the run, as BC's; none: back. */
-static void compile_errors(Comp *const C)
+/* Each line's compile errors to each, in program order; how many. */
+static uint32_t each_error(const Comp *const C, LinkEach *const each, void *const ctx)
 {
+    uint32_t n = 0;
+
     for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len) {
         const uint8_t *op = at(C->allo->cache + prog_line(C->prog, l)->code);
 
         for (; !line_end(*op); op += link_opsize(op))
             if (*op == O_ERR) {
                 const ErrOp *const e = (const ErrOp *)op;
-                fault_raise(
-                    C->fault,
-                    (Failure){.code = e->code, .dg = e->dg, .at = e->at, .line = l, .op = op}
-                );
+                const Failure f = {
+                    .code = e->code,
+                    .dg = e->dg,
+                    .at = e->at,
+                    .line = l,
+                    .op = op,
+                };
+
+                each(ctx, &f);
+                n++;
             }
     }
+
+    return n;
 }
+
+static void raise_one(void *const fault, const Failure *const f) { fault_raise(fault, *f); }
 
 void link_walk(const uint8_t *code, void (*each)(uint8_t op, const uint8_t *at))
 {
@@ -582,12 +594,9 @@ void link_walk(const uint8_t *code, void (*each)(uint8_t op, const uint8_t *at))
         each(*code, code);
 }
 
-void link_start(Comp *const C)
+/* Blocks paired, every line compiled and resolved; the ledger holds what was not found. */
+static void build(Comp *const C)
 {
-    C->check = false; /* a check an error left */
-    if (C->link->linked)
-        return;
-
     symb_size(C->symb, C->prog);
     fold_clear(C);
     blok_pair(C->blok, C->prog, C->symb, C->fault);
@@ -609,8 +618,31 @@ void link_start(Comp *const C)
 
     for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)
         link_resolve(C, l, prog_line(C->prog, l)->code);
+}
 
-    compile_errors(C); /* not linked: the next run reports it again */
+void link_start(Comp *const C)
+{
+    C->check = false; /* a check an error left */
+    if (C->link->linked)
+        return;
+
+    build(C);
+    each_error(C, raise_one, C->fault); /* not linked: the next run reports it again */
     link_check(C);
     C->link->linked = true;
+}
+
+uint32_t link_report(Comp *const C, LinkEach *const each, void *const ctx)
+{
+    C->check = false;
+    build(C);
+    const uint32_t n = each_error(C, each, ctx) + C->link->nmiss;
+
+    for (uint32_t i = 0; i < C->link->nmiss && i < LINK_MISSES; i++) {
+        const LinkMiss m = C->link->miss[i];
+        each(ctx, &(Failure){.code = m.code, .line = m.line, .at = m.at});
+    }
+
+    C->link->nmiss = 0;
+    return n;
 }
