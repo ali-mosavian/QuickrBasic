@@ -3,8 +3,12 @@
  * # How it works
  * argv, environ, SIGINT as the STOP key, SHELL through /bin/sh.
  */
+#ifdef __linux__
+#include <unistd.h>
+#else
 #include <crt_externs.h>
 #include <mach-o/dyld.h>
+#endif
 #include <signal.h>
 #include <spawn.h>
 #include <stdlib.h>
@@ -51,10 +55,28 @@ static uint32_t append(char *const buf, const uint32_t cap, uint32_t n, const ch
     return n;
 }
 
+#ifdef __linux__
+static int args_n;
+static char **args;
+
+/* glibc passes main's arguments to the constructors too. */
+[[gnu::constructor]]
+static void save_args(const int argc, char **const argv)
+{
+    args_n = argc;
+    args = argv;
+}
+#endif
+
 uint32_t psys_cmdline(char *const buf, const uint32_t cap)
 {
+#ifdef __linux__
+    const int argc = args_n;
+    char **const argv = args;
+#else
     const int argc = *_NSGetArgc();
     char **const argv = *_NSGetArgv();
+#endif
     uint32_t n = 0;
     buf[0] = 0;
 
@@ -82,12 +104,22 @@ uint32_t psys_environ(char *const buf, const uint32_t cap)
 
 uint32_t psys_self(char *const buf, const uint32_t cap)
 {
+#ifdef __linux__
+    const ssize_t n = readlink("/proc/self/exe", buf, cap - 1);
+
+    if (n < 0)
+        return 0;
+
+    buf[n] = 0;
+    return (uint32_t)n;
+#else
     uint32_t size = cap;
 
     if (_NSGetExecutablePath(buf, &size))
         return 0;
 
     return (uint32_t)strlen(buf);
+#endif
 }
 
 /* COMSPEC's shell is /bin/sh, its environment env; any other program does not run. */
