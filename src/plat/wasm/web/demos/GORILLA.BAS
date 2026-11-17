@@ -37,6 +37,7 @@ DECLARE SUB UpdateScores (Record(), PlayerNum, Results)
 DECLARE SUB DrawGorilla (x, y, arms)
 DECLARE SUB GorillaIntro (Player1$, Player2$)
 DECLARE SUB Rest (t#)
+DECLARE SUB Frame ()
 DECLARE SUB VictoryDance (Player)
 DECLARE SUB ClearGorillas ()
 DECLARE SUB DrawBan (xc#, yc#, r, bc)
@@ -46,7 +47,6 @@ DECLARE FUNCTION DoShot (PlayerNum, x, y)
 DECLARE FUNCTION ExplodeGorilla (x#, y#)
 DECLARE FUNCTION Getn# (Row, Col)
 DECLARE FUNCTION PlotShot (StartX, StartY, Angle#, Velocity, PlayerNum)
-DECLARE FUNCTION CalcDelay! ()
 
 'Make all arrays Dynamic
 '$DYNAMIC
@@ -100,7 +100,6 @@ DIM SHARED SunHit
 
 DIM SHARED SunHt
 DIM SHARED GHeight
-DIM SHARED MachSpeed AS SINGLE
 
   DEF FnRan (x) = INT(RND(1) * x) + 1
   DEF SEG = 0                         ' Set NumLock to ON
@@ -153,8 +152,6 @@ InitVars:
   IF Mode = 9 THEN PALETTE 4, 0   'Check for 64K EGA
   ON ERROR GOTO 0
 
-  MachSpeed = CalcDelay
-
   IF Mode = 9 THEN
     ScrWidth = 640
     ScrHeight = 350
@@ -202,7 +199,6 @@ InitVars:
       READ RBan&(i)
     NEXT i
 
-    MachSpeed = MachSpeed * 1.3
     SunHt = 20
   END IF
 RETURN
@@ -223,18 +219,6 @@ PaletteError:
   RESUME NEXT
 
 REM $STATIC
-'CalcDelay:
-'  Checks speed of the machine.
-FUNCTION CalcDelay!
-
-  s! = TIMER
-  DO
-    i! = i! + 1
-  LOOP UNTIL TIMER - s! >= .5
-  CalcDelay! = i!
-
-END FUNCTION
-
 ' Center:
 '   Centers and prints a text string on a given row
 ' Parameters:
@@ -245,6 +229,15 @@ SUB Center (Row, Text$)
   Col = MaxCol \ 2
   LOCATE Row, Col - (LEN(Text$) / 2 + .5)
   PRINT Text$;
+END SUB
+
+'Frame:
+'  waits for the next 1/60 s step; steps lost to a long pause or midnight are not made up
+SUB Frame
+  STATIC nxt#
+  IF TIMER - nxt# > .1 OR nxt# - TIMER > 1 THEN nxt# = TIMER
+  nxt# = nxt# + 1 / 60
+  DO: LOOP WHILE TIMER < nxt#
 END SUB
 
 ' DoExplosion:
@@ -259,12 +252,13 @@ SUB DoExplosion (x#, y#)
   IF Mode = 9 THEN Inc# = .5 ELSE Inc# = .41
   FOR c# = 0 TO Radius STEP Inc#
     CIRCLE (x#, y#), c#, ExplosionColor
+    Frame
   NEXT c#
   FOR c# = Radius TO 0 STEP (-1 * Inc#)
     CIRCLE (x#, y#), c#, BACKATTR
     FOR i = 1 TO 100
     NEXT i
-    Rest .005
+    Frame
   NEXT c#
 END SUB
 
@@ -467,17 +461,18 @@ FUNCTION ExplodeGorilla (x#, y#)
   FOR i = 1 TO 8 * SclX#
     CIRCLE (GorillaX(PlayerHit) + 3.5 * SclX# + XAdj, GorillaY(PlayerHit) + 7 * SclY# + YAdj), i, ExplosionColor, , , -1.57
     LINE (GorillaX(PlayerHit) + 7 * SclX#, GorillaY(PlayerHit) + 9 * SclY# - i)-(GorillaX(PlayerHit), GorillaY(PlayerHit) + 9 * SclY# - i), ExplosionColor
+    Frame
   NEXT i
 
   FOR i = 1 TO 16 * SclX#
     IF i < (8 * SclX#) THEN CIRCLE (GorillaX(PlayerHit) + 3.5 * SclX# + XAdj, GorillaY(PlayerHit) + 7 * SclY# + YAdj), (8 * SclX# + 1) - i, BACKATTR, , , -1.57
     CIRCLE (GorillaX(PlayerHit) + 3.5 * SclX# + XAdj, GorillaY(PlayerHit) + YAdj), i, i MOD 2 + 1, , , -1.57
+    Frame
   NEXT i
 
   FOR i = 24 * SclX# TO 1 STEP -1
     CIRCLE (GorillaX(PlayerHit) + 3.5 * SclX# + XAdj, GorillaY(PlayerHit) + YAdj), i, BACKATTR, , , -1.57
-    FOR Count = 1 TO 200
-    NEXT
+    Frame
   NEXT i
 
   ExplodeGorilla = PlayerHit
@@ -952,7 +947,7 @@ FUNCTION PlotShot (StartX, StartY, Angle#, Velocity, PlayerNum)
    
   DO WHILE (NOT Impact) AND OnScreen
  
-  Rest .02
+  Frame
 
   'Erase old banana, if necessary
   IF NeedErase THEN
@@ -1022,10 +1017,7 @@ END FUNCTION
 'Rest:
 '  pauses the program
 SUB Rest (t#)
-  s# = TIMER
-  t2# = MachSpeed * t# / SPEEDCONST
-  DO
-  LOOP UNTIL TIMER - s# > t2#
+  s# = TIMER: DO: LOOP WHILE TIMER >= s# AND TIMER - s# < t#
 END SUB
 
 'Scl:
@@ -1099,6 +1091,7 @@ SUB SparklePause
           PRINT " ";
         END IF
       NEXT b
+      Frame
     NEXT A
   WEND
 END SUB

@@ -5,7 +5,7 @@ import { biosKey, shiftFlags } from './keys.mjs';
 import { imports, memory as newMemory, Irq } from './wasm.mjs';
 
 const TICK_MS = 1000 / 18.2065, BLINK_MS = 267;
-const DEMOS = ['WELCOME.BAS', 'GORILLA.BAS'];
+const DEMOS = ['WELCOME.BAS', 'GORILLA.BAS', 'NIBBLES.BAS'];
 const STORE = 'qb:'; // localStorage: STORE + path -> the file in base64
 
 const canvas = document.getElementById('screen');
