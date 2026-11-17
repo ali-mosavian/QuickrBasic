@@ -3,7 +3,9 @@ the loader's ~45M instructions swamped it; under Rosetta the address layout move
 Its DOS profile names static functions: the link map has globals alone, and the lexer's statics
 read as lexr_line's, 19% of a load."""
 
+import os
 import re
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -29,9 +31,41 @@ def profile_map() -> None:
         assert at.get(n) == at["_lexr_line"] - line + off, (n, at.get(n))
 
 
+# Counters that fail, as on the CI VMs: the first symbol found wins over the system's.
+BROKEN = """
+#include <stddef.h>
+int thread_selfcounts(int k, void *p, size_t n) { return 1; }
+long syscall(long n, ...) { return -1; }
+int main(void) { return 0; }
+"""
+
+
+def broken_counter() -> None:
+    """A counter that fails reports so: it read 0, and twice that loop's 0 cost divided by zero."""
+    with tempfile.TemporaryDirectory() as d:
+        exe, stub = Path(d) / "insns", Path(d) / "stub.c"
+        stub.write_text(BROKEN)
+        cc = os.environ.get("CLANG", "clang")
+        subprocess.run(
+            [cc, "-std=c23", str(bench.ROOT / "src/plat/host/app/insns.c"), str(stub), "-o", str(exe)], check=True
+        )
+        err = subprocess.run([str(exe)], env=os.environ | {"QB_INSNS": "1"}, capture_output=True, text=True).stderr
+        assert err == "\ninsns unavailable\n", f"a failed counter reported {err!r}"
+        try:
+            bench.count(exe, stub, "QB_INSNS", b"insns")
+        except bench.NoCounter:
+            return
+        raise AssertionError("bench counted a failed counter")
+
+
 def main() -> int:
+    broken_counter()
     b = bench.build(".", False)  # the tree's own instruments: copying them onto themselves raised
-    r = bench.run_native(b, {"one": loop(1000000), "two": loop(2000000)}, runs=5)
+    try:
+        r = bench.run_native(b, {"one": loop(1000000), "two": loop(2000000)}, runs=5)
+    except bench.NoCounter:
+        print("skipped: no instruction counter")
+        return 0
     ratio = r["two"].insns / r["one"].insns
     assert (r["one"].out, r["two"].out) == ("1000000", "2000000"), r
     assert 1.95 < ratio < 2.05, f"twice the loop cost {ratio:.3f}x"

@@ -133,6 +133,7 @@ host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/h
 	for t in $(TOOLS_TEST); do $(PY) $$t || exit 1; done
 	build/host/unit_tests
 	sh tests/host/longpath.sh build/host/basic
+	sh tests/host/dosname.sh build/host/basic
 	$(PY) tools/golden.py
 	BASIC_EXE=build/host/basic $(PY) tools/regress_test.py build/host/basic
 	BASIC_EXE=build/host/basic $(PY) tools/conformance.py
@@ -144,7 +145,7 @@ host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/h
 
 SDK := $(shell xcrun --show-sdk-path 2>/dev/null)
 HOST_CC ?= $(CLANG)$(if $(SDK), -isysroot $(SDK))
-HOST_CFLAGS := -std=c23 -O1 -g -Wall -Wextra -Wno-unused-parameter -Werror=undef -DARENA_AT_ZERO=0 -DPFIL_PATH=4096 -DEXEC_COUNT \
+HOST_CFLAGS := -std=c23 -D_DEFAULT_SOURCE -O1 -g -Wall -Wextra -Wno-unused-parameter -Werror=undef -DARENA_AT_ZERO=0 -DPFIL_PATH=4096 -DEXEC_COUNT \
 	-Isrc/plat/host/include -Isrc -Isrc/core
 HOST_C := $(shell find src/core -name '*.c' -not -path 'src/core/ui/*') src/core/ui/tree.c src/core/ui/indent.c \
 	$(wildcard src/plat/host/*.c) src/boot.c
@@ -174,21 +175,21 @@ $(eval $(call host_rules,build/hostperf,$(filter-out -O1 -g -DEXEC_COUNT,$(HOST_
 
 host: build/host/basic
 build/host/basic: $(build/host_OBJ) build/host/obj/app/basic32.o build/host/obj/plat/host/app/term.o
-	$(HOST_CC) $^ -o $@
+	$(HOST_CC) $^ -lm -o $@
 build/hostperf/basic: $(build/hostperf_OBJ) build/hostperf/obj/app/basic32.o build/hostperf/obj/plat/host/app/insns.o
-	$(HOST_CC) $^ -o $@
+	$(HOST_CC) $^ -lm -o $@
 
 UNIT_OBJ := $(patsubst tests/unit/%.c,build/host/unit/%.o,$(wildcard tests/unit/*.c))
 build/host/unit/%.o: tests/unit/%.c
 	@mkdir -p $(@D)
 	$(HOST_CC) $(HOST_CFLAGS) $(DEPFLAGS) -c $< -o $@
 build/host/unit_tests: $(build/host_OBJ) $(UNIT_OBJ)
-	$(HOST_CC) $^ -o $@
+	$(HOST_CC) $^ -lm -o $@
 build/host/golden/dump.o: tests/golden/dump.c
 	@mkdir -p $(@D)
 	$(HOST_CC) $(HOST_CFLAGS) $(DEPFLAGS) -c $< -o $@
 build/host/golden_dump: $(build/host_OBJ) build/host/golden/dump.o
-	$(HOST_CC) $^ -o $@
+	$(HOST_CC) $^ -lm -o $@
 
 # ---- LTO: the C as bitcode, one module optimized whole by tools/lto.py (LLVM's tools), linked with the asm's
 # objects into build/lto. PGO=1: what a training run never calls is cold (tools/pgo.py, build/lto/*.hot) ----

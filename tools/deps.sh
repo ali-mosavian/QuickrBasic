@@ -3,6 +3,8 @@
 # build/deps/bin. build: jwasm and jwlink (make runs this). dosbox: the headless DOSBox-X the tests
 # run on. capture: the same with the debug socket's video_start (tools/demo.py).
 # DEPS_CACHE keeps the clones and builds across checkouts (default build/deps/src).
+# jwasm and jwlink are C89: their own bool is a C23 keyword, so CC builds them as gnu17;
+# gcc 14 also rejects jwlink's mismatched pointers.
 set -eu
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 BIN="$ROOT/build/deps/bin"
@@ -30,13 +32,14 @@ built() {
     touch "$dir/.built"
 }
 
+CC17="${CC:-cc} -std=gnu17 -Wno-error=incompatible-pointer-types"
 mkdir -p "$BIN" "$CACHE"
 case "${1:-build}" in
 build)
     clone JWasm $JWASM "$CACHE/JWasm-$JWASM"
-    built "$CACHE/JWasm-$JWASM" make -s -f GccUnix.mak
+    built "$CACHE/JWasm-$JWASM" make -s -f GccUnix.mak CC="$CC17"
     clone JWlink $JWLINK "$CACHE/JWlink-$JWLINK"
-    built "$CACHE/JWlink-$JWLINK" sh -c 'for part in dwarf/dw orl sdk/rc/wres .; do make -s -C $part -f GccUnix.mak; done'
+    built "$CACHE/JWlink-$JWLINK" sh -c 'for part in dwarf/dw orl sdk/rc/wres .; do make -s -C $part -f GccUnix.mak CC="$1"; done' - "$CC17"
     cp "$CACHE/JWasm-$JWASM/GccUnixR/jwasm" "$CACHE/JWlink-$JWLINK/GccUnixR/jwlink" "$BIN/"
     ;;
 dosbox | capture)
@@ -46,7 +49,8 @@ dosbox | capture)
     built "$CACHE/dosbox-x-$commit" sh build-dosrun.sh
     name=dosbox-x
     [ "$1" = capture ] && name=dosbox-x-capture
-    ln -sf "$CACHE/dosbox-x-$commit/src/dosbox-x" "$BIN/$name"
+    rm -f "$BIN/$name" # once a link to the source cache
+    cp "$CACHE/dosbox-x-$commit/src/dosbox-x" "$BIN/$name"
     ;;
 *)
     echo "deps.sh [build|dosbox|capture]" >&2

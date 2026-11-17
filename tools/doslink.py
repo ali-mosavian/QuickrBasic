@@ -48,10 +48,13 @@ def link(exe: Path, objects: list[Path], map_: Path | None = None) -> None:
     out = exe.parent / "startup"
     out.mkdir(parents=True, exist_ok=True)
     first, last = [assemble("start", out)], [assemble("ext", out), assemble("os", out)]
-    files = [word for one in (*first, *objects, *last) for word in ("file", str(Path(one).resolve()))]
-    mapping = ["option", f"map={map_}"] if map_ else []
-    stub = ["option", f"stub={DOS32A / 'stub32a.exe'}"]
-    run([str(JWLINK), "option", "quiet", *mapping, "format", "os2", "le", "name", str(exe), *stub, *files])
+    files = [f"file {Path(one).resolve()}" for one in (*first, *objects, *last)]
+    mapping = [f"option map={map_}"] if map_ else []
+    stub = [f"option stub={DOS32A / 'stub32a.exe'}"]
+    # jwlink copies its command line into 10 KiB: the object paths, a directive file's words
+    directives = out / f"{exe.stem}.lnk"
+    directives.write_text("\n".join(["option quiet", *mapping, "format os2 le", f"name {exe}", *stub, *files]) + "\n")
+    run([str(JWLINK), f"@{directives}"])
 
 
 def main() -> None:

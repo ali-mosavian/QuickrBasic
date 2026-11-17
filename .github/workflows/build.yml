@@ -19,7 +19,9 @@ jobs:
         with:
           path: build/deps
           key: deps-${{ runner.os }}-${{ hashFiles('tools/deps.sh') }}
+      - run: python3 tools/deps_test.py
       - run: make -j4
+      - run: python3 tools/doslink_test.py
       - run: make -j4 host-test
       - uses: actions/upload-artifact@v4
         if: runner.os == 'Linux'
