@@ -3,7 +3,8 @@
 The program is opened, the frame QB_SHOT writes is read back: the editor's screen at the VGA's
 720x400, its menu bar grey, the program's window blue, its text on it. With Alt+F typed (QB_KEYS),
 the File menu's help line is on the status bar: BASIC.HLP was found, in the app's Resources. ARCH:
-the universal binary's half run (arch -ARCH), the machine's own if none.
+the universal binary's half run (arch -ARCH), the machine's own if none. A graphics loop run (F5),
+broken and restarted (Shift+F5) draws again: the kept screen once left the display on the text.
 """
 
 import os
@@ -12,7 +13,9 @@ import tempfile
 import subprocess
 from pathlib import Path
 
-GREY, BLUE = (0xAA, 0xAA, 0xAA), (0x00, 0x00, 0xAA)
+GREY, BLUE, RED = (0xAA, 0xAA, 0xAA), (0x00, 0x00, 0xAA), (0xAA, 0x00, 0x00)
+BOX = "SCREEN 9\nDO\nLINE (0, 0)-(100, 100), 4, BF\nLOOP\n"
+RESTART = "3F00 120:FFFF 180:5800"  # F5, Ctrl+Break, Shift+F5
 
 
 def frame(run: list[str], program: Path, keys: str = "") -> tuple[int, int, bytes]:
@@ -45,6 +48,9 @@ def main() -> None:
         run = ["arch", f"-{sys.argv[2]}", binary] if len(sys.argv) > 2 else [binary]
         w, h, pixels = frame(run, program)
         _, _, menu = frame(run, program, "2100")
+        box = Path(tmp) / "BOX.BAS"
+        box.write_text(BOX)
+        bw, _, again = frame(run, box, RESTART)
     status = {pixel(w, menu, x, 392) for x in range(9 * 30, 9 * 60)}
     checks = {
         "720x400": (w, h) == (720, 400),
@@ -52,6 +58,7 @@ def main() -> None:
         "editor blue": pixel(w, pixels, 400, 200) == BLUE,
         "text on it": len({pixel(w, pixels, x, y) for x in range(9, 9 * 14) for y in range(32, 48)}) > 1,
         "File's help line": len(status) > 1,
+        "restarted graphics drawn": pixel(bw, again, 50, 50) == RED,
     }
     failed = [name for name, ok in checks.items() if not ok]
     print(f"mac {sys.argv[2] if len(sys.argv) > 2 else ''} " + ("ok" if not failed else "FAIL " + ", ".join(failed)))

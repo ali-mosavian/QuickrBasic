@@ -6,3 +6,4 @@
 uint32_t qbrt_shot_size(void) { return 1; }
 void qbrt_shot_take(void *const shot) { view_text_shown = true; }
 void qbrt_shot_show(const void *const shot) { view_text_shown = false; }
+void qbrt_shot_drop(void) { view_text_shown = false; }

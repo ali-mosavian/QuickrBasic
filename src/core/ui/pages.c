@@ -56,9 +56,13 @@ void upag_out(Session *const S)
 
 void upag_clear(Session *const S)
 {
+    if (pg.kept) {
+        qbrt_shot_drop();
+        pg.kept = false;
+    }
+
     if (qbrt_graphics()) {
         qbrt_text();
-        pg.kept = false;
         pscr_text(uimn.rows);
     }
 
