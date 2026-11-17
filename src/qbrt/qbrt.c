@@ -117,6 +117,7 @@ bool qbrt_screen(void)
 
 void qbrt_console_reset(void)
 {
+    gfx_text_pages_reset();
     cn_mode_changed();
     cn_cls();
 }
@@ -128,6 +129,8 @@ void qbrt_where(uint8_t *const row, uint8_t *const col)
 }
 
 void qbrt_move(const uint8_t row, const uint8_t col) { cn_locate(row + 1, col + 1, -1); }
+
+void qbrt_pages_show(void) { gfx_pages_show(); }
 
 bool qbrt_graphics(void) { return gfx_current && gfx_current->number; }
 

@@ -51,6 +51,7 @@ void upag_out(Session *const S)
     }
 
     pscr_page(PAGE_OUT);
+    qbrt_pages_show(); /* the program's own visible page, where it has one */
     them_out();
 }
 

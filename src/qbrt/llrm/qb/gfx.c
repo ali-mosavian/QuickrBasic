@@ -1,6 +1,7 @@
 /* The graphics screen: modes, colours, pixels and points (QB rt/gr*.asm). */
 #include "ad.h"
 #include "cndriver.h"
+#include "dev.h"
 #include "gfx.h"
 #include "gfxdev.h"
 #include "rtinit.h"
@@ -60,7 +61,14 @@ void gfx_clear(void)
              (unsigned)(gfx_view_bottom - gfx_view_top + 1));
 }
 
+/* The text screen's or the graphics mode's: SCREEN's last two arguments. */
 static int active_page, visible_page;
+
+void gfx_text_pages_reset(void)
+{
+    active_page = visible_page = 0;
+    dev_text_pages_reset();
+}
 
 void gfx_screen(int mode)
 {
@@ -69,6 +77,7 @@ void gfx_screen(int mode)
     if (mode == 0) {
         if (gfx_current) {
             gd_set_mode(TEXT_MODE);
+            gfx_text_pages_reset();
             gfx_current = 0;
             cn_graphics = 0;
             cn_mode_changed();
@@ -641,20 +650,30 @@ extern void (*screen_set_colors)(int foreground, int background);
 extern void cn_gfx_xinit(void);
 void (*const gfx_needs_text)(void) = cn_gfx_xinit;
 
-/* SCREEN's pages: -1 keeps the one in use. The text screen has page 0 only here. */
+/* SCREEN's pages: -1 keeps the one in use. */
 static int gfx_set_pages(int active, int visible)
 {
     if (active < 0)
         active = active_page;
     if (visible < 0)
         visible = visible_page;
-    if (!gfx_current)
-        return active == 0 && visible == 0;
-    if (!gd_set_pages((unsigned)active, (unsigned)visible))
+    if (!(gfx_current ? gd_set_pages : dev_text_pages)((unsigned)active, (unsigned)visible))
         return 0;
     active_page = active;
     visible_page = visible;
     return 1;
+}
+
+void gfx_pages_show(void)
+{
+    gfx_set_pages(-1, -1);
+}
+
+/* PCOPY from, to. */
+void gfx_pcopy(int from, int to)
+{
+    if (from < 0 || to < 0 || !(gfx_current ? gd_copy_page : dev_text_copy)((unsigned)from, (unsigned)to))
+        qb_error(BE_ILLFUN);
 }
 
 /* The program ends in the text mode it began in. */

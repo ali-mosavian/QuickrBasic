@@ -50,6 +50,8 @@ void qbrt_shot_drop(void);
 /* A front end's (the IDE's): the console takes the screen again (its active page, the cursor
    there) and clears it; its cursor, from 0; moved there. */
 void qbrt_console_reset(void);
+/* The program's visible page shown again, after a front end showed its own. */
+void qbrt_pages_show(void);
 void qbrt_where(uint8_t *row, uint8_t *col);
 void qbrt_move(uint8_t row, uint8_t col);
 void cn_putc(char c);
@@ -72,6 +74,8 @@ void B_BEEP(void);
 
 /* SCREEN mode: 0 text; not a mode it has, Illegal function call. */
 void gfx_screen(int mode);
+/* PCOPY from, to: Illegal function call past the mode's pages. */
+void gfx_pcopy(int from, int to);
 /* SCREEN's arguments as a block: its count of words, then from the top down each argument's flag
    and, when set, its value. */
 void screen_mode(const int *block);

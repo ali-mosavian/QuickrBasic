@@ -94,6 +94,12 @@ void vgfx_screen(Session *const S)
     screen_mode(block);
 }
 
+void vgfx_pcopy(Session *const S)
+{
+    const int to = exec_popi(&S->vm);
+    gfx_pcopy(exec_popi(&S->vm), to);
+}
+
 void vgfx_pset(Session *const S) { B_PSET(); }
 
 void vgfx_preset(Session *const S) { B_PRST(); }

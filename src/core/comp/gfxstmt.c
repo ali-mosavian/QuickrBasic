@@ -1,4 +1,4 @@
-/* The screen's statements compiled: SCREEN, PSET, PRESET, LINE, CIRCLE, PAINT, DRAW, VIEW, WINDOW,
+/* The screen's statements compiled: SCREEN, PCOPY, PSET, PRESET, LINE, CIRCLE, PAINT, DRAW, VIEW, WINDOW,
  * PALETTE, GET and PUT of the screen; CLS, COLOR, LOCATE, VIEW PRINT, WIDTH, BEEP.
  *
  * # How it works
@@ -440,6 +440,14 @@ bool gstm_stmt(Comp *const C)
     case TK1_BEEP:
         C->p += 2;
         gstm_op(C, SC_BEEP);
+        return true;
+
+    case TK1_PCOPY:
+        C->p += 2;
+        gstm_int(C);
+        comp_comma(C);
+        gstm_int(C);
+        gstm_op(C, SC_PCOPY);
         return true;
 
     case TK1_WIDTH:

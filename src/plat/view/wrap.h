@@ -21,3 +21,6 @@
 #define dev_text_put VIEW_TEXT(dev_text_put)
 #define dev_text_write VIEW_TEXT(dev_text_write)
 #define dev_text_scroll VIEW_TEXT(dev_text_scroll)
+#define dev_text_pages_reset VIEW_TEXT(dev_text_pages_reset)
+#define dev_text_pages VIEW_TEXT(dev_text_pages)
+#define dev_text_copy VIEW_TEXT(dev_text_copy)
