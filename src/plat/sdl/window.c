@@ -66,11 +66,15 @@ int sdl_main(const bool split)
     keys_out = fds[1];
     host_term_feed(fds[0]);
 
+    host_mouse_on();
+
     if (split) {
         host_term_open();
+        host_term_rich();
         sdl_ansi_open();
-    } else
-        host_mouse_on();
+        /* the terminal keeps the keys till the window is clicked */
+        SDL_SetHint(SDL_HINT_WINDOW_ACTIVATE_WHEN_SHOWN, "0");
+    }
 
     pthread_attr_t a;
     pthread_attr_init(&a);
