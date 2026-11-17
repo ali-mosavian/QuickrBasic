@@ -5,7 +5,7 @@
 #include "qb.h"
 #include "varptr.h"
 
-enum { TYPE_INTEGER = 2, TYPE_STRING = 3, TYPE_SINGLE = 4, TYPE_DOUBLE = 8 };
+enum { TYPE_BYTE = 1, TYPE_INTEGER = 2, TYPE_STRING = 3, TYPE_SINGLE = 4, TYPE_DOUBLE = 8 }; /* BYTE ours */
 
 #pragma aux B_VARP "B$VARP"
 #pragma aux B_SADD "B$SADD"
@@ -64,6 +64,8 @@ long varptr_integer(const char **at, const char *end)
     void *variable = address_at(at, end, &type);
 
     switch (type) {
+    case TYPE_BYTE:
+        return *(unsigned char *)variable;
     case TYPE_INTEGER:
         return *(short *)variable;
     case TYPE_SINGLE:

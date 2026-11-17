@@ -52,3 +52,10 @@ TEST(list_statement_before_paren)
         "PSET (1, 1): LINE (0, 0)-STEP (2, 2): x = CINT(2) - (1)"
     );
 }
+
+/* BYTE, DEFBYTE and CBYTE, ours, in capitals: they were names, listed as typed. */
+TEST(list_byte_keywords)
+{
+    listed(S, "defbyte b: dim c as byte: c = cbyte(2.5)");
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, "DEFBYTE b: DIM c AS BYTE: c = CBYTE(2.5)");
+}

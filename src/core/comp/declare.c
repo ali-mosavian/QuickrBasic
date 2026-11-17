@@ -25,7 +25,7 @@
  * | g_typ, g_fld | Decl.types, TypeDef.fields (TypeDef: T_NAM T_NF T_SIZE, Field: F_NAM F_ET F_SUB F_FIX F_OFF) | D2 |
  * | g_obase, g_oexp, g_obset, g_odim, g_ndev, g_dscope, g_dredim | decl.base, explicit_, baseset, dimmed, ndefev, scope, redim | D2 |
  * | g_dfev, TDEFEV, NDEV, DEVSZ | Decl.defevs of DefEvent {line, deft[26]} | D2 |
- * | g_dast, g_etsz | decl_astype[5], decl_etsize[7] | MIRROR |
+ * | g_dast, g_etsz | decl_astype[5], decl_etsize[8] | MIRROR |
  * | g_dft0, g_dett | deft0, deftype | MIRROR |
  * | g_wpre .. g_wtail, g_wbuf | repl_warn (io/repl.c) | MOVED |
  * | lx.dproc, lx.ntyps, lx.nflds, lx.dtype | decl.proc, decl.ntypes, decl.nfields, decl.type | MOVED: lex's state before |
@@ -57,13 +57,23 @@ typedef struct {
 } DeclScan;
 
 const uint8_t decl_astype[5] = {ET_I2, ET_I4, ET_R4, ET_R8, ET_SD};
-const uint8_t decl_etsize[7] = {0, 4, 4, 4, 8, 0, 2};
+const uint8_t decl_etsize[8] = {0, 4, 4, 4, 8, 0, 2, 1};
 
 static const uint8_t deft0[NLETTERS] = {
     ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4,
     ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4, ET_R4,
 };
 static const uint8_t deftype[5] = {ET_I2, ET_I4, ET_R4, ET_R8, ET_SD}; /* DEFINT .. DEFSTR */
+
+uint8_t decl_xastype(const uint8_t tk1)
+{
+    return tk1 == TK1_SHORT ? ET_SH : tk1 == TK1_BYTE ? ET_BY : 0;
+}
+
+uint8_t decl_xdeftype(const uint8_t tk1)
+{
+    return tk1 == TK1_DEFSHORT ? ET_SH : tk1 == TK1_DEFBYTE ? ET_BY : 0;
+}
 
 const uint8_t *decl_item(const uint8_t *p)
 {
@@ -351,11 +361,13 @@ static void decl_dim1(DeclScan *const ds, const uint16_t n)
     }
 
     if (c == TK_X) {
-        if (ds->at[2] != TK1_SHORT)
+        const uint8_t et = decl_xastype(ds->at[2]);
+
+        if (!et)
             return;
 
         ds->at += 3;
-        b->et[arr] = ET_SH;
+        b->et[arr] = et;
         return;
     }
 
@@ -484,11 +496,12 @@ static void decl_field(DeclScan *const ds)
         f->sub = symb_name(ds->sy, decl_name(ds, nullptr))->rec;
         size = ds->d->types[f->sub]->size;
     } else if (c == TK_X) {
-        if (ds->at[2] != TK1_SHORT)
+        f->et = decl_xastype(ds->at[2]);
+
+        if (!f->et)
             return;
 
-        f->et = ET_SH;
-        size = 2;
+        size = decl_etsize[f->et];
     } else {
         const uint8_t i = c - TK_INTEGER;
 
@@ -596,10 +609,14 @@ static void decl_shared(DeclScan *const ds, const uint8_t flag)
             return;
 
         const uint16_t n = decl_name(ds, nullptr);
+
+        if (flag == BF_STAT) /* its ( ), AS type as DIM's */
+            decl_dim1(ds, n);
+        else if (*ds->at == '(')
+            decl_array(ds, n, ds->d->proc);
+
         scop_bind(ds->sc, ds->d->proc, n)->flags |= flag;
 
-        if (*ds->at == '(')
-            decl_array(ds, n, ds->d->proc);
         for (;;) { /* past ( ) and AS type */
             const uint8_t c = *ds->at;
 
@@ -615,7 +632,7 @@ static void decl_shared(DeclScan *const ds, const uint8_t flag)
     }
 }
 
-/* DEFtype l[-l] {, l[-l]}; DEFSHORT ours. */
+/* DEFtype l[-l] {, l[-l]}; DEFSHORT and DEFBYTE ours. */
 static void decl_deflist(DeclScan *const ds, const uint8_t et)
 {
     for (;;) {
@@ -901,9 +918,9 @@ void decl_line(
         case TK_X:
             if (ds->at[1] == TK1_COMMON)
                 decl_common(ds);
-            else if (ds->at[1] == TK1_DEFSHORT) {
+            else if (decl_xdeftype(ds->at[1])) {
                 ds->at += 2;
-                decl_deflist(ds, ET_SH);
+                decl_deflist(ds, decl_xdeftype(ds->at[-1]));
             }
 
             break;
@@ -945,9 +962,9 @@ void decl_defevents(Decl *const d, Scop *const sc, Symb *const sy, const Prog *c
             if (c >= TK_DEFINT && c <= TK_DEFSTR) {
                 ds->at++;
                 decl_deflist(ds, deftype[c - TK_DEFINT]);
-            } else if (c == TK_X && ds->at[1] == TK1_DEFSHORT) {
+            } else if (c == TK_X && decl_xdeftype(ds->at[1])) {
                 ds->at += 2;
-                decl_deflist(ds, ET_SH);
+                decl_deflist(ds, decl_xdeftype(ds->at[-1]));
             }
         } while (decl_next(ds));
     }

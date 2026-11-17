@@ -204,6 +204,18 @@ TEST(suggest_a_type)
     CHECK(!suggest(S, "function sum% (a as inp") || !out.n);
 }
 
+/* BYTE, DEFBYTE and CBYTE, ours: offered where a type, a statement, a number goes. */
+TEST(suggest_byte)
+{
+    unit_store(S, program);
+    CHECK(suggest(S, "dim x as by"));
+    CHECK(out.n == 1 && place("BYTE") == 0);
+    CHECK(suggest(S, "defb"));
+    CHECK(place("DEFBYTE") >= 0);
+    CHECK(suggest(S, "n = cb"));
+    CHECK(place("CBYTE") >= 0);
+}
+
 /* A new FUNCTION's parameter: ')', ',' or AS after it; the line check once skipped the line,
    so anything fit. */
 TEST(suggest_a_parameter)

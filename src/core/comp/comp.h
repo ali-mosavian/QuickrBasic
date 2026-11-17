@@ -107,7 +107,7 @@ typedef struct Comp {
     uint32_t xcap;
 } Comp;
 /* TVAR.info's ET_* to its kind: 0 FLOAT, 1 INT, 2 STRING, SK_DBL DOUBLE. */
-extern const uint8_t comp_etkind[7];
+extern const uint8_t comp_etkind[8];
 
 /* cplim's CPROOM bytes of the asm's stack as nesting levels of expr's prec (24 bytes a
    parenthesis); to be calibrated against the asm build. */

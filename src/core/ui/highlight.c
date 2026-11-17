@@ -27,6 +27,7 @@
 #include "ui/edit.h"
 #include "ui/screen.h"
 #include "comp/comp.h"
+#include "comp/declare.h"
 #include "comp/dfa.h"
 #include "comp/lexer.h"
 
@@ -154,8 +155,11 @@ static uint8_t item(const uint8_t c, const uint8_t **const p, uint8_t *const sta
         return SL_STR;
     }
 
-    if (c == TK_X)
-        return *(*p)++ == TK1_ANY ? SL_TYP : SL_KW;
+    if (c == TK_X) { /* ANY, SHORT, BYTE: a type */
+        const uint8_t t = *(*p)++;
+        return t == TK1_ANY || decl_xastype(t) ? SL_TYP : SL_KW;
+    }
+
     if (c >= TK_MIN)
         return token(c, state);
     if (c == '(') { /* ( after the name: the parameters */
