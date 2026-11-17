@@ -1,6 +1,7 @@
 """The host's basic on a terminal (plat/host/pterm.c), driven through a pseudo-terminal."""
 import os
 import pty
+import re
 import select
 import sys
 import time
@@ -33,11 +34,15 @@ def session(binary, keys):
     return out.decode('latin1')
 
 
+# icanon set, not -icanon: GNU stty at 0 columns prints a setting a line, no space before it
+COOKED = r'(?<![-\w])icanon\b'
+assert re.search(COOKED, 'isig icanon') and re.search(COOKED, '\nicanon\n') and not re.search(COOKED, ' -icanon')
+
 CASES = [
     # INPUT in a run: the runtime's signals interrupted the wait, read as Ctrl+C: BREAK IN 10.
     ('input_in_a_run', [b'10 INPUT a$: PRINT a$ + "!"\r', b'RUN\r', b'hi\r', b'\x04'], 'hi!'),
     # SHELL's child got the raw terminal: no echo, no lines.
-    ('shell_gets_a_cooked_terminal', [b'SHELL "/bin/stty -a"\r', b'\x04'], ' icanon'),
+    ('shell_gets_a_cooked_terminal', [b'SHELL "/bin/stty -a"\r', b'\x04'], COOKED),
     ('ctrl_c_breaks_a_loop', [b'10 GOTO 10\r', b'RUN\r', b'\x03', b'\x04'], 'BREAK IN 10'),
 ]
 
@@ -46,7 +51,7 @@ def main():
     failed = 0
     for name, keys, want in CASES:
         out = session(sys.argv[1], keys)
-        if want not in out:
+        if not re.search(want, out):
             failed += 1
             print(f'FAIL {name}: no {want!r} in\n{out}')
     print(f'pterm {len(CASES) - failed}/{len(CASES)}')
