@@ -1,0 +1,27 @@
+name: mac
+
+# QuickrBasic.app (make mac): built and tested on every push and PR; from main, zipped to the
+# mac-latest release.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  app:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - run: brew install sdl3
+      - run: make -j4 mac-zip
+      - run: make mac-test
+      - if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete mac-latest --cleanup-tag --yes || true
+          gh release create mac-latest build/mac/QuickrBasic-mac-arm64.zip --target "$GITHUB_SHA" \
+            --prerelease --title "QuickrBasic for Mac (latest)" \
+            --notes "QuickrBasic.app for Apple silicon, built from $GITHUB_SHA. Not notarized: open it the first time with right-click, Open."
