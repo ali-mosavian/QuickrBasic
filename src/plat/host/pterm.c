@@ -47,6 +47,7 @@ void host_term_pause(const bool yes)
 }
 
 bool host_term_on(void) { return term.on; }
+uint8_t host_term_shift(void) { return 0; }
 
 /* The next byte, waited for at most ms (-1 for ever); -1 none, BROKEN on SIGINT. Other signals
    (the runtime's) interrupt the wait too: it goes on. */

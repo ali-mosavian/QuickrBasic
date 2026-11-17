@@ -49,4 +49,7 @@ typedef struct {
     uint16_t keys[WASM_NKEY];
 } WasmIrq;
 extern WasmIrq wasm_irq;
+
+/* A program's graphics screen is kept, the text shown over it (qbrt_shot_take). */
+extern bool wasm_text_shown;
 #endif
