@@ -5,6 +5,7 @@
 #include "defs.h"
 #include "fault.h"
 #include "comp/lexer.h"
+#include "plat/pfil.h"
 
 /* setjmp(*repl.top)'s values */
 enum { REPL_CALLED = 0, REPL_READY = 1, REPL_ERROR = 2 };
@@ -32,8 +33,8 @@ typedef struct {
     uint16_t fline;     /* loading a file: its line, for a warning */
     bool loading;       /* loading a file: every line is stored, at the end */
     bool batch;         /* a file run: its end exits */
-    char file[128];     /* the command line's file name; CHAIN's */
-    char incl[128];     /* an '$INCLUDE's */
+    char file[PFIL_PATH]; /* the command line's file name; CHAIN's */
+    char incl[PFIL_PATH]; /* an '$INCLUDE's */
 } Repl;
 
 /* Raise error code (E_*): never returns (above). */

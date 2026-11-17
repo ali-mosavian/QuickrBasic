@@ -11,6 +11,11 @@
 #define PLAT_PFIL_H
 #include "base.h"
 
+/* A path's buffer, its 0 included: DOS's command tail; a host build sets its own. */
+#ifndef PFIL_PATH
+#define PFIL_PATH 128
+#endif
+
 typedef uint16_t PfilHandle;
 enum : PfilHandle { PFIL_STDIN = 0, PFIL_STDOUT = 1, PFIL_STDERR = 2 };
 

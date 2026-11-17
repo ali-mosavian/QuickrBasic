@@ -31,8 +31,9 @@ comma := ,
 .PHONY: all test syms clean
 all: $(OUT)/basic32.exe $(OUT)/ide32.exe $(OUT)/DOS32A.EXE $(OUT)/BASIC.HLP
 
-$(JWASM) $(JWLINK):
+$(JWASM):
 	sh $(ROOT)/tools/deps.sh build
+$(JWLINK): $(JWASM)
 $(DOSBOX_BIN):
 	sh $(ROOT)/tools/deps.sh dosbox
 

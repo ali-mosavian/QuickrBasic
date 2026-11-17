@@ -15,8 +15,9 @@ SRC := $(shell find . -name '*.asm' -o -name '*.inc')
 .PHONY: all clean
 all: $(OUT)/basic.com $(OUT)/basic-ide.com $(OUT)/BASIC.HLP
 
-$(JWASM) $(JWLINK):
+$(JWASM):
 	sh $(ROOT)/tools/deps.sh build
+$(JWLINK): $(JWASM)
 
 # com DEFINES,DIR: main.asm assembled twice, the second time with the data placed after the code
 # (tools/csoff.py reads the first listing); jwlink keeps the 100h bytes before org, which tail drops

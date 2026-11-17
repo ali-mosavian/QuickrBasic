@@ -340,7 +340,7 @@ static void ready(Session *const S)
 /* Run the file the command line names, then exit; no name: back. */
 static void run_file(Session *const S)
 {
-    char tail[128];
+    char tail[PFIL_PATH];
     psys_cmdline(tail, sizeof tail);
     const char *s = tail;
 

@@ -27,8 +27,10 @@ export JWASM JWLINK DOSBOX_BIN DOS32A
 .PHONY: all test host host-test lto format clean
 all:
 
-$(DEPS)/jwasm $(DEPS)/jwlink: tools/deps.sh
+# one run builds both: two would clone into the same directory at once under -j
+$(DEPS)/jwasm: tools/deps.sh
 	sh tools/deps.sh build
+$(DEPS)/jwlink: $(DEPS)/jwasm
 $(DEPS)/dosbox-x: tools/deps.sh
 	sh tools/deps.sh dosbox
 
@@ -129,6 +131,7 @@ test: $(DOS_EXE) | $(DOSBOX_BIN)
 host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/hostperf/basic
 	for t in $(TOOLS_TEST); do $(PY) $$t || exit 1; done
 	build/host/unit_tests
+	sh tests/host/longpath.sh build/host/basic
 	$(PY) tools/golden.py
 	BASIC_EXE=build/host/basic $(PY) tools/regress_test.py build/host/basic
 	BASIC_EXE=build/host/basic $(PY) tools/conformance.py
@@ -140,7 +143,7 @@ host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/h
 
 SDK := $(shell xcrun --show-sdk-path 2>/dev/null)
 HOST_CC ?= $(CLANG)$(if $(SDK), -isysroot $(SDK))
-HOST_CFLAGS := -std=c23 -O1 -g -Wall -Wextra -Wno-unused-parameter -Werror=undef -DARENA_AT_ZERO=0 -DEXEC_COUNT \
+HOST_CFLAGS := -std=c23 -O1 -g -Wall -Wextra -Wno-unused-parameter -Werror=undef -DARENA_AT_ZERO=0 -DPFIL_PATH=4096 -DEXEC_COUNT \
 	-Isrc/plat/host/include -Isrc -Isrc/core
 HOST_C := $(shell find src/core -name '*.c' -not -path 'src/core/ui/*') src/core/ui/tree.c src/core/ui/indent.c \
 	$(wildcard src/plat/host/*.c) src/boot.c
