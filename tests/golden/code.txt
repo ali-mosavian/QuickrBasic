@@ -10592,6 +10592,7 @@ bcg/45_hello.bas L 79 beb69a02e926
 bcg/45_hello.bas L 80 52b04841f070
 bcg/45_hello.bas L 81 ad7418eac41f
 bcg/45_hello.bas L 82 374c712e14f9
+bcg/46_hexapawn.bas error da4b9237bacc
 bcg/46_hexapawn.bas 0 cff6eadc7b70
 bcg/46_hexapawn.bas 1 4bbfd867e524
 bcg/46_hexapawn.bas 2 1000a225574b
@@ -10766,6 +10767,7 @@ bcg/46_hexapawn.bas 170 adccf2a43bfd
 bcg/46_hexapawn.bas 171 69c1e1c0731a
 bcg/46_hexapawn.bas 172 730f708a9f33
 bcg/46_hexapawn.bas 173 8ee8b403a502
+bcg/46_hexapawn.bas L error da4b9237bacc
 bcg/46_hexapawn.bas L 0 20d546cc979a
 bcg/46_hexapawn.bas L 1 39a805476a8b
 bcg/46_hexapawn.bas L 2 0d374927640e
@@ -18248,6 +18250,7 @@ bcg/77_salvo.bas L 325 70a9ae923b75
 bcg/77_salvo.bas L 326 86d4eb5576a6
 bcg/77_salvo.bas L 327 96687b8f8243
 bcg/77_salvo.bas L 328 374c712e14f9
+bcg/78_sinewave.bas error da4b9237bacc
 bcg/78_sinewave.bas 0 baf65140169c
 bcg/78_sinewave.bas 1 113efdfa660b
 bcg/78_sinewave.bas 2 ef9a64a008c0
@@ -18265,6 +18268,7 @@ bcg/78_sinewave.bas 13 ef076a30ef2b
 bcg/78_sinewave.bas 14 c7df8756b191
 bcg/78_sinewave.bas 15 dafb58ab3d42
 bcg/78_sinewave.bas 16 8ee8b403a502
+bcg/78_sinewave.bas L error da4b9237bacc
 bcg/78_sinewave.bas L 0 3e5a16ec55f5
 bcg/78_sinewave.bas L 1 5731740f8cfe
 bcg/78_sinewave.bas L 2 92f656530618
@@ -19246,6 +19250,7 @@ bcg/82_stars.bas L 50 12787b743cda
 bcg/82_stars.bas L 51 1aece9afb332
 bcg/82_stars.bas L 52 bb18e1483d9f
 bcg/82_stars.bas L 53 374c712e14f9
+bcg/83_stockmarket.bas error 17ba0791499d
 bcg/83_stockmarket.bas 0 47e26bafac14
 bcg/83_stockmarket.bas 1 09c111422b12
 bcg/83_stockmarket.bas 2 1000a225574b
@@ -19478,6 +19483,7 @@ bcg/83_stockmarket.bas 228 6992c6722d08
 bcg/83_stockmarket.bas 229 d97431bb0571
 bcg/83_stockmarket.bas 230 e8607fd09bca
 bcg/83_stockmarket.bas 231 8ee8b403a502
+bcg/83_stockmarket.bas L error 17ba0791499d
 bcg/83_stockmarket.bas L 0 105310b66a08
 bcg/83_stockmarket.bas L 1 36836c107bfa
 bcg/83_stockmarket.bas L 2 06bfdc7a4d71
@@ -29416,21 +29422,31 @@ qb/write.bas L 5 a29cbaf8392f
 qb/write.bas L 6 d47b98098e57
 stmts/s000.bas 0 a65437e08517
 stmts/s000.bas L 0 38928bb033e2
+stmts/s001.bas error da4b9237bacc
 stmts/s001.bas 0 ff0aec6c8fe4
+stmts/s001.bas L error da4b9237bacc
 stmts/s001.bas L 0 59e044b0ab9b
+stmts/s002.bas error 17ba0791499d
 stmts/s002.bas 0 daf230bd7a8c
+stmts/s002.bas L error 17ba0791499d
 stmts/s002.bas L 0 d1019eb06b4f
 stmts/s003.bas 0 a745e70af802
 stmts/s003.bas L 0 e6b1bea2b391
+stmts/s004.bas error 17ba0791499d
 stmts/s004.bas 0 6c68c9ba5ae7
+stmts/s004.bas L error 17ba0791499d
 stmts/s004.bas L 0 152bc842a45e
+stmts/s005.bas error da4b9237bacc
 stmts/s005.bas 0 081e83fb1a34
+stmts/s005.bas L error da4b9237bacc
 stmts/s005.bas L 0 f3c35fc0b2f9
 stmts/s006.bas 0 8c5357a00eef
 stmts/s006.bas L 0 2de1c5c48d9e
 stmts/s007.bas 0 ab797b508017
 stmts/s007.bas L 0 2e18ba9ef7c9
+stmts/s008.bas error da4b9237bacc
 stmts/s008.bas 0 423487e99dc9
+stmts/s008.bas L error da4b9237bacc
 stmts/s008.bas L 0 3ff130ce8bc0
 stmts/s009.bas 0 111ffa0e14eb
 stmts/s009.bas L 0 a16ddbb971af
@@ -29448,11 +29464,17 @@ stmts/s014.bas L error 902ba3cda188
 stmts/s014.bas L 0 86c4ec94bdc4
 stmts/s015.bas 0 fce575a875f9
 stmts/s015.bas L 0 4cce2db255af
+stmts/s016.bas error da4b9237bacc
 stmts/s016.bas 0 7d33e58588a0
+stmts/s016.bas L error da4b9237bacc
 stmts/s016.bas L 0 397cb2bb6911
+stmts/s017.bas error 17ba0791499d
 stmts/s017.bas 0 99925b97be80
+stmts/s017.bas L error 17ba0791499d
 stmts/s017.bas L 0 ffa0249cf72e
+stmts/s018.bas error da4b9237bacc
 stmts/s018.bas 0 a2f102b8f178
+stmts/s018.bas L error da4b9237bacc
 stmts/s018.bas L 0 e5bd7ca8a130
 stmts/s019.bas 0 b0b24c416321
 stmts/s019.bas L 0 f5fdd2c7a0e2
@@ -29462,17 +29484,25 @@ stmts/s021.bas 0 b892281f0d82
 stmts/s021.bas L 0 2a98e09d153c
 stmts/s022.bas 0 694196fe7d01
 stmts/s022.bas L 0 301b5c160833
+stmts/s023.bas error da4b9237bacc
 stmts/s023.bas 0 a620cd3f7ea3
+stmts/s023.bas L error da4b9237bacc
 stmts/s023.bas L 0 8096dd2c1ec6
 stmts/s024.bas 0 8149227bc7a8
 stmts/s024.bas L 0 f5ded996df8b
 stmts/s025.bas 0 ada7d4aaf13d
 stmts/s025.bas L 0 47d0afc22488
+stmts/s026.bas error 17ba0791499d
 stmts/s026.bas 0 d9d25854015d
+stmts/s026.bas L error 17ba0791499d
 stmts/s026.bas L 0 07ec1f0a70ce
+stmts/s027.bas error 17ba0791499d
 stmts/s027.bas 0 40153235e418
+stmts/s027.bas L error 17ba0791499d
 stmts/s027.bas L 0 96eef263839f
+stmts/s028.bas error da4b9237bacc
 stmts/s028.bas 0 7d33e58588a0
+stmts/s028.bas L error da4b9237bacc
 stmts/s028.bas L 0 397cb2bb6911
 stmts/s029.bas 0 6001ead0ce08
 stmts/s029.bas L 0 a5d0d0fad477
@@ -29486,15 +29516,21 @@ stmts/s032.bas error 902ba3cda188
 stmts/s032.bas 0 eb7a1f50437d
 stmts/s032.bas L error 902ba3cda188
 stmts/s032.bas L 0 b8147704c154
+stmts/s033.bas error 17ba0791499d
 stmts/s033.bas 0 73a0b9a266b7
+stmts/s033.bas L error 17ba0791499d
 stmts/s033.bas L 0 69d35df83ec2
+stmts/s034.bas error da4b9237bacc
 stmts/s034.bas 0 60fd4ce33bf7
+stmts/s034.bas L error da4b9237bacc
 stmts/s034.bas L 0 06d8d9cfdde2
 stmts/s035.bas error 902ba3cda188
 stmts/s035.bas 0 a8dc9eee102f
 stmts/s035.bas L error 902ba3cda188
 stmts/s035.bas L 0 471de05999fe
+stmts/s036.bas error da4b9237bacc
 stmts/s036.bas 0 ff0aec6c8fe4
+stmts/s036.bas L error da4b9237bacc
 stmts/s036.bas L 0 59e044b0ab9b
 stmts/s037.bas 0 aad9124bd444
 stmts/s037.bas L 0 c42af2122489
@@ -29504,9 +29540,13 @@ stmts/s039.bas 0 34ab0e4377d6
 stmts/s039.bas L 0 8167ac2725b8
 stmts/s040.bas 0 b0a4a344da2e
 stmts/s040.bas L 0 94cd150a5a4f
+stmts/s041.bas error da4b9237bacc
 stmts/s041.bas 0 24cbe9b5196a
+stmts/s041.bas L error da4b9237bacc
 stmts/s041.bas L 0 3d16df23762e
+stmts/s042.bas error 17ba0791499d
 stmts/s042.bas 0 3d2685b83964
+stmts/s042.bas L error 17ba0791499d
 stmts/s042.bas L 0 80649ed2872e
 stmts/s043.bas 0 c91b52ca1d8c
 stmts/s043.bas L 0 17ac11463c17
@@ -29518,7 +29558,9 @@ stmts/s046.bas 0 9ad1ff5338ba
 stmts/s046.bas L 0 4e560b16e0af
 stmts/s047.bas 0 f10dce9b87ac
 stmts/s047.bas L 0 c7c04b4b2774
+stmts/s048.bas error 17ba0791499d
 stmts/s048.bas 0 92d75fff8e39
+stmts/s048.bas L error 17ba0791499d
 stmts/s048.bas L 0 72ec3e72161a
 stmts/s049.bas 0 876dc0336473
 stmts/s049.bas L 0 7e830501ef0a
@@ -29526,15 +29568,25 @@ stmts/s050.bas 0 aa55aad9a2cf
 stmts/s050.bas L 0 4348b9343d6f
 stmts/s051.bas 0 581ee4357ff6
 stmts/s051.bas L 0 765df46bc895
+stmts/s052.bas error da4b9237bacc
 stmts/s052.bas 0 a2d71f695507
+stmts/s052.bas L error da4b9237bacc
 stmts/s052.bas L 0 6d1efe56f410
+stmts/s053.bas error da4b9237bacc
 stmts/s053.bas 0 7868b91371ca
+stmts/s053.bas L error da4b9237bacc
 stmts/s053.bas L 0 fff1d31ab550
+stmts/s054.bas error da4b9237bacc
 stmts/s054.bas 0 7868b91371ca
+stmts/s054.bas L error da4b9237bacc
 stmts/s054.bas L 0 fff1d31ab550
+stmts/s055.bas error da4b9237bacc
 stmts/s055.bas 0 7868b91371ca
+stmts/s055.bas L error da4b9237bacc
 stmts/s055.bas L 0 fff1d31ab550
+stmts/s056.bas error da4b9237bacc
 stmts/s056.bas 0 7868b91371ca
+stmts/s056.bas L error da4b9237bacc
 stmts/s056.bas L 0 fff1d31ab550
 stmts/s057.bas 0 b70a70b328eb
 stmts/s057.bas L 0 720ffc53ed2e
@@ -29548,11 +29600,15 @@ stmts/s061.bas 0 89135d50d853
 stmts/s061.bas L 0 eea684b77e14
 stmts/s062.bas 0 2d4e69394333
 stmts/s062.bas L 0 7ff6535cc8b9
+stmts/s063.bas error 17ba0791499d
 stmts/s063.bas 0 35300c52e846
+stmts/s063.bas L error 17ba0791499d
 stmts/s063.bas L 0 8148ff710952
 stmts/s064.bas 0 d64afa9c8784
 stmts/s064.bas L 0 d3b025cc9eef
+stmts/s065.bas error da4b9237bacc
 stmts/s065.bas 0 7b57bbb5b4d2
+stmts/s065.bas L error da4b9237bacc
 stmts/s065.bas L 0 cab16a93fe53
 stmts/s066.bas 0 c0f7aed1fe03
 stmts/s066.bas L 0 1ee048f8b06e
@@ -29562,7 +29618,9 @@ stmts/s068.bas 0 245acf6889c9
 stmts/s068.bas L 0 f8aa4380ee26
 stmts/s069.bas 0 ef541a8b472c
 stmts/s069.bas L 0 90eef80413e0
+stmts/s070.bas error da4b9237bacc
 stmts/s070.bas 0 7d33e58588a0
+stmts/s070.bas L error da4b9237bacc
 stmts/s070.bas L 0 397cb2bb6911
 stmts/s071.bas 0 17e8be4bf598
 stmts/s071.bas L 0 21f37fba98e7
@@ -29570,13 +29628,19 @@ stmts/s072.bas 0 d1e1451e7885
 stmts/s072.bas L 0 71c6bc8f1f4f
 stmts/s073.bas 0 95696cf05194
 stmts/s073.bas L 0 a942bf22714d
+stmts/s074.bas error 17ba0791499d
 stmts/s074.bas 0 387b53edb11c
+stmts/s074.bas L error 17ba0791499d
 stmts/s074.bas L 0 103917b17ef0
+stmts/s075.bas error 17ba0791499d
 stmts/s075.bas 0 3c2dd62d04e2
+stmts/s075.bas L error 17ba0791499d
 stmts/s075.bas L 0 41ee51500170
 stmts/s076.bas 0 dddc9a5eeb60
 stmts/s076.bas L 0 8679f34e5762
+stmts/s077.bas error da4b9237bacc
 stmts/s077.bas 0 52875840d5b1
+stmts/s077.bas L error da4b9237bacc
 stmts/s077.bas L 0 200915fca31c
 stmts/s078.bas 0 015994bca239
 stmts/s078.bas L 0 601d715f1e72
@@ -29584,17 +29648,25 @@ stmts/s079.bas 0 f9e6a8eb8c84
 stmts/s079.bas L 0 0586e77ad6d4
 stmts/s080.bas 0 b64052f53866
 stmts/s080.bas L 0 9dded2c66905
+stmts/s081.bas error 17ba0791499d
 stmts/s081.bas 0 841e345c587c
+stmts/s081.bas L error 17ba0791499d
 stmts/s081.bas L 0 4871c3b1b909
 stmts/s082.bas 0 c8f1b4ed8856
 stmts/s082.bas L 0 a8c51cb278fe
 stmts/s083.bas 0 c45307522e27
 stmts/s083.bas L 0 caed3cdad369
+stmts/s084.bas error 17ba0791499d
 stmts/s084.bas 0 d9d25854015d
+stmts/s084.bas L error 17ba0791499d
 stmts/s084.bas L 0 07ec1f0a70ce
+stmts/s085.bas error 17ba0791499d
 stmts/s085.bas 0 3a2c883f5c58
+stmts/s085.bas L error 17ba0791499d
 stmts/s085.bas L 0 4ad397e177c7
+stmts/s086.bas error 17ba0791499d
 stmts/s086.bas 0 dc9d5bcf557c
+stmts/s086.bas L error 17ba0791499d
 stmts/s086.bas L 0 28baec4dc9b3
 stmts/s087.bas 0 db108c54bfd2
 stmts/s087.bas L 0 42794f5d9950
@@ -29622,9 +29694,13 @@ stmts/s098.bas 0 826d08930a43
 stmts/s098.bas L 0 754c6cda7e14
 stmts/s099.bas 0 bb7d1af998ae
 stmts/s099.bas L 0 347f98e99b83
+stmts/s100.bas error 17ba0791499d
 stmts/s100.bas 0 64a2b29d9685
+stmts/s100.bas L error 17ba0791499d
 stmts/s100.bas L 0 d16276523bfe
+stmts/s101.bas error da4b9237bacc
 stmts/s101.bas 0 1d69486cefd0
+stmts/s101.bas L error da4b9237bacc
 stmts/s101.bas L 0 423e08cc626c
 stmts/s102.bas 0 e497818e6969
 stmts/s102.bas L 0 0399a2582765
@@ -29642,9 +29718,13 @@ stmts/s107.bas 0 4f8279839da8
 stmts/s107.bas L 0 d38be2793ac1
 stmts/s108.bas 0 48f173ff2fb7
 stmts/s108.bas L 0 71bafc91a04b
+stmts/s109.bas error da4b9237bacc
 stmts/s109.bas 0 efb27d4a33c8
+stmts/s109.bas L error da4b9237bacc
 stmts/s109.bas L 0 945d448ad296
+stmts/s110.bas error da4b9237bacc
 stmts/s110.bas 0 efb27d4a33c8
+stmts/s110.bas L error da4b9237bacc
 stmts/s110.bas L 0 945d448ad296
 stmts/s111.bas 0 2905d0d38c53
 stmts/s111.bas L 0 a60d31c9394a
@@ -29670,7 +29750,9 @@ stmts/s121.bas 0 b1260df8560b
 stmts/s121.bas L 0 3571164b25d2
 stmts/s122.bas 0 32af6591a2c6
 stmts/s122.bas L 0 3351256efde9
+stmts/s123.bas error da4b9237bacc
 stmts/s123.bas 0 8fcb62c02ba7
+stmts/s123.bas L error da4b9237bacc
 stmts/s123.bas L 0 a30504d60b42
 stmts/s124.bas 0 3b53ea38b959
 stmts/s124.bas L 0 2f96e4ccbff5
@@ -29710,15 +29792,19 @@ stmts/s138.bas L 1 7fafb2c03c7f
 stmts/s138.bas L 2 3fdf107d9038
 stmts/s138.bas L 3 26cfc3f6d860
 stmts/s138.bas L 4 5b66c76ca7a6
+stmts/s139.bas error 17ba0791499d
 stmts/s139.bas 0 dc757bcd869f
 stmts/s139.bas 1 71c680f4b7bb
 stmts/s139.bas 2 fb96549631c8
+stmts/s139.bas L error 17ba0791499d
 stmts/s139.bas L 0 80b97e36ebbc
 stmts/s139.bas L 1 9849620d4eff
 stmts/s139.bas L 2 5b66c76ca7a6
+stmts/s140.bas error da4b9237bacc
 stmts/s140.bas 0 dc757bcd869f
 stmts/s140.bas 1 66b52993e461
 stmts/s140.bas 2 fb96549631c8
+stmts/s140.bas L error da4b9237bacc
 stmts/s140.bas L 0 80b97e36ebbc
 stmts/s140.bas L 1 3362730eebc5
 stmts/s140.bas L 2 5b66c76ca7a6
@@ -29728,9 +29814,11 @@ stmts/s141.bas 2 fb96549631c8
 stmts/s141.bas L 0 bf59d44cdf69
 stmts/s141.bas L 1 a2b30b17f3cb
 stmts/s141.bas L 2 5b66c76ca7a6
+stmts/s142.bas error 17ba0791499d
 stmts/s142.bas 0 479d34a2930b
 stmts/s142.bas 1 f321e519343c
 stmts/s142.bas 2 fb96549631c8
+stmts/s142.bas L error 17ba0791499d
 stmts/s142.bas L 0 bf59d44cdf69
 stmts/s142.bas L 1 7caac4d2ccd0
 stmts/s142.bas L 2 5b66c76ca7a6
@@ -29746,8 +29834,10 @@ stmts/s144.bas 2 fb96549631c8
 stmts/s144.bas L 0 be9817bd66db
 stmts/s144.bas L 1 d30b5b68866f
 stmts/s144.bas L 2 5b66c76ca7a6
+stmts/s145.bas error da4b9237bacc
 stmts/s145.bas 0 423487e99dc9
 stmts/s145.bas 1 fb96549631c8
+stmts/s145.bas L error da4b9237bacc
 stmts/s145.bas L 0 f86e957691c3
 stmts/s145.bas L 1 5b66c76ca7a6
 stmts/s146.bas 0 ed81334bfd45
@@ -29758,8 +29848,10 @@ stmts/s147.bas 0 fb96549631c8
 stmts/s147.bas 1 0759dbca73ea
 stmts/s147.bas L 0 5f653e8e76af
 stmts/s147.bas L 1 0ebda5730190
+stmts/s148.bas error 17ba0791499d
 stmts/s148.bas 0 73a0b9a266b7
 stmts/s148.bas 1 0759dbca73ea
+stmts/s148.bas L error 17ba0791499d
 stmts/s148.bas L 0 74cc4b4ca078
 stmts/s148.bas L 1 14b61e5fdeea
 stmts/s149.bas 0 4e584a4982c3
@@ -29778,8 +29870,10 @@ stmts/s151.bas 2 bc28fb0204c7
 stmts/s151.bas L 0 8637bcb94349
 stmts/s151.bas L 1 6a338547c20c
 stmts/s151.bas L 2 0caa7a38fd14
+stmts/s152.bas error 17ba0791499d
 stmts/s152.bas 0 224fe0876ff1
 stmts/s152.bas 1 0759dbca73ea
+stmts/s152.bas L error 17ba0791499d
 stmts/s152.bas L 0 1f73881dc4b9
 stmts/s152.bas L 1 14b61e5fdeea
 stmts/s153.bas 0 fb96549631c8
@@ -29800,16 +29894,21 @@ stmts/s154.bas L 3 c26d840ecfae
 stmts/s154.bas L 4 4c01771b6a4c
 stmts/s154.bas L 5 ce5c04aef8b4
 stmts/s154.bas L 6 5b66c76ca7a6
+stmts/s155.bas error 17ba0791499d
 stmts/s155.bas 0 224fe0876ff1
 stmts/s155.bas 1 fb96549631c8
+stmts/s155.bas L error 17ba0791499d
 stmts/s155.bas L 0 1f73881dc4b9
 stmts/s155.bas L 1 5b66c76ca7a6
+stmts/s156.bas error 17ba0791499d
 stmts/s156.bas 0 003d740f238e
 stmts/s156.bas 1 240a20deb711
 stmts/s156.bas 2 fb96549631c8
+stmts/s156.bas L error 17ba0791499d
 stmts/s156.bas L 0 833ed715fa68
 stmts/s156.bas L 1 bb5d3967309f
 stmts/s156.bas L 2 5b66c76ca7a6
+stmts/s157.bas error 17ba0791499d
 stmts/s157.bas 0 fb96549631c8
 stmts/s157.bas 1 fb96549631c8
 stmts/s157.bas 2 fb96549631c8
@@ -29826,6 +29925,7 @@ stmts/s157.bas 12 59f8fd328bd4
 stmts/s157.bas 13 c6115ebfd6a6
 stmts/s157.bas 14 2698528b32d8
 stmts/s157.bas 15 775c63034f9f
+stmts/s157.bas L error 17ba0791499d
 stmts/s157.bas L 0 1fec8ffee0f0
 stmts/s157.bas L 1 3bba6272104a
 stmts/s157.bas L 2 c3dfe3aead69
@@ -29886,68 +29986,98 @@ stmts/s162.bas 2 dca98d275789
 stmts/s162.bas L 0 321c22faf295
 stmts/s162.bas L 1 5b2fd0082d14
 stmts/s162.bas L 2 a6545943b062
+stmts/s163.bas error da4b9237bacc
 stmts/s163.bas 0 d8da27fbc6ae
+stmts/s163.bas L error da4b9237bacc
 stmts/s163.bas L 0 3e35fcc7f012
+stmts/s164.bas error da4b9237bacc
 stmts/s164.bas 0 874c10a4c12d
+stmts/s164.bas L error da4b9237bacc
 stmts/s164.bas L 0 9e9ee4dc09cd
 stmts/s165.bas 0 106409c329da
 stmts/s165.bas L 0 5221fcc8fb90
+stmts/s166.bas error da4b9237bacc
 stmts/s166.bas 0 34707ff61107
+stmts/s166.bas L error da4b9237bacc
 stmts/s166.bas L 0 d50f3c9d1ed5
 stmts/s167.bas error 902ba3cda188
 stmts/s167.bas 0 19712426e66a
 stmts/s167.bas L error 902ba3cda188
 stmts/s167.bas L 0 f262c9dd318f
+stmts/s168.bas error da4b9237bacc
 stmts/s168.bas 0 d8da27fbc6ae
+stmts/s168.bas L error da4b9237bacc
 stmts/s168.bas L 0 3e35fcc7f012
+stmts/s169.bas error da4b9237bacc
 stmts/s169.bas 0 22e0a8b5f4f6
+stmts/s169.bas L error da4b9237bacc
 stmts/s169.bas L 0 cdd7384042c2
 stmts/s170.bas error 2e01e1746789
 stmts/s170.bas 0 20366044b531
 stmts/s170.bas L error 2e01e1746789
 stmts/s170.bas L 0 fb96549631c8
+stmts/s171.bas error da4b9237bacc
 stmts/s171.bas 0 7b57bbb5b4d2
+stmts/s171.bas L error da4b9237bacc
 stmts/s171.bas L 0 cab16a93fe53
+stmts/s172.bas error 17ba0791499d
 stmts/s172.bas 0 5f58b213f8a8
+stmts/s172.bas L error 17ba0791499d
 stmts/s172.bas L 0 d90b1855ff27
 stmts/s173.bas error 902ba3cda188
 stmts/s173.bas 0 8e04badac19c
 stmts/s173.bas L error 902ba3cda188
 stmts/s173.bas L 0 9d90913d375c
+stmts/s174.bas error da4b9237bacc
 stmts/s174.bas 0 72920b536bfe
+stmts/s174.bas L error da4b9237bacc
 stmts/s174.bas L 0 3e23a70cc5c5
 stmts/s175.bas error 902ba3cda188
 stmts/s175.bas 0 436fb3c28169
 stmts/s175.bas L error 902ba3cda188
 stmts/s175.bas L 0 925b40dc5baf
+stmts/s176.bas error 17ba0791499d
 stmts/s176.bas 0 57c89f8d1872
+stmts/s176.bas L error 17ba0791499d
 stmts/s176.bas L 0 12b66f298b79
+stmts/s177.bas error 17ba0791499d
 stmts/s177.bas 0 c5e9d7850b0d
+stmts/s177.bas L error 17ba0791499d
 stmts/s177.bas L 0 83756af8c80b
+stmts/s178.bas error da4b9237bacc
 stmts/s178.bas 0 d72fb7b9b586
+stmts/s178.bas L error da4b9237bacc
 stmts/s178.bas L 0 34f94d6cf7dc
 stmts/s179.bas 0 d1e1451e7885
 stmts/s179.bas L 0 71c6bc8f1f4f
+stmts/s180.bas error da4b9237bacc
 stmts/s180.bas 0 dc757bcd869f
 stmts/s180.bas 1 22bc5384e245
 stmts/s180.bas 2 fb96549631c8
+stmts/s180.bas L error da4b9237bacc
 stmts/s180.bas L 0 80b97e36ebbc
 stmts/s180.bas L 1 377bbc870001
 stmts/s180.bas L 2 5b66c76ca7a6
+stmts/s181.bas error 17ba0791499d
 stmts/s181.bas 0 dc757bcd869f
 stmts/s181.bas 1 1a67b1b78bba
 stmts/s181.bas 2 fb96549631c8
+stmts/s181.bas L error 17ba0791499d
 stmts/s181.bas L 0 80b97e36ebbc
 stmts/s181.bas L 1 786c95136784
 stmts/s181.bas L 2 5b66c76ca7a6
+stmts/s182.bas error da4b9237bacc
 stmts/s182.bas 0 dc757bcd869f
 stmts/s182.bas 1 3b01e84de315
 stmts/s182.bas 2 fb96549631c8
+stmts/s182.bas L error da4b9237bacc
 stmts/s182.bas L 0 80b97e36ebbc
 stmts/s182.bas L 1 67a63dc29def
 stmts/s182.bas L 2 5b66c76ca7a6
+stmts/s183.bas error 17ba0791499d
 stmts/s183.bas 0 fb96549631c8
 stmts/s183.bas 1 224fe0876ff1
+stmts/s183.bas L error 17ba0791499d
 stmts/s183.bas L 0 5f653e8e76af
 stmts/s183.bas L 1 3a19db49be2e
 stmts/s184.bas 0 2d21a22461cc

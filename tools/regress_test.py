@@ -18,8 +18,8 @@ CASES = {
     # within the tick. NIBBLES.BAS's waits of curSpeed / 2000 s took a whole tick each.
     "c_timer_fine": ("t = TIMER: DO: u = TIMER: LOOP WHILE u = t: PRINT \"fine\"; u - t < .02\r\n", "fine-1 ", None),
     # C port, the tree: a line's syntax error left its nodes taken; 340 such lines and the next
-    # line's expression was Out of memory.
-    "c_tree_leak": ("IF 0 THEN a = 1 + (2 * (3 +\r\n" * 400 + "PRINT 5\r\n", " 5 \r\n", "memory"),
+    # line's expression was Out of memory. The run reports the first line's error.
+    "c_tree_leak": ("IF 0 THEN a = 1 + (2 * (3 +\r\n" * 400 + "PRINT 5\r\n", "Syntax error", "memory"),
     # C port, the tree: a field and an element by reference (P.REF), VARPTR of a field. The golden
     # corpus has neither by reference; the field passed at the wrong offset changed nothing it read.
     "c_ref_args": ("TYPE T\r\na AS INTEGER\r\nb AS INTEGER\r\nEND TYPE\r\nDECLARE SUB inc (x AS INTEGER)\r\n"
@@ -314,6 +314,16 @@ CASES = {
                 "Parameter type mismatch", None),
     "qb_ptma": ("DECLARE SUB s (a%())\r\nDIM v(3)\r\ns v()\r\nSUB s (a%())\r\nPRINT \"in\"\r\nEND SUB\r\n",
                 "Parameter type mismatch", None),
+    # A compile error was an ERR op raised only when its line ran: these printed "ran", then the
+    # error, or never. BC rejects the program first.
+    "qb_ptm_late": ('DECLARE FUNCTION F% (a AS SINGLE)\r\nDECLARE SUB G ()\r\nPRINT "ran"\r\nG\r\nSUB G\r\n'
+                    "DIM t AS INTEGER\r\n70 IF 0 THEN IF F%(t) THEN PRINT 1\r\nEND SUB\r\n"
+                    "FUNCTION F% (a AS SINGLE)\r\nEND FUNCTION\r\n",
+                    "Parameter type mismatch in line 70 ", "ran"),
+    "qb_ptm_uncalled": ('DECLARE FUNCTION F% (a AS SINGLE)\r\nPRINT "ran"\r\nSUB G\r\nDIM t AS INTEGER\r\n'
+                        "60 x = F%(t)\r\nEND SUB\r\nFUNCTION F% (a AS SINGLE)\r\nEND FUNCTION\r\n",
+                        "Parameter type mismatch in line 60 ", "ran"),
+    "qb_tm_uncalled": ('PRINT "ran"\r\nSUB G\r\n40 x% = "a"\r\nEND SUB\r\n', "Type mismatch in line 40 ", "ran"),
     "qb_byval": ("DECLARE SUB s (BYVAL a)\r\nx = 1: s x: PRINT x\r\nSUB s (BYVAL a)\r\na = 5\r\nEND SUB\r\n",
                  " 1 \r\n", "ERROR"),
     # A SUB's REDIM of its array parameter after ERASE made one the caller never saw.

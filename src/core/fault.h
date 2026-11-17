@@ -24,7 +24,8 @@ typedef struct {
     uint32_t at, line;
     const char *other; /* {other}, len bytes */
     uint32_t len;
-    uint16_t user; /* E_USR's QBasic error number (QbErr) */
+    uint16_t user;     /* E_USR's QBasic error number (QbErr) */
+    const uint8_t *op; /* the ERR op (vm/exec.h's ErrOp) it is, nullptr none */
 } Failure;
 
 /* fault_push's place: setjmp(jb) is 0 there, the error thrown's code after. */

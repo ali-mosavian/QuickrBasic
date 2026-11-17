@@ -102,7 +102,7 @@ static void repl_raise_at(Session *const S, const Failure *const e)
     };
 
     S->vm.line = e->line;
-    S->vm.opip = (uint8_t *)&op;
+    S->vm.opip = e->op ? (uint8_t *)e->op : (uint8_t *)&op;
     S->vm.err.active = true;
     diag_other(&S->diag, e->other, e->len);
     repl_error(S, e->code);

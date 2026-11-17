@@ -559,6 +559,23 @@ void link_check(Comp *const C)
     fault_raise(C->fault, (Failure){.code = m.code, .line = m.line, .at = m.at});
 }
 
+/* The first line's compile error, raised before the run, as BC's; none: back. */
+static void compile_errors(Comp *const C)
+{
+    for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len) {
+        const uint8_t *op = at(C->allo->cache + prog_line(C->prog, l)->code);
+
+        for (; !line_end(*op); op += link_opsize(op))
+            if (*op == O_ERR) {
+                const ErrOp *const e = (const ErrOp *)op;
+                fault_raise(
+                    C->fault,
+                    (Failure){.code = e->code, .dg = e->dg, .at = e->at, .line = l, .op = op}
+                );
+            }
+    }
+}
+
 void link_walk(const uint8_t *code, void (*each)(uint8_t op, const uint8_t *at))
 {
     for (; *code != O_EOL; code += flow_opsize(code))
@@ -593,6 +610,7 @@ void link_start(Comp *const C)
     for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)
         link_resolve(C, l, prog_line(C->prog, l)->code);
 
-    link_check(C); /* not linked: the next run reports it again */
+    compile_errors(C); /* not linked: the next run reports it again */
+    link_check(C);
     C->link->linked = true;
 }
