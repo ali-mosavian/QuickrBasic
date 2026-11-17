@@ -17,6 +17,7 @@ enum : mode_t {
 #define S_ISCHR(m) (((m) & S_IFMT) == S_IFCHR)
 int stat(const char *path, struct stat *st);
 int fstat(int fd, struct stat *st);
+int lstat(const char *path, struct stat *st); /* stat's: the page's files have no links */
 int mkdir(const char *path, mode_t mode);
 int chmod(const char *path, mode_t mode);
 #endif

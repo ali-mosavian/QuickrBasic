@@ -69,6 +69,7 @@ static int stat_of(const char *const path, const int fd, struct stat *const st)
 
 int stat(const char *const path, struct stat *const st) { return stat_of(path, -1, st); }
 int fstat(const int fd, struct stat *const st) { return stat_of(nullptr, fd, st); }
+int lstat(const char *const path, struct stat *const st) { return stat(path, st); }
 
 int statvfs(const char *const path, struct statvfs *const v)
 {
