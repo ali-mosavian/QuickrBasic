@@ -16,3 +16,5 @@ Third-party parts keep their own licences:
   Extender technology.
 - llrm's QB runtime (src/qbrt/llrm), DOS/32A start-up (src/plat/dos32/startup) and QB
   conformance cases (tests/qb45, tests/qbrun).
+- GORILLA.BAS (src/plat/wasm/web/demos), Copyright (C) Microsoft Corporation 1990: QBasic's
+  sample, unchanged, not under this licence.
