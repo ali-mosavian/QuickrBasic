@@ -1,26 +1,22 @@
-# QuickrBasic C architecture
+# QuickrBasic architecture
 
-Target shape for `src/`, replacing the asm-mirrored layout.
+How `src/` is laid out and why. The C was ported from the asm in `retired/asm32`; each file's header
+maps the asm it replaced.
 
 ## Goals
 
-- **Best practices:** clean, clear code.
 - **Clear ownership:** every piece of state has exactly one owner.
 - **Clear flow:** you can follow any event from a key press to the result.
 - **DRY:** each fact lives in one place.
 - **SRP:** a module or function does one job.
 - **Clean boundaries:** no mixing across them. See [Boundaries](#boundaries).
-- **Open/closed:** new features are added as new entries or modules, not as edits to existing switches.
-- **Small and simple:** no over-engineering. The rules above apply only as far as they keep the code smaller and clearer.
-- **UI:** slightly more general, and hierarchical. Each component is handled by its parent automatically, so a future UI change is local.
-- **Line at a time:** each line is still parsed and compiled as it is entered or edited.
-- **Debugging:** every debugger feature stays.
-- **Readable layout:** `make cstyle` formats every C file: one parameter per line when a signature does not fit, a blank line between a function's steps.
-- **Idiomatic C23:**
-  - `const` on everything that does not change.
-  - Indexed `for` loops.
-  - Named load/store helpers for word access, never `memcpy`.
-- **Same behaviour:** output, errors, stored lines, bytecode and file records stay byte for byte. The asm and C builds stay side by side and pass the same suites.
+- **Open/closed:** a new statement, op or widget is a new entry, not an edit to a switch.
+- **Small and simple:** the rules above apply only as far as they keep the code smaller and clearer.
+- **Line at a time:** each line is checked as it is entered or edited.
+- **Idiomatic C23:** `const` on everything that does not change, indexed `for` loops, named
+  load/store helpers for word access. `make format` lays out every C file.
+- **Same behaviour as QBasic 1.1:** output, errors, stored lines, bytecode and file records stay
+  byte for byte with the retired asm; `make -C retired/asm32 test` runs the same suites on it.
 
 ## Layers
 
@@ -28,114 +24,121 @@ Target shape for `src/`, replacing the asm-mirrored layout.
 
 ## Modules
 
-| Module | Owns | Does |
+| Directory | Owns | Does |
 |---|---|---|
-| `core/arena` | `Arena` | `Addr`, loads and stores; what PEEK and VARPTR see |
-| `lang/lexer` | none | Text to tokens |
-| `lang/parser` | `Ast` (scratch) | Tokens to a tree, one line at a time |
-| `lang/fold` | none | Constant folding, type conversion |
-| `lang/codegen` | none | Tree to bytecode; the only code that knows the byte layout |
-| `lang/link` | none | Labels, blocks, procedures across lines |
-| `lang/lister` | none | A stored line back to text |
-| `runtime/vm` | `Vm` | Dispatch, frames, flow, runtime errors, debug stops |
-| `runtime/values` | `Heap` | Numbers, strings, arrays; one `Value` and its conversions |
-| `runtime/builtins` | none | Statements and functions (`ops.def` table) |
-| `runtime/io` | `Channels` | Channels over a `Device` vtable: console, file, null |
-| `session` | `Session` | The API both front ends use |
-| `editor/*` | `Editor` | Widget tree, text buffer, commands, debugger pane |
+| `app` | the one `Session` | `basic32.c`, `ide32.c`: pick a `FrontEnd` and boot |
+| `core/ui` | `uimn`, `them` | The IDE: widget tree, editor, windows, menus, dialogs, debug pane, highlighting, completion, themes |
+| `core/session.c` | `Session` | Every module's state; the debugger's API |
+| `core/comp` | `Lexr`, `Comp`, `Ast`, `Expr`, `Decl`, `Ctrl`, `Blok`, `Link`, `List`, `Code` | Lexer, statement automaton, steps and trees, `sema`, fold, codegen, op fusion, link, lister |
+| `core/vm` | `Vm`, `Flow`, `Dbug`, `Evnt`, `Chai`, `Usng`, `Syst`, `StmtState` | The loop, ops (`ops.def`), statements and functions, frames, events, CHAIN, PRINT USING, the debugger's stops |
+| `core/io` | `Chnl`, `Cons`, `File`, `Repl`, `Srcr`, `Diag` | Channels, console, files, the READY loop, loading source, error messages |
+| `core/mem` | `Allo`, `Arry`, `Prog`, `Scop`, `Strg`, `Symb` | The BASIC arena: its blocks, arrays, the program store, scopes, strings, symbols |
+| `core/num` | `Rndm` | SINGLE and DOUBLE arithmetic, the maths functions, RND |
+| `core/util` | none | Bump arenas for scratch, a free-list heap |
+| `plat` | | The machine: screen, keys, mouse, clock, files, system, memory, FPU (`p????.h`) |
+| `qbrt` | | llrm's QB runtime: graphics, sound, the console in graphics modes |
+| `lib` | | The C library subset the DOS build links (`string.h`, `setjmp.h`) |
+
+`plat/dos32` is the product. `plat/host` builds the same core for this machine, for the tests.
 
 ## Boundaries
 
 Each stage does one job and hands the next a finished product. Nothing reaches across.
 
-- **Parsing builds a tree and emits nothing.** Every operand, reference and call is a node, including record fields, elements, `VARPTR` and procedure calls. No bytecode is hidden in a leaf.
-- **Name resolution answers what a name is.** It returns a description: a variable, a record field's place, a procedure. It neither parses expressions nor emits.
-- **The semantic pass makes the tree valid.** `sema` resolves each name to the facts codegen needs (`const` pointers to the variable, the parameter flag, a call's jump) and raises every type error. A tree that passed it compiles without error.
+- **Parsing builds a tree and emits nothing.** Every operand, reference and call is a node,
+  including record fields, elements, `VARPTR` and procedure calls.
+- **Name resolution answers what a name is.** It returns a description: a variable, a record
+  field's place, a procedure. It neither parses expressions nor emits.
+- **The semantic pass makes the tree valid.** `sema_tree` resolves each name to the facts codegen
+  needs and raises every type error. A tree that passed it compiles without error.
 - **Folding rewrites the tree.** It never emits.
-- **Codegen alone writes bytes.** `cg_tree(Code *, const Node *)`: a checked tree in, bytes out. No `Session`, no symbol table, no errors. Statements that need an expression or a reference build its tree and hand it over.
+- **Codegen alone writes bytes.** `cg_tree(Code *, const Node *)`: a checked tree in, bytes out. No
+  `Session`, no symbol table, no errors.
 - **A function sits in one stage.** If it both parses and emits, split it.
-- **Only top-level functions take the `Session`.** A REPL command, a statement driver or a UI event handler takes it and passes each module just its own state and inputs, e.g. `blok_find(Blok *, ...)`. A function below that level never sees the whole session.
-- **A function's name starts with its owner's prefix,** static ones too: `ast_`, `sema_`, `fold_`, `cg_` (codegen), `blok_`. The name says which boundary it sits in.
-- **Tables are allocated, not fixed.** Compile-time tables live in arenas and link by pointer. Ids stay only where they are stored, such as a procedure's number in bytecode.
+- **Only top-level functions take the `Session`.** A REPL command, a statement driver or a UI event
+  handler takes it and passes each module just its own state, e.g. `blok_find(Blok *, ...)`.
+- **A function's name starts with its owner's prefix,** static ones too: `sema_`, `fold_`, `cg_`,
+  `blok_`, `chnl_`.
+- **Tables are allocated, not fixed.** Compile-time tables live in arenas and link by pointer. Ids
+  stay only where they are stored, such as a variable's id in bytecode.
 
 ## Ownership
 
 ![Ownership](img/ownership.svg)
 
-- `app` creates the one `Session` and the one `Editor`. There are no other globals.
-- Every module's state is one struct, a field of the `Session`. A function that reads or changes any of it takes `Session *S` first; the editor's take `Editor *`.
-- Hot accessors take only the part they touch (`exec_push(&S->vm, c)`), so headers need not see the whole `Session`.
-- Headers expose functions and opaque types. No module reads another's fields.
-- A program's memory is the BASIC arena only. The C side's scratch, such as a statement's tree, comes from bump arenas (`util/arena.h`) that grow by blocks from the platform and are freed all at once. No malloc in the core.
-- The core never calls up into a front end. It reports through `FrontEnd` (`repl.h`) and `DebugHooks` (`vm/debug.h`), which the front end installs.
+- `app` creates the one `Session`. Each module's state is one struct, a field of it. A function that
+  reads or changes any of it takes `Session *S` first.
+- Hot accessors take only the part they touch (`exec_push(&S->vm, c)`), so headers need not see the
+  whole `Session`.
+- The IDE's own state is `uimn` (`ui/ui.h`), beside the `Session`.
+- A program's memory is the BASIC arena only. The C side's scratch, such as a statement's tree,
+  comes from bump arenas (`util/arena.h`) freed all at once. No malloc in the core.
+- The core never calls up into a front end. It reports through `FrontEnd` (`io/repl.h`) and
+  `DebugHooks` (`vm/debug.h`), which the front end installs.
 
 ## Flow
 
 ```mermaid
 sequenceDiagram
     actor User
-    participant W as editor: widget tree
-    participant C as editor: command
-    participant S as session
-    participant L as lang
-    participant V as runtime: vm
+    participant W as ui: widget tree
+    participant C as comp
+    participant P as mem: program store
+    participant R as io: repl
+    participant V as vm
     User->>W: key
     W->>W: focus path, bubble up
-    W->>C: run command
     alt edit a line
-        C->>S: session_edit(line, text)
-        S->>L: lang_compile_line(text)
-        L-->>S: Line or Diagnostic
+        W->>C: lexr_line, comp_line (check only)
+        C-->>W: ERR op, or none
+        W->>P: store the tokens
+        P-->>R: edited: session_drop
     else run
-        C->>S: session_run()
-        S->>L: link program
-        S->>V: vm_run(program)
-        V-->>S: stop, end or error
+        W->>R: run
+        R->>C: link_start: every line compiled
+        R->>V: exec_run
+        V-->>R: end, stop or error (longjmp)
     end
-    S-->>C: Status
-    C->>W: mark dirty
-    W->>W: redraw dirty subtrees from state
+    W->>W: redraw from state
 ```
 
 - Commands change state. Drawing reads state. Neither does the other's job.
-
-## Errors
-
-- `lang`, `io` and `editor` return `Status`.
-```mermaid
-flowchart LR
-    L[lang / io / editor] -- Status --> Caller[caller decides]
-    R[runtime error] --> Raise[vm_raise]
-    Raise --> H{ON ERROR set?}
-    H -- yes --> Handler[jump to handler<br/>RESUME later]
-    H -- no --> J[longjmp to session]
-    J --> D[Diagnostic to front end]
-```
-
-- Runtime errors go through `vm_raise`. The VM handles `ON ERROR`/`RESUME` itself, and otherwise does a `longjmp` to the one boundary, in `session`.
 
 ## Line at a time
 
 ![A line at a time](img/pipeline.svg)
 
-- `lang_compile_line(text) → Line` stores the line's tokens and bytecode. The editor calls it on every edit, and the REPL on every entered line.
-- The tree is scratch: it is built, folded, turned into code and dropped within the call.
-- `link` resolves what spans lines (labels, FOR/NEXT, IF blocks, SUB/FUNCTION) over the stored lines. It runs before RUN, or after an edit that changes block structure.
-- `lister` turns one stored line back into text for the editor.
+- An edited line is tokenized (`lexr_line`) and compiled for its syntax alone (`comp_line`). An
+  error marks the line; the code is dropped and the tokens are stored.
+- A statement is run by the generated automaton (`comp/dfa.h`, from `tools/gen_dfa.py`). Each
+  action makes the statement's steps, checked as made; `comp_flush` folds and generates them when
+  the statement ends. The tree is scratch, dropped within the call.
+- Before a run, `link_start` pairs the blocks (FOR/NEXT, IF, SUB/FUNCTION), compiles every line
+  into the code cache, sets each op's addressing mode and resolves every jump. A run compiles
+  nothing but the direct line.
+- `listing` turns a stored line back into text.
 
 ## The VM
 
 ![The VM](img/vm.svg)
 
-The VM is a stack machine over byte code. `exec_run` is its one loop: it notes the op's place in `vm.opip` and calls the op's handler. The handler reads its operands at `vm.ip`, moves `vm.ip` past them or to a jump's target, and returns.
+The VM is a stack machine over byte code. `exec_run` is its one loop: it notes the op's place in
+`vm.opip` and calls the op's handler. The handler reads its operands at `vm.ip`, moves `vm.ip` past
+them or to a jump's target, and returns. The hottest ops (`vm/hot.h`) are inlined into the loop
+with `ip` and `sp` in registers.
 
-**Code.** Each stored line is compiled once into the 64 KB code cache, the first time the run reaches it. Its code starts with a statement map (each statement's body offset to its code offset), then the ops. An op is one byte, then its operands. When the cache is full it is flushed, and lines compile again as they are reached.
+**Code.** The code cache holds each line's code: a statement map (each statement's body offset to
+its code offset), then the ops. An op is one byte, then its operands; a variable is its 4-byte id.
+The cache grows to fit the program.
 
-**Values.** The data stack holds 8-byte `Cell`s: an INT, a SINGLE's bits, an `Addr` or a DOUBLE. An op pops its operands and pushes its result. At a statement's start `sp` is `rsp`, so the stack is empty.
+**Values.** The data stack holds 8-byte `Cell`s: an INT, a SINGLE, an `Addr` or a DOUBLE. An op
+pops its operands and pushes its result. At a statement's start `sp` is `rsp`, so the stack is
+empty.
 
 ![One line, op by op](img/vm-trace.svg)
 
-**Operand forms.** Common right operands are folded into the op, so `2 * y% + 1` is three ops rather than five:
+**Operand forms.** Common right operands are folded into the op, so `2 * y% + 1` is three ops
+rather than five:
 
 | Suffix | Operand | Example |
 |---|---|---|
@@ -144,9 +147,16 @@ The VM is a stack machine over byte code. `exec_run` is its one loop: it notes t
 | `_U8`, `_I16`, `_F32` | a literal | `I_ADD_U8 1` |
 | `_A1`, `_A` | an array element: one or n subscripts | `I_LD_A1 a%` |
 
-`I` ops work on INTs, `F` on SINGLEs, `D` on DOUBLEs and `S` on strings. `CALL k` runs one of 181 routines (PRINT, INPUT, MID$ ...).
+`I` ops work on INTs, `F` on SINGLEs, `D` on DOUBLEs and `S` on strings. `CALL k` runs one of 185
+routines (PRINT, INPUT, MID$ ...). `ops.def` defines all 244 ops.
 
-**Control.** GOSUB, a SUB or FUNCTION call, and an event's handler each push a `Frame` on `vm.frames`. A call's frame is on the data stack: its arguments' addresses above `vm.fp`, its locals' cells below, an array's among them. A loop is plain loads, stores, a compare and a jump; its limit and step are hidden variables:
+**Fusion.** After codegen, `fuse_code` turns common sequences into one op: a store of a literal is
+`I_SET_U8`, a loop's test and jump `I_JFC_V`, its step, test and jump `I_NEXT_UP`.
+
+**Control.** GOSUB, a SUB or FUNCTION call, and an event's handler each push a `Frame` on
+`vm.frames`. A call's frame is on the data stack: its arguments above `vm.fp`, its locals below.
+A FOR loop is no frame: it is plain loads, stores, a compare and a jump, its limit and step hidden
+variables. Before fusion:
 
 ```text
 FOR i% = 1 TO 3: total! = total! + i% / 2: NEXT
@@ -155,11 +165,15 @@ F_LD_V total! | F_LD_VI i% | F_DIV_U8 2 | F_ADD | F_ST_V total!
 I_LD_V i% | I_STEP_V step | I_ST_V i% | I_LD_V i% | I_CMP_V lim > | I_JF → the body | EOL
 ```
 
-**Jumps.** A GOTO names its line by number and finds it on first use. A jump op keeps its target's code offset once found; a cache flush turns saved places back into offsets within their lines.
+**Stops and events.** The ops that end a statement or move between them (EOL, the jumps, GOSUB,
+RETURN, ON, a procedure's return) check `vm.stop`. The platform sets it for Ctrl+Break and for the
+timer tick that drives ON TIMER, ON KEY and the other events. In the IDE, a `DBG` op at each
+statement's start is where steps, breakpoints and trace stop.
 
-**Stops and events.** The ops that end a statement or move between them (EOL, the jumps, GOSUB, RETURN, ON, a procedure's return) check `vm.stop`. The platform sets it for Ctrl+Break and for the timer tick that drives ON TIMER, ON KEY and the other events. In the IDE, a `DBG` op at each statement's start is where steps, breakpoints and trace stop.
+## Errors
 
-**Errors.** A handler raises with `repl_error`. It never returns: it unwinds with `longjmp` to whoever is waiting, in this order:
+A function that can fail returns a `Status` (`fault.h`). A runtime error is raised with
+`repl_error`, which never returns: it unwinds with `longjmp` to the innermost catch, in this order:
 
 ```mermaid
 flowchart LR
@@ -174,109 +188,89 @@ flowchart LR
     H -- no --> R[READY, or the editor]
 ```
 
+A compile error is not raised at once: the ERR op raises it when the line runs, so an error in a
+line the run never reaches does not stop it.
+
 ## Debugger
 
-| Feature | `runtime/vm` | `session` | `editor` |
+| Feature | `vm` | `session` | `ui` |
 |---|---|---|---|
-| Step, Step Over, Step Out | DBG op, stop modes, depth | `session_step(mode)` | F8, F10, Shift+F8 |
-| Breakpoints, Clear All | `LF_BP` on the line | `session_break(line, on)` | F9, row colour |
-| Run to cursor | one-time stop line | `session_until(line)` | Ctrl+F7 |
-| Set Next Statement | moves `vm->at` in the frame | `session_set_next(line)` | menu |
-| Restart | stops at the first statement | `session_restart()` | menu |
-| Trace | trace hook per statement | `session_trace(on)` | highlights the statement |
-| Continue | resumes from the stop | `session_continue()` | F5 |
-| Call stack, Locals | frames | `session_frames()`, `session_locals(frame)` | debug pane |
-| Watches, tooltip | evaluates in a frame | `session_eval(expr, frame)` | debug pane, tip |
+| Step, Step Over, Step Out | DBG op, stop modes, depth | `session_step(S, kind, stopped)` | F8, F7 or F10, Shift+F8 |
+| Breakpoints, Clear All | `LF_BP` on the line | `session_arm` | F9 |
+| Run to cursor | one-time stop line | `session_until` | Ctrl+F7 |
+| Set Next Statement | moves the stopped run | `session_set_next` | menu |
+| Restart | stops at the first statement | `session_step(S, STEP_INTO, false)` | menu |
+| Trace | `DebugHooks.trace` per statement | `session_trace` | lights the statement |
+| Continue | resumes from the stop | | F5 |
+| Call stack, Locals | frames | `session_frames`, `session_cell` | debug pane |
+| Watches, tooltip | evaluates in a frame | `session_eval` | debug pane, tip |
 
 ![Debugger](img/debugger.svg)
 
-- The VM reports stops and trace events through a `DebugHooks` struct of function pointers, installed with `session_debug`. It never calls up into the editor.
-- Watches compile through `lang` like any other line, then run in the chosen frame.
+- A breakpoint is the line's mark, so it moves with the line.
+- A stop unwinds as STOP does: `repl_error(E_BRK)`, then the editor shows where it stopped.
+- Watches compile like any other line, then run in the chosen procedure's scope.
 
 ## UI: the widget tree
 
-Each widget handles its own events, passes on what it doesn't handle, and draws its children.
+Each widget handles its own events, passes on what it doesn't handle, and draws its children
+(`ui/tree.h`):
 
 ```c
-typedef struct Widget Widget;
-
 typedef struct {
-    void (*draw)(Widget *w);                  /* itself; children drawn after it */
-    bool (*key)(Widget *w, Key k);            /* true: handled */
-    bool (*mouse)(Widget *w, MouseEvent m);   /* true: handled */
-    void (*layout)(Widget *w);                /* sets children's rects from its own */
-} WidgetOps;                                  /* any op may be null: default behaviour */
+    void (*draw)(Widget *w, Session *S);                            /* itself; children after */
+    bool (*key)(Widget *w, Session *S, uint16_t key);               /* true: handled */
+    bool (*mouse)(Widget *w, Session *S, uint8_t row, uint8_t col);
+    void (*cursor)(Widget *w);                                      /* the focused one's */
+} WidgetOps;                                                        /* any op may be null */
 
 struct Widget {
     const WidgetOps *ops;
     Rect rect;
-    Widget *parent, *children[MAX_CHILDREN];
-    uint8_t nchildren, focus;                 /* focus: index of the focused child */
-    bool visible, modal, dirty;
+    Widget *parent, *children[TREE_MAX_CHILDREN];
+    uint8_t nchildren, focus; /* focus: the focused child's index */
+    bool visible, modal;
 };
 ```
 
 ![The widget tree](img/widgets.svg)
 
+These rules live once, in `ui/tree.c`:
 
+- **Keys** go down the focus path to the deepest visible focused widget. If it doesn't handle a
+  key, the key bubbles up to its parent. A shown modal widget takes the keys whatever the focus.
+- **Mouse** events go to the deepest visible widget under the point, then bubble up.
+- **Drawing:** a parent draws itself, then its visible children in order.
 
-These four rules live once, in `editor/tree.c`:
-
-- **Keys** go down the focus path to the deepest focused widget. If it doesn't handle a key, the key bubbles up to its parent. Global keys (F-keys, Alt) are handled once, on `screen`.
-- **Mouse** events go to the deepest visible widget under the point, then bubble up. A modal widget takes everything while it is open.
-- **Drawing:** a parent draws itself, then its visible children. A `dirty` widget redraws only its own subtree.
-- **Layout:** a parent sets its children's rects. Resize and split are calls on the parent.
-
-What this makes easy:
-
-- A new dialog is a list of controls. It gets Tab, Esc and hotkeys from the dialog container.
-- A new pane is one widget added to `workspace`.
-
-What it deliberately leaves out:
-
-- No allocation: widgets are static instances.
-- No layout engine: fixed sizes and splits only.
-- No event queue: widgets call commands directly.
+So a new dialog is a list of controls that gets Tab, Esc and hotkeys from the dialog, and a new pane
+is one widget added to the workspace. Widgets are static instances: no allocation, no layout
+engine, no event queue.
 
 ## Extension points
 
 New behaviour is a table entry, not a new switch case:
 
-- statements and functions: `ops.def`
-- devices: the `Device` vtable
+- ops and CALL routines: `vm/ops.def`
+- statements' syntax: the automaton `tools/gen_dfa.py` generates
+- system calls (graphics, sound): `vm/syscalls.def`
 - platform: the `plat/*.h` interfaces
-- UI: `WidgetOps`, the key-to-command table, menus, themes
-
-Only devices, the platform and widgets get vtables. Everything else is plain functions.
-
-## One of each
-
-- One `Value`, with one conversion module.
-- One error table, holding numbers and messages.
-- One key and glyph vocabulary.
-- One bytecode encoder and decoder.
+- UI: `WidgetOps`, the key and menu tables, themes
 
 ## Fixed by compatibility
 
 Programs and tests can see these, so they do not change:
 
 - The arena and `Addr`: PEEK, VARPTR, records in files.
-- The bytecode bytes: an error's address is a code offset. Codegen must emit today's bytes.
+- The bytecode: an error's address is a code offset. `tests/golden/code.txt` holds every corpus
+  line's code; `tools/golden.py` fails on any change.
 
 ## Testing
 
-- `make chost` builds the core with `plat/host`: native x86-64 (Rosetta's x87 on Apple silicon), so the 80-bit maths matches DOS32's.
-- `make cunit` runs `tests/unit` (`TEST`, `CHECK`) after `boot()`. Each module gets its tests here; the lexer, lister and codegen get golden tests over their output bytes.
-- `make host-test` runs the unit tests, then the regressions and conformance on the host build, in seconds. `HOST_SKIP` in `regress_test.py` names what the host cannot show as DOS does.
-- `make ctest`, the DOSBox suites (x86f, conformance, the IDE suite), stays the end-to-end gate.
-
-## Migration
-
-Each step lands green on both gates:
-
-```mermaid
-flowchart LR
-    s1[1. plat/host +<br/>unit tests] --> s2[2. core +<br/>values] --> s3[3. vm<br/>from flow.c] --> s4[4. session,<br/>errors, hooks] --> s5[5. lang:<br/>tree, fold, codegen] --> s6[6. editor:<br/>widget tree]
-```
-
-Step 5 puts the statements through the tree. A statement is a list of steps, each checked as it is parsed, then resolved, folded and generated when the statement ends. Every action and control statement makes steps; only the statement driver writes code itself (the statement map, DBG, EOL, ERR).
+- `make host-test` builds the core for this machine (`plat/host`: the x87's instructions on x86-64,
+  C's `long double` elsewhere) and runs, in seconds:
+  - the unit tests (`tests/unit`, `TEST`, `CHECK`);
+  - the golden code;
+  - the regressions and QB 4.5 conformance. `HOST_SKIP` in `tools/regress_test.py` names what the
+    host cannot show as DOS does.
+- `make test` runs the DOS build under DOSBox-X: the regressions, conformance, folding, op costs,
+  graphics and the IDE. It is the end-to-end gate.
