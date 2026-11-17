@@ -1,6 +1,6 @@
 ' MOTHLIGHT: a little moth's big day out, through the standing stones.
 ' Space, Enter or Up flaps; M turns the music off and on; Esc quits. Driven by TIMER: the same speed on any machine.
-' SCREEN 9's two pages: one is drawn while the other is shown.
+' SCREEN 13's 256 colours on two pages: one is drawn while the other is shown.
 DECLARE SUB Setup ()
 DECLARE SUB BuildGlyphs ()
 DECLARE SUB BuildMoth ()
@@ -12,58 +12,64 @@ DECLARE SUB Render ()
 DECLARE SUB DrawSky ()
 DECLARE SUB DrawSun ()
 DECLARE SUB DrawHills ()
-DECLARE SUB DrawFireflies ()
 DECLARE SUB DrawStone (x AS INTEGER, y1 AS INTEGER, y2 AS INTEGER, capTop AS INTEGER, kind AS INTEGER)
 DECLARE SUB DrawLake ()
 DECLARE SUB DrawSparks ()
 DECLARE SUB DrawMoth ()
 DECLARE SUB DrawPanel ()
 DECLARE SUB Emit (n AS INTEGER, spread AS SINGLE, kick AS SINGLE)
-DECLARE SUB Txt (t AS STRING, x AS INTEGER, y AS INTEGER, sc AS INTEGER, c1 AS INTEGER, c2 AS INTEGER, c3 AS INTEGER, sh AS INTEGER)
-DECLARE SUB TxtC (t AS STRING, y AS INTEGER, sc AS INTEGER, c1 AS INTEGER, c2 AS INTEGER, c3 AS INTEGER, sh AS INTEGER)
+DECLARE SUB Txt (t AS STRING, x AS INTEGER, y AS INTEGER, sc AS INTEGER, c1 AS INTEGER, c2 AS INTEGER, sh AS INTEGER)
+DECLARE SUB TxtC (t AS STRING, y AS INTEGER, sc AS INTEGER, c1 AS INTEGER, c2 AS INTEGER, sh AS INTEGER)
 DECLARE SUB Music ()
 DECLARE SUB StartSong (id AS INTEGER)
 DECLARE SUB SetPalette ()
+DECLARE SUB Disc (cx AS INTEGER, cy AS INTEGER, r AS INTEGER, c AS INTEGER)
 DECLARE SUB Dither (x1 AS INTEGER, y1 AS INTEGER, x2 AS INTEGER, y2 AS INTEGER, c AS INTEGER, level AS INTEGER)
-DECLARE FUNCTION Ega% (r AS INTEGER, g AS INTEGER, b AS INTEGER)
+DECLARE FUNCTION Mix& (a AS LONG, b AS LONG, t AS SINGLE)
 DECLARE FUNCTION NextGap% (prev AS INTEGER)
 DECLARE FUNCTION Hit% ()
 DECLARE FUNCTION RectHit% (x1 AS SINGLE, y1 AS SINGLE, x2 AS SINGLE, y2 AS SINGLE)
 DECLARE FUNCTION Ell! (px AS SINGLE, py AS SINGLE, cx AS SINGLE, cy AS SINGLE, ang AS SINGLE, a AS SINGLE, b AS SINGLE)
 DECLARE FUNCTION SegD! (px AS SINGLE, py AS SINGLE, ax AS SINGLE, ay AS SINGLE, bx AS SINGLE, by AS SINGLE)
 
-CONST GROUNDY = 322, HOMEX = 170, ASPECT = 1.37!
-CONST NSTONE = 4, STONEW = 58, CAPH = 12, GAP = 116, SPACING = 240, NKIND = 5
-CONST SPRW = 64, SPRH = 56, SPRSZ = 900, MSCALE = 1.35!, NSPR = 14, NSPARK = 64
-CONST GRAV = 1150!, FLAPV = -330!, SPEED = 140!, STEPT = 1! / 120!
+CONST SW = 320, SH = 200, GROUNDY = 184, LAKEH = 16, HOMEX = 85, ASPECT = 1.2!
+CONST NSTONE = 4, STONEW = 29, OVERHANG = 3, CAPH = 7, GAP = 66, SPACING = 124, NKIND = 5
+CONST SPRW = 34, SPRH = 30, SPRSZ = 256, MSCALE = .62!, NSPR = 14, NSPARK = 64
+CONST GRAV = 660!, FLAPV = -190!, SPEED = 72!, STEPT = 1! / 120!
 CONST TITLE = 0, PLAYING = 1, DYING = 2, OVER = 3
 CONST NOSONG = 0, TITLESONG = 1, GAMESONG = 2, TITLEBEATS = 32, GAMEBEATS = 64
-CONST SUNX = 560, SUNY = 64, NFLY = 12, NCLOUD = 3, DAY = 0, GOLDEN = 1, SUNSET = 2
+CONST SUNX = 258, SUNY = 58, NFLY = 10, NCLOUD = 3, DAY = 0, GOLDEN = 1, SUNSET = 2, NKEY = 15
+' The colours. The lake ORs 64 into what it mirrors, so 0-15 and 128-191 have water-tinted copies
+' 64 higher; the rest are only drawn above the lake's reach.
+CONST CINK = 1, CWHITE = 2, CWING = 3, CWEDGE = 4, CBODY = 5, CSTRIPE = 6, CCOLLAR = 7, CHIND = 8, CHINDE = 9
+CONST CSPARK = 10, CSKY = 16, NSKY = 48, CTITLE = 80, CPANEL = 88, CPANEL2 = 89
+CONST CSUN = 90, CRAY = 91, CCHEEK = 92, CCLOUD = 93, CCLOUDLO = 94, CMASK = 255
+CONST CMTN = 128, CFAR = 144, CNEAR = 160, CTREE = 176, CSTONE = 180, CMOSS = 188, CRUNE = 189, CSHROOM = 190
+CONST CVINE = 191, WATER = 64
 
 '$DYNAMIC
 DIM SHARED state AS INTEGER, score AS INTEGER, best AS INTEGER, newBest AS INTEGER, drawPage AS INTEGER
 DIM SHARED mothX AS SINGLE, mothY AS SINGLE, vy AS SINGLE, scroll AS SINGLE, clock AS SINGLE, phase AS SINGLE
 DIM SHARED boost AS SINGLE, flash AS SINGLE, stateT AS SINGLE, sparkT AS SINGLE, behind AS INTEGER
-DIM SHARED squashT AS SINGLE, popT AS SINGLE, shakeT AS SINGLE, shakeDX AS INTEGER, shakeDY AS INTEGER
-DIM SHARED shootT AS SINGLE, shootX AS SINGLE, shootY AS SINGLE, shootLife AS SINGLE
+DIM SHARED squashT AS SINGLE, popT AS SINGLE, shakeT AS SINGLE, palT AS SINGLE
 DIM SHARED stoneX(NSTONE - 1) AS SINGLE, stoneGap(NSTONE - 1) AS INTEGER, stoneDone(NSTONE - 1) AS INTEGER
-DIM SHARED stoneKind(NSTONE - 1) AS INTEGER
+DIM SHARED stoneKind(NSTONE - 1) AS INTEGER, StoneCol(STONEW + 2 * OVERHANG) AS INTEGER
 DIM SHARED MtnTop(639) AS INTEGER, FarTop(639) AS INTEGER, NearTop(639) AS INTEGER
 DIM SHARED TreeX(15) AS INTEGER, TreeH(15) AS INTEGER
 DIM SHARED FlyX(NFLY - 1) AS INTEGER, FlyY(NFLY - 1) AS INTEGER, FlyPh(NFLY - 1) AS SINGLE
-DIM SHARED CloudX(NCLOUD - 1) AS INTEGER, CloudY(NCLOUD - 1) AS INTEGER, CloudW(NCLOUD - 1) AS INTEGER
-DIM SHARED Rune(3) AS STRING
-DIM SHARED PalSet(2, 15) AS INTEGER, PalCur(15) AS INTEGER, sky AS INTEGER, palT AS SINGLE
-DIM SHARED dimLvl AS INTEGER, dimTarget AS INTEGER, fadeT AS SINGLE, toTitle AS INTEGER, quitting AS INTEGER
-DIM SHARED Glyph(126, 13) AS INTEGER, Bit(7) AS INTEGER
-DIM SHARED Spr(SPRSZ * NSPR * 2 - 1) AS INTEGER, Strip(170) AS INTEGER
+DIM SHARED CloudX(NCLOUD - 1) AS INTEGER, CloudY(NCLOUD - 1) AS INTEGER
+DIM SHARED Rune(3) AS STRING, sky AS INTEGER, fade AS SINGLE, fadeTarget AS SINGLE
+DIM SHARED toTitle AS INTEGER, quitting AS INTEGER
+DIM SHARED Rgb(255) AS LONG, SkyKey(2, NKEY - 1) AS LONG, CurKey(NKEY - 1, 2) AS SINGLE
+DIM SHARED Glyph(126, 7) AS INTEGER, Bit(7) AS INTEGER
+DIM SHARED Spr(SPRSZ * NSPR * 2 - 1) AS LONG, Strip(80) AS LONG, Tinter(SW * LAKEH \ 4) AS LONG, Frame(SW * SH \ 4) AS LONG
 DIM SHARED Tune(1 TO 2, GAMEBEATS - 1) AS STRING, songLen(1 TO 2) AS INTEGER
 DIM SHARED song AS INTEGER, beat AS INTEGER, musicOn AS INTEGER, cue AS STRING
 DIM SHARED sx(NSPARK - 1) AS SINGLE, sy(NSPARK - 1) AS SINGLE
 DIM SHARED svx(NSPARK - 1) AS SINGLE, svy(NSPARK - 1) AS SINGLE, slife(NSPARK - 1) AS SINGLE
 
 DIM t AS SINGLE, lastT AS SINGLE, dt AS SINGLE, acc AS SINGLE
-DIM flapped AS INTEGER, k AS STRING, i AS INTEGER
+DIM flapped AS INTEGER, k AS STRING, i AS INTEGER, j AS INTEGER, r AS LONG, g AS LONG, b AS LONG
 
 ' The songs, a beat to a string: the tune on the beat, then two notes of its chord.
 songLen(GAMESONG) = GAMEBEATS
@@ -73,6 +79,20 @@ songLen(TITLESONG) = TITLEBEATS
 RESTORE TitleTune
 FOR i = 0 TO TITLEBEATS - 1: READ Tune(TITLESONG, i): NEXT
 musicOn = -1
+RESTORE Skies
+FOR i = 0 TO 2
+    FOR j = 0 TO NKEY - 1
+        READ r, g, b
+        SkyKey(i, j) = r + g * 256 + b * 65536
+    NEXT
+NEXT
+RESTORE Fixed
+DO
+    READ i
+    IF i < 0 THEN EXIT DO
+    READ r, g, b
+    Rgb(i) = r + g * 256 + b * 65536
+LOOP
 
 Setup
 BuildGlyphs
@@ -98,7 +118,7 @@ DO
             IF musicOn = 0 THEN SOUND 37, 0
         CASE CHR$(27)
             IF state = TITLE THEN quitting = -1 ELSE toTitle = -1
-            dimTarget = 3
+            fadeTarget = 0
         END SELECT
     LOOP WHILE LEN(k)
 
@@ -110,12 +130,28 @@ DO
     LOOP
     Music
     Render
-LOOP UNTIL quitting AND dimLvl = 3
+LOOP UNTIL quitting AND fade <= 0
 
 SOUND 37, 0
 SCREEN 0
 WIDTH 80
 END
+
+' The skies' key colours as red, green, blue from 0 to 255: sky top, middle, low; cloud, its shade;
+' mountains; far hills top, low; near hills top, low; trees light, dark; water; stone light, dark.
+Skies:
+DATA 30,110,240, 90,170,255, 190,235,255, 255,255,255, 205,220,245, 120,160,225
+DATA 140,215,120, 70,160,90, 90,205,80, 40,130,50, 50,160,70, 20,100,45, 40,140,230, 255,215,150, 170,100,60
+DATA 70,90,220, 170,140,240, 255,215,160, 255,250,235, 240,200,190, 190,150,200
+DATA 200,200,110, 130,140,70, 140,200,70, 70,120,40, 80,150,60, 40,90,40, 80,120,200, 255,200,120, 160,90,50
+DATA 90,50,170, 240,110,170, 255,200,120, 255,220,230, 230,150,190, 170,100,170
+DATA 200,120,160, 120,70,120, 110,170,120, 50,100,80, 60,120,80, 30,70,60, 120,80,180, 255,170,120, 140,70,60
+' The colours that stay: index, red, green, blue.
+Fixed:
+DATA 1,25,25,70, 2,255,255,255, 3,255,226,80, 4,255,130,30, 5,150,80,40, 6,255,170,70
+DATA 7,255,250,235, 8,230,120,50, 9,150,60,30, 10,255,255,255, 11,255,240,140, 12,255,170,200
+DATA 88,60,110,220, 89,255,230,120, 90,255,236,90, 91,255,200,60, 92,255,150,150
+DATA 188,100,210,70, 189,120,255,255, 190,240,60,60, 191,60,160,60, -1
 
 GameTune:
 DATA "T160MNO4E8O3C16O3G16", "T160MNO4G8O3C16O3G16", "T160MNO5C8O3C16O3G16", "T160MNO4G8O3C16O3G16"
@@ -146,12 +182,11 @@ DATA "T120MSO3C16O3G16MLO4E8", "T120MSO3C16O3G16MLO4D8", "T120MSO3C16O3G16MLO4C8
 REM $STATIC
 SUB BuildGlyphs
     DIM c AS INTEGER, r AS INTEGER, x AS INTEGER, b AS INTEGER
-    SCREEN , , 1, 0
-    COLOR 13
+    COLOR CWHITE
     FOR c = 32 TO 126
         LOCATE 1, 1
         PRINT CHR$(c);
-        FOR r = 0 TO 13
+        FOR r = 0 TO 7
             b = 0
             FOR x = 0 TO 7
                 IF POINT(x, r) THEN b = b OR Bit(x)
@@ -176,7 +211,6 @@ SUB BuildMoth
     wa(1) = -2.55: wl(1) = 8: ww(1) = 7.5
     wa(2) = 1.75: wl(2) = 12: ww(2) = 6.5
 
-    SCREEN , , 1, 0
     FOR k = 0 TO NSPR - 1
         sw = 1: sh = 1
         IF k < 12 THEN
@@ -195,32 +229,32 @@ SUB BuildMoth
                 wx = (px - 1 - SPRW / 2 + .5) / MSCALE: wy = (py - 1 - SPRH / 2 + .5) * ASPECT / MSCALE
                 lx = (wx * ct + wy * st) / sw: ly = (-wx * st + wy * ct) / sh
                 c = 0
-                IF SegD!(lx, ly, 10, -4, 17, -13) < .9 OR SegD!(lx, ly, 8, -4, 12, -14) < .8 THEN
-                    c = 12
-                ELSEIF (lx - 17) ^ 2 + (ly + 13) ^ 2 < 3 THEN
-                    c = 12
-                ELSEIF (lx - 11.5) ^ 2 + (ly + 1) ^ 2 < 3 THEN
-                    c = 12
+                IF SegD!(lx, ly, 10, -4, 17, -13) < 1.2 OR SegD!(lx, ly, 8, -4, 12, -14) < 1.1 THEN
+                    c = CINK
+                ELSEIF (lx - 17) ^ 2 + (ly + 13) ^ 2 < 5 THEN
+                    c = CINK
+                ELSEIF (lx - 11.5) ^ 2 + (ly + 1) ^ 2 < 5 THEN
+                    c = CINK
                 ELSEIF (lx - 9) ^ 2 + ly ^ 2 < 21 THEN
-                    c = 11
+                    c = CWEDGE
                 ELSEIF Ell!(lx, ly, fx, fy, wa(w), wl(w), ww(w)) < 1 THEN
                     d = (lx - fx) ^ 2 + (ly - fy) ^ 2
                     e = Ell!(lx, ly, fx, fy, wa(w), wl(w), ww(w))
-                    IF (lx - fx - .6) ^ 2 + (ly - fy + .6) ^ 2 < .7 THEN
-                        c = 13
-                    ELSEIF d < 3.2 THEN
-                        c = 12
-                    ELSEIF d < 8 OR e > .72 THEN
-                        c = 11
+                    IF (lx - fx - .8) ^ 2 + (ly - fy + .8) ^ 2 < 1.6 THEN
+                        c = CWHITE
+                    ELSEIF d < 5 THEN
+                        c = CINK
+                    ELSEIF d < 11 OR e > .7 THEN
+                        c = CWEDGE
                     ELSE
-                        c = 10
+                        c = CWING
                     END IF
                 ELSEIF Ell!(lx, ly, 5, 0, 1.5708, 5, 2.5) < 1 THEN
-                    c = 13
+                    c = CCOLLAR
                 ELSEIF Ell!(lx, ly, -3, 1, 0, 10.5, 5.2) < 1 THEN
-                    IF lx < 0 AND ((INT(lx + 40) \ 3) MOD 2) = 0 THEN c = 11 ELSE c = 8
+                    IF lx < 0 AND ((INT(lx + 40) \ 4) MOD 2) = 0 THEN c = CSTRIPE ELSE c = CBODY
                 ELSEIF Ell!(lx, ly, hx, hy, ha, .8 * wl(w), .9 * ww(w)) < 1 THEN
-                    IF Ell!(lx, ly, hx, hy, ha, .8 * wl(w), .9 * ww(w)) > .65 THEN c = 9 ELSE c = 8
+                    IF Ell!(lx, ly, hx, hy, ha, .8 * wl(w), .9 * ww(w)) > .6 THEN c = CHINDE ELSE c = CHIND
                 END IF
                 g(px, py) = c
             NEXT
@@ -236,14 +270,14 @@ SUB BuildMoth
         FOR py = 1 TO SPRH
             FOR px = 1 TO SPRW
                 c = g(px, py)
-                IF c < 0 THEN c = 12
+                IF c < 0 THEN c = CINK
                 PSET (px - 1, py - 1), c
             NEXT
         NEXT
         GET (0, 0)-(SPRW - 1, SPRH - 1), Spr(k * SPRSZ)
         FOR py = 1 TO SPRH
             FOR px = 1 TO SPRW
-                IF g(px, py) THEN PSET (px - 1, py - 1), 0 ELSE PSET (px - 1, py - 1), 15
+                IF g(px, py) THEN PSET (px - 1, py - 1), 0 ELSE PSET (px - 1, py - 1), CMASK
             NEXT
         NEXT
         GET (0, 0)-(SPRW - 1, SPRH - 1), Spr((NSPR + k) * SPRSZ)
@@ -255,7 +289,7 @@ SUB Die
     stateT = 0
     flash = .18
     shakeT = .35
-    vy = -120
+    vy = -70
     song = NOSONG
     cue = ""
     SOUND 37, 0
@@ -264,6 +298,16 @@ SUB Die
         best = score
         newBest = -1
     END IF
+END SUB
+
+' A disc of radius r, round on the screen.
+SUB Disc (cx AS INTEGER, cy AS INTEGER, r AS INTEGER, c AS INTEGER)
+    DIM dy AS INTEGER, ry AS INTEGER, hw AS INTEGER
+    ry = r / ASPECT
+    FOR dy = -ry TO ry
+        hw = r * SQR(1 - (dy / (ry + .5)) ^ 2)
+        LINE (cx - hw, cy + dy)-(cx + hw, cy + dy), c
+    NEXT
 END SUB
 
 ' Dots of colour c over the box, a quarter (level 1), half (2) or three quarters (3) of them.
@@ -280,123 +324,91 @@ SUB Dither (x1 AS INTEGER, y1 AS INTEGER, x2 AS INTEGER, y2 AS INTEGER, c AS INT
     NEXT
 END SUB
 
-SUB DrawFireflies
-    DIM i AS INTEGER, x AS INTEGER, y AS INTEGER, o AS INTEGER
+' The mountains and their ruined castle, the far hills, the seeds drifting, the near hills and trees.
+' A ridge is lit along its crest and shades away below it.
+SUB DrawHills
+    DIM o AS INTEGER, x AS INTEGER, y AS INTEGER, k AS INTEGER, tx AS INTEGER
+    DIM h AS INTEGER, b AS INTEGER, r AS INTEGER, hw AS INTEGER, cx AS INTEGER
+    o = INT(scroll * .05) MOD 640
+    FOR x = 0 TO SW - 1 STEP 2
+        y = MtnTop((x + o) MOD 640)
+        LINE (x, y)-(x + 1, y + 1), CMTN, BF
+        LINE (x, y + 2)-(x + 1, y + 9), CMTN + 3, BF
+        LINE (x, y + 10)-(x + 1, 150), CMTN + 6, BF
+    NEXT
+    cx = 215 - o
+    IF cx < -20 THEN cx = cx + 640
+    b = MtnTop(215) + 3
+    LINE (cx - 12, b - 15)-(cx - 6, b), CMTN + 2, BF
+    LINE (cx - 6, b - 9)-(cx + 7, b), CMTN + 2, BF
+    LINE (cx + 7, b - 12)-(cx + 12, b), CMTN + 2, BF
+    FOR k = 0 TO 3
+        PSET (cx - 12 + k * 2, b - 16), CMTN + 2
+        PSET (cx + 6 + k * 2, b - 13), CMTN + 2
+    NEXT
+    PSET (cx - 9, b - 10), CSPARK + 1
+    PSET (cx + 1, b - 4), CSPARK + 1
+
+    o = INT(scroll * .15) MOD 640
+    FOR x = 0 TO SW - 1 STEP 2
+        y = FarTop((x + o) MOD 640)
+        LINE (x, y)-(x + 1, y + 1), CFAR, BF
+        LINE (x, y + 2)-(x + 1, y + 12), CFAR + 5, BF
+        LINE (x, y + 13)-(x + 1, GROUNDY - 1), CFAR + 10, BF
+    NEXT
     o = INT(scroll * .25) MOD 640
-    FOR i = 0 TO NFLY - 1
-        IF SIN(clock * 2.3 + FlyPh(i) * 3) > .3 THEN
-            x = FlyX(i) - o
+    FOR k = 0 TO NFLY - 1
+        IF SIN(clock * 2.3 + FlyPh(k) * 3) > .3 THEN
+            x = FlyX(k) - o
             IF x < 0 THEN x = x + 640
-            y = FlyY(i) + 5 * SIN(clock * .8 + FlyPh(i))
-            PSET (x, y), 13
-            PSET (x - 1, y), 10: PSET (x + 1, y), 10
-            PSET (x, y - 1), 10: PSET (x, y + 1), 10
+            y = FlyY(k) + 3 * SIN(clock * .8 + FlyPh(k))
+            PSET (x, y), CWHITE
+            PSET (x - 1, y), CSPARK + 1: PSET (x + 1, y), CSPARK + 1
+            PSET (x, y - 1), CSPARK + 1: PSET (x, y + 1), CSPARK + 1
+        END IF
+    NEXT
+    o = INT(scroll * .4) MOD 640
+    FOR x = 0 TO SW - 1
+        y = NearTop((x + o) MOD 640)
+        LINE (x, y)-(x, y + 1), CNEAR
+        LINE (x, y + 2)-(x, y + 8), CNEAR + 5
+        LINE (x, y + 9)-(x, GROUNDY - 1), CNEAR + 11
+    NEXT
+    FOR k = 0 TO 15
+        tx = TreeX(k) - o
+        IF tx < -10 THEN tx = tx + 640
+        IF tx < SW + 10 THEN
+            h = TreeH(k)
+            b = NearTop(TreeX(k)) + 2
+            LINE (tx, b - 2)-(tx, b + 1), CTREE + 3
+            FOR r = 0 TO h
+                hw = 1 + (r MOD (h \ 2 + 1)) * 3 \ (h \ 2 + 1) + r \ 5
+                LINE (tx - hw, b - h + r)-(tx, b - h + r), CTREE
+                LINE (tx + 1, b - h + r)-(tx + hw, b - h + r), CTREE + 2
+            NEXT
         END IF
     NEXT
 END SUB
 
-SUB DrawHills
-    DIM o AS INTEGER, x AS INTEGER, y AS INTEGER, k AS INTEGER, tx AS INTEGER
-    DIM h AS INTEGER, b AS INTEGER, r AS INTEGER, hw AS INTEGER, cx AS INTEGER, m AS INTEGER, p AS INTEGER
-    ' the mountains, hazy with distance, and their ruined castle, a lamp still lit in it
-    o = INT(scroll * .05) MOD 640
-    FOR x = 0 TO 639
-        y = MtnTop((x + o) MOD 640)
-        IF (x + y) AND 1 THEN p = &HAAAA ELSE p = &H5555
-        LINE (x, y)-(x, 260), 1, , p
-    NEXT
-    cx = 430 - o
-    IF cx < -40 THEN cx = cx + 640
-    b = MtnTop(430) + 6
-    Dither cx - 24, b - 30, cx - 12, b, 1, 3
-    Dither cx - 12, b - 18, cx + 14, b, 1, 3
-    Dither cx + 14, b - 24, cx + 24, b, 1, 3
-    FOR m = cx - 24 TO cx - 14 STEP 4
-        LINE (m, b - 33)-(m + 1, b - 30), 1, BF
-    NEXT
-    FOR m = cx - 12 TO cx + 12 STEP 5
-        LINE (m, b - 21)-(m + 2, b - 18), 1, BF
-    NEXT
-    LINE (cx + 14, b - 28)-(cx + 17, b - 24), 1, BF
-    LINE (cx + 21, b - 26)-(cx + 24, b - 24), 1, BF
-    PSET (cx - 18, b - 22), 10
-    PSET (cx + 2, b - 10), 10
-
-    o = INT(scroll * .15) MOD 640
-    FOR x = 0 TO 638 STEP 2
-        y = FarTop((x + o) MOD 640)
-        LINE (x, y)-(x + 1, GROUNDY), 6, BF
-        LINE (x, y)-(x + 1, y), 2
-    NEXT
-    DrawFireflies
-    o = INT(scroll * .4) MOD 640
-    FOR x = 0 TO 638 STEP 2
-        LINE (x, NearTop((x + o) MOD 640))-(x + 1, GROUNDY), 7, BF
-    NEXT
-    FOR k = 0 TO 15
-        tx = TreeX(k) - o
-        IF tx < -20 THEN tx = tx + 640
-        h = TreeH(k)
-        b = NearTop(TreeX(k)) + 4
-        FOR r = 0 TO h STEP 2
-            hw = 1 + (r MOD (h \ 2 + 1)) * 5 \ (h \ 2 + 1) + r \ 6
-            LINE (tx - hw, b - h + r)-(tx + hw, b - h + r + 1), 15, BF
-        NEXT
-    NEXT
-END SUB
-
-' The lake mirrors the rows above it, each row shifted by its ripple, and the sun's path on it.
+' The lake mirrors the rows above it, each shifted by its ripple, then ORs in 64: the water's tint.
 SUB DrawLake
-    DIM d AS INTEGER, ofs AS INTEGER, last AS INTEGER, k AS INTEGER, x AS INTEGER, y AS INTEGER, w AS INTEGER
-    LINE (0, GROUNDY)-(639, 349), 0, BF
-    last = 27 - shakeDY
-    FOR d = 0 TO last
-        ofs = INT((1 + d / 6) * SIN(clock * 2.2 + d * .7))
-        GET (12, GROUNDY - 1 - d)-(627, GROUNDY - 1 - d), Strip
-        PUT (12 + ofs, GROUNDY + d), Strip, PSET
+    DIM d AS INTEGER, ofs AS INTEGER, k AS INTEGER, x AS INTEGER, y AS INTEGER, w AS INTEGER
+    LINE (0, GROUNDY)-(SW - 1, SH - 1), CFAR + 10, BF
+    FOR d = 0 TO LAKEH - 1
+        ofs = INT((1 + d / 4) * SIN(clock * 2.2 + d * .9))
+        GET (6, GROUNDY - 1 - d)-(SW - 7, GROUNDY - 1 - d), Strip
+        PUT (6 + ofs, GROUNDY + d), Strip, PSET
     NEXT
-    Dither 0, GROUNDY, 639, GROUNDY + last, 0, 1
-    LINE (0, GROUNDY)-(639, GROUNDY), 2
-    FOR d = 2 TO last STEP 3
-        w = 12 - d \ 3 + INT(3 * SIN(clock * 5 + d))
-        LINE (SUNX - w, GROUNDY + d)-(SUNX + w, GROUNDY + d), 5, , &HCCCC
+    PUT (0, GROUNDY), Tinter, OR
+    LINE (0, GROUNDY)-(SW - 1, GROUNDY), CWHITE, , &HAAAA
+    FOR d = 2 TO LAKEH - 1 STEP 2
+        w = 7 - d \ 3 + INT(2 * SIN(clock * 5 + d))
+        LINE (SUNX - w, GROUNDY + d)-(SUNX + w, GROUNDY + d), CSUN, , &HAAAA
     NEXT
-    FOR k = 0 TO 10
-        x = (k * 61 + INT(clock * 18)) MOD 640
-        y = GROUNDY + 3 + (k * 7) MOD 22
-        IF y <= GROUNDY + last THEN LINE (x, y)-(x + 5 + (k MOD 3) * 3, y), 5
-    NEXT
-END SUB
-
-' A smiling sun, its rays turning, and the clouds drifting across it.
-SUB DrawSun
-    DIM dy AS INTEGER, hw AS INTEGER, i AS INTEGER, x AS INTEGER, y AS INTEGER, w AS INTEGER, r AS INTEGER, h AS INTEGER
-    DIM a AS SINGLE
-    FOR i = 0 TO 11
-        a = i * .5236 + clock * .4
-        LINE (SUNX + 31 * COS(a), SUNY + 31 * SIN(a) / ASPECT)-(SUNX + 42 * COS(a), SUNY + 42 * SIN(a) / ASPECT), 4
-        LINE (SUNX + 31 * COS(a) + 1, SUNY + 31 * SIN(a) / ASPECT)-(SUNX + 42 * COS(a) + 1, SUNY + 42 * SIN(a) / ASPECT), 4
-    NEXT
-    FOR dy = -19 TO 19
-        hw = 26 * SQR(1 - (dy / 19.5) ^ 2)
-        LINE (SUNX - hw, SUNY + dy)-(SUNX + hw, SUNY + dy), 5
-    NEXT
-    LINE (SUNX - 9, SUNY - 6)-(SUNX - 7, SUNY - 3), 12, BF
-    LINE (SUNX + 7, SUNY - 6)-(SUNX + 9, SUNY - 3), 12, BF
-    CIRCLE (SUNX, SUNY - 2), 12, 12, 3.6, 5.82
-    PSET (SUNX - 15, SUNY + 3), 11: PSET (SUNX + 15, SUNY + 3), 11
-    ' clouds drift across it
-    FOR i = 0 TO NCLOUD - 1
-        x = (CloudX(i) + INT(clock * 7) + INT(scroll * .03)) MOD 900 - 130
-        y = CloudY(i): w = CloudW(i): h = 8
-        FOR r = -h TO h
-            hw = w * SQR(1 - (r / (h + .5)) ^ 2) * (.8 + .2 * SIN(r * 1.1 + i * 2))
-            IF r < -h \ 2 THEN
-                Dither x - hw, y + r, x + hw, y + r, 13, 3
-            ELSE
-                Dither x - hw, y + r, x + hw, y + r, 13, 2
-            END IF
-        NEXT
+    FOR k = 0 TO 9
+        x = (k * 37 + INT(clock * 9)) MOD SW
+        y = GROUNDY + 2 + (k * 5) MOD 13
+        LINE (x, y)-(x + 2 + k MOD 3, y), CWHITE
     NEXT
 END SUB
 
@@ -406,11 +418,11 @@ SUB DrawMoth
         t = 3: w = 0
     ELSEIF state = TITLE THEN
         t = 1
-    ELSEIF vy < -100 THEN
+    ELSEIF vy < -60 THEN
         t = 0
-    ELSEIF vy < 150 THEN
+    ELSEIF vy < 85 THEN
         t = 1
-    ELSEIF vy < 380 THEN
+    ELSEIF vy < 220 THEN
         t = 2
     ELSE
         t = 3
@@ -421,7 +433,7 @@ SUB DrawMoth
     END IF
     k = t * 3 + w
     IF state = PLAYING AND squashT > 0 THEN k = 12
-    IF state = PLAYING AND vy > 380 THEN k = 13
+    IF state = PLAYING AND vy > 220 THEN k = 13
     x = INT(mothX) - SPRW \ 2: y = INT(mothY) - SPRH \ 2
     PUT (x, y), Spr((NSPR + k) * SPRSZ), AND
     PUT (x, y), Spr(k * SPRSZ), OR
@@ -432,36 +444,37 @@ SUB DrawPanel
     DIM f AS SINGLE, y AS INTEGER
     f = stateT / .35
     IF f > 1 THEN f = 1
-    y = 84 - INT((1 - f) ^ 3 * 340)
-    LINE (180, y + 5)-(466, y + 181), 12, BF
-    LINE (174, y)-(460, y + 176), 0, BF
-    LINE (174, y)-(460, y + 176), 4, B
-    LINE (177, y + 3)-(457, y + 173), 2, B
-    TxtC "WHAT A FLIGHT!", y + 14, 2, 5, 4, 11, 2
-    TxtC "SCORE" + STR$(score), y + 54, 2, 13, 13, 5, 2
-    TxtC "BEST" + STR$(best), y + 86, 2, 13, 13, 5, 2
-    IF newBest AND INT(clock * 4) MOD 2 = 0 THEN TxtC "NEW BEST!", y + 120, 1, 10, 10, 11, 1
+    y = 40 - INT((1 - f) ^ 3 * 200)
+    LINE (54, y + 3)-(273, y + 103), CINK, BF
+    LINE (50, y)-(270, y + 100), CPANEL, BF
+    LINE (50, y)-(270, y + 100), CPANEL2, B
+    LINE (52, y + 2)-(268, y + 98), CWHITE, B
+    TxtC "WHAT A FLIGHT!", y + 10, 1, CTITLE, CTITLE + 7, 1
+    TxtC "SCORE" + STR$(score), y + 26, 2, CWHITE, CWHITE, 1
+    TxtC "BEST" + STR$(best), y + 48, 2, CTITLE, CTITLE + 4, 1
+    IF newBest AND INT(clock * 4) MOD 2 = 0 THEN TxtC "NEW BEST!", y + 68, 1, CSPARK + 1, CSPARK + 1, 1
     IF stateT > .6 THEN
-        TxtC "SPACE TO FLY AGAIN", y + 140, 1, 13, 13, 13, 1
-        TxtC "ESC FOR THE TITLE", y + 156, 1, 5, 5, 5, 1
+        TxtC "SPACE TO FLY AGAIN", y + 80, 1, CWHITE, CWHITE, 1
+        TxtC "ESC FOR THE TITLE", y + 89, 1, CTITLE, CTITLE, 1
     END IF
 END SUB
 
+' The sky, a shade a band of rows, and the clouds drifting.
 SUB DrawSky
-    DIM top(5) AS INTEGER, b AS INTEGER
-    top(0) = 0: top(1) = 60: top(2) = 120: top(3) = 170: top(4) = 215: top(5) = GROUNDY
-    FOR b = 0 TO 4
-        LINE (0, top(b))-(639, top(b + 1) - 1), b, BF
+    DIM k AS INTEGER, i AS INTEGER, x AS INTEGER, y AS INTEGER
+    FOR k = 0 TO NSKY - 1
+        LINE (0, k * GROUNDY \ NSKY)-(SW - 1, (k + 1) * GROUNDY \ NSKY - 1), CSKY + k, BF
     NEXT
-    FOR b = 1 TO 4
-        Dither 0, top(b) - 9, 639, top(b) - 7, b, 1
-        Dither 0, top(b) - 6, 639, top(b) - 4, b, 2
-        Dither 0, top(b) - 3, 639, top(b) - 1, b, 3
+    FOR i = 0 TO NCLOUD - 1
+        x = (CloudX(i) + INT(clock * 4) + INT(scroll * .03)) MOD 450 - 65
+        y = CloudY(i)
+        Disc x - 9, y + 2, 9, CCLOUDLO
+        Disc x + 10, y + 2, 8, CCLOUDLO
+        Disc x, y, 11, CCLOUD
+        Disc x - 10, y + 1, 7, CCLOUD
+        Disc x + 10, y + 1, 7, CCLOUD
+        LINE (x - 16, y + 6)-(x + 16, y + 6), CCLOUDLO
     NEXT
-    IF shootLife > 0 THEN
-        LINE (shootX - 40, shootY - 15)-(shootX, shootY), 13, , &HAAAA
-        LINE (shootX - 14, shootY - 5)-(shootX, shootY), 13
-    END IF
 END SUB
 
 SUB DrawSparks
@@ -470,102 +483,118 @@ SUB DrawSparks
         l = slife(i)
         IF l > 0 THEN
             IF l > .7 THEN
-                c = 13
-            ELSEIF l > .4 THEN
-                c = 5
-            ELSEIF l > .2 THEN
-                c = 4
+                c = CSPARK
+            ELSEIF l > .35 THEN
+                c = CSPARK + 1
             ELSE
-                c = 3
+                c = CSPARK + 2
             END IF
             x = INT(sx(i)): y = INT(sy(i))
             PSET (x, y), c
-            IF l > .5 THEN PSET (x + 1, y), c
+            IF l > .6 THEN PSET (x + 1, y), c
         END IF
     NEXT
 END SUB
 
-' A stone from y1 to y2, its cap at the top (capTop) or at the bottom. Its kind: 1 runes,
-' 2 vines, 3 a broken top, 4 mushrooms.
+' A stone from y1 to y2, rounded by its shading, its cap at the top (capTop) or at the bottom.
+' Its kind: 1 runes, 2 vines, 3 a broken top, 4 mushrooms.
 SUB DrawStone (x AS INTEGER, y1 AS INTEGER, y2 AS INTEGER, capTop AS INTEGER, kind AS INTEGER)
-    DIM x2 AS INTEGER, y AS INTEGER, cy AS INTEGER, c1 AS INTEGER, c2 AS INTEGER, m AS INTEGER, n AS INTEGER
-    DIM c AS INTEGER, j AS INTEGER, h AS INTEGER, vx AS INTEGER, ox AS INTEGER
-    x2 = x + STONEW - 1
-    LINE (x, y1)-(x2, y2), 8, BF
-    LINE (x + 4, y1)-(x + 8, y2), 4, BF
-    LINE (x + 9, y1)-(x + 11, y2), 3, BF
-    LINE (x2 - 11, y1)-(x2, y2), 9, BF
-    FOR y = y1 + 7 TO y2 STEP 18
-        LINE (x, y)-(x2, y), 9
-        LINE (x + 4, y + 1)-(x + 11, y + 1), 8
+    DIM dx AS INTEGER, y AS INTEGER, cy AS INTEGER, c1 AS INTEGER, c2 AS INTEGER, m AS INTEGER, n AS INTEGER
+    DIM c AS INTEGER, j AS INTEGER, h AS INTEGER, vx AS INTEGER, px AS INTEGER, s AS INTEGER
+    ' the shading in runs of a colour
+    s = 0
+    FOR dx = 1 TO STONEW
+        IF dx = STONEW THEN
+            LINE (x + s, y1)-(x + dx - 1, y2), StoneCol(s + OVERHANG), BF
+        ELSEIF StoneCol(dx + OVERHANG) <> StoneCol(s + OVERHANG) THEN
+            LINE (x + s, y1)-(x + dx - 1, y2), StoneCol(s + OVERHANG), BF
+            s = dx
+        END IF
     NEXT
-    LINE (x, y1)-(x2, y2), 12, B
-    IF capTop THEN cy = y1 ELSE cy = y2 - CAPH
-    c1 = x - 6: c2 = x2 + 6
+    FOR y = y1 + 4 TO y2 STEP 9
+        LINE (x + 1, y)-(x + STONEW - 2, y), CSTONE + 6
+        LINE (x + 2, y + 1)-(x + 8, y + 1), CSTONE
+    NEXT
+    LINE (x, y1)-(x, y2), CINK: LINE (x + STONEW - 1, y1)-(x + STONEW - 1, y2), CINK
+    IF capTop THEN cy = y1 ELSE cy = y2 - CAPH + 1
+    c1 = x - OVERHANG: c2 = x + STONEW - 1 + OVERHANG
 
     IF capTop AND kind = 3 THEN
-        FOR m = c1 TO c2 STEP 4
-            h = CAPH - ((m - c1) * 7 + x) MOD 8
-            LINE (m, cy + CAPH - h)-(m + 3, cy + CAPH), 8, BF
-            LINE (m, cy + CAPH - h)-(m + 3, cy + CAPH - h), 4
+        FOR dx = 0 TO c2 - c1
+            h = CAPH - ((dx \ 3) * 5 + x) MOD 4
+            LINE (c1 + dx, cy + CAPH - h)-(c1 + dx, cy + CAPH - 1), StoneCol(dx)
+            PSET (c1 + dx, cy + CAPH - h), CINK
         NEXT
-        LINE (c1, cy + CAPH - 1)-(c2, cy + CAPH), 9, BF
+        LINE (c1, cy + CAPH - 1)-(c2, cy + CAPH - 1), CINK
         EXIT SUB
     END IF
 
-    LINE (c1, cy)-(c2, cy + CAPH), 8, BF
-    LINE (c1, cy)-(c2, cy + 1), 4, BF
-    LINE (c1 + 2, cy)-(c1 + 7, cy + CAPH), 4, BF
-    LINE (c2 - 9, cy + 2)-(c2, cy + CAPH), 9, BF
-    LINE (c1, cy + CAPH - 1)-(c2, cy + CAPH), 9, BF
-    LINE (c1, cy)-(c2, cy + CAPH), 12, B
+    LINE (c1, cy)-(c2, cy + CAPH - 1), CSTONE + 2, BF
+    LINE (c1 + 2, cy)-(c1 + 8, cy + CAPH - 1), CSTONE, BF
+    LINE (c2 - 8, cy)-(c2, cy + CAPH - 1), CSTONE + 5, BF
+    LINE (c1 + 1, cy + 1)-(c2 - 1, cy + 1), CSTONE
+    LINE (c1, cy)-(c2, cy + CAPH - 1), CINK, B
     IF capTop THEN
-        LINE (c1, cy - 1)-(c2, cy + 1), 14, BF
-        FOR m = c1 + 1 TO c2 - 1 STEP 5
-            LINE (m, cy - 3 - (m - c1) MOD 3)-(m + 1, cy), 14, BF
+        LINE (c1 + 1, cy)-(c2 - 1, cy), CMOSS
+        FOR m = c1 + 1 TO c2 - 1 STEP 3
+            LINE (m, cy - 1 - (m - c1) MOD 2)-(m, cy), CMOSS
         NEXT
         IF kind = 4 THEN
             FOR j = 0 TO 2
-                m = c1 + 9 + j * 23 - (j = 2) * 4
-                LINE (m, cy - 6)-(m + 1, cy - 1), 13, BF
-                LINE (m - 3, cy - 9)-(m + 4, cy - 7), 11, BF
-                LINE (m - 2, cy - 10)-(m + 3, cy - 10), 11
-                PSET (m - 1, cy - 8), 13: PSET (m + 2, cy - 9), 13
+                m = c1 + 5 + j * 12
+                LINE (m, cy - 3)-(m, cy - 1), CWHITE
+                LINE (m - 2, cy - 4)-(m + 2, cy - 4), CSHROOM
+                LINE (m - 1, cy - 5)-(m + 1, cy - 5), CSHROOM
+                PSET (m - 1, cy - 4), CWHITE
             NEXT
         END IF
         IF kind = 1 THEN
-            IF SIN(clock * 3 + x * .05) > 0 THEN c = 5 ELSE c = 10
+            IF SIN(clock * 3 + x * .05) > 0 THEN c = CRUNE ELSE c = CWHITE
             j = 0
-            FOR y = cy + CAPH + 14 TO y2 - 14 STEP 24
-                DRAW "C" + STR$(c) + " BM" + STR$(x + 27) + "," + STR$(y) + Rune(j MOD 4)
+            FOR y = cy + CAPH + 6 TO y2 - 8 STEP 10
+                FOR n = 0 TO 14
+                    IF MID$(Rune(j MOD 4), n + 1, 1) = "1" THEN PSET (x + 13 + n MOD 3, y + n \ 3), c
+                NEXT
                 j = j + 1
             NEXT
         END IF
     ELSE
-        FOR m = c1 + 3 TO c2 - 3 STEP 9
-            n = 4 + ((m - c1) * 7) MOD 11
-            LINE (m, cy + CAPH)-(m, cy + CAPH + n), 14
-            PSET (m + 1, cy + CAPH + n), 14
-            PSET (m - 1, cy + CAPH + n \ 2), 14
+        FOR m = c1 + 2 TO c2 - 2 STEP 4
+            n = 1 + ((m - c1) * 7) MOD 5
+            LINE (m, cy + CAPH)-(m, cy + CAPH + n), CVINE
         NEXT
         IF kind = 2 THEN
             FOR j = 0 TO 2
-                vx = x + 10 + j * 19
-                ox = vx
-                FOR y = 0 TO cy + CAPH + 26 STEP 6
-                    m = vx + INT(3 * SIN(clock * 1.7 + y * .08 + j))
-                    LINE (ox, y - 6)-(m, y), 14
-                    IF (y \ 6 + j) MOD 3 = 0 THEN PSET (m + 2, y), 14: PSET (m - 2, y + 1), 14
-                    ox = m
+                vx = x + 5 + j * 9
+                FOR y = 0 TO cy + CAPH + 12
+                    px = vx + INT(1.5 * SIN(clock * 1.7 + y * .16 + j))
+                    PSET (px, y), CVINE
+                    IF (y + j * 2) MOD 6 = 0 THEN PSET (px + 1, y), CMOSS: PSET (px - 1, y + 1), CMOSS
                 NEXT
             NEXT
         END IF
     END IF
 END SUB
 
-FUNCTION Ega% (r AS INTEGER, g AS INTEGER, b AS INTEGER)
-    Ega% = (b \ 2) + (g \ 2) * 2 + (r \ 2) * 4 + (b AND 1) * 8 + (g AND 1) * 16 + (r AND 1) * 32
-END FUNCTION
+' A smiling sun, its rays turning.
+SUB DrawSun
+    DIM i AS INTEGER, a AS SINGLE, ca AS SINGLE, sa AS SINGLE
+    FOR i = 0 TO 11
+        a = i * .5236 + clock * .4
+        ca = COS(a): sa = SIN(a) / ASPECT
+        LINE (SUNX + 17 * ca, SUNY + 17 * sa)-(SUNX + 23 * ca, SUNY + 23 * sa), CRAY
+    NEXT
+    Disc SUNX, SUNY, 15, CRAY
+    Disc SUNX, SUNY, 14, CSUN
+    LINE (SUNX - 5, SUNY - 4)-(SUNX - 4, SUNY - 3), CINK, BF
+    LINE (SUNX + 4, SUNY - 4)-(SUNX + 5, SUNY - 3), CINK, BF
+    FOR i = 0 TO 8
+        a = .5 + i * .27
+        PSET (SUNX + 7 * COS(a), SUNY + 1 + 6 * SIN(a) / ASPECT), CINK
+    NEXT
+    Disc SUNX - 9, SUNY + 3, 2, CCHEEK
+    Disc SUNX + 9, SUNY + 3, 2, CCHEEK
+END SUB
 
 ' Where (px, py) is in the ellipse at (cx, cy), its long axis at ang: under 1 inside.
 FUNCTION Ell! (px AS SINGLE, py AS SINGLE, cx AS SINGLE, cy AS SINGLE, ang AS SINGLE, a AS SINGLE, b AS SINGLE)
@@ -584,9 +613,9 @@ SUB Emit (n AS INTEGER, spread AS SINGLE, kick AS SINGLE)
     FOR i = 0 TO NSPARK - 1
         IF todo = 0 THEN EXIT FOR
         IF slife(i) <= 0 THEN
-            sx(i) = mothX - 10 + RND * 6
-            sy(i) = mothY + RND * 8 - 4
-            svx(i) = -60 - RND * 80 + (RND - .5) * kick
+            sx(i) = mothX - 5 + RND * 3
+            sy(i) = mothY + RND * 4 - 2
+            svx(i) = -30 - RND * 40 + (RND - .5) * kick
             svy(i) = (RND - .5) * spread
             slife(i) = .6 + RND * .5
             todo = todo - 1
@@ -598,7 +627,7 @@ SUB Flap
     vy = FLAPV
     boost = .25
     squashT = .12
-    Emit 20, 260, 200
+    Emit 20, 130, 100
     IF musicOn = 0 AND PLAY(0) < 3 THEN PLAY "T255MNL64O4AO5E"
 END SUB
 
@@ -607,14 +636,26 @@ FUNCTION Hit%
     Hit% = 0
     FOR i = 0 TO NSTONE - 1
         x = stoneX(i)
-        IF x < mothX + 20 AND x + STONEW > mothX - 20 THEN
+        IF x < mothX + 12 AND x + STONEW > mothX - 12 THEN
             t = stoneGap(i) - GAP \ 2: b = stoneGap(i) + GAP \ 2
             IF RectHit%(x, 0, x + STONEW - 1, t - CAPH) THEN Hit% = -1
-            IF RectHit%(x - 6, t - CAPH, x + STONEW + 5, t) THEN Hit% = -1
-            IF RectHit%(x - 6, b, x + STONEW + 5, b + CAPH) THEN Hit% = -1
+            IF RectHit%(x - OVERHANG, t - CAPH, x + STONEW - 1 + OVERHANG, t) THEN Hit% = -1
+            IF RectHit%(x - OVERHANG, b, x + STONEW - 1 + OVERHANG, b + CAPH) THEN Hit% = -1
             IF RectHit%(x, b + CAPH, x + STONEW - 1, GROUNDY) THEN Hit% = -1
         END IF
     NEXT
+END FUNCTION
+
+' Colour b mixed into a by t, each as red + green * 256 + blue * 65536.
+FUNCTION Mix& (a AS LONG, b AS LONG, t AS SINGLE)
+    DIM i AS INTEGER, v AS LONG, ca AS LONG, cb AS LONG, s AS LONG
+    s = 1
+    FOR i = 0 TO 2
+        ca = (a \ s) MOD 256: cb = (b \ s) MOD 256
+        v = v + CLNG(ca + (cb - ca) * t) * s
+        s = s * 256
+    NEXT
+    Mix& = v
 END FUNCTION
 
 ' Keeps about a beat of the song queued, so a cue (the score's chime) takes the next beat's place.
@@ -634,16 +675,15 @@ END SUB
 SUB NewGame
     DIM i AS INTEGER, g AS INTEGER
     StartSong GAMESONG
-    IF state <> TITLE THEN mothY = 175
+    IF state <> TITLE THEN mothY = 100
     state = PLAYING
     stateT = 0
     score = 0
     newBest = 0
     sky = DAY
-    dimTarget = 0
-    g = 170
+    g = 100
     FOR i = 0 TO NSTONE - 1
-        stoneX(i) = 720 + i * SPACING
+        stoneX(i) = 360 + i * SPACING
         g = NextGap%(g)
         stoneGap(i) = g
         stoneDone(i) = 0
@@ -653,13 +693,13 @@ END SUB
 
 FUNCTION NextGap% (prev AS INTEGER)
     DIM g AS INTEGER
-    g = prev + INT(RND * 201) - 100
-    IF g < GAP \ 2 + CAPH + 40 THEN g = GAP \ 2 + CAPH + 40
-    IF g > GROUNDY - GAP \ 2 - CAPH - 30 THEN g = GROUNDY - GAP \ 2 - CAPH - 30
+    g = prev + INT(RND * 113) - 56
+    IF g < GAP \ 2 + CAPH + 20 THEN g = GAP \ 2 + CAPH + 20
+    IF g > GROUNDY - GAP \ 2 - CAPH - 14 THEN g = GROUNDY - GAP \ 2 - CAPH - 14
     NextGap% = g
 END FUNCTION
 
-' Whether the moth's body, round in screen units, meets the box.
+' Whether the moth's body, round on the screen, meets the box.
 FUNCTION RectHit% (x1 AS SINGLE, y1 AS SINGLE, x2 AS SINGLE, y2 AS SINGLE)
     DIM nx AS SINGLE, ny AS SINGLE, dx AS SINGLE, dy AS SINGLE
     nx = mothX: ny = mothY
@@ -668,19 +708,11 @@ FUNCTION RectHit% (x1 AS SINGLE, y1 AS SINGLE, x2 AS SINGLE, y2 AS SINGLE)
     IF ny < y1 THEN ny = y1
     IF ny > y2 THEN ny = y2
     dx = mothX - nx: dy = (mothY - ny) * ASPECT
-    RectHit% = dx * dx + dy * dy < 130
+    RectHit% = dx * dx + dy * dy < 30
 END FUNCTION
 
 SUB Render
-    DIM i AS INTEGER, x AS INTEGER, amp AS SINGLE, sc AS INTEGER
-    shakeDX = 0: shakeDY = 0
-    IF shakeT > 0 THEN
-        amp = shakeT * 14
-        shakeDX = INT(RND * amp): shakeDY = INT(RND * amp)
-        LINE (0, 0)-(639, 349), 12, BF
-        VIEW (shakeDX, shakeDY)-(639, 349)
-    END IF
-
+    DIM i AS INTEGER, x AS INTEGER, sc AS INTEGER, amp AS SINGLE, dx AS INTEGER, dy AS INTEGER
     DrawSky
     IF behind THEN DrawMoth
     DrawSun
@@ -688,9 +720,9 @@ SUB Render
     IF state <> TITLE THEN
         FOR i = 0 TO NSTONE - 1
             x = INT(stoneX(i))
-            IF x < 646 AND x > -STONEW - 7 THEN
+            IF x < SW + 4 AND x > -STONEW - 4 THEN
                 DrawStone x, 0, stoneGap(i) - GAP \ 2, 0, stoneKind(i)
-                DrawStone x, stoneGap(i) + GAP \ 2, GROUNDY, -1, stoneKind(i)
+                DrawStone x, stoneGap(i) + GAP \ 2, GROUNDY - 1, -1, stoneKind(i)
             END IF
         NEXT
     END IF
@@ -700,28 +732,36 @@ SUB Render
 
     SELECT CASE state
     CASE TITLE
-        TxtC "MOTHLIGHT", 30, 5, 5, 4, 11, 3
+        TxtC "MOTHLIGHT", 14, 3, CTITLE, CTITLE + 7, 2
         ' a gleam sweeps across the name
-        x = INT(clock * 260) MOD 1100 - 200
-        IF x >= 130 AND x <= 500 THEN
-            VIEW SCREEN (x, 30)-(x + 18, 105)
-            TxtC "MOTHLIGHT", 30, 5, 13, 13, 5, 0
+        x = INT(clock * 140) MOD 560 - 100
+        IF x >= 52 AND x <= 260 THEN
+            VIEW SCREEN (x, 14)-(x + 10, 38)
+            TxtC "MOTHLIGHT", 14, 3, CWHITE, CWHITE, 0
             VIEW
         END IF
-        TxtC "a little moth's big day out", 108, 1, 5, 5, 5, 1
-        IF INT(clock * 2) MOD 2 = 0 THEN TxtC "PRESS SPACE TO FLY", 222, 2, 13, 13, 5, 2
-        IF best THEN TxtC "BEST" + STR$(best), 262, 1, 4, 4, 4, 1
-        TxtC "SPACE, ENTER OR UP TO FLAP   M MUSIC   ESC TO QUIT", 298, 1, 13, 13, 13, 1
+        TxtC "a little moth's big day out", 44, 1, CWHITE, CWHITE, 1
+        IF INT(clock * 2) MOD 2 = 0 THEN TxtC "PRESS SPACE TO FLY", 116, 2, CWHITE, CTITLE + 2, 1
+        IF best THEN TxtC "BEST" + STR$(best), 138, 1, CTITLE, CTITLE + 3, 1
+        TxtC "SPACE/ENTER/UP FLAP  M MUSIC  ESC QUIT", 189, 1, CWHITE, CWHITE, 1
     CASE PLAYING, DYING
-        sc = 3
-        IF popT > 0 THEN sc = 3 + INT(popT * 7)
-        TxtC LTRIM$(STR$(score)), 12 - (sc - 3) * 7, sc, 13, 5, 4, 2
+        sc = 2
+        IF popT > 0 THEN sc = 3
+        TxtC LTRIM$(STR$(score)), 6, sc, CWHITE, CTITLE + 3, 1
     CASE OVER
         DrawPanel
     END SELECT
-    IF flash > 0 THEN Dither 0, 0, 639, 349, 13, 1 + INT(flash * 12)
+    IF flash > 0 THEN Dither 0, 0, SW - 1, SH - 1, CWHITE, 1 + INT(flash * 12)
 
-    IF shakeT > 0 THEN VIEW
+    ' a shake moves the whole frame down and right
+    IF shakeT > 0 THEN
+        amp = shakeT * 10
+        dx = 1 + INT(RND * amp): dy = 1 + INT(RND * amp)
+        GET (0, 0)-(SW - 1 - dx, SH - 1 - dy), Frame
+        LINE (0, 0)-(SW - 1, dy - 1), CINK, BF
+        LINE (0, 0)-(dx - 1, SH - 1), CINK, BF
+        PUT (dx, dy), Frame, PSET
+    END IF
     SCREEN , , 1 - drawPage, drawPage
     drawPage = 1 - drawPage
 END SUB
@@ -737,65 +777,94 @@ FUNCTION SegD! (px AS SINGLE, py AS SINGLE, ax AS SINGLE, ay AS SINGLE, bx AS SI
     SegD! = SQR(ex * ex + ey * ey)
 END FUNCTION
 
-' The palette in use, PalCur, darkened by dimLvl. A colour is levels of red, green and blue
-' from 0 to 3, as r * 16 + g * 4 + b.
+' The palette from the key colours in use (CurKey, easing toward the sky's), dimmed by the fade.
 SUB SetPalette
-    DIM a AS INTEGER, r AS INTEGER, g AS INTEGER, b AS INTEGER
-    FOR a = 0 TO 15
-        r = PalCur(a) \ 16 - dimLvl: g = (PalCur(a) \ 4) MOD 4 - dimLvl: b = PalCur(a) MOD 4 - dimLvl
-        IF r < 0 THEN r = 0
-        IF g < 0 THEN g = 0
-        IF b < 0 THEN b = 0
-        PALETTE a, Ega%(r, g, b)
+    DIM i AS INTEGER, k(NKEY - 1) AS LONG, t AS SINGLE, c AS LONG, r AS LONG, g AS LONG, b AS LONG
+    FOR i = 0 TO NKEY - 1
+        k(i) = CLNG(CurKey(i, 0)) + CLNG(CurKey(i, 1)) * 256 + CLNG(CurKey(i, 2)) * 65536
+    NEXT
+    FOR i = 0 TO NSKY - 1
+        t = i / (NSKY - 1)
+        IF t < .5 THEN Rgb(CSKY + i) = Mix&(k(0), k(1), t * 2) ELSE Rgb(CSKY + i) = Mix&(k(1), k(2), (t - .5) * 2)
+    NEXT
+    FOR i = 0 TO 7
+        Rgb(CTITLE + i) = Mix&(&H8CFFFF, &H1E78FF, i / 7)
+    NEXT
+    Rgb(CCLOUD) = k(3): Rgb(CCLOUDLO) = k(4)
+    FOR i = 0 TO 15
+        Rgb(CMTN + i) = Mix&(Mix&(k(5), &HFFFFFF, .3), k(2), i / 16)
+        Rgb(CFAR + i) = Mix&(Mix&(k(6), &HFFFFFF, .3), k(7), i / 12)
+        Rgb(CNEAR + i) = Mix&(Mix&(k(8), &HFFFFFF, .3), k(9), i / 12)
+    NEXT
+    FOR i = 0 TO 3
+        Rgb(CTREE + i) = Mix&(k(10), k(11), i / 3)
+    NEXT
+    FOR i = 0 TO 7
+        Rgb(CSTONE + i) = Mix&(k(13), k(14), i / 7)
+    NEXT
+    FOR i = 0 TO 15
+        Rgb(WATER + i) = Mix&(Mix&(Rgb(i), k(12), .45), 0, .1)
+    NEXT
+    FOR i = CMTN TO CVINE
+        Rgb(WATER + i) = Mix&(Mix&(Rgb(i), k(12), .45), 0, .1)
+    NEXT
+    FOR i = 0 TO 255
+        c = Rgb(i)
+        r = (c MOD 256) * fade: g = ((c \ 256) MOD 256) * fade: b = (c \ 65536) * fade
+        PALETTE i, r \ 4 + (g \ 4) * 256 + (b \ 4) * 65536
     NEXT
 END SUB
 
-' The palettes for day, golden hour and sunset, the hills, mountains, trees, fireflies and clouds.
+' The hills and mountains, trees, seeds, clouds and runes, the stone's shading, the water's tint.
 SUB Setup
-    DIM i AS INTEGER, x AS INTEGER, k AS INTEGER, a AS SINGLE, s AS STRING, p AS INTEGER
-    SCREEN 9
-    FOR p = 0 TO 2
-        SELECT CASE p
-        CASE DAY: s = "023123133233332331232131321210330310001333130020"
-        CASE GOLDEN: s = "113213323322332331223131321210330310001333130020"
-        CASE SUNSET: s = "213313323321331332312132321210330310001333130021"
-        END SELECT
-        FOR i = 0 TO 15
-            PalSet(p, i) = VAL(MID$(s, i * 3 + 1, 1)) * 16 + VAL(MID$(s, i * 3 + 2, 1)) * 4 + VAL(MID$(s, i * 3 + 3, 1))
+    DIM i AS INTEGER, j AS INTEGER, x AS INTEGER, k AS INTEGER, a AS SINGLE
+    SCREEN 13, , 1, 0
+    drawPage = 1
+    FOR i = 0 TO NKEY - 1
+        FOR j = 0 TO 2
+            CurKey(i, j) = (SkyKey(DAY, i) \ 256 ^ j) MOD 256
         NEXT
     NEXT
-    FOR i = 0 TO 15: PalCur(i) = PalSet(DAY, i): NEXT
-    dimLvl = 3
+    fade = 0
+    fadeTarget = 1
     SetPalette
 
     RANDOMIZE TIMER
     FOR i = 0 TO 7: Bit(i) = 2 ^ (7 - i): NEXT
     FOR x = 0 TO 639
         a = x * 6.283185 / 640
-        MtnTop(x) = 215 - (34 * ABS(SIN(1.5 * a + .3)) + 16 * ABS(SIN(4 * a + 1)) + 5 * ABS(SIN(11 * a)))
-        FarTop(x) = 250 - (30 + 18 * SIN(2 * a) + 9 * SIN(5 * a + 1.3) + 4 * SIN(13 * a))
-        NearTop(x) = 290 - (16 + 12 * SIN(3 * a + 2) + 7 * SIN(7 * a + .4) + 3 * SIN(17 * a))
+        MtnTop(x) = 123 - (19 * ABS(SIN(1.5 * a + .3)) + 9 * ABS(SIN(4 * a + 1)) + 3 * ABS(SIN(11 * a)))
+        FarTop(x) = 143 - (17 + 10 * SIN(2 * a) + 5 * SIN(5 * a + 1.3) + 2 * SIN(13 * a))
+        NearTop(x) = 166 - (9 + 7 * SIN(3 * a + 2) + 4 * SIN(7 * a + .4) + 2 * SIN(17 * a))
     NEXT
     FOR k = 0 TO 15
         TreeX(k) = k * 40 + INT(RND * 24)
-        TreeH(k) = 14 + INT(RND * 16)
+        TreeH(k) = 8 + INT(RND * 9)
     NEXT
     FOR i = 0 TO NFLY - 1
         FlyX(i) = INT(RND * 640)
-        FlyY(i) = 205 + INT(RND * 70)
+        FlyY(i) = 118 + INT(RND * 40)
         FlyPh(i) = RND * 6.28
     NEXT
     FOR i = 0 TO NCLOUD - 1
-        CloudX(i) = i * 300 + INT(RND * 100)
-        CloudY(i) = 40 + i * 24
-        CloudW(i) = 40 + INT(RND * 35)
+        CloudX(i) = i * 150 + INT(RND * 50)
+        CloudY(i) = 20 + i * 12
     NEXT
-    Rune(0) = "U10F5G5"
-    Rune(1) = "U10R5D5L5"
-    Rune(2) = "U10BR6D10BU5L6"
-    Rune(3) = "E5F5BL5U10"
-    shootT = 2
-    drawPage = 1
+    ' the stone's columns: lit a quarter in, shaded to the right
+    FOR i = 0 TO STONEW + 2 * OVERHANG
+        k = ABS(i - (STONEW + 2 * OVERHANG) \ 4) * 9 \ (STONEW + 2 * OVERHANG)
+        IF k > 7 THEN k = 7
+        StoneCol(i) = CSTONE + k
+    NEXT
+    Rune(0) = "111010010010111"
+    Rune(1) = "101111101101101"
+    Rune(2) = "110101110101110"
+    Rune(3) = "010111010010010"
+    ' the lake's tint: an image of the lake's size, every pixel 64
+    Tinter(0) = SW * 8 + LAKEH * 65536
+    FOR i = 1 TO SW * LAKEH \ 4
+        Tinter(i) = &H40404040
+    NEXT
 END SUB
 
 SUB StartSong (id AS INTEGER)
@@ -806,8 +875,7 @@ SUB StartSong (id AS INTEGER)
 END SUB
 
 SUB Tick (flapped AS INTEGER)
-    DIM i AS INTEGER, j AS INTEGER, far AS INTEGER, a AS INTEGER, ch AS INTEGER
-    DIM cur AS INTEGER, want AS INTEGER, v AS INTEGER, changed AS INTEGER
+    DIM i AS INTEGER, j AS INTEGER, far AS INTEGER, changed AS INTEGER, want AS SINGLE, d AS SINGLE
     clock = clock + STEPT
     stateT = stateT + STEPT
     flash = flash - STEPT
@@ -820,10 +888,10 @@ SUB Tick (flapped AS INTEGER)
     SELECT CASE state
     CASE TITLE
         ' circling the sun, behind it on the lower half
-        mothX = SUNX + 46 * COS(clock * .8)
-        mothY = SUNY + 16 + 50 * SIN(clock * .8)
+        mothX = SUNX + 26 * COS(clock * .8)
+        mothY = SUNY + 8 + 28 * SIN(clock * .8)
         behind = SIN(clock * .8) > 0
-        scroll = scroll + 50 * STEPT
+        scroll = scroll + 25 * STEPT
         IF flapped THEN
             behind = 0
             NewGame
@@ -837,7 +905,7 @@ SUB Tick (flapped AS INTEGER)
         scroll = scroll + SPEED * STEPT
         FOR i = 0 TO NSTONE - 1
             stoneX(i) = stoneX(i) - SPEED * STEPT
-            IF stoneX(i) + STONEW + 6 < 0 THEN
+            IF stoneX(i) + STONEW + OVERHANG < 0 THEN
                 far = 0
                 FOR j = 1 TO NSTONE - 1
                     IF stoneX(j) > stoneX(far) THEN far = j
@@ -850,21 +918,21 @@ SUB Tick (flapped AS INTEGER)
             IF stoneDone(i) = 0 AND stoneX(i) + STONEW < mothX THEN
                 stoneDone(i) = -1
                 score = score + 1
-                popT = .3
+                popT = .25
                 sky = (score \ 10) MOD 3
                 IF musicOn THEN cue = "T160MNL32O4EGO5CEL8G" ELSE PLAY "T220MNL32O4EGO5CL16E"
-                Emit 8, 200, 0
+                Emit 8, 100, 0
             END IF
         NEXT
-        IF Hit% OR mothY > GROUNDY - 9 THEN Die
+        IF Hit% OR mothY > GROUNDY - 5 THEN Die
     CASE DYING
         vy = vy + GRAV * STEPT
         mothY = mothY + vy * STEPT
-        IF mothY >= GROUNDY - 9 THEN
-            mothY = GROUNDY - 9
+        IF mothY >= GROUNDY - 5 THEN
+            mothY = GROUNDY - 5
             state = OVER
             stateT = 0
-            Emit 16, 160, 260
+            Emit 16, 80, 130
             IF musicOn THEN
                 IF newBest THEN PLAY "T160MNL16O4CEGO5L8CO4L16GO5L4C" ELSE PLAY "T140MNL16O4CO3GECL8EGL4O4C"
             END IF
@@ -878,55 +946,38 @@ SUB Tick (flapped AS INTEGER)
     IF mothY < SPRH \ 2 + 2 THEN mothY = SPRH \ 2 + 2: vy = 0
 
     ' Esc faded the screen out: the title comes back by day
-    IF toTitle AND dimLvl = 3 THEN
+    IF toTitle AND fade <= 0 THEN
         toTitle = 0
         state = TITLE
         sky = DAY
-        FOR a = 0 TO 15: PalCur(a) = PalSet(DAY, a): NEXT
-        dimTarget = 0
+        fadeTarget = 1
         StartSong TITLESONG
     END IF
 
-    ' the sky steps a level a channel toward its palette; a fade steps the darkening
-    changed = 0
+    ' the key colours ease toward the sky's, the fade toward its target
     palT = palT + STEPT
-    IF palT >= .3 THEN
+    IF palT >= 1 / 30 THEN
         palT = 0
-        FOR a = 0 TO 15
-            cur = PalCur(a): want = PalSet(sky, a): v = 0
-            FOR ch = 0 TO 2
-                j = 4 ^ ch
-                i = (cur \ j) MOD 4 - (want \ j) MOD 4
-                IF i > 0 THEN v = v - j
-                IF i < 0 THEN v = v + j
+        changed = 0
+        FOR i = 0 TO NKEY - 1
+            FOR j = 0 TO 2
+                want = (SkyKey(sky, i) \ 256& ^ j) MOD 256
+                d = want - CurKey(i, j)
+                IF ABS(d) > .5 THEN CurKey(i, j) = CurKey(i, j) + d * .06: changed = -1
             NEXT
-            IF v THEN PalCur(a) = cur + v: changed = -1
         NEXT
-    END IF
-    fadeT = fadeT + STEPT
-    IF fadeT >= .08 AND dimLvl <> dimTarget THEN
-        fadeT = 0
-        IF dimLvl < dimTarget THEN dimLvl = dimLvl + 1 ELSE dimLvl = dimLvl - 1
-        changed = -1
-    END IF
-    IF changed THEN SetPalette
-
-    shootT = shootT - STEPT
-    IF shootT <= 0 THEN
-        shootT = 3 + RND * 5
-        shootX = 40 + RND * 400: shootY = 10 + RND * 60
-        shootLife = .55
-    END IF
-    IF shootLife > 0 THEN
-        shootX = shootX + 520 * STEPT: shootY = shootY + 190 * STEPT
-        shootLife = shootLife - STEPT
+        IF fade < fadeTarget THEN fade = fade + .1: changed = -1
+        IF fade > fadeTarget THEN fade = fade - .1: changed = -1
+        IF fade < 0 THEN fade = 0
+        IF fade > 1 THEN fade = 1
+        IF changed THEN SetPalette
     END IF
 
     IF state <= PLAYING THEN
         sparkT = sparkT + STEPT
         IF sparkT > .05 THEN
             sparkT = 0
-            Emit 1, 30, 0
+            Emit 1, 15, 0
         END IF
     END IF
     FOR i = 0 TO NSPARK - 1
@@ -934,15 +985,15 @@ SUB Tick (flapped AS INTEGER)
             sx(i) = sx(i) + svx(i) * STEPT
             sy(i) = sy(i) + svy(i) * STEPT
             svx(i) = svx(i) * (1 - 1.5 * STEPT)
-            svy(i) = svy(i) * (1 - 2 * STEPT) - 20 * STEPT
+            svy(i) = svy(i) * (1 - 2 * STEPT) - 10 * STEPT
             slife(i) = slife(i) - STEPT
         END IF
     NEXT
 END SUB
 
-' Text from the ROM font, sc times as big, without a background: rows 0-4 in c1, 5-8 in c2,
-' the rest in c3, over a shadow sh pixels down and right.
-SUB Txt (t AS STRING, x AS INTEGER, y AS INTEGER, sc AS INTEGER, c1 AS INTEGER, c2 AS INTEGER, c3 AS INTEGER, sh AS INTEGER)
+' Text from the ROM font, sc times as big, its rows shaded from c1 to c2, over a shadow sh pixels
+' down and right.
+SUB Txt (t AS STRING, x AS INTEGER, y AS INTEGER, sc AS INTEGER, c1 AS INTEGER, c2 AS INTEGER, sh AS INTEGER)
     DIM pass AS INTEGER, o AS INTEGER, i AS INTEGER, ch AS INTEGER, gx AS INTEGER, gy AS INTEGER
     DIM r AS INTEGER, b AS INTEGER, c AS INTEGER, cx AS INTEGER, s AS INTEGER
     FOR pass = 0 TO 1
@@ -953,18 +1004,10 @@ SUB Txt (t AS STRING, x AS INTEGER, y AS INTEGER, sc AS INTEGER, c1 AS INTEGER, 
         FOR i = 1 TO LEN(t)
             ch = ASC(MID$(t, i, 1))
             gx = x + (i - 1) * 8 * sc + o
-            FOR r = 0 TO 13
+            FOR r = 0 TO 7
                 b = Glyph(ch, r)
                 IF b THEN
-                    IF pass = 0 THEN
-                        c = 12
-                    ELSEIF r < 5 THEN
-                        c = c1
-                    ELSEIF r < 9 THEN
-                        c = c2
-                    ELSE
-                        c = c3
-                    END IF
+                    IF pass = 0 THEN c = CINK ELSE c = c1 + (r * (c2 - c1 + 1)) \ 8
                     gy = y + r * sc + o
                     cx = 0
                     DO WHILE cx < 8
@@ -985,6 +1028,6 @@ SUB Txt (t AS STRING, x AS INTEGER, y AS INTEGER, sc AS INTEGER, c1 AS INTEGER, 
     NEXT
 END SUB
 
-SUB TxtC (t AS STRING, y AS INTEGER, sc AS INTEGER, c1 AS INTEGER, c2 AS INTEGER, c3 AS INTEGER, sh AS INTEGER)
-    Txt t, (640 - LEN(t) * 8 * sc) \ 2, y, sc, c1, c2, c3, sh
+SUB TxtC (t AS STRING, y AS INTEGER, sc AS INTEGER, c1 AS INTEGER, c2 AS INTEGER, sh AS INTEGER)
+    Txt t, (SW - LEN(t) * 8 * sc) \ 2, y, sc, c1, c2, sh
 END SUB

@@ -19,7 +19,7 @@ DIM kind AS INTEGER, x AS INTEGER
 FOR kind = 0 TO NKIND - 1
     FOR x = -STONEW - 6 TO 645
         DrawStone x, 0, 100, 0, kind
-        DrawStone x, 216, GROUNDY, -1, kind
+        DrawStone x, 120, GROUNDY - 1, -1, kind
     NEXT
 NEXT
 PRINT "stones ok"
@@ -31,7 +31,7 @@ END
 def program() -> str:
     source = DEMO.read_text()
     head, rest = source.split("Setup\nBuildGlyphs\n", 1)
-    return head + DRIVER + rest[rest.index("GameTune:") :]
+    return head + DRIVER + rest[rest.index("Skies:") :]
 
 
 def main() -> None:
