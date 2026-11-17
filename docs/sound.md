@@ -1,5 +1,7 @@
 # Sound
 
+New to music or sound effects? Start with the [tutorial](play-tutorial.md).
+
 A program that uses none of this sounds as it did in QBasic: one square wave, the same notes at the
 same ticks. On DOS the PC speaker plays the first voice only.
 
