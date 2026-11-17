@@ -324,6 +324,23 @@ CASES = {
                         "60 x = F%(t)\r\nEND SUB\r\nFUNCTION F% (a AS SINGLE)\r\nEND FUNCTION\r\n",
                         "Parameter type mismatch in line 60 ", "ran"),
     "qb_tm_uncalled": ('PRINT "ran"\r\nSUB G\r\n40 x% = "a"\r\nEND SUB\r\n', "Type mismatch in line 40 ", "ran"),
+    # A variable under a CONST's name, any case or suffix, was the CONST: stores to it were
+    # dropped and these printed 5. BC: Duplicate definition.
+    "qb_rd_const_dim": ("CONST LIMIT = 5\r\n20 DIM SHARED limit AS SINGLE\r\nlimit = 9\r\nPRINT limit\r\n",
+                        "Duplicate definition in line 20 ", " 5"),
+    "qb_rd_const_let": ("CONST LIMIT = 5\r\n20 limit = 9\r\nPRINT limit\r\n", "Duplicate definition in line 20 ", " 5"),
+    "qb_rd_const_sfx": ("CONST LIMIT = 5\r\n20 limit! = 9\r\nPRINT limit\r\n", "Duplicate definition in line 20 ", " 5"),
+    "qb_rd_const_for": ("CONST LIMIT = 5\r\n20 FOR limit = 1 TO 2: NEXT\r\n", "Duplicate definition in line 20 ", None),
+    "qb_rd_const_input": ("CONST LIMIT = 5\r\n20 INPUT limit\r\n", "Duplicate definition in line 20 ", "?"),
+    "qb_rd_const_dimafter": ("20 DIM limit\r\nCONST LIMIT = 5\r\n", "Duplicate definition in line 20 ", None),
+    "qb_rd_const_param": ("DECLARE SUB s (limit)\r\nCONST LIMIT = 5\r\ns 2\r\n20 SUB s (limit)\r\nEND SUB\r\n",
+                          "Duplicate definition in line 20 ", None),
+    "qb_rd_const_sub": ("DECLARE SUB s ()\r\nCONST LIMIT = 5\r\ns\r\nSUB s\r\n20 STATIC limit\r\n"
+                        "30 DIM limit\r\nEND SUB\r\n", "Duplicate definition in line 20 ", None),
+    # The CONST as a value, and a procedure's CONST beside the module's variable, still work.
+    "qb_const_ok": ("DECLARE SUB s ()\r\nCONST LIMIT = 5\r\nDIM b AS SINGLE, lim\r\nb = LIMIT * 2: lim = 7\r\n"
+                    "PRINT b; LIMIT; lim\r\ns\r\nSUB s\r\nCONST LIM = 3\r\nPRINT LIM; LIMIT\r\nEND SUB\r\n",
+                    " 10  5  7 \r\n 3  5 \r\n", "ERROR"),
     "qb_byval": ("DECLARE SUB s (BYVAL a)\r\nx = 1: s x: PRINT x\r\nSUB s (BYVAL a)\r\na = 5\r\nEND SUB\r\n",
                  " 1 \r\n", "ERROR"),
     # A SUB's REDIM of its array parameter after ERASE made one the caller never saw.

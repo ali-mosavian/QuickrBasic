@@ -186,6 +186,7 @@ uint8_t comp_lnum(Comp *C);  /* a line number or label to lnum, jline; the byte 
 
 /* Names and variables */
 uint16_t comp_name(Comp *C); /* cm_name: the M_VAR at comp.p as comp_var(0, 0) */
+void comp_notconst(Comp *C); /* the M_VAR at comp.p declared or stored to: a CONST's, E_RD */
 uint16_t comp_var(
     Comp *C,
     uint8_t shape,

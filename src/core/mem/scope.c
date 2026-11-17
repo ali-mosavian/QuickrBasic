@@ -199,6 +199,13 @@ bool scop_con(const Scop *const sc, const uint16_t name)
     return scop_seen(sc, name)->flags & BF_CON;
 }
 
+bool scop_conname(const Scop *const sc, const uint16_t name)
+{
+    const Binding *const module = scop_get(sc, 0, name);
+    const Binding *const own = scop_get(sc, scop_own(sc), name);
+    return (module && module->flags & BF_CON) || (own && own->flags & BF_CON);
+}
+
 bool scop_known(const Scop *const sc, const uint16_t name) { return scop_seen(sc, name) != &none; }
 
 bool scop_mshr(const Scop *const sc, const uint16_t name)

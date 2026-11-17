@@ -220,6 +220,7 @@ void expr_target(Comp *const C)
         return;
     }
 
+    comp_notconst(C);
     const uint16_t id = comp_name(C);
 
     if (!(symb_var(C->symb, id)->info & VI_ARR)) {

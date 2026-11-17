@@ -70,6 +70,8 @@ uint16_t scop_fix(const Scop *sc, uint16_t name, bool array);
 uint8_t scop_sfx(const Scop *sc, uint16_t name, uint8_t type, bool array);
 /* Name a CONST, as the procedure compiled sees it? */
 bool scop_con(const Scop *sc, uint16_t name);
+/* Name a CONST's: the module's (every procedure's), or the procedure compiled's own? */
+bool scop_conname(const Scop *sc, uint16_t name);
 /* Name bound, as the procedure compiled sees it? */
 bool scop_known(const Scop *sc, uint16_t name);
 /* Name a variable the module shares: DIM SHARED, not a CONST? */

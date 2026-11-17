@@ -96,6 +96,24 @@ static void skip(Comp *const C)
         C->p = decl_item(C->p);
 }
 
+/* SHARED, STATIC n[()] [AS t] {, ..}: entered with the line (decl_line), no code; a CONST's name
+   E_RD. */
+static void sharedlist(Comp *const C)
+{
+    C->p++;
+
+    for (;;) {
+        comp_notconst(C);
+
+        while (*C->p && *C->p != ':' && *C->p != TK_REM && *C->p != ',')
+            C->p = decl_item(C->p);
+        if (*C->p != ',')
+            return;
+
+        C->p++;
+    }
+}
+
 /* ct_skip0: past a ( .. ), if there. */
 static void skipparen(Comp *const C)
 {
@@ -782,7 +800,7 @@ static bool reccopy(Comp *const C)
 
 /* ---- procedures */
 
-/* A SUB's or FUNCTION's parameters, checked: [(name[()] [AS type], ..)] [STATIC]. */
+/* A SUB's or FUNCTION's parameters, checked: [([BYVAL] name[()] [AS type], ..)] [STATIC]. */
 static void params(Comp *const C)
 {
     if (comp_cur(C) == '(') {
@@ -790,9 +808,12 @@ static void params(Comp *const C)
 
         if (comp_cur(C) != ')') {
             do {
+                if (comp_cur(C) == TK_BYVAL)
+                    C->p++;
                 if (comp_cur(C) != M_VAR)
                     synerr(C);
 
+                comp_notconst(C);
                 skipvar(C);
 
                 if (comp_cur(C) == '(') {
@@ -941,10 +962,7 @@ static void sub(Comp *const C)
     else
         synerr(C);
 
-    if (C->check)
-        params(C);
-    else
-        skip(C);
+    params(C);
 }
 
 /* PRET for procedure proc: its result's cell link's. */
@@ -1473,11 +1491,13 @@ bool ctrl_stmt(Comp *const C)
     case TK_X:
         return xstmt(C);
 
+    case TK_SHARED:
+    case TK_STATIC:
+        sharedlist(C);
+        return true;
     case TK_TYPE:
     case TK_DECLARE:
     case TK_OPTION:
-    case TK_SHARED:
-    case TK_STATIC:
         skip(C);
         return true; /* entered with the line (decl_line), no code */
     case TK_EXIT:

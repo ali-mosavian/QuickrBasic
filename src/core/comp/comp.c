@@ -518,6 +518,12 @@ uint16_t comp_var(Comp *const C, const uint8_t shape, const uint8_t et)
     return symb_find_var(C->symb, name, type, kind, C->scope, C->isstatic);
 }
 
+void comp_notconst(Comp *const C)
+{
+    if (C->tok != TK_CONST && comp_cur(C) == M_VAR && scop_conname(C->scop, comp_nameof(C->p)))
+        fault_error(C->fault, E_RD);
+}
+
 uint16_t comp_name(Comp *const C)
 {
     if (comp_cur(C) != M_VAR)
@@ -906,6 +912,7 @@ static void act_if(Comp *const C)
 /* FOR's variable: the target of the start's store. */
 static void act_fv(Comp *const C)
 {
+    comp_notconst(C);
     const uint16_t id = comp_name(C);
     const uint8_t info = symb_var(C->symb, id)->info;
 
@@ -1094,6 +1101,7 @@ void comp_astype(Comp *const C)
 /* A DIM item: the subscripts, its id, n, CALL DIM; a scalar STRING * n: n spaces. */
 static void act_dv(Comp *const C)
 {
+    comp_notconst(C);
     uint16_t id = comp_name(C);
 
     if (*C->p == '(') {
