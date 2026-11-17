@@ -158,4 +158,7 @@ short B_FPEN(short which);
 void music_clear(void);
 /* RUN: the synthesizer's voices as PLAY first had them (play.c). */
 void music_reset(void);
+/* OUT and INP of the VGA's DAC (3C7, 3C8, 3C9) where the device's is not hardware: the colours shown. */
+void qb_port_out(unsigned port, unsigned value);
+unsigned qb_port_in(unsigned port);
 #endif
