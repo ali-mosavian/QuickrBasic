@@ -85,9 +85,8 @@ enum : uint8_t {
 /* A key as uimn_getkey gives it: scan code << 8 | character; the character 0 for a key with
    none (an E0h one too). */
 enum : uint16_t {
-    KEY_ALT = 0xFFFF,    /* Alt pressed and let go alone */
-    KEY_MOUSE = 0xFFFE,  /* a mouse event: uimn.mouse (MS_KEY) */
-    KEY_RESIZE = 0xFFFD, /* the display's size changed, the layout with it: draw it all */
+    KEY_ALT = 0xFFFF,   /* Alt pressed and let go alone */
+    KEY_MOUSE = 0xFFFE, /* a mouse event: uimn.mouse (MS_KEY) */
 };
 
 /* A key's scan code (its high byte). */
@@ -165,12 +164,12 @@ enum : uint8_t { W_HELP = 0, W_ED1 = 1, W_ED2 = 2, W_IMM = 3, NWIN = 4, W_DBG = 
 
 /* The debug pane's columns (debugpane.h): the edit windows have uimn.dp_col, DP_COL at first, the
    pane the rest, their last one the line between them; a drag of it moves it within DP_COLMIN ..
-   the screen's columns less DP_PANEMIN. A row of the pane holds DP_TWMAX characters at most. */
+   DP_COLMAX. A row of the pane holds DP_TWMAX characters at most. */
 enum {
     DP_COL = 50,
     DP_COLMIN = 20,
-    DP_PANEMIN = 20,
-    DP_TWMAX = PSCR_COLS_MAX - DP_COLMIN - 1,
+    DP_COLMAX = PSCR_COLS - 20,
+    DP_TWMAX = PSCR_COLS - DP_COLMIN - 1,
 };
 
 /* A line being edited (TLBUF, TEDBUF): its text where text points, cap bytes: DLBUF for a dialog
@@ -274,8 +273,7 @@ typedef struct {
     bool on;          /* lp.ideon: the editor runs (the core's ui_on) */
     uint8_t keyflags; /* lp.ui_kf: the shift flags at the last key (pkey_shift) */
     const char *help; /* lp.ui_help: the status bar's help line, nullptr the keys */
-    uint8_t rows;     /* the screen's: 25, 43 or 50, or a terminal's (uimn_rows) */
-    uint8_t cols;     /* the screen's: 80, or a terminal's */
+    uint8_t rows;     /* the screen's: 25, 43 or 50 (uimn_rows) */
     bool pane_on;     /* dp.dp_on: the debug pane shown (a stop) */
     uint8_t dp_col;   /* the debug pane's first column */
     bool tip_mouse;   /* dp.tt_ms: the tooltip by the mouse, else by the cursor */

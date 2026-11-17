@@ -4,8 +4,7 @@
  * Only when host_term_open is called, by the interactive binary (app/term.c), and standard input is
  * a terminal; else the keys come from the tests' queue (pkey.c). The terminal is non-canonical
  * without echo, SIGINT kept as the STOP key (psys.c). A key's escape sequence becomes its BIOS scan
- * code (ttyin.c); Ctrl+D, the terminal's end of input, exits. Rich (host_term_rich), the terminal
- * reports the mouse, and Alt pressed and let go, where it can. A window's keys come down a pipe
+ * code (ttyin.c); Ctrl+D, the terminal's end of input, exits. A window's keys come down a pipe
  * (host_term_feed), already BIOS keys, its shift flags beside them; its pipe closed, the window is.
  */
 #include <errno.h>
@@ -20,7 +19,6 @@ enum { ESC_WAIT_MS = 30, CTRL_D = 4, BROKEN = -2, INCOMPLETE = -3 };
 static struct {
     bool on;
     struct termios saved, raw;
-    bool rich;       /* the mouse and kitty's keys asked for (host_term_rich) */
     int feed;        /* the window's keys' pipe, -1 none */
     uint8_t shift;   /* the shift flags */
     TtyIn in;        /* the terminal's input's state */
@@ -49,22 +47,6 @@ void host_term_open(void)
     atexit(restore);
 }
 
-/* kitty's keyboard flags: disambiguate, event types, alternate keys, every key as an escape. */
-static const char rich_on[] = "\x1b[>15u\x1b[?1003h\x1b[?1006h";
-static const char rich_off[] = "\x1b[<u\x1b[?1003l\x1b[?1006l";
-
-static void plain(void) { (void)!write(STDOUT_FILENO, rich_off, sizeof rich_off - 1); }
-
-void host_term_rich(void)
-{
-    if (!term.on)
-        return;
-
-    term.rich = true;
-    (void)!write(STDOUT_FILENO, rich_on, sizeof rich_on - 1);
-    atexit(plain);
-}
-
 void host_term_pause(const bool yes)
 {
     if (term.on)
@@ -78,6 +60,7 @@ void host_term_set_shift(const uint8_t flags)
 }
 
 bool host_term_on(void) { return term.on || term.feed >= 0; }
+bool host_term_window(void) { return term.feed >= 0; }
 uint8_t host_term_shift(void) { return __atomic_load_n(&term.shift, __ATOMIC_RELAXED); }
 
 enum { TTY, FEED };
@@ -141,8 +124,7 @@ static int32_t event(const bool final)
 }
 
 /* One event from the terminal, read for at most ms: its key, else -1. One at a time, so the shift
-   flags between two are seen (an Alt pressed, then let go). Ctrl+D, or the terminal's end, exits
-   where the terminal is only the keyboard. */
+   flags between two are seen (an Alt pressed, then let go). Ctrl+D, or the terminal's end, exits. */
 static int32_t tty_step(const int32_t ms)
 {
     if (!term.n && !fill(ms))
@@ -151,7 +133,7 @@ static int32_t tty_step(const int32_t ms)
     if (!term.n)
         return -1;
 
-    if (!term.rich && term.buf[0] == CTRL_D)
+    if (term.buf[0] == CTRL_D)
         exit(0);
 
     int32_t k;

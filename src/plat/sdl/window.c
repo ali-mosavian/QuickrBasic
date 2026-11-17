@@ -1,15 +1,18 @@
-/* The IDE in an SDL window, or in the terminal with the program's output in the window (split).
+/* The IDE in an SDL window.
  *
  * # How it works
  * The IDE runs on its own thread, as on wasm's worker: its keys come down a pipe (host_term_feed),
  * its mouse is set as the window's moves (host_mouse_set), its tones are audio.c's. The main
- * thread is SDL's: each frame it draws plat/view's frame of the screen, the program's output only
- * when split, the editor's page then the terminal's (ansi.c). SIGINT and SIGALRM are the IDE
- * thread's, the STOP key and the tick, as on the host; Ctrl+C in the window is SIGINT too.
+ * thread is SDL's: each frame it draws plat/view's frame of the screen. SIGINT and SIGALRM are the
+ * IDE thread's, the STOP key and the tick, as on the host; Ctrl+C in the window is SIGINT too.
+ * Started from Finder (in /), it works in ~/Documents/QuickrBasic, the demos copied there.
+ * QB_SHOT=file: the frame drawn after SHOT_FRAMES to file as a PPM, and exit (a test's).
  */
 #include <pthread.h>
 #include <signal.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #include "plat/host/host.h"
 #include "plat/pmou.h"
@@ -26,7 +29,8 @@ enum {
     BLINK_MS = 267,
     ALT_TAP_MS = 60,
     START_W = 1080,
-    START_H = 600
+    START_H = 600,
+    SHOT_FRAMES = 90,
 };
 
 static void *run(void *const arg) { exit(qb_main()); }
@@ -56,8 +60,72 @@ static void point(SDL_Renderer *const r, SDL_Event *const e, const ViewFrame *co
     );
 }
 
-int sdl_main(const bool split)
+/* Finder's start, in /: ~/Documents/QuickrBasic, the app's demos copied in where missing. */
+static void home(void)
 {
+    char at[4096], to[4096];
+    const char *const user = getenv("HOME");
+
+    if (!user || !getcwd(at, sizeof at) || at[0] != '/' || at[1])
+        return;
+
+    snprintf(to, sizeof to, "%s/Documents/QuickrBasic", user);
+    mkdir(to, 0755);
+
+    if (chdir(to))
+        return;
+
+    const char *const base = SDL_GetBasePath(); /* the bundle's Resources */
+    static const char *const demos[] = {"WELCOME.BAS", "GORILLA.BAS", "NIBBLES.BAS"};
+
+    for (uint32_t i = 0; base && i < sizeof demos / sizeof demos[0]; i++) {
+        struct stat st;
+
+        if (!stat(demos[i], &st))
+            continue;
+
+        snprintf(at, sizeof at, "%sdemos/%s", base, demos[i]);
+        FILE *const in = fopen(at, "rb");
+        FILE *const out = in ? fopen(demos[i], "wb") : nullptr;
+        char buf[8192];
+        size_t n;
+
+        while (out && (n = fread(buf, 1, sizeof buf, in)) > 0)
+            fwrite(buf, 1, n, out);
+
+        if (out)
+            fclose(out);
+
+        if (in)
+            fclose(in);
+    }
+}
+
+/* The frame to path as a PPM. */
+static void shot(const char *const path, const ViewFrame *const f)
+{
+    FILE *const out = fopen(path, "wb");
+
+    if (!out)
+        return;
+
+    fprintf(out, "P6 %u %u 255\n", f->width, f->height);
+
+    for (uint32_t i = 0; i < f->width * f->height; i++) {
+        const uint32_t p = f->rgba[i];
+        const uint8_t rgb[3] = {(uint8_t)p, (uint8_t)(p >> 8), (uint8_t)(p >> 16)};
+
+        fwrite(rgb, 1, 3, out);
+    }
+
+    fclose(out);
+}
+
+int sdl_main(void)
+{
+    home();
+    const char *const shot_to = getenv("QB_SHOT");
+    uint32_t frames = 0;
     int fds[2];
 
     if (pipe(fds))
@@ -67,14 +135,6 @@ int sdl_main(const bool split)
     host_term_feed(fds[0]);
 
     host_mouse_on();
-
-    if (split) {
-        host_term_open();
-        host_term_rich();
-        sdl_ansi_open();
-        /* the terminal keeps the keys till the window is clicked */
-        SDL_SetHint(SDL_HINT_WINDOW_ACTIVATE_WHEN_SHOWN, "0");
-    }
 
     pthread_attr_t a;
     pthread_attr_init(&a);
@@ -94,7 +154,7 @@ int sdl_main(const bool split)
         return 1;
 
     SDL_Window *const w = SDL_CreateWindow(
-        split ? "QuickrBasic: output" : "QuickrBasic",
+        "QuickrBasic",
         START_W,
         START_H,
         SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIGH_PIXEL_DENSITY
@@ -111,7 +171,7 @@ int sdl_main(const bool split)
     SDL_SetRenderVSync(r, 1);
     sdl_audio_open();
 
-    const ViewFrame *f = view_frame(split ? VIEW_OUTPUT : VIEW_SCREEN, true, (ViewPointer){});
+    const ViewFrame *f = view_frame(true, (ViewPointer){});
 
     uint32_t shown_w = 0, shown_h = 0;
     uint64_t alt_up = 0; /* when a released Alt's flags are due, 0 none */
@@ -163,8 +223,7 @@ int sdl_main(const bool split)
             case SDL_EVENT_MOUSE_MOTION:
             case SDL_EVENT_MOUSE_BUTTON_DOWN:
             case SDL_EVENT_MOUSE_BUTTON_UP:
-                if (!split)
-                    point(r, &e, f);
+                point(r, &e, f);
 
                 break;
 
@@ -181,7 +240,12 @@ int sdl_main(const bool split)
         const PmouState m = pmou_state();
         const ViewPointer pointer = {.shown = host_mouse_shown(), .row = m.row, .col = m.col};
 
-        f = view_frame(split ? VIEW_OUTPUT : VIEW_SCREEN, blink, pointer);
+        f = view_frame(blink, pointer);
+
+        if (shot_to && ++frames == SHOT_FRAMES) {
+            shot(shot_to, f);
+            exit(0);
+        }
 
         if (f->width != shown_w || f->height != shown_h) {
             shown_w = f->width;
@@ -194,8 +258,7 @@ int sdl_main(const bool split)
             );
         }
 
-        if (!split)
-            pointer.shown ? SDL_HideCursor() : SDL_ShowCursor();
+        pointer.shown ? SDL_HideCursor() : SDL_ShowCursor();
 
         SDL_UpdateTexture(
             t,
@@ -208,8 +271,5 @@ int sdl_main(const bool split)
         SDL_RenderTexture(r, t, &(SDL_FRect){0, 0, (float)shown_w, (float)shown_h}, nullptr);
 
         SDL_RenderPresent(r);
-
-        if (split)
-            sdl_ansi_draw();
     }
 }

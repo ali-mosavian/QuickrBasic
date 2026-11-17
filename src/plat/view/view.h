@@ -22,12 +22,9 @@ typedef struct {
     uint8_t row, col;
 } ViewPointer;
 
-/* What a frame shows: the screen as a VGA card does (the page shown, or the program's graphics),
-   or only the program's output (its page or its graphics), the editor left to another display. */
-typedef enum { VIEW_SCREEN, VIEW_OUTPUT } ViewWhat;
-
-/* The frame, in RGBA (bytes R, G, B, A); blink is the blink's on phase (and the cursor's). */
-const ViewFrame *view_frame(ViewWhat what, bool blink, ViewPointer pointer);
+/* The screen as a VGA card shows it (the page shown, or the program's graphics), in RGBA (bytes R,
+   G, B, A); blink is the blink's on phase (and the cursor's). */
+const ViewFrame *view_frame(bool blink, ViewPointer pointer);
 
 /* The editor is shown over the program's graphics (qbrt_shot_take), until the output is again. */
 extern bool view_text_shown;

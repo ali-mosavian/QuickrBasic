@@ -12,8 +12,7 @@
 #define PLAT_PSCR_H
 #include "base.h"
 
-/* The screen's rows (pscr_rows) and columns (pscr_cols) at most; PSCR_COLS a VGA's. */
-enum { PSCR_ROWS_MAX = 100, PSCR_COLS_MAX = 240, PSCR_COLS = 80 };
+enum { PSCR_ROWS_MAX = 50, PSCR_COLS = 80 }; /* the screen's rows: pscr_rows */
 
 /* A cell as text memory holds it: the character in the low byte, the attribute in the high. */
 typedef uint16_t PscrCell;
@@ -22,14 +21,10 @@ enum : uint16_t { PSCR_HIDDEN = 0x2000 }; /* pscr_shape's: no cursor */
 
 /* 80-column colour text of rows rows (25, 43, 50; INT 10h mode 3, then the 8x8 font past 25):
    every page cleared, page 0 shown, the BIOS palette. The rows it has: fewer when the card has
-   not as many (an EGA's 43 for 50). A display with a size of its own (a terminal's) has that
-   instead, rows and columns. */
+   not as many (an EGA's 43 for 50). */
 uint8_t pscr_text(uint8_t rows);
-/* The text screen's rows and columns now. */
+/* The text screen's rows now. */
 uint8_t pscr_rows(void);
-uint8_t pscr_cols(void);
-/* The display has rows by cols: true unless it has a size of its own, and it changed. */
-bool pscr_fits(uint8_t rows, uint8_t cols);
 /* The page shown (INT 10h AH=5). */
 void pscr_page(uint8_t page);
 

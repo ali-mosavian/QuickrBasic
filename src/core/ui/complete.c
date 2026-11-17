@@ -301,8 +301,8 @@ static void cmpl_place(void)
     const uint16_t c = ac.s.start > uimn.ed.left ? ac.s.start - uimn.ed.left : 0;
     uint8_t col = (uint8_t)c;
 
-    if ((uint8_t)(col + bw) > uimn.cols)
-        col = uimn.cols - bw;
+    if ((uint8_t)(col + bw) > PSCR_COLS)
+        col = PSCR_COLS - bw;
 
     ac.at_row = row;
     ac.at_col = col;
@@ -408,8 +408,7 @@ static void cmpl_popup(Session *const S)
 
         draw_all(S);
         cmpl_draw(S);
-        const uint16_t key = uimn_getkey();
-        step = key == KEY_RESIZE ? STEP_STAY : cmpl_key(S, key);
+        step = cmpl_key(S, uimn_getkey());
     } while (step == STEP_STAY);
 
     ac.open = false;

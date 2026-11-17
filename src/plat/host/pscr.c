@@ -9,9 +9,8 @@
 enum { NPAGE = 8, CH_BEL = 7 };
 enum : PscrCell { BLANK = 0x0720 };
 
-static PscrCell pages[NPAGE][PSCR_ROWS_MAX * PSCR_COLS_MAX];
-static uint8_t rows = 25, cols = PSCR_COLS;
-static uint32_t fit; /* the display's own size, rows << 8 | cols (host_text_fit); 0 none */
+static PscrCell pages[NPAGE][PSCR_ROWS_MAX * PSCR_COLS];
+static uint8_t rows = 25;
 static struct {
     uint8_t row, col;
 } cursors[NPAGE];
@@ -29,7 +28,7 @@ static uint16_t shape = 0x0607;
 
 static PscrCell *cell(const uint8_t page, const uint8_t row, const uint8_t col)
 {
-    return &pages[page % NPAGE][(row * cols + col) % (rows * cols)];
+    return &pages[page % NPAGE][(row * PSCR_COLS + col) % (rows * PSCR_COLS)];
 }
 
 PscrCell host_cell(const uint8_t page, const uint8_t row, const uint8_t col)
@@ -37,18 +36,14 @@ PscrCell host_cell(const uint8_t page, const uint8_t row, const uint8_t col)
     return *cell(page, row, col);
 }
 
-HostScreen host_screen(void) { return host_screen_of(shown); }
-
-HostScreen host_screen_of(const uint8_t page)
+HostScreen host_screen(void)
 {
-    const uint8_t p = page % NPAGE;
     HostScreen s = {
-        .cells = pages[p],
-        .page = p,
+        .cells = pages[shown],
+        .page = shown,
         .rows = rows,
-        .cols = cols,
-        .row = cursors[p].row,
-        .col = cursors[p].col,
+        .row = cursors[shown].row,
+        .col = cursors[shown].col,
         .shape = shape,
     };
 
@@ -57,27 +52,13 @@ HostScreen host_screen_of(const uint8_t page)
 }
 
 uint8_t pscr_rows(void) { return rows; }
-uint8_t pscr_cols(void) { return cols; }
-
-void host_text_fit(const uint8_t r, const uint8_t c)
-{
-    __atomic_store_n(&fit, (uint32_t)r << 8 | c, __ATOMIC_RELAXED);
-}
-
-bool pscr_fits(const uint8_t r, const uint8_t c)
-{
-    const uint32_t f = __atomic_load_n(&fit, __ATOMIC_RELAXED);
-    return !f || f == ((uint32_t)r << 8 | c);
-}
 
 uint8_t pscr_text(const uint8_t want)
 {
-    const uint32_t f = __atomic_load_n(&fit, __ATOMIC_RELAXED);
-    rows = f ? (uint8_t)(f >> 8) : want == 43 || want == 50 ? want : 25;
-    cols = f ? (uint8_t)f : PSCR_COLS;
+    rows = want == 43 || want == 50 ? want : 25;
 
     for (uint32_t p = 0; p < NPAGE; p++)
-        for (uint32_t i = 0; i < PSCR_ROWS_MAX * PSCR_COLS_MAX; i++)
+        for (uint32_t i = 0; i < PSCR_ROWS_MAX * PSCR_COLS; i++)
             pages[p][i] = BLANK;
 
     shown = 0;

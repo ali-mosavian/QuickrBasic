@@ -68,8 +68,7 @@ static inline uint8_t rows_of(const uint8_t a)
 }
 
 /* mn_x: each title's column on the bar (QBasic's). */
-/* Menu m's title's column on the bar. */
-uint8_t menu_col(uint8_t m);
+extern const uint8_t menu_x[NMENU];
 /* mn_tt: each title, '&' before its key. */
 extern const char *const menu_title[NMENU];
 

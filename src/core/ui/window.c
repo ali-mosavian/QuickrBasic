@@ -57,7 +57,7 @@ static uint8_t ed1_cols(void)
 void wind_layout(void)
 {
     UiWins *const ws = &uimn.win;
-    ws->cols = uimn.pane_on ? uimn.dp_col : uimn.cols;
+    ws->cols = uimn.pane_on ? uimn.dp_col : PSCR_COLS;
     uint8_t row = 1; /* the next window's title row */
     for (uint8_t w = 0; w < NWIN; w++) {
         UiWin *const p = win(w);
@@ -70,7 +70,7 @@ void wind_layout(void)
         const uint16_t first = row + 1; /* the first row under the title */
         Rect help;                      /* the help window has no widget */
         Rect *const r = w == W_HELP ? &help : &wind_widget(w)->rect;
-        *r = (Rect){row, 0, p->height, uimn.cols};
+        *r = (Rect){row, 0, p->height, PSCR_COLS};
 
         if (w != W_HELP)
             wind_widget(w)->visible = p->height != 0;
@@ -111,7 +111,7 @@ void wind_layout(void)
     uimn.tree.editors.rect = (Rect){1, 0, imm_row - 1, ws->cols};
 
     uimn.tree.pane.rect =
-        (Rect){1, uimn.dp_col - 1, win_rows() - win(W_IMM)->height, uimn.cols - uimn.dp_col + 1};
+        (Rect){1, uimn.dp_col - 1, win_rows() - win(W_IMM)->height, PSCR_COLS - uimn.dp_col + 1};
 
     uimn.tree.pane.visible = uimn.pane_on;
     dpan_layout();
@@ -423,9 +423,7 @@ bool wind_drag(void)
 
     if (held == SEAM_PANE && uimn.pane_on) {
         const uint8_t to = m->col + 1; /* the line at the mouse */
-        uimn.dp_col = to < DP_COLMIN                ? DP_COLMIN
-                      : to > uimn.cols - DP_PANEMIN ? uimn.cols - DP_PANEMIN
-                                                    : to;
+        uimn.dp_col = to < DP_COLMIN ? DP_COLMIN : to > DP_COLMAX ? DP_COLMAX : to;
     } else if (held == SEAM_BESIDE) {
         uimn.win.ed1_cols = m->col + 1;
     } else if (held == SEAM_TITLE) {

@@ -20,6 +20,7 @@ WasmIrq *irq(void)
 void host_term_open(void) {}
 void host_term_pause(const bool yes) {}
 bool host_term_on(void) { return wasm_irq.keyboard; }
+bool host_term_window(void) { return wasm_irq.keyboard; } /* the page's */
 
 static uint32_t tail(void) { return __atomic_load_n(&wasm_irq.tail, __ATOMIC_ACQUIRE); }
 

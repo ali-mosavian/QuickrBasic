@@ -94,7 +94,7 @@ bool mous_poll(void)
 bool mous_title(const uint8_t col, uint8_t *const menu)
 {
     for (int m = NMENU - 1; m >= 0; m--) {
-        const uint8_t x = menu_col(m) - 1;
+        const uint8_t x = menu_x[m] - 1;
 
         if (col < x)
             continue;

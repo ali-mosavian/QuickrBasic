@@ -140,13 +140,7 @@ static_assert(ACT_TH2 + 6 == ACT_SOUT - 1);
 static const Item *const menus[] =
     {m_file, m_edit, m_view, m_srch, m_run, m_dbg, m_opt, m_help, m_theme, m_size};
 
-static const uint8_t menu_x[NMENU] = {3, 9, 15, 21, 29, 34, 41, 74}; /* QBasic's (uirsrcc.c) */
-
-/* Help's stays as far from the right edge as on 80 columns. */
-uint8_t menu_col(const uint8_t m)
-{
-    return m == NMENU - 1 ? (uint8_t)(uimn.cols - PSCR_COLS + menu_x[m]) : menu_x[m];
-}
+const uint8_t menu_x[NMENU] = {3, 9, 15, 21, 29, 34, 41, 74}; /* QBasic's (uirsrcc.c) */
 const char *const menu_title[NMENU] =
     {"&File", "&Edit", "&View", "&Search", "&Run", "&Debug", "&Options", "&Help"};
 /* Each title's letter's scan code. */
@@ -183,8 +177,8 @@ static struct {
     Level box, saved;
 } mn;
 
-enum { HELP_MAX = 76 };               /* a help line's characters at most */
-static char help_line[PSCR_COLS_MAX]; /* bf.ui_hbuf */
+enum { HELP_MAX = 76 };           /* a help line's characters at most */
+static char help_line[PSCR_COLS]; /* bf.ui_hbuf */
 
 static const Item *item(const uint8_t i) { return &menus[mn.box.m][i]; }
 
@@ -237,15 +231,15 @@ static bool checked(Session *const S, const Item *const it)
 
 void menu_bar(void)
 {
-    scrn_fill(0, 0, SL_BAR, ' ', uimn.cols);
+    scrn_fill(0, 0, SL_BAR, ' ', PSCR_COLS);
 
     for (uint8_t b = 0; b < NMENU; b++) {
         if (mn.w.visible && b == mn.c) {
-            const uint8_t title = scrn_fill(0, menu_col(b) - 1, SL_MSEL, ' ', 1);
+            const uint8_t title = scrn_fill(0, menu_x[b] - 1, SL_MSEL, ' ', 1);
             const uint8_t after = scrn_str(0, title, menu_title[b], SL_MSEL, SL_MHOT);
             scrn_fill(0, after, SL_MSEL, ' ', 1);
         } else {
-            scrn_str(0, menu_col(b), menu_title[b], SL_BAR, SL_HOT);
+            scrn_str(0, menu_x[b], menu_title[b], SL_BAR, SL_HOT);
         }
     }
 }
@@ -382,10 +376,10 @@ static void box(Session *const S)
 static void drop(Session *const S)
 {
     size();
-    uint8_t l = menu_col(mn.c) - 2;
+    uint8_t l = menu_x[mn.c] - 2;
 
-    if ((uint8_t)(l + mn.box.w) > (uimn.cols - 1))
-        l = (uimn.cols - 1) - mn.box.w;
+    if ((uint8_t)(l + mn.box.w) > (PSCR_COLS - 1))
+        l = (PSCR_COLS - 1) - mn.box.w;
 
     mn.box.l = l;
     mn.box.top = 1;
@@ -482,7 +476,7 @@ static void sub_open(const Item *const it)
     mn.box.top = mn.saved.i + mn.saved.top;
     uint8_t l = mn.saved.l + mn.saved.w;
 
-    if ((uint8_t)(l + mn.box.w) > (uimn.cols - 1))
+    if ((uint8_t)(l + mn.box.w) > (PSCR_COLS - 1))
         l = mn.saved.l - mn.box.w;
 
     mn.box.l = l;

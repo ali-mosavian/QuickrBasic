@@ -51,9 +51,6 @@ uint8_t pscr_text(const uint8_t rows)
     return pscr_rows();
 }
 
-uint8_t pscr_cols(void) { return PSCR_COLS; }
-bool pscr_fits(const uint8_t rows, const uint8_t cols) { return true; }
-
 uint8_t pscr_rows(void)
 {
     const uint8_t last = *pdos_lin(BIOS_ROWS);

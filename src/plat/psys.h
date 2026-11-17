@@ -29,7 +29,8 @@ uint32_t psys_cmdline(char *buf, uint32_t cap);
    its bytes, the last 0 counted. */
 uint32_t psys_environ(char *buf, uint32_t cap);
 /* The running program's own path, as DOS put it after the environment (drive, directory, name);
-   cap bytes at most, 0-ended; its length, 0 unknown (declared by ui). */
+   in a Mac app, its name in the app's Resources, where its files are. cap bytes at most, 0-ended;
+   its length, 0 unknown (declared by ui). */
 uint32_t psys_self(char *buf, uint32_t cap);
 /* Run the program at path with the command tail (len bytes, no count nor CR), the child given
    env (envlen bytes, as psys_environ's); false: it did not run. */

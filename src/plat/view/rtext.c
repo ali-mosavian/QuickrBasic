@@ -9,8 +9,6 @@
 enum { MODE_TEXT = 3, MODE_KEEP = 0x80, SHAPE = 0x0607 };
 
 static uint8_t page(void) { return host_screen().page; }
-static unsigned rows(void) { return pscr_rows() < 50 ? pscr_rows() : 50; }
-static unsigned cols(void) { return pscr_cols() < PSCR_COLS ? pscr_cols() : PSCR_COLS; }
 
 int __real_gd_set_mode(unsigned mode);
 
@@ -24,7 +22,7 @@ int __wrap_gd_set_mode(const unsigned mode)
     return ok;
 }
 
-unsigned __wrap_dev_text_size(void) { return rows() << 8 | cols(); }
+unsigned __wrap_dev_text_size(void) { return (unsigned)pscr_rows() << 8 | PSCR_COLS; }
 
 unsigned __wrap_dev_text_cursor(void)
 {
@@ -35,11 +33,11 @@ unsigned __wrap_dev_text_cursor(void)
 
 void __wrap_dev_text_move(const unsigned row, const unsigned column)
 {
-    const unsigned n = rows();
+    const unsigned rows = pscr_rows();
     pscr_cursor(
         page(),
-        (uint8_t)(row < n ? row : n - 1),
-        (uint8_t)(column < cols() ? column : cols() - 1)
+        (uint8_t)(row < rows ? row : rows - 1),
+        (uint8_t)(column < PSCR_COLS ? column : PSCR_COLS - 1)
     );
 }
 
@@ -47,7 +45,7 @@ void __wrap_dev_text_cursor_show(const int visible) { pscr_shape(visible ? SHAPE
 
 unsigned __wrap_dev_text_get(const unsigned row, const unsigned column)
 {
-    if (row >= rows() || column >= cols())
+    if (row >= pscr_rows() || column >= PSCR_COLS)
         return 0;
 
     PscrCell c;
@@ -62,7 +60,7 @@ void __wrap_dev_text_put(
     const unsigned attribute
 )
 {
-    if (row < rows() && column < cols())
+    if (row < pscr_rows() && column < PSCR_COLS)
         pscr_fill(
             page(),
             (uint8_t)row,
@@ -91,5 +89,12 @@ void __wrap_dev_text_scroll(
     const unsigned attribute
 )
 {
-    pscr_scroll((uint8_t)lines, (uint8_t)top, 0, (uint8_t)bottom, cols() - 1, (uint8_t)attribute);
+    pscr_scroll(
+        (uint8_t)lines,
+        (uint8_t)top,
+        0,
+        (uint8_t)bottom,
+        PSCR_COLS - 1,
+        (uint8_t)attribute
+    );
 }

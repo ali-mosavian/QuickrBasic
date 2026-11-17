@@ -26,7 +26,7 @@ DOSBOX_BIN ?= $(DEPS)/dosbox-x
 DOS32A ?= third_party/dos32a
 export JWASM JWLINK DOSBOX_BIN DOS32A
 
-.PHONY: all test host host-test wasm wasm-test web lto format clean
+.PHONY: all test host host-test wasm wasm-test web mac mac-zip mac-test lto format clean
 all:
 
 # one run builds both: two would clone into the same directory at once under -j
@@ -182,13 +182,13 @@ build/host/basic: $(build/host_OBJ) build/host/obj/app/basic32.o build/host/obj/
 build/hostperf/basic: $(build/hostperf_OBJ) build/hostperf/obj/app/basic32.o build/hostperf/obj/plat/host/app/insns.o
 	$(HOST_CC) $^ -lm -o $@
 
-# ---- The Mac's: the IDE in a window (SDL 3), build/mac/QuickrBasic; or in the terminal, the program's output in a
-# window, build/mac/qb-split. The display is plat/view's, as the browser's; wrap.h is ld's --wrap ----
+# ---- The Mac's: the IDE in a window (SDL 3), build/mac/QuickrBasic.app with SDL in it; mac-zip, the app zipped. The
+# display is plat/view's, as the browser's; wrap.h is ld's --wrap ----
 
 SDL_CFLAGS := $(shell pkg-config --cflags sdl3 2>/dev/null)
 SDL_LIBS := $(shell pkg-config --libs sdl3 2>/dev/null)
 MAC := build/mac
-MAC_CFLAGS := $(filter-out -O1 -DEXEC_COUNT,$(HOST_CFLAGS)) -O2 -DAC=$(AC)
+MAC_CFLAGS := $(filter-out -O1 -DEXEC_COUNT,$(HOST_CFLAGS)) -O2 -mmacosx-version-min=13.0 -DAC=$(AC)
 $(eval $(call host_rules,$(MAC),$(MAC_CFLAGS),-include src/plat/view/wrap.h -DQBRT_SCREEN=1))
 $(MAC)/qbrt/qb/dev/host/video.o: VIEW_REAL := -DVIEW_REAL_TEXT
 $(MAC)/qbrt/qb/dev/headless/headless.o: VIEW_REAL := -DVIEW_REAL_TONE
@@ -197,13 +197,31 @@ $(MAC)/obj/app/ide32.o: APP_FLAGS := -Dmain=qb_main
 MAC_OBJ := $($(MAC)_OBJ) $(patsubst src/%.c,$(MAC)/obj/%.o,$(filter-out src/core/ui/tree.c src/core/ui/indent.c,\
 	$(wildcard src/core/ui/*.c)) $(wildcard src/plat/view/*.c) $(wildcard src/plat/sdl/*.c)) $(MAC)/obj/app/ide32.o
 
-mac: $(MAC)/QuickrBasic $(MAC)/qb-split $(MAC)/BASIC.HLP
-$(MAC)/QuickrBasic: $(MAC_OBJ) $(MAC)/obj/plat/sdl/app/window.o
-	$(HOST_CC) $^ $(SDL_LIBS) -lm -o $@
-$(MAC)/qb-split: $(MAC_OBJ) $(MAC)/obj/plat/sdl/app/split.o
-	$(HOST_CC) $^ $(SDL_LIBS) -lm -o $@
-$(MAC)/BASIC.HLP: src/basic.hlp
+APP := $(MAC)/QuickrBasic.app
+SDL_DYLIB := $(shell pkg-config --variable=libdir sdl3 2>/dev/null)/libSDL3.0.dylib
+DEMOS := $(wildcard src/plat/wasm/web/demos/*.BAS)
+
+mac: $(APP)/Contents/Info.plist
+$(MAC)/QuickrBasic: $(MAC_OBJ) $(MAC)/obj/plat/sdl/app/main.o
+	$(HOST_CC) -mmacosx-version-min=13.0 $^ $(SDL_LIBS) -lm -o $@
+# the bundle: SDL beside the program, both signed ad hoc (Apple silicon runs nothing unsigned)
+$(APP)/Contents/Info.plist: src/plat/sdl/Info.plist $(MAC)/QuickrBasic src/basic.hlp $(DEMOS)
+	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Frameworks $(APP)/Contents/Resources/demos
+	cp $(MAC)/QuickrBasic $(APP)/Contents/MacOS/
+	cp src/basic.hlp $(APP)/Contents/Resources/BASIC.HLP
+	cp $(DEMOS) $(APP)/Contents/Resources/demos/
+	cp -L $(SDL_DYLIB) $(APP)/Contents/Frameworks/libSDL3.0.dylib
+	chmod u+w $(APP)/Contents/Frameworks/libSDL3.0.dylib
+	install_name_tool -id @rpath/libSDL3.0.dylib $(APP)/Contents/Frameworks/libSDL3.0.dylib
+	install_name_tool -change "$$(otool -L $(MAC)/QuickrBasic | awk '/libSDL3/ {print $$1}')" \
+		@executable_path/../Frameworks/libSDL3.0.dylib $(APP)/Contents/MacOS/QuickrBasic
+	codesign --force -s - $(APP)/Contents/Frameworks/libSDL3.0.dylib
 	cp $< $@
+	codesign --force -s - $(APP)
+mac-zip: mac
+	cd $(MAC) && ditto -c -k --keepParent QuickrBasic.app QuickrBasic-mac-arm64.zip
+mac-test: mac
+	$(PY) tools/mac_test.py $(APP)/Contents/MacOS/QuickrBasic
 
 UNIT_OBJ := $(patsubst tests/unit/%.c,build/host/unit/%.o,$(wildcard tests/unit/*.c))
 build/host/unit/%.o: tests/unit/%.c

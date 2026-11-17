@@ -13,6 +13,7 @@
 #include <sys/statvfs.h>
 #include <time.h>
 #include <unistd.h>
+#include "plat/host/host.h"
 #include "plat/pfil.h"
 
 enum { PATH_CAP = 1024, DRIVE_C = 2 };
@@ -175,6 +176,9 @@ uint16_t pfil_printer(PfilHandle *const h)
 
 bool pfil_isdev(const PfilHandle h)
 {
+    if (host_term_window() && (h == PFIL_STDIN || h == PFIL_STDOUT))
+        return true; /* the console is the window, whatever they are */
+
     struct stat st;
     return !fstat(h, &st) && S_ISCHR(st.st_mode);
 }

@@ -1002,7 +1002,7 @@ uint8_t dlog_msg(Session *const S, const char *const text, const MsgButton *cons
     const uint16_t cols = (widest >= bw ? widest : bw) + MSG_PAD; /* the wider (msgbox.c) */
     Dlog *const m = &msg_dlog;
     m->cols = (uint8_t)cols;
-    m->col = (uint8_t)(uimn.cols - m->cols) >> 1;
+    m->col = (uint8_t)(PSCR_COLS - m->cols) >> 1;
     m->rows = MSG_TOP + nl + 4;
     m->row = msg_row(m->rows);
     m->title = dl.title;

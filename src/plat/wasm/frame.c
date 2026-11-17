@@ -23,5 +23,5 @@ const ViewFrame *frame(const int blink)
         .col = wasm_irq.mouse_col,
     };
 
-    return view_frame(VIEW_SCREEN, blink, pointer);
+    return view_frame(blink, pointer);
 }
