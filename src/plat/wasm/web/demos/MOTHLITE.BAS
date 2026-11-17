@@ -1,251 +1,522 @@
-' MOTHLIGHT: a little moth's big day out, through the standing stones.
-' Space, Enter or Up flaps; M turns the music off and on; Esc quits. Driven by TIMER: the same speed on any machine.
-' SCREEN 13's 256 colours on two pages: one is drawn while the other is shown.
-DECLARE SUB Setup ()
+' MOTHLIGHT: a little moth's big day out.
+' Space, Enter or Up flaps; M mutes; Esc quits.
+' SCREEN 13 on two pages: one drawn, one shown.
+' Each subsystem owns a record; World holds them
+' all. The loop reads input, updates, then draws.
+
+TYPE Oval
+    cx AS SINGLE
+    cy AS SINGLE
+    an AS SINGLE
+    a AS SINGLE
+    b AS SINGLE
+END TYPE
+
+' The moth's outline in its own frame, for a pose.
+TYPE Shape
+    tilt AS SINGLE
+    sx AS SINGLE
+    sy AS SINGLE
+    fore AS Oval
+    hind AS Oval
+    neck AS Oval
+    body AS Oval
+END TYPE
+
+TYPE Moth
+    x AS SINGLE
+    y AS SINGLE
+    vy AS SINGLE
+    beat AS SINGLE
+    boost AS SINGLE
+    squash AS SINGLE
+    behind AS INTEGER
+END TYPE
+
+TYPE Stone
+    x AS SINGLE
+    gap AS INTEGER
+    passed AS INTEGER
+    kind AS INTEGER
+END TYPE
+
+TYPE Spark
+    x AS SINGLE
+    y AS SINGLE
+    vx AS SINGLE
+    vy AS SINGLE
+    life AS SINGLE
+END TYPE
+
+TYPE Burst
+    n AS INTEGER
+    spread AS SINGLE
+    kick AS SINGLE
+END TYPE
+
+TYPE Fx
+    flash AS SINGLE
+    shake AS SINGLE
+    pop AS SINGLE
+END TYPE
+
+TYPE Sky
+    phase AS INTEGER
+    fade AS SINGLE
+    fadeTo AS SINGLE
+    ease AS SINGLE
+END TYPE
+
+TYPE Song
+    id AS INTEGER
+    beat AS INTEGER
+    playing AS INTEGER
+    cue AS STRING * 48
+END TYPE
+
+TYPE Game
+    mode AS INTEGER
+    modeT AS SINGLE
+    clock AS SINGLE
+    scroll AS SINGLE
+    score AS INTEGER
+    best AS INTEGER
+    newBest AS INTEGER
+    trail AS SINGLE
+    toTitle AS INTEGER
+    quitting AS INTEGER
+END TYPE
+
+TYPE World
+    g AS Game
+    m AS Moth
+    fx AS Fx
+    sky AS Sky
+    song AS Song
+    page AS INTEGER
+END TYPE
+
+TYPE Pad
+    flap AS INTEGER
+    mute AS INTEGER
+    back AS INTEGER
+END TYPE
+
+TYPE Look
+    sc AS INTEGER
+    c1 AS INTEGER
+    c2 AS INTEGER
+    sh AS INTEGER
+END TYPE
+
+TYPE Ridge
+    speed AS SINGLE
+    c AS INTEGER
+    d1 AS INTEGER
+    d2 AS INTEGER
+    band AS INTEGER
+    bottom AS INTEGER
+    stp AS INTEGER
+END TYPE
+
+CONST SW = 320, SH = 200, GROUNDY = 184, LAKEH = 16
+CONST HOMEX = 85, ASPECT = 1.2!, STEPT = 1! / 120!
+CONST NSTONE = 4, STONEW = 29, OVERHANG = 3
+CONST CAPH = 7, GAP = 66, SPACING = 124, NKIND = 5
+CONST SPRW = 34, SPRH = 30, SPRSZ = 256
+CONST MSCALE = .62!, NSPR = 14, NSPARK = 64
+CONST GRAV = 660!, FLAPV = -190!, SPEED = 72!
+CONST TITLE = 0, PLAYING = 1, DYING = 2, OVER = 3
+CONST NOSONG = 0, TITLESONG = 1, GAMESONG = 2
+CONST MAXBEATS = 64, SUNX = 258, SUNY = 58
+CONST NFLY = 10, NCLOUD = 3, NTREE = 16
+CONST DAY = 0, NSKIES = 3, NKEY = 15, NRIDGE = 3
+' sound effects, sparks and text looks, by table
+CONST SFXCRASH = 0, SFXFLAP = 1, SFXCHIME = 2
+CONST SFXTING = 3, SFXBEST = 4, SFXOVER = 5
+CONST NSFX = 6
+CONST BTRAIL = 0, BFLAP = 1, BSCORE = 2, BLAND = 3
+CONST NBURST = 4
+CONST LNAME = 0, LGLEAM = 1, LSMALL = 2
+CONST LPROMPT = 3, LBEST = 4, LSCORE = 5, LPOP = 6
+CONST LHEAD = 7, LBIGW = 8, LBIGG = 9, LNEW = 10
+CONST LSOFT = 11, NLOOK = 12
+' The colours. The lake ORs 64 into what it mirrors,
+' so 0-15 and 128-191 have water-tinted copies 64
+' up; the rest are only drawn above its reach.
+CONST CINK = 1, CWHITE = 2, CWING = 3, CWEDGE = 4
+CONST CBODY = 5, CSTRIPE = 6, CCOLLAR = 7
+CONST CHIND = 8, CHINDE = 9, CSPARK = 10
+CONST CSKY = 16, NSKY = 48, CTITLE = 80
+CONST CPANEL = 88, CPANEL2 = 89, CSUN = 90
+CONST CRAY = 91, CCHEEK = 92, CCLOUD = 93
+CONST CCLOUDLO = 94, CMASK = 255, CMTN = 128
+CONST CFAR = 144, CNEAR = 160, CTREE = 176
+CONST CSTONE = 180, CMOSS = 188, CRUNE = 189
+CONST CSHROOM = 190, CVINE = 191, WATER = 64
+
+DECLARE SUB Main ()
+DECLARE SUB OpenScreen ()
+DECLARE SUB CloseScreen ()
+DECLARE SUB Flip (page AS INTEGER)
+DECLARE SUB LoadTables ()
+DECLARE SUB LoadSongs ()
+DECLARE SUB LoadSfx ()
+DECLARE SUB LoadSkies ()
+DECLARE SUB LoadLooks ()
+DECLARE SUB LoadBursts ()
+DECLARE SUB LoadRidges ()
+DECLARE SUB LoadTerrain ()
+DECLARE SUB BuildStones ()
+DECLARE SUB BuildLake ()
 DECLARE SUB BuildGlyphs ()
 DECLARE SUB BuildMoth ()
-DECLARE SUB NewGame ()
-DECLARE SUB Flap ()
-DECLARE SUB Die ()
-DECLARE SUB Tick (flapped AS INTEGER)
-DECLARE SUB Render ()
-DECLARE SUB DrawSky ()
-DECLARE SUB DrawSun ()
-DECLARE SUB DrawHills ()
-DECLARE SUB DrawStone (x AS INTEGER, y1 AS INTEGER, y2 AS INTEGER, capTop AS INTEGER, kind AS INTEGER)
-DECLARE SUB DrawLake ()
-DECLARE SUB DrawSparks ()
-DECLARE SUB DrawMoth ()
-DECLARE SUB DrawPanel ()
-DECLARE SUB Emit (n AS INTEGER, spread AS SINGLE, kick AS SINGLE)
-DECLARE SUB Txt (t AS STRING, x AS INTEGER, y AS INTEGER, sc AS INTEGER, c1 AS INTEGER, c2 AS INTEGER, shd AS INTEGER)
-DECLARE SUB TxtC (t AS STRING, y AS INTEGER, sc AS INTEGER, c1 AS INTEGER, c2 AS INTEGER, shd AS INTEGER)
-DECLARE SUB Music ()
-DECLARE SUB StartSong (id AS INTEGER)
-DECLARE SUB SetPalette ()
+DECLARE SUB Pose (k AS INTEGER, s AS Shape)
+DECLARE SUB Sketch (g() AS INTEGER, s AS Shape)
+DECLARE SUB Outline (g() AS INTEGER)
+DECLARE SUB Capture (g() AS INTEGER, k AS INTEGER)
+DECLARE SUB NewWorld (w AS World, cur() AS SINGLE)
+DECLARE SUB ReadPad (k AS Pad)
+DECLARE SUB Control (w AS World, k AS Pad)
+DECLARE SUB Tick (w AS World, k AS Pad, st() AS Stone, sp() AS Spark)
+DECLARE SUB AgeFx (f AS Fx)
+DECLARE SUB AgeMoth (m AS Moth)
+DECLARE SUB Orbit (w AS World, k AS Pad, st() AS Stone, sp() AS Spark)
+DECLARE SUB Fly (w AS World, k AS Pad, st() AS Stone, sp() AS Spark)
+DECLARE SUB Fall (w AS World, sp() AS Spark)
+DECLARE SUB Launch (w AS World, st() AS Stone, sp() AS Spark)
+DECLARE SUB Die (w AS World)
+DECLARE SUB Scored (w AS World, sp() AS Spark)
+DECLARE SUB BackToTitle (w AS World)
+DECLARE SUB Trail (w AS World, sp() AS Spark)
+DECLARE SUB Flap (m AS Moth, sp() AS Spark, s AS Song)
+DECLARE SUB Gravity (m AS Moth)
+DECLARE SUB PlaceStones (st() AS Stone)
+DECLARE SUB MoveStone (st() AS Stone, i AS INTEGER)
+DECLARE SUB Emit (sp() AS Spark, m AS Moth, id AS INTEGER)
+DECLARE SUB MoveSparks (sp() AS Spark)
+DECLARE SUB StartSong (s AS Song, id AS INTEGER)
+DECLARE SUB StopSong (s AS Song)
+DECLARE SUB FeedSong (s AS Song)
+DECLARE SUB Chime (s AS Song)
+DECLARE SUB ToggleMusic (s AS Song)
+DECLARE SUB PlaySfx (id AS INTEGER)
+DECLARE SUB EaseSky (s AS Sky, cur() AS SINGLE)
+DECLARE SUB ApplyPalette (s AS Sky, cur() AS SINGLE)
+DECLARE SUB Shade (k() AS LONG, c() AS LONG)
+DECLARE SUB Ramp (c() AS LONG, i0 AS INTEGER, n AS INTEGER, a AS LONG, b AS LONG, span AS INTEGER)
+DECLARE SUB Render (w AS World, st() AS Stone, sp() AS Spark)
+DECLARE SUB DrawSky (g AS Game)
+DECLARE SUB DrawCloud (x AS INTEGER, y AS INTEGER)
+DECLARE SUB DrawSun (t AS SINGLE)
+DECLARE SUB DrawLand (g AS Game)
+DECLARE SUB DrawRidge (id AS INTEGER, scroll AS SINGLE)
+DECLARE SUB DrawCastle (scroll AS SINGLE)
+DECLARE SUB DrawSeeds (g AS Game)
+DECLARE SUB DrawTrees (scroll AS SINGLE)
+DECLARE SUB DrawStones (st() AS Stone, t AS SINGLE)
+DECLARE SUB DrawStone (st() AS Stone, i AS INTEGER, t AS SINGLE)
+DECLARE SUB Shaft (x AS INTEGER, y1 AS INTEGER, y2 AS INTEGER)
+DECLARE SUB Lintel (x AS INTEGER, cy AS INTEGER)
+DECLARE SUB Broken (x AS INTEGER, cy AS INTEGER)
+DECLARE SUB Moss (x AS INTEGER, cy AS INTEGER)
+DECLARE SUB Drips (x AS INTEGER, y AS INTEGER)
+DECLARE SUB Decorate (st() AS Stone, i AS INTEGER, t AS SINGLE)
+DECLARE SUB Runes (x AS INTEGER, y1 AS INTEGER, y2 AS INTEGER, t AS SINGLE)
+DECLARE SUB Vines (x AS INTEGER, y2 AS INTEGER, t AS SINGLE)
+DECLARE SUB Shrooms (x AS INTEGER, cy AS INTEGER)
+DECLARE SUB DrawMoth (m AS Moth, mode AS INTEGER)
+DECLARE SUB DrawLake (t AS SINGLE)
+DECLARE SUB DrawSparks (sp() AS Spark)
+DECLARE SUB DrawHud (w AS World)
+DECLARE SUB TitleText (g AS Game)
+DECLARE SUB ScoreText (g AS Game, f AS Fx)
+DECLARE SUB Panel (g AS Game)
+DECLARE SUB DrawFx (f AS Fx)
+DECLARE SUB Shake (amount AS SINGLE)
 DECLARE SUB Disc (cx AS INTEGER, cy AS INTEGER, r AS INTEGER, c AS INTEGER)
-DECLARE SUB Dither (x1 AS INTEGER, y1 AS INTEGER, x2 AS INTEGER, y2 AS INTEGER, c AS INTEGER, level AS INTEGER)
-DECLARE FUNCTION Mix& (a AS LONG, b AS LONG, t AS SINGLE)
+DECLARE SUB Dither (y1 AS INTEGER, y2 AS INTEGER, c AS INTEGER, level AS INTEGER)
+DECLARE SUB Txt (t AS STRING, x AS INTEGER, y AS INTEGER, id AS INTEGER)
+DECLARE SUB TxtC (t AS STRING, y AS INTEGER, id AS INTEGER)
+DECLARE SUB GlyphRow (b AS INTEGER, x AS INTEGER, y AS INTEGER, sc AS INTEGER, c AS INTEGER)
+DECLARE FUNCTION NextTime! (last AS SINGLE)
+DECLARE FUNCTION Elapsed! (a AS SINGLE, b AS SINGLE)
 DECLARE FUNCTION NextGap% (prev AS INTEGER)
-DECLARE FUNCTION Hit% ()
-DECLARE FUNCTION RectHit% (x1 AS SINGLE, y1 AS SINGLE, x2 AS SINGLE, y2 AS SINGLE)
-DECLARE FUNCTION Ell! (px AS SINGLE, py AS SINGLE, cx AS SINGLE, cy AS SINGLE, ang AS SINGLE, a AS SINGLE, b AS SINGLE)
+DECLARE FUNCTION Hit% (st() AS Stone, m AS Moth)
+DECLARE FUNCTION Touches% (m AS Moth, x1 AS SINGLE, y1 AS SINGLE, x2 AS SINGLE, y2 AS SINGLE)
+DECLARE FUNCTION MothFrame% (m AS Moth, mode AS INTEGER)
+DECLARE FUNCTION MothPix% (lx AS SINGLE, ly AS SINGLE, s AS Shape)
+DECLARE FUNCTION WingPix% (dx AS SINGLE, dy AS SINGLE, e AS SINGLE)
+DECLARE FUNCTION Feeler% (lx AS SINGLE, ly AS SINGLE)
+DECLARE FUNCTION Ell! (px AS SINGLE, py AS SINGLE, o AS Oval)
 DECLARE FUNCTION SegD! (px AS SINGLE, py AS SINGLE, ax AS SINGLE, ay AS SINGLE, bx AS SINGLE, by AS SINGLE)
-
-CONST SW = 320, SH = 200, GROUNDY = 184, LAKEH = 16, HOMEX = 85, ASPECT = 1.2!
-CONST NSTONE = 4, STONEW = 29, OVERHANG = 3, CAPH = 7, GAP = 66, SPACING = 124, NKIND = 5
-CONST SPRW = 34, SPRH = 30, SPRSZ = 256, MSCALE = .62!, NSPR = 14, NSPARK = 64
-CONST GRAV = 660!, FLAPV = -190!, SPEED = 72!, STEPT = 1! / 120!
-CONST TITLE = 0, PLAYING = 1, DYING = 2, OVER = 3
-CONST NOSONG = 0, TITLESONG = 1, GAMESONG = 2, TITLEBEATS = 32, GAMEBEATS = 64
-CONST SUNX = 258, SUNY = 58, NFLY = 10, NCLOUD = 3, DAY = 0, GOLDEN = 1, SUNSET = 2, NKEY = 15
-' The colours. The lake ORs 64 into what it mirrors, so 0-15 and 128-191 have water-tinted copies
-' 64 higher; the rest are only drawn above the lake's reach.
-CONST CINK = 1, CWHITE = 2, CWING = 3, CWEDGE = 4, CBODY = 5, CSTRIPE = 6, CCOLLAR = 7, CHIND = 8, CHINDE = 9
-CONST CSPARK = 10, CSKY = 16, NSKY = 48, CTITLE = 80, CPANEL = 88, CPANEL2 = 89
-CONST CSUN = 90, CRAY = 91, CCHEEK = 92, CCLOUD = 93, CCLOUDLO = 94, CMASK = 255
-CONST CMTN = 128, CFAR = 144, CNEAR = 160, CTREE = 176, CSTONE = 180, CMOSS = 188, CRUNE = 189, CSHROOM = 190
-CONST CVINE = 191, WATER = 64
+DECLARE FUNCTION Mix& (a AS LONG, b AS LONG, t AS SINGLE)
+DECLARE FUNCTION Lit& (c AS LONG)
+DECLARE FUNCTION Wet& (c AS LONG, lake AS LONG)
+DECLARE FUNCTION Pack& (r AS SINGLE, g AS SINGLE, b AS SINGLE)
+DECLARE FUNCTION Chan% (c AS LONG, j AS INTEGER)
+DECLARE FUNCTION Dac& (c AS LONG, f AS SINGLE)
 
 '$DYNAMIC
-DIM SHARED state AS INTEGER, score AS INTEGER, best AS INTEGER, newBest AS INTEGER, drawPage AS INTEGER
-DIM SHARED mothX AS SINGLE, mothY AS SINGLE, vy AS SINGLE, scroll AS SINGLE, clock AS SINGLE, phase AS SINGLE
-DIM SHARED boost AS SINGLE, flash AS SINGLE, stateT AS SINGLE, sparkT AS SINGLE, behind AS INTEGER
-DIM SHARED squashT AS SINGLE, popT AS SINGLE, shakeT AS SINGLE, palT AS SINGLE
-DIM SHARED stoneX(NSTONE - 1) AS SINGLE, stoneGap(NSTONE - 1) AS INTEGER, stoneDone(NSTONE - 1) AS INTEGER
-DIM SHARED stoneKind(NSTONE - 1) AS INTEGER, StoneCol(STONEW + 2 * OVERHANG) AS INTEGER
-DIM SHARED MtnTop(639) AS INTEGER, FarTop(639) AS INTEGER, NearTop(639) AS INTEGER
-DIM SHARED TreeX(15) AS INTEGER, TreeH(15) AS INTEGER
-DIM SHARED FlyX(NFLY - 1) AS INTEGER, FlyY(NFLY - 1) AS INTEGER, FlyPh(NFLY - 1) AS SINGLE
-DIM SHARED CloudX(NCLOUD - 1) AS INTEGER, CloudY(NCLOUD - 1) AS INTEGER
-DIM SHARED Rune(3) AS STRING, sky AS INTEGER, fade AS SINGLE, fadeTarget AS SINGLE
-DIM SHARED toTitle AS INTEGER, quitting AS INTEGER
-DIM SHARED Rgb(255) AS LONG, SkyKey(2, NKEY - 1) AS LONG, CurKey(NKEY - 1, 2) AS SINGLE
+' Assets: built once at the start, only read after.
+DIM SHARED Spr(SPRSZ * NSPR * 2 - 1) AS LONG
 DIM SHARED Glyph(126, 7) AS INTEGER, Bit(7) AS INTEGER
-DIM SHARED Spr(SPRSZ * NSPR * 2 - 1) AS LONG, Strip(80) AS LONG, Tinter(SW * LAKEH \ 4) AS LONG, Frame(SW * SH \ 4) AS LONG
-DIM SHARED Tune(1 TO 2, GAMEBEATS - 1, 2) AS STRING, songLen(1 TO 2) AS INTEGER
-DIM SHARED song AS INTEGER, beat AS INTEGER, musicOn AS INTEGER, cue AS STRING
-DIM SHARED sx(NSPARK - 1) AS SINGLE, sy(NSPARK - 1) AS SINGLE
-DIM SHARED svx(NSPARK - 1) AS SINGLE, svy(NSPARK - 1) AS SINGLE, slife(NSPARK - 1) AS SINGLE
+DIM SHARED Crest(NRIDGE - 1, 639) AS INTEGER
+DIM SHARED Ridges(NRIDGE - 1) AS Ridge
+DIM SHARED TreeX(NTREE - 1) AS INTEGER
+DIM SHARED TreeH(NTREE - 1) AS INTEGER
+DIM SHARED FlyX(NFLY - 1) AS INTEGER
+DIM SHARED FlyY(NFLY - 1) AS INTEGER
+DIM SHARED FlyPh(NFLY - 1) AS SINGLE
+DIM SHARED CloudX(NCLOUD - 1) AS INTEGER
+DIM SHARED CloudY(NCLOUD - 1) AS INTEGER
+DIM SHARED StoneCol(STONEW + 2 * OVERHANG) AS INTEGER
+DIM SHARED Rune(3) AS STRING, Looks(NLOOK - 1) AS Look
+DIM SHARED Tune(1 TO 2, MAXBEATS - 1, 2) AS STRING
+DIM SHARED SongLen(1 TO 2) AS INTEGER
+DIM SHARED SfxA(NSFX - 1) AS STRING
+DIM SHARED SfxB(NSFX - 1) AS STRING
+DIM SHARED Bursts(NBURST - 1) AS Burst
+DIM SHARED SkyKey(NSKIES - 1, NKEY - 1) AS LONG
+DIM SHARED Fixed(255) AS LONG
+DIM SHARED Tinter(SW * LAKEH \ 4) AS LONG
+' Scratch for drawing.
+DIM SHARED Strip(80) AS LONG, Frame(SW * SH \ 4) AS LONG
 
-DIM t AS SINGLE, lastT AS SINGLE, dt AS SINGLE, acc AS SINGLE
-DIM flapped AS INTEGER, k AS STRING, i AS INTEGER, j AS INTEGER, r AS LONG, g AS LONG, b AS LONG
-
-' The songs in three voices, each with its sound: a pulse lead, a sawtooth arpeggio through a
-' low-pass filter and noise drums; by the title, a soft triangle, a thin pulse and a sawtooth bass.
-' On DOS the speaker plays the lead alone.
-songLen(GAMESONG) = GAMEBEATS
-RESTORE GameTune
-FOR i = 0 TO GAMEBEATS - 1: READ k: Tune(GAMESONG, i, 0) = "T160MNW0Q25H0,6,10,3V11" + k: NEXT
-RESTORE GameArp
-FOR i = 0 TO GAMEBEATS - 1: READ k: Tune(GAMESONG, i, 1) = "T160MNW2Y1,900,9H0,3,9,2V7" + k: NEXT
-RESTORE GameDrum
-FOR i = 0 TO GAMEBEATS - 1: READ k: Tune(GAMESONG, i, 2) = "T160MNW3Y0H0,2,0,1" + k: NEXT
-songLen(TITLESONG) = TITLEBEATS
-RESTORE TitleTune
-FOR i = 0 TO TITLEBEATS - 1: READ k: Tune(TITLESONG, i, 0) = "T120MLW1H2,6,11,5V12" + k: NEXT
-RESTORE TitleArp
-FOR i = 0 TO TITLEBEATS - 1: READ k: Tune(TITLESONG, i, 1) = "T120MSW0Q30Y0H0,4,5,3V5" + k: NEXT
-RESTORE TitleBass
-FOR i = 0 TO TITLEBEATS - 1: READ k: Tune(TITLESONG, i, 2) = "T120MNW2Y1,500,6H0,7,8,4V8" + k: NEXT
-musicOn = -1
-RESTORE Skies
-FOR i = 0 TO 2
-    FOR j = 0 TO NKEY - 1
-        READ r, g, b
-        SkyKey(i, j) = r + g * 256 + b * 65536
-    NEXT
-NEXT
-RESTORE Fixed
-DO
-    READ i
-    IF i < 0 THEN EXIT DO
-    READ r, g, b
-    Rgb(i) = r + g * 256 + b * 65536
-LOOP
-
-Setup
-BuildGlyphs
-BuildMoth
-PLAY "MB"
-StartSong TITLESONG
-
-lastT = TIMER
-DO
-    DO: t = TIMER: LOOP WHILE t = lastT
-    dt = t - lastT
-    lastT = t
-    IF dt < 0 OR dt > .1 THEN dt = .1
-
-    flapped = 0
-    DO
-        k = INKEY$
-        SELECT CASE k
-        CASE " ", CHR$(13), CHR$(0) + "H"
-            flapped = -1
-        CASE "m", "M"
-            musicOn = NOT musicOn
-            IF musicOn = 0 THEN SOUND 37, 0
-        CASE CHR$(27)
-            IF state = TITLE THEN quitting = -1 ELSE toTitle = -1
-            fadeTarget = 0
-        END SELECT
-    LOOP WHILE LEN(k)
-
-    acc = acc + dt
-    DO WHILE acc >= STEPT
-        Tick flapped
-        flapped = 0
-        acc = acc - STEPT
-    LOOP
-    Music
-    Render
-LOOP UNTIL quitting AND fade <= 0
-
-SOUND 37, 0
-SCREEN 0
-WIDTH 80
+Main
 END
 
-' The skies' key colours as red, green, blue from 0 to 255: sky top, middle, low; cloud, its shade;
-' mountains; far hills top, low; near hills top, low; trees light, dark; water; stone light, dark.
+' Each song: its length in beats, then each voice's
+' sound and a string a beat: the tune, the chord's
+' arpeggio, then the drums (the title's bass).
+Songs:
+' Title
+DATA 32
+DATA "T120MLW1H2,6,11,5V12"
+DATA "O4E8", "O4G8", "O5C8", "O4G8", "O4A8", "O4G8", "O4F8"
+DATA "O4A8", "O4G8", "O4B8", "O5D8", "O4B8", "O5C8", "O4G8"
+DATA "O4E8", "O4C8", "O4C8", "O4E8", "O4A8", "O4E8", "O4F8"
+DATA "O4A8", "O5C8", "O4A8", "O4B8", "O4A8", "O4G8", "O4F8"
+DATA "O4E8", "O4D8", "O4C8", "O4C8"
+DATA "T120MSW0Q30Y0H0,4,5,3V5"
+DATA "O4C32O4E32O4G32O4E32", "O4C32O4E32O4G32O4E32"
+DATA "O4C32O4E32O4G32O4E32", "O4C32O4E32O4G32O4E32"
+DATA "O3F32O3A32O4C32O3A32", "O3F32O3A32O4C32O3A32"
+DATA "O3F32O3A32O4C32O3A32", "O3F32O3A32O4C32O3A32"
+DATA "O3G32O3B32O4D32O3B32", "O3G32O3B32O4D32O3B32"
+DATA "O3G32O3B32O4D32O3B32", "O3G32O3B32O4D32O3B32"
+DATA "O4C32O4E32O4G32O4E32", "O4C32O4E32O4G32O4E32"
+DATA "O4C32O4E32O4G32O4E32", "O4C32O4E32O4G32O4E32"
+DATA "O3A32O4C32O4E32O4C32", "O3A32O4C32O4E32O4C32"
+DATA "O3A32O4C32O4E32O4C32", "O3A32O4C32O4E32O4C32"
+DATA "O3F32O3A32O4C32O3A32", "O3F32O3A32O4C32O3A32"
+DATA "O3F32O3A32O4C32O3A32", "O3F32O3A32O4C32O3A32"
+DATA "O3G32O3B32O4D32O3B32", "O3G32O3B32O4D32O3B32"
+DATA "O3G32O3B32O4D32O3B32", "O3G32O3B32O4D32O3B32"
+DATA "O4C32O4E32O4G32O4E32", "O4C32O4E32O4G32O4E32"
+DATA "O4C32O4E32O4G32O4E32", "O4C32O4E32O4G32O4E32"
+DATA "T120MNW2Y1,500,6H0,7,8,4V8"
+DATA "O3C8", "O3G8", "O3C8", "O3G8", "O2F8", "O3C8", "O2F8"
+DATA "O3C8", "O2G8", "O3D8", "O2G8", "O3D8", "O3C8", "O3G8"
+DATA "O3C8", "O3G8", "O2A8", "O3E8", "O2A8", "O3E8", "O2F8"
+DATA "O3C8", "O2F8", "O3C8", "O2G8", "O3D8", "O2G8", "O3D8"
+DATA "O3C8", "O3G8", "O3C8", "O3G8"
+' Game
+DATA 64
+DATA "T160MNW0Q25H0,6,10,3V11"
+DATA "O4E8", "O4G8", "O5C8", "O4G8", "O4D8", "O4G8", "O4B8"
+DATA "O4G8", "O4C8", "O4E8", "O4A8", "O4E8", "O4F8", "O4A8"
+DATA "O5C8", "O4A8", "O4G8", "O4E8", "O4C8", "O4E8", "O3B8"
+DATA "O4D8", "O4G8", "O4D8", "O3A8", "O4C8", "O4F8", "O4A8"
+DATA "O4G8", "O4F8", "O4E8", "O4D8", "O4C8", "O4F8", "O4A8"
+DATA "O4F8", "O4D8", "O4G8", "O4B8", "O4G8", "O4E8", "O4G8"
+DATA "O4B8", "O4G8", "O4A8", "O4G8", "O4E8", "O4C8", "O4F8"
+DATA "O4E8", "O4F8", "O4A8", "O4G8", "O4A8", "O4B8", "O5D8"
+DATA "O5C8", "O4G8", "O4E8", "O4G8", "O5C8", "O4E8", "O4G8"
+DATA "O5C8"
+DATA "T160MNW2Y1,900,9H0,3,9,2V7"
+DATA "O3C32O3G32O4C32O3G32", "O3C32O3G32O4C32O3G32"
+DATA "O3C32O3G32O4C32O3G32", "O3C32O3G32O4C32O3G32"
+DATA "O2G32O3D32O3G32O3D32", "O2G32O3D32O3G32O3D32"
+DATA "O2G32O3D32O3G32O3D32", "O2G32O3D32O3G32O3D32"
+DATA "O2A32O3E32O3A32O3E32", "O2A32O3E32O3A32O3E32"
+DATA "O2A32O3E32O3A32O3E32", "O2A32O3E32O3A32O3E32"
+DATA "O2F32O3C32O3F32O3C32", "O2F32O3C32O3F32O3C32"
+DATA "O2F32O3C32O3F32O3C32", "O2F32O3C32O3F32O3C32"
+DATA "O3C32O3G32O4C32O3G32", "O3C32O3G32O4C32O3G32"
+DATA "O3C32O3G32O4C32O3G32", "O3C32O3G32O4C32O3G32"
+DATA "O2G32O3D32O3G32O3D32", "O2G32O3D32O3G32O3D32"
+DATA "O2G32O3D32O3G32O3D32", "O2G32O3D32O3G32O3D32"
+DATA "O2F32O3C32O3F32O3C32", "O2F32O3C32O3F32O3C32"
+DATA "O2F32O3C32O3F32O3C32", "O2F32O3C32O3F32O3C32"
+DATA "O2G32O3D32O3G32O3D32", "O2G32O3D32O3G32O3D32"
+DATA "O2G32O3D32O3G32O3D32", "O2G32O3D32O3G32O3D32"
+DATA "O2F32O3C32O3F32O3C32", "O2F32O3C32O3F32O3C32"
+DATA "O2F32O3C32O3F32O3C32", "O2F32O3C32O3F32O3C32"
+DATA "O2G32O3D32O3G32O3D32", "O2G32O3D32O3G32O3D32"
+DATA "O2G32O3D32O3G32O3D32", "O2G32O3D32O3G32O3D32"
+DATA "O2E32O2B32O3E32O2B32", "O2E32O2B32O3E32O2B32"
+DATA "O2E32O2B32O3E32O2B32", "O2E32O2B32O3E32O2B32"
+DATA "O2A32O3E32O3A32O3E32", "O2A32O3E32O3A32O3E32"
+DATA "O2A32O3E32O3A32O3E32", "O2A32O3E32O3A32O3E32"
+DATA "O2F32O3C32O3F32O3C32", "O2F32O3C32O3F32O3C32"
+DATA "O2F32O3C32O3F32O3C32", "O2F32O3C32O3F32O3C32"
+DATA "O2G32O3D32O3G32O3D32", "O2G32O3D32O3G32O3D32"
+DATA "O2G32O3D32O3G32O3D32", "O2G32O3D32O3G32O3D32"
+DATA "O3C32O3G32O4C32O3G32", "O3C32O3G32O4C32O3G32"
+DATA "O3C32O3G32O4C32O3G32", "O3C32O3G32O4C32O3G32"
+DATA "O3C32O3G32O4C32O3G32", "O3C32O3G32O4C32O3G32"
+DATA "O3C32O3G32O4C32O3G32", "O3C32O3G32O4C32O3G32"
+DATA "T160MNW3Y0H0,2,0,1"
+DATA "V10O1C16P16", "V4O6C32P32P16", "V8O4C16P16"
+DATA "V4O6C32P32P16", "V10O1C16P16", "V4O6C32P32P16"
+DATA "V8O4C16P16", "V4O6C32P32P16", "V10O1C16P16"
+DATA "V4O6C32P32P16", "V8O4C16P16", "V4O6C32P32P16"
+DATA "V10O1C16P16", "V4O6C32P32P16", "V8O4C16P16"
+DATA "V8O4C16V6O4C16", "V10O1C16P16", "V4O6C32P32P16"
+DATA "V8O4C16P16", "V4O6C32P32P16", "V10O1C16P16"
+DATA "V4O6C32P32P16", "V8O4C16P16", "V4O6C32P32P16"
+DATA "V10O1C16P16", "V4O6C32P32P16", "V8O4C16P16"
+DATA "V4O6C32P32P16", "V10O1C16P16", "V4O6C32P32P16"
+DATA "V8O4C16P16", "V8O4C16V6O4C16", "V10O1C16P16"
+DATA "V4O6C32P32P16", "V8O4C16P16", "V4O6C32P32P16"
+DATA "V10O1C16P16", "V4O6C32P32P16", "V8O4C16P16"
+DATA "V4O6C32P32P16", "V10O1C16P16", "V4O6C32P32P16"
+DATA "V8O4C16P16", "V4O6C32P32P16", "V10O1C16P16"
+DATA "V4O6C32P32P16", "V8O4C16P16", "V8O4C16V6O4C16"
+DATA "V10O1C16P16", "V4O6C32P32P16", "V8O4C16P16"
+DATA "V4O6C32P32P16", "V10O1C16P16", "V4O6C32P32P16"
+DATA "V8O4C16P16", "V4O6C32P32P16", "V10O1C16P16"
+DATA "V4O6C32P32P16", "V8O4C16P16", "V4O6C32P32P16"
+DATA "V10O1C16P16", "V4O6C32P32P16", "V8O4C16P16"
+DATA "V8O4C16V6O4C16"
+
+' Sound effects: the first voice, then the second.
+Sfx:
+DATA "T150MLW2V12L32O2CO1GECL8O0G"
+DATA "T150W3H0,9,0,8V12L4O1C"
+DATA "T255MNL64O4AO5E", ""
+DATA "T160MNW1V13L64O5CEGO6CL16E", ""
+DATA "T220MNL32O4EGO5CL16E", ""
+DATA "T160MNW0Q25V12L16O4CEGO5L8CO4L16GO5L4C"
+DATA "T160MNW2V9L4O2CL8GL4O3C"
+DATA "T140MNW1V12L16O4CO3GECL8EGL4O4C"
+DATA "T140MNW2V9L4O2CO1GO2C"
+
+' Sparks: how many, spread up and down, flung out.
+Bursts:
+DATA 1, 15, 0, 20, 130, 100, 8, 100, 0, 16, 80, 130
+
+' Text: scale, top and bottom colour, shadow.
+' 2 is white, 80-87 gold, 11 pale yellow.
+Looks:
+DATA 3, 80, 87, 2, 3, 2, 2, 0, 1, 2, 2, 1
+DATA 2, 2, 82, 1, 1, 80, 83, 1, 2, 2, 83, 1
+DATA 3, 2, 83, 1, 1, 80, 87, 1, 2, 2, 2, 1
+DATA 2, 80, 84, 1, 1, 11, 11, 1, 1, 80, 80, 1
+
+' Mountains, far and near hills: parallax, colour,
+' shade under the crest and lower down, where the
+' crest's band ends, the bottom, column width.
+Ridges:
+DATA .05, 128, 3, 6, 9, 150, 2
+DATA .15, 144, 5, 10, 12, 183, 2
+DATA .4, 160, 5, 11, 8, 183, 1
+
+' The skies' key colours as red, green, blue: sky
+' top, middle, low; cloud, its shade; mountains;
+' far hills top, low; near hills top, low; trees
+' light, dark; water; stone light, dark.
 Skies:
-DATA 30,110,240, 90,170,255, 190,235,255, 255,255,255, 205,220,245, 120,160,225
-DATA 140,215,120, 70,160,90, 90,205,80, 40,130,50, 50,160,70, 20,100,45, 40,140,230, 255,215,150, 170,100,60
-DATA 70,90,220, 170,140,240, 255,215,160, 255,250,235, 240,200,190, 190,150,200
-DATA 200,200,110, 130,140,70, 140,200,70, 70,120,40, 80,150,60, 40,90,40, 80,120,200, 255,200,120, 160,90,50
-DATA 90,50,170, 240,110,170, 255,200,120, 255,220,230, 230,150,190, 170,100,170
-DATA 200,120,160, 120,70,120, 110,170,120, 50,100,80, 60,120,80, 30,70,60, 120,80,180, 255,170,120, 140,70,60
+DATA 30,110,240, 90,170,255, 190,235,255
+DATA 255,255,255, 205,220,245, 120,160,225
+DATA 140,215,120, 70,160,90, 90,205,80, 40,130,50
+DATA 50,160,70, 20,100,45, 40,140,230
+DATA 255,215,150, 170,100,60
+' golden hour
+DATA 70,90,220, 170,140,240, 255,215,160
+DATA 255,250,235, 240,200,190, 190,150,200
+DATA 200,200,110, 130,140,70, 140,200,70, 70,120,40
+DATA 80,150,60, 40,90,40, 80,120,200
+DATA 255,200,120, 160,90,50
+' sunset
+DATA 90,50,170, 240,110,170, 255,200,120
+DATA 255,220,230, 230,150,190, 170,100,170
+DATA 200,120,160, 120,70,120, 110,170,120, 50,100,80
+DATA 60,120,80, 30,70,60, 120,80,180
+DATA 255,170,120, 140,70,60
+
 ' The colours that stay: index, red, green, blue.
 Fixed:
-DATA 1,25,25,70, 2,255,255,255, 3,255,226,80, 4,255,130,30, 5,150,80,40, 6,255,170,70
-DATA 7,255,250,235, 8,230,120,50, 9,150,60,30, 10,255,255,255, 11,255,240,140, 12,255,170,200
-DATA 88,60,110,220, 89,255,230,120, 90,255,236,90, 91,255,200,60, 92,255,150,150
-DATA 188,100,210,70, 189,120,255,255, 190,240,60,60, 191,60,160,60, -1
-
-' A beat to a string in each voice: the tune, the chord's arpeggio and the drums (the title's bass).
-GameTune:
-DATA "O4E8", "O4G8", "O5C8", "O4G8"
-DATA "O4D8", "O4G8", "O4B8", "O4G8"
-DATA "O4C8", "O4E8", "O4A8", "O4E8"
-DATA "O4F8", "O4A8", "O5C8", "O4A8"
-DATA "O4G8", "O4E8", "O4C8", "O4E8"
-DATA "O3B8", "O4D8", "O4G8", "O4D8"
-DATA "O3A8", "O4C8", "O4F8", "O4A8"
-DATA "O4G8", "O4F8", "O4E8", "O4D8"
-DATA "O4C8", "O4F8", "O4A8", "O4F8"
-DATA "O4D8", "O4G8", "O4B8", "O4G8"
-DATA "O4E8", "O4G8", "O4B8", "O4G8"
-DATA "O4A8", "O4G8", "O4E8", "O4C8"
-DATA "O4F8", "O4E8", "O4F8", "O4A8"
-DATA "O4G8", "O4A8", "O4B8", "O5D8"
-DATA "O5C8", "O4G8", "O4E8", "O4G8"
-DATA "O5C8", "O4E8", "O4G8", "O5C8"
-GameArp:
-DATA "O3C32O3G32O4C32O3G32", "O3C32O3G32O4C32O3G32", "O3C32O3G32O4C32O3G32", "O3C32O3G32O4C32O3G32"
-DATA "O2G32O3D32O3G32O3D32", "O2G32O3D32O3G32O3D32", "O2G32O3D32O3G32O3D32", "O2G32O3D32O3G32O3D32"
-DATA "O2A32O3E32O3A32O3E32", "O2A32O3E32O3A32O3E32", "O2A32O3E32O3A32O3E32", "O2A32O3E32O3A32O3E32"
-DATA "O2F32O3C32O3F32O3C32", "O2F32O3C32O3F32O3C32", "O2F32O3C32O3F32O3C32", "O2F32O3C32O3F32O3C32"
-DATA "O3C32O3G32O4C32O3G32", "O3C32O3G32O4C32O3G32", "O3C32O3G32O4C32O3G32", "O3C32O3G32O4C32O3G32"
-DATA "O2G32O3D32O3G32O3D32", "O2G32O3D32O3G32O3D32", "O2G32O3D32O3G32O3D32", "O2G32O3D32O3G32O3D32"
-DATA "O2F32O3C32O3F32O3C32", "O2F32O3C32O3F32O3C32", "O2F32O3C32O3F32O3C32", "O2F32O3C32O3F32O3C32"
-DATA "O2G32O3D32O3G32O3D32", "O2G32O3D32O3G32O3D32", "O2G32O3D32O3G32O3D32", "O2G32O3D32O3G32O3D32"
-DATA "O2F32O3C32O3F32O3C32", "O2F32O3C32O3F32O3C32", "O2F32O3C32O3F32O3C32", "O2F32O3C32O3F32O3C32"
-DATA "O2G32O3D32O3G32O3D32", "O2G32O3D32O3G32O3D32", "O2G32O3D32O3G32O3D32", "O2G32O3D32O3G32O3D32"
-DATA "O2E32O2B32O3E32O2B32", "O2E32O2B32O3E32O2B32", "O2E32O2B32O3E32O2B32", "O2E32O2B32O3E32O2B32"
-DATA "O2A32O3E32O3A32O3E32", "O2A32O3E32O3A32O3E32", "O2A32O3E32O3A32O3E32", "O2A32O3E32O3A32O3E32"
-DATA "O2F32O3C32O3F32O3C32", "O2F32O3C32O3F32O3C32", "O2F32O3C32O3F32O3C32", "O2F32O3C32O3F32O3C32"
-DATA "O2G32O3D32O3G32O3D32", "O2G32O3D32O3G32O3D32", "O2G32O3D32O3G32O3D32", "O2G32O3D32O3G32O3D32"
-DATA "O3C32O3G32O4C32O3G32", "O3C32O3G32O4C32O3G32", "O3C32O3G32O4C32O3G32", "O3C32O3G32O4C32O3G32"
-DATA "O3C32O3G32O4C32O3G32", "O3C32O3G32O4C32O3G32", "O3C32O3G32O4C32O3G32", "O3C32O3G32O4C32O3G32"
-GameDrum:
-DATA "V10O1C16P16", "V4O6C32P32P16", "V8O4C16P16", "V4O6C32P32P16"
-DATA "V10O1C16P16", "V4O6C32P32P16", "V8O4C16P16", "V4O6C32P32P16"
-DATA "V10O1C16P16", "V4O6C32P32P16", "V8O4C16P16", "V4O6C32P32P16"
-DATA "V10O1C16P16", "V4O6C32P32P16", "V8O4C16P16", "V8O4C16V6O4C16"
-DATA "V10O1C16P16", "V4O6C32P32P16", "V8O4C16P16", "V4O6C32P32P16"
-DATA "V10O1C16P16", "V4O6C32P32P16", "V8O4C16P16", "V4O6C32P32P16"
-DATA "V10O1C16P16", "V4O6C32P32P16", "V8O4C16P16", "V4O6C32P32P16"
-DATA "V10O1C16P16", "V4O6C32P32P16", "V8O4C16P16", "V8O4C16V6O4C16"
-DATA "V10O1C16P16", "V4O6C32P32P16", "V8O4C16P16", "V4O6C32P32P16"
-DATA "V10O1C16P16", "V4O6C32P32P16", "V8O4C16P16", "V4O6C32P32P16"
-DATA "V10O1C16P16", "V4O6C32P32P16", "V8O4C16P16", "V4O6C32P32P16"
-DATA "V10O1C16P16", "V4O6C32P32P16", "V8O4C16P16", "V8O4C16V6O4C16"
-DATA "V10O1C16P16", "V4O6C32P32P16", "V8O4C16P16", "V4O6C32P32P16"
-DATA "V10O1C16P16", "V4O6C32P32P16", "V8O4C16P16", "V4O6C32P32P16"
-DATA "V10O1C16P16", "V4O6C32P32P16", "V8O4C16P16", "V4O6C32P32P16"
-DATA "V10O1C16P16", "V4O6C32P32P16", "V8O4C16P16", "V8O4C16V6O4C16"
-TitleTune:
-DATA "O4E8", "O4G8", "O5C8", "O4G8"
-DATA "O4A8", "O4G8", "O4F8", "O4A8"
-DATA "O4G8", "O4B8", "O5D8", "O4B8"
-DATA "O5C8", "O4G8", "O4E8", "O4C8"
-DATA "O4C8", "O4E8", "O4A8", "O4E8"
-DATA "O4F8", "O4A8", "O5C8", "O4A8"
-DATA "O4B8", "O4A8", "O4G8", "O4F8"
-DATA "O4E8", "O4D8", "O4C8", "O4C8"
-TitleArp:
-DATA "O4C32O4E32O4G32O4E32", "O4C32O4E32O4G32O4E32", "O4C32O4E32O4G32O4E32", "O4C32O4E32O4G32O4E32"
-DATA "O3F32O3A32O4C32O3A32", "O3F32O3A32O4C32O3A32", "O3F32O3A32O4C32O3A32", "O3F32O3A32O4C32O3A32"
-DATA "O3G32O3B32O4D32O3B32", "O3G32O3B32O4D32O3B32", "O3G32O3B32O4D32O3B32", "O3G32O3B32O4D32O3B32"
-DATA "O4C32O4E32O4G32O4E32", "O4C32O4E32O4G32O4E32", "O4C32O4E32O4G32O4E32", "O4C32O4E32O4G32O4E32"
-DATA "O3A32O4C32O4E32O4C32", "O3A32O4C32O4E32O4C32", "O3A32O4C32O4E32O4C32", "O3A32O4C32O4E32O4C32"
-DATA "O3F32O3A32O4C32O3A32", "O3F32O3A32O4C32O3A32", "O3F32O3A32O4C32O3A32", "O3F32O3A32O4C32O3A32"
-DATA "O3G32O3B32O4D32O3B32", "O3G32O3B32O4D32O3B32", "O3G32O3B32O4D32O3B32", "O3G32O3B32O4D32O3B32"
-DATA "O4C32O4E32O4G32O4E32", "O4C32O4E32O4G32O4E32", "O4C32O4E32O4G32O4E32", "O4C32O4E32O4G32O4E32"
-TitleBass:
-DATA "O3C8", "O3G8", "O3C8", "O3G8"
-DATA "O2F8", "O3C8", "O2F8", "O3C8"
-DATA "O2G8", "O3D8", "O2G8", "O3D8"
-DATA "O3C8", "O3G8", "O3C8", "O3G8"
-DATA "O2A8", "O3E8", "O2A8", "O3E8"
-DATA "O2F8", "O3C8", "O2F8", "O3C8"
-DATA "O2G8", "O3D8", "O2G8", "O3D8"
-DATA "O3C8", "O3G8", "O3C8", "O3G8"
+DATA 1,25,25,70, 2,255,255,255, 3,255,226,80
+DATA 4,255,130,30, 5,150,80,40, 6,255,170,70
+DATA 7,255,250,235, 8,230,120,50, 9,150,60,30
+DATA 10,255,255,255, 11,255,240,140
+DATA 12,255,170,200, 88,60,110,220
+DATA 89,255,230,120, 90,255,236,90
+DATA 91,255,200,60, 92,255,150,150
+DATA 188,100,210,70, 189,120,255,255
+DATA 190,240,60,60, 191,60,160,60, -1
 
 REM $STATIC
+SUB AgeFx (f AS Fx)
+    f.flash = f.flash - STEPT
+    f.shake = f.shake - STEPT
+    f.pop = f.pop - STEPT
+END SUB
+
+' Wings beat 4 times a second, 9 just after a flap.
+SUB AgeMoth (m AS Moth)
+    m.boost = m.boost - STEPT
+    m.squash = m.squash - STEPT
+    m.beat = m.beat + STEPT * 4
+    IF m.boost > 0 THEN m.beat = m.beat + STEPT * 5
+END SUB
+
+SUB ApplyPalette (s AS Sky, cur() AS SINGLE)
+    DIM k(NKEY - 1) AS LONG, c(255) AS LONG
+    DIM i AS INTEGER
+    FOR i = 0 TO NKEY - 1
+        k(i) = Pack&(cur(i, 0), cur(i, 1), cur(i, 2))
+    NEXT
+    FOR i = 0 TO 255
+        c(i) = Fixed(i)
+    NEXT
+    Shade k(), c()
+    FOR i = 0 TO 255
+        PALETTE i, Dac&(c(i), s.fade)
+    NEXT
+END SUB
+
+SUB BackToTitle (w AS World)
+    w.g.toTitle = 0
+    w.g.mode = TITLE
+    w.sky.phase = DAY
+    w.sky.fadeTo = 1
+    StartSong w.song, TITLESONG
+END SUB
+
+' A broken top: stumps of the cap, ragged.
+SUB Broken (x AS INTEGER, cy AS INTEGER)
+    DIM dx AS INTEGER, c1 AS INTEGER, h AS INTEGER
+    DIM b AS INTEGER
+    c1 = x - OVERHANG
+    b = cy + CAPH - 1
+    FOR dx = 0 TO STONEW - 1 + 2 * OVERHANG
+        h = CAPH - ((dx \ 3) * 5 + x) MOD 4
+        LINE (c1 + dx, b + 1 - h)-(c1 + dx, b), StoneCol(dx)
+        PSET (c1 + dx, b + 1 - h), CINK
+    NEXT
+    LINE (c1, b)-(x + STONEW - 1 + OVERHANG, b), CINK
+END SUB
+
+' The ROM font's rows, read back off the screen.
 SUB BuildGlyphs
-    DIM c AS INTEGER, r AS INTEGER, x AS INTEGER, b AS INTEGER
+    DIM c AS INTEGER, r AS INTEGER, x AS INTEGER
+    DIM b AS INTEGER
+    FOR x = 0 TO 7
+        Bit(x) = 2 ^ (7 - x)
+    NEXT
     COLOR CWHITE
     FOR c = 32 TO 126
         LOCATE 1, 1
@@ -260,111 +531,132 @@ SUB BuildGlyphs
     NEXT
 END SUB
 
-' Each sprite is drawn pixel by pixel from ellipses in the moth's own frame, turned by its tilt:
-' 3 wing positions by 4 tilts, then squashed (just flapped) and stretched (diving);
-' each with a mask for PUT AND, then OR.
-SUB BuildMoth
-    DIM g(SPRW + 1, SPRH + 1) AS INTEGER
-    DIM tl(3) AS SINGLE, wa(2) AS SINGLE, wl(2) AS SINGLE, ww(2) AS SINGLE
-    DIM t AS INTEGER, w AS INTEGER, px AS INTEGER, py AS INTEGER, c AS INTEGER, k AS INTEGER
-    DIM ct AS SINGLE, st AS SINGLE, fx AS SINGLE, fy AS SINGLE, ha AS SINGLE, hx AS SINGLE, hy AS SINGLE
-    DIM wx AS SINGLE, wy AS SINGLE, lx AS SINGLE, ly AS SINGLE, d AS SINGLE, e AS SINGLE
-    DIM stw AS SINGLE, sth AS SINGLE
-    tl(0) = -.4: tl(1) = 0: tl(2) = .45: tl(3) = 1
-    wa(0) = -1.85: wl(0) = 14: ww(0) = 7.5
-    wa(1) = -2.55: wl(1) = 8: ww(1) = 7.5
-    wa(2) = 1.75: wl(2) = 12: ww(2) = 6.5
-
-    FOR k = 0 TO NSPR - 1
-        stw = 1: sth = 1
-        IF k < 12 THEN
-            t = k \ 3: w = k MOD 3
-        ELSEIF k = 12 THEN
-            t = 1: w = 2: stw = 1.18: sth = .82
-        ELSE
-            t = 3: w = 0: stw = .86: sth = 1.12
-        END IF
-        ct = COS(tl(t)): st = SIN(tl(t))
-        fx = -1 + .85 * wl(w) * COS(wa(w)): fy = -2 + .85 * wl(w) * SIN(wa(w))
-        ha = wa(w) + .3
-        hx = -5 + .7 * wl(w) * COS(ha): hy = -3 + .7 * wl(w) * SIN(ha)
-        FOR py = 1 TO SPRH
-            FOR px = 1 TO SPRW
-                wx = (px - 1 - SPRW / 2 + .5) / MSCALE: wy = (py - 1 - SPRH / 2 + .5) * ASPECT / MSCALE
-                lx = (wx * ct + wy * st) / stw: ly = (-wx * st + wy * ct) / sth
-                c = 0
-                IF SegD!(lx, ly, 10, -4, 17, -13) < 1.2 OR SegD!(lx, ly, 8, -4, 12, -14) < 1.1 THEN
-                    c = CINK
-                ELSEIF (lx - 17) ^ 2 + (ly + 13) ^ 2 < 5 THEN
-                    c = CINK
-                ELSEIF (lx - 11.5) ^ 2 + (ly + 1) ^ 2 < 5 THEN
-                    c = CINK
-                ELSEIF (lx - 9) ^ 2 + ly ^ 2 < 21 THEN
-                    c = CWEDGE
-                ELSEIF Ell!(lx, ly, fx, fy, wa(w), wl(w), ww(w)) < 1 THEN
-                    d = (lx - fx) ^ 2 + (ly - fy) ^ 2
-                    e = Ell!(lx, ly, fx, fy, wa(w), wl(w), ww(w))
-                    IF (lx - fx - .8) ^ 2 + (ly - fy + .8) ^ 2 < 1.6 THEN
-                        c = CWHITE
-                    ELSEIF d < 5 THEN
-                        c = CINK
-                    ELSEIF d < 11 OR e > .7 THEN
-                        c = CWEDGE
-                    ELSE
-                        c = CWING
-                    END IF
-                ELSEIF Ell!(lx, ly, 5, 0, 1.5708, 5, 2.5) < 1 THEN
-                    c = CCOLLAR
-                ELSEIF Ell!(lx, ly, -3, 1, 0, 10.5, 5.2) < 1 THEN
-                    IF lx < 0 AND ((INT(lx + 40) \ 4) MOD 2) = 0 THEN c = CSTRIPE ELSE c = CBODY
-                ELSEIF Ell!(lx, ly, hx, hy, ha, .8 * wl(w), .9 * ww(w)) < 1 THEN
-                    IF Ell!(lx, ly, hx, hy, ha, .8 * wl(w), .9 * ww(w)) > .6 THEN c = CHINDE ELSE c = CHIND
-                END IF
-                g(px, py) = c
-            NEXT
-        NEXT
-        ' an outline of ink round the shape
-        FOR py = 1 TO SPRH
-            FOR px = 1 TO SPRW
-                IF g(px, py) = 0 THEN
-                    IF g(px - 1, py) > 0 OR g(px + 1, py) > 0 OR g(px, py - 1) > 0 OR g(px, py + 1) > 0 THEN g(px, py) = -1
-                END IF
-            NEXT
-        NEXT
-        FOR py = 1 TO SPRH
-            FOR px = 1 TO SPRW
-                c = g(px, py)
-                IF c < 0 THEN c = CINK
-                PSET (px - 1, py - 1), c
-            NEXT
-        NEXT
-        GET (0, 0)-(SPRW - 1, SPRH - 1), Spr(k * SPRSZ)
-        FOR py = 1 TO SPRH
-            FOR px = 1 TO SPRW
-                IF g(px, py) THEN PSET (px - 1, py - 1), 0 ELSE PSET (px - 1, py - 1), CMASK
-            NEXT
-        NEXT
-        GET (0, 0)-(SPRW - 1, SPRH - 1), Spr((NSPR + k) * SPRSZ)
+' The lake's tint: an image its size, every pixel 64.
+SUB BuildLake
+    DIM i AS INTEGER
+    Tinter(0) = SW * 8 + LAKEH * 65536
+    FOR i = 1 TO SW * LAKEH \ 4
+        Tinter(i) = &H40404040
     NEXT
 END SUB
 
-SUB Die
-    state = DYING
-    stateT = 0
-    flash = .18
-    shakeT = .35
-    vy = -70
-    song = NOSONG
-    cue = ""
-    SOUND 37, 0
-    PLAY "T150MLW2V12L32O2CO1GECL8O0G", "T150W3H0,9,0,8V12L4O1C"
-    IF score > best THEN
-        best = score
-        newBest = -1
+' Each sprite with a mask for PUT AND, then OR.
+SUB BuildMoth
+    DIM g(SPRW + 1, SPRH + 1) AS INTEGER, s AS Shape
+    DIM k AS INTEGER
+    FOR k = 0 TO NSPR - 1
+        Pose k, s
+        Sketch g(), s
+        Outline g()
+        Capture g(), k
+    NEXT
+END SUB
+
+' A stone's columns: lit a quarter in, shaded right;
+' and its runes, 3 by 5 dots.
+SUB BuildStones
+    DIM i AS INTEGER, k AS INTEGER, n AS INTEGER
+    n = STONEW + 2 * OVERHANG
+    FOR i = 0 TO n
+        k = ABS(i - n \ 4) * 9 \ n
+        IF k > 7 THEN k = 7
+        StoneCol(i) = CSTONE + k
+    NEXT
+    Rune(0) = "111010010010111"
+    Rune(1) = "101111101101101"
+    Rune(2) = "110101110101110"
+    Rune(3) = "010111010010010"
+END SUB
+
+SUB Capture (g() AS INTEGER, k AS INTEGER)
+    DIM px AS INTEGER, py AS INTEGER, c AS INTEGER
+    FOR py = 1 TO SPRH
+        FOR px = 1 TO SPRW
+            PSET (px - 1, py - 1), g(px, py)
+        NEXT
+    NEXT
+    GET (0, 0)-(SPRW - 1, SPRH - 1), Spr(k * SPRSZ)
+    FOR py = 1 TO SPRH
+        FOR px = 1 TO SPRW
+            c = CMASK
+            IF g(px, py) THEN c = 0
+            PSET (px - 1, py - 1), c
+        NEXT
+    NEXT
+    GET (0, 0)-(SPRW - 1, SPRH - 1), Spr((NSPR + k) * SPRSZ)
+END SUB
+
+FUNCTION Chan% (c AS LONG, j AS INTEGER)
+    Chan% = (c \ CLNG(256 ^ j)) MOD 256
+END FUNCTION
+
+' The score's chime takes the song's next beat; with
+' the music off it plays on its own.
+SUB Chime (s AS Song)
+    IF s.playing THEN
+        s.cue = SfxA(SFXCHIME)
+    ELSE
+        PlaySfx SFXTING
     END IF
 END SUB
 
-' A disc of radius r, round on the screen.
+SUB CloseScreen
+    SOUND 37, 0
+    SCREEN 0
+    WIDTH 80
+END SUB
+
+SUB Control (w AS World, k AS Pad)
+    IF k.mute THEN ToggleMusic w.song
+    IF k.back = 0 THEN EXIT SUB
+    IF w.g.mode = TITLE THEN
+        w.g.quitting = -1
+    ELSE
+        w.g.toTitle = -1
+    END IF
+    w.sky.fadeTo = 0
+END SUB
+
+' Each colour's channels from 0-255 to the DAC's
+' 0-63, dimmed by the fade.
+FUNCTION Dac& (c AS LONG, f AS SINGLE)
+    DIM r AS LONG, g AS LONG, b AS LONG
+    r = Chan%(c, 0) * f \ 4
+    g = Chan%(c, 1) * f \ 4
+    b = Chan%(c, 2) * f \ 4
+    Dac& = r + g * 256 + b * 65536
+END FUNCTION
+
+SUB Decorate (st() AS Stone, i AS INTEGER, t AS SINGLE)
+    DIM x AS INTEGER, top AS INTEGER, bot AS INTEGER
+    x = INT(st(i).x)
+    top = st(i).gap - GAP \ 2
+    bot = st(i).gap + GAP \ 2
+    SELECT CASE st(i).kind
+    CASE 1
+        Runes x, bot + CAPH + 6, GROUNDY - 9, t
+    CASE 2
+        Vines x, top + 13, t
+    CASE 4
+        Shrooms x, bot
+    END SELECT
+END SUB
+
+SUB Die (w AS World)
+    w.g.mode = DYING
+    w.g.modeT = 0
+    w.fx.flash = .18
+    w.fx.shake = .35
+    w.m.vy = -70
+    StopSong w.song
+    PlaySfx SFXCRASH
+    IF w.g.score > w.g.best THEN
+        w.g.best = w.g.score
+        w.g.newBest = -1
+    END IF
+END SUB
+
+' Drawn as the eye sees it: wide as it is tall.
 SUB Disc (cx AS INTEGER, cy AS INTEGER, r AS INTEGER, c AS INTEGER)
     DIM dy AS INTEGER, ry AS INTEGER, hw AS INTEGER
     ry = r / ASPECT
@@ -374,279 +666,229 @@ SUB Disc (cx AS INTEGER, cy AS INTEGER, r AS INTEGER, c AS INTEGER)
     NEXT
 END SUB
 
-' Dots of colour c over the box, a quarter (level 1), half (2) or three quarters (3) of them.
-SUB Dither (x1 AS INTEGER, y1 AS INTEGER, x2 AS INTEGER, y2 AS INTEGER, c AS INTEGER, level AS INTEGER)
-    DIM p0 AS INTEGER, p1 AS INTEGER, p AS INTEGER, y AS INTEGER
+' Dots of c over rows y1 to y2: a quarter (level 1),
+' half (2) or three quarters (3).
+SUB Dither (y1 AS INTEGER, y2 AS INTEGER, c AS INTEGER, level AS INTEGER)
+    DIM p0 AS INTEGER, p1 AS INTEGER, y AS INTEGER
     SELECT CASE level
     CASE 1: p0 = &H8888: p1 = &H2222
     CASE 2: p0 = &HAAAA: p1 = &H5555
     CASE ELSE: p0 = &HEEEE: p1 = &HBBBB
     END SELECT
     FOR y = y1 TO y2
-        IF y AND 1 THEN p = p1 ELSE p = p0
-        LINE (x1, y)-(x2, y), c, , p
+        IF y AND 1 THEN
+            LINE (0, y)-(SW - 1, y), c, , p1
+        ELSE
+            LINE (0, y)-(SW - 1, y), c, , p0
+        END IF
     NEXT
 END SUB
 
-' The mountains and their ruined castle, the far hills, the seeds drifting, the near hills and trees.
-' A ridge is lit along its crest and shades away below it.
-SUB DrawHills
-    DIM o AS INTEGER, x AS INTEGER, y AS INTEGER, k AS INTEGER, tx AS INTEGER
-    DIM h AS INTEGER, b AS INTEGER, r AS INTEGER, hw AS INTEGER, cx AS INTEGER
-    o = INT(scroll * .05) MOD 640
-    FOR x = 0 TO SW - 1 STEP 2
-        y = MtnTop((x + o) MOD 640)
-        LINE (x, y)-(x + 1, y + 1), CMTN, BF
-        LINE (x, y + 2)-(x + 1, y + 9), CMTN + 3, BF
-        LINE (x, y + 10)-(x + 1, 150), CMTN + 6, BF
-    NEXT
-    cx = 215 - o
+' The ruined castle on the mountains, a lamp lit in it.
+SUB DrawCastle (scroll AS SINGLE)
+    DIM cx AS INTEGER, b AS INTEGER, k AS INTEGER
+    DIM c AS INTEGER
+    cx = 215 - INT(scroll * Ridges(0).speed) MOD 640
     IF cx < -20 THEN cx = cx + 640
-    b = MtnTop(215) + 3
-    LINE (cx - 12, b - 15)-(cx - 6, b), CMTN + 2, BF
-    LINE (cx - 6, b - 9)-(cx + 7, b), CMTN + 2, BF
-    LINE (cx + 7, b - 12)-(cx + 12, b), CMTN + 2, BF
+    b = Crest(0, 215) + 3
+    c = CMTN + 2
+    LINE (cx - 12, b - 15)-(cx - 6, b), c, BF
+    LINE (cx - 6, b - 9)-(cx + 7, b), c, BF
+    LINE (cx + 7, b - 12)-(cx + 12, b), c, BF
     FOR k = 0 TO 3
-        PSET (cx - 12 + k * 2, b - 16), CMTN + 2
-        PSET (cx + 6 + k * 2, b - 13), CMTN + 2
+        PSET (cx - 12 + k * 2, b - 16), c
+        PSET (cx + 6 + k * 2, b - 13), c
     NEXT
     PSET (cx - 9, b - 10), CSPARK + 1
     PSET (cx + 1, b - 4), CSPARK + 1
-
-    o = INT(scroll * .15) MOD 640
-    FOR x = 0 TO SW - 1 STEP 2
-        y = FarTop((x + o) MOD 640)
-        LINE (x, y)-(x + 1, y + 1), CFAR, BF
-        LINE (x, y + 2)-(x + 1, y + 12), CFAR + 5, BF
-        LINE (x, y + 13)-(x + 1, GROUNDY - 1), CFAR + 10, BF
-    NEXT
-    o = INT(scroll * .25) MOD 640
-    FOR k = 0 TO NFLY - 1
-        IF SIN(clock * 2.3 + FlyPh(k) * 3) > .3 THEN
-            x = FlyX(k) - o
-            IF x < 0 THEN x = x + 640
-            y = FlyY(k) + 3 * SIN(clock * .8 + FlyPh(k))
-            PSET (x, y), CWHITE
-            PSET (x - 1, y), CSPARK + 1: PSET (x + 1, y), CSPARK + 1
-            PSET (x, y - 1), CSPARK + 1: PSET (x, y + 1), CSPARK + 1
-        END IF
-    NEXT
-    o = INT(scroll * .4) MOD 640
-    FOR x = 0 TO SW - 1
-        y = NearTop((x + o) MOD 640)
-        LINE (x, y)-(x, y + 1), CNEAR
-        LINE (x, y + 2)-(x, y + 8), CNEAR + 5
-        LINE (x, y + 9)-(x, GROUNDY - 1), CNEAR + 11
-    NEXT
-    FOR k = 0 TO 15
-        tx = TreeX(k) - o
-        IF tx < -10 THEN tx = tx + 640
-        IF tx < SW + 10 THEN
-            h = TreeH(k)
-            b = NearTop(TreeX(k)) + 2
-            LINE (tx, b - 2)-(tx, b + 1), CTREE + 3
-            FOR r = 0 TO h
-                hw = 1 + (r MOD (h \ 2 + 1)) * 3 \ (h \ 2 + 1) + r \ 5
-                LINE (tx - hw, b - h + r)-(tx, b - h + r), CTREE
-                LINE (tx + 1, b - h + r)-(tx + hw, b - h + r), CTREE + 2
-            NEXT
-        END IF
-    NEXT
 END SUB
 
-' The lake mirrors the rows above it, each shifted by its ripple, then ORs in 64: the water's tint.
-SUB DrawLake
-    DIM d AS INTEGER, ofs AS INTEGER, k AS INTEGER, x AS INTEGER, y AS INTEGER, w AS INTEGER
+SUB DrawCloud (x AS INTEGER, y AS INTEGER)
+    Disc x - 9, y + 2, 9, CCLOUDLO
+    Disc x + 10, y + 2, 8, CCLOUDLO
+    Disc x, y, 11, CCLOUD
+    Disc x - 10, y + 1, 7, CCLOUD
+    Disc x + 10, y + 1, 7, CCLOUD
+    LINE (x - 16, y + 6)-(x + 16, y + 6), CCLOUDLO
+END SUB
+
+SUB DrawFx (f AS Fx)
+    IF f.flash > 0 THEN
+        Dither 0, SH - 1, CWHITE, 1 + INT(f.flash * 12)
+    END IF
+    IF f.shake > 0 THEN Shake f.shake
+END SUB
+
+SUB DrawHud (w AS World)
+    SELECT CASE w.g.mode
+    CASE TITLE
+        TitleText w.g
+    CASE PLAYING, DYING
+        ScoreText w.g, w.fx
+    CASE OVER
+        Panel w.g
+    END SELECT
+END SUB
+
+' The lake mirrors the rows above it, each shifted by
+' its ripple, then ORs in 64: the water's tint.
+SUB DrawLake (t AS SINGLE)
+    DIM d AS INTEGER, o AS INTEGER, k AS INTEGER
+    DIM x AS INTEGER, y AS INTEGER, hw AS INTEGER
     LINE (0, GROUNDY)-(SW - 1, SH - 1), CFAR + 10, BF
     FOR d = 0 TO LAKEH - 1
-        ofs = INT((1 + d / 4) * SIN(clock * 2.2 + d * .9))
-        GET (6, GROUNDY - 1 - d)-(SW - 7, GROUNDY - 1 - d), Strip
-        PUT (6 + ofs, GROUNDY + d), Strip, PSET
+        o = INT((1 + d / 4) * SIN(t * 2.2 + d * .9))
+        y = GROUNDY - 1 - d
+        GET (6, y)-(SW - 7, y), Strip
+        PUT (6 + o, GROUNDY + d), Strip, PSET
     NEXT
     PUT (0, GROUNDY), Tinter, OR
     LINE (0, GROUNDY)-(SW - 1, GROUNDY), CWHITE, , &HAAAA
     FOR d = 2 TO LAKEH - 1 STEP 2
-        w = 7 - d \ 3 + INT(2 * SIN(clock * 5 + d))
-        LINE (SUNX - w, GROUNDY + d)-(SUNX + w, GROUNDY + d), CSUN, , &HAAAA
+        hw = 7 - d \ 3 + INT(2 * SIN(t * 5 + d))
+        y = GROUNDY + d
+        LINE (SUNX - hw, y)-(SUNX + hw, y), CSUN, , &HAAAA
     NEXT
     FOR k = 0 TO 9
-        x = (k * 37 + INT(clock * 9)) MOD SW
+        x = (k * 37 + INT(t * 9)) MOD SW
         y = GROUNDY + 2 + (k * 5) MOD 13
         LINE (x, y)-(x + 2 + k MOD 3, y), CWHITE
     NEXT
 END SUB
 
-SUB DrawMoth
-    DIM t AS INTEGER, w AS INTEGER, k AS INTEGER, x AS INTEGER, y AS INTEGER
-    IF state = DYING OR state = OVER THEN
-        t = 3: w = 0
-    ELSEIF state = TITLE THEN
-        t = 1
-    ELSEIF vy < -60 THEN
-        t = 0
-    ELSEIF vy < 85 THEN
-        t = 1
-    ELSEIF vy < 220 THEN
-        t = 2
-    ELSE
-        t = 3
-    END IF
-    IF state <= PLAYING THEN
-        w = INT(phase * 4) MOD 4
-        IF w = 3 THEN w = 1
-    END IF
-    k = t * 3 + w
-    IF state = PLAYING AND squashT > 0 THEN k = 12
-    IF state = PLAYING AND vy > 220 THEN k = 13
-    x = INT(mothX) - SPRW \ 2: y = INT(mothY) - SPRH \ 2
+SUB DrawLand (g AS Game)
+    DrawRidge 0, g.scroll
+    DrawCastle g.scroll
+    DrawRidge 1, g.scroll
+    DrawSeeds g
+    DrawRidge 2, g.scroll
+    DrawTrees g.scroll
+END SUB
+
+SUB DrawMoth (m AS Moth, mode AS INTEGER)
+    DIM k AS INTEGER, x AS INTEGER, y AS INTEGER
+    k = MothFrame%(m, mode)
+    x = INT(m.x) - SPRW \ 2
+    y = INT(m.y) - SPRH \ 2
     PUT (x, y), Spr((NSPR + k) * SPRSZ), AND
     PUT (x, y), Spr(k * SPRSZ), OR
 END SUB
 
-' The game over panel drops in from above.
-SUB DrawPanel
-    DIM f AS SINGLE, y AS INTEGER
-    f = stateT / .35
-    IF f > 1 THEN f = 1
-    y = 40 - INT((1 - f) ^ 3 * 200)
-    LINE (54, y + 3)-(273, y + 103), CINK, BF
-    LINE (50, y)-(270, y + 100), CPANEL, BF
-    LINE (50, y)-(270, y + 100), CPANEL2, B
-    LINE (52, y + 2)-(268, y + 98), CWHITE, B
-    TxtC "WHAT A FLIGHT!", y + 10, 1, CTITLE, CTITLE + 7, 1
-    TxtC "SCORE" + STR$(score), y + 26, 2, CWHITE, CWHITE, 1
-    TxtC "BEST" + STR$(best), y + 48, 2, CTITLE, CTITLE + 4, 1
-    IF newBest AND INT(clock * 4) MOD 2 = 0 THEN TxtC "NEW BEST!", y + 68, 1, CSPARK + 1, CSPARK + 1, 1
-    IF stateT > .6 THEN
-        TxtC "SPACE TO FLY AGAIN", y + 80, 1, CWHITE, CWHITE, 1
-        TxtC "ESC FOR THE TITLE", y + 89, 1, CTITLE, CTITLE, 1
-    END IF
+' A ridge: lit along its crest, shading below it.
+SUB DrawRidge (id AS INTEGER, scroll AS SINGLE)
+    DIM o AS INTEGER, x AS INTEGER, y AS INTEGER
+    DIM r AS INTEGER, c AS INTEGER, b AS INTEGER
+    DIM d1 AS INTEGER, d2 AS INTEGER, bot AS INTEGER
+    o = INT(scroll * Ridges(id).speed) MOD 640
+    r = Ridges(id).stp - 1
+    c = Ridges(id).c
+    b = Ridges(id).band
+    d1 = c + Ridges(id).d1
+    d2 = c + Ridges(id).d2
+    bot = Ridges(id).bottom
+    FOR x = 0 TO SW - 1 STEP Ridges(id).stp
+        y = Crest(id, (x + o) MOD 640)
+        LINE (x, y)-(x + r, y + 1), c, BF
+        LINE (x, y + 2)-(x + r, y + b), d1, BF
+        LINE (x, y + b + 1)-(x + r, bot), d2, BF
+    NEXT
 END SUB
 
-' The sky, a shade a band of rows, and the clouds drifting.
-SUB DrawSky
-    DIM k AS INTEGER, i AS INTEGER, x AS INTEGER, y AS INTEGER
+' Seeds drifting over the far hills, twinkling.
+SUB DrawSeeds (g AS Game)
+    DIM k AS INTEGER, o AS INTEGER
+    DIM x AS INTEGER, y AS INTEGER
+    o = INT(g.scroll * .25) MOD 640
+    FOR k = 0 TO NFLY - 1
+        IF SIN(g.clock * 2.3 + FlyPh(k) * 3) > .3 THEN
+            x = FlyX(k) - o
+            IF x < 0 THEN x = x + 640
+            y = FlyY(k) + 3 * SIN(g.clock * .8 + FlyPh(k))
+            PSET (x, y), CWHITE
+            PSET (x - 1, y), CSPARK + 1
+            PSET (x + 1, y), CSPARK + 1
+            PSET (x, y - 1), CSPARK + 1
+            PSET (x, y + 1), CSPARK + 1
+        END IF
+    NEXT
+END SUB
+
+' The sky, a shade a band of rows, and its clouds.
+SUB DrawSky (g AS Game)
+    DIM k AS INTEGER, i AS INTEGER, x AS INTEGER
+    DIM y1 AS INTEGER, y2 AS INTEGER
     FOR k = 0 TO NSKY - 1
-        LINE (0, k * GROUNDY \ NSKY)-(SW - 1, (k + 1) * GROUNDY \ NSKY - 1), CSKY + k, BF
+        y1 = k * GROUNDY \ NSKY
+        y2 = (k + 1) * GROUNDY \ NSKY - 1
+        LINE (0, y1)-(SW - 1, y2), CSKY + k, BF
     NEXT
     FOR i = 0 TO NCLOUD - 1
-        x = (CloudX(i) + INT(clock * 4) + INT(scroll * .03)) MOD 450 - 65
-        y = CloudY(i)
-        Disc x - 9, y + 2, 9, CCLOUDLO
-        Disc x + 10, y + 2, 8, CCLOUDLO
-        Disc x, y, 11, CCLOUD
-        Disc x - 10, y + 1, 7, CCLOUD
-        Disc x + 10, y + 1, 7, CCLOUD
-        LINE (x - 16, y + 6)-(x + 16, y + 6), CCLOUDLO
+        x = CloudX(i) + INT(g.clock * 4)
+        x = (x + INT(g.scroll * .03)) MOD 450 - 65
+        DrawCloud x, CloudY(i)
     NEXT
 END SUB
 
-SUB DrawSparks
-    DIM i AS INTEGER, c AS INTEGER, x AS INTEGER, y AS INTEGER, l AS SINGLE
+SUB DrawSparks (sp() AS Spark)
+    DIM i AS INTEGER, c AS INTEGER, l AS SINGLE
+    DIM x AS INTEGER, y AS INTEGER
     FOR i = 0 TO NSPARK - 1
-        l = slife(i)
+        l = sp(i).life
         IF l > 0 THEN
-            IF l > .7 THEN
-                c = CSPARK
-            ELSEIF l > .35 THEN
-                c = CSPARK + 1
-            ELSE
-                c = CSPARK + 2
-            END IF
-            x = INT(sx(i)): y = INT(sy(i))
+            c = CSPARK + 2
+            IF l > .35 THEN c = CSPARK + 1
+            IF l > .7 THEN c = CSPARK
+            x = INT(sp(i).x)
+            y = INT(sp(i).y)
             PSET (x, y), c
             IF l > .6 THEN PSET (x + 1, y), c
         END IF
     NEXT
 END SUB
 
-' A stone from y1 to y2, rounded by its shading, its cap at the top (capTop) or at the bottom.
-' Its kind: 1 runes, 2 vines, 3 a broken top, 4 mushrooms.
-SUB DrawStone (x AS INTEGER, y1 AS INTEGER, y2 AS INTEGER, capTop AS INTEGER, kind AS INTEGER)
-    DIM dx AS INTEGER, y AS INTEGER, cy AS INTEGER, c1 AS INTEGER, c2 AS INTEGER, m AS INTEGER, n AS INTEGER
-    DIM c AS INTEGER, j AS INTEGER, h AS INTEGER, vx AS INTEGER, px AS INTEGER, s AS INTEGER
-    ' the shading in runs of a colour
-    s = 0
-    FOR dx = 1 TO STONEW
-        IF dx = STONEW THEN
-            LINE (x + s, y1)-(x + dx - 1, y2), StoneCol(s + OVERHANG), BF
-        ELSEIF StoneCol(dx + OVERHANG) <> StoneCol(s + OVERHANG) THEN
-            LINE (x + s, y1)-(x + dx - 1, y2), StoneCol(s + OVERHANG), BF
-            s = dx
-        END IF
-    NEXT
-    FOR y = y1 + 4 TO y2 STEP 9
-        LINE (x + 1, y)-(x + STONEW - 2, y), CSTONE + 6
-        LINE (x + 2, y + 1)-(x + 8, y + 1), CSTONE
-    NEXT
-    LINE (x, y1)-(x, y2), CINK: LINE (x + STONEW - 1, y1)-(x + STONEW - 1, y2), CINK
-    IF capTop THEN cy = y1 ELSE cy = y2 - CAPH + 1
-    c1 = x - OVERHANG: c2 = x + STONEW - 1 + OVERHANG
-
-    IF capTop AND kind = 3 THEN
-        FOR dx = 0 TO c2 - c1
-            h = CAPH - ((dx \ 3) * 5 + x) MOD 4
-            LINE (c1 + dx, cy + CAPH - h)-(c1 + dx, cy + CAPH - 1), StoneCol(dx)
-            PSET (c1 + dx, cy + CAPH - h), CINK
-        NEXT
-        LINE (c1, cy + CAPH - 1)-(c2, cy + CAPH - 1), CINK
-        EXIT SUB
-    END IF
-
-    LINE (c1, cy)-(c2, cy + CAPH - 1), CSTONE + 2, BF
-    LINE (c1 + 2, cy)-(c1 + 8, cy + CAPH - 1), CSTONE, BF
-    LINE (c2 - 8, cy)-(c2, cy + CAPH - 1), CSTONE + 5, BF
-    LINE (c1 + 1, cy + 1)-(c2 - 1, cy + 1), CSTONE
-    LINE (c1, cy)-(c2, cy + CAPH - 1), CINK, B
-    IF capTop THEN
-        LINE (c1 + 1, cy)-(c2 - 1, cy), CMOSS
-        FOR m = c1 + 1 TO c2 - 1 STEP 3
-            LINE (m, cy - 1 - (m - c1) MOD 2)-(m, cy), CMOSS
-        NEXT
-        IF kind = 4 THEN
-            FOR j = 0 TO 2
-                m = c1 + 5 + j * 12
-                LINE (m, cy - 3)-(m, cy - 1), CWHITE
-                LINE (m - 2, cy - 4)-(m + 2, cy - 4), CSHROOM
-                LINE (m - 1, cy - 5)-(m + 1, cy - 5), CSHROOM
-                PSET (m - 1, cy - 4), CWHITE
-            NEXT
-        END IF
-        IF kind = 1 THEN
-            IF SIN(clock * 3 + x * .05) > 0 THEN c = CRUNE ELSE c = CWHITE
-            j = 0
-            FOR y = cy + CAPH + 6 TO y2 - 8 STEP 10
-                FOR n = 0 TO 14
-                    IF MID$(Rune(j MOD 4), n + 1, 1) = "1" THEN PSET (x + 13 + n MOD 3, y + n \ 3), c
-                NEXT
-                j = j + 1
-            NEXT
-        END IF
+' A stone: two shafts, each with its cap, the gap
+' between them, and the kind's decoration: 1 runes,
+' 2 vines, 3 a broken top, 4 mushrooms.
+SUB DrawStone (st() AS Stone, i AS INTEGER, t AS SINGLE)
+    DIM x AS INTEGER, top AS INTEGER, bot AS INTEGER
+    x = INT(st(i).x)
+    top = st(i).gap - GAP \ 2
+    bot = st(i).gap + GAP \ 2
+    Shaft x, 0, top
+    Shaft x, bot, GROUNDY - 1
+    Lintel x, top - CAPH + 1
+    Drips x, top + 1
+    IF st(i).kind = 3 THEN
+        Broken x, bot
     ELSE
-        FOR m = c1 + 2 TO c2 - 2 STEP 4
-            n = 1 + ((m - c1) * 7) MOD 5
-            LINE (m, cy + CAPH)-(m, cy + CAPH + n), CVINE
-        NEXT
-        IF kind = 2 THEN
-            FOR j = 0 TO 2
-                vx = x + 5 + j * 9
-                FOR y = 0 TO cy + CAPH + 12
-                    px = vx + INT(1.5 * SIN(clock * 1.7 + y * .16 + j))
-                    PSET (px, y), CVINE
-                    IF (y + j * 2) MOD 6 = 0 THEN PSET (px + 1, y), CMOSS: PSET (px - 1, y + 1), CMOSS
-                NEXT
-            NEXT
-        END IF
+        Lintel x, bot
+        Moss x, bot
     END IF
+    Decorate st(), i, t
+END SUB
+
+SUB DrawStones (st() AS Stone, t AS SINGLE)
+    DIM i AS INTEGER, x AS INTEGER
+    FOR i = 0 TO NSTONE - 1
+        x = INT(st(i).x)
+        IF x < SW + 4 AND x > -STONEW - 4 THEN
+            DrawStone st(), i, t
+        END IF
+    NEXT
 END SUB
 
 ' A smiling sun, its rays turning.
-SUB DrawSun
-    DIM i AS INTEGER, a AS SINGLE, ca AS SINGLE, sa AS SINGLE
+SUB DrawSun (t AS SINGLE)
+    DIM i AS INTEGER, a AS SINGLE
+    DIM ca AS SINGLE, sa AS SINGLE
+    DIM x1 AS INTEGER, y1 AS INTEGER
+    DIM x2 AS INTEGER, y2 AS INTEGER
     FOR i = 0 TO 11
-        a = i * .5236 + clock * .4
+        a = i * .5236 + t * .4
         ca = COS(a): sa = SIN(a) / ASPECT
-        LINE (SUNX + 17 * ca, SUNY + 17 * sa)-(SUNX + 23 * ca, SUNY + 23 * sa), CRAY
+        x1 = SUNX + 17 * ca: y1 = SUNY + 17 * sa
+        x2 = SUNX + 23 * ca: y2 = SUNY + 23 * sa
+        LINE (x1, y1)-(x2, y2), CRAY
     NEXT
     Disc SUNX, SUNY, 15, CRAY
     Disc SUNX, SUNY, 14, CSUN
@@ -654,256 +896,354 @@ SUB DrawSun
     LINE (SUNX + 4, SUNY - 4)-(SUNX + 5, SUNY - 3), CINK, BF
     FOR i = 0 TO 8
         a = .5 + i * .27
-        PSET (SUNX + 7 * COS(a), SUNY + 1 + 6 * SIN(a) / ASPECT), CINK
+        x1 = SUNX + 7 * COS(a)
+        y1 = SUNY + 1 + 6 * SIN(a) / ASPECT
+        PSET (x1, y1), CINK
     NEXT
     Disc SUNX - 9, SUNY + 3, 2, CCHEEK
     Disc SUNX + 9, SUNY + 3, 2, CCHEEK
 END SUB
 
-' Where (px, py) is in the ellipse at (cx, cy), its long axis at ang: under 1 inside.
-FUNCTION Ell! (px AS SINGLE, py AS SINGLE, cx AS SINGLE, cy AS SINGLE, ang AS SINGLE, a AS SINGLE, b AS SINGLE)
-    DIM qx AS SINGLE, qy AS SINGLE, ca AS SINGLE, sa AS SINGLE, u AS SINGLE, v AS SINGLE
-    qx = px - cx: qy = py - cy
-    ca = COS(ang): sa = SIN(ang)
-    u = (qx * ca + qy * sa) / a
-    v = (qy * ca - qx * sa) / b
+SUB DrawTrees (scroll AS SINGLE)
+    DIM k AS INTEGER, o AS INTEGER, x AS INTEGER
+    DIM h AS INTEGER, b AS INTEGER, r AS INTEGER
+    DIM hw AS INTEGER, y AS INTEGER, q AS INTEGER
+    o = INT(scroll * Ridges(2).speed) MOD 640
+    FOR k = 0 TO NTREE - 1
+        x = TreeX(k) - o
+        IF x < -10 THEN x = x + 640
+        IF x < SW + 10 THEN
+            h = TreeH(k)
+            q = h \ 2 + 1
+            b = Crest(2, TreeX(k)) + 2
+            LINE (x, b - 2)-(x, b + 1), CTREE + 3
+            FOR r = 0 TO h
+                hw = 1 + (r MOD q) * 3 \ q + r \ 5
+                y = b - h + r
+                LINE (x - hw, y)-(x, y), CTREE
+                LINE (x + 1, y)-(x + hw, y), CTREE + 2
+            NEXT
+        END IF
+    NEXT
+END SUB
+
+' Short vines hang under a cap.
+SUB Drips (x AS INTEGER, y AS INTEGER)
+    DIM m AS INTEGER, n AS INTEGER, c1 AS INTEGER
+    c1 = x - OVERHANG
+    FOR m = c1 + 2 TO x + STONEW - 3 + OVERHANG STEP 4
+        n = 1 + ((m - c1) * 7) MOD 5
+        LINE (m, y)-(m, y + n), CVINE
+    NEXT
+END SUB
+
+FUNCTION Elapsed! (a AS SINGLE, b AS SINGLE)
+    DIM d AS SINGLE
+    d = b - a
+    IF d < 0 OR d > .1 THEN d = .1
+    Elapsed! = d
+END FUNCTION
+
+' Where (px, py) is in the oval: under 1 inside.
+FUNCTION Ell! (px AS SINGLE, py AS SINGLE, o AS Oval)
+    DIM qx AS SINGLE, qy AS SINGLE, u AS SINGLE
+    DIM v AS SINGLE, ca AS SINGLE, sa AS SINGLE
+    qx = px - o.cx: qy = py - o.cy
+    ca = COS(o.an): sa = SIN(o.an)
+    u = (qx * ca + qy * sa) / o.a
+    v = (qy * ca - qx * sa) / o.b
     Ell! = u * u + v * v
 END FUNCTION
 
-' n sparks from the moth: drifting back, spread up and down, kick flings them out.
-SUB Emit (n AS INTEGER, spread AS SINGLE, kick AS SINGLE)
-    DIM i AS INTEGER, todo AS INTEGER
-    todo = n
+' Sparks from the moth, as the burst id says.
+SUB Emit (sp() AS Spark, m AS Moth, id AS INTEGER)
+    DIM i AS INTEGER, n AS INTEGER, k AS SINGLE
+    n = Bursts(id).n
+    k = Bursts(id).kick
     FOR i = 0 TO NSPARK - 1
-        IF todo = 0 THEN EXIT FOR
-        IF slife(i) <= 0 THEN
-            sx(i) = mothX - 5 + RND * 3
-            sy(i) = mothY + RND * 4 - 2
-            svx(i) = -30 - RND * 40 + (RND - .5) * kick
-            svy(i) = (RND - .5) * spread
-            slife(i) = .6 + RND * .5
-            todo = todo - 1
+        IF n = 0 THEN EXIT FOR
+        IF sp(i).life <= 0 THEN
+            sp(i).x = m.x - 5 + RND * 3
+            sp(i).y = m.y + RND * 4 - 2
+            sp(i).vx = -30 - RND * 40 + (RND - .5) * k
+            sp(i).vy = (RND - .5) * Bursts(id).spread
+            sp(i).life = .6 + RND * .5
+            n = n - 1
         END IF
     NEXT
 END SUB
 
-SUB Flap
-    vy = FLAPV
-    boost = .25
-    squashT = .12
-    Emit 20, 130, 100
-    IF musicOn = 0 AND PLAY(0) < 3 THEN PLAY "T255MNL64O4AO5E"
-END SUB
-
-FUNCTION Hit%
-    DIM i AS INTEGER, x AS SINGLE, t AS SINGLE, b AS SINGLE
-    Hit% = 0
-    FOR i = 0 TO NSTONE - 1
-        x = stoneX(i)
-        IF x < mothX + 12 AND x + STONEW > mothX - 12 THEN
-            t = stoneGap(i) - GAP \ 2: b = stoneGap(i) + GAP \ 2
-            IF RectHit%(x, 0, x + STONEW - 1, t - CAPH) THEN Hit% = -1
-            IF RectHit%(x - OVERHANG, t - CAPH, x + STONEW - 1 + OVERHANG, t) THEN Hit% = -1
-            IF RectHit%(x - OVERHANG, b, x + STONEW - 1 + OVERHANG, b + CAPH) THEN Hit% = -1
-            IF RectHit%(x, b + CAPH, x + STONEW - 1, GROUNDY) THEN Hit% = -1
-        END IF
-    NEXT
-END FUNCTION
-
-' Colour b mixed into a by t, each as red + green * 256 + blue * 65536.
-FUNCTION Mix& (a AS LONG, b AS LONG, t AS SINGLE)
-    DIM i AS INTEGER, v AS LONG, ca AS LONG, cb AS LONG, s AS LONG
-    s = 1
-    FOR i = 0 TO 2
-        ca = (a \ s) MOD 256: cb = (b \ s) MOD 256
-        v = v + CLNG(ca + (cb - ca) * t) * s
-        s = s * 256
-    NEXT
-    Mix& = v
-END FUNCTION
-
-' Keeps a few beats of the song queued; a cue (the score's chime, a beat long) takes the next beat's tune.
-SUB Music
-    IF song = NOSONG OR musicOn = 0 THEN EXIT SUB
-    IF PLAY(0) < 3 THEN
-        IF LEN(cue) THEN
-            PLAY cue, Tune(song, beat, 1), Tune(song, beat, 2)
-            cue = ""
-        ELSE
-            PLAY Tune(song, beat, 0), Tune(song, beat, 1), Tune(song, beat, 2)
-        END IF
-        beat = (beat + 1) MOD songLen(song)
-    END IF
-END SUB
-
-SUB NewGame
-    DIM i AS INTEGER, g AS INTEGER
-    StartSong GAMESONG
-    IF state <> TITLE THEN mothY = 100
-    state = PLAYING
-    stateT = 0
-    score = 0
-    newBest = 0
-    sky = DAY
-    g = 100
-    FOR i = 0 TO NSTONE - 1
-        stoneX(i) = 360 + i * SPACING
-        g = NextGap%(g)
-        stoneGap(i) = g
-        stoneDone(i) = 0
-        stoneKind(i) = INT(RND * NKIND)
-    NEXT
-END SUB
-
-FUNCTION NextGap% (prev AS INTEGER)
-    DIM g AS INTEGER
-    g = prev + INT(RND * 113) - 56
-    IF g < GAP \ 2 + CAPH + 20 THEN g = GAP \ 2 + CAPH + 20
-    IF g > GROUNDY - GAP \ 2 - CAPH - 14 THEN g = GROUNDY - GAP \ 2 - CAPH - 14
-    NextGap% = g
-END FUNCTION
-
-' Whether the moth's body, round on the screen, meets the box.
-FUNCTION RectHit% (x1 AS SINGLE, y1 AS SINGLE, x2 AS SINGLE, y2 AS SINGLE)
-    DIM nx AS SINGLE, ny AS SINGLE, dx AS SINGLE, dy AS SINGLE
-    nx = mothX: ny = mothY
-    IF nx < x1 THEN nx = x1
-    IF nx > x2 THEN nx = x2
-    IF ny < y1 THEN ny = y1
-    IF ny > y2 THEN ny = y2
-    dx = mothX - nx: dy = (mothY - ny) * ASPECT
-    RectHit% = dx * dx + dy * dy < 30
-END FUNCTION
-
-SUB Render
-    DIM i AS INTEGER, x AS INTEGER, sc AS INTEGER, amp AS SINGLE, dx AS INTEGER, dy AS INTEGER
-    DrawSky
-    IF behind THEN DrawMoth
-    DrawSun
-    DrawHills
-    IF state <> TITLE THEN
-        FOR i = 0 TO NSTONE - 1
-            x = INT(stoneX(i))
-            IF x < SW + 4 AND x > -STONEW - 4 THEN
-                DrawStone x, 0, stoneGap(i) - GAP \ 2, 0, stoneKind(i)
-                DrawStone x, stoneGap(i) + GAP \ 2, GROUNDY - 1, -1, stoneKind(i)
-            END IF
-        NEXT
-    END IF
-    IF NOT behind THEN DrawMoth
-    DrawLake
-    DrawSparks
-
-    SELECT CASE state
-    CASE TITLE
-        TxtC "MOTHLIGHT", 14, 3, CTITLE, CTITLE + 7, 2
-        ' a gleam sweeps across the name
-        x = INT(clock * 140) MOD 560 - 100
-        IF x >= 52 AND x <= 260 THEN
-            VIEW SCREEN (x, 14)-(x + 10, 38)
-            TxtC "MOTHLIGHT", 14, 3, CWHITE, CWHITE, 0
-            VIEW
-        END IF
-        TxtC "a little moth's big day out", 44, 1, CWHITE, CWHITE, 1
-        IF INT(clock * 2) MOD 2 = 0 THEN TxtC "PRESS SPACE TO FLY", 116, 2, CWHITE, CTITLE + 2, 1
-        IF best THEN TxtC "BEST" + STR$(best), 138, 1, CTITLE, CTITLE + 3, 1
-        TxtC "SPACE/ENTER/UP FLAP  M MUSIC  ESC QUIT", 189, 1, CWHITE, CWHITE, 1
-    CASE PLAYING, DYING
-        sc = 2
-        IF popT > 0 THEN sc = 3
-        TxtC LTRIM$(STR$(score)), 6, sc, CWHITE, CTITLE + 3, 1
-    CASE OVER
-        DrawPanel
-    END SELECT
-    IF flash > 0 THEN Dither 0, 0, SW - 1, SH - 1, CWHITE, 1 + INT(flash * 12)
-
-    ' a shake moves the whole frame down and right
-    IF shakeT > 0 THEN
-        amp = shakeT * 10
-        dx = 1 + INT(RND * amp): dy = 1 + INT(RND * amp)
-        GET (0, 0)-(SW - 1 - dx, SH - 1 - dy), Frame
-        LINE (0, 0)-(SW - 1, dy - 1), CINK, BF
-        LINE (0, 0)-(dx - 1, SH - 1), CINK, BF
-        PUT (dx, dy), Frame, PSET
-    END IF
-    SCREEN , , 1 - drawPage, drawPage
-    drawPage = 1 - drawPage
-END SUB
-
-' The distance from (px, py) to the segment from a to b.
-FUNCTION SegD! (px AS SINGLE, py AS SINGLE, ax AS SINGLE, ay AS SINGLE, bx AS SINGLE, by AS SINGLE)
-    DIM dx AS SINGLE, dy AS SINGLE, t AS SINGLE, ex AS SINGLE, ey AS SINGLE
-    dx = bx - ax: dy = by - ay
-    t = ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy)
-    IF t < 0 THEN t = 0
-    IF t > 1 THEN t = 1
-    ex = ax + t * dx - px: ey = ay + t * dy - py
-    SegD! = SQR(ex * ex + ey * ey)
-END FUNCTION
-
-' The palette from the key colours in use (CurKey, easing toward the sky's), dimmed by the fade.
-SUB SetPalette
-    DIM i AS INTEGER, k(NKEY - 1) AS LONG, t AS SINGLE, c AS LONG, r AS LONG, g AS LONG, b AS LONG
-    FOR i = 0 TO NKEY - 1
-        k(i) = CLNG(CurKey(i, 0)) + CLNG(CurKey(i, 1)) * 256 + CLNG(CurKey(i, 2)) * 65536
-    NEXT
-    FOR i = 0 TO NSKY - 1
-        t = i / (NSKY - 1)
-        IF t < .5 THEN Rgb(CSKY + i) = Mix&(k(0), k(1), t * 2) ELSE Rgb(CSKY + i) = Mix&(k(1), k(2), (t - .5) * 2)
-    NEXT
-    FOR i = 0 TO 7
-        Rgb(CTITLE + i) = Mix&(&H8CFFFF, &H1E78FF, i / 7)
-    NEXT
-    Rgb(CCLOUD) = k(3): Rgb(CCLOUDLO) = k(4)
-    FOR i = 0 TO 15
-        Rgb(CMTN + i) = Mix&(Mix&(k(5), &HFFFFFF, .3), k(2), i / 16)
-        Rgb(CFAR + i) = Mix&(Mix&(k(6), &HFFFFFF, .3), k(7), i / 12)
-        Rgb(CNEAR + i) = Mix&(Mix&(k(8), &HFFFFFF, .3), k(9), i / 12)
-    NEXT
-    FOR i = 0 TO 3
-        Rgb(CTREE + i) = Mix&(k(10), k(11), i / 3)
-    NEXT
-    FOR i = 0 TO 7
-        Rgb(CSTONE + i) = Mix&(k(13), k(14), i / 7)
-    NEXT
-    FOR i = 0 TO 15
-        Rgb(WATER + i) = Mix&(Mix&(Rgb(i), k(12), .45), 0, .1)
-    NEXT
-    FOR i = CMTN TO CVINE
-        Rgb(WATER + i) = Mix&(Mix&(Rgb(i), k(12), .45), 0, .1)
-    NEXT
-    FOR i = 0 TO 255
-        c = Rgb(i)
-        r = (c MOD 256) * fade: g = ((c \ 256) MOD 256) * fade: b = (c \ 65536) * fade
-        PALETTE i, r \ 4 + (g \ 4) * 256 + (b \ 4) * 65536
-    NEXT
-END SUB
-
-' The hills and mountains, trees, seeds, clouds and runes, the stone's shading, the water's tint.
-SUB Setup
-    DIM i AS INTEGER, j AS INTEGER, x AS INTEGER, k AS INTEGER, a AS SINGLE
-    SCREEN 13, , 1, 0
-    drawPage = 1
+' The fade and the sky's key colours ease toward
+' theirs, 30 times a second.
+SUB EaseSky (s AS Sky, cur() AS SINGLE)
+    DIM i AS INTEGER, j AS INTEGER, moved AS INTEGER
+    DIM d AS SINGLE
+    s.ease = s.ease + STEPT
+    IF s.ease < 1 / 30 THEN EXIT SUB
+    s.ease = 0
     FOR i = 0 TO NKEY - 1
         FOR j = 0 TO 2
-            CurKey(i, j) = (SkyKey(DAY, i) \ 256 ^ j) MOD 256
+            d = Chan%(SkyKey(s.phase, i), j) - cur(i, j)
+            IF ABS(d) > .5 THEN
+                cur(i, j) = cur(i, j) + d * .06
+                moved = -1
+            END IF
         NEXT
     NEXT
-    fade = 0
-    fadeTarget = 1
-    SetPalette
+    d = s.fadeTo - s.fade
+    IF d <> 0 THEN
+        s.fade = s.fade + SGN(d) * .1
+        IF ABS(d) <= .1 THEN s.fade = s.fadeTo
+        moved = -1
+    END IF
+    IF moved THEN ApplyPalette s, cur()
+END SUB
 
+SUB Fall (w AS World, sp() AS Spark)
+    Gravity w.m
+    IF w.m.y < GROUNDY - 5 THEN EXIT SUB
+    w.m.y = GROUNDY - 5
+    w.g.mode = OVER
+    w.g.modeT = 0
+    Emit sp(), w.m, BLAND
+    IF w.song.playing = 0 THEN EXIT SUB
+    IF w.g.newBest THEN
+        PlaySfx SFXBEST
+    ELSE
+        PlaySfx SFXOVER
+    END IF
+END SUB
+
+' Keeps a few beats queued; a cue (a beat long)
+' takes the next beat's tune.
+SUB FeedSong (s AS Song)
+    DIM a AS STRING
+    IF s.id = NOSONG OR s.playing = 0 THEN EXIT SUB
+    IF PLAY(0) >= 3 THEN EXIT SUB
+    a = RTRIM$(s.cue)
+    IF LEN(a) = 0 THEN a = Tune(s.id, s.beat, 0)
+    PLAY a, Tune(s.id, s.beat, 1), Tune(s.id, s.beat, 2)
+    s.cue = ""
+    s.beat = (s.beat + 1) MOD SongLen(s.id)
+END SUB
+
+FUNCTION Feeler% (lx AS SINGLE, ly AS SINGLE)
+    DIM f AS INTEGER
+    f = SegD!(lx, ly, 10, -4, 17, -13) < 1.2
+    f = f OR SegD!(lx, ly, 8, -4, 12, -14) < 1.1
+    f = f OR (lx - 17) ^ 2 + (ly + 13) ^ 2 < 5
+    Feeler% = f OR (lx - 11.5) ^ 2 + (ly + 1) ^ 2 < 5
+END FUNCTION
+
+SUB Flap (m AS Moth, sp() AS Spark, s AS Song)
+    m.vy = FLAPV
+    m.boost = .25
+    m.squash = .12
+    Emit sp(), m, BFLAP
+    IF s.playing = 0 AND PLAY(0) < 3 THEN PlaySfx SFXFLAP
+END SUB
+
+' Shows the page just drawn, draws on the other.
+SUB Flip (page AS INTEGER)
+    SCREEN , , 1 - page, page
+    page = 1 - page
+END SUB
+
+SUB Fly (w AS World, k AS Pad, st() AS Stone, sp() AS Spark)
+    DIM i AS INTEGER
+    IF k.flap THEN Flap w.m, sp(), w.song
+    w.m.x = w.m.x + (HOMEX - w.m.x) * 5 * STEPT
+    Gravity w.m
+    w.g.scroll = w.g.scroll + SPEED * STEPT
+    FOR i = 0 TO NSTONE - 1
+        MoveStone st(), i
+        IF st(i).passed = 0 THEN
+            IF st(i).x + STONEW < w.m.x THEN
+                st(i).passed = -1
+                Scored w, sp()
+            END IF
+        END IF
+    NEXT
+    IF Hit%(st(), w.m) OR w.m.y > GROUNDY - 5 THEN Die w
+END SUB
+
+' One row of a glyph: its runs of set bits as boxes.
+SUB GlyphRow (b AS INTEGER, x AS INTEGER, y AS INTEGER, sc AS INTEGER, c AS INTEGER)
+    DIM cx AS INTEGER, s AS INTEGER, e AS INTEGER
+    e = y + sc - 1
+    DO WHILE cx < 8
+        IF b AND Bit(cx) THEN
+            s = cx
+            DO WHILE cx < 8
+                IF (b AND Bit(cx)) = 0 THEN EXIT DO
+                cx = cx + 1
+            LOOP
+            LINE (x + s * sc, y)-(x + cx * sc - 1, e), c, BF
+        ELSE
+            cx = cx + 1
+        END IF
+    LOOP
+END SUB
+
+SUB Gravity (m AS Moth)
+    m.vy = m.vy + GRAV * STEPT
+    m.y = m.y + m.vy * STEPT
+END SUB
+
+FUNCTION Hit% (st() AS Stone, m AS Moth)
+    DIM i AS INTEGER, x AS SINGLE, r AS SINGLE
+    DIM t AS SINGLE, b AS SINGLE, l AS SINGLE
+    DIM rr AS SINGLE, h AS INTEGER
+    FOR i = 0 TO NSTONE - 1
+        x = st(i).x
+        r = x + STONEW - 1
+        IF x < m.x + 12 AND r + 1 > m.x - 12 THEN
+            t = st(i).gap - GAP \ 2
+            b = st(i).gap + GAP \ 2
+            l = x - OVERHANG
+            rr = r + OVERHANG
+            h = h OR Touches%(m, x, 0, r, t - CAPH)
+            h = h OR Touches%(m, l, t - CAPH, rr, t)
+            h = h OR Touches%(m, l, b, rr, b + CAPH)
+            h = h OR Touches%(m, x, b + CAPH, r, GROUNDY)
+        END IF
+    NEXT
+    Hit% = h
+END FUNCTION
+
+SUB Launch (w AS World, st() AS Stone, sp() AS Spark)
+    StartSong w.song, GAMESONG
+    IF w.g.mode <> TITLE THEN w.m.y = 100
+    w.m.behind = 0
+    w.g.mode = PLAYING
+    w.g.modeT = 0
+    w.g.score = 0
+    w.g.newBest = 0
+    w.sky.phase = DAY
+    PlaceStones st()
+    Flap w.m, sp(), w.song
+END SUB
+
+' A cap, its light edge and shadow, outlined in ink.
+SUB Lintel (x AS INTEGER, cy AS INTEGER)
+    DIM c1 AS INTEGER, c2 AS INTEGER, b AS INTEGER
+    c1 = x - OVERHANG
+    c2 = x + STONEW - 1 + OVERHANG
+    b = cy + CAPH - 1
+    LINE (c1, cy)-(c2, b), CSTONE + 2, BF
+    LINE (c1 + 2, cy)-(c1 + 8, b), CSTONE, BF
+    LINE (c2 - 8, cy)-(c2, b), CSTONE + 5, BF
+    LINE (c1 + 1, cy + 1)-(c2 - 1, cy + 1), CSTONE
+    LINE (c1, cy)-(c2, b), CINK, B
+END SUB
+
+FUNCTION Lit& (c AS LONG)
+    Lit& = Mix&(c, &HFFFFFF, .3)
+END FUNCTION
+
+SUB LoadBursts
+    DIM i AS INTEGER
+    RESTORE Bursts
+    FOR i = 0 TO NBURST - 1
+        READ Bursts(i).n, Bursts(i).spread
+        READ Bursts(i).kick
+    NEXT
+END SUB
+
+SUB LoadLooks
+    DIM i AS INTEGER
+    RESTORE Looks
+    FOR i = 0 TO NLOOK - 1
+        READ Looks(i).sc, Looks(i).c1
+        READ Looks(i).c2, Looks(i).sh
+    NEXT
+END SUB
+
+SUB LoadRidges
+    DIM i AS INTEGER
+    RESTORE Ridges
+    FOR i = 0 TO NRIDGE - 1
+        READ Ridges(i).speed, Ridges(i).c
+        READ Ridges(i).d1, Ridges(i).d2
+        READ Ridges(i).band, Ridges(i).bottom
+        READ Ridges(i).stp
+    NEXT
+END SUB
+
+SUB LoadSfx
+    DIM i AS INTEGER
+    RESTORE Sfx
+    FOR i = 0 TO NSFX - 1
+        READ SfxA(i), SfxB(i)
+    NEXT
+END SUB
+
+' The skies' key colours, and the colours that stay.
+SUB LoadSkies
+    DIM i AS INTEGER, j AS INTEGER
+    DIM r AS LONG, g AS LONG, b AS LONG
+    RESTORE Skies
+    FOR i = 0 TO NSKIES - 1
+        FOR j = 0 TO NKEY - 1
+            READ r, g, b
+            SkyKey(i, j) = r + g * 256 + b * 65536
+        NEXT
+    NEXT
+    RESTORE Fixed
+    DO
+        READ i
+        IF i < 0 THEN EXIT DO
+        READ r, g, b
+        Fixed(i) = r + g * 256 + b * 65536
+    LOOP
+END SUB
+
+' Each voice's beats, its sound before each one.
+SUB LoadSongs
+    DIM id AS INTEGER, v AS INTEGER, b AS INTEGER
+    DIM n AS INTEGER, pre AS STRING, k AS STRING
+    RESTORE Songs
+    FOR id = TITLESONG TO GAMESONG
+        READ n
+        SongLen(id) = n
+        FOR v = 0 TO 2
+            READ pre
+            FOR b = 0 TO n - 1
+                READ k
+                Tune(id, b, v) = pre + k
+            NEXT
+        NEXT
+    NEXT
+END SUB
+
+SUB LoadTables
+    LoadSongs
+    LoadSfx
+    LoadSkies
+    LoadLooks
+    LoadBursts
+    LoadRidges
+END SUB
+
+' The ridges' heights, trees, seeds and clouds.
+SUB LoadTerrain
+    DIM x AS INTEGER, i AS INTEGER, a AS SINGLE
+    DIM h AS SINGLE
     RANDOMIZE TIMER
-    FOR i = 0 TO 7: Bit(i) = 2 ^ (7 - i): NEXT
     FOR x = 0 TO 639
         a = x * 6.283185 / 640
-        MtnTop(x) = 123 - (19 * ABS(SIN(1.5 * a + .3)) + 9 * ABS(SIN(4 * a + 1)) + 3 * ABS(SIN(11 * a)))
-        FarTop(x) = 143 - (17 + 10 * SIN(2 * a) + 5 * SIN(5 * a + 1.3) + 2 * SIN(13 * a))
-        NearTop(x) = 166 - (9 + 7 * SIN(3 * a + 2) + 4 * SIN(7 * a + .4) + 2 * SIN(17 * a))
+        h = 19 * ABS(SIN(1.5 * a + .3))
+        h = h + 9 * ABS(SIN(4 * a + 1))
+        h = h + 3 * ABS(SIN(11 * a))
+        Crest(0, x) = 123 - h
+        h = 17 + 10 * SIN(2 * a) + 5 * SIN(5 * a + 1.3)
+        Crest(1, x) = 143 - (h + 2 * SIN(13 * a))
+        h = 9 + 7 * SIN(3 * a + 2) + 4 * SIN(7 * a + .4)
+        Crest(2, x) = 166 - (h + 2 * SIN(17 * a))
     NEXT
-    FOR k = 0 TO 15
-        TreeX(k) = k * 40 + INT(RND * 24)
-        TreeH(k) = 8 + INT(RND * 9)
+    FOR i = 0 TO NTREE - 1
+        TreeX(i) = i * 40 + INT(RND * 24)
+        TreeH(i) = 8 + INT(RND * 9)
     NEXT
     FOR i = 0 TO NFLY - 1
         FlyX(i) = INT(RND * 640)
@@ -914,188 +1254,625 @@ SUB Setup
         CloudX(i) = i * 150 + INT(RND * 50)
         CloudY(i) = 20 + i * 12
     NEXT
-    ' the stone's columns: lit a quarter in, shaded to the right
-    FOR i = 0 TO STONEW + 2 * OVERHANG
-        k = ABS(i - (STONEW + 2 * OVERHANG) \ 4) * 9 \ (STONEW + 2 * OVERHANG)
-        IF k > 7 THEN k = 7
-        StoneCol(i) = CSTONE + k
+    BuildStones
+    BuildLake
+END SUB
+
+' The game: set up, then read input, update in fixed
+' steps, and draw, until Esc has faded it out.
+SUB Main
+    DIM w AS World, joy AS Pad
+    DIM stones(NSTONE - 1) AS Stone
+    DIM sparks(NSPARK - 1) AS Spark
+    DIM cur(NKEY - 1, 2) AS SINGLE
+    DIM now AS SINGLE, last AS SINGLE, acc AS SINGLE
+
+    OpenScreen
+    LoadTables
+    LoadTerrain
+    BuildGlyphs
+    BuildMoth
+    NewWorld w, cur()
+
+    last = TIMER
+    DO
+        now = NextTime!(last)
+        acc = acc + Elapsed!(last, now)
+        last = now
+
+        ReadPad joy
+        Control w, joy
+        DO WHILE acc >= STEPT
+            Tick w, joy, stones(), sparks()
+            EaseSky w.sky, cur()
+            joy.flap = 0
+            acc = acc - STEPT
+        LOOP
+        FeedSong w.song
+        Render w, stones(), sparks()
+    LOOP UNTIL w.g.quitting AND w.sky.fade <= 0
+
+    CloseScreen
+END SUB
+
+' Colour b mixed into a by t; red + green * 256 +
+' blue * 65536.
+FUNCTION Mix& (a AS LONG, b AS LONG, t AS SINGLE)
+    DIM j AS INTEGER, v AS LONG, ca AS LONG, cb AS LONG
+    FOR j = 0 TO 2
+        ca = Chan%(a, j): cb = Chan%(b, j)
+        v = v + CLNG(ca + (cb - ca) * t) * CLNG(256 ^ j)
     NEXT
-    Rune(0) = "111010010010111"
-    Rune(1) = "101111101101101"
-    Rune(2) = "110101110101110"
-    Rune(3) = "010111010010010"
-    ' the lake's tint: an image of the lake's size, every pixel 64
-    Tinter(0) = SW * 8 + LAKEH * 65536
-    FOR i = 1 TO SW * LAKEH \ 4
-        Tinter(i) = &H40404040
+    Mix& = v
+END FUNCTION
+
+' Moss on a cap's top, in tufts.
+SUB Moss (x AS INTEGER, cy AS INTEGER)
+    DIM m AS INTEGER, c1 AS INTEGER, c2 AS INTEGER
+    c1 = x - OVERHANG
+    c2 = x + STONEW - 1 + OVERHANG
+    LINE (c1 + 1, cy)-(c2 - 1, cy), CMOSS
+    FOR m = c1 + 1 TO c2 - 1 STEP 3
+        LINE (m, cy - 1 - (m - c1) MOD 2)-(m, cy), CMOSS
     NEXT
 END SUB
 
-SUB StartSong (id AS INTEGER)
-    SOUND 37, 0
-    song = id
-    beat = 0
-    cue = ""
-END SUB
+' The sprite for the moth's tilt and wing beat.
+FUNCTION MothFrame% (m AS Moth, mode AS INTEGER)
+    DIM t AS INTEGER, w AS INTEGER, k AS INTEGER
+    IF mode = DYING OR mode = OVER THEN
+        MothFrame% = 9
+        EXIT FUNCTION
+    END IF
+    t = 3
+    IF m.vy < 220 THEN t = 2
+    IF m.vy < 85 THEN t = 1
+    IF m.vy < -60 THEN t = 0
+    IF mode = TITLE THEN t = 1
+    w = INT(m.beat * 4) MOD 4
+    IF w = 3 THEN w = 1
+    k = t * 3 + w
+    IF mode = PLAYING THEN
+        IF m.squash > 0 THEN k = 12
+        IF m.vy > 220 THEN k = 13
+    END IF
+    MothFrame% = k
+END FUNCTION
 
-SUB Tick (flapped AS INTEGER)
-    DIM i AS INTEGER, j AS INTEGER, far AS INTEGER, changed AS INTEGER, want AS SINGLE, d AS SINGLE
-    clock = clock + STEPT
-    stateT = stateT + STEPT
-    flash = flash - STEPT
-    boost = boost - STEPT
-    squashT = squashT - STEPT
-    popT = popT - STEPT
-    shakeT = shakeT - STEPT
-    IF boost > 0 THEN phase = phase + STEPT * 9 ELSE phase = phase + STEPT * 4
-
-    SELECT CASE state
-    CASE TITLE
-        ' circling the sun, behind it on the lower half
-        mothX = SUNX + 26 * COS(clock * .8)
-        mothY = SUNY + 8 + 28 * SIN(clock * .8)
-        behind = SIN(clock * .8) > 0
-        scroll = scroll + 25 * STEPT
-        IF flapped THEN
-            behind = 0
-            NewGame
-            Flap
-        END IF
-    CASE PLAYING
-        IF flapped THEN Flap
-        mothX = mothX + (HOMEX - mothX) * 5 * STEPT
-        vy = vy + GRAV * STEPT
-        mothY = mothY + vy * STEPT
-        scroll = scroll + SPEED * STEPT
-        FOR i = 0 TO NSTONE - 1
-            stoneX(i) = stoneX(i) - SPEED * STEPT
-            IF stoneX(i) + STONEW + OVERHANG < 0 THEN
-                far = 0
-                FOR j = 1 TO NSTONE - 1
-                    IF stoneX(j) > stoneX(far) THEN far = j
-                NEXT
-                stoneX(i) = stoneX(far) + SPACING
-                stoneGap(i) = NextGap%(stoneGap(far))
-                stoneDone(i) = 0
-                stoneKind(i) = INT(RND * NKIND)
+' The moth's colour at (lx, ly) in its own frame.
+FUNCTION MothPix% (lx AS SINGLE, ly AS SINGLE, s AS Shape)
+    DIM e AS SINGLE, dx AS SINGLE, dy AS SINGLE
+    MothPix% = 0
+    e = Ell!(lx, ly, s.fore)
+    IF Feeler%(lx, ly) THEN
+        MothPix% = CINK
+    ELSEIF (lx - 9) ^ 2 + ly ^ 2 < 21 THEN
+        MothPix% = CWEDGE
+    ELSEIF e < 1 THEN
+        dx = lx - s.fore.cx
+        dy = ly - s.fore.cy
+        MothPix% = WingPix%(dx, dy, e)
+    ELSEIF Ell!(lx, ly, s.neck) < 1 THEN
+        MothPix% = CCOLLAR
+    ELSEIF Ell!(lx, ly, s.body) < 1 THEN
+        MothPix% = CBODY
+        IF lx < 0 THEN
+            IF (INT(lx + 40) \ 4) MOD 2 = 0 THEN
+                MothPix% = CSTRIPE
             END IF
-            IF stoneDone(i) = 0 AND stoneX(i) + STONEW < mothX THEN
-                stoneDone(i) = -1
-                score = score + 1
-                popT = .25
-                sky = (score \ 10) MOD 3
-                IF musicOn THEN cue = "T160MNW1V13L64O5CEGO6CL16E" ELSE PLAY "T220MNL32O4EGO5CL16E"
-                Emit 8, 100, 0
+        END IF
+    ELSE
+        e = Ell!(lx, ly, s.hind)
+        IF e < 1 THEN MothPix% = CHIND
+        IF e < 1 AND e > .6 THEN MothPix% = CHINDE
+    END IF
+END FUNCTION
+
+SUB MoveSparks (sp() AS Spark)
+    DIM i AS INTEGER
+    FOR i = 0 TO NSPARK - 1
+        IF sp(i).life > 0 THEN
+            sp(i).x = sp(i).x + sp(i).vx * STEPT
+            sp(i).y = sp(i).y + sp(i).vy * STEPT
+            sp(i).vx = sp(i).vx * (1 - 1.5 * STEPT)
+            sp(i).vy = sp(i).vy * (1 - 2 * STEPT)
+            sp(i).vy = sp(i).vy - 10 * STEPT
+            sp(i).life = sp(i).life - STEPT
+        END IF
+    NEXT
+END SUB
+
+' Scrolls stone i; one gone off the left comes back
+' a spacing after the farthest, with a new gap.
+SUB MoveStone (st() AS Stone, i AS INTEGER)
+    DIM j AS INTEGER, far AS INTEGER
+    st(i).x = st(i).x - SPEED * STEPT
+    IF st(i).x + STONEW + OVERHANG >= 0 THEN EXIT SUB
+    FOR j = 0 TO NSTONE - 1
+        IF st(j).x > st(far).x THEN far = j
+    NEXT
+    st(i).x = st(far).x + SPACING
+    st(i).gap = NextGap%(st(far).gap)
+    st(i).passed = 0
+    st(i).kind = INT(RND * NKIND)
+END SUB
+
+SUB NewWorld (w AS World, cur() AS SINGLE)
+    DIM i AS INTEGER, j AS INTEGER
+    w.page = 1
+    w.g.mode = TITLE
+    w.sky.phase = DAY
+    w.sky.fade = 0
+    w.sky.fadeTo = 1
+    FOR i = 0 TO NKEY - 1
+        FOR j = 0 TO 2
+            cur(i, j) = Chan%(SkyKey(DAY, i), j)
+        NEXT
+    NEXT
+    ApplyPalette w.sky, cur()
+    w.song.playing = -1
+    PLAY "MB"
+    StartSong w.song, TITLESONG
+END SUB
+
+FUNCTION NextGap% (prev AS INTEGER)
+    DIM g AS INTEGER, lo AS INTEGER, hi AS INTEGER
+    lo = GAP \ 2 + CAPH + 20
+    hi = GROUNDY - GAP \ 2 - CAPH - 14
+    g = prev + INT(RND * 113) - 56
+    IF g < lo THEN g = lo
+    IF g > hi THEN g = hi
+    NextGap% = g
+END FUNCTION
+
+' The next TIMER value, waited for.
+FUNCTION NextTime! (last AS SINGLE)
+    DIM t AS SINGLE
+    DO
+        t = TIMER
+    LOOP WHILE t = last
+    NextTime! = t
+END FUNCTION
+
+SUB OpenScreen
+    SCREEN 13, , 1, 0
+END SUB
+
+' Circling the sun, behind it on the lower half.
+SUB Orbit (w AS World, k AS Pad, st() AS Stone, sp() AS Spark)
+    DIM a AS SINGLE
+    a = w.g.clock * .8
+    w.m.x = SUNX + 26 * COS(a)
+    w.m.y = SUNY + 8 + 28 * SIN(a)
+    w.m.behind = SIN(a) > 0
+    w.g.scroll = w.g.scroll + 25 * STEPT
+    IF k.flap THEN Launch w, st(), sp()
+END SUB
+
+' An outline of ink round the shape.
+SUB Outline (g() AS INTEGER)
+    DIM px AS INTEGER, py AS INTEGER, n AS INTEGER
+    FOR py = 1 TO SPRH
+        FOR px = 1 TO SPRW
+            IF g(px, py) = 0 THEN
+                n = g(px - 1, py) > 0 OR g(px + 1, py) > 0
+                n = n OR g(px, py - 1) > 0
+                n = n OR g(px, py + 1) > 0
+                IF n THEN g(px, py) = -1
             END IF
         NEXT
-        IF Hit% OR mothY > GROUNDY - 5 THEN Die
-    CASE DYING
-        vy = vy + GRAV * STEPT
-        mothY = mothY + vy * STEPT
-        IF mothY >= GROUNDY - 5 THEN
-            mothY = GROUNDY - 5
-            state = OVER
-            stateT = 0
-            Emit 16, 80, 130
-            IF musicOn THEN
-                IF newBest THEN
-                    PLAY "T160MNW0Q25V12L16O4CEGO5L8CO4L16GO5L4C", "T160MNW2V9L4O2CL8GL4O3C"
-                ELSE
-                    PLAY "T140MNW1V12L16O4CO3GECL8EGL4O4C", "T140MNW2V9L4O2CO1GO2C"
-                END IF
+    NEXT
+    FOR py = 1 TO SPRH
+        FOR px = 1 TO SPRW
+            IF g(px, py) < 0 THEN g(px, py) = CINK
+        NEXT
+    NEXT
+END SUB
+
+FUNCTION Pack& (r AS SINGLE, g AS SINGLE, b AS SINGLE)
+    Pack& = CLNG(r) + CLNG(g) * 256 + CLNG(b) * 65536
+END FUNCTION
+
+' The game over panel drops in from above.
+SUB Panel (g AS Game)
+    DIM f AS SINGLE, y AS INTEGER
+    f = g.modeT / .35
+    IF f > 1 THEN f = 1
+    y = 40 - INT((1 - f) ^ 3 * 200)
+    LINE (54, y + 3)-(273, y + 103), CINK, BF
+    LINE (50, y)-(270, y + 100), CPANEL, BF
+    LINE (50, y)-(270, y + 100), CPANEL2, B
+    LINE (52, y + 2)-(268, y + 98), CWHITE, B
+    TxtC "WHAT A FLIGHT!", y + 10, LHEAD
+    TxtC "SCORE" + STR$(g.score), y + 26, LBIGW
+    TxtC "BEST" + STR$(g.best), y + 48, LBIGG
+    IF g.newBest AND INT(g.clock * 4) MOD 2 = 0 THEN
+        TxtC "NEW BEST!", y + 68, LNEW
+    END IF
+    IF g.modeT > .6 THEN
+        TxtC "SPACE TO FLY AGAIN", y + 80, LSMALL
+        TxtC "ESC FOR THE TITLE", y + 89, LSOFT
+    END IF
+END SUB
+
+SUB PlaceStones (st() AS Stone)
+    DIM i AS INTEGER, g AS INTEGER
+    g = 100
+    FOR i = 0 TO NSTONE - 1
+        g = NextGap%(g)
+        st(i).x = 360 + i * SPACING
+        st(i).gap = g
+        st(i).passed = 0
+        st(i).kind = INT(RND * NKIND)
+    NEXT
+END SUB
+
+SUB PlaySfx (id AS INTEGER)
+    IF LEN(SfxB(id)) THEN
+        PLAY SfxA(id), SfxB(id)
+    ELSE
+        PLAY SfxA(id)
+    END IF
+END SUB
+
+' Sprite k's tilt, stretch and wings: 3 wing
+' positions by 4 tilts, then squashed (just
+' flapped) and stretched (diving).
+SUB Pose (k AS INTEGER, s AS Shape)
+    DIM t AS INTEGER, w AS INTEGER, a AS SINGLE
+    DIM l AS SINGLE, d AS SINGLE, h AS SINGLE
+    s.sx = 1: s.sy = 1
+    IF k < 12 THEN
+        t = k \ 3: w = k MOD 3
+    ELSEIF k = 12 THEN
+        t = 1: w = 2: s.sx = 1.18: s.sy = .82
+    ELSE
+        t = 3: w = 0: s.sx = .86: s.sy = 1.12
+    END IF
+    s.tilt = -.4
+    IF t = 1 THEN s.tilt = 0
+    IF t = 2 THEN s.tilt = .45
+    IF t = 3 THEN s.tilt = 1
+    a = -1.85: l = 14: d = 7.5
+    IF w = 1 THEN a = -2.55: l = 8
+    IF w = 2 THEN a = 1.75: l = 12: d = 6.5
+    s.fore.cx = -1 + .85 * l * COS(a)
+    s.fore.cy = -2 + .85 * l * SIN(a)
+    s.fore.an = a: s.fore.a = l: s.fore.b = d
+    h = a + .3
+    s.hind.cx = -5 + .7 * l * COS(h)
+    s.hind.cy = -3 + .7 * l * SIN(h)
+    s.hind.an = h: s.hind.a = .8 * l: s.hind.b = .9 * d
+    s.neck.cx = 5: s.neck.cy = 0: s.neck.an = 1.5708
+    s.neck.a = 5: s.neck.b = 2.5
+    s.body.cx = -3: s.body.cy = 1: s.body.an = 0
+    s.body.a = 10.5: s.body.b = 5.2
+END SUB
+
+' Colours i0 to i0 + n - 1 from a toward b, reaching
+' b after span steps.
+SUB Ramp (c() AS LONG, i0 AS INTEGER, n AS INTEGER, a AS LONG, b AS LONG, span AS INTEGER)
+    DIM i AS INTEGER
+    FOR i = 0 TO n - 1
+        c(i0 + i) = Mix&(a, b, i / span)
+    NEXT
+END SUB
+
+SUB ReadPad (k AS Pad)
+    DIM c AS STRING
+    k.mute = 0
+    k.back = 0
+    DO
+        c = INKEY$
+        SELECT CASE c
+        CASE " ", CHR$(13), CHR$(0) + "H"
+            k.flap = -1
+        CASE "m", "M"
+            k.mute = -1
+        CASE CHR$(27)
+            k.back = -1
+        END SELECT
+    LOOP WHILE LEN(c)
+END SUB
+
+' Back to front, then the screen's effects, then the
+' drawn page is shown.
+SUB Render (w AS World, st() AS Stone, sp() AS Spark)
+    DrawSky w.g
+    IF w.m.behind THEN DrawMoth w.m, w.g.mode
+    DrawSun w.g.clock
+    DrawLand w.g
+    IF w.g.mode <> TITLE THEN DrawStones st(), w.g.clock
+    IF NOT w.m.behind THEN DrawMoth w.m, w.g.mode
+    DrawLake w.g.clock
+    DrawSparks sp()
+    DrawHud w
+    DrawFx w.fx
+    Flip w.page
+END SUB
+
+' Runes down a shaft, glowing on and off.
+SUB Runes (x AS INTEGER, y1 AS INTEGER, y2 AS INTEGER, t AS SINGLE)
+    DIM c AS INTEGER, j AS INTEGER, n AS INTEGER
+    DIM y AS INTEGER
+    c = CWHITE
+    IF SIN(t * 3 + x * .05) > 0 THEN c = CRUNE
+    FOR y = y1 TO y2 STEP 10
+        FOR n = 0 TO 14
+            IF MID$(Rune(j MOD 4), n + 1, 1) = "1" THEN
+                PSET (x + 13 + n MOD 3, y + n \ 3), c
             END IF
+        NEXT
+        j = j + 1
+    NEXT
+END SUB
+
+SUB Scored (w AS World, sp() AS Spark)
+    w.g.score = w.g.score + 1
+    w.fx.pop = .25
+    w.sky.phase = (w.g.score \ 10) MOD NSKIES
+    Chime w.song
+    Emit sp(), w.m, BSCORE
+END SUB
+
+SUB ScoreText (g AS Game, f AS Fx)
+    DIM id AS INTEGER
+    id = LSCORE
+    IF f.pop > 0 THEN id = LPOP
+    TxtC LTRIM$(STR$(g.score)), 6, id
+END SUB
+
+' The colours from the sky's key colours k: sky,
+' title, clouds, ridges, trees, stone, and the
+' water's copies.
+SUB Shade (k() AS LONG, c() AS LONG)
+    DIM i AS INTEGER, h AS INTEGER
+    h = NSKY \ 2
+    Ramp c(), CSKY, h, k(0), k(1), h
+    Ramp c(), CSKY + h, h, k(1), k(2), h - 1
+    Ramp c(), CTITLE, 8, &H8CFFFF, &H1E78FF, 7
+    c(CCLOUD) = k(3)
+    c(CCLOUDLO) = k(4)
+    Ramp c(), CMTN, 16, Lit&(k(5)), k(2), 16
+    Ramp c(), CFAR, 16, Lit&(k(6)), k(7), 12
+    Ramp c(), CNEAR, 16, Lit&(k(8)), k(9), 12
+    Ramp c(), CTREE, 4, k(10), k(11), 3
+    Ramp c(), CSTONE, 8, k(13), k(14), 7
+    FOR i = 0 TO 15
+        c(WATER + i) = Wet&(c(i), k(12))
+    NEXT
+    FOR i = CMTN TO CVINE
+        c(WATER + i) = Wet&(c(i), k(12))
+    NEXT
+END SUB
+
+' A stone's shaft: shaded in runs of a colour,
+' mortar lines, inked sides.
+SUB Shaft (x AS INTEGER, y1 AS INTEGER, y2 AS INTEGER)
+    DIM dx AS INTEGER, s AS INTEGER, c AS INTEGER
+    DIM y AS INTEGER, r AS INTEGER
+    r = x + STONEW - 1
+    FOR dx = 1 TO STONEW
+        c = StoneCol(s + OVERHANG)
+        IF dx = STONEW THEN
+            LINE (x + s, y1)-(x + dx - 1, y2), c, BF
+        ELSEIF StoneCol(dx + OVERHANG) <> c THEN
+            LINE (x + s, y1)-(x + dx - 1, y2), c, BF
+            s = dx
         END IF
+    NEXT
+    FOR y = y1 + 4 TO y2 STEP 9
+        LINE (x + 1, y)-(r - 1, y), CSTONE + 6
+        LINE (x + 2, y + 1)-(x + 8, y + 1), CSTONE
+    NEXT
+    LINE (x, y1)-(x, y2), CINK
+    LINE (r, y1)-(r, y2), CINK
+END SUB
+
+' The whole frame moved down and right.
+SUB Shake (amount AS SINGLE)
+    DIM dx AS INTEGER, dy AS INTEGER
+    dx = 1 + INT(RND * amount * 10)
+    dy = 1 + INT(RND * amount * 10)
+    GET (0, 0)-(SW - 1 - dx, SH - 1 - dy), Frame
+    LINE (0, 0)-(SW - 1, dy - 1), CINK, BF
+    LINE (0, 0)-(dx - 1, SH - 1), CINK, BF
+    PUT (dx, dy), Frame, PSET
+END SUB
+
+' The distance from (px, py) to the segment a-b.
+FUNCTION SegD! (px AS SINGLE, py AS SINGLE, ax AS SINGLE, ay AS SINGLE, bx AS SINGLE, by AS SINGLE)
+    DIM dx AS SINGLE, dy AS SINGLE, t AS SINGLE
+    DIM ex AS SINGLE, ey AS SINGLE
+    dx = bx - ax: dy = by - ay
+    t = ((px - ax) * dx + (py - ay) * dy)
+    t = t / (dx * dx + dy * dy)
+    IF t < 0 THEN t = 0
+    IF t > 1 THEN t = 1
+    ex = ax + t * dx - px: ey = ay + t * dy - py
+    SegD! = SQR(ex * ex + ey * ey)
+END FUNCTION
+
+' Mushrooms on a cap.
+SUB Shrooms (x AS INTEGER, cy AS INTEGER)
+    DIM j AS INTEGER, m AS INTEGER
+    FOR j = 0 TO 2
+        m = x - OVERHANG + 5 + j * 12
+        LINE (m, cy - 3)-(m, cy - 1), CWHITE
+        LINE (m - 2, cy - 4)-(m + 2, cy - 4), CSHROOM
+        LINE (m - 1, cy - 5)-(m + 1, cy - 5), CSHROOM
+        PSET (m - 1, cy - 4), CWHITE
+    NEXT
+END SUB
+
+' Sprite pixels from the shape, turned by the tilt.
+SUB Sketch (g() AS INTEGER, s AS Shape)
+    DIM px AS INTEGER, py AS INTEGER
+    DIM ct AS SINGLE, st AS SINGLE, wx AS SINGLE
+    DIM wy AS SINGLE, lx AS SINGLE, ly AS SINGLE
+    ct = COS(s.tilt): st = SIN(s.tilt)
+    FOR py = 1 TO SPRH
+        wy = (py - .5 - SPRH / 2) * ASPECT / MSCALE
+        FOR px = 1 TO SPRW
+            wx = (px - .5 - SPRW / 2) / MSCALE
+            lx = (wx * ct + wy * st) / s.sx
+            ly = (wy * ct - wx * st) / s.sy
+            g(px, py) = MothPix%(lx, ly, s)
+        NEXT
+    NEXT
+END SUB
+
+SUB StartSong (s AS Song, id AS INTEGER)
+    SOUND 37, 0
+    s.id = id
+    s.beat = 0
+    s.cue = ""
+END SUB
+
+SUB StopSong (s AS Song)
+    StartSong s, NOSONG
+END SUB
+
+' One fixed step: the screen's timers, the moth's,
+' then what the mode does.
+SUB Tick (w AS World, k AS Pad, st() AS Stone, sp() AS Spark)
+    w.g.clock = w.g.clock + STEPT
+    w.g.modeT = w.g.modeT + STEPT
+    AgeFx w.fx
+    AgeMoth w.m
+    SELECT CASE w.g.mode
+    CASE TITLE
+        Orbit w, k, st(), sp()
+    CASE PLAYING
+        Fly w, k, st(), sp()
+    CASE DYING
+        Fall w, sp()
     CASE OVER
-        IF flapped AND stateT > .6 THEN
-            NewGame
-            Flap
+        IF k.flap AND w.g.modeT > .6 THEN
+            Launch w, st(), sp()
         END IF
     END SELECT
-    IF mothY < SPRH \ 2 + 2 THEN mothY = SPRH \ 2 + 2: vy = 0
-
-    ' Esc faded the screen out: the title comes back by day
-    IF toTitle AND fade <= 0 THEN
-        toTitle = 0
-        state = TITLE
-        sky = DAY
-        fadeTarget = 1
-        StartSong TITLESONG
+    IF w.m.y < SPRH \ 2 + 2 THEN
+        w.m.y = SPRH \ 2 + 2
+        w.m.vy = 0
     END IF
-
-    ' the key colours ease toward the sky's, the fade toward its target
-    palT = palT + STEPT
-    IF palT >= 1 / 30 THEN
-        palT = 0
-        changed = 0
-        FOR i = 0 TO NKEY - 1
-            FOR j = 0 TO 2
-                want = (SkyKey(sky, i) \ 256& ^ j) MOD 256
-                d = want - CurKey(i, j)
-                IF ABS(d) > .5 THEN CurKey(i, j) = CurKey(i, j) + d * .06: changed = -1
-            NEXT
-        NEXT
-        IF fade < fadeTarget THEN fade = fade + .1: changed = -1
-        IF fade > fadeTarget THEN fade = fade - .1: changed = -1
-        IF fade < 0 THEN fade = 0
-        IF fade > 1 THEN fade = 1
-        IF changed THEN SetPalette
-    END IF
-
-    IF state <= PLAYING THEN
-        sparkT = sparkT + STEPT
-        IF sparkT > .05 THEN
-            sparkT = 0
-            Emit 1, 15, 0
-        END IF
-    END IF
-    FOR i = 0 TO NSPARK - 1
-        IF slife(i) > 0 THEN
-            sx(i) = sx(i) + svx(i) * STEPT
-            sy(i) = sy(i) + svy(i) * STEPT
-            svx(i) = svx(i) * (1 - 1.5 * STEPT)
-            svy(i) = svy(i) * (1 - 2 * STEPT) - 10 * STEPT
-            slife(i) = slife(i) - STEPT
-        END IF
-    NEXT
+    IF w.g.toTitle AND w.sky.fade <= 0 THEN BackToTitle w
+    Trail w, sp()
+    MoveSparks sp()
 END SUB
 
-' Text from the ROM font, sc times as big, its rows shaded from c1 to c2, over a shadow shd pixels
-' down and right.
-SUB Txt (t AS STRING, x AS INTEGER, y AS INTEGER, sc AS INTEGER, c1 AS INTEGER, c2 AS INTEGER, shd AS INTEGER)
-    DIM pass AS INTEGER, o AS INTEGER, i AS INTEGER, ch AS INTEGER, gx AS INTEGER, gy AS INTEGER
-    DIM r AS INTEGER, b AS INTEGER, c AS INTEGER, cx AS INTEGER, s AS INTEGER
+SUB TitleText (g AS Game)
+    DIM x AS INTEGER, h AS STRING
+    TxtC "MOTHLIGHT", 14, LNAME
+    ' a gleam sweeps across the name
+    x = INT(g.clock * 140) MOD 560 - 100
+    IF x >= 52 AND x <= 260 THEN
+        VIEW SCREEN (x, 14)-(x + 10, 38)
+        TxtC "MOTHLIGHT", 14, LGLEAM
+        VIEW
+    END IF
+    TxtC "a little moth's big day out", 44, LSMALL
+    IF INT(g.clock * 2) MOD 2 = 0 THEN
+        TxtC "PRESS SPACE TO FLY", 116, LPROMPT
+    END IF
+    IF g.best THEN TxtC "BEST" + STR$(g.best), 138, LBEST
+    h = "SPACE/ENTER/UP FLAP  M MUSIC  ESC QUIT"
+    TxtC h, 189, LSMALL
+END SUB
+
+SUB ToggleMusic (s AS Song)
+    s.playing = NOT s.playing
+    IF s.playing = 0 THEN SOUND 37, 0
+END SUB
+
+' Whether the moth's body, round on the screen,
+' meets the box.
+FUNCTION Touches% (m AS Moth, x1 AS SINGLE, y1 AS SINGLE, x2 AS SINGLE, y2 AS SINGLE)
+    DIM nx AS SINGLE, ny AS SINGLE
+    DIM dx AS SINGLE, dy AS SINGLE
+    nx = m.x: ny = m.y
+    IF nx < x1 THEN nx = x1
+    IF nx > x2 THEN nx = x2
+    IF ny < y1 THEN ny = y1
+    IF ny > y2 THEN ny = y2
+    dx = m.x - nx
+    dy = (m.y - ny) * ASPECT
+    Touches% = dx * dx + dy * dy < 30
+END FUNCTION
+
+' A trail of sparks behind the moth while it flies.
+SUB Trail (w AS World, sp() AS Spark)
+    IF w.g.mode > PLAYING THEN EXIT SUB
+    w.g.trail = w.g.trail + STEPT
+    IF w.g.trail <= .05 THEN EXIT SUB
+    w.g.trail = 0
+    Emit sp(), w.m, BTRAIL
+END SUB
+
+' Text from the ROM font in a look: its scale, rows
+' shaded from c1 to c2, over an inked shadow.
+SUB Txt (t AS STRING, x AS INTEGER, y AS INTEGER, id AS INTEGER)
+    DIM pass AS INTEGER, o AS INTEGER, i AS INTEGER
+    DIM r AS INTEGER, c AS INTEGER, sc AS INTEGER
+    DIM gx AS INTEGER, ch AS INTEGER, span AS INTEGER
+    DIM c1 AS INTEGER, gy AS INTEGER
+    sc = Looks(id).sc
+    c1 = Looks(id).c1
+    span = Looks(id).c2 - Looks(id).c1 + 1
     FOR pass = 0 TO 1
-        IF pass = 0 THEN
-            IF shd = 0 THEN pass = 1
-        END IF
-        IF pass = 0 THEN o = shd ELSE o = 0
-        FOR i = 1 TO LEN(t)
-            ch = ASC(MID$(t, i, 1))
-            gx = x + (i - 1) * 8 * sc + o
-            FOR r = 0 TO 7
-                b = Glyph(ch, r)
-                IF b THEN
-                    IF pass = 0 THEN c = CINK ELSE c = c1 + (r * (c2 - c1 + 1)) \ 8
+        o = 0
+        IF pass = 0 THEN o = Looks(id).sh
+        IF pass = 1 OR o > 0 THEN
+            FOR i = 1 TO LEN(t)
+                ch = ASC(MID$(t, i, 1))
+                gx = x + (i - 1) * 8 * sc + o
+                FOR r = 0 TO 7
+                    c = CINK
+                    IF pass THEN c = c1 + r * span \ 8
                     gy = y + r * sc + o
-                    cx = 0
-                    DO WHILE cx < 8
-                        IF b AND Bit(cx) THEN
-                            s = cx
-                            DO WHILE cx < 8
-                                IF (b AND Bit(cx)) = 0 THEN EXIT DO
-                                cx = cx + 1
-                            LOOP
-                            LINE (gx + s * sc, gy)-(gx + cx * sc - 1, gy + sc - 1), c, BF
-                        ELSE
-                            cx = cx + 1
-                        END IF
-                    LOOP
-                END IF
+                    GlyphRow Glyph(ch, r), gx, gy, sc, c
+                NEXT
             NEXT
+        END IF
+    NEXT
+END SUB
+
+SUB TxtC (t AS STRING, y AS INTEGER, id AS INTEGER)
+    Txt t, (SW - LEN(t) * 8 * Looks(id).sc) \ 2, y, id
+END SUB
+
+' Vines hang from the top and sway, leaves on them.
+SUB Vines (x AS INTEGER, y2 AS INTEGER, t AS SINGLE)
+    DIM j AS INTEGER, y AS INTEGER, px AS INTEGER
+    FOR j = 0 TO 2
+        FOR y = 0 TO y2
+            px = x + 5 + j * 9
+            px = px + INT(1.5 * SIN(t * 1.7 + y * .16 + j))
+            PSET (px, y), CVINE
+            IF (y + j * 2) MOD 6 = 0 THEN
+                PSET (px + 1, y), CMOSS
+                PSET (px - 1, y + 1), CMOSS
+            END IF
         NEXT
     NEXT
 END SUB
 
-SUB TxtC (t AS STRING, y AS INTEGER, sc AS INTEGER, c1 AS INTEGER, c2 AS INTEGER, shd AS INTEGER)
-    Txt t, (SW - LEN(t) * 8 * sc) \ 2, y, sc, c1, c2, shd
-END SUB
+FUNCTION Wet& (c AS LONG, lake AS LONG)
+    Wet& = Mix&(Mix&(c, lake, .45), 0, .1)
+END FUNCTION
+
+' Inside the forewing: a white eyespot, an ink ring
+' round it, an orange edge.
+FUNCTION WingPix% (dx AS SINGLE, dy AS SINGLE, e AS SINGLE)
+    DIM d AS SINGLE
+    d = dx * dx + dy * dy
+    IF (dx - .8) ^ 2 + (dy + .8) ^ 2 < 1.6 THEN
+        WingPix% = CWHITE
+    ELSEIF d < 5 THEN
+        WingPix% = CINK
+    ELSEIF d < 11 OR e > .7 THEN
+        WingPix% = CWEDGE
+    ELSE
+        WingPix% = CWING
+    END IF
+END FUNCTION

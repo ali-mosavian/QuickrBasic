@@ -14,24 +14,26 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DEMO = ROOT / "src/plat/wasm/web/demos/MOTHLITE.BAS"
 
-DRIVER = """Setup
-DIM kind AS INTEGER, x AS INTEGER
+DRIVER = """OpenScreen
+LoadTables
+LoadTerrain
+DIM st(0) AS Stone, kind AS INTEGER, x AS INTEGER
 FOR kind = 0 TO NKIND - 1
     FOR x = -STONEW - 6 TO 645
-        DrawStone x, 0, 100, 0, kind
-        DrawStone x, 120, GROUNDY - 1, -1, kind
+        st(0).x = x
+        st(0).kind = kind
+        st(0).gap = 100
+        DrawStone st(), 0, 0
     NEXT
 NEXT
 PRINT "stones ok"
 END
-
 """
 
 
 def program() -> str:
-    source = DEMO.read_text()
-    head, rest = source.split("Setup\nBuildGlyphs\n", 1)
-    return head + DRIVER + rest[rest.index("Skies:") :]
+    head, rest = DEMO.read_text().split("\nMain\nEND\n", 1)
+    return head + "\n" + DRIVER + rest
 
 
 def main() -> None:
@@ -43,7 +45,8 @@ def main() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "STONES.BAS"
         path.write_text(program())
-        out = subprocess.run([exe, path.name], cwd=tmp, capture_output=True, text=True, timeout=60).stdout
+        run = subprocess.run([exe, path.name], cwd=tmp, capture_output=True, timeout=60)
+        out = run.stdout.decode(errors="replace")
     ok = "stones ok" in out
     print("mothlite " + ("ok" if ok else "FAIL\n" + out[-600:]))
     sys.exit(0 if ok else 1)
