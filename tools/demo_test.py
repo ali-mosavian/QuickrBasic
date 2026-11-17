@@ -7,7 +7,6 @@ The capture's first frame is the screen before the cls. Timed from the first cli
 the capture's, it landed in the first clip: the mount's line, the host's temporary directory.
 """
 
-import os
 
 import demo
 from PIL import Image
@@ -34,8 +33,8 @@ def test_frames_round_trip(tmp: str = "/tmp") -> None:
 
 
 def test_recording_starts_clean() -> None:
-    if not os.environ.get("DOSBOX_BIN"):
-        print("skipped: DOSBOX_BIN, a dosbox-x with video_start")
+    if not demo.dosplay.DOSBOX.exists():
+        print(f"skipped: {demo.dosplay.DOSBOX}, a dosbox-x with video_start (tools/deps.sh capture)")
         return
     rec = demo.Recording()
     ide = demo.Ide(rec)

@@ -9,20 +9,16 @@ import tempfile
 from PIL import Image
 from pathlib import Path
 
-LLRM = Path("/Users/alim/work/personal/llrm-qbmac/tools")
-sys.path[:0] = [str(LLRM), str(LLRM / "dosbatch")]
-import llrmbin  # noqa: E402
-
-llrmbin.stale_binaries = lambda *a, **k: []  # the emulator is the stamped one; the llrm sources are not ours
-import qbplay  # noqa: E402
+sys.path.insert(0, str(Path(__file__).parent))
+import dosplay  # noqa: E402
 import dosrun  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 IMG = ROOT / "docs/img"
 ALT_F, ALT_S, F4, F5 = 0x21, 0x1F, 0x3E, 0x3F
 MSGS = dosrun.messages()
-# IDE_EXE=build/x86/ide32.exe plays the flat build, DOS32A.EXE beside it
-IDE = Path(os.environ.get("IDE_EXE", ROOT / "build/x86/ide32.exe"))
+# IDE_EXE picks the build (build/c/ide32.exe), DOS32A.EXE beside it
+IDE = Path(os.environ.get("IDE_EXE", ROOT / "build/c/ide32.exe"))
 
 
 def play() -> None:
@@ -35,7 +31,7 @@ def play() -> None:
     (work / "BASIC.HLP").write_bytes((ROOT / hlp).read_bytes())
     (work / "SQ.BAS").write_bytes(b"for i=1 to _\r\n 3\r\n  print i*i\r\nnext\r\n")
     (work / "SUB").mkdir()
-    s = qbplay.Session(work)
+    s = dosplay.Session(work)
     s.launch(3000, exe)
     s.keys_in_lockstep(["esc"], 3000)  # the first key after the launch is lost
     s.resume(100)

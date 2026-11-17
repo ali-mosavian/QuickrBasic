@@ -39,17 +39,13 @@ WHOLE = "\r\n".join([
 def screen_error() -> str:
     """An error in a graphics mode, standard output the screen: its message was printed on the
     graphics screen, which the exit's text mode cleared (GORILLAS.BAS left without a word)."""
-    llrm = Path("/Users/alim/work/personal/llrm-qbmac/tools")
-    sys.path[:0] = [str(llrm), str(llrm / "dosbatch")]
-    import llrmbin
-    llrmbin.stale_binaries = lambda *a, **k: []
-    import qbplay
+    import dosplay
 
     work = Path(tempfile.mkdtemp())
     (work / "B.EXE").write_bytes(dosrun.COM.read_bytes())
     (work / "DOS32A.EXE").write_bytes((dosrun.COM.parent / "DOS32A.EXE").read_bytes())
     (work / "E.BAS").write_bytes(b"SCREEN 13\r\nERROR 5\r\n")
-    s = qbplay.Session(work)
+    s = dosplay.Session(work)
     s.keys_in_lockstep(["b", "space", "e", ".", "b", "a", "s"], 3000)
     s.keys_in_lockstep(["enter"], 3000)
     s.resume(3000)

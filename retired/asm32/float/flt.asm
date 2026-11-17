@@ -17,7 +17,7 @@
 include x86f.inc
         .code
 
-; below the 24-bit significand, as retired/asm32/core/num/num_f32.s.
+; below the 24-bit significand, as cbmbasic-bc's src/core/num/num_f32.s.
 
 ; ::::::::::::::
 ; err_ov - ?OVERFLOW.

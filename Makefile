@@ -1,306 +1,240 @@
-# make [all|test|clean]: the C build, build/c/basic32.exe (the compiler and runtime) and
-# build/c/ide32.exe (with the editor), DOS/32A executables; DOS32A.EXE beside them.
-# The asm it was ported from, retired/: make asm (build/x86), make asm16 (16-bit .COM).
-PY := python3
-comma := ,
-LLRM_BIN ?= /Users/alim/work/personal/llrm-qbmac/target/release
-# llrm's pinned Open Watcom: its DOS/32A
-DOS32A ?= $(HOME)/.cache/llrm/open-watcom-v2-703e1ae2f9a621dda2d28fb39b12d0d6d2788af6/bld/redist/dos32a
-AC ?= 1                         # ide32: Tab completion, AC=0 leaves it out
+# QuickrBasic. `make` builds build/c/basic32.exe (the compiler and runtime) and build/c/ide32.exe
+# (with the editor): DOS/32A programs, with DOS32A.EXE and BASIC.HLP beside them.
+#
+#   make             the DOS build; GCC=1 builds it with i686-elf-gcc instead, in build/gcc
+#   make test        the DOS build's suites, under DOSBox-X
+#   make host        the same core for this machine: build/host/basic
+#   make host-test   the unit tests, the golden code and the suites on the host build
+#   make lto         build/lto: the whole program optimized as one module (LLVM); PGO=1 trains it first
+#   make format      the C sources formatted
+#   make clean
+#
+# Tools: clang (any with the i386 target), python3, git and a C compiler for the pinned jwasm,
+# jwlink and DOSBox-X, which tools/deps.sh builds into build/deps on first use.
+# The retired asm builds on its own: make -C retired/asm32, make -C retired/asm16.
 
-.PHONY: all test clean
-all: c
-test: ctest
-clean:
-	rm -rf build
+PY ?= python3
+CLANG ?= clang
+AC ?= 1                            # the editor's Tab completion; AC=0 leaves it out
 
-# ---- The C build: src/, clang for i386 (COFF), build/c/basic32.exe and ide32.exe ----
-# LLRM: llrm release/next's tree, for its DOS32 start-up and runtime, link recipe (jwlink) and
-# jwasm. The C library's subset is src/lib; its mem routines are renamed in each object.
-LLRM ?= $(HOME)/work/personal/llrm-next
-CLANG ?= /opt/homebrew/opt/llvm/bin/clang
-OBJCOPY ?= $(dir $(CLANG))llvm-objcopy
-CC_OPT ?= -O2
-CFLAGS := --target=i386-pc-win32 -march=i386 -mregparm=3 -std=c23 $(CC_OPT) -ffreestanding \
-	-fno-asynchronous-unwind-tables -fno-stack-protector -mno-stack-arg-probe -mstack-alignment=4 -Werror=undef \
-	-DARENA_AT_ZERO=1 -Wall -Wextra -Wno-unused-parameter -isystem src/lib/include \
-	-Isrc -Isrc/core
-COWN := $(foreach f,memcpy memmove memset,--redefine-sym _$(f)=_lib_$(f))
-# GCC=1: i686-elf-gcc, its assembly made COFF (tools/gas2coff.py) and assembled by clang, in build/cgcc
+DEPS := build/deps/bin
+JWASM ?= $(DEPS)/jwasm
+JWLINK ?= $(DEPS)/jwlink
+DOSBOX_BIN ?= $(DEPS)/dosbox-x
+DOS32A ?= third_party/dos32a
+export JWASM JWLINK DOSBOX_BIN DOS32A
+
+.PHONY: all test host host-test lto format clean
+all:
+
+$(DEPS)/jwasm $(DEPS)/jwlink: tools/deps.sh
+	sh tools/deps.sh build
+$(DEPS)/dosbox-x: tools/deps.sh
+	sh tools/deps.sh dosbox
+
+# ---- The DOS build: clang for i386 (COFF), the start-up and OS layer by jwasm, linked by jwlink ----
+
+B := $(if $(GCC),build/gcc,build/c)
+CFLAGS := --target=i386-pc-win32 -march=i386 -mregparm=3 -std=c23 -O2 -ffreestanding -fno-asynchronous-unwind-tables \
+	-fno-stack-protector -mno-stack-arg-probe -mstack-alignment=4 -Wall -Wextra -Wno-unused-parameter -Werror=undef \
+	-DARENA_AT_ZERO=1 -isystem src/lib/include -Isrc -Isrc/core
+DEPFLAGS = -MMD -MP -MF $@.d -MT $@
+
+# GCC=1: i686-elf-gcc's assembly, made COFF by tools/gas2coff.py and assembled by clang
 GCC_CC ?= i686-elf-gcc
-B := $(if $(GCC),build/cgcc,build/c)
-GFLAGS = $(filter-out --target=i386-pc-win32 -mno-stack-arg-probe -mstack-alignment=4,$1) \
-	-mpreferred-stack-boundary=2 -fleading-underscore -fno-pic \
-	-fno-delete-null-pointer-checks --param=min-pagesize=0 # the arena and BIOS data start at address 0
-cc = $(if $(GCC),$(GCC_CC) $(GFLAGS) -S $< -o $@.s && $(PY) tools/gas2coff.py $@.s $@.s && \
-	$(CLANG) --target=i386-pc-win32 -march=i386 -c $@.s -o $@,$(CLANG) $1 -c $< -o $@)
+GCCFLAGS = $(filter-out --target=i386-pc-win32 -mno-stack-arg-probe -mstack-alignment=4,$1) -mpreferred-stack-boundary=2 \
+	-fleading-underscore -fno-pic -fno-delete-null-pointer-checks --param=min-pagesize=0  # data at address 0
+ifdef GCC
+compile = $(GCC_CC) $(call GCCFLAGS,$1) $(DEPFLAGS) -S $< -o $@.s && $(PY) tools/gas2coff.py $@.s $@.s && \
+	$(CLANG) --target=i386-pc-win32 -march=i386 -c $@.s -o $@
+else
+compile = $(CLANG) $1 $(DEPFLAGS) -c $< -o $@
+endif
 
-# llrm's QB runtime (graphics, sound), ours since llrm-next f4197e19b2 (src/qbrt/llrm): the portable
-# part, then each target's
+# llrm's QB runtime (graphics, sound, the screen), src/qbrt/llrm: its portable part, then DOS's
 QBRT := src/qbrt/llrm
-QBRT_PORTABLE := $(addprefix qb/,console.c cntext.c cngfx.c gfx.c gline.c gcirc.c gpaint.c gputget.c \
-	gdraw.c play.c screen.c scrfn.c sleep.c sticks.c timer.c varptr.c error.c rtinit.c nhstutil.c nheap.c)
-# DOS32: its own device and asm, by clang and jwasm; the asm's names given to clang's C (names.h)
-QBRT_DSRC := $(QBRT_PORTABLE) $(addprefix qb/,dos/m32/ad.c posix/block.c dev/dos/gfxdev.c \
+QBRT_PORTABLE := $(addprefix qb/,console.c cntext.c cngfx.c gfx.c gline.c gcirc.c gpaint.c gputget.c gdraw.c play.c \
+	screen.c scrfn.c sleep.c sticks.c timer.c varptr.c error.c rtinit.c nhstutil.c nheap.c)
+QBRT_DOS_C := $(QBRT_PORTABLE) $(addprefix qb/,dos/m32/ad.c posix/block.c dev/dos/gfxdev.c \
 	$(addprefix dev/dos/m32/,clock.c con.c key.c prn.c text.c tone.c))
-QBRT_DASM := $(addprefix qb/dev/dos/m32/,bios.asm gdcirc.asm gdfill.asm gdline.asm gdscan.asm gdxfer.asm \
-	ports.asm tick.asm) qb/dos/m32/block.asm
-QBRT_DINC := -Isrc/qbrt/include $(addprefix -I$(QBRT)/qb/,dos/m32 . dev dev/dos/m32 dev/dos) \
-	-I$(QBRT)/os/x86-m32
-QBRT_DOBJ := $(QBRT_DSRC:%.c=$(B)/qbrt/%.obj) $(QBRT_DASM:%.asm=$(B)/qbrt/%.obj) \
-	$(B)/obj/qbrt/qbrt.obj $(B)/obj/qbrt/qbrt_dos.obj
-$(B)/qbrt/names.h: $(QBRT)/qb/dev/dos/m32/device.h $(QBRT)/qb/dev/dos/m32/devsym.h
+QBRT_DOS_ASM := $(addprefix qb/dev/dos/m32/,bios.asm gdcirc.asm gdfill.asm gdline.asm gdscan.asm gdxfer.asm ports.asm \
+	tick.asm) qb/dos/m32/block.asm
+QBRT_DOS_INC := -Isrc/qbrt/include $(addprefix -I$(QBRT)/qb/,dos/m32 . dev dev/dos/m32 dev/dos) -I$(QBRT)/os/x86-m32
+# the runtime's asm names, as Watcom's pragmas give them, for clang's C
+NAMES := $(B)/qbrt/names.h
+
+CORE_C := $(shell find src/core src/lib -name '*.c' -not -path 'src/core/ui/*') $(wildcard src/plat/dos32/*.c) src/boot.c
+UI_C := $(wildcard src/core/ui/*.c)
+DOS_ASM := $(wildcard src/plat/dos32/*.asm)
+ASM_OBJ := $(DOS_ASM:src/%.asm=$(B)/obj/%.obj) $(QBRT_DOS_ASM:%.asm=$(B)/qbrt/%.obj)
+CORE_OBJ := $(CORE_C:src/%.c=$(B)/obj/%.obj) $(QBRT_DOS_C:%.c=$(B)/qbrt/%.obj) $(B)/obj/qbrt/qbrt.obj \
+	$(B)/obj/qbrt/qbrt_dos.obj $(ASM_OBJ)
+BASIC_OBJ := $(CORE_OBJ) $(B)/obj/app/basic32.obj
+IDE_OBJ := $(CORE_OBJ) $(UI_C:src/%.c=$(B)/obj/%.obj) $(B)/obj/app/ide32.obj
+DOS_EXE := $(B)/basic32.exe $(B)/ide32.exe $(B)/DOS32A.EXE $(B)/BASIC.HLP
+
+all: $(DOS_EXE)
+
+$(NAMES): $(QBRT)/qb/dev/dos/m32/device.h $(QBRT)/qb/dev/dos/m32/devsym.h
 	@mkdir -p $(@D)
 	sed -n 's/^#pragma aux \([a-z_0-9]*\) "\(B\$$[A-Z0-9]*\)"/#pragma redefine_extname \1 \2/p' $^ > $@
 	echo '#pragma redefine_extname music_tick B$$MUSICTICK' >> $@
 	echo 'void music_tick(void); /* gcc renames a declaration, not a first definition */' >> $@
-$(B)/qbrt/%.obj: $(QBRT)/%.c $(B)/qbrt/names.h
-	@mkdir -p $(@D)
-	$(call cc,$(subst -std=c23,-std=gnu11,$(CFLAGS)) -w -D__cdecl= -include $(B)/qbrt/names.h $(QBRT_DINC))
-	$(OBJCOPY) $(COWN) $@
-$(B)/qbrt/%.obj: $(QBRT)/%.asm
-	@mkdir -p $(@D)
-	$(LLRM)/target/release/jwasm -q -coff -I$(QBRT)/qb/dev/dos/m32 -Fo$@ $<
-$(B)/obj/qbrt/%.obj: src/qbrt/%.c $(CHDR) $(B)/qbrt/names.h
-	@mkdir -p $(@D)
-	$(call cc,$(CFLAGS) -D__cdecl= -include $(B)/qbrt/names.h $(subst -I,-isystem ,$(QBRT_DINC)))
-	$(OBJCOPY) $(COWN) $@
 
-CSRC := $(shell find src/core src/lib -name '*.c' -not -path 'src/core/ui/*') \
-	$(wildcard src/plat/dos32/*.c) src/boot.c
-CUI := $(shell find src/core/ui -name '*.c' 2>/dev/null)
-CASM := $(wildcard src/plat/dos32/*.asm)
-CHDR := $(shell find src -name '*.h' -o -name '*.def')
-CCORE := $(CSRC:src/%.c=$(B)/obj/%.obj) $(CASM:src/%.asm=$(B)/obj/%.obj) $(QBRT_DOBJ)
-COBJ := $(CCORE) $(B)/obj/app/basic32.obj
-CIDE_OBJ := $(CCORE) $(CUI:src/%.c=$(B)/obj/%.obj) $(B)/obj/app/ide32.obj
-C_LINK = python3 -I $(LLRM)/tools/dosbatch/link_objects.py x86-m32
-
-.PHONY: c cbasic32 cide32 ctest cstyle
-cstyle:                         # formats the C sources (tools/cfmt.py)
-	git ls-files 'src/*.[ch]' 'tests/*.[ch]' | grep -v -e qbrt/llrm/ -e comp/dfa.h -e io/gen.h -e io/msg.h | xargs $(PY) tools/cfmt.py
-c: cbasic32 cide32
-
-$(B)/obj/core/ui/%.obj: src/core/ui/%.c $(CHDR)   # the editor: AC, its Tab completion
+$(B)/qbrt/%.obj: $(QBRT)/%.c $(NAMES)
 	@mkdir -p $(@D)
-	$(call cc,$(CFLAGS) -DAC=$(AC))
-	$(OBJCOPY) $(COWN) $@
-$(B)/obj/%.obj: src/%.c $(CHDR)
+	$(call compile,$(subst -std=c23,-std=gnu11,$(CFLAGS)) -w -D__cdecl= -include $(NAMES) $(QBRT_DOS_INC))
+$(B)/qbrt/%.obj: $(QBRT)/%.asm | $(JWASM)
 	@mkdir -p $(@D)
-	$(call cc,$(CFLAGS))
-	$(OBJCOPY) $(COWN) $@
-$(B)/obj/%.obj: src/%.asm
+	$(JWASM) -q -coff -I$(QBRT)/qb/dev/dos/m32 -Fo$@ $<
+$(B)/obj/qbrt/%.obj: src/qbrt/%.c $(NAMES)
 	@mkdir -p $(@D)
-	$(LLRM)/target/release/jwasm -q -zf0 -Fo $@ $<
+	$(call compile,$(CFLAGS) -D__cdecl= -include $(NAMES) $(subst -I,-isystem ,$(QBRT_DOS_INC)))
+$(B)/obj/core/ui/%.obj: src/core/ui/%.c
+	@mkdir -p $(@D)
+	$(call compile,$(CFLAGS) -DAC=$(AC))
+$(B)/obj/%.obj: src/%.c
+	@mkdir -p $(@D)
+	$(call compile,$(CFLAGS))
+$(B)/obj/%.obj: src/%.asm | $(JWASM)
+	@mkdir -p $(@D)
+	$(JWASM) -q -zf0 -Fo$@ $<
 
-cbasic32: $(COBJ)
-	$(C_LINK) $(abspath $(B)/basic32.exe) $(abspath $(COBJ))
-	$(PY) tools/dos32a_quiet.py $(DOS32A)/dos32a.exe $(B)/DOS32A.EXE
+$(B)/basic32.exe: $(BASIC_OBJ) tools/doslink.py | $(JWASM) $(JWLINK)
+	$(PY) tools/doslink.py $@ $(BASIC_OBJ)
+$(B)/ide32.exe: $(IDE_OBJ) tools/doslink.py | $(JWASM) $(JWLINK)
+	$(PY) tools/doslink.py $@ $(IDE_OBJ)
+$(B)/DOS32A.EXE: $(DOS32A)/dos32a.exe tools/dos32a_quiet.py
+	$(PY) tools/dos32a_quiet.py $< $@
+$(B)/BASIC.HLP: src/basic.hlp
+	cp $< $@
 
-cide32: $(CIDE_OBJ)
-	$(C_LINK) $(abspath $(B)/ide32.exe) $(abspath $(CIDE_OBJ))
-	cp src/basic.hlp $(B)/BASIC.HLP
-	$(PY) tools/dos32a_quiet.py $(DOS32A)/dos32a.exe $(B)/DOS32A.EXE
+-include $(shell find $(B) -name '*.d' 2>/dev/null)
 
-# ---- LTO (make lto): the C objects as bitcode (build/lto), one module optimized whole by
-# tools/lto.py, linked with the asm's objects: build/lto/basic32.exe and ide32.exe. PGO=1: what
-# a training run calls not is cold (tools/pgo.py, build/lto/*.hot)
-CASM_OBJ := $(CASM:src/%.asm=build/c/obj/%.obj) $(QBRT_DASM:%.asm=build/c/qbrt/%.obj)
-CBC = $(patsubst build/c/%.obj,build/lto/%.bc,$(filter-out $(CASM_OBJ),$1))
-.PHONY: lto
-lto: build/lto/basic32.exe build/lto/ide32.exe
+# ---- The tests ----
 
-build/lto/qbrt/%.bc: $(QBRT)/%.c build/c/qbrt/names.h
-	@mkdir -p $(@D)
-	$(CLANG) $(subst -std=c23,-std=gnu11,$(CFLAGS)) -flto -w -D__cdecl= -include build/c/qbrt/names.h \
-		$(QBRT_DINC) -c $< -o $@
-build/lto/obj/qbrt/%.bc: src/qbrt/%.c $(CHDR) build/c/qbrt/names.h
-	@mkdir -p $(@D)
-	$(CLANG) $(CFLAGS) -flto -D__cdecl= -include build/c/qbrt/names.h $(subst -I,-isystem ,$(QBRT_DINC)) \
-		-c $< -o $@
-build/lto/obj/core/ui/%.bc: src/core/ui/%.c $(CHDR)
-	@mkdir -p $(@D)
-	$(CLANG) $(CFLAGS) -flto -DAC=$(AC) -c $< -o $@
-build/lto/obj/%.bc: src/%.c $(CHDR)
-	@mkdir -p $(@D)
-	$(CLANG) $(CFLAGS) -flto -c $< -o $@
+TOOLS_TEST := tools/cfmt_test.py tools/gas2coff_test.py tools/conformance_test.py
+test: $(DOS_EXE) | $(DOSBOX_BIN)
+	sh tests/gen/dfa.sh
+	sh tests/gen/messages.sh
+	$(PY) tools/dosrun_test.py
+	$(PY) tools/libcalls_test.py
+	BASIC_EXE=$(B)/basic32.exe $(PY) tools/regress_test.py $(B)/basic32.exe
+	BASIC_EXE=$(B)/basic32.exe $(PY) tools/conformance.py
+	BASIC_EXE=$(B)/basic32.exe $(PY) tools/fold_test.py $(B)/basic32.exe
+	BASIC_EXE=$(B)/basic32.exe $(PY) tools/cost_test.py $(B)/basic32.exe
+	BASIC_EXE=$(B)/basic32.exe $(PY) tools/gfx_test.py
+	IDE_EXE=$(B)/ide32.exe $(PY) tools/ide_test.py
 
-build/lto/prof/%.obj: build/lto/%.bclist
-	@mkdir -p $(@D)
-	$(PY) tools/lto.py $(CLANG) $@ --profiling $(shell cat $<) -- $(CASM_OBJ)
-build/lto/basic32.bclist: $(call CBC,$(COBJ))
-	echo $^ > $@
-build/lto/ide32.bclist: $(call CBC,$(CIDE_OBJ))
-	echo $^ > $@
-build/lto/%.hot: build/lto/prof/%.obj $(CASM_OBJ)
-	$(PY) tools/pgo.py $@ build/lto/prof/$*.exe $(if $(findstring ide,$*),ide) -- $< $(CASM_OBJ)
-CHOT = $(if $(PGO),--hot build/lto/$1.hot)
-.SECONDARY: build/lto/prof/basic32.obj build/lto/prof/ide32.obj
-
-build/lto/basic32.exe: $(call CBC,$(COBJ)) $(CASM_OBJ) $(if $(PGO),build/lto/basic32.hot)
-	$(PY) tools/lto.py $(CLANG) build/lto/basic32.obj $(call CHOT,basic32) $(call CBC,$(COBJ)) -- $(CASM_OBJ)
-	$(C_LINK) $(abspath $@) $(abspath build/lto/basic32.obj $(CASM_OBJ))
-	$(PY) tools/dos32a_quiet.py $(DOS32A)/dos32a.exe build/lto/DOS32A.EXE
-	$(PY) tools/lto_test.py $@
-build/lto/ide32.exe: $(call CBC,$(CIDE_OBJ)) $(CASM_OBJ) $(if $(PGO),build/lto/ide32.hot)
-	$(PY) tools/lto.py $(CLANG) build/lto/ide32.obj $(call CHOT,ide32) $(call CBC,$(CIDE_OBJ)) -- $(CASM_OBJ)
-	$(C_LINK) $(abspath $@) $(abspath build/lto/ide32.obj $(CASM_OBJ))
-	cp src/basic.hlp build/lto/BASIC.HLP
-	$(PY) tools/dos32a_quiet.py $(DOS32A)/dos32a.exe build/lto/DOS32A.EXE
-
-# ---- The host build: the same core on this machine's own CPU (plat/host/pfpu.c: the x87's on x86-64, C's on another) ----
-SDK := $(shell xcrun --show-sdk-path 2>/dev/null)
-HOST_CC ?= $(CLANG) -isysroot $(SDK)
-HOST_CFLAGS := -std=c23 -O1 -g -Werror=undef -DARENA_AT_ZERO=0 -DEXEC_COUNT -Wall -Wextra -Wno-unused-parameter \
-	-Isrc/plat/host/include -Isrc -Isrc/core
-HSRC := $(shell find src/core -name '*.c' -not -path 'src/core/ui/*') src/core/ui/tree.c src/core/ui/indent.c \
-	$(wildcard src/plat/host/*.c) src/boot.c
-HOBJ := $(HSRC:src/%.c=build/host/obj/%.o)
-
-# the host: llrm's headless device
-QBRT_HSRC := $(QBRT_PORTABLE) $(addprefix qb/,posix/block.c posix/ad.c posix/mathops.c \
-	dev/headless/headless.c dev/host/video.c dev/host/vgadata.c dev/host/tick.c) shared/posix/os.c
-QBRT_HINC := -Isrc/qbrt/include $(addprefix -I$(QBRT)/,qb/posix qb qb/dev qb/dev/headless qb/dev/host shared/posix)
-QBRT_HOBJ := $(QBRT_HSRC:%.c=build/host/qbrt/%.o) build/host/obj/qbrt/qbrt.o build/host/obj/qbrt/qbrt_host.o
-# play.c's waits for the tick come to qbrt_idle (BREAK, the tick in tests); the flag is here, so is its rebuild
-build/host/qbrt/qb/play.o: QBRT_DEF = '-DQB_IDLE()=do { extern void qbrt_idle(void); qbrt_idle(); } while (0)'
-build/host/qbrt/qb/play.o: Makefile
-build/host/qbrt/%.o: $(QBRT)/%.c
-	@mkdir -p $(@D)
-	$(HOST_CC) -std=gnu11 -w -D__cdecl= $(QBRT_DEF) $(QBRT_HINC) -c $< -o $@
-build/host/obj/qbrt/%.o: src/qbrt/%.c $(CHDR)
-	@mkdir -p $(@D)
-	$(HOST_CC) $(HOST_CFLAGS) $(subst -I,-isystem ,$(QBRT_HINC)) -c $< -o $@
-
-.PHONY: chost chosttest
-build/host/obj/%.o: src/%.c $(CHDR)
-	@mkdir -p $(@D)
-	$(HOST_CC) $(HOST_CFLAGS) -c $< -o $@
-
-chost: build/host/basic
-build/host/basic: $(HOBJ) $(QBRT_HOBJ) build/host/obj/app/basic32.o build/host/obj/plat/host/app/term.o
-	$(HOST_CC) $^ -o $@
-
-# tools/bench.py's native build: optimized, no op count;
-# QB_INSNS reports the instructions it ran
-.PHONY: chostperf
-HPERF_CFLAGS := $(filter-out -O1 -g -DEXEC_COUNT,$(HOST_CFLAGS)) -O2
-HPERF_OBJ := $(HSRC:src/%.c=build/hostperf/obj/%.o)
-HPERF_QBRT := $(QBRT_HSRC:%.c=build/hostperf/qbrt/%.o) build/hostperf/obj/qbrt/qbrt.o build/hostperf/obj/qbrt/qbrt_host.o
-build/hostperf/qbrt/qb/play.o: QBRT_DEF = '-DQB_IDLE()=do { extern void qbrt_idle(void); qbrt_idle(); } while (0)'
-build/hostperf/qbrt/%.o: $(QBRT)/%.c
-	@mkdir -p $(@D)
-	$(HOST_CC) -O2 -std=gnu11 -w -D__cdecl= $(QBRT_DEF) $(QBRT_HINC) -c $< -o $@
-build/hostperf/obj/qbrt/%.o: src/qbrt/%.c $(CHDR)
-	@mkdir -p $(@D)
-	$(HOST_CC) $(HPERF_CFLAGS) $(subst -I,-isystem ,$(QBRT_HINC)) -c $< -o $@
-build/hostperf/obj/%.o: src/%.c $(CHDR)
-	@mkdir -p $(@D)
-	$(HOST_CC) $(HPERF_CFLAGS) -c $< -o $@
-chostperf: build/hostperf/basic
-build/hostperf/basic: $(HPERF_OBJ) $(HPERF_QBRT) build/hostperf/obj/app/basic32.o build/hostperf/obj/plat/host/app/insns.o
-	$(HOST_CC) $^ -o $@
-
-UNIT_SRC := $(wildcard tests/unit/*.c)
-UNIT_OBJ := $(UNIT_SRC:tests/unit/%.c=build/host/unit/%.o)
-build/host/unit/%.o: tests/unit/%.c tests/unit/unit.h $(CHDR)
-	@mkdir -p $(@D)
-	$(HOST_CC) $(HOST_CFLAGS) -c $< -o $@
-build/host/unit_tests: $(HOBJ) $(QBRT_HOBJ) $(UNIT_OBJ)
-	$(HOST_CC) $^ -o $@
-
-.PHONY: cunit
-cunit: build/host/unit_tests   # the unit tests, on the host
+host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/hostperf/basic
+	for t in $(TOOLS_TEST); do $(PY) $$t || exit 1; done
 	build/host/unit_tests
-
-build/host/golden/dump.o: tests/golden/dump.c $(CHDR)
-	@mkdir -p $(@D)
-	$(HOST_CC) $(HOST_CFLAGS) -c $< -o $@
-build/host/golden_dump: $(HOBJ) $(QBRT_HOBJ) build/host/golden/dump.o
-	$(HOST_CC) $^ -o $@
-
-.PHONY: cgolden cgolden-update
-cgolden: build/host/golden_dump   # each corpus line's code against tests/golden/code.txt
 	$(PY) tools/golden.py
-cgolden-update: build/host/golden_dump
-	$(PY) tools/golden.py --update
-
-chosttest: chost chostperf cunit cgolden  # the unit tests and the suites against the host build, natively
-	$(PY) tools/conformance_test.py
 	BASIC_EXE=build/host/basic $(PY) tools/regress_test.py build/host/basic
 	BASIC_EXE=build/host/basic $(PY) tools/conformance.py
 	$(PY) tools/fold_test.py build/host/basic
 	$(PY) tools/pterm_test.py build/host/basic
 	$(PY) tools/bench_test.py
 
-ctest:                          # the suites against the C build (GCC=1: gcc's)
-	$(PY) tools/libcalls_test.py
-	cd tools && $(PY) gas2coff_test.py
-	BASIC_EXE=$(B)/basic32.exe $(PY) tools/regress_test.py $(B)/basic32.exe
-	BASIC_EXE=$(B)/basic32.exe $(PY) tools/conformance.py
-	$(PY) tools/fold_test.py $(B)/basic32.exe
-	BASIC_EXE=$(B)/basic32.exe $(PY) tools/cost_test.py $(B)/basic32.exe
-	BASIC_EXE=$(B)/basic32.exe $(PY) tools/gfx_test.py
-	IDE_EXE=$(B)/ide32.exe $(PY) tools/ide_test.py
+# ---- The host build: the same core on this machine (plat/host/pfpu.c: the x87's on x86-64, C's elsewhere) ----
 
-# ---- Retired: the asm the C was ported from (retired/asm32), build/x86/basic32.exe and ide32.exe ----
-.PHONY: asm asm-basic32 asm-ide32 syms asm-test asm-style asm16
-MODS := main vm/exec vm/flow vm/calls vm/builtins vm/sys vm/bin vm/bc comp/lex comp/decl comp/block comp/ctl comp/comp \
-	comp/expr comp/fold comp/link comp/list mem/far mem/alloc mem/tab mem/prog mem/sym mem/scope mem/str mem/arr io/io io/errmsg io/diag io/srd io/repl \
-	io/chan io/fio vm/using io/plat float/flt float/ftr float/fpu float/dbl vm/dbg vm/event vm/chain
-UI := ui/scr ui/mouse ui/compl ui/text ui/edit ui/draw ui/menu ui/dlg ui/lmap ui/dbg ui/dpane ui/win ui/view ui/theme ui/syntax ui/ui
-INC := $(wildcard retired/asm32/*.inc retired/asm32/*/*.inc)
-OBJ := $(MODS:%=build/basic32/%.obj) build/basic32/regions.obj
-IDE_OBJ := $(MODS:%=build/ide32/%.obj) $(UI:%=build/ide32/%.obj) build/ide32/regions.obj
-LE_LINK = $(LLRM_BIN)/jwlink option quiet format os2 le option stub=$(DOS32A)/stub32a.exe
+SDK := $(shell xcrun --show-sdk-path 2>/dev/null)
+HOST_CC ?= $(CLANG)$(if $(SDK), -isysroot $(SDK))
+HOST_CFLAGS := -std=c23 -O1 -g -Wall -Wextra -Wno-unused-parameter -Werror=undef -DARENA_AT_ZERO=0 -DEXEC_COUNT \
+	-Isrc/plat/host/include -Isrc -Isrc/core
+HOST_C := $(shell find src/core -name '*.c' -not -path 'src/core/ui/*') src/core/ui/tree.c src/core/ui/indent.c \
+	$(wildcard src/plat/host/*.c) src/boot.c
+QBRT_HOST_C := $(QBRT_PORTABLE) $(addprefix qb/,posix/block.c posix/ad.c posix/mathops.c dev/headless/headless.c \
+	dev/host/video.c dev/host/vgadata.c dev/host/tick.c) shared/posix/os.c
+QBRT_HOST_INC := -Isrc/qbrt/include $(addprefix -I$(QBRT)/,qb/posix qb qb/dev qb/dev/headless qb/dev/host shared/posix)
+# play.c's waits for the tick come to qbrt_idle: BREAK, and the tick in the tests
+QBRT_IDLE := '-DQB_IDLE()=do { extern void qbrt_idle(void); qbrt_idle(); } while (0)'
 
-asm: syms asm-basic32 asm-ide32
+# host_rules DIR,CFLAGS: the core and the runtime for this machine in DIR, its objects DIR_OBJ
+define host_rules
+$1/obj/qbrt/%.o: src/qbrt/%.c
+	@mkdir -p $$(@D)
+	$$(HOST_CC) $2 $$(subst -I,-isystem ,$$(QBRT_HOST_INC)) $$(DEPFLAGS) -c $$< -o $$@
+$1/obj/%.o: src/%.c
+	@mkdir -p $$(@D)
+	$$(HOST_CC) $2 $$(DEPFLAGS) -c $$< -o $$@
+$1/qbrt/%.o: $$(QBRT)/%.c
+	@mkdir -p $$(@D)
+	$$(HOST_CC) $(filter -O%,$2) -std=gnu11 -w -D__cdecl= $$(QBRT_IDLE) $$(QBRT_HOST_INC) $$(DEPFLAGS) -c $$< -o $$@
+$1_OBJ := $$(HOST_C:src/%.c=$1/obj/%.o) $$(QBRT_HOST_C:%.c=$1/qbrt/%.o) $1/obj/qbrt/qbrt.o $1/obj/qbrt/qbrt_host.o
+-include $$(shell find $1 -name '*.d' 2>/dev/null)
+endef
+$(eval $(call host_rules,build/host,$(HOST_CFLAGS)))
+# tools/bench.py's: optimized, no op count; QB_INSNS reports the instructions it ran
+$(eval $(call host_rules,build/hostperf,$(filter-out -O1 -g -DEXEC_COUNT,$(HOST_CFLAGS)) -O2))
 
-syms:                           # the shared symbols, retired/asm32/syms.inc and retired/asm32/ui/syms.inc
-	$(PY) tools/asm_syms.py
-	$(PY) tools/asm_syms.py IDE
+host: build/host/basic
+build/host/basic: $(build/host_OBJ) build/host/obj/app/basic32.o build/host/obj/plat/host/app/term.o
+	$(HOST_CC) $^ -o $@
+build/hostperf/basic: $(build/hostperf_OBJ) build/hostperf/obj/app/basic32.o build/hostperf/obj/plat/host/app/insns.o
+	$(HOST_CC) $^ -o $@
 
-# each module on its own, the shared header x86f.inc (tools/asm_syms.py); regions.obj last:
-# the zeroed state runs from main.asm's g_bss_s to its g_bss_e
-build/basic32/%.obj: retired/asm32/%.asm $(INC)
+UNIT_OBJ := $(patsubst tests/unit/%.c,build/host/unit/%.o,$(wildcard tests/unit/*.c))
+build/host/unit/%.o: tests/unit/%.c
 	@mkdir -p $(@D)
-	cd retired/asm32 && $(LLRM_BIN)/jwasm -q -zf0 -Fl=$(abspath $(@:.obj=.lst)) -Fo $(abspath $@) $*.asm
-build/ide32/%.obj: retired/asm32/%.asm $(INC)
+	$(HOST_CC) $(HOST_CFLAGS) $(DEPFLAGS) -c $< -o $@
+build/host/unit_tests: $(build/host_OBJ) $(UNIT_OBJ)
+	$(HOST_CC) $^ -o $@
+build/host/golden/dump.o: tests/golden/dump.c
 	@mkdir -p $(@D)
-	cd retired/asm32 && $(LLRM_BIN)/jwasm -q -zf0 -DIDE=1 -DAC=$(AC) -Fl=$(abspath $(@:.obj=.lst)) \
-		-Fo $(abspath $@) $*.asm
+	$(HOST_CC) $(HOST_CFLAGS) $(DEPFLAGS) -c $< -o $@
+build/host/golden_dump: $(build/host_OBJ) build/host/golden/dump.o
+	$(HOST_CC) $^ -o $@
 
-asm-basic32: $(OBJ)
-	@mkdir -p build/x86
-	$(LE_LINK) file $(subst $(eval) ,$(comma),$(OBJ)) name build/x86/basic32.exe
-	$(PY) tools/dos32a_quiet.py $(DOS32A)/dos32a.exe build/x86/DOS32A.EXE
+# ---- LTO: the C as bitcode, one module optimized whole by tools/lto.py (LLVM's tools), linked with the asm's
+# objects into build/lto. PGO=1: what a training run never calls is cold (tools/pgo.py, build/lto/*.hot) ----
 
-asm-ide32: $(IDE_OBJ)
-	@mkdir -p build/x86
-	$(LE_LINK) file $(subst $(eval) ,$(comma),$(IDE_OBJ)) name build/x86/ide32.exe
-	cp src/basic.hlp build/x86/BASIC.HLP
-	$(PY) tools/dos32a_quiet.py $(DOS32A)/dos32a.exe build/x86/DOS32A.EXE
+bitcode = $(patsubst build/c/%.obj,build/lto/%.bc,$(filter-out $(ASM_OBJ),$1))
+hot = $(if $(PGO),--hot build/lto/$1.hot)
 
-asm-test:                       # the regressions, QB 4.5 conformance, the generated files
-	$(PY) tools/regress_test.py build/x86/basic32.exe
-	$(PY) tools/fold_test.py build/x86/basic32.exe
-	$(PY) tools/conformance.py
-	sh tests/gen/messages.sh
-	sh tests/gen/asm_syms.sh
-	sh tests/gen/dfa.sh
-	IDE_EXE=build/x86/ide32.exe $(PY) tools/ide_test.py
+lto: build/lto/basic32.exe build/lto/ide32.exe build/lto/DOS32A.EXE build/lto/BASIC.HLP
+build/lto/qbrt/%.bc: $(QBRT)/%.c build/c/qbrt/names.h
+	@mkdir -p $(@D)
+	$(CLANG) $(subst -std=c23,-std=gnu11,$(CFLAGS)) -flto -w -D__cdecl= -include build/c/qbrt/names.h $(QBRT_DOS_INC) \
+		$(DEPFLAGS) -c $< -o $@
+build/lto/obj/qbrt/%.bc: src/qbrt/%.c build/c/qbrt/names.h
+	@mkdir -p $(@D)
+	$(CLANG) $(CFLAGS) -flto -D__cdecl= -include build/c/qbrt/names.h $(subst -I,-isystem ,$(QBRT_DOS_INC)) \
+		$(DEPFLAGS) -c $< -o $@
+build/lto/obj/core/ui/%.bc: src/core/ui/%.c
+	@mkdir -p $(@D)
+	$(CLANG) $(CFLAGS) -flto -DAC=$(AC) $(DEPFLAGS) -c $< -o $@
+build/lto/obj/%.bc: src/%.c
+	@mkdir -p $(@D)
+	$(CLANG) $(CFLAGS) -flto $(DEPFLAGS) -c $< -o $@
 
-asm-style:
-	$(PY) tools/asmstyle.py
+build/lto/prof/basic32.obj: $(call bitcode,$(BASIC_OBJ)) $(ASM_OBJ)
+build/lto/prof/ide32.obj: $(call bitcode,$(IDE_OBJ)) $(ASM_OBJ)
+build/lto/prof/%.obj:
+	@mkdir -p $(@D)
+	$(PY) tools/lto.py $(CLANG) $@ --profiling $(filter %.bc,$^) -- $(ASM_OBJ)
+build/lto/%.hot: build/lto/prof/%.obj $(ASM_OBJ) | $(DOSBOX_BIN)
+	$(PY) tools/pgo.py $@ build/lto/prof/$*.exe $(if $(findstring ide,$*),ide) -- $< $(ASM_OBJ)
+.SECONDARY: build/lto/prof/basic32.obj build/lto/prof/ide32.obj
 
-# the 16-bit DOS .COM before it (cbmbasic-bc 316224a, retired/asm16): build/x86/basic.com, basic-ide.com;
-# assembled twice, the second time with the data's place after the code (csoff.py)
-A16 = cd retired/asm16 && $(LLRM_BIN)/jwasm -q -zf0 $1 -Fl=$(abspath $2/main.lst) -Fo $(abspath $2/main.obj) main.asm && \
-	$(LLRM_BIN)/jwasm -q -zf0 $1 -DCSOFF=$$($(PY) csoff.py $(abspath $2/main.lst)) -Fo $(abspath $2/main.obj) main.asm && \
-	cd $(CURDIR) && $(LLRM_BIN)/jwlink option quiet format dos com file $2/main.obj name $2/raw.com && \
-	tail -c +257 $2/raw.com > $3
-asm16:                          # jwlink keeps the 100h bytes before org: tail drops them
-	@mkdir -p build/asm16/basic build/asm16/ide build/x86
-	$(call A16,,build/asm16/basic,build/x86/basic.com)
-	$(call A16,-DIDE=1 -DAC=$(AC),build/asm16/ide,build/x86/basic-ide.com)
-	cp retired/asm16/ui/basic.hlp build/x86/BASIC.HLP
+build/lto/basic32.exe: $(call bitcode,$(BASIC_OBJ)) $(ASM_OBJ) $(if $(PGO),build/lto/basic32.hot) | $(JWLINK)
+	$(PY) tools/lto.py $(CLANG) build/lto/basic32.obj $(call hot,basic32) $(filter %.bc,$^) -- $(ASM_OBJ)
+	$(PY) tools/doslink.py $@ build/lto/basic32.obj $(ASM_OBJ)
+	$(PY) tools/lto_test.py $@
+build/lto/ide32.exe: $(call bitcode,$(IDE_OBJ)) $(ASM_OBJ) $(if $(PGO),build/lto/ide32.hot) | $(JWLINK)
+	$(PY) tools/lto.py $(CLANG) build/lto/ide32.obj $(call hot,ide32) $(filter %.bc,$^) -- $(ASM_OBJ)
+	$(PY) tools/doslink.py $@ build/lto/ide32.obj $(ASM_OBJ)
+build/lto/DOS32A.EXE: $(DOS32A)/dos32a.exe
+	$(PY) tools/dos32a_quiet.py $< $@
+build/lto/BASIC.HLP: src/basic.hlp
+	cp $< $@
+-include $(shell find build/lto -name '*.d' 2>/dev/null)
+
+# ---- The rest ----
+
+format:
+	git ls-files 'src/*.[ch]' 'tests/*.[ch]' | grep -v -e qbrt/llrm/ -e comp/dfa.h -e io/gen.h -e io/msg.h \
+		| xargs $(PY) tools/cfmt.py
+
+clean:
+	rm -rf build/c build/gcc build/host build/hostperf build/lto

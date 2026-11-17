@@ -2,7 +2,8 @@
 ; fpu.asm - the float work, on the x87
 ; ==========================================================================
 ; holds:    flt_finit, flt_add .. flt_div, flt_from16, flt_from32,
-;           flt_fromu16, flt_fix16, flt_fixu16, flt_fix32, flt_int, fn_pow, fn_sqr ..
+;           flt_fromu16, flt_fix16, flt_fixu16, flt_fix32, flt_int, fn_pow,
+;           fn_sqr ..
 ;           fn_atn, ex_fclr, fx_exp .. fx_atn: the x87 cores DOUBLE shares
 ; uses:     err_ov, err_iq, err_raise
 ; data:     a packed FLOAT is an x87 single; past its range infinity, under

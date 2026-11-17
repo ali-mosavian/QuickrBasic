@@ -1,0 +1,51 @@
+Removes currently loaded file from memory
+Loads new file into memory
+Saves current file
+Saves current file with specified name
+Prints specified text
+Exits editor and returns to DOS
+Deletes selected text and copies it to buffer
+Copies selected text to buffer
+Inserts buffer contents at current location
+Deletes selected text without copying it to buffer
+Opens a window for a new subprogram
+Opens a window for a new FUNCTION procedure
+Displays a loaded SUB or FUNCTION
+Divides screen into two View windows
+Divides screen into two View windows side by side
+Displays output screen
+Finds specified text
+Finds next occurrence of text specified in previous search
+Finds and changes specified text
+Runs current program
+Clears variables in preparation for restarting single stepping
+Continues execution after a break
+Executes next program statement
+Executes next program statement, tracing over procedure calls
+Runs until the current procedure returns
+Highlights statement currently executing
+Sets/clears breakpoint at cursor location
+Removes all breakpoints
+Makes the statement at the cursor the next statement to execute
+Chooses the editor's colors
+Chooses the screen's lines: 25, 43 or 50
+Colors keywords, strings, numbers and comments
+Sets search path for Help files
+Turns editor's syntax checking on or off.
+Displays help index
+Displays help table of contents
+Displays information about the Basic keyword the cursor is on
+Displays information about how to use online Help
+Displays product version and copyright information
+Shows the editor in QBasic's colors
+Shows the editor in One Dark's colors
+Shows the editor in One Light's colors
+Shows the editor in Ayu Mirage's colors
+Shows the editor in Ayu Light's colors
+Shows the editor in Gruvbox Dark Soft's colors
+Shows the editor in Gruvbox Light's colors
+Shows the editor in JetBrains Dark's colors
+Shows the editor in JetBrains Light's colors
+Shows 25 lines
+Shows 43 lines (EGA, VGA)
+Shows 50 lines (VGA)

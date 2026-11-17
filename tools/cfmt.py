@@ -3,11 +3,12 @@ statement and before a block's last return, so a function reads in steps.
 
     python3 tools/cfmt.py FILE...
 """
+import os
 import re
 import subprocess
 import sys
 
-CLANG_FORMAT = "/opt/homebrew/opt/llvm/bin/clang-format"
+CLANG_FORMAT = os.environ.get("CLANG_FORMAT", "clang-format")
 CONTROL = re.compile(r"(if|for|while|switch|do)\b")
 DESIGNATOR = re.compile(r"\.\w+\s*=")
 

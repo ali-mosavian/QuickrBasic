@@ -1,7 +1,8 @@
 ; ==========================================================================
 ; sym.asm - the name table and the variables
 ; ==========================================================================
-; holds:    sym_new, var_size, var_clr, var_cell, sym_init, var_init, nam_find, var_find
+; holds:    sym_new, var_size, var_clr, var_cell, sym_init, var_init, nam_find,
+;           var_find
 ; uses:     tab_*, sel_set, hbot, htop, rd_first
 ; data:     A name, 1 .. nnams-1, as QBasic's name table: a TNAM in nams,
 ;           its text in ntext, its length then its letters in upper case, a

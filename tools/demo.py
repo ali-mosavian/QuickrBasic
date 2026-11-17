@@ -6,9 +6,10 @@ second); each clip's caption, the key pressed and the parts to look at are put o
 after. docs/img/clips/*.gif, one a feature; docs/img/tour.gif, the clips in a grid, zoomed into
 one by one; docs/img/versus.gif, QBasic 1.1 beside QuickrBasic; docs/img/themes.gif.
 
-IDE_EXE picks the build (build/c/ide32.exe); DOSBOX_BIN a dosbox-x whose socket has video_start;
-QB_SAMPLES the directory with GORILLA.BAS and NIBBLES.BAS, QBASIC QBasic 1.1's QBASIC.EXE
-(Microsoft's, so not in this repository): the clips that need them are skipped without them.
+IDE_EXE picks the build (build/c/ide32.exe); DEMO_DOSBOX a dosbox-x whose socket has video_start
+(tools/deps.sh capture). QB_SAMPLES the directory with GORILLA.BAS and NIBBLES.BAS, QBASIC QBasic
+1.1's QBASIC.EXE (Microsoft's, so not in this repository; both default to build/qbasic): the clips
+that need them are skipped without them.
 """
 
 import os
@@ -27,18 +28,16 @@ from PIL import Image
 from PIL import ImageDraw
 from PIL import ImageFont
 
-LLRM = Path("/Users/alim/work/personal/llrm-qbmac/tools")
-sys.path[:0] = [str(LLRM), str(LLRM / "dosbatch")]
-import llrmbin  # noqa: E402
-
-llrmbin.stale_binaries = lambda *a, **k: []  # the emulator is the stamped one; the llrm sources are not ours
-import qbplay  # noqa: E402
+sys.path.insert(0, str(Path(__file__).parent))
+import dosplay  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 IMG = ROOT / "docs/img"
 IDE = Path(os.environ.get("IDE_EXE", ROOT / "build/c/ide32.exe"))
-SAMPLES = Path(os.environ.get("QB_SAMPLES", Path.home() / "work/ms/msdos_60/cmd/qbasic"))
-QBASIC = Path(os.environ.get("QBASIC", Path.home() / "work/other/d32x/toolchains/qbasic11/QBASIC.EXE"))
+SAMPLES = Path(os.environ.get("QB_SAMPLES", ROOT / "build/qbasic"))
+QBASIC = Path(os.environ.get("QBASIC", ROOT / "build/qbasic/QBASIC.EXE"))
+# the emulator with the debug socket's video_start (tools/deps.sh capture)
+dosplay.DOSBOX = Path(os.environ.get("DEMO_DOSBOX", ROOT / "build/deps/bin/dosbox-x-capture"))
 
 ALT_F, ALT_O, ALT_V = 0x21, 0x18, 0x2F
 F2, F5, F6, F8, F9, SHIFT_F2, CTRL_F2, INS = 0x3C, 0x3F, 0x40, 0x42, 0x43, 0x55, 0x5F, 0x52
@@ -259,7 +258,7 @@ class Ide:
         (self.work / "DEMO.BAS").write_bytes(DEMO.replace("\n", "\r\n").encode())
         for name, src in (files or {}).items():
             (self.work / name).write_bytes(src.read_bytes())
-        self.s = qbplay.Session(self.work)
+        self.s = dosplay.Session(self.work)
         # INT 33h replaced: AX=3 answers from 0:0540h, the rest return; no cursor in the pictures
         stub = "3d030075102e8b1e40052e8b0e42052e8b164405cfcf"
         self.s.send({"cmd": "mem_write_linear", "addr": 0x520, "data": stub})

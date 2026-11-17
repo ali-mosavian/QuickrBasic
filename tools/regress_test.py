@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""regress_test.py [EXE]: regressions of the flat build (build/x86/basic32.exe).
+"""regress_test.py [EXE]: regressions of the DOS build (build/c/basic32.exe).
 
 Each case: its program, run as a file, the output it must print and one it must not."""
 
@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-os.environ.setdefault("BASIC_EXE", sys.argv[1] if len(sys.argv) > 1 else str(ROOT / "build/x86/basic32.exe"))
+os.environ.setdefault("BASIC_EXE", sys.argv[1] if len(sys.argv) > 1 else str(ROOT / "build/c/basic32.exe"))
 import dosrun  # noqa: E402
 
 CASES = {

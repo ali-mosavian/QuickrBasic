@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""conformance.py [-v] [NAME...]: llrm's QBasic cases on the flat build (build/x86/basic32.exe).
+"""conformance.py [-v] [NAME...]: llrm's QBasic cases on the DOS build (BASIC_EXE, build/c/basic32.exe).
 
-The qb45 suite's required cases must print their `expected` line; tests/run/qb's NAME.bas must
-print NAME.out. Cases are read from llrm's tree (LLRM, default ~/work/personal/llrm-qbmac). NAME
-picks cases; -v prints a failure's output. SKIP's cases are not run, each for its reason."""
+The qb45 suite's required cases (tests/qb45) must print their `expected` line; tests/qbrun's
+NAME.bas must print NAME.out. Both are copies of llrm's. NAME picks cases; -v prints a failure's
+output. SKIP's cases are not run, each for its reason."""
 
 import os
 import platform
@@ -14,11 +14,10 @@ import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-LLRM = Path(os.environ.get("LLRM", Path.home() / "work/personal/llrm-qbmac"))
-os.environ.setdefault("BASIC_EXE", str(ROOT / "build/x86/basic32.exe"))
+os.environ.setdefault("BASIC_EXE", str(ROOT / "build/c/basic32.exe"))
 import dosrun  # noqa: E402
 
-SUITE = LLRM / "tests/differential/conformance/qb45"
+SUITE = ROOT / "tests/qb45"  # llrm's tests/differential/conformance/qb45
 INT16 = "% is 32-bit here, QBasic's 16"
 NOD = "BC's code without /D: integer overflow wraps; QBasic raises Overflow, as this build"
 SKIP = {
@@ -35,7 +34,7 @@ SKIP = {
 if platform.machine() not in ("x86_64", "AMD64", "i386", "i686"):
     SKIP |= dict.fromkeys(["log_exp_digits", "range_power_digits", "data_after_checked", "pow_stack_depth",
                            "pow_unrolled"], "the x87 in doubles")
-RUNS = LLRM / "tests/run/qb"
+RUNS = ROOT / "tests/qbrun"  # llrm's tests/run/qb
 
 
 def text(p: Path) -> str:

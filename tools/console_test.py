@@ -9,6 +9,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(Path(__file__).parent))
 import dosrun
 
@@ -58,7 +59,7 @@ stk     label   byte
 def stuffer(work: Path, text: str) -> None:
     """KEYS.COM: text in the keyboard buffer (INT 16h AH=05h), then BASIC.COM as its child."""
     (work / "keys.asm").write_text(KEYS_ASM % ",".join(str(b) for b in text.encode()))
-    subprocess.run([os.environ.get("JWASM", "/Users/alim/work/personal/llrm-qbmac/target/release/jwasm"), "-q", "-bin", "-Fo", "KEYS.COM", "keys.asm"], cwd=work, check=True)
+    subprocess.run([os.environ.get("JWASM", str(ROOT / "build/deps/bin/jwasm")), "-q", "-bin", "-Fo", "KEYS.COM", "keys.asm"], cwd=work, check=True)
 
 
 def main() -> None:

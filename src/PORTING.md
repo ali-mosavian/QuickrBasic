@@ -19,7 +19,7 @@ emulation, no `goto` webs. Keep the asm's algorithms and data layouts; rewrite i
 - No C library beyond `src/lib/include`: `string.h` (mem*, str*), `setjmp.h`, and the compiler's
   `stdint.h stddef.h stdbool.h stdarg.h limits.h float.h`. No printf, no malloc, no math.h. The
   same code builds on a host with its own libc.
-- Build: `make cbasic32` (and `cide32`). Every module compiles with `-Wall -Wextra` clean.
+- Build: `make`. Every module compiles with `-Wall -Wextra` clean.
   A quick syntax check of one file on the Mac: `clang -std=c23 -fsyntax-only -Isrc -Isrc/core
   -DIDE=0 FILE.c`.
 

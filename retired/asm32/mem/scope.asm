@@ -2,7 +2,8 @@
 ; scope.asm - the scoped name table: what a name is declared as, in the
 ; module and in each procedure
 ; ==========================================================================
-; holds:    scp_init, scp_bind, scp_get, scp_look, scp_decl, scp_sfx, scp_mshr, scp_known, scp_con,
+; holds:    scp_init, scp_bind, scp_get, scp_look, scp_decl, scp_sfx, scp_mshr,
+;           scp_known, scp_con,
 ;           scp_label, scp_lfind
 ; data:     A binding (B_*) is a name's in one scope: the module's (0) or a
 ;           procedure's (its name). It holds the declared type, record and

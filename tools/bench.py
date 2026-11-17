@@ -30,6 +30,7 @@ from pathlib import Path
 from dataclasses import dataclass
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # run with -I too
+import doslink
 import dosrun
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -72,7 +73,7 @@ class Build:
         if self.root != ROOT:
             for src in INSTRUMENT_SRC:
                 shutil.copy(ROOT / src, self.root / src)
-        targets = ["chostperf", "build/host/basic"] + ["c"] * dos
+        targets = ["build/hostperf/basic", "build/host/basic"] + ["all"] * dos
         p = subprocess.run(
             ["nice", "-n", "10", "make", "-f", str(ROOT / "Makefile"), "-j4", *targets],
             cwd=self.root,
@@ -229,11 +230,10 @@ def cmd_cmp(a: argparse.Namespace) -> int:
 def functions(b: Build) -> dict[str, int]:
     """Each DOS object's functions' bytes, by object and name: COFF gives no sizes, so each runs to
     the next function, the last to .text's end."""
-    llvm = Path(shutil.which("llvm-nm") or "/opt/homebrew/opt/llvm/bin/llvm-nm").parent
     objs = b.root / "build/c/obj"
     res: dict[str, int] = {}
     for o in sorted(objs.rglob("*.obj")):
-        heads = subprocess.run([llvm / "llvm-objdump", "-h", o], capture_output=True, text=True).stdout
+        heads = subprocess.run([os.environ.get("OBJDUMP", "objdump"), "-h", o], capture_output=True, text=True).stdout
         text = re.search(r"^\s*\d+ \.text\s+([0-9a-f]+)", heads, re.M)
         fns = [(off, n) for off, k, n in nm(o) if k in "tT"]
         if not fns or not text:
@@ -365,8 +365,7 @@ def cmd_qbasic(a: argparse.Namespace) -> int:
 
 def nm(o: Path) -> list[tuple[int, str, str]]:
     """Object o's defined symbols: offset, kind (t local, T global, ...), name."""
-    llvm = Path(shutil.which("llvm-nm") or "/opt/homebrew/opt/llvm/bin/llvm-nm").parent
-    out = subprocess.run([llvm / "llvm-nm", "-n", "--defined-only", o], capture_output=True, text=True).stdout
+    out = subprocess.run([os.environ.get("NM", "nm"), "-n", "--defined-only", o], capture_output=True, text=True).stdout
     return [(int(f[0], 16), f[1], f[2]) for f in (ln.split() for ln in out.splitlines()) if len(f) == 3]
 
 
@@ -401,28 +400,17 @@ def with_statics(listing: str, objs: list[Path]) -> str:
 
 def profiled(b: Build, d: Path, ide: bool = False) -> Path:
     """b's basic32 (ide: ide32) relinked in d with a map that names its static functions too."""
-    var = "CIDE_OBJ" if ide else "COBJ"
+    var = "IDE_OBJ" if ide else "BASIC_OBJ"
     db = subprocess.run(
-        ["make", "-pnq", "cide32" if ide else "cbasic32"], cwd=b.root, capture_output=True, text=True
+        ["make", "-pnq", "build/c/ide32.exe" if ide else "build/c/basic32.exe"], cwd=b.root, capture_output=True, text=True
     ).stdout
     m = re.search(rf"^{var} := (.*)$", db, re.M)
     if not m:
         sys.exit(f"profile: make printed no {var}")
     objs = [b.root / o for o in m.group(1).split()]
-    sys.path.insert(0, str(Path(os.environ.get("LLRM", Path.home() / "work/personal/llrm-next")) / "tools/dosbatch"))
-    import dosbatch  # ty: ignore[import-not-found]
-
     exe = d / ("ide32.exe" if ide else "basic32.exe")
     listing = exe.with_suffix(".map")
-    dosbatch.link_target(
-        "x86-m32",
-        objs[0],
-        exe,
-        d,
-        listing=listing,
-        objects_after=tuple(objs[1:]),
-        defines=dosbatch.entry_defines("x86-m32", None, near=False),
-    )
+    doslink.link(exe, objs, listing)
     listing.write_text(with_statics(listing.read_text(), objs))
     shutil.copy(b.dos.parent / "DOS32A.EXE", d / "DOS32A.EXE")
     return exe

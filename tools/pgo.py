@@ -6,7 +6,6 @@ profiler names functions by. The training is the conformance programs (tools/con
 tests/pgo's, the IDE's run by F5. lto.py --hot OUT makes every other function cold.
 """
 
-import os
 import sys
 import tempfile
 from pathlib import Path
@@ -15,16 +14,13 @@ sys.path.insert(0, str(Path(__file__).parent))
 import conformance
 import dosrun
 
-sys.path.insert(0, str(Path(os.environ.get("LLRM", Path.home() / "work/personal/llrm-next")) / "tools/dosbatch"))
-import dosbatch
+import doslink
 
 IDE_PROGRAMS = 40  # the IDE's training: its run of these many, each to the time limit
 
 
 def link(exe: Path, objects: list[Path]) -> None:
-    with tempfile.TemporaryDirectory() as work:
-        dosbatch.link_target("x86-m32", objects[0], exe, Path(work), listing=exe.with_suffix(".map"),
-                             objects_after=tuple(objects[1:]), defines=dosbatch.entry_defines("x86-m32", None, near=False))
+    doslink.link(exe, objects, exe.with_suffix(".map"))
 
 
 def main() -> None:

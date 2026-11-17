@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""dosrun.py: run DOS jobs of the x86 port under llrm's headless DOSBox-X."""
+"""dosrun.py: DOS jobs of the DOS build run under the headless DOSBox-X (tools/deps.sh dosbox)."""
 
 import os
 import re
@@ -12,11 +12,8 @@ from dataclasses import dataclass
 from concurrent.futures import ThreadPoolExecutor
 
 ROOT = Path(__file__).resolve().parents[1]
-# llrm release/next's DOSBox: DOSBOX_BIN, else the dosrun fork at the commit
-# toolchain/dosrunbuild.sh pins.
-CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "llrm"
-DOSBOX = Path(os.environ.get("DOSBOX_BIN", CACHE / "dosbox-x-eea2b2da0203d37ff51e34a8f714af8110fe0162/src/dosbox-x"))
-COM = Path(os.environ.get("BASIC_EXE", ROOT / "build/x86/basic32.exe"))
+DOSBOX = Path(os.environ.get("DOSBOX_BIN", ROOT / "build/deps/bin/dosbox-x"))
+COM = Path(os.environ.get("BASIC_EXE", ROOT / "build/c/basic32.exe"))
 
 CONF = """[sdl]
 priority=higher,normal
@@ -52,9 +49,9 @@ class Result:
 
 
 def messages() -> list[str]:
-    """The errors' messages, as retired/asm32/io/errmsg.asm spells them."""
-    msgs = re.findall(r'^(?:g_qbmsg)?\s+db\s+\w+,"([^"]+)",0', (ROOT / "retired/asm32/io/errmsg.asm").read_text(), re.M)
-    assert len(msgs) > 50, "errmsg.asm's messages not read"
+    """The errors' messages, as src/core/io/errmsg.c spells them."""
+    msgs = re.findall(r'^\s*\{\d+, "([^"]+)"\},', (ROOT / "src/core/io/errmsg.c").read_text(), re.M)
+    assert len(msgs) > 50, "errmsg.c's messages not read"
     return msgs + ["Unprintable error"]
 
 

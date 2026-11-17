@@ -3,6 +3,7 @@
 At -Os clang called __aulldiv for dubl_digits's 64-bit /10 and the link failed.
 """
 
+import os
 import re
 import sys
 import tempfile
@@ -11,7 +12,7 @@ from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 
 ROOT = Path(__file__).resolve().parent.parent
-LLVM = Path("/opt/homebrew/opt/llvm/bin")
+CLANG = os.environ.get("CLANG", "clang")
 FLAGS = [
     "--target=i386-pc-win32",
     "-march=i386",
@@ -34,10 +35,9 @@ HELPER = re.compile(r"__(a(ll|ull)(div|rem|shl|shr|mul)|u?(div|mod|udivmod)di3|u
 
 
 def helpers(src: Path, out: Path) -> list[str]:
-    obj = out / (str(src.relative_to(ROOT)).replace("/", "_") + ".obj")
-    subprocess.run([LLVM / "clang", *FLAGS, "-c", src, "-o", obj], cwd=ROOT, check=True)
-    nm = subprocess.run([LLVM / "llvm-nm", "-u", obj], capture_output=True, text=True, check=True).stdout
-    return [f"{src}: {s}" for s in nm.split() if HELPER.search(s)]
+    asm = subprocess.run([CLANG, *FLAGS, "-S", src, "-o", "-"], cwd=ROOT, capture_output=True, text=True, check=True)
+    calls = re.findall(r"^\s*(?:call|jmp)l?\s+(\S+)", asm.stdout, re.M)
+    return [f"{src}: {s}" for s in sorted(set(calls)) if HELPER.search(s)]
 
 
 def main() -> None:

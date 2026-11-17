@@ -1,7 +1,6 @@
 # Assembly style
 
-The layout rules (columns, labels alone, docstring blocks) are checked by `tools/asmstyle.py`;
-`--format` adds the header and docstring checks below.
+The rules the retired asm was written to: columns, labels alone, docstring blocks, headers.
 
 ## Names
 
