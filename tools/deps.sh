@@ -3,7 +3,8 @@
 # build/deps/bin. build: jwasm and jwlink (make runs this). dosbox: the headless DOSBox-X the tests
 # run on. capture: the same with the debug socket's video_start (tools/demo.py).
 # DEPS_CACHE keeps the clones and builds across checkouts (default build/deps/src).
-# jwasm and jwlink are C89: their own bool is a C23 keyword, so CC builds them as gnu17.
+# jwasm and jwlink are C89: their own bool is a C23 keyword, so CC builds them as gnu17;
+# gcc 14 also rejects jwlink's mismatched pointers.
 set -eu
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 BIN="$ROOT/build/deps/bin"
@@ -31,7 +32,7 @@ built() {
     touch "$dir/.built"
 }
 
-CC17="${CC:-cc} -std=gnu17"
+CC17="${CC:-cc} -std=gnu17 -Wno-error=incompatible-pointer-types"
 mkdir -p "$BIN" "$CACHE"
 case "${1:-build}" in
 build)
