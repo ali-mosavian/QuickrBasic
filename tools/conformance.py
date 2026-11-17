@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""qbconf.py [-v] [NAME...]: llrm's QBasic cases on the flat build (build/x86/basic32.exe).
+"""conformance.py [-v] [NAME...]: llrm's QBasic cases on the flat build (build/x86/basic32.exe).
 
 The qb45 suite's required cases must print their `expected` line; tests/run/qb's NAME.bas must
 print NAME.out. Cases are read from llrm's tree (LLRM, default ~/work/personal/llrm-qbmac). NAME
@@ -15,8 +15,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 LLRM = Path(os.environ.get("LLRM", Path.home() / "work/personal/llrm-qbmac"))
-os.environ.setdefault("X86_COM", str(ROOT / "build/x86/basic32.exe"))
-import x86run  # noqa: E402
+os.environ.setdefault("BASIC_EXE", str(ROOT / "build/x86/basic32.exe"))
+import dosrun  # noqa: E402
 
 SUITE = LLRM / "tests/differential/conformance/qb45"
 INT16 = "% is 32-bit here, QBasic's 16"
@@ -76,8 +76,8 @@ def main() -> None:
     every = cases()
     pick = {k: v for k, v in every.items() if (not args and k not in SKIP) or k in args or k.upper() in args}
     tmp = Path(tempfile.mkdtemp())
-    batches = [dict(jobs=b, limit_ms=3000, file=True, files=COMPANIONS) for b in x86run.split({k: v[0] for k, v in pick.items()})]
-    res = x86run.run_all(batches, tmp)
+    batches = [dict(jobs=b, limit_ms=3000, file=True, files=COMPANIONS) for b in dosrun.split({k: v[0] for k, v in pick.items()})]
+    res = dosrun.run_all(batches, tmp)
     ok = 0
     for k, (_, want, whole) in pick.items():
         got = res[k].out

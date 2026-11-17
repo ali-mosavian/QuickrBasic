@@ -1,22 +1,14 @@
-"""x86demo.py [versus] [ide] [games] [themes]: the README's animated pictures, recorded in DOSBox.
+#!/usr/bin/env python3
+"""demo.py [versus] [ide] [games] [themes]: the README's animated pictures, recorded in DOSBox.
 
 DOSBox records the screen as it is drawn (the debug socket's video_start, 70 frames an emulated
 second); each clip's caption, the key pressed and the parts to look at are put on its frames
 after. docs/img/clips/*.gif, one a feature; docs/img/tour.gif, the clips in a grid, zoomed into
 one by one; docs/img/versus.gif, QBasic 1.1 beside QuickrBasic; docs/img/themes.gif.
 
-X86_IDE picks the build (build/c/ide32.exe); DOSBOX_BIN a dosbox-x whose socket has video_start;
+IDE_EXE picks the build (build/c/ide32.exe); DOSBOX_BIN a dosbox-x whose socket has video_start;
 QB_SAMPLES the directory with GORILLA.BAS and NIBBLES.BAS, QBASIC QBasic 1.1's QBASIC.EXE
 (Microsoft's, so not in this repository): the clips that need them are skipped without them.
-"""x86demo.py [ide] [games] [themes]: the IDE's animated pictures for the README, recorded in DOSBox.
-
-DOSBox records the screen as it is drawn (the debug socket's video_start, 70 frames an emulated
-second); each clip's caption, the key pressed and the parts to look at are put on its frames
-after. docs/img/clips/*.gif, one a feature; docs/img/tour.gif, all of them; docs/img/themes.gif.
-
-X86_IDE picks the build (build/c/ide32.exe); DOSBOX_BIN a dosbox-x whose socket has video_start;
-QB_SAMPLES the directory with GORILLA.BAS and NIBBLES.BAS (Microsoft's, so not in this
-repository), whose clips are skipped without it.
 """
 
 import os
@@ -44,7 +36,7 @@ import qbplay  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 IMG = ROOT / "docs/img"
-IDE = Path(os.environ.get("X86_IDE", ROOT / "build/c/ide32.exe"))
+IDE = Path(os.environ.get("IDE_EXE", ROOT / "build/c/ide32.exe"))
 SAMPLES = Path(os.environ.get("QB_SAMPLES", Path.home() / "work/ms/msdos_60/cmd/qbasic"))
 QBASIC = Path(os.environ.get("QBASIC", Path.home() / "work/other/d32x/toolchains/qbasic11/QBASIC.EXE"))
 
@@ -275,7 +267,7 @@ class Ide:
         self.mouse(0, 0, False)
         # recording from before the cls: a line unchanged since the capture began is never sent to it
         if self.s.send({"cmd": "video_start", "dir": str(self.video)}).get("status") != "ok":
-            sys.exit("x86demo: this dosbox-x's socket has no video_start (DOSBOX_BIN)")
+            sys.exit("demo: this dosbox-x's socket has no video_start (DOSBOX_BIN)")
         rec.video_us = self.now()
         self.s.keys_in_lockstep([*"cls", "enter"], 3000)  # the mount's line names the host's directory
         # the BIOS's tick count from 0: RANDOMIZE TIMER, the games' cities and food, the same every run

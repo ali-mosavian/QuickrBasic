@@ -95,58 +95,58 @@ $(B)/obj/%.obj: src/%.asm
 
 cbasic32: $(COBJ)
 	$(C_LINK) $(abspath $(B)/basic32.exe) $(abspath $(COBJ))
-	$(PY) tools/x86d32a.py $(DOS32A)/dos32a.exe $(B)/DOS32A.EXE
+	$(PY) tools/dos32a_quiet.py $(DOS32A)/dos32a.exe $(B)/DOS32A.EXE
 
 cide32: $(CIDE_OBJ)
 	$(C_LINK) $(abspath $(B)/ide32.exe) $(abspath $(CIDE_OBJ))
 	cp src/basic.hlp $(B)/BASIC.HLP
-	$(PY) tools/x86d32a.py $(DOS32A)/dos32a.exe $(B)/DOS32A.EXE
+	$(PY) tools/dos32a_quiet.py $(DOS32A)/dos32a.exe $(B)/DOS32A.EXE
 
-# ---- LTO (make clto): the C objects as bitcode (build/clto), one module optimized whole by
-# tools/clto.py, linked with the asm's objects: build/clto/basic32.exe and ide32.exe. PGO=1: what
-# a training run calls not is cold (tools/x86pgo.py, build/clto/*.hot)
+# ---- LTO (make lto): the C objects as bitcode (build/lto), one module optimized whole by
+# tools/lto.py, linked with the asm's objects: build/lto/basic32.exe and ide32.exe. PGO=1: what
+# a training run calls not is cold (tools/pgo.py, build/lto/*.hot)
 CASM_OBJ := $(CASM:src/%.asm=build/c/obj/%.obj) $(QBRT_DASM:%.asm=build/c/qbrt/%.obj)
-CBC = $(patsubst build/c/%.obj,build/clto/%.bc,$(filter-out $(CASM_OBJ),$1))
-.PHONY: clto
-clto: build/clto/basic32.exe build/clto/ide32.exe
+CBC = $(patsubst build/c/%.obj,build/lto/%.bc,$(filter-out $(CASM_OBJ),$1))
+.PHONY: lto
+lto: build/lto/basic32.exe build/lto/ide32.exe
 
-build/clto/qbrt/%.bc: $(QBRT)/%.c build/c/qbrt/names.h
+build/lto/qbrt/%.bc: $(QBRT)/%.c build/c/qbrt/names.h
 	@mkdir -p $(@D)
 	$(CLANG) $(subst -std=c23,-std=gnu11,$(CFLAGS)) -flto -w -D__cdecl= -include build/c/qbrt/names.h \
 		$(QBRT_DINC) -c $< -o $@
-build/clto/obj/qbrt/%.bc: src/qbrt/%.c $(CHDR) build/c/qbrt/names.h
+build/lto/obj/qbrt/%.bc: src/qbrt/%.c $(CHDR) build/c/qbrt/names.h
 	@mkdir -p $(@D)
 	$(CLANG) $(CFLAGS) -flto -D__cdecl= -include build/c/qbrt/names.h $(subst -I,-isystem ,$(QBRT_DINC)) \
 		-c $< -o $@
-build/clto/obj/core/ui/%.bc: src/core/ui/%.c $(CHDR)
+build/lto/obj/core/ui/%.bc: src/core/ui/%.c $(CHDR)
 	@mkdir -p $(@D)
 	$(CLANG) $(CFLAGS) -flto -DAC=$(AC) -c $< -o $@
-build/clto/obj/%.bc: src/%.c $(CHDR)
+build/lto/obj/%.bc: src/%.c $(CHDR)
 	@mkdir -p $(@D)
 	$(CLANG) $(CFLAGS) -flto -c $< -o $@
 
-build/clto/prof/%.obj: build/clto/%.bclist
+build/lto/prof/%.obj: build/lto/%.bclist
 	@mkdir -p $(@D)
-	$(PY) tools/clto.py $(CLANG) $@ --profiling $(shell cat $<) -- $(CASM_OBJ)
-build/clto/basic32.bclist: $(call CBC,$(COBJ))
+	$(PY) tools/lto.py $(CLANG) $@ --profiling $(shell cat $<) -- $(CASM_OBJ)
+build/lto/basic32.bclist: $(call CBC,$(COBJ))
 	echo $^ > $@
-build/clto/ide32.bclist: $(call CBC,$(CIDE_OBJ))
+build/lto/ide32.bclist: $(call CBC,$(CIDE_OBJ))
 	echo $^ > $@
-build/clto/%.hot: build/clto/prof/%.obj $(CASM_OBJ)
-	$(PY) tools/x86pgo.py $@ build/clto/prof/$*.exe $(if $(findstring ide,$*),ide) -- $< $(CASM_OBJ)
-CHOT = $(if $(PGO),--hot build/clto/$1.hot)
-.SECONDARY: build/clto/prof/basic32.obj build/clto/prof/ide32.obj
+build/lto/%.hot: build/lto/prof/%.obj $(CASM_OBJ)
+	$(PY) tools/pgo.py $@ build/lto/prof/$*.exe $(if $(findstring ide,$*),ide) -- $< $(CASM_OBJ)
+CHOT = $(if $(PGO),--hot build/lto/$1.hot)
+.SECONDARY: build/lto/prof/basic32.obj build/lto/prof/ide32.obj
 
-build/clto/basic32.exe: $(call CBC,$(COBJ)) $(CASM_OBJ) $(if $(PGO),build/clto/basic32.hot)
-	$(PY) tools/clto.py $(CLANG) build/clto/basic32.obj $(call CHOT,basic32) $(call CBC,$(COBJ)) -- $(CASM_OBJ)
-	$(C_LINK) $(abspath $@) $(abspath build/clto/basic32.obj $(CASM_OBJ))
-	$(PY) tools/x86d32a.py $(DOS32A)/dos32a.exe build/clto/DOS32A.EXE
-	$(PY) tools/x86lto_test.py $@
-build/clto/ide32.exe: $(call CBC,$(CIDE_OBJ)) $(CASM_OBJ) $(if $(PGO),build/clto/ide32.hot)
-	$(PY) tools/clto.py $(CLANG) build/clto/ide32.obj $(call CHOT,ide32) $(call CBC,$(CIDE_OBJ)) -- $(CASM_OBJ)
-	$(C_LINK) $(abspath $@) $(abspath build/clto/ide32.obj $(CASM_OBJ))
-	cp src/basic.hlp build/clto/BASIC.HLP
-	$(PY) tools/x86d32a.py $(DOS32A)/dos32a.exe build/clto/DOS32A.EXE
+build/lto/basic32.exe: $(call CBC,$(COBJ)) $(CASM_OBJ) $(if $(PGO),build/lto/basic32.hot)
+	$(PY) tools/lto.py $(CLANG) build/lto/basic32.obj $(call CHOT,basic32) $(call CBC,$(COBJ)) -- $(CASM_OBJ)
+	$(C_LINK) $(abspath $@) $(abspath build/lto/basic32.obj $(CASM_OBJ))
+	$(PY) tools/dos32a_quiet.py $(DOS32A)/dos32a.exe build/lto/DOS32A.EXE
+	$(PY) tools/lto_test.py $@
+build/lto/ide32.exe: $(call CBC,$(CIDE_OBJ)) $(CASM_OBJ) $(if $(PGO),build/lto/ide32.hot)
+	$(PY) tools/lto.py $(CLANG) build/lto/ide32.obj $(call CHOT,ide32) $(call CBC,$(CIDE_OBJ)) -- $(CASM_OBJ)
+	$(C_LINK) $(abspath $@) $(abspath build/lto/ide32.obj $(CASM_OBJ))
+	cp src/basic.hlp build/lto/BASIC.HLP
+	$(PY) tools/dos32a_quiet.py $(DOS32A)/dos32a.exe build/lto/DOS32A.EXE
 
 # ---- The host build: the same core on this machine's own CPU (plat/host/pfpu.c: the x87's on x86-64, C's on another) ----
 SDK := $(shell xcrun --show-sdk-path 2>/dev/null)
@@ -226,22 +226,22 @@ cgolden-update: build/host/golden_dump
 	$(PY) tools/golden.py --update
 
 chosttest: chost chostperf cunit cgolden  # the unit tests and the suites against the host build, natively
-	$(PY) tools/qbconf_test.py
-	X86_COM=build/host/basic $(PY) tools/x86f_test.py build/host/basic
-	X86_COM=build/host/basic $(PY) tools/qbconf.py
-	$(PY) tools/x86fold_test.py build/host/basic
+	$(PY) tools/conformance_test.py
+	BASIC_EXE=build/host/basic $(PY) tools/regress_test.py build/host/basic
+	BASIC_EXE=build/host/basic $(PY) tools/conformance.py
+	$(PY) tools/fold_test.py build/host/basic
 	$(PY) tools/pterm_test.py build/host/basic
 	$(PY) tools/bench_test.py
 
 ctest:                          # the suites against the C build (GCC=1: gcc's)
-	$(PY) tools/chelpers_test.py
+	$(PY) tools/libcalls_test.py
 	cd tools && $(PY) gas2coff_test.py
-	X86_COM=$(B)/basic32.exe $(PY) tools/x86f_test.py $(B)/basic32.exe
-	X86_COM=$(B)/basic32.exe $(PY) tools/qbconf.py
-	$(PY) tools/x86fold_test.py $(B)/basic32.exe
-	X86_COM=$(B)/basic32.exe $(PY) tools/x86cost_test.py $(B)/basic32.exe
-	X86_COM=$(B)/basic32.exe $(PY) tools/x86gfx_test.py
-	X86_IDE=$(B)/ide32.exe $(PY) tools/x86ide_test.py
+	BASIC_EXE=$(B)/basic32.exe $(PY) tools/regress_test.py $(B)/basic32.exe
+	BASIC_EXE=$(B)/basic32.exe $(PY) tools/conformance.py
+	$(PY) tools/fold_test.py $(B)/basic32.exe
+	BASIC_EXE=$(B)/basic32.exe $(PY) tools/cost_test.py $(B)/basic32.exe
+	BASIC_EXE=$(B)/basic32.exe $(PY) tools/gfx_test.py
+	IDE_EXE=$(B)/ide32.exe $(PY) tools/ide_test.py
 
 # ---- Retired: the asm the C was ported from (retired/asm32), build/x86/basic32.exe and ide32.exe ----
 .PHONY: asm asm-basic32 asm-ide32 syms asm-test asm-style asm16
@@ -257,10 +257,10 @@ LE_LINK = $(LLRM_BIN)/jwlink option quiet format os2 le option stub=$(DOS32A)/st
 asm: syms asm-basic32 asm-ide32
 
 syms:                           # the shared symbols, retired/asm32/syms.inc and retired/asm32/ui/syms.inc
-	$(PY) tools/x86syms.py
-	$(PY) tools/x86syms.py IDE
+	$(PY) tools/asm_syms.py
+	$(PY) tools/asm_syms.py IDE
 
-# each module on its own, the shared header x86f.inc (tools/x86syms.py); regions.obj last:
+# each module on its own, the shared header x86f.inc (tools/asm_syms.py); regions.obj last:
 # the zeroed state runs from main.asm's g_bss_s to its g_bss_e
 build/basic32/%.obj: retired/asm32/%.asm $(INC)
 	@mkdir -p $(@D)
@@ -273,22 +273,22 @@ build/ide32/%.obj: retired/asm32/%.asm $(INC)
 asm-basic32: $(OBJ)
 	@mkdir -p build/x86
 	$(LE_LINK) file $(subst $(eval) ,$(comma),$(OBJ)) name build/x86/basic32.exe
-	$(PY) tools/x86d32a.py $(DOS32A)/dos32a.exe build/x86/DOS32A.EXE
+	$(PY) tools/dos32a_quiet.py $(DOS32A)/dos32a.exe build/x86/DOS32A.EXE
 
 asm-ide32: $(IDE_OBJ)
 	@mkdir -p build/x86
 	$(LE_LINK) file $(subst $(eval) ,$(comma),$(IDE_OBJ)) name build/x86/ide32.exe
 	cp src/basic.hlp build/x86/BASIC.HLP
-	$(PY) tools/x86d32a.py $(DOS32A)/dos32a.exe build/x86/DOS32A.EXE
+	$(PY) tools/dos32a_quiet.py $(DOS32A)/dos32a.exe build/x86/DOS32A.EXE
 
 asm-test:                       # the regressions, QB 4.5 conformance, the generated files
-	$(PY) tools/x86f_test.py build/x86/basic32.exe
-	$(PY) tools/x86fold_test.py build/x86/basic32.exe
-	$(PY) tools/qbconf.py
-	sh test/tools/x86msg.sh
-	sh test/tools/x86syms.sh
-	sh test/tools/x86dfa.sh
-	X86_IDE=build/x86/ide32.exe $(PY) tools/x86ide_test.py
+	$(PY) tools/regress_test.py build/x86/basic32.exe
+	$(PY) tools/fold_test.py build/x86/basic32.exe
+	$(PY) tools/conformance.py
+	sh tests/gen/messages.sh
+	sh tests/gen/asm_syms.sh
+	sh tests/gen/dfa.sh
+	IDE_EXE=build/x86/ide32.exe $(PY) tools/ide_test.py
 
 asm-style:
 	$(PY) tools/asmstyle.py

@@ -267,8 +267,8 @@ Programs and tests can see these, so they do not change:
 
 - `make chost` builds the core with `plat/host`: native x86-64 (Rosetta's x87 on Apple silicon), so the 80-bit maths matches DOS32's.
 - `make cunit` runs `tests/unit` (`TEST`, `CHECK`) after `boot()`. Each module gets its tests here; the lexer, lister and codegen get golden tests over their output bytes.
-- `make chosttest` runs the unit tests, then x86f and qbconf on the host build, in seconds. `HOST_SKIP` in `x86f_test.py` names what the host cannot show as DOS does.
-- `make ctest`, the DOSBox suites (x86f, qbconf, the IDE suite), stays the end-to-end gate.
+- `make chosttest` runs the unit tests, then x86f and conformance on the host build, in seconds. `HOST_SKIP` in `regress_test.py` names what the host cannot show as DOS does.
+- `make ctest`, the DOSBox suites (x86f, conformance, the IDE suite), stays the end-to-end gate.
 
 ## Migration
 

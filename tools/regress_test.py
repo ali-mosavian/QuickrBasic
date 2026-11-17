@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""x86f_test.py [EXE]: regressions of the flat build (build/x86/basic32.exe).
+"""regress_test.py [EXE]: regressions of the flat build (build/x86/basic32.exe).
 
 Each case: its program, run as a file, the output it must print and one it must not."""
 
@@ -10,8 +10,8 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-os.environ.setdefault("X86_COM", sys.argv[1] if len(sys.argv) > 1 else str(ROOT / "build/x86/basic32.exe"))
-import x86run  # noqa: E402
+os.environ.setdefault("BASIC_EXE", sys.argv[1] if len(sys.argv) > 1 else str(ROOT / "build/x86/basic32.exe"))
+import dosrun  # noqa: E402
 
 CASES = {
     # C port: TIMER was DOS's time, in 55 ms steps; it is llrm's (B$TIMR), the timer chip's count
@@ -646,7 +646,7 @@ FILES = {
 }
 
 # A forbidden "ERROR": any error's message at a line's start.
-MSGS = x86run.messages()
+MSGS = dosrun.messages()
 
 
 def forbidden(forbid: str, out: str) -> bool:
@@ -671,15 +671,15 @@ HOST_SKIP = {"qb_shell": "SHELL runs /bin/sh, whose SET lists its own variables"
 
 def main() -> None:
     check_forbidden()
-    if x86run.is_host(x86run.COM):
+    if dosrun.is_host(dosrun.COM):
         for k in HOST_SKIP:
             CASES.pop(k)
     tmp = Path(tempfile.mkdtemp())
-    batches = [dict(jobs=b, limit_ms=10000, file=True, files=FILES) for b in x86run.split({k: v[0] for k, v in CASES.items()})]
+    batches = [dict(jobs=b, limit_ms=10000, file=True, files=FILES) for b in dosrun.split({k: v[0] for k, v in CASES.items()})]
     batches += [dict(jobs={k: v[0] for k, v in REPL.items()}, limit_ms=10000),
                 dict(jobs={k: v[0] for k, v in WARN.items()}, limit_ms=10000, file=True),
                 dict(jobs={k: v[0] for k, v in BIG.items()}, limit_ms=10000, file=True, mem=8)]
-    res = x86run.run_all(batches, tmp)
+    res = dosrun.run_all(batches, tmp)
     every = CASES | REPL | BIG
     bad = [k for k, (_, want, forbid) in every.items() if want not in res[k].out or (forbid and forbidden(forbid, res[k].out))]
     bad += [k for k, (_, want) in WARN.items() if want not in res[k].screen]

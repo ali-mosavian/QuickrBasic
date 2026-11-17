@@ -5,7 +5,7 @@
 ;           the emitters cm_op ..; the token readers st_get ..
 ; uses:     cm_expr, var_id, str_span, op_size, err_*
 ; data:     SI the token cursor, DI the code's next byte.
-;           A statement is parsed by dfa.inc's automaton (tools/x86dfa.py):
+;           A statement is parsed by dfa.inc's automaton (tools/gen_dfa.py):
 ;           each state's entry for the byte at SI steps past a token, goes
 ;           on at the statement's end, or runs an action: under A_BASE
 ;           CALL that routine, else cmact's A_*, which reads its operands.

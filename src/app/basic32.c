@@ -9,7 +9,7 @@ static Session session; /* the program's one session */
 #include <stdio.h>
 #include <stdlib.h>
 
-/* The ops run, for tools/x86run's instruction count. */
+/* The ops run, for tools/dosrun's instruction count. */
 static void count_report(void)
 {
     fprintf(stderr, "\nops %llu\n", (unsigned long long)session.vm.count);

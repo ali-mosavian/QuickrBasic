@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""x86long_test.py: strings past 255 chars and arrays past 64K, which stock's limits forbade."""
+"""limits_test.py: strings past 255 chars and arrays past 64K, which stock's limits forbade."""
 
 import os
 import sys
@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-import x86run
+import dosrun
 
 ABC = "".join(chr(65 + i % 26) for i in range(1, 1001))
 
@@ -47,13 +47,13 @@ def flat(out: str) -> list[str]:
 
 
 def run_mode(fpu: str) -> None:
-    os.environ["X86_FPU"] = fpu
+    os.environ["DOS_FPU"] = fpu
     jobs = {f"t{i}": f"{src}\n" for i, src in enumerate(CASES)}
-    r = x86run.run(jobs, Path(tempfile.mkdtemp()) / "w")
+    r = dosrun.run(jobs, Path(tempfile.mkdtemp()) / "w")
     for i, (src, want) in enumerate(CASES.items()):
         got = flat(r[f"t{i}"].out)
         for w in want:
-            assert any(w in g for g in got), f"X86_FPU={fpu} {src[:60]!r}: {r[f't{i}'].out[-300:]!r}"
+            assert any(w in g for g in got), f"DOS_FPU={fpu} {src[:60]!r}: {r[f't{i}'].out[-300:]!r}"
 
 
 if __name__ == "__main__":

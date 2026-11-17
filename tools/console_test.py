@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""x86kbd_test.py: a line typed on the console, not piped. A console read ends at CR alone, and
+"""console_test.py: a line typed on the console, not piped. A console read ends at CR alone, and
 plt_getline waited for an LF that never came: READY, then nothing, whatever was typed."""
 
 import json
@@ -10,7 +10,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-import x86run
+import dosrun
 
 TYPED = "print 10/5\r"  # the BIOS buffer holds 15 keys
 
@@ -63,13 +63,13 @@ def stuffer(work: Path, text: str) -> None:
 
 def main() -> None:
     work = Path(tempfile.mkdtemp())
-    (work / "BASIC.COM").write_bytes(x86run.COM.read_bytes())
+    (work / "BASIC.COM").write_bytes(dosrun.COM.read_bytes())
     stuffer(work, TYPED)
-    (work / "job.conf").write_text(x86run.CONF)
+    (work / "job.conf").write_text(dosrun.CONF)
     job = f":ms 2000\nmount c {work}\nc:\nKEYS.COM > OUT.TXT\n.\n"
     with open(work / "events.txt", "wb") as ev:
         subprocess.run(
-            [str(x86run.DOSBOX), "-nolog", "-conf", str(work / "job.conf")],
+            [str(dosrun.DOSBOX), "-nolog", "-conf", str(work / "job.conf")],
             input=job.encode(),
             pass_fds=(ev.fileno(),),
             env=dict(os.environ, SDL_VIDEODRIVER="dummy", DOSRUN_FD=str(ev.fileno())),

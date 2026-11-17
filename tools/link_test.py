@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""x86link_test.py: the token store, its code cache, the link and LIST stay right across edits and RUN."""
+"""link_test.py: the token store, its code cache, the link and LIST stay right across edits and RUN."""
 
 import os
 import sys
@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-import x86run
+import dosrun
 
 # A subroutine bigger than the code cache: it empties mid-run, with the
 # FOR, GOSUB and FN frames live.
@@ -85,22 +85,22 @@ CASES = {
 
 
 # A line rebuilt at the link left the end marker behind: ?OUT OF MEMORY at RUN.
-CHECKERS = Path(__file__).parent.parent / "test/corpus/bcg/23_checkers.bas"
+CHECKERS = Path(__file__).parent.parent / "tests/corpus/bcg/23_checkers.bas"
 
 
 def run_mode(fpu: str) -> None:
-    os.environ["X86_FPU"] = fpu
+    os.environ["DOS_FPU"] = fpu
     jobs = {f"t{i}": f"{src}\n" for i, src in enumerate(CASES)}
     jobs["checkers"] = "\n".join(x for x in CHECKERS.read_text().splitlines() if x.strip() and len(x) < 80) + "\nRUN\n"
-    r = x86run.run(jobs, Path(tempfile.mkdtemp()) / "w")
-    assert "OUT OF MEMORY" not in r["checkers"].out, f"X86_FPU={fpu} checkers: {r['checkers'].out[-200:]!r}"
+    r = dosrun.run(jobs, Path(tempfile.mkdtemp()) / "w")
+    assert "OUT OF MEMORY" not in r["checkers"].out, f"DOS_FPU={fpu} checkers: {r['checkers'].out[-200:]!r}"
     for i, (src, want) in enumerate(CASES.items()):
         got = [x.strip("\r ") for x in r[f"t{i}"].out.split("\n")]
         for w in want:
-            assert w in got, f"X86_FPU={fpu} {src[:60]}: {r[f't{i}'].out[-300:]!r}"
+            assert w in got, f"DOS_FPU={fpu} {src[:60]}: {r[f't{i}'].out[-300:]!r}"
         if src.endswith("LIST"):
             listed = [x for x in got if x[:1].isdigit() and " " in x]
-            assert listed == [w for w in want if " " in w], f"X86_FPU={fpu} {src[:60]}: {listed!r}"
+            assert listed == [w for w in want if " " in w], f"DOS_FPU={fpu} {src[:60]}: {listed!r}"
 
 
 if __name__ == "__main__":

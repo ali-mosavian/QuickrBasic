@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""x86types_test.py: static types differ from stock on purpose; stock's transcripts cannot check them."""
+"""types_test.py: static types differ from stock on purpose; stock's transcripts cannot check them."""
 
 import os
 import sys
@@ -7,7 +7,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-import x86run
+import dosrun
 
 CASES = {
     "PRINT 1/3;7/2;-7/2;2^3;2^-1;(-1)^3;(-1)^-3;0^0": " 0  3 -3  8  0 -1 -1  1",
@@ -33,12 +33,12 @@ CASES = {
 
 
 def run_mode(fpu: str) -> None:
-    os.environ["X86_FPU"] = fpu
+    os.environ["DOS_FPU"] = fpu
     jobs = {f"t{i}": f"{src}\n" for i, src in enumerate(CASES)}
-    r = x86run.run(jobs, Path(tempfile.mkdtemp()) / "w")
+    r = dosrun.run(jobs, Path(tempfile.mkdtemp()) / "w")
     for i, (src, want) in enumerate(CASES.items()):
         got = [x.strip("\r ") for x in r[f"t{i}"].out.split("\n")]
-        assert want.strip() in got, f"X86_FPU={fpu} {src}: {r[f't{i}'].out!r}"
+        assert want.strip() in got, f"DOS_FPU={fpu} {src}: {r[f't{i}'].out!r}"
 
 
 if __name__ == "__main__":

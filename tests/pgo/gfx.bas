@@ -1,4 +1,4 @@
-' PGO training (tools/x86pgo.py): the graphics, sound and screen statements, which the conformance
+' PGO training (tools/pgo.py): the graphics, sound and screen statements, which the conformance
 ' programs leave out
 DIM sprite%(200)
 FOR m = 1 TO 4

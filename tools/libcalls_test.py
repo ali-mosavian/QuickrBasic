@@ -1,4 +1,4 @@
-"""chelpers_test.py: no C object at -Os calls a compiler helper the DOS link lacks.
+"""libcalls_test.py: no C object at -Os calls a compiler helper the DOS link lacks.
 
 At -Os clang called __aulldiv for dubl_digits's 64-bit /10 and the link failed.
 """

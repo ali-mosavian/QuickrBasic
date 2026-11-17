@@ -13,6 +13,6 @@
    `main.c` (io) calls `pmem_init`, `allo_init`, then every carving init, then the blocks (cache,
    program store, symbols), in the asm's order.
 5. FRE: the suites never compare its value; the regions inside the heap are fine.
-6. `gen.inc` (`g_msgs`, `g_kwlist`, `g_kwlist1`): comp's `x86dfa.py` gets a C mode for it too.
+6. `gen.inc` (`g_msgs`, `g_kwlist`, `g_kwlist1`): comp's `gen_dfa.py` gets a C mode for it too.
 7. Op sizes: `flow_opsize` from `ops.def` (vm); comp uses it.
 8. 64-bit division: check that llrm's x86_32-dos links `__udivdi3`/`__divdi3` before relying on it.

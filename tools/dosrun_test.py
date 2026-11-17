@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""x86run_test.py: x86run's event file must reach DOSBox whatever descriptor it opens on."""
+"""dosrun_test.py: dosrun's event file must reach DOSBox whatever descriptor it opens on."""
 
 import os
 import sys
@@ -18,7 +18,7 @@ def load(path: str):
 
 def test_events_survive_on_fd9() -> None:
     """On fd 9, a dup2 onto itself left the file close-on-exec: every job of the batch read as lost."""
-    mod = load(sys.argv[1] if len(sys.argv) > 1 else str(Path(__file__).with_name("x86run.py")))
+    mod = load(sys.argv[1] if len(sys.argv) > 1 else str(Path(__file__).with_name("dosrun.py")))
     spare = []
     while True:
         fd = os.open(os.devnull, os.O_RDONLY)

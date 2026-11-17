@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""x86run.py: run DOS jobs of the x86 port under llrm's headless DOSBox-X."""
+"""dosrun.py: run DOS jobs of the x86 port under llrm's headless DOSBox-X."""
 
 import os
 import re
@@ -16,7 +16,7 @@ ROOT = Path(__file__).resolve().parents[1]
 # toolchain/dosrunbuild.sh pins.
 CACHE = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "llrm"
 DOSBOX = Path(os.environ.get("DOSBOX_BIN", CACHE / "dosbox-x-eea2b2da0203d37ff51e34a8f714af8110fe0162/src/dosbox-x"))
-COM = Path(os.environ.get("X86_COM", ROOT / "build/x86/basic32.exe"))
+COM = Path(os.environ.get("BASIC_EXE", ROOT / "build/x86/basic32.exe"))
 
 CONF = """[sdl]
 priority=higher,normal
@@ -91,7 +91,7 @@ def run(jobs: dict[str, str | tuple], work: Path, limit_ms: int = 60000, file: b
         (work / f"J{i}.IN").write_bytes((stdin if file else prog).encode("latin-1"))
         run = f"BASIC.COM {bas} {args}".rstrip() + ("" if keyboard else f" < J{i}.IN") if file else f"BASIC.COM < J{i}.IN"
         lines += [":profile"] * profile + [f":ms {limit_ms}", f"mount c {work}", "c:", *before, run if screen else f"{run} > J{i}.TXT", "."]
-    fpu = "" if os.environ.get("X86_FPU", "1") == "1" else "fpu=false\n"
+    fpu = "" if os.environ.get("DOS_FPU", "1") == "1" else "fpu=false\n"
     # mem: DOSBox's MB. DOS/32A's start costs about 0.35 s a MB, the heap takes what is free
     (work / "job.conf").write_text(CONF.format(mem=mem).replace("[dos]", f"{fpu}[dos]"))
     (work / "jobs.txt").write_text("\n".join(lines) + "\n")

@@ -2,7 +2,7 @@
 ; lex.asm - the tokenizer: a typed line becomes the body of a stored line
 ; ==========================================================================
 ; holds:    lx_line, lx_word, lx_kw, kw_step, lx_colof, g_lxcol
-; uses:     dfa.inc's tables (tools/x86dfa.py), nam_find
+; uses:     dfa.inc's tables (tools/gen_dfa.py), nam_find
 ; data:     SI the text, DI the body. In the body:
 ;           M_VAR len name nam:2  a name as typed, its suffix too; nam its
 ;                                 entry in the name table

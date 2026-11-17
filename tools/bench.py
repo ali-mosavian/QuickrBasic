@@ -11,7 +11,7 @@
 
 Native (the default) runs build/hostperf/basic for retired instructions, the least of RUNS runs less
 an empty program's, builds compared run interleaved; and build/host/basic for the ops dispatched,
-which are exact. --dos runs build/c/basic32.exe under x86run, whose instruction count is exact.
+which are exact. --dos runs build/c/basic32.exe under dosrun, whose instruction count is exact.
 A REV is built once in its own worktree under build/bench/.
 """
 
@@ -30,7 +30,7 @@ from pathlib import Path
 from dataclasses import dataclass
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # run with -I too
-import x86run
+import dosrun
 
 ROOT = Path(__file__).resolve().parent.parent
 SUITE = ROOT / "tools/bench"
@@ -145,9 +145,9 @@ def run_native(b: Build, progs: Programs, runs: int = RUNS) -> dict[str, Cost]:
 
 
 def run_dos(b: Build, progs: Programs) -> dict[str, Cost]:
-    x86run.COM = b.dos
+    dosrun.COM = b.dos
     with tempfile.TemporaryDirectory() as d:
-        r = x86run.run(
+        r = dosrun.run(
             {"": "", **{k: source(p).decode("latin-1") for k, p in progs.items()}},
             Path(d) / "w",
             limit_ms=600000,
@@ -334,7 +334,7 @@ def qbasic_run(which: str, work: Path) -> dict[str, float]:
         cmds = "AUTOTYPE -w 4 f5\nIDE32 BENCH.BAS"
     (work / "b.conf").write_text(DOSBOX_CONF.format(work=work, cmds=cmds))
     p = subprocess.Popen(
-        [str(x86run.DOSBOX), "-nolog", "-conf", str(work / "b.conf")],
+        [str(dosrun.DOSBOX), "-nolog", "-conf", str(work / "b.conf")],
         env=os.environ | {"SDL_VIDEODRIVER": "dummy"},
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL,
@@ -436,8 +436,8 @@ def cmd_profile(a: argparse.Namespace) -> int:
     text = program(a)
     jobs: dict[str, str | tuple] = {"": text, "prog": text + "\nRUN\n"} if a.link else {"": "", "prog": text}
     with tempfile.TemporaryDirectory() as d:
-        x86run.COM = profiled(build(".", True), Path(d), a.ide)
-        r = x86run.run(
+        dosrun.COM = profiled(build(".", True), Path(d), a.ide)
+        r = dosrun.run(
             jobs,
             Path(d) / "w",
             limit_ms=a.ms if a.ide else 600000,

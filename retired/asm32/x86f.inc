@@ -1,6 +1,6 @@
 ; ==========================================================================
 ; x86f.inc - every module's header: the model, the constants, the macros,
-; the symbols the modules share (syms.inc, tools/x86syms.py)
+; the symbols the modules share (syms.inc, tools/asm_syms.py)
 ; ==========================================================================
         .386
         .387

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""x86fold_test.py [EXE]: constant expressions and CONSTs cost what their value does.
+"""fold_test.py [EXE]: constant expressions and CONSTs cost what their value does.
 
 Each case's loop runs as many instructions as the same loop with the value written out: an
 unfolded 2 * 3 + 4 * 5 ran four more ops per pass. Its output must match too.
@@ -11,7 +11,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-import x86run
+import dosrun
 
 LOOP = "FOR i% = 1 TO 20000: x{} = {}: NEXT: PRINT x{}\r\n"
 
@@ -31,21 +31,21 @@ SLACK = 1.01  # the compile's own cost, once
 
 
 def use(exe: str | None) -> Path:
-    """The program measured. x86run reads X86_COM on import: setting only the variable after it
+    """The program measured. dosrun reads BASIC_EXE on import: setting only the variable after it
     measured build/x86/basic32.exe whatever EXE named, so a build without folding passed or failed
     for another build's reason."""
     if exe:
-        x86run.COM = Path(exe)
-    return x86run.COM
+        dosrun.COM = Path(exe)
+    return dosrun.COM
 
 
 def main() -> None:
-    exe = use(sys.argv[1] if len(sys.argv) > 1 else os.environ.get("X86_COM"))
+    exe = use(sys.argv[1] if len(sys.argv) > 1 else os.environ.get("BASIC_EXE"))
     jobs = {}
     for name, (decl, sfx, expr, value) in CASES.items():
         jobs[name] = decl + LOOP.format(sfx, expr, sfx)
         jobs[name + "_k"] = decl + LOOP.format(sfx, value, sfx)
-    res = x86run.run(jobs, Path(tempfile.mkdtemp()) / "w", 20000, file=True)
+    res = dosrun.run(jobs, Path(tempfile.mkdtemp()) / "w", 20000, file=True)
     bad = []
     for name in CASES:
         got, want = res[name], res[name + "_k"]

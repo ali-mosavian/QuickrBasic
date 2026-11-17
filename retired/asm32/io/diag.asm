@@ -3,7 +3,7 @@
 ; ==========================================================================
 ; holds:    dx_at, dx_what, dx_todo, dx_shape, dx_say, dx_raise
 ; uses:     er_text, cm_expn, cm_expect, lx_kw, io_putc, io_puts, io_nl; msg.inc
-;           (tools/x86msg.py)
+;           (tools/gen_messages.py)
 ; data:     An error is its E_*, its DG_ (0: found by BC's name and the text
 ;           at the error) and its column in the line's text. dx_at reads the
 ;           place: the text there, the statement it is in, the name it is

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""clto.py CLANG OUT.obj [--profiling | --hot FILE] BITCODE... -- ASM...: the C program's bitcode as
+"""lto.py CLANG OUT.obj [--profiling | --hot FILE] BITCODE... -- ASM...: the C program's bitcode as
 one COFF object, optimized whole.
 
 The modules are linked into one (llvm-link), every symbol but those the asm objects and the start-up
@@ -7,7 +7,7 @@ use made internal (internalize), the whole optimized (opt -O2), then compiled fo
 as one object. jwlink reads no bitcode, so this is the link-time optimization it cannot do.
 
 --profiling: every function kept and its own (none internal, none inlined; a static's name after
-q$), so a run's profile (tools/x86pgo.py) counts each by name. --hot FILE: the functions that profile ran, one a line;
+q$), so a run's profile (tools/pgo.py) counts each by name. --hot FILE: the functions that profile ran, one a line;
 every other is cold and optimized for size, so none is inlined for speed it never needed.
 """
 
@@ -66,7 +66,7 @@ if profiling:
     # each function external under its own name, in the map, and called, not inlined
     ir = subprocess.run([str(BIN / "llvm-dis"), "-o", "-", str(merged)], capture_output=True, text=True,
                         check=True).stdout
-    # a static's own name could be the start-up's (report): q$ before it, which x86pgo.py drops
+    # a static's own name could be the start-up's (report): q$ before it, which pgo.py drops
     statics = re.findall(r"(?m)^define (?:internal|private) [^@]*@([-\w$.]+)\(", ir)
     ir = re.sub(r"(?m)^define (internal|private) ", "define ", ir)
     if statics:
@@ -80,7 +80,7 @@ if hot:
     every = defined(merged)
     cold = [f for f in every if f not in ran]
     if len(cold) == len(every):  # names that matched none: everything cold, nothing said
-        sys.exit(f"clto: none of {hot}'s functions is in the program")
+        sys.exit(f"lto: none of {hot}'s functions is in the program")
     attrs = out.with_suffix(".cold.csv")
     attrs.write_text("".join(f"{f},cold\n{f},optsize\n" for f in cold))
     passes.append(f"-forceattrs-csv-path={attrs}")

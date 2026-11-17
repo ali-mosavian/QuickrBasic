@@ -20,7 +20,7 @@ memory: programs, lines, strings, arrays and symbol tables grow as needed.
 | **25, 43 and 50 lines**<br>![](docs/img/clips/rows.gif) | **Nine themes**<br>![](docs/img/clips/themes.gif) |
 | **GORILLA.BAS**, unchanged, opened and run<br>![](docs/img/clips/gorillas.gif) | **NIBBLES.BAS**, unchanged, opened and run<br>![](docs/img/clips/nibbles.gif) |
 
-`python3 tools/x86demo.py` plays the IDE in DOSBox and cuts its video recording into these.
+`python3 tools/demo.py` plays the IDE in DOSBox and cuts its video recording into these.
 
 ## Building
 

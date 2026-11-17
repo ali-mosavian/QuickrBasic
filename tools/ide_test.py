@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""x86ide_test.py: the QBasic-style editor (make ide) played on the emulated console: free-form lines, F5 on
+"""ide_test.py: the QBasic-style editor (make ide) played on the emulated console: free-form lines, F5 on
 the output page, the immediate window, menus, clipboard, the file and search dialogs. Screenshots go to docs/img."""
 
 import os
@@ -15,14 +15,14 @@ import llrmbin  # noqa: E402
 
 llrmbin.stale_binaries = lambda *a, **k: []  # the emulator is the stamped one; the llrm sources are not ours
 import qbplay  # noqa: E402
-import x86run  # noqa: E402
+import dosrun  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 IMG = ROOT / "docs/img"
 ALT_F, ALT_S, F4, F5 = 0x21, 0x1F, 0x3E, 0x3F
-MSGS = x86run.messages()
-# X86_IDE=build/x86/ide32.exe plays the flat build, DOS32A.EXE beside it
-IDE = Path(os.environ.get("X86_IDE", ROOT / "build/x86/ide32.exe"))
+MSGS = dosrun.messages()
+# IDE_EXE=build/x86/ide32.exe plays the flat build, DOS32A.EXE beside it
+IDE = Path(os.environ.get("IDE_EXE", ROOT / "build/x86/ide32.exe"))
 
 
 def play() -> None:
