@@ -47,5 +47,6 @@ SC(STRIG, vdev_strig)   /* ( n -- i ): STRIG(n) */
 SC(PEN, vdev_pen)       /* ( n -- i ): PEN(n) */
 SC(SCRN, vdev_screen)   /* ( r c [f] count -- i ): SCREEN(r, c[, f]) */
 SC(PLAYV, snd_play_voices) /* ( commands... count -- ): PLAY a$, b$[, c$], a voice each */
+SC(PCOPY, vgfx_pcopy)   /* ( from to -- ): PCOPY */
 #undef SC
 #endif

@@ -47,6 +47,12 @@ double gfx_window_scale(void);
 /* SCREEN: sets the mode, or returns to text with 0.  Not a mode this has is an
    Illegal function call. */
 void gfx_screen(int mode);
+/* The text pages back to 0, the program's page 0 the one shown (a run's start, a text mode set). */
+void gfx_text_pages_reset(void);
+/* The visible page shown again, after a front end showed its own. */
+void gfx_pages_show(void);
+/* PCOPY: a page copied over another; Illegal function call past the mode's pages. */
+void gfx_pcopy(int from, int to);
 
 /* The background is colour 0 made to look like another: the palette's first
    entry is given the colour of that attribute (the adapter's default one). */

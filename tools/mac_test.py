@@ -7,6 +7,7 @@ the universal binary's half run (arch -ARCH), the machine's own if none. A graph
 broken and restarted (Shift+F5) draws again: the kept screen once left the display on the text.
 QB_SHOT's timed shots, one run: the status line before Alt+F, then its help line. QB_MOUSE's press, read by
 PEN, draws a box where it was.
+A box drawn on page 1 is shown only once page 1 is, in SCREEN 13 and in text mode.
 """
 
 import os
@@ -20,6 +21,11 @@ BOX = "SCREEN 9\nDO\nLINE (0, 0)-(100, 100), 4, BF\nLOOP\n"
 RESTART = "3F00 120:FFFF 180:5800"  # F5, Ctrl+Break, Shift+F5
 PEN = "SCREEN 9\nPEN ON\nDO\nIF PEN(0) THEN x = PEN(1): y = PEN(2): LINE (x - 5, y - 5)-(x + 5, y + 5), 4, BF\nLOOP\n"
 CLICK = "2s:300,200 2.2s:300,200:1 2.4s:300,200"  # after F5 at 1s
+HIDDEN = {
+    "graphics": "SCREEN 13, , 1, 0\nLINE (0, 0)-(100, 100), 4, BF\n",
+    "text": "SCREEN 0, , 1, 0\nCOLOR 4, 4\nCLS\n",
+}
+LOOP = "DO\nLOOP\n"
 
 
 def frames(
@@ -70,6 +76,13 @@ def main() -> None:
         pen = Path(tmp) / "PEN.BAS"
         pen.write_text(PEN)
         pw, _, clicked = frames(run, pen, "60:3F00", ("3s",), CLICK)[0]
+        pages = {}
+        for name, draw in HIDDEN.items():
+            for shown, tail in (("hidden", ""), ("shown", "SCREEN , , , 1\n")):
+                page = Path(tmp) / "PAGE.BAS"
+                page.write_text(draw + tail + LOOP)
+                gw, _, px = frame(run, page, "3F00")
+                pages[name, shown] = pixel(gw, px, 50, 50)
     status = {pixel(w, menu, x, 392) for x in range(9 * 30, 9 * 60)}
 
     def status_row(shot: bytes) -> list[tuple[int, ...]]:
@@ -84,6 +97,10 @@ def main() -> None:
         "restarted graphics drawn": pixel(bw, again, 50, 50) == RED,
         "timed shots, Alt+F between": status_row(before) != status_row(after) == status_row(menu),
         "click drawn": pixel(pw, clicked, 300, 200) == RED and pixel(pw, clicked, 320, 200) != RED,
+        "graphics page 1 hidden": pages["graphics", "hidden"] != RED,
+        "graphics page 1 shown": pages["graphics", "shown"] == RED,
+        "text page 1 hidden": pages["text", "hidden"] != RED,
+        "text page 1 shown": pages["text", "shown"] == RED,
     }
     failed = [name for name, ok in checks.items() if not ok]
     print(f"mac {sys.argv[2] if len(sys.argv) > 2 else ''} " + ("ok" if not failed else "FAIL " + ", ".join(failed)))

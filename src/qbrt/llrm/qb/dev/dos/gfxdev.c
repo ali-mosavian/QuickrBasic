@@ -7,13 +7,23 @@
    the function applied to what the latches hold of the byte read first. The
    controller rests in write mode 2, function 0 and bit mask FFh while a
    graphics mode is on; the operations that change the function or the mask put
-   them back. */
+   them back.
+
+   Modes 04h, 06h, 12h and 13h have one page on the adapter, the visible one;
+   their other is `hidden`, in memory. It has the screen's layout in 04h, 06h
+   and 13h, drawn by the same routines with `screen` pointing at it; in 12h a
+   byte a pixel, drawn by pixmem.c. A change of the visible page swaps the two;
+   PCOPY copies one over the other. */
+#include <string.h>
+
 #include "device.h"
 #include "gfxdev.h"
+#include "pixmem.h"
 
 enum {
     GC_PORT = 0x3CE,
     GC_DATA_ROTATE = 3,
+    GC_SET_RESET_ENABLE = 1,
     GC_READ_MAP = 4,
     GC_COLOR_COMPARE = 2,
     GC_MODE = 5,
@@ -27,6 +37,17 @@ enum {
     MODE_320 = 0x0D,
     MODE_640_200 = 0x0E,
     MODE_640_350 = 0x10,
+    MODE_640_480 = 0x12,
+    SEQ_PORT = 0x3C4,
+    SEQ_MAP_MASK = 2,
+    ALL_PLANES = 0x0F,
+    WRITE_MODE_0 = 0,
+    PLANAR_WIDTH = 640,
+    PLANAR_HEIGHT = 480,
+    PLANAR_ROW = PLANAR_WIDTH / 8,
+    LINEAR_BYTES = 320 * 200,
+    CGA_BYTES = 0x4000,
+    SOFT_PAGES = 2,
     SET_PAGE = 0x0500,
     MODE_LINEAR = 0x13,
     SET_COLOR_SELECT = 0x0B00,
@@ -48,6 +69,12 @@ typedef volatile u8 QB_FAR Video;
 static Video *screen = (Video *)QB_VIDEO_MEMORY(0xA000);
 static unsigned pitch = 80; /* bytes of a row of one plane */
 static unsigned page_count = 1, page_paragraphs; /* the pages the mode holds, and the paragraphs of one */
+
+static Video *adapter;                         /* the adapter's screen */
+static u8 hidden[PLANAR_WIDTH * PLANAR_HEIGHT]; /* the page not on the adapter */
+static unsigned soft_mode;                     /* the mode's: 0, or 04h, 06h, 12h or 13h */
+static unsigned shown;                         /* the page on the adapter, where soft_mode */
+static int in_memory;                          /* drawing goes to `hidden` through pixmem.c (12h) */
 
 static void controller(unsigned index, unsigned value)
 {
@@ -98,6 +125,13 @@ int gd_set_mode(unsigned mode)
         screen = (Video *)QB_VIDEO_MEMORY(0xB800);
     else
         screen = (Video *)QB_VIDEO_MEMORY(0xA000);
+    adapter = screen;
+    soft_mode = mode == MODE_CGA4 || mode == MODE_CGA2 || mode == MODE_640_480 || mode == MODE_LINEAR ? mode : 0;
+    if (soft_mode)
+        page_count = SOFT_PAGES;
+    shown = 0;
+    in_memory = 0;
+    memset(hidden, 0, sizeof hidden);
     if ((r.rax & 0x7F) != (mode & 0x7F))
         return 0;
 
@@ -106,15 +140,160 @@ int gd_set_mode(unsigned mode)
     return 1;
 }
 
+static void no_touch(unsigned top, unsigned count)
+{
+}
+
+/* The bytes of a page in the adapter's layout (04h, 06h, 13h). */
+static unsigned soft_bytes(void)
+{
+    return soft_mode == MODE_LINEAR ? LINEAR_BYTES : CGA_BYTES;
+}
+
+static void seq_map(unsigned planes)
+{
+    dev_outw(SEQ_PORT, SEQ_MAP_MASK | planes << 8);
+}
+
+/* 12h's row y between the adapter and pixels, a byte a pixel. */
+static void planar_row_in(unsigned y, u8 *pixels)
+{
+    unsigned plane, at, bit;
+
+    memset(pixels, 0, PLANAR_WIDTH);
+    for (plane = 0; plane < PLANES; plane++) {
+        Video *from = adapter + y * PLANAR_ROW;
+
+        controller(GC_READ_MAP, plane);
+        for (at = 0; at < PLANAR_ROW; at++) {
+            unsigned bits = from[at];
+
+            for (bit = 0; bit < 8; bit++)
+                pixels[at * 8 + bit] |= (u8)((bits >> (7 - bit) & 1) << plane);
+        }
+    }
+    controller(GC_READ_MAP, 0);
+}
+
+/* Write mode 0, a plane at a time; the controller back as it rests after. */
+static void planar_row_out(unsigned y, const u8 *pixels)
+{
+    unsigned plane, at, bit;
+
+    controller(GC_MODE, WRITE_MODE_0);
+    controller(GC_SET_RESET_ENABLE, 0);
+    for (plane = 0; plane < PLANES; plane++) {
+        Video *to = adapter + y * PLANAR_ROW;
+
+        seq_map(1u << plane);
+        for (at = 0; at < PLANAR_ROW; at++) {
+            unsigned bits = 0;
+
+            for (bit = 0; bit < 8; bit++)
+                bits |= (pixels[at * 8 + bit] >> plane & 1u) << (7 - bit);
+            to[at] = (u8)bits;
+        }
+    }
+    seq_map(ALL_PLANES);
+    controller(GC_MODE, WRITE_MODE_2);
+}
+
+/* The adapter's page and the hidden one change places. */
+static void soft_swap(void)
+{
+    if (soft_mode == MODE_640_480) {
+        u8 row[PLANAR_WIDTH];
+        unsigned y;
+
+        for (y = 0; y < PLANAR_HEIGHT; y++) {
+            planar_row_in(y, row);
+            planar_row_out(y, hidden + y * PLANAR_WIDTH);
+            memcpy(hidden + y * PLANAR_WIDTH, row, PLANAR_WIDTH);
+        }
+    } else {
+        unsigned at, n = soft_bytes();
+
+        for (at = 0; at < n; at++) {
+            u8 held = adapter[at];
+
+            adapter[at] = hidden[at];
+            hidden[at] = held;
+        }
+    }
+}
+
+/* One of the two pages copied over the other: the adapter's to `hidden`, or back. */
+static void soft_copy(int to_hidden)
+{
+    unsigned y;
+
+    if (soft_mode != MODE_640_480) {
+        BlockOp op;
+
+        op.dst = to_hidden ? (void *)hidden : (void *)adapter;
+        op.src = to_hidden ? (const void *)adapter : (const void *)hidden;
+        op.count = soft_bytes();
+        op.value = 0;
+        dev_move(&op);
+        return;
+    }
+    for (y = 0; y < PLANAR_HEIGHT; y++)
+        if (to_hidden)
+            planar_row_in(y, hidden + y * PLANAR_WIDTH);
+        else
+            planar_row_out(y, hidden + y * PLANAR_WIDTH);
+}
+
+static void soft_draw_on(unsigned active)
+{
+    int on_hidden = active != shown;
+
+    screen = on_hidden && soft_mode != MODE_640_480 ? (Video *)hidden : adapter;
+    in_memory = on_hidden && soft_mode == MODE_640_480;
+    if (in_memory)
+        pm_use(hidden, PLANAR_WIDTH, PLANAR_HEIGHT, PM_PLANAR, no_touch);
+}
+
 int gd_set_pages(unsigned active, unsigned visible)
 {
     Regs r;
 
     if (active >= page_count || visible >= page_count)
         return 0;
+    if (soft_mode) {
+        if (visible != shown) {
+            soft_swap();
+            shown = visible;
+        }
+        soft_draw_on(active);
+        return 1;
+    }
     screen = (Video *)QB_VIDEO_MEMORY(0xA000 + active * page_paragraphs);
     r.rax = SET_PAGE | visible;
     dev_int10(&r);
+    return 1;
+}
+
+/* The EGA modes' pages are all on the adapter: write mode 1 writes the latches a read loaded, every plane at once. */
+int gd_copy_page(unsigned from, unsigned to)
+{
+    unsigned at, n = page_paragraphs << 4;
+    Video *src, *dst;
+
+    if (from >= page_count || to >= page_count)
+        return 0;
+    if (from == to)
+        return 1;
+    if (soft_mode) {
+        soft_copy(to != shown);
+        return 1;
+    }
+    src = (Video *)QB_VIDEO_MEMORY(0xA000 + from * page_paragraphs);
+    dst = (Video *)QB_VIDEO_MEMORY(0xA000 + to * page_paragraphs);
+    controller(GC_MODE, WRITE_MODE_1);
+    for (at = 0; at < n; at++)
+        dst[at] = src[at];
+    controller(GC_MODE, WRITE_MODE_2);
     return 1;
 }
 
@@ -344,27 +523,36 @@ static const GdOps planar_ops = {planar_plot, planar_read, planar_search, planar
 
 void gd_plot(unsigned x, unsigned y, unsigned color, unsigned operation)
 {
-    ops->plot(x, y, color, operation);
+    if (in_memory)
+        pm_plot(x, y, color, operation);
+    else
+        ops->plot(x, y, color, operation);
 }
 
 unsigned gd_read(unsigned x, unsigned y)
 {
-    return ops->read(x, y);
+    return in_memory ? pm_read(x, y) : ops->read(x, y);
 }
 
 int gd_search(int x, int last, unsigned y, unsigned c1, unsigned c2, int match)
 {
-    return ops->search(x, last, y, c1, c2, match);
+    return in_memory ? pm_search(x, last, y, c1, c2, match) : ops->search(x, last, y, c1, c2, match);
 }
 
 void gd_move_rows(unsigned to, unsigned from, unsigned count)
 {
-    ops->move_rows(to, from, count);
+    if (in_memory)
+        pm_move_rows(to, from, count);
+    else
+        ops->move_rows(to, from, count);
 }
 
 void gd_glyph(unsigned x, unsigned y, const u8 QB_FAR *bits, unsigned height, unsigned foreground)
 {
-    ops->glyph(x, y, bits, height, foreground);
+    if (in_memory)
+        pm_glyph(x, y, bits, height, foreground);
+    else
+        ops->glyph(x, y, bits, height, foreground);
 }
 
 /* The CGA modes: pixels packed in bytes, `bits` each with the leftmost in the
@@ -429,6 +617,8 @@ int gd_run(int x, int last, unsigned y, unsigned edge, unsigned paint, int limit
     FillScan scan;
     int open, l, r;
 
+    if (in_memory)
+        return pm_run(x, last, y, edge, paint, limit, left, right);
     if (kind == KIND_PACKED4 || kind == KIND_PACKED2) {
         scan.at = packed_row(y);
         scan.x = (unsigned)x;
@@ -903,13 +1093,13 @@ static void (*const lines[KINDS])(const GdFill *fill, unsigned x, unsigned y, un
 
 void gd_dots_begin(const GdFill *fill)
 {
-    if (kind == KIND_PLANAR && fill->operation)
+    if (kind == KIND_PLANAR && !in_memory && fill->operation)
         controller(GC_DATA_ROTATE, fill->operation << FUNCTION_SHIFT);
 }
 
 void gd_dots_end(const GdFill *fill)
 {
-    if (kind == KIND_PLANAR) {
+    if (kind == KIND_PLANAR && !in_memory) {
         controller(GC_BIT_MASK, 0xFF);
         if (fill->operation)
             controller(GC_DATA_ROTATE, 0);
@@ -920,6 +1110,10 @@ void gd_fill_select(GdFill *fill, unsigned color, unsigned operation)
 {
     unsigned byte = color & 0xFF;
 
+    if (in_memory) {
+        pm_fill_select(fill, color, operation);
+        return;
+    }
     switch (kind) {
     case KIND_PACKED4:
         byte = (color & 3) * 0x55;
@@ -985,6 +1179,10 @@ void gd_get(unsigned x, unsigned y, unsigned width, unsigned rows, u8 QB_FAR *ou
 {
     unsigned row;
 
+    if (in_memory) {
+        pm_get(x, y, width, rows, out);
+        return;
+    }
     if (kind == KIND_LINEAR) {
         for (row = 0; row < rows; row++, out += width) {
             BlockOp op;
@@ -1031,6 +1229,10 @@ void gd_put(unsigned x, unsigned y, unsigned width, unsigned rows, const u8 QB_F
 {
     unsigned row;
 
+    if (in_memory) {
+        pm_put(x, y, width, rows, in, operation, invert);
+        return;
+    }
     if (kind == KIND_LINEAR) {
         static void (*const put_run[4])(Video *to, const u8 QB_FAR *from, unsigned count,
                                         u32 flip) = {linear_put_set, linear_put_and, linear_put_or,

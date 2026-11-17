@@ -22,6 +22,11 @@ void dev_text_write(unsigned row, unsigned column, const char *text, unsigned co
 /* The rows `top` to `bottom` move up `lines`, the rows freed are blanks of `attribute`; no lines, or
    as many as the rows, clears them. */
 void dev_text_scroll(unsigned top, unsigned bottom, unsigned lines, unsigned attribute);
+/* The text screen's pages, counted from the one shown at the last reset (the program's page 0): the one drawn on
+   and the one shown, 0 past the pages the screen has; one copied over another. */
+void dev_text_pages_reset(void);
+int dev_text_pages(unsigned active, unsigned visible);
+int dev_text_copy(unsigned from, unsigned to);
 
 /* The keyboard. */
 int dev_key_ready(void);
