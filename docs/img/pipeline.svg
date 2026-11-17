@@ -18,7 +18,7 @@
 <path d="M544,132 L572,132" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
 <rect x="708" y="100" width="170" height="64" rx="10" fill="#ecfdf5" stroke="#059669" stroke-width="2"/>
 <text x="793" y="128" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#064e3b" text-anchor="middle">stored Line</text>
-<text x="793" y="148" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="middle">its tokens</text>
+<text x="793" y="148" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="middle">tokens; code checked</text>
 <path d="M678,132 L706,132" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
 <rect x="563" y="216" width="150" height="44" rx="8" fill="#ecfdf5" stroke="#059669" stroke-width="1.25"/>
 <text x="638" y="243" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1f2937" text-anchor="middle">listing → editor</text>
@@ -26,5 +26,5 @@
 <text x="843" y="243" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1f2937" text-anchor="middle">link → code cache</text>
 <path d="M773,164 L638,214" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
 <path d="M813,164 L843,214" fill="none" stroke="#9ca3af" stroke-width="1.6" marker-end="url(#ah9ca3af)"/>
-<text x="366" y="186" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="middle" font-style="italic">scratch tree: built, folded, emitted, dropped</text>
+<text x="366" y="186" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="middle" font-style="italic">an edit: tree and code checked, then dropped</text>
 </svg>

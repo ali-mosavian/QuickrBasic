@@ -58,14 +58,14 @@ def layers():
 
 
 def ownership():
-    s = Svg(W, 470, "Ownership", "One Session owns every module's state. Each function takes Session *S first.")
+    s = Svg(W, 510, "Ownership", "One Session owns every module's state. Each function takes Session *S first.")
     groups = [
         ("comp", "engine", ["Lexr", "Comp", "Ast", "Expr", "Decl", "Ctrl", "Blok", "Link", "List", "Code"]),
         ("vm", "engine", ["Vm", "Flow", "StmtState", "Evnt", "Chai", "Usng", "Syst", "Rndm", "Dbug"]),
         ("mem", "base", ["Allo", "Arry", "Prog", "Scop", "Strg", "Symb"]),
         ("io", "base", ["Chnl", "Cons", "File", "Repl", "Srcr", "Diag"]),
     ]
-    s.panel(32, 90, 640, 332, "engine", "struct Session", "static, in main")
+    s.panel(32, 90, 640, 372, "engine", "struct Session", "static, in main")
     y = 130
     for name, th, items in groups:
         s.text(52, y + 19, name, size=12, fill=MUTED, weight=600)
@@ -77,11 +77,11 @@ def ownership():
     for i, t in enumerate(["the IDE's state: widget tree,", "windows, editor buffers, the", "debug pane; beside the Session"]):
         s.text(712, 144 + i * 22, t, size=13)
 
-    s.panel(696, 226, 272, 196, "base", "rules")
+    s.panel(696, 226, 272, 236, "base", "rules")
     for i, r in enumerate(["one owner per piece of state", "the IDE's state is uimn", "headers expose calls, not fields",
                            "memory is the arena only", "core never calls up: hooks"]):
         s.text(712, 280 + i * 28, "•  " + r, size=13)
-    legend(s, 448)
+    legend(s, 488)
     s.save(f"{OUT}/ownership.svg")
 
 
@@ -177,7 +177,7 @@ def pipeline():
         s.arrow([(x0 + w0, 132), (x1 - 2, 132)])
     s.box(x, 100, 170, 64, "engine", strong=True)
     s.text(x + 85, 128, "stored Line", size=14, weight=700, anchor="middle", fill=THEME["engine"][2])
-    s.text(x + 85, 148, "its tokens", size=12, anchor="middle", fill=MUTED)
+    s.text(x + 85, 148, "tokens; code checked", size=12, anchor="middle", fill=MUTED)
     s.arrow([(pos[-1][0] + pos[-1][1], 132), (x - 2, 132)])
     ln = x + 85
     s.box(ln - 230, 216, 150, 44, "engine", r=8)
@@ -186,7 +186,7 @@ def pipeline():
     s.text(ln + 50, 243, "link → code cache", size=13, anchor="middle", mono=True)
     s.arrow([(ln - 20, 164), (ln - 155, 214)])
     s.arrow([(ln + 20, 164), (ln + 50, 214)])
-    s.text(pos[2][0] + 60, 186, "scratch tree: built, folded, emitted, dropped", size=12, anchor="middle",
+    s.text(pos[2][0] + 60, 186, "an edit: tree and code checked, then dropped", size=12, anchor="middle",
            fill=MUTED, italic=True)
     s.save(f"{OUT}/pipeline.svg")
 
