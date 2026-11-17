@@ -11,7 +11,9 @@
 #include "qbrt/qbrt.h"
 #include "wasm.h"
 
-enum { MAX_W = 640, MAX_H = 480, CELL_W = 8, STACK = 64 << 10 };
+/* A text cell is the VGA's 9 dots wide: the font's 8, the 9th the 8th again for C0h..DFh (lines that
+   join), else the background. */
+enum { MAX_W = 720, MAX_H = 480, CELL_W = 9, FONT_W = 8, STACK = 64 << 10 };
 
 unsigned host_width(void);
 unsigned host_height(void);
@@ -78,12 +80,17 @@ static void text(const bool blink)
             const uint8_t attr = (uint8_t)(c >> 8);
             const uint32_t bg = colours[attr >> 4 & 7];
             const uint32_t fg = attr & 0x80 && !blink ? bg : colours[attr & 15];
-            const unsigned char *const glyph = font + (c & 0xFF) * ch;
+            const uint8_t code = (uint8_t)c;
+            const unsigned char *const glyph = font + code * ch;
+            const bool joins = code >= 0xC0 && code <= 0xDF;
             uint32_t *p = out.rgba + row * ch * out.width + col * CELL_W;
 
-            for (uint32_t line = 0; line < ch; line++, p += out.width)
-                for (uint32_t bit = 0; bit < CELL_W; bit++)
+            for (uint32_t line = 0; line < ch; line++, p += out.width) {
+                for (uint32_t bit = 0; bit < FONT_W; bit++)
                     p[bit] = glyph[line] & 0x80 >> bit ? fg : bg;
+
+                p[FONT_W] = joins && glyph[line] & 1 ? fg : bg;
+            }
         }
 
     if (!blink || s.shape & PSCR_HIDDEN || s.row >= s.rows || s.col >= PSCR_COLS)
