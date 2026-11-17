@@ -300,16 +300,11 @@ END SUB
 SUB DrawGlow
     DIM r AS SINGLE, ry AS INTEGER, dy AS INTEGER, hw AS INTEGER, x AS INTEGER, y AS INTEGER
     x = INT(mothX): y = INT(mothY)
-    r = 34 + 4 * SIN(phase * 6.2832)
+    r = 26 + 2 * SIN(phase * 6.2832)
     ry = INT(r / ASPECT)
-    FOR dy = -ry TO ry
+    FOR dy = -ry TO ry STEP 2
         hw = r * SQR(1 - (dy / (ry + .5)) ^ 2)
         Dither x - hw, y + dy, x + hw, y + dy, 5, 1
-    NEXT
-    ry = INT(.55 * r / ASPECT)
-    FOR dy = -ry TO ry
-        hw = .55 * r * SQR(1 - (dy / (ry + .5)) ^ 2)
-        Dither x - hw, y + dy, x + hw, y + dy, 5, 2
     NEXT
 END SUB
 
