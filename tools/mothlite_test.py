@@ -36,6 +36,10 @@ def program() -> str:
 
 def main() -> None:
     exe = str(Path(sys.argv[1] if len(sys.argv) > 1 else ROOT / "build/host/basic").resolve())
+    check = subprocess.run([exe, "--check", str(DEMO)], capture_output=True, text=True, timeout=60)
+    if check.returncode:
+        print("mothlite FAIL\n" + (check.stdout + check.stderr)[-600:])
+        sys.exit(1)
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "STONES.BAS"
         path.write_text(program())
