@@ -557,7 +557,7 @@ SUB DrawStone (x AS INTEGER, y1 AS INTEGER, y2 AS INTEGER, capTop AS INTEGER, ki
             IF SIN(clock * 3 + x * .05) > 0 THEN c = 5 ELSE c = 10
             j = 0
             FOR y = cy + CAPH + 14 TO y2 - 14 STEP 24
-                DRAW "C" + STR$(c) + " BM" + STR$(x + 27) + "," + STR$(y) + Rune((j + x \ 7) MOD 4)
+                DRAW "C" + STR$(c) + " BM" + STR$(x + 27) + "," + STR$(y) + Rune(j MOD 4)
                 j = j + 1
             NEXT
         END IF
