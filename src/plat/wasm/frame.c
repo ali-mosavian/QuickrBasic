@@ -14,6 +14,9 @@
 /* A text cell is the VGA's 9 dots wide: the font's 8, the 9th the 8th again for C0h..DFh (lines that
    join), else the background. */
 enum { MAX_W = 720, MAX_H = 480, CELL_W = 9, FONT_W = 8, STACK = 64 << 10 };
+enum : uint8_t {
+    POINTER = 0x77
+}; /* the mouse's text cursor: the cell's colours inverted, as INT 33h's */
 
 unsigned host_width(void);
 unsigned host_height(void);
@@ -23,6 +26,8 @@ extern const unsigned char qb_vga_font_8[256 * 8], qb_vga_font_16[256 * 16];
 
 typedef struct {
     uint32_t width, height;
+    uint32_t cell_h; /* a text cell's height, for the page's pointer; 0 in a graphics mode */
+    uint32_t pad;
     uint32_t rgba[MAX_W * MAX_H];
 } Frame;
 
@@ -55,6 +60,7 @@ static void graphics(void)
     const uint8_t *const px = host_pixels();
     out.width = host_width();
     out.height = host_height();
+    out.cell_h = 0;
 
     for (uint32_t i = 0; i < out.width * out.height; i++)
         out.rgba[i] = colours[px[i]];
@@ -73,11 +79,14 @@ static void text(const bool blink)
 
     out.width = PSCR_COLS * CELL_W;
     out.height = s.rows * ch;
+    out.cell_h = ch;
+    const bool mouse = __atomic_load_n(&wasm_irq.mouse_shown, __ATOMIC_ACQUIRE) > 0;
 
     for (uint32_t row = 0; row < s.rows; row++)
         for (uint32_t col = 0; col < PSCR_COLS; col++) {
             const PscrCell c = s.cells[row * PSCR_COLS + col];
-            const uint8_t attr = (uint8_t)(c >> 8);
+            const bool pointer = mouse && row == wasm_irq.mouse_row && col == wasm_irq.mouse_col;
+            const uint8_t attr = (uint8_t)(c >> 8) ^ (pointer ? POINTER : 0);
             const uint32_t bg = colours[attr >> 4 & 7];
             const uint32_t fg = attr & 0x80 && !blink ? bg : colours[attr & 15];
             const uint8_t code = (uint8_t)c;

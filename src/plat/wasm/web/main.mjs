@@ -98,17 +98,42 @@ worker.onerror = (e) => {
 };
 worker.postMessage({ module, memory, args: open, files: await files() });
 
-let image;
+let image, cell = 16;
+
+// The pointer's text cell: the canvas is scaled to fit (object-fit: contain), so the screen's own
+// pixels are found first.
+let buttons = 0;
+function point(e) {
+  if (!irq || !cell) return;
+  const r = canvas.getBoundingClientRect();
+  const scale = Math.min(r.width / canvas.width, r.height / canvas.height);
+  const x = (e.clientX - r.left - (r.width - canvas.width * scale) / 2) / scale;
+  const y = (e.clientY - r.top - (r.height - canvas.height * scale) / 2) / scale;
+  const clamp = (v, n) => Math.max(0, Math.min(n - 1, Math.floor(v)));
+  irq.mouse(clamp(y / cell, canvas.height / cell), clamp(x / (canvas.width / 80), 80), buttons);
+}
+const BUTTON = [1, 4, 2]; // the browser's left, middle, right: INT 33h's bits
+canvas.addEventListener('pointermove', point);
+canvas.addEventListener('pointerdown', (e) => {
+  buttons |= BUTTON[e.button] ?? 0;
+  canvas.setPointerCapture(e.pointerId);
+  point(e);
+});
+canvas.addEventListener('pointerup', (e) => {
+  buttons &= ~(BUTTON[e.button] ?? 0);
+  point(e);
+});
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 function draw(now) {
   const at = display.frame(Math.floor(now / BLINK_MS) % 2 === 0 ? 1 : 0);
-  const head = new Uint32Array(memory.buffer, at, 2);
-  const [w, h] = head;
+  const [w, h, cellH] = new Uint32Array(memory.buffer, at, 3);
+  cell = cellH;
   if (canvas.width !== w || canvas.height !== h || !image) {
     canvas.width = w;
     canvas.height = h;
     image = ctx.createImageData(w, h);
   }
-  image.data.set(new Uint8Array(memory.buffer, at + 8, w * h * 4));
+  image.data.set(new Uint8Array(memory.buffer, at + 16, w * h * 4));
   ctx.putImageData(image, 0, 0);
   requestAnimationFrame(draw);
 }

@@ -37,7 +37,7 @@ IMPORT(tone) void js_tone(uint32_t hz);
 
 /* What the page's thread writes while the module runs, in its shared memory (irq()'s address): the
    tick's and STOP's flags and bits, ORed in as the interrupts would; the keys typed, a ring it
-   fills at tail and the module takes from head, Atomics.notify on tail. */
+   fills at tail and the module takes from head, Atomics.notify on tail; the mouse. */
 enum { WASM_NKEY = 64 };
 typedef struct {
     volatile uint8_t *tick;
@@ -47,6 +47,9 @@ typedef struct {
     uint8_t keyboard; /* the ring is the keyboard (the page), else standard input is */
     uint32_t head, tail;
     uint16_t keys[WASM_NKEY];
+    uint8_t mouse_row, mouse_col, mouse_buttons; /* the page's, as INT 33h AX=3 */
+    uint8_t mouse_on;                            /* pmou_init found it: the page has a pointer */
+    int32_t mouse_shown;                         /* pmou_show's count less pmou_hide's */
 } WasmIrq;
 extern WasmIrq wasm_irq;
 

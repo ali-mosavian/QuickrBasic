@@ -187,6 +187,14 @@ export class Irq {
   }
 
   set keyboard(on) { this.u8[this.at + 11] = on ? 1 : 0; }
+
+  // The mouse: the text cell under it, its buttons (bit 0 the left, 1 the right, 2 the middle).
+  mouse(row, col, buttons) {
+    const u8 = this.u8, at = this.at + 20 + 2 * 64;
+    u8[at] = row;
+    u8[at + 1] = col;
+    u8[at + 2] = buttons;
+  }
   set shift(flags) { this.u8[this.at + 10] = flags; }
 
   // A key: scan code << 8 | character.

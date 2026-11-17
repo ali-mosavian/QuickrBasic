@@ -202,8 +202,9 @@ WASM_TARGET := --target=wasm32-unknown-unknown -ffreestanding -mbulk-memory -mex
 	-mllvm -wasm-enable-sjlj
 WASM_CFLAGS := $(WASM_TARGET) -std=c23 -O2 -g -Wall -Wextra -Wno-unused-parameter -Werror=undef -DARENA_AT_ZERO=0 \
 	-DPFIL_PATH=1024 -DAC=$(AC) -isystem src/plat/wasm/include -isystem src/lib/include -Isrc -Isrc/core
-WASM_C := $(filter-out src/plat/host/%,$(HOST_C)) $(addprefix src/plat/host/,pclk.c pfil.c pfpu.c pkey.c pmou.c pscr.c \
-	ports.c) $(wildcard src/plat/wasm/*.c)
+# -MD, not -MMD: the shim's headers are -isystem, and -MMD leaves those out of the dependencies
+WASM_DEPFLAGS = -MD -MP -MF $@.d -MT $@
+WASM_C := $(filter-out src/plat/host/%,$(HOST_C)) $(addprefix src/plat/host/,pclk.c pfil.c pfpu.c pkey.c pscr.c ports.c) $(wildcard src/plat/wasm/*.c)
 WASM_QBRT_C := $(filter-out shared/posix/os.c,$(QBRT_HOST_C))
 WASM_OBJ := $(WASM_C:src/%.c=build/wasm/obj/%.o) $(WASM_QBRT_C:%.c=build/wasm/qbrt/%.o) build/wasm/obj/qbrt/qbrt.o \
 	build/wasm/obj/qbrt/qbrt_wasm.o
@@ -216,15 +217,15 @@ WASM_LDFLAGS := --no-entry --export=__main_void --export=__wasm_call_ctors --exp
 
 build/wasm/obj/qbrt/%.o: src/qbrt/%.c
 	@mkdir -p $(@D)
-	$(CLANG) $(WASM_CFLAGS) $(subst -I,-isystem ,$(QBRT_HOST_INC)) $(DEPFLAGS) -c $< -o $@
+	$(CLANG) $(WASM_CFLAGS) $(subst -I,-isystem ,$(QBRT_HOST_INC)) $(WASM_DEPFLAGS) -c $< -o $@
 build/wasm/obj/%.o: src/%.c
 	@mkdir -p $(@D)
-	$(CLANG) $(WASM_CFLAGS) $(DEPFLAGS) -c $< -o $@
+	$(CLANG) $(WASM_CFLAGS) $(WASM_DEPFLAGS) -c $< -o $@
 build/wasm/qbrt/%.o: $(QBRT)/%.c
 	@mkdir -p $(@D)
 	$(CLANG) $(WASM_TARGET) -O2 -std=gnu11 -w -D__cdecl= $(QBRT_IDLE) -DTICKS_PER_MINUTE=$(WASM_MUSIC_HZ)*60000L \
 		-isystem src/plat/wasm/include \
-		-isystem src/lib/include $(QBRT_HOST_INC) $(DEPFLAGS) -c $< -o $@
+		-isystem src/lib/include $(QBRT_HOST_INC) $(WASM_DEPFLAGS) -c $< -o $@
 -include $(shell find build/wasm -name '*.d' 2>/dev/null)
 
 WASM_UI_OBJ := $(patsubst src/%.c,build/wasm/obj/%.o,$(filter-out src/core/ui/tree.c src/core/ui/indent.c,\
@@ -252,6 +253,7 @@ build/web/%: src/plat/wasm/web/%
 	cp $< $@
 
 wasm-test: build/wasm/basic build/wasm/ide.wasm
+	grep -q 'wasm/include/wasm.h' build/wasm/obj/plat/wasm/pterm.o.d # a changed WasmIrq rebuilds its users
 	BASIC_EXE=$< $(PY) tools/regress_test.py $<
 	node tools/wasm/frame_test.mjs build/wasm/ide.wasm
 	node tools/wasm/play_test.mjs build/wasm/basic.wasm
