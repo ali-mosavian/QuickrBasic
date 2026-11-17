@@ -1,10 +1,11 @@
-/* The host's terminal as the keyboard.
+/* The host's terminal as the keyboard, and a window's keys.
  *
  * # How it works
  * Only when host_term_open is called, by the interactive binary (app/term.c), and standard input is
  * a terminal; else the keys come from the tests' queue (pkey.c). The terminal is non-canonical
  * without echo, SIGINT kept as the STOP key (psys.c). A key's escape sequence becomes its BIOS scan
- * code; Ctrl+D, the terminal's end of input, exits.
+ * code; Ctrl+D, the terminal's end of input, exits. A window's keys come down a pipe
+ * (host_term_feed), already BIOS keys, its shift flags beside them; its pipe closed, the window is.
  */
 #include <errno.h>
 #include <poll.h>
@@ -18,7 +19,9 @@ enum { ESC_WAIT_MS = 30, CTRL_D = 4, BROKEN = -2 };
 static struct {
     bool on;
     struct termios saved, raw;
-} term;
+    int feed;      /* the window's keys' pipe, -1 none */
+    uint8_t shift; /* the window's shift flags */
+} term = {.feed = -1};
 
 static void restore(void) { tcsetattr(STDIN_FILENO, TCSANOW, &term.saved); }
 
@@ -46,34 +49,52 @@ void host_term_pause(const bool yes)
         tcsetattr(STDIN_FILENO, TCSANOW, yes ? &term.saved : &term.raw);
 }
 
-bool host_term_on(void) { return term.on; }
-uint8_t host_term_shift(void) { return 0; }
+void host_term_feed(const int fd) { term.feed = fd; }
+void host_term_set_shift(const uint8_t flags)
+{
+    __atomic_store_n(&term.shift, flags, __ATOMIC_RELAXED);
+}
 
-/* The next byte, waited for at most ms (-1 for ever); -1 none, BROKEN on SIGINT. Other signals
-   (the runtime's) interrupt the wait too: it goes on. */
+bool host_term_on(void) { return term.on || term.feed >= 0; }
+uint8_t host_term_shift(void) { return __atomic_load_n(&term.shift, __ATOMIC_RELAXED); }
+
+enum { TTY, FEED };
+
+/* Which of the terminal and the pipe has input, waited for at most ms (-1 for ever); -1 neither,
+   BROKEN on SIGINT. Other signals (the runtime's) interrupt the wait too: it goes on. */
+static int32_t wait_in(const int32_t ms)
+{
+    struct pollfd p[] = {
+        {.fd = term.on ? STDIN_FILENO : -1, .events = POLLIN},
+        {.fd = term.feed, .events = POLLIN},
+    };
+
+    int r;
+
+    while ((r = poll(p, 2, ms)) < 0 && errno == EINTR)
+        if (host_stop_taken())
+            return BROKEN;
+
+    if (r <= 0)
+        return -1;
+
+    return p[FEED].revents ? FEED : TTY;
+}
+
+/* The terminal's next byte, waited for at most ms; -1 none. */
 static int32_t byte_in(const int32_t ms)
 {
     struct pollfd p = {.fd = STDIN_FILENO, .events = POLLIN};
 
-    int r;
     uint8_t b;
 
-    while ((r = poll(&p, 1, ms)) < 0 && errno == EINTR)
-        if (host_stop_taken())
-            return BROKEN;
-
-    if (r <= 0 || read(STDIN_FILENO, &b, 1) != 1)
+    if (poll(&p, 1, ms) <= 0 || read(STDIN_FILENO, &b, 1) != 1)
         return -1;
 
     return b;
 }
 
-bool host_term_ready(void)
-{
-    struct pollfd p = {.fd = STDIN_FILENO, .events = POLLIN};
-
-    return poll(&p, 1, 0) > 0;
-}
+bool host_term_ready(void) { return wait_in(0) >= 0; }
 
 /* An escape sequence's key past ESC: scan code << 8; ESC alone, 011Bh. */
 static uint16_t escaped(void)
@@ -142,11 +163,23 @@ static uint16_t escaped(void)
 
 uint16_t host_term_key(void)
 {
-    const int32_t b = byte_in(-1);
+    const int32_t from = wait_in(-1);
+
+    if (from == BROKEN)
+        return 0; /* Ctrl+Break */
+
+    if (from == FEED) {
+        uint16_t key;
+
+        if (read(term.feed, &key, sizeof key) != sizeof key)
+            exit(0);
+
+        return key;
+    }
+
+    const int32_t b = byte_in(0);
 
     switch (b) {
-    case BROKEN:
-        return 0; /* Ctrl+Break */
     case -1:
     case CTRL_D:
         exit(0);

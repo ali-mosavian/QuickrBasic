@@ -1,10 +1,14 @@
 /* The runtime's device on the host: llrm's headless one, a framebuffer tests read (video.h), a
    speaker that is a log. Standard output stays a stream: the screen is the framebuffer only where a
-   test says so. The music's tick is a thread in real time; else each wait for it is a tick. */
+   test says so, or a display shows it (QBRT_SCREEN, plat/view). The music's tick is a thread in real time; else each wait for it is a tick. */
 #define _POSIX_C_SOURCE 200809L
 #include <time.h>
 #include "qbrt/qbrt.h"
 #include "headless.h"
+
+#ifndef QBRT_SCREEN
+#define QBRT_SCREEN 0
+#endif
 
 enum { HUNDREDTHS_A_TICK = 6, WAIT_NANOSECONDS = 1000000 };
 
@@ -22,7 +26,7 @@ void qbrt_device(void)
     PclkTime now;
     pclk_time(&now);
     qbrt_clock_set(&now);
-    headless_set_stdout_is_screen(0);
+    headless_set_stdout_is_screen(QBRT_SCREEN);
     headless_set_tick_thread(realtime);
 }
 

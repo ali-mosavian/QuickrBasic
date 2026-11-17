@@ -1,6 +1,7 @@
-/* The runtime's text screen on wasm is pscr's page shown, as on DOS32, where both are the BIOS's: a
- * program's PRINT under the editor lands on its output page. Linked with --wrap over the host
- * video's own (dev.h's dev_text_*); a text mode set clears the screen to 25 rows, as INT 10h's.
+/* The runtime's text screen under a display is pscr's page shown, as on DOS32, where both are the
+ * BIOS's: a program's PRINT under the editor lands on its output page. Over the host video's own
+ * (dev.h's dev_text_*) by ld's --wrap, or wrap.h where the linker has none; a text mode set clears
+ * the screen to 25 rows, as INT 10h's.
  */
 #include "plat/host/host.h"
 #include "plat/pscr.h"

@@ -36,14 +36,17 @@ PscrCell host_cell(const uint8_t page, const uint8_t row, const uint8_t col)
     return *cell(page, row, col);
 }
 
-HostScreen host_screen(void)
+HostScreen host_screen(void) { return host_screen_of(shown); }
+
+HostScreen host_screen_of(const uint8_t page)
 {
+    const uint8_t p = page % NPAGE;
     HostScreen s = {
-        .cells = pages[shown],
-        .page = shown,
+        .cells = pages[p],
+        .page = p,
         .rows = rows,
-        .row = cursors[shown].row,
-        .col = cursors[shown].col,
+        .row = cursors[p].row,
+        .col = cursors[p].col,
         .shape = shape,
     };
 

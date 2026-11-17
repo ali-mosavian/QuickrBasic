@@ -156,17 +156,19 @@ QBRT_HOST_INC := -Isrc/qbrt/include $(addprefix -I$(QBRT)/,qb/posix qb qb/dev qb
 # play.c's waits for the tick come to qbrt_idle: BREAK, and the tick in the tests
 QBRT_IDLE := '-DQB_IDLE()=do { extern void qbrt_idle(void); qbrt_idle(); } while (0)'
 
-# host_rules DIR,CFLAGS: the core and the runtime for this machine in DIR, its objects DIR_OBJ
+# host_rules DIR,CFLAGS[,RTFLAGS]: the core and the runtime for this machine in DIR, its objects DIR_OBJ;
+# RTFLAGS the runtime's own and its glue's (src/qbrt)
 define host_rules
 $1/obj/qbrt/%.o: src/qbrt/%.c
 	@mkdir -p $$(@D)
-	$$(HOST_CC) $2 $$(subst -I,-isystem ,$$(QBRT_HOST_INC)) $$(DEPFLAGS) -c $$< -o $$@
+	$$(HOST_CC) $2 $3 $$(subst -I,-isystem ,$$(QBRT_HOST_INC)) $$(DEPFLAGS) -c $$< -o $$@
 $1/obj/%.o: src/%.c
 	@mkdir -p $$(@D)
-	$$(HOST_CC) $2 $$(DEPFLAGS) -c $$< -o $$@
+	$$(HOST_CC) $2 $$(APP_FLAGS) $$(DEPFLAGS) -c $$< -o $$@
 $1/qbrt/%.o: $$(QBRT)/%.c
 	@mkdir -p $$(@D)
-	$$(HOST_CC) $(filter -O%,$2) -std=gnu11 -w -D__cdecl= $$(QBRT_IDLE) $$(QBRT_HOST_INC) $$(DEPFLAGS) -c $$< -o $$@
+	$$(HOST_CC) $(filter -O%,$2) $3 $$(VIEW_REAL) -std=gnu11 -w -D__cdecl= $$(QBRT_IDLE) $$(QBRT_HOST_INC) \
+		$$(DEPFLAGS) -c $$< -o $$@
 $1_OBJ := $$(HOST_C:src/%.c=$1/obj/%.o) $$(QBRT_HOST_C:%.c=$1/qbrt/%.o) $1/obj/qbrt/qbrt.o $1/obj/qbrt/qbrt_host.o
 -include $$(shell find $1 -name '*.d' 2>/dev/null)
 endef
@@ -179,6 +181,29 @@ build/host/basic: $(build/host_OBJ) build/host/obj/app/basic32.o build/host/obj/
 	$(HOST_CC) $^ -lm -o $@
 build/hostperf/basic: $(build/hostperf_OBJ) build/hostperf/obj/app/basic32.o build/hostperf/obj/plat/host/app/insns.o
 	$(HOST_CC) $^ -lm -o $@
+
+# ---- The Mac's: the IDE in a window (SDL 3), build/mac/QuickrBasic; or in the terminal, the program's output in a
+# window, build/mac/qb-split. The display is plat/view's, as the browser's; wrap.h is ld's --wrap ----
+
+SDL_CFLAGS := $(shell pkg-config --cflags sdl3 2>/dev/null)
+SDL_LIBS := $(shell pkg-config --libs sdl3 2>/dev/null)
+MAC := build/mac
+MAC_CFLAGS := $(filter-out -O1 -DEXEC_COUNT,$(HOST_CFLAGS)) -O2 -DAC=$(AC)
+$(eval $(call host_rules,$(MAC),$(MAC_CFLAGS),-include src/plat/view/wrap.h -DQBRT_SCREEN=1))
+$(MAC)/qbrt/qb/dev/host/video.o: VIEW_REAL := -DVIEW_REAL_TEXT
+$(MAC)/qbrt/qb/dev/headless/headless.o: VIEW_REAL := -DVIEW_REAL_TONE
+$(MAC)/obj/plat/sdl/%.o: APP_FLAGS := $(SDL_CFLAGS)
+$(MAC)/obj/app/ide32.o: APP_FLAGS := -Dmain=qb_main
+MAC_OBJ := $($(MAC)_OBJ) $(patsubst src/%.c,$(MAC)/obj/%.o,$(filter-out src/core/ui/tree.c src/core/ui/indent.c,\
+	$(wildcard src/core/ui/*.c)) $(wildcard src/plat/view/*.c) $(wildcard src/plat/sdl/*.c)) $(MAC)/obj/app/ide32.o
+
+mac: $(MAC)/QuickrBasic $(MAC)/qb-split $(MAC)/BASIC.HLP
+$(MAC)/QuickrBasic: $(MAC_OBJ) $(MAC)/obj/plat/sdl/app/window.o
+	$(HOST_CC) $^ $(SDL_LIBS) -lm -o $@
+$(MAC)/qb-split: $(MAC_OBJ) $(MAC)/obj/plat/sdl/app/split.o
+	$(HOST_CC) $^ $(SDL_LIBS) -lm -o $@
+$(MAC)/BASIC.HLP: src/basic.hlp
+	cp $< $@
 
 UNIT_OBJ := $(patsubst tests/unit/%.c,build/host/unit/%.o,$(wildcard tests/unit/*.c))
 build/host/unit/%.o: tests/unit/%.c
@@ -204,7 +229,8 @@ WASM_CFLAGS := $(WASM_TARGET) -std=c23 -O2 -g -Wall -Wextra -Wno-unused-paramete
 	-DPFIL_PATH=1024 -DAC=$(AC) -isystem src/plat/wasm/include -isystem src/lib/include -Isrc -Isrc/core
 # -MD, not -MMD: the shim's headers are -isystem, and -MMD leaves those out of the dependencies
 WASM_DEPFLAGS = -MD -MP -MF $@.d -MT $@
-WASM_C := $(filter-out src/plat/host/%,$(HOST_C)) $(addprefix src/plat/host/,pclk.c pfil.c pfpu.c pkey.c pscr.c ports.c) $(wildcard src/plat/wasm/*.c)
+WASM_C := $(filter-out src/plat/host/%,$(HOST_C)) $(addprefix src/plat/host/,pclk.c pfil.c pfpu.c pkey.c pscr.c ports.c) $(wildcard src/plat/wasm/*.c) \
+	$(wildcard src/plat/view/*.c)
 WASM_QBRT_C := $(filter-out shared/posix/os.c,$(QBRT_HOST_C))
 WASM_OBJ := $(WASM_C:src/%.c=build/wasm/obj/%.o) $(WASM_QBRT_C:%.c=build/wasm/qbrt/%.o) build/wasm/obj/qbrt/qbrt.o \
 	build/wasm/obj/qbrt/qbrt_wasm.o
