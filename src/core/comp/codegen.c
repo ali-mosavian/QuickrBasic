@@ -928,9 +928,8 @@ static void cg_arg(Code *const c, const Node *const n)
         code_opb(c, O_BYVAL, (n->var->info & VK_MASK) == VK_STR);
         break;
 
-    case PA_VAR: /* a value cell, then its ref: the variable's cell (an array's, a record's too) */
+    case PA_VAR: /* a value cell, then its ref: the variable's cell (an array's too) */
     case PA_ARRAY:
-    case PA_RECORD:
         code_int(c, 0);
         gen(c, n->a);
         break;

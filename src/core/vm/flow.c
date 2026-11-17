@@ -437,7 +437,7 @@ void flow_d_past(Session *const S)
 /* ---- SUB and FUNCTION ----------------------------------------------------------------------- */
 
 /* A call's frame on the data stack: each argument a value cell, then its ref cell above it (the
-   address its parameter is: a scalar's cell, an array's or a record's ArrSlot); vm.fp the last
+   address its parameter is: a scalar's cell, an array's ArrSlot, a record's data); vm.fp the last
    argument's ref cell, the locals' cells below it (a local array's its ArrSlot). */
 
 /* PCALL proc n body: the frame at the arguments on the data stack, its n locals' cells below it

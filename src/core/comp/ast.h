@@ -80,9 +80,9 @@ enum : uint8_t { W_INT, W_FLT, W_DBL, W_POW, W_STR };
 /* N_XFN's mode: its arguments only, their count after them, or none given: a 0. */
 enum : uint8_t { XM_ARGS, XM_COUNT, XM_NONE };
 
-/* N_ARG's passing: the value and FFFFh; a variable's cell (0, V.ADDR); an element's or a field's
-   P.REF; an array whole (its id twice); a record whole (its id, FFFFh). */
-enum : uint8_t { PA_VALUE, PA_VAR, PA_PREF, PA_ARRAY, PA_RECORD };
+/* N_ARG's passing: the value and FFFFh; a variable's cell (0, V.ADDR); an element's, a field's or a
+   record's P.REF; an array whole (its id twice). */
+enum : uint8_t { PA_VALUE, PA_VAR, PA_PREF, PA_ARRAY };
 
 /* N_CALL's mode: a procedure's, or one DECLAREd only: ERROR when run, then its result's load. */
 enum : uint8_t { CALL_PROC, CALL_UNDEF };

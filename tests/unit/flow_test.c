@@ -105,3 +105,74 @@ TEST(a_recursive_calls_reference_is_the_callers)
         "101  102 | 101  102 / 101  102 /"
     );
 }
+
+#define RECORDS                                                                                    \
+    "10 TYPE Moth", "11 x AS SINGLE", "12 END TYPE", "13 TYPE Pair", "14 a AS Moth",               \
+        "15 b AS Moth", "16 END TYPE", "17 TYPE World", "18 p AS Pair", "19 m AS Moth",            \
+        "20 END TYPE", "21 DIM w AS World, a(2) AS Moth, g(1, 2) AS Moth, r(1) AS World"
+#define MOVE "900 SUB Move (m AS Moth)", "910 m.x = m.x + 5", "920 END SUB"
+
+/* A record's field, a record array's element or its field passed to a record parameter was a Syntax
+   error: each by reference, through a SUB, a FUNCTION, and a parameter passed on. */
+TEST(record_field_and_element_by_reference)
+{
+    static const char *const lines[] = {
+        RECORDS,
+        "30 Move w.m: CALL Move(w.p.b): Move a(1): Move g(1, 2): Move r(1).m: Move r(0).p.a",
+        "40 PRINT w.m.x; w.p.b.x; a(1).x; g(1, 2).x; r(1).m.x; r(0).p.a.x; Bump(w.m); w.m.x",
+        "50 Twice a(2): Deep r(1): PRINT a(2).x; r(1).m.x",
+        MOVE,
+        "930 FUNCTION Bump (m AS Moth): m.x = m.x + 1: Bump = m.x: END FUNCTION",
+        "940 SUB Twice (m AS Moth): Move m: Move m: END SUB",
+        "950 SUB Deep (v AS World): Move v.m: END SUB",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 5  5  5  5  5  5  6  6 \r 10  10 \r");
+}
+
+/* A record of another TYPE passed to a record parameter: Parameter type mismatch; a whole record's
+   was taken silently. */
+TEST(record_argument_of_another_type)
+{
+    static const char *const field[] = {RECORDS, "30 Move w.p", MOVE, nullptr};
+    static const char *const elem[] = {RECORDS, "30 Move r(1)", MOVE, nullptr};
+    static const char *const whole[] = {RECORDS, "30 Move w", MOVE, nullptr};
+    static const char *const number[] = {RECORDS, "30 Move w.m.x", MOVE, nullptr};
+
+    CHECK(unit_run(S, field) == E_PTM);
+    CHECK(unit_run(S, elem) == E_PTM);
+    CHECK(unit_run(S, whole) == E_PTM);
+    CHECK(unit_run(S, number) == E_PTM);
+}
+
+/* A line's procedure was found by its offset cut to 16 bits: past 64 KB of program, a SUB's lines
+   covered the module's PRINT x, which read the SUB's x, 0. */
+TEST(procedures_past_64k_keep_their_lines)
+{
+    static char src[84 * 1024];
+    size_t n = 0;
+#define PUT(s) (memcpy(src + n, (s), sizeof(s) - 1), n += sizeof(s) - 1)
+#define PAD "' ..............................................................................\r\n"
+    PUT("x = 7\r\n");
+
+    while (n < 10 * 1024)
+        PUT(PAD);
+
+    PUT("PRINT x\r\n");
+
+    while (n < 56 * 1024)
+        PUT(PAD);
+
+    PUT("SUB s\r\n");
+
+    while (n < 80 * 1024)
+        PUT(PAD);
+
+    PUT("END SUB\r\n");
+#undef PAD
+#undef PUT
+    CHECK(unit_run_bytes(S, src, n) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 7 \r");
+}

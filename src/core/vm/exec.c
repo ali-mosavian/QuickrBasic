@@ -867,12 +867,21 @@ void exec_s_st_a(Session *const S)
     strg_set(&S->strg, s, exec_elem(&S->arry, &S->vm));
 }
 
-/* A record's address, the record made at its first use. */
+/* A record's address, the record made at its first use. A parameter's ref cell holds its
+   argument's address: a record's, an element's, a field's. */
 void exec_r_addr(Session *const S)
 {
-    uint16_t id;
-    ArrSlot *const s = op_slot(&S->vm, &id);
-    exec_pusha(&S->vm, ((const ArrayHdr *)at(exec_record(&S->arry, s, id)))->data);
+    const uint16_t id = exec_u16(&S->vm);
+    const Loc loc = {(int32_t)exec_u32(&S->vm)};
+    const Addr a = loc_at(loc, S->vm.fp);
+
+    if (loc_is_ref(loc)) {
+        exec_pusha(&S->vm, a);
+        return;
+    }
+
+    const ArrayHdr *const h = (const ArrayHdr *)at(exec_record(&S->arry, (ArrSlot *)at(a), id));
+    exec_pusha(&S->vm, h->data);
 }
 
 /* A record array's element. */
