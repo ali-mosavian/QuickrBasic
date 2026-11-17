@@ -659,6 +659,77 @@ WARN = {
 CASES |= {f"qb_code_full{k}": ("Y% = 0: " * k + "X = 0: " + "X=X:" * 4800 + "PRINT X\r\n", "Out of memory", None)
           for k in range(8)}
 
+def bas(*lines: str) -> str:
+    return "".join(line + "\r\n" for line in lines)
+
+
+OV = 'h: PRINT "ov"; ERR: RESUME NEXT'
+# BYTE, ours, was a name: an unsigned 8-bit INTEGER, 0 to 255, else Overflow; 1 byte in a record
+# and a file, an INTEGER's cell elsewhere; its arithmetic an INTEGER's.
+CASES |= {
+    "byte_scalar": (bas("DIM b AS BYTE, c AS BYTE", "ON ERROR GOTO h",
+                        'b = 255: c = 2.5: PRINT b; c; LEN(b); b + c; STR$(b); VAL("7") + b',
+                        "c = 3.5: PRINT c; -c; b * 2", "b = 256", "b = -1", "c = 255.5", "PRINT b; c",
+                        "SWAP b, c: PRINT b; c", "END", OV),
+                    " 255  2  1  257  255 262 \r\n 4 -4  510 \r\nov 6 \r\nov 6 \r\nov 6 \r\n 255  4 \r\n 4  255 \r\n",
+                    "ERROR"),
+    "byte_static": (bas("DECLARE SUB s ()", "DIM SHARED g AS BYTE", "g = 10: s: s: PRINT g: s",
+                        "SUB s", "STATIC n AS BYTE", "n = n + 100: g = g + 1: PRINT n;", "END SUB"),
+                    " 100  200  12 \r\nOverflow", None),
+    "byte_proc": (bas("DEFBYTE F", "DECLARE SUB inc (x AS BYTE)", "DECLARE SUB v (BYVAL x AS BYTE)",
+                      "DECLARE FUNCTION f (x AS BYTE)", "DIM b AS BYTE, a(3) AS BYTE", "ON ERROR GOTO h",
+                      "PRINT f(200)", "b = 254: inc b: a(2) = 9: inc a(2): PRINT b; f(a(2))", "inc b", "PRINT b",
+                      "v 300", "v 7", "END", OV,
+                      "SUB inc (x AS BYTE)", "x = x + 1", "END SUB",
+                      "SUB v (BYVAL x AS BYTE)", 'PRINT "v"; x', "END SUB",
+                      "FUNCTION f (x AS BYTE)", "f = x * 2", "END FUNCTION"),
+                  "ov 6 \r\n 0 \r\n 255  20 \r\nov 6 \r\n 255 \r\nov 6 \r\nv 7 \r\n", "ERROR"),
+    "byte_ptm": (bas("DECLARE SUB s (x AS SINGLE)", "DIM b AS BYTE", "s b", "SUB s (x AS SINGLE)", 'PRINT "ran"',
+                     "END SUB"), "Parameter type mismatch", "ran"),
+    "byte_arr": (bas("DECLARE SUB fill (a() AS BYTE)", "DIM a(1 TO 3, 2) AS BYTE", "ON ERROR GOTO h",
+                     "PRINT LBOUND(a); UBOUND(a); LBOUND(a, 2); UBOUND(a, 2)", "fill a()",
+                     "PRINT a(1, 0); a(3, 2); a(2, 1) + a(3, 2)", "a(1, 1) = 256",
+                     "REDIM d(5) AS BYTE", "d(5) = 77: PRINT d(5); UBOUND(d)", "ERASE d",
+                     "REDIM d(2) AS BYTE: PRINT d(2); UBOUND(d)", "ERASE a: PRINT a(3, 2)", "END", OV,
+                     "SUB fill (a() AS BYTE)",
+                     "FOR i = LBOUND(a) TO UBOUND(a): FOR j = 0 TO 2: a(i, j) = i * 10 + j: NEXT: NEXT",
+                     "END SUB"),
+                 " 1  3  0  2 \r\n 10  32  53 \r\nov 6 \r\n 77  5 \r\n 0  2 \r\n 0 \r\n", "ERROR"),
+    "byte_rec": (bas("TYPE P", "c AS BYTE", "x AS INTEGER", "d AS BYTE", "END TYPE",
+                     "DIM r AS P, q AS P, t(2) AS P", "ON ERROR GOTO h",
+                     "r.c = 200: r.x = -1: r.d = 7: t(1).d = 255",
+                     "PRINT LEN(r); LEN(r.c); PEEK(VARPTR(r)); PEEK(VARPTR(r) + 5); VARPTR(r.d) - VARPTR(r); "
+                     "VARPTR(t(2)) - VARPTR(t(1))",
+                     "r.d = 256", "PRINT r.c; r.x; r.d; t(1).d + 1",
+                     'OPEN "BYTE.DAT" FOR RANDOM AS #1 LEN = LEN(r)',
+                     "PUT #1, 2, r: GET #1, 2, q: PRINT LOF(1); q.c; q.x; q.d", "CLOSE #1", 'KILL "BYTE.DAT"',
+                     "END", OV),
+                 " 6  1  200  7  5  6 \r\nov 6 \r\n 200 -1  7  256 \r\n 12  200 -1  7 \r\n", "ERROR"),
+    "byte_binary": (bas("TYPE P", "c AS BYTE", "d AS BYTE", "END TYPE", "DIM b AS BYTE, r AS P",
+                        "b = 65: r.c = 66", 'OPEN "BYTE.BIN" FOR BINARY AS #1',
+                        "PUT #1, , b: PUT #1, , r.c: PRINT LOF(1)",
+                        "b = 0: GET #1, 1, b: GET #1, 2, r.d: PRINT b; r.d", "CLOSE #1",
+                        'OPEN "BYTE.BIN" FOR INPUT AS #1: LINE INPUT #1, s$: PRINT s$: CLOSE #1',
+                        'KILL "BYTE.BIN"'),
+                    " 2 \r\n 65  66 \r\nAB\r\n", "ERROR"),
+    "byte_def": (bas("DEFBYTE B-C", "b = 255: PRINT b; LEN(b)", "c = b + 1"), " 255  1 \r\nOverflow", None),
+    "byte_cbyte": (bas("PRINT CBYTE(2.5); CBYTE(254.6); CBYTE(-.4); CBYTE(3) + 255", "PRINT CBYTE(256)"),
+                   " 2  255  0  258 \r\nOverflow", None),
+    "byte_input": (bas("DIM b AS BYTE", "ON ERROR GOTO h",
+                       'OPEN "BYTE.TXT" FOR OUTPUT AS #1: PRINT #1, 200: PRINT #1, 300: CLOSE #1',
+                       'OPEN "BYTE.TXT" FOR INPUT AS #1: INPUT #1, b: PRINT b: INPUT #1, b: PRINT b: CLOSE #1',
+                       'KILL "BYTE.TXT"', "READ b: PRINT b: READ b: PRINT b", "END", "DATA 17, 999", OV),
+                   " 200 \r\nov 6 \r\n 200 \r\n 17 \r\nov 6 \r\n 17 \r\n", "ERROR"),
+    "byte_for": (bas("DIM b AS BYTE", "FOR b = 253 TO 255: PRINT b;: NEXT"), " 253  254  255 \r\nOverflow", None),
+    "byte_common": (bas("COMMON k AS BYTE, a() AS BYTE", "DIM a(2) AS BYTE", "k = 250: a(2) = 9",
+                        'CHAIN "QB_CH4"'), " 250  1  9 \r\nOverflow", None),
+    "byte_varptrs": (bas("TYPE P", "c AS BYTE", "d AS BYTE", "END TYPE", "DIM b AS BYTE, r AS P",
+                         "b = 64: r.c = 3: r.d = 255",
+                         "PRINT ASC(VARPTR$(b)); ASC(VARPTR$(r.c))",
+                         'PLAY "MBL=" + VARPTR$(b) + "O=" + VARPTR$(r.c) + "P4"', 'PRINT "ok"'),
+                     " 2  1 \r\nok\r\n", "ERROR"),
+}
+
 # Typed at the prompt, not run as a file.
 REPL = {
     # A direct line ran from DCODE, its statement map's place: nothing printed.
@@ -671,6 +742,7 @@ REPL = {
 # Companions the cases read, beside them.
 FILES = {
     "QB_CH3.BAS": b'COMMON q$, y()\r\nPRINT LEN(q$); RIGHT$(q$, 1); y(500)\r\n',
+    "QB_CH4.BAS": b"COMMON m AS BYTE, y() AS BYTE\r\nPRINT m; LEN(m); y(2)\r\nm = m + 6\r\n",
     "QB_CH2.BAS": b'COMMON b%, q$, e#, y(), u AS SHORT\r\nPRINT b%; q$; e#; y(3); LBOUND(y); u; t\r\n'
                   b'PRINT #1, "kept": CLOSE #1\r\nON ERROR GOTO h\r\nCHAIN "NONE"\r\nEND\r\nh: PRINT "e"; ERR: RESUME NEXT\r\n',
 }

@@ -245,6 +245,7 @@ OP(BYVAL, exec_byval, 2, 0)
 OP(PRET_FV, flow_pret_fv, 2 + VCELL, 0) /* a FUNCTION's number, its result a cell */
 OP(PRET_FL, flow_pret_fl, 2 + VCELL, 0) /*   its result in the frame */
 OP(PRET_X, flow_pret_x, 2 + VCELL, 0)   /* local arrays, or a string result */ /* the address of the value on top, a string's copied there */
+OP(I_CHK8, exec_i_chk8, 1, FX + FK)
 #undef TWIN
 #undef FRAME
 #undef OP

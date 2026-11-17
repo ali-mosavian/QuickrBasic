@@ -31,6 +31,7 @@ No 64 KB walls. Programs, lines, strings, arrays and symbol tables grow until me
 | Speed | 1× | **3.3×**, up to 34× ([below](#how-fast)) |
 | `INTEGER` | 16-bit: 32767 + 1 overflows | **32-bit**, the machine's own; `INTEGER` and `LONG` are one type |
 | 16-bit integers | the only kind | **`SHORT` and `DEFSHORT`**, for records laid out as QBasic's |
+| Bytes | none | **`BYTE`, `DEFBYTE` and `CBYTE`**: unsigned, 0 to 255, else Overflow; 1 byte in a `TYPE` and a file; no suffix |
 | Memory | 64 KB segments | **all of it**: everything grows as needed |
 | Syntax highlighting | none | from the compiler's lexer, so it never disagrees with it |
 | Completion | none | **context-aware**: only what is valid where the cursor is |

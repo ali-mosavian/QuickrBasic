@@ -701,6 +701,11 @@ static void xarg(Code *const c, const char k)
         code_toint(c);
         return;
 
+    case 'U': /* CBYTE's: 0 .. 255 */
+        code_toint(c);
+        code_op(c, O_I_CHK8);
+        return;
+
     case 'F':
         code_tofloat(c);
         return;
@@ -916,6 +921,10 @@ static void cg_arg(Code *const c, const Node *const n)
     case PA_VALUE:
         gen(c, n->a);
         code_toinfo(c, n->var->info);
+
+        if (n->var->type == ET_BY)
+            code_op(c, O_I_CHK8);
+
         code_opb(c, O_BYVAL, (n->var->info & VK_MASK) == VK_STR);
         break;
 
@@ -986,7 +995,8 @@ static void cg_conv(Code *const c, const Node *const n)
 }
 
 /* The value converted for the target; its store ops' offset from the INT's: 0, 1 FLOAT, 2
-   STRING. A SHORT: Overflow past 16 bits, unless the value is one; a STRING * n: n chars. */
+   STRING. A SHORT: Overflow past 16 bits, unless the value is one; a BYTE: past 0 .. 255; a
+   STRING * n: n chars. */
 static uint8_t cg_convert_for(Code *const c, const Node *const n)
 {
     switch (n->var->info & VK_MASK) {
@@ -996,6 +1006,8 @@ static uint8_t cg_convert_for(Code *const c, const Node *const n)
 
         if (n->var->type == ET_SH && !c->shclass)
             code_op(c, O_I_CHK16);
+        if (n->var->type == ET_BY)
+            code_op(c, O_I_CHK8);
 
         return 0;
 

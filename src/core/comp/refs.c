@@ -220,7 +220,10 @@ static uint32_t vakind(Comp *const C, const uint16_t id)
     if (v->info & SK_DBL)
         return va_pack(VA_RAW, 8);
     switch (v->info & VK_MASK) {
-    case VK_INT: /* 2 bytes but a LONG's */
+    case VK_INT: /* 2 bytes but a LONG's; a BYTE's its cell's first */
+        if (v->type == ET_BY)
+            return va_pack(VA_RAW, 1);
+
         return va_pack(v->type == ET_I4 ? VA_RAW : VA_I2, 4);
 
     case VK_STR:
@@ -263,7 +266,7 @@ Node *ref_place(Comp *const C, uint32_t *const vk)
 
 uint8_t ref_vtype(Comp *const C, const Node *const at)
 {
-    static const uint8_t byte[ET_SH + 1] = {0, 2, 20, 4, 8, 3, 2}; /* by ET_* */
+    static const uint8_t byte[ET_BY + 1] = {0, 2, 20, 4, 8, 3, 2, 1}; /* by ET_* */
     uint8_t et = at->rec.et;
 
     if (!et) {
@@ -275,7 +278,7 @@ uint8_t ref_vtype(Comp *const C, const Node *const at)
                               : ET_R4;
     }
 
-    if (et > ET_SH) /* a record */
+    if (et > ET_BY) /* a record */
         mismatch(C);
 
     return byte[et];
@@ -438,8 +441,8 @@ static Node *arg(Comp *const C, const uint16_t par, const bool byval)
             if (r != nullptr) { /* a field */
                 const RecRef *const rec = &r->rec;
 
-                if (!(rec->et == ET_SD && rec->fix) && rec->et != ET_SH && rec->et < ET_REC &&
-                    rec->et == ptype && aend(comp_cur(C)))
+                if (!(rec->et == ET_SD && rec->fix) && rec->et != ET_SH && rec->et != ET_BY &&
+                    rec->et < ET_REC && rec->et == ptype && aend(comp_cur(C)))
                     return argnode(C, PA_PREF, r, par);
             } else if (*after == '(') { /* an element */
                 const uint16_t id = comp_var(C, 0, 0);

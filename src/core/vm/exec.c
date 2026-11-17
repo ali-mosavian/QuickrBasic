@@ -30,6 +30,7 @@
  * | op_sldt | exec_s_ld_txt | MIRROR |
  * | op_raddr, op_raddra, op_pref, op_vaddr, op_vld, op_vst | exec_r_addr, exec_ra_addr, exec_p_ref, exec_v_addr, exec_v_ld, exec_v_st | MIRROR |
  * | op_flld, op_flst, op_ichk16, op_sfld, op_sfst, op_rcopy | exec_fl_ld, exec_fl_st, exec_i_chk16, exec_sf_ld, exec_sf_st, exec_r_copy | MIRROR |
+ * | (none) | exec_i_chk8 | NEW |
  * | op_ilda1, op_flda1, op_slda1, op_lda, op_slda | exec_i_ld_a1, exec_f_ld_a1, exec_s_ld_a1, exec_i_ld_a, exec_s_ld_a | MIRROR |
  * | op_sstv, op_ista1, op_fsta1, op_ssta1, op_istan, op_fstan, op_sstan | exec_s_st_v, exec_i_st_a1, exec_f_st_a1, exec_s_st_a1, exec_i_st_a, exec_f_st_a, exec_s_st_a | MIRROR |
  * | ex_cmpt | static | MIRROR |
@@ -889,7 +890,7 @@ void exec_r_copy(Session *const S)
 
 static Cell cell_at(const Addr a) { return load_cell(at(a)); }
 
-/* A record's number field: a SHORT, a DOUBLE, else 4 bytes. */
+/* A record's number field: a SHORT, a BYTE, a DOUBLE, else 4 bytes. */
 void exec_fl_ld(Session *const S)
 {
     const Addr a = exec_popa(&S->vm) + exec_u16(&S->vm);
@@ -897,13 +898,15 @@ void exec_fl_ld(Session *const S)
 
     if (type == ET_SH)
         exec_pushi(&S->vm, (int16_t)rd16(a));
+    else if (type == ET_BY)
+        exec_pushi(&S->vm, rd8(a));
     else if (type == ET_R8)
         exec_push(&S->vm, cell_at(a));
     else
         exec_pusha(&S->vm, rd32(a));
 }
 
-/* Overflow: a SHORT's past 16 bits. */
+/* Overflow: a SHORT's past 16 bits, a BYTE's past 0 .. 255. */
 void exec_fl_st(Session *const S)
 {
     const uint16_t off = exec_u16(&S->vm);
@@ -918,12 +921,20 @@ void exec_fl_st(Session *const S)
             repl_error(S, E_OV);
 
         wr16(a, (uint16_t)x.u);
+    } else if (type == ET_BY) {
+        if (x.u > 255)
+            repl_error(S, E_OV);
+
+        wr8(a, (uint8_t)x.u);
     } else
         wr32(a, x.u);
 }
 
 /* A SHORT's value. Overflow past 16 bits. */
 void exec_i_chk16(Session *const S) { hot_op(S, hot_i_chk16); }
+
+/* A BYTE's value. Overflow past 0 .. 255. */
+void exec_i_chk8(Session *const S) { hot_op(S, hot_i_chk8); }
 
 /* A STRING * n field, as a temporary. */
 void exec_sf_ld(Session *const S)

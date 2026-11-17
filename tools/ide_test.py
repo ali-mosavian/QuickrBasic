@@ -618,7 +618,7 @@ def play() -> None:
         if any("NOT SAVED" in r for r in look()):
             press("n")
         raw = {'"': 0x28, "'": 0x28, "(": 0x0A, ")": 0x0B, "+": 0x0D}  # keys() has none of these
-        for c in 'PRINT "a"; 12: REM c\nDEF FNf(v) = v + 1: DIM x AS INTEGER\nx = 1 \' n\n':
+        for c in 'PRINT "a"; 12: REM c\nDEF FNf(v) = v + 1: DIM x AS INTEGER, y AS BYTE\nx = 1 \' n\n':
             if c in raw:
                 s.send({"cmd": "key", "scancode": raw[c], "ascii": ord(c), "stop": True})
                 s.run_to_key(3000)
@@ -633,7 +633,8 @@ def play() -> None:
         # were all keyword or plain: DEF FNf(v) = v + 1: DIM x AS INTEGER
         want = [0x1B] * 4 + [0x1F] * 3 + [0x17, 0x1C] + [0x17] * 2 + [0x13] * 2 + [0x17] * 2 + [0x13] * 2
         want += [0x1D] + [0x17] * 2 + [0x1B] * 4 + [0x17] * 2 + [0x1B] * 3 + [0x13] * 7
-        assert list(attrs(3)[1:37]) == want, attrs(3)[1:37].hex()
+        want += [0x17] * 4 + [0x1B] * 3 + [0x13] * 4  # BYTE, ours, a type: it was a keyword
+        assert list(attrs(3)[1:48]) == want, attrs(3)[1:48].hex()
         # the themes, Options' Theme sub-menu: its box by its item, its help line; Left back
         press(f"0x{0x18:x}", "t")
         look()

@@ -41,6 +41,7 @@ const uint8_t fns_sig[20] = {
 const XFn fns_x[] = {
     {0x100 + TK1_CINT, 0, 1, 1, T_INT, "I", SC_NONE},
     {0x100 + TK1_CLNG, 0, 1, 1, T_INT, "I", SC_NONE},
+    {0x100 + TK1_CBYTE, 0, 1, 1, T_INT, "U", SC_NONE},
     {0x100 + TK1_CSNG, 0, 1, 1, T_FLT, "F", SC_NONE},
     {0x100 + TK1_CDBL, 0, 1, 1, T_DBL, "D", SC_NONE},
     {TK_FIX, 0, 1, 1, T_FLT, "G", SC_NONE},

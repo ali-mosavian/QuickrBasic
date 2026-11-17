@@ -1342,6 +1342,7 @@ static bool xstmt(Comp *const C)
         return true;
 
     case TK1_DEFSHORT:
+    case TK1_DEFBYTE:
         skip(C);
         return true;
 
@@ -1495,6 +1496,7 @@ bool ctrl_stmt(Comp *const C)
     case TK_STATIC:
         sharedlist(C);
         return true;
+
     case TK_TYPE:
     case TK_DECLARE:
     case TK_OPTION:

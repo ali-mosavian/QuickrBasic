@@ -70,8 +70,8 @@ static uint16_t link_param(Comp *const C, const Param *const pa)
     uint8_t et = 0;
 
     if (*q == TK_AS) {
-        if (q[1] == TK_X && q[2] == TK1_SHORT)
-            et = ET_SH;
+        if (q[1] == TK_X)
+            et = decl_xastype(q[2]);
         else if ((uint8_t)(q[1] - TK_INTEGER) <= TK_STRING - TK_INTEGER)
             et = decl_astype[q[1] - TK_INTEGER];
         else { /* AS a TYPE: its record, its array */

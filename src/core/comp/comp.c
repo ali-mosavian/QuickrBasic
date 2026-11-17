@@ -44,7 +44,7 @@
  * | cm_end, cm_w, cm_skip | done and the end of comp_text, in code_opw, comp_skipdata | MIRROR |
  * | g_cbuf (g_cbufh before it) | comp.cbuf | D4 |
  * | g_xbuf | comp.xbuf, xcap | MIRROR; grown, the line compiled again |
- * | g_etk | comp_etkind[7] | MIRROR |
+ * | g_etk | comp_etkind[8] | MIRROR |
  * | g_dlprc, g_lmod | comp.dlproc, comp.modlabel | MIRROR |
  * | g_psexp, g_psor, g_pscm, g_dmask | statics; comp.dmask | MIRROR |
  * | g_state.cm (TCOMP) | Comp; each field's comment names its asm field | D5 |
@@ -83,7 +83,7 @@
 
 enum { XINIT = 0x1000, XMAX = XLIM + COMP_TAIL }; /* comp.xbuf's bytes at first, at most */
 
-const uint8_t comp_etkind[7] = {0, 1, 1, 0, SK_DBL, 2, 1};
+const uint8_t comp_etkind[8] = {0, 1, 1, 0, SK_DBL, 2, 1, 1};
 
 bool comp_end(Comp *const C) { return comp_eos(C, &C->p); }
 
@@ -1075,8 +1075,8 @@ void comp_astype(Comp *const C)
         return;
     }
 
-    if (p[1] == TK_X) { /* AS SHORT: AS, FFh n */
-        if (p[2] != TK1_SHORT)
+    if (p[1] == TK_X) { /* AS SHORT, AS BYTE: AS, FFh n */
+        if (!decl_xastype(p[2]))
             synerr(C);
 
         C->p = p + 3;

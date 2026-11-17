@@ -27,6 +27,7 @@ enum : uint8_t {
     ET_R8 = 4,
     ET_SD = 5,
     ET_SH = 6, /* SHORT: 2 bytes in a record, else an INT */
+    ET_BY = 7, /* BYTE: 0 .. 255, 1 byte in a record, else an INT */
     ET_REC = 0x40,
     EMAX = 254,
 };

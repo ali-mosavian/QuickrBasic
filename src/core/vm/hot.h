@@ -507,6 +507,7 @@ static inline Status hot_i_chk16(Regs *const r)
 {
     return r->sp->i != (int16_t)r->sp->i ? E_OV : ST_OK;
 }
+static inline Status hot_i_chk8(Regs *const r) { return r->sp->u > 255 ? E_OV : ST_OK; }
 
 /* The one-byte ops that may fail: name; the rest (HOT_OPS) cannot. */
 #define HOT_FAILS(X)                                                                               \
@@ -517,6 +518,7 @@ static inline Status hot_i_chk16(Regs *const r)
     X(i_tob, oper_i_tob)                                                                           \
     X(i_toa, oper_i_toa)                                                                           \
     X(i_chk16, exec_i_chk16)                                                                       \
+    X(i_chk8, exec_i_chk8)                                                                         \
     X(d_add, dubl_add)                                                                             \
     X(d_sub, dubl_sub)                                                                             \
     X(d_mul, dubl_mul)                                                                             \
