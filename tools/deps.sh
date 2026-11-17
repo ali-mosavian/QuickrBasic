@@ -1,7 +1,8 @@
 #!/bin/sh
-# deps.sh [build|dosbox|capture]: the pinned tools the build and the tests need, built from source into
+# deps.sh [build|dosbox|capture|sdl]: the pinned tools the build and the tests need, built from source into
 # build/deps/bin. build: jwasm and jwlink (make runs this). dosbox: the headless DOSBox-X the tests
-# run on. capture: the same with the debug socket's video_start (tools/demo.py).
+# run on. capture: the same with the debug socket's video_start (tools/demo.py). sdl: SDL 3 for the Mac's
+# app, static and universal (arm64 and x86-64, macOS 13 on), into build/deps/sdl3.
 # DEPS_CACHE keeps the clones and builds across checkouts (default build/deps/src).
 # jwasm and jwlink are C89: their own bool is a C23 keyword, so CC builds them as gnu17;
 # gcc 14 also rejects jwlink's mismatched pointers.
@@ -14,11 +15,12 @@ JWASM=9fd1afd1a0d6fcebeba975f6586e33356e319e32
 JWLINK=4dfdd7896c39b9567f4ea9bfbb7eda601277311e
 DOSBOX=eea2b2da0203d37ff51e34a8f714af8110fe0162
 DOSBOX_CAPTURE=f9e03d0574ac0a1157c3e84e850fdc37adc669b1
+SDL=f00dc919ca35b9756316e86c4777392de442f9b2 # release-3.4.20
 
-# clone REPO COMMIT DIR: the repository at COMMIT in DIR, once.
+# clone REPO COMMIT DIR [OWNER]: the repository at COMMIT in DIR, once.
 clone() {
     [ -d "$3/.git" ] && return 0
-    git clone -q --filter=blob:none "https://github.com/ali-mosavian/$1.git" "$3.tmp"
+    git clone -q --filter=blob:none "https://github.com/${4:-ali-mosavian}/$1.git" "$3.tmp"
     git -C "$3.tmp" checkout -q "$2"
     mv "$3.tmp" "$3"
 }
@@ -52,8 +54,15 @@ dosbox | capture)
     rm -f "$BIN/$name" # once a link to the source cache
     cp "$CACHE/dosbox-x-$commit/src/dosbox-x" "$BIN/$name"
     ;;
+sdl)
+    clone SDL $SDL "$CACHE/SDL-$SDL" libsdl-org
+    built "$CACHE/SDL-$SDL" sh -c 'cmake -S . -B out -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" \
+        -DCMAKE_OSX_DEPLOYMENT_TARGET=13.0 -DSDL_SHARED=OFF -DSDL_STATIC=ON -DSDL_TEST_LIBRARY=OFF \
+        -DCMAKE_INSTALL_PREFIX="$1" >/dev/null && cmake --build out -j4 >/dev/null && cmake --install out >/dev/null' \
+        - "$ROOT/build/deps/sdl3"
+    ;;
 *)
-    echo "deps.sh [build|dosbox|capture]" >&2
+    echo "deps.sh [build|dosbox|capture|sdl]" >&2
     exit 1
     ;;
 esac

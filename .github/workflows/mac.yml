@@ -9,12 +9,15 @@ on:
 
 jobs:
   app:
-    runs-on: macos-15 # Homebrew's SDL needs the macOS it was built for: the app needs 15
+    runs-on: macos-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - run: brew install sdl3
+      - uses: actions/cache@v4
+        with:
+          path: build/deps
+          key: mac-deps-${{ hashFiles('tools/deps.sh') }}
       - run: make -j4 mac-zip
       - run: make mac-test
       - if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
@@ -22,6 +25,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release delete mac-latest --cleanup-tag --yes || true
-          gh release create mac-latest build/mac/QuickrBasic-mac-arm64.zip --target "$GITHUB_SHA" \
+          gh release create mac-latest build/mac/QuickrBasic-mac.zip --target "$GITHUB_SHA" \
             --prerelease --title "QuickrBasic for Mac (latest)" \
-            --notes "QuickrBasic.app for Apple silicon, built from $GITHUB_SHA. Not notarized: open it the first time with right-click, Open."
+            --notes "QuickrBasic.app, universal (Apple silicon and Intel, macOS 13 on), built from $GITHUB_SHA. Not notarized: open it the first time with right-click, Open."

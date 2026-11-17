@@ -8,8 +8,8 @@ scratch in C23. It opens GORILLA.BAS and NIBBLES.BAS unchanged, and runs BASIC 3
 than QBasic 1.1 on the same CPU.
 
 **[Try it in your browser](https://ali-mosavian.github.io/QuickrBasic/)**: the IDE, compiled to
-WebAssembly, with GORILLA.BAS and NIBBLES.BAS ready to open. On a Mac with Apple silicon and macOS 15 or later,
-**[download QuickrBasic.app](https://github.com/ali-mosavian/QuickrBasic/releases/download/mac-latest/QuickrBasic-mac-arm64.zip)**: it is not notarized, so open it the first time with
+WebAssembly, with GORILLA.BAS and NIBBLES.BAS ready to open. On a Mac (Apple silicon or Intel, macOS 13 or later),
+**[download QuickrBasic.app](https://github.com/ali-mosavian/QuickrBasic/releases/download/mac-latest/QuickrBasic-mac.zip)**: it is not notarized, so open it the first time with
 right-click, Open.
 
 Type a line and it is checked as you enter it, highlighted by the compiler's own lexer, and
@@ -76,7 +76,7 @@ One core, one platform layer per system (`src/plat`):
 | System | Build | Compiler and runtime | IDE |
 |---|---|---|---|
 | DOS | 32-bit, DOS/32A ([download](https://github.com/ali-mosavian/QuickrBasic/releases/download/dos-latest/QuickrBasic-dos.zip)) | ✅ | ✅ |
-| macOS | 64-bit, arm64 and x86-64; the IDE an app, Apple silicon ([download](https://github.com/ali-mosavian/QuickrBasic/releases/download/mac-latest/QuickrBasic-mac-arm64.zip)) | ✅ | ✅ |
+| macOS | 64-bit, arm64 and x86-64; the IDE an app, universal ([download](https://github.com/ali-mosavian/QuickrBasic/releases/download/mac-latest/QuickrBasic-mac.zip)) | ✅ | ✅ |
 | Linux | 64-bit | 🚧 | 🚧 |
 | Windows | 32- and 64-bit | 🚧 | 🚧 |
 | Browser | WebAssembly ([live](https://ali-mosavian.github.io/QuickrBasic/)) | ✅ | ✅ |
@@ -92,7 +92,7 @@ make test       # the regressions and QB 4.5 conformance under DOSBox-X
 make host       # the same core for this machine: build/host/basic
 make host-test  # unit tests, golden bytecode and the suites, natively, in seconds
 make web        # build/web/: the browser IDE; serve it with python3 tools/wasm/serve.py build/web
-make mac        # build/mac/QuickrBasic.app: the IDE in a window (needs SDL 3: brew install sdl3)
+make mac        # build/mac/QuickrBasic.app: the IDE in a window, universal (SDL 3 built from source: needs cmake)
 ```
 
 Copy `IDE32.EXE` (or `BASIC32.EXE`), `DOS32A.EXE` and `BASIC.HLP` to a DOS machine, or DOSBox, and
