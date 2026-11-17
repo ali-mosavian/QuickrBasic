@@ -8,6 +8,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
 #include <sys/stat.h>
 #include <sys/statvfs.h>
 #include <time.h>
@@ -26,7 +27,26 @@ static void hold_dos_handles(void)
         fd = open("/dev/null", O_RDWR);
 }
 
-/* DOS's name as the host's: no drive, '\' to '/'. */
+/* The entry in dir matching name (len bytes at name) but for case, written over name. */
+static void match_case(const char *const dir, char *const name, const size_t len)
+{
+    DIR *const d = opendir(dir);
+
+    if (!d)
+        return;
+
+    for (const struct dirent *e; (e = readdir(d));) {
+        if (strlen(e->d_name) == len && !strncasecmp(e->d_name, name, len)) {
+            memcpy(name, e->d_name, len);
+            break;
+        }
+    }
+
+    closedir(d);
+}
+
+/* DOS's name as the host's: no drive, '\' to '/', and on a case-sensitive disk each part as it is
+   spelled there, as DOS finds a name in any case. */
 static const char *host_path(const char *name, char out[static PATH_CAP])
 {
     if (name[0] && name[1] == ':')
@@ -38,6 +58,34 @@ static const char *host_path(const char *name, char out[static PATH_CAP])
         out[i] = name[i] == '\\' ? '/' : name[i];
 
     out[i] = 0;
+    struct stat st;
+
+    if (!lstat(out, &st))
+        return out;
+
+    for (uint32_t at = 0; at < i;) {
+        uint32_t end = at;
+
+        while (end < i && out[end] != '/')
+            end++;
+
+        if (end > at) {
+            const char cut = out[end];
+            out[end] = 0;
+
+            if (lstat(out, &st)) {
+                char parent[PATH_CAP];
+                memcpy(parent, out, at);
+                parent[at] = 0;
+                match_case(at ? parent : ".", out + at, end - at);
+            }
+
+            out[end] = cut;
+        }
+
+        at = end + 1;
+    }
+
     return out;
 }
 

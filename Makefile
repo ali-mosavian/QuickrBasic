@@ -133,6 +133,7 @@ host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/h
 	for t in $(TOOLS_TEST); do $(PY) $$t || exit 1; done
 	build/host/unit_tests
 	sh tests/host/longpath.sh build/host/basic
+	sh tests/host/dosname.sh build/host/basic
 	$(PY) tools/golden.py
 	BASIC_EXE=build/host/basic $(PY) tools/regress_test.py build/host/basic
 	BASIC_EXE=build/host/basic $(PY) tools/conformance.py
