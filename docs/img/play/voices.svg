@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="380" viewBox="0 0 760 380"><defs></defs>
+<rect width="760" height="380" fill="#ffffff"/>
+<text x="32" y="40" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" font-weight="700" fill="#1f2937" text-anchor="start">The whole piece, voice by voice</text>
+<text x="32" y="64" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#6b7280" text-anchor="start">Four bars: C, A minor, F, G. Height is pitch.</text>
+<path d="M120.0,80.0 L120.0,350.0" fill="none" stroke="#e5e7eb" stroke-width="1" stroke-opacity="1.0" stroke-linejoin="round"/>
+<text x="126.0" y="94" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#6b7280" text-anchor="start">C</text>
+<path d="M272.5,80.0 L272.5,350.0" fill="none" stroke="#e5e7eb" stroke-width="1" stroke-opacity="1.0" stroke-linejoin="round"/>
+<text x="278.5" y="94" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#6b7280" text-anchor="start">Am</text>
+<path d="M425.0,80.0 L425.0,350.0" fill="none" stroke="#e5e7eb" stroke-width="1" stroke-opacity="1.0" stroke-linejoin="round"/>
+<text x="431.0" y="94" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#6b7280" text-anchor="start">F</text>
+<path d="M577.5,80.0 L577.5,350.0" fill="none" stroke="#e5e7eb" stroke-width="1" stroke-opacity="1.0" stroke-linejoin="round"/>
+<text x="583.5" y="94" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#6b7280" text-anchor="start">G</text>
+<text x="32" y="144" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#1f2937" text-anchor="start">voice 1</text>
+<text x="32" y="162" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="start">melody</text>
+<rect x="121.0" y="156.0" width="17.1" height="7.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="140.1" y="144.0" width="17.1" height="7.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="159.1" y="124.0" width="17.1" height="7.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="178.2" y="144.0" width="17.1" height="7.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="197.2" y="156.0" width="17.1" height="7.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="216.3" y="144.0" width="17.1" height="7.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="235.4" y="156.0" width="17.1" height="7.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="254.4" y="172.0" width="17.1" height="7.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="273.5" y="136.0" width="17.1" height="7.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="292.6" y="124.0" width="17.1" height="7.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="311.6" y="108.0" width="17.1" height="7.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="330.7" y="124.0" width="17.1" height="7.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="349.8" y="136.0" width="17.1" height="7.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="368.8" y="124.0" width="17.1" height="7.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="387.9" y="136.0" width="17.1" height="7.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="406.9" y="156.0" width="17.1" height="7.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="426.0" y="152.0" width="17.1" height="7.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="445.1" y="136.0" width="17.1" height="7.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="464.1" y="124.0" width="17.1" height="7.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="483.2" y="136.0" width="17.1" height="7.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="502.2" y="152.0" width="17.1" height="7.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="521.3" y="136.0" width="17.1" height="7.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="540.4" y="152.0" width="17.1" height="7.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="559.4" y="172.0" width="17.1" height="7.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="578.5" y="144.0" width="17.1" height="7.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="597.6" y="128.0" width="17.1" height="7.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="616.6" y="116.0" width="17.1" height="7.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="635.7" y="128.0" width="17.1" height="7.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="654.8" y="144.0" width="17.1" height="7.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="673.8" y="128.0" width="17.1" height="7.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="692.9" y="116.0" width="36.1" height="7.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<text x="32" y="234" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#1f2937" text-anchor="start">voice 2</text>
+<text x="32" y="252" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="start">bass</text>
+<rect x="121.0" y="242.0" width="74.2" height="7.0" rx="2" fill="#059669" fill-opacity="1.0" stroke="none"/>
+<rect x="197.2" y="242.0" width="74.2" height="7.0" rx="2" fill="#059669" fill-opacity="1.0" stroke="none"/>
+<rect x="273.5" y="260.0" width="74.2" height="7.0" rx="2" fill="#059669" fill-opacity="1.0" stroke="none"/>
+<rect x="349.8" y="260.0" width="74.2" height="7.0" rx="2" fill="#059669" fill-opacity="1.0" stroke="none"/>
+<rect x="426.0" y="212.0" width="74.2" height="7.0" rx="2" fill="#059669" fill-opacity="1.0" stroke="none"/>
+<rect x="502.2" y="212.0" width="74.2" height="7.0" rx="2" fill="#059669" fill-opacity="1.0" stroke="none"/>
+<rect x="578.5" y="200.0" width="74.2" height="7.0" rx="2" fill="#059669" fill-opacity="1.0" stroke="none"/>
+<rect x="654.8" y="200.0" width="74.2" height="7.0" rx="2" fill="#059669" fill-opacity="1.0" stroke="none"/>
+<text x="32" y="312" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#1f2937" text-anchor="start">voice 3</text>
+<text x="32" y="330" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="400" fill="#6b7280" text-anchor="start">drums</text>
+<rect x="121.0" y="296.0" width="17.1" height="12.0" rx="2" fill="#1f2937" fill-opacity="1.0" stroke="none"/>
+<rect x="140.1" y="328.0" width="17.1" height="12.0" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="159.1" y="312.0" width="17.1" height="12.0" rx="2" fill="#ea580c" fill-opacity="1.0" stroke="none"/>
+<rect x="178.2" y="328.0" width="17.1" height="12.0" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="197.2" y="296.0" width="17.1" height="12.0" rx="2" fill="#1f2937" fill-opacity="1.0" stroke="none"/>
+<rect x="216.3" y="328.0" width="17.1" height="12.0" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="235.4" y="312.0" width="17.1" height="12.0" rx="2" fill="#ea580c" fill-opacity="1.0" stroke="none"/>
+<rect x="254.4" y="328.0" width="17.1" height="12.0" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="273.5" y="296.0" width="17.1" height="12.0" rx="2" fill="#1f2937" fill-opacity="1.0" stroke="none"/>
+<rect x="292.6" y="328.0" width="17.1" height="12.0" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="311.6" y="312.0" width="17.1" height="12.0" rx="2" fill="#ea580c" fill-opacity="1.0" stroke="none"/>
+<rect x="330.7" y="328.0" width="17.1" height="12.0" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="349.8" y="296.0" width="17.1" height="12.0" rx="2" fill="#1f2937" fill-opacity="1.0" stroke="none"/>
+<rect x="368.8" y="328.0" width="17.1" height="12.0" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="387.9" y="312.0" width="17.1" height="12.0" rx="2" fill="#ea580c" fill-opacity="1.0" stroke="none"/>
+<rect x="406.9" y="328.0" width="17.1" height="12.0" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="426.0" y="296.0" width="17.1" height="12.0" rx="2" fill="#1f2937" fill-opacity="1.0" stroke="none"/>
+<rect x="445.1" y="328.0" width="17.1" height="12.0" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="464.1" y="312.0" width="17.1" height="12.0" rx="2" fill="#ea580c" fill-opacity="1.0" stroke="none"/>
+<rect x="483.2" y="328.0" width="17.1" height="12.0" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="502.2" y="296.0" width="17.1" height="12.0" rx="2" fill="#1f2937" fill-opacity="1.0" stroke="none"/>
+<rect x="521.3" y="328.0" width="17.1" height="12.0" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="540.4" y="312.0" width="17.1" height="12.0" rx="2" fill="#ea580c" fill-opacity="1.0" stroke="none"/>
+<rect x="559.4" y="328.0" width="17.1" height="12.0" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="578.5" y="296.0" width="17.1" height="12.0" rx="2" fill="#1f2937" fill-opacity="1.0" stroke="none"/>
+<rect x="597.6" y="328.0" width="17.1" height="12.0" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="616.6" y="312.0" width="17.1" height="12.0" rx="2" fill="#ea580c" fill-opacity="1.0" stroke="none"/>
+<rect x="635.7" y="328.0" width="17.1" height="12.0" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="654.8" y="296.0" width="17.1" height="12.0" rx="2" fill="#1f2937" fill-opacity="1.0" stroke="none"/>
+<rect x="673.8" y="328.0" width="17.1" height="12.0" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="692.9" y="312.0" width="17.1" height="12.0" rx="2" fill="#ea580c" fill-opacity="1.0" stroke="none"/>
+<rect x="711.9" y="328.0" width="17.1" height="12.0" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<text x="112" y="306" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="10" font-weight="400" fill="#6b7280" text-anchor="end">kick</text>
+<text x="112" y="322" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="10" font-weight="400" fill="#6b7280" text-anchor="end">snare</text>
+<text x="112" y="338" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="10" font-weight="400" fill="#6b7280" text-anchor="end">hat</text>
+</svg>

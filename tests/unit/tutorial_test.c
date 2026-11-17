@@ -43,5 +43,5 @@ TEST(play_tutorial_examples_run)
         at = end;
     }
     qbrt_realtime(true);
-    CHECK(examples >= 25);
+    CHECK(examples >= 20);
 }

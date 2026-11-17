@@ -233,6 +233,12 @@ mac-test: mac
 	$(PY) tools/mac_test.py $(APP)/Contents/MacOS/QuickrBasic arm64
 	if arch -x86_64 /usr/bin/true 2>/dev/null; then $(PY) tools/mac_test.py $(APP)/Contents/MacOS/QuickrBasic x86_64; fi
 
+# The tutorial's pictures of the synthesizer, drawn from its own samples (docs/play-tutorial.md)
+build/host/synthdump: tools/diagrams/synthdump.c src/plat/synth/synth.c src/plat/synth/synth.h
+	$(HOST_CC) -std=c23 -O2 -Wall -Wextra -Isrc $(filter %.c,$^) -o $@
+sound-diagrams: build/host/synthdump
+	$(PY) tools/diagrams/sound.py $< docs/img/play
+
 UNIT_OBJ := $(patsubst tests/unit/%.c,build/host/unit/%.o,$(wildcard tests/unit/*.c))
 build/host/unit/%.o: tests/unit/%.c
 	@mkdir -p $(@D)

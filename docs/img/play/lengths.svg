@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="294" viewBox="0 0 760 294"><defs></defs>
+<rect width="760" height="294" fill="#ffffff"/>
+<text x="32" y="40" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" font-weight="700" fill="#1f2937" text-anchor="start">Note lengths</text>
+<text x="32" y="64" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#6b7280" text-anchor="start">One bar of four beats. T120 plays 120 beats a minute.</text>
+<path d="M210.0,80.0 L210.0,288.0" fill="none" stroke="#e5e7eb" stroke-width="1" stroke-opacity="1.0" stroke-linejoin="round"/>
+<text x="214" y="78" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="start">beat 1</text>
+<path d="M340.0,80.0 L340.0,288.0" fill="none" stroke="#e5e7eb" stroke-width="1" stroke-opacity="1.0" stroke-linejoin="round"/>
+<text x="344" y="78" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="start">beat 2</text>
+<path d="M470.0,80.0 L470.0,288.0" fill="none" stroke="#e5e7eb" stroke-width="1" stroke-opacity="1.0" stroke-linejoin="round"/>
+<text x="474" y="78" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="start">beat 3</text>
+<path d="M600.0,80.0 L600.0,288.0" fill="none" stroke="#e5e7eb" stroke-width="1" stroke-opacity="1.0" stroke-linejoin="round"/>
+<text x="604" y="78" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="start">beat 4</text>
+<path d="M730.0,80.0 L730.0,288.0" fill="none" stroke="#e5e7eb" stroke-width="1" stroke-opacity="1.0" stroke-linejoin="round"/>
+<text x="32" y="108" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="14" font-weight="700" fill="#1f2937" text-anchor="start">C1</text>
+<text x="90" y="108" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#6b7280" text-anchor="start">whole</text>
+<rect x="211.0" y="92.0" width="518.0" height="22.0" rx="4" fill="#4f46e5" fill-opacity="0.85" stroke="none"/>
+<text x="32" y="142" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="14" font-weight="700" fill="#1f2937" text-anchor="start">C2</text>
+<text x="90" y="142" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#6b7280" text-anchor="start">half</text>
+<rect x="211.0" y="126.0" width="258.0" height="22.0" rx="4" fill="#4f46e5" fill-opacity="0.85" stroke="none"/>
+<rect x="471.0" y="126.0" width="258.0" height="22.0" rx="4" fill="#4f46e5" fill-opacity="0.85" stroke="none"/>
+<text x="32" y="176" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="14" font-weight="700" fill="#1f2937" text-anchor="start">C4</text>
+<text x="90" y="176" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#6b7280" text-anchor="start">quarter</text>
+<rect x="211.0" y="160.0" width="128.0" height="22.0" rx="4" fill="#4f46e5" fill-opacity="0.85" stroke="none"/>
+<rect x="341.0" y="160.0" width="128.0" height="22.0" rx="4" fill="#4f46e5" fill-opacity="0.85" stroke="none"/>
+<rect x="471.0" y="160.0" width="128.0" height="22.0" rx="4" fill="#4f46e5" fill-opacity="0.85" stroke="none"/>
+<rect x="601.0" y="160.0" width="128.0" height="22.0" rx="4" fill="#4f46e5" fill-opacity="0.85" stroke="none"/>
+<text x="32" y="210" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="14" font-weight="700" fill="#1f2937" text-anchor="start">C8</text>
+<text x="90" y="210" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#6b7280" text-anchor="start">eighth</text>
+<rect x="211.0" y="194.0" width="63.0" height="22.0" rx="4" fill="#4f46e5" fill-opacity="0.85" stroke="none"/>
+<rect x="276.0" y="194.0" width="63.0" height="22.0" rx="4" fill="#4f46e5" fill-opacity="0.85" stroke="none"/>
+<rect x="341.0" y="194.0" width="63.0" height="22.0" rx="4" fill="#4f46e5" fill-opacity="0.85" stroke="none"/>
+<rect x="406.0" y="194.0" width="63.0" height="22.0" rx="4" fill="#4f46e5" fill-opacity="0.85" stroke="none"/>
+<rect x="471.0" y="194.0" width="63.0" height="22.0" rx="4" fill="#4f46e5" fill-opacity="0.85" stroke="none"/>
+<rect x="536.0" y="194.0" width="63.0" height="22.0" rx="4" fill="#4f46e5" fill-opacity="0.85" stroke="none"/>
+<rect x="601.0" y="194.0" width="63.0" height="22.0" rx="4" fill="#4f46e5" fill-opacity="0.85" stroke="none"/>
+<rect x="666.0" y="194.0" width="63.0" height="22.0" rx="4" fill="#4f46e5" fill-opacity="0.85" stroke="none"/>
+<text x="32" y="244" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="14" font-weight="700" fill="#1f2937" text-anchor="start">C16</text>
+<text x="90" y="244" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#6b7280" text-anchor="start">16th</text>
+<rect x="211.0" y="228.0" width="30.5" height="22.0" rx="4" fill="#4f46e5" fill-opacity="0.85" stroke="none"/>
+<rect x="243.5" y="228.0" width="30.5" height="22.0" rx="4" fill="#4f46e5" fill-opacity="0.85" stroke="none"/>
+<rect x="276.0" y="228.0" width="30.5" height="22.0" rx="4" fill="#4f46e5" fill-opacity="0.85" stroke="none"/>
+<rect x="308.5" y="228.0" width="30.5" height="22.0" rx="4" fill="#4f46e5" fill-opacity="0.85" stroke="none"/>
+<rect x="341.0" y="228.0" width="30.5" height="22.0" rx="4" fill="#4f46e5" fill-opacity="0.85" stroke="none"/>
+<rect x="373.5" y="228.0" width="30.5" height="22.0" rx="4" fill="#4f46e5" fill-opacity="0.85" stroke="none"/>
+<rect x="406.0" y="228.0" width="30.5" height="22.0" rx="4" fill="#4f46e5" fill-opacity="0.85" stroke="none"/>
+<rect x="438.5" y="228.0" width="30.5" height="22.0" rx="4" fill="#4f46e5" fill-opacity="0.85" stroke="none"/>
+<rect x="471.0" y="228.0" width="30.5" height="22.0" rx="4" fill="#4f46e5" fill-opacity="0.85" stroke="none"/>
+<rect x="503.5" y="228.0" width="30.5" height="22.0" rx="4" fill="#4f46e5" fill-opacity="0.85" stroke="none"/>
+<rect x="536.0" y="228.0" width="30.5" height="22.0" rx="4" fill="#4f46e5" fill-opacity="0.85" stroke="none"/>
+<rect x="568.5" y="228.0" width="30.5" height="22.0" rx="4" fill="#4f46e5" fill-opacity="0.85" stroke="none"/>
+<rect x="601.0" y="228.0" width="30.5" height="22.0" rx="4" fill="#4f46e5" fill-opacity="0.85" stroke="none"/>
+<rect x="633.5" y="228.0" width="30.5" height="22.0" rx="4" fill="#4f46e5" fill-opacity="0.85" stroke="none"/>
+<rect x="666.0" y="228.0" width="30.5" height="22.0" rx="4" fill="#4f46e5" fill-opacity="0.85" stroke="none"/>
+<rect x="698.5" y="228.0" width="30.5" height="22.0" rx="4" fill="#4f46e5" fill-opacity="0.85" stroke="none"/>
+<text x="32" y="278" font-family="'SF Mono', Menlo, Consolas, monospace" font-size="14" font-weight="700" fill="#1f2937" text-anchor="start">C4.</text>
+<text x="90" y="278" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#6b7280" text-anchor="start">dotted quarter</text>
+<rect x="211.0" y="262.0" width="193.0" height="22.0" rx="4" fill="#4f46e5" fill-opacity="0.85" stroke="none"/>
+<rect x="406.0" y="262.0" width="193.0" height="22.0" rx="4" fill="#4f46e5" fill-opacity="0.85" stroke="none"/>
+</svg>

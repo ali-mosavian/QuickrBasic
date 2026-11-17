@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="330" viewBox="0 0 760 330"><defs></defs>
+<rect width="760" height="330" fill="#ffffff"/>
+<text x="32" y="40" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" font-weight="700" fill="#1f2937" text-anchor="start">A low-pass filter: Y1,1500</text>
+<text x="32" y="64" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#6b7280" text-anchor="start">A 441 Hz sawtooth&#x27;s harmonics: grey unfiltered, blue through the filter. Above the cutoff they fall away.</text>
+<rect x="52.0" y="119.4" width="12.9" height="160.6" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="65.6" y="119.5" width="12.9" height="160.5" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="86.0" y="138.5" width="12.9" height="141.5" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="99.6" y="140.1" width="12.9" height="139.9" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="120.0" y="149.7" width="12.9" height="130.3" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="133.6" y="156.0" width="12.9" height="124.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="154.0" y="157.7" width="12.9" height="122.3" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="167.6" y="171.5" width="12.9" height="108.5" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="188.0" y="164.0" width="12.9" height="116.0" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="201.6" y="186.5" width="12.9" height="93.5" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="222.0" y="169.1" width="12.9" height="110.9" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="235.6" y="200.1" width="12.9" height="79.9" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="256.0" y="173.5" width="12.9" height="106.5" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="269.6" y="212.3" width="12.9" height="67.7" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="290.0" y="177.2" width="12.9" height="102.8" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="303.6" y="223.3" width="12.9" height="56.7" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="324.0" y="180.5" width="12.9" height="99.5" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="337.6" y="233.3" width="12.9" height="46.7" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="358.0" y="183.3" width="12.9" height="96.7" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="371.6" y="242.2" width="12.9" height="37.8" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="392.0" y="185.8" width="12.9" height="94.2" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="405.6" y="250.2" width="12.9" height="29.8" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="426.0" y="188.0" width="12.9" height="92.0" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="439.6" y="257.3" width="12.9" height="22.7" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="460.0" y="190.0" width="12.9" height="90.0" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="473.6" y="263.4" width="12.9" height="16.6" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="494.0" y="191.8" width="12.9" height="88.2" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="507.6" y="268.9" width="12.9" height="11.1" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="528.0" y="193.4" width="12.9" height="86.6" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="541.6" y="273.4" width="12.9" height="6.6" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="562.0" y="194.8" width="12.9" height="85.2" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="575.6" y="277.5" width="12.9" height="2.5" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="596.0" y="196.2" width="12.9" height="83.8" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="609.6" y="280.0" width="12.9" height="0.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="630.0" y="197.5" width="12.9" height="82.5" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="643.6" y="280.0" width="12.9" height="0.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="664.0" y="198.7" width="12.9" height="81.3" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="677.6" y="280.0" width="12.9" height="0.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<rect x="698.0" y="199.9" width="12.9" height="80.1" rx="2" fill="#9ca3af" fill-opacity="1.0" stroke="none"/>
+<rect x="711.6" y="280.0" width="12.9" height="0.0" rx="2" fill="#4f46e5" fill-opacity="1.0" stroke="none"/>
+<path d="M148.6,84.0 L148.6,280.0" fill="none" stroke="#ea580c" stroke-width="2" stroke-opacity="1.0" stroke-linejoin="round"/>
+<text x="154.64625850340136" y="98" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#ea580c" text-anchor="start">cutoff 1500 Hz</text>
+<path d="M50.0,280.0 L730.0,280.0" fill="none" stroke="#9ca3af" stroke-width="1" stroke-opacity="1.0" stroke-linejoin="round"/>
+<text x="67.0" y="298" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="middle">441 Hz</text>
+<text x="203.0" y="298" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="middle">2205 Hz</text>
+<text x="339.0" y="298" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="middle">3969 Hz</text>
+<text x="475.0" y="298" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="middle">5733 Hz</text>
+<text x="611.0" y="298" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="middle">7497 Hz</text>
+</svg>

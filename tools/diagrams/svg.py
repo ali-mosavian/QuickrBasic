@@ -72,6 +72,15 @@ class Svg:
             y = ly if ly is not None else (pts[0][1] + pts[-1][1]) / 2
             self.text(x, y, label, size=12, fill=color if color != LINE else MUTED, anchor=lanchor)
 
+    def line(self, pts, color=LINE, width=1.5, fill="none", opacity=1.0):
+        d = "M" + " L".join(f"{x:.1f},{y:.1f}" for x, y in pts)
+        self.out.append(f'<path d="{d}" fill="{fill}" stroke="{color}" stroke-width="{width}" '
+                        f'stroke-opacity="{opacity}" stroke-linejoin="round"/>')
+
+    def rect(self, x, y, w, h, fill, stroke="none", r=0, opacity=1.0):
+        self.out.append(f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}" rx="{r}" fill="{fill}" '
+                        f'fill-opacity="{opacity}" stroke="{stroke}"/>')
+
     _markers = None
 
     def _marker(self, color):
