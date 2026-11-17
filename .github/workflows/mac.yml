@@ -9,7 +9,7 @@ on:
 
 jobs:
   app:
-    runs-on: macos-latest
+    runs-on: macos-15 # Homebrew's SDL needs the macOS it was built for: the app needs 15
     permissions:
       contents: write
     steps:

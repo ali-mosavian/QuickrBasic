@@ -8,7 +8,7 @@ scratch in C23. It opens GORILLA.BAS and NIBBLES.BAS unchanged, and runs BASIC 3
 than QBasic 1.1 on the same CPU.
 
 **[Try it in your browser](https://ali-mosavian.github.io/QuickrBasic/)**: the IDE, compiled to
-WebAssembly, with GORILLA.BAS and NIBBLES.BAS ready to open. On a Mac with Apple silicon,
+WebAssembly, with GORILLA.BAS and NIBBLES.BAS ready to open. On a Mac with Apple silicon and macOS 15 or later,
 **[download QuickrBasic.app](https://github.com/ali-mosavian/QuickrBasic/releases/download/mac-latest/QuickrBasic-mac-arm64.zip)**: it is not notarized, so open it the first time with
 right-click, Open.
 

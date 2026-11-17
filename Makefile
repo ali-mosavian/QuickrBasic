@@ -188,7 +188,7 @@ build/hostperf/basic: $(build/hostperf_OBJ) build/hostperf/obj/app/basic32.o bui
 SDL_CFLAGS := $(shell pkg-config --cflags sdl3 2>/dev/null)
 SDL_LIBS := $(shell pkg-config --libs sdl3 2>/dev/null)
 MAC := build/mac
-MAC_CFLAGS := $(filter-out -O1 -DEXEC_COUNT,$(HOST_CFLAGS)) -O2 -mmacosx-version-min=13.0 -DAC=$(AC)
+MAC_CFLAGS := $(filter-out -O1 -DEXEC_COUNT,$(HOST_CFLAGS)) -O2 -mmacosx-version-min=15.0 -DAC=$(AC)
 $(eval $(call host_rules,$(MAC),$(MAC_CFLAGS),-include src/plat/view/wrap.h -DQBRT_SCREEN=1))
 $(MAC)/qbrt/qb/dev/host/video.o: VIEW_REAL := -DVIEW_REAL_TEXT
 $(MAC)/qbrt/qb/dev/headless/headless.o: VIEW_REAL := -DVIEW_REAL_TONE
@@ -203,8 +203,9 @@ DEMOS := $(wildcard src/plat/wasm/web/demos/*.BAS)
 
 mac: $(APP)/Contents/Info.plist
 $(MAC)/QuickrBasic: $(MAC_OBJ) $(MAC)/obj/plat/sdl/app/main.o
-	$(HOST_CC) -mmacosx-version-min=13.0 $^ $(SDL_LIBS) -lm -o $@
-# the bundle: SDL beside the program, both signed ad hoc (Apple silicon runs nothing unsigned)
+	$(HOST_CC) -mmacosx-version-min=15.0 $^ $(SDL_LIBS) -lm -o $@
+# the bundle: SDL beside the program, both signed ad hoc (Apple silicon runs nothing unsigned); Homebrew's SDL
+# runs on the macOS it was built for, so the app's minimum is CI's (mac.yml)
 $(APP)/Contents/Info.plist: src/plat/sdl/Info.plist $(MAC)/QuickrBasic src/basic.hlp $(DEMOS)
 	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Frameworks $(APP)/Contents/Resources/demos
 	cp $(MAC)/QuickrBasic $(APP)/Contents/MacOS/
