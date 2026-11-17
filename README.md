@@ -32,7 +32,7 @@ No 64 KB walls. Programs, lines, strings, arrays and symbol tables grow until me
 | `INTEGER` | 16-bit: 32767 + 1 overflows | **32-bit**, the machine's own; `INTEGER` and `LONG` are one type |
 | 16-bit integers | the only kind | **`SHORT` and `DEFSHORT`**, for records laid out as QBasic's |
 | Bytes | none | **`BYTE`, `DEFBYTE` and `CBYTE`**: unsigned, 0 to 255, else Overflow; 1 byte in a `TYPE` and a file; no suffix |
-| Sound | the PC speaker | **three SID-like voices**: `PLAY a$, b$, c$`, waves, envelopes, filters ([docs/sound.md](docs/sound.md)) |
+| Sound | the PC speaker | **six SID-like voices**: `PLAY a$, b$, ...`, waves, envelopes, filters ([reference](docs/sound.md), [tutorial](docs/play-tutorial.md)) |
 | Memory | 64 KB segments | **all of it**: everything grows as needed |
 | Mouse | `CALL INTERRUPT` and a driver | **`PEN(n)`**: the left button the pen's switch, `PEN(n + 10)` the right's |
 | Syntax highlighting | none | from the compiler's lexer, so it never disagrees with it |

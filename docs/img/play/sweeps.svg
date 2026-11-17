@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="760" height="330" viewBox="0 0 760 330"><defs></defs>
+<rect width="760" height="330" fill="#ffffff"/>
+<text x="32" y="40" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" font-weight="700" fill="#1f2937" text-anchor="start">Effects as pitch over time</text>
+<text x="32" y="64" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#6b7280" text-anchor="start">Each step is a note; the clock makes each at least 55 ms.</text>
+<rect x="40.0" y="100.0" width="140.0" height="170.0" rx="6" fill="#f9fafb" fill-opacity="1.0" stroke="#e5e7eb"/>
+<path d="M40.0,243.6 L68.0,243.6 L68.0,214.3 L96.0,214.3 L96.0,192.5 L124.0,192.5 L124.0,155.7 L152.0,155.7 L152.0,126.4 L180.0,126.4" fill="none" stroke="#4f46e5" stroke-width="2.5" stroke-opacity="1.0" stroke-linejoin="round"/>
+<text x="110.0" y="88" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#1f2937" text-anchor="middle">Jump</text>
+<text x="110.0" y="288" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="middle">294 ms</text>
+<rect x="210.0" y="100.0" width="140.0" height="170.0" rx="6" fill="#f9fafb" fill-opacity="1.0" stroke="#e5e7eb"/>
+<path d="M210.0,116.5 L233.3,116.5 L233.3,143.8 L256.7,143.8 L256.7,171.3 L280.0,171.3 L280.0,198.7 L303.3,198.7 L303.3,226.2 L326.7,226.2 L326.7,253.5 L350.0,253.5" fill="none" stroke="#4f46e5" stroke-width="2.5" stroke-opacity="1.0" stroke-linejoin="round"/>
+<text x="280.0" y="88" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#1f2937" text-anchor="middle">Laser</text>
+<text x="280.0" y="288" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="middle">353 ms</text>
+<rect x="380.0" y="100.0" width="140.0" height="170.0" rx="6" fill="#f9fafb" fill-opacity="1.0" stroke="#e5e7eb"/>
+<path d="M380.0,254.0 L395.6,254.0 L395.6,236.2 L411.1,236.2 L411.1,222.9 L426.7,222.9 L426.7,200.5 L442.2,200.5 L442.2,182.7 L457.8,182.7 L457.8,169.5 L473.3,169.5 L473.3,147.1 L488.9,147.1 L488.9,129.3 L504.4,129.3 L504.4,116.0 L520.0,116.0" fill="none" stroke="#4f46e5" stroke-width="2.5" stroke-opacity="1.0" stroke-linejoin="round"/>
+<text x="450.0" y="88" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#1f2937" text-anchor="middle">Power-up</text>
+<text x="450.0" y="288" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="middle">529 ms</text>
+<rect x="550.0" y="100.0" width="140.0" height="170.0" rx="6" fill="#f9fafb" fill-opacity="1.0" stroke="#e5e7eb"/>
+<path d="M550.0,160.1 L570.0,160.1 L570.0,176.8 L590.0,176.8 L590.0,193.7 L610.0,193.7 L610.0,209.9 L690.0,209.9" fill="none" stroke="#4f46e5" stroke-width="2.5" stroke-opacity="1.0" stroke-linejoin="round"/>
+<text x="620.0" y="88" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#1f2937" text-anchor="middle">Game over</text>
+<text x="620.0" y="288" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="middle">2333 ms</text>
+</svg>

@@ -41,7 +41,7 @@ void dev_key_discard(void);
 
 /* The speaker: a tone of `hertz` until the next call; 0 is silence. */
 void dev_tone(unsigned hertz);
-/* The synthesizer's voice 0 to DEV_VOICES - 1 (PLAY a$, b$, c$) set to `v` until the next call for it; a platform
+/* The synthesizer's voice 0 to DEV_VOICES - 1 (PLAY a$, b$, ...) set to `v` until the next call for it; a platform
    with only the speaker plays voice 0 there. */
 void dev_voice(unsigned voice, const DevVoice *v);
 

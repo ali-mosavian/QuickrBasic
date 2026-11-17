@@ -3,7 +3,7 @@
 #ifndef QB_DEV_VOICE_H
 #define QB_DEV_VOICE_H
 
-enum { DEV_VOICES = 3 };
+enum { DEV_VOICES = 6 };
 enum DevWave { DEV_PULSE, DEV_TRIANGLE, DEV_SAW, DEV_NOISE };
 enum DevFilter { DEV_UNFILTERED, DEV_LOW_PASS, DEV_BAND_PASS, DEV_HIGH_PASS };
 
