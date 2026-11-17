@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
-"""mothlite_test.py [EXE]: MOTHLITE.BAS's stones drawn at every place they scroll through.
+"""mothlite_test.py [EXE]: MOTHLITE.BAS's stones drawn at every place they scroll through, and
+every PLAY string it builds played.
 
 The demo's main loop is swapped for one that draws each kind of stone from off the left edge to
 off the right. A stone with runes partly off the left (x < 0) took a negative rune index:
-Subscript out of range mid-game.
+Subscript out of range mid-game. Then each song's beats, layers and sound effects are played: a
+bird call written in octave 7 was an Illegal function call once the sky's mood reached it.
 """
 
 import sys
@@ -27,6 +29,27 @@ FOR kind = 0 TO NKIND - 1
     NEXT
 NEXT
 PRINT "stones ok"
+DIM id AS INTEGER, b AS INTEGER, v AS INTEGER
+PLAY "MB"
+FOR id = TITLESONG TO GAMESONG
+    FOR b = 0 TO SongLen(id) - 1
+        FOR v = 0 TO 2
+            PLAY Tune(id, b, v)
+            SOUND 37, 0
+        NEXT
+        FOR v = 0 TO NSKIES - 1
+            PLAY Mood(id, v, b)
+            SOUND 37, 0
+        NEXT
+        PLAY Counter(b), Fast(b), Rest(id)
+        SOUND 37, 0
+    NEXT
+NEXT
+FOR id = 0 TO NSFX - 1
+    PlaySfx id
+    SOUND 37, 0
+NEXT
+PRINT "sounds ok"
 END
 """
 
@@ -47,7 +70,7 @@ def main() -> None:
         path.write_text(program())
         run = subprocess.run([exe, path.name], cwd=tmp, capture_output=True, timeout=60)
         out = run.stdout.decode(errors="replace")
-    ok = "stones ok" in out
+    ok = "stones ok" in out and "sounds ok" in out
     print("mothlite " + ("ok" if ok else "FAIL\n" + out[-600:]))
     sys.exit(0 if ok else 1)
 

@@ -67,11 +67,15 @@ TYPE Sky
     ease AS SINGLE
 END TYPE
 
+' The music: the song and its beat; the sky's mood,
+' latched each bar, and the score, for the layers.
 TYPE Song
     id AS INTEGER
     beat AS INTEGER
     playing AS INTEGER
-    cue AS STRING * 48
+    mood AS INTEGER
+    bar AS INTEGER
+    heat AS INTEGER
 END TYPE
 
 TYPE Game
@@ -129,11 +133,21 @@ CONST GRAV = 660!, FLAPV = -190!, SPEED = 72!
 CONST TITLE = 0, PLAYING = 1, DYING = 2, OVER = 3
 CONST NOSONG = 0, TITLESONG = 1, GAMESONG = 2
 CONST MAXBEATS = 64, SUNX = 258, SUNY = 58
+' the score the counter-melody comes in at, then
+' the faster hi-hats; how near a cap is a near miss
+CONST HEAT1 = 5, HEAT2 = 15, NEARMISS = 9
 CONST NFLY = 10, NCLOUD = 3, NTREE = 16
-CONST DAY = 0, NSKIES = 3, NKEY = 15, NRIDGE = 3
+CONST DAY = 0, GOLDEN = 1, SUNSET = 2, NSKIES = 3
+CONST NKEY = 15, NRIDGE = 3
+' the layers' sounds: counter-melody, birds by day,
+' a pad at golden hour, crickets at sunset
+CONST LIFTSND = "MNW0Q12H0,4,8,3V5"
+CONST BIRDS = "MSW1H0,2,0,2V5L32O6EGBP32"
+CONST PADSND = "MLW2Y1,700,4H9,6,10,9V6"
+CONST CRICKETS = "W3Y2,6000,12H0,1,0,1V3L32O6CP32CP32"
 ' sound effects, sparks and text looks, by table
 CONST SFXCRASH = 0, SFXFLAP = 1, SFXCHIME = 2
-CONST SFXTING = 3, SFXBEST = 4, SFXOVER = 5
+CONST SFXSWISH = 3, SFXBEST = 4, SFXOVER = 5
 CONST NSFX = 6
 CONST BTRAIL = 0, BFLAP = 1, BSCORE = 2, BLAND = 3
 CONST NBURST = 4
@@ -189,7 +203,7 @@ DECLARE SUB Die (w AS World)
 DECLARE SUB Scored (w AS World, sp() AS Spark)
 DECLARE SUB BackToTitle (w AS World)
 DECLARE SUB Trail (w AS World, sp() AS Spark)
-DECLARE SUB Flap (m AS Moth, sp() AS Spark, s AS Song)
+DECLARE SUB Flap (m AS Moth, sp() AS Spark)
 DECLARE SUB Gravity (m AS Moth)
 DECLARE SUB PlaceStones (st() AS Stone)
 DECLARE SUB MoveStone (st() AS Stone, i AS INTEGER)
@@ -198,7 +212,11 @@ DECLARE SUB MoveSparks (sp() AS Spark)
 DECLARE SUB StartSong (s AS Song, id AS INTEGER)
 DECLARE SUB StopSong (s AS Song)
 DECLARE SUB FeedSong (s AS Song)
-DECLARE SUB Chime (s AS Song)
+DECLARE SUB Layer (id AS INTEGER, b AS INTEGER, v AS INTEGER, pre AS STRING, k AS STRING)
+DECLARE FUNCTION NoteOf$ (k AS STRING, steps AS INTEGER)
+DECLARE FUNCTION Drums$ (s AS Song)
+DECLARE FUNCTION Lift$ (s AS Song)
+DECLARE FUNCTION Grazed% (st() AS Stone, i AS INTEGER, m AS Moth)
 DECLARE SUB ToggleMusic (s AS Song)
 DECLARE SUB PlaySfx (id AS INTEGER)
 DECLARE SUB EaseSky (s AS Sky, cur() AS SINGLE)
@@ -276,6 +294,11 @@ DIM SHARED Tune(1 TO 2, MAXBEATS - 1, 2) AS STRING
 DIM SHARED SongLen(1 TO 2) AS INTEGER
 DIM SHARED SfxA(NSFX - 1) AS STRING
 DIM SHARED SfxB(NSFX - 1) AS STRING
+DIM SHARED SfxD(NSFX - 1) AS STRING
+DIM SHARED Mood(1 TO 2, NSKIES - 1, MAXBEATS - 1) AS STRING
+DIM SHARED Counter(MAXBEATS - 1) AS STRING
+DIM SHARED Fast(MAXBEATS - 1) AS STRING
+DIM SHARED Rest(1 TO 2) AS STRING
 DIM SHARED Bursts(NBURST - 1) AS Burst
 DIM SHARED SkyKey(NSKIES - 1, NKEY - 1) AS LONG
 DIM SHARED Fixed(255) AS LONG
@@ -391,17 +414,20 @@ DATA "V4O6C32P32P16", "V8O4C16P16", "V4O6C32P32P16"
 DATA "V10O1C16P16", "V4O6C32P32P16", "V8O4C16P16"
 DATA "V8O4C16V6O4C16"
 
-' Sound effects: the first voice, then the second.
+' Sound effects, a string each for voices 1, 2 and 4:
+' the jingles play once the song has stopped, the
+' rest on voice 4 over it: crash, flap, chime,
+' near miss, new best, game over.
 Sfx:
 DATA "T150MLW2V12L32O2CO1GECL8O0G"
-DATA "T150W3H0,9,0,8V12L4O1C"
-DATA "T255MNL64O4AO5E", ""
-DATA "T160MNW1V13L64O5CEGO6CL16E", ""
-DATA "T220MNL32O4EGO5CL16E", ""
+DATA "T150W3H0,9,0,8V12L4O1C", ""
+DATA "", "", "T255W3Y3,3000,4H0,2,0,2V6L32O5C"
+DATA "", "", "T160MNW1H0,3,8,4V11L64O5CEGO6CL16E"
+DATA "", "", "T200W3Y2,2500,10H0,5,0,4V8L16O4C"
 DATA "T160MNW0Q25V12L16O4CEGO5L8CO4L16GO5L4C"
-DATA "T160MNW2V9L4O2CL8GL4O3C"
+DATA "T160MNW2V9L4O2CL8GL4O3C", ""
 DATA "T140MNW1V12L16O4CO3GECL8EGL4O4C"
-DATA "T140MNW2V9L4O2CO1GO2C"
+DATA "T140MNW2V9L4O2CO1GO2C", ""
 
 ' Sparks: how many, spread up and down, flung out.
 Bursts:
@@ -589,16 +615,6 @@ END SUB
 FUNCTION Chan% (c AS LONG, j AS INTEGER)
     Chan% = (c \ CLNG(256 ^ j)) MOD 256
 END FUNCTION
-
-' The score's chime takes the song's next beat; with
-' the music off it plays on its own.
-SUB Chime (s AS Song)
-    IF s.playing THEN
-        s.cue = SfxA(SFXCHIME)
-    ELSE
-        PlaySfx SFXTING
-    END IF
-END SUB
 
 SUB CloseScreen
     SOUND 37, 0
@@ -927,6 +943,22 @@ SUB DrawTrees (scroll AS SINGLE)
     NEXT
 END SUB
 
+' Whether the moth passed stone i near a cap.
+FUNCTION Grazed% (st() AS Stone, i AS INTEGER, m AS Moth)
+    DIM t AS INTEGER, b AS INTEGER
+    t = st(i).gap - GAP \ 2
+    b = st(i).gap + GAP \ 2
+    Grazed% = m.y - t < NEARMISS OR b - m.y < NEARMISS
+END FUNCTION
+
+' The drums, with faster hi-hats once the score is
+' high.
+FUNCTION Drums$ (s AS Song)
+    Drums$ = Tune(s.id, s.beat, 2)
+    IF s.id <> GAMESONG OR s.heat < HEAT2 THEN EXIT FUNCTION
+    Drums$ = Fast(s.beat)
+END FUNCTION
+
 ' Short vines hang under a cap.
 SUB Drips (x AS INTEGER, y AS INTEGER)
     DIM m AS INTEGER, n AS INTEGER, c1 AS INTEGER
@@ -1014,17 +1046,22 @@ SUB Fall (w AS World, sp() AS Spark)
     END IF
 END SUB
 
-' Keeps a few beats queued; a cue (a beat long)
-' takes the next beat's tune.
+' Keeps a few beats queued: tune, arpeggio, drums,
+' the sky's mood and the lift; voice 4 is left to
+' the sound effects. Every voice gets a beat a beat,
+' a pad a bar, so they stay together.
 SUB FeedSong (s AS Song)
-    DIM a AS STRING
+    DIM b AS INTEGER, id AS INTEGER
+    DIM m AS STRING, d AS STRING
     IF s.id = NOSONG OR s.playing = 0 THEN EXIT SUB
     IF PLAY(0) >= 3 THEN EXIT SUB
-    a = RTRIM$(s.cue)
-    IF LEN(a) = 0 THEN a = Tune(s.id, s.beat, 0)
-    PLAY a, Tune(s.id, s.beat, 1), Tune(s.id, s.beat, 2)
-    s.cue = ""
-    s.beat = (s.beat + 1) MOD SongLen(s.id)
+    id = s.id
+    b = s.beat
+    IF b MOD 4 = 0 THEN s.bar = s.mood
+    m = Mood(id, s.bar, b)
+    d = Drums$(s)
+    PLAY Tune(id, b, 0), Tune(id, b, 1), d, "", m, Lift$(s)
+    s.beat = (b + 1) MOD SongLen(id)
 END SUB
 
 FUNCTION Feeler% (lx AS SINGLE, ly AS SINGLE)
@@ -1035,12 +1072,12 @@ FUNCTION Feeler% (lx AS SINGLE, ly AS SINGLE)
     Feeler% = f OR (lx - 11.5) ^ 2 + (ly + 1) ^ 2 < 5
 END FUNCTION
 
-SUB Flap (m AS Moth, sp() AS Spark, s AS Song)
+SUB Flap (m AS Moth, sp() AS Spark)
     m.vy = FLAPV
     m.boost = .25
     m.squash = .12
     Emit sp(), m, BFLAP
-    IF s.playing = 0 AND PLAY(0) < 3 THEN PlaySfx SFXFLAP
+    PlaySfx SFXFLAP
 END SUB
 
 ' Shows the page just drawn, draws on the other.
@@ -1051,7 +1088,7 @@ END SUB
 
 SUB Fly (w AS World, k AS Pad, st() AS Stone, sp() AS Spark)
     DIM i AS INTEGER
-    IF k.flap THEN Flap w.m, sp(), w.song
+    IF k.flap THEN Flap w.m, sp()
     w.m.x = w.m.x + (HOMEX - w.m.x) * 5 * STEPT
     Gravity w.m
     w.g.scroll = w.g.scroll + SPEED * STEPT
@@ -1061,6 +1098,9 @@ SUB Fly (w AS World, k AS Pad, st() AS Stone, sp() AS Spark)
             IF st(i).x + STONEW < w.m.x THEN
                 st(i).passed = -1
                 Scored w, sp()
+                IF Grazed%(st(), i, w.m) THEN
+                    PlaySfx SFXSWISH
+                END IF
             END IF
         END IF
     NEXT
@@ -1121,8 +1161,54 @@ SUB Launch (w AS World, st() AS Stone, sp() AS Spark)
     w.g.newBest = 0
     w.sky.phase = DAY
     PlaceStones st()
-    Flap w.m, sp(), w.song
+    Flap w.m, sp()
 END SUB
+
+' The layers over a song's beat b, made from its
+' voice v's string k: the counter-melody a third over
+' the tune; the moods from the arpeggio's root; the
+' drums with the hi-hats doubled.
+SUB Layer (id AS INTEGER, b AS INTEGER, v AS INTEGER, pre AS STRING, k AS STRING)
+    DIM t AS STRING, r AS STRING, i AS INTEGER
+    t = LEFT$(pre, 4)
+    SELECT CASE v
+    CASE 0
+        Rest(id) = t + "P8"
+        IF id = GAMESONG THEN
+            Counter(b) = t + LIFTSND + NoteOf$(k, 2) + "8"
+        END IF
+    CASE 1
+        r = NoteOf$(k, 7)
+        Mood(id, DAY, b) = t + "P8"
+        IF (b * 7 + 3) MOD 5 = 0 THEN
+            Mood(id, DAY, b) = t + BIRDS
+        END IF
+        Mood(id, GOLDEN, b) = ""
+        IF b MOD 4 = 0 THEN
+            Mood(id, GOLDEN, b) = t + PADSND + r + "2"
+        END IF
+        Mood(id, SUNSET, b) = t + "P8"
+        IF b MOD 2 = 0 THEN
+            Mood(id, SUNSET, b) = t + CRICKETS
+        END IF
+    CASE 2
+        i = INSTR(k, "P32P16")
+        IF id = GAMESONG AND i > 0 THEN
+            r = LEFT$(k, i - 1) + "P32V3O6C32P32"
+            Fast(b) = pre + r
+        ELSEIF id = GAMESONG THEN
+            Fast(b) = pre + k
+        END IF
+    END SELECT
+END SUB
+
+' The counter-melody, once the score is up; a rest
+' before.
+FUNCTION Lift$ (s AS Song)
+    Lift$ = Rest(s.id)
+    IF s.id <> GAMESONG OR s.heat < HEAT1 THEN EXIT FUNCTION
+    Lift$ = Counter(s.beat)
+END FUNCTION
 
 ' A cap, its light edge and shadow, outlined in ink.
 SUB Lintel (x AS INTEGER, cy AS INTEGER)
@@ -1174,7 +1260,7 @@ SUB LoadSfx
     DIM i AS INTEGER
     RESTORE Sfx
     FOR i = 0 TO NSFX - 1
-        READ SfxA(i), SfxB(i)
+        READ SfxA(i), SfxB(i), SfxD(i)
     NEXT
 END SUB
 
@@ -1198,7 +1284,8 @@ SUB LoadSkies
     LOOP
 END SUB
 
-' Each voice's beats, its sound before each one.
+' Each voice's beats, its sound before each one, and
+' the layers made from them.
 SUB LoadSongs
     DIM id AS INTEGER, v AS INTEGER, b AS INTEGER
     DIM n AS INTEGER, pre AS STRING, k AS STRING
@@ -1211,6 +1298,7 @@ SUB LoadSongs
             FOR b = 0 TO n - 1
                 READ k
                 Tune(id, b, v) = pre + k
+                Layer id, b, v, pre, k
             NEXT
         NEXT
     NEXT
@@ -1382,6 +1470,17 @@ SUB MoveSparks (sp() AS Spark)
     NEXT
 END SUB
 
+' The note of string k (as "O4E"), steps up the
+' scale.
+FUNCTION NoteOf$ (k AS STRING, steps AS INTEGER)
+    DIM i AS INTEGER, o AS INTEGER, n AS STRING
+    o = VAL(MID$(k, 2, 1))
+    i = INSTR("CDEFGAB", MID$(k, 3, 1)) - 1 + steps
+    o = o + i \ 7
+    n = MID$("CDEFGAB", i MOD 7 + 1, 1)
+    NoteOf$ = "O" + MID$(STR$(o), 2) + n
+END FUNCTION
+
 ' Scrolls stone i; one gone off the left comes back
 ' a spacing after the farthest, with a new gap.
 SUB MoveStone (st() AS Stone, i AS INTEGER)
@@ -1508,11 +1607,7 @@ SUB PlaceStones (st() AS Stone)
 END SUB
 
 SUB PlaySfx (id AS INTEGER)
-    IF LEN(SfxB(id)) THEN
-        PLAY SfxA(id), SfxB(id)
-    ELSE
-        PLAY SfxA(id)
-    END IF
+    PLAY SfxA(id), SfxB(id), "", SfxD(id)
 END SUB
 
 ' Sprite k's tilt, stretch and wings: 3 wing
@@ -1611,7 +1706,9 @@ SUB Scored (w AS World, sp() AS Spark)
     w.g.score = w.g.score + 1
     w.fx.pop = .25
     w.sky.phase = (w.g.score \ 10) MOD NSKIES
-    Chime w.song
+    w.song.mood = w.sky.phase
+    w.song.heat = w.g.score
+    PlaySfx SFXCHIME
     Emit sp(), w.m, BSCORE
 END SUB
 
@@ -1726,7 +1823,9 @@ SUB StartSong (s AS Song, id AS INTEGER)
     SOUND 37, 0
     s.id = id
     s.beat = 0
-    s.cue = ""
+    s.mood = DAY
+    s.bar = DAY
+    s.heat = 0
 END SUB
 
 SUB StopSong (s AS Song)
