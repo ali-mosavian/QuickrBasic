@@ -956,6 +956,8 @@ static void erred(Session *const S, const uint8_t code)
     S->repl.loading = false; /* repl_relink's, the error ended it */
     S->prog.add_flags = 0;
     S->prog.add_at = 0;
+    S->prog.add_src = 0;
+    S->prog.add_file = 0;
 
     if (S->vm.line != DLINE) {
         lmap_build(S); /* the include's lines are no line */

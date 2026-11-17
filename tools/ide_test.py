@@ -1037,6 +1037,13 @@ def play() -> None:
     assert b[0] == "FOR WITHOUT NEXT", b
     assert "ADD `NEXT I` AFTER THE LAST LINE" in " ".join(r.strip() for r in b), b
     press("esc")
+    # A keyword for a FUNCTION's name: Syntax error, in no words and at no word.
+    (work / "RSV.BAS").write_bytes(b"PRINT 1\r\nFUNCTION Field% (x AS INTEGER)\r\nEND FUNCTION\r\n")
+    open_file("rsv.bas")
+    press(f"0x{F5:x}")
+    b = box()
+    assert b[0] == "SYNTAX ERROR" and "IS A RESERVED WORD" in " ".join(r.strip() for r in b), b
+    press("esc")
 
     # Names offered as first written, not in the small letters typed: they came all small, totsum.
     (work / "CASE.BAS").write_bytes(b"TYPE pair\r\nQty AS INTEGER\r\nEND TYPE\r\nDIM pt(1) AS pair\r\nTotSum = 1\r\n")

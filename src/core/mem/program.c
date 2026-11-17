@@ -80,7 +80,7 @@ bool prog_find(
     return prog_find_from(pg, from_cursor ? cursor : PROGBASE, num, true, line);
 }
 
-/* The record of size bytes at line: num, add_flags, the body, then the text before it (pre,
+/* The record of size bytes at line: num, add_flags, add_src, add_file, the body, then the text before it (pre,
    used up). */
 static void prog_fill(
     Prog *const pg,
@@ -96,6 +96,8 @@ static void prog_fill(
         .num = num,
         .flags = pg->add_flags,
         .pre = pg->pre_len,
+        .src = pg->add_src,
+        .file = pg->add_file,
     };
 
     uint8_t *const d = at(prog_addr(pg, line + HDR));

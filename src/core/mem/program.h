@@ -24,6 +24,8 @@ typedef struct {
     uint32_t pre_len;
     uint8_t add_flags; /* the lines stored: their LF_* */
     uint32_t add_at;   /* prog_add's place, 0 the end */
+    uint16_t add_src;  /* the lines stored: their Line.src, Line.file */
+    uint16_t add_file;
 } Prog;
 
 static inline Addr prog_addr(const Prog *const pg, const uint32_t line) { return pg->base + line; }

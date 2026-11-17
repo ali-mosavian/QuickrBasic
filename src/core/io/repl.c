@@ -145,6 +145,58 @@ static void module_name(Session *const S)
         cons_putc(&S->cons, ' ');
 }
 
+static bool is_include(Session *S, const uint8_t *text, uint32_t len);
+
+/* Source file n's name: the main's, else the nth '$INCLUDE line's in the store. */
+static const char *source_name(Session *const S, const uint16_t file)
+{
+    uint16_t n = 0;
+
+    for (uint32_t line = PROGBASE; file && prog_line(&S->prog, line)->len;
+         line += prog_line(&S->prog, line)->len) {
+        const uint8_t *body = at(prog_addr(&S->prog, line) + HDR);
+
+        if (comp_peek(&body) != TK_REM)
+            continue;
+
+        list_text(&S->comp, body, 0);
+
+        if (is_include(S, S->cons.sbuf, S->cons.sblen) && ++n == file)
+            return S->repl.incl;
+    }
+
+    return S->repl.file;
+}
+
+/* "FILE:n", the error's line in its source file; nothing for a line not read from one. */
+static void source_where(Session *const S)
+{
+    const bool direct = S->vm.line == DLINE;
+    const Line *const l = direct ? nullptr : prog_line(&S->prog, S->vm.line);
+    const uint16_t src = direct ? (S->repl.loading ? S->prog.add_src : 0) : l->src;
+
+    if (!src)
+        return;
+
+    cons_nl(&S->cons);
+    cons_puts(&S->cons, source_name(S, direct ? S->prog.add_file : l->file));
+    cons_putc(&S->cons, ':');
+    cons_uint(&S->cons, src);
+}
+
+/* An error loading a file: where, then the line read, marked at its start. */
+static void diagnose_load(Session *const S)
+{
+    source_where(S);
+    cons_nl(&S->cons);
+    cons_spaces(&S->cons, 2);
+    cons_puts(&S->cons, (const char *)S->cons.inbuf);
+    cons_nl(&S->cons);
+    cons_spaces(&S->cons, 2);
+    cons_putc(&S->cons, '^');
+    cons_nl(&S->cons);
+}
+
 /* A compile error's place and words under BC's message: the line as LIST spells it, a mark under
    the place, what is wrong and what to do. Any other error: nothing. */
 static void diagnose(Session *const S)
@@ -153,6 +205,8 @@ static void diagnose(Session *const S)
 
     if (!e || e->op != O_ERR)
         return;
+
+    source_where(S);
 
     const uint8_t *const body =
         S->vm.line == DLINE ? S->comp.cbuf : at(prog_addr(&S->prog, S->vm.line) + HDR);
@@ -226,7 +280,10 @@ static void report(Session *const S, const uint8_t code)
         }
     }
 
-    diagnose(S);
+    if (S->repl.loading && line == DLINE)
+        diagnose_load(S);
+    else
+        diagnose(S);
 }
 
 /* The input's end in a file run, or at READY: files closed, exit. */
@@ -410,10 +467,10 @@ static bool word(const uint8_t **const p, const uint8_t *const end, const char *
     return true;
 }
 
-/* Is inbuf, len long, a '$INCLUDE: 'f' metacommand (or REM's)? f to repl.incl. */
-static bool is_include(Session *const S, const uint32_t len)
+/* Is text, len long, a '$INCLUDE: 'f' metacommand (or REM's)? f to repl.incl. */
+static bool is_include(Session *const S, const uint8_t *const text, const uint32_t len)
 {
-    const uint8_t *p = S->cons.inbuf;
+    const uint8_t *p = text;
     const uint8_t *const end = p + len;
     p = blanks(p, end);
 
@@ -587,8 +644,12 @@ static void read_file(Session *const S, const char *const name, const int32_t nu
     Chan *c;
     fault_check(&S->fault, chnl_open(cl, num, name, FM_IN, RECLEN_DEFAULT, &c));
     fault_check(&S->fault, chnl_in(cl, c));
+    const uint16_t fline = S->repl.fline, file = S->prog.add_file;
+    S->repl.fline = 0;
+    S->prog.add_file = S->repl.nfile++;
 
     for (;;) {
+        S->prog.add_src = S->repl.fline + 1; /* a continued line's first */
         const int32_t len = srcr_line(&S->srcr);
         fault_check(&S->fault, chnl_take(cl)); /* a read's error */
 
@@ -596,7 +657,7 @@ static void read_file(Session *const S, const char *const name, const int32_t nu
             break;
 
         S->repl.fline++;
-        const bool inc = is_include(S, (uint32_t)len);
+        const bool inc = is_include(S, S->cons.inbuf, (uint32_t)len);
         S->lexr.source = &S->srcr.src;
         repl_enter(S, (uint32_t)len);
         S->lexr.source = nullptr;
@@ -611,6 +672,9 @@ static void read_file(Session *const S, const char *const name, const int32_t nu
     fault_check(&S->fault, chnl_find(cl, num, &c));
     fault_check(&S->fault, chnl_close(cl, c));
     chnl_clear(cl);
+    S->repl.fline = fline;
+    S->prog.add_src = 0;
+    S->prog.add_file = file;
 }
 
 void repl_load(Session *const S)
@@ -618,9 +682,9 @@ void repl_load(Session *const S)
     S->repl.loading = true;
     S->repl.batch = true;
     S->repl.fline = 0;
+    S->repl.nfile = 0;
     read_file(S, S->repl.file, SOURCE_FILENO);
     S->repl.loading = false;
-    S->repl.fline = 0;
 }
 
 void repl_relink(Session *const S)
@@ -635,6 +699,7 @@ void repl_relink(Session *const S)
     decl_reset(&S->decl, &S->scop, &S->symb);
     session_drop(S);
     S->repl.loading = true;
+    S->repl.nfile = 1; /* the includes' numbers as the load's */
 
     for (uint32_t line = PROGBASE; prog_line(&S->prog, line)->len;) {
         S->vm.line = line;
@@ -656,9 +721,8 @@ void repl_relink(Session *const S)
             continue;
 
         list_text(&S->comp, body, 0); /* '$INCLUDE: the file's lines here */
-        memcpy(S->cons.inbuf, S->cons.sbuf, S->cons.sblen + 1);
 
-        if (!is_include(S, S->cons.sblen))
+        if (!is_include(S, S->cons.sbuf, S->cons.sblen))
             continue;
 
         S->prog.add_at = line;
