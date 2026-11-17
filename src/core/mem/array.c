@@ -68,13 +68,13 @@ ArrSlot *arry_slot(const Arry *const ay, const uint16_t id)
 /* A header's bytes: the fixed part, then a count and a lower bound a dimension. */
 static uint32_t arry_hdr_size(const uint8_t dims)
 {
-    return sizeof(ArrayHdr) + dims * 2u * sizeof(uint16_t);
+    return sizeof(ArrayHdr) + dims * 2u * sizeof(uint32_t);
 }
 
-static uint16_t arry_count(const ArrayHdr *const a, const uint32_t i) { return a->count[i]; }
-static int16_t arry_lbound(const ArrayHdr *const a, const uint32_t i)
+static uint32_t arry_count(const ArrayHdr *const a, const uint32_t i) { return a->count[i]; }
+static int32_t arry_lbound(const ArrayHdr *const a, const uint32_t i)
 {
-    return (int16_t)a->count[a->dims + i];
+    return (int32_t)a->count[a->dims + i];
 }
 
 static uint32_t arry_elem_count(const ArrayHdr *const a)
@@ -123,7 +123,7 @@ uint32_t arry_esize(const Arry *const ay, const uint16_t id)
 
 uint32_t arry_frame_hdr(const uint8_t dims) { return (arry_hdr_size(dims) + 7) & ~7u; }
 
-static_assert(ARRY_FRAME_HDR1 == ((sizeof(ArrayHdr) + 2 * sizeof(uint16_t) + 7) & ~7u));
+static_assert(ARRY_FRAME_HDR1 == ((sizeof(ArrayHdr) + 2 * sizeof(uint32_t) + 7) & ~7u));
 
 bool arry_heap(const Arry *const ay, const Addr h)
 {
@@ -135,9 +135,9 @@ bool arry_heap(const Arry *const ay, const Addr h)
 static bool arry_in_frame(Arry *const ay, const uint16_t id, const uint8_t n)
 {
     const FrameArr *const fa = symb_farr(ay->symb, id);
-    uint32_t elems = 1;
+    uint64_t elems = 1;
 
-    for (uint32_t i = 0; i < n; i++)
+    for (uint32_t i = 0; i < n && elems <= 0xFFFFFF; i++)
         elems *= ay->counts[i];
 
     if (!fa->at || fa->shape >> 24 != n ||
@@ -178,7 +178,7 @@ Addr arry_ref(Arry *const ay, ArrSlot *const s, const uint16_t id, const uint8_t
 
     uint32_t idx = 0; /* the last subscript the fastest */
     for (uint32_t i = 0; i < n; i++) {
-        const uint16_t r = ay->subs[i] - (uint16_t)arry_lbound(a, i);
+        const uint32_t r = (uint32_t)ay->subs[i] - (uint32_t)arry_lbound(a, i);
 
         if (r >= arry_count(a, i))
             arry_bad_sub(ay);
@@ -192,10 +192,10 @@ Addr arry_ref(Arry *const ay, ArrSlot *const s, const uint16_t id, const uint8_t
 void arry_dim(Arry *const ay, const uint16_t id, const uint8_t n, const bool dyn)
 {
     for (uint32_t i = n; i-- > 0;) {
-        if ((int16_t)ay->subs[i] < 0)
+        if (ay->subs[i] < 0)
             fault_error(ay->fault, E_IQ);
 
-        ay->counts[i] = ay->subs[i] + 1;
+        ay->counts[i] = (uint32_t)ay->subs[i] + 1;
     }
 
     if (arry_slot(ay, id)->hdr)
@@ -387,12 +387,12 @@ static bool arry_index_in(
     for (uint32_t d = old->dims; d-- > 0;) { /* the last subscript the fastest */
         const uint32_t r = k % arry_count(old, d);
         k /= arry_count(old, d);
-        const uint32_t s = r + arry_lbound(old, d) - arry_lbound(fresh, d);
+        const int64_t s = (int64_t)r + arry_lbound(old, d) - arry_lbound(fresh, d);
 
-        if (s >= arry_count(fresh, d)) /* past it, or under 0 */
+        if (s < 0 || s >= arry_count(fresh, d))
             return false;
 
-        i += s * scale;
+        i += (uint32_t)s * scale;
         scale *= arry_count(fresh, d);
     }
 

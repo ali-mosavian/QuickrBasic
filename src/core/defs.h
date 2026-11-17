@@ -141,12 +141,13 @@ typedef struct PACKED {
 } StrTail;
 enum { BHDR = sizeof(StrTail) };
 
-/* An array's header: its dimensions, its data, the count of a 1-D, then the counts. */
+/* An array's header: its dimensions, its data, the count of a 1-D, then the counts and the lower
+   bounds. */
 typedef struct PACKED {
     uint8_t dims;
     Addr data;
-    uint16_t fast;
-    uint16_t count[];
+    uint32_t fast;
+    uint32_t count[];
 } ArrayHdr;
 /* An array's cell: its header (0 none) and whether REDIM made it (ERASE frees it). */
 typedef struct {

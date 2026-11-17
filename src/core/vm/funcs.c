@@ -368,7 +368,7 @@ static void bound(Session *const S, const bool upper)
     if (d < 1 || d > a->dims)
         arry_bad_sub(&S->arry);
 
-    const int32_t lower = (int16_t)a->count[d - 1 + a->dims];
+    const int32_t lower = (int32_t)a->count[d - 1 + a->dims];
     exec_pushi(&S->vm, upper ? lower + a->count[d - 1] - 1 : lower);
 }
 void func_lbnd(Session *const S) { bound(S, false); }

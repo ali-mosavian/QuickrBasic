@@ -445,8 +445,9 @@ void stmt_dim(Session *const S)
         const bool swap = swapped >> i & 1;
         const int32_t hi = swap ? first : second;
         const int32_t lo = swap ? second : first;
-        S->arry.subs[i] = (uint16_t)(hi - lo);
-        S->arry.lbounds[i] = (int16_t)lo;
+        const int64_t span = (int64_t)hi - lo; /* past INT32_MAX: Out of memory, by its size */
+        S->arry.subs[i] = span > INT32_MAX ? INT32_MAX : (int32_t)span;
+        S->arry.lbounds[i] = lo;
     }
 
     ArrSlot *const s =

@@ -176,3 +176,21 @@ TEST(procedures_past_64k_keep_their_lines)
     CHECK(unit_run_bytes(S, src, n) == ST_OK);
     CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 7 \r");
 }
+
+/* DIM's bounds and the subscripts were cut to 16 bits: DIM a(70000) gave UBOUND 4464, and a(69000)
+   was Subscript out of range. */
+TEST(bounds_past_16_bits)
+{
+    static const char *const lines[] = {
+        "10 DIM a(70000): a(70000) = 5: a(69000) = 6: PRINT UBOUND(a); a(70000); a(69000)",
+        "20 DIM b(-40000 TO -39999, 100000 TO 100001): b(-40000, 100001) = 7",
+        "30 PRINT LBOUND(b, 1); UBOUND(b, 2); b(-40000, 100001)",
+        "40 REDIM c(1 TO 2): REDIM c(65537 TO 65539): c(65539) = 8: PRINT LBOUND(c); c(65539)",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(
+        S->cons.sbuf, S->cons.sblen, " 70000  5  6 \r-40000  100001  7 \r 65537  8 \r"
+    );
+}
