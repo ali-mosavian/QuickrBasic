@@ -194,3 +194,22 @@ TEST(bounds_past_16_bits)
         S->cons.sbuf, S->cons.sblen, " 70000  5  6 \r-40000  100001  7 \r 65537  8 \r"
     );
 }
+
+/* Arrays were row-major: a(1, 0) was 12 bytes past a(0, 0) and a(0, 1) 4. QB 4.5's first subscript
+   varies fastest, on the heap, in a frame and through REDIM PRESERVE. */
+TEST(arrays_are_column_major)
+{
+    static const char *const lines[] = {
+        "10 DIM a(2, 2): p = VARPTR(a(0, 0)): PRINT VARPTR(a(1, 0)) - p; VARPTR(a(0, 1)) - p",
+        "20 s",
+        "30 REDIM b(1, 1): b(1, 0) = 5: b(0, 1) = 6: REDIM PRESERVE b(1, 2)",
+        "40 PRINT b(1, 0); b(0, 1)",
+        "100 SUB s",
+        "110 DIM c(2, 2): p = VARPTR(c(0, 0)): PRINT VARPTR(c(1, 0)) - p; VARPTR(c(0, 1)) - p",
+        "120 END SUB",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 4  12 \r 4  12 \r 5  6 \r");
+}

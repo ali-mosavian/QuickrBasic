@@ -5,8 +5,9 @@
  * to arry.hdr. The cell is the variable's own, a local's in its call's frame, a parameter's its
  * argument's (symbols.h symb_at). The header:
  * its dimensions, its data's Addr, the count when 1-D from 0 (else 0), the counts, then the lower
- * bounds (words). Its data is on the heap from allo.bot to allo.arrays, zeroed, 4-aligned: VS a number
- * or an INT, 8 a DOUBLE, DSZ a string, a TYPE's size a record.
+ * bounds. Its data is on the heap from allo.bot to allo.arrays, zeroed, 4-aligned: VS a number or an
+ * INT, 8 a DOUBLE, DSZ a string, a TYPE's size a record. The first subscript varies the fastest, as
+ * in QB 4.5.
  *
  * A local array DIMmed with constant bounds has its header and data in its call's frame
  * (comp/frame.c), zeroed by PCALL, gone with the frame; never freed or REDIMmed.
@@ -176,8 +177,8 @@ Addr arry_ref(Arry *const ay, ArrSlot *const s, const uint16_t id, const uint8_t
     if (n != a->dims)
         arry_bad_sub(ay);
 
-    uint32_t idx = 0; /* the last subscript the fastest */
-    for (uint32_t i = 0; i < n; i++) {
+    uint32_t idx = 0; /* the first subscript the fastest, as QB 4.5 */
+    for (uint32_t i = n; i-- > 0;) {
         const uint32_t r = (uint32_t)ay->subs[i] - (uint32_t)arry_lbound(a, i);
 
         if (r >= arry_count(a, i))
@@ -384,7 +385,7 @@ static bool arry_index_in(
     uint32_t i = 0;
     uint32_t scale = 1;
 
-    for (uint32_t d = old->dims; d-- > 0;) { /* the last subscript the fastest */
+    for (uint32_t d = 0; d < old->dims; d++) { /* the first subscript the fastest */
         const uint32_t r = k % arry_count(old, d);
         k /= arry_count(old, d);
         const int64_t s = (int64_t)r + arry_lbound(old, d) - arry_lbound(fresh, d);

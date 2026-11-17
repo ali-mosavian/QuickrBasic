@@ -118,6 +118,21 @@ TEST(get_and_put)
     CHECK(pixel(11, 11) == 4 && pixel(10, 10) == 0);
 }
 
+/* GET into s(0, 1) of DIM s(20, 1) overwrote the image at s(0, 0): its elements were row-major. */
+TEST(sprite_sheet_get_and_put)
+{
+    static const char *const lines[] = {
+        "10 SCREEN 13: DIM s(20, 1)",
+        "20 PSET (0, 0), 4: GET (0, 0)-(3, 3), s(0, 0)",
+        "30 LINE (0, 0)-(3, 3), 5, BF: GET (0, 0)-(3, 3), s(0, 1): LINE (0, 0)-(3, 3), 0, BF",
+        "40 PUT (10, 10), s(0, 0), PSET: PUT (20, 20), s(0, 1), PSET",
+        nullptr,
+    };
+
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK(pixel(10, 10) == 4 && pixel(11, 10) == 0 && pixel(23, 23) == 5);
+}
+
 TEST(palette_needs_graphics)
 {
     static const char *const lines[] = {"10 SCREEN 0: PALETTE 1, 2", nullptr};
