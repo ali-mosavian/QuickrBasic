@@ -1,6 +1,7 @@
 /* The built-ins of devices this machine has not: QBasic 1.1's answers. */
 #include "session.h"
 #include "unit.h"
+#include "plat/host/host.h"
 #include <stdio.h>
 
 /* UEVENT was a Syntax error: QBasic compiles each form, and running one is Advanced feature
@@ -38,9 +39,9 @@ TEST(ioctl_is_an_illegal_function_call)
     CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 52  52  5  5 ");
 }
 
-/* STICK, STRIG and PEN were Syntax errors, STRIG ON too: no joystick nor pen, nothing moves and
-   nothing is pressed; PEN's character row and column are 1. Past QBasic's n, Illegal function
-   call. */
+/* STICK, STRIG and PEN were Syntax errors, STRIG ON too: no joystick nor mouse, nothing moves and
+   nothing is pressed; PEN's character row and column are 1. Past QBasic's n (PEN's: 19, the right
+   button's 10 to 19), Illegal function call. */
 TEST(joystick_and_pen_of_a_machine_without)
 {
     static const char *const lines[] = {
@@ -48,7 +49,7 @@ TEST(joystick_and_pen_of_a_machine_without)
         "20 STRIG ON: STRIG OFF",
         "30 FOR k = -1 TO 4: PRINT STICK(k);: NEXT: PRINT \"|\";",
         "40 FOR k = -1 TO 8: PRINT STRIG(k);: NEXT: PRINT \"|\";",
-        "50 FOR k = -1 TO 10: PRINT PEN(k);: NEXT",
+        "50 FOR k = -1 TO 20: PRINT PEN(k);: NEXT",
         "60 END",
         "90 PRINT \"e\"; ERR;: RESUME NEXT",
         nullptr,
@@ -59,8 +60,45 @@ TEST(joystick_and_pen_of_a_machine_without)
         S->cons.sbuf,
         S->cons.sblen,
         "e 5  0  0  0  0 e 5 |e 5  0  0  0  0  0  0  0  0 e 5 |e 5  0  0  0  0  0  0  1  1 "
-        " 1  1 e 5 "
+        " 1  1  0  0  0  0  0  0  1  1  1  1 e 5 "
     );
+}
+
+void vdev_pen(Session *S);
+
+static int32_t pen(Session *const S, const int32_t n)
+{
+    exec_pushi(&S->vm, n);
+    vdev_pen(S);
+    return exec_popi(&S->vm);
+}
+
+/* PEN was a pen nobody has: it is the mouse, the left button its switch, PEN(n + 10) the right's.
+   A click while the editor had the mouse is no press of the program's; a click between two PENs is
+   one, where it was, though the button is up again. */
+TEST(pen_is_the_mouse)
+{
+    static const char *const lines[] = {
+        "10 PRINT PEN(0); PEN(3); PEN(4); PEN(5); PEN(8); PEN(9); PEN(13);",
+        nullptr,
+    };
+
+    host_mouse_on();
+    host_mouse_set(2, 3, 24, 16, 1);
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 0 -1  24  16  3  4  0 ");
+
+    host_mouse_set(2, 3, 24, 16, 0);
+    host_mouse_set(12, 39, 319, 99, 2);
+    host_mouse_set(5, 10, 80, 40, 0);
+    host_mouse_set(5, 10, 80, 40, 1);
+    host_mouse_set(5, 10, 80, 40, 0);
+    CHECK(pen(S, 3) == 0);
+    CHECK(pen(S, 0) == -1 && pen(S, 0) == 0);
+    CHECK(pen(S, 1) == 80 && pen(S, 2) == 40 && pen(S, 6) == 6 && pen(S, 7) == 11);
+    CHECK(pen(S, 10) == -1 && pen(S, 10) == 0);
+    CHECK(pen(S, 11) == 319 && pen(S, 12) == 99 && pen(S, 16) == 13 && pen(S, 17) == 40);
+    host_mouse_set(0, 0, 0, 0, 0);
 }
 
 void headless_set_printer_ready(int yes);

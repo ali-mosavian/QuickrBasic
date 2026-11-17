@@ -115,17 +115,21 @@ worker.postMessage({ module, memory, args: open, files: await files() });
 
 let image, cell = 16;
 
-// The pointer's text cell: the canvas is scaled to fit (object-fit: contain), so the screen's own
-// pixels are found first.
+// The pointer's cell and pixel: the canvas is scaled to fit (object-fit: contain), so the screen's
+// own pixels are found first. A text mode's pixel is the cell's times 8 (INT 33h's); a graphics
+// mode's cell is 8 wide and as high as its height has it.
 let buttons = 0;
 function point(e) {
-  if (!irq || !cell) return;
+  if (!irq) return;
   const r = canvas.getBoundingClientRect();
   const scale = Math.min(r.width / canvas.width, r.height / canvas.height);
-  const x = (e.clientX - r.left - (r.width - canvas.width * scale) / 2) / scale;
-  const y = (e.clientY - r.top - (r.height - canvas.height * scale) / 2) / scale;
   const clamp = (v, n) => Math.max(0, Math.min(n - 1, Math.floor(v)));
-  irq.mouse(clamp(y / cell, canvas.height / cell), clamp(x / (canvas.width / 80), 80), buttons);
+  const x = clamp((e.clientX - r.left - (r.width - canvas.width * scale) / 2) / scale, canvas.width);
+  const y = clamp((e.clientY - r.top - (r.height - canvas.height * scale) / 2) / scale, canvas.height);
+  const cellW = cell ? canvas.width / 80 : 8;
+  const cellH = cell || (canvas.height >= 480 ? 16 : canvas.height >= 350 ? 14 : 8);
+  const row = Math.floor(y / cellH), col = Math.floor(x / cellW);
+  irq.mouse(row, col, cell ? col * 8 : x, cell ? row * 8 : y, buttons);
 }
 const BUTTON = [1, 4, 2]; // the browser's left, middle, right: INT 33h's bits
 canvas.addEventListener('pointermove', point);
@@ -143,6 +147,7 @@ function draw(now) {
   const at = display.frame(Math.floor(now / BLINK_MS) % 2 === 0 ? 1 : 0);
   const [w, h, cellH] = new Uint32Array(memory.buffer, at, 3);
   cell = cellH;
+  canvas.style.cursor = cell ? '' : 'none'; // a graphics mode's program draws its own (PEN)
   if (canvas.width !== w || canvas.height !== h || !image) {
     canvas.width = w;
     canvas.height = h;

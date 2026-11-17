@@ -151,6 +151,7 @@ void session_clear(Session *const S)
     S->strg.tmp_used = 0;
     S->strg.tmp_floor = 0;
     stmt_restore(S);
+    vdev_clear(&S->vdev);
 }
 
 void session_drop(Session *const S)

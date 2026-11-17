@@ -85,12 +85,9 @@ void repl_error(Session *const S, uint8_t code)
     longjmp(*S->repl.top, REPL_ERROR);
 }
 
-[[noreturn]]
-/* An error found off the code (the block pass), raised as if an ERR op at body offset at of
-   line (a program store offset) raised it, never trapped. vm.opip is set to an ErrOp
-   (vm/exec.h) of its own. */
-[[noreturn]]
-static void repl_raise_at(Session *const S, const Failure *const e)
+/* An error found off the code (the block pass) set as if an ERR op at body offset at of line (a
+   program store offset) raised it. vm.opip is set to an ErrOp (vm/exec.h) of its own. */
+static void place(Session *const S, const Failure *const e)
 {
     static ErrOp op;
     op = (ErrOp){
@@ -105,6 +102,13 @@ static void repl_raise_at(Session *const S, const Failure *const e)
     S->vm.opip = e->op ? (uint8_t *)e->op : (uint8_t *)&op;
     S->vm.err.active = true;
     diag_other(&S->diag, e->other, e->len);
+}
+
+/* place's error raised, never trapped. */
+[[noreturn]]
+static void repl_raise_at(Session *const S, const Failure *const e)
+{
+    place(S, e);
     repl_error(S, e->code);
 }
 
@@ -394,15 +398,35 @@ static void ready(Session *const S)
     }
 }
 
-/* Run the file the command line names, then exit; no name: back. */
+static void report(Session *S, uint8_t code);
+
+/* --check's: an error as a run reports it. */
+static void say(void *const ctx, const Failure *const e)
+{
+    Session *const S = ctx;
+    place(S, e);
+    report(S, e->code);
+    cons_nl(&S->cons);
+    S->vm.err.active = false;
+}
+
+/* Run the file the command line names, then exit; no name: back. --check FILE: every compile
+   error reported, not run; the exit 1 if any. */
 static void run_file(Session *const S)
 {
     char tail[PFIL_PATH];
     psys_cmdline(tail, sizeof tail);
     const char *s = tail;
+    static const char check[] = "--check";
 
     while (*s == ' ')
         s++;
+
+    S->repl.checking = !strncmp(s, check, sizeof check - 1) && (uint8_t)s[sizeof check - 1] <= ' ';
+
+    if (S->repl.checking)
+        for (s += sizeof check - 1; *s == ' ';)
+            s++;
 
     size_t n = 0;
 
@@ -416,6 +440,13 @@ static void run_file(Session *const S)
 
     repl_load(S);
     session_drop(S);
+
+    if (S->repl.checking) {
+        const uint32_t errors = link_report(&S->comp, say, S);
+        fault_check(&S->fault, chnl_closeall(&S->chnl));
+        cons_exit(&S->cons, errors ? 1 : 0);
+    }
+
     link_start(&S->comp);
     stmt_runfirst(S);
     exec_run(S);
@@ -437,6 +468,9 @@ void repl_main(Session *const S)
         if (st != ST_OK) {
             qbrt_text(); /* the message stays: the exit's text mode would clear a graphics screen */
             report(S, (uint8_t)st);
+
+            if (S->repl.checking) /* a block's pairing, or the file not found */
+                cons_exit(&S->cons, 1);
         }
     }
 

@@ -59,7 +59,13 @@ enum : uint8_t {
     VID_ALT = 0x12,  /* BL=30h: AL the next mode's scan lines, 1 350, 2 400 */
 };
 /* INT 33h's (AX). */
-enum : uint16_t { MOUSE_RESET = 0, MOUSE_SHOW = 1, MOUSE_HIDE = 2, MOUSE_STATE = 3 };
+enum : uint16_t {
+    MOUSE_RESET = 0,
+    MOUSE_SHOW = 1,
+    MOUSE_HIDE = 2,
+    MOUSE_STATE = 3,
+    MOUSE_PRESS = 5
+};
 /* DPMI's (AX). */
 enum : uint16_t {
     DPMI_SEG_BASE = 0x0006,
@@ -72,8 +78,8 @@ enum : uint16_t {
     DPMI_MEM_ALLOC = 0x0501,
 };
 
-/* The BIOS data area's: the shift flags, the tick count. */
-enum : uint32_t { BDA_SHIFT = 0x417, BDA_TICKS = 0x46C };
+/* The BIOS data area's: the shift flags, the video mode, the tick count, a character's scan lines. */
+enum : uint32_t { BDA_SHIFT = 0x417, BDA_MODE = 0x449, BDA_TICKS = 0x46C, BDA_CHAR_H = 0x485 };
 
 /* AX of function fn (AH) and al. */
 static inline uint32_t pdos_fn(const uint8_t fn, const uint8_t al)

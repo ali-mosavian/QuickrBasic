@@ -33,6 +33,7 @@ No 64 KB walls. Programs, lines, strings, arrays and symbol tables grow until me
 | 16-bit integers | the only kind | **`SHORT` and `DEFSHORT`**, for records laid out as QBasic's |
 | Sound | the PC speaker | **three SID-like voices**: `PLAY a$, b$, c$`, waves, envelopes, filters ([docs/sound.md](docs/sound.md)) |
 | Memory | 64 KB segments | **all of it**: everything grows as needed |
+| Mouse | `CALL INTERRUPT` and a driver | **`PEN(n)`**: the left button the pen's switch, `PEN(n + 10)` the right's |
 | Syntax highlighting | none | from the compiler's lexer, so it never disagrees with it |
 | Completion | none | **context-aware**: only what is valid where the cursor is |
 | Breakpoints | F9 | F9; they move with their line |

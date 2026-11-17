@@ -2,6 +2,7 @@
 #ifndef COMP_LINK_H
 #define COMP_LINK_H
 #include "defs.h"
+#include "fault.h"
 typedef struct Comp Comp;
 
 /* A target link_resolve could not find: its error, at its statement's body offset at in line. */
@@ -28,6 +29,10 @@ typedef struct Link {
 } Link;
 
 void link_start(Comp *C); /* cm_link: before a run: blocks paired, every line compiled */
+typedef void LinkEach(void *ctx, const Failure *f);
+/* link_start's work, unlinked: each compile error, then each label not found, to each, raising none
+   (a block's pairing still raises its first); how many. */
+uint32_t link_report(Comp *C, LinkEach *each, void *ctx);
 void link_compile(Comp *C, uint32_t line); /* cm_comp: line compiled to comp_xbuf */
 bool link_xlate(Comp *C, Addr *at); /* comp_xbuf as a stream at *at, to its end; link.code its code;
                                     false: past link.lim */

@@ -118,7 +118,7 @@ static int32_t event(const bool final)
     host_term_set_shift(e.flags);
 
     if (e.kind == TTY_MOUSE)
-        host_mouse_set(e.row, e.col, e.buttons);
+        host_mouse_set(e.row, e.col, (uint16_t)(e.col * 8), (uint16_t)(e.row * 8), e.buttons);
 
     return e.kind == TTY_KEY ? e.key : -1;
 }
