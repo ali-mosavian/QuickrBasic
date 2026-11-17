@@ -7,9 +7,15 @@
  */
 #include "plat/pfpu.h"
 
+#if !defined(__wasm__)      /* none there: rounding is rndint's */
 #pragma STDC FENV_ACCESS ON /* no FP operation moves across control() */
+#endif
 
+#if defined(__wasm__) /* its long double is binary128 in software */
+typedef double X;
+#else
 typedef long double X;
+#endif
 
 enum : uint16_t {
     CW_DEF = 0x027F, /* between calls: 53 bits, to nearest */
@@ -110,8 +116,33 @@ static X root(X x)
     return x;
 }
 #else /* another CPU: C's long double, the control word's rounding only */
-#include <fenv.h>
 #include <math.h>
+
+#if defined(__wasm__) /* double, and no rounding modes: rndint rounds as the control word says */
+#define LD(f) f
+static uint16_t rounding;
+
+static void control(const uint16_t cw) { rounding = cw >> 10 & 3; }
+
+static X rndint(const X x)
+{
+    switch (rounding) {
+    case 1:
+        return floor(x);
+
+    case 2:
+        return ceil(x);
+
+    case 3:
+        return trunc(x);
+
+    default:
+        return rint(x);
+    }
+}
+#else
+#include <fenv.h>
+#define LD(f) f##l
 
 static void control(const uint16_t cw)
 {
@@ -121,27 +152,29 @@ static void control(const uint16_t cw)
 }
 
 static X rndint(const X x) { return rintl(x); }
-static X x2m1(const X x) { return exp2l(x) - 1; }
-static X scale2(const X x, const X e) { return ldexpl(x, (int)e); }
-static X yl2x(const X y, const X x) { return y * log2l(x); }
-static X sine(const X x) { return sinl(x); }
-static X cosine(const X x) { return cosl(x); }
-static X tangent(const X x) { return tanl(x); }
-static X arctan(const X x) { return atanl(x); }
+#endif
+
+static X x2m1(const X x) { return LD(exp2)(x) - 1; }
+static X scale2(const X x, const X e) { return LD(ldexp)(x, (int)e); }
+static X yl2x(const X y, const X x) { return y * LD(log2)(x); }
+static X sine(const X x) { return LD(sin)(x); }
+static X cosine(const X x) { return LD(cos)(x); }
+static X tangent(const X x) { return LD(tan)(x); }
+static X arctan(const X x) { return LD(atan)(x); }
 static X log2e(void) { return 1.4426950408889634074L; }
 static X ln2(void) { return 0.6931471805599453094L; }
 static X lg2(void) { return 0.3010299956639811952L; }
 static int32_t to_int32(const X x) /* the x87's indefinite past the range */
 {
-    const X r = rintl(x);
-    return r >= -2147483648.0L && r < 2147483648.0L ? (int32_t)r : INT32_MIN;
+    const X r = rndint(x);
+    return r >= (X)-2147483648.0 && r < (X)2147483648.0 ? (int32_t)r : INT32_MIN;
 }
 static int64_t to_int64(const X x)
 {
-    const X r = rintl(x);
-    return r >= -9223372036854775808.0L && r < 9223372036854775808.0L ? (int64_t)r : INT64_MIN;
+    const X r = rndint(x);
+    return r >= (X)-9223372036854775808.0 && r < (X)9223372036854775808.0 ? (int64_t)r : INT64_MIN;
 }
-static X root(const X x) { return sqrtl(x); }
+static X root(const X x) { return LD(sqrt)(x); }
 #endif
 
 static X fabsx(const X x) { return x < 0 ? -x : x; }

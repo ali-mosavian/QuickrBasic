@@ -1,0 +1,168 @@
+// The page: the IDE's screen on a canvas, the keyboard and the speaker. The module runs in a worker
+// (worker.mjs); this thread is its VGA card and its interrupts: it renders the screen from the
+// shared memory in an instance of its own, ORs in the tick, types the keys.
+import { biosKey, shiftFlags } from './keys.mjs';
+import { memory as newMemory, Irq, sidecar, ticker, MUSIC_HZ } from './wasm.mjs';
+
+const BLINK_MS = 267;
+const DEMOS = ['WELCOME.BAS', 'GORILLA.BAS', 'NIBBLES.BAS'];
+const STORE = 'qb:'; // localStorage: STORE + path -> the file in base64
+
+const canvas = document.getElementById('screen');
+const status = document.getElementById('status');
+const ctx = canvas.getContext('2d');
+
+if (!crossOriginIsolated) {
+  status.textContent = 'Loading…';
+  throw new Error('not cross-origin isolated yet: coi.js reloads the page');
+}
+
+const b64 = (bytes) => btoa(String.fromCharCode(...bytes));
+const unb64 = (text) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
+
+// The files: the demos, then what the visitor saved or uploaded (theirs win).
+async function files() {
+  const out = new Map();
+  await Promise.all(DEMOS.map(async (name) => {
+    const r = await fetch(`demos/${name}`);
+    if (r.ok) out.set('/' + name, new Uint8Array(await r.arrayBuffer()));
+  }));
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k.startsWith(STORE)) out.set(k.slice(STORE.length), unb64(localStorage.getItem(k)));
+  }
+  return [...out];
+}
+
+function keep(path, bytes) {
+  try {
+    if (bytes) localStorage.setItem(STORE + path, b64(bytes));
+    else localStorage.removeItem(STORE + path);
+  } catch (e) {
+    status.textContent = `Not kept: ${path} (${e.message})`;
+  }
+}
+
+// The speaker: a square wave, from the first key or click (a browser wants a gesture first).
+let audio, osc, gain;
+function wake() {
+  if (!audio) {
+    audio = new AudioContext();
+    osc = audio.createOscillator();
+    gain = audio.createGain();
+    gain.gain.value = 0;
+    osc.type = 'square';
+    osc.connect(gain).connect(audio.destination);
+    osc.start();
+  }
+  if (audio.state !== 'running') audio.resume().catch(() => {});
+}
+function tone(hz) {
+  if (!audio) return;
+  const t = audio.currentTime;
+  gain.gain.setTargetAtTime(hz ? 0.05 : 0, t, 0.002);
+  if (hz) osc.frequency.setValueAtTime(hz, t);
+}
+
+const open = new URLSearchParams(location.search).get('open') ?? 'WELCOME.BAS';
+const module = await WebAssembly.compileStreaming(fetch('ide.wasm'));
+const memory = newMemory();
+const worker = new Worker(new URL('./worker.mjs', import.meta.url), { type: 'module' });
+let irq, display;
+
+worker.onmessage = ({ data }) => {
+  if ('irq' in data) {
+    irq = new Irq(memory, data.irq);
+    display = sidecar(module, memory, tone);
+    window.quickr = { display, irq, memory }; // for a look from the console, and the tests
+    setInterval(ticker(irq, display), 1000 / MUSIC_HZ);
+    requestAnimationFrame(draw);
+    status.textContent = '';
+  } else if ('file' in data) {
+    keep(data.file, data.bytes);
+  } else if ('tone' in data) {
+    tone(data.tone);
+  } else if ('out' in data) {
+    console.log(data.out);
+  } else if ('exit' in data) {
+    tone(0);
+    status.textContent = 'QuickrBasic ended. Reload the page to start it again.';
+  } else if ('error' in data) {
+    status.textContent = 'QuickrBasic stopped: ' + data.error.split('\n')[0];
+    console.error(data.error);
+  }
+};
+worker.onerror = (e) => {
+  status.textContent = 'QuickrBasic did not start: ' + e.message;
+  console.error(e);
+};
+worker.postMessage({ module, memory, args: open, files: await files() });
+
+let image, cell = 16;
+
+// The pointer's text cell: the canvas is scaled to fit (object-fit: contain), so the screen's own
+// pixels are found first.
+let buttons = 0;
+function point(e) {
+  if (!irq || !cell) return;
+  const r = canvas.getBoundingClientRect();
+  const scale = Math.min(r.width / canvas.width, r.height / canvas.height);
+  const x = (e.clientX - r.left - (r.width - canvas.width * scale) / 2) / scale;
+  const y = (e.clientY - r.top - (r.height - canvas.height * scale) / 2) / scale;
+  const clamp = (v, n) => Math.max(0, Math.min(n - 1, Math.floor(v)));
+  irq.mouse(clamp(y / cell, canvas.height / cell), clamp(x / (canvas.width / 80), 80), buttons);
+}
+const BUTTON = [1, 4, 2]; // the browser's left, middle, right: INT 33h's bits
+canvas.addEventListener('pointermove', point);
+canvas.addEventListener('pointerdown', (e) => {
+  buttons |= BUTTON[e.button] ?? 0;
+  canvas.setPointerCapture(e.pointerId);
+  point(e);
+});
+canvas.addEventListener('pointerup', (e) => {
+  buttons &= ~(BUTTON[e.button] ?? 0);
+  point(e);
+});
+canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+function draw(now) {
+  const at = display.frame(Math.floor(now / BLINK_MS) % 2 === 0 ? 1 : 0);
+  const [w, h, cellH] = new Uint32Array(memory.buffer, at, 3);
+  cell = cellH;
+  if (canvas.width !== w || canvas.height !== h || !image) {
+    canvas.width = w;
+    canvas.height = h;
+    image = ctx.createImageData(w, h);
+  }
+  image.data.set(new Uint8Array(memory.buffer, at + 16, w * h * 4));
+  ctx.putImageData(image, 0, 0);
+  requestAnimationFrame(draw);
+}
+
+addEventListener('keydown', (e) => {
+  wake();
+  if (!irq || e.metaKey) return;
+  irq.shift = shiftFlags(e);
+  if (e.ctrlKey && (e.code === 'Pause' || e.code === 'Cancel' || e.code === 'KeyC')) irq.raise(4);
+  const key = e.ctrlKey && (e.code === 'Pause' || e.code === 'Cancel') ? 0 : biosKey(e);
+  e.preventDefault();
+  if (key !== null) irq.type(key);
+});
+// The IDE sees Alt by polling the shift flags: a tap's release waits a little, so the poll sees it.
+const ALT_TAP_MS = 60;
+addEventListener('keyup', (e) => {
+  if (!irq) return;
+  e.preventDefault();
+  if (e.key === 'Alt') setTimeout(() => (irq.shift = shiftFlags(e)), ALT_TAP_MS);
+  else irq.shift = shiftFlags(e);
+});
+addEventListener('blur', () => irq && (irq.shift = 0));
+addEventListener('pointerdown', wake);
+
+// An upload is kept and opened: the IDE starts again with it.
+document.getElementById('upload').addEventListener('change', async (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const name = f.name.toUpperCase().replace(/[^A-Z0-9_.]/g, '').slice(0, 12);
+  keep('/' + name, new Uint8Array(await f.arrayBuffer()));
+  location.search = '?open=' + encodeURIComponent(name);
+});

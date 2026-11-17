@@ -5,6 +5,7 @@
 #   make test        the DOS build's suites, under DOSBox-X
 #   make host        the same core for this machine: build/host/basic
 #   make host-test   the unit tests, the golden code and the suites on the host build
+#   make wasm        the same core as WebAssembly: build/wasm/basic (node runs it), build/web (the IDE's page)
 #   make lto         build/lto: the whole program optimized as one module (LLVM); PGO=1 trains it first
 #   make format      the C sources formatted
 #   make clean
@@ -25,7 +26,7 @@ DOSBOX_BIN ?= $(DEPS)/dosbox-x
 DOS32A ?= third_party/dos32a
 export JWASM JWLINK DOSBOX_BIN DOS32A
 
-.PHONY: all test host host-test lto format clean
+.PHONY: all test host host-test wasm wasm-test web lto format clean
 all:
 
 # one run builds both: two would clone into the same directory at once under -j
@@ -191,6 +192,73 @@ build/host/golden/dump.o: tests/golden/dump.c
 build/host/golden_dump: $(build/host_OBJ) build/host/golden/dump.o
 	$(HOST_CC) $^ -lm -o $@
 
+# ---- WebAssembly: the host's platform where it is portable, src/plat/wasm for the rest. Stock clang and
+# wasm-ld; longjmp is wasm's exceptions, the memory shared with the page's thread (src/plat/wasm/include/wasm.h) ----
+
+# the music's tick, a second: the page's thread fires it (wasm.mjs's MUSIC_HZ)
+WASM_MUSIC_HZ := 100
+WASM_LD ?= $(firstword $(wildcard /opt/homebrew/opt/lld/bin/wasm-ld) wasm-ld)
+WASM_TARGET := --target=wasm32-unknown-unknown -ffreestanding -mbulk-memory -mexception-handling -matomics \
+	-mllvm -wasm-enable-sjlj
+WASM_CFLAGS := $(WASM_TARGET) -std=c23 -O2 -g -Wall -Wextra -Wno-unused-parameter -Werror=undef -DARENA_AT_ZERO=0 \
+	-DPFIL_PATH=1024 -DAC=$(AC) -isystem src/plat/wasm/include -isystem src/lib/include -Isrc -Isrc/core
+# -MD, not -MMD: the shim's headers are -isystem, and -MMD leaves those out of the dependencies
+WASM_DEPFLAGS = -MD -MP -MF $@.d -MT $@
+WASM_C := $(filter-out src/plat/host/%,$(HOST_C)) $(addprefix src/plat/host/,pclk.c pfil.c pfpu.c pkey.c pscr.c ports.c) $(wildcard src/plat/wasm/*.c)
+WASM_QBRT_C := $(filter-out shared/posix/os.c,$(QBRT_HOST_C))
+WASM_OBJ := $(WASM_C:src/%.c=build/wasm/obj/%.o) $(WASM_QBRT_C:%.c=build/wasm/qbrt/%.o) build/wasm/obj/qbrt/qbrt.o \
+	build/wasm/obj/qbrt/qbrt_wasm.o
+# the runtime's text screen is pscr's (src/plat/wasm/rtext.c), its tones the page's too (qbrt_wasm.c); frame and
+# render_stack the page's display
+WASM_WRAP := gd_set_mode dev_tone $(addprefix dev_text_,size cursor move cursor_show get put write scroll)
+WASM_LDFLAGS := --no-entry --export=__main_void --export=__wasm_call_ctors --export=__stack_pointer --export=host_tick_fire --import-memory \
+	--shared-memory --initial-memory=33554432 --max-memory=1073741824 --stack-first -z stack-size=8388608 \
+	$(addprefix --wrap=,$(WASM_WRAP))
+
+build/wasm/obj/qbrt/%.o: src/qbrt/%.c
+	@mkdir -p $(@D)
+	$(CLANG) $(WASM_CFLAGS) $(subst -I,-isystem ,$(QBRT_HOST_INC)) $(WASM_DEPFLAGS) -c $< -o $@
+build/wasm/obj/%.o: src/%.c
+	@mkdir -p $(@D)
+	$(CLANG) $(WASM_CFLAGS) $(WASM_DEPFLAGS) -c $< -o $@
+build/wasm/qbrt/%.o: $(QBRT)/%.c
+	@mkdir -p $(@D)
+	$(CLANG) $(WASM_TARGET) -O2 -std=gnu11 -w -D__cdecl= $(QBRT_IDLE) -DTICKS_PER_MINUTE=$(WASM_MUSIC_HZ)*60000L \
+		-isystem src/plat/wasm/include \
+		-isystem src/lib/include $(QBRT_HOST_INC) $(WASM_DEPFLAGS) -c $< -o $@
+-include $(shell find build/wasm -name '*.d' 2>/dev/null)
+
+WASM_UI_OBJ := $(patsubst src/%.c,build/wasm/obj/%.o,$(filter-out src/core/ui/tree.c src/core/ui/indent.c,\
+	$(wildcard src/core/ui/*.c)))
+
+wasm: build/wasm/basic build/wasm/ide.wasm
+build/wasm/basic.wasm: $(WASM_OBJ) build/wasm/obj/app/basic32.o
+	$(WASM_LD) $(WASM_LDFLAGS) $^ -o $@
+build/wasm/ide.wasm: $(WASM_OBJ) $(WASM_UI_OBJ) build/wasm/obj/app/ide32.o
+	$(WASM_LD) $(WASM_LDFLAGS) $^ -o $@
+build/wasm/basic: build/wasm/basic.wasm
+	printf '#!/bin/sh\nexec node "$(CURDIR)/tools/wasm/run.mjs" "$(CURDIR)/$<" "$$@"\n' > $@
+	chmod +x $@
+# The IDE's page, for GitHub Pages or tools/wasm/serve.py: its scripts, the module, the help, the demos
+WEB_SRC := $(wildcard src/plat/wasm/web/*.mjs src/plat/wasm/web/*.js src/plat/wasm/web/*.html src/plat/wasm/web/demos/*)
+web: build/web/ide.wasm build/web/BASIC.HLP $(WEB_SRC:src/plat/wasm/web/%=build/web/%)
+build/web/ide.wasm: build/wasm/ide.wasm
+	@mkdir -p $(@D)
+	cp $< $@
+build/web/BASIC.HLP: src/basic.hlp
+	@mkdir -p $(@D)
+	cp $< $@
+build/web/%: src/plat/wasm/web/%
+	@mkdir -p $(@D)
+	cp $< $@
+
+wasm-test: build/wasm/basic build/wasm/ide.wasm
+	grep -q 'wasm/include/wasm.h' build/wasm/obj/plat/wasm/pterm.o.d # a changed WasmIrq rebuilds its users
+	BASIC_EXE=$< $(PY) tools/regress_test.py $<
+	node tools/wasm/frame_test.mjs build/wasm/ide.wasm
+	node tools/wasm/play_test.mjs build/wasm/basic.wasm
+	BASIC_EXE=$< $(PY) tools/conformance.py
+
 # ---- LTO: the C as bitcode, one module optimized whole by tools/lto.py (LLVM's tools), linked with the asm's
 # objects into build/lto. PGO=1: what a training run never calls is cold (tools/pgo.py, build/lto/*.hot) ----
 
@@ -242,4 +310,4 @@ format:
 		| xargs $(PY) tools/cfmt.py
 
 clean:
-	rm -rf build/c build/gcc build/host build/hostperf build/lto
+	rm -rf build/c build/gcc build/host build/hostperf build/lto build/wasm build/web

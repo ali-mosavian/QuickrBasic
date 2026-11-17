@@ -73,7 +73,7 @@ PkeyKey pkey_read(void)
 }
 
 uint16_t pkey_wait(void) { return next_key(); }
-uint8_t pkey_shift(void) { return 0; }
+uint8_t pkey_shift(void) { return host_term_shift(); }
 void pkey_flush(void) { queue.count = 0; }
 
 uint8_t pkey_poll(void)

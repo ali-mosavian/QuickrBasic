@@ -7,9 +7,16 @@ QuickrBasic
 scratch in C23. It opens GORILLA.BAS and NIBBLES.BAS unchanged, and runs BASIC 3.3× faster
 than QBasic 1.1 on the same CPU.
 
+**[Try it in your browser](https://ali-mosavian.github.io/QuickrBasic/)**: the IDE, compiled to
+WebAssembly, with GORILLA.BAS and NIBBLES.BAS ready to open.
+
 Type a line and it is checked as you enter it, highlighted by the compiler's own lexer, and
 completed with only what fits where the cursor is. Press F5 and it runs. Press F9 and it stops
 there, with your locals, watches and the whole call stack one keypress away.
+
+Split the editor into two windows on the same program and drag lines between them. Pick one of
+nine themes: QBasic's classic blue, One Dark, Ayu, Gruvbox and JetBrains, dark and light. Switch
+between 25, 43 and 50 lines.
 
 No 64 KB walls. Programs, lines, strings, arrays and symbol tables grow until memory runs out.
 
@@ -31,7 +38,7 @@ No 64 KB walls. Programs, lines, strings, arrays and symbol tables grow until me
 | Locals, call stack | none | **a debug pane**: Watch, Locals, Call stack |
 | Editor | one split | split windows; drag any line between them |
 | Look | colours set by hand | **nine themes** |
-| Platforms | DOS | DOS today; macOS, Linux and Windows on the way ([below](#platforms)) |
+| Platforms | DOS | DOS and the browser today; macOS, Linux and Windows on the way ([below](#platforms)) |
 
 ## How fast
 
@@ -70,6 +77,7 @@ One core, one platform layer per system (`src/plat`):
 | macOS | 64-bit, arm64 and x86-64 | ✅ | 🚧 |
 | Linux | 64-bit | 🚧 | 🚧 |
 | Windows | 32- and 64-bit | 🚧 | 🚧 |
+| Browser | WebAssembly ([live](https://ali-mosavian.github.io/QuickrBasic/)) | ✅ | ✅ |
 
 ## Getting started
 
@@ -81,6 +89,7 @@ make            # build/c/: BASIC32.EXE, IDE32.EXE, DOS32A.EXE, BASIC.HLP
 make test       # the regressions and QB 4.5 conformance under DOSBox-X
 make host       # the same core for this machine: build/host/basic
 make host-test  # unit tests, golden bytecode and the suites, natively, in seconds
+make web        # build/web/: the browser IDE; serve it with python3 tools/wasm/serve.py build/web
 ```
 
 Copy `IDE32.EXE` (or `BASIC32.EXE`), `DOS32A.EXE` and `BASIC.HLP` to a DOS machine, or DOSBox, and

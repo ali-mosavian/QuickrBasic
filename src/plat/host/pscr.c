@@ -1,7 +1,7 @@
 /* The text screen on the host.
  *
  * # How it works
- * Pages in memory, for tests to read (host.h).
+ * Pages in memory, for tests and a display to read (host.h).
  */
 #include "plat/host/host.h"
 #include "plat/pscr.h"
@@ -15,6 +15,16 @@ static struct {
     uint8_t row, col;
 } cursors[NPAGE];
 static uint8_t shown;
+/* The BIOS's 16 colours, 6 bits a channel. */
+#define BIOS_PALETTE                                                                               \
+    {                                                                                              \
+        0,  0,  0,  0,  0,  42, 0,  42, 0,  0,  42, 42, 42, 0,  0,  42,                            \
+        0,  42, 42, 21, 0,  42, 42, 42, 21, 21, 21, 21, 21, 63, 21, 63,                            \
+        21, 21, 63, 63, 63, 21, 21, 63, 21, 63, 63, 63, 21, 63, 63, 63                             \
+    }
+static const uint8_t bios_palette[48] = BIOS_PALETTE;
+static uint8_t palette[48] = BIOS_PALETTE;
+static uint16_t shape = 0x0607;
 
 static PscrCell *cell(const uint8_t page, const uint8_t row, const uint8_t col)
 {
@@ -24,6 +34,21 @@ static PscrCell *cell(const uint8_t page, const uint8_t row, const uint8_t col)
 PscrCell host_cell(const uint8_t page, const uint8_t row, const uint8_t col)
 {
     return *cell(page, row, col);
+}
+
+HostScreen host_screen(void)
+{
+    HostScreen s = {
+        .cells = pages[shown],
+        .page = shown,
+        .rows = rows,
+        .row = cursors[shown].row,
+        .col = cursors[shown].col,
+        .shape = shape,
+    };
+
+    __builtin_memcpy(s.palette, palette, sizeof s.palette);
+    return s;
 }
 
 uint8_t pscr_rows(void) { return rows; }
@@ -37,6 +62,8 @@ uint8_t pscr_text(const uint8_t want)
             pages[p][i] = BLANK;
 
     shown = 0;
+    shape = 0x0607;
+    __builtin_memcpy(palette, bios_palette, sizeof palette);
     return rows;
 }
 
@@ -96,7 +123,7 @@ void pscr_where(const uint8_t page, uint8_t *const row, uint8_t *const col)
     *col = cursors[page % NPAGE].col;
 }
 
-void pscr_shape(const uint16_t lines) {}
+void pscr_shape(const uint16_t lines) { shape = lines; }
 
 void pscr_scroll(
     const uint8_t lines,
@@ -117,6 +144,6 @@ void pscr_scroll(
                 r + by <= bottom ? *cell(shown, (uint8_t)(r + by), (uint8_t)c) : blank;
 }
 
-void pscr_palette(const uint8_t rgb[48]) {}
+void pscr_palette(const uint8_t rgb[48]) { __builtin_memcpy(palette, rgb, sizeof palette); }
 void pscr_retrace(void) {}
 void pscr_beep(void) {}
