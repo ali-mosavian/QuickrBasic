@@ -6,7 +6,8 @@
  * thread is SDL's: each frame it draws plat/view's frame of the screen. SIGINT and SIGALRM are the
  * IDE thread's, the STOP key and the tick, as on the host; Ctrl+C in the window is SIGINT too.
  * Started from Finder (in /), it works in ~/Documents/QuickrBasic, the demos copied there.
- * QB_SHOT=file: the frame drawn after SHOT_FRAMES to file as a PPM, and exit (a test's).
+ * A test's: QB_KEYS, BIOS keys in hex, typed at KEYS_FRAMES; QB_SHOT=file, the frame drawn at
+ * SHOT_FRAMES to file as a PPM, then exit.
  */
 #include <pthread.h>
 #include <signal.h>
@@ -30,6 +31,7 @@ enum {
     ALT_TAP_MS = 60,
     START_W = 1080,
     START_H = 600,
+    KEYS_FRAMES = 60,
     SHOT_FRAMES = 90,
 };
 
@@ -242,7 +244,14 @@ int sdl_main(void)
 
         f = view_frame(blink, pointer);
 
-        if (shot_to && ++frames == SHOT_FRAMES) {
+        if (++frames == KEYS_FRAMES && getenv("QB_KEYS"))
+            for (const char *k = getenv("QB_KEYS"); *k;) {
+                char *end;
+                send((uint16_t)strtoul(k, &end, 16));
+                k = *end ? end + 1 : end;
+            }
+
+        if (shot_to && frames == SHOT_FRAMES) {
             shot(shot_to, f);
             exit(0);
         }
