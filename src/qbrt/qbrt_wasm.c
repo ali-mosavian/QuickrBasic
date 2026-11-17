@@ -50,8 +50,15 @@ int32_t llrm_os_write_file(const int handle, const unsigned char *const data, co
 
 void llrm_os_exit(const unsigned char code) { psys_exit(code); }
 
-/* The speaker: each tone to the page as well (--wrap). */
+/* The speaker and the voices: each to the page as well (--wrap). */
 void __real_dev_tone(unsigned hertz);
+void __real_dev_voice(unsigned voice, const DevVoice *v);
+
+void __wrap_dev_voice(const unsigned voice, const DevVoice *const v)
+{
+    js_voice(voice, v);
+    __real_dev_voice(voice, v);
+}
 
 void __wrap_dev_tone(const unsigned hertz)
 {

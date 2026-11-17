@@ -57,6 +57,7 @@
 #include "mem/program.h"
 #include "mem/string.h"
 #include "mem/symbols.h"
+#include "qbrt/qbrt.h"
 #include "num/double.h"
 #include "num/fpmath.h"
 #include "plat/pclk.h"
@@ -533,6 +534,7 @@ void stmt_runl(Session *const S)
     if (num == NONUM)
         repl_error(S, E_US); /* RUN takes a number, not a label */
     session_clear(S);
+    music_reset();
     link_start(&S->comp);
     stmt_rungo(S, line);
 }
@@ -540,6 +542,7 @@ void stmt_runl(Session *const S)
 void stmt_run(Session *const S)
 {
     session_clear(S);
+    music_reset();
     link_start(&S->comp);
     stmt_runfirst(S);
 }

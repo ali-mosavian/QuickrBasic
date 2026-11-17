@@ -5,6 +5,7 @@
 #define QB_DEV_H
 
 #include "platform.h"
+#include "voice.h"
 
 /* Whether standard output is the screen and not a file or a pipe. */
 int dev_stdout_is_screen(void);
@@ -35,6 +36,9 @@ void dev_key_discard(void);
 
 /* The speaker: a tone of `hertz` until the next call; 0 is silence. */
 void dev_tone(unsigned hertz);
+/* The synthesizer's voice 0 to DEV_VOICES - 1 (PLAY a$, b$, c$) set to `v` until the next call for it; a platform
+   with only the speaker plays voice 0 there. */
+void dev_voice(unsigned voice, const DevVoice *v);
 
 /* The clock. */
 long dev_clock(void); /* the time of day in hundredths of a second since midnight */

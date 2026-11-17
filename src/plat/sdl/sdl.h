@@ -12,7 +12,7 @@ int sdl_main(void);
 int32_t sdl_bios_key(const SDL_KeyboardEvent *e);
 uint8_t sdl_shift(SDL_Keymod mod);
 
-/* audio.c: the speaker, a square wave of the program's tone. */
+/* audio.c: the speaker and the synthesizer's voices (plat/synth). */
 void sdl_audio_open(void);
 
 #endif

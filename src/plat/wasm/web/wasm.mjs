@@ -26,8 +26,11 @@ function normal(path) {
   return '/' + out.join('/');
 }
 
+// A DevVoice's bytes (qbrt's dev/voice.h), as the synthesizer's AudioWorklet takes them (synth.mjs).
+export const VOICE_BYTES = 16;
+
 // host: { fs, cwd, args, write(fd, bytes), exit(code), stdin(n) -> bytes, stdio(fd) -> a stat,
-// tone(hz) }; cwd is
+// tone(hz), voice(n, bytes) }; cwd is
 // the module's own (a worker has no chdir), its paths resolved against it.
 export function imports(memory, host) {
   const { fs } = host;
@@ -136,6 +139,7 @@ export function imports(memory, host) {
     args: (buf, cap) => put(buf, cap - 1, host.args),
     exit: (code) => host.exit(code),
     tone: (hz) => host.tone?.(hz),
+    voice: (n, p) => host.voice?.(n, u8().slice(p, p + VOICE_BYTES)),
   };
   const math = { sin: Math.sin, cos: Math.cos, tan: Math.tan, atan: Math.atan, atan2: Math.atan2, exp: Math.exp,
     exp2: (x) => 2 ** x, log: Math.log, log2: Math.log2, log10: Math.log10, pow: Math.pow, fmod: (x, y) => x % y };
@@ -160,9 +164,9 @@ export function ticker(irq, ex) {
 
 // A second instance on the module's memory for another thread, with its own stack: the display's
 // frame() and the music's tick (host_tick_fire), as a VGA card and a timer interrupt would. Its host
-// gives only tone(hz), for the notes the tick starts.
-export function sidecar(module, memory, tone) {
-  const ex = new WebAssembly.Instance(module, imports(memory, { fs: null, cwd: '/', args: '', tone })).exports;
+// gives only tone(hz) and voice(n, bytes), for the notes the tick starts.
+export function sidecar(module, memory, tone, voice) {
+  const ex = new WebAssembly.Instance(module, imports(memory, { fs: null, cwd: '/', args: '', tone, voice })).exports;
   ex.__stack_pointer.value = ex.render_stack();
   return ex;
 }

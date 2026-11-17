@@ -1,4 +1,5 @@
-/* The speaker: timer channel 2 as a square wave, gated by port 61h. */
+/* The speaker: timer channel 2 as a square wave, gated by port 61h. The synthesizer's first voice plays there too,
+   as a square wave; the others are not heard. */
 #include "device.h"
 
 enum {
@@ -23,4 +24,10 @@ void dev_tone(unsigned hertz)
     dev_outb(TIMER_CHANNEL_2, hertz & 0xFF);
     dev_outb(TIMER_CHANNEL_2, hertz >> 8);
     dev_outb(SPEAKER_PORT, speaker | SPEAKER_ON);
+}
+
+void dev_voice(unsigned voice, const DevVoice *v)
+{
+    if (voice == 0)
+        dev_tone(v->gate ? v->hertz : 0);
 }

@@ -21,6 +21,8 @@ const SD *varptr_string(const char **at, const char *end);
 
 /* The scanner DRAW and PLAY share (QB rt/mclprc.asm B$MACLNG, B$MCLXEQ for X, B$VALSCN for `=`): a string of
    commands, and how deep the X commands run strings within it. */
+enum { MACRO_NESTING = 16 };
+
 typedef struct Macro {
     const char *at, *end;
     int depth;
@@ -37,7 +39,7 @@ char macro_next(Macro *m);
 int macro_equals(Macro *m, long *value);
 
 /* After an `X`: the string variable the VARPTR$ string names becomes the string being scanned, `outer` keeps where the
-   scan was; more than 16 deep is an Illegal function call.  macro_leave puts the scan back. */
+   scan was; more than MACRO_NESTING deep is an Illegal function call.  macro_leave puts the scan back. */
 void macro_enter(Macro *m, Macro *outer);
 void macro_leave(Macro *m, const Macro *outer);
 

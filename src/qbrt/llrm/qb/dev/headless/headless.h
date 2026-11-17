@@ -6,6 +6,8 @@
 
 #include <stddef.h>
 
+#include "voice.h"
+
 /* Back to the start of a program: text mode, no keys, no tones, the clock at 12:00:00.00 on 2000-01-01. */
 void headless_reset(void);
 
@@ -17,13 +19,22 @@ void headless_type_extended(unsigned scan);
    is waiting, and a read that would wait for one returns Ctrl-Z, since nothing will type it. */
 void headless_set_end_of_input(int yes);
 
-/* The speaker: each change of tone, in the order they came, with the clock when it came. */
+/* The speaker: each change of tone, in the order they came, with the clock and the count of headless_run's ticks
+   when it came. */
 typedef struct HeadlessTone {
     unsigned hertz;
-    long clock;
+    long clock, tick;
 } HeadlessTone;
 size_t headless_tone_count(void);
 HeadlessTone headless_tone(size_t index);
+/* The synthesizer: each dev_voice, in the order they came, with the count of headless_run's ticks. */
+typedef struct HeadlessVoice {
+    unsigned voice;
+    DevVoice v;
+    long tick;
+} HeadlessVoice;
+size_t headless_voice_count(void);
+HeadlessVoice headless_voice(size_t index);
 
 /* The clock, in hundredths of a second since midnight. `step` is added to it by each dev_clock call, so a wait
    loop ends; 0 stops it. */

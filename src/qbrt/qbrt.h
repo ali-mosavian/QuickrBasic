@@ -142,6 +142,9 @@ void qbrt_clock_set(const PclkTime *t);
    or sounding. */
 void B_SOND(short hertz, float ticks);
 void B_SPLY(QbrtStr *commands);
+/* PLAY a$, b$[, c$]: `count` strings, a voice each (play.c). */
+enum { QBRT_VOICES = 3 };
+void B_SPLYV(QbrtStr *const *commands, unsigned count);
 unsigned music_waiting(void);
 /* VARPTR$ of the variable at address of QBasic's type byte type: the type, then the address. */
 enum { QBRT_VARPTR = 5 };
@@ -153,4 +156,6 @@ short B_STIK(short which);
 short B_FSTG(short which);
 short B_FPEN(short which);
 void music_clear(void);
+/* RUN: the synthesizer's voices as PLAY first had them (play.c). */
+void music_reset(void);
 #endif

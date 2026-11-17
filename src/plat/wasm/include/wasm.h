@@ -34,6 +34,8 @@ IMPORT(args) int js_args(char *buf, size_t cap);
 IMPORT(exit) void js_exit(int code);
 /* A tone of hz, 0 none. */
 IMPORT(tone) void js_tone(uint32_t hz);
+/* A synthesizer's voice set: v its DevVoice (qbrt's dev/voice.h), read before the call returns. */
+IMPORT(voice) void js_voice(uint32_t voice, const void *v);
 
 /* What the page's thread writes while the module runs, in its shared memory (irq()'s address): the
    tick's and STOP's flags and bits, ORed in as the interrupts would; the keys typed, a ring it

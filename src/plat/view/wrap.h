@@ -1,5 +1,5 @@
 /* ld's --wrap for a linker without it (Apple's): included in every runtime file of a display's
- * build, a call to one of these is to __wrap_NAME (rtext.c, the display's tone), and the file that
+ * build, a call to one of these is to __wrap_NAME (rtext.c, the display's tone and voices), and the file that
  * defines it, built with VIEW_REAL_TEXT or VIEW_REAL_TONE, names its own __real_NAME.
  */
 #ifdef VIEW_REAL_TEXT
@@ -9,8 +9,10 @@
 #endif
 #ifdef VIEW_REAL_TONE
 #define dev_tone __real_dev_tone
+#define dev_voice __real_dev_voice
 #else
 #define dev_tone __wrap_dev_tone
+#define dev_voice __wrap_dev_voice
 #endif
 #define gd_set_mode VIEW_TEXT(gd_set_mode)
 #define dev_text_size VIEW_TEXT(dev_text_size)

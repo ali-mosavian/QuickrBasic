@@ -9,7 +9,7 @@
 
 enum {
     KEY_BYTES = 256,
-    TONE_LOG = 256,
+    TONE_LOG = 4096,
     CTRL_Z = 26,
     DAY = 8640000,
     TICK_UNITS = 1000, /* a tick is 1000 units; a hundredth is 182 of them (18.2 ticks a second) */
@@ -25,6 +25,8 @@ static int scan_pending, end_of_input;
 
 static HeadlessTone tones[TONE_LOG];
 static size_t tone_count;
+static HeadlessVoice voice_log[TONE_LOG];
+static size_t voice_count;
 
 static long clock_now, clock_step;
 /* In real time the clock is what it was set to plus the time since: a program that times itself (NIBBLES' speed loop)
@@ -63,7 +65,7 @@ void headless_set_real_time(int yes)
     real_epoch = monotonic_hundredths();
 }
 static unsigned date_year, date_month, date_day;
-static long tick_remainder;
+static long tick_remainder, ticks_run;
 static int on_screen = 1, printer = 0;
 
 void headless_reset(void)
@@ -73,6 +75,7 @@ void headless_reset(void)
     scan_pending = 0;
     end_of_input = 0;
     tone_count = 0;
+    voice_count = 0;
     clock_now = 12L * HUNDREDTHS_PER_HOUR;
     clock_step = 0;
     date_year = 2000;
@@ -143,8 +146,29 @@ void dev_tone(unsigned hertz)
     if (tone_count < TONE_LOG) {
         tones[tone_count].hertz = hertz;
         tones[tone_count].clock = clock_now;
+        tones[tone_count].tick = ticks_run;
         tone_count++;
     }
+}
+
+void dev_voice(unsigned voice, const DevVoice *v)
+{
+    if (voice_count < TONE_LOG) {
+        voice_log[voice_count].voice = voice;
+        voice_log[voice_count].v = *v;
+        voice_log[voice_count].tick = ticks_run;
+        voice_count++;
+    }
+}
+
+size_t headless_voice_count(void)
+{
+    return voice_count;
+}
+
+HeadlessVoice headless_voice(size_t index)
+{
+    return voice_log[index];
 }
 
 size_t headless_tone_count(void)
@@ -224,7 +248,7 @@ void headless_run(long hundredths)
     tick_remainder += hundredths * UNITS_PER_HUNDREDTH;
     while (tick_remainder >= TICK_UNITS) {
         tick_remainder -= TICK_UNITS;
-        host_tick_fire();
+        ticks_run += host_tick_fire();
     }
 }
 

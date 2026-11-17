@@ -7,7 +7,7 @@
 /* llrm's headless device (dev/headless/headless.h). */
 typedef struct {
     unsigned hertz;
-    long clock;
+    long clock, tick;
 } HeadlessTone;
 size_t headless_tone_count(void);
 HeadlessTone headless_tone(size_t index);

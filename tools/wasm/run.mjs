@@ -6,8 +6,13 @@ import { imports, memory as newMemory, Irq, sidecar, ticker, MUSIC_HZ } from '..
 
 class Exit extends Error {}
 
-// QB_TONES: each tone and its time (ms) to standard error, for tools/wasm/play_test.mjs.
-const tone = process.env.QB_TONES ? (hz) => fs.writeSync(2, `tone ${hz} ${performance.now().toFixed(1)}\n`) : undefined;
+// QB_TONES: each tone and voice (its hertz and gate) and its time (ms) to standard error, for
+// tools/wasm/play_test.mjs.
+const log = (line) => fs.writeSync(2, `${line} ${performance.now().toFixed(1)}\n`);
+const tone = process.env.QB_TONES ? (hz) => log(`tone ${hz}`) : undefined;
+const voice = process.env.QB_TONES
+  ? (n, b) => log(`voice ${n} ${new DataView(b.buffer).getUint32(0, true)} ${b[14]}`)
+  : undefined;
 
 if (isMainThread) {
   const [file, ...args] = process.argv.slice(2);
@@ -20,7 +25,7 @@ if (isMainThread) {
   worker.on('message', (m) => {
     if ('irq' in m) {
       irq = new Irq(memory, m.irq);
-      const tick = sidecar(module, memory, tone);
+      const tick = sidecar(module, memory, tone, voice);
       timer = setInterval(ticker(irq, tick), 1000 / MUSIC_HZ);
     } else if ('exit' in m) {
       clearInterval(timer);
@@ -52,6 +57,7 @@ if (isMainThread) {
     },
     stdio: (fd) => fs.fstatSync(fd),
     tone,
+    voice,
     exit: (code) => {
       throw new Exit(String(code));
     },

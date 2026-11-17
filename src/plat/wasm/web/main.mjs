@@ -43,8 +43,11 @@ function keep(path, bytes) {
   }
 }
 
-// The speaker: a square wave, from the first key or click (a browser wants a gesture first).
-let audio, osc, gain;
+// The speaker: a square wave, from the first key or click (a browser wants a gesture first). The
+// synthesizer's voices: an AudioWorklet (synth.mjs); those set before it is ready wait for it.
+let audio, osc, gain, synth;
+const voices = [];
+const synthModule = WebAssembly.compileStreaming(fetch('synth.wasm'));
 function wake() {
   if (!audio) {
     audio = new AudioContext();
@@ -54,8 +57,18 @@ function wake() {
     osc.type = 'square';
     osc.connect(gain).connect(audio.destination);
     osc.start();
+    Promise.all([synthModule, audio.audioWorklet.addModule('synth.mjs')]).then(([module]) => {
+      synth = new AudioWorkletNode(audio, 'synth', { processorOptions: { module } });
+      synth.connect(audio.destination);
+      for (const v of voices.splice(0)) synth.port.postMessage(v);
+    }).catch((e) => console.error('no synthesizer:', e));
   }
   if (audio.state !== 'running') audio.resume().catch(() => {});
+}
+function voice(n, bytes) {
+  if (!audio) return;
+  if (synth) synth.port.postMessage([n, bytes]);
+  else voices.push([n, bytes]);
 }
 function tone(hz) {
   if (!audio) return;
@@ -73,7 +86,7 @@ let irq, display;
 worker.onmessage = ({ data }) => {
   if ('irq' in data) {
     irq = new Irq(memory, data.irq);
-    display = sidecar(module, memory, tone);
+    display = sidecar(module, memory, tone, voice);
     window.quickr = { display, irq, memory }; // for a look from the console, and the tests
     setInterval(ticker(irq, display), 1000 / MUSIC_HZ);
     requestAnimationFrame(draw);
@@ -82,6 +95,8 @@ worker.onmessage = ({ data }) => {
     keep(data.file, data.bytes);
   } else if ('tone' in data) {
     tone(data.tone);
+  } else if ('voice' in data) {
+    voice(data.voice, data.bytes);
   } else if ('out' in data) {
     console.log(data.out);
   } else if ('exit' in data) {

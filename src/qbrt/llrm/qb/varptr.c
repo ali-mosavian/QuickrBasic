@@ -86,9 +86,6 @@ const SD *varptr_string(const char **at, const char *end)
     return varptr_desc ? varptr_desc(variable) : (const SD *)variable;
 }
 
-
-enum { NESTING = 16 };
-
 void macro_begin(Macro *m, const SD *commands)
 {
     m->at = commands->ptr;
@@ -119,7 +116,7 @@ void macro_enter(Macro *m, Macro *outer)
     const SD *text = varptr_string(&m->at, m->end);
 
     *outer = *m;
-    if (++m->depth > NESTING)
+    if (++m->depth > MACRO_NESTING)
         qb_error(BE_ILLFUN);
     m->at = text->ptr;
     m->end = text->ptr + text->len;

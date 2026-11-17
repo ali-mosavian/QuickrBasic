@@ -57,7 +57,7 @@ endif
 
 # llrm's QB runtime (graphics, sound, the screen), src/qbrt/llrm: its portable part, then DOS's
 QBRT := src/qbrt/llrm
-QBRT_PORTABLE := $(addprefix qb/,console.c cntext.c cngfx.c gfx.c gline.c gcirc.c gpaint.c gputget.c gdraw.c play.c \
+QBRT_PORTABLE := $(addprefix qb/,console.c cntext.c cngfx.c gfx.c gline.c gcirc.c gpaint.c gputget.c gdraw.c play.c music.c \
 	screen.c scrfn.c sleep.c sticks.c timer.c varptr.c error.c rtinit.c nhstutil.c nheap.c)
 QBRT_DOS_C := $(QBRT_PORTABLE) $(addprefix qb/,dos/m32/ad.c posix/block.c dev/dos/gfxdev.c \
 	$(addprefix dev/dos/m32/,clock.c con.c key.c prn.c text.c tone.c))
@@ -157,7 +157,7 @@ HOST_CC ?= $(CLANG)$(if $(SDK), -isysroot $(SDK))
 HOST_CFLAGS := -std=c23 -D_DEFAULT_SOURCE -O1 -g -Wall -Wextra -Wno-unused-parameter -Werror=undef -DARENA_AT_ZERO=0 -DPFIL_PATH=4096 -DEXEC_COUNT \
 	-Isrc/plat/host/include -Isrc -Isrc/core
 HOST_C := $(shell find src/core -name '*.c' -not -path 'src/core/ui/*') src/core/ui/tree.c src/core/ui/indent.c \
-	$(wildcard src/plat/host/*.c) src/boot.c
+	$(wildcard src/plat/host/*.c) src/plat/synth/synth.c src/boot.c
 QBRT_HOST_C := $(QBRT_PORTABLE) $(addprefix qb/,posix/block.c posix/ad.c posix/mathops.c dev/headless/headless.c \
 	dev/host/video.c dev/host/vgadata.c dev/host/tick.c) shared/posix/os.c
 QBRT_HOST_INC := -Isrc/qbrt/include $(addprefix -I$(QBRT)/,qb/posix qb qb/dev qb/dev/headless qb/dev/host shared/posix)
@@ -256,14 +256,14 @@ WASM_CFLAGS := $(WASM_TARGET) -std=c23 -O2 -g -Wall -Wextra -Wno-unused-paramete
 	-DPFIL_PATH=1024 -DAC=$(AC) -isystem src/plat/wasm/include -isystem src/lib/include -Isrc -Isrc/core
 # -MD, not -MMD: the shim's headers are -isystem, and -MMD leaves those out of the dependencies
 WASM_DEPFLAGS = -MD -MP -MF $@.d -MT $@
-WASM_C := $(filter-out src/plat/host/%,$(HOST_C)) $(addprefix src/plat/host/,pclk.c pfil.c pfpu.c pkey.c pscr.c ports.c) $(wildcard src/plat/wasm/*.c) \
+WASM_C := $(filter-out src/plat/host/% src/plat/synth/%,$(HOST_C)) $(addprefix src/plat/host/,pclk.c pfil.c pfpu.c pkey.c pscr.c ports.c) $(wildcard src/plat/wasm/*.c) \
 	$(wildcard src/plat/view/*.c)
 WASM_QBRT_C := $(filter-out shared/posix/os.c,$(QBRT_HOST_C))
 WASM_OBJ := $(WASM_C:src/%.c=build/wasm/obj/%.o) $(WASM_QBRT_C:%.c=build/wasm/qbrt/%.o) build/wasm/obj/qbrt/qbrt.o \
 	build/wasm/obj/qbrt/qbrt_wasm.o
 # the runtime's text screen is pscr's (src/plat/wasm/rtext.c), its tones the page's too (qbrt_wasm.c); frame and
 # render_stack the page's display
-WASM_WRAP := gd_set_mode dev_tone $(addprefix dev_text_,size cursor move cursor_show get put write scroll)
+WASM_WRAP := gd_set_mode dev_tone dev_voice $(addprefix dev_text_,size cursor move cursor_show get put write scroll)
 WASM_LDFLAGS := --no-entry --export=__main_void --export=__wasm_call_ctors --export=__stack_pointer --export=host_tick_fire --import-memory \
 	--shared-memory --initial-memory=33554432 --max-memory=1073741824 --stack-first -z stack-size=8388608 \
 	$(addprefix --wrap=,$(WASM_WRAP))
@@ -294,7 +294,12 @@ build/wasm/basic: build/wasm/basic.wasm
 	chmod +x $@
 # The IDE's page, for GitHub Pages or tools/wasm/serve.py: its scripts, the module, the help, the demos
 WEB_SRC := $(wildcard src/plat/wasm/web/*.mjs src/plat/wasm/web/*.js src/plat/wasm/web/*.html src/plat/wasm/web/demos/*)
-web: build/web/ide.wasm build/web/BASIC.HLP $(WEB_SRC:src/plat/wasm/web/%=build/web/%)
+web: build/web/ide.wasm build/web/synth.wasm build/web/BASIC.HLP $(WEB_SRC:src/plat/wasm/web/%=build/web/%)
+# the synthesizer alone, for the page's AudioWorklet (web/synth.mjs)
+build/web/synth.wasm: src/plat/wasm/worklet/worklet.c src/plat/synth/synth.c src/plat/synth/synth.h
+	@mkdir -p $(@D)
+	$(CLANG) --target=wasm32-unknown-unknown -ffreestanding -nostdlib -mbulk-memory -std=c23 -O2 -Wall -Wextra -Isrc \
+		-Wl,--no-entry -Wl,--export-dynamic $(filter %.c,$^) -o $@
 build/web/ide.wasm: build/wasm/ide.wasm
 	@mkdir -p $(@D)
 	cp $< $@

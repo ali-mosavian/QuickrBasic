@@ -46,5 +46,6 @@ SC(STICK, vdev_stick)   /* ( n -- i ): STICK(n) */
 SC(STRIG, vdev_strig)   /* ( n -- i ): STRIG(n) */
 SC(PEN, vdev_pen)       /* ( n -- i ): PEN(n) */
 SC(SCRN, vdev_screen)   /* ( r c [f] count -- i ): SCREEN(r, c[, f]) */
+SC(PLAYV, snd_play_voices) /* ( commands... count -- ): PLAY a$, b$[, c$], a voice each */
 #undef SC
 #endif
