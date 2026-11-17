@@ -123,11 +123,11 @@ static void blok_failw(
     blok_fail(sc, code, dg, sc->off, sc->line, word, word ? (uint32_t)strlen(word) : 0);
 }
 
-/* @bk_er: Syntax error at the line scanned. */
+/* @bk_er: Syntax error at the statement scanned. */
 [[noreturn]]
 static void blok_synerr(BlokScan *const sc)
 {
-    fault_raise(sc->f, (Failure){.code = E_SN, .at = FAULT_KEEP, .line = sc->line});
+    fault_raise(sc->f, (Failure){.code = E_SN, .at = sc->off, .line = sc->line});
 }
 
 [[noreturn]]
@@ -391,7 +391,11 @@ static void blok_procstmt(BlokScan *const sc, const uint8_t *const s, const uint
     Blok *const b = sc->b;
     const uint32_t defoff = sc->off;
 
-    if (sc->proc || s[1] != M_VAR)
+    if (sc->proc)
+        blok_synerr(sc);
+    if (s[1] >= TK_END) /* a keyword for its name */
+        blok_fail(sc, E_SN, DG_NAME_OF_SUBPROGRAM_ILLEGAL_RESERVED, defoff + 1, sc->line, nullptr, 0);
+    if (s[1] != M_VAR)
         blok_synerr(sc);
     if (b->nprocs >= NPROC)
         blok_nomem(sc);

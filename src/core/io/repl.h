@@ -31,6 +31,7 @@ typedef struct {
     jmp_buf *top;       /* the innermost repl_call's: every unwind but a trap's and a stage's */
     uint8_t err;        /* REPL_ERROR's error, E_* */
     uint16_t fline;     /* loading a file: its line, for a warning */
+    uint16_t nfile;     /* the files read: the next one's Line.file */
     bool loading;       /* loading a file: every line is stored, at the end */
     bool batch;         /* a file run: its end exits */
     char file[PFIL_PATH]; /* the command line's file name; CHAIN's */

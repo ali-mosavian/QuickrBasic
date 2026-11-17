@@ -611,6 +611,17 @@ CASES = {
     # A line past the 32 KB input buffer: Out of memory.
     "qb_phys_line": ("X = 0: " + "X = X + 1: " * 3500 + "PRINT X\r\n", " 3500 \r\n", "memory"),
     "qb_long_err": ("z = 1: " * 60 + "PRINT (z\r\n", "\r\n" + " " * 430 + "^\r\nThe PRINT statement is incomplete", None),
+    # A file's errors named no line of it ("in line No line number"): each one bisected by hand.
+    # The line read from the file, a continued one's first; blank lines count.
+    "qb_where_compile": ("PRINT 1\r\n\r\nX = 1 + _\r\n  (\r\nPRINT 3\r\n", ".BAS:3\r\n  X = 1 + (\r\n", " 1"),
+    "qb_where_dupdef": ("CONST SP = 1\r\nPRINT 1\r\nsp = 2\r\n", ".BAS:3\r\n  SP = 2\r\n  ^\r\n`SP` is", " 1"),
+    "qb_where_include": ("PRINT 1\r\n\r\nREM $INCLUDE: 'WHERE.BI'\r\nPRINT 2\r\n", "WHERE.BI:3\r\n  Y = 1 +\r\n", " 1"),
+    # Errors loading the file (a label twice, a number past 63999): the bare message, no line.
+    "qb_where_label": ("PRINT 1\r\nfoo:\r\nfoo:\r\n", ".BAS:3\r\n  foo:\r\n  ^\r\n", " 1"),
+    "qb_where_lnum": ("PRINT 1\r\n70000 PRINT 2\r\n", ".BAS:2\r\n  70000 PRINT 2\r\n  ^\r\n", " 1"),
+    # A keyword for a procedure's name: Syntax error, with neither the line nor a word why.
+    "qb_where_reserved": ("PRINT 1\r\nFUNCTION Field% (x AS INTEGER)\r\nEND FUNCTION\r\n",
+                          ".BAS:2\r\n  FUNCTION FIELD %(x AS INTEGER)\r\n           ^\r\n`FIELD` is a reserved word", " 1"),
     "qb_blk_next2": ("FOR i = 1 TO 2: FOR j = 1 TO 2: NEXT j, i: PRINT \"ok\"\r\n", "ok", "ERROR"),
     "qb_sng_range": ('PRINT VAL("1.23456789012"); 1E-45; 1 / 1E-45\r\n'
                      'a! = 3.4E+38: d# = 1D+40: x! = 1E-38: PRINT a! * 10; CSNG(d#); x! / 1000\r\n',
@@ -667,6 +678,7 @@ REPL = {
 
 # Companions the cases read, beside them.
 FILES = {
+    "WHERE.BI": b"' included\r\n\r\nY = 1 +\r\n",
     "QB_CH3.BAS": b'COMMON q$, y()\r\nPRINT LEN(q$); RIGHT$(q$, 1); y(500)\r\n',
     "QB_CH2.BAS": b'COMMON b%, q$, e#, y(), u AS SHORT\r\nPRINT b%; q$; e#; y(3); LBOUND(y); u; t\r\n'
                   b'PRINT #1, "kept": CLOSE #1\r\nON ERROR GOTO h\r\nCHAIN "NONE"\r\nEND\r\nh: PRINT "e"; ERR: RESUME NEXT\r\n',

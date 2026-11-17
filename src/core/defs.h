@@ -75,8 +75,10 @@ typedef struct PACKED {
     uint32_t pre;  /* its text before the body, after it */
     uint8_t flags; /* LF_* */
     uint8_t sep;   /* the byte before the body the compiler reads */
+    uint16_t src;  /* its first line in its source file, 0 none */
+    uint16_t file; /* that file: 0 the main, n the nth include read */
 } Line;
-static_assert(sizeof(Line) == 16);
+static_assert(sizeof(Line) == 20);
 enum { HDR = sizeof(Line) };
 enum : uint8_t { LF_ASIS = 1, LF_BP = 2, LF_INC = 4 };
 enum : uint32_t {
