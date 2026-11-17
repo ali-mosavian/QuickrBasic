@@ -15,7 +15,8 @@
 
 PY ?= python3
 CLANG ?= clang
-AC ?= 1                            # the editor's Tab completion; AC=0 leaves it out
+# the editor's Tab completion; AC=0 leaves it out
+AC ?= 1
 
 DEPS := build/deps/bin
 JWASM ?= $(DEPS)/jwasm

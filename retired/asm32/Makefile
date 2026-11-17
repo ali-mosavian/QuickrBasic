@@ -8,7 +8,8 @@
 ROOT := $(abspath ../..)
 OUT := $(ROOT)/build/asm32
 PY ?= python3
-AC ?= 1                            # the editor's Tab completion; AC=0 leaves it out
+# the editor's Tab completion; AC=0 leaves it out
+AC ?= 1
 JWASM ?= $(ROOT)/build/deps/bin/jwasm
 JWLINK ?= $(ROOT)/build/deps/bin/jwlink
 DOSBOX_BIN ?= $(ROOT)/build/deps/bin/dosbox-x
