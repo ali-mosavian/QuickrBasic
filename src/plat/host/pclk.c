@@ -1,39 +1,16 @@
 /* The clock on the host.
  *
  * # How it works
- * Local time; the 18.2 Hz tick is a SIGALRM timer.
+ * Local time, POSIX's; the tick is ptick.c's.
  */
-#include <signal.h>
-#include <sys/time.h>
 #include <time.h>
 #include "plat/pclk.h"
 
 enum : uint32_t { JDAY = 5184000, DAY_SECONDS = 86400 };
 static constexpr double TICKS_PER_SECOND = 1193180.0 / 65536.0;
 
-static volatile uint8_t *tick_flag;
-static uint8_t tick_bit;
 static int32_t day_offset; /* seconds the clock was set ahead */
 static uint32_t toff;      /* the jiffy clock's offset */
-
-static void on_tick(int sig) { *tick_flag |= tick_bit; }
-
-void pclk_init(volatile uint8_t *const flag, const uint8_t bit)
-{
-    tick_flag = flag;
-    tick_bit = bit;
-    signal(SIGALRM, on_tick);
-    const struct itimerval every = {{0, 54925}, {0, 54925}};
-
-    setitimer(ITIMER_REAL, &every, nullptr);
-}
-
-void pclk_done(void)
-{
-    const struct itimerval off = {};
-
-    setitimer(ITIMER_REAL, &off, nullptr);
-}
 
 static struct tm local_now(double *const seconds)
 {
