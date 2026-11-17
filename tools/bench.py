@@ -45,6 +45,10 @@ INSNS_SLACK = 0.01  # on the native CPU a count repeats to 0.1%
 type Programs = dict[str, str]
 
 
+class NoCounter(RuntimeError):
+    """The machine will not count retired instructions (insns.c said so): no count, not a count of 0."""
+
+
 @dataclass(frozen=True)
 class Cost:
     out: str
@@ -118,6 +122,8 @@ def count(exe: Path, bas: Path, env: str, key: bytes) -> tuple[int, str]:
     )
     if re.search(rb" in line .* in module ", p.stdout):  # stopped by an error: its cost is not the program's
         sys.exit(f"{bas.stem}: {p.stdout.decode('latin-1').strip()}")
+    if re.search(rb"\n" + key + rb" unavailable\n", p.stderr):
+        raise NoCounter(f"{exe}: no {key.decode()} counter on this machine")
     m = re.search(rb"\n" + key + rb" (\d+)\n", p.stderr)
     if not m:
         sys.exit(f"{bas.stem}: no {key.decode()} count from {exe}\n{p.stderr.decode(errors='replace')}")
@@ -402,7 +408,10 @@ def profiled(b: Build, d: Path, ide: bool = False) -> Path:
     """b's basic32 (ide: ide32) relinked in d with a map that names its static functions too."""
     var = "IDE_OBJ" if ide else "BASIC_OBJ"
     db = subprocess.run(
-        ["make", "-pnq", "build/c/ide32.exe" if ide else "build/c/basic32.exe"], cwd=b.root, capture_output=True, text=True
+        ["make", "-pnq", "build/c/ide32.exe" if ide else "build/c/basic32.exe"],
+        cwd=b.root,
+        capture_output=True,
+        text=True,
     ).stdout
     m = re.search(rf"^{var} := (.*)$", db, re.M)
     if not m:
