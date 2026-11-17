@@ -6,14 +6,18 @@
  * thread is SDL's: each frame it draws plat/view's frame of the screen. SIGINT and SIGALRM are the
  * IDE thread's, the STOP key and the tick, as on the host; Ctrl+C in the window is SIGINT too.
  * Started from Finder (in /), it works in ~/Documents/QuickrBasic, the demos copied there.
- * A test's: QB_KEYS, BIOS keys in hex, typed at KEYS_FRAMES, or at frame N as N:key, FFFF the STOP
- * key; QB_SHOT=file, the frame drawn SHOT_FRAMES after the keys' start, or 30 after the last key,
- * to file as a PPM, then exit.
+ * A test's, a time T a frame's number or seconds as Ns (1.5s):
+ * - QB_KEYS: BIOS keys in hex, typed at KEYS_FRAMES, or at T as T:key; FFFF the STOP key.
+ * - QB_MOUSE: T:X,Y[:B], the mouse at pixel X,Y at T, its buttons B (1 left, 2 right, 4 middle), 0
+ *   none; a press is a B then a 0.
+ * - QB_SHOT: file[@T], comma apart: the frame drawn at T to file as a PPM, then, the last taken,
+ *   exit. No T: SHOT_FRAMES, or SHOT_AFTER past the last key.
  */
 #include <pthread.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include "plat/host/host.h"
@@ -44,20 +48,29 @@ static int keys_out = -1;
 
 static void send(const uint16_t key) { (void)!write(keys_out, &key, sizeof key); }
 
+/* A script's time at s, its frame; *end past it. */
+static uint32_t when(const char *const s, char **const end)
+{
+    const double t = strtod(s, end);
+
+    if (**end != 's')
+        return (uint32_t)t;
+
+    ++*end;
+    return (uint32_t)(t * 1000 / FRAME_MS + 0.5);
+}
+
 /* QB_KEYS' keys due at frame now typed; the frame of its last. */
-static uint32_t script(const char *k, const uint32_t now)
+static uint32_t keys(const char *k, const uint32_t now)
 {
     uint32_t last = KEYS_FRAMES;
 
     while (k && *k) {
         char *end;
-        uint32_t at = KEYS_FRAMES;
-        unsigned long key = strtoul(k, &end, 16);
-
-        if (*end == ':') {
-            at = (uint32_t)strtoul(k, nullptr, 10);
-            key = strtoul(end + 1, &end, 16);
-        }
+        const size_t len = strcspn(k, " ,");
+        const char *const colon = memchr(k, ':', len);
+        const uint32_t at = colon ? when(k, &end) : KEYS_FRAMES;
+        const unsigned long key = strtoul(colon ? colon + 1 : k, &end, 16);
 
         if (at == now && key == KEY_STOP)
             kill(getpid(), SIGINT);
@@ -65,7 +78,8 @@ static uint32_t script(const char *k, const uint32_t now)
             send((uint16_t)key);
 
         last = at > last ? at : last;
-        k = *end ? end + 1 : end;
+        k += len;
+        k += *k != 0;
     }
 
     return last;
@@ -74,15 +88,16 @@ static uint32_t script(const char *k, const uint32_t now)
 /* The window's mouse: the cell and the pixel under it, its buttons as INT 33h's (left, right,
    middle). A text mode's pixel is the cell's times 8, a graphics mode's its own; a graphics mode's
    cell is 8 wide and as high as its height has it (8, 14 or 16). */
-static void point(SDL_Renderer *const r, SDL_Event *const e, const ViewFrame *const f)
+static void mouse_at(
+    const ViewFrame *const f,
+    const float fx,
+    const float fy,
+    const uint8_t buttons
+)
 {
     if (!f->width || !f->height)
         return;
 
-    SDL_ConvertEventToRenderCoordinates(r, e);
-    const SDL_MouseButtonFlags b = SDL_GetMouseState(nullptr, nullptr);
-    const float fx = e->type == SDL_EVENT_MOUSE_MOTION ? e->motion.x : e->button.x;
-    const float fy = e->type == SDL_EVENT_MOUSE_MOTION ? e->motion.y : e->button.y;
     const uint32_t x = fx < 0 ? 0 : fx >= f->width ? f->width - 1 : (uint32_t)fx;
     const uint32_t y = fy < 0 ? 0 : fy >= f->height ? f->height - 1 : (uint32_t)fy;
     const uint32_t cell_w = f->cell_h ? VIEW_CELL_W : 8;
@@ -97,9 +112,39 @@ static void point(SDL_Renderer *const r, SDL_Event *const e, const ViewFrame *co
         (uint8_t)col,
         (uint16_t)(f->cell_h ? col * 8 : x),
         (uint16_t)(f->cell_h ? row * 8 : y),
+        buttons
+    );
+}
+
+static void point(SDL_Renderer *const r, SDL_Event *const e, const ViewFrame *const f)
+{
+    SDL_ConvertEventToRenderCoordinates(r, e);
+    const SDL_MouseButtonFlags b = SDL_GetMouseState(nullptr, nullptr);
+    mouse_at(
+        f,
+        e->type == SDL_EVENT_MOUSE_MOTION ? e->motion.x : e->button.x,
+        e->type == SDL_EVENT_MOUSE_MOTION ? e->motion.y : e->button.y,
         (uint8_t)((b & SDL_BUTTON_LMASK ? 1 : 0) | (b & SDL_BUTTON_RMASK ? 2 : 0) |
                   (b & SDL_BUTTON_MMASK ? 4 : 0))
     );
+}
+
+/* QB_MOUSE's moves due at frame now made. */
+static void mouse(const char *m, const uint32_t now, const ViewFrame *const f)
+{
+    while (m && *m) {
+        char *end;
+        const uint32_t at = when(m, &end);
+        const float x = strtof(end + (*end == ':'), &end);
+        const float y = strtof(end + (*end == ','), &end);
+        const unsigned long b = *end == ':' ? strtoul(end + 1, &end, 10) : 0;
+
+        if (at == now)
+            mouse_at(f, x, y, (uint8_t)b);
+
+        m = end + strcspn(end, " ");
+        m += strspn(m, " ");
+    }
 }
 
 /* Finder's start, in /: ~/Documents/QuickrBasic, the app's demos copied in where missing. */
@@ -161,6 +206,35 @@ static void shot(const char *const path, const ViewFrame *const f)
     }
 
     fclose(out);
+}
+
+/* QB_SHOT's shots due at frame now taken, at dflt those with no time; true when none is left. */
+static bool shots(const char *s, const uint32_t now, const uint32_t dflt, const ViewFrame *const f)
+{
+    bool done = true;
+
+    while (s && *s) {
+        const size_t len = strcspn(s, ",");
+        const char *at = nullptr;
+
+        for (size_t i = 0; i < len; i++)
+            if (s[i] == '@')
+                at = s + i;
+
+        char *end, path[4096];
+        const uint32_t due = at ? when(at + 1, &end) : dflt;
+
+        if (due == now) {
+            snprintf(path, sizeof path, "%.*s", (int)(at ? at - s : (ptrdiff_t)len), s);
+            shot(path, f);
+        }
+
+        done = done && due <= now;
+        s += len;
+        s += *s != 0;
+    }
+
+    return done;
 }
 
 int sdl_main(void)
@@ -284,12 +358,12 @@ int sdl_main(void)
 
         f = view_frame(blink, pointer);
 
-        const uint32_t last = script(getenv("QB_KEYS"), ++frames);
+        const uint32_t last = keys(getenv("QB_KEYS"), ++frames);
+        mouse(getenv("QB_MOUSE"), frames, f);
 
-        if (shot_to && frames == (last > KEYS_FRAMES ? last + SHOT_AFTER : SHOT_FRAMES)) {
-            shot(shot_to, f);
+        if (shot_to &&
+            shots(shot_to, frames, last > KEYS_FRAMES ? last + SHOT_AFTER : SHOT_FRAMES, f))
             exit(0);
-        }
 
         if (f->width != shown_w || f->height != shown_h) {
             shown_w = f->width;
