@@ -11,8 +11,13 @@
 #include "varptr.h"
 #include "rtinit.h"
 
-/* a minute of the clock's ticks, in thousandths */
-#define TICKS_PER_MINUTE 1092390L
+/* a minute of the BIOS clock's ticks (18.2 a second), in thousandths */
+#define CLOCK_TICKS_PER_MINUTE 1092390L
+/* a minute of the music's ticks, in thousandths: the BIOS clock's, unless the host ticks it faster
+   (wasm: 100 a second) */
+#ifndef TICKS_PER_MINUTE
+#define TICKS_PER_MINUTE CLOCK_TICKS_PER_MINUTE
+#endif
 enum {
     LOWEST_OCTAVE = 0,
     HIGHEST_OCTAVE = 6,
@@ -331,7 +336,7 @@ void B_SOND(short hertz, float duration)
 
     if (duration < 0 || duration > 65535.5f)
         illegal();
-    ticks = (long)(duration + 0.5f);
+    ticks = (long)(duration * ((double)TICKS_PER_MINUTE / CLOCK_TICKS_PER_MINUTE) + 0.5);
     if (ticks == 0) {
         dev_tick_hold();
         tail = head;

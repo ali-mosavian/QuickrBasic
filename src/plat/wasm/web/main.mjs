@@ -2,9 +2,9 @@
 // (worker.mjs); this thread is its VGA card and its interrupts: it renders the screen from the
 // shared memory in an instance of its own, ORs in the tick, types the keys.
 import { biosKey, shiftFlags } from './keys.mjs';
-import { imports, memory as newMemory, Irq } from './wasm.mjs';
+import { memory as newMemory, Irq, sidecar, ticker, MUSIC_HZ } from './wasm.mjs';
 
-const TICK_MS = 1000 / 18.2065, BLINK_MS = 267;
+const BLINK_MS = 267;
 const DEMOS = ['WELCOME.BAS', 'GORILLA.BAS', 'NIBBLES.BAS'];
 const STORE = 'qb:'; // localStorage: STORE + path -> the file in base64
 
@@ -73,11 +73,9 @@ let irq, display;
 worker.onmessage = ({ data }) => {
   if ('irq' in data) {
     irq = new Irq(memory, data.irq);
-    // The display: its own instance on the same memory, its own stack; it only reads.
-    display = new WebAssembly.Instance(module, imports(memory, { fs: null, cwd: '/', args: '' })).exports;
-    display.__stack_pointer.value = display.render_stack();
+    display = sidecar(module, memory, tone);
     window.quickr = { display, irq, memory }; // for a look from the console, and the tests
-    setInterval(() => irq.raise(0), TICK_MS);
+    setInterval(ticker(irq, display), 1000 / MUSIC_HZ);
     requestAnimationFrame(draw);
     status.textContent = '';
   } else if ('file' in data) {

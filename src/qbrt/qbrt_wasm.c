@@ -1,5 +1,5 @@
 /* The runtime's device on wasm: the headless one, as on the host (qbrt_host.c), its framebuffer
-   the page's to show. One thread: the music's tick is a wait's, in real time, or each wait a tick. */
+   the page's to show. The music's tick is the page's thread's, as the host's tick thread. */
 #include <time.h>
 #include "plat/pfil.h"
 #include "plat/psys.h"
@@ -7,13 +7,9 @@
 #include "headless.h"
 #include "wasm.h"
 
-static constexpr double TICK_MS = 1000 / 18.2065;
-enum { HUNDREDTHS_A_TICK = 6 };
+enum { HUNDREDTHS_A_TICK = 6, WAIT_NANOSECONDS = 1000000 };
 
 static bool realtime = true;
-static double next_tick; /* js_now()'s, ms */
-
-int host_tick_fire(void);
 
 void qbrt_clock_set(const PclkTime *const t)
 {
@@ -33,22 +29,16 @@ void qbrt_device(void)
 
 void qbrt_realtime(const bool yes) { realtime = yes; }
 
-/* To the next tick's time, slept (Atomics.wait on a word nothing notifies), then the tick. */
+/* A wait for the music: a millisecond, the tick the page's thread's (host_tick_fire, wasm.mjs); not in
+   real time, each wait a tick. */
 void qbrt_tick_wait(void)
 {
-    if (!realtime) {
-        headless_run(HUNDREDTHS_A_TICK);
-        return;
-    }
-
     static int32_t never;
-    const double now = js_now();
 
-    if (now < next_tick)
-        __builtin_wasm_memory_atomic_wait32(&never, 0, (int64_t)((next_tick - now) * 1e6));
-
-    next_tick = (now > next_tick ? now : next_tick) + TICK_MS;
-    host_tick_fire();
+    if (realtime)
+        __builtin_wasm_memory_atomic_wait32(&never, 0, WAIT_NANOSECONDS);
+    else
+        headless_run(HUNDREDTHS_A_TICK);
 }
 
 /* The OS calls the runtime makes (llrm_os.h): its console's output, its exit. */

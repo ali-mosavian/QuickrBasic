@@ -195,6 +195,8 @@ build/host/golden_dump: $(build/host_OBJ) build/host/golden/dump.o
 # ---- WebAssembly: the host's platform where it is portable, src/plat/wasm for the rest. Stock clang and
 # wasm-ld; longjmp is wasm's exceptions, the memory shared with the page's thread (src/plat/wasm/include/wasm.h) ----
 
+# the music's tick, a second: the page's thread fires it (wasm.mjs's MUSIC_HZ)
+WASM_MUSIC_HZ := 100
 WASM_LD ?= $(firstword $(wildcard /opt/homebrew/opt/lld/bin/wasm-ld) wasm-ld)
 WASM_TARGET := --target=wasm32-unknown-unknown -ffreestanding -mbulk-memory -mexception-handling -matomics \
 	-mllvm -wasm-enable-sjlj
@@ -208,7 +210,7 @@ WASM_OBJ := $(WASM_C:src/%.c=build/wasm/obj/%.o) $(WASM_QBRT_C:%.c=build/wasm/qb
 # the runtime's text screen is pscr's (src/plat/wasm/rtext.c), its tones the page's too (qbrt_wasm.c); frame and
 # render_stack the page's display
 WASM_WRAP := gd_set_mode dev_tone $(addprefix dev_text_,size cursor move cursor_show get put write scroll)
-WASM_LDFLAGS := --no-entry --export=__main_void --export=__wasm_call_ctors --export=__stack_pointer --import-memory \
+WASM_LDFLAGS := --no-entry --export=__main_void --export=__wasm_call_ctors --export=__stack_pointer --export=host_tick_fire --import-memory \
 	--shared-memory --initial-memory=33554432 --max-memory=1073741824 --stack-first -z stack-size=8388608 \
 	$(addprefix --wrap=,$(WASM_WRAP))
 
@@ -220,7 +222,8 @@ build/wasm/obj/%.o: src/%.c
 	$(CLANG) $(WASM_CFLAGS) $(DEPFLAGS) -c $< -o $@
 build/wasm/qbrt/%.o: $(QBRT)/%.c
 	@mkdir -p $(@D)
-	$(CLANG) $(WASM_TARGET) -O2 -std=gnu11 -w -D__cdecl= $(QBRT_IDLE) -isystem src/plat/wasm/include \
+	$(CLANG) $(WASM_TARGET) -O2 -std=gnu11 -w -D__cdecl= $(QBRT_IDLE) -DTICKS_PER_MINUTE=$(WASM_MUSIC_HZ)*60000L \
+		-isystem src/plat/wasm/include \
 		-isystem src/lib/include $(QBRT_HOST_INC) $(DEPFLAGS) -c $< -o $@
 -include $(shell find build/wasm -name '*.d' 2>/dev/null)
 
@@ -251,6 +254,7 @@ build/web/%: src/plat/wasm/web/%
 wasm-test: build/wasm/basic build/wasm/ide.wasm
 	BASIC_EXE=$< $(PY) tools/regress_test.py $<
 	node tools/wasm/frame_test.mjs build/wasm/ide.wasm
+	node tools/wasm/play_test.mjs build/wasm/basic.wasm
 	BASIC_EXE=$< $(PY) tools/conformance.py
 
 # ---- LTO: the C as bitcode, one module optimized whole by tools/lto.py (LLVM's tools), linked with the asm's

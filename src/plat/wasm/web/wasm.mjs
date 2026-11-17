@@ -142,6 +142,31 @@ export function imports(memory, host) {
   return { env: { memory }, qb, math };
 }
 
+// The music's tick, a second (the Makefile's WASM_MUSIC_HZ); the clock's interrupt, 18.2.
+export const MUSIC_HZ = 100;
+export const TICK_MS = 1000 / 18.2065;
+
+// Every music tick due since the last call, and the clock's interrupt when one is due: on a timer,
+// whose late calls catch up, so the notes last as long as they should.
+export function ticker(irq, ex) {
+  const start = performance.now();
+  let music = 0, clock = 0;
+  return () => {
+    const ms = performance.now() - start;
+    for (const due = Math.floor(ms * MUSIC_HZ / 1000); music < due; music++) ex.host_tick_fire();
+    for (const due = Math.floor(ms / TICK_MS); clock < due; clock++) irq.raise(0);
+  };
+}
+
+// A second instance on the module's memory for another thread, with its own stack: the display's
+// frame() and the music's tick (host_tick_fire), as a VGA card and a timer interrupt would. Its host
+// gives only tone(hz), for the notes the tick starts.
+export function sidecar(module, memory, tone) {
+  const ex = new WebAssembly.Instance(module, imports(memory, { fs: null, cwd: '/', args: '', tone })).exports;
+  ex.__stack_pointer.value = ex.render_stack();
+  return ex;
+}
+
 // The module's memory: shared, so the page's thread can write irq's block while it runs.
 export const memory = () => new WebAssembly.Memory({ initial: 512, maximum: 16384, shared: true });
 
