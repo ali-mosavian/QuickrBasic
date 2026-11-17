@@ -50,6 +50,10 @@ typedef struct {
     uint8_t mouse_row, mouse_col, mouse_buttons; /* the page's, as INT 33h AX=3 */
     uint8_t mouse_on;                            /* pmou_init found it: the page has a pointer */
     int32_t mouse_shown;                         /* pmou_show's count less pmou_hide's */
+    uint16_t mouse_x, mouse_y;                   /* the pixel under it, as pmou_state's */
+    uint32_t press_count[2];                     /* the left's and the right's, the page adds */
+    uint32_t press_xy[2];                        /* the last press's x, y << 16 */
+    uint16_t press_cell[2];                      /* its row, col << 8 */
 } WasmIrq;
 extern WasmIrq wasm_irq;
 

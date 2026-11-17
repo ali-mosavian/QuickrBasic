@@ -32,6 +32,7 @@
 #include "num/random.h"
 #include "vm/chain.h"
 #include "vm/debug.h"
+#include "vm/devices.h"
 #include "vm/event.h"
 #include "vm/exec.h"
 #include "vm/flow.h"
@@ -76,6 +77,7 @@ struct Session {
     Symb symb;
     Syst syst;
     Usng usng;
+    Vdev vdev;
 };
 
 /* ---- the debugger --------------------------------------------------------------------------- */

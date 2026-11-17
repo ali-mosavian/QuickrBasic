@@ -188,12 +188,23 @@ export class Irq {
 
   set keyboard(on) { this.u8[this.at + 11] = on ? 1 : 0; }
 
-  // The mouse: the text cell under it, its buttons (bit 0 the left, 1 the right, 2 the middle).
-  mouse(row, col, buttons) {
+  // The mouse: the text cell and the pixel under it, its buttons (bit 0 the left, 1 the right, 2 the
+  // middle). A button going down is a press: its place, then its count.
+  mouse(row, col, x, y, buttons) {
     const u8 = this.u8, at = this.at + 20 + 2 * 64;
+    const was = u8[at + 2];
     u8[at] = row;
     u8[at + 1] = col;
     u8[at + 2] = buttons;
+    const u16 = new Uint16Array(this.memory.buffer), u32 = new Uint32Array(this.memory.buffer);
+    u16[(at + 8) >> 1] = x;
+    u16[(at + 10) >> 1] = y;
+    for (let b = 0; b < 2; b++) {
+      if (!(buttons & ~was & (1 << b))) continue;
+      u32[((at + 20) >> 2) + b] = x | (y << 16);
+      u16[((at + 28) >> 1) + b] = row | (col << 8);
+      Atomics.add(this.i32, ((at + 12) >> 2) + b, 1);
+    }
   }
   set shift(flags) { this.u8[this.at + 10] = flags; }
 

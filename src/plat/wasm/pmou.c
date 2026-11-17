@@ -3,6 +3,8 @@
 #include "plat/pmou.h"
 #include "wasm.h"
 
+bool pmou_there(void) { return wasm_irq.keyboard; }
+
 bool pmou_init(void)
 {
     wasm_irq.mouse_shown = 0;
@@ -19,5 +21,22 @@ PmouState pmou_state(void)
         .row = __atomic_load_n(&wasm_irq.mouse_row, __ATOMIC_RELAXED),
         .col = __atomic_load_n(&wasm_irq.mouse_col, __ATOMIC_RELAXED),
         .buttons = __atomic_load_n(&wasm_irq.mouse_buttons, __ATOMIC_RELAXED),
+        .x = __atomic_load_n(&wasm_irq.mouse_x, __ATOMIC_RELAXED),
+        .y = __atomic_load_n(&wasm_irq.mouse_y, __ATOMIC_RELAXED),
+    };
+}
+
+/* The page writes the place before it adds to the count. */
+PmouPress pmou_press(const uint8_t button)
+{
+    const uint32_t n = __atomic_exchange_n(&wasm_irq.press_count[button], 0, __ATOMIC_ACQUIRE);
+    const uint32_t xy = __atomic_load_n(&wasm_irq.press_xy[button], __ATOMIC_RELAXED);
+    const uint16_t cell = __atomic_load_n(&wasm_irq.press_cell[button], __ATOMIC_RELAXED);
+    return (PmouPress){
+        .count = (uint16_t)n,
+        .row = (uint8_t)cell,
+        .col = (uint8_t)(cell >> 8),
+        .x = (uint16_t)xy,
+        .y = (uint16_t)(xy >> 16),
     };
 }
