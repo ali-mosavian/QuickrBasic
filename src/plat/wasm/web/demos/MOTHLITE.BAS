@@ -16,7 +16,6 @@ DECLARE SUB DrawFireflies ()
 DECLARE SUB DrawStone (x AS INTEGER, y1 AS INTEGER, y2 AS INTEGER, capTop AS INTEGER, kind AS INTEGER)
 DECLARE SUB DrawLake ()
 DECLARE SUB DrawSparks ()
-DECLARE SUB DrawGlow ()
 DECLARE SUB DrawMoth ()
 DECLARE SUB DrawPanel ()
 DECLARE SUB Emit (n AS INTEGER, spread AS SINGLE, kick AS SINGLE)
@@ -293,18 +292,6 @@ SUB DrawFireflies
             PSET (x - 1, y), 10: PSET (x + 1, y), 10
             PSET (x, y - 1), 10: PSET (x, y + 1), 10
         END IF
-    NEXT
-END SUB
-
-' The moth's glow, a halo of dots that breathes with its wings.
-SUB DrawGlow
-    DIM r AS SINGLE, ry AS INTEGER, dy AS INTEGER, hw AS INTEGER, x AS INTEGER, y AS INTEGER
-    x = INT(mothX): y = INT(mothY)
-    r = 26 + 2 * SIN(phase * 6.2832)
-    ry = INT(r / ASPECT)
-    FOR dy = -ry TO ry STEP 2
-        hw = r * SQR(1 - (dy / (ry + .5)) ^ 2)
-        Dither x - hw, y + dy, x + hw, y + dy, 5, 1
     NEXT
 END SUB
 
@@ -709,10 +696,7 @@ SUB Render
             END IF
         NEXT
     END IF
-    IF NOT behind THEN
-        DrawGlow
-        DrawMoth
-    END IF
+    IF NOT behind THEN DrawMoth
     DrawLake
     DrawSparks
 
