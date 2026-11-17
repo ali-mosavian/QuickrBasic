@@ -267,11 +267,13 @@ TEST(play_voice_out_of_range)
 {
     static const char *const wave[] = {"10 PLAY \"W4 C\"", nullptr};
     static const char *const envelope[] = {"10 PLAY \"H1,2 C\"", nullptr};
-    static const char *const four[] = {"10 PLAY \"C\", \"D\", \"E\", \"F\"", nullptr};
+    static const char *const seven[] = {"10 PLAY \"C\", \"D\", \"E\", \"F\", \"G\", \"A\", \"B\"", nullptr};
+    static const char *const trailing[] = {"10 PLAY \"C\", ", nullptr};
 
     CHECK(unit_run(S, wave) == E_USR);
     CHECK(unit_run(S, envelope) == E_USR);
-    CHECK(unit_run(S, four) != ST_OK);
+    CHECK(unit_run(S, seven) != ST_OK);
+    CHECK(unit_run(S, trailing) != ST_OK);
 }
 
 /* What a program set of the synthesizer ends with it: the next one's PLAY is the speaker's. */
@@ -288,4 +290,55 @@ TEST(play_voice_ends_with_the_program)
     qbrt_realtime(true);
     CHECK(headless_voice_count() == voices);
     CHECK(headless_tone_count() > tones && headless_tone(tones).hertz == 524);
+}
+
+/* Six strings, six voices, starting together. */
+TEST(play_of_six_strings_plays_six_voices)
+{
+    static const char *const lines[] = {
+        "10 PLAY \"MF T120 L4 O3 C\", \"T120 L4 O3 E\", \"T120 L4 O3 G\", \"T120 L4 O4 C\", \"T120 L4 O4 E\", "
+        "\"T120 L4 O4 G\"",
+        nullptr};
+    static const unsigned hertz[6] = {262, 330, 392, 524, 660, 784};
+
+    qbrt_realtime(false);
+    music_clear(); /* an earlier test's music */
+    const size_t first = headless_voice_count();
+    CHECK(unit_run(S, lines) == ST_OK);
+    headless_run(200);
+    qbrt_realtime(true);
+
+    long start[6] = {-1, -1, -1, -1, -1, -1};
+    for (size_t i = first; i < headless_voice_count(); i++) {
+        const HeadlessVoice h = headless_voice(i);
+        if (h.v.gate && start[h.voice] < 0) {
+            start[h.voice] = h.tick;
+            CHECK(h.v.hertz == hertz[h.voice]);
+        }
+    }
+    for (int v = 0; v < 6; v++)
+        CHECK(start[v] >= 0 && start[v] == start[0]);
+}
+
+/* PLAY , , a$ plays voice 3 alone: the first voice's music goes on, its notes neither cut nor joined. */
+TEST(play_left_out_strings_leave_their_voices)
+{
+    static const char *const lines[] = {"10 PLAY \"MB T120 L4 O3 C D E\": n = PLAY(0)",
+                                        "20 PLAY , , \"T120 L4 O3 G\": PRINT n; PLAY(0)", nullptr};
+
+    qbrt_realtime(false);
+    music_clear(); /* an earlier test's music */
+    const size_t first = headless_voice_count();
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 3  3 \r");
+    headless_run(200);
+    qbrt_realtime(true);
+
+    int third = 0, others = 0;
+    for (size_t i = first; i < headless_voice_count(); i++) {
+        const HeadlessVoice h = headless_voice(i);
+        third += h.voice == 2 && h.v.gate && h.v.hertz == 392;
+        others += h.voice != 2;
+    }
+    CHECK(third == 1 && others == 0);
 }

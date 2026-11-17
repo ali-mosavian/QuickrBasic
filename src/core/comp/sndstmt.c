@@ -1,4 +1,4 @@
-/* The speaker's statements compiled: SOUND hertz, ticks; PLAY commands; PLAY a$, b$[, c$], a voice each. Each pushes its operands,
+/* The speaker's statements compiled: SOUND hertz, ticks; PLAY commands; PLAY a$, b$, ..., a voice each. Each pushes its operands,
  * then an O_SYSCALL of its service (vm/syscalls.def).
  *
  * # asm structure
@@ -12,8 +12,8 @@
 #include "vm/exec.h"
 #include "vm/syscall.h"
 
-/* PLAY's strings at most: PCjr BASIC's three voices */
-enum { PLAY_VOICES = 3 };
+/* PLAY's strings at most: a voice each */
+enum { PLAY_VOICES = 6 };
 
 /* After PLAY (comp.p): its event's ON, OFF or STOP. */
 static bool snds_event(Comp *const C)
@@ -46,21 +46,23 @@ bool snds_stmt(Comp *const C)
             return false;
         }
 
-        expr_compile(C);
-        comp_tostring(C);
-        if (comp_cur(C) != ',') {
+        /* a string a voice; one left out (PLAY , , a$) leaves its voice playing what it was */
+        uint32_t given = 0;
+        for (int32_t voice = 0;; voice++) {
+            if (comp_cur(C) != ',') {
+                expr_compile(C);
+                comp_tostring(C);
+                given |= 1u << voice;
+            }
+            if (comp_cur(C) != ',' || voice + 1 == PLAY_VOICES)
+                break;
+            comp_curn(C);
+        }
+        if (given == 1) {
             comp_byte(comp_op(C, O_SYSCALL), SC_PLAY);
             return true;
         }
-
-        int32_t voices = 1;
-        while (voices < PLAY_VOICES && comp_cur(C) == ',') {
-            comp_curn(C);
-            expr_compile(C);
-            comp_tostring(C);
-            voices++;
-        }
-        comp_int(C, (uint32_t)voices);
+        comp_int(C, given);
         comp_byte(comp_op(C, O_SYSCALL), SC_PLAYV);
         return true;
     }

@@ -7,8 +7,8 @@
    is empty (the last note has begun), music in the background only while it is
    full.
 
-   PLAY a$, b$, c$ (PCjr and Tandy BASIC) plays up to three voices through the
-   synthesizer (dev_voice), each from its own queue; so does one string with a
+   PLAY a$, b$, ... (after PCjr and Tandy BASIC's three) plays up to six voices
+   through the synthesizer (dev_voice), each from its own queue; so does one string with a
    command QB never had: V volume, W wave, Q pulse width, H envelope, Y filter.
    Without them a voice is the speaker, as in QB. */
 #include "music.h"
@@ -49,7 +49,7 @@ typedef struct Player {
     Macro outer[MACRO_NESTING + 1];
     int octave, length, tempo;
     enum Style style;
-    byte synth;     /* the voice is the synthesizer's, else the speaker */
+    byte synth;     /* the first voice is the synthesizer's, else the speaker; the others always are */
     DevVoice sound; /* what its next note sounds like */
 } Player;
 
@@ -128,7 +128,7 @@ static void play_note(Player *p, unsigned voice, int note, long time)
     DevVoice v = p->sound;
 
     v.hertz = note ? frequency(note) : 0;
-    music_queue(voice, p->synth, &v, sounding, time - sounding);
+    music_queue(voice, p->synth || voice > 0, &v, sounding, time - sounding);
 }
 
 static int dots(Player *p)
@@ -324,9 +324,9 @@ static int step(Player *p, unsigned voice)
 /* What PLAY keeps from one use to the next, a voice each: the octave, the length, the tempo, the style, and the sound;
    the first is what SOUND reads. */
 #define FIRST_SOUND {0, DEFAULT_WIDTH, DEFAULT_ENVELOPE, DEFAULT_CUTOFF, DEV_PULSE, DEFAULT_VOLUME, DEV_UNFILTERED, 0, 0, 0}
-#define FIRST_PLAYER(synth) {{0, 0, 0}, {{0, 0, 0}}, DEFAULT_OCTAVE, DEFAULT_LENGTH, DEFAULT_TEMPO, NORMAL, synth, FIRST_SOUND}
 static const DevVoice first_sound = FIRST_SOUND;
-static Player players[DEV_VOICES] = {FIRST_PLAYER(0), FIRST_PLAYER(1), FIRST_PLAYER(1)};
+static Player players[DEV_VOICES] = {
+    [0 ... DEV_VOICES - 1] = {{0, 0, 0}, {{0, 0, 0}}, DEFAULT_OCTAVE, DEFAULT_LENGTH, DEFAULT_TEMPO, NORMAL, 0, FIRST_SOUND}};
 
 /* B$SPLY: PLAY with the string of commands.  What the commands set (the octave,
    the length, the tempo, the style and foreground or background) stays set for
@@ -340,17 +340,19 @@ void B_SPLY(SD *commands)
     str_free_if_tmp(commands);
 }
 
-/* B$SPLYV: PLAY with `count` strings, a voice each, through the synthesizer.  The voices' notes are queued in the
-   order they start, so no voice waits for room while another runs dry. */
+/* B$SPLYV: PLAY with `count` strings, a voice each, through the synthesizer; a null one leaves its voice alone.  The
+   voices' notes are queued in the order they start, so no voice waits for room while another runs dry. */
 void B_SPLYV(SD *const *commands, unsigned count)
 {
     byte more[DEV_VOICES];
     unsigned i;
 
     for (i = 0; i < count; i++) {
+        more[i] = commands[i] != 0;
+        if (!more[i])
+            continue;
         players[i].synth = 1;
         macro_begin(&players[i].m, commands[i]);
-        more[i] = 1;
         music_align(i);
     }
     for (;;) {
@@ -364,7 +366,8 @@ void B_SPLYV(SD *const *commands, unsigned count)
         more[next] = (byte)step(&players[next], next);
     }
     for (i = 0; i < count; i++)
-        str_free_if_tmp(commands[i]);
+        if (commands[i])
+            str_free_if_tmp(commands[i]);
 }
 
 /* RUN: what PLAY set of the synthesizer is undone, so a program sounds as QB's until it sets it again. */
@@ -373,7 +376,7 @@ void music_reset(void)
     unsigned i;
 
     for (i = 0; i < DEV_VOICES; i++) {
-        players[i].synth = i > 0;
+        players[i].synth = 0;
         players[i].sound = first_sound;
     }
 }

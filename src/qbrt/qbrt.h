@@ -146,8 +146,8 @@ void qbrt_clock_set(const PclkTime *t);
    or sounding. */
 void B_SOND(short hertz, float ticks);
 void B_SPLY(QbrtStr *commands);
-/* PLAY a$, b$[, c$]: `count` strings, a voice each (play.c). */
-enum { QBRT_VOICES = 3 };
+/* PLAY a$, b$, ...: `count` strings, a voice each, a null one left alone (play.c). */
+enum { QBRT_VOICES = 6 };
 void B_SPLYV(QbrtStr *const *commands, unsigned count);
 unsigned music_waiting(void);
 /* VARPTR$ of the variable at address of QBasic's type byte type: the type, then the address. */

@@ -59,8 +59,9 @@ def block(label: str) -> str:
 
 
 def evaluate(expr: str, names: dict[str, str]) -> str:
-    """A string expression of literals and string variables joined by +."""
-    return "".join(p[1:-1] if p.startswith('"') else names[p] for p in (x.strip() for x in expr.split("+")))
+    """A string expression of literals and string variables joined by +; nothing for a string left out."""
+    parts = (x.strip() for x in expr.split("+"))
+    return "".join(p[1:-1] if p.startswith('"') else names[p] if p else "" for p in parts)
 
 
 def plays(code: str) -> list[str]:

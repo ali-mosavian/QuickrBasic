@@ -26,14 +26,18 @@ void snd_play(Session *const S)
 
 void snd_play_voices(Session *const S)
 {
-    const int32_t count = exec_popi(&S->vm);
+    const uint32_t given = (uint32_t)exec_popi(&S->vm);
     QbrtStr strings[QBRT_VOICES];
     QbrtStr *commands[QBRT_VOICES];
+    const int32_t count = 32 - __builtin_clz(given);
 
     for (int32_t i = count - 1; i >= 0; i--) {
-        const Desc d = strg_get(&S->strg, exec_popa(&S->vm));
-        strings[i] = (QbrtStr){.len = d.len, .ptr = (char *)at(d.ptr)};
-        commands[i] = &strings[i];
+        commands[i] = nullptr;
+        if (given >> i & 1) {
+            const Desc d = strg_get(&S->strg, exec_popa(&S->vm));
+            strings[i] = (QbrtStr){.len = d.len, .ptr = (char *)at(d.ptr)};
+            commands[i] = &strings[i];
+        }
     }
     B_SPLYV(commands, (unsigned)count);
 }

@@ -1,6 +1,6 @@
 # PLAY: music and sound effects
 
-From zero to a three-voice piece and game effects. Every example runs: paste it into the IDE, press
+From zero to a multi-voice piece and game effects. Every example runs: paste it into the IDE, press
 Shift+F5. [sound.md](sound.md) is the short reference.
 
 ## 1. Notes
@@ -96,10 +96,17 @@ PLAY "T120 O2 L4 W2 Y1,3000 C Y1,1200 C Y1,500 C Y1,200 C"
 PLAY "Y1,800,0 C Y1,800,8 C Y1,800,15 C Y0 V15 C V7 C V3 C"
 ```
 
-## 7. Three voices
+## 7. Several voices
 
-`PLAY a$, b$, c$` plays a voice per string. Each keeps its own tempo, octave, length and sound, so
-set them in every string. `MF`/`MB` apply to all.
+`PLAY a$, b$, ...` plays up to six voices, a string each. Each keeps its own tempo, octave, length
+and sound, so set them in every string. `MF`/`MB` apply to all. A string left out leaves its voice
+alone: `PLAY , , fx$` plays voice 3 only.
+
+Six voices, a C major chord over two octaves:
+
+```basic
+PLAY "L1 W1 V5 O3 C", "L1 W1 V5 O3 E", "L1 W1 V5 O3 G", "L1 W1 V5 O4 C", "L1 W1 V5 O4 E", "L1 W1 V5 O4 G"
+```
 
 Three voices hold a chord each bar:
 
@@ -120,7 +127,7 @@ kick$ = "H0,4,0,3 Y1,300,4 O1 C"
 snare$ = "H0,4,0,4 Y0 O4 C"
 hat$ = "H0,1,0,1 Y3,6000 O6 C"
 bar$ = kick$ + hat$ + snare$ + hat$ + kick$ + hat$ + snare$ + hat$
-PLAY "T130 L8 W3 V8 " + bar$ + bar$, "", ""
+PLAY "T130 L8 W3 V8 " + bar$ + bar$
 ```
 
 **The whole piece.** Melody, bass and drums over C, A minor, F and G. Each string adds up to four
@@ -189,7 +196,7 @@ PLAY "T90 W0 Q30 H2,6,8,8 V10 O3 L8 G F# F E2"
 ```
 
 **Effects over music.** Play the music on voices 1 and 2 in the background; keep voice 3 for
-effects. An empty string leaves a voice alone.
+effects. Leaving the music's strings out leaves the music playing.
 
 ```basic
 tune$ = "T130 O4 L8 W2 H0,5,9,3 V8 E G > C < G E G E C"
@@ -198,8 +205,8 @@ jump$ = "T255 L16 W0 Q25 H0,3,0,1 V10 O3 C E G > C E"
 coin$ = "T255 W0 Q50 H0,6,0,6 V10 O5 L16 B > E4"
 PLAY "MB" + tune$, bass$
 FOR i = 1 TO 3
-    PLAY "", "", jump$
-    PLAY "", "", coin$
+    PLAY , , jump$
+    PLAY , , coin$
 NEXT
 PLAY "MF P64"
 ```
