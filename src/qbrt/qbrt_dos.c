@@ -155,6 +155,8 @@ void qbrt_shot_take(void *const p)
     reg(GC, GC_READ_MAP, 0);
 }
 
+void qbrt_shot_drop(void) {}
+
 void qbrt_shot_show(const void *const p)
 {
     const Shot *const shot = p;

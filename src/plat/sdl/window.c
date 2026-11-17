@@ -6,8 +6,9 @@
  * thread is SDL's: each frame it draws plat/view's frame of the screen. SIGINT and SIGALRM are the
  * IDE thread's, the STOP key and the tick, as on the host; Ctrl+C in the window is SIGINT too.
  * Started from Finder (in /), it works in ~/Documents/QuickrBasic, the demos copied there.
- * A test's: QB_KEYS, BIOS keys in hex, typed at KEYS_FRAMES; QB_SHOT=file, the frame drawn at
- * SHOT_FRAMES to file as a PPM, then exit.
+ * A test's: QB_KEYS, BIOS keys in hex, typed at KEYS_FRAMES, or at frame N as N:key, FFFF the STOP
+ * key; QB_SHOT=file, the frame drawn SHOT_FRAMES after the keys' start, or 30 after the last key,
+ * to file as a PPM, then exit.
  */
 #include <pthread.h>
 #include <signal.h>
@@ -33,6 +34,8 @@ enum {
     START_H = 600,
     KEYS_FRAMES = 60,
     SHOT_FRAMES = 90,
+    SHOT_AFTER = 30,
+    KEY_STOP = 0xFFFF,
 };
 
 static void *run(void *const arg) { exit(qb_main()); }
@@ -40,6 +43,33 @@ static void *run(void *const arg) { exit(qb_main()); }
 static int keys_out = -1;
 
 static void send(const uint16_t key) { (void)!write(keys_out, &key, sizeof key); }
+
+/* QB_KEYS' keys due at frame now typed; the frame of its last. */
+static uint32_t script(const char *k, const uint32_t now)
+{
+    uint32_t last = KEYS_FRAMES;
+
+    while (k && *k) {
+        char *end;
+        uint32_t at = KEYS_FRAMES;
+        unsigned long key = strtoul(k, &end, 16);
+
+        if (*end == ':') {
+            at = (uint32_t)strtoul(k, nullptr, 10);
+            key = strtoul(end + 1, &end, 16);
+        }
+
+        if (at == now && key == KEY_STOP)
+            kill(getpid(), SIGINT);
+        else if (at == now)
+            send((uint16_t)key);
+
+        last = at > last ? at : last;
+        k = *end ? end + 1 : end;
+    }
+
+    return last;
+}
 
 /* The window's mouse: the cell under it, its buttons as INT 33h's (left, right, middle). */
 static void point(SDL_Renderer *const r, SDL_Event *const e, const ViewFrame *const f)
@@ -244,14 +274,9 @@ int sdl_main(void)
 
         f = view_frame(blink, pointer);
 
-        if (++frames == KEYS_FRAMES && getenv("QB_KEYS"))
-            for (const char *k = getenv("QB_KEYS"); *k;) {
-                char *end;
-                send((uint16_t)strtoul(k, &end, 16));
-                k = *end ? end + 1 : end;
-            }
+        const uint32_t last = script(getenv("QB_KEYS"), ++frames);
 
-        if (shot_to && frames == SHOT_FRAMES) {
+        if (shot_to && frames == (last > KEYS_FRAMES ? last + SHOT_AFTER : SHOT_FRAMES)) {
             shot(shot_to, f);
             exit(0);
         }
