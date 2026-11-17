@@ -113,11 +113,22 @@ uint32_t psys_self(char *const buf, const uint32_t cap)
     buf[n] = 0;
     return (uint32_t)n;
 #else
+
     uint32_t size = cap;
 
     if (_NSGetExecutablePath(buf, &size))
         return 0;
 
+    /* in an app: its files are in Contents/Resources, beside Contents/MacOS */
+    static const char code[] = "/Contents/MacOS/", data[] = "/Contents/Resources/";
+    char *const at = strstr(buf, code);
+    const uint32_t n = (uint32_t)strlen(buf);
+
+    if (!at || n + sizeof data - sizeof code >= cap)
+        return n;
+
+    memmove(at + sizeof data - 1, at + sizeof code - 1, strlen(at + sizeof code - 1) + 1);
+    memcpy(at, data, sizeof data - 1);
     return (uint32_t)strlen(buf);
 #endif
 }

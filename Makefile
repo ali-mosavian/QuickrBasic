@@ -26,7 +26,7 @@ DOSBOX_BIN ?= $(DEPS)/dosbox-x
 DOS32A ?= third_party/dos32a
 export JWASM JWLINK DOSBOX_BIN DOS32A
 
-.PHONY: all test host host-test wasm wasm-test web lto format clean
+.PHONY: all test host host-test wasm wasm-test web mac mac-zip mac-test dos-zip lto format clean
 all:
 
 # one run builds both: two would clone into the same directory at once under -j
@@ -76,6 +76,8 @@ CORE_OBJ := $(CORE_C:src/%.c=$(B)/obj/%.obj) $(QBRT_DOS_C:%.c=$(B)/qbrt/%.obj) $
 BASIC_OBJ := $(CORE_OBJ) $(B)/obj/app/basic32.obj
 IDE_OBJ := $(CORE_OBJ) $(UI_C:src/%.c=$(B)/obj/%.obj) $(B)/obj/app/ide32.obj
 DOS_EXE := $(B)/basic32.exe $(B)/ide32.exe $(B)/DOS32A.EXE $(B)/BASIC.HLP
+# the release: the programs by their DOS names, with the games (src/plat/wasm/web/demos)
+DOS_GAMES := src/plat/wasm/web/demos/GORILLA.BAS src/plat/wasm/web/demos/NIBBLES.BAS
 
 all: $(DOS_EXE)
 
@@ -112,6 +114,12 @@ $(B)/DOS32A.EXE: $(DOS32A)/dos32a.exe tools/dos32a_quiet.py
 	$(PY) tools/dos32a_quiet.py $< $@
 $(B)/BASIC.HLP: src/basic.hlp
 	cp $< $@
+dos-zip: $(DOS_EXE) $(DOS_GAMES)
+	mkdir -p $(B)/release
+	cp $(B)/ide32.exe $(B)/release/IDE32.EXE
+	cp $(B)/basic32.exe $(B)/release/BASIC32.EXE
+	cp $(B)/DOS32A.EXE $(B)/BASIC.HLP $(DOS_GAMES) $(B)/release/
+	cd $(B)/release && zip -q -X ../QuickrBasic-dos.zip IDE32.EXE BASIC32.EXE DOS32A.EXE BASIC.HLP GORILLA.BAS NIBBLES.BAS
 
 -include $(shell find $(B) -name '*.d' 2>/dev/null)
 
@@ -156,17 +164,19 @@ QBRT_HOST_INC := -Isrc/qbrt/include $(addprefix -I$(QBRT)/,qb/posix qb qb/dev qb
 # play.c's waits for the tick come to qbrt_idle: BREAK, and the tick in the tests
 QBRT_IDLE := '-DQB_IDLE()=do { extern void qbrt_idle(void); qbrt_idle(); } while (0)'
 
-# host_rules DIR,CFLAGS: the core and the runtime for this machine in DIR, its objects DIR_OBJ
+# host_rules DIR,CFLAGS[,RTFLAGS]: the core and the runtime for this machine in DIR, its objects DIR_OBJ;
+# RTFLAGS the runtime's own and its glue's (src/qbrt)
 define host_rules
 $1/obj/qbrt/%.o: src/qbrt/%.c
 	@mkdir -p $$(@D)
-	$$(HOST_CC) $2 $$(subst -I,-isystem ,$$(QBRT_HOST_INC)) $$(DEPFLAGS) -c $$< -o $$@
+	$$(HOST_CC) $2 $3 $$(subst -I,-isystem ,$$(QBRT_HOST_INC)) $$(DEPFLAGS) -c $$< -o $$@
 $1/obj/%.o: src/%.c
 	@mkdir -p $$(@D)
-	$$(HOST_CC) $2 $$(DEPFLAGS) -c $$< -o $$@
+	$$(HOST_CC) $2 $$(APP_FLAGS) $$(DEPFLAGS) -c $$< -o $$@
 $1/qbrt/%.o: $$(QBRT)/%.c
 	@mkdir -p $$(@D)
-	$$(HOST_CC) $(filter -O%,$2) -std=gnu11 -w -D__cdecl= $$(QBRT_IDLE) $$(QBRT_HOST_INC) $$(DEPFLAGS) -c $$< -o $$@
+	$$(HOST_CC) $(filter -O%,$2) $3 $$(VIEW_REAL) -std=gnu11 -w -D__cdecl= $$(QBRT_IDLE) $$(QBRT_HOST_INC) \
+		$$(DEPFLAGS) -c $$< -o $$@
 $1_OBJ := $$(HOST_C:src/%.c=$1/obj/%.o) $$(QBRT_HOST_C:%.c=$1/qbrt/%.o) $1/obj/qbrt/qbrt.o $1/obj/qbrt/qbrt_host.o
 -include $$(shell find $1 -name '*.d' 2>/dev/null)
 endef
@@ -179,6 +189,48 @@ build/host/basic: $(build/host_OBJ) build/host/obj/app/basic32.o build/host/obj/
 	$(HOST_CC) $^ -lm -o $@
 build/hostperf/basic: $(build/hostperf_OBJ) build/hostperf/obj/app/basic32.o build/hostperf/obj/plat/host/app/insns.o
 	$(HOST_CC) $^ -lm -o $@
+
+# ---- The Mac's: the IDE in a window (SDL 3), build/mac/QuickrBasic.app with SDL in it; mac-zip, the app zipped. The
+# display is plat/view's, as the browser's; wrap.h is ld's --wrap ----
+
+SDL_CFLAGS := $(shell pkg-config --cflags sdl3 2>/dev/null)
+SDL_LIBS := $(shell pkg-config --libs sdl3 2>/dev/null)
+MAC := build/mac
+MAC_CFLAGS := $(filter-out -O1 -DEXEC_COUNT,$(HOST_CFLAGS)) -O2 -mmacosx-version-min=15.0 -DAC=$(AC)
+$(eval $(call host_rules,$(MAC),$(MAC_CFLAGS),-include src/plat/view/wrap.h -DQBRT_SCREEN=1))
+$(MAC)/qbrt/qb/dev/host/video.o: VIEW_REAL := -DVIEW_REAL_TEXT
+$(MAC)/qbrt/qb/dev/headless/headless.o: VIEW_REAL := -DVIEW_REAL_TONE
+$(MAC)/obj/plat/sdl/%.o: APP_FLAGS := $(SDL_CFLAGS)
+$(MAC)/obj/app/ide32.o: APP_FLAGS := -Dmain=qb_main
+MAC_OBJ := $($(MAC)_OBJ) $(patsubst src/%.c,$(MAC)/obj/%.o,$(filter-out src/core/ui/tree.c src/core/ui/indent.c,\
+	$(wildcard src/core/ui/*.c)) $(wildcard src/plat/view/*.c) $(wildcard src/plat/sdl/*.c)) $(MAC)/obj/app/ide32.o
+
+APP := $(MAC)/QuickrBasic.app
+SDL_DYLIB := $(shell pkg-config --variable=libdir sdl3 2>/dev/null)/libSDL3.0.dylib
+DEMOS := $(wildcard src/plat/wasm/web/demos/*.BAS)
+
+mac: $(APP)/Contents/Info.plist
+$(MAC)/QuickrBasic: $(MAC_OBJ) $(MAC)/obj/plat/sdl/app/main.o
+	$(HOST_CC) -mmacosx-version-min=15.0 $^ $(SDL_LIBS) -lm -o $@
+# the bundle: SDL beside the program, both signed ad hoc (Apple silicon runs nothing unsigned); Homebrew's SDL
+# runs on the macOS it was built for, so the app's minimum is CI's (mac.yml)
+$(APP)/Contents/Info.plist: src/plat/sdl/Info.plist $(MAC)/QuickrBasic src/basic.hlp $(DEMOS)
+	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Frameworks $(APP)/Contents/Resources/demos
+	cp $(MAC)/QuickrBasic $(APP)/Contents/MacOS/
+	cp src/basic.hlp $(APP)/Contents/Resources/BASIC.HLP
+	cp $(DEMOS) $(APP)/Contents/Resources/demos/
+	cp -L $(SDL_DYLIB) $(APP)/Contents/Frameworks/libSDL3.0.dylib
+	chmod u+w $(APP)/Contents/Frameworks/libSDL3.0.dylib
+	install_name_tool -id @rpath/libSDL3.0.dylib $(APP)/Contents/Frameworks/libSDL3.0.dylib
+	install_name_tool -change "$$(otool -L $(MAC)/QuickrBasic | awk '/libSDL3/ {print $$1}')" \
+		@executable_path/../Frameworks/libSDL3.0.dylib $(APP)/Contents/MacOS/QuickrBasic
+	codesign --force -s - $(APP)/Contents/Frameworks/libSDL3.0.dylib
+	cp $< $@
+	codesign --force -s - $(APP)
+mac-zip: mac
+	cd $(MAC) && ditto -c -k --keepParent QuickrBasic.app QuickrBasic-mac-arm64.zip
+mac-test: mac
+	$(PY) tools/mac_test.py $(APP)/Contents/MacOS/QuickrBasic
 
 UNIT_OBJ := $(patsubst tests/unit/%.c,build/host/unit/%.o,$(wildcard tests/unit/*.c))
 build/host/unit/%.o: tests/unit/%.c
@@ -204,7 +256,8 @@ WASM_CFLAGS := $(WASM_TARGET) -std=c23 -O2 -g -Wall -Wextra -Wno-unused-paramete
 	-DPFIL_PATH=1024 -DAC=$(AC) -isystem src/plat/wasm/include -isystem src/lib/include -Isrc -Isrc/core
 # -MD, not -MMD: the shim's headers are -isystem, and -MMD leaves those out of the dependencies
 WASM_DEPFLAGS = -MD -MP -MF $@.d -MT $@
-WASM_C := $(filter-out src/plat/host/%,$(HOST_C)) $(addprefix src/plat/host/,pclk.c pfil.c pfpu.c pkey.c pscr.c ports.c) $(wildcard src/plat/wasm/*.c)
+WASM_C := $(filter-out src/plat/host/%,$(HOST_C)) $(addprefix src/plat/host/,pclk.c pfil.c pfpu.c pkey.c pscr.c ports.c) $(wildcard src/plat/wasm/*.c) \
+	$(wildcard src/plat/view/*.c)
 WASM_QBRT_C := $(filter-out shared/posix/os.c,$(QBRT_HOST_C))
 WASM_OBJ := $(WASM_C:src/%.c=build/wasm/obj/%.o) $(WASM_QBRT_C:%.c=build/wasm/qbrt/%.o) build/wasm/obj/qbrt/qbrt.o \
 	build/wasm/obj/qbrt/qbrt_wasm.o

@@ -1286,15 +1286,15 @@ static void loop(Session *const S)
 static void load_help(void)
 {
     static const char file[] = "BASIC.HLP";
-    char name[160];
+    char name[PFIL_PATH];
     const uint32_t n = psys_self(name, sizeof name - sizeof file);
 
     if (!n)
         return;
 
-    uint32_t dir = 0; /* past the last '\' */
+    uint32_t dir = 0; /* past the last '\' (the host's '/') */
     for (uint32_t i = 0; i < n; i++)
-        if (name[i] == '\\')
+        if (name[i] == '\\' || name[i] == '/')
             dir = i + 1;
 
     memcpy(name + dir, file, sizeof file);

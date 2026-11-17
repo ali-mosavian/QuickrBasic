@@ -1,10 +1,11 @@
-/* The host's terminal as the keyboard.
+/* The host's terminal as the keyboard, and a window's keys.
  *
  * # How it works
  * Only when host_term_open is called, by the interactive binary (app/term.c), and standard input is
  * a terminal; else the keys come from the tests' queue (pkey.c). The terminal is non-canonical
  * without echo, SIGINT kept as the STOP key (psys.c). A key's escape sequence becomes its BIOS scan
- * code; Ctrl+D, the terminal's end of input, exits.
+ * code (ttyin.c); Ctrl+D, the terminal's end of input, exits. A window's keys come down a pipe
+ * (host_term_feed), already BIOS keys, its shift flags beside them; its pipe closed, the window is.
  */
 #include <errno.h>
 #include <poll.h>
@@ -13,12 +14,18 @@
 #include <unistd.h>
 #include "plat/host/host.h"
 
-enum { ESC_WAIT_MS = 30, CTRL_D = 4, BROKEN = -2 };
+enum { ESC_WAIT_MS = 30, CTRL_D = 4, BROKEN = -2, INCOMPLETE = -3 };
 
 static struct {
     bool on;
     struct termios saved, raw;
-} term;
+    int feed;        /* the window's keys' pipe, -1 none */
+    uint8_t shift;   /* the shift flags */
+    TtyIn in;        /* the terminal's input's state */
+    uint8_t buf[64]; /* its bytes read, n of them, not yet taken */
+    uint32_t n;
+    int32_t pending; /* a key read ahead (host_term_ready), -1 none */
+} term = {.feed = -1, .pending = -1};
 
 static void restore(void) { tcsetattr(STDIN_FILENO, TCSANOW, &term.saved); }
 
@@ -46,125 +53,144 @@ void host_term_pause(const bool yes)
         tcsetattr(STDIN_FILENO, TCSANOW, yes ? &term.saved : &term.raw);
 }
 
-bool host_term_on(void) { return term.on; }
-uint8_t host_term_shift(void) { return 0; }
-
-/* The next byte, waited for at most ms (-1 for ever); -1 none, BROKEN on SIGINT. Other signals
-   (the runtime's) interrupt the wait too: it goes on. */
-static int32_t byte_in(const int32_t ms)
+void host_term_feed(const int fd) { term.feed = fd; }
+void host_term_set_shift(const uint8_t flags)
 {
-    struct pollfd p = {.fd = STDIN_FILENO, .events = POLLIN};
+    __atomic_store_n(&term.shift, flags, __ATOMIC_RELAXED);
+}
+
+bool host_term_on(void) { return term.on || term.feed >= 0; }
+bool host_term_window(void) { return term.feed >= 0; }
+uint8_t host_term_shift(void) { return __atomic_load_n(&term.shift, __ATOMIC_RELAXED); }
+
+enum { TTY, FEED };
+
+/* Which of the terminal and the pipe has input, waited for at most ms (-1 for ever); -1 neither,
+   BROKEN on SIGINT. Other signals (the runtime's) interrupt the wait too: it goes on. */
+static int32_t wait_in(const int32_t ms)
+{
+    struct pollfd p[] = {
+        {.fd = term.on ? STDIN_FILENO : -1, .events = POLLIN},
+        {.fd = term.feed, .events = POLLIN},
+    };
 
     int r;
-    uint8_t b;
 
-    while ((r = poll(&p, 1, ms)) < 0 && errno == EINTR)
+    while ((r = poll(p, 2, ms)) < 0 && errno == EINTR)
         if (host_stop_taken())
             return BROKEN;
 
-    if (r <= 0 || read(STDIN_FILENO, &b, 1) != 1)
+    if (r <= 0)
         return -1;
 
-    return b;
+    return p[FEED].revents ? FEED : TTY;
+}
+
+/* The terminal's bytes to term.buf, waited for at most ms first; false at its end. */
+static bool fill(const int32_t ms)
+{
+    struct pollfd p = {.fd = STDIN_FILENO, .events = POLLIN};
+
+    if (term.n == sizeof term.buf || poll(&p, 1, ms) <= 0)
+        return true;
+
+    const ssize_t r = read(STDIN_FILENO, term.buf + term.n, sizeof term.buf - term.n);
+
+    if (r <= 0)
+        return false;
+
+    term.n += (uint32_t)r;
+    return true;
+}
+
+/* The first event of term.buf taken (final: no more bytes are coming): the mouse and the shift
+   flags set; a key returned, else -1; INCOMPLETE, the bytes may go on. */
+static int32_t event(const bool final)
+{
+    TtyEvent e;
+    const uint32_t used = tty_parse(&term.in, term.buf, term.n, final, &e);
+
+    if (!used)
+        return INCOMPLETE;
+
+    __builtin_memmove(term.buf, term.buf + used, term.n - used);
+    term.n -= used;
+    host_term_set_shift(e.flags);
+
+    if (e.kind == TTY_MOUSE)
+        host_mouse_set(e.row, e.col, e.buttons);
+
+    return e.kind == TTY_KEY ? e.key : -1;
+}
+
+/* One event from the terminal, read for at most ms: its key, else -1. One at a time, so the shift
+   flags between two are seen (an Alt pressed, then let go). Ctrl+D, or the terminal's end, exits. */
+static int32_t tty_step(const int32_t ms)
+{
+    if (!term.n && !fill(ms))
+        exit(0);
+
+    if (!term.n)
+        return -1;
+
+    if (term.buf[0] == CTRL_D)
+        exit(0);
+
+    int32_t k;
+
+    while ((k = event(false)) == INCOMPLETE) {
+        const uint32_t had = term.n;
+
+        if (!fill(ESC_WAIT_MS))
+            exit(0);
+
+        if (term.n == had) /* no more came: an ESC alone is Esc */
+            return event(true);
+    }
+
+    return k;
 }
 
 bool host_term_ready(void)
 {
-    struct pollfd p = {.fd = STDIN_FILENO, .events = POLLIN};
+    if (term.pending >= 0)
+        return true;
 
-    return poll(&p, 1, 0) > 0;
-}
+    struct pollfd p = {.fd = term.feed, .events = POLLIN};
 
-/* An escape sequence's key past ESC: scan code << 8; ESC alone, 011Bh. */
-static uint16_t escaped(void)
-{
-    static const struct {
-        uint8_t n;
-        uint16_t key;
-    } tilde[] = {
-        {1, 0x4700},
-        {2, 0x5200},
-        {3, 0x5300},
-        {4, 0x4F00},
-        {5, 0x4900},
-        {6, 0x5100},
-        {15, 0x3F00},
-        {17, 0x4000},
-        {18, 0x4100},
-        {19, 0x4200},
-        {20, 0x4300},
-        {21, 0x4400},
-    };
+    if (term.feed >= 0 && poll(&p, 1, 0) > 0)
+        return true;
 
-    const int32_t b = byte_in(ESC_WAIT_MS);
+    if (term.on)
+        term.pending = tty_step(0);
 
-    if (b == 'O') { /* F1 .. F4 */
-        const int32_t c = byte_in(ESC_WAIT_MS);
-        return c >= 'P' && c <= 'S' ? (uint16_t)((0x3B + c - 'P') << 8) : 0x011B;
-    }
-
-    if (b != '[')
-        return 0x011B;
-
-    uint32_t n = 0;
-    int32_t c;
-
-    while ((c = byte_in(ESC_WAIT_MS)) >= '0' && c <= '9')
-        n = n * 10 + (uint32_t)(c - '0');
-
-    switch (c) {
-    case 'A':
-        return 0x4800;
-
-    case 'B':
-        return 0x5000;
-
-    case 'C':
-        return 0x4D00;
-
-    case 'D':
-        return 0x4B00;
-
-    case 'H':
-        return 0x4700;
-
-    case 'F':
-        return 0x4F00;
-
-    case '~':
-        for (uint32_t i = 0; i < sizeof tilde / sizeof tilde[0]; i++)
-            if (tilde[i].n == n)
-                return tilde[i].key;
-    }
-
-    return 0x011B;
+    return term.pending >= 0;
 }
 
 uint16_t host_term_key(void)
 {
-    const int32_t b = byte_in(-1);
+    for (;;) {
+        if (term.pending >= 0) {
+            const uint16_t k = (uint16_t)term.pending;
+            term.pending = -1;
+            return k;
+        }
 
-    switch (b) {
-    case BROKEN:
-        return 0; /* Ctrl+Break */
-    case -1:
-    case CTRL_D:
-        exit(0);
-    case 0x1B:
-        return escaped();
+        const int32_t from = term.n ? TTY : wait_in(-1);
 
-    case '\r':
-    case '\n':
-        return 0x1C0D;
+        if (from == BROKEN)
+            return 0; /* Ctrl+Break */
 
-    case 0x7F:
-    case 0x08:
-        return 0x0E08;
+        if (from == FEED) {
+            uint16_t key;
 
-    case '\t':
-        return 0x0F09;
+            if (read(term.feed, &key, sizeof key) != sizeof key)
+                exit(0);
 
-    default:
-        return (uint16_t)b;
+            return key;
+        }
+
+        if (from == TTY)
+            term.pending = tty_step(0);
     }
 }

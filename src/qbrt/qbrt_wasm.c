@@ -50,12 +50,6 @@ int32_t llrm_os_write_file(const int handle, const unsigned char *const data, co
 
 void llrm_os_exit(const unsigned char code) { psys_exit(code); }
 
-/* The program's graphics screen kept while the editor shows: the runtime's framebuffer is not the
-   text pages', so nothing is copied; the display shows the text instead (frame.c). */
-uint32_t qbrt_shot_size(void) { return 1; }
-void qbrt_shot_take(void *const shot) { wasm_text_shown = true; }
-void qbrt_shot_show(const void *const shot) { wasm_text_shown = false; }
-
 /* The speaker: each tone to the page as well (--wrap). */
 void __real_dev_tone(unsigned hertz);
 
