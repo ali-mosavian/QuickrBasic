@@ -13,13 +13,15 @@ PscrCell host_cell(uint8_t page, uint8_t row, uint8_t col);
    (6 bits a channel, as pscr_palette's). */
 typedef struct {
     const PscrCell *cells;
-    uint8_t page, rows, row, col;
+    uint8_t page, rows, cols, row, col;
     uint16_t shape;
     uint8_t palette[48];
 } HostScreen;
 HostScreen host_screen(void);
 /* The same of a page, shown or not. */
 HostScreen host_screen_of(uint8_t page);
+/* The display's own size (a terminal's), which pscr_text then takes: rows by cols. */
+void host_text_fit(uint8_t rows, uint8_t cols);
 
 /* The terminal as the keyboard, if standard input is one (pterm.c); on, a key is waiting, the next
    key (scan code << 8 | character; 0 Ctrl+Break). */

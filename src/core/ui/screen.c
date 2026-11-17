@@ -20,16 +20,13 @@
 #include "ui/theme.h"
 #include "plat/pscr.h"
 
-static PscrCell cells[PSCR_ROWS_MAX * PSCR_COLS]; /* the screen as drawn, then shown */
-static uint8_t rows = 25;                         /* the screen's (scrn_size) */
+static PscrCell cells[PSCR_ROWS_MAX * PSCR_COLS_MAX]; /* the screen as drawn, then shown */
+static uint8_t rows = 25, width = PSCR_COLS;          /* the screen's (scrn_size) */
 
 enum { SHADOW_COLS = 2 }; /* a shadow's columns right of a box */
 enum { LIGHT_GRAY = 0x07, DARK_GRAY = 0x08 };
 
-static PscrCell *cell(const uint8_t row, const uint8_t col)
-{
-    return &cells[row * PSCR_COLS + col];
-}
+static PscrCell *cell(const uint8_t row, const uint8_t col) { return &cells[row * width + col]; }
 static PscrCell make(const uint8_t ch, const uint8_t attr) { return (PscrCell)(attr << 8 | ch); }
 
 uint8_t scrn_fill(
@@ -180,28 +177,32 @@ void scrn_shadow(const uint8_t row, const uint8_t col, const uint8_t rows, const
     const uint8_t right = col + cols;
     uint8_t left = rows; /* rows 0: 256 */
     for (uint8_t r = row + 1; r < rows; r++) {
-        if (right < PSCR_COLS)
-            scrn_attr(r, right, right == PSCR_COLS - 1 ? 1 : SHADOW_COLS, SL_SHD);
+        if (right < width)
+            scrn_attr(r, right, right == width - 1 ? 1 : SHADOW_COLS, SL_SHD);
         if (!--left)
             break;
     }
 
     const uint8_t below = row + rows, from = col + SHADOW_COLS;
 
-    if (below >= rows || from >= PSCR_COLS)
+    if (below >= rows || from >= width)
         return;
 
-    scrn_attr(below, from, cols < PSCR_COLS - from ? cols : PSCR_COLS - from, SL_SHD);
+    scrn_attr(below, from, cols < width - from ? cols : width - from, SL_SHD);
 }
 
 void scrn_cursor(const uint8_t row, const uint8_t col) { pscr_cursor(0, row, col); }
 
 void scrn_shape(const uint16_t lines) { pscr_shape(lines); }
 
-void scrn_size(const uint8_t n) { rows = n; }
+void scrn_size(const uint8_t n, const uint8_t cols)
+{
+    rows = n;
+    width = cols;
+}
 
 void scrn_flip(void)
 {
     pscr_retrace();
-    pscr_put(0, 0, 0, cells, rows * PSCR_COLS);
+    pscr_put(0, 0, 0, cells, rows * width);
 }

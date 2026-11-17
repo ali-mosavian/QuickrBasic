@@ -1,12 +1,14 @@
 /* The editor's page (page 0) in the terminal: its cells in CP437's glyphs as UTF-8, its 16 colours
  * as 24-bit ones, on the terminal's alternate screen; each draw writes only the cells that changed,
- * all of them after a change of rows or colours. The terminal needs 80 columns and the rows. */
+ * all of them after a change of size or colours. The screen is the terminal's size (host_text_fit),
+ * 80 by 25 at least. */
 #include <stdlib.h>
+#include <sys/ioctl.h>
 #include <unistd.h>
 #include "plat/host/host.h"
 #include "sdl.h"
 
-enum { PAGE_EDIT = 0, OUT_CAP = 1 << 18 };
+enum { PAGE_EDIT = 0, OUT_CAP = 1 << 20, ROWS_MIN = 25 };
 
 /* CP437 past ASCII's printable half: 00h..1Fh, 7Fh..FFh. */
 static const char *const low = " ☺☻♥♦♣♠•◘○◙♂♀♪♫☼►◄↕‼¶§▬↨↑↓→←∟↔▲▼";
@@ -17,8 +19,9 @@ static const char *const high =
 static struct {
     uint8_t bytes[256]; /* each code's UTF-8's length, in utf8 */
     char utf8[256 * 4];
-    PscrCell last[PSCR_ROWS_MAX * PSCR_COLS];
-    uint8_t rows, palette[48];
+    PscrCell last[PSCR_ROWS_MAX * PSCR_COLS_MAX];
+    uint8_t rows, cols, palette[48];
+    uint32_t size;  /* the terminal's, as host_text_fit was given it */
     int32_t cursor; /* where the terminal's is, row << 8 | col; -1 hidden */
     char out[OUT_CAP];
     uint32_t n;
@@ -96,8 +99,30 @@ static void restore(void)
     flush();
 }
 
+/* The terminal's size, within what the screen can be, to pscr_text when it changed. */
+static void fit(void)
+{
+    struct winsize w;
+
+    if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &w) || !w.ws_row || !w.ws_col)
+        return;
+
+    const uint32_t rows = w.ws_row < ROWS_MIN        ? ROWS_MIN
+                          : w.ws_row > PSCR_ROWS_MAX ? PSCR_ROWS_MAX
+                                                     : w.ws_row;
+    const uint32_t cols = w.ws_col < PSCR_COLS       ? PSCR_COLS
+                          : w.ws_col > PSCR_COLS_MAX ? PSCR_COLS_MAX
+                                                     : w.ws_col;
+
+    if ((rows << 8 | cols) != ansi.size) {
+        ansi.size = rows << 8 | cols;
+        host_text_fit((uint8_t)rows, (uint8_t)cols);
+    }
+}
+
 void sdl_ansi_open(void)
 {
+    fit();
     glyphs(low, 0, 32);
 
     for (uint32_t c = 32; c < 127; c++) {
@@ -113,12 +138,14 @@ void sdl_ansi_open(void)
 
 void sdl_ansi_draw(void)
 {
+    fit();
     const HostScreen s = host_screen_of(PAGE_EDIT);
-    const bool all =
-        s.rows != ansi.rows || __builtin_memcmp(s.palette, ansi.palette, sizeof ansi.palette);
+    const bool all = s.rows != ansi.rows || s.cols != ansi.cols ||
+                     __builtin_memcmp(s.palette, ansi.palette, sizeof ansi.palette);
 
     if (all) {
         ansi.rows = s.rows;
+        ansi.cols = s.cols;
         __builtin_memcpy(ansi.palette, s.palette, sizeof ansi.palette);
         puts_("\x1b[2J");
     }
@@ -128,8 +155,8 @@ void sdl_ansi_draw(void)
     for (uint32_t row = 0; row < s.rows; row++) {
         bool placed = false;
 
-        for (uint32_t col = 0; col < PSCR_COLS; col++) {
-            const uint32_t i = row * PSCR_COLS + col;
+        for (uint32_t col = 0; col < s.cols; col++) {
+            const uint32_t i = row * s.cols + col;
             const PscrCell c = s.cells[i];
 
             if (!all && c == ansi.last[i]) {

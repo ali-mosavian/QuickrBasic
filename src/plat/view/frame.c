@@ -53,7 +53,8 @@ static void graphics(void)
 
 static void text(const HostScreen s, const bool blink, const bool cursor, const ViewPointer pointer)
 {
-    const uint32_t ch = s.rows == 25 ? 16 : 8;
+    const uint32_t rows = s.rows < 50 ? s.rows : 50, cols = s.cols < PSCR_COLS ? s.cols : PSCR_COLS;
+    const uint32_t ch = rows == 25 ? 16 : 8;
     const unsigned char *const font = ch == 16 ? qb_vga_font_16 : qb_vga_font_8;
     uint32_t colours[16];
 
@@ -61,13 +62,13 @@ static void text(const HostScreen s, const bool blink, const bool cursor, const 
         colours[i] =
             rgba(eight(s.palette[i * 3]), eight(s.palette[i * 3 + 1]), eight(s.palette[i * 3 + 2]));
 
-    out.width = PSCR_COLS * CELL_W;
-    out.height = s.rows * ch;
+    out.width = cols * CELL_W;
+    out.height = rows * ch;
     out.cell_h = ch;
 
-    for (uint32_t row = 0; row < s.rows; row++)
-        for (uint32_t col = 0; col < PSCR_COLS; col++) {
-            const PscrCell c = s.cells[row * PSCR_COLS + col];
+    for (uint32_t row = 0; row < rows; row++)
+        for (uint32_t col = 0; col < cols; col++) {
+            const PscrCell c = s.cells[row * s.cols + col];
             const bool under = pointer.shown && row == pointer.row && col == pointer.col;
             const uint8_t attr = (uint8_t)(c >> 8) ^ (under ? POINTER : 0);
             const uint32_t bg = colours[attr >> 4 & 7];
@@ -85,12 +86,12 @@ static void text(const HostScreen s, const bool blink, const bool cursor, const 
             }
         }
 
-    if (!blink || !cursor || s.shape & PSCR_HIDDEN || s.row >= s.rows || s.col >= PSCR_COLS)
+    if (!blink || !cursor || s.shape & PSCR_HIDDEN || s.row >= rows || s.col >= cols)
         return;
 
     /* the shape's lines are a CGA cell's, of 8: the VGA scales them to its cell */
     const uint32_t first = (s.shape >> 8 & 7) * ch / 8, last = ((s.shape & 7) + 1) * ch / 8;
-    const uint32_t fg = colours[s.cells[s.row * PSCR_COLS + s.col] >> 8 & 15];
+    const uint32_t fg = colours[s.cells[s.row * s.cols + s.col] >> 8 & 15];
 
     for (uint32_t line = first; line < last && line < ch; line++)
         for (uint32_t bit = 0; bit < CELL_W; bit++)

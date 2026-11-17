@@ -47,6 +47,9 @@ enum : uint8_t {
     STATUS_POS_COL = 70,
 };
 
+/* col80, a column of the status bar on 80 columns: as far from the right edge on uimn.cols. */
+static uint8_t right(const uint8_t col80) { return (uint8_t)(uimn.cols - PSCR_COLS + col80); }
+
 static const char u_imm[] = "Immediate";
 static const char u_f1[] = "F1=Help \xB3 ", u_f1s[] = "F1=Help   ";
 
@@ -84,7 +87,8 @@ void draw_edit_cursor(Widget *const w)
 void draw_imm_cursor(Widget *const w)
 {
     shape();
-    const uint16_t col = uimn.immline.col < ED_COLS - 1 ? uimn.immline.col : ED_COLS - 1;
+    const uint16_t last = (uint16_t)(uimn.cols - 3);
+    const uint16_t col = uimn.immline.col < last ? uimn.immline.col : last;
     scrn_cursor((uint8_t)(uimn.imm.cur - uimn.imm.top + uimn.imm.row0), (uint8_t)(col + 1));
 }
 
@@ -287,7 +291,7 @@ void draw_imm(void)
     draw_title(
         (uint8_t)(im->row0 - 1),
         0,
-        PSCR_COLS,
+        uimn.cols,
         GLYPH_V_RIGHT,
         GLYPH_V_LEFT,
         u_imm,
@@ -307,9 +311,10 @@ void draw_imm(void)
         scrn_fill(row, 0, SL_ED, GLYPH_V, 1);
         uint16_t all;
         const uint8_t *const src = imm_line(im->top + r, &all);
-        const uint16_t len = all < ED_COLS ? all : ED_COLS;
+        const uint16_t cols = (uint16_t)(uimn.cols - 2);
+        const uint16_t len = all < cols ? all : cols;
         uint8_t c = scrn_strn(row, 1, src, len, SL_ED);
-        c = scrn_fill(row, c, SL_ED, ' ', ED_COLS - len);
+        c = scrn_fill(row, c, SL_ED, ' ', cols - len);
         scrn_fill(row, c, SL_ED, GLYPH_V, 1);
     } while (++r < im->rows);
 }
@@ -343,20 +348,32 @@ static bool status_left(void)
 
     const char *const f1 = help == uimn_menu_help || help == uimn_dlog_help ? u_f1s : u_f1;
     const uint8_t c = scrn_str(status_row(), 1, f1, SL_STAT, SL_STAT); /* F1=Help and a bar */
-    return scrn_str(status_row(), c, help, SL_STAT, SL_STAT) <= STATUS_BAR_COL;
+    return scrn_str(status_row(), c, help, SL_STAT, SL_STAT) <= right(STATUS_BAR_COL);
 }
 
 /* ^Q pending, Caps Lock, Num Lock. */
 static void status_flags(void)
 {
     if (uimn.ed.prefix) {
-        scrn_fill(status_row(), STATUS_PREFIX_COL, SL_STAT, '^', 1);
-        scrn_fill(status_row(), STATUS_PREFIX_COL + 1, SL_STAT, 'Q', 1);
+        scrn_fill(status_row(), right(STATUS_PREFIX_COL), SL_STAT, '^', 1);
+        scrn_fill(status_row(), right(STATUS_PREFIX_COL + 1), SL_STAT, 'Q', 1);
     } else
-        scrn_fill(status_row(), STATUS_PREFIX_COL, SL_STAT, ' ', 2);
+        scrn_fill(status_row(), right(STATUS_PREFIX_COL), SL_STAT, ' ', 2);
 
-    scrn_fill(status_row(), STATUS_CAPS_COL, SL_STAT, uimn.keyflags & PKEY_CAPS ? 'C' : ' ', 1);
-    scrn_fill(status_row(), STATUS_NUM_COL, SL_STAT, uimn.keyflags & PKEY_NUM ? 'N' : ' ', 1);
+    scrn_fill(
+        status_row(),
+        right(STATUS_CAPS_COL),
+        SL_STAT,
+        uimn.keyflags & PKEY_CAPS ? 'C' : ' ',
+        1
+    );
+    scrn_fill(
+        status_row(),
+        right(STATUS_NUM_COL),
+        SL_STAT,
+        uimn.keyflags & PKEY_NUM ? 'N' : ' ',
+        1
+    );
 }
 
 /* The cursor's line:column. */
@@ -368,17 +385,23 @@ static void status_pos(void)
     const uint32_t col = uimn.edline.col + 1u;
     const bool wide = (uint16_t)col >= 1000; /* past 999: 5 digits, 2 columns left */
     *decimal(p + 1, col, wide ? 5 : 3) = 0;
-    scrn_str(status_row(), wide ? STATUS_POS_COL - 2 : STATUS_POS_COL, pos, SL_STAT, SL_STAT);
+    scrn_str(
+        status_row(),
+        right(wide ? STATUS_POS_COL - 2 : STATUS_POS_COL),
+        pos,
+        SL_STAT,
+        SL_STAT
+    );
 }
 
 void draw_status(void)
 {
-    scrn_fill(status_row(), 0, SL_STAT, ' ', PSCR_COLS);
+    scrn_fill(status_row(), 0, SL_STAT, ' ', uimn.cols);
 
     if (!status_left())
         return;
 
-    scrn_fill(status_row(), STATUS_BAR_COL, SL_STAT, GLYPH_V, 1);
+    scrn_fill(status_row(), right(STATUS_BAR_COL), SL_STAT, GLYPH_V, 1);
     status_flags();
     status_pos();
 }

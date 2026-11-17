@@ -173,6 +173,11 @@ static uint16_t wait_key(void)
             return key_of(pkey_read());
         if (mous_poll())
             return KEY_MOUSE;
+        if (!pscr_fits(uimn.rows, uimn.cols)) {
+            uimn_rows(uimn.rows);
+            return KEY_RESIZE;
+        }
+
         if (pkey_shift() & PKEY_ALT) {
             if (ui.alt == ALT_NONE)
                 ui.alt = ALT_DOWN;
@@ -772,7 +777,10 @@ static void file_exit(Session *const S)
 static void view_output(Session *const S)
 {
     upag_out(S);
-    uimn_getkey();
+
+    while (uimn_getkey() == KEY_RESIZE)
+        ;
+
     upag_in(S);
 }
 
@@ -1269,6 +1277,9 @@ static void loop(Session *const S)
         const uint16_t key = uimn_getkey();
         uimn.mouse.hover = false;
 
+        if (key == KEY_RESIZE)
+            continue;
+
         if (key != KEY_MOUSE)
             uimn.tip_mouse = false; /* a key: the tooltip by the cursor */
 
@@ -1345,7 +1356,7 @@ static void build_tree(void)
         const WidgetOps *ops;
         Rect rect;
     } tree[] = {
-        {&uimn.tree.menubar, &uimn.tree.screen, &menubar_ops, {0, 0, 1, PSCR_COLS}},
+        {&uimn.tree.menubar, &uimn.tree.screen, &menubar_ops, {}},     /* sized by uimn_rows */
         {&uimn.tree.workspace, &uimn.tree.screen, &workspace_ops, {}}, /* sized by uimn_rows */
         {&uimn.tree.statusbar, &uimn.tree.screen, &statusbar_ops, {}},
         {&uimn.tree.editors, &uimn.tree.workspace, nullptr, {}},
@@ -1377,6 +1388,9 @@ void uimn_modal(Session *const S, Widget *const w)
         draw_all(S);
         const uint16_t key = uimn_getkey();
 
+        if (key == KEY_RESIZE)
+            continue;
+
         if (key == KEY_MOUSE) {
             if (!wind_drag())
                 tree_mouse(&uimn.tree.screen, S, uimn.mouse.row, uimn.mouse.col);
@@ -1389,6 +1403,7 @@ void uimn_modal(Session *const S, Widget *const w)
 static void init(Session *const S)
 {
     uimn.rows = 25; /* till uimn_rows */
+    uimn.cols = PSCR_COLS;
     build_tree();
     uimn.on = true;
     LineBuf *const lines[] = {&uimn.edline, &uimn.line, &uimn.build};
@@ -1452,13 +1467,19 @@ static uint16_t cmdline_file(bool *const most)
 void uimn_rows(const uint8_t rows)
 {
     uimn.rows = pscr_text(rows);
+    uimn.cols = pscr_cols();
     them_in(); /* the mode's change loaded VGA's colours */
-    scrn_size(uimn.rows);
-    uimn.tree.screen.rect = (Rect){0, 0, uimn.rows, PSCR_COLS};
+    scrn_size(uimn.rows, uimn.cols);
+    uimn.tree.screen.rect = (Rect){0, 0, uimn.rows, uimn.cols};
 
-    uimn.tree.workspace.rect = (Rect){1, 0, win_rows(), PSCR_COLS};
+    uimn.tree.menubar.rect = (Rect){0, 0, 1, uimn.cols};
 
-    uimn.tree.statusbar.rect = (Rect){status_row(), 0, 1, PSCR_COLS};
+    uimn.tree.workspace.rect = (Rect){1, 0, win_rows(), uimn.cols};
+
+    uimn.tree.statusbar.rect = (Rect){status_row(), 0, 1, uimn.cols};
+
+    if (uimn.dp_col > uimn.cols - DP_PANEMIN)
+        uimn.dp_col = uimn.cols - DP_PANEMIN;
 
     wind_fit();
 }
