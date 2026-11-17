@@ -1,8 +1,9 @@
-"""The Mac's window (plat/sdl), drawn off-screen: python3 tools/mac_test.py QUICKRBASIC.
+"""The Mac's window (plat/sdl), drawn off-screen: python3 tools/mac_test.py QUICKRBASIC [ARCH].
 
 The program is opened, the frame QB_SHOT writes is read back: the editor's screen at the VGA's
 720x400, its menu bar grey, the program's window blue, its text on it. With Alt+F typed (QB_KEYS),
-the File menu's help line is on the status bar: BASIC.HLP was found, in the app's Resources.
+the File menu's help line is on the status bar: BASIC.HLP was found, in the app's Resources. ARCH:
+the universal binary's half run (arch -ARCH), the machine's own if none.
 """
 
 import os
@@ -14,7 +15,7 @@ from pathlib import Path
 GREY, BLUE = (0xAA, 0xAA, 0xAA), (0x00, 0x00, 0xAA)
 
 
-def frame(binary: Path, program: Path, keys: str = "") -> tuple[int, int, bytes]:
+def frame(run: list[str], program: Path, keys: str = "") -> tuple[int, int, bytes]:
     with tempfile.TemporaryDirectory() as tmp:
         shot = Path(tmp) / "shot.ppm"
         # by its name: the editor's file field takes a DOS-length path, not a temporary one
@@ -24,7 +25,7 @@ def frame(binary: Path, program: Path, keys: str = "") -> tuple[int, int, bytes]
             "SDL_VIDEO_DRIVER": "offscreen",
             "SDL_AUDIO_DRIVER": "dummy",
         }
-        subprocess.run([binary, program.name], env=env, timeout=30, check=True, cwd=program.parent)
+        subprocess.run([*run, program.name], env=env, timeout=30, check=True, cwd=program.parent)
         data = shot.read_bytes()
     head, pixels = data.split(b"\n", 1)
     _, w, h, _ = head.split()
@@ -40,8 +41,10 @@ def main() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         program = Path(tmp) / "HELLO.BAS"
         program.write_text('PRINT "HELLO"\n')
-        w, h, pixels = frame(Path(sys.argv[1]).resolve(), program)
-        _, _, menu = frame(Path(sys.argv[1]).resolve(), program, "2100")
+        binary = str(Path(sys.argv[1]).resolve())
+        run = ["arch", f"-{sys.argv[2]}", binary] if len(sys.argv) > 2 else [binary]
+        w, h, pixels = frame(run, program)
+        _, _, menu = frame(run, program, "2100")
     status = {pixel(w, menu, x, 392) for x in range(9 * 30, 9 * 60)}
     checks = {
         "720x400": (w, h) == (720, 400),
@@ -51,7 +54,7 @@ def main() -> None:
         "File's help line": len(status) > 1,
     }
     failed = [name for name, ok in checks.items() if not ok]
-    print("mac " + ("ok" if not failed else "FAIL " + ", ".join(failed)))
+    print(f"mac {sys.argv[2] if len(sys.argv) > 2 else ''} " + ("ok" if not failed else "FAIL " + ", ".join(failed)))
     sys.exit(1 if failed else 0)
 
 

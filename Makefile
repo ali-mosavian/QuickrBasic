@@ -190,47 +190,47 @@ build/host/basic: $(build/host_OBJ) build/host/obj/app/basic32.o build/host/obj/
 build/hostperf/basic: $(build/hostperf_OBJ) build/hostperf/obj/app/basic32.o build/hostperf/obj/plat/host/app/insns.o
 	$(HOST_CC) $^ -lm -o $@
 
-# ---- The Mac's: the IDE in a window (SDL 3), build/mac/QuickrBasic.app with SDL in it; mac-zip, the app zipped. The
-# display is plat/view's, as the browser's; wrap.h is ld's --wrap ----
+# ---- The Mac's: the IDE in a window, build/mac/QuickrBasic.app, universal (arm64 and x86-64, macOS 13 on); mac-zip,
+# the app zipped. SDL 3 is linked in, built by tools/deps.sh sdl. The display is plat/view's, as the browser's; wrap.h
+# is ld's --wrap ----
 
-SDL_CFLAGS := $(shell pkg-config --cflags sdl3 2>/dev/null)
-SDL_LIBS := $(shell pkg-config --libs sdl3 2>/dev/null)
+SDL_DIR := build/deps/sdl3
+SDL_LIB := $(SDL_DIR)/lib/libSDL3.a
+$(SDL_LIB): tools/deps.sh
+	sh tools/deps.sh sdl
+SDL_LIBS = $(SDL_LIB) $(shell PKG_CONFIG_PATH=$(SDL_DIR)/lib/pkgconfig pkg-config --static --libs-only-other sdl3 2>/dev/null)
 MAC := build/mac
-MAC_CFLAGS := $(filter-out -O1 -DEXEC_COUNT,$(HOST_CFLAGS)) -O2 -mmacosx-version-min=15.0 -DAC=$(AC)
-$(eval $(call host_rules,$(MAC),$(MAC_CFLAGS),-include src/plat/view/wrap.h -DQBRT_SCREEN=1))
+MAC_ARCH := -arch arm64 -arch x86_64 -mmacosx-version-min=13.0
+MAC_CFLAGS := $(filter-out -O1 -DEXEC_COUNT,$(HOST_CFLAGS)) -O2 -DAC=$(AC) $(MAC_ARCH)
+$(eval $(call host_rules,$(MAC),$(MAC_CFLAGS),$(MAC_ARCH) -include src/plat/view/wrap.h -DQBRT_SCREEN=1))
 $(MAC)/qbrt/qb/dev/host/video.o: VIEW_REAL := -DVIEW_REAL_TEXT
 $(MAC)/qbrt/qb/dev/headless/headless.o: VIEW_REAL := -DVIEW_REAL_TONE
-$(MAC)/obj/plat/sdl/%.o: APP_FLAGS := $(SDL_CFLAGS)
+$(MAC)/obj/plat/sdl/%.o: APP_FLAGS := -isystem $(SDL_DIR)/include
+$(patsubst src/%.c,$(MAC)/obj/%.o,$(wildcard src/plat/sdl/*.c src/plat/sdl/app/*.c)): | $(SDL_LIB)
 $(MAC)/obj/app/ide32.o: APP_FLAGS := -Dmain=qb_main
 MAC_OBJ := $($(MAC)_OBJ) $(patsubst src/%.c,$(MAC)/obj/%.o,$(filter-out src/core/ui/tree.c src/core/ui/indent.c,\
 	$(wildcard src/core/ui/*.c)) $(wildcard src/plat/view/*.c) $(wildcard src/plat/sdl/*.c)) $(MAC)/obj/app/ide32.o
 
 APP := $(MAC)/QuickrBasic.app
-SDL_DYLIB := $(shell pkg-config --variable=libdir sdl3 2>/dev/null)/libSDL3.0.dylib
 DEMOS := $(wildcard src/plat/wasm/web/demos/*.BAS)
 
 mac: $(APP)/Contents/Info.plist
-$(MAC)/QuickrBasic: $(MAC_OBJ) $(MAC)/obj/plat/sdl/app/main.o
-	$(HOST_CC) -mmacosx-version-min=15.0 $^ $(SDL_LIBS) -lm -o $@
-# the bundle: SDL beside the program, both signed ad hoc (Apple silicon runs nothing unsigned); Homebrew's SDL
-# runs on the macOS it was built for, so the app's minimum is CI's (mac.yml)
+$(MAC)/QuickrBasic: $(MAC_OBJ) $(MAC)/obj/plat/sdl/app/main.o $(SDL_LIB)
+	$(HOST_CC) $(MAC_ARCH) $(filter %.o,$^) $(SDL_LIBS) -lm -o $@
+# the bundle, signed ad hoc (Apple silicon runs nothing unsigned)
 $(APP)/Contents/Info.plist: src/plat/sdl/Info.plist $(MAC)/QuickrBasic src/basic.hlp $(DEMOS)
-	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Frameworks $(APP)/Contents/Resources/demos
+	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Resources/demos
 	cp $(MAC)/QuickrBasic $(APP)/Contents/MacOS/
 	cp src/basic.hlp $(APP)/Contents/Resources/BASIC.HLP
 	cp $(DEMOS) $(APP)/Contents/Resources/demos/
-	cp -L $(SDL_DYLIB) $(APP)/Contents/Frameworks/libSDL3.0.dylib
-	chmod u+w $(APP)/Contents/Frameworks/libSDL3.0.dylib
-	install_name_tool -id @rpath/libSDL3.0.dylib $(APP)/Contents/Frameworks/libSDL3.0.dylib
-	install_name_tool -change "$$(otool -L $(MAC)/QuickrBasic | awk '/libSDL3/ {print $$1}')" \
-		@executable_path/../Frameworks/libSDL3.0.dylib $(APP)/Contents/MacOS/QuickrBasic
-	codesign --force -s - $(APP)/Contents/Frameworks/libSDL3.0.dylib
 	cp $< $@
 	codesign --force -s - $(APP)
 mac-zip: mac
-	cd $(MAC) && ditto -c -k --keepParent QuickrBasic.app QuickrBasic-mac-arm64.zip
+	cd $(MAC) && ditto -c -k --keepParent QuickrBasic.app QuickrBasic-mac.zip
+# each architecture's half (x86-64's under Rosetta, where there is one)
 mac-test: mac
-	$(PY) tools/mac_test.py $(APP)/Contents/MacOS/QuickrBasic
+	$(PY) tools/mac_test.py $(APP)/Contents/MacOS/QuickrBasic arm64
+	if arch -x86_64 /usr/bin/true 2>/dev/null; then $(PY) tools/mac_test.py $(APP)/Contents/MacOS/QuickrBasic x86_64; fi
 
 UNIT_OBJ := $(patsubst tests/unit/%.c,build/host/unit/%.o,$(wildcard tests/unit/*.c))
 build/host/unit/%.o: tests/unit/%.c
