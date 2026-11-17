@@ -1,6 +1,8 @@
-/* INP and OUT on a host: the VGA's DAC and status, the 8042's command to type a key. */
+/* INP and OUT on a host: the VGA's DAC (the runtime's, the colours shown) and status, the 8042's command to type a
+   key. */
 #include "plat/host/host.h"
 #include "plat/psys.h"
+#include "qbrt/qbrt.h"
 
 enum : uint16_t {
     PORT_KBD_DATA = 0x60,
@@ -13,8 +15,6 @@ enum : uint16_t {
 enum : uint8_t { KBD_WRITE_OUTPUT = 0xD2, RETRACE = 8 };
 
 static struct {
-    uint8_t dac[256][3];
-    uint8_t index, part;
     uint8_t status;
     bool kbd_write; /* the next data byte is a key typed */
 } ports;
@@ -22,16 +22,10 @@ static struct {
 uint8_t psys_inp(const uint16_t port)
 {
     switch (port) {
-    case PORT_DAC_DATA: {
-        const uint8_t v = ports.dac[ports.index][ports.part];
-
-        if (++ports.part == 3) {
-            ports.part = 0;
-            ports.index++;
-        }
-
-        return v;
-    }
+    case PORT_DAC_READ:
+    case PORT_DAC_WRITE:
+    case PORT_DAC_DATA:
+        return (uint8_t)qb_port_in(port);
     case PORT_STATUS:
         return ports.status ^= RETRACE; /* retrace starts and ends at each look */
     default:
@@ -44,18 +38,8 @@ void psys_outp(const uint16_t port, const uint8_t v)
     switch (port) {
     case PORT_DAC_READ:
     case PORT_DAC_WRITE:
-        ports.index = v;
-        ports.part = 0;
-        break;
-
     case PORT_DAC_DATA:
-        ports.dac[ports.index][ports.part] = v & 0x3F;
-
-        if (++ports.part == 3) {
-            ports.part = 0;
-            ports.index++;
-        }
-
+        qb_port_out(port, v);
         break;
 
     case PORT_KBD_CMD:

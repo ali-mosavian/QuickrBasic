@@ -125,3 +125,38 @@ TEST(palette_needs_graphics)
     CHECK(unit_run(S, lines) == E_USR);
     CHECK(draw(S, "20 PALETTE 1, 2") == ST_OK);
 }
+
+void host_colors(uint8_t rgb[256][3]);
+
+/* The colour pixel (x, y) is shown in, 8 bits a channel. */
+static void shown(const uint32_t x, const uint32_t y, uint8_t rgb[3])
+{
+    uint8_t all[256][3];
+
+    host_colors(all);
+    memcpy(rgb, all[pixel(x, y)], 3);
+}
+
+/* OUT to the DAC's ports went to a DAC of their own: the colours shown stayed as they were. */
+TEST(dac_ports_change_the_shown_colour)
+{
+    static const char *const modes[] = {"10 SCREEN 13", "10 SCREEN 12", "10 SCREEN 9"};
+
+    for (size_t i = 0; i < sizeof modes / sizeof *modes; i++) {
+        const char *const lines[] = {modes[i], "20 PSET (3, 4), 1",
+                                     "30 OUT &H3C8, 1: OUT &H3C9, 10: OUT &H3C9, 20: OUT &H3C9, 63", nullptr};
+        uint8_t rgb[3];
+
+        CHECK(unit_run(S, lines) == ST_OK);
+        shown(3, 4, rgb);
+        CHECK(rgb[0] == (10 << 2 | 10 >> 4) && rgb[1] == (20 << 2 | 20 >> 4) && rgb[2] == 0xFF);
+    }
+}
+
+/* INP of the DAC read a DAC of its own: not the colour PALETTE set. */
+TEST(dac_ports_read_the_palette)
+{
+    CHECK(draw(S, "20 PALETTE 7, 33 + 256 * 2: OUT &H3C7, 7: PSET (0, 0), INP(&H3C9): PSET (1, 0), INP(&H3C9)") ==
+          ST_OK);
+    CHECK(pixel(0, 0) == 33 && pixel(1, 0) == 2);
+}
