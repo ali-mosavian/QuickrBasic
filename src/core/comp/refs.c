@@ -6,7 +6,7 @@
  * ref_field makes its value, an N_FIELD. ref_place gives a variable's place for GET, PUT and FIELD.
  *
  * A call (ref_call) is an N_CALL whose arguments are N_ARG children, each passed by value, by
- * reference, as an array or as a record whole (PA_*); how they are written is an ArgsForm. A
+ * reference, or as an array whole (PA_*); how they are written is an ArgsForm. A
  * procedure DECLAREd only is an N_CALL CALL_UNDEF.
  *
  * # asm structure (retired/asm32/comp/ctl.asm, expr.asm)
@@ -382,7 +382,7 @@ static Node *cell(Comp *const C, const uint16_t id)
     return place(C, symb_is_ref(C->symb, id) ? O_V_ADDR : O_V_CELL, id);
 }
 
-/* An array parameter's argument: n() an array whole; a record parameter's n a record whole. */
+/* An array parameter's argument: n() an array whole. */
 static Node *arrayarg(Comp *const C, const uint16_t par)
 {
     const uint8_t *const arg = C->p;
@@ -393,40 +393,53 @@ static Node *arrayarg(Comp *const C, const uint16_t par)
     const uint16_t name = comp_nameof(C->p);
     const uint8_t *const after = comp_skipname(C->p);
 
-    if (*after == '(') {
-        const uint8_t t = scop_rec(C->scop, name, true);
-        uint16_t id;
-
-        if (t) {
-            C->p = after;
-            id = ref_recarray(C, name, t);
-        } else
-            id = comp_var(C, 0, 0);
-
-        if (!(symb_var(C->symb, id)->info & VI_ARR))
-            synerr(C);
-
-        ptm(C, id, par, arg);
-        comp_open(C);
-        comp_close(C);
-        return argnode(C, PA_ARRAY, cell(C, id), id);
-    }
-
-    const uint8_t t = scop_rec(C->scop, name, false);
-
-    if (!t)
+    if (*after != '(')
         synerr(C);
 
-    C->p = after;
-    const uint16_t id = recvar(C, name, t, VI_RECARR);
-    return argnode(C, PA_RECORD, cell(C, id), id);
+    const uint8_t t = scop_rec(C->scop, name, true);
+    uint16_t id;
+
+    if (t) {
+        C->p = after;
+        id = ref_recarray(C, name, t);
+    } else
+        id = comp_var(C, 0, 0);
+
+    if (!(symb_var(C->symb, id)->info & VI_ARR))
+        synerr(C);
+
+    ptm(C, id, par, arg);
+    comp_open(C);
+    comp_close(C);
+    return argnode(C, PA_ARRAY, cell(C, id), id);
+}
+
+/* A record parameter's argument, by P.REF: a record, an element of a record array, a record field,
+   of its TYPE. */
+static Node *recarg(Comp *const C, const uint16_t par)
+{
+    const uint8_t *const arg = C->p;
+    Node *const r = comp_cur(C) == M_VAR ? ref_record(C) : nullptr;
+
+    if (r == nullptr || !aend(comp_cur(C)))
+        synerr(C);
+    if (r->rec.et != symb_var(C->symb, par)->type) {
+        C->p = arg;
+        fault_error(C->fault, E_PTM);
+    }
+
+    return argnode(C, PA_PREF, r, par);
 }
 
 /* ct_arg: an argument to parameter par: a variable alone by reference, an element or a record's
    number field by P.REF, else the value. A CONST, BYVAL's, a DEF FN's: the value. */
 static Node *arg(Comp *const C, const uint16_t par, const bool byval)
 {
-    if (symb_var(C->symb, par)->info & VI_ARR)
+    const Var *const pv = symb_var(C->symb, par);
+
+    if (pv->type >= ET_REC && (pv->info & (VI_ARR | VK_MASK)) == VI_RECARR)
+        return recarg(C, par);
+    if (pv->info & VI_ARR)
         return arrayarg(C, par);
     if (!byval && comp_cur(C) == M_VAR) {
         const uint16_t name = comp_nameof(C->p);
