@@ -11,6 +11,10 @@ Type a line and it is checked as you enter it, highlighted by the compiler's own
 completed with only what fits where the cursor is. Press F5 and it runs. Press F9 and it stops
 there, with your locals, watches and the whole call stack one keypress away.
 
+Split the editor into two windows on the same program and drag lines between them. Pick one of
+nine themes: QBasic's classic blue, One Dark, Ayu, Gruvbox and JetBrains, dark and light. Switch
+between 25, 43 and 50 lines.
+
 No 64 KB walls. Programs, lines, strings, arrays and symbol tables grow until memory runs out.
 
 ![QBasic 1.1 and QuickrBasic, the same program](docs/img/versus.webp)
