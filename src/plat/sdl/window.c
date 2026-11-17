@@ -71,22 +71,32 @@ static uint32_t script(const char *k, const uint32_t now)
     return last;
 }
 
-/* The window's mouse: the cell under it, its buttons as INT 33h's (left, right, middle). */
+/* The window's mouse: the cell and the pixel under it, its buttons as INT 33h's (left, right,
+   middle). A text mode's pixel is the cell's times 8, a graphics mode's its own; a graphics mode's
+   cell is 8 wide and as high as its height has it (8, 14 or 16). */
 static void point(SDL_Renderer *const r, SDL_Event *const e, const ViewFrame *const f)
 {
-    if (!f->cell_h)
+    if (!f->width || !f->height)
         return;
 
     SDL_ConvertEventToRenderCoordinates(r, e);
     const SDL_MouseButtonFlags b = SDL_GetMouseState(nullptr, nullptr);
-    const float x = e->type == SDL_EVENT_MOUSE_MOTION ? e->motion.x : e->button.x;
-    const float y = e->type == SDL_EVENT_MOUSE_MOTION ? e->motion.y : e->button.y;
-    const uint32_t rows = f->height / f->cell_h, cols = f->width / VIEW_CELL_W;
-    const uint32_t row = y < 0 ? 0 : (uint32_t)y / f->cell_h,
-                   col = x < 0 ? 0 : (uint32_t)x / VIEW_CELL_W;
+    const float fx = e->type == SDL_EVENT_MOUSE_MOTION ? e->motion.x : e->button.x;
+    const float fy = e->type == SDL_EVENT_MOUSE_MOTION ? e->motion.y : e->button.y;
+    const uint32_t x = fx < 0 ? 0 : fx >= f->width ? f->width - 1 : (uint32_t)fx;
+    const uint32_t y = fy < 0 ? 0 : fy >= f->height ? f->height - 1 : (uint32_t)fy;
+    const uint32_t cell_w = f->cell_h ? VIEW_CELL_W : 8;
+    const uint32_t cell_h = f->cell_h          ? f->cell_h
+                            : f->height >= 480 ? 16
+                            : f->height >= 350 ? 14
+                                               : 8;
+    const uint32_t row = y / cell_h, col = x / cell_w;
+
     host_mouse_set(
-        (uint8_t)(row < rows ? row : rows - 1),
-        (uint8_t)(col < cols ? col : cols - 1),
+        (uint8_t)row,
+        (uint8_t)col,
+        (uint16_t)(f->cell_h ? col * 8 : x),
+        (uint16_t)(f->cell_h ? row * 8 : y),
         (uint8_t)((b & SDL_BUTTON_LMASK ? 1 : 0) | (b & SDL_BUTTON_RMASK ? 2 : 0) |
                   (b & SDL_BUTTON_MMASK ? 4 : 0))
     );
@@ -292,7 +302,8 @@ int sdl_main(void)
             );
         }
 
-        pointer.shown ? SDL_HideCursor() : SDL_ShowCursor();
+        /* a graphics mode's program draws its own (PEN) */
+        pointer.shown || !f->cell_h ? SDL_HideCursor() : SDL_ShowCursor();
 
         SDL_UpdateTexture(
             t,

@@ -148,9 +148,8 @@ enum { QBRT_VARPTR = 5 };
 void qbrt_varptr(uint32_t address, uint8_t type, char out[static QBRT_VARPTR]);
 /* SCREEN(row, column[, f]): the character there, f nonzero its attribute. */
 short B_FSCN(short row, short column, short attribute);
-/* STICK(n), STRIG(n), PEN(n). */
+/* STICK(n), STRIG(n). */
 short B_STIK(short which);
 short B_FSTG(short which);
-short B_FPEN(short which);
 void music_clear(void);
 #endif

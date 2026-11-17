@@ -32,6 +32,7 @@ No 64 KB walls. Programs, lines, strings, arrays and symbol tables grow until me
 | `INTEGER` | 16-bit: 32767 + 1 overflows | **32-bit**, the machine's own; `INTEGER` and `LONG` are one type |
 | 16-bit integers | the only kind | **`SHORT` and `DEFSHORT`**, for records laid out as QBasic's |
 | Memory | 64 KB segments | **all of it**: everything grows as needed |
+| Mouse | `CALL INTERRUPT` and a driver | **`PEN(n)`**: the left button the pen's switch, `PEN(n + 10)` the right's |
 | Syntax highlighting | none | from the compiler's lexer, so it never disagrees with it |
 | Completion | none | **context-aware**: only what is valid where the cursor is |
 | Breakpoints | F9 | F9; they move with their line |

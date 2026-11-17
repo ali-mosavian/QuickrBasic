@@ -35,10 +35,10 @@ void host_term_feed(int fd);
 bool host_term_window(void);
 void host_term_set_shift(uint8_t flags);
 
-/* The mouse a window has (pmou.c): its text cell and buttons as pmou_state's, set as it moves; on,
-   it has one. shown is pmou_show's count less pmou_hide's. */
+/* The mouse a window has (pmou.c): its text cell, pixel and buttons as pmou_state's, set as it moves
+   (a button going down is a press); on, it has one. shown is pmou_show's count less pmou_hide's. */
 void host_mouse_on(void);
-void host_mouse_set(uint8_t row, uint8_t col, uint8_t buttons);
+void host_mouse_set(uint8_t row, uint8_t col, uint16_t x, uint16_t y, uint8_t buttons);
 bool host_mouse_shown(void);
 /* SIGINT came since the last call (psys.c). */
 bool host_stop_taken(void);
