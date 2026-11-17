@@ -26,7 +26,7 @@ DOSBOX_BIN ?= $(DEPS)/dosbox-x
 DOS32A ?= third_party/dos32a
 export JWASM JWLINK DOSBOX_BIN DOS32A
 
-.PHONY: all test host host-test wasm wasm-test web mac mac-zip mac-test lto format clean
+.PHONY: all test host host-test wasm wasm-test web mac mac-zip mac-test dos-zip lto format clean
 all:
 
 # one run builds both: two would clone into the same directory at once under -j
@@ -76,6 +76,8 @@ CORE_OBJ := $(CORE_C:src/%.c=$(B)/obj/%.obj) $(QBRT_DOS_C:%.c=$(B)/qbrt/%.obj) $
 BASIC_OBJ := $(CORE_OBJ) $(B)/obj/app/basic32.obj
 IDE_OBJ := $(CORE_OBJ) $(UI_C:src/%.c=$(B)/obj/%.obj) $(B)/obj/app/ide32.obj
 DOS_EXE := $(B)/basic32.exe $(B)/ide32.exe $(B)/DOS32A.EXE $(B)/BASIC.HLP
+# the release: the programs by their DOS names, with the games (src/plat/wasm/web/demos)
+DOS_GAMES := src/plat/wasm/web/demos/GORILLA.BAS src/plat/wasm/web/demos/NIBBLES.BAS
 
 all: $(DOS_EXE)
 
@@ -112,6 +114,12 @@ $(B)/DOS32A.EXE: $(DOS32A)/dos32a.exe tools/dos32a_quiet.py
 	$(PY) tools/dos32a_quiet.py $< $@
 $(B)/BASIC.HLP: src/basic.hlp
 	cp $< $@
+dos-zip: $(DOS_EXE) $(DOS_GAMES)
+	mkdir -p $(B)/release
+	cp $(B)/ide32.exe $(B)/release/IDE32.EXE
+	cp $(B)/basic32.exe $(B)/release/BASIC32.EXE
+	cp $(B)/DOS32A.EXE $(B)/BASIC.HLP $(DOS_GAMES) $(B)/release/
+	cd $(B)/release && zip -q -X ../QuickrBasic-dos.zip IDE32.EXE BASIC32.EXE DOS32A.EXE BASIC.HLP GORILLA.BAS NIBBLES.BAS
 
 -include $(shell find $(B) -name '*.d' 2>/dev/null)
 

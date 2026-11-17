@@ -6,6 +6,8 @@ on:
 
 jobs:
   build:
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -32,3 +34,13 @@ jobs:
             build/c/ide32.exe
             build/c/DOS32A.EXE
             build/c/BASIC.HLP
+      # from main: the DOS programs zipped to the dos-latest release
+      - if: runner.os == 'Linux' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          make dos-zip
+          gh release delete dos-latest --cleanup-tag --yes || true
+          gh release create dos-latest build/c/QuickrBasic-dos.zip --target "$GITHUB_SHA" \
+            --prerelease --title "QuickrBasic for DOS (latest)" \
+            --notes "IDE32.EXE, BASIC32.EXE, DOS32A.EXE and BASIC.HLP, built from $GITHUB_SHA, with GORILLA.BAS and NIBBLES.BAS. Copy them to a DOS machine or DOSBox and run IDE32."

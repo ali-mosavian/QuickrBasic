@@ -75,7 +75,7 @@ One core, one platform layer per system (`src/plat`):
 
 | System | Build | Compiler and runtime | IDE |
 |---|---|---|---|
-| DOS | 32-bit, DOS/32A | ✅ | ✅ |
+| DOS | 32-bit, DOS/32A ([download](https://github.com/ali-mosavian/QuickrBasic/releases/download/dos-latest/QuickrBasic-dos.zip)) | ✅ | ✅ |
 | macOS | 64-bit, arm64 and x86-64; the IDE an app, Apple silicon ([download](https://github.com/ali-mosavian/QuickrBasic/releases/download/mac-latest/QuickrBasic-mac-arm64.zip)) | ✅ | ✅ |
 | Linux | 64-bit | 🚧 | 🚧 |
 | Windows | 32- and 64-bit | 🚧 | 🚧 |
@@ -96,7 +96,7 @@ make mac        # build/mac/QuickrBasic.app: the IDE in a window (needs SDL 3: b
 ```
 
 Copy `IDE32.EXE` (or `BASIC32.EXE`), `DOS32A.EXE` and `BASIC.HLP` to a DOS machine, or DOSBox, and
-run `IDE32 PROGRAM.BAS`.
+run `IDE32 PROGRAM.BAS`. [The latest build](https://github.com/ali-mosavian/QuickrBasic/releases/download/dos-latest/QuickrBasic-dos.zip) has them zipped, the games beside them.
 
 - `GCC=1` builds with i686-elf-gcc instead; `make lto` optimizes the whole program as one module.
 - `src/`: the C. [docs/architecture.md](docs/architecture.md): how it fits together.
