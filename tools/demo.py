@@ -3,13 +3,13 @@
 
 DOSBox records the screen as it is drawn (the debug socket's video_start, 70 frames an emulated
 second); each clip's caption, the key pressed and the parts to look at are put on its frames
-after. docs/img/clips/*.gif, one a feature; docs/img/tour.gif, the clips in a grid, zoomed into
-one by one; docs/img/versus.gif, QBasic 1.1 beside QuickrBasic; docs/img/themes.gif.
+after. docs/img/clips/*.webp, one a feature; docs/img/tour.webp, the clips in a grid, zoomed into
+one by one; docs/img/versus.webp, QBasic 1.1 beside QuickrBasic; docs/img/themes.webp.
 
 IDE_EXE picks the build (build/c/ide32.exe); DEMO_DOSBOX a dosbox-x whose socket has video_start
 (tools/deps.sh capture). QB_SAMPLES the directory with GORILLA.BAS and NIBBLES.BAS, QBASIC QBasic
 1.1's QBASIC.EXE (Microsoft's, so not in this repository; both default to build/qbasic): the clips
-that need them are skipped without them.
+that need them are skipped without them. GIF2WEBP: libwebp's gif2webp, which writes the .webp.
 """
 
 import os
@@ -29,13 +29,14 @@ from PIL import ImageDraw
 from PIL import ImageFont
 
 sys.path.insert(0, str(Path(__file__).parent))
-import dosplay  # noqa: E402
+import dosplay
 
 ROOT = Path(__file__).resolve().parents[1]
 IMG = ROOT / "docs/img"
 IDE = Path(os.environ.get("IDE_EXE", ROOT / "build/c/ide32.exe"))
 SAMPLES = Path(os.environ.get("QB_SAMPLES", ROOT / "build/qbasic"))
 QBASIC = Path(os.environ.get("QBASIC", ROOT / "build/qbasic/QBASIC.EXE"))
+GIF2WEBP = os.environ.get("GIF2WEBP", "gif2webp")  # libwebp's
 # the emulator with the debug socket's video_start (tools/deps.sh capture)
 dosplay.DOSBOX = Path(os.environ.get("DEMO_DOSBOX", ROOT / "build/deps/bin/dosbox-x-capture"))
 
@@ -149,6 +150,13 @@ class Film:
             self.frames.append((img, ms))
 
     def save_to(self, path: Path | str) -> None:
+        """A .webp: the GIF through gif2webp -min_size, lossless and less than half its size."""
+        if str(path).endswith(".webp"):
+            with tempfile.TemporaryDirectory() as tmp:
+                gif = f"{tmp}/film.gif"
+                self.save_to(gif)
+                subprocess.run([GIF2WEBP, "-quiet", "-min_size", "-m", "6", gif, "-o", str(path)], check=True)
+            return
         frames = [
             f.quantize(colors=64, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE) for f, _ in self.frames
         ]
@@ -644,7 +652,7 @@ def themes() -> None:
         ide.theme(letter, 1600)
     ide.clip("themes", t)
     ide.stop()
-    films(rec, ide)["themes"].save(IMG / "themes.gif")
+    films(rec, ide)["themes"].save(IMG / "themes.webp")
 
 
 def timeline(film: Film) -> list[tuple[int, Image.Image]]:
@@ -727,11 +735,11 @@ def main() -> None:
     if "games" in names and sample("gorilla.bas") and sample("nibbles.bas"):
         clips |= gorillas(*GORILLA_THROW) | nibbles(NIBBLES_TURNS)
     for name, film in clips.items():
-        film.save(IMG / "clips" / f"{name}.gif")
+        film.save(IMG / "clips" / f"{name}.webp")
     if "versus" in names and QBASIC.exists():
-        versus().save(IMG / "versus.gif")
+        versus().save(IMG / "versus.webp")
     if "ide" in names and "games" in names:
-        showcase(clips).save(IMG / "tour.gif")
+        showcase(clips).save(IMG / "tour.webp")
     if "themes" in names:
         themes()
 

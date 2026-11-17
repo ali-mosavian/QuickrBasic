@@ -7,12 +7,11 @@ The capture's first frame is the screen before the cls. Timed from the first cli
 the capture's, it landed in the first clip: the mount's line, the host's temporary directory.
 """
 
-
 import demo
 from PIL import Image
 
 
-def test_frames_round_trip(tmp: str = "/tmp") -> None:
+def test_frames_round_trip(tmp: str = "/tmp", ext: str = "gif") -> None:
     ground, shadow, text, other = (40, 44, 52), (10, 10, 12), (200, 120, 220), (230, 190, 90)
     a = Image.new("RGB", (64, 32), ground)
     a.paste(text, (4, 4, 20, 12))
@@ -22,7 +21,7 @@ def test_frames_round_trip(tmp: str = "/tmp") -> None:
     film = demo.Film()
     for img in (a, b, c, a):
         film.add(img, 100)
-    path = f"{tmp}/demo_test.gif"
+    path = f"{tmp}/demo_test.{ext}"
     film.save_to(path)
     gif = Image.open(path)
     for i, want in enumerate(f for f, _ in film.frames):
@@ -30,6 +29,11 @@ def test_frames_round_trip(tmp: str = "/tmp") -> None:
         got = gif.convert("RGB")
         assert got.size == film.frames[0][0].size, (i, got.size)
         assert got.tobytes() == want.tobytes(), i
+
+
+def test_webp_round_trip() -> None:
+    """The README's .webp, lossless: Pillow's own WebP writer is lossy and blurred the text."""
+    test_frames_round_trip(ext="webp")
 
 
 def test_recording_starts_clean() -> None:
@@ -48,5 +52,6 @@ def test_recording_starts_clean() -> None:
 
 if __name__ == "__main__":
     test_frames_round_trip()
+    test_webp_round_trip()
     test_recording_starts_clean()
     print("ok")
