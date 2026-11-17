@@ -144,7 +144,7 @@ host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/h
 
 SDK := $(shell xcrun --show-sdk-path 2>/dev/null)
 HOST_CC ?= $(CLANG)$(if $(SDK), -isysroot $(SDK))
-HOST_CFLAGS := -std=c23 -O1 -g -Wall -Wextra -Wno-unused-parameter -Werror=undef -DARENA_AT_ZERO=0 -DPFIL_PATH=4096 -DEXEC_COUNT \
+HOST_CFLAGS := -std=c23 -D_DEFAULT_SOURCE -O1 -g -Wall -Wextra -Wno-unused-parameter -Werror=undef -DARENA_AT_ZERO=0 -DPFIL_PATH=4096 -DEXEC_COUNT \
 	-Isrc/plat/host/include -Isrc -Isrc/core
 HOST_C := $(shell find src/core -name '*.c' -not -path 'src/core/ui/*') src/core/ui/tree.c src/core/ui/indent.c \
 	$(wildcard src/plat/host/*.c) src/boot.c
