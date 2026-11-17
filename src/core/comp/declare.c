@@ -596,10 +596,14 @@ static void decl_shared(DeclScan *const ds, const uint8_t flag)
             return;
 
         const uint16_t n = decl_name(ds, nullptr);
+
+        if (flag == BF_STAT) /* its ( ), AS type as DIM's */
+            decl_dim1(ds, n);
+        else if (*ds->at == '(')
+            decl_array(ds, n, ds->d->proc);
+
         scop_bind(ds->sc, ds->d->proc, n)->flags |= flag;
 
-        if (*ds->at == '(')
-            decl_array(ds, n, ds->d->proc);
         for (;;) { /* past ( ) and AS type */
             const uint8_t c = *ds->at;
 
