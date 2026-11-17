@@ -1,0 +1,38 @@
+{
+ "qbasic": {
+  "for_int": 5.22,
+  "int_math": 5.88,
+  "sng_math": 11.7,
+  "dbl_fn": 18.4,
+  "strings": 7.58,
+  "arrays": 18.73,
+  "calls": 4.39,
+  "sieve": 14.83,
+  "sort": 13.46,
+  "fib": 5.0,
+  "mandel": 30.86,
+  "words": 0.94,
+  "print": 5.05,
+  "pset": 23.67,
+  "line": 3.52,
+  "circle": 5.44
+ },
+ "ours": {
+  "for_int": 2.24,
+  "int_math": 1.77,
+  "sng_math": 0.79,
+  "dbl_fn": 0.54,
+  "strings": 5.05,
+  "arrays": 2.19,
+  "calls": 2.56,
+  "sieve": 8.08,
+  "sort": 5.46,
+  "fib": 2.64,
+  "mandel": 1.64,
+  "words": 0.62,
+  "print": 2.59,
+  "pset": 12.74,
+  "line": 3.09,
+  "circle": 1.43
+ }
+}

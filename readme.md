@@ -1,14 +1,52 @@
-# QuickrBasic
+QuickrBasic
+-----
 
-QBasic 4.5 for DOS, as a 32-bit DOS/32A program, written in C23: a compiler to bytecode and its
-runtime (`basic32.exe`), and the same with a QBasic-style editor (`ide32.exe`). No limits but
-memory: programs, lines, strings, arrays and symbol tables grow as needed.
+![QuickrBasic, every feature zoomed into one by one](docs/img/tour.webp)
+
+**A modern remake of QBasic, QuickBasic and VBDos.** The blue screen you grew up with, rebuilt from
+scratch in C23. It opens GORILLA.BAS and NIBBLES.BAS unchanged, and runs BASIC 3.3× faster
+than QBasic 1.1 on the same CPU.
+
+Type a line and it is checked as you enter it, highlighted by the compiler's own lexer, and
+completed with only what fits where the cursor is. Press F5 and it runs. Press F9 and it stops
+there, with your locals, watches and the whole call stack one keypress away.
+
+No 64 KB walls. Programs, lines, strings, arrays and symbol tables grow until memory runs out.
 
 ![QBasic 1.1 and QuickrBasic, the same program](docs/img/versus.webp)
 
-## Showcase
+## What QBasic never had
 
-![Every feature, zoomed into one by one](docs/img/tour.webp)
+| | QBasic 1.1 | QuickrBasic |
+|---|---|---|
+| Speed | 1× | **3.3×**, up to 34× ([below](#how-fast)) |
+| `INTEGER` | 16-bit: 32767 + 1 overflows | **32-bit**, the machine's own; `INTEGER` and `LONG` are one type |
+| 16-bit integers | the only kind | **`SHORT` and `DEFSHORT`**, for records laid out as QBasic's |
+| Memory | 64 KB segments | **all of it**: everything grows as needed |
+| Syntax highlighting | none | from the compiler's lexer, so it never disagrees with it |
+| Completion | none | **context-aware**: only what is valid where the cursor is |
+| Breakpoints | F9 | F9; they move with their line |
+| Stepping | Step, Procedure Step | Step, Step Over, **Step Out** |
+| Watches | none | in **any frame** on the call stack |
+| Locals, call stack | none | **a debug pane**: Watch, Locals, Call stack |
+| Editor | one split | split windows; drag any line between them |
+| Look | colours set by hand | **nine themes** |
+| Platforms | DOS | DOS today; macOS, Linux and Windows on the way ([below](#platforms)) |
+
+## How fast
+
+![QuickrBasic against QBasic 1.1, benchmark by benchmark](docs/img/speed.svg)
+
+QBasic 1.1 and QuickrBasic's IDE run the same `BENCH.BAS` in the same DOSBox-X at a fixed 5000
+cycles, so the CPU is identical. The first five are whole programs: a prime sieve, a sort,
+recursion, a Mandelbrot set and word splitting. `python3 tools/bench.py qbasic --json F` runs it
+again, and `tools/diagrams/speed.py` draws this chart from it.
+
+Programs compile line by line to compact bytecode for a register-cached stack VM: constants fold,
+common operands are folded into the op, and common sequences fuse into one op. See
+[docs/architecture.md](docs/architecture.md).
+
+## Every feature, one by one
 
 | | |
 |---|---|
@@ -20,35 +58,45 @@ memory: programs, lines, strings, arrays and symbol tables grow as needed.
 | **25, 43 and 50 lines**<br>![](docs/img/clips/rows.webp) | **Nine themes**<br>![](docs/img/clips/themes.webp) |
 | **GORILLA.BAS**, unchanged, opened and run<br>![](docs/img/clips/gorillas.webp) | **NIBBLES.BAS**, unchanged, opened and run<br>![](docs/img/clips/nibbles.webp) |
 
-`python3 tools/demo.py` plays the IDE in DOSBox-X and cuts its video recording into these.
+The clips are DOSBox-X's own video capture of the real IDE: `python3 tools/demo.py`.
 
-## Building
+## Platforms
 
-Needs clang, make, python3, git and a C compiler. The rest is built from pinned sources on first
-use (`tools/deps.sh`, into `build/deps`) or is in `third_party/`.
+One core, one platform layer per system (`src/plat`):
+
+| System | Build | Compiler and runtime | IDE |
+|---|---|---|---|
+| DOS | 32-bit, DOS/32A | ✅ | ✅ |
+| macOS | 64-bit, arm64 and x86-64 | ✅ | 🚧 |
+| Linux | 64-bit | 🚧 | 🚧 |
+| Windows | 32- and 64-bit | 🚧 | 🚧 |
+
+## Getting started
+
+Needs clang, make, python3, git and a C compiler. Everything else is built from pinned sources on
+first use (`tools/deps.sh`, into `build/deps`) or is in `third_party/`.
 
 ```sh
-make            # build/c/basic32.exe and ide32.exe, with DOS32A.EXE and BASIC.HLP beside them
+make            # build/c/: BASIC32.EXE, IDE32.EXE, DOS32A.EXE, BASIC.HLP
 make test       # the regressions and QB 4.5 conformance under DOSBox-X
 make host       # the same core for this machine: build/host/basic
-make host-test  # the unit tests and the suites on the host build
+make host-test  # unit tests, golden bytecode and the suites, natively, in seconds
 ```
 
-- `GCC=1` builds with i686-elf-gcc instead, into `build/gcc`; `make lto` optimizes the whole
-  program as one module (LLVM's tools).
-- `src/`: the C. `docs/architecture.md`: its layout. `tools/`: the build's and the tests' scripts.
-- Copy `BASIC32.EXE` or `IDE32.EXE`, `DOS32A.EXE` and `BASIC.HLP` to a DOS machine to run them.
+Copy `IDE32.EXE` (or `BASIC32.EXE`), `DOS32A.EXE` and `BASIC.HLP` to a DOS machine, or DOSBox, and
+run `IDE32 PROGRAM.BAS`.
 
-## Retired
+- `GCC=1` builds with i686-elf-gcc instead; `make lto` optimizes the whole program as one module.
+- `src/`: the C. [docs/architecture.md](docs/architecture.md): how it fits together.
+- `retired/`: the 32-bit and 16-bit assembly QuickrBasic was ported from, still buildable
+  (`make -C retired/asm32`, `make -C retired/asm16`).
 
-The assembly QuickrBasic was ported from, kept buildable, each with its own Makefile:
+## Licence
 
-- `retired/asm32/`: the 32-bit DOS/32A asm; `make -C retired/asm32` builds `build/asm32/`.
-  `retired/design.md`, `retired/asm-style.md`: its design and style.
-- `retired/asm16/`: the 16-bit DOS `.COM` before it, from cbmbasic-bc (`316224a`);
-  `make -C retired/asm16` builds `build/asm16/`.
+[GNU AGPL-3.0](LICENSE), with one added term ([NOTICE](NOTICE)): a work based on QuickrBasic keeps
+the credit "Based on QuickrBasic by Ali Mosavian", with a link here.
 
-## Third-party
+Third-party parts keep their own licences:
 
 - DOS/32A (`third_party/dos32a`, its licence beside it). This product uses DOS/32 Advanced DOS
   Extender technology.

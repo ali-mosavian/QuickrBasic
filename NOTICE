@@ -1,0 +1,18 @@
+QuickrBasic
+Copyright (C) 2026 Ali Mosavian
+https://github.com/ali-mosavian/QuickrBasic
+
+QuickrBasic is free software under the GNU Affero General Public License, version 3 (LICENSE),
+with this additional term under its section 7(b):
+
+  A work based on QuickrBasic must keep this notice, and must show "Based on QuickrBasic by
+  Ali Mosavian" with a link to https://github.com/ali-mosavian/QuickrBasic wherever it shows
+  its own name or credits: its README, its about box or start-up banner, and its --version
+  output.
+
+Third-party parts keep their own licences:
+
+- DOS/32A (third_party/dos32a, license.d32 beside it). This product uses DOS/32 Advanced DOS
+  Extender technology.
+- llrm's QB runtime (src/qbrt/llrm), DOS/32A start-up (src/plat/dos32/startup) and QB
+  conformance cases (tests/qb45, tests/qbrun).

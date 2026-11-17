@@ -5,7 +5,7 @@
     bench.py cmp [REV...] [-e CODE] [--file F] [--dos]  the suite, or these programs, per build (HEAD .)
     bench.py size [REV] [--functions]            the DOS executables' loaded bytes, REV's (default HEAD) and ours
     bench.py gate [--save]                       the suite and sizes against tools/bench/baseline.json
-    bench.py qbasic                              qbasic/BENCH.BAS in QBasic 1.1 and our IDE under DOSBox
+    bench.py qbasic [--json F]                   qbasic/BENCH.BAS in QBasic 1.1 and our IDE under DOSBox
     bench.py profile FILE.bas | -e CODE [-n N] [--link | --ide]  DOS: the functions a program spends its
                                                  instructions in; --link: RUN's link alone
 
@@ -359,6 +359,8 @@ def cmd_qbasic(a: argparse.Namespace) -> int:
     for k, t in qb.items():
         print(f"{k:10}{t:>10.2f}{us.get(k, float('nan')):>10.2f}{t / us[k] if us.get(k) else float('nan'):>9.1f}x")
     tq, tu = sum(qb.values()), sum(us.get(k, 0) for k in qb)
+    if a.json:
+        a.json.write_text(json.dumps({"qbasic": qb, "ours": us}, indent=1) + "\n")
     print(f"{'total':10}{tq:>10.2f}{tu:>10.2f}{tq / tu if tu else float('nan'):>9.1f}x")
     return 0
 
@@ -402,7 +404,10 @@ def profiled(b: Build, d: Path, ide: bool = False) -> Path:
     """b's basic32 (ide: ide32) relinked in d with a map that names its static functions too."""
     var = "IDE_OBJ" if ide else "BASIC_OBJ"
     db = subprocess.run(
-        ["make", "-pnq", "build/c/ide32.exe" if ide else "build/c/basic32.exe"], cwd=b.root, capture_output=True, text=True
+        ["make", "-pnq", "build/c/ide32.exe" if ide else "build/c/basic32.exe"],
+        cwd=b.root,
+        capture_output=True,
+        text=True,
     ).stdout
     m = re.search(rf"^{var} := (.*)$", db, re.M)
     if not m:
@@ -466,7 +471,7 @@ def main() -> int:
     p.add_argument("--functions", action="store_true", help="each function whose bytes changed")
     p = sub.add_parser("gate")
     p.add_argument("--save", action="store_true")
-    sub.add_parser("qbasic")
+    sub.add_parser("qbasic").add_argument("--json", type=Path, help="the timings to this file too")
     p = sub.add_parser("profile")
     p.add_argument("file", nargs="?")
     p.add_argument("-e")

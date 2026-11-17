@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="696" viewBox="0 0 1000 696"><defs></defs>
+<rect width="1000" height="696" fill="#ffffff"/>
+<text x="32" y="40" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="20" font-weight="700" fill="#1f2937" text-anchor="start">3.3× faster than QBasic 1.1</text>
+<text x="32" y="64" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#6b7280" text-anchor="start">QBasic&#x27;s time over ours, same DOSBox-X at 5000 cycles. 1.0× is QBasic: right is faster, left slower.</text>
+<line x1="230.0" y1="112" x2="230.0" y2="600" stroke="#9ca3af" stroke-width="0.6" stroke-dasharray="3 4"/>
+<text x="230.0" y="106" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="middle">0.5×</text>
+<line x1="334.9" y1="112" x2="334.9" y2="600" stroke="#1f2937" stroke-width="1.6"/>
+<text x="334.9265385771181" y="106" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="700" fill="#1f2937" text-anchor="middle">1.0×</text>
+<line x1="439.9" y1="112" x2="439.9" y2="600" stroke="#9ca3af" stroke-width="0.6" stroke-dasharray="3 4"/>
+<text x="439.8530771542362" y="106" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="middle">2×</text>
+<line x1="578.6" y1="112" x2="578.6" y2="600" stroke="#9ca3af" stroke-width="0.6" stroke-dasharray="3 4"/>
+<text x="578.5584163986111" y="106" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="middle">5×</text>
+<line x1="683.5" y1="112" x2="683.5" y2="600" stroke="#9ca3af" stroke-width="0.6" stroke-dasharray="3 4"/>
+<text x="683.4849549757294" y="106" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="middle">10×</text>
+<line x1="788.4" y1="112" x2="788.4" y2="600" stroke="#9ca3af" stroke-width="0.6" stroke-dasharray="3 4"/>
+<text x="788.4114935528474" y="106" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="11" font-weight="400" fill="#6b7280" text-anchor="middle">20×</text>
+<text x="334.9265385771181" y="618" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="600" fill="#1f2937" text-anchor="middle">QBasic 1.1</text>
+<text x="216" y="137" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#1f2937" text-anchor="end">Sieve of Eratosthenes</text>
+<rect x="334.9" y="125" width="91.9" height="16" rx="3" fill="#059669"/>
+<text x="432.8517766251191" y="138" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#064e3b" text-anchor="start">1.8×</text>
+<text x="216" y="167" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#1f2937" text-anchor="end">Bubble sort</text>
+<rect x="334.9" y="155" width="136.6" height="16" rx="3" fill="#059669"/>
+<text x="477.50999657246956" y="168" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#064e3b" text-anchor="start">2.5×</text>
+<text x="216" y="197" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#1f2937" text-anchor="end">Recursion: Fib(18)</text>
+<rect x="334.9" y="185" width="96.7" height="16" rx="3" fill="#059669"/>
+<text x="437.604819301427" y="198" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#064e3b" text-anchor="start">1.9×</text>
+<text x="216" y="227" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#1f2937" text-anchor="end">Mandelbrot</text>
+<rect x="334.9" y="215" width="444.3" height="16" rx="3" fill="#059669"/>
+<text x="785.182390996387" y="228" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#064e3b" text-anchor="start">18.8×</text>
+<text x="216" y="257" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#1f2937" text-anchor="end">Word splitting</text>
+<rect x="334.9" y="245" width="63.0" height="16" rx="3" fill="#059669"/>
+<text x="403.9236497222772" y="258" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#064e3b" text-anchor="start">1.5×</text>
+<text x="216" y="287" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#1f2937" text-anchor="end">Empty FOR loop</text>
+<rect x="334.9" y="275" width="128.1" height="16" rx="3" fill="#059669"/>
+<text x="468.9947379822738" y="288" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#064e3b" text-anchor="start">2.3×</text>
+<text x="216" y="317" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#1f2937" text-anchor="end">Integer maths</text>
+<rect x="334.9" y="305" width="181.7" height="16" rx="3" fill="#059669"/>
+<text x="522.6663119349525" y="318" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#064e3b" text-anchor="start">3.3×</text>
+<text x="216" y="347" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#1f2937" text-anchor="end">SINGLE maths</text>
+<rect x="334.9" y="335" width="408.0" height="16" rx="3" fill="#059669"/>
+<text x="748.9346499086695" y="348" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#064e3b" text-anchor="start">14.8×</text>
+<text x="216" y="377" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#1f2937" text-anchor="end">SQR, SIN on DOUBLE</text>
+<rect x="334.9" y="365" width="534.1" height="16" rx="3" fill="#059669"/>
+<text x="875.0658432925536" y="378" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#064e3b" text-anchor="start">34.1×</text>
+<text x="216" y="407" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#1f2937" text-anchor="end">String building</text>
+<rect x="334.9" y="395" width="61.5" height="16" rx="3" fill="#059669"/>
+<text x="402.40451482301347" y="408" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#064e3b" text-anchor="start">1.5×</text>
+<text x="216" y="437" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#1f2937" text-anchor="end">Array updates</text>
+<rect x="334.9" y="425" width="324.9" height="16" rx="3" fill="#059669"/>
+<text x="665.8156295255408" y="438" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#064e3b" text-anchor="start">8.6×</text>
+<text x="216" y="467" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#1f2937" text-anchor="end">SUB and GOSUB calls</text>
+<rect x="334.9" y="455" width="81.6" height="16" rx="3" fill="#059669"/>
+<text x="422.56747852528315" y="468" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#064e3b" text-anchor="start">1.7×</text>
+<text x="216" y="497" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#1f2937" text-anchor="end">PRINT</text>
+<rect x="334.9" y="485" width="101.1" height="16" rx="3" fill="#059669"/>
+<text x="442.0055563348749" y="498" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#064e3b" text-anchor="start">1.9×</text>
+<text x="216" y="527" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#1f2937" text-anchor="end">PSET</text>
+<rect x="334.9" y="515" width="93.8" height="16" rx="3" fill="#059669"/>
+<text x="434.6988015030035" y="528" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#064e3b" text-anchor="start">1.9×</text>
+<text x="216" y="557" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#1f2937" text-anchor="end">LINE</text>
+<rect x="334.9" y="545" width="19.7" height="16" rx="3" fill="#059669"/>
+<text x="360.64943216394266" y="558" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#064e3b" text-anchor="start">1.1×</text>
+<text x="216" y="587" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="400" fill="#1f2937" text-anchor="end">CIRCLE</text>
+<rect x="334.9" y="575" width="202.3" height="16" rx="3" fill="#059669"/>
+<text x="543.1820429320193" y="588" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="12" font-weight="700" fill="#064e3b" text-anchor="start">3.8×</text>
+<line x1="32" y1="634" x2="968" y2="634" stroke="#9ca3af" stroke-width="1"/>
+<text x="216" y="664" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" font-weight="700" fill="#1f2937" text-anchor="end">All of them</text>
+<rect x="334.9" y="650" width="179.3" height="18" rx="3" fill="#059669"/>
+<text x="520.2365413123877" y="664" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" font-weight="700" fill="#064e3b" text-anchor="start">3.3×</text>
+</svg>
