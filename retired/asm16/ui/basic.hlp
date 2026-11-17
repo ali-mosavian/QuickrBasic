@@ -1,0 +1,35 @@
+Removes currently loaded file from memory
+Loads new file into memory
+Saves current file
+Saves current file with specified name
+Prints specified text
+Exits editor and returns to DOS
+Deletes selected text and copies it to buffer
+Copies selected text to buffer
+Inserts buffer contents at current location
+Deletes selected text without copying it to buffer
+Opens a window for a new subprogram
+Opens a window for a new FUNCTION procedure
+Displays a loaded SUB or FUNCTION
+Divides screen into two View windows
+Displays output screen
+Finds specified text
+Finds next occurrence of text specified in previous search
+Finds and changes specified text
+Runs current program
+Clears variables in preparation for restarting single stepping
+Continues execution after a break
+Executes next program statement
+Executes next program statement, tracing over procedure calls
+Highlights statement currently executing
+Sets/clears breakpoint at cursor location
+Removes all breakpoints
+Makes the statement at the cursor the next statement to execute
+Changes display attributes
+Sets search path for Help files
+Turns editor's syntax checking on or off.
+Displays help index
+Displays help table of contents
+Displays information about the Basic keyword the cursor is on
+Displays information about how to use online Help
+Displays product version and copyright information

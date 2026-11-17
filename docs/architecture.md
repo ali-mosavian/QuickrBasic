@@ -1,6 +1,6 @@
 # QuickrBasic C architecture
 
-Target shape for `csrc/`, replacing the asm-mirrored layout.
+Target shape for `src/`, replacing the asm-mirrored layout.
 
 ## Goals
 

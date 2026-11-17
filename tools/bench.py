@@ -37,7 +37,7 @@ SUITE = ROOT / "tools/bench"
 BASELINE = SUITE / "baseline.json"
 REVS = ROOT / "build/bench"
 EXES = ("build/c/basic32.exe", "build/c/ide32.exe")
-INSTRUMENT_SRC = ("csrc/plat/host/app/insns.c", "csrc/plat/host/pfpu.c", "csrc/plat/pfpu.h")  # arm64 too
+INSTRUMENT_SRC = ("src/plat/host/app/insns.c", "src/plat/host/pfpu.c", "src/plat/pfpu.h")  # arm64 too
 RUNS = 3
 INSNS_SLACK = 0.01  # on the native CPU a count repeats to 0.1%
 
@@ -330,7 +330,7 @@ def qbasic_run(which: str, work: Path) -> dict[str, float]:
     else:
         for f in ("ide32.exe", "DOS32A.EXE"):
             shutil.copy(ROOT / "build/c" / f, work / f.upper())
-        shutil.copy(ROOT / "src/ui/basic.hlp", work / "BASIC.HLP")
+        shutil.copy(ROOT / "src/basic.hlp", work / "BASIC.HLP")
         cmds = "AUTOTYPE -w 4 f5\nIDE32 BENCH.BAS"
     (work / "b.conf").write_text(DOSBOX_CONF.format(work=work, cmds=cmds))
     p = subprocess.Popen(

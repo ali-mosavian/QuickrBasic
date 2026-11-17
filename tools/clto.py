@@ -26,7 +26,7 @@ def imports(obj: Path) -> set[str]:
     nm = subprocess.run([str(BIN / "llvm-nm"), "-u", str(obj)], capture_output=True, text=True)
     if nm.returncode == 0:
         return {line.split()[-1] for line in nm.stdout.splitlines() if line.strip()}
-    src = Path("csrc") / obj.relative_to("build/c/obj").with_suffix(".asm")
+    src = Path("src") / obj.relative_to("build/c/obj").with_suffix(".asm")
     return set(re.findall(r"(?im)^\s*extern(?:def|n)?\s+(\w[\w$]*)", src.read_text(errors="replace")))
 
 

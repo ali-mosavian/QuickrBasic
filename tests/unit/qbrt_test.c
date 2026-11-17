@@ -1,4 +1,4 @@
-/* llrm's QB runtime in the interpreter (csrc/qbrt): it draws, and its errors are QBasic's. */
+/* llrm's QB runtime in the interpreter (src/qbrt): it draws, and its errors are QBasic's. */
 #include "session.h"
 #include "io/errmsg.h"
 #include "io/repl.h"

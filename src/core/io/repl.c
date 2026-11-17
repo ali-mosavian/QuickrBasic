@@ -1,0 +1,673 @@
+/* Errors and the READY loop: reading a line, running it, reporting what went wrong.
+ *
+ * # How it works
+ * repl_error never returns. It unwinds with longjmp to the first of these that holds:
+ *
+ *   1. a stage's catch (fault.h): compiling's, which ends the line with an ERR op, folding's, or
+ *      a watch probe's (dbug_eval).
+ *   2. not BREAK nor E_OS, not in the handler, not the direct line, and a handler found:
+ *      flow_trap, which longjmps to vm.loop at the handler.
+ *   3. else the innermost repl_call, which resets the stacks and returns the error. The READY
+ *      loop reports it (the message, a file run's where, a compile error's place and words); the
+ *      editor shows it.
+ *
+ * Before any of them lexr.more is cleared and the x87 cleared. repl_ready, a run's end, longjmps
+ * to the same repl_call, which returns ST_OK.
+ *
+ * fault_qberr (fault.h) raises E_USR with vm.err.user = the QbErr. repl_enter takes a typed line and says
+ * which it was: ENTER_DIRECT, ENTER_EMPTY or ENTER_STORED. repl_main's loop reads, enters and
+ * runs lines; a front end hooks its places through its FrontEnd (null entries are the
+ * console's).
+ *
+ * # asm structure (retired/asm32/io/repl.asm)
+ * | asm | here | |
+ * |---|---|---|
+ * | err_raise | repl_error | MIRROR |
+ * | err_sn, err_id, err_rg, err_us, err_cn, err_tm, err_st, err_iq, err_om, err_os, err_od | repl_error(E_SN) etc. | MIRROR |
+ * | ch_err (io/chan.asm) | fault_qberr (fault.h) | MOVED |
+ * | er_diag, rpl_mod | static | MIRROR |
+ * | rpl_ready | repl_ready, repl_main | D1 |
+ * | rpl_run, rpl_cont | repl_run, repl_cont | MIRROR |
+ * | rpl_file | static | MIRROR; run by repl_main at the start |
+ * | rpl_load, rpl_enter, rpl_relink | repl_load, repl_enter, repl_relink | MIRROR |
+ * | ent_line, rpl_incl, rpl_line, rpl_read, rpl_inc, rpl_noinc | static | MIRROR |
+ * | g_fnmb, g_finc | repl.file, repl.incl | MIRROR |
+ * | r_* data | static | MIRROR |
+ * | vm.rsp (the C stack's reset) | repl.top | D2 |
+ *
+ * - D1. Every `jmp rpl_ready` is repl_ready, a longjmp to repl.top; the loop itself is ready.
+ * - D2. The innermost repl_call's jmp_buf: a run or a command returns to its caller.
+ */
+#include "io/repl.h"
+#include <stddef.h>
+#include "session.h"
+#include "comp/comp.h"
+#include "comp/declare.h"
+#include "comp/dfa.h"
+#include "comp/fold.h"
+#include "comp/lexer.h"
+#include "comp/link.h"
+#include "comp/listing.h"
+#include "io/channel.h"
+#include "io/console.h"
+#include "io/diag.h"
+#include "io/errmsg.h"
+#include "io/source.h"
+#include "mem/alloc.h"
+#include "mem/program.h"
+#include "mem/scope.h"
+#include "mem/string.h"
+#include "mem/symbols.h"
+#include "num/fpmath.h"
+#include "plat/pfil.h"
+#include "plat/psys.h"
+#include "qbrt/qbrt.h"
+#include "vm/debug.h"
+#include "vm/exec.h"
+#include "vm/flow.h"
+#include "vm/stmts.h"
+
+void repl_error(Session *const S, uint8_t code)
+{
+    S->lexr.source = nullptr; /* a streamed line's lexing ended */
+    fmth_clear();
+
+    if (S->fault.catch) /* compiling, folding, a watch's probe: theirs */
+        fault_throw(&S->fault, code);
+    if (code != E_BRK && code != E_OS && !S->vm.err.active && S->vm.line != DLINE) {
+        uint32_t handler = flow_handler(S);
+
+        if (handler)
+            flow_trap(S, code, handler);
+    }
+
+    S->repl.err = code;
+    longjmp(*S->repl.top, REPL_ERROR);
+}
+
+[[noreturn]]
+/* An error found off the code (the block pass), raised as if an ERR op at body offset at of
+   line (a program store offset) raised it, never trapped. vm.opip is set to an ErrOp
+   (vm/exec.h) of its own. */
+[[noreturn]]
+static void repl_raise_at(Session *const S, const Failure *const e)
+{
+    static ErrOp op;
+    op = (ErrOp){
+        .op = O_ERR,
+        .code = e->code,
+        .dg = e->dg,
+        .at = e->at,
+        .state = DX_NOSTATE,
+    };
+
+    S->vm.line = e->line;
+    S->vm.opip = (uint8_t *)&op;
+    S->vm.err.active = true;
+    diag_other(&S->diag, e->other, e->len);
+    repl_error(S, e->code);
+}
+
+void repl_fault(Fault *const f, const Failure *const e)
+{
+    Session *const S = container_of(f, Session, fault);
+
+    if (e->at != FAULT_KEEP)
+        repl_raise_at(S, e);
+    if (e->line != FAULT_KEEP)
+        S->vm.line = e->line;
+    if (e->code == E_USR)
+        S->vm.err.user = e->user;
+
+    repl_error(S, e->code);
+}
+
+void repl_ready(Session *const S) { longjmp(*S->repl.top, REPL_READY); }
+
+/* A source file's channel; an include's the number below its includer's. */
+enum { SOURCE_FILENO = FILENO_MAX, MODULE_WIDTH = 8 };
+
+/* The module's name, as BC's: the file's without its path and type, MODULE_WIDTH characters,
+   blanks after. */
+static void module_name(Session *const S)
+{
+    const char *s = S->repl.file;
+
+    for (const char *p = s; *p; p++)
+        if (*p == '\\' || *p == ':')
+            s = p + 1;
+
+    uint32_t n = 0;
+
+    for (; n < MODULE_WIDTH && s[n] && s[n] != '.'; n++)
+        cons_putc(&S->cons, upcase((uint8_t)s[n]));
+    for (; n < MODULE_WIDTH; n++)
+        cons_putc(&S->cons, ' ');
+}
+
+/* A compile error's place and words under BC's message: the line as LIST spells it, a mark under
+   the place, what is wrong and what to do. Any other error: nothing. */
+static void diagnose(Session *const S)
+{
+    const ErrOp *const e = (const ErrOp *)S->vm.opip;
+
+    if (!e || e->op != O_ERR)
+        return;
+
+    const uint8_t *const body =
+        S->vm.line == DLINE ? S->comp.cbuf : at(prog_addr(&S->prog, S->vm.line) + HDR);
+    const uint32_t col = list_text(&S->comp, body, e->at);
+    const uint32_t mark = diag_at(
+        &S->diag,
+        S->vm.err.user,
+        (const char *)S->cons.sbuf,
+        col,
+        e->code,
+        e->dg,
+        e->state
+    );
+    cons_nl(&S->cons);
+    cons_spaces(&S->cons, 2);
+    cons_puts(&S->cons, (const char *)S->cons.sbuf);
+    cons_nl(&S->cons);
+    cons_spaces(&S->cons, 2);
+
+    for (uint32_t i = 0; i < mark; i++)
+        cons_space(&S->cons);
+
+    cons_putc(&S->cons, '^');
+    cons_nl(&S->cons);
+    diag_say(&S->diag);
+}
+
+/* repl_error's message, a file run's where, as BC's: "in line n|No line number in module NAME at
+   address s:o"; or BREAK [IN n]. The stacks reset first; the editor takes it there. */
+static void report(Session *const S, const uint8_t code)
+{
+    const uint32_t line = S->vm.line;
+
+    if (code == E_BRK) {
+        cons_msg(&S->cons, E_BRK); /* BREAK [IN n] */
+        if (line != DLINE && prog_line(&S->prog, line)->num != NONUM) {
+            cons_msg(&S->cons, MSG_IN);
+            cons_uint(&S->cons, prog_line(&S->prog, line)->num);
+        }
+
+        return;
+    }
+
+    S->vm.ftop = S->vm.frames;
+
+    S->vm.fp = 0;
+    S->vm.cont.line = 0;
+    cons_puts(&S->cons, emsg_text(S->vm.err.user, code));
+
+    if (line != DLINE) {
+        if (S->repl.batch) {
+            cons_puts(&S->cons, " in line ");
+            const uint16_t erl = flow_erl(&S->prog, line);
+
+            if (erl)
+                cons_uint(&S->cons, erl);
+            else
+                cons_puts(&S->cons, "No line number");
+
+            cons_puts(&S->cons, " in module ");
+            module_name(S);
+            cons_puts(&S->cons, " at address ");
+            const uint32_t off = (uint32_t)(S->vm.opip - at(S->allo.cache));
+            cons_hex4(&S->cons, (uint16_t)(off >> 16));
+            cons_putc(&S->cons, ':');
+            cons_hex4(&S->cons, (uint16_t)off);
+        } else if (prog_line(&S->prog, line)->num !=
+                   NONUM) { /* typed lines: in line n, if numbered */
+            cons_puts(&S->cons, " in line ");
+            cons_uint(&S->cons, prog_line(&S->prog, line)->num);
+        }
+    }
+
+    diagnose(S);
+}
+
+/* The input's end in a file run, or at READY: files closed, exit. */
+[[noreturn]]
+static void quit(Session *const S)
+{
+    fault_check(&S->fault, chnl_closeall(&S->chnl));
+    cons_exit(&S->cons, 0);
+}
+
+void repl_run(Session *const S)
+{
+    S->vm.stop = 0; /* a key the editor or READY kept */
+    comp_line(&S->comp);
+    flow_dcode(S);
+    const uint32_t eol = S->link.eol - S->allo.cache; /* an older direct line's frames: its EOL */
+    for (uint32_t i = 0; i < vm_nframes(&S->vm); i++)
+        if (S->vm.frames[i].ret.line == DLINE)
+            S->vm.frames[i].ret.code = eol;
+
+    S->vm.ip = at(S->link.code); /* past its statement map */
+    exec_run(S);
+}
+
+void repl_cont(Session *const S)
+{
+    S->vm.stop = 0;
+    stmt_cont(S);
+    exec_run(S);
+}
+
+/* An error's end: the stacks reset, the console's channels again. */
+static void reset(Session *const S)
+{
+    S->vm.err.active = false;
+    S->vm.running = false; /* its loop's frame is gone */
+    chnl_clear(&S->chnl);
+    cons_fresh(&S->cons);
+    S->vm.sp = flow_stack_base(&S->vm); /* below a stop's frames, which CONT and probes keep */
+    S->strg.tmp_used = 0;
+    S->strg.tmp_floor = 0;
+}
+
+Status repl_call(Session *const S, void (*const fn)(Session *S))
+{
+    jmp_buf here, *const outer = S->repl.top;
+    S->repl.top = &here;
+    const int how = setjmp(here);
+
+    if (how == REPL_CALLED)
+        fn(S);
+
+    S->repl.top = outer;
+
+    if (how != REPL_ERROR)
+        return ST_OK;
+
+    reset(S);
+    return S->repl.err;
+}
+
+/* Lines read and entered till a direct one, which is left to run. */
+static void read_lines(Session *const S)
+{
+    for (;;) {
+        const int32_t len = cons_getline(&S->cons);
+
+        if (len < 0) {
+            if (!(S->vm.stop & SF_BRK))
+                quit(S);
+
+            S->vm.stop = 0; /* the STOP key at READY: nothing */
+            continue;
+        }
+
+        const uint8_t r = repl_enter(S, (uint32_t)len);
+
+        if (r == ENTER_DIRECT)
+            return;
+        if (r == ENTER_STORED) {
+            S->vm.ftop = S->vm.frames;
+            S->vm.fp = 0;
+        }
+    }
+}
+
+/* Lines read till a direct one, then run. */
+static void enter_and_run(Session *const S)
+{
+    read_lines(S);
+    repl_run(S);
+}
+
+/* READY., then lines read and entered, a direct one run; again. */
+[[noreturn]]
+static void ready(Session *const S)
+{
+    for (;;) {
+        if (S->repl.batch)
+            quit(S);
+
+        cons_fresh(&S->cons);
+        cons_msg(&S->cons, MSG_READY);
+        const Status st = repl_call(S, enter_and_run);
+
+        if (st != ST_OK)
+            report(S, (uint8_t)st);
+    }
+}
+
+/* Run the file the command line names, then exit; no name: back. */
+static void run_file(Session *const S)
+{
+    char tail[128];
+    psys_cmdline(tail, sizeof tail);
+    const char *s = tail;
+
+    while (*s == ' ')
+        s++;
+
+    size_t n = 0;
+
+    while ((uint8_t)*s > ' ' && n < sizeof S->repl.file - 1)
+        S->repl.file[n++] = *s++;
+
+    S->repl.file[n] = 0;
+
+    if (!n)
+        return;
+
+    repl_load(S);
+    session_drop(S);
+    link_start(&S->comp);
+    stmt_runfirst(S);
+    exec_run(S);
+}
+
+static void warn_stderr(Session *const S, const char *const text, const uint32_t len)
+{
+    uint32_t put;
+    pfil_write(PFIL_STDERR, text, len, &put);
+}
+
+const FrontEnd repl_batch = {.start = run_file, .warn = warn_stderr};
+
+void repl_main(Session *const S)
+{
+    if (S->repl.fe->start) {
+        const Status st = repl_call(S, S->repl.fe->start);
+
+        if (st != ST_OK) {
+            qbrt_text(); /* the message stays: the exit's text mode would clear a graphics screen */
+            report(S, (uint8_t)st);
+        }
+    }
+
+    ready(S);
+}
+
+static const uint8_t *blanks(const uint8_t *p, const uint8_t *const end)
+{
+    while (p < end && is_blank(*p))
+        p++;
+
+    return p;
+}
+
+/* The word w (capitals) at *p, any case: *p past it. */
+static bool word(const uint8_t **const p, const uint8_t *const end, const char *const w)
+{
+    const uint8_t *const q = *p;
+    const size_t n = strlen(w);
+
+    if ((size_t)(end - q) < n)
+        return false;
+    for (size_t i = 0; i < n; i++)
+        if (upcase(q[i]) != (uint8_t)w[i])
+            return false;
+
+    *p = q + n;
+    return true;
+}
+
+/* Is inbuf, len long, a '$INCLUDE: 'f' metacommand (or REM's)? f to repl.incl. */
+static bool is_include(Session *const S, const uint32_t len)
+{
+    const uint8_t *p = S->cons.inbuf;
+    const uint8_t *const end = p + len;
+    p = blanks(p, end);
+
+    while (p < end && is_digit(*p)) /* past a line number */
+        p++;
+
+    p = blanks(p, end);
+
+    if (p >= end)
+        return false;
+    if (*p == '\'')
+        p++;
+    else if (!word(&p, end, "REM"))
+        return false;
+
+    p = blanks(p, end);
+
+    if (!word(&p, end, "$INCLUDE"))
+        return false;
+
+    p = blanks(p, end);
+
+    if (p >= end || *p++ != ':')
+        return false;
+
+    p = blanks(p, end);
+
+    if (p >= end || *p++ != '\'')
+        return false;
+    for (size_t n = 0;;) {
+        if (p >= end)
+            return false;
+
+        const uint8_t c = *p++;
+
+        if (c == '\'') {
+            S->repl.incl[n] = 0;
+            return true;
+        }
+
+        S->repl.incl[n++] = (char)c;
+
+        if (n >= sizeof S->repl.incl - 1)
+            return false;
+    }
+}
+
+/* A line number in the body at p (M_INT n): Syntax error 64000 or over. */
+static uint16_t line_number(Session *const S, const uint8_t *const p)
+{
+    const uint32_t num = load32(p + 1);
+
+    if (num >= LNUM_LIMIT)
+        repl_error(S, E_SN);
+
+    return (uint16_t)num;
+}
+
+/* To the front end's warn: "Warning: [line n: ]what has no effect in 32-bit mode". */
+static void repl_warn(Session *const S, const char *const what)
+{
+    char buf[80], *w = buf;
+    memcpy(w, "Warning: ", 9);
+    w += 9;
+
+    if (S->repl.fline) {
+        memcpy(w, "line ", 5);
+        w += 5;
+        char dig[5];
+        int n = 0;
+
+        for (uint32_t v = S->repl.fline; v; v /= 10)
+            dig[n++] = (char)('0' + v % 10);
+        while (n)
+            *w++ = dig[--n];
+
+        *w++ = ':';
+        *w++ = ' ';
+    }
+
+    static const char tail[] = " has no effect in 32-bit mode\r\n";
+    const uint32_t len = (uint32_t)strlen(what);
+    memcpy(w, what, len);
+    w += len;
+    memcpy(w, tail, sizeof tail - 1);
+    w += sizeof tail - 1;
+    S->repl.fe->warn(S, buf, (uint32_t)(w - buf));
+}
+
+uint16_t repl_intern(LexrNames *const names, const uint8_t *const text, const uint8_t len)
+{
+    Session *const S = container_of(names, Session, names);
+    return symb_find_name(&S->symb, text, len);
+}
+
+void repl_declare(Session *const S, const uint8_t *const body)
+{
+    if (S->repl.fe->warn)
+        for (const uint8_t *p = body; *p;) {
+            const char *const what = decl_warning(&p);
+
+            if (!what)
+                break;
+
+            repl_warn(S, what);
+        }
+
+    decl_line(&S->decl, &S->scop, &S->symb, body, S->prog.entering, S->repl.loading);
+}
+
+/* The line in comp_cbuf, to be stored at place: its declarations. vm.lnum its number, NONUM
+   none; returns its body past the number. */
+static const uint8_t *declare(Session *const S, const uint32_t place)
+{
+    S->prog.entering = place;
+    repl_declare(S, S->comp.cbuf);
+    const uint8_t *p = S->comp.cbuf;
+    S->vm.lnum = NONUM;
+
+    if (comp_peek(&p) == M_INT) {
+        S->vm.lnum = line_number(S, p);
+        p += INT_TOKEN_SIZE;
+    }
+
+    return p;
+}
+
+/* declare, and the line's number's and label's labels. */
+static const uint8_t *enter_decls(Session *const S, const uint32_t place)
+{
+    const uint8_t *const p = declare(S, place);
+
+    if (S->vm.lnum != NONUM)
+        scop_label(&S->scop, &S->symb, SC_NUM | S->decl.proc, S->vm.lnum, S->prog.entering);
+    if (comp_label(p))
+        scop_label(&S->scop, &S->symb, S->decl.proc, comp_nameof(p), S->prog.entering);
+
+    return p;
+}
+
+uint8_t repl_enter(Session *const S, const uint32_t len)
+{
+    S->cons.inbuf[len] = 0;
+    S->vm.line = DLINE;
+    const uint8_t *const end = lexr_line(&S->lexr, S->cons.inbuf, S->comp.cbuf);
+    const uint32_t place = prog_at(&S->prog);
+
+    if (!S->comp.cbuf[0])
+        return ENTER_EMPTY;
+    if (S->repl.loading) { /* every line stored, at the end */
+        const uint8_t *const body = enter_decls(S, place);
+        prog_add(&S->prog, S->vm.lnum, body, (uint32_t)(end - body));
+        return ENTER_STORED;
+    }
+
+    const uint8_t *p = declare(S, place);
+
+    if (S->vm.lnum == NONUM)
+        return ENTER_DIRECT;
+
+    comp_peek(&p);
+    prog_put(&S->prog, S->link.cursor, S->vm.lnum, p, (uint32_t)(end - p));
+    return ENTER_STORED;
+}
+
+/* Enter the lines of file name, read as file number num; an include's on the number below, in
+   place. Then the console's again. */
+static void read_file(Session *const S, const char *const name, const int32_t num)
+{
+    Chnl *const cl = &S->chnl;
+    Chan *c;
+    fault_check(&S->fault, chnl_open(cl, num, name, FM_IN, RECLEN_DEFAULT, &c));
+    fault_check(&S->fault, chnl_in(cl, c));
+
+    for (;;) {
+        const int32_t len = srcr_line(&S->srcr);
+        fault_check(&S->fault, chnl_take(cl)); /* a read's error */
+
+        if (len < 0)
+            break;
+
+        S->repl.fline++;
+        const bool inc = is_include(S, (uint32_t)len);
+        S->lexr.source = &S->srcr.src;
+        repl_enter(S, (uint32_t)len);
+        S->lexr.source = nullptr;
+
+        if (inc) { /* its lines next */
+            read_file(S, S->repl.incl, num - 1);
+            fault_check(&S->fault, chnl_find(cl, num, &c));
+            fault_check(&S->fault, chnl_in(cl, c));
+        }
+    }
+
+    fault_check(&S->fault, chnl_find(cl, num, &c));
+    fault_check(&S->fault, chnl_close(cl, c));
+    chnl_clear(cl);
+}
+
+void repl_load(Session *const S)
+{
+    S->repl.loading = true;
+    S->repl.batch = true;
+    S->repl.fline = 0;
+    read_file(S, S->repl.file, SOURCE_FILENO);
+    S->repl.loading = false;
+    S->repl.fline = 0;
+}
+
+void repl_relink(Session *const S)
+{
+    for (uint32_t line = PROGBASE; prog_line(&S->prog, line)->len;) /* the include's lines out */
+        if (prog_line(&S->prog, line)->flags & LF_INC)
+            prog_cut(&S->prog, line);
+        else
+            line += prog_line(&S->prog, line)->len;
+
+    symb_vars_init(&S->symb);
+    decl_reset(&S->decl, &S->scop, &S->symb);
+    session_drop(S);
+    S->repl.loading = true;
+
+    for (uint32_t line = PROGBASE; prog_line(&S->prog, line)->len;) {
+        S->vm.line = line;
+        uint8_t *d = S->comp.cbuf; /* its number, then its body */
+        const uint32_t num = prog_line(&S->prog, line)->num;
+
+        if (num != NONUM) {
+            *d = M_INT;
+            store32(d + 1, num);
+            d += INT_TOKEN_SIZE;
+        }
+
+        prog_body(&S->prog, line, d);
+        const uint8_t *body = enter_decls(S, line);
+        const uint8_t tok = comp_peek(&body);
+        line += prog_line(&S->prog, line)->len;
+
+        if (tok != TK_REM)
+            continue;
+
+        list_text(&S->comp, body, 0); /* '$INCLUDE: the file's lines here */
+        memcpy(S->cons.inbuf, S->cons.sbuf, S->cons.sblen + 1);
+
+        if (!is_include(S, S->cons.sblen))
+            continue;
+
+        S->prog.add_at = line;
+        S->prog.add_flags = LF_INC;
+        read_file(S, S->repl.incl, SOURCE_FILENO - 1);
+        line = S->prog.add_at;
+        S->prog.add_at = 0;
+        S->prog.add_flags = 0;
+    }
+
+    S->repl.loading = false;
+}

@@ -1,5 +1,6 @@
-# make [all|basic32|ide32|test|style|clean]: build/x86/basic32.exe (the compiler and runtime) and
-# build/x86/ide32.exe (with the editor), DOS/32A executables; DOS32A.EXE beside them.
+# make [all|test|clean]: the C build, build/c/basic32.exe (the compiler and runtime) and
+# build/c/ide32.exe (with the editor), DOS/32A executables; DOS32A.EXE beside them.
+# The asm it was ported from, retired/: make asm (build/x86), make asm16 (16-bit .COM).
 PY := python3
 comma := ,
 LLRM_BIN ?= /Users/alim/work/personal/llrm-qbmac/target/release
@@ -7,70 +8,23 @@ LLRM_BIN ?= /Users/alim/work/personal/llrm-qbmac/target/release
 DOS32A ?= $(HOME)/.cache/llrm/open-watcom-v2-703e1ae2f9a621dda2d28fb39b12d0d6d2788af6/bld/redist/dos32a
 AC ?= 1                         # ide32: Tab completion, AC=0 leaves it out
 
-.PHONY: all basic32 ide32 syms test style clean
-
-MODS := main vm/exec vm/flow vm/calls vm/builtins vm/sys vm/bin vm/bc comp/lex comp/decl comp/block comp/ctl comp/comp \
-	comp/expr comp/fold comp/link comp/list mem/far mem/alloc mem/tab mem/prog mem/sym mem/scope mem/str mem/arr io/io io/errmsg io/diag io/srd io/repl \
-	io/chan io/fio vm/using io/plat float/flt float/ftr float/fpu float/dbl vm/dbg vm/event vm/chain
-UI := ui/scr ui/mouse ui/compl ui/text ui/edit ui/draw ui/menu ui/dlg ui/lmap ui/dbg ui/dpane ui/win ui/view ui/theme ui/syntax ui/ui
-INC := $(wildcard src/*.inc src/*/*.inc)
-OBJ := $(MODS:%=build/basic32/%.obj) build/basic32/regions.obj
-IDE_OBJ := $(MODS:%=build/ide32/%.obj) $(UI:%=build/ide32/%.obj) build/ide32/regions.obj
-LE_LINK = $(LLRM_BIN)/jwlink option quiet format os2 le option stub=$(DOS32A)/stub32a.exe
-
-all: syms basic32 ide32
-
-syms:                           # the shared symbols, src/syms.inc and src/ui/syms.inc
-	$(PY) tools/x86syms.py
-	$(PY) tools/x86syms.py IDE
-
-# each module on its own, the shared header x86f.inc (tools/x86syms.py); regions.obj last:
-# the zeroed state runs from main.asm's g_bss_s to its g_bss_e
-build/basic32/%.obj: src/%.asm $(INC)
-	@mkdir -p $(@D)
-	cd src && $(LLRM_BIN)/jwasm -q -zf0 -Fl=$(abspath $(@:.obj=.lst)) -Fo $(abspath $@) $*.asm
-build/ide32/%.obj: src/%.asm $(INC)
-	@mkdir -p $(@D)
-	cd src && $(LLRM_BIN)/jwasm -q -zf0 -DIDE=1 -DAC=$(AC) -Fl=$(abspath $(@:.obj=.lst)) \
-		-Fo $(abspath $@) $*.asm
-
-basic32: $(OBJ)
-	@mkdir -p build/x86
-	$(LE_LINK) file $(subst $(eval) ,$(comma),$(OBJ)) name build/x86/basic32.exe
-	$(PY) tools/x86d32a.py $(DOS32A)/dos32a.exe build/x86/DOS32A.EXE
-
-ide32: $(IDE_OBJ)
-	@mkdir -p build/x86
-	$(LE_LINK) file $(subst $(eval) ,$(comma),$(IDE_OBJ)) name build/x86/ide32.exe
-	cp src/ui/basic.hlp build/x86/BASIC.HLP
-	$(PY) tools/x86d32a.py $(DOS32A)/dos32a.exe build/x86/DOS32A.EXE
-
-test:                           # the regressions, QB 4.5 conformance, the generated files
-	$(PY) tools/x86f_test.py build/x86/basic32.exe
-	$(PY) tools/x86fold_test.py build/x86/basic32.exe
-	$(PY) tools/qbconf.py
-	sh test/tools/x86msg.sh
-	sh test/tools/x86syms.sh
-	sh test/tools/x86dfa.sh
-	X86_IDE=build/x86/ide32.exe $(PY) tools/x86ide_test.py
-
-style:
-	$(PY) tools/asmstyle.py
-
+.PHONY: all test clean
+all: c
+test: ctest
 clean:
 	rm -rf build
 
-# ---- The C build: csrc/, clang for i386 (COFF), build/c/basic32.exe and ide32.exe ----
+# ---- The C build: src/, clang for i386 (COFF), build/c/basic32.exe and ide32.exe ----
 # LLRM: llrm release/next's tree, for its DOS32 start-up and runtime, link recipe (jwlink) and
-# jwasm. The C library's subset is csrc/lib; its mem routines are renamed in each object.
+# jwasm. The C library's subset is src/lib; its mem routines are renamed in each object.
 LLRM ?= $(HOME)/work/personal/llrm-next
 CLANG ?= /opt/homebrew/opt/llvm/bin/clang
 OBJCOPY ?= $(dir $(CLANG))llvm-objcopy
 CC_OPT ?= -O2
 CFLAGS := --target=i386-pc-win32 -march=i386 -mregparm=3 -std=c23 $(CC_OPT) -ffreestanding \
 	-fno-asynchronous-unwind-tables -fno-stack-protector -mno-stack-arg-probe -mstack-alignment=4 -Werror=undef \
-	-DARENA_AT_ZERO=1 -Wall -Wextra -Wno-unused-parameter -isystem csrc/lib/include \
-	-Icsrc -Icsrc/core
+	-DARENA_AT_ZERO=1 -Wall -Wextra -Wno-unused-parameter -isystem src/lib/include \
+	-Isrc -Isrc/core
 COWN := $(foreach f,memcpy memmove memset,--redefine-sym _$(f)=_lib_$(f))
 # GCC=1: i686-elf-gcc, its assembly made COFF (tools/gas2coff.py) and assembled by clang, in build/cgcc
 GCC_CC ?= i686-elf-gcc
@@ -81,9 +35,9 @@ GFLAGS = $(filter-out --target=i386-pc-win32 -mno-stack-arg-probe -mstack-alignm
 cc = $(if $(GCC),$(GCC_CC) $(GFLAGS) -S $< -o $@.s && $(PY) tools/gas2coff.py $@.s $@.s && \
 	$(CLANG) --target=i386-pc-win32 -march=i386 -c $@.s -o $@,$(CLANG) $1 -c $< -o $@)
 
-# llrm's QB runtime (graphics, sound), ours since llrm-next f4197e19b2 (csrc/qbrt/llrm): the portable
+# llrm's QB runtime (graphics, sound), ours since llrm-next f4197e19b2 (src/qbrt/llrm): the portable
 # part, then each target's
-QBRT := csrc/qbrt/llrm
+QBRT := src/qbrt/llrm
 QBRT_PORTABLE := $(addprefix qb/,console.c cntext.c cngfx.c gfx.c gline.c gcirc.c gpaint.c gputget.c \
 	gdraw.c play.c screen.c scrfn.c sleep.c sticks.c timer.c varptr.c error.c rtinit.c nhstutil.c nheap.c)
 # DOS32: its own device and asm, by clang and jwasm; the asm's names given to clang's C (names.h)
@@ -91,7 +45,7 @@ QBRT_DSRC := $(QBRT_PORTABLE) $(addprefix qb/,dos/m32/ad.c posix/block.c dev/dos
 	$(addprefix dev/dos/m32/,clock.c con.c key.c prn.c text.c tone.c))
 QBRT_DASM := $(addprefix qb/dev/dos/m32/,bios.asm gdcirc.asm gdfill.asm gdline.asm gdscan.asm gdxfer.asm \
 	ports.asm tick.asm) qb/dos/m32/block.asm
-QBRT_DINC := -Icsrc/qbrt/include $(addprefix -I$(QBRT)/qb/,dos/m32 . dev dev/dos/m32 dev/dos) \
+QBRT_DINC := -Isrc/qbrt/include $(addprefix -I$(QBRT)/qb/,dos/m32 . dev dev/dos/m32 dev/dos) \
 	-I$(QBRT)/os/x86-m32
 QBRT_DOBJ := $(QBRT_DSRC:%.c=$(B)/qbrt/%.obj) $(QBRT_DASM:%.asm=$(B)/qbrt/%.obj) \
 	$(B)/obj/qbrt/qbrt.obj $(B)/obj/qbrt/qbrt_dos.obj
@@ -107,35 +61,35 @@ $(B)/qbrt/%.obj: $(QBRT)/%.c $(B)/qbrt/names.h
 $(B)/qbrt/%.obj: $(QBRT)/%.asm
 	@mkdir -p $(@D)
 	$(LLRM)/target/release/jwasm -q -coff -I$(QBRT)/qb/dev/dos/m32 -Fo$@ $<
-$(B)/obj/qbrt/%.obj: csrc/qbrt/%.c $(CHDR) $(B)/qbrt/names.h
+$(B)/obj/qbrt/%.obj: src/qbrt/%.c $(CHDR) $(B)/qbrt/names.h
 	@mkdir -p $(@D)
 	$(call cc,$(CFLAGS) -D__cdecl= -include $(B)/qbrt/names.h $(subst -I,-isystem ,$(QBRT_DINC)))
 	$(OBJCOPY) $(COWN) $@
 
-CSRC := $(shell find csrc/core csrc/lib -name '*.c' -not -path 'csrc/core/ui/*') \
-	$(wildcard csrc/plat/dos32/*.c) csrc/boot.c
-CUI := $(shell find csrc/core/ui -name '*.c' 2>/dev/null)
-CASM := $(wildcard csrc/plat/dos32/*.asm)
-CHDR := $(shell find csrc -name '*.h' -o -name '*.def')
-CCORE := $(CSRC:csrc/%.c=$(B)/obj/%.obj) $(CASM:csrc/%.asm=$(B)/obj/%.obj) $(QBRT_DOBJ)
+CSRC := $(shell find src/core src/lib -name '*.c' -not -path 'src/core/ui/*') \
+	$(wildcard src/plat/dos32/*.c) src/boot.c
+CUI := $(shell find src/core/ui -name '*.c' 2>/dev/null)
+CASM := $(wildcard src/plat/dos32/*.asm)
+CHDR := $(shell find src -name '*.h' -o -name '*.def')
+CCORE := $(CSRC:src/%.c=$(B)/obj/%.obj) $(CASM:src/%.asm=$(B)/obj/%.obj) $(QBRT_DOBJ)
 COBJ := $(CCORE) $(B)/obj/app/basic32.obj
-CIDE_OBJ := $(CCORE) $(CUI:csrc/%.c=$(B)/obj/%.obj) $(B)/obj/app/ide32.obj
+CIDE_OBJ := $(CCORE) $(CUI:src/%.c=$(B)/obj/%.obj) $(B)/obj/app/ide32.obj
 C_LINK = python3 -I $(LLRM)/tools/dosbatch/link_objects.py x86-m32
 
 .PHONY: c cbasic32 cide32 ctest cstyle
 cstyle:                         # formats the C sources (tools/cfmt.py)
-	git ls-files 'csrc/*.[ch]' 'tests/*.[ch]' | grep -v -e qbrt/llrm/ -e comp/dfa.h -e io/gen.h -e io/msg.h | xargs $(PY) tools/cfmt.py
+	git ls-files 'src/*.[ch]' 'tests/*.[ch]' | grep -v -e qbrt/llrm/ -e comp/dfa.h -e io/gen.h -e io/msg.h | xargs $(PY) tools/cfmt.py
 c: cbasic32 cide32
 
-$(B)/obj/core/ui/%.obj: csrc/core/ui/%.c $(CHDR)   # the editor: AC, its Tab completion
+$(B)/obj/core/ui/%.obj: src/core/ui/%.c $(CHDR)   # the editor: AC, its Tab completion
 	@mkdir -p $(@D)
 	$(call cc,$(CFLAGS) -DAC=$(AC))
 	$(OBJCOPY) $(COWN) $@
-$(B)/obj/%.obj: csrc/%.c $(CHDR)
+$(B)/obj/%.obj: src/%.c $(CHDR)
 	@mkdir -p $(@D)
 	$(call cc,$(CFLAGS))
 	$(OBJCOPY) $(COWN) $@
-$(B)/obj/%.obj: csrc/%.asm
+$(B)/obj/%.obj: src/%.asm
 	@mkdir -p $(@D)
 	$(LLRM)/target/release/jwasm -q -zf0 -Fo $@ $<
 
@@ -145,13 +99,13 @@ cbasic32: $(COBJ)
 
 cide32: $(CIDE_OBJ)
 	$(C_LINK) $(abspath $(B)/ide32.exe) $(abspath $(CIDE_OBJ))
-	cp src/ui/basic.hlp $(B)/BASIC.HLP
+	cp src/basic.hlp $(B)/BASIC.HLP
 	$(PY) tools/x86d32a.py $(DOS32A)/dos32a.exe $(B)/DOS32A.EXE
 
 # ---- LTO (make clto): the C objects as bitcode (build/clto), one module optimized whole by
 # tools/clto.py, linked with the asm's objects: build/clto/basic32.exe and ide32.exe. PGO=1: what
 # a training run calls not is cold (tools/x86pgo.py, build/clto/*.hot)
-CASM_OBJ := $(CASM:csrc/%.asm=build/c/obj/%.obj) $(QBRT_DASM:%.asm=build/c/qbrt/%.obj)
+CASM_OBJ := $(CASM:src/%.asm=build/c/obj/%.obj) $(QBRT_DASM:%.asm=build/c/qbrt/%.obj)
 CBC = $(patsubst build/c/%.obj,build/clto/%.bc,$(filter-out $(CASM_OBJ),$1))
 .PHONY: clto
 clto: build/clto/basic32.exe build/clto/ide32.exe
@@ -160,14 +114,14 @@ build/clto/qbrt/%.bc: $(QBRT)/%.c build/c/qbrt/names.h
 	@mkdir -p $(@D)
 	$(CLANG) $(subst -std=c23,-std=gnu11,$(CFLAGS)) -flto -w -D__cdecl= -include build/c/qbrt/names.h \
 		$(QBRT_DINC) -c $< -o $@
-build/clto/obj/qbrt/%.bc: csrc/qbrt/%.c $(CHDR) build/c/qbrt/names.h
+build/clto/obj/qbrt/%.bc: src/qbrt/%.c $(CHDR) build/c/qbrt/names.h
 	@mkdir -p $(@D)
 	$(CLANG) $(CFLAGS) -flto -D__cdecl= -include build/c/qbrt/names.h $(subst -I,-isystem ,$(QBRT_DINC)) \
 		-c $< -o $@
-build/clto/obj/core/ui/%.bc: csrc/core/ui/%.c $(CHDR)
+build/clto/obj/core/ui/%.bc: src/core/ui/%.c $(CHDR)
 	@mkdir -p $(@D)
 	$(CLANG) $(CFLAGS) -flto -DAC=$(AC) -c $< -o $@
-build/clto/obj/%.bc: csrc/%.c $(CHDR)
+build/clto/obj/%.bc: src/%.c $(CHDR)
 	@mkdir -p $(@D)
 	$(CLANG) $(CFLAGS) -flto -c $< -o $@
 
@@ -191,22 +145,22 @@ build/clto/basic32.exe: $(call CBC,$(COBJ)) $(CASM_OBJ) $(if $(PGO),build/clto/b
 build/clto/ide32.exe: $(call CBC,$(CIDE_OBJ)) $(CASM_OBJ) $(if $(PGO),build/clto/ide32.hot)
 	$(PY) tools/clto.py $(CLANG) build/clto/ide32.obj $(call CHOT,ide32) $(call CBC,$(CIDE_OBJ)) -- $(CASM_OBJ)
 	$(C_LINK) $(abspath $@) $(abspath build/clto/ide32.obj $(CASM_OBJ))
-	cp src/ui/basic.hlp build/clto/BASIC.HLP
+	cp src/basic.hlp build/clto/BASIC.HLP
 	$(PY) tools/x86d32a.py $(DOS32A)/dos32a.exe build/clto/DOS32A.EXE
 
 # ---- The host build: the same core on this machine's own CPU (plat/host/pfpu.c: the x87's on x86-64, C's on another) ----
 SDK := $(shell xcrun --show-sdk-path 2>/dev/null)
 HOST_CC ?= $(CLANG) -isysroot $(SDK)
 HOST_CFLAGS := -std=c23 -O1 -g -Werror=undef -DARENA_AT_ZERO=0 -DEXEC_COUNT -Wall -Wextra -Wno-unused-parameter \
-	-Icsrc/plat/host/include -Icsrc -Icsrc/core
-HSRC := $(shell find csrc/core -name '*.c' -not -path 'csrc/core/ui/*') csrc/core/ui/tree.c csrc/core/ui/indent.c \
-	$(wildcard csrc/plat/host/*.c) csrc/boot.c
-HOBJ := $(HSRC:csrc/%.c=build/host/obj/%.o)
+	-Isrc/plat/host/include -Isrc -Isrc/core
+HSRC := $(shell find src/core -name '*.c' -not -path 'src/core/ui/*') src/core/ui/tree.c src/core/ui/indent.c \
+	$(wildcard src/plat/host/*.c) src/boot.c
+HOBJ := $(HSRC:src/%.c=build/host/obj/%.o)
 
 # the host: llrm's headless device
 QBRT_HSRC := $(QBRT_PORTABLE) $(addprefix qb/,posix/block.c posix/ad.c posix/mathops.c \
 	dev/headless/headless.c dev/host/video.c dev/host/vgadata.c dev/host/tick.c) shared/posix/os.c
-QBRT_HINC := -Icsrc/qbrt/include $(addprefix -I$(QBRT)/,qb/posix qb qb/dev qb/dev/headless qb/dev/host shared/posix)
+QBRT_HINC := -Isrc/qbrt/include $(addprefix -I$(QBRT)/,qb/posix qb qb/dev qb/dev/headless qb/dev/host shared/posix)
 QBRT_HOBJ := $(QBRT_HSRC:%.c=build/host/qbrt/%.o) build/host/obj/qbrt/qbrt.o build/host/obj/qbrt/qbrt_host.o
 # play.c's waits for the tick come to qbrt_idle (BREAK, the tick in tests); the flag is here, so is its rebuild
 build/host/qbrt/qb/play.o: QBRT_DEF = '-DQB_IDLE()=do { extern void qbrt_idle(void); qbrt_idle(); } while (0)'
@@ -214,12 +168,12 @@ build/host/qbrt/qb/play.o: Makefile
 build/host/qbrt/%.o: $(QBRT)/%.c
 	@mkdir -p $(@D)
 	$(HOST_CC) -std=gnu11 -w -D__cdecl= $(QBRT_DEF) $(QBRT_HINC) -c $< -o $@
-build/host/obj/qbrt/%.o: csrc/qbrt/%.c $(CHDR)
+build/host/obj/qbrt/%.o: src/qbrt/%.c $(CHDR)
 	@mkdir -p $(@D)
 	$(HOST_CC) $(HOST_CFLAGS) $(subst -I,-isystem ,$(QBRT_HINC)) -c $< -o $@
 
 .PHONY: chost chosttest
-build/host/obj/%.o: csrc/%.c $(CHDR)
+build/host/obj/%.o: src/%.c $(CHDR)
 	@mkdir -p $(@D)
 	$(HOST_CC) $(HOST_CFLAGS) -c $< -o $@
 
@@ -231,16 +185,16 @@ build/host/basic: $(HOBJ) $(QBRT_HOBJ) build/host/obj/app/basic32.o build/host/o
 # QB_INSNS reports the instructions it ran
 .PHONY: chostperf
 HPERF_CFLAGS := $(filter-out -O1 -g -DEXEC_COUNT,$(HOST_CFLAGS)) -O2
-HPERF_OBJ := $(HSRC:csrc/%.c=build/hostperf/obj/%.o)
+HPERF_OBJ := $(HSRC:src/%.c=build/hostperf/obj/%.o)
 HPERF_QBRT := $(QBRT_HSRC:%.c=build/hostperf/qbrt/%.o) build/hostperf/obj/qbrt/qbrt.o build/hostperf/obj/qbrt/qbrt_host.o
 build/hostperf/qbrt/qb/play.o: QBRT_DEF = '-DQB_IDLE()=do { extern void qbrt_idle(void); qbrt_idle(); } while (0)'
 build/hostperf/qbrt/%.o: $(QBRT)/%.c
 	@mkdir -p $(@D)
 	$(HOST_CC) -O2 -std=gnu11 -w -D__cdecl= $(QBRT_DEF) $(QBRT_HINC) -c $< -o $@
-build/hostperf/obj/qbrt/%.o: csrc/qbrt/%.c $(CHDR)
+build/hostperf/obj/qbrt/%.o: src/qbrt/%.c $(CHDR)
 	@mkdir -p $(@D)
 	$(HOST_CC) $(HPERF_CFLAGS) $(subst -I,-isystem ,$(QBRT_HINC)) -c $< -o $@
-build/hostperf/obj/%.o: csrc/%.c $(CHDR)
+build/hostperf/obj/%.o: src/%.c $(CHDR)
 	@mkdir -p $(@D)
 	$(HOST_CC) $(HPERF_CFLAGS) -c $< -o $@
 chostperf: build/hostperf/basic
@@ -288,3 +242,65 @@ ctest:                          # the suites against the C build (GCC=1: gcc's)
 	X86_COM=$(B)/basic32.exe $(PY) tools/x86cost_test.py $(B)/basic32.exe
 	X86_COM=$(B)/basic32.exe $(PY) tools/x86gfx_test.py
 	X86_IDE=$(B)/ide32.exe $(PY) tools/x86ide_test.py
+
+# ---- Retired: the asm the C was ported from (retired/asm32), build/x86/basic32.exe and ide32.exe ----
+.PHONY: asm asm-basic32 asm-ide32 syms asm-test asm-style asm16
+MODS := main vm/exec vm/flow vm/calls vm/builtins vm/sys vm/bin vm/bc comp/lex comp/decl comp/block comp/ctl comp/comp \
+	comp/expr comp/fold comp/link comp/list mem/far mem/alloc mem/tab mem/prog mem/sym mem/scope mem/str mem/arr io/io io/errmsg io/diag io/srd io/repl \
+	io/chan io/fio vm/using io/plat float/flt float/ftr float/fpu float/dbl vm/dbg vm/event vm/chain
+UI := ui/scr ui/mouse ui/compl ui/text ui/edit ui/draw ui/menu ui/dlg ui/lmap ui/dbg ui/dpane ui/win ui/view ui/theme ui/syntax ui/ui
+INC := $(wildcard retired/asm32/*.inc retired/asm32/*/*.inc)
+OBJ := $(MODS:%=build/basic32/%.obj) build/basic32/regions.obj
+IDE_OBJ := $(MODS:%=build/ide32/%.obj) $(UI:%=build/ide32/%.obj) build/ide32/regions.obj
+LE_LINK = $(LLRM_BIN)/jwlink option quiet format os2 le option stub=$(DOS32A)/stub32a.exe
+
+asm: syms asm-basic32 asm-ide32
+
+syms:                           # the shared symbols, retired/asm32/syms.inc and retired/asm32/ui/syms.inc
+	$(PY) tools/x86syms.py
+	$(PY) tools/x86syms.py IDE
+
+# each module on its own, the shared header x86f.inc (tools/x86syms.py); regions.obj last:
+# the zeroed state runs from main.asm's g_bss_s to its g_bss_e
+build/basic32/%.obj: retired/asm32/%.asm $(INC)
+	@mkdir -p $(@D)
+	cd retired/asm32 && $(LLRM_BIN)/jwasm -q -zf0 -Fl=$(abspath $(@:.obj=.lst)) -Fo $(abspath $@) $*.asm
+build/ide32/%.obj: retired/asm32/%.asm $(INC)
+	@mkdir -p $(@D)
+	cd retired/asm32 && $(LLRM_BIN)/jwasm -q -zf0 -DIDE=1 -DAC=$(AC) -Fl=$(abspath $(@:.obj=.lst)) \
+		-Fo $(abspath $@) $*.asm
+
+asm-basic32: $(OBJ)
+	@mkdir -p build/x86
+	$(LE_LINK) file $(subst $(eval) ,$(comma),$(OBJ)) name build/x86/basic32.exe
+	$(PY) tools/x86d32a.py $(DOS32A)/dos32a.exe build/x86/DOS32A.EXE
+
+asm-ide32: $(IDE_OBJ)
+	@mkdir -p build/x86
+	$(LE_LINK) file $(subst $(eval) ,$(comma),$(IDE_OBJ)) name build/x86/ide32.exe
+	cp src/basic.hlp build/x86/BASIC.HLP
+	$(PY) tools/x86d32a.py $(DOS32A)/dos32a.exe build/x86/DOS32A.EXE
+
+asm-test:                       # the regressions, QB 4.5 conformance, the generated files
+	$(PY) tools/x86f_test.py build/x86/basic32.exe
+	$(PY) tools/x86fold_test.py build/x86/basic32.exe
+	$(PY) tools/qbconf.py
+	sh test/tools/x86msg.sh
+	sh test/tools/x86syms.sh
+	sh test/tools/x86dfa.sh
+	X86_IDE=build/x86/ide32.exe $(PY) tools/x86ide_test.py
+
+asm-style:
+	$(PY) tools/asmstyle.py
+
+# the 16-bit DOS .COM before it (cbmbasic-bc 316224a, retired/asm16): build/x86/basic.com, basic-ide.com;
+# assembled twice, the second time with the data's place after the code (csoff.py)
+A16 = cd retired/asm16 && $(LLRM_BIN)/jwasm -q -zf0 $1 -Fl=$(abspath $2/main.lst) -Fo $(abspath $2/main.obj) main.asm && \
+	$(LLRM_BIN)/jwasm -q -zf0 $1 -DCSOFF=$$($(PY) csoff.py $(abspath $2/main.lst)) -Fo $(abspath $2/main.obj) main.asm && \
+	cd $(CURDIR) && $(LLRM_BIN)/jwlink option quiet format dos com file $2/main.obj name $2/raw.com && \
+	tail -c +257 $2/raw.com > $3
+asm16:                          # jwlink keeps the 100h bytes before org: tail drops them
+	@mkdir -p build/asm16/basic build/asm16/ide build/x86
+	$(call A16,,build/asm16/basic,build/x86/basic.com)
+	$(call A16,-DIDE=1 -DAC=$(AC),build/asm16/ide,build/x86/basic-ide.com)
+	cp retired/asm16/ui/basic.hlp build/x86/BASIC.HLP

@@ -263,7 +263,7 @@ class Ide:
         if QBASIC.exists():
             (self.work / "QBASIC.EXE").write_bytes(QBASIC.read_bytes())
         (self.work / "DOS32A.EXE").write_bytes((IDE.parent / "DOS32A.EXE").read_bytes())
-        (self.work / "BASIC.HLP").write_bytes((ROOT / "src/ui/basic.hlp").read_bytes())
+        (self.work / "BASIC.HLP").write_bytes((ROOT / "src/basic.hlp").read_bytes())
         (self.work / "DEMO.BAS").write_bytes(DEMO.replace("\n", "\r\n").encode())
         for name, src in (files or {}).items():
             (self.work / name).write_bytes(src.read_bytes())

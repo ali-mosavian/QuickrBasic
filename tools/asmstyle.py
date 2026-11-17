@@ -4,11 +4,11 @@
 Every line is at most 100 columns (Python 120, as ruff); a line that is only a comment is at
 most 80.
 Entry lines of .txt tables (not comments) may be longer.
-No tabs in any covered file. Every routine under src/ has a docstring block above its
+No tabs in any covered file. Every routine under retired/asm32/ has a docstring block above its
 label, closed by a `; ::::::::::::::` rule line, and a known prefix of at most 3 letters
-(docs/asm-style.md). In assembly a label stands alone: an instruction never shares its line
+(retired/asm-style.md). In assembly a label stands alone: an instruction never shares its line
 (data directives may).
-A src/ file also opens with the header (holds:, uses:, data:, calls:, in that
+A retired/asm32/ file also opens with the header (holds:, uses:, data:, calls:, in that
 order; data: optional), and docstring fields come in the order in:, out:, keeps:, error:.
 Every in: and out: item has a note, two spaces after the name; only `as <routine>` and
 `does not return` stand alone.
@@ -26,7 +26,7 @@ CODE_MAX: int = 100
 PY_MAX: int = 120
 COMMENT_MAX: int = 80
 SUFFIX: dict[str, str | None] = {".s": ";", ".asm": ";", ".inc": ";", ".py": "#", ".txt": "#", ".md": None}
-DEFAULT_PATHS: list[str] = ["src", "tools", "test", "docs", "tables", "readme.md"]
+DEFAULT_PATHS: list[str] = ["retired/asm32", "tools", "test", "docs", "tables", "readme.md"]
 DOC_RULE: str = f"; {':' * 14}"
 HEAD_RULE: str = f"; {'=' * 74}"
 GLOBAL_LABEL: re.Pattern[str] = re.compile(r"^[A-Za-z_]\w*:$")

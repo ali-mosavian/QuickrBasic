@@ -1,6 +1,6 @@
 """The flat build's modules: their shared symbols as EXTERNDEFs.
 
-    python3 tools/x86syms.py [IDE]         write src/syms.inc (or ui/)
+    python3 tools/x86syms.py [IDE]         write retired/asm32/syms.inc (or ui/)
     python3 tools/x86syms.py check         syms.inc as written? constants and
                                            macros shared but not in a header?
                                            an @-label in two modules?
@@ -9,7 +9,7 @@ import re
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parent.parent / 'src'
+ROOT = Path(__file__).resolve().parent.parent / 'retired/asm32'
 CORE = ['main.asm', 'vm/exec.asm', 'vm/flow.asm', 'vm/calls.asm', 'vm/sys.asm', 'vm/bin.asm',
         'vm/builtins.asm', 'vm/bc.asm', 'comp/lex.asm', 'comp/decl.asm', 'comp/block.asm', 'comp/ctl.asm', 'comp/comp.asm',
         'comp/expr.asm', 'comp/fold.asm', 'comp/link.asm', 'comp/list.asm', 'mem/far.asm', 'mem/alloc.asm', 'mem/tab.asm',

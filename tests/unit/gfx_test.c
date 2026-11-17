@@ -1,5 +1,5 @@
-/* The graphics statements run: what they draw on the runtime's screen (csrc/core/comp/gfxstmt.c,
-   csrc/core/vm/gfx.c). */
+/* The graphics statements run: what they draw on the runtime's screen (src/core/comp/gfxstmt.c,
+   src/core/vm/gfx.c). */
 #include "session.h"
 #include "unit.h"
 

@@ -52,8 +52,8 @@ class Result:
 
 
 def messages() -> list[str]:
-    """The errors' messages, as src/io/errmsg.asm spells them."""
-    msgs = re.findall(r'^(?:g_qbmsg)?\s+db\s+\w+,"([^"]+)",0', (ROOT / "src/io/errmsg.asm").read_text(), re.M)
+    """The errors' messages, as retired/asm32/io/errmsg.asm spells them."""
+    msgs = re.findall(r'^(?:g_qbmsg)?\s+db\s+\w+,"([^"]+)",0', (ROOT / "retired/asm32/io/errmsg.asm").read_text(), re.M)
     assert len(msgs) > 50, "errmsg.asm's messages not read"
     return msgs + ["Unprintable error"]
 

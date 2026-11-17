@@ -31,7 +31,7 @@ def play() -> None:
     (work / exe).write_bytes(IDE.read_bytes())
     if IDE.suffix == ".exe":
         (work / "DOS32A.EXE").write_bytes((IDE.parent / "DOS32A.EXE").read_bytes())
-    hlp = "src/ui/basic.hlp"
+    hlp = "src/basic.hlp"
     (work / "BASIC.HLP").write_bytes((ROOT / hlp).read_bytes())
     (work / "SQ.BAS").write_bytes(b"for i=1 to _\r\n 3\r\n  print i*i\r\nnext\r\n")
     (work / "SUB").mkdir()

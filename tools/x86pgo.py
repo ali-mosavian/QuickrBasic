@@ -36,7 +36,7 @@ def main() -> None:
     x86run.COM = exe
     progs = {p.stem: p.read_text().replace("\n", "\r\n") for p in sorted(Path("tests/pgo").glob("*.bas"))}
     progs |= {k: v[0] for k, v in qbconf.cases().items()}
-    more = dict(files={**qbconf.COMPANIONS, "BASIC.HLP": Path("src/ui/basic.hlp").read_bytes()},
+    more = dict(files={**qbconf.COMPANIONS, "BASIC.HLP": Path("src/basic.hlp").read_bytes()},
                 before=("AUTOTYPE -w 2 f5",), keyboard=True, screen=True) if ide else dict(files=qbconf.COMPANIONS)
     if ide:
         progs = dict(list(progs.items())[:IDE_PROGRAMS])

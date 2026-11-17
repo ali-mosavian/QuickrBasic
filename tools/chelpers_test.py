@@ -26,9 +26,9 @@ FLAGS = [
     "-DARENA_AT_ZERO=1",
     "-w",
     "-isystem",
-    "csrc/lib/include",
-    "-Icsrc",
-    "-Icsrc/core",
+    "src/lib/include",
+    "-Isrc",
+    "-Isrc/core",
 ]
 HELPER = re.compile(r"__(a(ll|ull)(div|rem|shl|shr|mul)|u?(div|mod|udivmod)di3|udivmoddi4)\b")
 
@@ -41,7 +41,7 @@ def helpers(src: Path, out: Path) -> list[str]:
 
 
 def main() -> None:
-    srcs = sorted((ROOT / "csrc/core").rglob("*.c"))
+    srcs = sorted((ROOT / "src/core").rglob("*.c"))
     with tempfile.TemporaryDirectory() as d, ThreadPoolExecutor() as pool:
         found = [h for hs in pool.map(lambda s: helpers(s, Path(d)), srcs) for h in hs]
     if found:

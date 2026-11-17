@@ -8,7 +8,7 @@ def test_convert() -> None:
         '\t.section\t.rodata.str1.1,"aMS",@progbits,1',
         "\t.type\t_f, @function",
         "/APP",
-        '/  57 "csrc/plat/pfpu.h" 1',
+        '/  57 "src/plat/pfpu.h" 1',
         "\tfistpl -8(%ebp)",
         "/NO_APP",
         "\t.local\t_op.1",
