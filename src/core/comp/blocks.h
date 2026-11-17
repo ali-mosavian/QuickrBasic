@@ -33,8 +33,8 @@ typedef struct {
     uint8_t kind;   /* PK_SUB, PK_FUNC */
     uint8_t flags;  /* PF_* */
     uint32_t entry; /* its body: a target */
-    uint16_t first; /* its first line, its last (program store offsets) */
-    uint16_t last;
+    uint32_t first; /* its first line, its last (program store offsets) */
+    uint32_t last;
     uint16_t npar;
     uint16_t result; /* a FUNCTION's result variable */
     uint16_t nframe; /* its frame's cells (comp/frame.c) */

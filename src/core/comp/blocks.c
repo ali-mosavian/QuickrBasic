@@ -200,7 +200,7 @@ uint8_t blok_procof(const Blok *const b, const uint32_t line)
     for (uint32_t i = b->nprocs; i-- > 1;) {
         const Proc *const p = b->procs[i];
 
-        if ((uint16_t)line >= p->first && (uint16_t)line <= p->last)
+        if (line >= p->first && line <= p->last)
             return (uint8_t)i;
     }
 
@@ -410,8 +410,8 @@ static void blok_procstmt(BlokScan *const sc, const uint8_t *const s, const uint
         .name = comp_nameof(q),
         .kind = kind,
         .entry = blok_target(sc, sc->off, TO_NEXT_STMT), /* its body: the statement after */
-        .first = (uint16_t)sc->line,
-        .last = (uint16_t)sc->line,
+        .first = sc->line,
+        .last = sc->line,
         .skip = UINT32_MAX,
     };
 
@@ -603,7 +603,7 @@ static void blok_stmt(BlokScan *const sc, const uint8_t *const s)
             if (!sc->proc)
                 blok_failw(sc, E_EPW, 0, nullptr);
 
-            sc->proc->last = (uint16_t)sc->line;
+            sc->proc->last = sc->line;
             sc->proc->skip = blok_target(sc, sc->off, TO_NEXT_STMT);
             sc->proc = nullptr;
         }

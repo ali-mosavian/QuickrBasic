@@ -146,3 +146,33 @@ TEST(record_argument_of_another_type)
     CHECK(unit_run(S, whole) == E_PTM);
     CHECK(unit_run(S, number) == E_PTM);
 }
+
+/* A line's procedure was found by its offset cut to 16 bits: past 64 KB of program, a SUB's lines
+   covered the module's PRINT x, which read the SUB's x, 0. */
+TEST(procedures_past_64k_keep_their_lines)
+{
+    static char src[84 * 1024];
+    size_t n = 0;
+#define PUT(s) (memcpy(src + n, (s), sizeof(s) - 1), n += sizeof(s) - 1)
+#define PAD "' ..............................................................................\r\n"
+    PUT("x = 7\r\n");
+
+    while (n < 10 * 1024)
+        PUT(PAD);
+
+    PUT("PRINT x\r\n");
+
+    while (n < 56 * 1024)
+        PUT(PAD);
+
+    PUT("SUB s\r\n");
+
+    while (n < 80 * 1024)
+        PUT(PAD);
+
+    PUT("END SUB\r\n");
+#undef PAD
+#undef PUT
+    CHECK(unit_run_bytes(S, src, n) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 7 \r");
+}
