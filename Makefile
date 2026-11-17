@@ -174,21 +174,21 @@ $(eval $(call host_rules,build/hostperf,$(filter-out -O1 -g -DEXEC_COUNT,$(HOST_
 
 host: build/host/basic
 build/host/basic: $(build/host_OBJ) build/host/obj/app/basic32.o build/host/obj/plat/host/app/term.o
-	$(HOST_CC) $^ -o $@
+	$(HOST_CC) $^ -lm -o $@
 build/hostperf/basic: $(build/hostperf_OBJ) build/hostperf/obj/app/basic32.o build/hostperf/obj/plat/host/app/insns.o
-	$(HOST_CC) $^ -o $@
+	$(HOST_CC) $^ -lm -o $@
 
 UNIT_OBJ := $(patsubst tests/unit/%.c,build/host/unit/%.o,$(wildcard tests/unit/*.c))
 build/host/unit/%.o: tests/unit/%.c
 	@mkdir -p $(@D)
 	$(HOST_CC) $(HOST_CFLAGS) $(DEPFLAGS) -c $< -o $@
 build/host/unit_tests: $(build/host_OBJ) $(UNIT_OBJ)
-	$(HOST_CC) $^ -o $@
+	$(HOST_CC) $^ -lm -o $@
 build/host/golden/dump.o: tests/golden/dump.c
 	@mkdir -p $(@D)
 	$(HOST_CC) $(HOST_CFLAGS) $(DEPFLAGS) -c $< -o $@
 build/host/golden_dump: $(build/host_OBJ) build/host/golden/dump.o
-	$(HOST_CC) $^ -o $@
+	$(HOST_CC) $^ -lm -o $@
 
 # ---- LTO: the C as bitcode, one module optimized whole by tools/lto.py (LLVM's tools), linked with the asm's
 # objects into build/lto. PGO=1: what a training run never calls is cold (tools/pgo.py, build/lto/*.hot) ----
