@@ -633,6 +633,14 @@ BIG = {
     # Made while a string was in the heap the table could not grow: Out of memory; failing, it crashed.
     "many_vars_heap": ('a$ = "s" + STR$(1)\r\n' + "".join(f"v{i} = {i}\r\n" for i in range(1500)) + "PRINT a$; v1400\r\n",
                        "s 1 1400 \r\n", "ERROR"),
+    # The code cache grown in a link moved the program store up: every literal compiled before
+    # pointed at its text's old place. 1777 lines of a = 1 printed bytes of code for "start".
+    "big_code_lits": ('PRINT "start"\r\n' + "a = 1\r\n" * 1777 + 'PRINT "end"\r\n', "start\r\nend\r\n", "ERROR"),
+    "big_code_lits_far": ("".join(f'PRINT "lit{i}"\r\n' for i in range(400)) + "a0 = a0 + 1 * 2 - b0 / 3\r\n" * 3000
+                          + 'PRINT "end"\r\n', "lit0\r\nlit1\r\n", "ERROR"),
+    # A procedure named by a keyword (FIELD) was a Syntax error with no line or caret.
+    "proc_keyword_name": ("PRINT 1\r\nFUNCTION Field% (x AS INTEGER)\r\nEND FUNCTION\r\n",
+                          "FUNCTION FIELD %(x AS INTEGER)\r\n  ^", None),
     "many_vars": ("".join(f"v{i} = {i}\r\n" for i in range(5000)) + "PRINT v0; v4999\r\n", " 0  4999 \r\n", "ERROR"),
 }
 

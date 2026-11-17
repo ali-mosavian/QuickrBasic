@@ -593,12 +593,17 @@ void link_start(Comp *const C)
     blok_pair(C->blok, C->prog, C->symb, C->fault);
     decl_defevents(C->decl, C->scop, C->symb, C->prog); /* the typed lines' DEFtypes too */
     link_procvars(C);
-    C->link->cursor = 0;
-    uncache(C);
-    C->link->end = C->allo->cache + CACHE0;
+    Addr base;
 
-    for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)
-        link_line(C, l);
+    do { /* the cache grown moves the store: a literal's Addr of its text, compiled again */
+        base = C->prog->base;
+        C->link->cursor = 0;
+        uncache(C);
+        C->link->end = C->allo->cache + CACHE0;
+
+        for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)
+            link_line(C, l);
+    } while (C->prog->base != base);
 
     C->link->nmiss = 0;
 

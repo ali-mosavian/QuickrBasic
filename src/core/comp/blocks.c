@@ -127,7 +127,7 @@ static void blok_failw(
 [[noreturn]]
 static void blok_synerr(BlokScan *const sc)
 {
-    fault_raise(sc->f, (Failure){.code = E_SN, .at = FAULT_KEEP, .line = sc->line});
+    fault_raise(sc->f, (Failure){.code = E_SN, .at = sc->off, .line = sc->line});
 }
 
 [[noreturn]]
