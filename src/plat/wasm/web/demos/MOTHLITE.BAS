@@ -294,6 +294,7 @@ DECLARE SUB Disc (cx AS INTEGER, cy AS INTEGER, r AS INTEGER, c AS INTEGER)
 DECLARE SUB Dither (y1 AS INTEGER, y2 AS INTEGER, c AS INTEGER, level AS INTEGER)
 DECLARE SUB Txt (t AS STRING, x AS INTEGER, y AS INTEGER, id AS INTEGER)
 DECLARE SUB TxtC (t AS STRING, y AS INTEGER, id AS INTEGER)
+DECLARE FUNCTION TxtSprite% (t AS STRING, id AS INTEGER)
 DECLARE SUB GlyphRow (b AS INTEGER, x AS INTEGER, y AS INTEGER, sc AS INTEGER, c AS INTEGER)
 DECLARE FUNCTION NextTime! (last AS SINGLE)
 DECLARE FUNCTION Elapsed! (a AS SINGLE, b AS SINGLE)
@@ -361,6 +362,12 @@ DIM SHARED R2O(R2ON * 2) AS LONG, LandKey(1) AS INTEGER
 DIM SHARED CloudI(CLOUDN) AS LONG, CloudM(CLOUDN) AS LONG
 DIM SHARED SunI(SUNN) AS LONG, SunM(SUNN) AS LONG
 DIM SHARED Ink AS INTEGER
+' Text drawn once in each look, image then mask, in
+' Pool from TxtAt; all forgotten when it is full.
+CONST NTXT = 24, TXTPOOL = 16000
+DIM SHARED TxtKey(NTXT - 1) AS STRING, TxtAt(NTXT - 1) AS LONG
+DIM SHARED TxtLen(NTXT - 1) AS LONG, Pool(TXTPOOL) AS LONG
+DIM SHARED TxtN AS INTEGER, TxtTop AS LONG
 
 Main
 END
@@ -2133,11 +2140,12 @@ SUB Tick (w AS World, k AS Pad, st() AS Stone, sp() AS Spark)
 END SUB
 
 SUB TitleText (g AS Game)
-    DIM x AS INTEGER, h AS STRING
+    DIM x AS INTEGER, h AS STRING, k AS INTEGER
     TxtC "MOTHLIGHT", 14, LNAME
     ' a gleam sweeps across the name
     x = INT(g.clock * 140) MOD 560 - 100
     IF x >= 52 AND x <= 260 THEN
+        k = TxtSprite%("MOTHLIGHT", LGLEAM) ' drawn unclipped
         VIEW SCREEN (x, 14)-(x + 10, 38)
         TxtC "MOTHLIGHT", 14, LGLEAM
         VIEW
@@ -2201,7 +2209,7 @@ SUB Txt (t AS STRING, x AS INTEGER, y AS INTEGER, id AS INTEGER)
                     c = CINK
                     IF pass THEN c = c1 + r * span \ 8
                     gy = y + r * sc + o
-                    GlyphRow Glyph(ch, r), gx, gy, sc, c
+                    GlyphRow Glyph(ch, r), gx, gy, sc, Ik%(c)
                 NEXT
             NEXT
         END IF
@@ -2209,8 +2217,44 @@ SUB Txt (t AS STRING, x AS INTEGER, y AS INTEGER, id AS INTEGER)
 END SUB
 
 SUB TxtC (t AS STRING, y AS INTEGER, id AS INTEGER)
-    Txt t, (SW - LEN(t) * 8 * Looks(id).sc) \ 2, y, id
+    DIM x AS INTEGER, k AS INTEGER
+    x = (SW - LEN(t) * 8 * Looks(id).sc) \ 2
+    k = TxtSprite%(t, id)
+    PUT (x, y), Pool(TxtAt(k) + TxtLen(k)), AND
+    PUT (x, y), Pool(TxtAt(k)), OR
 END SUB
+
+' Text t's picture in look id: drawn at the top left
+' the first time, what was there put back.
+FUNCTION TxtSprite% (t AS STRING, id AS INTEGER)
+    DIM k AS INTEGER, w AS INTEGER, h AS INTEGER
+    DIM n AS LONG, tk AS STRING
+    tk = CHR$(id) + t
+    FOR k = 0 TO TxtN - 1
+        IF TxtKey(k) = tk THEN
+            TxtSprite% = k
+            EXIT FUNCTION
+        END IF
+    NEXT
+    w = LEN(t) * 8 * Looks(id).sc + Looks(id).sh
+    h = 8 * Looks(id).sc + Looks(id).sh
+    n = (CLNG(w) * h + 7) \ 4
+    IF TxtN = NTXT OR TxtTop + 2 * n > TXTPOOL THEN
+        TxtN = 0: TxtTop = 0
+    END IF
+    GET (0, 0)-(w - 1, h - 1), Frame
+    LINE (0, 0)-(w - 1, h - 1), 0, BF
+    Txt t, 0, 0, id
+    GET (0, 0)-(w - 1, h - 1), Pool(TxtTop)
+    LINE (0, 0)-(w - 1, h - 1), CMASK, BF
+    Ink = 0: Txt t, 0, 0, id: Ink = -1
+    GET (0, 0)-(w - 1, h - 1), Pool(TxtTop + n)
+    PUT (0, 0), Frame, PSET
+    TxtKey(TxtN) = tk: TxtAt(TxtN) = TxtTop: TxtLen(TxtN) = n
+    TxtTop = TxtTop + 2 * n
+    TxtSprite% = TxtN
+    TxtN = TxtN + 1
+END FUNCTION
 
 ' Vines hang from the top and sway, leaves on them.
 SUB Vines (x AS INTEGER, y2 AS INTEGER, t AS SINGLE)

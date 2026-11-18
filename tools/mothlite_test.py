@@ -84,6 +84,17 @@ DO
     w.g.clock = w.g.scroll / 7
     Render w, st(), sp()
 LOOP
+w.g.mode = OVER: w.g.score = 12: w.g.best = 30: w.g.newBest = -1: w.g.scroll = 3001
+FOR k = 0 TO 5
+    w.g.modeT = k * .2: w.g.clock = k * .3
+    Render w, st(), sp()
+NEXT
+w.g.mode = TITLE
+FOR k = 0 TO 3
+    w.g.clock = 2.1 + k * .9
+    Orbit w, joy, st(), sp()
+    Render w, st(), sp()
+NEXT
 CLOSE #1
 PRINT "frames ok"
 END
@@ -92,7 +103,7 @@ DATA 0,1,2.5,5,13,100,799,1597.5,1600,2400,4266.7,6400,8533,12790,12800,12817,25
 """
 
 # The frames' MD5, from the drawing at 66c90a5 (seeded alike).
-FRAMES_MD5 = "4cc504dd38c4605fdd0d9bbf33afa8fd"
+FRAMES_MD5 = "032645068f305167791e616683c89f52"
 
 
 def frames_program() -> str:
