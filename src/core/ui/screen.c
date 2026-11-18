@@ -175,23 +175,19 @@ void scrn_attr(const uint8_t row, const uint8_t col, const uint16_t n, const uin
         p[i] = (PscrCell)((p[i] & 0xFF) | attr << 8);
 }
 
-void scrn_shadow(const uint8_t row, const uint8_t col, const uint8_t rows, const uint8_t cols)
+/* COW's ShadowArc (box.c): the right side from the box's second row to its last, the row below
+   from its third column on; none when either would leave the screen. */
+void scrn_shadow(const uint8_t row, const uint8_t col, const uint8_t h, const uint8_t w)
 {
-    const uint8_t right = col + cols;
-    uint8_t left = rows; /* rows 0: 256 */
-    for (uint8_t r = row + 1; r < rows; r++) {
-        if (right < PSCR_COLS)
-            scrn_attr(r, right, right == PSCR_COLS - 1 ? 1 : SHADOW_COLS, SL_SHD);
-        if (!--left)
-            break;
-    }
+    const uint16_t right = (uint16_t)(col + w), below = (uint16_t)(row + h);
 
-    const uint8_t below = row + rows, from = col + SHADOW_COLS;
-
-    if (below >= rows || from >= PSCR_COLS)
+    if (right + SHADOW_COLS > PSCR_COLS || below >= rows || h < 2 || w < SHADOW_COLS)
         return;
 
-    scrn_attr(below, from, cols < PSCR_COLS - from ? cols : PSCR_COLS - from, SL_SHD);
+    for (uint16_t r = row + 1u; r < below; r++)
+        scrn_attr((uint8_t)r, (uint8_t)right, SHADOW_COLS, SL_SHD);
+
+    scrn_attr((uint8_t)below, (uint8_t)(col + SHADOW_COLS), w, SL_SHD);
 }
 
 void scrn_cursor(const uint8_t row, const uint8_t col) { pscr_cursor(0, row, col); }

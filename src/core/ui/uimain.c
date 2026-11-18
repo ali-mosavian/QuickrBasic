@@ -165,6 +165,21 @@ static uint16_t key_of(const PkeyKey k)
     return (uint16_t)(k.scan << 8 | ch);
 }
 
+/* The bar's letters lit while Alt is held, as QBasic's; shown now when no menu or dialog is up. */
+static void bar_letters(const bool on)
+{
+    const Widget *const sc = &uimn.tree.screen;
+    menu_letters(on);
+
+    for (uint8_t i = 0; i < sc->nchildren; i++) {
+        if (sc->children[i]->modal && sc->children[i]->visible)
+            return;
+    }
+
+    menu_bar();
+    scrn_flip();
+}
+
 /* A key, the mouse, or Alt let go after going down alone. */
 static uint16_t wait_key(void)
 {
@@ -174,13 +189,19 @@ static uint16_t wait_key(void)
         if (mous_poll())
             return KEY_MOUSE;
         if (pkey_shift() & PKEY_ALT) {
-            if (ui.alt == ALT_NONE)
+            if (ui.alt == ALT_NONE) {
                 ui.alt = ALT_DOWN;
+                bar_letters(true);
+            }
 
             continue;
         }
 
         const bool tap = ui.alt == ALT_DOWN;
+
+        if (ui.alt != ALT_NONE)
+            bar_letters(false);
+
         ui.alt = ALT_NONE;
 
         if (tap)

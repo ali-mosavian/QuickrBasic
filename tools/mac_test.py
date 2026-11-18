@@ -16,6 +16,11 @@ longer than its box had no scroll bar: now the SUBs list's arrow moves a column.
 are by name in three columns, their bar sideways: once one column in the directory's order. A long
 path shows its drive, "..", then its last folders that fit the Files list's width: once 80
 characters, the rest run on past the box onto the next row.
+Drawn as QBasic's: a box's shadow, its bottom row too (none once, message boxes none at all); the
+menu bar's letters plain at rest and on an open menu's title (once always bright); the status bar's
+text bright white (once black); the current statement on a breakpoint white on red (once a blue
+patch); a maximised window's icon the up-down arrow (once the up arrow); the default button's < >
+lit while a field has the focus; the insert cursor VGA's lines 13-14 (once 12-15).
 """
 
 import os
@@ -130,6 +135,15 @@ def lit_cells(w: int, pixels: bytes, row: int) -> list[int]:
     ]
 
 
+WHITE, BLACK = (0xFF, 0xFF, 0xFF), (0x00, 0x00, 0x00)
+RENDER = "PRINT 1\nPRINT 2\n"
+
+
+def cell(w: int, pixels: bytes, col: int, row: int) -> set[tuple[int, ...]]:
+    """Cell col, row's colours."""
+    return {pixel(w, pixels, x, y) for x in range(col * 9, col * 9 + 9) for y in range(row * 16, row * 16 + 16)}
+
+
 def main() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         program = Path(tmp) / "HELLO.BAS"
@@ -172,6 +186,13 @@ def main() -> None:
         (deep / "D.BAS").write_text("PRINT 1\n")
         _, _, deep_open = frames(run, deep / "D.BAS", OPEN, ("2s",))[0]
         deep_path = shown_path(deep)
+        render = Path(tmp) / "R.BAS"
+        render.write_text(RENDER)
+        rw, _, rstart = frames(run, render, "", ("2s",))[0]
+        _, _, rmenu = frames(run, render, "60:2100", ("2s",))[0]  # Alt+F
+        _, _, rbp = frames(run, render, "60:4300 80:3F00", ("3s",))[0]  # F9, F5
+        _, _, rmax = frames(run, render, "60:6700", ("2s",))[0]  # Ctrl+F10
+        _, _, ropen = frames(run, render, OPEN, ("2s",))[0]
         sorted_bas = Path(tmp) / "SORTED.BAS"
         sorted_bas.write_text(SORTED)
         _, _, first_sub = frames(run, sorted_bas, FIRST_SUB, ("2s",))[0]
@@ -211,6 +232,16 @@ def main() -> None:
         "Open's long path cut in its middle": [c for c in lit_cells(sw, deep_open, 6) if 7 < c < 72]
         == list(range(8, 8 + len(deep_path))),
         "Open's files by name": title_cells(sw, first_file) == len("A.BAS") + 3,
+        "a box's bottom shadow": all(pixel(sw, listed, c * 9, 21 * 16) == BLACK for c in range(5, 70)),
+        "menu bar letters plain at rest": WHITE not in cell(rw, rstart, 3, 0),
+        "open menu's title letter plain": WHITE not in cell(rw, rmenu, 3, 0),
+        "status text bright": all(WHITE in cell(rw, rstart, c, 24) for c in (2, 3, 4)),
+        "current statement on a breakpoint red": pixel(rw, rbp, 9, 32) == RED,
+        "maximised icon differs": [pixel(rw, rmax, x, y) for x in range(76 * 9, 77 * 9) for y in range(16, 32)]
+        != [pixel(rw, rstart, x, y) for x in range(76 * 9, 77 * 9) for y in range(16, 32)],
+        "default button lit": WHITE in cell(rw, ropen, 18, 20),
+        "insert cursor lines 13-14": pixel(rw, rstart, 13, 45) == pixel(rw, rstart, 13, 46) != pixel(rw, rstart, 13, 44)
+        and pixel(rw, rstart, 13, 47) != pixel(rw, rstart, 13, 45),
         "a long name's title whole": title_cells(lw, long_title) == len(f"LONG.BAS:{LONG_NAME}") + 3,
     }
     failed = [name for name, ok in checks.items() if not ok]

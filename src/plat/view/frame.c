@@ -51,6 +51,12 @@ static void graphics(void)
         out.rgba[i] = colours[px[i]];
 }
 
+/* A CGA cursor line, 0-7, in a VGA cell of ch lines. */
+static uint32_t vga_line(const uint32_t line, const uint32_t ch)
+{
+    return line < 4 ? line : line + ch - 9;
+}
+
 static void text(const bool blink, const ViewPointer pointer)
 {
     const HostScreen s = host_screen();
@@ -89,8 +95,9 @@ static void text(const bool blink, const ViewPointer pointer)
     if (!blink || s.shape & PSCR_HIDDEN || s.row >= s.rows || s.col >= PSCR_COLS)
         return;
 
-    /* the shape's lines are a CGA cell's, of 8: the VGA scales them to its cell */
-    const uint32_t first = (s.shape >> 8 & 7) * ch / 8, last = ((s.shape & 7) + 1) * ch / 8;
+    /* the shape's lines are a CGA cell's, of 8: the VGA BIOS's emulation keeps lines 0-3 from the
+       top, 4-7 from the bottom, its last line left clear (0607h: 13-14 of 16) */
+    const uint32_t first = vga_line(s.shape >> 8 & 7, ch), last = vga_line(s.shape & 7, ch) + 1;
     const uint32_t fg = colours[s.cells[s.row * PSCR_COLS + s.col] >> 8 & 15];
 
     for (uint32_t line = first; line < last && line < ch; line++)

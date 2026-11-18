@@ -74,6 +74,8 @@ extern const char *const menu_title[NMENU];
 
 /* mn_bar: the menu bar; the open menu's title lit. */
 void menu_bar(void);
+/* Alt held (on) or let go: the bar's letters lit or not. */
+void menu_letters(bool on);
 /* The menus' modal widget, a child of screen, hidden till menu_run. */
 void menu_build(Widget *screen);
 /* mn_run: the menus from menu m: open, its box open, else the bar lit; until a command (then
