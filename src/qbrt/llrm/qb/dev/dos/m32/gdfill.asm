@@ -64,6 +64,51 @@ B$FBOX          proc    uses ebx ecx edx esi edi ebp
                 mov     ebx, eax
                 mov     esi, [ebx].FillBox.dst
                 mov     ebp, [ebx].FillBox.rows
+                ;; a set without edge bytes and with one step (the 256-colour
+                ;; mode's): a loop for each width, nothing reloaded a row
+                cmp     [ebx].FillBox.edges, 0
+                jne     @@row
+                cmp     [set_flag], 0
+                je      @@row
+                mov     edx, [ebx].FillBox.steps
+                cmp     edx, [ebx + 4].FillBox.steps
+                jne     @@row
+                test    ebp, ebp
+                jz      @@done
+                mov     eax, [set_pattern]
+                mov     edi, esi
+                mov     ecx, [ebx].FillBox.middle
+                cmp     ecx, 1
+                je      @@col1
+                cmp     ecx, 2
+                je      @@col2
+                sub     edx, ecx                ;; from a row's end to the next's start
+                mov     esi, ecx
+                shr     esi, 2
+                and     ecx, 3
+                mov     ebx, ecx
+@@wide:
+                mov     ecx, esi
+                rep     stosd
+                mov     ecx, ebx
+                rep     stosb
+                add     edi, edx
+                dec     ebp
+                jnz     @@wide
+                ret
+@@col1:
+                mov     [edi], al
+                add     edi, edx
+                dec     ebp
+                jnz     @@col1
+                ret
+@@col2:
+                mov     [edi], ax
+                add     edi, edx
+                dec     ebp
+                jnz     @@col2
+@@done:
+                ret
 @@row:
                 mov     edi, esi
                 cmp     [ebx].FillBox.edges, 0
