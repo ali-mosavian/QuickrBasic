@@ -144,7 +144,9 @@ Node *ast_wrapat(Ast *const t, Node *const n, const NodeKind kind)
 
 Node *ast_wrap(Ast *const t, const NodeKind kind) { return ast_wrapat(t, t->last, kind); }
 
-void ast_conv(Ast *const t, const uint8_t cv, const uint8_t *const end)
+void ast_conv(Ast *const t, const uint8_t cv, const uint8_t *const end) { ast_convat(t, t->last, cv, end); }
+
+void ast_convat(Ast *const t, Node *const at, const uint8_t cv, const uint8_t *const end)
 {
     static const uint8_t type[] = {
         [CV_INT] = T_INT,
@@ -155,7 +157,7 @@ void ast_conv(Ast *const t, const uint8_t cv, const uint8_t *const end)
         [CV_ADDR] = T_INT,
     };
 
-    Node *const n = ast_wrap(t, N_CONV);
+    Node *const n = ast_wrapat(t, at, N_CONV);
     n->op = cv;
     n->type = type[cv];
     n->end = end;

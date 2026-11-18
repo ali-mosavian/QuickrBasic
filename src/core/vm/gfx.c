@@ -85,6 +85,23 @@ void vgfx_s2(Session *const S)
     B_S2R4(x, y);
 }
 
+/* ( x y -- ) INTs: the runtime's INTEGER point where both fit one, else its SINGLE's, as a DOUBLE converted. */
+static void vgfx_ixy(Vm *const vm, void (*const whole)(short, short), void (*const single)(float, float))
+{
+    const int32_t y = exec_popi(vm);
+    const int32_t x = exec_popi(vm);
+
+    if (x == (short)x && y == (short)y)
+        whole((short)x, (short)y);
+    else
+        single((float)x, (float)y);
+}
+
+void vgfx_n1i(Session *const S) { vgfx_ixy(&S->vm, B_N1I2, B_N1R4); }
+void vgfx_s1i(Session *const S) { vgfx_ixy(&S->vm, B_S1I2, B_S1R4); }
+void vgfx_n2i(Session *const S) { vgfx_ixy(&S->vm, B_N2I2, B_N2R4); }
+void vgfx_s2i(Session *const S) { vgfx_ixy(&S->vm, B_S2I2, B_S2R4); }
+
 void vgfx_last(Session *const S) { B_S1R4(0, 0); }
 
 void vgfx_screen(Session *const S)

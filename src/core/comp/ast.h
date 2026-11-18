@@ -160,4 +160,6 @@ Node *ast_wrapat(Ast *t, Node *n, NodeKind kind);
 Node *ast_wrap(Ast *t, NodeKind kind);
 /* The last step converted, CV_*; end its place for an error. */
 void ast_conv(Ast *t, uint8_t cv, const uint8_t *end);
+/* Node at's value converted, as ast_conv the last's. */
+void ast_convat(Ast *t, Node *at, uint8_t cv, const uint8_t *end);
 #endif

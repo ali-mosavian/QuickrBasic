@@ -49,15 +49,34 @@ static void gstm_optint(Comp *const C)
         comp_int(C, (uint32_t)NONE);
 }
 
-/* [STEP] (x, y): the point, as absolute's kind or, STEP, step's. */
+/* A point's service with INT coordinates. */
+static Syscall gstm_whole(const Syscall sc)
+{
+    return sc == SC_N1 ? SC_N1I : sc == SC_S1 ? SC_S1I : sc == SC_N2 ? SC_N2I : SC_S2I;
+}
+
+/* [STEP] (x, y): the point, as absolute's kind or, STEP, step's; both INTs, as its INT kind (the service after it). */
 static void gstm_point(Comp *const C, const Syscall absolute, const Syscall step)
 {
     const bool stepped = comp_cur(C) == TK_STEP;
     C->p += stepped;
     comp_open(C);
-    gstm_double(C);
+    expr_compile(C);
+    const bool whole = comp_type(C) == T_INT;
+    if (!whole)
+        comp_todouble(C);
+    Node *const x = C->ast->last;
+    const uint8_t *const xend = C->p;
     comp_comma(C);
-    gstm_double(C);
+    expr_compile(C);
+    if (whole && comp_type(C) == T_INT) {
+        comp_close(C);
+        gstm_op(C, gstm_whole(stepped ? step : absolute));
+        return;
+    }
+    comp_todouble(C);
+    if (whole)
+        ast_convat(C->ast, x, CV_DBL, xend);
     comp_close(C);
     gstm_op(C, stepped ? step : absolute);
 }

@@ -48,5 +48,9 @@ SC(PEN, vdev_pen)       /* ( n -- i ): PEN(n) */
 SC(SCRN, vdev_screen)   /* ( r c [f] count -- i ): SCREEN(r, c[, f]) */
 SC(PLAYV, snd_play_voices) /* ( commands... given -- ): PLAY a$, b$, ..., bit n of given voice n's string */
 SC(PCOPY, vgfx_pcopy)   /* ( from to -- ): PCOPY */
+SC(N1I, vgfx_n1i)       /* ( x y -- ): N1's, the coordinates INTs */
+SC(S1I, vgfx_s1i)       /* ( dx dy -- ): S1's */
+SC(N2I, vgfx_n2i)       /* ( x y -- ): N2's */
+SC(S2I, vgfx_s2i)       /* ( dx dy -- ): S2's */
 #undef SC
 #endif
