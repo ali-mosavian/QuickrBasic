@@ -51,6 +51,7 @@
 #include "mem/symbols.h"
 #include "mem/program.h"
 #include "num/double.h"
+#include "num/fpmath.h"
 #include "plat/pclk.h"
 #include "plat/pkey.h"
 #include "vm/debug.h"
@@ -467,6 +468,7 @@ static void exec_loop(Session *const S)
                 {exec_v_ld, &&v_ld},
                 {exec_v_st, &&v_st},
                 {exec_r_addr, &&r_addr},
+                {exec_call, &&call},
                 {nullptr, &&cold},
             },
             &&eol_to
@@ -801,6 +803,14 @@ i_st_a1f:
     if (!st_a1(&r, v->fp, true))
         goto slow;
 
+    goto next;
+
+call: /* INT of a SINGLE inline: the CALL's way through func_fn1 was 89 instructions on DOS */
+    if (r.ip[1] != K_FN_INT)
+        goto cold;
+
+    r.sp->a = fmth_floor(r.sp->u);
+    r.ip += 2;
     goto next;
 
 ra_addr:
