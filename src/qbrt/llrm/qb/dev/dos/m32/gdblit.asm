@@ -11,20 +11,38 @@
 
                 include gdfill.inc
 
-;; ROWS op: a row of dwords and its tail bytes combined into dst by `op`
-ROWS            macro   op, label
-                local   l_row, l_dword, l_tail, l_byte, l_next
+;; ROWS op: a row of dwords, four a turn, and its tail bytes combined into
+;; dst by `op`
+ROWS            macro   op
+                local   l_row, l_one, l_quads, l_quad, l_tail, l_byte, l_next
 l_row:
                 mov     ecx, [ebx].LinearBlit.count
-                test    ecx, ecx
-                jz      l_tail
-l_dword:
+                mov     edx, ecx
+                and     edx, 3
+                jz      l_quads
+l_one:
                 mov     eax, [esi]
                 op      [edi], eax
                 add     esi, 4
                 add     edi, 4
+                dec     edx
+                jnz     l_one
+l_quads:
+                shr     ecx, 2
+                jz      l_tail
+l_quad:
+                mov     eax, [esi]
+                op      [edi], eax
+                mov     eax, [esi + 4]
+                op      [edi + 4], eax
+                mov     eax, [esi + 8]
+                op      [edi + 8], eax
+                mov     eax, [esi + 12]
+                op      [edi + 12], eax
+                add     esi, 16
+                add     edi, 16
                 dec     ecx
-                jnz     l_dword
+                jnz     l_quad
 l_tail:
                 mov     ecx, [ebx].LinearBlit.tail
                 test    ecx, ecx
