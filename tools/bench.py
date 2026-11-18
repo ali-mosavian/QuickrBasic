@@ -534,7 +534,7 @@ def fps_program(parts: bool = False, one: bool = False) -> str:
 
 
 # --each: a call's ms on its own, in a game playing with a stone of each kind and sparks out, its music off
-FPS_EACH = ("Tick w, joy, st(), sp()", "cur(0, 0) = n MOD 2 * 9: ApplyPalette w.sky, cur()", "DrawSky w.g",
+FPS_EACH = ("Tick w, joy, st(), sp()", "cur(0, 0) = (n + q) MOD 2 * 9: ApplyPalette w.sky, cur()", "DrawSky w.g",
             "DrawSun w.g.clock", "DrawTop w", "DrawLand w.g", "DrawStones st(), w.g.clock",
             "DrawStone st(), 0, w.g.clock", "DrawStone st(), 1, w.g.clock", "DrawStone st(), 2, w.g.clock",
             "DrawStone st(), 3, w.g.clock", "DrawMoth w.m, w.g.mode", "DrawLake w.g.clock", "DrawSparks sp()",
@@ -549,7 +549,7 @@ BuildLand
 SparkPaths
 DIM w AS World, joy AS Pad, cur(NKEY - 1, 2) AS SINGLE
 DIM st(NSTONE - 1) AS Stone, sp(NSPARK - 1) AS Spark
-DIM i AS INTEGER, n AS LONG, t0 AS SINGLE
+DIM i AS INTEGER, q AS INTEGER, n AS LONG, t0 AS SINGLE
 NewWorld w, cur()
 Launch w, st(), sp()
 StopSong w.song
@@ -559,14 +559,20 @@ OPEN "EACH.TXT" FOR OUTPUT AS #1
 """
 
 
+# Calls between TIMER readings: on DOS a reading takes about a millisecond of the PIT's ports, and calls under that
+# read as 0 or 1 ms.
+EACH_REPS = 10
+
+
 def each_program() -> str:
     """MOTHLITE.BAS's Main swapped for a loop of each FPS_EACH call (after an empty one) for 2 s, its ms a call to
     EACH.TXT; the scene set again each time round."""
     head, rest = MOTH.read_text(encoding="latin-1").replace("\r\n", "\n").split("\nMain\nEND\n", 1)
     rest = rest.replace("RANDOMIZE TIMER", "RANDOMIZE 5")
     reset = "    FOR i = 0 TO NSTONE - 1: st(i).x = 10 + i * 90: st(i).kind = 1 + i MOD 4: st(i).gap = 95: NEXT\n"
-    reset += "    IF n MOD 60 = 0 THEN Emit sp(), w.m, BSCORE\n    w.m.y = 100: w.m.vy = 0: w.g.mode = PLAYING\n"
-    loops = "".join(f"n = 0: t0 = TIMER\nDO\n    {call}\n{reset}    n = n + 1\nLOOP UNTIL TIMER - t0 >= 2\n"
+    reset += "    IF (n + q) MOD 60 = 0 THEN Emit sp(), w.m, BSCORE\n    w.m.y = 100: w.m.vy = 0: w.g.mode = PLAYING\n"
+    loops = "".join(f"n = 0: t0 = TIMER\nDO\n    FOR q = 1 TO {EACH_REPS}\n    {call}\n{reset}    NEXT\n"
+                    f"    n = n + {EACH_REPS}\nLOOP UNTIL TIMER - t0 >= 2\n"
                     "PRINT #1, (TIMER - t0) / n * 1000; n\n" for call in ("REM", *FPS_EACH))
     return head + "\n" + EACH + loops + "CLOSE #1\nEND\n" + rest
 

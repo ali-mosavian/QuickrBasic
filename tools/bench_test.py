@@ -77,7 +77,18 @@ def profile_stop() -> None:
     assert bench.stopped(bench.dosrun.Result("prog", "", "exit", 0, 0)) == ""
 
 
+def each_reps() -> None:
+    """fps --each reads TIMER once per EACH_REPS calls. Read once a call, its millisecond on DOS rounded each
+    call's cost: DrawMoth read 0 ms, the rest whole ms."""
+    loops = bench.each_program().split("\nDO\n")[1:]
+    assert len(loops) == 1 + len(bench.FPS_EACH), len(loops)
+    for body in loops:
+        body = body.split("\nLOOP UNTIL")[0]
+        assert body.count("TIMER") == 0 and f"FOR q = 1 TO {bench.EACH_REPS}" in body, body
+
+
 def main() -> int:
+    each_reps()
     profile_stop()
     broken_counter()
     fps_start_up()
