@@ -106,7 +106,7 @@ static void begin(const Synth *const s, SynthOsc *const o, const DevVoice *const
     const uint32_t from = !v->from ? o->at : above < INT32_MAX ? (uint32_t)above : INT32_MAX;
 
     o->bend = FULL;
-    o->fed[0] = o->fed[1] = 0;
+    o->fed[0] = o->fed[1] = o->fed2[0] = o->fed2[1] = 0;
     o->age = 0;
     o->lfo = 0;
     o->at = samples && from ? from : o->step;
@@ -312,6 +312,33 @@ static int envelope_run(const Synth *const s, const SynthOsc *const o, const int
     }
 }
 
+/* The wave's next sample, the mean of two a little apart in pitch if the voice is a unison: noise is not. */
+[[gnu::always_inline]] static inline int32_t voiced(SynthOsc *const o, const int16_t *const sine)
+{
+    const int32_t one = wave(o, sine);
+
+    if (!o->set.spread || o->set.wave == DEV_NOISE)
+        return one;
+    const SynthOsc first = *o;
+
+    o->phase = o->phase2;
+    o->step = o->step2;
+    o->fed[0] = o->fed2[0];
+    o->fed[1] = o->fed2[1];
+    o->bend = first.bend + first.slope; /* the modulator's level this sample, not the next */
+    const int32_t two = wave(o, sine);
+
+    o->phase2 = o->phase;
+    o->fed2[0] = o->fed[0];
+    o->fed2[1] = o->fed[1];
+    o->phase = first.phase;
+    o->step = first.step;
+    o->fed[0] = first.fed[0];
+    o->fed[1] = first.fed[1];
+    o->bend = first.bend;
+    return (one + two) >> 1;
+}
+
 [[gnu::always_inline]] static inline int32_t filtered(SynthOsc *const o, const int32_t sample)
 {
     const int32_t in = sample * (1 << STATE_SHIFT);
@@ -352,6 +379,7 @@ static int envelope_run(const Synth *const s, const SynthOsc *const o, const int
         o->lfo += o->lfo_step * (uint32_t)run;
     } else
         o->age += (uint32_t)run;
+    o->step2 = o->step + ((o->step >> 10) + (o->step >> 13)) * o->set.spread; /* 0.11% is 2 cents */
     return run;
 }
 
@@ -425,7 +453,7 @@ void synth_run(SynthRun *r);
 #else
         for (const int end = i + run;;) {
             /* under 2^15 times 2^15, and unfiltered under 2^15 times the gain: int32 holds them */
-            const int32_t out = wave(&o, s->sine) * (o.level >> 9) >> 15;
+            const int32_t out = voiced(&o, s->sine) * (o.level >> 9) >> 15;
             if (filter != DEV_UNFILTERED)
                 sum[i] += (int32_t)((int64_t)filtered(&o, out) * o.gain >> 15);
             else
@@ -446,6 +474,9 @@ void synth_run(SynthRun *r);
     into->fed[0] = o.fed[0];
     into->fed[1] = o.fed[1];
     into->at = o.at;
+    into->phase2 = o.phase2;
+    into->fed2[0] = o.fed2[0];
+    into->fed2[1] = o.fed2[1];
     into->lfo = o.lfo;
     into->age = o.age;
 }

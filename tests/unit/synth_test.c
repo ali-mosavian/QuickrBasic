@@ -254,6 +254,29 @@ TEST(synth_vibrato_wavers_after_a_wait)
     CHECK(off == 0);
 }
 
+/* A unison: two saws 16 cents apart beat four times a second, so the sound swells and thins; one alone is as loud
+   all through. */
+TEST(synth_unison_beats)
+{
+    Synth s;
+    DevVoice v = note(441, DEV_SAW, 0x00F0);
+    int least[2], most[2];
+
+    for (int u = 0; u < 2; u++) {
+        v.spread = (unsigned char)(u * 8);
+        sound(&s, v, RATE);
+        least[u] = 32767;
+        most[u] = 0;
+        for (int at = RATE / 10; at + RATE / 50 <= RATE; at += RATE / 50) {
+            const int top = peak(buf + at, RATE / 50);
+            least[u] = top < least[u] ? top : least[u];
+            most[u] = top > most[u] ? top : most[u];
+        }
+    }
+    CHECK(least[0] > most[0] * 9 / 10);
+    CHECK(least[1] < most[1] * 6 / 10);
+}
+
 /* A glide: the second note climbs from the first's pitch over 150 ms, so its first 50 ms hold fewer periods than
    its last; and a note told to fall from twice its pitch starts with more. */
 TEST(synth_glide_slides_to_the_note)
@@ -564,10 +587,10 @@ TEST(play_sets_the_voice)
     CHECK(v.filter == DEV_LOW_PASS && v.cutoff == 800 && v.resonance == 9 && v.gate == 1);
 }
 
-/* W4 is FM, Z its modulator: ratio, depth, decay, level and feedback; U is vibrato, K a glide. */
+/* W4 is FM, Z its modulator: ratio, depth, decay, level and feedback; U is vibrato, K a glide, I a unison. */
 TEST(play_sets_fm)
 {
-    static const char *const lines[] = {"10 PLAY \"MF W4 Z3,11,6,2,5 U7 K4,8 C P64\"", nullptr};
+    static const char *const lines[] = {"10 PLAY \"MF W4 Z3,11,6,2,5 U7 K4,8 I9 C P64\"", nullptr};
     static const char *const fed[] = {"10 PLAY \"W4 Z1,2,3,4,8 C\"", nullptr};
     static const char *const waver[] = {"10 PLAY \"U16 C\"", nullptr};
     static const char *const ratio[] = {"10 PLAY \"W4 Z0 C\"", nullptr};
@@ -581,7 +604,7 @@ TEST(play_sets_fm)
     CHECK(headless_voice_count() > first);
     const DevVoice v = headless_voice(first).v;
     CHECK(v.wave == DEV_FM && v.ratio == 3 && v.depth == 11);
-    CHECK(v.fall == 0x62 && v.feedback == 5 && v.vibrato == 7 && v.glide == 4 && v.from == 8);
+    CHECK(v.fall == 0x62 && v.feedback == 5 && v.vibrato == 7 && v.glide == 4 && v.from == 8 && v.spread == 9);
     CHECK(unit_run(S, fed) == E_USR);
     CHECK(unit_run(S, waver) == E_USR);
     CHECK(unit_run(S, ratio) == E_USR);

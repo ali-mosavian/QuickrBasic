@@ -26,6 +26,7 @@ typedef struct DevVoice {
     unsigned char vibrato;   /* the pitch wavers 6 times a second once the note has sounded a while, 0 to 15 */
     unsigned char glide;     /* a note slides to its pitch, 0 to 15: at once to 800 ms */
     unsigned char from;      /* where it slides from: 0 the last note, else its own pitch and n quarters more */
+    unsigned char spread;    /* a second voice in unison, n times 2 cents sharp, 0 to 15: the two beat, as a section */
 } DevVoice;
 
 #endif

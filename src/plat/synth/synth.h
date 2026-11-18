@@ -29,6 +29,9 @@ typedef struct SynthOsc {
     /* the pitch: the step now, on its way to `step` by `slide` a sample; the vibrato's phase and step; samples since
        the note began */
     uint32_t at, lfo, lfo_step, age;
+    /* the unison's second voice: its phase, its step and its modulator's last two samples */
+    uint32_t phase2, step2;
+    int32_t fed2[2];
     int32_t slide;
     int32_t f, damping, low, band; /* the filter's: f and damping 2^16 is 1, its state in 256ths of a sample */
 } SynthOsc;
