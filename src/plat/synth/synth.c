@@ -16,6 +16,7 @@ enum {
     PI_ONES = 205887,   /* pi * ONE */
     DAMPING_MOST = 91750, /* 1.4: resonance 0 */
     DAMPING_STEP = 5680,  /* 1.3 / 15 */
+    SYNTH_BLOCK = 64,     /* samples a voice renders at a time */
 };
 
 enum Stage { STAGE_ATTACK, STAGE_DECAY, STAGE_RELEASE, STAGE_CUT };
@@ -119,7 +120,7 @@ static int32_t fall(const SynthOsc *const o, const int32_t *const steps)
     return steps[i];
 }
 
-static void envelope(const Synth *const s, SynthOsc *const o)
+[[gnu::always_inline]] static inline void envelope(const Synth *const s, SynthOsc *const o)
 {
     const int32_t sustain = (int32_t)(o->set.envelope >> 4 & HIGHEST_NIBBLE) * (FULL / HIGHEST_NIBBLE);
 
@@ -149,7 +150,7 @@ static void envelope(const Synth *const s, SynthOsc *const o)
 }
 
 /* The wave's next sample, -32767 to 32767. */
-static int32_t wave(SynthOsc *const o)
+[[gnu::always_inline]] static inline int32_t wave(SynthOsc *const o)
 {
     const uint32_t was = o->phase;
 
@@ -173,7 +174,7 @@ static int32_t wave(SynthOsc *const o)
     }
 }
 
-static int32_t filtered(SynthOsc *const o, const int32_t sample)
+[[gnu::always_inline]] static inline int32_t filtered(SynthOsc *const o, const int32_t sample)
 {
     const int32_t in = sample * (1 << STATE_SHIFT);
     int32_t high = 0;
@@ -193,24 +194,72 @@ static int32_t filtered(SynthOsc *const o, const int32_t sample)
     }
 }
 
-static int32_t voice(const Synth *const s, SynthOsc *const o)
+/* Voice o's next n samples added to sum, its wave and filter fixed: the voice's state in locals the loop keeps in
+   registers. Returns early once the voice is silent until its next note. */
+[[gnu::always_inline]] static inline void voice_run(const Synth *const s, SynthOsc *const into, int32_t *const sum,
+                                                    const int n, const unsigned wave_kind, const unsigned filter)
 {
-    if (o->level == 0 && (o->stage == STAGE_CUT || o->stage == STAGE_RELEASE)) /* silent until the next note */
-        return 0;
-    envelope(s, o);
-    int32_t out = (int32_t)((int64_t)wave(o) * (o->level >> 9) >> 15);
-    if (o->set.filter != DEV_UNFILTERED)
-        out = filtered(o, out);
-    return (int32_t)((int64_t)out * o->gain >> 15);
+    SynthOsc o = *into;
+
+    o.set.wave = (unsigned char)wave_kind;
+    o.set.filter = (unsigned char)filter;
+    for (int i = 0; i < n; i++) {
+        if (o.level == 0 && (o.stage == STAGE_CUT || o.stage == STAGE_RELEASE)) /* silent until the next note */
+            break;
+        envelope(s, &o);
+        /* under 2^15 times 2^15, and unfiltered under 2^15 times the gain: int32 holds them */
+        const int32_t out = wave(&o) * (o.level >> 9) >> 15;
+        if (filter != DEV_UNFILTERED)
+            sum[i] += (int32_t)((int64_t)filtered(&o, out) * o.gain >> 15);
+        else
+            sum[i] += out * o.gain >> 15;
+    }
+    into->phase = o.phase;
+    into->noise = o.noise;
+    into->level = o.level;
+    into->stage = o.stage;
+    into->low = o.low;
+    into->band = o.band;
 }
 
+#define VOICE_FILTERS(w)                                                                                               \
+    case DEV_UNFILTERED: voice_run(s, o, sum, n, w, DEV_UNFILTERED); break;                                           \
+    case DEV_LOW_PASS: voice_run(s, o, sum, n, w, DEV_LOW_PASS); break;                                               \
+    case DEV_BAND_PASS: voice_run(s, o, sum, n, w, DEV_BAND_PASS); break;                                             \
+    default: voice_run(s, o, sum, n, w, DEV_HIGH_PASS);
+
+/* Each wave and filter its own loop. */
+static void voice(const Synth *const s, SynthOsc *const o, int32_t *const sum, const int n)
+{
+    if (o->level == 0 && (o->stage == STAGE_CUT || o->stage == STAGE_RELEASE))
+        return;
+    switch (o->set.wave) {
+    case DEV_TRIANGLE:
+        switch (o->set.filter) { VOICE_FILTERS(DEV_TRIANGLE) }
+        break;
+    case DEV_SAW:
+        switch (o->set.filter) { VOICE_FILTERS(DEV_SAW) }
+        break;
+    case DEV_NOISE:
+        switch (o->set.filter) { VOICE_FILTERS(DEV_NOISE) }
+        break;
+    default:
+        switch (o->set.filter) { VOICE_FILTERS(DEV_PULSE) }
+    }
+}
+
+/* A block at a time, each voice over the block in turn: the sum is the same, an int32 till it is clipped. */
 void synth_render(Synth *const s, int16_t *const out, const int count)
 {
-    for (int i = 0; i < count; i++) {
-        int32_t sum = speaker(s);
+    for (int at = 0; at < count; at += SYNTH_BLOCK) {
+        const int n = count - at < SYNTH_BLOCK ? count - at : SYNTH_BLOCK;
+        int32_t sum[SYNTH_BLOCK];
 
+        for (int i = 0; i < n; i++)
+            sum[i] = speaker(s);
         for (int v = 0; v < DEV_VOICES; v++)
-            sum += voice(s, &s->osc[v]);
-        out[i] = (int16_t)(sum > 32767 ? 32767 : sum < -32767 ? -32767 : sum);
+            voice(s, &s->osc[v], sum, n);
+        for (int i = 0; i < n; i++)
+            out[at + i] = (int16_t)(sum[i] > 32767 ? 32767 : sum[i] < -32767 ? -32767 : sum[i]);
     }
 }

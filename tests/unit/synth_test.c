@@ -152,6 +152,39 @@ TEST(synth_renders_as_the_page_does)
     CHECK(hash == 2313499851u);
 }
 
+/* Every wave under every filter, six voices at once with the speaker, released halfway and rendered in uneven
+   pieces: the samples as they were before rendering went a voice a block at a time. */
+TEST(synth_six_voices_render_as_before)
+{
+    Synth s;
+    synth_init(&s, 15873);
+    synth_tone(&s, 440);
+    for (unsigned k = 0; k < DEV_VOICES; k++) {
+        DevVoice v = note(110 + 97 * k, k % 4, 0x1A63 + 0x1111 * k);
+        v.filter = (unsigned char)(k % 4 == 0 ? 3 - k / 4 : k % 4);
+        v.cutoff = (unsigned short)(400 + 700 * k);
+        v.resonance = (unsigned char)(3 * k);
+        v.volume = (unsigned char)(15 - k);
+        synth_voice(&s, k, &v);
+    }
+    uint32_t hash = 0;
+    for (int at = 0, piece = 1; at < RATE; at += piece, piece = piece * 7 % 601 + 1) {
+        const int n = piece < RATE - at ? piece : RATE - at;
+        if (at >= RATE / 2 && at - piece < RATE / 2) {
+            synth_tone(&s, 0);
+            for (unsigned k = 0; k < DEV_VOICES; k += 2) {
+                DevVoice v = s.osc[k].set;
+                v.gate = 0;
+                synth_voice(&s, k, &v);
+            }
+        }
+        synth_render(&s, buf + at, n);
+    }
+    for (int i = 0; i < RATE; i++)
+        hash = hash * 31 + (uint32_t)buf[i];
+    CHECK(hash == 2808615u);
+}
+
 /* QB's speaker as plat/sdl/audio.c made it before the synthesizer: the reference. */
 typedef struct {
     uint32_t hertz, phase;
