@@ -74,7 +74,7 @@
 /* stopchk: the STOP check at jumps, line ends, RETURN, NEXT; true: return from the handler. */
 static inline bool exec_stopchk(Session *const S) { return S->vm.stop && exec_brk(S); }
 
-static const uint8_t op_sizes[O_NOPS] = {
+const uint8_t flow_op_sizes[O_NOPS] = {
 #define OP(name, h, size, fl) size,
 #include "vm/ops.def"
 };
@@ -701,16 +701,6 @@ void flow_resume(Session *const S)
 void flow_err(Session *const S) { repl_error(S, ((const ErrOp *)S->vm.opip)->code); }
 
 /* ---- the rest ------------------------------------------------------------------------------- */
-
-uint32_t flow_opsize(const uint8_t *const op)
-{
-    if (op_sizes[op[0]])
-        return op_sizes[op[0]];
-    if (op[0] == O_ON)
-        return (op[1] & ON_COUNT) * sizeof(LineRef) + 2;
-
-    return op[1] + 2u; /* its length byte */
-}
 
 void flow_setcont(Vm *const vm, const Allo *const al)
 {

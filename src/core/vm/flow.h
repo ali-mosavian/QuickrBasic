@@ -99,8 +99,18 @@ void flow_setcont(Vm *vm, const Allo *al);
 void flow_end(Session *S);
 /* Illegal direct when running the direct line. */
 void flow_nodir(Session *S);
+/* Each op's size, 0 one that says its own */
+extern const uint8_t flow_op_sizes[O_NOPS];
 /* The size of the op at op, with its operands. */
-uint32_t flow_opsize(const uint8_t *op);
+static inline uint32_t flow_opsize(const uint8_t *const op)
+{
+    if (flow_op_sizes[op[0]])
+        return flow_op_sizes[op[0]];
+    if (op[0] == O_ON)
+        return (op[1] & ON_COUNT) * sizeof(LineRef) + 2;
+
+    return op[1] + 2u; /* its length byte */
+}
 /* A FUNCTION's result between its return and its push. A string's descriptor is in the arena,
    where a heap block's owner must be */
 typedef struct {
