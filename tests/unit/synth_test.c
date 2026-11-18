@@ -1,6 +1,8 @@
 /* The synthesizer (plat/synth) rendered offline, and PLAY's voices on llrm's queues (play.c) through the headless
    device's logs. */
 #include <math.h>
+#include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 
 #include "session.h"
@@ -615,10 +617,12 @@ TEST(play_voice_out_of_range)
 {
     static const char *const wave[] = {"10 PLAY \"W5 C\"", nullptr};
     static const char *const envelope[] = {"10 PLAY \"H1,2 C\"", nullptr};
-    static const char *const seven[] = {
-        "10 PLAY \"C\", \"D\", \"E\", \"F\", \"G\", \"A\", \"B\", \"C\", \"D\", \"E\", \"F\"", nullptr};
+    static char many[400] = "10 PLAY \"C\"";
+    static const char *const seven[] = {many, nullptr};
     static const char *const trailing[] = {"10 PLAY \"C\", ", nullptr};
 
+    for (int v = 0; v < DEV_VOICES; v++) /* a string more than there are voices */
+        strcat(many, ", \"C\"");
     CHECK(unit_run(S, wave) == E_USR);
     CHECK(unit_run(S, envelope) == E_USR);
     CHECK(unit_run(S, seven) != ST_OK);
@@ -641,15 +645,14 @@ TEST(play_voice_ends_with_the_program)
     CHECK(headless_tone_count() > tones && headless_tone(tones).hertz == 524);
 }
 
-/* Ten strings, ten voices, starting together: there were six. */
-TEST(play_of_ten_strings_plays_ten_voices)
+/* A string a voice, all 32 starting together: there were six, then ten. */
+TEST(play_of_32_strings_plays_32_voices)
 {
-    static const char *const lines[] = {
-        "10 PLAY \"MF T120 L4 O3 C\", \"T120 L4 O3 E\", \"T120 L4 O3 G\", \"T120 L4 O4 C\", \"T120 L4 O4 E\", "
-        "\"T120 L4 O4 G\", \"T120 L4 O5 C\", \"T120 L4 O5 E\", \"T120 L4 O5 G\", \"T120 L4 O6 C\"",
-        nullptr};
-    static const unsigned hertz[10] = {262, 330, 392, 524, 660, 784, 1048, 1320, 1568, 2096};
+    static char line[32 * 24 + 16] = "10 PLAY \"MF T120 L4 N1\"";
+    static const char *const lines[] = {line, nullptr};
 
+    for (int v = 1; v < 32; v++)
+        snprintf(line + strlen(line), 24, ", \"T120 L4 N%d\"", v + 1);
     qbrt_realtime(false);
     music_clear(); /* an earlier test's music */
     const size_t first = headless_voice_count();
@@ -657,16 +660,19 @@ TEST(play_of_ten_strings_plays_ten_voices)
     headless_run(200);
     qbrt_realtime(true);
 
-    long start[10] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
+    long start[32];
+    unsigned hertz[32];
+    for (int v = 0; v < 32; v++)
+        start[v] = -1;
     for (size_t i = first; i < headless_voice_count(); i++) {
         const HeadlessVoice h = headless_voice(i);
         if (h.v.gate && start[h.voice] < 0) {
             start[h.voice] = h.tick;
-            CHECK(h.v.hertz == hertz[h.voice]);
+            hertz[h.voice] = h.v.hertz;
         }
     }
-    for (int v = 0; v < 10; v++)
-        CHECK(start[v] >= 0 && start[v] == start[0]);
+    for (int v = 0; v < 32; v++) /* each its own note, a semitone over the last */
+        CHECK(start[v] >= 0 && start[v] == start[0] && (v == 0 || hertz[v] > hertz[v - 1]));
 }
 
 /* PLAY , , a$ plays voice 3 alone: the first voice's music goes on, its notes neither cut nor joined. */

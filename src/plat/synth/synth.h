@@ -1,4 +1,4 @@
-/* The synthesizer: the speaker's square wave, as QB's, and ten voices after the Commodore SID's (a pulse, triangle,
+/* The synthesizer: the speaker's square wave, as QB's, and 32 voices after the Commodore SID's (a pulse, triangle,
    saw, noise or two-operator FM wave each, its ADSR envelope and its own resonant filter), mixed to 16-bit samples. Portable and
    self-contained: the Mac's audio callback (plat/sdl/audio.c), the page's AudioWorklet (built alone to synth.wasm),
    DOS's Sound Blaster interrupt and the tests render the same samples. All integer: no FPU state to keep in an

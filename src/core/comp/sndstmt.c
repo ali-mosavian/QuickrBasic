@@ -13,7 +13,7 @@
 #include "vm/syscall.h"
 
 /* PLAY's strings at most: a voice each */
-enum { PLAY_VOICES = 10 };
+enum { PLAY_VOICES = 32 };
 
 /* After PLAY (comp.p): its event's ON, OFF or STOP. */
 static bool snds_event(Comp *const C)

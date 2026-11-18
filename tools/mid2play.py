@@ -17,7 +17,7 @@ from typing import NamedTuple
 from pathlib import Path
 from collections import defaultdict
 
-VOICES = 10
+VOICES = 32
 KIT_CHANNEL = 9
 # a note of so many sixteenths: its PLAY length and dot
 PIECES = {16: "1", 12: "2.", 8: "2", 6: "4.", 4: "4", 3: "8.", 2: "8", 1: "16"}
