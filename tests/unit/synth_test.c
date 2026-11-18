@@ -303,6 +303,14 @@ TEST(synth_glide_slides_to_the_note)
     synth_voice(&s, 0, &v);
     synth_render(&s, buf, RATE / 2);
     CHECK(rises(buf, RATE / 20) >= 34 && rises(buf + RATE / 4, RATE / 20) <= 23);
+
+    /* from an octave under its own pitch: a scoop up into the note, which a slide from over could not make */
+    v.under = 12;
+    v.trigger = 4;
+    synth_voice(&s, 0, &v);
+    synth_render(&s, buf, RATE / 2);
+    const int scoop = rises(buf, RATE / 20);
+    CHECK(scoop >= 11 && scoop <= 16 && rises(buf + RATE / 4, RATE / 20) >= 21);
 }
 
 /* H8,0,8,4: 100 ms of attack to full, a decay to about half, held, then a release to silence. */
@@ -654,7 +662,7 @@ TEST(play_sets_the_voice)
 /* W4 is FM, Z its modulator: ratio, depth, decay, level and feedback; U is vibrato, K a glide, I a unison. */
 TEST(play_sets_fm)
 {
-    static const char *const lines[] = {"10 PLAY \"MF W4 Z3,11,6,2,5 U7 K4,8 I9 R6 C P64\"", nullptr};
+    static const char *const lines[] = {"10 PLAY \"MF W4 Z3,11,6,2,5 U7 K4,8,5 I9 R6 C P64\"", nullptr};
     static const char *const fed[] = {"10 PLAY \"W4 Z1,2,3,4,8 C\"", nullptr};
     static const char *const waver[] = {"10 PLAY \"U16 C\"", nullptr};
     static const char *const ratio[] = {"10 PLAY \"W4 Z0 C\"", nullptr};
@@ -669,7 +677,7 @@ TEST(play_sets_fm)
     const DevVoice v = headless_voice(first).v;
     CHECK(v.wave == DEV_FM && v.ratio == 3 && v.depth == 11);
     CHECK(v.fall == 0x62 && v.feedback == 5 && v.vibrato == 7 && v.glide == 4 && v.from == 8 && v.spread == 9);
-    CHECK(v.reverb == 6);
+    CHECK(v.reverb == 6 && v.under == 5);
     CHECK(unit_run(S, fed) == E_USR);
     CHECK(unit_run(S, waver) == E_USR);
     CHECK(unit_run(S, ratio) == E_USR);

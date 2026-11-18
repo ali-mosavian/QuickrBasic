@@ -35,6 +35,10 @@ enum Stage { STAGE_ATTACK, STAGE_DECAY, STAGE_RELEASE, STAGE_CUT };
 /* SID's times from silence to full (attack) and from full to silence (decay, release), ms */
 static const uint16_t attack_ms[16] = {2, 8, 16, 24, 38, 56, 68, 80, 100, 250, 500, 800, 1000, 3000, 5000, 8000};
 static const uint16_t glide_ms[16] = {0, 10, 20, 30, 40, 60, 80, 100, 120, 150, 200, 250, 300, 400, 500, 800};
+/* 2^(-n/12) of 65536: a pitch n semitones under */
+static const uint32_t under[25] = {65536, 61858, 58386, 55109, 52016, 49097, 46341, 43740, 41285,
+                                   38968, 36781, 34716, 32768, 30929, 29193, 27554, 26008, 24548,
+                                   23170, 21870, 20643, 19484, 18390, 17358, 16384};
 static const uint16_t decay_ms[16] = {6, 24, 48, 72, 114, 168, 204, 240, 300, 750, 1500, 2400, 3000, 9000, 15000, 24000};
 /* SID's exponential fall: below each level (of 255) the step is divided by its divisor */
 static const int32_t below[SYNTH_CURVE] = {256, 93, 54, 26, 14, 6};
@@ -122,7 +126,9 @@ static void begin(const Synth *const s, SynthOsc *const o, const DevVoice *const
 {
     const uint32_t samples = glide_ms[v->glide & HIGHEST_NIBBLE] * s->rate / 1000;
     const uint64_t above = (uint64_t)o->step + (uint64_t)(o->step / 4) * v->from;
-    const uint32_t from = !v->from ? o->at : above < INT32_MAX ? (uint32_t)above : INT32_MAX;
+    const uint32_t over = !v->from ? o->at : above < INT32_MAX ? (uint32_t)above : INT32_MAX;
+    const uint32_t from =
+        v->under ? (uint32_t)((uint64_t)o->step * under[v->under < 24 ? v->under : 24] >> 16) : over;
 
     o->bend = FULL;
     o->fed[0] = o->fed[1] = o->fed2[0] = o->fed2[1] = 0;

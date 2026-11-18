@@ -23,7 +23,7 @@ the voice through the synthesizer instead of the speaker.
 | `Y`m[`,`f[`,`r]] | filter: 0 off, 1 low-pass, 2 band-pass, 3 high-pass; cutoff Hz; resonance | m 0–3, f 30–12000, r 0–15 | off, 1000, 0 |
 | `Z`r[`,`d[`,`f[`,`l[`,`b]]]] | FM's modulator: its pitch, r times the note's; how far it bends the carrier; how fast the bend falls at each note (the envelope's decay scale) and the level it holds; how far it bends itself | r 1–15, d f l 0–15, b 0–7 | 1, 8, 0, 15, 0 |
 | `U`n | vibrato: the pitch wavers 6 times a second, a fifth of a second into the note | 0–15 | 0 |
-| `K`t[`,`q] | glide: a note slides to its pitch in t (10 ms to 800 ms), from the last note's, or from q quarters over its own | 0–15 each | 0, 0 |
+| `K`t[`,`q[`,`u]] | glide: a note slides to its pitch in t (10 ms to 800 ms), from the last note's, from q quarters over its own, or from u semitones under it | t q 0–15, u 0–24 | 0, 0, 0 |
 | `R`n | reverb: how much of the voice a room answers, its tail a second long | 0–15 | 0 |
 | `I`n | unison: a second voice n times 2 cents sharp, the two beating as a section does (not on DOS, nor for noise) | 0–15 | 0 |
 

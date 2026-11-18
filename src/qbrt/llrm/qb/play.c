@@ -238,12 +238,16 @@ static void reverb(Player *p)
     p->sound.reverb = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
 }
 
-/* K time[, from]: a note slides to its pitch, from the last note's or from so many quarters over its own. */
+/* K time[, from[, under]]: a note slides to its pitch, from the last note's, from so many quarters over its own, or
+   from so many semitones under it. */
+enum { MOST_UNDER = 24 };
 static void glide(Player *p)
 {
     p->sound.glide = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
     if (comma(p))
         p->sound.from = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
+    if (comma(p))
+        p->sound.under = (unsigned char)within(p, 0, MOST_UNDER);
 }
 
 /* Q percent: the pulse's high part. */
@@ -370,7 +374,7 @@ static int step(Player *p, unsigned voice)
 
 /* What PLAY keeps from one use to the next, a voice each: the octave, the length, the tempo, the style, and the sound;
    the first is what SOUND reads. */
-#define FIRST_SOUND {0, DEFAULT_WIDTH, DEFAULT_ENVELOPE, DEFAULT_CUTOFF, DEV_PULSE, DEFAULT_VOLUME, DEV_UNFILTERED, 0, 0, 0, 1, DEFAULT_DEPTH, DEFAULT_FALL, 0, 0, 0, 0, 0, 0}
+#define FIRST_SOUND {0, DEFAULT_WIDTH, DEFAULT_ENVELOPE, DEFAULT_CUTOFF, DEV_PULSE, DEFAULT_VOLUME, DEV_UNFILTERED, 0, 0, 0, 1, DEFAULT_DEPTH, DEFAULT_FALL, 0, 0, 0, 0, 0, 0, 0}
 static const DevVoice first_sound = FIRST_SOUND;
 static Player players[DEV_VOICES] = {
     [0 ... DEV_VOICES - 1] = {{0, 0, 0}, {{0, 0, 0}}, DEFAULT_OCTAVE, DEFAULT_LENGTH, DEFAULT_TEMPO, NORMAL, 0, FIRST_SOUND}};

@@ -28,6 +28,7 @@ typedef struct DevVoice {
     unsigned char from;      /* where it slides from: 0 the last note, else its own pitch and n quarters more */
     unsigned char spread;    /* a second voice in unison, n times 2 cents sharp, 0 to 15: the two beat, as a section */
     unsigned char reverb;    /* how much of the voice the room answers, 0 to 15 */
+    unsigned char under;     /* it slides from n semitones under its own pitch instead, 1 to 24 */
 } DevVoice;
 
 #endif
