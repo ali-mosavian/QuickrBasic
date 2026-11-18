@@ -105,6 +105,23 @@ void B_GPUT(qb_data_ptr data, const AD *ad, short how)
                how == PUT_PRESET);
         return;
     }
+    if (planes == 1 && bits == 8) { /* a byte a pixel: the rows' part inside the viewport, a row at a time */
+        int left = gfx_x1 > gfx_view_left ? gfx_x1 : gfx_view_left;
+        int top = gfx_y1 > gfx_view_top ? gfx_y1 : gfx_view_top;
+        int right = gfx_x1 + (int)width - 1 < gfx_view_right ? gfx_x1 + (int)width - 1 : gfx_view_right;
+        int bottom = gfx_y1 + (int)height - 1 < gfx_view_bottom ? gfx_y1 + (int)height - 1 : gfx_view_bottom;
+        int row;
+
+        for (row = top; row <= bottom && left <= right; row++)
+            gd_put((unsigned)left, (unsigned)row, (unsigned)(right - left + 1), 1,
+                   in + (unsigned)(row - gfx_y1) * width + (unsigned)(left - gfx_x1),
+                   how == PUT_OR    ? 2
+                   : how == PUT_AND ? 1
+                   : how == PUT_XOR ? 3
+                                    : 0,
+                   how == PUT_PRESET);
+        return;
+    }
     for (y = 0; y < height; y++) {
         for (x = 0; x < width; x++) {
             unsigned color = 0;
