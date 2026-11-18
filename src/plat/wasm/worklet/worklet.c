@@ -4,6 +4,8 @@
 
 enum { QUANTUM = 128 }; /* an AudioWorklet's frames a call */
 
+static_assert(sizeof(DevVoice) == 20, "wasm.mjs's VOICE_BYTES");
+
 static Synth synth;
 static DevVoice in;
 static int16_t out[QUANTUM];

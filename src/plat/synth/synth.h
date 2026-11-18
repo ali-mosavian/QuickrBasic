@@ -1,5 +1,5 @@
 /* The synthesizer: the speaker's square wave, as QB's, and six voices after the Commodore SID's (a pulse, triangle,
-   saw or noise wave each, its ADSR envelope and its own resonant filter), mixed to 16-bit samples. Portable and
+   saw, noise or two-operator FM wave each, its ADSR envelope and its own resonant filter), mixed to 16-bit samples. Portable and
    self-contained: the Mac's audio callback (plat/sdl/audio.c), the page's AudioWorklet (built alone to synth.wasm),
    DOS's Sound Blaster interrupt and the tests render the same samples. All integer: no FPU state to keep in an
    interrupt, and no 64-bit division (a library call on i386). */
@@ -11,6 +11,7 @@
 #include "qbrt/llrm/qb/dev/voice.h"
 
 enum { SYNTH_CURVE = 6 }; /* SID's exponential fall: a step for each band of levels */
+enum { SYNTH_SINE = 1024 }; /* FM's sine, a period */
 
 typedef struct SynthOsc {
     DevVoice set;
@@ -20,6 +21,7 @@ typedef struct SynthOsc {
     uint8_t stage;
     /* worked out when the voice is set: the envelope's steps a sample, the gain (2^15 is 1) */
     int32_t attack, decay[SYNTH_CURVE], release[SYNTH_CURVE], gain;
+    uint32_t ratio, depth; /* FM: the modulator's phase steps a carrier's, the phase a full modulator bends it */
     int32_t f, damping, low, band; /* the filter's: f and damping 2^16 is 1, its state in 256ths of a sample */
 } SynthOsc;
 
@@ -30,6 +32,7 @@ typedef struct Synth {
     uint32_t want, hertz, phase;
     int32_t gain;
     SynthOsc osc[DEV_VOICES];
+    int16_t sine[SYNTH_SINE];
 } Synth;
 
 void synth_init(Synth *s, uint32_t rate);

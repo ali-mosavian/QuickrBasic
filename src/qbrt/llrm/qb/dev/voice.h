@@ -4,7 +4,7 @@
 #define QB_DEV_VOICE_H
 
 enum { DEV_VOICES = 6 };
-enum DevWave { DEV_PULSE, DEV_TRIANGLE, DEV_SAW, DEV_NOISE };
+enum DevWave { DEV_PULSE, DEV_TRIANGLE, DEV_SAW, DEV_NOISE, DEV_FM };
 enum DevFilter { DEV_UNFILTERED, DEV_LOW_PASS, DEV_BAND_PASS, DEV_HIGH_PASS };
 
 typedef struct DevVoice {
@@ -18,6 +18,8 @@ typedef struct DevVoice {
     unsigned char resonance; /* 0 to 15 */
     unsigned char gate;      /* 1 while the note sounds; 0 starts its release */
     unsigned char trigger;   /* changes at each note: its attack starts again */
+    unsigned char ratio;     /* FM: the modulator's pitch, 1 to 15 times the note's */
+    unsigned char depth;     /* FM: how far it bends the carrier, 0 to 15; the envelope scales it */
 } DevVoice;
 
 #endif

@@ -1,5 +1,7 @@
 /* The synthesizer (plat/synth) rendered offline, and PLAY's voices on llrm's queues (play.c) through the headless
    device's logs. */
+#include <stdlib.h>
+
 #include "session.h"
 #include "plat/synth/synth.h"
 #include "qbrt/qbrt.h"
@@ -96,6 +98,45 @@ TEST(synth_waves_have_their_shape)
     for (int i = RATE / 10 + 1; i < RATE; i++)
         drops += buf[i] < buf[i - 1];
     CHECK(drops >= 441 * 9 / 10 - 1 && drops <= 441 * 9 / 10 + 1);
+}
+
+/* FM (W4): with no depth a sine, which turns twice a period and has no step a saw's size; a modulator at three times
+   the note bends it into more turns, the period the same; and the bend fades with the envelope, so a decayed note's
+   tail is the sine again. */
+TEST(synth_fm_bends_a_sine)
+{
+    Synth s;
+    DevVoice v = note(441, DEV_FM, 0x00F0);
+    v.ratio = 3;
+    sound(&s, v, RATE);
+    int turns = 0, step = 0;
+    for (int i = RATE / 10 + 1; i < RATE - 1; i++) {
+        turns += (buf[i] - buf[i - 1] > 0) != (buf[i + 1] - buf[i] > 0);
+        step = abs(buf[i] - buf[i - 1]) > step ? abs(buf[i] - buf[i - 1]) : step;
+    }
+    CHECK(peak(buf, RATE) > 5900 && peak(buf, RATE) <= 6000);
+    CHECK(turns >= 2 * 441 * 9 / 10 - 2 && turns <= 2 * 441 * 9 / 10 + 2);
+    CHECK(step < 6000 / 10);
+
+    v.depth = 10;
+    sound(&s, v, RATE);
+    turns = 0;
+    for (int i = RATE / 10 + 1; i < RATE - 1; i++)
+        turns += (buf[i] - buf[i - 1] > 0) != (buf[i + 1] - buf[i] > 0);
+    CHECK(turns > 4 * 441 * 9 / 10);
+    int apart = 0; /* 441 Hz: a period is 100 samples */
+    for (int i = RATE / 10; i < RATE - 100; i++)
+        apart = abs(buf[i] - buf[i + 100]) > apart ? abs(buf[i] - buf[i + 100]) : apart;
+    CHECK(apart < 6000 / 20);
+
+    v.envelope = 0x0680; /* decays in 204 ms to about half */
+    sound(&s, v, RATE);
+    int early = 0, late = 0;
+    for (int i = 1; i < RATE / 50 - 1; i++)
+        early += (buf[i] - buf[i - 1] > 0) != (buf[i + 1] - buf[i] > 0);
+    for (int i = RATE / 2 + 1; i < RATE / 2 + RATE / 50 - 1; i++)
+        late += (buf[i] - buf[i - 1] > 0) != (buf[i + 1] - buf[i] > 0);
+    CHECK(early > late);
 }
 
 /* H8,0,8,4: 100 ms of attack to full, a decay to about half, held, then a release to silence. */
@@ -301,9 +342,28 @@ TEST(play_sets_the_voice)
     CHECK(v.filter == DEV_LOW_PASS && v.cutoff == 800 && v.resonance == 9 && v.gate == 1);
 }
 
+/* W4 is FM, Z its modulator's ratio and depth. */
+TEST(play_sets_fm)
+{
+    static const char *const lines[] = {"10 PLAY \"MF W4 Z3,11 C P64\"", nullptr};
+    static const char *const ratio[] = {"10 PLAY \"W4 Z0 C\"", nullptr};
+    static const char *const depth[] = {"10 PLAY \"W4 Z1,16 C\"", nullptr};
+
+    qbrt_realtime(false);
+    music_clear();
+    const size_t first = headless_voice_count();
+    CHECK(unit_run(S, lines) == ST_OK);
+    qbrt_realtime(true);
+    CHECK(headless_voice_count() > first);
+    const DevVoice v = headless_voice(first).v;
+    CHECK(v.wave == DEV_FM && v.ratio == 3 && v.depth == 11);
+    CHECK(unit_run(S, ratio) == E_USR);
+    CHECK(unit_run(S, depth) == E_USR);
+}
+
 TEST(play_voice_out_of_range)
 {
-    static const char *const wave[] = {"10 PLAY \"W4 C\"", nullptr};
+    static const char *const wave[] = {"10 PLAY \"W5 C\"", nullptr};
     static const char *const envelope[] = {"10 PLAY \"H1,2 C\"", nullptr};
     static const char *const seven[] = {"10 PLAY \"C\", \"D\", \"E\", \"F\", \"G\", \"A\", \"B\"", nullptr};
     static const char *const trailing[] = {"10 PLAY \"C\", ", nullptr};

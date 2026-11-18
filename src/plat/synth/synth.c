@@ -17,6 +17,8 @@ enum {
     DAMPING_MOST = 91750, /* 1.4: resonance 0 */
     DAMPING_STEP = 5680,  /* 1.3 / 15 */
     SYNTH_BLOCK = 64,     /* samples a voice renders at a time */
+    SINE_SHIFT = 22,      /* a phase's top bits index the sine */
+    FM_DEPTH = 10431,     /* a depth's half radian of phase, for each of a modulator's 32767: 2^32 / (4 pi 32767) */
 };
 
 enum Stage { STAGE_ATTACK, STAGE_DECAY, STAGE_RELEASE, STAGE_CUT };
@@ -28,9 +30,28 @@ static const uint16_t decay_ms[16] = {6, 24, 48, 72, 114, 168, 204, 240, 300, 75
 static const int32_t below[SYNTH_CURVE] = {256, 93, 54, 26, 14, 6};
 static const int32_t divisor[SYNTH_CURVE] = {1, 2, 4, 8, 16, 30};
 
+/* 32767 sin(k pi / 512), k from 0 to 256: the series to x^7, ONE being 1. */
+static int32_t quarter_sin(const int32_t k)
+{
+    const int32_t x = k * PI_ONES / (SYNTH_SINE / 2);
+    const int32_t x2 = (int32_t)((int64_t)x * x >> 16);
+    int32_t t = ONE - x2 / 42;
+
+    t = ONE - (int32_t)((int64_t)x2 * t >> 16) / 20;
+    t = ONE - (int32_t)((int64_t)x2 * t >> 16) / 6;
+    return (int32_t)((int64_t)x * t >> 16) * 32767 >> 16;
+}
+
 void synth_init(Synth *const s, const uint32_t rate)
 {
     *s = (Synth){.rate = rate, .per_hertz = UINT32_MAX / rate, .rest = (UINT32_MAX % rate + 1) % rate};
+    for (int i = 0; i < SYNTH_SINE / 2; i++) {
+        const int32_t k = i & (SYNTH_SINE / 4 - 1);
+        const int32_t y = quarter_sin(i < SYNTH_SINE / 4 ? k : SYNTH_SINE / 4 - k);
+
+        s->sine[i] = (int16_t)y;
+        s->sine[i + SYNTH_SINE / 2] = (int16_t)-y;
+    }
     for (int i = 0; i < DEV_VOICES; i++) {
         s->osc[i].noise = 0x7FFFF8;
         s->osc[i].stage = STAGE_CUT;
@@ -90,6 +111,8 @@ void synth_voice(Synth *const s, const unsigned voice, const DevVoice *const v)
     const uint32_t highest = s->rate / 6, cutoff = v->cutoff < highest ? v->cutoff : highest;
     o->f = twice_sin((int32_t)(PI_ONES * cutoff / (2 * s->rate)));
     o->damping = DAMPING_MOST - v->resonance * DAMPING_STEP;
+    o->ratio = v->ratio ? v->ratio : 1;
+    o->depth = v->depth * (uint32_t)FM_DEPTH;
 }
 
 /* The speaker's next sample, as QB's square wave always was. */
@@ -202,7 +225,7 @@ static int envelope_run(const Synth *const s, const SynthOsc *const o, const int
 #define SYNTH_ASM 1
 #else
 /* The wave's next sample, -32767 to 32767. */
-[[gnu::always_inline]] static inline int32_t wave(SynthOsc *const o)
+[[gnu::always_inline]] static inline int32_t wave(SynthOsc *const o, const int16_t *const sine)
 {
     const uint32_t was = o->phase;
 
@@ -221,6 +244,11 @@ static int envelope_run(const Synth *const s, const SynthOsc *const o, const int
             o->noise = (o->noise << 1 | bit) & 0x7FFFFF;
         }
         return (int32_t)(o->noise >> 15 & 0xFF) * 257 - 32767;
+    case DEV_FM: {
+        /* a sine bent by a sine: the envelope fades the bend with the note, as a plucked string's brightness */
+        const int32_t bend = sine[o->phase * o->ratio >> SINE_SHIFT] * (o->level >> 9) >> 15;
+        return sine[(o->phase + (uint32_t)bend * o->depth) >> SINE_SHIFT];
+    }
     default:
         return o->phase >> 20 < o->set.width ? 32767 : -32767;
     }
@@ -254,6 +282,8 @@ typedef struct SynthRun {
     int32_t *sum;
     int32_t n;
     uint32_t noise, width, kind, in;
+    const int16_t *sine;
+    uint32_t ratio, depth;
 } SynthRun;
 void synth_run(SynthRun *r);
 #endif
@@ -281,7 +311,7 @@ void synth_run(SynthRun *r);
             o.level += delta;
 #ifdef SYNTH_ASM
         SynthRun r = {o.phase, o.step, o.level, delta, o.low, o.band, o.f, o.damping, o.gain, sum + i, run, o.noise,
-                      o.set.width, wave_kind * 4 + filter, 0};
+                      o.set.width, wave_kind * 4 + filter, 0, s->sine, o.ratio, o.depth};
         synth_run(&r);
         o.phase = r.phase;
         o.noise = r.noise;
@@ -292,7 +322,7 @@ void synth_run(SynthRun *r);
 #else
         for (const int end = i + run;;) {
             /* under 2^15 times 2^15, and unfiltered under 2^15 times the gain: int32 holds them */
-            const int32_t out = wave(&o) * (o.level >> 9) >> 15;
+            const int32_t out = wave(&o, s->sine) * (o.level >> 9) >> 15;
             if (filter != DEV_UNFILTERED)
                 sum[i] += (int32_t)((int64_t)filtered(&o, out) * o.gain >> 15);
             else
@@ -331,6 +361,9 @@ static void voice(const Synth *const s, SynthOsc *const o, int32_t *const sum, c
         break;
     case DEV_NOISE:
         switch (o->set.filter) { VOICE_FILTERS(DEV_NOISE) }
+        break;
+    case DEV_FM:
+        switch (o->set.filter) { VOICE_FILTERS(DEV_FM) }
         break;
     default:
         switch (o->set.filter) { VOICE_FILTERS(DEV_PULSE) }

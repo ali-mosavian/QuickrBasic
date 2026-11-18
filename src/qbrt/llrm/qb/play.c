@@ -37,7 +37,8 @@ enum {
     DEFAULT_WIDTH = WIDTH_SCALE / 2,
     LOWEST_CUTOFF = 30,
     HIGHEST_CUTOFF = 12000,
-    DEFAULT_CUTOFF = 1000
+    DEFAULT_CUTOFF = 1000,
+    DEFAULT_DEPTH = 8
 };
 
 /* How much of a note sounds before the silence that ends it, in eighths. */
@@ -197,7 +198,15 @@ static void volume(Player *p)
 
 static void wave(Player *p)
 {
-    p->sound.wave = (unsigned char)within(p, DEV_PULSE, DEV_NOISE);
+    p->sound.wave = (unsigned char)within(p, DEV_PULSE, DEV_FM);
+}
+
+/* Z ratio[, depth]: FM's modulator, its pitch in the note's and how far it bends the carrier. */
+static void modulator(Player *p)
+{
+    p->sound.ratio = (unsigned char)within(p, 1, HIGHEST_NIBBLE);
+    if (comma(p))
+        p->sound.depth = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
 }
 
 /* Q percent: the pulse's high part. */
@@ -210,7 +219,7 @@ static void width(Player *p)
 static const struct {
     char letter;
     void (*set)(Player *p);
-} synth_commands[] = {{'V', volume}, {'W', wave}, {'Q', width}, {'H', envelope}, {'Y', filter}};
+} synth_commands[] = {{'V', volume}, {'W', wave}, {'Q', width}, {'H', envelope}, {'Y', filter}, {'Z', modulator}};
 
 static void synth_command(Player *p, char command)
 {
@@ -323,7 +332,7 @@ static int step(Player *p, unsigned voice)
 
 /* What PLAY keeps from one use to the next, a voice each: the octave, the length, the tempo, the style, and the sound;
    the first is what SOUND reads. */
-#define FIRST_SOUND {0, DEFAULT_WIDTH, DEFAULT_ENVELOPE, DEFAULT_CUTOFF, DEV_PULSE, DEFAULT_VOLUME, DEV_UNFILTERED, 0, 0, 0}
+#define FIRST_SOUND {0, DEFAULT_WIDTH, DEFAULT_ENVELOPE, DEFAULT_CUTOFF, DEV_PULSE, DEFAULT_VOLUME, DEV_UNFILTERED, 0, 0, 0, 1, DEFAULT_DEPTH}
 static const DevVoice first_sound = FIRST_SOUND;
 static Player players[DEV_VOICES] = {
     [0 ... DEV_VOICES - 1] = {{0, 0, 0}, {{0, 0, 0}}, DEFAULT_OCTAVE, DEFAULT_LENGTH, DEFAULT_TEMPO, NORMAL, 0, FIRST_SOUND}};

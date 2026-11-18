@@ -17,10 +17,15 @@ the voice through the synthesizer instead of the speaker.
 | Command | Sets | Range | Default |
 |---|---|---|---|
 | `V`n | volume | 0–15 | 8 |
-| `W`n | wave: 0 pulse, 1 triangle, 2 sawtooth, 3 noise | 0–3 | 0 |
+| `W`n | wave: 0 pulse, 1 triangle, 2 sawtooth, 3 noise, 4 FM | 0–4 | 0 |
 | `Q`n | pulse width, percent high | 1–99 | 50 |
 | `H`a`,`d`,`s`,`r | envelope: attack, decay, sustain level, release, the SID's scale | 0–15 each | `H0,0,15,0` |
 | `Y`m[`,`f[`,`r]] | filter: 0 off, 1 low-pass, 2 band-pass, 3 high-pass; cutoff Hz; resonance | m 0–3, f 30–12000, r 0–15 | off, 1000, 0 |
+| `Z`r[`,`d] | FM's modulator: its pitch, r times the note's; how far it bends the carrier | r 1–15, d 0–15 | 1, 8 |
+
+FM (`W4`) is a sine bent by a second sine, as a Yamaha chip's two operators. The envelope scales the bend, so a
+note that decays starts bright and ends pure: `H0,6,0,3` plucks a bass (`Z1,12`), `Z3` or `Z7` rings a bell, and a
+held `Z1,6` is brass. Depth 0 is a plain sine.
 
 Attack runs from 2 ms (0) to 8 s (15); decay and release from 6 ms to 24 s. Each number may be
 `=var;` as in the other commands. A new program starts with every voice at its defaults.

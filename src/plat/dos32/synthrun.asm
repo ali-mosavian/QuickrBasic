@@ -23,6 +23,9 @@ SynthRun struc
         sr_wide         dd      ?
         sr_kind         dd      ?               ; wave * 4 + filter
         sr_input           dd      ?
+        sr_sine         dd      ?
+        sr_ratio        dd      ?
+        sr_depth        dd      ?
 SynthRun ends
 
 ; eax: the wave's next sample, -32767 to 32767; the phase stepped
@@ -73,9 +76,24 @@ l_hi:
 l_hi:
         add     eax, eax
         sub     eax, 32767
-    else                                        ; saw
+    elseif w eq 2                               ; saw
         shr     eax, 16
         sub     eax, 32768
+    else                                        ; FM: a sine bent by a sine the envelope scales
+        mov     ecx, eax
+        imul    eax, [ebx].SynthRun.sr_ratio
+        shr     eax, 22
+        mov     edx, [ebx].SynthRun.sr_sine
+        movsx   eax, word ptr [edx+eax*2]
+        mov     edx, [ebx].SynthRun.sr_level
+        sar     edx, 9
+        imul    eax, edx
+        sar     eax, 15
+        imul    eax, [ebx].SynthRun.sr_depth
+        add     eax, ecx
+        shr     eax, 22
+        mov     edx, [ebx].SynthRun.sr_sine
+        movsx   eax, word ptr [edx+eax*2]
     endif
   endif
         endm
@@ -159,7 +177,7 @@ finish:
         pop     ebx
         ret
 
-kinds   dd      p0, p1, p2, p3, t0, t1, t2, t3, s0, s1, s2, s3, n0, n1, n2, n3
+kinds   dd      p0, p1, p2, p3, t0, t1, t2, t3, s0, s1, s2, s3, n0, n1, n2, n3, f0, f1, f2, f3
 p0:     VOICE   0, 0
 p1:     VOICE   0, 1
 p2:     VOICE   0, 2
@@ -176,4 +194,8 @@ n0:     VOICE   3, 0
 n1:     VOICE   3, 1
 n2:     VOICE   3, 2
 n3:     VOICE   3, 3
+f0:     VOICE   4, 0
+f1:     VOICE   4, 1
+f2:     VOICE   4, 2
+f3:     VOICE   4, 3
         end
