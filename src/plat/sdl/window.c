@@ -163,7 +163,7 @@ static void home(void)
         return;
 
     const char *const base = SDL_GetBasePath(); /* the bundle's Resources */
-    static const char *const demos[] = {"WELCOME.BAS", "GORILLA.BAS", "NIBBLES.BAS"};
+    static const char *const demos[] = {"WELCOME.BAS", "GORILLA.BAS", "NIBBLES.BAS", "MOTHLITE.BAS"};
 
     for (uint32_t i = 0; base && i < sizeof demos / sizeof demos[0]; i++) {
         struct stat st;
