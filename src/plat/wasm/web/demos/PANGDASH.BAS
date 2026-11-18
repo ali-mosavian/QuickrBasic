@@ -2169,8 +2169,8 @@ SUB LoadSong
         END SELECT
     NEXT
     Drums = d
-    ' a brassy saw, a plucked narrow pulse, the noise, a bell of a triangle
-    PLAY "MBT140W2Y1,2600,6H1,5,9,3V9L16", "T140W0Q14Y1,1500,11H0,6,5,1V12L16", "T140W3H0,3,0,1L16", , "T140W1H0,7,0,5V6L16"
+    ' FM, as the consoles of the day: brass, a slapped bass, the noise, a bell
+    PLAY "MBT140W4Z1,7H1,5,10,3V10L16", "T140W4Z1,13H0,5,3,1V13L16", "T140W3H0,3,0,1L16", , "T140W4Z7,6H0,7,0,5V6L16"
     Tune = -1
 END SUB
 
