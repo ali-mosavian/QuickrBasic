@@ -7,7 +7,7 @@
  *
  * A call (ref_call) is an N_CALL whose arguments are N_ARG children, each passed by value, by
  * reference, as an array or as a record whole (PA_*); how they are written is an ArgsForm. A
- * procedure DECLAREd only is an N_CALL CALL_UNDEF.
+ * FUNCTION DECLAREd only is Function not defined; in a line checked alone, an N_CALL CALL_UNDEF.
  *
  * # asm structure (retired/asm32/comp/ctl.asm, expr.asm)
  * | asm | here | |
@@ -509,6 +509,13 @@ Node *ref_call(Comp *const C, const uint8_t idx, const Proc *const pr, const Arg
 
 Node *ref_undef(Comp *const C)
 {
+    if (!C->check) { /* checked alone: blok_procs has it only once linked */
+        if (symb_name(C->symb, comp_nameof(C->p))->flags & NM_FUNC)
+            C->dg = DG_FUNCTION_NOT_DEFINED_DECLARED;
+
+        fault_error(C->fault, E_UF);
+    }
+
     const uint16_t id = comp_var(C, 1, 0);
 
     if (*C->p == '(') {

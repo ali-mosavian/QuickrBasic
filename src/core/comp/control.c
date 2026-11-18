@@ -31,7 +31,7 @@
  * | ct_bif, ct_else, ct_jf, ct_fskip | ctrl_blockif, ctrl_else, ctrl_jf, ctrl_for | MIRROR; D3 |
  * | ct_fcall, ct_uarg, ct_proc | ref_call, ref_dropargs, ref_proc (refs.c) | MOVED; D1 |
  * | ct_pcall | pcall | MIRROR |
- * | ct_undef, cm_swap | ctrl_undef, ctrl_swap | MIRROR |
+ * | cm_swap | ctrl_swap | MIRROR |
  * | rc_ref, rc_load, rc_avar | ref_record, ref_field, ref_recarray (refs.c) | MOVED |
  * | rc_store | ctrl_recstore | MIRROR |
  * | g_rfet, g_rfoff, g_rffix | an N_REF's rec.et, rec.off, rec.fix | D2 |
@@ -843,12 +843,6 @@ static bool declname(Comp *const C)
    blok_procs has it only once linked. */
 static bool checkonly(Comp *const C) { return C->check && declname(C); }
 
-void ctrl_undef(Comp *const C, const uint8_t err)
-{
-    comp_int(C, err);
-    comp_call(C, K_ERROR);
-}
-
 /* Procedure idx's call, its arguments as form writes them. */
 static void pcall(Comp *const C, const uint8_t idx, const Proc *const pr, const ArgsForm form)
 {
@@ -870,15 +864,7 @@ static void call(Comp *const C)
             return;
         }
 
-        skipvar(C); /* DECLAREd only: its arguments, then Subprogram not defined when run */
-        if (*C->p == '(') {
-            C->p++;
-            ref_dropargs(C, true);
-            comp_close(C);
-        }
-
-        ctrl_undef(C, QB_NO_SUB);
-        return;
+        fault_error(C->fault, E_SND); /* DECLAREd only */
     }
 
     pcall(C, idx, pr, ARGS_PAREN);
@@ -935,15 +921,11 @@ static bool subcall(Comp *const C)
         return false;
 
     skipvar(C); /* a SUB DECLAREd only */
-    if (!comp_end(C)) {
-        if (comp_cur(C) == TK_EQ)
-            synerr(C);
+    if (!comp_end(C) && comp_cur(C) == TK_EQ)
+        synerr(C);
 
-        ref_dropargs(C, false);
-    }
-
-    ctrl_undef(C, QB_NO_SUB);
-    return true;
+    C->p = start;
+    fault_error(C->fault, E_SND);
 }
 
 /* SUB, FUNCTION: run into, passed: JMP past its END. */

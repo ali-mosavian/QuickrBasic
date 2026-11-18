@@ -945,7 +945,7 @@ static void cg_arg(Code *const c, const Node *const n)
 static void cg_call(Code *const c, const Node *const n)
 {
     if (n->mode == CALL_UNDEF) {
-        code_int(c, QB_NO_FUNCTION); /* ctrl_undef's */
+        code_int(c, QB_NO_FUNCTION);
         code_call(c, K_ERROR);
         loadvar(c, n);
         return;

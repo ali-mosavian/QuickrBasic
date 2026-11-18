@@ -34,7 +34,6 @@ Jump ctrl_jump(
 ); /* ct_emitjump's: a target (ct_target's) as code holds it */
 /* QBasic's ERR for a call of no procedure. */
 enum : uint8_t { ERR_NO_FUNCTION = 18, ERR_NO_SUB = 35 };
-void ctrl_undef(Comp *C, uint8_t err); /* ct_undef: ERROR err when run: no such procedure */
-void ctrl_swap(Comp *C);               /* cm_swap: SWAP a, b */
-void ctrl_recstore(Comp *C);           /* rc_store: store to expr_target's field */
+void ctrl_swap(Comp *C);     /* cm_swap: SWAP a, b */
+void ctrl_recstore(Comp *C); /* rc_store: store to expr_target's field */
 #endif
