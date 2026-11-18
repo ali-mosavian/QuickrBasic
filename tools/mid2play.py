@@ -21,13 +21,23 @@ VOICES = 10
 KIT_CHANNEL = 9
 # a note of so many sixteenths: its PLAY length and dot
 PIECES = {16: "1", 12: "2.", 8: "2", 6: "4.", 4: "4", 3: "8.", 2: "8", 1: "16"}
-KIT = {
-    35: "W4Z1,0Y0K4,8V14O1C", 36: "W4Z1,0Y0K4,8V14O1C",
-    38: "W3K0Y1,6000,2V12O6C", 40: "W3K0Y1,6000,2V12O6C",
-    41: "W4Z1,0Y0K5,6V12O2C", 43: "W4Z1,0Y0K5,6V12O2E", 45: "W4Z1,0Y0K5,6V12O2G", 47: "W4Z1,0Y0K5,6V12O2B",
+# a drum: what its voice is set to, then its note. A snare is all the noise under 6 kHz, a hat what is over 4: a
+# recording's drums were in every band, these in one
+KICK = ("W4", "Y0", "K4,8", "V14", "O1", "C")
+SNARE = ("W3", "Y1,6000,2", "K0", "V12", "O6", "C")
+HAT = ("W3", "Y3,4000,0", "K0", "V8", "O6", "C")
+KIT = {35: KICK, 36: KICK, 38: SNARE, 40: SNARE} | {
+    key: ("W4", "Y0", "K5,6", "V12", "O2", note) for key, note in ((41, "C"), (43, "E"), (45, "G"), (47, "B"))
 }
-# a snare is all the noise under 6 kHz, a hat what is over 4: a recording's drums were in every band, these in one
-HAT = "W3K0Y3,4000,0V8O6C"
+LONGEST = 255  # a string's characters
+
+
+def hit(drum: tuple[str, ...], state: dict[str, str]) -> str:
+    """A drum's commands, those its voice is not already set to: a bar of snares set whole was over a string's 255
+    characters, and PLAY stopped with Illegal function call."""
+    out = "".join(part for part in drum[:-1] if state.get(part[0]) != part)
+    state.update({part[0]: part for part in drum[:-1]})
+    return out + drum[-1]
 # a General MIDI program's family (program // 8) as a sound
 SOUNDS = {
     0: "W4Z2,6,6,2,1H0,7,3,3I2",
@@ -136,7 +146,7 @@ def rest(places: int) -> str:
     return out
 
 
-def bar_of(voice: dict[int, tuple[int, int]], first: int, places: int, kit: bool, up: int = 0) -> str:
+def bar_of(voice: dict[int, tuple[int, int]], first: int, places: int, kit: dict[str, str] | None, up: int = 0) -> str:
     """A bar of a voice as PLAY's commands."""
     out, at = "", first
     while at < first + places:
@@ -147,8 +157,8 @@ def bar_of(voice: dict[int, tuple[int, int]], first: int, places: int, kit: bool
         pitch, length = voice[at]
         length = min(length, first + places - at)
         piece = max(p for p in PIECES if p <= length)
-        if kit:
-            out += KIT.get(pitch, HAT) + rest(piece - 1)
+        if kit is not None:
+            out += hit(KIT.get(pitch, HAT), kit) + rest(piece - 1)
         else:
             note = pitch - 23 + up
             while note < 1:
@@ -175,16 +185,19 @@ def program(song: Song, voices: int, bars: int | None, grid: int, up: dict[int, 
     count = min(bars or sys.maxsize, -(-last // grid))
     tempo = max(32, min(255, round(song.tempo)))
     setup = [
-        "H0,3,0,1L16" if key[1] == KIT_CHANNEL else sound(song.programs.get(key, -8) // 8)
+        "Z1,0H0,3,0,1L16" if key[1] == KIT_CHANNEL else sound(song.programs.get(key, -8) // 8)
         for key in keys
     ]
+    kit: dict[str, str] = {}
     out = ["' " + ", ".join(f"voice {k + 1}: track {key[0]} channel {key[1] + 1}" for k, key in enumerate(keys))]
     out.append("PLAY " + ", ".join(f'"{"MB" if k == 0 else ""}T{tempo}{text}"' for k, text in enumerate(setup)))
     for bar in range(count):
-        strings = (
-            bar_of(lines[key], bar * grid, grid, key[1] == KIT_CHANNEL, (up or {}).get(k + 1, 0))
+        strings = [
+            bar_of(lines[key], bar * grid, grid, kit if key[1] == KIT_CHANNEL else None, (up or {}).get(k + 1, 0))
             for k, key in enumerate(keys)
-        )
+        ]
+        if max(map(len, strings)) > LONGEST:
+            sys.exit(f"mid2play: bar {bar + 1} is over {LONGEST} characters in a voice")
         out.append("PLAY " + ", ".join(f'"{text}"' for text in strings))
     # in the background, so a bar follows the last with no gap; then the program waits the queue out
     out.append("DO: LOOP WHILE PLAY(0) > 0")
