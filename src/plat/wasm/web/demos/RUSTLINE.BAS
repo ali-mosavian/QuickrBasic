@@ -26,7 +26,10 @@ CONST BHQ = 1, BREF = 2, BBAR = 3, BTUR = 4, BPOW = 5, BFAC = 6, NBLD = 6
 CONST SIDLE = 0, SMOVE = 1, SATTACK = 2, SSEEK = 3, SGATHER = 4, SRETURN = 5, SUNLOAD = 6
 CONST FXBOOM = 1, FXBIG = 2, FXTRACE = 3, FXSHELL = 4, FXBEAM = 5, FXSMOKE = 6, FXMARK = 7
 CONST OREKEY = -2, NOKEY = -99, FAR = 32000, LOADMAX = 10, LOADVAL = 25
-CONST MINIX = 240, MINIY = 11, BTNY = 72, BTNH = 18
+CONST MINIX = 240, MINIY = 11, BTNY = 72
+' the sidebar's items: NBITEM buildings (power plant, refinery, barracks, factory, turret), then
+' the units (harvester, rifleman, rocketeer, buggy, tank, artillery), a cell of CELLW by CELLH each
+CONST NITEM = 11, NBITEM = 5, CELLW = 26, CELLH = 27
 ' the palette: 0 to 103 the land's, units' and buildings' (from 32 the art tool's), 104 on the
 ' water's, turned round to move it (WATERC), 112 on fire's;
 ' in play 128 to 255 the same in the fog (FOG OR c), on the title and the end their ramps
@@ -123,19 +126,27 @@ TYPE FieldT
     used AS SINGLE
 END TYPE
 
-' A side: its credits, the building it builds, its two factories' work and queues.
+' A side: its credits, the building it builds, its three lines' work and queues, its power.
 TYPE TeamT
     cash AS INTEGER
     sKind AS INTEGER ' the building being built, -1 none
     sProg AS SINGLE
     sReady AS INTEGER
-    hallKind AS INTEGER
-    hallProg AS SINGLE
-    denKind AS INTEGER
-    denProg AS SINGLE
-    q3 AS INTEGER    ' harvesters, riflemen, tanks waiting
-    q4 AS INTEGER
-    q5 AS INTEGER
+    l0Kind AS INTEGER ' what its refinery, barracks and factory make, -1 nothing
+    l0Prog AS SINGLE
+    l1Kind AS INTEGER
+    l1Prog AS SINGLE
+    l2Kind AS INTEGER
+    l2Prog AS SINGLE
+    q5 AS INTEGER    ' the units waiting, by item
+    q6 AS INTEGER
+    q7 AS INTEGER
+    q8 AS INTEGER
+    q9 AS INTEGER
+    q10 AS INTEGER
+    pw AS INTEGER    ' power made, used; low when it uses more
+    pu AS INTEGER
+    low AS INTEGER
     built AS INTEGER
     harvested AS LONG
 END TYPE
@@ -305,7 +316,22 @@ DECLARE FUNCTION CanPlace% (m() AS CellT, bl() AS BldgT, ti AS INTEGER, kind AS 
 DECLARE FUNCTION NearestRef% (u() AS UnitT, bl() AS BldgT, i AS INTEGER)
 DECLARE FUNCTION TargetDist! (u() AS UnitT, bl() AS BldgT, i AS INTEGER)
 DECLARE FUNCTION Scan% (u() AS UnitT, bl() AS BldgT, i AS INTEGER, radius AS SINGLE)
-DECLARE FUNCTION Allowed% (bl() AS BldgT, k AS INTEGER)
+DECLARE FUNCTION Allowed% (bl() AS BldgT, ti AS INTEGER, k AS INTEGER)
+DECLARE FUNCTION NeedB% (bl() AS BldgT, ti AS INTEGER, k AS INTEGER)
+DECLARE FUNCTION BName$ (bt AS INTEGER)
+DECLARE FUNCTION BGives% (bt AS INTEGER)
+DECLARE FUNCTION BUses% (bt AS INTEGER)
+DECLARE FUNCTION KLine% (k AS INTEGER)
+DECLARE FUNCTION UItem% (ut AS INTEGER)
+DECLARE FUNCTION UClass% (ut AS INTEGER)
+DECLARE FUNCTION DmgVs% (ut AS INTEGER, c AS INTEGER)
+DECLARE FUNCTION Splash! (ut AS INTEGER)
+DECLARE FUNCTION ItemAt% (x AS INTEGER, y AS INTEGER)
+DECLARE FUNCTION LineKind% (t AS TeamT, l AS INTEGER)
+DECLARE FUNCTION LineProg! (t AS TeamT, l AS INTEGER)
+DECLARE FUNCTION NextQ% (t AS TeamT, l AS INTEGER)
+DECLARE SUB LineClear (t AS TeamT, l AS INTEGER)
+DECLARE SUB AIBuy (tm() AS TeamT, bl() AS BldgT, k AS INTEGER)
 DECLARE FUNCTION Clock2$ (s AS SINGLE)
 DECLARE FUNCTION StepX% (d AS INTEGER)
 DECLARE FUNCTION StepY% (d AS INTEGER)
@@ -2286,12 +2312,16 @@ SUB AIThink (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS Bldg
     IF FindB%(bl(), 1, BHQ) THEN
         IF tm(1).sKind < 0 THEN
             want = -1
-            IF CountB%(bl(), 1, BREF) = 0 THEN
+            IF CountB%(bl(), 1, BPOW) = 0 OR tm(1).low THEN
                 want = 0
-            ELSEIF CountB%(bl(), 1, BBAR) = 0 THEN
+            ELSEIF CountB%(bl(), 1, BREF) = 0 THEN
                 want = 1
-            ELSEIF CountB%(bl(), 1, BTUR) < 1 + g.ai.wave \ 2 AND CountB%(bl(), 1, BTUR) < 4 THEN
+            ELSEIF CountB%(bl(), 1, BBAR) = 0 THEN
                 want = 2
+            ELSEIF CountB%(bl(), 1, BFAC) = 0 AND g.now > 50 THEN
+                want = 3
+            ELSEIF CountB%(bl(), 1, BTUR) < 1 + g.ai.wave \ 2 AND CountB%(bl(), 1, BTUR) < 4 THEN
+                want = 4
             END IF
             IF want >= 0 THEN
                 IF tm(1).cash >= KCost%(want) THEN
@@ -2301,14 +2331,18 @@ SUB AIThink (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS Bldg
         ELSEIF tm(1).sReady THEN
             AIPlace g, tm(), m(), u(), bl(), fk()
         END IF
-        IF CountU%(u(), 1, UHARV) + tm(1).q3 < 2 AND tm(1).hallKind < 0 AND tm(1).cash >= KCost%(3) THEN
-            tm(1).cash = tm(1).cash - KCost%(3): Enqueue tm(1), 3, 1
-        END IF
     END IF
-    IF FindB%(bl(), 1, BBAR) AND tm(1).q4 + tm(1).q5 < 2 THEN
-        k = 4
-        IF RND < .3 + g.ai.wave * .06 THEN k = 5
-        IF tm(1).cash >= KCost%(k) THEN tm(1).cash = tm(1).cash - KCost%(k): Enqueue tm(1), k, 1
+    ' its lines: a second harvester; riflemen and rocketeers; buggies, then tanks and guns
+    IF tm(1).l0Kind < 0 AND CountU%(u(), 1, UHARV) + Queued%(tm(1), 5) < 2 THEN AIBuy tm(), bl(), 5
+    IF tm(1).l1Kind < 0 AND Queued%(tm(1), 6) + Queued%(tm(1), 7) = 0 THEN
+        k = 6: IF RND < .35 THEN k = 7
+        AIBuy tm(), bl(), k
+    END IF
+    IF tm(1).l2Kind < 0 AND Queued%(tm(1), 8) + Queued%(tm(1), 9) + Queued%(tm(1), 10) = 0 THEN
+        d = RND
+        k = 8: IF d < .4 + g.ai.wave * .05 THEN k = 9
+        IF d > .85 AND g.ai.wave >= 2 THEN k = 10
+        AIBuy tm(), bl(), k
     END IF
 
     ' defence: the idle answer whoever hit the Legion
@@ -2348,7 +2382,7 @@ SUB AIThink (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS Bldg
                 NEXT
                 g.ai.wave = g.ai.wave + 1
                 g.ai.size = 3 + g.ai.wave: IF g.ai.size > 10 THEN g.ai.size = 10
-                g.ai.nextWave = g.now + 40
+                g.ai.nextWave = g.now + 45
                 Say g, "The Scorch Legion is on the march!"
                 Sfx g, 8
             END IF
@@ -2356,9 +2390,147 @@ SUB AIThink (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS Bldg
     END IF
 END SUB
 
-FUNCTION Allowed% (bl() AS BldgT, k AS INTEGER)
-    IF k <= 3 THEN Allowed% = FindB%(bl(), 0, BHQ) > 0 ELSE Allowed% = FindB%(bl(), 0, BBAR) > 0
+' Whether side ti has what item k needs.
+FUNCTION Allowed% (bl() AS BldgT, ti AS INTEGER, k AS INTEGER)
+    Allowed% = NeedB%(bl(), ti, k) = 0
 END FUNCTION
+
+' The building side ti lacks for item k, 0 none: a building needs the HQ, and the tech before it.
+FUNCTION NeedB% (bl() AS BldgT, ti AS INTEGER, k AS INTEGER)
+    DIM r1 AS INTEGER, r2 AS INTEGER
+    NeedB% = 0
+    SELECT CASE k
+    CASE 0: r1 = BHQ
+    CASE 1, 2: r1 = BPOW
+    CASE 3: r1 = BREF: r2 = BBAR
+    CASE 4: r1 = BBAR
+    CASE 5: r1 = BREF
+    CASE 6, 7: r1 = BBAR
+    CASE ELSE: r1 = BFAC
+    END SELECT
+    IF k < NBITEM AND FindB%(bl(), ti, BHQ) = 0 THEN
+        NeedB% = BHQ
+    ELSEIF FindB%(bl(), ti, r1) = 0 THEN
+        NeedB% = r1
+    ELSEIF r2 > 0 THEN
+        IF FindB%(bl(), ti, r2) = 0 THEN NeedB% = r2
+    END IF
+END FUNCTION
+
+FUNCTION BName$ (bt AS INTEGER)
+    SELECT CASE bt
+    CASE BHQ: BName$ = "HQ"
+    CASE BREF: BName$ = "Refinery"
+    CASE BBAR: BName$ = "Barracks"
+    CASE BTUR: BName$ = "Turret"
+    CASE BPOW: BName$ = "Power Plant"
+    CASE ELSE: BName$ = "Factory"
+    END SELECT
+END FUNCTION
+
+' The power a building makes, and uses.
+FUNCTION BGives% (bt AS INTEGER)
+    BGives% = 0
+    IF bt = BHQ THEN BGives% = 50
+    IF bt = BPOW THEN BGives% = 100
+END FUNCTION
+
+FUNCTION BUses% (bt AS INTEGER)
+    SELECT CASE bt
+    CASE BREF: BUses% = 30
+    CASE BBAR: BUses% = 20
+    CASE BFAC: BUses% = 40
+    CASE BTUR: BUses% = 25
+    CASE ELSE: BUses% = 0
+    END SELECT
+END FUNCTION
+
+' The line a unit's item is made on: 0 the refinery's, 1 the barracks', 2 the factory's.
+FUNCTION KLine% (k AS INTEGER)
+    SELECT CASE k
+    CASE 5: KLine% = 0
+    CASE 6, 7: KLine% = 1
+    CASE 8, 9, 10: KLine% = 2
+    CASE ELSE: KLine% = -1
+    END SELECT
+END FUNCTION
+
+FUNCTION UItem% (ut AS INTEGER)
+    UItem% = VAL(MID$("050609070810", ut * 2 - 1, 2))
+END FUNCTION
+
+' A unit's class as a target: 0 infantry, 1 a vehicle (2 is a building).
+FUNCTION UClass% (ut AS INTEGER)
+    IF ut = URIFLE OR ut = UROCKET THEN UClass% = 0 ELSE UClass% = 1
+END FUNCTION
+
+' The percent of its damage a unit of kind ut does to a target of class c.
+FUNCTION DmgVs% (ut AS INTEGER, c AS INTEGER)
+    DIM t AS STRING
+    SELECT CASE ut
+    CASE URIFLE: t = "100040030"
+    CASE UROCKET: t = "030130100"
+    CASE UBUGGY: t = "110050030"
+    CASE UTANK: t = "050100090"
+    CASE ELSE: t = "090060150"
+    END SELECT
+    DmgVs% = VAL(MID$(t, c * 3 + 1, 3))
+END FUNCTION
+
+' How far, in tiles, a unit's shot bursts.
+FUNCTION Splash! (ut AS INTEGER)
+    Splash! = 0
+    IF ut = UTANK THEN Splash! = .9
+    IF ut = UARTY THEN Splash! = 1.6
+END FUNCTION
+
+' The sidebar's item at the screen's x, y, -1 none.
+FUNCTION ItemAt% (x AS INTEGER, y AS INTEGER)
+    DIM c AS INTEGER, r AS INTEGER
+    ItemAt% = -1
+    IF x <= SBX OR y < BTNY THEN EXIT FUNCTION
+    c = (x - SBX - 1) \ CELLW: r = (y - BTNY) \ CELLH
+    IF c <= 2 AND r * 3 + c < NITEM THEN ItemAt% = r * 3 + c
+END FUNCTION
+
+FUNCTION LineKind% (t AS TeamT, l AS INTEGER)
+    SELECT CASE l
+    CASE 0: LineKind% = t.l0Kind
+    CASE 1: LineKind% = t.l1Kind
+    CASE ELSE: LineKind% = t.l2Kind
+    END SELECT
+END FUNCTION
+
+FUNCTION LineProg! (t AS TeamT, l AS INTEGER)
+    SELECT CASE l
+    CASE 0: LineProg! = t.l0Prog
+    CASE 1: LineProg! = t.l1Prog
+    CASE ELSE: LineProg! = t.l2Prog
+    END SELECT
+END FUNCTION
+
+SUB LineClear (t AS TeamT, l AS INTEGER)
+    SELECT CASE l
+    CASE 0: t.l0Kind = -1: t.l0Prog = 0
+    CASE 1: t.l1Kind = -1: t.l1Prog = 0
+    CASE ELSE: t.l2Kind = -1: t.l2Prog = 0
+    END SELECT
+END SUB
+
+' The next item waiting for line l, taken off its queue; -1 none.
+FUNCTION NextQ% (t AS TeamT, l AS INTEGER)
+    DIM k AS INTEGER
+    NextQ% = -1
+    FOR k = NBITEM TO NITEM - 1
+        IF KLine%(k) = l AND Queued%(t, k) > 0 THEN Enqueue t, k, -1: NextQ% = k: EXIT FUNCTION
+    NEXT
+END FUNCTION
+
+' The Legion queues item k when it may and can pay.
+SUB AIBuy (tm() AS TeamT, bl() AS BldgT, k AS INTEGER)
+    IF Allowed%(bl(), 1, k) = 0 OR tm(1).cash < KCost%(k) THEN EXIT SUB
+    tm(1).cash = tm(1).cash - KCost%(k): Enqueue tm(1), k, 1
+END SUB
 
 FUNCTION Ang! (dx AS SINGLE, dy AS SINGLE)
     DIM a AS SINGLE
@@ -2383,6 +2555,8 @@ FUNCTION BHp% (k AS INTEGER)
     SELECT CASE k
     CASE BHQ: BHp% = 900
     CASE BTUR: BHp% = 320
+    CASE BPOW: BHp% = 350
+    CASE BFAC: BHp% = 550
     CASE ELSE: BHp% = 450
     END SELECT
 END FUNCTION
@@ -2597,28 +2771,28 @@ END SUB
 
 ' A box of the sidebar, 0 to 5, clicked: build, train, or place what is ready; right cancels.
 SUB ButtonClick (g AS GameT, tm() AS TeamT, bl() AS BldgT, k AS INTEGER, rightButton AS INTEGER)
+    DIM l AS INTEGER
+    l = KLine%(k)
     IF rightButton THEN
-        IF k <= 2 THEN
+        IF k < NBITEM THEN
             IF tm(0).sKind = k THEN
                 tm(0).cash = tm(0).cash + KCost%(k): tm(0).sKind = -1: tm(0).sReady = 0: g.placeKind = -1
                 Say g, "Cancelled"
             END IF
         ELSEIF Queued%(tm(0), k) > 0 THEN
             Enqueue tm(0), k, -1: tm(0).cash = tm(0).cash + KCost%(k): Say g, "Cancelled"
-        ELSEIF k = 3 AND tm(0).hallKind = k THEN
-            tm(0).hallKind = -1: tm(0).hallProg = 0: tm(0).cash = tm(0).cash + KCost%(k): Say g, "Cancelled"
-        ELSEIF k > 3 AND tm(0).denKind = k THEN
-            tm(0).denKind = -1: tm(0).denProg = 0: tm(0).cash = tm(0).cash + KCost%(k): Say g, "Cancelled"
+        ELSEIF LineKind%(tm(0), l) = k THEN
+            LineClear tm(0), l: tm(0).cash = tm(0).cash + KCost%(k): Say g, "Cancelled"
         END IF
         Sfx g, 6
         EXIT SUB
     END IF
-    IF Allowed%(bl(), k) = 0 THEN
-        IF k >= 4 THEN Say g, "Build a Barracks first" ELSE Say g, "Our HQ is gone"
+    IF Allowed%(bl(), 0, k) = 0 THEN
+        Say g, "The " + KName$(k) + " needs a " + BName$(NeedB%(bl(), 0, k))
         Sfx g, 7
         EXIT SUB
     END IF
-    IF k <= 2 THEN
+    IF k < NBITEM THEN
         IF tm(0).sKind = k AND tm(0).sReady THEN
             g.placeKind = k: Say g, "Left click places the " + KName$(k)
         ELSEIF tm(0).sKind >= 0 THEN
@@ -2635,7 +2809,7 @@ SUB ButtonClick (g AS GameT, tm() AS TeamT, bl() AS BldgT, k AS INTEGER, rightBu
         Sfx g, 7
     ELSE
         tm(0).cash = tm(0).cash - KCost%(k): Enqueue tm(0), k, 1
-        Say g, "Training a " + KName$(k): Sfx g, 6
+        Say g, "Ordered: " + KName$(k): Sfx g, 6
     END IF
 END SUB
 
@@ -2770,7 +2944,7 @@ SUB Controls (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS Bld
     DIM wx AS INTEGER, wy AS INTEGER, sdx AS INTEGER, sdy AS INTEGER
     IF g.ms.lHit THEN
         IF g.ms.lX >= SBX THEN
-            IF g.ms.lY >= BTNY AND g.ms.lY < BTNY + 6 * BTNH THEN ButtonClick g, tm(), bl(), (g.ms.lY - BTNY) \ BTNH, 0
+            IF ItemAt%(g.ms.lX, g.ms.lY) >= 0 THEN ButtonClick g, tm(), bl(), ItemAt%(g.ms.lX, g.ms.lY), 0
         ELSEIF g.ms.lX >= VX0 AND g.ms.lY >= VY0 AND g.ms.lY < VIEWB THEN
             PickTile g, m(), g.ms.lX, g.ms.lY, wx, wy
             IF g.placeKind >= 0 THEN
@@ -2798,7 +2972,7 @@ SUB Controls (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS Bld
         IF g.placeKind >= 0 THEN
             g.placeKind = -1: Say g, "It waits in the sidebar"
         ELSEIF g.ms.rX >= SBX THEN
-            IF g.ms.rY >= BTNY AND g.ms.rY < BTNY + 6 * BTNH THEN ButtonClick g, tm(), bl(), (g.ms.rY - BTNY) \ BTNH, -1
+            IF ItemAt%(g.ms.rX, g.ms.rY) >= 0 THEN ButtonClick g, tm(), bl(), ItemAt%(g.ms.rX, g.ms.rY), -1
         ELSEIF g.ms.rX >= VX0 AND g.ms.rY >= VY0 AND g.ms.rY < VIEWB THEN
             PickTile g, m(), g.ms.rX, g.ms.rY, wx, wy
             IF wx >= 0 AND wy >= 0 AND wx < MAPW AND wy < MAPH THEN
@@ -2901,7 +3075,7 @@ END SUB
 SUB DrawEndBack (g AS GameT, tm() AS TeamT, art() AS INTEGER, gl() AS INTEGER)
     DIM y AS INTEGER, t AS STRING, i AS INTEGER, x AS INTEGER, h AS INTEGER
     IF g.won THEN Ramp SKY, 32, 0, 2, 8, 0, 26, 30 ELSE Ramp SKY, 32, 2, 0, 4, 34, 6, 4
-    Ramp LOGOC, 8, 63, 63, 63, 0, 34, 24
+    Ramp LOGOC, 8, 63, 60, 50, 50, 16, 6
     FOR y = 0 TO 199
         LINE (0, y)-(319, y), SKY + y * 32 \ 200
     NEXT
@@ -2915,7 +3089,7 @@ SUB DrawEndBack (g AS GameT, tm() AS TeamT, art() AS INTEGER, gl() AS INTEGER)
     NEXT
     FOR i = 1 TO 120
         x = RND * 318: y = 172 + RND * 27
-        IF g.won THEN PSET (x, y), 8 ELSE PSET (x, y), FIRE + 2 + INT(RND * 6)
+        IF g.won THEN PSET (x, y), 22 ELSE PSET (x, y), FIRE + 2 + INT(RND * 6)
     NEXT
     IF g.won THEN
         Logo gl(), "VICTORY", 22, 4, 4
@@ -3038,7 +3212,7 @@ END SUB
 
 SUB DrawSidebar (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS INTEGER, gl() AS INTEGER)
     DIM k AS INTEGER, y AS INTEGER, s AS STRING, c AS INTEGER, i AS INTEGER, n AS INTEGER, one AS INTEGER
-    DIM ok AS INTEGER, prog AS SINGLE, qn AS INTEGER
+    DIM ok AS INTEGER, prog AS SINGLE, qn AS INTEGER, x AS INTEGER, hov AS INTEGER, inf AS INTEGER, veh AS INTEGER
     LINE (SBX, 0)-(319, 199), 0, BF
     LINE (0, VIEWH)-(SBX - 1, 199), 0, BF
     LINE (SBX, 0)-(SBX, VIEWH - 1), 23
@@ -3047,107 +3221,114 @@ SUB DrawSidebar (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS 
     DrawMinimap g, m(), u(), bl(), art()
     LINE (SBX + 1, MINIY - 1)-(319, MINIY - 1), 23
     LINE (SBX + 1, MINIY + MAPH * 2)-(319, MINIY + MAPH * 2), 23
-    FOR k = 0 TO 5
-        y = BTNY + k * BTNH
-        ok = Allowed%(bl(), k)
-        LINE (SBX + 1, y)-(319, y + BTNH - 2), 4, B
-        IF k <= 2 THEN
-            PUT (SBX + 2, y + 1), art(0, AICN + k), PSET
+    hov = -1
+    FOR k = 0 TO NITEM - 1
+        x = SBX + 1 + (k MOD 3) * CELLW: y = BTNY + (k \ 3) * CELLH
+        ok = Allowed%(bl(), 0, k)
+        LINE (x, y)-(x + CELLW - 2, y + CELLH - 2), 4, B
+        IF k < NBITEM THEN
+            PUT (x + 4, y + 1), art(0, AICN + KMakes%(k) - 2), PSET
         ELSE
-            LINE (SBX + 2, y + 1)-STEP(TS - 1, TS - 1), 2, BF
-            Sprite art(), ((KMakes%(k) - 1) * 2) * 16, SBX + 2, y + 1
+            LINE (x + 4, y + 1)-STEP(TS - 1, TS - 1), 2, BF
+            Sprite art(), ((KMakes%(k) - 1) * 2) * 16, x + 4, y + 1
         END IF
-        c = 15
-        IF ok = 0 THEN c = 4 ELSE IF tm(0).cash < KCost%(k) THEN c = 14
-        Txt gl(), KName$(k), SBX + 20, y + 1, 1, c
+        c = 13: IF tm(0).cash < KCost%(k) THEN c = 23
+        s = LTRIM$(STR$(KCost%(k))): Txt gl(), s, x + 12 - LEN(s) * 4, y + 18, 1, c
         prog = -1
-        IF k <= 2 THEN
+        IF k < NBITEM THEN
             IF tm(0).sKind = k THEN prog = tm(0).sProg
         ELSE
-            IF k = 3 AND tm(0).hallKind = k THEN prog = tm(0).hallProg
-            IF k > 3 AND tm(0).denKind = k THEN prog = tm(0).denProg
+            IF LineKind%(tm(0), KLine%(k)) = k THEN prog = LineProg!(tm(0), KLine%(k))
             qn = Queued%(tm(0), k)
-            IF qn > 0 THEN Txt gl(), "+" + LTRIM$(STR$(qn)), 303, y + 9, 1, 11
+            IF qn > 0 THEN Txt gl(), LTRIM$(STR$(qn)), x + 17, y + 1, 1, 11
         END IF
-        IF prog >= 0 AND k <= 2 AND tm(0).sReady THEN
-            IF INT(g.clock * 3) MOD 2 = 0 OR g.placeKind = k THEN Txt gl(), "READY", SBX + 20, y + 9, 1, 8
-        ELSE
-            Txt gl(), LTRIM$(STR$(KCost%(k))), SBX + 20, y + 9, 1, 13
-            IF prog >= 0 THEN Bar SBX + 47, y + 12, 28, prog, 11
+        IF g.ms.x >= x AND g.ms.x < x + CELLW - 1 AND g.ms.y >= y AND g.ms.y < y + CELLH - 1 THEN
+            hov = k: LINE (x, y)-(x + CELLW - 2, y + CELLH - 2), 15, B
         END IF
-        IF ok = 0 THEN Dither SBX + 2, y + 1, 318, y + BTNH - 3, 0
+        IF prog >= 0 THEN
+            IF k < NBITEM AND tm(0).sReady THEN
+                ' ready to place: its frame flashes
+                IF INT(g.clock * 3) MOD 2 = 0 OR g.placeKind = k THEN
+                    LINE (x, y)-(x + CELLW - 2, y + CELLH - 2), 8, B
+                    LINE (x + 1, y + 1)-(x + CELLW - 3, y + CELLH - 3), 8, B
+                END IF
+            ELSE
+                Bar x + 2, y + 14, 20, prog, 11
+            END IF
+        END IF
+        IF ok = 0 THEN Dither x + 1, y + 1, x + CELLW - 3, y + CELLH - 3, 0
     NEXT
-    Txt gl(), Clock2$(g.now), SBX + 3, 182, 1, 5
-    IF g.snd.enabled = 0 THEN Txt gl(), "MUTED", SBX + 40, 182, 1, 5
+    Txt gl(), Clock2$(g.now), SBX + 3, 182, 1, 23
+    IF g.snd.enabled = 0 THEN Txt gl(), "MUTED", SBX + 40, 182, 1, 23
 
-    ' the status line: a message, the selection, or the army
+    ' the status line: a message, the item under the mouse, the selection, or the army and power
     FOR i = 1 TO MAXU
         IF u(i).sel THEN n = n + 1: one = i
+        IF u(i).alive AND u(i).team = 0 AND u(i).kind <> UHARV THEN
+            IF UClass%(u(i).kind) = 0 THEN inf = inf + 1 ELSE veh = veh + 1
+        END IF
     NEXT
     IF g.msgT > 0 THEN
         Txt gl(), LEFT$(RTRIM$(g.msg), 39), 2, 192, 1, 15
+    ELSEIF hov >= 0 THEN
+        s = MID$("QWERTZXCVBN", hov + 1, 1) + " " + KName$(hov) + STR$(KCost%(hov))
+        IF Allowed%(bl(), 0, hov) THEN
+            Txt gl(), s, 2, 192, 1, 15
+        ELSE
+            Txt gl(), s + ": needs a " + BName$(NeedB%(bl(), 0, hov)), 2, 192, 1, 29
+        END IF
     ELSEIF n = 1 THEN
-        s = KName$(u(one).kind + 2) + "  health" + STR$(u(one).hp) + " of" + STR$(UHp%(u(one).kind))
+        s = KName$(UItem%(u(one).kind)) + "  health" + STR$(u(one).hp) + " of" + STR$(UHp%(u(one).kind))
         IF u(one).kind = UHARV THEN s = s + "  ore" + STR$(u(one).load)
         Txt gl(), s, 2, 192, 1, 11
     ELSEIF n > 1 THEN
         Txt gl(), LTRIM$(STR$(n)) + " selected: right click orders", 2, 192, 1, 11
     ELSE
-        s = "Rifles" + STR$(CountU%(u(), 0, URIFLE)) + " Tanks" + STR$(CountU%(u(), 0, UTANK)) + " Harvesters" + STR$(CountU%(u(), 0, UHARV))
-        Txt gl(), s, 2, 192, 1, 14
+        s = "Infantry" + STR$(inf) + "  Vehicles" + STR$(veh) + "  Power" + STR$(tm(0).pu) + "/" + LTRIM$(STR$(tm(0).pw))
+        c = 14: IF tm(0).low THEN c = 29
+        Txt gl(), s, 2, 192, 1, c
     END IF
 END SUB
 
 SUB DrawTitleBack (art() AS INTEGER, gl() AS INTEGER)
     DIM y AS INTEGER, x AS INTEGER, i AS INTEGER, h AS INTEGER, c AS INTEGER, r AS INTEGER, l AS SINGLE
-    ' the night sky: deep blue into violet
-    Ramp SKY, 32, 0, 0, 6, 26, 8, 30
-    Ramp LOGOC, 8, 63, 63, 63, 0, 34, 24
-    Ramp PLANET, 16, 20, 8, 24, 63, 46, 30
+    ' dusk over the desert: deep blue down into the sun's orange
+    Ramp SKY, 32, 2, 3, 14, 60, 30, 10
+    Ramp LOGOC, 8, 63, 60, 50, 50, 16, 6
+    Ramp PLANET, 16, 44, 12, 6, 63, 58, 34
     FOR y = 0 TO 199
         LINE (0, y)-(319, y), SKY + y * 32 \ 200
     NEXT
-    FOR i = 1 TO 110
-        PSET (RND * 319, RND * 120), 15 - (i MOD 3) * 9
+    FOR i = 1 TO 60
+        PSET (RND * 319, RND * 60), 15 - (i MOD 3) * 9
     NEXT
-    ' the gas giant behind the name, lit from the upper left, banded
-    FOR y = -40 TO 40
-        h = SQR(1600 - y * y)
+    ' the sun going down behind the dunes, brightest at its heart
+    FOR y = -34 TO 34
+        h = SQR(1156 - y * y)
         FOR x = -h TO h
-            l = (-x * .5 - y * .6) / 40 + SQR(ABS(1 - (x * x + y * y) / 1600)) * .7
-            IF ((y + 40) \ 5) MOD 3 = 0 THEN l = l - .12
-            c = INT(l * 15): IF c < 0 THEN c = 0 ELSE IF c > 15 THEN c = 15
-            PSET (268 + x, 40 + y), PLANET + c
+            l = 1 - (x * x + y * y) / 1156
+            c = INT(l * 12 + 4): IF c > 15 THEN c = 15
+            PSET (236 + x, 126 + y), PLANET + c
         NEXT
     NEXT
     ' the hills, far and near
     FOR x = 0 TO 319
         h = 136 + 10 * SIN(x / 35) + 5 * SIN(x / 12 + 1)
-        LINE (x, h)-(x, 199), 4
+        LINE (x, h)-(x, 199), 3
         h = 158 + 8 * SIN(x / 25 + 2) + 3 * SIN(x / 9)
         LINE (x, h)-(x, 199), 1
     NEXT
     ' ore glowing on the near hill
     FOR i = 1 TO 160
         x = RND * 318: y = 168 + RND * 31
-        PSET (x, y), 8: IF RND < .3 THEN PSET (x + 1, y), 22
-    NEXT
-    ' a palm, left
-    LINE (34, 112)-(41, 170), 30, BF
-    LINE (37, 112)-(38, 170), 3
-    FOR r = 32 TO 1 STEP -1
-        c = 27: IF r > 28 THEN c = 4
-        IF r < 18 THEN c = 5
-        CIRCLE (38, 108), r, c, 0, 3.14159, .45
-    NEXT
-    FOR i = 1 TO 12
-        x = 14 + RND * 48: y = 96 + RND * 10
-        PSET (x, y), 8: PSET (x + 1, y), 31
+        PSET (x, y), 9: IF RND < .3 THEN PSET (x + 1, y), 22
     NEXT
     ' the Coalition's units on the hill, the Legion's beyond
     Sprite art(), 32 + 7 * 2, 116, 164
     Sprite art(), 32 + 7 * 2 + 1, 134, 170
     Sprite art(), 7 * 2, 98, 172
+    Sprite art(), 4 * 16 + 7 * 2, 150, 176
+    Sprite art(), 9 * 16 + 3 * 2, 244, 166
     Sprite art(), 5 * 16 + 3 * 2, 262, 158
     Sprite art(), 3 * 16 + 3 * 2, 284, 164
     Logo gl(), "RUSTLINE", 12, 4, 4
@@ -3350,9 +3531,12 @@ END SUB
 
 SUB Enqueue (t AS TeamT, k AS INTEGER, n AS INTEGER)
     SELECT CASE k
-    CASE 3: t.q3 = t.q3 + n
-    CASE 4: t.q4 = t.q4 + n
     CASE 5: t.q5 = t.q5 + n
+    CASE 6: t.q6 = t.q6 + n
+    CASE 7: t.q7 = t.q7 + n
+    CASE 8: t.q8 = t.q8 + n
+    CASE 9: t.q9 = t.q9 + n
+    CASE 10: t.q10 = t.q10 + n
     END SELECT
 END SUB
 
@@ -3401,24 +3585,41 @@ END FUNCTION
 ' A shot of unit i at its target: the damage now, the look as it flies.
 SUB Fire (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fk() AS FieldT, i AS INTEGER)
     DIM tx AS SINGLE, ty AS SINGLE, sx AS SINGLE, sy AS SINGLE, t AS INTEGER, seen AS INTEGER
-    t = u(i).ti
+    DIM k AS INTEGER, c AS INTEGER, j AS INTEGER, r AS SINGLE
+    t = u(i).ti: k = u(i).kind
     IF u(i).tk = 1 THEN
-        tx = u(t).px: ty = u(t).py
+        tx = u(t).px: ty = u(t).py: c = UClass%(u(t).kind)
     ELSE
         tx = (bl(t).x + BSize%(bl(t).kind) / 2) * TS + RND * 7 - 3
         ty = (bl(t).y + BSize%(bl(t).kind) / 2) * TS + RND * 7 - 3
+        c = 2
     END IF
     sx = u(i).px + StepX%(u(i).dir) * 6: sy = u(i).py + StepY%(u(i).dir) * 6
     seen = u(i).team = 0 OR m(u(i).x, u(i).y).vis
-    IF u(i).kind = URIFLE THEN
+    SELECT CASE k
+    CASE URIFLE, UBUGGY
         AddFx fx(), FXTRACE, sx, sy, tx + RND * 4 - 2, ty + RND * 4 - 2, .07
         IF seen THEN Sfx g, 1
-    ELSE
+    CASE UARTY
+        AddFx fx(), FXSHELL, sx, sy, tx, ty, .45
+        AddFx fx(), FXBIG, tx, ty, 0, 0, .4
+        IF seen THEN Sfx g, 4
+    CASE ELSE
         AddFx fx(), FXSHELL, sx, sy, tx, ty, .22
         IF seen THEN Sfx g, 2
-    END IF
-    u(i).cool = URate!(u(i).kind)
-    Hit g, m(), u(), bl(), fx(), fk(), u(i).tk, t, UDmg%(u(i).kind), 1, i
+    END SELECT
+    u(i).cool = URate!(k)
+    Hit g, m(), u(), bl(), fx(), fk(), u(i).tk, t, UDmg%(k) * DmgVs%(k, c) \ 100, 1, i
+    ' its burst: half to the foes around
+    r = (Splash!(k) * TS) ^ 2
+    IF r = 0 THEN EXIT SUB
+    FOR j = 1 TO MAXU
+        IF u(j).alive AND u(j).team <> u(i).team AND (u(i).tk <> 1 OR j <> t) THEN
+            IF (u(j).px - tx) ^ 2 + (u(j).py - ty) ^ 2 < r THEN
+                Hit g, m(), u(), bl(), fx(), fk(), 1, j, UDmg%(k) * DmgVs%(k, UClass%(u(j).kind)) \ 200, 1, i
+            END IF
+        END IF
+    NEXT
 END SUB
 
 SUB Flip (cam AS ViewT)
@@ -3512,18 +3713,30 @@ SUB Keys (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, 
                 NEXT
                 Say g, LTRIM$(STR$(n)) + " of the army selected"
             CASE "1", "2", "3"
+                ' the infantry, the vehicles, the harvesters
                 n = 0
                 FOR i = 1 TO MAXU
-                    u(i).sel = u(i).alive AND u(i).team = 0 AND u(i).kind = VAL(MID$("231", VAL(k), 1))
+                    u(i).sel = 0
+                    IF u(i).alive AND u(i).team = 0 THEN
+                        IF k = "3" THEN
+                            u(i).sel = u(i).kind = UHARV
+                        ELSEIF u(i).kind <> UHARV THEN
+                            u(i).sel = UClass%(u(i).kind) = VAL(k) - 1
+                        END IF
+                    END IF
                     IF u(i).sel THEN n = n + 1
                 NEXT
-                Say g, LTRIM$(STR$(n)) + " " + KName$(VAL(MID$("231", VAL(k), 1)) + 2) + "s selected"
+                Say g, LTRIM$(STR$(n)) + " selected"
             CASE " "
                 IF g.alertX >= 0 THEN CenterOn g.vw, g.alertX, g.alertY
             CASE "S"
                 FOR i = 1 TO MAXU
                     IF u(i).sel THEN u(i).st = SIDLE: u(i).agg = 0
                 NEXT
+            CASE ELSE
+                ' an item's key
+                i = INSTR("QWERTZXCVBN", k)
+                IF i > 0 THEN ButtonClick g, tm(), bl(), i - 1, 0
             END SELECT
         CASE ELSE
             IF g.endT > 1 THEN GoTitle g, art(), gl()
@@ -3539,13 +3752,7 @@ SUB Keys (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, 
 END SUB
 
 FUNCTION KCost% (k AS INTEGER)
-    SELECT CASE k
-    CASE 0: KCost% = 200
-    CASE 1, 5: KCost% = 250
-    CASE 2: KCost% = 150
-    CASE 3: KCost% = 300
-    CASE ELSE: KCost% = 100
-    END SELECT
+    KCost% = VAL(MID$("150300200350200300080140180320300", k * 3 + 1, 3))
 END FUNCTION
 
 SUB KillBuilding (g AS GameT, m() AS CellT, bl() AS BldgT, fx() AS FxT, fk() AS FieldT, b AS INTEGER)
@@ -3577,33 +3784,25 @@ SUB KillUnit (g AS GameT, m() AS CellT, u() AS UnitT, fx() AS FxT, i AS INTEGER)
     IF u(i).team = 0 AND u(i).kind = UHARV THEN Say g, "A Harvester was destroyed"
 END SUB
 
+' The building or unit kind item k makes.
 FUNCTION KMakes% (k AS INTEGER)
-    SELECT CASE k
-    CASE 0: KMakes% = BREF
-    CASE 1: KMakes% = BBAR
-    CASE 2: KMakes% = BTUR
-    CASE ELSE: KMakes% = k - 2
-    END SELECT
+    KMakes% = VAL(MID$("52364124536", k + 1, 1))
 END FUNCTION
 
 FUNCTION KName$ (k AS INTEGER)
     SELECT CASE k
-    CASE 0: KName$ = "Refinery"
-    CASE 1: KName$ = "Barracks"
-    CASE 2: KName$ = "Turret"
-    CASE 3: KName$ = "Harvester"
-    CASE 4: KName$ = "Rifleman"
-    CASE ELSE: KName$ = "Tank"
+    CASE 5: KName$ = "Harvester"
+    CASE 6: KName$ = "Rifleman"
+    CASE 7: KName$ = "Rocketeer"
+    CASE 8: KName$ = "Buggy"
+    CASE 9: KName$ = "Tank"
+    CASE 10: KName$ = "Artillery"
+    CASE ELSE: KName$ = BName$(KMakes%(k))
     END SELECT
 END FUNCTION
 
 FUNCTION KSecs! (k AS INTEGER)
-    SELECT CASE k
-    CASE 0, 3: KSecs! = 6
-    CASE 1: KSecs! = 7
-    CASE 2, 5: KSecs! = 5
-    CASE ELSE: KSecs! = 2.5
-    END SELECT
+    KSecs! = VAL(MID$("5.07.06.08.05.06.02.53.54.06.06.0", k * 3 + 1, 3))
 END FUNCTION
 
 ' Big letters for the title and the end, each pixel a block of bw by bh: lit from above, shadowed.
@@ -3748,25 +3947,33 @@ SUB PlaceBuilding (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() A
     IF ti = 0 AND kind >= 0 THEN Say g, "The " + KName$(kind) + " stands"
 END SUB
 
-' Side ti's building and its two factories' units, a step on.
+' Side ti's power, its building and its three lines' units, a step on.
 SUB Produce (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, ti AS INTEGER, dt AS SINGLE)
+    DIM b AS INTEGER, low AS INTEGER, rate AS SINGLE
+    tm(ti).pw = 0: tm(ti).pu = 0
+    FOR b = 1 TO MAXB
+        IF bl(b).alive AND bl(b).team = ti THEN
+            tm(ti).pw = tm(ti).pw + BGives%(bl(b).kind): tm(ti).pu = tm(ti).pu + BUses%(bl(b).kind)
+        END IF
+    NEXT
+    low = tm(ti).pu > tm(ti).pw
+    IF low AND tm(ti).low = 0 AND ti = 0 THEN Say g, "Low power: build a Power Plant": Sfx g, 7
+    tm(ti).low = low
+    ' low on power, all is made at half speed
+    rate = dt: IF low THEN rate = dt / 2
     IF tm(ti).sKind >= 0 AND tm(ti).sReady = 0 AND FindB%(bl(), ti, BHQ) > 0 THEN
-        tm(ti).sProg = tm(ti).sProg + dt / KSecs!(tm(ti).sKind)
+        tm(ti).sProg = tm(ti).sProg + rate / KSecs!(tm(ti).sKind)
         IF tm(ti).sProg >= 1 THEN
             tm(ti).sProg = 1: tm(ti).sReady = -1
             IF ti = 0 THEN g.placeKind = tm(ti).sKind: Say g, "Left click places the " + KName$(tm(ti).sKind): Sfx g, 5
         END IF
     END IF
-    IF tm(ti).hallKind < 0 AND tm(ti).q3 > 0 THEN tm(ti).hallKind = 3: tm(ti).q3 = tm(ti).q3 - 1: tm(ti).hallProg = 0
-    IF tm(ti).denKind < 0 THEN
-        IF tm(ti).q4 > 0 THEN
-            tm(ti).denKind = 4: tm(ti).q4 = tm(ti).q4 - 1: tm(ti).denProg = 0
-        ELSEIF tm(ti).q5 > 0 THEN
-            tm(ti).denKind = 5: tm(ti).q5 = tm(ti).q5 - 1: tm(ti).denProg = 0
-        END IF
-    END IF
-    Train g, tm(), m(), u(), bl(), ti, BHQ, tm(ti).hallKind, tm(ti).hallProg, dt
-    Train g, tm(), m(), u(), bl(), ti, BBAR, tm(ti).denKind, tm(ti).denProg, dt
+    IF tm(ti).l0Kind < 0 THEN tm(ti).l0Kind = NextQ%(tm(ti), 0)
+    IF tm(ti).l1Kind < 0 THEN tm(ti).l1Kind = NextQ%(tm(ti), 1)
+    IF tm(ti).l2Kind < 0 THEN tm(ti).l2Kind = NextQ%(tm(ti), 2)
+    Train g, tm(), m(), u(), bl(), ti, BREF, tm(ti).l0Kind, tm(ti).l0Prog, rate
+    Train g, tm(), m(), u(), bl(), ti, BBAR, tm(ti).l1Kind, tm(ti).l1Prog, rate
+    Train g, tm(), m(), u(), bl(), ti, BFAC, tm(ti).l2Kind, tm(ti).l2Prog, rate
 END SUB
 
 ' The loading screen's bar, on the page shown.
@@ -3784,9 +3991,12 @@ END SUB
 
 FUNCTION Queued% (t AS TeamT, k AS INTEGER)
     SELECT CASE k
-    CASE 3: Queued% = t.q3
-    CASE 4: Queued% = t.q4
     CASE 5: Queued% = t.q5
+    CASE 6: Queued% = t.q6
+    CASE 7: Queued% = t.q7
+    CASE 8: Queued% = t.q8
+    CASE 9: Queued% = t.q9
+    CASE 10: Queued% = t.q10
     CASE ELSE: Queued% = 0
     END SELECT
 END FUNCTION
@@ -3803,9 +4013,9 @@ SUB RenderEnd (g AS GameT, pt() AS PartT, art() AS INTEGER, gl() AS INTEGER)
     DIM i AS INTEGER, c AS INTEGER
     PUT (0, 0), art(0, ABACK), PSET
     FOR i = 1 TO NPART
-        IF g.won THEN c = 8 ELSE c = FIRE + 6
+        IF g.won THEN c = 22 ELSE c = FIRE + 6
         IF i MOD 3 = 0 THEN
-            IF g.won THEN c = 31 ELSE c = FIRE + 2
+            IF g.won THEN c = 13 ELSE c = FIRE + 2
         END IF
         PSET (pt(i).x, pt(i).y), c
     NEXT
@@ -3921,14 +4131,14 @@ SUB RenderTitle (g AS GameT, pt() AS PartT, art() AS INTEGER, gl() AS INTEGER)
     DIM i AS INTEGER, c AS INTEGER
     PUT (0, 0), art(0, ABACK), PSET
     FOR i = 1 TO NPART
-        c = 8: IF i MOD 4 = 0 THEN c = 31
+        ' embers on the wind
+        c = 22: IF i MOD 4 = 0 THEN c = 13
         PSET (pt(i).x, pt(i).y), c
-        IF i MOD 3 = 0 THEN PSET (pt(i).x + 1, pt(i).y), 22
     NEXT
-    IF INT(g.clock * 2) MOD 2 THEN c = 8 ELSE c = 15
+    IF INT(g.clock * 2) MOD 2 THEN c = 13 ELSE c = 15
     TxtC gl(), "CLICK TO BEGIN", 128, 2, c
-    TxtC gl(), "Sidebar builds  H home  A army  M sound", 150, 1, 14
-    TxtC gl(), "Esc leaves", 190, 1, 5
+    TxtC gl(), "QWERT build  ZXCVBN train  A army  H HQ", 150, 1, 14
+    TxtC gl(), "Esc leaves", 190, 1, 23
     Arrow g.ms.x, g.ms.y
 END SUB
 
@@ -4094,7 +4304,7 @@ SUB Tick (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, 
     NEXT
     FOR b = 1 TO MAXB
         IF bl(b).alive THEN
-            IF bl(b).kind = BTUR THEN TurretTick g, m(), u(), bl(), fx(), fk(), b, dt
+            IF bl(b).kind = BTUR AND tm(bl(b).team).low = 0 THEN TurretTick g, m(), u(), bl(), fx(), fk(), b, dt
             IF bl(b).hp * 2 < BHp%(bl(b).kind) THEN
                 bl(b).smoke = bl(b).smoke - dt
                 IF bl(b).smoke <= 0 THEN
@@ -4106,7 +4316,7 @@ SUB Tick (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, 
     NEXT
     FxTick fx(), dt
     ' the Legion's tithe: a few credits a second, so it never stalls
-    g.ai.coin = g.ai.coin + dt * 4
+    g.ai.coin = g.ai.coin + dt * 6
     IF g.ai.coin >= 1 THEN tm(1).cash = tm(1).cash + INT(g.ai.coin): g.ai.coin = g.ai.coin - INT(g.ai.coin)
     g.ai.think = g.ai.think - dt
     IF g.ai.think <= 0 THEN g.ai.think = 1: AIThink g, tm(), m(), u(), bl(), fk()
@@ -4199,19 +4409,11 @@ SUB TxtC (gl() AS INTEGER, t AS STRING, y AS INTEGER, sc AS INTEGER, c AS INTEGE
 END SUB
 
 FUNCTION UDmg% (k AS INTEGER)
-    SELECT CASE k
-    CASE URIFLE: UDmg% = 5
-    CASE UTANK: UDmg% = 22
-    CASE ELSE: UDmg% = 0
-    END SELECT
+    UDmg% = VAL(MID$("000005024018006034", k * 3 - 2, 3))
 END FUNCTION
 
 FUNCTION UHp% (k AS INTEGER)
-    SELECT CASE k
-    CASE UHARV: UHp% = 180
-    CASE URIFLE: UHp% = 55
-    CASE ELSE: UHp% = 170
-    END SELECT
+    UHp% = VAL(MID$("220055220050090080", k * 3 - 2, 3))
 END FUNCTION
 
 ' One step of unit i's orders.
@@ -4354,27 +4556,19 @@ SUB UpdateVis (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT)
 END SUB
 
 FUNCTION URange! (k AS INTEGER)
-    SELECT CASE k
-    CASE URIFLE: URange! = 3.5
-    CASE UTANK: URange! = 4.5
-    CASE ELSE: URange! = 0
-    END SELECT
+    URange! = VAL(MID$("0.03.54.55.03.57.5", k * 3 - 2, 3))
 END FUNCTION
 
 FUNCTION URate! (k AS INTEGER)
-    IF k = UTANK THEN URate! = 1.6 ELSE URate! = .7
+    URate! = VAL(MID$("1.00.71.61.8.353.2", k * 3 - 2, 3))
 END FUNCTION
 
 FUNCTION USight% (k AS INTEGER)
-    USight% = k + 2
+    USight% = VAL(MID$("345475", k, 1))
 END FUNCTION
 
 FUNCTION USpeed! (k AS INTEGER)
-    SELECT CASE k
-    CASE UHARV: USpeed! = 1.9
-    CASE URIFLE: USpeed! = 3.2
-    CASE ELSE: USpeed! = 2.3
-    END SELECT
+    USpeed! = VAL(MID$("1.93.22.32.84.61.7", k * 3 - 2, 3))
 END FUNCTION
 
 ' The selected units sent to tile wx, wy: to attack the unit pu or building pb picked there.
@@ -4595,20 +4789,20 @@ SUB NewGame (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS Bldg
     FOR i = 1 TO MAXU: u(i) = blank: NEXT
     FOR i = 1 TO MAXB: bl(i) = noB: NEXT
     FOR i = 1 TO MAXFX: fx(i) = noFx: NEXT
-    side.sKind = -1: side.hallKind = -1: side.denKind = -1
+    side.sKind = -1: side.l0Kind = -1: side.l1Kind = -1: side.l2Kind = -1
     tm(0) = side: tm(1) = side
-    tm(0).cash = 900: tm(1).cash = 700
+    tm(0).cash = 1000: tm(1).cash = 800
     ClearFields fk()
     g.alertX = -1: g.clickU = 0
     g.now = 0: g.placeKind = -1: g.ms.dragOn = 0: g.msgT = 0: g.alarmT = -99: g.checkT = 0
-    g.ai.think = 3: g.ai.wave = 0: g.ai.size = 3: g.ai.nextWave = 75: g.ai.alarmT = 0: g.ai.coin = 0
+    g.ai.think = 3: g.ai.wave = 0: g.ai.size = 3: g.ai.nextWave = 110: g.ai.alarmT = 0: g.ai.coin = 0
 
     ' the Coalition, south-west; the Legion, north-east
     PlaceBuilding g, tm(), m(), u(), bl(), fk(), 0, -1, 3, 24
-    PlaceBuilding g, tm(), m(), u(), bl(), fk(), 0, 0, 7, 23
+    PlaceBuilding g, tm(), m(), u(), bl(), fk(), 0, 1, 7, 23
     PlaceBuilding g, tm(), m(), u(), bl(), fk(), 1, -1, 34, 3
-    PlaceBuilding g, tm(), m(), u(), bl(), fk(), 1, 0, 30, 2
-    PlaceBuilding g, tm(), m(), u(), bl(), fk(), 1, 1, 34, 6
+    PlaceBuilding g, tm(), m(), u(), bl(), fk(), 1, 1, 30, 2
+    PlaceBuilding g, tm(), m(), u(), bl(), fk(), 1, 2, 34, 6
     FOR i = 1 TO 2
         FOR k = 0 TO 1
             s = FindSpawn%(m(), bl(), FindB%(bl(), k, BHQ))
