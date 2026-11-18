@@ -142,7 +142,7 @@ CONST NKEY = 15, NRIDGE = 3
 ' the layers' sounds: the bass, the tune's echo, its
 ' harmony; the arpeggio and the title's pad by day,
 ' at golden hour and at sunset
-CONST BASSSND = "MNW2Y1,500,10H0,5,8,3V11"
+CONST BASSSND = "MSW0Q40Y1,1600,4H0,3,6,2V14"
 CONST ECHOSND = "MNW1Y1,1800,4H0,6,6,6V7"
 CONST ARPDAY = "MNW0Q25H0,3,6,2V6"
 CONST ARPGOLD = "MNW2Y1,1400,6H0,4,7,3V6"
@@ -614,25 +614,19 @@ FUNCTION ArpSound$ (p AS INTEGER)
     END SELECT
 END FUNCTION
 
-' A bar of bass, a beat at a time, from the chord in
-' the arpeggio's string k: root, root and octave,
-' fifth, octave and fifth; the root in octave 1 or 2.
+' A bar of bass, a note a beat, from the chord in
+' the arpeggio's string k: root, root, fifth, octave,
+' always in octave 2 so small speakers carry it.
 FUNCTION BassBeat$ (k AS STRING, b AS INTEGER)
-    DIM r AS STRING, o AS STRING, f AS STRING
-    r = "O" + MID$(STR$(VAL(MID$(k, 2, 1)) - 1), 2)
-    r = r + MID$(k, 3, 1)
-    o = NoteOf$(r, 7)
-    f = NoteOf$(r, 4)
+    DIM r AS STRING
+    r = "O2" + MID$(k, 3, 1)
     SELECT CASE b MOD 4
-    CASE 0
-        BassBeat$ = r + "8"
-    CASE 1
-        BassBeat$ = r + "16" + o + "16"
     CASE 2
-        BassBeat$ = f + "8"
-    CASE ELSE
-        BassBeat$ = o + "16" + f + "16"
+        r = NoteOf$(r, 4)
+    CASE 3
+        r = NoteOf$(r, 7)
     END SELECT
+    BassBeat$ = r + "8"
 END FUNCTION
 
 SUB Capture (g() AS INTEGER, k AS INTEGER)
