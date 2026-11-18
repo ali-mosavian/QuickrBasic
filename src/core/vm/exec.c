@@ -781,6 +781,15 @@ Addr exec_elem(Arry *const ar, Vm *const vm)
     ArrSlot *const s = op_slot(vm, &id);
     const uint8_t n = exec_u8(vm);
 
+    if (n == 1 && s->hdr) { /* a 1-D from 0, in range: straight from its header */
+        const ArrayHdr *const a = (const ArrayHdr *)at(s->hdr);
+        const int32_t sub = vm->sp->i;
+
+        if ((uint32_t)sub < a->fast) {
+            vm->sp++;
+            return a->data + (uint32_t)sub * arry_esize(ar, id);
+        }
+    }
     for (uint8_t i = n; i-- > 0;)
         ar->subs[i] = exec_popi(vm);
 
