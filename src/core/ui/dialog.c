@@ -121,7 +121,12 @@ static DlogCtl open_ctl[] = {
      .label = s_fname,
      .lrow = 2,
      .lcol = 2},
-    {.kind = CT_TXT, .row = 4, .col = 2, .flags = CF_NOF | CF_PATH, .text = ""},
+    {.kind = CT_TXT,
+     .row = 4,
+     .col = 2,
+     .cols = 45,
+     .flags = CF_NOF | CF_PATH,
+     .text = ""}, /* the Files list's width */
     {.kind = CT_LST,
      .row = 6,
      .col = 2,
@@ -387,12 +392,12 @@ static void draw_check(const DlogCtl *const c, const uint8_t row, uint8_t col)
 }
 
 /* dl_one */
-/* A path to n cells at most: its drive and as many of its last folders as fit, "..." between
-   (C:\...\shot\files); its last folder too long, that folder's end. */
+/* A path to n cells at most: its drive and as many of its last folders as fit, ".." between
+   (C:\..\shot\files, COW's SzChopText); its last folder too long, that folder's end. */
 static void draw_path(const uint8_t row, const uint8_t col, const char *const s, const uint16_t n)
 {
-    static const uint8_t dots[] = "...";
-    enum : uint16_t { HEAD = 3, DOTS = 3 }; /* "C:\" */
+    static const uint8_t dots[] = "..";
+    enum : uint16_t { HEAD = 3, DOTS = 2 }; /* "C:\" */
 
     const size_t len = strlen(s);
 
@@ -420,7 +425,8 @@ static void draw_path(const uint8_t row, const uint8_t col, const char *const s,
     scrn_strn(row, c, (const uint8_t *)s + len - tail, (uint16_t)tail, SL_DLG);
 }
 
-/* A text control: cut at the box's right side, a space short; a path in its middle. */
+/* A text control: cut at its cols, none at the box's right side a space short; a path in its
+   middle. */
 static void draw_text(
     const Dlog *const d,
     const DlogCtl *const c,
@@ -428,7 +434,8 @@ static void draw_text(
     const uint8_t col
 )
 {
-    const uint16_t room = d->cols > c->col + 2 ? d->cols - c->col - 2 : 0;
+    const uint16_t side = d->cols > c->col + 2 ? d->cols - c->col - 2 : 0;
+    const uint16_t room = c->cols && c->cols < side ? c->cols : side;
 
     if (c->flags & CF_PATH)
         draw_path(row, col, c->text, room);

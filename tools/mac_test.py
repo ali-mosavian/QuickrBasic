@@ -14,8 +14,8 @@ the window's title. F2's list is by name, in columns (Right a column on): once o
 file's order, Down chose Bbbbbb, Right did nothing. Its box's right side was the dialog's, and a list
 longer than its box had no scroll bar: now the SUBs list's arrow moves a column. The Open box's files
 are by name in three columns, their bar sideways: once one column in the directory's order. A long
-path shows its drive, "...", then its last folders that fit: once 80 characters, the rest run on past
-the box onto the next row.
+path shows its drive, "..", then its last folders that fit the Files list's width: once 80
+characters, the rest run on past the box onto the next row.
 """
 
 import os
@@ -108,17 +108,17 @@ def clear_column(w: int, pixels: bytes, col: int) -> bool:
     return all(pixel(w, pixels, x, y) == GREY for x in range(9 * col, 9 * col + 9) for y in range(80, 272))
 
 
-def shown_path(path: Path, room: int = 63) -> str:
-    """The Open box's path in room cells: C:\\...\\ then the last folders that fit."""
+def shown_path(path: Path, room: int = 45) -> str:
+    """The Open box's path in room cells, the Files list's width: C:\\..\\ then the last folders that fit."""
     full = "C:" + str(path).replace("/", "\\")
     if len(full) <= room:
         return full
     parts = full.split("\\")
     for k in range(1, len(parts)):
-        shown = "C:\\...\\" + "\\".join(parts[k:])
+        shown = "C:\\..\\" + "\\".join(parts[k:])
         if len(shown) <= room:
             return shown
-    return "..." + full[len(full) - room + 3 :]
+    return ".." + full[len(full) - room + 2 :]
 
 
 def lit_cells(w: int, pixels: bytes, row: int) -> list[int]:
