@@ -96,9 +96,9 @@ def test_explored_ground_not_dark() -> None:
     assert not re.search(r"\.vis = 0 THEN (PUT|c = FOG)", BAS.read_text())
 
 
-def field_program(w: int, h: int, builds: int, bas: str = "") -> str:
+def field_program(w: int, h: int, builds: int, bas: str = "", body: str = "") -> str:
     """RUSTLINE on a w by h map (its own map tiled) building the ore route map `builds` times; it
-    prints the map's sum, to compare."""
+    prints the map's sum, to compare. A `body` runs instead, on the map loaded."""
     src = re.sub(r"CONST MAPW = \d+, MAPH = \d+", f"CONST MAPW = {w}, MAPH = {h}", bas or BAS.read_text())
     src = re.sub(r"CONST (.*)\bNF = \d+", r"CONST \1NF = 1", src)
     main = f"""DIM mp(47) AS STRING, hd(47) AS STRING, r AS STRING, c AS STRING, x AS INTEGER, y AS INTEGER
@@ -123,10 +123,14 @@ FOR y = 0 TO MAPH - 1
     NEXT
 NEXT
 {"WalkBits m()" if "SUB WalkBits" in src else ""}
-FOR x = 1 TO {builds}: BuildField m(), fd(), 0, OREKEY: NEXT
+{"StepMask m(), 0, 0, MAPW - 1, MAPH - 1" if "SUB StepMask" in src else ""}
+{
+        body
+        or f'''FOR x = 1 TO {builds}: BuildField m(), fd(), 0, OREKEY: NEXT
 DIM sum AS LONG
 FOR y = 0 TO MAPH - 1: FOR x = 0 TO MAPW - 1: sum = sum + fd(0, x, y): NEXT: NEXT
-PRINT "built"; sum
+PRINT "built"; sum'''
+    }
 """
     i, j = src.index("\nSetup g, tune()\n") + 1, src.index("\nWIDTH 80\nEND\n") + len("\nWIDTH 80\nEND\n")
     return src[:i] + main + "END\n" + src[j:]
@@ -141,9 +145,37 @@ def field_cost(w: int, h: int, bas: str = "") -> bench.Cost:
 
 def test_route_map_cost() -> None:
     """A route map took 4,700 VM ops a tile, Walk% working out each step's corners: 27 ms on 64 by 48,
-    a hitch on every new order. The headings each tile's ground runs on to are worked out once a game."""
+    a hitch on every new order. The headings each tile's ground runs on to are worked out once a game;
+    the steps open now are cached a tile (StepMask), and the eight headings written out: 130 ops."""
     c = field_cost(64, 48)
-    assert c.ops / (64 * 48) < 1000, c.ops / (64 * 48)
+    assert c.ops / (64 * 48) < 200, c.ops / (64 * 48)
+
+
+def test_step_mask_follows_buildings() -> None:
+    """Each tile's step mask is cached; a building placed or destroyed must redo the masks round it, or
+    units walk through new buildings and route maps go round dead ones."""
+    body = """DIM b AS INTEGER, s AS INTEGER, d AS INTEGER, bad AS INTEGER
+x = 20: y = 30
+PlaceBuilding g, tm(), m(), u(), bl(), fk(), 0, -1, x, y
+GOSUB Compare
+b = m(x, y).bld
+KillBuilding g, m(), bl(), fx(), fk(), b
+GOSUB Compare
+PRINT "stale"; bad
+END
+Compare:
+FOR y = 0 TO MAPH - 1
+    FOR x = 0 TO MAPW - 1
+        s = 0
+        FOR d = 0 TO 7: IF Walk%(m(), x, y, d) THEN s = s OR 2 ^ d
+        NEXT
+        IF s <> m(x, y).sk THEN bad = bad + 1
+    NEXT
+NEXT
+x = 20: y = 30
+RETURN"""
+    r = bench.run_native(bench.build(".", False), {"mask": field_program(64, 48, 0, body=body)}, runs=1)
+    assert r["mask"].out.split() == ["stale", "0"], r["mask"].out
 
 
 # the frame's parts profile_program times: a label, then the statement it wraps (once in the game)
@@ -242,4 +274,5 @@ if __name__ == "__main__":
     test_map_fits_its_size()
     test_explored_ground_not_dark()
     test_route_map_cost()
+    test_step_mask_follows_buildings()
     print("ok")

@@ -63,6 +63,7 @@ TYPE CellT
     hgt AS BYTE   ' its level, 0 to MAXH
     rmp AS BYTE   ' a ramp up a level: 1 rising north, 2 west
     wk AS BYTE    ' the headings its ground runs on to, a bit each (WalkBits)
+    sk AS BYTE    ' the headings a unit can step to now, a bit each (StepMask)
 END TYPE
 
 TYPE UnitT
@@ -304,6 +305,7 @@ DECLARE FUNCTION Lift% (m() AS CellT, x AS INTEGER, y AS INTEGER)
 DECLARE FUNCTION LiftAt! (m() AS CellT, px AS SINGLE, py AS SINGLE)
 DECLARE FUNCTION Corner% (m() AS CellT, x AS INTEGER, y AS INTEGER, c AS INTEGER)
 DECLARE SUB WalkBits (m() AS CellT)
+DECLARE SUB StepMask (m() AS CellT, x1 AS INTEGER, y1 AS INTEGER, x2 AS INTEGER, y2 AS INTEGER)
 DECLARE FUNCTION Joined% (m() AS CellT, x AS INTEGER, y AS INTEGER, nx AS INTEGER, ny AS INTEGER)
 DECLARE SUB UnitScreen (g AS GameT, m() AS CellT, u() AS UnitT, i AS INTEGER, sx AS INTEGER, sy AS INTEGER)
 DECLARE SUB PickTile (g AS GameT, m() AS CellT, sx AS INTEGER, sy AS INTEGER, wx AS INTEGER, wy AS INTEGER)
@@ -2850,8 +2852,7 @@ END SUB
 
 ' The flow field to goal: each tile's steps to it, FAR where there is no way. Units ignored.
 SUB BuildField (m() AS CellT, fd() AS SHORT, fi AS INTEGER, goal AS INTEGER)
-    DIM x AS INTEGER, y AS INTEGER, h AS INTEGER, tl AS INTEGER, d AS INTEGER, nx AS INTEGER, ny AS INTEGER
-    DIM v AS INTEGER, w AS INTEGER, ok AS INTEGER, sx(7) AS INTEGER, sy(7) AS INTEGER, bt(7) AS INTEGER
+    DIM x AS INTEGER, y AS INTEGER, h AS INTEGER, tl AS INTEGER, v AS INTEGER, w AS INTEGER
     DIM qx(MAPW * MAPH) AS INTEGER, qy(MAPW * MAPH) AS INTEGER
     FOR y = 0 TO MAPH - 1: FOR x = 0 TO MAPW - 1: fd(fi, x, y) = FAR: NEXT: NEXT
     IF goal = OREKEY THEN
@@ -2864,23 +2865,18 @@ SUB BuildField (m() AS CellT, fd() AS SHORT, fi AS INTEGER, goal AS INTEGER)
         x = goal MOD MAPW: y = goal \ MAPW
         fd(fi, x, y) = 0: qx(0) = x: qy(0) = y: tl = 1
     END IF
-    ' Walk% inlined, the cheap tests first: a field is 8 tries a tile
-    FOR d = 0 TO 7: sx(d) = StepX%(d): sy(d) = StepY%(d): bt(d) = 2 ^ d: NEXT
+    ' the headings written out, StepX% and StepY%'s order: half the ops of a loop over them
     DO WHILE h < tl
         x = qx(h): y = qy(h): h = h + 1
-        v = fd(fi, x, y) + 1: w = m(x, y).wk
-        FOR d = 0 TO 7
-            IF w AND bt(d) THEN
-                nx = x + sx(d): ny = y + sy(d)
-                IF fd(fi, nx, ny) > v THEN
-                    IF Passable%(m(), nx, ny) THEN
-                        ok = -1
-                        IF d AND 1 THEN ok = Passable%(m(), nx, y) AND Passable%(m(), x, ny)
-                        IF ok THEN fd(fi, nx, ny) = v: qx(tl) = nx: qy(tl) = ny: tl = tl + 1
-                    END IF
-                END IF
-            END IF
-        NEXT
+        v = fd(fi, x, y) + 1: w = m(x, y).sk
+        IF w AND 1 THEN IF fd(fi, x + 1, y) > v THEN fd(fi, x + 1, y) = v: qx(tl) = x + 1: qy(tl) = y: tl = tl + 1
+        IF w AND 2 THEN IF fd(fi, x + 1, y + 1) > v THEN fd(fi, x + 1, y + 1) = v: qx(tl) = x + 1: qy(tl) = y + 1: tl = tl + 1
+        IF w AND 4 THEN IF fd(fi, x, y + 1) > v THEN fd(fi, x, y + 1) = v: qx(tl) = x: qy(tl) = y + 1: tl = tl + 1
+        IF w AND 8 THEN IF fd(fi, x - 1, y + 1) > v THEN fd(fi, x - 1, y + 1) = v: qx(tl) = x - 1: qy(tl) = y + 1: tl = tl + 1
+        IF w AND 16 THEN IF fd(fi, x - 1, y) > v THEN fd(fi, x - 1, y) = v: qx(tl) = x - 1: qy(tl) = y: tl = tl + 1
+        IF w AND 32 THEN IF fd(fi, x - 1, y - 1) > v THEN fd(fi, x - 1, y - 1) = v: qx(tl) = x - 1: qy(tl) = y - 1: tl = tl + 1
+        IF w AND 64 THEN IF fd(fi, x, y - 1) > v THEN fd(fi, x, y - 1) = v: qx(tl) = x: qy(tl) = y - 1: tl = tl + 1
+        IF w AND 128 THEN IF fd(fi, x + 1, y - 1) > v THEN fd(fi, x + 1, y - 1) = v: qx(tl) = x + 1: qy(tl) = y - 1: tl = tl + 1
     LOOP
 END SUB
 
@@ -3898,6 +3894,7 @@ SUB KillBuilding (g AS GameT, m() AS CellT, bl() AS BldgT, fx() AS FxT, fk() AS 
             AddFx fx(), FXBIG, x * TS + TS \ 2, y * TS + TS \ 2, 0, 0, .5 + RND * .5
         NEXT
     NEXT
+    StepMask m(), bl(b).x - 1, bl(b).y - 1, bl(b).x + sz, bl(b).y + sz
     ClearFields fk()
     g.vw.miniDirty = -1
     IF m(bl(b).x, bl(b).y).seen THEN Sfx g, 4
@@ -3989,7 +3986,7 @@ FUNCTION MoveStep% (g AS GameT, m() AS CellT, u() AS UnitT, fd() AS SHORT, fk() 
     best = -1: bv = FAR
     FOR d = 0 TO 7
         nx = u(i).x + StepX%(d): ny = u(i).y + StepY%(d)
-        IF Walk%(m(), u(i).x, u(i).y, d) THEN
+        IF m(u(i).x, u(i).y).sk AND 2 ^ d THEN
             v = fd(fi, nx, ny)
             IF v < cur THEN
                 lower = -1
@@ -4069,6 +4066,7 @@ SUB PlaceBuilding (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() A
             m(i, j).bld = b
         NEXT
     NEXT
+    StepMask m(), x - 1, y - 1, x + BSize%(bt), y + BSize%(bt)
     IF kind >= 0 AND tm(ti).sKind = kind AND tm(ti).sReady THEN tm(ti).sKind = -1: tm(ti).sReady = 0: tm(ti).sProg = 0
     ClearFields fk()
     g.vw.miniDirty = -1
@@ -4762,6 +4760,25 @@ FUNCTION Passable% (m() AS CellT, x AS INTEGER, y AS INTEGER)
     IF t = TGROUND OR t = TGROUND2 OR t = TDIRT OR t = TORE THEN Passable% = -1
 END FUNCTION
 
+' Each tile's .sk in x1, y1 to x2, y2 (clipped to the map): the headings Walk% allows now. A tile's
+' change moves its own and its eight neighbours' masks.
+SUB StepMask (m() AS CellT, x1 AS INTEGER, y1 AS INTEGER, x2 AS INTEGER, y2 AS INTEGER)
+    DIM x AS INTEGER, y AS INTEGER, d AS INTEGER, s AS INTEGER, xa AS INTEGER, xb AS INTEGER, ya AS INTEGER, yb AS INTEGER
+    xa = x1: IF xa < 0 THEN xa = 0
+    xb = x2: IF xb > MAPW - 1 THEN xb = MAPW - 1
+    yb = y2: IF yb > MAPH - 1 THEN yb = MAPH - 1
+    ya = y1: IF ya < 0 THEN ya = 0
+    FOR y = ya TO yb
+        FOR x = xa TO xb
+            s = 0
+            FOR d = 0 TO 7
+                IF Walk%(m(), x, y, d) THEN s = s OR 2 ^ d
+            NEXT
+            m(x, y).sk = s
+        NEXT
+    NEXT
+END SUB
+
 ' Whether a unit can step from x, y in heading d: onto open land the ground runs on to, and on a
 ' diagonal round both the tiles it cuts between.
 FUNCTION Walk%(m() AS CellT, x AS INTEGER, y AS INTEGER, d AS INTEGER)
@@ -4931,6 +4948,7 @@ SUB NewGame (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS Bldg
         NEXT
     NEXT
     WalkBits m()
+    StepMask m(), 0, 0, MAPW - 1, MAPH - 1
     FOR i = 1 TO MAXU: u(i) = blank: NEXT
     FOR i = 1 TO MAXB: bl(i) = noB: NEXT
     FOR i = 1 TO MAXFX: fx(i) = noFx: NEXT
