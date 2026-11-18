@@ -35,9 +35,9 @@
 #include "ui/view.h"
 #include "ui/window.h"
 #include "plat/pscr.h"
+#include "util/grow.h"
 
 /* The 0-ended s to d, its 0 too. */
-static void copy_str(char *const d, const char *const s) { memcpy(d, s, strlen(s) + 1); }
 
 enum : uint8_t {
     STATUS_BAR_COL = 62, /* the bar before ^Q, the locks, the position */
@@ -52,7 +52,8 @@ static const char u_f1[] = "F1=Help \xB3 ", u_f1s[] = "F1=Help   ";
 
 static bool inactive; /* dr_ina: drawing an edit window without the focus */
 static uint8_t sel;   /* dr_sk: edit_sel's for the window drawn */
-static char ttl[128]; /* ui_ttl: the window's title */
+static char *ttl;     /* ui_ttl: the window's title, grown to fit */
+static uint32_t ttl_cap;
 
 void draw_all(Session *const S)
 {
@@ -114,9 +115,12 @@ void draw_title(
     }
 
     const uint8_t slot = lit ? SL_TTL : SL_ED; /* at 1 + (the width - its length - 5) / 2 */
-    c = (uint8_t)((uint8_t)(width - 5 - scrn_slen(title)) >> 1) + 1 + col;
+    const uint16_t len = scrn_slen(title), room = width > 7 ? width - 7 : 0;
+    const uint16_t n = len < room ? len : room; /* a longer one cut, clear of the arrow */
+    c = (uint8_t)((width - 5 - n) >> 1) + 1 + col;
     c = scrn_fill(row, c, slot, ' ', 1);
-    c = scrn_str(row, c, title, slot, slot);
+    c = n == len ? scrn_str(row, c, title, slot, slot)
+                 : scrn_strn(row, c, (const uint8_t *)title, n, slot);
     scrn_fill(row, c, slot, ' ', 1);
 }
 
@@ -220,8 +224,17 @@ void draw_edit(Session *const S, const bool ina)
     const UiEdit *const e = &uimn.ed;
     const uint8_t row = (uint8_t)(e->row0 - 1), width = (uint8_t)(e->width + 2);
     scrn_box(row, e->x, (uint8_t)(e->rows + 2), width, SL_ED, nullptr);
-    copy_str(ttl, uimn.file[0] ? uimn.file : uimn_untitled); /* the file's name or Untitled */
-    view_title(ttl);
+    const char *const file = uimn.file[0] ? uimn.file : uimn_untitled;    /* its name or Untitled */
+    const char *const proc = uimn.ed.view ? view_name(uimn.ed.view) : ""; /* ":" its procedure */
+    const uint32_t flen = (uint32_t)strlen(file), plen = (uint32_t)strlen(proc);
+    const bool room = GROW(ttl, ttl_cap, flen + 1 + plen + 1); /* none: the file's name alone */
+
+    if (room) {
+        memcpy(ttl, file, flen);
+        ttl[flen] = ':';
+        memcpy(ttl + flen + (plen ? 1 : 0), proc, plen + 1);
+    }
+
     const bool top = row == 1; /* the top window's corners, else joins */
     draw_title(
         row,
@@ -229,7 +242,7 @@ void draw_edit(Session *const S, const bool ina)
         width,
         top ? GLYPH_TOP_LEFT : GLYPH_V_RIGHT,
         top ? GLYPH_TOP_RIGHT : GLYPH_V_LEFT,
-        ttl,
+        room ? ttl : file,
         has_focus(),
         !uimn.pane_on /* the maximise arrow, none by the pane */
     );

@@ -8,6 +8,9 @@ broken and restarted (Shift+F5) draws again: the kept screen once left the displ
 QB_SHOT's timed shots, one run: the status line before Alt+F, then its help line. QB_MOUSE's press, read by
 PEN, draws a box where it was.
 A box drawn on page 1 is shown only once page 1 is, in SCREEN 13 and in text mode.
+F2 lists every procedure: 64 views at most once left SUB 70 out, End, Enter showing SUB 63 with the
+lines of the seven after it. A procedure's name is any length: 40 characters at most once cut
+the window's title.
 """
 
 import os
@@ -26,6 +29,10 @@ HIDDEN = {
     "text": "SCREEN 0, , 1, 0\nCOLOR 4, 4\nCLS\n",
 }
 LOOP = "DO\nLOOP\n"
+SUBS = "PRINT 1\n" + "".join(f"SUB S{i}\nEND SUB\n" for i in range(1, 71))
+LAST_SUB = "60:3C00 70:4F00 80:1C0D"  # F2, End, Enter
+LONG_NAME = "N" * 60
+LONG = f"PRINT 1\nSUB {LONG_NAME}\nEND SUB\n"
 
 
 def frames(
@@ -61,6 +68,19 @@ def pixel(w: int, pixels: bytes, x: int, y: int) -> tuple[int, ...]:
     return tuple(pixels[at : at + 3])
 
 
+def text_rows(w: int, pixels: bytes) -> int:
+    """The edit window's rows with text on them, its 17 above the scroll bar: 16 pixels a row from y 32."""
+    return sum(
+        any(pixel(w, pixels, x, y) != BLUE for x in range(9, 9 * 40) for y in range(32 + r * 16, 48 + r * 16))
+        for r in range(17)
+    )
+
+
+def title_cells(w: int, pixels: bytes) -> int:
+    """The edit window's title bar's lit cells: the title, a space either side, the arrow."""
+    return sum(pixel(w, pixels, c * 9 + 1, 17) != BLUE for c in range(80))
+
+
 def main() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         program = Path(tmp) / "HELLO.BAS"
@@ -83,6 +103,12 @@ def main() -> None:
                 page.write_text(draw + tail + LOOP)
                 gw, _, px = frame(run, page, "3F00")
                 pages[name, shown] = pixel(gw, px, 50, 50)
+        subs = Path(tmp) / "SUBS.BAS"
+        subs.write_text(SUBS)
+        sw, _, last_sub = frames(run, subs, LAST_SUB, ("2s",))[0]
+        long = Path(tmp) / "LONG.BAS"
+        long.write_text(LONG)
+        lw, _, long_title = frames(run, long, "60:5500", ("2s",))[0]  # Shift+F2
     status = {pixel(w, menu, x, 392) for x in range(9 * 30, 9 * 60)}
 
     def status_row(shot: bytes) -> list[tuple[int, ...]]:
@@ -101,6 +127,8 @@ def main() -> None:
         "graphics page 1 shown": pages["graphics", "shown"] == RED,
         "text page 1 hidden": pages["text", "hidden"] != RED,
         "text page 1 shown": pages["text", "shown"] == RED,
+        "F2 lists SUB 70": text_rows(sw, last_sub) == 2,
+        "a long name's title whole": title_cells(lw, long_title) == len(f"LONG.BAS:{LONG_NAME}") + 3,
     }
     failed = [name for name, ok in checks.items() if not ok]
     print(f"mac {sys.argv[2] if len(sys.argv) > 2 else ''} " + ("ok" if not failed else "FAIL " + ", ".join(failed)))

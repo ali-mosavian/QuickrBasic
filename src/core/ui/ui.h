@@ -225,7 +225,7 @@ typedef struct {
     uint32_t sel_line;
     uint16_t sel_col;
     uint32_t sel_a, sel_b; /* edit_sel's: columns of the cursor's line, or lines */
-    uint8_t view;          /* ed_vw: the view shown (view.h) */
+    uint32_t view;         /* ed_vw: the view shown (view.h) */
     uint16_t row0;         /* ed_r0: the first text row */
     uint16_t rows;         /* ed_rows: text rows */
     uint8_t x;             /* ed_x: the frame's first column */

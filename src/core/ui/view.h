@@ -3,11 +3,6 @@
 #define UI_VIEW_H
 #include "ui/ui.h"
 
-enum {
-    NVIEW = 64, /* views at most */
-    VNAME = 40, /* a procedure's name's characters at most */
-};
-
 /* TVIEW */
 typedef struct {
     uint32_t first; /* vfirst: its first line in the text */
@@ -16,7 +11,7 @@ typedef struct {
     uint32_t line;  /* vline, vtop, vcol: the cursor's place left there */
     uint32_t top;
     uint16_t col;
-    char name[VNAME + 1]; /* vname: as typed, "" the module's */
+    uint32_t name; /* vname: as typed, "" the module's; its offset in the names (view_name) */
 } View;
 
 /* vw_reset: a new or loaded text: its module's lines first, the views, both windows on the
@@ -28,14 +23,13 @@ void view_apply(void);
    left it); its line in the view. */
 uint32_t view_goline(Session *S, uint32_t line);
 /* vw_of: the view text line line is in: the last starting at or before it. */
-uint8_t view_of(uint32_t line);
+uint32_t view_of(uint32_t line);
 /* View v, one view_of gave (the asm's EDI out of vw_of). */
-const View *view_at(uint8_t v);
+const View *view_at(uint32_t v);
+/* View v's name, 0-ended; "" the module's. Good until the views are scanned again. */
+const char *view_name(uint32_t v);
 /* View v's procedure: its name; 0 the module's. Uses comp_cbuf. */
-uint16_t view_proc(Session *S, uint8_t v);
-/* vw_title: ":" and the active window's view's name appended to the 0-ended title; the module:
-   nothing. */
-void view_title(char *title);
+uint16_t view_proc(Session *S, uint32_t v);
 /* vw_next, vw_prev: Shift+F2, Ctrl+F2: the next view, the one before, in the active window. */
 void view_next(Session *S);
 void view_prev(Session *S);
