@@ -38,18 +38,18 @@ SCALE = ramp(8, (20, 10, 5), (60, 44, 20), 6)
 SKIN = ramp(14, (38, 22, 18), (62, 48, 40), 4)
 BELLY = ramp(18, (48, 38, 28), (63, 58, 46), 3)
 SCARF = ramp(21, (30, 3, 8), (63, 20, 14), 4)
-GRASS = ramp(25, (6, 24, 10), (44, 62, 22), 5)
-EARTH = ramp(30, (13, 7, 6), (50, 32, 15), 8)
+GRASS = ramp(25, (4, 26, 6), (42, 63, 10), 5)
+EARTH = ramp(30, (18, 6, 3), (63, 38, 8), 8)
 STONE = ramp(38, (22, 20, 24), (56, 54, 54), 4)
 GOLD = ramp(42, (40, 20, 2), (63, 62, 34), 5)
 TEAL = ramp(47, (2, 16, 24), (30, 60, 58), 5)
 METAL = ramp(52, (16, 18, 24), (58, 60, 63), 4)
 WOOD = ramp(56, (16, 9, 5), (42, 28, 14), 4)
-LEAF = ramp(60, (34, 8, 4), (63, 50, 10), 6)
+LEAF = ramp(60, (40, 6, 2), (63, 54, 6), 6)
 PETAL = ramp(66, (48, 16, 34), (63, 56, 60), 3)
-SKY = ramp(96, (8, 16, 44), (62, 50, 42), 32)
-FAR = ramp(128, (28, 26, 46), (50, 46, 58), 4)
-MID = ramp(132, (8, 24, 22), (34, 50, 26), 6)
+SKY = ramp(96, (2, 6, 46), (26, 50, 63), 32)
+FAR = ramp(128, (18, 12, 46), (46, 42, 63), 4)
+MID = ramp(132, (2, 24, 16), (26, 58, 18), 6)
 CLOUD = ramp(138, (48, 44, 52), (63, 62, 60), 3)
 SUN = ramp(141, (63, 50, 30), (63, 63, 52), 3)
 
@@ -310,12 +310,13 @@ def surface(kind: int, i: int) -> int:
 
 
 def soil(p: Pic, x: int, y: int, depth: float, seed: int) -> None:
-    """Earth at depth pixels under the surface: lighter strata near the top, pebbles, darker down."""
-    band = 0.09 * math.sin((depth + 2.2 * math.sin(x * math.pi / 8)) * math.pi / 5)
-    v = 0.78 - min(depth, 70) * 0.0085 + band + (noise(x % 16, int(depth), seed) - 0.5) * 0.2
+    """Earth at depth pixels under the surface: a zigzag weave of two tones, of period 8 across and 16 down so
+    tiles meet; pebbles; darker down."""
+    zig = (x + abs(y % 16 - 8)) // 4 % 2
+    v = 0.66 - min(depth, 70) * 0.006 + (0.2 if zig else -0.12) + (noise(x % 16, y % 16, seed) - 0.5) * 0.1
     p.shade(x, y, EARTH, v)
-    if noise(x % 16 // 2, int(depth) // 2, seed + 7) > 0.955:
-        p.put(x, y, STONE[2 if int(depth) % 2 == 0 else 0])
+    if noise(x % 16 // 2, y % 16 // 2, seed + 7) > 0.975:
+        p.put(x, y, STONE[2 if y % 2 == 0 else 0])
 
 
 def turf(p: Pic, x: int, y: int, t: int, seed: int) -> bool:
@@ -485,6 +486,23 @@ def rock() -> Pic:
     return p.outline()
 
 
+def lamp() -> Pic:
+    """A lantern plant: a tall bent stalk, leaves, three glowing pods hung from it."""
+    p = Pic(20, 44)
+    for y in range(8, 44):
+        x = 9 + round(2.5 * math.sin((43 - y) * 0.09))
+        p.put(x, y, GRASS[2])
+        p.put(x + 1, y, GRASS[3])
+    for x, y, d in ((8, 34, -1), (12, 27, 1), (9, 20, -1)):
+        p.line(x, y, x + d * 5, y - 3, GRASS[3], 2)
+        p.put(x + d * 5, y - 4, GRASS[4])
+    for x, y, r in ((5, 13, 3.4), (14, 10, 3.8), (10, 4, 3.2)):
+        p.line(x, y - r, 10, 9, GRASS[1])
+        p.ball(x, y, r, r * 1.25, LEAF, 0.35, 1.0)
+        p.put(round(x - 1), round(y - 1), WHITE)
+    return p.outline()
+
+
 def thorn() -> Pic:
     """A bramble: dark canes, pale points."""
     p = Pic(16, 12)
@@ -530,6 +548,7 @@ def pictures() -> list[tuple[int, Pic, bool, int]]:
         (k + 42, flower(1), True, -1),
         (k + 44, rock(), True, -1),
         (k + 46, thorn(), True, -1),
+        (k + 48, lamp(), True, -1),
     ]
     return out
 

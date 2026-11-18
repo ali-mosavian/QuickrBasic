@@ -639,7 +639,7 @@ def cmd_fps(a: argparse.Namespace) -> int:
 PANG = ROOT / "src/plat/wasm/web/demos/PANGDASH.BAS"
 # the game's own pilot playing from the start; each call for 2 s, a second of play between them
 PANG_EACH = ("Pilot p, k: Tick g, p, k, lo(), pt()", "DrawBack cx, cy", "DrawThings cx, cy, -1", "DrawTiles cx, cy",
-             "DrawThings cx, cy, 0", "DrawHero p, cx, cy", "DrawParts pt(), cx, cy", "Hud g", "Flip g.page",
+             "DrawThings cx, cy, 0", "DrawHero p, cx, cy", "DrawParts pt(), cx, cy", "Blit 6, 5, IHUD, HUDW, HUDH", "Flip g.page",
              "Render g, p, lo(), pt()")
 PANG_SETUP = """OpenScreen
 LoadTables
