@@ -585,7 +585,7 @@ void edit_enter(Session *const S)
 
     uimn.ed.indent = ind;
     uimn.ed.nlen = split(S, b, ind); /* the new line: the indent, the rest */
-    const uint8_t view = uimn.ed.view;
+    const uint32_t view = uimn.ed.view;
     edit_commit(S);
 
     if (view != uimn.ed.view) /* a SUB line: its own view, made */

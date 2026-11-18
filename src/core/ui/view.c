@@ -13,15 +13,17 @@
  * |---|---|---|
  * | vw_reset, vw_apply | view_reset, view_apply | MIRROR |
  * | vw_goline, vw_of | view_goline, view_of; view_at | MIRROR; D1 |
- * | vw_title | view_title (appends) | MIRROR |
+ * | vw_title | view_name; draw.c builds the title | D2 |
  * | vw_next, vw_prev, vw_commit, vw_newsub, vw_newfn, vw_subs | view_next, view_prev, view_commit, view_newsub, view_newfn, view_subs | MIRROR |
  * | vw_kind, vw_order, vw_scan, vw_shift, vw_ptr, vw_show, vw_cpy, vw_find, vw_add, vw_del | statics | MIRROR |
  * | TVIEW | View (first, n, kind, line, top, col, name) | MIRROR |
  * | g_ui.vw.*, bf.vw_new, vw_fld, vw_list, dg.ls_v | statics | MIRROR |
- * | NVIEW, VNAME, VLSZ | view.h; VLSZ static | MIRROR |
+ * | NVIEW, VNAME, VLSZ | none: the views, names and list grow | D3 |
  * | u_kwsub .. u_delp, dg_vnew, dg_subs | statics | MIRROR |
  *
  * - D1. vw_of's second result, the table entry, is view_at(v).
+ * - D2. The title is any length: draw.c grows its buffer.
+ * - D3. No limit on the views or their names' length; the list's items as wide as its longest.
  */
 #include "ui/view.h"
 #include "session.h"
@@ -36,18 +38,21 @@
 #include "comp/declare.h"
 #include "mem/copy.h"
 #include "mem/program.h"
+#include "util/grow.h"
 
 /* The 0-ended s to d, its 0 too. */
 static void copy_str(char *const d, const char *const s) { memcpy(d, s, strlen(s) + 1); }
 
-enum { VLSZ = VNAME + 4 }; /* the SUBs box's list item */
-
 static struct {
     uint8_t name_text[DLBUF]; /* first: name_field points here (ui.h's 16-bit note) */
-    uint8_t n;                /* vw_n: the views */
-    View tab[NVIEW];
+    uint32_t n;               /* vw_n: the views */
+    uint32_t cap;
+    View *tab;
+    char *names; /* the views' names, each 0-ended: View.name's offsets */
+    uint32_t nlen, ncap;
     LineBuf new_line; /* vw_new, vw_nlen: add's line, grown to fit */
-    char list_text[NVIEW * VLSZ];
+    char *list_text;
+    uint32_t list_cap;
 } vw = {.new_line = {.grows = true}};
 
 static LineBuf name_field = {.text = vw.name_text, .cap = DLBUF}; /* vw_fld: New SUB's name */
@@ -175,10 +180,10 @@ static void order(Session *const S)
    views after it move. */
 static void shift(const uint32_t line, const int32_t delta)
 {
-    const uint8_t v = uimn.ed.view;
+    const uint32_t v = uimn.ed.view;
     vw.tab[v].n += delta;
 
-    for (uint8_t i = v + 1; i < vw.n; i++)
+    for (uint32_t i = v + 1; i < vw.n; i++)
         vw.tab[i].first += delta;
 }
 
@@ -191,27 +196,38 @@ static void scan(Session *const S)
     if (is_proc(kind(S, 0, nullptr)))
         text_insert(S, 0, (const uint8_t *)"", 0); /* a blank line before */
     uimn.text.hook = shift;
+    vw.n = 0;
+
+    /* no memory: no views, the whole text shown; for a procedure, its lines the last view's */
+    if (!GROW(vw.tab, vw.cap, 1) || !GROW(vw.names, vw.ncap, 1))
+        return;
+
     vw.tab[0].first = 0;
     vw.tab[0].kind = 0;
-    vw.tab[0].name[0] = 0;
+    vw.tab[0].name = 0;
+    vw.names[0] = 0;
+    vw.nlen = 1;
     uint32_t n = 1;
 
     for (uint32_t line = 1; line < uimn.text.all; line++) {
         const uint8_t *name;
         const uint8_t k = kind(S, line, &name);
+        const uint32_t len = name ? name[1] : 0; /* as typed: the M_VAR's */
 
-        if (!is_proc(k) || n >= NVIEW)
+        if (!is_proc(k) || !GROW(vw.tab, vw.cap, n + 1) ||
+            !GROW(vw.names, vw.ncap, vw.nlen + len + 1))
             continue;
 
         View *const v = &vw.tab[n++];
         v->kind = k;
         v->first = line;
-        const uint32_t len = name[1] < VNAME ? name[1] : VNAME; /* as typed: the M_VAR's */
-        memcpy(v->name, name + 2, len);
-        v->name[len] = 0;
+        v->name = vw.nlen;
+        memcpy(vw.names + vw.nlen, name + 2, len);
+        vw.nlen += len;
+        vw.names[vw.nlen++] = 0;
     }
 
-    vw.n = (uint8_t)n;
+    vw.n = n;
 
     for (uint32_t i = 0; i < n; i++) /* each one's lines: to the next */
         vw.tab[i].n = (i + 1 < n ? vw.tab[i + 1].first : uimn.text.all) - vw.tab[i].first;
@@ -238,7 +254,7 @@ void view_reset(Session *const S)
     order(S);
     scan(S);
 
-    for (uint32_t i = 0; i < NVIEW; i++) { /* no kept places */
+    for (uint32_t i = 0; i < vw.cap; i++) { /* no kept places */
         vw.tab[i].line = 0;
         vw.tab[i].top = 0;
         vw.tab[i].col = 0;
@@ -250,6 +266,11 @@ void view_reset(Session *const S)
 
 void view_apply(void)
 {
+    if (!vw.n) {
+        text_whole();
+        return;
+    }
+
     if (uimn.ed.view >= vw.n)
         uimn.ed.view = 0;
 
@@ -258,7 +279,7 @@ void view_apply(void)
 }
 
 /* View v in the active window, the cursor where it was left. */
-static void show(Session *const S, const uint8_t v)
+static void show(Session *const S, const uint32_t v)
 {
     edit_commit(S);
     View *const left = &vw.tab[uimn.ed.view]; /* the place left */
@@ -284,9 +305,9 @@ static void show(Session *const S, const uint8_t v)
     edit_ensure();
 }
 
-uint8_t view_of(const uint32_t line)
+uint32_t view_of(const uint32_t line)
 {
-    uint8_t v = 1;
+    uint32_t v = 1;
 
     while (v < vw.n && line >= vw.tab[v].first)
         v++;
@@ -294,9 +315,11 @@ uint8_t view_of(const uint32_t line)
     return v - 1;
 }
 
-const View *view_at(const uint8_t v) { return &vw.tab[v]; }
+const View *view_at(const uint32_t v) { return &vw.tab[v]; }
 
-uint16_t view_proc(Session *const S, const uint8_t v)
+const char *view_name(const uint32_t v) { return vw.names + vw.tab[v].name; }
+
+uint16_t view_proc(Session *const S, const uint32_t v)
 {
     const uint8_t *nm = nullptr;
     return vw.tab[v].kind && is_proc(kind(S, vw.tab[v].first, &nm)) ? comp_nameof(nm) : 0;
@@ -304,7 +327,7 @@ uint16_t view_proc(Session *const S, const uint8_t v)
 
 uint32_t view_goline(Session *const S, const uint32_t line)
 {
-    const uint8_t v = view_of(line);
+    const uint32_t v = view_of(line);
 
     if (v != uimn.ed.view)
         show(S, v);
@@ -313,19 +336,9 @@ uint32_t view_goline(Session *const S, const uint32_t line)
     return line - uimn.text.first;
 }
 
-void view_title(char *const title)
-{
-    if (!uimn.ed.view)
-        return;
-
-    const size_t n = strlen(title);
-    title[n] = ':';
-    copy_str(title + n + 1, vw.tab[uimn.ed.view].name);
-}
-
 void view_next(Session *const S)
 {
-    const uint8_t v = uimn.ed.view + 1;
+    const uint32_t v = uimn.ed.view + 1;
     show(S, v < vw.n ? v : 0);
 }
 
@@ -386,10 +399,10 @@ static bool field_names(const char *const s)
 }
 
 /* The view named as the field; false: none. */
-static bool find(uint8_t *const v)
+static bool find(uint32_t *const v)
 {
-    for (uint8_t i = 1; i < vw.n; i++) {
-        if (field_names(vw.tab[i].name)) {
+    for (uint32_t i = 1; i < vw.n; i++) {
+        if (field_names(view_name(i))) {
             *v = i;
             return true;
         }
@@ -409,7 +422,7 @@ static void new_proc(Session *const S, const uint8_t k, const char *const title)
     if (dlog_run(S, &dg_vnew) != VNEW_OK || !name_field.len)
         return;
 
-    uint8_t v;
+    uint32_t v;
 
     if (find(&v)) {
         show(S, v);
@@ -430,7 +443,7 @@ void view_newsub(Session *const S) { new_proc(S, PK_SUB, u_nsub); }
 void view_newfn(Session *const S) { new_proc(S, PK_FUNC, u_nfn); }
 
 /* View v's procedure out of the text, after asking; the module stays. */
-static void del(Session *const S, const uint8_t v)
+static void del(Session *const S, const uint32_t v)
 {
     if (!v || dlog_ync(S, u_delp) != YNC_YES)
         return;
@@ -450,35 +463,50 @@ static void del(Session *const S, const uint8_t v)
     edit_load(S, 0);
 }
 
-/* The SUBs box's list: the file's name, then each procedure's indented. */
-static void list_fill(void)
+/* The SUBs box's list: the file's name, then each procedure's indented; each item as wide as the
+   longest. false: no memory. */
+static bool list_fill(void)
 {
-    list.n = vw.n;
+    const char *const file = uimn.file[0] ? uimn.file : uimn_untitled;
+    uint32_t size = (uint32_t)strlen(file) + 1;
 
-    for (uint8_t i = 0; i < vw.n; i++) {
-        char *const d = vw.list_text + i * VLSZ;
+    for (uint32_t i = 1; i < vw.n; i++) {
+        const uint32_t len = (uint32_t)strlen(view_name(i)) + 3; /* two spaces in, its 0 */
+        size = len > size ? len : size;
+    }
+
+    if (!grow_room(&vw.list_text, &vw.list_cap, vw.n * size, 1))
+        return false;
+
+    for (uint32_t i = 0; i < vw.n; i++) {
+        char *const d = vw.list_text + i * size;
 
         if (!i) {
-            copy_str(d, uimn.file[0] ? uimn.file : uimn_untitled);
+            copy_str(d, file);
         } else {
             d[0] = d[1] = ' ';
-            copy_str(d + 2, vw.tab[i].name);
+            copy_str(d + 2, view_name(i));
         }
     }
 
+    list.n = vw.n;
     list.sel = uimn.ed.view;
     list.top = 0;
     list.items = vw.list_text;
-    list.size = VLSZ;
+    list.size = size;
+    return true;
 }
 
 void view_subs(Session *const S)
 {
     edit_commit(S);
-    list_fill();
+
+    if (!list_fill())
+        return;
+
     dg_subs.focus = 0;
     const uint8_t b = dlog_run(S, &dg_subs);
-    const uint8_t v = (uint8_t)list.sel;
+    const uint32_t v = list.sel;
 
     if (b == SUBS_ACTIVE) {
         show(S, v);

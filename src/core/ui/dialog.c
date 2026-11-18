@@ -35,13 +35,14 @@
  * | CT_*, CF_NOF, DO_OK, DS_OK, DF_OK, DC_FV | same (dialog.h); DLOG_ESC 0xFF | MIRROR |
  * | u_open, u_saveas, u_find, u_change, u_fname, u_files, u_dirs, u_skip, u_chg1, u_fwhat, u_cto, u_case, u_whole, u_fverify, u_chall, u_mbas, u_bas, u_star, u_yes, u_no | statics | MIRROR |
  * | DL_WRAP | static (44) | MIRROR |
- * | LSMAX | static: the lists' most, grown to | MIRROR |
+ * | LSMAX | none: the lists grow | D5 |
  *
  * - D1. A parameter, not a global set before the call.
  * - D2. A flag result is a bool, true the success. A hook's true keeps the box: the asm's CF set
  *   for a button, clear for a list's Enter.
  * - D3. A control's cb is hook, or a check box's check; TDLG's controls are the ctl array.
  * - D4. ls_f and ls_d are initialised statically with their item buffers: the asm's start-up setup.
+ * - D5. No limit on a list's names: as many as memory holds.
  */
 #include "ui/dialog.h"
 #include "util/grow.h"
@@ -57,7 +58,6 @@
 #include "ui/uimain.h"
 
 enum {
-    LSMAX = 128, /* a list's names at most */
     NAMESZ = 13, /* a list's item: NAME.EXT and 0 */
     DL_WRAP = 44,
     NMSGCTL = 16,
@@ -95,7 +95,7 @@ static struct {
     const char *title;    /* msg_ttl: its title, nullptr none: its lines then left-aligned */
 } dl;
 
-static DlogList ls_files = {.size = NAMESZ}; /* items grown as names come, LSMAX at most */
+static DlogList ls_files = {.size = NAMESZ}; /* items grown as names come */
 static DlogList ls_dirs = {.size = NAMESZ};
 static uint32_t files_cap, dirs_cap; /* their items' room */
 static char mask[80];                /* dl_mask: the Open box's */
@@ -264,18 +264,20 @@ static void draw_list(const DlogCtl *const c, const uint8_t top, const uint8_t l
     if (l->sel < l->top) /* the first shown keeps it in view */
         l->top = l->sel;
 
-    const uint16_t end = l->top + c->rows;
+    const uint32_t end = l->top + c->rows;
 
     if (l->sel >= end)
         l->top += l->sel - end + 1;
     for (uint8_t r = 0; r < c->rows; r++) {
         const uint8_t row = (uint8_t)(top + 1 + r);
-        const uint16_t i = l->top + r;
+        const uint32_t i = l->top + r;
 
         if (i >= l->n)
             continue;
 
-        scrn_str(row, col, l->items + (uint32_t)i * l->size, SL_DLG, SL_DLG);
+        const char *const item = l->items + i * l->size; /* cut at the box's width */
+        const size_t len = strlen(item);
+        scrn_strn(row, col, (const uint8_t *)item, len < c->cols ? (uint16_t)len : c->cols, SL_DLG);
 
         if (i == l->sel && dl.focused) {
             scrn_attr(row, col, c->cols, SL_DSEL);
@@ -485,13 +487,13 @@ bool dlog_ledit(LineBuf *const b, const uint16_t key)
 enum : uint8_t { GO_LOOP, GO_PRESS, GO_ENTER, GO_CHECK, GO_SET, GO_ESC };
 
 /* A click on a list's line r: once selects (*sel), on the selected one opens. */
-static uint8_t list_click(const DlogCtl *const c, const int r, uint16_t *const sel)
+static uint8_t list_click(const DlogCtl *const c, const int r, uint32_t *const sel)
 {
     if (r < 0 || r >= c->rows)
         return GO_LOOP;
 
     const DlogList *const l = c->list;
-    const uint16_t at = (uint16_t)(l->top + r);
+    const uint32_t at = l->top + (uint32_t)r;
 
     if (at >= l->n)
         return GO_LOOP;
@@ -503,7 +505,7 @@ static uint8_t list_click(const DlogCtl *const c, const int r, uint16_t *const s
 }
 
 /* A press on control i (c) at its row r: a button pressed, else the focus. */
-static uint8_t click(const DlogCtl *const c, const uint8_t i, const int r, uint16_t *const sel)
+static uint8_t click(const DlogCtl *const c, const uint8_t i, const int r, uint32_t *const sel)
 {
     if (c->flags & CF_NOF)
         return GO_LOOP;
@@ -567,9 +569,9 @@ static void field_key(LineBuf *const b, const uint16_t key)
 }
 
 /* A key in a list: the selection to move to (*sel). */
-static uint8_t list_key(const DlogCtl *const c, const uint8_t scan, uint16_t *const sel)
+static uint8_t list_key(const DlogCtl *const c, const uint8_t scan, uint32_t *const sel)
 {
-    const uint16_t s = c->list->sel;
+    const uint32_t s = c->list->sel;
 
     switch (scan) {
     case SCAN_UP:
@@ -580,7 +582,7 @@ static uint8_t list_key(const DlogCtl *const c, const uint8_t scan, uint16_t *co
         break;
 
     case SCAN_DOWN:
-        *sel = (uint16_t)(s + 1);
+        *sel = s + 1;
         break;
 
     case SCAN_PGUP:
@@ -592,11 +594,11 @@ static uint8_t list_key(const DlogCtl *const c, const uint8_t scan, uint16_t *co
         break;
 
     case SCAN_PGDN:
-        *sel = (uint16_t)(s + c->rows);
+        *sel = s + c->rows;
         break;
 
     case SCAN_END:
-        *sel = 0xFFFF;
+        *sel = UINT32_MAX;
         break;
 
     default:
@@ -635,7 +637,7 @@ static bool dialog_key(uint16_t *const key)
 }
 
 /* A list's selection to sel, at most its last. */
-static void list_set(const DlogCtl *const c, const uint16_t sel)
+static void list_set(const DlogCtl *const c, const uint32_t sel)
 {
     DlogList *const l = c->list;
 
@@ -653,7 +655,7 @@ static bool act(
     const Dlog *const d,
     const uint8_t go,
     DlogCtl *c,
-    const uint16_t sel,
+    const uint32_t sel,
     uint8_t *const r
 )
 {
@@ -688,7 +690,7 @@ static bool act(
 }
 
 /* go done on the focused control c: the box hidden when it ends. */
-static void ended(const uint8_t go, DlogCtl *const c, const uint16_t sel)
+static void ended(const uint8_t go, DlogCtl *const c, const uint32_t sel)
 {
     if (go == GO_ESC) {
         dl.result = DLOG_ESC;
@@ -760,7 +762,7 @@ static bool ctl_mouse(Widget *const w, Session *const S, const uint8_t row, cons
         return false;
 
     DlogCtl *const c = ctl_of(w);
-    uint16_t sel = 0; /* GO_SET's */
+    uint32_t sel = 0; /* GO_SET's */
     const uint8_t go = click(c, (uint8_t)(w - dl.kids), row - w->rect.row, &sel);
     ended(go, c, sel);
     return true;
@@ -783,7 +785,7 @@ static bool lst_key(Widget *const w, Session *const S, uint16_t key)
         return false;
 
     DlogCtl *const c = ctl_of(w);
-    uint16_t sel = 0;
+    uint32_t sel = 0;
     const uint8_t go = list_key(c, (uint8_t)(key >> 8), &sel);
     ended(go, c, sel);
     return true;
@@ -1081,20 +1083,20 @@ uint8_t dlog_ync(Session *const S, const char *const text)
 /* ---- Open, Save As */
 
 /* The names matching pattern with attrs (PFIL_ADIR: directories only, "." left out) to l's items,
-   cap of room, grown; their count, as many as fit. */
-static uint16_t find(
+   cap of room, grown; their count, as many as memory holds. */
+static uint32_t find(
     DlogList *const l,
     uint32_t *const cap,
     const char *const pattern,
     const uint8_t attrs
 )
 {
-    uint16_t n = 0;
+    uint32_t n = 0;
 
     for (uint16_t e = pfil_first(pattern, attrs, &dta); e == PFIL_OK; e = pfil_next(&dta)) {
         if (attrs == PFIL_ADIR && (!(dta.attr & PFIL_ADIR) || !strcmp(dta.name, ".")))
             continue;
-        if (n >= LSMAX || !grow_room(&l->items, cap, n + 1u, NAMESZ))
+        if (!grow_room(&l->items, cap, n + 1u, NAMESZ))
             break;
 
         memcpy(l->items + n * NAMESZ, dta.name, NAMESZ);

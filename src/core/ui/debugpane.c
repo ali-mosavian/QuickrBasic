@@ -55,17 +55,18 @@ enum {
     DP_WAT = 0,
     DP_LOC = 1,
     DP_STK = 2,
-    NDFRM = 16,  /* the call stack's frames shown at most */
-    NDVAR = 64,  /* Locals' variables shown at most */
-    NWATCH = 8,  /* watches at most */
-    WXLEN = 41,  /* a watch's expression, 0-ended */
-    ROWSZ = 256, /* a row being made: an expression, " = ", a value or a message */
-    VIEW_NONE = 0xFF,
+    NDFRM = 16,      /* the call stack's frames shown at most */
+    NDVAR = 64,      /* Locals' variables shown at most */
+    NWATCH = 8,      /* watches at most */
+    WXLEN = 41,      /* a watch's expression, 0-ended */
+    ROWSZ = 256,     /* a row being made: an expression, " = ", a value or a message */
     FRAME_NAME = 15, /* a frame's row: its view's name, 15 characters at most, */
     FRAME_LINE = 16, /*   "line n" from column 16 */
     VK_FN = 3,       /* a DEF FN's kind (Var.info) */
     NSEEN = 256,     /* variables whose last change is kept */
 };
+
+static constexpr uint32_t VIEW_NONE = UINT32_MAX; /* a frame in no view */
 
 /* A variable's row at the stop it last changed at: its text's hash, that stop. */
 typedef struct {
@@ -78,7 +79,7 @@ typedef struct {
 typedef struct {
     int32_t line; /* df_ln: its text line, -1 the immediate's */
     DebugFrame at;
-    uint8_t view; /* df_vw: its view, VIEW_NONE none */
+    uint32_t view; /* df_vw: its view, VIEW_NONE none */
     char text[DP_TWMAX + 1];
 } PaneFrame;
 
@@ -200,11 +201,11 @@ static void frame1(Session *const S, PaneFrame *const f, const DebugFrame *const
     }
 
     f->line = (int32_t)tl;
-    const uint8_t v = view_of(tl);
+    const uint32_t v = view_of(tl);
     const View *const vw = view_at(v);
     const uint32_t n = tl - vw->first + 1;
     f->view = v;
-    const char *const name = v ? vw->name : "module";
+    const char *const name = v ? view_name(v) : "module";
 
     for (int i = 0; i < FRAME_NAME && name[i]; i++)
         f->text[i] = name[i];

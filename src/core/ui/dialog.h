@@ -25,11 +25,11 @@ typedef bool (*DlogHook)(uint8_t why);
 
 /* TLIST: a dialog's list. */
 typedef struct {
-    uint16_t n;   /* its items */
-    uint16_t sel; /* the one selected */
-    uint16_t top; /* the first shown */
+    uint32_t n;   /* its items */
+    uint32_t sel; /* the one selected */
+    uint32_t top; /* the first shown */
     char *items;  /* n items, size bytes each, 0-ended */
-    uint8_t size;
+    uint32_t size;
 } DlogList;
 
 /* TCTL */
