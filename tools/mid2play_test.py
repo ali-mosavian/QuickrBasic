@@ -56,11 +56,13 @@ def main() -> None:
     lines = text.splitlines()
     assert lines[1].startswith('PLAY "MBT240W0Q30'), lines[1]
     # E above middle C is N41, G N44: a quarter, an eighth's rest, a dotted eighth, the bar's seven sixteenths of rest
-    # a voice a drum, set once: the kick, which starts with a click (a sine alone was under 250 Hz), then the hat
+    # a drum whose pitch slides is a sine alone: a kick's click, a modulator, slid with it, a chirp from 5 kHz down at
+    # every kick, which no drum of a recording had
+    for drum in mid2play.KIT.values():
+        assert "K0" in drum or "Z1,0" in drum, drum
+    # a voice a drum, set once: the kick, then the hat
     # with the hat under the kick, which the kit in one voice lost
-    assert lines[1].endswith(
-        '"T240Z1,0H0,5,0,3L16W4Z9,15,2,0,5Y0K4,8R6V15O1", "T240Z1,0H0,5,0,3L16W3Y3,4000,0K0R5V4O6"'
-    )
+    assert lines[1].endswith('"T240Z1,0H0,5,0,3L16W4Z1,0Y0K2,8R3V15O1", "T240Z1,0H0,5,0,3L16W3Y3,3000,0K0R5V11O6"')
     assert lines[2] == 'PLAY "L4N41P8L8N44.P4.P16", "CP2.P8.", "CP8.CP2P8."', lines[2]
     hats = mid2play.bar_of(dict.fromkeys(range(16), (42, 1)), 0, 16, "C")
     assert hats == "C" * 16, hats
