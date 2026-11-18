@@ -34,6 +34,8 @@ FOR i = 1 TO 300: Things g, lo(), pt(): NEXT
 PRINT "edge ok"
 Muted = 0
 LoadSong
+PLAY Beat$(Kit(0), 3), "V1", Horn(0), , "V1", Horn(1)
+PLAY , , Keys(0), , , Keys(1)
 PLAY "T255", "T255", "T255", , "T255", "T255"
 FOR j = 0 TO NBAR * 2 - 1: i = j * 5: PLAY Trk(i), Trk(i + 1), Trk(i + 2), , Trk(i + 3), Trk(i + 4): NEXT
 FOR j = SJUMP TO SBOOST: Sfx j: NEXT

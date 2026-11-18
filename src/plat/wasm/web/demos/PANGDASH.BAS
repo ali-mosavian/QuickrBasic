@@ -213,7 +213,7 @@ DIM SHARED Tune AS INTEGER
 DIM SHARED Ticks AS LONG, Muted AS INTEGER, LooseN AS INTEGER, PartN AS INTEGER
 DIM SHARED Glint(2) AS LONG
 CONST NBAR = 28
-DIM SHARED Trk(NBAR * 10) AS STRING, Kit(NBAR * 2) AS STRING, Order AS STRING, Bar AS INTEGER, HalfBar AS INTEGER
+DIM SHARED Trk(NBAR * 10) AS STRING, Kit(NBAR * 2) AS STRING, Horn(1) AS STRING, Keys(1) AS STRING, Order AS STRING, Bar AS INTEGER, HalfBar AS INTEGER
 
 Main
 END
@@ -244,42 +244,42 @@ DATA goal,0, flat,6, bush,0, flat,14, "end",0
 
 ' The tune: 76 bars of 28, each a letter of the order: an intro and its variation, then A, B, C and D twice
 ' round and four bars of A fading. A bar is its chord's root from D, a bass riff and a drum pattern by number, the
-' second brass, the brass and the lead. A riff is sixteen sixteenths: a note in semitones above its voice's lowest
+' second brass, the brass and the lead. After the intro the brass is an organ, high, and the second a low chug. A riff is sixteen sixteenths: a note in semitones above its voice's lowest
 ' (0-9, a-z), a capital slid into, "-" holds it, "." rests. A second brass of two letters is a chord pattern by number and its note.
 Song:
 DATA "abcdabcefghefgh{ijkl|jkmnopqnoprstuvwxyzwxyzijkl|jkmnopqnoprstuvwxyzwxyzijkm"
-DATA "0..00.C..00..07C", "0.0C.0.70.C0.7c7", "0.0.0.0.C.c.057c", "0.C00c7c0.C057ac"
-DATA "..x..x....x..x..", "x.x..x.xx.x..x.x", "x.x.x.x.x.x.x.x."
-DATA "KHHHSHKHKHKHSHHH", "KHHHSHKHSSTTSTSS", "K.H.S.H.K.K.S.H.", "K.H.S.SSKSSTSTTS", "KHHSHHKHKHHSHHSS"
+DATA "0.0.C.0.00c.7.0C", "0.0.7.0.C.0c.7c7", "0.0.0.0.C.c.057c", "0.C00c7c0.C057ac", "0.......0.....7."
+DATA "x.x.x.xx.xx.x.x.", "x.......x.....x.", "x.x.x.x.x.x.x.x."
+DATA "KHHHSHHSKHKHSHHH", "KHHHSHKHSSTTSTSS", "K.H.S.H.K.K.S.H.", "K.H.S.SSKSSTSTTS", "KHHSHHKSKHHSHHSS"
 DATA "K.H.S.H.K.K.S.H.", "K.H.S.H.K.K.S.SS"
-DATA 0, 1, 5, "8-.8c.e-..f.e-c.", "c-.cf.h-..j.h-f.", ""
-DATA 0, 1, 6, "8-.8c.e-..j.f-e-", "c-.cf.h-..m.j-h-", ""
-DATA -4, 4, 5, "h..h....f..e..c.", "k..k....j..h..f.", ""
-DATA -5, 3, 3, "k-..k.j.f-e-b---", "o-..o.m.j-h-e---", ""
-DATA -5, 3, 3, "j-..j.k.m-k-j-f-", "m-..m.o.q-o-m-j-", ""
+DATA 0, 1, 0, "8-.8c.e-..f.e-c.", "c-.cf.h-..j.h-f.", ""
+DATA 0, 1, 0, "8-.8c.e-..j.f-e-", "c-.cf.h-..m.j-h-", ""
+DATA -4, 4, 0, "h..h....f..e..c.", "k..k....j..h..f.", ""
+DATA -5, 3, 1, "k-..k.j.f-e-b---", "o-..o.m.j-h-e---", ""
+DATA -5, 3, 1, "j-..j.k.m-k-j-f-", "m-..m.o.q-o-m-j-", ""
 DATA 5, 1, 0, "e-f-h-.e..h.k---", "h-j-k-.h..k.o---", "............o.r."
 DATA 0, 2, 0, "f-.fe.c-..7.c-f-", "j-.jh.f-..c.f-j-", "..........o.r.o."
 DATA -4, 1, 0, "h-j-k-.h..k.o---", "k-m-o-.k..o.r---", "........o.r.t.r."
-DATA 0, 1, 0, "0f", "j.....j.j.....f.", "cjfjcjfjojmjfjhj"
-DATA -2, 1, 0, "0e", "h.....h.h.....e.", "aehmhemhqmhmehae"
-DATA -4, 1, 0, "0c", "f.....f.f.....c.", "8cfkfckfocfkfc8c"
-DATA -5, 2, 0, "0e", "e.....e.e...e-j-", "7bejebjenjqnjebe"
-DATA -5, 3, 1, "0e", "e.....e.e...j-o-", "7bejnqnjqnjebe7-"
-DATA 5, 2, 0, "1c", "....h-....k.h.k.", "o-..k.h-..k-o---"
-DATA -2, 2, 0, "1e", "....e-....h.e.h.", "m-..h.e-..h-m---"
-DATA 0, 2, 0, "1f", "....f-....j.f.j.", "o-..j.f-..j-r---"
-DATA -5, 3, 0, "1e", "..e...e-7-e-j---", "q-n-j-.q..n.j-e-"
-DATA -5, 3, 1, "1e", "..e...e-7-e-j---", "q-n-jnqnjnqnvvvv"
-DATA -4, 1, 4, "2c", "f-------f---k---", "kkorrokorwrokorw"
-DATA -2, 1, 4, "2e", "h-------h---m---", "mmqttqmqtytqmqty"
-DATA 0, 1, 4, "2f", "j-------j---o---", "oorvvrorvvrovrov"
-DATA 0, 3, 1, "2f", "o---m---j---f---", "vtrqomkjhfecefhj"
-DATA 0, 2, 0, "0f", "..f-..f-....f.j.", "o.oo.m.o-..j.m.o"
-DATA 0, 2, 0, "0f", "..f-..f-....f.j.", "r.rr.q.o-..m.j.m"
-DATA -4, 2, 0, "0c", "..f-..f-....f.k.", "o.oo.k.o-..r.o.k"
-DATA -2, 3, 1, "0e", "..e-..e-....h.m.", "q.qq.m.q-..t-q-m"
-DATA -5, 3, 3, "j-..j.k.m-k-j-f-", "m-..m.o.q-o-m-j-", "........7bejnqv-"
-DATA 0, 1, 0, "0f", "j.....j.j.....f.", "ocjofjmjojmjfjhj"
+DATA 0, 1, 0, "0f", "v--.v..v--------", "c.fj..f.oj..f.hj"
+DATA -2, 1, 0, "0e", "t--.t..t--------", "a.hm..h.qm..h.ae"
+DATA -4, 1, 0, "0c", "r--.r..r--------", "8.fk..f.ok..f.8c"
+DATA -5, 2, 0, "0e", "q--.q..q--------", "7.ej..e.nj..e.be"
+DATA -5, 3, 1, "0e", "q--.q..v--------", "7.ej..n.qn.jeb7-"
+DATA 5, 5, 0, "1c", "....t-....w.t.w.", "o-..k.h-..k-o---"
+DATA -2, 5, 0, "1e", "....q-....t.q.t.", "m-..h.e-..h-m---"
+DATA 0, 5, 0, "1f", "....r-....v.r.v.", "o-..j.f-..j-r---"
+DATA -5, 5, 0, "1e", "..q...q-j-q-v---", "q-n-j-.q..n.j-e-"
+DATA -5, 3, 1, "1e", "..q...q-j-q-v---", "q-n-jnqnjnqnvvvv"
+DATA -4, 1, 4, "0c", "r-------r---w---", "kk.rr.k.rw.o.krw"
+DATA -2, 1, 4, "0e", "t-------t---y---", "mm.tt.m.ty.q.mty"
+DATA 0, 1, 4, "0f", "v-------v---o---", "oo.vv.o.vv.o.rov"
+DATA 0, 3, 1, "0f", "o---m---j---f---", "vtrqomkjhfecefhj"
+DATA 0, 2, 0, "0f", "r--.r..v--------", "o.oo.m.o-..j.m.o"
+DATA 0, 2, 0, "0f", "r--.r..v--------", "r.rr.q.o-..m.j.m"
+DATA -4, 2, 0, "0c", "r--.r..w--------", "o.oo.k.o-..r.o.k"
+DATA -2, 3, 1, "0e", "q--.q..t--------", "q.qq.m.q-..t-q-m"
+DATA -5, 3, 1, "j-..j.k.m-k-j-f-", "m-..m.o.q-o-m-j-", "........7bejnqv-"
+DATA 0, 1, 0, "0f", "v--.v..v--------", "o.jo..m.oj..f.hj"
 
 ' PangArt's begin.
 ' The palette and pictures, as tools/pangart.py draws them.
@@ -2188,16 +2188,18 @@ END SUB
 
 SUB LoadSong
     DIM i AS INTEGER, j AS INTEGER, k AS INTEGER, root AS INTEGER, nb AS INTEGER, nd AS INTEGER
-    DIM bas(3) AS STRING, hits(2) AS STRING, pat(6) AS STRING
+    DIM bas(4) AS STRING, hits(2) AS STRING, pat(6) AS STRING, low AS INTEGER
     DIM st AS STRING, br AS STRING, sol AS STRING
     RESTORE Song
     READ Order
-    FOR i = 0 TO 3: READ bas(i): NEXT
+    FOR i = 0 TO 4: READ bas(i): NEXT
     FOR i = 0 TO 2: READ hits(i): NEXT
     FOR i = 0 TO 6: READ pat(i): NEXT
     FOR i = 0 TO NBAR - 1
         READ root, nb, nd, st, br, sol
+        low = 27
         IF LEN(st) = 2 THEN
+            low = 15
             st = hits(VAL(LEFT$(st, 1))) + RIGHT$(st, 1)
             DO WHILE INSTR(st, "x") AND INSTR(st, "x") < 17: MID$(st, INSTR(st, "x"), 1) = MID$(st, 17, 1): LOOP
         END IF
@@ -2208,12 +2210,14 @@ SUB LoadSong
             Trk(k + 1) = Riff$(bas(nb - 1), j, 15 + root)
             Trk(k + 2) = Riff$(br, j, 27)
             Trk(k + 3) = Riff$(sol, j, 27)
-            Trk(k + 4) = Riff$(st, j, 27)
+            Trk(k + 4) = Riff$(st, j, low)
         NEXT
     NEXT
-    ' the kit; FM, as the consoles of the day: a bass that starts bright, two brasses that waver, their harmonics
-    ' a saw's by a modulator that bends itself; and a thin pulse lead
-    PLAY "MBT140Z1,0H0,3,0,1L16", "T140W4Z1,12,4,4,4H0,5,6,1", "T140W4Z1,5,3,11,5H1,4,12,3U5", , "T140W0Q30H0,4,9,2U4", "T140W4Z1,4,3,13,5H1,4,11,3U5"
+    ' the kit; FM, as the consoles of the day: a picked bass that starts bright; a reedy pulse lead; two brasses that
+    ' waver, their harmonics a saw's by a modulator that bends itself, for the intro; then an organ and a clavinet
+    PLAY "MBT140Z1,0H0,3,0,1L16", "T140W4Z1,12,4,4,4H0,5,6,1", "T140", , "T140W0Q42H1,4,10,2U4", "T140"
+    Horn(0) = "W4Z1,5,3,11,5H1,4,12,3U5": Horn(1) = "W4Z1,4,3,13,5H1,4,11,3U5"
+    Keys(0) = "W4Z2,5,3,6,2H0,5,8,2U0": Keys(1) = "W4Z3,9,3,1,3H0,4,1,2U0"
     Bar = 0: HalfBar = 0
     Tune = -1
 END SUB
@@ -2275,16 +2279,22 @@ END FUNCTION
 ' The next half bar, once the last is nearly played: the drums are the first voice, eight sixteenths every time,
 ' so PLAY(0) counts the tune's own clock. The last four bars fade, an eighth a half bar.
 SUB FeedSong
-    DIM k AS INTEGER, loud AS INTEGER, d AS STRING
+    DIM k AS INTEGER, b AS INTEGER, loud AS INTEGER, d AS STRING, bass AS STRING, one AS STRING, two AS STRING
     IF Muted OR NOT Tune THEN EXIT SUB
     IF PLAY(0) > 2 THEN EXIT SUB
-    k = (ASC(MID$(Order, Bar + 1, 1)) - 97) * 2 + HalfBar
+    b = ASC(MID$(Order, Bar + 1, 1)) - 97
+    k = b * 2 + HalfBar
     loud = (LEN(Order) - Bar) * 2 - HalfBar
     IF loud > 8 THEN loud = 8
     d = Trk(k * 5)
     IF loud < 8 THEN d = Beat$(Kit(k), loud)
+    ' the bass waits three bars; the intro's bars (and its last, the 27th) are the brasses'
+    bass = "V" + LTRIM$(STR$(14 * loud \ 8)) + Trk(k * 5 + 1)
+    IF Bar < 3 THEN bass = "P2"
+    one = Keys(0): two = Keys(1)
+    IF b < 8 OR b = 26 THEN one = Horn(0): two = Horn(1)
     k = k * 5
-    PLAY d, "V" + LTRIM$(STR$(14 * loud \ 8)) + Trk(k + 1), "V" + LTRIM$(STR$(12 * loud \ 8)) + Trk(k + 2), , "V" + LTRIM$(STR$((9 * loud + 7) \ 8)) + Trk(k + 3), "V" + LTRIM$(STR$(10 * loud \ 8)) + Trk(k + 4)
+    PLAY d, bass, one + "V" + LTRIM$(STR$(12 * loud \ 8)) + Trk(k + 2), , "V" + LTRIM$(STR$((9 * loud + 7) \ 8)) + Trk(k + 3), two + "V" + LTRIM$(STR$(10 * loud \ 8)) + Trk(k + 4)
     HalfBar = 1 - HalfBar
     IF HalfBar = 0 THEN Bar = (Bar + 1) MOD LEN(Order)
 END SUB
