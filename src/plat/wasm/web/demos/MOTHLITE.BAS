@@ -139,9 +139,14 @@ CONST HEAT1 = 3, HEAT2 = 8, NEARMISS = 9
 CONST NFLY = 10, NCLOUD = 3, NTREE = 16
 CONST DAY = 0, GOLDEN = 1, SUNSET = 2, NSKIES = 3
 CONST NKEY = 15, NRIDGE = 3
-' the layers' sounds: the tune's echo, its harmony,
-' and the pad by day, at golden hour and at sunset
+' the layers' sounds: the bass, the tune's echo, its
+' harmony; the arpeggio and the title's pad by day,
+' at golden hour and at sunset
+CONST BASSSND = "MNW2Y1,500,10H0,5,8,3V11"
 CONST ECHOSND = "MNW1Y1,1800,4H0,6,6,6V7"
+CONST ARPDAY = "MNW0Q25H0,3,6,2V6"
+CONST ARPGOLD = "MNW2Y1,1400,6H0,4,7,3V6"
+CONST ARPDUSK = "MNW1H0,5,8,4V7"
 CONST LIFTSND = "MNW0Q12H0,4,8,3V7"
 CONST PADDAY = "MLW0Q30Y1,2400,6H6,6,10,8V7"
 CONST PADGOLD = "MLW2Y1,900,6H9,6,10,9V8"
@@ -218,6 +223,8 @@ DECLARE FUNCTION NoteOf$ (k AS STRING, steps AS INTEGER)
 DECLARE FUNCTION Drums$ (s AS Song)
 DECLARE FUNCTION Lift$ (s AS Song)
 DECLARE FUNCTION PadSound$ (p AS INTEGER)
+DECLARE FUNCTION ArpSound$ (p AS INTEGER)
+DECLARE FUNCTION BassBeat$ (k AS STRING, b AS INTEGER)
 DECLARE FUNCTION Grazed% (st() AS Stone, i AS INTEGER, m AS Moth)
 DECLARE SUB ToggleMusic (s AS Song)
 DECLARE SUB PlaySfx (id AS INTEGER)
@@ -595,6 +602,38 @@ SUB BuildStones
     Rune(2) = "110101110101110"
     Rune(3) = "010111010010010"
 END SUB
+
+FUNCTION ArpSound$ (p AS INTEGER)
+    SELECT CASE p
+    CASE DAY
+        ArpSound$ = ARPDAY
+    CASE GOLDEN
+        ArpSound$ = ARPGOLD
+    CASE ELSE
+        ArpSound$ = ARPDUSK
+    END SELECT
+END FUNCTION
+
+' A bar of bass, a beat at a time, from the chord in
+' the arpeggio's string k: root, root and octave,
+' fifth, octave and fifth; the root in octave 1 or 2.
+FUNCTION BassBeat$ (k AS STRING, b AS INTEGER)
+    DIM r AS STRING, o AS STRING, f AS STRING
+    r = "O" + MID$(STR$(VAL(MID$(k, 2, 1)) - 1), 2)
+    r = r + MID$(k, 3, 1)
+    o = NoteOf$(r, 7)
+    f = NoteOf$(r, 4)
+    SELECT CASE b MOD 4
+    CASE 0
+        BassBeat$ = r + "8"
+    CASE 1
+        BassBeat$ = r + "16" + o + "16"
+    CASE 2
+        BassBeat$ = f + "8"
+    CASE ELSE
+        BassBeat$ = o + "16" + f + "16"
+    END SELECT
+END FUNCTION
 
 SUB Capture (g() AS INTEGER, k AS INTEGER)
     DIM px AS INTEGER, py AS INTEGER, c AS INTEGER
@@ -1048,10 +1087,10 @@ SUB Fall (w AS World, sp() AS Spark)
     END IF
 END SUB
 
-' Keeps a few beats queued: tune, arpeggio, drums,
-' the sky's pad and the echo or harmony; voice 4 is
-' left to the sound effects. Every voice gets a beat a beat,
-' a pad a bar, so they stay together.
+' Keeps a few beats queued: tune, bass, drums, the
+' sky's arpeggio and the echo or harmony; voice 4 is
+' left to the sound effects. Every voice gets each
+' beat, or a pad a bar, so they stay together.
 SUB FeedSong (s AS Song)
     DIM b AS INTEGER, id AS INTEGER
     DIM m AS STRING, d AS STRING
@@ -1168,9 +1207,10 @@ END SUB
 
 ' The layers over a song's beat b, made from its
 ' voice v's string k: the tune's echo a 16th late,
-' and its harmony a third over; a pad a bar on the
-' chord's third, in each sky's sound; the drums with
-' the hi-hats doubled.
+' and its harmony a third over; in the game a bass
+' line under the arpeggio, now an octave up, on the
+' title a pad a bar; the drums with the hi-hats
+' doubled. The arpeggio and pad sound as the sky.
 SUB Layer (id AS INTEGER, b AS INTEGER, v AS INTEGER, pre AS STRING, k AS STRING)
     DIM t AS STRING, r AS STRING, i AS INTEGER
     DIM p AS INTEGER
@@ -1183,13 +1223,24 @@ SUB Layer (id AS INTEGER, b AS INTEGER, v AS INTEGER, pre AS STRING, k AS STRING
             Counter(b) = t + LIFTSND + NoteOf$(k, 2) + "8"
         END IF
     CASE 1
-        r = NoteOf$(k, 9)
-        FOR p = 0 TO NSKIES - 1
-            Mood(id, p, b) = ""
-            IF b MOD 4 = 0 THEN
-                Mood(id, p, b) = t + PadSound$(p) + r + "2"
-            END IF
-        NEXT
+        IF id = GAMESONG THEN
+            ' the arpeggio moves up, in the sky's sound;
+            ' the bass takes its place
+            r = NoteOf$(k, 7) + "32" + NoteOf$(k, 11) + "32"
+            r = r + NoteOf$(k, 14) + "32" + NoteOf$(k, 11)
+            FOR p = 0 TO NSKIES - 1
+                Mood(id, p, b) = t + ArpSound$(p) + r + "32"
+            NEXT
+            Tune(id, b, 1) = t + BASSSND + BassBeat$(k, b)
+        ELSE
+            r = NoteOf$(k, 9) + "2"
+            FOR p = 0 TO NSKIES - 1
+                Mood(id, p, b) = ""
+                IF b MOD 4 = 0 THEN
+                    Mood(id, p, b) = t + PadSound$(p) + r
+                END IF
+            NEXT
+        END IF
     CASE 2
         i = INSTR(k, "P32P16")
         IF id = GAMESONG AND i > 0 THEN
