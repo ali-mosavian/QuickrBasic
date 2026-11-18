@@ -1158,36 +1158,23 @@ void gd_fill_select(GdFill *fill, unsigned color, unsigned operation)
    array byte, so each byte of one is made of two of the other. */
 typedef volatile u32 QB_FAR Video32;
 
-#define COMBINE_SET(old, source) (source)
-#define COMBINE_AND(old, source) ((old) & (source))
-#define COMBINE_OR(old, source) ((old) | (source))
-#define COMBINE_XOR(old, source) ((old) ^ (source))
+enum { LINEAR_NOT = 4 };
 
-#define LINEAR_PUT(name, combine)                                                                  \
-    static void name(Video *to, const u8 QB_FAR *from, unsigned count, u32 flip)                   \
-    {                                                                                              \
-        Video32 *d = (Video32 *)to;                                                                \
-        const u32 QB_FAR *s = (const u32 QB_FAR *)from;                                            \
-        unsigned n = count >> 2;                                                                   \
-        Video *db;                                                                                 \
-        const u8 QB_FAR *sb;                                                                       \
-        while (n--) {                                                                              \
-            u32 old_ = *d;                                                                         \
-            *d++ = combine(old_, *s++ ^ flip);                                                     \
-        }                                                                                          \
-        db = (Video *)d;                                                                           \
-        sb = (const u8 QB_FAR *)s;                                                                 \
-        n = count & 3;                                                                             \
-        while (n--) {                                                                              \
-            unsigned old_ = *db;                                                                   \
-            *db++ = (u8)combine(old_, (unsigned)(*sb++ ^ flip) & 0xFF);                            \
-        }                                                                                          \
-    }
+/* rows of width bytes, from a row `sstep` past the last to one `dstep` past it, combined by op (LinearBlit's). */
+static void linear_blit(void *dst, const void *src, unsigned width, unsigned rows, int dstep, int sstep,
+                        unsigned op)
+{
+    LinearBlit blit;
 
-LINEAR_PUT(linear_put_set, COMBINE_SET)
-LINEAR_PUT(linear_put_and, COMBINE_AND)
-LINEAR_PUT(linear_put_or, COMBINE_OR)
-LINEAR_PUT(linear_put_xor, COMBINE_XOR)
+    blit.dst = dst;
+    blit.src = src;
+    blit.count = width;
+    blit.rows = rows;
+    blit.dstep = dstep;
+    blit.sstep = sstep;
+    blit.op = op;
+    dev_blit(&blit);
+}
 
 void gd_get(unsigned x, unsigned y, unsigned width, unsigned rows, u8 QB_FAR *out)
 {
@@ -1198,15 +1185,7 @@ void gd_get(unsigned x, unsigned y, unsigned width, unsigned rows, u8 QB_FAR *ou
         return;
     }
     if (kind == KIND_LINEAR) {
-        for (row = 0; row < rows; row++, out += width) {
-            BlockOp op;
-
-            op.dst = out;
-            op.src = pixel_at(x, y + row);
-            op.count = width;
-            op.value = 0;
-            dev_move(&op);
-        }
+        linear_blit(out, (const u8 *)pixel_at(x, y), width, rows, (int)width, (int)pitch, 0);
     } else {
         /* a plane (or the CGA modes' one) at a time, a pass of rows with the
          * bits shifted into place */
@@ -1248,23 +1227,8 @@ void gd_put(unsigned x, unsigned y, unsigned width, unsigned rows, const u8 QB_F
         return;
     }
     if (kind == KIND_LINEAR) {
-        static void (*const put_run[4])(Video *to, const u8 QB_FAR *from, unsigned count,
-                                        u32 flip) = {linear_put_set, linear_put_and, linear_put_or,
-                                                     linear_put_xor};
-
-        for (row = 0; row < rows; row++, in += width) {
-            if (operation == 0 && !invert) {
-                BlockOp op;
-
-                op.dst = pixel_at(x, y + row);
-                op.src = in;
-                op.count = width;
-                op.value = 0;
-                dev_move(&op);
-            } else {
-                put_run[operation](pixel_at(x, y + row), in, width, invert ? 0xFFFFFFFFUL : 0);
-            }
-        }
+        linear_blit((void *)pixel_at(x, y), in, width, rows, (int)pitch, (int)width,
+                    invert ? LINEAR_NOT : operation);
     } else {
         /* a plane (or the CGA modes' one) at a time, a pass of rows with the
          * bits shifted into place */

@@ -52,6 +52,16 @@ typedef struct FillLine {
    `shift`); `first` and `last` are the masks of the first and last screen byte,
    and for GET the mask of the last array byte.  Row to row the array run moves
    `stride` bytes and the screen `step`, or by the CGA banks if `bank`. */
+/* A box of the 256-colour mode (gdblit.asm): `rows` rows of `count` bytes from `src` to `dst`, combined by `op` (0 set,
+   1 and, 2 or, 3 xor, 4 set inverted), each row `sstep` and `dstep` bytes after the last; B$LBLIT changes it. */
+typedef struct LinearBlit {
+    void QB_FAR *dst;
+    const void QB_FAR *src;
+    unsigned count, rows;
+    int dstep, sstep;
+    unsigned op, tail;
+} LinearBlit;
+
 typedef struct FillXfer {
     void QB_FAR *screen;
     void QB_FAR *array;
@@ -116,6 +126,7 @@ typedef struct FillOct {
 #pragma aux dev_line_packed "B$FLIC"
 #pragma aux dev_line_planar "B$FLIP"
 #pragma aux dev_get_rows "B$FGET"
+#pragma aux dev_blit "B$LBLIT"
 #pragma aux dev_scan_linear "B$FSCL"
 #pragma aux dev_scan_planar "B$FSCP"
 #pragma aux dev_scan_packed "B$FSCC"
@@ -155,6 +166,7 @@ extern void dev_line_linear(FillLine *line);
 extern void dev_line_packed(FillLine *line);
 extern void dev_line_planar(FillLine *line);
 extern void dev_get_rows(FillXfer *xfer);
+extern void dev_blit(LinearBlit *blit);
 extern void dev_scan_linear(FillScan *scan);
 extern void dev_scan_planar(FillScan *scan);
 extern void dev_scan_packed(FillScan *scan);

@@ -62,3 +62,14 @@ FillScan        struc
                 right           dword    ?
                 limit           dword    ?
 FillScan        ends
+
+LinearBlit      struc
+                dst             dword   ?
+                src             dword   ?
+                count           dword   ?               ;; bytes; B$LBLIT's dwords after
+                rows            dword   ?
+                dstep           dword   ?
+                sstep           dword   ?
+                op              dword   ?
+                tail            dword   ?               ;; B$LBLIT's
+LinearBlit      ends

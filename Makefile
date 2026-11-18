@@ -61,7 +61,7 @@ QBRT_PORTABLE := $(addprefix qb/,console.c cntext.c cngfx.c gfx.c gline.c gcirc.
 	screen.c scrfn.c sleep.c sticks.c timer.c varptr.c error.c rtinit.c nhstutil.c nheap.c)
 QBRT_DOS_C := $(QBRT_PORTABLE) $(addprefix qb/,dos/m32/ad.c posix/block.c dev/pixmem.c dev/dos/gfxdev.c \
 	$(addprefix dev/dos/m32/,clock.c con.c key.c prn.c sb.c text.c tone.c))
-QBRT_DOS_ASM := $(addprefix qb/dev/dos/m32/,bios.asm gdcirc.asm gdfill.asm gdline.asm gdscan.asm gdxfer.asm ports.asm \
+QBRT_DOS_ASM := $(addprefix qb/dev/dos/m32/,bios.asm gdblit.asm gdcirc.asm gdfill.asm gdline.asm gdscan.asm gdxfer.asm ports.asm \
 	sbisr.asm tick.asm) qb/dos/m32/block.asm
 QBRT_DOS_INC := -Isrc/qbrt/include $(addprefix -I$(QBRT)/qb/,dos/m32 . dev dev/dos/m32 dev/dos) -I$(QBRT)/os/x86-m32
 # the runtime's asm names, as Watcom's pragmas give them, for clang's C
