@@ -13,7 +13,9 @@
    their other is `hidden`, in memory. It has the screen's layout in 04h, 06h
    and 13h, drawn by the same routines with `screen` pointing at it; in 12h a
    byte a pixel, drawn by pixmem.c. A change of the visible page swaps the two;
-   PCOPY copies one over the other. */
+   PCOPY copies one over the other. In 04h, 06h and 13h a copy of the visible
+   page is kept while nothing draws on it: a swap copies the hidden page out
+   and takes the copy as the hidden one. */
 #include <string.h>
 
 #include "device.h"
@@ -73,7 +75,10 @@ static unsigned pitch = 80; /* bytes of a row of one plane */
 static unsigned page_count = 1, page_paragraphs; /* the pages the mode holds, and the paragraphs of one */
 
 static Video *adapter;                         /* the adapter's screen */
-static u8 hidden[PLANAR_WIDTH * PLANAR_HEIGHT]; /* the page not on the adapter */
+static u8 hidden_store[PLANAR_WIDTH * PLANAR_HEIGHT], shown_store[LINEAR_BYTES];
+static u8 *hidden = hidden_store;              /* the page not on the adapter */
+static u8 *shown_copy = shown_store;           /* the adapter's page, while shown_ok */
+static int shown_ok;
 static unsigned soft_mode;                     /* the mode's: 0, or 04h, 06h, 12h or 13h */
 static unsigned shown;                         /* the page on the adapter, where soft_mode */
 static int in_memory;                          /* drawing goes to `hidden` through pixmem.c (12h) */
@@ -133,7 +138,10 @@ int gd_set_mode(unsigned mode)
         page_count = SOFT_PAGES;
     shown = 0;
     in_memory = 0;
-    memset(hidden, 0, sizeof hidden);
+    hidden = hidden_store;
+    shown_copy = shown_store;
+    shown_ok = 0;
+    memset(hidden, 0, sizeof hidden_store);
     if ((r.rax & 0x7F) != (mode & 0x7F))
         return 0;
 
@@ -223,6 +231,15 @@ static void soft_swap(void)
             planar_row_out(y, hidden + y * PLANAR_WIDTH);
             memcpy(hidden + y * PLANAR_WIDTH, row, PLANAR_WIDTH);
         }
+    } else if (soft_bytes() <= sizeof shown_store) {
+        u8 *const was = hidden;
+
+        if (!shown_ok)
+            move(shown_copy, (const void *)adapter, soft_bytes());
+        move((void *)adapter, hidden, soft_bytes());
+        hidden = shown_copy;
+        shown_copy = was;
+        shown_ok = 1;
     } else {
         u8 held[SWAP_CHUNK];
         unsigned at, n = soft_bytes();
@@ -245,6 +262,7 @@ static void soft_copy(int to_hidden)
     if (soft_mode != MODE_640_480) {
         BlockOp op;
 
+        shown_ok = shown_ok && to_hidden;
         op.dst = to_hidden ? (void *)hidden : (void *)adapter;
         op.src = to_hidden ? (const void *)adapter : (const void *)hidden;
         op.count = soft_bytes();
@@ -262,6 +280,9 @@ static void soft_copy(int to_hidden)
 static void soft_draw_on(unsigned active)
 {
     int on_hidden = active != shown;
+
+    if (!on_hidden)
+        shown_ok = 0; /* the adapter's page drawn on */
 
     screen = on_hidden && soft_mode != MODE_640_480 ? (Video *)hidden : adapter;
     in_memory = on_hidden && soft_mode == MODE_640_480;
