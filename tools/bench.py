@@ -533,6 +533,44 @@ def fps_program(parts: bool = False, one: bool = False) -> str:
     return (timed(s) if parts else s) + AUTOPILOT
 
 
+# --each: a call's ms on its own, in a game playing with a stone of each kind and sparks out, its music off
+FPS_EACH = ("Tick w, joy, st(), sp()", "cur(0, 0) = n MOD 2 * 9: ApplyPalette w.sky, cur()", "DrawSky w.g",
+            "DrawSun w.g.clock", "DrawTop w", "DrawLand w.g", "DrawStones st(), w.g.clock",
+            "DrawStone st(), 0, w.g.clock", "DrawStone st(), 1, w.g.clock", "DrawStone st(), 2, w.g.clock",
+            "DrawStone st(), 3, w.g.clock", "DrawMoth w.m, w.g.mode", "DrawLake w.g.clock", "DrawSparks sp()",
+            "DrawHud w", "Flip w.page", "Render w, st(), sp()")
+EACH = """OpenScreen
+LoadTables
+LoadTerrain
+BuildGlyphs
+BuildMoth
+BuildSprites
+BuildLand
+SparkPaths
+DIM w AS World, joy AS Pad, cur(NKEY - 1, 2) AS SINGLE
+DIM st(NSTONE - 1) AS Stone, sp(NSPARK - 1) AS Spark
+DIM i AS INTEGER, n AS LONG, t0 AS SINGLE
+NewWorld w, cur()
+Launch w, st(), sp()
+StopSong w.song
+w.song.playing = 0
+w.g.scroll = 1000: w.g.score = 12
+OPEN "EACH.TXT" FOR OUTPUT AS #1
+"""
+
+
+def each_program() -> str:
+    """MOTHLITE.BAS's Main swapped for a loop of each FPS_EACH call (after an empty one) for 2 s, its ms a call to
+    EACH.TXT; the scene set again each time round."""
+    head, rest = MOTH.read_text(encoding="latin-1").replace("\r\n", "\n").split("\nMain\nEND\n", 1)
+    rest = rest.replace("RANDOMIZE TIMER", "RANDOMIZE 5")
+    reset = "    FOR i = 0 TO NSTONE - 1: st(i).x = 10 + i * 90: st(i).kind = 1 + i MOD 4: st(i).gap = 95: NEXT\n"
+    reset += "    IF n MOD 60 = 0 THEN Emit sp(), w.m, BSCORE\n    w.m.y = 100: w.m.vy = 0: w.g.mode = PLAYING\n"
+    loops = "".join(f"n = 0: t0 = TIMER\nDO\n    {call}\n{reset}    n = n + 1\nLOOP UNTIL TIMER - t0 >= 2\n"
+                    "PRINT #1, (TIMER - t0) / n * 1000; n\n" for call in ("REM", *FPS_EACH))
+    return head + "\n" + EACH + loops + "CLOSE #1\nEND\n" + rest
+
+
 def cmd_fps(a: argparse.Namespace) -> int:
     """Frames a second in each mode (title, play, dying, over), with the longest frame, from the frames' own TIMER readings."""
     build(".", True)
@@ -545,6 +583,14 @@ def cmd_fps(a: argparse.Namespace) -> int:
     with tempfile.TemporaryDirectory() as d:
         if a.profile:
             dosrun.COM = profiled(build(".", True), Path(d))
+        if a.each:
+            dosrun.run({"each": each_program()}, Path(d) / "w", limit_ms=600000, file=True, mem=16)
+            rows = [ln.split() for ln in (Path(d) / "w/EACH.TXT").read_text().splitlines()]
+            got = [(float(ms), int(n)) for ms, n in rows]
+            dosrun.CONF = conf
+            for call, (ms, n) in zip(FPS_EACH, got[1:]):
+                print(f"{ms - got[0][0]:>8.2f} ms {n:>7} calls  {call}")
+            return 0
         # the start-up's first: the game's FPS.TXT is the one left
         jobs = ({"start": fps_program(one=True)} if a.profile else {}) | {"moth": fps_program(a.parts)}
         r = dosrun.run(jobs, Path(d) / "w", limit_ms=600000, file=True, mem=16, profile=a.profile)
@@ -609,6 +655,7 @@ def main() -> int:
     p.add_argument("--real", action="store_true", help="the host's clock at cycles=fixed 10000, not virtual time")
     p.add_argument("--profile", action="store_true", help="the functions it spends its instructions in (normal core)")
     p.add_argument("--parts", action="store_true", help="each step of the loop's ms a frame")
+    p.add_argument("--each", action="store_true", help="each FPS_EACH call's ms on its own")
     p.add_argument("-n", type=int, default=30)
     a = ap.parse_args()
     return {
