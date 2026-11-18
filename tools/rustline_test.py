@@ -78,10 +78,26 @@ def test_battle_never_waits() -> None:
     assert all(r[0] for r in rows), "a beat without bass: PLAY(0) cannot pace it"
 
 
+def test_map_fits_its_size() -> None:
+    """MapData and HeightData are MAPW by MAPH: the 64 by 48 map was written while the game read 40 by 30."""
+    src = BAS.read_text()
+    w, h = map(int, re.search(r"CONST MAPW = (\d+), MAPH = (\d+)", src).groups())
+    for label in ("MapData", "HeightData"):
+        rows = re.findall(r'^DATA "([^"]*)"$', src.split(f"\n{label}:\n")[1].split("\n\n")[0], re.M)
+        assert len(rows) == h and {len(r) for r in rows} == {w}, (label, len(rows), {len(r) for r in rows})
+
+
+def test_explored_ground_not_dark() -> None:
+    """Ground the Coalition has seen but no longer sees was drawn under fog; it stays lit, only the unseen is dark."""
+    assert not re.search(r"\.vis = 0 THEN (PUT|c = FOG)", BAS.read_text())
+
+
 if __name__ == "__main__":
     test_octaves()
     test_effects_on_synth()
     test_battle_bass_is_low()
     test_battle_bars_are_whole()
     test_battle_never_waits()
+    test_map_fits_its_size()
+    test_explored_ground_not_dark()
     print("ok")

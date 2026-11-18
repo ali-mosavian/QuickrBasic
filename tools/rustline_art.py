@@ -3,7 +3,8 @@
     rustline_art.py [--preview DIR]
 
 Renders the land, buildings and units isometric, picks the 72 colours the game's own 32 lack, lays
-out the map's heights and ramps, and rewrites the blocks after PalData:, ArtData: and HeightData:
+out the map, its heights and ramps, and rewrites the blocks after PalData:, ArtData:, MapData: and
+HeightData:
 in src/plat/wasm/web/demos/RUSTLINE.BAS. --preview also saves each picture as a PNG at 4 times its
 size.
 
@@ -585,6 +586,69 @@ def corners(lvl: int, rmp: int) -> tuple[int, int, int, int]:
     return (lvl + (rmp > 0), lvl + (rmp == 1), lvl, lvl + (rmp == 2))
 
 
+MAPW, MAPH = 64, 48  # RUSTLINE.BAS's
+COAL, LEGION = (4, 41), (57, 4)  # the HQs' top left tiles (NewGame)
+
+
+def blob(m: list[list[str]], rng: np.random.Generator, cx: float, cy: float, r: float, c: str, fill: float) -> None:
+    """Tiles round cx, cy out to about r become c, fewer towards the edge."""
+    for y in range(max(0, int(cy - r - 1)), min(MAPH, int(cy + r + 2))):
+        for x in range(max(0, int(cx - r - 1)), min(MAPW, int(cx + r + 2))):
+            d = np.hypot(x - cx, y - cy) / r
+            if d < 1 and rng.random() < fill * (1.2 - d):
+                m[y][x] = c
+
+
+def land() -> list[str]:
+    """The map, a row to a string: . , ground, : dirt, # rock, ~ water, m ore, T palm. The
+    Coalition's base south-west, the Legion's north-east; a river between with three fords."""
+    rng = np.random.default_rng(11)
+    lat = rng.random((MAPH // 5 + 2, MAPW // 5 + 2))
+
+    def noise(x: int, y: int) -> float:
+        i, j, fx, fy = x // 5, y // 5, x % 5 / 5, y % 5 / 5
+        top = lat[j, i] * (1 - fx) + lat[j, i + 1] * fx
+        return float(top * (1 - fy) + (lat[j + 1, i] * (1 - fx) + lat[j + 1, i + 1] * fx) * fy)
+
+    m = [["." for _ in range(MAPW)] for _ in range(MAPH)]
+    for y in range(MAPH):
+        for x in range(MAPW):
+            n = noise(x, y)
+            m[y][x] = "," if n > 0.62 and rng.random() < 0.5 else ":" if n < 0.2 and rng.random() < 0.6 else "."
+    # the river, north-west to south-east between the bases, fords where it thins out
+    for y in range(MAPH):
+        t = y / (MAPH - 1)
+        cx = 17 + 30 * t + 3 * np.sin(t * 7)
+        ford = any(abs(t - f) < 0.035 for f in (0.22, 0.52, 0.8))
+        for x in range(int(cx) - 1, int(cx) + 2):
+            if 0 <= x < MAPW and not ford:
+                m[y][x] = "~"
+                for side in (x - 2, x + 2):
+                    if 0 <= side < MAPW and m[y][side] != "~" and rng.random() < 0.12:
+                        m[y][side] = "T"
+
+    def home(x: float, y: float) -> bool:
+        return any(bx - 6 <= x < bx + 8 and by - 6 <= y < by + 8 for bx, by in (COAL, LEGION))
+
+    for _ in range(12):
+        cx, cy = rng.uniform(2, MAPW - 3), rng.uniform(2, MAPH - 3)
+        if not home(cx, cy):
+            blob(m, rng, cx, cy, rng.uniform(1.2, 2.6), "#", 1.1)
+    for _ in range(30):
+        x, y = int(rng.integers(MAPW)), int(rng.integers(MAPH))
+        if not home(x, y):
+            m[y][x] = "T"
+    for y in range(MAPH):  # the bases' ground stays open
+        for x in range(MAPW):
+            if home(x, y) and m[y][x] not in ".,":
+                m[y][x] = "."
+    # ore: a field by each base, five between
+    fields = ((15, 31, 3.0), (48, 14, 3.0), (31, 24, 3.6), (12, 10, 3.0), (52, 37, 3.0), (34, 42, 2.6), (41, 6, 2.6))
+    for cx, cy, r in fields:
+        blob(m, rng, cx, cy, r, "m", 1.6)
+    return ["".join(r) for r in m]
+
+
 def heights(rows: list[str]) -> list[str]:
     """Each tile's level, 0 to 2, and ramps up a level, rising north or west (the two a slope shows
     its face on); cliffs elsewhere. Every tile a unit could reach on the flat it can still reach.
@@ -602,8 +666,8 @@ def heights(rows: list[str]) -> list[str]:
                 lat[j + 1, i] * (1 - fx) + lat[j + 1, i + 1] * fx
             ) * fy
             lvl[y, x] = int(np.clip(np.floor(n * 3.6 - 0.5), 0, 2))
-    lvl[17:, :14] = 0  # the Coalition's ground
-    lvl[:11, 26:] = 1  # the Legion's
+    lvl[COAL[1] - 7 :, : COAL[0] + 12] = 0  # the Coalition's ground
+    lvl[: LEGION[1] + 8, LEGION[0] - 8 :] = 1  # the Legion's
     for y in range(h):
         for x in range(w):
             if rows[y][x] == "~":
@@ -640,7 +704,7 @@ def heights(rows: list[str]) -> list[str]:
         return b[3] == a[0] and b[2] == a[1]
 
     def reach(flat: bool) -> set[tuple[int, int]]:
-        seen, todo = {(4, 26)}, [(4, 26)]
+        seen, todo = {COAL}, [COAL]
         while todo:
             x, y = todo.pop()
             for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
@@ -651,6 +715,7 @@ def heights(rows: list[str]) -> list[str]:
         return seen
 
     want = reach(True)
+    assert LEGION in want, "no way from base to base"
     cand = [(x, y, d) for y in range(h) for x in range(w) for d in (1, 2) if fits(x, y, d)]
     for i in rng.permutation(len(cand))[:12]:  # a few anywhere, two tiles wide where they can be
         x, y, d = cand[i]
@@ -984,14 +1049,19 @@ def main() -> None:
             lines,
         ),
     )
-    land = re.findall(r'^DATA "([^"]{40})"$', src.split("\nMapData:\n")[1], re.M)[:30]
+    rows = land()
+    src = replace_block(
+        src,
+        "MapData",
+        block("MapData", "a row to a string; tools/rustline_art.py writes these", [f'"{r}"' for r in rows]),
+    )
     src = replace_block(
         src,
         "HeightData",
         block(
             "HeightData",
             "each tile's level; a, b a ramp rising north from level 0, 1; A, B rising west",
-            [f'"{r}"' for r in heights(land)],
+            [f'"{r}"' for r in heights(rows)],
         ),
     )
     BAS.write_text(src)

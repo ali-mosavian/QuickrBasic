@@ -13,7 +13,7 @@ DEFINT A-Z
 ' TS: a tile's side in the world's pixels. The screen shows the world isometric: a tile is a
 ' diamond 32 by 16; the plane's x is the world's x - y, its y half x + y. The map's view is
 ' VX0, VY0 to SBX, VIEWB on the screen, the camera in the plane's pixels, by half tiles.
-CONST MAPW = 40, MAPH = 30, TS = 16, SBX = 240, VIEWH = 192
+CONST MAPW = 64, MAPH = 48, TS = 16, SBX = 240, VIEWH = 192
 CONST VX0 = 16, VY0 = 28, VIEWB = 184, VWP = SBX - VX0, VHP = VIEWB - VY0
 ' STEPH: a level's height in pixels; MAXH the highest level
 CONST PLANEW = (MAPW + MAPH) * 16, PLANEH = (MAPW + MAPH) * 8, ROCKH = 6, STEPH = 12, MAXH = 2
@@ -26,7 +26,7 @@ CONST BHQ = 1, BREF = 2, BBAR = 3, BTUR = 4, BPOW = 5, BFAC = 6, NBLD = 6
 CONST SIDLE = 0, SMOVE = 1, SATTACK = 2, SSEEK = 3, SGATHER = 4, SRETURN = 5, SUNLOAD = 6
 CONST FXBOOM = 1, FXBIG = 2, FXTRACE = 3, FXSHELL = 4, FXBEAM = 5, FXSMOKE = 6, FXMARK = 7
 CONST OREKEY = -2, NOKEY = -99, FAR = 32000, LOADMAX = 10, LOADVAL = 25
-CONST MINIX = 240, MINIY = 11, BTNY = 72
+CONST MINIX = 248, MINIY = 13, BTNY = 72
 ' the sidebar's items: NBITEM buildings (power plant, refinery, barracks, factory, turret), then
 ' the units (harvester, rifleman, rocketeer, buggy, tank, artillery), a cell of CELLW by CELLH each
 CONST NITEM = 11, NBITEM = 5, CELLW = 26, CELLH = 27
@@ -400,36 +400,54 @@ END
 ' The map, a row to a string: . , ground, : dirt, # rock, ~ water, m ore, T palm.
 HeightData:
 ' each tile's level; a, b a ramp rising north from level 0, 1; A, B rising west
-DATA "2222111112222211000000111111111111111111"
-DATA "2222B11112222211100000111111111111111111"
-DATA "22221111122222211A0000111111111111111111"
-DATA "222211111222222B100000111111111111111111"
-DATA "222211111222222111A001111111111111111111"
-DATA "2222111112222221111111111111111111111111"
-DATA "2222111112222221111111111111111111111111"
-DATA "02B12B1112222211111111111111111111111111"
-DATA "00011111111b1111111111111111111111111111"
-DATA "22001112B1111111111111111111111111111111"
-DATA "2B10001111111111111111111111111111111111"
-DATA "22111000111A0001111111111222222222222111"
-DATA "2222111111100000111111112222222222221111"
-DATA "22222222B1100001111111111b22222222211111"
-DATA "2222222211000011112211111111112111111111"
-DATA "2222222B11100011112221111111111111111111"
-DATA "1111111111110000112221111111111111111111"
-DATA "00aa00a00000000001112111A000000001111111"
-DATA "000000000000000000012B110000000000111111"
-DATA "0000000000000000111111110000000000111111"
-DATA "0000000000000000222100110000000011111111"
-DATA "0000000000000010022110011111111111111111"
-DATA "0000000000000000022211111111111111111111"
-DATA "0000000000000000222222111111111111111110"
-DATA "0000000000000000022222111101011111111100"
-DATA "000000000000000002222b111111001111111100"
-DATA "0000000000000000012211111111100011100000"
-DATA "0000000000000000012111111111111001A00001"
-DATA "000000000000000001b11111a00aa00000000000"
-DATA "0000000000000000011111100000000000000000"
+DATA "2222B111122222B10000001111111A0111122211000001122B11111111111111"
+DATA "2222111122222221100001111111111111112111000011122B11111111111111"
+DATA "222111112222222110000111221111111111b111A00011122111111111111111"
+DATA "1111111222222221100000112222211111111111100111122111111111111111"
+DATA "11111122222222211A0000011222222111110a01111111122111111111111111"
+DATA "1111122222222221110110002222222211100000111111122111111111111111"
+DATA "1111122222222221110111000112222211100000111111112111111111111111"
+DATA "111111222222222B111111101012222211100001111111222111111111111111"
+DATA "1111111222222221111111100012221111100001111112222111111111111111"
+DATA "11111111112222221111111111111b1111100011111112222111111111111111"
+DATA "1111111111111122222211111111111111100111111122222111111111111111"
+DATA "1111111111111112222221111100000000111111111122222B11111111111111"
+DATA "1111111111111112222221110000000000111111111122222222211111000011"
+DATA "111111111111111122221111A000000000011111111112222221111110000011"
+DATA "1111111111111111112111111110000000000111111111122211111000000011"
+DATA "1111111111111111111111111110001111000011111111111111110000000011"
+DATA "1111111111111111111111111111111111000000111111111111A00000000011"
+DATA "1111111111111110000011111111111111000000011111111100000000000011"
+DATA "1111111111111100000001111222100111000000001110000000000000000011"
+DATA "1111111111111100000001112222100011100000001100000000000000000111"
+DATA "1111111111111110000001112222100011110000000000000000000000011111"
+DATA "1111111111111110000001112222101011111111000000000000000001111111"
+DATA "22B11111111111100000011222221111111111111000000000000000111122B1"
+DATA "22B1111111112110000001122222111111112111100000000000000011122221"
+DATA "2221111111112110000001122222111111222211100000000000000111222222"
+DATA "2221111111122111000001122222111111112b11100000011111111111222211"
+DATA "22211111112221110000011122b1111111111111000001111111111111122111"
+DATA "111111122222221110000011111111010111111A000011111111111111111111"
+DATA "1112222222222211100000111111111000100000000011112222222111111100"
+DATA "11122222222222211100000aa111121010000000000111122222222211110000"
+DATA "111222222222222111000000001112B1000000000001112222222222111a0000"
+DATA "1112222222222211110000000011122100000000001111122222222211100000"
+DATA "111222222222B1111110000000011b21100000000111111111b2222211100000"
+DATA "1111111111111111111000000001112111000001111111111111122211100000"
+DATA "aa00000000000000111000000001112B11000111111111100011112111100000"
+DATA "00000000000000001111A0000000112111100011111111000001111111100000"
+DATA "00000000000000000111A0000000112111111111112B1a000000111111100001"
+DATA "0000000000000000111100000000111111111111111110000000111111111111"
+DATA "0000000000000000111100000000011111100011111110000000011111111111"
+DATA "000000000000000011110000000000110000000111111A000000000011111111"
+DATA "0000000000000000111100000000000000000000000111000000000001111111"
+DATA "0000000000000000111110000000000000000000000011110000000000111111"
+DATA "0000000000000000111110000000000000000000000001111100000000111111"
+DATA "0000000000000000111110000000000000000000000000111100000000111111"
+DATA "0000000000000000111110000000000000000000000000011110000000111111"
+DATA "0000000000000000111110000000000000000000000000001111000001111111"
+DATA "0000000000000000111110000000000000011110000000000111110001111111"
+DATA "00000000000000001111100000000000001111111A0001100011111111111111"
 
 PalData:
 ' colours 32 to 103: red, green, blue
@@ -2187,36 +2205,55 @@ DATA "kcWWPW ec"
 DATA ""
 
 MapData:
-DATA ".,T,..,.,.,,..,:.....,..,T..:T...,,:...."
-DATA "..m...T....,..,.,..........m..,.......,."
-DATA ",mmmm...,..........,,::...mm.......,...."
-DATA ".mmmmm:,.,,,,.,..,...,T...mm...,,..,.,.."
-DATA ".mmmmm...:....###..,,...T.mm..::::.....T"
-DATA ",mmmmmT.....#T.#,,..,.....,m.......:...."
-DATA ".mmmm.T.....#####T,.T.....,............."
-DATA "~...m....TT,#####..m,m.,..T.....,...:..,"
-DATA "~~~...T...T.####...mmmm.,,..mmmmm.,....."
-DATA ".,~~,,,:....#,###,mmmmmm...mmmmmm.....,,"
-DATA ",..~~~..T...,....mmmmmmm..:mmmmmm,.:...."
-DATA ".....~~~,.....,..mmmmmmm:,,.mmmm.T.,...."
-DATA "T,#####:...T.....,mmmm.,,......m.,.:..,."
-DATA "..#####.,..,....:.#mmm..,...,..,........"
-DATA "..###.#T..~~......T#.,..T..,.,....###..."
-DATA ",,:..:...,:~~~:...##....,..T...:.##.##.,"
-DATA ",....,...mm.T~~~..##..,T:.T.,.T.,#####.,"
-DATA "......:mmmmm...~~.:,...:...:...::....::."
-DATA "..,.:.mmmmmmm...~~~,....,,...,.:....T..."
-DATA ":..,..mmmmmm....T...T.,....,:........:.."
-DATA ".T....mmmmmmm...T..,~~.#####.T.,.....:.."
-DATA ",......mmmm,..T.,.,:.~~#.#.#.,..:.,:...:"
-DATA ",..:.:..,,...,,........###.#.:,...mmmm,."
-DATA "..,...,...,...:,T..T...#####...::.mmmmmm"
-DATA ",..,.,.......m..,..TT..#.#~#~..,Tmmmmmm."
-DATA ".,....:....,mmm..,...,..:...~~,...mmmmmm"
-DATA "....,.......mmm,.,.......,,,.~~~,:mmmmm."
-DATA ":..:..,..,,.mmm.,........TT..:,~~..m:m.T"
-DATA ".,..,...,....T:,:,.............:~~~:...."
-DATA "..:............T:.,.,,,..,,,...T,.....,."
+' a row to a string; tools/rustline_art.py writes these
+DATA "...............:~~~:.T..,.....::.:::..,,.....,..............,..."
+DATA "...............T:~~~T............:::.......,...................."
+DATA ":.......,,........~~~..,,.,.....T..:....,,......................"
+DATA ":....,,,.,.........~~~..,,,..,.....:......,....................."
+DATA ":......,,,.........,~~~.T,,,..,.........,.m....................."
+DATA "....,,.,...,.....,...~~~..,,.,..,.......mmm....................."
+DATA "......,,,.,........,,.~~~T,.............mmm....................."
+DATA ".......................~T~,.,,,....:....mmm....................."
+DATA "...........mm.m........~~~,...,.........,m........,............."
+DATA ",,.........mmmm.........,..,,......:....,........,,,............"
+DATA ",....::...mmmmm..........,,,.......:............,..,............"
+DATA ",,...:.....mmmm.....:.....,.............,.........,,............"
+DATA ",...........mm............~~~.........T.......m.mm.....::......."
+DATA "............,..............~~T.....,......T...mmmmm....#.#......"
+DATA "........,,....,..........::~~~....,...,.##.....mmmm:.:.###......"
+DATA "........,..,...,.......:..:~~~...,,,,.,##......mmmm..:.####.,,.,"
+DATA "...T.....,....,..........:##T##...,,,.,.#......mmmm..::##.#,,,,."
+DATA ".........................######.T..,,.............:::........,.."
+DATA "...................::....T#.#~~T................T::::..........."
+DATA "..................:.:....,...~~~..................:...T........."
+DATA "........:.:.:.....:::....,,,.~~~..::.....,....:::.::.....##,.,.."
+DATA "........:T.....::.:::...,,,..~m~m.......................#,#,.,.."
+DATA ".......:::::::.::..::...,,,,.mmmmm..............:::....,,,,,,..."
+DATA "........:::::.::.::.:...,...mmmmmmm...............:.....,.,,,,.."
+DATA ".......:::....:.:::.......,,.mmmmmm,,..............T.,,..,..,,.."
+DATA ",....:..:.::::.:.:......,,,,m.mmmmm..................,....#,,..."
+DATA ".,....#....:.:.::::..........mmmm.,,.,.......T....T.....,##.,.,,"
+DATA ",.....##.....:::.::.T.........~m~T,,,,.....T.........,,,####,,,,"
+DATA "......###.....:.:.:::..........~~~,........T.........,..###,.,,,"
+DATA ".............m::T:::::.........~T~,,,.,.,............,,,...,,,,."
+DATA "........#,,...mmmm..::..........~~~,.,.,,.,.......,...,,,T.,,.,,"
+DATA "......###.....mmmm::.T........TT~~T,.,,............T,,.......,.,"
+DATA "......###....mmmmm...............~~~....##........,,............"
+DATA "..............mm.m.......,,,......~~~....#........,............."
+DATA "....................,.,,,,.,.,....~~~TT..#......,,.............."
+DATA "..................,,.,.,,,,.,.,...:~~~............,mmmm::......."
+DATA "...................,,,..,,.,,......::.......:......mmmm........."
+DATA "......,...............,.....,......:.::...::::...,mmmmm........."
+DATA ".....,.............................:.:..::...:....mmmmm........."
+DATA ".......,,..........................::..:.:::::....mmmmm........."
+DATA "......,.,,.....:........:::.......mm:.T:~~~:.T.................."
+DATA ".....,.,,...............::...##.mmmm.....~~~...................."
+DATA "....................,....:..###..mmm.....T~~~..................."
+DATA "..........................:.####.mmmm.T..T.~~~...,,..........,.."
+DATA "..................,..,...::::##..m.m..,.,,,,~~~...,..........,,,"
+DATA ".........................::::.:.....,,.,...,.~~~,,,........,,,.."
+DATA "....................,.................,,,,,...~~~,T............."
+DATA "......................,..............,.,,,.,.T.~~~.............."
 
 ' The songs: each voice's settings, then a bar to a line (lead, bass, arpeggio), "" the end.
 ' Voice 1, the lead, is the one DOS's speaker plays. Then the battle's, four strings a bar: bass,
@@ -2451,7 +2488,7 @@ SUB AIThink (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS Bldg
             tb = 0: best = 1E+09
             FOR b = 1 TO MAXB
                 IF bl(b).alive AND bl(b).team = 0 THEN
-                    d = (bl(b).x - 34) ^ 2 + (bl(b).y - 3) ^ 2
+                    d = (bl(b).x - 57) ^ 2 + (bl(b).y - 4) ^ 2
                     IF bl(b).kind = BTUR THEN d = d + 40
                     IF d < best THEN best = d: tb = b
                 END IF
@@ -3044,8 +3081,8 @@ SUB Controls (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS Bld
         END IF
     END IF
     ' the minimap follows the button held on it
-    IF g.ms.down AND g.ms.x >= MINIX AND g.ms.x < MINIX + MAPW * 2 AND g.ms.y >= MINIY AND g.ms.y < MINIY + MAPH * 2 THEN
-        CenterOn g.vw, (g.ms.x - MINIX) \ 2, (g.ms.y - MINIY) \ 2
+    IF g.ms.down AND g.ms.x >= MINIX AND g.ms.x < MINIX + MAPW AND g.ms.y >= MINIY AND g.ms.y < MINIY + MAPH THEN
+        CenterOn g.vw, g.ms.x - MINIX, g.ms.y - MINIY
     END IF
     IF g.ms.dragOn AND g.ms.down = 0 THEN
         g.ms.dragOn = 0
@@ -3258,10 +3295,10 @@ SUB DrawMinimap (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS
                     CASE ELSE: c = 27
                     END SELECT
                 END IF
-                LINE (MINIX + x * 2, MINIY + y * 2)-STEP(1, 1), c, BF
+                PSET (MINIX + x, MINIY + y), c
             NEXT
         NEXT
-        GET (MINIX, MINIY)-(MINIX + MAPW * 2 - 1, MINIY + MAPH * 2 - 1), art(0, AMINI)
+        GET (MINIX, MINIY)-(MINIX + MAPW - 1, MINIY + MAPH - 1), art(0, AMINI)
         g.vw.miniDirty = 0: g.vw.miniT = 1
     ELSE
         PUT (MINIX, MINIY), art(0, AMINI), PSET
@@ -3269,27 +3306,27 @@ SUB DrawMinimap (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS
     FOR b = 1 TO MAXB
         IF bl(b).alive THEN
             IF m(bl(b).x, bl(b).y).seen THEN
-                s = BSize%(bl(b).kind) * 2
-                LINE (MINIX + bl(b).x * 2, MINIY + bl(b).y * 2)-STEP(s - 1, s - 1), 11 + bl(b).team * 2, BF
+                s = BSize%(bl(b).kind)
+                LINE (MINIX + bl(b).x, MINIY + bl(b).y)-STEP(s - 1, s - 1), 11 + bl(b).team * 2, BF
             END IF
         END IF
     NEXT
     FOR i = 1 TO MAXU
         IF u(i).alive THEN
             IF u(i).team = 0 OR m(u(i).x, u(i).y).vis THEN
-                PSET (MINIX + u(i).x * 2, MINIY + u(i).y * 2), 15 - u(i).team * 2
+                PSET (MINIX + u(i).x, MINIY + u(i).y), 15 - u(i).team * 2
             END IF
         END IF
     NEXT
     ScreenTile g.vw, VX0, VY0, x, y: ScreenTile g.vw, SBX - 1, VY0, i, b
-    VIEW SCREEN (MINIX, MINIY)-(MINIX + MAPW * 2 - 1, MINIY + MAPH * 2 - 1)
-    LINE (MINIX + x * 2, MINIY + y * 2)-(MINIX + i * 2, MINIY + b * 2), 15
+    VIEW SCREEN (MINIX, MINIY)-(MINIX + MAPW - 1, MINIY + MAPH - 1)
+    LINE (MINIX + x, MINIY + y)-(MINIX + i, MINIY + b), 15
     ScreenTile g.vw, SBX - 1, VIEWB - 1, x, y
-    LINE -(MINIX + x * 2, MINIY + y * 2), 15
+    LINE -(MINIX + x, MINIY + y), 15
     ScreenTile g.vw, VX0, VIEWB - 1, i, b
-    LINE -(MINIX + i * 2, MINIY + b * 2), 15
+    LINE -(MINIX + i, MINIY + b), 15
     ScreenTile g.vw, VX0, VY0, x, y
-    LINE -(MINIX + x * 2, MINIY + y * 2), 15
+    LINE -(MINIX + x, MINIY + y), 15
     VIEW
 END SUB
 
@@ -3303,7 +3340,7 @@ SUB DrawSidebar (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS 
     s = LTRIM$(STR$(tm(0).cash)): Txt gl(), s, 319 - LEN(s) * 8, 1, 1, 15
     DrawMinimap g, m(), u(), bl(), art()
     LINE (SBX + 1, MINIY - 1)-(319, MINIY - 1), 23
-    LINE (SBX + 1, MINIY + MAPH * 2)-(319, MINIY + MAPH * 2), 23
+    LINE (SBX + 1, MINIY + MAPH)-(319, MINIY + MAPH), 23
     hov = -1
     FOR k = 0 TO NITEM - 1
         x = SBX + 1 + (k MOD 3) * CELLW: y = BTNY + (k \ 3) * CELLH
@@ -3491,7 +3528,6 @@ SUB DrawObjects (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS
                 k = ABLD + ((bl(b).kind - 1) * 2 + bl(b).team) * 3 * BLDW
                 PUT (x0, y0), art(0, k + BLDW), AND
                 PUT (x0, y0), art(0, k), OR
-                IF m(bl(b).x, bl(b).y).vis = 0 THEN PUT (x0, y0), art(0, k + 2 * BLDW), OR
                 IF bl(b).kind = BTUR THEN
                     ' the gun turns in the world; drawn as the screen sees it
                     sx = x0 + 16: sy = y0 + 14
@@ -3517,7 +3553,6 @@ SUB DrawObjects (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS
                 PUT (x0, y0), art(0, ATREE + 6), OR
                 PUT (x0, y0), art(0, ATREE + 2), AND
                 PUT (x0, y0), art(0, ATREE), OR
-                IF m(tx(i), ty(i)).vis = 0 THEN PUT (x0, y0), art(0, ATREE + 4), OR
             END IF
         END IF
     NEXT
@@ -4141,7 +4176,6 @@ SUB RenderGame (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS B
                         IF y0 >= 0 AND y0 + 7 + STEPH <= 199 THEN
                             PUT (sx + k * 16, y0), art(0, AFACE + k * 6 + 2), AND
                             PUT (sx + k * 16, y0), art(0, AFACE + k * 6), OR
-                            IF m(wx, wy).vis = 0 THEN PUT (sx + k * 16, y0), art(0, AFACE + k * 6 + 4), OR
                         END IF
                     NEXT
                 NEXT
@@ -4151,7 +4185,6 @@ SUB RenderGame (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS B
                 k = ARMP + ((m(wx, wy).rmp - 1) * 2 + m(wx, wy).hgt) * 12
                 PUT (sx, sy - STEPH), art(0, k + 4), AND
                 PUT (sx, sy - STEPH), art(0, k), OR
-                IF m(wx, wy).vis = 0 THEN PUT (sx, sy - STEPH), art(0, k + 8), OR
             ELSEIF m(wx, wy).seen AND sx >= 0 AND sy >= STEPH AND sy <= 184 THEN
                 PUT (sx, sy), art(0, ADIA), AND
                 PUT (sx, sy), art(0, AGRS + ((wx MOD 4) + (wy MOD 4) * 4 + 16 * m(wx, wy).hgt) * 2), OR
@@ -4160,19 +4193,17 @@ SUB RenderGame (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS B
                     PUT (sx, sy), art(0, AOVL + k * 4 + 2), AND
                     PUT (sx, sy), art(0, AOVL + k * 4), OR
                 END IF
-                IF m(wx, wy).vis = 0 THEN PUT (sx, sy), art(0, AFOG), OR
                 ' in the shade of a cliff behind
                 IF Lift%(m(), wx - 1, wy) > l THEN PUT (sx, sy), art(0, ASHA), OR
                 IF Lift%(m(), wx, wy - 1) > l THEN PUT (sx + 16, sy), art(0, ASHA + 1), OR
                 ' a cliff's lip, where the light catches it
-                c = 17: IF m(wx, wy).vis = 0 THEN c = FOG OR 17
+                c = 17
                 IF lip(0) THEN LINE (sx + 1, sy + 8)-(sx + 15, sy + 15), c
                 IF lip(1) THEN LINE (sx + 16, sy + 15)-(sx + 30, sy + 8), c
                 IF m(wx, wy).terr = TROCK THEN
                     k = AROK + Sides%(m(), wx, wy) * 9
                     PUT (sx, sy - ROCKH), art(0, k + 3), AND
                     PUT (sx, sy - ROCKH), art(0, k), OR
-                    IF m(wx, wy).vis = 0 THEN PUT (sx, sy - ROCKH), art(0, k + 6), OR
                 END IF
                 IF m(wx, wy).terr = TTREE AND nt < 200 THEN nt = nt + 1: tx(nt) = wx: ty(nt) = wy
             END IF
@@ -4881,11 +4912,11 @@ SUB NewGame (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS Bldg
     g.ai.think = 3: g.ai.wave = 0: g.ai.size = 3: g.ai.nextWave = 110: g.ai.alarmT = 0: g.ai.coin = 0
 
     ' the Coalition, south-west; the Legion, north-east
-    PlaceBuilding g, tm(), m(), u(), bl(), fk(), 0, -1, 3, 24
-    PlaceBuilding g, tm(), m(), u(), bl(), fk(), 0, 1, 7, 23
-    PlaceBuilding g, tm(), m(), u(), bl(), fk(), 1, -1, 34, 3
-    PlaceBuilding g, tm(), m(), u(), bl(), fk(), 1, 1, 30, 2
-    PlaceBuilding g, tm(), m(), u(), bl(), fk(), 1, 2, 34, 6
+    PlaceBuilding g, tm(), m(), u(), bl(), fk(), 0, -1, 4, 41
+    PlaceBuilding g, tm(), m(), u(), bl(), fk(), 0, 1, 8, 40
+    PlaceBuilding g, tm(), m(), u(), bl(), fk(), 1, -1, 57, 4
+    PlaceBuilding g, tm(), m(), u(), bl(), fk(), 1, 1, 53, 3
+    PlaceBuilding g, tm(), m(), u(), bl(), fk(), 1, 2, 57, 7
     FOR i = 1 TO 2
         FOR k = 0 TO 1
             s = FindSpawn%(m(), bl(), FindB%(bl(), k, BHQ))
@@ -4895,7 +4926,7 @@ SUB NewGame (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS Bldg
     tm(0).built = 0: tm(1).built = 0
     UpdateVis g, m(), u(), bl()
     g.vw.miniDirty = -1: g.vw.miniT = 0
-    CenterOn g.vw, 7, 22
+    CenterOn g.vw, 8, 39
     g.state = GPLAY
     Say g, "Mine ore, build, find the Scorch Legion"
     Sfx g, 5
