@@ -8,6 +8,9 @@
     bench.py qbasic [--json F]                   qbasic/BENCH.BAS in QBasic 1.1 and our IDE under DOSBox
     bench.py profile FILE.bas | -e CODE [-n N] [--link | --ide]  DOS: the functions a program spends its
                                                  instructions in; --link: RUN's link alone
+    bench.py fps [--real] [--profile | --parts]  MOTHLITE.BAS played by an autopilot on a 486 at 10k cycles/ms
+                                                 with the Sound Blaster: its frame rate in each mode;
+                                                 --parts: each step of its loop's ms a frame
 
 Native (the default) runs build/hostperf/basic for retired instructions, the least of RUNS runs less
 an empty program's, builds compared run interleaved; and build/host/basic for the ops dispatched,
@@ -455,6 +458,104 @@ def cmd_profile(a: argparse.Namespace) -> int:
     return 0
 
 
+MOTH = ROOT / "src/plat/wasm/web/demos/MOTHLITE.BAS"
+# a 486 at 10000 cycles a ms, the Sound Blaster on: by virtual time, or --real by the host's clock
+FPS_CPU = "core=dynamic\ncputype=486\nvirtual time=true\nvirtual time rate=10000\n"
+FPS_REAL = "core=dynamic\ncputype=486\ncycles=fixed 10000\n"
+FPS_FRAMES = 4000
+# flaps toward the next gap; quits 2 s after the game is over, stops flying after 40 s
+AUTOPILOT = """
+SUB Auto (w AS World, st() AS Stone, k AS Pad)
+    DIM i AS INTEGER, best AS SINGLE, target AS SINGLE
+    SELECT CASE w.g.mode
+    CASE TITLE
+        IF w.g.modeT > 3 AND w.g.toTitle = 0 AND w.g.quitting = 0 THEN k.flap = -1
+    CASE PLAYING
+        IF w.g.modeT > 40 THEN EXIT SUB
+        best = 9999: target = 100
+        FOR i = 0 TO NSTONE - 1
+            IF st(i).x + STONEW + 12 > w.m.x AND st(i).x < best THEN best = st(i).x: target = st(i).gap + 10
+        NEXT
+        IF w.m.y > target AND w.m.vy > 0 THEN k.flap = -1
+    CASE OVER
+        IF w.g.modeT > 2 THEN w.g.quitting = -1: w.sky.fadeTo = 0
+    END SELECT
+END SUB
+"""
+
+
+# the loop's steps --parts times: Main's and Render's calls
+FPS_PARTS = ("ReadPad joy", "Tick w, joy, stones(), sparks()", "FeedSong w.song", "DrawSky w.g", "DrawSun w.g.clock",
+             "DrawLand w.g", "DrawStones st(), w.g.clock", "DrawMoth w.m, w.g.mode", "DrawLake w.g.clock", "DrawSparks sp()",
+             "DrawHud w", "DrawFx w.fx", "Flip w.page")
+
+
+def timed(s: str) -> str:
+    """Each FPS_PARTS call's TIMER time added to PartT(its index), written to PARTS.TXT by Main."""
+    s = s.replace("\nMain\nEND\n", "\nDIM SHARED PartT(30) AS SINGLE, PartAt AS SINGLE\nMain\nEND\n")
+    for i, call in enumerate(FPS_PARTS):
+        n = s.count(f" {call}\n")
+        assert n, call
+        s = s.replace(f" {call}\n", f" PartAt = TIMER: {call}: PartT({i}) = PartT({i}) + TIMER - PartAt\n")
+    return s.replace('    CLOSE #1\nEND SUB\n', f'    CLOSE #1\n    OPEN "PARTS.TXT" FOR OUTPUT AS #1\n'
+                     f'    FOR i = 0 TO {len(FPS_PARTS) - 1}: PRINT #1, PartT(i) * 1000 / fr: NEXT\n    CLOSE #1\nEND SUB\n')
+
+
+def fps_program(parts: bool = False) -> str:
+    """MOTHLITE.BAS with the autopilot pressing its key, each frame's TIMER and mode kept, written to FPS.TXT at the end."""
+    s = MOTH.read_text(encoding="latin-1").replace("\r\n", "\n")
+    edits = [
+        ("DECLARE SUB Main ()\n", "DECLARE SUB Main ()\nDECLARE SUB Auto (w AS World, st() AS Stone, k AS Pad)\n"),
+        ("    DIM now AS SINGLE, last AS SINGLE, acc AS SINGLE\n",
+         f"    DIM now AS SINGLE, last AS SINGLE, acc AS SINGLE\n    DIM ft({FPS_FRAMES}) AS SINGLE, fm({FPS_FRAMES}) AS INTEGER, fr AS INTEGER\n"),
+        ("        ReadPad joy\n", "        ReadPad joy\n        Auto w, stones(), joy\n"),
+        ("        Render w, stones(), sparks()\n    LOOP",
+         f"        Render w, stones(), sparks()\n        IF fr < {FPS_FRAMES} THEN fr = fr + 1: ft(fr) = TIMER: fm(fr) = w.g.mode\n    LOOP"),
+        ("    CloseScreen\nEND SUB\n",
+         '    CloseScreen\n    OPEN "FPS.TXT" FOR OUTPUT AS #1\n    FOR i = 1 TO fr: PRINT #1, ft(i); fm(i): NEXT\n    CLOSE #1\nEND SUB\n'),
+    ]
+    for old, new in edits:
+        assert s.count(old) == 1, old
+        s = s.replace(old, new)
+    return (timed(s) if parts else s) + AUTOPILOT
+
+
+def cmd_fps(a: argparse.Namespace) -> int:
+    """Frames a second in each mode (title, play, dying, over), with the longest frame, from the frames' own TIMER readings."""
+    build(".", True)
+    conf = dosrun.CONF
+    dosrun.CONF = conf.replace("core=normal\ncputype=pentium\nvirtual time=true\nvirtual time rate=20000\n",
+                               FPS_REAL if a.real else FPS_CPU)
+    assert dosrun.CONF != conf
+    if a.profile:
+        dosrun.CONF = dosrun.CONF.replace("core=dynamic", "core=normal")
+    with tempfile.TemporaryDirectory() as d:
+        if a.profile:
+            dosrun.COM = profiled(build(".", True), Path(d))
+        r = dosrun.run({"moth": fps_program(a.parts)}, Path(d) / "w", limit_ms=600000, file=True, mem=16, profile=a.profile)
+        log, parts = Path(d) / "w/FPS.TXT", Path(d) / "w/PARTS.TXT"
+        rows = [ln.split() for ln in log.read_text().splitlines()] if log.exists() else []
+        if a.parts and parts.exists():
+            for call, ms in zip(FPS_PARTS, parts.read_text().split()):
+                print(f"{float(ms):>8.1f} ms  {call}")
+    dosrun.CONF = conf
+    if not rows:
+        print(f"no FPS.TXT: {r['moth'].reason} {r['moth'].out[:400]}")
+        return 1
+    frames = [(float(t), int(m)) for t, m in rows]
+    print(f"{'mode':8}{'frames':>8}{'fps':>8}{'worst ms':>10}")
+    for mode, name in enumerate(("title", "play", "dying", "over")):
+        dts = [b[0] - a_[0] for a_, b in zip(frames, frames[1:]) if b[1] == mode and b[0] >= a_[0]]
+        if dts:
+            print(f"{name:8}{len(dts):>8}{len(dts) / sum(dts):>8.1f}{max(dts) * 1000:>10.0f}")
+    if a.profile:
+        sel = r["moth"].selfs
+        total = sum(sel.values())
+        for f, n in sorted(sel.items(), key=lambda kv: -kv[1])[: a.n]:
+            print(f"{n:>12,} {n / total:6.1%} {r['moth'].calls.get(f, 0):>9,} calls  {f}")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -485,6 +586,11 @@ def main() -> int:
     p.add_argument("--link", action="store_true", help="RUN's link alone, the lines typed")
     p.add_argument("--ide", action="store_true", help="the IDE's open of the file")
     p.add_argument("--ms", type=int, default=30000, help="--ide: the emulated time each run is given")
+    p = sub.add_parser("fps")
+    p.add_argument("--real", action="store_true", help="the host's clock at cycles=fixed 10000, not virtual time")
+    p.add_argument("--profile", action="store_true", help="the functions it spends its instructions in (normal core)")
+    p.add_argument("--parts", action="store_true", help="each step of the loop's ms a frame")
+    p.add_argument("-n", type=int, default=30)
     a = ap.parse_args()
     return {
         "run": cmd_run,
@@ -494,6 +600,7 @@ def main() -> int:
         "gate": cmd_gate,
         "qbasic": cmd_qbasic,
         "profile": cmd_profile,
+        "fps": cmd_fps,
     }[a.cmd](a)
 
 
