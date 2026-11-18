@@ -18,6 +18,12 @@ def loop(n: int) -> str:
     return f"FOR i& = 1 TO {n}: a& = a& + 1: NEXT: PRINT a&"
 
 
+def profile_cycles() -> None:
+    """The profile's cycles: virtual time at dosrun's rate. Instructions alone count a rep as one,
+    however many bytes it moves."""
+    assert bench.cycles_line(1000) == "20,000,000 cycles: 2.00 s at 10k cycles/ms", bench.cycles_line(1000)
+
+
 def profile_map() -> None:
     """A static's map entry: its module's base plus its object offset, between the globals around it."""
     lexer = bench.ROOT / "build/c/obj/core/comp/lexer.obj"
@@ -89,6 +95,7 @@ def each_reps() -> None:
 
 def main() -> int:
     each_reps()
+    profile_cycles()
     profile_stop()
     broken_counter()
     fps_start_up()

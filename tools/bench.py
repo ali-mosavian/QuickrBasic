@@ -435,6 +435,13 @@ def stopped(r: dosrun.Result) -> str:
     return f"{r.reason}: {r.out.strip()[-300:]}" if r.out.strip() or r.reason != "exit" else ""
 
 
+def cycles_line(ms: int) -> str:
+    """ms of dosrun.CONF's virtual time as cycles, and seconds at 10k cycles/ms: a rep's every
+    iteration counted, which the instruction count takes as one."""
+    rate = int(re.search(r"virtual time rate=(\d+)", dosrun.CONF)[1])
+    return f"{ms * rate:,} cycles: {ms * rate / 10_000_000:.2f} s at 10k cycles/ms"
+
+
 def cmd_profile(a: argparse.Namespace) -> int:
     """The DOS build relinked with a map, DOSBox's profiler naming each function's own instructions:
     the program's less an empty one's. --link: its lines typed, then RUN, less them typed alone: the
@@ -458,6 +465,7 @@ def cmd_profile(a: argparse.Namespace) -> int:
     own = {f: n - base.get(f, 0) for f, n in got.items() if n > base.get(f, 0)}
     total = sum(own.values())
     print(f"{total:,} instructions ({r['prog'].instructions - r[''].instructions:,} counted)")
+    print(cycles_line(r["prog"].ms - r[""].ms))
     if stopped(r["prog"]):
         print(stopped(r["prog"]))
     for f, n in sorted(own.items(), key=lambda kv: -kv[1])[: a.n]:
