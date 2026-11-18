@@ -44,6 +44,10 @@ void dev_tone(unsigned hertz);
 /* The synthesizer's voice 0 to DEV_VOICES - 1 (PLAY a$, b$, ...) set to `v` until the next call for it; a platform
    with only the speaker plays voice 0 there. */
 void dev_voice(unsigned voice, const DevVoice *v);
+/* A note for the synthesizer is queued: a platform that starts it on demand does so now, outside the tick. Called
+   for every such note. dev_synth_close stops it when the program ends. */
+void dev_synth_open(void);
+void dev_synth_close(void);
 
 /* The clock. */
 long dev_clock(void); /* the time of day in hundredths of a second since midnight */

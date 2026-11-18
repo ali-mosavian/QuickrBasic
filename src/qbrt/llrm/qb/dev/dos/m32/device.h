@@ -95,6 +95,13 @@ typedef struct FillOct {
 #pragma aux dev_int16 "B$INT16"
 #pragma aux dev_int17 "B$INT17"
 #pragma aux dev_int21 "B$INT21"
+#pragma aux dev_int31 "B$INT31"
+#pragma aux dev_sb_fill "B$SBFILL"
+#pragma aux dev_sb_hook "B$SBHOOK"
+#pragma aux dev_sb_unhook "B$SBUNHOOK"
+#pragma aux dev_irq_save "B$IRQSAVE"
+#pragma aux dev_irq_restore "B$IRQRESTORE"
+#pragma aux dev_ds_selector "B$DSSEL"
 #pragma aux dev_outb "B$OUTB"
 #pragma aux dev_outw "B$OUTW"
 #pragma aux dev_inb "B$INB"
@@ -124,6 +131,16 @@ extern void dev_int10r(Regs *regs);
 extern void dev_int16(Regs *regs);
 extern void dev_int17(Regs *regs);
 extern void dev_int21(Regs *regs);
+extern void dev_int31(Regs *regs);
+/* The Sound Blaster (sb.c, sbisr.asm): its interrupt's C side, called by B$SBISR; the vector `number` pointed at
+   B$SBISR, and given back. */
+extern void dev_sb_fill(void);
+extern void dev_sb_hook(unsigned number);
+extern void dev_sb_unhook(void);
+/* The flags, then interrupts off; and the flags back. */
+extern unsigned dev_irq_save(void);
+extern void dev_irq_restore(unsigned flags);
+extern unsigned dev_ds_selector(void);
 extern void dev_outb(unsigned port, unsigned value);
 extern void dev_outw(unsigned port, unsigned word);
 extern unsigned dev_inb(unsigned port);

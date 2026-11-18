@@ -158,6 +158,8 @@ void music_queue(unsigned voice, byte synth, const DevVoice *v, long sound, long
     Voice *const at = &voices[voice];
     Note *n;
 
+    if (synth)
+        dev_synth_open();
     wait_for_turn(at);
     n = &at->queue[at->head];
     n->synth = synth;
@@ -215,6 +217,7 @@ void B_SOND(short hertz, float duration)
 void music_halt(void)
 {
     music_clear();
+    dev_synth_close();
     if (tick_started)
         dev_tick_stop();
 }

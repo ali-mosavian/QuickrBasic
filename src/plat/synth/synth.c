@@ -1,9 +1,7 @@
-/* The synthesizer (synth.h). Integer oscillators and envelopes, so every build renders the same samples; the filter
-   is a Chamberlin state-variable one, run twice a sample so it stays stable up to its highest cutoff. */
+/* The synthesizer (synth.h). Integer throughout, so every build renders the same samples. The filter is a Chamberlin
+   state-variable one, run twice a sample so it stays stable up to its highest cutoff. What a note needs is worked out
+   when its voice is set; a sample does no division. */
 #include "plat/synth/synth.h"
-
-/* no fused multiply-adds: the page's wasm has none, and the Mac's samples are the page's */
-#pragma STDC FP_CONTRACT OFF
 
 enum {
     /* the speaker: QB's square wave, faded in and out over 2 ms so it does not click */
@@ -12,26 +10,26 @@ enum {
     /* a voice at volume 15 */
     VOICE_LOUD = 6000,
     HIGHEST_NIBBLE = 15,
-    /* SID's exponential decay: below each level the step is divided by the next divisor */
-    CURVE_STEPS = 5,
+    FULL = 1 << 24,
+    ONE = 1 << 16,      /* the filter's fixed point */
+    STATE_SHIFT = 8,    /* the filter's state, in 256ths of a sample */
+    PI_ONES = 205887,   /* pi * ONE */
+    DAMPING_MOST = 91750, /* 1.4: resonance 0 */
+    DAMPING_STEP = 5680,  /* 1.3 / 15 */
 };
-
-#define SYNTH_FULL (1 << 24)
-#define PI 3.14159265f
 
 enum Stage { STAGE_ATTACK, STAGE_DECAY, STAGE_RELEASE, STAGE_CUT };
 
 /* SID's times from silence to full (attack) and from full to silence (decay, release), ms */
 static const uint16_t attack_ms[16] = {2, 8, 16, 24, 38, 56, 68, 80, 100, 250, 500, 800, 1000, 3000, 5000, 8000};
 static const uint16_t decay_ms[16] = {6, 24, 48, 72, 114, 168, 204, 240, 300, 750, 1500, 2400, 3000, 9000, 15000, 24000};
-static const struct {
-    int32_t below;
-    int32_t divisor;
-} curve[CURVE_STEPS] = {{93, 2}, {54, 4}, {26, 8}, {14, 16}, {6, 30}};
+/* SID's exponential fall: below each level (of 255) the step is divided by its divisor */
+static const int32_t below[SYNTH_CURVE] = {256, 93, 54, 26, 14, 6};
+static const int32_t divisor[SYNTH_CURVE] = {1, 2, 4, 8, 16, 30};
 
 void synth_init(Synth *const s, const uint32_t rate)
 {
-    *s = (Synth){.rate = rate};
+    *s = (Synth){.rate = rate, .per_hertz = UINT32_MAX / rate, .rest = (UINT32_MAX % rate + 1) % rate};
     for (int i = 0; i < DEV_VOICES; i++) {
         s->osc[i].noise = 0x7FFFF8;
         s->osc[i].stage = STAGE_CUT;
@@ -43,11 +41,27 @@ void synth_tone(Synth *const s, const uint32_t hertz)
     __atomic_store_n(&s->want, hertz, __ATOMIC_RELAXED);
 }
 
-/* sin(x) for 0 <= x <= pi / 4 */
-static float small_sin(const float x)
+/* The step a sample of `ms` from silence to full takes. */
+static int32_t step_of(const Synth *const s, const uint32_t ms)
 {
-    const float x2 = x * x;
-    return x * (1 - x2 / 6 * (1 - x2 / 20 * (1 - x2 / 42)));
+    const int32_t samples = (int32_t)(ms * s->rate / 1000);
+    return FULL / (samples > 0 ? samples : 1);
+}
+
+static void falling(const Synth *const s, int32_t *const steps, const uint32_t ms)
+{
+    const int32_t step = step_of(s, ms);
+
+    for (int i = 0; i < SYNTH_CURVE; i++)
+        steps[i] = step / divisor[i] > 0 ? step / divisor[i] : 1;
+}
+
+/* 2 sin(x) for x from 0 to pi / 12, ONE being 1 */
+static int32_t twice_sin(const int32_t x)
+{
+    const int32_t x2 = x * x >> 16;
+    const int32_t inner = ONE - x2 / 20;
+    return (x * (ONE - (x2 * inner >> 16) / 6) >> 16) * 2;
 }
 
 void synth_voice(Synth *const s, const unsigned voice, const DevVoice *const v)
@@ -58,7 +72,7 @@ void synth_voice(Synth *const s, const unsigned voice, const DevVoice *const v)
     const bool attack = v->gate && (!o->set.gate || v->trigger != o->set.trigger);
 
     o->set = *v;
-    o->step = (uint32_t)(((uint64_t)v->hertz << 32) / s->rate);
+    o->step = v->hertz * s->per_hertz + v->hertz * s->rest / s->rate; /* hertz * 2^32 / rate */
     if (!v->hertz)
         o->stage = STAGE_CUT;
     else if (attack)
@@ -66,11 +80,15 @@ void synth_voice(Synth *const s, const unsigned voice, const DevVoice *const v)
     else if (!v->gate)
         o->stage = STAGE_RELEASE;
 
+    o->attack = step_of(s, attack_ms[v->envelope >> 12 & HIGHEST_NIBBLE]);
+    falling(s, o->decay, decay_ms[v->envelope >> 8 & HIGHEST_NIBBLE]);
+    falling(s, o->release, decay_ms[v->envelope & HIGHEST_NIBBLE]);
+    o->gain = (int32_t)(v->volume * (uint32_t)VOICE_LOUD * 32768u / (HIGHEST_NIBBLE * 32767u));
+
     /* twice a sample: up to a sixth of the rate */
-    const float highest = (float)s->rate / 6;
-    const float cutoff = v->cutoff < highest ? v->cutoff : highest;
-    o->f = 2 * small_sin(PI * cutoff / (2 * (float)s->rate));
-    o->damping = 1.4f - (float)v->resonance * (1.3f / HIGHEST_NIBBLE);
+    const uint32_t highest = s->rate / 6, cutoff = v->cutoff < highest ? v->cutoff : highest;
+    o->f = twice_sin((int32_t)(PI_ONES * cutoff / (2 * s->rate)));
+    o->damping = DAMPING_MOST - v->resonance * DAMPING_STEP;
 }
 
 /* The speaker's next sample, as QB's square wave always was. */
@@ -79,6 +97,8 @@ static int32_t speaker(Synth *const s)
     const uint32_t want = __atomic_load_n(&s->want, __ATOMIC_RELAXED);
     const int32_t fade = (int32_t)(s->rate / FADES_A_SECOND);
 
+    if (!want && !s->hertz && !s->gain) /* silent: nothing changes */
+        return 0;
     if (want != s->hertz && s->gain == 0) { /* a new tone starts from silence */
         s->hertz = want;
         s->phase = 0;
@@ -88,49 +108,41 @@ static int32_t speaker(Synth *const s)
     return (s->phase < s->rate / 2 ? SPEAKER_LOUD : -SPEAKER_LOUD) * s->gain / fade;
 }
 
-/* The step a sample of `ms` from silence to full takes. */
-static int32_t step_of(const Synth *const s, const uint32_t ms)
-{
-    const int32_t samples = (int32_t)((uint64_t)ms * s->rate / 1000);
-    return SYNTH_FULL / (samples > 0 ? samples : 1);
-}
-
-/* A falling envelope's step at its level: SID's, smaller as it falls. */
-static int32_t falling(const SynthOsc *const o, int32_t step)
+/* A falling envelope's step at its level. */
+static int32_t fall(const SynthOsc *const o, const int32_t *const steps)
 {
     const int32_t level = o->level >> 16; /* 0 to 255, as SID's */
+    int i = SYNTH_CURVE - 1;
 
-    for (int i = CURVE_STEPS - 1; i >= 0; i--)
-        if (level < curve[i].below)
-            return step / curve[i].divisor > 0 ? step / curve[i].divisor : 1;
-    return step;
+    while (i > 0 && level >= below[i])
+        i--;
+    return steps[i];
 }
 
 static void envelope(const Synth *const s, SynthOsc *const o)
 {
-    const unsigned env = o->set.envelope;
-    const int32_t sustain = (int32_t)(env >> 4 & HIGHEST_NIBBLE) * (SYNTH_FULL / HIGHEST_NIBBLE);
+    const int32_t sustain = (int32_t)(o->set.envelope >> 4 & HIGHEST_NIBBLE) * (FULL / HIGHEST_NIBBLE);
 
     switch (o->stage) {
     case STAGE_ATTACK:
-        o->level += step_of(s, attack_ms[env >> 12 & HIGHEST_NIBBLE]);
-        if (o->level >= SYNTH_FULL) {
-            o->level = SYNTH_FULL;
+        o->level += o->attack;
+        if (o->level >= FULL) {
+            o->level = FULL;
             o->stage = STAGE_DECAY;
         }
         break;
     case STAGE_DECAY:
         if (o->level > sustain) {
-            o->level -= falling(o, step_of(s, decay_ms[env >> 8 & HIGHEST_NIBBLE]));
+            o->level -= fall(o, o->decay);
             if (o->level < sustain)
                 o->level = sustain;
         }
         break;
     case STAGE_RELEASE:
-        o->level -= falling(o, step_of(s, decay_ms[env & HIGHEST_NIBBLE]));
+        o->level -= fall(o, o->release);
         break;
     default:
-        o->level -= SYNTH_FULL / (int32_t)(s->rate / FADES_A_SECOND);
+        o->level -= FULL / (int32_t)(s->rate / FADES_A_SECOND);
     }
     if (o->level < 0)
         o->level = 0;
@@ -161,35 +173,35 @@ static int32_t wave(SynthOsc *const o)
     }
 }
 
-static float filtered(SynthOsc *const o, const float in)
+static int32_t filtered(SynthOsc *const o, const int32_t sample)
 {
-    float high = 0;
+    const int32_t in = sample * (1 << STATE_SHIFT);
+    int32_t high = 0;
 
     for (int i = 0; i < 2; i++) {
-        o->low += o->f * o->band;
-        high = in - o->low - o->damping * o->band;
-        o->band += o->f * high;
+        o->low += (int32_t)((int64_t)o->f * o->band >> 16);
+        high = in - o->low - (int32_t)((int64_t)o->damping * o->band >> 16);
+        o->band += (int32_t)((int64_t)o->f * high >> 16);
     }
     switch (o->set.filter) {
     case DEV_LOW_PASS:
-        return o->low;
+        return o->low >> STATE_SHIFT;
     case DEV_BAND_PASS:
-        return o->band;
+        return o->band >> STATE_SHIFT;
     default:
-        return high;
+        return high >> STATE_SHIFT;
     }
 }
 
 static int32_t voice(const Synth *const s, SynthOsc *const o)
 {
-    if (o->stage == STAGE_CUT && o->level == 0)
+    if (o->level == 0 && (o->stage == STAGE_CUT || o->stage == STAGE_RELEASE)) /* silent until the next note */
         return 0;
     envelope(s, o);
-    const int32_t raw = wave(o);
-    int32_t out = (int32_t)((int64_t)raw * (o->level >> 9) >> 15);
+    int32_t out = (int32_t)((int64_t)wave(o) * (o->level >> 9) >> 15);
     if (o->set.filter != DEV_UNFILTERED)
-        out = (int32_t)filtered(o, (float)out);
-    return (int32_t)((int64_t)out * o->set.volume * VOICE_LOUD / (HIGHEST_NIBBLE * 32767));
+        out = filtered(o, out);
+    return (int32_t)((int64_t)out * o->gain >> 15);
 }
 
 void synth_render(Synth *const s, int16_t *const out, const int count)
