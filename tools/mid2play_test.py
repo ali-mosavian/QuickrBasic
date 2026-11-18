@@ -58,7 +58,9 @@ def main() -> None:
     # E above middle C is N41, G N44: a quarter, an eighth's rest, a dotted eighth, the bar's seven sixteenths of rest
     # a voice a drum, set once: the kick, which starts with a click (a sine alone was under 250 Hz), then the hat
     # with the hat under the kick, which the kit in one voice lost
-    assert lines[1].endswith('"T240Z1,0H0,5,0,3L16W4Z5,15,2,0,7Y0K4,8V15O1", "T240Z1,0H0,5,0,3L16W3Y3,4000,0K0R5V4O6"')
+    assert lines[1].endswith(
+        '"T240Z1,0H0,5,0,3L16W4Z9,15,2,0,5Y0K4,8R6V15O1", "T240Z1,0H0,5,0,3L16W3Y3,4000,0K0R5V4O6"'
+    )
     assert lines[2] == 'PLAY "L4N41P8L8N44.P4.P16", "CP2.P8.", "CP8.CP2P8."', lines[2]
     hats = mid2play.bar_of(dict.fromkeys(range(16), (42, 1)), 0, 16, "C")
     assert hats == "C" * 16, hats
