@@ -370,20 +370,22 @@ void flow_f_jt(Session *const S)
 
 /* I.NEXT.UP, I.NEXT.DN (comp/fuse.c): the counter stepped, back to the body unless past. The stop
    check comes first: a stop runs the op again, not stepped twice. */
-static void next(Session *const S, const bool up)
+static void next(Session *const S, const Addr base, const bool up)
 {
     if (exec_stopchk(S))
         return;
 
     const uint8_t *const op = S->vm.ip - 1;
     bool back;
-    fault_check(&S->fault, hot_next(op, up, &back));
+    fault_check(&S->fault, hot_next(op, base, up, &back));
     S->vm.ip = (uint8_t *)op + NEXT_SIZE - sizeof(Jump);
     branch(S, back);
 }
 
-void flow_i_next_up(Session *const S) { next(S, true); }
-void flow_i_next_dn(Session *const S) { next(S, false); }
+void flow_i_next_up(Session *const S) { next(S, 0, true); }
+void flow_i_next_dn(Session *const S) { next(S, 0, false); }
+void flow_i_next_up_l(Session *const S) { next(S, S->vm.fp, true); }
+void flow_i_next_dn_l(Session *const S) { next(S, S->vm.fp, false); }
 
 /* I.JFC ... (comp/fuse.c): an INT compare, then JF's jump unless it is true. */
 #define X(name, src)                                                                               \

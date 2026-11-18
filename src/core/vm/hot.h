@@ -524,18 +524,19 @@ static inline Status hot_i_chk8(Regs *const r) { return r->sp->u > 255 ? E_OV : 
     X(d_mul, dubl_mul)                                                                             \
     X(d_div, dubl_div)
 
-/* I.NEXT.UP or .DN at op: its counter plus its step stored; *back, not past its limit (above it
-   up, below it down). Illegal function call past an INT's range, nothing stored. */
-static inline Status hot_next(const uint8_t *const op, const bool up, bool *const back)
+/* I.NEXT.UP or .DN at op, its cells from base (0, or the frame its twin's are in): its counter plus
+   its step stored; *back, not past its limit (above it up, below it down). Illegal function call
+   past an INT's range, nothing stored. */
+static inline Status hot_next(const uint8_t *const op, const Addr base, const bool up, bool *const back)
 {
-    const Addr cell = load32(op + 1);
+    const Addr cell = base + load32(op + 1);
     int32_t n;
 
-    if (__builtin_add_overflow((int32_t)rd32(cell), (int32_t)rd32(load32(op + 1 + VCELL)), &n))
+    if (__builtin_add_overflow((int32_t)rd32(cell), (int32_t)rd32(base + load32(op + 1 + VCELL)), &n))
         return E_IQ;
 
     wr32(cell, (uint32_t)n);
-    const int32_t lim = (int32_t)rd32(load32(op + 1 + 2 * VCELL));
+    const int32_t lim = (int32_t)rd32(base + load32(op + 1 + 2 * VCELL));
     *back = up ? n <= lim : n >= lim;
     return ST_OK;
 }

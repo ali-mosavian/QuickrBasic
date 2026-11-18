@@ -246,6 +246,11 @@ OP(PRET_FV, flow_pret_fv, 2 + VCELL, 0) /* a FUNCTION's number, its result a cel
 OP(PRET_FL, flow_pret_fl, 2 + VCELL, 0) /*   its result in the frame */
 OP(PRET_X, flow_pret_x, 2 + VCELL, 0)   /* local arrays, or a string result */ /* the address of the value on top, a string's copied there */
 OP(I_CHK8, exec_i_chk8, 1, FX + FK)
+/* fused ops on a frame's locals alone: each cell an offset from the frame */
+OP(I_NEXT_UP_L, flow_i_next_up_l, NEXT_SIZE, 0)
+FRAME(I_NEXT_UP, I_NEXT_UP_L)
+OP(I_NEXT_DN_L, flow_i_next_dn_l, NEXT_SIZE, 0)
+FRAME(I_NEXT_DN, I_NEXT_DN_L)
 #undef TWIN
 #undef FRAME
 #undef OP

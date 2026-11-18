@@ -452,6 +452,8 @@ static void exec_loop(Session *const S)
                 {flow_i_jf, &&i_jf},
                 {flow_i_next_up, &&i_next_up},
                 {flow_i_next_dn, &&i_next_dn},
+                {flow_i_next_up_l, &&i_next_up_l},
+                {flow_i_next_dn_l, &&i_next_dn_l},
                 {flow_eol, &&eol},
                 {dbug_dbg, &&dbg},
                 {exec_i_ld_a1, &&i_ld_a1},
@@ -716,7 +718,7 @@ i_jf: /* JF: past its jump, or to its target; a stop, a jump not resolved: flow_
     goto next;
 
 /* NEXT: stepped, back to the body until past; a stop, a jump not resolved: its handler's. */
-#define NEXT_RUN(up)                                                                               \
+#define NEXT_RUN(base, up)                                                                               \
     {                                                                                              \
         const Jump *const j = (const Jump *)(r.ip + NEXT_SIZE - sizeof(Jump));                     \
                                                                                                    \
@@ -725,7 +727,7 @@ i_jf: /* JF: past its jump, or to its target; a stop, a jump not resolved: flow_
                                                                                                    \
         bool back;                                                                                 \
                                                                                                    \
-        if ((st = hot_next(r.ip, up, &back)) != ST_OK) {                                           \
+        if ((st = hot_next(r.ip, base, up, &back)) != ST_OK) {                                           \
             op = r.ip;                                                                             \
             goto fail;                                                                             \
         }                                                                                          \
@@ -742,9 +744,13 @@ i_jf: /* JF: past its jump, or to its target; a stop, a jump not resolved: flow_
     goto next;
 
 i_next_up:
-    NEXT_RUN(true)
+    NEXT_RUN(0, true)
 i_next_dn:
-    NEXT_RUN(false)
+    NEXT_RUN(0, false)
+i_next_up_l:
+    NEXT_RUN(r.fp, true)
+i_next_dn_l:
+    NEXT_RUN(r.fp, false)
 
     HOT_JFCS(JFC_RUN)
 

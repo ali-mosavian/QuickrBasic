@@ -23,18 +23,25 @@ static uint8_t twin(const uint8_t op)
     return 0;
 }
 
-/* An FV op on a local: its twin, the offset of the cell. False: not in a frame, or a many-cell op
-   (comp/fuse.c fuses no local into one). */
-static bool local_op(const Symb *const sy, uint8_t *const op)
+/* An op on locals, n cells of them: its twin, the offset of each cell. False: one not in a frame, or
+   an op with no twin (comp/fuse.c fuses locals into the ones that have). */
+static bool local_op(const Symb *const sy, uint8_t *const op, const uint32_t n)
 {
-    const Loc p = *symb_loc(sy, (uint16_t)load32(op + 1));
     const uint8_t t = twin(op[0]);
 
-    if (!loc_in_frame(p) || !t)
+    if (!t)
         return false;
 
+    for (uint32_t i = 0; i < n; i++)
+        if (!loc_in_frame(*symb_loc(sy, (uint16_t)load32(op + 1 + i * VCELL))))
+            return false;
+
+    for (uint32_t i = 0; i < n; i++) {
+        uint8_t *const cell = op + 1 + i * VCELL;
+        store32(cell, (uint32_t)loc_off(*symb_loc(sy, (uint16_t)load32(cell))));
+    }
+
     op[0] = t;
-    store32(op + 1, (uint32_t)loc_off(p));
     return true;
 }
 
@@ -77,7 +84,7 @@ void select_op(const Symb *const sy, const Blok *const b, uint8_t *const op)
 
     const uint8_t fl = exec_flags(op[0]);
 
-    if (fl & FV && local_op(sy, op))
+    if (fl & FV && local_op(sy, op, 1 + !!(fl & FV2) + !!(fl & FV3)))
         ;
     else
         for (uint32_t i = 0; i < countof(cells) && fl & cells[i]; i++)

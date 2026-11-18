@@ -474,6 +474,8 @@ static void resolve_op(Comp *const C, const uint32_t line, const Addr base, uint
 
     case O_I_NEXT_UP: /* comp/fuse.c's: three cells (FV3), then the Jump */
     case O_I_NEXT_DN:
+    case O_I_NEXT_UP_L:
+    case O_I_NEXT_DN_L:
         j = (Jump *)(op + 1 + 3 * VCELL);
         break;
 

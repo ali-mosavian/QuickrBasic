@@ -286,6 +286,12 @@ CASES = {
     # drawn 1.3 ms of angle off.
     "c_const_double": ("CONST G = 6.283185307179586#, H = 3.14159265358979\r\nPRINT G; H\r\n",
                        " 6.283185307179586  3.14159265358979 \r\n", "ERROR"),
+    # A procedure's FOR on its own locals is one op, I.NEXT's frame twin: up, down, nested, each call's own.
+    "c_next_local": ("DECLARE FUNCTION r% (n%)\r\nPRINT r%(3)\r\nFUNCTION r% (n%)\r\nDIM i%, j%, s%\r\n"
+                     "FOR i% = 1 TO n%: s% = s% + i%: NEXT\r\nFOR i% = n% TO 1 STEP -2: s% = s% + i%: NEXT\r\n"
+                     "FOR i% = 1 TO 2: FOR j% = i% TO 2: s% = s% + j%: NEXT j%, i%\r\n"
+                     "IF n% > 1 THEN s% = s% + r%(n% - 1)\r\nPRINT i%; j%;\r\nr% = s%\r\nEND FUNCTION\r\n",
+                     " 3  3  3  3  3  3  32 \r\n", "ERROR"),
     # A line number is a label: the same twice, in any scopes, ran both lines; a SUB's GOSUB
     # to the module's ran it.
     "qb_dupnum": ("10 PRINT 1\r\n10 PRINT 2\r\n", "Duplicate label", None),

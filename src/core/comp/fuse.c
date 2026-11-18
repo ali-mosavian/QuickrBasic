@@ -16,7 +16,8 @@
  *   x = k, x = a I.LD.U8|I16|I32 k or I.LD.V a, I.ST.V x                       I.SET.U8 .. x k, I.MOV x a
  *
  * A JT is a JF on the other relations: its mask's complement. A procedure's local has a frame twin
- * of each one-cell op only (comp/link.c), so it is in no fused op of more cells, nor I.SET.
+ * of each one-cell op, and of NEXT when its three cells are all the frame's (comp/select.c); it is
+ * in no other fused op of more cells, nor I.SET.
  *
  * The fused ops have no asm counterpart; tests/golden compares the code unfused.
  */
@@ -74,8 +75,9 @@ static uint8_t *next(Tail *const t)
     const uint32_t c = load32(ld + 1);
     const uint8_t m = cmp[1 + VCELL];
 
+    /* all three global, or all three in the frame: I.NEXT's frame twin (comp/select.c) */
     if (load32(st + 1) != c || load32(ld2 + 1) != c || (m != DC_GT && m != DC_LT) ||
-        !global(t, ld + 1) || !global(t, step + 1) || !global(t, cmp + 1))
+        global(t, ld + 1) != global(t, step + 1) || global(t, ld + 1) != global(t, cmp + 1))
         return nullptr;
 
     uint8_t op[NEXT_SIZE];
