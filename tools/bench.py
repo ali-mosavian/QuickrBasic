@@ -461,9 +461,10 @@ def cmd_profile(a: argparse.Namespace) -> int:
             keyboard=a.ide,
             screen=a.ide,
         )
-    base, got = r[""].selfs, r["prog"].selfs
+    base, got = (r[""].incls, r["prog"].incls) if a.inclusive else (r[""].selfs, r["prog"].selfs)
     own = {f: n - base.get(f, 0) for f, n in got.items() if n > base.get(f, 0)}
-    total = sum(own.values())
+    total = sum(v for f, v in own.items() if not a.inclusive or f in r["prog"].selfs) if not a.inclusive else (
+        sum(n - r[""].selfs.get(f, 0) for f, n in r["prog"].selfs.items() if n > r[""].selfs.get(f, 0)))
     print(f"{total:,} instructions ({r['prog'].instructions - r[''].instructions:,} counted)")
     print(cycles_line(r["prog"].ms - r[""].ms))
     if stopped(r["prog"]):
@@ -665,6 +666,7 @@ def main() -> int:
     p.add_argument("-n", type=int, default=25)
     p.add_argument("--link", action="store_true", help="RUN's link alone, the lines typed")
     p.add_argument("--ide", action="store_true", help="the IDE's open of the file")
+    p.add_argument("--inclusive", action="store_true", help="each function's instructions with its callees'")
     p.add_argument("--ms", type=int, default=30000, help="--ide: the emulated time each run is given")
     p.add_argument("--mem", type=int, default=4, help="DOSBox's MB")
     p = sub.add_parser("fps")
