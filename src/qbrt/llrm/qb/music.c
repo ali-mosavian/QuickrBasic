@@ -164,8 +164,19 @@ void music_queue(unsigned voice, byte synth, const DevVoice *v, long sound, long
     n = &at->queue[at->head];
     n->synth = synth;
     n->v = *v;
-    n->sound = ticks_of(sound, &at->owed_sound);
-    n->quiet = ticks_of(quiet, &at->owed_quiet);
+    if (synth) {
+        /* the note's whole time on one count, so it starts where the bar puts it; its sound the nearest tick */
+        const unsigned whole = ticks_of(sound + quiet, &at->owed_sound);
+        unsigned sounding = (unsigned)((sound * whole + (sound + quiet) / 2) / (sound + quiet ? sound + quiet : 1));
+
+        if (!sounding && whole && sound)
+            sounding = 1;
+        n->sound = sounding;
+        n->quiet = whole - sounding;
+    } else {
+        n->sound = ticks_of(sound, &at->owed_sound);
+        n->quiet = ticks_of(quiet, &at->owed_quiet);
+    }
     at->end = queue_end(at) + n->sound + n->quiet;
     at->head = (at->head + 1) % QUEUE;
 }

@@ -326,6 +326,34 @@ TEST(play_of_three_strings_plays_three_voices)
     CHECK(headless_tone_count() - tones <= 1); /* the program's end quiets the speaker, no more */
 }
 
+/* Sixteenths at T140 are 1.95 ticks: a voice's notes start at the tick their place in the bar falls in, whatever
+   rests and eighths came before. The sound and the silence of each note were rounded apart, so a run of them started
+   1, 2 or 3 ticks after the last and two voices' sixteenths up to 2 ticks from each other: a tune in pieces. */
+TEST(play_voices_keep_time_with_each_other)
+{
+    static const char *const lines[] = {
+        "10 PLAY \"MB T140 L16 W1 O3 CCCCCCCCCCCCCCCC\", \"T140 L16 O3 C P16 C C P16 C8 C P16 C C C C8 C C\"", nullptr};
+    static const int place[2][16] = {{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
+                                     {0, 2, 3, 5, 7, 9, 10, 11, 12, 14, 15, -1}};
+
+    qbrt_realtime(false);
+    music_clear();
+    const size_t first = headless_voice_count();
+    CHECK(unit_run(S, lines) == ST_OK);
+    headless_run(400);
+    qbrt_realtime(true);
+    int ons[2] = {0};
+    long zero = -1;
+    for (size_t i = first; i < headless_voice_count(); i++) {
+        const HeadlessVoice h = headless_voice(i);
+        if (h.voice > 1 || !h.v.gate || !h.v.hertz || ons[h.voice] >= 16)
+            continue;
+        zero = zero < 0 ? h.tick : zero;
+        CHECK(h.tick - zero == place[h.voice][ons[h.voice]++] * 1950L / 1000);
+    }
+    CHECK(ons[0] == 16 && ons[1] == 11);
+}
+
 /* The new commands set the voice: W wave, Q pulse width, V volume, H envelope, Y filter. */
 TEST(play_sets_the_voice)
 {
