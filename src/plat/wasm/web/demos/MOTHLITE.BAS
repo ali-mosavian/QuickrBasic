@@ -133,21 +133,21 @@ CONST GRAV = 660!, FLAPV = -190!, SPEED = 72!
 CONST TITLE = 0, PLAYING = 1, DYING = 2, OVER = 3
 CONST NOSONG = 0, TITLESONG = 1, GAMESONG = 2
 CONST MAXBEATS = 64, SUNX = 258, SUNY = 58
-' the score the harmony comes in at, then the
-' faster hi-hats; how near a cap is a near miss
-CONST HEAT1 = 3, HEAT2 = 8, NEARMISS = 9
+' the score the faster hi-hats come in at; how
+' near a cap is a near miss
+CONST HEAT2 = 8, NEARMISS = 9
 CONST NFLY = 10, NCLOUD = 3, NTREE = 16
 CONST DAY = 0, GOLDEN = 1, SUNSET = 2, NSKIES = 3
 CONST NKEY = 15, NRIDGE = 3
-' the layers' sounds: the bass, the tune's echo, its
-' harmony; the arpeggio and the title's pad by day,
-' at golden hour and at sunset
-CONST BASSSND = "MSW0Q40Y1,1600,4H0,3,6,2V14"
+' the layers' sounds: the bass and its sub an octave
+' under, the tune's echo; the arpeggio and the
+' title's pad by day, at golden hour and at sunset
+CONST BASSSND = "MSW0Q40Y1,1600,4H0,3,6,2V15"
+CONST SUBSND = "MNW1H0,2,10,3V15"
 CONST ECHOSND = "MNW1Y1,1800,4H0,6,6,6V7"
 CONST ARPDAY = "MNW0Q25H0,3,6,2V6"
 CONST ARPGOLD = "MNW2Y1,1400,6H0,4,7,3V6"
 CONST ARPDUSK = "MNW1H0,5,8,4V7"
-CONST LIFTSND = "MNW0Q12H0,4,8,3V7"
 CONST PADDAY = "MLW0Q30Y1,2400,6H6,6,10,8V7"
 CONST PADGOLD = "MLW2Y1,900,6H9,6,10,9V8"
 CONST PADDUSK = "MLW1H11,8,11,10V9"
@@ -224,7 +224,7 @@ DECLARE FUNCTION Drums$ (s AS Song)
 DECLARE FUNCTION Lift$ (s AS Song)
 DECLARE FUNCTION PadSound$ (p AS INTEGER)
 DECLARE FUNCTION ArpSound$ (p AS INTEGER)
-DECLARE FUNCTION BassBeat$ (k AS STRING, b AS INTEGER)
+DECLARE FUNCTION BassBeat$ (k AS STRING, b AS INTEGER, o AS STRING)
 DECLARE FUNCTION Grazed% (st() AS Stone, i AS INTEGER, m AS Moth)
 DECLARE SUB ToggleMusic (s AS Song)
 DECLARE SUB PlaySfx (id AS INTEGER)
@@ -305,7 +305,7 @@ DIM SHARED SfxA(NSFX - 1) AS STRING
 DIM SHARED SfxB(NSFX - 1) AS STRING
 DIM SHARED SfxD(NSFX - 1) AS STRING
 DIM SHARED Mood(1 TO 2, NSKIES - 1, MAXBEATS - 1) AS STRING
-DIM SHARED Counter(MAXBEATS - 1) AS STRING
+DIM SHARED Low(MAXBEATS - 1) AS STRING
 DIM SHARED Fast(MAXBEATS - 1) AS STRING
 DIM SHARED Echo(1 TO 2, MAXBEATS - 1) AS STRING
 DIM SHARED Bursts(NBURST - 1) AS Burst
@@ -616,10 +616,10 @@ END FUNCTION
 
 ' A bar of bass, a note a beat, from the chord in
 ' the arpeggio's string k: root, root, fifth, octave,
-' always in octave 2 so small speakers carry it.
-FUNCTION BassBeat$ (k AS STRING, b AS INTEGER)
+' always in octave o, so it never jumps.
+FUNCTION BassBeat$ (k AS STRING, b AS INTEGER, o AS STRING)
     DIM r AS STRING
-    r = "O2" + MID$(k, 3, 1)
+    r = o + MID$(k, 3, 1)
     SELECT CASE b MOD 4
     CASE 2
         r = NoteOf$(r, 4)
@@ -1082,7 +1082,7 @@ SUB Fall (w AS World, sp() AS Spark)
 END SUB
 
 ' Keeps a few beats queued: tune, bass, drums, the
-' sky's arpeggio and the echo or harmony; voice 4 is
+' sky's arpeggio and the echo or sub; voice 4 is
 ' left to the sound effects. Every voice gets each
 ' beat, or a pad a bar, so they stay together.
 SUB FeedSong (s AS Song)
@@ -1200,11 +1200,11 @@ SUB Launch (w AS World, st() AS Stone, sp() AS Spark)
 END SUB
 
 ' The layers over a song's beat b, made from its
-' voice v's string k: the tune's echo a 16th late,
-' and its harmony a third over; in the game a bass
-' line under the arpeggio, now an octave up, on the
-' title a pad a bar; the drums with the hi-hats
-' doubled. The arpeggio and pad sound as the sky.
+' voice v's string k: the tune's echo a 16th late;
+' in the game a bass and its sub under the
+' arpeggio, now an octave up, on the title a pad a
+' bar; the drums with the hi-hats doubled. The
+' arpeggio and pad sound as the sky.
 SUB Layer (id AS INTEGER, b AS INTEGER, v AS INTEGER, pre AS STRING, k AS STRING)
     DIM t AS STRING, r AS STRING, i AS INTEGER
     DIM p AS INTEGER
@@ -1213,19 +1213,18 @@ SUB Layer (id AS INTEGER, b AS INTEGER, v AS INTEGER, pre AS STRING, k AS STRING
     CASE 0
         r = "P16" + NoteOf$(k, 0) + "16"
         Echo(id, b) = t + ECHOSND + r
-        IF id = GAMESONG THEN
-            Counter(b) = t + LIFTSND + NoteOf$(k, 2) + "8"
-        END IF
     CASE 1
         IF id = GAMESONG THEN
             ' the arpeggio moves up, in the sky's sound;
-            ' the bass takes its place
+            ' the bass takes its place, its sub under it
             r = NoteOf$(k, 7) + "32" + NoteOf$(k, 11) + "32"
             r = r + NoteOf$(k, 14) + "32" + NoteOf$(k, 11)
             FOR p = 0 TO NSKIES - 1
                 Mood(id, p, b) = t + ArpSound$(p) + r + "32"
             NEXT
-            Tune(id, b, 1) = t + BASSSND + BassBeat$(k, b)
+            r = BassBeat$(k, b, "O2")
+            Tune(id, b, 1) = t + BASSSND + r
+            Low(b) = t + SUBSND + BassBeat$(k, b, "O1")
         ELSE
             r = NoteOf$(k, 9) + "2"
             FOR p = 0 TO NSKIES - 1
@@ -1246,11 +1245,10 @@ SUB Layer (id AS INTEGER, b AS INTEGER, v AS INTEGER, pre AS STRING, k AS STRING
     END SELECT
 END SUB
 
-' The tune's echo; its harmony once the score is up.
+' The tune's echo on the title; the sub bass in game.
 FUNCTION Lift$ (s AS Song)
     Lift$ = Echo(s.id, s.beat)
-    IF s.id <> GAMESONG OR s.heat < HEAT1 THEN EXIT FUNCTION
-    Lift$ = Counter(s.beat)
+    IF s.id = GAMESONG THEN Lift$ = Low(s.beat)
 END FUNCTION
 
 ' A cap, its light edge and shadow, outlined in ink.
