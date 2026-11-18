@@ -245,10 +245,10 @@ DATA goal,0, flat,6, bush,0, flat,14, "end",0
 ' The tune: 76 bars of 28, each a letter of the order: an intro and its variation, then A, B, C and D twice
 ' round and four bars of A fading. A bar is its chord's root from D, a bass riff and a drum pattern by number, the
 ' second brass, the brass and the lead. A riff is sixteen sixteenths: a note in semitones above its voice's lowest
-' (0-9, a-z), "-" holds it, "." rests. A second brass of two letters is a chord pattern by number and its note.
+' (0-9, a-z), a capital slid into, "-" holds it, "." rests. A second brass of two letters is a chord pattern by number and its note.
 Song:
 DATA "abcdabcefghefgh{ijkl|jkmnopqnoprstuvwxyzwxyzijkl|jkmnopqnoprstuvwxyzwxyzijkm"
-DATA "0..00.c..00..07c", "0.0c.0.70.c0.7c7", "0.0.0.0.c.c.057c", "0.c00c7c0.c057ac"
+DATA "0..00.C..00..07C", "0.0C.0.70.C0.7c7", "0.0.0.0.C.c.057c", "0.C00c7c0.C057ac"
 DATA "..x..x....x..x..", "x.x..x.xx.x..x.x", "x.x.x.x.x.x.x.x."
 DATA "KHHHSHKHKHKHSHHH", "KHHHSHKHSSTTSTSS", "K.H.S.H.K.K.S.H.", "K.H.S.SSKSSTSTTS", "KHHSHHKHKHHSHHSS"
 DATA "K.H.S.H.K.K.S.H.", "K.H.S.H.K.K.S.SS"
@@ -2211,22 +2211,23 @@ SUB LoadSong
             Trk(k + 4) = Riff$(st, j, 27)
         NEXT
     NEXT
-    ' the noise; FM, as the consoles of the day: a slapped bass and two brasses; and a thin pulse lead
-    PLAY "MBT140W3H0,3,0,1L16", "T140W4Z1,12H0,5,3,1", "T140W4Z1,7H1,5,10,3", , "T140W0Q30H0,4,9,2", "T140W4Z1,5H0,6,7,3"
+    ' the kit; FM, as the consoles of the day: a bass that starts bright, two brasses held bright that waver; and a
+    ' thin pulse lead
+    PLAY "MBT140Z1,0H0,3,0,1L16", "T140W4Z1,12,4,4,4H0,5,6,1", "T140W4Z1,9,3,11,5H1,4,12,3U5", , "T140W0Q30H0,4,9,2U4", "T140W4Z1,8,3,10,5H1,4,11,3U5"
     Bar = 0: HalfBar = 0
     Tune = -1
 END SUB
 
-' Half a bar of the kit, `loud` eighths as loud: a kick, a snare, a tom and hats, noise through a low, a band and a
-' high filter.
+' Half a bar of the kit, `loud` eighths as loud: a kick and a tom, sines that fall to their pitch; a snare and hats,
+' noise through a band and a high filter.
 FUNCTION Beat$ (x AS STRING, loud AS INTEGER)
     DIM q AS INTEGER, d AS STRING
     FOR q = 1 TO 8
         SELECT CASE MID$(x, q, 1)
-        CASE "K": d = d + "Y1,220,10V" + LTRIM$(STR$(10 * loud \ 8)) + "O1C"
-        CASE "S": d = d + "Y2,1800,3V" + LTRIM$(STR$(9 * loud \ 8)) + "O4C"
-        CASE "T": d = d + "Y2,600,8V" + LTRIM$(STR$(9 * loud \ 8)) + "O2G"
-        CASE "H": d = d + "Y3,7000,0V" + LTRIM$(STR$((3 * loud + 7) \ 8)) + "O6C"
+        CASE "K": d = d + "W4Y0K4,8V" + LTRIM$(STR$(12 * loud \ 8)) + "O1C"
+        CASE "S": d = d + "W3K0Y2,1800,3V" + LTRIM$(STR$(9 * loud \ 8)) + "O4C"
+        CASE "T": d = d + "W4Y0K5,6V" + LTRIM$(STR$(10 * loud \ 8)) + "O2G"
+        CASE "H": d = d + "W3K0Y3,7000,0V" + LTRIM$(STR$((3 * loud + 7) \ 8)) + "O6C"
         CASE ELSE: d = d + "P16"
         END SELECT
     NEXT
@@ -2248,7 +2249,7 @@ FUNCTION Riff$ (p AS STRING, h AS INTEGER, low AS INTEGER)
             note = 0
             DO WHILE i + r <= last AND MID$(p, i + r, 1) = ".": r = r + 1: LOOP
         ELSE
-            note = low + INSTR("0123456789abcdefghijklmnopqrstuvwxyz", c) - 1
+            note = low + INSTR("0123456789abcdefghijklmnopqrstuvwxyz", LCASE$(c)) - 1
             DO WHILE i + r <= last AND MID$(p, i + r, 1) = "-": r = r + 1: LOOP
         END IF
         i = i + r
@@ -2261,8 +2262,11 @@ FUNCTION Riff$ (p AS STRING, h AS INTEGER, low AS INTEGER)
         CASE 4, 6: ln = "4"
         CASE ELSE: ln = "2"
         END SELECT
-        IF note THEN s = s + "L" + ln + "N" + LTRIM$(STR$(note)) ELSE s = s + "P" + ln
-        IF r = 3 OR r = 6 THEN s = s + "."
+        IF note THEN ln = "L" + ln + "N" + LTRIM$(STR$(note)) ELSE ln = "P" + ln
+        IF r = 3 OR r = 6 THEN ln = ln + "."
+        ' a capital slides from the note before
+        IF note > 0 AND c <> LCASE$(c) THEN ln = "K6" + ln + "K0"
+        s = s + ln
         IF j THEN s = s + "P16"
     LOOP
     Riff$ = s
