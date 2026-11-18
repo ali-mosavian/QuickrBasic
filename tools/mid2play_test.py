@@ -47,11 +47,14 @@ def song() -> bytes:
 
 def main() -> None:
     exe = Path(sys.argv[1] if len(sys.argv) > 1 else ROOT / "build/host/basic").resolve()
-    text = mid2play.program(mid2play.read(song()), 6, None, 16)
+    text = mid2play.program(mid2play.read(song()), 10, None, 16)
+    # a voice moved an octave: the E an octave down
+    low = mid2play.program(mid2play.read(song()), 10, None, 16, {1: -12})
+    assert 'PLAY "L4N29P8L8N32.' in low, low
     lines = text.splitlines()
     assert lines[1].startswith('PLAY "MBT240W0Q30'), lines[1]
     # E above middle C is N41, G N44: a quarter, an eighth's rest, a dotted eighth, the bar's seven sixteenths of rest
-    kit = "W4Z1,0Y0K4,8O1CP8.W3K0Y3,7000,0O6CP2P8."
+    kit = "W4Z1,0Y0K4,8V14O1CP8.W3K0Y3,4000,0V8O6CP2P8."
     assert lines[2] == f'PLAY "L4N41P8L8N44.P4.P16", "{kit}"', lines[2]
     with tempfile.TemporaryDirectory() as tmp:
         (Path(tmp) / "T.BAS").write_text(text + 'PRINT "played"\n')
