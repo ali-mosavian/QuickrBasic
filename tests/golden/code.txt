@@ -27190,12 +27190,12 @@ qb/ownf_err_pds71.bas 14 c498914d2514
 qb/ownf_err_pds71.bas 15 c6121ee6abbc
 qb/ownf_err_pds71.bas 16 fb96549631c8
 qb/ownf_err_pds71.bas 17 d1318b0b4d87
-qb/ownf_err_pds71.bas 18 6f48311a5058
+qb/ownf_err_pds71.bas 18 57e80397ecfb
 qb/ownf_err_pds71.bas 19 5dc147f0874a
 qb/ownf_err_pds71.bas 20 a5609dbfc75d
 qb/ownf_err_pds71.bas 21 92203bbd3bc3
 qb/ownf_err_pds71.bas 22 fb96549631c8
-qb/ownf_err_pds71.bas 23 cdf28f49c7c1
+qb/ownf_err_pds71.bas 23 ff94d7e369d2
 qb/ownf_err_pds71.bas 24 476600b8a2fb
 qb/ownf_err_pds71.bas 25 1d0398da4fb0
 qb/ownf_err_pds71.bas 26 005174868ad5
@@ -27220,12 +27220,12 @@ qb/ownf_err_pds71.bas L 14 14158585f7f8
 qb/ownf_err_pds71.bas L 15 4e899ff77cde
 qb/ownf_err_pds71.bas L 16 05495199aedd
 qb/ownf_err_pds71.bas L 17 fd65fc12d211
-qb/ownf_err_pds71.bas L 18 ec33fe1c1909
+qb/ownf_err_pds71.bas L 18 99051ac759d3
 qb/ownf_err_pds71.bas L 19 5b809f947768
 qb/ownf_err_pds71.bas L 20 09fa43c3e85c
 qb/ownf_err_pds71.bas L 21 35a5728e9719
 qb/ownf_err_pds71.bas L 22 c5cbaa11271c
-qb/ownf_err_pds71.bas L 23 82378f7021c5
+qb/ownf_err_pds71.bas L 23 de46b38760e7
 qb/ownf_err_pds71.bas L 24 8560f572498b
 qb/ownf_err_pds71.bas L 25 b7921e54eec8
 qb/ownf_err_pds71.bas L 26 cc78b1b4f817
@@ -27249,12 +27249,12 @@ qb/ownf_err_qb45.bas 13 c498914d2514
 qb/ownf_err_qb45.bas 14 9ae97200b594
 qb/ownf_err_qb45.bas 15 fb96549631c8
 qb/ownf_err_qb45.bas 16 d1318b0b4d87
-qb/ownf_err_qb45.bas 17 aafda61e1f97
+qb/ownf_err_qb45.bas 17 5db6e0f2f740
 qb/ownf_err_qb45.bas 18 ef1f8ba9174d
 qb/ownf_err_qb45.bas 19 a5609dbfc75d
 qb/ownf_err_qb45.bas 20 a013acb8cf97
 qb/ownf_err_qb45.bas 21 fb96549631c8
-qb/ownf_err_qb45.bas 22 17a0f16045ec
+qb/ownf_err_qb45.bas 22 880c1c61ef3b
 qb/ownf_err_qb45.bas 23 476600b8a2fb
 qb/ownf_err_qb45.bas 24 1d0398da4fb0
 qb/ownf_err_qb45.bas 25 40ac78f6f227
@@ -27278,12 +27278,12 @@ qb/ownf_err_qb45.bas L 13 cafe138910fa
 qb/ownf_err_qb45.bas L 14 604c48a2e522
 qb/ownf_err_qb45.bas L 15 5ad26d1f740c
 qb/ownf_err_qb45.bas L 16 373ab043a12e
-qb/ownf_err_qb45.bas L 17 f39bc94d0bfd
+qb/ownf_err_qb45.bas L 17 c664dc4e5675
 qb/ownf_err_qb45.bas L 18 8425f9269b14
 qb/ownf_err_qb45.bas L 19 2d8131e1e1f9
 qb/ownf_err_qb45.bas L 20 a0f4cc653ea7
 qb/ownf_err_qb45.bas L 21 24ade2022d1d
-qb/ownf_err_qb45.bas L 22 347b8c7970e0
+qb/ownf_err_qb45.bas L 22 8784ae383b6c
 qb/ownf_err_qb45.bas L 23 ab7def5d9467
 qb/ownf_err_qb45.bas L 24 ad3be14d0d09
 qb/ownf_err_qb45.bas L 25 52a723e828f4
@@ -27308,12 +27308,12 @@ qb/ownf_err_vbdos.bas 14 c498914d2514
 qb/ownf_err_vbdos.bas 15 c6121ee6abbc
 qb/ownf_err_vbdos.bas 16 fb96549631c8
 qb/ownf_err_vbdos.bas 17 d1318b0b4d87
-qb/ownf_err_vbdos.bas 18 6f48311a5058
+qb/ownf_err_vbdos.bas 18 57e80397ecfb
 qb/ownf_err_vbdos.bas 19 5dc147f0874a
 qb/ownf_err_vbdos.bas 20 a5609dbfc75d
 qb/ownf_err_vbdos.bas 21 92203bbd3bc3
 qb/ownf_err_vbdos.bas 22 fb96549631c8
-qb/ownf_err_vbdos.bas 23 cdf28f49c7c1
+qb/ownf_err_vbdos.bas 23 ff94d7e369d2
 qb/ownf_err_vbdos.bas 24 476600b8a2fb
 qb/ownf_err_vbdos.bas 25 1d0398da4fb0
 qb/ownf_err_vbdos.bas 26 005174868ad5
@@ -27338,12 +27338,12 @@ qb/ownf_err_vbdos.bas L 14 14158585f7f8
 qb/ownf_err_vbdos.bas L 15 4e899ff77cde
 qb/ownf_err_vbdos.bas L 16 05495199aedd
 qb/ownf_err_vbdos.bas L 17 fd65fc12d211
-qb/ownf_err_vbdos.bas L 18 ec33fe1c1909
+qb/ownf_err_vbdos.bas L 18 99051ac759d3
 qb/ownf_err_vbdos.bas L 19 5b809f947768
 qb/ownf_err_vbdos.bas L 20 09fa43c3e85c
 qb/ownf_err_vbdos.bas L 21 35a5728e9719
 qb/ownf_err_vbdos.bas L 22 c5cbaa11271c
-qb/ownf_err_vbdos.bas L 23 82378f7021c5
+qb/ownf_err_vbdos.bas L 23 de46b38760e7
 qb/ownf_err_vbdos.bas L 24 8560f572498b
 qb/ownf_err_vbdos.bas L 25 b7921e54eec8
 qb/ownf_err_vbdos.bas L 26 cc78b1b4f817
@@ -27567,7 +27567,7 @@ qb/ownf_local_pds71.bas 21 a5609dbfc75d
 qb/ownf_local_pds71.bas 22 8f552cad018e
 qb/ownf_local_pds71.bas 23 fb96549631c8
 qb/ownf_local_pds71.bas 24 7c03530f5509
-qb/ownf_local_pds71.bas 25 ab8e2346c689
+qb/ownf_local_pds71.bas 25 f68ad8a6ff1d
 qb/ownf_local_pds71.bas 26 e8537628ed13
 qb/ownf_local_pds71.bas 27 1d0398da4fb0
 qb/ownf_local_pds71.bas 28 be890996e9ba
@@ -27600,7 +27600,7 @@ qb/ownf_local_pds71.bas L 21 2231ea7ce1b7
 qb/ownf_local_pds71.bas L 22 b6fd57a0eba6
 qb/ownf_local_pds71.bas L 23 5d876023f68a
 qb/ownf_local_pds71.bas L 24 555f6de5e16a
-qb/ownf_local_pds71.bas L 25 abfbbc2118d3
+qb/ownf_local_pds71.bas L 25 8abdff8998a3
 qb/ownf_local_pds71.bas L 26 aaf090cd91af
 qb/ownf_local_pds71.bas L 27 02fc58736e03
 qb/ownf_local_pds71.bas L 28 f4b584597f52
@@ -27633,7 +27633,7 @@ qb/ownf_local_vbdos.bas 21 a5609dbfc75d
 qb/ownf_local_vbdos.bas 22 8f552cad018e
 qb/ownf_local_vbdos.bas 23 fb96549631c8
 qb/ownf_local_vbdos.bas 24 7c03530f5509
-qb/ownf_local_vbdos.bas 25 ab8e2346c689
+qb/ownf_local_vbdos.bas 25 f68ad8a6ff1d
 qb/ownf_local_vbdos.bas 26 e8537628ed13
 qb/ownf_local_vbdos.bas 27 1d0398da4fb0
 qb/ownf_local_vbdos.bas 28 be890996e9ba
@@ -27666,7 +27666,7 @@ qb/ownf_local_vbdos.bas L 21 2231ea7ce1b7
 qb/ownf_local_vbdos.bas L 22 b6fd57a0eba6
 qb/ownf_local_vbdos.bas L 23 5d876023f68a
 qb/ownf_local_vbdos.bas L 24 555f6de5e16a
-qb/ownf_local_vbdos.bas L 25 abfbbc2118d3
+qb/ownf_local_vbdos.bas L 25 8abdff8998a3
 qb/ownf_local_vbdos.bas L 26 aaf090cd91af
 qb/ownf_local_vbdos.bas L 27 02fc58736e03
 qb/ownf_local_vbdos.bas L 28 f4b584597f52
@@ -27698,7 +27698,7 @@ qb/ownf_recurse_pds71.bas 20 1d0398da4fb0
 qb/ownf_recurse_pds71.bas 21 54d3e8a91f0c
 qb/ownf_recurse_pds71.bas 22 fb96549631c8
 qb/ownf_recurse_pds71.bas 23 58fc2db49a0b
-qb/ownf_recurse_pds71.bas 24 3b3a51aa9169
+qb/ownf_recurse_pds71.bas 24 ad716913de93
 qb/ownf_recurse_pds71.bas 25 f811bb47ebb0
 qb/ownf_recurse_pds71.bas 26 372d1deae53b
 qb/ownf_recurse_pds71.bas L 0 8819361e7f3c
@@ -27725,7 +27725,7 @@ qb/ownf_recurse_pds71.bas L 20 5fd80d95e519
 qb/ownf_recurse_pds71.bas L 21 82e156869eb9
 qb/ownf_recurse_pds71.bas L 22 b6434dbea0e1
 qb/ownf_recurse_pds71.bas L 23 97f5be5acc14
-qb/ownf_recurse_pds71.bas L 24 9a76f0e369f4
+qb/ownf_recurse_pds71.bas L 24 dcd9b32257d4
 qb/ownf_recurse_pds71.bas L 25 bca188474d6c
 qb/ownf_recurse_pds71.bas L 26 34240becfeac
 qb/ownf_recurse_qb45.bas 0 fb96549631c8
@@ -27751,7 +27751,7 @@ qb/ownf_recurse_qb45.bas 19 1d0398da4fb0
 qb/ownf_recurse_qb45.bas 20 6d546c02a2c2
 qb/ownf_recurse_qb45.bas 21 fb96549631c8
 qb/ownf_recurse_qb45.bas 22 58fc2db49a0b
-qb/ownf_recurse_qb45.bas 23 fca325dee949
+qb/ownf_recurse_qb45.bas 23 f8cfd4b78ae2
 qb/ownf_recurse_qb45.bas 24 f811bb47ebb0
 qb/ownf_recurse_qb45.bas 25 372d1deae53b
 qb/ownf_recurse_qb45.bas L 0 9a9d7418c14c
@@ -27777,7 +27777,7 @@ qb/ownf_recurse_qb45.bas L 19 0c60130d102b
 qb/ownf_recurse_qb45.bas L 20 24d35977d275
 qb/ownf_recurse_qb45.bas L 21 a07886116104
 qb/ownf_recurse_qb45.bas L 22 e1d22dfa8820
-qb/ownf_recurse_qb45.bas L 23 c1de18e3293d
+qb/ownf_recurse_qb45.bas L 23 7a8fd09956fc
 qb/ownf_recurse_qb45.bas L 24 aac388e44dd6
 qb/ownf_recurse_qb45.bas L 25 34240becfeac
 qb/ownf_recurse_vbdos.bas 0 fb96549631c8
@@ -27804,7 +27804,7 @@ qb/ownf_recurse_vbdos.bas 20 1d0398da4fb0
 qb/ownf_recurse_vbdos.bas 21 54d3e8a91f0c
 qb/ownf_recurse_vbdos.bas 22 fb96549631c8
 qb/ownf_recurse_vbdos.bas 23 58fc2db49a0b
-qb/ownf_recurse_vbdos.bas 24 3b3a51aa9169
+qb/ownf_recurse_vbdos.bas 24 ad716913de93
 qb/ownf_recurse_vbdos.bas 25 f811bb47ebb0
 qb/ownf_recurse_vbdos.bas 26 372d1deae53b
 qb/ownf_recurse_vbdos.bas L 0 8819361e7f3c
@@ -27831,7 +27831,7 @@ qb/ownf_recurse_vbdos.bas L 20 5fd80d95e519
 qb/ownf_recurse_vbdos.bas L 21 82e156869eb9
 qb/ownf_recurse_vbdos.bas L 22 b6434dbea0e1
 qb/ownf_recurse_vbdos.bas L 23 97f5be5acc14
-qb/ownf_recurse_vbdos.bas L 24 9a76f0e369f4
+qb/ownf_recurse_vbdos.bas L 24 dcd9b32257d4
 qb/ownf_recurse_vbdos.bas L 25 bca188474d6c
 qb/ownf_recurse_vbdos.bas L 26 34240becfeac
 qb/palette_using_pds71.bas 0 fb96549631c8
@@ -28413,7 +28413,7 @@ qb/resdiv.bas 9 c498914d2514
 qb/resdiv.bas 10 da514eb0db86
 qb/resdiv.bas 11 fb96549631c8
 qb/resdiv.bas 12 2ac21816d829
-qb/resdiv.bas 13 2906321e6b9e
+qb/resdiv.bas 13 58665e12552d
 qb/resdiv.bas 14 3c491b66de77
 qb/resdiv.bas 15 a5609dbfc75d
 qb/resdiv.bas 16 5a0277fe79ef
@@ -28434,7 +28434,7 @@ qb/resdiv.bas L 9 a979ae4becaf
 qb/resdiv.bas L 10 a334a194d234
 qb/resdiv.bas L 11 fcf71661664d
 qb/resdiv.bas L 12 8900717e951e
-qb/resdiv.bas L 13 8c42d7efa7a8
+qb/resdiv.bas L 13 c25f5f33e9da
 qb/resdiv.bas L 14 5290431d1aa4
 qb/resdiv.bas L 15 24f6658cf144
 qb/resdiv.bas L 16 e1f2c5931e5c
@@ -28457,7 +28457,7 @@ qb/resnext.bas 11 c498914d2514
 qb/resnext.bas 12 10ab37a1d6d2
 qb/resnext.bas 13 fb96549631c8
 qb/resnext.bas 14 2ac21816d829
-qb/resnext.bas 15 03e4f04d606b
+qb/resnext.bas 15 51326ebf1dd4
 qb/resnext.bas 16 7a0ec32209d0
 qb/resnext.bas 17 a5609dbfc75d
 qb/resnext.bas 18 f3e4859ffb92
@@ -28481,7 +28481,7 @@ qb/resnext.bas L 11 5a2fcae29617
 qb/resnext.bas L 12 8ccb60630903
 qb/resnext.bas L 13 235b4bf5a2fc
 qb/resnext.bas L 14 88d5afc44610
-qb/resnext.bas L 15 1d8c9235e8d1
+qb/resnext.bas L 15 b832674bdd37
 qb/resnext.bas L 16 0fcca180c309
 qb/resnext.bas L 17 bf23042489de
 qb/resnext.bas L 18 d01fb9a790fa

@@ -39,7 +39,7 @@
 #include "mem/copy.h"
 #include "vm/flow.h"
 
-enum { DATA_MAX = 0x100000, DATA_ALIGN = 4 };
+enum { DATA_ALIGN = 4 };
 
 void arry_init(
     Arry *const ay,
@@ -113,6 +113,10 @@ uint32_t arry_elem_size(const Symb *const sy, const Decl *const d, const uint16_
         return decl_type(d, v->type - ET_REC)->size;
     if (v->info & SK_DBL)
         return 8;
+    if (v->type == ET_SH)
+        return 2;
+    if (v->type == ET_BY)
+        return 1;
 
     return (v->info & VK_MASK) == VK_STR ? DSZ : VS;
 }
@@ -214,7 +218,7 @@ Addr arry_new(Arry *const ay, const uint16_t id, const uint8_t n, const bool dyn
     for (uint32_t i = 0; i < n; i++) {
         size *= ay->counts[i];
 
-        if (size > DATA_MAX)
+        if (size > REF_ADDR) /* past any heap */
             fault_error(ay->fault, E_OM);
     }
 

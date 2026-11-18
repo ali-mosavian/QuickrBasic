@@ -30,7 +30,7 @@
  * | op_sldt | exec_s_ld_txt | MIRROR |
  * | op_raddr, op_raddra, op_pref, op_vaddr, op_vld, op_vst | exec_r_addr, exec_ra_addr, exec_p_ref, exec_v_addr, exec_v_ld, exec_v_st | MIRROR |
  * | op_flld, op_flst, op_ichk16, op_sfld, op_sfst, op_rcopy | exec_fl_ld, exec_fl_st, exec_i_chk16, exec_sf_ld, exec_sf_st, exec_r_copy | MIRROR |
- * | (none) | exec_i_chk8 | NEW |
+ * | (none) | exec_i_chk8, exec_n_ld_a, exec_n_st_a, exec_p_refn, exec_v_ref | NEW |
  * | op_ilda1, op_flda1, op_slda1, op_lda, op_slda | exec_i_ld_a1, exec_f_ld_a1, exec_s_ld_a1, exec_i_ld_a, exec_s_ld_a | MIRROR |
  * | op_sstv, op_ista1, op_fsta1, op_ssta1, op_istan, op_fstan, op_sstan | exec_s_st_v, exec_i_st_a1, exec_f_st_a1, exec_s_st_a1, exec_i_st_a, exec_f_st_a, exec_s_st_a | MIRROR |
  * | ex_cmpt | static | MIRROR |
@@ -890,16 +890,36 @@ void exec_r_copy(Session *const S)
 
 static Cell cell_at(const Addr a) { return load_cell(at(a)); }
 
+/* A SHORT's or a BYTE's value at a: a record's field, an array's element. */
+static int32_t narrow_ld(const Addr a, const uint8_t type)
+{
+    return type == ET_SH ? (int16_t)rd16(a) : rd8(a);
+}
+
+/* x to a SHORT's or a BYTE's bytes at a. Overflow: a SHORT's past 16 bits, a BYTE's past 0 .. 255. */
+static void narrow_st(Session *const S, const Addr a, const uint8_t type, const Cell x)
+{
+    if (type == ET_SH) {
+        if (x.i != (int16_t)x.i)
+            repl_error(S, E_OV);
+
+        wr16(a, (uint16_t)x.u);
+    } else {
+        if (x.u > 255)
+            repl_error(S, E_OV);
+
+        wr8(a, (uint8_t)x.u);
+    }
+}
+
 /* A record's number field: a SHORT, a BYTE, a DOUBLE, else 4 bytes. */
 void exec_fl_ld(Session *const S)
 {
     const Addr a = exec_popa(&S->vm) + exec_u16(&S->vm);
     const uint8_t type = exec_u8(&S->vm);
 
-    if (type == ET_SH)
-        exec_pushi(&S->vm, (int16_t)rd16(a));
-    else if (type == ET_BY)
-        exec_pushi(&S->vm, rd8(a));
+    if (type == ET_SH || type == ET_BY)
+        exec_pushi(&S->vm, narrow_ld(a, type));
     else if (type == ET_R8)
         exec_push(&S->vm, cell_at(a));
     else
@@ -916,18 +936,25 @@ void exec_fl_st(Session *const S)
 
     if (type == ET_R8)
         store_cell(at(a), x);
-    else if (type == ET_SH) {
-        if (x.i != (int16_t)x.i)
-            repl_error(S, E_OV);
-
-        wr16(a, (uint16_t)x.u);
-    } else if (type == ET_BY) {
-        if (x.u > 255)
-            repl_error(S, E_OV);
-
-        wr8(a, (uint8_t)x.u);
-    } else
+    else if (type == ET_SH || type == ET_BY)
+        narrow_st(S, a, type, x);
+    else
         wr32(a, x.u);
+}
+
+/* N.LD.A id cell n et: a SHORT or BYTE array's element. */
+void exec_n_ld_a(Session *const S)
+{
+    const Addr e = exec_elem(&S->arry, &S->vm);
+    exec_pushi(&S->vm, narrow_ld(e, exec_u8(&S->vm)));
+}
+
+/* N.ST.A id cell n et ( subs x -- ). */
+void exec_n_st_a(Session *const S)
+{
+    const Cell x = exec_pop(&S->vm);
+    const Addr e = exec_elem(&S->arry, &S->vm);
+    narrow_st(S, e, exec_u8(&S->vm), x);
 }
 
 /* A SHORT's value. Overflow past 16 bits. */
@@ -968,20 +995,37 @@ void exec_p_ref(Session *const S)
     exec_pusha(&S->vm, a);
 }
 
-/* A scalar parameter's argument's address: in its ref cell, at its offset from the frame. */
-static Addr param_cell(Vm *const vm) { return rd32(vm->fp + exec_u16(vm)); }
+/* P.REFN et ( addr -- 0 ref ): a SHORT or BYTE array's element by reference, its ref tagged. */
+void exec_p_refn(Session *const S)
+{
+    const Addr a = exec_popa(&S->vm);
+    exec_pusha(&S->vm, 0);
+    exec_pusha(&S->vm, a | REF_NARROW | (exec_u8(&S->vm) == ET_SH ? REF_SHORT : 0));
+}
+
+/* A scalar parameter's ref cell's word, at its offset from the frame: its argument's address,
+   tagged (mem/loc.h). */
+static uint32_t param_ref(Vm *const vm) { return rd32(vm->fp + exec_u16(vm)); }
+
+static Addr param_cell(Vm *const vm) { return param_ref(vm) & REF_ADDR; }
 
 void exec_v_addr(Session *const S) { exec_pusha(&S->vm, param_cell(&S->vm)); }
+
+/* V.REF id: the parameter's ref, its tag kept: passed on by reference. */
+void exec_v_ref(Session *const S) { exec_pusha(&S->vm, param_ref(&S->vm)); }
 
 typedef enum : uint8_t { CELL_NUMBER, CELL_DOUBLE, CELL_STRING } CellKind;
 
 /* A parameter's value through its argument's address. */
 void exec_v_ld(Session *const S)
 {
-    const Addr cell = param_cell(&S->vm);
+    const uint32_t ref = param_ref(&S->vm);
+    const Addr cell = ref & REF_ADDR;
     const CellKind kind = exec_u8(&S->vm);
 
-    if (kind == CELL_DOUBLE)
+    if (ref & REF_NARROW)
+        exec_pushi(&S->vm, narrow_ld(cell, ref & REF_SHORT ? ET_SH : ET_BY));
+    else if (kind == CELL_DOUBLE)
         exec_push(&S->vm, cell_at(cell));
     else if (kind == CELL_STRING)
         exec_pusha(&S->vm, cell);
@@ -991,11 +1035,14 @@ void exec_v_ld(Session *const S)
 
 void exec_v_st(Session *const S)
 {
-    const Addr cell = param_cell(&S->vm);
+    const uint32_t ref = param_ref(&S->vm);
+    const Addr cell = ref & REF_ADDR;
     const CellKind kind = exec_u8(&S->vm);
     const Cell x = exec_pop(&S->vm);
 
-    if (kind == CELL_DOUBLE)
+    if (ref & REF_NARROW)
+        narrow_st(S, cell, ref & REF_SHORT ? ET_SH : ET_BY, x);
+    else if (kind == CELL_DOUBLE)
         store_cell(at(cell), x);
     else if (kind == CELL_STRING)
         strg_set(&S->strg, x.a, cell);

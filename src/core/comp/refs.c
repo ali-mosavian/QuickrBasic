@@ -220,9 +220,11 @@ static uint32_t vakind(Comp *const C, const uint16_t id)
     if (v->info & SK_DBL)
         return va_pack(VA_RAW, 8);
     switch (v->info & VK_MASK) {
-    case VK_INT: /* 2 bytes but a LONG's; a BYTE's its cell's first */
+    case VK_INT: /* 2 bytes but a LONG's; a BYTE's its cell's first; a SHORT element's 2 */
         if (v->type == ET_BY)
             return va_pack(VA_RAW, 1);
+        if (v->type == ET_SH && v->info & VI_ARR)
+            return va_pack(VA_RAW, 2);
 
         return va_pack(v->type == ET_I4 ? VA_RAW : VA_I2, 4);
 
@@ -379,7 +381,7 @@ static Node *argnode(Comp *const C, const uint8_t pass, Node *const a, const uin
 /* Variable id's cell, an argument's ref: a parameter's is its argument's. */
 static Node *cell(Comp *const C, const uint16_t id)
 {
-    return place(C, symb_is_ref(C->symb, id) ? O_V_ADDR : O_V_CELL, id);
+    return place(C, symb_is_ref(C->symb, id) ? O_V_REF : O_V_CELL, id);
 }
 
 /* An array parameter's argument: n() an array whole. */
@@ -465,7 +467,12 @@ static Node *arg(Comp *const C, const uint16_t par, const bool byval)
                     Node *const e = place(C, O_RA_ADDR, id);
 
                     if (aend(comp_cur(C)))
-                        return argnode(C, PA_PREF, e, par);
+                        return argnode(
+                            C,
+                            ptype == ET_SH || ptype == ET_BY ? PA_NREF : PA_PREF,
+                            e,
+                            par
+                        );
                 }
             }
 

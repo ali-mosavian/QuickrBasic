@@ -74,6 +74,9 @@ static void cg_if(Code *c);
 static void cg_on(Code *c, const Node *n);
 static void cg_casecmp(Code *c, const Node *n);
 
+/* A SHORT's or a BYTE's: its array's elements are 2 or 1 bytes. */
+static bool narrow(const Var *const v) { return v->type == ET_SH || v->type == ET_BY; }
+
 /* cm_shid: variable v's load just made: a SHORT's, class 1. */
 static void shortid(Code *const c, const Var *const v)
 {
@@ -759,7 +762,11 @@ static void cg_elem(Code *const c, const Node *const n)
     c->type = expr_ktype[k];
     c->iload = c->iloadend = nullptr;
 
-    if (n->nargs == 1)
+    if (narrow(n->var)) {
+        code_opid(c, O_N_LD_A, id, n->par);
+        code_byte(c, n->nargs);
+        code_byte(c, n->var->type);
+    } else if (n->nargs == 1)
         code_opid(c, lda1[k], id, n->par);
     else {
         code_opid(c, ldan[k], id, n->par);
@@ -937,6 +944,11 @@ static void cg_arg(Code *const c, const Node *const n)
     case PA_PREF:
         gen(c, n->a);
         code_opw(c, O_P_REF, n->a->rec.off);
+        break;
+
+    case PA_NREF:
+        gen(c, n->a);
+        code_opb(c, O_P_REFN, n->a->var->type);
     }
 }
 
@@ -1050,7 +1062,11 @@ void cg_store_op(Code *const c, const Node *const n)
         many = O_I_ST_A + k;
     }
 
-    if (n->op > 1) {
+    if (n->op && narrow(n->var)) {
+        code_opid(c, O_N_ST_A, n->id, n->par);
+        code_byte(c, n->op);
+        code_byte(c, n->var->type);
+    } else if (n->op > 1) {
         code_opid(c, many, n->id, n->par);
         code_byte(c, n->op);
     } else
