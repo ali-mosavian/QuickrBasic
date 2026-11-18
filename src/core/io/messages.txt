@@ -18,3 +18,5 @@ END SUB/FUNCTION without SUB/FUNCTION|this line ends a SUB or FUNCTION, but none
 EXIT not within matching block|this EXIT {other} is not inside a {other} loop|move it inside the loop, or remove it
 Blocks crossed|this line ends a block while the {other} block started inside it is still open|blocks end in the reverse order they start: end the {other} block first
 Name of subprogram illegal /reserved|`{text}` is a reserved word, so it cannot name a SUB or FUNCTION|rename it
+Subprogram not defined|`{name}` is DECLAREd, but no SUB of that name is defined|write `SUB {name} ... END SUB`, or remove the DECLARE and its calls
+Function not defined /declared|`{name}` is DECLAREd, but no FUNCTION of that name is defined|write `FUNCTION {name} ... END FUNCTION`, or remove the DECLARE and its calls

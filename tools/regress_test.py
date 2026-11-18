@@ -26,9 +26,16 @@ CASES = {
                    "DIM r AS T, v(3) AS INTEGER\r\ninc r.b: inc v(2): CALL inc(r.b)\r\n"
                    "PRINT r.b; v(2); VARPTR(r.b) - VARPTR(r)\r\nSUB inc (x AS INTEGER)\r\nx = x + 1\r\nEND SUB\r\n",
                    " 2  1  4 \r\n", "ERROR"),
-    # C port, the tree: a FUNCTION DECLAREd only raises Function not defined when run, not before.
-    "c_undef_function": ('DECLARE FUNCTION g% (x%)\r\nPRINT "a"\r\nPRINT 1 + g%(2)\r\n',
-                         "a\r\nFunction not defined", "Syntax"),
+    # A procedure DECLAREd only was ERROR 35 or 18 when its call ran: these printed "ran", then the
+    # error, or nothing; the TYPE argument's was Type mismatch. BC rejects the program first.
+    "c_undef_function": ('DECLARE FUNCTION g% (x%)\r\nPRINT "ran"\r\n30 PRINT 1 + g%(2)\r\n',
+                         "Function not defined in line 30 ", "ran"),
+    "qb_snd_bare": ('DECLARE SUB S (x AS INTEGER)\r\nPRINT "ran"\r\n20 S 1\r\n', "Subprogram not defined in line 20 ", "ran"),
+    "qb_snd_call": ('DECLARE SUB S (x AS INTEGER)\r\nPRINT "ran"\r\n20 CALL S(1)\r\n', "Subprogram not defined in line 20 ", "ran"),
+    "qb_snd_record": ("TYPE T\r\nv AS INTEGER\r\nEND TYPE\r\nDECLARE SUB S (g AS T, a() AS INTEGER)\r\n"
+                      'DIM g AS T, a(3)\r\nPRINT "ran"\r\n20 S g, a()\r\n', "Subprogram not defined in line 20 ", "ran"),
+    "qb_snd_uncalled": ('DECLARE SUB S ()\r\nPRINT "ran"\r\nSUB G\r\n20 IF 0 THEN S\r\nEND SUB\r\n',
+                        "Subprogram not defined in line 20 ", "ran"),
     # C port: llrm-cc compiled REDIM's case of decl_line's switch (shared with DIM) past its load of
     # decl.proc, so REDIM bound the array in a garbage scope: UBOUND after it was Array not defined.
     "c_redim_ubound": ("REDIM v(3)\r\nPRINT UBOUND(v); LBOUND(v)\r\n", " 3  0 \r\n", "ERROR"),
@@ -598,10 +605,11 @@ CASES = {
     "qb_lbl_resume": ("ON ERROR GOTO h\r\nPRINT 1\r\nEND\r\nh: RESUME 90\r\n", "Label not defined in line", " 1"),
     # &H and &O took no type suffix: &HFF& was a Syntax error at the &.
     "qb_hex_sfx": ("CONST a% = &H10%, b& = &HFF&: PRINT a%; b&; &O17&; &HFFFF&\r\n", " 16  255  15  65535 \r\n", "ERROR"),
-    # A call of a SUB or FUNCTION only DECLAREd was a syntax error; as BC's, it compiles and fails when run.
+    # A call of a SUB or FUNCTION only DECLAREd was a syntax error; as BC's, it is rejected before the run,
+    # not trapped.
     "qb_pdecl": ('DECLARE SUB ext (a%, b$)\r\nDECLARE FUNCTION fx% (a%)\r\nON ERROR GOTO h\r\next 1, "x"\r\n'
                  'CALL ext(2, "y")\r\ny = fx%(3) + 1\r\nPRINT "d"\r\nEND\r\nh: PRINT ERR;: RESUME NEXT\r\n',
-                 " 35  35  18 d\r\n", "ERROR"),
+                 "Subprogram not defined in line", " 35"),
     # A line's text was 255 characters at most, its body 2047 bytes, positions 11 bits: Out of memory at load.
     "qb_long_line": ("FOR i = 1 TO 3: " + "x = x + 1: " * 300 + "NEXT: IF x > 0 THEN PRINT x ELSE PRINT -1\r\n"
                      "DO: k = k + 1: " + "y = y + 1: " * 250 + "LOOP UNTIL k = 2: PRINT y\r\n", " 900 \r\n 500 \r\n",
