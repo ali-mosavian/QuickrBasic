@@ -37,9 +37,23 @@ Addr arry_ref(Arry *ay, ArrSlot *s, uint16_t id, uint8_t n);
 /* Subscript out of range (E_BS). */
 [[noreturn]]
 void arry_bad_sub(const Arry *ay);
-/* Array id's element size. */
-uint32_t arry_esize(const Arry *ay, uint16_t id);
-uint32_t arry_elem_size(const Symb *sy, const Decl *d, uint16_t id);
+/* Array id's element size: inline, an element's address takes it every time. */
+static inline uint32_t arry_elem_size(const Symb *const sy, const Decl *const d, const uint16_t id)
+{
+    const Var *const v = symb_var(sy, id);
+
+    if (v->type >= ET_REC)
+        return decl_type(d, v->type - ET_REC)->size;
+    if (v->info & SK_DBL)
+        return 8;
+
+    return (v->info & VK_MASK) == VK_STR ? DSZ : VS;
+}
+
+static inline uint32_t arry_esize(const Arry *const ay, const uint16_t id)
+{
+    return arry_elem_size(ay->symb, ay->decl, id);
+}
 /* A 1-D header in a frame: its bytes to the data. */
 enum { ARRY_FRAME_HDR1 = (sizeof(ArrayHdr) + 2 * sizeof(uint32_t) + 7) & ~7 };
 /* A header of dims dimensions in a frame: its bytes to the data, 8-aligned. */

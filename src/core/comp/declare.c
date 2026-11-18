@@ -247,8 +247,6 @@ void decl_init(Decl *const d, Fault *const f)
     d->fault = f;
 }
 
-const TypeDef *decl_type(const Decl *const d, const uint16_t t) { return d->types[t]; }
-
 void decl_reset(Decl *const d, Scop *const sc, Symb *const sy)
 {
     arena_reset(&d->arena);

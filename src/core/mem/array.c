@@ -105,23 +105,6 @@ void arry_bad_sub(const Arry *const ay)
     fault_error(ay->fault, E_BS);
 }
 
-uint32_t arry_elem_size(const Symb *const sy, const Decl *const d, const uint16_t id)
-{
-    const Var *const v = symb_var(sy, id);
-
-    if (v->type >= ET_REC)
-        return decl_type(d, v->type - ET_REC)->size;
-    if (v->info & SK_DBL)
-        return 8;
-
-    return (v->info & VK_MASK) == VK_STR ? DSZ : VS;
-}
-
-uint32_t arry_esize(const Arry *const ay, const uint16_t id)
-{
-    return arry_elem_size(ay->symb, ay->decl, id);
-}
-
 uint32_t arry_frame_hdr(const uint8_t dims) { return (arry_hdr_size(dims) + 7) & ~7u; }
 
 static_assert(ARRY_FRAME_HDR1 == ((sizeof(ArrayHdr) + 2 * sizeof(uint32_t) + 7) & ~7u));

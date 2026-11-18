@@ -68,7 +68,7 @@ void decl_defevents(Decl *d, Scop *sc, Symb *sy, const Prog *pg);
 /* dc_deft: the DEFtypes (sy->deft) line sees. */
 void decl_deftype(const Decl *d, Symb *sy, uint32_t line);
 /* TYPE t. */
-const TypeDef *decl_type(const Decl *d, uint16_t t);
+static inline const TypeDef *decl_type(const Decl *const d, const uint16_t t) { return d->types[t]; }
 /* The next statement from *at with no effect in 32-bit mode (DEF SEG, VARSEG, SSEG): its name,
    *at past it; null none. */
 const char *decl_warning(const uint8_t **at);
