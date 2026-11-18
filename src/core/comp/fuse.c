@@ -246,7 +246,10 @@ uint8_t *fuse_code(const Symb *const sy, uint8_t *const start, uint8_t *const en
 
     for (const uint8_t *p = start; p < end;) {
         const uint32_t n = flow_opsize(p);
-        memmove(out, p, n);
+
+        if (out != p) /* none fused yet: in place */
+            memmove(out, p, n);
+
         p += n;
 
         if (t.n == MAX_OPS) { /* the rest as it is */
