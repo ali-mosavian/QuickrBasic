@@ -2,7 +2,7 @@
 """mothlite_test.py [EXE]: MOTHLITE.BAS's stones drawn at every place they scroll through, and
 every PLAY string it builds played, whole frames drawn at fixed times and scrolls, and the
 palette eased through each sky and faded, and sparks drawn from their paths where moving them a
-tick at a time put them.
+tick at a time put them, and vines drawn by runs where the row by row ones were.
 
 The demo's main loop is swapped for one that draws each kind of stone from off the left edge to
 off the right. A stone with runes partly off the left (x < 0) took a negative rune index:
@@ -225,6 +225,54 @@ def sparks(exe: str, tmp: str) -> tuple[int, int]:
     return (int(got[0]), int(got[1])) if len(got) == 2 else (0, 0)
 
 
+VINES = """OpenScreen
+DIM t AS SINGLE, k AS INTEGER, x AS INTEGER, y AS INTEGER, h AS INTEGER, bad AS LONG
+RANDOMIZE 7
+FOR k = 1 TO 400
+    t = RND * 9000
+    h = 20 + INT(RND * 90)
+    LINE (0, 0)-(99, h + 1), 0, BF
+    LINE (100, 0)-(199, h + 1), 0, BF
+    Vines 20, h, t
+    VinesRow 120, h, t
+    FOR y = 0 TO h + 1
+        FOR x = 20 TO 50
+            IF POINT(x, y) <> POINT(x + 100, y) THEN bad = bad + 1
+        NEXT
+    NEXT
+NEXT
+PRINT "vines"; bad
+END
+"""
+VINES_ROW = """
+SUB VinesRow (x AS INTEGER, y2 AS INTEGER, t AS SINGLE)
+    DIM j AS INTEGER, y AS INTEGER, px AS INTEGER
+    FOR j = 0 TO 2
+        FOR y = 0 TO y2
+            px = x + 5 + j * 9
+            px = px + INT(1.5 * SIN(t * 1.7 + y * .16 + j))
+            PSET (px, y), CVINE
+            IF (y + j * 2) MOD 6 = 0 THEN
+                PSET (px + 1, y), CMOSS
+                PSET (px - 1, y + 1), CMOSS
+            END IF
+        NEXT
+    NEXT
+END SUB
+"""
+
+
+def vines(exe: str, tmp: str) -> int:
+    """The pixels where Vines' runs and the row by row drawing it replaced differ, at 400 times and heights."""
+    head, rest = DEMO.read_text().split("\nMain\nEND\n", 1)
+    path = Path(tmp) / "VINES.BAS"
+    decl = "DECLARE SUB VinesRow (x AS INTEGER, y2 AS INTEGER, t AS SINGLE)\n"
+    path.write_text(decl + head + "\n" + VINES + rest + VINES_ROW)
+    out = subprocess.run([exe, path.name], cwd=tmp, capture_output=True, timeout=300).stdout.decode(errors="replace")
+    got = out.split("vines")[-1].split()
+    return int(got[0]) if len(got) == 1 else -1
+
+
 def program() -> str:
     head, rest = DEMO.read_text().split("\nMain\nEND\n", 1)
     return head + "\n" + DRIVER + rest
@@ -244,8 +292,9 @@ def main() -> None:
         digest = frames(exe, tmp)
         dacs = palettes(exe, tmp)
         seen, off = sparks(exe, tmp)
-    out += f"\nframes {digest}\npalettes {dacs}\nsparks {off} of {seen} off"
-    ok = "stones ok" in out and "sounds ok" in out and digest == FRAMES_MD5 and dacs == PALETTES_MD5 and seen > 10000 and off * 1000 < seen
+        vine = vines(exe, tmp)
+    out += f"\nframes {digest}\npalettes {dacs}\nsparks {off} of {seen} off\nvines {vine} off"
+    ok = "stones ok" in out and "sounds ok" in out and digest == FRAMES_MD5 and dacs == PALETTES_MD5 and seen > 10000 and off * 1000 < seen and vine == 0
     print("mothlite " + ("ok" if ok else "FAIL\n" + out[-600:]))
     sys.exit(0 if ok else 1)
 

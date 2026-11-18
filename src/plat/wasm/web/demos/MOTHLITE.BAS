@@ -286,6 +286,7 @@ DECLARE SUB ShaftAt (x AS INTEGER, y1 AS INTEGER, y2 AS INTEGER)
 DECLARE SUB StonePart (k AS INTEGER)
 DECLARE SUB KeepPart (k AS INTEGER, x1 AS INTEGER, x2 AS INTEGER, h AS INTEGER, im() AS LONG, s AS LONG, mk() AS LONG, ms AS LONG)
 DECLARE SUB BuildStoneArt ()
+DECLARE FUNCTION VineEnd% (tb AS SINGLE, y AS INTEGER, j AS INTEGER, y2 AS INTEGER)
 DECLARE SUB Vines (x AS INTEGER, y2 AS INTEGER, t AS SINGLE)
 DECLARE SUB Shrooms (x AS INTEGER, cy AS INTEGER)
 DECLARE SUB DrawMoth (m AS Moth, mode AS INTEGER)
@@ -2376,18 +2377,52 @@ END FUNCTION
 ' Vines hang from the top and sway, leaves on them.
 SUB Vines (x AS INTEGER, y2 AS INTEGER, t AS SINGLE)
     DIM j AS INTEGER, y AS INTEGER, px AS INTEGER
+    DIM e AS INTEGER, r AS INTEGER, tb AS SINGLE
+    tb = t * 1.7
     FOR j = 0 TO 2
-        FOR y = 0 TO y2
+        y = 0
+        DO WHILE y <= y2
             px = x + 5 + j * 9
-            px = px + INT(1.5 * SIN(t * 1.7 + y * .16 + j))
-            PSET (px, y), CVINE
-            IF (y + j * 2) MOD 6 = 0 THEN
-                PSET (px + 1, y), CMOSS
-                PSET (px - 1, y + 1), CMOSS
-            END IF
-        NEXT
+            px = px + INT(1.5 * SIN(tb + y * .16 + j))
+            e = VineEnd%(tb, y, j, y2)
+            LINE (px, y)-(px, e), CVINE
+            FOR r = y + (6 - (y + j * 2) MOD 6) MOD 6 TO e STEP 6
+                PSET (px + 1, r), CMOSS
+                PSET (px - 1, r + 1), CMOSS
+            NEXT
+            y = e + 1
+        LOOP
     NEXT
 END SUB
+
+' The last row from y its vine stays in the column it
+' is in at y: up to where its angle nears the next of
+' the sine's thresholds of 2/3, 0, -2/3, the row y
+' alone when it is near one itself.
+FUNCTION VineEnd% (tb AS SINGLE, y AS INTEGER, j AS INTEGER, y2 AS INTEGER)
+    CONST TWOPI = 6.283185307179586#, PI = 3.141592653589793#
+    CONST VB = .7297276562269663#, NEAR = .01#
+    DIM a AS DOUBLE, lo AS DOUBLE, hi AS DOUBLE, e AS LONG
+    a = CDBL(tb) + y * CDBL(.16!) + j
+    a = a - TWOPI * INT(a / TWOPI)
+    IF a < VB THEN
+        lo = 0: hi = VB
+    ELSEIF a < PI - VB THEN
+        lo = VB: hi = PI - VB
+    ELSEIF a < PI THEN
+        lo = PI - VB: hi = PI
+    ELSEIF a < PI + VB THEN
+        lo = PI: hi = PI + VB
+    ELSEIF a < TWOPI - VB THEN
+        lo = PI + VB: hi = TWOPI - VB
+    ELSE
+        lo = TWOPI - VB: hi = TWOPI
+    END IF
+    e = y
+    IF a - lo >= NEAR AND hi - a >= NEAR THEN e = y + INT((hi - NEAR - a) / CDBL(.16!))
+    IF e > y2 THEN e = y2
+    VineEnd% = e
+END FUNCTION
 
 FUNCTION Wet& (c AS LONG, lake AS LONG)
     Wet& = Mix&(Mix&(c, lake, .45), 0, .1)
