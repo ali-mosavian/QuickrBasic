@@ -501,7 +501,20 @@ static void args(Comp *const C, Node *const n, const Proc *const pr)
     }
 }
 
-Node *ref_call(Comp *const C, const uint8_t idx, const Proc *const pr, const ArgsForm form)
+/* Name a parameter of the procedure being compiled or a declared variable: a FUNCTION's name
+   meant as the variable. */
+static bool is_variable(const Comp *const C, const uint16_t name)
+{
+    uint16_t id, scope;
+    const Binding *const b = scop_look(C->scop, name, &scope);
+    return comp_param((Comp *)C, name, 0, &id) || comp_param((Comp *)C, name, VI_ARR, &id) ||
+           (b && (b->flags || b->et[0] || b->et[1]));
+}
+
+Node *ref_call(
+    Comp *const C, const uint8_t *const name, const uint8_t idx, const Proc *const pr,
+    const ArgsForm form
+)
 {
     Node *const n = ast_new(C->ast, N_CALL);
     n->op = idx;
@@ -515,6 +528,15 @@ Node *ref_call(Comp *const C, const uint8_t idx, const Proc *const pr, const Arg
         C->p++;
         args(C, n, pr);
         comp_close(C);
+    } else if (pr->npar) { /* its frame would read cells the caller never pushed */
+        C->p = name;
+
+        if (is_variable(C, comp_nameof(name))) {
+            C->dg = DG_DUPLICATE_DEFINITION_FUNCTION;
+            fault_error(C->fault, E_RD);
+        }
+
+        fault_error(C->fault, E_ACM);
     }
 
     return n;

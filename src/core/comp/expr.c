@@ -508,9 +508,10 @@ static Node *var_leaf(Comp *const C)
         if (!nm->proc)
             return ref_undef(C);
         if (*comp_skipname(C->p) == '(' || nm->proc != C->proc) {
+            const uint8_t *const name = C->p;
             uint8_t idx;
             const Proc *const pr = ref_proc(C, &idx);
-            return ref_call(C, idx, pr, ARGS_PAREN);
+            return ref_call(C, name, idx, pr, ARGS_PAREN);
         }
     }
 

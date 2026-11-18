@@ -32,7 +32,7 @@ uint16_t ref_recarray(
     uint8_t type
 );                                           /* rc_avar: record array name's variable */
 const Proc *ref_proc(Comp *C, uint8_t *idx); /* ct_proc: the procedure named at comp.p; null none */
-Node *ref_call(Comp *C, uint8_t idx, const Proc *pr, ArgsForm form); /* its N_CALL */
+Node *ref_call(Comp *C, const uint8_t *name, uint8_t idx, const Proc *pr, ArgsForm form); /* its N_CALL */
 Node *ref_undef(Comp *C); /* FUNCTION DECLAREd only at comp.p: Function not defined; or N_CALL */
 void ref_dropargs(
     Comp *C,

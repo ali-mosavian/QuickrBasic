@@ -348,6 +348,23 @@ CASES = {
     "qb_const_ok": ("DECLARE SUB s ()\r\nCONST LIMIT = 5\r\nDIM b AS SINGLE, lim\r\nb = LIMIT * 2: lim = 7\r\n"
                     "PRINT b; LIMIT; lim\r\ns\r\nSUB s\r\nCONST LIM = 3\r\nPRINT LIM; LIMIT\r\nEND SUB\r\n",
                     " 10  5  7 \r\n 3  5 \r\n", "ERROR"),
+    # A FUNCTION or SUB with parameters called with none: its frame read the caller's cells as its
+    # argument's address. Ang's parameter dy was DY%() and printed 1.073742E+09 (2's bits + 1); in
+    # a big program the read segfaulted. A variable's name: Duplicate definition, saying why.
+    "qb_rd_function": ("DECLARE FUNCTION Ang! (dx AS SINGLE, dy AS SINGLE)\r\nDECLARE FUNCTION DY% (d AS INTEGER)\r\n"
+                       "PRINT Ang!(1, 2)\r\nFUNCTION Ang! (dx AS SINGLE, dy AS SINGLE)\r\n20 Ang! = dy / dx\r\n"
+                       "END FUNCTION\r\nFUNCTION DY% (d AS INTEGER)\r\nDY% = d + 1\r\nEND FUNCTION\r\n",
+                       "`dy` is also the name of a FUNCTION", "E+"),
+    # The same, the callee's parameter an array: LandPix%'s sides was Sides%(), whose m() was the
+    # caller's cells: Subscript out of range at an unrelated line; here 0.
+    "qb_rd_function_array": ("DECLARE FUNCTION Sides% (m() AS INTEGER, x AS INTEGER)\r\nDECLARE FUNCTION Lp% (sides AS INTEGER)\r\n"
+                             "PRINT Lp%(3)\r\nFUNCTION Lp% (sides AS INTEGER)\r\n20 Lp% = sides AND 1\r\nEND FUNCTION\r\n"
+                             "FUNCTION Sides% (m() AS INTEGER, x AS INTEGER)\r\nSides% = m(x)\r\nEND FUNCTION\r\n",
+                             "`Sides` is also the name of a FUNCTION", " 0"),
+    "qb_acm_sub": ("DECLARE SUB s (a)\r\n20 s\r\nSUB s (a)\r\nPRINT a\r\nEND SUB\r\n",
+                   "Argument-count mismatch in line 20 ", " 0"),
+    "qb_acm_call": ("DECLARE SUB s (a)\r\n20 CALL s\r\nSUB s (a)\r\nPRINT a\r\nEND SUB\r\n",
+                    "Argument-count mismatch in line 20 ", " 0"),
     "qb_byval": ("DECLARE SUB s (BYVAL a)\r\nx = 1: s x: PRINT x\r\nSUB s (BYVAL a)\r\na = 5\r\nEND SUB\r\n",
                  " 1 \r\n", "ERROR"),
     # A SUB's REDIM of its array parameter after ERASE made one the caller never saw.
