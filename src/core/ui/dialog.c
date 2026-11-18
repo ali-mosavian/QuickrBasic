@@ -366,7 +366,9 @@ static void draw_button(const DlogCtl *const c, const uint8_t row, uint8_t col)
     const uint8_t len = (uint8_t)scrn_slen(c->text);
     const uint8_t inner = (uint8_t)(width(c->text, c->cols) - 2 - len); /* the text centred */
     const uint8_t left = (uint8_t)(inner + 1) >> 1, right = inner - left;
-    const uint8_t edge = dl.focused ? SL_DFOC : SL_DLG;
+    const Dlog *const d = dl.d; /* the default one lit while no button has the focus (button.c) */
+    const bool def = c == &d->ctl[d->def] && d->ctl[dl.w.focus].kind != CT_BTN;
+    const uint8_t edge = dl.focused || def ? SL_DFOC : SL_DLG;
     col = scrn_fill(row, col, edge, '<', 1);
     col = scrn_fill(row, col, SL_DLG, ' ', left);
 

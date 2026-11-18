@@ -140,7 +140,9 @@ void udbg_stop(Session *const S)
 
 void udbg_row(Session *const S, const uint8_t row, const uint8_t col, const uint32_t line)
 {
-    if (text_mark(S, line))
+    const bool bp = text_mark(S, line);
+
+    if (bp)
         scrn_attr(row, col, uimn.ed.width, SL_BPL);
     if (!hl.on || uimn.text.changed || line + uimn.text.first != hl.line)
         return;
@@ -159,7 +161,7 @@ void udbg_row(Session *const S, const uint8_t row, const uint8_t col, const uint
     if (a >= b)
         return;
 
-    scrn_attr(row, (uint8_t)(col + a), b - a, SL_CUR);
+    scrn_attr(row, (uint8_t)(col + a), b - a, bp ? SL_CBP : SL_CUR); /* isaCurBreakpoint */
 }
 
 static void step(Session *const S, const StepKind kind)

@@ -319,7 +319,7 @@ static void child_draw(Widget *const x, Session *const S)
         top ? GLYPH_TOP_RIGHT : GLYPH_V_LEFT,
         titles[w],
         has_focus(w),
-        false
+        0
     );
 
     for (uint8_t r = 0; r + 1 < x->rect.rows; r++)

@@ -352,7 +352,7 @@ int sdl_main(void)
             host_term_set_shift(sdl_shift(SDL_GetModState()));
         }
 
-        const bool blink = SDL_GetTicks() / BLINK_MS % 2 == 0;
+        const bool blink = shot_to || SDL_GetTicks() / BLINK_MS % 2 == 0; /* a shot's cursor shown */
         const PmouState m = pmou_state();
         const ViewPointer pointer = {.shown = host_mouse_shown(), .row = m.row, .col = m.col};
 

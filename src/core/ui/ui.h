@@ -79,6 +79,8 @@ enum : uint8_t {
     SL_PAR,  /*   its parameters */
     SL_TYP,  /*   types */
     SL_OP,   /*   operators */
+    SL_SMSG, /* the status bar's message (QBasic's isaStatusAlert) */
+    SL_CBP,  /* the current statement on a breakpoint's line */
     NSLOT,   /* the asm's NATTR */
 };
 
@@ -140,6 +142,7 @@ enum : uint8_t {
     GLYPH_POINT_RIGHT = 0x10,
     GLYPH_POINT_LEFT = 0x11,
     GLYPH_UP = 0x18,
+    GLYPH_UPDOWN = 0x12, /* a maximised window's title (chUpDownArrow) */
     GLYPH_DOWN = 0x19,
     GLYPH_RIGHT = 0x1A,
     GLYPH_LEFT = 0x1B,

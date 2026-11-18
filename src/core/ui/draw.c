@@ -100,7 +100,7 @@ void draw_title(
     const uint8_t right,
     const char *const title,
     const bool lit,
-    const bool arrow
+    const uint8_t arrow
 )
 {
     uint8_t c = scrn_fill(row, col, SL_ED, left, 1);
@@ -110,7 +110,7 @@ void draw_title(
     if (arrow) {
         c -= 5;
         c = scrn_fill(row, c, SL_ED, GLYPH_V_LEFT, 1);
-        c = scrn_fill(row, c, SL_TTL, GLYPH_UP, 1);
+        c = scrn_fill(row, c, SL_TTL, arrow, 1);
         scrn_fill(row, c, SL_ED, GLYPH_V_RIGHT, 1);
     }
 
@@ -244,7 +244,9 @@ void draw_edit(Session *const S, const bool ina)
         top ? GLYPH_TOP_RIGHT : GLYPH_V_LEFT,
         room ? ttl : file,
         has_focus(),
-        !uimn.pane_on /* the maximise arrow, none by the pane */
+        uimn.pane_on     ? 0
+        : uimn.win.maxed ? GLYPH_UPDOWN
+                         : GLYPH_UP /* none by the pane */
     );
     sel = inactive ? SEL_NONE : edit_sel();
 
@@ -305,7 +307,7 @@ void draw_imm(void)
         GLYPH_V_LEFT,
         u_imm,
         uimn.tree.workspace.focus == FOC_IMM,
-        false
+        0
     );
 
     if (im->cur < im->top) /* the window shows top and the next */
@@ -350,13 +352,13 @@ static bool status_left(void)
     const char *const help = uimn.help;
 
     if (!help) {
-        scrn_str(status_row(), 1, draw_keys()->text, SL_STAT, SL_STAT);
+        scrn_str(status_row(), 1, draw_keys()->text, SL_SMSG, SL_SMSG);
         return true;
     }
 
     const char *const f1 = help == uimn_menu_help || help == uimn_dlog_help ? u_f1s : u_f1;
-    const uint8_t c = scrn_str(status_row(), 1, f1, SL_STAT, SL_STAT); /* F1=Help and a bar */
-    return scrn_str(status_row(), c, help, SL_STAT, SL_STAT) <= STATUS_BAR_COL;
+    const uint8_t c = scrn_str(status_row(), 1, f1, SL_SMSG, SL_SMSG); /* F1=Help and a bar */
+    return scrn_str(status_row(), c, help, SL_SMSG, SL_SMSG) <= STATUS_BAR_COL;
 }
 
 /* ^Q pending, Caps Lock, Num Lock. */

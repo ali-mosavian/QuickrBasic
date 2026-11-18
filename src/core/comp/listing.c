@@ -33,8 +33,9 @@
 
 /* The last item: LS_NONE no space follows (the start, '(', a sign), LS_WORD a name, number,
    string or ')', LS_KW a keyword, LS_FN a function's, LS_SEP an operator or , ; :, LS_REL a
-   relation. */
-enum : uint8_t { LS_NONE, LS_WORD, LS_KW, LS_FN, LS_SEP, LS_REL };
+   relation, LS_DECL SUB or FUNCTION, LS_PROC the name it declares: a space before its '(' as
+   QBasic's (SUB count (n%)). */
+enum : uint8_t { LS_NONE, LS_WORD, LS_KW, LS_FN, LS_SEP, LS_REL, LS_DECL, LS_PROC };
 
 /* ls_lead: the space before a word, as the last item wants. */
 static void lead(Comp *const C)
@@ -154,7 +155,7 @@ void list_body(Comp *const C, const uint8_t *p)
                 cons_putc(C->cons, name[i]);
 
             p += n + 3u;
-            C->list->last = LS_WORD;
+            C->list->last = C->list->last == LS_DECL ? LS_PROC : LS_WORD;
             continue;
         }
 
@@ -246,7 +247,7 @@ void list_body(Comp *const C, const uint8_t *p)
             cons_putc(C->cons, '\'');
         } else {
             cons_kw(C->cons, c);
-            C->list->last = cls;
+            C->list->last = c == TK_SUB || c == TK_FUNCTION ? LS_DECL : cls;
 
             if (c == TK_DATA) { /* its text as it is, then its ':' */
                 const uint8_t *const end = comp_skipdata(p);

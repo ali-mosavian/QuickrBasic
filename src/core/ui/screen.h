@@ -28,7 +28,7 @@ void scrn_sep(uint8_t row, uint8_t col, uint8_t cols, uint8_t slot);
 /* sc_attr: n cells from row, col take slot's attribute; their characters stay. */
 void scrn_attr(uint8_t row, uint8_t col, uint16_t n, uint8_t slot);
 /* sc_shadow: the shadow (SL_SHD) of a box of rows by cols at row, col: two columns right, a row
-   below, clipped to the screen. */
+   below; none when it would leave the screen. */
 void scrn_shadow(uint8_t row, uint8_t col, uint8_t rows, uint8_t cols);
 /* sc_cur: page 0's cursor at row, col. */
 void scrn_cursor(uint8_t row, uint8_t col);

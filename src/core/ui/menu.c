@@ -174,6 +174,7 @@ static struct {
     uint8_t c; /* the bar's menu */
     bool open; /* its box open, else the bar lit */
     bool sub;  /* a sub-menu open */
+    bool alt;  /* Alt held: the bar's letters lit */
     Level box, saved;
 } mn;
 
@@ -229,17 +230,24 @@ static bool checked(Session *const S, const Item *const it)
     return false;
 }
 
+void menu_letters(const bool on) { mn.alt = on; }
+
+/* The bar: its letters lit only while Alt is held or the bar is browsed, its open box's title's
+   not (COW's HiliteMenuMnem, OpenMenuCur). */
 void menu_bar(void)
 {
     scrn_fill(0, 0, SL_BAR, ' ', PSCR_COLS);
+    const bool browsed = mn.w.visible && !mn.open;
+    const uint8_t hot = browsed || mn.alt ? SL_HOT : SL_BAR;
 
     for (uint8_t b = 0; b < NMENU; b++) {
         if (mn.w.visible && b == mn.c) {
             const uint8_t title = scrn_fill(0, menu_x[b] - 1, SL_MSEL, ' ', 1);
-            const uint8_t after = scrn_str(0, title, menu_title[b], SL_MSEL, SL_MHOT);
+            const uint8_t after =
+                scrn_str(0, title, menu_title[b], SL_MSEL, mn.open ? SL_MSEL : SL_MHOT);
             scrn_fill(0, after, SL_MSEL, ' ', 1);
         } else {
-            scrn_str(0, menu_x[b], menu_title[b], SL_BAR, SL_HOT);
+            scrn_str(0, menu_x[b], menu_title[b], SL_BAR, hot);
         }
     }
 }
