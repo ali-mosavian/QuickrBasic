@@ -58,6 +58,13 @@ void synth_init(Synth *const s, const uint32_t rate)
     }
 }
 
+void synth_clock(Synth *const s, void (*const tick)(void), const uint32_t sixteenths)
+{
+    s->tick_step = (s->rate << 16) / sixteenths << 4; /* rate under 2^16 */
+    s->tick_left = 0;
+    s->tick = tick;
+}
+
 void synth_tone(Synth *const s, const uint32_t hertz)
 {
     __atomic_store_n(&s->want, hertz, __ATOMIC_RELAXED);
@@ -373,9 +380,18 @@ static void voice(const Synth *const s, SynthOsc *const o, int32_t *const sum, c
 /* A block at a time, each voice over the block in turn: the sum is the same, an int32 till it is clipped. */
 void synth_render(Synth *const s, int16_t *const out, const int count)
 {
-    for (int at = 0; at < count; at += SYNTH_BLOCK) {
-        const int n = count - at < SYNTH_BLOCK ? count - at : SYNTH_BLOCK;
+    for (int at = 0, n; at < count; at += n) {
         int32_t sum[SYNTH_BLOCK];
+
+        n = count - at < SYNTH_BLOCK ? count - at : SYNTH_BLOCK;
+        if (s->tick) { /* a block ends where the clock ticks */
+            if (s->tick_left < (uint32_t)ONE) {
+                s->tick();
+                s->tick_left += s->tick_step;
+            }
+            n = (uint32_t)n < s->tick_left >> 16 ? n : (int)(s->tick_left >> 16);
+            s->tick_left -= (uint32_t)n << 16;
+        }
 
         if (!__atomic_load_n(&s->want, __ATOMIC_RELAXED) && !s->hertz && !s->gain) /* silent: speaker() is 0 */
             for (int i = 0; i < n; i++)

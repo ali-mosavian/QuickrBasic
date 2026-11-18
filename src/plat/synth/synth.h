@@ -31,6 +31,9 @@ typedef struct Synth {
     /* the speaker: the tone wanted, written by any thread; the one sounding, its phase and its fade */
     uint32_t want, hertz, phase;
     int32_t gain;
+    /* the clock: its call, the samples between two (2^16 is 1) and those left to the next */
+    void (*tick)(void);
+    uint32_t tick_step, tick_left;
     SynthOsc osc[DEV_VOICES];
     int16_t sine[SYNTH_SINE];
 } Synth;
@@ -40,6 +43,9 @@ void synth_init(Synth *s, uint32_t rate);
 void synth_tone(Synth *s, uint32_t hertz);
 /* Voice `voice` set (dev_voice): not safe while synth_render runs. */
 void synth_voice(Synth *s, unsigned voice, const DevVoice *v);
+/* `tick` is called from synth_render, `sixteenths` 16ths of a hertz, by the count of its samples: a sequencer's
+   clock with no timer, as exact as the samples. It may set voices. */
+void synth_clock(Synth *s, void (*tick)(void), uint32_t sixteenths);
 void synth_render(Synth *s, int16_t *out, int count);
 
 #endif

@@ -10,6 +10,14 @@ static SDL_AudioStream *stream;
 
 void __real_dev_tone(unsigned hertz);
 void __real_dev_voice(unsigned voice, const DevVoice *v);
+int host_tick_fine_fire(void); /* the runtime's (dev/host/tick.h) */
+
+enum { FINE_RATE = 4661 }; /* music.h's MUSIC_FINE_RATE */
+
+static void tick(void)
+{
+    host_tick_fine_fire();
+}
 
 void __wrap_dev_tone(const unsigned hertz)
 {
@@ -46,6 +54,7 @@ void sdl_audio_open(void)
     const SDL_AudioSpec spec = {.format = SDL_AUDIO_S16, .channels = 1, .freq = RATE};
 
     synth_init(&synth, RATE);
+    synth_clock(&synth, tick, FINE_RATE);
     stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, fill, nullptr);
     if (stream)
         SDL_ResumeAudioStreamDevice(stream);

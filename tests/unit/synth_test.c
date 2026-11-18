@@ -354,6 +354,59 @@ TEST(play_voices_keep_time_with_each_other)
     CHECK(ons[0] == 16 && ons[1] == 11);
 }
 
+/* The synthesizer's clock: its call comes by the count of samples, 291.3 times a second, however the rendering is cut
+   up, and a voice it sets sounds from that sample. */
+static int clock_calls;
+static Synth *clock_synth;
+static void clock_tick(void)
+{
+    if (++clock_calls == 100) {
+        const DevVoice v = note(441, DEV_SAW, 0x00F0);
+        synth_voice(clock_synth, 0, &v);
+    }
+}
+
+TEST(synth_clock_ticks_by_its_samples)
+{
+    Synth s;
+    synth_init(&s, RATE);
+    synth_clock(&s, clock_tick, 4661);
+    clock_calls = 0;
+    clock_synth = &s;
+    for (int at = 0, piece = 1; at < RATE; at += piece, piece = piece * 7 % 601 + 1)
+        synth_render(&s, buf + at, piece < RATE - at ? piece : RATE - at);
+    CHECK(clock_calls == 292); /* at sample 0, then every 151.4 */
+    int first = 0;
+    while (first < RATE && buf[first] == 0)
+        first++;
+    CHECK(first >= 99 * 1514 / 10 - 4 && first <= 99 * 1514 / 10 + 4);
+}
+
+/* A synthesizer's notes count in 16ths of a clock tick: sixteenths at T140 start 31 parts apart (1.95 ticks), where
+   the clock tick alone put them 1 or 2 ticks apart. */
+void music_fine_tick(void);
+TEST(play_synth_notes_start_between_clock_ticks)
+{
+    static const char *const lines[] = {"10 PLAY \"MB T140 L16 W1 O3 CCCC\"", nullptr};
+
+    qbrt_realtime(false);
+    music_clear();
+    const size_t first = headless_voice_count();
+    CHECK(unit_run(S, lines) == ST_OK);
+    int ons[3];
+    for (int k = 0; k < 3; k++) {
+        for (int i = 0; i < (k == 0 ? 1 : k == 1 ? 30 : 1); i++)
+            music_fine_tick();
+        ons[k] = 0;
+        for (size_t i = first; i < headless_voice_count(); i++)
+            ons[k] += headless_voice(i).v.gate && headless_voice(i).v.hertz;
+    }
+    CHECK(ons[0] == 1 && ons[1] == 1 && ons[2] == 2);
+    music_clear();
+    headless_run(20); /* the clock's tick takes the queues back */
+    qbrt_realtime(true);
+}
+
 /* The new commands set the voice: W wave, Q pulse width, V volume, H envelope, Y filter. */
 TEST(play_sets_the_voice)
 {

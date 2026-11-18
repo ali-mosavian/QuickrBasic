@@ -6,6 +6,7 @@
    synthesizer, so a program that never uses one never touches it. */
 #include "device.h"
 #include "llrm_os.h"
+#include "music.h"
 #include "plat/synth/synth.h"
 
 enum {
@@ -238,6 +239,7 @@ void dev_synth_open(void)
         return;
 
     synth_init(&synth, 1000000L / (256 - TIME_CONSTANT));
+    synth_clock(&synth, music_fine_tick, MUSIC_FINE_RATE);
     card.half = 0;
     fill(0);
     fill(1);
