@@ -60,6 +60,7 @@ TYPE CellT
     bld AS INTEGER   ' the building on it
     hgt AS INTEGER   ' its level, 0 to MAXH
     rmp AS INTEGER   ' a ramp up a level: 1 rising north, 2 west
+    wk AS INTEGER    ' the headings its ground runs on to, a bit each (WalkBits)
 END TYPE
 
 TYPE UnitT
@@ -300,6 +301,7 @@ DECLARE FUNCTION Walk% (m() AS CellT, x AS INTEGER, y AS INTEGER, d AS INTEGER)
 DECLARE FUNCTION Lift% (m() AS CellT, x AS INTEGER, y AS INTEGER)
 DECLARE FUNCTION LiftAt! (m() AS CellT, px AS SINGLE, py AS SINGLE)
 DECLARE FUNCTION Corner% (m() AS CellT, x AS INTEGER, y AS INTEGER, c AS INTEGER)
+DECLARE SUB WalkBits (m() AS CellT)
 DECLARE FUNCTION Joined% (m() AS CellT, x AS INTEGER, y AS INTEGER, nx AS INTEGER, ny AS INTEGER)
 DECLARE SUB UnitScreen (g AS GameT, m() AS CellT, u() AS UnitT, i AS INTEGER, sx AS INTEGER, sy AS INTEGER)
 DECLARE SUB PickTile (g AS GameT, m() AS CellT, sx AS INTEGER, sy AS INTEGER, wx AS INTEGER, wy AS INTEGER)
@@ -2847,7 +2849,7 @@ END SUB
 ' The flow field to goal: each tile's steps to it, FAR where there is no way. Units ignored.
 SUB BuildField (m() AS CellT, fd() AS INTEGER, fi AS INTEGER, goal AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER, h AS INTEGER, tl AS INTEGER, d AS INTEGER, nx AS INTEGER, ny AS INTEGER
-    DIM v AS INTEGER
+    DIM v AS INTEGER, w AS INTEGER, ok AS INTEGER, sx(7) AS INTEGER, sy(7) AS INTEGER, bt(7) AS INTEGER
     DIM qx(MAPW * MAPH) AS INTEGER, qy(MAPW * MAPH) AS INTEGER
     FOR y = 0 TO MAPH - 1: FOR x = 0 TO MAPW - 1: fd(fi, x, y) = FAR: NEXT: NEXT
     IF goal = OREKEY THEN
@@ -2860,13 +2862,21 @@ SUB BuildField (m() AS CellT, fd() AS INTEGER, fi AS INTEGER, goal AS INTEGER)
         x = goal MOD MAPW: y = goal \ MAPW
         fd(fi, x, y) = 0: qx(0) = x: qy(0) = y: tl = 1
     END IF
+    ' Walk% inlined, the cheap tests first: a field is 8 tries a tile
+    FOR d = 0 TO 7: sx(d) = StepX%(d): sy(d) = StepY%(d): bt(d) = 2 ^ d: NEXT
     DO WHILE h < tl
         x = qx(h): y = qy(h): h = h + 1
-        v = fd(fi, x, y) + 1
+        v = fd(fi, x, y) + 1: w = m(x, y).wk
         FOR d = 0 TO 7
-            nx = x + StepX%(d): ny = y + StepY%(d)
-            IF Walk%(m(), x, y, d) THEN
-                IF fd(fi, nx, ny) > v THEN fd(fi, nx, ny) = v: qx(tl) = nx: qy(tl) = ny: tl = tl + 1
+            IF w AND bt(d) THEN
+                nx = x + sx(d): ny = y + sy(d)
+                IF fd(fi, nx, ny) > v THEN
+                    IF Passable%(m(), nx, ny) THEN
+                        ok = -1
+                        IF d AND 1 THEN ok = Passable%(m(), nx, y) AND Passable%(m(), x, ny)
+                        IF ok THEN fd(fi, nx, ny) = v: qx(tl) = nx: qy(tl) = ny: tl = tl + 1
+                    END IF
+                END IF
             END IF
         NEXT
     LOOP
@@ -4754,16 +4764,42 @@ END FUNCTION
 ' down, and on a diagonal past the two tiles it cuts between.
 ' Whether a unit can step from x, y in heading d: onto open land the ground runs on to, and on a
 ' diagonal round both the tiles it cuts between.
+' Whether a unit can step from x, y in heading d: onto open land the ground runs on to, and on a
+' diagonal round both the tiles it cuts between.
 FUNCTION Walk% (m() AS CellT, x AS INTEGER, y AS INTEGER, d AS INTEGER)
     DIM nx AS INTEGER, ny AS INTEGER
     Walk% = 0
+    IF (m(x, y).wk AND 2 ^ d) = 0 THEN EXIT FUNCTION
     nx = x + StepX%(d): ny = y + StepY%(d)
     IF Passable%(m(), nx, ny) = 0 THEN EXIT FUNCTION
-    IF d MOD 2 = 0 THEN Walk% = Joined%(m(), x, y, nx, ny): EXIT FUNCTION
-    IF Passable%(m(), nx, y) = 0 OR Passable%(m(), x, ny) = 0 THEN EXIT FUNCTION
-    IF Joined%(m(), x, y, nx, y) = 0 OR Joined%(m(), nx, y, nx, ny) = 0 THEN EXIT FUNCTION
-    Walk% = Joined%(m(), x, y, x, ny) AND Joined%(m(), x, ny, nx, ny)
+    IF d MOD 2 THEN
+        IF Passable%(m(), nx, y) = 0 OR Passable%(m(), x, ny) = 0 THEN EXIT FUNCTION
+    END IF
+    Walk% = -1
 END FUNCTION
+
+' Each tile's headings its ground runs on to, by the heights alone: no cliff, no ramp's side, and on
+' a diagonal none round either way. The heights never change, so once a game.
+SUB WalkBits (m() AS CellT)
+    DIM x AS INTEGER, y AS INTEGER, d AS INTEGER, nx AS INTEGER, ny AS INTEGER, ok AS INTEGER
+    FOR y = 0 TO MAPH - 1
+        FOR x = 0 TO MAPW - 1
+            m(x, y).wk = 0
+            FOR d = 0 TO 7
+                nx = x + StepX%(d): ny = y + StepY%(d)
+                IF nx >= 0 AND ny >= 0 AND nx < MAPW AND ny < MAPH THEN
+                    IF d MOD 2 = 0 THEN
+                        ok = Joined%(m(), x, y, nx, ny)
+                    ELSE
+                        ok = Joined%(m(), x, y, nx, y) AND Joined%(m(), nx, y, nx, ny)
+                        ok = ok AND Joined%(m(), x, y, x, ny) AND Joined%(m(), x, ny, nx, ny)
+                    END IF
+                    IF ok THEN m(x, y).wk = m(x, y).wk OR 2 ^ d
+                END IF
+            NEXT
+        NEXT
+    NEXT
+END SUB
 
 ' The level of tile x, y's corner c: 0 north (its diamond's top), 1 east, 2 south, 3 west.
 FUNCTION Corner% (m() AS CellT, x AS INTEGER, y AS INTEGER, c AS INTEGER)
@@ -4896,6 +4932,7 @@ SUB NewGame (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS Bldg
             END IF
         NEXT
     NEXT
+    WalkBits m()
     FOR i = 1 TO MAXU: u(i) = blank: NEXT
     FOR i = 1 TO MAXB: bl(i) = noB: NEXT
     FOR i = 1 TO MAXFX: fx(i) = noFx: NEXT

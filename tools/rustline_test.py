@@ -6,8 +6,12 @@ sight fired; the same in the battle tune's hats stopped it on the first bar.
 """
 
 import re
+import sys
 from itertools import pairwise
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # run with -I too
+import bench
 
 BAS = Path(__file__).resolve().parent.parent / "src/plat/wasm/web/demos/RUSTLINE.BAS"
 
@@ -92,6 +96,63 @@ def test_explored_ground_not_dark() -> None:
     assert not re.search(r"\.vis = 0 THEN (PUT|c = FOG)", BAS.read_text())
 
 
+def field_program(w: int, h: int, builds: int, bas: str = "") -> str:
+    """RUSTLINE on a w by h map (its own map tiled) building the ore route map `builds` times; it
+    prints the map's sum, to compare."""
+    src = re.sub(r"CONST MAPW = \d+, MAPH = \d+", f"CONST MAPW = {w}, MAPH = {h}", bas or BAS.read_text())
+    src = re.sub(r"CONST (.*)\bNF = \d+", r"CONST \1NF = 1", src)
+    main = f"""DIM mp(47) AS STRING, hd(47) AS STRING, r AS STRING, c AS STRING, x AS INTEGER, y AS INTEGER
+RESTORE MapData: FOR y = 0 TO 47: READ mp(y): NEXT
+RESTORE HeightData: FOR y = 0 TO 47: READ hd(y): NEXT
+FOR y = 0 TO MAPH - 1
+    FOR x = 0 TO MAPW - 1
+        c = MID$(mp(y MOD 48), x MOD 64 + 1, 1)
+        m(x, y).terr = TGROUND
+        IF c = "#" THEN m(x, y).terr = TROCK
+        IF c = "~" THEN m(x, y).terr = TWATER
+        IF c = "m" THEN m(x, y).terr = TORE
+        IF c = "T" THEN m(x, y).terr = TTREE
+        c = MID$(hd(y MOD 48), x MOD 64 + 1, 1)
+        IF c >= "a" THEN
+            m(x, y).hgt = ASC(c) - 97: m(x, y).rmp = 1
+        ELSEIF c >= "A" THEN
+            m(x, y).hgt = ASC(c) - 65: m(x, y).rmp = 2
+        ELSE
+            m(x, y).hgt = VAL(c)
+        END IF
+    NEXT
+NEXT
+{"WalkBits m()" if "SUB WalkBits" in src else ""}
+FOR x = 1 TO {builds}: BuildField m(), fd(), 0, OREKEY: NEXT
+DIM sum AS LONG
+FOR y = 0 TO MAPH - 1: FOR x = 0 TO MAPW - 1: sum = sum + fd(0, x, y): NEXT: NEXT
+PRINT "built"; sum
+"""
+    i, j = src.index("\nSetup g, tune()\n") + 1, src.index("\nWIDTH 80\nEND\n") + len("\nWIDTH 80\nEND\n")
+    return src[:i] + main + "END\n" + src[j:]
+
+
+def field_cost(w: int, h: int, bas: str = "") -> bench.Cost:
+    """One ore route map's cost on a w by h map: 3 builds less 1, halved."""
+    progs = {"one": field_program(w, h, 1, bas), "three": field_program(w, h, 3, bas)}
+    r = bench.run_native(bench.build(".", False), progs, runs=1)
+    return bench.Cost("", (r["three"].insns - r["one"].insns) // 2, (r["three"].ops - r["one"].ops) // 2)
+
+
+def test_route_map_cost() -> None:
+    """A route map took 4,700 VM ops a tile, Walk% working out each step's corners: 27 ms on 64 by 48,
+    a hitch on every new order. The headings each tile's ground runs on to are worked out once a game."""
+    c = field_cost(64, 48)
+    assert c.ops / (64 * 48) < 1000, c.ops / (64 * 48)
+
+
+if __name__ == "__main__" and sys.argv[1:] == ["fields"]:
+    for w, h in ((32, 24), (64, 48), (96, 72), (128, 96)):
+        c = field_cost(w, h)
+        per = c.ops / (w * h)
+        print(f"{w:>3} x {h:<3} {c.insns / 1e6:8.1f} M insns  {c.ops / 1e6:6.2f} M ops  {per:6.0f} ops a tile")
+    sys.exit()
+
 if __name__ == "__main__":
     test_octaves()
     test_effects_on_synth()
@@ -100,4 +161,5 @@ if __name__ == "__main__":
     test_battle_never_waits()
     test_map_fits_its_size()
     test_explored_ground_not_dark()
+    test_route_map_cost()
     print("ok")
