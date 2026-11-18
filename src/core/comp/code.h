@@ -19,7 +19,14 @@ typedef struct {
     bool fixdbl;       /* g_xdbl: FIX kept a DOUBLE */
 } Code;
 
-void code_byte(Code *c, uint8_t b);
+/* A byte past lim dropped, full set */
+static inline void code_byte(Code *const c, const uint8_t b)
+{
+    if (c->out >= c->lim)
+        c->full = true;
+    else
+        *c->out++ = b;
+}
 static inline void code_op(Code *const c, const uint8_t op) { code_byte(c, op); }
 void code_opb(Code *c, uint8_t op, uint8_t b);  /* op, a byte */
 void code_opw(Code *c, uint8_t op, uint16_t w); /* op, a word */

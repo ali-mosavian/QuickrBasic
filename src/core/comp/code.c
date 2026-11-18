@@ -32,16 +32,6 @@
 #include "num/fpmath.h"
 #include "vm/exec.h"
 
-void code_byte(Code *const c, const uint8_t b)
-{
-    if (c->out >= c->lim) {
-        c->full = true;
-        return;
-    }
-
-    *c->out++ = b;
-}
-
 void code_opb(Code *const c, const uint8_t op, const uint8_t b)
 {
     code_op(c, op);
@@ -50,6 +40,12 @@ void code_opb(Code *const c, const uint8_t op, const uint8_t b)
 
 void code_word(Code *const c, const uint16_t w)
 {
+    if (c->lim - c->out >= 2) {
+        store16(c->out, w);
+        c->out += 2;
+        return;
+    }
+
     code_byte(c, (uint8_t)w);
     code_byte(c, (uint8_t)(w >> 8));
 }
@@ -62,6 +58,12 @@ void code_opw(Code *const c, const uint8_t op, const uint16_t w)
 
 void code_dword(Code *const c, const uint32_t d)
 {
+    if (c->lim - c->out >= 4) {
+        store32(c->out, d);
+        c->out += 4;
+        return;
+    }
+
     code_word(c, (uint16_t)d);
     code_word(c, (uint16_t)(d >> 16));
 }
