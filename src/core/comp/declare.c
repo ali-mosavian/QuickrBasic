@@ -54,6 +54,7 @@ typedef struct {
     Symb *sy;
     uint32_t line; /* the line entered */
     bool loading;  /* from a file: a DEFtype is an event */
+    bool deft_only; /* decl_defevents': the names' uses not noted */
     const uint8_t *at;
 } DeclScan;
 
@@ -634,6 +635,8 @@ static void decl_shared(DeclScan *const ds, const uint8_t flag)
 /* DEFtype l[-l] {, l[-l]}; DEFSHORT and DEFBYTE ours. */
 static void decl_deflist(DeclScan *const ds, const uint8_t et)
 {
+    ds->d->deft = true;
+
     for (;;) {
         if (*ds->at != M_VAR)
             return;
@@ -831,7 +834,9 @@ static bool decl_next(DeclScan *const ds)
             return true;
         }
 
-        if (c == M_VAR) {
+        if (ds->deft_only)
+            ;
+        else if (c == M_VAR) {
             decl_use(ds, ds->at);
             decl_arrayuse(ds, ds->at);
         } else if (c == TK_LBOUND || c == TK_UBOUND)
@@ -860,6 +865,7 @@ void decl_line(
     };
 
     DeclScan *const ds = &scan;
+    d->deft = false;
 
     if (*ds->at == M_INT) /* a line number */
         ds->at += INT_TOKEN_SIZE;
@@ -948,7 +954,7 @@ void decl_defevents(Decl *const d, Scop *const sc, Symb *const sy, const Prog *c
     memcpy(sy->deft, deft0, NLETTERS);
 
     for (uint32_t rec = PROGBASE, len; (len = prog_line(pg, rec)->len); rec += len) {
-        if (prog_line(pg, rec)->flags & LF_ASIS)
+        if (prog_line(pg, rec)->flags & (LF_ASIS | LF_NODEF))
             continue;
 
         DeclScan scan = {
@@ -957,6 +963,7 @@ void decl_defevents(Decl *const d, Scop *const sc, Symb *const sy, const Prog *c
             .sy = sy,
             .line = rec,
             .loading = true,
+            .deft_only = true,
         };
 
         DeclScan *const ds = &scan;

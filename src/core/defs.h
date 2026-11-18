@@ -81,7 +81,8 @@ typedef struct PACKED {
 } Line;
 static_assert(sizeof(Line) == 20);
 enum { HDR = sizeof(Line) };
-enum : uint8_t { LF_ASIS = 1, LF_BP = 2, LF_INC = 4 };
+/* LF_NODEF: decl_line found no DEFtype in it, decl_defevents passes it. */
+enum : uint8_t { LF_ASIS = 1, LF_BP = 2, LF_INC = 4, LF_NODEF = 8 };
 enum : uint32_t {
     NONUM = 0xFFFF,
     LMAX = 0xFEE0,     /* a line's body at most */

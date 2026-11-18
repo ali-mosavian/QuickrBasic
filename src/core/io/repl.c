@@ -656,7 +656,10 @@ uint8_t repl_enter(Session *const S, const uint32_t len)
         return ENTER_EMPTY;
     if (S->repl.loading) { /* every line stored, at the end */
         const uint8_t *const body = enter_decls(S, place);
+        const uint8_t keep = S->prog.add_flags;
+        S->prog.add_flags |= S->decl.deft ? 0 : LF_NODEF;
         prog_add(&S->prog, S->vm.lnum, body, (uint32_t)(end - body));
+        S->prog.add_flags = keep;
         return ENTER_STORED;
     }
 
@@ -666,7 +669,10 @@ uint8_t repl_enter(Session *const S, const uint32_t len)
         return ENTER_DIRECT;
 
     comp_peek(&p);
+    const uint8_t keep = S->prog.add_flags;
+    S->prog.add_flags |= S->decl.deft ? 0 : LF_NODEF;
     prog_put(&S->prog, S->link.cursor, S->vm.lnum, p, (uint32_t)(end - p));
+    S->prog.add_flags = keep;
     return ENTER_STORED;
 }
 

@@ -43,6 +43,7 @@ typedef struct {
     bool baseset;            /* g_obset */
     bool dimmed;             /* g_odim: an array DIMmed (OPTION BASE after: an error) */
     bool explicit_;          /* g_oexp: OPTION EXPLICIT */
+    bool deft;               /* decl_line's line has a DEFtype */
     uint32_t ndefev, defcap; /* g_ndev: DEFtype lines */
     DefEvent *defevs;
     uint32_t typecap;
