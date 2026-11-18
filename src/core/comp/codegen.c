@@ -75,9 +75,9 @@ static void cg_on(Code *c, const Node *n);
 static void cg_casecmp(Code *c, const Node *n);
 
 /* cm_shid: variable v's load just made: a SHORT's, class 1. */
-static void shortid(Code *const c, const Var *const v)
+static void shortid(Code *const c, const uint8_t vtype)
 {
-    if (v->type == ET_SH) {
+    if (vtype == ET_SH) {
         c->sh = SH_SHORT;
         c->shend = c->out;
     }
@@ -190,7 +190,7 @@ static bool one_load(
 )
 {
     if (n->kind == N_VAR) {
-        const uint8_t info = n->var->info;
+        const uint8_t info = n->vinfo;
 
         if (info & SK_DBL || n->par)
             return false;
@@ -295,7 +295,7 @@ static void cg_as(Code *const c, const Node *const i, const uint8_t t, const boo
 static uint8_t leaf_class(Code *const c, const Node *const n)
 {
     if (n->kind == N_VAR)
-        return n->var->type == ET_SH ? SH_SHORT : SH_NONE;
+        return n->vtype == ET_SH ? SH_SHORT : SH_NONE;
 
     return n->sh;
 }
@@ -642,7 +642,7 @@ void cg_tree(Code *const c, const Node *const n) { gen(c, n); }
 static void loadvar(Code *const c, const Node *const n)
 {
     const uint16_t id = n->id;
-    const uint8_t info = n->var->info;
+    const uint8_t info = n->vinfo;
 
     if (info & SK_DBL) {
         c->type = T_DBL;
@@ -657,7 +657,7 @@ static void loadvar(Code *const c, const Node *const n)
         code_opid(c, O_I_LD_V, id, n->par);
         c->iloadend = c->out;
         c->type = T_INT;
-        shortid(c, n->var);
+        shortid(c, n->vtype);
     } else if (k == VK_STR) {
         c->type = T_STR;
         code_opid(c, O_S_LD_V, id, n->par);
@@ -755,7 +755,7 @@ static void cg_elem(Code *const c, const Node *const n)
         cg_as(c, a, T_INT, false);
 
     const uint16_t id = n->id;
-    const uint8_t k = n->var->info & (SK_DBL | VK_MASK);
+    const uint8_t k = n->vinfo & (SK_DBL | VK_MASK);
     c->type = expr_ktype[k];
     c->iload = c->iloadend = nullptr;
 
@@ -767,7 +767,7 @@ static void cg_elem(Code *const c, const Node *const n)
     }
 
     c->shend = nullptr;
-    shortid(c, n->var);
+    shortid(c, n->vtype);
 }
 
 static void cg_fn(Code *const c, const Node *const n)
@@ -920,12 +920,12 @@ static void cg_arg(Code *const c, const Node *const n)
     switch (n->op) {
     case PA_VALUE:
         gen(c, n->a);
-        code_toinfo(c, n->var->info);
+        code_toinfo(c, n->vinfo);
 
-        if (n->var->type == ET_BY)
+        if (n->vtype == ET_BY)
             code_op(c, O_I_CHK8);
 
-        code_opb(c, O_BYVAL, (n->var->info & VK_MASK) == VK_STR);
+        code_opb(c, O_BYVAL, (n->vinfo & VK_MASK) == VK_STR);
         break;
 
     case PA_VAR: /* a value cell, then its ref: the variable's cell (an array's too) */
@@ -998,14 +998,14 @@ static void cg_conv(Code *const c, const Node *const n)
    STRING * n: n chars. */
 static uint8_t cg_convert_for(Code *const c, const Node *const n)
 {
-    switch (n->var->info & VK_MASK) {
+    switch (n->vinfo & VK_MASK) {
     case VK_INT:
         code_shclass(c);
         code_toint(c);
 
-        if (n->var->type == ET_SH && !c->shclass)
+        if (n->vtype == ET_SH && !c->shclass)
             code_op(c, O_I_CHK16);
-        if (n->var->type == ET_BY)
+        if (n->vtype == ET_BY)
             code_op(c, O_I_CHK8);
 
         return 0;
@@ -1029,7 +1029,7 @@ void cg_store_value(Code *const c, const Node *const n)
 {
     gen(c, n->a);
 
-    if (n->var->info & SK_DBL)
+    if (n->vinfo & SK_DBL)
         code_todouble(c);
     else
         cg_convert_for(c, n);
@@ -1039,9 +1039,9 @@ void cg_store_op(Code *const c, const Node *const n)
 {
     uint8_t scalar = O_D_ST_V, one = O_D_ST_A1, many = O_D_ST_A;
 
-    if (!(n->var->info & SK_DBL)) {
-        const uint8_t k = (n->var->info & VK_MASK) == VK_INT   ? 0
-                          : (n->var->info & VK_MASK) == VK_FLT ? 1
+    if (!(n->vinfo & SK_DBL)) {
+        const uint8_t k = (n->vinfo & VK_MASK) == VK_INT   ? 0
+                          : (n->vinfo & VK_MASK) == VK_FLT ? 1
                                                                : 2;
         scalar = (const uint8_t[]){O_I_ST_V, O_F_ST_V, O_S_ST_V}[k];
 

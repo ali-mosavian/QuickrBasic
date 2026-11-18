@@ -124,7 +124,7 @@ struct Node {
                           or a record's; N_CALL CALL_UNDEF: its result */
     RecRef rec; /* N_REF of a record: the place in it */
     /* Resolved by sema (comp/sema.h), for gen: */
-    const Var *var;       /* id's variable */
+    uint8_t vtype, vinfo; /* id's variable's ET_*, info: by value, the table may move */
     bool par;             /* id a scalar parameter of the procedure compiled */
     Jump jump;            /* N_CALL CALL_PROC: its procedure's entry; N_GO, N_COND: the target */
     uint8_t lit[LIT_MAX]; /* N_LIT, N_OP, N_JUMP: its operand bytes */

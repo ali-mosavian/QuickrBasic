@@ -26,7 +26,14 @@ static void mismatch(Comp *const C)
 
 static void check(Comp *C, Node *n);
 
-/* The facts gen needs of n's names, as they stand now: nothing moves them before gen. */
+static void own(Comp *const C, Node *const n)
+{
+    const Var *const v = symb_var(C->symb, n->id);
+    n->vtype = v->type;
+    n->vinfo = v->info;
+}
+
+/* The facts gen needs of n's names. */
 static void resolve(Comp *const C, Node *const n)
 {
     switch (n->kind) {
@@ -37,19 +44,19 @@ static void resolve(Comp *const C, Node *const n)
     case N_STORE:
     case N_OPID:
     case N_CASECMP:
-        n->var = symb_var(C->symb, n->id);
+        own(C, n);
         n->par = comp_ispar(C, n->id);
         break;
 
     case N_ARG:
         if (n->op == PA_VALUE)
-            n->var = symb_var(C->symb, n->id);
+            own(C, n);
 
         break;
 
     case N_CALL:
         if (n->mode == CALL_UNDEF) {
-            n->var = symb_var(C->symb, n->id);
+            own(C, n);
             n->par = comp_ispar(C, n->id);
         } else
             n->jump = ctrl_jump(C, blok_proc(C->blok, n->op)->entry);
@@ -287,16 +294,4 @@ static void check(Comp *const C, Node *const n)
 
 void sema_tree(Comp *const C, Node *const n) { check(C, n); }
 
-/* Each node of the list from n. */
-static void resolve_list(Comp *const C, Node *n)
-{
-    for (; n; n = n->next)
-        sema_resolve(C, n);
-}
-
-void sema_resolve(Comp *const C, Node *const n)
-{
-    resolve(C, n);
-    resolve_list(C, n->a);
-    resolve_list(C, n->b);
-}
+void sema_resolve(Comp *const C, Node *const n) { resolve(C, n); }
