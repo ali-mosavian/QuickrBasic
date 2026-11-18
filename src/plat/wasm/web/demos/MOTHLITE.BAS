@@ -1119,11 +1119,12 @@ END SUB
 SUB DrawSparks (sp() AS Spark)
     DIM i AS INTEGER, c AS INTEGER, l AS SINGLE
     DIM x AS INTEGER, y AS INTEGER
-    DIM n AS INTEGER
+    DIM n AS LONG
     FOR i = 0 TO NSPARK - 1
-        l = SparkLife!(sp(i))
+        n = Ticks - sp(i).born
+        l = 0
+        IF n <= NAGE THEN l = sp(i).life - PathAge(n)
         IF l > 0 THEN
-            n = Ticks - sp(i).born
             c = CSPARK + 2
             IF l > .35 THEN c = CSPARK + 1
             IF l > .7 THEN c = CSPARK
@@ -1277,11 +1278,15 @@ END FUNCTION
 ' Sparks from the moth, as the burst id says.
 SUB Emit (sp() AS Spark, m AS Moth, id AS INTEGER)
     DIM i AS INTEGER, n AS INTEGER, k AS SINGLE
+    DIM a AS LONG, free AS INTEGER
     n = Bursts(id).n
     k = Bursts(id).kick
     FOR i = 0 TO NSPARK - 1
         IF n = 0 THEN EXIT FOR
-        IF SparkLife!(sp(i)) <= 0 THEN
+        a = Ticks - sp(i).born
+        free = a > NAGE
+        IF NOT free THEN free = sp(i).life - PathAge(a) <= 0
+        IF free THEN
             sp(i).born = Ticks
             sp(i).x = m.x - 5 + RND * 3
             sp(i).y = m.y + RND * 4 - 2
