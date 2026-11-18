@@ -49,6 +49,13 @@ enum {
     NAME_HASH_MUL = 31,
 };
 
+/* upcase by a load: a name's every byte goes through it twice */
+#define U1(c) ((c) >= 'a' && (c) <= 'z' ? (c) - ('a' - 'A') : (c))
+#define U4(c) U1(c), U1(c + 1), U1(c + 2), U1(c + 3)
+#define U16(c) U4(c), U4(c + 4), U4(c + 8), U4(c + 12)
+#define U64(c) U16(c), U16(c + 16), U16(c + 32), U16(c + 48)
+static const uint8_t up[256] = {U64(0), U64(64), U64(128), U64(192)};
+
 static uint16_t *symb_name_next(const Symb *const sy) { return (uint16_t *)at(sy->names.at[1]); }
 
 /* The variables' block moved or grew: vt by the cells' move. */
@@ -126,7 +133,7 @@ static bool symb_spells(const uint8_t *const t, const uint8_t *const text, const
     if (t[0] != len)
         return false;
     for (uint8_t i = 0; i < len; i++)
-        if (upcase(text[i]) != t[1 + i])
+        if (up[text[i]] != t[1 + i])
             return false;
 
     return true;
@@ -137,7 +144,7 @@ uint16_t symb_find_name(Symb *const sy, const uint8_t *const text, const uint8_t
     uint32_t hash = 0;
 
     for (uint8_t i = 0; i < len; i++)
-        hash = hash * NAME_HASH_MUL + upcase(text[i]);
+        hash = hash * NAME_HASH_MUL + up[text[i]];
 
     const uint32_t h = hash & (HSIZE - 1);
 
