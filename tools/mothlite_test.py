@@ -69,7 +69,7 @@ BuildSprites
 BuildLand
 DIM w AS World, joy AS Pad, cur(NKEY - 1, 2) AS SINGLE
 DIM st(NSTONE - 1) AS Stone, sp(NSPARK - 1) AS Spark
-DIM k AS INTEGER
+DIM k AS INTEGER, i AS INTEGER, kk AS INTEGER
 NewWorld w, cur()
 OPEN "FRAMES.BIN" FOR BINARY AS #1
 FOR k = 0 TO 5
@@ -83,6 +83,12 @@ DO
     READ w.g.scroll
     IF w.g.scroll < 0 THEN EXIT DO
     w.g.clock = w.g.scroll / 7
+    FOR i = 0 TO NSTONE - 1
+        st(i).x = -37 + i * 97 + kk * 3
+        st(i).kind = (i + kk) MOD NKIND
+        st(i).gap = 60 + (i * 23 + kk * 7) MOD 71
+    NEXT
+    kk = kk + 1
     Render w, st(), sp()
 LOOP
 w.g.mode = OVER: w.g.score = 12: w.g.best = 30: w.g.newBest = -1: w.g.scroll = 3001
@@ -104,7 +110,7 @@ DATA 0,1,2.5,5,13,100,799,1597.5,1600,2400,4266.7,6400,8533,12790,12800,12817,25
 """
 
 # The frames' MD5, from the drawing at 66c90a5 (seeded alike).
-FRAMES_MD5 = "032645068f305167791e616683c89f52"
+FRAMES_MD5 = "ca7941b583e76e4b7fb124d023276d12"
 
 
 def frames_program() -> str:

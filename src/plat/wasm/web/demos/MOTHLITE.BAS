@@ -281,6 +281,11 @@ DECLARE SUB Moss (x AS INTEGER, cy AS INTEGER)
 DECLARE SUB Drips (x AS INTEGER, y AS INTEGER)
 DECLARE SUB Decorate (st() AS Stone, i AS INTEGER, t AS SINGLE)
 DECLARE SUB Runes (x AS INTEGER, y1 AS INTEGER, y2 AS INTEGER, t AS SINGLE)
+DECLARE SUB RuneCol (x AS INTEGER, y1 AS INTEGER, y2 AS INTEGER, c AS INTEGER)
+DECLARE SUB ShaftAt (x AS INTEGER, y1 AS INTEGER, y2 AS INTEGER)
+DECLARE SUB StonePart (k AS INTEGER)
+DECLARE SUB KeepPart (k AS INTEGER, x1 AS INTEGER, x2 AS INTEGER, h AS INTEGER, im() AS LONG, s AS LONG, mk() AS LONG, ms AS LONG)
+DECLARE SUB BuildStoneArt ()
 DECLARE SUB Vines (x AS INTEGER, y2 AS INTEGER, t AS SINGLE)
 DECLARE SUB Shrooms (x AS INTEGER, cy AS INTEGER)
 DECLARE SUB DrawMoth (m AS Moth, mode AS INTEGER)
@@ -368,6 +373,19 @@ DIM SHARED Ink AS INTEGER
 ' n ticks old, from the paths of a spark moving at 1
 ' each way: there it is, its age, gravity's part.
 CONST NAGE = 140
+' A stone's parts drawn once: a shaft (rows from its
+' top), a cap; moss, drips, a broken cap at each
+' column mod 4, the runes in either colour, each with
+' its mask.
+CONST CAPW = STONEW + 2 * OVERHANG
+CONST SHAFTN = (STONEW * GROUNDY + 7) \ 4, CAPN = (CAPW * CAPH + 7) \ 4
+CONST MOSSN = (CAPW * 3 + 7) \ 4, DRIPN = (CAPW * 6 + 7) \ 4
+CONST RUNEN = (3 * 180 + 7) \ 4
+DIM SHARED ShaftImg(SHAFTN) AS LONG, CapImg(CAPN) AS LONG
+DIM SHARED MossI(MOSSN) AS LONG, MossM(MOSSN) AS LONG
+DIM SHARED DripI(DRIPN) AS LONG, DripM(DRIPN) AS LONG
+DIM SHARED BrokeI(CAPN * 4 + 3) AS LONG, BrokeM(CAPN * 4 + 3) AS LONG
+DIM SHARED RuneI(RUNEN * 2 + 1) AS LONG, RuneM(RUNEN) AS LONG
 DIM SHARED Ticks AS LONG, PathX(NAGE) AS SINGLE, PathY(NAGE) AS SINGLE
 DIM SHARED PathG(NAGE) AS SINGLE, PathAge(NAGE) AS SINGLE
 ' Text drawn once in each look, image then mask, in
@@ -612,10 +630,10 @@ SUB Broken (x AS INTEGER, cy AS INTEGER)
     b = cy + CAPH - 1
     FOR dx = 0 TO STONEW - 1 + 2 * OVERHANG
         h = CAPH - ((dx \ 3) * 5 + x) MOD 4
-        LINE (c1 + dx, b + 1 - h)-(c1 + dx, b), StoneCol(dx)
-        PSET (c1 + dx, b + 1 - h), CINK
+        LINE (c1 + dx, b + 1 - h)-(c1 + dx, b), Ik%(StoneCol(dx))
+        PSET (c1 + dx, b + 1 - h), Ik%(CINK)
     NEXT
-    LINE (c1, b)-(x + STONEW - 1 + OVERHANG, b), CINK
+    LINE (c1, b)-(x + STONEW - 1 + OVERHANG, b), Ik%(CINK)
 END SUB
 
 ' The ROM font's rows, read back off the screen.
@@ -1081,6 +1099,7 @@ END SUB
 ' A cloud and the sun's face, each with its mask.
 SUB BuildSprites
     DIM x AS INTEGER, y AS INTEGER
+    BuildStoneArt
     Ink = -1
     x = SW \ 2: y = 50
     LINE (x - 19, y - 10)-(x + 19, y + 11), 0, BF
@@ -1124,15 +1143,20 @@ SUB DrawStone (st() AS Stone, i AS INTEGER, t AS SINGLE)
     x = INT(st(i).x)
     top = st(i).gap - GAP \ 2
     bot = st(i).gap + GAP \ 2
-    Shaft x, 0, top
-    Shaft x, bot, GROUNDY - 1
-    Lintel x, top - CAPH + 1
-    Drips x, top + 1
-    IF st(i).kind = 3 THEN
+    ShaftAt x, 0, top
+    ShaftAt x, bot, GROUNDY - 1
+    PUT (x - OVERHANG, top - CAPH + 1), CapImg, PSET
+    PUT (x - OVERHANG, top + 1), DripM, AND
+    PUT (x - OVERHANG, top + 1), DripI, OR
+    IF st(i).kind <> 3 THEN
+        PUT (x - OVERHANG, bot), CapImg, PSET
+        PUT (x - OVERHANG, bot - 2), MossM, AND
+        PUT (x - OVERHANG, bot - 2), MossI, OR
+    ELSEIF x < 0 THEN
         Broken x, bot
     ELSE
-        Lintel x, bot
-        Moss x, bot
+        PUT (x - OVERHANG, bot), BrokeM((x MOD 4) * (CAPN + 1)), AND
+        PUT (x - OVERHANG, bot), BrokeI((x MOD 4) * (CAPN + 1)), OR
     END IF
     Decorate st(), i, t
 END SUB
@@ -1228,7 +1252,7 @@ SUB Drips (x AS INTEGER, y AS INTEGER)
     c1 = x - OVERHANG
     FOR m = c1 + 2 TO x + STONEW - 3 + OVERHANG STEP 4
         n = 1 + ((m - c1) * 7) MOD 5
-        LINE (m, y)-(m, y + n), CVINE
+        LINE (m, y)-(m, y + n), Ik%(CVINE)
     NEXT
 END SUB
 
@@ -1678,9 +1702,9 @@ SUB Moss (x AS INTEGER, cy AS INTEGER)
     DIM m AS INTEGER, c1 AS INTEGER, c2 AS INTEGER
     c1 = x - OVERHANG
     c2 = x + STONEW - 1 + OVERHANG
-    LINE (c1 + 1, cy)-(c2 - 1, cy), CMOSS
+    LINE (c1 + 1, cy)-(c2 - 1, cy), Ik%(CMOSS)
     FOR m = c1 + 1 TO c2 - 1 STEP 3
-        LINE (m, cy - 1 - (m - c1) MOD 2)-(m, cy), CMOSS
+        LINE (m, cy - 1 - (m - c1) MOD 2)-(m, cy), Ik%(CMOSS)
     NEXT
 END SUB
 
@@ -1996,18 +2020,77 @@ END SUB
 
 ' Runes down a shaft, glowing on and off.
 SUB Runes (x AS INTEGER, y1 AS INTEGER, y2 AS INTEGER, t AS SINGLE)
-    DIM c AS INTEGER, j AS INTEGER, n AS INTEGER
-    DIM y AS INTEGER
-    c = CWHITE
-    IF SIN(t * 3 + x * .05) > 0 THEN c = CRUNE
+    DIM k AS LONG, b AS INTEGER
+    IF y2 < y1 THEN EXIT SUB
+    IF SIN(t * 3 + x * .05) > 0 THEN k = RUNEN + 1
+    b = y1 + ((y2 - y1) \ 10) * 10 + 4
+    VIEW SCREEN (0, y1)-(SW - 1, b)
+    PUT (x + 13, y1), RuneM, AND
+    PUT (x + 13, y1), RuneI(k), OR
+    VIEW
+END SUB
+
+' Runes in c from row y1, one each 10 rows to y2.
+SUB RuneCol (x AS INTEGER, y1 AS INTEGER, y2 AS INTEGER, c AS INTEGER)
+    DIM j AS INTEGER, n AS INTEGER, y AS INTEGER
     FOR y = y1 TO y2 STEP 10
         FOR n = 0 TO 14
             IF MID$(Rune(j MOD 4), n + 1, 1) = "1" THEN
-                PSET (x + 13 + n MOD 3, y + n \ 3), c
+                PSET (x + 13 + n MOD 3, y + n \ 3), Ik%(c)
             END IF
         NEXT
         j = j + 1
     NEXT
+END SUB
+
+' Shaft x from y1 to y2, as Shaft drew it: its mortar
+' row's lower line one past y2 when it falls there.
+SUB ShaftAt (x AS INTEGER, y1 AS INTEGER, y2 AS INTEGER)
+    VIEW SCREEN (0, y1)-(SW - 1, y2)
+    PUT (x, y1), ShaftImg, PSET
+    VIEW
+    IF y2 >= y1 + 4 AND (y2 - y1 - 4) MOD 9 = 0 THEN
+        LINE (x + 2, y2 + 1)-(x + 8, y2 + 1), CSTONE
+    END IF
+END SUB
+
+' Part k drawn at the top left: moss, drips, a broken
+' cap at columns 0 to 3 mod 4, runes white, lit.
+SUB StonePart (k AS INTEGER)
+    SELECT CASE k
+    CASE 0: Moss OVERHANG, 2
+    CASE 1: Drips OVERHANG, 0
+    CASE 2 TO 5: Broken k + 2, 0
+    CASE 6: RuneCol -13, 0, 175, CWHITE
+    CASE ELSE: RuneCol -13, 0, 175, CRUNE
+    END SELECT
+END SUB
+
+' Part k's columns x1 to x2 of rows 0 to h - 1 kept
+' over 0 and, as its mask, 0 over 255.
+SUB KeepPart (k AS INTEGER, x1 AS INTEGER, x2 AS INTEGER, h AS INTEGER, im() AS LONG, s AS LONG, mk() AS LONG, ms AS LONG)
+    LINE (x1, 0)-(x2, h - 1), 0, BF
+    StonePart k
+    GET (x1, 0)-(x2, h - 1), im(s)
+    LINE (x1, 0)-(x2, h - 1), CMASK, BF
+    Ink = 0: StonePart k: Ink = -1
+    GET (x1, 0)-(x2, h - 1), mk(ms)
+END SUB
+
+SUB BuildStoneArt
+    DIM k AS INTEGER
+    Ink = -1
+    Shaft 0, 0, GROUNDY - 1
+    GET (0, 0)-(STONEW - 1, GROUNDY - 1), ShaftImg
+    Lintel OVERHANG, 0
+    GET (0, 0)-(CAPW - 1, CAPH - 1), CapImg
+    KeepPart 0, 0, CAPW - 1, 3, MossI(), 0, MossM(), 0
+    KeepPart 1, 0, CAPW - 1, 6, DripI(), 0, DripM(), 0
+    FOR k = 0 TO 3
+        KeepPart k + 2, k + 1, k + CAPW, CAPH, BrokeI(), k * (CAPN + 1), BrokeM(), k * (CAPN + 1)
+    NEXT
+    KeepPart 6, 0, 2, 180, RuneI(), 0, RuneM(), 0
+    KeepPart 7, 0, 2, 180, RuneI(), RUNEN + 1, RuneM(), 0
 END SUB
 
 SUB Scored (w AS World, sp() AS Spark)
