@@ -143,6 +143,7 @@ FOR p = 0 TO 2 * NSKIES
     IF p = NSKIES + 1 THEN w.sky.fadeTo = 1
     FOR n = 1 TO 240
         EaseSky w.sky, cur()
+        IF PalDirty THEN ApplyPalette w.sky, cur(): PalDirty = 0
         IF n MOD 4 = 0 THEN
             FOR q = 0 TO 255: PUT #1, , Dacs(q): NEXT
         END IF

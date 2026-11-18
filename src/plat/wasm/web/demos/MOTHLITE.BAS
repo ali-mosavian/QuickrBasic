@@ -286,6 +286,7 @@ DECLARE SUB ShaftAt (x AS INTEGER, y1 AS INTEGER, y2 AS INTEGER)
 DECLARE SUB StonePart (k AS INTEGER)
 DECLARE SUB KeepPart (k AS INTEGER, x1 AS INTEGER, x2 AS INTEGER, h AS INTEGER, im() AS LONG, s AS LONG, mk() AS LONG, ms AS LONG)
 DECLARE SUB BuildStoneArt ()
+DECLARE SUB Wets (c() AS LONG, i0 AS INTEGER, i1 AS INTEGER, lake AS LONG)
 DECLARE FUNCTION VineEnd% (tb AS SINGLE, y AS INTEGER, j AS INTEGER, y2 AS INTEGER)
 DECLARE SUB Vines (x AS INTEGER, y2 AS INTEGER, t AS SINGLE)
 DECLARE SUB Shrooms (x AS INTEGER, cy AS INTEGER)
@@ -317,7 +318,6 @@ DECLARE FUNCTION Ell! (px AS SINGLE, py AS SINGLE, o AS Oval)
 DECLARE FUNCTION SegD! (px AS SINGLE, py AS SINGLE, ax AS SINGLE, ay AS SINGLE, bx AS SINGLE, by AS SINGLE)
 DECLARE FUNCTION Mix& (a AS LONG, b AS LONG, t AS SINGLE)
 DECLARE FUNCTION Lit& (c AS LONG)
-DECLARE FUNCTION Wet& (c AS LONG, lake AS LONG)
 DECLARE FUNCTION Pack& (r AS SINGLE, g AS SINGLE, b AS SINGLE)
 DECLARE FUNCTION Chan% (c AS LONG, j AS INTEGER)
 DECLARE FUNCTION Dac& (c AS LONG, f AS SINGLE)
@@ -349,10 +349,14 @@ DIM SHARED Echo(1 TO 2, MAXBEATS - 1) AS STRING
 DIM SHARED Bursts(NBURST - 1) AS Burst
 DIM SHARED SkyKey(NSKIES - 1, NKEY - 1) AS LONG
 DIM SHARED Fixed(255) AS LONG
-' The palette last shaded, its keys (and whether it
-' was), what the DAC holds; 256 ^ 0 .. 2.
-DIM SHARED Shaded(255) AS LONG, ShadeKey(NKEY) AS LONG
+' The palette last shaded, its keys, whether it was;
+' what the DAC holds; 256 ^ 0 .. 2.
+DIM SHARED Shaded(255) AS LONG, ShadeKey(NKEY - 1) AS LONG, Shaped AS INTEGER
 DIM SHARED DacNow(255) AS LONG, Pow256(2) AS LONG
+' The sky eased since the frame before: its palette
+' is set once, before the frame is drawn. A channel's
+' DAC value at the fade DacFade.
+DIM SHARED PalDirty AS INTEGER, DacOf(255) AS LONG, DacFade AS SINGLE
 DIM SHARED Tinter(SW * LAKEH \ 4) AS LONG
 ' Scratch for drawing.
 DIM SHARED Strip(80) AS LONG, Frame(SW * SH \ 4) AS LONG
@@ -593,21 +597,29 @@ END SUB
 ' DAC entry set only when it changed.
 SUB ApplyPalette (s AS Sky, cur() AS SINGLE)
     DIM k(NKEY - 1) AS LONG, i AS INTEGER
-    DIM moved AS INTEGER, d AS LONG
+    DIM moved AS INTEGER, d AS LONG, c AS LONG
     FOR i = 0 TO NKEY - 1
         k(i) = Pack&(cur(i, 0), cur(i, 1), cur(i, 2))
         IF k(i) <> ShadeKey(i) THEN moved = -1
         ShadeKey(i) = k(i)
     NEXT
-    IF moved OR ShadeKey(NKEY) = 0 THEN
-        ShadeKey(NKEY) = -1
+    IF NOT Shaped THEN
         FOR i = 0 TO 255
             Shaded(i) = Fixed(i)
         NEXT
-        Shade k(), Shaded()
+    END IF
+    ' Shade sets the same entries each time
+    IF moved OR NOT Shaped THEN Shade k(), Shaded()
+    IF s.fade <> DacFade OR NOT Shaped THEN
+        Shaped = -1
+        DacFade = s.fade
+        FOR i = 0 TO 255
+            DacOf(i) = Dac&(CLNG(i), s.fade)
+        NEXT
     END IF
     FOR i = 0 TO 255
-        d = Dac&(Shaded(i), s.fade)
+        c = Shaded(i)
+        d = DacOf(c MOD 256) + DacOf((c \ 256) MOD 256) * 256 + DacOf((c \ 65536) MOD 256) * 65536
         IF d <> DacNow(i) THEN
             PALETTE i, d
             DacNow(i) = d
@@ -1322,7 +1334,7 @@ SUB EaseSky (s AS Sky, cur() AS SINGLE)
         IF ABS(d) <= .1 THEN s.fade = s.fadeTo
         moved = -1
     END IF
-    IF moved THEN ApplyPalette s, cur()
+    IF moved THEN PalDirty = -1
 END SUB
 
 SUB Fall (w AS World, sp() AS Spark)
@@ -1685,6 +1697,7 @@ SUB Main
             acc = acc - STEPT
         LOOP
         FeedSong w.song
+        IF PalDirty THEN ApplyPalette w.sky, cur(): PalDirty = 0
         Render w, stones(), sparks()
     LOOP UNTIL w.g.quitting AND w.sky.fade <= 0
 
@@ -1984,9 +1997,14 @@ END SUB
 ' Colours i0 to i0 + n - 1 from a toward b, reaching
 ' b after span steps.
 SUB Ramp (c() AS LONG, i0 AS INTEGER, n AS INTEGER, a AS LONG, b AS LONG, span AS INTEGER)
-    DIM i AS INTEGER
+    DIM i AS INTEGER, t AS SINGLE
+    DIM ar AS LONG, ag AS LONG, ab AS LONG
+    DIM br AS LONG, bg AS LONG, bb AS LONG
+    ar = a MOD 256: ag = (a \ 256) MOD 256: ab = (a \ 65536) MOD 256
+    br = b MOD 256: bg = (b \ 256) MOD 256: bb = (b \ 65536) MOD 256
     FOR i = 0 TO n - 1
-        c(i0 + i) = Mix&(a, b, i / span)
+        t = i / span
+        c(i0 + i) = CLNG(ar + (br - ar) * t) + CLNG(ag + (bg - ag) * t) * 256 + CLNG(ab + (bb - ab) * t) * 65536
     NEXT
 END SUB
 
@@ -2132,11 +2150,24 @@ SUB Shade (k() AS LONG, c() AS LONG)
     Ramp c(), CNEAR, 16, Lit&(k(8)), k(9), 12
     Ramp c(), CTREE, 4, k(10), k(11), 3
     Ramp c(), CSTONE, 8, k(13), k(14), 7
-    FOR i = 0 TO 15
-        c(WATER + i) = Wet&(c(i), k(12))
-    NEXT
-    FOR i = CMTN TO CVINE
-        c(WATER + i) = Wet&(c(i), k(12))
+    Wets c(), 0, 15, k(12)
+    Wets c(), CMTN, CVINE, k(12)
+END SUB
+
+' Colours i0 to i1 as the lake mirrors them, at
+' WATER on: mixed 45% to the lake, then 10% to black.
+SUB Wets (c() AS LONG, i0 AS INTEGER, i1 AS INTEGER, lake AS LONG)
+    DIM i AS INTEGER, x AS LONG, v AS LONG, a AS LONG
+    DIM lr AS LONG, lg AS LONG, lb AS LONG
+    lr = lake MOD 256: lg = (lake \ 256) MOD 256: lb = (lake \ 65536) MOD 256
+    FOR i = i0 TO i1
+        x = c(i)
+        a = x MOD 256: v = CLNG(a + (lr - a) * .45)
+        c(WATER + i) = CLNG(v + (0 - v) * .1)
+        a = (x \ 256) MOD 256: v = CLNG(a + (lg - a) * .45)
+        c(WATER + i) = c(WATER + i) + CLNG(v + (0 - v) * .1) * 256
+        a = (x \ 65536) MOD 256: v = CLNG(a + (lb - a) * .45)
+        c(WATER + i) = c(WATER + i) + CLNG(v + (0 - v) * .1) * 65536
     NEXT
 END SUB
 
@@ -2421,10 +2452,6 @@ FUNCTION VineEnd% (tb AS SINGLE, y AS INTEGER, j AS INTEGER, y2 AS INTEGER)
     IF a - lo >= NEAR AND hi - a >= NEAR THEN e = y + INT((hi - NEAR - a) / .16)
     IF e > y2 THEN e = y2
     VineEnd% = e
-END FUNCTION
-
-FUNCTION Wet& (c AS LONG, lake AS LONG)
-    Wet& = Mix&(Mix&(c, lake, .45), 0, .1)
 END FUNCTION
 
 ' Inside the forewing: a white eyespot, an ink ring
