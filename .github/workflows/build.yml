@@ -43,4 +43,4 @@ jobs:
           gh release delete dos-latest --cleanup-tag --yes || true
           gh release create dos-latest build/c/QuickrBasic-dos.zip --target "$GITHUB_SHA" \
             --prerelease --title "QuickrBasic for DOS (latest)" \
-            --notes "IDE32.EXE, BASIC32.EXE, DOS32A.EXE and BASIC.HLP, built from $GITHUB_SHA, with GORILLA.BAS, NIBBLES.BAS, MOTHLITE.BAS and RUSTLINE.BAS. Copy them to a DOS machine or DOSBox and run IDE32."
+            --notes "IDE32.EXE, BASIC32.EXE, DOS32A.EXE and BASIC.HLP, built from $GITHUB_SHA, with GORILLA.BAS, NIBBLES.BAS, MOTHLITE.BAS, RUSTLINE.BAS and PANGDASH.BAS. Copy them to a DOS machine or DOSBox and run IDE32."
