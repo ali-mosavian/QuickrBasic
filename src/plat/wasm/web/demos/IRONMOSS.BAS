@@ -10,7 +10,12 @@
 ' The rules (hit points, costs) are functions of a kind.
 DEFINT A-Z
 
-CONST MAPW = 40, MAPH = 30, TS = 16, VW = 15, VH = 12, SBX = 240, VIEWH = 192
+' TS: a tile's side in the world's pixels. The screen shows the world isometric: a tile is a
+' diamond 32 by 16; the plane's x is the world's x - y, its y half x + y. The map's view is
+' VX0, VY0 to SBX, VIEWB on the screen, the camera in the plane's pixels, by half tiles.
+CONST MAPW = 40, MAPH = 30, TS = 16, SBX = 240, VIEWH = 192
+CONST VX0 = 16, VY0 = 12, VIEWB = 184, VWP = SBX - VX0, VHP = VIEWB - VY0
+CONST PLANEW = (MAPW + MAPH) * 16, PLANEH = (MAPW + MAPH) * 8, ROCKH = 4
 CONST MAXU = 64, MAXB = 32, MAXFX = 64, NF = 24, NPART = 48
 CONST STEPT = .0333333
 CONST GTITLE = 0, GPLAY = 1, GWIN = 2, GLOSE = 3
@@ -27,13 +32,15 @@ CONST FOG = 32, SKY = 64, PLANET = 96, FIRE = 112, LOGOC = 128
 ' the art, one array of IMG-element slots: images of 16 by 16 (a unit's sprite, mask and shadow),
 ' the minimap, the full screen.
 ' Past 64 KB: QB 4.5 needs /AH.
-' the land: 16 tiles of grass, a 4 by 4 piece of it each; then what is drawn on the grass, an
-' image and a mask each: dirt, flowers, moss thin to thick, a tree, rock and water's two frames
-' by which of their 4 sides go on (OROCK + sides, OWATER + frame * 16 + sides)
-CONST OROCK = 6, OWATER = 22, NOVL = 54
-CONST IMG = 130, ASPR = 0, AMSK = 96, ASHD = 192, ATIL = 288, AOVL = ATIL + 16
-CONST ABLD = AOVL + NOVL * 2, AICN = ABLD + 32
-CONST AFOG = AICN + 3, AMINI = AFOG + 1, ABACK = AMINI + 19, NSLOT = ABACK + 247
+' the land, diamonds of 2 slots: 16 of grass, a 4 by 4 piece of it each, the diamond's mask, the
+' fog; what lies on the grass, an image and a mask each: dirt, flowers, moss thin to thick, water's
+' two frames by which of its 4 sides go on (OWATER + frame * 16 + sides); rock, raised, by its
+' sides: image, mask, fog, 3 slots each; a tree's image, mask and fog, 2 slots each; the
+' buildings' image, mask and fog, BLDW slots each
+CONST OWATER = 5, NOVL = 37, BLDW = 15
+CONST IMG = 130, ASPR = 0, AMSK = 96, ASHD = 192, AGRS = 288, ADIA = AGRS + 32, AFOG = ADIA + 2
+CONST AOVL = AFOG + 2, AROK = AOVL + NOVL * 4, ATREE = AROK + 16 * 9, ABLD = ATREE + 6
+CONST AICN = ABLD + 24 * BLDW, AMINI = AICN + 3, ABACK = AMINI + 19, NSLOT = ABACK + 247
 
 TYPE CellT
     terr AS INTEGER
@@ -142,7 +149,7 @@ TYPE MouseT
 END TYPE
 
 TYPE ViewT
-    camX AS INTEGER
+    camX AS INTEGER  ' the plane's pixel at the view's top left
     camY AS INTEGER
     page AS INTEGER  ' the page being drawn
     mossPh AS INTEGER
@@ -198,7 +205,9 @@ DECLARE SUB Setup (g AS GameT, tune() AS STRING)
 DECLARE SUB BuildGlyphs (gl() AS INTEGER)
 DECLARE SUB BuildArt (art() AS INTEGER, gl() AS INTEGER)
 DECLARE SUB Progress (n AS INTEGER, total AS INTEGER, gl() AS INTEGER)
-DECLARE SUB PaintOverlay (k AS INTEGER)
+DECLARE SUB PaintOverlay (k AS INTEGER, ox AS INTEGER, oy AS INTEGER)
+DECLARE SUB PaintRock (same AS INTEGER, ox AS INTEGER, oy AS INTEGER)
+DECLARE SUB PaintTree (ox AS INTEGER, oy AS INTEGER)
 DECLARE SUB GrassField ()
 DECLARE FUNCTION Overlay% (g AS GameT, m() AS CellT, x AS INTEGER, y AS INTEGER)
 DECLARE FUNCTION Tex% (kind AS INTEGER, x AS INTEGER, y AS INTEGER, ph AS INTEGER)
@@ -228,12 +237,12 @@ DECLARE SUB BuildField (m() AS CellT, fd() AS INTEGER, fi AS INTEGER, goal AS IN
 DECLARE SUB DepleteMoss (g AS GameT, m() AS CellT, fk() AS FieldT, x AS INTEGER, y AS INTEGER)
 DECLARE SUB AddFx (fx() AS FxT, k AS INTEGER, x AS SINGLE, y AS SINGLE, x2 AS SINGLE, y2 AS SINGLE, life AS SINGLE)
 DECLARE SUB FxTick (fx() AS FxT, dt AS SINGLE)
-DECLARE SUB Order (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, wx AS INTEGER, wy AS INTEGER)
+DECLARE SUB Order (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, wx AS INTEGER, wy AS INTEGER, pu AS INTEGER, pb AS INTEGER)
 DECLARE SUB SelectBox (g AS GameT, m() AS CellT, u() AS UnitT, x1 AS INTEGER, y1 AS INTEGER, x2 AS INTEGER, y2 AS INTEGER)
 DECLARE SUB ButtonClick (g AS GameT, tm() AS TeamT, bl() AS BldgT, k AS INTEGER, rightButton AS INTEGER)
 DECLARE SUB CenterOn (cam AS ViewT, x AS INTEGER, y AS INTEGER)
 DECLARE SUB RenderGame (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, art() AS INTEGER, gl() AS INTEGER)
-DECLARE SUB DrawUnits (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS INTEGER)
+DECLARE SUB DrawObjects (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS INTEGER, tx() AS INTEGER, ty() AS INTEGER, nt AS INTEGER)
 DECLARE SUB DrawFx (g AS GameT, fx() AS FxT)
 DECLARE SUB DrawSidebar (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS INTEGER, gl() AS INTEGER)
 DECLARE SUB DrawMinimap (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS INTEGER)
@@ -260,7 +269,17 @@ DECLARE FUNCTION Rgb& (r AS INTEGER, g AS INTEGER, b AS INTEGER)
 DECLARE SUB Ramp (c0 AS INTEGER, n AS INTEGER, r0 AS INTEGER, g0 AS INTEGER, b0 AS INTEGER, r1 AS INTEGER, g1 AS INTEGER, b1 AS INTEGER)
 DECLARE SUB Shade (c AS INTEGER, r AS INTEGER, g AS INTEGER, b AS INTEGER)
 DECLARE FUNCTION UnitPix% (ut AS INTEGER, tmi AS INTEGER, u AS SINGLE, v AS SINGLE, fr AS INTEGER)
-DECLARE FUNCTION BldPix% (bt AS INTEGER, tmi AS INTEGER, x AS INTEGER, y AS INTEGER)
+DECLARE SUB DrawBuilding (bt AS INTEGER, tmi AS INTEGER, ox AS INTEGER, oy AS INTEGER)
+DECLARE SUB Prism (cx AS INTEGER, cy AS INTEGER, a AS INTEGER, h AS INTEGER, ct AS INTEGER, cl AS INTEGER, cr AS INTEGER)
+DECLARE SUB Cyl (cx AS INTEGER, cy AS INTEGER, r AS INTEGER, h AS INTEGER, c1 AS INTEGER, c2 AS INTEGER, c3 AS INTEGER, ctop AS INTEGER)
+DECLARE SUB Dome (cx AS INTEGER, cy AS INTEGER, r AS INTEGER, c1 AS INTEGER, c2 AS INTEGER, c3 AS INTEGER)
+DECLARE SUB IsoUV (px AS INTEGER, py AS INTEGER, u AS SINGLE, v AS SINGLE)
+DECLARE SUB ScreenTile (cam AS ViewT, sx AS INTEGER, sy AS INTEGER, wx AS INTEGER, wy AS INTEGER)
+DECLARE SUB ClampCam (cam AS ViewT)
+DECLARE FUNCTION PickUnit% (g AS GameT, m() AS CellT, u() AS UnitT, sx AS INTEGER, sy AS INTEGER, team AS INTEGER)
+DECLARE FUNCTION PickBld% (g AS GameT, m() AS CellT, bl() AS BldgT, sx AS INTEGER, sy AS INTEGER)
+DECLARE FUNCTION IsoDir% (d AS INTEGER)
+DECLARE FUNCTION BldH% (bt AS INTEGER)
 DECLARE FUNCTION Passable% (m() AS CellT, x AS INTEGER, y AS INTEGER)
 DECLARE FUNCTION FlowField% (m() AS CellT, fd() AS INTEGER, fk() AS FieldT, goal AS INTEGER, now AS SINGLE)
 DECLARE FUNCTION MoveStep% (g AS GameT, m() AS CellT, u() AS UnitT, fd() AS INTEGER, fk() AS FieldT, i AS INTEGER, goal AS INTEGER, exact AS INTEGER, dt AS SINGLE)
@@ -275,7 +294,6 @@ DECLARE FUNCTION CanPlace% (m() AS CellT, bl() AS BldgT, ti AS INTEGER, kind AS 
 DECLARE FUNCTION NearestMill% (u() AS UnitT, bl() AS BldgT, i AS INTEGER)
 DECLARE FUNCTION TargetDist! (u() AS UnitT, bl() AS BldgT, i AS INTEGER)
 DECLARE FUNCTION Scan% (u() AS UnitT, bl() AS BldgT, i AS INTEGER, radius AS SINGLE)
-DECLARE FUNCTION UnitAt% (m() AS CellT, u() AS UnitT, wx AS INTEGER, wy AS INTEGER)
 DECLARE FUNCTION Allowed% (bl() AS BldgT, k AS INTEGER)
 DECLARE FUNCTION Clock2$ (s AS SINGLE)
 DECLARE FUNCTION StepX% (d AS INTEGER)
@@ -541,94 +559,110 @@ FUNCTION BHp% (k AS INTEGER)
     END SELECT
 END FUNCTION
 
-' A building's look, a pixel at a time: 48 by 48, the spire 24 by 24 (drawn at two thirds).
-FUNCTION BldPix% (bt AS INTEGER, tmi AS INTEGER, x AS INTEGER, y AS INTEGER)
-    DIM c AS INTEGER, mc AS INTEGER, lc AS INTEGER, dc AS INTEGER, d AS SINGLE, sz AS INTEGER
+' The height above its footprint of a building's image: the room for its walls and roof.
+FUNCTION BldH% (bt AS INTEGER)
+    IF bt = BSPIRE THEN BldH% = 22 ELSE BldH% = 28
+END FUNCTION
+
+' A box on the ground, isometric: its footprint a diamond round cx, cy, a wide each way, h high;
+' its top, left and right faces' colours.
+SUB Prism (cx AS INTEGER, cy AS INTEGER, a AS INTEGER, h AS INTEGER, ct AS INTEGER, cl AS INTEGER, cr AS INTEGER)
+    DIM x AS INTEGER, y AS INTEGER, fx AS SINGLE, ye AS SINGLE
+    FOR x = cx - a TO cx + a - 1
+        fx = x + .5
+        IF fx < cx THEN ye = cy + (fx - cx + a) / 2 ELSE ye = cy + a / 2 - (fx - cx) / 2
+        FOR y = cy - h - a \ 2 TO cy + a \ 2
+            IF ABS(fx - cx) / a + ABS(y + .5 - (cy - h)) / (a / 2) <= 1 THEN
+                PSET (x, y), ct
+            ELSEIF y + .5 <= ye AND y + .5 >= ye - h THEN
+                IF fx < cx THEN PSET (x, y), cl ELSE PSET (x, y), cr
+            END IF
+        NEXT
+    NEXT
+END SUB
+
+' An upright cylinder on the ground at cx, cy, r round, h high: lit left to right c1, c2, c3; its top.
+SUB Cyl (cx AS INTEGER, cy AS INTEGER, r AS INTEGER, h AS INTEGER, c1 AS INTEGER, c2 AS INTEGER, c3 AS INTEGER, ctop AS INTEGER)
+    DIM x AS INTEGER, y AS INTEGER, t AS SINGLE, yb AS SINGLE, c AS INTEGER
+    FOR x = cx - r TO cx + r - 1
+        t = (x + .5 - cx) / r
+        yb = cy + r / 2 * SQR(1 - t * t)
+        c = c2: IF t < -.35 THEN c = c1 ELSE IF t > .45 THEN c = c3
+        FOR y = cy - h - r \ 2 TO yb
+            IF t * t + ((y + .5 - (cy - h)) / (r / 2)) ^ 2 <= 1 THEN
+                PSET (x, y), ctop
+            ELSEIF y >= cy - h THEN
+                PSET (x, y), c
+            END IF
+        NEXT
+    NEXT
+END SUB
+
+' A dome standing on cx, cy, r round, lit from the upper left.
+SUB Dome (cx AS INTEGER, cy AS INTEGER, r AS INTEGER, c1 AS INTEGER, c2 AS INTEGER, c3 AS INTEGER)
+    DIM x AS INTEGER, y AS INTEGER, ex AS SINGLE, ey AS SINGLE, l AS SINGLE
+    FOR y = cy - r TO cy + r \ 3
+        FOR x = cx - r TO cx + r
+            ex = (x + .5 - cx) / r: ey = (y + .5 - cy) / (r * .85)
+            IF ex * ex + ey * ey <= 1 AND (y <= cy OR ex * ex + ((y + .5 - cy) / (r * .5)) ^ 2 <= 1) THEN
+                l = -ex * .6 - ey * .7
+                IF l > .35 THEN PSET (x, y), c1 ELSE IF l > -.25 THEN PSET (x, y), c2 ELSE PSET (x, y), c3
+            END IF
+        NEXT
+    NEXT
+END SUB
+
+' Building bt of side tmi, on black at ox, oy: its footprint's diamond at the image's foot, BldH%
+' above it for its height.
+SUB DrawBuilding (bt AS INTEGER, tmi AS INTEGER, ox AS INTEGER, oy AS INTEGER)
+    DIM n AS INTEGER, a AS INTEGER, cx AS INTEGER, cy AS INTEGER, mc AS INTEGER, lc AS INTEGER, dc AS INTEGER
+    DIM i AS INTEGER, x AS INTEGER, y AS INTEGER, u AS SINGLE, v AS SINGLE
+    n = BSize%(bt): a = 16 * n
+    cx = ox + a: cy = oy + BldH%(bt) + a \ 2
     mc = 10 + tmi * 2: lc = 11 + tmi * 2: dc = 25 + tmi
-    sz = 48: IF bt = BSPIRE THEN sz = 24
-    ' the pad: slabs of metal with seams
-    c = 14
-    IF x MOD 12 = 0 OR y MOD 12 = 0 THEN c = 23
-    IF x MOD 12 = 1 OR y MOD 12 = 1 THEN c = 24
-    IF x = 3 OR y = 3 OR x = sz - 4 OR y = sz - 4 THEN c = 4
-    IF (x = 6 OR x = sz - 7) AND (y = 6 OR y = sz - 7) THEN c = 15
-    ' the earth round the pad, its shadow below and right
-    IF x < 3 OR y < 3 OR x > sz - 4 OR y > sz - 4 THEN
-        c = 3: IF RND < .3 THEN c = 18
-        IF (x > sz - 4 AND y > 4) OR (y > sz - 4 AND x > 4) THEN c = 30
-    END IF
+    ' the earth it stands on
+    Prism cx, cy, a, 0, 3, 3, 3
+    FOR i = 1 TO 12 * n
+        u = RND: v = RND
+        PSET (cx + (u - v) * a, cy - a \ 2 + (u + v) * a \ 2), 18
+    NEXT
     SELECT CASE bt
     CASE BHALL
-        IF y >= 36 AND y <= 46 AND x >= 17 AND x <= 30 THEN
-            c = 0
-            IF y = 36 OR (x + y) MOD 4 = 0 THEN c = lc
-        END IF
-        d = SQR((x - 24) ^ 2 + (y - 23) ^ 2)
-        IF d <= 16 THEN c = 4
-        IF d <= 15 THEN
-            c = mc: IF d > 12 THEN c = dc
-            IF SQR((x - 19) ^ 2 + (y - 17) ^ 2) < 6 THEN c = lc
-            IF ABS(d - 9) < .8 THEN c = dc
-        END IF
-        IF d < 3 THEN c = 15
-        d = SQR((x - 38) ^ 2 + (y - 9) ^ 2)
-        IF d <= 6 THEN c = 0
-        IF d <= 5 THEN
-            c = 28: IF x + y < 46 THEN c = 15
-        END IF
-        IF d <= 1.5 THEN c = 29
+        Prism cx, cy + 1, 24, 10, 24, 14, 23
+        Prism cx - 9, cy + 5, 6, 6, mc, lc, dc
+        Dome cx + 1, cy - 9, 15, lc, mc, dc
+        Dome cx - 3, cy - 14, 4, 15, lc, mc
+        LINE (cx + 15, cy - 24)-(cx + 15, cy - 12), 14
+        PSET (cx + 15, cy - 25), 29: PSET (cx + 16, cy - 12), 23
     CASE BMILL
-        IF y >= 33 AND y <= 46 AND x >= 4 AND x <= 43 THEN
-            c = 4
-            IF y >= 43 THEN
-                c = 0: IF (x \ 4) MOD 2 = 0 THEN c = 13
-            END IF
-            IF y = 33 THEN c = 0
-        END IF
-        d = SQR((x - 14) ^ 2 + (y - 16) ^ 2)
-        IF d <= 11 THEN c = 0
-        IF d <= 10 THEN
-            c = 14: IF x + y < 26 THEN c = 24
-        END IF
-        IF d <= 8 AND d >= 6 THEN c = mc
-        IF d <= 4.5 THEN c = 22
-        IF d <= 2 THEN c = 31
-        d = SQR((x - 34) ^ 2 + (y - 16) ^ 2)
-        IF d <= 11 THEN c = 0
-        IF d <= 10 THEN
-            c = 14: IF x + y < 46 THEN c = 24
-        END IF
-        IF d <= 8 AND d >= 6 THEN c = mc
-        IF d <= 4.5 THEN c = 9
-        IF d <= 2 THEN c = 8
-        IF y >= 26 AND y <= 30 AND x >= 20 AND x <= 28 THEN c = 23
+        Prism cx, cy + 2, 24, 7, 24, 13, 23
+        ' the dock's stripes, on the south face
+        FOR x = cx - 24 TO cx: FOR y = cy - 8 TO cy + 16
+            IF POINT(x, y) = 13 AND ((x + y * 2) \ 3) MOD 2 THEN PSET (x, y), 0
+        NEXT: NEXT
+        Cyl cx + 8, cy - 6, 8, 16, 24, 14, 23, 9
+        Cyl cx - 8, cy - 1, 8, 16, 24, 14, 23, 9
+        Dome cx + 8, cy - 22, 4, 31, 22, 9
+        Dome cx - 8, cy - 17, 4, 31, 22, 9
+        LINE (cx - 1, cy - 12)-(cx + 2, cy - 14), mc
     CASE BDEN
-        IF x >= 4 AND x <= 43 AND y >= 4 AND y <= 38 THEN
-            c = mc
-            IF (y - 4) MOD 6 < 2 THEN c = lc
-            IF (y - 4) MOD 6 = 5 THEN c = dc
-            IF x = 4 OR x = 43 OR y = 38 THEN c = 0
-            IF y >= 8 AND y <= 15 AND ((x >= 8 AND x <= 15) OR (x >= 32 AND x <= 39)) THEN
-                c = 0: IF (x + y) MOD 2 THEN c = 28
+        Prism cx, cy + 1, 26, 8, lc, mc, dc
+        ' the hangar's ribs, and its door on the east face
+        FOR x = cx - 26 TO cx + 26: FOR y = cy - 28 TO cy + 16
+            i = POINT(x, y)
+            IF i = lc AND (x + y * 2) MOD 6 < 2 THEN PSET (x, y), mc
+            IF i = dc AND x > cx + 6 AND x < cx + 20 AND y > cy + 2 THEN
+                PSET (x, y), 0: IF (x + y) MOD 4 = 0 THEN PSET (x, y), 13
             END IF
-        END IF
-        IF x >= 14 AND x <= 33 AND y >= 30 AND y <= 45 THEN
-            c = 0
-            IF y MOD 3 = 0 THEN c = 23
-            IF y = 30 OR x = 14 OR x = 33 THEN c = 13
-        END IF
+        NEXT: NEXT
+        Prism cx - 8, cy - 2, 7, 6, 24, 14, 23
+        Cyl cx - 8, cy - 8, 2, 6, 14, 23, 4, 4
     CASE BSPIRE
-        d = SQR((x - 11.5) ^ 2 + (y - 11.5) ^ 2)
-        IF d <= 11 THEN c = 0
-        IF d <= 10 THEN
-            c = mc: IF x + y < 18 THEN c = lc
-        END IF
-        IF d <= 10 AND d >= 8 THEN c = dc
-        IF d <= 5 THEN c = 14
-        IF d <= 3 THEN c = 0
+        Prism cx, cy, 12, 4, 24, 14, 23
+        Cyl cx, cy - 4, 6, 10, lc, mc, dc, 24
+        Dome cx, cy - 14, 5, 24, 14, 23
     END SELECT
-    BldPix% = c
-END FUNCTION
+END SUB
 
 FUNCTION BSize% (k AS INTEGER)
     IF k = BSPIRE THEN BSize% = 1 ELSE BSize% = 2
@@ -642,32 +676,75 @@ SUB BuildArt (art() AS INTEGER, gl() AS INTEGER)
     DIM px AS SINGLE, py AS SINGLE, c AS INTEGER, bt AS INTEGER, q AS INTEGER, sz AS INTEGER
     DIM n AS INTEGER, total AS INTEGER
     DIM px2(TS - 1, TS - 1) AS INTEGER
-    total = 4 + NOVL + 96 + 8 + 3
+    total = 4 + NOVL + 16 + 96 + 8
     RANDOMIZE 11
+    ' the grass: the field's 16 pieces as diamonds, each pixel the field's under it
     GrassField
     FOR k = 0 TO 15
-        x = (k MOD 4) * TS: y = (k \ 4) * TS
-        GET (x, y)-(x + TS - 1, y + TS - 1), art(0, ATIL + k)
+        FOR y = 0 TO 15: FOR x = 0 TO 31
+            IsoUV x, y, a, ca
+            c = 0
+            IF a >= 0 AND a < 1 AND ca >= 0 AND ca < 1 THEN c = POINT((k MOD 4) * TS + INT(a * TS), (k \ 4) * TS + INT(ca * TS))
+            PSET (100 + x, y), c
+        NEXT: NEXT
+        GET (100, 0)-(131, 15), art(0, AGRS + k * 2)
         IF k MOD 4 = 3 THEN n = n + 1: Progress n, total, gl()
     NEXT
+    ' the diamond's mask; the fog, OR'd over the land: its colours' dark copies
+    FOR y = 0 TO 15: FOR x = 0 TO 31
+        IsoUV x, y, a, ca
+        IF a >= 0 AND a < 1 AND ca >= 0 AND ca < 1 THEN
+            PSET (100 + x, y), 0: PSET (140 + x, y), FOG
+        ELSE
+            PSET (100 + x, y), 255: PSET (140 + x, y), 0
+        END IF
+    NEXT: NEXT
+    GET (100, 0)-(131, 15), art(0, ADIA)
+    GET (140, 0)-(171, 15), art(0, AFOG)
     FOR k = 0 TO NOVL - 1
-        LINE (0, 0)-(TS - 1, TS - 1), 0, BF
-        PaintOverlay k
-        GET (0, 0)-(TS - 1, TS - 1), art(0, AOVL + k * 2)
-        FOR y = 0 TO TS - 1: FOR x = 0 TO TS - 1
+        LINE (100, 0)-(131, 15), 0, BF
+        PaintOverlay k, 100, 0
+        GET (100, 0)-(131, 15), art(0, AOVL + k * 4)
+        FOR y = 0 TO 15: FOR x = 100 TO 131
             IF POINT(x, y) THEN PSET (x, y), 0 ELSE PSET (x, y), 255
         NEXT: NEXT
-        GET (0, 0)-(TS - 1, TS - 1), art(0, AOVL + k * 2 + 1)
+        GET (100, 0)-(131, 15), art(0, AOVL + k * 4 + 2)
         n = n + 1: Progress n, total, gl()
     NEXT
-    ' the fog: OR'd over the land, its colours' dark copies
-    LINE (0, 0)-(TS - 1, TS - 1), FOG, BF
-    GET (0, 0)-(TS - 1, TS - 1), art(0, AFOG)
+    ' rock, raised: image, mask, fog
+    FOR k = 0 TO 15
+        LINE (100, 0)-(131, 15 + ROCKH), 0, BF
+        PaintRock k, 100, 0
+        GET (100, 0)-(131, 15 + ROCKH), art(0, AROK + k * 9)
+        FOR y = 0 TO 15 + ROCKH: FOR x = 100 TO 131
+            IF POINT(x, y) THEN
+                PSET (x, y), 0: PSET (x + 40, y), FOG
+            ELSE
+                PSET (x, y), 255: PSET (x + 40, y), 0
+            END IF
+        NEXT: NEXT
+        GET (100, 0)-(131, 15 + ROCKH), art(0, AROK + k * 9 + 3)
+        GET (140, 0)-(171, 15 + ROCKH), art(0, AROK + k * 9 + 6)
+        n = n + 1: Progress n, total, gl()
+    NEXT
+    LINE (100, 0)-(115, 23), 0, BF
+    PaintTree 100, 0
+    GET (100, 0)-(115, 23), art(0, ATREE)
+    FOR y = 0 TO 23: FOR x = 100 TO 115
+        IF POINT(x, y) THEN
+            PSET (x, y), 0: PSET (x + 40, y), FOG
+        ELSE
+            PSET (x, y), 255: PSET (x + 40, y), 0
+        END IF
+    NEXT: NEXT
+    GET (100, 0)-(115, 23), art(0, ATREE + 2)
+    GET (140, 0)-(155, 23), art(0, ATREE + 4)
 
     FOR ut = 1 TO 3: FOR tmi = 0 TO 1: FOR d = 0 TO 7: FOR f = 0 TO 1
         a = d * .785398: ca = COS(a): sa = SIN(a)
         FOR y = 0 TO TS - 1: FOR x = 0 TO TS - 1
-            px = (x - (TS - 1) / 2) * 24 / TS: py = (y - (TS - 1) / 2) * 24 / TS
+            ' seen from above at a slant: squashed top to bottom
+            px = (x - (TS - 1) / 2) * 24 / TS: py = (y - (TS - 1) / 2) * 24 / TS * 1.25
             px2(x, y) = UnitPix%(ut, tmi, px * ca + py * sa, -px * sa + py * ca, f)
         NEXT: NEXT
         ' a black outline round the shape: -2
@@ -701,28 +778,31 @@ SUB BuildArt (art() AS INTEGER, gl() AS INTEGER)
     NEXT: NEXT: NEXT: NEXT
 
     FOR bt = 1 TO 4: FOR tmi = 0 TO 1
-        sz = BSize%(bt) * TS
-        FOR y = 0 TO sz - 1: FOR x = 0 TO sz - 1
-            PSET (x, y), BldPix%(bt, tmi, x * 24 \ TS, y * 24 \ TS)
-        NEXT: NEXT
-        FOR q = 0 TO 3
-            IF sz = 2 * TS OR q = 0 THEN
-                x = (q MOD 2) * TS: y = (q \ 2) * TS
-                GET (x, y)-(x + TS - 1, y + TS - 1), art(0, ABLD + (((bt - 1) * 2 + tmi) * 4 + q))
+        sz = BSize%(bt) * 32: q = BldH%(bt) + sz \ 2
+        LINE (100, 0)-(100 + sz - 1, q - 1), 0, BF
+        DrawBuilding bt, tmi, 100, 0
+        k = ABLD + ((bt - 1) * 2 + tmi) * 3 * BLDW
+        GET (100, 0)-(100 + sz - 1, q - 1), art(0, k)
+        ' the sidebar's icons: the Lodge's mill, den and spire, sampled small
+        IF tmi = 0 AND bt > 1 THEN
+            FOR y = 0 TO TS - 1: FOR x = 0 TO TS - 1
+                c = POINT(100 + x * sz \ TS, y * q \ TS)
+                IF c = 0 THEN c = 2
+                PSET (200 + x, y), c
+            NEXT: NEXT
+            GET (200, 0)-(200 + TS - 1, TS - 1), art(0, AICN + bt - 2)
+        END IF
+        FOR y = 0 TO q - 1: FOR x = 100 TO 100 + sz - 1
+            IF POINT(x, y) THEN
+                PSET (x, y), 0: PSET (x + 70, y), FOG
+            ELSE
+                PSET (x, y), 255: PSET (x + 70, y), 0
             END IF
-        NEXT
+        NEXT: NEXT
+        GET (100, 0)-(100 + sz - 1, q - 1), art(0, k + BLDW)
+        GET (170, 0)-(170 + sz - 1, q - 1), art(0, k + 2 * BLDW)
         n = n + 1: Progress n, total, gl()
     NEXT: NEXT
-
-    ' the sidebar's icons: the mill, the den, the spire
-    FOR k = 0 TO 2
-        bt = k + 2
-        FOR y = 0 TO TS - 1: FOR x = 0 TO TS - 1
-            PSET (x, y), BldPix%(bt, 0, x * 24 * BSize%(bt) \ TS, y * 24 * BSize%(bt) \ TS)
-        NEXT: NEXT
-        GET (0, 0)-(TS - 1, TS - 1), art(0, AICN + k)
-        n = n + 1: Progress n, total, gl()
-    NEXT
 END SUB
 
 ' The flow field to goal: each tile's steps to it, FAR where there is no way. Units ignored.
@@ -848,13 +928,69 @@ FUNCTION CanPlace% (m() AS CellT, bl() AS BldgT, ti AS INTEGER, kind AS INTEGER,
     CanPlace% = near
 END FUNCTION
 
+' The view centred on tile x, y.
 SUB CenterOn (cam AS ViewT, x AS INTEGER, y AS INTEGER)
-    cam.camX = x - VW \ 2: cam.camY = y - VH \ 2
+    cam.camX = (x - y + MAPH) * 16 - VWP \ 2
+    cam.camY = (x + y + 1) * 8 - VHP \ 2
+    ClampCam cam
+END SUB
+
+' The camera kept on the map, by half tiles: whole diamonds then cover the view.
+SUB ClampCam (cam AS ViewT)
+    IF cam.camX > PLANEW - VWP THEN cam.camX = PLANEW - VWP
+    IF cam.camY > PLANEH - VHP THEN cam.camY = PLANEH - VHP
     IF cam.camX < 0 THEN cam.camX = 0
     IF cam.camY < 0 THEN cam.camY = 0
-    IF cam.camX > MAPW - VW THEN cam.camX = MAPW - VW
-    IF cam.camY > MAPH - VH THEN cam.camY = MAPH - VH
+    cam.camX = (cam.camX \ 16) * 16: cam.camY = (cam.camY \ 8) * 8
 END SUB
+
+' The tile under screen pixel sx, sy: off the map when outside 0 to MAPW - 1, 0 to MAPH - 1.
+SUB ScreenTile (cam AS ViewT, sx AS INTEGER, sy AS INTEGER, wx AS INTEGER, wy AS INTEGER)
+    DIM x AS SINGLE, y2 AS SINGLE
+    x = sx - VX0 + cam.camX - MAPH * 16: y2 = 2 * (sy - VY0 + cam.camY)
+    wx = INT((x + y2) / 32): wy = INT((y2 - x) / 32)
+END SUB
+
+' A unit of side team (-1 either) seen near screen pixel sx, sy: the nearest, 0 none.
+FUNCTION PickUnit% (g AS GameT, m() AS CellT, u() AS UnitT, sx AS INTEGER, sy AS INTEGER, team AS INTEGER)
+    DIM i AS INTEGER, d AS SINGLE, best AS SINGLE, x AS SINGLE, y AS SINGLE
+    PickUnit% = 0: best = 9
+    FOR i = 1 TO MAXU
+        IF u(i).alive AND (team < 0 OR u(i).team = team) THEN
+            IF u(i).team = 0 OR m(u(i).x, u(i).y).vis THEN
+                x = u(i).px - u(i).py + MAPH * 16 - g.vw.camX + VX0
+                y = (u(i).px + u(i).py) / 2 - g.vw.camY + VY0 - 4
+                d = ABS(x - sx) + ABS(y - sy)
+                IF d < best THEN best = d: PickUnit% = i
+            END IF
+        END IF
+    NEXT
+END FUNCTION
+
+' A building seen whose picture is under screen pixel sx, sy: the frontmost, 0 none.
+FUNCTION PickBld% (g AS GameT, m() AS CellT, bl() AS BldgT, sx AS INTEGER, sy AS INTEGER)
+    DIM b AS INTEGER, n AS INTEGER, x0 AS INTEGER, y0 AS INTEGER, front AS INTEGER
+    PickBld% = 0: front = -1
+    FOR b = 1 TO MAXB
+        IF bl(b).alive THEN
+            IF m(bl(b).x, bl(b).y).seen THEN
+                n = BSize%(bl(b).kind)
+                x0 = (bl(b).x - bl(b).y + MAPH) * 16 - 16 * n - g.vw.camX + VX0
+                y0 = (bl(b).x + bl(b).y) * 8 - g.vw.camY + VY0
+                IF sx >= x0 + 4 AND sx < x0 + 32 * n - 4 AND sy >= y0 - BldH%(bl(b).kind) \ 2 AND sy < y0 + 16 * n - 2 THEN
+                    IF bl(b).x + bl(b).y > front THEN front = bl(b).x + bl(b).y: PickBld% = b
+                END IF
+            END IF
+        END IF
+    NEXT
+END FUNCTION
+
+' World heading d (0 east, 2 south) as the screen shows it.
+FUNCTION IsoDir% (d AS INTEGER)
+    DIM c AS SINGLE, sn AS SINGLE
+    c = COS(d * .785398): sn = SIN(d * .785398)
+    IsoDir% = DirOf%(c - sn, (c + sn) / 2)
+END FUNCTION
 
 SUB ClearFields (fk() AS FieldT)
     DIM i AS INTEGER
@@ -871,8 +1007,8 @@ SUB Controls (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS Bld
     IF g.ms.lHit THEN
         IF g.ms.lX >= SBX THEN
             IF g.ms.lY >= BTNY AND g.ms.lY < BTNY + 6 * BTNH THEN ButtonClick g, tm(), bl(), (g.ms.lY - BTNY) \ BTNH, 0
-        ELSEIF g.ms.lY < VIEWH THEN
-            wx = g.vw.camX + g.ms.lX \ TS: wy = g.vw.camY + g.ms.lY \ TS
+        ELSEIF g.ms.lX >= VX0 AND g.ms.lY >= VY0 AND g.ms.lY < VIEWB THEN
+            ScreenTile g.vw, g.ms.lX, g.ms.lY, wx, wy
             IF g.placeKind >= 0 THEN
                 IF CanPlace%(m(), bl(), 0, g.placeKind, wx, wy) THEN
                     PlaceBuilding g, tm(), m(), u(), bl(), fk(), 0, g.placeKind, wx, wy
@@ -899,26 +1035,29 @@ SUB Controls (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS Bld
             g.placeKind = -1: Say g, "It waits in the sidebar"
         ELSEIF g.ms.rX >= SBX THEN
             IF g.ms.rY >= BTNY AND g.ms.rY < BTNY + 6 * BTNH THEN ButtonClick g, tm(), bl(), (g.ms.rY - BTNY) \ BTNH, -1
-        ELSEIF g.ms.rY < VIEWH THEN
-            Order g, m(), u(), bl(), fx(), g.vw.camX + g.ms.rX \ TS, g.vw.camY + g.ms.rY \ TS
+        ELSEIF g.ms.rX >= VX0 AND g.ms.rY >= VY0 AND g.ms.rY < VIEWB THEN
+            ScreenTile g.vw, g.ms.rX, g.ms.rY, wx, wy
+            IF wx >= 0 AND wy >= 0 AND wx < MAPW AND wy < MAPH THEN
+                Order g, m(), u(), bl(), fx(), wx, wy, PickUnit%(g, m(), u(), g.ms.rX, g.ms.rY, 1), PickBld%(g, m(), bl(), g.ms.rX, g.ms.rY)
+            END IF
         END IF
     END IF
 
-    ' the screen's edges scroll, ten tiles a second
+    ' the screen's edges scroll, a half tile 14 times a second
     IF g.ms.x <= 1 THEN sdx = -1
     IF g.ms.x >= 318 THEN sdx = 1
     IF g.ms.y <= 1 THEN sdy = -1
     IF g.ms.y >= 198 THEN sdy = 1
     IF sdx OR sdy THEN
-        g.vw.scrollAcc = g.vw.scrollAcc + dt * 10
+        g.vw.scrollAcc = g.vw.scrollAcc + dt * 14
         DO WHILE g.vw.scrollAcc >= 1
             g.vw.scrollAcc = g.vw.scrollAcc - 1
-            g.vw.camX = g.vw.camX + sdx: g.vw.camY = g.vw.camY + sdy
+            g.vw.camX = g.vw.camX + sdx * 16: g.vw.camY = g.vw.camY + sdy * 8
         LOOP
     ELSE
         g.vw.scrollAcc = .99
     END IF
-    CenterOn g.vw, g.vw.camX + VW \ 2, g.vw.camY + VH \ 2
+    ClampCam g.vw
 END SUB
 
 FUNCTION CountB% (bl() AS BldgT, ti AS INTEGER, bt AS INTEGER)
@@ -963,15 +1102,13 @@ END SUB
 
 ' The pointer: a sight over an enemy while units are selected, else an arrow.
 SUB DrawCursor (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT)
-    DIM e AS INTEGER, i AS INTEGER, wx AS INTEGER, wy AS INTEGER, x AS INTEGER, y AS INTEGER
+    DIM e AS INTEGER, i AS INTEGER, x AS INTEGER, y AS INTEGER
     x = g.ms.x: y = g.ms.y
-    IF g.state = GPLAY AND x < SBX AND y < VIEWH AND g.placeKind < 0 THEN
-        wx = g.vw.camX + x \ TS: wy = g.vw.camY + y \ TS
-        i = UnitAt%(m(), u(), wx, wy)
-        IF i THEN
-            IF u(i).team = 1 AND m(wx, wy).vis THEN e = 1
-        ELSEIF m(wx, wy).bld THEN
-            IF bl(m(wx, wy).bld).team = 1 THEN e = 1
+    IF g.state = GPLAY AND x < SBX AND y < VIEWB AND g.placeKind < 0 THEN
+        IF PickUnit%(g, m(), u(), x, y, 1) THEN e = 1
+        IF e = 0 THEN
+            i = PickBld%(g, m(), bl(), x, y)
+            IF i THEN IF bl(i).team = 1 THEN e = 1
         END IF
         IF e THEN
             e = 0
@@ -1034,11 +1171,12 @@ END SUB
 SUB DrawFx (g AS GameT, fx() AS FxT)
     DIM i AS INTEGER, p AS SINGLE, x AS INTEGER, y AS INTEGER, x2 AS INTEGER, y2 AS INTEGER, r AS INTEGER
     DIM c AS INTEGER, k AS INTEGER, ox AS INTEGER, oy AS INTEGER
-    ox = g.vw.camX * TS: oy = g.vw.camY * TS
+    ox = MAPH * 16 - g.vw.camX + VX0: oy = VY0 - g.vw.camY
     FOR i = 1 TO MAXFX
         IF fx(i).alive THEN
             p = fx(i).t / fx(i).life
-            x = fx(i).x - ox: y = fx(i).y - oy: x2 = fx(i).x2 - ox: y2 = fx(i).y2 - oy
+            x = fx(i).x - fx(i).y + ox: y = (fx(i).x + fx(i).y) / 2 + oy - 4
+            x2 = ABS(fx(i).x2) - fx(i).y2 + ox: y2 = (ABS(fx(i).x2) + fx(i).y2) / 2 + oy - 4
             SELECT CASE fx(i).kind
             CASE FXBOOM, FXBIG
                 r = 2 + p * 5: IF fx(i).kind = FXBIG THEN r = 3 + p * 10
@@ -1118,7 +1256,16 @@ SUB DrawMinimap (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS
             END IF
         END IF
     NEXT
-    LINE (MINIX + g.vw.camX * 2, MINIY + g.vw.camY * 2)-STEP(VW * 2 - 1, VH * 2 - 1), 15, B
+    ScreenTile g.vw, VX0, VY0, x, y: ScreenTile g.vw, SBX - 1, VY0, i, b
+    VIEW SCREEN (MINIX, MINIY)-(MINIX + MAPW * 2 - 1, MINIY + MAPH * 2 - 1)
+    LINE (MINIX + x * 2, MINIY + y * 2)-(MINIX + i * 2, MINIY + b * 2), 15
+    ScreenTile g.vw, SBX - 1, VIEWB - 1, x, y
+    LINE -(MINIX + x * 2, MINIY + y * 2), 15
+    ScreenTile g.vw, VX0, VIEWB - 1, i, b
+    LINE -(MINIX + i * 2, MINIY + b * 2), 15
+    ScreenTile g.vw, VX0, VY0, x, y
+    LINE -(MINIX + x * 2, MINIY + y * 2), 15
+    VIEW
 END SUB
 
 SUB DrawSidebar (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS INTEGER, gl() AS INTEGER)
@@ -1244,63 +1391,100 @@ SUB DrawTitleBack (art() AS INTEGER, gl() AS INTEGER)
     GET (0, 0)-(319, 199), art(0, ABACK)
 END SUB
 
-SUB DrawUnits (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS INTEGER)
-    DIM k AS INTEGER, i AS INTEGER, sx AS INTEGER, sy AS INTEGER, f AS INTEGER, c AS INTEGER, mh AS INTEGER
-    DIM ox AS INTEGER, oy AS INTEGER, b AS INTEGER, cx AS INTEGER, cy AS INTEGER
-    ox = g.vw.camX * TS: oy = g.vw.camY * TS
+' The units, buildings and the n trees at tx(), ty() in the view, back to front by their feet's
+' x + y.
+SUB DrawObjects (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS INTEGER, tx() AS INTEGER, ty() AS INTEGER, nt AS INTEGER)
+    DIM id(MAXU + MAXB + 200) AS INTEGER, dp(MAXU + MAXB + 200) AS SINGLE, n AS INTEGER
+    DIM i AS INTEGER, j AS INTEGER, k AS INTEGER, b AS INTEGER, sx AS INTEGER, sy AS INTEGER, f AS INTEGER
+    DIM c AS INTEGER, mh AS INTEGER, x0 AS INTEGER, y0 AS INTEGER, w AS INTEGER, h AS INTEGER, d AS SINGLE
+    DIM ox AS INTEGER, oy AS INTEGER, ax AS SINGLE, ay AS SINGLE
+    ox = MAPH * 16 - g.vw.camX + VX0: oy = VY0 - g.vw.camY
+    ' units 1 to MAXU, buildings 1000 on, trees 2000 on
     FOR i = 1 TO MAXU
         IF u(i).alive THEN
-            sx = INT(u(i).px) - ox - TS \ 2: sy = INT(u(i).py) - oy - TS \ 2
-            IF sx >= 0 AND sy >= 0 AND sx <= SBX - TS - 2 AND sy <= VIEWH - TS - 2 THEN
-                IF u(i).team = 0 OR m(u(i).x, u(i).y).vis THEN
-                    f = 0
-                    IF u(i).nx <> u(i).x OR u(i).ny <> u(i).y OR u(i).st = SGATHER THEN f = INT(u(i).anim * 8) MOD 2
-                    k = ((u(i).kind - 1) * 2 + u(i).team) * 16 + u(i).dir * 2 + f
-                    PUT (sx + 2, sy + 2), art(0, ASHD + k), OR
-                    Sprite art(), k, sx, sy
-                    IF u(i).kind = UCRAWL AND u(i).load > 0 THEN
-                        PSET (sx + 7, sy + 7), 8: PSET (sx + 8, sy + 8), 8
-                        IF u(i).load > 5 THEN PSET (sx + 8, sy + 7), 31
-                    END IF
-                    IF u(i).sel THEN
-                        LINE (sx, sy)-STEP(3, 0), 15: LINE (sx, sy)-STEP(0, 3), 15
-                        LINE (sx + 15, sy)-STEP(-3, 0), 15: LINE (sx + 15, sy)-STEP(0, 3), 15
-                        LINE (sx, sy + 15)-STEP(3, 0), 15: LINE (sx, sy + 15)-STEP(0, -3), 15
-                        LINE (sx + 15, sy + 15)-STEP(-3, 0), 15: LINE (sx + 15, sy + 15)-STEP(0, -3), 15
-                    END IF
-                    mh = UHp%(u(i).kind)
-                    IF (u(i).sel OR u(i).hp < mh) AND sy >= 2 THEN
-                        c = 8: IF u(i).hp * 2 < mh THEN c = 13
-                        IF u(i).hp * 4 < mh THEN c = 29
-                        Bar sx + 2, sy - 2, 12, u(i).hp / mh, c
-                    END IF
-                END IF
-            END IF
+            IF u(i).team = 0 OR m(u(i).x, u(i).y).vis THEN n = n + 1: id(n) = i: dp(n) = (u(i).px + u(i).py) / TS
         END IF
     NEXT
-    ' the spires' guns, the lights, the buildings' health
     FOR b = 1 TO MAXB
         IF bl(b).alive THEN
-            cx = bl(b).x * TS - ox: cy = bl(b).y * TS - oy
-            IF cx >= 0 AND cy >= 4 AND cx <= SBX - TS AND cy <= VIEWH - TS THEN
-                IF m(bl(b).x, bl(b).y).seen THEN
-                    IF bl(b).kind = BSPIRE THEN
-                        sx = cx + 8 + COS(bl(b).ang) * 7: sy = cy + 8 + SIN(bl(b).ang) * 7
-                        LINE (cx + 8, cy + 8)-(sx, sy), 0
-                        LINE (cx + 7, cy + 8)-(sx - 1, sy), 14
-                        LINE (cx + 8, cy + 7)-(sx, sy - 1), 24
-                        c = 11 + bl(b).team * 2: IF bl(b).cool > .8 THEN c = 15
-                        PSET (sx, sy), c
-                    ELSEIF INT(g.clock * 2 + b) MOD 3 = 0 THEN
-                        PSET (cx + 2, cy + 2), 11 + bl(b).team * 2
-                    END IF
-                    mh = BHp%(bl(b).kind)
-                    IF bl(b).hp < mh THEN
-                        c = 8: IF bl(b).hp * 2 < mh THEN c = 13
-                        IF bl(b).hp * 4 < mh THEN c = 29
-                        Bar cx + 2, cy - 3, BSize%(bl(b).kind) * TS - 4, bl(b).hp / mh, c
-                    END IF
+            IF m(bl(b).x, bl(b).y).seen THEN n = n + 1: id(n) = 1000 + b: dp(n) = bl(b).x + bl(b).y + 2 * BSize%(bl(b).kind) - 1
+        END IF
+    NEXT
+    FOR i = 1 TO nt
+        n = n + 1: id(n) = 2000 + i: dp(n) = tx(i) + ty(i) + 1
+    NEXT
+    FOR i = 2 TO n
+        k = id(i): d = dp(i): j = i - 1
+        DO WHILE j >= 1
+            IF dp(j) <= d THEN EXIT DO
+            id(j + 1) = id(j): dp(j + 1) = dp(j): j = j - 1
+        LOOP
+        id(j + 1) = k: dp(j + 1) = d
+    NEXT
+
+    FOR j = 1 TO n
+        k = id(j)
+        IF k < 1000 THEN
+            i = k
+            sx = u(i).px - u(i).py + ox: sy = (u(i).px + u(i).py) / 2 + oy
+            x0 = sx - 8: y0 = sy - 12
+            IF x0 >= 0 AND y0 >= 0 AND x0 <= 300 AND y0 <= 180 THEN
+                f = 0
+                IF u(i).nx <> u(i).x OR u(i).ny <> u(i).y OR u(i).st = SGATHER THEN f = INT(u(i).anim * 8) MOD 2
+                k = ((u(i).kind - 1) * 2 + u(i).team) * 16 + IsoDir%(u(i).dir) * 2 + f
+                PUT (x0 + 2, y0 + 2), art(0, ASHD + k), OR
+                Sprite art(), k, x0, y0
+                IF u(i).kind = UCRAWL AND u(i).load > 0 THEN
+                    PSET (sx, sy - 5), 8: PSET (sx + 1, sy - 4), 8
+                    IF u(i).load > 5 THEN PSET (sx + 1, sy - 5), 31
                 END IF
+                IF u(i).sel THEN
+                    LINE (x0, y0)-STEP(3, 0), 15: LINE (x0, y0)-STEP(0, 3), 15
+                    LINE (x0 + 15, y0)-STEP(-3, 0), 15: LINE (x0 + 15, y0)-STEP(0, 3), 15
+                    LINE (x0, y0 + 15)-STEP(3, 0), 15: LINE (x0, y0 + 15)-STEP(0, -3), 15
+                    LINE (x0 + 15, y0 + 15)-STEP(-3, 0), 15: LINE (x0 + 15, y0 + 15)-STEP(0, -3), 15
+                END IF
+                mh = UHp%(u(i).kind)
+                IF (u(i).sel OR u(i).hp < mh) AND y0 >= 2 THEN
+                    c = 8: IF u(i).hp * 2 < mh THEN c = 13
+                    IF u(i).hp * 4 < mh THEN c = 29
+                    Bar x0 + 2, y0 - 2, 12, u(i).hp / mh, c
+                END IF
+            END IF
+        ELSEIF k < 2000 THEN
+            b = k - 1000
+            w = 32 * BSize%(bl(b).kind): h = BldH%(bl(b).kind) + w \ 2
+            x0 = (bl(b).x - bl(b).y) * 16 + ox - w \ 2: y0 = (bl(b).x + bl(b).y) * 8 + oy - BldH%(bl(b).kind)
+            IF x0 >= 0 AND y0 >= 0 AND x0 + w <= 320 AND y0 + h <= 200 THEN
+                k = ABLD + ((bl(b).kind - 1) * 2 + bl(b).team) * 3 * BLDW
+                PUT (x0, y0), art(0, k + BLDW), AND
+                PUT (x0, y0), art(0, k), OR
+                IF m(bl(b).x, bl(b).y).vis = 0 THEN PUT (x0, y0), art(0, k + 2 * BLDW), OR
+                IF bl(b).kind = BSPIRE THEN
+                    ' the gun turns in the world; drawn as the screen sees it
+                    sx = x0 + 16: sy = y0 + 14
+                    ax = COS(bl(b).ang): ay = SIN(bl(b).ang)
+                    LINE (sx, sy)-(sx + (ax - ay) * 6, sy + (ax + ay) * 3), 0
+                    LINE (sx, sy - 1)-(sx + (ax - ay) * 6, sy - 1 + (ax + ay) * 3), 24
+                    c = 11 + bl(b).team * 2: IF bl(b).cool > .8 THEN c = 15
+                    PSET (sx + (ax - ay) * 6, sy + (ax + ay) * 3), c
+                ELSEIF INT(g.clock * 2 + b) MOD 3 = 0 THEN
+                    PSET (x0 + w \ 2 + 1, y0 + BldH%(bl(b).kind) - 2), 11 + bl(b).team * 2
+                END IF
+                mh = BHp%(bl(b).kind)
+                IF bl(b).hp < mh AND y0 >= 2 THEN
+                    c = 8: IF bl(b).hp * 2 < mh THEN c = 13
+                    IF bl(b).hp * 4 < mh THEN c = 29
+                    Bar x0 + 6, y0 - 2, w - 12, bl(b).hp / mh, c
+                END IF
+            END IF
+        ELSE
+            i = k - 2000
+            x0 = (tx(i) - ty(i)) * 16 + ox - 8: y0 = (tx(i) + ty(i)) * 8 + oy - 13
+            IF x0 >= 0 AND y0 >= 0 AND x0 <= 304 AND y0 <= 176 THEN
+                PUT (x0, y0), art(0, ATREE + 2), AND
+                PUT (x0, y0), art(0, ATREE), OR
+                IF m(tx(i), ty(i)).vis = 0 THEN PUT (x0, y0), art(0, ATREE + 4), OR
             END IF
         END IF
     NEXT
@@ -1487,10 +1671,10 @@ SUB Keys (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, 
                 ELSE
                     g.escT = g.clock: Say g, "Esc again to surrender"
                 END IF
-            CASE CHR$(0) + "H": g.vw.camY = g.vw.camY - 1
-            CASE CHR$(0) + "P": g.vw.camY = g.vw.camY + 1
-            CASE CHR$(0) + "K": g.vw.camX = g.vw.camX - 1
-            CASE CHR$(0) + "M": g.vw.camX = g.vw.camX + 1
+            CASE CHR$(0) + "H": g.vw.camY = g.vw.camY - 16: ClampCam g.vw
+            CASE CHR$(0) + "P": g.vw.camY = g.vw.camY + 16: ClampCam g.vw
+            CASE CHR$(0) + "K": g.vw.camX = g.vw.camX - 32: ClampCam g.vw
+            CASE CHR$(0) + "M": g.vw.camX = g.vw.camX + 32: ClampCam g.vw
             CASE "M"
                 g.snd.enabled = NOT g.snd.enabled
                 IF g.snd.enabled THEN Say g, "Sound on" ELSE Say g, "Sound off": SOUND 37, 0
@@ -1799,8 +1983,9 @@ SUB RenderEnd (g AS GameT, pt() AS PartT, art() AS INTEGER, gl() AS INTEGER)
 END SUB
 
 SUB RenderGame (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, art() AS INTEGER, gl() AS INTEGER)
-    DIM tx AS INTEGER, ty AS INTEGER, wx AS INTEGER, wy AS INTEGER, sx AS INTEGER, sy AS INTEGER
-    DIM b AS INTEGER, k AS INTEGER, sz AS INTEGER, c AS INTEGER, ph AS INTEGER
+    DIM wx AS INTEGER, wy AS INTEGER, sx AS INTEGER, sy AS INTEGER, t AS INTEGER, lo AS INTEGER, hi AS INTEGER
+    DIM k AS INTEGER, sz AS INTEGER, c AS INTEGER, ph AS INTEGER, k0 AS INTEGER, k1 AS INTEGER
+    DIM tx(200) AS INTEGER, ty(200) AS INTEGER, nt AS INTEGER, x(3) AS INTEGER, y(3) AS INTEGER
     ' the moss breathes; the water ripples
     ph = INT(g.clock * 2.5) MOD 4
     IF ph <> g.vw.mossPh THEN
@@ -1814,45 +1999,65 @@ SUB RenderGame (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS B
     g.vw.waterF = INT(g.clock * 1.6) MOD 2
     g.vw.miniT = g.vw.miniT - .016
 
-    FOR ty = 0 TO VH - 1
-        wy = g.vw.camY + ty: sy = ty * TS
-        FOR tx = 0 TO VW - 1
-            wx = g.vw.camX + tx: sx = tx * TS
-            IF m(wx, wy).seen = 0 THEN
-                LINE (sx, sy)-STEP(TS - 1, TS - 1), 0, BF
-            ELSE
-                b = m(wx, wy).bld
-                IF b THEN
-                    k = (wx - bl(b).x) + (wy - bl(b).y) * 2
-                    PUT (sx, sy), art(0, ABLD + (((bl(b).kind - 1) * 2 + bl(b).team) * 4 + k)), PSET
-                ELSE
-                    PUT (sx, sy), art(0, ATIL + (wx MOD 4) + (wy MOD 4) * 4), PSET
-                    k = Overlay%(g, m(), wx, wy)
-                    IF k >= 0 THEN
-                        PUT (sx, sy), art(0, AOVL + k * 2 + 1), AND
-                        PUT (sx, sy), art(0, AOVL + k * 2), OR
-                    END IF
+    ' the land a row of equal x + y at a time, from the back; the diamonds a half tile apart
+    LINE (0, 0)-(SBX - 1, VIEWH - 1), 0, BF
+    k0 = g.vw.camX \ 16 - 1: k1 = (g.vw.camX + VWP) \ 16 - 1
+    FOR t = (g.vw.camY - 8) \ 8 TO (g.vw.camY + VHP) \ 8
+        sy = t * 8 - g.vw.camY + VY0
+        lo = -INT(-(k0 + t - MAPH + 1) / 2): hi = INT((k1 + t - MAPH + 1) / 2)
+        IF lo < t - MAPH + 1 THEN lo = t - MAPH + 1
+        IF lo < 0 THEN lo = 0
+        IF hi > t THEN hi = t
+        IF hi > MAPW - 1 THEN hi = MAPW - 1
+        FOR wx = lo TO hi
+            wy = t - wx
+            sx = (wx - wy + MAPH - 1) * 16 - g.vw.camX + VX0
+            IF m(wx, wy).seen AND sx >= 0 AND sy >= ROCKH THEN
+                PUT (sx, sy), art(0, ADIA), AND
+                PUT (sx, sy), art(0, AGRS + ((wx MOD 4) + (wy MOD 4) * 4) * 2), OR
+                k = Overlay%(g, m(), wx, wy)
+                IF k >= 0 THEN
+                    PUT (sx, sy), art(0, AOVL + k * 4 + 2), AND
+                    PUT (sx, sy), art(0, AOVL + k * 4), OR
                 END IF
                 IF m(wx, wy).vis = 0 THEN PUT (sx, sy), art(0, AFOG), OR
+                IF m(wx, wy).terr = TROCK THEN
+                    k = AROK + Sides%(m(), wx, wy) * 9
+                    PUT (sx, sy - ROCKH), art(0, k + 3), AND
+                    PUT (sx, sy - ROCKH), art(0, k), OR
+                    IF m(wx, wy).vis = 0 THEN PUT (sx, sy - ROCKH), art(0, k + 6), OR
+                END IF
+                IF m(wx, wy).terr = TTREE AND nt < 200 THEN nt = nt + 1: tx(nt) = wx: ty(nt) = wy
             END IF
         NEXT
     NEXT
-    VIEW SCREEN (0, 0)-(SBX - 1, VIEWH - 1)
-    DrawUnits g, m(), u(), bl(), art()
+    DrawObjects g, m(), u(), bl(), art(), tx(), ty(), nt
+    VIEW SCREEN (VX0, VY0)-(SBX - 1, VIEWB - 1)
     DrawFx g, fx()
-    ' a building's place, green where it fits
-    IF g.placeKind >= 0 AND g.ms.x < SBX AND g.ms.y < VIEWH THEN
-        wx = g.vw.camX + g.ms.x \ TS: wy = g.vw.camY + g.ms.y \ TS
-        sz = BSize%(KMakes%(g.placeKind)) * TS
+    ' a building's place: its footprint, green where it fits
+    IF g.placeKind >= 0 AND g.ms.x >= VX0 AND g.ms.x < SBX AND g.ms.y >= VY0 AND g.ms.y < VIEWB THEN
+        ScreenTile g.vw, g.ms.x, g.ms.y, wx, wy
+        sz = BSize%(KMakes%(g.placeKind))
         c = 29: IF CanPlace%(m(), bl(), 0, g.placeKind, wx, wy) THEN c = 8
-        sx = (wx - g.vw.camX) * TS: sy = (wy - g.vw.camY) * TS
-        LINE (sx, sy)-STEP(sz - 1, sz - 1), c, B
-        FOR k = 4 TO sz * 2 - 4 STEP 4
-            IF k < sz THEN LINE (sx + k, sy)-(sx, sy + k), c, , &HAAAA ELSE LINE (sx + sz - 1, sy + k - sz + 1)-(sx + k - sz + 1, sy + sz - 1), c, , &HAAAA
+        sx = (wx - wy + MAPH) * 16 - g.vw.camX + VX0: sy = (wx + wy) * 8 - g.vw.camY + VY0
+        x(0) = sx: y(0) = sy
+        x(1) = sx + sz * 16: y(1) = sy + sz * 8
+        x(2) = sx: y(2) = sy + sz * 16
+        x(3) = sx - sz * 16: y(3) = sy + sz * 8
+        FOR k = 0 TO 3
+            LINE (x(k), y(k))-(x((k + 1) MOD 4), y((k + 1) MOD 4)), c
+        NEXT
+        FOR k = 2 TO sz * 16 - 2 STEP 3
+            LINE (x(0) - k, y(0) + k \ 2)-(x(1) - k, y(1) + k \ 2), c, , &HAAAA
         NEXT
     END IF
     IF g.ms.dragOn THEN LINE (g.ms.dX0, g.ms.dY0)-(g.ms.x, g.ms.y), 15, B, &HF0F0
     VIEW
+    ' the view's frame, over what spilled past it
+    LINE (0, 0)-(SBX - 1, VY0 - 2), 0, BF
+    LINE (0, VY0 - 1)-(VX0 - 2, VIEWB), 0, BF
+    LINE (0, VIEWB + 1)-(SBX - 1, VIEWH - 1), 0, BF
+    LINE (VX0 - 1, VY0 - 1)-(SBX, VIEWB), 23, B
     DrawSidebar g, tm(), m(), u(), bl(), art(), gl()
     DrawCursor g, m(), u(), bl()
 END SUB
@@ -1908,7 +2113,7 @@ SUB SelectBox (g AS GameT, m() AS CellT, u() AS UnitT, x1 AS INTEGER, y1 AS INTE
     IF y1 > y2 THEN SWAP y1, y2
     FOR i = 1 TO MAXU: u(i).sel = 0: NEXT
     IF x2 - x1 < 5 AND y2 - y1 < 5 THEN
-        e = UnitAt%(m(), u(), g.vw.camX + x1 \ TS, g.vw.camY + y1 \ TS)
+        e = PickUnit%(g, m(), u(), x1, y1, 0)
         IF e THEN
             IF u(e).team = 0 THEN u(e).sel = -1: Sfx g, 6
         END IF
@@ -1916,7 +2121,8 @@ SUB SelectBox (g AS GameT, m() AS CellT, u() AS UnitT, x1 AS INTEGER, y1 AS INTE
     END IF
     FOR i = 1 TO MAXU
         IF u(i).alive AND u(i).team = 0 THEN
-            sx = u(i).px - g.vw.camX * TS: sy = u(i).py - g.vw.camY * TS
+            sx = u(i).px - u(i).py + MAPH * 16 - g.vw.camX + VX0
+            sy = (u(i).px + u(i).py) / 2 - g.vw.camY + VY0 - 4
             IF sx >= x1 AND sx <= x2 AND sy >= y1 AND sy <= y2 THEN
                 u(i).sel = -1: n = n + 1
                 IF u(i).kind <> UCRAWL THEN army = -1
@@ -2089,6 +2295,7 @@ SUB Tick (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, 
 END SUB
 
 ' What lies on the grass at x, y: an overlay, -1 none.
+' What lies on the grass at x, y: an overlay, -1 none (rock, trees and buildings are drawn apart).
 FUNCTION Overlay% (g AS GameT, m() AS CellT, x AS INTEGER, y AS INTEGER)
     SELECT CASE m(x, y).terr
     CASE TDIRT: Overlay% = 0
@@ -2101,8 +2308,6 @@ FUNCTION Overlay% (g AS GameT, m() AS CellT, x AS INTEGER, y AS INTEGER)
         ELSE
             Overlay% = 2
         END IF
-    CASE TTREE: Overlay% = 5
-    CASE TROCK: Overlay% = OROCK + Sides%(m(), x, y)
     CASE TWATER: Overlay% = OWATER + ((g.vw.waterF + x + y) MOD 2) * 16 + Sides%(m(), x, y)
     CASE ELSE: Overlay% = -1
     END SELECT
@@ -2225,18 +2430,6 @@ FUNCTION UHp% (k AS INTEGER)
     CASE UWARD: UHp% = 55
     CASE ELSE: UHp% = 170
     END SELECT
-END FUNCTION
-
-FUNCTION UnitAt% (m() AS CellT, u() AS UnitT, wx AS INTEGER, wy AS INTEGER)
-    DIM i AS INTEGER
-    UnitAt% = 0
-    IF wx < 0 OR wy < 0 OR wx >= MAPW OR wy >= MAPH THEN EXIT FUNCTION
-    FOR i = 1 TO MAXU
-        IF u(i).alive THEN
-            IF u(i).x = wx AND u(i).y = wy THEN UnitAt% = i: EXIT FUNCTION
-        END IF
-    NEXT
-    UnitAt% = m(wx, wy).occ
 END FUNCTION
 
 ' A unit's look at u ahead and v to its right, in pixels from its middle: a colour, -1 none.
@@ -2451,13 +2644,11 @@ FUNCTION USpeed! (k AS INTEGER)
     END SELECT
 END FUNCTION
 
-SUB Order (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, wx AS INTEGER, wy AS INTEGER)
-    DIM i AS INTEGER, e AS INTEGER, b AS INTEGER, got AS INTEGER, tk AS INTEGER, ti AS INTEGER
-    e = UnitAt%(m(), u(), wx, wy)
-    IF e THEN
-        IF u(e).team = 1 AND m(wx, wy).vis THEN tk = 1: ti = e
-    END IF
-    b = m(wx, wy).bld
+' The selected units sent to tile wx, wy: to attack the unit pu or building pb picked there.
+SUB Order (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, wx AS INTEGER, wy AS INTEGER, pu AS INTEGER, pb AS INTEGER)
+    DIM i AS INTEGER, b AS INTEGER, got AS INTEGER, tk AS INTEGER, ti AS INTEGER
+    IF pu THEN tk = 1: ti = pu
+    b = pb: IF b = 0 THEN b = m(wx, wy).bld
     IF tk = 0 AND b THEN
         IF bl(b).team = 1 THEN tk = 2: ti = b
     END IF
@@ -2554,84 +2745,119 @@ END SUB
 
 ' Overlay k on black (black left as the grass): 0 dirt, 1 flowers, 2 to 4 moss thin to thick,
 ' 5 a fungus tree, then rock and water by their sides.
-SUB PaintOverlay (k AS INTEGER)
+' Where pixel px, py of a 32 by 16 diamond lies on its tile: u east, v south, 0 to 1 inside.
+SUB IsoUV (px AS INTEGER, py AS INTEGER, u AS SINGLE, v AS SINGLE)
+    DIM ex AS SINGLE, ey AS SINGLE
+    ex = (px + .5 - 16) / 16: ey = (py + .5) / 8
+    u = (ey + ex) / 2: v = (ey - ex) / 2
+END SUB
+
+' Overlay k, a diamond on black at ox, oy (black left as the grass): 0 dirt, 1 flowers, 2 to 4
+' moss thin to thick, then water by its sides and frame.
+SUB PaintOverlay (k AS INTEGER, ox AS INTEGER, oy AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER, c AS INTEGER, i AS INTEGER, j AS INTEGER, d AS SINGLE
-    DIM cx AS INTEGER, cy AS INTEGER, h AS INTEGER
-    IF k >= OROCK THEN
-        FOR y = 0 TO TS - 1
-            FOR x = 0 TO TS - 1
-                IF k >= OWATER THEN
-                    c = LandPix%(1, (k - OWATER) MOD 16, (k - OWATER) \ 16, x, y)
-                ELSE
-                    c = LandPix%(0, k - OROCK, 0, x, y)
-                END IF
-                IF c THEN PSET (x, y), c
-            NEXT
-        NEXT
-        EXIT SUB
-    END IF
+    DIM h AS INTEGER, u AS SINGLE, v AS SINGLE, fx AS SINGLE, fy AS SINGLE
     SELECT CASE k
     CASE 0
         ' bare earth, its edge ragged and thinning into the grass
-        FOR y = 0 TO TS - 1
-            FOR x = 0 TO TS - 1
-                d = SQR((x - 7.5) ^ 2 + (y - 7.5) ^ 2) + SIN(Ang!(x - 7.5, y - 7.5) * 3 + 1) * .9
+        FOR y = 0 TO 15: FOR x = 0 TO 31
+            IsoUV x, y, u, v
+            fx = u * 16 - 7.5: fy = v * 16 - 7.5
+            IF u >= 0 AND u < 1 AND v >= 0 AND v < 1 THEN
+                d = SQR(fx * fx + fy * fy) + SIN(Ang!(fx, fy) * 3 + 1) * .9
                 c = 0
                 IF d < 5.5 THEN
                     c = 3: IF RND < .25 THEN c = 18
                 ELSEIF d < 7.5 THEN
                     IF (x + y) MOD 2 = 0 OR RND < .3 THEN c = 3
                 END IF
-                IF c THEN PSET (x, y), c
-            NEXT
-        NEXT
-        FOR i = 1 TO 3
-            x = 4 + RND * 7: y = 4 + RND * 7
-            PSET (x, y), 18: PSET (x, y + 1), 30
-        NEXT
+                IF c THEN PSET (ox + x, oy + y), c
+            END IF
+        NEXT: NEXT
     CASE 1
         ' a flower or two, a pebble
-        FOR i = 1 TO 2
-            x = 2 + RND * 11: y = 2 + RND * 11
-            PSET (x, y), 13 + (i - 1) * 14: PSET (x, y + 1), 1
+        FOR i = 0 TO 2
+            u = .2 + RND * .6: v = .2 + RND * .6
+            x = ox + 16 + (u - v) * 16: y = oy + (u + v) * 8
+            IF i < 2 THEN
+                PSET (x, y), 13 + i * 14: PSET (x, y + 1), 1
+            ELSE
+                PSET (x, y), 19: PSET (x + 1, y), 4
+            END IF
         NEXT
-        x = 2 + RND * 11: y = 2 + RND * 11
-        PSET (x, y), 19: PSET (x + 1, y), 4
     CASE 2, 3, 4
         ' moss: crystals glowing out of the grass, more the more there is
         FOR i = 1 TO (k - 1) * 3 + 1
-            cx = 2 + RND * 12: cy = 5 + RND * 10
+            u = .15 + RND * .7: v = .15 + RND * .7
+            x = ox + 16 + (u - v) * 16: y = oy + (u + v) * 8
             h = 2 + RND * 2
-            PSET (cx, cy + 1), 1: PSET (cx + 1, cy + 1), 1
+            PSET (x, y + 1), 1: PSET (x + 1, y + 1), 1
             FOR j = 0 TO h
                 c = 9: IF j > h \ 2 THEN c = 22
                 IF j = h THEN c = 8
-                PSET (cx, cy - j), c
+                IF y - j >= oy THEN PSET (x, y - j), c
             NEXT
-            PSET (cx + 1, cy - h + 1), 22: PSET (cx - 1, cy - h + 2), 9
-            PSET (cx, cy - h - 1), 31
+            IF y - h + 1 >= oy THEN PSET (x + 1, y - h + 1), 22
+            IF y - h - 1 >= oy THEN PSET (x, y - h - 1), 31
         NEXT
-    CASE 5
-        ' a fungus tree: its shadow, stem, a cap with glowing spots
-        FOR y = 0 TO TS - 1
-            FOR x = 0 TO TS - 1
-                IF ((x - 9) / 6) ^ 2 + ((y - 14) / 2) ^ 2 <= 1 THEN PSET (x, y), 1
-                IF x >= 7 AND x <= 9 AND y >= 7 AND y <= 14 THEN
-                    c = 3: IF x = 9 THEN c = 30
-                    PSET (x, y), c
-                END IF
-                d = ((x - 8) / 7.5) ^ 2 + ((y - 6) / 4.5) ^ 2
-                IF d <= 1 AND y <= 8 THEN
-                    c = 5: IF d < .55 THEN c = 27
-                    IF d < .2 AND y < 5 THEN c = 19
-                    IF d > .82 THEN c = 4
-                    IF y = 8 THEN c = 4
-                    PSET (x, y), c
-                END IF
-            NEXT
-        NEXT
-        PSET (5, 4), 8: PSET (11, 5), 8: PSET (8, 3), 31: PSET (3, 6), 22
+    CASE ELSE
+        FOR y = 0 TO 15: FOR x = 0 TO 31
+            IsoUV x, y, u, v
+            IF u >= 0 AND u < 1 AND v >= 0 AND v < 1 THEN
+                c = LandPix%(1, (k - OWATER) MOD 16, (k - OWATER) \ 16, INT(u * 16), INT(v * 16))
+                IF c THEN PSET (ox + x, oy + y), c
+            END IF
+        NEXT: NEXT
     END SELECT
+END SUB
+
+' Rock whose land goes on at the sides same, raised ROCKH: its top the diamond at ox, oy, its
+' faces below it, lit from the left.
+SUB PaintRock (same AS INTEGER, ox AS INTEGER, oy AS INTEGER)
+    DIM x AS INTEGER, y AS INTEGER, c AS INTEGER, k AS INTEGER, u AS SINGLE, v AS SINGLE
+    FOR y = 0 TO 15: FOR x = 0 TO 31
+        IsoUV x, y, u, v
+        IF u >= 0 AND u < 1 AND v >= 0 AND v < 1 THEN
+            c = LandPix%(0, same, 0, INT(u * 16), INT(v * 16))
+            IF c THEN PSET (ox + x, oy + y), c
+        END IF
+    NEXT: NEXT
+    FOR x = 0 TO 31
+        FOR y = 15 + ROCKH TO 1 STEP -1
+            IF POINT(ox + x, oy + y) = 0 THEN
+                FOR k = 1 TO ROCKH
+                    IF y - k >= 0 THEN
+                        c = POINT(ox + x, oy + y - k)
+                        IF c <> 0 AND c <> 23 AND c <> 4 THEN
+                            IF x < 16 THEN c = 23 ELSE c = 4
+                            PSET (ox + x, oy + y), c
+                            EXIT FOR
+                        END IF
+                    END IF
+                NEXT
+            END IF
+        NEXT
+    NEXT
+END SUB
+
+' A fungus tree, 16 by 24 on black at ox, oy: its shadow, stem, a cap with glowing spots.
+SUB PaintTree (ox AS INTEGER, oy AS INTEGER)
+    DIM x AS INTEGER, y AS INTEGER, c AS INTEGER, d AS SINGLE
+    FOR y = 0 TO 23: FOR x = 0 TO 15
+        c = 0
+        IF ((x - 9) / 7) ^ 2 + ((y - 21.5) / 2) ^ 2 <= 1 THEN c = 1
+        IF x >= 7 AND x <= 9 AND y >= 10 AND y <= 21 THEN
+            c = 3: IF x = 9 THEN c = 30
+        END IF
+        d = ((x - 7.5) / 7.8) ^ 2 + ((y - 8) / 6) ^ 2
+        IF d <= 1 AND y <= 11 THEN
+            c = 5: IF d < .55 THEN c = 27
+            IF d < .2 AND y < 7 THEN c = 19
+            IF d > .8 OR y = 11 THEN c = 4
+        END IF
+        IF c THEN PSET (ox + x, oy + y), c
+    NEXT: NEXT
+    PSET (ox + 4, oy + 6), 8: PSET (ox + 11, oy + 7), 8: PSET (ox + 8, oy + 4), 31: PSET (ox + 2, oy + 9), 22
 END SUB
 
 ' A water or rock tile's edges where it meets other land: a shore, a cliff's lip and shadow.
