@@ -272,6 +272,48 @@ static uint8_t list_per(const DlogCtl *const c)
 /* What a list's top moves by: a column when it has columns. */
 static uint32_t list_step(const DlogCtl *const c) { return c->list->columns ? c->rows : 1; }
 
+/* c's list's items past its box: then its bar, sideways for columns, else down. */
+static bool list_over(const DlogCtl *const c)
+{
+    return c->list->n > (uint32_t)c->rows * list_per(c) && c->cols >= 3 && c->rows >= 3;
+}
+
+/* Where the thumb is on c's list's bar, len cells, arrows too: the selection's column, item. */
+static uint32_t bar_thumb(const DlogCtl *const c, const uint32_t len)
+{
+    const DlogList *const l = c->list;
+
+    if (l->columns)
+        return l->sel / c->rows * (len - 3) / ((l->n + c->rows - 1) / c->rows);
+
+    return l->sel * (len - 3) / l->n;
+}
+
+/* c's list's bar, on its box's bottom or right side: arrows, the track, the thumb. */
+static void draw_bar(const DlogCtl *const c, const uint8_t top, const uint8_t left)
+{
+    if (!list_over(c))
+        return;
+
+    if (c->list->columns) {
+        const uint8_t row = (uint8_t)(top + c->rows + 1);
+        uint8_t x = scrn_fill(row, (uint8_t)(left + 1), SL_BAR, GLYPH_LEFT, 1);
+        x = scrn_fill(row, x, SL_BAR, GLYPH_SHADE, c->cols - 2);
+        scrn_fill(row, x, SL_BAR, GLYPH_RIGHT, 1);
+        scrn_fill(row, (uint8_t)(left + 2 + bar_thumb(c, c->cols)), SL_THB, ' ', 1);
+        return;
+    }
+
+    const uint8_t col = (uint8_t)(left + c->cols + 1);
+    scrn_fill((uint8_t)(top + 1), col, SL_BAR, GLYPH_UP, 1);
+
+    for (uint8_t r = 2; r < c->rows; r++)
+        scrn_fill((uint8_t)(top + r), col, SL_BAR, GLYPH_SHADE, 1);
+
+    scrn_fill((uint8_t)(top + c->rows), col, SL_BAR, GLYPH_DOWN, 1);
+    scrn_fill((uint8_t)(top + 2 + bar_thumb(c, c->rows)), col, SL_THB, ' ', 1);
+}
+
 static void draw_list(const DlogCtl *const c, const uint8_t top, const uint8_t left)
 {
     scrn_box(top, left, c->rows + FRAME, c->cols + FRAME, SL_DLG, nullptr);
@@ -303,6 +345,8 @@ static void draw_list(const DlogCtl *const c, const uint8_t top, const uint8_t l
             dl.cur = place(row, col);
         }
     }
+
+    draw_bar(c, top, left);
 }
 
 /* dl_bw's for a control: its width, its text's + BTN_PAD when none. */
@@ -505,11 +549,35 @@ bool dlog_ledit(LineBuf *const b, const uint16_t key)
 /* What a key or a click leads to: GO_LOOP nothing more; GO_ESC the box ends. */
 enum : uint8_t { GO_LOOP, GO_PRESS, GO_ENTER, GO_CHECK, GO_SET, GO_ESC };
 
-/* A click on a list's line r, cell x: once selects (*sel), on the selected one opens. */
+/* A click at p on c's list's bar, len cells: an arrow a column (an item) on or back, the track a
+   page towards it. */
+static uint8_t bar_click(
+    const DlogCtl *const c,
+    const uint32_t p,
+    const uint32_t len,
+    uint32_t *const sel
+)
+{
+    const uint32_t s = c->list->sel, page = (uint32_t)c->rows * list_per(c);
+    const bool arrow = !p || p == len - 1;
+    const bool back = !p || (!arrow && p < 1 + bar_thumb(c, len));
+    const uint32_t by = arrow ? list_step(c) : page;
+
+    *sel = back ? (s >= by ? s - by : 0) : s + by;
+    return GO_SET;
+}
+
+/* A click on a list's line r, cell x: once selects (*sel), on the selected one opens; on its
+   bar, moves. */
 static uint8_t list_click(const DlogCtl *const c, const int r, const int x, uint32_t *const sel)
 {
     const uint8_t per = list_per(c);
     const int column = x / (c->cols / per);
+
+    if (list_over(c) && c->list->columns && r == c->rows && x >= 0 && x < c->cols)
+        return bar_click(c, (uint32_t)x, c->cols, sel);
+    if (list_over(c) && !c->list->columns && x == c->cols && r >= 0 && r < c->rows)
+        return bar_click(c, (uint32_t)r, c->rows, sel);
 
     if (r < 0 || r >= c->rows || x < 0 || column >= per)
         return GO_LOOP;
