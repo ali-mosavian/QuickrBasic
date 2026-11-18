@@ -12,9 +12,10 @@ DEFINT A-Z
 
 ' TS: a tile's side in the world's pixels. The screen shows the world isometric: a tile is a
 ' diamond 32 by 16; the plane's x is the world's x - y, its y half x + y. The map's view is
-' VX0, VY0 to SBX, VIEWB on the screen, the camera in the plane's pixels, by half tiles.
+' VX0, VY0 to SBX, VIEWB on the screen, the camera in the plane's pixels, by half tiles; PUT clips
+' to the VIEW, so what spills past its edges is cut there.
 CONST MAPW = 64, MAPH = 48, TS = 16, SBX = 240, VIEWH = 192
-CONST VX0 = 16, VY0 = 28, VIEWB = 184, VWP = SBX - VX0, VHP = VIEWB - VY0
+CONST VX0 = 0, VY0 = 0, VIEWB = 192, VWP = SBX - VX0, VHP = VIEWB - VY0
 ' STEPH: a level's height in pixels; MAXH the highest level
 CONST PLANEW = (MAPW + MAPH) * 16, PLANEH = (MAPW + MAPH) * 8, ROCKH = 6, STEPH = 12, MAXH = 2
 CONST MAXU = 64, MAXB = 32, MAXFX = 64, NF = 24, NPART = 48
@@ -3497,7 +3498,7 @@ SUB DrawObjects (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS
             i = k
             UnitScreen g, m(), u(), i, sx, sy
             x0 = sx - 8: y0 = sy - 12
-            IF x0 >= 0 AND y0 >= 0 AND x0 <= 300 AND y0 <= 180 THEN
+            IF x0 > -64 AND y0 > -64 AND x0 < SBX AND y0 < VIEWB THEN
                 f = 0
                 IF u(i).nx <> u(i).x OR u(i).ny <> u(i).y OR u(i).st = SGATHER THEN f = INT(u(i).anim * 8) MOD 2
                 k = ((u(i).kind - 1) * 2 + u(i).team) * 16 + IsoDir%(u(i).dir) * 2 + f
@@ -3524,7 +3525,7 @@ SUB DrawObjects (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS
             b = k - 1000
             w = 32 * BSize%(bl(b).kind): h = BldH%(bl(b).kind) + w \ 2
             x0 = (bl(b).x - bl(b).y) * 16 + ox - w \ 2: y0 = (bl(b).x + bl(b).y) * 8 + oy - BldH%(bl(b).kind) - Lift%(m(), bl(b).x, bl(b).y)
-            IF x0 >= 0 AND y0 >= 0 AND x0 + w <= 320 AND y0 + h <= 200 THEN
+            IF x0 > -64 AND y0 > -64 AND x0 < SBX AND y0 < VIEWB THEN
                 k = ABLD + ((bl(b).kind - 1) * 2 + bl(b).team) * 3 * BLDW
                 PUT (x0, y0), art(0, k + BLDW), AND
                 PUT (x0, y0), art(0, k), OR
@@ -3549,7 +3550,7 @@ SUB DrawObjects (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS
         ELSE
             i = k - 2000
             x0 = (tx(i) - ty(i)) * 16 + ox - 8: y0 = (tx(i) + ty(i)) * 8 + oy - 13 - Lift%(m(), tx(i), ty(i))
-            IF x0 >= 0 AND y0 >= 0 AND x0 <= 304 AND y0 <= 176 THEN
+            IF x0 > -64 AND y0 > -64 AND x0 < SBX AND y0 < VIEWB THEN
                 PUT (x0, y0), art(0, ATREE + 6), OR
                 PUT (x0, y0), art(0, ATREE + 2), AND
                 PUT (x0, y0), art(0, ATREE), OR
@@ -4152,6 +4153,7 @@ SUB RenderGame (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS B
     g.vw.miniT = g.vw.miniT - .016
 
     ' the land a row of equal x + y at a time, from the back; the diamonds a half tile apart
+    VIEW SCREEN (VX0, VY0)-(SBX - 1, VIEWB - 1)
     LINE (0, 0)-(SBX - 1, VIEWH - 1), 0, BF
     k0 = g.vw.camX \ 16 - 1: k1 = (g.vw.camX + VWP) \ 16 - 1
     ' the rows below the view too: their raised tops come up into it
@@ -4167,13 +4169,13 @@ SUB RenderGame (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS B
             sx = (wx - wy + MAPH - 1) * 16 - g.vw.camX + VX0
             l = Lift%(m(), wx, wy)
             ' a cliff's steps down to the land in front, left and right
-            IF m(wx, wy).seen AND sx >= 0 THEN
+            IF m(wx, wy).seen AND sx > -32 AND sx < SBX THEN
                 FOR k = 0 TO 1
                     IF k = 0 THEN h = l - Lift%(m(), wx, wy + 1) ELSE h = l - Lift%(m(), wx + 1, wy)
                     lip(k) = h > 0
                     FOR j = 1 TO h \ STEPH
                         y0 = sy + 8 - l + (j - 1) * STEPH
-                        IF y0 >= 0 AND y0 + 7 + STEPH <= 199 THEN
+                        IF y0 < VIEWB THEN
                             PUT (sx + k * 16, y0), art(0, AFACE + k * 6 + 2), AND
                             PUT (sx + k * 16, y0), art(0, AFACE + k * 6), OR
                         END IF
@@ -4181,11 +4183,11 @@ SUB RenderGame (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS B
                 NEXT
             END IF
             sy = sy - l
-            IF m(wx, wy).seen AND sx >= 0 AND sy >= STEPH AND sy <= 184 AND m(wx, wy).rmp > 0 THEN
+            IF m(wx, wy).seen AND sx > -32 AND sx < SBX AND sy > -16 AND sy < VIEWB + STEPH AND m(wx, wy).rmp > 0 THEN
                 k = ARMP + ((m(wx, wy).rmp - 1) * 2 + m(wx, wy).hgt) * 12
                 PUT (sx, sy - STEPH), art(0, k + 4), AND
                 PUT (sx, sy - STEPH), art(0, k), OR
-            ELSEIF m(wx, wy).seen AND sx >= 0 AND sy >= STEPH AND sy <= 184 THEN
+            ELSEIF m(wx, wy).seen AND sx > -32 AND sx < SBX AND sy > -16 AND sy < VIEWB + ROCKH THEN
                 PUT (sx, sy), art(0, ADIA), AND
                 PUT (sx, sy), art(0, AGRS + ((wx MOD 4) + (wy MOD 4) * 4 + 16 * m(wx, wy).hgt) * 2), OR
                 k = Overlay%(g, m(), wx, wy)
@@ -4211,7 +4213,6 @@ SUB RenderGame (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS B
         NEXT
     NEXT
     DrawObjects g, m(), u(), bl(), art(), tx(), ty(), nt
-    VIEW SCREEN (VX0, VY0)-(SBX - 1, VIEWB - 1)
     DrawFx g, m(), fx()
     ' a building's place: its footprint, green where it fits
     IF g.placeKind >= 0 AND g.ms.x >= VX0 AND g.ms.x < SBX AND g.ms.y >= VY0 AND g.ms.y < VIEWB THEN
@@ -4232,11 +4233,6 @@ SUB RenderGame (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS B
     END IF
     IF g.ms.dragOn THEN LINE (g.ms.dX0, g.ms.dY0)-(g.ms.x, g.ms.y), 15, B, &HF0F0
     VIEW
-    ' the view's frame, over what spilled past it
-    LINE (0, 0)-(SBX - 1, VY0 - 2), 0, BF
-    LINE (0, VY0 - 1)-(VX0 - 2, VIEWB), 0, BF
-    LINE (0, VIEWB + 1)-(SBX - 1, VIEWH - 1), 0, BF
-    LINE (VX0 - 1, VY0 - 1)-(SBX, VIEWB), 23, B
     DrawSidebar g, tm(), m(), u(), bl(), art(), gl()
     DrawCursor g, m(), u(), bl()
 END SUB
