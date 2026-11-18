@@ -2214,10 +2214,11 @@ SUB LoadSong
         NEXT
     NEXT
     ' the kit; FM, as the consoles of the day: a picked bass that starts bright; a reedy pulse lead; two brasses that
-    ' waver, their harmonics a saw's by a modulator that bends itself, for the intro; then an organ and a clavinet
-    PLAY "MBT140Z1,0H0,3,0,1L16", "T140W4Z1,12,4,4,4H0,5,6,1", "T140", , "T140W0Q42H1,4,10,2U4", "T140"
-    Horn(0) = "W4Z1,5,3,11,5H1,4,12,3U5": Horn(1) = "W4Z1,4,3,13,5H1,4,11,3U5"
-    Keys(0) = "W4Z2,5,3,6,2H0,5,8,2U0": Keys(1) = "W4Z3,9,3,1,3H0,4,1,2U0"
+    ' waver, their harmonics a saw's by a modulator that bends itself, for the intro; then stabs of the same brass
+    ' and a clavinet. All but the clavinet are unisons, two voices a few cents apart: a section, not a player
+    PLAY "MBT140Z1,0H0,3,0,1L16", "T140W4Z1,12,4,4,4H0,5,6,1I2", "T140", , "T140W0Q42H1,4,10,3U5I4", "T140"
+    Horn(0) = "W4Z1,5,3,11,5H1,4,12,5U7I5": Horn(1) = "W4Z1,4,3,13,5H1,4,11,5U7I7"
+    Keys(0) = "W4Z1,5,3,11,5H0,4,10,4U6I6": Keys(1) = "W4Z3,9,3,1,3H0,4,1,2U0I0"
     Bar = 0: HalfBar = 0
     Tune = -1
 END SUB
