@@ -24,10 +24,10 @@ PIECES = {16: "1", 12: "2.", 8: "2", 6: "4.", 4: "4", 3: "8.", 2: "8", 1: "16"}
 # a drum: what its voice is set to, then its note. A snare is all the noise, a hat what is over 4 kHz: a
 # recording's drums were in every band
 KICK = ("W4", "Z5,15,2,0,7", "Y0", "K4,8", "V15", "O1", "C")
-SNARE = ("W3", "Y0", "K0", "V11", "O6", "C")
-HAT = ("W3", "Y3,4000,0", "K0", "V4", "O6", "C")
+SNARE = ("W3", "Y0", "K0", "R5", "V11", "O6", "C")
+HAT = ("W3", "Y3,4000,0", "K0", "R5", "V4", "O6", "C")
 KIT = {35: KICK, 36: KICK, 38: SNARE, 40: SNARE} | {
-    key: ("W4", "Z1,0", "Y0", "K5,6", "V14", "O2", note) for key, note in ((41, "C"), (43, "E"), (45, "G"), (47, "B"))
+    key: ("W4", "Z1,0", "Y0", "K5,6", "R5", "V14", "O2", note) for key, note in ((41, "C"), (43, "E"), (45, "G"), (47, "B"))
 }
 LONGEST = 255  # a string's characters
 KIT_SOUND = "Z1,0H0,5,0,3L16"
@@ -35,7 +35,7 @@ KIT_SOUND = "Z1,0H0,5,0,3L16"
 SOUNDS = {
     0: "W4Z2,6,6,2,1H0,7,3,3I2",
     1: "W4Z7,6,7,0H0,8,0,6",
-    2: "W4Z1,6,3,12,5H0,4,11,4U6I6",
+    2: "W4Z1,3,3,8,2H0,4,11,4U6I6",
     3: "W4Z3,9,3,1,3H0,6,3,3",
     4: "W4Z1,6,4,8,3H0,7,11,2I2",
     5: "W2Y1,2400,4H3,5,11,4U4I6",
@@ -165,8 +165,8 @@ def bar_of(voice: dict[int, tuple[int, int]], first: int, places: int, drum: str
 
 
 def sound(family: int) -> str:
-    """A program family's sound at its volume: PLAY's own 8 of 15 left six voices 8 dB under a recording."""
-    return SOUNDS.get(family, DEFAULT_SOUND) + ("V15" if family == BASS else "V14")
+    """A program family's sound at its volume, in a room but for the bass: PLAY's own 8 of 15 left six voices 8 dB under a recording."""
+    return SOUNDS.get(family, DEFAULT_SOUND) + ("V15" if family == BASS else "V11R5")
 
 
 class Part(NamedTuple):
