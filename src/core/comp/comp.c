@@ -421,13 +421,22 @@ uint16_t comp_nameof(const uint8_t *const at) { return load16(at + at[1] + 2); }
 
 const uint8_t *comp_skipdata(const uint8_t *p)
 {
-    bool quoted = false;
+    static const bool stop[256] = {[0] = true, [':'] = true, ['"'] = true};
 
-    for (; *p && (quoted || *p != ':'); p++)
-        if (*p == '"')
-            quoted = !quoted;
+    for (;;) {
+        while (!stop[*p])
+            p++;
+        if (*p != '"')
+            return p;
 
-    return p;
+        for (p++; *p && *p != '"'; p++)
+            ;
+
+        if (!*p)
+            return p;
+
+        p++;
+    }
 }
 
 bool comp_param(Comp *const C, const uint16_t name, const uint8_t array, uint16_t *const id)
