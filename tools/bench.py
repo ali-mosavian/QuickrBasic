@@ -637,12 +637,11 @@ def cmd_fps(a: argparse.Namespace) -> int:
     return 0
 
 PANG = ROOT / "src/plat/wasm/web/demos/PANGDASH.BAS"
-# a game played by PANG_PILOT from its start; each call for 2 s of a second's play, the play moved on between
-PANG_EACH = ("Tick g, p, k, lo(), pt()", "DrawBack cx", "DrawTiles cx, cy", "DrawProps cx, cy",
-             "DrawBeads cx, cy, lo()", "DrawBugs cx, cy", "DrawHero p, cx, cy", "DrawParts pt(), cx, cy", "Hud g",
-             "Flip g.page", "Render g, p, lo(), pt()")
+# the game's own pilot playing from the start; each call for 2 s, a second of play between them
+PANG_EACH = ("Pilot p, k: Tick g, p, k, lo(), pt()", "DrawBack cx, cy", "DrawThings cx, cy, -1", "DrawTiles cx, cy",
+             "DrawThings cx, cy, 0", "DrawHero p, cx, cy", "DrawParts pt(), cx, cy", "Hud g", "Flip g.page",
+             "Render g, p, lo(), pt()")
 PANG_SETUP = """OpenScreen
-LoadPalette
 LoadTables
 LoadLevel
 BuildArt
@@ -651,7 +650,6 @@ DIM q AS INTEGER, n AS LONG, t0 AS SINGLE, cx AS INTEGER, cy AS INTEGER
 Muted = -1
 g.page = 1
 StartGame g, p, lo(), pt()
-k.r = -1
 OPEN "EACH.TXT" FOR OUTPUT AS #1
 """
 
@@ -659,7 +657,7 @@ OPEN "EACH.TXT" FOR OUTPUT AS #1
 def pang_program() -> str:
     """PANGDASH.BAS's Main swapped for a loop of each PANG_EACH call (after an empty one), its ms a call to EACH.TXT."""
     head, rest = PANG.read_text().split("\nMain\nEND\n", 1)
-    move = "FOR q = 1 TO 60: Tick g, p, k, lo(), pt(): NEXT\ncx = INT(g.camx): cy = INT(g.camy)\n"
+    move = "FOR q = 1 TO 60: Pilot p, k: Tick g, p, k, lo(), pt(): NEXT\ncx = INT(g.camx): cy = INT(g.camy)\n"
     loops = "".join(f"{move}n = 0: t0 = TIMER\nDO\n    FOR q = 1 TO {EACH_REPS}\n    {call}\n    NEXT\n"
                     f"    n = n + {EACH_REPS}\nLOOP UNTIL TIMER - t0 >= 2\n"
                     "PRINT #1, (TIMER - t0) / n * 1000; n\n" for call in ("REM", *PANG_EACH))
@@ -677,14 +675,14 @@ def cmd_pang(a: argparse.Namespace) -> int:
         log = Path(d) / "w/EACH.TXT"
         rows = [ln.split() for ln in log.read_text().splitlines()] if log.exists() else []
     dosrun.CONF = conf
-    if len(rows) <= len(PANG_EACH):
+    if len(PANG_EACH) >= len(rows):
         print(f"no EACH.TXT: {r['each'].reason} {r['each'].out[-400:]}")
         return 1
     got = [(float(ms), int(n)) for ms, n in rows]
-    cost = {call: ms - got[0][0] for call, (ms, _) in zip(PANG_EACH, got[1:])}
+    cost = {call: ms - got[0][0] for call, (ms, _) in zip(PANG_EACH, got[1:], strict=True)}
     for call, ms in cost.items():
         print(f"{ms:>8.2f} ms  {call}")
-    frame = cost["Render g, p, lo(), pt()"] + cost["Flip g.page"]
+    frame = cost[PANG_EACH[-1]] + cost["Flip g.page"]
     print(f"{1000 / frame:.1f} fps drawn; a tick's {cost[PANG_EACH[0]]:.2f} ms sixty times a second on top")
     return 0
 
