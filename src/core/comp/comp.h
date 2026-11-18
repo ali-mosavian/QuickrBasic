@@ -105,6 +105,17 @@ typedef struct Comp {
        XLIM + COMP_TAIL as a line needs. */
     uint8_t *xbuf;
     uint32_t xcap;
+
+    /* comp_var's variables while a link compiles every line (link.c's build): what it found by
+       procedure, name, suffix, array or not and the line's DEFtype letter's, its scope and STATIC
+       too. A name's scopes, its parameters and the variable's hash each a lookup once a link. */
+    bool memo_on;
+    struct {
+        uint32_t key; /* 0 none */
+        uint16_t id;
+        uint8_t scope;
+        uint8_t how; /* VM_PARAM a parameter (no scope set), VM_STATIC */
+    } memo[1024];
 } Comp;
 /* TVAR.info's ET_* to its kind: 0 FLOAT, 1 INT, 2 STRING, SK_DBL DOUBLE. */
 extern const uint8_t comp_etkind[8];

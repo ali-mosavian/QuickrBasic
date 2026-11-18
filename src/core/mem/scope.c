@@ -62,6 +62,7 @@ void scop_init(Scop *const sc, Fault *const f)
 void scop_reset(Scop *const sc)
 {
     arena_reset(&sc->arena);
+    sc->gen++;
     sc->nbnd = 1;
     sc->depth = 1;
     sc->stack[0] = (ScopFrame){};
@@ -86,6 +87,7 @@ Binding *scop_get(const Scop *const sc, const uint16_t scope, const uint16_t nam
 Binding *scop_bind(Scop *const sc, const uint16_t scope, const uint16_t name)
 {
     Binding *const found = scop_get(sc, scope, name);
+    sc->gen++; /* scop_look's answers stale: a binding made, or its flags to be changed */
 
     if (found)
         return found;
@@ -128,7 +130,7 @@ uint16_t scop_own(const Scop *const sc)
     return sc->stack[i].name;
 }
 
-const Binding *scop_look(const Scop *const sc, const uint16_t name, uint16_t *const scope)
+static const Binding *look(const Scop *const sc, const uint16_t name, uint16_t *const scope)
 {
     uint32_t i = sc->depth;
     bool shared_only = false; /* only what the scope above sees */
@@ -155,6 +157,28 @@ const Binding *scop_look(const Scop *const sc, const uint16_t name, uint16_t *co
 
     *scope = scop_own(sc);
     return &none;
+}
+
+const Binding *scop_look(const Scop *const sc, const uint16_t name, uint16_t *const scope)
+{
+    const uint32_t top = sc->stack[sc->depth - 1].name;
+
+    if (!sc->look_on || sc->depth > 2) /* a DEF FN's: the stack more than its top */
+        return look(sc, name, scope);
+
+    const uint32_t key = (name | top << 16) ^ sc->depth << 31;
+    /* kept in a const Scop: an answer, not a binding */
+    ScopLook *const m = (ScopLook *)&sc->look[(name * 2654435761u ^ top * 40503u) >> 23 &
+                                               (countof(sc->look) - 1)];
+
+    if (m->key != key || m->gen != sc->gen || !m->b) {
+        m->b = look(sc, name, &m->scope);
+        m->key = key;
+        m->gen = sc->gen;
+    }
+
+    *scope = m->scope;
+    return m->b;
 }
 
 /* Name's binding as the procedure compiled sees it. */

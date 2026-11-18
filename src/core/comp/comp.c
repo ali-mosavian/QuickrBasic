@@ -482,6 +482,8 @@ static void declared(Comp *const C, const uint16_t name)
         fault_error(C->fault, E_VND);
 }
 
+enum { VM_PARAM = 1, VM_STATIC = 2 };
+
 uint16_t comp_var(Comp *const C, const uint8_t shape, const uint8_t et)
 {
     const uint8_t *const q = C->p;
@@ -491,14 +493,35 @@ uint16_t comp_var(Comp *const C, const uint8_t shape, const uint8_t et)
     C->p = comp_skipname(q);
     uint8_t kind = shape > 1 || (!shape && *C->p == '(') ? VI_ARR : 0;
     uint8_t type = et;
+    typeof(C->memo[0]) *m = nullptr;
+    uint32_t key = 0;
+
+    if (C->memo_on && !et && C->line != DLINE && !C->check) {
+        key = name | (uint32_t)C->proc << 16 | (uint32_t)sfx << 24 | (uint32_t)!!kind << 27 |
+              (uint32_t)C->symb->deft[upcase(first) - 'A'] << 28;
+        m = &C->memo[(name * 2654435761u ^ C->proc * 40503u) >> 22 & (countof(C->memo) - 1)];
+
+        if (m->key == key) {
+            if (!(m->how & VM_PARAM)) {
+                C->scope = m->scope;
+                C->isstatic = m->how & VM_STATIC;
+            }
+
+            return m->id;
+        }
+    }
 
     if (!type && sfx)
         type = scop_sfx(C->scop, name, sfx, kind != 0);
     else if (!type) {
         uint16_t id;
 
-        if (comp_param(C, name, kind, &id)) /* no suffix: a parameter's own type */
+        if (comp_param(C, name, kind, &id)) { /* no suffix: a parameter's own type */
+            if (m)
+                *m = (typeof(*m)){.key = key, .id = id, .how = VM_PARAM};
+
             return id;
+        }
 
         type = scop_type(C->scop, name, kind != 0);
 
@@ -515,7 +538,13 @@ uint16_t comp_var(Comp *const C, const uint8_t shape, const uint8_t et)
         kind |= comp_etkind[type];
 
     comp_scope(C, name);
-    return symb_find_var(C->symb, name, type, kind, C->scope, C->isstatic);
+    const uint16_t id = symb_find_var(C->symb, name, type, kind, C->scope, C->isstatic);
+
+    if (m)
+        *m = (typeof(*m)){
+            .key = key, .id = id, .scope = C->scope, .how = C->isstatic ? VM_STATIC : 0};
+
+    return id;
 }
 
 void comp_notconst(Comp *const C)

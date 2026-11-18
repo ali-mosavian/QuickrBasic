@@ -608,6 +608,10 @@ static void build(Comp *const C)
     decl_defevents(C->decl, C->scop, C->symb, C->prog); /* the typed lines' DEFtypes too */
     link_procvars(C);
     Addr base;
+    memset(C->memo, 0, sizeof C->memo);
+    C->memo_on = true;
+    C->scop->look_on = true;
+    C->scop->gen++;
 
     /* room for the code first, by the store's size (a large program's code is about 0.9 of it):
        grown as it compiled, the store moved and every line compiled twice. Short, or no room: the
@@ -627,6 +631,8 @@ static void build(Comp *const C)
             link_line(C, l);
     } while (C->prog->base != base);
 
+    C->memo_on = false;
+    C->scop->look_on = false;
     C->link->nmiss = 0;
 
     for (uint8_t i = 1; i < C->blok->nprocs; i++) /* every line compiled: every local made */

@@ -32,6 +32,13 @@ typedef struct {
     bool deffn;
 } ScopFrame;
 
+/* A scop_look answer kept: its key (name, the stack's top and depth), its gen. */
+typedef struct {
+    uint32_t key, gen;
+    const Binding *b;
+    uint16_t scope;
+} ScopLook;
+
 typedef struct {
     Arena arena; /* the bindings */
     Fault *fault;
@@ -41,6 +48,12 @@ typedef struct {
     Binding **heads; /* SCHASH, from the arena */
     uint32_t *lnbit; /* the line numbers a scope has: nlnbit words, grown as numbers come */
     uint32_t nlnbit;
+    /* scop_look's answers by name and the stack (its depth and top) while look_on: a link's
+       compile (comp/link.c), which binds nothing. gen counts the bindings made and look_on's
+       starts, an answer of another gen stale. A link asked 12K times. */
+    bool look_on;
+    uint32_t gen;
+    ScopLook look[512];
 } Scop;
 
 /* Errors raise through f. No bindings. */
