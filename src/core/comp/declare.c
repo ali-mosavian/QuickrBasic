@@ -357,6 +357,7 @@ static void decl_dim1(DeclScan *const ds, const uint16_t n)
     if (c == M_VAR) { /* AS a TYPE: a record, its array */
         ds->at++;
         b->rec[arr] = symb_name(ds->sy, decl_name(ds, nullptr))->rec;
+        symb_name(ds->sy, n)->flags |= NM_REC;
         return;
     }
 

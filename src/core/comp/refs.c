@@ -51,6 +51,8 @@ static uint8_t nrec(Comp *const C, const uint16_t name, const bool array)
 {
     uint16_t id;
 
+    if (!(symb_name(C->symb, name)->flags & NM_REC))
+        return 0;
     if (comp_param(C, name, VI_ARR, &id)) { /* a record parameter, either kind */
         const uint8_t t = symb_var(C->symb, id)->type;
         return t >= ET_REC ? t - ET_REC : 0;

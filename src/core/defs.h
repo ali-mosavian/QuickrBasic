@@ -46,8 +46,8 @@ enum {
     NBLK = 2048, /* block statements' entries */
 };
 
-/* A name's flags. */
-enum : uint8_t { NM_LBL = 1, NM_FN = 2, NM_SUB = 4, NM_FUNC = 8 };
+/* A name's flags. NM_REC: declared AS a TYPE somewhere, never cleared. */
+enum : uint8_t { NM_LBL = 1, NM_FN = 2, NM_SUB = 4, NM_FUNC = 8, NM_REC = 16 };
 
 /* A binding's flags (mem/scope). */
 enum : uint8_t { BF_SHR = 1, BF_REF = 2, BF_STAT = 4, BF_LBL = 8, BF_CON = 16, BF_USE = 32 };
