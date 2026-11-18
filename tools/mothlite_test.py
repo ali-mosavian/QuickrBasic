@@ -176,7 +176,7 @@ SPARKS = """LoadTables
 SparkPaths
 DIM sp(NSPARK - 1) AS Spark, rf(NSPARK - 1, 4) AS SINGLE, m AS Moth
 DIM t AS INTEGER, i AS INTEGER, j AS INTEGER, l AS SINGLE, n AS INTEGER
-DIM seen AS LONG, bad AS LONG
+DIM seen AS LONG, bad AS LONG, ages AS LONG
 RANDOMIZE 3
 m.x = 100: m.y = 90
 FOR t = 1 TO 3000
@@ -208,22 +208,25 @@ FOR t = 1 TO 3000
             j = j OR INT(sp(i).x + sp(i).vx * PathX(n)) <> INT(rf(i, 0))
             j = j OR INT(sp(i).y + sp(i).vy * PathY(n) + PathG(n)) <> INT(rf(i, 1))
             IF j THEN bad = bad + 1
+            j = (n < sp(i).alive) <> (l > 0) OR (n < sp(i).warm) <> (l > .35)
+            IF j OR (n < sp(i).hot) <> (l > .7) OR (n < sp(i).wide) <> (l > .6) THEN ages = ages + 1
         END IF
     NEXT
 NEXT
-PRINT "sparks"; seen; bad
+PRINT "sparks"; seen; bad; ages
 END
 """
 
 
 def sparks(exe: str, tmp: str) -> tuple[int, int]:
-    """The sparks drawn alive, and those not where moving them put them, or not alive or coloured as it."""
+    """The sparks drawn alive, those not where moving them put them, or not alive or coloured as it, and those
+    whose ages kept at Emit say otherwise than their life left."""
     head, rest = DEMO.read_text().split("\nMain\nEND\n", 1)
     path = Path(tmp) / "SPARKS.BAS"
     path.write_text(head + "\n" + SPARKS + rest)
     out = subprocess.run([exe, path.name], cwd=tmp, capture_output=True, timeout=120).stdout.decode(errors="replace")
     got = out.split("sparks")[-1].split()
-    return (int(got[0]), int(got[1])) if len(got) == 2 else (0, 0)
+    return (int(got[0]), int(got[1]), int(got[2])) if len(got) == 3 else (0, 0, -1)
 
 
 VINES = """OpenScreen
@@ -297,10 +300,10 @@ def main() -> None:
         out = run.stdout.decode(errors="replace")
         digest = frames(exe, tmp)
         dacs = palettes(exe, tmp)
-        seen, off = sparks(exe, tmp)
+        seen, off, ages = sparks(exe, tmp)
         vine, vseen = vines(exe, tmp)
-    out += f"\nframes {digest}\npalettes {dacs}\nsparks {off} of {seen} off\nvines {vine} of {vseen} off"
-    ok = "stones ok" in out and "sounds ok" in out and digest == FRAMES_MD5 and dacs == PALETTES_MD5 and seen > 10000 and off * 1000 < seen and vseen > 50000 and vine == 0
+    out += f"\nframes {digest}\npalettes {dacs}\nsparks {off} of {seen} off, {ages} aged otherwise\nvines {vine} of {vseen} off"
+    ok = "stones ok" in out and "sounds ok" in out and digest == FRAMES_MD5 and dacs == PALETTES_MD5 and seen > 10000 and off * 1000 < seen and ages == 0 and vseen > 50000 and vine == 0
     print("mothlite " + ("ok" if ok else "FAIL\n" + out[-600:]))
     sys.exit(0 if ok else 1)
 

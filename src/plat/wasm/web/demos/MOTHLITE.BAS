@@ -47,6 +47,10 @@ TYPE Spark
     vy AS SINGLE
     life AS SINGLE
     born AS LONG
+    hot AS INTEGER
+    wide AS INTEGER
+    warm AS INTEGER
+    alive AS INTEGER
 END TYPE
 
 TYPE Burst
@@ -295,6 +299,7 @@ DECLARE SUB Shrooms (x AS INTEGER, cy AS INTEGER)
 DECLARE SUB DrawMoth (m AS Moth, mode AS INTEGER)
 DECLARE SUB DrawLake (t AS SINGLE)
 DECLARE SUB DrawSparks (sp() AS Spark)
+DECLARE FUNCTION AgesOver% (life AS SINGLE, t AS SINGLE)
 DECLARE SUB DrawHud (w AS World)
 DECLARE SUB TitleText (g AS Game)
 DECLARE SUB ScoreText (g AS Game, f AS Fx)
@@ -404,7 +409,7 @@ CONST VSTRIPN = (VSW * VSK + 7) \ 4
 DIM SHARED VStripI(NVINT * 6 * (VSTRIPN + 1)) AS LONG
 DIM SHARED VStripM(NVINT * 6 * (VSTRIPN + 1)) AS LONG
 DIM SHARED VBnd(NVINT) AS DOUBLE, VBin(NVBIN) AS INTEGER
-DIM SHARED Ticks AS LONG, PathX(NAGE) AS SINGLE, PathY(NAGE) AS SINGLE
+DIM SHARED Ticks AS LONG, SparkTop AS INTEGER, PathX(NAGE) AS SINGLE, PathY(NAGE) AS SINGLE
 DIM SHARED PathG(NAGE) AS SINGLE, PathAge(NAGE) AS SINGLE
 ' Text drawn once in each look, image then mask, in
 ' Pool from TxtAt; all forgotten when it is full.
@@ -1145,25 +1150,39 @@ SUB BuildSprites
     GET (SUNX - 16, SUNY - 13)-(SUNX + 16, SUNY + 13), SunM
 END SUB
 
+' The sparks to SparkTop, the last alive.
 SUB DrawSparks (sp() AS Spark)
-    DIM i AS INTEGER, c AS INTEGER, l AS SINGLE
+    DIM i AS INTEGER, c AS INTEGER, top AS INTEGER
     DIM x AS INTEGER, y AS INTEGER
     DIM n AS LONG
-    FOR i = 0 TO NSPARK - 1
+    FOR i = 0 TO SparkTop - 1
         n = Ticks - sp(i).born
-        l = 0
-        IF n <= NAGE THEN l = sp(i).life - PathAge(n)
-        IF l > 0 THEN
+        IF n < sp(i).alive THEN
             c = CSPARK + 2
-            IF l > .35 THEN c = CSPARK + 1
-            IF l > .7 THEN c = CSPARK
+            IF n < sp(i).warm THEN c = CSPARK + 1
+            IF n < sp(i).hot THEN c = CSPARK
             x = INT(sp(i).x + sp(i).vx * PathX(n))
             y = INT(sp(i).y + sp(i).vy * PathY(n) + PathG(n))
             PSET (x, y), c
-            IF l > .6 THEN PSET (x + 1, y), c
+            IF n < sp(i).wide THEN PSET (x + 1, y), c
+            top = i + 1
         END IF
     NEXT
+    SparkTop = top
 END SUB
+
+' The ages to NAGE at which a spark of this life has
+' over t of it left: those under the count returned.
+FUNCTION AgesOver% (life AS SINGLE, t AS SINGLE)
+    DIM lo AS INTEGER, hi AS INTEGER, k AS INTEGER, l AS SINGLE
+    hi = NAGE + 1
+    DO WHILE lo < hi
+        k = (lo + hi) \ 2
+        l = life - PathAge(k)
+        IF l > t THEN lo = k + 1 ELSE hi = k
+    LOOP
+    AgesOver% = lo
+END FUNCTION
 
 ' A stone: two shafts, each with its cap, the gap
 ' between them, and the kind's decoration: 1 runes,
@@ -1313,8 +1332,7 @@ SUB Emit (sp() AS Spark, m AS Moth, id AS INTEGER)
     FOR i = 0 TO NSPARK - 1
         IF n = 0 THEN EXIT FOR
         a = Ticks - sp(i).born
-        free = a > NAGE
-        IF NOT free THEN free = sp(i).life - PathAge(a) <= 0
+        free = a >= sp(i).alive
         IF free THEN
             sp(i).born = Ticks
             sp(i).x = m.x - 5 + RND * 3
@@ -1322,6 +1340,11 @@ SUB Emit (sp() AS Spark, m AS Moth, id AS INTEGER)
             sp(i).vx = -30 - RND * 40 + (RND - .5) * k
             sp(i).vy = (RND - .5) * Bursts(id).spread
             sp(i).life = .6 + RND * .5
+            sp(i).hot = AgesOver%(sp(i).life, .7)
+            sp(i).wide = AgesOver%(sp(i).life, .6)
+            sp(i).warm = AgesOver%(sp(i).life, .35)
+            sp(i).alive = AgesOver%(sp(i).life, 0)
+            IF i >= SparkTop THEN SparkTop = i + 1
             n = n - 1
         END IF
     NEXT
