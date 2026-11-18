@@ -1,0 +1,5 @@
+' READ and INPUT into a LONG read a DOUBLE: through a SINGLE, 17040385 read as 17040384.
+DIM a(1) AS LONG, b AS LONG, c AS INTEGER
+READ a(1), b, c
+PRINT a(1); b; c
+DATA 17040385, -2147483647, 32767

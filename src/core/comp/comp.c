@@ -1172,7 +1172,8 @@ static void readto(Comp *const C, uint8_t k)
     uint8_t type = T_FLT;
     const uint8_t info = C->tgtinfo;
 
-    if (info & SK_DBL && k != K_FGET) {
+    /* an integer's too: a SINGLE holds no LONG past 2^24 */
+    if ((info & SK_DBL || (info & VK_MASK) == VK_INT) && k != K_FGET) {
         k = k == K_FIN ? K_DIN : K_DREAD;
         type = T_DBL;
     } else if ((info & VK_MASK) == VK_STR) {

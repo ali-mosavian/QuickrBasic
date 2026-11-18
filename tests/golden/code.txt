@@ -23280,7 +23280,7 @@ qb/arrphi.bas 0 fb96549631c8
 qb/arrphi.bas 1 fb96549631c8
 qb/arrphi.bas 2 fb96549631c8
 qb/arrphi.bas 3 fb96549631c8
-qb/arrphi.bas 4 0acabe63f18d
+qb/arrphi.bas 4 dac13b019202
 qb/arrphi.bas 5 fb96549631c8
 qb/arrphi.bas 6 35eca84ebae4
 qb/arrphi.bas 7 1912abb94a05
@@ -23290,7 +23290,7 @@ qb/arrphi.bas 10 312729917d10
 qb/arrphi.bas 11 fb96549631c8
 qb/arrphi.bas 12 121f1fa28b7b
 qb/arrphi.bas 13 42fc921c1e48
-qb/arrphi.bas 14 0acabe63f18d
+qb/arrphi.bas 14 dac13b019202
 qb/arrphi.bas 15 d54b9c981548
 qb/arrphi.bas 16 b44a802a811e
 qb/arrphi.bas 17 fc8170545327
@@ -23304,7 +23304,7 @@ qb/arrphi.bas L 0 09d53c1b21ed
 qb/arrphi.bas L 1 deaff170fcac
 qb/arrphi.bas L 2 3e1f316cc8e2
 qb/arrphi.bas L 3 1fb050232e4f
-qb/arrphi.bas L 4 19d1f864da96
+qb/arrphi.bas L 4 38af5f199d96
 qb/arrphi.bas L 5 762b266cdd18
 qb/arrphi.bas L 6 8242bddfe348
 qb/arrphi.bas L 7 fd4eca03324e
@@ -23314,7 +23314,7 @@ qb/arrphi.bas L 10 acc8ab963370
 qb/arrphi.bas L 11 d20eef0fba72
 qb/arrphi.bas L 12 aabf56cebc17
 qb/arrphi.bas L 13 af01c1d01870
-qb/arrphi.bas L 14 c621e8153670
+qb/arrphi.bas L 14 5731500bbf6d
 qb/arrphi.bas L 15 25bb648170c5
 qb/arrphi.bas L 16 ae8415e40054
 qb/arrphi.bas L 17 d0c3f3e17b0c
@@ -24178,7 +24178,7 @@ qb/dynsz.bas 0 fb96549631c8
 qb/dynsz.bas 1 fb96549631c8
 qb/dynsz.bas 2 fb96549631c8
 qb/dynsz.bas 3 fb96549631c8
-qb/dynsz.bas 4 0acabe63f18d
+qb/dynsz.bas 4 dac13b019202
 qb/dynsz.bas 5 00cbd5056ceb
 qb/dynsz.bas 6 b0f3e0d4f7d6
 qb/dynsz.bas 7 aafdad971954
@@ -24189,7 +24189,7 @@ qb/dynsz.bas L 0 9e6bad6a77a8
 qb/dynsz.bas L 1 5aba22d43079
 qb/dynsz.bas L 2 c9671f64da47
 qb/dynsz.bas L 3 4724a50d95eb
-qb/dynsz.bas L 4 8127a76a214c
+qb/dynsz.bas L 4 109666b96e4d
 qb/dynsz.bas L 5 8e61ad6b3821
 qb/dynsz.bas L 6 2cf0139f2296
 qb/dynsz.bas L 7 d217c264b52b
@@ -24229,7 +24229,7 @@ qb/erlnum.bas L 14 2b304bce497a
 qb/errent.bas 0 fb96549631c8
 qb/errent.bas 1 fb96549631c8
 qb/errent.bas 2 fb96549631c8
-qb/errent.bas 3 e049347d7a96
+qb/errent.bas 3 d5b2617cc709
 qb/errent.bas 4 6fb9ab6f17c4
 qb/errent.bas 5 95c6c0242101
 qb/errent.bas 6 07aa0c1137af
@@ -24242,7 +24242,7 @@ qb/errent.bas 12 fb96549631c8
 qb/errent.bas L 0 48c4f0080d9d
 qb/errent.bas L 1 b9a432c5a014
 qb/errent.bas L 2 eaa47cea7549
-qb/errent.bas L 3 7739bec49ddb
+qb/errent.bas L 3 f14834604777
 qb/errent.bas L 4 ad320796b6a0
 qb/errent.bas L 5 100b1066f2a9
 qb/errent.bas L 6 cb3da3a8ab4b
@@ -24489,7 +24489,7 @@ qb/fpcalc.bas 3 fb96549631c8
 qb/fpcalc.bas 4 fb96549631c8
 qb/fpcalc.bas 5 fb96549631c8
 qb/fpcalc.bas 6 dca04fbaaece
-qb/fpcalc.bas 7 5902dcd7b41e
+qb/fpcalc.bas 7 586c21367091
 qb/fpcalc.bas 8 25239dd2fda8
 qb/fpcalc.bas 9 83dde12015ac
 qb/fpcalc.bas 10 443d610625fc
@@ -24503,7 +24503,7 @@ qb/fpcalc.bas L 3 d7fd0093705c
 qb/fpcalc.bas L 4 4288b27d578f
 qb/fpcalc.bas L 5 551d1b10651e
 qb/fpcalc.bas L 6 b53198a49bd8
-qb/fpcalc.bas L 7 647be40e8904
+qb/fpcalc.bas L 7 a13817651028
 qb/fpcalc.bas L 8 4cbe9876570e
 qb/fpcalc.bas L 9 522774927b19
 qb/fpcalc.bas L 10 b8bed27cb41c
@@ -24743,7 +24743,7 @@ qb/fpi2cs.bas 3 fb96549631c8
 qb/fpi2cs.bas 4 fb96549631c8
 qb/fpi2cs.bas 5 fb96549631c8
 qb/fpi2cs.bas 6 bc57fef1f510
-qb/fpi2cs.bas 7 5902dcd7b41e
+qb/fpi2cs.bas 7 586c21367091
 qb/fpi2cs.bas 8 e70d2b520039
 qb/fpi2cs.bas 9 91c88b114144
 qb/fpi2cs.bas 10 2f7d4cb0df1a
@@ -24757,7 +24757,7 @@ qb/fpi2cs.bas L 3 9fa2bc8c213f
 qb/fpi2cs.bas L 4 12bdc8d6d324
 qb/fpi2cs.bas L 5 703ac7f2e1b1
 qb/fpi2cs.bas L 6 3492631bf77c
-qb/fpi2cs.bas L 7 a578df1f5499
+qb/fpi2cs.bas L 7 204b5e3556e1
 qb/fpi2cs.bas L 8 835157f2c5e9
 qb/fpi2cs.bas L 9 856cdb1f75d8
 qb/fpi2cs.bas L 10 4d30725ff1b9
@@ -24771,7 +24771,7 @@ qb/fpicse.bas 3 fb96549631c8
 qb/fpicse.bas 4 fb96549631c8
 qb/fpicse.bas 5 fb96549631c8
 qb/fpicse.bas 6 bc57fef1f510
-qb/fpicse.bas 7 5902dcd7b41e
+qb/fpicse.bas 7 586c21367091
 qb/fpicse.bas 8 e70d2b520039
 qb/fpicse.bas 9 91c88b114144
 qb/fpicse.bas 10 2f7d4cb0df1a
@@ -24785,7 +24785,7 @@ qb/fpicse.bas L 3 9fa2bc8c213f
 qb/fpicse.bas L 4 12bdc8d6d324
 qb/fpicse.bas L 5 703ac7f2e1b1
 qb/fpicse.bas L 6 3492631bf77c
-qb/fpicse.bas L 7 a578df1f5499
+qb/fpicse.bas L 7 204b5e3556e1
 qb/fpicse.bas L 8 835157f2c5e9
 qb/fpicse.bas L 9 856cdb1f75d8
 qb/fpicse.bas L 10 4d30725ff1b9
@@ -24799,7 +24799,7 @@ qb/gvnjn.bas 3 fb96549631c8
 qb/gvnjn.bas 4 fb96549631c8
 qb/gvnjn.bas 5 fb96549631c8
 qb/gvnjn.bas 6 3e1ee15164fb
-qb/gvnjn.bas 7 0acabe63f18d
+qb/gvnjn.bas 7 dac13b019202
 qb/gvnjn.bas 8 257f03bbb181
 qb/gvnjn.bas 9 eb46070d08f9
 qb/gvnjn.bas 10 360302ae1470
@@ -24817,7 +24817,7 @@ qb/gvnjn.bas L 3 1fb050232e4f
 qb/gvnjn.bas L 4 d02f398682e0
 qb/gvnjn.bas L 5 9b977593dc2c
 qb/gvnjn.bas L 6 409e6b8da0f1
-qb/gvnjn.bas L 7 913118e791b6
+qb/gvnjn.bas L 7 c359c47e4ec7
 qb/gvnjn.bas L 8 b1261ff28726
 qb/gvnjn.bas L 9 42338340df53
 qb/gvnjn.bas L 10 a5db08e28a6f
@@ -24835,7 +24835,7 @@ qb/gvnphi.bas 3 fb96549631c8
 qb/gvnphi.bas 4 fb96549631c8
 qb/gvnphi.bas 5 fb96549631c8
 qb/gvnphi.bas 6 203af84be409
-qb/gvnphi.bas 7 0acabe63f18d
+qb/gvnphi.bas 7 dac13b019202
 qb/gvnphi.bas 8 eb46070d08f9
 qb/gvnphi.bas 9 257f03bbb181
 qb/gvnphi.bas 10 360302ae1470
@@ -24854,7 +24854,7 @@ qb/gvnphi.bas L 3 1fb050232e4f
 qb/gvnphi.bas L 4 d02f398682e0
 qb/gvnphi.bas L 5 9b977593dc2c
 qb/gvnphi.bas L 6 8b7f5c644fe4
-qb/gvnphi.bas L 7 913118e791b6
+qb/gvnphi.bas L 7 c359c47e4ec7
 qb/gvnphi.bas L 8 4836495bd09d
 qb/gvnphi.bas L 9 a22a37b35cb6
 qb/gvnphi.bas L 10 a5db08e28a6f
@@ -24873,7 +24873,7 @@ qb/gvnpre.bas 3 fb96549631c8
 qb/gvnpre.bas 4 fb96549631c8
 qb/gvnpre.bas 5 fb96549631c8
 qb/gvnpre.bas 6 d9b6f64b15e6
-qb/gvnpre.bas 7 0acabe63f18d
+qb/gvnpre.bas 7 dac13b019202
 qb/gvnpre.bas 8 257f03bbb181
 qb/gvnpre.bas 9 eb46070d08f9
 qb/gvnpre.bas 10 360302ae1470
@@ -24891,7 +24891,7 @@ qb/gvnpre.bas L 3 1fb050232e4f
 qb/gvnpre.bas L 4 d02f398682e0
 qb/gvnpre.bas L 5 9b977593dc2c
 qb/gvnpre.bas L 6 59886484b128
-qb/gvnpre.bas L 7 913118e791b6
+qb/gvnpre.bas L 7 c359c47e4ec7
 qb/gvnpre.bas L 8 b1261ff28726
 qb/gvnpre.bas L 9 42338340df53
 qb/gvnpre.bas L 10 a5db08e28a6f
@@ -24987,7 +24987,7 @@ qb/hotlpx.bas 3 fb96549631c8
 qb/hotlpx.bas 4 fb96549631c8
 qb/hotlpx.bas 5 fb96549631c8
 qb/hotlpx.bas 6 fb96549631c8
-qb/hotlpx.bas 7 0acabe63f18d
+qb/hotlpx.bas 7 dac13b019202
 qb/hotlpx.bas 8 d03608888c78
 qb/hotlpx.bas 9 fa1381bd2af8
 qb/hotlpx.bas 10 0cb9a04b1ee6
@@ -25001,7 +25001,7 @@ qb/hotlpx.bas L 3 402744d0a892
 qb/hotlpx.bas L 4 728e529be6e1
 qb/hotlpx.bas L 5 3b784deab79d
 qb/hotlpx.bas L 6 ad88f343c302
-qb/hotlpx.bas L 7 0575c9410d24
+qb/hotlpx.bas L 7 46d874b61668
 qb/hotlpx.bas L 8 33a07012730e
 qb/hotlpx.bas L 9 7d7225606292
 qb/hotlpx.bas L 10 beea5aec7326
@@ -25169,7 +25169,7 @@ qb/idioms.bas 27 909ddecd2897
 qb/idioms.bas 28 0445e580e265
 qb/idioms.bas 29 fb96549631c8
 qb/idioms.bas 30 03ac46f269ed
-qb/idioms.bas 31 8c0eeac47e43
+qb/idioms.bas 31 d067b5cea25c
 qb/idioms.bas 32 03187fa8b9d7
 qb/idioms.bas 33 94f18a15be8a
 qb/idioms.bas 34 39258ac1fe06
@@ -25349,7 +25349,7 @@ qb/idioms.bas L 27 5a21fc59cd57
 qb/idioms.bas L 28 bfee415c1ee9
 qb/idioms.bas L 29 8291177c54a1
 qb/idioms.bas L 30 bad1596a5282
-qb/idioms.bas L 31 7f58bceacce1
+qb/idioms.bas L 31 7ea7446625c2
 qb/idioms.bas L 32 8f93d6093866
 qb/idioms.bas L 33 d5e3c4a6a360
 qb/idioms.bas L 34 5aa16fbe1133
@@ -25891,7 +25891,7 @@ qb/intrinsics_vbdos.bas L 24 0a838903474f
 qb/ivarg.bas 0 fb96549631c8
 qb/ivarg.bas 1 fb96549631c8
 qb/ivarg.bas 2 fb96549631c8
-qb/ivarg.bas 3 16272c0d8591
+qb/ivarg.bas 3 8f990132dc2f
 qb/ivarg.bas 4 e3154e2bcea2
 qb/ivarg.bas 5 fab9a6e0ad56
 qb/ivarg.bas 6 0d622758491f
@@ -25913,7 +25913,7 @@ qb/ivarg.bas 21 a5609dbfc75d
 qb/ivarg.bas L 0 310973bccd2f
 qb/ivarg.bas L 1 93a90a24df12
 qb/ivarg.bas L 2 d3fb77814b6e
-qb/ivarg.bas L 3 951108476936
+qb/ivarg.bas L 3 8289b5930492
 qb/ivarg.bas L 4 a56e1aaeddc0
 qb/ivarg.bas L 5 0f3361be7fd7
 qb/ivarg.bas L 6 d1b088ad0897
@@ -25937,7 +25937,7 @@ qb/ivarm.bas 1 fb96549631c8
 qb/ivarm.bas 2 fb96549631c8
 qb/ivarm.bas 3 da175266cb50
 qb/ivarm.bas 4 fb96549631c8
-qb/ivarm.bas 5 5902dcd7b41e
+qb/ivarm.bas 5 586c21367091
 qb/ivarm.bas 6 1777692f2a4c
 qb/ivarm.bas 7 da532b8e4ce3
 qb/ivarm.bas 8 b447fe023795
@@ -25954,7 +25954,7 @@ qb/ivarm.bas L 1 eddcbd90965d
 qb/ivarm.bas L 2 6d70f23701a6
 qb/ivarm.bas L 3 11d399e6fa7c
 qb/ivarm.bas L 4 1e1a04ff5ea5
-qb/ivarm.bas L 5 cebfbf93d0bc
+qb/ivarm.bas L 5 ce1c53299aa6
 qb/ivarm.bas L 6 4ce2de8894a7
 qb/ivarm.bas L 7 2cc593fef869
 qb/ivarm.bas L 8 015499d6ad05
@@ -26003,7 +26003,7 @@ qb/ivproc.bas 1 fb96549631c8
 qb/ivproc.bas 2 fb96549631c8
 qb/ivproc.bas 3 da175266cb50
 qb/ivproc.bas 4 fb96549631c8
-qb/ivproc.bas 5 5902dcd7b41e
+qb/ivproc.bas 5 586c21367091
 qb/ivproc.bas 6 1777692f2a4c
 qb/ivproc.bas 7 90aa26028ba6
 qb/ivproc.bas 8 8a36ab8195ed
@@ -26023,7 +26023,7 @@ qb/ivproc.bas L 1 eddcbd90965d
 qb/ivproc.bas L 2 4af218c8bce3
 qb/ivproc.bas L 3 f491fddf0852
 qb/ivproc.bas L 4 ab69c018f7a7
-qb/ivproc.bas L 5 0ce66bc227df
+qb/ivproc.bas L 5 cd774a9f6ea4
 qb/ivproc.bas L 6 6cc09a70f75b
 qb/ivproc.bas L 7 0cda070ec92b
 qb/ivproc.bas L 8 613e4e5d9782
@@ -26043,7 +26043,7 @@ qb/ivword.bas 1 fb96549631c8
 qb/ivword.bas 2 fb96549631c8
 qb/ivword.bas 3 da175266cb50
 qb/ivword.bas 4 fb96549631c8
-qb/ivword.bas 5 5902dcd7b41e
+qb/ivword.bas 5 586c21367091
 qb/ivword.bas 6 1777692f2a4c
 qb/ivword.bas 7 da532b8e4ce3
 qb/ivword.bas 8 b447fe023795
@@ -26060,7 +26060,7 @@ qb/ivword.bas L 1 eddcbd90965d
 qb/ivword.bas L 2 6d70f23701a6
 qb/ivword.bas L 3 11d399e6fa7c
 qb/ivword.bas L 4 1e1a04ff5ea5
-qb/ivword.bas L 5 cebfbf93d0bc
+qb/ivword.bas L 5 ce1c53299aa6
 qb/ivword.bas L 6 4ce2de8894a7
 qb/ivword.bas L 7 2cc593fef869
 qb/ivword.bas L 8 015499d6ad05
@@ -26136,7 +26136,7 @@ qb/lcexit.bas 0 fb96549631c8
 qb/lcexit.bas 1 fb96549631c8
 qb/lcexit.bas 2 fb96549631c8
 qb/lcexit.bas 3 fb96549631c8
-qb/lcexit.bas 4 5902dcd7b41e
+qb/lcexit.bas 4 586c21367091
 qb/lcexit.bas 5 7a8414781627
 qb/lcexit.bas 6 d03608888c78
 qb/lcexit.bas 7 f0c941411de9
@@ -26152,7 +26152,7 @@ qb/lcexit.bas L 0 8402ea681595
 qb/lcexit.bas L 1 dfdf3fbe0787
 qb/lcexit.bas L 2 e92894b3b2bb
 qb/lcexit.bas L 3 60e969688e13
-qb/lcexit.bas L 4 04dbe2300079
+qb/lcexit.bas L 4 9b158aac4a3f
 qb/lcexit.bas L 5 04cd6d7157ba
 qb/lcexit.bas L 6 6c9a19f43911
 qb/lcexit.bas L 7 8432067f837f
@@ -26168,7 +26168,7 @@ qb/ldcrit.bas 0 fb96549631c8
 qb/ldcrit.bas 1 fb96549631c8
 qb/ldcrit.bas 2 fb96549631c8
 qb/ldcrit.bas 3 b14d8ecc578d
-qb/ldcrit.bas 4 4e64b2a87a4e
+qb/ldcrit.bas 4 3367c81ae80f
 qb/ldcrit.bas 5 197d62d078f5
 qb/ldcrit.bas 6 e07ca1402d47
 qb/ldcrit.bas 7 fb96549631c8
@@ -26181,7 +26181,7 @@ qb/ldcrit.bas L 0 1a17d56a99f0
 qb/ldcrit.bas L 1 94218149029b
 qb/ldcrit.bas L 2 a965e3e910fd
 qb/ldcrit.bas L 3 b8b9f2224323
-qb/ldcrit.bas L 4 40cede45ec32
+qb/ldcrit.bas L 4 3cebf5088463
 qb/ldcrit.bas L 5 da3553e45b03
 qb/ldcrit.bas L 6 3179a251fd16
 qb/ldcrit.bas L 7 a18cb166bc49
@@ -26194,7 +26194,7 @@ qb/ldpre.bas 0 fb96549631c8
 qb/ldpre.bas 1 fb96549631c8
 qb/ldpre.bas 2 fb96549631c8
 qb/ldpre.bas 3 eb934f12d4b9
-qb/ldpre.bas 4 4e64b2a87a4e
+qb/ldpre.bas 4 3367c81ae80f
 qb/ldpre.bas 5 559e11fd15b4
 qb/ldpre.bas 6 e07ca1402d47
 qb/ldpre.bas 7 d72b3ba1492d
@@ -26209,7 +26209,7 @@ qb/ldpre.bas L 0 96d0ccd2d7b4
 qb/ldpre.bas L 1 6a8ee76ca527
 qb/ldpre.bas L 2 1ac5f16b6773
 qb/ldpre.bas L 3 ee081a8f0665
-qb/ldpre.bas L 4 4dd0d988a853
+qb/ldpre.bas L 4 0fcd3f92ef04
 qb/ldpre.bas L 5 77e92d05d917
 qb/ldpre.bas L 6 042f3a18cc3b
 qb/ldpre.bas L 7 bce60e01b617
@@ -26252,7 +26252,7 @@ qb/lngmxx.bas 2 fb96549631c8
 qb/lngmxx.bas 3 fb96549631c8
 qb/lngmxx.bas 4 fb96549631c8
 qb/lngmxx.bas 5 fb96549631c8
-qb/lngmxx.bas 6 5902dcd7b41e
+qb/lngmxx.bas 6 586c21367091
 qb/lngmxx.bas 7 7a8414781627
 qb/lngmxx.bas 8 0124bde52e95
 qb/lngmxx.bas 9 ab4b8c810522
@@ -26265,7 +26265,7 @@ qb/lngmxx.bas L 2 cf799855220a
 qb/lngmxx.bas L 3 e0769c33dee4
 qb/lngmxx.bas L 4 d4cac68d1b8d
 qb/lngmxx.bas L 5 761cb66cf5bf
-qb/lngmxx.bas L 6 c509f57f083f
+qb/lngmxx.bas L 6 09b8b6763e81
 qb/lngmxx.bas L 7 b933323bb4f6
 qb/lngmxx.bas L 8 6e0e6ea25b9e
 qb/lngmxx.bas L 9 25a23b65c35a
@@ -26275,7 +26275,7 @@ qb/lngmxx.bas L 12 1691236b43cc
 qb/localp.bas 0 fb96549631c8
 qb/localp.bas 1 fb96549631c8
 qb/localp.bas 2 fb96549631c8
-qb/localp.bas 3 16272c0d8591
+qb/localp.bas 3 8f990132dc2f
 qb/localp.bas 4 f2fb8af85033
 qb/localp.bas 5 4d0f97866128
 qb/localp.bas 6 fb96549631c8
@@ -26290,7 +26290,7 @@ qb/localp.bas 14 a5609dbfc75d
 qb/localp.bas L 0 7881c709d8ff
 qb/localp.bas L 1 e84fe4d0f465
 qb/localp.bas L 2 e56beb5cd5d3
-qb/localp.bas L 3 bbd3aa64c42c
+qb/localp.bas L 3 b1f554303153
 qb/localp.bas L 4 86cc5f948bfc
 qb/localp.bas L 5 86a21291e7fc
 qb/localp.bas L 6 e4c0c9fc4e35
@@ -26358,7 +26358,7 @@ qb/memphi.bas 0 fb96549631c8
 qb/memphi.bas 1 fb96549631c8
 qb/memphi.bas 2 fb96549631c8
 qb/memphi.bas 3 fb96549631c8
-qb/memphi.bas 4 0acabe63f18d
+qb/memphi.bas 4 dac13b019202
 qb/memphi.bas 5 35eca84ebae4
 qb/memphi.bas 6 1f917a387a85
 qb/memphi.bas 7 6a2ec46cc3a1
@@ -26367,7 +26367,7 @@ qb/memphi.bas 9 312729917d10
 qb/memphi.bas 10 fb96549631c8
 qb/memphi.bas 11 121f1fa28b7b
 qb/memphi.bas 12 42fc921c1e48
-qb/memphi.bas 13 0acabe63f18d
+qb/memphi.bas 13 dac13b019202
 qb/memphi.bas 14 d54b9c981548
 qb/memphi.bas 15 2af42718ab6a
 qb/memphi.bas 16 fc8170545327
@@ -26381,7 +26381,7 @@ qb/memphi.bas L 0 09d53c1b21ed
 qb/memphi.bas L 1 deaff170fcac
 qb/memphi.bas L 2 3e1f316cc8e2
 qb/memphi.bas L 3 1fb050232e4f
-qb/memphi.bas L 4 b4d1347c6364
+qb/memphi.bas L 4 ca72040f108c
 qb/memphi.bas L 5 19abfe41d0a7
 qb/memphi.bas L 6 194f505d675f
 qb/memphi.bas L 7 2e5ab2d441ba
@@ -26390,7 +26390,7 @@ qb/memphi.bas L 9 299a738c2da2
 qb/memphi.bas L 10 a46f87086ec6
 qb/memphi.bas L 11 7aa61f1e45aa
 qb/memphi.bas L 12 4c9d1377a673
-qb/memphi.bas L 13 7550ef22c638
+qb/memphi.bas L 13 438e0aecfcf4
 qb/memphi.bas L 14 bcc414d5e6ab
 qb/memphi.bas L 15 bdd7c4ab702f
 qb/memphi.bas L 16 ffd14930ce17
@@ -27903,7 +27903,7 @@ qb/pattern_fill.bas 3 fb96549631c8
 qb/pattern_fill.bas 4 fb96549631c8
 qb/pattern_fill.bas 5 959551df116e
 qb/pattern_fill.bas 6 1b78d8d8c816
-qb/pattern_fill.bas 7 476c0a24faa1
+qb/pattern_fill.bas 7 1aed6ea947c7
 qb/pattern_fill.bas 8 f68cc3d3252e
 qb/pattern_fill.bas 9 1fcc03d841c3
 qb/pattern_fill.bas 10 3c8bf9db2e1f
@@ -27936,7 +27936,7 @@ qb/pattern_fill.bas L 3 f607ec7d7fde
 qb/pattern_fill.bas L 4 2dca7269c579
 qb/pattern_fill.bas L 5 4b81c0c94ded
 qb/pattern_fill.bas L 6 63a8ad0b4a69
-qb/pattern_fill.bas L 7 f5b49ba5e855
+qb/pattern_fill.bas L 7 3e618aeb1dd1
 qb/pattern_fill.bas L 8 9a2c8a660237
 qb/pattern_fill.bas L 9 6d9076f340ec
 qb/pattern_fill.bas L 10 009bd9f76a32
@@ -28045,7 +28045,7 @@ qb/pressx.bas 1 fb96549631c8
 qb/pressx.bas 2 fb96549631c8
 qb/pressx.bas 3 fb96549631c8
 qb/pressx.bas 4 fb96549631c8
-qb/pressx.bas 5 c3c86ccf0e97
+qb/pressx.bas 5 176893971cfb
 qb/pressx.bas 6 167898323095
 qb/pressx.bas 7 a4e9386a5ff8
 qb/pressx.bas 8 986efa5b40c9
@@ -28057,7 +28057,7 @@ qb/pressx.bas L 1 82a988ef8d8e
 qb/pressx.bas L 2 1d2b325c1c37
 qb/pressx.bas L 3 23224e9a7f48
 qb/pressx.bas L 4 e04ad391dff3
-qb/pressx.bas L 5 9c8aee80d132
+qb/pressx.bas L 5 d0e42b397ea4
 qb/pressx.bas L 6 09d8abfe7999
 qb/pressx.bas L 7 d8141d297fec
 qb/pressx.bas L 8 88309a43acd1
@@ -28384,6 +28384,16 @@ qb/rcflip.bas L 26 ce3b071b92e6
 qb/rcflip.bas L 27 03b60e3bcd9d
 qb/rcflip.bas L 28 e3c370ec0658
 qb/rcflip.bas L 29 a873165e41db
+qb/read_long_exact.bas 0 fb96549631c8
+qb/read_long_exact.bas 1 c9e506dcfddb
+qb/read_long_exact.bas 2 aa43508a47cb
+qb/read_long_exact.bas 3 42567cdc2569
+qb/read_long_exact.bas 4 fb96549631c8
+qb/read_long_exact.bas L 0 d23d937e5e6f
+qb/read_long_exact.bas L 1 d5393b8220e7
+qb/read_long_exact.bas L 2 bb3674ab048e
+qb/read_long_exact.bas L 3 e0c8bf331053
+qb/read_long_exact.bas L 4 5b66c76ca7a6
 qb/redim_preserve_pds71.bas 0 fb96549631c8
 qb/redim_preserve_pds71.bas 1 fb96549631c8
 qb/redim_preserve_pds71.bas 2 c91b52ca1d8c
@@ -28705,7 +28715,7 @@ qb/rngarm.bas 1 fb96549631c8
 qb/rngarm.bas 2 fb96549631c8
 qb/rngarm.bas 3 fb96549631c8
 qb/rngarm.bas 4 fb96549631c8
-qb/rngarm.bas 5 bdf8b948816c
+qb/rngarm.bas 5 65d9bfbe51a6
 qb/rngarm.bas 6 2245c184f2cc
 qb/rngarm.bas 7 f33d554609b3
 qb/rngarm.bas 8 b2878e642106
@@ -28719,7 +28729,7 @@ qb/rngarm.bas L 1 943b338cf122
 qb/rngarm.bas L 2 b3dcb57f9630
 qb/rngarm.bas L 3 3b120f87b006
 qb/rngarm.bas L 4 97792f680440
-qb/rngarm.bas L 5 b8c8fef408c1
+qb/rngarm.bas L 5 3f08945a2390
 qb/rngarm.bas L 6 3c8470f681d7
 qb/rngarm.bas L 7 a6d1258977d3
 qb/rngarm.bas L 8 3a8e359484d6
@@ -29246,7 +29256,7 @@ qb/udtacc.bas 4 fb96549631c8
 qb/udtacc.bas 5 1fc88ef90468
 qb/udtacc.bas 6 fb96549631c8
 qb/udtacc.bas 7 fb96549631c8
-qb/udtacc.bas 8 f880321f698f
+qb/udtacc.bas 8 d98766396c04
 qb/udtacc.bas 9 0b8ec01b9975
 qb/udtacc.bas 10 10994854b5e2
 qb/udtacc.bas 11 9bfb10c3ae9c
@@ -29265,7 +29275,7 @@ qb/udtacc.bas L 4 41301eebefc1
 qb/udtacc.bas L 5 d8a2abd0d06d
 qb/udtacc.bas L 6 5ac05e6117a7
 qb/udtacc.bas L 7 1d97bf407101
-qb/udtacc.bas L 8 1fcdc976c0c8
+qb/udtacc.bas L 8 541a4ce8e843
 qb/udtacc.bas L 9 1b3195b0d8b9
 qb/udtacc.bas L 10 d7bf341e1485
 qb/udtacc.bas L 11 c319e63bd555
@@ -29284,7 +29294,7 @@ qb/udtfix.bas 4 fb96549631c8
 qb/udtfix.bas 5 fb96549631c8
 qb/udtfix.bas 6 fb96549631c8
 qb/udtfix.bas 7 fb96549631c8
-qb/udtfix.bas 8 bcb086c800a6
+qb/udtfix.bas 8 8fff29ae170c
 qb/udtfix.bas 9 77abb2fa84f0
 qb/udtfix.bas 10 c3aa720b6a8c
 qb/udtfix.bas 11 4adac313f66d
@@ -29303,7 +29313,7 @@ qb/udtfix.bas L 4 47778988bd61
 qb/udtfix.bas L 5 11e65872ed75
 qb/udtfix.bas L 6 6bc62d408b67
 qb/udtfix.bas L 7 24ede39e632e
-qb/udtfix.bas L 8 2b44a8eeff7c
+qb/udtfix.bas L 8 86d09aae0947
 qb/udtfix.bas L 9 56ba2b09b89e
 qb/udtfix.bas L 10 a0c4be79b75a
 qb/udtfix.bas L 11 a12dd5dad2ca
@@ -29322,7 +29332,7 @@ qb/udtrng.bas 4 fb96549631c8
 qb/udtrng.bas 5 1fc88ef90468
 qb/udtrng.bas 6 fb96549631c8
 qb/udtrng.bas 7 fb96549631c8
-qb/udtrng.bas 8 f880321f698f
+qb/udtrng.bas 8 d98766396c04
 qb/udtrng.bas 9 abb0d80d2369
 qb/udtrng.bas 10 b9580ebbe92d
 qb/udtrng.bas 11 0b8ec01b9975
@@ -29343,7 +29353,7 @@ qb/udtrng.bas L 4 d2e1d34f35f7
 qb/udtrng.bas L 5 4976fdef9b1d
 qb/udtrng.bas L 6 6712337f766f
 qb/udtrng.bas L 7 642bbac81613
-qb/udtrng.bas L 8 6973454f17c1
+qb/udtrng.bas L 8 fbad0bb20c15
 qb/udtrng.bas L 9 97587f5a0208
 qb/udtrng.bas L 10 b89fe4dc1e1a
 qb/udtrng.bas L 11 c73394eea3da
@@ -29922,7 +29932,7 @@ stmts/s157.bas 9 05ce78d56827
 stmts/s157.bas 10 af39176a481a
 stmts/s157.bas 11 38188e8e1f57
 stmts/s157.bas 12 59f8fd328bd4
-stmts/s157.bas 13 c6115ebfd6a6
+stmts/s157.bas 13 aa9607fa24ba
 stmts/s157.bas 14 2698528b32d8
 stmts/s157.bas 15 775c63034f9f
 stmts/s157.bas L error 17ba0791499d
@@ -29939,7 +29949,7 @@ stmts/s157.bas L 9 4cb89836ae13
 stmts/s157.bas L 10 f7c7dd1e40f0
 stmts/s157.bas L 11 4634f8155139
 stmts/s157.bas L 12 ef19775d8865
-stmts/s157.bas L 13 660d42861e2f
+stmts/s157.bas L 13 69d4705a7a8d
 stmts/s157.bas L 14 6dbba9a2fae4
 stmts/s157.bas L 15 785f391b22b3
 stmts/s158.bas 0 fb96549631c8
