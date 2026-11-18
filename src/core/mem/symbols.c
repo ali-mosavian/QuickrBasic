@@ -86,16 +86,9 @@ void symb_new(Symb *const sy, Allo *const al, Fault *const f)
     tabl_new(al, &sy->text, NINIT * 8);
 }
 
-void symb_size(Symb *const sy, const Prog *const pg)
+void symb_size(Symb *const sy, const uint32_t nnames)
 {
-    uint32_t n = sy->nvars + VSLACK;
-
-    for (uint32_t l = PROGBASE; prog_line(pg, l)->len; l += prog_line(pg, l)->len)
-        n += count_byte(
-            (const uint8_t *)at(prog_addr(pg, l)) + HDR,
-            prog_line(pg, l)->len - HDR,
-            M_VAR
-        );
+    uint32_t n = sy->nvars + VSLACK + nnames;
 
     if (n > IDMAX)
         n = IDMAX;

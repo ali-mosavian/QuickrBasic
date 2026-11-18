@@ -668,6 +668,7 @@ static void blok_scanline(BlokScan *const sc, const uint8_t *const b)
                 continue;
             }
 
+            sc->b->nnames += c == M_VAR;
             s = decl_item(s);
         }
     }

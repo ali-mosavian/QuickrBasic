@@ -602,9 +602,9 @@ void link_walk(const uint8_t *code, void (*each)(uint8_t op, const uint8_t *at))
 /* Blocks paired, every line compiled and resolved; the ledger holds what was not found. */
 static void build(Comp *const C)
 {
-    symb_size(C->symb, C->prog);
     fold_clear(C);
     blok_pair(C->blok, C->prog, C->symb, C->fault);
+    symb_size(C->symb, C->blok->nnames);
     decl_defevents(C->decl, C->scop, C->symb, C->prog); /* the typed lines' DEFtypes too */
     link_procvars(C);
     Addr base;

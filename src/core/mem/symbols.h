@@ -128,9 +128,9 @@ static inline void symb_spell(const Symb *const sy, uint16_t id, uint8_t *const 
 
 /* The tables' blocks from al, after the program store's. */
 void symb_new(Symb *sy, Allo *al, Fault *f);
-/* Room for program pg's variables before it runs (each M_VAR byte in the store counts one): they
-   are made lazily, when the heap may hold strings and arrays and the block cannot grow. */
-void symb_size(Symb *sy, const Prog *pg);
+/* Room for a program's variables before it runs, nnames its M_VAR tokens: they are made lazily,
+   when the heap may hold strings and arrays and the block cannot grow. */
+void symb_size(Symb *sy, uint32_t nnames);
 /* Every variable's value gone: the cells zeroed, an array's header none, vt its own cell
    (session_clear's part). */
 void symb_clear(Symb *sy);

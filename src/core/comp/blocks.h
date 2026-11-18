@@ -49,6 +49,7 @@ typedef struct {
     uint16_t nblocks;
     Proc **procs;    /* by number, from 1 */
     uint16_t nprocs; /* procedures + 1 */
+    uint32_t nnames; /* the program's M_VAR tokens */
 } Blok;
 
 /* cm_blocks: pair the program's blocks; FOR without NEXT .. raise through f. */
