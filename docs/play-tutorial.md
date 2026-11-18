@@ -98,7 +98,7 @@ PLAY "Y1,800,0 C Y1,800,8 C Y1,800,15 C Y0 V15 C V7 C V3 C"
 
 ## 7. Several voices
 
-`PLAY a$, b$, ...` plays up to six voices, a string each. Each keeps its own tempo, octave, length
+`PLAY a$, b$, ...` plays up to ten voices, a string each. Each keeps its own tempo, octave, length
 and sound, so set them in every string. `MF`/`MB` apply to all. A string left out leaves its voice
 alone: `PLAY , , fx$` plays voice 3 only.
 

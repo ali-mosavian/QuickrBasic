@@ -364,7 +364,7 @@ TEST(synth_six_voices_render_as_before)
     Synth s;
     synth_init(&s, 15873);
     synth_tone(&s, 440);
-    for (unsigned k = 0; k < DEV_VOICES; k++) {
+    for (unsigned k = 0; k < 6; k++) {
         DevVoice v = note(110 + 97 * k, k % 4, 0x1A63 + 0x1111 * k);
         v.filter = (unsigned char)(k % 4 == 0 ? 3 - k / 4 : k % 4);
         v.cutoff = (unsigned short)(400 + 700 * k);
@@ -615,7 +615,8 @@ TEST(play_voice_out_of_range)
 {
     static const char *const wave[] = {"10 PLAY \"W5 C\"", nullptr};
     static const char *const envelope[] = {"10 PLAY \"H1,2 C\"", nullptr};
-    static const char *const seven[] = {"10 PLAY \"C\", \"D\", \"E\", \"F\", \"G\", \"A\", \"B\"", nullptr};
+    static const char *const seven[] = {
+        "10 PLAY \"C\", \"D\", \"E\", \"F\", \"G\", \"A\", \"B\", \"C\", \"D\", \"E\", \"F\"", nullptr};
     static const char *const trailing[] = {"10 PLAY \"C\", ", nullptr};
 
     CHECK(unit_run(S, wave) == E_USR);
@@ -640,14 +641,14 @@ TEST(play_voice_ends_with_the_program)
     CHECK(headless_tone_count() > tones && headless_tone(tones).hertz == 524);
 }
 
-/* Six strings, six voices, starting together. */
-TEST(play_of_six_strings_plays_six_voices)
+/* Ten strings, ten voices, starting together: there were six. */
+TEST(play_of_ten_strings_plays_ten_voices)
 {
     static const char *const lines[] = {
         "10 PLAY \"MF T120 L4 O3 C\", \"T120 L4 O3 E\", \"T120 L4 O3 G\", \"T120 L4 O4 C\", \"T120 L4 O4 E\", "
-        "\"T120 L4 O4 G\"",
+        "\"T120 L4 O4 G\", \"T120 L4 O5 C\", \"T120 L4 O5 E\", \"T120 L4 O5 G\", \"T120 L4 O6 C\"",
         nullptr};
-    static const unsigned hertz[6] = {262, 330, 392, 524, 660, 784};
+    static const unsigned hertz[10] = {262, 330, 392, 524, 660, 784, 1048, 1320, 1568, 2096};
 
     qbrt_realtime(false);
     music_clear(); /* an earlier test's music */
@@ -656,7 +657,7 @@ TEST(play_of_six_strings_plays_six_voices)
     headless_run(200);
     qbrt_realtime(true);
 
-    long start[6] = {-1, -1, -1, -1, -1, -1};
+    long start[10] = {-1, -1, -1, -1, -1, -1, -1, -1, -1, -1};
     for (size_t i = first; i < headless_voice_count(); i++) {
         const HeadlessVoice h = headless_voice(i);
         if (h.v.gate && start[h.voice] < 0) {
@@ -664,7 +665,7 @@ TEST(play_of_six_strings_plays_six_voices)
             CHECK(h.v.hertz == hertz[h.voice]);
         }
     }
-    for (int v = 0; v < 6; v++)
+    for (int v = 0; v < 10; v++)
         CHECK(start[v] >= 0 && start[v] == start[0]);
 }
 

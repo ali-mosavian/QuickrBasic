@@ -6,7 +6,7 @@ A program that uses none of this sounds as it did in QBasic: one square wave, th
 same ticks. On DOS the voices play on a Sound Blaster when `BLASTER` names one (DSP 2.00 or later); without
 one, the PC speaker plays the first voice only.
 
-`PLAY a$, b$, ...` plays up to six voices at once, a string each, after PCjr and Tandy BASIC's
+`PLAY a$, b$, ...` plays up to ten voices at once, a string each, after PCjr and Tandy BASIC's
 three. A string left out leaves its voice playing what it was: `PLAY , , fx$` plays voice 3 alone.
 Each voice keeps its own octave, length, tempo and style; `MF` and `MB` apply to all. `PLAY(n)` counts
 the first voice's notes.
