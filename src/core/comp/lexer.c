@@ -363,8 +363,10 @@ static uint8_t lexr_word(Lexr *const lx)
         return 0;
     }
 
-    if (t >= 0x100)
+    if (t >= 0x100) {
         *lx->out++ = TK_X;
+        lx->escaped = true;
+    }
 
     *lx->out++ = (uint8_t)t;
     return (uint8_t)t;
@@ -465,6 +467,7 @@ uint8_t *lexr_line(Lexr *const lx, uint8_t *const text, uint8_t *const body)
     lx->end = body + LMAX;
     lx->last = -1;
     lx->drained = false;
+    lx->escaped = false;
 
     for (;;) {
         const uint8_t *in = lx->in;

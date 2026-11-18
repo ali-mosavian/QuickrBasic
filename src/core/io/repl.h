@@ -55,7 +55,7 @@ Status repl_call(Session *S, void (*fn)(Session *S));
 /* Session.names' intern: the symbol table's name. */
 uint16_t repl_intern(LexrNames *names, const uint8_t *text, uint8_t len);
 /* The line's declarations entered, after its 32-bit warnings to the front end. */
-void repl_declare(Session *S, const uint8_t *body);
+void repl_declare(Session *S, const uint8_t *body); /* body lexr_line's last */
 /* Session.fault's raise: a module's error, reported as repl_error does, at its line when the block pass found it. */
 [[noreturn]]
 void repl_fault(Fault *f, const Failure *e);

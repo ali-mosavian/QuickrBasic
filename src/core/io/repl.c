@@ -602,7 +602,7 @@ uint16_t repl_intern(LexrNames *const names, const uint8_t *const text, const ui
 
 void repl_declare(Session *const S, const uint8_t *const body)
 {
-    if (S->repl.fe->warn)
+    if (S->repl.fe->warn && S->lexr.escaped) /* the body just lexed */
         for (const uint8_t *p = body; *p;) {
             const char *const what = decl_warning(&p);
 

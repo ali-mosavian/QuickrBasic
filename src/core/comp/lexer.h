@@ -35,6 +35,7 @@ typedef struct {
     uint8_t *out;        /* (EDI) the body written */
     const uint8_t *word; /* lx.lxs: a word's start */
     bool drained;        /* the source has no more of the line */
+    bool escaped;        /* the line has a TK_X token: DEF SEG, VARSEG, SSEG's warnings need one */
 } Lexr;
 
 /* Errors raise through f; words become names through names. */
