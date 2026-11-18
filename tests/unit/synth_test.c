@@ -1,5 +1,6 @@
 /* The synthesizer (plat/synth) rendered offline, and PLAY's voices on llrm's queues (play.c) through the headless
    device's logs. */
+#include <math.h>
 #include <stdlib.h>
 
 #include "session.h"
@@ -85,7 +86,7 @@ TEST(synth_waves_have_their_shape)
     int high = 0;
     for (int i = RATE / 10; i < RATE; i++)
         high += buf[i] > 0;
-    CHECK(high > (RATE - RATE / 10) * 24 / 100 && high < (RATE - RATE / 10) * 26 / 100);
+    CHECK(high > (RATE - RATE / 10) * 23 / 100 && high < (RATE - RATE / 10) * 26 / 100); /* an edge's sample is 0 */
 
     sound(&s, note(441, DEV_TRIANGLE, 0x00F0), RATE);
     int turns = 0;
@@ -97,7 +98,7 @@ TEST(synth_waves_have_their_shape)
     int drops = 0;
     for (int i = RATE / 10 + 1; i < RATE; i++)
         drops += buf[i] < buf[i - 1];
-    CHECK(drops >= 441 * 9 / 10 - 1 && drops <= 441 * 9 / 10 + 1);
+    CHECK(drops >= 441 * 9 / 10 - 1 && drops <= 2 * 441 * 9 / 10 + 2); /* its fall rounded: a sample or two */
 }
 
 /* FM (W4): with no depth a sine, which turns twice a period and has no step a saw's size; a modulator at three times
@@ -138,6 +139,55 @@ TEST(synth_fm_bends_a_sine)
     for (int i = RATE / 2 + 1; i < RATE / 2 + RATE / 50 - 1; i++)
         late += (buf[i] - buf[i - 1] > 0) != (buf[i + 1] - buf[i] > 0);
     CHECK(early > late);
+}
+
+/* How far under a held note's whole sound the part of it off its harmonics is, in dB (0 is all of it): a second of
+   `v` from its second second, each harmonic under half the rate measured. 1000 Hz is no divisor of the rate, so what
+   folds back from over half of it lands between the harmonics. */
+static double off_the_note(const DevVoice v)
+{
+    static int16_t two[2 * RATE];
+    Synth s;
+    synth_init(&s, RATE);
+    synth_voice(&s, 0, &v);
+    synth_render(&s, two, 2 * RATE);
+    const int16_t *const x = two + RATE;
+    double all = 0, on = 0, mean = 0;
+    for (int i = 0; i < RATE; i++)
+        mean += x[i];
+    mean /= RATE;
+    for (int i = 0; i < RATE; i++)
+        all += (x[i] - mean) * (x[i] - mean);
+    for (unsigned f = v.hertz; f < RATE / 2; f += v.hertz) {
+        double re = 0, im = 0;
+        for (int i = 0; i < RATE; i++) {
+            re += x[i] * cos(2 * M_PI * f * i / RATE);
+            im += x[i] * sin(2 * M_PI * f * i / RATE);
+        }
+        on += 2 * (re * re + im * im) / RATE;
+    }
+    return 10 * log10((all - on) / all + 1e-12);
+}
+
+/* What a voice sounds that is not its note. A pulse and a saw jumped between two samples, and a sixth of a 1 kHz
+   note's power (-16 dB) was tones folded back from over half the rate; the sine's table of 1024 left -55 dB; and
+   feedback 5 bent the modulator twice as far as meant, into noise, -7 dB: a brass that hissed. */
+TEST(synth_voices_sound_their_note)
+{
+    DevVoice v = note(1000, DEV_PULSE, 0x00F0);
+    v.width = 4096 * 30 / 100;
+    CHECK(off_the_note(v) < -30);
+    v.wave = DEV_SAW;
+    CHECK(off_the_note(v) < -30);
+    v.wave = DEV_FM;
+    v.ratio = 1;
+    v.fall = 0x0F;
+    CHECK(off_the_note(v) < -62);
+    v.hertz = 500;
+    v.depth = 9;
+    v.fall = 0x3B;
+    v.feedback = 5;
+    CHECK(off_the_note(v) < -40);
 }
 
 /* The spacing of a second's rising zero crossings, the least and the most, from sample `from`. */
@@ -241,7 +291,7 @@ TEST(synth_envelope_attacks_sustains_releases)
     const int full = peak(buf + RATE / 20 - RATE / 100, RATE / 100);
     synth_render(&s, buf, RATE / 2);
     const int held = peak(buf + RATE / 2 - RATE / 100, RATE / 100);
-    CHECK(full > 5900 && half_way > full * 4 / 10 && half_way < full * 6 / 10);
+    CHECK(full > 5600 && half_way > full * 4 / 10 && half_way < full * 6 / 10);
     CHECK(held > full * 45 / 100 && held < full * 6 / 10);
 
     v.gate = 0;
@@ -319,7 +369,7 @@ TEST(synth_six_voices_render_as_before)
     }
     for (int i = 0; i < RATE; i++)
         hash = hash * 31 + (uint32_t)buf[i];
-    CHECK(hash == 2531076252u);
+    CHECK(hash == 3427725871u); /* since the pulse's and the saw's edges are rounded */
 }
 
 /* QB's speaker as plat/sdl/audio.c made it before the synthesizer: the reference. */

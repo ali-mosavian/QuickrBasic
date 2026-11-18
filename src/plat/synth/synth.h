@@ -11,7 +11,7 @@
 #include "qbrt/llrm/qb/dev/voice.h"
 
 enum { SYNTH_CURVE = 6 }; /* SID's exponential fall: a step for each band of levels */
-enum { SYNTH_SINE = 1024 }; /* FM's sine, a period */
+enum { SYNTH_SINE = 4096 }; /* FM's sine, a period: its steps 67 dB under the note */
 
 typedef struct SynthOsc {
     DevVoice set;

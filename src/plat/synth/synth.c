@@ -17,8 +17,8 @@ enum {
     DAMPING_MOST = 91750, /* 1.4: resonance 0 */
     DAMPING_STEP = 5680,  /* 1.3 / 15 */
     SYNTH_BLOCK = 64,     /* samples a voice renders at a time */
-    SINE_SHIFT = 22,      /* a phase's top bits index the sine */
-    FEEDBACK_SHIFT = 10,  /* feedback 1 bends by pi / 16 at full, each more twice that */
+    SINE_SHIFT = 20,      /* a phase's top bits index the sine */
+    FEEDBACK_SHIFT = 9,   /* feedback 1 bends by pi / 16 at full, each more twice that: the sum of two samples */
     VIBRATO_HERTZ = 6,
     VIBRATO_WAITS = 5,    /* a fifth of a second before it starts */
     VIBRATO_SHIFT = 24,   /* depth 15 is 3% of the pitch */
@@ -35,7 +35,7 @@ static const uint16_t decay_ms[16] = {6, 24, 48, 72, 114, 168, 204, 240, 300, 75
 static const int32_t below[SYNTH_CURVE] = {256, 93, 54, 26, 14, 6};
 static const int32_t divisor[SYNTH_CURVE] = {1, 2, 4, 8, 16, 30};
 
-/* 32767 sin(k pi / 512), k from 0 to 256: the series to x^7, ONE being 1. */
+/* 32767 sin(k pi / (SYNTH_SINE / 2)), k to a quarter of SYNTH_SINE: the series to x^7, ONE being 1. */
 static int32_t quarter_sin(const int32_t k)
 {
     const int32_t x = k * PI_ONES / (SYNTH_SINE / 2);
@@ -259,6 +259,23 @@ static int envelope_run(const Synth *const s, const SynthOsc *const o, const int
 #if defined(__i386__) && defined(_WIN32) /* DOS: voice_run's samples by plat/dos32/synthrun.asm */
 #define SYNTH_ASM 1
 #else
+/* What rounds a jump up of the whole height, `past` the phase since it (PolyBLEP): a jump between two samples is
+   spread over them, and its harmonics over half the rate, which came back down as tones off the note, mostly go.
+   Nothing but in the sample each side of the jump. */
+[[gnu::always_inline]] static inline int32_t edge(const uint32_t past, const uint32_t step)
+{
+    const uint32_t before = 0u - past, part = step >> 16;
+
+    if (past >= step && before > step)
+        return 0;
+    if (!part)
+        return 0;
+    const int32_t t = (int32_t)(((past < step ? past : before) >> 16 << 15) / part);
+    const int32_t left = t < 32768 ? 32768 - t : 0;
+
+    return past < step ? -(left * left >> 15) : left * left >> 15;
+}
+
 /* The wave's next sample, -32767 to 32767. */
 [[gnu::always_inline]] static inline int32_t wave(SynthOsc *const o, const int16_t *const sine)
 {
@@ -271,7 +288,7 @@ static int envelope_run(const Synth *const s, const SynthOsc *const o, const int
         return (x < 32768 ? x * 2 : (65535 - x) * 2) - 32767;
     }
     case DEV_SAW:
-        return (int32_t)(o->phase >> 16) - 32768;
+        return (int32_t)(o->phase >> 16) - 32768 - edge(o->phase, o->step);
     case DEV_NOISE:
         /* the register steps 16 times a period, as SID's on bit 19 of its 24 */
         if (~was & o->phase & 1u << 27) {
@@ -290,7 +307,8 @@ static int envelope_run(const Synth *const s, const SynthOsc *const o, const int
         return sine[(o->phase + (uint32_t)bend * o->depth) >> SINE_SHIFT];
     }
     default:
-        return o->phase >> 20 < o->set.width ? 32767 : -32767;
+        return (o->phase >> 20 < o->set.width ? 32767 : -32767) + edge(o->phase, o->step) -
+               edge(o->phase - ((uint32_t)o->set.width << 20), o->step);
     }
 }
 

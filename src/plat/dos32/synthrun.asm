@@ -91,7 +91,7 @@ l_hi:
         add     edx, [ebx].SynthRun.sr_fed1
         imul    edx, [ebx].SynthRun.sr_feedback
         add     eax, edx
-        shr     eax, 22
+        shr     eax, 20
         mov     edx, [ebx].SynthRun.sr_sine
         movsx   eax, word ptr [edx+eax*2]
         mov     edx, [ebx].SynthRun.sr_bend
@@ -106,7 +106,7 @@ l_hi:
         mov     [ebx].SynthRun.sr_bend, edx
         imul    eax, [ebx].SynthRun.sr_depth
         add     eax, ecx
-        shr     eax, 22
+        shr     eax, 20
         mov     edx, [ebx].SynthRun.sr_sine
         movsx   eax, word ptr [edx+eax*2]
     endif
