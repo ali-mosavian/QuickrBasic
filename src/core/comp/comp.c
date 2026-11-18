@@ -962,6 +962,7 @@ static void act_res(Comp *const C) { runres(C, K_RES, O_RESTORE_L); }
 static bool bound(Comp *const C, int32_t *const v)
 {
     Node *const tree = expr_tree(C, false);
+    fold_tree(C, tree); /* CONST n - 1 a literal: a frame's array too */
     const bool neg = tree->kind == N_UN && tree->op == TK_MINUS;
     const Node *const n = neg ? tree->a : tree;
     const uint8_t op = n->kind == N_LIT ? n->op : 0;
