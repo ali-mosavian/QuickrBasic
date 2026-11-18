@@ -1,7 +1,7 @@
 ' PANGOLIN DASH: Pip the pangolin tears through the Amber Downs.
 ' Arrows run. Space, Z or Up jumps, curled. Down while running rolls;
 ' Down while still crouches: jump to wind up, let Down go to launch.
-' M mutes; Esc leaves. SCREEN 13 on two pages: one drawn, one shown.
+' M mutes, N turns the tune on; Esc leaves. SCREEN 13 on two pages: one drawn, one shown.
 ' Held keys come from the keyboard's port (60h); where it reads FFh,
 ' from INKEY$'s repeats. Physics in pixels and seconds, 60 steps a
 ' second; the pictures are DATA, drawn by tools/pangart.py.
@@ -206,6 +206,7 @@ DIM SHARED First(MW) AS INTEGER, NObj AS INTEGER
 DIM SHARED Held(127) AS INTEGER, KeyT(127) AS SINGLE, LastScan AS INTEGER, PortOK AS INTEGER
 DIM SHARED LW AS INTEGER, LWPX AS INTEGER, GoalX AS INTEGER
 DIM SHARED StartX AS INTEGER, StartY AS INTEGER
+DIM SHARED Tune AS INTEGER
 DIM SHARED Ticks AS LONG, Muted AS INTEGER, LooseN AS INTEGER, PartN AS INTEGER
 DIM SHARED Glint(2) AS LONG
 DIM SHARED Lead(7) AS STRING, Bass(7) AS STRING, Drum(7) AS STRING, Bar AS INTEGER
@@ -1641,6 +1642,9 @@ SUB ReadPad (k AS Pad)
         SELECT CASE c
         CASE CHR$(27): k.quit = -1
         CASE "m", "M": k.mute = -1
+        CASE "n", "N"
+            Tune = NOT Tune
+            IF NOT Tune THEN PLAY "P64", "P64", "P64"
         CASE CHR$(13): k.start = -1
         CASE " ": k.start = -1: KeyT(SCSPACE) = t
         CASE "z", "Z": KeyT(SCZ) = t
@@ -1714,7 +1718,7 @@ END SUB
 
 ' The next bar, once the last is nearly played.
 SUB FeedSong
-    IF Muted THEN EXIT SUB
+    IF Muted OR NOT Tune THEN EXIT SUB
     IF PLAY(0) > 2 THEN EXIT SUB
     PLAY Lead(Bar), Bass(Bar), Drum(Bar)
     Bar = (Bar + 1) AND 7
