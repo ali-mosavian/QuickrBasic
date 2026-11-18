@@ -46,6 +46,7 @@ TYPE Spark
     vx AS SINGLE
     vy AS SINGLE
     life AS SINGLE
+    born AS LONG
 END TYPE
 
 TYPE Burst
@@ -231,7 +232,8 @@ DECLARE SUB Gravity (m AS Moth)
 DECLARE SUB PlaceStones (st() AS Stone)
 DECLARE SUB MoveStone (st() AS Stone, i AS INTEGER)
 DECLARE SUB Emit (sp() AS Spark, m AS Moth, id AS INTEGER)
-DECLARE SUB MoveSparks (sp() AS Spark)
+DECLARE SUB SparkPaths ()
+DECLARE FUNCTION SparkLife! (p AS Spark)
 DECLARE SUB StartSong (s AS Song, id AS INTEGER)
 DECLARE SUB StopSong (s AS Song)
 DECLARE SUB FeedSong (s AS Song)
@@ -362,6 +364,12 @@ DIM SHARED R2O(R2ON * 2) AS LONG, LandKey(1) AS INTEGER
 DIM SHARED CloudI(CLOUDN) AS LONG, CloudM(CLOUDN) AS LONG
 DIM SHARED SunI(SUNN) AS LONG, SunM(SUNN) AS LONG
 DIM SHARED Ink AS INTEGER
+' A spark as it was emitted and the tick it was; at
+' n ticks old, from the paths of a spark moving at 1
+' each way: there it is, its age, gravity's part.
+CONST NAGE = 140
+DIM SHARED Ticks AS LONG, PathX(NAGE) AS SINGLE, PathY(NAGE) AS SINGLE
+DIM SHARED PathG(NAGE) AS SINGLE, PathAge(NAGE) AS SINGLE
 ' Text drawn once in each look, image then mask, in
 ' Pool from TxtAt; all forgotten when it is full.
 CONST NTXT = 24, TXTPOOL = 16000
@@ -1092,14 +1100,16 @@ END SUB
 SUB DrawSparks (sp() AS Spark)
     DIM i AS INTEGER, c AS INTEGER, l AS SINGLE
     DIM x AS INTEGER, y AS INTEGER
+    DIM n AS INTEGER
     FOR i = 0 TO NSPARK - 1
-        l = sp(i).life
+        l = SparkLife!(sp(i))
         IF l > 0 THEN
+            n = Ticks - sp(i).born
             c = CSPARK + 2
             IF l > .35 THEN c = CSPARK + 1
             IF l > .7 THEN c = CSPARK
-            x = INT(sp(i).x)
-            y = INT(sp(i).y)
+            x = INT(sp(i).x + sp(i).vx * PathX(n))
+            y = INT(sp(i).y + sp(i).vy * PathY(n) + PathG(n))
             PSET (x, y), c
             IF l > .6 THEN PSET (x + 1, y), c
         END IF
@@ -1247,7 +1257,8 @@ SUB Emit (sp() AS Spark, m AS Moth, id AS INTEGER)
     k = Bursts(id).kick
     FOR i = 0 TO NSPARK - 1
         IF n = 0 THEN EXIT FOR
-        IF sp(i).life <= 0 THEN
+        IF SparkLife!(sp(i)) <= 0 THEN
+            sp(i).born = Ticks
             sp(i).x = m.x - 5 + RND * 3
             sp(i).y = m.y + RND * 4 - 2
             sp(i).vx = -30 - RND * 40 + (RND - .5) * k
@@ -1626,6 +1637,7 @@ SUB Main
     BuildMoth
     BuildSprites
     BuildLand
+    SparkPaths
     NewWorld w, cur()
 
     last = TIMER
@@ -1723,19 +1735,36 @@ FUNCTION MothPix% (lx AS SINGLE, ly AS SINGLE, s AS Shape)
     END IF
 END FUNCTION
 
-SUB MoveSparks (sp() AS Spark)
-    DIM i AS INTEGER
-    FOR i = 0 TO NSPARK - 1
-        IF sp(i).life > 0 THEN
-            sp(i).x = sp(i).x + sp(i).vx * STEPT
-            sp(i).y = sp(i).y + sp(i).vy * STEPT
-            sp(i).vx = sp(i).vx * (1 - 1.5 * STEPT)
-            sp(i).vy = sp(i).vy * (1 - 2 * STEPT)
-            sp(i).vy = sp(i).vy - 10 * STEPT
-            sp(i).life = sp(i).life - STEPT
-        END IF
+' The paths sparks take as MoveSparks moved them: by
+' velocity, its drag, and gravity, a tick at a time.
+SUB SparkPaths
+    DIM n AS INTEGER, x AS SINGLE, vx AS SINGLE
+    DIM y AS SINGLE, vy AS SINGLE, g AS SINGLE, vg AS SINGLE
+    DIM l AS SINGLE
+    vx = 1: vy = 1
+    FOR n = 0 TO NAGE
+        PathX(n) = x: PathY(n) = y: PathG(n) = g: PathAge(n) = l
+        x = x + vx * STEPT
+        y = y + vy * STEPT
+        g = g + vg * STEPT
+        vx = vx * (1 - 1.5 * STEPT)
+        vy = vy * (1 - 2 * STEPT)
+        vg = vg * (1 - 2 * STEPT)
+        vg = vg - 10 * STEPT
+        l = l + STEPT
     NEXT
 END SUB
+
+' A spark's life left, 0 or under once it is out.
+FUNCTION SparkLife! (p AS Spark)
+    DIM n AS LONG
+    n = Ticks - p.born
+    IF n > NAGE THEN
+        SparkLife! = 0
+    ELSE
+        SparkLife! = p.life - PathAge(n)
+    END IF
+END FUNCTION
 
 ' The note of string k (as "O4E"), steps up the
 ' scale.
@@ -2136,7 +2165,7 @@ SUB Tick (w AS World, k AS Pad, st() AS Stone, sp() AS Spark)
     END IF
     IF w.g.toTitle AND w.sky.fade <= 0 THEN BackToTitle w
     Trail w, sp()
-    MoveSparks sp()
+    Ticks = Ticks + 1
 END SUB
 
 SUB TitleText (g AS Game)

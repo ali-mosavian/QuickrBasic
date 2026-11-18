@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """mothlite_test.py [EXE]: MOTHLITE.BAS's stones drawn at every place they scroll through, and
 every PLAY string it builds played, whole frames drawn at fixed times and scrolls, and the
-palette eased through each sky and faded.
+palette eased through each sky and faded, and sparks drawn from their paths where moving them a
+tick at a time put them.
 
 The demo's main loop is swapped for one that draws each kind of stone from off the left edge to
 off the right. A stone with runes partly off the left (x < 0) took a negative rune index:
@@ -164,6 +165,60 @@ def palettes(exe: str, tmp: str) -> str:
     return hashlib.md5((Path(tmp) / "PAL.BIN").read_bytes()).hexdigest()
 
 
+SPARKS = """LoadTables
+SparkPaths
+DIM sp(NSPARK - 1) AS Spark, rf(NSPARK - 1, 4) AS SINGLE, m AS Moth
+DIM t AS INTEGER, i AS INTEGER, j AS INTEGER, l AS SINGLE, n AS INTEGER
+DIM seen AS LONG, bad AS LONG
+RANDOMIZE 3
+m.x = 100: m.y = 90
+FOR t = 1 TO 3000
+    IF t MOD 6 = 0 THEN Emit sp(), m, BTRAIL
+    IF t MOD 50 = 0 THEN Emit sp(), m, BFLAP
+    IF t MOD 333 = 0 THEN Emit sp(), m, BSCORE
+    FOR i = 0 TO NSPARK - 1
+        IF sp(i).born = Ticks THEN
+            rf(i, 0) = sp(i).x: rf(i, 1) = sp(i).y: rf(i, 2) = sp(i).vx
+            rf(i, 3) = sp(i).vy: rf(i, 4) = sp(i).life
+        END IF
+        IF rf(i, 4) > 0 THEN
+            rf(i, 0) = rf(i, 0) + rf(i, 2) * STEPT
+            rf(i, 1) = rf(i, 1) + rf(i, 3) * STEPT
+            rf(i, 2) = rf(i, 2) * (1 - 1.5 * STEPT)
+            rf(i, 3) = rf(i, 3) * (1 - 2 * STEPT)
+            rf(i, 3) = rf(i, 3) - 10 * STEPT
+            rf(i, 4) = rf(i, 4) - STEPT
+        END IF
+    NEXT
+    Ticks = Ticks + 1
+    FOR i = 0 TO NSPARK - 1
+        l = SparkLife!(sp(i))
+        IF l > 0 OR rf(i, 4) > 0 THEN
+            seen = seen + 1
+            n = Ticks - sp(i).born
+            j = (l > 0) <> (rf(i, 4) > 0)
+            j = j OR (l > .35) <> (rf(i, 4) > .35) OR (l > .7) <> (rf(i, 4) > .7) OR (l > .6) <> (rf(i, 4) > .6)
+            j = j OR INT(sp(i).x + sp(i).vx * PathX(n)) <> INT(rf(i, 0))
+            j = j OR INT(sp(i).y + sp(i).vy * PathY(n) + PathG(n)) <> INT(rf(i, 1))
+            IF j THEN bad = bad + 1
+        END IF
+    NEXT
+NEXT
+PRINT "sparks"; seen; bad
+END
+"""
+
+
+def sparks(exe: str, tmp: str) -> tuple[int, int]:
+    """The sparks drawn alive, and those not where moving them put them, or not alive or coloured as it."""
+    head, rest = DEMO.read_text().split("\nMain\nEND\n", 1)
+    path = Path(tmp) / "SPARKS.BAS"
+    path.write_text(head + "\n" + SPARKS + rest)
+    out = subprocess.run([exe, path.name], cwd=tmp, capture_output=True, timeout=120).stdout.decode(errors="replace")
+    got = out.split("sparks")[-1].split()
+    return (int(got[0]), int(got[1])) if len(got) == 2 else (0, 0)
+
+
 def program() -> str:
     head, rest = DEMO.read_text().split("\nMain\nEND\n", 1)
     return head + "\n" + DRIVER + rest
@@ -182,8 +237,9 @@ def main() -> None:
         out = run.stdout.decode(errors="replace")
         digest = frames(exe, tmp)
         dacs = palettes(exe, tmp)
-    out += "\nframes " + digest + "\npalettes " + dacs
-    ok = "stones ok" in out and "sounds ok" in out and digest == FRAMES_MD5 and dacs == PALETTES_MD5
+        seen, off = sparks(exe, tmp)
+    out += f"\nframes {digest}\npalettes {dacs}\nsparks {off} of {seen} off"
+    ok = "stones ok" in out and "sounds ok" in out and digest == FRAMES_MD5 and dacs == PALETTES_MD5 and seen > 10000 and off * 1000 < seen
     print("mothlite " + ("ok" if ok else "FAIL\n" + out[-600:]))
     sys.exit(0 if ok else 1)
 
