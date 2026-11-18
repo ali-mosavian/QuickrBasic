@@ -45,6 +45,8 @@
 
 enum { LXAHEAD = 128 }; /* ahead: a word's, a number's bytes in the window */
 
+static void kw_made(void);
+
 [[noreturn]]
 static void lexr_fail(const Lexr *const lx)
 {
@@ -55,12 +57,19 @@ void lexr_init(Lexr *const lx, Fault *const f, LexrNames *const names)
 {
     lx->fault = f;
     lx->names = names;
+    kw_made();
 }
 
 static void lexr_room(Lexr *const lx)
 {
     if (lx->out >= lx->end)
         lexr_fail(lx);
+}
+
+/* lexr.near: LXAHEAD before the window's end while the source may have more, else never met. */
+static void lexr_near(Lexr *const lx)
+{
+    lx->near = lx->source && !lx->drained ? lx->source->end - LXAHEAD : (const uint8_t *)UINTPTR_MAX;
 }
 
 /* Streamed text: the window's end at src; the window slid, its bytes from src on kept, and read
@@ -74,6 +83,7 @@ static bool lexr_more(Lexr *const lx)
 
     if (!lx->source->more(lx->source, &keep)) {
         lx->drained = true; /* asked again before each item: a call each */
+        lexr_near(lx);
         return false;
     }
 
@@ -81,6 +91,7 @@ static bool lexr_more(Lexr *const lx)
     lx->src -= moved;
     lx->word -= moved;
     lx->in = (uint8_t *)keep;
+    lexr_near(lx);
     return true;
 }
 
@@ -296,15 +307,11 @@ static void kw_dense(void)
                           : KW_NOT;
 }
 
-uint16_t lexr_keyword(const uint8_t **const at)
+static bool dense;
+
+/* lexr_keyword's, the tables made */
+static inline uint16_t kw_scan(const uint8_t **const at)
 {
-    static bool dense;
-
-    if (!dense) {
-        kw_dense();
-        dense = true;
-    }
-
     const uint8_t *p = *at;
     uint16_t st = KW_START;
     uint8_t k = kw_class[*p];
@@ -327,6 +334,20 @@ uint16_t lexr_keyword(const uint8_t **const at)
 
     *at = p;
     return lexr_kw_token[st];
+}
+
+static void kw_made(void)
+{
+    if (!dense) {
+        kw_dense();
+        dense = true;
+    }
+}
+
+uint16_t lexr_keyword(const uint8_t **const at)
+{
+    kw_made();
+    return kw_scan(at);
 }
 
 /* The word from wstart to src is a name: M_VAR len name nam:2, a suffix in the text but not the
@@ -355,7 +376,7 @@ static uint8_t lexr_word(Lexr *const lx)
 {
     lx->word = lx->in;
     const uint8_t *p = lx->in;
-    const uint16_t t = lexr_keyword(&p);
+    const uint16_t t = kw_scan(&p);
     lx->in = (uint8_t *)p;
 
     if (!t) {
@@ -468,23 +489,33 @@ uint8_t *lexr_line(Lexr *const lx, uint8_t *const text, uint8_t *const body)
     lx->last = -1;
     lx->drained = false;
     lx->escaped = false;
+    lexr_near(lx);
 
     for (;;) {
-        const uint8_t *in = lx->in;
+        uint8_t *in = lx->in;
+        uint8_t c;
 
-        while (is_blank(*in))
+        while (is_blank(c = *in))
             in++;
 
-        lx->in = (uint8_t *)in;
-        const uint8_t c = lexr_next_char(lx);
+        lx->in = in + 1;
 
-        if (!c)
-            return lexr_finish(lx);
-        if (is_blank(c))
-            continue;
+        if (!c) { /* the window's end: refilled, or the line's */
+            lx->in = in;
+            c = lexr_next_char(lx);
 
-        lexr_ahead(lx);
-        lexr_markcol(lx);
+            if (!c)
+                return lexr_finish(lx);
+            if (is_blank(c))
+                continue;
+        }
+
+        if (lx->in > lx->near)
+            lexr_ahead(lx);
+        if (lx->out >= lx->end) /* lexr_markcol's, end the body's LMAX */
+            lexr_fail(lx);
+        if (lx->cols)
+            lexr_markcol_kept(lx);
 
         if (c == '"') {
             *lx->out++ = c;
