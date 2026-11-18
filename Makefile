@@ -152,6 +152,7 @@ host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/h
 	$(PY) tools/fold_test.py build/host/basic
 	$(PY) tools/mothlite_test.py build/host/basic
 	$(PY) tools/pangdash_test.py build/host/basic
+	$(PY) tools/mid2play_test.py build/host/basic
 	$(PY) tools/pterm_test.py build/host/basic
 	$(PY) tools/bench_test.py
 
