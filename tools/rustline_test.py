@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""ironmoss_test.py: IRONMOSS's PLAY strings stay in the octaves PLAY takes.
+"""rustline_test.py: RUSTLINE's PLAY strings stay in the octaves PLAY takes.
 
 "O7" in the spire's shot stopped the game with "Illegal function call" the first time a spire in
 sight fired; the same in the battle tune's hats stopped it on the first bar.
@@ -8,7 +8,7 @@ sight fired; the same in the battle tune's hats stopped it on the first bar.
 import re
 from pathlib import Path
 
-BAS = Path(__file__).resolve().parent.parent / "src/plat/wasm/web/demos/IRONMOSS.BAS"
+BAS = Path(__file__).resolve().parent.parent / "src/plat/wasm/web/demos/RUSTLINE.BAS"
 
 
 def play_strings(src: str) -> list[str]:

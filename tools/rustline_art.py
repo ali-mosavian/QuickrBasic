@@ -1,9 +1,9 @@
-"""ironmoss_art.py: IRONMOSS's pre-drawn art, ray-marched from shapes and written into the game.
+"""rustline_art.py: RUSTLINE's pre-drawn art, ray-marched from shapes and written into the game.
 
-    ironmoss_art.py [--preview DIR]
+    rustline_art.py [--preview DIR]
 
 Renders the land, buildings and units isometric, picks the 72 colours the game's own 32 lack, and
-rewrites the blocks after PalData: and ArtData: in src/plat/wasm/web/demos/IRONMOSS.BAS. --preview also saves
+rewrites the blocks after PalData: and ArtData: in src/plat/wasm/web/demos/RUSTLINE.BAS. --preview also saves
 each picture as a PNG at 4 times its size.
 
 The world is in pixels: a tile is 16 on a side; the screen's x is x - y, its y (x + y) / 2 - z.
@@ -18,12 +18,12 @@ from collections.abc import Callable
 import numpy as np
 from numpy.typing import NDArray
 
-BAS = Path(__file__).resolve().parent.parent / "src/plat/wasm/web/demos/IRONMOSS.BAS"
+BAS = Path(__file__).resolve().parent.parent / "src/plat/wasm/web/demos/RUSTLINE.BAS"
 F = NDArray[np.float64]
 # a shape: points (n, 3) to their distance outside it (n,) and material (n,)
 Shape = Callable[[F], tuple[F, NDArray[np.int64]]]
 
-# the game's colour names (IRONMOSS.BAS's Setup)
+# the game's colour names (RUSTLINE.BAS's Setup)
 TEAM = ((10, 11, 25), (12, 13, 26))  # mid, light, dark
 
 LIGHT = np.array([-0.35, 0.75, 1.0]) / np.linalg.norm([-0.35, 0.75, 1.0])
@@ -277,7 +277,7 @@ def heading(d: int) -> tuple[float, float]:
 
 # --- the land: a tile's diamond, 32 by 16; u east and v south on the tile, 0 to 16
 
-ROCKH, STEPH = 6, 6  # IRONMOSS.BAS's
+ROCKH, STEPH = 6, 6  # RUSTLINE.BAS's
 BAYER4 = np.array([[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]) / 16
 
 
@@ -345,7 +345,7 @@ def sides_edge(u: F, v: F, same: int, inset: float, wob: float) -> F:
     return soft(e, es)
 
 
-WATERC, NWATER = 104, 8  # the colours the game turns round to move the water (IRONMOSS.BAS's)
+WATERC, NWATER = 104, 8  # the colours the game turns round to move the water (RUSTLINE.BAS's)
 
 
 def water_colour(k: int, t: int = 0) -> tuple[float, float, float]:
@@ -740,7 +740,7 @@ def main() -> None:
         block(
             "ArtData",
             "grass by level, what lies on it, rock, the tree, a cliff's faces, the buildings, the units:\n"
-            "' width, height, then rows of symbols (Unpack); tools/ironmoss_art.py writes these",
+            "' width, height, then rows of symbols (Unpack); tools/rustline_art.py writes these",
             lines,
         ),
     )

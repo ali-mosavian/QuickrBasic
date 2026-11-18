@@ -1,5 +1,5 @@
-' IRONMOSS: the war for the glowing moss of Veyra.
-' Lead the Thornwake Lodge: harvest moss, build a base, destroy the Ash Clade.
+' RUSTLINE: the war for the red ore of Kesh.
+' Lead the Coalition: mine ore, build a base, destroy the Scorch Legion.
 ' Mouse: left drags a box to select, right orders (move, attack, harvest); the sidebar builds.
 ' Arrows or the screen's edges scroll; H home, A all army, S stop, M sound, Esc leaves.
 ' PEN reads the mouse. SCREEN 13, 256 colours, on two pages: one drawn while the other is shown
@@ -20,12 +20,12 @@ CONST PLANEW = (MAPW + MAPH) * 16, PLANEH = (MAPW + MAPH) * 8, ROCKH = 6, STEPH 
 CONST MAXU = 64, MAXB = 32, MAXFX = 64, NF = 24, NPART = 48
 CONST STEPT = .0333333
 CONST GTITLE = 0, GPLAY = 1, GWIN = 2, GLOSE = 3
-CONST TGROUND = 0, TGROUND2 = 1, TDIRT = 2, TROCK = 3, TWATER = 4, TMOSS = 5, TTREE = 6
-CONST UCRAWL = 1, UWARD = 2, URAM = 3
-CONST BHALL = 1, BMILL = 2, BDEN = 3, BSPIRE = 4
+CONST TGROUND = 0, TGROUND2 = 1, TDIRT = 2, TROCK = 3, TWATER = 4, TORE = 5, TTREE = 6
+CONST UHARV = 1, URIFLE = 2, UTANK = 3
+CONST BHQ = 1, BREF = 2, BBAR = 3, BTUR = 4
 CONST SIDLE = 0, SMOVE = 1, SATTACK = 2, SSEEK = 3, SGATHER = 4, SRETURN = 5, SUNLOAD = 6
 CONST FXBOOM = 1, FXBIG = 2, FXTRACE = 3, FXSHELL = 4, FXBEAM = 5, FXSMOKE = 6, FXMARK = 7
-CONST MOSSKEY = -2, NOKEY = -99, FAR = 32000, LOADMAX = 10, LOADVAL = 25
+CONST OREKEY = -2, NOKEY = -99, FAR = 32000, LOADMAX = 10, LOADVAL = 25
 CONST MINIX = 240, MINIY = 11, BTNY = 72, BTNH = 18
 ' the palette: 0 to 103 the land's, units' and buildings' (from 32 the art tool's), 104 on the
 ' water's, turned round to move it (WATERC), 112 on fire's;
@@ -35,7 +35,7 @@ CONST WATERC = 104, NWATER = 8, FOG = 128, FIRE = 112, SKY = 128, PLANET = 160, 
 ' the minimap, the full screen.
 ' Past 64 KB: QB 4.5 needs /AH.
 ' the land, diamonds of 2 slots: 16 of grass at each of 3 levels, a 4 by 4 piece of it each, the diamond's mask, the
-' fog; what lies on the grass, an image and a mask each: dirt, flowers, moss thin to thick, water by
+' fog; what lies on the grass, an image and a mask each: dirt, flowers, ore thin to thick, water by
 ' which of its 4 sides go on (OWATER + sides); rock, raised, by its
 ' sides: image, mask, fog, 3 slots each; a tree's image, mask, fog and shade, 2 slots each; a cliff's
 ' step, its left and right faces' image, mask and fog, a slot each (left then right); the shade at
@@ -48,9 +48,9 @@ CONST AICN = ABLD + 24 * BLDW, AMINI = AICN + 3, ABACK = AMINI + 19, NSLOT = ABA
 
 TYPE CellT
     terr AS INTEGER
-    amt AS INTEGER   ' moss left
-    seen AS INTEGER  ' the Lodge has seen it
-    vis AS INTEGER   ' the Lodge sees it now
+    amt AS INTEGER   ' ore left
+    seen AS INTEGER  ' the Coalition has seen it
+    vis AS INTEGER   ' the Coalition sees it now
     occ AS INTEGER   ' the unit on it, or moving onto it
     bld AS INTEGER   ' the building on it
     hgt AS INTEGER   ' its height, 2 a level: odd, a ramp
@@ -91,8 +91,8 @@ TYPE BldgT
     x AS INTEGER     ' its top left tile
     y AS INTEGER
     cool AS SINGLE
-    ti AS INTEGER    ' a spire's target unit
-    ang AS SINGLE    ' a spire's gun
+    ti AS INTEGER    ' a turret's target unit
+    ang AS SINGLE    ' a turret's gun
     scan AS SINGLE
     smoke AS SINGLE
 END TYPE
@@ -115,7 +115,7 @@ TYPE PartT
     ph AS SINGLE
 END TYPE
 
-' A flow field's goal (a tile, or MOSSKEY) and when it was last used.
+' A flow field's goal (a tile, or OREKEY) and when it was last used.
 TYPE FieldT
     goal AS INTEGER
     used AS SINGLE
@@ -131,7 +131,7 @@ TYPE TeamT
     hallProg AS SINGLE
     denKind AS INTEGER
     denProg AS SINGLE
-    q3 AS INTEGER    ' crawlers, wardens, rams waiting
+    q3 AS INTEGER    ' harvesters, riflemen, tanks waiting
     q4 AS INTEGER
     q5 AS INTEGER
     built AS INTEGER
@@ -157,7 +157,7 @@ TYPE ViewT
     camX AS INTEGER  ' the plane's pixel at the view's top left
     camY AS INTEGER
     page AS INTEGER  ' the page being drawn
-    mossPh AS INTEGER
+    orePh AS INTEGER
     waterF AS INTEGER  ' the water's colours' turn
     miniDirty AS INTEGER
     miniT AS SINGLE
@@ -169,7 +169,7 @@ TYPE AiT
     wave AS INTEGER
     size AS INTEGER
     nextWave AS SINGLE
-    alarmK AS INTEGER ' who last hit the Clade
+    alarmK AS INTEGER ' who last hit the Legion
     alarmI AS INTEGER
     alarmT AS SINGLE
     coin AS SINGLE
@@ -201,8 +201,8 @@ TYPE GameT
     clickU AS INTEGER
     alertX AS INTEGER ' the tile of the last alarm, -1 none
     alertY AS INTEGER
-    losses AS INTEGER ' the Lodge's units and buildings lost
-    kills AS INTEGER  ' the Clade's
+    losses AS INTEGER ' the Coalition's units and buildings lost
+    kills AS INTEGER  ' the Legion's
     msg AS STRING * 64
     ms AS MouseT
     vw AS ViewT
@@ -224,7 +224,7 @@ DECLARE SUB Keys (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS
 DECLARE SUB Controls (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fk() AS FieldT, dt AS SINGLE)
 DECLARE SUB Tick (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fd() AS INTEGER, fk() AS FieldT, art() AS INTEGER, gl() AS INTEGER)
 DECLARE SUB UnitTick (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fd() AS INTEGER, fk() AS FieldT, i AS INTEGER, dt AS SINGLE)
-DECLARE SUB SpireTick (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fk() AS FieldT, b AS INTEGER, dt AS SINGLE)
+DECLARE SUB TurretTick (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fk() AS FieldT, b AS INTEGER, dt AS SINGLE)
 DECLARE SUB Produce (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, ti AS INTEGER, dt AS SINGLE)
 DECLARE SUB Train (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, ti AS INTEGER, fb AS INTEGER, kind AS INTEGER, prog AS SINGLE, dt AS SINGLE)
 DECLARE SUB AIThink (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fk() AS FieldT)
@@ -237,7 +237,7 @@ DECLARE SUB KillBuilding (g AS GameT, m() AS CellT, bl() AS BldgT, fx() AS FxT, 
 DECLARE SUB PlaceBuilding (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fk() AS FieldT, ti AS INTEGER, kind AS INTEGER, x AS INTEGER, y AS INTEGER)
 DECLARE SUB ClearFields (fk() AS FieldT)
 DECLARE SUB BuildField (m() AS CellT, fd() AS INTEGER, fi AS INTEGER, goal AS INTEGER)
-DECLARE SUB DepleteMoss (g AS GameT, m() AS CellT, fk() AS FieldT, x AS INTEGER, y AS INTEGER)
+DECLARE SUB DepleteOre (g AS GameT, m() AS CellT, fk() AS FieldT, x AS INTEGER, y AS INTEGER)
 DECLARE SUB AddFx (fx() AS FxT, k AS INTEGER, x AS SINGLE, y AS SINGLE, x2 AS SINGLE, y2 AS SINGLE, life AS SINGLE)
 DECLARE SUB FxTick (fx() AS FxT, dt AS SINGLE)
 DECLARE SUB Order (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, wx AS INTEGER, wy AS INTEGER, pu AS INTEGER, pb AS INTEGER)
@@ -297,7 +297,7 @@ DECLARE FUNCTION FindB% (bl() AS BldgT, ti AS INTEGER, bt AS INTEGER)
 DECLARE FUNCTION CountB% (bl() AS BldgT, ti AS INTEGER, bt AS INTEGER)
 DECLARE FUNCTION CountU% (u() AS UnitT, ti AS INTEGER, ut AS INTEGER)
 DECLARE FUNCTION CanPlace% (m() AS CellT, bl() AS BldgT, ti AS INTEGER, kind AS INTEGER, x AS INTEGER, y AS INTEGER)
-DECLARE FUNCTION NearestMill% (u() AS UnitT, bl() AS BldgT, i AS INTEGER)
+DECLARE FUNCTION NearestRef% (u() AS UnitT, bl() AS BldgT, i AS INTEGER)
 DECLARE FUNCTION TargetDist! (u() AS UnitT, bl() AS BldgT, i AS INTEGER)
 DECLARE FUNCTION Scan% (u() AS UnitT, bl() AS BldgT, i AS INTEGER, radius AS SINGLE)
 DECLARE FUNCTION Allowed% (bl() AS BldgT, k AS INTEGER)
@@ -367,7 +367,7 @@ SCREEN 0
 WIDTH 80
 END
 
-' The map, a row to a string: . , ground, : dirt, # rock, ~ water, m moss, T fungus.
+' The map, a row to a string: . , ground, : dirt, # rock, ~ water, m ore, T palm.
 HeightData:
 ' each tile's height, 2 a level: odd ones are ramps
 DATA "2222222222222244444422222244444444444444"
@@ -478,7 +478,7 @@ DATA 20, 31, 11
 
 ArtData:
 ' grass by level, what lies on it, rock, the tree, a cliff's faces, the buildings, the units:
-' width, height, then rows of symbols (Unpack); tools/ironmoss_art.py writes these
+' width, height, then rows of symbols (Unpack); tools/rustline_art.py writes these
 DATA 32, 16
 DATA "pcS!'}cSd!'S!'yc!A!9S!9!'!'!-!-VVuc!9!9!A!9SS!-!-VVOOVVqcS!'S!'!'S!-!'VKeOeVmcS!9SS!'S!'!-VKOOEdOeVK"
 DATA "Kic!9SS!9dS!'!-!-VVOEEdOVVKV!-!-!'!'ec!'Sf!'dS!'!'KKVKeVKK!-e!'S!'!'ccd!'!-!'!'S!'!9SS!9i!'S!'!9S!A"
@@ -1691,10 +1691,10 @@ SUB AddFx (fx() AS FxT, k AS INTEGER, x AS SINGLE, y AS SINGLE, x2 AS SINGLE, y2
     NEXT
 END SUB
 
-' A finished building of the computer's, at the first spot near its hall that takes it.
+' A finished building of the computer's, at the first spot near its HQ that takes it.
 SUB AIPlace (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fk() AS FieldT)
     DIM h AS INTEGER, r AS INTEGER, x AS INTEGER, y AS INTEGER
-    h = FindB%(bl(), 1, BHALL)
+    h = FindB%(bl(), 1, BHQ)
     IF h = 0 THEN EXIT SUB
     FOR r = 2 TO 8
         FOR y = bl(h).y - r TO bl(h).y + r
@@ -1714,14 +1714,14 @@ END SUB
 SUB AIThink (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fk() AS FieldT)
     DIM want AS INTEGER, k AS INTEGER, i AS INTEGER, n AS INTEGER, b AS INTEGER, tb AS INTEGER
     DIM d AS SINGLE, best AS SINGLE
-    IF FindB%(bl(), 1, BHALL) THEN
+    IF FindB%(bl(), 1, BHQ) THEN
         IF tm(1).sKind < 0 THEN
             want = -1
-            IF CountB%(bl(), 1, BMILL) = 0 THEN
+            IF CountB%(bl(), 1, BREF) = 0 THEN
                 want = 0
-            ELSEIF CountB%(bl(), 1, BDEN) = 0 THEN
+            ELSEIF CountB%(bl(), 1, BBAR) = 0 THEN
                 want = 1
-            ELSEIF CountB%(bl(), 1, BSPIRE) < 1 + g.ai.wave \ 2 AND CountB%(bl(), 1, BSPIRE) < 4 THEN
+            ELSEIF CountB%(bl(), 1, BTUR) < 1 + g.ai.wave \ 2 AND CountB%(bl(), 1, BTUR) < 4 THEN
                 want = 2
             END IF
             IF want >= 0 THEN
@@ -1732,20 +1732,20 @@ SUB AIThink (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS Bldg
         ELSEIF tm(1).sReady THEN
             AIPlace g, tm(), m(), u(), bl(), fk()
         END IF
-        IF CountU%(u(), 1, UCRAWL) + tm(1).q3 < 2 AND tm(1).hallKind < 0 AND tm(1).cash >= KCost%(3) THEN
+        IF CountU%(u(), 1, UHARV) + tm(1).q3 < 2 AND tm(1).hallKind < 0 AND tm(1).cash >= KCost%(3) THEN
             tm(1).cash = tm(1).cash - KCost%(3): Enqueue tm(1), 3, 1
         END IF
     END IF
-    IF FindB%(bl(), 1, BDEN) AND tm(1).q4 + tm(1).q5 < 2 THEN
+    IF FindB%(bl(), 1, BBAR) AND tm(1).q4 + tm(1).q5 < 2 THEN
         k = 4
         IF RND < .3 + g.ai.wave * .06 THEN k = 5
         IF tm(1).cash >= KCost%(k) THEN tm(1).cash = tm(1).cash - KCost%(k): Enqueue tm(1), k, 1
     END IF
 
-    ' defence: the idle answer whoever hit the Clade
+    ' defence: the idle answer whoever hit the Legion
     IF g.ai.alarmT > 0 AND g.now - g.ai.alarmT < 4 THEN
         FOR i = 1 TO MAXU
-            IF u(i).alive AND u(i).team = 1 AND u(i).kind <> UCRAWL AND u(i).st = SIDLE THEN
+            IF u(i).alive AND u(i).team = 1 AND u(i).kind <> UHARV AND u(i).st = SIDLE THEN
                 IF g.ai.alarmK = 1 THEN
                     IF u(g.ai.alarmI).alive AND u(g.ai.alarmI).team = 0 THEN u(i).st = SATTACK: u(i).tk = 1: u(i).ti = g.ai.alarmI: u(i).agg = 0
                 ELSEIF g.ai.alarmK = 2 THEN
@@ -1755,24 +1755,24 @@ SUB AIThink (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS Bldg
         NEXT
     END IF
 
-    ' a wave, once enough wait at home: on the Lodge's building nearest the Clade
+    ' a wave, once enough wait at home: on the Coalition's building nearest the Legion
     IF g.now >= g.ai.nextWave THEN
         n = 0
         FOR i = 1 TO MAXU
-            IF u(i).alive AND u(i).team = 1 AND u(i).kind <> UCRAWL AND u(i).st = SIDLE THEN n = n + 1
+            IF u(i).alive AND u(i).team = 1 AND u(i).kind <> UHARV AND u(i).st = SIDLE THEN n = n + 1
         NEXT
         IF n >= g.ai.size THEN
             tb = 0: best = 1E+09
             FOR b = 1 TO MAXB
                 IF bl(b).alive AND bl(b).team = 0 THEN
                     d = (bl(b).x - 34) ^ 2 + (bl(b).y - 3) ^ 2
-                    IF bl(b).kind = BSPIRE THEN d = d + 40
+                    IF bl(b).kind = BTUR THEN d = d + 40
                     IF d < best THEN best = d: tb = b
                 END IF
             NEXT
             IF tb THEN
                 FOR i = 1 TO MAXU
-                    IF u(i).alive AND u(i).team = 1 AND u(i).kind <> UCRAWL AND u(i).st = SIDLE THEN
+                    IF u(i).alive AND u(i).team = 1 AND u(i).kind <> UHARV AND u(i).st = SIDLE THEN
                         u(i).st = SATTACK: u(i).tk = 2: u(i).ti = tb: u(i).agg = -1
                         u(i).gx = bl(tb).x: u(i).gy = bl(tb).y
                     END IF
@@ -1780,7 +1780,7 @@ SUB AIThink (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS Bldg
                 g.ai.wave = g.ai.wave + 1
                 g.ai.size = 3 + g.ai.wave: IF g.ai.size > 10 THEN g.ai.size = 10
                 g.ai.nextWave = g.now + 40
-                Say g, "The Ash Clade is on the march!"
+                Say g, "The Scorch Legion is on the march!"
                 Sfx g, 8
             END IF
         END IF
@@ -1788,7 +1788,7 @@ SUB AIThink (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS Bldg
 END SUB
 
 FUNCTION Allowed% (bl() AS BldgT, k AS INTEGER)
-    IF k <= 3 THEN Allowed% = FindB%(bl(), 0, BHALL) > 0 ELSE Allowed% = FindB%(bl(), 0, BDEN) > 0
+    IF k <= 3 THEN Allowed% = FindB%(bl(), 0, BHQ) > 0 ELSE Allowed% = FindB%(bl(), 0, BBAR) > 0
 END FUNCTION
 
 FUNCTION Ang! (dx AS SINGLE, dy AS SINGLE)
@@ -1812,15 +1812,15 @@ END SUB
 
 FUNCTION BHp% (k AS INTEGER)
     SELECT CASE k
-    CASE BHALL: BHp% = 900
-    CASE BSPIRE: BHp% = 320
+    CASE BHQ: BHp% = 900
+    CASE BTUR: BHp% = 320
     CASE ELSE: BHp% = 450
     END SELECT
 END FUNCTION
 
 ' The height above its footprint of a building's image: the room for its walls and roof.
 FUNCTION BldH% (bt AS INTEGER)
-    IF bt = BSPIRE THEN BldH% = 22 ELSE BldH% = 28
+    IF bt = BTUR THEN BldH% = 22 ELSE BldH% = 28
 END FUNCTION
 
 ' The fog for the mask w by h at mx, 0, drawn at fx, 0: FOG where the mask's picture is.
@@ -1871,7 +1871,7 @@ SUB Unpack (ox AS INTEGER, mx AS INTEGER, hx AS INTEGER, oy AS INTEGER)
 END SUB
 
 FUNCTION BSize% (k AS INTEGER)
-    IF k = BSPIRE THEN BSize% = 1 ELSE BSize% = 2
+    IF k = BTUR THEN BSize% = 1 ELSE BSize% = 2
 END FUNCTION
 
 ' The tiles, the units in 8 headings and 2 frames each, the buildings by the tile, the icons.
@@ -1948,7 +1948,7 @@ SUB BuildArt (art() AS INTEGER, gl() AS INTEGER)
         k = ABLD + ((bt - 1) * 2 + tmi) * 3 * BLDW
         GET (100, 0)-(100 + sz - 1, q - 1), art(0, k)
         GET (170, 0)-(170 + sz - 1, q - 1), art(0, k + BLDW)
-        ' the sidebar's icons: the Lodge's mill, den and spire, sampled small
+        ' the sidebar's icons: the Coalition's refinery, barracks and turret, sampled small
         IF tmi = 0 AND bt > 1 THEN
             FOR y = 0 TO TS - 1: FOR x = 0 TO TS - 1
                 c = POINT(100 + x * sz \ TS, y * q \ TS)
@@ -1977,10 +1977,10 @@ SUB BuildField (m() AS CellT, fd() AS INTEGER, fi AS INTEGER, goal AS INTEGER)
     DIM v AS INTEGER
     DIM qx(MAPW * MAPH) AS INTEGER, qy(MAPW * MAPH) AS INTEGER
     FOR y = 0 TO MAPH - 1: FOR x = 0 TO MAPW - 1: fd(fi, x, y) = FAR: NEXT: NEXT
-    IF goal = MOSSKEY THEN
+    IF goal = OREKEY THEN
         FOR y = 0 TO MAPH - 1
             FOR x = 0 TO MAPW - 1
-                IF m(x, y).terr = TMOSS AND m(x, y).bld = 0 THEN fd(fi, x, y) = 0: qx(tl) = x: qy(tl) = y: tl = tl + 1
+                IF m(x, y).terr = TORE AND m(x, y).bld = 0 THEN fd(fi, x, y) = 0: qx(tl) = x: qy(tl) = y: tl = tl + 1
             NEXT
         NEXT
     ELSE
@@ -2036,7 +2036,7 @@ SUB ButtonClick (g AS GameT, tm() AS TeamT, bl() AS BldgT, k AS INTEGER, rightBu
         EXIT SUB
     END IF
     IF Allowed%(bl(), k) = 0 THEN
-        IF k >= 4 THEN Say g, "Build a Den first" ELSE Say g, "Our Hall is gone"
+        IF k >= 4 THEN Say g, "Build a Barracks first" ELSE Say g, "Our HQ is gone"
         Sfx g, 7
         EXIT SUB
     END IF
@@ -2062,7 +2062,7 @@ SUB ButtonClick (g AS GameT, tm() AS TeamT, bl() AS BldgT, k AS INTEGER, rightBu
 END SUB
 
 ' Where side ti's building of kind fits at x, y: open ground it has seen, near its others,
-' blocking no mill's dock, a mill's own dock open.
+' blocking no refinery's dock, a refinery's own dock open.
 FUNCTION CanPlace% (m() AS CellT, bl() AS BldgT, ti AS INTEGER, kind AS INTEGER, x AS INTEGER, y AS INTEGER)
     DIM bt AS INTEGER, sz AS INTEGER, i AS INTEGER, j AS INTEGER, b AS INTEGER, near AS INTEGER, tt AS INTEGER
     CanPlace% = 0
@@ -2078,13 +2078,13 @@ FUNCTION CanPlace% (m() AS CellT, bl() AS BldgT, ti AS INTEGER, kind AS INTEGER,
             IF ti = 0 AND m(i, j).seen = 0 THEN EXIT FUNCTION
         NEXT
     NEXT
-    IF bt = BMILL THEN
+    IF bt = BREF THEN
         IF Passable%(m(), x, y + 2) = 0 THEN EXIT FUNCTION
         IF ABS(m(x, y + 2).hgt - m(x, y).hgt) > 1 THEN EXIT FUNCTION
     END IF
     FOR b = 1 TO MAXB
         IF bl(b).alive THEN
-            IF bl(b).kind = BMILL AND bl(b).x >= x AND bl(b).x < x + sz AND bl(b).y + 2 >= y AND bl(b).y + 2 < y + sz THEN EXIT FUNCTION
+            IF bl(b).kind = BREF AND bl(b).x >= x AND bl(b).x < x + sz AND bl(b).y + 2 >= y AND bl(b).y + 2 < y + sz THEN EXIT FUNCTION
             IF bl(b).team = ti THEN
                 IF x <= bl(b).x + BSize%(bl(b).kind) + 2 AND x + sz >= bl(b).x - 2 AND y <= bl(b).y + BSize%(bl(b).kind) + 2 AND y + sz >= bl(b).y - 2 THEN near = -1
             END IF
@@ -2270,11 +2270,11 @@ FUNCTION CountU% (u() AS UnitT, ti AS INTEGER, ut AS INTEGER)
     CountU% = n
 END FUNCTION
 
-SUB DepleteMoss (g AS GameT, m() AS CellT, fk() AS FieldT, x AS INTEGER, y AS INTEGER)
+SUB DepleteOre (g AS GameT, m() AS CellT, fk() AS FieldT, x AS INTEGER, y AS INTEGER)
     DIM i AS INTEGER
     m(x, y).terr = TGROUND
     FOR i = 0 TO NF - 1
-        IF fk(i).goal = MOSSKEY THEN fk(i).goal = NOKEY
+        IF fk(i).goal = OREKEY THEN fk(i).goal = NOKEY
     NEXT
     g.vw.miniDirty = -1
 END SUB
@@ -2338,7 +2338,7 @@ SUB DrawEndBack (g AS GameT, tm() AS TeamT, art() AS INTEGER, gl() AS INTEGER)
     FOR i = 1 TO 90
         PSET (RND * 319, RND * 120), 15
     NEXT
-    ' the land: moss glowing for the Lodge, fires for the Clade
+    ' the land: ore glowing for the Coalition, fires for the Legion
     FOR x = 0 TO 319
         h = 166 + 7 * SIN(x / 30 + 1) + 3 * SIN(x / 11)
         IF g.won THEN LINE (x, h)-(x, 199), 1 ELSE LINE (x, h)-(x, 199), 4
@@ -2349,16 +2349,16 @@ SUB DrawEndBack (g AS GameT, tm() AS TeamT, art() AS INTEGER, gl() AS INTEGER)
     NEXT
     IF g.won THEN
         Logo gl(), "VICTORY", 22, 4, 4
-        TxtC gl(), "The Ash Clade is broken.", 70, 1, 15
-        TxtC gl(), "The moss of Veyra glows for the Lodge.", 82, 1, 15
+        TxtC gl(), "The Scorch Legion is broken.", 70, 1, 15
+        TxtC gl(), "The red ore of Kesh is the Coalition's.", 82, 1, 15
     ELSE
         Logo gl(), "DEFEAT", 22, 4, 4
-        TxtC gl(), "The Thornwake Lodge has fallen.", 70, 1, 15
-        TxtC gl(), "The Clade takes the moss.", 82, 1, 15
+        TxtC gl(), "The Coalition's line has fallen.", 70, 1, 15
+        TxtC gl(), "The Legion takes the ore.", 82, 1, 15
     END IF
     t = "Time " + Clock2$(g.now) + "   Trained" + STR$(tm(0).built) + "   Lost" + STR$(g.losses)
     TxtC gl(), t, 108, 1, 13
-    t = "Destroyed" + STR$(g.kills) + "   Moss" + STR$(tm(0).harvested)
+    t = "Destroyed" + STR$(g.kills) + "   Ore" + STR$(tm(0).harvested)
     TxtC gl(), t, 120, 1, 13
     GET (0, 0)-(319, 199), art(0, ABACK)
 END SUB
@@ -2427,7 +2427,7 @@ SUB DrawMinimap (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS
                     CASE TDIRT: c = 3
                     CASE TROCK: c = 5
                     CASE TWATER: c = 20
-                    CASE TMOSS: c = 22
+                    CASE TORE: c = 22
                     CASE ELSE: c = 27
                     END SELECT
                 END IF
@@ -2518,13 +2518,13 @@ SUB DrawSidebar (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS 
         Txt gl(), LEFT$(RTRIM$(g.msg), 39), 2, 192, 1, 15
     ELSEIF n = 1 THEN
         s = KName$(u(one).kind + 2) + "  health" + STR$(u(one).hp) + " of" + STR$(UHp%(u(one).kind))
-        IF u(one).kind = UCRAWL THEN s = s + "  moss" + STR$(u(one).load)
+        IF u(one).kind = UHARV THEN s = s + "  ore" + STR$(u(one).load)
         Txt gl(), s, 2, 192, 1, 11
     ELSEIF n > 1 THEN
         Txt gl(), LTRIM$(STR$(n)) + " selected: right click orders", 2, 192, 1, 11
     ELSE
-        Txt gl(), "LODGE", 2, 192, 1, 10
-        s = "Wardens" + STR$(CountU%(u(), 0, UWARD)) + " Rams" + STR$(CountU%(u(), 0, URAM)) + " Crawlers" + STR$(CountU%(u(), 0, UCRAWL))
+        Txt gl(), "COALITION", 2, 192, 1, 10
+        s = "Rifles" + STR$(CountU%(u(), 0, URIFLE)) + " Tanks" + STR$(CountU%(u(), 0, UTANK)) + " Harvesters" + STR$(CountU%(u(), 0, UHARV))
         Txt gl(), s, 50, 192, 1, 14
     END IF
 END SUB
@@ -2558,12 +2558,12 @@ SUB DrawTitleBack (art() AS INTEGER, gl() AS INTEGER)
         h = 158 + 8 * SIN(x / 25 + 2) + 3 * SIN(x / 9)
         LINE (x, h)-(x, 199), 1
     NEXT
-    ' moss glowing on the near hill
+    ' ore glowing on the near hill
     FOR i = 1 TO 160
         x = RND * 318: y = 168 + RND * 31
         PSET (x, y), 8: IF RND < .3 THEN PSET (x + 1, y), 22
     NEXT
-    ' a fungus tree, left
+    ' a palm, left
     LINE (34, 112)-(41, 170), 30, BF
     LINE (37, 112)-(38, 170), 3
     FOR r = 32 TO 1 STEP -1
@@ -2575,17 +2575,17 @@ SUB DrawTitleBack (art() AS INTEGER, gl() AS INTEGER)
         x = 14 + RND * 48: y = 96 + RND * 10
         PSET (x, y), 8: PSET (x + 1, y), 31
     NEXT
-    ' the Lodge's units on the hill, the Clade's beyond
+    ' the Coalition's units on the hill, the Legion's beyond
     Sprite art(), 32 + 7 * 2, 116, 164
     Sprite art(), 32 + 7 * 2 + 1, 134, 170
     Sprite art(), 7 * 2, 98, 172
     Sprite art(), 5 * 16 + 3 * 2, 262, 158
     Sprite art(), 3 * 16 + 3 * 2, 284, 164
-    Logo gl(), "IRONMOSS", 12, 4, 4
-    TxtC gl(), "THE WAR FOR THE GLOWING MOSS OF VEYRA", 52, 1, 13
+    Logo gl(), "RUSTLINE", 12, 4, 4
+    TxtC gl(), "THE WAR FOR THE RED ORE OF KESH", 52, 1, 13
     Dither 14, 70, 305, 108, 0
-    TxtC gl(), "Lead the Lodge: harvest moss, build,", 74, 1, 15
-    TxtC gl(), "and break the Ash Clade.", 84, 1, 15
+    TxtC gl(), "Lead the Coalition: mine ore, build,", 74, 1, 15
+    TxtC gl(), "and break the Scorch Legion.", 84, 1, 15
     TxtC gl(), "Drag selects, right click orders", 98, 1, 11
     GET (0, 0)-(319, 199), art(0, ABACK)
 END SUB
@@ -2633,7 +2633,7 @@ SUB DrawObjects (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS
                 k = ((u(i).kind - 1) * 2 + u(i).team) * 16 + IsoDir%(u(i).dir) * 2 + f
                 PUT (x0, y0), art(0, ASHD + k), OR
                 Sprite art(), k, x0, y0
-                IF u(i).kind = UCRAWL AND u(i).load > 0 THEN
+                IF u(i).kind = UHARV AND u(i).load > 0 THEN
                     PSET (sx, sy - 5), 8: PSET (sx + 1, sy - 4), 8
                     IF u(i).load > 5 THEN PSET (sx + 1, sy - 5), 31
                 END IF
@@ -2659,7 +2659,7 @@ SUB DrawObjects (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS
                 PUT (x0, y0), art(0, k + BLDW), AND
                 PUT (x0, y0), art(0, k), OR
                 IF m(bl(b).x, bl(b).y).vis = 0 THEN PUT (x0, y0), art(0, k + 2 * BLDW), OR
-                IF bl(b).kind = BSPIRE THEN
+                IF bl(b).kind = BTUR THEN
                     ' the gun turns in the world; drawn as the screen sees it
                     sx = x0 + 16: sy = y0 + 14
                     ax = COS(bl(b).ang): ay = SIN(bl(b).ang)
@@ -2735,14 +2735,14 @@ SUB GamePalette ()
     Shade 2, 9, 19, 8     ' ground
     Shade 3, 26, 19, 12     ' dirt
     Shade 4, 12, 10, 12      ' rock's shadow, outlines
-    Shade 5, 27, 22, 26     ' rock, fungus
+    Shade 5, 27, 22, 26     ' rock, palm
     Shade 6, 5, 11, 30      ' deep water
     Shade 7, 20, 32, 54     ' light on water
-    Shade 8, 24, 63, 44     ' moss's glow
-    Shade 9, 6, 40, 22      ' moss
-    Shade 10, 0, 40, 42     ' the Lodge
+    Shade 8, 24, 63, 44     ' ore's glow
+    Shade 9, 6, 40, 22      ' ore
+    Shade 10, 0, 40, 42     ' the Coalition
     Shade 11, 32, 62, 60
-    Shade 12, 58, 24, 2     ' the Clade
+    Shade 12, 58, 24, 2     ' the Legion
     Shade 13, 63, 54, 16
     Shade 14, 38, 38, 42    ' metal
     Shade 15, 63, 63, 63
@@ -2752,16 +2752,16 @@ SUB GamePalette ()
     Shade 19, 42, 37, 38    ' rock, light
     Shade 20, 10, 20, 42    ' water
     Shade 21, 44, 54, 63    ' foam
-    Shade 22, 14, 52, 32    ' moss, bright
+    Shade 22, 14, 52, 32    ' ore, bright
     Shade 23, 22, 22, 28    ' metal, dark
     Shade 24, 50, 50, 56    ' metal, light
-    Shade 25, 0, 22, 26     ' the Lodge, dark
-    Shade 26, 36, 11, 0     ' the Clade, dark
-    Shade 27, 46, 28, 50    ' fungus cap, light
+    Shade 25, 0, 22, 26     ' the Coalition, dark
+    Shade 26, 36, 11, 0     ' the Legion, dark
+    Shade 27, 46, 28, 50    ' palm cap, light
     Shade 28, 30, 46, 63    ' glass
     Shade 29, 63, 18, 10    ' a red light
     Shade 30, 17, 11, 6     ' bark
-    Shade 31, 44, 63, 54    ' moss's tips
+    Shade 31, 44, 63, 54    ' ore's tips
     RESTORE PalData
     FOR i = 32 TO WATERC - 1
         READ cr, cg, cb
@@ -2787,7 +2787,7 @@ SUB Enqueue (t AS TeamT, k AS INTEGER, n AS INTEGER)
     END SELECT
 END SUB
 
-' The field to goal (a tile, or MOSSKEY), built again only when no field kept is it.
+' The field to goal (a tile, or OREKEY), built again only when no field kept is it.
 FUNCTION FlowField% (m() AS CellT, fd() AS INTEGER, fk() AS FieldT, goal AS INTEGER, now AS SINGLE)
     DIM i AS INTEGER, old AS INTEGER
     FOR i = 0 TO NF - 1
@@ -2841,7 +2841,7 @@ SUB Fire (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fk
     END IF
     sx = u(i).px + StepX%(u(i).dir) * 6: sy = u(i).py + StepY%(u(i).dir) * 6
     seen = u(i).team = 0 OR m(u(i).x, u(i).y).vis
-    IF u(i).kind = UWARD THEN
+    IF u(i).kind = URIFLE THEN
         AddFx fx(), FXTRACE, sx, sy, tx + RND * 4 - 2, ty + RND * 4 - 2, .07
         IF seen THEN Sfx g, 1
     ELSE
@@ -2895,7 +2895,7 @@ SUB Hit (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fk(
         IF u(idx).alive = 0 THEN EXIT SUB
         u(idx).hp = u(idx).hp - dmg
         IF u(idx).hp <= 0 THEN KillUnit g, m(), u(), fx(), idx: EXIT SUB
-        IF u(idx).st = SIDLE AND u(idx).kind <> UCRAWL THEN u(idx).st = SATTACK: u(idx).tk = sk: u(idx).ti = si: u(idx).agg = 0
+        IF u(idx).st = SIDLE AND u(idx).kind <> UHARV THEN u(idx).st = SATTACK: u(idx).tk = sk: u(idx).ti = si: u(idx).agg = 0
         IF u(idx).team = 1 THEN g.ai.alarmK = sk: g.ai.alarmI = si: g.ai.alarmT = g.now
     ELSE
         IF bl(idx).alive = 0 THEN EXIT SUB
@@ -2933,12 +2933,12 @@ SUB Keys (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, 
                 g.snd.enabled = NOT g.snd.enabled
                 IF g.snd.enabled THEN Say g, "Sound on" ELSE Say g, "Sound off": SOUND 37, 0
             CASE "H"
-                i = FindB%(bl(), 0, BHALL)
+                i = FindB%(bl(), 0, BHQ)
                 IF i THEN CenterOn g.vw, bl(i).x, bl(i).y
             CASE "A"
                 n = 0
                 FOR i = 1 TO MAXU
-                    u(i).sel = u(i).alive AND u(i).team = 0 AND u(i).kind <> UCRAWL
+                    u(i).sel = u(i).alive AND u(i).team = 0 AND u(i).kind <> UHARV
                     IF u(i).sel THEN n = n + 1
                 NEXT
                 Say g, LTRIM$(STR$(n)) + " of the army selected"
@@ -3005,26 +3005,26 @@ SUB KillUnit (g AS GameT, m() AS CellT, u() AS UnitT, fx() AS FxT, i AS INTEGER)
     IF m(u(i).nx, u(i).ny).occ = i THEN m(u(i).nx, u(i).ny).occ = 0
     AddFx fx(), FXBIG, u(i).px, u(i).py, 0, 0, .55
     IF u(i).team = 0 OR m(u(i).x, u(i).y).vis THEN Sfx g, 4
-    IF u(i).team = 0 AND u(i).kind = UCRAWL THEN Say g, "A Crawler was destroyed"
+    IF u(i).team = 0 AND u(i).kind = UHARV THEN Say g, "A Harvester was destroyed"
 END SUB
 
 FUNCTION KMakes% (k AS INTEGER)
     SELECT CASE k
-    CASE 0: KMakes% = BMILL
-    CASE 1: KMakes% = BDEN
-    CASE 2: KMakes% = BSPIRE
+    CASE 0: KMakes% = BREF
+    CASE 1: KMakes% = BBAR
+    CASE 2: KMakes% = BTUR
     CASE ELSE: KMakes% = k - 2
     END SELECT
 END FUNCTION
 
 FUNCTION KName$ (k AS INTEGER)
     SELECT CASE k
-    CASE 0: KName$ = "Mill"
-    CASE 1: KName$ = "Den"
-    CASE 2: KName$ = "Spire"
-    CASE 3: KName$ = "Crawler"
-    CASE 4: KName$ = "Warden"
-    CASE ELSE: KName$ = "Ram"
+    CASE 0: KName$ = "Refinery"
+    CASE 1: KName$ = "Barracks"
+    CASE 2: KName$ = "Turret"
+    CASE 3: KName$ = "Harvester"
+    CASE 4: KName$ = "Rifleman"
+    CASE ELSE: KName$ = "Tank"
     END SELECT
 END FUNCTION
 
@@ -3141,23 +3141,23 @@ SUB Music (g AS GameT, tune() AS STRING)
     END IF
 END SUB
 
-FUNCTION NearestMill% (u() AS UnitT, bl() AS BldgT, i AS INTEGER)
+FUNCTION NearestRef% (u() AS UnitT, bl() AS BldgT, i AS INTEGER)
     DIM b AS INTEGER, best AS INTEGER, d AS INTEGER, bd AS INTEGER
     bd = FAR
     FOR b = 1 TO MAXB
-        IF bl(b).alive AND bl(b).team = u(i).team AND bl(b).kind = BMILL THEN
+        IF bl(b).alive AND bl(b).team = u(i).team AND bl(b).kind = BREF THEN
             d = ABS(bl(b).x - u(i).x) + ABS(bl(b).y + 2 - u(i).y)
             IF d < bd THEN bd = d: best = b
         END IF
     NEXT
-    NearestMill% = best
+    NearestRef% = best
 END FUNCTION
 
-' A building of side ti at x, y: kind -1 the hall, else the sidebar's kind. A mill brings a crawler.
+' A building of side ti at x, y: kind -1 the HQ, else the sidebar's kind. A refinery brings a harvester.
 SUB PlaceBuilding (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fk() AS FieldT, ti AS INTEGER, kind AS INTEGER, x AS INTEGER, y AS INTEGER)
     DIM b AS INTEGER, bt AS INTEGER, i AS INTEGER, j AS INTEGER, k AS INTEGER
     DIM fresh AS BldgT
-    bt = BHALL: IF kind >= 0 THEN bt = KMakes%(kind)
+    bt = BHQ: IF kind >= 0 THEN bt = KMakes%(kind)
     FOR b = 1 TO MAXB
         IF bl(b).alive = 0 THEN EXIT FOR
     NEXT
@@ -3173,15 +3173,15 @@ SUB PlaceBuilding (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() A
     IF kind >= 0 AND tm(ti).sKind = kind AND tm(ti).sReady THEN tm(ti).sKind = -1: tm(ti).sReady = 0: tm(ti).sProg = 0
     ClearFields fk()
     g.vw.miniDirty = -1
-    IF bt = BMILL THEN
-        IF m(x, y + 2).occ = 0 THEN k = SpawnUnit%(tm(), m(), u(), ti, UCRAWL, x, y + 2)
+    IF bt = BREF THEN
+        IF m(x, y + 2).occ = 0 THEN k = SpawnUnit%(tm(), m(), u(), ti, UHARV, x, y + 2)
     END IF
     IF ti = 0 AND kind >= 0 THEN Say g, "The " + KName$(kind) + " stands"
 END SUB
 
 ' Side ti's building and its two factories' units, a step on.
 SUB Produce (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, ti AS INTEGER, dt AS SINGLE)
-    IF tm(ti).sKind >= 0 AND tm(ti).sReady = 0 AND FindB%(bl(), ti, BHALL) > 0 THEN
+    IF tm(ti).sKind >= 0 AND tm(ti).sReady = 0 AND FindB%(bl(), ti, BHQ) > 0 THEN
         tm(ti).sProg = tm(ti).sProg + dt / KSecs!(tm(ti).sKind)
         IF tm(ti).sProg >= 1 THEN
             tm(ti).sProg = 1: tm(ti).sReady = -1
@@ -3196,8 +3196,8 @@ SUB Produce (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS Bldg
             tm(ti).denKind = 5: tm(ti).q5 = tm(ti).q5 - 1: tm(ti).denProg = 0
         END IF
     END IF
-    Train g, tm(), m(), u(), bl(), ti, BHALL, tm(ti).hallKind, tm(ti).hallProg, dt
-    Train g, tm(), m(), u(), bl(), ti, BDEN, tm(ti).denKind, tm(ti).denProg, dt
+    Train g, tm(), m(), u(), bl(), ti, BHQ, tm(ti).hallKind, tm(ti).hallProg, dt
+    Train g, tm(), m(), u(), bl(), ti, BBAR, tm(ti).denKind, tm(ti).denProg, dt
 END SUB
 
 ' The loading screen's bar, on the page shown.
@@ -3205,8 +3205,8 @@ SUB Progress (n AS INTEGER, total AS INTEGER, gl() AS INTEGER)
     SCREEN , , 0, 0
     IF n = 1 THEN
         CLS
-        TxtC gl(), "IRONMOSS", 70, 2, 8
-        TxtC gl(), "the moss is growing", 94, 1, 9
+        TxtC gl(), "RUSTLINE", 70, 2, 8
+        TxtC gl(), "the ore is waiting", 94, 1, 9
         LINE (109, 109)-(210, 116), 4, B
     END IF
     LINE (110, 110)-(110 + 99 * n \ total, 115), 8, BF
@@ -3249,10 +3249,10 @@ SUB RenderGame (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS B
     DIM k AS INTEGER, sz AS INTEGER, c AS INTEGER, ph AS INTEGER, k0 AS INTEGER, k1 AS INTEGER
     DIM tx(200) AS INTEGER, ty(200) AS INTEGER, nt AS INTEGER, x(3) AS INTEGER, y(3) AS INTEGER
     DIM l AS INTEGER, h AS INTEGER, j AS INTEGER, y0 AS INTEGER
-    ' the moss breathes; the water ripples
+    ' the ore breathes; the water ripples
     ph = INT(g.clock * 2.5) MOD 4
-    IF ph <> g.vw.mossPh THEN
-        g.vw.mossPh = ph
+    IF ph <> g.vw.orePh THEN
+        g.vw.orePh = ph
         SELECT CASE ph
         CASE 0: Shade 8, 20, 58, 40
         CASE 2: Shade 8, 40, 63, 56
@@ -3392,7 +3392,7 @@ FUNCTION Scan% (u() AS UnitT, bl() AS BldgT, i AS INTEGER, radius AS SINGLE)
     Scan% = bk
 END FUNCTION
 
-' The left button let go: a click picks one unit, a box every one of the Lodge's in it.
+' The left button let go: a click picks one unit, a box every one of the Coalition's in it.
 SUB SelectBox (g AS GameT, m() AS CellT, u() AS UnitT, x1 AS INTEGER, y1 AS INTEGER, x2 AS INTEGER, y2 AS INTEGER)
     DIM i AS INTEGER, sx AS INTEGER, sy AS INTEGER, e AS INTEGER, n AS INTEGER, army AS INTEGER
     IF x1 > x2 THEN SWAP x1, x2
@@ -3421,14 +3421,14 @@ SUB SelectBox (g AS GameT, m() AS CellT, u() AS UnitT, x1 AS INTEGER, y1 AS INTE
             sy = sy - 4
             IF sx >= x1 AND sx <= x2 AND sy >= y1 AND sy <= y2 THEN
                 u(i).sel = -1: n = n + 1
-                IF u(i).kind <> UCRAWL THEN army = -1
+                IF u(i).kind <> UHARV THEN army = -1
             END IF
         END IF
     NEXT
-    ' the army before the crawlers, when the box holds both
+    ' the army before the harvesters, when the box holds both
     IF army THEN
         FOR i = 1 TO MAXU
-            IF u(i).kind = UCRAWL THEN u(i).sel = 0
+            IF u(i).kind = UHARV THEN u(i).sel = 0
         NEXT
     END IF
     IF n THEN Sfx g, 6
@@ -3506,7 +3506,7 @@ FUNCTION SpawnUnit% (tm() AS TeamT, m() AS CellT, u() AS UnitT, ti AS INTEGER, u
     u(i).px = x * TS + TS \ 2: u(i).py = y * TS + TS \ 2
     u(i).dir = 2 + ti * 4
     u(i).scan = RND * .5
-    IF ut = UCRAWL THEN u(i).st = SSEEK
+    IF ut = UHARV THEN u(i).st = SSEEK
     m(x, y).occ = i
     tm(ti).built = tm(ti).built + 1
     SpawnUnit% = i
@@ -3525,7 +3525,7 @@ SUB Tick (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, 
     NEXT
     FOR b = 1 TO MAXB
         IF bl(b).alive THEN
-            IF bl(b).kind = BSPIRE THEN SpireTick g, m(), u(), bl(), fx(), fk(), b, dt
+            IF bl(b).kind = BTUR THEN TurretTick g, m(), u(), bl(), fx(), fk(), b, dt
             IF bl(b).hp * 2 < BHp%(bl(b).kind) THEN
                 bl(b).smoke = bl(b).smoke - dt
                 IF bl(b).smoke <= 0 THEN
@@ -3536,7 +3536,7 @@ SUB Tick (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, 
         END IF
     NEXT
     FxTick fx(), dt
-    ' the Clade's tithe: a few credits a second, so it never stalls
+    ' the Legion's tithe: a few credits a second, so it never stalls
     g.ai.coin = g.ai.coin + dt * 4
     IF g.ai.coin >= 1 THEN tm(1).cash = tm(1).cash + INT(g.ai.coin): g.ai.coin = g.ai.coin - INT(g.ai.coin)
     g.ai.think = g.ai.think - dt
@@ -3565,7 +3565,7 @@ FUNCTION Overlay% (g AS GameT, m() AS CellT, x AS INTEGER, y AS INTEGER)
     SELECT CASE m(x, y).terr
     CASE TDIRT: Overlay% = 0
     CASE TGROUND2: Overlay% = 1
-    CASE TMOSS
+    CASE TORE
         IF m(x, y).amt >= 7 THEN
             Overlay% = 4
         ELSEIF m(x, y).amt >= 4 THEN
@@ -3631,23 +3631,23 @@ END SUB
 
 FUNCTION UDmg% (k AS INTEGER)
     SELECT CASE k
-    CASE UWARD: UDmg% = 5
-    CASE URAM: UDmg% = 22
+    CASE URIFLE: UDmg% = 5
+    CASE UTANK: UDmg% = 22
     CASE ELSE: UDmg% = 0
     END SELECT
 END FUNCTION
 
 FUNCTION UHp% (k AS INTEGER)
     SELECT CASE k
-    CASE UCRAWL: UHp% = 180
-    CASE UWARD: UHp% = 55
+    CASE UHARV: UHp% = 180
+    CASE URIFLE: UHp% = 55
     CASE ELSE: UHp% = 170
     END SELECT
 END FUNCTION
 
 ' One step of unit i's orders.
 SUB UnitTick (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fd() AS INTEGER, fk() AS FieldT, i AS INTEGER, dt AS SINGLE)
-    DIM r AS INTEGER, d AS SINGLE, mill AS INTEGER, tx AS SINGLE, ty AS SINGLE, t AS INTEGER, goal AS INTEGER
+    DIM r AS INTEGER, d AS SINGLE, refinery AS INTEGER, tx AS SINGLE, ty AS SINGLE, t AS INTEGER, goal AS INTEGER
     DIM moving AS INTEGER, here AS INTEGER
     u(i).cool = u(i).cool - dt
     moving = u(i).nx <> u(i).x OR u(i).ny <> u(i).y
@@ -3655,7 +3655,7 @@ SUB UnitTick (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS Bld
     SELECT CASE u(i).st
     CASE SIDLE
         IF moving THEN r = MoveStep%(g, m(), u(), fd(), fk(), i, here, 0, dt)
-        IF u(i).kind = UCRAWL THEN
+        IF u(i).kind = UHARV THEN
             IF u(i).team = 1 THEN u(i).st = SSEEK
         ELSE
             u(i).scan = u(i).scan - dt
@@ -3708,10 +3708,10 @@ SUB UnitTick (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS Bld
             END IF
         END IF
     CASE SSEEK
-        IF moving = 0 AND m(u(i).x, u(i).y).terr = TMOSS THEN
+        IF moving = 0 AND m(u(i).x, u(i).y).terr = TORE THEN
             u(i).st = SGATHER: u(i).work = 0
         ELSE
-            r = MoveStep%(g, m(), u(), fd(), fk(), i, MOSSKEY, 0, dt)
+            r = MoveStep%(g, m(), u(), fd(), fk(), i, OREKEY, 0, dt)
             IF r = 2 THEN u(i).st = SIDLE
         END IF
     CASE SGATHER
@@ -3719,25 +3719,25 @@ SUB UnitTick (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS Bld
         u(i).anim = u(i).anim + dt
         IF u(i).work >= .3 THEN
             u(i).work = 0
-            IF m(u(i).x, u(i).y).terr = TMOSS THEN
+            IF m(u(i).x, u(i).y).terr = TORE THEN
                 m(u(i).x, u(i).y).amt = m(u(i).x, u(i).y).amt - 1
                 u(i).load = u(i).load + 1
-                IF m(u(i).x, u(i).y).amt <= 0 THEN DepleteMoss g, m(), fk(), u(i).x, u(i).y
+                IF m(u(i).x, u(i).y).amt <= 0 THEN DepleteOre g, m(), fk(), u(i).x, u(i).y
             END IF
             IF u(i).load >= LOADMAX THEN
                 u(i).st = SRETURN
-            ELSEIF m(u(i).x, u(i).y).terr <> TMOSS THEN
+            ELSEIF m(u(i).x, u(i).y).terr <> TORE THEN
                 u(i).st = SSEEK
             END IF
         END IF
     CASE SRETURN
-        mill = NearestMill%(u(), bl(), i)
-        IF mill = 0 THEN
+        refinery = NearestRef%(u(), bl(), i)
+        IF refinery = 0 THEN
             IF moving THEN r = MoveStep%(g, m(), u(), fd(), fk(), i, here, 0, dt)
             u(i).st = SIDLE
-            IF u(i).team = 0 THEN Say g, "The Crawler needs a Mill"
+            IF u(i).team = 0 THEN Say g, "The Harvester needs a Refinery"
         ELSE
-            r = MoveStep%(g, m(), u(), fd(), fk(), i, (bl(mill).y + 2) * MAPW + bl(mill).x, -1, dt)
+            r = MoveStep%(g, m(), u(), fd(), fk(), i, (bl(refinery).y + 2) * MAPW + bl(refinery).x, -1, dt)
             IF r = 1 THEN u(i).st = SUNLOAD: u(i).work = 0: u(i).dir = 6
         END IF
     CASE SUNLOAD
@@ -3756,7 +3756,7 @@ SUB UnitTick (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS Bld
     END SELECT
 END SUB
 
-' What the Lodge sees now (and so has seen): round its units and buildings.
+' What the Coalition sees now (and so has seen): round its units and buildings.
 SUB UpdateVis (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT)
     DIM i AS INTEGER, x AS INTEGER, y AS INTEGER, r AS INTEGER, cx AS INTEGER, cy AS INTEGER
     FOR y = 0 TO MAPH - 1: FOR x = 0 TO MAPW - 1: m(x, y).vis = 0: NEXT: NEXT
@@ -3786,14 +3786,14 @@ END SUB
 
 FUNCTION URange! (k AS INTEGER)
     SELECT CASE k
-    CASE UWARD: URange! = 3.5
-    CASE URAM: URange! = 4.5
+    CASE URIFLE: URange! = 3.5
+    CASE UTANK: URange! = 4.5
     CASE ELSE: URange! = 0
     END SELECT
 END FUNCTION
 
 FUNCTION URate! (k AS INTEGER)
-    IF k = URAM THEN URate! = 1.6 ELSE URate! = .7
+    IF k = UTANK THEN URate! = 1.6 ELSE URate! = .7
 END FUNCTION
 
 FUNCTION USight% (k AS INTEGER)
@@ -3802,8 +3802,8 @@ END FUNCTION
 
 FUNCTION USpeed! (k AS INTEGER)
     SELECT CASE k
-    CASE UCRAWL: USpeed! = 1.9
-    CASE UWARD: USpeed! = 3.2
+    CASE UHARV: USpeed! = 1.9
+    CASE URIFLE: USpeed! = 3.2
     CASE ELSE: USpeed! = 2.3
     END SELECT
 END FUNCTION
@@ -3821,11 +3821,11 @@ SUB Order (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, w
             got = -1
             u(i).agg = 0
             u(i).gx = wx: u(i).gy = wy
-            IF u(i).kind = UCRAWL THEN
+            IF u(i).kind = UHARV THEN
                 u(i).st = SMOVE
-                IF m(wx, wy).terr = TMOSS THEN u(i).st = SSEEK
+                IF m(wx, wy).terr = TORE THEN u(i).st = SSEEK
                 IF b THEN
-                    IF bl(b).team = 0 AND bl(b).kind = BMILL THEN u(i).st = SRETURN
+                    IF bl(b).team = 0 AND bl(b).kind = BREF THEN u(i).st = SRETURN
                 END IF
             ELSEIF tk THEN
                 u(i).st = SATTACK: u(i).tk = tk: u(i).ti = ti
@@ -3840,8 +3840,8 @@ SUB Order (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, w
     END IF
 END SUB
 
-' Overlay k on black (black left as the grass): 0 dirt, 1 flowers, 2 to 4 moss thin to thick,
-' 5 a fungus tree, then rock and water by their sides.
+' Overlay k on black (black left as the grass): 0 dirt, 1 flowers, 2 to 4 ore thin to thick,
+' 5 a palm, then rock and water by their sides.
 ' Where pixel px, py of a 32 by 16 diamond lies on its tile: u east, v south, 0 to 1 inside.
 SUB IsoUV (px AS INTEGER, py AS INTEGER, u AS SINGLE, v AS SINGLE)
     DIM ex AS SINGLE, ey AS SINGLE
@@ -3874,7 +3874,7 @@ FUNCTION Passable% (m() AS CellT, x AS INTEGER, y AS INTEGER)
     IF x < 0 OR y < 0 OR x >= MAPW OR y >= MAPH THEN EXIT FUNCTION
     IF m(x, y).bld THEN EXIT FUNCTION
     t = m(x, y).terr
-    IF t = TGROUND OR t = TGROUND2 OR t = TDIRT OR t = TMOSS THEN Passable% = -1
+    IF t = TGROUND OR t = TGROUND2 OR t = TDIRT OR t = TORE THEN Passable% = -1
 END FUNCTION
 
 ' Whether a unit can step from x, y in heading d: onto open land no more than a ramp's step up or
@@ -3898,7 +3898,7 @@ FUNCTION Lift% (m() AS CellT, x AS INTEGER, y AS INTEGER)
     IF x >= 0 AND y >= 0 AND x < MAPW AND y < MAPH THEN Lift% = m(x, y).hgt * STEPH
 END FUNCTION
 
-SUB SpireTick (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fk() AS FieldT, b AS INTEGER, dt AS SINGLE)
+SUB TurretTick (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fk() AS FieldT, b AS INTEGER, dt AS SINGLE)
     DIM j AS INTEGER, d AS SINGLE, best AS SINGLE, cx AS SINGLE, cy AS SINGLE, want AS SINGLE, da AS SINGLE
     cx = bl(b).x * TS + TS \ 2: cy = bl(b).y * TS + TS \ 2
     bl(b).cool = bl(b).cool - dt
@@ -3923,7 +3923,7 @@ SUB SpireTick (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS Fx
     IF ABS(da) < dt * 6 THEN bl(b).ang = want ELSE bl(b).ang = bl(b).ang + SGN(da) * dt * 6
     IF ABS(da) < .3 AND bl(b).cool <= 0 THEN
         bl(b).cool = 1.1
-        ' the beam's colour is the side's: x2 below 0 marks the Clade's
+        ' the beam's colour is the side's: x2 below 0 marks the Legion's
         IF bl(b).team THEN d = -1 ELSE d = 1
         AddFx fx(), FXBEAM, cx + COS(bl(b).ang) * 7, cy + SIN(bl(b).ang) * 7, u(j).px * d, u(j).py, .12
         IF bl(b).team = 0 OR m(bl(b).x, bl(b).y).vis THEN Sfx g, 3
@@ -3967,7 +3967,7 @@ SUB NewGame (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS Bldg
             CASE ":": m(x, y).terr = TDIRT
             CASE "#": m(x, y).terr = TROCK
             CASE "~": m(x, y).terr = TWATER
-            CASE "m": m(x, y).terr = TMOSS: m(x, y).amt = 6 + INT(RND * 5)
+            CASE "m": m(x, y).terr = TORE: m(x, y).amt = 6 + INT(RND * 5)
             CASE "T": m(x, y).terr = TTREE
             CASE ELSE: m(x, y).terr = TGROUND
             END SELECT
@@ -3989,7 +3989,7 @@ SUB NewGame (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS Bldg
     g.now = 0: g.placeKind = -1: g.ms.dragOn = 0: g.msgT = 0: g.alarmT = -99: g.checkT = 0
     g.ai.think = 3: g.ai.wave = 0: g.ai.size = 3: g.ai.nextWave = 75: g.ai.alarmT = 0: g.ai.coin = 0
 
-    ' the Lodge, south-west; the Clade, north-east
+    ' the Coalition, south-west; the Legion, north-east
     PlaceBuilding g, tm(), m(), u(), bl(), fk(), 0, -1, 3, 24
     PlaceBuilding g, tm(), m(), u(), bl(), fk(), 0, 0, 7, 23
     PlaceBuilding g, tm(), m(), u(), bl(), fk(), 1, -1, 34, 3
@@ -3997,8 +3997,8 @@ SUB NewGame (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS Bldg
     PlaceBuilding g, tm(), m(), u(), bl(), fk(), 1, 1, 34, 6
     FOR i = 1 TO 2
         FOR k = 0 TO 1
-            s = FindSpawn%(m(), bl(), FindB%(bl(), k, BHALL))
-            s = SpawnUnit%(tm(), m(), u(), k, UWARD, s MOD MAPW, s \ MAPW)
+            s = FindSpawn%(m(), bl(), FindB%(bl(), k, BHQ))
+            s = SpawnUnit%(tm(), m(), u(), k, URIFLE, s MOD MAPW, s \ MAPW)
         NEXT
     NEXT
     tm(0).built = 0: tm(1).built = 0
@@ -4006,7 +4006,7 @@ SUB NewGame (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS Bldg
     g.vw.miniDirty = -1: g.vw.miniT = 0
     CenterOn g.vw, 7, 22
     g.state = GPLAY
-    Say g, "Harvest moss, build, find the Ash Clade"
+    Say g, "Mine ore, build, find the Scorch Legion"
     Sfx g, 5
 END SUB
 
