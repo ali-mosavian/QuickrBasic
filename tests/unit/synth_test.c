@@ -134,8 +134,8 @@ TEST(synth_filter_passes_its_band)
     CHECK(got[0] < 1000 && got[1] > 4000);
 }
 
-/* The page's AudioWorklet (synth.wasm) renders filtered noise to this hash; arm64's fused multiply-adds once made the
-   Mac's filter differ from it. */
+/* The page's AudioWorklet (synth.wasm) renders filtered noise to this hash; the Mac and DOS must too. A float filter
+   once differed by arm64's fused multiply-adds. */
 TEST(synth_renders_as_the_page_does)
 {
     Synth s;
@@ -149,7 +149,7 @@ TEST(synth_renders_as_the_page_does)
     uint32_t hash = 0;
     for (int i = 0; i < RATE; i++)
         hash = hash * 31 + (uint32_t)buf[i];
-    CHECK(hash == 560694714u);
+    CHECK(hash == 2313499851u);
 }
 
 /* QB's speaker as plat/sdl/audio.c made it before the synthesizer: the reference. */

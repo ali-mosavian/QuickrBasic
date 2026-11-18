@@ -3,7 +3,8 @@
 New to music or sound effects? Start with the [tutorial](play-tutorial.md).
 
 A program that uses none of this sounds as it did in QBasic: one square wave, the same notes at the
-same ticks. On DOS the PC speaker plays the first voice only.
+same ticks. On DOS the voices play on a Sound Blaster when `BLASTER` names one (DSP 2.00 or later); without
+one, the PC speaker plays the first voice only.
 
 `PLAY a$, b$, ...` plays up to six voices at once, a string each, after PCjr and Tandy BASIC's
 three. A string left out leaves its voice playing what it was: `PLAY , , fx$` plays voice 3 alone.

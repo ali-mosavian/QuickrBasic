@@ -188,6 +188,7 @@ void qbrt_done(void)
     qbrt_text();
     dev_tone(0);
     dev_tick_stop();
+    dev_synth_close();
 }
 
 /* VARPTR$'s address, an Addr: its variable. */

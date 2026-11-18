@@ -28,6 +28,29 @@ void llrm_os_exit(const unsigned char code) { psys_exit(code); }
 
 unsigned char llrm_os_console_key_ready(void) { return pkey_ready(); }
 
+/* The environment's string `index` (NAME=value) in data, max bytes at most; its length, -1 past the last. */
+int llrm_os_environment(const unsigned index, unsigned char *const data, const unsigned max)
+{
+    static char env[0x8000]; /* DOS's most */
+    const uint32_t n = psys_environ(env, sizeof env);
+    uint32_t at = 0;
+
+    for (unsigned i = 0; at < n && env[at]; i++) {
+        uint32_t length = 0;
+
+        while (at + length < n && env[at + length])
+            length++;
+        if (i == index) {
+            const uint32_t put = length < max ? length : max;
+            for (uint32_t k = 0; k < put; k++)
+                data[k] = (unsigned char)env[at + k];
+            return (int)put;
+        }
+        at += length + 1;
+    }
+    return -1;
+}
+
 unsigned char llrm_os_console_read_key(void) { return (unsigned char)pkey_wait(); }
 
 void qb_sincos(const double *const angle, double *const sine, double *const cosine)

@@ -213,8 +213,10 @@ PLAY "MF P64"
 
 ## 9. On DOS
 
-The PC speaker plays voice 1 only, as a plain square wave; `V W Q H Y` do nothing there. Put the
-melody in the first string. For effects on DOS, use voice 1 or `SOUND`:
+With a Sound Blaster (DSP 2.00 or later, named by `BLASTER`, as DOSBox sets it), DOS plays every voice
+as the Mac and the browser do, at 15873 samples a second. Without one, the PC speaker plays voice 1
+only, as a plain square wave; `V W Q H Y` do nothing there. Put the melody in the first string.
+`SOUND` and QBasic's own `PLAY` always use the speaker:
 
 ```basic
 FOR f = 2000 TO 400 STEP -200

@@ -1,4 +1,4 @@
-;; name: B$INT10, B$INT10R, B$INT16, B$INT17, B$INT21
+;; name: B$INT10, B$INT10R, B$INT16, B$INT17, B$INT21, B$INT31
 ;; desc: software interrupts
 ;;
 ;; chng: oct/26 written [ali]
@@ -12,6 +12,7 @@
                 public  B$INT16
                 public  B$INT17
                 public  B$INT21
+                public  B$INT31
                 public  B$INT10R
 
 Regs            struc
@@ -191,4 +192,22 @@ B$INT21         proc
 
                 CALLINT 21h
 B$INT21         endp
+
+;; B$INT31 - call the DPMI host (interrupt 31h).
+;;
+;; Loads eax ebx ecx edx from `regs`, runs interrupt 31h, and stores ax bx cx dx
+;; ebp es and the flags back as the host left them.
+;;
+;; Args:
+;;     regs (eax): ptr to a Regs.
+;;
+;; Returns:
+;;     regs: the registers and the flags as the host left them.
+;;
+;; Saves:    all general registers and es (pushad, push es)
+;; Clobbers: flags
+B$INT31         proc
+
+                CALLINT 31h
+B$INT31         endp
                 end

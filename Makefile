@@ -60,14 +60,15 @@ QBRT := src/qbrt/llrm
 QBRT_PORTABLE := $(addprefix qb/,console.c cntext.c cngfx.c gfx.c gline.c gcirc.c gpaint.c gputget.c gdraw.c play.c music.c \
 	screen.c scrfn.c sleep.c sticks.c timer.c varptr.c error.c rtinit.c nhstutil.c nheap.c)
 QBRT_DOS_C := $(QBRT_PORTABLE) $(addprefix qb/,dos/m32/ad.c posix/block.c dev/pixmem.c dev/dos/gfxdev.c \
-	$(addprefix dev/dos/m32/,clock.c con.c key.c prn.c text.c tone.c))
+	$(addprefix dev/dos/m32/,clock.c con.c key.c prn.c sb.c text.c tone.c))
 QBRT_DOS_ASM := $(addprefix qb/dev/dos/m32/,bios.asm gdcirc.asm gdfill.asm gdline.asm gdscan.asm gdxfer.asm ports.asm \
-	tick.asm) qb/dos/m32/block.asm
+	sbisr.asm tick.asm) qb/dos/m32/block.asm
 QBRT_DOS_INC := -Isrc/qbrt/include $(addprefix -I$(QBRT)/qb/,dos/m32 . dev dev/dos/m32 dev/dos) -I$(QBRT)/os/x86-m32
 # the runtime's asm names, as Watcom's pragmas give them, for clang's C
 NAMES := $(B)/qbrt/names.h
 
-CORE_C := $(shell find src/core src/lib -name '*.c' -not -path 'src/core/ui/*') $(wildcard src/plat/dos32/*.c) src/boot.c
+CORE_C := $(shell find src/core src/lib -name '*.c' -not -path 'src/core/ui/*') $(wildcard src/plat/dos32/*.c) \
+	src/plat/synth/synth.c src/boot.c
 UI_C := $(wildcard src/core/ui/*.c)
 DOS_ASM := $(wildcard src/plat/dos32/*.asm)
 ASM_OBJ := $(DOS_ASM:src/%.asm=$(B)/obj/%.obj) $(QBRT_DOS_ASM:%.asm=$(B)/qbrt/%.obj)
@@ -130,6 +131,7 @@ test: $(DOS_EXE) | $(DOSBOX_BIN)
 	sh tests/gen/dfa.sh
 	sh tests/gen/messages.sh
 	$(PY) tools/dosrun_test.py
+	$(PY) tools/sb_test.py
 	$(PY) tools/libcalls_test.py
 	BASIC_EXE=$(B)/basic32.exe $(PY) tools/regress_test.py $(B)/basic32.exe
 	BASIC_EXE=$(B)/basic32.exe $(PY) tools/conformance.py
