@@ -90,5 +90,9 @@ const u8 QB_FAR *gd_font(unsigned height);
 void gd_get(unsigned x, unsigned y, unsigned width, unsigned rows, u8 QB_FAR *out);
 void gd_put(unsigned x, unsigned y, unsigned width, unsigned rows, const u8 QB_FAR *in,
             unsigned operation, unsigned invert);
+/* gd_put of a byte a pixel's rows `step` bytes apart in `in`: a box cut from a wider image. 0: the
+   mode is not one byte a pixel on the adapter, for a row at a time. */
+int gd_put_step(unsigned x, unsigned y, unsigned width, unsigned rows, const u8 QB_FAR *in, unsigned step,
+                unsigned operation, unsigned invert);
 
 #endif

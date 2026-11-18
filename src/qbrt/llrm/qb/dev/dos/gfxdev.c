@@ -1252,6 +1252,16 @@ void gd_get(unsigned x, unsigned y, unsigned width, unsigned rows, u8 QB_FAR *ou
     }
 }
 
+int gd_put_step(unsigned x, unsigned y, unsigned width, unsigned rows, const u8 QB_FAR *in, unsigned step,
+                unsigned operation, unsigned invert)
+{
+    if (kind != KIND_LINEAR || in_memory)
+        return 0;
+
+    linear_blit((void *)pixel_at(x, y), in, width, rows, (int)pitch, (int)step, invert ? LINEAR_NOT : operation);
+    return 1;
+}
+
 void gd_put(unsigned x, unsigned y, unsigned width, unsigned rows, const u8 QB_FAR *in,
             unsigned operation, unsigned invert)
 {

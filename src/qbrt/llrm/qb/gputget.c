@@ -110,16 +110,17 @@ void B_GPUT(qb_data_ptr data, const AD *ad, short how)
         int top = gfx_y1 > gfx_view_top ? gfx_y1 : gfx_view_top;
         int right = gfx_x1 + (int)width - 1 < gfx_view_right ? gfx_x1 + (int)width - 1 : gfx_view_right;
         int bottom = gfx_y1 + (int)height - 1 < gfx_view_bottom ? gfx_y1 + (int)height - 1 : gfx_view_bottom;
+        const unsigned operation = how == PUT_OR ? 2 : how == PUT_AND ? 1 : how == PUT_XOR ? 3 : 0;
+        const Bytes from = in + (unsigned)(top - gfx_y1) * width + (unsigned)(left - gfx_x1);
         int row;
 
-        for (row = top; row <= bottom && left <= right; row++)
+        if (top > bottom || left > right ||
+            gd_put_step((unsigned)left, (unsigned)top, (unsigned)(right - left + 1), (unsigned)(bottom - top + 1),
+                        from, width, operation, how == PUT_PRESET))
+            return;
+        for (row = top; row <= bottom; row++)
             gd_put((unsigned)left, (unsigned)row, (unsigned)(right - left + 1), 1,
-                   in + (unsigned)(row - gfx_y1) * width + (unsigned)(left - gfx_x1),
-                   how == PUT_OR    ? 2
-                   : how == PUT_AND ? 1
-                   : how == PUT_XOR ? 3
-                                    : 0,
-                   how == PUT_PRESET);
+                   from + (unsigned)(row - top) * width, operation, how == PUT_PRESET);
         return;
     }
     for (y = 0; y < height; y++) {

@@ -394,6 +394,12 @@ void gd_put(unsigned x, unsigned y, unsigned box_width, unsigned rows, const u8 
     pm_put(x, y, box_width, rows, in, operation, invert);
 }
 
+int gd_put_step(unsigned x, unsigned y, unsigned width, unsigned rows, const u8 *in, unsigned step,
+                unsigned operation, unsigned invert)
+{
+    return 0;
+}
+
 /* The text screen. */
 unsigned dev_text_size(void)
 {
