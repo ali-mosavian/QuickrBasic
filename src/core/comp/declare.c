@@ -43,6 +43,7 @@
 #include "mem/program.h"
 #include "mem/scope.h"
 #include "mem/symbols.h"
+#include "num/double.h"
 
 enum { DECL_CHUNK = 0x2000 };
 
@@ -733,8 +734,17 @@ static void decl_const(DeclScan *const ds)
                 depth--;
             if (c == '"')
                 et = ET_SD;
-            if ((c == '.' || is_digit(c) || c == TK_DIV) && et != ET_SD)
-                et = ET_R4; /* a point, an exponent, a / */
+            if ((c == '.' || is_digit(c)) && et != ET_SD) { /* a number's spelling: a DOUBLE's by D, # or digits */
+                uint8_t kind;
+                const uint8_t *p = ds->at;
+
+                dubl_in(ds->d->fault, &p, &kind);
+                et = kind == DK_DBL || et == ET_R8 ? ET_R8 : ET_R4;
+                ds->at = p;
+                continue;
+            }
+            if (c == TK_DIV && et != ET_SD && et != ET_R8)
+                et = ET_R4;
             ds->at = decl_item(ds->at);
         }
 

@@ -282,6 +282,10 @@ CASES = {
     "qb_restsub": ('DECLARE SUB s ()\r\ns\r\nEND\r\nd: DATA 7\r\nSUB s\r\nRESTORE d\r\nREAD a: PRINT a\r\nEND SUB\r\n',
                    " 7 \r\n", "ERROR"),
     "qb_constsfx": ("CONST k = 1, j% = 2\r\nPRINT k%; j\r\n", " 1  2 \r\n", "ERROR"),
+    # A CONST of a DOUBLE's literal (# or past 7 digits) was a SINGLE: 6.283185, and a vine 7498 turns on
+    # drawn 1.3 ms of angle off.
+    "c_const_double": ("CONST G = 6.283185307179586#, H = 3.14159265358979\r\nPRINT G; H\r\n",
+                       " 6.283185307179586  3.14159265358979 \r\n", "ERROR"),
     # A line number is a label: the same twice, in any scopes, ran both lines; a SUB's GOSUB
     # to the module's ran it.
     "qb_dupnum": ("10 PRINT 1\r\n10 PRINT 2\r\n", "Duplicate label", None),
