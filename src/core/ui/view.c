@@ -465,17 +465,6 @@ static void del(Session *const S, const uint32_t v)
     edit_load(S, 0);
 }
 
-/* Views a, b's names compared, case aside. */
-static int name_cmp(const uint32_t a, const uint32_t b)
-{
-    const uint8_t *x = (const uint8_t *)view_name(a), *y = (const uint8_t *)view_name(b);
-
-    for (; *x && upcase(*x) == upcase(*y); x++, y++) {
-    }
-
-    return upcase(*x) - upcase(*y);
-}
-
 /* The SUBs box's list: the file's name, then each procedure's indented, by name; each item as
    wide as the longest. false: no memory. */
 static bool list_fill(void)
@@ -497,7 +486,7 @@ static bool list_fill(void)
     for (uint32_t i = 0; i < vw.n; i++) { /* insertion: the module, 0, stays first */
         uint32_t at = i;
 
-        for (; at > 1 && name_cmp(vw.order[at - 1], i) > 0; at--)
+        for (; at > 1 && dlog_namecmp(view_name(vw.order[at - 1]), view_name(i)) > 0; at--)
             vw.order[at] = vw.order[at - 1];
 
         vw.order[at] = i;

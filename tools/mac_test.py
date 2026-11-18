@@ -12,8 +12,8 @@ F2 lists every procedure: 64 views at most once left SUB 70 out, End, Enter show
 lines of the seven after it. A procedure's name is any length: 40 characters at most once cut
 the window's title. F2's list is by name, in columns (Right a column on): once one column in the
 file's order, Down chose Bbbbbb, Right did nothing. Its box's right side was the dialog's, and a list
-longer than its box had no scroll bar: now the SUBs list's arrow moves a column, the Open box's files
-show their thumb.
+longer than its box had no scroll bar: now the SUBs list's arrow moves a column. The Open box's files
+are by name in three columns, their bar sideways: once one column in the directory's order.
 """
 
 import os
@@ -40,6 +40,7 @@ ACROSS = "60:3C00 70:4D00 80:1C0D"  # F2, Right, Enter: a column on, S2 by name
 MANY = "PRINT 1\n" + "".join(f"SUB S{i}\nEND SUB\n" for i in range(1, 121))
 BAR_RIGHT = "2s:670,280 2.2s:670,280:1 2.4s:670,280"  # the SUBs list's bar's right arrow, cell 74 row 17
 OPEN = "60:2100 70:1800"  # Alt+F, O
+OPEN_FIRST = "60:2100 70:1800 80:0F09 90:5000 100:4800 110:1C0D"  # Open, Tab, Down, Up, Enter: the first file
 SORTED = "PRINT 1\nSUB Bbbbbb\nEND SUB\nSUB a\nEND SUB\n"
 LONG_NAME = "N" * 60
 LONG = f"PRINT 1\nSUB {LONG_NAME}\nEND SUB\n"
@@ -139,7 +140,9 @@ def main() -> None:
         files.mkdir()
         for i in range(30):
             (files / f"F{i}.BAS").write_text("PRINT 1\n")
+        (files / "A.BAS").write_text("PRINT 1\n")
         _, _, opened = frames(run, files / "F0.BAS", OPEN, ("2s",))[0]
+        _, _, first_file = frames(run, files / "F0.BAS", OPEN_FIRST, ("3s",))[0]
         sorted_bas = Path(tmp) / "SORTED.BAS"
         sorted_bas.write_text(SORTED)
         _, _, first_sub = frames(run, sorted_bas, FIRST_SUB, ("2s",))[0]
@@ -170,7 +173,13 @@ def main() -> None:
         "F2's list by name": title_cells(sw, first_sub) == len("SORTED.BAS:a") + 3,
         "F2's list clear of the box's side": clear_column(sw, listed, 76),
         "F2's bar's arrow a column on": title_cells(sw, bar_right) == len("MANY.BAS:S109") + 3,
-        "Open's files' thumb": pixel(sw, opened, 52 * 9 + 1, 168) == (0, 0, 0),
+        "Open's files' thumb sideways": pixel(sw, opened, 10 * 9 + 1, 274)
+        == pixel(sw, opened, 10 * 9 + 1, 286)
+        == (0, 0, 0),
+        "Open's files in columns": any(
+            pixel(sw, opened, x, y) != GREY for x in range(23 * 9, 31 * 9) for y in range(160, 176)
+        ),
+        "Open's files by name": title_cells(sw, first_file) == len("A.BAS") + 3,
         "a long name's title whole": title_cells(lw, long_title) == len(f"LONG.BAS:{LONG_NAME}") + 3,
     }
     failed = [name for name, ok in checks.items() if not ok]

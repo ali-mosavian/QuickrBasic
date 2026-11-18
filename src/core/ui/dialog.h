@@ -107,6 +107,8 @@ enum : uint8_t { CHANGE_VERIFY = 0, CHANGE_ALL = 1 };
 /* ui_ledit: an editing key in the one-line buffer b (a field, the immediate line): a character
    typed (FLDMAX at most), Backspace, Left, Right, Home, End, Del, Ctrl+Left, Ctrl+Right. */
 bool dlog_ledit(LineBuf *b, uint16_t key);
+/* Names a, b compared, case aside: a list's order. */
+int dlog_namecmp(const char *a, const char *b);
 /* The dialog's modal widget, a child of screen, hidden till dlog_run. */
 void dlog_build(Widget *screen); /* false: not a line edit's key */
 #endif

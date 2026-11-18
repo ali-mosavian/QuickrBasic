@@ -96,7 +96,7 @@ static struct {
     const char *title;    /* msg_ttl: its title, nullptr none: its lines then left-aligned */
 } dl;
 
-static DlogList ls_files = {.size = NAMESZ}; /* items grown as names come */
+static DlogList ls_files = {.size = NAMESZ, .columns = true}; /* items grown as names come */
 static DlogList ls_dirs = {.size = NAMESZ};
 static uint32_t files_cap, dirs_cap; /* their items' room */
 static char mask[80];                /* dl_mask: the Open box's */
@@ -1193,8 +1193,34 @@ uint8_t dlog_ync(Session *const S, const char *const text)
 
 /* ---- Open, Save As */
 
+int dlog_namecmp(const char *const a, const char *const b)
+{
+    const uint8_t *x = (const uint8_t *)a, *y = (const uint8_t *)b;
+
+    for (; *x && upcase(*x) == upcase(*y); x++, y++) {
+    }
+
+    return upcase(*x) - upcase(*y);
+}
+
+/* l's n items, NAMESZ each, by name. */
+static void sort_names(DlogList *const l, const uint32_t n)
+{
+    char item[NAMESZ];
+
+    for (uint32_t i = 1; i < n; i++) {
+        memcpy(item, l->items + i * NAMESZ, NAMESZ);
+        uint32_t at = i;
+
+        for (; at && dlog_namecmp(l->items + (at - 1) * NAMESZ, item) > 0; at--)
+            memcpy(l->items + at * NAMESZ, l->items + (at - 1) * NAMESZ, NAMESZ);
+
+        memcpy(l->items + at * NAMESZ, item, NAMESZ);
+    }
+}
+
 /* The names matching pattern with attrs (PFIL_ADIR: directories only, "." left out) to l's items,
-   cap of room, grown; their count, as many as memory holds. */
+   cap of room, grown, by name; their count, as many as memory holds. */
 static uint32_t find(
     DlogList *const l,
     uint32_t *const cap,
@@ -1214,6 +1240,7 @@ static uint32_t find(
         n++;
     }
 
+    sort_names(l, n);
     return n;
 }
 
