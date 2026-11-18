@@ -102,7 +102,8 @@ void draw_title_in(
     const uint8_t right,
     const char *const title,
     const bool lit,
-    const uint8_t arrow
+    const uint8_t arrow,
+    const uint8_t lit_slot
 )
 {
     uint8_t c = scrn_fill(row, col, base, left, 1);
@@ -116,7 +117,7 @@ void draw_title_in(
         scrn_fill(row, c, base, GLYPH_V_RIGHT, 1);
     }
 
-    const uint8_t slot = lit ? SL_TTL : base; /* at 1 + (the width - its length - 5) / 2 */
+    const uint8_t slot = lit ? lit_slot : base; /* at 1 + (the width - its length - 5) / 2 */
     const uint16_t len = scrn_slen(title), room = width > 7 ? width - 7 : 0;
     const uint16_t n = len < room ? len : room; /* a longer one cut, clear of the arrow */
     c = (uint8_t)((width - 5 - n) >> 1) + 1 + col;
@@ -137,7 +138,7 @@ void draw_title(
     const uint8_t arrow
 )
 {
-    draw_title_in(SL_ED, row, col, width, left, right, title, lit, arrow);
+    draw_title_in(SL_ED, row, col, width, left, right, title, lit, arrow, SL_TTL);
 }
 
 /* The selection on screen row row, the edit window's line line, its text from column col. */

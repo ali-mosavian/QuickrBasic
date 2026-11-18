@@ -25,6 +25,7 @@ def build(files: dict[str, str]) -> tuple[bytes, dict[str, int]]:
         for name, text in {**REQUIRED, **files}.items():
             if name.endswith(".md") and Path(name).stem not in mkhelp.PLAIN and "## Details" not in text:
                 text = text.rstrip("\n") + PARTS  # a topic needs its Details and Example
+            (Path(tmp) / name).parent.mkdir(exist_ok=True)
             (Path(tmp) / name).write_text(text, encoding="utf-8")
         return mkhelp.build(Path(tmp))
 
@@ -70,10 +71,16 @@ if __name__ == "__main__":
             bad.append(f"{why}: {r}")
 
     # a hidden key and a file's name find their topic but are not in the Index
-    data, _ = build({"a.md": "# A\nkeys: ~secret, shown\n\n.\n"})
+    data, _ = build({"lang/a.md": "# A\nkeys: ~secret, shown\n\n.\n"})
     index = mkhelp.read_topic(data, struct.unpack_from("<H", data, 14)[0])
     if b"shown" not in index or b"secret" in index or b"\x11a\x10" in index:
         bad.append("the Index listed a hidden key or a file name, or lost a shown one")
+
+    # the Index lists BASIC words, as QuickBASIC's: an IDE or error topic's key is not one (it showed "64 KB")
+    data, _ = build({"lang/a.md": "# A\nkeys: word\n\n.\n", "ide/b.md": "# B\nkeys: 64 KB, menu thing\n\n.\n"})
+    index = mkhelp.read_topic(data, struct.unpack_from("<H", data, 14)[0])
+    if b"word" not in index or b"64 KB" in index or b"menu thing" in index:
+        bad.append("the Index listed an IDE topic's key, or lost a language word")
     # compression round trip over a topic longer than the window
     long_text = "\n".join(f"Line {i}: the quick brown fox {i % 5}" for i in range(2000)).encode()
     d = mkhelp.make_dictionary([long_text])

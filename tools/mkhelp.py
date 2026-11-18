@@ -153,14 +153,14 @@ def plain_len(row: bytes) -> int:
     return out
 
 
-def render(t: Topic, keymap: dict[str, int], index_id: int, contents_id: int, errors: list[str]) -> None:
+def render(t: Topic, keymap: dict[str, int], index_id: int, contents_id: int, using_id: int, errors: list[str]) -> None:
     out = [cp437(t.title, t.path)]
     nav = b""
     if t.ids:  # QuickSCREEN, Details, Example, Contents, Index, spread over the row
         cells = [(3, "QuickSCREEN", t.ids["QuickSCREEN"]), (18, "Details", t.ids["Details"]),
                  (32, "Example", t.ids["Example"]), (46, "Contents", contents_id), (62, "Index", index_id)]
     else:
-        cells = [(3, "Contents", contents_id), (28, "Index", index_id), (56, "Back", BACK)]
+        cells = [(3, "Help on Help", using_id), (20, "Contents", contents_id), (33, "Index", index_id)]
     for col, name, tid in cells:
         nav += b" " * (col - plain_len(nav)) + link(tid, b"\x11" + name.encode() + b"\x10")
     out.append(nav)
@@ -209,17 +209,24 @@ def render(t: Topic, keymap: dict[str, int], index_id: int, contents_id: int, er
 
 
 def index_topic(entries: list[tuple[str, int]]) -> Topic:
-    """Every key found, three columns, as hot links."""
+    """Every key found, by first letter under QuickBASIC's boxed banner, two columns of hot links."""
     t = Topic("<index>", "Index")
-    t.lines.append(("text", "Type a letter to jump to the next keyword that starts with it."))
-    t.lines.append(("text", ""))
+    t.lines.append(("text", "To get help on a keyword: press its first letter to jump to it, then Enter."))
     cells = [e for e in entries if len(e[0]) <= 22]
-    for r in range(0, len(cells), 3):
-        row = b"  "
-        for k, (name, tid) in enumerate(cells[r : r + 3]):
-            label = b"\x11" + cp437(name, "index") + b"\x10"
-            row += link(tid, label) + b" " * (24 - len(label))
-        t.built.append(row.rstrip())
+    groups: dict[str, list[tuple[str, int]]] = {}
+    for e in cells:
+        groups.setdefault(e[0][0].upper() if e[0][0].isalpha() else "#", []).append(e)
+    for letter in sorted(groups):
+        t.built.append(b" " * 66 + b"\xc9\xcd\xcd\xcd\xbb")
+        t.built.append(b"\xcd" * 66 + b"\xb9 " + letter.encode() + b" \xba")
+        t.built.append(b" " * 66 + b"\xc8\xcd\xcd\xcd\xbc")
+        group = groups[letter]
+        for r in range(0, len(group), 2):
+            row = b"  "
+            for name, tid in group[r : r + 2]:
+                label = b"\x11" + cp437(name, "index") + b"\x10"
+                row += link(tid, label) + b" " * (36 - len(label))
+            t.built.append(row.rstrip())
     return t
 
 
@@ -350,6 +357,13 @@ def make_dictionary(raws: list[bytes]) -> bytes:
 # ---- the file
 
 
+def keyword_key(name: str, path: str) -> bool:
+    """A key the Index lists: a language word (lang/), or an added one-word keyword (ext/)."""
+    if path.startswith("lang/"):
+        return name[0].isalpha() or name[0] == "$"
+    return path.startswith("ext/") and name[0].isalpha() and name.isupper() and " " not in name
+
+
 def build(src: Path) -> tuple[bytes, dict[str, int]]:
     topics, status = collect(src)
     errors: list[str] = []
@@ -368,6 +382,7 @@ def build(src: Path) -> tuple[bytes, dict[str, int]]:
 
     keymap: dict[str, int] = {}
     shown: dict[str, tuple[str, int]] = {}
+    keywords: dict[str, tuple[str, int]] = {}  # the Index's: BASIC words only, as QuickBASIC's
     for tid, t in enumerate(topics):
         for raw in t.keys:
             hidden = raw.startswith("~")
@@ -378,6 +393,8 @@ def build(src: Path) -> tuple[bytes, dict[str, int]]:
             keymap[k] = tid
             if not hidden and k not in shown:
                 shown[k] = (raw.strip(), tid)
+                if keyword_key(raw.strip(), t.path):
+                    keywords[k] = (raw.strip(), tid)
     if "INDEX" in keymap:
         errors.append("the key INDEX is the generated Index's")
     index_id = len(topics)
@@ -387,7 +404,7 @@ def build(src: Path) -> tuple[bytes, dict[str, int]]:
         if key not in keymap:
             errors.append(f"required topic {key!r} is missing")
         ids[name] = keymap.get(key, NONE)
-    entries = sorted(shown.items())
+    entries = sorted(keywords.items())
     topics.append(index_topic([(v[0], v[1]) for _, v in entries]))
     for p in parts:  # after the Index: Ctrl+F1 reaches them too
         p.ids["Details" if p.part == "Details" else "Example"] = len(topics)
@@ -396,7 +413,8 @@ def build(src: Path) -> tuple[bytes, dict[str, int]]:
     keymap_all = dict(keymap)
     for tid, t in enumerate(topics):
         try:
-            render(t, keymap_all, index_id, ids["contents"] if ids["contents"] != NONE else 0, errors)
+            render(t, keymap_all, index_id, ids["contents"] if ids["contents"] != NONE else 0,
+                   ids["using"] if ids["using"] != NONE else 0, errors)
         except HelpError as e:
             errors.append(str(e))
     st = Topic("status.txt", "Status")

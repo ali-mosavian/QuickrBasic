@@ -414,7 +414,8 @@ static void win_draw(Widget *const w, Session *const S)
 
     draw_title_in(
         SL_HTXT, r->row, 0, r->cols, r->row == 1 ? GLYPH_TOP_LEFT : GLYPH_V_RIGHT,
-        r->row == 1 ? GLYPH_TOP_RIGHT : GLYPH_V_LEFT, view_title(&wv), uimn.tree.workspace.focus == FOC_HELP, uimn.win.maxed ? GLYPH_UPDOWN : GLYPH_UP
+        r->row == 1 ? GLYPH_TOP_RIGHT : GLYPH_V_LEFT, view_title(&wv), uimn.tree.workspace.focus == FOC_HELP, uimn.win.maxed ? GLYPH_UPDOWN : GLYPH_UP,
+        SL_HTTL
     );
     view_draw(&wv, (uint8_t)(r->row + 1), r->cols, (uint16_t)(r->rows - 1));
 }
@@ -610,7 +611,7 @@ void help_f1(Session *const S)
         return;
     }
 
-    open_window(S, keyword_topic(), false);
+    open_window(S, keyword_topic(), true);
 }
 
 void help_using(Session *const S) { open_window(S, hf.open ? hf.f.using_help : HLF_NONE, true); }
