@@ -552,7 +552,7 @@ EACH = """OpenScreen
 LoadTables
 LoadTerrain
 BuildGlyphs
-BuildMoth
+LoadMoth
 BuildSprites
 BuildLand
 SparkPaths

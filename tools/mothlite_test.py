@@ -64,7 +64,7 @@ FRAMES = """OpenScreen
 LoadTables
 LoadTerrain
 BuildGlyphs
-BuildMoth
+LoadMoth
 BuildSprites
 BuildLand
 DIM w AS World, joy AS Pad, cur(NKEY - 1, 2) AS SINGLE
