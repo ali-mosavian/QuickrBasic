@@ -227,7 +227,8 @@ def sparks(exe: str, tmp: str) -> tuple[int, int]:
 
 
 VINES = """OpenScreen
-DIM t AS SINGLE, k AS INTEGER, x AS INTEGER, y AS INTEGER, h AS INTEGER, bad AS LONG
+BuildVines
+DIM t AS SINGLE, k AS INTEGER, x AS INTEGER, y AS INTEGER, h AS INTEGER, bad AS LONG, seen AS LONG
 RANDOMIZE 7
 FOR k = 1 TO 400
     t = RND * 30000
@@ -239,19 +240,21 @@ FOR k = 1 TO 400
     FOR y = 0 TO h + 1
         FOR x = 20 TO 50
             IF POINT(x, y) <> POINT(x + 100, y) THEN bad = bad + 1
+            IF POINT(x + 100, y) THEN seen = seen + 1
         NEXT
     NEXT
 NEXT
-PRINT "vines"; bad
+PRINT "vines"; bad; seen
 END
 """
 VINES_ROW = """
 SUB VinesRow (x AS INTEGER, y2 AS INTEGER, t AS SINGLE)
-    DIM j AS INTEGER, y AS INTEGER, px AS INTEGER
+    DIM j AS INTEGER, y AS INTEGER, px AS INTEGER, tb AS SINGLE
+    tb = t * 1.7
     FOR j = 0 TO 2
         FOR y = 0 TO y2
             px = x + 5 + j * 9
-            px = px + INT(1.5 * SIN(t * 1.7 + y * .16 + j))
+            px = px + INT(1.5 * SIN(CDBL(tb) + y * CDBL(.16!) + j))
             PSET (px, y), CVINE
             IF (y + j * 2) MOD 6 = 0 THEN
                 PSET (px + 1, y), CMOSS
@@ -263,15 +266,17 @@ END SUB
 """
 
 
-def vines(exe: str, tmp: str) -> int:
-    """The pixels where Vines' runs and the row by row drawing it replaced differ, at 400 times and heights."""
+def vines(exe: str, tmp: str) -> tuple[int, int]:
+    """The pixels where Vines' strips and the row by row drawing differ, and the row by row's vine pixels, at 400
+    times and heights. The rows' angles are DOUBLEs: in SINGLEs, each row's own rounding at t = 30000 moved 95
+    pixels of 104395."""
     head, rest = DEMO.read_text().split("\nMain\nEND\n", 1)
     path = Path(tmp) / "VINES.BAS"
     decl = "DECLARE SUB VinesRow (x AS INTEGER, y2 AS INTEGER, t AS SINGLE)\n"
     path.write_text(decl + head + "\n" + VINES + rest + VINES_ROW)
     out = subprocess.run([exe, path.name], cwd=tmp, capture_output=True, timeout=300).stdout.decode(errors="replace")
     got = out.split("vines")[-1].split()
-    return int(got[0]) if len(got) == 1 else -1
+    return (int(got[0]), int(got[1])) if len(got) == 2 else (-1, 0)
 
 
 def program() -> str:
@@ -293,9 +298,9 @@ def main() -> None:
         digest = frames(exe, tmp)
         dacs = palettes(exe, tmp)
         seen, off = sparks(exe, tmp)
-        vine = vines(exe, tmp)
-    out += f"\nframes {digest}\npalettes {dacs}\nsparks {off} of {seen} off\nvines {vine} off"
-    ok = "stones ok" in out and "sounds ok" in out and digest == FRAMES_MD5 and dacs == PALETTES_MD5 and seen > 10000 and off * 1000 < seen and vine == 0
+        vine, vseen = vines(exe, tmp)
+    out += f"\nframes {digest}\npalettes {dacs}\nsparks {off} of {seen} off\nvines {vine} of {vseen} off"
+    ok = "stones ok" in out and "sounds ok" in out and digest == FRAMES_MD5 and dacs == PALETTES_MD5 and seen > 10000 and off * 1000 < seen and vseen > 50000 and vine == 0
     print("mothlite " + ("ok" if ok else "FAIL\n" + out[-600:]))
     sys.exit(0 if ok else 1)
 

@@ -289,7 +289,7 @@ DECLARE SUB StonePart (k AS INTEGER)
 DECLARE SUB KeepPart (k AS INTEGER, x1 AS INTEGER, x2 AS INTEGER, h AS INTEGER, im() AS LONG, s AS LONG, mk() AS LONG, ms AS LONG)
 DECLARE SUB BuildStoneArt ()
 DECLARE SUB Wets (c() AS LONG, i0 AS INTEGER, i1 AS INTEGER, lake AS LONG)
-DECLARE FUNCTION VineEnd% (tb AS SINGLE, y AS INTEGER, j AS INTEGER, y2 AS INTEGER)
+DECLARE SUB BuildVines ()
 DECLARE SUB Vines (x AS INTEGER, y2 AS INTEGER, t AS SINGLE)
 DECLARE SUB Shrooms (x AS INTEGER, cy AS INTEGER)
 DECLARE SUB DrawMoth (m AS Moth, mode AS INTEGER)
@@ -394,6 +394,16 @@ DIM SHARED MossI(MOSSN) AS LONG, MossM(MOSSN) AS LONG
 DIM SHARED DripI(DRIPN) AS LONG, DripM(DRIPN) AS LONG
 DIM SHARED BrokeI(CAPN * 4 + 3) AS LONG, BrokeM(CAPN * 4 + 3) AS LONG
 DIM SHARED RuneI(RUNEN * 2 + 1) AS LONG, RuneM(RUNEN) AS LONG
+' A vine's rows from y are at the angle a + .16 * row:
+' the same rows of a strip at a's remainder of .16,
+' shifted by its quotient. The strip is one of its
+' NVINT between the sine's thresholds, each with the
+' moss on each row mod 6; VSEG rows of vine a strip.
+CONST VSEG = 56, VSK = 96, VSW = 6, NVINT = 15, NVBIN = 64
+CONST VSTRIPN = (VSW * VSK + 7) \ 4
+DIM SHARED VStripI(NVINT * 6 * (VSTRIPN + 1)) AS LONG
+DIM SHARED VStripM(NVINT * 6 * (VSTRIPN + 1)) AS LONG
+DIM SHARED VBnd(NVINT) AS DOUBLE, VBin(NVBIN) AS INTEGER
 DIM SHARED Ticks AS LONG, PathX(NAGE) AS SINGLE, PathY(NAGE) AS SINGLE
 DIM SHARED PathG(NAGE) AS SINGLE, PathAge(NAGE) AS SINGLE
 ' Text drawn once in each look, image then mask, in
@@ -2121,6 +2131,7 @@ SUB BuildStoneArt
     NEXT
     KeepPart 6, 0, 2, 180, RuneI(), 0, RuneM(), 0
     KeepPart 7, 0, 2, 180, RuneI(), RUNEN + 1, RuneM(), 0
+    BuildVines
 END SUB
 
 SUB Scored (w AS World, sp() AS Spark)
@@ -2437,52 +2448,110 @@ END FUNCTION
 
 ' Vines hang from the top and sway, leaves on them.
 SUB Vines (x AS INTEGER, y2 AS INTEGER, t AS SINGLE)
-    DIM j AS INTEGER, y AS INTEGER, px AS INTEGER
-    DIM e AS INTEGER, r AS INTEGER, tb AS SINGLE
+    CONST TAU = 6.283185307179586#
+    DIM j AS INTEGER, ys AS INTEGER, m AS INTEGER, i AS INTEGER
+    DIM u AS INTEGER, s AS LONG, tb AS SINGLE
+    DIM d AS DOUBLE, r AS DOUBLE, px(2) AS INTEGER
     tb = t * 1.7
+    VIEW SCREEN (0, 0)-(SW - 1, y2)
     FOR j = 0 TO 2
-        y = 0
-        DO WHILE y <= y2
-            px = x + 5 + j * 9
-            px = px + INT(1.5 * SIN(tb + y * .16 + j))
-            e = VineEnd%(tb, y, j, y2)
-            LINE (px, y)-(px, e), CVINE
-            FOR r = y + (6 - (y + j * 2) MOD 6) MOD 6 TO e STEP 6
-                PSET (px + 1, r), CMOSS
-                PSET (px - 1, r + 1), CMOSS
-            NEXT
-            y = e + 1
-        LOOP
+        ys = 0
+        DO
+            d = CDBL(tb) + ys * CDBL(.16!) + j
+            d = d - TAU * INT(d / TAU)
+            m = INT(d / .16!)
+            r = d - m * CDBL(.16!)
+            IF r < 0 THEN r = 0
+            u = INT(r * (NVBIN / .16!))
+            IF u > NVBIN - 1 THEN u = NVBIN - 1
+            i = VBin(u)
+            DO WHILE i < NVINT - 1
+                IF r < VBnd(i) THEN EXIT DO
+                i = i + 1
+            LOOP
+            u = (ys - m + 2 * j) MOD 6
+            IF u < 0 THEN u = u + 6
+            s = (i * 6 + u) * (VSTRIPN + 1)
+            PUT (x + 2 + 9 * j, ys - m), VStripM(s), AND
+            PUT (x + 2 + 9 * j, ys - m), VStripI(s), OR
+            ys = ys + VSEG
+        LOOP WHILE ys - VSEG - m + VSK - 1 < y2
+        px(j) = x + 5 + j * 9 + INT(1.5 * SIN(CDBL(tb) + y2 * CDBL(.16!) + j))
+    NEXT
+    VIEW
+    ' the moss below the last row
+    FOR j = 0 TO 2
+        IF (y2 + j * 2) MOD 6 = 0 THEN PSET (px(j) - 1, y2 + 1), CMOSS
     NEXT
 END SUB
 
-' The last row from y its vine stays in the column it
-' is in at y: up to where its angle nears the next of
-' the sine's thresholds of 2/3, 0, -2/3, the row y
-' alone when it is near one itself.
-FUNCTION VineEnd% (tb AS SINGLE, y AS INTEGER, j AS INTEGER, y2 AS INTEGER)
-    CONST TWOPI = 6.283185!, PI = 3.141593!, VB = .7297277!, NEAR = .02!
-    DIM a AS SINGLE, lo AS SINGLE, hi AS SINGLE, e AS LONG
-    a = tb + y * .16 + j
-    a = a - TWOPI * INT(a / TWOPI)
-    IF a < VB THEN
-        lo = 0: hi = VB
-    ELSEIF a < PI - VB THEN
-        lo = VB: hi = PI - VB
-    ELSEIF a < PI THEN
-        lo = PI - VB: hi = PI
-    ELSEIF a < PI + VB THEN
-        lo = PI: hi = PI + VB
-    ELSEIF a < TWOPI - VB THEN
-        lo = PI + VB: hi = TWOPI - VB
-    ELSE
-        lo = TWOPI - VB: hi = TWOPI
-    END IF
-    e = y
-    IF a - lo >= NEAR AND hi - a >= NEAR THEN e = y + INT((hi - NEAR - a) / .16)
-    IF e > y2 THEN e = y2
-    VineEnd% = e
-END FUNCTION
+' The vine strips: the thresholds' remainders of .16
+' sorted into VBnd, VBin the first past each bin's
+' start; each strip's moss then vine, over 0 and as a
+' mask.
+SUB BuildVines
+    CONST TAU = 6.283185307179586#
+    DIM th(5) AS DOUBLE, b AS DOUBLE, v AS DOUBLE, mid AS DOUBLE
+    DIM n AS INTEGER, i AS INTEGER, q AS INTEGER, k AS INTEGER
+    DIM u AS INTEGER, c AS INTEGER, s AS LONG, col(VSK) AS INTEGER
+    v = ATN(2 / SQR(5))
+    th(0) = v: th(1) = TAU / 2 - v: th(2) = TAU / 2
+    th(3) = TAU / 2 + v: th(4) = TAU - v: th(5) = TAU
+    FOR q = 0 TO 3
+        FOR i = 0 TO 5
+            b = th(i) + q * TAU
+            IF b < VSK * CDBL(.16!) THEN
+                b = b - CDBL(.16!) * INT(b / CDBL(.16!))
+                k = n
+                DO WHILE k > 0
+                    IF VBnd(k - 1) <= b THEN EXIT DO
+                    VBnd(k) = VBnd(k - 1)
+                    k = k - 1
+                LOOP
+                VBnd(k) = b
+                n = n + 1
+            END IF
+        NEXT
+    NEXT
+    IF n <> NVINT - 1 THEN ERROR 5
+    VBnd(n) = .16!
+    k = 0
+    FOR u = 0 TO NVBIN - 1
+        DO WHILE VBnd(k) <= u * CDBL(.16!) / NVBIN
+            k = k + 1
+        LOOP
+        VBin(u) = k
+    NEXT
+    FOR i = 0 TO NVINT - 1
+        mid = VBnd(i) / 2
+        IF i > 0 THEN mid = (VBnd(i - 1) + VBnd(i)) / 2
+        FOR k = 0 TO VSK - 1
+            col(k) = 3 + INT(1.5 * SIN(mid + k * CDBL(.16!)))
+        NEXT
+        FOR u = 0 TO 5
+            s = (i * 6 + u) * (VSTRIPN + 1)
+            FOR c = 0 TO 1
+                IF c = 0 THEN Ink = -1 ELSE Ink = 0
+                LINE (0, 0)-(VSW - 1, VSK), CMASK * c, BF
+                FOR k = 0 TO VSK - 1
+                    IF (k + u) MOD 6 = 0 THEN
+                        PSET (col(k) + 1, k), Ik%(CMOSS)
+                        PSET (col(k) - 1, k + 1), Ik%(CMOSS)
+                    END IF
+                NEXT
+                FOR k = 0 TO VSK - 1
+                    PSET (col(k), k), Ik%(CVINE)
+                NEXT
+                IF c = 0 THEN
+                    GET (0, 0)-(VSW - 1, VSK - 1), VStripI(s)
+                ELSE
+                    GET (0, 0)-(VSW - 1, VSK - 1), VStripM(s)
+                END IF
+            NEXT
+        NEXT
+    NEXT
+    Ink = -1
+END SUB
 
 ' Inside the forewing: a white eyespot, an ink ring
 ' round it, an orange edge.
