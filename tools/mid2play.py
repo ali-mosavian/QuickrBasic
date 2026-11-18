@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""mid2play.py FILE.mid [--voices N] [--bars N] [--grid N] [--transpose V=S,...]
+"""mid2play.py FILE.mid [--voices N] [--bars N] [--grid N] [--transpose V=S,...] [--volume V=N,...]
 
 A Standard MIDI File as a BASIC program of PLAY statements.
 
@@ -23,7 +23,7 @@ KIT_CHANNEL = 9
 PIECES = {16: "1", 12: "2.", 8: "2", 6: "4.", 4: "4", 3: "8.", 2: "8", 1: "16"}
 # a drum: what its voice is set to, then its note. A snare is all the noise, a hat what is over 4 kHz: a
 # recording's drums were in every band
-KICK = ("W4", "Z1,0", "Y0", "K2,8", "R3", "V15", "O1", "C")
+KICK = ("W4", "Z1,0", "H0,3,0,2", "Y0", "K1,8", "R3", "V15", "O1", "C")
 SNARE = ("W3", "Y0", "K0", "R5", "V15", "O6", "C")
 HAT = ("W3", "Y3,3000,0", "K0", "R5", "V11", "O6", "C")
 KIT = {35: KICK, 36: KICK, 38: SNARE, 40: SNARE} | {
@@ -36,12 +36,12 @@ KIT_SOUND = "Z1,0H0,5,0,3L16"
 SOUNDS = {
     0: "W4Z2,6,6,2,1H0,7,3,3I2",
     1: "W4Z7,6,7,0H0,8,0,6",
-    2: "W4Z1,3,3,8,2H0,4,11,4U6I6",
+    2: "W4Z1,4,3,9,3H0,4,11,2R2V4",
     3: "W4Z3,9,3,1,3H0,6,3,3",
     4: "W4Z1,6,4,8,3H0,7,11,2I2",
     5: "W2Y1,2400,4H3,5,11,4U4I6",
     6: "W2Y1,2000,3H4,6,11,5U3I8",
-    7: "W4Z1,6,3,12,5H1,4,12,5U7I6",
+    7: "W4Z1,2,3,8,2H0,4,12,2U3I2R3V15",
     8: "W0Q42H1,4,10,3U5I4",
     9: "W1H1,3,12,3U4",
     10: "W0Q30H0,4,9,3U5I4",
@@ -168,7 +168,7 @@ def bar_of(voice: dict[int, tuple[int, int]], first: int, places: int, drum: str
 def sound(family: int) -> str:
     """A program family's sound at its volume, in a room but for the bass: PLAY's own 8 of 15 left six voices 8 dB
     under a recording."""
-    return SOUNDS.get(family, DEFAULT_SOUND) + ("V15" if family == BASS else "V11R5")
+    return ("V15" if family == BASS else "V11R5") + SOUNDS.get(family, DEFAULT_SOUND)
 
 
 class Part(NamedTuple):
@@ -195,7 +195,14 @@ def parts(song: Song) -> list[Part]:
     return out
 
 
-def program(song: Song, voices: int, bars: int | None, grid: int, up: dict[int, int] | None = None) -> str:
+def program(
+    song: Song,
+    voices: int,
+    bars: int | None,
+    grid: int,
+    up: dict[int, int] | None = None,
+    loud: dict[int, int] | None = None,
+) -> str:
     unit = song.division * 4 // grid
     every = parts(song)
     kept = sorted(sorted(range(len(every)), key=lambda k: -len(every[k].notes))[:voices])
@@ -205,7 +212,9 @@ def program(song: Song, voices: int, bars: int | None, grid: int, up: dict[int, 
     count = min(bars or sys.maxsize, -(-last // grid))
     tempo = max(32, min(255, round(song.tempo)))
     out = ["' " + ", ".join(f"voice {k + 1}: {part.name}" for k, part in enumerate(keys))]
-    out.append("PLAY " + ", ".join(f'"{"MB" if k == 0 else ""}T{tempo}{part.sound}"' for k, part in enumerate(keys)))
+    # a voice's volume as asked: a file's tracks are as loud as each other where a recording's were not
+    sounds = [part.sound + (f"V{loud[k + 1]}" if loud and k + 1 in loud else "") for k, part in enumerate(keys)]
+    out.append("PLAY " + ", ".join(f'"{"MB" if k == 0 else ""}T{tempo}{text}"' for k, text in enumerate(sounds)))
     for bar in range(count):
         strings = [
             bar_of(lines[k], bar * grid, grid, part.drum, (up or {}).get(k + 1, 0)) for k, part in enumerate(keys)
@@ -226,9 +235,13 @@ def main() -> None:
     parser.add_argument("--bars", type=int)
     parser.add_argument("--grid", type=int, default=16, choices=(8, 16), help="places a bar (4/4)")
     parser.add_argument("--transpose", default="", help="voices moved by semitones: 4=-12,5=-12")
+    parser.add_argument("--volume", default="", help="voices' volumes, 0 to 15: 6=15,7=9")
     args = parser.parse_args()
-    up = {int(voice): int(by) for voice, by in (pair.split("=") for pair in args.transpose.split(",") if pair)}
-    sys.stdout.write(program(read(args.file.read_bytes()), args.voices, args.bars, args.grid, up))
+    up, loud = (
+        {int(voice): int(by) for voice, by in (pair.split("=") for pair in text.split(",") if pair)}
+        for text in (args.transpose, args.volume)
+    )
+    sys.stdout.write(program(read(args.file.read_bytes()), args.voices, args.bars, args.grid, up, loud))
 
 
 if __name__ == "__main__":
