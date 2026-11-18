@@ -851,7 +851,7 @@ END SUB
 
 ' Tile column i's solid height; past the ends a wall, below the level air.
 FUNCTION Hgt% (tx AS INTEGER, ty AS INTEGER, i AS INTEGER)
-    IF tx < 0 OR tx >= LW THEN Hgt% = TS: EXIT FUNCTION
+    IF i < 0 OR tx < 0 OR tx >= LW THEN Hgt% = TS: EXIT FUNCTION
     IF ty < 0 OR ty >= MH THEN Hgt% = 0: EXIT FUNCTION
     Hgt% = Prof(Map(tx, ty), i)
 END FUNCTION
