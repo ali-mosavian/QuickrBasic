@@ -501,8 +501,9 @@ def timed(s: str) -> str:
                      f'    FOR i = 0 TO {len(FPS_PARTS) - 1}: PRINT #1, PartT(i) * 1000 / fr: NEXT\n    CLOSE #1\nEND SUB\n')
 
 
-def fps_program(parts: bool = False) -> str:
-    """MOTHLITE.BAS with the autopilot pressing its key, each frame's TIMER and mode kept, written to FPS.TXT at the end."""
+def fps_program(parts: bool = False, one: bool = False) -> str:
+    """MOTHLITE.BAS with the autopilot pressing its key, each frame's TIMER and mode kept, written to FPS.TXT at the end;
+    one: a single frame, the start-up's cost."""
     s = MOTH.read_text(encoding="latin-1").replace("\r\n", "\n")
     edits = [
         ("DECLARE SUB Main ()\n", "DECLARE SUB Main ()\nDECLARE SUB Auto (w AS World, st() AS Stone, k AS Pad)\n"),
@@ -514,6 +515,8 @@ def fps_program(parts: bool = False) -> str:
         ("    CloseScreen\nEND SUB\n",
          '    CloseScreen\n    OPEN "FPS.TXT" FOR OUTPUT AS #1\n    FOR i = 1 TO fr: PRINT #1, ft(i); fm(i): NEXT\n    CLOSE #1\nEND SUB\n'),
     ]
+    if one:
+        edits.append(("    LOOP UNTIL w.g.quitting AND w.sky.fade <= 0\n", "    LOOP UNTIL -1\n"))
     for old, new in edits:
         assert s.count(old) == 1, old
         s = s.replace(old, new)
@@ -532,7 +535,9 @@ def cmd_fps(a: argparse.Namespace) -> int:
     with tempfile.TemporaryDirectory() as d:
         if a.profile:
             dosrun.COM = profiled(build(".", True), Path(d))
-        r = dosrun.run({"moth": fps_program(a.parts)}, Path(d) / "w", limit_ms=600000, file=True, mem=16, profile=a.profile)
+        # the start-up's first: the game's FPS.TXT is the one left
+        jobs = ({"start": fps_program(one=True)} if a.profile else {}) | {"moth": fps_program(a.parts)}
+        r = dosrun.run(jobs, Path(d) / "w", limit_ms=600000, file=True, mem=16, profile=a.profile)
         log, parts = Path(d) / "w/FPS.TXT", Path(d) / "w/PARTS.TXT"
         rows = [ln.split() for ln in log.read_text().splitlines()] if log.exists() else []
         if a.parts and parts.exists():
@@ -548,11 +553,14 @@ def cmd_fps(a: argparse.Namespace) -> int:
         dts = [b[0] - a_[0] for a_, b in zip(frames, frames[1:]) if b[1] == mode and b[0] >= a_[0]]
         if dts:
             print(f"{name:8}{len(dts):>8}{len(dts) / sum(dts):>8.1f}{max(dts) * 1000:>10.0f}")
-    if a.profile:
-        sel = r["moth"].selfs
+    if a.profile:  # the frames' own: less the start-up's
+        got, base = r["moth"], r["start"]
+        sel = {f: n - base.selfs.get(f, 0) for f, n in got.selfs.items() if n > base.selfs.get(f, 0)}
         total = sum(sel.values())
+        print(f"{total:,} instructions over {len(frames)} frames: {total // max(len(frames), 1):,} a frame")
         for f, n in sorted(sel.items(), key=lambda kv: -kv[1])[: a.n]:
-            print(f"{n:>12,} {n / total:6.1%} {r['moth'].calls.get(f, 0):>9,} calls  {f}")
+            calls = got.calls.get(f, 0) - base.calls.get(f, 0)
+            print(f"{n:>12,} {n / total:6.1%} {calls:>9,} calls  {f}")
     return 0
 
 

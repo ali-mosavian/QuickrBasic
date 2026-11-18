@@ -58,8 +58,20 @@ def broken_counter() -> None:
         raise AssertionError("bench counted a failed counter")
 
 
+def fps_start_up() -> None:
+    """fps --profile's baseline is the start-up alone: one frame logged. Without it the frames' profile held the
+    start-up's sprites and tables, a third of a run (STR$'s digits 1.3M calls that no frame makes)."""
+    with tempfile.TemporaryDirectory() as d:
+        (Path(d) / "M.BAS").write_text(bench.fps_program(one=True), encoding="latin-1")
+        subprocess.run([str(bench.ROOT / "build/host/basic"), "M.BAS"], cwd=d, stdin=subprocess.DEVNULL,
+                       capture_output=True, timeout=120, env=os.environ | {"SDL_VIDEODRIVER": "dummy"})
+        rows = (Path(d) / "FPS.TXT").read_text().split("\n")
+        assert len([r for r in rows if r.strip()]) == 1, rows[:3]
+
+
 def main() -> int:
     broken_counter()
+    fps_start_up()
     b = bench.build(".", False)  # the tree's own instruments: copying them onto themselves raised
     try:
         r = bench.run_native(b, {"one": loop(1000000), "two": loop(2000000)}, runs=5)
