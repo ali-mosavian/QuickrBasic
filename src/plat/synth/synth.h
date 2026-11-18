@@ -36,6 +36,16 @@ typedef struct SynthOsc {
     int32_t f, damping, low, band; /* the filter's: f and damping 2^16 is 1, its state in 256ths of a sample */
 } SynthOsc;
 
+enum { SYNTH_COMBS = 4, SYNTH_PASSES = 2, SYNTH_COMB_MOST = 2100, SYNTH_PASS_MOST = 256 };
+
+/* The room: Schroeder's reverb, four combs side by side, each fed back through a low-pass, then two all-passes. */
+typedef struct SynthRoom {
+    int32_t comb[SYNTH_COMBS][SYNTH_COMB_MOST], pass[SYNTH_PASSES][SYNTH_PASS_MOST];
+    int32_t damp[SYNTH_COMBS];
+    uint16_t comb_len[SYNTH_COMBS], pass_len[SYNTH_PASSES], comb_at[SYNTH_COMBS], pass_at[SYNTH_PASSES];
+    uint32_t live; /* the samples its tail has left: 0 and it is empty */
+} SynthRoom;
+
 typedef struct Synth {
     uint32_t rate;
     uint32_t per_hertz, rest; /* 2^32 / rate, as quotient and remainder: a phase step without 64-bit division */
@@ -49,6 +59,7 @@ typedef struct Synth {
     int32_t held, release;
     SynthOsc osc[DEV_VOICES];
     int16_t sine[SYNTH_SINE];
+    SynthRoom room;
 } Synth;
 
 void synth_init(Synth *s, uint32_t rate);

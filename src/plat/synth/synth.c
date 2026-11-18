@@ -25,6 +25,8 @@ enum {
     LOUDEST = 32767,
     GAIN_SHIFT = 12,      /* the limiter's gain is FULL >> GAIN_SHIFT: 2^12 is 1 */
     RELEASES_A_SECOND = 5, /* a fifth of a second from silence back to full */
+    ROOM_FEEDBACK = 200,  /* of 256: a comb's sound comes back at 0.78, a tail of about a second */
+    ROOM_TAIL = 3,        /* seconds until the tail is nothing */
     FM_DEPTH = 10431,     /* a depth's half radian of phase, for each of a modulator's 32767: 2^32 / (4 pi 32767) */
 };
 
@@ -60,6 +62,19 @@ void synth_init(Synth *const s, const uint32_t rate)
 
         s->sine[i] = (int16_t)y;
         s->sine[i + SYNTH_SINE / 2] = (int16_t)-y;
+    }
+    /* the combs' and all-passes' lengths, tenths of a millisecond: none a multiple of another */
+    static const uint16_t comb[SYNTH_COMBS] = {297, 371, 411, 437}, pass[SYNTH_PASSES] = {50, 17};
+
+    for (int i = 0; i < SYNTH_COMBS; i++) {
+        const uint32_t len = rate * comb[i] / 10000;
+
+        s->room.comb_len[i] = (uint16_t)(len < 1 ? 1 : len > SYNTH_COMB_MOST ? SYNTH_COMB_MOST : len);
+    }
+    for (int i = 0; i < SYNTH_PASSES; i++) {
+        const uint32_t len = rate * pass[i] / 10000;
+
+        s->room.pass_len[i] = (uint16_t)(len < 1 ? 1 : len > SYNTH_PASS_MOST ? SYNTH_PASS_MOST : len);
     }
     for (int i = 0; i < DEV_VOICES; i++) {
         s->osc[i].noise = 0x7FFFF8;
@@ -514,6 +529,73 @@ static void voice(const Synth *const s, SynthOsc *const o, int32_t *const sum, c
     }
 }
 
+/* The room's answer to `wet`, added to `sum`. */
+static void room_run(SynthRoom *const r, const int32_t *const wet, int32_t *const sum, const int n)
+{
+    for (int i = 0; i < n; i++) {
+        const int32_t in = wet[i] / 2;
+        int32_t out = 0;
+
+        for (int c = 0; c < SYNTH_COMBS; c++) {
+            int32_t *const at = &r->comb[c][r->comb_at[c]];
+
+            out += *at;
+            r->damp[c] += (*at - r->damp[c]) / 2;
+            *at = in + r->damp[c] * ROOM_FEEDBACK / 256;
+            r->comb_at[c] = (uint16_t)(r->comb_at[c] + 1 == r->comb_len[c] ? 0 : r->comb_at[c] + 1);
+        }
+        for (int p = 0; p < SYNTH_PASSES; p++) {
+            int32_t *const at = &r->pass[p][r->pass_at[p]];
+            const int32_t back = *at;
+
+            *at = out + back / 2;
+            out = back - out;
+            r->pass_at[p] = (uint16_t)(r->pass_at[p] + 1 == r->pass_len[p] ? 0 : r->pass_at[p] + 1);
+        }
+        sum[i] += out / 2;
+    }
+}
+
+/* The voices into `sum`, and the room's answer to those it answers: each of them alone first, so its share can be
+   sent. With none and the tail over, the room costs nothing. */
+static void voices(Synth *const s, int32_t *const sum, const int n)
+{
+    int32_t wet[SYNTH_BLOCK], one[SYNTH_BLOCK];
+    bool sent = false;
+
+    for (int v = 0; v < DEV_VOICES; v++) {
+        SynthOsc *const o = &s->osc[v];
+
+        if (!o->set.reverb || (o->level == 0 && (o->stage == STAGE_CUT || o->stage == STAGE_RELEASE))) {
+            voice(s, o, sum, n);
+            continue;
+        }
+        if (!sent && !s->room.live)
+            s->room = (SynthRoom){.comb_len = {s->room.comb_len[0], s->room.comb_len[1], s->room.comb_len[2],
+                                               s->room.comb_len[3]},
+                                  .pass_len = {s->room.pass_len[0], s->room.pass_len[1]}};
+        for (int i = 0; i < n; i++) {
+            one[i] = 0;
+            wet[i] = sent ? wet[i] : 0;
+        }
+        sent = true;
+        voice(s, o, one, n);
+        for (int i = 0; i < n; i++) {
+            sum[i] += one[i];
+            wet[i] += one[i] * o->set.reverb / 16;
+        }
+    }
+    if (sent)
+        s->room.live = s->rate * ROOM_TAIL;
+    else if (s->room.live) {
+        for (int i = 0; i < n; i++)
+            wet[i] = 0;
+        s->room.live -= s->room.live < (uint32_t)n ? s->room.live : (uint32_t)n;
+    } else
+        return;
+    room_run(&s->room, wet, sum, n);
+}
+
 /* The mix at twice its sum, held under full: a block that would pass it is turned down, from its first sample, by as
    much as its loudest needs, and the gain climbs back at `release`. Many voices at once were clipped flat; kept under
    full by their volumes alone they were 8 dB under a recording. A block under full with nothing held is its sum
@@ -570,8 +652,7 @@ void synth_render(Synth *const s, int16_t *const out, const int count)
         else
             for (int i = 0; i < n; i++)
                 sum[i] = speaker(s);
-        for (int v = 0; v < DEV_VOICES; v++)
-            voice(s, &s->osc[v], sum, n);
+        voices(s, sum, n);
         limit(s, sum, out + at, n);
     }
 }

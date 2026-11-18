@@ -371,6 +371,37 @@ TEST(synth_limits_many_voices)
     CHECK(peak(out + RATE - RATE / 10, RATE / 10) == 12000);
 }
 
+/* A voice the room answers (R) sounds on after it is cut, fading, and is gone in three seconds; one it does not
+   answer stops dead, as every voice did: between its notes a tune was silence, where a recording has a room. */
+TEST(synth_room_answers_a_voice)
+{
+    static Synth s;
+    static int16_t out[RATE];
+    int tail[2], late = 0, end = 0;
+
+    for (int wet = 0; wet < 2; wet++) {
+        DevVoice v = note(441, DEV_SAW, 0x00F0);
+        const DevVoice off = {0};
+
+        v.reverb = wet ? 8 : 0;
+        synth_init(&s, RATE);
+        synth_voice(&s, 0, &v);
+        synth_render(&s, out, RATE / 2);
+        synth_voice(&s, 0, &off);
+        synth_render(&s, out, RATE);
+        tail[wet] = peak(out + RATE / 10, RATE / 10);
+        late = peak(out + RATE - RATE / 10, RATE / 10);
+        synth_render(&s, out, RATE);
+        synth_render(&s, out, RATE);
+        synth_render(&s, out, RATE);
+        end = peak(out, RATE);
+    }
+    CHECK(tail[0] == 0);
+    CHECK(tail[1] > 300);
+    CHECK(late > 0 && late < tail[1] / 4);
+    CHECK(end == 0);
+}
+
 /* The page's AudioWorklet (synth.wasm) renders filtered noise to this hash; the Mac and DOS must too. A float filter
    once differed by arm64's fused multiply-adds. */
 TEST(synth_renders_as_the_page_does)
@@ -623,7 +654,7 @@ TEST(play_sets_the_voice)
 /* W4 is FM, Z its modulator: ratio, depth, decay, level and feedback; U is vibrato, K a glide, I a unison. */
 TEST(play_sets_fm)
 {
-    static const char *const lines[] = {"10 PLAY \"MF W4 Z3,11,6,2,5 U7 K4,8 I9 C P64\"", nullptr};
+    static const char *const lines[] = {"10 PLAY \"MF W4 Z3,11,6,2,5 U7 K4,8 I9 R6 C P64\"", nullptr};
     static const char *const fed[] = {"10 PLAY \"W4 Z1,2,3,4,8 C\"", nullptr};
     static const char *const waver[] = {"10 PLAY \"U16 C\"", nullptr};
     static const char *const ratio[] = {"10 PLAY \"W4 Z0 C\"", nullptr};
@@ -638,6 +669,7 @@ TEST(play_sets_fm)
     const DevVoice v = headless_voice(first).v;
     CHECK(v.wave == DEV_FM && v.ratio == 3 && v.depth == 11);
     CHECK(v.fall == 0x62 && v.feedback == 5 && v.vibrato == 7 && v.glide == 4 && v.from == 8 && v.spread == 9);
+    CHECK(v.reverb == 6);
     CHECK(unit_run(S, fed) == E_USR);
     CHECK(unit_run(S, waver) == E_USR);
     CHECK(unit_run(S, ratio) == E_USR);
