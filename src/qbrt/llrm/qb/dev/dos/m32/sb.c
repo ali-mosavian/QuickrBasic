@@ -195,9 +195,9 @@ static void fill(unsigned half)
 
     synth_render(&synth, samples, HALF);
     for (i = 0; i < HALF; i++) {
-        const int exact = samples[i] * 3 + carry, level = exact >> 9;
+        const int exact = samples[i] * 3 + carry, level = exact >> 10;
 
-        carry = exact - level * 512;
+        carry = exact - level * 1024;
         out[i] = (unsigned char)((level > 127 ? 127 : level < -128 ? -128 : level) + 128);
     }
 }

@@ -118,9 +118,9 @@ TEST(synth_fm_bends_a_sine)
         turns += (buf[i] - buf[i - 1] > 0) != (buf[i + 1] - buf[i] > 0);
         step = abs(buf[i] - buf[i - 1]) > step ? abs(buf[i] - buf[i - 1]) : step;
     }
-    CHECK(peak(buf, RATE) > 5900 && peak(buf, RATE) <= 6000);
+    CHECK(peak(buf, RATE) > 11800 && peak(buf, RATE) <= 12000);
     CHECK(turns >= 2 * 441 * 9 / 10 - 2 && turns <= 2 * 441 * 9 / 10 + 2);
-    CHECK(step < 6000 / 10);
+    CHECK(step < 12000 / 10);
 
     v.depth = 10;
     sound(&s, v, RATE);
@@ -341,6 +341,36 @@ TEST(synth_filter_passes_its_band)
     CHECK(got[0] < 1000 && got[1] > 4000);
 }
 
+/* 32 voices at full volume, their sum six times what a sample holds: they were clipped flat, nine samples in ten at
+   the rail. The limiter turns the mix down instead, to just under full, and one voice after them is back at twice
+   its sum within a second. */
+TEST(synth_limits_many_voices)
+{
+    static Synth s;
+    static int16_t out[RATE];
+    int flat = 0;
+
+    synth_init(&s, RATE);
+    for (unsigned k = 0; k < DEV_VOICES; k++) {
+        const DevVoice v = note(110 + 7 * k, DEV_PULSE, 0x00F0);
+
+        synth_voice(&s, k, &v);
+    }
+    synth_render(&s, out, RATE);
+    for (int i = RATE / 10; i < RATE; i++)
+        flat += abs(out[i]) >= 32767;
+    CHECK(flat < RATE / 1000);
+    CHECK(peak(out + RATE / 10, RATE - RATE / 10) > 30000);
+
+    for (unsigned k = 1; k < DEV_VOICES; k++) {
+        const DevVoice off = {0};
+
+        synth_voice(&s, k, &off);
+    }
+    synth_render(&s, out, RATE);
+    CHECK(peak(out + RATE - RATE / 10, RATE / 10) == 12000);
+}
+
 /* The page's AudioWorklet (synth.wasm) renders filtered noise to this hash; the Mac and DOS must too. A float filter
    once differed by arm64's fused multiply-adds. */
 TEST(synth_renders_as_the_page_does)
@@ -356,7 +386,7 @@ TEST(synth_renders_as_the_page_does)
     uint32_t hash = 0;
     for (int i = 0; i < RATE; i++)
         hash = hash * 31 + (uint32_t)buf[i];
-    CHECK(hash == 2313499851u);
+    CHECK(hash == 332032406u);
 }
 
 /* Every wave under every filter, six voices at once with the speaker, released halfway, one cut at three quarters,
@@ -394,7 +424,7 @@ TEST(synth_six_voices_render_as_before)
     }
     for (int i = 0; i < RATE; i++)
         hash = hash * 31 + (uint32_t)buf[i];
-    CHECK(hash == 3427725871u); /* since the pulse's and the saw's edges are rounded */
+    CHECK(hash == 2292971059u); /* since the mix is doubled and limited */
 }
 
 /* QB's speaker as plat/sdl/audio.c made it before the synthesizer: the reference. */
@@ -457,7 +487,8 @@ TEST(play_of_one_string_sounds_as_before)
         synth_tone(&s, want);
         old_speaker(&o, want, old, TICK_SAMPLES);
         synth_render(&s, now, TICK_SAMPLES);
-        CHECK(!memcmp(old, now, sizeof old));
+        for (int i = 0; i < TICK_SAMPLES; i++) /* the mix is twice its sum */
+            CHECK(now[i] == old[i] * 2);
     }
 }
 

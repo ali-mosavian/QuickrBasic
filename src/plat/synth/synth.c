@@ -22,6 +22,9 @@ enum {
     VIBRATO_HERTZ = 6,
     VIBRATO_WAITS = 5,    /* a fifth of a second before it starts */
     VIBRATO_SHIFT = 24,   /* depth 15 is 3% of the pitch */
+    LOUDEST = 32767,
+    GAIN_SHIFT = 12,      /* the limiter's gain is FULL >> GAIN_SHIFT: 2^12 is 1 */
+    RELEASES_A_SECOND = 5, /* a fifth of a second from silence back to full */
     FM_DEPTH = 10431,     /* a depth's half radian of phase, for each of a modulator's 32767: 2^32 / (4 pi 32767) */
 };
 
@@ -49,7 +52,8 @@ static int32_t quarter_sin(const int32_t k)
 
 void synth_init(Synth *const s, const uint32_t rate)
 {
-    *s = (Synth){.rate = rate, .per_hertz = UINT32_MAX / rate, .rest = (UINT32_MAX % rate + 1) % rate};
+    *s = (Synth){.rate = rate, .per_hertz = UINT32_MAX / rate, .rest = (UINT32_MAX % rate + 1) % rate,
+                 .release = (int32_t)((uint32_t)FULL * RELEASES_A_SECOND / rate)};
     for (int i = 0; i < SYNTH_SINE / 2; i++) {
         const int32_t k = i & (SYNTH_SINE / 4 - 1);
         const int32_t y = quarter_sin(i < SYNTH_SINE / 4 ? k : SYNTH_SINE / 4 - k);
@@ -510,7 +514,41 @@ static void voice(const Synth *const s, SynthOsc *const o, int32_t *const sum, c
     }
 }
 
-/* A block at a time, each voice over the block in turn: the sum is the same, an int32 till it is clipped. */
+/* The mix at twice its sum, held under full: a block that would pass it is turned down, from its first sample, by as
+   much as its loudest needs, and the gain climbs back at `release`. Many voices at once were clipped flat; kept under
+   full by their volumes alone they were 8 dB under a recording. A block under full with nothing held is its sum
+   doubled, no more. */
+static void limit(Synth *const s, const int32_t *const sum, int16_t *const out, const int n)
+{
+    int32_t top = 0;
+
+    for (int i = 0; i < n; i++) {
+        const int32_t size = sum[i] < 0 ? -sum[i] : sum[i];
+
+        top = size > top ? size : top;
+    }
+    top *= 2;
+    if (top <= LOUDEST && !s->held) {
+        for (int i = 0; i < n; i++)
+            out[i] = (int16_t)(sum[i] * 2);
+        return;
+    }
+
+    const int32_t need = top > LOUDEST ? FULL - LOUDEST * (FULL / top) : 0;
+    const int32_t eased = s->held > s->release * n ? s->held - s->release * n : 0;
+    const int32_t held = need > eased ? need : eased;
+    const int32_t from = need > s->held ? need : s->held; /* down at once: a ramp down let its first samples clip */
+    const int32_t step = (held - from) / n;
+
+    for (int i = 0; i < n; i++) {
+        const int32_t v = sum[i] * 2 * ((FULL - from - step * (i + 1)) >> GAIN_SHIFT) >> GAIN_SHIFT;
+
+        out[i] = (int16_t)(v > LOUDEST ? LOUDEST : v < -LOUDEST ? -LOUDEST : v);
+    }
+    s->held = held;
+}
+
+/* A block at a time, each voice over the block in turn: the sum is the same, an int32 till it is limited. */
 void synth_render(Synth *const s, int16_t *const out, const int count)
 {
     for (int at = 0, n; at < count; at += n) {
@@ -534,7 +572,6 @@ void synth_render(Synth *const s, int16_t *const out, const int count)
                 sum[i] = speaker(s);
         for (int v = 0; v < DEV_VOICES; v++)
             voice(s, &s->osc[v], sum, n);
-        for (int i = 0; i < n; i++)
-            out[at + i] = (int16_t)(sum[i] > 32767 ? 32767 : sum[i] < -32767 ? -32767 : sum[i]);
+        limit(s, sum, out + at, n);
     }
 }

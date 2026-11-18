@@ -45,6 +45,8 @@ typedef struct Synth {
     /* the clock: its call, the samples between two (2^16 is 1) and those left to the next */
     void (*tick)(void);
     uint32_t tick_step, tick_left;
+    /* the limiter: what the mix is turned down by (2^24 is all of it), and what a sample gives back */
+    int32_t held, release;
     SynthOsc osc[DEV_VOICES];
     int16_t sine[SYNTH_SINE];
 } Synth;
