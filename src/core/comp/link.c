@@ -606,9 +606,10 @@ static void build(Comp *const C)
     link_procvars(C);
     Addr base;
 
-    /* room for the code first, by the program's size (a large one's code is about its size): grown
-       as it compiled, the store moved and every line compiled twice. Short, or no room: the loop's */
-    const uint32_t guess = CACHE0 + (C->prog->end - PROGBASE) / 4 * 5 + XLIM + XSLK;
+    /* room for the code first, by the store's size (a large program's code is about 0.9 of it):
+       grown as it compiled, the store moved and every line compiled twice. Short, or no room: the
+       loop's. A file's load reserved it already (io/repl.c) */
+    const uint32_t guess = CACHE0 + (C->prog->end - PROGBASE) + XLIM + XSLK;
 
     if (allo_cap(C->allo, HCACHE) < guess)
         allo_grow(C->allo, HCACHE, guess);

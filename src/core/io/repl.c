@@ -670,6 +670,16 @@ uint8_t repl_enter(Session *const S, const uint32_t len)
     return ENTER_STORED;
 }
 
+/* Room for a source of len bytes, the code cache's then the store's, while the blocks above them
+   are small: grown later, each moved all above it (the store and its line map, 600K for a 2600-line
+   program). The store is about 1.5 times the text, its code about 1.4: the cache link_start wants
+   (comp/link.c, the store's size) within twice it. Short, or no room: they grow as they fill. */
+static void reserve(Session *const S, const uint32_t len)
+{
+    allo_grow(&S->allo, HCACHE, CACHE0 + len * 2 + XLIM + XSLK);
+    allo_grow(&S->allo, HPROG, PROGBASE + len / 4 * 7);
+}
+
 /* Enter the lines of file name, read as file number num; an include's on the number below, in
    place. Then the console's again. */
 static void read_file(Session *const S, const char *const name, const int32_t num)
@@ -677,6 +687,11 @@ static void read_file(Session *const S, const char *const name, const int32_t nu
     Chnl *const cl = &S->chnl;
     Chan *c;
     fault_check(&S->fault, chnl_open(cl, num, name, FM_IN, RECLEN_DEFAULT, &c));
+
+    uint32_t len;
+
+    if (num == SOURCE_FILENO && chnl_lof(c, &len) == ST_OK)
+        reserve(S, len);
     fault_check(&S->fault, chnl_in(cl, c));
     const uint16_t fline = S->repl.fline, file = S->prog.add_file;
     S->repl.fline = 0;
