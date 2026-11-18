@@ -16,6 +16,7 @@ enum : uint8_t {
     MF_CLP = 16, /* gray with the clipboard empty */
     MF_ED = 32,  /* gray in the immediate window */
     MF_SUB = 64, /* opens a sub-menu */
+    MF_KW = 128, /* gray unless the cursor is on a word the help has */
 };
 
 /* The commands (the asm's A_NEW ..), uimn_act's. */
@@ -58,6 +59,10 @@ enum : uint8_t {
     ACT_ROWS25, /* Display Size: 25, 43, 50 rows */
     ACT_ROWS43,
     ACT_ROWS50,
+    ACT_HINDEX, /* Help: Index, Contents, Topic, Using Help */
+    ACT_HCONT,
+    ACT_HTOPIC,
+    ACT_HUSING,
 };
 static_assert(ACT_TH2 == 33 && ACT_NONE == 41);
 

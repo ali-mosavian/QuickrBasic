@@ -16,6 +16,9 @@ longer than its box had no scroll bar: now the SUBs list's arrow moves a column.
 are by name in three columns, their bar sideways: once one column in the directory's order. A long
 path shows its drive, "..", then its last folders that fit the Files list's width: once 80
 characters, the rest run on past the box onto the next row.
+F1 on a keyword opens the help window (Esc closes it, the frame as before; Alt+F1 after a link returns
+to the topic, Shift+F1 opens Using Help), F1 off a keyword only beeps, and F1 in a menu or in a
+dialog shows help over it: the help system was once "Help is not available".
 """
 
 import os
@@ -34,6 +37,12 @@ HIDDEN = {
     "text": "SCREEN 0, , 1, 0\nCOLOR 4, 4\nCLS\n",
 }
 LOOP = "DO\nLOOP\n"
+HELP = "60:3B00"  # F1
+HELP_ESC = "60:3B00 70:011B"
+HELP_BACK = "60:3B00 70:0F09 80:1C0D 90:6800"  # F1, Tab, Enter (Index), Alt+F1
+HELP_USING = "60:5400"  # Shift+F1
+HELP_MENU = "60:2100 70:3B00"  # Alt+F, F1
+HELP_OPEN = "60:2100 70:1800 80:3B00"  # Alt+F, O, F1
 SUBS = "PRINT 1\n" + "".join(f"SUB S{i}\nEND SUB\n" for i in range(1, 71))
 LAST_SUB = "60:3C00 70:4F00 80:1C0D"  # F2, End, Enter
 LIST = "60:3C00"  # F2
@@ -175,6 +184,19 @@ def main() -> None:
         sorted_bas = Path(tmp) / "SORTED.BAS"
         sorted_bas.write_text(SORTED)
         _, _, first_sub = frames(run, sorted_bas, FIRST_SUB, ("2s",))[0]
+        _, _, base = frames(run, program, "", ("2s",))[0]
+        _, _, f1 = frames(run, program, HELP, ("2s",))[0]
+        _, _, f1_esc = frames(run, program, HELP_ESC, ("2s",))[0]
+        _, _, f1_back = frames(run, program, HELP_BACK, ("2s",))[0]
+        _, _, using = frames(run, program, HELP_USING, ("2s",))[0]
+        _, _, menu_f1 = frames(run, program, HELP_MENU, ("2s",))[0]
+        _, _, menu_only = frames(run, program, "60:2100", ("2s",))[0]
+        _, _, open_f1 = frames(run, program, HELP_OPEN, ("2s",))[0]
+        _, _, open_only = frames(run, program, "60:2100 70:1800", ("2s",))[0]
+        plain = Path(tmp) / "PLAIN.BAS"
+        plain.write_text("x = 1\n")
+        _, _, plain_base = frames(run, plain, "", ("2s",))[0]
+        _, _, plain_f1 = frames(run, plain, HELP, ("2s",))[0]
         long = Path(tmp) / "LONG.BAS"
         long.write_text(LONG)
         lw, _, long_title = frames(run, long, "60:5500", ("2s",))[0]  # Shift+F2
@@ -211,6 +233,13 @@ def main() -> None:
         "Open's long path cut in its middle": [c for c in lit_cells(sw, deep_open, 6) if 7 < c < 72]
         == list(range(8, 8 + len(deep_path))),
         "Open's files by name": title_cells(sw, first_file) == len("A.BAS") + 3,
+        "F1 on PRINT opens help": f1 != base,
+        "Esc closes help": f1_esc == base,
+        "Alt+F1 after a link returns": f1_back == f1,
+        "Shift+F1 opens Using Help": using != base and using != f1,
+        "F1 off a keyword changes nothing": plain_f1 == plain_base,
+        "F1 in a menu shows help": menu_f1 != menu_only,
+        "F1 in a dialog shows help": open_f1 != open_only,
         "a long name's title whole": title_cells(lw, long_title) == len(f"LONG.BAS:{LONG_NAME}") + 3,
     }
     failed = [name for name, ok in checks.items() if not ok]

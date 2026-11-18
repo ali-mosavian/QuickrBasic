@@ -41,6 +41,7 @@ No 64 KB walls. Programs, lines, strings, arrays and symbol tables grow until me
 | Stepping | Step, Procedure Step | Step, Step Over, **Step Out** |
 | Watches | none | in **any frame** on the call stack |
 | Locals, call stack | none | **a debug pane**: Watch, Locals, Call stack |
+| Help | F1 on a keyword, Index, Contents, links | the same, in [Markdown sources](help/README.md): every keyword, error message and addition |
 | Editor | one split | split windows; drag any line between them |
 | Look | colours set by hand | **nine themes** |
 | Platforms | DOS | DOS, macOS and the browser today; Linux and Windows on the way ([below](#platforms)) |

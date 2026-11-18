@@ -30,6 +30,9 @@ import argparse
 import tempfile
 import subprocess
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent))
+import mkhelp  # noqa: E402
 from dataclasses import dataclass
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))  # run with -I too
@@ -339,7 +342,7 @@ def qbasic_run(which: str, work: Path) -> dict[str, float]:
     else:
         for f in ("ide32.exe", "DOS32A.EXE"):
             shutil.copy(ROOT / "build/c" / f, work / f.upper())
-        shutil.copy(ROOT / "src/basic.hlp", work / "BASIC.HLP")
+        (work / "BASIC.HLP").write_bytes(mkhelp.compiled())
         cmds = "AUTOTYPE -w 4 f5\nIDE32 BENCH.BAS"
     (work / "b.conf").write_text(DOSBOX_CONF.format(work=work, cmds=cmds))
     p = subprocess.Popen(

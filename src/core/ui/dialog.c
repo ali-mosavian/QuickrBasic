@@ -52,6 +52,7 @@
 #include "plat/pscr.h"
 #include "ui/draw.h"
 #include "ui/edit.h"
+#include "ui/help.h"
 #include "ui/menu.h"
 #include "ui/mouse.h"
 #include "ui/screen.h"
@@ -807,7 +808,7 @@ static bool dialog_key(uint16_t *const key)
     const uint8_t ch = (uint8_t)*key;
 
     return *key == KEY_ALT || *key == KEY_SHIFT_TAB || ch == CH_ESC || ch == CH_TAB ||
-           ch == CH_ENTER;
+           ch == CH_ENTER || *key == SCAN_F1 << 8; /* F1: Help */
 }
 
 /* A list's selection to sel, at most its last. */
@@ -878,6 +879,36 @@ static void ended(const uint8_t go, DlogCtl *const c, const uint32_t sel)
 
 static DlogCtl *ctl_of(const Widget *const w) { return &dl.d->ctl[w - dl.kids]; }
 
+static Session *dl_session; /* the box running's, for a Help button's hook */
+
+/* F1 or Help: the message box's first line is the topic's key (an error's message), else
+   "Message boxes"; another box's, its title and " Dialog". */
+static void dlog_help(Session *const S)
+{
+    char key[64];
+    uint32_t n;
+
+    if (dl.d == &msg_dlog) {
+        n = (uint32_t)strlen(msg_text);
+        memcpy(key, msg_text, n < sizeof key ? n : sizeof key - 1);
+        n = n < sizeof key ? n : sizeof key - 1;
+
+        if (!help_has(key, n)) {
+            n = sizeof "message boxes" - 1;
+            memcpy(key, "message boxes", n);
+        }
+    } else {
+        const char *const t = dl.d->title ? dl.d->title : "";
+        n = (uint32_t)strlen(t);
+        n = n < sizeof key - 8 ? n : sizeof key - 8;
+        memcpy(key, t, n);
+        memcpy(key + n, " Dialog", 7);
+        n += 7;
+    }
+
+    help_box(S, key, n);
+}
+
 /* The box's keys, and the hotkeys a button or a check box passes up. */
 static bool dl_key(Widget *const w, Session *const S, const uint16_t key)
 {
@@ -894,6 +925,8 @@ static bool dl_key(Widget *const w, Session *const S, const uint16_t key)
         dl.alt = true;
     else if (ch == CH_ESC)
         go = GO_ESC;
+    else if (!ch && (uint8_t)(key >> 8) == SCAN_F1)
+        dlog_help(S);
     else if (ch == CH_TAB)
         step(dl.d, 1);
     else if (k == KEY_SHIFT_TAB)
@@ -1051,6 +1084,7 @@ static uint8_t run(Session *const S, Dlog *const d)
 
 uint8_t dlog_run(Session *const S, Dlog *const d)
 {
+    dl_session = S;
     uimn.help = uimn_dlog_help;
     const uint8_t r = run(S, d);
     uimn.help = nullptr;
@@ -1197,7 +1231,9 @@ uint8_t dlog_msg(Session *const S, const char *const text, const MsgButton *cons
 
 bool dlog_nohelp(const uint8_t why)
 {
-    pscr_beep();
+    if (why == DLOG_PRESS && dl_session)
+        dlog_help(dl_session);
+
     return true;
 }
 

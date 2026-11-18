@@ -27,6 +27,7 @@
 #include "ui/edit.h"
 #include "ui/menu.h"
 #include "ui/screen.h"
+#include "ui/help.h"
 #include "ui/highlight.h"
 #include "ui/text.h"
 #include "ui/visible.h"
@@ -331,6 +332,8 @@ const StatusKeys *draw_keys(void)
 {
     if (uimn.tree.workspace.focus == FOC_IMM)
         return &uimn_keys_imm;
+    if (uimn.tree.workspace.focus == FOC_HELP)
+        return &help_keys;
 
     return uimn_stopped() ? &uimn_keys_run : &uimn_keys_edit;
 }
