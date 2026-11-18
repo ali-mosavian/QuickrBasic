@@ -11,49 +11,9 @@
 
                 include gdfill.inc
 
-;; ROWS op, t: a row of `count` dwords and t tail bytes combined into dst by
-;; `op`; count mod 4 of the dwords by a jump into four, the rest four a turn
-ROWS            macro   op, t
-                local   l_row, l_e3, l_e2, l_e1, l_e0, l_quad, l_next, l_tab
-                mov     eax, [ebx].LinearBlit.count
-                and     eax, 3
-                mov     edx, l_tab[eax*4]
-                shr     [ebx].LinearBlit.count, 2       ;; fours
-l_row:
-                mov     ecx, [ebx].LinearBlit.count
-                jmp     edx
-l_e3:
-                mov     eax, [esi]
-                op      [edi], eax
-                add     esi, 4
-                add     edi, 4
-l_e2:
-                mov     eax, [esi]
-                op      [edi], eax
-                add     esi, 4
-                add     edi, 4
-l_e1:
-                mov     eax, [esi]
-                op      [edi], eax
-                add     esi, 4
-                add     edi, 4
-l_e0:
-                test    ecx, ecx
-                jz      l_next
-l_quad:
-                mov     eax, [esi]
-                op      [edi], eax
-                mov     eax, [esi + 4]
-                op      [edi + 4], eax
-                mov     eax, [esi + 8]
-                op      [edi + 8], eax
-                mov     eax, [esi + 12]
-                op      [edi + 12], eax
-                add     esi, 16
-                add     edi, 16
-                dec     ecx
-                jnz     l_quad
-l_next:
+;; TAIL op, t: a row's last t bytes at esi, combined into edi's; then the
+;; next row's, ebp rows in all
+TAIL            macro   op, t, l_row
   if t eq 1
                 mov     al, [esi]
                 op      [edi], al
@@ -71,9 +31,43 @@ l_next:
                 dec     ebp
                 jnz     l_row
                 ret
-l_tab           dd      l_e0, l_e1, l_e2, l_e3
                 endm
 
+;; BYTES op, t: rows of t bytes and no dwords
+BYTES           macro   op, t
+                local   l_row
+l_row:
+                TAIL    op, t, l_row
+                endm
+
+;; ROWS op, t: rows of dwords and t tail bytes combined into dst by `op`, eight
+;; dwords a turn. esi and edi are at the end of a row's dwords; ecx counts up
+;; to 0 from the tail field (the dwords negated, less the pairs skipped), the
+;; first turn entered at edx, ENTRY's pair from `name`.
+PAIRS           equ     8
+PAIR0           equ     6                       ;; mov eax, [esi + ecx*4]; op [edi + ecx*4], eax
+PAIRN           equ     8                       ;; the same with a disp8
+
+ROWS            macro   op, t, name
+                local   l_row, l_loop
+l_row:
+                mov     ecx, [ebx].LinearBlit.tail
+                jmp     edx
+name:
+l_loop:
+                mov     eax, [esi + ecx*4]
+                op      [edi + ecx*4], eax
+  j = 1
+  repeat PAIRS - 1
+                mov     eax, [esi + ecx*4 + j*4]
+                op      [edi + ecx*4 + j*4], eax
+    j = j + 1
+  endm
+                .erre   ($ - l_loop) eq PAIR0 + (PAIRS - 1) * PAIRN
+                add     ecx, PAIRS
+                jnz     l_loop
+                TAIL    op, t, l_row
+                endm
 
 .code
 ;; B$LBLIT - `rows` rows of `width` bytes from `src` to `dst`, combined by `op`
@@ -103,11 +97,22 @@ B$LBLIT         proc    uses ebx ecx edx esi edi ebp
                 dec     ecx                             ;; AND 0, OR 1, XOR 2
                 cmp     ecx, 2
                 ja      @@whole
-                shl     eax, 2                          ;; the tail's bytes not stepped over
-                sub     [ebx].LinearBlit.sstep, eax
-                sub     [ebx].LinearBlit.dstep, eax
-                lea     ecx, [ecx*4 + edx]
-                jmp     @@combine[ecx*4]
+                lea     esi, [esi + eax*4]
+                lea     edi, [edi + eax*4]
+                lea     ecx, [ecx*4 + edx]              ;; op * 4 + tail
+                neg     eax
+                jz      @@flat
+                mov     edx, eax
+                and     edx, PAIRS - 1                  ;; the first turn's pairs skipped
+                sub     eax, edx
+                mov     [ebx].LinearBlit.tail, eax
+                mov     ecx, @@loops[ecx*4]
+                add     ecx, @@entry[edx*4]
+                mov     edx, ecx
+                mov     ecx, eax
+                jmp     edx
+@@flat:
+                jmp     @@flats[ecx*4]
 @@whole:
                 lea     ecx, [eax*4 + edx]              ;; from a row's end
                 sub     [ebx].LinearBlit.sstep, ecx
@@ -126,32 +131,53 @@ B$LBLIT         proc    uses ebx ecx edx esi edi ebp
 @@done:
                 ret
 
-@@combine       dd      @@and0, @@and1, @@and2, @@and3, @@or0, @@or1, @@or2, @@or3
-                dd      @@xor0, @@xor1, @@xor2, @@xor3
-@@and0:
-                ROWS    and, 0
-@@and1:
-                ROWS    and, 1
-@@and2:
-                ROWS    and, 2
-@@and3:
-                ROWS    and, 3
-@@or0:
-                ROWS    or, 0
-@@or1:
-                ROWS    or, 1
-@@or2:
-                ROWS    or, 2
-@@or3:
-                ROWS    or, 3
-@@xor0:
-                ROWS    xor, 0
-@@xor1:
-                ROWS    xor, 1
-@@xor2:
-                ROWS    xor, 2
-@@xor3:
-                ROWS    xor, 3
+@@loops         dd      @@and0, @@and1, @@and2, @@and3, @@or0, @@or1
+                dd      @@or2, @@or3, @@xor0, @@xor1, @@xor2, @@xor3
+@@flats         dd      @@andf0, @@andf1, @@andf2, @@andf3, @@orf0, @@orf1
+                dd      @@orf2, @@orf3, @@xorf0, @@xorf1, @@xorf2, @@xorf3
+;; a turn's entry with j pairs skipped
+@@entry         dd      0
+  j = 1
+  repeat PAIRS - 1
+                dd      PAIR0 + (j - 1) * PAIRN
+    j = j + 1
+  endm
+                ROWS    and, 0, @@and0
+@@andf0:
+                BYTES   and, 0
+                ROWS    and, 1, @@and1
+@@andf1:
+                BYTES   and, 1
+                ROWS    and, 2, @@and2
+@@andf2:
+                BYTES   and, 2
+                ROWS    and, 3, @@and3
+@@andf3:
+                BYTES   and, 3
+                ROWS    or, 0, @@or0
+@@orf0:
+                BYTES   or, 0
+                ROWS    or, 1, @@or1
+@@orf1:
+                BYTES   or, 1
+                ROWS    or, 2, @@or2
+@@orf2:
+                BYTES   or, 2
+                ROWS    or, 3, @@or3
+@@orf3:
+                BYTES   or, 3
+                ROWS    xor, 0, @@xor0
+@@xorf0:
+                BYTES   xor, 0
+                ROWS    xor, 1, @@xor1
+@@xorf1:
+                BYTES   xor, 1
+                ROWS    xor, 2, @@xor2
+@@xorf2:
+                BYTES   xor, 2
+                ROWS    xor, 3, @@xor3
+@@xorf3:
+                BYTES   xor, 3
 ;; PRESET: each byte inverted
 @@not:
                 mov     ecx, [ebx].LinearBlit.count
