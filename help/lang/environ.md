@@ -6,6 +6,12 @@ Syntax
     ENVIRON$(name$)
     ENVIRON$(n)
 
+ENVIRON sets an environment variable of the running program.
+ENVIRON$ reads one.
+
+See also [SHELL](SHELL)
+
+## Details
 The statement sets an environment variable of the running program.
 Give it "NAME=value", or "NAME=" or "NAME" to remove it. The change
 lasts only while the program runs, and is seen by programs it starts
@@ -17,10 +23,8 @@ returns the whole nth entry as "NAME=value", or "" past the last.
 
 ## Example
     ENVIRON "GREETING=hello"
-    PRINT ENVIRON$("GREETING")
+    PRINT ENVIRON$("GREETING")     ' hello
     i = 1
     DO WHILE ENVIRON$(i) <> ""
-      PRINT ENVIRON$(i): i = i + 1
+      PRINT ENVIRON$(i): i = i + 1  ' every NAME=value entry
     LOOP
-
-See also [SHELL](SHELL)

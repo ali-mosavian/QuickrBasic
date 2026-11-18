@@ -401,3 +401,9 @@ Line 396: the quick brown fox jumps over the lazy dog 4.
 Line 397: the quick brown fox jumps over the lazy dog 5.
 Line 398: the quick brown fox jumps over the lazy dog 6.
 Line 399: the quick brown fox jumps over the lazy dog 0.
+
+## Details
+More about long.
+
+## Example
+    PRINT "long"

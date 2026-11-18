@@ -4,6 +4,12 @@ keys: END
 Syntax
     END
 
+END stops the program. Open files are closed, and the run returns to
+the editor.
+
+See also [STOP](STOP), [SYSTEM](SYSTEM)
+
+## Details
 END stops the program. Open files are closed, and the run returns
 to the editor, or to DOS for a compiled program. It may appear
 anywhere, in a SUB too, and a program that runs off its last line
@@ -17,7 +23,5 @@ END TYPE and END DEF. Those belong to the statement they close; see
 
 ## Example
     INPUT "Quit"; a$
-    IF UCASE$(a$) = "Y" THEN END
-    PRINT "Still here"
-
-See also [STOP](STOP), [SYSTEM](SYSTEM)
+    IF UCASE$(a$) = "Y" THEN END    ' Y stops here
+    PRINT "Still here"             ' any other answer

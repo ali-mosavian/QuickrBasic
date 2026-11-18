@@ -38,8 +38,8 @@ HIDDEN = {
 }
 LOOP = "DO\nLOOP\n"
 HELP = "60:3B00"  # F1
-HELP_ESC = "60:3B00 70:011B"
-HELP_BACK = "60:3B00 70:0F09 80:1C0D 90:6800"  # F1, Tab, Enter (Index), Alt+F1
+HELP_ESC = "60:3B00 70:5900 80:011B"  # F1, Shift+F6 (focus it), Esc
+HELP_BACK = "60:3B00 70:5900 80:0F09 90:1C0D 100:6800"  # F1, Shift+F6, Tab, Enter (Index), Alt+F1
 HELP_USING = "60:5400"  # Shift+F1
 HELP_MENU = "60:2100 70:3B00"  # Alt+F, F1
 HELP_OPEN = "60:2100 70:1800 80:3B00"  # Alt+F, O, F1
@@ -186,6 +186,7 @@ def main() -> None:
         _, _, first_sub = frames(run, sorted_bas, FIRST_SUB, ("2s",))[0]
         _, _, base = frames(run, program, "", ("2s",))[0]
         _, _, f1 = frames(run, program, HELP, ("2s",))[0]
+        _, _, f1_focus = frames(run, program, "60:3B00 70:5900", ("2s",))[0]
         _, _, f1_esc = frames(run, program, HELP_ESC, ("2s",))[0]
         _, _, f1_back = frames(run, program, HELP_BACK, ("2s",))[0]
         _, _, using = frames(run, program, HELP_USING, ("2s",))[0]
@@ -234,8 +235,9 @@ def main() -> None:
         == list(range(8, 8 + len(deep_path))),
         "Open's files by name": title_cells(sw, first_file) == len("A.BAS") + 3,
         "F1 on PRINT opens help": f1 != base,
+        "F1 leaves the editor focused, Shift+F6 moves to help": f1_focus != f1,
         "Esc closes help": f1_esc == base,
-        "Alt+F1 after a link returns": f1_back == f1,
+        "Alt+F1 after a link returns": f1_back == f1_focus,
         "Shift+F1 opens Using Help": using != base and using != f1,
         "F1 off a keyword changes nothing": plain_f1 == plain_base,
         "F1 in a menu shows help": menu_f1 != menu_only,

@@ -1,9 +1,13 @@
 # What QuickrBasic Adds to QBasic
 keys: QuickrBasic, additions, extensions, differences
 
-QuickrBasic runs QBasic 1.1 programs and adds the following.
+QuickrBasic runs QBasic 1.1 programs and adds new types, six-voice
+PLAY, PEN, video pages, no 64 KB walls, and a better editor.
 
-## Language
+See also [contents](contents)
+
+## Details
+Language
     BYTE, DEFBYTE, CBYTE   unsigned 0-255, 1 byte in records
                            [BYTE](BYTE), [DEFBYTE](DEFBYTE), [CBYTE](CBYTE)
     SHORT, DEFSHORT        QBasic's 16-bit integer
@@ -23,7 +27,7 @@ From QuickBASIC PDS and VB-DOS, also accepted: REDIM PRESERVE,
 OPTION EXPLICIT (an undeclared variable is "Variable not declared")
 and ON LOCAL ERROR.
 
-## Editor
+Editor
     Syntax highlighting    by the compiler's own lexer
     Completion             only what fits at the cursor
                            [completion](completion)
@@ -34,10 +38,16 @@ and ON LOCAL ERROR.
     Split windows          horizontal or vertical; drag lines between
                            [IDE additions](ide additions)
 
-## Command line and testing
+Command line and testing
     basic --check FILE     list every compile error, run nothing
                            [command line](command line)
     QB_KEYS, QB_MOUSE ...  scripted input in the window build
                            [test scripts](test scripts)
 
-See also [contents](contents)
+## Example
+    DEFBYTE B
+    DIM v AS SHORT
+    b = 255
+    v = 32767
+    PRINT b, v, 32767 + 1
+    ' 255          32767         32768

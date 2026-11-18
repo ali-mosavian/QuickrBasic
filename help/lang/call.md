@@ -6,6 +6,13 @@ Syntax
     name [argumentlist]
 
 Runs the SUB called name, then continues with the next statement.
+Without CALL, leave out the parentheses: Show a, b.
+
+See also [SUB](SUB), [FUNCTION](FUNCTION), [DECLARE](DECLARE),
+[BYVAL](BYVAL)
+
+## Details
+Runs the SUB called name, then continues with the next statement.
 Without CALL, leave out the parentheses: Show a, b. With CALL they
 are required when there are arguments: CALL Show(a, b).
 
@@ -25,10 +32,7 @@ DOS, and are not implemented.
 
 ## Example
     DECLARE SUB Greet (who$)
-    CALL Greet("world")
+    CALL Greet("world")      ' Hello, world
     SUB Greet (who$)
         PRINT "Hello, "; who$
     END SUB
-
-See also [SUB](SUB), [FUNCTION](FUNCTION), [DECLARE](DECLARE),
-[BYVAL](BYVAL)

@@ -8,6 +8,14 @@ DIM declares variables and arrays. Subscripts are
 [lower TO] upper per dimension, up to 60 dimensions. Without TO the
 lower bound is 0, or the value set by OPTION BASE.
 
+See also [REDIM](REDIM), [ERASE](ERASE), [LBOUND](LBOUND),
+[UBOUND](UBOUND), [TYPE](TYPE), [data types](data types)
+
+## Details
+DIM declares variables and arrays. Subscripts are
+[lower TO] upper per dimension, up to 60 dimensions. Without TO the
+lower bound is 0, or the value set by OPTION BASE.
+
     DIM a(10)              11 elements, 0 to 10
     DIM b(1 TO 3, 1 TO 4)  a 3 by 4 table
     DIM n AS LONG, s AS STRING * 8
@@ -27,6 +35,5 @@ array can be resized with [REDIM](REDIM) and dropped with
 ## Example
     DIM SHARED total AS DOUBLE
     DIM grid(1 TO 8, 1 TO 8) AS INTEGER
-
-See also [REDIM](REDIM), [ERASE](ERASE), [LBOUND](LBOUND),
-[UBOUND](UBOUND), [TYPE](TYPE), [data types](data types)
+    grid(8, 8) = 5
+    PRINT grid(8, 8), total  ' 5  0

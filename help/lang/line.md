@@ -5,8 +5,13 @@ Syntax
     LINE [[STEP](x1, y1)]-[STEP](x2, y2) [, [color] [, [B | BF]
          [, style]]]
 
-(To read text, see [LINE INPUT](INPUT).)
+Draws a line or a box in a graphics SCREEN mode. To read text, see
+[LINE INPUT](INPUT).
 
+See also [PSET](PSET), [CIRCLE](CIRCLE), [VIEW](VIEW), [WINDOW](WINDOW),
+[SCREEN modes](SCREEN modes)
+
+## Details
 Draws a line from (x1, y1) to (x2, y2) in a graphics SCREEN mode; in
 text mode it is an Illegal function call.
 
@@ -26,6 +31,3 @@ point of the next STEP.
     LINE (10, 10)-(200, 100), 14
     LINE (50, 50)-(150, 90), 9, B, &HF0F0
     LINE -STEP(40, 0), 12
-
-See also [PSET](PSET), [CIRCLE](CIRCLE), [VIEW](VIEW), [WINDOW](WINDOW),
-[SCREEN modes](SCREEN modes)

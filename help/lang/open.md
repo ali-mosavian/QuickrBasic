@@ -6,6 +6,10 @@ Syntax
 
 Prepares a file or device for I/O under file number n (1 to 255).
 
+See also [CLOSE](CLOSE), [INPUT #](INPUT #), [PRINT #](PRINT #),
+[GET](GET), [PUT](PUT), [files](files)
+
+## Details
   mode      INPUT    read a sequential file; it must exist
             OUTPUT   write a sequential file; replaces the old one
             APPEND   write at the end of a sequential file
@@ -30,6 +34,7 @@ or number", "Permission denied" (locked or read-only).
     OPEN "NAMES.TXT" FOR OUTPUT AS #1
     PRINT #1, "Ada"
     CLOSE #1
-
-See also [CLOSE](CLOSE), [INPUT #](INPUT #), [PRINT #](PRINT #),
-[GET](GET), [PUT](PUT), [files](files)
+    OPEN "NAMES.TXT" FOR INPUT AS #1
+    LINE INPUT #1, n$
+    PRINT n$                ' Ada
+    CLOSE #1

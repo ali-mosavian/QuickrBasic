@@ -8,6 +8,13 @@ Stops the current program and runs the program in file$, which
 replaces it. Variables named in COMMON, in the same order and types
 in both programs, keep their values; everything else starts empty.
 
+See also [COMMON](COMMON), [RUN](RUN), [CLEAR](CLEAR)
+
+## Details
+Stops the current program and runs the program in file$, which
+replaces it. Variables named in COMMON, in the same order and types
+in both programs, keep their values; everything else starts empty.
+
 A file that cannot be found gives File not found.
 
 ## Example
@@ -18,5 +25,3 @@ A file that cannot be found gives File not found.
     ' NEXT.BAS
     COMMON total
     PRINT total          ' 42
-
-See also [COMMON](COMMON), [RUN](RUN), [CLEAR](CLEAR)

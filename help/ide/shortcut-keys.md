@@ -1,6 +1,11 @@
 # Shortcut Keys
 keys: shortcut keys, function keys, F-keys, hotkeys
 
+The function and control keys and what they do.
+
+See also [editing keys](editing keys), [survival](survival).
+
+## Details
     F1            help          Shift+F1   Using Help
     F2            SUBs list     Shift+F2, Ctrl+F2  next, prior view
     F3, Ctrl+L    repeat find
@@ -14,4 +19,7 @@ keys: shortcut keys, function keys, F-keys, hotkeys
     Alt+Plus/Minus  grow, shrink window
     Shift+Del, Ctrl+Ins, Shift+Ins, Del   cut, copy, paste, clear
 
-See also [editing keys](editing keys), [survival](survival).
+## Example
+    Shift+F5       start the program
+    F9             set a breakpoint on a line
+    F8             step; F5 continues

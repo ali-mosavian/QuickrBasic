@@ -17,9 +17,14 @@ REQUIRED = {
 }
 
 
+PARTS = "\n\n## Details\nMore.\n\n## Example\n    PRINT 1\n"
+
+
 def build(files: dict[str, str]) -> tuple[bytes, dict[str, int]]:
     with tempfile.TemporaryDirectory() as tmp:
         for name, text in {**REQUIRED, **files}.items():
+            if name.endswith(".md") and Path(name).stem not in mkhelp.PLAIN and "## Details" not in text:
+                text = text.rstrip("\n") + PARTS  # a topic needs its Details and Example
             (Path(tmp) / name).write_text(text, encoding="utf-8")
         return mkhelp.build(Path(tmp))
 
@@ -33,6 +38,10 @@ def refused(files: dict[str, str], why: str) -> str | None:
 
 
 CASES = [
+    ("a topic with no Example showed a dead end under QuickSCREEN",
+     {"a.md": "# A\n\n.\n\n## Details\nd\n"}, "no '## Example'"),
+    ("a topic with no Details showed a dead end under QuickSCREEN",
+     {"a.md": "# A\n\n.\n\n## Example\n    x\n\n## Details\n\n"}, "no '## Details'"),
     ("a link to no key was a link to nothing: F1 on it beeped",
      {"a.md": "# A\n\nSee [B](nowhere).\n"}, "unknown key"),
     ("two topics with one key: the second was unreachable",

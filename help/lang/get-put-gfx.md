@@ -5,6 +5,13 @@ Syntax
     GET [STEP](x1, y1)-[STEP](x2, y2), array
     PUT [STEP](x, y), array[, action]
 
+GET copies a screen rectangle into a numeric array; PUT draws it
+back with its top-left corner at (x,y).
+
+See also [GET and PUT (files)](GET), [SCREEN modes](SCREEN modes),
+[LINE](LINE), [PAINT](PAINT)
+
+## Details
 GET copies the rectangle with corners (x1,y1) and (x2,y2) from the
 screen into a numeric array. PUT draws it back with its top-left
 corner at (x,y). Coordinates follow the current WINDOW or VIEW. A
@@ -29,7 +36,4 @@ format, so it cannot be used in another mode.
     CIRCLE (10, 10), 8, 4
     DIM ball(100) AS INTEGER
     GET (0, 0)-(20, 20), ball
-    PUT (150, 90), ball, PSET
-
-See also [GET and PUT (files)](GET), [SCREEN modes](SCREEN modes),
-[LINE](LINE), [PAINT](PAINT)
+    PUT (150, 90), ball, PSET     ' a copy of the circle at (150,90)

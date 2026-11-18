@@ -1,8 +1,14 @@
 # Debug Pane
 keys: debug pane, watches, watch, Locals, Call stack, Add Watch Dialog
 
-When the program stops (a breakpoint, a step, Ctrl+F7) a pane opens
-at the right with three windows.
+When the program stops, a pane opens at the right with Watch, Locals
+and Call stack windows.
+
+See also [Debug Menu](Debug Menu),
+[Toggle Breakpoint Command](Toggle Breakpoint Command).
+
+## Details
+It opens when the program stops (a breakpoint, a step, Ctrl+F7).
 
     Watch       expressions you chose, reevaluated at every stop
     Locals      the variables of the selected frame, parameters first
@@ -26,4 +32,9 @@ and the watches follow it.
 Resting the mouse on a variable in the program shows its value.
 Drag the pane's left border to change its width.
 
-See also [Debug Menu](Debug Menu), [Toggle Breakpoint Command](Toggle Breakpoint Command).
+## Example
+    F9             breakpoint on a line inside a loop
+    Shift+F5       run: the pane opens
+    F6             focus the pane; Tab to Watch
+    Ins            type  total * 2  and Enter: a watch is added
+    F5             continue: the watch shows its new value

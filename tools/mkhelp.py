@@ -46,6 +46,8 @@ class Topic:
     lines: list[tuple[str, str]] = field(default_factory=list)  # (kind, text): "text" "head" "code"
     built: list[bytes] = field(default_factory=list)  # lines made as bytes (the Index's)
     raw: bytes = b""
+    part: str = ""  # "": a whole topic; "Details" or "Example": a part of `main`
+    ids: dict[str, int] = field(default_factory=dict)  # QuickSCREEN, Details, Example: topic ids
 
 
 def norm(key: str) -> str:
@@ -106,30 +108,72 @@ def parse(path: Path, rel: str) -> Topic:
     return t
 
 
+PARTS = ("Details", "Example")
+PLAIN = {"contents", "using-help", "survival"}  # the topics with no Details and Example
+
+
+def split_parts(t: Topic) -> list[Topic]:
+    """A topic's `## Details` and `## Example` sections as topics of their own, the rest QuickSCREEN."""
+    quick: list[tuple[str, str]] = []
+    got: dict[str, list[tuple[str, str]]] = {}
+    cur = quick
+    for kind, text in t.lines:
+        if kind == "head" and text in PARTS:
+            if text in got:
+                raise HelpError(f"{t.path}: two '## {text}' sections")
+            cur = got.setdefault(text, [])
+        else:
+            cur.append((kind, text))
+    if Path(t.path).stem in PLAIN:
+        if got:
+            raise HelpError(f"{t.path}: a plain topic has no Details or Example")
+        return []
+    for name in PARTS:
+        if not any(x[1].strip() for x in got.get(name, [])):
+            raise HelpError(f"{t.path}: no '## {name}' section")
+    t.lines = quick
+    return [Topic(t.path, f"{t.title} {name}", lines=got[name], part=name) for name in PARTS]
+
+
 def link(topic: int, text: str) -> bytes:
     return b"\x01" + struct.pack("<H", topic) + text + b"\x02"
 
 
+def plain_len(row: bytes) -> int:
+    """A row's columns: its link markers take none."""
+    out, i = 0, 0
+    while i < len(row):
+        if row[i] == 1:
+            i += 3
+        elif row[i] == 2:
+            i += 1
+        else:
+            out += 1
+            i += 1
+    return out
+
+
 def render(t: Topic, keymap: dict[str, int], index_id: int, contents_id: int, errors: list[str]) -> None:
     out = [cp437(t.title, t.path)]
-    nav = b"".join(
-        [
-            link(contents_id, b"\x11Contents\x10"),
-            b" ",
-            link(index_id, b"\x11Index\x10"),
-            b" ",
-            link(BACK, b"\x11Back\x10"),
-        ]
-    )
+    nav = b""
+    if t.ids:  # QuickSCREEN, Details, Example, Contents, Index, spread over the row
+        cells = [(3, "QuickSCREEN", t.ids["QuickSCREEN"]), (18, "Details", t.ids["Details"]),
+                 (32, "Example", t.ids["Example"]), (46, "Contents", contents_id), (62, "Index", index_id)]
+    else:
+        cells = [(3, "Contents", contents_id), (28, "Index", index_id), (56, "Back", BACK)]
+    for col, name, tid in cells:
+        nav += b" " * (col - plain_len(nav)) + link(tid, b"\x11" + name.encode() + b"\x10")
     out.append(nav)
-    out.append(b"")
-    out += t.built
+    out.append(b" " + b"\xc4" * 78)  # the rule under it
     for kind, text in t.lines:
         where = f"{t.path}: {text[:30]!r}"
         if kind == "code":
-            body = cp437(text, where)
+            body = (b" " if text else b"") + cp437(text, where)
             width = len(body)
         else:
+            bullet = re.match(r"^(\s*)[-*] (.*)$", text)
+            if bullet:  # a list item: QBasic's small square
+                text = bullet.group(1) + "  \u25a0 " + bullet.group(2)
             body = b""
             width = 0
             pos = 0
@@ -148,11 +192,15 @@ def render(t: Topic, keymap: dict[str, int], index_id: int, contents_id: int, er
             tail = cp437(text[pos:], where)
             body += tail
             width += len(tail)
+            if body:
+                body = b" " + body  # QBasic's one-column margin
+                width += 1
             if kind == "head":
                 body = b"\x03" + body
         if width > WIDTH:
             errors.append(f"{t.path}: line of {width} columns: {text[:40]!r}")
         out.append(body)
+    out += t.built
     t.raw = b"\n".join(out)
     if len(t.raw) > RAW_MAX:
         errors.append(f"{t.path}: {len(t.raw)} bytes")
@@ -303,6 +351,19 @@ def make_dictionary(raws: list[bytes]) -> bytes:
 def build(src: Path) -> tuple[bytes, dict[str, int]]:
     topics, status = collect(src)
     errors: list[str] = []
+    parts: list[Topic] = []
+    for tid, t in enumerate(topics):
+        try:
+            made = split_parts(t)
+        except HelpError as e:
+            errors.append(str(e))
+            continue
+        if made:
+            t.ids = {"QuickSCREEN": tid}
+            for p in made:
+                p.ids = t.ids
+            parts += made
+
     keymap: dict[str, int] = {}
     shown: dict[str, tuple[str, int]] = {}
     for tid, t in enumerate(topics):
@@ -326,6 +387,9 @@ def build(src: Path) -> tuple[bytes, dict[str, int]]:
         ids[name] = keymap.get(key, NONE)
     entries = sorted(shown.items())
     topics.append(index_topic([(v[0], v[1]) for _, v in entries]))
+    for p in parts:  # after the Index: Ctrl+F1 reaches them too
+        p.ids["Details" if p.part == "Details" else "Example"] = len(topics)
+        topics.append(p)
     shown["INDEX"] = ("Index", index_id)
     keymap_all = dict(keymap)
     for tid, t in enumerate(topics):

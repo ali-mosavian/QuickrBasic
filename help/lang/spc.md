@@ -6,11 +6,17 @@ Syntax
     LPRINT SPC(n) ...
 
 Writes n blanks at the current position, inside PRINT or LPRINT.
+
+See also [TAB](TAB), [SPACE$](SPACE$), [PRINT](PRINT)
+
+## Details
+
+Writes n blanks at the current position, inside PRINT or LPRINT.
 Unlike TAB it counts from where the cursor is, not from the left
 edge. It is not an expression and cannot be assigned to a variable;
 use SPACE$ for that.
 
+SPC(0) prints nothing. SPC prints blanks; TAB moves to a column.
+
 ## Example
     PRINT "A"; SPC(3); "B"              ' A   B
-
-See also [TAB](TAB), [SPACE$](SPACE$), [PRINT](PRINT)

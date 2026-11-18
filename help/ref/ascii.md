@@ -5,7 +5,10 @@ Each character has a code from 0 to 255, given by [ASC](ASC) and
 turned into a character by [CHR$](CHR$). QuickrBasic uses the IBM PC
 character set (code page 437), as QBasic did.
 
-## 0 to 31: control codes
+See also [Scan codes](scan codes), [Color attributes](color attributes), [CHR$](CHR$)
+
+## Details
+0 to 31: control codes
 They have a name. [PRINT](PRINT)
 acts on 7, 8, 9, 10, 12 and 13 instead of drawing them.
 
@@ -23,7 +26,7 @@ acts on 7, 8, 9, 10, 12 and 13 instead of drawing them.
 13 returns the cursor to the line start. CHR$(0) before a code marks
 an extended key in [INKEY$](INKEY$); see [Scan codes](scan codes).
 
-## 32 to 127: text
+32 to 127: text
 ```
  32      44 ,    56 8    68 D    80 P    92 \   104 h   116 t
  33 !    45 -    57 9    69 E    81 Q    93 ]   105 i   117 u
@@ -40,7 +43,7 @@ an extended key in [INKEY$](INKEY$); see [Scan codes](scan codes).
 ```
 Code 32 is the space. Code 127 is DEL.
 
-## 128 to 255
+128 to 255
 Accents, box drawing, shading blocks and math signs. The row is the
 first hex digit of the code, the column the second: the character in
 row B, column 3 is code 179 (hex B3), a vertical line.
@@ -59,4 +62,6 @@ F_   ≡ ± ≥ ≤ ⌠ ⌡ ÷ ≈ ° ∙ · √ ⁿ ² ■
 Codes 176 to 178 are light, medium and dark shade; 219 is a full block;
 179 to 218 draw single and double lines.
 
-See also [Scan codes](scan codes), [Color attributes](color attributes), [CHR$](CHR$)
+## Example
+    PRINT ASC("A"), CHR$(65)      ' 65          A
+    PRINT CHR$(179); CHR$(219)    ' a vertical line and a full block

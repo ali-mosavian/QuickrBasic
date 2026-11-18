@@ -4,8 +4,14 @@ keys: INKEY$
 Syntax
     INKEY$
 
-Takes one key from the keyboard buffer and returns it, or returns ""
-at once when no key is waiting. It never waits and never echoes.
+Returns the next key from the keyboard buffer, or "" at once when no
+key is waiting.
+
+See also [INPUT$](INPUT$), [INPUT](INPUT), [scan codes](scan codes)
+
+## Details
+INKEY$ takes one key from the keyboard buffer. It never waits and
+never echoes. Poll it in a loop to wait for a key.
 
 An ordinary key gives a one-character string. An extended key (arrows,
 function keys, Home, ...) gives two characters: CHR$(0) followed by
@@ -20,5 +26,4 @@ the key's [scan code](scan codes).
     ELSE
         PRINT "key "; k$
     END IF
-
-See also [INPUT$](INPUT$), [INPUT](INPUT), [scan codes](scan codes)
+    ' pressing Up arrow prints: extended key, code 72

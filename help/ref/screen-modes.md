@@ -20,7 +20,11 @@ Mode  Kind      Pixels    Text    Colors             Palette
 ```
 Rows and columns of text are set with [WIDTH](WIDTH).
 
-## What changes between modes
+See also [SCREEN](SCREEN), [Color attributes](color attributes), [COLOR](COLOR),
+[PALETTE](PALETTE), [VIEW](VIEW), [Video pages](video pages)
+
+## Details
+What changes between modes
 - How many colors an attribute can name: see [Color attributes](color attributes).
 - Where the graphics cursor and [coordinates](WINDOW) are: (0,0) is
   the top left; the right and bottom edges are one less than the width
@@ -29,17 +33,19 @@ Rows and columns of text are set with [WIDTH](WIDTH).
 - Which statements apply: PSET, LINE, CIRCLE, PAINT, DRAW, GET and PUT
   need a graphics mode.
 
-## Choosing
+Choosing
 - Text programs: mode 0.
 - Games with many colors: 13 (320x200, 256 colors).
 - Plots and tools: 12 (640x480, 16 colors).
 - Old CGA programs: 1 or 2.
 
-## Example
+Example
 ```
 SCREEN 13
 CIRCLE (160, 100), 50, 40
 ```
 
-See also [SCREEN](SCREEN), [Color attributes](color attributes), [COLOR](COLOR),
-[PALETTE](PALETTE), [VIEW](VIEW), [Video pages](video pages)
+## Example
+    SCREEN 13
+    CIRCLE (160, 100), 50, 40
+    ' a circle in color 40 at the center of the 320x200 screen

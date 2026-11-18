@@ -3,6 +3,11 @@ keys: dialog boxes, dialog box, dialogs
 
 A dialog box asks for something before a command goes on.
 
+    Tab next control   Enter OK   Esc Cancel   Space tick a box
+
+See also [message boxes](message boxes).
+
+## Details
     Tab, Shift+Tab   next, previous control
     Alt+letter       the control with that letter lit
     Enter            the default button (OK)
@@ -19,7 +24,13 @@ Controls:
 
 The Help button shows the box's topic.
 
-See also [Open Dialog](Open Dialog), [Save As Dialog](Save As Dialog),
+The boxes: [Open Dialog](Open Dialog), [Save As Dialog](Save As Dialog),
 [Find Dialog](Find Dialog), [Change Dialog](Change Dialog),
-[SUBs Dialog](SUBs Dialog), [New SUB Dialog](New SUB Dialog),
-[message boxes](message boxes).
+[SUBs Dialog](SUBs Dialog), [New SUB Dialog](New SUB Dialog).
+
+## Example
+    Alt+S, F       open the Find box
+    type  PRINT    replaces the offered text
+    Tab            to Match Upper/Lowercase
+    Space          tick it
+    Enter          OK: find the match

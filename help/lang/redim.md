@@ -10,6 +10,15 @@ elements first, so they are lost and the new ones start at zero or
 "". An array becomes dynamic by being declared with variables as
 bounds, with DIM or REDIM, or in a $DYNAMIC part of the program.
 
+See also [DIM](DIM), [ERASE](ERASE), [LBOUND](LBOUND), [UBOUND](UBOUND)
+
+## Details
+
+Sets a dynamic array's size anew, at run time. It frees the old
+elements first, so they are lost and the new ones start at zero or
+"". An array becomes dynamic by being declared with variables as
+bounds, with DIM or REDIM, or in a $DYNAMIC part of the program.
+
 With PRESERVE the old values are kept. Only the last dimension may
 change then, and the number of dimensions stays.
 
@@ -26,5 +35,3 @@ QuickrBasic has no 64 KB limit; arrays grow until memory is out
     a(2) = 9
     REDIM PRESERVE a(10)
     PRINT a(2)                     ' 9
-
-See also [DIM](DIM), [ERASE](ERASE), [LBOUND](LBOUND), [UBOUND](UBOUND)

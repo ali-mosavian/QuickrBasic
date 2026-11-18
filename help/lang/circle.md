@@ -7,6 +7,12 @@ Syntax
 
 Draws a circle, ellipse or arc in a graphics screen mode.
 
+See also [LINE](LINE), [PAINT](PAINT), [DRAW](DRAW), [COLOR](COLOR),
+[VIEW](VIEW), [WINDOW](WINDOW), [SCREEN modes](SCREEN modes)
+
+## Details
+Draws a circle, ellipse or arc in a graphics screen mode.
+
     (x, y)   centre; with STEP, relative to the graphics cursor
     radius   in the current coordinate system (see WINDOW)
     color    attribute; default is the current foreground color
@@ -26,6 +32,3 @@ outside the screen or VIEW are clipped.
     CIRCLE (320, 240), 100, 14
     CIRCLE (320, 240), 100, 12, , , .4      ' flat ellipse
     CIRCLE (320, 240), 60, 10, -.5, -1.5    ' wedge
-
-See also [LINE](LINE), [PAINT](PAINT), [DRAW](DRAW), [COLOR](COLOR),
-[VIEW](VIEW), [WINDOW](WINDOW), [SCREEN modes](SCREEN modes)

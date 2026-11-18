@@ -43,7 +43,7 @@ static HView bv; /* the box's */
 static Widget box;
 static char title[80];
 
-enum { BOX_ROWS = 17, BOX_COLS = 72, KEY_MAX = 64 };
+enum { BOX_ROWS = 17, BOX_COLS = 78, KEY_MAX = 64 };
 
 /* ---- the file */
 
@@ -297,7 +297,7 @@ static bool view_key(HView *const v, const uint16_t rows, const uint16_t key, bo
 /* The mouse at text row r, column c of view v: a link clicked is followed; the bar's arrows scroll. */
 static bool view_mouse(HView *const v, const uint16_t rows, const uint8_t cols, const uint8_t r, const uint8_t c)
 {
-    if (c == cols - 1) {
+    if (v->doc.nlines > rows && c == cols - 1) {
         if (r == 0)
             scroll_to(v, (int32_t)v->top - 1, rows);
         else if (r == rows - 1)
@@ -309,9 +309,9 @@ static bool view_mouse(HView *const v, const uint16_t rows, const uint8_t cols, 
         return true;
     }
 
-    const uint16_t k = hdoc_at(&v->doc, (uint16_t)(v->top + r), (uint16_t)(c ? c - 1 : 0));
+    const uint16_t k = hdoc_at(&v->doc, (uint16_t)(v->top + r), c);
 
-    if (c && k != HDOC_NONE) {
+    if (k != HDOC_NONE) {
         v->sel = k;
         follow(v, rows, k);
     }
@@ -319,49 +319,59 @@ static bool view_mouse(HView *const v, const uint16_t rows, const uint8_t cols, 
     return true;
 }
 
-/* View v's text rows at row, cols wide (borders and bar included). */
+static uint8_t cell_slot(const uint8_t kind)
+{
+    return kind == HK_HEAD ? SL_HHEAD : kind == HK_LINK ? SL_HLINK : SL_HTXT;
+}
+
+/* View v's text line `line` at row y from column x0, width columns of it, in the help's colours;
+   the link chosen lit. */
+static void draw_line(const HView *const v, const uint8_t y, const uint8_t x0, const uint8_t width, const uint16_t line)
+{
+    uint8_t ch[PSCR_COLS], kind[PSCR_COLS];
+    const HelpDoc *const d = &v->doc;
+    const uint16_t n = hdoc_row(d, line, ch, kind, width);
+    uint8_t c = x0;
+
+    for (uint16_t i = 0; i < n;) {
+        uint16_t j = i;
+
+        while (j < n && kind[j] == kind[i])
+            j++;
+
+        c = scrn_strn(y, c, ch + i, (uint16_t)(j - i), cell_slot(kind[i]));
+        i = j;
+    }
+
+    scrn_fill(y, c, SL_HTXT, ' ', (uint16_t)(width - n));
+
+    if (v->sel >= 0 && d->link[v->sel].line == line)
+        scrn_attr(y, (uint8_t)(x0 + d->link[v->sel].col), (uint16_t)(d->link[v->sel].ecol - d->link[v->sel].col + 1), SL_HSEL);
+}
+
+/* View v's text rows at row, cols wide: no side borders, a scroll bar in the last column when the
+   topic is longer than the window. */
 static void view_draw(const HView *const v, const uint8_t row, const uint8_t cols, const uint16_t rows)
 {
     const HelpDoc *const d = &v->doc;
-    const uint8_t text = (uint8_t)(cols - 2);
+    const bool bar = d->nlines > rows && rows >= 3;
+    const uint8_t text = (uint8_t)(bar ? cols - 1 : cols);
 
-    for (uint16_t r = 0; r < rows; r++) {
-        uint8_t ch[PSCR_COLS], kind[PSCR_COLS];
-        const uint8_t y = (uint8_t)(row + r);
-        const uint16_t line = (uint16_t)(v->top + r);
-        const uint16_t n = hdoc_row(d, line, ch, kind, text);
-        uint8_t c = scrn_fill(y, 0, SL_ED, GLYPH_V, 1);
+    for (uint16_t r = 0; r < rows; r++)
+        draw_line(v, (uint8_t)(row + r), 0, text, (uint16_t)(v->top + r));
 
-        for (uint16_t i = 0; i < n;) {
-            uint16_t j = i;
-
-            while (j < n && kind[j] == kind[i])
-                j++;
-
-            const uint8_t slot = kind[i] == HK_HEAD ? SL_KW : kind[i] == HK_LINK ? SL_FNM : SL_ED;
-            c = scrn_strn(y, c, ch + i, (uint16_t)(j - i), slot);
-            i = j;
-        }
-
-        c = scrn_fill(y, c, SL_ED, ' ', (uint16_t)(text - n));
-        scrn_fill(y, c, SL_ED, GLYPH_V, 1);
-
-        if (v->sel >= 0 && d->link[v->sel].line == line)
-            scrn_attr(y, (uint8_t)(1 + d->link[v->sel].col), (uint16_t)(d->link[v->sel].ecol - d->link[v->sel].col + 1), SL_SEL);
-    }
-
-    if (d->nlines <= rows || rows < 3)
+    if (!bar)
         return;
 
-    const uint8_t bar = (uint8_t)(cols - 1);
-    scrn_fill(row, bar, SL_BAR, GLYPH_UP, 1);
+    const uint8_t x = (uint8_t)(cols - 1);
+    scrn_fill(row, x, SL_BAR, GLYPH_UP, 1);
 
     for (uint16_t i = 1; i + 1 < rows; i++)
-        scrn_fill((uint8_t)(row + i), bar, SL_BAR, GLYPH_SHADE, 1);
+        scrn_fill((uint8_t)(row + i), x, SL_BAR, GLYPH_SHADE, 1);
 
-    scrn_fill((uint8_t)(row + rows - 1), bar, SL_BAR, GLYPH_DOWN, 1);
+    scrn_fill((uint8_t)(row + rows - 1), x, SL_BAR, GLYPH_DOWN, 1);
     const uint32_t span = d->nlines - rows ? d->nlines - rows : 1;
-    scrn_fill((uint8_t)(row + 1 + v->top * (rows - 3) / span), bar, SL_THB, ' ', 1);
+    scrn_fill((uint8_t)(row + 1 + v->top * (rows - 3) / span), x, SL_THB, ' ', 1);
 }
 
 /* "HELP: " and the view's title, to title. */
@@ -386,9 +396,8 @@ static uint16_t hwin_rows(void) { return uimn.tree.help.rect.rows ? (uint16_t)(u
 /* The window sized to the topic: its lines and the title, half the windows' rows at most. */
 static void win_fit(void)
 {
-    const uint16_t most = (uint16_t)(win_rows() / 2 + 1);
     const uint16_t want = (uint16_t)(wv.doc.nlines + 1);
-    wind_help((uint8_t)(want < most ? want : most));
+    wind_help((uint8_t)(want < 250 ? want : 250)); /* as many rows as the topic has, ED1 keeping its least */
 }
 
 static void win_draw(Widget *const w, Session *const S)
@@ -398,9 +407,9 @@ static void win_draw(Widget *const w, Session *const S)
     if (!wv.shown || !r->rows)
         return;
 
-    draw_title(
-        r->row, 0, r->cols, r->row == 1 ? GLYPH_TOP_LEFT : GLYPH_V_RIGHT, r->row == 1 ? GLYPH_TOP_RIGHT : GLYPH_V_LEFT,
-        view_title(&wv), uimn.tree.workspace.focus == FOC_HELP, false
+    draw_title_in(
+        SL_HTXT, r->row, 0, r->cols, r->row == 1 ? GLYPH_TOP_LEFT : GLYPH_V_RIGHT,
+        r->row == 1 ? GLYPH_TOP_RIGHT : GLYPH_V_LEFT, view_title(&wv), uimn.tree.workspace.focus == FOC_HELP, true
     );
     view_draw(&wv, (uint8_t)(r->row + 1), r->cols, (uint16_t)(r->rows - 1));
 }
@@ -446,7 +455,7 @@ void help_close(void)
 }
 
 /* Topic id in the help window, which takes the focus; false: a beep. */
-static bool open_window(Session *const S, const uint16_t id)
+static bool open_window(Session *const S, const uint16_t id, const bool focus)
 {
     if (!hf.open || id == HLF_NONE) {
         pscr_beep();
@@ -473,7 +482,8 @@ static bool open_window(Session *const S, const uint16_t id)
 
     win_fit();
     reselect(&wv, hwin_rows());
-    uimn.tree.workspace.focus = FOC_HELP;
+    if (focus)
+        uimn.tree.workspace.focus = FOC_HELP;
     return true;
 }
 
@@ -491,32 +501,13 @@ static void box_draw(Widget *const w, Session *const S)
 {
     Rect r;
     box_rect(&r);
-    scrn_box(r.row, r.col, r.rows, r.cols, SL_ED, view_title(&bv));
+    scrn_box(r.row, r.col, r.rows, r.cols, SL_HTXT, view_title(&bv));
     scrn_shadow(r.row, r.col, r.rows, r.cols);
-    /* the view draws its own borders from column 0: it is moved by drawing to the box's rows */
-    for (uint16_t i = 0; i + 2 < r.rows; i++) {
-        uint8_t ch[PSCR_COLS], kind[PSCR_COLS];
-        const uint8_t y = (uint8_t)(r.row + 1 + i);
-        const uint16_t line = (uint16_t)(bv.top + i);
-        const uint16_t n = hdoc_row(&bv.doc, line, ch, kind, (uint16_t)(r.cols - 3));
-        uint8_t c = r.col + 1;
 
-        for (uint16_t a = 0; a < n;) {
-            uint16_t b = a;
+    for (uint16_t i = 0; i + 2 < r.rows; i++)
+        draw_line(&bv, (uint8_t)(r.row + 1 + i), (uint8_t)(r.col + 1), (uint8_t)(r.cols - 2), (uint16_t)(bv.top + i));
 
-            while (b < n && kind[b] == kind[a])
-                b++;
-
-            const uint8_t slot = kind[a] == HK_HEAD ? SL_KW : kind[a] == HK_LINK ? SL_FNM : SL_ED;
-            c = scrn_strn(y, c, ch + a, (uint16_t)(b - a), slot);
-            a = b;
-        }
-
-        if (bv.sel >= 0 && bv.doc.link[bv.sel].line == line)
-            scrn_attr(y, (uint8_t)(r.col + 1 + bv.doc.link[bv.sel].col), (uint16_t)(bv.doc.link[bv.sel].ecol - bv.doc.link[bv.sel].col + 1), SL_SEL);
-    }
-
-    scrn_str((uint8_t)(r.row + r.rows - 1), (uint8_t)(r.col + 2), " Esc=Close  Tab=Next link  Enter=Go  Alt+F1=Back ", SL_ED, SL_ED);
+    scrn_str((uint8_t)(r.row + r.rows - 1), (uint8_t)(r.col + 2), " Esc=Close  Tab=Next link  Enter=Go  Alt+F1=Back ", SL_HTXT, SL_HTXT);
 }
 
 static uint16_t box_text_rows(void) { return BOX_ROWS - 2; }
@@ -614,12 +605,12 @@ void help_f1(Session *const S)
         return;
     }
 
-    open_window(S, keyword_topic());
+    open_window(S, keyword_topic(), false);
 }
 
-void help_using(Session *const S) { open_window(S, hf.open ? hf.f.using_help : HLF_NONE); }
-void help_contents(Session *const S) { open_window(S, hf.open ? hf.f.contents : HLF_NONE); }
-void help_index(Session *const S) { open_window(S, hf.open ? hf.f.index : HLF_NONE); }
+void help_using(Session *const S) { open_window(S, hf.open ? hf.f.using_help : HLF_NONE, true); }
+void help_contents(Session *const S) { open_window(S, hf.open ? hf.f.contents : HLF_NONE, true); }
+void help_index(Session *const S) { open_window(S, hf.open ? hf.f.index : HLF_NONE, true); }
 
 void help_back(Session *const S)
 {
@@ -640,7 +631,7 @@ void help_next(Session *const S, const bool previous)
 }
 
 const StatusKeys help_keys = {
-    "<F1=Help> <F6=Window> <Esc=Close> <Ctrl+F1=Next> <Alt+F1=Back>",
+    "<Shift+F1=Help> <F6=Window> <Esc=Cancel> <Alt+F1=Back>",
     {{9, nullptr}},
 };
 

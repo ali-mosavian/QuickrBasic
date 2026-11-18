@@ -9,6 +9,15 @@ Assigns to each variable, in turn, the next value from the program's
 lines occur, anywhere in the program. A pointer remembers where the
 next READ continues; [RESTORE](RESTORE) moves it.
 
+See also [DATA](DATA), [RESTORE](RESTORE), [INPUT](INPUT)
+
+## Details
+
+Assigns to each variable, in turn, the next value from the program's
+[DATA](DATA) statements. The values are taken in the order the DATA
+lines occur, anywhere in the program. A pointer remembers where the
+next READ continues; [RESTORE](RESTORE) moves it.
+
 Types must agree: a numeric variable reading "abc" is "Syntax error"
 on the DATA line. A string variable accepts any item, a number
 included. Reading past the last item is "Out of DATA".
@@ -17,7 +26,5 @@ included. Reading past the last item is "Out of DATA".
     DATA Ada, 36, Bob, 41
     FOR i = 1 TO 2
         READ n$, age
-        PRINT n$; " is"; age
+        PRINT n$; " is"; age        ' Ada is 36, then Bob is 41
     NEXT
-
-See also [DATA](DATA), [RESTORE](RESTORE), [INPUT](INPUT)

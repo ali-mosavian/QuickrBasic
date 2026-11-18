@@ -6,6 +6,12 @@ Syntax
     PUT [#]filenumber[, [position][, variable]]
 
 GET reads, and PUT writes, one record of a RANDOM file or a run of
+bytes of a BINARY file.
+
+See also [OPEN](OPEN), [FIELD](FIELD), [SEEK](SEEK), [LOF](LOF)
+
+## Details
+GET reads, and PUT writes, one record of a RANDOM file or a run of
 bytes of a BINARY file. Position is the record number (from 1) for
 RANDOM, or the byte (from 1) for BINARY; leave it out to continue
 after the last access.
@@ -28,6 +34,4 @@ For the graphics versions, see [GET and PUT (graphics)](GET graphics).
     DIM r AS Rec
     OPEN "r.dat" FOR RANDOM AS #1 LEN = LEN(r)
     r.id = 7: r.nm = "Ann": PUT #1, 3, r
-    GET #1, 3, r: PRINT r.nm
-
-See also [OPEN](OPEN), [FIELD](FIELD), [SEEK](SEEK), [LOF](LOF)
+    GET #1, 3, r: PRINT r.nm      ' Ann

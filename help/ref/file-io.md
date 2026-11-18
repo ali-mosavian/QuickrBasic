@@ -11,7 +11,11 @@ OPEN filespec [FOR mode] [ACCESS access] [lock] AS [#]filenum [LEN = n]
 The file number is 1 to 255; [FREEFILE](FREEFILE) returns an unused one.
 Files must be closed with [CLOSE](CLOSE) to be sure the data is on disk.
 
-## Sequential files
+See also [OPEN](OPEN), [CLOSE](CLOSE), [GET and PUT](GET), [FILES](FILES),
+[KILL](KILL), [NAME](NAME)
+
+## Details
+Sequential files
 Text read and written in order from the start.
 ```
 OPEN "LOG.TXT" FOR OUTPUT AS #1       ' creates or empties
@@ -24,7 +28,7 @@ OPEN "LOG.TXT" FOR INPUT AS #1        ' reads from the start
   [INPUT$](INPUT$) for a number of characters.
 - [EOF](EOF) tells when nothing is left to read.
 
-## Random-access files
+Random-access files
 A file of equal-sized records, each reached by number.
 ```
 OPEN "DATA.DAT" FOR RANDOM AS #1 LEN = LEN(rec)
@@ -36,7 +40,7 @@ PUT #1, 5, rec      ' write record 5
 - [LOF](LOF), [LOC](LOC) and [SEEK](SEEK) give the size and position.
 - A record number out of range is a [Bad record number](Bad record number).
 
-## Binary files
+Binary files
 Any byte can be read or written, at any position.
 ```
 OPEN "IMAGE.BIN" FOR BINARY AS #1
@@ -50,15 +54,22 @@ variable moves its length in bytes.
 INTEGER is 4 bytes in a file as in memory. To exchange files with
 QBasic use [SHORT](SHORT) for QBasic's 16-bit integers.
 
-## Devices
+Devices
 SCRN:, KYBD:, LPT1: and CONS: are opened like files.
 
-## Errors
+Errors
 [File not found](File not found), [Bad file name](Bad file name),
 [Bad file name or number](Bad file name or number),
 [File already open](File already open), [Too many files](Too many files),
 [Input past end of file](Input past end of file),
 [Permission denied](Permission denied), [Disk full](Disk full).
 
-See also [OPEN](OPEN), [CLOSE](CLOSE), [GET and PUT](GET), [FILES](FILES),
-[KILL](KILL), [NAME](NAME)
+## Example
+    OPEN "LOG.TXT" FOR OUTPUT AS #1
+    WRITE #1, "Ada", 36
+    CLOSE #1
+    OPEN "LOG.TXT" FOR INPUT AS #1
+    INPUT #1, n$, age%
+    CLOSE #1
+    PRINT n$; age%
+    ' Ada 36

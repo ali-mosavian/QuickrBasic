@@ -7,6 +7,9 @@ Syntax
 
 Changes which on-screen color an attribute number shows.
 
+See also [COLOR](COLOR), [SCREEN modes](SCREEN modes), [OUT](OUT)
+
+## Details
   attribute   the attribute to change (0 up to the mode's maximum)
   color       what to show: with a 16-color palette, 0 to 15; with 256
               colors, a number built as 65536*blue + 256*green + red,
@@ -26,5 +29,3 @@ is "Illegal function call".
     PALETTE 1, 63                 ' attribute 1: bright red (red=63)
     PALETTE 2, 63 * 256           ' attribute 2: bright green
     PALETTE                       ' back to default
-
-See also [COLOR](COLOR), [SCREEN modes](SCREEN modes), [OUT](OUT)

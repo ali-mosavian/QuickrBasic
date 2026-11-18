@@ -4,8 +4,14 @@ keys: IMP
 Syntax
     expression1 IMP expression2
 
-Logical implication, bit by bit. A result bit is 0 only where
-expression1 has a 1 and expression2 has a 0.
+Logical implication, bit by bit: false only where expression1 has a 1
+and expression2 a 0.
+
+See also [NOT](NOT), [operators](operators)
+
+## Details
+A result bit is 0 only where expression1 has a 1 and expression2 has
+a 0.
 
     1st  2nd  result
      1    1     1
@@ -20,5 +26,3 @@ IMP has the lowest precedence of the logical operators.
 ## Example
     PRINT (3 > 2) IMP (1 > 2)     ' 0: true implies false
     PRINT (3 < 2) IMP (1 > 2)     ' -1: false implies anything
-
-See also [NOT](NOT), [operators](operators)

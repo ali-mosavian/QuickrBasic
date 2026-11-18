@@ -8,6 +8,9 @@ Syntax
 
 Switches trapping of key n, set up with [ON KEY](ON KEY).
 
+See also [KEY](KEY), [ON KEY](ON KEY), [INKEY$](INKEY$)
+
+## Details
     n         key
     1 to 10   F1 to F10
     11 to 14  Up, Left, Right, Down arrows
@@ -25,5 +28,4 @@ is an ordinary key again.
     DO: LOOP UNTIL INKEY$ = "q"
     END
     Help: PRINT "F1 pressed": RETURN
-
-See also [KEY](KEY), [ON KEY](ON KEY), [INKEY$](INKEY$)
+    ' pressing F1 prints: F1 pressed

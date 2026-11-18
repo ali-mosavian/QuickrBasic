@@ -7,6 +7,12 @@ Syntax
 Combines two numbers bit by bit. A result bit is 1 only where both
 bits are 1. Both operands are rounded to integers first.
 
+See also [operators](operators), [NOT](NOT), [OR](OR), [XOR](XOR)
+
+## Details
+Combines two numbers bit by bit. A result bit is 1 only where both
+bits are 1. Both operands are rounded to integers first.
+
 In a condition a true comparison is -1 (all bits set) and a false
 one is 0, so AND also joins conditions:
 
@@ -21,4 +27,7 @@ AND is also the usual way to test or clear bits:
 
     0 AND 0 = 0    0 AND 1 = 0    1 AND 0 = 0    1 AND 1 = 1
 
-See also [operators](operators), [NOT](NOT), [OR](OR), [XOR](XOR)
+## Example
+    x = 7
+    IF x > 0 AND x < 10 THEN PRINT "one digit"    ' one digit
+    PRINT 12 AND 10                              ' 8

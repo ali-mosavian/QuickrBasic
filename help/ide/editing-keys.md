@@ -1,6 +1,14 @@
 # Editing Keys
 keys: editing keys, cursor keys, WordStar keys, keyboard
 
+Keys that move the cursor and change text.
+
+    Arrows move   Home, End line ends   Ctrl+Y delete line   Tab complete
+
+See also [selecting text](selecting text), [completion](completion),
+[syntax checking](syntax checking).
+
+## Details
     Arrows            move one character or line
     Home, End         start, end of the line
     Ctrl+Left, Right  one word back, forward
@@ -26,5 +34,7 @@ WordStar keys work as well:
 Leaving a line commits it: keywords are capitalised, trailing
 spaces dropped and, if checking is on, the syntax checked.
 
-See also [selecting text](selecting text), [completion](completion),
-[syntax checking](syntax checking).
+## Example
+    Type:   print "hi"   then press Down
+    The line becomes  PRINT "hi"
+    Ctrl+Y         delete the line

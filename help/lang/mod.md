@@ -4,9 +4,13 @@ keys: MOD
 Syntax
     dividend MOD divisor
 
-Returns the remainder of the whole-number division. Both operands are
-rounded to whole numbers first. The result has the sign of the
-dividend. A divisor of 0 is a Division by zero error.
+Returns the remainder of the whole-number division.
+
+See also [operators](operators), [INT](INT)
+
+## Details
+Both operands are rounded to whole numbers first. The result has the
+sign of the dividend. A divisor of 0 is a Division by zero error.
 
 MOD ranks with integer division (\), below * and /.
 
@@ -14,5 +18,3 @@ MOD ranks with integer division (\), below * and /.
     PRINT 17 MOD 5          ' 2
     PRINT -17 MOD 5         ' -2
     IF n MOD 2 = 0 THEN PRINT "even"
-
-See also [operators](operators), [INT](INT)

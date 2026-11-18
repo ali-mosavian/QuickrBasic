@@ -4,7 +4,10 @@ keys: expressions, expression, precedence, order of operations, operator precede
 An expression is a value or a combination of values, variables,
 function calls and [operators](operators).
 
-## Order of evaluation
+See also [Operators](operators), [Data types](data types)
+
+## Details
+Order of evaluation
 Higher rows are done first. Operators on one row go left to right.
 
 ```
@@ -27,20 +30,22 @@ Parentheses override the order: `2 + 3 * 4` is 14, `(2 + 3) * 4` is
 20. Negation binds tighter than `*` but looser than `^`:
 `-2 ^ 2` is -4.
 
-## Mixed types
+Mixed types
 When a number of one type meets another, both become the wider type:
 INTEGER with SINGLE gives SINGLE, anything with DOUBLE gives DOUBLE.
 `/` and `^` always give a floating-point result. A number and a
 string cannot be mixed: [Type mismatch](Type mismatch).
 
-## Numeric and string
+Numeric and string
 A numeric expression gives a number, a string expression a string. A
 relational expression compares two of the same kind and gives -1 or 0.
 
-## Example
-```
-IF x > 0 AND x < 10 OR flag THEN PRINT "in range"
-```
-means `((x > 0) AND (x < 10)) OR flag`.
+The line IF x > 0 AND x < 10 OR flag means
+((x > 0) AND (x < 10)) OR flag.
 
-See also [Operators](operators), [Data types](data types)
+## Example
+    x = 5: flag = 0
+    IF x > 0 AND x < 10 OR flag THEN PRINT "in range"
+    PRINT 2 + 3 * 4, (2 + 3) * 4, -2 ^ 2
+    ' in range
+    '  14            20           -4

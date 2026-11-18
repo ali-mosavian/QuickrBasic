@@ -93,6 +93,39 @@ void draw_imm_cursor(Widget *const w)
 /* The edit window drawn has the focus. */
 static bool has_focus(void) { return uimn.tree.workspace.focus == FOC_EDIT && !inactive; }
 
+void draw_title_in(
+    const uint8_t base,
+    const uint8_t row,
+    const uint8_t col,
+    const uint8_t width,
+    const uint8_t left,
+    const uint8_t right,
+    const char *const title,
+    const bool lit,
+    const bool arrow
+)
+{
+    uint8_t c = scrn_fill(row, col, base, left, 1);
+    c = scrn_fill(row, c, base, GLYPH_H, (uint16_t)(width - 2));
+    c = scrn_fill(row, c, base, right, 1);
+
+    if (arrow) {
+        c -= 5;
+        c = scrn_fill(row, c, base, GLYPH_V_LEFT, 1);
+        c = scrn_fill(row, c, SL_TTL, GLYPH_UP, 1);
+        scrn_fill(row, c, base, GLYPH_V_RIGHT, 1);
+    }
+
+    const uint8_t slot = lit ? SL_TTL : base; /* at 1 + (the width - its length - 5) / 2 */
+    const uint16_t len = scrn_slen(title), room = width > 7 ? width - 7 : 0;
+    const uint16_t n = len < room ? len : room; /* a longer one cut, clear of the arrow */
+    c = (uint8_t)((width - 5 - n) >> 1) + 1 + col;
+    c = scrn_fill(row, c, slot, ' ', 1);
+    c = n == len ? scrn_str(row, c, title, slot, slot)
+                 : scrn_strn(row, c, (const uint8_t *)title, n, slot);
+    scrn_fill(row, c, slot, ' ', 1);
+}
+
 void draw_title(
     const uint8_t row,
     const uint8_t col,
@@ -104,25 +137,7 @@ void draw_title(
     const bool arrow
 )
 {
-    uint8_t c = scrn_fill(row, col, SL_ED, left, 1);
-    c = scrn_fill(row, c, SL_ED, GLYPH_H, (uint16_t)(width - 2));
-    c = scrn_fill(row, c, SL_ED, right, 1);
-
-    if (arrow) {
-        c -= 5;
-        c = scrn_fill(row, c, SL_ED, GLYPH_V_LEFT, 1);
-        c = scrn_fill(row, c, SL_TTL, GLYPH_UP, 1);
-        scrn_fill(row, c, SL_ED, GLYPH_V_RIGHT, 1);
-    }
-
-    const uint8_t slot = lit ? SL_TTL : SL_ED; /* at 1 + (the width - its length - 5) / 2 */
-    const uint16_t len = scrn_slen(title), room = width > 7 ? width - 7 : 0;
-    const uint16_t n = len < room ? len : room; /* a longer one cut, clear of the arrow */
-    c = (uint8_t)((width - 5 - n) >> 1) + 1 + col;
-    c = scrn_fill(row, c, slot, ' ', 1);
-    c = n == len ? scrn_str(row, c, title, slot, slot)
-                 : scrn_strn(row, c, (const uint8_t *)title, n, slot);
-    scrn_fill(row, c, slot, ' ', 1);
+    draw_title_in(SL_ED, row, col, width, left, right, title, lit, arrow);
 }
 
 /* The selection on screen row row, the edit window's line line, its text from column col. */

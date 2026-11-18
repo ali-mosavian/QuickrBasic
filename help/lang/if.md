@@ -12,16 +12,23 @@ Syntax
         statements]
     END IF
 
+Runs statements depending on a condition, on one line or as a block.
+
+See also [SELECT CASE](SELECT CASE), [operators](operators),
+[expressions](expressions)
+
+## Details
 condition is any numeric expression: zero is false, anything else is
 true. Comparisons give -1 (true) or 0 (false).
 
-The one-line form runs the statements after THEN, or those after
-ELSE, and ends at the end of the line. A line number or a label after
-THEN or ELSE means GOTO it.
+One-line form: runs the statements after THEN, or those after ELSE,
+and ends at the end of the line. A line number or a label after THEN
+or ELSE means GOTO it.
 
-The block form has THEN as the last thing on its line. The tests are
-made in order and the first true one runs its block; ELSE runs when
-none was true. After a block, execution goes on after END IF.
+Block form: THEN is the last thing on its line. The tests are made
+in order and the first true one runs its block; ELSE runs when none
+was true. After a block, execution goes on after END IF. Blocks may
+be nested, and each needs its own END IF.
 
 ## Example
     INPUT "Score"; s
@@ -32,6 +39,4 @@ none was true. After a block, execution goes on after END IF.
     ELSE
         PRINT "Retry"
     END IF
-
-See also [SELECT CASE](SELECT CASE), [operators](operators),
-[expressions](expressions)
+    IF s = 0 THEN PRINT "zero" ELSE PRINT "nonzero"

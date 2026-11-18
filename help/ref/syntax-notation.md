@@ -13,16 +13,20 @@ lowercase    a placeholder: replace it with your own value
 , ; ( ) = #  type these as written
 ```
 
+See also [Data types](data types), [Expressions](expressions),
+[Keyword lists](keyword lists)
+
+## Details
 A keyword may be typed in any case; the editor capitalizes it.
 
-## Example
+A syntax line
 ```
 LINE [[STEP](x1, y1)]-[STEP](x2, y2)[, [color][, [B|BF][, style]]]
 ```
 `LINE` and the `-` are required. Everything in brackets may be
 dropped, but each comma that separates two kept parts stays.
 
-## Placeholder names
+Placeholder names
 ```
 expression          any numeric or string expression
 numeric expression  a number
@@ -33,5 +37,7 @@ filenum             a file number, 1 to 255
 filespec            a string naming a file or device
 ```
 
-See also [Data types](data types), [Expressions](expressions),
-[Keyword lists](keyword lists)
+## Example
+    LINE (10, 10)-(100, 50), 12, BF
+    LINE -(200, 80)
+    ' a filled box, then a line on from its last point

@@ -13,6 +13,14 @@ function whose name starts with a letter in the range and has no
 suffix and no AS clause. A range is a letter (A) or two joined by a
 hyphen (A-F); case does not matter.
 
+See also [data types](data types)
+
+## Details
+A DEF statement sets the default type of every variable, array and
+function whose name starts with a letter in the range and has no
+suffix and no AS clause. A range is a letter (A) or two joined by a
+hyphen (A-F); case does not matter.
+
     DEFINT   integer          DEFSNG   single
     DEFLNG   long             DEFDBL   double
     DEFSTR   string
@@ -29,5 +37,4 @@ BYTE and 16-bit [SHORT](SHORT) types.
     DEFINT I-N
     DEFSTR S
     i = 7: s = "seven"
-
-See also [data types](data types)
+    PRINT i; s               ' 7 seven

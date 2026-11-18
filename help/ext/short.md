@@ -6,10 +6,15 @@ Syntax
     ... AS SHORT           (TYPE fields, parameters, arrays)
 
 A SHORT is a 16-bit integer, -32768 to 32767: what INTEGER means in
-QBasic. In QuickrBasic INTEGER is 32-bit (and the same type as LONG),
-so SHORT exists for data laid out as QBasic laid it out.
+QBasic.
 
-## Rules
+See also [BYTE](BYTE), [data types](data types), [TYPE](TYPE)
+
+## Details
+In QuickrBasic INTEGER is 32-bit (and the same type as LONG), so SHORT
+exists for data laid out as QBasic laid it out.
+
+Rules
  - No type-suffix character: use AS SHORT, or [DEFSHORT](DEFSHORT).
  - A SHORT takes 2 bytes in a TYPE, a file and an array. A TYPE
    built from SHORTs matches a QBasic record byte for byte, so old
@@ -26,7 +31,5 @@ so SHORT exists for data laid out as QBasic laid it out.
     END TYPE
     DIM r AS Rec
     r.score = 32767
-    r.score = r.score + 1  ' Overflow
     PRINT LEN(r)           ' 4
-
-See also [BYTE](BYTE), [data types](data types), [TYPE](TYPE)
+    r.score = r.score + 1  ' Overflow

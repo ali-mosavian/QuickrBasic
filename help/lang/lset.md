@@ -4,9 +4,14 @@ keys: LSET
 Syntax
     LSET stringvariable = stringexpression
 
-Copies stringexpression into stringvariable, left-justified, without
-changing the variable's length. A longer value is cut at the right;
-a shorter one leaves the rest padded with spaces.
+Copies stringexpression into stringvariable, left-justified, keeping
+the variable's length.
+
+See also [RSET](RSET), [FIELD](FIELD), [MKI$](MKI$), [MID$](MID$)
+
+## Details
+A longer value is cut at the right; a shorter one leaves the rest
+padded with spaces.
 
 Used mostly with FIELD buffers and fixed-length strings of random
 files: a FIELD variable assigned with = stops being part of the
@@ -16,6 +21,5 @@ MKI$, MKL$, MKS$ or MKD$.
 ## Example
     DIM a AS STRING * 8
     LSET a = "ab"           ' "ab      "
+    PRINT "[" + a + "]"     ' [ab      ]
     LSET a = "abcdefghij"   ' "abcdefgh"
-
-See also [RSET](RSET), [FIELD](FIELD), [MKI$](MKI$), [MID$](MID$)

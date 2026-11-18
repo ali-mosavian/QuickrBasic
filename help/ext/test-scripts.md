@@ -1,9 +1,14 @@
 # Test Scripts: Keys, Mouse and Shots
 keys: test scripts, QB_KEYS, QB_MOUSE, QB_SHOT, scripted input
 
-In the windowed build (QuickrBasic.app) three environment variables
-drive the IDE without a person, to test programs and take pictures.
-A time T is a frame number (60 a second) or seconds: 1.5s.
+In the windowed build (QuickrBasic.app) the environment variables
+QB_KEYS, QB_MOUSE and QB_SHOT drive the IDE without a person.
+
+See also [PEN](PEN), [command line](command line)
+
+## Details
+They test programs and take pictures. A time T is a frame number (60 a
+second) or seconds: 1.5s.
 
     QB_KEYS    keys to type, separated by commas or spaces: HEXKEY
                typed after about a second, or T:HEXKEY at time T
@@ -20,6 +25,4 @@ STOP key (Ctrl+Break). The mouse is what PEN reads.
     QB_KEYS="1s:1E61,2s:FFFF"
     QB_SHOT="out.ppm@3s"
 
-Types "a" at 1 s, stops at 2 s, saves the screen at 3 s, exits.
-
-See also [PEN](PEN), [command line](command line)
+    ' types "a" at 1 s, stops at 2 s, saves the screen at 3 s, exits

@@ -4,7 +4,10 @@ keys: PLAY string, music macro language, macro language, music commands
 A string given to [PLAY](PLAY) is a list of commands. Spaces are
 ignored; case does not matter. n is a number.
 
-## Notes
+See also [PLAY](PLAY), [SOUND](SOUND), [Six voices](play voices)
+
+## Details
+Notes
 ```
 A-G        play that note in the current octave
 #  +       after a note: sharp
@@ -15,7 +18,7 @@ N n        play note number n, 0 to 84; 0 is a rest
 P n        pause for a length n, 1 to 64
 ```
 
-## Octave
+Octave
 ```
 O n        set the octave, 0 to 6 (default 4)
 >          up one octave
@@ -23,7 +26,7 @@ O n        set the octave, 0 to 6 (default 4)
 ```
 Octave 3 starts at middle C.
 
-## Length and speed
+Length and speed
 ```
 L n        default note length: 1 whole, 2 half, 4 quarter ... 64
 T n        tempo in quarter notes a minute, 32 to 255 (default 120)
@@ -32,14 +35,14 @@ ML         legato: a note sounds for all of it
 MS         staccato: a note sounds for 3/4 of it
 ```
 
-## Foreground and background
+Foreground and background
 ```
 MF         wait for the music to finish before the next statement
 MB         play in the background; the program continues
 ```
 In the background the notes queue; PLAY(0) counts the notes waiting.
 
-## Calling and variables
+Calling and variables
 ```
 X variable$   play the commands in a string variable
 =variable;    use a numeric variable's value for n
@@ -51,7 +54,7 @@ t% = 160: m$ = "C D E"
 PLAY "T=" + VARPTR$(t%) + "X" + VARPTR$(m$)
 ```
 
-## QuickrBasic voices
+QuickrBasic voices
 PLAY a$, b$, ... plays up to six voices at once, a string for each.
 Each voice has its own octave, length, tempo and sound. These commands
 choose the sound and switch the voice to the synthesizer:
@@ -65,9 +68,12 @@ Y m,f,r    filter: m 0 off, 1 low-pass, 2 band-pass, 3 high-pass
 ```
 See [Six voices](play voices).
 
-## Example
+Example
 ```
 PLAY "T140 O3 L8 C D E F G4 G4 A A A A G2"
 ```
 
-See also [PLAY](PLAY), [SOUND](SOUND), [Six voices](play voices)
+## Example
+    PLAY "T140 O3 L8 C D E F G4 G4 A A A A G2"
+    t% = 160: m$ = "C D E"
+    PLAY "T=" + VARPTR$(t%) + "X" + VARPTR$(m$)

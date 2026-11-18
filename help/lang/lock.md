@@ -5,9 +5,14 @@ Syntax
     LOCK [#]filenumber [, [record | start] [TO end]]
     UNLOCK [#]filenumber [, [record | start] [TO end]]
 
-Meant to keep other programs from reading or writing a file or part of
-it, a record in RANDOM mode or a byte range in BINARY mode, until
-UNLOCK.
+Meant to keep other programs out of a file or part of it. Here they
+only check that the file is open.
+
+See also [OPEN](OPEN), [files](files)
+
+## Details
+They lock a whole file, a record in RANDOM mode or a byte range in
+BINARY mode against other programs, until UNLOCK.
 
 QuickrBasic runs one program at a time. LOCK and UNLOCK check that the
 file is open (Bad file name or number if not) and then do nothing.
@@ -20,5 +25,3 @@ the same arguments before the file is closed.
     ' ... read and rewrite record 3 ...
     UNLOCK #1, 3
     CLOSE #1
-
-See also [OPEN](OPEN), [files](files)

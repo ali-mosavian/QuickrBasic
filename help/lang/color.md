@@ -10,6 +10,13 @@ Syntax
 Sets the colors PRINT and the drawing statements use afterwards.
 Leave a part out to keep it.
 
+See also [PALETTE](PALETTE), [CLS](CLS), [SCREEN modes](SCREEN modes),
+[SCREEN](SCREEN)
+
+## Details
+Sets the colors PRINT and the drawing statements use afterwards.
+Leave a part out to keep it.
+
 In SCREEN 0, foreground is 0 to 31 (16 to 31 blink), background 0
 to 7, border 0 to 15. In SCREEN 1, background is 0 to 15 and
 palette is 0 (green, red, brown) or 1 (cyan, magenta, white), which
@@ -25,6 +32,3 @@ attribute looks like.
     COLOR 14, 1        ' yellow on blue
     CLS
     PRINT "Hello"
-
-See also [PALETTE](PALETTE), [CLS](CLS), [SCREEN modes](SCREEN modes),
-[SCREEN](SCREEN)

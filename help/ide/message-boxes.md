@@ -3,6 +3,12 @@ keys: message boxes, message box, Message Dialog
 
 A short box with a message and buttons: OK, or Yes, No and Cancel.
 
+See also [Open Dialog](Open Dialog),
+[Set Next Statement Command](Set Next Statement Command).
+
+## Details
+Messages the editor shows:
+
     File not found
     Path/File access error
     Match not found
@@ -18,4 +24,7 @@ also be chosen by their lit letters.
 A syntax error found when you leave a line is shown the same way;
 see [syntax checking](syntax checking).
 
-See also [Open Dialog](Open Dialog), [Set Next Statement Command](Set Next Statement Command).
+## Example
+    Alt+F, O       open the Open box
+    type  nosuch   Enter: "File not found" appears
+    Enter          close the message

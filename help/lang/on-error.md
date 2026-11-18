@@ -6,6 +6,12 @@ Syntax
     ON ERROR GOTO 0
     ON ERROR RESUME NEXT
 
+Sends a run-time error to a handler in the program instead of
+stopping it.
+
+See also [RESUME](RESUME), [ERROR](ERROR), [error codes](error codes)
+
+## Details
 A run-time error normally stops the program. After ON ERROR GOTO the
 program jumps to line or label instead; that code is the error
 handler. Inside it, [ERR](ERR) holds the error number and [ERL](ERL)
@@ -27,7 +33,5 @@ An error inside the handler is not trapped.
     PRINT "opened"
     END
     Oops:
-    PRINT "Error"; ERR
+    PRINT "Error"; ERR      ' Error 53  (File not found)
     RESUME NEXT
-
-See also [RESUME](RESUME), [ERROR](ERROR), [error codes](error codes)

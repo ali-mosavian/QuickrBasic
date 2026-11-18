@@ -6,7 +6,11 @@ A run-time error stops the program with a message, unless
 below and [ERL](ERL) the line. [ERROR](ERROR) n raises an error by
 number. Follow a message's link for its cause and remedy.
 
-  1  [NEXT without FOR](NEXT without FOR)
+See also [Message boxes](message boxes), [ON ERROR](ON ERROR),
+[RESUME](RESUME), [Survival guide](survival)
+
+## Details
+1  [NEXT without FOR](NEXT without FOR)
   2  [Syntax error](Syntax error)
   3  [RETURN without GOSUB](RETURN without GOSUB)
   4  [Out of DATA](Out of DATA)
@@ -60,12 +64,20 @@ number. Follow a message's link for its cause and remedy.
  75  [Path/File access error](Path/File access error)
  76  [Path not found](Path not found)
 
-## Notes
+Notes
 - A number not in the list gives "Unprintable error".
 - Messages for mistakes in the program text, such as "Block IF
   without END IF", are found as the line is entered and show in a
   message box.
 - Error 51 means QuickrBasic itself failed; please report it.
 
-See also [Message boxes](message boxes), [ON ERROR](ON ERROR),
-[RESUME](RESUME), [Survival guide](survival)
+## Example
+    ON ERROR GOTO oops
+    PRINT 1 / 0
+    PRINT "after"
+    END
+    oops:
+    PRINT ERR              ' 11: Division by zero
+    RESUME NEXT
+    ' 11
+    ' after

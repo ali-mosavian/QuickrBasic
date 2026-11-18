@@ -4,7 +4,10 @@ keys: color attributes, colours, attributes, palettes, palette colors
 A color is named by an attribute number. What the number shows depends
 on the SCREEN mode and the palette.
 
-## The 16 standard colors
+See also [SCREEN modes](SCREEN modes), [PALETTE](PALETTE)
+
+## Details
+The 16 standard colors
 Attributes 0 to 15 in text mode and in the 16-color modes:
 
 ```
@@ -14,13 +17,13 @@ Attributes 0 to 15 in text mode and in the 16-color modes:
  3 Cyan          7 White         11 Light cyan     15 Bright white
 ```
 
-## Text mode (SCREEN 0)
+Text mode (SCREEN 0)
 COLOR foreground, background sets the colors of new text.
 - Foreground is 0 to 31: add 16 to a color to make it blink.
 - Background is 0 to 7.
 - The border is the third argument.
 
-## Graphics modes
+Graphics modes
 ```
 Mode  Attributes  Notes
 1     0-3         background 0-15 and one of two sets:
@@ -35,23 +38,23 @@ Mode  Attributes  Notes
 ```
 In mode 13 the first 16 attributes start as the standard colors.
 
-## Changing a palette
+Changing a palette
 [PALETTE](PALETTE) attribute, color redefines what an attribute shows.
 - In modes 9 and 10 the color is a number 0 to 63.
 - In modes 11, 12 and 13 it is 65536 * blue + 256 * green + red, each
   part 0 to 63.
 
-```
-SCREEN 12
-PALETTE 4, 65536 * 20 + 256 * 5 + 63
-LINE (0, 0)-(100, 100), 4
-```
 PALETTE with no arguments puts the default colors back.
 
-## Setting colors
+Setting colors
 - [COLOR](COLOR) sets the default foreground and background.
 - [PSET](PSET), [LINE](LINE), [CIRCLE](CIRCLE) and [PAINT](PAINT) take a
   color argument of their own.
 - [POINT](POINT) reads the attribute of one pixel.
 
-See also [SCREEN modes](SCREEN modes), [PALETTE](PALETTE)
+## Example
+    SCREEN 12
+    COLOR 14, 1               ' yellow text on blue
+    PRINT "Hello"
+    PALETTE 4, 65536 * 20 + 256 * 5 + 63
+    LINE (10, 40)-(100, 100), 4, BF   ' attribute 4, now redefined

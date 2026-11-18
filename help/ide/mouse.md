@@ -3,6 +3,9 @@ keys: mouse, mouse keys, clicking
 
 Only the left button is used.
 
+See also [survival](survival), [windows](windows).
+
+## Details
     Click a menu title, then an item    runs it
     Click in text                       moves the cursor
     Drag in text, or Shift+click        selects
@@ -15,4 +18,7 @@ Only the left button is used.
 
 A program can read the mouse itself with [PEN](PEN).
 
-See also [survival](survival), [windows](windows).
+## Example
+    Click File, then Open...         the Open box appears
+    Drag across a word               it is selected
+    Click F5 on the status bar       same as pressing F5

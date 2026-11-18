@@ -8,6 +8,12 @@ Syntax
       statements
       RETURN [label2]
 
+GOSUB jumps to a labelled subroutine in the same procedure; RETURN
+brings execution back to the statement after it.
+
+See also [GOTO](GOTO), [ON GOSUB](ON GOTO), [SUB](SUB)
+
+## Details
 GOSUB jumps to a labelled subroutine inside the same module or SUB
 and RETURN brings execution back to the statement after it. GOSUBs
 may nest as deep as memory allows. A RETURN without a GOSUB is an
@@ -20,10 +26,8 @@ subroutine where it will not run by accident, usually after END.
 
 ## Example
     GOSUB Hello
-    PRINT "back"
+    PRINT "back"            ' back
     END
     Hello:
-      PRINT "hi"
+      PRINT "hi"           ' hi
       RETURN
-
-See also [GOTO](GOTO), [ON GOSUB](ON GOTO), [SUB](SUB)

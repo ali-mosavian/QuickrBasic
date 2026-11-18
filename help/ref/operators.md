@@ -3,7 +3,10 @@ keys: operators, operator, arithmetic operators, relational operators, logical o
 
 Operators combine values in an [expression](expressions).
 
-## Arithmetic
+See also [Data types](data types), [Expressions](expressions)
+
+## Details
+Arithmetic
 ```
 ^         power
 -         negation (unary)
@@ -14,7 +17,7 @@ MOD       remainder after integer divide
 ```
 Division by zero is an error. `+` also joins strings.
 
-## Relational
+Relational
 ```
 =  <>  <  >  <=  >=
 ```
@@ -23,7 +26,7 @@ strings character by character by ASCII code; "a" is greater than
 "A", and a shorter string that matches the start of a longer one is
 smaller.
 
-## Logical
+Logical
 Logical operators work on the bits of integers, so with the -1 and 0
 of a comparison they act as true and false.
 ```
@@ -34,10 +37,13 @@ XOR   1 where the bits differ
 EQV   1 where the bits are equal
 IMP   0 only where the left is 1 and the right is 0
 ```
-Example: `PRINT 12 AND 10` prints 8; `PRINT NOT 0` prints -1.
-
-## String
+String
 `+` joins two strings. Strings can be compared but not subtracted.
 
 For the order operators are applied, see [Expressions](expressions).
-See also [Data types](data types), [Expressions](expressions)
+
+## Example
+    PRINT 12 AND 10, NOT 0, 7 \ 2, 7 MOD 2, 7 / 2
+    ' 8           -1            3             1             3.5
+    PRINT 3 < 4, "a" > "A"
+    ' -1           -1

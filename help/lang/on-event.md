@@ -8,8 +8,14 @@ Syntax
     ON PLAY(notes) GOSUB target
     ON PEN GOSUB target
 
-Names a subroutine to call when an event occurs, while the program
-runs on. Naming it does nothing yet: the event must be switched on
+Names a subroutine to call when an event occurs while the program
+runs on. The event must also be switched on with its own statement.
+
+See also [TIMER](TIMER event), [KEY](KEY), [PLAY](PLAY), [PEN](PEN),
+[RETURN](RETURN)
+
+## Details
+Naming the subroutine does nothing yet: the event must be switched on
 with its own statement.
 
   event        switch                        happens
@@ -32,7 +38,4 @@ to control this; see [ON and OFF](ON).
     TIMER ON
     DO: LOOP UNTIL INKEY$ <> ""
     END
-    Tick: PRINT TIME$: RETURN
-
-See also [TIMER](TIMER event), [KEY](KEY), [PLAY](PLAY), [PEN](PEN),
-[RETURN](RETURN)
+    Tick: PRINT TIME$: RETURN      ' prints the time every second

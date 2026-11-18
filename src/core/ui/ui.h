@@ -79,7 +79,12 @@ enum : uint8_t {
     SL_PAR,  /*   its parameters */
     SL_TYP,  /*   types */
     SL_OP,   /*   operators */
-    NSLOT,   /* the asm's NATTR */
+    NSLOT_TH, /* the slots a theme lists */
+    SL_HTXT = NSLOT_TH, /* the help window: text, drawn from the theme's others (them_set) */
+    SL_HHEAD,           /*   a heading */
+    SL_HLINK,           /*   a hot link */
+    SL_HSEL,            /*   the link chosen */
+    NSLOT,              /* the asm's NATTR, and these */
 };
 
 /* A key as uimn_getkey gives it: scan code << 8 | character; the character 0 for a key with

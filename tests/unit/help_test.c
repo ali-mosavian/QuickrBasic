@@ -46,7 +46,7 @@ TEST(help_long_topic_reads_back_whole_and_small)
     CHECK(d.title_len == 10 && !memcmp(d.text, "Long Topic", 10));
     uint8_t ch[80], kind[80];
     const uint16_t n = hdoc_row(&d, 2 + 399, ch, kind, 80); /* nav, blank, then the lines */
-    CHECK(n > 40 && !memcmp(ch, "Line 399: the quick", 19));
+    CHECK(n > 40 && !memcmp(ch, " Line 399: the quick", 20));
     CHECK(d.len > 20000);
     hdoc_free(&d);
     hlf_close(&f);
@@ -104,22 +104,24 @@ TEST(help_links_have_columns_and_row_cells_hide_the_marks)
     HelpDoc d;
     CHECK(hlf_open(&f, file));
     CHECK(load(&f, &d, "alpha"));
-    /* Contents, Index, Back, then Beta, Gamma, Alpha again, Zulu */
-    CHECK(d.nlinks == 7);
-    CHECK(d.link[0].line == 0 && d.link[0].col == 0 && d.link[0].ecol == 9);
-    CHECK(d.link[0].topic == f.contents && d.link[1].topic == f.index && d.link[2].topic == HDOC_BACK);
+    /* QuickSCREEN, Details, Example, Contents, Index, then Beta, Gamma, Alpha again, Zulu */
+    CHECK(d.nlinks == 9);
+    CHECK(d.link[0].line == 0 && d.link[0].col == 3 && d.link[0].ecol == 15); /* spread over the row */
+    CHECK(d.link[3].topic == f.contents && d.link[4].topic == f.index);
     uint8_t ch[80], kind[80];
     uint16_t n = hdoc_row(&d, 0, ch, kind, 80);
-    CHECK(n == 25 && !memcmp(ch, "\x11" "Contents\x10 \x11" "Index\x10", 18));
-    CHECK(kind[0] == HK_LINK && kind[9] == HK_LINK && kind[10] == HK_TEXT);
+    CHECK(n >= 69 && !memcmp(ch + 3, "\x11" "QuickSCREEN\x10", 13) && !memcmp(ch + 62, "\x11" "Index\x10", 7));
+    CHECK(kind[3] == HK_LINK && kind[15] == HK_LINK && kind[16] == HK_TEXT);
+    n = hdoc_row(&d, 1, ch, kind, 80); /* the rule under it */
+    CHECK(n == 79 && ch[0] == ' ' && ch[1] == 0xC4 && ch[78] == 0xC4);
     n = hdoc_row(&d, 5, ch, kind, 80); /* the line under the heading's */
     CHECK(n > 0);
     uint16_t head = 0;
     for (uint16_t i = 0; i < d.nlines; i++)
         if (hdoc_row(&d, i, ch, kind, 80) && kind[0] == HK_HEAD)
             head = i;
-    CHECK(head && hdoc_row(&d, head, ch, kind, 80) == 5 && !memcmp(ch, "Notes", 5)); /* its 0x03 is no column */
-    CHECK(hdoc_at(&d, 0, 5) == 0 && hdoc_at(&d, 0, 10) == HDOC_NONE && hdoc_at(&d, 0, 11) == 1);
+    CHECK(head && hdoc_row(&d, head, ch, kind, 80) == 6 && !memcmp(ch, " Notes", 6)); /* its 0x03 is no column */
+    CHECK(hdoc_at(&d, 0, 5) == 0 && hdoc_at(&d, 0, 16) == HDOC_NONE && hdoc_at(&d, 0, 63) == 4);
     hdoc_free(&d);
     hlf_close(&f);
 }
@@ -130,14 +132,14 @@ TEST(help_tab_wraps_and_a_letter_jumps)
     HelpDoc d;
     CHECK(hlf_open(&f, file));
     CHECK(load(&f, &d, "alpha"));
-    CHECK(hdoc_step(&d, -1, 1) == 0 && hdoc_step(&d, -1, -1) == 6); /* none: the first, the last */
-    CHECK(hdoc_step(&d, 6, 1) == 0 && hdoc_step(&d, 0, -1) == 6);
-    CHECK(hdoc_letter(&d, 0, 'Z', false) == 6);           /* Zulu */
-    CHECK(hdoc_letter(&d, 6, 'B', false) == 2);       /* wraps to Back */
-    CHECK(hdoc_letter(&d, 3, 'B', false) == 2);           /* from Beta, the next B is Back */
-    CHECK(hdoc_letter(&d, 6, 'A', true) == 5);            /* backwards: Alpha again */
-    CHECK(hdoc_letter(&d, 0, 'Q', false) == HDOC_NONE);
-    CHECK(hdoc_first(&d, 0, 5) == 0 && hdoc_first(&d, 7, 20) == 6 && hdoc_first(&d, 20, 5) == 0); /* in view, else the first */
+    CHECK(hdoc_step(&d, -1, 1) == 0 && hdoc_step(&d, -1, -1) == 8); /* none: the first, the last */
+    CHECK(hdoc_step(&d, 8, 1) == 0 && hdoc_step(&d, 0, -1) == 8);
+    CHECK(hdoc_letter(&d, 0, 'Z', false) == 8);           /* Zulu */
+    CHECK(hdoc_letter(&d, 8, 'B', false) == 5);       /* wraps to Beta */
+    CHECK(hdoc_letter(&d, 5, 'B', false) == 5);           /* from Beta, the only B is Beta */
+    CHECK(hdoc_letter(&d, 8, 'A', true) == 7);            /* backwards: Alpha again */
+    CHECK(hdoc_letter(&d, 0, 'X', false) == HDOC_NONE);
+    CHECK(hdoc_first(&d, 0, 5) == 0 && hdoc_first(&d, 7, 20) == 8 && hdoc_first(&d, 20, 5) == 0); /* in view, else the first */
     hdoc_free(&d);
     hlf_close(&f);
 }
@@ -179,4 +181,30 @@ TEST(help_word_under_the_cursor)
     CHECK(word_is("a   b", 1, "a")); /* a gap's first space is the word before's */
     CHECK(word_is("a   b", 2, nullptr)); /* inside a gap: none */
     CHECK(word_is("PRINT", 9, nullptr)); /* far past the end */
+}
+
+/* Every topic had no Details or Example: QuickSCREEN's nav now reaches both, and each leads back. */
+TEST(help_quickscreen_details_and_example_link_both_ways)
+{
+    HelpFile f;
+    HelpDoc d;
+    CHECK(hlf_open(&f, file));
+    CHECK(load(&f, &d, "alpha"));
+    const uint16_t quick = hlf_find(&f, "alpha", 5);
+    static const char *const want[] = {"Alpha Statement Details", "Alpha Statement Example"};
+
+    for (uint16_t k = 0; k < 2; k++) {
+        const uint16_t id = d.link[1 + k].topic;
+        uint32_t len;
+        const uint8_t *const text = hlf_read(&f, id, &len);
+        HelpDoc part;
+        CHECK(text && hdoc_load(&part, text, len));
+        CHECK(part.title_len == strlen(want[k]) && !memcmp(part.text, want[k], part.title_len));
+        CHECK(part.link[0].topic == quick && part.link[1 + (1 - k)].topic != id);
+        hdoc_free(&part);
+    }
+
+    CHECK(hlf_find(&f, "Alpha Statement Details", 23) == HLF_NONE); /* parts are not keywords */
+    hdoc_free(&d);
+    hlf_close(&f);
 }

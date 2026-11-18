@@ -1,6 +1,13 @@
 # Error Messages
 keys: error messages, errors
 
+Press F1 in an error box to reach its topic, or pick one in the
+Details.
+
+See also: [error codes](error codes), [survival](survival)
+
+## Details
+
 Press F1 in an error box to reach its topic. Pick a message:
 
   [NEXT without FOR / FOR without NEXT](NEXT without FOR)
@@ -74,4 +81,12 @@ Press F1 in an error box to reach its topic. Pick a message:
   [$Metacommand Error]($Metacommand Error)
   [QuickrBASIC extensions are not in this parser](QuickrBASIC extensions are not in this parser)
 
-See also: [error codes](error codes), [survival](survival)
+Run-time errors can be trapped with ON ERROR; ERR returns the number.
+
+## Example
+    ON ERROR GOTO h
+    OPEN "NOPE.TXT" FOR INPUT AS #1
+    END
+    h:
+    PRINT "error"; ERR   ' error 53
+    RESUME NEXT

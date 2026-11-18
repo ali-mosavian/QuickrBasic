@@ -7,6 +7,12 @@ Syntax
 
 Leaves an error handler and carries on with the program.
 
+See also [ON ERROR](ON ERROR), [ERR](ERR), [error codes](error codes)
+
+## Details
+
+Leaves an error handler and carries on with the program.
+
   RESUME         run the statement that caused the error again
                  (RESUME 0 is the same)
   RESUME NEXT    continue with the statement after it
@@ -25,5 +31,3 @@ Resuming without fixing the cause loops forever.
     Retry:
     PRINT "Insert a disk": SLEEP
     RESUME
-
-See also [ON ERROR](ON ERROR), [ERR](ERR), [error codes](error codes)

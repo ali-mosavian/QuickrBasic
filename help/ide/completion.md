@@ -1,6 +1,12 @@
 # Completion
 keys: completion, auto complete, autocomplete
 
+Tab completes the word at the cursor; a list offers only what is valid
+there.
+
+See also [editing keys](editing keys), [syntax checking](syntax checking).
+
+## Details
 QuickrBasic offers only what is valid at the cursor: after
 `x$ = l` the list holds string functions and variables, not
 statements.
@@ -18,4 +24,9 @@ its form on the status bar. The likeliest rest of the word is also
 shown dim after the cursor. A line number lists its line.
 With nothing to complete, Tab indents.
 
-See also [editing keys](editing keys), [syntax checking](syntax checking).
+## Example
+    Type:   x$ = le
+    The list shows LEFT$, LEN, ... valid here
+    Down    choose LEFT$
+    Tab     the line reads  x$ = LEFT$(  and the status bar shows
+            LEFT$(stringexpression$, n%)

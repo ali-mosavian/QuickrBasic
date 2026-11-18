@@ -9,9 +9,14 @@ Syntax
     MKSMBF$(single)    4 characters
     MKDMBF$(double)    8 characters
 
-Pack a number into the string of bytes it occupies in memory, so it
-can be put in a FIELD buffer or a string and later read back with
-CVI, CVL, CVS, CVD, CVSMBF and CVDMBF.
+Pack a number into the string of bytes it occupies in memory, to be
+read back with CVI, CVL, CVS, CVD, CVSMBF and CVDMBF.
+
+See also [CVI](CVI), [LSET](LSET), [FIELD](FIELD), [INTEGER](INTEGER)
+
+## Details
+The string can be put in a FIELD buffer or any string and later read
+back with the CV functions.
 
 MKSMBF$ and MKDMBF$ use the Microsoft Binary Format of old QuickBASIC
 files, MKS$ and MKD$ the IEEE format.
@@ -22,5 +27,3 @@ MKI$ writes 16 bits: with a 32-bit INTEGER, a value outside
 ## Example
     a$ = MKL$(100000)
     PRINT LEN(a$), CVL(a$)      ' 4  100000
-
-See also [CVI](CVI), [LSET](LSET), [FIELD](FIELD), [INTEGER](INTEGER)

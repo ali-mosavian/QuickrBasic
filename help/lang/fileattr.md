@@ -4,6 +4,11 @@ keys: FILEATTR
 Syntax
     FILEATTR(filenumber, attribute)
 
+FILEATTR returns the mode or the DOS handle of an open file.
+
+See also [OPEN](OPEN), [FREEFILE](FREEFILE)
+
+## Details
 FILEATTR returns facts about an open file. Attribute selects which:
 
     1   the mode it was opened in
@@ -17,5 +22,3 @@ number for the number, Illegal function call for the attribute).
     OPEN "t.txt" FOR OUTPUT AS #1
     PRINT FILEATTR(1, 1)      ' 2
     CLOSE #1
-
-See also [OPEN](OPEN), [FREEFILE](FREEFILE)

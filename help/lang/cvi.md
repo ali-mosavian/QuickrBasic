@@ -8,6 +8,13 @@ Syntax
 Turn a string of bytes into a number: the reverse of the MKI$ group,
 used to read values back from a random-access or binary file.
 
+See also [MKI$](MKI$), [MKS$](MKS$), [MKSMBF$](MKSMBF$),
+[FIELD](FIELD), [GET](GET)
+
+## Details
+Turn a string of bytes into a number: the reverse of the MKI$ group,
+used to read values back from a random-access or binary file.
+
     CVI, CVL   whole number, from 4 bytes
     CVS        SINGLE, from 4 bytes
     CVD        DOUBLE, from 8 bytes
@@ -23,6 +30,3 @@ The MBF forms read numbers saved by old BASIC programs.
 ## Example
     n$ = MKL$(123456)
     PRINT CVL(n$)       ' 123456
-
-See also [MKI$](MKI$), [MKS$](MKS$), [MKSMBF$](MKSMBF$),
-[FIELD](FIELD), [GET](GET)

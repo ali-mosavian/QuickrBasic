@@ -5,6 +5,12 @@ Options, Theme
 
 Chooses the editor's colours. The current one is bulleted.
 
+See also [Options Menu](Options Menu),
+[Display Size Command](Display Size Command).
+
+## Details
+There are nine schemes:
+
     QBasic Colors        the classic blue screen
     One Dark, One Light
     Ayu Mirage, Ayu Light
@@ -13,4 +19,7 @@ Chooses the editor's colours. The current one is bulleted.
 
 Menus, dialogs and the debug pane all follow the theme.
 
-See also [Options Menu](Options Menu), [Display Size Command](Display Size Command).
+## Example
+    Alt+O, T       open the Theme sub-menu
+    Down x2        move to One Dark
+    Enter          the whole screen changes colour

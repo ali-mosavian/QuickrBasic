@@ -1,8 +1,14 @@
 # IDE Additions
 keys: ide additions, IDE extras, Step Out
 
-What the editor does that QBasic's did not. Menu commands are in
-[menus](menus).
+What the editor does that QBasic's did not: highlighting, line
+checking, completion, a debug pane, nine themes, split windows.
+
+See also [QuickrBasic](QuickrBasic), [command line](command line),
+[test scripts](test scripts)
+
+## Details
+Menu commands are in [menus](menus).
 
  - Highlighting: keywords, numbers, strings, comments and names in
    their own colours ([Syntax Highlighting](syntax highlighting)).
@@ -18,8 +24,8 @@ What the editor does that QBasic's did not. Menu commands are in
    ([Step Out Command](Step Out Command)).
  - Breakpoints (F9) move with their line when lines are added above.
  - [Themes](themes): nine, in Options, Theme.
- - [Display size](display size): 25, 43 or 50 lines. The command-line switch
-   /H starts the editor with 50.
+ - [Display size](display size): 25, 43 or 50 lines. The command-line
+   switch /H starts the editor with 50.
  - View, Split divides the screen into two windows on the same
    program; Split Vertically places them side by side. A line between
    windows can be dragged with the mouse, and so can the line between
@@ -28,5 +34,11 @@ What the editor does that QBasic's did not. Menu commands are in
    files sorted, in three columns, and shows a long path shortened.
  - A program's graphics screen is kept while the editor is shown.
 
-See also [QuickrBasic](QuickrBasic), [command line](command line),
-[test scripts](test scripts)
+## Example
+Step out of a procedure:
+    Type a program with a SUB that calls PRINT, press F9 on a line
+    inside the SUB to set a breakpoint
+    Shift+F5        run: the program stops at the breakpoint
+    Shift+F8        Step Out: runs until the SUB returns, stops on
+                    the statement after the CALL
+    F8              Step: one statement more

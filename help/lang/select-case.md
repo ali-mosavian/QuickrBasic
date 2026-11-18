@@ -15,6 +15,14 @@ Runs the block of the first CASE whose list matches testexpr. If none
 matches, CASE ELSE runs, else nothing. Control then leaves the
 SELECT; it never falls into the next CASE.
 
+See also [CASE](CASE), [IF](IF), [ON GOTO](ON), [TO](TO)
+
+## Details
+
+Runs the block of the first CASE whose list matches testexpr. If none
+matches, CASE ELSE runs, else nothing. Control then leaves the
+SELECT; it never falls into the next CASE.
+
 testexpr is a number or a string. A list is one or more items,
 separated by commas:
 
@@ -25,16 +33,19 @@ separated by commas:
 All items must have testexpr's kind. Strings compare as in
 [expressions](expressions). testexpr is evaluated once.
 
+A string test is compared byte by byte, so "a" is greater than "B".
+Items may be mixed in one list: CASE 1, 5 TO 9, IS > 20. With CASE ELSE
+absent and no match, the SELECT does nothing.
+
 ## Example
+    n% = 7
     SELECT CASE n%
     CASE 1, 3, 5
         PRINT "small odd"
     CASE 6 TO 10
-        PRINT "medium"
+        PRINT "medium"              ' this one
     CASE IS < 0
         PRINT "negative"
     CASE ELSE
         PRINT "other"
     END SELECT
-
-See also [CASE](CASE), [IF](IF), [ON GOTO](ON), [TO](TO)

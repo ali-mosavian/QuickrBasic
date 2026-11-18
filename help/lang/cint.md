@@ -5,6 +5,13 @@ Syntax
     CINT(n)
     CLNG(n)
 
+Rounds n to the nearest whole number; a fraction of exactly .5 goes
+to the even neighbour.
+
+See also [INT](INT), [FIX](FIX), [CDBL](CDBL), [CBYTE](CBYTE),
+[data types](data types)
+
+## Details
 Rounds the numeric expression n to the nearest whole number. A
 fraction of exactly .5 goes to the even neighbour: CINT(2.5) is 2,
 CINT(3.5) is 4. This differs from INT (rounds down) and FIX (cuts
@@ -17,6 +24,3 @@ same function and accept the same range, -2147483648 to
 
 ## Example
     PRINT CINT(2.5), CINT(-2.5), CLNG(40000.6)    ' 2  -2  40001
-
-See also [INT](INT), [FIX](FIX), [CDBL](CDBL), [CBYTE](CBYTE),
-[data types](data types)

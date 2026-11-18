@@ -8,6 +8,9 @@ Syntax
 Returns the number of characters in a string, or the number of bytes a
 variable takes up.
 
+See also [LEFT$](LEFT$), [OPEN](OPEN), [data types](data types)
+
+## Details
 For a string expression it counts every character, spaces and CHR$(0)
 included. For a numeric variable it gives its size: 4 for INTEGER,
 LONG and SINGLE, 8 for DOUBLE, 2 for SHORT, 1 for BYTE. For a TYPE
@@ -22,5 +25,3 @@ its declared length. This is the record length to pass to OPEN ... LEN.
     END TYPE
     DIM r AS Rec
     PRINT LEN(r)            ' 14
-
-See also [LEFT$](LEFT$), [OPEN](OPEN), [data types](data types)

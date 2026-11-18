@@ -5,8 +5,15 @@ Syntax
     DIM x AS INTEGER
     x% = 40000
 
-A whole number from -2147483648 to 2147483647, in 4 bytes. The type
-suffix is %, and DEFINT makes untyped names INTEGER.
+A 32-bit whole number, -2147483648 to 2147483647. Suffix %. Same type
+as [LONG](LONG); the 16-bit type is [SHORT](SHORT).
+
+See also [LONG](LONG), [SHORT](SHORT), [BYTE](BYTE),
+[data types](data types), [MKI$](MKI$)
+
+## Details
+Range: -2147483648 to 2147483647, in 4 bytes. The type suffix is %,
+and DEFINT makes untyped names INTEGER.
 
 This differs from QBasic, where INTEGER is 16 bits. In QuickrBasic
 INTEGER and [LONG](LONG) are the same type, so 32767 + 1 is 32768 and
@@ -25,6 +32,3 @@ outside the range is an Overflow error.
     DIM big AS INTEGER
     big = 32767 + 1
     PRINT big               ' 32768
-
-See also [LONG](LONG), [SHORT](SHORT), [BYTE](BYTE),
-[data types](data types), [MKI$](MKI$)

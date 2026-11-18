@@ -3,7 +3,10 @@ keys: scan codes, scan code, keyboard codes, extended keys, key codes
 
 Two kinds of code identify a key press.
 
-## INKEY$ and extended keys
+See also [ASCII](ASCII), [INKEY$](INKEY$), [KEY](KEY)
+
+## Details
+INKEY$ and extended keys
 [INKEY$](INKEY$) returns one character for most keys. For keys with no
 character, such as the arrows and function keys, it returns two:
 CHR$(0) and the code below.
@@ -23,9 +26,8 @@ F10         68     Del         83     Ctrl+Home    119
 F11        133     Alt+1      120     Ctrl+PgUp    132
 F12        134     Alt+0      129
 ```
-Test it with `k$ = INKEY$: IF LEN(k$) = 2 THEN PRINT ASC(RIGHT$(k$, 1))`.
 
-## Scan codes for KEY and ON KEY
+Scan codes for KEY and ON KEY
 [KEY](KEY) n, CHR$(shift) + CHR$(scan) defines a user key trap. n is
 15 to 25; the string holds a shift mask and the scan code of the key:
 ```
@@ -36,7 +38,7 @@ mask  adds           mask  adds
  &H08  Alt
 ```
 
-## Scan codes of the main keys
+Scan codes of the main keys
 ```
 Esc   1      1-0   2-11     -  12     =  13   Bksp 14   Tab  15
 Q-P  16-25   [ 26  ] 27    Enter 28   Ctrl 29
@@ -49,4 +51,7 @@ PgDn 81      Ins 82        Del 83
 ```
 The cursor-pad scan codes are shared with the number pad.
 
-See also [ASCII](ASCII), [INKEY$](INKEY$), [KEY](KEY)
+## Example
+    DO: k$ = INKEY$: LOOP WHILE k$ = ""
+    IF LEN(k$) = 2 THEN PRINT ASC(RIGHT$(k$, 1))
+    ' press F1: 59

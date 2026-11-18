@@ -6,6 +6,12 @@ Syntax
 
 Reads a joystick axis.
 
+See also [STRIG](STRIG), [PEN](PEN)
+
+## Details
+
+Reads a joystick axis.
+
   n = 0   x of stick A     n = 2   x of stick B
   n = 1   y of stick A     n = 3   y of stick B
 
@@ -14,8 +20,9 @@ return that sample. Other values of n are an Illegal function call.
 
 QuickrBasic runs without a joystick, so every reading is 0.
 
+On real hardware each reading is a position; here it is always 0. Call
+STICK(0) once per sample, then read the others.
+
 ## Example
     s% = STICK(0)
-    PRINT STICK(0), STICK(1)
-
-See also [STRIG](STRIG), [PEN](PEN)
+    PRINT STICK(0), STICK(1)        ' 0  0 (no joystick)

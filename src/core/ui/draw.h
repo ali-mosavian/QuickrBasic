@@ -37,4 +37,16 @@ void draw_title(
     bool lit,
     bool arrow
 );
+/* draw_title with its line, and its title unlit, in slot. */
+void draw_title_in(
+    uint8_t slot,
+    uint8_t row,
+    uint8_t col,
+    uint8_t width,
+    uint8_t left,
+    uint8_t right,
+    const char *title,
+    bool lit,
+    bool arrow
+);
 #endif
