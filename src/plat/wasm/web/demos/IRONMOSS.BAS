@@ -14,9 +14,9 @@ DEFINT A-Z
 ' diamond 32 by 16; the plane's x is the world's x - y, its y half x + y. The map's view is
 ' VX0, VY0 to SBX, VIEWB on the screen, the camera in the plane's pixels, by half tiles.
 CONST MAPW = 40, MAPH = 30, TS = 16, SBX = 240, VIEWH = 192
-CONST VX0 = 16, VY0 = 20, VIEWB = 184, VWP = SBX - VX0, VHP = VIEWB - VY0
+CONST VX0 = 16, VY0 = 22, VIEWB = 184, VWP = SBX - VX0, VHP = VIEWB - VY0
 ' STEPH: a height's step in pixels, 2 a level; MAXH the highest
-CONST PLANEW = (MAPW + MAPH) * 16, PLANEH = (MAPW + MAPH) * 8, ROCKH = 4, STEPH = 6, MAXH = 4
+CONST PLANEW = (MAPW + MAPH) * 16, PLANEH = (MAPW + MAPH) * 8, ROCKH = 6, STEPH = 6, MAXH = 4
 CONST MAXU = 64, MAXB = 32, MAXFX = 64, NF = 24, NPART = 48
 CONST STEPT = .0333333
 CONST GTITLE = 0, GPLAY = 1, GWIN = 2, GLOSE = 3
@@ -27,22 +27,23 @@ CONST SIDLE = 0, SMOVE = 1, SATTACK = 2, SSEEK = 3, SGATHER = 4, SRETURN = 5, SU
 CONST FXBOOM = 1, FXBIG = 2, FXTRACE = 3, FXSHELL = 4, FXBEAM = 5, FXSMOKE = 6, FXMARK = 7
 CONST MOSSKEY = -2, NOKEY = -99, FAR = 32000, LOADMAX = 10, LOADVAL = 25
 CONST MINIX = 240, MINIY = 11, BTNY = 72, BTNH = 18
-' the palette: 0 to 63 the land's, units' and buildings' (from 32 the art tool's); 64 to 127 the
-' same in the fog (FOG OR c); from 128 the screens' ramps
-CONST FOG = 64, SKY = 128, PLANET = 160, FIRE = 176, LOGOC = 192
+' the palette: 0 to 103 the land's, units' and buildings' (from 32 the art tool's), 104 on the
+' water's, turned round to move it (WATERC), 112 on fire's;
+' in play 128 to 255 the same in the fog (FOG OR c), on the title and the end their ramps
+CONST WATERC = 104, NWATER = 8, FOG = 128, FIRE = 112, SKY = 128, PLANET = 160, LOGOC = 192
 ' the art, one array of IMG-element slots: images of 16 by 16 (a unit's sprite, mask and shadow),
 ' the minimap, the full screen.
 ' Past 64 KB: QB 4.5 needs /AH.
-' the land, diamonds of 2 slots: 16 of grass, a 4 by 4 piece of it each, the diamond's mask, the
-' fog; what lies on the grass, an image and a mask each: dirt, flowers, moss thin to thick, water's
-' two frames by which of its 4 sides go on (OWATER + frame * 16 + sides); rock, raised, by its
-' sides: image, mask, fog, 3 slots each; a tree's image, mask and fog, 2 slots each; a cliff's
+' the land, diamonds of 2 slots: 16 of grass at each of 3 levels, a 4 by 4 piece of it each, the diamond's mask, the
+' fog; what lies on the grass, an image and a mask each: dirt, flowers, moss thin to thick, water by
+' which of its 4 sides go on (OWATER + sides); rock, raised, by its
+' sides: image, mask, fog, 3 slots each; a tree's image, mask, fog and shade, 2 slots each; a cliff's
 ' step, its left and right faces' image, mask and fog, a slot each (left then right); the shade at
 ' a cliff's foot by its left and right back edges; the
 ' buildings' image, mask and fog, BLDW slots each
-CONST OWATER = 5, NOVL = 37, BLDW = 15
-CONST IMG = 130, ASPR = 0, AMSK = 96, ASHD = 192, AGRS = 288, ADIA = AGRS + 32, AFOG = ADIA + 2
-CONST AOVL = AFOG + 2, AROK = AOVL + NOVL * 4, ATREE = AROK + 16 * 9, AFACE = ATREE + 6, ASHA = AFACE + 6, ABLD = ASHA + 2
+CONST OWATER = 5, NOVL = 21, BLDW = 15
+CONST IMG = 130, ASPR = 0, AMSK = 96, ASHD = 192, AGRS = 288, ADIA = AGRS + 96, AFOG = ADIA + 2
+CONST AOVL = AFOG + 2, AROK = AOVL + NOVL * 4, ATREE = AROK + 16 * 9, AFACE = ATREE + 8, ASHA = AFACE + 6, ABLD = ASHA + 2
 CONST AICN = ABLD + 24 * BLDW, AMINI = AICN + 3, ABACK = AMINI + 19, NSLOT = ABACK + 247
 
 TYPE CellT
@@ -157,7 +158,7 @@ TYPE ViewT
     camY AS INTEGER
     page AS INTEGER  ' the page being drawn
     mossPh AS INTEGER
-    waterF AS INTEGER
+    waterF AS INTEGER  ' the water's colours' turn
     miniDirty AS INTEGER
     miniT AS SINGLE
     scrollAcc AS SINGLE
@@ -209,14 +210,8 @@ DECLARE SUB Setup (g AS GameT, tune() AS STRING)
 DECLARE SUB BuildGlyphs (gl() AS INTEGER)
 DECLARE SUB BuildArt (art() AS INTEGER, gl() AS INTEGER)
 DECLARE SUB Progress (n AS INTEGER, total AS INTEGER, gl() AS INTEGER)
-DECLARE SUB PaintOverlay (k AS INTEGER, ox AS INTEGER, oy AS INTEGER)
-DECLARE SUB PaintRock (same AS INTEGER, ox AS INTEGER, oy AS INTEGER)
-DECLARE SUB PaintTree (ox AS INTEGER, oy AS INTEGER)
-DECLARE SUB GrassField ()
 DECLARE FUNCTION Overlay% (g AS GameT, m() AS CellT, x AS INTEGER, y AS INTEGER)
-DECLARE FUNCTION Tex% (kind AS INTEGER, x AS INTEGER, y AS INTEGER, ph AS INTEGER)
 DECLARE FUNCTION Sides% (m() AS CellT, x AS INTEGER, y AS INTEGER)
-DECLARE FUNCTION LandPix% (k AS INTEGER, same AS INTEGER, f AS INTEGER, x AS INTEGER, y AS INTEGER)
 DECLARE SUB NewGame (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fk() AS FieldT)
 DECLARE SUB GoTitle (g AS GameT, art() AS INTEGER, gl() AS INTEGER)
 DECLARE SUB GoEnd (g AS GameT, tm() AS TeamT, won AS INTEGER, art() AS INTEGER, gl() AS INTEGER)
@@ -270,6 +265,8 @@ DECLARE SUB Flip (cam AS ViewT)
 DECLARE SUB Enqueue (t AS TeamT, k AS INTEGER, n AS INTEGER)
 DECLARE FUNCTION Queued% (t AS TeamT, k AS INTEGER)
 DECLARE FUNCTION Rgb& (r AS INTEGER, g AS INTEGER, b AS INTEGER)
+DECLARE SUB GamePalette ()
+DECLARE SUB WaterColours (t AS INTEGER)
 DECLARE SUB Ramp (c0 AS INTEGER, n AS INTEGER, r0 AS INTEGER, g0 AS INTEGER, b0 AS INTEGER, r1 AS INTEGER, g1 AS INTEGER, b1 AS INTEGER)
 DECLARE SUB Shade (c AS INTEGER, r AS INTEGER, g AS INTEGER, b AS INTEGER)
 DECLARE SUB IsoUV (px AS INTEGER, py AS INTEGER, u AS SINGLE, v AS SINGLE)
@@ -279,13 +276,13 @@ DECLARE FUNCTION PickUnit% (g AS GameT, m() AS CellT, u() AS UnitT, sx AS INTEGE
 DECLARE FUNCTION PickBld% (g AS GameT, m() AS CellT, bl() AS BldgT, sx AS INTEGER, sy AS INTEGER)
 DECLARE FUNCTION IsoDir% (d AS INTEGER)
 DECLARE FUNCTION BldH% (bt AS INTEGER)
+DECLARE SUB MaskFog (mx AS INTEGER, fx AS INTEGER, w AS INTEGER, h AS INTEGER)
 DECLARE SUB Unpack (ox AS INTEGER, mx AS INTEGER, hx AS INTEGER, oy AS INTEGER)
 DECLARE FUNCTION Passable% (m() AS CellT, x AS INTEGER, y AS INTEGER)
 DECLARE FUNCTION Walk% (m() AS CellT, x AS INTEGER, y AS INTEGER, d AS INTEGER)
 DECLARE FUNCTION Lift% (m() AS CellT, x AS INTEGER, y AS INTEGER)
 DECLARE SUB UnitScreen (g AS GameT, m() AS CellT, u() AS UnitT, i AS INTEGER, sx AS INTEGER, sy AS INTEGER)
 DECLARE SUB PickTile (g AS GameT, m() AS CellT, sx AS INTEGER, sy AS INTEGER, wx AS INTEGER, wy AS INTEGER)
-DECLARE SUB PaintFace (k AS INTEGER, ox AS INTEGER, oy AS INTEGER)
 DECLARE FUNCTION FlowField% (m() AS CellT, fd() AS INTEGER, fk() AS FieldT, goal AS INTEGER, now AS SINGLE)
 DECLARE FUNCTION MoveStep% (g AS GameT, m() AS CellT, u() AS UnitT, fd() AS INTEGER, fk() AS FieldT, i AS INTEGER, goal AS INTEGER, exact AS INTEGER, dt AS SINGLE)
 DECLARE FUNCTION DirOf% (dx AS SINGLE, dy AS SINGLE)
@@ -401,539 +398,1194 @@ DATA "0000000000000000000000000000222200022222"
 DATA "0000000000000000000000000000222222222222"
 
 PalData:
-' colours 32 to 63: red, green, blue
-DATA 21, 17, 9
-DATA 10, 10, 12
-DATA 27, 22, 15
-DATA 5, 5, 6
-DATA 11, 57, 59
-DATA 19, 20, 23
+' colours 32 to 103: red, green, blue
+DATA 31, 29, 34
+DATA 63, 31, 7
+DATA 18, 28, 10
 DATA 0, 33, 34
-DATA 30, 24, 16
-DATA 25, 57, 56
-DATA 16, 36, 36
-DATA 7, 7, 9
-DATA 39, 40, 46
-DATA 11, 24, 25
+DATA 16, 12, 8
+DATA 12, 12, 15
+DATA 29, 23, 15
+DATA 40, 50, 60
+DATA 15, 25, 10
+DATA 15, 13, 15
+DATA 18, 29, 11
+DATA 19, 29, 11
+DATA 17, 27, 10
 DATA 6, 6, 8
-DATA 12, 13, 15
-DATA 3, 51, 53
-DATA 1, 45, 47
-DATA 11, 11, 14
-DATA 30, 30, 34
-DATA 14, 14, 17
-DATA 8, 9, 10
-DATA 33, 34, 38
-DATA 29, 23, 6
-DATA 7, 15, 15
+DATA 19, 30, 11
+DATA 13, 10, 7
+DATA 12, 22, 9
+DATA 17, 10, 19
+DATA 17, 14, 17
+DATA 16, 26, 10
+DATA 11, 8, 5
+DATA 48, 21, 3
+DATA 24, 35, 12
+DATA 23, 51, 49
+DATA 13, 11, 13
+DATA 22, 33, 12
+DATA 24, 20, 24
+DATA 55, 44, 11
+DATA 20, 14, 8
+DATA 24, 10, 2
+DATA 7, 6, 7
+DATA 10, 23, 23
+DATA 27, 21, 6
+DATA 14, 15, 17
+DATA 5, 5, 6
+DATA 7, 6, 3
+DATA 13, 23, 9
+DATA 33, 33, 38
+DATA 13, 13, 16
+DATA 14, 12, 14
+DATA 19, 19, 22
+DATA 14, 12, 2
+DATA 14, 24, 9
+DATA 10, 10, 12
 DATA 0, 18, 18
-DATA 8, 6, 3
-DATA 26, 27, 31
-DATA 63, 63, 28
-DATA 13, 11, 6
+DATA 22, 19, 22
+DATA 7, 15, 15
+DATA 37, 16, 2
+DATA 20, 17, 20
+DATA 31, 13, 2
+DATA 21, 21, 25
+DATA 18, 15, 18
+DATA 4, 4, 5
+DATA 13, 29, 30
+DATA 12, 21, 9
+DATA 13, 23, 9
+DATA 15, 25, 10
+DATA 14, 24, 9
+DATA 28, 26, 31
+DATA 16, 26, 10
+DATA 17, 27, 10
+DATA 42, 43, 49
+DATA 11, 20, 8
 DATA 16, 17, 19
-DATA 43, 44, 50
-DATA 8, 41, 24
+DATA 10, 19, 8
+DATA 16, 36, 36
+DATA 11, 11, 13
+DATA 9, 8, 10
+DATA 5, 52, 54
+DATA 9, 18, 8
+DATA 38, 30, 8
+DATA 20, 31, 11
 
 ArtData:
-' the buildings, each side's; the units, each side's, each heading's two frames: width,
-' height, then rows of symbols (Unpack); tools/ironmoss_art.py writes these
-DATA 64, 60
-DATA "~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~ckcb:b:~cmcg<[[lc:+"
-DATA "+b~cjc<I<ReS-II<[PjcFF~cjc<SRSSRdS--eI[icP#~chcI<SRSRSRRSf-I<<PPgcMF~cgc<jRSSd-eI<<PfcPF~cgc<SRGRRG"
-DATA "dRSf-I<II<[fcMF~cfc<eRfGRRSS--dI<<[[PecP#~cec`SeRdG.GRRS-I--I<<I<<[MdcPF~cc<cc<eRgGRSSd-eI<<[[PdcPF"
-DATA "}c<<-<TSRRSRRdGKGRSS-II-I<<[<<[ZMccFF{c<<S-NN:dSeRdGRSS-eIf<d[QQDT#yc<<-S-2aXHdSRRSRGRSSf-I<II<[[<[["
-DATA "D``TFxc<R-S--1;2H-jSe-eId<f[THHWFxc[ISG-<UU1]:SS-S-S-SS-I--eIe<[<[TTV`PFxc[II-RRIUUN::I-S-Sd-gIe<e[Q"
-DATA "TH``F#xcOLLeI]XNN]:]d-I-II-dIf<[[`:T`HVHPFxcOe*I<:NXNNdH`gI<Ie<[[HdDHH`HHFPTwcOL*LZI<]NUXUNUH`::NH::"
-DATA "`dH:]TQDWd`V`HHPPHQQuc)d*)I<:1eXNXXUTa22;11a1]HTVV`He`HHFPHH:TTsc:L*LZI<HNUXUXdNXdNaa2X:eHVdHV`V``VP"
-DATA "P`dH'qcACXNa*ZI<`U1UXXeNXdNXXH`dH`eHd`HVQ``dH``_\mcAQ&CdX1aa11UXXNXNN1NUXUNU]V`H`V`HH`HVHHV`H:H``H``"
-DATA "_A_MicCAJ&J&UeXNa;NXUUXUNX1UdXNU`He`dHe`eHg`_AQC\\fcAJEJE&&H]dX1X1;8a1U:U]dUXX1XHHV`V``VVQ`H:Hg`VV'_"
-DATA "C_AC'\ec_dEJE&&C`UfXNa;aXe+]]UNXHHd`HVQ`eHg`VTd_dC__\fc_'C&JJ&EC&HUXUdX1;ag+:XX`HVHHV`H:H``Hd`VV'_QA"
-DATA "ACC_W\FicA_&&eJ&&HUUeXN;h+XHe`eHg`VT_A__AA__F\mcAA&&dJE&AH]dX1X1af+:QQ`HXU(f`VV'_'C'AQ_W\Fqc_AE&EJEJ"
-DATA "EC`UfXN;++`XUX1X:g`VT_dA5J__\\uc_A&EEJ&EEAHUXUX1X1a;a1U(`Hd`VV'_C_AJJ_A\Pyc_A&dE5JECHUUeXNa]g`VT_A_E"
-DATA "5E__F\}cA'&&J5JE&&H]dX1Ue`VV'__JEE5_M\F~cdcAAECEEJEJC`UXX]d`VT__&dE__\\~chc_A&&fJVHU]VV'_QJJ5J_A\F~c"
-DATA "lc__&JEJ&JJ&QT&E&EE5__\\~cpc_A&EJE5&E&JEJ5_\\F~ctcA_ECJd&JJ__\\~cxc_AEC5J_M\F~c|c__&_F\~c~cccAF~c~c"
-DATA "~cic"
+' grass by level, what lies on it, rock, the tree, a cliff's faces, the buildings, the units:
+' width, height, then rows of symbols (Unpack); tools/ironmoss_art.py writes these
+DATA 32, 16
+DATA "pcS!'}cSd!'S!'yc!A!9S!9!'!'!-!-VVuc!9!9!A!9SS!-!-VVOOVVqcS!'S!'!'S!-!'VKeOeVmcS!9SS!'S!'!-VKOOEdOeVK"
+DATA "Kic!9SS!9dS!'!-!-VVOEEdOVVKV!-!-!'!'ec!'Sf!'dS!'!'KKVKeVKK!-e!'S!'!'ccd!'!-!'!'S!'!9SS!9i!'S!'!9S!A"
+DATA "!9!A!9!9Sece!'SS!A!9fS!9eS!9S!A!9!A!A!C!AicS!'SS!9SS!9S!9!9dSf!'S!9Smc!9dS!'fS!'!'e!-!'!'qcdS!'!'S"
+DATA "f!'d!-uc!'SSf!'!-!'ycS!'!'S!'!-}c!'Spc"
+DATA ""
+DATA 32, 16
+DATA "pc!9S}c!A!A!9!A!9Syc!A!9!A!9!9!AS!9SSucSSf!9!A!9!9Sd!9qc!'!'S!9!9!A!9!A!9!A!A!9!9S!9!A!9!Amc!-!-!'!-"
+DATA "!'dS!9S!9!9!A!9dS!9e!Aic!-!-K!-!-K!'!-!'S!'SS!'!9SS!9!9S!A!9!A!9!9!Aec!'!'e!-d!'iS!9!A!9!A!A!9!A!9!9"
+DATA "Sd!9ccS!'S!9!9S!9!A!A!C!A!C!A!9!A!9!A!9!A!C!A!C!A!9!9SS!9SSec!9!9!A!Ae!C!A!C!Ad!C!A!C!Ad!Cd!A!9S!9ic"
+DATA "!9e!A!C!A!C!C!Ad!C!Ad!C!H!C!C!A!CmcS!9e!Ai!C!Hd!CqcS!'!9!A!A!C!A!Cd!A!C!C!AucSS!A!9!A!9!A!9!A!AycS!9"
+DATA "S!9!9S}c!'Spc"
+DATA ""
+DATA 32, 16
+DATA "pcS!'}c!'S!'!'S!'yc!A!9!9!A!9!A!9!A!A!Cucg!A!Cd!A!C!C!H!Hqc!A!C!A!9!C!Ad!C%d!C!H!C!H!H!Cmc!9f!Ad!C!H"
+DATA "!H!C!Cd!H!C!He!Cic!9!A!A!9d!A!C!C!A!C!H!H!C!H!Cd!H!C!C!H!C!A!9!AecSSf!9f!Ad!Cd!H!C!H!C!Ce!A!9!9SSccS"
+DATA "!9S!9S!9S!9!9!A!A!9!A!C!C!H!C!H!A!C!9!A!9S!9!A!A!9!9!AecSS!9SS!9!9d!A!9f!A!9!AS!9S!9!Ad!9icS!'SS!A!9"
+DATA "!A!A!9!A!9S!9!A!A!9!9!A!A!9!A!9mcS!'!9!9e!Ae!9!Ae!9!AqcS!9!A!9!A!C!A!C!A!9!A!9!9!Auc!A!9!C!A!A!C!9!A"
+DATA "!A!9yc!A!C!A!A!9S}c!9!9pc"
+DATA ""
+DATA 32, 16
+DATA "pcS!9}cS!9SS!'!'yc!9SS!9S!9!'!'!-!'uc!A!Ad!9dS!'!'!-!'!-!-qc!A!9!A!9!9SS!'!'Sf!'SS!9mc!A!9!A!9!9!A!9"
+DATA "!9SSe!'SS!9!9!A!A!9!AicS!'S!'S!9!A!9!9!AS!9S!'S!'S!9!9e!A!C!A!9ecSS!'!-!-!'SSe!9eSg!9d!A!C!A!ASScc!'"
+DATA "!-!-K!-!'S!9!A!9!9S!'SS!9!A!9!A!9!9!A!A!9!A!C!9S!'Sec!-!-!'!'!9!9!A!Ad!9S!9S!A!9!A!9!A!9e!A!9!9ic!'S"
+DATA "!9!A!A!9!9!A!9SS!9S!'SS!9S!A!9!A!9mcSSg!A!9!ASS!'eS!9qc!A!9!Ae!C!A!9!AS!9S!9ucd!A!C!A!A!9!A!9!9yc!A"
+DATA "!9!9!AS!9}c!9Spc"
+DATA ""
+DATA 32, 16
+DATA "pc!'S}cg!'ycdK!-!-K!'!-S!'ucVVOVKK!-K!'!'SS!9!9qcKVeOKV!-!-!'!'!9!A!A!C!9!Amc!-!-VVeOVV!-!-S!'!9!A!A"
+DATA "!C!A!ASSicS!'!-!-VVeOVO!-KS!'!A!9!A!C!9Se!'ec!9!9SS!-!-OVeEOO!-K!'!'Sd!9S!9SS!'dScce!'!-!-VVEMNMENVV"
+DATA "!-K!'!'SS!9!A!9!AS!9S!9ece!-VKEOEdNOEKV!-!-S!'!A!9!9!A!9Sic!-KVKOVEOMEEMVO!-K!'!'!9S!A!9mceVOOEEMEOO"
+DATA "VK!-!-!'SqcdVeOEOEVVK!-ucdOfVKKycVVKK!-!-}c!'!'pc"
+DATA ""
+DATA 32, 16
+DATA "pcS!9}c!9fSyc!A!9S!9S!'S!'SSuc!A!A!9!AgS!'dSqc!'!'S!9S!'!'SS!'S!'S!'!'S!'Smc!-!-!'!'Sd!'!-h!'Sf!'ic"
+DATA "!'!'S!'!'Se!'!-!'!'!-d!'SS!9Sd!'SSecSS!Ad!9!'!'!-!-!'d!-!'Sd!9d!A!9!9gScc!A!C!A!C!9S!'!'!-!-!'!-!'!'"
+DATA "!9S!C!A!C!H!C!A!A!9!9S!9!A!9Sec!A!ASS!'!'!-e!'S!A!9g!C!A!Ae!9icS!9Sd!'!-!'S!'!A!9!A!C!C!A!A!C!9!AS!'"
+DATA "mcSSe!'!9!9e!A!Cd!A!9!9qcS!9!9S!A!9!A!C!A!C!C!A!C!Aucd!9f!A!C!Cyc!9S!A!9!A!9}c!9!9pc"
+DATA ""
+DATA 32, 16
+DATA "pcS!9}c!9dS!'Sycd!'!-d!'!-!'!'uc!'!'eKi!-qc!9!A!'!-KeVKVKVK!-!-!'Smc!C!C!A!AS!'!-!-VVOVVOVV!-K!'!'SS"
+DATA "ic!Ae!C!A!9!A!'S!-!-KdVKV!-K!'S!9S!A!Aec!9!9!A!Ad!Cd!A!9!9SS!-!-KK!-K!-!-!'!'!9!9e!Acc!'S!9Sd!A!C!A"
+DATA "!9!9SS!9!'S!-dK!-K!'!-S!9!A!9S!9ec!9!9e!A!9!Ad!9SS!'d!-KK!-!'!-SS!9!9ic!A!C!A!A!9!A!9SS!'!'j!-!'!-mc"
+DATA "SSe!'!-!-Kj!-qc!-K!-!-K!-K!-eK!-!-uc!-!-K!-!-KVdKyc!-!'!-!'!-K}cSSpc"
+DATA ""
+DATA 32, 16
+DATA "pc!'!'}c!'S!-!-K!-yc!'S!'!'d!-K!-!'ucd!-d!'!-!-dK!-!-!'qc!-!'!-!-!'SS!9!'!'K!-KVKK!'!'mc!'!-e!'SS!A"
+DATA "!9SS!-!-KKVK!-!-S!9ic!-!-d!'SS!'!A!9!9!ASd!'!-dK!-!-S!9!A!9ece!'eS!9!9!A!A!9!9Se!'f!-SS!Ad!9cce!'S!9"
+DATA "!9!A!A!9!A!C!A!9S!9S!'!'Sf!'SS!9S!9ecSS!9e!Ad!C!A!A!9!9SS!'!'Sd!'!-!'!'!-ic!C!H!H!C!C%!A!C!9!AS!9!'S"
+DATA "e!'!-!'KKmce!H!C!C!A!A!9!ASSe!'!-!-qcd!H!C!H!C!C%!9!A!'S!-!'uce!H!C!C!A!9!'!'yc!C!H!A!C!9!A}cS!9pc"
+DATA ""
+DATA 32, 16
+DATA "pc!'S}c!'S!-!'!-!-ycSd!'d!-K!-!-uc!'!'Se!'d!-K!-KKqc!-!-!'!-S!'S!9!'S!-!-K!-VKVVmcVeK!-d!'SS!'!'e!-"
+DATA "dKOVicgVKK!-K!-e!'SSd!'!-KVVOVecKKVdK!-KK!-Kd!-S!'!9!9!A!9SS!'!'!-!-KK!-KccS!'!'SS!'S!'SS!'S!'!'S!9"
+DATA "d!A!C!A!9!A!9!9!AS!9S!9ec!A!9e!A!9!Ad!9S!A!9g!C!A!C!Cd!Aic!A!C!A!9!9!A!9!A!9S!A!A!Ce!He!C!Amc!Af!9"
+DATA "d!Ad!Ce!H!C!HqcS!9!9!A!C!A!C!H!C!H!C!H!C!Huc!9!9!C!C!H!C!Hd!Cyc!A!9!A!C!C!A}cS!9pc"
+DATA ""
+DATA 32, 16
+DATA "pc!9!A}c!Af!Cycd!C!H!C!H!C%!A!Aucd!Cd!H!C!H!C!C!A!A!9!9qc!H!Cf!H$!H!H!C!H!A!CS!9S!'mc!A!C!Cl!H!C!CS"
+DATA "!9SS!9!9ic!A!C!A!C!C!A!C%!H!C!H!Ce!H!C!C!A!9!9S!9!AS!9eck!A!C!C!H!H!C!H!C!C!A!Ag!9eScc!9S!9!A!9S!9S"
+DATA "!9S!Ad!C!A!C!9!A!9S!9S!9SS!9!'S!'!'ec!'!'S!'SS!9S!A!A!Cd!AS!9!A!9!A!9!9Se!'ic!'S!9!A!A!9!Ae!C!A!A!9"
+DATA "d!A!CS!9!'!-mc!A!Aj!C!A!A!C!A!ASSqc!C!A!C%!C!C!A!C!A!C!A!C!9!Auce!C!A!C!A!A!9!9yc!C!H!C!A!A!9}c!A!9"
+DATA "pc"
+DATA ""
+DATA 32, 16
+DATA "pc!'!'}c!'!'d!-!'yc!'!-!'!'!-!-!'!'!9!Auc!-!'!-d!'!-!-!'!'S!9!A!AqcSi!'!-!'!'S!'!'S!-!'mc!'SS!'Se!'"
+DATA "!-!'!'!-!'d!-eK!-icSf!'Sd!'g!-VKVVKKe!-ecdSd!'Sf!'g!-eVKK!-!-!'!'SSccd!'SS!'S!9S!9S!'!'e!-KVVOOVK!-"
+DATA "!'!9S!9!Aec!'!'S!'SS!A!9SS!'d!-KKOOEOVV!'!'!9!9ic!-d!'S!9!'!'!-KKdVOVOVKV!-!'mce!'!-!-dKfVdK!-qcd!'"
+DATA "d!-K!-dVOKKuce!'!-!'KKVVycS!9S!'!-!-}cSSpc"
+DATA ""
+DATA 32, 16
+DATA "pcS!9}c!9!AS!9!'SycS!9!A!9d!A!C!A!Cuc!-!-!'S!A!A!C!Cg!Hqc!-K!-!'S!9!C!A!H!Ci!HmcVK!-K!-!'!A!9!C!C!H"
+DATA "!Ce!H$f!HiceK!-K!'!'!9S!A!C!A!C!C%!H$!H$!H$d!H!Cec!'!'!-dK!-!-!'!'eS!9S!A!A!H!Cf!H!C!A!C!9!9cc!-!'eK"
+DATA "!-!-j!'S!9!A!A!C!A!Cd!A!9SSecm!-K!-!-K!'!'!9S!9!9Sd!9ic!'!'!-!'!-dKVKeVK!-S!'S!9SSmce!-KKVVOdVKK!'!'"
+DATA "S!'qc!'d!-VVOdVKK!-Kuc!-!-KKgVyc!-!-KdV}c!'!'pc"
+DATA ""
+DATA 32, 16
+DATA "pc!9!A}c!H!C!C!A!A!9yc!H!C!C%!C!Cd!A!9uc!H!Hi!C!A!A!9!Aqc!C!H!H!C!C%!C!A!C%!A!C!9S!9S!9Smc!A!Ag!C!A"
+DATA "!C!C!A!A!9!'SS!'S!'!'SicS!'SS!A!9!C!A!C!A!A!C!A!9!9S!'Se!-!'!'!9SecSSe!'SSd!9!AgS!'!-KK!-K!'!'eSccSS"
+DATA "!'!'!-K!-K!-!-d!'e!-eKV!-K!'Sd!'!-ec!-!-dVOVV!-KK!-KKVOOVKK!-!-Sd!'icOVOOVOVKKVVOOEOOVK!-K!-!'mciVOV"
+DATA "dOVKVKKqcVVeKdVOVOKKuc!-d!'!-KeVyc!'S!'d!-}cS!'pc"
+DATA ""
+DATA 32, 16
+DATA "pc!'S}cd!-!'S!'yc!-!'h!-!'uc!-!-e!'!-!-K!-!-!'SSqc!-!-!'!'Sd!'e!-!'!'!9S!A!9mc!-Ki!'d!-!'S!'SS!9!9!C"
+DATA "!Aicd!-!'!'!-!-!'!'!-!'!-!'!-!-!'!'!-S!'!9!A!C!A!C!HeceSl!'d!-K!-!'!'!9S!9f!Acc!9SS!9S!'!'S!'!'S!'S"
+DATA "!'!-!-KVVK!-!-d!'SS!'S!'ecSS!9SS!'S!'eS!'!-KdVKVdK!-!'!'icS!9!'S!'!'dS!9!'!'K!-dVOVOKKmcSS!'!'eS!'!'"
+DATA "K!-dVOVVqc!9S!9SS!'!-!'KVVOVVuc!A!ASS!'!-!-dKycS!9Sd!'}cSSpc"
+DATA ""
+DATA 32, 16
+DATA "pc!'!'}c!'!'!-d!'yc!-!'!'!-!-f!'ucKKg!-d!'d!-qcK!-!'!-!'d!-!'!-!'!-!-f!'mcK!-!'!'SS!'!'!-!'g!-e!'!-"
+DATA "!'ic!'!'S!'!9!A!A!9!9Sd!'!-!-g!'S!'SS!'ec!'dS!9!9g!A!9SS!9!9fS!A!9f!A!9cc!'!'S!9!A!9!C!Ad!C%!C!A!A!C"
+DATA "!A!C!9!A!9!A!C%d!H!C!A!Aec!9!9!C!C!H!C!Ci!Hd!C!A!C!H!H$d!Hic!H!Cd!H$!H$!H$d!H!C!C!H!Cf!Hmcj!Hd!C!H!C"
+DATA "!H!C!H!Cqc!H!C!C!H!A!9!A!9!A!9!A!9!A!Cuc!A!ASS!'!'S!'SSycS!'!'!-!'!-}c!'Spc"
+DATA ""
+DATA 32, 16
+DATA "pcS!'}c!A!CSS!'!'yc!H!C!C%!A!9S!9S!'uc!C!C!Hd!C!A!AdS!'!-!-qc!A!C!A!C!C%!C!H!A!CS!9!'S!-!'!-!-mcSd!9"
+DATA "!A!9h!A!9dSe!'!-ic!'SS!9dS!'dS!9!9S!9!A!9!A!9!ASS!'!-!-!'ecg!'!-!'!-!-!'!'SSf!Ad!C!A!AS!9eScc!'!'!-"
+DATA "!'!-!-K!-K!-!-!'!9S!C!A!H!Ce!H!C!He!C!A!Cece!-KK!-K!'!'!A!9d!Cd!H$h!Hicd!-K!'!'!9S!A!9!Ad!Ci!Hmc!-!'"
+DATA "SS!9d!A!C!A!C!C!H!C!H!C!C!Hqc!9!A!A!9!A!A!C!Ad!C%!C!Cuc!9!A!A!9g!Ayc!9!A!9!AS!9}cSSpc"
+DATA ""
+DATA 32, 16
+DATA "pcKV}cKdVKVyc!-!-K!-VVOENQuce!-KKOOQQ!J!JQQqcKVKVVKOVNMd!JQQNQNmcK!-KKVKVONMg!JNQNQEMicK!-K!-eKOOQN"
+DATA "d!J\!J!JQNMNOEVVecVKfVdKVVEENMQQNQMEVOVVKKVVccdVOVVKK!-dKfVOVVKVK!-!-!'!-!'!-KeceVKK!-!-eK!-fK!-K!-"
+DATA "!-e!'icKVdK!-eK!-dKfVK!-Kmc!-dKVfKVVeOVVqcdKVVKVOVVOVOOucVKKgVOycKVVKVO}cVKpc"
+DATA ""
+DATA 32, 16
+DATA "pc!-K}c!'!'d!-Kyc!-!'!'d!-eKucdKi!-KK!-qcVVKe!-Kf!-Ke!-mceOVdK!-Ke!-KK!-K!'!-!'!'icOOEME4OVVKVeK!-K"
+DATA "!-!-K!-!'!'d!-ecVVeOdVhK!-Kj!-KK!-ccKVK!-!-K!-!-f!'!-!'!-!'!-e!'d!-fKecd!-!'S!'!'SS!'S!'!'SSe!'S!'!'"
+DATA "d!-Kic!-!-h!'SS!'!'SS!'S!9S!9!'!'mcKd!-!'!'SS!9S!'dS!9!9SSqcKK!-!-i!'S!'ucKKg!-!'!-ycK!-KK!-K}cVKpc"
+DATA ""
+DATA 32, 16
+DATA "pcKV}cVKVVKVycf!-K!-!-!'!'uck!'SS!9!9qcd!'!-S!'S!9S!9S!9!9S!9S!9Smc!'d!-!'!'SSk!9S!9SSicd!-!'!'!-d!'"
+DATA "SSe!9!A!9!A!9!A!9S!'S!-KecKKi!-!'!-!'Sg!9SS!'!'e!-KKccK!-K!-K!-Kf!-!'!'!9S!9S!'!'d!-Kg!-ecKK!-K!-K!'"
+DATA "!-!'!-!'!-e!'d!-K!-Ke!-icKVKK!-!'!'e!-Kj!-!'mcKVd!-!'!'l!-qcKd!-e!'!-!'!-!'!-!-uc!-!-f!'d!-yce!'!-K"
+DATA "}cK!-pc"
+DATA ""
+DATA 32, 16
+DATA "pcK!-}cK!-KKVVyc!-KK!-KKVVOOuc!'!'K!-eKdVdOqcd!-!'K!-KKVKVOdVdKmcg!-K!-KKeVdKd!-!'!-icKVKVKf!-K!-gK"
+DATA "!-K!'!-!'!'!-!'ecKKeOKK!-!-K!-eK!-!-Kd!-!'!-!'!'!-!'KKccOVEOOVKKd!-KVKK!-!'!-!'e!-d!'!-KVKecOOVVd!-"
+DATA "!'d!-dKe!-Ke!-!'!-!-icVKd!-!'d!-KK!-fK!-!-!'!'!-mcKK!-!'!-d!'!-!-KKVeK!-qc!-!-!'!'S!'!'S!-KK!-K!-uc"
+DATA "!'!-Sd!'e!-yc!'d!-K!-}c!-Kpc"
+DATA ""
+DATA 32, 16
+DATA "pcVK}cgVycMEEMEOVOKVucQQ!JQMMEEOVKK!-!-qcMNe!JNMOOVV!-!-!'!'!-!-mcEONQe!JNQOOKV!-!-S!'!-!-KKicKVOOQN"
+DATA "e!JQNOEKV!-!-!'!'!-KeVecK!-KKOOQQ!J!J\d!JMEVV!-K!-!-K!-KKVdKccdVdONQ\!J\Y\!JQNOEVVKKe!-dK!-ecEOEOMN"
+DATA "!J!Je\!J!JMNEOKVf!-KicEONQ!JQ!J\\!J\!JQ!JEOVV!-K!'!-mceQ!J!J\!J!J\!J!JNMOOKKqcQNQe!J\!J!JQNE4uc!J!J"
+DATA "eQNQEEycQNMEOO}cVVpc"
+DATA ""
+DATA 32, 16
+DATA "pcKK}c!-fKyc!-!'K!-KVKVKKuc!'!-!'!-gKVdKqcVVK!-KKVVKVdKVVKVKmcOOVVKeVOgVKfVicVVKVVKeVOOVOdVKK!-KdVKK"
+DATA "ecKKe!-VVgOVKg!-K!-gKccd!'!-!-KVVOOVOVVK!-!'SS!9S!'d!-K!-KK!-ec!-!'KKdVOdVK!-!-!'S!9dS!'!-Kd!-icK!-K"
+DATA "dVOVKV!-!-d!'S!'!'!-!-KVmcKKeVK!-i!'K!-qcKK!-K!'!-f!'SS!'ucf!-!'!-!'S!'yc!-Kd!-!'}cK!-pc"
+DATA ""
+DATA 32, 16
+DATA "pcK!-}c!-dKVKycdVOdVOVVucOVMeEdOEdOqc!-KOVNMQNNQNMNMOEVKmcSS!'!-KVOOQNdQ!JQQ4EVVKKic!'!'S!9!'S!-!-VK"
+DATA "OOMNQNNMOEVK!-K!'!-ec!-!-!'!-!'Se!'!-!-KKOOEMEEOOVVK!-!'!'!-!-ccVK!-K!'!-!'!'d!-KK!-VVEOEMOEVOKK!-!-"
+DATA "KKecK!-!-d!'f!-KKVEOEE4dOKK!-!-ice!'d!-KKVVeOEfOVmcKKeVdOEOEeOEOqcO4OEE4E4MEEMOOucdOdEMNMMycOVOVEO}c"
+DATA "KKpc"
+DATA ""
+DATA 32, 16
+DATA "pcVV}cVKdOEycVKVVOOEOOVucdOdVOOEEOEVOqceOVKK!-VVE4MNEMVVmcOOeVKK!-!-KKOOMENMOOK!-icOEdVdKe!-KVVOEOME"
+DATA "OEKK!-!'eceVfK!-!'d!-KdVOOEEOOKKe!-cceVK!-!-K!-e!'!-K!-KKVKfVeK!-ecKK!-!-!'!'S!'!'S!'!'!-!-KKVVKdVOV"
+DATA "VOicSd!9S!9!'!'!-!-KKVKdVdOEMmc!9!A!9!9SS!'!'!-!-KKeVEOqc!9!A!9!A!9!AS!9!-!-VKOVuc!9!A!9!AS!9!-!-VV"
+DATA "ycS!9!'!'!-!-}c!-Kpc"
+DATA ""
+DATA 32, 16
+DATA "pcVK}cVKVOEOycKdVOEEdOucVVKdVfOEMMqcOOVOeKVKOOEMNMQNmcEMEMEOVVdKVVdO4EMMQQicQNQNNQMEOEOeVKKdVEOQN!JQ"
+DATA "ecEENdMgEOOKVe!-KKVVOOMdEccKVVKKVKVKKVKVVKK!'!-!'!'f!-KK!-K!-ec!-!-f!'e!-K!-!-!'S!9dSg!'ic!'!'!-!'"
+DATA "d!-K!-K!'!-!9S!9!A!9!AS!9S!'mce!-K!-!'!'S!'!9!9!Af!9qcKd!-S!'!9S!9S!9S!9Suc!-!-!'S!9!9S!9SSyc!-d!'S"
+DATA "!'}c!-Kpc"
+DATA ""
+DATA 32, 16
+DATA "pc!-!-}cS!'eSycS!'!9S!9SS!9!'!'uci!9SS!-!'!-!-qc!9!A!A!9!A!9!A!9!A!9!9S!'!-K!-KKmc!9!'!9!9!A!9!A!9!9"
+DATA "e!A!9SSK!-dK!-icf!'!9Se!9!A!A!9!A!9S!9d!-K!-KK!-ecg!'!-d!'SSe!9SS!'!'!-!-K!-K!-eKcc!-K!-K!-K!-K!-K!'"
+DATA "!'S!9!'!'d!-K!-K!-dKVKVVecVVKVKK!-Ke!'!-!-Kf!-KKeVicVK!-!-!'!-!'!'S!'!'S!'!-!'!-!'!'K!-OVmc!'!'gS!'S"
+DATA "!'!'Sd!'KKqc!'SS!'Sh!'!-!-uc!9S!9S!'!'!-!'K!-yc!9SS!'!-!'}c!-!-pc"
+DATA ""
+DATA 32, 16
+DATA "pcVV}cVVdOVycVOVVOOVV!-KucVOOdVOOVVKd!-qcKKdVOdVOVVKVVKOOmcVKKVKeVOVVOVOOMEMEOEicKVVOVVKdVfOENMQNEMO"
+DATA "EOEecdKdVKfVeOEENdQEMOOVVKKccdVKKVgKOVOOE4QN!JQNQOV!-K!-!-eceVKK!-!-KKVOOEMEQd!JQQOV!-!-icOdVKKVVE4M"
+DATA "NNQ!JQ!JQMEOVmceVOOEENNeQMMOEqcVVOVOOEMNQQNMEuceVOVEMQQycK!-KKOO}cKKpc"
+DATA ""
+DATA 32, 16
+DATA "pcKK}c!'!-K!-VKycK!-!-!'!'!-e!'ucOOVK!-!-SSe!9!A!9qcOEOVK!-!'S!9S!9!A!A!9!A!9!A!9mcMNEEOV!-!-SS!9!9"
+DATA "!A!9h!A!9icEMMEOEVVK!-e!'S!9!A!9!C!A!A!C!A!9!9!AecVVEEMMOOVVeK!-K!-!-S!9!A!A!9!A!9!9S!'!-!-ccOVEMMEO"
+DATA "OjVK!-Kf!'d!-KKeckOEOEE4EVV!-KK!-K!-K!-icVVOOEOMENMNQQNE4KVK!-KKmceOEMgQMEVVKVqcVOOENQ!JQQNMEEOucOOM"
+DATA "EfQNycOEMEQN}cVVpc"
+DATA ""
+DATA 32, 16
+DATA "pc!-!-}cS!9!'!'!-!-yc!9!AS!9S!'!'!-!-!'uc!9!9S!9dS!9!'S!'d!-qc!9S!9!9S!9S!'S!9!'!'!-K!-K!-Kmc!-!'!'S"
+DATA "!9eSd!'!-!-VKKVKVVKicKVKK!-!'!'!9Sd!'!-!'!-KVVeOVV!-KecKKeVKKe!-gKOOMdEVVeKccKKVVEOEdOdVeO4MEMNO4eVO"
+DATA "VecOOQN!JQQNEEOEMM!JdQEMOOKVOVicQ!J!JQQ!JNMMEQ!J!J\!JQNME4OVmcfQNQNQQd!JQNNMEqcQNEMEMNQQ!JQ!JMEucOVO"
+DATA "VEEQNQNycVKOVOO}cKVpc"
+DATA ""
+DATA 32, 16
+DATA "pcVK}cEOVOKVycOVOEOEdOVucOOeVEOEEVOKKqcOOVVKdVOEOOVVK!-!'!-mc4EOhVdOVKVKK!-!-!'!'icOEOVVOOVVOVOVOOVV"
+DATA "OKV!-K!'S!9SeceKeVOgVOOEOEVV!-K!-!-e!'cc!-KK!-KKVKVVKVKKOONMNMOEeVdKVecKK!-KKdVeKOOMNQQMNME4OVVicKKV"
+DATA "KVVdK!-VVE4NQQ!JQQMEmcKKVVeKOVEEQN!JQNQqc!-K!-KKVOOMEQNNQuc!-!-KKOOMEEMycK!-KdV}cKKpc"
+DATA ""
+DATA 32, 16
+DATA "pcVV}cdVOVVycOVVdOeVucEEgOdVdOqcE4OVOVOOVOVOOVVOVVmcOEVVKKdVhOeVOVicVOKV!-K!-!-K!-VVOVOVVOdVKVdKecV"
+DATA "dKd!-e!'!-KK!-hK!-!-e!'!-!-ccVVKK!-!'!'SS!9S!9!'Se!'e!-S!9!A!9!9!A!'!-ec!-!-!'Se!9!A!A!9!A!9!9S!9S!'"
+DATA "S!'!A!9!A!A!9!Aic!9!A!A!9!A!9!A!C!A!C!A!9!9!A!9S!9S!A!9!A!9mc!9f!A!9!9Sd!9Sf!9qc!9!AS!9!'!-!-!'!-!'"
+DATA "!'!-!'!'uc!'!'KKVVKVKKycKVVOOV}cVKpc"
+DATA ""
+DATA 32, 16
+DATA "pcKK}c!9!'KKVVyc!9!AS!9!-!'dKVuc!9!9S!9S!9!'!'dKVOOqc!'!-!'!'S!9!9S!'!'K!-VKOVOOmcKf!-e!'!-!'K!-dKeV"
+DATA "OicVVjK!-!-Kf!-dKVdOecgVOVdOVKK!'!-!'!'S!'SS!'!'!-fKccVVOVOOE4EMOV!-K!'S!9S!A!9!9!A!9SS!9Sd!'ecOOEOE"
+DATA "M4EVV!-!-!'S!9!9e!A!9!A!9!A!9!9icOOEOVO!-K!-d!'S!9!9!A!A!9!A!9!A!9mcVOKK!-!-e!'dSf!9qc!-K!-!-!'!-!'S"
+DATA "S!9S!9S!9uce!-!'!'!-!'!'!-yc!-K!-KK!-}cKKpc"
+DATA ""
+DATA 32, 16
+DATA "pcME}ceMNMycOVEOMQ!J!J\\uceOEE!J!Jd\Y\\qcMEMEMEQ!J\!JY\Ye\Ymc4O4EEMQQ!J\eY\Ye\!J\icEOE4E4E4!JQ\gY\\Y"
+DATA "\d!JMQecMMQdMEMEEMQ!J!Jh\!JQQMMEdMccMQQNQNE4O4E4MQQMdQMMEO4VOVOO4ecMQMQEEOOEE4EOE4EEM4EOOeVicMEE4O4E"
+DATA "4E4O4E4MQQMMEO4mcOEMMEMEE4EMM!JQ!J!JMQqcE4MEMNQNQMQ!J!JQuceMQQMdQycMEMNQN}cEMpc"
+DATA ""
+DATA 32, 16
+DATA "pcO4}cVVOO4EycVOVdOE4E4ucEEiO4dOqcQNEiOVgOmc!J!JQQEMEEOEeOEE4OeVic!JQ!J\!J\Q!JMNMNMEEOEOO4VOVVOOecQQ"
+DATA "!JQQ!JMQMMEMEE4EgOVdO4dOccMEE4eOjVOeVOVO4E4E4ecOOVVgKVdKVKVdKdVdOicOOdVKVKKVdKVdK!-K!-VKmceOVVKK!-fK"
+DATA "!-!-KKqcMEOOVKfVdKuc4EhOVycE4E4OO}cEMpc"
+DATA ""
+DATA 32, 16
+DATA "pcME}cEfMycOVgOVKucgVKdVKK!-!-qceVdK!-fK!-!-K!-KmcVOOdVdKd!-Kf!-K!-!-KicdOfVKVK!-!-Kh!-KKVOOecEEeOVO"
+DATA "VOOVKKg!-KKeVOOEEccE4EOEOEeOVVK!-K!-KVKdO4dOVOOecEMOEOOVOOVOfVdOEOOVdOicMEE4VOVVdO4dOVdOVVOmcMMOOeV"
+DATA "iOVOqcEOOVVKdVOVdOucOOKVVKOVOOycVKVVO4}cOOpc"
+DATA ""
+DATA 32, 16
+DATA "pcE4}c4OEEQQycO4E4E4NMQ!JucVVdOE4EQMQQ!J!JqcOVVOO4E4MNdQMMNE4mceOVdOEMQMMQMMdOVOVicMEMEEOOVOOE4MEMEE"
+DATA "4OOfVOecEM!JdQEMeOMM4EhOVKKOVEEccQQ!J!JQ!JE4OVOOMEE4dVeOdVOEMNec!J!JMQOOVVOO4EOEgOVOVVOOicMNOOVfOE4M"
+DATA "EE4O4OdVmc4EhVOeMEEOOqcOdVdKVOOEOEOucdVKdVdOycVVOOEO}cOEpc"
+DATA ""
+DATA 32, 16
+DATA "pcME}cMdQMQyc\!J!J\!J!JQQMEuc\\Ye\!JQQ4EOOqc\!JY\Y\\!J!JQMQOOVVOOmc!J!J\\eY\\!J!JMMOOVKVOEMicME!JQ\\"
+DATA "Y\Y\\Y!J!JMEOdVO4MQMQecOO4EQQ\\gY\!JMM4fOEdMEEccMQQN!JQ\hY\Y!J!JQNE4eOE4EOece!J\\iY\\!J!JMMOOVOOEic"
+DATA "!Jd\Y\gY\Y!J!JQMO4VVmcf\hY\\!J!JEMqcd\YY\Y\Y\\Y!J\uc\YYg\!Jyc\Y\!J!JQ}cMQpc"
+DATA ""
+DATA 32, 16
+DATA "pcE4}c4E4E4EycOVEOMEMEE4ucdVOdEfMEEqcQMEOE4MNMEMEMEMNMNmcQ!JMQMMgQMQeMeQicQMMEMNQMQMQ!JdQdME4MEMQE4"
+DATA "ecEEeOMQd!JdQMMOOVOVVOOMM4dEcceVO4QM!JdQMQO4KVK!-KKOVO4dO4ecVV4EQNQQMQEMOOKK!-dKOVeOicE4MEQMQ!JMEOdV"
+DATA "KKVKOOMEmc4EMMNMOOeVKdVOOqcE4OOgVKVKKucOOVOeVKKycO4OVOV}cOOpc"
+DATA ""
+DATA 32, 16
+DATA "pcE4}cOeEMycMQQNQMdQMucQQ\!J\h!JQQqcOOQ!J\!J\Y\!J\!J\d!JMNmcKKVVMM!J!Je\Ye\!JMM4EicVKK!-KKOOME!JQ\!J"
+DATA "\Y\d!JMNO4VVecdOVdKdVOOMMd!J\\!JQ!JMQOOVVOOccMNO4eVOVOOEOMQ!J\!J\!J!JQNE4OVE4ecOOfVeOEMMg!JQQEMOOicV"
+DATA "KVVeOMEQQ!JQd!JQ!J!JQ!Jmc4EMMQMQl!Jqcd!JQ!J\!J\\!J!J\!JQucg!Je\ycQ!JQ!J!J\}cEMpc"
+DATA ""
+DATA 32, 16
+DATA "pcMQ}cEMQd!JycMNMQd!J\Q!Juc!J!JQQMMQf!JQQqcQ!J!JQMNEOQM!J\\!J!J\MQmc!JdQMQEEOOEMQ!J\!J!J\!JQ4Oic!J!J"
+DATA "QMMNE4OVOOMEQN!J!J\d!JE4VOeceQMM4EdOVOOMMQQ!JQ!J!JQ!JMMeOccQMMQE4OOVOVKVOEOMEMNQMMQMEE4E4ecEEVOdVdKV"
+DATA "VOO4EMMNdMeQicK!-!-KK!-VKOVE4MNQMQNQ!J!J\mc!'d!-KKdVOEEMdQ!J!Jqcg!-KKOOMNQ!Juc!'!-!'!-!-KOOMMycK!-VK"
+DATA "OO}c4Opc"
+DATA ""
+DATA 32, 16
+DATA "pcMN}cEMQQ!J!JycMEQMd!J\!JQucgM!JQe!J\\qc!JdQMEE4MN!JQ!J\\!J\Ymc!J\!J\!J!JMQEdMQQ!J!J\!J\\Y\ic\Y\Yd\"
+DATA "d!JQ!JNQMEMEQM!J!J\Y\Yec!J!Je\i!JMMeOEEQM!J!J\d!JccMEMNMEMEE4MNQME4eVOVOVOOE4E4ecOOeVOVOO4EOOKK!-dKV"
+DATA "KKdVicdVhOVV!-Ke!-K!-KKmcgOVVKKi!-qcEdOKK!-K!-K!-K!-KucOOKK!-!-K!-KKycVOVdK}c4Opc"
+DATA ""
+DATA 32, 16
+DATA "pcOO}cVdK!-KycKK!-K!-KK!-VVucKh!-KKVVOOqcd!-!'!'!-!'!'!-!'!-KVVEOMEmcKK!-!-!'e!-d!'!-!-KK4O4EOOicVKV"
+DATA "VdK!-!-K!-!-!'!-!-!'K!-OVO4OOE4eckVKKe!-KKVVgOEMEEccO4dO4O4OEVVK!-VKdO4O4O4E4MNMQecQdMEMOEVVKVVO4fOE"
+DATA "EMdQicMNOOdVeKhVE4Q!JmcVVjKVVKVV4EqcKVeKVKeVOOuc!-K!-KVKVVOOyc!-dKVO}cOOpc"
+DATA ""
+DATA 32, 16
+DATA "pcMQ}cMQQ!JQQycdQM!JQQNOOucgQ!JdQ4OVOqcMEQNQNQMQNQMMEMNQ!JmcEfMQQ!JfQ!J!J\!J\d!JicMEQNMQMEQM!JQ!JQ!J"
+DATA "!Jd\Y!J\e!JecEEjMQQf!Je\!J\!J!JQMEEccMQMNMEE4E4MEQQ!JQ!J\\YY\\!JQ!JO4OVecMNNMEEOOEEQQ!J!J\!J\dY\\QQO"
+DATA "OicQ!JMQE4MQ!J\\!J\!JY\\Y\!JQ!JmcQQMM!JQ\!Ji\!J!JqcQMQ!J!JQ!Je\Y\!JucdQMQQ!Jd\ycE4ME!JQ}c4Epc"
+DATA ""
+DATA 32, 16
+DATA "pcE4}cOVOOEMycE4OgVKucQ!JMMVVKKg!-qc!J!JQ!JE4KV!-K!-!'!-!'!-!'!-!'mc\\!J!JQQOOdKd!-!'!'!9d!'!-!-ic!J"
+DATA "\\d!JNMO4dVKK!-!'!'!9!'!'!9!-!'!-!-ecQQ!J!J\\!J!JQMEMEE4EOOK!-d!'d!-VKOOccQ!J!J\\!J!JQQMMQQMQMMNOOgV"
+DATA "OVE4ec!JQe!JQh!J\!JQQOEOO4dOicQNQ!J!J\\!J\!Jd\Y!J\MEEOE4mcQe!Jd\Ye\!JQQMMqcQQ!JQ\\Y\\Y\!J!J\uc!J!J\"
+DATA "!Jg\yc!J!J\!J\Y}cQQpc"
+DATA ""
+DATA 32, 16
+DATA "pcOO}cK!-KVOOyc!-!-K!-KKdVOucd!-dK!-dKOVOOqc!-K!-gK!-VKO4O4O4mcVVKK!-dKVKVVOOgMEMicMEE4VOeKVVOVO4MN"
+DATA "!JQ!J!JQMO4ecEEQMQQEMOOVOEE4EMM!JQ\d!JQQ4EMEccE4QMd!J\!JQQMQQ!JQ!J!J\!J\d!JMNMdQec!J!J\\Yd\e!J\\Yd\"
+DATA "!J\!JQNMQQic\YY\\Y\!J\!J\eY\\!J!J\Q!Jmci\Y\Y\Ye\!Jqc\\!J\\!J\!J\Y\Y\!JuceQ!J!Je\ycMNQ!J!JQ}cMMpc"
+DATA ""
+DATA 32, 16
+DATA "pcME}c!J!JQQMMycQg!JQQ!Juc!J!JeQe!JQQEEqc!JQQNMEMQ!JQ!J!JMQO4VVmc\!JQQMQQMMQ!JdQMM4EOOKVic!J!JQ!JdQ"
+DATA "!JdQNdQ!JQQMEOOKV!-KecMMEdMeQMQMMQQe!JMQOEOOeVccO4EOE4MNMQMEME!JQ\!J\d!JQMMNMEMEec4E4EMMNMEE4EQQh\"
+DATA "d!JQQicE4MNQME4EOMQ!Je\Y\Y\!JmcMEMMEMEMQQ!J!Jg\qcdO4MEQ!J\!J\Y\\ucOV4EQQ\!J!J\ycEOMEQM}c4Epc"
+DATA ""
+DATA 32, 16
+DATA "pcMQ}cMdQMQycQ!JQNQ!JQNQQuc!J!JQf!JeQ!JQqc!J\Q!JQ!J!JgQ!JQNNQmc!J!JMM4EMMeQd!JQQMQMQQicQQMEdOVO4MeQ"
+DATA "!JQQMQMNMNMEecMM4EOOeVOVEEOEOEEdMOOeVOOccQME4VOKVdK!-KVVKVKeOK!-!-!'!-!-VVecOOdKd!-!'!'!-!'!-!-K!-KK"
+DATA "VK!-!-!9!'!'!-ic!-!-!'!-d!'!9d!'e!-K!-K!-!'!'!-mc!-f!'!-!-Kd!-Kd!-K!-qc!-!-K!-dVOOfVucVV4EMMNMEMycME"
+DATA "dQ!J}cMMpc"
+DATA ""
+DATA 32, 16
+DATA "pcE4}cKKEEMQyc!-!-K!-OVE4MEucK!-K!-!-KVVEEMMQQqcdVKK!-K!-VKEOMEQ!J!JQmc4dOVOgVOOEEMMeQicMNE4E4MEE4E4"
+DATA "iOE4QNQ!JecQQMQMMgQEEOeVdKVVOOEdMccNMQ!J!JQ!J\!J\Q!JO4KV!-K!-!'!-!'!-fKVKecQe!J\!J!JQMOOKK!-!-e!'!-"
+DATA "!'!'d!-ic!JQ!J!JQNO4VOVVK!-!-!'!'!-!-!'!-!'mcQQEEVOVVKVdKf!-qcdOdVKVdK!-K!-ucOOVOeVOVyceOE4}c4Epc"
+DATA ""
+DATA 32, 16
+DATA "~c~c~cucIcIc5ycI&II&&_d&Ic5uc66&I&&6I&Id5cIqcI&&Id5I!(_!(II&I&&c5mcIcI65&I5I&6I&6I&55_oc&Id&I!(I&&I&"
+DATA "I&5I_I&oc6&6&5I55II&I_55c_ocI5_&!(&56I5II5&Isc5II6dI&&c&wcdI&&IIcI~c~c~cwc"
+DATA ""
+DATA 32, 16
+DATA "~c~c~c~c~c~c~c~c~cqc0yc>gc!H~c|c6~ccc!H~c~c~c{c"
+DATA ""
+DATA 32, 16
+DATA "tcBwcBic+wc+ic99Buc99hc,c+uc,ic,c99tc,gcBc,c,uc,gc+c$$,uc$$fc99cc,|c,dc$${c,~ccc,~ccc$$~c~c~c~czc"
+DATA ""
+DATA 32, 16
+DATA "~c~cxcB~cccBB~cc++wcBfcBc,99vc+fc+c,,cBuc99ec,9$$c+uc,fc,Bc,c,9tc,fc$$c$$,uc$$fc,9cc$${c,~ccc$$~c~c"
+DATA "~cxc"
+DATA ""
+DATA 32, 16
+DATA "pc+{cBec99zc+BccB,kcBpc9+cc+,Bjc+pc,99c99+Bic99oc,,cc,$9+ic,pc,,$c,c,99hc,pc$,ccBc,,ic,qc$$c+$$,ic$$"
+DATA "sc,9,,}c,cd$|c$$~c~c~c~c}c"
+DATA ""
+DATA 32, 16
+DATA "~c~cuc__JJ__vcg_dJ__vc_JJ!KgJg_qc_J!O!N!N!M!L!LdJ!R!QJJ_lcd_eJ!K!R!Q!P!O!N!M!L!K!K!R!RJ_mc_Jd!P!O!O"
+DATA "!N!L!K!R!P!O!N!M!L!L!KJd_kc_Jd!R!Q!Q!P!O!N!M!K!R!Q!O!N!NfJ_icd_fJ!R!Q!P!O!N!M!L!K!RJg_mcd_JJ!R!R!Q!Q"
+DATA "!P!O!O!NJ_tc__J!L!K!KgJ_tc__eJh_ucg_~c~cvc"
+DATA ""
+DATA 32, 16
+DATA "~cqc__eJ{c_Jd!M!L!K!Rucf_JJ!P!P!O!O!N!L!Ksc_J!K!Kf!R!Q!Q!P!O!N!M!Kpc__J!O!N!N!M!L!L!K!K!R!R!Q!P!O!N"
+DATA "!M!Ljc__fJ!K!R!Q!P!O!N!M!L!K!K!R!R!Q!Q!P!O!O!Nic_Jd!P!O!O!N!L!K!R!P!O!N!M!L!Le!KJJd_fc__Jd!R!Q!Q!P!O"
+DATA "!N!M!K!R!Q!O!N!Ne!MJJ_hcd_fJ!R!Q!P!O!N!M!L!K!RgJ__lcd_JJ!R!R!Q!Q!P!O!O!NJ__sc__J!L!K!KJJ!K!RJJ_tc__"
+DATA "eJh_ucg_~c~cvc"
+DATA ""
+DATA 32, 16
+DATA "~c~cuc__JJ__vcg_eJ_vc_JJ!KgJg_qc_J!O!N!N!M!L!L!KJJ!R!Q!PJJ_kcd_eJ!K!R!Q!P!O!N!M!L!K!K!R!R!QJ_lc_Jd!P"
+DATA "!O!O!N!L!K!R!P!O!N!M!L!L!K!KJg_fc__Jd!R!Q!Q!P!O!N!M!K!R!Q!O!N!Ne!Md!NJ_fcd_dJ!K!R!R!Q!P!O!N!M!L!K!R"
+DATA "!Qf!P!Q!Qicg_J!K!R!R!Q!Q!P!O!O!N!M!L!L!K!K!Lpc_J!L!Lf!K!R!R!Q!Q!P!Prc_JJ!Ne!Mf!Nuc__fJ!P!Q!Q|c__J~c"
+DATA "qc"
+DATA ""
+DATA 32, 16
+DATA "~cqc_fJ{c_Jd!M!L!K!Rucf_JJ!P!P!O!O!N!L!Ksc_J!K!Kf!R!Q!Q!P!O!N!M!Kpc__J!O!N!N!M!L!L!K!K!R!R!Q!P!O!N!M"
+DATA "!Ljc__fJ!K!R!Q!P!O!N!M!L!K!K!R!R!Q!Q!P!O!O!Nic_Jd!P!O!O!N!L!K!R!P!O!N!M!L!Lf!K!R!R!Q!Qfc__Jd!R!Q!Q!P"
+DATA "!O!N!M!K!R!Q!O!N!Ne!Mf!Nfc__eJ!K!R!R!Q!P!O!N!M!L!K!R!Qf!P!Q!Qicg_J!K!R!R!Q!Q!P!O!O!N!M!L!L!K!K!Lpc_J"
+DATA "!L!Lf!K!R!R!Q!Q!P!Prc_JJ!Ne!Mf!Nuc__fJ!P!Q!Q|c__J~cqc"
+DATA ""
+DATA 32, 16
+DATA "~c~cuc__JJ__vcg_eJ_vc_JJ!K!RfJg_pc__J!O!N!N!M!L!L!KJJ!R!QJJ__kc_gJ!K!R!Q!P!O!N!M!L!K!K!R!RJ_lc_Je!P"
+DATA "!O!O!N!L!K!R!P!O!N!M!L!L!KJd_gce_Je!R!Q!Q!P!O!N!M!K!R!Q!O!N!N!MeJ_hc!O!N!N!M!L!L!K!K!R!R!Q!P!O!N!M!L"
+DATA "!K!RgJ_jc!Q!P!O!N!M!L!K!K!R!R!Q!Q!P!O!O!NJ__pc!R!P!O!N!M!L!Lf!K!R!RJ__rc!R!Q!O!N!N!M!MJg_uc!K!R!Q!P"
+DATA "!PJ_|cJ!LJJ_~c__pc"
+DATA ""
+DATA 32, 16
+DATA "~cqc_fJ{c_Jd!M!L!K!Rucf_JJ!P!P!O!O!N!L!Krc_JJ!K!Kf!R!Q!Q!P!O!N!M!Kmc_cc__J!O!N!N!M!L!L!K!K!R!R!Q!P!O"
+DATA "!N!M!Lic__fJ!L!K!R!Q!P!O!N!M!L!K!K!R!R!Q!Q!P!O!O!Nhc_Je!P!O!O!N!L!K!R!P!O!N!M!L!Lf!KJd_ccJ__JJe!R!Q"
+DATA "!Q!P!O!N!M!K!R!Q!O!N!Ne!M!NJ_gc!O!N!N!M!L!L!K!K!R!R!Q!P!O!N!M!L!K!R!QgJ_ic!Q!P!O!N!M!L!K!K!R!R!Q!Q!P"
+DATA "!O!O!NJ__pc!R!P!O!N!M!L!Lf!K!R!RJJ_rc!R!Q!O!N!N!M!MJJf_uc!K!R!Q!P!PJ_|cJ!LJJ_~c__pc"
+DATA ""
+DATA 32, 16
+DATA "~c~cuc__JJ__vcg_eJ_vc_J!K!K!R!RJ!RJJg_pc__J!O!N!N!M!L!L!K!K!R!R!Q!PJJ_jc__gJ!K!R!Q!P!O!N!M!L!K!K!R!R"
+DATA "!QJ_kc_Je!P!O!O!N!L!K!R!P!O!N!M!L!L!K!KJJf_ccJ__JJe!R!Q!Q!P!O!N!M!K!R!Q!O!N!Ne!Md!NJJec!O!N!N!M!L!L"
+DATA "!K!K!R!R!Q!P!O!N!M!L!K!R!Qf!P!Q!Qic!Q!P!O!N!M!L!K!K!R!R!Q!Q!P!O!O!N!M!L!L!K!K!Lmc!R!P!O!N!M!L!Lf!K!R"
+DATA "!R!Q!Q!P!Pqc!R!Q!O!N!Ne!Mf!Nuc!K!R!Qf!P!Q!Qyc!M!L!L!K!K!L}c!P!Ppc"
+DATA ""
+DATA 32, 16
+DATA "~cqc_fJ{c_Jd!M!L!K!Rucf_Jd!P!O!O!N!L!Krc_J!L!K!Kf!R!Q!Q!P!O!N!M!Kmcf_!P!O!N!N!M!L!L!K!K!R!R!Q!P!O!N"
+DATA "!M!Lic_gJ!L!K!R!Q!P!O!N!M!L!K!K!R!R!Q!Q!P!O!O!Ngc__Je!P!O!O!N!L!K!R!P!O!N!M!L!Lf!K!R!R!Q!QccJJ_JJe!R"
+DATA "!Q!Q!P!O!N!M!K!R!Q!O!N!Ne!Mf!Nec!O!N!N!M!L!L!K!K!R!R!Q!P!O!N!M!L!K!R!Qf!P!Q!Qic!Q!P!O!N!M!L!K!K!R!R"
+DATA "!Q!Q!P!O!O!N!M!L!L!K!K!Lmc!R!P!O!N!M!L!Lf!K!R!R!Q!Q!P!Pqc!R!Q!O!N!Ne!Mf!Nuc!K!R!Qf!P!Q!Qyc!M!L!L!K!K"
+DATA "!L}c!P!Ppc"
+DATA ""
+DATA 32, 16
+DATA "~cqcJf_yc!L!Le!MJJ_vcf!Oe!PJ_tc!M!M!L!L!K!Kf!RJg_mc!Q!R!R!Q!Q!P!O!N!N!M!L!L!K!K!R!R!Q!PJ__jcJJf!M!L"
+DATA "!K!R!Q!P!O!N!M!L!K!K!R!RJ__ic__J!Oe!P!O!O!N!L!K!R!P!O!N!M!L!L!KJJ__ic_Jf!R!Q!Q!P!O!N!M!K!R!Q!O!N!N!M"
+DATA "eJ_hc__gJ!R!R!Q!P!O!N!M!L!K!RJg_jcg_JJ!R!R!Q!Q!P!O!O!NJ_tc_JJ!L!K!KgJ_tc__eJh_ucg_~c~cvc"
+DATA ""
+DATA 32, 16
+DATA "pc!M!M}c!Q!R!R!Q!Q!Pyc!L!Lf!M!L!K!Rucf!Oe!P!O!O!N!L!Kqc!M!M!L!L!K!Kf!R!Q!Q!P!O!N!M!Kmc!Q!R!R!Q!Q!P!O"
+DATA "!N!N!M!L!L!K!K!R!R!Q!P!O!N!M!LicJ!Lf!M!L!K!R!Q!P!O!N!M!L!K!K!R!R!Q!Q!P!O!O!Nfc__J!Oe!P!O!O!N!L!K!R!P"
+DATA "!O!N!M!L!Lf!KJd_ec_Jf!R!Q!Q!P!O!N!M!K!R!Q!O!N!Ne!M!NJ_gc__JJ!L!L!K!K!R!R!Q!P!O!N!M!L!K!RgJ__icg_J!K"
+DATA "!R!R!Q!Q!P!O!O!NJ__sc_JJ!Lf!K!R!RJ_tc_fJh_ucg_~c~cvc"
+DATA ""
+DATA 32, 16
+DATA "~cqcJf_yc!L!Lf!MJ_vcf!Oe!PJ_tc!M!M!L!L!K!Kf!RJJf_mc!Q!R!R!Q!Q!P!O!N!N!M!L!L!K!K!R!R!Q!P!OJ_jcJJf!M!L"
+DATA "!K!R!Q!P!O!N!M!L!K!K!R!R!QJ_ic__J!Oe!P!O!O!N!L!K!R!P!O!N!M!L!L!K!KJJf_ec_Jf!R!Q!Q!P!O!N!M!K!R!Q!O!N"
+DATA "!Ne!Md!NJJec_dJ!L!L!K!K!R!R!Q!P!O!N!M!L!K!R!Qf!P!Q!Qicf_JJ!K!R!R!Q!Q!P!O!O!N!M!L!L!K!K!Lpc_J!L!Lf!K"
+DATA "!R!R!Q!Q!P!Prc_J!N!Ne!Mf!Nuc__fJ!P!Q!Q|c__J~cqc"
+DATA ""
+DATA 32, 16
+DATA "pc!M!M}c!Q!R!R!Q!Q!Pyc!L!Lf!M!L!K!Rucf!Oe!P!O!O!N!L!Kqc!M!M!L!L!K!Kf!R!Q!Q!P!O!N!M!Kmc!Q!R!R!Q!Q!P!O"
+DATA "!N!N!M!L!L!K!K!R!R!Q!P!O!N!M!LicJ!Lf!M!L!K!R!Q!P!O!N!M!L!K!K!R!R!Q!Q!P!O!O!Nfc__J!Oe!P!O!O!N!L!K!R!P"
+DATA "!O!N!M!L!Lf!K!R!R!Q!Qec_Jf!R!Q!Q!P!O!N!M!K!R!Q!O!N!Ne!Mf!Nec_JJ!M!L!L!K!K!R!R!Q!P!O!N!M!L!K!R!Qf!P!Q"
+DATA "!Qicf_JJ!K!R!R!Q!Q!P!O!O!N!M!L!L!K!K!Loc__J!L!Lf!K!R!R!Q!Q!P!Prc_J!N!Ne!Mf!Nuc_gJ!P!Q!Q|c__J~cqc"
+DATA ""
+DATA 32, 16
+DATA "~cqcJf_yc!L!Lf!MJ_vcf!Oe!PJ_tc!M!M!L!L!K!Kf!RJg_mc!Q!R!R!Q!Q!P!O!N!N!M!L!L!K!K!R!R!Q!PJ__jc!L!Lf!M!L"
+DATA "!K!R!Q!P!O!N!M!L!K!K!R!RJ__hcf!Oe!P!O!O!N!L!K!R!P!O!N!M!L!L!KJJ__gc!L!L!K!Kf!R!Q!Q!P!O!N!M!K!R!Q!O!N"
+DATA "!N!M!MdJ_hc!O!N!N!M!L!L!K!K!R!R!Q!P!O!N!M!L!K!RgJ_jc!Q!P!O!N!M!L!K!K!R!R!Q!Q!P!O!O!NJ__pc!R!P!O!N!M"
+DATA "!L!Lf!K!R!RJ__rc!R!Q!O!N!N!M!MJJf_uc!K!R!Q!P!PJ_|c!M!LJJ_~c__pc"
+DATA ""
+DATA 32, 16
+DATA "pc!M!M}c!Q!R!R!Q!Q!Pyc!L!Lf!M!L!K!Rucf!Oe!P!O!O!N!L!Kqc!M!M!L!L!K!Kf!R!Q!Q!P!O!N!M!Kmc!Q!R!R!Q!Q!P!O"
+DATA "!N!N!M!L!L!K!K!R!R!Q!P!O!N!M!Lic!L!Lf!M!L!K!R!Q!P!O!N!M!L!K!K!R!R!Q!Q!P!O!O!Necf!Oe!P!O!O!N!L!K!R!P"
+DATA "!O!N!M!L!Lf!KJd_cc!L!L!K!Kf!R!Q!Q!P!O!N!M!K!R!Q!O!N!Ne!M!NJ_gc!O!N!N!M!L!L!K!K!R!R!Q!P!O!N!M!L!K!R!Q"
+DATA "gJ_ic!Q!P!O!N!M!L!K!K!R!R!Q!Q!P!O!O!N!MJ_pc!R!P!O!N!M!L!Lf!K!R!R!QJ_rc!R!Q!O!N!N!M!MJJf_uc!K!R!Q!P!P"
+DATA "J__{c!M!L!LJ__}c__pc"
+DATA ""
+DATA 32, 16
+DATA "~cqcJf_yc!L!Lf!MJ_vcf!Oe!PJ__sc!M!M!L!L!K!Kf!RJJf_mc!Q!R!R!Q!Q!P!O!N!N!M!L!L!K!K!R!R!Q!P!OJ_jc!L!L"
+DATA "f!M!L!K!R!Q!P!O!N!M!L!K!K!R!R!QJ_hcf!Oe!P!O!O!N!L!K!R!P!O!N!M!L!L!K!KgJ_cc!L!L!K!Kf!R!Q!Q!P!O!N!M!K"
+DATA "!R!Q!O!N!Ne!Me!NJec!O!N!N!M!L!L!K!K!R!R!Q!P!O!N!M!L!K!R!Qf!P!Q!Qic!Q!P!O!N!M!L!K!K!R!R!Q!Q!P!O!O!N!M"
+DATA "!L!L!K!K!Lmc!R!P!O!N!M!L!Lf!K!R!R!Q!Q!P!Pqc!R!Q!O!N!Ne!Mf!Nuc!K!R!Qf!P!Q!Qyc!M!L!L!K!K!L}c!P!Ppc"
+DATA ""
+DATA 32, 16
+DATA "pc!M!M}c!Q!R!R!Q!Q!Pyc!L!Lf!M!L!K!Rucf!Oe!P!O!O!N!L!Kqc!M!M!L!L!K!Kf!R!Q!Q!P!O!N!M!Kmc!Q!R!R!Q!Q!P!O"
+DATA "!N!N!M!L!L!K!K!R!R!Q!P!O!N!M!Lic!L!Lf!M!L!K!R!Q!P!O!N!M!L!K!K!R!R!Q!Q!P!O!O!Necf!Oe!P!O!O!N!L!K!R!P"
+DATA "!O!N!M!L!Lf!K!R!R!Q!Qcc!L!L!K!Kf!R!Q!Q!P!O!N!M!K!R!Q!O!N!Ne!Mf!Nec!O!N!N!M!L!L!K!K!R!R!Q!P!O!N!M!L!K"
+DATA "!R!Qf!P!Q!Qic!Q!P!O!N!M!L!K!K!R!R!Q!Q!P!O!O!N!M!L!L!K!K!Lmc!R!P!O!N!M!L!Lf!K!R!R!Q!Q!P!Pqc!R!Q!O!N!N"
+DATA "e!Mf!Nuc!K!R!Qf!P!Q!Qyc!M!L!L!K!K!L}c!P!Ppc"
+DATA ""
+DATA 32, 22
+DATA "~c~c~c~czcd!*[{cLUC(!=!0!.!Fyc!6dC(]!0Uatc!6L!*L!0UC((]!3!3L!%sc[!0]!=!0!3U((!0!0!6['accUoc'!0!3](!0"
+DATA "U!*!3!3!0!6!*'!7c!6aoc!*]!0((!0L[!.!6!6U'!F!FLU!Foc'!0!0!3(!6L[''!6!*'!F!F!=Laoc']!3!0][C!*'!.d'!.!7"
+DATA "'U!Foc[]!0!0](!0!*''LL'!7ca!*aoc['!0!3](!3''!.'!6!Fccaa!Fqc'[[(]d'!*!6U!%xc!*!0L'[[LU!%xc!*][da!F!Fa"
+DATA "yca!%~c~c~c{c"
+DATA ""
+DATA 32, 22
+DATA "~csc!F!F~cc'Ua~caL'!%{c!*L]!3!.acL[vc!6!6!=(!=]!3!6a](!*tc!3!=!=CC(]!0!6L!F!0(!*cc!6dajcLUL]!3U!=C(]"
+DATA "!0!3!*!.'!0[c!3!=['aic!*](C!=!0!6Ld]!3U!*!.'!.!3UC!F[[aicL]!0!0!3(!3!6[!0!0!3!6['!F!FC(!*'['aicU]]!0"
+DATA "!0(!0!6!*'!3!6U'!F!F]!=UL!.''aicL]!3!0!0]!6Ld'UL'!F!F(U!6!*['[aic!*!0!6!3]]!*C!*'!.'L'!F!7(L!6L!*!%a"
+DATA "aicL]!0!0]((]!*''UU!F!7caU!6Lamc['!0]((!3L'!.[U!Fcc!%!F!Faaoc''!*(][''[!6!6acavcU!3['[[UU!%xcL!0Lda"
+DATA "!F!Fayc!F!F~c~c~c{c"
+DATA ""
+DATA 32, 22
+DATA "~c~c~c~czcd!*[{cLUC(!=!0!.!Fyc!6dC(]!0UagcUdLjcdL'!0U!=C!=]!0!6UaecUCC!=aicLCC(!=]!3L:]]!3!3!*!.!%cc"
+DATA "LC6!([aicL!0d](!0!6'!3!3!6UL!F!7cUC!(!(U[aic!*]!3!0]]!0!6!*'!6!3U[!Fa[!=CC!=!*[aic!*!0!3!0((!3U!*['"
+DATA "!6L'!Fa!=(!=!='['aic!*!0]!0](!*!=]]!0'['!.!7!=!=CC!.[!*aicL!0f]!0!0!3!0!0U'!7c!*!=(([''ajc[]!3!0(("
+DATA "e!0(!3acc!*(([d'akcd[((!3!0!3]]U[ac[!0]'[aaoc[!=!0!3!3!0('[!.aca[aarcL!0!3!3!0([['awcL[!F!F!.(!.'!.a"
+DATA "|cL'aa~ca~cqc"
+DATA ""
+DATA 32, 22
+DATA "~csc!F!F~cc'Ua~caL'!%{c!*L]!3!.acL[vc!6!6!=(!=]!3!6a](!*tc!3!=!=CC(]!0!6L!F!0(!*cc!6LUL!F!FhcLL!*(!0"
+DATA "!6!=!=((!3!6U''!0'c!6!=C!=[!*agcU!=C((!0!3L((]]!6!*!F'!.!0!6CC!('['agc[d!0]!0!3L!*!3!0!0U[d!FdC!(!3"
+DATA "d[agc[]!3!3(!0!3!6''!3!3U'!F!F]!=(C!=e'agcLd!0((UL!*!F'UU'!Fa(!=C!=[['['agcU]d!0(L!=(!0!0'L'a!7(!=("
+DATA "!=[['['agcL(!0]]((!3!0!3]!3L'!7c!*((]d[!.[ahc[!0!3:]]!3d!0]!3!Fcc[](e[aajc'[!*](]!6!6!3(!3'!%c']]['a"
+DATA "aocL!=]d!3]'!*[!%ca!Fa!%rcL]!3!3!0([''awc!*[!.'](''[!%{caL'!%a~c!%~cqc"
+DATA ""
+DATA 32, 22
+DATA "~c~c~c~czcd!*[{cLUC(!=!0!.!FxcUC!(!((!=(!0U!FtcLLU(!0!6!=C(!0!0!3!*arcLC!=(!=]!0U((]!3!6!*!F!%cc!3!%"
+DATA "lc!6!=!(C!=(!0!0!6!*]!0!0UL!.!%c!3Uaic'c!*!=!=C6!=]]!0!3!*'!6!3L[!F!F!*LUaic[!7(CC!(C((!3!3L[['UL'!F"
+DATA "!F!=LUaic!*!F!=!=CC((!0UL!=(]!3''!Fa!7(L!*aic[]](]!=!=!0UdCd(!FU'!%caL!*!%ic[(]((]]!6((]!0U'[[!*acca"
+DATA "a!Fajc!*!*d(](]((]U'd[!*aqc!*!*]!=(!=]!0]Lf[asc!*[(]((!0!6[[!%a!Fauc[L(]!0!6!*a{cL!*!0U!*a}c'aa~ctc"
+DATA ""
+DATA 32, 22
+DATA "~csc!F!F~cc'Ua~caL'!%{c!*L]!3!.acL[vc!6!6!=(!=]!3!6a](!*tc!3!=!=CC(]!0!6L!F!0(!*cc!6a!F!FjcLUL]!3U!="
+DATA "C(]!0!3!*!.'!0[c!3!=['aicUC!(!=!=!0!6Ld]!3U!*!.'!.!3UC!.[[ahcUdC((!0!3U!*!3!3!0U!*!F!F'!=CL['[!FecLc"
+DATA "LCC!(6C]]!3UL'!3!3U[!F!F]!=UL[''aec[!7(!=C!(!((]]!3Ud'ULd!F!=!*LL['[aec!*!F](CC!=(!0UL!=(!0!0'L'a!7("
+DATA "L!6U[daec!*!0(!=(!=(!0!6!=CC!=]!0[L!F!7cL!*ULahc'((d](!6]](]!6'd[accaLUUaic[!*((]!0((]]!3!6Ld'[acea"
+DATA "lcL!*(](e]!6e'[!FscL!*e(!0L!*[eauc!*!*]!=!3!6L!%{c[!*!0U!*a}c''a~ctc"
+DATA ""
+DATA 32, 22
+DATA "~c~c~c~czcd!*[{cLUC(!=!0!.!FxcUC!(!((!=(!0U!FgcULL!*jcUU!*(!0LCC((!3!3L!%ec!6CC!=aic!6C(!=]]!3U((!0"
+DATA "!0!6L'!%cc!3CC!(!.ahcU!(C!(C!=]!3U'!3!0!0U[!Fac!6C!=!(!6'aec[c!*C!(!(6!=!=!0!0!6!*'!6!3U[!F!F!*!=dC'"
+DATA "'aec!*!7dC!(!(!=(!3!6L[''LL'!Fa(!=!=C''!*aec[!F](!=C!=(]!6U(!=(!6'['!.!7]((!='[[aecL]]((!=(!0UdCd(!0"
+DATA "U'!%cLd('[[aec[]](](]!6:]!=(!=]!3]!6acc!*(]d[!.afc!*!*(](!0(]d(]([!6!6[ac[]]'[aaic!*[]!=d]!=(]]!.['["
+DATA "!.aca[aamc!*!*(]((!=](d'[!*atc!*!*((]]('[!*[[avc[[(]([''aayc!*[(!.a!%}cLapc"
+DATA ""
+DATA 32, 22
+DATA "~csc!F!F!%~c!.La~ca!*[!%{cL!*]!3'!%cL!*vc!6U!=C(]]U!%]]Ltc!6!=C!((!=]]!6['!0(LccLUL['!FhcULL]!0LC!="
+DATA "!=]!3!3U''!3!*cUCC!=!*[ac!*ecU!=d(!0!6U!=((!3!3L!.'!F!0!3C!(!(!.[!.acLaccU!=!(CC(]!0U[!3!0!6!6L!.''"
+DATA "dC!(U[''ac!*Lc!*!=C!(6!=]]!3!6['!0!6U'!Fa(C(C!([[''ac[(!7!=CCd!=(!0!3L''!.UU'!Fa(!=C!=!*!.'[[acL!=!F"
+DATA ":(C!=C(!0U'd(]'!*'!F!7C!=!=(['['[ac!*((](]((!0!6!=C!=!=((!3!6'!7c!*!=!=][['[[ac!*[]!=]!0](!3(]](](!0"
+DATA "]!3!Fcc!*(][d'aaec[!*e]g(!0'!0!6[ac[(]''a!%ic!*L]!0]e(!0(!.!*[[!.aca'a!%mc!*!*!0((]](!0d'[[atc!*!*e]"
+DATA "(''!*!*!.avc!*!*d('!*!*aayc[L]'aa}cLapc"
+DATA ""
+DATA 32, 22
+DATA "~coc!*UL[!F|cU!=!0]!6azcU(]!3!3LLayc[!3!6(](!3!%yc'!=C!=(!=(!3!Fwc'!(dC!=!=(!0!6!FpcadcUL(]!0LC!=!=]"
+DATA "!0!6!*aoc!*!7aLC(C!=]]U(]!0!3!6!*'!%cc!6ajc!*!FCd!3!6!0]!0!6!*!3!0!6!6[!F!%c!6Lajc[((f!3]!0UL[!6!3!6"
+DATA "!*'!FdLajc[((!0!3U!3!0(U!*[''U!*[!Fa(L!*ajc!*!*(]!3!0!6!0('!=[[''[!Fa!7!.U!*!%lcL!0!6!3!6](]!0!*'[!*"
+DATA "U'!%caUUalc!*]!3!6!3]((!3!*d[U!Fcceamca!F!F''[(!0d'[LUaxcL!0'[!F[LUaxcL!3[a!%a!F!Fayc'a~c~c~c{c"
+DATA ""
+DATA 32, 22
+DATA "~coc!*UL[!F!FazcU(!0!0!6L[!%xc!6(]!0ULU'!%xcU!0U!=((!0!FacL[uc'!=CCd(!0!6a](!*sc[!=dC(!=]!0!3L!F!3(L"
+DATA "ccLaa!Ffcadc!6U((]!6!=!=]]!3!3!*''!0!*c!6!='[afc!*!%!%!6CC!=(]!3U](!0!3!3!*!.!.!F!0!6C['!.afcL!FC!="
+DATA "!0!3!3]]!3U[!0!0!3!6[!F!F!.(!=U'['afcL(]!0!6!6!3](!3!6L[!6!3!6'!Fa]CU!*!.'!*afc!*(]!0!3!6!3]!=!6!*['"
+DATA "'!6!*'!F!F!=U!6U['[afc!*!=(!3!6!6!0]([(!=!.'[L!Fa!7!=LLU!.dagc[(!0!3!3!6]((!3L[['!6'!7c[L!6Uakc!*!0"
+DATA "!3!6!3!0(]!0[''!*!3!Fcc!%!*!F!Falc''!F'[((!0L''!*!*Laca!%tc[!=]!*'[!*!*LaxcL!0L'da!Fayc[aa~c~c~czc"
+DATA ""
+DATA 32, 22
+DATA "~coc!*UL[!F|cU!=!0]!6azcU(]!3!3LLayc[!3!6(](!3!%yc'!=C!=(!=(!3!Fwc'!(dC!=!=(!0!6!Fgc!*U!*!*fcadcUL!="
+DATA "]!0UC!=((]!6L!%ec!6!=C!=afcL!7aU!=e(!3L](]!0!6L!.!%cc!3CC!('afc!*a!=!=!3!3!0!=!0!3L!*!3!0!0U[!F!%cLC"
+DATA "C!(!6!*afc!*!=(!0d!3]!0!3!6''!3!3U'!F!F!*!=(C!=''afc[((!3!6!3!0(!3!6U''!F!6U'!Fa(C!=C''[afc[!=(]!3!6"
+DATA "!3!=!=Ud(]'L'a!7(d!='['agcL(!0d!3(](!0!0!6!3]U'!7cLd(['[ahc!*!3!6!0!3(d]!3!6!3(!6accL(][['[aic'!F!F'"
+DATA "L(]!3!0!0!3]!6[ac!*!0][[aaoc!*]!0!3!3!0(!.[[!%ca[aaqc!*(!0!3!6!3(d[awcL''!F!0!0[['a{ca['aa~c!%~cqc"
+DATA ""
+DATA 32, 22
+DATA "~coc!*UL[!F!FazcU(!0!0!6L[!%xc!6(]!0ULU'!%xcU!0U!=((!0!FacL[uc'!=CCd(!0!6a](!*sc[!=dC(!=]!0!3L!F!3(L"
+DATA "ccLU!*L!F!Fdc!FdcLU!=(!3U!=!=((!3!6L''!0'c!6C(!='[adc'!7!%LC(!=(]!6!*d]!3!6L!F!.!F!3LC6!(d!*adcL!F!="
+DATA "C!6!6!0(]!0L[!3]!6U!*d!F!=C!=CU''[adc[((]!0!6!0!=!0!0U!*[!6UL['a]!=!=C!='!*[!*adc[((!0!3!6!0(]!6L!*'"
+DATA "'!6L'!F!F!=!=(!=d[''adc[((!0!6!3]]U[!=d]'['a!7((C(d'!*!*aecL(d!3]d(!0!3!3!0!3U!.!%c!*(]!=!*d'[aec!*]"
+DATA "]!3!0]!=(]!0!3!3](Lacc!*]]e[aagc!F!.!F''L!=(!0d!3!=U[ac'!0!0''aaoc!*!=d!3]][['aca!.a!%qcL]!3!6!3!3]'"
+DATA "'[awc!*''!F!3]'['a{c[L'!%a~ca~cqc"
+DATA ""
+DATA 32, 22
+DATA "~coc!*UL[!F|cU!=!0]!6azcU(]!3!3LLayc[!3!6(](!3!%yc'!=C!=(!=(!3!Fwc'!(dC!=!=(!0!6!Fmc[ccadcLL((!0!6!="
+DATA "!=((!3!6Uaec!6gcL[!F'!7!%UC!=!=]!0!3L](]!3!3L[accLagcL!0'!F!F!=dC((!0!3U!*!3!3!0U!*!F!%c!6L!%gc[(!0"
+DATA "!F(CC66C(]!6!6['d!6[a!F!*!0!*agc!*](!F(eC!=]!0!3!*[''!3!*'!Fa!=!*UagcL]!0!F!=(C!=((!3U!*((]!3'!*'!."
+DATA "!7!=UUagc!*!=e(]!=(]U(C!=!=(]'U!F!%caULahcL[]((!0(]!3!0((]U'!*'!*acc!%!F!F!%jc!*L]](]]((](U!*['[Laqc"
+DATA "['(!=](d]U[!*'[!*!Fsc!*!*(]d(L!*'!%dauc!*[(!=(L[a{c!*!*(ULa}c[a!F~ctc"
+DATA ""
+DATA 32, 22
+DATA "~coc!*UL[!F!FazcU(!0!0!6L[!%xc!6(]!0ULU'!%xcU!0U!=((!0!FacL[uc'!=CCd(!0!6a](!*sc[!=dC(!=]!0!3L!F!3(L"
+DATA "ccLa!%!Fcc[ccadcLU!=(]L!=!=(]]U!*''!0!*cUC['acc[[!F[!7!%LC(!=(]!6!*d]!3!6L!F!.!F!3LC['!*accL('!Fa!="
+DATA "dC!=(]!3!6[!0!3!6!6!*!.!F!FC!=Ld'accL](!F!=C!=!(6!=!=!0!3!3L!.U!6U''!F!0CLL!*'[acc[](aC!=C!(C!=(]!3L"
+DATA "['!.!6L[!Fa!=LUU''[acc!*(!=!F(!=C!=((!0!6L!=((!3'!*!.!.!7([!6!6!*'aacc[g(!=(]!6Cd!=(!0!.U'!7c!*!*UL["
+DATA "!%fcL[(!=(]((!6](!=]!6[''[acc[!*UUaic[[d(]d(]]!6[[!*''acad!Flc[L]!=](!0](!6L!.'!*'!Fsc!*[](!0]]UL[ea"
+DATA "uc[!*((]LLa{c[[(U!*a}cLa!Fa~csc"
+DATA ""
+DATA 32, 22
+DATA "~coc!*UL[!F|cU!=!0]!6azcU(]!3!3LLayc[!3!6(](!3!%yc'!=C!=(!=(!3!Fwc'!(dC!=!=(!0!6!Fgc!*U!*!*cc[cc!Fdc"
+DATA "LU((!3U!=!=((!0!3!*aecUCC!=acc!*!*a[!%!%LCe(]U]((!3!3!*!Facc!3C6C'acc!*]'!FaC!=!(C!=!=]!3U[!3!0!0!6"
+DATA "!*'!%c!6dCU'!%cc!*]]!F]CC!(C!=!=]!3U!*[!6!6U'!F!F!*!=dC!*'accL](!F!=CCd!=(!0!3L''!.UU'!Fa(!=C!=!*!.'"
+DATA "accL((!F!=(!=C((]!6[(!=(]'!*!.a!7C!=!=(!.!*[acc!*(]]((]!=(!0!6!=C(!=(]]!6!F!7cL]((d[adc!*Le(](!6!0]"
+DATA "!=((]!0!0!3!Fcc[(][!*!*'afc!*[((!=!0(d]((]'!3!3[!%c']][[aaic!*!*]!=]d(](]['['[!%ca!Faamc!*!*((]](]("
+DATA "d'['!%tc[!*d(:]d'[[avc[L(]!0[''aayc[U([a!%}c!*apc"
+DATA ""
+DATA 32, 22
+DATA "~coc!*UL[!F!FazcU(!0!0!6L[!%xc!6(]!0ULU'!%xcU!0U!=((!0!FacL[uc'!=CCd(!0!6a](!*sc[!=dC(!=]!0!3L!F!3(L"
+DATA "ccLU!*L!F!F!*cc!Fdc!6U!=!0!0Ld!=]!3!6L['!3[c!6!=C!=[[aL[a[!%!%!6CC((!0!3L((!0!3U!*d'!0!3!(6!(!*['a!*"
+DATA "]!.!F!FC!=dC]!0!3U!*!3!0!0U[d!FeC!6[!*'aL]]a!=C!(CC!=(!0!3U!*'!3!6U['!F]!=dC''[[a!*((a!=eC!=(!3!6U['"
+DATA "'UUd!F!=!=(Cd'['aL(!0!F](d!=]!0UL!=(]][[!.a!7!=!=(([[!*[[aL]]!0(!=]((!0UC!=Cd(]U'!7c!*(!=!='[d'acL!*"
+DATA "]](!=]!0!3]d(:(!0!3!0accL(]'['[aaec[L](d]e(]([!6!3[!%c']!0''aaic!*L((]!0]]((]!*!*!.'!*aca'a!%mcLL((]"
+DATA "(](([!*'!*'!%tcL!*]!0(!0]d['!*avcL!*((]''[aaycL!*][a!%}cLapc"
+DATA ""
+DATA 16, 24
+DATA "~c~c{ciPhcPe>C>C(PfcPi>C!=PdcP>;g>CC!=]PcPf>;e>C!=]]PP;;>;f>CC(]TPPd>;;e>C!=]TTPcPC>!(>!(>C!=(]!6TP"
+DATA "dcP(e!=(]TT!3PfcP]dT!*T[TPhcPPWd!&PPjcP_WW!&Pdc  fcPGR!&WPccd fcP_RW!&Pce fcPGG!&!&Pce fcP_RW!&Pf gc"
+DATA "PR!&Pec  hcPPxc"
+DATA ""
+DATA 16, 14
+DATA "5IocICIImcC&&I5Ikcd&dI65ic_d&I&&I5Igc_&&Cd&fIgc&__d&I6&I5Igc_g&eI5gc&__d&I&&Iic_g&Ikc&__d&mc_d&oc&_"
+DATA "qc"
+DATA ""
+DATA 16, 14
+DATA "oc!0_mce_kc__G__Gicd_dGAGgc__G__GGARAecd_!0G_AGAdRcc_!0G__GGARAARcc_!0_dGA!0!0ARAec]__GG!0RAARgcG_!0"
+DATA "GAdRicGARAARkcAARAmc]R~cc"
 DATA ""
 DATA 64, 60
-DATA "~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~ckcb:b:~cmcd=Ce=lc:"
-DATA "++b~cjc=Y=//@/@/=/=AAjcFF~cjc=n/=AicP#~chcY=m/==/=\\gcMF~cgc=f/0j/f=\fcPF~cgc=//0/0/0/0/@d/=//=Y=Afc"
-DATA "MF~cfc=e/e0@i/d=CA\ecP#~cec`//0/00@0@00/@d/==/=Y==AMdcPF~cc=cc=d/0/f0f/=/f=A=\dcPF}cY=@=Tf/00@0@/0/@"
-DATA "/=//=Y=Y==A=MccFF{c=Y//NN:g/0/@/0f/==/d=AA=AQQDT#ycY=//@2aXHf/0/0/0/@d/==/=Y=CA=A=D``TFxc=f/1;2Hp/=/"
-DATA "d=C==A=ATHHWFxc==/0//UU1]:@d/@d/@/=/=//=Y=Y==A=ATTV`PFxcd=e/UUN::k/=//d=Y=AA=AQTH``F#xcOLL//==]XNN]:"
-DATA "]d/=/=/==/=Y=Y=AA=`:T`HVHPFxcOe*==:NXNNdH`/==//f=Y==AHdDHH`HHFPTwcOL*LZ/=]NUXUNUH`::NH::`dH:]TQDWd`V"
-DATA "`HHPPHQQuc)d*)==:1eXNXXUTa22;11a1]HTVV`He`HHFPHH:TTsc:L*LZ/=HNUXUXdNXdNaa2X:eHVdHV`V``VPP`dH'qcACXNa"
-DATA "*Z=C`U1UXXeNXdNXXH`dH`eHd`HVQ``dH``_\mcAQ&CdX1aa11UXXNXNN1NUXUNU]V`H`V`HH`HVHHV`H:H``H``_A_MicCAJ&J&"
-DATA "UeXNa;NXUUXUNX1UdXNU`He`dHe`eHg`_AQC\\fcAJEJE&&H]dX1X1;8a1U:U]dUXX1XHHV`V``VVQ`H:Hg`VV'_C_AC'\ec_dEJ"
-DATA "E&&C`UfXNa;aXe+]]UNXHHd`HVQ`eHg`VTd_dC__\fc_'C&JJ&EC&HUXUdX1;ag+:XX`HVHHV`H:H``Hd`VV'_QAACC_W\FicA_&"
-DATA "&eJ&&HUUeXN;h+XHe`eHg`VT_A__AA__F\mcAA&&dJE&AH]dX1X1af+:QQ`HXU(f`VV'_'C'AQ_W\Fqc_AE&EJEJEC`UfXN;++`X"
-DATA "UX1X:g`VT_dA5J__\\uc_A&EEJ&EEAHUXUX1X1a;a1U(`Hd`VV'_C_AJJ_A\Pyc_A&dE5JECHUUeXNa]g`VT_A_E5E__F\}cA'&&"
-DATA "J5JE&&H]dX1Ue`VV'__JEE5_M\F~cdcAAECEEJEJC`UXX]d`VT__&dE__\\~chc_A&&fJVHU]VV'_QJJ5J_A\F~clc__&JEJ&JJ&"
-DATA "QT&E&EE5__\\~cpc_A&EJE5&E&JEJ5_\\F~ctcA_ECJd&JJ__\\~cxc_AEC5J_M\F~c|c__&_F\~c~cccAF~c~c~cic"
+DATA "~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~ckc!8,!8,~cmcg<!/!/"
+DATA "lc,++!8~cjc<F<!G-!G-!G-FF<!/Pjca!7~cjc<-d!Gg-eF!/icP!7~chcF<-!G-!G-!G--!Ge-F<<PPgcP!7~cgc<j!Gf-eF<<P"
+DATA "fcP!7~cgc<-k!Ge-F<FF<!/fca!7~cfc<i!G.!G!Ge-dF<<!/!/PecP!7~cec!B-!G-e!G.!G!GZ!G!G-F--F<<F<<!/!FdcP!7"
+DATA "~cc<cc<h!G.d!Gf-eF<<!/!/PdcP!7}c<<!G<H--!G-!GZd!G.e!G-FF-F<<!/<<!/!1Pcca!7{c<<--1!@!5!G!G-j!G--eFf<"
+DATA "d!/H!)!.!E!7yc<<!G-!G21!(!+-!G!G-!G-!G-!G-!G!Ge-F<FF<!/!/<!/!/!.!+!$!.!7xc<!Ge-1;2!+e-!G!G-!G!Gf-eF"
+DATA "d<f!/!E!+!5!F!7xc!/F!G!G-<CC1!=!5--!G-!G-!G-!G-F--eFe<!/<!/H!E!$!BP!7xc!/FF--!GFC!(1!=:Fh-gFe<e!/HH"
+DATA "!+!B!B!%!7xcb!D!DeF!=!(!@1!=:!=d-F-FF-dFf<!/!/!B!5H!+!+!$!+P!7xcbe*F<:1!(!@1e!+gF<Fe<!/!/!Bd!.!+!+!B"
+DATA "!+!+!%P!Ewcb!D*!D!1F<!=1!(!(C1C!+!B!5!+1d!5!B!+!5::!=H!E!.!F!B!+!B!$!B!5!+PP:HHuc)d*)F<:!@e!(1d!(!E"
+DATA "!@22;11!@1!=!+!E!$!$!B!+e!B!+!+!%Pd!5!*!Esc:!D*!D!1F<!51Cd!(!@1!@!(!@1d!@2!(!5!5!+!5!+!$!+!5!+!$!B!$"
+DATA "!B!+!$PP!+d!5!EqcR_!(1!@*!1F<!BC1d!(1!@1!@!(!@1!@!(C!+!Bd!+!Be!+d!B!+!$H!B!Bd!+!B!BWWmcGG&!6!(1!(d!@"
+DATA "11C!(1!@!(!@1!@1C!(C1!(!=!$!B!5!B!$!B!5!+!5!+!$!+!+!$!6!+!0!5!3!B!6!B!6RRWWicGG5&I&Ce!(1;;!@!(CC!(!("
+DATA "1!(1e!(1!=!B!+e!Bd!+!B!B!$!B!+!5!+!+g!BRGG_!&WfcGdI&&_!+!=d!(1!(!@;8!@1C:C!=eC!(!@!(!5!+!$!B!$!B!+!$"
+DATA "!)H!6!+!5!5!3d!B!6!B!$!$HR_GL_G!&ecRI&&5I&&_!+Cf!(1!@;!@!(e+:!=C1!(!+!+d!B!+!$H!B!+!5!+!+g!B!$!ERRG"
+DATA "d_RW!&fcRR&&I&&I&&!+Cd!(1!(!@;;g+:!(!(!5!+!$!+!+!$!6!+!0!5!3!B!6!B!6!B!$!$HW_GR__WW!&!7icRR&&5dI&&!+"
+DATA "CCe!(1!@h+!(!+!B!B!$!B!+!5!+!+g!B!$!EWGdRGRW!&!&mcGR&_II5I&U!+!=d!(1!(!@;f+:!$H!6!+!(!((d!B!6!B!$!$H"
+DATA "RG_LGGWW!&aqcGG&&dI5I_!+Cf!(1!@++!BC!(!(1C:g!B!$!ERdG5IRG!&!&ucRR&II&&I&L!+Cd!(1!(!@;;!@!(!((!B!6!B"
+DATA "!6!B!$!$HR_RRIIRR!&WycRG&I&I5I&_!+CCe!(1!@!=g!B!$!ERGRI5IRR!7!&}cGG&_I55I&_!+!=d!(1C!B!B!6!B!$!$HWR5"
+DATA "5I5GW!&a~cdcGGI&fI_!+C!(!(!=d!B!$!ERG&I&IRR!&!&~chcRR&&Id5I&!+C!=!$!$HR_II5IGG!&a~clcGG&I&I&5I&H!E&I"
+DATA "&I&5GGa!&~cpcRR&5II5I&&5II5RR!&a~ctcGG&&I&I&IIRR!&!&~cxcRGI_5&WW!&!7~c|cGR&R!7!&~c~cccGa~c~c~cic"
 DATA ""
 DATA 64, 60
-DATA "~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~cgcg<[[~czc<ISReS--[Z~cwc<SRRSRSSd-IIP~cuc<SgRSS-II"
-DATA "<<[~ctc<RRGGRRSS--dI<P~csc<SSdGKGSSd-II[ZP~crc`-SReGS--II<[P[Sg<[~ckcHId-SRS-eI[PSRSRS-SS--[Z~cic:XU"
-DATA "II-eI<<[PSRRfSd-II[~chcHNeU<<I<<[TSSdRSRRSS-II<<[~cgc:aNXUXU:HH`QDSRRGGRRSS--dI<P~cgcHaNNXUU::HHV-SS"
-DATA "GKdGSSd-II<ZP~cfcHdN1d]:HH`1-SReGS--dI<[[D~cfcHXaNX]::Hd`1II--SRS-I-II<<[[D~cfcTXX11]:e+`]N1-I-fI<<["
-DATA "[VVW~cfcQ]eX(e+`(X11X]<<I<[[H`V``W~cfc:H`UUXTe+PVXX11e]::dH`HHW~cfcHN:dHVTTDDFQXUXUX]UU](HV``HHW~cfc"
-DATA ":aNUUHQTDMFF`XXUUXXd:Hd`dHT~cfcHdNX]VTWMPF`gX](H``V`dHD~cecHXNN11]QTDMFF`NNXU1X]::Hd`H``P~cccH:X]X11"
-DATA "X]VTWMPFHXaN1UU](H``HHV`WFzc\YccH:N1X]XX11]QTDMFFV]:11]]XU]::HHVQTWxc\Y00YYN1NN1X]XU]`DTDMPFQX]:H`:U"
-DATA "]:HH:DQTHWvc\Ye0Ad_NN11U:]]H`WMPFWVXXNX``V`VVQT``HHWuc\e0_A_A_d0NN]U]]:H]]TTWQXUdXdU](HV``HHWuc\Y0__"
-DATA "A__f0::]]e:WTTDF`dXUXXd:Hd`eH_sc`__/0\_f0e:]U::WDWQPPF`XUU]XU](HH`V`dH`H\_pcHaaU\/__d0_d:]]U]TWMMdPF"
-DATA "F`NNUUXXd:Hd`H``VHH:\\mc_XX1a;U5_\0\_]:`]UTDDP\\`V`dHXN1X]U](H``HHV`Q`:HH`A\MicAAEUeXaaU\//\_:HHTDW\"
-DATA "__d0HHN1UUXX]]U]::dHVV`He`dC_\fcA5E&&]UeXa;U5/\0YHW\\_f0_ANN11U::H]]:H`VV`Xe`VV__AA'\ecAEEJEEC]UeXaa"
-DATA "U\\/0__f0__A__0NNd1XeUdXHe`VQ_ACCA_\fc_A&EJ5EC]eX1a;U_/\_Y00_A_A_f0N1N1NN11Xe`dV_AA'_W\FicA_JEEJCC]U"
-DATA "eXaaU5\_Yd_Af0__\fNXHe`VQ__E5__\\mc_ACE&EE&]UeXa;U_//_\e0_A\#Y:NNXe`VVQ_AJE_A\FqcAAdJ&&C]UeXaaU5/_00"
-DATA "A_\\dC`XHe`VQ_AJEA_\\uc_AEJJ5EE]eX1a;U__/0#YYCHXe`dV_'EJ_W\Fyc__EEJJEC]UeXaaU\/CA`XHe`VQ__J&__F\}c__"
-DATA "J&55EE]UeXa;UUXe`VVQ_A&E_'\F~cdc_A&E&&J&]UeXaHe`VQ__&&__\\~chcA'CEJ5&C]eX``dV_'JJ_'\F~clc'A&EJE&C]UX"
-DATA "`VQ\AJ&__F\~cpc_W&dJ&C]Q_&E5_A\F~ctcA_&&EJCEJE__\\~cxc_QE&&J__\F~c|c_AE_F\~c~ccc_F~c~c~cic"
+DATA "~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~ckc!8,!8,~cmcg!4``"
+DATA "lc,++!8~cjc!4!4!2/DD/D//X!4`Wjca!7~cjc!2/dD/DDd/XX!2!2`icP!7~chc!4!2/D/dD/DD/fX!2`WgcP!7~cgc!4kDe/XX"
+DATA "!2!2!4!4WfcP!7~cgc!2/dD^D^eD/XX/XX!2!4!4!,fca!7~cfc!2eDe^0dD//XXe!2!4`WecP!7~cec!B/D/Dd^0d^D//fX!2"
+DATA "d!4`!FdcP!7~cc!4cc!4fD^^0^^DD//eX!2!2!4!4``WdcP!7}c!2!4D!4HD/D/D^Dd^D^DD//X!2!2X!2!2!4!4`APcca!7{c!4"
+DATA "!2//1!@!5/D/dD^gD//eX!2d!4d`H!)!.!E!7yc!2!4D/D21!(!+//D/dD^eD//X!2XX!2!4!4``!4``!.!+!$!.!7xc!2Dd/X1;"
+DATA "2!+d/D/fDd/dXe!2!4!4e`!E!+!5!F!7xc`/D^X!2CC1!=!5X/D/D/D/X//dXf!2!4!4`!4`H!E!$!BP!7xc`dX/DXC!(1!=:j/"
+DATA "dXf!2!4!4d`HH!+!B!B!%!7xcb!D!D!2X/!2!=!(!@1!=:!=XX//X/X!2Xf!2!4!4``!B!5H!+!+!$!+P!7xcbe*X!4:1!(!@1"
+DATA "e!+hXd!2!4!4``!Bd!.!+!+!B!+!+!%P!Ewcb!D*!D!1!2!2!=1!(!(C1C!+!B!5!+1d!5!B!+!5::!=H!E!.!F!B!+!B!$!B!5"
+DATA "!+PP:HHuc)d*)X!2:!@e!(1d!(!E!@22;11!@1!=!+!E!$!$!B!+e!B!+!+!%Pd!5!*!Esc:!D*!D!1!2!2!51Cd!(!@1!@!(!@1"
+DATA "d!@2!(!5!5!+!5!+!$!+!5!+!$!B!$!B!+!$PP!+d!5!EqcR_!(1!@*!1X!4!BC1d!(1!@1!@!(!@1!@!(C!+!Bd!+!Be!+d!B!+"
+DATA "!$H!B!Bd!+!B!BWWmcGG&!6!(1!(d!@11C!(1!@!(!@1!@1C!(C1!(!=!$!B!5!B!$!B!5!+!5!+!$!+!+!$!6!+!0!5!3!B!6!B"
+DATA "!6RRWWicGG5&I&Ce!(1;;!@!(CC!(!(1!(1e!(1!=!B!+e!Bd!+!B!B!$!B!+!5!+!+g!BRGG_!&WfcGdI&&_!+!=d!(1!(!@;8"
+DATA "!@1C:C!=eC!(!@!(!5!+!$!B!$!B!+!$!)H!6!+!5!5!3d!B!6!B!$!$HR_GL_G!&ecRI&&5I&&_!+Cf!(1!@;!@!(e+:!=C1!("
+DATA "!+!+d!B!+!$H!B!+!5!+!+g!B!$!ERRGd_RW!&fcRR&&I&&I&&!+Cd!(1!(!@;;g+:!(!(!5!+!$!+!+!$!6!+!0!5!3!B!6!B!6"
+DATA "!B!$!$HW_GR__WW!&!7icRR&&5dI&&!+CCe!(1!@h+!(!+!B!B!$!B!+!5!+!+g!B!$!EWGdRGRW!&!&mcGR&_II5I&U!+!=d!(1"
+DATA "!(!@;f+:!$H!6!+!(!((d!B!6!B!$!$HRG_LGGWW!&aqcGG&&dI5I_!+Cf!(1!@++!BC!(!(1C:g!B!$!ERdG5IRG!&!&ucRR&II"
+DATA "&&I&L!+Cd!(1!(!@;;!@!(!((!B!6!B!6!B!$!$HR_RRIIRR!&WycRG&I&I5I&_!+CCe!(1!@!=g!B!$!ERGRI5IRR!7!&}cGG&_"
+DATA "I55I&_!+!=d!(1C!B!B!6!B!$!$HWR55I5GW!&a~cdcGGI&fI_!+C!(!(!=d!B!$!ERG&I&IRR!&!&~chcRR&&Id5I&!+C!=!$!$"
+DATA "HR_II5IGG!&a~clcGG&I&I&5I&H!E&I&I&5GGa!&~cpcRR&5II5I&&5II5RR!&a~ctcGG&&I&I&IIRR!&!&~cxcRGI_5&WW!&!7"
+DATA "~c|cGR&R!7!&~c~cccGa~c~c~cic"
 DATA ""
 DATA 64, 60
-DATA "~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~cgcYd=C=AA~czc=Yd/@/@/=A=~cwc=k/==A~cuc=//0/0f/=//="
-DATA "A~ctcYd/0i/==\~cscAd/@0@/0/@/==Y==\~crc`//e0e/e=AA/=Yd=AA~ckcH=//@g/=YAAf/@d/=A=~cic:XU//=//=/==AAl/"
-DATA "==A~chcHNeUY=Y=AATd/0/0d/@/=//=A~cgc:aNXUXU:HH`QD//0/0/0g/=Y\~cgcHaNNXUU::HHV=d/@0@/0d/==Y==\~cfcHdN"
-DATA "1d]:HH`1d/0@0e/f=AD~cfcHXaNX]::Hd`1=//@g/=Y==A=D~cfcTXX11]:e+`]N1=d/e=Y==AVVW~cfcQ]eX(e+`(X11X]Y=Y=A"
-DATA "AH`V``W~cfc:H`UUXTe+PVXX11e]::dH`HHW~cfcHN:dHVTTDDFQXUXUX]UU](HV``HHW~cfc:aNUUHQTDMFF`XXUUXXd:Hd`dHT"
-DATA "~cfcHdNX]VTWMPF`gX](H``V`dHD~cecHXNN11]QTDMFF`NNXU1X]::Hd`H``P~cccH:X]X11X]VTWMPFHXaN1UU](H``HHV`WF"
-DATA "zc\YccH:N1X]XX11]QTDMFFV]:11]]XU]::HHVQTWxc\Y00YYN1NN1X]XU]`DTDMPFQX]:H`:U]:HH:DQTHWvc\Ye0Ad_NN11U:]"
-DATA "]H`WMPFWVXXNX``V`VVQT``HHWuc\e0_A_A_d0NN]U]]:H]]TTWQXUdXdU](HV``HHWuc\Y0__A__f0::]]e:WTTDF`dXUXXd:H"
-DATA "d`eH_sc`__/0\_f0e:]U::WDWQPPF`XUU]XU](HH`V`dH`H\_pcHaaU\/__d0_d:]]U]TWMMdPFF`NNUUXXd:Hd`H``VHH:\\mc_"
-DATA "XX1a;U5_\0\_]:`]UTDDP\\`V`dHXN1X]U](H``HHV`Q`:HH`A\MicAAEUeXaaU\//\_:HHTDW\__d0HHN1UUXX]]U]::dHVV`H"
-DATA "e`dC_\fcA5E&&]UeXa;U5/\0YHW\\_f0_ANN11U::H]]:H`VV`Xe`VV__AA'\ecAEEJEEC]UeXaaU\\/0__f0__A__0NNd1XeUdX"
-DATA "He`VQ_ACCA_\fc_A&EJ5EC]eX1a;U_/\_Y00_A_A_f0N1N1NN11Xe`dV_AA'_W\FicA_JEEJCC]UeXaaU5\_Yd_Af0__\fNXHe`V"
-DATA "Q__E5__\\mc_ACE&EE&]UeXa;U_//_\e0_A\#Y:NNXe`VVQ_AJE_A\FqcAAdJ&&C]UeXaaU5/_00A_\\dC`XHe`VQ_AJEA_\\uc_"
-DATA "AEJJ5EE]eX1a;U__/0#YYCHXe`dV_'EJ_W\Fyc__EEJJEC]UeXaaU\/CA`XHe`VQ__J&__F\}c__J&55EE]UeXa;UUXe`VVQ_A&E"
-DATA "_'\F~cdc_A&E&&J&]UeXaHe`VQ__&&__\\~chcA'CEJ5&C]eX``dV_'JJ_'\F~clc'A&EJE&C]UX`VQ\AJ&__F\~cpc_W&dJ&C]Q"
-DATA "_&E5_A\F~ctcA_&&EJCEJE__\\~cxc_QE&&J__\F~c|c_AE_F\~c~ccc_F~c~c~cic"
+DATA "~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~cgcg<!/!/~czc<F!G--!Ge-!/!1~cwc<-d!Gg-FFP~cuc<-!G-"
+DATA "!G-!G!Gd-FF<<!/~ctc<i!G--dF<P~csc<--d!G.!G--F--FF!/!1P~crc!B--!G!G.d!G--FF<!/P!/-g<!/~ckc!BF--!G!Gd-"
+DATA "eF!/P--!G--!Ge-!/!1~cic!5!(CFF-eF<<!/Pf!Gg-FF!/~chc!5!@CC!=!(<<F<<!/!.--d!G-!G!G-!G-FF<<!/~cgc:!@!@"
+DATA "!(C!(!(:!5!+!B!)!Ei!Gd-dF<P~cgc!5!@11!(CC:!5!+!+!)d-d!G.!Gf-FF<!1P~cfc!+!@!@11C!=!=!5!5!+!B1--!G!G."
+DATA "d!G--dF<!/!/!.~cfc!+!(11!(!=!=:!5!+!B!B1FF-!G!Gd-F-FF<<!/!/!.~cfc!E!(!(!@1!=:e+!B!=!@1-F-fF<<!/!/!$"
+DATA "!$!F~cfc!$!=e!(!5e+!B!5!(!@1!(!=<<F<!/!/!+!B!$!$!+!F~cfc:!+!BCC!(!Ee+P!$!(!(11e!=:!5d!+!B!+!+!F~cfc"
+DATA "!5!@!5!+!B!+H!E!E!.!.!7!$f!(:CC!=!5!5!$!B!5!+!5!F~cfc:!@!@CC!+!)!E!.!F!%!7!B!(!(CC1!(!=:!5!+d!Bd!+!E"
+DATA "~cfc:!@11!(!=H!E!FPP!7!6g!(!=(!5!+!B!$!B!5!+!5!.~cec!5!(e1!=!)H!.!F!%!7!B1!@!(C1!(!=:!5!+d!B!+!B!BP"
+DATA "~ccc!5!+!(C!(!@1!(!=!)!E!FPP!7!+!(d1C!(!=(!5!+!B!5!+!$!B!.!%zc!&!Icc!5!5d1!=!(!(11!=HH!.!F!%!7!):!51"
+DATA "1!=!=!(!=!=:d!+!$!EH!Fxc!&!#^0!I!#1!@1!@1!(!=!(C!=!+!.!E!.PP!7!$!(!=:!5!B:Cd:!+!5!.!EH!5!Fvc!&!I0d^"
+DATA "e!,!@d1C:!=!=!5!B!F!FP!%!F!)!(!(11!B!B!$!B!$!$HH!+!B!+!+!Fuc!&^0^0d!,A!,0^01!@!=C!=!=!5:!=!=!E!E!F!$"
+DATA "!(Cd!(!=CC!=(!5!$!B!5!+!5!Fuc!&!I^f!,^0d^::!=!=e:!F!E!E!.!7!Bd!(C1!(::!5!+d!Be!+Wsc!B!,!,!I^W!,0^0^0"
+DATA "e:!=C::!F!.!FHPP!7!6!(CC!=!(!(!=(!5!+!B!$!B!5!+!5!B!+Wapc!+!@!@CW!I!,!,d^!,d:!=!=C!=!Ed!FdP!%!7!$!@1"
+DATA "CC!(!(!=:!5!+d!B!+d!B!+!5!5WWmcG!(!(1!@;C^!,W^W!,!=:!5!=C!E!.!.!F!&W!B!$!Bd!+!(!(1!(!=C:!5!5!+!B!5!+"
+DATA "!$!B!$!B!+!5!+!BLWWicGG&Ce!(!@!@CW!I^W!,:!+!5!E!.!F!&!,!,^0^!5!511CC!(!(!=!=C!=!=:!5!+!+!$!)!B!5e!B"
+DATA "d_WWfcG5I&&!=C!(1!(1!@;C^^W^!I!+!.!&W!,0^0^0!,!,1!@11C:!5!5!=!=!5!5!B!$!$!3!(!+d!B!$!$GGRGG!&ecGdI&I"
+DATA "_!=Ce!(!@!@CW!&^^!,!,d^0^f!,^!@e1!(CCf!(!+e!B!$HdG_RR!&fcRG&&dI&!=e!(1!@;C!,^W!,!I^0!,Ad!,0^0^01!@1"
+DATA "!@1!@1!@!(!+!B!6!B!$!$LRRGLWW!&!7icRRII&I&&!=Ce!(!@!@C!I!,!,!Ie!,d^0^!,!,!&1!@1!@11!+e!B!$HRRI5WR!&"
+DATA "!&mcRR&I&&I_!=C!(1!(1!@;C!,^!I!,W^0^0!,!,!&!&!#!51!@!(!+d!B!$!$LWG5IRR!&!7qcGGII5&&_!=Ce!(!@!@C!I!I"
+DATA "!,^^!,!,!&!&!#!#_!B!(!+e!B!$HGG5&RR!&!&ucRGII5II&!=e!(1!@;C!,!,!I^!7!#!,_!3!(!+!B!6!B!$!$LRRIIRW!&!7"
+DATA "ycRRI&I5I_!=Ce!(!@!@CW!I!#!#!B!(!+e!B!$HRR5&RR!&!&}cRRII5I&I!=C!(1!(1!@;CC!(!+d!B!$!$LWG&&RR!&!7~cdc"
+DATA "RG_d&I&!=Ce!(!@!+e!B!$HGR&&RR!&!&~chcGW&&I5&!6!=e!(!6!B!$!$LRR5IRR!&a~clcGG_I5&__!=C!(!B!$HWG5&RR!&"
+DATA "!&~cpcRW&&5I&&!=LR_IIRG!&a~ctcGRd&I&dIRW!&!&~cxcGG&I&IRG!&!7~c|cGG&W!&!&~c~cccR!7~c~c~cic"
 DATA ""
 DATA 64, 60
-DATA "~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~cfceZ~c"
-DATA "}cZOLKKLKOO~cycZOhKOOZW~cvcZLK.K..LOK+KLKOO~cscOf.LLhKOLZZ~cpc].8d.9L..K..LOdKLKOO~cmcH88d.Lf.LLhKOO"
-DATA "ZW~cjc:e8.X.8d.9LK.K..LOK+KLKOO~cgc:.e8K88d.Kf.LLhKOLZZ~cccMWV`d8ae8.X.8d.9L..K..LOdKLKOO~cMDPP88K."
-DATA "e8K88d.Lf.LLhKOOZW|cMTPF.8Oe8ae8.X.8d.9LK.K..LOK+KLKOOzcMDPP.OLL88a.e8K88d.Kf.LLhKZZPPwc`QDPFOOL].8K"
-DATA "e8ae8.X.8d.9L..K..ZOdZMOPPscU:1DDFF::O..Ke8..e8K88d.Lf.hZMPdZrcH;8UUXNaNHK.K.8.8Ke8ae8.X.8d.OZDZMZPP"
-DATA "FPZZPrc:NXa;XX:HVKLe.Ke8a.e8K88d.dZWOMfPOOZPqcHXUXU]VH`T+Le.K.8.8Ke8ae8.eZPPFdPFPdZPoc::XXNNX:`VVOLL"
-DATA "d.Le.Ke8..e8dZQjPdZ`TDlcAXXUXdN]`VQOOK..KLKd.K.8.8Ke8WZVPFPFPFPFPFPW`:d`\icC_&UUdXNN]HQTOOdKLLd.Le.K"
-DATA "e8ZZDmPHHd`VA\\fc'EJEV]NN1NN]V`H1ULLKOK.K.Le.K.8.8ZWdPFdPFdPFP``VVQ_Q_'\ec_E&J&C_1UUN]Na1N11XLOdKOLK"
-DATA "..Le.dZlPd`VQ_AAC__\fcAWf&_UXHUXN;dN1ULLd+LK.LKd.ZOWPFPFPFPFP``dV_A_A_W\Fic_A&JEJC\`UdXa;NN1h+OLK.."
-DATA "eZhPd`VQ\AQA__F\mc__&&JE&C]UdXa;Nj+LK.dZWdPFP``VVQ_A_'_\\Fqc__EEJJ&&]UdXaak+fZdPd`VQ_AAC__\\uc_AE&dE"
-DATA "C]eXNNi+ZZW`Hd`dV_AA'__\FycQ_&J5JE&]UdXaag+Z`Xe`VQ__AA__\\}c__EEJ5&C]UdXNNd+`XH``VVQ_A_A_\\F~cdc_ACE"
-DATA "Ed&]UdXaaXHd`VQ\_E5__\\~chc_'&J&&JC]eX``dV__EE_A\F~clcA_eEJC]UX`VQ__EJ__F\~cpc_AEEJ&EC]Q_dJ_M\F~ctc_"
-DATA "AJ&fJ&__\\~cxcA'&&EJ_M\F~c|c__E_F\~c~ccc_F~c~c~cic"
+DATA "~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~cgc!2g!4`~czc!2!4D/DD/X//`!,~cwc!2/dD/D//dX!2`~cuc"
+DATA "!2/fDf/XX!2!,~ctc!4dD^eD//XX!2!4W~csc!4//Dd^DD/XX!2!2!4!4!,W~crc!B//DDd^D/XX!2!2`W!,/!4!2e!4`~ckc!BX"
+DATA "X//dDXXd!2`WD/D/DDe/`!,~cic!5!(ChX!2!4``iD//XX!2`~chc!5!@CC!=!(!2!2d!4`!.D/dD/D//D//XX!2!,~cgc:!@!@"
+DATA "!(C!(!(:!5!+!B!)!E/iD//XX!2!2W~cgc!5!@11!(CC:!5!+!+!)//DDd^DD/XXd!2!4AW~cfc!+!@!@11C!=!=!5!5!+!B1//D"
+DATA "D^^DD/dX!2!4``!.~cfc!+!(11!(!=!=:!5!+!B!B1XX//D/DXXd!2!4!4`A!.~cfc!E!(!(!@1!=:e+!B!=!@1hX!2!4!4``!$"
+DATA "!$!F~cfc!$!=e!(!5e+!B!5!(!@1!(!=!2!2!4!4``!+!B!$!$!+!F~cfc:!+!BCC!(!Ee+P!$!(!(11e!=:!5d!+!B!+!+!F~c"
+DATA "fc!5!@!5!+!B!+H!E!E!.!.!7!$f!(:CC!=!5!5!$!B!5!+!5!F~cfc:!@!@CC!+!)!E!.!F!%!7!B!(!(CC1!(!=:!5!+d!Bd!+"
+DATA "!E~cfc:!@11!(!=H!E!FPP!7!6g!(!=(!5!+!B!$!B!5!+!5!.~cec!5!(e1!=!)H!.!F!%!7!B1!@!(C1!(!=:!5!+d!B!+!B!B"
+DATA "P~ccc!5!+!(C!(!@1!(!=!)!E!FPP!7!+!(d1C!(!=(!5!+!B!5!+!$!B!.!%zc!&!Icc!5!5d1!=!(!(11!=HH!.!F!%!7!):!5"
+DATA "11!=!=!(!=!=:d!+!$!EH!Fxc!&!#^0!I!#1!@1!@1!(!=!(C!=!+!.!E!.PP!7!$!(!=:!5!B:Cd:!+!5!.!EH!5!Fvc!&!I0d^"
+DATA "e!,!@d1C:!=!=!5!B!F!FP!%!F!)!(!(11!B!B!$!B!$!$HH!+!B!+!+!Fuc!&^0^0d!,A!,0^01!@!=C!=!=!5:!=!=!E!E!F!$"
+DATA "!(Cd!(!=CC!=(!5!$!B!5!+!5!Fuc!&!I^f!,^0d^::!=!=e:!F!E!E!.!7!Bd!(C1!(::!5!+d!Be!+Wsc!B!,!,!I^W!,0^0^0"
+DATA "e:!=C::!F!.!FHPP!7!6!(CC!=!(!(!=(!5!+!B!$!B!5!+!5!B!+Wapc!+!@!@CW!I!,!,d^!,d:!=!=C!=!Ed!FdP!%!7!$!@1"
+DATA "CC!(!(!=:!5!+d!B!+d!B!+!5!5WWmcG!(!(1!@;C^!,W^W!,!=:!5!=C!E!.!.!F!&W!B!$!Bd!+!(!(1!(!=C:!5!5!+!B!5!+"
+DATA "!$!B!$!B!+!5!+!BLWWicGG&Ce!(!@!@CW!I^W!,:!+!5!E!.!F!&!,!,^0^!5!511CC!(!(!=!=C!=!=:!5!+!+!$!)!B!5e!B"
+DATA "d_WWfcG5I&&!=C!(1!(1!@;C^^W^!I!+!.!&W!,0^0^0!,!,1!@11C:!5!5!=!=!5!5!B!$!$!3!(!+d!B!$!$GGRGG!&ecGdI&I"
+DATA "_!=Ce!(!@!@CW!&^^!,!,d^0^f!,^!@e1!(CCf!(!+e!B!$HdG_RR!&fcRG&&dI&!=e!(1!@;C!,^W!,!I^0!,Ad!,0^0^01!@1"
+DATA "!@1!@1!@!(!+!B!6!B!$!$LRRGLWW!&!7icRRII&I&&!=Ce!(!@!@C!I!,!,!Ie!,d^0^!,!,!&1!@1!@11!+e!B!$HRRI5WR!&"
+DATA "!&mcRR&I&&I_!=C!(1!(1!@;C!,^!I!,W^0^0!,!,!&!&!#!51!@!(!+d!B!$!$LWG5IRR!&!7qcGGII5&&_!=Ce!(!@!@C!I!I"
+DATA "!,^^!,!,!&!&!#!#_!B!(!+e!B!$HGG5&RR!&!&ucRGII5II&!=e!(1!@;C!,!,!I^!7!#!,_!3!(!+!B!6!B!$!$LRRIIRW!&!7"
+DATA "ycRRI&I5I_!=Ce!(!@!@CW!I!#!#!B!(!+e!B!$HRR5&RR!&!&}cRRII5I&I!=C!(1!(1!@;CC!(!+d!B!$!$LWG&&RR!&!7~cdc"
+DATA "RG_d&I&!=Ce!(!@!+e!B!$HGR&&RR!&!&~chcGW&&I5&!6!=e!(!6!B!$!$LRR5IRR!&a~clcGG_I5&__!=C!(!B!$HWG5&RR!&"
+DATA "!&~cpcRW&&5I&&!=LR_IIRG!&a~ctcGRd&I&dIRW!&!&~cxcGG&I&IRG!&!7~c|cGG&W!&!&~c~cccR!7~c~c~cic"
 DATA ""
 DATA 64, 60
-DATA "~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~cfcdA_"
-DATA "~c}cCAY/050CC~cycCCg0/YYA_~cvcY5f0550/050CC~cscCf055h0YYA_~cpcE^00^055f0550/050CC~cmcJf^5f055g0/YYA_"
-DATA "~cjcJf^5^00^055f0550/050CC~cgcJ0e^0f^g055h0YYA_~cccMWV`d^6f^5^00^055f0550/050CC~cMDPP^^00e^6f^5f055"
-DATA "g0/YYA_|cMTPF^0Ce^6f^5^00^055f0550/050CCzcMDPP0C55^^60e^0f^g055h0A_\\wc`QDPFYCY5^^0e^6f^5^00^055f0AC"
-DATA "A__\C\\scU:1DDFF::Yd0e^00e^6f^5f0fA_CMPAA_rcH;8UUXNaNH500^0^^0e^6f^5^00^0CA__\APPFP_A\rc:NXa;XX:HV05"
-DATA "0d^0e^60e^0f^_A__CMfPYCA\qcHXUXU]VH`T/500^00^0^^0e^6f^__\APPFdPFP_A_\oc::XXNNX:`VVCY5g0^^0e^00e^A_CQ"
-DATA "jPAA_`TDlcAXXUXdN]`VQY5e05^0^00^0^^0e^AAVPFPFPFPFPFPA`:d`\icC_&UUdXNN]HQTCYd055d050d^0e^__DmPHHd`VA\"
-DATA "\fc'EJEV]NN1NN]V`H1U550Ye0500^00^0^^AAdPFdPFdPFP``VVQ_Q_'\ec_E&J&C_1UUN]Na1N11X5Yd0Y5d0500^^AA_lPd`V"
-DATA "Q_AAC__\fcAWf&_UXHUXN;dN1U55d+5005^0^0_YAPFPFPFPFP``dV_A_A_W\Fic_A&JEJC\`UdXa;NN1h+Y5d0AA__hPd`VQ\AQ"
-DATA "A__F\mc__&&JE&C]UdXa;Nj+500A_AAdPFP``VVQ_A_'_\\Fqc__EEJJ&&]UdXaak+CdA_dPd`VQ_AAC__\\uc_AE&dEC]eXNNi+"
-DATA "__A`Hd`dV_AA'__\FycQ_&J5JE&]UdXaag+_`Xe`VQ__AA__\\}c__EEJ5&C]UdXNNd+`XH``VVQ_A_A_\\F~cdc_ACEEd&]UdXa"
-DATA "aXHd`VQ\_E5__\\~chc_'&J&&JC]eX``dV__EE_A\F~clcA_eEJC]UX`VQ__EJ__F\~cpc_AEEJ&EC]Q_dJ_M\F~ctc_AJ&fJ&__"
-DATA "\\~cxcA'&&EJ_M\F~c|c__E_F\~c~ccc_F~c~c~cic"
+DATA "~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~cfce!1"
+DATA "~c}cbb!8.dZbb~cycbb..Z.dZ!8!8!1!1~cvcb!De.Z!D!8Z.dZ!8b~cscbf.!D!Df.ZZ!8!8!1!1~cpcb.8d.Z!D..+.Z!D!8Z."
+DATA "dZbb~cmc!888d.Zf.!D!D..Z.dZ!8!8!1!1~cjcCe8.!@.8d.Z!De.Z!D!8Z.dZ!8b~cgc!=.e8Z88d.!Df.!D!Df.ZZ!8!8!1!1"
+DATA "~ccc!FP!$!)d8!@e8.Z.8d.Z!D..+.Z!D!8Z.dZbb~c!F!.PP88..e8B88d.Zf.!D!D..Z.dZ!8!8!1!1|cP!EP!%.8be8Je8.!@"
+DATA ".8d.Z!De.Z!D!8Z.dZ!8bzcP!.PP.b!D!D88!@.e8B88d.!Df.!D!Df.ZZ!1!1PPwc!+H!.P!%bb!8!8.8Ze8Je8.Z.8d.Z!D..+"
+DATA ".Z!1!8d!1PbPPscC:1!.!.!%!%!5:!8..Ze8..e8B88d.Zf.h!1PPd!1rc:;8CC!(1!@1!5Z.!D.8.8.e8Je8.!@.8d.!8!1!.!1"
+DATA "P!1!FPaP!1!1Prc!5!@!(!@;!(!(!5!+!$Z!De.Ze8J.e8Z88d.e!1bgPb!8!1Pqc!B!(C!(!(!=!$!+!B!E.!De.!D.8.8.e8J"
+DATA "e8.!1!1P!1!FPadPaPd!1Poc:!5!(!(1!@!(:!B!$!$b!D!Dd.Ze.Ze8..e8d!1HjPd!1!B!E!FlcG!(!(C!(!@1!@!=!+!$!$b"
+DATA "!D.Z..!De.!D.8.8.e8!F!1!)PaPaPaPaPaPP!B!+!B!6!BaicGG_Ce!(!@1!=!+!)!Eb!8dZ!D!Dd.!De.Ze8!1!1!.mP!+!+"
+DATA "d!B!$G!&!&fcG&II!6!=11!@1!@!=!)!B!+1C!DZZ!8.Z.Z!De.!D.8.8!1!FdPadPadPaP!B!B!$!$LRGRL!&ecR&&I&&R1C!(1"
+DATA "!=1!@e1!(!D!8dZ!8!Dd.Ze.d!1lPd!B!$HWGG_RR!&fcGW&_&_&aC!(!5!(!(!@;!@1!@1C!D!Dd+Z.Z!De.!1b!FPaPaPaPaP"
+DATA "!6!B!$!$LWGRLWW!&!%icRG&I&I&W!+Cd!(!@;1!@1h+!8!Dd.e!1hPd!B!$HWdGWR!7!&mcRR&II&&!6!=C!(1!(!@;!@j+Z.Z"
+DATA "d!1!FdPaP!B!B!$!$LdRGRR!&!&qcGRI&II&&!=Cd!(!@!@k+f!1dPd!B!$HdG_WR!&!&ucRGI_dI_!=e!(!@!@i+!1!1P!B!5!B"
+DATA "!6!B!$!$LRRGGWG!&aycGR&I5II&!=Cd!(!@!@g+!1!B!(!+d!B!$HRGRGRRa!&}cRRI5I5&&!=C!(1!(!@!@d+!B1!+!B!B!$!$"
+DATA "LWGeR!&a~cdcRG&&I&I&!=Cd!(!@!@!(!+d!B!$HWRI5RG!&!&~chcRR&I&II!3!=e!(!6!B!$!$LRGI5WR!&!7~clcGRII&II_"
+DATA "!=C!(!B!$HWRIIRW!&!&~cpcRR&I5I&!3!=LW&I5WW!&a~ctcRGI&fI&WW!&!&~cxcGG&_IIRW!&a~c|cRRIR!7!&~c~cccR!%~c"
+DATA "~c~cic"
+DATA ""
+DATA 64, 60
+DATA "~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~cfcAd!,"
+DATA "~c}c_!,!I0d^!#!#~cyc!#_00^0d^!#!#!,!,~cvc_!I^0^0^!I!I^0d^&!#~csc&f0!I!If0^^!#!I!,!,~cpcIf0^!I00^0^!I"
+DATA "5^0d^!#!#~cmc!If0^f0!I!I00^0d^!#!#!,!,~cjcIf06f0^!I^0^0^!I!I^0d^&!#~cgcId02h05f0!I!If0^^!#!I!,!,~ccc"
+DATA "!FP!$!)0206f06f0^!I00^0^!I5^0d^!#!#~c!F!.PPe02d06f0^f0!I!I00^0d^!#!#!,!,|cP!EP!%00!#00206f06f0^!I^0^"
+DATA "0^!I!I^0d^&!#zcP!.PP0_5!I0060202h05f0!I!If0^^!,A!&!&wc!+H!.P!%!#!,!I5f0206f06f0^!I00^0^!,!#!,A!,W!#W"
+DATA "!&scC:1!.!.!%!%!5:!#00^g02d06f0^f0Af!,_PPd!,rc:;8CC!(1!@1!5^05h0206f06f0!#!,A!,W_!FPaPA!,Wrc!5!@!(!@"
+DATA ";!(!(!5!+!$^!Ie0^e060202h0Ae!,gP!#!#!,!&qc!B!(C!(!(!=!$!+!B!E0!Ie05h0206f0A!,W_!FPadPaPA!,A!&oc:!5!("
+DATA "!(1!@!(:!B!$!$!#!I!Id0^e0^g02d0!,!,_HjPd!,!B!E!FlcG!(!(C!(!@1!@!=!+!$!$!#!#0^00!Ie05h020R_!)PaPaPaPa"
+DATA "PaPW!B!+!B!6!BaicGG_Ce!(!@1!=!+!)!E!#!#d^!I!Id0!Ie0^e0A!,!.mP!+!+d!B!$G!&!&fcG&II!6!=11!@1!@!=!)!B!+"
+DATA "1C!I!I^50^0^!Ie05e0!,WdPadPadPaP!B!B!$!$LRGRL!&ecR&&I&&R1C!(1!=1!@e1!(!I!#d^!#!Id0^e0d!,lPd!B!$HWGG_"
+DATA "RR!&fcGW&_&_&aC!(!5!(!(!@;!@1!@1C!I!Id+D0^!Ie0A!#WPaPaPaPaP!6!B!$!$LWGRLWW!&!%icRG&I&I&W!+Cd!(!@;1!@"
+DATA "1h+!#!Id0A!,A!,hPd!B!$HWdGWR!7!&mcRR&II&&!6!=C!(1!(!@;!@j+^0^!,A!,WdPaP!B!B!$!$LdRGRR!&!&qcGRI&II&&"
+DATA "!=Cd!(!@!@k+_Ad!,dPd!B!$HdG_WR!&!&ucRGI_dI_!=e!(!@!@i+A!,W!B!5!B!6!B!$!$LRRGGWG!&aycGR&I5II&!=Cd!(!@"
+DATA "!@g+!,!B!(!+d!B!$HRGRGRRa!&}cRRI5I5&&!=C!(1!(!@!@d+!B1!+!B!B!$!$LWGeR!&a~cdcRG&&I&I&!=Cd!(!@!@!(!+"
+DATA "d!B!$HWRI5RG!&!&~chcRR&I&II!3!=e!(!6!B!$!$LRGI5WR!&!7~clcGRII&II_!=C!(!B!$HWRIIRW!&!&~cpcRR&I5I&!3!="
+DATA "LW&I5WW!&a~ctcRGI&fI&WW!&!&~cxcGG&_IIRW!&a~c|cRRIR!7!&~c~cccR!%~c~c~cic"
 DATA ""
 DATA 32, 38
-DATA "~c~c~c~c~c~c~c~c~c~c~c~crce<[[zcIRSSd-[xcIeRS-I<ZvcIRRGGR--I<[Puc<SRGGS-II<[Puc<SRSS--II<<Puc:e-dI<["
-DATA "[Duc(NUeI<<V`DucHNUU]:Hd`HWucHX1U]::`VHVWucVU11XU]:HHVPuc`:HX]](H``QWsc:HNXH`H`VQDW`HTToc(HNX1NXXU]]"
-DATA "HH``H`H'TlcUa11XUNU]]:Hd`HVHH:HTjc'Na;N1XUU]::H``V``:H:HH\gc__&XX1;;aXU:HH`QVUX1U:d`_\\dc_JJ&]XX1Na;"
-DATA "N1X1Xd1X:``dV_'CFccQ&EECC]UXXN;;aNN1U:d`VQ_EJ__\dc'A&E5&C]dXNa;U:H``VV_J&W_F\gc__&E&&C]UdXHd`Q_&E__\"
-DATA "Fkc'_EEJCE]X]dV_EEA_F\oc_'&C&JCHQ&&E__\\scAA&CEdJA_F\wc__EC__\F{cQAF\~crc"
+DATA "~c~c~c~c~c~c~c~c~c~c~c~crce<!/!/zcF!G--!G--!/xcFe!G--F<!1vcFg!G-F<!/Puc<e!G--FF<!/Puc<--!G!G--FF<<P"
+DATA "uc!5e-dF<!/!/!.uc!51CeF<<!$!+!Euc!+1!(C!=!5!+!B!B!$!+!Fuc!+!(!@C::!+!B!$!+!$!Fuc!$C1!(!(C!=!5!+!+!$P"
+DATA "uc!3:!+!(!=!=(!+!+!B!E!Fsc!5!+!@!(!+!B!+!+!$!)!.!.!B!+!E!Eoc!5!5!(!(!@!@C1C!=!=!+!5!B!5!+!+!5!E!ElcC"
+DATA "!@11!(C1C!=!=:!5!+!B!$!+!$!+d!5!EjcG1!@;!@1!(!(C!=!=!5!+!BU!$U!B!+!5!+!+!3WgcRR&!(!(!@;;!@!(C:!+!B!B"
+DATA "!)!)C!(1C:d!BRW!&dcR5I_!=!(!(11!@;11!(1!(d1!(:!3!B!6!$!*RR_accG&II&&!=C!(!(1;;!@d1!(:d!B!$!)RIIRR!&"
+DATA "dcRG_II&U!=d!(1!@;!(:!3!B!6!$!*RI&WR!7!&gcRRe&_!=Cd!(!+!B!B!$!)R&&RR!&!7kcRRII5&I!=!(!=!$!$!*R5IGWa"
+DATA "!&ocRGd&I_!5Hd&RG!&!&scGGI&II5IGR!%!&wcRRI&WR!&!&{cGG!7!&~crc"
 DATA ""
 DATA 32, 38
-DATA "~c~c~c~c~c~c~c~c~c~c~c~crc==Y=AAzcYd/@/=AxcY/0f/=AvcY/00@e/=A\uc=//00d/==A\ucYf/==Y==\uc:e/==Y==ADuc"
-DATA "(NU//=Y==V`DucHNUU]:Hd`HWucHX1U]::`VHVWucVU11XU]:HHVPuc`:HX]](H``QWsc:HNXH`H`VQDW`HTToc(HNX1NXXU]]HH"
-DATA "``H`H'TlcUa11XUNU]]:Hd`HVHH:HTjc'Na;N1XUU]::H``V``:H:HH\gc__&XX1;;aXU:HH`QVUX1U:d`_\\dc_JJ&]XX1Na;N1"
-DATA "X1Xd1X:``dV_'CFccQ&EECC]UXXN;;aNN1U:d`VQ_EJ__\dc'A&E5&C]dXNa;U:H``VV_J&W_F\gc__&E&&C]UdXHd`Q_&E__\F"
-DATA "kc'_EEJCE]X]dV_EEA_F\oc_'&C&JCHQ&&E__\\scAA&CEdJA_F\wc__EC__\F{cQAF\~crc"
+DATA "~c~c~c~c~c~c~c~c~c~c~c~crc!4!2!4!4``zc!4D/DD/!2`xc!2eD/XX!2!,vc!4Dd^DDX!2!2`Wuc!2DD^^D/X!2!4`Wuc!2//"
+DATA "Dd/X!2!4!4Wuc!5//eX!2!4``!.uc!51CXd!2!4!4!$!+!Euc!+1!(C!=!5!+!B!B!$!+!Fuc!+!(!@C::!+!B!$!+!$!Fuc!$C1"
+DATA "!(!(C!=!5!+!+!$Puc!3:!+!(!=!=(!+!+!B!E!Fsc!5!+!@!(!+!B!+!+!$!)!.!.!B!+!E!Eoc!5!5!(!(!@!@C1C!=!=!+!5"
+DATA "!B!5!+!+!5!E!ElcC!@11!(C1C!=!=:!5!+!B!$!+!$!+d!5!EjcG1!@;!@1!(!(C!=!=!5!+!BU!$U!B!+!5!+!+!3WgcRR&!("
+DATA "!(!@;;!@!(C:!+!B!B!)!)C!(1C:d!BRW!&dcR5I_!=!(!(11!@;11!(1!(d1!(:!3!B!6!$!*RR_accG&II&&!=C!(!(1;;!@d1"
+DATA "!(:d!B!$!)RIIRR!&dcRG_II&U!=d!(1!@;!(:!3!B!6!$!*RI&WR!7!&gcRRe&_!=Cd!(!+!B!B!$!)R&&RR!&!7kcRRII5&I!="
+DATA "!(!=!$!$!*R5IGWa!&ocRGd&I_!5Hd&RG!&!&scGGI&II5IGR!%!&wcRRI&WR!&!&{cGG!7!&~crc"
 DATA ""
 DATA 16, 16
-DATA "~c~crcePdcjP.K.LPcP9db+bb-IK.K9PP]db+bb+--..LO:P`S-S-S-S-ILOOZHPHj<LLZZ`cP[<[<[<[<[OLZWHP:WDHWWHWHHD"
-DATA "HHPXPU'T(T':':(T(:P`P`PPVPPQPQVPVQFPcPFFWFFDFDWFWDP ccmPcc"
+DATA "~c~crcePdcjP..Z!DPcPe,+,,-F.Z.!DPP!=9,,+,,+--..!Db:P!B!G-!G-!G-!G-F!D!8b!1!5P!+j<!D!D!1!1!BcP!/<!/<"
+DATA "!/<!/<!/!8b!1P!5P:!F!.!+!F!F!+!F!+!+!.!+!+P!(PCH!E!5!EH:H:!5!E!5:!F!BP!BPP!)aP!)P!)!)P!)!)!%PcP!7!%"
+DATA "!F!%!7!.!7!.!F!%!F!.P ccmPcc"
 DATA ""
 DATA 16, 16
-DATA "~c~crcePdcjP.K.LPcP9db+bb-IK.K9PPQdb+bb+--..LO:PWS-S-S-S-ILOOZHPWj<LLZZ`cP[<[<[<[<[OLZWHPDHHWHHDHWWH"
-DATA "DDQXP`(:':(T(T':'T``PWVQPQVPVPPQPPDPcPWDFDWFWFFDFFP ccmPcc"
+DATA "~c~crcePdcjP..Z!DPcPe,+,,-F.Z.!DPPH9,,+,,+--..!Db:P!F!G-!G-!G-!G-F!D!8b!1!5P!Fj<!D!D!1!1!BcP!/<!/<!/"
+DATA "<!/<!/!8b!1P!5P!E!+!+!F!+!+!.!+!F!F!+!.!.!)!(P!B!5:H:!5!E!5!EH:H!EU!BP!F!)!)P!)!)P!)aP!)Pa!.PcP!F!."
+DATA "!7!.!F!%!F!%!7!.!7!%P ccmPcc"
 DATA ""
 DATA 16, 16
-DATA "~cycePjcdP-b+IPhcPR,bb+bbIPgcPIR9+ebIPecP`IIR,b+b[K.PdcQTHIIRS..K.LbPccDUTWIIR..KOZ*OPcWDU:MIIKLO)O)"
-DATA "OTPPWHQ:`<LL)OZZOFFcPHHQ:HPOZZV]XaFccPHDQD]UUXd`HFdcPWDFFH`V`V`PPecPMFFH`ePcc"
+DATA "~cycePjcdP-9+FPhcP!Gb,,+,,FPgcPF!G9+9d,FPecP!+FF!G,,+,!/..Pdc!$!E!+FF!G-.Z.Z!D!8Pcc!.C!E!FFF!G..Zb!1"
+DATA "*bPc!F!.C:PFFZ!Db)b)b[PP!F!5!):!B<Z!Dbb!1!1b!%!%cP!B!5!$:!BP!D!1$!$!=!(!@!7ccP!+!.!$!.:CC!(d!B!+!7dc"
+DATA "P!F!.!%!7!5!B!$!B!$!BPPecP!F!%!7!+!BePcc"
 DATA ""
 DATA 16, 16
-DATA "~cycePjcdP-b+IPhcPR,bb+bbIPgcPIR9+ebIPecPWIIR,b+b[K.PdcU:MIIRS..K.LbPccHQ:`IIR..KOZ*OPcHHQTHIIKLO)O)"
-DATA "OFPPHDUTW<LL)OZZOTTcPWDUTWPOZZV]XaWccPWHU:]UUXd`HDdcPHHQMH`V`V`PPecP`TWH`ePcc"
+DATA "~cycePjcdP-9+FPhcP!Gb,,+,,FPgcPF!G9+9d,FPecP!FFF!G,,+,!/..PdcC:PFF!G-.Z.Z!D!8Pcc!5!$:!BFF!G..Zb!1*bP"
+DATA "c!B!5!$!E!+FFZ!Db)b)b!%PP!+!.!=!E!F<Z!Dbb!1!1b!E!EcP!F!.C!E!FP!D!1$!$!=!(!@!FccP!F!5C!5:CC!(d!B!+!."
+DATA "dcP!B!5!EP!5!B!$!B!$!BPPecP!B!E!F!+!BePcc"
 DATA ""
 DATA 16, 16
-DATA "~cycgPjcPbb+dbPgcdPbb+dbdPdcP:HW+fbDTQPccP]HM+b+dbWTVPccPVD#..K.KKFdP cP]DM8e.LDFVP cPUHML7O7OODTTP "
-DATA "cPQDFLO7O7ZdFP cPVDFLLOLZZFTPP cPDMhX1PFP cPDFH:H:H:H:FFP ccPPhH`PP c"
+DATA "~cycgPjcP,9+9,9PgcdP,,+d,dPdcP:!5!F+9d,9!.H!)PccP!=!+P+,+d,!F!E!$PccPH!.!7.Z.Z..!7dP cP!=!.P8e.!D!."
+DATA "!%!)P cP!=!5!F!D7!87!8b!.H!EP cP!)!.!7!D!87!8!8!1d!%P cPH!.!%!8b!8b!1!1!7!EPP cP!.Ph!(1P!7P cP!.!%:"
+DATA "!5:!5:!5:!5!7!%P ccPPi!+PP c"
 DATA ""
 DATA 16, 16
-DATA "~cycgPjcPbb+dbPgcdPbb+dbdPdcPTDF+fbFdPccPQDF+b+dbFFMPccP]HP..K.KKDQVP cPQHF8e.LFTMP cPVD#L7O7OOFPFP "
-DATA "cP]:WLO7O7ZWTDP cP]:DLLOLZZDHVP cPHVhX1VDP cP`TH:H:H:H:DDP ccPPhH`PP c"
+DATA "~cycgPjcP,9+9,9PgcdP,,+d,dPdcP!*!.!7+9d,9!%dPccP!)!.!7+,+d,!%!%PPccP!=!5!F.Z.Z..!.H!$P cP!)!5!78e.!D"
+DATA "!%!EaP cPH!.!7!D7!87!8b!7P!%P cP!=!5!F!D!87!8!8!1!FH!EP cP!=!5!.!8b!8b!1!1!.:!$P cP!5!)h!(1!$!.P cP"
+DATA "!5!E:!5:!5:!5:!5!.!.P ccPPi!+PP c"
 DATA ""
 DATA 16, 16
-DATA "~c{cePlcPSb+<dPhcPSdb+b$[PfcPSb++bb$<[PecPKL[+bb3<[[TPccPLbK.KK-<[MDDPcPK*K88KO<[[FDQFP:LL*L*LO[MF:Q"
-DATA "FF`QLOdLOO[DTPDFPWadULLOPT:PWDP PXdU1XUTVPFDP cPP]dU]1FMFFP ecePUXFPFP dc"
+DATA "~c{cePlcP-9+<dPhcP-d,+,$!/PfcP-9++,9$<!/PecP.!D!/+,,3<!/!/!EPccP!D!8.Z..-<!/P!.!.PcPZ*Z88Zb<!/!/!%!."
+DATA "!)!7P!5Z!D*!D*!8!8!/P!%!5!)!7!%!+H!Dbd!D!8b!/!.HP!.!%PP!@CC!=!D!D!8P!E!+P!F!.P P!(dC1!(!(HUP!7!.P cP"
+DATA "P!=dC!=1!%P!7!%P ecePC!(!7P!%P dc"
 DATA ""
 DATA 16, 16
-DATA "~c{cePlcPSb+<dPhcPSdb+b$[PfcPSb++bb$<[PecPKL[+bb3<[[FPccPLbK.KK-<[MF:QcPK*K88KO<[[D:PDPDLL*L*LO[MDDP"
-DATA "WDU:LOdLOO[FFQFDPVadULLOPFDQFFP QXdU1XUT]QDFP cPP]dU]1DVWDP ecePUXDVDP dc"
+DATA "~c{cePlcP-9+<dPhcP-d,+,$!/PfcP-9++,9$<!/PecP.!D!/+,,3<!/!/!%PccP!D!8.Z..-<!/P!%!+!)cPZ*Z88Zb<!/!/!."
+DATA "!5P!.P!.Z!D*!D*!8!8!/P!.!.P!F!.!(:!Dbd!D!8b!/!%!%!)!%!.P!6!@CC!=!D!D!8P!%!.!)!7!%P H!(dC1!(!(H!=!)!."
+DATA "!%P cPP!=dC!=1!.!$!F!.P ecePC!(!.!$!.P dc"
 DATA ""
 DATA 16, 16
-DATA "~c~chcePlcP.LKKjPccPL.KK<Seb++OPc:..KK[-+bb+b+,DPXKOLO-S-S-S-S-WPUeLj<DPXLLOL<[<[<[<[<P XDHHWHHDHWWH"
-DATA "WWVPH`(:':(T(T':'T`PPWVQPQVPVPPQPPDPcPWDFDWFWFFDFFP ccmPcc"
+DATA "~c~chcePlcP.!D..jPccP!DZ.Z<-d,9++bPc!5e.!/-+,,+,+,!.P!(Z!8!D!8d-!G-!G-!G-!FPCZ!D!8!8j<!.P!(!Db!8b<!/"
+DATA "<!/<!/<!/<P !(!.!+!5!F!+!+!.!+!F!F!+!F!F!)P!5!B!5:H:!5!E!5!EH:H!EUPP!F!)!)P!)!)P!)aP!)Pa!.PcP!F!.!7"
+DATA "!.!F!%!F!%!7!.!7!%P ccmPcc"
 DATA ""
 DATA 16, 16
-DATA "~c~chcePlcP.LKKjPccPL.KK<Seb++OPc:..KK[-+bb+b+,FPXKOLO-S-S-S-S-FPUeLj<FPXLLOL<[<[<[<[<P X:DWHWWHWHHD"
-DATA "HHPPHU'T(T':':(T(:dP`PPVPPQPQVPVQFPcPFFWFFDFDWFWDP ccmPcc"
+DATA "~c~chcePlcP.!D..jPccP!DZ.Z<-d,9++bPc!5e.!/-+,,+,+,!%P!(Z!8!D!8d-!G-!G-!G-!7PCZ!D!8!8j<!7P!(!Db!8b<!/"
+DATA "<!/<!/<!/<P !(!5!.!F!+!F!F!+!F!+!+!.!+!+PP!5CH!E!5!EH:H:!5!E!5:!FPP!BPP!)aP!)P!)!)P!)!)!%PcP!7!%!F!%"
+DATA "!7!.!7!.!F!%!F!.P ccmPcc"
 DATA ""
 DATA 16, 16
-DATA "~cicdPkcdPLL.PicPKLbK.KLPhcPKLKLZZIIPfcPaLLd-+bbIPecPWVLR,+db+IP ccU:WVIR9+b+bbIP cHQ:`IIR,b+3--[PcH"
-DATA "HQTHIIR-Ie[FPPHDUTWIIg[:`cPWDUTMI<[<PPDVDccPWHU:VdP  PQDdcPHHTDPf PPecP`TDP gc"
+DATA "~cicdPkcdP!D!D.PicP.!D!8.ZZ!DPhcPZ!DZ!8!1!1FFPfcP!@!D!8d-+,,FPecP!F!)!8!G,+d,+FP ccC:!F!$F!G9+9+9,FP"
+DATA " c!5!$:!BFF!Gb,+b--!/Pc!B!5!$!E!+FF!G-Fe!/!%PP!+!.!=!E!FFFg!/!5!BcP!F!.C!EPF<!/<PP!.H!.ccP!F!5C!5!$"
+DATA "dP  PH!.dcP!B!5!*!.Pf PPecP!BH!.P gc"
 DATA ""
 DATA 16, 16
-DATA "~cicdPkcdPLL.PicPKLbK.KLPhcPKLKLZZIIPfcPaLLd-+bbIPecP`VLR,+db+IP ccQTHVIR9+b+bbIP cDUTWIIR,b+3--[PcW"
-DATA "DU:MIIR-Ie[TPPWHQ:`IIg[DWcPHHQ:HI<[<PPFPFccPHDQDMdP  PPFdcPWDFFPf PPecPMFFP gc"
+DATA "~cicdPkcdP!D!D.PicP.!D!8.ZZ!DPhcPZ!DZ!8!1!1FFPfcP!@!D!8d-+,,FPecP!B!)!8!G,+d,+FP cc!$!E!B!$F!G9+9+9,"
+DATA "FP c!.C!E!FFF!Gb,+b--!/Pc!F!.C:PFF!G-Fe!/[PP!F!5!):!BFFg!/!EPcP!B!5!$:!+F<!/<PP!%a!%ccP!B!.!$!EeP  P"
+DATA "P!7dcP!F!.!%!%Pf PPecP!F!%!7P gc"
 DATA ""
 DATA 16, 16
-DATA "~cicgPjcPLL.dKPicP.K.K.KPgcPPXgO1PPdcPTD#b+bb+,FPFPccPQDFbb++b+dFP cP]HPb+ebD'VP cPQHFbb++b+FTMP cPV"
-DATA "D#-S-S-SFdP cP]HMg<WTVP cP]:P<I<I<IDHVP cPH`DgPH`DP cP`VWPe PHQDP ccdPgcdPcc"
+DATA "~cicgPjcP!D!Dd.ZPicP.Z.Z..PgcPP!(gb1PPdcP!*!.!7,+,,+9!7P!%PccP!)!.!7,,++,+d!%P cP!=!5!F,+,9,9!.H!$P "
+DATA "cP!)!5!7,,++,+!%!EaP cPH!.!7-!Gd-!G!7dP cP!=!+Pg<!F!E!$P cP!=!5!F<F<F<F!.:!$P cP!5!B!.gP!5!B!.P cP!5"
+DATA "!)!FPe P!+!$!.P ccdPgcdPcc"
 DATA ""
 DATA 16, 16
-DATA "~cicgPjcPLL.dKPicP.K.K.KPgcPPXgO1PPdcP:HMb+bb+,WQDPccP]:Wbb++b+WTDP cPVD#b+ebFdP cP]DMbb++b+DFVP cPU"
-DATA "HM-S-S-SDTVP cPQDFg<FFMP cPVD#<I<I<IFTPP cPDMFgPDWFP cPDPFPe PWPFP ccdPgcdPcc"
+DATA "~cicgPjcP!D!Dd.ZPicP.Z.Z..PgcPP!(gb1PPdcP:!5P,+,,+9!F!E!EPccP!=!5!F,,++,+!FH!EP cPH!.!7,+,9,9!7dP cP"
+DATA "!=!.P,,++,+!.!%!)P cP!=!5!F-!Gd-!G!.H!$P cP!)!.!7g<!%!%PP cPH!.!7<F<F<F!7!EPP cP!.!F!%gP!.!F!7P cP!."
+DATA "P!7Pe P!Fa!%P ccdPgcdPcc"
 DATA ""
 DATA 16, 16
-DATA "~clcdPmcPdKdPicP8.K.LOZPgcP-GdL.OZPfcPSbb+-IROZ]PdcPS+db+$<O`FPccPS+bb+b3<[HF:QcPRGSZbb$<[[D:PDPDdI-"
-DATA "RG<[MDDPWDX:gI[[FDQFDP`VWPPI-IMFDQFFP VQP  dPUUQDFP cPPfcP`VWDP jcPVVDP dc"
+DATA "~clcdPmcPd.dPicP8..Z!D!8!1PgcP-!G!8!D!D.b!1PfcP-9,+-F!G!8!1!=PdcP-+d,+$<b!B!%PccP-+,9+93<!/!+!%!+!)c"
+DATA "P!G!G-!1,,$<!/!/!.!5P!.P!.dF-!G!G<!/P!.!.P!F!.!(:gF!/!/!%!.!)!%!.P!B!$dPF-FP!%!.!)!7!%P !)!)P  dPC!="
+DATA "!)!.!%P cPPfcP!+!$!F!.P jcP!$!$!.P dc"
 DATA ""
 DATA 16, 16
-DATA "~clcdPmcPdKdPicP8.K.LOZPgcP-GdL.OZPfcPSbb+-IROZ]PdcPS+db+$<O`DPccPS+bb+b3<[HTDPcPRGSZbb$<[[FDQFP:dI-"
-DATA "RG<[MF:QFF`QgI[[D:PDFPDP#PPI-IMD:PWDP dP  dPV`PFDP cPPfcPDMFFP jcPPMFP dc"
+DATA "~clcdPmcPd.dPicP8..Z!D!8!1PgcP-!G!8!D!D.b!1PfcP-9,+-F!G!8!1!=PdcP-+d,+$<b!B!.PccP-+,9+93<!/!+!E!.PcP"
+DATA "!G!G-!1,,$<!/!/!%!.!)!7P!5dF-!G!G<!/P!%!5!)!7!%!+HgF!/!/!.!5P!.!%P!.P!7PPF-FP!.!+P!F!.P PaP  dP!$UP"
+DATA "!7!.P cPPfcP!.P!7!%P jcdP!%P dc"
 DATA ""
 DATA 16, 16
-DATA "~c~crcePdcjPd05PcP9db+bb/=d05PP]db+bb+//005C:P`//@d/@/=55C_HPHd=Yd=Y=YYCA`cPC=C=C=C=CYYAAHP:WDHWWHWH"
-DATA "HDHHPXPU'T(T':':(T(:P`P`PPVPPQPQVPVQFPcPFFWFFDFDWFWDP ccmPcc"
+DATA "~c~crcePdcjP00^!IPcPe,+,,//0^0!IPP!=9,,+,,+/X00!I!#:P!B//Dd/D//!I5_A!5P!+!2!4!2!4!2!4!2!4!2!I!I!#!,"
+DATA "!BcP`d!4`d!4`!#!IAW!5P:!F!.!+!F!F!+!F!+!+!.!+!+P!(PCH!E!5!EH:H:!5!E!5:!F!BP!BPP!)aP!)P!)!)P!)!)!%PcP"
+DATA "!7!%!F!%!7!.!7!.!F!%!F!.P ccmPcc"
 DATA ""
 DATA 16, 16
-DATA "~c~crcePdcjPd05PcP9db+bb/=d05PPQdb+bb+//005C:PW//@d/@/=55C_HPWd=Yd=Y=YYCA`cPC=C=C=C=CYYAAHPDHHWHHDHW"
-DATA "WHDDQXP`(:':(T(T':'T``PWVQPQVPVPPQPPDPcPWDFDWFWFFDFFP ccmPcc"
+DATA "~c~crcePdcjP00^!IPcPe,+,,//0^0!IPPH9,,+,,+/X00!I!#:P!F//Dd/D//!I5_A!5P!F!2!4!2!4!2!4!2!4!2!I!I!#!,!B"
+DATA "cP`d!4`d!4`!#!IAW!5P!E!+!+!F!+!+!.!+!F!F!+!.!.!)!(P!B!5:H:!5!E!5!EH:H!EU!BP!F!)!)P!)!)P!)aP!)Pa!.PcP"
+DATA "!F!.!7!.!F!%!F!%!7!.!7!%P ccmPcc"
 DATA ""
 DATA 16, 16
-DATA "~cycePjcdP/b+=PhcP/,bb+bb=PgcP=/9+eb=PecP`=//,b+b[00PdcQTH==//e055PccDUTW==/00/YA*CPcWDU:M=/05O)O)YT"
-DATA "PPWHQ:`=55)OA_CFFcPHHQ:HP5_\V]XaFccPHDQD]UUXd`HFdcPWDFFH`V`V`PPecPMFFH`ePcc"
+DATA "~cycePjcdP/9+/PhcPDb,,+,,XPgcP/D9+9d,/PecP!+!2/D,,+,!/00Pdc!$!E!+!2/DX0^0^!I5Pcc!.C!E!F!2/D00^!#!,*"
+DATA "!#Pc!F!.C:P!2!2^!Ib)b)!#[PP!F!5!):!B!2^!Ibb!,!,_!%!%cP!B!5!$:!BP!#!,W!$!=!(!@!7ccP!+!.!$!.:CC!(d!B!+"
+DATA "!7dcP!F!.!%!7!5!B!$!B!$!BPPecP!F!%!7!+!BePcc"
 DATA ""
 DATA 16, 16
-DATA "~cycePjcdP/b+=PhcP/,bb+bb=PgcP=/9+eb=PecPW=//,b+b[00PdcU:M==//e055PccHQ:`==/00/YA*CPcHHQTH=/05O)O)YF"
-DATA "PPHDUTW=55)OA_CTTcPWDUTWP5_\V]XaWccPWHU:]UUXd`HDdcPHHQMH`V`V`PPecP`TWH`ePcc"
+DATA "~cycePjcdP/9+/PhcPDb,,+,,XPgcP/D9+9d,/PecP!F!2/D,,+,!/00PdcC:P!2/DX0^0^!I5Pcc!5!$:!B!2/D00^!#!,*!#Pc"
+DATA "!B!5!$!E!+!2!2^!Ib)b)!#!%PP!+!.!=!E!F!2^!Ibb!,!,_!E!EcP!F!.C!E!FP!#!,W!$!=!(!@!FccP!F!5C!5:CC!(d!B!+"
+DATA "!.dcP!B!5!EP!5!B!$!B!$!BPPecP!B!E!F!+!BePcc"
 DATA ""
 DATA 16, 16
-DATA "~cycgPjcPbb+dbPgcdPbb+dbdPdcP:HW+fbDTQPccP]HM+b+dbWTVPccPVD#f0/FdP cP]DM^e05DFVP cPUHM57O7OADTTP cPQ"
-DATA "DF5O7O7AdFP cPVDFdYJA_FTPP cPDMhX1PFP cPDFH:H:H:H:FFP ccPPhH`PP c"
+DATA "~cycgPjcP,9+9,9PgcdP,,+d,dPdcP:!5!F+9d,9!.H!)PccP!=!+P+,+d,!F!E!$PccPH!.!70^0^00!7dP cP!=!.Pf0!I!.!%"
+DATA "!)P cP!=!5!F!I7!87!8!,!.H!EP cP!)!.!7!I!87!8!8_d!%P cPH!.!%!I!I!#!IAA!7!EPP cP!.Ph!(1P!7P cP!.!%:!5:"
+DATA "!5:!5:!5!7!%P ccPPi!+PP c"
 DATA ""
 DATA 16, 16
-DATA "~cycgPjcPbb+dbPgcdPbb+dbdPdcPTDF+fbFdPccPQDF+b+dbFFMPccP]HPf0/DQVP cPQHF^e05FTMP cPVD#57O7OAFPFP cP]"
-DATA ":W5O7O7AWTDP cP]:DdYJA_DHVP cPHVhX1VDP cP`TH:H:H:H:DDP ccPPhH`PP c"
+DATA "~cycgPjcP,9+9,9PgcdP,,+d,dPdcP!*!.!7+9d,9!%dPccP!)!.!7+,+d,!%!%PPccP!=!5!F0^0^00!.H!$P cP!)!5!7f0!I"
+DATA "!%!EaP cPH!.!7!I7!87!8!,!7P!%P cP!=!5!F!I!87!8!8_!FH!EP cP!=!5!.!I!I!#!IAA!.:!$P cP!5!)h!(1!$!.P cP"
+DATA "!5!E:!5:!5:!5:!5!.!.P ccPPi!+PP c"
 DATA ""
 DATA 16, 16
-DATA "~c{cePlcP/b+YdPhcP/db+b$=PfcP/b++bb$YAPecP0Y[+bb3YAATPccP55d0//YAADDPcP0*0^^0YdAFDQFP:5L*L*YCAAF:QFF"
-DATA "`Q5C5LLYCADTPDFPWadUY5YPT:PWDP PXdU1XUTVPFDP cPP]dU]1FMFFP ecePUXFPFP dc"
+DATA "~c{cePlcPD9+!2dPhcPDd,+,$!4PfcPD9++,9$!4`PecP0!I!/+,,3!4``!EPccP!I50^00/!2`!,!.!.PcP^*^00^!#!4`!,!%"
+DATA "!.!)!7P!5^!D*!D*!I!#`!,!%!5!)!7!%!+H!I!#!I!D!D!#!#`!.HP!.!%PP!@CC!=!I!I!#P!E!+P!F!.P P!(dC1!(!(HUP!7"
+DATA "!.P cPP!=dC!=1!%P!7!%P ecePC!(!7P!%P dc"
 DATA ""
 DATA 16, 16
-DATA "~c{cePlcP/b+YdPhcP/db+b$=PfcP/b++bb$YAPecP0Y[+bb3YAAFPccP55d0//YAAF:QcP0*0^^0YdAD:PDPD5L*L*YCAADDPWD"
-DATA "U:5C5LLYCAFFQFDPVadUY5YPFDQFFP QXdU1XUT]QDFP cPP]dU]1DVWDP ecePUXDVDP dc"
+DATA "~c{cePlcPD9+!2dPhcPDd,+,$!4PfcPD9++,9$!4`PecP0!I!/+,,3!4``!%PccP!I50^00/!2`!,!%!+!)cP^*^00^!#!4`!,!."
+DATA "!5P!.P!.^!D*!D*!I!#`!,!.!.P!F!.!(:!I!#!I!D!D!#!#`!%!%!)!%!.P!6!@CC!=!I!I!#P!%!.!)!7!%P H!(dC1!(!(H!="
+DATA "!)!.!%P cPP!=dC!=1!.!$!F!.P ecePC!(!.!$!.P dc"
 DATA ""
 DATA 16, 16
-DATA "~c~chcePlcP0500jPccP5d0=/eb++OPc:e0=/+bb+b+,DPX0d5d/@d/@/WPUfYd=Yd=YDPX5JYY=C=C=C=C=P XDHHWHHDHWWHWW"
-DATA "VPH`(:':(T(T':'T`PPWVQPQVPVPPQPPDPcPWDFDWFWFFDFFP ccmPcc"
+DATA "~c~chcePlcP0!I00jPccP!I^0^!4Xd,9++bPc!5e0!4/+,,+,+,!.P!(^!I!I!#XX/Dd/D/!FPCe!I!4!2!4!2!4!2!4!2!4!.P"
+DATA "!(!I!I!#!#!4`d!4`d!4P !(!.!+!5!F!+!+!.!+!F!F!+!F!F!)P!5!B!5:H:!5!E!5!EH:H!EUPP!F!)!)P!)!)P!)aP!)Pa!."
+DATA "PcP!F!.!7!.!F!%!F!%!7!.!7!%P ccmPcc"
 DATA ""
 DATA 16, 16
-DATA "~c~chcePlcP0500jPccP5d0=/eb++OPc:e0=/+bb+b+,FPX0d5d/@d/@/FPUfYd=Yd=YFPX5JYY=C=C=C=C=P X:DWHWWHWHHDHH"
-DATA "PPHU'T(T':':(T(:dP`PPVPPQPQVPVQFPcPFFWFFDFDWFWDP ccmPcc"
+DATA "~c~chcePlcP0!I00jPccP!I^0^!4Xd,9++bPc!5e0!4/+,,+,+,!%P!(^!I!I!#XX/Dd/D/!7PCe!I!4!2!4!2!4!2!4!2!4!7P"
+DATA "!(!I!I!#!#!4`d!4`d!4P !(!5!.!F!+!F!F!+!F!+!+!.!+!+PP!5CH!E!5!EH:H:!5!E!5:!FPP!BPP!)aP!)P!)!)P!)!)!%P"
+DATA "cP!7!%!F!%!7!.!7!.!F!%!F!.P ccmPcc"
 DATA ""
 DATA 16, 16
-DATA "~cicdPkcdP550PicP055d0YPhcP050YCA==PfcPa5Y=//+bb=PecPWVY/,+db+/P ccU:WV=/9+b+bb=P cHQ:`=//,b+3//=PcH"
-DATA "HQTH==//=CA=AFPPHDUTW=/A=A=AA:`cPWDUTM==A=PPDVDccPWHU:VdP  PQDdcPHHTDPf PPecP`TDP gc"
+DATA "~cicdPkcdP!I!I0PicP^!I50^^!IPhcP^!I^!I__XXPfcP!@!I!IdX+,,/PecP!F!)!ID,+d,+XP ccC:!F!$/D9+9+9,/P c!5"
+DATA "!$:!B!2/Db,+b//`Pc!B!5!$!E!+!2/DXX``!4`!%PP!+!.!=!E!F!2/g`!5!BcP!F!.C!EP!2!4`!4PP!.H!.ccP!F!5C!5!$dP"
+DATA "  PH!.dcP!B!5!*!.Pf PPecP!BH!.P gc"
 DATA ""
 DATA 16, 16
-DATA "~cicdPkcdP550PicP055d0YPhcP050YCA==PfcPa5Y=//+bb=PecP`VY/,+db+/P ccQTHV=/9+b+bb=P cDUTW=//,b+3//=PcW"
-DATA "DU:M==//=CA=ATPPWHQ:`=/A=A=AADWcPHHQ:H==A=PPFPFccPHDQDMdP  PPFdcPWDFFPf PPecPMFFP gc"
+DATA "~cicdPkcdP!I!I0PicP^!I50^^!IPhcP^!I^!I__XXPfcP!@!I!IdX+,,/PecP!B!)!ID,+d,+XP cc!$!E!B!$/D9+9+9,/P c"
+DATA "!.C!E!F!2/Db,+b//`Pc!F!.C:P!2/DXX``!4`[PP!F!5!):!B!2/g`!EPcP!B!5!$:!+!2!4`!4PP!%a!%ccP!B!.!$!EeP  PP"
+DATA "!7dcP!F!.!%!%Pf PPecP!F!%!7P gc"
 DATA ""
 DATA 16, 16
-DATA "~cicgPjcP55e0PicPf0/PgcPPXYYCYCC1PPdcPTD#b+bb+,FPFPccPQDFbb++b+dFP cP]HPb+ebD'VP cPQHFbb++b+FTMP cPV"
-DATA "D#/@d/@FdP cP]HMg=WTVP cP]:P=Y=Y=YDHVP cPH`DgPH`DP cP`VWPe PHQDP ccdPgcdPcc"
+DATA "~cicgPjcP!I!Id0^PicP0^0^00PgcPP!(g!#1PPdcP!*!.!7,+,,+9!7P!%PccP!)!.!7,,++,+d!%P cP!=!5!F,+,9,9!.H!$P"
+DATA " cP!)!5!7,,++,+!%!EaP cPH!.!7/Xd/X!7dP cP!=!+P!2!2!4d!2!F!E!$P cP!=!5!F!2!4!2!4!2!4!.:!$P cP!5!B!.gP"
+DATA "!5!B!.P cP!5!)!FPe P!+!$!.P ccdPgcdPcc"
 DATA ""
 DATA 16, 16
-DATA "~cicgPjcP55e0PicPf0/PgcPPXYYCYCC1PPdcP:HMb+bb+,WQDPccP]:Wbb++b+WTDP cPVD#b+ebFdP cP]DMbb++b+DFVP cPU"
-DATA "HM/@d/@DTVP cPQDFg=FFMP cPVD#=Y=Y=YFTPP cPDMFgPDWFP cPDPFPe PWPFP ccdPgcdPcc"
+DATA "~cicgPjcP!I!Id0^PicP0^0^00PgcPP!(g!#1PPdcP:!5P,+,,+9!F!E!EPccP!=!5!F,,++,+!FH!EP cPH!.!7,+,9,9!7dP c"
+DATA "P!=!.P,,++,+!.!%!)P cP!=!5!F/Xd/X!.H!$P cP!)!.!7!2!2!4d!2!%!%PP cPH!.!7!2!4!2!4!2!4!7!EPP cP!.!F!%gP"
+DATA "!.!F!7P cP!.P!7Pe P!Fa!%P ccdPgcdPcc"
 DATA ""
 DATA 16, 16
-DATA "~clcdPmcPd0dPicP^^005YAPgcP/@Y55^Y_PfcP/bb+/=/C_]PdcP/+db+$YC`FPccP/+bb+b3YAHF:QcP/@/Zbb$YAAD:PDPD=/"
-DATA "=/@0YAADDPWDX:/=/=/=AAFDQFDP`VWPP==/AFDQFFP VQP  dPUUQDFP cPPfcP`VWDP jcPVVDP dc"
+DATA "~clcdPmcPd0dPicPd0^!I5!,PgcP/0d!I0!#APfcPD9,+//D!#!,!=PdcPD+d,+$!4!#!B!%PccPD+,9+93!2`!+!%!+!)cPDD/"
+DATA "!1,,$!4`!,!.!5P!.P!./XX/0D!4`!,!.!.P!F!.!(:gX``!%!.!)!%!.P!B!$dP!2!2X!,!%!.!)!7!%P !)!)P  dPC!=!)!."
+DATA "!%P cPPfcP!+!$!F!.P jcP!$!$!.P dc"
 DATA ""
 DATA 16, 16
-DATA "~clcdPmcPd0dPicP^^005YAPgcP/@Y55^Y_PfcP/bb+/=/C_]PdcP/+db+$YC`DPccP/+bb+b3YAHTDPcP/@/Zbb$YAAFDQFP:=/"
-DATA "=/@0YAAF:QFF`Q/=/=/=AAD:PDFPDP#PP==/AD:PWDP dP  dPV`PFDP cPPfcPDMFFP jcPPMFP dc"
+DATA "~clcdPmcPd0dPicPd0^!I5!,PgcP/0d!I0!#APfcPD9,+//D!#!,!=PdcPD+d,+$!4!#!B!.PccPD+,9+93!2`!+!E!.PcPDD/!1"
+DATA ",,$!4`!,!%!.!)!7P!5/XX/0D!4`!,!%!5!)!7!%!+HgX``!.!5P!.!%P!.P!7PP!2!2X!,!.!+P!F!.P PaP  dP!$UP!7!.P c"
+DATA "PPfcP!.P!7!%P jcdP!%P dc"
 DATA ""
 DATA 16, 16
-DATA "ycPocPOPmcPXLLfPgcPRLKOQeVPfcPR]`[FFPPWPecP-R:H[<ePgcP-:H[PPicPDP[ZPFPicPQMfPcd ecPQdPWFPe ecPQMPPWP"
-DATA "f ecPQPP P cc hcPP~cmc"
+DATA "ycPocP!8PmcPZZ!DfPgcP-!8!Db!$!)!)!$!)PfcP!G!=!B!/!%!%PP!FPecP-!G!5:!/<ePgcP-!5!5!/PPicP!.P!/!1PaPicP"
+DATA "!)gPcd ecPH!FPP!FaPe ecP!)dP!FPf ecPH!FP P cc hcPP~cmc"
 DATA ""
 DATA 16, 16
-DATA "ycPocPOPmcPXLLfPgcPRLKOQeVPfcPR]`[FFPPWPecP-R:H[<ePfcPQ-:H[PjcPQF[ZFFPicPQdPWPPcd ecPQMPPDFPe fcePDP"
-DATA "Pe gcPcPDFPd kcPP~cic"
+DATA "ycPocP!8PmcPZZ!DfPgcP-!8!Db!$!)!)!$!)PfcP!G!=!B!/!%!%PP!FPecP-!G!5:!/<ePfcPH-!5!5!/PjcPHa!/!1!%!%Pic"
+DATA "P!)dP!FPPcd ecPHaPP!.aPe fceP!.PPe gcPcP!.aPd kcPP~cic"
 DATA ""
 DATA 16, 16
-DATA "~ckcdPmcPKLLPkcPLLKOPPicPNUZO[[MPhcPN`-<<MMDPgcPHII<[[DVWPfcPW[[<FFPVVPfcPDFdPMeP ecPWdPQWP P  ecPWF"
-DATA "PPQMPe fcPPcPQWP mcPP~cic"
+DATA "~ckcdPmcPJ!D!8PkcPZ!D!DbPPicP!@C!1b!/!/PPhcP!@U-<<PP!.PgcP!+FF<!/!/!.!$!FPfcP!F!/!/<!%!%P!)!$PfcP!."
+DATA "!%PP!F!FeP ecP!FdPHPP P  ecP!F!%PPH!FPe fcPPcPHPP mcPP~cic"
 DATA ""
 DATA 16, 16
-DATA "~ckcdPmcPKLLPkcPLLKOPPicPNUZO[[MPhcPN`-<<MMDPgcPHII<[[DVWPgcPZ[ZdPVVPgcPTPDPPcdP fcPQPWPP  P  fcPTdP"
-DATA "g fcPQPPe icPTPPncPPyc"
+DATA "~ckcdPmcPJ!D!8PkcPZ!D!DbPPicP!@C!1b!/!/PPhcP!@U-<<PP!.PgcP!+FF<!/!/!.!$!FPgcP!1!/!1dP!)!$PgcPHP!.PPc"
+DATA "dP fcP!EP!FPP  P  fcPHdPg fcP!EPPe icPHPPncPPyc"
 DATA ""
 DATA 16, 16
-DATA "~cjcePlcP.NLOPjcPNLL9OPjcP]:ZO[[PicPd-I<ZMPhcPII<<[QVPhcPT[[ZFVVPhcPTFPPDVVPhcPQdPDMWPd ecPDFPPDPPe "
-DATA "fcPPcPDFPd kcPP~cic"
+DATA "~cjcePlcP.J!8bPjcP!@!8!DZbPjcP!=!5bb!/!/PicP-!G-F<!1PPhcPFF<<!/!)!$PhcPH!/!/!1!%!)!$PhcPH!%PP!.!$!$P"
+DATA "hcPHdP!.!F!FPd ecP!.!%PP!EPPe fcPPcP!.aPd kcPP~cic"
 DATA ""
 DATA 16, 16
-DATA "~cjcePlcP.NLOPjcPNLL9OPjcP]:ZO[[PicPd-I<ZMPhcPII<<[QVPhcPDFd[VVPhcPTdPMVVPhcPQFdPMWPd ecPQgPe ecPQFP"
-DATA " PPkcPP~cmc"
+DATA "~cjcePlcP.J!8bPjcP!@!8!DZbPjcP!=!5bb!/!/PicP-!G-F<!1PPhcPFF<<!/!)!$PhcP!.!%d!/!)!$PhcPHeP!$!$PhcPH!%"
+DATA "dP!F!FPd ecPHgPe ecPHaP PPkcPP~cmc"
 DATA ""
 DATA 16, 16
-DATA "~cjcdPmcP.XOPkcPNLLbOPjcPSRZO<[PicPSd-<[PicPII<[TQPjcPT[QVFPjcPTVVPPe gcPQTdPf gcPPDPPf hcPDPPf hcPT"
-DATA "PPccd icPPccd rc"
+DATA "~cjcdPmcP.Z!8PkcP1!D!8!8bPjcP!G!G!1b<!/PicP-!G--<!/PicPFF<!/H!)PjcPH!/!$!$aPjcPH!$!$PPe gcP!E!EdPf "
+DATA "gcPP!EPPf hcP!.PPf hcP!EPPccd icPPccd rc"
 DATA ""
 DATA 16, 16
-DATA "~cjcdPmcP.XOPkcPNLLbOPjcPSRZO<[PicPSd-<[PicP<I<[TQPicPDF[QVFPicPDFVVdPd fcPWFTPMMPe ecPWePMPe ecPWFP"
-DATA "cPPdc  fcPPgcd mcd rc"
+DATA "~cjcdPmcP.Z!8PkcP1!D!8!8bPjcP!G!G!1b<!/PicP-!G--<!/PicP<F<!/H!)PicP!.!%!/!$!$aPicP!.!%!$!$dPd fcP!F"
+DATA "!%!EPPaPe ecP!FeP!FPe ecP!F!%PcPPdc  fcPPgcd mcd rc"
 DATA ""
 DATA 16, 16
-DATA "xcPocPKPmcP8LOPlcPOOZ[PkcPSRI<PgceP-RRI<<PecPeVQTI<[PPecPWMWMWMWZPFPfcePMgPcd ecPMdPWFPe ecPQMPPWPf "
-DATA "ecPQPP Pf gcPP~cmc"
+DATA "xcPocPZPmcP8!DbPlcP!Db!1!/PkcP-!GF<PgceP--!GF<<PecP!$!$d!)HF<!/PPecPd!F!.d!F!1PaPfceP!FgPcd ecP!F!FP"
+DATA "P!FaPe ecPHdP!FPf ecPH!FP Pf gcPP~cmc"
 DATA ""
 DATA 16, 16
-DATA "xcPocPKPmcP8LOPlcPOOZ[PkcPSRI<PgceP-RRI<<PecPeVQTI<[PfcPWMWMWMWZFFPfcePQgPcd ecPQMPPDFPe fcePDPPe gc"
-DATA "P PDFPd kcPP~cic"
+DATA "xcPocPZPmcP8!DbPlcP!Db!1!/PkcP-!GF<PgceP--!GF<<PecP!$!$d!)HF<!/PfcPd!F!.d!F!1!%!%PfceP!)gPcd ecPHaPP"
+DATA "!.aPe fceP!.PPe gcP P!.aPd kcPP~cic"
 DATA ""
 DATA 16, 16
-DATA "xcPPjcPdcP.KPhcPDPcP.XOZPgcPVVPPKOZ[aPfcPQVQRGSI<[PgcPQTSR-d<PhcPQdI<[[PicPW[[<FFPicPDFdPMPdc ecPWdP"
-DATA "QWPe ecPWFPPQMPe fcPPcPQWP mcPP~cic"
+DATA "xcPPjcPdcP.!DPhcP!.PcP.Zb!1PgcP!)!$PP!Db!1!/1PfcP!)!$!)-!G!GF<!/PgcP!)Hd-d<PhcP!)dF<!/!/PicP!F!/!/<"
+DATA "!%!%PicP!.!%PP!F!FPdc ecP!FdPHPPe ecP!F!%PPH!FPe fcPPcPHPP mcPP~cic"
 DATA ""
 DATA 16, 16
-DATA "xcPPjcPdcP.KPhcPDPcP.XOZPgcPVVPPKOZ[aPfcPQVQRGSI<[PgcPQTSR-d<PhcPQdI<[[PicPPZ[ZPPkcPTePcc c fcPQPWPP"
-DATA "f fcPTdPg fcPQPPe icPTPPncPPyc"
+DATA "xcPPjcPdcP.!DPhcP!.PcP.Zb!1PgcP!)!$PP!Db!1!/1PfcP!)!$!)-!G!GF<!/PgcP!)Hd-d<PhcP!)dF<!/!/PicPP!1!/!1P"
+DATA "PkcPHePcc c fcP!EP!FPPf fcPHdPg fcP!EPPe icPHPPncPPyc"
 DATA ""
 DATA 16, 16
-DATA "xcPPlcdP.OPjcPVV.aOZPicPQV9OOWHPhcPQSGR-]]PhcPMS--I<[PicPdI<[[PicPT[[ZFPPicPTFPPTPPdc ecPQdPDFPe ecP"
-DATA "WFPPDPPe fcPPcPDFPd kcPP~cic"
+DATA "xcPPlcdP.!8PjcP!$!$.!@!8!1PicP!$!)Zbb!1:PhcPH-!G!G-!=!=PhcP!F-!G-F<!/PicPdF<!/!/PicPH!/!/!1!%PPicPH"
+DATA "!%PP!EPPdc ecPHdP!.aPe ecP!F!%PP!EPPe fcPPcP!.aPd kcPP~cic"
 DATA ""
 DATA 16, 16
-DATA "xcPPlcdP.OPjcPVV.aOZPicPQV9OOWHPhcPQSGR-]]PhcPMS--I<[PicPdI<[[PicPDP[<[FPicPTdPMPPdc ecPQFdPFPe ecPQ"
-DATA "gPe ecPQFP PPkcPP~cmc"
+DATA "xcPPlcdP.!8PjcP!$!$.!@!8!1PicP!$!)Zbb!1:PhcPH-!G!G-!=!=PhcP!F-!G-F<!/PicPdF<!/!/PicP!.a!/<!/!%PicPH"
+DATA "gPdc ecPHadPaPe ecPHgPe ecPHaP PPkcPP~cmc"
 DATA ""
 DATA 16, 16
-DATA "xcPPncP.OPlcP..LZPjcPVSOZOPjcPRGG-UaPicPS-SI]`PicPdI<[`Pc  gcPT[Z[Pc  hcPTFTPP  c gcPQFDPPf gcPPTPP"
-DATA "f hcPDPPd jcPTPPncPPwc"
+DATA "xcPPncP.!8PlcP.J!8!1PjcP!$!G!8!1bPjcP-!G.-C!@PicP-!G-F!=!+PicPdF<!/!+Pc  gcPH!/!1!/Pc  hcPH!%!EPP  c"
+DATA " gcP!E!%!.PPf gcPP!EPPf hcP!.PPd jcP!EPPncPPwc"
 DATA ""
 DATA 16, 16
-DATA "xcPPncP.OPlcP..LZPjcPVSOZOPjcPRGG-UaPicPS-SI]`PicP<II<[`Pc  fcPDF[<[FP  gcPDFfP c fcPWFPPMMPe ecPWeP"
-DATA "MPe ecPWFPcPPkcPP~cmc"
+DATA "xcPPncP.!8PlcP.J!8!1PjcP!$!G!8!1bPjcP-!G.-C!@PicP-!G-F!=!+PicP<FF<!/!+Pc  fcP!.!%!/<!/!%P  gcP!.!%fP"
+DATA " c fcP!F!%dPaPe ecP!FeP!FPe ecP!F!%PcPPkcPP~cmc"
 DATA ""
 DATA 16, 16
-DATA "ycPocPYPmcPd5fPgcP/Y5YQeVPfcP/]`=FFPPWPecP//:HA=ePgcP/:HAPPicPDP==PFPicPQMfPcd ecPQdPWFPe ecPQMPPWP"
-DATA "f ecPQPP P cc hcPP~cmc"
+DATA "ycPocP!IPmcP^^!IfPgcP/!I!I!#!$!)!)!$!)PfcPD!=!B`!%!%PP!FPecP//!5:`!4ePgcPX!5!5`PPicP!.P`!4PaPicP!)gP"
+DATA "cd ecPH!FPP!FaPe ecP!)dP!FPf ecPH!FP P cc hcPP~cmc"
 DATA ""
 DATA 16, 16
-DATA "ycPocPYPmcPd5fPgcP/Y5YQeVPfcP/]`=FFPPWPecP//:HA=ePfcPQ/:HAPjcPQF==FFPicPQdPWPPcd ecPQMPPDFPe fcePDPP"
-DATA "e gcPcPDFPd kcPP~cic"
+DATA "ycPocP!IPmcP^^!IfPgcP/!I!I!#!$!)!)!$!)PfcPD!=!B`!%!%PP!FPecP//!5:`!4ePfcPHX!5!5`PjcPHa`!4!%!%PicP!)"
+DATA "dP!FPPcd ecPHaPP!.aPe fceP!.PPe gcPcP!.aPd kcPP~cic"
 DATA ""
 DATA 16, 16
-DATA "~ckcdPmcP65YPkcP550YPPicPNUAY=AMPhcPN`//=AMDPgcPHd=AADVWPfcPW=A=FFPVVPfcPDFdPMeP ecPWdPQWP P  ecPWFP"
-DATA "PQMPe fcPPcPQWP mcPP~cic"
+DATA "~ckcdPmcP^!I!IPkcP^!I!I!#PPicP!@C!,!#``PPhcP!@UXX!4!,P!.PgcP!+X!2!4``!.!$!FPfcP!F``!4!%!%P!)!$PfcP!."
+DATA "!%PP!F!FeP ecP!FdPHPP P  ecP!F!%PPH!FPe fcPPcPHPP mcPP~cic"
 DATA ""
 DATA 16, 16
-DATA "~ckcdPmcP65YPkcP550YPPicPNUAY=AMPhcPN`//=AMDPgcPHd=AADVWPgcP=A=dPVVPgcPTPDPPcdP fcPQPWPP  P  fcPTdP"
-DATA "g fcPQPPe icPTPPncPPyc"
+DATA "~ckcdPmcP^!I!IPkcP^!I!I!#PPicP!@C!,!#``PPhcP!@UXX!4!,P!.PgcP!+X!2!4``!.!$!FPgcP!,`AdP!)!$PgcPHP!.PPc"
+DATA "dP fcP!EP!FPP  P  fcPHdPg fcP!EPPe icPHPPncPPyc"
 DATA ""
 DATA 16, 16
-DATA "~cjcePlcP06YYPjcPNd5YPjcP]:AC=APicP/@//==MPhcPe=AQVPhcPT=A=FVVPhcPTFPPDVVPhcPQdPDMWPd ecPDFPPDPPe fc"
-DATA "PPcPDFPd kcPP~cic"
+DATA "~cjcePlcP0^!I!#PjcP!@!I!I^!#PjcP!=!5_!#``PicP/DX!2!4APPhcPXX!2!4!,!)!$PhcPH``A!%!)!$PhcPH!%PP!.!$!$P"
+DATA "hcPHdP!.!F!FPd ecP!.!%PP!EPPe fcPPcP!.aPd kcPP~cic"
 DATA ""
 DATA 16, 16
-DATA "~cjcePlcP06YYPjcPNd5YPjcP]:AC=APicP/@//==MPhcPe=AQVPhcPDFA=AVVPhcPTdPMVVPhcPQFdPMWPd ecPQgPe ecPQFP "
-DATA "PPkcPP~cmc"
+DATA "~cjcePlcP0^!I!#PjcP!@!I!I^!#PjcP!=!5_!#``PicP/DX!2!4APPhcPXX!2!4!,!)!$PhcP!.!%`!4`!)!$PhcPHeP!$!$Phc"
+DATA "PH!%dP!F!FPd ecPHgPe ecPHaP PPkcPP~cmc"
 DATA ""
 DATA 16, 16
-DATA "~cjcdPmcP05YPkcPN5Y5YPjcP//ACAAPicP/@/d=PicP=/==TQPjcPTAQVFPjcPTVVPPe gcPQTdPf gcPPDPPf hcPDPPf hcPT"
-DATA "PPccd icPPccd rc"
+DATA "~cjcdPmcP0^!#PkcP1!I!I5!#PjcPDD!,!#!4`PicP/D/X!2`PicP!2X!2`H!)PjcPH`!$!$aPjcPH!$!$PPe gcP!E!EdPf gcP"
+DATA "P!EPPf hcP!.PPf hcP!EPPccd icPPccd rc"
 DATA ""
 DATA 16, 16
-DATA "~cjcdPmcP05YPkcPN5Y5YPjcP//ACAAPicP/@/d=PicP=/==TQPicPDFAQVFPicPDFVVdPd fcPWFTPMMPe ecPWePMPe ecPWFP"
-DATA "cPPdc  fcPPgcd mcd rc"
+DATA "~cjcdPmcP0^!#PkcP1!I!I5!#PjcPDD!,!#!4`PicP/D/X!2`PicP!2X!2`H!)PicP!.!%`!$!$aPicP!.!%!$!$dPd fcP!F!%"
+DATA "!EPPaPe ecP!FeP!FPe ecP!F!%PcPPdc  fcPPgcd mcd rc"
 DATA ""
 DATA 16, 16
-DATA "xcPocP0PmcP^5CPlcP5Y_APkcPd/YPgcePe/==PecPeVQT/=APPecPWMWMWMW=PFPfcePMgPcd ecPMdPWFPe ecPQMPPWPf ecP"
-DATA "QPP Pf gcPP~cmc"
+DATA "xcPocP^PmcP0!I!#PlcP!#!#A`PkcPDDX!4PgcePX/D!2!4!4PecP!$!$d!)H!2!4`PPecPd!F!.d!FAPaPfceP!FgPcd ecP!F"
+DATA "!FPP!FaPe ecPHdP!FPf ecPH!FP Pf gcPP~cmc"
 DATA ""
 DATA 16, 16
-DATA "xcPocP0PmcP^5CPlcP5Y_APkcPd/YPgcePe/==PecPeVQT/=APfcPWMWMWMW=FFPfcePQgPcd ecPQMPPDFPe fcePDPPe gcP P"
-DATA "DFPd kcPP~cic"
+DATA "xcPocP^PmcP0!I!#PlcP!#!#A`PkcPDDX!4PgcePX/D!2!4!4PecP!$!$d!)H!2!4`PfcPd!F!.d!FA!%!%PfceP!)gPcd ecPHa"
+DATA "PP!.aPe fceP!.PPe gcP P!.aPd kcPP~cic"
 DATA ""
 DATA 16, 16
-DATA "xcPPjcPdcP05PhcPDPcP05YAPgcPVVPP/Y_AaPfcPQVQ/0//YAPgcPQTe/==PhcPQf=APicPW=A=FFPicPDFdPMPdc ecPWdPQWP"
-DATA "e ecPWFPPQMPe fcPPcPQWP mcPP~cic"
+DATA "xcPPjcPdcP0!IPhcP!.PcP06!#!,PgcP!)!$PP!I!#A`1PfcP!)!$!)/^DX!2`PgcP!)H//XX!4!4PhcP!)XX!2!4``PicP!F``"
+DATA "!4!%!%PicP!.!%PP!F!FPdc ecP!FdPHPPe ecP!F!%PPH!FPe fcPPcPHPP mcPP~cic"
 DATA ""
 DATA 16, 16
-DATA "xcPPjcPdcP05PhcPDPcP05YAPgcPVVPP/Y_AaPfcPQVQ/0//YAPgcPQTe/==PhcPQf=APicPP=A=PPkcPTePcc c fcPQPWPPf "
-DATA "fcPTdPg fcPQPPe icPTPPncPPyc"
+DATA "xcPPjcPdcP0!IPhcP!.PcP06!#!,PgcP!)!$PP!I!#A`1PfcP!)!$!)/^DX!2`PgcP!)H//XX!4!4PhcP!)XX!2!4``PicPP!,`A"
+DATA "PPkcPHePcc c fcP!EP!FPPf fcPHdPg fcP!EPPe icPHPPncPPyc"
 DATA ""
 DATA 16, 16
-DATA "xcPPlcdP05PjcPVV06YAPicPQV5YC_HPhcPQ/0//]]PhcPM/@/d=PicPf=APicPT=A=FPPicPTFPPTPPdc ecPQdPDFPe ecPWFP"
-DATA "PDPPe fcPPcPDFPd kcPP~cic"
+DATA "xcPPlcdP0!#PjcP!$!$06!#!,PicP!$!)^!#!,!,:PhcPH/^DX!=!=PhcP!F/D/!2!2`PicPdX!4``PicPH``A!%PPicPH!%PP!E"
+DATA "PPdc ecPHdP!.aPe ecP!F!%PP!EPPe fcPPcP!.aPd kcPP~cic"
 DATA ""
 DATA 16, 16
-DATA "xcPPlcdP05PjcPVV06YAPicPQV5YC_HPhcPQ/0//]]PhcPM/@/d=PicPf=APicPDPA=AFPicPTdPMPPdc ecPQFdPFPe ecPQgP"
-DATA "e ecPQFP PPkcPP~cmc"
+DATA "xcPPlcdP0!#PjcP!$!$06!#!,PicP!$!)^!#!,!,:PhcPH/^DX!=!=PhcP!F/D/!2!2`PicP!2XX!4``PicP!.a`!4`!%PicPHgP"
+DATA "dc ecPHadPaPe ecPHgPe ecPHaP PPkcPP~cmc"
 DATA ""
 DATA 16, 16
-DATA "xcPPncP0YPlcP00YCPjcPV/YYCPjcP/00/UaPicP/@/=]`PicP=//=A`Pc  gcPTA=APc  hcPTFTPP  c gcPQFDPPf gcPPTPP"
-DATA "f hcPDPPd jcPTPPncPPwc"
+DATA "xcPPncP0!#PlcP00!I_PjcP!$Dd!#PjcP/D^/C!@PicP/D/X!=!+PicP!2X!2!2`!+Pc  gcPH`!,`Pc  hcPH!%!EPP  c gcP"
+DATA "!E!%!.PPf gcPP!EPPf hcP!.PPd jcP!EPPncPPwc"
 DATA ""
 DATA 16, 16
-DATA "xcPPncP0YPlcP00YCPjcPV/YYCPjcP/00/UaPicP/@/=]`PicP=//=A`Pc  fcPDFA=AFP  gcPDFfP c fcPWFPPMMPe ecPWeP"
-DATA "MPe ecPWFPcPPkcPP~cmc"
+DATA "xcPPncP0!#PlcP00!I_PjcP!$Dd!#PjcP/D^/C!@PicP/D/X!=!+PicP!2X!2!2`!+Pc  fcP!.!%`!4`!%P  gcP!.!%fP c fc"
+DATA "P!F!%dPaPe ecP!FeP!FPe ecP!F!%PcPPkcPP~cmc"
 DATA ""
 DATA 16, 16
-DATA "~cxcgPjcP.K.K.KPgcdPK.KKLLKgP:-I.KbL.KZ1N1NUP]-ILfOZ[II[PP:S--OOL`[I--S[PPI<I<I<I<I<I<I[PP-[d<[d<[e<"
-DATA "PPHWW`WW`W``W`HWPPUQQ]QT:T:]Q]:DPPVPPVPPQPQVPVQFPPTFFDFFDFDDFDDFPcoPc"
+DATA "~cxcgPjcPZ.Z.Z.PgcdP.Z..!D!D.gP:-FZ.!8!DZ.!1d1!@!(P!=-FZ!8b!Dbb!1!/FF!/PP:!G--bb!8!8!/F-!G-!/PPF<F<F"
+DATA "<F<F<F<F!/PP-!/d<!/d<!/e<PP!5!F!F!B!F!F!+!F!+!+!F!+!+!FPPC!*H!=H!*:!*:!=H!=:!.PP!BPP!)aP!)P!)!)P!)!)"
+DATA "!%PP!E!7!%!.!%!7!.!7!.!.!%!.!.!7PcoPc"
 DATA ""
 DATA 16, 16
-DATA "~cxcgPjcP.K.K.KPgcdPK.KKLLKgP:-I.KbL.KZ1N1NUP]-ILfOZ[II[PP:S--OOL`[I--S[PPI<I<I<I<I<I<I[PP-[d<[d<[e<"
-DATA "PPD`HW``W`WWHWW`PP`]:T:]Q]QT:TQ:PPMVQPQVPVPPQPPTPPFDDFDDFDFFDFFWPcoPc"
+DATA "~cxcgPjcPZ.Z.Z.PgcdP.Z..!D!D.gP:-FZ.!8!DZ.!1d1!@!(P!=-FZ!8b!Dbb!1!/FF!/PP:!G--bb!8!8!/F-!G-!/PPF<F<F"
+DATA "<F<F<F<F!/PP-!/d<!/d<!/e<PP!.!+!B!F!B!B!F!B!F!F!B!F!F!BPP!B!=:!*:!=H!=H!*:!*H!+PP!F!)!)P!)!)P!)aP!)P"
+DATA "a!EPP!%!.!.!7!.!.!%!.!%!7!.!7!%!FPcoPc"
 DATA ""
 DATA 16, 16
-DATA "~cjcePkcPPK.KOPhcPP.K.K.KLPfcPR-K.KKLLKPfcPIRKKbL.K`DPdcP`I-KLOLONZ<FPccVDVIIRI-INa--FPcT]DMI-RS-I;;"
-DATA "IIDPDT]HMIIRI<<;H[QDPDT]H`IIg[FDcPD:V:VI<[dPF'DccP::VDMPPd PVDdcP:DVDPf PPecPWTDP gc"
+DATA "~cjcePkcPPd.bPhcPPZ.Z.Z.!DPfcP!G-.Z..!D!D.PfcPF!G.Z!8!DZZb!.PdcP!BF-ZZb!D!81!1<!%Pcc!)!.!$FF!GF-F!@1"
+DATA "-!G!%Pc!E!=!.!FF-!G--F;;FF!.P!.!E!=!5PFF!GF<<;!5!/H!.P!.!E!=!5!BFFg!/!%!.cP!.:!)!5!6F<!/dP!%H!.ccP!5"
+DATA ":!$!.!FPPd P!$!.dcP!5!.!)!.Pf PPecP!F!E!.P gc"
 DATA ""
 DATA 16, 16
-DATA "~cjcePkcPPK.KOPhcPP.K.K.KLPfcPR-K.KKLLKPfcPIRKKbL.K`FPdcPWI-KLOLONZ<DPcc]HWIIRI-INa--DPc:VHVI-RS-I;;"
-DATA "IIFP::VDVIIRI<<;H[PFPH:VDMIIg[THcP:T]DWI<[dPDPFccPDT]:`PPd PMFdcPDHPFPf PPecPHFFP gc"
+DATA "~cjcePkcPPd.bPhcPPZ.Z.Z.!DPfcP!G-.Z..!D!D.PfcPF!G.Z!8!DZZb!%PdcP!FF-ZZb!D!81!1<!.Pcc!=!5PFF!GF-F!@1-"
+DATA "!G!.Pc:!$!5!$F-!G--F;;FF!%P!5:!)!.!$FF!GF<<;!5!/P!%P!5:!$!.PFFg!/!E!+cP!+!E!=!.PF<!/dP!EP!%ccP!.!E!="
+DATA "!5!BPPd PP!7dcP!.!5a!%Pf PPecP!+!%!7P gc"
 DATA ""
 DATA 16, 16
-DATA "~cjcePkcPPK.KKPPhcPSK.K.KL[PfcPPK.KKLLKOPPdcP:HKKbL.KOODHPccP]HSLONHOO[DTPccPTWS--aHII[PFP cPQWRS-a:"
-DATA "I-[FPP cP:HR--aH[I[DHP cPQD-<<::d[FWP cPTD#[<[<[[FWWP cP:HFhPQVP cPHVWPe PHTDP ccdPgcdP c"
+DATA "~cjcePkcPPe.PPhcP-.Z.Z.!D!/PfcPPZZ..!D!D.bPPdcP:!+ZZ!8!DZ.!8b!E!+PccP!=!+!GZb1!+bb!/!EHPccP!*!Fd-!@:"
+DATA "FF!/!%!%P cPH!F!G--!@!5F-!/!%PP cP:!+d-!@:!/F!/!.!+P cPH!.-<<:!5d!/!%!FP cP!*!.!7!/<!/<!/!/!7!F!FP c"
+DATA "P:!+!7gPaH!$P cP!+!)!FPe P!+!.!.P ccdPgcdP c"
 DATA ""
 DATA 16, 16
-DATA "~cjcePkcPPK.KKPPhcPSK.K.KL[PfcPPK.KKLLKOPPdcPTWKKbL.KOOFWPccPQDSLONHOO[FPPccP:HS--aHII[TTP cP]HRS-a:"
-DATA "I-[DQP cPTWR--aH[I[FWP cP]H-<<::d[THP cP:HP[<[<[[D:HP cPTDDgPQdP cPMPFPe PDFFP ccdPgcdP c"
+DATA "~cjcePkcPPe.PPhcP-.Z.Z.!D!/PfcPPZZ..!D!D.bPPdcP!*!FZZ!8!DZ.!8b!%!FPccPH!.!GZb1!+bb!/!%PPccP:!+d-!@:F"
+DATA "F!/!.HP cP!=!+!G--!@!5F-!/!E!EP cP!*!Fd-!@:!/F!/!%!FP cP!=!+-<<:!5d!/!E!+P cP:!+!F!/<!/<!/!/!.!5!+P "
+DATA "cP!E!.!.gPHP!FP cdP!7Pe P!.!%!%P ccdPgcdP c"
 DATA ""
 DATA 16, 16
-DATA "~cjcePlcPL.KKPPicPK.K.KLLPPgcP.KKLLKK<<PecP]KKL.KOO<[PdcPTILXLLdO[[DPcPQS-1V[-II[ZDPFP]GGaH[--<[[FPT"
-DATA "F]H-1H[OG<[ZF:`FF`W<dI<I[[D:`FFPHV#dP<<ZDHMWFP `QPd PPVQMDDP cPPfcPHHFDP jcP``FP dc"
+DATA "~cjcePlcP!Dd.PPicP.Z.Z.!D!DPPgcPZ..!D!D..<<PecP!=Z!D!DZ.!8b<!/PdcPHF!D!(!8!8db!/!/!.PcPH-F1!$!/-FF!/"
+DATA "!1!.P!%P!=!G!G!@!+!/--<!/!/!7P!E!7!=!5-1!5!/b!G<!/!1!7!5!B!7!%!B!F<dF<F!/!/!.!5!B!%!%P!B!$!7dP<<!1!."
+DATA "!5!F!F!%P !BHPd PP!$!E!F!.!.P cPPfcP!B!+!7!.P jcP!B!B!%P dc"
 DATA ""
 DATA 16, 16
-DATA "~cjcePlcPL.KKPPicPK.K.KLLPPgcP.KKLLKK<<PecPQKKL.KOO<[PdcP]ILXLLdO[[FPcP]S-1V[-II[ZFQTPTGGaH[--<[[DQF"
-DATA "DQD-1H[OG<[ZDDMWDUH<dI<I[[FDMDDPdMdP<<ZFD`FDP WFPd PP]]`FFP cPPfcPdWFP jcPWMDP dc"
+DATA "~cjcePlcP!Dd.PPicP.Z.Z.!D!DPPgcPZ..!D!D..<<PecPHZ!D!DZ.!8b<!/PdcP!=F!D!(!8!8db!/!/!%PcP!=-F1!$!/-FF"
+DATA "!/!1!%!E!EPH!G!G!@!+!/--<!/!/!.!E!%!.H!.-1!5!/b!G<!/!1!.!.!F!F!.C!+<dF<F!/!/!%!.!F!.!.P!.P!FdP<<!1!%"
+DATA "!.!B!7!.P !F!%Pd PP!=!=!B!7!%P cPPfcPd!F!%P jcP!FP!.P dc"
 DATA ""
 DATA 16, 16
-DATA "~czcgPjcP.K.KLLPdcfP.KKLLKKdPcX1N1XLbL.K.K<<:PP[dILOKLdO[<:PP--SS-IL9O`[I-:PP-<I<I<I<I<I<I[PP-[d<[d<"
-DATA "[d<[PPD`HW``W`WWHWW`PP`]:T:]Q]QT:TQ:PPMVQPQVPVPPQPPTPPFDDFDDFDFFDFFWPcoPc"
+DATA "~czcgPjcPZ.Z.!D!DPdcfPZ..!D!D..dPcC1!@1!(Z!8!DZ.Z.<<!+PP!/dF!D!8!D!D!8bb!/<:PP-!G-!G-F!D!D!8b!/F-!+P"
+DATA "P-<F<F<F<F<F<F!/PP-!/d<!/d<!/d<!/PP!.!+!B!F!B!B!F!B!F!F!+!F!F!BPP!B!=:!*:!=H!=H!*:!*H!+PP!F!)!)P!)!)"
+DATA "P!)aP!)Pa!EPP!%!.!.!7!.!.!%!.!%!7!.!7!%!FPcoPc"
 DATA ""
 DATA 16, 16
-DATA "~czcgPjcP.K.KLLPdcfP.KKLLKKdPcX1N1XLbL.K.K<<:PP[dILOKLdO[<:PP--SS-IL9O`[I-:PP-<I<I<I<I<I<I[PP-[d<[d<"
-DATA "[d<[PPHWW`WWHW``W`HWPPUQQ]QT:T:]Q]:DPPVPPVPPQPQVPVQFPPTFFDFFDFDDFDDFPcoPc"
+DATA "~czcgPjcPZ.Z.!D!DPdcfPZ..!D!D..dPcC1!@1!(Z!8!DZ.Z.<<!+PP!/dF!D!8!D!D!8bb!/<:PP-!G-!G-F!D!D!8b!/F-!+P"
+DATA "P-<F<F<F<F<F<F!/PP-!/d<!/d<!/d<!/PP!5!F!F!+!F!F!+!F!B!B!F!+!+!FPPC!*H!=H!*:!*:!=H!=:!.PP!BPP!)aP!)P"
+DATA "!)!)P!)!)!%PP!E!7!%!.!%!7!.!7!.!.!%!.!.!7PcoPc"
 DATA ""
 DATA 16, 16
-DATA "tcPPncP;8PncP;NfPhcdPN.K.KLPfcPR--.KKLLKKPecPIRIKbL.K.KPdcPWI-RLK.KdODPcc]:WIILKLLOZ[IDPc:VH`I-RIIe-"
-DATA "IFP::VDVIIRII]:QDPFPH:VDMIIHTDWDTTHcP:T]DWI:DdPDWFccPDT]:`PPd PMFdcPDHMFPf PPecPHFFP gc"
+DATA "tcPPncP;8PncP;!@fPhcdP!@Z.Z.!DPfcP!G--Z..!D!D..PecPF!GF.!8!DZ.Z.PdcP!FF-!G!8Z..!8bb!.Pcc!=!5PFF!8!D"
+DATA "!Dbb!1!/F!.Pc:!$!5!BF-!GFFe-F!%P!5:!)!.!$FF!GFF!=:!E!.P!%P!5:!$!.PFF!+!Ed!.!E!E!+cP!+!E!=!.PF:!.dP!E"
+DATA "P!%ccP!.!E!=!5!BPPd PP!7dcP!.!5a!%Pf PPecP!+!%!7P gc"
 DATA ""
 DATA 16, 16
-DATA "tcPPncP;8PncP;NfPhcdPN.K.KLPfcPR--.KKLLKKPecPIRIKbL.K.KPdcP`I-RLK.KdOFPccVDVIILKLLOZ[IFPcT]DMI-RIIe-"
-DATA "IDPDT]HMIIRII]:QDQDPDT]H`IIHTDWDTFDcPD:VHVI:DdPF`DccP::VDMPPd PVDdcP:DVDPf PPecPWTDP gc"
+DATA "tcPPncP;8PncP;!@fPhcdP!@Z.Z.!DPfcP!G--Z..!D!D..PecPF!GF.!8!DZ.Z.PdcP!BF-!G!8Z..!8bb!%Pcc!)!.!6FF!8!D"
+DATA "!Dbb!1!/F!%Pc!E!=!.PF-!GFFe-F!.P!.!E!=!5PFF!GFF!=:!E!.H!.P!.!E!=!5!$FF!+!Ed!.!E!%!.cP!.:!)!5!$F:!.dP"
+DATA "!%!6!.ccP!5:!$!.dPd P!$!.dcP!5!.!)!.Pf PPecP!F!E!.P gc"
 DATA ""
 DATA 16, 16
-DATA "hcPPncPa:PmcPaHPkcdPa:dPhcPSS.K.K-[PfcPP..KKLLKOPPdcPTWKKbL.K.OFWPccPQDKOL.KdOFWPccP:HRO9LLOZ[TTP cP"
-DATA "]HR-dI--[DQP cPTWRg-[FFP cP]H-QQ``QQ[THP cP:HPQV`VQVD'HP cPTDFgPTWPP cPMPFPe PDPFP ccdPgcdP c"
+DATA "hcPPncP!@!5PmcP!@!5PkcdP!@!5dPhcP--Z.Z.!G!/PfcPP.Z..!D!D.bPPdcP!*!FZ.!8!DZ.Zb!%!FPccPH!.Z!8Z..db!%!F"
+DATA "PccP:!+-b9!Dbb!1!/!.HP cP!=!+!G-dF--!/!E!EP cP!*!Fh-!/!%!%P cP!=!+-!)!)!B!B!)!)!/!E!+P cP:!+!F!)!)!B"
+DATA "!$!)!)!.!E!+P cP!E!.!7gP!E!F!FP cdP!7Pe P!.a!%P ccdPgcdP c"
 DATA ""
 DATA 16, 16
-DATA "hcPPncPa:PmcPaHPkcdPa:dPhcPSS.K.K-[PfcPP..KKLLKOPPdcP:HKKbL.K.ODHPccP]HKOL.KdOTHPccPTWRO9LLOZ[PFP cP"
-DATA "QWR-dI--[FPP cP:HRg-[TTP cPQD-QQ``QQ[FWP cPTD#QV`VQVFPWP cP:HDgP:HVP cPHVWPe PHQDP ccdPgcdP c"
+DATA "hcPPncP!@!5PmcP!@!5PkcdP!@!5dPhcP--Z.Z.!G!/PfcPP.Z..!D!D.bPPdcP:!+Z.!8!DZ.Zb!E!+PccP!=!+Z!8Z..db!E!+"
+DATA "PccP!*!F-b9!Dbb!1!/!%!%P cPH!F!G-dF--!/!%PP cP:!+h-!/!.HP cPH!.-!)!)!B!B!)!)!/!%!FP cP!*!.!7!)!)!B!$"
+DATA "!)!)!7P!FP cP:!+!.gP!5!+!$P cP!+!)!FPe P!+!$!.P ccdPgcdP c"
 DATA ""
 DATA 16, 16
-DATA "|cPPncPaHPhcfP1HPhcPK.K.KVdPfcPK.KKLLK-S<PecP.KbL.K.<<[PdcP]KOL.KOOd[FPcP]-IOLLdO[ZFT`PTGGS-eI[[DQFD"
-DATA "QDH:aURG<[ZDPFWDUH:H``:W[[FDMDDPdMdPHDZFD`FDP WFPd PP]]`FFP cPPfcPdWFP jcPWMDP dc"
+DATA "|cPPncP!@!5PhcfP1!+PhcP.Z.Z.!$dPfcP.Z..!D!D.--<PecPZ.!8!DZ.Z<<!/PdcP!=Z!8Z.Zbbd!/!%PcP!=-Fb!D!8!8b!8"
+DATA "!/!1!%!E!BPH!G!G--eF!/!/!.!E!%!.H!.!+!51CZ!G<!/!1!.P!%!F!.C!+!5!+!B!B!5!F!/!/!7!.!F!.!.P!.P!FdP!+!."
+DATA "!1!%!.!B!7!.P !F!%Pd PP!=!=!B!7!%P cPPfcPd!F!%P jcP!FP!.P dc"
 DATA ""
 DATA 16, 16
-DATA "|cPPncPaHPhcfP1HPhcPK.K.KVdPfcPK.KKLLK-S<PecP.KbL.K.<<[PdcPTKOL.KOOd[DPcPQ-IOLLdO[ZDFMP]GGS-eI[[FPTF"
-DATA "]HH:aURG<[ZFQTFF`W:H``:W[[D:`FFPHV#dPHDZD:MWFP `QPd PPVQMDDP cPPfcPHHFDP jcP``FP dc"
+DATA "|cPPncP!@!5PhcfP1!+PhcP.Z.Z.!$dPfcP.Z..!D!D.--<PecPZ.!8!DZ.Z<<!/PdcPHZ!8Z.Zbbd!/!.PcPH-Fb!D!8!8b!8!/"
+DATA "!1!.!%!FP!=!G!G--eF!/!/!%P!E!7!=!5!+!51CZ!G<!/!1!7!E!E!7!%!B!F!5!+!B!B!5!F!/!/!.!5!B!%!%P!B!$!7dP!+"
+DATA "!.!1!.!5!F!F!%P !BHPd PP!$!E!F!.!.P cPPfcP!B!+!7!.P jcP!B!B!%P dc"
 DATA ""
 DATA 16, 16
-DATA "~cxcgPjcPg0PgcdPe0550gP://005500Y1N1NUP]d/YY5YYA=/=APP://=YCYCA=/@/=PPe=Yd=Yd=YAPP/C=C=C=C=C=C==PPHW"
-DATA "W`WW`W``W`HWPPUQQ]QT:T:]Q]:DPPVPPVPPQPQVPVQFPPTFFDFFDFDDFDDFPcoPc"
+DATA "~cxcgPjcP^0^0^0PgcdP0^00!I!I0gP:XX^0!I!I^0_d1!@!(P!=/X^f!#_`XX`PP:/X!2!#_!I_`//D/`PP/m!2`PPXn!4PP!5"
+DATA "!F!F!B!F!F!+!F!+!+!F!+!+!FPPC!*H!=H!*:!*:!=H!=:!.PP!BPP!)aP!)P!)!)P!)!)!%PP!E!7!%!.!%!7!.!7!.!.!%!."
+DATA "!.!7PcoPc"
 DATA ""
 DATA 16, 16
-DATA "~cxcgPjcPg0PgcdPe0550gP://005500Y1N1NUP]d/YY5YYA=/=APP://=YCYCA=/@/=PPe=Yd=Yd=YAPP/C=C=C=C=C=C==PPD`"
-DATA "HW``W`WWHWW`PP`]:T:]Q]QT:TQ:PPMVQPQVPVPPQPPTPPFDDFDDFDFFDFFWPcoPc"
+DATA "~cxcgPjcP^0^0^0PgcdP0^00!I!I0gP:XX^0!I!I^0_d1!@!(P!=/X^f!#_`XX`PP:/X!2!#_!I_`//D/`PP/m!2`PPXn!4PP!."
+DATA "!+!B!F!B!B!F!B!F!F!B!F!F!BPP!B!=:!*:!=H!=H!*:!*H!+PP!F!)!)P!)!)P!)aP!)Pa!EPP!%!.!.!7!.!.!%!.!%!7!.!7"
+DATA "!%!FPcoPc"
 DATA ""
 DATA 16, 16
-DATA "~cjcePkcPPd0YPhcPPg05PfcP//e0550PfcP=//05500CDPdcP`=/00Y5YNCAFPccVDV==e/Na/@FPcT]DM=e/=;;/YDPDT]HM=="
-DATA "/d=;HAQDPDT]H`==dA=AAFDcPD:V:V==AdPF'DccP::VDMPPd PVDdcP:DVDPf PPecPWTDP gc"
+DATA "~cjcePkcPPd0!#PhcPP^0^0^0!IPfcPD/0^00!I!I0PfcP/D^^!I!I^^_!.PdcP!BX/^^!#!I!#1_`!%Pcc!)!.!$X/D!2X!2!@1"
+DATA "/D!%Pc!E!=!.!FX/D//X;;X!2!.P!.!E!=!5PX/D/!2!4;!5`H!.P!.!E!=!5!BXXg`!%!.cP!.:!)!5!6!2!4`dP!%H!.ccP!5:"
+DATA "!$!.!FPPd P!$!.dcP!5!.!)!.Pf PPecP!F!E!.P gc"
 DATA ""
 DATA 16, 16
-DATA "~cjcePkcPPd0YPhcPPg05PfcP//e0550PfcP=//05500CFPdcPW=/00Y5YNCADPcc]HW==e/Na/@DPc:VHV=e/=;;/YFP::VDV=="
-DATA "/d=;HAPFPH:VDM==dA=AATHcP:T]DW==AdPDPFccPDT]:`PPd PMFdcPDHPFPf PPecPHFFP gc"
+DATA "~cjcePkcPPd0!#PhcPP^0^0^0!IPfcPD/0^00!I!I0PfcP/D^^!I!I^^_!%PdcP!FX/^^!#!I!#1_`!.Pcc!=!5PX/D!2X!2!@1/"
+DATA "D!.Pc:!$!5!$X/D//X;;X!2!%P!5:!)!.!$X/D/!2!4;!5`P!%P!5:!$!.PXXg`!E!+cP!+!E!=!.P!2!4`dP!EP!%ccP!.!E!="
+DATA "!5!BPPd PP!7dcP!.!5a!%Pf PPecP!+!%!7P gc"
 DATA ""
 DATA 16, 16
-DATA "~cjcePkcPPe0PPhcP/f05APfcPPe0550YPPdcP:H/05500CYDHPccP]H/5YNHCC=DTPccPTW//=aH/=APFP cPQWd/a://=FPP c"
-DATA "P:H//YaH=5ADHP cPQD/==::A==FWP cPTD#A=A=A=FWWP cP:HFhPQVP cPHVWPe PHTDP ccdPgcdP c"
+DATA "~cjcePkcPPe0PPhcP/0^0^0!I`PfcPP^^00!I!I0!#PPdcP:!+^^!I!I^0!#!#!E!+PccP!=!+D!I!#1!+__`!EHPccP!*!F/X!2"
+DATA "!@:X/`!%!%P cPH!FD/X!@!5//`!%PP cP:!+/X!2!@:`/`!.!+P cPH!.X!4!4:!5d`!%!FP cP!*!.!7`!4`!4``!7!F!FP cP"
+DATA ":!+!7gPaH!$P cP!+!)!FPe P!+!.!.P ccdPgcdP c"
 DATA ""
 DATA 16, 16
-DATA "~cjcePkcPPe0PPhcP/f05APfcPPe0550YPPdcPTW/05500CYFWPccPQD/5YNHCC=FPPccP:H//=aH/=ATTP cP]Hd/a://=DQP c"
-DATA "PTW//YaH=5AFWP cP]H/==::A==THP cP:HPA=A=A=D:HP cPTDDgPQdP cPMPFPe PDFFP ccdPgcdP c"
+DATA "~cjcePkcPPe0PPhcP/0^0^0!I`PfcPP^^00!I!I0!#PPdcP!*!F^^!I!I^0!#!#!%!FPccPH!.D!I!#1!+__`!%PPccP:!+/X!2"
+DATA "!@:X/`!.HP cP!=!+D/X!@!5//`!E!EP cP!*!F/X!2!@:`/`!%!FP cP!=!+X!4!4:!5d`!E!+P cP:!+!F`!4`!4``!.!5!+P "
+DATA "cP!E!.!.gPHP!FP cdP!7Pe P!.!%!%P ccdPgcdP c"
 DATA ""
 DATA 16, 16
-DATA "~cjcePlcP5d0PPicPf055PPgcPd05500=YPecP]00500CYAAPdcPT/5XeYCAADPcPQ//1VA==YA=DPFP]/@aHA//YAAFPTF]H=1H"
-DATA "A&0=A=F:`FF`W=/d=/AAD:`FFPHV#dPA==DHMWFP `QPd PPVQMDDP cPPfcPHHFDP jcP``FP dc"
+DATA "~cjcePlcP!Id0PPicP0^0^0!I!IPPgcP^00!I!I00!4!2PecP!=^5!I^0!#!#``PdcPHX!I!(!I!Id!#``!.PcPH/X1!$`/X!2`"
+DATA "!,!.P!%P!=D^!@!+`X/!2``!7P!E!7!=!5!21!5`!#^X`!,!7!5!B!7!%!B!F!2dX!4X``!.!5!B!%!%P!B!$!7dP`!4!,!.!5!F"
+DATA "!F!%P !BHPd PP!$!E!F!.!.P cPPfcP!B!+!7!.P jcP!B!B!%P dc"
 DATA ""
 DATA 16, 16
-DATA "~cjcePlcP5d0PPicPf055PPgcPd05500=YPecPQ00500CYAAPdcP]/5XeYCAAFPcP]//1VA==YA=FQTPT/@aHA//YAADQFDQD=1H"
-DATA "A&0=A=DDMWDUH=/d=/AAFDMDDPdMdPA==FD`FDP WFPd PP]]`FFP cPPfcPdWFP jcPWMDP dc"
+DATA "~cjcePlcP!Id0PPicP0^0^0!I!IPPgcP^00!I!I00!4!2PecPH^5!I^0!#!#``PdcP!=X!I!(!I!Id!#``!%PcP!=/X1!$`/X!2`"
+DATA "!,!%!E!EPHD^!@!+`X/!2``!.!E!%!.H!.!21!5`!#^X`!,!.!.!F!F!.C!+!2dX!4X``!%!.!F!.!.P!.P!FdP`!4!,!%!.!B!7"
+DATA "!.P !F!%Pd PP!=!=!B!7!%P cPPfcPd!F!%P jcP!FP!.P dc"
 DATA ""
 DATA 16, 16
-DATA "~czcgPjcPe055PdcfPd05500dPcX1N1X/55e0==:PP=/==5Y55dYA=:PPd/@//55YYA//:PP/d=Yd=Yd=YAPP/C=C=C=C=C=C==P"
-DATA "PD`HW``W`WWHWW`PP`]:T:]Q]QT:TQ:PPMVQPQVPVPPQPPTPPFDDFDDFDFFDFFWPcoPc"
+DATA "~czcgPjcP^0^0!I!IPdcfP^00!I!I00dPcC1!@1!(^!I!I^0^0!4!4!+PP`dX!I!#!I!I!#!#_`!4:PP/D/XX!2!I!I!#_`//!+P"
+DATA "PXm!2`PPXm!4`PP!.!+!B!F!B!B!F!B!F!F!+!F!F!BPP!B!=:!*:!=H!=H!*:!*H!+PP!F!)!)P!)!)P!)aP!)Pa!EPP!%!.!."
+DATA "!7!.!.!%!.!%!7!.!7!%!FPcoPc"
 DATA ""
 DATA 16, 16
-DATA "~czcgPjcPe055PdcfPd05500dPcX1N1X/55e0==:PP=/==5Y55dYA=:PPd/@//55YYA//:PP/d=Yd=Yd=YAPP/C=C=C=C=C=C==P"
-DATA "PHWW`WWHW``W`HWPPUQQ]QT:T:]Q]:DPPVPPVPPQPQVPVQFPPTFFDFFDFDDFDDFPcoPc"
+DATA "~czcgPjcP^0^0!I!IPdcfP^00!I!I00dPcC1!@1!(^!I!I^0^0!4!4!+PP`dX!I!#!I!I!#!#_`!4:PP/D/XX!2!I!I!#_`//!+P"
+DATA "PXm!2`PPXm!4`PP!5!F!F!+!F!F!+!F!B!B!F!+!+!FPPC!*H!=H!*:!*:!=H!=:!.PP!BPP!)aP!)P!)!)P!)!)!%PP!E!7!%!."
+DATA "!%!7!.!7!.!.!%!.!.!7PcoPc"
 DATA ""
 DATA 16, 16
-DATA "tcPPncP;8PncP;NfPhcdPNe05PfcPd/d05500PecP=/=055e0PdcPW=//Y/^0dYDPcc]:W==Yd5CAA=DPc:VH`=//=/=d/YFP::V"
-DATA "DV==/==]:QDPFPH:VDM==HTDWDTTHcP:T]DW=:DdPDWFccPDT]:`PPd PMFdcPDHMFPf PPecPHFFP gc"
+DATA "tcPPncP;8PncP;!@fPhcdP!@^0^0!IPfcPD//^00!I!I00PecP/D/0!I!I^0^0PdcP!FX/D!I^00!#!#_!.Pcc!=!5PX/e!I!#!#"
+DATA "`/!.Pc:!$!5!BX/DeX/X!2!%P!5:!)!.!$X/D/!2!=:!E!.P!%P!5:!$!.PXX!+!Ed!.!E!E!+cP!+!E!=!.P!2:!.dP!EP!%ccP"
+DATA "!.!E!=!5!BPPd PP!7dcP!.!5a!%Pf PPecP!+!%!7P gc"
 DATA ""
 DATA 16, 16
-DATA "tcPPncP;8PncP;NfPhcdPNe05PfcPd/d05500PecP=/=055e0PdcP`=//Y/^0dYFPccVDV==Yd5CAA=FPcT]DM=//=/=d/YDPDT]"
-DATA "HM==/==]:QDQDPDT]H`==HTDWDTFDcPD:VHV=:DdPF`DccP::VDMPPd PVDdcP:DVDPf PPecPWTDP gc"
+DATA "tcPPncP;8PncP;!@fPhcdP!@^0^0!IPfcPD//^00!I!I00PecP/D/0!I!I^0^0PdcP!BX/D!I^00!#!#_!%Pcc!)!.!6X/e!I!#"
+DATA "!#`/!%Pc!E!=!.PX/DeX/X!2!.P!.!E!=!5PX/D/!2!=:!E!.H!.P!.!E!=!5!$XX!+!Ed!.!E!%!.cP!.:!)!5!$!2:!.dP!%!6"
+DATA "!.ccP!5:!$!.dPd P!$!.dcP!5!.!)!.Pf PPecP!F!E!.P gc"
 DATA ""
 DATA 16, 16
-DATA "hcPPncPa:PmcPaHPkcdPa:dPhcP//e0/APfcPPe0550YPPdcPTW/055d0YFWPccPQD0Y500dYFWPccP:H/Y55&CAATTP cP]Hd/="
-DATA "/=/=DQP cPTWh/AFFP cP]H/QQ``QQ=THP cP:HPQV`VQVD'HP cPTDFgPTWPP cPMPFPe PDPFP ccdPgcdP c"
+DATA "hcPPncP!@!5PmcP!@!5PkcdP!@!5dPhcP//^0^0D`PfcPP0^00!I!I0!#PPdcP!*!F^0!I!I^0^!#!%!FPccPH!.^!#!I00d!#!%"
+DATA "!FPccP:!+/!#d!I_!#`!.HP cP!=!+DfX/`!E!EP cP!*!F//X/X/X`!%!%P cP!=!+X!)!)!B!B!)!)`!E!+P cP:!+!F!)!)!B"
+DATA "!$!)!)!.!E!+P cP!E!.!7gP!E!F!FP cdP!7Pe P!.a!%P ccdPgcdP c"
 DATA ""
 DATA 16, 16
-DATA "hcPPncPa:PmcPaHPkcdPa:dPhcP//e0/APfcPPe0550YPPdcP:H/055d0YDHPccP]H0Y500dYTHPccPTW/Y55&CAAPFP cPQWd/="
-DATA "/=/=FPP cP:Hh/ATTP cPQD/QQ``QQ=FWP cPTD#QV`VQVFPWP cP:HDgP:HVP cPHVWPe PHQDP ccdPgcdP c"
+DATA "hcPPncP!@!5PmcP!@!5PkcdP!@!5dPhcP//^0^0D`PfcPP0^00!I!I0!#PPdcP:!+^0!I!I^0^!#!E!+PccP!=!+^!#!I00d!#!E"
+DATA "!+PccP!*!F/!#d!I_!#`!%!%P cPH!FDfX/`!%PP cP:!+//X/X/X`!.HP cPH!.X!)!)!B!B!)!)`!%!FP cP!*!.!7!)!)!B!$"
+DATA "!)!)!7P!FP cP:!+!.gP!5!+!$P cP!+!)!FPe P!+!$!.P ccdPgcdP c"
 DATA ""
 DATA 16, 16
-DATA "|cPPncPaHPhcfP1HPhcPf0VdPfcPe0550//=PecP0055d0=YAPdcP]0Y500YYdAFPcP]//Y5YCYCA=FT`PT/0d/=/YAADQFDQDH:"
-DATA "aU/0YA=DPFWDUH:H``:WAAFDMDDPdMdPHD=FD`FDP WFPd PP]]`FFP cPPfcPdWFP jcPWMDP dc"
+DATA "|cPPncP!@!5PhcfP1!+PhcP0^0^0!$dPfcP0^00!I!I0X/!2PecP^0!I!I^0^!4X`PdcP!=^!#^0^!#!#!4``!%PcP!=X!2!#!I"
+DATA "!I&!#!#`!,!%!E!BPHD^D/dX!2``!.!E!%!.H!.!+!51CD^X`!,!.P!%!F!.C!+!5!+!B!B!5!F``!7!.!F!.!.P!.P!FdP!+!."
+DATA "!,!%!.!B!7!.P !F!%Pd PP!=!=!B!7!%P cPPfcPd!F!%P jcP!FP!.P dc"
 DATA ""
 DATA 16, 16
-DATA "|cPPncPaHPhcfP1HPhcPf0VdPfcPe0550//=PecP0055d0=YAPdcPT0Y500YYdADPcPQ//Y5YCYCA=DFMP]/0d/=/YAAFPTF]HH:"
-DATA "aU/0YA=FQTFF`W:H``:WAAD:`FFPHV#dPHD=D:MWFP `QPd PPVQMDDP cPPfcPHHFDP jcP``FP dc"
+DATA "|cPPncP!@!5PhcfP1!+PhcP0^0^0!$dPfcP0^00!I!I0X/!2PecP^0!I!I^0^!4X`PdcPH^!#^0^!#!#!4``!.PcPHX!2!#!I!I&"
+DATA "!#!#`!,!.!%!FP!=D^D/dX!2``!%P!E!7!=!5!+!51CD^X`!,!7!E!E!7!%!B!F!5!+!B!B!5!F``!.!5!B!%!%P!B!$!7dP!+!."
+DATA "!,!.!5!F!F!%P !BHPd PP!$!E!F!.!.P cPPfcP!B!+!7!.P jcP!B!B!%P dc"
 DATA ""
 
 MapData:
@@ -1138,9 +1790,18 @@ FUNCTION BldH% (bt AS INTEGER)
     IF bt = BSPIRE THEN BldH% = 22 ELSE BldH% = 28
 END FUNCTION
 
+' The fog for the mask w by h at mx, 0, drawn at fx, 0: FOG where the mask's picture is.
+SUB MaskFog (mx AS INTEGER, fx AS INTEGER, w AS INTEGER, h AS INTEGER)
+    DIM x AS INTEGER, y AS INTEGER
+    FOR y = 0 TO h - 1: FOR x = 0 TO w - 1
+        IF POINT(mx + x, y) THEN PSET (fx + x, y), 0 ELSE PSET (fx + x, y), FOG
+    NEXT: NEXT
+END SUB
+
 ' The next picture from the DATA: drawn at ox, oy, its mask at mx, oy (0 where it is, 255 not), the
 ' shade it casts at hx, oy (FOG). Its width and height, then strings of symbols to an empty one: a
-' colour CHR$(35 + c), 99 nothing, 32 shade, from 100 a run of the next symbol, CODE - 97 long.
+' colour below 64 CHR$(35 + c), from 64 "!" and CHR$(35 + c - 64), 99 nothing, 32 shade, from 100
+' a run of the next symbol, CODE - 97 long.
 SUB Unpack (ox AS INTEGER, mx AS INTEGER, hx AS INTEGER, oy AS INTEGER)
     DIM w AS INTEGER, h AS INTEGER, x AS INTEGER, y AS INTEGER, i AS INTEGER, c AS INTEGER, n AS INTEGER
     DIM k AS INTEGER, row AS STRING
@@ -1152,13 +1813,23 @@ SUB Unpack (ox AS INTEGER, mx AS INTEGER, hx AS INTEGER, oy AS INTEGER)
         DO WHILE i <= LEN(row)
             c = ASC(MID$(row, i, 1)): n = 1
             IF c >= 100 THEN n = c - 97: i = i + 1: c = ASC(MID$(row, i, 1))
+            ' the colour; -1 nothing, -2 shade
+            IF c = 33 THEN
+                i = i + 1: c = ASC(MID$(row, i, 1)) - 35 + 64
+            ELSEIF c = 99 THEN
+                c = -1
+            ELSEIF c = 32 THEN
+                c = -2
+            ELSE
+                c = c - 35
+            END IF
             FOR k = 1 TO n
-                IF c = 99 OR c = 32 THEN
+                IF c < 0 THEN
                     PSET (ox + x, oy + y), 0: PSET (mx + x, oy + y), 255
                 ELSE
-                    PSET (ox + x, oy + y), c - 35: PSET (mx + x, oy + y), 0
+                    PSET (ox + x, oy + y), c: PSET (mx + x, oy + y), 0
                 END IF
-                IF c = 32 THEN PSET (hx + x, oy + y), FOG ELSE PSET (hx + x, oy + y), 0
+                IF c = -2 THEN PSET (hx + x, oy + y), FOG ELSE PSET (hx + x, oy + y), 0
                 x = x + 1: IF x = w THEN x = 0: y = y + 1
             NEXT
             i = i + 1
@@ -1175,17 +1846,11 @@ END FUNCTION
 SUB BuildArt (art() AS INTEGER, gl() AS INTEGER)
     DIM k AS INTEGER, x AS INTEGER, y AS INTEGER, tmi AS INTEGER, a AS SINGLE, ca AS SINGLE
     DIM c AS INTEGER, bt AS INTEGER, q AS INTEGER, sz AS INTEGER, n AS INTEGER, total AS INTEGER
-    total = 4 + NOVL + 16 + 24 + 8 + 2
-    RANDOMIZE 11
-    ' the grass: the field's 16 pieces as diamonds, each pixel the field's under it
-    GrassField
-    FOR k = 0 TO 15
-        FOR y = 0 TO 15: FOR x = 0 TO 31
-            IsoUV x, y, a, ca
-            c = 0
-            IF a >= 0 AND a < 1 AND ca >= 0 AND ca < 1 THEN c = POINT((k MOD 4) * TS + INT(a * TS), (k \ 4) * TS + INT(ca * TS))
-            PSET (100 + x, y), c
-        NEXT: NEXT
+    total = 12 + NOVL + 16 + 1 + 2 + 8 + 24
+    RESTORE ArtData
+    ' the grass at its 3 levels, as diamonds
+    FOR k = 0 TO 47
+        Unpack 100, 140, 180, 0
         GET (100, 0)-(131, 15), art(0, AGRS + k * 2)
         IF k MOD 4 = 3 THEN n = n + 1: Progress n, total, gl()
     NEXT
@@ -1200,57 +1865,36 @@ SUB BuildArt (art() AS INTEGER, gl() AS INTEGER)
     NEXT: NEXT
     GET (100, 0)-(131, 15), art(0, ADIA)
     GET (140, 0)-(171, 15), art(0, AFOG)
+    ' what lies on the grass: image, mask
     FOR k = 0 TO NOVL - 1
-        LINE (100, 0)-(131, 15), 0, BF
-        PaintOverlay k, 100, 0
+        Unpack 100, 140, 180, 0
         GET (100, 0)-(131, 15), art(0, AOVL + k * 4)
-        FOR y = 0 TO 15: FOR x = 100 TO 131
-            IF POINT(x, y) THEN PSET (x, y), 0 ELSE PSET (x, y), 255
-        NEXT: NEXT
-        GET (100, 0)-(131, 15), art(0, AOVL + k * 4 + 2)
+        GET (140, 0)-(171, 15), art(0, AOVL + k * 4 + 2)
         n = n + 1: Progress n, total, gl()
     NEXT
     ' rock, raised: image, mask, fog
     FOR k = 0 TO 15
-        LINE (100, 0)-(131, 15 + ROCKH), 0, BF
-        PaintRock k, 100, 0
+        Unpack 100, 140, 180, 0
+        MaskFog 140, 180, 32, 16 + ROCKH
         GET (100, 0)-(131, 15 + ROCKH), art(0, AROK + k * 9)
-        FOR y = 0 TO 15 + ROCKH: FOR x = 100 TO 131
-            IF POINT(x, y) THEN
-                PSET (x, y), 0: PSET (x + 40, y), FOG
-            ELSE
-                PSET (x, y), 255: PSET (x + 40, y), 0
-            END IF
-        NEXT: NEXT
-        GET (100, 0)-(131, 15 + ROCKH), art(0, AROK + k * 9 + 3)
-        GET (140, 0)-(171, 15 + ROCKH), art(0, AROK + k * 9 + 6)
+        GET (140, 0)-(171, 15 + ROCKH), art(0, AROK + k * 9 + 3)
+        GET (180, 0)-(211, 15 + ROCKH), art(0, AROK + k * 9 + 6)
         n = n + 1: Progress n, total, gl()
     NEXT
-    LINE (100, 0)-(115, 23), 0, BF
-    PaintTree 100, 0
+    ' the tree: image, mask, fog, the shade it casts
+    Unpack 100, 120, 140, 0
     GET (100, 0)-(115, 23), art(0, ATREE)
-    FOR y = 0 TO 23: FOR x = 100 TO 115
-        IF POINT(x, y) THEN
-            PSET (x, y), 0: PSET (x + 40, y), FOG
-        ELSE
-            PSET (x, y), 255: PSET (x + 40, y), 0
-        END IF
-    NEXT: NEXT
-    GET (100, 0)-(115, 23), art(0, ATREE + 2)
+    GET (120, 0)-(135, 23), art(0, ATREE + 2)
+    GET (140, 0)-(155, 23), art(0, ATREE + 6)
+    MaskFog 120, 140, 16, 24
     GET (140, 0)-(155, 23), art(0, ATREE + 4)
+    n = n + 1: Progress n, total, gl()
     ' a cliff's step: its left and right faces' image, mask, fog
     FOR k = 0 TO 1
-        LINE (100, 0)-(115, 7 + STEPH), 0, BF
-        PaintFace k, 100, 0
+        Unpack 100, 120, 140, 0
+        MaskFog 120, 140, 16, 8 + STEPH
         GET (100, 0)-(115, 7 + STEPH), art(0, AFACE + k * 3)
-        FOR y = 0 TO 7 + STEPH: FOR x = 100 TO 115
-            IF POINT(x, y) THEN
-                PSET (x, y), 0: PSET (x + 40, y), FOG
-            ELSE
-                PSET (x, y), 255: PSET (x + 40, y), 0
-            END IF
-        NEXT: NEXT
-        GET (100, 0)-(115, 7 + STEPH), art(0, AFACE + k * 3 + 1)
+        GET (120, 0)-(135, 7 + STEPH), art(0, AFACE + k * 3 + 1)
         GET (140, 0)-(155, 7 + STEPH), art(0, AFACE + k * 3 + 2)
         ' the shade under a back edge: k 0 the left, 1 the right, every other pixel darkened
         LINE (100, 0)-(115, 11), 0, BF
@@ -1264,8 +1908,7 @@ SUB BuildArt (art() AS INTEGER, gl() AS INTEGER)
         n = n + 1: Progress n, total, gl()
     NEXT
 
-    ' the buildings, the art tool's: image, mask, fog
-    RESTORE ArtData
+    ' the buildings: image, mask, fog
     FOR bt = 1 TO 4: FOR tmi = 0 TO 1
         sz = BSize%(bt) * 32: q = BldH%(bt) + sz \ 2
         Unpack 100, 170, 240, 0
@@ -1281,9 +1924,7 @@ SUB BuildArt (art() AS INTEGER, gl() AS INTEGER)
             NEXT: NEXT
             GET (250, 0)-(250 + TS - 1, TS - 1), art(0, AICN + bt - 2)
         END IF
-        FOR y = 0 TO q - 1: FOR x = 0 TO sz - 1
-            IF POINT(170 + x, y) THEN PSET (100 + x, y), 0 ELSE PSET (100 + x, y), FOG
-        NEXT: NEXT
+        MaskFog 170, 100, sz, q
         GET (100, 0)-(100 + sz - 1, q - 1), art(0, k + 2 * BLDW)
         n = n + 1: Progress n, total, gl()
     NEXT: NEXT
@@ -1657,6 +2298,7 @@ END SUB
 SUB DrawEndBack (g AS GameT, tm() AS TeamT, art() AS INTEGER, gl() AS INTEGER)
     DIM y AS INTEGER, t AS STRING, i AS INTEGER, x AS INTEGER, h AS INTEGER
     IF g.won THEN Ramp SKY, 32, 0, 2, 8, 0, 26, 30 ELSE Ramp SKY, 32, 2, 0, 4, 34, 6, 4
+    Ramp LOGOC, 8, 63, 63, 63, 0, 34, 24
     FOR y = 0 TO 199
         LINE (0, y)-(319, y), SKY + y * 32 \ 200
     NEXT
@@ -1858,6 +2500,7 @@ SUB DrawTitleBack (art() AS INTEGER, gl() AS INTEGER)
     DIM y AS INTEGER, x AS INTEGER, i AS INTEGER, h AS INTEGER, c AS INTEGER, r AS INTEGER, l AS SINGLE
     ' the night sky: deep blue into violet
     Ramp SKY, 32, 0, 0, 6, 26, 8, 30
+    Ramp LOGOC, 8, 63, 63, 63, 0, 34, 24
     Ramp PLANET, 16, 20, 8, 24, 63, 46, 30
     FOR y = 0 TO 199
         LINE (0, y)-(319, y), SKY + y * 32 \ 200
@@ -2005,6 +2648,7 @@ SUB DrawObjects (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS
             i = k - 2000
             x0 = (tx(i) - ty(i)) * 16 + ox - 8: y0 = (tx(i) + ty(i)) * 8 + oy - 13 - Lift%(m(), tx(i), ty(i))
             IF x0 >= 0 AND y0 >= 0 AND x0 <= 304 AND y0 <= 176 THEN
+                PUT (x0, y0), art(0, ATREE + 6), OR
                 PUT (x0, y0), art(0, ATREE + 2), AND
                 PUT (x0, y0), art(0, ATREE), OR
                 IF m(tx(i), ty(i)).vis = 0 THEN PUT (x0, y0), art(0, ATREE + 4), OR
@@ -2038,6 +2682,60 @@ END FUNCTION
 SUB Shade (c AS INTEGER, r AS INTEGER, g AS INTEGER, b AS INTEGER)
     PALETTE c, Rgb&(r, g, b)
     PALETTE FOG OR c, Rgb&(r * 4 \ 10, g * 4 \ 10, b * 5 \ 10 + 3)
+END SUB
+
+' The water's colours at turn t: WATERC + k a swell's height, a crest every NWATER; the art tool
+' draws the water in them.
+SUB WaterColours (t AS INTEGER)
+    DIM k AS INTEGER, c AS SINGLE
+    FOR k = 0 TO NWATER - 1
+        c = ((1 + COS((k + t) * 6.28318 / NWATER)) / 2) ^ 2
+        Shade WATERC + k, 5 + 11 * c, 11 + 19 * c, 30 + 22 * c
+    NEXT
+END SUB
+
+' The colours in play: the land's, the art tool's, fire's, and all their copies in the fog.
+SUB GamePalette ()
+    DIM i AS INTEGER, cr AS INTEGER, cg AS INTEGER, cb AS INTEGER
+    Shade 0, 0, 0, 0
+    Shade 1, 7, 15, 6       ' ground, dark
+    Shade 2, 9, 19, 8     ' ground
+    Shade 3, 26, 19, 12     ' dirt
+    Shade 4, 12, 10, 12      ' rock's shadow, outlines
+    Shade 5, 27, 22, 26     ' rock, fungus
+    Shade 6, 5, 11, 30      ' deep water
+    Shade 7, 20, 32, 54     ' light on water
+    Shade 8, 24, 63, 44     ' moss's glow
+    Shade 9, 6, 40, 22      ' moss
+    Shade 10, 0, 40, 42     ' the Lodge
+    Shade 11, 32, 62, 60
+    Shade 12, 58, 24, 2     ' the Clade
+    Shade 13, 63, 54, 16
+    Shade 14, 38, 38, 42    ' metal
+    Shade 15, 63, 63, 63
+    Shade 16, 12, 23, 9    ' ground, light
+    Shade 17, 17, 29, 11    ' grass
+    Shade 18, 34, 26, 17    ' dirt, light
+    Shade 19, 42, 37, 38    ' rock, light
+    Shade 20, 10, 20, 42    ' water
+    Shade 21, 44, 54, 63    ' foam
+    Shade 22, 14, 52, 32    ' moss, bright
+    Shade 23, 22, 22, 28    ' metal, dark
+    Shade 24, 50, 50, 56    ' metal, light
+    Shade 25, 0, 22, 26     ' the Lodge, dark
+    Shade 26, 36, 11, 0     ' the Clade, dark
+    Shade 27, 46, 28, 50    ' fungus cap, light
+    Shade 28, 30, 46, 63    ' glass
+    Shade 29, 63, 18, 10    ' a red light
+    Shade 30, 17, 11, 6     ' bark
+    Shade 31, 44, 63, 54    ' moss's tips
+    RESTORE PalData
+    FOR i = 32 TO WATERC - 1
+        READ cr, cg, cb
+        Shade i, cr, cg, cb
+    NEXT
+    WaterColours 0
+    Ramp FIRE, 16, 63, 63, 52, 34, 6, 2
 END SUB
 
 ' n colours from c0, red, green, blue from r0, g0, b0 to r1, g1, b1.
@@ -2518,7 +3216,9 @@ SUB RenderGame (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS B
         CASE ELSE: Shade 8, 28, 63, 46
         END SELECT
     END IF
-    g.vw.waterF = INT(g.clock * 1.6) MOD 2
+    ' the water's colours turned a step: its swells roll on
+    k = INT(g.clock * 6) MOD NWATER
+    IF k <> g.vw.waterF THEN g.vw.waterF = k: WaterColours k
     g.vw.miniT = g.vw.miniT - .016
 
     ' the land a row of equal x + y at a time, from the back; the diamonds a half tile apart
@@ -2553,7 +3253,7 @@ SUB RenderGame (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS B
             sy = sy - l
             IF m(wx, wy).seen AND sx >= 0 AND sy >= ROCKH AND sy <= 184 THEN
                 PUT (sx, sy), art(0, ADIA), AND
-                PUT (sx, sy), art(0, AGRS + ((wx MOD 4) + (wy MOD 4) * 4) * 2), OR
+                PUT (sx, sy), art(0, AGRS + ((wx MOD 4) + (wy MOD 4) * 4 + 16 * (m(wx, wy).hgt \ 2)) * 2), OR
                 k = Overlay%(g, m(), wx, wy)
                 IF k >= 0 THEN
                     PUT (sx, sy), art(0, AOVL + k * 4 + 2), AND
@@ -2684,49 +3384,10 @@ END SUB
 ' The screen, its pages, the palette, the music.
 SUB Setup (g AS GameT, tune() AS STRING)
     DIM i AS INTEGER, j AS INTEGER, v AS INTEGER, pre(2) AS STRING, bar(2) AS STRING
-    DIM cr AS INTEGER, cg AS INTEGER, cb AS INTEGER
     SCREEN 13, , 1, 0
     g.vw.page = 1
     g.snd.enabled = -1
-    Shade 0, 0, 0, 0
-    Shade 1, 7, 15, 6       ' ground, dark
-    Shade 2, 9, 19, 8     ' ground
-    Shade 3, 26, 19, 12     ' dirt
-    Shade 4, 12, 10, 12      ' rock's shadow, outlines
-    Shade 5, 27, 22, 26     ' rock, fungus
-    Shade 6, 5, 11, 30      ' deep water
-    Shade 7, 20, 32, 54     ' light on water
-    Shade 8, 24, 63, 44     ' moss's glow
-    Shade 9, 6, 40, 22      ' moss
-    Shade 10, 0, 40, 42     ' the Lodge
-    Shade 11, 32, 62, 60
-    Shade 12, 58, 24, 2     ' the Clade
-    Shade 13, 63, 54, 16
-    Shade 14, 38, 38, 42    ' metal
-    Shade 15, 63, 63, 63
-    Shade 16, 12, 23, 9    ' ground, light
-    Shade 17, 17, 29, 11    ' grass
-    Shade 18, 34, 26, 17    ' dirt, light
-    Shade 19, 42, 37, 38    ' rock, light
-    Shade 20, 10, 20, 42    ' water
-    Shade 21, 44, 54, 63    ' foam
-    Shade 22, 14, 52, 32    ' moss, bright
-    Shade 23, 22, 22, 28    ' metal, dark
-    Shade 24, 50, 50, 56    ' metal, light
-    Shade 25, 0, 22, 26     ' the Lodge, dark
-    Shade 26, 36, 11, 0     ' the Clade, dark
-    Shade 27, 46, 28, 50    ' fungus cap, light
-    Shade 28, 30, 46, 63    ' glass
-    Shade 29, 63, 18, 10    ' a red light
-    Shade 30, 17, 11, 6     ' bark
-    Shade 31, 44, 63, 54    ' moss's tips
-    RESTORE PalData
-    FOR i = 32 TO 63
-        READ cr, cg, cb
-        Shade i, cr, cg, cb
-    NEXT
-    Ramp FIRE, 16, 63, 63, 52, 34, 6, 2
-    Ramp LOGOC, 8, 63, 63, 63, 0, 34, 24
+    GamePalette
     RESTORE Tunes
     FOR i = 1 TO 3
         READ pre(0), pre(1), pre(2)
@@ -2857,7 +3518,7 @@ FUNCTION Overlay% (g AS GameT, m() AS CellT, x AS INTEGER, y AS INTEGER)
         ELSE
             Overlay% = 2
         END IF
-    CASE TWATER: Overlay% = OWATER + ((g.vw.waterF + x + y) MOD 2) * 16 + Sides%(m(), x, y)
+    CASE TWATER: Overlay% = OWATER + Sides%(m(), x, y)
     CASE ELSE: Overlay% = -1
     END SELECT
 END FUNCTION
@@ -2872,58 +3533,6 @@ FUNCTION Sides% (m() AS CellT, x AS INTEGER, y AS INTEGER)
     IF y = MAPH - 1 THEN n = n OR 4 ELSE IF m(x, y + 1).terr = t THEN n = n OR 4
     IF x = 0 THEN n = n OR 8 ELSE IF m(x - 1, y).terr = t THEN n = n OR 8
     Sides% = n
-END FUNCTION
-
-' Rock (k 0) or water (k 1, frame f) at x, y of a tile whose land goes on at the sides same: a colour,
-' 0 the grass. Where a side ends the edge is ragged; the rock is boulders lit from the upper
-' left with a shadow below and right, the water has a muddy bank and foam.
-FUNCTION LandPix% (k AS INTEGER, same AS INTEGER, f AS INTEGER, x AS INTEGER, y AS INTEGER)
-    DIM e AS SINGLE, es AS SINGLE, r AS SINGLE, i AS INTEGER, j AS INTEGER, cx AS SINGLE, cy AS SINGLE
-    DIM d AS SINGLE, d1 AS SINGLE, d2 AS SINGLE, bx AS SINGLE, by AS SINGLE, c AS INTEGER
-    ' each open side's distance, inset by a ragged margin; two meeting round their corner
-    e = 99: es = 99: r = 2.5 - k
-    IF (same AND 1) = 0 THEN e = y - (r + SIN(x * 1.1 + k))
-    IF (same AND 8) = 0 THEN d = x - (r + SIN(y * 1.3 + 2)): e = (e + d - SQR((e - d) ^ 2 + 9)) / 2
-    IF (same AND 4) = 0 THEN es = (TS - 1 - y) - (r + .5 + SIN(x * .9 + 1))
-    IF (same AND 2) = 0 THEN d = (TS - 1 - x) - (r + .5 + SIN(y * 1.2)): es = (es + d - SQR((es - d) ^ 2 + 9)) / 2
-    d = (e + es - SQR((e - es) ^ 2 + 9)) / 2
-    LandPix% = 0
-    IF k = 1 THEN
-        IF d < -1 THEN EXIT FUNCTION
-        IF d < 0 THEN LandPix% = 30: EXIT FUNCTION
-        IF d < 1 THEN
-            IF (x + y + f * 2) MOD 4 THEN LandPix% = 21 ELSE LandPix% = 7
-            EXIT FUNCTION
-        END IF
-        LandPix% = Tex%(1, x, y, f)
-        EXIT FUNCTION
-    END IF
-    IF d < 0 THEN
-        IF es < 0 AND es >= -2 AND e >= 0 THEN LandPix% = 1
-        EXIT FUNCTION
-    END IF
-    ' boulders: the nearest of four jittered middles a tile, and the next nearest for the cracks
-    d1 = 99: d2 = 99
-    FOR j = -1 TO 2
-        FOR i = -1 TO 2
-            r = VAL(MID$("31524031", ((i + 2) MOD 2) * 2 + ((j + 2) MOD 2) * 4 + 1, 1))
-            cx = i * 8 + 4 + r - 2: cy = j * 8 + 4 + (r * 3 MOD 5) - 2
-            d = SQR((x - cx) ^ 2 + (y - cy) ^ 2)
-            IF d < d1 THEN
-                d2 = d1: d1 = d: bx = x - cx: by = y - cy
-            ELSEIF d < d2 THEN
-                d2 = d
-            END IF
-        NEXT
-    NEXT
-    IF d2 - d1 < 1.3 THEN LandPix% = 4: EXIT FUNCTION
-    r = (bx + by) / (d1 + d2)
-    c = 5
-    IF r < -.25 THEN c = 19
-    IF r > .3 THEN c = 23
-    IF r > .55 OR e < 1 OR es < 1 THEN c = 4
-    IF (x * 5 + y * 3) MOD 7 = 0 AND c = 5 THEN c = 23
-    LandPix% = c
 END FUNCTION
 
 ' Side ti's unit of kind ut at the factory's work is done: trained, then placed by the factory.
@@ -3176,73 +3785,6 @@ SUB Order (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, w
     END IF
 END SUB
 
-' A texture's colour at x, y of a tile: kind 1 water (ph its frame), 2 rock. Its waves repeat
-' every tile, so like tiles join without a seam; shades by ordered dithering.
-FUNCTION Tex% (kind AS INTEGER, x AS INTEGER, y AS INTEGER, ph AS INTEGER)
-    CONST TAU = 6.28318 / TS
-    DIM n AS SINGLE, b AS SINGLE, i AS INTEGER
-    b = VAL("&H" + MID$("08A2C4E63B19F7D5", (y MOD 4) * 4 + x MOD 4 + 1, 1)) / 16
-    SELECT CASE kind
-    CASE 1
-        ' swells running east, a glint on their crests
-        n = SIN((y * 2 + x * .5 + ph * 4) * TAU) + .4 * SIN((x - ph * 4) * TAU)
-        i = INT((n + 1.4) / 2.8 * 1.8 + b)
-        IF i < 0 THEN i = 0 ELSE IF i > 1 THEN i = 1
-        Tex% = VAL(MID$("0620", i * 2 + 1, 2))
-        IF n > 1.2 AND (x + y + ph * 3) MOD 5 = 0 THEN Tex% = 7
-    CASE ELSE
-        n = SIN(x * TAU * 2 + .7) * SIN(y * TAU + 1.1) + .8 * COS((x - 2 * y) * TAU) + .5 * SIN((x + y) * TAU * 2)
-        i = INT((n + 2.3) / 4.6 * 3 + b)
-        IF i < 0 THEN i = 0 ELSE IF i > 2 THEN i = 2
-        Tex% = VAL(MID$("040519", i * 2 + 1, 2))
-        IF ABS(SIN((x * 3 + y * 5) * TAU * .5) + COS((x * 2 - y * 3) * TAU * .5)) < .12 THEN Tex% = 4
-    END SELECT
-END FUNCTION
-
-' Grass, 4 by 4 tiles at 0, 0: Perlin noise in three octaves, each repeating every 4 tiles,
-' so the 16 pieces join every way; four shades, ordered dithering, and a few blades.
-SUB GrassField ()
-    DIM ga(2, 15, 15) AS SINGLE, o AS INTEGER, l AS INTEGER, i AS INTEGER, j AS INTEGER
-    DIM px AS INTEGER, py AS INTEGER, gx AS SINGLE, gy AS SINGLE, fx AS SINGLE, fy AS SINGLE
-    DIM i1 AS INTEGER, j1 AS INTEGER, u AS SINGLE, v AS SINGLE, a AS SINGLE, b AS SINGLE
-    DIM n AS SINGLE, amp AS SINGLE, n00 AS SINGLE, n10 AS SINGLE, n01 AS SINGLE, n11 AS SINGLE
-    DIM c AS INTEGER, w AS INTEGER
-    w = 4 * TS
-    FOR o = 0 TO 2
-        l = 4 * 2 ^ o
-        FOR j = 0 TO l - 1: FOR i = 0 TO l - 1: ga(o, i, j) = RND * 6.28318: NEXT: NEXT
-    NEXT
-    FOR py = 0 TO w - 1
-        FOR px = 0 TO w - 1
-            n = 0: amp = 1
-            FOR o = 0 TO 2
-                l = 4 * 2 ^ o
-                gx = (px + .5) * l / w: gy = (py + .5) * l / w
-                i = INT(gx): j = INT(gy): fx = gx - i: fy = gy - j
-                i1 = (i + 1) MOD l: j1 = (j + 1) MOD l
-                n00 = COS(ga(o, i, j)) * fx + SIN(ga(o, i, j)) * fy
-                n10 = COS(ga(o, i1, j)) * (fx - 1) + SIN(ga(o, i1, j)) * fy
-                n01 = COS(ga(o, i, j1)) * fx + SIN(ga(o, i, j1)) * (fy - 1)
-                n11 = COS(ga(o, i1, j1)) * (fx - 1) + SIN(ga(o, i1, j1)) * (fy - 1)
-                u = fx * fx * fx * (fx * (fx * 6 - 15) + 10)
-                v = fy * fy * fy * (fy * (fy * 6 - 15) + 10)
-                a = n00 + u * (n10 - n00): b = n01 + u * (n11 - n01)
-                n = n + amp * (a + v * (b - a))
-                amp = amp * .5
-            NEXT
-            b = VAL("&H" + MID$("08A2C4E63B19F7D5", (py MOD 4) * 4 + px MOD 4 + 1, 1)) / 16
-            c = INT(n * 2.6 + 2 + b - .5 + (RND - .5) * .4)
-            IF c < 0 THEN c = 0 ELSE IF c > 3 THEN c = 3
-            PSET (px, py), VAL(MID$("01021617", c * 2 + 1, 2))
-        NEXT
-    NEXT
-    ' blades, lit at the tip
-    FOR i = 1 TO 70
-        px = RND * (w - 1): py = 2 + RND * (w - 3)
-        PSET (px, py), 1: PSET (px, py - 1), 17: PSET (px, py - 2), 16
-    NEXT
-END SUB
-
 ' Overlay k on black (black left as the grass): 0 dirt, 1 flowers, 2 to 4 moss thin to thick,
 ' 5 a fungus tree, then rock and water by their sides.
 ' Where pixel px, py of a 32 by 16 diamond lies on its tile: u east, v south, 0 to 1 inside.
@@ -3250,129 +3792,6 @@ SUB IsoUV (px AS INTEGER, py AS INTEGER, u AS SINGLE, v AS SINGLE)
     DIM ex AS SINGLE, ey AS SINGLE
     ex = (px + .5 - 16) / 16: ey = (py + .5) / 8
     u = (ey + ex) / 2: v = (ey - ex) / 2
-END SUB
-
-' Overlay k, a diamond on black at ox, oy (black left as the grass): 0 dirt, 1 flowers, 2 to 4
-' moss thin to thick, then water by its sides and frame.
-SUB PaintOverlay (k AS INTEGER, ox AS INTEGER, oy AS INTEGER)
-    DIM x AS INTEGER, y AS INTEGER, c AS INTEGER, i AS INTEGER, j AS INTEGER, d AS SINGLE
-    DIM h AS INTEGER, u AS SINGLE, v AS SINGLE, fx AS SINGLE, fy AS SINGLE
-    SELECT CASE k
-    CASE 0
-        ' bare earth, its edge ragged and thinning into the grass
-        FOR y = 0 TO 15: FOR x = 0 TO 31
-            IsoUV x, y, u, v
-            fx = u * 16 - 7.5: fy = v * 16 - 7.5
-            IF u >= 0 AND u < 1 AND v >= 0 AND v < 1 THEN
-                d = SQR(fx * fx + fy * fy) + SIN(Ang!(fx, fy) * 3 + 1) * .9
-                c = 0
-                IF d < 5.5 THEN
-                    c = 3: IF RND < .25 THEN c = 18
-                ELSEIF d < 7.5 THEN
-                    IF (x + y) MOD 2 = 0 OR RND < .3 THEN c = 3
-                END IF
-                IF c THEN PSET (ox + x, oy + y), c
-            END IF
-        NEXT: NEXT
-    CASE 1
-        ' a flower or two, a pebble
-        FOR i = 0 TO 2
-            u = .2 + RND * .6: v = .2 + RND * .6
-            x = ox + 16 + (u - v) * 16: y = oy + (u + v) * 8
-            IF i < 2 THEN
-                PSET (x, y), 13 + i * 14: PSET (x, y + 1), 1
-            ELSE
-                PSET (x, y), 19: PSET (x + 1, y), 4
-            END IF
-        NEXT
-    CASE 2, 3, 4
-        ' moss: crystals glowing out of the grass, more the more there is
-        FOR i = 1 TO (k - 1) * 3 + 1
-            u = .15 + RND * .7: v = .15 + RND * .7
-            x = ox + 16 + (u - v) * 16: y = oy + (u + v) * 8
-            h = 2 + RND * 2
-            PSET (x, y + 1), 1: PSET (x + 1, y + 1), 1
-            FOR j = 0 TO h
-                c = 9: IF j > h \ 2 THEN c = 22
-                IF j = h THEN c = 8
-                IF y - j >= oy THEN PSET (x, y - j), c
-            NEXT
-            IF y - h + 1 >= oy THEN PSET (x + 1, y - h + 1), 22
-            IF y - h - 1 >= oy THEN PSET (x, y - h - 1), 31
-        NEXT
-    CASE ELSE
-        FOR y = 0 TO 15: FOR x = 0 TO 31
-            IsoUV x, y, u, v
-            IF u >= 0 AND u < 1 AND v >= 0 AND v < 1 THEN
-                c = LandPix%(1, (k - OWATER) MOD 16, (k - OWATER) \ 16, INT(u * 16), INT(v * 16))
-                IF c THEN PSET (ox + x, oy + y), c
-            END IF
-        NEXT: NEXT
-    END SELECT
-END SUB
-
-' Rock whose land goes on at the sides same, raised ROCKH: its top the diamond at ox, oy, its
-' faces below it, lit from the left.
-SUB PaintRock (same AS INTEGER, ox AS INTEGER, oy AS INTEGER)
-    DIM x AS INTEGER, y AS INTEGER, c AS INTEGER, k AS INTEGER, u AS SINGLE, v AS SINGLE
-    FOR y = 0 TO 15: FOR x = 0 TO 31
-        IsoUV x, y, u, v
-        IF u >= 0 AND u < 1 AND v >= 0 AND v < 1 THEN
-            c = LandPix%(0, same, 0, INT(u * 16), INT(v * 16))
-            IF c THEN PSET (ox + x, oy + y), c
-        END IF
-    NEXT: NEXT
-    FOR x = 0 TO 31
-        FOR y = 15 + ROCKH TO 1 STEP -1
-            IF POINT(ox + x, oy + y) = 0 THEN
-                FOR k = 1 TO ROCKH
-                    IF y - k >= 0 THEN
-                        c = POINT(ox + x, oy + y - k)
-                        IF c <> 0 AND c <> 23 AND c <> 4 THEN
-                            IF x < 16 THEN c = 23 ELSE c = 4
-                            PSET (ox + x, oy + y), c
-                            EXIT FOR
-                        END IF
-                    END IF
-                NEXT
-            END IF
-        NEXT
-    NEXT
-END SUB
-
-' A cliff's step, STEPH high, at ox, oy: k 0 the left face, under a diamond's lower left edge,
-' 1 the right: earth and stones, lit from the left.
-SUB PaintFace (k AS INTEGER, ox AS INTEGER, oy AS INTEGER)
-    DIM x AS INTEGER, y AS INTEGER, e AS INTEGER, c AS INTEGER
-    FOR x = 0 TO 15
-        IF k = 0 THEN e = x \ 2 ELSE e = (15 - x) \ 2
-        FOR y = 0 TO STEPH - 1
-            IF k = 0 THEN c = 18 ELSE c = 3
-            IF (x * 7 + y * 5) MOD 13 = 0 THEN c = 30
-            IF (x * 3 + y * 11) MOD 17 = 0 THEN c = 19
-            PSET (ox + x, oy + e + y), c
-        NEXT
-    NEXT
-END SUB
-
-' A fungus tree, 16 by 24 on black at ox, oy: its shadow, stem, a cap with glowing spots.
-SUB PaintTree (ox AS INTEGER, oy AS INTEGER)
-    DIM x AS INTEGER, y AS INTEGER, c AS INTEGER, d AS SINGLE
-    FOR y = 0 TO 23: FOR x = 0 TO 15
-        c = 0
-        IF ((x - 9) / 7) ^ 2 + ((y - 21.5) / 2) ^ 2 <= 1 THEN c = 1
-        IF x >= 7 AND x <= 9 AND y >= 10 AND y <= 21 THEN
-            c = 3: IF x = 9 THEN c = 30
-        END IF
-        d = ((x - 7.5) / 7.8) ^ 2 + ((y - 8) / 6) ^ 2
-        IF d <= 1 AND y <= 11 THEN
-            c = 5: IF d < .55 THEN c = 27
-            IF d < .2 AND y < 7 THEN c = 19
-            IF d > .8 OR y = 11 THEN c = 4
-        END IF
-        IF c THEN PSET (ox + x, oy + y), c
-    NEXT: NEXT
-    PSET (ox + 4, oy + 6), 8: PSET (ox + 11, oy + 7), 8: PSET (ox + 8, oy + 4), 31: PSET (ox + 2, oy + 9), 22
 END SUB
 
 ' A water or rock tile's edges where it meets other land: a shore, a cliff's lip and shadow.
@@ -3481,6 +3900,7 @@ SUB NewGame (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS Bldg
     DIM blank AS UnitT, noB AS BldgT, noFx AS FxT, side AS TeamT
     SOUND 37, 0
     g.snd.song = 0
+    GamePalette
     RESTORE MapData
     FOR y = 0 TO MAPH - 1
         READ r

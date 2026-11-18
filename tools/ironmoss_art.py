@@ -2,8 +2,8 @@
 
     ironmoss_art.py [--preview DIR]
 
-Renders the buildings isometric, picks the 32 colours the game's own 32 lack, and rewrites the
-blocks after PalData: and ArtData: in src/plat/wasm/web/demos/IRONMOSS.BAS. --preview also saves
+Renders the land, buildings and units isometric, picks the 72 colours the game's own 32 lack, and
+rewrites the blocks after PalData: and ArtData: in src/plat/wasm/web/demos/IRONMOSS.BAS. --preview also saves
 each picture as a PNG at 4 times its size.
 
 The world is in pixels: a tile is 16 on a side; the screen's x is x - y, its y (x + y) / 2 - z.
@@ -133,6 +133,10 @@ def materials(team: int) -> dict[int, Mat]:
         10: Mat((26, 28, 34), 0.3, "panels"),
         11: Mat((20, 20, 24), 0.2, "treads"),
         12: Mat((10, 52, 30), 0.0, "moss"),
+        13: Mat((30, 25, 30), 0.15, "crack"),  # rock
+        14: Mat((20, 14, 10), 0.0),  # stem
+        15: Mat((46, 26, 50), 0.3, "spots"),  # the fungus's cap
+        16: Mat((26, 14, 30), 0.0),  # its gills
     }
 
 
@@ -271,6 +275,191 @@ def heading(d: int) -> tuple[float, float]:
     return hx / k, hy / k
 
 
+# --- the land: a tile's diamond, 32 by 16; u east and v south on the tile, 0 to 16
+
+ROCKH, STEPH = 6, 6  # IRONMOSS.BAS's
+BAYER4 = np.array([[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]) / 16
+
+
+def diamond(h: int = 16, top: int = 0) -> tuple[F, F, NDArray[np.bool_]]:
+    """u, v of each pixel of a 32 by h picture whose diamond's top is at row top, and which lie on it."""
+    iy, ix = np.mgrid[0:h, 0:32]
+    ex, ey = (ix + 0.5 - 16) / 16, (iy - top + 0.5) / 8
+    u, v = (ey + ex) / 2 * 16, (ey - ex) / 2 * 16
+    return u, v, (u >= 0) & (u < 16) & (v >= 0) & (v < 16)
+
+
+def perlin(w: int, cells: int, rng: np.random.Generator) -> F:
+    """Gradient noise w square, repeating, cells a side."""
+    ang = rng.random((cells, cells)) * 2 * np.pi
+    gx, gy = np.cos(ang), np.sin(ang)
+    y, x = (np.mgrid[0:w, 0:w] + 0.5) * cells / w
+    i, j = np.floor(x).astype(int), np.floor(y).astype(int)
+    fx, fy = x - i, y - j
+    i1, j1 = (i + 1) % cells, (j + 1) % cells
+    dot = lambda a, b, ox, oy: gx[b, a] * (fx - ox) + gy[b, a] * (fy - oy)  # noqa: E731
+    s = lambda t: t * t * t * (t * (t * 6 - 15) + 10)  # noqa: E731
+    a = dot(i, j, 0, 0) + s(fx) * (dot(i1, j, 1, 0) - dot(i, j, 0, 0))
+    b = dot(i, j1, 0, 1) + s(fx) * (dot(i1, j1, 1, 1) - dot(i, j1, 0, 1))
+    return a + s(fy) * (b - a)
+
+
+def ramp(stops: list[tuple[float, tuple[int, int, int]]], t: F) -> F:
+    xs = [a for a, _ in stops]
+    return np.stack([np.interp(t, xs, [c[k] for _, c in stops]) for k in range(3)], axis=-1)
+
+
+GREEN = [(-0.8, (8, 15, 7)), (-0.3, (10, 19, 8)), (0.1, (13, 23, 9)), (0.5, (17, 27, 10)), (0.9, (21, 31, 12))]
+
+
+def grass() -> list[tuple[F, NDArray[np.bool_]]]:
+    """The 64 square field cut into 16 diamonds, at each of 3 levels, the higher the sunnier."""
+    rng = np.random.default_rng(11)
+    n = perlin(64, 4, rng) + 0.5 * perlin(64, 8, rng) + 0.25 * perlin(64, 16, rng)
+    field = ramp(GREEN, n)
+    out = []
+    for lvl in range(3):
+        for k in range(16):
+            u, v, a = diamond()
+            fx = np.clip((k % 4) * 16 + u.astype(int), 0, 63)
+            fy = np.clip((k // 4) * 16 + v.astype(int), 0, 63)
+            rgb = field[fy, fx] * (1 + 0.1 * lvl) + np.array([1.5, 1.0, 0.0]) * lvl
+            out.append((np.where(a[..., None], rgb, 0), a))
+    return out
+
+
+def sides_edge(u: F, v: F, same: int, inset: float, wob: float) -> F:
+    """Distance inside the land's ragged edge on the sides that do not go on (bits: 1 north, 2 east,
+    4 south, 8 west); two edges meeting round their corner."""
+    big = np.full_like(u, 99.0)
+    soft = lambda a, b: (a + b - np.sqrt((a - b) ** 2 + 9)) / 2  # noqa: E731
+    e, es = big.copy(), big.copy()
+    if not same & 1:
+        e = v - (inset + wob * np.sin(u * 1.1 + 1))
+    if not same & 8:
+        e = soft(e, u - (inset + wob * np.sin(v * 1.3 + 2)))
+    if not same & 4:
+        es = (16 - v) - (inset + wob * np.sin(u * 0.9 + 1))
+    if not same & 2:
+        es = soft(es, (16 - u) - (inset + wob * np.sin(v * 1.2)))
+    return soft(e, es)
+
+
+WATERC, NWATER = 104, 8  # the colours the game turns round to move the water (IRONMOSS.BAS's)
+
+
+def water_colour(k: int, t: int = 0) -> tuple[float, float, float]:
+    """Colour WATERC + k at turn t: a swell's crest every NWATER, as RenderGame turns them."""
+    c = ((1 + np.cos((k + t) * 2 * np.pi / NWATER)) / 2) ** 2
+    return (5 + 11 * c, 11 + 19 * c, 30 + 22 * c)
+
+
+def water(same: int) -> tuple[F, NDArray[np.bool_], NDArray[np.int64]]:
+    """Water whose land goes on at the sides same: its foam and bank in colours, its body in the
+    turning colours by where on a swell each pixel is."""
+    u, v, a = diamond()
+    d = sides_edge(u, v, same, 1.5, 1.0)
+    tau = 2 * np.pi / 16
+    phase = ((2 * v + u) / 8 + 0.3 * np.sin(u * tau) + 0.15 * np.sin(v * 2 * tau)) % 1
+    force = np.where(a & (d >= 1), WATERC + (phase * NWATER).astype(int) % NWATER, -1)
+    rgb = np.zeros((16, 32, 3))
+    foam = (d >= 0) & (d < 1)
+    rgb[foam] = np.where(((u + v).astype(int) % 4 > 0)[foam, None], (40, 50, 60), (20, 32, 54))
+    bank = (d >= -1.2) & (d < 0)
+    rgb[bank] = (20, 14, 8)
+    return rgb, a & (d >= -1.2), force
+
+
+def dirt() -> tuple[F, NDArray[np.bool_]]:
+    u, v, a = diamond()
+    fx, fy = u - 8, v - 8
+    d = np.hypot(fx, fy) + np.sin(np.arctan2(fy, fx) * 3 + 1) * 0.9
+    rng = np.random.default_rng(5)
+    rgb = ramp([(0, (34, 26, 16)), (1, (22, 16, 10))], rng.random(u.shape)) * 1.0
+    th = BAYER4[np.arange(16)[:, None] % 4, np.arange(32)[None] % 4]
+    on = a & ((d < 5.5) | ((d < 7.5) & ((7.5 - d) / 2 > th)))
+    pebbles = rng.random(u.shape) < 0.06
+    rgb[pebbles] = (40, 36, 34)
+    return np.where(on[..., None], rgb, 0), on
+
+
+def flowers() -> tuple[F, NDArray[np.bool_]]:
+    rgb, a = np.zeros((16, 32, 3)), np.zeros((16, 32), bool)
+    rng = np.random.default_rng(9)
+    for c in ((60, 52, 20), (52, 30, 56), (40, 36, 36)):
+        uu, vv = 3 + rng.random() * 10, 3 + rng.random() * 10
+        x, y = int(16 + uu - vv), int((uu + vv) / 2)
+        rgb[y, x], a[y, x] = c, True
+        if c[2] < 50:
+            rgb[y + 1, x], a[y + 1, x] = (8, 16, 6), True
+    return rgb, a
+
+
+def moss(k: int) -> NDArray[np.int64]:
+    """Crystals out of the grass, k 1 to 3 the thicker: in the game's own colours, 8 the glow that
+    breathes, 9 and 22 the crystal, 31 the tip, 1 its foot."""
+    img = np.full((16, 32), -1)
+    rng = np.random.default_rng(20 + k)
+    for _ in range(k * 3 + 1):
+        uu, vv = 2.5 + rng.random() * 11, 2.5 + rng.random() * 11
+        x, y = int(16 + uu - vv), int((uu + vv) / 2)
+        h = 2 + int(rng.random() * 2.99)
+        img[min(y + 1, 15), x : x + 2] = 1
+        for j in range(h + 1):
+            if y - j >= 0:
+                img[y - j, x] = 8 if j == h else 22 if j > h // 2 else 9
+        if y - h + 1 >= 0:
+            img[y - h + 1, x + 1] = 22
+        if y - h - 1 >= 0:
+            img[y - h - 1, x] = 31
+    return img
+
+
+def rock(same: int) -> Shape:
+    """Boulders in a tile, four a tile as if the rock went on, their sides open where it does not."""
+    parts = []
+    for j in range(-1, 3):
+        for i in range(-1, 3):
+            r = int("31524031"[(i % 2) * 2 + (j % 2) * 4])
+            cx, cy = i * 8 + 4 + r - 2, j * 8 + 4 + (r * 3 % 5) - 2
+            parts.append(ball((cx, cy, 0), (5.2, 5.0, 4.0 + r * 0.8), 13))
+    lumps = union(*parts)
+
+    def f(p: F) -> tuple[F, NDArray[np.int64]]:
+        d, m = lumps(p)
+        u, v = p[:, 0], p[:, 1]
+        edge = sides_edge(u, v, same, 2.0, 0.8)
+        inside = np.maximum.reduce([-u, -v, u - 16, v - 16])
+        top = p[:, 2] - ((u + v) / 2 + ROCKH - 0.6)
+        return np.maximum.reduce([d, -edge, inside, top, -p[:, 2]]), m
+
+    return f
+
+
+def tree() -> Shape:
+    return union(
+        cyl((0, 0, 0), 1.1, 10, 14),
+        ball((0, 0, 10.5), (5.0, 5.0, 3.0), 15),
+        ball((0, 0, 9.0), (4.2, 4.2, 1.2), 16),
+    )
+
+
+def face(k: int) -> tuple[F, NDArray[np.bool_]]:
+    """A cliff's step, STEPH high, under a diamond's lower left (k 0) or right (1) edge: earth and
+    stones, the left lit."""
+    h = 8 + STEPH
+    rgb, a = np.zeros((h, 16, 3)), np.zeros((h, 16), bool)
+    rng = np.random.default_rng(30 + k)
+    for x in range(16):
+        e = x // 2 if k == 0 else (15 - x) // 2
+        for y in range(STEPH):
+            c = np.array((30, 22, 14) if k == 0 else (19, 13, 8), float) * (1.05 - 0.06 * y)
+            if rng.random() < 0.12:
+                c = np.array((38, 34, 34) if k == 0 else (22, 20, 22), float)
+            rgb[e + y, x], a[e + y, x] = c, True
+    return rgb, a
+
+
 # --- the camera
 
 
@@ -341,6 +530,9 @@ def shade(
         along = q[:, 0] * hd[0] + q[:, 1] * hd[1] + fr * 1.0
         f = np.where(pat == "treads", f * np.where(np.floor(along) % 2 == 0, 0.55, 1.15), f)
         f = np.where(pat == "moss", f * (0.8 + 0.5 * (rnd > 0.7)), f)
+        f = np.where(pat == "crack", f * (0.9 + 0.2 * rnd), f)
+        spot = (np.sin(q[:, 0] * 2.1) * np.sin(q[:, 1] * 1.7 + 1) * np.sin(q[:, 2] * 2.3)) > 0.45
+        f = np.where((pat == "spots") & spot, f * 1.35, f)
         diffuse = 0.42 + 0.75 * lam * lit
         half = (LIGHT + VIEW) / np.linalg.norm(LIGHT + VIEW)
         spec = np.clip(n @ half, 0, 1) ** 24 * shine * lit * 40
@@ -419,17 +611,21 @@ def quantize(rgb: F, a: NDArray[np.bool_], pal: F) -> NDArray[np.int64]:
 
 
 def encode(img: NDArray[np.int64]) -> list[str]:
-    """Rows of symbols: a colour CHR$(35 + c), 99 none, 32 none but shade, 100 on a run of CODE - 97
-    of the next."""
-    sym = [99 if v == -1 else 32 if v == -2 else 35 + int(v) for v in img.ravel()]
+    """Rows of symbols: a colour CHR$(35 + c) below 64, from 64 "!" then CHR$(35 + c - 64); 99
+    nothing, 32 nothing but shade; from 100 a run of the next symbol, CODE - 97 long."""
+
+    def sym(v: int) -> str:
+        return "c" if v == -1 else " " if v == -2 else chr(35 + v) if v < 64 else "!" + chr(35 + v - 64)
+
+    flat = [int(v) for v in img.ravel()]
     tokens, i = [], 0
-    while i < len(sym):
+    while i < len(flat):
         j = i
-        while j < len(sym) and sym[j] == sym[i] and j - i < 29:
+        while j < len(flat) and flat[j] == flat[i] and j - i < 29:
             j += 1
-        tokens += [chr(97 + j - i) + chr(sym[i])] if j - i >= 3 else [chr(sym[i])] * (j - i)
+        tokens += [chr(97 + j - i) + sym(flat[i])] if j - i >= 3 else [sym(flat[i])] * (j - i)
         i = j
-    # a run's two symbols stay on one line
+    # a run and its symbol stay on one line
     rows = [""]
     for t in tokens:
         if len(rows[-1]) + len(t) > 100:
@@ -458,19 +654,46 @@ def png(path: Path, img: NDArray[np.int64], pal: F, k: int = 4) -> None:
     Image.fromarray(rgb.astype(np.uint8)).resize((img.shape[1] * k, img.shape[0] * k), Image.NEAREST).save(path)
 
 
-def main() -> None:
-    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("--preview", type=Path)
-    args = ap.parse_args()
-    src = BAS.read_text()
-    base = base_palette(src)
+@dataclass
+class Pic:
+    name: str
+    rgb: F | None  # to dither; or None, img given
+    a: NDArray[np.bool_]
+    sh: NDArray[np.bool_]
+    img: NDArray[np.int64] | None = None
+    force: NDArray[np.int64] | None = None  # colours fixed where 0 or more
 
-    pics: list[tuple[str, F, NDArray[np.bool_], NDArray[np.bool_]]] = []
+
+def pictures() -> list[Pic]:
+    """All of them, in the order BuildArt reads them."""
+    pics: list[Pic] = []
+    none = lambda a: np.zeros_like(a)  # noqa: E731
+    for k, (rgb, a) in enumerate(grass()):
+        pics.append(Pic(f"grass{k}", rgb, a, none(a)))
+    rgb, a = dirt()
+    pics.append(Pic("dirt", rgb, a, none(a)))
+    rgb, a = flowers()
+    pics.append(Pic("flowers", rgb, a, none(a)))
+    for k in (1, 2, 3):
+        img = moss(k)
+        pics.append(Pic(f"moss{k}", None, img >= 0, none(img >= 0), img))
+    for same in range(16):
+        rgb, a, force = water(same)
+        pics.append(Pic(f"water{same}", rgb, a, none(a), force=force))
+    mats = materials(0)
+    for same in range(16):
+        rgb, a, _ = shade(rock(same), mats, 32, 16 + ROCKH, 16, ROCKH)
+        pics.append(Pic(f"rock{same}", outline(rgb, a), a, none(a)))
+    rgb, a, sh = shade(tree(), mats, 16, 24, 8, 21)
+    rgb, a = ring(rgb, a)
+    pics.append(Pic("tree", rgb, a, sh & ~a))
+    for k in (0, 1):
+        rgb, a = face(k)
+        pics.append(Pic(f"face{k}", rgb, a, none(a)))
     for name, make, n, bh in BUILDINGS:
         for team in (0, 1):
-            w, h = 32 * n, bh + 16 * n
-            rgb, a, _ = shade(make(), materials(team), w, h, 16 * n, bh)
-            pics.append((f"{name}{team}", outline(rgb, a), a, np.zeros_like(a)))
+            rgb, a, _ = shade(make(), materials(team), 32 * n, bh + 16 * n, 16 * n, bh)
+            pics.append(Pic(f"{name}{team}", outline(rgb, a), a, none(a)))
     # the units: kind, side, the screen's 8 headings, 2 frames; 16 by 16, the feet at 8, 12
     for name, model in UNITS:
         for team in (0, 1):
@@ -479,34 +702,45 @@ def main() -> None:
                 for fr in (0, 1):
                     rgb, a, sh = shade(turned(model(fr), *hd), materials(team), 16, 16, 8, 12, hd, fr)
                     rgb, a = ring(rgb, a)
-                    pics.append((f"{name}{team}{d}{fr}", rgb, a, sh & ~a))
+                    pics.append(Pic(f"{name}{team}{d}{fr}", rgb, a, sh & ~a))
+    return pics
 
-    px = np.vstack([rgb[a] for _, rgb, a, _ in pics])
-    pal = np.vstack([base, fit(base, px)])
+
+NFIT = 72  # the colours the art tool picks: 32 to 103
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    ap.add_argument("--preview", type=Path)
+    args = ap.parse_args()
+    src = BAS.read_text()
+    base = base_palette(src)
+    pics = pictures()
+    px = np.vstack([p.rgb[p.a & (p.force < 0 if p.force is not None else True)] for p in pics if p.rgb is not None])
+    fitted = fit(base, px, NFIT)
+    pal = np.vstack([base, fitted, [water_colour(k) for k in range(NWATER)]])
     lines = []
-    imgs = []
-    for name, rgb, a, sh in pics:
-        img = np.where(sh, -2, quantize(rgb, a, pal))
-        imgs.append(img)
+    for p in pics:
+        img = p.img if p.img is not None else quantize(p.rgb, p.a, pal[: 32 + NFIT])  # type: ignore[arg-type]
+        if p.force is not None:
+            img = np.where(p.force >= 0, p.force, img)
+        img = np.where(p.sh, -2, img)
         lines.append(f"{img.shape[1]}, {img.shape[0]}")
         lines += [f'"{r}"' for r in encode(img)]
         lines.append('""')
         if args.preview:
             args.preview.mkdir(parents=True, exist_ok=True)
-            png(args.preview / f"{name}.png", img, pal)
+            png(args.preview / f"{p.name}.png", img, pal)
 
-    src = replace_block(
-        src,
-        "PalData",
-        block("PalData", "colours 32 to 63: red, green, blue", [", ".join(str(int(v)) for v in c) for c in pal[32:]]),
-    )
+    rows = [", ".join(str(int(v)) for v in c) for c in fitted]
+    src = replace_block(src, "PalData", block("PalData", f"colours 32 to {31 + NFIT}: red, green, blue", rows))
     src = replace_block(
         src,
         "ArtData",
         block(
             "ArtData",
-            "the buildings, each side's; the units, each side's, each heading's two frames: width,\n"
-            "' height, then rows of symbols (Unpack); tools/ironmoss_art.py writes these",
+            "grass by level, what lies on it, rock, the tree, a cliff's faces, the buildings, the units:\n"
+            "' width, height, then rows of symbols (Unpack); tools/ironmoss_art.py writes these",
             lines,
         ),
     )
