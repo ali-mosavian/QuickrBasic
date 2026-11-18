@@ -27,6 +27,9 @@ FM (`W4`) is a sine bent by a second sine, as a Yamaha chip's two operators. The
 note that decays starts bright and ends pure: `H0,6,0,3` plucks a bass (`Z1,12`), `Z3` or `Z7` rings a bell, and a
 held `Z1,6` is brass. Depth 0 is a plain sine.
 
+A synthesizer voice's notes are timed to a 16th of a clock tick (3.4 ms), counted in the synthesizer's own samples
+on the Mac and on a Sound Blaster; the speaker's keep QB's whole ticks.
+
 Attack runs from 2 ms (0) to 8 s (15); decay and release from 6 ms to 24 s. Each number may be
 `=var;` as in the other commands. A new program starts with every voice at its defaults.
 

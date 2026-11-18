@@ -6,7 +6,7 @@ at pits, walls and beetles ahead. The level must be cleared on the first life, r
 its loops: a gap too wide, a wall too high, a loop entered too slowly or a landing that misses the
 ground fails it.
 
-Every bar of the tune and every sound effect is played: a PLAY string the game builds wrong is an
+Every half bar of the tune and every sound effect is played: a PLAY string the game builds wrong is an
 Illegal function call mid-game. First a beetle is walked to the level's left end: its look ahead,
 left of column 0, was a negative tile column, and the game stopped with Subscript out of range.
 """
@@ -34,7 +34,8 @@ FOR i = 1 TO 300: Things g, lo(), pt(): NEXT
 PRINT "edge ok"
 Muted = 0
 LoadSong
-FOR j = 0 TO 7: PLAY Lead(j), Bass(j), Drums, , Arp(j): NEXT
+PLAY "T255", "T255", "T255", , "T255", "T255"
+FOR j = 0 TO NBAR * 2 - 1: i = j * 5: PLAY Trk(i), Trk(i + 1), Trk(i + 2), , Trk(i + 3), Trk(i + 4): NEXT
 FOR j = SJUMP TO SBOOST: Sfx j: NEXT
 Muted = -1
 PRINT "sounds ok"

@@ -157,6 +157,7 @@ DECLARE FUNCTION Elapsed! (a AS SINGLE, b AS SINGLE)
 DECLARE SUB Sfx (id AS INTEGER)
 DECLARE SUB LoadSong ()
 DECLARE SUB FeedSong ()
+DECLARE FUNCTION Riff$ (p AS STRING, h AS INTEGER, low AS INTEGER)
 DECLARE FUNCTION Surf% (sx AS INTEGER, y AS INTEGER)
 DECLARE FUNCTION Solid% (x AS INTEGER, y AS INTEGER)
 DECLARE FUNCTION Wall% (p AS Hero, dir AS INTEGER)
@@ -210,7 +211,8 @@ DIM SHARED StartX AS INTEGER, StartY AS INTEGER
 DIM SHARED Tune AS INTEGER
 DIM SHARED Ticks AS LONG, Muted AS INTEGER, LooseN AS INTEGER, PartN AS INTEGER
 DIM SHARED Glint(2) AS LONG
-DIM SHARED Lead(7) AS STRING, Bass(7) AS STRING, Arp(7) AS STRING, Drums AS STRING, Bar AS INTEGER
+CONST NBAR = 26
+DIM SHARED Trk(NBAR * 10) AS STRING, Order AS STRING, Bar AS INTEGER, HalfBar AS INTEGER
 
 Main
 END
@@ -239,17 +241,39 @@ DATA flat,10, bush,0, flat,4, spring,0, flat,2, plat,618, hb,716, flat,7, thorn,
 DATA thorn,0, flat,8, flower,0, flat,4
 DATA goal,0, flat,6, bush,0, flat,14, "end",0
 
-' The tune, a bar a row of sixteenths: the lead's stabs, the bass in
-' octaves, a bell's arpeggio. The drums are the same every bar.
+' The tune: 76 bars of 26, each a letter of the order. A bar is its chord's root from D, a bass riff and a drum
+' pattern by number, the chord stab's note, then the brass and the lead. A riff is sixteen sixteenths: a note in
+' semitones above its voice's lowest (0-9, a-z), "-" holds it, "." rests.
 Song:
-DATA "O4A8P16A16P16O5D8C16P16O4A8P16F8G8", "O2DP16O3DO2DP16DO3CO2DP16AO3DP16O2FGAO3C", "O5DFAO6DO5AFDFAO6DO5AFDFAO6D"
-DATA "O4A8P16A16P16O5D8F16P16E8P16D8C8", "O2DP16O3DO2DP16DO3CO2DP16AO3DP16O2FGAO3C", "O5DFAO6DO5AFDFAO6DO5AFDFAO6D"
-DATA "O4B-8P16B-16P16O5D8F16P16D8P16O4B-8O5D8", "O1B-P16O2B-O1B-P16B-O2A-O1B-P16O2FB-P16O2DE-FA-", "O4B-O5DFB-FDO4B-O5DFB-FDO4B-O5DFB-"
-DATA "O5C8P16C16P16E8G16P16E8P16C8E8", "O2CP16O3CO2CP16CB-CP16GO3CP16O2EFGB-", "O5CEGO6CO5GECEGO6CO5GECEGO6C"
-DATA "O5D16D16P8O4A16A16P8O5F16F16P16E16D8C8", "O2DP16O3DO2DP16DO3CO2DP16AO3DP16O2FGAO3C", "O5DFAO6DO5AFDFAO6DO5AFDFAO6D"
-DATA "O5D16D16P8O4A16A16P8O5A16A16P16G16F8E8", "O2DP16O3DO2DP16DO3CO2DP16AO3DP16O2FGAO3C", "O5DFAO6DO5AFDFAO6DO5AFDFAO6D"
-DATA "O5G8P16F16P16D8O4B-16P16O5D8P16G8B-8", "O1GP16O2GO1GP16GO2FO1GP16O2DGP16O1B-O2CDF", "O4GB-O5DGDO4B-GB-O5DGDO4B-GB-O5DG"
-DATA "O5A8P16G16P16E8C+16P16E8P16A4", "O1AP16O2AO1AP16AO2GO1AP16O2EAP16C+DEG", "O4AO5C+EAEC+O4AO5C+EAEC+O4AO5C+EA"
+DATA "abcdabcefghefgheijklijkmnopqnoprstuvwxyzwxyzijklijkmnopqnoprstuvwxyzwxyzijkm"
+DATA "0.c0.07c.0c.057c", "0.0c.0.70.c0.7c7", "0.0.0.0.c.c.057c", "..x..x....x..x.."
+DATA "KHHHSHKHKHKHSHHH", "KHHHSHKHSSTTSTSS", "K.H.S.H.K.K.S.H.", "K.H.S.SSKSSTSTTS", "KHHSHHKHKHHSHHSS"
+DATA 0, 1, 2, ".", "c-.cf.h-..j.h-f.", ""
+DATA 0, 1, 2, ".", "c-.cf.h-..m.j-h-", ""
+DATA -4, 1, 2, ".", "k-.k.j-h..f-.h.j", ""
+DATA -5, 3, 3, ".", "o-..o.m.j-h-e---", ""
+DATA -5, 3, 3, ".", "m-..m.o.q-o-m-j-", ""
+DATA 5, 1, 0, "c", "h-j-k-.h..k.o---", "............o.r."
+DATA 0, 2, 0, "f", "j-.jh.f-..c.f-j-", "............r.o."
+DATA -4, 1, 0, "c", "k-m-o-.k..o.r---", "............t.r."
+DATA 0, 1, 0, "f", "j..j..j...f.j...", "cjfjcjfjojmjfjhj"
+DATA -2, 1, 0, "e", "h..h..h...e.h...", "aehmhemhqmhmehae"
+DATA -4, 1, 0, "c", "f..f..f...c.f...", "8cfkfckfocfkfc8c"
+DATA -5, 2, 0, "e", "e..e..e...7.e-j-", "7bejebjenjqnjebe"
+DATA -5, 3, 1, "e", "e..e..e...7.j-o-", "7bejnqnjqnjebe7-"
+DATA 5, 2, 0, "c", "....h-....k.h.k.", "o-..k.h-..k-o---"
+DATA -2, 2, 0, "e", "....e-....h.e.h.", "m-..h.e-..h-m---"
+DATA 0, 2, 0, "f", "....f-....j.f.j.", "o-..j.f-..j-r---"
+DATA -5, 3, 0, "e", "..e...e-7-e-j---", "q-n-j-.q..n.j-e-"
+DATA -5, 3, 1, "e", "..e...e-7-e-j---", "q-n-jnqnjnqnvvvv"
+DATA -4, 1, 4, "c", "f-------f---k---", "kkorrokorwrokorw"
+DATA -2, 1, 4, "e", "h-------h---m---", "mmqttqmqtytqmqty"
+DATA 0, 1, 4, "f", "j-------j---o---", "oorvvrorvvrovrov"
+DATA 0, 3, 1, "f", "o---m---j---f---", "vtrqomkjhfecefhj"
+DATA 0, 2, 0, "f", "..f-..f-....f.j.", "o.oo.m.o-..j.m.o"
+DATA 0, 2, 0, "f", "..f-..f-....f.j.", "r.rr.q.o-..m.j.m"
+DATA -4, 2, 0, "c", "..f-..f-....f.k.", "o.oo.k.o-..r.o.k"
+DATA -2, 3, 1, "e", "..e-..e-....h.m.", "q.qq.m.q-..t-q-m"
 
 ' PangArt's begin.
 ' The palette and pictures, as tools/pangart.py draws them.
@@ -2091,7 +2115,7 @@ SUB ReadPad (k AS Pad)
         CASE "m", "M": k.mute = -1
         CASE "n", "N"
             Tune = NOT Tune
-            IF NOT Tune THEN PLAY "P64", "P64", "P64", , "P64"
+            IF NOT Tune THEN PLAY "P64", "P64", "P64", , "P64", "P64"
         CASE CHR$(13): k.start = -1
         CASE " ": k.start = -1: KeyT(SCSPACE) = t
         CASE "z", "Z": KeyT(SCZ) = t
@@ -2135,7 +2159,7 @@ FUNCTION Elapsed! (a AS SINGLE, b AS SINGLE)
     Elapsed! = d
 END FUNCTION
 
-' A sound on the fourth voice, the tune's three left playing.
+' A sound on the fourth voice, the tune's five left playing.
 SUB Sfx (id AS INTEGER)
     DIM s AS STRING
     IF Muted THEN EXIT SUB
@@ -2157,29 +2181,91 @@ SUB Sfx (id AS INTEGER)
 END SUB
 
 SUB LoadSong
-    DIM i AS INTEGER, d AS STRING
+    DIM i AS INTEGER, j AS INTEGER, k AS INTEGER, q AS INTEGER, root AS INTEGER, nb AS INTEGER, nd AS INTEGER
+    DIM bas(2) AS STRING, kit(4) AS STRING, hits AS STRING, c AS STRING, d AS STRING
+    DIM st AS STRING, br AS STRING, sol AS STRING
     RESTORE Song
-    FOR i = 0 TO 7: READ Lead(i), Bass(i), Arp(i): NEXT
-    ' a kick, hats and a snare: noise through a low, a high and a band filter
-    FOR i = 1 TO 16
-        SELECT CASE MID$("KHHHSHHKKHKHSHHH", i, 1)
-        CASE "K": d = d + "Y1,220,10V9O1C"
-        CASE "S": d = d + "Y2,1800,3V8O4C"
-        CASE ELSE: d = d + "Y3,7000,0V3O6C"
-        END SELECT
+    READ Order
+    FOR i = 0 TO 2: READ bas(i): NEXT
+    READ hits
+    FOR i = 0 TO 4: READ kit(i): NEXT
+    FOR i = 0 TO NBAR - 1
+        READ root, nb, nd, c, br, sol
+        st = ""
+        IF c <> "." THEN
+            st = hits
+            DO WHILE INSTR(st, "x"): MID$(st, INSTR(st, "x"), 1) = c: LOOP
+        END IF
+        FOR j = 0 TO 1
+            k = (i * 2 + j) * 5
+            ' a kick, a snare, a tom and hats: noise through a low, a band and a high filter
+            d = ""
+            FOR q = j * 8 + 1 TO j * 8 + 8
+                SELECT CASE MID$(kit(nd), q, 1)
+                CASE "K": d = d + "Y1,220,10V10O1C"
+                CASE "S": d = d + "Y2,1800,3V9O4C"
+                CASE "T": d = d + "Y2,600,8V9O2G"
+                CASE "H": d = d + "Y3,7000,0V3O6C"
+                CASE ELSE: d = d + "P16"
+                END SELECT
+            NEXT
+            Trk(k) = d
+            Trk(k + 1) = Riff$(bas(nb - 1), j, 15 + root)
+            Trk(k + 2) = Riff$(br, j, 27)
+            Trk(k + 3) = Riff$(sol, j, 39)
+            Trk(k + 4) = Riff$(st, j, 27)
+        NEXT
     NEXT
-    Drums = d
-    ' FM, as the consoles of the day: brass, a slapped bass, the noise, a bell
-    PLAY "MBT140W4Z1,7H1,5,10,3V10L16", "T140W4Z1,13H0,5,3,1V13L16", "T140W3H0,3,0,1L16", , "T140W4Z7,6H0,7,0,5V6L16"
+    ' the noise; FM, as the consoles of the day: a slapped bass, brass, an electric piano; and a thin pulse lead
+    PLAY "MBT140W3H0,3,0,1L16", "T140W4Z1,12H0,5,3,1V13", "T140W4Z1,7H1,5,10,3V10", , "T140W0Q30H0,4,9,2V7", "T140W4Z2,5H0,6,0,3V7"
     Tune = -1
 END SUB
 
-' The next bar, once the last is nearly played.
+' Half h of a bar's riff as PLAY's notes, its lowest note `low`: at most eight, as the drums' always are.
+FUNCTION Riff$ (p AS STRING, h AS INTEGER, low AS INTEGER)
+    DIM i AS INTEGER, j AS INTEGER, r AS INTEGER, last AS INTEGER, note AS INTEGER
+    DIM c AS STRING, s AS STRING, ln AS STRING
+    IF LEN(p) < 16 THEN Riff$ = "P2": EXIT FUNCTION
+    i = h * 8 + 1: last = h * 8 + 8
+    DO WHILE i <= last
+        c = MID$(p, i, 1): j = i
+        ' a note held over the half bar is struck again
+        DO WHILE c = "-" AND j > 1: j = j - 1: c = MID$(p, j, 1): LOOP
+        r = 1
+        IF c = "." OR c = "-" THEN
+            note = 0
+            DO WHILE i + r <= last AND MID$(p, i + r, 1) = ".": r = r + 1: LOOP
+        ELSE
+            note = low + INSTR("0123456789abcdefghijklmnopqrstuvwxyz", c) - 1
+            DO WHILE i + r <= last AND MID$(p, i + r, 1) = "-": r = r + 1: LOOP
+        END IF
+        i = i + r
+        ' five and seven sixteenths: four and six, then a rest
+        j = 0
+        IF r = 5 OR r = 7 THEN r = r - 1: j = 1
+        SELECT CASE r
+        CASE 1: ln = "16"
+        CASE 2, 3: ln = "8"
+        CASE 4, 6: ln = "4"
+        CASE ELSE: ln = "2"
+        END SELECT
+        IF note THEN s = s + "L" + ln + "N" + LTRIM$(STR$(note)) ELSE s = s + "P" + ln
+        IF r = 3 OR r = 6 THEN s = s + "."
+        IF j THEN s = s + "P16"
+    LOOP
+    Riff$ = s
+END FUNCTION
+
+' The next half bar, once the last is nearly played: the drums are the first voice, eight sixteenths every time,
+' so PLAY(0) counts the tune's own clock.
 SUB FeedSong
+    DIM k AS INTEGER
     IF Muted OR NOT Tune THEN EXIT SUB
-    IF PLAY(0) > 4 THEN EXIT SUB
-    PLAY Lead(Bar), Bass(Bar), Drums, , Arp(Bar)
-    Bar = (Bar + 1) AND 7
+    IF PLAY(0) > 2 THEN EXIT SUB
+    k = ((ASC(MID$(Order, Bar + 1, 1)) - 97) * 2 + HalfBar) * 5
+    PLAY Trk(k), Trk(k + 1), Trk(k + 2), , Trk(k + 3), Trk(k + 4)
+    HalfBar = 1 - HalfBar
+    IF HalfBar = 0 THEN Bar = (Bar + 1) MOD LEN(Order)
 END SUB
 
 ' The ground's top at column sx near y: in y's tile, the one above when
