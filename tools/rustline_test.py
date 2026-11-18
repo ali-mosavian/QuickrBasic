@@ -146,6 +146,86 @@ def test_route_map_cost() -> None:
     assert c.ops / (64 * 48) < 1000, c.ops / (64 * 48)
 
 
+# the frame's parts profile_program times: a label, then the statement it wraps (once in the game)
+PARTS = (
+    ("keys", "    Keys g, tm(), m(), u(), bl(), fx(), fk(), art(), gl()\n"),
+    ("controls", "        Controls g, tm(), m(), u(), bl(), fx(), fk(), dt\n"),
+    ("produce", "    Produce g, tm(), m(), u(), bl(), 0, dt\n    Produce g, tm(), m(), u(), bl(), 1, dt\n"),
+    ("routes", "    BuildField m(), fd(), old, goal\n"),
+    ("units", "        IF u(i).alive THEN UnitTick g, tm(), m(), u(), bl(), fx(), fd(), fk(), i, dt\n"),
+    ("fxtick", "    FxTick fx(), dt\n"),
+    ("ai", "    IF g.ai.think <= 0 THEN g.ai.think = 1: AIThink g, tm(), m(), u(), bl(), fk()\n"),
+    ("vis", "    IF g.visT <= 0 THEN g.visT = .25: UpdateVis g, m(), u(), bl()\n"),
+    ("objects", "    DrawObjects g, m(), u(), bl(), art(), tx(), ty(), nt\n"),
+    ("fx", "    DrawFx g, m(), fx()\n"),
+    ("minimap", "    DrawMinimap g, m(), u(), bl(), art()\n"),
+    ("sidebar", "    DrawSidebar g, tm(), m(), u(), bl(), art(), gl()\n"),
+    ("render", "        IF g.state = GPLAY THEN RenderGame g, tm(), m(), u(), bl(), fx(), art(), gl()\n"),
+    ("music", "    Music g, tune()\n"),
+)
+
+
+def profile_program(w: int, h: int, until: float, nf: int = 24) -> str:
+    """RUSTLINE on a w by h map (its own tiled), uncapped, timing PARTS until game second `until`
+    and writing them to PROF.TXT. TIMER steps 10 ms; summed over thousands of calls out of step with
+    it, a part's total is its share."""
+    src = re.sub(r"CONST MAPW = \d+, MAPH = \d+", f"CONST MAPW = {w}, MAPH = {h}", BAS.read_text())
+    msc = max(-(-w // 72), -(-h // 57))  # the minimap fits the sidebar above its buttons
+    src = src.replace("CONST MSC = 1,", f"CONST MSC = {msc},")
+    src = src.replace("ABACK = AMINI + 19,", f"ABACK = AMINI + {w * h // msc // msc // 260 + 2},")
+    src = src.replace("    DO: t = TIMER: LOOP WHILE t - lastT < .015 AND t >= lastT\n", "    t = TIMER\n")
+    # a tick each 4th frame, not each TIMER step: started just after a step, a part shorter than
+    # the step reads 0
+    src = src.replace("    dt = t - lastT\n", "    dt = t - lastT: IF g.state = GPLAY THEN dt = STEPT / 4\n", 1)
+    src = re.sub(r"\bNF = \d+", f"NF = {nf}", src, count=1)
+    i = src.index("\nSUB NewGame ")
+    j = src.index("\nEND SUB\n", i)
+    ng = src[i:j]
+    rd = "    FOR y = 0 TO 47: READ {}(y): NEXT\n"
+    ng = ng.replace(
+        "    RESTORE MapData\n",
+        "    DIM mp(47) AS STRING, hd(47) AS STRING\n    RESTORE MapData\n"
+        + rd.format("mp")
+        + "    RESTORE HeightData\n"
+        + rd.format("hd"),
+        1,
+    )
+    ng = ng.replace("        READ r\n", "        r = mp(y MOD 48)\n", 1).replace(
+        "        READ r\n", "        r = hd(y MOD 48)\n", 1
+    )
+    ng = ng.replace("MID$(r, x + 1, 1)", "MID$(r, x MOD 64 + 1, 1)")
+    src = src[:i] + ng + src[j:]
+    for k, (_, stmt) in enumerate(PARTS):
+        assert src.count(stmt) == 1, stmt
+        pad = stmt[: len(stmt) - len(stmt.lstrip())]
+        src = src.replace(
+            stmt, f"{pad}zq# = TIMER\n{stmt}{pad}zt({k}) = zt({k}) + TIMER - zq#: zc&({k}) = zc&({k}) + 1\n"
+        )
+    names = ", ".join(f'"{n}"' for n, _ in PARTS)
+    # written at game second `until`, or at the game's end if sooner
+    report = f"""    IF g.state = GPLAY THEN
+        zFrames& = zFrames& + 1
+        IF zFrames& = 1 THEN zT0# = TIMER
+    END IF
+    IF zFrames& > 0 AND (g.now > {until} OR g.state <> GPLAY) AND zDone = 0 THEN
+        zDone = 1: zWall# = TIMER - zT0#
+        RESTORE ZNames
+        OPEN "PROF.TXT" FOR OUTPUT AS #9
+        PRINT #9, "frames"; zFrames&; "wall"; zWall#; "game"; g.now
+        FOR zk = 0 TO {len(PARTS) - 1}: READ zn$: PRINT #9, zn$; zt(zk); zc&(zk): NEXT
+        CLOSE #9
+    END IF
+LOOP UNTIL g.quitting"""
+    src = src.replace("LOOP UNTIL g.quitting", report, 1)
+    src = src.replace("'$DYNAMIC\n", f"'$DYNAMIC\nDIM SHARED zt({len(PARTS)}) AS DOUBLE, zc&({len(PARTS)})\n", 1)
+    return src + f"\nZNames:\nDATA {names}\n"
+
+
+if __name__ == "__main__" and sys.argv[1:2] == ["profile"]:
+    w, h, until, nf = int(sys.argv[2]), int(sys.argv[3]), float(sys.argv[4]), int(sys.argv[5])
+    Path(sys.argv[6]).write_text(profile_program(w, h, until, nf))
+    sys.exit()
+
 if __name__ == "__main__" and sys.argv[1:] == ["fields"]:
     for w, h in ((32, 24), (64, 48), (96, 72), (128, 96)):
         c = field_cost(w, h)

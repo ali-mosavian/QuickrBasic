@@ -28,6 +28,8 @@ CONST SIDLE = 0, SMOVE = 1, SATTACK = 2, SSEEK = 3, SGATHER = 4, SRETURN = 5, SU
 CONST FXBOOM = 1, FXBIG = 2, FXTRACE = 3, FXSHELL = 4, FXBEAM = 5, FXSMOKE = 6, FXMARK = 7
 CONST OREKEY = -2, NOKEY = -99, FAR = 32000, LOADMAX = 10, LOADVAL = 25
 CONST MINIX = 248, MINIY = 13, BTNY = 72
+' MSC: the tiles a minimap pixel side shows; the minimap is MMW by MMH
+CONST MSC = 1, MMW = MAPW \ MSC, MMH = MAPH \ MSC
 ' the sidebar's items: NBITEM buildings (power plant, refinery, barracks, factory, turret), then
 ' the units (harvester, rifleman, rocketeer, buggy, tank, artillery), a cell of CELLW by CELLH each
 CONST NITEM = 11, NBITEM = 5, CELLW = 26, CELLH = 27
@@ -52,15 +54,15 @@ CONST AOVL = AFOG + 2, AROK = AOVL + NOVL * 4, ATREE = AROK + 16 * 9, AFACE = AT
 CONST ARMP = ASHA + 2, ABLD = ARMP + 48, AICN = ABLD + NBLD * 6 * BLDW, AMINI = AICN + NBLD - 1, ABACK = AMINI + 19, NSLOT = ABACK + 247
 
 TYPE CellT
-    terr AS INTEGER
-    amt AS INTEGER   ' ore left
-    seen AS INTEGER  ' the Coalition has seen it
-    vis AS INTEGER   ' the Coalition sees it now
-    occ AS INTEGER   ' the unit on it, or moving onto it
-    bld AS INTEGER   ' the building on it
-    hgt AS INTEGER   ' its level, 0 to MAXH
-    rmp AS INTEGER   ' a ramp up a level: 1 rising north, 2 west
-    wk AS INTEGER    ' the headings its ground runs on to, a bit each (WalkBits)
+    terr AS BYTE
+    amt AS BYTE   ' ore left
+    seen AS BYTE  ' the Coalition has seen it
+    vis AS BYTE   ' the Coalition sees it now
+    occ AS BYTE   ' the unit on it, or moving onto it
+    bld AS BYTE   ' the building on it
+    hgt AS BYTE   ' its level, 0 to MAXH
+    rmp AS BYTE   ' a ramp up a level: 1 rising north, 2 west
+    wk AS BYTE    ' the headings its ground runs on to, a bit each (WalkBits)
 END TYPE
 
 TYPE UnitT
@@ -236,8 +238,8 @@ DECLARE SUB GoEnd (g AS GameT, tm() AS TeamT, won AS INTEGER, art() AS INTEGER, 
 DECLARE SUB ReadMouse (ms AS MouseT)
 DECLARE SUB Keys (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fk() AS FieldT, art() AS INTEGER, gl() AS INTEGER)
 DECLARE SUB Controls (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fk() AS FieldT, dt AS SINGLE)
-DECLARE SUB Tick (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fd() AS INTEGER, fk() AS FieldT, art() AS INTEGER, gl() AS INTEGER)
-DECLARE SUB UnitTick (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fd() AS INTEGER, fk() AS FieldT, i AS INTEGER, dt AS SINGLE)
+DECLARE SUB Tick (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fd() AS SHORT, fk() AS FieldT, art() AS INTEGER, gl() AS INTEGER)
+DECLARE SUB UnitTick (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fd() AS SHORT, fk() AS FieldT, i AS INTEGER, dt AS SINGLE)
 DECLARE SUB TurretTick (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fk() AS FieldT, b AS INTEGER, dt AS SINGLE)
 DECLARE SUB Produce (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, ti AS INTEGER, dt AS SINGLE)
 DECLARE SUB Train (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, ti AS INTEGER, fb AS INTEGER, kind AS INTEGER, prog AS SINGLE, dt AS SINGLE)
@@ -250,7 +252,7 @@ DECLARE SUB KillUnit (g AS GameT, m() AS CellT, u() AS UnitT, fx() AS FxT, i AS 
 DECLARE SUB KillBuilding (g AS GameT, m() AS CellT, bl() AS BldgT, fx() AS FxT, fk() AS FieldT, b AS INTEGER)
 DECLARE SUB PlaceBuilding (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fk() AS FieldT, ti AS INTEGER, kind AS INTEGER, x AS INTEGER, y AS INTEGER)
 DECLARE SUB ClearFields (fk() AS FieldT)
-DECLARE SUB BuildField (m() AS CellT, fd() AS INTEGER, fi AS INTEGER, goal AS INTEGER)
+DECLARE SUB BuildField (m() AS CellT, fd() AS SHORT, fi AS INTEGER, goal AS INTEGER)
 DECLARE SUB DepleteOre (g AS GameT, m() AS CellT, fk() AS FieldT, x AS INTEGER, y AS INTEGER)
 DECLARE SUB AddFx (fx() AS FxT, k AS INTEGER, x AS SINGLE, y AS SINGLE, x2 AS SINGLE, y2 AS SINGLE, life AS SINGLE)
 DECLARE SUB FxTick (fx() AS FxT, dt AS SINGLE)
@@ -305,8 +307,8 @@ DECLARE SUB WalkBits (m() AS CellT)
 DECLARE FUNCTION Joined% (m() AS CellT, x AS INTEGER, y AS INTEGER, nx AS INTEGER, ny AS INTEGER)
 DECLARE SUB UnitScreen (g AS GameT, m() AS CellT, u() AS UnitT, i AS INTEGER, sx AS INTEGER, sy AS INTEGER)
 DECLARE SUB PickTile (g AS GameT, m() AS CellT, sx AS INTEGER, sy AS INTEGER, wx AS INTEGER, wy AS INTEGER)
-DECLARE FUNCTION FlowField% (m() AS CellT, fd() AS INTEGER, fk() AS FieldT, goal AS INTEGER, now AS SINGLE)
-DECLARE FUNCTION MoveStep% (g AS GameT, m() AS CellT, u() AS UnitT, fd() AS INTEGER, fk() AS FieldT, i AS INTEGER, goal AS INTEGER, exact AS INTEGER, dt AS SINGLE)
+DECLARE FUNCTION FlowField% (m() AS CellT, fd() AS SHORT, fk() AS FieldT, goal AS INTEGER, now AS SINGLE)
+DECLARE FUNCTION MoveStep% (g AS GameT, m() AS CellT, u() AS UnitT, fd() AS SHORT, fk() AS FieldT, i AS INTEGER, goal AS INTEGER, exact AS INTEGER, dt AS SINGLE)
 DECLARE FUNCTION DirOf% (dx AS SINGLE, dy AS SINGLE)
 DECLARE FUNCTION Ang! (dx AS SINGLE, dy AS SINGLE)
 DECLARE FUNCTION SpawnUnit% (tm() AS TeamT, m() AS CellT, u() AS UnitT, ti AS INTEGER, ut AS INTEGER, x AS INTEGER, y AS INTEGER)
@@ -353,7 +355,7 @@ DECLARE FUNCTION KMakes% (k AS INTEGER)
 '$DYNAMIC
 DIM g AS GameT, tm(1) AS TeamT, m(MAPW - 1, MAPH - 1) AS CellT
 DIM u(1 TO MAXU) AS UnitT, bl(1 TO MAXB) AS BldgT, fx(1 TO MAXFX) AS FxT, pt(1 TO NPART) AS PartT
-DIM fd(NF - 1, MAPW - 1, MAPH - 1), fk(NF - 1) AS FieldT
+DIM fd(NF - 1, MAPW - 1, MAPH - 1) AS SHORT, fk(NF - 1) AS FieldT
 DIM art(IMG - 1, NSLOT - 1), gl(126, 7), tune(1 TO 4, 511) AS STRING
 DIM t AS SINGLE, lastT AS SINGLE, dt AS SINGLE, acc AS SINGLE
 
@@ -2847,7 +2849,7 @@ SUB BuildArt (art() AS INTEGER, gl() AS INTEGER)
 END SUB
 
 ' The flow field to goal: each tile's steps to it, FAR where there is no way. Units ignored.
-SUB BuildField (m() AS CellT, fd() AS INTEGER, fi AS INTEGER, goal AS INTEGER)
+SUB BuildField (m() AS CellT, fd() AS SHORT, fi AS INTEGER, goal AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER, h AS INTEGER, tl AS INTEGER, d AS INTEGER, nx AS INTEGER, ny AS INTEGER
     DIM v AS INTEGER, w AS INTEGER, ok AS INTEGER, sx(7) AS INTEGER, sy(7) AS INTEGER, bt(7) AS INTEGER
     DIM qx(MAPW * MAPH) AS INTEGER, qy(MAPW * MAPH) AS INTEGER
@@ -3092,8 +3094,8 @@ SUB Controls (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS Bld
         END IF
     END IF
     ' the minimap follows the button held on it
-    IF g.ms.down AND g.ms.x >= MINIX AND g.ms.x < MINIX + MAPW AND g.ms.y >= MINIY AND g.ms.y < MINIY + MAPH THEN
-        CenterOn g.vw, g.ms.x - MINIX, g.ms.y - MINIY
+    IF g.ms.down AND g.ms.x >= MINIX AND g.ms.x < MINIX + MMW AND g.ms.y >= MINIY AND g.ms.y < MINIY + MMH THEN
+        CenterOn g.vw, (g.ms.x - MINIX) * MSC, (g.ms.y - MINIY) * MSC
     END IF
     IF g.ms.dragOn AND g.ms.down = 0 THEN
         g.ms.dragOn = 0
@@ -3291,14 +3293,14 @@ END SUB
 SUB DrawMinimap (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER, c AS INTEGER, i AS INTEGER, b AS INTEGER, s AS INTEGER
     IF g.vw.miniDirty AND g.vw.miniT <= 0 THEN
-        FOR y = 0 TO MAPH - 1
-            FOR x = 0 TO MAPW - 1
+        FOR y = 0 TO MMH - 1
+            FOR x = 0 TO MMW - 1
                 c = 0
-                IF m(x, y).seen THEN
-                    SELECT CASE m(x, y).terr
+                IF m(x * MSC, y * MSC).seen THEN
+                    SELECT CASE m(x * MSC, y * MSC).terr
                     CASE TGROUND, TGROUND2
-                        c = 1: IF m(x, y).hgt >= 1 THEN c = 2
-                        IF m(x, y).hgt >= 2 THEN c = 16
+                        c = 1: IF m(x * MSC, y * MSC).hgt >= 1 THEN c = 2
+                        IF m(x * MSC, y * MSC).hgt >= 2 THEN c = 16
                     CASE TDIRT: c = 3
                     CASE TROCK: c = 5
                     CASE TWATER: c = 20
@@ -3309,7 +3311,7 @@ SUB DrawMinimap (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS
                 PSET (MINIX + x, MINIY + y), c
             NEXT
         NEXT
-        GET (MINIX, MINIY)-(MINIX + MAPW - 1, MINIY + MAPH - 1), art(0, AMINI)
+        GET (MINIX, MINIY)-(MINIX + MMW - 1, MINIY + MMH - 1), art(0, AMINI)
         g.vw.miniDirty = 0: g.vw.miniT = 1
     ELSE
         PUT (MINIX, MINIY), art(0, AMINI), PSET
@@ -3318,26 +3320,26 @@ SUB DrawMinimap (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS
         IF bl(b).alive THEN
             IF m(bl(b).x, bl(b).y).seen THEN
                 s = BSize%(bl(b).kind)
-                LINE (MINIX + bl(b).x, MINIY + bl(b).y)-STEP(s - 1, s - 1), 11 + bl(b).team * 2, BF
+                LINE (MINIX + bl(b).x \ MSC, MINIY + bl(b).y \ MSC)-STEP((s - 1) \ MSC, (s - 1) \ MSC), 11 + bl(b).team * 2, BF
             END IF
         END IF
     NEXT
     FOR i = 1 TO MAXU
         IF u(i).alive THEN
             IF u(i).team = 0 OR m(u(i).x, u(i).y).vis THEN
-                PSET (MINIX + u(i).x, MINIY + u(i).y), 15 - u(i).team * 2
+                PSET (MINIX + u(i).x \ MSC, MINIY + u(i).y \ MSC), 15 - u(i).team * 2
             END IF
         END IF
     NEXT
     ScreenTile g.vw, VX0, VY0, x, y: ScreenTile g.vw, SBX - 1, VY0, i, b
-    VIEW SCREEN (MINIX, MINIY)-(MINIX + MAPW - 1, MINIY + MAPH - 1)
-    LINE (MINIX + x, MINIY + y)-(MINIX + i, MINIY + b), 15
+    VIEW SCREEN (MINIX, MINIY)-(MINIX + MMW - 1, MINIY + MMH - 1)
+    LINE (MINIX + x \ MSC, MINIY + y \ MSC)-(MINIX + i \ MSC, MINIY + b \ MSC), 15
     ScreenTile g.vw, SBX - 1, VIEWB - 1, x, y
-    LINE -(MINIX + x, MINIY + y), 15
+    LINE -(MINIX + x \ MSC, MINIY + y \ MSC), 15
     ScreenTile g.vw, VX0, VIEWB - 1, i, b
-    LINE -(MINIX + i, MINIY + b), 15
+    LINE -(MINIX + i \ MSC, MINIY + b \ MSC), 15
     ScreenTile g.vw, VX0, VY0, x, y
-    LINE -(MINIX + x, MINIY + y), 15
+    LINE -(MINIX + x \ MSC, MINIY + y \ MSC), 15
     VIEW
 END SUB
 
@@ -3351,7 +3353,7 @@ SUB DrawSidebar (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS 
     s = LTRIM$(STR$(tm(0).cash)): Txt gl(), s, 319 - LEN(s) * 8, 1, 1, 15
     DrawMinimap g, m(), u(), bl(), art()
     LINE (SBX + 1, MINIY - 1)-(319, MINIY - 1), 23
-    LINE (SBX + 1, MINIY + MAPH)-(319, MINIY + MAPH), 23
+    LINE (SBX + 1, MINIY + MMH)-(319, MINIY + MMH), 23
     hov = -1
     FOR k = 0 TO NITEM - 1
         x = SBX + 1 + (k MOD 3) * CELLW: y = BTNY + (k \ 3) * CELLH
@@ -3670,7 +3672,7 @@ SUB Enqueue (t AS TeamT, k AS INTEGER, n AS INTEGER)
 END SUB
 
 ' The field to goal (a tile, or OREKEY), built again only when no field kept is it.
-FUNCTION FlowField% (m() AS CellT, fd() AS INTEGER, fk() AS FieldT, goal AS INTEGER, now AS SINGLE)
+FUNCTION FlowField% (m() AS CellT, fd() AS SHORT, fk() AS FieldT, goal AS INTEGER, now AS SINGLE)
     DIM i AS INTEGER, old AS INTEGER
     FOR i = 0 TO NF - 1
         IF fk(i).goal = goal THEN fk(i).used = now: FlowField% = i: EXIT FUNCTION
@@ -3960,7 +3962,7 @@ END SUB
 
 ' One step of unit i on the field to goal: on to the next tile's middle, or the next tile chosen.
 ' 0: on its way; 1: there (or as near as the others let it, unless exact); 2: no way there.
-FUNCTION MoveStep% (g AS GameT, m() AS CellT, u() AS UnitT, fd() AS INTEGER, fk() AS FieldT, i AS INTEGER, goal AS INTEGER, exact AS INTEGER, dt AS SINGLE)
+FUNCTION MoveStep% (g AS GameT, m() AS CellT, u() AS UnitT, fd() AS SHORT, fk() AS FieldT, i AS INTEGER, goal AS INTEGER, exact AS INTEGER, dt AS SINGLE)
     DIM tx AS SINGLE, ty AS SINGLE, ddx AS SINGLE, ddy AS SINGLE, dist AS SINGLE, stride AS SINGLE
     DIM fi AS INTEGER, cur AS INTEGER, d AS INTEGER, nx AS INTEGER, ny AS INTEGER, v AS INTEGER
     DIM best AS INTEGER, bv AS INTEGER, lower AS INTEGER
@@ -4412,7 +4414,7 @@ FUNCTION SpawnUnit% (tm() AS TeamT, m() AS CellT, u() AS UnitT, ti AS INTEGER, u
 END FUNCTION
 
 ' One step of the game, 30 a second.
-SUB Tick (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fd() AS INTEGER, fk() AS FieldT, art() AS INTEGER, gl() AS INTEGER)
+SUB Tick (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fd() AS SHORT, fk() AS FieldT, art() AS INTEGER, gl() AS INTEGER)
     DIM i AS INTEGER, b AS INTEGER, dt AS SINGLE, pb AS INTEGER, eb AS INTEGER
     dt = STEPT
     g.now = g.now + dt
@@ -4537,7 +4539,7 @@ FUNCTION UHp% (k AS INTEGER)
 END FUNCTION
 
 ' One step of unit i's orders.
-SUB UnitTick (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fd() AS INTEGER, fk() AS FieldT, i AS INTEGER, dt AS SINGLE)
+SUB UnitTick (g AS GameT, tm() AS TeamT, m() AS CellT, u() AS UnitT, bl() AS BldgT, fx() AS FxT, fd() AS SHORT, fk() AS FieldT, i AS INTEGER, dt AS SINGLE)
     DIM r AS INTEGER, d AS SINGLE, refinery AS INTEGER, tx AS SINGLE, ty AS SINGLE, t AS INTEGER, goal AS INTEGER
     DIM moving AS INTEGER, here AS INTEGER
     u(i).cool = u(i).cool - dt
@@ -4760,13 +4762,9 @@ FUNCTION Passable% (m() AS CellT, x AS INTEGER, y AS INTEGER)
     IF t = TGROUND OR t = TGROUND2 OR t = TDIRT OR t = TORE THEN Passable% = -1
 END FUNCTION
 
-' Whether a unit can step from x, y in heading d: onto open land no more than a ramp's step up or
-' down, and on a diagonal past the two tiles it cuts between.
 ' Whether a unit can step from x, y in heading d: onto open land the ground runs on to, and on a
 ' diagonal round both the tiles it cuts between.
-' Whether a unit can step from x, y in heading d: onto open land the ground runs on to, and on a
-' diagonal round both the tiles it cuts between.
-FUNCTION Walk% (m() AS CellT, x AS INTEGER, y AS INTEGER, d AS INTEGER)
+FUNCTION Walk%(m() AS CellT, x AS INTEGER, y AS INTEGER, d AS INTEGER)
     DIM nx AS INTEGER, ny AS INTEGER
     Walk% = 0
     IF (m(x, y).wk AND 2 ^ d) = 0 THEN EXIT FUNCTION
