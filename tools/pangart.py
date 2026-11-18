@@ -300,6 +300,29 @@ def hero() -> list[Pic]:
     return out
 
 
+def tilted(src: Pic, deg: float) -> Pic:
+    """src turned deg degrees counterclockwise about its middle, (16, 18): nose up a rise to the right."""
+    a = math.radians(deg)
+    p = Pic(src.w, src.h)
+    for y in range(p.h):
+        for x in range(p.w):
+            dx, dy = x - 16, y - 18
+            p.put(
+                x,
+                y,
+                src.get(
+                    round(16 + dx * math.cos(a) - dy * math.sin(a)), round(18 + dx * math.sin(a) + dy * math.cos(a))
+                ),
+            )
+    return p
+
+
+def tilts() -> list[Pic]:
+    """Three of the run and the two of the dash, down 45 and 27 degrees, then up 27 and 45."""
+    h = hero()
+    return [tilted(h[f], deg) for deg in (-45, -26.57, 26.57, 45) for f in (4, 6, 8, 10, 11)]
+
+
 # ---- the ground ----
 
 
@@ -550,6 +573,7 @@ def pictures() -> list[tuple[int, Pic, bool, int]]:
         (k + 46, thorn(), True, -1),
         (k + 48, lamp(), True, -1),
     ]
+    out += [(k + 50 + i * 2, t, True, k + 90 + i * 2) for i, t in enumerate(tilts())]
     return out
 
 
