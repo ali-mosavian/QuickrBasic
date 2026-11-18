@@ -174,6 +174,23 @@ CONST CCLOUDLO = 94, CMASK = 255, CMTN = 128
 CONST CFAR = 144, CNEAR = 160, CTREE = 176
 CONST CSTONE = 180, CMOSS = 188, CRUNE = 189
 CONST CSHROOM = 190, CVINE = 191, WATER = 64
+' The pictures drawn once and PUT after: the top of
+' the screen (sky, clouds; the sun and a moth behind
+' it go over), the parallax ridges as two halves of
+' their 640 columns, each at both column parities.
+' Rows: ridge 0's top over the sky; under it, ridge 0
+' with ridge 1 over it, kept as one; ridge 2 last.
+CONST TOPH = 109, R0Y = 92, R0H = 17
+CONST C1Y = 109, C1H = 61, R1H = 35
+CONST R1OY = 144, R1OH = 26
+CONST R2Y = 130, R2H = 40, R2OY = 170, R2OH = 14
+CONST CLOUDW = 39, CLOUDH = 22, SUNW = 33, SUNH = 27
+' A GET's LONGs: of a row 320 wide, of the sprites.
+CONST R0N = 80 * R0H + 2, R1N = 80 * R1H + 2
+CONST R1ON = 80 * R1OH + 2, R2N = 80 * R2H + 2
+CONST R2ON = 80 * R2OH + 2
+CONST CLOUDN = (CLOUDW * CLOUDH + 7) \ 4
+CONST SUNN = (SUNW * SUNH + 7) \ 4
 
 DECLARE SUB Main ()
 DECLARE SUB OpenScreen ()
@@ -234,13 +251,25 @@ DECLARE SUB Shade (k() AS LONG, c() AS LONG)
 DECLARE SUB Ramp (c() AS LONG, i0 AS INTEGER, n AS INTEGER, a AS LONG, b AS LONG, span AS INTEGER)
 DECLARE SUB Render (w AS World, st() AS Stone, sp() AS Spark)
 DECLARE SUB DrawSky (g AS Game)
+DECLARE SUB SkyBands (y1 AS INTEGER, y2 AS INTEGER)
+DECLARE SUB DrawTop (w AS World)
+DECLARE SUB BuildLand ()
+DECLARE SUB BuildSprites ()
+DECLARE SUB SunFace ()
+DECLARE SUB Shot (y AS INTEGER, h AS INTEGER, c AS INTEGER)
+DECLARE SUB Keep (a() AS LONG, s AS LONG, y AS INTEGER, h AS INTEGER)
+DECLARE SUB Masked (id AS INTEGER, o AS INTEGER, y AS INTEGER, h AS INTEGER, im() AS LONG, mk() AS LONG, s AS LONG)
+DECLARE SUB Layer0 (id AS INTEGER, o AS INTEGER)
+DECLARE SUB Pano (a() AS LONG, n AS LONG, y AS INTEGER, o AS INTEGER, id AS INTEGER, how AS INTEGER)
+DECLARE FUNCTION Ik% (c AS INTEGER)
+DECLARE FUNCTION Offset% (scroll AS SINGLE, id AS INTEGER)
 DECLARE SUB DrawCloud (x AS INTEGER, y AS INTEGER)
 DECLARE SUB DrawSun (t AS SINGLE)
 DECLARE SUB DrawLand (g AS Game)
-DECLARE SUB DrawRidge (id AS INTEGER, scroll AS SINGLE)
-DECLARE SUB DrawCastle (scroll AS SINGLE)
+DECLARE SUB DrawRidge (id AS INTEGER, o AS INTEGER)
+DECLARE SUB DrawCastle (o AS INTEGER)
 DECLARE SUB DrawSeeds (g AS Game)
-DECLARE SUB DrawTrees (scroll AS SINGLE)
+DECLARE SUB DrawTrees (o AS INTEGER)
 DECLARE SUB DrawStones (st() AS Stone, t AS SINGLE)
 DECLARE SUB DrawStone (st() AS Stone, i AS INTEGER, t AS SINGLE)
 DECLARE SUB Shaft (x AS INTEGER, y1 AS INTEGER, y2 AS INTEGER)
@@ -311,9 +340,27 @@ DIM SHARED Echo(1 TO 2, MAXBEATS - 1) AS STRING
 DIM SHARED Bursts(NBURST - 1) AS Burst
 DIM SHARED SkyKey(NSKIES - 1, NKEY - 1) AS LONG
 DIM SHARED Fixed(255) AS LONG
+' The palette last shaded, its keys (and whether it
+' was), what the DAC holds; 256 ^ 0 .. 2.
+DIM SHARED Shaded(255) AS LONG, ShadeKey(NKEY) AS LONG
+DIM SHARED DacNow(255) AS LONG, Pow256(2) AS LONG
 DIM SHARED Tinter(SW * LAKEH \ 4) AS LONG
 ' Scratch for drawing.
 DIM SHARED Strip(80) AS LONG, Frame(SW * SH \ 4) AS LONG
+' The pictures kept (see TOPH), each a GET's: images
+' over 0 for OR, masks 0 under them over 255 for AND.
+' A panorama's slot is parity * 2 + half. Ink: when
+' not -1, the colour every part of a picture takes.
+DIM SHARED SkyImg(80 * TOPH + 1) AS LONG
+DIM SHARED R0TI(R0N * 4) AS LONG, R0TM(R0N * 4) AS LONG
+DIM SHARED R0B(R1N * 4) AS LONG
+DIM SHARED R1I(R1N * 4) AS LONG, R1M(R1N * 4) AS LONG
+DIM SHARED R1O(R1ON * 4) AS LONG, LandImg(80 * C1H + 1) AS LONG
+DIM SHARED R2I(R2N * 2) AS LONG, R2M(R2N * 2) AS LONG
+DIM SHARED R2O(R2ON * 2) AS LONG, LandKey(1) AS INTEGER
+DIM SHARED CloudI(CLOUDN) AS LONG, CloudM(CLOUDN) AS LONG
+DIM SHARED SunI(SUNN) AS LONG, SunM(SUNN) AS LONG
+DIM SHARED Ink AS INTEGER
 
 Main
 END
@@ -508,18 +555,29 @@ SUB AgeMoth (m AS Moth)
     IF m.boost > 0 THEN m.beat = m.beat + STEPT * 5
 END SUB
 
+' The colours shaded again only when a key moved; a
+' DAC entry set only when it changed.
 SUB ApplyPalette (s AS Sky, cur() AS SINGLE)
-    DIM k(NKEY - 1) AS LONG, c(255) AS LONG
-    DIM i AS INTEGER
+    DIM k(NKEY - 1) AS LONG, i AS INTEGER
+    DIM moved AS INTEGER, d AS LONG
     FOR i = 0 TO NKEY - 1
         k(i) = Pack&(cur(i, 0), cur(i, 1), cur(i, 2))
+        IF k(i) <> ShadeKey(i) THEN moved = -1
+        ShadeKey(i) = k(i)
     NEXT
+    IF moved OR ShadeKey(NKEY) = 0 THEN
+        ShadeKey(NKEY) = -1
+        FOR i = 0 TO 255
+            Shaded(i) = Fixed(i)
+        NEXT
+        Shade k(), Shaded()
+    END IF
     FOR i = 0 TO 255
-        c(i) = Fixed(i)
-    NEXT
-    Shade k(), c()
-    FOR i = 0 TO 255
-        PALETTE i, Dac&(c(i), s.fade)
+        d = Dac&(Shaded(i), s.fade)
+        IF d <> DacNow(i) THEN
+            PALETTE i, d
+            DacNow(i) = d
+        END IF
     NEXT
 END SUB
 
@@ -648,7 +706,7 @@ SUB Capture (g() AS INTEGER, k AS INTEGER)
 END SUB
 
 FUNCTION Chan% (c AS LONG, j AS INTEGER)
-    Chan% = (c \ CLNG(256 ^ j)) MOD 256
+    Chan% = (c \ Pow256(j)) MOD 256
 END FUNCTION
 
 SUB CloseScreen
@@ -672,9 +730,9 @@ END SUB
 ' 0-63, dimmed by the fade.
 FUNCTION Dac& (c AS LONG, f AS SINGLE)
     DIM r AS LONG, g AS LONG, b AS LONG
-    r = Chan%(c, 0) * f \ 4
-    g = Chan%(c, 1) * f \ 4
-    b = Chan%(c, 2) * f \ 4
+    r = (c MOD 256) * f \ 4
+    g = ((c \ 256) MOD 256) * f \ 4
+    b = ((c \ 65536) MOD 256) * f \ 4
     Dac& = r + g * 256 + b * 65536
 END FUNCTION
 
@@ -713,7 +771,7 @@ SUB Disc (cx AS INTEGER, cy AS INTEGER, r AS INTEGER, c AS INTEGER)
     ry = r / ASPECT
     FOR dy = -ry TO ry
         hw = r * SQR(1 - (dy / (ry + .5)) ^ 2)
-        LINE (cx - hw, cy + dy)-(cx + hw, cy + dy), c
+        LINE (cx - hw, cy + dy)-(cx + hw, cy + dy), Ik%(c)
     NEXT
 END SUB
 
@@ -736,13 +794,14 @@ SUB Dither (y1 AS INTEGER, y2 AS INTEGER, c AS INTEGER, level AS INTEGER)
 END SUB
 
 ' The ruined castle on the mountains, a lamp lit in it.
-SUB DrawCastle (scroll AS SINGLE)
+SUB DrawCastle (o AS INTEGER)
     DIM cx AS INTEGER, b AS INTEGER, k AS INTEGER
-    DIM c AS INTEGER
-    cx = 215 - INT(scroll * Ridges(0).speed) MOD 640
+    DIM c AS INTEGER, l AS INTEGER
+    cx = 215 - o
     IF cx < -20 THEN cx = cx + 640
     b = Crest(0, 215) + 3
-    c = CMTN + 2
+    c = Ik%(CMTN + 2)
+    l = Ik%(CSPARK + 1)
     LINE (cx - 12, b - 15)-(cx - 6, b), c, BF
     LINE (cx - 6, b - 9)-(cx + 7, b), c, BF
     LINE (cx + 7, b - 12)-(cx + 12, b), c, BF
@@ -750,8 +809,8 @@ SUB DrawCastle (scroll AS SINGLE)
         PSET (cx - 12 + k * 2, b - 16), c
         PSET (cx + 6 + k * 2, b - 13), c
     NEXT
-    PSET (cx - 9, b - 10), CSPARK + 1
-    PSET (cx + 1, b - 4), CSPARK + 1
+    PSET (cx - 9, b - 10), l
+    PSET (cx + 1, b - 4), l
 END SUB
 
 SUB DrawCloud (x AS INTEGER, y AS INTEGER)
@@ -760,7 +819,7 @@ SUB DrawCloud (x AS INTEGER, y AS INTEGER)
     Disc x, y, 11, CCLOUD
     Disc x - 10, y + 1, 7, CCLOUD
     Disc x + 10, y + 1, 7, CCLOUD
-    LINE (x - 16, y + 6)-(x + 16, y + 6), CCLOUDLO
+    LINE (x - 16, y + 6)-(x + 16, y + 6), Ik%(CCLOUDLO)
 END SUB
 
 SUB DrawFx (f AS Fx)
@@ -807,14 +866,57 @@ SUB DrawLake (t AS SINGLE)
     NEXT
 END SUB
 
+' Ridges 0 and 1 kept in LandImg till either moves; the
+' seeds; ridge 2 over them.
 SUB DrawLand (g AS Game)
-    DrawRidge 0, g.scroll
-    DrawCastle g.scroll
-    DrawRidge 1, g.scroll
+    DIM o0 AS INTEGER, o1 AS INTEGER, o2 AS INTEGER
+    o0 = Offset%(g.scroll, 0)
+    o1 = Offset%(g.scroll, 1)
+    IF o0 <> LandKey(0) OR o1 <> LandKey(1) THEN
+        Pano R0B(), R1N, C1Y, o0, 0, 0
+        Pano R1M(), R1N, C1Y, o1, 1, 1
+        Pano R1I(), R1N, C1Y, o1, 1, 2
+        Pano R1O(), R1ON, R1OY, o1, 1, 0
+        GET (0, C1Y)-(SW - 1, C1Y + C1H - 1), LandImg
+        LandKey(0) = o0: LandKey(1) = o1
+    ELSE
+        PUT (0, C1Y), LandImg, PSET
+    END IF
     DrawSeeds g
-    DrawRidge 2, g.scroll
-    DrawTrees g.scroll
+    o2 = Offset%(g.scroll, 2)
+    Pano R2M(), R2N, R2Y, o2, 2, 1
+    Pano R2I(), R2N, R2Y, o2, 2, 2
+    Pano R2O(), R2ON, R2OY, o2, 2, 0
 END SUB
+
+' A panorama's two halves at offset o: PSET (how 0),
+' AND (1) or OR (2).
+SUB Pano (a() AS LONG, n AS LONG, y AS INTEGER, o AS INTEGER, id AS INTEGER, how AS INTEGER)
+    DIM h AS INTEGER, x AS INTEGER, par AS INTEGER
+    DIM s AS LONG
+    par = o MOD Ridges(id).stp
+    FOR h = 0 TO 1
+        x = 320 * h + par - o
+        IF x <= -320 THEN x = x + 640
+        IF x < SW THEN
+            s = (par * 2 + h) * n
+            SELECT CASE how
+            CASE 0: PUT (x, y), a(s), PSET
+            CASE 1: PUT (x, y), a(s), AND
+            CASE ELSE: PUT (x, y), a(s), OR
+            END SELECT
+        END IF
+    NEXT
+END SUB
+
+FUNCTION Offset% (scroll AS SINGLE, id AS INTEGER)
+    Offset% = INT(scroll * Ridges(id).speed) MOD 640
+END FUNCTION
+
+' The colour drawn: c, or Ink when it is set.
+FUNCTION Ik% (c AS INTEGER)
+    IF Ink < 0 THEN Ik% = c ELSE Ik% = Ink
+END FUNCTION
 
 SUB DrawMoth (m AS Moth, mode AS INTEGER)
     DIM k AS INTEGER, x AS INTEGER, y AS INTEGER
@@ -826,16 +928,16 @@ SUB DrawMoth (m AS Moth, mode AS INTEGER)
 END SUB
 
 ' A ridge: lit along its crest, shading below it.
-SUB DrawRidge (id AS INTEGER, scroll AS SINGLE)
-    DIM o AS INTEGER, x AS INTEGER, y AS INTEGER
+SUB DrawRidge (id AS INTEGER, o AS INTEGER)
+    DIM x AS INTEGER, y AS INTEGER
     DIM r AS INTEGER, c AS INTEGER, b AS INTEGER
     DIM d1 AS INTEGER, d2 AS INTEGER, bot AS INTEGER
-    o = INT(scroll * Ridges(id).speed) MOD 640
     r = Ridges(id).stp - 1
     c = Ridges(id).c
     b = Ridges(id).band
-    d1 = c + Ridges(id).d1
-    d2 = c + Ridges(id).d2
+    d1 = Ik%(c + Ridges(id).d1)
+    d2 = Ik%(c + Ridges(id).d2)
+    c = Ik%(c)
     bot = Ridges(id).bottom
     FOR x = 0 TO SW - 1 STEP Ridges(id).stp
         y = Crest(id, (x + o) MOD 640)
@@ -866,18 +968,118 @@ END SUB
 
 ' The sky, a shade a band of rows, and its clouds.
 SUB DrawSky (g AS Game)
-    DIM k AS INTEGER, i AS INTEGER, x AS INTEGER
-    DIM y1 AS INTEGER, y2 AS INTEGER
-    FOR k = 0 TO NSKY - 1
-        y1 = k * GROUNDY \ NSKY
-        y2 = (k + 1) * GROUNDY \ NSKY - 1
-        LINE (0, y1)-(SW - 1, y2), CSKY + k, BF
-    NEXT
+    DIM i AS INTEGER, x AS INTEGER, y AS INTEGER
+    PUT (0, 0), SkyImg, PSET
     FOR i = 0 TO NCLOUD - 1
         x = CloudX(i) + INT(g.clock * 4)
         x = (x + INT(g.scroll * .03)) MOD 450 - 65
-        DrawCloud x, CloudY(i)
+        y = CloudY(i)
+        PUT (x - 19, y - 10), CloudM, AND
+        PUT (x - 19, y - 10), CloudI, OR
     NEXT
+END SUB
+
+' The sky's bands of rows y1 to y2.
+SUB SkyBands (y1 AS INTEGER, y2 AS INTEGER)
+    DIM k AS INTEGER, a AS INTEGER, b AS INTEGER
+    FOR k = 0 TO NSKY - 1
+        a = k * GROUNDY \ NSKY
+        b = (k + 1) * GROUNDY \ NSKY - 1
+        IF a < y1 THEN a = y1
+        IF b > y2 THEN b = y2
+        IF a <= b THEN LINE (0, a)-(SW - 1, b), CSKY + k, BF
+    NEXT
+END SUB
+
+' Ridge 0's top, over the sky, the sun and a moth
+' behind it.
+SUB DrawTop (w AS World)
+    DIM o AS INTEGER
+    o = Offset%(w.g.scroll, 0)
+    Pano R0TM(), R0N, R0Y, o, 0, 1
+    Pano R0TI(), R0N, R0Y, o, 0, 2
+END SUB
+
+' Rows y to y + h - 1 filled with c.
+SUB Shot (y AS INTEGER, h AS INTEGER, c AS INTEGER)
+    LINE (0, y)-(SW - 1, y + h - 1), c, BF
+END SUB
+
+' Rows y to y + h - 1 kept in a() from s.
+SUB Keep (a() AS LONG, s AS LONG, y AS INTEGER, h AS INTEGER)
+    GET (0, y)-(SW - 1, y + h - 1), a(s)
+END SUB
+
+' Ridge id at offset o, and what stands on it.
+SUB Layer0 (id AS INTEGER, o AS INTEGER)
+    DrawRidge id, o
+    IF id = 0 THEN DrawCastle o
+    IF id = 2 THEN DrawTrees o
+END SUB
+
+' Rows y to y + h - 1 of a ridge kept twice from s:
+' its colours over 0, and 0 over 255 as its mask.
+SUB Masked (id AS INTEGER, o AS INTEGER, y AS INTEGER, h AS INTEGER, im() AS LONG, mk() AS LONG, s AS LONG)
+    Shot y, h, 0
+    Layer0 id, o
+    Keep im(), s, y, h
+    Shot y, h, CMASK
+    Ink = 0
+    Layer0 id, o
+    Ink = -1
+    Keep mk(), s, y, h
+END SUB
+
+' Each ridge's halves at each parity of its columns.
+SUB BuildLand
+    DIM id AS INTEGER, par AS INTEGER, h AS INTEGER
+    DIM o AS INTEGER, s AS LONG
+    Ink = -1
+    SkyBands 0, GROUNDY - 1
+    GET (0, 0)-(SW - 1, TOPH - 1), SkyImg
+    FOR id = 0 TO NRIDGE - 1
+        FOR par = 0 TO Ridges(id).stp - 1
+            FOR h = 0 TO 1
+                o = par + 320 * h
+                s = par * 2 + h
+                SELECT CASE id
+                CASE 0
+                    Masked 0, o, R0Y, R0H, R0TI(), R0TM(), s * R0N
+                    SkyBands C1Y, C1Y + R1H - 1
+                    Layer0 0, o
+                    Keep R0B(), s * R1N, C1Y, R1H
+                CASE 1
+                    Masked 1, o, C1Y, R1H, R1I(), R1M(), s * R1N
+                    Layer0 1, o
+                    Keep R1O(), s * R1ON, R1OY, R1OH
+                CASE ELSE
+                    Masked 2, o, R2Y, R2H, R2I(), R2M(), s * R2N
+                    Layer0 2, o
+                    Keep R2O(), s * R2ON, R2OY, R2OH
+                END SELECT
+            NEXT
+        NEXT
+    NEXT
+    LandKey(0) = -1
+END SUB
+
+' A cloud and the sun's face, each with its mask.
+SUB BuildSprites
+    DIM x AS INTEGER, y AS INTEGER
+    Ink = -1
+    x = SW \ 2: y = 50
+    LINE (x - 19, y - 10)-(x + 19, y + 11), 0, BF
+    DrawCloud x, y
+    GET (x - 19, y - 10)-(x + 19, y + 11), CloudI
+    LINE (x - 19, y - 10)-(x + 19, y + 11), CMASK, BF
+    Ink = 0: DrawCloud x, y: Ink = -1
+    GET (x - 19, y - 10)-(x + 19, y + 11), CloudM
+    LINE (SUNX - 16, SUNY - 13)-(SUNX + 16, SUNY + 13), 0, BF
+    SunFace
+    GET (SUNX - 16, SUNY - 13)-(SUNX + 16, SUNY + 13), SunI
+    LINE (SUNX - 16, SUNY - 13)-(SUNX + 16, SUNY + 13), CMASK, BF
+    Ink = 0: SunFace: Ink = -1
+    GET (SUNX - 16, SUNY - 13)-(SUNX + 16, SUNY + 13), SunM
 END SUB
 
 SUB DrawSparks (sp() AS Spark)
@@ -941,25 +1143,34 @@ SUB DrawSun (t AS SINGLE)
         x2 = SUNX + 23 * ca: y2 = SUNY + 23 * sa
         LINE (x1, y1)-(x2, y2), CRAY
     NEXT
+    PUT (SUNX - 16, SUNY - 13), SunM, AND
+    PUT (SUNX - 16, SUNY - 13), SunI, OR
+END SUB
+
+SUB SunFace
+    DIM i AS INTEGER, a AS SINGLE, c AS INTEGER
+    DIM x AS INTEGER, y AS INTEGER
     Disc SUNX, SUNY, 15, CRAY
     Disc SUNX, SUNY, 14, CSUN
-    LINE (SUNX - 5, SUNY - 4)-(SUNX - 4, SUNY - 3), CINK, BF
-    LINE (SUNX + 4, SUNY - 4)-(SUNX + 5, SUNY - 3), CINK, BF
+    c = Ik%(CINK)
+    LINE (SUNX - 5, SUNY - 4)-(SUNX - 4, SUNY - 3), c, BF
+    LINE (SUNX + 4, SUNY - 4)-(SUNX + 5, SUNY - 3), c, BF
     FOR i = 0 TO 8
         a = .5 + i * .27
-        x1 = SUNX + 7 * COS(a)
-        y1 = SUNY + 1 + 6 * SIN(a) / ASPECT
-        PSET (x1, y1), CINK
+        x = SUNX + 7 * COS(a)
+        y = SUNY + 1 + 6 * SIN(a) / ASPECT
+        PSET (x, y), c
     NEXT
     Disc SUNX - 9, SUNY + 3, 2, CCHEEK
     Disc SUNX + 9, SUNY + 3, 2, CCHEEK
 END SUB
 
-SUB DrawTrees (scroll AS SINGLE)
-    DIM k AS INTEGER, o AS INTEGER, x AS INTEGER
+SUB DrawTrees (o AS INTEGER)
+    DIM k AS INTEGER, x AS INTEGER, c0 AS INTEGER
     DIM h AS INTEGER, b AS INTEGER, r AS INTEGER
     DIM hw AS INTEGER, y AS INTEGER, q AS INTEGER
-    o = INT(scroll * Ridges(2).speed) MOD 640
+    DIM c2 AS INTEGER, c3 AS INTEGER
+    c0 = Ik%(CTREE): c2 = Ik%(CTREE + 2): c3 = Ik%(CTREE + 3)
     FOR k = 0 TO NTREE - 1
         x = TreeX(k) - o
         IF x < -10 THEN x = x + 640
@@ -967,12 +1178,12 @@ SUB DrawTrees (scroll AS SINGLE)
             h = TreeH(k)
             q = h \ 2 + 1
             b = Crest(2, TreeX(k)) + 2
-            LINE (x, b - 2)-(x, b + 1), CTREE + 3
+            LINE (x, b - 2)-(x, b + 1), c3
             FOR r = 0 TO h
                 hw = 1 + (r MOD q) * 3 \ q + r \ 5
                 y = b - h + r
-                LINE (x - hw, y)-(x, y), CTREE
-                LINE (x + 1, y)-(x + hw, y), CTREE + 2
+                LINE (x - hw, y)-(x, y), c0
+                LINE (x + 1, y)-(x + hw, y), c2
             NEXT
         END IF
     NEXT
@@ -1346,6 +1557,11 @@ SUB LoadSongs
 END SUB
 
 SUB LoadTables
+    DIM i AS INTEGER
+    Pow256(0) = 1: Pow256(1) = 256: Pow256(2) = 65536
+    FOR i = 0 TO 255
+        DacNow(i) = -1
+    NEXT
     LoadSongs
     LoadSfx
     LoadSkies
@@ -1401,6 +1617,8 @@ SUB Main
     LoadTerrain
     BuildGlyphs
     BuildMoth
+    BuildSprites
+    BuildLand
     NewWorld w, cur()
 
     last = TIMER
@@ -1427,12 +1645,13 @@ END SUB
 ' Colour b mixed into a by t; red + green * 256 +
 ' blue * 65536.
 FUNCTION Mix& (a AS LONG, b AS LONG, t AS SINGLE)
-    DIM j AS INTEGER, v AS LONG, ca AS LONG, cb AS LONG
-    FOR j = 0 TO 2
-        ca = Chan%(a, j): cb = Chan%(b, j)
-        v = v + CLNG(ca + (cb - ca) * t) * CLNG(256 ^ j)
-    NEXT
-    Mix& = v
+    DIM v AS LONG, ca AS LONG, cb AS LONG
+    ca = a MOD 256: cb = b MOD 256
+    v = CLNG(ca + (cb - ca) * t)
+    ca = (a \ 256) MOD 256: cb = (b \ 256) MOD 256
+    v = v + CLNG(ca + (cb - ca) * t) * 256
+    ca = (a \ 65536) MOD 256: cb = (b \ 65536) MOD 256
+    Mix& = v + CLNG(ca + (cb - ca) * t) * 65536
 END FUNCTION
 
 ' Moss on a cap's top, in tufts.
@@ -1728,6 +1947,7 @@ SUB Render (w AS World, st() AS Stone, sp() AS Spark)
     DrawSky w.g
     IF w.m.behind THEN DrawMoth w.m, w.g.mode
     DrawSun w.g.clock
+    DrawTop w
     DrawLand w.g
     IF w.g.mode <> TITLE THEN DrawStones st(), w.g.clock
     IF NOT w.m.behind THEN DrawMoth w.m, w.g.mode

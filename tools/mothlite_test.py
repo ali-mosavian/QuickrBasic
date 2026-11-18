@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
 """mothlite_test.py [EXE]: MOTHLITE.BAS's stones drawn at every place they scroll through, and
-every PLAY string it builds played.
+every PLAY string it builds played, whole frames drawn at fixed times and scrolls, and the
+palette eased through each sky and faded.
 
 The demo's main loop is swapped for one that draws each kind of stone from off the left edge to
 off the right. A stone with runes partly off the left (x < 0) took a negative rune index:
 Subscript out of range mid-game. Then each song's beats, layers and sound effects are played: a
 bird call written in octave 7 was an Illegal function call once the sky's mood reached it.
+The frames' digest is the procedural drawing's, from before the sky and ridges were kept as
+pictures: a picture cut at a wrong row or column changes it. The palette's is the one shaded in
+full at every step, each entry set by PALETTE.
 """
 
 import sys
+import hashlib
 import tempfile
 import subprocess
 from pathlib import Path
@@ -54,6 +59,100 @@ END
 """
 
 
+FRAMES = """OpenScreen
+LoadTables
+LoadTerrain
+BuildGlyphs
+BuildMoth
+BuildSprites
+BuildLand
+DIM w AS World, joy AS Pad, cur(NKEY - 1, 2) AS SINGLE
+DIM st(NSTONE - 1) AS Stone, sp(NSPARK - 1) AS Spark
+DIM k AS INTEGER
+NewWorld w, cur()
+OPEN "FRAMES.BIN" FOR BINARY AS #1
+FOR k = 0 TO 5
+    w.g.clock = k * 1.37
+    Orbit w, joy, st(), sp()
+    Render w, st(), sp()
+NEXT
+Launch w, st(), sp()
+RESTORE Scrolls
+DO
+    READ w.g.scroll
+    IF w.g.scroll < 0 THEN EXIT DO
+    w.g.clock = w.g.scroll / 7
+    Render w, st(), sp()
+LOOP
+CLOSE #1
+PRINT "frames ok"
+END
+Scrolls:
+DATA 0,1,2.5,5,13,100,799,1597.5,1600,2400,4266.7,6400,8533,12790,12800,12817,25000,-1
+"""
+
+# The frames' MD5, from the drawing at 66c90a5 (seeded alike).
+FRAMES_MD5 = "4cc504dd38c4605fdd0d9bbf33afa8fd"
+
+
+def frames_program() -> str:
+    head, rest = DEMO.read_text().split("\nMain\nEND\n", 1)
+    rest = rest.replace("RANDOMIZE TIMER", "RANDOMIZE 5").replace(
+        "    Flip w.page\n", "    Dump\n    Flip w.page\n"
+    )
+    dump = "\nSUB Dump\n    DIM a(8001) AS LONG, y AS INTEGER, i AS INTEGER\n    FOR y = 0 TO 100 STEP 100\n"
+    dump += "        GET (0, y)-(319, y + 99), a\n        FOR i = 1 TO 8000: PUT #1, , a(i): NEXT\n    NEXT\nEND SUB\n"
+    return "DECLARE SUB Dump ()\n" + head + "\n" + FRAMES + rest + dump
+
+
+def frames(exe: str, tmp: str) -> str:
+    path = Path(tmp) / "FRAMES.BAS"
+    path.write_text(frames_program())
+    run = subprocess.run([exe, path.name], cwd=tmp, capture_output=True, timeout=120)
+    if "frames ok" not in run.stdout.decode(errors="replace"):
+        return "FAIL " + (run.stdout + run.stderr).decode(errors="replace")[-600:]
+    return hashlib.md5((Path(tmp) / "FRAMES.BIN").read_bytes()).hexdigest()
+
+
+PALETTES = """OpenScreen
+LoadTables
+DIM w AS World, cur(NKEY - 1, 2) AS SINGLE, p AS INTEGER, n AS INTEGER, q AS INTEGER
+OPEN "PAL.BIN" FOR BINARY AS #1
+NewWorld w, cur()
+FOR p = 0 TO 2 * NSKIES
+    w.sky.phase = p MOD NSKIES
+    IF p = NSKIES THEN w.sky.fadeTo = 0
+    IF p = NSKIES + 1 THEN w.sky.fadeTo = 1
+    FOR n = 1 TO 240
+        EaseSky w.sky, cur()
+        IF n MOD 4 = 0 THEN
+            FOR q = 0 TO 255: PUT #1, , Dacs(q): NEXT
+        END IF
+    NEXT
+NEXT
+CLOSE #1
+PRINT "palettes ok"
+END
+"""
+
+# The DAC's MD5 at each step, from the palette at 66c90a5.
+PALETTES_MD5 = "5466934f815a3ff955d663c4ac091b3e"
+
+
+def palettes(exe: str, tmp: str) -> str:
+    head, rest = DEMO.read_text().split("\nMain\nEND\n", 1)
+    assert "PALETTE i, " in rest
+    rest = rest.replace("PALETTE i, ", "SetDac i, ")
+    sub = "\nSUB SetDac (i AS INTEGER, d AS LONG)\n    Dacs(i) = d\n    PALETTE i, d\nEND SUB\n"
+    path = Path(tmp) / "PAL.BAS"
+    decl = "DECLARE SUB SetDac (i AS INTEGER, d AS LONG)\nDIM SHARED Dacs(255) AS LONG\n"
+    path.write_text(head.replace("\nDECLARE ", "\n" + decl + "DECLARE ", 1) + "\n" + PALETTES + rest + sub)
+    run = subprocess.run([exe, path.name], cwd=tmp, capture_output=True, timeout=120)
+    if "palettes ok" not in run.stdout.decode(errors="replace"):
+        return "FAIL " + (run.stdout + run.stderr).decode(errors="replace")[-600:]
+    return hashlib.md5((Path(tmp) / "PAL.BIN").read_bytes()).hexdigest()
+
+
 def program() -> str:
     head, rest = DEMO.read_text().split("\nMain\nEND\n", 1)
     return head + "\n" + DRIVER + rest
@@ -70,7 +169,10 @@ def main() -> None:
         path.write_text(program())
         run = subprocess.run([exe, path.name], cwd=tmp, capture_output=True, timeout=60)
         out = run.stdout.decode(errors="replace")
-    ok = "stones ok" in out and "sounds ok" in out
+        digest = frames(exe, tmp)
+        dacs = palettes(exe, tmp)
+    out += "\nframes " + digest + "\npalettes " + dacs
+    ok = "stones ok" in out and "sounds ok" in out and digest == FRAMES_MD5 and dacs == PALETTES_MD5
     print("mothlite " + ("ok" if ok else "FAIL\n" + out[-600:]))
     sys.exit(0 if ok else 1)
 
