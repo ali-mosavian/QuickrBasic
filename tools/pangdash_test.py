@@ -34,7 +34,7 @@ FOR i = 1 TO 300: Things g, lo(), pt(): NEXT
 PRINT "edge ok"
 Muted = 0
 LoadSong
-FOR j = 0 TO 7: PLAY Lead(j), Bass(j), Drum(j): NEXT
+FOR j = 0 TO 7: PLAY Lead(j), Bass(j), Drums, , Arp(j): NEXT
 FOR j = SJUMP TO SBOOST: Sfx j: NEXT
 Muted = -1
 PRINT "sounds ok"

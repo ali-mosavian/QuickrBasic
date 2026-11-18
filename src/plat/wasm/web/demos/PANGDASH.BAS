@@ -1,7 +1,7 @@
 ' PANGOLIN DASH: Pip the pangolin tears through the Amber Downs.
 ' Arrows run. Space, Z or Up jumps, curled. Down while running rolls;
 ' Down while still crouches: jump to wind up, let Down go to launch.
-' M mutes, N turns the tune on; Esc leaves. SCREEN 13 on two pages: one drawn, one shown.
+' M mutes, N turns the tune off; Esc leaves. SCREEN 13 on two pages: one drawn, one shown.
 ' Held keys come from the keyboard's port (60h); where it reads FFh,
 ' from INKEY$'s repeats. Physics in pixels and seconds, 60 steps a
 ' second; the pictures are DATA, drawn by tools/pangart.py.
@@ -210,7 +210,7 @@ DIM SHARED StartX AS INTEGER, StartY AS INTEGER
 DIM SHARED Tune AS INTEGER
 DIM SHARED Ticks AS LONG, Muted AS INTEGER, LooseN AS INTEGER, PartN AS INTEGER
 DIM SHARED Glint(2) AS LONG
-DIM SHARED Lead(7) AS STRING, Bass(7) AS STRING, Drum(7) AS STRING, Bar AS INTEGER
+DIM SHARED Lead(7) AS STRING, Bass(7) AS STRING, Arp(7) AS STRING, Drums AS STRING, Bar AS INTEGER
 
 Main
 END
@@ -239,16 +239,17 @@ DATA flat,10, bush,0, flat,4, spring,0, flat,2, plat,618, hb,716, flat,7, thorn,
 DATA thorn,0, flat,8, flower,0, flat,4
 DATA goal,0, flat,6, bush,0, flat,14, "end",0
 
-' The tune, a bar a row: the lead, the bass, the drums.
+' The tune, a bar a row of sixteenths: the lead's stabs, the bass in
+' octaves, a bell's arpeggio. The drums are the same every bar.
 Song:
-DATA "O4EGAO5CO4AGEG", "O2AAO3AO2AAAO3AO2A", "O2CO6CO4CO6CO2CO6CO4CO6C"
-DATA "O4AO5CDEDCO4AO5C", "O2AAO3AO2AAAO3AO2A", "O2CO6CO4CO6CO2CO6CO4CO6C"
-DATA "O4GBO5DGDO4BGB", "O2GGO3GO2GGGO3GO2G", "O2CO6CO4CO6CO2CO6CO4CO6C"
-DATA "O5EDCO4BAGED", "O2EEO3EO2EEEO3EO2E", "O2CO6CO4CO6CO2CO6CO4CO4C"
-DATA "O4FAO5CFCO4AFA", "O2FFO3FO2FFFO3FO2F", "O2CO6CO4CO6CO2CO6CO4CO6C"
-DATA "O4GBO5DGFEDO4B", "O2GGO3GO2GGGO3GO2G", "O2CO6CO4CO6CO2CO6CO4CO6C"
-DATA "O5CEGECO4GO5CE", "O2CCO3CO2CCCO3CO2C", "O2CO6CO4CO6CO2CO6CO4CO6C"
-DATA "O5D4O4B4G4P4", "O2GGO3GO2GGGBB", "O2CO6CO4CO6CO4CO4CO4CO4C"
+DATA "O4A8P16A16P16O5D8C16P16O4A8P16F8G8", "O2DP16O3DO2DP16DO3CO2DP16AO3DP16O2FGAO3C", "O5DFAO6DO5AFDFAO6DO5AFDFAO6D"
+DATA "O4A8P16A16P16O5D8F16P16E8P16D8C8", "O2DP16O3DO2DP16DO3CO2DP16AO3DP16O2FGAO3C", "O5DFAO6DO5AFDFAO6DO5AFDFAO6D"
+DATA "O4B-8P16B-16P16O5D8F16P16D8P16O4B-8O5D8", "O1B-P16O2B-O1B-P16B-O2A-O1B-P16O2FB-P16O2DE-FA-", "O4B-O5DFB-FDO4B-O5DFB-FDO4B-O5DFB-"
+DATA "O5C8P16C16P16E8G16P16E8P16C8E8", "O2CP16O3CO2CP16CB-CP16GO3CP16O2EFGB-", "O5CEGO6CO5GECEGO6CO5GECEGO6C"
+DATA "O5D16D16P8O4A16A16P8O5F16F16P16E16D8C8", "O2DP16O3DO2DP16DO3CO2DP16AO3DP16O2FGAO3C", "O5DFAO6DO5AFDFAO6DO5AFDFAO6D"
+DATA "O5D16D16P8O4A16A16P8O5A16A16P16G16F8E8", "O2DP16O3DO2DP16DO3CO2DP16AO3DP16O2FGAO3C", "O5DFAO6DO5AFDFAO6DO5AFDFAO6D"
+DATA "O5G8P16F16P16D8O4B-16P16O5D8P16G8B-8", "O1GP16O2GO1GP16GO2FO1GP16O2DGP16O1B-O2CDF", "O4GB-O5DGDO4B-GB-O5DGDO4B-GB-O5DG"
+DATA "O5A8P16G16P16E8C+16P16E8P16A4", "O1AP16O2AO1AP16AO2GO1AP16O2EAP16C+DEG", "O4AO5C+EAEC+O4AO5C+EAEC+O4AO5C+EA"
 
 ' PangArt's begin.
 ' The palette and pictures, as tools/pangart.py draws them.
@@ -2090,7 +2091,7 @@ SUB ReadPad (k AS Pad)
         CASE "m", "M": k.mute = -1
         CASE "n", "N"
             Tune = NOT Tune
-            IF NOT Tune THEN PLAY "P64", "P64", "P64"
+            IF NOT Tune THEN PLAY "P64", "P64", "P64", , "P64"
         CASE CHR$(13): k.start = -1
         CASE " ": k.start = -1: KeyT(SCSPACE) = t
         CASE "z", "Z": KeyT(SCZ) = t
@@ -2156,17 +2157,28 @@ SUB Sfx (id AS INTEGER)
 END SUB
 
 SUB LoadSong
-    DIM i AS INTEGER
+    DIM i AS INTEGER, d AS STRING
     RESTORE Song
-    FOR i = 0 TO 7: READ Lead(i), Bass(i), Drum(i): NEXT
-    PLAY "MBT150W0Q30H0,6,9,3V9L8", "T150W2Y1,700,8V9L8", "T150W3H0,2,0,1V4L8"
+    FOR i = 0 TO 7: READ Lead(i), Bass(i), Arp(i): NEXT
+    ' a kick, hats and a snare: noise through a low, a high and a band filter
+    FOR i = 1 TO 16
+        SELECT CASE MID$("KHHHSHHKKHKHSHHH", i, 1)
+        CASE "K": d = d + "Y1,220,10V9O1C"
+        CASE "S": d = d + "Y2,1800,3V8O4C"
+        CASE ELSE: d = d + "Y3,7000,0V3O6C"
+        END SELECT
+    NEXT
+    Drums = d
+    ' a brassy saw, a plucked narrow pulse, the noise, a bell of a triangle
+    PLAY "MBT140W2Y1,2600,6H1,5,9,3V9L16", "T140W0Q14Y1,1500,11H0,6,5,1V12L16", "T140W3H0,3,0,1L16", , "T140W1H0,7,0,5V6L16"
+    Tune = -1
 END SUB
 
 ' The next bar, once the last is nearly played.
 SUB FeedSong
     IF Muted OR NOT Tune THEN EXIT SUB
-    IF PLAY(0) > 2 THEN EXIT SUB
-    PLAY Lead(Bar), Bass(Bar), Drum(Bar)
+    IF PLAY(0) > 4 THEN EXIT SUB
+    PLAY Lead(Bar), Bass(Bar), Drums, , Arp(Bar)
     Bar = (Bar + 1) AND 7
 END SUB
 
@@ -2264,7 +2276,7 @@ SUB Tick (g AS Game, p AS Hero, k AS Pad, lo() AS Loose, pt() AS Part)
     IF g.shake > 0 THEN g.shake = g.shake - STEPT
     IF k.mute THEN
         Muted = NOT Muted: k.mute = 0
-        IF Muted THEN PLAY "P64", "P64", "P64"
+        IF Muted THEN PLAY "P64", "P64", "P64", , "P64"
     END IF
     SELECT CASE g.mode
     CASE TITLE
