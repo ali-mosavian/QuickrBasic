@@ -48,6 +48,7 @@ enum {
     LINEAR_BYTES = 320 * 200,
     CGA_BYTES = 0x4000,
     SOFT_PAGES = 2,
+    SWAP_CHUNK = 0x400,
     SET_PAGE = 0x0500,
     MODE_LINEAR = 0x13,
     SET_COLOR_SELECT = 0x0B00,
@@ -198,6 +199,17 @@ static void planar_row_out(unsigned y, const u8 *pixels)
     controller(GC_MODE, WRITE_MODE_2);
 }
 
+static void move(void *to, const void *from, unsigned count)
+{
+    BlockOp op;
+
+    op.dst = to;
+    op.src = from;
+    op.count = count;
+    op.value = 0;
+    dev_move(&op);
+}
+
 /* The adapter's page and the hidden one change places. */
 static void soft_swap(void)
 {
@@ -211,13 +223,15 @@ static void soft_swap(void)
             memcpy(hidden + y * PLANAR_WIDTH, row, PLANAR_WIDTH);
         }
     } else {
+        u8 held[SWAP_CHUNK];
         unsigned at, n = soft_bytes();
 
-        for (at = 0; at < n; at++) {
-            u8 held = adapter[at];
+        for (at = 0; at < n; at += SWAP_CHUNK) {
+            const unsigned count = n - at < SWAP_CHUNK ? n - at : SWAP_CHUNK;
 
-            adapter[at] = hidden[at];
-            hidden[at] = held;
+            move(held, (const void *)(adapter + at), count);
+            move((void *)(adapter + at), hidden + at, count);
+            move(hidden + at, held, count);
         }
     }
 }
