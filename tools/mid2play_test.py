@@ -49,7 +49,7 @@ def main() -> None:
     exe = Path(sys.argv[1] if len(sys.argv) > 1 else ROOT / "build/host/basic").resolve()
     text = mid2play.program(mid2play.read(song()), 6, None, 16)
     lines = text.splitlines()
-    assert lines[1].startswith('PLAY "MFT240W0Q30'), lines[1]
+    assert lines[1].startswith('PLAY "MBT240W0Q30'), lines[1]
     # E above middle C is N41, G N44: a quarter, an eighth's rest, a dotted eighth, the bar's seven sixteenths of rest
     kit = "W4Z1,0Y0K4,8O1CP8.W3K0Y3,7000,0O6CP2P8."
     assert lines[2] == f'PLAY "L4N41P8L8N44.P4.P16", "{kit}"', lines[2]

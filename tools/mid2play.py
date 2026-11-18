@@ -2,9 +2,10 @@
 """mid2play.py FILE.mid [--voices N] [--bars N] [--grid N]: a Standard MIDI File as a BASIC program of PLAY statements.
 
 Each track and channel with notes is a voice, the six with the most notes kept; a voice is one note at a time, the
-highest of those struck together. Notes are put on a grid (sixteenths), a bar a PLAY statement. A General MIDI
-program picks the voice's sound; channel 10 is the kit. A note longer than PLAY's lengths is its longest piece, then
-a rest."""
+highest of those struck together. Notes are put on a grid (sixteenths), a bar a PLAY statement, played in the
+background: in the foreground each statement waited for the last, and 24 bars took 8% longer than they should. A
+General MIDI program picks the voice's sound; channel 10 is the kit. A note longer than PLAY's lengths is its longest
+piece, then a rest."""
 
 from __future__ import annotations
 
@@ -26,11 +27,12 @@ KIT = {
 HAT = "W3K0Y3,7000,0O6C"
 # a General MIDI program's family (program // 8) as a sound
 SOUNDS = {
-    0: "W4Z2,6,6,2,1H0,7,3,3", 1: "W4Z7,6,7,0H0,8,0,6", 2: "W4Z2,5,3,6,2H0,5,8,2", 3: "W4Z3,9,3,1,3H0,6,3,3",
+    0: "W4Z2,6,6,2,1H0,7,3,3", 1: "W4Z7,6,7,0H0,8,0,6", 2: "W4Z1,5,3,11,4H0,4,10,2", 3: "W4Z3,9,3,1,3H0,6,3,3",
     4: "W4Z1,12,4,4,4H0,5,6,1", 5: "W2Y1,2400,4H3,5,11,4U4", 6: "W2Y1,2000,3H4,6,11,5U3", 7: "W4Z1,5,3,11,5H1,4,12,3U5",
     8: "W0Q42H1,4,10,2U4", 9: "W1H1,3,12,3U4", 10: "W0Q30H0,4,9,2U4",
 }
 DEFAULT_SOUND = "W0Q50H0,5,9,3"
+BASS = 4
 
 
 class Note(NamedTuple):
@@ -148,6 +150,11 @@ def bar_of(voice: dict[int, tuple[int, int]], first: int, places: int, kit: bool
     return out
 
 
+def sound(family: int) -> str:
+    """A program family's sound at its volume: PLAY's own 8 of 15 left six voices 8 dB under a recording."""
+    return SOUNDS.get(family, DEFAULT_SOUND) + ("V13" if family == BASS else "V11")
+
+
 def program(song: Song, voices: int, bars: int | None, grid: int) -> str:
     unit = song.division * 4 // grid
     keys = sorted(song.voices, key=lambda key: -len(song.voices[key]))[:voices]
@@ -157,14 +164,17 @@ def program(song: Song, voices: int, bars: int | None, grid: int) -> str:
     count = min(bars or sys.maxsize, -(-last // grid))
     tempo = max(32, min(255, round(song.tempo)))
     setup = [
-        "H0,3,0,1L16" if key[1] == KIT_CHANNEL else SOUNDS.get(song.programs.get(key, -8) // 8, DEFAULT_SOUND)
+        "H0,3,0,1L16V12" if key[1] == KIT_CHANNEL else sound(song.programs.get(key, -8) // 8)
         for key in keys
     ]
     out = ["' " + ", ".join(f"voice {k + 1}: track {key[0]} channel {key[1] + 1}" for k, key in enumerate(keys))]
-    out.append("PLAY " + ", ".join(f'"{"MF" if k == 0 else ""}T{tempo}{text}"' for k, text in enumerate(setup)))
+    out.append("PLAY " + ", ".join(f'"{"MB" if k == 0 else ""}T{tempo}{text}"' for k, text in enumerate(setup)))
     for bar in range(count):
         strings = (bar_of(lines[key], bar * grid, grid, key[1] == KIT_CHANNEL) for key in keys)
         out.append("PLAY " + ", ".join(f'"{text}"' for text in strings))
+    # in the background, so a bar follows the last with no gap; then the program waits the queue out
+    out.append("DO: LOOP WHILE PLAY(0) > 0")
+    out.append("SLEEP 1")
     return "\n".join(out) + "\n"
 
 
