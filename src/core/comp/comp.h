@@ -110,6 +110,7 @@ typedef struct Comp {
        procedure, name, suffix, array or not and the line's DEFtype letter's, its scope and STATIC
        too. A name's scopes, its parameters and the variable's hash each a lookup once a link. */
     bool memo_on;
+    bool errs; /* an ERR compiled since link.c's build began: its error walk needed */
     struct {
         uint32_t key; /* 0 none */
         uint16_t id;

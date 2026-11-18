@@ -639,6 +639,7 @@ static void fail(Comp *const C, const uint8_t err)
 {
     comp_flush(C);                   /* the steps checked before the error */
     uint8_t *const o = C->code->out; /* ERR err dg at:4 state:2 */
+    C->errs = true;
     o[0] = O_ERR;
     o[1] = err;
     o[2] = C->dg;

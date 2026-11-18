@@ -569,6 +569,9 @@ static uint32_t each_error(const Comp *const C, LinkEach *const each, void *cons
 {
     uint32_t n = 0;
 
+    if (!C->errs) /* none compiled */
+        return 0;
+
     for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len) {
         const uint8_t *op = at(C->allo->cache + prog_line(C->prog, l)->code);
 
@@ -620,6 +623,8 @@ static void build(Comp *const C)
 
     if (allo_cap(C->allo, HCACHE) < guess)
         allo_grow(C->allo, HCACHE, guess);
+
+    C->errs = false;
 
     do { /* the cache grown moves the store: a literal's Addr of its text, compiled again */
         base = C->prog->base;
