@@ -27,7 +27,7 @@ function normal(path) {
 }
 
 // A DevVoice's bytes (qbrt's dev/voice.h), as the synthesizer's AudioWorklet takes them (synth.mjs).
-export const VOICE_BYTES = 20;
+export const VOICE_BYTES = 24;
 
 // host: { fs, cwd, args, write(fd, bytes), exit(code), stdin(n) -> bytes, stdio(fd) -> a stat,
 // tone(hz), voice(n, bytes) }; cwd is

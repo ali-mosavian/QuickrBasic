@@ -21,11 +21,14 @@ the voice through the synthesizer instead of the speaker.
 | `Q`n | pulse width, percent high | 1–99 | 50 |
 | `H`a`,`d`,`s`,`r | envelope: attack, decay, sustain level, release, the SID's scale | 0–15 each | `H0,0,15,0` |
 | `Y`m[`,`f[`,`r]] | filter: 0 off, 1 low-pass, 2 band-pass, 3 high-pass; cutoff Hz; resonance | m 0–3, f 30–12000, r 0–15 | off, 1000, 0 |
-| `Z`r[`,`d] | FM's modulator: its pitch, r times the note's; how far it bends the carrier | r 1–15, d 0–15 | 1, 8 |
+| `Z`r[`,`d[`,`f[`,`l[`,`b]]]] | FM's modulator: its pitch, r times the note's; how far it bends the carrier; how fast the bend falls at each note (the envelope's decay scale) and the level it holds; how far it bends itself | r 1–15, d f l 0–15, b 0–7 | 1, 8, 0, 15, 0 |
+| `U`n | vibrato: the pitch wavers 6 times a second, a fifth of a second into the note | 0–15 | 0 |
+| `K`t[`,`q] | glide: a note slides to its pitch in t (10 ms to 800 ms), from the last note's, or from q quarters over its own | 0–15 each | 0, 0 |
 
-FM (`W4`) is a sine bent by a second sine, as a Yamaha chip's two operators. The envelope scales the bend, so a
-note that decays starts bright and ends pure: `H0,6,0,3` plucks a bass (`Z1,12`), `Z3` or `Z7` rings a bell, and a
-held `Z1,6` is brass. Depth 0 is a plain sine.
+FM (`W4`) is a sine bent by a second sine, as a Yamaha chip's two operators. The bend has its own fall, apart from
+the volume's envelope: `Z1,12,4,4` plucks a bass that starts bright and ends round, `Z1,9,3,11,5` holds a brass
+bright, its modulator bending itself towards a saw, and `Z7,6,7,0` rings a bell. Depth 0 is a plain sine: with
+`K4,8` it falls two octaves in 40 ms, a kick drum.
 
 A synthesizer voice's notes are timed to a 16th of a clock tick (3.4 ms), counted in the synthesizer's own samples
 on the Mac and on a Sound Blaster; the speaker's keep QB's whole ticks.

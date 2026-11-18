@@ -26,6 +26,11 @@ SynthRun struc
         sr_sine         dd      ?
         sr_ratio        dd      ?
         sr_depth        dd      ?
+        sr_bend         dd      ?
+        sr_slope        dd      ?
+        sr_fed0         dd      ?
+        sr_fed1         dd      ?
+        sr_feedback     dd      ?
 SynthRun ends
 
 ; eax: the wave's next sample, -32767 to 32767; the phase stepped
@@ -79,16 +84,26 @@ l_hi:
     elseif w eq 2                               ; saw
         shr     eax, 16
         sub     eax, 32768
-    else                                        ; FM: a sine bent by a sine the envelope scales
+    else                                        ; FM: a sine bent by a sine, which bends itself
         mov     ecx, eax
         imul    eax, [ebx].SynthRun.sr_ratio
+        mov     edx, [ebx].SynthRun.sr_fed0
+        add     edx, [ebx].SynthRun.sr_fed1
+        imul    edx, [ebx].SynthRun.sr_feedback
+        add     eax, edx
         shr     eax, 22
         mov     edx, [ebx].SynthRun.sr_sine
         movsx   eax, word ptr [edx+eax*2]
-        mov     edx, [ebx].SynthRun.sr_level
+        mov     edx, [ebx].SynthRun.sr_bend
         sar     edx, 9
         imul    eax, edx
         sar     eax, 15
+        mov     edx, [ebx].SynthRun.sr_fed0     ; its last two samples, the bend a step down
+        mov     [ebx].SynthRun.sr_fed1, edx
+        mov     [ebx].SynthRun.sr_fed0, eax
+        mov     edx, [ebx].SynthRun.sr_bend
+        sub     edx, [ebx].SynthRun.sr_slope
+        mov     [ebx].SynthRun.sr_bend, edx
         imul    eax, [ebx].SynthRun.sr_depth
         add     eax, ecx
         shr     eax, 22

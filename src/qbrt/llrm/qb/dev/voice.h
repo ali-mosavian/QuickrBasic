@@ -19,7 +19,13 @@ typedef struct DevVoice {
     unsigned char gate;      /* 1 while the note sounds; 0 starts its release */
     unsigned char trigger;   /* changes at each note: its attack starts again */
     unsigned char ratio;     /* FM: the modulator's pitch, 1 to 15 times the note's */
-    unsigned char depth;     /* FM: how far it bends the carrier, 0 to 15; the envelope scales it */
+    unsigned char depth;     /* FM: how far it bends the carrier, 0 to 15, at the modulator's full level */
+    unsigned char fall;      /* FM: the modulator's level falls from full at each note: its decay (SID's 0 to 15) in the
+                                high nibble, the level it holds (0 to 15) in the low */
+    unsigned char feedback;  /* FM: the modulator bends itself, 0 to 7: towards a saw, then noise */
+    unsigned char vibrato;   /* the pitch wavers 6 times a second once the note has sounded a while, 0 to 15 */
+    unsigned char glide;     /* a note slides to its pitch, 0 to 15: at once to 800 ms */
+    unsigned char from;      /* where it slides from: 0 the last note, else its own pitch and n quarters more */
 } DevVoice;
 
 #endif

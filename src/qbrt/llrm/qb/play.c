@@ -38,7 +38,9 @@ enum {
     LOWEST_CUTOFF = 30,
     HIGHEST_CUTOFF = 12000,
     DEFAULT_CUTOFF = 1000,
-    DEFAULT_DEPTH = 8
+    DEFAULT_DEPTH = 8,
+    DEFAULT_FALL = 0x0F, /* the modulator held at full */
+    HIGHEST_FEEDBACK = 7
 };
 
 /* How much of a note sounds before the silence that ends it, in eighths. */
@@ -201,12 +203,35 @@ static void wave(Player *p)
     p->sound.wave = (unsigned char)within(p, DEV_PULSE, DEV_FM);
 }
 
-/* Z ratio[, depth]: FM's modulator, its pitch in the note's and how far it bends the carrier. */
+/* Z ratio[, depth[, decay[, level[, feedback]]]]: FM's modulator, its pitch in the note's, how far it bends the
+   carrier, how fast that falls at each note and to what, and how far it bends itself. */
 static void modulator(Player *p)
 {
     p->sound.ratio = (unsigned char)within(p, 1, HIGHEST_NIBBLE);
+    if (!comma(p))
+        return;
+    p->sound.depth = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
+    if (!comma(p))
+        return;
+    p->sound.fall = (unsigned char)(within(p, 0, HIGHEST_NIBBLE) << 4 | (p->sound.fall & HIGHEST_NIBBLE));
+    if (!comma(p))
+        return;
+    p->sound.fall = (unsigned char)((p->sound.fall & ~HIGHEST_NIBBLE) | within(p, 0, HIGHEST_NIBBLE));
     if (comma(p))
-        p->sound.depth = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
+        p->sound.feedback = (unsigned char)within(p, 0, HIGHEST_FEEDBACK);
+}
+
+static void vibrato(Player *p)
+{
+    p->sound.vibrato = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
+}
+
+/* K time[, from]: a note slides to its pitch, from the last note's or from so many quarters over its own. */
+static void glide(Player *p)
+{
+    p->sound.glide = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
+    if (comma(p))
+        p->sound.from = (unsigned char)within(p, 0, HIGHEST_NIBBLE);
 }
 
 /* Q percent: the pulse's high part. */
@@ -219,7 +244,8 @@ static void width(Player *p)
 static const struct {
     char letter;
     void (*set)(Player *p);
-} synth_commands[] = {{'V', volume}, {'W', wave}, {'Q', width}, {'H', envelope}, {'Y', filter}, {'Z', modulator}};
+} synth_commands[] = {{'V', volume}, {'W', wave}, {'Q', width}, {'H', envelope}, {'Y', filter}, {'Z', modulator},
+                    {'U', vibrato}, {'K', glide}};
 
 static void synth_command(Player *p, char command)
 {
@@ -332,7 +358,7 @@ static int step(Player *p, unsigned voice)
 
 /* What PLAY keeps from one use to the next, a voice each: the octave, the length, the tempo, the style, and the sound;
    the first is what SOUND reads. */
-#define FIRST_SOUND {0, DEFAULT_WIDTH, DEFAULT_ENVELOPE, DEFAULT_CUTOFF, DEV_PULSE, DEFAULT_VOLUME, DEV_UNFILTERED, 0, 0, 0, 1, DEFAULT_DEPTH}
+#define FIRST_SOUND {0, DEFAULT_WIDTH, DEFAULT_ENVELOPE, DEFAULT_CUTOFF, DEV_PULSE, DEFAULT_VOLUME, DEV_UNFILTERED, 0, 0, 0, 1, DEFAULT_DEPTH, DEFAULT_FALL, 0, 0, 0, 0}
 static const DevVoice first_sound = FIRST_SOUND;
 static Player players[DEV_VOICES] = {
     [0 ... DEV_VOICES - 1] = {{0, 0, 0}, {{0, 0, 0}}, DEFAULT_OCTAVE, DEFAULT_LENGTH, DEFAULT_TEMPO, NORMAL, 0, FIRST_SOUND}};

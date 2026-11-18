@@ -18,6 +18,10 @@ enum {
     DAMPING_STEP = 5680,  /* 1.3 / 15 */
     SYNTH_BLOCK = 64,     /* samples a voice renders at a time */
     SINE_SHIFT = 22,      /* a phase's top bits index the sine */
+    FEEDBACK_SHIFT = 10,  /* feedback 1 bends by pi / 16 at full, each more twice that */
+    VIBRATO_HERTZ = 6,
+    VIBRATO_WAITS = 5,    /* a fifth of a second before it starts */
+    VIBRATO_SHIFT = 24,   /* depth 15 is 3% of the pitch */
     FM_DEPTH = 10431,     /* a depth's half radian of phase, for each of a modulator's 32767: 2^32 / (4 pi 32767) */
 };
 
@@ -25,6 +29,7 @@ enum Stage { STAGE_ATTACK, STAGE_DECAY, STAGE_RELEASE, STAGE_CUT };
 
 /* SID's times from silence to full (attack) and from full to silence (decay, release), ms */
 static const uint16_t attack_ms[16] = {2, 8, 16, 24, 38, 56, 68, 80, 100, 250, 500, 800, 1000, 3000, 5000, 8000};
+static const uint16_t glide_ms[16] = {0, 10, 20, 30, 40, 60, 80, 100, 120, 150, 200, 250, 300, 400, 500, 800};
 static const uint16_t decay_ms[16] = {6, 24, 48, 72, 114, 168, 204, 240, 300, 750, 1500, 2400, 3000, 9000, 15000, 24000};
 /* SID's exponential fall: below each level (of 255) the step is divided by its divisor */
 static const int32_t below[SYNTH_CURVE] = {256, 93, 54, 26, 14, 6};
@@ -93,6 +98,23 @@ static int32_t twice_sin(const int32_t x)
     return (x * (ONE - (x2 * inner >> 16) / 6) >> 16) * 2;
 }
 
+/* A note begins: the modulator at full, the vibrato waiting, the pitch where its slide starts. */
+static void begin(const Synth *const s, SynthOsc *const o, const DevVoice *const v)
+{
+    const uint32_t samples = glide_ms[v->glide & HIGHEST_NIBBLE] * s->rate / 1000;
+    const uint64_t above = (uint64_t)o->step + (uint64_t)(o->step / 4) * v->from;
+    const uint32_t from = !v->from ? o->at : above < INT32_MAX ? (uint32_t)above : INT32_MAX;
+
+    o->bend = FULL;
+    o->fed[0] = o->fed[1] = 0;
+    o->age = 0;
+    o->lfo = 0;
+    o->at = samples && from ? from : o->step;
+    o->slide = samples ? (int32_t)(o->step - o->at) / (int32_t)samples : 0;
+    if (o->at != o->step && !o->slide)
+        o->slide = o->step > o->at ? 1 : -1;
+}
+
 void synth_voice(Synth *const s, const unsigned voice, const DevVoice *const v)
 {
     if (voice >= DEV_VOICES)
@@ -102,6 +124,8 @@ void synth_voice(Synth *const s, const unsigned voice, const DevVoice *const v)
 
     o->set = *v;
     o->step = v->hertz * s->per_hertz + v->hertz * s->rest / s->rate; /* hertz * 2^32 / rate */
+    if (attack && v->hertz)
+        begin(s, o, v);
     if (!v->hertz)
         o->stage = STAGE_CUT;
     else if (attack)
@@ -120,6 +144,10 @@ void synth_voice(Synth *const s, const unsigned voice, const DevVoice *const v)
     o->damping = DAMPING_MOST - v->resonance * DAMPING_STEP;
     o->ratio = v->ratio ? v->ratio : 1;
     o->depth = v->depth * (uint32_t)FM_DEPTH;
+    o->bend_step = step_of(s, decay_ms[v->fall >> 4]);
+    o->bend_floor = (v->fall & HIGHEST_NIBBLE) * (FULL / HIGHEST_NIBBLE);
+    o->feedback = v->feedback ? 1u << (FEEDBACK_SHIFT + v->feedback) : 0;
+    o->lfo_step = VIBRATO_HERTZ * s->per_hertz;
 }
 
 /* The speaker's next sample, as QB's square wave always was. */
@@ -252,8 +280,13 @@ static int envelope_run(const Synth *const s, const SynthOsc *const o, const int
         }
         return (int32_t)(o->noise >> 15 & 0xFF) * 257 - 32767;
     case DEV_FM: {
-        /* a sine bent by a sine: the envelope fades the bend with the note, as a plucked string's brightness */
-        const int32_t bend = sine[o->phase * o->ratio >> SINE_SHIFT] * (o->level >> 9) >> 15;
+        /* a sine bent by a sine, which bends itself: the bend falls from full, as a plucked string's brightness */
+        const uint32_t self = (uint32_t)(o->fed[0] + o->fed[1]) * o->feedback;
+        const int32_t bend = sine[(o->phase * o->ratio + self) >> SINE_SHIFT] * (o->bend >> 9) >> 15;
+
+        o->fed[1] = o->fed[0];
+        o->fed[0] = bend;
+        o->bend -= o->slope;
         return sine[(o->phase + (uint32_t)bend * o->depth) >> SINE_SHIFT];
     }
     default:
@@ -282,6 +315,42 @@ static int envelope_run(const Synth *const s, const SynthOsc *const o, const int
 }
 #endif
 
+/* The pitch for the next `run` samples, in o->step: the slide moved on towards `target`, the vibrato added. Both
+   step once a run, not a sample: a run is 64 samples at most. */
+[[gnu::always_inline]] static inline int pitch_run(SynthOsc *const o, const uint32_t rate, const uint32_t target,
+                                                  const int run)
+{
+    if (o->at != target) {
+        const int64_t next = (int64_t)o->at + (int64_t)o->slide * run;
+
+        o->at = !o->slide || (o->slide > 0 ? next >= target : next <= target) ? target : (uint32_t)next;
+    }
+    o->step = o->at;
+    if (o->set.vibrato && o->age >= rate / VIBRATO_WAITS) {
+        const int32_t x = (int32_t)(o->lfo >> 16);
+        const int32_t sway = x < 16384 ? x * 2 : x < 49152 ? 65535 - x * 2 : x * 2 - 131071; /* a triangle from 0 */
+
+        o->step += (uint32_t)(int32_t)((int64_t)o->at * (o->set.vibrato * sway) >> VIBRATO_SHIFT);
+        o->lfo += o->lfo_step * (uint32_t)run;
+    } else
+        o->age += (uint32_t)run;
+    return run;
+}
+
+/* How many of the next `run` samples FM's modulator falls by one step, o->slope, and stays over its floor. */
+[[gnu::always_inline]] static inline int bend_run(SynthOsc *const o, const int run)
+{
+    const int32_t left = (o->bend - o->bend_floor) / o->bend_step;
+
+    if (left <= 0) {
+        o->bend = o->bend_floor;
+        o->slope = 0;
+        return run;
+    }
+    o->slope = o->bend_step;
+    return left < run ? (int)left : run;
+}
+
 #ifdef SYNTH_ASM
 typedef struct SynthRun {
     uint32_t phase, step;
@@ -291,6 +360,8 @@ typedef struct SynthRun {
     uint32_t noise, width, kind, in;
     const int16_t *sine;
     uint32_t ratio, depth;
+    int32_t bend, slope, fed[2];
+    uint32_t feedback;
 } SynthRun;
 void synth_run(SynthRun *r);
 #endif
@@ -316,15 +387,22 @@ void synth_run(SynthRun *r);
             delta = 0;
         } else
             o.level += delta;
+        run = pitch_run(&o, s->rate, into->step, run);
+        if (wave_kind == DEV_FM)
+            run = bend_run(&o, run);
 #ifdef SYNTH_ASM
         SynthRun r = {o.phase, o.step, o.level, delta, o.low, o.band, o.f, o.damping, o.gain, sum + i, run, o.noise,
-                      o.set.width, wave_kind * 4 + filter, 0, s->sine, o.ratio, o.depth};
+                      o.set.width, wave_kind * 4 + filter, 0, s->sine, o.ratio, o.depth,
+                      o.bend, o.slope, {o.fed[0], o.fed[1]}, o.feedback};
         synth_run(&r);
         o.phase = r.phase;
         o.noise = r.noise;
         o.level = r.level;
         o.low = r.low;
         o.band = r.band;
+        o.bend = r.bend;
+        o.fed[0] = r.fed[0];
+        o.fed[1] = r.fed[1];
         i += run;
 #else
         for (const int end = i + run;;) {
@@ -346,6 +424,12 @@ void synth_run(SynthRun *r);
     into->stage = o.stage;
     into->low = o.low;
     into->band = o.band;
+    into->bend = o.bend;
+    into->fed[0] = o.fed[0];
+    into->fed[1] = o.fed[1];
+    into->at = o.at;
+    into->lfo = o.lfo;
+    into->age = o.age;
 }
 
 #define VOICE_FILTERS(w)                                                                                               \

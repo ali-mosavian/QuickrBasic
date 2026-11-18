@@ -101,13 +101,14 @@ TEST(synth_waves_have_their_shape)
 }
 
 /* FM (W4): with no depth a sine, which turns twice a period and has no step a saw's size; a modulator at three times
-   the note bends it into more turns, the period the same; and the bend fades with the envelope, so a decayed note's
-   tail is the sine again. */
+   the note bends it into more turns, the period the same; and the bend falls at its own rate, so a note's tail is
+   the sine again while it is as loud. */
 TEST(synth_fm_bends_a_sine)
 {
     Synth s;
     DevVoice v = note(441, DEV_FM, 0x00F0);
     v.ratio = 3;
+    v.fall = 0x0F;
     sound(&s, v, RATE);
     int turns = 0, step = 0;
     for (int i = RATE / 10 + 1; i < RATE - 1; i++) {
@@ -129,7 +130,7 @@ TEST(synth_fm_bends_a_sine)
         apart = abs(buf[i] - buf[i + 100]) > apart ? abs(buf[i] - buf[i + 100]) : apart;
     CHECK(apart < 6000 / 20);
 
-    v.envelope = 0x0680; /* decays in 204 ms to about half */
+    v.fall = 0x60; /* the modulator falls to nothing in 204 ms */
     sound(&s, v, RATE);
     int early = 0, late = 0;
     for (int i = 1; i < RATE / 50 - 1; i++)
@@ -137,6 +138,96 @@ TEST(synth_fm_bends_a_sine)
     for (int i = RATE / 2 + 1; i < RATE / 2 + RATE / 50 - 1; i++)
         late += (buf[i] - buf[i - 1] > 0) != (buf[i + 1] - buf[i] > 0);
     CHECK(early > late);
+}
+
+/* The spacing of a second's rising zero crossings, the least and the most, from sample `from`. */
+static void spacing(const int from, int *const least, int *const most)
+{
+    int last = -1;
+
+    *least = RATE;
+    *most = 0;
+    for (int i = from + 1; i < RATE; i++)
+        if (buf[i - 1] < 0 && buf[i] >= 0) {
+            if (last >= 0) {
+                *least = i - last < *least ? i - last : *least;
+                *most = i - last > *most ? i - last : *most;
+            }
+            last = i;
+        }
+}
+
+/* A modulator that bends itself is brighter: the carrier's steepest step grows. */
+TEST(synth_fm_feedback_brightens)
+{
+    Synth s;
+    DevVoice v = note(441, DEV_FM, 0x00F0);
+    int steep[2];
+
+    v.ratio = 1;
+    v.depth = 4;
+    v.fall = 0x0F;
+    for (int f = 0; f < 2; f++) {
+        v.feedback = (unsigned char)(f * 6);
+        sound(&s, v, RATE);
+        steep[f] = 0;
+        for (int i = RATE / 10; i < RATE; i++)
+            steep[f] = abs(buf[i] - buf[i - 1]) > steep[f] ? abs(buf[i] - buf[i - 1]) : steep[f];
+    }
+    CHECK(steep[1] > steep[0] * 13 / 10);
+}
+
+/* Vibrato: a 441 Hz period is 100 samples every time; at depth 15 it runs from 97 to 103, but not in the note's first
+   fifth of a second. */
+TEST(synth_vibrato_wavers_after_a_wait)
+{
+    Synth s;
+    DevVoice v = note(441, DEV_TRIANGLE, 0x00F0);
+    int least, most;
+
+    sound(&s, v, RATE);
+    spacing(RATE / 4, &least, &most);
+    CHECK(most - least <= 1);
+    v.vibrato = 15;
+    sound(&s, v, RATE);
+    spacing(RATE / 4, &least, &most);
+    CHECK(least <= 98 && most >= 102 && least >= 96 && most <= 104);
+    synth_init(&s, RATE);
+    synth_voice(&s, 0, &v);
+    synth_render(&s, buf, RATE / 6);
+    int last = -1, off = 0;
+    for (int i = 1; i < RATE / 6; i++)
+        if (buf[i - 1] < 0 && buf[i] >= 0) {
+            off += last >= 0 && abs(i - last - 100) > 1;
+            last = i;
+        }
+    CHECK(off == 0);
+}
+
+/* A glide: the second note climbs from the first's pitch over 150 ms, so its first 50 ms hold fewer periods than
+   its last; and a note told to fall from twice its pitch starts with more. */
+TEST(synth_glide_slides_to_the_note)
+{
+    Synth s;
+    DevVoice v = note(220, DEV_TRIANGLE, 0x00F0);
+
+    v.glide = 9;
+    synth_init(&s, RATE);
+    synth_voice(&s, 0, &v);
+    synth_render(&s, buf, RATE / 2);
+    CHECK(rises(buf + RATE / 4, RATE / 20) >= 10 && rises(buf + RATE / 4, RATE / 20) <= 12); /* no last note: no slide */
+    v.hertz = 440;
+    v.trigger = 2;
+    synth_voice(&s, 0, &v);
+    synth_render(&s, buf, RATE / 2);
+    const int early = rises(buf, RATE / 20), late = rises(buf + RATE / 4, RATE / 20);
+    CHECK(early >= 11 && early <= 15 && late >= 21 && late <= 23);
+
+    v.from = 4;
+    v.trigger = 3;
+    synth_voice(&s, 0, &v);
+    synth_render(&s, buf, RATE / 2);
+    CHECK(rises(buf, RATE / 20) >= 34 && rises(buf + RATE / 4, RATE / 20) <= 23);
 }
 
 /* H8,0,8,4: 100 ms of attack to full, a decay to about half, held, then a release to silence. */
@@ -423,10 +514,12 @@ TEST(play_sets_the_voice)
     CHECK(v.filter == DEV_LOW_PASS && v.cutoff == 800 && v.resonance == 9 && v.gate == 1);
 }
 
-/* W4 is FM, Z its modulator's ratio and depth. */
+/* W4 is FM, Z its modulator: ratio, depth, decay, level and feedback; U is vibrato, K a glide. */
 TEST(play_sets_fm)
 {
-    static const char *const lines[] = {"10 PLAY \"MF W4 Z3,11 C P64\"", nullptr};
+    static const char *const lines[] = {"10 PLAY \"MF W4 Z3,11,6,2,5 U7 K4,8 C P64\"", nullptr};
+    static const char *const fed[] = {"10 PLAY \"W4 Z1,2,3,4,8 C\"", nullptr};
+    static const char *const waver[] = {"10 PLAY \"U16 C\"", nullptr};
     static const char *const ratio[] = {"10 PLAY \"W4 Z0 C\"", nullptr};
     static const char *const depth[] = {"10 PLAY \"W4 Z1,16 C\"", nullptr};
 
@@ -438,6 +531,9 @@ TEST(play_sets_fm)
     CHECK(headless_voice_count() > first);
     const DevVoice v = headless_voice(first).v;
     CHECK(v.wave == DEV_FM && v.ratio == 3 && v.depth == 11);
+    CHECK(v.fall == 0x62 && v.feedback == 5 && v.vibrato == 7 && v.glide == 4 && v.from == 8);
+    CHECK(unit_run(S, fed) == E_USR);
+    CHECK(unit_run(S, waver) == E_USR);
     CHECK(unit_run(S, ratio) == E_USR);
     CHECK(unit_run(S, depth) == E_USR);
 }

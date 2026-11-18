@@ -22,6 +22,14 @@ typedef struct SynthOsc {
     /* worked out when the voice is set: the envelope's steps a sample, the gain (2^15 is 1) */
     int32_t attack, decay[SYNTH_CURVE], release[SYNTH_CURVE], gain;
     uint32_t ratio, depth; /* FM: the modulator's phase steps a carrier's, the phase a full modulator bends it */
+    /* FM: the modulator's level (0 to 2^24), its step down a sample and where it stops; its last two samples and what
+       their sum bends its own phase by */
+    int32_t bend, bend_step, bend_floor, slope, fed[2];
+    uint32_t feedback;
+    /* the pitch: the step now, on its way to `step` by `slide` a sample; the vibrato's phase and step; samples since
+       the note began */
+    uint32_t at, lfo, lfo_step, age;
+    int32_t slide;
     int32_t f, damping, low, band; /* the filter's: f and damping 2^16 is 1, its state in 256ths of a sample */
 } SynthOsc;
 
