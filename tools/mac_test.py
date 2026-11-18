@@ -90,6 +90,16 @@ def frame(run: list[str], program: Path, keys: str = "") -> tuple[int, int, byte
     return frames(run, program, keys)[0]
 
 
+def editor_top(w: int, pixels: bytes) -> int:
+    """The first pixel row of the editor's blue, scanning down from the menu bar."""
+    return next(y for y in range(16, 400) if pixel(w, pixels, 100, y) == BLUE)
+
+
+def green_cells(w: int, pixels: bytes, y0: int, y1: int, x0: int, x1: int) -> int:
+    """Pixels of the help's link-arrow green in a box."""
+    return sum(pixel(w, pixels, x, y) == (0x55, 0xFF, 0x55) for y in range(y0, y1) for x in range(x0, x1))
+
+
 def pixel(w: int, pixels: bytes, x: int, y: int) -> tuple[int, ...]:
     at = (y * w + x) * 3
     return tuple(pixels[at : at + 3])
@@ -215,6 +225,9 @@ def main() -> None:
         _, _, menu_only = frames(run, program, "60:2100", ("2s",))[0]
         _, _, open_f1 = frames(run, program, HELP_OPEN, ("2s",))[0]
         _, _, open_only = frames(run, program, "60:2100 70:1800", ("2s",))[0]
+        for_bas = Path(tmp) / "FORLOOP.BAS"
+        for_bas.write_text("FOR i = 1 TO 3\nNEXT\n")
+        fw, _, f1_for = frames(run, for_bas, HELP, ("2s",))[0]
         plain = Path(tmp) / "PLAIN.BAS"
         plain.write_text("x = 1\n")
         _, _, plain_base = frames(run, plain, "", ("2s",))[0]
@@ -266,6 +279,9 @@ def main() -> None:
         "insert cursor lines 13-14": pixel(rw, rstart, 13, 45) == pixel(rw, rstart, 13, 46) != pixel(rw, rstart, 13, 44)
         and pixel(rw, rstart, 13, 47) != pixel(rw, rstart, 13, 45),
         "F1 on PRINT opens help": f1 != base,
+        "help as tall as it goes, a short topic too": editor_top(fw, f1_for) >= 17 * 16,
+        "a link's words are not the arrows' green": green_cells(fw, f1_for, 32, 48, 9 * 20, 9 * 26) == 0
+        and green_cells(fw, f1_for, 32, 48, 9 * 18, 9 * 20) > 0,
         "F1 leaves the editor focused, Shift+F6 moves to help": f1_focus != f1,
         "Esc closes help": f1_esc == base,
         "Alt+F1 after a link returns": f1_back == f1_focus,

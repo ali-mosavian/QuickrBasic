@@ -171,6 +171,8 @@ def render(t: Topic, keymap: dict[str, int], index_id: int, contents_id: int, er
             body = (b" " if text else b"") + cp437(text, where)
             width = len(body)
         else:
+            if kind == "text" and text == "Syntax":
+                kind = "head"  # bright, as QBasic's
             bullet = re.match(r"^(\s*)[-*] (.*)$", text)
             if bullet:  # a list item: QBasic's small square
                 text = bullet.group(1) + "  \u25a0 " + bullet.group(2)
