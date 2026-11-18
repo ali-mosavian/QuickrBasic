@@ -57,7 +57,7 @@ def main() -> None:
     quiet = mid2play.program(mid2play.read(song()), 10, None, 16, None, {1: 6})
     assert 'PLAY "V4L4N41' in quiet, quiet
     lines = text.splitlines()
-    assert lines[1].startswith('PLAY "MBT240R5W0Q30'), lines[1]
+    assert lines[1].startswith('PLAY "MBT240R5W0Q20'), lines[1]
     # E above middle C is N41, G N44: a quarter, an eighth's rest, a dotted eighth, the bar's seven sixteenths of rest
     # a drum whose pitch slides is a sine alone: a kick's click, a modulator, slid with it, a chirp from 5 kHz down at
     # every kick, which no drum of a recording had
