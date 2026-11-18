@@ -36,12 +36,12 @@ KIT_SOUND = "Z1,0H0,5,0,3L16"
 SOUNDS = {
     0: "W4Z2,6,6,2,1H0,7,3,3I2",
     1: "W4Z7,6,7,0H0,8,0,6",
-    2: "W4Z1,4,3,9,3H0,4,11,2R0V4",
+    2: "W4Z1,4,3,9,3H0,4,11,2R0",
     3: "W4Z3,9,3,1,3H0,6,3,3",
     4: "W4Z1,6,4,8,3H0,7,11,2I2",
     5: "W2Y1,2400,4H3,5,11,4U4I6",
     6: "W2Y1,2000,3H4,6,11,5U3I8",
-    7: "W4Z1,2,3,8,2H0,4,12,2U3I2R0V15",
+    7: "W4Z1,2,3,8,2H0,4,12,2U3I2R0",
     8: "W0Q42H1,4,10,3U5I4",
     9: "W1H1,3,12,3U4",
     10: "W0Q30H0,4,9,3U5I4",
@@ -54,6 +54,7 @@ class Note(NamedTuple):
     start: int  # ticks
     length: int
     pitch: int
+    velocity: int
 
 
 class Song(NamedTuple):
@@ -87,7 +88,7 @@ def read(data: bytes) -> Song:
         size = int.from_bytes(data[at + 4 : at + 8], "big")
         chunk, at = data[at + 8 : at + 8 + size], at + 8 + size
         i, tick, status = 0, 0, 0
-        sounding: dict[tuple[int, int], int] = {}
+        sounding: dict[tuple[int, int], tuple[int, int]] = {}
         while i < len(chunk):
             delta, i = number(chunk, i)
             tick += delta
@@ -108,26 +109,33 @@ def read(data: bytes) -> Song:
                 continue
             pitch, velocity, i = chunk[i], chunk[i + 1], i + 2
             if event == 0x90 and velocity:
-                sounding[channel, pitch] = tick
+                sounding[channel, pitch] = tick, velocity
             elif event in (0x80, 0x90) and (channel, pitch) in sounding:
-                start = sounding.pop((channel, pitch))
-                voices[track, channel].append(Note(start, tick - start, pitch))
+                start, loud = sounding.pop((channel, pitch))
+                voices[track, channel].append(Note(start, tick - start, pitch, loud))
     return Song(division, tempo, voices, programs)
 
 
-def line(notes: list[Note], unit: int, kit: bool) -> dict[int, tuple[int, int]]:
-    """A voice on the grid: at each place a note starts, its pitch and its length in places; the highest of those
-    struck together (the kit: the lowest, the drum over the hat), cut short where the next starts."""
+def line(notes: list[Note], unit: int, kit: bool, full: int = 15) -> dict[int, tuple[int, int, int]]:
+    """A voice on the grid: at each place a note starts, its pitch, its length in places and its volume, `full` at
+    velocity 127 and as the velocity squared under it; the highest of those struck together (the kit: the lowest, the
+    drum over the hat), cut short where the next starts."""
     places: dict[int, int] = {}
     lengths: dict[int, int] = {}
+    volumes: dict[int, int] = {}
     for note in notes:
         place = (note.start + unit // 2) // unit
         better = min if kit else max
         if place not in places or better(places[place], note.pitch) == note.pitch:
             places[place], lengths[place] = note.pitch, max(1, round(note.length / unit))
+            volumes[place] = max(1, round(full * (note.velocity / 127) ** 2))
     order = sorted(places)
     return {
-        place: (places[place], min(lengths[place], (order[k + 1] - place) if k + 1 < len(order) else lengths[place]))
+        place: (
+            places[place],
+            min(lengths[place], (order[k + 1] - place) if k + 1 < len(order) else lengths[place]),
+            volumes[place],
+        )
         for k, place in enumerate(order)
     }
 
@@ -140,15 +148,23 @@ def rest(places: int) -> str:
     return out
 
 
-def bar_of(voice: dict[int, tuple[int, int]], first: int, places: int, drum: str | None, up: int = 0) -> str:
-    """A bar of a voice as PLAY's commands; a drum's is its one note."""
+def bar_of(
+    voice: dict[int, tuple[int, int, int]],
+    first: int,
+    places: int,
+    drum: str | None,
+    set_to: dict[str, int],
+    up: int = 0,
+) -> str:
+    """A bar of a voice as PLAY's commands, its volume where it changes from what the voice is `set_to`; a drum's is
+    its one note, at its own volume."""
     out, at = "", first
     while at < first + places:
         if at not in voice:
             gap = next((p for p in range(at, first + places) if p in voice), first + places) - at
             out, at = out + rest(gap), at + gap
             continue
-        pitch, length = voice[at]
+        pitch, length, volume = voice[at]
         length = min(length, first + places - at)
         piece = max(p for p in PIECES if p <= length)
         if drum is not None:
@@ -160,15 +176,16 @@ def bar_of(voice: dict[int, tuple[int, int]], first: int, places: int, drum: str
             while note > 84:
                 note -= 12
             dot = "." if PIECES[piece].endswith(".") else ""
+            if set_to.get("V") != volume:
+                out, set_to["V"] = out + f"V{volume}", volume
             out += f"L{PIECES[piece].rstrip('.')}N{note}{dot}"
         out, at = out + rest(length - piece), at + length
     return out
 
 
 def sound(family: int) -> str:
-    """A program family's sound at its volume, in a room but for the bass: PLAY's own 8 of 15 left six voices 8 dB
-    under a recording."""
-    return ("V15" if family == BASS else "V11R5") + SOUNDS.get(family, DEFAULT_SOUND)
+    """A program family's sound, in a room but for the bass."""
+    return ("" if family == BASS else "R5") + SOUNDS.get(family, DEFAULT_SOUND)
 
 
 class Part(NamedTuple):
@@ -207,17 +224,17 @@ def program(
     every = parts(song)
     kept = sorted(sorted(range(len(every)), key=lambda k: -len(every[k].notes))[:voices])
     keys = [every[k] for k in kept]
-    lines = [line(part.notes, unit, part.drum is not None) for part in keys]
-    last = max(place + length for voice in lines for place, (_, length) in voice.items())
+    lines = [line(part.notes, unit, part.drum is not None, (loud or {}).get(k + 1, 15)) for k, part in enumerate(keys)]
+    set_to: list[dict[str, int]] = [{} for _ in keys]
+    last = max(place + length for voice in lines for place, (_, length, _) in voice.items())
     count = min(bars or sys.maxsize, -(-last // grid))
     tempo = max(32, min(255, round(song.tempo)))
     out = ["' " + ", ".join(f"voice {k + 1}: {part.name}" for k, part in enumerate(keys))]
-    # a voice's volume as asked: a file's tracks are as loud as each other where a recording's were not
-    sounds = [part.sound + (f"V{loud[k + 1]}" if loud and k + 1 in loud else "") for k, part in enumerate(keys)]
-    out.append("PLAY " + ", ".join(f'"{"MB" if k == 0 else ""}T{tempo}{text}"' for k, text in enumerate(sounds)))
+    out.append("PLAY " + ", ".join(f'"{"MB" if k == 0 else ""}T{tempo}{part.sound}"' for k, part in enumerate(keys)))
     for bar in range(count):
         strings = [
-            bar_of(lines[k], bar * grid, grid, part.drum, (up or {}).get(k + 1, 0)) for k, part in enumerate(keys)
+            bar_of(lines[k], bar * grid, grid, part.drum, set_to[k], (up or {}).get(k + 1, 0))
+            for k, part in enumerate(keys)
         ]
         if max(map(len, strings)) > LONGEST:
             sys.exit(f"mid2play: bar {bar + 1} is over {LONGEST} characters in a voice")
@@ -235,7 +252,7 @@ def main() -> None:
     parser.add_argument("--bars", type=int)
     parser.add_argument("--grid", type=int, default=16, choices=(8, 16), help="places a bar (4/4)")
     parser.add_argument("--transpose", default="", help="voices moved by semitones: 4=-12,5=-12")
-    parser.add_argument("--volume", default="", help="voices' volumes, 0 to 15: 6=15,7=9")
+    parser.add_argument("--volume", default="", help="voices' volumes at velocity 127, 0 to 15: 7=9")
     args = parser.parse_args()
     up, loud = (
         {int(voice): int(by) for voice, by in (pair.split("=") for pair in text.split(",") if pair)}

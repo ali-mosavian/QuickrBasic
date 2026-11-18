@@ -29,7 +29,7 @@ def song() -> bytes:
             (0, bytes([on, 64, 100])),  # with an E over it: the E is kept
             (QUARTER, bytes([off, 60, 0])),
             (0, bytes([off, 64, 0])),
-            (six * 2, bytes([on, 67, 100])),  # an eighth's rest, then a G of three sixteenths
+            (six * 2, bytes([on, 67, 64])),  # an eighth's rest, then a G of three sixteenths
             (six * 3, bytes([off, 67, 0])),
         ]
     )
@@ -52,12 +52,12 @@ def main() -> None:
     text = mid2play.program(mid2play.read(song()), 10, None, 16)
     # a voice moved an octave: the E an octave down
     low = mid2play.program(mid2play.read(song()), 10, None, 16, {1: -12})
-    assert 'PLAY "L4N29P8L8N32.' in low, low
-    # a voice's volume as asked, after its sound's own
+    assert 'PLAY "V9L4N29P8V4L8N32.' in low, low
+    # a voice's volume as asked is its loudest note's: these, at 100 of 127, are 0.62 of it
     quiet = mid2play.program(mid2play.read(song()), 10, None, 16, None, {1: 6})
-    assert quiet.splitlines()[1].startswith('PLAY "MBT240V11R5W0Q30H0,4,9,3U5I4V6"'), quiet
+    assert 'PLAY "V4L4N41' in quiet, quiet
     lines = text.splitlines()
-    assert lines[1].startswith('PLAY "MBT240V11R5W0Q30'), lines[1]
+    assert lines[1].startswith('PLAY "MBT240R5W0Q30'), lines[1]
     # E above middle C is N41, G N44: a quarter, an eighth's rest, a dotted eighth, the bar's seven sixteenths of rest
     # a drum whose pitch slides is a sine alone: a kick's click, a modulator, slid with it, a chirp from 5 kHz down at
     # every kick, which no drum of a recording had
@@ -68,8 +68,10 @@ def main() -> None:
     assert lines[1].endswith(
         '"T240Z1,0H0,5,0,3L16W4Z1,0H0,3,0,2Y0K1,8R3V15O1", "T240Z1,0H0,5,0,3L16W3Y3,3000,0K0R5V11O6"'
     )
-    assert lines[2] == 'PLAY "L4N41P8L8N44.P4.P16", "CP2.P8.", "CP8.CP2P8."', lines[2]
-    hats = mid2play.bar_of(dict.fromkeys(range(16), (42, 1)), 0, 16, "C")
+    # a note is as loud as its velocity, squared: every track at one volume was not a recording's balance. The
+    # volume is set where it changes, the G at 64 of 127 a quarter of full
+    assert lines[2] == 'PLAY "V9L4N41P8V4L8N44.P4.P16", "CP2.P8.", "CP8.CP2P8."', lines[2]
+    hats = mid2play.bar_of(dict.fromkeys(range(16), (42, 1, 15)), 0, 16, "C", {})
     assert hats == "C" * 16, hats
     with tempfile.TemporaryDirectory() as tmp:
         (Path(tmp) / "T.BAS").write_text(text + 'PRINT "played"\n')
