@@ -249,7 +249,9 @@ DECLARE SUB ToggleMusic (s AS Song)
 DECLARE SUB PlaySfx (id AS INTEGER)
 DECLARE SUB EaseSky (s AS Sky, cur() AS SINGLE)
 DECLARE SUB ApplyPalette (s AS Sky, cur() AS SINGLE)
-DECLARE SUB Shade (k() AS LONG, c() AS LONG)
+DECLARE SUB Shade (k() AS LONG, c() AS LONG, kc() AS INTEGER, all AS INTEGER)
+DECLARE SUB Dirty (a AS INTEGER, b AS INTEGER)
+DECLARE SUB ShadeLand (c() AS LONG, i0 AS INTEGER, n AS INTEGER, a AS LONG, b AS LONG, span AS INTEGER, moved AS INTEGER, wet AS INTEGER, lake AS LONG)
 DECLARE SUB Ramp (c() AS LONG, i0 AS INTEGER, n AS INTEGER, a AS LONG, b AS LONG, span AS INTEGER)
 DECLARE SUB Render (w AS World, st() AS Stone, sp() AS Spark)
 DECLARE SUB DrawSky (g AS Game)
@@ -357,6 +359,7 @@ DIM SHARED DacNow(255) AS LONG, Pow256(2) AS LONG
 ' is set once, before the frame is drawn. A channel's
 ' DAC value at the fade DacFade.
 DIM SHARED PalDirty AS INTEGER, DacOf(255) AS LONG, DacFade AS SINGLE
+DIM SHARED DirtyA(31) AS INTEGER, DirtyB(31) AS INTEGER, NDirty AS INTEGER
 DIM SHARED Tinter(SW * LAKEH \ 4) AS LONG
 ' Scratch for drawing.
 DIM SHARED Strip(80) AS LONG, Frame(SW * SH \ 4) AS LONG
@@ -596,11 +599,11 @@ END SUB
 ' The colours shaded again only when a key moved; a
 ' DAC entry set only when it changed.
 SUB ApplyPalette (s AS Sky, cur() AS SINGLE)
-    DIM k(NKEY - 1) AS LONG, i AS INTEGER
-    DIM moved AS INTEGER, d AS LONG, c AS LONG
+    DIM k(NKEY - 1) AS LONG, kc(NKEY - 1) AS INTEGER
+    DIM i AS INTEGER, r AS INTEGER, d AS LONG, c AS LONG
     FOR i = 0 TO NKEY - 1
         k(i) = Pack&(cur(i, 0), cur(i, 1), cur(i, 2))
-        IF k(i) <> ShadeKey(i) THEN moved = -1
+        kc(i) = k(i) <> ShadeKey(i)
         ShadeKey(i) = k(i)
     NEXT
     IF NOT Shaped THEN
@@ -608,22 +611,25 @@ SUB ApplyPalette (s AS Sky, cur() AS SINGLE)
             Shaded(i) = Fixed(i)
         NEXT
     END IF
-    ' Shade sets the same entries each time
-    IF moved OR NOT Shaped THEN Shade k(), Shaded()
+    NDirty = 0
+    Shade k(), Shaded(), kc(), NOT Shaped
     IF s.fade <> DacFade OR NOT Shaped THEN
         Shaped = -1
         DacFade = s.fade
         FOR i = 0 TO 255
             DacOf(i) = Dac&(CLNG(i), s.fade)
         NEXT
+        NDirty = 1: DirtyA(0) = 0: DirtyB(0) = 255
     END IF
-    FOR i = 0 TO 255
-        c = Shaded(i)
-        d = DacOf(c MOD 256) + DacOf((c \ 256) MOD 256) * 256 + DacOf((c \ 65536) MOD 256) * 65536
-        IF d <> DacNow(i) THEN
-            PALETTE i, d
-            DacNow(i) = d
-        END IF
+    FOR r = 0 TO NDirty - 1
+        FOR i = DirtyA(r) TO DirtyB(r)
+            c = Shaded(i)
+            d = DacOf(c MOD 256) + DacOf((c \ 256) MOD 256) * 256 + DacOf((c \ 65536) MOD 256) * 65536
+            IF d <> DacNow(i) THEN
+                PALETTE i, d
+                DacNow(i) = d
+            END IF
+        NEXT
     NEXT
 END SUB
 
@@ -2137,21 +2143,45 @@ END SUB
 ' The colours from the sky's key colours k: sky,
 ' title, clouds, ridges, trees, stone, and the
 ' water's copies.
-SUB Shade (k() AS LONG, c() AS LONG)
-    DIM i AS INTEGER, h AS INTEGER
+' The colours whose keys moved (kc), all of them the
+' first time, each range set noted for the DAC.
+SUB Shade (k() AS LONG, c() AS LONG, kc() AS INTEGER, all AS INTEGER)
+    DIM h AS INTEGER, w AS INTEGER
     h = NSKY \ 2
-    Ramp c(), CSKY, h, k(0), k(1), h
-    Ramp c(), CSKY + h, h, k(1), k(2), h - 1
-    Ramp c(), CTITLE, 8, &H8CFFFF, &H1E78FF, 7
-    c(CCLOUD) = k(3)
-    c(CCLOUDLO) = k(4)
-    Ramp c(), CMTN, 16, Lit&(k(5)), k(2), 16
-    Ramp c(), CFAR, 16, Lit&(k(6)), k(7), 12
-    Ramp c(), CNEAR, 16, Lit&(k(8)), k(9), 12
-    Ramp c(), CTREE, 4, k(10), k(11), 3
-    Ramp c(), CSTONE, 8, k(13), k(14), 7
-    Wets c(), 0, 15, k(12)
-    Wets c(), CMTN, CVINE, k(12)
+    w = kc(12) OR all
+    IF kc(0) OR kc(1) OR all THEN Ramp c(), CSKY, h, k(0), k(1), h: Dirty CSKY, CSKY + h - 1
+    IF kc(1) OR kc(2) OR all THEN Ramp c(), CSKY + h, h, k(1), k(2), h - 1: Dirty CSKY + h, CSKY + 2 * h - 1
+    IF all THEN Ramp c(), CTITLE, 8, &H8CFFFF, &H1E78FF, 7: Dirty CTITLE, CTITLE + 7
+    IF kc(3) OR all THEN c(CCLOUD) = k(3): Dirty CCLOUD, CCLOUD
+    IF kc(4) OR all THEN c(CCLOUDLO) = k(4): Dirty CCLOUDLO, CCLOUDLO
+    IF kc(5) OR kc(2) OR all THEN ShadeLand c(), CMTN, 16, Lit&(k(5)), k(2), 16, -1, w, k(12) ELSE ShadeLand c(), CMTN, 16, 0, 0, 16, 0, w, k(12)
+    IF kc(6) OR kc(7) OR all THEN ShadeLand c(), CFAR, 16, Lit&(k(6)), k(7), 12, -1, w, k(12) ELSE ShadeLand c(), CFAR, 16, 0, 0, 12, 0, w, k(12)
+    IF kc(8) OR kc(9) OR all THEN ShadeLand c(), CNEAR, 16, Lit&(k(8)), k(9), 12, -1, w, k(12) ELSE ShadeLand c(), CNEAR, 16, 0, 0, 12, 0, w, k(12)
+    ShadeLand c(), CTREE, 4, k(10), k(11), 3, kc(10) OR kc(11) OR all, w, k(12)
+    ShadeLand c(), CSTONE, 8, k(13), k(14), 7, kc(13) OR kc(14) OR all, w, k(12)
+    IF w THEN
+        Wets c(), 0, 15, k(12): Dirty WATER, WATER + 15
+        Wets c(), CMOSS, CVINE, k(12): Dirty WATER + CMOSS, WATER + CVINE
+    END IF
+END SUB
+
+' A ramp of the land's when its keys moved, and its
+' mirror in the lake when it or the lake's key did.
+SUB ShadeLand (c() AS LONG, i0 AS INTEGER, n AS INTEGER, a AS LONG, b AS LONG, span AS INTEGER, moved AS INTEGER, wet AS INTEGER, lake AS LONG)
+    IF moved THEN
+        Ramp c(), i0, n, a, b, span
+        Dirty i0, i0 + n - 1
+    END IF
+    IF moved OR wet THEN
+        Wets c(), i0, i0 + n - 1, lake
+        Dirty WATER + i0, WATER + i0 + n - 1
+    END IF
+END SUB
+
+' Entries a to b to be set in the DAC.
+SUB Dirty (a AS INTEGER, b AS INTEGER)
+    DirtyA(NDirty) = a: DirtyB(NDirty) = b
+    NDirty = NDirty + 1
 END SUB
 
 ' Colours i0 to i1 as the lake mirrors them, at
