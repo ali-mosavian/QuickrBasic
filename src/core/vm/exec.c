@@ -166,6 +166,59 @@ static inline bool st_a1(Regs *const r, const Addr fp, const bool frame)
     return true;
 }
 
+/* RA.ADDR ( sub -- a ) of a 1-D record array from 0, in range; false: the handler's. */
+static inline bool ra_addr1(Regs *const r, const Arry *const ar)
+{
+    const ArrSlot *const s = (const ArrSlot *)at(loc_at((Loc){(int32_t)load32(r->ip + 3)}, r->fp));
+
+    if (!s->hdr || r->ip[3 + VCELL] != 1)
+        return false;
+
+    const ArrayHdr *const a = (const ArrayHdr *)at(s->hdr);
+
+    if ((uint32_t)r->sp->i >= a->fast)
+        return false;
+
+    r->sp->a = a->data + (uint32_t)r->sp->i * arry_esize(ar, load16(r->ip + 1));
+    r->ip += 4 + VCELL;
+    return true;
+}
+
+/* FL.LD ( a -- x ) and FL.ST ( a x -- ) of a field not a DOUBLE, a store in range; false: the
+   handler's. */
+static inline bool fl_ld(Regs *const r)
+{
+    const uint8_t type = r->ip[3];
+    const Addr a = r->sp->a + load16(r->ip + 1);
+
+    if (type == ET_R8)
+        return false;
+
+    r->sp->i = type == ET_SH ? (int16_t)rd16(a) : type == ET_BY ? (int32_t)rd8(a) : (int32_t)rd32(a);
+    r->ip += 4;
+    return true;
+}
+
+static inline bool fl_st(Regs *const r)
+{
+    const uint8_t type = r->ip[3];
+    const Cell x = *r->sp;
+    const Addr a = r->sp[1].a + load16(r->ip + 1);
+
+    if (type == ET_SH && x.i == (int16_t)x.i)
+        wr16(a, (uint16_t)x.u);
+    else if (type == ET_BY && x.u <= 255)
+        wr8(a, (uint8_t)x.u);
+    else if (type != ET_SH && type != ET_BY && type != ET_R8)
+        wr32(a, x.u);
+    else
+        return false;
+
+    r->sp += 2;
+    r->ip += 4;
+    return true;
+}
+
 /* The ops exec_run runs inline (vm/hot.h): name, handler. */
 #define HOT_OPS(X)                                                                                 \
     X(i_ld_v, oper_i_ld_v)                                                                         \
@@ -367,6 +420,9 @@ static void exec_loop(Session *const S)
                 {exec_f_ld_a1f, &&i_ld_a1f},
                 {exec_i_st_a1f, &&i_st_a1f},
                 {exec_f_st_a1f, &&i_st_a1f},
+                {exec_ra_addr, &&ra_addr},
+                {exec_fl_ld, &&fl_ld},
+                {exec_fl_st, &&fl_st},
                 {nullptr, &&cold},
             },
             &&eol_to
@@ -699,6 +755,24 @@ i_st_a1:
 i_st_a1f:
 
     if (!st_a1(&r, v->fp, true))
+        goto slow;
+
+    goto next;
+
+ra_addr:
+    if (!ra_addr1(&r, &S->arry))
+        goto slow;
+
+    goto next;
+
+fl_ld:
+    if (!fl_ld(&r))
+        goto slow;
+
+    goto next;
+
+fl_st:
+    if (!fl_st(&r))
         goto slow;
 
     goto next;
