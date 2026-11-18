@@ -22,6 +22,7 @@ jobs:
           sudo apt-get install -y lld-20
       - run: make -j4 web CLANG=clang-20 WASM_LD=wasm-ld-20
       - run: node tools/wasm/frame_test.mjs build/wasm/ide.wasm
+      - run: node tools/wasm/help_test.mjs
       - uses: actions/upload-pages-artifact@v3
         with:
           path: build/web

@@ -6,6 +6,7 @@ import { memory as newMemory, Irq, sidecar, ticker, MUSIC_HZ } from './wasm.mjs'
 
 const BLINK_MS = 267;
 const DEMOS = ['WELCOME.BAS', 'GORILLA.BAS', 'NIBBLES.BAS', 'MOTHLITE.BAS', 'RUSTLINE.BAS'];
+const SUPPORT = ['BASIC.HLP']; // F1's help file, beside the programs, as on DOS
 const STORE = 'qb:'; // localStorage: STORE + path -> the file in base64
 
 const canvas = document.getElementById('screen');
@@ -23,9 +24,14 @@ const unb64 = (text) => Uint8Array.from(atob(text), (c) => c.charCodeAt(0));
 // The files: the demos, then what the visitor saved or uploaded (theirs win).
 async function files() {
   const out = new Map();
-  await Promise.all(DEMOS.map(async (name) => {
-    const r = await fetch(`demos/${name}`);
-    if (r.ok) out.set('/' + name, new Uint8Array(await r.arrayBuffer()));
+  await Promise.all([...DEMOS.map((n) => `demos/${n}`), ...SUPPORT].map(async (src) => {
+    const name = src.split('/').pop();
+    try { // a file that will not load is not worth the page
+      const r = await fetch(src);
+      if (r.ok) out.set('/' + name, new Uint8Array(await r.arrayBuffer()));
+    } catch (e) {
+      console.error(`no ${name}:`, e);
+    }
   }));
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
