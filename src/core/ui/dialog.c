@@ -62,6 +62,7 @@ enum {
     DL_WRAP = 44,
     NMSGCTL = 16,
     FRAME = 2,      /* a box's two sides */
+    LIST_GAP = 2,   /* between a list's columns */
     FIELD_ROWS = 3, /* a field's box */
     BTN_PAD = 4,    /* a button's width past its text when none given: "< " and " >" */
 };
@@ -255,35 +256,97 @@ static void draw_field(const DlogCtl *const c, const uint8_t top, const uint8_t 
     dl.cur = place(row, (uint8_t)(col + (b->col - first)));
 }
 
+/* c's list's columns shown: one unless the list has columns; then as many of the widest item and
+   LIST_GAP as fit. */
+static uint8_t list_per(const DlogCtl *const c)
+{
+    const DlogList *const l = c->list;
+
+    if (!l->columns)
+        return 1;
+
+    const uint32_t per = (c->cols + LIST_GAP) / (l->size - 1 + LIST_GAP); /* size: its 0 too */
+    return per ? (uint8_t)per : 1;
+}
+
+/* What a list's top moves by: a column when it has columns. */
+static uint32_t list_step(const DlogCtl *const c) { return c->list->columns ? c->rows : 1; }
+
+/* c's list's items past its box: then its bar, sideways for columns, else down. */
+static bool list_over(const DlogCtl *const c)
+{
+    return c->list->n > (uint32_t)c->rows * list_per(c) && c->cols >= 3 && c->rows >= 3;
+}
+
+/* Where the thumb is on c's list's bar, len cells, arrows too: the selection's column, item. */
+static uint32_t bar_thumb(const DlogCtl *const c, const uint32_t len)
+{
+    const DlogList *const l = c->list;
+
+    if (l->columns)
+        return l->sel / c->rows * (len - 3) / ((l->n + c->rows - 1) / c->rows);
+
+    return l->sel * (len - 3) / l->n;
+}
+
+/* c's list's bar, on its box's bottom or right side: arrows, the track, the thumb. */
+static void draw_bar(const DlogCtl *const c, const uint8_t top, const uint8_t left)
+{
+    if (!list_over(c))
+        return;
+
+    if (c->list->columns) {
+        const uint8_t row = (uint8_t)(top + c->rows + 1);
+        uint8_t x = scrn_fill(row, (uint8_t)(left + 1), SL_BAR, GLYPH_LEFT, 1);
+        x = scrn_fill(row, x, SL_BAR, GLYPH_SHADE, c->cols - 2);
+        scrn_fill(row, x, SL_BAR, GLYPH_RIGHT, 1);
+        scrn_fill(row, (uint8_t)(left + 2 + bar_thumb(c, c->cols)), SL_THB, ' ', 1);
+        return;
+    }
+
+    const uint8_t col = (uint8_t)(left + c->cols + 1);
+    scrn_fill((uint8_t)(top + 1), col, SL_BAR, GLYPH_UP, 1);
+
+    for (uint8_t r = 2; r < c->rows; r++)
+        scrn_fill((uint8_t)(top + r), col, SL_BAR, GLYPH_SHADE, 1);
+
+    scrn_fill((uint8_t)(top + c->rows), col, SL_BAR, GLYPH_DOWN, 1);
+    scrn_fill((uint8_t)(top + 2 + bar_thumb(c, c->rows)), col, SL_THB, ' ', 1);
+}
+
 static void draw_list(const DlogCtl *const c, const uint8_t top, const uint8_t left)
 {
     scrn_box(top, left, c->rows + FRAME, c->cols + FRAME, SL_DLG, nullptr);
-    const uint8_t col = left + 1;
     DlogList *const l = c->list;
+    const uint8_t per = list_per(c);
+    const uint8_t stride = c->cols / per;
+    const uint8_t wide = per > 1 ? stride - 1 : c->cols; /* an item's cells, its highlight */
+    const uint32_t page = (uint32_t)c->rows * per, step = list_step(c);
 
     if (l->sel < l->top) /* the first shown keeps it in view */
-        l->top = l->sel;
+        l->top = l->sel - l->sel % step;
+    if (l->sel >= l->top + page)
+        l->top = (l->sel / step + 1) * step - page;
 
-    const uint32_t end = l->top + c->rows;
-
-    if (l->sel >= end)
-        l->top += l->sel - end + 1;
-    for (uint8_t r = 0; r < c->rows; r++) {
-        const uint8_t row = (uint8_t)(top + 1 + r);
-        const uint32_t i = l->top + r;
+    for (uint32_t k = 0; k < page; k++) {
+        const uint32_t i = l->top + k;
 
         if (i >= l->n)
-            continue;
+            break;
 
-        const char *const item = l->items + i * l->size; /* cut at the box's width */
+        const uint8_t row = (uint8_t)(top + 1 + k % c->rows);
+        const uint8_t col = (uint8_t)(left + 1 + k / c->rows * stride);
+        const char *const item = l->items + i * l->size; /* cut at its cells */
         const size_t len = strlen(item);
-        scrn_strn(row, col, (const uint8_t *)item, len < c->cols ? (uint16_t)len : c->cols, SL_DLG);
+        scrn_strn(row, col, (const uint8_t *)item, len < wide ? (uint16_t)len : wide, SL_DLG);
 
         if (i == l->sel && dl.focused) {
-            scrn_attr(row, col, c->cols, SL_DSEL);
+            scrn_attr(row, col, wide, SL_DSEL);
             dl.cur = place(row, col);
         }
     }
+
+    draw_bar(c, top, left);
 }
 
 /* dl_bw's for a control: its width, its text's + BTN_PAD when none. */
@@ -486,14 +549,41 @@ bool dlog_ledit(LineBuf *const b, const uint16_t key)
 /* What a key or a click leads to: GO_LOOP nothing more; GO_ESC the box ends. */
 enum : uint8_t { GO_LOOP, GO_PRESS, GO_ENTER, GO_CHECK, GO_SET, GO_ESC };
 
-/* A click on a list's line r: once selects (*sel), on the selected one opens. */
-static uint8_t list_click(const DlogCtl *const c, const int r, uint32_t *const sel)
+/* A click at p on c's list's bar, len cells: an arrow a column (an item) on or back, the track a
+   page towards it. */
+static uint8_t bar_click(
+    const DlogCtl *const c,
+    const uint32_t p,
+    const uint32_t len,
+    uint32_t *const sel
+)
 {
-    if (r < 0 || r >= c->rows)
+    const uint32_t s = c->list->sel, page = (uint32_t)c->rows * list_per(c);
+    const bool arrow = !p || p == len - 1;
+    const bool back = !p || (!arrow && p < 1 + bar_thumb(c, len));
+    const uint32_t by = arrow ? list_step(c) : page;
+
+    *sel = back ? (s >= by ? s - by : 0) : s + by;
+    return GO_SET;
+}
+
+/* A click on a list's line r, cell x: once selects (*sel), on the selected one opens; on its
+   bar, moves. */
+static uint8_t list_click(const DlogCtl *const c, const int r, const int x, uint32_t *const sel)
+{
+    const uint8_t per = list_per(c);
+    const int column = x / (c->cols / per);
+
+    if (list_over(c) && c->list->columns && r == c->rows && x >= 0 && x < c->cols)
+        return bar_click(c, (uint32_t)x, c->cols, sel);
+    if (list_over(c) && !c->list->columns && x == c->cols && r >= 0 && r < c->rows)
+        return bar_click(c, (uint32_t)r, c->rows, sel);
+
+    if (r < 0 || r >= c->rows || x < 0 || column >= per)
         return GO_LOOP;
 
     const DlogList *const l = c->list;
-    const uint32_t at = l->top + (uint32_t)r;
+    const uint32_t at = l->top + (uint32_t)column * c->rows + (uint32_t)r;
 
     if (at >= l->n)
         return GO_LOOP;
@@ -504,8 +594,14 @@ static uint8_t list_click(const DlogCtl *const c, const int r, uint32_t *const s
     return GO_SET;
 }
 
-/* A press on control i (c) at its row r: a button pressed, else the focus. */
-static uint8_t click(const DlogCtl *const c, const uint8_t i, const int r, uint32_t *const sel)
+/* A press on control i (c) at its row r, column x: a button pressed, else the focus. */
+static uint8_t click(
+    const DlogCtl *const c,
+    const uint8_t i,
+    const int r,
+    const int x,
+    uint32_t *const sel
+)
 {
     if (c->flags & CF_NOF)
         return GO_LOOP;
@@ -518,7 +614,7 @@ static uint8_t click(const DlogCtl *const c, const uint8_t i, const int r, uint3
     if (c->kind == CT_CHK)
         return GO_CHECK;
     if (c->kind == CT_LST)
-        return list_click(c, r - 1, sel);
+        return list_click(c, r - 1, x - 1, sel);
 
     return GO_LOOP;
 }
@@ -572,6 +668,7 @@ static void field_key(LineBuf *const b, const uint16_t key)
 static uint8_t list_key(const DlogCtl *const c, const uint8_t scan, uint32_t *const sel)
 {
     const uint32_t s = c->list->sel;
+    const uint32_t page = (uint32_t)c->rows * list_per(c), across = c->list->columns ? c->rows : 0;
 
     switch (scan) {
     case SCAN_UP:
@@ -585,8 +682,22 @@ static uint8_t list_key(const DlogCtl *const c, const uint8_t scan, uint32_t *co
         *sel = s + 1;
         break;
 
+    case SCAN_LEFT:
+        if (!across || !s)
+            return GO_LOOP;
+
+        *sel = s >= across ? s - across : 0;
+        break;
+
+    case SCAN_RIGHT:
+        if (!across)
+            return GO_LOOP;
+
+        *sel = s + across;
+        break;
+
     case SCAN_PGUP:
-        *sel = s >= c->rows ? s - c->rows : 0;
+        *sel = s >= page ? s - page : 0;
         break;
 
     case SCAN_HOME:
@@ -594,7 +705,7 @@ static uint8_t list_key(const DlogCtl *const c, const uint8_t scan, uint32_t *co
         break;
 
     case SCAN_PGDN:
-        *sel = s + c->rows;
+        *sel = s + page;
         break;
 
     case SCAN_END:
@@ -763,7 +874,7 @@ static bool ctl_mouse(Widget *const w, Session *const S, const uint8_t row, cons
 
     DlogCtl *const c = ctl_of(w);
     uint32_t sel = 0; /* GO_SET's */
-    const uint8_t go = click(c, (uint8_t)(w - dl.kids), row - w->rect.row, &sel);
+    const uint8_t go = click(c, (uint8_t)(w - dl.kids), row - w->rect.row, col - w->rect.col, &sel);
     ended(go, c, sel);
     return true;
 }
