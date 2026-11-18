@@ -152,8 +152,8 @@ TEST(synth_renders_as_the_page_does)
     CHECK(hash == 2313499851u);
 }
 
-/* Every wave under every filter, six voices at once with the speaker, released halfway and rendered in uneven
-   pieces: the samples as they were before rendering went a voice a block at a time. */
+/* Every wave under every filter, six voices at once with the speaker, released halfway, one cut at three quarters,
+   rendered in uneven pieces: the samples as they were before rendering went a voice a block at a time. */
 TEST(synth_six_voices_render_as_before)
 {
     Synth s;
@@ -178,11 +178,16 @@ TEST(synth_six_voices_render_as_before)
                 synth_voice(&s, k, &v);
             }
         }
+        if (at >= RATE * 3 / 4 && at - piece < RATE * 3 / 4) { /* one cut off at once */
+            DevVoice v = s.osc[1].set;
+            v.hertz = 0;
+            synth_voice(&s, 1, &v);
+        }
         synth_render(&s, buf + at, n);
     }
     for (int i = 0; i < RATE; i++)
         hash = hash * 31 + (uint32_t)buf[i];
-    CHECK(hash == 2808615u);
+    CHECK(hash == 2531076252u);
 }
 
 /* QB's speaker as plat/sdl/audio.c made it before the synthesizer: the reference. */

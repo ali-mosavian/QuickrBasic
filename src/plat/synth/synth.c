@@ -149,6 +149,55 @@ static int32_t fall(const SynthOsc *const o, const int32_t *const steps)
         o->level = 0;
 }
 
+/* The band of levels fall()'s step holds over: the lowest level in it. */
+static int32_t fall_floor(const int32_t level)
+{
+    const int32_t at = level >> 16;
+    int i = SYNTH_CURVE - 1;
+
+    while (i > 0 && at >= below[i])
+        i--;
+    return i < SYNTH_CURVE - 1 ? below[i + 1] << 16 : 0;
+}
+
+/* How many of the next `left` samples the envelope moves by one step, *delta, with no stage changed and nothing
+   clipped: each as envelope() would. 0: the next is envelope()'s own. */
+static int envelope_run(const Synth *const s, const SynthOsc *const o, const int left, int32_t *const delta)
+{
+    const int32_t sustain = (int32_t)(o->set.envelope >> 4 & HIGHEST_NIBBLE) * (FULL / HIGHEST_NIBBLE);
+    const int32_t level = o->level;
+    int32_t step, floor, k;
+
+    switch (o->stage) {
+    case STAGE_ATTACK:
+        *delta = o->attack;
+        k = (FULL - 1 - level) / o->attack; /* each stays under FULL */
+        return k < left ? (int)k : left;
+    case STAGE_DECAY:
+        if (level <= sustain) {
+            *delta = 0;
+            return left;
+        }
+        step = fall(o, o->decay);
+        floor = sustain;
+        break;
+    case STAGE_RELEASE:
+        step = fall(o, o->release);
+        floor = 0;
+        break;
+    default:
+        step = FULL / (int32_t)(s->rate / FADES_A_SECOND);
+        *delta = -step;
+        k = level / step;
+        return k < left ? (int)k : left;
+    }
+    *delta = -step;
+    k = (level - floor) / step;                      /* each stays at the floor or over */
+    const int32_t band = (level - fall_floor(level)) / step + 1; /* each starts in the step's band */
+    k = band < k ? band : k;
+    return k < left ? (int)k : left;
+}
+
 /* The wave's next sample, -32767 to 32767. */
 [[gnu::always_inline]] static inline int32_t wave(SynthOsc *const o)
 {
@@ -203,16 +252,29 @@ static int32_t fall(const SynthOsc *const o, const int32_t *const steps)
 
     o.set.wave = (unsigned char)wave_kind;
     o.set.filter = (unsigned char)filter;
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < n;) {
         if (o.level == 0 && (o.stage == STAGE_CUT || o.stage == STAGE_RELEASE)) /* silent until the next note */
             break;
-        envelope(s, &o);
-        /* under 2^15 times 2^15, and unfiltered under 2^15 times the gain: int32 holds them */
-        const int32_t out = wave(&o) * (o.level >> 9) >> 15;
-        if (filter != DEV_UNFILTERED)
-            sum[i] += (int32_t)((int64_t)filtered(&o, out) * o.gain >> 15);
-        else
-            sum[i] += out * o.gain >> 15;
+        int32_t delta;
+        int run = envelope_run(s, &o, n - i, &delta);
+
+        if (!run) {
+            envelope(s, &o);
+            run = 1;
+            delta = 0;
+        } else
+            o.level += delta;
+        for (const int end = i + run;;) {
+            /* under 2^15 times 2^15, and unfiltered under 2^15 times the gain: int32 holds them */
+            const int32_t out = wave(&o) * (o.level >> 9) >> 15;
+            if (filter != DEV_UNFILTERED)
+                sum[i] += (int32_t)((int64_t)filtered(&o, out) * o.gain >> 15);
+            else
+                sum[i] += out * o.gain >> 15;
+            if (++i == end)
+                break;
+            o.level += delta;
+        }
     }
     into->phase = o.phase;
     into->noise = o.noise;
@@ -255,8 +317,12 @@ void synth_render(Synth *const s, int16_t *const out, const int count)
         const int n = count - at < SYNTH_BLOCK ? count - at : SYNTH_BLOCK;
         int32_t sum[SYNTH_BLOCK];
 
-        for (int i = 0; i < n; i++)
-            sum[i] = speaker(s);
+        if (!__atomic_load_n(&s->want, __ATOMIC_RELAXED) && !s->hertz && !s->gain) /* silent: speaker() is 0 */
+            for (int i = 0; i < n; i++)
+                sum[i] = 0;
+        else
+            for (int i = 0; i < n; i++)
+                sum[i] = speaker(s);
         for (int v = 0; v < DEV_VOICES; v++)
             voice(s, &s->osc[v], sum, n);
         for (int i = 0; i < n; i++)
