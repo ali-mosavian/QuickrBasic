@@ -57,7 +57,8 @@ enum {
     LAST_TEXT_MODE = 7,
     GET_MODE = 0x0F00,
     SET_PALETTE = 0x1000,
-    SET_DAC = 0x1010,
+    DAC_WRITE_INDEX = 0x3C8,
+    DAC_DATA = 0x3C9,
     GET_FONT = 0x1130,
     FONT_14 = 0x0200,
     FONT_8 = 0x0300,
@@ -332,15 +333,13 @@ void gd_cga_color(unsigned background, unsigned palette)
     dev_int10(&r);
 }
 
+/* The DAC's ports, as the BIOS's 1010h writes them: no trip to real mode. */
 void gd_palette_mix(unsigned index, unsigned red, unsigned green, unsigned blue)
 {
-    Regs r;
-
-    r.rax = SET_DAC;
-    r.rbx = index;
-    r.rcx = green << 8 | blue;
-    r.rdx = red << 8;
-    dev_int10(&r);
+    dev_outb(DAC_WRITE_INDEX, index & 0xFF);
+    dev_outb(DAC_DATA, red & 0x3F);
+    dev_outb(DAC_DATA, green & 0x3F);
+    dev_outb(DAC_DATA, blue & 0x3F);
 }
 
 /* One byte of pixels under `mask`: `color` in the planes. */
