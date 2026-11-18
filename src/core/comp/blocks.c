@@ -189,11 +189,7 @@ BlockEnt *blok_find(const Blok *const b, const uint32_t line, const uint32_t at)
     return nullptr;
 }
 
-const Proc *blok_proc(const Blok *const b, const uint8_t i)
-{
-    static const Proc none;
-    return i && i < b->nprocs ? b->procs[i] : &none;
-}
+const Proc blok_noproc;
 
 /* The last procedure whose first line is at or before pos, 0 none: they are in the program's
    order, as blok_pair's scan met them. */

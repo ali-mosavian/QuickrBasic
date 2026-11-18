@@ -56,7 +56,11 @@ void blok_pair(Blok *b, const Prog *pg, const Symb *sy, Fault *f);
 /* The entry of line's statement at body offset off; null none. */
 BlockEnt *blok_find(const Blok *b, uint32_t line, uint32_t off);
 /* Procedure i; 0, or none yet, an empty one: the module. */
-const Proc *blok_proc(const Blok *b, uint8_t i);
+extern const Proc blok_noproc;
+static inline const Proc *blok_proc(const Blok *const b, const uint8_t i)
+{
+    return i && i < b->nprocs ? b->procs[i] : &blok_noproc;
+}
 /* bk_proc: the procedure line is in, 0 none. */
 uint8_t blok_procof(const Blok *b, uint32_t line);
 /* A line at or before position pos: the first of the last procedure that starts there, else the
