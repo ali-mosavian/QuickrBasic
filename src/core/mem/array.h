@@ -20,9 +20,9 @@ typedef struct Arry {
     Strg *strg;             /* collected for room; a string element's block follows it */
     const Addr *fp;         /* the running call's frame (vm.fp): its arrays' cells */
     Addr hdr;               /* past the headers (mm.ahd) */
-    uint16_t subs[ADIMS];   /* the subscripts (g_dimbuf) */
-    uint16_t counts[ADIMS]; /* the counts (g_cntbuf) */
-    int16_t lbounds[ADIMS]; /* the lower bounds (g_lbbuf) */
+    int32_t subs[ADIMS];    /* the subscripts (g_dimbuf) */
+    uint32_t counts[ADIMS]; /* the counts (g_cntbuf) */
+    int32_t lbounds[ADIMS]; /* the lower bounds (g_lbbuf) */
 } Arry;
 
 /* ay's links set. */
@@ -41,7 +41,7 @@ void arry_bad_sub(const Arry *ay);
 uint32_t arry_esize(const Arry *ay, uint16_t id);
 uint32_t arry_elem_size(const Symb *sy, const Decl *d, uint16_t id);
 /* A 1-D header in a frame: its bytes to the data. */
-enum { ARRY_FRAME_HDR1 = (sizeof(ArrayHdr) + 2 * sizeof(uint16_t) + 7) & ~7 };
+enum { ARRY_FRAME_HDR1 = (sizeof(ArrayHdr) + 2 * sizeof(uint32_t) + 7) & ~7 };
 /* A header of dims dimensions in a frame: its bytes to the data, 8-aligned. */
 uint32_t arry_frame_hdr(uint8_t dims);
 /* Header h is the heap's (arry_new's), not a frame's. */

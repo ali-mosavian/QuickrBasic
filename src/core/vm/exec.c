@@ -749,15 +749,6 @@ int32_t exec_idiv(Fault *const f, const int32_t a, const int32_t b, int32_t *con
 
 /* ---- arrays and records --------------------------------------------------------------------- */
 
-/* A subscript past a word is Subscript out of range. */
-static uint16_t subscript(Arry *const ar, const int32_t sub)
-{
-    if (sub != (int16_t)sub)
-        arry_bad_sub(ar);
-
-    return (uint16_t)sub;
-}
-
 /* An FA op's operands at vm->ip: its id to *id, its cell. */
 static ArrSlot *op_slot(Vm *const vm, uint16_t *const id)
 {
@@ -780,7 +771,7 @@ Addr exec_elem1(Session *const S, const int32_t sub, const uint32_t size, const 
     const Loc c = {(int32_t)exec_u32(vm)};
 
     ArrSlot *const s = frame ? arry_slot(&S->arry, id) : (ArrSlot *)at(loc_at(c, vm->fp));
-    S->arry.subs[0] = subscript(&S->arry, sub);
+    S->arry.subs[0] = sub;
     return arry_ref(&S->arry, s, id, 1); /* frame: DIMmed not yet, or from 1 */
 }
 
@@ -791,7 +782,7 @@ Addr exec_elem(Arry *const ar, Vm *const vm)
     const uint8_t n = exec_u8(vm);
 
     for (uint8_t i = n; i-- > 0;)
-        ar->subs[i] = subscript(ar, exec_popi(vm));
+        ar->subs[i] = exec_popi(vm);
 
     return arry_ref(ar, s, id, n);
 }
