@@ -27,9 +27,9 @@ CONST SIDLE = 0, SMOVE = 1, SATTACK = 2, SSEEK = 3, SGATHER = 4, SRETURN = 5, SU
 CONST FXBOOM = 1, FXBIG = 2, FXTRACE = 3, FXSHELL = 4, FXBEAM = 5, FXSMOKE = 6, FXMARK = 7
 CONST MOSSKEY = -2, NOKEY = -99, FAR = 32000, LOADMAX = 10, LOADVAL = 25
 CONST MINIX = 240, MINIY = 11, BTNY = 72, BTNH = 18
-' the palette: 0 to 31 the land's, units' and buildings'; 32 to 63 the same in the fog (FOG OR c);
-' from 64 the screens' ramps
-CONST FOG = 32, SKY = 64, PLANET = 96, FIRE = 112, LOGOC = 128
+' the palette: 0 to 63 the land's, units' and buildings' (from 32 the art tool's); 64 to 127 the
+' same in the fog (FOG OR c); from 128 the screens' ramps
+CONST FOG = 64, SKY = 128, PLANET = 160, FIRE = 176, LOGOC = 192
 ' the art, one array of IMG-element slots: images of 16 by 16 (a unit's sprite, mask and shadow),
 ' the minimap, the full screen.
 ' Past 64 KB: QB 4.5 needs /AH.
@@ -272,11 +272,6 @@ DECLARE FUNCTION Queued% (t AS TeamT, k AS INTEGER)
 DECLARE FUNCTION Rgb& (r AS INTEGER, g AS INTEGER, b AS INTEGER)
 DECLARE SUB Ramp (c0 AS INTEGER, n AS INTEGER, r0 AS INTEGER, g0 AS INTEGER, b0 AS INTEGER, r1 AS INTEGER, g1 AS INTEGER, b1 AS INTEGER)
 DECLARE SUB Shade (c AS INTEGER, r AS INTEGER, g AS INTEGER, b AS INTEGER)
-DECLARE FUNCTION UnitPix% (ut AS INTEGER, tmi AS INTEGER, u AS SINGLE, v AS SINGLE, fr AS INTEGER)
-DECLARE SUB DrawBuilding (bt AS INTEGER, tmi AS INTEGER, ox AS INTEGER, oy AS INTEGER)
-DECLARE SUB Prism (cx AS INTEGER, cy AS INTEGER, a AS INTEGER, h AS INTEGER, ct AS INTEGER, cl AS INTEGER, cr AS INTEGER)
-DECLARE SUB Cyl (cx AS INTEGER, cy AS INTEGER, r AS INTEGER, h AS INTEGER, c1 AS INTEGER, c2 AS INTEGER, c3 AS INTEGER, ctop AS INTEGER)
-DECLARE SUB Dome (cx AS INTEGER, cy AS INTEGER, r AS INTEGER, c1 AS INTEGER, c2 AS INTEGER, c3 AS INTEGER)
 DECLARE SUB IsoUV (px AS INTEGER, py AS INTEGER, u AS SINGLE, v AS SINGLE)
 DECLARE SUB ScreenTile (cam AS ViewT, sx AS INTEGER, sy AS INTEGER, wx AS INTEGER, wy AS INTEGER)
 DECLARE SUB ClampCam (cam AS ViewT)
@@ -284,6 +279,7 @@ DECLARE FUNCTION PickUnit% (g AS GameT, m() AS CellT, u() AS UnitT, sx AS INTEGE
 DECLARE FUNCTION PickBld% (g AS GameT, m() AS CellT, bl() AS BldgT, sx AS INTEGER, sy AS INTEGER)
 DECLARE FUNCTION IsoDir% (d AS INTEGER)
 DECLARE FUNCTION BldH% (bt AS INTEGER)
+DECLARE SUB Unpack (ox AS INTEGER, mx AS INTEGER, hx AS INTEGER, oy AS INTEGER)
 DECLARE FUNCTION Passable% (m() AS CellT, x AS INTEGER, y AS INTEGER)
 DECLARE FUNCTION Walk% (m() AS CellT, x AS INTEGER, y AS INTEGER, d AS INTEGER)
 DECLARE FUNCTION Lift% (m() AS CellT, x AS INTEGER, y AS INTEGER)
@@ -403,6 +399,542 @@ DATA "0000000000000000000000000000000022222222"
 DATA "0000000000000000000000000000122002222222"
 DATA "0000000000000000000000000000222200022222"
 DATA "0000000000000000000000000000222222222222"
+
+PalData:
+' colours 32 to 63: red, green, blue
+DATA 21, 17, 9
+DATA 10, 10, 12
+DATA 27, 22, 15
+DATA 5, 5, 6
+DATA 11, 57, 59
+DATA 19, 20, 23
+DATA 0, 33, 34
+DATA 30, 24, 16
+DATA 25, 57, 56
+DATA 16, 36, 36
+DATA 7, 7, 9
+DATA 39, 40, 46
+DATA 11, 24, 25
+DATA 6, 6, 8
+DATA 12, 13, 15
+DATA 3, 51, 53
+DATA 1, 45, 47
+DATA 11, 11, 14
+DATA 30, 30, 34
+DATA 14, 14, 17
+DATA 8, 9, 10
+DATA 33, 34, 38
+DATA 29, 23, 6
+DATA 7, 15, 15
+DATA 0, 18, 18
+DATA 8, 6, 3
+DATA 26, 27, 31
+DATA 63, 63, 28
+DATA 13, 11, 6
+DATA 16, 17, 19
+DATA 43, 44, 50
+DATA 8, 41, 24
+
+ArtData:
+' the buildings, each side's; the units, each side's, each heading's two frames: width,
+' height, then rows of symbols (Unpack); tools/ironmoss_art.py writes these
+DATA 64, 60
+DATA "~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~ckcb:b:~cmcg<[[lc:+"
+DATA "+b~cjc<I<ReS-II<[PjcFF~cjc<SRSSRdS--eI[icP#~chcI<SRSRSRRSf-I<<PPgcMF~cgc<jRSSd-eI<<PfcPF~cgc<SRGRRG"
+DATA "dRSf-I<II<[fcMF~cfc<eRfGRRSS--dI<<[[PecP#~cec`SeRdG.GRRS-I--I<<I<<[MdcPF~cc<cc<eRgGRSSd-eI<<[[PdcPF"
+DATA "}c<<-<TSRRSRRdGKGRSS-II-I<<[<<[ZMccFF{c<<S-NN:dSeRdGRSS-eIf<d[QQDT#yc<<-S-2aXHdSRRSRGRSSf-I<II<[[<[["
+DATA "D``TFxc<R-S--1;2H-jSe-eId<f[THHWFxc[ISG-<UU1]:SS-S-S-SS-I--eIe<[<[TTV`PFxc[II-RRIUUN::I-S-Sd-gIe<e[Q"
+DATA "TH``F#xcOLLeI]XNN]:]d-I-II-dIf<[[`:T`HVHPFxcOe*I<:NXNNdH`gI<Ie<[[HdDHH`HHFPTwcOL*LZI<]NUXUNUH`::NH::"
+DATA "`dH:]TQDWd`V`HHPPHQQuc)d*)I<:1eXNXXUTa22;11a1]HTVV`He`HHFPHH:TTsc:L*LZI<HNUXUXdNXdNaa2X:eHVdHV`V``VP"
+DATA "P`dH'qcACXNa*ZI<`U1UXXeNXdNXXH`dH`eHd`HVQ``dH``_\mcAQ&CdX1aa11UXXNXNN1NUXUNU]V`H`V`HH`HVHHV`H:H``H``"
+DATA "_A_MicCAJ&J&UeXNa;NXUUXUNX1UdXNU`He`dHe`eHg`_AQC\\fcAJEJE&&H]dX1X1;8a1U:U]dUXX1XHHV`V``VVQ`H:Hg`VV'_"
+DATA "C_AC'\ec_dEJE&&C`UfXNa;aXe+]]UNXHHd`HVQ`eHg`VTd_dC__\fc_'C&JJ&EC&HUXUdX1;ag+:XX`HVHHV`H:H``Hd`VV'_QA"
+DATA "ACC_W\FicA_&&eJ&&HUUeXN;h+XHe`eHg`VT_A__AA__F\mcAA&&dJE&AH]dX1X1af+:QQ`HXU(f`VV'_'C'AQ_W\Fqc_AE&EJEJ"
+DATA "EC`UfXN;++`XUX1X:g`VT_dA5J__\\uc_A&EEJ&EEAHUXUX1X1a;a1U(`Hd`VV'_C_AJJ_A\Pyc_A&dE5JECHUUeXNa]g`VT_A_E"
+DATA "5E__F\}cA'&&J5JE&&H]dX1Ue`VV'__JEE5_M\F~cdcAAECEEJEJC`UXX]d`VT__&dE__\\~chc_A&&fJVHU]VV'_QJJ5J_A\F~c"
+DATA "lc__&JEJ&JJ&QT&E&EE5__\\~cpc_A&EJE5&E&JEJ5_\\F~ctcA_ECJd&JJ__\\~cxc_AEC5J_M\F~c|c__&_F\~c~cccAF~c~c"
+DATA "~cic"
+DATA ""
+DATA 64, 60
+DATA "~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~ckcb:b:~cmcd=Ce=lc:"
+DATA "++b~cjc=Y=//@/@/=/=AAjcFF~cjc=n/=AicP#~chcY=m/==/=\\gcMF~cgc=f/0j/f=\fcPF~cgc=//0/0/0/0/@d/=//=Y=Afc"
+DATA "MF~cfc=e/e0@i/d=CA\ecP#~cec`//0/00@0@00/@d/==/=Y==AMdcPF~cc=cc=d/0/f0f/=/f=A=\dcPF}cY=@=Tf/00@0@/0/@"
+DATA "/=//=Y=Y==A=MccFF{c=Y//NN:g/0/@/0f/==/d=AA=AQQDT#ycY=//@2aXHf/0/0/0/@d/==/=Y=CA=A=D``TFxc=f/1;2Hp/=/"
+DATA "d=C==A=ATHHWFxc==/0//UU1]:@d/@d/@/=/=//=Y=Y==A=ATTV`PFxcd=e/UUN::k/=//d=Y=AA=AQTH``F#xcOLL//==]XNN]:"
+DATA "]d/=/=/==/=Y=Y=AA=`:T`HVHPFxcOe*==:NXNNdH`/==//f=Y==AHdDHH`HHFPTwcOL*LZ/=]NUXUNUH`::NH::`dH:]TQDWd`V"
+DATA "`HHPPHQQuc)d*)==:1eXNXXUTa22;11a1]HTVV`He`HHFPHH:TTsc:L*LZ/=HNUXUXdNXdNaa2X:eHVdHV`V``VPP`dH'qcACXNa"
+DATA "*Z=C`U1UXXeNXdNXXH`dH`eHd`HVQ``dH``_\mcAQ&CdX1aa11UXXNXNN1NUXUNU]V`H`V`HH`HVHHV`H:H``H``_A_MicCAJ&J&"
+DATA "UeXNa;NXUUXUNX1UdXNU`He`dHe`eHg`_AQC\\fcAJEJE&&H]dX1X1;8a1U:U]dUXX1XHHV`V``VVQ`H:Hg`VV'_C_AC'\ec_dEJ"
+DATA "E&&C`UfXNa;aXe+]]UNXHHd`HVQ`eHg`VTd_dC__\fc_'C&JJ&EC&HUXUdX1;ag+:XX`HVHHV`H:H``Hd`VV'_QAACC_W\FicA_&"
+DATA "&eJ&&HUUeXN;h+XHe`eHg`VT_A__AA__F\mcAA&&dJE&AH]dX1X1af+:QQ`HXU(f`VV'_'C'AQ_W\Fqc_AE&EJEJEC`UfXN;++`X"
+DATA "UX1X:g`VT_dA5J__\\uc_A&EEJ&EEAHUXUX1X1a;a1U(`Hd`VV'_C_AJJ_A\Pyc_A&dE5JECHUUeXNa]g`VT_A_E5E__F\}cA'&&"
+DATA "J5JE&&H]dX1Ue`VV'__JEE5_M\F~cdcAAECEEJEJC`UXX]d`VT__&dE__\\~chc_A&&fJVHU]VV'_QJJ5J_A\F~clc__&JEJ&JJ&"
+DATA "QT&E&EE5__\\~cpc_A&EJE5&E&JEJ5_\\F~ctcA_ECJd&JJ__\\~cxc_AEC5J_M\F~c|c__&_F\~c~cccAF~c~c~cic"
+DATA ""
+DATA 64, 60
+DATA "~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~cgcg<[[~czc<ISReS--[Z~cwc<SRRSRSSd-IIP~cuc<SgRSS-II"
+DATA "<<[~ctc<RRGGRRSS--dI<P~csc<SSdGKGSSd-II[ZP~crc`-SReGS--II<[P[Sg<[~ckcHId-SRS-eI[PSRSRS-SS--[Z~cic:XU"
+DATA "II-eI<<[PSRRfSd-II[~chcHNeU<<I<<[TSSdRSRRSS-II<<[~cgc:aNXUXU:HH`QDSRRGGRRSS--dI<P~cgcHaNNXUU::HHV-SS"
+DATA "GKdGSSd-II<ZP~cfcHdN1d]:HH`1-SReGS--dI<[[D~cfcHXaNX]::Hd`1II--SRS-I-II<<[[D~cfcTXX11]:e+`]N1-I-fI<<["
+DATA "[VVW~cfcQ]eX(e+`(X11X]<<I<[[H`V``W~cfc:H`UUXTe+PVXX11e]::dH`HHW~cfcHN:dHVTTDDFQXUXUX]UU](HV``HHW~cfc"
+DATA ":aNUUHQTDMFF`XXUUXXd:Hd`dHT~cfcHdNX]VTWMPF`gX](H``V`dHD~cecHXNN11]QTDMFF`NNXU1X]::Hd`H``P~cccH:X]X11"
+DATA "X]VTWMPFHXaN1UU](H``HHV`WFzc\YccH:N1X]XX11]QTDMFFV]:11]]XU]::HHVQTWxc\Y00YYN1NN1X]XU]`DTDMPFQX]:H`:U"
+DATA "]:HH:DQTHWvc\Ye0Ad_NN11U:]]H`WMPFWVXXNX``V`VVQT``HHWuc\e0_A_A_d0NN]U]]:H]]TTWQXUdXdU](HV``HHWuc\Y0__"
+DATA "A__f0::]]e:WTTDF`dXUXXd:Hd`eH_sc`__/0\_f0e:]U::WDWQPPF`XUU]XU](HH`V`dH`H\_pcHaaU\/__d0_d:]]U]TWMMdPF"
+DATA "F`NNUUXXd:Hd`H``VHH:\\mc_XX1a;U5_\0\_]:`]UTDDP\\`V`dHXN1X]U](H``HHV`Q`:HH`A\MicAAEUeXaaU\//\_:HHTDW\"
+DATA "__d0HHN1UUXX]]U]::dHVV`He`dC_\fcA5E&&]UeXa;U5/\0YHW\\_f0_ANN11U::H]]:H`VV`Xe`VV__AA'\ecAEEJEEC]UeXaa"
+DATA "U\\/0__f0__A__0NNd1XeUdXHe`VQ_ACCA_\fc_A&EJ5EC]eX1a;U_/\_Y00_A_A_f0N1N1NN11Xe`dV_AA'_W\FicA_JEEJCC]U"
+DATA "eXaaU5\_Yd_Af0__\fNXHe`VQ__E5__\\mc_ACE&EE&]UeXa;U_//_\e0_A\#Y:NNXe`VVQ_AJE_A\FqcAAdJ&&C]UeXaaU5/_00"
+DATA "A_\\dC`XHe`VQ_AJEA_\\uc_AEJJ5EE]eX1a;U__/0#YYCHXe`dV_'EJ_W\Fyc__EEJJEC]UeXaaU\/CA`XHe`VQ__J&__F\}c__"
+DATA "J&55EE]UeXa;UUXe`VVQ_A&E_'\F~cdc_A&E&&J&]UeXaHe`VQ__&&__\\~chcA'CEJ5&C]eX``dV_'JJ_'\F~clc'A&EJE&C]UX"
+DATA "`VQ\AJ&__F\~cpc_W&dJ&C]Q_&E5_A\F~ctcA_&&EJCEJE__\\~cxc_QE&&J__\F~c|c_AE_F\~c~ccc_F~c~c~cic"
+DATA ""
+DATA 64, 60
+DATA "~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~cgcYd=C=AA~czc=Yd/@/@/=A=~cwc=k/==A~cuc=//0/0f/=//="
+DATA "A~ctcYd/0i/==\~cscAd/@0@/0/@/==Y==\~crc`//e0e/e=AA/=Yd=AA~ckcH=//@g/=YAAf/@d/=A=~cic:XU//=//=/==AAl/"
+DATA "==A~chcHNeUY=Y=AATd/0/0d/@/=//=A~cgc:aNXUXU:HH`QD//0/0/0g/=Y\~cgcHaNNXUU::HHV=d/@0@/0d/==Y==\~cfcHdN"
+DATA "1d]:HH`1d/0@0e/f=AD~cfcHXaNX]::Hd`1=//@g/=Y==A=D~cfcTXX11]:e+`]N1=d/e=Y==AVVW~cfcQ]eX(e+`(X11X]Y=Y=A"
+DATA "AH`V``W~cfc:H`UUXTe+PVXX11e]::dH`HHW~cfcHN:dHVTTDDFQXUXUX]UU](HV``HHW~cfc:aNUUHQTDMFF`XXUUXXd:Hd`dHT"
+DATA "~cfcHdNX]VTWMPF`gX](H``V`dHD~cecHXNN11]QTDMFF`NNXU1X]::Hd`H``P~cccH:X]X11X]VTWMPFHXaN1UU](H``HHV`WF"
+DATA "zc\YccH:N1X]XX11]QTDMFFV]:11]]XU]::HHVQTWxc\Y00YYN1NN1X]XU]`DTDMPFQX]:H`:U]:HH:DQTHWvc\Ye0Ad_NN11U:]"
+DATA "]H`WMPFWVXXNX``V`VVQT``HHWuc\e0_A_A_d0NN]U]]:H]]TTWQXUdXdU](HV``HHWuc\Y0__A__f0::]]e:WTTDF`dXUXXd:H"
+DATA "d`eH_sc`__/0\_f0e:]U::WDWQPPF`XUU]XU](HH`V`dH`H\_pcHaaU\/__d0_d:]]U]TWMMdPFF`NNUUXXd:Hd`H``VHH:\\mc_"
+DATA "XX1a;U5_\0\_]:`]UTDDP\\`V`dHXN1X]U](H``HHV`Q`:HH`A\MicAAEUeXaaU\//\_:HHTDW\__d0HHN1UUXX]]U]::dHVV`H"
+DATA "e`dC_\fcA5E&&]UeXa;U5/\0YHW\\_f0_ANN11U::H]]:H`VV`Xe`VV__AA'\ecAEEJEEC]UeXaaU\\/0__f0__A__0NNd1XeUdX"
+DATA "He`VQ_ACCA_\fc_A&EJ5EC]eX1a;U_/\_Y00_A_A_f0N1N1NN11Xe`dV_AA'_W\FicA_JEEJCC]UeXaaU5\_Yd_Af0__\fNXHe`V"
+DATA "Q__E5__\\mc_ACE&EE&]UeXa;U_//_\e0_A\#Y:NNXe`VVQ_AJE_A\FqcAAdJ&&C]UeXaaU5/_00A_\\dC`XHe`VQ_AJEA_\\uc_"
+DATA "AEJJ5EE]eX1a;U__/0#YYCHXe`dV_'EJ_W\Fyc__EEJJEC]UeXaaU\/CA`XHe`VQ__J&__F\}c__J&55EE]UeXa;UUXe`VVQ_A&E"
+DATA "_'\F~cdc_A&E&&J&]UeXaHe`VQ__&&__\\~chcA'CEJ5&C]eX``dV_'JJ_'\F~clc'A&EJE&C]UX`VQ\AJ&__F\~cpc_W&dJ&C]Q"
+DATA "_&E5_A\F~ctcA_&&EJCEJE__\\~cxc_QE&&J__\F~c|c_AE_F\~c~ccc_F~c~c~cic"
+DATA ""
+DATA 64, 60
+DATA "~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~cfceZ~c"
+DATA "}cZOLKKLKOO~cycZOhKOOZW~cvcZLK.K..LOK+KLKOO~cscOf.LLhKOLZZ~cpc].8d.9L..K..LOdKLKOO~cmcH88d.Lf.LLhKOO"
+DATA "ZW~cjc:e8.X.8d.9LK.K..LOK+KLKOO~cgc:.e8K88d.Kf.LLhKOLZZ~cccMWV`d8ae8.X.8d.9L..K..LOdKLKOO~cMDPP88K."
+DATA "e8K88d.Lf.LLhKOOZW|cMTPF.8Oe8ae8.X.8d.9LK.K..LOK+KLKOOzcMDPP.OLL88a.e8K88d.Kf.LLhKZZPPwc`QDPFOOL].8K"
+DATA "e8ae8.X.8d.9L..K..ZOdZMOPPscU:1DDFF::O..Ke8..e8K88d.Lf.hZMPdZrcH;8UUXNaNHK.K.8.8Ke8ae8.X.8d.OZDZMZPP"
+DATA "FPZZPrc:NXa;XX:HVKLe.Ke8a.e8K88d.dZWOMfPOOZPqcHXUXU]VH`T+Le.K.8.8Ke8ae8.eZPPFdPFPdZPoc::XXNNX:`VVOLL"
+DATA "d.Le.Ke8..e8dZQjPdZ`TDlcAXXUXdN]`VQOOK..KLKd.K.8.8Ke8WZVPFPFPFPFPFPW`:d`\icC_&UUdXNN]HQTOOdKLLd.Le.K"
+DATA "e8ZZDmPHHd`VA\\fc'EJEV]NN1NN]V`H1ULLKOK.K.Le.K.8.8ZWdPFdPFdPFP``VVQ_Q_'\ec_E&J&C_1UUN]Na1N11XLOdKOLK"
+DATA "..Le.dZlPd`VQ_AAC__\fcAWf&_UXHUXN;dN1ULLd+LK.LKd.ZOWPFPFPFPFP``dV_A_A_W\Fic_A&JEJC\`UdXa;NN1h+OLK.."
+DATA "eZhPd`VQ\AQA__F\mc__&&JE&C]UdXa;Nj+LK.dZWdPFP``VVQ_A_'_\\Fqc__EEJJ&&]UdXaak+fZdPd`VQ_AAC__\\uc_AE&dE"
+DATA "C]eXNNi+ZZW`Hd`dV_AA'__\FycQ_&J5JE&]UdXaag+Z`Xe`VQ__AA__\\}c__EEJ5&C]UdXNNd+`XH``VVQ_A_A_\\F~cdc_ACE"
+DATA "Ed&]UdXaaXHd`VQ\_E5__\\~chc_'&J&&JC]eX``dV__EE_A\F~clcA_eEJC]UX`VQ__EJ__F\~cpc_AEEJ&EC]Q_dJ_M\F~ctc_"
+DATA "AJ&fJ&__\\~cxcA'&&EJ_M\F~c|c__E_F\~c~ccc_F~c~c~cic"
+DATA ""
+DATA 64, 60
+DATA "~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~c~cfcdA_"
+DATA "~c}cCAY/050CC~cycCCg0/YYA_~cvcY5f0550/050CC~cscCf055h0YYA_~cpcE^00^055f0550/050CC~cmcJf^5f055g0/YYA_"
+DATA "~cjcJf^5^00^055f0550/050CC~cgcJ0e^0f^g055h0YYA_~cccMWV`d^6f^5^00^055f0550/050CC~cMDPP^^00e^6f^5f055"
+DATA "g0/YYA_|cMTPF^0Ce^6f^5^00^055f0550/050CCzcMDPP0C55^^60e^0f^g055h0A_\\wc`QDPFYCY5^^0e^6f^5^00^055f0AC"
+DATA "A__\C\\scU:1DDFF::Yd0e^00e^6f^5f0fA_CMPAA_rcH;8UUXNaNH500^0^^0e^6f^5^00^0CA__\APPFP_A\rc:NXa;XX:HV05"
+DATA "0d^0e^60e^0f^_A__CMfPYCA\qcHXUXU]VH`T/500^00^0^^0e^6f^__\APPFdPFP_A_\oc::XXNNX:`VVCY5g0^^0e^00e^A_CQ"
+DATA "jPAA_`TDlcAXXUXdN]`VQY5e05^0^00^0^^0e^AAVPFPFPFPFPFPA`:d`\icC_&UUdXNN]HQTCYd055d050d^0e^__DmPHHd`VA\"
+DATA "\fc'EJEV]NN1NN]V`H1U550Ye0500^00^0^^AAdPFdPFdPFP``VVQ_Q_'\ec_E&J&C_1UUN]Na1N11X5Yd0Y5d0500^^AA_lPd`V"
+DATA "Q_AAC__\fcAWf&_UXHUXN;dN1U55d+5005^0^0_YAPFPFPFPFP``dV_A_A_W\Fic_A&JEJC\`UdXa;NN1h+Y5d0AA__hPd`VQ\AQ"
+DATA "A__F\mc__&&JE&C]UdXa;Nj+500A_AAdPFP``VVQ_A_'_\\Fqc__EEJJ&&]UdXaak+CdA_dPd`VQ_AAC__\\uc_AE&dEC]eXNNi+"
+DATA "__A`Hd`dV_AA'__\FycQ_&J5JE&]UdXaag+_`Xe`VQ__AA__\\}c__EEJ5&C]UdXNNd+`XH``VVQ_A_A_\\F~cdc_ACEEd&]UdXa"
+DATA "aXHd`VQ\_E5__\\~chc_'&J&&JC]eX``dV__EE_A\F~clcA_eEJC]UX`VQ__EJ__F\~cpc_AEEJ&EC]Q_dJ_M\F~ctc_AJ&fJ&__"
+DATA "\\~cxcA'&&EJ_M\F~c|c__E_F\~c~ccc_F~c~c~cic"
+DATA ""
+DATA 32, 38
+DATA "~c~c~c~c~c~c~c~c~c~c~c~crce<[[zcIRSSd-[xcIeRS-I<ZvcIRRGGR--I<[Puc<SRGGS-II<[Puc<SRSS--II<<Puc:e-dI<["
+DATA "[Duc(NUeI<<V`DucHNUU]:Hd`HWucHX1U]::`VHVWucVU11XU]:HHVPuc`:HX]](H``QWsc:HNXH`H`VQDW`HTToc(HNX1NXXU]]"
+DATA "HH``H`H'TlcUa11XUNU]]:Hd`HVHH:HTjc'Na;N1XUU]::H``V``:H:HH\gc__&XX1;;aXU:HH`QVUX1U:d`_\\dc_JJ&]XX1Na;"
+DATA "N1X1Xd1X:``dV_'CFccQ&EECC]UXXN;;aNN1U:d`VQ_EJ__\dc'A&E5&C]dXNa;U:H``VV_J&W_F\gc__&E&&C]UdXHd`Q_&E__\"
+DATA "Fkc'_EEJCE]X]dV_EEA_F\oc_'&C&JCHQ&&E__\\scAA&CEdJA_F\wc__EC__\F{cQAF\~crc"
+DATA ""
+DATA 32, 38
+DATA "~c~c~c~c~c~c~c~c~c~c~c~crc==Y=AAzcYd/@/=AxcY/0f/=AvcY/00@e/=A\uc=//00d/==A\ucYf/==Y==\uc:e/==Y==ADuc"
+DATA "(NU//=Y==V`DucHNUU]:Hd`HWucHX1U]::`VHVWucVU11XU]:HHVPuc`:HX]](H``QWsc:HNXH`H`VQDW`HTToc(HNX1NXXU]]HH"
+DATA "``H`H'TlcUa11XUNU]]:Hd`HVHH:HTjc'Na;N1XUU]::H``V``:H:HH\gc__&XX1;;aXU:HH`QVUX1U:d`_\\dc_JJ&]XX1Na;N1"
+DATA "X1Xd1X:``dV_'CFccQ&EECC]UXXN;;aNN1U:d`VQ_EJ__\dc'A&E5&C]dXNa;U:H``VV_J&W_F\gc__&E&&C]UdXHd`Q_&E__\F"
+DATA "kc'_EEJCE]X]dV_EEA_F\oc_'&C&JCHQ&&E__\\scAA&CEdJA_F\wc__EC__\F{cQAF\~crc"
+DATA ""
+DATA 16, 16
+DATA "~c~crcePdcjP.K.LPcP9db+bb-IK.K9PP]db+bb+--..LO:P`S-S-S-S-ILOOZHPHj<LLZZ`cP[<[<[<[<[OLZWHP:WDHWWHWHHD"
+DATA "HHPXPU'T(T':':(T(:P`P`PPVPPQPQVPVQFPcPFFWFFDFDWFWDP ccmPcc"
+DATA ""
+DATA 16, 16
+DATA "~c~crcePdcjP.K.LPcP9db+bb-IK.K9PPQdb+bb+--..LO:PWS-S-S-S-ILOOZHPWj<LLZZ`cP[<[<[<[<[OLZWHPDHHWHHDHWWH"
+DATA "DDQXP`(:':(T(T':'T``PWVQPQVPVPPQPPDPcPWDFDWFWFFDFFP ccmPcc"
+DATA ""
+DATA 16, 16
+DATA "~cycePjcdP-b+IPhcPR,bb+bbIPgcPIR9+ebIPecP`IIR,b+b[K.PdcQTHIIRS..K.LbPccDUTWIIR..KOZ*OPcWDU:MIIKLO)O)"
+DATA "OTPPWHQ:`<LL)OZZOFFcPHHQ:HPOZZV]XaFccPHDQD]UUXd`HFdcPWDFFH`V`V`PPecPMFFH`ePcc"
+DATA ""
+DATA 16, 16
+DATA "~cycePjcdP-b+IPhcPR,bb+bbIPgcPIR9+ebIPecPWIIR,b+b[K.PdcU:MIIRS..K.LbPccHQ:`IIR..KOZ*OPcHHQTHIIKLO)O)"
+DATA "OFPPHDUTW<LL)OZZOTTcPWDUTWPOZZV]XaWccPWHU:]UUXd`HDdcPHHQMH`V`V`PPecP`TWH`ePcc"
+DATA ""
+DATA 16, 16
+DATA "~cycgPjcPbb+dbPgcdPbb+dbdPdcP:HW+fbDTQPccP]HM+b+dbWTVPccPVD#..K.KKFdP cP]DM8e.LDFVP cPUHML7O7OODTTP "
+DATA "cPQDFLO7O7ZdFP cPVDFLLOLZZFTPP cPDMhX1PFP cPDFH:H:H:H:FFP ccPPhH`PP c"
+DATA ""
+DATA 16, 16
+DATA "~cycgPjcPbb+dbPgcdPbb+dbdPdcPTDF+fbFdPccPQDF+b+dbFFMPccP]HP..K.KKDQVP cPQHF8e.LFTMP cPVD#L7O7OOFPFP "
+DATA "cP]:WLO7O7ZWTDP cP]:DLLOLZZDHVP cPHVhX1VDP cP`TH:H:H:H:DDP ccPPhH`PP c"
+DATA ""
+DATA 16, 16
+DATA "~c{cePlcPSb+<dPhcPSdb+b$[PfcPSb++bb$<[PecPKL[+bb3<[[TPccPLbK.KK-<[MDDPcPK*K88KO<[[FDQFP:LL*L*LO[MF:Q"
+DATA "FF`QLOdLOO[DTPDFPWadULLOPT:PWDP PXdU1XUTVPFDP cPP]dU]1FMFFP ecePUXFPFP dc"
+DATA ""
+DATA 16, 16
+DATA "~c{cePlcPSb+<dPhcPSdb+b$[PfcPSb++bb$<[PecPKL[+bb3<[[FPccPLbK.KK-<[MF:QcPK*K88KO<[[D:PDPDLL*L*LO[MDDP"
+DATA "WDU:LOdLOO[FFQFDPVadULLOPFDQFFP QXdU1XUT]QDFP cPP]dU]1DVWDP ecePUXDVDP dc"
+DATA ""
+DATA 16, 16
+DATA "~c~chcePlcP.LKKjPccPL.KK<Seb++OPc:..KK[-+bb+b+,DPXKOLO-S-S-S-S-WPUeLj<DPXLLOL<[<[<[<[<P XDHHWHHDHWWH"
+DATA "WWVPH`(:':(T(T':'T`PPWVQPQVPVPPQPPDPcPWDFDWFWFFDFFP ccmPcc"
+DATA ""
+DATA 16, 16
+DATA "~c~chcePlcP.LKKjPccPL.KK<Seb++OPc:..KK[-+bb+b+,FPXKOLO-S-S-S-S-FPUeLj<FPXLLOL<[<[<[<[<P X:DWHWWHWHHD"
+DATA "HHPPHU'T(T':':(T(:dP`PPVPPQPQVPVQFPcPFFWFFDFDWFWDP ccmPcc"
+DATA ""
+DATA 16, 16
+DATA "~cicdPkcdPLL.PicPKLbK.KLPhcPKLKLZZIIPfcPaLLd-+bbIPecPWVLR,+db+IP ccU:WVIR9+b+bbIP cHQ:`IIR,b+3--[PcH"
+DATA "HQTHIIR-Ie[FPPHDUTWIIg[:`cPWDUTMI<[<PPDVDccPWHU:VdP  PQDdcPHHTDPf PPecP`TDP gc"
+DATA ""
+DATA 16, 16
+DATA "~cicdPkcdPLL.PicPKLbK.KLPhcPKLKLZZIIPfcPaLLd-+bbIPecP`VLR,+db+IP ccQTHVIR9+b+bbIP cDUTWIIR,b+3--[PcW"
+DATA "DU:MIIR-Ie[TPPWHQ:`IIg[DWcPHHQ:HI<[<PPFPFccPHDQDMdP  PPFdcPWDFFPf PPecPMFFP gc"
+DATA ""
+DATA 16, 16
+DATA "~cicgPjcPLL.dKPicP.K.K.KPgcPPXgO1PPdcPTD#b+bb+,FPFPccPQDFbb++b+dFP cP]HPb+ebD'VP cPQHFbb++b+FTMP cPV"
+DATA "D#-S-S-SFdP cP]HMg<WTVP cP]:P<I<I<IDHVP cPH`DgPH`DP cP`VWPe PHQDP ccdPgcdPcc"
+DATA ""
+DATA 16, 16
+DATA "~cicgPjcPLL.dKPicP.K.K.KPgcPPXgO1PPdcP:HMb+bb+,WQDPccP]:Wbb++b+WTDP cPVD#b+ebFdP cP]DMbb++b+DFVP cPU"
+DATA "HM-S-S-SDTVP cPQDFg<FFMP cPVD#<I<I<IFTPP cPDMFgPDWFP cPDPFPe PWPFP ccdPgcdPcc"
+DATA ""
+DATA 16, 16
+DATA "~clcdPmcPdKdPicP8.K.LOZPgcP-GdL.OZPfcPSbb+-IROZ]PdcPS+db+$<O`FPccPS+bb+b3<[HF:QcPRGSZbb$<[[D:PDPDdI-"
+DATA "RG<[MDDPWDX:gI[[FDQFDP`VWPPI-IMFDQFFP VQP  dPUUQDFP cPPfcP`VWDP jcPVVDP dc"
+DATA ""
+DATA 16, 16
+DATA "~clcdPmcPdKdPicP8.K.LOZPgcP-GdL.OZPfcPSbb+-IROZ]PdcPS+db+$<O`DPccPS+bb+b3<[HTDPcPRGSZbb$<[[FDQFP:dI-"
+DATA "RG<[MF:QFF`QgI[[D:PDFPDP#PPI-IMD:PWDP dP  dPV`PFDP cPPfcPDMFFP jcPPMFP dc"
+DATA ""
+DATA 16, 16
+DATA "~c~crcePdcjPd05PcP9db+bb/=d05PP]db+bb+//005C:P`//@d/@/=55C_HPHd=Yd=Y=YYCA`cPC=C=C=C=CYYAAHP:WDHWWHWH"
+DATA "HDHHPXPU'T(T':':(T(:P`P`PPVPPQPQVPVQFPcPFFWFFDFDWFWDP ccmPcc"
+DATA ""
+DATA 16, 16
+DATA "~c~crcePdcjPd05PcP9db+bb/=d05PPQdb+bb+//005C:PW//@d/@/=55C_HPWd=Yd=Y=YYCA`cPC=C=C=C=CYYAAHPDHHWHHDHW"
+DATA "WHDDQXP`(:':(T(T':'T``PWVQPQVPVPPQPPDPcPWDFDWFWFFDFFP ccmPcc"
+DATA ""
+DATA 16, 16
+DATA "~cycePjcdP/b+=PhcP/,bb+bb=PgcP=/9+eb=PecP`=//,b+b[00PdcQTH==//e055PccDUTW==/00/YA*CPcWDU:M=/05O)O)YT"
+DATA "PPWHQ:`=55)OA_CFFcPHHQ:HP5_\V]XaFccPHDQD]UUXd`HFdcPWDFFH`V`V`PPecPMFFH`ePcc"
+DATA ""
+DATA 16, 16
+DATA "~cycePjcdP/b+=PhcP/,bb+bb=PgcP=/9+eb=PecPW=//,b+b[00PdcU:M==//e055PccHQ:`==/00/YA*CPcHHQTH=/05O)O)YF"
+DATA "PPHDUTW=55)OA_CTTcPWDUTWP5_\V]XaWccPWHU:]UUXd`HDdcPHHQMH`V`V`PPecP`TWH`ePcc"
+DATA ""
+DATA 16, 16
+DATA "~cycgPjcPbb+dbPgcdPbb+dbdPdcP:HW+fbDTQPccP]HM+b+dbWTVPccPVD#f0/FdP cP]DM^e05DFVP cPUHM57O7OADTTP cPQ"
+DATA "DF5O7O7AdFP cPVDFdYJA_FTPP cPDMhX1PFP cPDFH:H:H:H:FFP ccPPhH`PP c"
+DATA ""
+DATA 16, 16
+DATA "~cycgPjcPbb+dbPgcdPbb+dbdPdcPTDF+fbFdPccPQDF+b+dbFFMPccP]HPf0/DQVP cPQHF^e05FTMP cPVD#57O7OAFPFP cP]"
+DATA ":W5O7O7AWTDP cP]:DdYJA_DHVP cPHVhX1VDP cP`TH:H:H:H:DDP ccPPhH`PP c"
+DATA ""
+DATA 16, 16
+DATA "~c{cePlcP/b+YdPhcP/db+b$=PfcP/b++bb$YAPecP0Y[+bb3YAATPccP55d0//YAADDPcP0*0^^0YdAFDQFP:5L*L*YCAAF:QFF"
+DATA "`Q5C5LLYCADTPDFPWadUY5YPT:PWDP PXdU1XUTVPFDP cPP]dU]1FMFFP ecePUXFPFP dc"
+DATA ""
+DATA 16, 16
+DATA "~c{cePlcP/b+YdPhcP/db+b$=PfcP/b++bb$YAPecP0Y[+bb3YAAFPccP55d0//YAAF:QcP0*0^^0YdAD:PDPD5L*L*YCAADDPWD"
+DATA "U:5C5LLYCAFFQFDPVadUY5YPFDQFFP QXdU1XUT]QDFP cPP]dU]1DVWDP ecePUXDVDP dc"
+DATA ""
+DATA 16, 16
+DATA "~c~chcePlcP0500jPccP5d0=/eb++OPc:e0=/+bb+b+,DPX0d5d/@d/@/WPUfYd=Yd=YDPX5JYY=C=C=C=C=P XDHHWHHDHWWHWW"
+DATA "VPH`(:':(T(T':'T`PPWVQPQVPVPPQPPDPcPWDFDWFWFFDFFP ccmPcc"
+DATA ""
+DATA 16, 16
+DATA "~c~chcePlcP0500jPccP5d0=/eb++OPc:e0=/+bb+b+,FPX0d5d/@d/@/FPUfYd=Yd=YFPX5JYY=C=C=C=C=P X:DWHWWHWHHDHH"
+DATA "PPHU'T(T':':(T(:dP`PPVPPQPQVPVQFPcPFFWFFDFDWFWDP ccmPcc"
+DATA ""
+DATA 16, 16
+DATA "~cicdPkcdP550PicP055d0YPhcP050YCA==PfcPa5Y=//+bb=PecPWVY/,+db+/P ccU:WV=/9+b+bb=P cHQ:`=//,b+3//=PcH"
+DATA "HQTH==//=CA=AFPPHDUTW=/A=A=AA:`cPWDUTM==A=PPDVDccPWHU:VdP  PQDdcPHHTDPf PPecP`TDP gc"
+DATA ""
+DATA 16, 16
+DATA "~cicdPkcdP550PicP055d0YPhcP050YCA==PfcPa5Y=//+bb=PecP`VY/,+db+/P ccQTHV=/9+b+bb=P cDUTW=//,b+3//=PcW"
+DATA "DU:M==//=CA=ATPPWHQ:`=/A=A=AADWcPHHQ:H==A=PPFPFccPHDQDMdP  PPFdcPWDFFPf PPecPMFFP gc"
+DATA ""
+DATA 16, 16
+DATA "~cicgPjcP55e0PicPf0/PgcPPXYYCYCC1PPdcPTD#b+bb+,FPFPccPQDFbb++b+dFP cP]HPb+ebD'VP cPQHFbb++b+FTMP cPV"
+DATA "D#/@d/@FdP cP]HMg=WTVP cP]:P=Y=Y=YDHVP cPH`DgPH`DP cP`VWPe PHQDP ccdPgcdPcc"
+DATA ""
+DATA 16, 16
+DATA "~cicgPjcP55e0PicPf0/PgcPPXYYCYCC1PPdcP:HMb+bb+,WQDPccP]:Wbb++b+WTDP cPVD#b+ebFdP cP]DMbb++b+DFVP cPU"
+DATA "HM/@d/@DTVP cPQDFg=FFMP cPVD#=Y=Y=YFTPP cPDMFgPDWFP cPDPFPe PWPFP ccdPgcdPcc"
+DATA ""
+DATA 16, 16
+DATA "~clcdPmcPd0dPicP^^005YAPgcP/@Y55^Y_PfcP/bb+/=/C_]PdcP/+db+$YC`FPccP/+bb+b3YAHF:QcP/@/Zbb$YAAD:PDPD=/"
+DATA "=/@0YAADDPWDX:/=/=/=AAFDQFDP`VWPP==/AFDQFFP VQP  dPUUQDFP cPPfcP`VWDP jcPVVDP dc"
+DATA ""
+DATA 16, 16
+DATA "~clcdPmcPd0dPicP^^005YAPgcP/@Y55^Y_PfcP/bb+/=/C_]PdcP/+db+$YC`DPccP/+bb+b3YAHTDPcP/@/Zbb$YAAFDQFP:=/"
+DATA "=/@0YAAF:QFF`Q/=/=/=AAD:PDFPDP#PP==/AD:PWDP dP  dPV`PFDP cPPfcPDMFFP jcPPMFP dc"
+DATA ""
+DATA 16, 16
+DATA "ycPocPOPmcPXLLfPgcPRLKOQeVPfcPR]`[FFPPWPecP-R:H[<ePgcP-:H[PPicPDP[ZPFPicPQMfPcd ecPQdPWFPe ecPQMPPWP"
+DATA "f ecPQPP P cc hcPP~cmc"
+DATA ""
+DATA 16, 16
+DATA "ycPocPOPmcPXLLfPgcPRLKOQeVPfcPR]`[FFPPWPecP-R:H[<ePfcPQ-:H[PjcPQF[ZFFPicPQdPWPPcd ecPQMPPDFPe fcePDP"
+DATA "Pe gcPcPDFPd kcPP~cic"
+DATA ""
+DATA 16, 16
+DATA "~ckcdPmcPKLLPkcPLLKOPPicPNUZO[[MPhcPN`-<<MMDPgcPHII<[[DVWPfcPW[[<FFPVVPfcPDFdPMeP ecPWdPQWP P  ecPWF"
+DATA "PPQMPe fcPPcPQWP mcPP~cic"
+DATA ""
+DATA 16, 16
+DATA "~ckcdPmcPKLLPkcPLLKOPPicPNUZO[[MPhcPN`-<<MMDPgcPHII<[[DVWPgcPZ[ZdPVVPgcPTPDPPcdP fcPQPWPP  P  fcPTdP"
+DATA "g fcPQPPe icPTPPncPPyc"
+DATA ""
+DATA 16, 16
+DATA "~cjcePlcP.NLOPjcPNLL9OPjcP]:ZO[[PicPd-I<ZMPhcPII<<[QVPhcPT[[ZFVVPhcPTFPPDVVPhcPQdPDMWPd ecPDFPPDPPe "
+DATA "fcPPcPDFPd kcPP~cic"
+DATA ""
+DATA 16, 16
+DATA "~cjcePlcP.NLOPjcPNLL9OPjcP]:ZO[[PicPd-I<ZMPhcPII<<[QVPhcPDFd[VVPhcPTdPMVVPhcPQFdPMWPd ecPQgPe ecPQFP"
+DATA " PPkcPP~cmc"
+DATA ""
+DATA 16, 16
+DATA "~cjcdPmcP.XOPkcPNLLbOPjcPSRZO<[PicPSd-<[PicPII<[TQPjcPT[QVFPjcPTVVPPe gcPQTdPf gcPPDPPf hcPDPPf hcPT"
+DATA "PPccd icPPccd rc"
+DATA ""
+DATA 16, 16
+DATA "~cjcdPmcP.XOPkcPNLLbOPjcPSRZO<[PicPSd-<[PicP<I<[TQPicPDF[QVFPicPDFVVdPd fcPWFTPMMPe ecPWePMPe ecPWFP"
+DATA "cPPdc  fcPPgcd mcd rc"
+DATA ""
+DATA 16, 16
+DATA "xcPocPKPmcP8LOPlcPOOZ[PkcPSRI<PgceP-RRI<<PecPeVQTI<[PPecPWMWMWMWZPFPfcePMgPcd ecPMdPWFPe ecPQMPPWPf "
+DATA "ecPQPP Pf gcPP~cmc"
+DATA ""
+DATA 16, 16
+DATA "xcPocPKPmcP8LOPlcPOOZ[PkcPSRI<PgceP-RRI<<PecPeVQTI<[PfcPWMWMWMWZFFPfcePQgPcd ecPQMPPDFPe fcePDPPe gc"
+DATA "P PDFPd kcPP~cic"
+DATA ""
+DATA 16, 16
+DATA "xcPPjcPdcP.KPhcPDPcP.XOZPgcPVVPPKOZ[aPfcPQVQRGSI<[PgcPQTSR-d<PhcPQdI<[[PicPW[[<FFPicPDFdPMPdc ecPWdP"
+DATA "QWPe ecPWFPPQMPe fcPPcPQWP mcPP~cic"
+DATA ""
+DATA 16, 16
+DATA "xcPPjcPdcP.KPhcPDPcP.XOZPgcPVVPPKOZ[aPfcPQVQRGSI<[PgcPQTSR-d<PhcPQdI<[[PicPPZ[ZPPkcPTePcc c fcPQPWPP"
+DATA "f fcPTdPg fcPQPPe icPTPPncPPyc"
+DATA ""
+DATA 16, 16
+DATA "xcPPlcdP.OPjcPVV.aOZPicPQV9OOWHPhcPQSGR-]]PhcPMS--I<[PicPdI<[[PicPT[[ZFPPicPTFPPTPPdc ecPQdPDFPe ecP"
+DATA "WFPPDPPe fcPPcPDFPd kcPP~cic"
+DATA ""
+DATA 16, 16
+DATA "xcPPlcdP.OPjcPVV.aOZPicPQV9OOWHPhcPQSGR-]]PhcPMS--I<[PicPdI<[[PicPDP[<[FPicPTdPMPPdc ecPQFdPFPe ecPQ"
+DATA "gPe ecPQFP PPkcPP~cmc"
+DATA ""
+DATA 16, 16
+DATA "xcPPncP.OPlcP..LZPjcPVSOZOPjcPRGG-UaPicPS-SI]`PicPdI<[`Pc  gcPT[Z[Pc  hcPTFTPP  c gcPQFDPPf gcPPTPP"
+DATA "f hcPDPPd jcPTPPncPPwc"
+DATA ""
+DATA 16, 16
+DATA "xcPPncP.OPlcP..LZPjcPVSOZOPjcPRGG-UaPicPS-SI]`PicP<II<[`Pc  fcPDF[<[FP  gcPDFfP c fcPWFPPMMPe ecPWeP"
+DATA "MPe ecPWFPcPPkcPP~cmc"
+DATA ""
+DATA 16, 16
+DATA "ycPocPYPmcPd5fPgcP/Y5YQeVPfcP/]`=FFPPWPecP//:HA=ePgcP/:HAPPicPDP==PFPicPQMfPcd ecPQdPWFPe ecPQMPPWP"
+DATA "f ecPQPP P cc hcPP~cmc"
+DATA ""
+DATA 16, 16
+DATA "ycPocPYPmcPd5fPgcP/Y5YQeVPfcP/]`=FFPPWPecP//:HA=ePfcPQ/:HAPjcPQF==FFPicPQdPWPPcd ecPQMPPDFPe fcePDPP"
+DATA "e gcPcPDFPd kcPP~cic"
+DATA ""
+DATA 16, 16
+DATA "~ckcdPmcP65YPkcP550YPPicPNUAY=AMPhcPN`//=AMDPgcPHd=AADVWPfcPW=A=FFPVVPfcPDFdPMeP ecPWdPQWP P  ecPWFP"
+DATA "PQMPe fcPPcPQWP mcPP~cic"
+DATA ""
+DATA 16, 16
+DATA "~ckcdPmcP65YPkcP550YPPicPNUAY=AMPhcPN`//=AMDPgcPHd=AADVWPgcP=A=dPVVPgcPTPDPPcdP fcPQPWPP  P  fcPTdP"
+DATA "g fcPQPPe icPTPPncPPyc"
+DATA ""
+DATA 16, 16
+DATA "~cjcePlcP06YYPjcPNd5YPjcP]:AC=APicP/@//==MPhcPe=AQVPhcPT=A=FVVPhcPTFPPDVVPhcPQdPDMWPd ecPDFPPDPPe fc"
+DATA "PPcPDFPd kcPP~cic"
+DATA ""
+DATA 16, 16
+DATA "~cjcePlcP06YYPjcPNd5YPjcP]:AC=APicP/@//==MPhcPe=AQVPhcPDFA=AVVPhcPTdPMVVPhcPQFdPMWPd ecPQgPe ecPQFP "
+DATA "PPkcPP~cmc"
+DATA ""
+DATA 16, 16
+DATA "~cjcdPmcP05YPkcPN5Y5YPjcP//ACAAPicP/@/d=PicP=/==TQPjcPTAQVFPjcPTVVPPe gcPQTdPf gcPPDPPf hcPDPPf hcPT"
+DATA "PPccd icPPccd rc"
+DATA ""
+DATA 16, 16
+DATA "~cjcdPmcP05YPkcPN5Y5YPjcP//ACAAPicP/@/d=PicP=/==TQPicPDFAQVFPicPDFVVdPd fcPWFTPMMPe ecPWePMPe ecPWFP"
+DATA "cPPdc  fcPPgcd mcd rc"
+DATA ""
+DATA 16, 16
+DATA "xcPocP0PmcP^5CPlcP5Y_APkcPd/YPgcePe/==PecPeVQT/=APPecPWMWMWMW=PFPfcePMgPcd ecPMdPWFPe ecPQMPPWPf ecP"
+DATA "QPP Pf gcPP~cmc"
+DATA ""
+DATA 16, 16
+DATA "xcPocP0PmcP^5CPlcP5Y_APkcPd/YPgcePe/==PecPeVQT/=APfcPWMWMWMW=FFPfcePQgPcd ecPQMPPDFPe fcePDPPe gcP P"
+DATA "DFPd kcPP~cic"
+DATA ""
+DATA 16, 16
+DATA "xcPPjcPdcP05PhcPDPcP05YAPgcPVVPP/Y_AaPfcPQVQ/0//YAPgcPQTe/==PhcPQf=APicPW=A=FFPicPDFdPMPdc ecPWdPQWP"
+DATA "e ecPWFPPQMPe fcPPcPQWP mcPP~cic"
+DATA ""
+DATA 16, 16
+DATA "xcPPjcPdcP05PhcPDPcP05YAPgcPVVPP/Y_AaPfcPQVQ/0//YAPgcPQTe/==PhcPQf=APicPP=A=PPkcPTePcc c fcPQPWPPf "
+DATA "fcPTdPg fcPQPPe icPTPPncPPyc"
+DATA ""
+DATA 16, 16
+DATA "xcPPlcdP05PjcPVV06YAPicPQV5YC_HPhcPQ/0//]]PhcPM/@/d=PicPf=APicPT=A=FPPicPTFPPTPPdc ecPQdPDFPe ecPWFP"
+DATA "PDPPe fcPPcPDFPd kcPP~cic"
+DATA ""
+DATA 16, 16
+DATA "xcPPlcdP05PjcPVV06YAPicPQV5YC_HPhcPQ/0//]]PhcPM/@/d=PicPf=APicPDPA=AFPicPTdPMPPdc ecPQFdPFPe ecPQgP"
+DATA "e ecPQFP PPkcPP~cmc"
+DATA ""
+DATA 16, 16
+DATA "xcPPncP0YPlcP00YCPjcPV/YYCPjcP/00/UaPicP/@/=]`PicP=//=A`Pc  gcPTA=APc  hcPTFTPP  c gcPQFDPPf gcPPTPP"
+DATA "f hcPDPPd jcPTPPncPPwc"
+DATA ""
+DATA 16, 16
+DATA "xcPPncP0YPlcP00YCPjcPV/YYCPjcP/00/UaPicP/@/=]`PicP=//=A`Pc  fcPDFA=AFP  gcPDFfP c fcPWFPPMMPe ecPWeP"
+DATA "MPe ecPWFPcPPkcPP~cmc"
+DATA ""
+DATA 16, 16
+DATA "~cxcgPjcP.K.K.KPgcdPK.KKLLKgP:-I.KbL.KZ1N1NUP]-ILfOZ[II[PP:S--OOL`[I--S[PPI<I<I<I<I<I<I[PP-[d<[d<[e<"
+DATA "PPHWW`WW`W``W`HWPPUQQ]QT:T:]Q]:DPPVPPVPPQPQVPVQFPPTFFDFFDFDDFDDFPcoPc"
+DATA ""
+DATA 16, 16
+DATA "~cxcgPjcP.K.K.KPgcdPK.KKLLKgP:-I.KbL.KZ1N1NUP]-ILfOZ[II[PP:S--OOL`[I--S[PPI<I<I<I<I<I<I[PP-[d<[d<[e<"
+DATA "PPD`HW``W`WWHWW`PP`]:T:]Q]QT:TQ:PPMVQPQVPVPPQPPTPPFDDFDDFDFFDFFWPcoPc"
+DATA ""
+DATA 16, 16
+DATA "~cjcePkcPPK.KOPhcPP.K.K.KLPfcPR-K.KKLLKPfcPIRKKbL.K`DPdcP`I-KLOLONZ<FPccVDVIIRI-INa--FPcT]DMI-RS-I;;"
+DATA "IIDPDT]HMIIRI<<;H[QDPDT]H`IIg[FDcPD:V:VI<[dPF'DccP::VDMPPd PVDdcP:DVDPf PPecPWTDP gc"
+DATA ""
+DATA 16, 16
+DATA "~cjcePkcPPK.KOPhcPP.K.K.KLPfcPR-K.KKLLKPfcPIRKKbL.K`FPdcPWI-KLOLONZ<DPcc]HWIIRI-INa--DPc:VHVI-RS-I;;"
+DATA "IIFP::VDVIIRI<<;H[PFPH:VDMIIg[THcP:T]DWI<[dPDPFccPDT]:`PPd PMFdcPDHPFPf PPecPHFFP gc"
+DATA ""
+DATA 16, 16
+DATA "~cjcePkcPPK.KKPPhcPSK.K.KL[PfcPPK.KKLLKOPPdcP:HKKbL.KOODHPccP]HSLONHOO[DTPccPTWS--aHII[PFP cPQWRS-a:"
+DATA "I-[FPP cP:HR--aH[I[DHP cPQD-<<::d[FWP cPTD#[<[<[[FWWP cP:HFhPQVP cPHVWPe PHTDP ccdPgcdP c"
+DATA ""
+DATA 16, 16
+DATA "~cjcePkcPPK.KKPPhcPSK.K.KL[PfcPPK.KKLLKOPPdcPTWKKbL.KOOFWPccPQDSLONHOO[FPPccP:HS--aHII[TTP cP]HRS-a:"
+DATA "I-[DQP cPTWR--aH[I[FWP cP]H-<<::d[THP cP:HP[<[<[[D:HP cPTDDgPQdP cPMPFPe PDFFP ccdPgcdP c"
+DATA ""
+DATA 16, 16
+DATA "~cjcePlcPL.KKPPicPK.K.KLLPPgcP.KKLLKK<<PecP]KKL.KOO<[PdcPTILXLLdO[[DPcPQS-1V[-II[ZDPFP]GGaH[--<[[FPT"
+DATA "F]H-1H[OG<[ZF:`FF`W<dI<I[[D:`FFPHV#dP<<ZDHMWFP `QPd PPVQMDDP cPPfcPHHFDP jcP``FP dc"
+DATA ""
+DATA 16, 16
+DATA "~cjcePlcPL.KKPPicPK.K.KLLPPgcP.KKLLKK<<PecPQKKL.KOO<[PdcP]ILXLLdO[[FPcP]S-1V[-II[ZFQTPTGGaH[--<[[DQF"
+DATA "DQD-1H[OG<[ZDDMWDUH<dI<I[[FDMDDPdMdP<<ZFD`FDP WFPd PP]]`FFP cPPfcPdWFP jcPWMDP dc"
+DATA ""
+DATA 16, 16
+DATA "~czcgPjcP.K.KLLPdcfP.KKLLKKdPcX1N1XLbL.K.K<<:PP[dILOKLdO[<:PP--SS-IL9O`[I-:PP-<I<I<I<I<I<I[PP-[d<[d<"
+DATA "[d<[PPD`HW``W`WWHWW`PP`]:T:]Q]QT:TQ:PPMVQPQVPVPPQPPTPPFDDFDDFDFFDFFWPcoPc"
+DATA ""
+DATA 16, 16
+DATA "~czcgPjcP.K.KLLPdcfP.KKLLKKdPcX1N1XLbL.K.K<<:PP[dILOKLdO[<:PP--SS-IL9O`[I-:PP-<I<I<I<I<I<I[PP-[d<[d<"
+DATA "[d<[PPHWW`WWHW``W`HWPPUQQ]QT:T:]Q]:DPPVPPVPPQPQVPVQFPPTFFDFFDFDDFDDFPcoPc"
+DATA ""
+DATA 16, 16
+DATA "tcPPncP;8PncP;NfPhcdPN.K.KLPfcPR--.KKLLKKPecPIRIKbL.K.KPdcPWI-RLK.KdODPcc]:WIILKLLOZ[IDPc:VH`I-RIIe-"
+DATA "IFP::VDVIIRII]:QDPFPH:VDMIIHTDWDTTHcP:T]DWI:DdPDWFccPDT]:`PPd PMFdcPDHMFPf PPecPHFFP gc"
+DATA ""
+DATA 16, 16
+DATA "tcPPncP;8PncP;NfPhcdPN.K.KLPfcPR--.KKLLKKPecPIRIKbL.K.KPdcP`I-RLK.KdOFPccVDVIILKLLOZ[IFPcT]DMI-RIIe-"
+DATA "IDPDT]HMIIRII]:QDQDPDT]H`IIHTDWDTFDcPD:VHVI:DdPF`DccP::VDMPPd PVDdcP:DVDPf PPecPWTDP gc"
+DATA ""
+DATA 16, 16
+DATA "hcPPncPa:PmcPaHPkcdPa:dPhcPSS.K.K-[PfcPP..KKLLKOPPdcPTWKKbL.K.OFWPccPQDKOL.KdOFWPccP:HRO9LLOZ[TTP cP"
+DATA "]HR-dI--[DQP cPTWRg-[FFP cP]H-QQ``QQ[THP cP:HPQV`VQVD'HP cPTDFgPTWPP cPMPFPe PDPFP ccdPgcdP c"
+DATA ""
+DATA 16, 16
+DATA "hcPPncPa:PmcPaHPkcdPa:dPhcPSS.K.K-[PfcPP..KKLLKOPPdcP:HKKbL.K.ODHPccP]HKOL.KdOTHPccPTWRO9LLOZ[PFP cP"
+DATA "QWR-dI--[FPP cP:HRg-[TTP cPQD-QQ``QQ[FWP cPTD#QV`VQVFPWP cP:HDgP:HVP cPHVWPe PHQDP ccdPgcdP c"
+DATA ""
+DATA 16, 16
+DATA "|cPPncPaHPhcfP1HPhcPK.K.KVdPfcPK.KKLLK-S<PecP.KbL.K.<<[PdcP]KOL.KOOd[FPcP]-IOLLdO[ZFT`PTGGS-eI[[DQFD"
+DATA "QDH:aURG<[ZDPFWDUH:H``:W[[FDMDDPdMdPHDZFD`FDP WFPd PP]]`FFP cPPfcPdWFP jcPWMDP dc"
+DATA ""
+DATA 16, 16
+DATA "|cPPncPaHPhcfP1HPhcPK.K.KVdPfcPK.KKLLK-S<PecP.KbL.K.<<[PdcPTKOL.KOOd[DPcPQ-IOLLdO[ZDFMP]GGS-eI[[FPTF"
+DATA "]HH:aURG<[ZFQTFF`W:H``:W[[D:`FFPHV#dPHDZD:MWFP `QPd PPVQMDDP cPPfcPHHFDP jcP``FP dc"
+DATA ""
+DATA 16, 16
+DATA "~cxcgPjcPg0PgcdPe0550gP://005500Y1N1NUP]d/YY5YYA=/=APP://=YCYCA=/@/=PPe=Yd=Yd=YAPP/C=C=C=C=C=C==PPHW"
+DATA "W`WW`W``W`HWPPUQQ]QT:T:]Q]:DPPVPPVPPQPQVPVQFPPTFFDFFDFDDFDDFPcoPc"
+DATA ""
+DATA 16, 16
+DATA "~cxcgPjcPg0PgcdPe0550gP://005500Y1N1NUP]d/YY5YYA=/=APP://=YCYCA=/@/=PPe=Yd=Yd=YAPP/C=C=C=C=C=C==PPD`"
+DATA "HW``W`WWHWW`PP`]:T:]Q]QT:TQ:PPMVQPQVPVPPQPPTPPFDDFDDFDFFDFFWPcoPc"
+DATA ""
+DATA 16, 16
+DATA "~cjcePkcPPd0YPhcPPg05PfcP//e0550PfcP=//05500CDPdcP`=/00Y5YNCAFPccVDV==e/Na/@FPcT]DM=e/=;;/YDPDT]HM=="
+DATA "/d=;HAQDPDT]H`==dA=AAFDcPD:V:V==AdPF'DccP::VDMPPd PVDdcP:DVDPf PPecPWTDP gc"
+DATA ""
+DATA 16, 16
+DATA "~cjcePkcPPd0YPhcPPg05PfcP//e0550PfcP=//05500CFPdcPW=/00Y5YNCADPcc]HW==e/Na/@DPc:VHV=e/=;;/YFP::VDV=="
+DATA "/d=;HAPFPH:VDM==dA=AATHcP:T]DW==AdPDPFccPDT]:`PPd PMFdcPDHPFPf PPecPHFFP gc"
+DATA ""
+DATA 16, 16
+DATA "~cjcePkcPPe0PPhcP/f05APfcPPe0550YPPdcP:H/05500CYDHPccP]H/5YNHCC=DTPccPTW//=aH/=APFP cPQWd/a://=FPP c"
+DATA "P:H//YaH=5ADHP cPQD/==::A==FWP cPTD#A=A=A=FWWP cP:HFhPQVP cPHVWPe PHTDP ccdPgcdP c"
+DATA ""
+DATA 16, 16
+DATA "~cjcePkcPPe0PPhcP/f05APfcPPe0550YPPdcPTW/05500CYFWPccPQD/5YNHCC=FPPccP:H//=aH/=ATTP cP]Hd/a://=DQP c"
+DATA "PTW//YaH=5AFWP cP]H/==::A==THP cP:HPA=A=A=D:HP cPTDDgPQdP cPMPFPe PDFFP ccdPgcdP c"
+DATA ""
+DATA 16, 16
+DATA "~cjcePlcP5d0PPicPf055PPgcPd05500=YPecP]00500CYAAPdcPT/5XeYCAADPcPQ//1VA==YA=DPFP]/@aHA//YAAFPTF]H=1H"
+DATA "A&0=A=F:`FF`W=/d=/AAD:`FFPHV#dPA==DHMWFP `QPd PPVQMDDP cPPfcPHHFDP jcP``FP dc"
+DATA ""
+DATA 16, 16
+DATA "~cjcePlcP5d0PPicPf055PPgcPd05500=YPecPQ00500CYAAPdcP]/5XeYCAAFPcP]//1VA==YA=FQTPT/@aHA//YAADQFDQD=1H"
+DATA "A&0=A=DDMWDUH=/d=/AAFDMDDPdMdPA==FD`FDP WFPd PP]]`FFP cPPfcPdWFP jcPWMDP dc"
+DATA ""
+DATA 16, 16
+DATA "~czcgPjcPe055PdcfPd05500dPcX1N1X/55e0==:PP=/==5Y55dYA=:PPd/@//55YYA//:PP/d=Yd=Yd=YAPP/C=C=C=C=C=C==P"
+DATA "PD`HW``W`WWHWW`PP`]:T:]Q]QT:TQ:PPMVQPQVPVPPQPPTPPFDDFDDFDFFDFFWPcoPc"
+DATA ""
+DATA 16, 16
+DATA "~czcgPjcPe055PdcfPd05500dPcX1N1X/55e0==:PP=/==5Y55dYA=:PPd/@//55YYA//:PP/d=Yd=Yd=YAPP/C=C=C=C=C=C==P"
+DATA "PHWW`WWHW``W`HWPPUQQ]QT:T:]Q]:DPPVPPVPPQPQVPVQFPPTFFDFFDFDDFDDFPcoPc"
+DATA ""
+DATA 16, 16
+DATA "tcPPncP;8PncP;NfPhcdPNe05PfcPd/d05500PecP=/=055e0PdcPW=//Y/^0dYDPcc]:W==Yd5CAA=DPc:VH`=//=/=d/YFP::V"
+DATA "DV==/==]:QDPFPH:VDM==HTDWDTTHcP:T]DW=:DdPDWFccPDT]:`PPd PMFdcPDHMFPf PPecPHFFP gc"
+DATA ""
+DATA 16, 16
+DATA "tcPPncP;8PncP;NfPhcdPNe05PfcPd/d05500PecP=/=055e0PdcP`=//Y/^0dYFPccVDV==Yd5CAA=FPcT]DM=//=/=d/YDPDT]"
+DATA "HM==/==]:QDQDPDT]H`==HTDWDTFDcPD:VHV=:DdPF`DccP::VDMPPd PVDdcP:DVDPf PPecPWTDP gc"
+DATA ""
+DATA 16, 16
+DATA "hcPPncPa:PmcPaHPkcdPa:dPhcP//e0/APfcPPe0550YPPdcPTW/055d0YFWPccPQD0Y500dYFWPccP:H/Y55&CAATTP cP]Hd/="
+DATA "/=/=DQP cPTWh/AFFP cP]H/QQ``QQ=THP cP:HPQV`VQVD'HP cPTDFgPTWPP cPMPFPe PDPFP ccdPgcdP c"
+DATA ""
+DATA 16, 16
+DATA "hcPPncPa:PmcPaHPkcdPa:dPhcP//e0/APfcPPe0550YPPdcP:H/055d0YDHPccP]H0Y500dYTHPccPTW/Y55&CAAPFP cPQWd/="
+DATA "/=/=FPP cP:Hh/ATTP cPQD/QQ``QQ=FWP cPTD#QV`VQVFPWP cP:HDgP:HVP cPHVWPe PHQDP ccdPgcdP c"
+DATA ""
+DATA 16, 16
+DATA "|cPPncPaHPhcfP1HPhcPf0VdPfcPe0550//=PecP0055d0=YAPdcP]0Y500YYdAFPcP]//Y5YCYCA=FT`PT/0d/=/YAADQFDQDH:"
+DATA "aU/0YA=DPFWDUH:H``:WAAFDMDDPdMdPHD=FD`FDP WFPd PP]]`FFP cPPfcPdWFP jcPWMDP dc"
+DATA ""
+DATA 16, 16
+DATA "|cPPncPaHPhcfP1HPhcPf0VdPfcPe0550//=PecP0055d0=YAPdcPT0Y500YYdADPcPQ//Y5YCYCA=DFMP]/0d/=/YAAFPTF]HH:"
+DATA "aU/0YA=FQTFF`W:H``:WAAD:`FFPHV#dPHD=D:MWFP `QPd PPVQMDDP cPPfcPHHFDP jcP``FP dc"
+DATA ""
 
 MapData:
 DATA ".,T,..,.,.,,..,:.....,..,T..:T...,,:...."
@@ -606,104 +1138,32 @@ FUNCTION BldH% (bt AS INTEGER)
     IF bt = BSPIRE THEN BldH% = 22 ELSE BldH% = 28
 END FUNCTION
 
-' A box on the ground, isometric: its footprint a diamond round cx, cy, a wide each way, h high;
-' its top, left and right faces' colours.
-SUB Prism (cx AS INTEGER, cy AS INTEGER, a AS INTEGER, h AS INTEGER, ct AS INTEGER, cl AS INTEGER, cr AS INTEGER)
-    DIM x AS INTEGER, y AS INTEGER, fx AS SINGLE, ye AS SINGLE
-    FOR x = cx - a TO cx + a - 1
-        fx = x + .5
-        IF fx < cx THEN ye = cy + (fx - cx + a) / 2 ELSE ye = cy + a / 2 - (fx - cx) / 2
-        FOR y = cy - h - a \ 2 TO cy + a \ 2
-            IF ABS(fx - cx) / a + ABS(y + .5 - (cy - h)) / (a / 2) <= 1 THEN
-                PSET (x, y), ct
-            ELSEIF y + .5 <= ye AND y + .5 >= ye - h THEN
-                IF fx < cx THEN PSET (x, y), cl ELSE PSET (x, y), cr
-            END IF
-        NEXT
-    NEXT
-END SUB
-
-' An upright cylinder on the ground at cx, cy, r round, h high: lit left to right c1, c2, c3; its top.
-SUB Cyl (cx AS INTEGER, cy AS INTEGER, r AS INTEGER, h AS INTEGER, c1 AS INTEGER, c2 AS INTEGER, c3 AS INTEGER, ctop AS INTEGER)
-    DIM x AS INTEGER, y AS INTEGER, t AS SINGLE, yb AS SINGLE, c AS INTEGER
-    FOR x = cx - r TO cx + r - 1
-        t = (x + .5 - cx) / r
-        yb = cy + r / 2 * SQR(1 - t * t)
-        c = c2: IF t < -.35 THEN c = c1 ELSE IF t > .45 THEN c = c3
-        FOR y = cy - h - r \ 2 TO yb
-            IF t * t + ((y + .5 - (cy - h)) / (r / 2)) ^ 2 <= 1 THEN
-                PSET (x, y), ctop
-            ELSEIF y >= cy - h THEN
-                PSET (x, y), c
-            END IF
-        NEXT
-    NEXT
-END SUB
-
-' A dome standing on cx, cy, r round, lit from the upper left.
-SUB Dome (cx AS INTEGER, cy AS INTEGER, r AS INTEGER, c1 AS INTEGER, c2 AS INTEGER, c3 AS INTEGER)
-    DIM x AS INTEGER, y AS INTEGER, ex AS SINGLE, ey AS SINGLE, l AS SINGLE
-    FOR y = cy - r TO cy + r \ 3
-        FOR x = cx - r TO cx + r
-            ex = (x + .5 - cx) / r: ey = (y + .5 - cy) / (r * .85)
-            IF ex * ex + ey * ey <= 1 AND (y <= cy OR ex * ex + ((y + .5 - cy) / (r * .5)) ^ 2 <= 1) THEN
-                l = -ex * .6 - ey * .7
-                IF l > .35 THEN PSET (x, y), c1 ELSE IF l > -.25 THEN PSET (x, y), c2 ELSE PSET (x, y), c3
-            END IF
-        NEXT
-    NEXT
-END SUB
-
-' Building bt of side tmi, on black at ox, oy: its footprint's diamond at the image's foot, BldH%
-' above it for its height.
-SUB DrawBuilding (bt AS INTEGER, tmi AS INTEGER, ox AS INTEGER, oy AS INTEGER)
-    DIM n AS INTEGER, a AS INTEGER, cx AS INTEGER, cy AS INTEGER, mc AS INTEGER, lc AS INTEGER, dc AS INTEGER
-    DIM i AS INTEGER, x AS INTEGER, y AS INTEGER, u AS SINGLE, v AS SINGLE
-    n = BSize%(bt): a = 16 * n
-    cx = ox + a: cy = oy + BldH%(bt) + a \ 2
-    mc = 10 + tmi * 2: lc = 11 + tmi * 2: dc = 25 + tmi
-    ' the earth it stands on
-    Prism cx, cy, a, 0, 3, 3, 3
-    FOR i = 1 TO 12 * n
-        u = RND: v = RND
-        PSET (cx + (u - v) * a, cy - a \ 2 + (u + v) * a \ 2), 18
-    NEXT
-    SELECT CASE bt
-    CASE BHALL
-        Prism cx, cy + 1, 24, 10, 24, 14, 23
-        Prism cx - 9, cy + 5, 6, 6, mc, lc, dc
-        Dome cx + 1, cy - 9, 15, lc, mc, dc
-        Dome cx - 3, cy - 14, 4, 15, lc, mc
-        LINE (cx + 15, cy - 24)-(cx + 15, cy - 12), 14
-        PSET (cx + 15, cy - 25), 29: PSET (cx + 16, cy - 12), 23
-    CASE BMILL
-        Prism cx, cy + 2, 24, 7, 24, 13, 23
-        ' the dock's stripes, on the south face
-        FOR x = cx - 24 TO cx: FOR y = cy - 8 TO cy + 16
-            IF POINT(x, y) = 13 AND ((x + y * 2) \ 3) MOD 2 THEN PSET (x, y), 0
-        NEXT: NEXT
-        Cyl cx + 8, cy - 6, 8, 16, 24, 14, 23, 9
-        Cyl cx - 8, cy - 1, 8, 16, 24, 14, 23, 9
-        Dome cx + 8, cy - 22, 4, 31, 22, 9
-        Dome cx - 8, cy - 17, 4, 31, 22, 9
-        LINE (cx - 1, cy - 12)-(cx + 2, cy - 14), mc
-    CASE BDEN
-        Prism cx, cy + 1, 26, 8, lc, mc, dc
-        ' the hangar's ribs, and its door on the east face
-        FOR x = cx - 26 TO cx + 26: FOR y = cy - 28 TO cy + 16
-            i = POINT(x, y)
-            IF i = lc AND (x + y * 2) MOD 6 < 2 THEN PSET (x, y), mc
-            IF i = dc AND x > cx + 6 AND x < cx + 20 AND y > cy + 2 THEN
-                PSET (x, y), 0: IF (x + y) MOD 4 = 0 THEN PSET (x, y), 13
-            END IF
-        NEXT: NEXT
-        Prism cx - 8, cy - 2, 7, 6, 24, 14, 23
-        Cyl cx - 8, cy - 8, 2, 6, 14, 23, 4, 4
-    CASE BSPIRE
-        Prism cx, cy, 12, 4, 24, 14, 23
-        Cyl cx, cy - 4, 6, 10, lc, mc, dc, 24
-        Dome cx, cy - 14, 5, 24, 14, 23
-    END SELECT
+' The next picture from the DATA: drawn at ox, oy, its mask at mx, oy (0 where it is, 255 not), the
+' shade it casts at hx, oy (FOG). Its width and height, then strings of symbols to an empty one: a
+' colour CHR$(35 + c), 99 nothing, 32 shade, from 100 a run of the next symbol, CODE - 97 long.
+SUB Unpack (ox AS INTEGER, mx AS INTEGER, hx AS INTEGER, oy AS INTEGER)
+    DIM w AS INTEGER, h AS INTEGER, x AS INTEGER, y AS INTEGER, i AS INTEGER, c AS INTEGER, n AS INTEGER
+    DIM k AS INTEGER, row AS STRING
+    READ w, h
+    DO
+        READ row
+        IF row = "" THEN EXIT DO
+        i = 1
+        DO WHILE i <= LEN(row)
+            c = ASC(MID$(row, i, 1)): n = 1
+            IF c >= 100 THEN n = c - 97: i = i + 1: c = ASC(MID$(row, i, 1))
+            FOR k = 1 TO n
+                IF c = 99 OR c = 32 THEN
+                    PSET (ox + x, oy + y), 0: PSET (mx + x, oy + y), 255
+                ELSE
+                    PSET (ox + x, oy + y), c - 35: PSET (mx + x, oy + y), 0
+                END IF
+                IF c = 32 THEN PSET (hx + x, oy + y), FOG ELSE PSET (hx + x, oy + y), 0
+                x = x + 1: IF x = w THEN x = 0: y = y + 1
+            NEXT
+            i = i + 1
+        LOOP
+    LOOP
 END SUB
 
 FUNCTION BSize% (k AS INTEGER)
@@ -713,12 +1173,9 @@ END FUNCTION
 ' The tiles, the units in 8 headings and 2 frames each, the buildings by the tile, the icons.
 ' Units and buildings are drawn at 24 pixels a tile and sampled at TS.
 SUB BuildArt (art() AS INTEGER, gl() AS INTEGER)
-    DIM k AS INTEGER, x AS INTEGER, y AS INTEGER, ut AS INTEGER, tmi AS INTEGER, d AS INTEGER
-    DIM f AS INTEGER, idx AS INTEGER, a AS SINGLE, ca AS SINGLE, sa AS SINGLE
-    DIM px AS SINGLE, py AS SINGLE, c AS INTEGER, bt AS INTEGER, q AS INTEGER, sz AS INTEGER
-    DIM n AS INTEGER, total AS INTEGER
-    DIM px2(TS - 1, TS - 1) AS INTEGER
-    total = 4 + NOVL + 16 + 96 + 8 + 2
+    DIM k AS INTEGER, x AS INTEGER, y AS INTEGER, tmi AS INTEGER, a AS SINGLE, ca AS SINGLE
+    DIM c AS INTEGER, bt AS INTEGER, q AS INTEGER, sz AS INTEGER, n AS INTEGER, total AS INTEGER
+    total = 4 + NOVL + 16 + 24 + 8 + 2
     RANDOMIZE 11
     ' the grass: the field's 16 pieces as diamonds, each pixel the field's under it
     GrassField
@@ -807,69 +1264,37 @@ SUB BuildArt (art() AS INTEGER, gl() AS INTEGER)
         n = n + 1: Progress n, total, gl()
     NEXT
 
-    FOR ut = 1 TO 3: FOR tmi = 0 TO 1: FOR d = 0 TO 7: FOR f = 0 TO 1
-        a = d * .785398: ca = COS(a): sa = SIN(a)
-        FOR y = 0 TO TS - 1: FOR x = 0 TO TS - 1
-            ' seen from above at a slant: squashed top to bottom
-            px = (x - (TS - 1) / 2) * 24 / TS: py = (y - (TS - 1) / 2) * 24 / TS * 1.25
-            px2(x, y) = UnitPix%(ut, tmi, px * ca + py * sa, -px * sa + py * ca, f)
-        NEXT: NEXT
-        ' a black outline round the shape: -2
-        FOR y = 0 TO TS - 1: FOR x = 0 TO TS - 1
-            IF px2(x, y) = -1 THEN
-                c = 0
-                IF x > 0 THEN IF px2(x - 1, y) >= 1 THEN c = 1
-                IF x < TS - 1 THEN IF px2(x + 1, y) >= 1 THEN c = 1
-                IF y > 0 THEN IF px2(x, y - 1) >= 1 THEN c = 1
-                IF y < TS - 1 THEN IF px2(x, y + 1) >= 1 THEN c = 1
-                IF c THEN px2(x, y) = -2
-            END IF
-        NEXT: NEXT
-        idx = ((ut - 1) * 2 + tmi) * 16 + d * 2 + f
-        LINE (0, 0)-(TS - 1, TS - 1), 0, BF
-        FOR y = 0 TO TS - 1: FOR x = 0 TO TS - 1
-            IF px2(x, y) >= 0 THEN PSET (x, y), px2(x, y)
-        NEXT: NEXT
-        GET (0, 0)-(TS - 1, TS - 1), art(0, ASPR + idx)
-        LINE (0, 0)-(TS - 1, TS - 1), 255, BF
-        FOR y = 0 TO TS - 1: FOR x = 0 TO TS - 1
-            IF px2(x, y) <> -1 THEN PSET (x, y), 0
-        NEXT: NEXT
-        GET (0, 0)-(TS - 1, TS - 1), art(0, AMSK + idx)
-        LINE (0, 0)-(TS - 1, TS - 1), 0, BF
-        FOR y = 0 TO TS - 1: FOR x = 0 TO TS - 1
-            IF px2(x, y) >= 0 THEN PSET (x, y), FOG
-        NEXT: NEXT
-        GET (0, 0)-(TS - 1, TS - 1), art(0, ASHD + idx)
-        n = n + 1: Progress n, total, gl()
-    NEXT: NEXT: NEXT: NEXT
-
+    ' the buildings, the art tool's: image, mask, fog
+    RESTORE ArtData
     FOR bt = 1 TO 4: FOR tmi = 0 TO 1
         sz = BSize%(bt) * 32: q = BldH%(bt) + sz \ 2
-        LINE (100, 0)-(100 + sz - 1, q - 1), 0, BF
-        DrawBuilding bt, tmi, 100, 0
+        Unpack 100, 170, 240, 0
         k = ABLD + ((bt - 1) * 2 + tmi) * 3 * BLDW
         GET (100, 0)-(100 + sz - 1, q - 1), art(0, k)
+        GET (170, 0)-(170 + sz - 1, q - 1), art(0, k + BLDW)
         ' the sidebar's icons: the Lodge's mill, den and spire, sampled small
         IF tmi = 0 AND bt > 1 THEN
             FOR y = 0 TO TS - 1: FOR x = 0 TO TS - 1
                 c = POINT(100 + x * sz \ TS, y * q \ TS)
-                IF c = 0 THEN c = 2
-                PSET (200 + x, y), c
+                IF POINT(170 + x * sz \ TS, y * q \ TS) THEN c = 2
+                PSET (250 + x, y), c
             NEXT: NEXT
-            GET (200, 0)-(200 + TS - 1, TS - 1), art(0, AICN + bt - 2)
+            GET (250, 0)-(250 + TS - 1, TS - 1), art(0, AICN + bt - 2)
         END IF
-        FOR y = 0 TO q - 1: FOR x = 100 TO 100 + sz - 1
-            IF POINT(x, y) THEN
-                PSET (x, y), 0: PSET (x + 70, y), FOG
-            ELSE
-                PSET (x, y), 255: PSET (x + 70, y), 0
-            END IF
+        FOR y = 0 TO q - 1: FOR x = 0 TO sz - 1
+            IF POINT(170 + x, y) THEN PSET (100 + x, y), 0 ELSE PSET (100 + x, y), FOG
         NEXT: NEXT
-        GET (100, 0)-(100 + sz - 1, q - 1), art(0, k + BLDW)
-        GET (170, 0)-(170 + sz - 1, q - 1), art(0, k + 2 * BLDW)
+        GET (100, 0)-(100 + sz - 1, q - 1), art(0, k + 2 * BLDW)
         n = n + 1: Progress n, total, gl()
     NEXT: NEXT
+    ' the units: image, mask, the shade they cast
+    FOR k = 0 TO 95
+        Unpack 100, 120, 140, 0
+        GET (100, 0)-(115, 15), art(0, ASPR + k)
+        GET (120, 0)-(135, 15), art(0, AMSK + k)
+        GET (140, 0)-(155, 15), art(0, ASHD + k)
+        IF k MOD 4 = 3 THEN n = n + 1: Progress n, total, gl()
+    NEXT
 END SUB
 
 ' The flow field to goal: each tile's steps to it, FAR where there is no way. Units ignored.
@@ -1530,7 +1955,7 @@ SUB DrawObjects (g AS GameT, m() AS CellT, u() AS UnitT, bl() AS BldgT, art() AS
                 f = 0
                 IF u(i).nx <> u(i).x OR u(i).ny <> u(i).y OR u(i).st = SGATHER THEN f = INT(u(i).anim * 8) MOD 2
                 k = ((u(i).kind - 1) * 2 + u(i).team) * 16 + IsoDir%(u(i).dir) * 2 + f
-                PUT (x0 + 2, y0 + 2), art(0, ASHD + k), OR
+                PUT (x0, y0), art(0, ASHD + k), OR
                 Sprite art(), k, x0, y0
                 IF u(i).kind = UCRAWL AND u(i).load > 0 THEN
                     PSET (sx, sy - 5), 8: PSET (sx + 1, sy - 4), 8
@@ -2259,6 +2684,7 @@ END SUB
 ' The screen, its pages, the palette, the music.
 SUB Setup (g AS GameT, tune() AS STRING)
     DIM i AS INTEGER, j AS INTEGER, v AS INTEGER, pre(2) AS STRING, bar(2) AS STRING
+    DIM cr AS INTEGER, cg AS INTEGER, cb AS INTEGER
     SCREEN 13, , 1, 0
     g.vw.page = 1
     g.snd.enabled = -1
@@ -2294,6 +2720,11 @@ SUB Setup (g AS GameT, tune() AS STRING)
     Shade 29, 63, 18, 10    ' a red light
     Shade 30, 17, 11, 6     ' bark
     Shade 31, 44, 63, 54    ' moss's tips
+    RESTORE PalData
+    FOR i = 32 TO 63
+        READ cr, cg, cb
+        Shade i, cr, cg, cb
+    NEXT
     Ramp FIRE, 16, 63, 63, 52, 34, 6, 2
     Ramp LOGOC, 8, 63, 63, 63, 0, 34, 24
     RESTORE Tunes
@@ -2548,57 +2979,6 @@ FUNCTION UHp% (k AS INTEGER)
     CASE UWARD: UHp% = 55
     CASE ELSE: UHp% = 170
     END SELECT
-END FUNCTION
-
-' A unit's look at u ahead and v to its right, in pixels from its middle: a colour, -1 none.
-FUNCTION UnitPix% (ut AS INTEGER, tmi AS INTEGER, u AS SINGLE, v AS SINGLE, fr AS INTEGER)
-    DIM c AS INTEGER, mc AS INTEGER, lc AS INTEGER, av AS SINGLE, au AS SINGLE, fs AS SINGLE
-    mc = 10 + tmi * 2: lc = 11 + tmi * 2
-    c = -1: av = ABS(v): au = ABS(u)
-    SELECT CASE ut
-    CASE UCRAWL
-        IF av >= 6 AND av <= 10 AND au <= 10 THEN
-            c = 14: IF (INT(u + 40) + fr * 2) MOD 4 < 2 THEN c = 4
-        END IF
-        IF u > 9 AND u <= 11.5 AND av <= 7 THEN c = 3
-        IF u >= -10 AND u < 3 AND av < 6 THEN
-            c = 14
-            IF INT(u + 40) MOD 3 = 0 THEN c = 3
-            IF av <= 3.5 AND u > -8.5 AND u < 1.5 THEN
-                c = 9: IF (INT(u * 2) + INT(v * 2) + fr + 40) MOD 5 = 0 THEN c = 8
-            END IF
-            IF av >= 4.5 THEN c = mc
-        END IF
-        IF u >= 3 AND u <= 9 AND av < 6 THEN
-            c = lc
-            IF u >= 5.5 AND u <= 7.5 AND av <= 3.5 THEN c = 6
-        END IF
-    CASE UWARD
-        IF fr THEN fs = -3 ELSE fs = 3
-        IF ABS(u - fs) <= 2 AND ABS(v + 4) <= 1.5 THEN c = 14
-        IF ABS(u + fs) <= 2 AND ABS(v - 4) <= 1.5 THEN c = 14
-        IF u * u + v * v <= 20 THEN c = mc
-        IF (u - 1) ^ 2 + v * v <= 6 THEN c = lc
-        IF u >= 2.5 AND u <= 4.2 AND av <= 1.5 THEN c = 15
-        IF u >= 2 AND u <= 10 AND v >= 1.5 AND v <= 3.2 THEN c = 14
-        IF u >= 9 AND u <= 10 AND v >= 1.5 AND v <= 3.2 THEN c = 0
-    CASE URAM
-        IF av >= 5 AND av <= 9 AND au <= 9.5 THEN
-            c = 14: IF (INT(u + 40) + fr * 2) MOD 4 < 2 THEN c = 4
-        END IF
-        IF au <= 8 AND av < 5.5 THEN
-            c = mc
-            IF u > 5.5 THEN c = lc
-            IF u < -6.5 THEN c = 4
-        END IF
-        IF u >= 1 AND u <= 12 AND av <= 1.2 THEN c = 14
-        IF u > 11 AND u <= 12 AND av <= 1.2 THEN c = 15
-        IF (u + 1) ^ 2 + v * v <= 13 THEN
-            c = lc: IF (u + 1) ^ 2 + v * v >= 9 THEN c = mc
-        END IF
-        IF (u + 2) ^ 2 + (v + 1) ^ 2 <= 1.5 THEN c = 15
-    END SELECT
-    UnitPix% = c
 END FUNCTION
 
 ' One step of unit i's orders.
