@@ -450,6 +450,25 @@ static bool lexr_copy_data(Lexr *const lx)
     bool quoted = false;
 
     for (;;) {
+        const uint8_t *in = lx->in; /* the window's bytes by locals: see lexr_copy_to */
+        uint8_t *out = lx->out;
+        uint8_t *const end = lx->end;
+
+        for (uint8_t c; (c = *in) && out < end;) {
+            in++;
+            *out++ = c;
+
+            if (c == '"')
+                quoted = !quoted;
+            else if (c == ':' && !quoted) {
+                lx->in = (uint8_t *)in;
+                lx->out = out;
+                return true;
+            }
+        }
+
+        lx->in = (uint8_t *)in;
+        lx->out = out;
         lexr_room(lx);
         const uint8_t c = lexr_next_char(lx);
 
