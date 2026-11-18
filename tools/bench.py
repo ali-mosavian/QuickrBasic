@@ -586,6 +586,8 @@ def cmd_fps(a: argparse.Namespace) -> int:
     assert dosrun.CONF != conf
     if a.profile:
         dosrun.CONF = dosrun.CONF.replace("core=dynamic", "core=normal")
+    if a.nosb:
+        dosrun.CONF += "[sblaster]\nsbtype=none\n"
     with tempfile.TemporaryDirectory() as d:
         if a.profile:
             dosrun.COM = profiled(build(".", True), Path(d))
@@ -662,6 +664,7 @@ def main() -> int:
     p.add_argument("--profile", action="store_true", help="the functions it spends its instructions in (normal core)")
     p.add_argument("--parts", action="store_true", help="each step of the loop's ms a frame")
     p.add_argument("--each", action="store_true", help="each FPS_EACH call's ms on its own")
+    p.add_argument("--nosb", action="store_true", help="no Sound Blaster: the PC speaker's music")
     p.add_argument("-n", type=int, default=30)
     a = ap.parse_args()
     return {
