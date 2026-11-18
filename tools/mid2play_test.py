@@ -54,11 +54,12 @@ def main() -> None:
     lines = text.splitlines()
     assert lines[1].startswith('PLAY "MBT240W0Q30'), lines[1]
     # E above middle C is N41, G N44: a quarter, an eighth's rest, a dotted eighth, the bar's seven sixteenths of rest
-    kit = "W4Y0K4,8V14O1CP8.W3Y3,4000,0K0V8O6CP2P8."
+    # the kick starts with a click: a kick of a sine alone was under 250 Hz, a recording's in every band
+    kit = "W4Z5,15,2,0,7Y0K4,8V15O1CP8.W3Y3,4000,0K0V11O6CP2P8."
     assert lines[2] == f'PLAY "L4N41P8L8N44.P4.P16", "{kit}"', lines[2]
     # a drum is set once: sixteen hats are a C each after the first, not 288 characters
     hats = mid2play.bar_of(dict.fromkeys(range(16), (42, 1)), 0, 16, {})
-    assert hats == "W3Y3,4000,0K0V8O6C" + "C" * 15, hats
+    assert hats == "W3Y3,4000,0K0V11O6C" + "C" * 15, hats
     with tempfile.TemporaryDirectory() as tmp:
         (Path(tmp) / "T.BAS").write_text(text + 'PRINT "played"\n')
         run = subprocess.run([exe, "T.BAS"], cwd=tmp, capture_output=True, timeout=60)

@@ -23,11 +23,11 @@ KIT_CHANNEL = 9
 PIECES = {16: "1", 12: "2.", 8: "2", 6: "4.", 4: "4", 3: "8.", 2: "8", 1: "16"}
 # a drum: what its voice is set to, then its note. A snare is all the noise under 6 kHz, a hat what is over 4: a
 # recording's drums were in every band, these in one
-KICK = ("W4", "Y0", "K4,8", "V14", "O1", "C")
-SNARE = ("W3", "Y1,6000,2", "K0", "V12", "O6", "C")
-HAT = ("W3", "Y3,4000,0", "K0", "V8", "O6", "C")
+KICK = ("W4", "Z5,15,2,0,7", "Y0", "K4,8", "V15", "O1", "C")
+SNARE = ("W3", "Y0", "K0", "V15", "O6", "C")
+HAT = ("W3", "Y3,4000,0", "K0", "V11", "O6", "C")
 KIT = {35: KICK, 36: KICK, 38: SNARE, 40: SNARE} | {
-    key: ("W4", "Y0", "K5,6", "V12", "O2", note) for key, note in ((41, "C"), (43, "E"), (45, "G"), (47, "B"))
+    key: ("W4", "Z1,0", "Y0", "K5,6", "V14", "O2", note) for key, note in ((41, "C"), (43, "E"), (45, "G"), (47, "B"))
 }
 LONGEST = 255  # a string's characters
 
@@ -38,16 +38,18 @@ def hit(drum: tuple[str, ...], state: dict[str, str]) -> str:
     out = "".join(part for part in drum[:-1] if state.get(part[0]) != part)
     state.update({part[0]: part for part in drum[:-1]})
     return out + drum[-1]
+
+
 # a General MIDI program's family (program // 8) as a sound
 SOUNDS = {
     0: "W4Z2,6,6,2,1H0,7,3,3I2",
     1: "W4Z7,6,7,0H0,8,0,6",
-    2: "W4Z1,5,3,11,5H0,4,10,4U6I6",
+    2: "W4Z1,11,3,14,6H0,4,11,4U6I6",
     3: "W4Z3,9,3,1,3H0,6,3,3",
-    4: "W4Z1,12,4,4,4H0,5,6,1I2",
+    4: "W4Z1,6,4,8,3H0,7,11,2I2",
     5: "W2Y1,2400,4H3,5,11,4U4I6",
     6: "W2Y1,2000,3H4,6,11,5U3I8",
-    7: "W4Z1,5,3,11,5H1,4,12,5U7I6",
+    7: "W4Z1,11,3,14,6H1,4,12,5U7I6",
     8: "W0Q42H1,4,10,3U5I4",
     9: "W1H1,3,12,3U4",
     10: "W0Q30H0,4,9,3U5I4",
@@ -173,7 +175,7 @@ def bar_of(voice: dict[int, tuple[int, int]], first: int, places: int, kit: dict
 
 def sound(family: int) -> str:
     """A program family's sound at its volume: PLAY's own 8 of 15 left six voices 8 dB under a recording."""
-    return SOUNDS.get(family, DEFAULT_SOUND) + ("V13" if family == BASS else "V11")
+    return SOUNDS.get(family, DEFAULT_SOUND) + ("V15" if family == BASS else "V14")
 
 
 def program(song: Song, voices: int, bars: int | None, grid: int, up: dict[int, int] | None = None) -> str:
@@ -184,10 +186,7 @@ def program(song: Song, voices: int, bars: int | None, grid: int, up: dict[int, 
     last = max(place + length for voice in lines.values() for place, (_, length) in voice.items())
     count = min(bars or sys.maxsize, -(-last // grid))
     tempo = max(32, min(255, round(song.tempo)))
-    setup = [
-        "Z1,0H0,3,0,1L16" if key[1] == KIT_CHANNEL else sound(song.programs.get(key, -8) // 8)
-        for key in keys
-    ]
+    setup = ["Z1,0H0,5,0,3L16" if key[1] == KIT_CHANNEL else sound(song.programs.get(key, -8) // 8) for key in keys]
     kit: dict[str, str] = {}
     out = ["' " + ", ".join(f"voice {k + 1}: track {key[0]} channel {key[1] + 1}" for k, key in enumerate(keys))]
     out.append("PLAY " + ", ".join(f'"{"MB" if k == 0 else ""}T{tempo}{text}"' for k, text in enumerate(setup)))
