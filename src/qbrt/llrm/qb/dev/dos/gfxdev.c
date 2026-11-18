@@ -1176,6 +1176,21 @@ static void linear_blit(void *dst, const void *src, unsigned width, unsigned row
     dev_blit(&blit);
 }
 
+int gd_solid_box(unsigned x, unsigned y, unsigned count, unsigned rows, unsigned color)
+{
+    SolidBox box;
+
+    if (kind != KIND_LINEAR || in_memory)
+        return 0;
+    box.dst = (void *)pixel_at(x, y);
+    box.count = count;
+    box.rows = rows;
+    box.dstep = (int)pitch;
+    box.color = color;
+    dev_solid(&box);
+    return 1;
+}
+
 void gd_get(unsigned x, unsigned y, unsigned width, unsigned rows, u8 QB_FAR *out)
 {
     unsigned row;

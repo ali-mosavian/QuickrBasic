@@ -62,6 +62,14 @@ typedef struct LinearBlit {
     unsigned op, tail;
 } LinearBlit;
 
+/* `rows` rows of `count` bytes from `dst` set to `color`, each `dstep` after the last (gdblit.asm). */
+typedef struct SolidBox {
+    void QB_FAR *dst;
+    unsigned count, rows;
+    int dstep;
+    unsigned color;
+} SolidBox;
+
 typedef struct FillXfer {
     void QB_FAR *screen;
     void QB_FAR *array;
@@ -127,6 +135,7 @@ typedef struct FillOct {
 #pragma aux dev_line_planar "B$FLIP"
 #pragma aux dev_get_rows "B$FGET"
 #pragma aux dev_blit "B$LBLIT"
+#pragma aux dev_solid "B$SOLID"
 #pragma aux dev_scan_linear "B$FSCL"
 #pragma aux dev_scan_planar "B$FSCP"
 #pragma aux dev_scan_packed "B$FSCC"
@@ -167,6 +176,7 @@ extern void dev_line_packed(FillLine *line);
 extern void dev_line_planar(FillLine *line);
 extern void dev_get_rows(FillXfer *xfer);
 extern void dev_blit(LinearBlit *blit);
+extern void dev_solid(SolidBox *box);
 extern void dev_scan_linear(FillScan *scan);
 extern void dev_scan_planar(FillScan *scan);
 extern void dev_scan_packed(FillScan *scan);

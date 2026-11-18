@@ -276,6 +276,11 @@ int gd_set_mode(unsigned requested)
     return 1;
 }
 
+int gd_solid_box(unsigned x, unsigned y, unsigned count, unsigned rows, unsigned color)
+{
+    return 0;
+}
+
 int gd_set_pages(unsigned active, unsigned visible)
 {
     if (active >= page_count || visible >= page_count)

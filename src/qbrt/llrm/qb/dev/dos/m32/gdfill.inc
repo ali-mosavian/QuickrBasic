@@ -73,3 +73,11 @@ LinearBlit      struc
                 op              dword   ?
                 tail            dword   ?               ;; B$LBLIT's
 LinearBlit      ends
+
+SolidBox        struc
+                dst             dword   ?
+                count           dword   ?
+                rows            dword   ?
+                dstep           dword   ?
+                color           dword   ?
+SolidBox        ends

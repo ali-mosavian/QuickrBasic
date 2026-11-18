@@ -28,6 +28,8 @@ void qb_port_out(unsigned port, unsigned value);
 unsigned qb_port_in(unsigned port);
 
 void gd_plot(unsigned x, unsigned y, unsigned color, unsigned operation);
+/* A box on the screen set to `color` where the device has a quicker way than gd_fill_select's: 0 where not. */
+int gd_solid_box(unsigned x, unsigned y, unsigned count, unsigned rows, unsigned color);
 
 /* A fill of a box of pixels: the routine for the mode, chosen with the
    operation by gd_fill_select (which patches the box loop for it, so only one

@@ -7,6 +7,7 @@
                 .model  flat
 
                 public  B$LBLIT
+                public  B$SOLID
 
                 include gdfill.inc
 
@@ -129,4 +130,56 @@ B$LBLIT         proc    uses ebx ecx edx esi edi ebp
                 jnz     @@not
                 ret
 B$LBLIT         endp
+
+;; B$SOLID - `rows` rows of `count` bytes from `dst` set to `color`, a row
+;; `dstep` bytes after the one before: a loop for each width.
+;;
+;; Args:
+;;     box (eax): ptr to a SolidBox.
+;;
+;; Saves:    ebx ecx edx esi edi ebp
+;; Clobbers: eax, flags
+B$SOLID         proc    uses ebx ecx edx esi edi ebp
+                cld
+                mov     ebx, eax
+                mov     ebp, [ebx].SolidBox.rows
+                test    ebp, ebp
+                jz      @@done
+                mov     edi, [ebx].SolidBox.dst
+                mov     edx, [ebx].SolidBox.dstep
+                mov     ecx, [ebx].SolidBox.count
+                movzx   eax, byte ptr [ebx].SolidBox.color
+                imul    eax, 01010101h
+                cmp     ecx, 1
+                je      @@col1
+                cmp     ecx, 2
+                je      @@col2
+                sub     edx, ecx
+                mov     esi, ecx
+                shr     esi, 2
+                and     ecx, 3
+                mov     ebx, ecx
+@@wide:
+                mov     ecx, esi
+                rep     stosd
+                mov     ecx, ebx
+                rep     stosb
+                add     edi, edx
+                dec     ebp
+                jnz     @@wide
+                ret
+@@col1:
+                mov     [edi], al
+                add     edi, edx
+                dec     ebp
+                jnz     @@col1
+                ret
+@@col2:
+                mov     [edi], ax
+                add     edi, edx
+                dec     ebp
+                jnz     @@col2
+@@done:
+                ret
+B$SOLID         endp
                 end

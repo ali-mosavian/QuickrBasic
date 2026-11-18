@@ -134,6 +134,15 @@ void gfx_line_between(int color, int style, int how)
     /* a style with bit 15 set is a negative INTEGER: widened, its high bits would fall into every turn of it */
     pattern = (unsigned)style & 0xFFFF;
     phase = 0;
+    if (solid && (how == FILLED_BOX || (how == LINE_STYLE && (gfx_x1 == gfx_x2 || gfx_y1 == gfx_y2)))) {
+        /* a solid box, or a line across or down, inside the viewport: the same pixels, set at once */
+        const int left = gfx_x1 < gfx_x2 ? gfx_x1 : gfx_x2, right = gfx_x1 < gfx_x2 ? gfx_x2 : gfx_x1;
+        const int top = gfx_y1 < gfx_y2 ? gfx_y1 : gfx_y2, bottom = gfx_y1 < gfx_y2 ? gfx_y2 : gfx_y1;
+
+        if (left >= gfx_view_left && right <= gfx_view_right && top >= gfx_view_top && bottom <= gfx_view_bottom &&
+            gd_solid_box((unsigned)left, (unsigned)top, (unsigned)(right - left + 1), (unsigned)(bottom - top + 1), c))
+            return;
+    }
     gd_fill_select(&fill, c, OP_SET);
     if (how == FILLED_BOX) {
         int left = gfx_x1, top = gfx_y1, right = gfx_x2, bottom = gfx_y2;
