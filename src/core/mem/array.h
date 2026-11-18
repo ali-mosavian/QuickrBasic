@@ -46,6 +46,10 @@ static inline uint32_t arry_elem_size(const Symb *const sy, const Decl *const d,
         return decl_type(d, v->type - ET_REC)->size;
     if (v->info & SK_DBL)
         return 8;
+    if (v->type == ET_SH)
+        return 2;
+    if (v->type == ET_BY)
+        return 1;
 
     return (v->info & VK_MASK) == VK_STR ? DSZ : VS;
 }

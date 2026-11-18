@@ -997,40 +997,20 @@ static void runres(Comp *const C, const uint8_t k, const uint8_t op)
 static void act_run(Comp *const C) { runres(C, K_RUN, O_RUN_L); }
 static void act_res(Comp *const C) { runres(C, K_RES, O_RESTORE_L); }
 
-/* A bound's expression, as an INT; true and *v: an INT literal, or one negated. */
+/* A bound's expression, as an INT; true and *v: its value when it folds to a constant. */
 static bool bound(Comp *const C, int32_t *const v)
 {
     Node *const tree = expr_tree(C, false);
-    fold_tree(C, tree); /* CONST n - 1 a literal: a frame's array too */
-    const bool neg = tree->kind == N_UN && tree->op == TK_MINUS;
-    const Node *const n = neg ? tree->a : tree;
-    const uint8_t op = n->kind == N_LIT ? n->op : 0;
-    uint8_t lit[4];
-    memcpy(lit, n->lit, sizeof lit);
-    comp_step(C, tree); /* comp_toint may wrap the node: its literal read first */
-    comp_toint(C);
-    int64_t x;
+    comp_step(C, tree);
+    comp_toint(C); /* tree: now the conversion */
+    sema_resolve(C, tree);
+    Cell c;
 
-    switch (op) {
-    case O_I_LD_U8:
-        x = lit[0];
-        break;
-
-    case O_I_LD_I16:
-        x = load16(lit);
-        break;
-
-    case O_I_LD_I32:
-        x = (int32_t)load32(lit);
-        break;
-
-    default:
+    if (!fold_number(C, tree, &c))
         return false;
-    }
 
-    x = neg ? -x : x;
-    *v = (int32_t)x;
-    return x == *v;
+    *v = (int32_t)c.u;
+    return true;
 }
 
 /* DIM's ( [lo TO] hi {, ..} ): lo hi, or hi and OPTION BASE's, each an INT; how many. *elems: the

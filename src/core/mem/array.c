@@ -39,7 +39,7 @@
 #include "mem/copy.h"
 #include "vm/flow.h"
 
-enum { DATA_MAX = 0x100000, DATA_ALIGN = 4 };
+enum { DATA_ALIGN = 4 };
 
 void arry_init(
     Arry *const ay,
@@ -197,7 +197,7 @@ Addr arry_new(Arry *const ay, const uint16_t id, const uint8_t n, const bool dyn
     for (uint32_t i = 0; i < n; i++) {
         size *= ay->counts[i];
 
-        if (size > DATA_MAX)
+        if (size > REF_ADDR) /* past any heap */
             fault_error(ay->fault, E_OM);
     }
 
