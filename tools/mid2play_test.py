@@ -35,8 +35,10 @@ def song() -> bytes:
     )
     kit = track(
         [
-            (0, bytes([on | 9, 36, 100])),  # a kick, then a hat on the second beat
+            (0, bytes([on | 9, 36, 100])),  # a kick with a hat, then a hat on the second beat
+            (0, bytes([on | 9, 42, 100])),
             (1, bytes([off | 9, 36, 0])),
+            (0, bytes([off | 9, 42, 0])),
             (QUARTER - 1, bytes([on | 9, 42, 100])),
             (1, bytes([off | 9, 42, 0])),
         ]
@@ -54,12 +56,12 @@ def main() -> None:
     lines = text.splitlines()
     assert lines[1].startswith('PLAY "MBT240W0Q30'), lines[1]
     # E above middle C is N41, G N44: a quarter, an eighth's rest, a dotted eighth, the bar's seven sixteenths of rest
-    # the kick starts with a click: a kick of a sine alone was under 250 Hz, a recording's in every band
-    kit = "W4Z5,15,2,0,7Y0K4,8V15O1CP8.W3Y3,4000,0K0V11O6CP2P8."
-    assert lines[2] == f'PLAY "L4N41P8L8N44.P4.P16", "{kit}"', lines[2]
-    # a drum is set once: sixteen hats are a C each after the first, not 288 characters
-    hats = mid2play.bar_of(dict.fromkeys(range(16), (42, 1)), 0, 16, {})
-    assert hats == "W3Y3,4000,0K0V11O6C" + "C" * 15, hats
+    # a voice a drum, set once: the kick, which starts with a click (a sine alone was under 250 Hz), then the hat
+    # with the hat under the kick, which the kit in one voice lost
+    assert lines[1].endswith('"T240Z1,0H0,5,0,3L16W4Z5,15,2,0,7Y0K4,8V15O1", "T240Z1,0H0,5,0,3L16W3Y3,4000,0K0V11O6"')
+    assert lines[2] == 'PLAY "L4N41P8L8N44.P4.P16", "CP2.P8.", "CP8.CP2P8."', lines[2]
+    hats = mid2play.bar_of(dict.fromkeys(range(16), (42, 1)), 0, 16, "C")
+    assert hats == "C" * 16, hats
     with tempfile.TemporaryDirectory() as tmp:
         (Path(tmp) / "T.BAS").write_text(text + 'PRINT "played"\n')
         run = subprocess.run([exe, "T.BAS"], cwd=tmp, capture_output=True, timeout=60)

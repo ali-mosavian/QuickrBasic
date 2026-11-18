@@ -21,8 +21,8 @@ VOICES = 32
 KIT_CHANNEL = 9
 # a note of so many sixteenths: its PLAY length and dot
 PIECES = {16: "1", 12: "2.", 8: "2", 6: "4.", 4: "4", 3: "8.", 2: "8", 1: "16"}
-# a drum: what its voice is set to, then its note. A snare is all the noise under 6 kHz, a hat what is over 4: a
-# recording's drums were in every band, these in one
+# a drum: what its voice is set to, then its note. A snare is all the noise, a hat what is over 4 kHz: a
+# recording's drums were in every band
 KICK = ("W4", "Z5,15,2,0,7", "Y0", "K4,8", "V15", "O1", "C")
 SNARE = ("W3", "Y0", "K0", "V15", "O6", "C")
 HAT = ("W3", "Y3,4000,0", "K0", "V11", "O6", "C")
@@ -30,16 +30,7 @@ KIT = {35: KICK, 36: KICK, 38: SNARE, 40: SNARE} | {
     key: ("W4", "Z1,0", "Y0", "K5,6", "V14", "O2", note) for key, note in ((41, "C"), (43, "E"), (45, "G"), (47, "B"))
 }
 LONGEST = 255  # a string's characters
-
-
-def hit(drum: tuple[str, ...], state: dict[str, str]) -> str:
-    """A drum's commands, those its voice is not already set to: a bar of snares set whole was over a string's 255
-    characters, and PLAY stopped with Illegal function call."""
-    out = "".join(part for part in drum[:-1] if state.get(part[0]) != part)
-    state.update({part[0]: part for part in drum[:-1]})
-    return out + drum[-1]
-
-
+KIT_SOUND = "Z1,0H0,5,0,3L16"
 # a General MIDI program's family (program // 8) as a sound
 SOUNDS = {
     0: "W4Z2,6,6,2,1H0,7,3,3I2",
@@ -148,8 +139,8 @@ def rest(places: int) -> str:
     return out
 
 
-def bar_of(voice: dict[int, tuple[int, int]], first: int, places: int, kit: dict[str, str] | None, up: int = 0) -> str:
-    """A bar of a voice as PLAY's commands."""
+def bar_of(voice: dict[int, tuple[int, int]], first: int, places: int, drum: str | None, up: int = 0) -> str:
+    """A bar of a voice as PLAY's commands; a drum's is its one note."""
     out, at = "", first
     while at < first + places:
         if at not in voice:
@@ -159,8 +150,8 @@ def bar_of(voice: dict[int, tuple[int, int]], first: int, places: int, kit: dict
         pitch, length = voice[at]
         length = min(length, first + places - at)
         piece = max(p for p in PIECES if p <= length)
-        if kit is not None:
-            out += hit(KIT.get(pitch, HAT), kit) + rest(piece - 1)
+        if drum is not None:
+            out += drum + rest(piece - 1)
         else:
             note = pitch - 23 + up
             while note < 1:
@@ -178,22 +169,44 @@ def sound(family: int) -> str:
     return SOUNDS.get(family, DEFAULT_SOUND) + ("V15" if family == BASS else "V14")
 
 
+class Part(NamedTuple):
+    name: str
+    notes: list[Note]
+    sound: str
+    drum: str | None  # a drum's note
+
+
+def parts(song: Song) -> list[Part]:
+    """A voice a track, and one a drum of the kit: the kit in one voice lost the hat under every kick and snare, 784
+    of a song's 1600."""
+    out: list[Part] = []
+    for key in sorted(song.voices):
+        name = f"track {key[0]} channel {key[1] + 1}"
+        if key[1] != KIT_CHANNEL:
+            out.append(Part(name, song.voices[key], sound(song.programs.get(key, -8) // 8), None))
+            continue
+        drums: dict[tuple[str, ...], list[Note]] = defaultdict(list)
+        for note in song.voices[key]:
+            drums[KIT.get(note.pitch, HAT)].append(note)
+        for drum, notes in drums.items():
+            out.append(Part(f"{name} drum {notes[0].pitch}", notes, KIT_SOUND + "".join(drum[:-1]), drum[-1]))
+    return out
+
+
 def program(song: Song, voices: int, bars: int | None, grid: int, up: dict[int, int] | None = None) -> str:
     unit = song.division * 4 // grid
-    keys = sorted(song.voices, key=lambda key: -len(song.voices[key]))[:voices]
-    keys.sort()
-    lines = {key: line(song.voices[key], unit, key[1] == KIT_CHANNEL) for key in keys}
-    last = max(place + length for voice in lines.values() for place, (_, length) in voice.items())
+    every = parts(song)
+    kept = sorted(sorted(range(len(every)), key=lambda k: -len(every[k].notes))[:voices])
+    keys = [every[k] for k in kept]
+    lines = [line(part.notes, unit, part.drum is not None) for part in keys]
+    last = max(place + length for voice in lines for place, (_, length) in voice.items())
     count = min(bars or sys.maxsize, -(-last // grid))
     tempo = max(32, min(255, round(song.tempo)))
-    setup = ["Z1,0H0,5,0,3L16" if key[1] == KIT_CHANNEL else sound(song.programs.get(key, -8) // 8) for key in keys]
-    kit: dict[str, str] = {}
-    out = ["' " + ", ".join(f"voice {k + 1}: track {key[0]} channel {key[1] + 1}" for k, key in enumerate(keys))]
-    out.append("PLAY " + ", ".join(f'"{"MB" if k == 0 else ""}T{tempo}{text}"' for k, text in enumerate(setup)))
+    out = ["' " + ", ".join(f"voice {k + 1}: {part.name}" for k, part in enumerate(keys))]
+    out.append("PLAY " + ", ".join(f'"{"MB" if k == 0 else ""}T{tempo}{part.sound}"' for k, part in enumerate(keys)))
     for bar in range(count):
         strings = [
-            bar_of(lines[key], bar * grid, grid, kit if key[1] == KIT_CHANNEL else None, (up or {}).get(k + 1, 0))
-            for k, key in enumerate(keys)
+            bar_of(lines[k], bar * grid, grid, part.drum, (up or {}).get(k + 1, 0)) for k, part in enumerate(keys)
         ]
         if max(map(len, strings)) > LONGEST:
             sys.exit(f"mid2play: bar {bar + 1} is over {LONGEST} characters in a voice")
