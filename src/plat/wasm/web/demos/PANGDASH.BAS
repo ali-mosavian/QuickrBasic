@@ -2224,15 +2224,15 @@ SUB LoadSong
 END SUB
 
 ' Half a bar of the kit, `loud` eighths as loud: a kick and a tom, sines that fall to their pitch; a snare and hats,
-' noise through a band and a high filter.
+' the noise under 6 kHz and what is over 4.
 FUNCTION Beat$ (x AS STRING, loud AS INTEGER)
     DIM q AS INTEGER, d AS STRING
     FOR q = 1 TO 8
         SELECT CASE MID$(x, q, 1)
         CASE "K": d = d + "W4Y0K4,8V" + LTRIM$(STR$(13 * loud \ 8)) + "O1C"
-        CASE "S": d = d + "W3K0Y2,1800,3V" + LTRIM$(STR$(10 * loud \ 8)) + "O4C"
+        CASE "S": d = d + "W3K0Y1,6000,2V" + LTRIM$(STR$(11 * loud \ 8)) + "O6C"
         CASE "T": d = d + "W4Y0K5,6V" + LTRIM$(STR$(11 * loud \ 8)) + "O2G"
-        CASE "H": d = d + "W3K0Y3,7000,0V" + LTRIM$(STR$((4 * loud + 7) \ 8)) + "O6C"
+        CASE "H": d = d + "W3K0Y3,4000,0V" + LTRIM$(STR$((6 * loud + 7) \ 8)) + "O6C"
         CASE ELSE: d = d + "P16"
         END SELECT
     NEXT
