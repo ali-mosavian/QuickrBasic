@@ -348,6 +348,14 @@ CASES = {
     "qb_const_ok": ("DECLARE SUB s ()\r\nCONST LIMIT = 5\r\nDIM b AS SINGLE, lim\r\nb = LIMIT * 2: lim = 7\r\n"
                     "PRINT b; LIMIT; lim\r\ns\r\nSUB s\r\nCONST LIM = 3\r\nPRINT LIM; LIMIT\r\nEND SUB\r\n",
                     " 10  5  7 \r\n 3  5 \r\n", "ERROR"),
+    # A local array's bound written as a CONST expression (N + 100) was not constant: the array
+    # took the heap (FRE(-1) fell) and each return's arry_free walked every live string, ~20 us a
+    # call with 3000 strings. It gets a frame slot, as DIM x(200) does.
+    "c_dim_const_expr": ("DECLARE SUB A (f AS LONG)\r\nCONST N = 100\r\nA FRE(-1)\r\nSUB A (f AS LONG)\r\n"
+                         "DIM x(N + 100) AS INTEGER, y(-N \\ 2 TO N * 2 - 1) AS LONG, z(N / 3) AS INTEGER\r\n"
+                         "x(200) = 7: y(-50) = 9\r\n"
+                         "PRINT FRE(-1) = f; UBOUND(x); LBOUND(y); UBOUND(y); UBOUND(z); x(200); y(-50)\r\nEND SUB\r\n",
+                         "-1  200 -50  199  33  7  9 \r\n", "ERROR"),
     # A FUNCTION or SUB with parameters called with none: its frame read the caller's cells as its
     # argument's address. Ang's parameter dy was DY%() and printed 1.073742E+09 (2's bits + 1); in
     # a big program the read segfaulted. A variable's name: Duplicate definition, saying why.
