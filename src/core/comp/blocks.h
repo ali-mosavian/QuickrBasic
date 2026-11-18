@@ -59,4 +59,7 @@ BlockEnt *blok_find(const Blok *b, uint32_t line, uint32_t off);
 const Proc *blok_proc(const Blok *b, uint8_t i);
 /* bk_proc: the procedure line is in, 0 none. */
 uint8_t blok_procof(const Blok *b, uint32_t line);
+/* A line at or before position pos: the first of the last procedure that starts there, else the
+   program's. */
+uint32_t blok_line_before(const Blok *b, uint32_t pos);
 #endif

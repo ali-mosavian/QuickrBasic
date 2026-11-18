@@ -51,6 +51,8 @@ void prog_add(Prog *pg, uint16_t num, const uint8_t *body, uint32_t len);
 uint32_t prog_at(const Prog *pg);
 /* Position pos: its line, its body offset *off. */
 uint32_t prog_lineof(const Prog *pg, uint32_t pos, uint32_t *off);
+/* The same, searched from the line at from, at or before pos's. */
+uint32_t prog_lineof_from(const Prog *pg, uint32_t from, uint32_t pos, uint32_t *off);
 /* Line's body copied to dst; returns past it. */
 uint8_t *prog_body(const Prog *pg, uint32_t line, uint8_t *dst);
 /* The record at line removed; returns its size. */

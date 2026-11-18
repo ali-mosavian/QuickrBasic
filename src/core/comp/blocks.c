@@ -195,16 +195,34 @@ const Proc *blok_proc(const Blok *const b, const uint8_t i)
     return i && i < b->nprocs ? b->procs[i] : &none;
 }
 
-uint8_t blok_procof(const Blok *const b, const uint32_t line)
+/* The last procedure whose first line is at or before pos, 0 none: they are in the program's
+   order, as blok_pair's scan met them. */
+static uint8_t proc_before(const Blok *const b, const uint32_t pos)
 {
-    for (uint32_t i = b->nprocs; i-- > 1;) {
-        const Proc *const p = b->procs[i];
+    uint32_t lo = 0, hi = b->nprocs;
 
-        if (line >= p->first && line <= p->last)
-            return (uint8_t)i;
+    while (hi - lo > 1) {
+        const uint32_t mid = (lo + hi) / 2;
+
+        if (b->procs[mid]->first <= pos)
+            lo = mid;
+        else
+            hi = mid;
     }
 
-    return 0;
+    return (uint8_t)lo;
+}
+
+uint8_t blok_procof(const Blok *const b, const uint32_t line)
+{
+    const uint8_t i = proc_before(b, line);
+    return i && line <= b->procs[i]->last ? i : 0;
+}
+
+uint32_t blok_line_before(const Blok *const b, const uint32_t pos)
+{
+    const uint8_t i = proc_before(b, pos);
+    return i ? b->procs[i]->first : PROGBASE;
 }
 
 /* A new entry here, of kind. */

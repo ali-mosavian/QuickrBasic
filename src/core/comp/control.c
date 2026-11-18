@@ -158,8 +158,13 @@ Jump ctrl_jump(Comp *const C, const uint32_t t)
             j.line = DLINE;
             j.body = (t & ~PDIR) >> 2;
         } else {
+            /* from a procedure's first line: from the program's, a jump read every line before its
+               target's, 30% of a 2600-line program's compile */
+            const uint32_t pos = t >> 2;
+            const uint32_t near = blok_line_before(C->blok, pos);
+            const uint32_t from = C->line != DLINE && pos >= C->line && C->line > near ? C->line : near;
             uint32_t off;
-            j.line = prog_lineof(C->prog, t >> 2, &off);
+            j.line = prog_lineof_from(C->prog, from, pos, &off);
             j.body = off;
         }
     }

@@ -214,7 +214,17 @@ void prog_new(Prog *const pg, Allo *const al, Fault *const f, ProgUser *const us
 
 uint32_t prog_lineof(const Prog *const pg, const uint32_t pos, uint32_t *const off)
 {
-    uint32_t line = PROGBASE;
+    return prog_lineof_from(pg, PROGBASE, pos, off);
+}
+
+uint32_t prog_lineof_from(
+    const Prog *const pg,
+    const uint32_t from,
+    const uint32_t pos,
+    uint32_t *const off
+)
+{
+    uint32_t line = from;
 
     while (pos >= line + prog_line(pg, line)->len)
         line += prog_line(pg, line)->len;
