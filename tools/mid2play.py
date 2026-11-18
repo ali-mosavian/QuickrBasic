@@ -128,7 +128,7 @@ def line(notes: list[Note], unit: int, kit: bool, full: int = 15) -> dict[int, t
         better = min if kit else max
         if place not in places or better(places[place], note.pitch) == note.pitch:
             places[place], lengths[place] = note.pitch, max(1, round(note.length / unit))
-            volumes[place] = max(1, round(full * (note.velocity / 127) ** 2))
+            volumes[place] = max(1, min(15, round(full * (note.velocity / 127) ** 2)))
     order = sorted(places)
     return {
         place: (
@@ -252,7 +252,9 @@ def main() -> None:
     parser.add_argument("--bars", type=int)
     parser.add_argument("--grid", type=int, default=16, choices=(8, 16), help="places a bar (4/4)")
     parser.add_argument("--transpose", default="", help="voices moved by semitones: 4=-12,5=-12")
-    parser.add_argument("--volume", default="", help="voices' volumes at velocity 127, 0 to 15: 7=9")
+    parser.add_argument(
+        "--volume", default="", help="voices' volumes at velocity 127, 15 unless given, over it for a quiet file: 1=30"
+    )
     args = parser.parse_args()
     up, loud = (
         {int(voice): int(by) for voice, by in (pair.split("=") for pair in text.split(",") if pair)}
