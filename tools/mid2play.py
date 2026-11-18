@@ -27,7 +27,8 @@ KICK = ("W4", "Z5,15,2,0,7", "Y0", "K4,8", "V15", "O1", "C")
 SNARE = ("W3", "Y0", "K0", "R5", "V11", "O6", "C")
 HAT = ("W3", "Y3,4000,0", "K0", "R5", "V4", "O6", "C")
 KIT = {35: KICK, 36: KICK, 38: SNARE, 40: SNARE} | {
-    key: ("W4", "Z1,0", "Y0", "K5,6", "R5", "V14", "O2", note) for key, note in ((41, "C"), (43, "E"), (45, "G"), (47, "B"))
+    key: ("W4", "Z1,0", "Y0", "K5,6", "R5", "V14", "O2", note)
+    for key, note in ((41, "C"), (43, "E"), (45, "G"), (47, "B"))
 }
 LONGEST = 255  # a string's characters
 KIT_SOUND = "Z1,0H0,5,0,3L16"
@@ -165,7 +166,8 @@ def bar_of(voice: dict[int, tuple[int, int]], first: int, places: int, drum: str
 
 
 def sound(family: int) -> str:
-    """A program family's sound at its volume, in a room but for the bass: PLAY's own 8 of 15 left six voices 8 dB under a recording."""
+    """A program family's sound at its volume, in a room but for the bass: PLAY's own 8 of 15 left six voices 8 dB
+    under a recording."""
     return SOUNDS.get(family, DEFAULT_SOUND) + ("V15" if family == BASS else "V11R5")
 
 
