@@ -2207,13 +2207,13 @@ SUB LoadSong
             Trk(k) = Beat$(Kit(i * 2 + j), 8)
             Trk(k + 1) = Riff$(bas(nb - 1), j, 15 + root)
             Trk(k + 2) = Riff$(br, j, 27)
-            Trk(k + 3) = Riff$(sol, j, 39)
+            Trk(k + 3) = Riff$(sol, j, 27)
             Trk(k + 4) = Riff$(st, j, 27)
         NEXT
     NEXT
-    ' the kit; FM, as the consoles of the day: a bass that starts bright, two brasses held bright that waver; and a
-    ' thin pulse lead
-    PLAY "MBT140Z1,0H0,3,0,1L16", "T140W4Z1,12,4,4,4H0,5,6,1", "T140W4Z1,9,3,11,5H1,4,12,3U5", , "T140W0Q30H0,4,9,2U4", "T140W4Z1,8,3,10,5H1,4,11,3U5"
+    ' the kit; FM, as the consoles of the day: a bass that starts bright, two brasses that waver, their harmonics
+    ' a saw's by a modulator that bends itself; and a thin pulse lead
+    PLAY "MBT140Z1,0H0,3,0,1L16", "T140W4Z1,12,4,4,4H0,5,6,1", "T140W4Z1,5,3,11,5H1,4,12,3U5", , "T140W0Q30H0,4,9,2U4", "T140W4Z1,4,3,13,5H1,4,11,3U5"
     Bar = 0: HalfBar = 0
     Tune = -1
 END SUB
@@ -2224,10 +2224,10 @@ FUNCTION Beat$ (x AS STRING, loud AS INTEGER)
     DIM q AS INTEGER, d AS STRING
     FOR q = 1 TO 8
         SELECT CASE MID$(x, q, 1)
-        CASE "K": d = d + "W4Y0K4,8V" + LTRIM$(STR$(12 * loud \ 8)) + "O1C"
-        CASE "S": d = d + "W3K0Y2,1800,3V" + LTRIM$(STR$(9 * loud \ 8)) + "O4C"
-        CASE "T": d = d + "W4Y0K5,6V" + LTRIM$(STR$(10 * loud \ 8)) + "O2G"
-        CASE "H": d = d + "W3K0Y3,7000,0V" + LTRIM$(STR$((3 * loud + 7) \ 8)) + "O6C"
+        CASE "K": d = d + "W4Y0K4,8V" + LTRIM$(STR$(13 * loud \ 8)) + "O1C"
+        CASE "S": d = d + "W3K0Y2,1800,3V" + LTRIM$(STR$(10 * loud \ 8)) + "O4C"
+        CASE "T": d = d + "W4Y0K5,6V" + LTRIM$(STR$(11 * loud \ 8)) + "O2G"
+        CASE "H": d = d + "W3K0Y3,7000,0V" + LTRIM$(STR$((4 * loud + 7) \ 8)) + "O6C"
         CASE ELSE: d = d + "P16"
         END SELECT
     NEXT
@@ -2284,7 +2284,7 @@ SUB FeedSong
     d = Trk(k * 5)
     IF loud < 8 THEN d = Beat$(Kit(k), loud)
     k = k * 5
-    PLAY d, "V" + LTRIM$(STR$(13 * loud \ 8)) + Trk(k + 1), "V" + LTRIM$(STR$(10 * loud \ 8)) + Trk(k + 2), , "V" + LTRIM$(STR$((7 * loud + 7) \ 8)) + Trk(k + 3), "V" + LTRIM$(STR$(8 * loud \ 8)) + Trk(k + 4)
+    PLAY d, "V" + LTRIM$(STR$(14 * loud \ 8)) + Trk(k + 1), "V" + LTRIM$(STR$(12 * loud \ 8)) + Trk(k + 2), , "V" + LTRIM$(STR$((9 * loud + 7) \ 8)) + Trk(k + 3), "V" + LTRIM$(STR$(10 * loud \ 8)) + Trk(k + 4)
     HalfBar = 1 - HalfBar
     IF HalfBar = 0 THEN Bar = (Bar + 1) MOD LEN(Order)
 END SUB
