@@ -13,6 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 import conformance
 import dosrun
+import mkhelp
 
 import doslink
 
@@ -32,7 +33,7 @@ def main() -> None:
     dosrun.COM = exe
     progs = {p.stem: p.read_text().replace("\n", "\r\n") for p in sorted(Path("tests/pgo").glob("*.bas"))}
     progs |= {k: v[0] for k, v in conformance.cases().items()}
-    more = dict(files={**conformance.COMPANIONS, "BASIC.HLP": Path("src/basic.hlp").read_bytes()},
+    more = dict(files={**conformance.COMPANIONS, "BASIC.HLP": mkhelp.compiled()},
                 before=("AUTOTYPE -w 2 f5",), keyboard=True, screen=True) if ide else dict(files=conformance.COMPANIONS)
     if ide:
         progs = dict(list(progs.items())[:IDE_PROGRAMS])

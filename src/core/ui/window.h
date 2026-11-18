@@ -46,6 +46,8 @@ void wind_fit(void);
    window's too), a drag moves it (the debug pane's, ED2's beside ED1, a window's title row), a let
    go leaves it; false: the windows'. */
 bool wind_drag(void);
+/* The help window n rows tall (its title row too), the rows from ED1's; 0 closes it. */
+void wind_help(uint8_t n);
 /* The debug pane's: the immediate window hidden, its rows the window over it's; shown again with
    its height, as the rows over it can spare. */
 void wind_imm_hide(void);

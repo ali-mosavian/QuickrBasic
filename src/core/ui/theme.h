@@ -5,7 +5,7 @@
 
 enum {
     NTHEME = 9,
-    TH_SZ = NSLOT + 48, /* a theme: its attributes, then 16 colours' R G B */
+    TH_SZ = NSLOT_TH + 48, /* a theme: its attributes, then 16 colours' R G B */
 };
 
 typedef struct {

@@ -81,7 +81,20 @@ static const uint8_t themes[NTHEME][TH_SZ] = {
 void them_set(const uint8_t n)
 {
     them.cur = n;
-    memcpy(them.attr, themes[n], NSLOT);
+    memcpy(them.attr, themes[n], NSLOT_TH);
+
+    if (n == TH_QBASIC) { /* QBasic's help: grey on black, bright white, green links */
+        them.attr[SL_HTXT] = 0x07;
+        them.attr[SL_HHEAD] = 0x0F;
+        them.attr[SL_HLINK] = 0x0A;
+        them.attr[SL_HSEL] = 0x0F;
+    } else { /* the others': from the editor's */
+        them.attr[SL_HTXT] = them.attr[SL_ED];
+        them.attr[SL_HHEAD] = them.attr[SL_KW];
+        them.attr[SL_HLINK] = them.attr[SL_STR];
+        them.attr[SL_HSEL] = them.attr[SL_SEL];
+    }
+
     them_in();
 }
 
@@ -90,7 +103,7 @@ void them_dark(void) { them_set(TH_DARK); }
 void them_pick(const uint8_t action) { them_set(TH_PICKED + (action - ACT_TH2)); }
 
 /* A theme's 16 colours, past its attributes. */
-static const uint8_t *colours(const uint8_t n) { return themes[n] + NSLOT; }
+static const uint8_t *colours(const uint8_t n) { return themes[n] + NSLOT_TH; }
 
 void them_in(void) { pscr_palette(colours(them.cur)); }
 void them_out(void) { pscr_palette(colours(TH_QBASIC)); }

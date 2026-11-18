@@ -81,7 +81,12 @@ enum : uint8_t {
     SL_OP,   /*   operators */
     SL_SMSG, /* the status bar's message (QBasic's isaStatusAlert) */
     SL_CBP,  /* the current statement on a breakpoint's line */
-    NSLOT,   /* the asm's NATTR */
+    NSLOT_TH, /* the slots a theme lists */
+    SL_HTXT = NSLOT_TH, /* the help window: text, drawn from the theme's others (them_set) */
+    SL_HHEAD,           /*   a heading */
+    SL_HLINK,           /*   a hot link */
+    SL_HSEL,            /*   the link chosen */
+    NSLOT,              /* the asm's NATTR, and these */
 };
 
 /* A key as uimn_getkey gives it: scan code << 8 | character; the character 0 for a key with
@@ -160,7 +165,7 @@ enum : uint8_t {
 };
 
 /* uimn.tree.workspace.focus: which window has the keys (ui_foc), its child by index. */
-enum : uint8_t { FOC_EDIT = 0, FOC_IMM = 1, FOC_PANE = 2 };
+enum : uint8_t { FOC_EDIT = 0, FOC_IMM = 1, FOC_PANE = 2, FOC_HELP = 3 };
 
 /* The windows, top down (window.h); the debug pane is beside them, not in uimn.win.win[]. */
 enum : uint8_t { W_HELP = 0, W_ED1 = 1, W_ED2 = 2, W_IMM = 3, NWIN = 4, W_DBG = NWIN };
@@ -295,6 +300,7 @@ typedef struct {
     struct {
         Widget screen, menubar, workspace, statusbar; /* workspace.focus: FOC_*, lp.ui_foc */
         Widget editors, imm, pane; /* the workspace's; editors.focus: the active edit window */
+        Widget help;               /* the help window: the workspace's fourth, FOC_HELP */
         Widget ed[2];              /* the editors': W_ED1, W_ED2 (wact) */
         Widget dp[4];              /* the pane's (dpan_build); pane.focus: dp_foc */
     } tree;
