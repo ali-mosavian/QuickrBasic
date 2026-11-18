@@ -8,20 +8,13 @@
 #include "comp/select.h"
 #include "vm/exec.h"
 
-static const uint8_t twins[][2] = {
-#define FRAME(op, twin) {O_##op, O_##twin},
+/* Each op's frame twin; 0 none. */
+static const uint8_t twins[256] = {
+#define FRAME(op, twin) [O_##op] = O_##twin,
 #include "vm/ops.def"
 };
 
-/* Op's frame twin; 0 none. */
-static uint8_t twin(const uint8_t op)
-{
-    for (uint32_t i = 0; i < countof(twins); i++)
-        if (twins[i][0] == op)
-            return twins[i][1];
-
-    return 0;
-}
+static uint8_t twin(const uint8_t op) { return twins[op]; }
 
 /* An op on locals, n cells of them: its twin, the offset of each cell. False: one not in a frame, or
    an op with no twin (comp/fuse.c fuses locals into the ones that have). */
