@@ -2400,10 +2400,9 @@ END SUB
 ' the sine's thresholds of 2/3, 0, -2/3, the row y
 ' alone when it is near one itself.
 FUNCTION VineEnd% (tb AS SINGLE, y AS INTEGER, j AS INTEGER, y2 AS INTEGER)
-    CONST TWOPI = 6.283185307179586#, PI = 3.141592653589793#
-    CONST VB = .7297276562269663#, NEAR = .01#
-    DIM a AS DOUBLE, lo AS DOUBLE, hi AS DOUBLE, e AS LONG
-    a = CDBL(tb) + y * CDBL(.16!) + j
+    CONST TWOPI = 6.283185!, PI = 3.141593!, VB = .7297277!, NEAR = .02!
+    DIM a AS SINGLE, lo AS SINGLE, hi AS SINGLE, e AS LONG
+    a = tb + y * .16 + j
     a = a - TWOPI * INT(a / TWOPI)
     IF a < VB THEN
         lo = 0: hi = VB
@@ -2419,7 +2418,7 @@ FUNCTION VineEnd% (tb AS SINGLE, y AS INTEGER, j AS INTEGER, y2 AS INTEGER)
         lo = TWOPI - VB: hi = TWOPI
     END IF
     e = y
-    IF a - lo >= NEAR AND hi - a >= NEAR THEN e = y + INT((hi - NEAR - a) / CDBL(.16!))
+    IF a - lo >= NEAR AND hi - a >= NEAR THEN e = y + INT((hi - NEAR - a) / .16)
     IF e > y2 THEN e = y2
     VineEnd% = e
 END FUNCTION

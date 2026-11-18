@@ -229,7 +229,7 @@ VINES = """OpenScreen
 DIM t AS SINGLE, k AS INTEGER, x AS INTEGER, y AS INTEGER, h AS INTEGER, bad AS LONG
 RANDOMIZE 7
 FOR k = 1 TO 400
-    t = RND * 9000
+    t = RND * 30000
     h = 20 + INT(RND * 90)
     LINE (0, 0)-(99, h + 1), 0, BF
     LINE (100, 0)-(199, h + 1), 0, BF
