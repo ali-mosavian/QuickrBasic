@@ -30,7 +30,15 @@ def test_effects_on_synth() -> None:
     assert not bad, bad
 
 
+def test_battle_bass_is_low() -> None:
+    """The battle tune's bass ran at 220 to 440 Hz, under 1% of the mix below 120 Hz: it sounded thin."""
+    rows = [re.findall(r'"([^"]*)"', x) for x in BAS.read_text().split("\nTunes:\n")[1].splitlines()]
+    bad = [r[0] for r in rows if len(r) == 4 and "O" in r[0] and not re.search(r"O[01]", r[0])]
+    assert not bad, bad[:2]
+
+
 if __name__ == "__main__":
     test_octaves()
     test_effects_on_synth()
+    test_battle_bass_is_low()
     print("ok")
