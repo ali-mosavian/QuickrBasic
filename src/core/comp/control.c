@@ -850,15 +850,19 @@ void ctrl_undef(Comp *const C, const uint8_t err)
 }
 
 /* Procedure idx's call, its arguments as form writes them. */
-static void pcall(Comp *const C, const uint8_t idx, const Proc *const pr, const ArgsForm form)
+static void pcall(
+    Comp *const C, const uint8_t *const name, const uint8_t idx, const Proc *const pr,
+    const ArgsForm form
+)
 {
-    comp_step(C, ref_call(C, idx, pr, form));
+    comp_step(C, ref_call(C, name, idx, pr, form));
 }
 
 /* CALL n [( args )]. */
 static void call(Comp *const C)
 {
     C->p++;
+    const uint8_t *const name = C->p;
     uint8_t idx;
     const Proc *const pr = ref_proc(C, &idx);
 
@@ -881,7 +885,7 @@ static void call(Comp *const C)
         return;
     }
 
-    pcall(C, idx, pr, ARGS_PAREN);
+    pcall(C, name, idx, pr, ARGS_PAREN);
 }
 
 /* ct_scall: n args, a SUB's call without CALL; another name is not one. */
@@ -902,7 +906,7 @@ static bool subcall(Comp *const C)
                 form = ARGS_BARE;
             }
 
-            pcall(C, idx, pr, form);
+            pcall(C, start, idx, pr, form);
             return true;
         }
 

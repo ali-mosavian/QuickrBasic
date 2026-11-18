@@ -209,7 +209,8 @@ enum : uint8_t {
     E_EPW = 58,
     E_EXW = 59,
     E_SLC = 60, /* Statements/labels illegal between SELECT CASE and CASE */
-    E_LAST = E_SLC,
+    E_ACM = 61, /* Argument-count mismatch */
+    E_LAST = E_ACM,
 };
 
 /* QBasic's ERR numbers the runtime raises (fault_qberr), as ERROR n raises them. */
