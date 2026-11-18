@@ -219,6 +219,47 @@ static inline bool fl_st(Regs *const r)
     return true;
 }
 
+typedef enum : uint8_t { CELL_NUMBER, CELL_DOUBLE, CELL_STRING } CellKind;
+
+/* V.LD ( -- x ) and V.ST ( x -- ) of a number parameter, through its argument's address; false: the
+   handler's. */
+static inline bool v_ld(Regs *const r)
+{
+    if (r->ip[3] != CELL_NUMBER)
+        return false;
+
+    (--r->sp)->u = rd32(rd32(r->fp + load16(r->ip + 1)));
+    r->ip += 4;
+    return true;
+}
+
+static inline bool v_st(Regs *const r)
+{
+    if (r->ip[3] != CELL_NUMBER)
+        return false;
+
+    wr32(rd32(r->fp + load16(r->ip + 1)), r->sp++->u);
+    r->ip += 4;
+    return true;
+}
+
+/* R.ADDR ( -- a ) of a parameter's record or one made; false: the handler's (one to make). */
+static inline bool r_addr(Regs *const r)
+{
+    const Loc loc = {(int32_t)load32(r->ip + 3)};
+    const Addr a = loc_at(loc, r->fp);
+
+    if (loc_is_ref(loc))
+        (--r->sp)->a = a;
+    else if (((const ArrSlot *)at(a))->hdr)
+        (--r->sp)->a = ((const ArrayHdr *)at(((const ArrSlot *)at(a))->hdr))->data;
+    else
+        return false;
+
+    r->ip += 3 + VCELL;
+    return true;
+}
+
 /* The ops exec_run runs inline (vm/hot.h): name, handler. */
 #define HOT_OPS(X)                                                                                 \
     X(i_ld_v, oper_i_ld_v)                                                                         \
@@ -423,6 +464,9 @@ static void exec_loop(Session *const S)
                 {exec_ra_addr, &&ra_addr},
                 {exec_fl_ld, &&fl_ld},
                 {exec_fl_st, &&fl_st},
+                {exec_v_ld, &&v_ld},
+                {exec_v_st, &&v_st},
+                {exec_r_addr, &&r_addr},
                 {nullptr, &&cold},
             },
             &&eol_to
@@ -777,6 +821,24 @@ fl_st:
 
     goto next;
 
+v_ld:
+    if (!v_ld(&r))
+        goto slow;
+
+    goto next;
+
+v_st:
+    if (!v_st(&r))
+        goto slow;
+
+    goto next;
+
+r_addr:
+    if (!r_addr(&r))
+        goto slow;
+
+    goto next;
+
 fail:
     v->ip = r.ip;
     v->sp = r.sp;
@@ -1055,8 +1117,6 @@ void exec_p_ref(Session *const S)
 static Addr param_cell(Vm *const vm) { return rd32(vm->fp + exec_u16(vm)); }
 
 void exec_v_addr(Session *const S) { exec_pusha(&S->vm, param_cell(&S->vm)); }
-
-typedef enum : uint8_t { CELL_NUMBER, CELL_DOUBLE, CELL_STRING } CellKind;
 
 /* A parameter's value through its argument's address. */
 void exec_v_ld(Session *const S)
