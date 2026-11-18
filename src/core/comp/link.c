@@ -53,7 +53,10 @@
 void link_compile(Comp *const C, const uint32_t line)
 {
     C->line = line;
-    comp_proc(C, blok_procof(C->blok, line));
+    const Proc *const in = C->proc ? blok_proc(C->blok, C->proc) : nullptr;
+
+    /* the line before's procedure, most often: lines compile in order */
+    comp_proc(C, in && line >= in->first && line <= in->last ? C->proc : blok_procof(C->blok, line));
     decl_deftype(C->decl, C->symb, line);
     comp_text(C, (const uint8_t *)prog_line(C->prog, line) + HDR);
 }
