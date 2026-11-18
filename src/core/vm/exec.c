@@ -925,6 +925,23 @@ Addr exec_elem(Arry *const ar, Vm *const vm)
             vm->sp++;
             return a->data + (uint32_t)sub * arry_esize(ar, id);
         }
+    } else if (s->hdr) { /* its dimensions, each in range: from the header too; the last subscript on top */
+        const ArrayHdr *const a = (const ArrayHdr *)at(s->hdr);
+        uint32_t idx = 0;
+        uint8_t i = n;
+
+        if (a->dims == n)
+            while (i-- > 0) {
+                const uint32_t r = (uint32_t)vm->sp[n - 1 - i].i - a->count[n + i];
+
+                if (r >= a->count[i])
+                    break;
+                idx = idx * a->count[i] + r;
+            }
+        if (i == UINT8_MAX) {
+            vm->sp += n;
+            return a->data + idx * arry_esize(ar, id);
+        }
     }
     for (uint8_t i = n; i-- > 0;)
         ar->subs[i] = exec_popi(vm);
