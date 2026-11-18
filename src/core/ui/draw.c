@@ -405,9 +405,17 @@ static void status_pos(void)
     scrn_str(status_row(), wide ? STATUS_POS_COL - 2 : STATUS_POS_COL, pos, SL_STAT, SL_STAT);
 }
 
+enum : uint8_t { STATUS_HELP_BAR_COL = 72 }; /* where the bar is while the help window has the focus */
+
 void draw_status(void)
 {
     scrn_fill(status_row(), 0, SL_STAT, ' ', PSCR_COLS);
+
+    if (uimn.tree.workspace.focus == FOC_HELP && !uimn.help) { /* QBasic's: the longer keys, the bar moved, no position */
+        scrn_str(status_row(), 1, draw_keys()->text, SL_SMSG, SL_SMSG);
+        scrn_fill(status_row(), STATUS_HELP_BAR_COL, SL_STAT, GLYPH_V, 1);
+        return;
+    }
 
     if (!status_left())
         return;

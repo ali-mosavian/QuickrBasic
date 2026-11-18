@@ -76,6 +76,12 @@ if __name__ == "__main__":
     if b"shown" not in index or b"secret" in index or b"\x11a\x10" in index:
         bad.append("the Index listed a hidden key or a file name, or lost a shown one")
 
+    # the Index is QBasic's: a boxed letter, then the words as plain links (arrows made it a wall of green)
+    data, _ = build({"lang/a.md": "# ABS Function\nkeys: ABS\n\n.\n"})
+    index = mkhelp.read_topic(data, struct.unpack_from("<H", data, 14)[0])
+    if b"\xb9 A \xba" not in index or b"ABS Function" not in index or b"\x11ABS" in index:
+        bad.append("the Index lacked its letter banner or its titled plain link")
+
     # the Index lists BASIC words, as QuickBASIC's: an IDE or error topic's key is not one (it showed "64 KB")
     data, _ = build({"lang/a.md": "# A\nkeys: word\n\n.\n", "ide/b.md": "# B\nkeys: 64 KB, menu thing\n\n.\n"})
     index = mkhelp.read_topic(data, struct.unpack_from("<H", data, 14)[0])

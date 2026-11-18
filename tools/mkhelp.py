@@ -46,8 +46,6 @@ class Topic:
     lines: list[tuple[str, str]] = field(default_factory=list)  # (kind, text): "text" "head" "code"
     built: list[bytes] = field(default_factory=list)  # lines made as bytes (the Index's)
     raw: bytes = b""
-    part: str = ""  # "": a whole topic; "Details" or "Example": a part of `main`
-    ids: dict[str, int] = field(default_factory=dict)  # QuickSCREEN, Details, Example: topic ids
 
 
 def norm(key: str) -> str:
@@ -112,8 +110,9 @@ PARTS = ("Details", "Example")
 PLAIN = {"contents", "using-help", "survival"}  # the topics with no Details and Example
 
 
-def split_parts(t: Topic) -> list[Topic]:
-    """A topic's `## Details` and `## Example` sections as topics of their own, the rest QuickSCREEN."""
+def merge_parts(t: Topic) -> None:
+    """A topic's source has its `## Details` and `## Example` sections, both required; QBasic's help
+    shows them on one page: the summary and syntax, the details, then "Example:"."""
     quick: list[tuple[str, str]] = []
     got: dict[str, list[tuple[str, str]]] = {}
     cur = quick
@@ -127,12 +126,11 @@ def split_parts(t: Topic) -> list[Topic]:
     if Path(t.path).stem in PLAIN:
         if got:
             raise HelpError(f"{t.path}: a plain topic has no Details or Example")
-        return []
+        return
     for name in PARTS:
         if not any(x[1].strip() for x in got.get(name, [])):
             raise HelpError(f"{t.path}: no '## {name}' section")
-    t.lines = quick
-    return [Topic(t.path, f"{t.title} {name}", lines=got[name], part=name) for name in PARTS]
+    t.lines = quick + [("text", "")] + got["Details"] + [("text", ""), ("text", "Example:")] + got["Example"]
 
 
 def link(topic: int, text: str) -> bytes:
@@ -156,15 +154,11 @@ def plain_len(row: bytes) -> int:
 def render(t: Topic, keymap: dict[str, int], index_id: int, contents_id: int, using_id: int, errors: list[str]) -> None:
     out = [cp437(t.title, t.path)]
     nav = b""
-    if t.ids:  # QuickSCREEN, Details, Example, Contents, Index, spread over the row
-        cells = [(3, "QuickSCREEN", t.ids["QuickSCREEN"]), (18, "Details", t.ids["Details"]),
-                 (32, "Example", t.ids["Example"]), (46, "Contents", contents_id), (62, "Index", index_id)]
-    else:
-        cells = [(3, "Help on Help", using_id), (20, "Contents", contents_id), (33, "Index", index_id)]
+    cells = [(3, "Contents", contents_id), (15, "Index", index_id), (24, "Back", BACK)]  # as QBasic's
     for col, name, tid in cells:
         nav += b" " * (col - plain_len(nav)) + link(tid, b"\x11" + name.encode() + b"\x10")
     out.append(nav)
-    out.append(b" " + b"\xc4" * 78)  # the rule under it
+    out.append(b"")
     for kind, text in t.lines:
         where = f"{t.path}: {text[:30]!r}"
         if kind == "code":
@@ -208,24 +202,37 @@ def render(t: Topic, keymap: dict[str, int], index_id: int, contents_id: int, us
         errors.append(f"{t.path}: {len(t.raw)} bytes")
 
 
+def index_label(key: str, title: str) -> str:
+    """What the Index shows for a key: its topic's title when that starts with it ("PRINT Statement")."""
+    return title if title.upper().startswith(key.upper()) else key
+
+
 def index_topic(entries: list[tuple[str, int]]) -> Topic:
-    """Every key found, by first letter under QuickBASIC's boxed banner, two columns of hot links."""
-    t = Topic("<index>", "Index")
-    t.lines.append(("text", "To get help on a keyword: press its first letter to jump to it, then Enter."))
-    cells = [e for e in entries if len(e[0]) <= 22]
+    """Every keyword, under a boxed letter as QBasic's, two columns of links drawn without arrows."""
+    t = Topic("<index>", "QuickrBasic Online Help Index")
+    for line in (
+        "To get help on a keyword in the list below:",
+        "    1. Press the key of the first letter of the keyword.",
+        "    2. Use the direction keys to move the cursor to the keyword.",
+        "    3. Press F1 to display the help text in the Help window.",
+    ):
+        t.lines.append(("text", line))
     groups: dict[str, list[tuple[str, int]]] = {}
-    for e in cells:
-        groups.setdefault(e[0][0].upper() if e[0][0].isalpha() else "#", []).append(e)
+    for e in entries:
+        if len(e[0]) <= 34:
+            groups.setdefault(e[0][0].upper() if e[0][0].isalpha() else "#", []).append(e)
     for letter in sorted(groups):
-        t.built.append(b" " * 66 + b"\xc9\xcd\xcd\xcd\xbb")
-        t.built.append(b"\xcd" * 66 + b"\xb9 " + letter.encode() + b" \xba")
-        t.built.append(b" " * 66 + b"\xc8\xcd\xcd\xcd\xbc")
+        t.built.append(b"")
+        t.built.append(b" " * 67 + b"\xc9\xcd\xcd\xcd\xbb")
+        t.built.append(b" " + b"\xcd" * 66 + b"\xb9 " + letter.encode() + b" \xba")
+        t.built.append(b" " * 67 + b"\xc8\xcd\xcd\xcd\xbc")
+        t.built.append(b"")
         group = groups[letter]
         for r in range(0, len(group), 2):
-            row = b"  "
-            for name, tid in group[r : r + 2]:
-                label = b"\x11" + cp437(name, "index") + b"\x10"
-                row += link(tid, label) + b" " * (36 - len(label))
+            row = b"   "
+            for k, (name, tid) in enumerate(group[r : r + 2]):
+                label = cp437(name, "index")
+                row += link(tid, label) + b" " * (35 - len(label)) * (1 - k)
             t.built.append(row.rstrip())
     return t
 
@@ -367,18 +374,11 @@ def keyword_key(name: str, path: str) -> bool:
 def build(src: Path) -> tuple[bytes, dict[str, int]]:
     topics, status = collect(src)
     errors: list[str] = []
-    parts: list[Topic] = []
-    for tid, t in enumerate(topics):
+    for t in topics:
         try:
-            made = split_parts(t)
+            merge_parts(t)
         except HelpError as e:
             errors.append(str(e))
-            continue
-        if made:
-            t.ids = {"QuickSCREEN": tid}
-            for p in made:
-                p.ids = t.ids
-            parts += made
 
     keymap: dict[str, int] = {}
     shown: dict[str, tuple[str, int]] = {}
@@ -405,10 +405,7 @@ def build(src: Path) -> tuple[bytes, dict[str, int]]:
             errors.append(f"required topic {key!r} is missing")
         ids[name] = keymap.get(key, NONE)
     entries = sorted(keywords.items())
-    topics.append(index_topic([(v[0], v[1]) for _, v in entries]))
-    for p in parts:  # after the Index: Ctrl+F1 reaches them too
-        p.ids["Details" if p.part == "Details" else "Example"] = len(topics)
-        topics.append(p)
+    topics.append(index_topic([(index_label(v[0], topics[v[1]].title), v[1]) for _, v in entries]))
     shown["INDEX"] = ("Index", index_id)
     keymap_all = dict(keymap)
     for tid, t in enumerate(topics):

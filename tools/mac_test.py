@@ -278,9 +278,11 @@ def main() -> None:
         "insert cursor lines 13-14": pixel(rw, rstart, 13, 45) == pixel(rw, rstart, 13, 46) != pixel(rw, rstart, 13, 44)
         and pixel(rw, rstart, 13, 47) != pixel(rw, rstart, 13, 45),
         "F1 on PRINT opens help": f1 != base,
+        "help's status line shows all its keys, no line:column": len({pixel(w, f1, x, y) for x in range(9 * 73, 9 * 80) for y in range(386, 398)}) == 1
+        and {pixel(w, f1, x, 392) for x in range(9 * 55, 9 * 70)} != {pixel(w, f1, 9 * 78, 392)},
         "help fills the screen between the bars, a short topic too": blue_cells(fw, f1_for) == 0,
-        "a link's words are not the arrows' green": green_cells(fw, f1_for, 32, 48, 9 * 20, 9 * 26) == 0
-        and green_cells(fw, f1_for, 32, 48, 9 * 18, 9 * 20) > 0,
+        "a link's words are not the arrows' green": green_cells(fw, f1_for, 32, 48, 9 * 16, 9 * 21) == 0
+        and green_cells(fw, f1_for, 32, 48, 9 * 15, 9 * 16) > 0,
         "Esc closes help": f1_esc == base,
         "Alt+F1 after a link returns": f1_back == f1,
         "Shift+F1 opens Using Help": using != base and using != f1,

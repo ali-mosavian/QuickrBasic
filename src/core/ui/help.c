@@ -637,7 +637,7 @@ void help_next(Session *const S, const bool previous)
 }
 
 const StatusKeys help_keys = {
-    "<Shift+F1=Help> <F6=Window> <Esc=Cancel> <Alt+F1=Back>",
+    "<Shift+F1=Help> <F6=Window> <Esc=Cancel> <Ctrl+F1=Next> <Alt+F1=Back>",
     {{9, nullptr}},
 };
 
