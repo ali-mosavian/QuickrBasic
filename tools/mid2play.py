@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""mid2play.py FILE.mid [--voices N] [--bars N] [--grid N] [--transpose V=S,...] [--volume V=N,...]
+"""mid2play.py FILE.mid [--voices N] [--bars N] [--grid N] [--transpose V=S,...] [--volume V=N,...] [--bend N]
 
 A Standard MIDI File as a BASIC program of PLAY statements.
 
@@ -55,6 +55,8 @@ class Note(NamedTuple):
     length: int
     pitch: int
     velocity: int
+    bend: int = 0  # the wheel at its start, 8192 a side
+    back: int = 0  # ticks until the wheel is back
 
 
 class Song(NamedTuple):
@@ -88,7 +90,8 @@ def read(data: bytes) -> Song:
         size = int.from_bytes(data[at + 4 : at + 8], "big")
         chunk, at = data[at + 8 : at + 8 + size], at + 8 + size
         i, tick, status = 0, 0, 0
-        sounding: dict[tuple[int, int], tuple[int, int]] = {}
+        sounding: dict[tuple[int, int], list[int]] = {}  # start, velocity, bend, back
+        wheel: dict[int, int] = {}
         while i < len(chunk):
             delta, i = number(chunk, i)
             tick += delta
@@ -108,33 +111,58 @@ def read(data: bytes) -> Song:
                 i += 1
                 continue
             pitch, velocity, i = chunk[i], chunk[i + 1], i + 2
-            if event == 0x90 and velocity:
-                sounding[channel, pitch] = tick, velocity
+            if event == 0xE0:
+                wheel[channel] = (pitch | velocity << 7) - 8192
+                for (of, _), note in sounding.items():
+                    if of == channel and note[0] == tick:  # the wheel set as the note starts
+                        note[2] = wheel[channel]
+                    elif of == channel and note[2] < 0 and not note[3] and wheel[channel] >= 0:
+                        note[3] = tick - note[0]
+            elif event == 0x90 and velocity:
+                sounding[channel, pitch] = [tick, velocity, wheel.get(channel, 0), 0]
             elif event in (0x80, 0x90) and (channel, pitch) in sounding:
-                start, loud = sounding.pop((channel, pitch))
-                voices[track, channel].append(Note(start, tick - start, pitch, loud))
+                start, loud, bend, back = sounding.pop((channel, pitch))
+                voices[track, channel].append(Note(start, tick - start, pitch, loud, bend, back or tick - start))
     return Song(division, tempo, voices, programs)
 
 
-def line(notes: list[Note], unit: int, kit: bool, full: int = 15) -> dict[int, tuple[int, int, int]]:
-    """A voice on the grid: at each place a note starts, its pitch, its length in places and its volume, `full` at
-    velocity 127 and as the velocity squared under it; the highest of those struck together (the kit: the lowest, the
-    drum over the hat), cut short where the next starts."""
+GLIDES = (0, 10, 20, 30, 40, 60, 80, 100, 120, 150, 200, 250, 300, 400, 500, 800)  # K's times, ms
+
+
+def glide(note: Note, tick_ms: float, wheel: int) -> str:
+    """A note's slide as K's command: one bent under at its start slides up into its pitch as the wheel comes back,
+    `wheel` semitones at the wheel's end."""
+    under = min(24, round(-note.bend * wheel / 8192))
+    if under < 1:
+        return "K0,0,0"
+    time = min(range(1, 16), key=lambda k: abs(GLIDES[k] - note.back * tick_ms))
+    return f"K{time},0,{under}"
+
+
+def line(
+    notes: list[Note], unit: int, kit: bool, full: int = 15, tick_ms: float = 0, wheel: int = 2
+) -> dict[int, tuple[int, int, int, str]]:
+    """A voice on the grid: at each place a note starts, its pitch, its length in places, its volume (`full` at
+    velocity 127 and as the velocity squared under it) and its slide; the highest of those struck together (the kit:
+    the lowest, the drum over the hat), cut short where the next starts."""
     places: dict[int, int] = {}
     lengths: dict[int, int] = {}
     volumes: dict[int, int] = {}
+    glides: dict[int, str] = {}
     for note in notes:
         place = (note.start + unit // 2) // unit
         better = min if kit else max
         if place not in places or better(places[place], note.pitch) == note.pitch:
             places[place], lengths[place] = note.pitch, max(1, round(note.length / unit))
             volumes[place] = max(1, min(15, round(full * (note.velocity / 127) ** 2)))
+            glides[place] = glide(note, tick_ms, wheel)
     order = sorted(places)
     return {
         place: (
             places[place],
             min(lengths[place], (order[k + 1] - place) if k + 1 < len(order) else lengths[place]),
             volumes[place],
+            glides[place],
         )
         for k, place in enumerate(order)
     }
@@ -149,11 +177,11 @@ def rest(places: int) -> str:
 
 
 def bar_of(
-    voice: dict[int, tuple[int, int, int]],
+    voice: dict[int, tuple[int, int, int, str]],
     first: int,
     places: int,
     drum: str | None,
-    set_to: dict[str, int],
+    set_to: dict[str, int | str],
     up: int = 0,
 ) -> str:
     """A bar of a voice as PLAY's commands, its volume where it changes from what the voice is `set_to`; a drum's is
@@ -164,7 +192,7 @@ def bar_of(
             gap = next((p for p in range(at, first + places) if p in voice), first + places) - at
             out, at = out + rest(gap), at + gap
             continue
-        pitch, length, volume = voice[at]
+        pitch, length, volume, slide = voice[at]
         length = min(length, first + places - at)
         piece = max(p for p in PIECES if p <= length)
         if drum is not None:
@@ -178,6 +206,8 @@ def bar_of(
             dot = "." if PIECES[piece].endswith(".") else ""
             if set_to.get("V") != volume:
                 out, set_to["V"] = out + f"V{volume}", volume
+            if set_to.get("K", "K0,0,0") != slide:
+                out, set_to["K"] = out + slide, slide
             out += f"L{PIECES[piece].rstrip('.')}N{note}{dot}"
         out, at = out + rest(length - piece), at + length
     return out
@@ -219,14 +249,19 @@ def program(
     grid: int,
     up: dict[int, int] | None = None,
     loud: dict[int, int] | None = None,
+    wheel: int = 2,
 ) -> str:
     unit = song.division * 4 // grid
     every = parts(song)
+    tick_ms = 60_000 / song.tempo / song.division
     kept = sorted(sorted(range(len(every)), key=lambda k: -len(every[k].notes))[:voices])
     keys = [every[k] for k in kept]
-    lines = [line(part.notes, unit, part.drum is not None, (loud or {}).get(k + 1, 15)) for k, part in enumerate(keys)]
-    set_to: list[dict[str, int]] = [{} for _ in keys]
-    last = max(place + length for voice in lines for place, (_, length, _) in voice.items())
+    lines = [
+        line(part.notes, unit, part.drum is not None, (loud or {}).get(k + 1, 15), tick_ms, wheel)
+        for k, part in enumerate(keys)
+    ]
+    set_to: list[dict[str, int | str]] = [{} for _ in keys]
+    last = max(place + length for voice in lines for place, (_, length, _, _) in voice.items())
     count = min(bars or sys.maxsize, -(-last // grid))
     tempo = max(32, min(255, round(song.tempo)))
     out = ["' " + ", ".join(f"voice {k + 1}: {part.name}" for k, part in enumerate(keys))]
@@ -251,6 +286,7 @@ def main() -> None:
     parser.add_argument("--voices", type=int, default=VOICES, choices=range(1, VOICES + 1))
     parser.add_argument("--bars", type=int)
     parser.add_argument("--grid", type=int, default=16, choices=(8, 16), help="places a bar (4/4)")
+    parser.add_argument("--bend", type=int, default=2, help="semitones at the pitch wheel's end")
     parser.add_argument("--transpose", default="", help="voices moved by semitones: 4=-12,5=-12")
     parser.add_argument(
         "--volume", default="", help="voices' volumes at velocity 127, 15 unless given, over it for a quiet file: 1=30"
@@ -260,7 +296,7 @@ def main() -> None:
         {int(voice): int(by) for voice, by in (pair.split("=") for pair in text.split(",") if pair)}
         for text in (args.transpose, args.volume)
     )
-    sys.stdout.write(program(read(args.file.read_bytes()), args.voices, args.bars, args.grid, up, loud))
+    sys.stdout.write(program(read(args.file.read_bytes()), args.voices, args.bars, args.grid, up, loud, args.bend))
 
 
 if __name__ == "__main__":

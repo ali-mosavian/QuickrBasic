@@ -29,8 +29,12 @@ def song() -> bytes:
             (0, bytes([on, 64, 100])),  # with an E over it: the E is kept
             (QUARTER, bytes([off, 60, 0])),
             (0, bytes([off, 64, 0])),
-            (six * 2, bytes([on, 67, 64])),  # an eighth's rest, then a G of three sixteenths
-            (six * 3, bytes([off, 67, 0])),
+            # an eighth's rest, then a G of three sixteenths, the wheel half way down as it starts (a semitone under,
+            # at two a side) and back in an eighth: an eighth of a second at this tempo
+            (six * 2 - 1, bytes([0xE0, 0, 32])),
+            (1, bytes([on, 67, 64])),
+            (six * 2, bytes([0xE0, 0, 64])),
+            (six, bytes([off, 67, 0])),
         ]
     )
     kit = track(
@@ -52,7 +56,7 @@ def main() -> None:
     text = mid2play.program(mid2play.read(song()), 10, None, 16)
     # a voice moved an octave: the E an octave down
     low = mid2play.program(mid2play.read(song()), 10, None, 16, {1: -12})
-    assert 'PLAY "V9L4N29P8V4L8N32.' in low, low
+    assert 'PLAY "V9L4N29P8V4K8,0,1L8N32.' in low, low
     # a voice's volume as asked is its loudest note's: these, at 100 of 127, are 0.62 of it
     quiet = mid2play.program(mid2play.read(song()), 10, None, 16, None, {1: 6})
     assert 'PLAY "V4L4N41' in quiet, quiet
@@ -70,8 +74,12 @@ def main() -> None:
     )
     # a note is as loud as its velocity, squared: every track at one volume was not a recording's balance. The
     # volume is set where it changes, the G at 64 of 127 a quarter of full
-    assert lines[2] == 'PLAY "V9L4N41P8V4L8N44.P4.P16", "CP2.P8.", "CP8.CP2P8."', lines[2]
-    hats = mid2play.bar_of(dict.fromkeys(range(16), (42, 1, 15)), 0, 16, "C", {})
+    # a note bent under at its start slides up into its pitch: the wheel was not read, and a lead's every note sat
+    # where a recording's scooped up four semitones
+    assert lines[2] == 'PLAY "V9L4N41P8V4K8,0,1L8N44.P4.P16", "CP2.P8.", "CP8.CP2P8."', lines[2]
+    wide = mid2play.program(mid2play.read(song()), 10, None, 16, None, None, 8)
+    assert "K8,0,4L8N44." in wide, wide
+    hats = mid2play.bar_of(dict.fromkeys(range(16), (42, 1, 15, "")), 0, 16, "C", {})
     assert hats == "C" * 16, hats
     with tempfile.TemporaryDirectory() as tmp:
         (Path(tmp) / "T.BAS").write_text(text + 'PRINT "played"\n')
