@@ -53,10 +53,12 @@ static struct {
     LineBuf new_line; /* vw_new, vw_nlen: add's line, grown to fit */
     char *list_text;
     uint32_t list_cap;
+    uint32_t *order; /* the SUBs list's views: the module, then the procedures by name */
+    uint32_t order_cap;
 } vw = {.new_line = {.grows = true}};
 
 static LineBuf name_field = {.text = vw.name_text, .cap = DLBUF}; /* vw_fld: New SUB's name */
-static DlogList list;                                             /* ls_v: the SUBs box's */
+static DlogList list = {.columns = true};                         /* ls_v: the SUBs box's */
 
 static const char u_nsub[] = "New SUB", u_nfn[] = "New FUNCTION",
                   u_vname[] = "&Name:", u_subs[] = "SUBs",
@@ -90,27 +92,27 @@ static Dlog dg_vnew = {
     .def = 1,
     .ctl = vnew_ctl,
 };
-/* The SUBs box. */
+/* The SUBs box: QBasic's width (uiview.des). */
 static DlogCtl subs_ctl[] = {
     {.kind = CT_LST,
      .row = 2,
      .col = 2,
-     .cols = 58,
+     .cols = 70,
      .rows = 12,
      .list = &list,
      .label = u_vpick,
      .lrow = 1,
      .lcol = 2},
-    {.kind = CT_BTN, .row = 16, .col = 2, .cols = 17, .text = u_vact},
-    {.kind = CT_BTN, .row = 16, .col = 20, .cols = 16, .text = u_vspl},
-    {.kind = CT_BTN, .row = 16, .col = 37, .cols = 10, .text = u_vdel},
-    {.kind = CT_BTN, .row = 16, .col = 48, .cols = 10, .text = uimn_cancel},
+    {.kind = CT_BTN, .row = 16, .col = 5, .cols = 17, .text = u_vact},
+    {.kind = CT_BTN, .row = 16, .col = 25, .cols = 16, .text = u_vspl},
+    {.kind = CT_BTN, .row = 16, .col = 44, .cols = 10, .text = u_vdel},
+    {.kind = CT_BTN, .row = 16, .col = 57, .cols = 10, .text = uimn_cancel},
 };
 static Dlog dg_subs = {
     .row = 3,
-    .col = 9,
+    .col = 3,
     .rows = 18,
-    .cols = 62,
+    .cols = 74,
     .title = u_subs,
     .n = 5,
     .sep = 15,
@@ -463,8 +465,19 @@ static void del(Session *const S, const uint32_t v)
     edit_load(S, 0);
 }
 
-/* The SUBs box's list: the file's name, then each procedure's indented; each item as wide as the
-   longest. false: no memory. */
+/* Views a, b's names compared, case aside. */
+static int name_cmp(const uint32_t a, const uint32_t b)
+{
+    const uint8_t *x = (const uint8_t *)view_name(a), *y = (const uint8_t *)view_name(b);
+
+    for (; *x && upcase(*x) == upcase(*y); x++, y++) {
+    }
+
+    return upcase(*x) - upcase(*y);
+}
+
+/* The SUBs box's list: the file's name, then each procedure's indented, by name; each item as
+   wide as the longest. false: no memory. */
 static bool list_fill(void)
 {
     const char *const file = uimn.file[0] ? uimn.file : uimn_untitled;
@@ -475,22 +488,37 @@ static bool list_fill(void)
         size = len > size ? len : size;
     }
 
-    if (!grow_room(&vw.list_text, &vw.list_cap, vw.n * size, 1))
+    if (!grow_room(&vw.list_text, &vw.list_cap, vw.n * size, 1) ||
+        !GROW(vw.order, vw.order_cap, vw.n))
         return false;
 
-    for (uint32_t i = 0; i < vw.n; i++) {
-        char *const d = vw.list_text + i * size;
+    list.sel = 0;
 
-        if (!i) {
+    for (uint32_t i = 0; i < vw.n; i++) { /* insertion: the module, 0, stays first */
+        uint32_t at = i;
+
+        for (; at > 1 && name_cmp(vw.order[at - 1], i) > 0; at--)
+            vw.order[at] = vw.order[at - 1];
+
+        vw.order[at] = i;
+    }
+
+    for (uint32_t k = 0; k < vw.n; k++) {
+        const uint32_t v = vw.order[k];
+        char *const d = vw.list_text + k * size;
+
+        if (v == uimn.ed.view)
+            list.sel = k;
+
+        if (!v) {
             copy_str(d, file);
         } else {
             d[0] = d[1] = ' ';
-            copy_str(d + 2, view_name(i));
+            copy_str(d + 2, view_name(v));
         }
     }
 
     list.n = vw.n;
-    list.sel = uimn.ed.view;
     list.top = 0;
     list.items = vw.list_text;
     list.size = size;
@@ -506,7 +534,7 @@ void view_subs(Session *const S)
 
     dg_subs.focus = 0;
     const uint8_t b = dlog_run(S, &dg_subs);
-    const uint32_t v = list.sel;
+    const uint32_t v = list.n ? vw.order[list.sel] : 0;
 
     if (b == SUBS_ACTIVE) {
         show(S, v);

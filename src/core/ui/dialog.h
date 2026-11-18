@@ -30,6 +30,7 @@ typedef struct {
     uint32_t top; /* the first shown */
     char *items;  /* n items, size bytes each, 0-ended */
     uint32_t size;
+    bool columns; /* down, then across: as many columns as the box fits of the widest */
 } DlogList;
 
 /* TCTL */

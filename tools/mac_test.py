@@ -10,7 +10,8 @@ PEN, draws a box where it was.
 A box drawn on page 1 is shown only once page 1 is, in SCREEN 13 and in text mode.
 F2 lists every procedure: 64 views at most once left SUB 70 out, End, Enter showing SUB 63 with the
 lines of the seven after it. A procedure's name is any length: 40 characters at most once cut
-the window's title.
+the window's title. F2's list is by name, in columns (Right a column on): once one column in the
+file's order, Down chose Bbbbbb, Right did nothing.
 """
 
 import os
@@ -31,6 +32,10 @@ HIDDEN = {
 LOOP = "DO\nLOOP\n"
 SUBS = "PRINT 1\n" + "".join(f"SUB S{i}\nEND SUB\n" for i in range(1, 71))
 LAST_SUB = "60:3C00 70:4F00 80:1C0D"  # F2, End, Enter
+LIST = "60:3C00"  # F2
+FIRST_SUB = "60:3C00 70:5000 80:1C0D"  # F2, Down, Enter
+ACROSS = "60:3C00 70:4D00 80:1C0D"  # F2, Right, Enter: a column on, S2 by name
+SORTED = "PRINT 1\nSUB Bbbbbb\nEND SUB\nSUB a\nEND SUB\n"
 LONG_NAME = "N" * 60
 LONG = f"PRINT 1\nSUB {LONG_NAME}\nEND SUB\n"
 
@@ -81,6 +86,15 @@ def title_cells(w: int, pixels: bytes) -> int:
     return sum(pixel(w, pixels, c * 9 + 1, 17) != BLUE for c in range(80))
 
 
+def list_column(w: int, pixels: bytes, column: int) -> bool:
+    """F2's second row (row 7, past the highlight), the list's 10-cell column column from cell 6, has text."""
+    return any(
+        pixel(w, pixels, x, y) != GREY
+        for x in range(9 * (6 + 10 * column), 9 * (14 + 10 * column))
+        for y in range(112, 128)
+    )
+
+
 def main() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         program = Path(tmp) / "HELLO.BAS"
@@ -106,6 +120,11 @@ def main() -> None:
         subs = Path(tmp) / "SUBS.BAS"
         subs.write_text(SUBS)
         sw, _, last_sub = frames(run, subs, LAST_SUB, ("2s",))[0]
+        _, _, listed = frames(run, subs, LIST, ("2s",))[0]
+        _, _, across = frames(run, subs, ACROSS, ("2s",))[0]
+        sorted_bas = Path(tmp) / "SORTED.BAS"
+        sorted_bas.write_text(SORTED)
+        _, _, first_sub = frames(run, sorted_bas, FIRST_SUB, ("2s",))[0]
         long = Path(tmp) / "LONG.BAS"
         long.write_text(LONG)
         lw, _, long_title = frames(run, long, "60:5500", ("2s",))[0]  # Shift+F2
@@ -128,6 +147,9 @@ def main() -> None:
         "text page 1 hidden": pages["text", "hidden"] != RED,
         "text page 1 shown": pages["text", "shown"] == RED,
         "F2 lists SUB 70": text_rows(sw, last_sub) == 2,
+        "F2's list in columns": list_column(sw, listed, 1) and list_column(sw, listed, 5),
+        "F2's Right a column on": title_cells(sw, across) == len("SUBS.BAS:S2") + 3,
+        "F2's list by name": title_cells(sw, first_sub) == len("SORTED.BAS:a") + 3,
         "a long name's title whole": title_cells(lw, long_title) == len(f"LONG.BAS:{LONG_NAME}") + 3,
     }
     failed = [name for name, ok in checks.items() if not ok]
