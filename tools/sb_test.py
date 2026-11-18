@@ -26,7 +26,7 @@ PRINT hi& - lo&; vlo; vhi
 """
 VOICES = 'PLAY "MB T120 L1 W2 V15 O3 C C", "L1 W1 V15 O4 E E"\n' + PROBE
 OLD = 'PLAY "MB T120 L1 O3 C C"\n' + PROBE
-# the buffer's samples far from the middle, and its turns: a sine's (W4, no depth) and a bent sine's
+# the buffer's samples far from the middle, and its turns of over 5 levels: a sine's (W4, no depth) and a bent sine's
 SHAPE = r"""t# = TIMER: DO: LOOP WHILE TIMER - t# < .5
 lo& = 99999: hi& = 0: t# = TIMER
 DO
@@ -35,13 +35,15 @@ IF a& < lo& THEN lo& = a&
 IF a& > hi& THEN hi& = a&
 LOOP WHILE TIMER - t# < .3
 FOR i = lo& TO hi&: v = PEEK(pg * 65536 + i)
-IF ABS(v - 128) > 20 THEN far = far + 1
-d = SGN(v - w)
-IF i > lo& AND d <> 0 THEN
-IF d = -was THEN turns = turns + 1
-was = d
+IF ABS(v - 128) > 30 THEN far = far + 1
+IF i = lo& THEN m = v
+IF d >= 0 THEN
+IF v > m THEN m = v
+IF v < m - 5 THEN turns = turns + 1: d = -1: m = v
+ELSE
+IF v < m THEN m = v
+IF v > m + 5 THEN turns = turns + 1: d = 1: m = v
 END IF
-w = v
 NEXT
 PRINT far; turns
 """
@@ -58,8 +60,9 @@ def main() -> None:
     work = Path(tempfile.mkdtemp())
     r = dosrun.run({"voices": VOICES, "old": OLD}, work / "sb", limit_ms=20000, file=True)
     span, low, high = numbers(r["voices"].out)
-    # a note for the synthesizer starts the card: its 1 KB buffer plays round, the voices' samples in it
-    assert r["voices"].reason == "exit" and span > 900 and 60 <= low < high <= 200 and high - low > 40, r["voices"]
+    # a note for the synthesizer starts the card: its 1 KB buffer plays round, the voices' samples in it; two voices
+    # at full span 140 of the card's 256 levels, where they spanned 94: a voice had 5 of its 8 bits
+    assert r["voices"].reason == "exit" and span > 900 and 20 <= low < high <= 236 and high - low > 120, r["voices"]
     # FM on DOS is synthrun.asm's: a sine is far from the middle a third of the time (a pulse always, a saw a seventh),
     # and the modulator bends it into many more turns
     r2 = dosrun.run({"sine": SINE, "bent": BENT}, work / "fm", limit_ms=20000, file=True)
