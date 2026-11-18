@@ -198,6 +198,9 @@ static int envelope_run(const Synth *const s, const SynthOsc *const o, const int
     return k < left ? (int)k : left;
 }
 
+#if defined(__i386__) && defined(_WIN32) /* DOS: voice_run's samples by plat/dos32/synthrun.asm */
+#define SYNTH_ASM 1
+#else
 /* The wave's next sample, -32767 to 32767. */
 [[gnu::always_inline]] static inline int32_t wave(SynthOsc *const o)
 {
@@ -242,6 +245,18 @@ static int envelope_run(const Synth *const s, const SynthOsc *const o, const int
         return high >> STATE_SHIFT;
     }
 }
+#endif
+
+#ifdef SYNTH_ASM
+typedef struct SynthRun {
+    uint32_t phase, step;
+    int32_t level, delta, low, band, f, damping, gain;
+    int32_t *sum;
+    int32_t n;
+    uint32_t noise, width, kind, in;
+} SynthRun;
+void synth_run(SynthRun *r);
+#endif
 
 /* Voice o's next n samples added to sum, its wave and filter fixed: the voice's state in locals the loop keeps in
    registers. Returns early once the voice is silent until its next note. */
@@ -264,6 +279,17 @@ static int envelope_run(const Synth *const s, const SynthOsc *const o, const int
             delta = 0;
         } else
             o.level += delta;
+#ifdef SYNTH_ASM
+        SynthRun r = {o.phase, o.step, o.level, delta, o.low, o.band, o.f, o.damping, o.gain, sum + i, run, o.noise,
+                      o.set.width, wave_kind * 4 + filter, 0};
+        synth_run(&r);
+        o.phase = r.phase;
+        o.noise = r.noise;
+        o.level = r.level;
+        o.low = r.low;
+        o.band = r.band;
+        i += run;
+#else
         for (const int end = i + run;;) {
             /* under 2^15 times 2^15, and unfiltered under 2^15 times the gain: int32 holds them */
             const int32_t out = wave(&o) * (o.level >> 9) >> 15;
@@ -275,6 +301,7 @@ static int envelope_run(const Synth *const s, const SynthOsc *const o, const int
                 break;
             o.level += delta;
         }
+#endif
     }
     into->phase = o.phase;
     into->noise = o.noise;
