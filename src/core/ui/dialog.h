@@ -5,7 +5,10 @@
 
 /* A control's kind, flags. */
 enum : uint8_t { CT_FLD = 1, CT_LST = 2, CT_BTN = 3, CT_CHK = 4, CT_TXT = 5 };
-enum : uint8_t { CF_NOF = 1 }; /* takes no focus */
+enum : uint8_t {
+    CF_NOF = 1,
+    CF_PATH = 2
+}; /* takes no focus; a text that is a path: cut in its middle */
 
 /* The buttons the boxes end with (their control's index). */
 enum : uint8_t {
@@ -107,6 +110,8 @@ enum : uint8_t { CHANGE_VERIFY = 0, CHANGE_ALL = 1 };
 /* ui_ledit: an editing key in the one-line buffer b (a field, the immediate line): a character
    typed (FLDMAX at most), Backspace, Left, Right, Home, End, Del, Ctrl+Left, Ctrl+Right. */
 bool dlog_ledit(LineBuf *b, uint16_t key);
+/* Names a, b compared, case aside: a list's order. */
+int dlog_namecmp(const char *a, const char *b);
 /* The dialog's modal widget, a child of screen, hidden till dlog_run. */
 void dlog_build(Widget *screen); /* false: not a line edit's key */
 #endif
