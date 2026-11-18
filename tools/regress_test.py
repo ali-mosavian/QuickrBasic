@@ -774,6 +774,36 @@ CASES |= {
                      " 2  1 \r\nok\r\n", "ERROR"),
 }
 
+# A BYTE or SHORT array's element was an INTEGER's 4 bytes: 24 by 128 by 128 SHORTs, 1.5 MB, were
+# Out of memory, as was any array past a 1 MB cap the 16 MB heap did not need.
+CASES |= {
+    "narrow_arr_size": (bas("DIM a(1 TO 4) AS BYTE, s(3) AS SHORT, i(1) AS INTEGER",
+                            "a(2) = 255: s(1) = -2: s(2) = 300",
+                            "PRINT VARPTR(a(2)) - VARPTR(a(1)); VARPTR(s(1)) - VARPTR(s(0)); "
+                            "VARPTR(i(1)) - VARPTR(i(0))",
+                            "PRINT a(1); a(2); a(3); s(0); s(1); s(2); s(3); PEEK(VARPTR(s(1)))"),
+                        " 1  2  4 \r\n 0  255  0  0 -2  300  0  254 \r\n", "ERROR"),
+    "narrow_arr_big": (bas("DIM f(23, 127, 127) AS SHORT, g(399999) AS INTEGER",
+                           "f(23, 127, 127) = -5: g(399999) = 7: PRINT f(23, 127, 127); g(399999)"),
+                       "-5  7 \r\n", "ERROR"),
+    "narrow_arr_io": (bas("DIM s(3) AS SHORT, b(3) AS BYTE", "READ s(3), b(1): SWAP s(3), s(2): s(1) = -7",
+                          'OPEN "N.DAT" FOR BINARY AS #1: PUT #1, , s(1): PUT #1, , b(1): GET #1, 1, s(0)',
+                          "PRINT LOF(1); s(0); s(1); s(2); s(3); b(1)", 'CLOSE #1: KILL "N.DAT"', "DATA -300, 200"),
+                      " 3 -7 -7 -300  0  200 \r\n", "ERROR"),
+    # Passed by reference, a narrow element is read and written at its width; its neighbours keep theirs.
+    "narrow_arr_byref": (bas("DECLARE SUB inc (x AS BYTE)", "DECLARE SUB neg (x AS SHORT)",
+                             "DECLARE SUB outer (x AS SHORT)",
+                             "DIM a(3) AS BYTE, s(3) AS SHORT, t AS SHORT", "ON ERROR GOTO h",
+                             "a(1) = 7: a(2) = 9: a(3) = 7: inc a(2): PRINT a(1); a(2); a(3)",
+                             "s(0) = 1: s(1) = 5: s(2) = 1: neg s(1): PRINT s(0); s(1); s(2)",
+                             "outer s(1): PRINT s(1); s(2)", "t = 5: outer t: PRINT t; t + 1",
+                             "a(2) = 255: inc a(2)", "PRINT a(2); a(3)", "END", OV,
+                             "SUB inc (x AS BYTE)", "x = x + 1", "END SUB",
+                             "SUB neg (x AS SHORT)", "x = -x", "END SUB",
+                             "SUB outer (x AS SHORT)", "neg x: x = x - 1", "END SUB"),
+                         " 7  10  7 \r\n 1 -5  1 \r\n 4  1 \r\n-6 -5 \r\nov 6 \r\n 255  7 \r\n", "ERROR"),
+}
+
 # Typed at the prompt, not run as a file.
 REPL = {
     # A direct line ran from DCODE, its statement map's place: nothing printed.
