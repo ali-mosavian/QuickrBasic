@@ -166,6 +166,8 @@ def pip(
     wheel: int = -1,
     lift: float = 0,
     squat: float = 0,
+    gog: bool = False,
+    cross: bool = False,
 ) -> Pic:
     """Pip standing, facing right, feet on row 30. bob drops the body, lean tips the head forward; front and back
     are the legs' angles; sc the scarf's length, phase and rise; wheel a blur of legs instead; squat folds them."""
@@ -214,14 +216,19 @@ def pip(
     p.ball(hx + 5, hy + 2.4, 4.2, 2.3, SKIN, 0.15, 1.0)
     p.put(round(hx + 8), round(hy + 2), INK)
     p.put(round(hx + 8), round(hy + 3), INK)
-    p.line(hx + 4, hy + 4.4, hx + 6.5, hy + 4.2, SKIN[0])
+    p.line(hx + 3.5, hy + 4.6, hx + 5.5, hy + 4.4, INK)
+    p.put(round(hx + 6.5), round(hy + 3.6), INK)
     p.ball(hx - 4.2, hy + 3.6, 2.6, 2.1, SCARF, 0.3, 1.0)
     ex, ey = hx + 1.5, hy - 1
-    if eye == "open":
-        p.ball(ex, ey, 1.7, 2.3, [CLOUD[1], WHITE])
-        p.put(round(ex + 1), round(ey), INK)
+    if gog:
+        p.line(hx - 4.5, hy - 1.5, hx + 1, hy - 1, METAL[0])
+        p.ball(ex, ey, 2.6, 2.5, TEAL, 0.3, 1.0)
+        p.put(round(ex - 1), round(ey - 1), WHITE)
+    elif eye == "open":
+        p.ball(ex, ey + 0.4, 1.7, 1.9, [CLOUD[1], WHITE])
         p.put(round(ex + 1), round(ey + 1), INK)
-        p.line(ex - 2.4, ey - 3.3, ex + 2, ey - 2.2, INK)
+        p.line(ex - 1.8, ey - 1.2, ex + 2, ey - 0.6, INK)
+        p.line(ex - 2.4, ey - 3.3, ex + 2.2, ey - 1.8, INK)
     elif eye == "happy":
         p.line(ex - 1.5, ey + 0.5, ex, ey - 1, INK)
         p.line(ex, ey - 1, ex + 1.5, ey + 0.5, INK)
@@ -231,12 +238,18 @@ def pip(
     else:
         p.line(ex - 1.5, ey + 0.5, ex + 1.6, ey + 0.5, INK)
         p.line(ex - 2.4, ey - 2.3, ex + 2, ey - 1.6, INK)
-    p.line(hx - 3.5, hy - 5.2, hx + 2.5, hy - 5.6, METAL[0])
-    p.ball(hx - 0.5, hy - 5.6, 1.9, 1.5, TEAL, 0.4, 1.0)
+    if not gog:
+        p.line(hx - 3.5, hy - 5.2, hx + 2.5, hy - 5.6, METAL[0])
+        p.ball(hx - 0.5, hy - 5.6, 1.9, 1.5, TEAL, 0.4, 1.0)
     sx, sy = 18.5 + lean * 0.5, by + 0.5
-    ax, ay = sx + math.sin(arm) * 5, sy + math.cos(arm) * 5
-    p.line(sx, sy, ax, ay, SKIN[1], 2)
-    p.ball(ax + 0.5, ay + 0.5, 1.7, 1.6, SKIN, 0.3, 1.0)
+    if cross:
+        p.line(14.5, by + 1.5, 20, by + 2.5, SKIN[1], 2)
+        p.line(15, by + 3.2, 19.5, by + 1.6, SKIN[2], 2)
+        p.ball(14.5, by + 1.6, 1.6, 1.5, SKIN, 0.3, 1.0)
+    else:
+        ax, ay = sx + math.sin(arm) * 5, sy + math.cos(arm) * 5
+        p.line(sx, sy, ax, ay, SKIN[1], 2)
+        p.ball(ax + 0.5, ay + 0.5, 1.7, 1.6, SKIN, 0.3, 1.0)
     return p.outline()
 
 
@@ -261,7 +274,7 @@ def curled(turn: float) -> Pic:
 
 def hero() -> list[Pic]:
     """Idle, blink, two taps, six of the run, two of the dash, four curled, skid, crouch, hurt, sprung, two wins."""
-    out = [pip(), pip(eye="blink"), pip(lift=2.5, front=0.5, arm=0.2), pip(front=0.5, arm=0.2)]
+    out = [pip(), pip(eye="blink"), pip(lift=2.5, front=0.5, cross=True), pip(front=0.5, cross=True)]
     for f in range(6):
         ph = 2 * math.pi * f / 6
         out.append(
@@ -276,7 +289,7 @@ def hero() -> list[Pic]:
             )
         )
     for f in range(2):
-        out.append(pip(bob=1, lean=2, wheel=f, sc=(12, f * 3.1, 1.5), arm=-1.2, tail=1.5))
+        out.append(pip(bob=1, lean=2, wheel=f, sc=(12, f * 3.1, 1.5), arm=-1.2, tail=1.5, gog=True))
     out += [curled(i * math.pi / 14) for i in range(4)]
     out.append(pip(bob=1, lean=-2, front=1.0, back=0.7, sc=(7, 0, 5), arm=1.4, tail=-1))
     out.append(pip(squat=5, front=1.2, back=-1.2, sc=(5, 0, -2), arm=0.9))
@@ -472,6 +485,17 @@ def rock() -> Pic:
     return p.outline()
 
 
+def thorn() -> Pic:
+    """A bramble: dark canes, pale points."""
+    p = Pic(16, 12)
+    for x, top in ((2, 5), (5, 2), (8, 4), (11, 1), (13, 6)):
+        p.line(x, 11, x, top + 2, SCARF[0], 2)
+        p.line(x, top + 2, x, top, SCARF[1])
+        p.put(x, top, WHITE)
+        p.put(x - 1, top + 4, STONE[3])
+    return p.outline()
+
+
 def pictures() -> list[tuple[int, Pic, bool, int]]:
     """Each picture's index in the game's Img table, whether it is masked, and its mirror's index or -1."""
     out: list[tuple[int, Pic, bool, int]] = []
@@ -505,6 +529,7 @@ def pictures() -> list[tuple[int, Pic, bool, int]]:
         (k + 40, flower(0), True, -1),
         (k + 42, flower(1), True, -1),
         (k + 44, rock(), True, -1),
+        (k + 46, thorn(), True, -1),
     ]
     return out
 

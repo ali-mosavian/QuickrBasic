@@ -2,7 +2,7 @@
 """pangdash_test.py [EXE]: PANGDASH.BAS's level played through by an autopilot on the host build.
 
 The main loop is swapped for one that plays with the game's own pilot, which holds Right and jumps
-at pits, walls and beetles ahead. The level must be cleared on the first life, round all three of
+at pits, walls and beetles ahead. The level must be cleared on the first life, round all five of
 its loops: a gap too wide, a wall too high, a loop entered too slowly or a landing that misses the
 ground fails it.
 
@@ -66,9 +66,9 @@ def main() -> None:
     if "sounds ok" not in out:
         sys.exit(f"pangdash: a bar of the tune or a sound effect: {out[-300:]}")
     words = out[out.rfind("result") :].split()
-    if len(words) < 5 or words[1:3] != ["2", "3"] or words[4] != "3":
+    if len(words) < 5 or words[1:3] != ["2", "3"] or words[4] != "5":
         sys.exit(
-            f"pangdash: not cleared on the first life round 3 loops (mode, lives, beads, loops, x, y): {out[-300:]}"
+            f"pangdash: not cleared on the first life round 5 loops (mode, lives, beads, loops, x, y): {out[-300:]}"
         )
     print(f"pangdash ok: cleared with {words[3]} beads")
 
