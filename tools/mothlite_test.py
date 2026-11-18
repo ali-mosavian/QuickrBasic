@@ -41,7 +41,7 @@ FOR id = TITLESONG TO GAMESONG
             PLAY Mood(id, v, b)
             SOUND 37, 0
         NEXT
-        PLAY Counter(b), Fast(b), Rest(id)
+        PLAY Counter(b), Fast(b), Echo(id, b)
         SOUND 37, 0
     NEXT
 NEXT

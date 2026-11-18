@@ -133,18 +133,19 @@ CONST GRAV = 660!, FLAPV = -190!, SPEED = 72!
 CONST TITLE = 0, PLAYING = 1, DYING = 2, OVER = 3
 CONST NOSONG = 0, TITLESONG = 1, GAMESONG = 2
 CONST MAXBEATS = 64, SUNX = 258, SUNY = 58
-' the score the counter-melody comes in at, then
-' the faster hi-hats; how near a cap is a near miss
-CONST HEAT1 = 5, HEAT2 = 15, NEARMISS = 9
+' the score the harmony comes in at, then the
+' faster hi-hats; how near a cap is a near miss
+CONST HEAT1 = 3, HEAT2 = 8, NEARMISS = 9
 CONST NFLY = 10, NCLOUD = 3, NTREE = 16
 CONST DAY = 0, GOLDEN = 1, SUNSET = 2, NSKIES = 3
 CONST NKEY = 15, NRIDGE = 3
-' the layers' sounds: counter-melody, birds by day,
-' a pad at golden hour, crickets at sunset
-CONST LIFTSND = "MNW0Q12H0,4,8,3V5"
-CONST BIRDS = "MSW1H0,2,0,2V5L32O6EGBP32"
-CONST PADSND = "MLW2Y1,700,4H9,6,10,9V6"
-CONST CRICKETS = "W3Y2,6000,12H0,1,0,1V3L32O6CP32CP32"
+' the layers' sounds: the tune's echo, its harmony,
+' and the pad by day, at golden hour and at sunset
+CONST ECHOSND = "MNW1Y1,1800,4H0,6,6,6V7"
+CONST LIFTSND = "MNW0Q12H0,4,8,3V7"
+CONST PADDAY = "MLW0Q30Y1,2400,6H6,6,10,8V7"
+CONST PADGOLD = "MLW2Y1,900,6H9,6,10,9V8"
+CONST PADDUSK = "MLW1H11,8,11,10V9"
 ' sound effects, sparks and text looks, by table
 CONST SFXCRASH = 0, SFXFLAP = 1, SFXCHIME = 2
 CONST SFXSWISH = 3, SFXBEST = 4, SFXOVER = 5
@@ -216,6 +217,7 @@ DECLARE SUB Layer (id AS INTEGER, b AS INTEGER, v AS INTEGER, pre AS STRING, k A
 DECLARE FUNCTION NoteOf$ (k AS STRING, steps AS INTEGER)
 DECLARE FUNCTION Drums$ (s AS Song)
 DECLARE FUNCTION Lift$ (s AS Song)
+DECLARE FUNCTION PadSound$ (p AS INTEGER)
 DECLARE FUNCTION Grazed% (st() AS Stone, i AS INTEGER, m AS Moth)
 DECLARE SUB ToggleMusic (s AS Song)
 DECLARE SUB PlaySfx (id AS INTEGER)
@@ -298,7 +300,7 @@ DIM SHARED SfxD(NSFX - 1) AS STRING
 DIM SHARED Mood(1 TO 2, NSKIES - 1, MAXBEATS - 1) AS STRING
 DIM SHARED Counter(MAXBEATS - 1) AS STRING
 DIM SHARED Fast(MAXBEATS - 1) AS STRING
-DIM SHARED Rest(1 TO 2) AS STRING
+DIM SHARED Echo(1 TO 2, MAXBEATS - 1) AS STRING
 DIM SHARED Bursts(NBURST - 1) AS Burst
 DIM SHARED SkyKey(NSKIES - 1, NKEY - 1) AS LONG
 DIM SHARED Fixed(255) AS LONG
@@ -1047,8 +1049,8 @@ SUB Fall (w AS World, sp() AS Spark)
 END SUB
 
 ' Keeps a few beats queued: tune, arpeggio, drums,
-' the sky's mood and the lift; voice 4 is left to
-' the sound effects. Every voice gets a beat a beat,
+' the sky's pad and the echo or harmony; voice 4 is
+' left to the sound effects. Every voice gets a beat a beat,
 ' a pad a bar, so they stay together.
 SUB FeedSong (s AS Song)
     DIM b AS INTEGER, id AS INTEGER
@@ -1165,32 +1167,29 @@ SUB Launch (w AS World, st() AS Stone, sp() AS Spark)
 END SUB
 
 ' The layers over a song's beat b, made from its
-' voice v's string k: the counter-melody a third over
-' the tune; the moods from the arpeggio's root; the
-' drums with the hi-hats doubled.
+' voice v's string k: the tune's echo a 16th late,
+' and its harmony a third over; a pad a bar on the
+' chord's third, in each sky's sound; the drums with
+' the hi-hats doubled.
 SUB Layer (id AS INTEGER, b AS INTEGER, v AS INTEGER, pre AS STRING, k AS STRING)
     DIM t AS STRING, r AS STRING, i AS INTEGER
+    DIM p AS INTEGER
     t = LEFT$(pre, 4)
     SELECT CASE v
     CASE 0
-        Rest(id) = t + "P8"
+        r = "P16" + NoteOf$(k, 0) + "16"
+        Echo(id, b) = t + ECHOSND + r
         IF id = GAMESONG THEN
             Counter(b) = t + LIFTSND + NoteOf$(k, 2) + "8"
         END IF
     CASE 1
-        r = NoteOf$(k, 7)
-        Mood(id, DAY, b) = t + "P8"
-        IF (b * 7 + 3) MOD 5 = 0 THEN
-            Mood(id, DAY, b) = t + BIRDS
-        END IF
-        Mood(id, GOLDEN, b) = ""
-        IF b MOD 4 = 0 THEN
-            Mood(id, GOLDEN, b) = t + PADSND + r + "2"
-        END IF
-        Mood(id, SUNSET, b) = t + "P8"
-        IF b MOD 2 = 0 THEN
-            Mood(id, SUNSET, b) = t + CRICKETS
-        END IF
+        r = NoteOf$(k, 9)
+        FOR p = 0 TO NSKIES - 1
+            Mood(id, p, b) = ""
+            IF b MOD 4 = 0 THEN
+                Mood(id, p, b) = t + PadSound$(p) + r + "2"
+            END IF
+        NEXT
     CASE 2
         i = INSTR(k, "P32P16")
         IF id = GAMESONG AND i > 0 THEN
@@ -1202,10 +1201,9 @@ SUB Layer (id AS INTEGER, b AS INTEGER, v AS INTEGER, pre AS STRING, k AS STRING
     END SELECT
 END SUB
 
-' The counter-melody, once the score is up; a rest
-' before.
+' The tune's echo; its harmony once the score is up.
 FUNCTION Lift$ (s AS Song)
-    Lift$ = Rest(s.id)
+    Lift$ = Echo(s.id, s.beat)
     IF s.id <> GAMESONG OR s.heat < HEAT1 THEN EXIT FUNCTION
     Lift$ = Counter(s.beat)
 END FUNCTION
@@ -1547,6 +1545,17 @@ SUB Orbit (w AS World, k AS Pad, st() AS Stone, sp() AS Spark)
     w.g.scroll = w.g.scroll + 25 * STEPT
     IF k.flap THEN Launch w, st(), sp()
 END SUB
+
+FUNCTION PadSound$ (p AS INTEGER)
+    SELECT CASE p
+    CASE DAY
+        PadSound$ = PADDAY
+    CASE GOLDEN
+        PadSound$ = PADGOLD
+    CASE ELSE
+        PadSound$ = PADDUSK
+    END SELECT
+END FUNCTION
 
 ' An outline of ink round the shape.
 SUB Outline (g() AS INTEGER)
