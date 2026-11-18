@@ -152,12 +152,18 @@ static bool srcr_whole(Srcr *const sr)
 {
     uint32_t n;
     const uint8_t *const p = chnl_span(sr->chnl, &n);
-    uint32_t k = 0;
+    /* the LF, then no CR nor ^Z before it but a CR LF's: memchr's scans, the CPU's (string.asm) */
+    const uint8_t *const lf = memchr(p, '\n', n);
 
-    while (k < n && p[k] != '\n' && p[k] != '\r' && p[k] != CTRL_Z)
-        k++;
+    if (!lf)
+        return false;
 
-    if (k == n || p[k] == CTRL_Z || k >= SRCAP || (k && (is_blank(p[k - 1]) || p[k - 1] == '_')))
+    uint32_t k = (uint32_t)(lf - p);
+
+    if (k && p[k - 1] == '\r')
+        k--;
+    if (memchr(p, '\r', k) || memchr(p, CTRL_Z, k) || k >= SRCAP ||
+        (k && (is_blank(p[k - 1]) || p[k - 1] == '_')))
         return false;
 
     memcpy(sr->cons->inbuf, p, k);

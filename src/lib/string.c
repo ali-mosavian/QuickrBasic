@@ -3,7 +3,7 @@
  * # How it works
  * clang calls memcpy, memmove and memset in the build's convention (-mregparm=3), not llrm's
  * runtime's: they are here, renamed in the objects (Makefile) so as not to clash with the
- * runtime's. On the 386 memcpy, memmove, memset, memcmp and strlen are plat/dos32/string.asm's;
+ * runtime's. On the 386 memcpy, memmove, memset, memcmp, memchr and strlen are plat/dos32/string.asm's;
  * the C below is any other target's.
  */
 #include <stdint.h>
@@ -60,6 +60,17 @@ int memcmp(const void *const a, const void *const b, const size_t n)
     return 0;
 }
 
+void *memchr(const void *const s, const int c, const size_t n)
+{
+    const unsigned char *const p = s;
+
+    for (size_t i = 0; i < n; i++)
+        if (p[i] == (unsigned char)c)
+            return (void *)&p[i];
+
+    return nullptr;
+}
+
 size_t strlen(const char *const s)
 {
     size_t n = 0;
@@ -71,16 +82,6 @@ size_t strlen(const char *const s)
 }
 #endif
 
-void *memchr(const void *const s, const int c, const size_t n)
-{
-    const unsigned char *const p = s;
-
-    for (size_t i = 0; i < n; i++)
-        if (p[i] == (unsigned char)c)
-            return (void *)&p[i];
-
-    return nullptr;
-}
 
 int strcmp(const char *const a, const char *const b)
 {

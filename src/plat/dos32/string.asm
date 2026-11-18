@@ -2,7 +2,7 @@
 ; they run forward. The direction flag stays clear: an interrupt may find it at any instruction.
         .386
         .model  flat
-        public  _memcpy, _memmove, _memset, _memcmp, _strlen
+        public  _memcpy, _memmove, _memset, _memcmp, _memchr, _strlen
 
         .code
 ; memcpy (dst eax, src edx, n ecx): dst. Under SMALL bytes a byte at a time; else bytes to dst's dword
@@ -153,6 +153,23 @@ _memcmp:
         sub     eax, edx
 mc_same:
         pop     esi
+        pop     edi
+        ret
+
+; memchr (s eax, c edx, n ecx): the first byte c's address, 0 none
+_memchr:
+        push    edi
+        mov     edi, eax
+        mov     eax, edx
+        test    ecx, ecx
+        jz      mh_none
+        repne   scasb
+        jne     mh_none
+        lea     eax, [edi - 1]
+        pop     edi
+        ret
+mh_none:
+        xor     eax, eax
         pop     edi
         ret
 

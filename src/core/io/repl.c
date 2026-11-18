@@ -513,7 +513,7 @@ static bool is_include(Session *const S, const uint8_t *const text, const uint32
 
     p = blanks(p, end);
 
-    if (p >= end)
+    if (p >= end || (*p != '\'' && upcase(*p) != 'R')) /* most lines: neither ' nor REM */
         return false;
     if (*p == '\'')
         p++;
