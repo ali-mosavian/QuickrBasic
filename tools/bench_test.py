@@ -69,7 +69,16 @@ def fps_start_up() -> None:
         assert len([r for r in rows if r.strip()]) == 1, rows[:3]
 
 
+def profile_stop() -> None:
+    """A profiled program that stops on an error says so. Out of memory in DOSBox's 4 MB, a program's
+    profile read as its compile alone: 41.8M instructions, no line of it run."""
+    oom = bench.dosrun.Result("prog", "Out of memory in line 12", "exit", 0, 0)
+    assert "Out of memory" in bench.stopped(oom), bench.stopped(oom)
+    assert bench.stopped(bench.dosrun.Result("prog", "", "exit", 0, 0)) == ""
+
+
 def main() -> int:
+    profile_stop()
     broken_counter()
     fps_start_up()
     b = bench.build(".", False)  # the tree's own instruments: copying them onto themselves raised

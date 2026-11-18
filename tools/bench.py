@@ -430,6 +430,11 @@ def profiled(b: Build, d: Path, ide: bool = False) -> Path:
     return exe
 
 
+def stopped(r: dosrun.Result) -> str:
+    """Why a profiled run stopped short, if it printed or did not exit: its profile is the stop's."""
+    return f"{r.reason}: {r.out.strip()[-300:]}" if r.out.strip() or r.reason != "exit" else ""
+
+
 def cmd_profile(a: argparse.Namespace) -> int:
     """The DOS build relinked with a map, DOSBox's profiler naming each function's own instructions:
     the program's less an empty one's. --link: its lines typed, then RUN, less them typed alone: the
@@ -445,6 +450,7 @@ def cmd_profile(a: argparse.Namespace) -> int:
             limit_ms=a.ms if a.ide else 600000,
             file=not a.link,
             profile=True,
+            mem=a.mem,
             keyboard=a.ide,
             screen=a.ide,
         )
@@ -452,6 +458,8 @@ def cmd_profile(a: argparse.Namespace) -> int:
     own = {f: n - base.get(f, 0) for f, n in got.items() if n > base.get(f, 0)}
     total = sum(own.values())
     print(f"{total:,} instructions ({r['prog'].instructions - r[''].instructions:,} counted)")
+    if stopped(r["prog"]):
+        print(stopped(r["prog"]))
     for f, n in sorted(own.items(), key=lambda kv: -kv[1])[: a.n]:
         calls = r["prog"].calls.get(f, 0) - r[""].calls.get(f, 0)
         print(f"{n:>12,} {n / total:6.1%} {calls:>9,} calls  {f}")
@@ -485,18 +493,20 @@ END SUB
 
 
 # the loop's steps --parts times: Main's and Render's calls
-FPS_PARTS = ("ReadPad joy", "Tick w, joy, stones(), sparks()", "FeedSong w.song", "DrawSky w.g", "DrawSun w.g.clock",
+FPS_PARTS = ("ReadPad joy", "Tick w, joy, stones(), sparks()", "Fly w, k, st(), sp()", "Orbit w, k, st(), sp()",
+             "Trail w, sp()", "MoveSparks sp()", "EaseSky w.sky, cur()", "FeedSong w.song", "DrawSky w.g", "DrawSun w.g.clock", "DrawTop w",
              "DrawLand w.g", "DrawStones st(), w.g.clock", "DrawMoth w.m, w.g.mode", "DrawLake w.g.clock", "DrawSparks sp()",
              "DrawHud w", "DrawFx w.fx", "Flip w.page")
 
 
 def timed(s: str) -> str:
-    """Each FPS_PARTS call's TIMER time added to PartT(its index), written to PARTS.TXT by Main."""
-    s = s.replace("\nMain\nEND\n", "\nDIM SHARED PartT(30) AS SINGLE, PartAt AS SINGLE\nMain\nEND\n")
+    """Each FPS_PARTS call's TIMER time added to PartT(its index), written to PARTS.TXT by Main; its own start, as
+    one may be inside another."""
+    s = s.replace("\nMain\nEND\n", "\nDIM SHARED PartT(30) AS SINGLE, PartAt(30) AS SINGLE\nMain\nEND\n")
     for i, call in enumerate(FPS_PARTS):
         n = s.count(f" {call}\n")
         assert n, call
-        s = s.replace(f" {call}\n", f" PartAt = TIMER: {call}: PartT({i}) = PartT({i}) + TIMER - PartAt\n")
+        s = s.replace(f" {call}\n", f" PartAt({i}) = TIMER: {call}: PartT({i}) = PartT({i}) + TIMER - PartAt({i})\n")
     return s.replace('    CLOSE #1\nEND SUB\n', f'    CLOSE #1\n    OPEN "PARTS.TXT" FOR OUTPUT AS #1\n'
                      f'    FOR i = 0 TO {len(FPS_PARTS) - 1}: PRINT #1, PartT(i) * 1000 / fr: NEXT\n    CLOSE #1\nEND SUB\n')
 
@@ -594,6 +604,7 @@ def main() -> int:
     p.add_argument("--link", action="store_true", help="RUN's link alone, the lines typed")
     p.add_argument("--ide", action="store_true", help="the IDE's open of the file")
     p.add_argument("--ms", type=int, default=30000, help="--ide: the emulated time each run is given")
+    p.add_argument("--mem", type=int, default=4, help="DOSBox's MB")
     p = sub.add_parser("fps")
     p.add_argument("--real", action="store_true", help="the host's clock at cycles=fixed 10000, not virtual time")
     p.add_argument("--profile", action="store_true", help="the functions it spends its instructions in (normal core)")
