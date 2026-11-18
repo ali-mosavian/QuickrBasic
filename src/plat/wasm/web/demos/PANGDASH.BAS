@@ -157,6 +157,7 @@ DECLARE FUNCTION Elapsed! (a AS SINGLE, b AS SINGLE)
 DECLARE SUB Sfx (id AS INTEGER)
 DECLARE SUB LoadSong ()
 DECLARE SUB FeedSong ()
+DECLARE FUNCTION Beat$ (x AS STRING, loud AS INTEGER)
 DECLARE FUNCTION Riff$ (p AS STRING, h AS INTEGER, low AS INTEGER)
 DECLARE FUNCTION Surf% (sx AS INTEGER, y AS INTEGER)
 DECLARE FUNCTION Solid% (x AS INTEGER, y AS INTEGER)
@@ -211,8 +212,8 @@ DIM SHARED StartX AS INTEGER, StartY AS INTEGER
 DIM SHARED Tune AS INTEGER
 DIM SHARED Ticks AS LONG, Muted AS INTEGER, LooseN AS INTEGER, PartN AS INTEGER
 DIM SHARED Glint(2) AS LONG
-CONST NBAR = 26
-DIM SHARED Trk(NBAR * 10) AS STRING, Order AS STRING, Bar AS INTEGER, HalfBar AS INTEGER
+CONST NBAR = 28
+DIM SHARED Trk(NBAR * 10) AS STRING, Kit(NBAR * 2) AS STRING, Order AS STRING, Bar AS INTEGER, HalfBar AS INTEGER
 
 Main
 END
@@ -241,39 +242,44 @@ DATA flat,10, bush,0, flat,4, spring,0, flat,2, plat,618, hb,716, flat,7, thorn,
 DATA thorn,0, flat,8, flower,0, flat,4
 DATA goal,0, flat,6, bush,0, flat,14, "end",0
 
-' The tune: 76 bars of 26, each a letter of the order. A bar is its chord's root from D, a bass riff and a drum
-' pattern by number, the chord stab's note, then the brass and the lead. A riff is sixteen sixteenths: a note in
-' semitones above its voice's lowest (0-9, a-z), "-" holds it, "." rests.
+' The tune: 76 bars of 28, each a letter of the order: an intro and its variation, then A, B, C and D twice
+' round and four bars of A fading. A bar is its chord's root from D, a bass riff and a drum pattern by number, the
+' second brass, the brass and the lead. A riff is sixteen sixteenths: a note in semitones above its voice's lowest
+' (0-9, a-z), "-" holds it, "." rests. A second brass of two letters is a chord pattern by number and its note.
 Song:
-DATA "abcdabcefghefgheijklijkmnopqnoprstuvwxyzwxyzijklijkmnopqnoprstuvwxyzwxyzijkm"
-DATA "0.c0.07c.0c.057c", "0.0c.0.70.c0.7c7", "0.0.0.0.c.c.057c", "..x..x....x..x.."
+DATA "abcdabcefghefgh{ijkl|jkmnopqnoprstuvwxyzwxyzijkl|jkmnopqnoprstuvwxyzwxyzijkm"
+DATA "0..00.c..00..07c", "0.0c.0.70.c0.7c7", "0.0.0.0.c.c.057c", "0.c00c7c0.c057ac"
+DATA "..x..x....x..x..", "x.x..x.xx.x..x.x", "x.x.x.x.x.x.x.x."
 DATA "KHHHSHKHKHKHSHHH", "KHHHSHKHSSTTSTSS", "K.H.S.H.K.K.S.H.", "K.H.S.SSKSSTSTTS", "KHHSHHKHKHHSHHSS"
-DATA 0, 1, 2, ".", "c-.cf.h-..j.h-f.", ""
-DATA 0, 1, 2, ".", "c-.cf.h-..m.j-h-", ""
-DATA -4, 1, 2, ".", "k-.k.j-h..f-.h.j", ""
-DATA -5, 3, 3, ".", "o-..o.m.j-h-e---", ""
-DATA -5, 3, 3, ".", "m-..m.o.q-o-m-j-", ""
-DATA 5, 1, 0, "c", "h-j-k-.h..k.o---", "............o.r."
-DATA 0, 2, 0, "f", "j-.jh.f-..c.f-j-", "............r.o."
-DATA -4, 1, 0, "c", "k-m-o-.k..o.r---", "............t.r."
-DATA 0, 1, 0, "f", "j..j..j...f.j...", "cjfjcjfjojmjfjhj"
-DATA -2, 1, 0, "e", "h..h..h...e.h...", "aehmhemhqmhmehae"
-DATA -4, 1, 0, "c", "f..f..f...c.f...", "8cfkfckfocfkfc8c"
-DATA -5, 2, 0, "e", "e..e..e...7.e-j-", "7bejebjenjqnjebe"
-DATA -5, 3, 1, "e", "e..e..e...7.j-o-", "7bejnqnjqnjebe7-"
-DATA 5, 2, 0, "c", "....h-....k.h.k.", "o-..k.h-..k-o---"
-DATA -2, 2, 0, "e", "....e-....h.e.h.", "m-..h.e-..h-m---"
-DATA 0, 2, 0, "f", "....f-....j.f.j.", "o-..j.f-..j-r---"
-DATA -5, 3, 0, "e", "..e...e-7-e-j---", "q-n-j-.q..n.j-e-"
-DATA -5, 3, 1, "e", "..e...e-7-e-j---", "q-n-jnqnjnqnvvvv"
-DATA -4, 1, 4, "c", "f-------f---k---", "kkorrokorwrokorw"
-DATA -2, 1, 4, "e", "h-------h---m---", "mmqttqmqtytqmqty"
-DATA 0, 1, 4, "f", "j-------j---o---", "oorvvrorvvrovrov"
-DATA 0, 3, 1, "f", "o---m---j---f---", "vtrqomkjhfecefhj"
-DATA 0, 2, 0, "f", "..f-..f-....f.j.", "o.oo.m.o-..j.m.o"
-DATA 0, 2, 0, "f", "..f-..f-....f.j.", "r.rr.q.o-..m.j.m"
-DATA -4, 2, 0, "c", "..f-..f-....f.k.", "o.oo.k.o-..r.o.k"
-DATA -2, 3, 1, "e", "..e-..e-....h.m.", "q.qq.m.q-..t-q-m"
+DATA "K.H.S.H.K.K.S.H.", "K.H.S.H.K.K.S.SS"
+DATA 0, 1, 5, "8-.8c.e-..f.e-c.", "c-.cf.h-..j.h-f.", ""
+DATA 0, 1, 6, "8-.8c.e-..j.f-e-", "c-.cf.h-..m.j-h-", ""
+DATA -4, 4, 5, "h..h....f..e..c.", "k..k....j..h..f.", ""
+DATA -5, 3, 3, "k-..k.j.f-e-b---", "o-..o.m.j-h-e---", ""
+DATA -5, 3, 3, "j-..j.k.m-k-j-f-", "m-..m.o.q-o-m-j-", ""
+DATA 5, 1, 0, "e-f-h-.e..h.k---", "h-j-k-.h..k.o---", "............o.r."
+DATA 0, 2, 0, "f-.fe.c-..7.c-f-", "j-.jh.f-..c.f-j-", "..........o.r.o."
+DATA -4, 1, 0, "h-j-k-.h..k.o---", "k-m-o-.k..o.r---", "........o.r.t.r."
+DATA 0, 1, 0, "0f", "j.....j.j.....f.", "cjfjcjfjojmjfjhj"
+DATA -2, 1, 0, "0e", "h.....h.h.....e.", "aehmhemhqmhmehae"
+DATA -4, 1, 0, "0c", "f.....f.f.....c.", "8cfkfckfocfkfc8c"
+DATA -5, 2, 0, "0e", "e.....e.e...e-j-", "7bejebjenjqnjebe"
+DATA -5, 3, 1, "0e", "e.....e.e...j-o-", "7bejnqnjqnjebe7-"
+DATA 5, 2, 0, "1c", "....h-....k.h.k.", "o-..k.h-..k-o---"
+DATA -2, 2, 0, "1e", "....e-....h.e.h.", "m-..h.e-..h-m---"
+DATA 0, 2, 0, "1f", "....f-....j.f.j.", "o-..j.f-..j-r---"
+DATA -5, 3, 0, "1e", "..e...e-7-e-j---", "q-n-j-.q..n.j-e-"
+DATA -5, 3, 1, "1e", "..e...e-7-e-j---", "q-n-jnqnjnqnvvvv"
+DATA -4, 1, 4, "2c", "f-------f---k---", "kkorrokorwrokorw"
+DATA -2, 1, 4, "2e", "h-------h---m---", "mmqttqmqtytqmqty"
+DATA 0, 1, 4, "2f", "j-------j---o---", "oorvvrorvvrovrov"
+DATA 0, 3, 1, "2f", "o---m---j---f---", "vtrqomkjhfecefhj"
+DATA 0, 2, 0, "0f", "..f-..f-....f.j.", "o.oo.m.o-..j.m.o"
+DATA 0, 2, 0, "0f", "..f-..f-....f.j.", "r.rr.q.o-..m.j.m"
+DATA -4, 2, 0, "0c", "..f-..f-....f.k.", "o.oo.k.o-..r.o.k"
+DATA -2, 3, 1, "0e", "..e-..e-....h.m.", "q.qq.m.q-..t-q-m"
+DATA -5, 3, 3, "j-..j.k.m-k-j-f-", "m-..m.o.q-o-m-j-", "........7bejnqv-"
+DATA 0, 1, 0, "0f", "j.....j.j.....f.", "ocjofjmjojmjfjhj"
 
 ' PangArt's begin.
 ' The palette and pictures, as tools/pangart.py draws them.
@@ -2181,45 +2187,51 @@ SUB Sfx (id AS INTEGER)
 END SUB
 
 SUB LoadSong
-    DIM i AS INTEGER, j AS INTEGER, k AS INTEGER, q AS INTEGER, root AS INTEGER, nb AS INTEGER, nd AS INTEGER
-    DIM bas(2) AS STRING, kit(4) AS STRING, hits AS STRING, c AS STRING, d AS STRING
+    DIM i AS INTEGER, j AS INTEGER, k AS INTEGER, root AS INTEGER, nb AS INTEGER, nd AS INTEGER
+    DIM bas(3) AS STRING, hits(2) AS STRING, pat(6) AS STRING
     DIM st AS STRING, br AS STRING, sol AS STRING
     RESTORE Song
     READ Order
-    FOR i = 0 TO 2: READ bas(i): NEXT
-    READ hits
-    FOR i = 0 TO 4: READ kit(i): NEXT
+    FOR i = 0 TO 3: READ bas(i): NEXT
+    FOR i = 0 TO 2: READ hits(i): NEXT
+    FOR i = 0 TO 6: READ pat(i): NEXT
     FOR i = 0 TO NBAR - 1
-        READ root, nb, nd, c, br, sol
-        st = ""
-        IF c <> "." THEN
-            st = hits
-            DO WHILE INSTR(st, "x"): MID$(st, INSTR(st, "x"), 1) = c: LOOP
+        READ root, nb, nd, st, br, sol
+        IF LEN(st) = 2 THEN
+            st = hits(VAL(LEFT$(st, 1))) + RIGHT$(st, 1)
+            DO WHILE INSTR(st, "x") AND INSTR(st, "x") < 17: MID$(st, INSTR(st, "x"), 1) = MID$(st, 17, 1): LOOP
         END IF
         FOR j = 0 TO 1
             k = (i * 2 + j) * 5
-            ' a kick, a snare, a tom and hats: noise through a low, a band and a high filter
-            d = ""
-            FOR q = j * 8 + 1 TO j * 8 + 8
-                SELECT CASE MID$(kit(nd), q, 1)
-                CASE "K": d = d + "Y1,220,10V10O1C"
-                CASE "S": d = d + "Y2,1800,3V9O4C"
-                CASE "T": d = d + "Y2,600,8V9O2G"
-                CASE "H": d = d + "Y3,7000,0V3O6C"
-                CASE ELSE: d = d + "P16"
-                END SELECT
-            NEXT
-            Trk(k) = d
+            Kit(i * 2 + j) = MID$(pat(nd), j * 8 + 1, 8)
+            Trk(k) = Beat$(Kit(i * 2 + j), 8)
             Trk(k + 1) = Riff$(bas(nb - 1), j, 15 + root)
             Trk(k + 2) = Riff$(br, j, 27)
             Trk(k + 3) = Riff$(sol, j, 39)
             Trk(k + 4) = Riff$(st, j, 27)
         NEXT
     NEXT
-    ' the noise; FM, as the consoles of the day: a slapped bass, brass, an electric piano; and a thin pulse lead
-    PLAY "MBT140W3H0,3,0,1L16", "T140W4Z1,12H0,5,3,1V13", "T140W4Z1,7H1,5,10,3V10", , "T140W0Q30H0,4,9,2V7", "T140W4Z2,5H0,6,0,3V7"
+    ' the noise; FM, as the consoles of the day: a slapped bass and two brasses; and a thin pulse lead
+    PLAY "MBT140W3H0,3,0,1L16", "T140W4Z1,12H0,5,3,1", "T140W4Z1,7H1,5,10,3", , "T140W0Q30H0,4,9,2", "T140W4Z1,5H0,6,7,3"
+    Bar = 0: HalfBar = 0
     Tune = -1
 END SUB
+
+' Half a bar of the kit, `loud` eighths as loud: a kick, a snare, a tom and hats, noise through a low, a band and a
+' high filter.
+FUNCTION Beat$ (x AS STRING, loud AS INTEGER)
+    DIM q AS INTEGER, d AS STRING
+    FOR q = 1 TO 8
+        SELECT CASE MID$(x, q, 1)
+        CASE "K": d = d + "Y1,220,10V" + LTRIM$(STR$(10 * loud \ 8)) + "O1C"
+        CASE "S": d = d + "Y2,1800,3V" + LTRIM$(STR$(9 * loud \ 8)) + "O4C"
+        CASE "T": d = d + "Y2,600,8V" + LTRIM$(STR$(9 * loud \ 8)) + "O2G"
+        CASE "H": d = d + "Y3,7000,0V" + LTRIM$(STR$((3 * loud + 7) \ 8)) + "O6C"
+        CASE ELSE: d = d + "P16"
+        END SELECT
+    NEXT
+    Beat$ = d
+END FUNCTION
 
 ' Half h of a bar's riff as PLAY's notes, its lowest note `low`: at most eight, as the drums' always are.
 FUNCTION Riff$ (p AS STRING, h AS INTEGER, low AS INTEGER)
@@ -2257,13 +2269,18 @@ FUNCTION Riff$ (p AS STRING, h AS INTEGER, low AS INTEGER)
 END FUNCTION
 
 ' The next half bar, once the last is nearly played: the drums are the first voice, eight sixteenths every time,
-' so PLAY(0) counts the tune's own clock.
+' so PLAY(0) counts the tune's own clock. The last four bars fade, an eighth a half bar.
 SUB FeedSong
-    DIM k AS INTEGER
+    DIM k AS INTEGER, loud AS INTEGER, d AS STRING
     IF Muted OR NOT Tune THEN EXIT SUB
     IF PLAY(0) > 2 THEN EXIT SUB
-    k = ((ASC(MID$(Order, Bar + 1, 1)) - 97) * 2 + HalfBar) * 5
-    PLAY Trk(k), Trk(k + 1), Trk(k + 2), , Trk(k + 3), Trk(k + 4)
+    k = (ASC(MID$(Order, Bar + 1, 1)) - 97) * 2 + HalfBar
+    loud = (LEN(Order) - Bar) * 2 - HalfBar
+    IF loud > 8 THEN loud = 8
+    d = Trk(k * 5)
+    IF loud < 8 THEN d = Beat$(Kit(k), loud)
+    k = k * 5
+    PLAY d, "V" + LTRIM$(STR$(13 * loud \ 8)) + Trk(k + 1), "V" + LTRIM$(STR$(10 * loud \ 8)) + Trk(k + 2), , "V" + LTRIM$(STR$((7 * loud + 7) \ 8)) + Trk(k + 3), "V" + LTRIM$(STR$(8 * loud \ 8)) + Trk(k + 4)
     HalfBar = 1 - HalfBar
     IF HalfBar = 0 THEN Bar = (Bar + 1) MOD LEN(Order)
 END SUB
