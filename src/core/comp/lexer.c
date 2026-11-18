@@ -95,14 +95,10 @@ static void lexr_ahead(Lexr *const lx)
 }
 
 /* The item at src-1: its column to lexr.col at the body's offset. */
-static void lexr_markcol(Lexr *const lx)
+static void lexr_markcol_kept(Lexr *const lx)
 {
     const uint32_t off = (uint32_t)(lx->out - lx->dst);
 
-    if (off >= LMAX)
-        lexr_fail(lx);
-    if (!lx->cols)
-        return;
     if (off >= lx->ncol && !GROW(lx->col, lx->ncol, off + 1))
         lexr_fail(lx);
     if (lx->all)
@@ -113,6 +109,14 @@ static void lexr_markcol(Lexr *const lx)
     lx->col[off] = col;
     lx->lastcol = col;
     lx->last = (int32_t)off;
+}
+
+static inline void lexr_markcol(Lexr *const lx)
+{
+    if ((uint32_t)(lx->out - lx->dst) >= LMAX)
+        lexr_fail(lx);
+    if (lx->cols)
+        lexr_markcol_kept(lx);
 }
 
 uint16_t lexr_colof(const Lexr *const lx, uint32_t off)
@@ -267,27 +271,53 @@ static void lexr_hexnum(Lexr *const lx)
     lx->out += 4;
 }
 
-static uint16_t lexr_kwstep(const uint16_t st, const uint8_t cls)
-{
-    for (uint32_t i = lexr_kw_first[st]; i < lexr_kw_first[st + 1]; i++)
-        if (lexr_kw_char[i] == cls)
-            return lexr_kw_next[i];
+enum {
+    KW_STATES = countof(lexr_kw_token),
+    KW_ROW = 32, /* a row's classes, a power of two: a row's index a shift */
+    KW_NOT = 0xFF,
+};
+static_assert(countof(lexr_kw_start) <= KW_ROW);
 
-    return 0;
+/* The scanner's transitions, a row a state (0 none), from its lists the first keyword scanned: a
+   step a table read, not a search of the state's list (7% of a large program's load). kw_class:
+   each byte's class in a word, any case (a digit's or a '.''s 0, no keyword's), KW_NOT none. */
+static uint16_t kw_next[KW_STATES][KW_ROW];
+static uint8_t kw_class[256];
+
+static void kw_dense(void)
+{
+    for (uint32_t st = 0; st < KW_STATES; st++)
+        for (uint32_t i = lexr_kw_first[st]; i < lexr_kw_first[st + 1]; i++)
+            kw_next[st][lexr_kw_char[i]] = lexr_kw_next[i];
+
+    for (uint32_t c = 0; c < 256; c++)
+        kw_class[c] = is_letter((uint8_t)c) || is_digit((uint8_t)c) || c == '.'
+                          ? lexr_kw_class[upcase((uint8_t)c)]
+                          : KW_NOT;
 }
 
 uint16_t lexr_keyword(const uint8_t **const at)
 {
+    static bool dense;
+
+    if (!dense) {
+        kw_dense();
+        dense = true;
+    }
+
     const uint8_t *p = *at;
     uint16_t st = KW_START;
+    uint8_t k = kw_class[*p];
 
-    if (is_letter(*p) || is_digit(*p) || *p == '.') /* the start's step: its row is whole */
-        st = lexr_kw_start[lexr_kw_class[upcase(*p++)]];
+    if (k != KW_NOT) { /* the start's step: its row is whole */
+        st = lexr_kw_start[k];
 
-    while (is_letter(*p) || is_digit(*p) || *p == '.')
-        st = lexr_kwstep(st, lexr_kw_class[upcase(*p++)]);
+        while ((k = kw_class[*++p]) != KW_NOT)
+            st = kw_next[st][k];
+    }
+
     if (*p == '$') { /* a '$' when the keyword has one */
-        const uint16_t s2 = lexr_kwstep(st, lexr_kw_class['$']);
+        const uint16_t s2 = kw_next[st][lexr_kw_class['$']];
 
         if (lexr_kw_token[s2]) {
             st = s2;
@@ -358,10 +388,26 @@ static uint8_t lexr_next_char(Lexr *const lx)
     return *lx->in++;
 }
 
+/* The window's bytes to lexr.out up to stop or a 0, while there is room: the pointers in locals, as
+   a store through lexr.out may be to lexr itself. */
+static void lexr_copy_to(Lexr *const lx, const uint8_t stop)
+{
+    const uint8_t *in = lx->in;
+    uint8_t *out = lx->out;
+    uint8_t *const end = lx->end;
+
+    for (uint8_t c; (c = *in) && c != stop && out < end;)
+        *out++ = c, in++;
+
+    lx->in = (uint8_t *)in;
+    lx->out = out;
+}
+
 /* A string's rest, to its quote, as it is. false: the line ended. */
 static bool lexr_copy_string(Lexr *const lx)
 {
     for (;;) {
+        lexr_copy_to(lx, '"');
         lexr_room(lx);
         const uint8_t c = lexr_next_char(lx);
 
@@ -400,6 +446,7 @@ static bool lexr_copy_data(Lexr *const lx)
 static uint8_t *lexr_copy_rest(Lexr *const lx)
 {
     for (;;) {
+        lexr_copy_to(lx, 0);
         lexr_room(lx);
         const uint8_t c = lexr_next_char(lx);
         *lx->out++ = c;
@@ -420,6 +467,12 @@ uint8_t *lexr_line(Lexr *const lx, uint8_t *const text, uint8_t *const body)
     lx->drained = false;
 
     for (;;) {
+        const uint8_t *in = lx->in;
+
+        while (is_blank(*in))
+            in++;
+
+        lx->in = (uint8_t *)in;
         const uint8_t c = lexr_next_char(lx);
 
         if (!c)
