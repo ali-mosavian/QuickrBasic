@@ -100,8 +100,9 @@ static DlogList ls_files = {.size = NAMESZ, .columns = true}; /* items grown as 
 static DlogList ls_dirs = {.size = NAMESZ};
 static uint32_t files_cap, dirs_cap; /* their items' room */
 static char mask[80];                /* dl_mask: the Open box's */
-static char path[80];                /* dl_path: the current directory */
-static PfilFind dta;                 /* dl_dta */
+static char *path;                   /* dl_path: the current directory, grown to fit */
+static uint32_t path_cap;
+static PfilFind dta; /* dl_dta */
 static char msg_text[640];
 static DlogCtl msg_ctl[NMSGCTL];
 static Dlog msg_dlog = {.ctl = msg_ctl};
@@ -120,7 +121,7 @@ static DlogCtl open_ctl[] = {
      .label = s_fname,
      .lrow = 2,
      .lcol = 2},
-    {.kind = CT_TXT, .row = 4, .col = 2, .flags = CF_NOF, .text = path},
+    {.kind = CT_TXT, .row = 4, .col = 2, .flags = CF_NOF | CF_PATH, .text = ""},
     {.kind = CT_LST,
      .row = 6,
      .col = 2,
@@ -157,7 +158,7 @@ static DlogCtl save_ctl[] = {
      .label = s_fname,
      .lrow = 2,
      .lcol = 2},
-    {.kind = CT_TXT, .row = 4, .col = 2, .flags = CF_NOF, .text = path},
+    {.kind = CT_TXT, .row = 4, .col = 2, .flags = CF_NOF | CF_PATH, .text = ""},
     {.kind = CT_LST,
      .row = 6,
      .col = 13,
@@ -386,6 +387,57 @@ static void draw_check(const DlogCtl *const c, const uint8_t row, uint8_t col)
 }
 
 /* dl_one */
+/* A path to n cells at most: its drive and as many of its last folders as fit, "..." between
+   (C:\...\shot\files); its last folder too long, that folder's end. */
+static void draw_path(const uint8_t row, const uint8_t col, const char *const s, const uint16_t n)
+{
+    static const uint8_t dots[] = "...";
+    enum : uint16_t { HEAD = 3, DOTS = 3 }; /* "C:\" */
+
+    const size_t len = strlen(s);
+
+    if (len <= n) {
+        scrn_strn(row, col, (const uint8_t *)s, (uint16_t)len, SL_DLG);
+        return;
+    }
+
+    size_t tail = 0; /* the last folders that fit, from their '\' */
+
+    for (size_t i = len; i-- > HEAD;) {
+        if (s[i] == '\\' && HEAD + DOTS + (len - i) <= n)
+            tail = len - i;
+    }
+
+    if (!tail) { /* the last folder's end */
+        const uint16_t keep = n > DOTS ? n - DOTS : 0;
+        const uint8_t c = scrn_strn(row, col, dots, n < DOTS ? n : DOTS, SL_DLG);
+        scrn_strn(row, c, (const uint8_t *)s + len - keep, keep, SL_DLG);
+        return;
+    }
+
+    uint8_t c = scrn_strn(row, col, (const uint8_t *)s, HEAD, SL_DLG);
+    c = scrn_strn(row, c, dots, DOTS, SL_DLG);
+    scrn_strn(row, c, (const uint8_t *)s + len - tail, (uint16_t)tail, SL_DLG);
+}
+
+/* A text control: cut at the box's right side, a space short; a path in its middle. */
+static void draw_text(
+    const Dlog *const d,
+    const DlogCtl *const c,
+    const uint8_t row,
+    const uint8_t col
+)
+{
+    const uint16_t room = d->cols > c->col + 2 ? d->cols - c->col - 2 : 0;
+
+    if (c->flags & CF_PATH)
+        draw_path(row, col, c->text, room);
+    else if (scrn_slen(c->text) <= room)
+        scrn_str(row, col, c->text, SL_DLG, SL_DLG);
+    else
+        scrn_strn(row, col, (const uint8_t *)c->text, room, SL_DLG);
+}
+
 static void draw_ctl(const Dlog *const d, const DlogCtl *const c)
 {
     if (c->label)
@@ -408,6 +460,10 @@ static void draw_ctl(const Dlog *const d, const DlogCtl *const c)
 
     case CT_CHK:
         draw_check(c, row, col);
+        break;
+
+    case CT_TXT:
+        draw_text(d, c, row, col);
         break;
 
     default:
@@ -1244,16 +1300,39 @@ static uint32_t find(
     return n;
 }
 
+/* dl_path: the current directory, drive, colon and \ first, as long as it is; the Open, Save As
+   boxes' text. */
+static void set_path(void)
+{
+    enum : uint32_t { HEAD = 3 }; /* "C:\" */
+
+    for (uint32_t want = 128;; want *= 2) { /* pfil_curdir cuts to its room: more till it fits */
+        if (!GROW(path, path_cap, want))
+            break;
+
+        path[0] = (char)('A' + pfil_curdrive());
+        path[1] = ':';
+        path[2] = '\\';
+
+        if (pfil_curdir(0, path + HEAD, path_cap - HEAD) != PFIL_OK) {
+            path[HEAD] = 0;
+            break;
+        }
+
+        if (strlen(path + HEAD) + 1 < path_cap - HEAD)
+            break;
+    }
+
+    open_ctl[1].text = save_ctl[1].text = path ? path : "";
+}
+
 /* dl_files: the lists: the files matching the mask, the directories; the current path. */
 static void list_files(void)
 {
     ls_files.n = find(&ls_files, &files_cap, mask, 0);
     ls_dirs.n = find(&ls_dirs, &dirs_cap, "*.*", PFIL_ADIR);
     ls_files.sel = ls_files.top = ls_dirs.sel = ls_dirs.top = 0;
-    path[0] = (char)('A' + pfil_curdrive()); /* drive, colon, \, directory */
-    path[1] = ':';
-    path[2] = '\\';
-    pfil_curdir(0, path + 3, sizeof path - 3);
+    set_path();
 }
 
 /* dl_name1: the field set to s. */

@@ -5,7 +5,10 @@
 
 /* A control's kind, flags. */
 enum : uint8_t { CT_FLD = 1, CT_LST = 2, CT_BTN = 3, CT_CHK = 4, CT_TXT = 5 };
-enum : uint8_t { CF_NOF = 1 }; /* takes no focus */
+enum : uint8_t {
+    CF_NOF = 1,
+    CF_PATH = 2
+}; /* takes no focus; a text that is a path: cut in its middle */
 
 /* The buttons the boxes end with (their control's index). */
 enum : uint8_t {

@@ -13,7 +13,9 @@ lines of the seven after it. A procedure's name is any length: 40 characters at 
 the window's title. F2's list is by name, in columns (Right a column on): once one column in the
 file's order, Down chose Bbbbbb, Right did nothing. Its box's right side was the dialog's, and a list
 longer than its box had no scroll bar: now the SUBs list's arrow moves a column. The Open box's files
-are by name in three columns, their bar sideways: once one column in the directory's order.
+are by name in three columns, their bar sideways: once one column in the directory's order. A long
+path shows its drive, "...", then its last folders that fit: once 80 characters, the rest run on past
+the box onto the next row.
 """
 
 import os
@@ -106,6 +108,28 @@ def clear_column(w: int, pixels: bytes, col: int) -> bool:
     return all(pixel(w, pixels, x, y) == GREY for x in range(9 * col, 9 * col + 9) for y in range(80, 272))
 
 
+def shown_path(path: Path, room: int = 63) -> str:
+    """The Open box's path in room cells: C:\\...\\ then the last folders that fit."""
+    full = "C:" + str(path).replace("/", "\\")
+    if len(full) <= room:
+        return full
+    parts = full.split("\\")
+    for k in range(1, len(parts)):
+        shown = "C:\\...\\" + "\\".join(parts[k:])
+        if len(shown) <= room:
+            return shown
+    return "..." + full[len(full) - room + 3 :]
+
+
+def lit_cells(w: int, pixels: bytes, row: int) -> list[int]:
+    """Row row's cells with anything on them but the dialog's grey."""
+    return [
+        c
+        for c in range(80)
+        if any(pixel(w, pixels, x, y) != GREY for x in range(c * 9, c * 9 + 9) for y in range(row * 16, row * 16 + 16))
+    ]
+
+
 def main() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         program = Path(tmp) / "HELLO.BAS"
@@ -143,6 +167,11 @@ def main() -> None:
         (files / "A.BAS").write_text("PRINT 1\n")
         _, _, opened = frames(run, files / "F0.BAS", OPEN, ("2s",))[0]
         _, _, first_file = frames(run, files / "F0.BAS", OPEN_FIRST, ("3s",))[0]
+        deep = Path(tmp).resolve().joinpath(*(f"PATHPART{i:02}" for i in range(9)))
+        deep.mkdir(parents=True)
+        (deep / "D.BAS").write_text("PRINT 1\n")
+        _, _, deep_open = frames(run, deep / "D.BAS", OPEN, ("2s",))[0]
+        deep_path = shown_path(deep)
         sorted_bas = Path(tmp) / "SORTED.BAS"
         sorted_bas.write_text(SORTED)
         _, _, first_sub = frames(run, sorted_bas, FIRST_SUB, ("2s",))[0]
@@ -179,6 +208,8 @@ def main() -> None:
         "Open's files in columns": any(
             pixel(sw, opened, x, y) != GREY for x in range(23 * 9, 31 * 9) for y in range(160, 176)
         ),
+        "Open's long path cut in its middle": [c for c in lit_cells(sw, deep_open, 6) if 7 < c < 72]
+        == list(range(8, 8 + len(deep_path))),
         "Open's files by name": title_cells(sw, first_file) == len("A.BAS") + 3,
         "a long name's title whole": title_cells(lw, long_title) == len(f"LONG.BAS:{LONG_NAME}") + 3,
     }
