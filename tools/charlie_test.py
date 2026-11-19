@@ -3,8 +3,8 @@
 
 The main loop is swapped for one that plays with the game's own pilot, which holds Right and jumps
 at pits, walls and cats ahead. The level must be cleared on the first life, round all five of
-its loops: a gap too wide, a wall too high, a loop entered too slowly or a landing that misses the
-ground fails it.
+its loops, run upside down: a gap too wide, a wall too high, a loop entered too slowly or a landing that
+misses the ground fails it.
 
 Every half bar of both tunes and every sound effect is played: a PLAY string the game builds wrong is an
 Illegal function call mid-game. Jump held through a hit must jump as the hit's hold ends: it was forgotten.
@@ -22,6 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DEMO = ROOT / "src/plat/wasm/web/demos/CHARLIE.BAS"
 
 DRIVER = """DECLARE FUNCTION GroundAt% (x AS INTEGER)
+DECLARE SUB Stand (p AS Hero, x AS INTEGER, v AS SINGLE)
 DECLARE FUNCTION Uneven% (hz AS SINGLE, grain AS INTEGER, per AS INTEGER, most AS INTEGER, want AS INTEGER)
 ' the game's steps against a screen's frames, timed by a clock of 128 or 256 moves a second: stepped by that clock
 ' some frames showed two steps and some none, and the picture juddered. At a screen's 59.94 or 60.1 frames a second
@@ -74,7 +75,7 @@ NEXT
 StartGame g, p, lo(), pt()
 k.r = -1
 FOR v = 120 TO 840 STEP 60
-    p.x = c * TS - 30: p.y = GroundAt%(CINT(p.x)): p.gsp = v: p.ground = -1: p.ang = 0
+    Stand p, c * TS - 30, CSNG(v)
     FOR i = 1 TO 12
         MoveHero p, k, pt()
         IF p.x > c * TS + 24 THEN EXIT FOR
@@ -83,7 +84,7 @@ FOR v = 120 TO 840 STEP 60
 NEXT
 ' and stood on it, no key down, it stays: it slid back to the foot
 k.r = 0
-p.x = c * TS + 8: p.y = GroundAt%(CINT(p.x)): p.gsp = 0: p.ground = -1: p.roll = 0
+Stand p, c * TS + 8, 0
 FOR i = 1 TO 90: MoveHero p, k, pt(): NEXT
 IF was = 0 AND ABS(p.x - (c * TS + 8)) < 2 THEN PRINT "slope ok"
 ' a jump pressed a moment before landing is made on landing: it was lost
@@ -101,7 +102,7 @@ StartGame g, p, lo(), pt()
 FOR c = 8 TO LW - 8
     IF GroundAt%(c * TS) = NONE AND GroundAt%(c * TS - 20) <> NONE THEN EXIT FOR
 NEXT
-p.x = c * TS - 20: p.y = GroundAt%(CINT(p.x)): p.gsp = 200: p.ground = -1
+Stand p, c * TS - 20, 200
 k.r = -1: k.jump = 0: k.hit = 0: was = 0
 FOR i = 1 TO 60
     MoveHero p, k, pt()
@@ -112,12 +113,78 @@ FOR i = 1 TO 60
 NEXT
 IF p.jumped AND p.vy < -250 THEN PRINT "edge jump ok"
 was = 0: k.r = 0: k.jump = 0: k.hit = 0: k.was = 0
+' dropped anywhere over the ground, Charlie lands: past the first loop it fell through the level
+StartGame g, p, lo(), pt()
+FOR c = 40 TO LWPX - 40 STEP 7
+    p.x = c: p.y = 40: p.vx = 0: p.vy = 700: p.ground = 0: p.sg = 0
+    FOR i = 1 TO 200
+        MoveHero p, k, pt()
+        IF p.ground OR p.y > MH * TS THEN EXIT FOR
+    NEXT
+    IF p.ground = 0 AND ColTop(c \\ TS) < MH THEN was = was + 1
+NEXT
+IF was = 0 THEN PRINT "drop ok"
+' a loop is ground: met fast, no key held, it is run round, over its top and out the far side; met slowly Charlie
+' stalls on its side and slides back to its foot
+FOR j = 0 TO NObj - 1
+    IF ObK(j) = KLOOP THEN EXIT FOR
+NEXT
+c = ObX(j)
+Stand p, c - 8, 420
+was = 0
+FOR i = 1 TO 200
+    MoveHero p, k, pt()
+    IF p.ground THEN IF GU(p.sg) < -.9 THEN was = -1
+    IF p.x > c + 60 THEN EXIT FOR
+NEXT
+v = was AND p.ground AND p.x > c + 60
+Stand p, c - 60, 200
+was = 0
+FOR i = 1 TO 300
+    MoveHero p, k, pt()
+    IF p.ground THEN IF GU(p.sg) < 0 THEN was = -1
+NEXT
+IF v AND was = 0 AND p.ground AND ABS(p.x - c) < 60 AND p.y > ObY(j) - 8 THEN PRINT "loop ok"
+' too slow at its top, Charlie falls from it and lands inside
+Stand p, c - 8, 340
+was = 0
+FOR i = 1 TO 200
+    MoveHero p, k, pt()
+    IF NOT p.ground AND p.y < ObY(j) - LOOPR THEN was = -1
+NEXT
+IF was AND p.ground AND p.x < c + 60 THEN PRINT "stall ok"
+' a jump before a loop comes down on the ground under it, not on the far half of the ring
+Stand p, c - 30, 0
+k.hit = -1: k.jump = -1: was = 0
+FOR i = 1 TO 90
+    MoveHero p, k, pt()
+    k.hit = 0
+    IF p.ground THEN IF GK(p.sg) = 2 THEN was = -1
+NEXT
+k.jump = 0
+IF was = 0 AND p.ground AND ABS(p.y - ObY(j)) < 2 THEN PRINT "ghost ok"
+' a quarter pipe is run up, and its wall: off the top and onto the ground above
+FOR j = 0 TO NObj - 1
+    IF ObK(j) = KPIPE THEN EXIT FOR
+NEXT
+c = ObX(j)
+Stand p, c - 100, 360
+k.r = -1: was = 0
+FOR i = 1 TO 300
+    MoveHero p, k, pt()
+    IF p.ground THEN IF GU(p.sg) < .1 THEN was = -1
+    IF p.ground AND p.x > c + 8 THEN EXIT FOR
+NEXT
+IF was AND p.ground AND p.x > c + 8 AND ABS(p.y - ColTop(c \\ TS) * TS) < 2 THEN PRINT "pipe ok"
+was = 0: k.r = 0
 StartGame g, p, lo(), pt()
 FOR i = 1 TO 9000
     Pilot p, k
     Tick g, p, k, lo(), pt()
-    IF p.onloop <> 0 AND was = 0 THEN loops = loops + 1
-    was = p.onloop
+    j = 0
+    IF p.ground THEN j = GU(p.sg) < -.9
+    IF j AND was = 0 THEN loops = loops + 1
+    was = j
     IF i MOD 30 = 0 THEN Render g, p, lo(), pt()
     IF g.mode <> PLAYING THEN EXIT FOR
 NEXT
@@ -176,6 +243,12 @@ FUNCTION Uneven% (hz AS SINGLE, grain AS INTEGER, per AS INTEGER, most AS INTEGE
     Uneven% = bad
 END FUNCTION
 
+' Charlie on the tiles' ground at x, running at v.
+SUB Stand (p AS Hero, x AS INTEGER, v AS SINGLE)
+    p.x = x: p.y = GroundAt%(x): p.gsp = v: p.ground = -1: p.roll = 0
+    p.sg = SegAt%(x, p.y): p.ang = GA(p.sg)
+END SUB
+
 ' The ground's top under x, NONE over a gap.
 FUNCTION GroundAt% (x AS INTEGER)
     DIM y AS INTEGER
@@ -211,6 +284,11 @@ def main() -> None:
         ("slope ok", "a ramp run onto at any speed without a stop, and stood on without a slide"),
         ("buffer ok", "a jump pressed just before landing, made on landing"),
         ("edge jump ok", "a jump pressed just after running off an edge, made"),
+        ("drop ok", "landed wherever dropped over the ground"),
+        ("loop ok", "round a loop when fast, back out of it when slow"),
+        ("stall ok", "off a loop's top when too slow for it"),
+        ("ghost ok", "down on the ground from a jump before a loop"),
+        ("pipe ok", "up a quarter pipe and its wall onto the ground above"),
     ):
         if said not in out:
             sys.exit(f"charlie: not {what}: {out[-300:]}")

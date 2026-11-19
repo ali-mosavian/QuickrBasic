@@ -8,8 +8,9 @@
 DEFINT A-Z
 
 ' Charlie. x, y: the feet. gsp: speed along the ground, ang its rise in
-' radians, uphill to the right > 0. onloop: the loop it is on, + 1, th
-' its angle round it from the bottom.
+' radians, uphill to the right > 0, right round on a loop. sg: the stretch
+' of the ground's line it is on, or left last; slip: the seconds the keys
+' are no help, slid off a slope too steep for its speed.
 TYPE Hero
     x AS SINGLE
     y AS SINGLE
@@ -17,7 +18,7 @@ TYPE Hero
     vy AS SINGLE
     gsp AS SINGLE
     ang AS SINGLE
-    th AS SINGLE
+    slip AS SINGLE
     lastx AS SINGLE
     charge AS SINGLE
     want AS SINGLE
@@ -36,7 +37,7 @@ TYPE Hero
     skid AS INTEGER
     sprung AS INTEGER
     dead AS INTEGER
-    onloop AS INTEGER
+    sg AS INTEGER
     win AS INTEGER
 END TYPE
 
@@ -106,9 +107,12 @@ CONST GRAV = 750!, JUMPV = 330!, JUMPCUT = 160!, TOP = 360!
 CONST RUNACC = 280!, DEC = 1800!, FRIC = 280!, AIRACC = 500!, SLOPE = 380!
 CONST RFRIC = 60!, RDEC = 450!, RUPS = 300!, RDNS = 1100!, MAXV = 900!
 CONST SPRINGV = 560!, CHARGE0 = 480!, CHARGEMAX = 360!, BOUNCEV = 330!
-CONST BOOSTV = 660!, LOOPR = 48, LOOPIN = 330!, LOOPG = 400!, LD = 124
+CONST BOOSTV = 660!, LOOPR = 48, LD = 124
 ' A jump asked for this long before landing is made on it; one this long after running off an edge still is.
 CONST JBUFFER = .1, COYOTE = .1
+' The ground's line: its most points, a loop's and a quarter pipe's stretches, the curves there can be; under STALL
+' Charlie cannot stay on a wall or a roof.
+CONST NPTS = 1600, LOOPN = 40, PIPEN = 12, NZONE = 15, STALL = 150!
 CONST HW = 7, HH = 24, STRIPH = 192, MIDH = 80
 CONST MAXOBJ = 600, NLOOSE = 24, NPART = 48
 CONST TITLE = 0, PLAYING = 1, CLEARED = 2, OVER = 3
@@ -118,7 +122,7 @@ CONST FSKID = 16, FCROUCH = 17, FHURT = 18, FUP = 19, FWIN = 20, FSHIVER = 22, N
 ' What stands in the level, by x. From KLOOP on: scenery, drawn behind
 ' the ground.
 CONST KBONE = 1, KCAT = 2, KSPRING = 3, KMARK = 4, KBOOST = 5, KGOAL = 6, KPLAT = 7
-CONST KLOOP = 8, KTREE = 9, KBUSH = 10, KFLOWER = 11, KROCK = 12, KTHORN = 13, KLAMP = 14, KFAM = 15
+CONST KLOOP = 8, KTREE = 9, KBUSH = 10, KFLOWER = 11, KROCK = 12, KTHORN = 13, KLAMP = 14, KFAM = 15, KPIPE = 16
 
 ' Images in Img from At(k); a masked one's mask at k + 1. As charlieart.py's.
 CONST IBG = 0, IMID = 1, ISTRIP = 3, IDEEP = 4, ILOOP = 5, ITITLE = 7
@@ -127,7 +131,7 @@ CONST ICAT = IBONE + 8, ISPRING = ICAT + 8, IBOOST = ISPRING + 4, IMARK = IBOOST
 CONST IGOAL = IMARK + 4, ITREE = IGOAL + 8, IBUSH = ITREE + 2, IFLOWER = IBUSH + 2
 CONST IROCK = IFLOWER + 4, ITHORN = IROCK + 2, ILAMP = ITHORN + 2, ITILT = ILAMP + 2
 CONST IFAM = ITILT + 80, IDASH = IFAM + 4
-CONST ICARD = IDASH + 2, IGLYPH = ICARD + 2, NGLYPH = 27, IHUD = IGLYPH + NGLYPH * 4, NIMG = IHUD + 2
+CONST ICARD = IDASH + 2, IGLYPH = ICARD + 2, NGLYPH = 27, IHUD = IGLYPH + NGLYPH * 4, IPIPE = IHUD + 2, NIMG = IPIPE + 2
 CONST HUDW = 108, HUDH = 40
 CONST IMGSZ = 130000
 
@@ -157,6 +161,14 @@ DECLARE SUB Unpack ()
 DECLARE SUB Mirror (k AS INTEGER, k2 AS INTEGER, w AS INTEGER, h AS INTEGER)
 DECLARE SUB BuildStrips ()
 DECLARE SUB BuildLoop ()
+DECLARE SUB BuildPipe ()
+DECLARE SUB Track ()
+DECLARE SUB Knot (x AS SINGLE, y AS SINGLE, k AS INTEGER)
+DECLARE FUNCTION SegAt% (x AS INTEGER, y AS SINGLE)
+DECLARE SUB Along (p AS Hero, d AS SINGLE)
+DECLARE SUB Drop (p AS Hero)
+DECLARE SUB Settle (p AS Hero, s AS INTEGER, d AS INTEGER)
+DECLARE FUNCTION Curve% (p AS Hero, x0 AS SINGLE, y0 AS SINGLE, d AS INTEGER)
 DECLARE SUB BuildMid ()
 DECLARE SUB BuildBack ()
 DECLARE SUB Cloud (x AS INTEGER, y AS INTEGER)
@@ -179,7 +191,6 @@ DECLARE FUNCTION Riff$ (p AS STRING, h AS INTEGER, low AS INTEGER)
 DECLARE FUNCTION Surf% (sx AS INTEGER, y AS INTEGER)
 DECLARE FUNCTION Solid% (x AS INTEGER, y AS INTEGER)
 DECLARE FUNCTION Wall% (p AS Hero, dir AS INTEGER)
-DECLARE FUNCTION Hug% (p AS Hero)
 DECLARE FUNCTION Land% (p AS Hero, d AS INTEGER)
 DECLARE SUB Tick (g AS Game, p AS Hero, k AS Pad, lo() AS Loose, pt() AS Part)
 DECLARE SUB Pilot (p AS Hero, k AS Pad)
@@ -188,7 +199,6 @@ DECLARE SUB StartGame (g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
 DECLARE SUB Spawn (g AS Game, p AS Hero)
 DECLARE SUB MoveHero (p AS Hero, k AS Pad, pt() AS Part)
 DECLARE SUB Walk (p AS Hero, l AS INTEGER, r AS INTEGER, d AS INTEGER, hit AS INTEGER, pt() AS Part)
-DECLARE SUB LoopRun (p AS Hero, hit AS INTEGER)
 DECLARE SUB Airborne (p AS Hero, l AS INTEGER, r AS INTEGER, d AS INTEGER, hold AS INTEGER, pt() AS Part)
 DECLARE SUB Slow (v AS SINGLE, f AS SINGLE)
 DECLARE SUB Touch (g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
@@ -219,6 +229,13 @@ DECLARE FUNCTION Num$ (v AS LONG, w AS INTEGER)
 
 DIM SHARED Map(MW - 1, MH - 1) AS INTEGER, Prof(7, TS - 1) AS INTEGER
 DIM SHARED ColTop(MW) AS INTEGER, ColVis(MW) AS INTEGER
+' The ground's line, what Charlie runs on: points GX, GY, GN of them; from each to the next a stretch of kind GK (0
+' none, 1 the tiles' top, 2 a curve), GL long, GU, GV a pixel along it, its rise GA. ColSeg: a column's stretch;
+' PlatA: the platforms' first. A curve z: stretches ZA to ZB, from ZM on a loop's far half, between x ZL and ZR.
+DIM SHARED GX(NPTS) AS SINGLE, GY(NPTS) AS SINGLE, GU(NPTS) AS SINGLE, GV(NPTS) AS SINGLE, GL(NPTS) AS SINGLE
+DIM SHARED GA(NPTS) AS SINGLE, GK(NPTS) AS INTEGER, GN AS INTEGER, ColSeg(MW) AS INTEGER, PlatA AS INTEGER
+DIM SHARED ZA(NZONE) AS INTEGER, ZB(NZONE) AS INTEGER, ZM(NZONE) AS INTEGER, ZL(NZONE) AS INTEGER
+DIM SHARED ZR(NZONE) AS INTEGER, NZ AS INTEGER
 DIM SHARED Img(IMGSZ) AS LONG, At(NIMG) AS LONG, NextAt AS LONG
 DIM SHARED ObX(MAXOBJ - 1) AS INTEGER, ObY(MAXOBJ - 1) AS INTEGER, ObK(MAXOBJ - 1) AS INTEGER
 DIM SHARED ObS(MAXOBJ - 1) AS INTEGER, ObA(MAXOBJ - 1) AS INTEGER
@@ -256,7 +273,7 @@ DATA spring,0, flat,2, plat,608, hb,706, flat,12, upg,4, flat,4, flower,0, flat,
 DATA mark,0, flat,4, dn45,6, dng,6, boost,0, flat,5, rock,0, flat,7, loop,0, flat,8
 DATA boost,0, bones,8, flat,6, tree,0, flat,8, loop,0, flat,10, up45,4, arc,10, gap,12, flat,10
 DATA gap,3, flat,3, gap,3, flat,3, gap,3, flat,6, cat,0, flat,6, bush,0, cat,0, flat,6
-DATA spring,0, flat,1, wall,7, flat,6, tree,0, bones,8, flat,10, dng,5, boost,0, bones,10, flat,16
+DATA boost,0, flat,6, pipe,7, flat,6, tree,0, bones,8, flat,10, dng,5, boost,0, bones,10, flat,16
 DATA flower,0, upg,3, flat,4, cat,0, dng,3, flat,6, tree,0, flat,4
 DATA mark,0, flat,4, spring,0, flat,2, plat,722, hb,820, flat,6, thorn,0, flat,5, cat,0, flat,5
 DATA thorn,0, flat,6, rock,0, flat,4, dn45,3, dng,3, boost,0, flat,8, loop,0, flat,8
@@ -2779,6 +2796,13 @@ SUB LoadLevel
             c = c + n
         CASE "wall"
             g = g + n
+        CASE "pipe"
+            ' a wall with a quarter pipe up to it, over the three columns before: nothing grows there
+            FOR i = 0 TO NObj - 1
+                IF ObK(i) >= KTREE AND ObX(i) >= c * TS - LOOPR THEN ObK(i) = 0
+            NEXT
+            AddObj KPIPE, c * TS, s
+            g = g + n
         CASE "drop"
             g = g - n
         CASE "plat"
@@ -2817,7 +2841,114 @@ SUB LoadLevel
         IF ObK(i) >= KBUSH AND ObK(i) <= KLAMP AND ABS(ObX(i) - FamX) < 112 THEN ObK(i) = 0
     NEXT
     SortObjs
+    Track
 END SUB
+
+' The ground's line from the columns' tops, left to right, broken where they do not meet; a loop spliced in where
+' it stands, a quarter pipe and its wall over the three columns before the wall; then the platforms' tops.
+SUB Track
+    DIM c AS INTEGER, i AS INTEGER, j AS INTEGER, k AS INTEGER, x AS INTEGER, y AS INTEGER
+    DIM yl AS INTEGER, yr AS INTEGER, x1 AS INTEGER, a AS SINGLE
+    GN = 0: NZ = 0
+    FOR c = 0 TO MW: ColSeg(c) = -1: NEXT
+    FOR i = 0 TO NObj - 1
+        IF ObK(i) = KPIPE THEN ColSeg((ObX(i) - LOOPR) \ TS) = -2 - i
+    NEXT
+    FOR c = 0 TO LW - 1
+        x = c * TS
+        IF ColSeg(c) < -1 THEN
+            y = ObY(-2 - ColSeg(c))
+            ColSeg(c) = -1
+            IF GX(GN - 1) <> x OR GY(GN - 1) <> y THEN Knot CSNG(x), CSNG(y), 0
+            ZA(NZ) = GN - 1: ZM(NZ) = -1: ZL(NZ) = x: ZR(NZ) = x + LOOPR
+            FOR j = 1 TO PIPEN - 1
+                a = j * PI / 2 / PIPEN
+                Knot x + LOOPR * SIN(a), y - LOOPR + LOOPR * COS(a), 2
+            NEXT
+            Knot CSNG(x + LOOPR), CSNG(y - LOOPR), 2
+            j = ColTop(c + LOOPR \ TS) * TS
+            IF j < y - LOOPR THEN Knot CSNG(x + LOOPR), CSNG(j), 2
+            ZB(NZ) = GN - 2: NZ = NZ + 1
+            c = c + LOOPR \ TS - 1
+        ELSEIF ColTop(c) < MH THEN
+            k = Map(c, ColTop(c))
+            y = (ColTop(c) + 1) * TS
+            ' a tile's top at its edges: its profile's, to the even pixel
+            yl = y - (Prof(k, 0) AND 30): yr = y - (Prof(k, TS - 1) AND 30)
+            j = GN = 0
+            IF NOT j THEN j = GX(GN - 1) <> x OR GY(GN - 1) <> yl
+            IF j THEN Knot CSNG(x), CSNG(yl), 0
+            ColSeg(c) = GN - 1
+            i = First(c)
+            DO WHILE i < NObj
+                IF ObX(i) >= x + TS THEN EXIT DO
+                IF ObK(i) = KLOOP THEN
+                    Knot CSNG(ObX(i)), CSNG(yl), 1
+                    ZA(NZ) = GN - 1: ZM(NZ) = GN - 1 + LOOPN \ 2
+                    ZL(NZ) = ObX(i) - LOOPR: ZR(NZ) = ObX(i) + LOOPR
+                    FOR j = 1 TO LOOPN - 1
+                        a = j * 2 * PI / LOOPN
+                        Knot ObX(i) + LOOPR * SIN(a), yl - LOOPR + LOOPR * COS(a), 2
+                    NEXT
+                    Knot CSNG(ObX(i)), CSNG(yl), 2
+                    ZB(NZ) = GN - 2: NZ = NZ + 1
+                END IF
+                i = i + 1
+            LOOP
+            Knot CSNG(x + TS), CSNG(yr), 1
+        END IF
+    NEXT
+    PlatA = GN
+    x = NONE
+    FOR i = 0 TO NObj - 1
+        IF ObK(i) = KPLAT THEN
+            IF x <> NONE AND ObX(i) = x1 AND ObY(i) = y THEN
+                x1 = x1 + TS
+            ELSE
+                IF x <> NONE THEN Knot CSNG(x), CSNG(y), 0: Knot CSNG(x1), CSNG(y), 1
+                x = ObX(i): x1 = x + TS: y = ObY(i)
+            END IF
+        END IF
+    NEXT
+    IF x <> NONE THEN Knot CSNG(x), CSNG(y), 0: Knot CSNG(x1), CSNG(y), 1
+END SUB
+
+' The line's next point, x, y, a stretch of kind k to it from the last: 0, none.
+SUB Knot (x AS SINGLE, y AS SINGLE, k AS INTEGER)
+    DIM i AS INTEGER, u AS SINGLE, v AS SINGLE, d AS SINGLE
+    GX(GN) = x: GY(GN) = y: GK(GN) = 0
+    IF k <> 0 THEN
+        i = GN - 1
+        u = x - GX(i): v = y - GY(i)
+        d = SQR(u * u + v * v)
+        u = u / d: v = v / d
+        GU(i) = u: GV(i) = v: GL(i) = d: GK(i) = k
+        IF u > 0 THEN
+            GA(i) = ATN(-v / u)
+        ELSEIF u < 0 THEN
+            GA(i) = ATN(-v / u) + PI
+        ELSE
+            GA(i) = -SGN(v) * PI / 2
+        END IF
+    END IF
+    GN = GN + 1
+END SUB
+
+' The tiles' stretch of the line under x, its top within 4 of y; -1 when there is none.
+FUNCTION SegAt% (x AS INTEGER, y AS SINGLE)
+    DIM s AS INTEGER
+    SegAt% = -1
+    IF x < 0 OR x >= LWPX THEN EXIT FUNCTION
+    s = ColSeg(x \ TS)
+    IF s >= 0 THEN
+        ' past a loop that stands in the column: the stretch after it
+        IF x > GX(s + 1) THEN s = s + LOOPN + 1
+        IF ABS(GY(s) + (x - GX(s)) * GV(s) / GU(s) - y) < 4 THEN SegAt% = s: EXIT FUNCTION
+    END IF
+    FOR s = PlatA TO GN - 2
+        IF GK(s) = 1 AND x >= GX(s) AND x <= GX(s + 1) AND ABS(GY(s) - y) < 4 THEN SegAt% = s: EXIT FUNCTION
+    NEXT
+END FUNCTION
 
 ' Flowers, bushes and lantern plants along the flats, by the column.
 SUB Scatter (c AS INTEGER, s AS INTEGER)
@@ -2877,6 +3008,7 @@ SUB BuildArt
     LoadArt
     BuildStrips
     BuildLoop
+    BuildPipe
     BuildGlyphs
     BuildMid
     BuildBack
@@ -2980,6 +3112,24 @@ SUB BuildLoop
     Grab 0, 0, LD - 1, LD - 1, ILOOP
     Grab 130, 0, 130 + LD - 1, LD - 1, ILOOP + 1
     LINE (0, 0)-(SW - 1, LD), 0, BF
+END SUB
+
+' A quarter pipe: the earth under its curve, grass along it, and its mask.
+SUB BuildPipe
+    DIM i AS INTEGER
+    LINE (0, 0)-(LOOPR - 1, LOOPR - 1), CEARTH + 4, BF
+    CIRCLE (0, 0), LOOPR, CGRASS, , , 1
+    PAINT (1, 1), 0, CGRASS
+    FOR i = 0 TO 4
+        CIRCLE (0, 0), LOOPR + i, CGRASS + 4 - i, , , 1
+    NEXT
+    LINE (130, 0)-(130 + LOOPR - 1, LOOPR - 1), 0, BF
+    CIRCLE (130, 0), LOOPR, 1, , , 1
+    PAINT (131, 1), 255, 1
+    CIRCLE (130, 0), LOOPR, 0, , , 1
+    Grab 0, 0, LOOPR - 1, LOOPR - 1, IPIPE
+    Grab 130, 0, 130 + LOOPR - 1, LOOPR - 1, IPIPE + 1
+    LINE (0, 0)-(SW - 1, LOOPR), 0, BF
 END SUB
 
 ' The near hills, a masked band of period SW that scrolls on its own.
@@ -3442,54 +3592,131 @@ FUNCTION Wall% (p AS Hero, dir AS INTEGER)
     Wall% = n > 0
 END FUNCTION
 
-' Charlie's feet onto the ground within reach, the ground's angle from the
-' sensors either side; false when no ground is in reach.
-FUNCTION Hug% (p AS Hero)
-    DIM x AS INTEGER, y AS INTEGER, l AS INTEGER, c AS INTEGER, r AS INTEGER, lim AS INTEGER
-    x = CINT(p.x): y = CINT(p.y)
-    lim = 10 + CINT(ABS(p.gsp) * STEPT)
-    l = Surf%(x - 6, y): c = Surf%(x, y): r = Surf%(x + 6, y)
-    IF ABS(l - y) > lim THEN l = NONE
-    IF ABS(c - y) > lim THEN c = NONE
-    IF ABS(r - y) > lim THEN r = NONE
-    IF l = NONE AND c = NONE AND r = NONE THEN Hug% = 0: EXIT FUNCTION
-    IF c <> NONE THEN
-        p.y = c
-    ELSEIF l < r THEN
-        p.y = l
-    ELSE
-        p.y = r
-    END IF
-    p.ang = 0
-    IF l <> NONE AND r <> NONE THEN p.ang = ATN((l - r) / 12!)
-    Hug% = -1
-END FUNCTION
-
-' Falling Charlie's feet in the ground: on it, its speed along it kept.
+' Falling Charlie's feet in the tiles' ground: on the line's stretch there, its speed along it kept.
 FUNCTION Land% (p AS Hero, d AS INTEGER)
-    DIM x AS INTEGER, y AS INTEGER, l AS INTEGER, c AS INTEGER, r AS INTEGER
+    DIM x AS INTEGER, y AS INTEGER, l AS INTEGER, c AS INTEGER, r AS INTEGER, s AS INTEGER
     x = CINT(p.x): y = CINT(p.y)
     l = Surf%(x - 6, y): c = Surf%(x, y): r = Surf%(x + 6, y)
     IF l > y OR l < y - 14 THEN l = NONE
     IF c > y OR c < y - 14 THEN c = NONE
     IF r > y OR r < y - 14 THEN r = NONE
     IF l = NONE AND c = NONE AND r = NONE THEN Land% = 0: EXIT FUNCTION
+    ' by a foot on an edge: onto the edge
     IF c <> NONE THEN
-        p.y = c
+        s = SegAt%(x, CSNG(c))
     ELSEIF l < r THEN
-        p.y = l
+        s = SegAt%(x - 6, CSNG(l))
     ELSE
-        p.y = r
+        s = SegAt%(x + 6, CSNG(r))
     END IF
-    p.ang = 0
-    IF l <> NONE AND r <> NONE THEN p.ang = ATN((l - r) / 12!)
-    p.gsp = p.vx * COS(p.ang) - p.vy * SIN(p.ang)
+    IF s < 0 THEN Land% = 0: EXIT FUNCTION
+    IF p.x < GX(s) THEN p.x = GX(s)
+    IF p.x > GX(s + 1) THEN p.x = GX(s + 1)
+    p.y = GY(s) + (p.x - GX(s)) * GV(s) / GU(s)
+    Settle p, s, d
+    Land% = -1
+END FUNCTION
+
+' Down on stretch s: the speed along it kept.
+SUB Settle (p AS Hero, s AS INTEGER, d AS INTEGER)
+    p.sg = s: p.ang = GA(s)
+    p.gsp = p.vx * GU(s) + p.vy * GV(s)
     IF p.jumped AND NOT d THEN p.roll = 0
     ' hit, it lands where it is and stands afraid a while
     IF p.stun THEN p.gsp = 0
     p.ground = -1: p.jumped = 0: p.sprung = 0: p.coyote = 0
-    Land% = -1
+END SUB
+
+' Charlie in the air, come from x0, y0, through a curve's stretch from its open side: down on it where it can be
+' stood on, or is met fast enough to run along; else off it, sliding. A loop's far half is not there for one that
+' has not run its near half.
+FUNCTION Curve% (p AS Hero, x0 AS SINGLE, y0 AS SINGLE, d AS INTEGER)
+    DIM z AS INTEGER, s AS INTEGER, a AS INTEGER, b AS INTEGER, far AS INTEGER
+    DIM d0 AS SINGLE, d1 AS SINGLE, t AS SINGLE, f AS SINGLE
+    Curve% = 0
+    FOR z = 0 TO NZ - 1
+        IF p.x >= ZL(z) - 8 AND p.x <= ZR(z) + 8 THEN
+            a = ZA(z): b = ZB(z)
+            IF ZM(z) >= 0 THEN
+                far = p.sg >= ZM(z)
+                IF p.sg >= PlatA THEN far = x0 > ZL(z) + LOOPR
+                IF far THEN a = ZM(z) ELSE b = ZM(z) - 1
+            END IF
+            FOR s = a TO b
+                d1 = (p.x - GX(s)) * GV(s) - (p.y - GY(s)) * GU(s)
+                IF d1 < 0 AND p.vx * GV(s) - p.vy * GU(s) < -1 THEN
+                    d0 = (x0 - GX(s)) * GV(s) - (y0 - GY(s)) * GU(s)
+                    t = (p.x - GX(s)) * GU(s) + (p.y - GY(s)) * GV(s)
+                    ' from just behind it too, at a join; not behind a wall
+                    IF d0 > -1 AND (d0 >= 0 OR GU(s) >= .35) AND t >= -1 AND t <= GL(s) + 1 THEN
+                        IF t < 0 THEN t = 0
+                        IF t > GL(s) THEN t = GL(s)
+                        p.x = GX(s) + GU(s) * t: p.y = GY(s) + GV(s) * t
+                        f = p.vx * GU(s) + p.vy * GV(s)
+                        IF GU(s) >= .35 OR ABS(f) >= STALL THEN
+                            Settle p, s, d
+                            Curve% = -1
+                        ELSE
+                            p.x = p.x + GV(s): p.y = p.y - GU(s)
+                            p.vx = f * GU(s): p.vy = f * GV(s)
+                        END IF
+                        EXIT FUNCTION
+                    END IF
+                END IF
+            NEXT
+        END IF
+    NEXT
 END FUNCTION
+
+' Charlie d pixels along the line, over its joins: slowed in a sharp hollow, into the air over a sharp crest or
+' off the line's end.
+SUB Along (p AS Hero, d AS SINGLE)
+    DIM i AS INTEGER, j AS INTEGER, a AS INTEGER, t AS SINGLE, cr AS SINGLE, dt AS SINGLE
+    i = p.sg
+    t = (p.x - GX(i)) * GU(i) + (p.y - GY(i)) * GV(i) + d
+    DO
+        IF t > GL(i) THEN
+            j = i + 1: a = i
+        ELSEIF t < 0 THEN
+            j = i - 1: a = j
+        ELSE
+            EXIT DO
+        END IF
+        IF j >= 0 THEN IF GK(j) = 0 THEN j = -1
+        IF j >= 0 THEN
+            cr = GU(a) * GV(a + 1) - GV(a) * GU(a + 1)
+            dt = GU(a) * GU(a + 1) + GV(a) * GV(a + 1)
+            IF cr > 0 AND dt < .64 THEN j = -1
+        END IF
+        IF j < 0 THEN
+            IF t < 0 THEN t = 0 ELSE t = GL(i)
+            p.x = GX(i) + GU(i) * t: p.y = GY(i) + GV(i) * t
+            Drop p
+            EXIT SUB
+        END IF
+        IF t < 0 THEN t = t + GL(j) ELSE t = t - GL(i)
+        IF cr < 0 AND dt < .7 THEN
+            IF dt < 0 THEN dt = 0
+            p.gsp = p.gsp * dt
+            IF j > i THEN t = t * dt ELSE t = GL(j) - (GL(j) - t) * dt
+        END IF
+        i = j
+    LOOP
+    p.sg = i: p.ang = GA(i)
+    p.x = GX(i) + GU(i) * t: p.y = GY(i) + GV(i) * t
+END SUB
+
+' Off the ground, its speed kept: from a wall or a roof, clear of it.
+SUB Drop (p AS Hero)
+    DIM i AS INTEGER
+    i = p.sg
+    p.ground = 0: p.vx = p.gsp * GU(i): p.vy = p.gsp * GV(i)
+    IF GU(i) > .7 THEN
+        p.coyote = COYOTE
+    ELSEIF GU(i) < .35 THEN
+        p.x = p.x + 2 * GV(i): p.y = p.y - 2 * GU(i)
+    END IF
+END SUB
 
 ' A step. The title plays itself: Charlie run by the pilot.
 SUB Tick (g AS Game, p AS Hero, k AS Pad, lo() AS Loose, pt() AS Part)
@@ -3558,11 +3785,12 @@ SUB Pilot (p AS Hero, k AS Pad)
     STATIC hold AS INTEGER
     DIM x AS INTEGER, y AS INTEGER, i AS INTEGER, want AS INTEGER
     k.r = -1
-    IF p.ground AND p.onloop = 0 THEN
+    IF p.ground AND GK(p.sg) = 1 THEN
         x = CINT(p.x): y = CINT(p.y)
         i = x + 22 + CINT(ABS(p.gsp)) \ 40
         IF Surf%(i, y) = NONE AND Surf%(i, y + 2 * TS) = NONE THEN want = -1
-        IF Solid%(x + 13, y - 9) OR Solid%(x + 13, y - 20) THEN want = -1
+        ' a wall, not a ramp's foot
+        IF Solid%(x + 13, y - 20) THEN want = -1
         i = First(x \ TS)
         DO WHILE i < NObj
             IF ObX(i) > x + 50 THEN EXIT DO
@@ -3619,6 +3847,7 @@ SUB Spawn (g AS Game, p AS Hero)
     DIM fresh AS Hero
     p = fresh
     p.x = g.homeX: p.y = g.homeY: p.ground = -1
+    p.sg = SegAt%(g.homeX, CSNG(g.homeY))
     g.bones = 0
     Camera g, p, -1
 END SUB
@@ -3633,7 +3862,7 @@ SUB MoveHero (p AS Hero, k AS Pad, pt() AS Part)
     IF hit THEN p.want = JBUFFER
     IF p.want > 0 THEN
         p.want = p.want - STEPT
-        IF p.ground OR p.onloop THEN
+        IF p.ground THEN
             hit = -1: p.want = 0
         ELSEIF p.coyote > 0 THEN
             p.vy = -JUMPV: p.jumped = -1: p.roll = -1: p.coyote = 0: p.want = 0
@@ -3643,9 +3872,12 @@ SUB MoveHero (p AS Hero, k AS Pad, pt() AS Part)
     IF p.coyote > 0 THEN p.coyote = p.coyote - STEPT
     IF p.inv > 0 THEN p.inv = p.inv - STEPT
     p.lastx = p.x
-    IF p.onloop THEN
-        LoopRun p, hit
-    ELSEIF p.ground THEN
+    ' slid off a slope too steep for its speed, the keys are no help a while
+    IF p.slip > 0 THEN
+        p.slip = p.slip - STEPT
+        IF p.ground THEN l = 0: r = 0
+    END IF
+    IF p.ground THEN
         Walk p, l, r, d, hit, pt()
     ELSE
         Airborne p, l, r, d, hold, pt()
@@ -3667,7 +3899,7 @@ END SUB
 ' On the ground: wind up, jump, roll, run; then along it, a few pixels a
 ' move, into walls and onto the ground's curve.
 SUB Walk (p AS Hero, l AS INTEGER, r AS INTEGER, d AS INTEGER, hit AS INTEGER, pt() AS Part)
-    DIM sn AS SINGLE, cs AS SINGLE, f AS SINGLE, n AS INTEGER, s AS INTEGER, dir AS INTEGER
+    DIM sn AS SINGLE, cs AS SINGLE, f AS SINGLE, n AS INTEGER, s AS INTEGER, dir AS INTEGER, i AS INTEGER
     sn = SIN(p.ang): cs = COS(p.ang)
     dir = 1 - 2 * p.face
     IF p.charging THEN
@@ -3704,7 +3936,7 @@ SUB Walk (p AS Hero, l AS INTEGER, r AS INTEGER, d AS INTEGER, hit AS INTEGER, p
         Slow p.gsp, RFRIC
         IF ABS(p.gsp) < 30 AND ABS(sn) < .2 THEN p.roll = 0
     ELSE
-        IF p.gsp <> 0 OR ABS(sn) > .75 THEN p.gsp = p.gsp - SLOPE * sn * STEPT
+        IF p.gsp <> 0 OR ABS(sn) > .75 OR p.slip > 0 THEN p.gsp = p.gsp - SLOPE * sn * STEPT
         IF p.crouch THEN
             Slow p.gsp, FRIC * 4
         ELSEIF r THEN
@@ -3725,7 +3957,8 @@ SUB Walk (p AS Hero, l AS INTEGER, r AS INTEGER, d AS INTEGER, hit AS INTEGER, p
                 IF p.gsp < -TOP THEN p.gsp = -TOP
             END IF
             IF p.gsp <= 0 THEN p.face = 1
-        ELSE
+        ELSEIF p.slip <= 0 AND cs >= .7 THEN
+            ' on steep ground nothing but the slope slows it
             Slow p.gsp, FRIC
         END IF
         IF d AND ABS(p.gsp) >= 60 THEN p.roll = -1: p.crouch = 0: Sfx SROLL
@@ -3736,42 +3969,26 @@ SUB Walk (p AS Hero, l AS INTEGER, r AS INTEGER, d AS INTEGER, hit AS INTEGER, p
 
     n = 1 + INT(ABS(p.gsp) * STEPT / 8)
     FOR s = 1 TO n
-        cs = COS(p.ang): sn = SIN(p.ang)
-        p.x = p.x + p.gsp * cs * STEPT / n
-        p.y = p.y - p.gsp * sn * STEPT / n
-        ' onto the ground first, then into a wall: with the feet still under a slope's line its rise ahead was
-        ' taken for one, and Charlie stopped dead at a ramp's foot
-        IF NOT Hug%(p) THEN
-            p.ground = 0: p.vx = p.gsp * cs: p.vy = -p.gsp * sn: p.coyote = COYOTE
-            EXIT FOR
+        Along p, p.gsp * STEPT / n
+        IF NOT p.ground THEN EXIT SUB
+        ' a wall stops it on the tiles' ground; a curve is run up
+        i = p.sg
+        IF GK(i) = 1 AND p.gsp <> 0 THEN
+            IF Wall%(p, SGN(p.gsp)) THEN
+                p.gsp = 0
+                p.y = GY(i) + (p.x - GX(i)) * GV(i) / GU(i)
+                Along p, 0
+                IF NOT p.ground THEN EXIT SUB
+            END IF
         END IF
-        IF p.gsp <> 0 THEN IF Wall%(p, SGN(p.gsp)) THEN p.gsp = 0: s = Hug%(p)
     NEXT
-END SUB
-
-' Round a loop, curled: the ground at angle th, its pull as a slope's.
-' Too slow over the top, or a jump, and Charlie leaves it.
-SUB LoopRun (p AS Hero, hit AS INTEGER)
-    DIM sn AS SINGLE, cs AS SINGLE, i AS INTEGER
-    i = p.onloop - 1
-    sn = SIN(p.th): cs = COS(p.th)
-    p.gsp = p.gsp - LOOPG * sn * STEPT
-    p.th = p.th + p.gsp / LOOPR * STEPT
-    IF ABS(p.th) >= 2 * PI THEN
-        p.onloop = 0: p.ang = 0
-        p.x = ObX(i) + SGN(p.gsp) * 2: p.y = ObY(i)
-        p.lastx = p.x
-        EXIT SUB
-    END IF
-    p.x = ObX(i) + (LOOPR - 13) * SIN(p.th)
-    p.y = ObY(i) - LOOPR + (LOOPR - 13) * COS(p.th) + 13
-    IF hit OR (cs < .3 AND ABS(p.gsp) < 130) THEN
-        p.onloop = 0: p.ground = 0
-        p.vx = p.gsp * cs: p.vy = -p.gsp * sn
-        IF hit THEN
-            p.vx = p.vx - JUMPV * sn: p.vy = p.vy - JUMPV * cs
-            p.jumped = -1
-            Sfx SJUMP
+    ' too slow for a wall or a roof, off it; for a steep slope, down it
+    i = p.sg
+    IF ABS(p.gsp) < STALL THEN
+        IF GU(i) < .35 THEN
+            Drop p
+        ELSEIF GU(i) < .7 THEN
+            p.slip = .5
         END IF
     END IF
 END SUB
@@ -3779,7 +3996,7 @@ END SUB
 ' In the air: gravity, steering, a jump cut short when let go; then a few
 ' pixels a move, into walls, ceilings and onto the ground.
 SUB Airborne (p AS Hero, l AS INTEGER, r AS INTEGER, d AS INTEGER, hold AS INTEGER, pt() AS Part)
-    DIM n AS INTEGER, s AS INTEGER, m AS SINGLE, y AS INTEGER, fell AS SINGLE
+    DIM n AS INTEGER, s AS INTEGER, m AS SINGLE, y AS INTEGER, fell AS SINGLE, x0 AS SINGLE, y0 AS SINGLE
     p.crouch = 0: p.charging = 0: p.skid = 0
     p.vy = p.vy + GRAV * STEPT
     IF p.vy > 900 THEN p.vy = 900
@@ -3795,9 +4012,15 @@ SUB Airborne (p AS Hero, l AS INTEGER, r AS INTEGER, d AS INTEGER, hold AS INTEG
     IF ABS(p.vy) > m THEN m = ABS(p.vy)
     n = 1 + INT(m * STEPT / 8)
     FOR s = 1 TO n
+        x0 = p.x: y0 = p.y
         p.x = p.x + p.vx * STEPT / n
         IF p.vx <> 0 THEN IF Wall%(p, SGN(p.vx)) THEN p.vx = 0
         p.y = p.y + p.vy * STEPT / n
+        fell = p.vy
+        IF Curve%(p, x0, y0, d) THEN
+            IF fell > 420 THEN Burst pt(), p.x, p.y - 2, 5, 60, CSTONE + 3
+            EXIT FOR
+        END IF
         IF p.vy < 0 THEN
             y = CINT(p.y) - HH
             IF Solid%(CINT(p.x), y) OR Solid%(CINT(p.x) - 4, y) OR Solid%(CINT(p.x) + 4, y) THEN
@@ -3857,7 +4080,7 @@ SUB Touch (g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
                 END IF
             END IF
         CASE KSPRING
-            IF dx < 11 AND py >= ObY(i) - 12 AND py <= ObY(i) + 2 AND p.onloop = 0 THEN
+            IF dx < 11 AND py >= ObY(i) - 12 AND py <= ObY(i) + 2 THEN
                 IF p.ground OR p.vy >= 0 THEN
                     IF p.ground THEN p.vx = p.gsp
                     p.ground = 0: p.vy = -SPRINGV: p.y = ObY(i) - 12
@@ -3867,15 +4090,11 @@ SUB Touch (g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
                 END IF
             END IF
         CASE KBOOST
-            IF dx < 12 AND p.ground AND p.onloop = 0 AND ABS(py - ObY(i)) < 4 AND ABS(p.gsp) < BOOSTV THEN
+            IF dx < 12 AND p.ground AND ABS(py - ObY(i)) < 4 AND ABS(p.gsp) < BOOSTV THEN
                 p.gsp = BOOSTV * (1 - 2 * p.face)
                 g.shake = .2
                 Burst pt(), p.x, p.y - 4, 8, 150, CGOLD + 4
                 Sfx SBOOST
-            END IF
-        CASE KLOOP
-            IF p.ground AND p.onloop = 0 AND ABS(p.gsp) >= LOOPIN AND ABS(py - ObY(i)) < 4 THEN
-                IF (p.lastx < x) <> (p.x < x) THEN p.onloop = i + 1: p.th = 0: p.roll = -1
             END IF
         CASE KMARK
             IF ObS(i) = 0 AND px >= x THEN
@@ -3886,7 +4105,7 @@ SUB Touch (g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
         CASE KGOAL
             IF px >= x THEN ObS(i) = 1
         CASE KTHORN
-            IF dx < 12 AND ABS(py - ObY(i)) < 8 AND p.onloop = 0 THEN Hurt g, p, x, lo(), SHURT
+            IF dx < 12 AND ABS(py - ObY(i)) < 8 THEN Hurt g, p, x, lo(), SHURT
         END SELECT
         i = i + 1
     LOOP
@@ -3919,7 +4138,7 @@ SUB Hurt (g AS Game, p AS Hero, fromX AS INTEGER, lo() AS Loose, snd AS INTEGER)
         lo(i).t = 4
     NEXT
     LooseN = n
-    p.ground = 0: p.roll = 0: p.charging = 0: p.crouch = 0: p.jumped = 0: p.onloop = 0
+    p.ground = 0: p.roll = 0: p.charging = 0: p.crouch = 0: p.jumped = 0
     p.stun = -1: p.inv = 2
     p.vy = -260
     IF p.x < fromX THEN p.vx = -140 ELSE p.vx = 140
@@ -3929,7 +4148,7 @@ END SUB
 
 SUB Lose (p AS Hero)
     IF p.dead THEN EXIT SUB
-    p.dead = -1: p.deadT = 0: p.vy = -340: p.ground = 0: p.onloop = 0
+    p.dead = -1: p.deadT = 0: p.vy = -340: p.ground = 0
     Sfx SDIE
 END SUB
 
@@ -4186,6 +4405,8 @@ SUB DrawThings (cx AS INTEGER, cy AS INTEGER, back AS INTEGER)
                 Blit x, y, ITILE + 18, TS, TS
             CASE KLOOP
                 Blit x - LD \ 2, y - LOOPR - LD \ 2, ILOOP, LD, LD
+            CASE KPIPE
+                Blit x - LOOPR, y - LOOPR, IPIPE, LOOPR, LOOPR
             CASE KTREE
                 Blit x - 24, y - 70, ITREE, 48, 72
             CASE KBUSH
@@ -4236,7 +4457,7 @@ SUB DrawHero (p AS Hero, cx AS INTEGER, cy AS INTEGER)
         NEXT
     END IF
     f = HeroFrame%(p)
-    IF p.ground AND p.onloop = 0 AND f >= FRUN AND f < FBALL THEN
+    IF p.ground AND f >= FRUN AND f < FBALL THEN
         v = p.ang
         IF p.face THEN v = -v
         IF v > .62 THEN
@@ -4250,6 +4471,10 @@ SUB DrawHero (p AS Hero, cx AS INTEGER, cy AS INTEGER)
         END IF
     END IF
     IF t = 0 THEN
+        ' curled on the ground: its middle 13 off it, whichever way that is
+        IF p.ground AND f >= FBALL AND f < FBALL + 4 THEN
+            x = x + CINT(13 * GV(p.sg)): y = y + 13 - CINT(13 * GU(p.sg))
+        END IF
         ' afraid, it shakes
         IF f = FHURT OR f = FSHIVER THEN x = x + ((Ticks \ 2) AND 1) * 2 - 1
         Blit x - 16, y - 31, IHERO + (p.face * NF + f) * 2, 32, 32
@@ -4267,7 +4492,8 @@ FUNCTION HeroFrame% (p AS Hero)
     IF p.dead OR p.stun THEN
         HeroFrame% = FHURT
         IF (Ticks \ 3) AND 1 THEN HeroFrame% = FSHIVER
-    ELSEIF p.roll OR p.charging THEN
+    ELSEIF p.roll OR p.charging OR (p.ground AND GU(p.sg) < .55) THEN
+        ' on ground steeper than its pictures lean, curled
         HeroFrame% = FBALL + (INT(p.anim) AND 3)
     ELSEIF NOT p.ground THEN
         IF p.sprung THEN HeroFrame% = FUP ELSE HeroFrame% = FRUN + INT(p.anim) MOD 6
