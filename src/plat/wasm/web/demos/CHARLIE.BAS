@@ -161,7 +161,7 @@ const FSKID = 16, FCROUCH = 17, FHURT = 18, FUP = 19, FWIN = 20, FSHIVER = 22, N
 const KBONE = 1, KCAT = 2, KSPRING = 3, KMARK = 4, KBOOST = 5, KGOAL = 6, KPLAT = 7
 const KLOOP = 8, KTREE = 9, KBUSH = 10, KFLOWER = 11, KROCK = 12, KTHORN = 13, KLAMP = 14, KFAM = 15, KPIPE = 16
 const KMOVE = 17, KPOST = 18, KTANK = 19, KVENT = 20, KJET = 21, KBUMP = 22, KSPIN = 23, KHOOP = 24
-const CABLED = 64, CABLEH = 44, KBUTTON = 27, KCRAB = 28
+const CABLED = 64, CABLEH = 44, KBUTTON = 27, KCRAB = 28, KJELLY = 29, KBUOY = 30
 const KWAVE = 25, KWAVE2 = 26, WAVEA = 96, WAVEH = WAVEA + 36, WAVEL = 192
 const JETV = 500!, BUMPV = 400!, HOOPV = 640!, SPINR = 30, SPINH = 70, PITD = 5
 
@@ -200,7 +200,7 @@ const ICART = IBASKET + 2, ICARTW = ICART + 12, CARTW = 56, CARTH = 34, CARTLEAN
 const ICRANE = ICARTW + 4, IRAIL = ICRANE + 4, IWBOX = IRAIL + 2, ITOOLS = IWBOX + 2
 ' The sands' ground again as it is under the tide, picture for picture, and the water's edge.
 const IWET = ITOOLS + 2, WETO = IWET - IAF, ISURF = IWET + 278, ICRAB = ISURF + 2
-const NIMG = ICRAB + 6
+const IJELLY = ICRAB + 6, IBUOY = IJELLY + 4, ICHAIR = IBUOY + 4, NIMG = ICHAIR + 4
 const HUDW = 108, HUDH = 40
 ' The levels: a zone's two acts, the second at another hour in other colours, zone by zone.
 ' the stages played, and after them the intro's road
@@ -223,6 +223,8 @@ const SCHARGE = 6, SLAUNCH = 7, SCLEAR = 8, SDIE = 9, SMARK = 10, SBOOST = 11, S
 const BARKR = 72, BARKT = .4, FLINCH = 24
 ' A crab: the steps it keeps to its shell once barked at, and how fast Charlie goes up off its back.
 const SHELLT = 150, STEPV = 430!
+' How fast Charlie goes up off a jellyfish's bell, and how far under the sea's top its arms' ends float.
+const JELLYV = 480!, JELLYD = 10
 ' A chase: the cart's speed, when Charlie is far behind it, and away from a bump; how far ahead of the race's
 ' start it waits; how near touches it; the seconds a bump tells, the last of them bolting; the bumps that break
 ' it; its tune's number in CHARLIE.DAT.
@@ -320,6 +322,8 @@ declare sub DrawOver (cx as integer, cy as integer)
 declare sub Bark (p as Hero)
 declare sub MeetCrab (g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
 declare function CrabPic% (s as integer)
+declare sub MeetJelly (g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
+declare function Bob% (x as integer, h as integer, up as integer)
 declare function Adrift% (m as integer)
 declare sub Flinch (i as integer, fromX as integer)
 declare sub Prowl (i as integer)
@@ -884,6 +888,11 @@ sub LoadLevel (st as integer)
             k = KCAT
         case "crab"
             k = KCRAB
+        case "jelly"
+            ' a jellyfish n columns on, a buoy: afloat where the sea is over the ground there, aground where not
+            AddObj KJELLY, (c + n) * TS + 8, s
+        case "buoy"
+            AddObj KBUOY, (c + n) * TS + 8, s
         case "spring"
             k = KSPRING
         case "mark"
@@ -2421,11 +2430,19 @@ sub Pilot (p as Hero, k as Pad)
     k.l = 0
     k.d = 0
     if p.swim then
-        ' afloat: on to the right, a hop where a bank is in the way
-        if Solid%(cint(p.x) + HW + 2, cint(p.y) - 11) then
+        ' afloat: on to the right, a hop where a bank is in the way, or a jellyfish
+        want = Solid%(cint(p.x) + HW + 2, cint(p.y) - 11)
+        i = First(cint(p.x) \ TS)
+        do while i < NObj
+            if ObX(i) > p.x + 34 then exit do
+            if ObK(i) = KJELLY and ObX(i) > p.x then want = -1
+            i = i + 1
+        loop
+        if want then
             k.hit = -1
             hold = 24
         end if
+        want = 0
     elseif p.ground and GK(p.sg) = 3 then
         ' on a platform: still, till there is ground ahead to jump to
         x = cint(p.x)
@@ -2469,8 +2486,9 @@ sub Pilot (p as Hero, k as Pad)
             if ObX(i) > x + 130 then exit do
             if ObX(i) > x then
                 if ((ObK(i) = KCAT and ObS(i) <> 0) or ObK(i) = KTHORN) and ObX(i) <= x + 50 then want = -1
-                ' a crab is not rolled through: jumped from further back the faster he goes
-                if ObK(i) = KCRAB and abs(ObS(i)) = 1 and ObX(i) <= x + 34 + abs(cint(p.gsp)) \ 8 then want = -1
+                ' a crab is not rolled through, nor a jellyfish: jumped from further back the faster he goes
+                d = ObK(i) = KJELLY or (ObK(i) = KCRAB and abs(ObS(i)) = 1)
+                if d and ObX(i) <= x + 34 + abs(cint(p.gsp)) \ 8 then want = -1
             end if
             i = i + 1
         loop
@@ -2556,6 +2574,7 @@ sub ResetWorld (g as Game, p as Hero, lo() as Loose, pt() as Part)
         ObS(i) = 0
         if ObK(i) = KBONE then ObS(i) = 1
         if ObK(i) = KCAT or ObK(i) = KCRAB then ObS(i) = -1
+        if ObK(i) = KJELLY then ObS(i) = 1
     next
     for i = 0 to NMOVE
         MvT(i) = 0
@@ -2985,6 +3004,8 @@ sub Touch (g as Game, p as Hero, lo() as Loose, pt() as Part)
             end if
         case KCRAB
             MeetCrab g, p, i, lo(), pt()
+        case KJELLY
+            MeetJelly g, p, i, lo(), pt()
         case KSPRING
             if dx < 11 and py >= ObY(i) - 12 and py <= ObY(i) + 2 then
                 if p.ground or p.vy >= 0 then
@@ -3037,7 +3058,7 @@ sub Touch (g as Game, p as Hero, lo() as Loose, pt() as Part)
                 p.jumped = 0
                 p.sprung = -1
             end if
-        case KBUMP
+        case KBUMP, KBUOY
             dy = py - 12 - ObY(i)
             if ObS(i) = 0 and dx < 20 and abs(dy) < 20 then
                 d = sqr(csng(px - x) * (px - x) + csng(dy) * dy)
@@ -3196,6 +3217,32 @@ sub MeetCrab (g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
     end if
 end sub
 
+' Where a thing afloat at x lies: h under the sea's top, or up over the ground there when the sea is lower.
+function Bob% (x as integer, h as integer, up as integer)
+    dim y as integer
+    y = ColTop(x \ TS) * TS - up
+    if Tide <> NONE and Tide + h < y then y = Tide + h
+    Bob% = y
+end function
+
+' Charlie at jellyfish i. Down on its bell he is thrown high, and it stings nobody while it is flat; his feet in
+' it, afloat or not, it stings: not a Charlie on a boat's deck over it.
+sub MeetJelly (g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
+    dim y as integer
+    y = ObY(i)
+    if p.inv > 0 or ObS(i) > 1 or abs(ObX(i) - p.x) >= 12 or p.y < y - 26 or p.y > y + 8 then exit sub
+    if not p.ground and not p.swim and p.vy > 0 and p.y < y - 10 then
+        p.vy = -JELLYV
+        p.jumped = 0
+        p.sprung = -1
+        ObS(i) = 10
+        Sfx SSPRING
+    elseif p.y > y - 14 then
+        p.swim = 0
+        Hurt g, p, ObX(i), lo(), SHURT
+    end if
+end sub
+
 ' A cat barked at from fromX stands startled FLINCH steps, then prowls away from there: its state's size is the
 ' steps left, its sign the way it will go.
 sub Flinch (i as integer, fromX as integer)
@@ -3233,11 +3280,18 @@ sub Things (g as Game, lo() as Loose, pt() as Part)
     i = First(c)
     do while i < NObj
         if ObA(i) > g.camx + SW + 100 then exit do
-        if (ObK(i) = KCAT or ObK(i) = KCRAB) and ObS(i) <> 0 then
-            Prowl i
-        elseif (ObK(i) = KSPRING or ObK(i) = KBUMP or ObK(i) = KHOOP) and ObS(i) > 0 then
-            ObS(i) = ObS(i) - 1
-        end if
+        select case ObK(i)
+        case KCAT, KCRAB
+            if ObS(i) <> 0 then Prowl i
+        case KSPRING, KBUMP, KHOOP
+            if ObS(i) > 0 then ObS(i) = ObS(i) - 1
+        case KBUOY
+            ObY(i) = Bob%(ObX(i), -4, 9)
+            if ObS(i) > 0 then ObS(i) = ObS(i) - 1
+        case KJELLY
+            ObY(i) = Bob%(ObX(i), JELLYD, 0)
+            if ObS(i) > 1 then ObS(i) = ObS(i) - 1
+        end select
         i = i + 1
     loop
     if LooseN then
@@ -3515,6 +3569,8 @@ sub Soak (p as Hero, pt() as Part)
         end if
         p.swim = -1
         p.ground = 0
+        ' a hurt ends on landing: the sea is a landing too
+        p.stun = 0
         exit sub
     end if
     if p.wet <= 0 then exit sub
@@ -4108,7 +4164,11 @@ sub DrawThings (cx as integer, cy as integer, back as integer)
             case KCRAB
                 if ObS(i) then Blit x - 12, y - 15, CrabPic%(ObS(i)), 24, 15
             case KSPRING
-                Blit x - 8, y - 15, ISPRING - 2 * (ObS(i) > 0), 16, 16
+                if Zone = 2 then
+                    Blit x - 15, y - 21, ICHAIR - 2 * (ObS(i) > 0), 30, 22
+                else
+                    Blit x - 8, y - 15, ISPRING - 2 * (ObS(i) > 0), 16, 16
+                end if
             case KBOOST
                 Blit x - 12, y - 9, IBOOST + ((Ticks \ 4) and 1) * 2, 24, 10
             case KMARK
@@ -4162,6 +4222,10 @@ sub DrawThings (cx as integer, cy as integer, back as integer)
                 if (Ticks + ObX(i)) mod 180 < 80 then Blit x - 6, y - 70, IJET + 2 + ((Ticks \ 3) and 1) * 2, 12, 64
             case KBUMP
                 Blit x - 12, y - 12, IBUMP - 2 * (ObS(i) > 0), 24, 24
+            case KBUOY
+                Blit x - 9, y - 9, IBUOY - 2 * (ObS(i) > 0), 18, 18
+            case KJELLY
+                Blit x - 8, y - 18 + ((Ticks \ 20) and 1), IJELLY - 2 * (ObS(i) > 1), 16, 18
             case KSPIN
                 line (x - 1, y - SPINH)-(x, y - 1), CINK, BF
                 a = Ticks * .06 + ObX(i)

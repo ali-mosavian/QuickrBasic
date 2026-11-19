@@ -852,6 +852,105 @@ Stand p, ObX(c) - 16, 200
 p.roll = -1
 Tick g, p, k, lo(), pt()
 if was and ObS(c) = 0 and g.score = hid + 100 and p.inv <= 0 then print "crab ok"
+' a jellyfish floats at the sea's top, and lies on the ground where the sea is lower
+GoStage 4, g, p, lo(), pt()
+for c = 0 to NObj - 1
+    if ObK(c) = KJELLY then exit for
+next
+v = ColTop(ObX(c) \\ TS) * TS
+Stand p, ObX(c) - 70, 0
+for j = 0 to 1
+    TideLo = v - 40 + 80 * j
+    TideHi = TideLo
+    for i = 1 to 4
+        Tick g, p, k, lo(), pt()
+    next
+    if j = 0 then was = c < NObj and ObY(c) = Tide + JELLYD
+    if j = 1 then was = was and ObY(c) = v
+next
+' his feet in it, it stings; his feet over it, as on a boat's deck, it does not: he was stung through the deck
+g.bones = 5
+Stand p, ObX(c) - 8, 0
+Tick g, p, k, lo(), pt()
+was = was and p.inv > 0
+for j = 0 to 2
+    ' over it and going up; down onto its bell, thrown high and unhurt; in it while it is flat from that, no
+    ' sting: he was stung coming back down off a low ceiling
+    p.inv = 0
+    p.stun = 0
+    p.x = ObX(c)
+    p.y = v - 16 + 24 * (j = 1) - 12 * (j = 2)
+    p.ground = 0
+    p.vx = 0
+    p.vy = -50 - 150 * (j = 1)
+    g.bones = 5
+    for i = 1 to 12
+        Tick g, p, k, lo(), pt()
+        if j <> 1 or p.vy < 0 then exit for
+    next
+    was = was and p.inv <= 0
+    if j = 1 then was = was and abs(p.vy + JELLYV) < 30 and ObS(c) > 1
+next
+Stand p, ObX(c) - 70, 0
+for i = 1 to 30
+    Tick g, p, k, lo(), pt()
+next
+if was and ObS(c) = 1 then print "jelly ok"
+' a swimmer it stings is thrown out of the sea, and back in it paddles again: hurt into the sea, he floated
+' there for good, the keys dead
+TideLo = v - 40
+TideHi = TideLo
+for i = 1 to 4
+    Tick g, p, k, lo(), pt()
+next
+p.inv = 0
+g.bones = 5
+p.x = ObX(c) - 8
+p.y = Tide + AFLOAT
+p.ground = 0
+p.swim = -1
+p.vx = 0
+Tick g, p, k, lo(), pt()
+was = p.inv > 0 and p.swim = 0 and p.stun
+p.x = ObX(c) + 20
+for i = 1 to 120
+    Tick g, p, k, lo(), pt()
+    if p.swim then exit for
+next
+j = cint(p.x)
+k.r = -1
+for i = 1 to 40
+    Tick g, p, k, lo(), pt()
+next
+k.r = 0
+if was and p.swim and p.x - j > 15 then print "dazed ok"
+' a buoy rides the sea's top, and bumps Charlie off it
+for c = 0 to NObj - 1
+    if ObK(c) = KBUOY then exit for
+next
+was = c < NObj
+p.swim = 0
+p.inv = 0
+p.stun = 0
+Stand p, ObX(c) - 90, 0
+for j = 0 to 1
+    TideLo = p.y + 30 + 20 * j
+    TideHi = TideLo
+    for i = 1 to 4
+        Tick g, p, k, lo(), pt()
+    next
+    was = was and ObY(c) = Tide - 4
+next
+p.x = ObX(c)
+p.y = ObY(c) - 24
+p.ground = 0
+p.vx = 0
+p.vy = 100
+for i = 1 to 20
+    Tick g, p, k, lo(), pt()
+    if p.vy < 0 then exit for
+next
+if was and p.vy < -300 and ObS(c) > 0 and not p.swim then print "buoy ok"
 was = 0
 ' a lift goes up under Charlie to the ground above, and back down once it is left
 GoStage 2, g, p, lo(), pt()
@@ -1197,6 +1296,9 @@ def main() -> None:
         ("shore ok", "no water of the sands is a trap: its far bank a hop over high water, or waded at low"),
         ("boat ok", "a boat aground and still at low water, afloat and adrift at high, Charlie aboard up with it"),
         ("crab ok", "a crab pinches at its side and is a step from above; barked into its shell, a higher one"),
+        ("jelly ok", "a jellyfish afloat or aground: a high bounce off its bell, a sting for feet in it only"),
+        ("dazed ok", "a Charlie hurt into the sea paddles again"),
+        ("buoy ok", "a buoy rides the sea's top and bumps Charlie off it"),
     ):
         if said not in out:
             sys.exit(f"charlie: not {what}: {out[-300:]}")

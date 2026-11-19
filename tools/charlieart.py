@@ -2651,6 +2651,61 @@ def crab(f: int) -> Pic:
     return p.outline(SEAINK)
 
 
+def jelly(f: int) -> Pic:
+    """A jellyfish: a pink bell, light on its crown, four trailing arms. Frame 1 is trodden flat."""
+    p = Pic(16, 18)
+    top = 6 + 3 * f
+    p.ball(8, top, 6.6 + f, 5.4 - 2 * f, list(PETAL), 0.35, 1.15)
+    for y in range(top + 2, 18):
+        for x in range(16):
+            p.p[y][x] = 0
+    for x in range(2 - f, 14 + f):
+        p.put(x, top + 2, PETAL[0] if (x - 2) % 3 == 2 else PETAL[1])
+    p.box(4, top - 3 + f, 6, top - 3 + f, WHITE)
+    p.put(4, top - 2 + f, WHITE)
+    for i, x in enumerate((3, 6, 9, 12)):
+        for d in range((7 if i % 2 else 5) - 3 * f):
+            p.put(x + (1 if (d + i) % 4 < 2 else 0), top + 3 + d, PETAL[1] if d < 3 else PETAL[0])
+    return p.outline(SEAINK)
+
+
+def buoy(f: int) -> Pic:
+    """A buoy, its foot in the water: a coral cone banded white, a lamp on its neck, lit in frame 1 as it bumps."""
+    p = Pic(18, 18)
+    for r in range(11):
+        half = 2.5 + r * 0.55
+        for x in range(round(9 - half), round(9 + half) + 1):
+            u = (x - 9) / half
+            band = WHITE if u < 0.3 else TOWER[1]
+            p.put(x, 7 + r, band if r in (4, 5, 6) else CORAL[1] if u < -0.45 else CORAL[2] if u < 0.3 else CORAL[3])
+    p.box(8, 4, 9, 6, PLANK[3])
+    p.box(7, 1, 10, 3, GOLD[4] if f else GOLD[3])
+    p.box(7, 1, 8, 1, WHITE if f else GOLD[4])
+    p.box(10, 2, 10, 3, GOLD[3] if f else GOLD[1])
+    return p.outline(SEAINK)
+
+
+def deckchair(f: int) -> Pic:
+    """The sands' spring, a deckchair: striped canvas slung between a crossed frame's tops, thrown taut in
+    frame 1."""
+    p = Pic(30, 22)
+    p.line(26, 8, 7, 20, PLANK[3], 2)
+    p.line(4, 3, 23, 20, PLANK[1], 2)
+    p.line(4, 4, 23, 21, PLANK[2], 1)
+    p.box(3, 20, 9, 21, PLANK[3])
+    p.box(20, 20, 26, 21, PLANK[3])
+    for i in range(60):
+        u = i / 59
+        x, y = 4 + 22 * u, 3 + 5 * u + (-1.2 if f else 3.4) * math.sin(math.pi * u)
+        stripe = int(u * 8) % 2
+        for d in range(4):
+            tone = (CORAL[2] if d < 3 else CORAL[3]) if stripe else (WHITE if d < 3 else TOWER[1])
+            p.put(round(x), round(y) + d, CORAL[1] if d == 0 and stripe else tone)
+    p.box(2, 1, 5, 3, PLANK[1])
+    p.box(25, 6, 28, 8, PLANK[1])
+    return p.outline(SEAINK)
+
+
 def lifepost() -> Pic:
     """A post with a life ring where the Downs have a lantern plant."""
     p = Pic(20, 44)
@@ -2694,6 +2749,8 @@ def sands() -> list[tuple[int, Pic, bool, int]]:
     out += earth(z + 652, sandy(WET))
     out.append((z + 930, surf(), True, -1))
     out += [(z + 932 + f * 2, crab(f), True, -1) for f in range(3)]
+    for i, thing in enumerate((jelly, buoy, deckchair)):
+        out += [(z + 938 + i * 4 + f * 2, thing(f), True, -1) for f in range(2)]
     out += [
         (k + 36, brolly(), True, -1),
         (k + 38, marram(), True, -1),
