@@ -204,6 +204,7 @@ TEST(check_passes_record_result)
         "Mk = Mk(1)",
         nullptr,
     };
+
     const char *typed[countof(lines)] = {};
 
     for (size_t n = 0; lines[n]; n++) {
@@ -228,6 +229,7 @@ TEST(check_passes_array_result)
         "x = Sq(1) + UBOUND(Sq)",
         nullptr,
     };
+
     const char *typed[countof(lines)] = {};
 
     for (size_t n = 0; lines[n]; n++) {
@@ -252,6 +254,37 @@ TEST(check_passes_field_array)
         "p.pts(i).x = p.w(1, 0) + ps(1).pts(2).x",
         nullptr,
     };
+
+    const char *typed[countof(lines)] = {};
+
+    for (size_t n = 0; lines[n]; n++) {
+        typed[n] = lines[n];
+        CHECK(!typed_errs(S, typed));
+    }
+}
+
+/* A dynamic array in a TYPE, ours, typed one line at a time before any link: its field line, its
+   REDIM and UBOUND of it were errors. */
+TEST(check_passes_dynamic_field)
+{
+    static const char *const lines[] = {
+        "TYPE Vec",
+        "x AS SINGLE",
+        "END TYPE",
+        "TYPE Mesh",
+        "pts() AS Vec",
+        "kids() AS Mesh",
+        "END TYPE",
+        "DIM m AS Mesh, a() AS Vec",
+        "REDIM PRESERVE m.kids(1 TO 2)",
+        "REDIM m.kids(1).pts(3)",
+        "REDIM m.pts(1 TO 4)",
+        "m.pts(2).x = UBOUND(m.pts) + m.kids(1).pts(0).x",
+        "a() = m.kids(2).pts()",
+        "ERASE m.pts",
+        nullptr,
+    };
+
     const char *typed[countof(lines)] = {};
 
     for (size_t n = 0; lines[n]; n++) {

@@ -449,12 +449,13 @@ K(LPRT, file_lprint)   /* LPRINT's start */
 K(LPWID, file_lpwidth) /* WIDTH LPRINT n */
 K(LPOS, file_lpos)     /* LPOS(n) */
 K(VARPS, func_varps)   /* VARPTR$(v) */
-K(RCLR, exec_r_clear)  /* a record emptied, ours: its address, its bytes */
+K(RCLR, exec_r_clear)  /* a record emptied, ours: its address, its TYPE */
 K(AEMPTY, stmt_aempty) /* DIM a(), ours */
 K(ACOPY, stmt_acopy)   /* a() = b(), ours */
 K(AMOVE, stmt_amove)   /* a() = f(..), ours */
 K(ARESET, stmt_areset) /* an array result's start, ours */
 K(FIDX, stmt_fidx)     /* a fixed array field's element, ours */
 K(RCOPY, exec_r_copys) /* a = b of records with STRINGs, ours */
+K(FELEM, stmt_felem)   /* a record's array field's element, ours */
 #undef K
 #endif

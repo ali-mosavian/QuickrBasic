@@ -578,7 +578,7 @@ def c_emit(T: dict) -> str:
         "};",
         "/* The parser's actions: under A_BASE a CALL's K_*, from it the compiler's (comp.c). */",
         "enum : uint8_t {",
-        "    A_BASE = 0xC0,",
+        "    A_BASE = 0xC8,",
         *(f"    A_{a} = A_BASE + {n}," for n, a in enumerate(ACTIONS)),
         "    A_END,",
         "};",

@@ -552,7 +552,11 @@ uint16_t comp_var(Comp *const C, const uint8_t shape, const uint8_t et)
 
     if (m)
         *m = (typeof(*m)){
-            .key = key, .id = id, .scope = C->scope, .how = C->isstatic ? VM_STATIC : 0};
+            .key = key,
+            .id = id,
+            .scope = C->scope,
+            .how = C->isstatic ? VM_STATIC : 0,
+        };
 
     return id;
 }
@@ -1146,10 +1150,40 @@ static void dimempty(Comp *const C, const uint16_t id)
     comp_call(C, K_AEMPTY);
 }
 
-/* A DIM item: the subscripts, its id, n, CALL DIM; a scalar STRING * n: n spaces; DIM a(). */
+/* REDIM f(bounds) of a record's array field, ours: the bounds, the mask as 2 INTs, the field's
+   cell, its elements' type, n, CALL DIM; false: not one. */
+static bool dimfield(Comp *const C)
+{
+    uint8_t type;
+    C->dimtarget = true;
+    Node *const cell = ref_fieldarray(C, &type);
+    C->dimtarget = false;
+
+    if (cell == nullptr)
+        return false;
+    if (*C->p != '(')
+        synerr(C);
+
+    uint32_t elems;
+    const uint32_t n = dimsubs(C, &elems);
+    comp_int(C, (uint32_t)C->dmask);
+    comp_int(C, (uint32_t)(C->dmask >> 32));
+    comp_step(C, cell);
+    comp_int(C, type);
+    comp_int(C, n | C->redim | DIM_FIELD);
+    comp_call(C, K_DIM);
+    return true;
+}
+
+/* A DIM item: the subscripts, its id, n, CALL DIM; a scalar STRING * n: n spaces; DIM a(); REDIM of
+   a record's array field. */
 static void act_dv(Comp *const C)
 {
     comp_notconst(C);
+
+    if (C->redim && comp_cur(C) == M_VAR && dimfield(C))
+        return;
+
     uint16_t id = comp_name(C);
 
     if (*C->p == '(') {

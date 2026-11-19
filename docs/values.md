@@ -58,8 +58,8 @@ Every array has one owner, and the owner's end frees it. Nothing is shared, so n
 - Assignment frees the target's old array. `b() = a()` copies; `s() = f(10)` moves the result,
   leaving the hidden variable empty.
 - `erase` and `redim` free as before.
-- From step 4, freeing a record frees its dynamic fields, by its TYPE's fields. An array header then
-  names its owner, so the compacting heap can find a slot inside a record.
+- Freeing a record frees its dynamic fields, by its TYPE's slots. An array header names its cell,
+  so the compacting heap can update a cell inside a record that moved.
 
 ## Steps
 

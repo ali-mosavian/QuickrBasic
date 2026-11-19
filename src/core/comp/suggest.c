@@ -980,8 +980,7 @@ static uint16_t sugg_callee(const int32_t open, uint8_t *const name)
 
     int32_t b = e;
 
-    while (b > 0 && (is_word_char(sg.before[b - 1]) ||
-                     sugg_suffix(sg.before[b - 1])))
+    while (b > 0 && (is_word_char(sg.before[b - 1]) || sugg_suffix(sg.before[b - 1])))
         b--;
 
     if (open < 0 || b == e || e - b > SUGG_LEN)
@@ -1135,7 +1134,7 @@ static uint8_t sugg_record(const SuggSrc *const src)
 
         t = f ? f->sub : 0;
 
-        if (f && f->ndim && i < e && b[i] == '(')
+        if (f && (f->ndim || f->dyn) && i < e && b[i] == '(')
             i = sugg_parens(b, i, e);
     }
 

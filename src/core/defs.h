@@ -50,7 +50,15 @@ enum {
 enum : uint8_t { NM_LBL = 1, NM_FN = 2, NM_SUB = 4, NM_FUNC = 8, NM_REC = 16 };
 
 /* A binding's flags (mem/scope). */
-enum : uint8_t { BF_SHR = 1, BF_REF = 2, BF_STAT = 4, BF_LBL = 8, BF_CON = 16, BF_USE = 32, BF_RES = 64 };
+enum : uint8_t {
+    BF_SHR = 1,
+    BF_REF = 2,
+    BF_STAT = 4,
+    BF_LBL = 8,
+    BF_CON = 16,
+    BF_USE = 32,
+    BF_RES = 64
+};
 enum : uint16_t { SC_NUM = 0x8000, SC_ARR = 0x4000 };
 
 /* A jump target's mode: the statement, past the JMP it starts with, or the statement after it. */
@@ -63,7 +71,14 @@ enum : uint8_t { ON_GOSUB = 0x80, ON_COUNT = 0x7F };
 /* LIST's line operand: a line number, or LABEL_LINE plus a label's line. */
 enum : uint32_t { LABEL_LINE = 0x10000 };
 /* DIM's flag word: the dimension count, then what kind of DIM it is. */
-enum : uint32_t { DIM_COUNT = 0x3F, DIM_REDIM = 0x40, DIM_STATIC = 0x80, DIM_PRESERVE = 0x100 };
+/* DIM's flags: its subscripts' count, REDIM, STATIC, PRESERVE; ours, a record's array field's. */
+enum : uint32_t {
+    DIM_COUNT = 0x3F,
+    DIM_REDIM = 0x40,
+    DIM_STATIC = 0x80,
+    DIM_PRESERVE = 0x100,
+    DIM_FIELD = 0x200,
+};
 
 /* Tokens in a stored line. */
 enum : uint8_t { M_VAR = 1, M_INT = 2, REM_Q = 3 };
@@ -146,8 +161,10 @@ enum { BHDR = sizeof(StrTail) };
    bounds. */
 typedef struct PACKED {
     uint8_t dims;
+    uint8_t et; /* ours: its elements' ET_*, ET_REC + t a TYPE's */
     Addr data;
     uint32_t fast;
+    Addr owner; /* ours: its cell (mem/array.c), 0 dead */
     uint32_t count[];
 } ArrayHdr;
 /* An array's cell: its header (0 none) and whether REDIM made it (ERASE frees it). */

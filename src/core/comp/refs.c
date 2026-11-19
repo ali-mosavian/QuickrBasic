@@ -113,7 +113,12 @@ static RecRef fieldref(Comp *const C, const Field *const f, const uint32_t off)
 }
 
 /* Field name of TYPE t, its text n letters. Syntax error: none. */
-static const Field *field(Comp *const C, const uint8_t t, const uint8_t *const text, const uint32_t n)
+static const Field *field(
+    Comp *const C,
+    const uint8_t t,
+    const uint8_t *const text,
+    const uint32_t n
+)
 {
     const uint16_t name = symb_find_name(C->symb, text, (uint8_t)n);
     const TypeDef *const td = decl_type(C->decl, t);
@@ -125,55 +130,80 @@ static const Field *field(Comp *const C, const uint8_t t, const uint8_t *const t
     synerr(C);
 }
 
-/* at's index step, ours: ( addr s -- addr ) by subscript s of dimension d, its stride bytes. */
-static void index_step(Comp *const C, Node **const last, Node *const s, const FieldDim *const d, const uint32_t stride)
+/* Where at's next index step goes: the end of its list (at.a). */
+static Node **steps_end(Node *const at)
 {
-    const uint32_t k[] = {(uint32_t)d->lb, d->count, stride};
-    *last = (*last)->next = s;
+    Node **p = &at->a;
 
-    for (uint32_t i = 0; i < 3; i++) {
-        Node *const n = ast_new(C->ast, N_INT);
-        n->num = k[i];
-        *last = (*last)->next = n;
-    }
+    while (*p)
+        p = &(*p)->next;
 
-    Node *const call = ast_new(C->ast, N_KCALL);
-    call->op = K_FIDX;
-    *last = (*last)->next = call;
+    return p;
 }
 
-/* An element of fixed array field f, ours, its ( s {, s} ) at comp.p, the first subscript the
-   fastest: its offset in f by the constant subscripts; the others' code on at's index steps.
-   Subscript out of range: a constant past its bounds, a count not f's. */
-static uint32_t element(Comp *const C, Node *const at, const Field *const f)
+/* Node n at *end, the list's end past it. */
+static void step(Node ***const end, Node *const n)
 {
-    const uint8_t *const open = C->p;
+    **end = n;
+    *end = &n->next;
+}
+
+static void step_int(Comp *const C, Node ***const end, const uint32_t v)
+{
+    Node *const n = ast_new(C->ast, N_INT);
+    n->num = v;
+    step(end, n);
+}
+
+static void step_call(Comp *const C, Node ***const end, const uint8_t k)
+{
+    Node *const n = ast_new(C->ast, N_KCALL);
+    n->op = k;
+    step(end, n);
+}
+
+/* The ( s {, s} ) at comp.p, ours: each checked as a number; the first, linked, their count *n. */
+static Node *subscripts(Comp *const C, uint32_t *const n)
+{
     Node *const subs = ast_new(C->ast, N_ELEM);
     expr_args(C, subs);
     const uint8_t *const past = C->p; /* sema_tree moves it to an operator's end */
-    Node head = {.next = at->a}, *last = &head;
-
-    while (last->next)
-        last = last->next;
-
-    const RecRef e = fieldref(C, f, 0);
-    uint64_t off = 0, stride = field_size(&e);
     uint32_t k = 0;
 
-    for (Node *s = subs->b, *next; s; s = next, k++) {
-        next = s->next;
-        s->next = nullptr;
+    for (Node *s = subs->b; s; s = s->next, k++) {
         sema_tree(C, s);
-        Cell v;
 
         if (ast_type(s) & T_STR)
             mismatch(C);
-        if (k == f->ndim) {
-            C->p = open;
-            fault_error(C->fault, E_BS);
-        }
+    }
 
+    C->p = past;
+    *n = k;
+    return subs->b;
+}
+
+/* An element of fixed array field f, ours, its ( s {, s} ) at comp.p, the first subscript the
+   fastest: its offset in f by the constant subscripts; for the others, at's index steps ( addr s --
+   addr ) by FIDX. Subscript out of range: a constant past its bounds, a count not f's. */
+static uint32_t element(Comp *const C, Node *const at, const Field *const f)
+{
+    const uint8_t *const open = C->p;
+    uint32_t n;
+    Node *s = subscripts(C, &n);
+    Node **end = steps_end(at);
+    const RecRef e = fieldref(C, f, 0);
+    uint64_t off = 0, stride = field_size(&e);
+
+    if (n != f->ndim) {
+        C->p = open;
+        fault_error(C->fault, E_BS);
+    }
+
+    for (uint32_t k = 0; k < n; k++) {
+        Node *const next = s->next;
+        s->next = nullptr;
         const FieldDim *const d = decl_fielddim(C->decl, f, k);
+        Cell v;
 
         if (ast_type(s) == T_INT && fold_number(C, s, &v)) {
             const int64_t i = (int64_t)v.i - d->lb;
@@ -184,24 +214,60 @@ static uint32_t element(Comp *const C, Node *const at, const Field *const f)
             }
 
             off += (uint64_t)i * stride;
-        } else
-            index_step(C, &last, s, d, (uint32_t)stride);
+        } else {
+            step(&end, s);
+            step_int(C, &end, (uint32_t)d->lb);
+            step_int(C, &end, d->count);
+            step_int(C, &end, (uint32_t)stride);
+            step_call(C, &end, K_FIDX);
+        }
 
         stride *= d->count;
+        s = next;
     }
 
-    if (k != f->ndim) {
-        C->p = open;
-        fault_error(C->fault, E_BS);
-    }
-
-    C->p = past;
-    at->a = head.next;
     return (uint32_t)off;
 }
 
-/* rc_path: the place of fields f.g.. of TYPE t, at's: the text len long, then at comp.p a fixed
-   array's subscripts and .h.. after them, ours. */
+/* An element of a dynamic array field, ours, its cell off bytes into at's place: its ( s {, s} ) at
+   comp.p, then at's index step ( addr s.. off n -- addr ) by FELEM. Subscript out of range: more
+   than an array has. */
+static void dyn_element(Comp *const C, Node *const at, const uint32_t off)
+{
+    uint32_t n;
+    Node *s = subscripts(C, &n);
+
+    if (n > DIM_COUNT)
+        fault_error(C->fault, E_BS);
+
+    Node **end = steps_end(at);
+
+    while (s) {
+        Node *const next = s->next;
+        s->next = nullptr;
+        step(&end, s);
+        s = next;
+    }
+
+    step_int(C, &end, off);
+    step_int(C, &end, n);
+    step_call(C, &end, K_FELEM);
+}
+
+/* A dynamic array field whole at comp.p, ours: f() (stepped past) or f alone, not f(i); a REDIM's
+   target's f(bounds), no .g after them. */
+static bool dyn_whole(Comp *const C)
+{
+    if (C->p[0] == '(' && C->p[1] == ')') {
+        C->p += 2;
+        return true;
+    }
+
+    return C->p[0] != '(' || (C->dimtarget && *decl_paren(C->p) != '.');
+}
+
+/* rc_path: the place of fields f.g.. of TYPE t, at's: the text len long, then at comp.p an array
+   field's subscripts and .h.. after them, ours. A dynamic array field whole: its cell's place, arr. */
 static RecRef path(Comp *const C, Node *const at, uint8_t t, const uint8_t *text, uint32_t len)
 {
     uint32_t off = 0;
@@ -224,7 +290,7 @@ static RecRef path(Comp *const C, Node *const at, uint8_t t, const uint8_t *text
 
             if (!len)
                 break;
-            if (!f->sub || f->ndim) /* .g: a field of a TYPE's */
+            if (!f->sub || f->ndim || f->dyn) /* .g: a field of a TYPE's */
                 synerr(C);
 
             t = f->sub;
@@ -232,12 +298,19 @@ static RecRef path(Comp *const C, Node *const at, uint8_t t, const uint8_t *text
             len--;
         }
 
-        if (!f->ndim)
-            break;
-        if (*C->p != '(') /* an array field whole */
-            synerr(C);
+        if (f->dyn) {
+            if (dyn_whole(C))
+                return (RecRef){.et = decl_fieldtype(f), .off = (uint16_t)off, .arr = true};
 
-        off += element(C, at, f);
+            dyn_element(C, at, off);
+            off = 0; /* from the element */
+        } else if (f->ndim) {
+            if (*C->p != '(') /* a fixed array field whole */
+                synerr(C);
+
+            off += element(C, at, f);
+        } else
+            break;
 
         if (!f->sub || C->p[0] != '.' || C->p[1] != M_VAR) /* (i).h */
             break;
@@ -291,7 +364,8 @@ static Node *reccall(Comp *const C)
     return n;
 }
 
-Node *ref_record(Comp *const C)
+/* ref_record's, a dynamic array field whole too (rec.arr). */
+static Node *record(Comp *const C)
 {
     Node *const call = reccall(C);
 
@@ -345,6 +419,47 @@ Node *ref_record(Comp *const C)
     return nullptr;
 }
 
+Node *ref_record(Comp *const C)
+{
+    Node *const r = record(C);
+
+    if (r != nullptr && r->rec.arr) /* an array, not a value */
+        mismatch(C);
+
+    return r;
+}
+
+/* The name at comp.p a FUNCTION's whose result is an array, ours. */
+static bool arrayresult(Comp *const C)
+{
+    const uint16_t name = comp_nameof(C->p);
+    const Binding *const b =
+        symb_name(C->symb, name)->flags & NM_FUNC ? scop_get(C->scop, name, name) : nullptr;
+
+    return b && (b->et[1] || b->rec[1]);
+}
+
+/* At p a name without a dot, no .f after its (..): no field. */
+static bool nofield(const uint8_t *const p)
+{
+    const uint8_t *const after = comp_skipname(p);
+    return !memchr(p + 2, '.', p[1]) && (*after != '(' || *decl_paren(after) != '.');
+}
+
+Node *ref_fieldarray(Comp *const C, uint8_t *const type)
+{
+    const uint8_t *const p = C->p;
+    Node *const r = comp_cur(C) == M_VAR && !arrayresult(C) && !nofield(p) ? record(C) : nullptr;
+
+    if (r != nullptr && r->rec.arr) {
+        *type = r->rec.et;
+        return expr_addr(C, r, 0);
+    }
+
+    C->p = p;
+    return nullptr;
+}
+
 Node *ref_field(Comp *const C, Node *const ref)
 {
     const uint8_t et = ref->rec.et;
@@ -395,10 +510,12 @@ Node *ref_place(Comp *const C, uint32_t *const vk)
     if (r != nullptr) {
         const RecRef *const rec = &r->rec;
 
-        if (rec->et >= ET_REC && decl_type(C->decl, rec->et - ET_REC)->nstr) /* its bytes not all */
+        if (rec->et >= ET_REC &&
+            decl_dynamic(decl_type(C->decl, rec->et - ET_REC))) /* its bytes not all */
             mismatch(C);
 
-        *vk = desc_field(rec) ? va_pack(VA_DESC, 0) : va_pack(rec->et == ET_I2 ? VA_I2 : VA_RAW, field_size(rec));
+        *vk = desc_field(rec) ? va_pack(VA_DESC, 0)
+                              : va_pack(rec->et == ET_I2 ? VA_I2 : VA_RAW, field_size(rec));
         return r;
     }
 
@@ -527,8 +644,7 @@ static Node *argnode(Comp *const C, const uint8_t pass, Node *const a, const uin
     return n;
 }
 
-/* Variable id's cell, an argument's ref: a parameter's is its argument's. */
-static Node *cell(Comp *const C, const uint16_t id)
+Node *ref_cell(Comp *const C, const uint16_t id)
 {
     return place(C, symb_is_ref(C->symb, id) ? O_V_REF : O_V_CELL, id);
 }
@@ -561,6 +677,18 @@ uint16_t ref_arrayvalue(Comp *const C, Node **const call)
 static Node *arrayarg(Comp *const C, const uint16_t par)
 {
     const uint8_t *const arg = C->p;
+    uint8_t type;
+    Node *const f = ref_fieldarray(C, &type); /* m.a(), ours */
+
+    if (f != nullptr) {
+        if (type != symb_var(C->symb, par)->type) {
+            C->p = arg;
+            fault_error(C->fault, E_PTM);
+        }
+
+        return argnode(C, PA_ARRAY, f, par);
+    }
+
     Node *call;
     const uint16_t id = ref_arrayvalue(C, &call);
 
@@ -571,7 +699,7 @@ static Node *arrayarg(Comp *const C, const uint16_t par)
 
     ptm(C, id, par, arg);
     link_given(C, id); /* the callee's REDIM's */
-    return argnode(C, PA_ARRAY, call ? call : cell(C, id), id);
+    return argnode(C, PA_ARRAY, call ? call : ref_cell(C, id), id);
 }
 
 /* A record parameter's argument, by P.REF: a record, an element of a record array, a record field,
@@ -639,7 +767,7 @@ static Node *arg(Comp *const C, const uint16_t par, const bool byval)
             if (aend(*after)) { /* a variable alone: its cell */
                 const uint16_t id = comp_var(C, 0, 0);
                 ptm(C, id, par, p);
-                return argnode(C, PA_VAR, cell(C, id), par);
+                return argnode(C, PA_VAR, ref_cell(C, id), par);
             }
         }
     }
@@ -657,7 +785,7 @@ Node *ref_recplace(Comp *const C, const uint16_t id)
 /* The place of record or array id: a record's whole, an array's cell. */
 static Node *resplace(Comp *const C, const uint16_t id)
 {
-    return symb_is_record(C->symb, id) ? ref_recplace(C, id) : cell(C, id);
+    return symb_is_record(C->symb, id) ? ref_recplace(C, id) : ref_cell(C, id);
 }
 
 /* The argument for FUNCTION pr's record or array result, ours: a hidden variable of the caller's,
@@ -722,7 +850,7 @@ Node *ref_result(Comp *const C)
     if (!(nm->flags & NM_FUNC) || !b)
         return nullptr;
 
-    const bool arr = b->et[1] || b->rec[1];
+    const bool arr = arrayresult(C);
 
     if (!arr && !b->rec[0]) /* a number's or a string's */
         return nullptr;
@@ -765,7 +893,10 @@ static bool is_variable(const Comp *const C, const uint16_t name)
 }
 
 Node *ref_call(
-    Comp *const C, const uint8_t *const name, const uint8_t idx, const Proc *const pr,
+    Comp *const C,
+    const uint8_t *const name,
+    const uint8_t idx,
+    const Proc *const pr,
     const ArgsForm form
 )
 {

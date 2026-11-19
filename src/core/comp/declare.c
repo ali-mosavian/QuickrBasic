@@ -52,8 +52,8 @@ typedef struct {
     Decl *d;
     Scop *sc;
     Symb *sy;
-    uint32_t line; /* the line entered */
-    bool loading;  /* from a file: a DEFtype is an event */
+    uint32_t line;  /* the line entered */
+    bool loading;   /* from a file: a DEFtype is an event */
     bool deft_only; /* decl_defevents': the names' uses not noted */
     const uint8_t *at;
 } DeclScan;
@@ -101,6 +101,26 @@ const uint8_t *decl_item(const uint8_t *p)
     }
 }
 
+const uint8_t *decl_paren(const uint8_t *p)
+{
+    if (*p != '(')
+        return p;
+
+    for (uint32_t n = 0;;) {
+        const uint8_t c = *p;
+
+        if (!c)
+            return p;
+        if (c == '(')
+            n++;
+
+        p = decl_item(p);
+
+        if (c == ')' && !--n)
+            return p;
+    }
+}
+
 /* A bound at *p, [-]n: its value, *p past it; false: not one. */
 static bool dims_bound(const uint8_t **const p, int64_t *const v)
 {
@@ -117,13 +137,21 @@ static bool dims_bound(const uint8_t **const p, int64_t *const v)
     return true;
 }
 
-const uint8_t *decl_dims(const uint8_t *p, const uint8_t base, FieldDim *const dims, uint8_t *const n)
+const uint8_t *decl_dims(
+    const uint8_t *p,
+    const uint8_t base,
+    FieldDim *const dims,
+    uint8_t *const n
+)
 {
     if (*p != '(')
         return nullptr;
 
     p++;
     *n = 0;
+
+    if (*p == ')') /* a dynamic array's */
+        return p + 1;
 
     do {
         int64_t lo = base, hi;
@@ -137,11 +165,13 @@ const uint8_t *decl_dims(const uint8_t *p, const uint8_t base, FieldDim *const d
             if (!dims_bound(&p, &hi))
                 return nullptr;
         }
+
         if (*n == MAXD)
             return nullptr;
 
         const int64_t count = hi < lo ? 0 : hi - lo + 1; /* 0: Subscript out of range */
-        dims[(*n)++] = (FieldDim){(int32_t)lo, count > UINT16_MAX ? UINT16_MAX + 1u : (uint32_t)count};
+        dims[(*n)++] =
+            (FieldDim){(int32_t)lo, count > UINT16_MAX ? UINT16_MAX + 1u : (uint32_t)count};
     } while (*p == ',' && p++);
 
     return *p == ')' ? p + 1 : nullptr;
@@ -525,7 +555,12 @@ static void decl_typedef(DeclScan *const ds)
 
 /* Field f's fixed array, ours: its dimensions, nd of them, on Decl.dims; its elements. Subscript out
    of range: a bound past the other. */
-static uint32_t decl_fielddims(DeclScan *const ds, Field *const f, const FieldDim *const dims, const uint8_t nd)
+static uint32_t decl_fielddims(
+    DeclScan *const ds,
+    Field *const f,
+    const FieldDim *const dims,
+    const uint8_t nd
+)
 {
     Decl *const d = ds->d;
     uint64_t elems = 1;
@@ -550,18 +585,46 @@ static uint32_t decl_fielddims(DeclScan *const ds, Field *const f, const FieldDi
     return (uint32_t)elems;
 }
 
-/* Field f's STRINGs, of elems elements of size bytes, on td's list: a STRING's Desc, a record's
-   STRINGs. */
-static void decl_fieldstrs(DeclScan *const ds, TypeDef *const td, const Field *const f, const uint32_t elems, const uint32_t size)
+/* Offset off on the list *t of *n, room *cap. */
+static void decl_offset(
+    DeclScan *const ds,
+    uint16_t **const t,
+    uint32_t *const n,
+    uint32_t *const cap,
+    const uint32_t off
+)
 {
-    const TypeDef *const sub = f->sub ? ds->d->types[f->sub] : nullptr;
-    const uint32_t per = sub ? sub->nstr : f->et == ET_SD && !f->fix;
+    decl_room(ds, (void **)t, *n, cap, sizeof **t);
+    (*t)[(*n)++] = (uint16_t)off;
+}
 
-    for (uint32_t k = 0; k < elems && per; k++)
-        for (uint32_t i = 0; i < per; i++) {
-            decl_room(ds, (void **)&td->strs, td->nstr, &td->strcap, sizeof *td->strs);
-            td->strs[td->nstr++] = (uint16_t)(f->off + k * size + (sub ? sub->strs[i] : 0));
-        }
+/* Field f's STRINGs and dynamic arrays, of elems elements of size bytes, on td's lists: a STRING's
+   Desc, a dynamic array's cell, a record's own. */
+static void decl_fielddeep(
+    DeclScan *const ds,
+    TypeDef *const td,
+    const Field *const f,
+    const uint32_t elems,
+    const uint32_t size
+)
+{
+    if (f->dyn) { /* its elements' are in its data */
+        decl_offset(ds, &td->slots, &td->nslot, &td->slotcap, f->off);
+        return;
+    }
+
+    const TypeDef *const sub = f->sub ? ds->d->types[f->sub] : nullptr;
+
+    for (uint32_t k = 0; k < elems; k++) {
+        const uint32_t at = f->off + k * size;
+
+        if (!sub && f->et == ET_SD && !f->fix)
+            decl_offset(ds, &td->strs, &td->nstr, &td->strcap, at);
+        for (uint32_t i = 0; sub && i < sub->nstr; i++)
+            decl_offset(ds, &td->strs, &td->nstr, &td->strcap, at + sub->strs[i]);
+        for (uint32_t i = 0; sub && i < sub->nslot; i++)
+            decl_offset(ds, &td->slots, &td->nslot, &td->slotcap, at + sub->slots[i]);
+    }
 }
 
 /* In a TYPE: f[(bounds)] AS type [* n]; the bounds ours, STRING alone ours. */
@@ -575,8 +638,9 @@ static void decl_field(DeclScan *const ds)
     const uint16_t n = decl_name(ds, nullptr);
     FieldDim dims[MAXD];
     uint8_t nd = 0;
+    const bool paren = *ds->at == '(';
 
-    if (*ds->at == '(') {
+    if (paren) {
         const uint8_t *const past = decl_dims(ds->at, ds->d->base, dims, &nd);
 
         if (!past)
@@ -594,7 +658,7 @@ static void decl_field(DeclScan *const ds)
     decl_room(ds, (void **)&td->fields, td->nfld, &td->cap, sizeof *td->fields);
     ds->d->nfields++;
     Field *const f = &td->fields[td->nfld++];
-    *f = (Field){.name = n, .off = td->size}; /* at the TYPE's end */
+    *f = (Field){.name = n, .off = td->size, .dyn = paren && !nd}; /* at its end */
     const uint32_t elems = decl_fielddims(ds, f, dims, nd);
     uint16_t size;
     const uint8_t c = ds->at[1];
@@ -632,10 +696,14 @@ static void decl_field(DeclScan *const ds)
         }
     }
 
+    if (f->dyn && f->fix) /* STRING * n elements: not a dynamic field's */
+        decl_fail(ds, E_TM);
+    if (f->dyn)
+        size = sizeof(ArrSlot);
     if (td->size + (uint64_t)size * elems > UINT16_MAX)
         decl_fail(ds, E_OM);
 
-    decl_fieldstrs(ds, td, f, elems, size);
+    decl_fielddeep(ds, td, f, elems, size);
     td->size += (uint16_t)(size * elems);
 }
 
@@ -673,6 +741,7 @@ static void decl_result(DeclScan *const ds, const uint16_t n, const bool define)
         memset(b->fix, 0, sizeof b->fix);
         b->flags |= BF_RES;
     }
+
     if (*ds->at == TK_AS && (define || !(b->flags & BF_RES)))
         decl_as(ds, b, n, *decl_item(ds->at + 1) == '(');
 }
@@ -877,7 +946,8 @@ static void decl_const(DeclScan *const ds)
                 depth--;
             if (c == '"')
                 et = ET_SD;
-            if ((c == '.' || is_digit(c)) && et != ET_SD) { /* a number's spelling: a DOUBLE's by D, # or digits */
+            if ((c == '.' || is_digit(c)) &&
+                et != ET_SD) { /* a number's spelling: a DOUBLE's by D, # or digits */
                 uint8_t kind;
                 const uint8_t *p = ds->at;
 
@@ -886,8 +956,10 @@ static void decl_const(DeclScan *const ds)
                 ds->at = p;
                 continue;
             }
+
             if (c == TK_DIV && et != ET_SD && et != ET_R8)
                 et = ET_R4;
+
             ds->at = decl_item(ds->at);
         }
 
@@ -929,10 +1001,21 @@ static void decl_arrayuse(DeclScan *const ds, const uint8_t *const p)
         decl_array(ds, comp_nameof(p), ds->d->proc);
 }
 
-/* LBOUND or UBOUND at p: of an array known in decl.proc's scope, or one the module shares. */
+/* The name at p r.f..: its text to a dot a record's, ours. */
+static bool decl_recpath(DeclScan *const ds, const uint8_t *const p)
+{
+    for (uint8_t i = 1; i < p[1]; i++)
+        if (p[2 + i] == '.' && symb_name(ds->sy, symb_find_name(ds->sy, p + 2, i))->flags & NM_REC)
+            return true;
+
+    return false;
+}
+
+/* LBOUND or UBOUND at p: of an array known in decl.proc's scope, or one the module shares; a
+   record's array field the compiler's to check. */
 static void decl_bound(DeclScan *const ds, const uint8_t *const p)
 {
-    if (p[1] != '(' || p[2] != M_VAR)
+    if (p[1] != '(' || p[2] != M_VAR || decl_recpath(ds, p + 2))
         return;
 
     const uint16_t n = comp_nameof(p + 2);

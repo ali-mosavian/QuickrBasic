@@ -18,6 +18,8 @@ Language
                            [FUNCTION](FUNCTION)
     b() = a(), DIM a()     arrays copied whole; empty until REDIM
                            [array assignment](array assignment)
+    pts() AS Vec in TYPE   records with arrays and strings that grow
+                           [TYPE](TYPE)
     max_count              `_` in names, after the first letter
                            [identifier errors](identifier errors)
     32-bit INTEGER         one type with LONG; 32767 + 1 is fine

@@ -116,27 +116,7 @@ static void sharedlist(Comp *const C)
 }
 
 /* ct_skip0: past a ( .. ), if there. */
-static void skipparen(Comp *const C)
-{
-    if (*C->p != '(')
-        return;
-
-    uint32_t n = 0;
-
-    for (;;) {
-        const uint8_t c = *C->p;
-
-        if (!c)
-            return;
-        if (c == '(')
-            n++;
-
-        C->p = decl_item(C->p);
-
-        if (c == ')' && !--n)
-            return;
-    }
-}
+static void skipparen(Comp *const C) { C->p = decl_paren(C->p); }
 
 /* ---- targets and jumps */
 
@@ -163,7 +143,8 @@ Jump ctrl_jump(Comp *const C, const uint32_t t)
                target's, 30% of a 2600-line program's compile */
             const uint32_t pos = t >> 2;
             const uint32_t near = blok_line_before(C->blok, pos);
-            const uint32_t from = C->line != DLINE && pos >= C->line && C->line > near ? C->line : near;
+            const uint32_t from =
+                C->line != DLINE && pos >= C->line && C->line > near ? C->line : near;
             uint32_t off;
             j.line = prog_lineof_from(C->prog, from, pos, &off);
             j.body = off;
@@ -800,7 +781,7 @@ static bool reccopy(Comp *const C)
             comp_step(C, expr_addr(C, a, 0));
             comp_step(C, expr_addr(C, b, 0));
 
-            if (decl_type(C->decl, t)->nstr) {
+            if (decl_dynamic(decl_type(C->decl, t))) {
                 comp_int(C, t);
                 comp_call(C, K_RCOPY);
                 return true;
@@ -815,39 +796,60 @@ static bool reccopy(Comp *const C)
     return false;
 }
 
-/* a() = b(), ours: arrays of one type; CALL ACOPY. a() = f(..), an array result: the call, its
-   array's cell, CALL AMOVE. */
+/* a() = b(), ours: arrays of one type, a record's array fields too; their cells, CALL ACOPY. a() =
+   f(..), an array result: the call, its result's cell, the target's, CALL AMOVE. The source first: a
+   call can move a record. */
 static bool arrcopy(Comp *const C)
 {
-    const uint8_t *const after = comp_skipname(C->p);
+    const uint8_t *const start = C->p;
+    uint8_t ta, tb;
+    Node *dst = ref_fieldarray(C, &ta);
+    uint16_t a = 0;
 
-    if (after[0] != '(' || after[1] != ')' || after[2] != TK_EQ)
+    if (dst == nullptr) {
+        const uint8_t *const after = comp_skipname(C->p);
+
+        if (after[0] != '(' || after[1] != ')' || after[2] != TK_EQ)
+            return false;
+
+        a = ref_wholearray(C);
+        ta = symb_var(C->symb, a)->type;
+        dst = ref_cell(C, a);
+    } else if (comp_cur(C) != TK_EQ) {
+        C->p = start;
         return false;
+    }
 
-    const uint16_t a = ref_wholearray(C);
     C->p++;
     const uint8_t *const at = C->p;
-    Node *call;
-    const uint16_t b = ref_arrayvalue(C, &call);
+    Node *call = nullptr;
+    Node *src = ref_fieldarray(C, &tb);
 
-    if (symb_var(C->symb, a)->type != symb_var(C->symb, b)->type || symb_is_record(C->symb, b)) {
+    if (src == nullptr) {
+        const uint16_t b = ref_arrayvalue(C, &call);
+
+        if (symb_is_record(C->symb, b)) { /* a record result */
+            C->p = at;
+            fault_error(C->fault, E_TM);
+        }
+
+        tb = symb_var(C->symb, b)->type;
+        src = call ? call : ref_cell(C, b);
+    }
+
+    if (ta != tb) {
         C->p = at;
         fault_error(C->fault, E_TM);
     }
+
     if (!comp_end(C))
         synerr(C);
+    if (a)
+        link_given(C, a);
 
-    link_given(C, a);
-    comp_int(C, a);
-
-    if (call) {
-        comp_step(C, call);
-        comp_call(C, K_AMOVE);
-        return true;
-    }
-
-    comp_int(C, b);
-    comp_call(C, K_ACOPY);
+    comp_step(C, src);
+    comp_step(C, dst);
+    comp_call(C, call ? K_AMOVE : K_ACOPY);
     return true;
 }
 
@@ -912,9 +914,8 @@ static void result_empty(Comp *const C, const Proc *const pr)
     }
 
     Node *const r = ref_recplace(C, id);
-    const uint16_t size = r->rec.fix;
     comp_step(C, r);
-    comp_int(C, size);
+    comp_int(C, (uint32_t)(r->rec.et - ET_REC));
     comp_call(C, K_RCLR);
 }
 
@@ -931,7 +932,10 @@ static bool checkonly(Comp *const C) { return C->check && declname(C); }
 
 /* Procedure idx's call, its arguments as form writes them. */
 static void pcall(
-    Comp *const C, const uint8_t *const name, const uint8_t idx, const Proc *const pr,
+    Comp *const C,
+    const uint8_t *const name,
+    const uint8_t idx,
+    const Proc *const pr,
     const ArgsForm form
 )
 {
@@ -1125,13 +1129,15 @@ static void redim(Comp *const C)
     C->redim = 0;
 }
 
-/* ERASE a {, a}: each array's id, CALL ERASE. */
+/* ERASE a {, a}: each array's cell, CALL ERASE. */
 static void erase(Comp *const C)
 {
     C->p++;
 
     do {
-        comp_int(C, ref_arrayof(C, shaped(C, 2)));
+        uint8_t type;
+        Node *const f = ref_fieldarray(C, &type); /* m.a, ours */
+        comp_step(C, f ? f : ref_cell(C, ref_arrayof(C, shaped(C, 2))));
         comp_call(C, K_ERASE);
     } while (comp_optcomma(C));
 }

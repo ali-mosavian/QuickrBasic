@@ -278,7 +278,7 @@ enum : uint8_t {
 };
 /* The parser's actions: under A_BASE a CALL's K_*, from it the compiler's (comp.c). */
 enum : uint8_t {
-    A_BASE = 0xC0,
+    A_BASE = 0xC8,
     A_E = A_BASE + 0,
     A_LV = A_BASE + 1,
     A_L = A_BASE + 2,

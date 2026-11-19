@@ -21,17 +21,20 @@ typedef struct {
     uint8_t et, sub; /* its ET_*, or its TYPE's; an array's, its element's */
     uint16_t fix, off;
     uint8_t ndim; /* ours: a fixed array's dimensions, 0 none */
+    bool dyn;     /* ours: a dynamic array's cell (ArrSlot), empty until REDIM */
     uint16_t dim; /* its first in Decl.dims */
 } Field;
 
-/* A TYPE: its name, its fields, its bytes as QBasic lays them; ours, its STRINGs' Desc offsets,
-   its records' and arrays' too. */
+/* A TYPE: its name, its fields, its bytes as QBasic lays them; ours, its STRINGs' Desc offsets and
+   its dynamic arrays' cells', its records' and fixed arrays' too. */
 typedef struct {
     uint16_t name, nfld, size;
     uint32_t cap;
     Field *fields;
     uint32_t nstr, strcap;
     uint16_t *strs;
+    uint32_t nslot, slotcap;
+    uint16_t *slots; /* ours: its dynamic arrays' cells' offsets, its records' too */
 } TypeDef;
 
 /* A DEFtype line: the DEFtypes from it on. */
@@ -82,16 +85,32 @@ void decl_defevents(Decl *d, Scop *sc, Symb *sy, const Prog *pg);
 /* dc_deft: the DEFtypes (sy->deft) line sees. */
 void decl_deftype(const Decl *d, Symb *sy, uint32_t line);
 /* TYPE t. */
-static inline const TypeDef *decl_type(const Decl *const d, const uint16_t t) { return d->types[t]; }
+static inline const TypeDef *decl_type(const Decl *const d, const uint16_t t)
+{
+    return d->types[t];
+}
 /* The next statement from *at with no effect in 32-bit mode (DEF SEG, VARSEG, SSEG): its name,
    *at past it; null none. */
 const char *decl_warning(const uint8_t **at);
-const uint8_t *decl_item(const uint8_t *p); /* dc_item: past the item at p */
-/* A TYPE's fixed array field's ( [lo TO] hi {, ..} ) at p, ours, each bound [-]n, base the lower
-   one's when none: its dimensions to dims, MAXD at most, their count *n; past it, null not one. */
+const uint8_t *decl_item(const uint8_t *p);  /* dc_item: past the item at p */
+const uint8_t *decl_paren(const uint8_t *p); /* past the ( .. ) at p; p itself when none */
+/* A TYPE's array field's ( [lo TO] hi {, ..} ) at p, ours, each bound [-]n, base the lower one's
+   when none: its dimensions to dims, MAXD at most, their count *n, 0 for (), a dynamic one's;
+   past it, null not one. */
 const uint8_t *decl_dims(const uint8_t *p, uint8_t base, FieldDim *dims, uint8_t *n);
+/* TYPE td holds STRINGs or dynamic arrays, ours: its bytes are not all its data. */
+static inline bool decl_dynamic(const TypeDef *const td) { return td->nstr || td->nslot; }
+/* Field f's elements' type as a variable's: ET_*, ET_REC + t a TYPE's. */
+static inline uint8_t decl_fieldtype(const Field *const f)
+{
+    return f->sub ? ET_REC + f->sub : f->et;
+}
 /* Field f's dimension k. */
-static inline const FieldDim *decl_fielddim(const Decl *const d, const Field *const f, const uint32_t k)
+static inline const FieldDim *decl_fielddim(
+    const Decl *const d,
+    const Field *const f,
+    const uint32_t k
+)
 {
     return &d->dims[f->dim + k];
 }

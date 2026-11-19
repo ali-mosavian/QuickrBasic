@@ -413,20 +413,25 @@ static Node *xfn_node(Comp *const C)
         char k = f->arg[i];
         Node *a;
 
-        if (k == 'R') { /* an array, n or n(): its id */
+        if (k == 'R') { /* an array, n or n(): its cell; a record's array field, ours */
             if (comp_cur(C) != M_VAR)
                 synerr(C);
 
-            const uint16_t id = ref_arrayof(C, comp_var(C, 2, 0));
+            uint8_t type;
+            a = ref_fieldarray(C, &type);
 
-            if (*C->p == '(') {
-                if (C->p[1] != ')')
-                    synerr(C);
+            if (a == nullptr) {
+                const uint16_t id = ref_arrayof(C, comp_var(C, 2, 0));
 
-                C->p += 2;
+                if (*C->p == '(') {
+                    if (C->p[1] != ')')
+                        synerr(C);
+
+                    C->p += 2;
+                }
+
+                a = ref_cell(C, id);
             }
-
-            a = expr_intleaf(C, id, SH_NONE);
         } else {
             if (k == 'H') { /* a file number, its # or not */
                 if (comp_cur(C) == '#')

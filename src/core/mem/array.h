@@ -9,8 +9,7 @@
 #include "mem/symbols.h"
 #include "vm/exec.h"
 
-enum { ADIMS = 64 };      /* the subscript buffers' words */
-enum : Addr { AREP = 1 }; /* arry_free's rep: a mark arry_rep replaces */
+enum { ADIMS = 64 }; /* the subscript buffers' words */
 
 typedef struct Arry {
     Allo *allo;             /* the headers' region; the data from allo.bot up to allo.arrays */
@@ -37,21 +36,46 @@ Addr arry_ref(Arry *ay, ArrSlot *s, uint16_t id, uint8_t n);
 /* Subscript out of range (E_BS). */
 [[noreturn]]
 void arry_bad_sub(const Arry *ay);
-/* Array id's element size: inline, an element's address takes it every time. */
-static inline uint32_t arry_elem_size(const Symb *const sy, const Decl *const d, const uint16_t id)
+/* Array id's elements' ET_*: ET_REC + t a TYPE's, ET_I4 an INT's (VS bytes), ours. */
+static inline uint8_t arry_var_et(const Symb *const sy, const uint16_t id)
 {
     const Var *const v = symb_var(sy, id);
 
     if (v->type >= ET_REC)
-        return decl_type(d, v->type - ET_REC)->size;
+        return v->type;
     if (v->info & SK_DBL)
+        return ET_R8;
+    if (v->type == ET_SH || v->type == ET_BY)
+        return v->type;
+
+    return (v->info & VK_MASK) == VK_STR ? ET_SD : (v->info & VK_MASK) == VK_INT ? ET_I4 : ET_R4;
+}
+
+/* An element's bytes by its ET_*. */
+static inline uint32_t arry_et_size(const Decl *const d, const uint8_t et)
+{
+    switch (et) {
+    case ET_R8:
         return 8;
-    if (v->type == ET_SH)
+
+    case ET_SH:
         return 2;
-    if (v->type == ET_BY)
+
+    case ET_BY:
         return 1;
 
-    return (v->info & VK_MASK) == VK_STR ? DSZ : VS;
+    case ET_SD:
+        return DSZ;
+
+    default:
+        return et >= ET_REC ? decl_type(d, et - ET_REC)->size : VS;
+    }
+}
+
+/* Array id's element size: inline, an element's address takes it every time. */
+static inline uint32_t arry_elem_size(const Symb *const sy, const Decl *const d, const uint16_t id)
+{
+    return arry_et_size(d, arry_var_et(sy, id));
 }
 
 static inline uint32_t arry_esize(const Arry *const ay, const uint16_t id)
@@ -64,34 +88,52 @@ enum { ARRY_FRAME_HDR1 = (sizeof(ArrayHdr) + 2 * sizeof(uint32_t) + 7) & ~7 };
 uint32_t arry_frame_hdr(uint8_t dims);
 /* Header h is the heap's (arry_new's), not a frame's. */
 bool arry_heap(const Arry *ay, Addr h);
+/* arry.counts[0..n): arry.subs' + 1. Illegal function call: a subscript under 0. */
+void arry_counts(Arry *ay, uint8_t n);
 /* DIM: array id made, its counts arry.subs[0..n) + 1; dyn a REDIM's. Illegal function call: a
    subscript under 0. Duplicate definition: it exists. Out of memory. */
 void arry_dim(Arry *ay, uint16_t id, uint8_t n, bool dyn);
+/* The array fields of the n records of TYPE td at data dynamic and empty, ours. */
+void arry_empty_cells(Addr data, uint32_t n, const TypeDef *td);
 /* DIM a(), ours: array id dynamic and empty until a REDIM, as ERASE leaves one; keep: a STATIC's
    with elements kept. Duplicate definition: it has elements. */
 void arry_empty(Arry *ay, uint16_t id, bool keep);
-/* a() = b(), ours: array dst gets src's bounds and a copy of its elements, its own freed first;
-   dst a dynamic array after. Duplicate definition: dst a DIM's with elements. Out of memory. */
-void arry_copy(Arry *ay, Vm *vm, uint16_t dst, uint16_t src);
-/* a() = f(..), ours: array dst takes the array of cell s, an array result's, its own freed first; s
-   is left empty. Duplicate definition: dst a DIM's with elements. */
-void arry_move(Arry *ay, Vm *vm, uint16_t dst, ArrSlot *s);
-/* An array result emptied as its FUNCTION starts, ours: array id freed, dynamic and empty. */
-void arry_reset(Arry *ay, Vm *vm, uint16_t id);
-/* Array id made: its header at arry.hdr, arry.counts and arry.lbounds [0..n), its data zeroed at
-   allo.arrays; dyn a REDIM's. Returns the header. Out of memory. */
+/* a() = b(), ours: cell d gets s's bounds and a copy of its elements, a dynamic array after, its
+   old one freed. Duplicate definition: d a DIM's with elements. Out of memory. */
+void arry_copy(Arry *ay, Vm *vm, ArrSlot *d, const ArrSlot *s);
+/* arry_copy's copy into the empty cell d, ours: made at the heap's end, nothing moves. */
+void arry_copy_into(Arry *ay, ArrSlot *d, const ArrSlot *s);
+/* A record of TYPE td copied from src to dst, ours: dst's STRINGs and arrays made its own (its old
+   ones the caller's to kill). Nothing moves. */
+void arry_copy_rec(Arry *ay, Addr dst, Addr src, const TypeDef *td);
+/* A record of TYPE td moved from src to dst, ours: its STRINGs' and arrays' owners follow; src's
+   cells let go. */
+void arry_move_rec(const Arry *ay, Addr dst, Addr src, const TypeDef *td);
+/* a() = f(..), ours: cell d takes the array of cell s, an array result's, its old one freed; s is
+   left empty. Duplicate definition: d a DIM's with elements. */
+void arry_move(Arry *ay, Vm *vm, ArrSlot *d, ArrSlot *s);
+/* An array result emptied as its FUNCTION starts, ours: cell s's array freed, s dynamic and empty. */
+void arry_reset(Arry *ay, Vm *vm, ArrSlot *s);
+/* An array of et elements made in cell s, ours: its header at arry.hdr, its owner s, arry.counts
+   and arry.lbounds [0..n), its data zeroed at allo.arrays; dyn a REDIM's. Returns the header. Out
+   of memory. */
+Addr arry_make(Arry *ay, ArrSlot *s, uint8_t et, uint8_t n, bool dyn);
+/* arry_make for array id in its cell. */
 Addr arry_new(Arry *ay, uint16_t id, uint8_t n, bool dyn);
-/* The data's bytes of array id with header hdr. */
-uint32_t arry_size(const Arry *ay, uint16_t id, Addr hdr);
-/* Array id dropped: its header and data go, what follows moves down, and the headers' data, the
-   moved string blocks' owners, the headers in the arrays' cells (vm's frames' too), and the
-   parameters' cells in the moved data follow; a header kept that was this one's becomes rep (0,
-   or AREP).
-   Returns the header's bytes (g_afhs). */
-uint32_t arry_free(Arry *ay, Vm *vm, uint16_t id, Addr rep);
+/* The data's bytes of the array with header hdr. */
+uint32_t arry_size(const Arry *ay, Addr hdr);
+/* Header h's array dead, ours, and the arrays its records hold: arry_sweep removes them. A frame's
+   is not the heap's: it goes with the frame. */
+void arry_kill(const Arry *ay, Addr h);
+/* The arrays the records of header h's array hold dead, ours; the array itself kept. */
+void arry_kill_elems(const Arry *ay, Addr h);
+/* The dead arrays removed, ours: what follows each moves down, and the headers' data, their
+   owners in the moved data, the moved headers' cells, the moved string blocks' owners and the
+   parameters' cells in the moved data follow. A cell held in the heap moves: not to be used after. */
+void arry_sweep(Arry *ay, Vm *vm);
+/* Cell s's array dropped, s emptied: arry_kill, then arry_sweep. */
+void arry_free(Arry *ay, Vm *vm, ArrSlot *s);
 /* REDIM PRESERVE: each element of the header old that fresh has too, by its subscripts, copied;
-   a string's block moved (vm's ls_mov). */
-void arry_keep(Arry *ay, uint16_t id, Addr old, Addr fresh);
-/* The references arry_free marked AREP: to array id's header. */
-void arry_rep(Arry *ay, Vm *vm, uint16_t id);
+   a string's block moved (vm's ls_mov), a record's STRINGs' and arrays' owners too. */
+void arry_keep(Arry *ay, Addr old, Addr fresh);
 #endif

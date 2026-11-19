@@ -430,12 +430,41 @@ void stmt_resl(Session *const S) { seek_data(S, flow_target(&S->vm)); }
 
 /* ---- DIM and ERASE -------------------------------------------------------------------------- */
 
-/* DIM ( i1..in mlo mhi id flags -- ): bit i of m: subscript i was written hi, base. As arry_dim. */
+/* DIM ( i1..in mlo mhi id flags -- ): bit i of m: subscript i was written hi, base. As arry_dim. A
+   record's array field's, ours: ( i1..in mlo mhi cell et flags -- ). */
+/* REDIM [PRESERVE] of a record's array field, ours: cell s, its elements et: the new one made, the
+   old one's elements moved, then the old one swept (s may move with its record). */
+static void redim_field(
+    Session *const S,
+    ArrSlot *const s,
+    const uint8_t et,
+    const uint8_t dims,
+    const uint32_t flags
+)
+{
+    const Addr old = s->hdr;
+    const bool keep = old && flags & DIM_PRESERVE;
+
+    if (keep && dims != ((const ArrayHdr *)at(old))->dims)
+        arry_bad_sub(&S->arry);
+
+    arry_counts(&S->arry, dims);
+    arry_make(&S->arry, s, et, dims, true);
+
+    if (keep)
+        arry_keep(&S->arry, old, s->hdr);
+
+    arry_kill(&S->arry, old);
+    arry_sweep(&S->arry, &S->vm);
+}
+
 void stmt_dim(Session *const S)
 {
     const uint32_t flags = exec_pop(&S->vm).u;
     const uint8_t dims = flags & DIM_COUNT;
-    const uint16_t id = (uint16_t)exec_pop(&S->vm).u;
+    const uint32_t target = exec_pop(&S->vm).u; /* its id; a field's elements' ET_* */
+    const Addr field = flags & DIM_FIELD ? exec_popa(&S->vm) : 0;
+    const uint16_t id = (uint16_t)target;
     const uint32_t mask_hi = exec_pop(&S->vm).u;
     const uint64_t swapped = (uint64_t)mask_hi << 32 | exec_pop(&S->vm).u;
 
@@ -448,6 +477,11 @@ void stmt_dim(Session *const S)
         const int64_t span = (int64_t)hi - lo; /* past INT32_MAX: Out of memory, by its size */
         S->arry.subs[i] = span > INT32_MAX ? INT32_MAX : (int32_t)span;
         S->arry.lbounds[i] = lo;
+    }
+
+    if (field) {
+        redim_field(S, (ArrSlot *)at(field), (uint8_t)target, dims, flags);
+        return;
     }
 
     ArrSlot *const s =
@@ -464,25 +498,22 @@ void stmt_dim(Session *const S)
 
     if (old && !arry_heap(&S->arry, old))
         repl_error(S, E_RD);
-    if (old && flags & DIM_PRESERVE) { /* the new one made, the old one's elements copied */
+    if (old && flags & DIM_PRESERVE) { /* the new one made, the old one's elements moved */
         if (dims != ((const ArrayHdr *)at(old))->dims)
             arry_bad_sub(&S->arry);
 
         s->hdr = 0;
         arry_dim(&S->arry, id, dims, true);
-        const Addr fresh = s->hdr;
-        arry_keep(&S->arry, id, old, fresh);
-        s->hdr = old;
-        const uint32_t freed = arry_free(&S->arry, &S->vm, id, AREP);
-        s->hdr = fresh - freed; /* its header was after the old one's */
-    } else {
-        if (old)
-            arry_free(&S->arry, &S->vm, id, AREP);
-
-        arry_dim(&S->arry, id, dims, true);
+        arry_keep(&S->arry, old, s->hdr);
+        arry_kill(&S->arry, old); /* the new one's cell follows it down */
+        arry_sweep(&S->arry, &S->vm);
+        return;
     }
 
-    arry_rep(&S->arry, &S->vm, id);
+    if (old)
+        arry_free(&S->arry, &S->vm, s);
+
+    arry_dim(&S->arry, id, dims, true);
 }
 
 /* DIM a() ( id flags -- ), ours: as arry_empty. */
@@ -492,18 +523,36 @@ void stmt_aempty(Session *const S)
     arry_empty(&S->arry, (uint16_t)exec_pop(&S->vm).u, flags & DIM_STATIC);
 }
 
-/* a() = b() ( dst src -- ), ours: as arry_copy. */
+/* a() = b() ( src dst -- ), ours, their cells: as arry_copy. */
 void stmt_acopy(Session *const S)
 {
-    const uint16_t src = (uint16_t)exec_pop(&S->vm).u;
-    arry_copy(&S->arry, &S->vm, (uint16_t)exec_pop(&S->vm).u, src);
+    ArrSlot *const d = (ArrSlot *)at(exec_popa(&S->vm));
+    arry_copy(&S->arry, &S->vm, d, (const ArrSlot *)at(exec_popa(&S->vm)));
 }
 
-/* a() = f(..) ( dst cell -- ), ours: as arry_move. */
+/* a() = f(..) ( src dst -- ), ours, their cells, src an array result's: as arry_move. */
 void stmt_amove(Session *const S)
 {
-    ArrSlot *const s = (ArrSlot *)at(exec_popa(&S->vm));
-    arry_move(&S->arry, &S->vm, (uint16_t)exec_pop(&S->vm).u, s);
+    ArrSlot *const d = (ArrSlot *)at(exec_popa(&S->vm));
+    arry_move(&S->arry, &S->vm, d, (ArrSlot *)at(exec_popa(&S->vm)));
+}
+
+/* A record's array field's element ( addr s1..sn off n -- addr ), ours: its cell off bytes into the
+   record. Subscript out of range: empty, n not its dimensions, past its bounds. */
+void stmt_felem(Session *const S)
+{
+    const uint8_t n = (uint8_t)exec_pop(&S->vm).u;
+    const uint32_t off = exec_pop(&S->vm).u;
+
+    for (uint8_t i = n; i-- > 0;)
+        S->arry.subs[i] = exec_popi(&S->vm);
+
+    ArrSlot *const s = (ArrSlot *)at(S->vm.sp->a + off);
+
+    if (!s->hdr)
+        arry_bad_sub(&S->arry);
+
+    S->vm.sp->a = arry_ref(&S->arry, s, 0, n);
 }
 
 /* A fixed array field's element ( addr s lb count stride -- addr ), ours: s's place in its
@@ -521,21 +570,35 @@ void stmt_fidx(Session *const S)
 }
 
 /* An array result's start ( id -- ), ours: as arry_reset. */
-void stmt_areset(Session *const S) { arry_reset(&S->arry, &S->vm, (uint16_t)exec_pop(&S->vm).u); }
+void stmt_areset(Session *const S)
+{
+    arry_reset(&S->arry, &S->vm, arry_slot(&S->arry, (uint16_t)exec_pop(&S->vm).u));
+}
 
-/* ERASE ( id -- ): REDIM's array freed, another's elements zeroed. */
+/* ERASE ( cell -- ): REDIM's array freed, another's elements zeroed. */
 void stmt_erase(Session *const S)
 {
-    const uint16_t id = (uint16_t)exec_pop(&S->vm).u;
-    const ArrSlot s = *arry_slot(&S->arry, id);
-    const Addr hdr = s.hdr;
+    ArrSlot *const s = (ArrSlot *)at(exec_popa(&S->vm));
+    const Addr hdr = s->hdr;
 
     if (!hdr)
         return;
-    if (s.dyn)
-        arry_free(&S->arry, &S->vm, id, 0);
-    else
-        copy_zero(((const ArrayHdr *)at(hdr))->data, arry_size(&S->arry, id, hdr));
+    if (s->dyn) {
+        arry_free(&S->arry, &S->vm, s);
+        return;
+    }
+
+    const ArrayHdr *const a = (const ArrayHdr *)at(hdr);
+    const uint32_t size = arry_size(&S->arry, hdr);
+    arry_kill_elems(&S->arry, hdr); /* a record's arrays, ours */
+    copy_zero(a->data, size);
+
+    if (a->et >= ET_REC) {
+        const TypeDef *const td = decl_type(&S->decl, a->et - ET_REC);
+        arry_empty_cells(a->data, size / td->size, td);
+    }
+
+    arry_sweep(&S->arry, &S->vm);
 }
 
 /* ---- RUN, LIST, CONT, END, STOP ------------------------------------------------------------- */

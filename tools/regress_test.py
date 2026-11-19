@@ -1052,6 +1052,65 @@ CASES |= {
                          ".BAS:11: Type mismatch", None),
 }
 
+# A dynamic array in a TYPE, ours, was a Syntax error: empty until REDIM, copied with its record,
+# freed with it; its header names its cell, so the heap's compaction moves records that own arrays.
+MESH = ("type Vec", " x as single", " y as single", "end type", "type Mesh", " title as string",
+        " pts() as Vec", " tags() as string", " kids() as Mesh", "end type", "dim m as Mesh")
+CASES |= {
+    "field_dynamic": (bas(*MESH, "declare sub fill (a() as Vec, n as integer)",
+                          "declare function mk (n as integer) as Mesh",
+                          "dim c as Mesh, a() as Vec, rs() as Mesh", "on error goto h",
+                          'm.title = "root": redim m.pts(1 to 3)',
+                          "for i = 1 to 3: m.pts(i).x = i: m.pts(i).y = i * 10: next",
+                          "print lbound(m.pts); ubound(m.pts()); m.pts(2).x; m.pts(3).y",
+                          "redim preserve m.pts(1 to 5): m.pts(5).x = 55: print ubound(m.pts); m.pts(3).y; m.pts(5).x",
+                          'redim m.tags(2): m.tags(0) = "a": m.tags(2) = "c" + "c": print m.tags(0); m.tags(2); len(m.tags(1))',
+                          "a() = m.pts(): a(1).x = 99: print ubound(a); a(5).x; m.pts(1).x",
+                          'redim m.kids(1 to 2): m.kids(2).title = "kid": redim m.kids(2).pts(0 to 1): m.kids(2).pts(1).y = 7',
+                          'c = m: c.kids(2).pts(1).y = 8: c.tags(0) = "z"',
+                          "print m.kids(2).pts(1).y; c.kids(2).pts(1).y; m.tags(0); c.tags(0); ubound(c.kids(2).pts); c.title",
+                          "erase m.pts: m.kids(1).pts() = a(): print ubound(m.kids(1).pts); m.kids(1).pts(1).x",
+                          "print ubound(m.pts)", "fill m.pts(), 4: print ubound(m.pts); m.pts(4).y",
+                          "c = mk(3): print ubound(c.kids); c.kids(3).title; ubound(c.kids(3).pts)", "print ubound(c.pts)",
+                          'redim rs(1 to 2): redim rs(2).tags(1): rs(2).tags(1) = "t": redim preserve rs(0 to 9): print rs(2).tags(1)',
+                          "end", OV, "sub fill (a() as Vec, n as integer)", " redim a(1 to n): a(n).y = n * n", "end sub",
+                          "function mk (n as integer) as Mesh", " redim mk.kids(1 to n)",
+                          " for i = 1 to n: mk.kids(i).title = str$(i): redim mk.kids(i).pts(i): next", "end function"),
+                      " 1  3  2  30 \r\n 5  30  55 \r\nacc 0 \r\n 5  55  1 \r\n 7  8 az 1 root\r\n 5  99 \r\nov 9 \r\n"
+                      " 4  16 \r\n 3  3 3 \r\nov 9 \r\nt\r\n", "ERROR"),
+    # Locals, results and copies freed: no bytes lost a round; the same keeping its arrays lost them.
+    "field_dynamic_free": (bas(*MESH, "declare sub scratch (n as integer)", "declare function mk (n as integer) as Mesh",
+                               "dim keep as Mesh",
+                               "for k = 1 to 200", " scratch 5: dim q as Mesh: q = mk(5): q.kids(2) = q.kids(1): erase q.kids",
+                               " if k = 2 then f0& = fre(-1)", "next", "f1& = fre(-1): redim keep.kids(1 to 500)",
+                               "print f0& - f1&; f1& - fre(-1) > 1000", "end",
+                               "sub scratch (n as integer)", " dim t as Mesh: redim t.kids(1 to n)",
+                               ' for i = 1 to n: redim t.kids(i).kids(1 to n): t.kids(i).kids(n).title = string$(100, "z"): next',
+                               "end sub", "function mk (n as integer) as Mesh", " redim mk.kids(1 to n)",
+                               " for i = 1 to n: redim mk.kids(i).pts(1 to 3): mk.kids(i).title = str$(i): next",
+                               "end function"),
+                           " 0 -1 \r\n", "ERROR"),
+    # Records that own arrays and strings, moved by REDIMs around them 1000 times and more.
+    "field_dynamic_moves": (bas("type Cell", " v as long", " xs() as long", " s as string", "end type",
+                                "dim rs() as Cell, junk() as long, last(1 to 20) as long", "redim rs(1 to 20)",
+                                "for k = 1 to 3000", " i = k mod 20 + 1", " redim preserve rs(i).xs(k mod 13)",
+                                " rs(i).xs(k mod 13) = k: rs(i).s = str$(k): last(i) = k", " redim junk(k mod 97 * 10)",
+                                " if k mod 50 = 0 then redim preserve rs(1 to 20 + k mod 3): "
+                                "if ubound(rs) > 20 then redim rs(ubound(rs)).xs(500)",
+                                "next", "for i = 1 to 20",
+                                " if rs(i).xs(last(i) mod 13) = last(i) and val(rs(i).s) = last(i) then ok = ok + 1",
+                                "next", "print ok", "redim preserve rs(1 to 22): f& = fre(-1)",
+                                "for k = 1 to 100: redim rs(22).xs(500): redim preserve rs(1 to 21): redim preserve rs(1 to 22): next",
+                                "print fre(-1) = f&"),
+                            " 20 \r\n-1 \r\n", "ERROR"),
+    "field_dynamic_empty": (bas(*MESH, "m.pts(1).x = 1"), "Subscript out of range in line", None),
+    # More subscripts than an array can have ran: past 64, written beyond the subscripts' buffer.
+    "field_dynamic_dims": (bas(*MESH, "m.pts(" + ",".join("0" * 64) + ").x = 1"), ".BAS:12: Subscript out of range", None),
+    "field_dynamic_type": (bas(*MESH, "dim s() as Mesh", "s() = m.pts()"), ".BAS:13: Type mismatch", None),
+    "field_dynamic_value": (bas(*MESH, "print m.pts"), ".BAS:12: Type mismatch", None),
+    "field_dynamic_put": (bas(*MESH, 'open "x" for binary as 1: put 1, , m'), ".BAS:12: Type mismatch", None),
+}
+
 # Typed at the prompt, not run as a file.
 REPL = {
     # A direct line ran from DCODE, its statement map's place: nothing printed.
