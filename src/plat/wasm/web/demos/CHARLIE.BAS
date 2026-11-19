@@ -126,6 +126,7 @@ CONST FSKID = 16, FCROUCH = 17, FHURT = 18, FUP = 19, FWIN = 20, FSHIVER = 22, N
 CONST KBONE = 1, KCAT = 2, KSPRING = 3, KMARK = 4, KBOOST = 5, KGOAL = 6, KPLAT = 7
 CONST KLOOP = 8, KTREE = 9, KBUSH = 10, KFLOWER = 11, KROCK = 12, KTHORN = 13, KLAMP = 14, KFAM = 15, KPIPE = 16
 CONST KMOVE = 17, KPOST = 18, KTANK = 19, KVENT = 20, KJET = 21, KBUMP = 22, KSPIN = 23, KHOOP = 24
+CONST CABLED = 64, CABLEH = 44
 CONST KWAVE = 25, KWAVE2 = 26, WAVEA = 40, WAVEH = WAVEA + 16
 CONST JETV = 500!, BUMPV = 400!, HOOPV = 640!, SPINR = 30, SPINH = 70, PITD = 5
 
@@ -187,6 +188,7 @@ DECLARE SUB BuildLoop (k AS INTEGER, ce AS INTEGER, cr AS INTEGER)
 DECLARE SUB BuildPipe (k AS INTEGER, ce AS INTEGER, cr AS INTEGER)
 DECLARE SUB BuildWave (k AS INTEGER, ce AS INTEGER, ct AS INTEGER)
 DECLARE SUB Track ()
+DECLARE SUB DrawCables (cx AS INTEGER, cy AS INTEGER)
 DECLARE SUB Cycle ()
 DECLARE FUNCTION Ribbon% (x AS INTEGER)
 DECLARE SUB Pit (c AS INTEGER, g AS INTEGER, n AS INTEGER)
@@ -308,7 +310,7 @@ DATA boost,0, flat,4, wave,3, flat,8
 DATA dng,5, boost,0, bones,10, flat,10, up45,3, arc,11, pit,12, flat,10
 DATA cat,0, flat,6, bush,0, flat,4, spring,0, flat,2, plat,608, hb,706, flat,16, spin,0, flat,8
 DATA upg,4, flat,4, flower,0, flat,4
-DATA mark,0, flat,4, dn45,6, dng,2, boost,0, flat,5, loop,0, flat,6, boost,0, bones,8, flat,6, loop,0
+DATA mark,0, flat,4, cable,22, flat,8, dn45,2, dng,2, boost,0, flat,5, loop,0, flat,6, boost,0, bones,8, flat,6, loop,0
 DATA flat,6, boost,0, flat,6, loop,0, flat,10, up45,4, hoop,1, arc,10, pit,12, flat,10
 DATA boost,0, flat,6, pipe,7, flat,6, jet,0, flat,3, bump,5, flat,3, bump,6, flat,3, bump,5, flat,6
 DATA dng,5, boost,0, bones,10, flat,12, loop,0, flat,8, up45,3, arc,10, pit,11, flat,8
@@ -320,6 +322,7 @@ DATA flat,22, spin,0, flat,8, flower,0, flat,4
 DATA goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, "end",0
 
 ' pit: a jump's gap with a floor under it and a spring out; the platforms' gaps have one too.
+' cable: a basket down a cable over a pit that wide, the ground past it four lower.
 ' The Chrome Works: mover: a gap that wide with a platform to and fro over it. hover: a gap of 4 with one up and
 ' down, the ground past it that much higher. lift: a gap of 3 with a lift, the ground past it that much higher.
 Level2:
@@ -328,7 +331,7 @@ DATA boost,0, flat,4, wave,2, flat,8
 DATA dng,3, boost,0, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8, up45,3, arc,9, pit,10, flat,8
 DATA cat,0, flat,12, mover,8, flat,8, jet,0, flat,3, bump,5, flat,3, bump,5, flat,6, mark,0, flat,6
 DATA boost,0, flat,6, pipe,6, flat,8, bones,8, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0, flat,10
-DATA lift,6, flat,8, spin,0, flat,8, bones,6, flat,6, dn45,4, dng,3, boost,0, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0
+DATA lift,6, flat,8, spin,0, flat,8, bones,6, flat,6, cable,20, flat,8, dng,3, boost,0, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0
 DATA flat,8, up45,4, hoop,1, arc,11, pit,12, flat,10
 DATA mark,0, flat,6, cat,0, flat,12, hover,5, flat,8, bones,6, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0
 DATA flat,8, drop,4, flat,16, mover,7, flat,8, boost,0, flat,6, pipe,5, flat,8, dng,3, boost,0, flat,8, loop,0
@@ -494,6 +497,11 @@ SUB LoadLevel (z AS INTEGER)
             AddMover c * TS, s, n * TS, 2, c * TS
             Pit c, g, 3
             c = c + 3: g = g + n
+        CASE "cable"
+            ' a basket down a cable over a pit n wide, the ground past it CABLED lower
+            AddMover c * TS - 8, s, n * TS - MOVEW + 16, 3, c * TS
+            Pit c, g - CABLED \ TS, n
+            c = c + n: g = g - CABLED \ TS
         CASE "plat"
             FOR i = 1 TO n MOD 100
                 Map(c + i, MH - g - n \ 100 - 1) = 1
@@ -672,6 +680,12 @@ SUB Movers (p AS Hero)
             IF MvT(m) < 0 THEN MvT(m) = 0
             IF MvT(m) > MvA(m) THEN MvT(m) = MvA(m)
             y = y - MvT(m)
+        CASE 3
+            ' down its cable while stood on, faster as it goes; back up when left
+            IF p.ground AND p.sg = s THEN MvT(m) = MvT(m) + (.25 + MvT(m)) * .6 * STEPT ELSE MvT(m) = MvT(m) - .4 * STEPT
+            IF MvT(m) < 0 THEN MvT(m) = 0
+            IF MvT(m) > 1 THEN MvT(m) = 1
+            x = x + MvA(m) * MvT(m): y = y + CABLED * MvT(m)
         END SELECT
         dx = x - GX(s): dy = y - GY(s)
         IF dx <> 0 OR dy <> 0 THEN
@@ -1755,7 +1769,7 @@ SUB Pilot (p AS Hero, k AS Pad)
                     SELECT CASE MvK(m)
                     CASE 0: ready = Swing!(m, 0) < -.85 AND Swing!(m, 1) < 0
                     CASE 1: ready = Swing!(m, 0) >= 1 AND Swing!(m, 1) > .2
-                    CASE 2: ready = MvT(m) = 0
+                    CASE 2, 3: ready = MvT(m) = 0
                     END SELECT
                     IF ready THEN
                         k.r = -1: k.l = 0
@@ -2299,6 +2313,7 @@ SUB Render (g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
     DrawThings cx, cy, -1
     DrawTiles cx, cy
     DrawThings cx, cy, 0
+    IF NMv THEN DrawCables cx, cy
     IF LooseN THEN DrawLoose cx, cy, lo()
     DrawHero p, cx, cy
     IF PartN THEN DrawParts pt(), cx, cy
@@ -2488,6 +2503,26 @@ SUB DrawThings (cx AS INTEGER, cy AS INTEGER, back AS INTEGER)
         END IF
         i = i + 1
     LOOP
+END SUB
+
+' The cables and what their baskets hang by.
+SUB DrawCables (cx AS INTEGER, cy AS INTEGER)
+    DIM m AS INTEGER, x AS INTEGER, y AS INTEGER, x1 AS INTEGER, bx AS INTEGER, by AS INTEGER, i AS INTEGER
+    FOR m = 0 TO NMv - 1
+        IF MvK(m) = 3 THEN
+            x = MvE(m) - 8 - cx: y = MvY(m) - CABLEH - cy: x1 = x + MvA(m) + MOVEW
+            IF x < SW AND x1 >= 0 THEN
+                LINE (x, y)-(x1, y + CABLED), CINK
+                LINE (x, y + 1)-(x1, y + CABLED + 1), CYELLOW
+                LINE (x - 1, y - 2)-(x, y + CABLEH), CINK, BF
+                LINE (x1, y + CABLED - 2)-(x1 + 1, y + CABLED + CABLEH), CINK, BF
+                bx = ObX(MvO(m)) - cx: by = ObY(MvO(m)) - cy
+                FOR i = 4 TO MOVEW - 4 STEP MOVEW - 8
+                    LINE (bx + i, by)-(bx + i, y + 1 + CLNG(bx + i - x) * CABLED \ (x1 - x)), CINK
+                NEXT
+            END IF
+        END IF
+    NEXT
 END SUB
 
 SUB DrawLoose (cx AS INTEGER, cy AS INTEGER, lo() AS Loose)

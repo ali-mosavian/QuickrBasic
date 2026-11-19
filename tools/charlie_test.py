@@ -253,6 +253,15 @@ k.r = 0
 was = was AND p.ground AND GK(p.sg) = 1 AND p.x > MvX(m) + MOVEW
 FOR i = 1 TO 200: Tick g, p, k, lo(), pt(): NEXT
 IF was AND MvT(m) = 0 THEN PRINT "lift ok"
+' a basket goes down its cable under Charlie, to the ground past the pit
+NextZone g, p, lo(), pt()
+FOR m = 0 TO NMv - 1
+    IF MvK(m) = 3 THEN EXIT FOR
+NEXT
+c = MvS(m)
+p.x = GX(c) + 24: p.y = GY(c): p.sg = c: p.ground = -1: p.gsp = 0
+FOR i = 1 TO 300: Tick g, p, k, lo(), pt(): NEXT
+IF p.ground AND p.sg = c AND ABS(p.x - (MvX(m) + MvA(m) + 24)) < 2 AND ABS(p.y - (MvY(m) + CABLED)) < 2 THEN PRINT "cable ok"
 ' the Chrome Works played through by the pilot on one life, its platforms and lifts ridden
 NextZone g, p, lo(), pt()
 j = g.lives
@@ -362,6 +371,7 @@ def main() -> None:
         ("wave ok", "over a ribbon's humps and off its far end onto the ground"),
         ("carried ok", "carried by the platform stood on"),
         ("lift ok", "taken up by a lift, which goes back down when left"),
+        ("cable ok", "taken down a cable by its basket"),
         ("home ok", "back at the title on the Amber Downs after the Chrome Works"),
     ):
         if said not in out:
