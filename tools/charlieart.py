@@ -35,6 +35,7 @@ def ramp(first: int, a: tuple[int, int, int], b: tuple[int, int, int], n: int) -
 
 
 FUR = ramp(8, (33, 30, 31), (63, 63, 61), 6)
+SKIN = ramp(14, (38, 24, 18), (62, 47, 38), 4)
 TONGUE = ramp(18, (46, 16, 24), (63, 38, 44), 3)
 SCARF = ramp(21, (30, 3, 8), (63, 20, 14), 4)
 GRASS = ramp(25, (4, 26, 6), (42, 63, 10), 5)
@@ -332,6 +333,108 @@ def tilts() -> list[Pic]:
     return [tilted(h[f], deg) for deg in (-45, -26.57, 26.57, 45) for f in (4, 6, 8, 10, 11)]
 
 
+# ---- the family ----
+
+
+def person(
+    p: Pic,
+    cx: float,
+    tall: int,
+    hair: list[int],
+    top: list[int],
+    legs: int,
+    cheer: int,
+    shorts: int = 0,
+    shoes: int = INK,
+    wide: float = 4.5,
+    long: float = 0,
+) -> tuple[float, float]:
+    """Someone stood facing out, feet on row 44, tall high: hair, a top and legs of a colour (shorts: the bare rows
+    under them); long: hair that far down the sides; cheer: arms up. The head's middle."""
+    feet, r = 44, 4.6
+    hy = feet - tall + r
+    sh, hip = hy + r + 0.5, feet - tall * 0.36
+    for side in (-1, 1):
+        x = round(cx + side * 2)
+        p.box(x - 1, round(hip), x + 1, feet - 2, legs)
+        if shorts:
+            p.box(x - 1, feet - 2 - shorts, x + 1, feet - 2, SKIN[2] if side < 0 else SKIN[3])
+        p.box(x - 1, feet - 1, x + 1 + (side > 0), feet, shoes)
+        ax, ay = cx + side * (wide + 0.5), sh + 1.5
+        if cheer:
+            p.line(ax, ay, ax + side * 2.5, ay - 6, top[len(top) // 2], 2)
+            p.box(round(ax + side * 2.5), round(ay - 8), round(ax + side * 2.5) + 1, round(ay - 7), SKIN[3])
+        else:
+            hx, hand = ax + side * 1.2, ay + tall * 0.24
+            p.line(ax, ay, hx, hand, top[len(top) // 2], 2)
+            p.box(round(hx), round(hand), round(hx) + 1, round(hand) + 1, SKIN[3])
+    for y in range(round(sh), round(hip) + 2):
+        for x in range(round(cx - wide), round(cx + wide) + 1):
+            p.shade(x, y, top, 0.95 - (x - cx + wide) / (2 * wide) * 0.55 - (y - sh) / (hip - sh + 2) * 0.2)
+    if long:
+        for side in (-1, 1):
+            p.ball(cx + side * (r + 0.2), hy + long / 2, 1.8, r * 0.6 + long / 2, hair, 0.1, 0.9)
+    p.ball(cx, hy - 0.8, r + 0.6, r, hair, 0.2, 1.0)
+    p.ball(cx, hy + 0.9, r - 0.7, r - 0.9, SKIN, 0.45, 1.1)
+    for side in (-1, 1):
+        p.put(round(cx + side * 1.7), round(hy + 0.6), INK)
+    p.line(cx - 1, hy + 2.8, cx + 1, hy + 2.8, SCARF[1])
+    return cx, hy
+
+
+def blackdog(p: Pic, cx: float, hop: int) -> None:
+    """A small black dog, fluffy and prick eared, sat facing out: its tail up, its tongue out."""
+    feet = 44 - hop
+    dark = [INK, INK, STONE[0]]
+    p.ball(cx + 5, feet - 8, 2.4, 3.4, dark, 0.2, 0.9)
+    p.ball(cx, feet - 5, 5.2, 5.2, dark, 0.1, 0.8)
+    for side in (-1, 1):
+        p.ball(cx + side * 2.5, feet - 0.6, 2.0, 1.2, dark, 0.3, 1.0)
+        p.line(cx + side * 3, feet - 15, cx + side * 4, feet - 18.5, INK, 2)
+    p.ball(cx, feet - 12, 4.6, 4.2, dark, 0.15, 0.9)
+    p.ball(cx, feet - 10.5, 2.2, 1.7, [STONE[0], STONE[1]])
+    for side in (-1, 1):
+        p.put(round(cx + side * 2), round(feet - 13), FUR[5])
+    p.put(round(cx), round(feet - 11), INK)
+    p.put(round(cx), round(feet - 9), TONGUE[1])
+
+
+def family(cheer: int) -> Pic:
+    """Who meets Charlie at the level's end, left to right: the black dog, the little one in her spotted cap, the
+    big one with her guitar and headphones, and the two grown ups. cheer: arms up, the dog off the ground."""
+    p = Pic(112, 46)
+    grey, white, dark = STONE, FUR[2:], [INK, INK, STONE[0]]
+    blackdog(p, 9, cheer * 2)
+    # the little one: a white cap with spots, a pale hoodie, spotted leggings
+    cx, hy = person(p, 28, 22, WOOD, FUR[1:], FUR[3], cheer, shoes=FUR[5], wide=4.2, long=4)
+    p.ball(cx, hy - 2.6, 5.4, 3.0, white, 0.5, 1.2)
+    p.line(cx - 6, hy - 0.6, cx + 3, hy - 0.6, FUR[5])
+    for x, y, c in ((-3, -4, PETAL[0]), (1, -3, TEAL[3]), (3, -4, GOLD[3]), (-1, -5, PETAL[1])):
+        p.put(round(cx + x), round(hy + y), c)
+    for x, y in ((-3, 38), (-1, 40), (1, 37), (3, 39), (2, 41), (-2, 36)):
+        p.put(round(cx + x), y, INK)
+    # the big one: hair tied up, white headphones, a black hoodie, pale jeans, a guitar
+    cx, hy = person(p, 50, 31, WOOD, dark, METAL[2], cheer, wide=4.8)
+    p.ball(cx, hy - 5.6, 2.2, 1.8, WOOD, 0.3, 1.0)
+    p.line(cx - 5, hy - 3.6, cx + 5, hy - 3.6, FUR[5])
+    for side in (-1, 1):
+        p.ball(cx + side * 5.2, hy + 0.5, 1.6, 2.2, white, 0.5, 1.2)
+    p.ball(cx - 1, 31, 4.2, 3.6, EARTH[2:], 0.3, 1.0)
+    p.line(cx + 2, 29, cx + 11, 21 - cheer * 2, WOOD[3], 2)
+    p.put(round(cx + 11), 20 - cheer * 2, EARTH[7])
+    # a grown up: short fair hair, a grey hoodie, dark shorts, white socks
+    cx, hy = person(p, 74, 38, GOLD, grey[1:], SKY[5], cheer, shorts=7, shoes=FUR[5], wide=5.4, long=2)
+    # a grown up: short dark hair, stubble, a white shirt, dark shorts, white socks
+    cx, hy = person(p, 98, 41, dark, white, STONE[0], cheer, shorts=7, shoes=FUR[5], wide=5.8)
+    for x in range(-3, 4):
+        if (x & 1) == 0 or abs(x) == 3:
+            p.put(round(cx + x), round(hy + 3), STONE[1])
+        if x & 1 and abs(x) < 3:
+            p.put(round(cx + x), round(hy + 4), STONE[1])
+    p.line(cx - 1, hy + 2.8, cx + 1, hy + 2.8, SCARF[1])
+    return p.outline()
+
+
 # ---- the ground ----
 
 
@@ -590,6 +693,7 @@ def pictures() -> list[tuple[int, Pic, bool, int]]:
         (k + 48, lamp(), True, -1),
     ]
     out += [(k + 50 + i * 2, t, True, k + 90 + i * 2) for i, t in enumerate(tilts())]
+    out += [(k + 130 + f * 2, family(f), True, -1) for f in range(2)]
     return out
 
 

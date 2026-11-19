@@ -8,6 +8,7 @@ ground fails it.
 
 Every half bar of both tunes and every sound effect is played: a PLAY string the game builds wrong is an
 Illegal function call mid-game. Jump held through a hit must jump as the hit's hold ends: it was forgotten.
+The level cleared, Charlie must go on to its family past the goal and stop by them.
 First a cat is walked to the level's left end: its look ahead,
 left of column 0, was a negative tile column, and the game stopped with Subscript out of range.
 """
@@ -61,6 +62,10 @@ FOR i = 1 TO 9000
     IF g.mode <> PLAYING THEN EXIT FOR
 NEXT
 PRINT "result"; g.mode; g.lives; g.bones; loops; CINT(p.x); CINT(p.y)
+k.l = 0: k.r = 0: k.d = 0: k.jump = 0: k.hit = 0
+FOR i = 1 TO 400: Tick g, p, k, lo(), pt(): NEXT
+Render g, p, lo(), pt()
+IF p.win AND ABS(p.x - (FamX - 74)) < 3 AND Cheer THEN PRINT "met ok"
 END
 """
 
@@ -80,6 +85,8 @@ def main() -> None:
         sys.exit(f"charlie: a bar of the tune or a sound effect: {out[-300:]}")
     if "held ok" not in out:
         sys.exit(f"charlie: jump held through a hit, and no jump as it ends: {out[-300:]}")
+    if "met ok" not in out:
+        sys.exit(f"charlie: the level cleared, and Charlie not come to its family and stopped: {out[-300:]}")
     words = out[out.rfind("result") :].split()
     if len(words) < 5 or words[1:3] != ["2", "3"] or words[4] != "5":
         sys.exit(
