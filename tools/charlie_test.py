@@ -130,21 +130,21 @@ FOR j = 0 TO NObj - 1
     IF ObK(j) = KLOOP THEN EXIT FOR
 NEXT
 c = ObX(j)
-Stand p, c - 8, 420
+Stand p, c - 8, 460
 was = 0
-FOR i = 1 TO 200
+FOR i = 1 TO 300
     MoveHero p, k, pt()
     IF p.ground THEN IF GU(p.sg) < -.9 THEN was = -1
-    IF p.x > c + 60 THEN EXIT FOR
+    IF p.x > c + LOOPR + 12 THEN EXIT FOR
 NEXT
-v = was AND p.ground AND p.x > c + 60
+v = was AND p.ground AND p.x > c + LOOPR + 12
 Stand p, c - 60, 200
 was = 0
 FOR i = 1 TO 300
     MoveHero p, k, pt()
     IF p.ground THEN IF GU(p.sg) < 0 THEN was = -1
 NEXT
-IF v AND was = 0 AND p.ground AND ABS(p.x - c) < 60 AND p.y > ObY(j) - 8 THEN PRINT "loop ok"
+IF v AND was = 0 AND p.ground AND ABS(p.x - c) < LOOPR AND p.y > ObY(j) - 8 THEN PRINT "loop ok"
 ' too slow at its top, Charlie falls from it and lands inside
 Stand p, c - 8, 340
 was = 0
@@ -152,7 +152,7 @@ FOR i = 1 TO 200
     MoveHero p, k, pt()
     IF NOT p.ground AND p.y < ObY(j) - LOOPR THEN was = -1
 NEXT
-IF was AND p.ground AND p.x < c + 60 THEN PRINT "stall ok"
+IF was AND p.ground AND p.x < c + LOOPR THEN PRINT "stall ok"
 ' a jump before a loop comes down on the ground under it, not on the far half of the ring
 Stand p, c - 30, 0
 k.hit = -1: k.jump = -1: was = 0

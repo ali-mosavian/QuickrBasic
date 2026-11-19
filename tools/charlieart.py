@@ -330,9 +330,10 @@ def tilted(src: Pic, deg: float) -> Pic:
 
 
 def tilts() -> list[Pic]:
-    """Three of the run and the two of the dash, down 45 and 27 degrees, then up 27 and 45."""
+    """Three of the run and the two of the dash, turned each 22.5 degrees from level to all but upside down: the
+    game mirrors them and turns them over for the rest of the way round."""
     h = hero()
-    return [tilted(h[f], deg) for deg in (-45, -26.57, 26.57, 45) for f in (4, 6, 8, 10, 11)]
+    return [tilted(h[f], i * 22.5) for i in range(8) for f in (4, 6, 8, 10, 11)]
 
 
 # ---- the family ----
@@ -1043,12 +1044,12 @@ def pictures() -> list[tuple[int, Pic, bool, int]]:
         (k + 46, thorn(), True, -1),
         (k + 48, lamp(), True, -1),
     ]
-    out += [(k + 50 + i * 2, t, True, k + 90 + i * 2) for i, t in enumerate(tilts())]
-    out += [(k + 130 + f * 2, family(f), True, -1) for f in range(2)]
+    out += [(k + 50 + i * 2, t, True, k + 130 + i * 2) for i, t in enumerate(tilts())]
+    out += [(k + 370 + f * 2, family(f), True, -1) for f in range(2)]
     out += [
         (7, words("CHARLIE", 170, 26, 2.8, 5), True, -1),
-        (k + 134, words("BARKLEY", 170, 26, 2.8, 5), True, -1),
-        (k + 136, words("AMBER DOWNS", 178, 18, 1.8, 3.2), True, -1),
+        (k + 374, words("BARKLEY", 170, 26, 2.8, 5), True, -1),
+        (k + 376, words("AMBER DOWNS", 178, 18, 1.8, 3.2), True, -1),
     ]
     return out
 
