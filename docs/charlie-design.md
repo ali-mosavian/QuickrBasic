@@ -238,8 +238,8 @@ A still mockup of each zone is agreed before it is wired in.
 
 ## What the engine needs
 
-- Pictures loaded a zone at a time. Both zones sit in the store together now, and the zone is the stage's low
-  bit.
+- Pictures loaded a zone at a time. Both zones sit in the store together now. (Stages are in zone order: a
+  zone's two acts, then the next zone's.)
 - Levels in the data file, not the program's DATA.
 - Songs loaded a zone at a time, more than the two there are.
 - A kit named by each song. The horn, organ and clavinet are fixed in the loader now.

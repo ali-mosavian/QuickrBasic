@@ -44,7 +44,7 @@ ZPAL: dict[int, dict[int, tuple[int, int, int]]] = {0: {}, 1: {}, 2: {}, 3: {}}
 
 
 def pal(z: int) -> dict[int, tuple[int, int, int]]:
-    """The colours on screen in zone z."""
+    """The colours on screen in stage z."""
     return PAL | ZPAL[z]
 
 
@@ -1022,11 +1022,12 @@ def thorn() -> Pic:
 # ---- Amber Downs: every tone placed by rule, none dithered; its colours its own ----
 
 
-def tones(first: int, *hexes: str, zone: int = -1) -> list[int]:
-    """Palette entries from first, a colour each; their indices. zone: only that zone's, over the shared ones."""
+def tones(first: int, *hexes: str, stage: int = -1) -> list[int]:
+    """Palette entries from first, a colour each; their indices. stage: only that stage's, over the shared ones:
+    a stage is a zone at an hour, the zone's first act even and its second odd."""
     for i, h in enumerate(hexes):
         rgb = (int(h[1:3], 16) * 63 // 255, int(h[3:5], 16) * 63 // 255, int(h[5:7], 16) * 63 // 255)
-        (PAL if zone < 0 else ZPAL[zone])[first + i] = rgb
+        (PAL if stage < 0 else ZPAL[stage])[first + i] = rgb
     return list(range(first, first + len(hexes)))
 
 
@@ -1787,32 +1788,32 @@ GLOWC = ramp(210, (4, 34, 46), (56, 63, 63), 3)
 # colours the game turns as it runs: a deck's four lights, a fan's blades, the glints along a pipe
 CHASE, FAN, FLOW = [213, 214, 215, 216], [217, 218, 219, 220], [221, 222, 223, 224]
 PAL.update(dict.fromkeys(CHASE, (4, 34, 46)) | dict.fromkeys(FAN, (5, 4, 8)) | dict.fromkeys(FLOW, (50, 31, 15)))
-DUSK = tones(96, "#241858", "#3C2070", "#5C2C88", "#84389C", "#B048A4", "#D8609C", "#F08088", "#FFA878", zone=1)
-DUSK += tones(104, "#FFD488", zone=1)
-STAR = tones(105, "#FFF0FF", "#B894D8", zone=1)
-WISP = tones(107, "#FFC8A0", "#E888A8", "#A85CA8", zone=1)  # a cloud's lit underside, its body, its top
-TOWN = tones(110, "#B060A0", "#94488C", "#D888B0", zone=1)  # the far city: a face, its shade, its lit edge
-CITY = tones(113, "#4C2C78", "#382060", "#6C4498", "#241448", zone=1)  # the near: and the dark under it
-PANE = tones(117, "#FFE890", "#FFB060", "#7C54A8", zone=1)  # a window lit, warm, dark
-WORKS = tones(120, "#0C1438", "#142454", "#1E3C74", "#2C5C98", "#58A4CC", "#A8E4F0", zone=1)
-LAMP = tones(126, "#FFE478", "#F04858", "#F0E8F8", zone=1)
-DECK = tones(129, "#F4FCFF", "#C4D8EC", "#8CA4CC", "#5C7098", "#343C68", "#1C1838", zone=1)
-HAZARD = tones(135, "#FFE478", "#FFC428", "#C88818", zone=1)
-SUNSET = tones(141, "#FFFCD8", "#FFE890", zone=1)
+DUSK = tones(96, "#241858", "#3C2070", "#5C2C88", "#84389C", "#B048A4", "#D8609C", "#F08088", "#FFA878", stage=2)
+DUSK += tones(104, "#FFD488", stage=2)
+STAR = tones(105, "#FFF0FF", "#B894D8", stage=2)
+WISP = tones(107, "#FFC8A0", "#E888A8", "#A85CA8", stage=2)  # a cloud's lit underside, its body, its top
+TOWN = tones(110, "#B060A0", "#94488C", "#D888B0", stage=2)  # the far city: a face, its shade, its lit edge
+CITY = tones(113, "#4C2C78", "#382060", "#6C4498", "#241448", stage=2)  # the near: and the dark under it
+PANE = tones(117, "#FFE890", "#FFB060", "#7C54A8", stage=2)  # a window lit, warm, dark
+WORKS = tones(120, "#0C1438", "#142454", "#1E3C74", "#2C5C98", "#58A4CC", "#A8E4F0", stage=2)
+LAMP = tones(126, "#FFE478", "#F04858", "#F0E8F8", stage=2)
+DECK = tones(129, "#F4FCFF", "#C4D8EC", "#8CA4CC", "#5C7098", "#343C68", "#1C1838", stage=2)
+HAZARD = tones(135, "#FFE478", "#FFC428", "#C88818", stage=2)
+SUNSET = tones(141, "#FFFCD8", "#FFE890", stage=2)
 
 # each zone again at another hour: the Amber Downs at evening, the works by night, their pictures recoloured
-tones(96, "#3A1C6C", "#5C2880", "#883490", "#B84890", "#E06080", "#F88468", "#FFAC60", "#FFD070", "#FFF0A0", zone=2)
-tones(105, "#FFE8E0", "#E8B8D8", "#C898CC", "#A87CBC", "#8C64A8", "#A074B8", "#8860A8", "#704C98", "#5C3C84", zone=2)
-tones(114, "#4C3074", "#7C6CA8", "#644C98", "#503C84", zone=2)
-tones(118, "#2C4C74", "#38648C", "#4C7C98", "#6898A0", "#90B4A4", "#C0D0A8", "#203860", "#FFD0C0", "#E890B0", zone=2)
-tones(128, "#C8589C", "#FFD0B0", "#FFE8A0", "#FFC050", "#F09028", "#D06420", "#A84024", "#782830", "#501C34", zone=2)
-tones(141, "#FFF4B0", "#FFD870", "#FFB850", "#7C3C98", "#F08090", "#FFC090", "#FFF0C0", zone=2)
-tones(225, "#E8F880", "#A0DC40", "#58B830", "#2C9034", "#186840", "#104444", zone=2)
-ZPAL[3].update(ZPAL[1])
-tones(96, "#0C1030", "#101840", "#182454", "#20306C", "#284084", "#30549C", "#3C6CB0", "#5088C4", "#70A8D8", zone=3)
-tones(107, "#8098D0", "#5870B0", "#405090", "#3C4C8C", "#2C3870", "#5870B0", zone=3)
-tones(113, "#1C2458", "#141A44", "#2C3C78", "#0C1030", zone=3)
-tones(141, "#F4F8FF", "#C8D8F0", zone=3)
+tones(96, "#3A1C6C", "#5C2880", "#883490", "#B84890", "#E06080", "#F88468", "#FFAC60", "#FFD070", "#FFF0A0", stage=1)
+tones(105, "#FFE8E0", "#E8B8D8", "#C898CC", "#A87CBC", "#8C64A8", "#A074B8", "#8860A8", "#704C98", "#5C3C84", stage=1)
+tones(114, "#4C3074", "#7C6CA8", "#644C98", "#503C84", stage=1)
+tones(118, "#2C4C74", "#38648C", "#4C7C98", "#6898A0", "#90B4A4", "#C0D0A8", "#203860", "#FFD0C0", "#E890B0", stage=1)
+tones(128, "#C8589C", "#FFD0B0", "#FFE8A0", "#FFC050", "#F09028", "#D06420", "#A84024", "#782830", "#501C34", stage=1)
+tones(141, "#FFF4B0", "#FFD870", "#FFB850", "#7C3C98", "#F08090", "#FFC090", "#FFF0C0", stage=1)
+tones(225, "#E8F880", "#A0DC40", "#58B830", "#2C9034", "#186840", "#104444", stage=1)
+ZPAL[3].update(ZPAL[2])
+tones(96, "#0C1030", "#101840", "#182454", "#20306C", "#284084", "#30549C", "#3C6CB0", "#5088C4", "#70A8D8", stage=3)
+tones(107, "#8098D0", "#5870B0", "#405090", "#3C4C8C", "#2C3870", "#5870B0", stage=3)
+tones(113, "#1C2458", "#141A44", "#2C3C78", "#0C1030", stage=3)
+tones(141, "#F4F8FF", "#C8D8F0", stage=3)
 
 
 def plate(u: int, d: int) -> int:
@@ -2499,11 +2500,11 @@ def audit(pics: list[tuple[int, Pic, bool, int]]) -> None:
         used = {v for row in p.p for v in row}
         for z in ZPAL:
             if k not in OWN[0] | OWN[1] and used & ZPAL[z].keys():
-                sys.exit(f"charlieart: picture {k} uses zone {z}'s own colours {sorted(used & ZPAL[z].keys())}")
+                sys.exit(f"charlieart: picture {k} uses stage {z}'s own colours {sorted(used & ZPAL[z].keys())}")
 
 
 def blob() -> bytes:
-    """CHARLIE.DAT: the 1-based byte its tunes start at, the palette, each zone's own, the pictures, the tunes;
+    """CHARLIE.DAT: the 1-based byte its tunes start at, the palette, each stage's own, the pictures, the tunes;
     each value a little-endian LONG."""
     pics = pictures()
     audit(pics)

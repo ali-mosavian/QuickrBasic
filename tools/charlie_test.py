@@ -431,19 +431,21 @@ for i = 1 to 400
 next
 Render g, p, lo(), pt()
 if p.win and abs(p.x - (FamX - 106)) < 3 and Cheer and abs(g.camx - (FamX - 166)) < 3 then print "met ok"
-' it stays a while, fades, and the Chrome Works begin in full colour, the score and lives kept
+' it stays a while, fades, and the Downs' evening begins in full colour, the score and lives kept
 was = 0
 j = g.lives
 for i = 1 to 900
     Tick g, p, k, lo(), pt()
     if Dusk < 8 then was = i
-    if Zone = 1 then exit for
+    if Stage = 1 then exit for
 next
-if was > 60 and Zone = 1 and g.mode = PLAYING and Dusk = 16 and g.score > 0 and g.lives = j then print "faded ok"
+was = was > 60 and Stage = 1 and Zone = 0
+if was and g.mode = PLAYING and Dusk = 16 and g.score > 0 and g.lives = j then print "faded ok"
 ' and in its own colours, over the shared ones
-zp = Zone = 1 and ZPN(1) > 0 and Pal(ZPK(1, 0)) = ZPC(1, 0) and ZPC(1, 0) <> Pal0(ZPK(1, 0))
+zp = ZPN(1) > 0 and Pal(ZPK(1, 0)) = ZPC(1, 0) and ZPC(1, 0) <> Pal0(ZPK(1, 0))
 ' the works have their own tune in the zone's slot, at 132: its kit, its voicings and its first half bar played. They
 ' had the Downs'
+GoStage 2, g, p, lo(), pt()
 PickSong SongFor%(g), 0
 NextHalf
 for i = 0 to NVOICE - 1
@@ -470,7 +472,7 @@ next
 if p.ground and p.sg = c and abs(p.x - GX(c) - 24) < 2 and v - was > 40 then print "carried ok"
 ' who flees in a chase, met at the race's end: run into, its cart hurts Charlie and takes no bump; rolled into, it
 ' takes one and is dazed; dazed, it takes no other
-GoStage 2, g, p, lo(), pt()
+GoStage 1, g, p, lo(), pt()
 Cart.st = 1
 Cart.x = ChaseEnd
 Cart.y = GroundAt%(ChaseEnd)
@@ -502,7 +504,7 @@ k.r = 0
 ' on a slope the cart follows it, each wheel on the ground under it: it was drawn level, a wheel sunk in the slope
 ' and a wheel in the air. The picture without the cart and with it, down its wheels' columns: halfway down a slope
 ' of the race, then at the slope's foot, its front wheel on the level
-GoStage 2, g, p, lo(), pt()
+GoStage 1, g, p, lo(), pt()
 g.modeT = 5
 g.shake = 0
 was = -1
@@ -636,7 +638,7 @@ next
 if was and Cart.st = 3 and g.score = hid + 1500 then print "toolbox ok"
 was = 0
 ' a lift goes up under Charlie to the ground above, and back down once it is left
-GoStage 1, g, p, lo(), pt()
+GoStage 2, g, p, lo(), pt()
 for m = 0 to NMv - 1
     if MvK(m) = 2 then exit for
 next
@@ -661,7 +663,7 @@ for i = 1 to 200
 next
 if was and MvT(m) = 0 then print "lift ok"
 ' a basket goes down its cable under Charlie, to the ground past the pit
-GoStage 1, g, p, lo(), pt()
+GoStage 2, g, p, lo(), pt()
 for m = 0 to NMv - 1
     if MvK(m) = 3 then exit for
 next
@@ -677,7 +679,7 @@ next
 was = p.ground and p.sg = c and abs(p.x - (MvX(m) + MvA(m) + 24)) < 2
 if was and abs(p.y - (MvY(m) + CABLED)) < 2 then print "cable ok"
 ' a button trodden raises its bridge out of the pit, and the bridge carries
-GoStage 1, g, p, lo(), pt()
+GoStage 2, g, p, lo(), pt()
 for m = 0 to NMv - 1
     if MvK(m) = 4 then exit for
 next
@@ -707,26 +709,15 @@ for i = 1 to 30
 next
 was = was and MvT(m) = MvA(m) and p.ground and p.sg = c
 if was and abs(p.y - (MvY(m) - MvA(m))) < 2 then print "bridge ok"
-' the Chrome Works played through by the pilot on one life, its platforms and lifts ridden
+' the Amber Downs at evening played through by the pilot on one life; after its family and its fade the Chrome
+' Works, their platforms and lifts ridden, then the works by night: each cleared on that life
 GoStage 1, g, p, lo(), pt()
 j = g.lives
-for i = 1 to 14000
-    Pilot p, k
-    Tick g, p, k, lo(), pt()
-    if g.mode <> PLAYING then exit for
-next
-print "works"; g.mode; g.lives - j; Zone; cint(p.x); cint(p.y)
-k.l = 0
-k.r = 0
-k.d = 0
-k.jump = 0
-k.hit = 0
-' after its family and its fade the Amber Downs at evening, then the works by night: each cleared on that life
 was = 0
-for m = 2 to 3
+for m = 1 to 3
     for i = 1 to 1600
-        Tick g, p, k, lo(), pt()
         if Stage = m and g.mode = PLAYING then exit for
+        Tick g, p, k, lo(), pt()
     next
     for i = 1 to 16000
         Pilot p, k
@@ -736,7 +727,7 @@ for m = 2 to 3
     next
     ' the Downs' evening ends in a chase: the cart fled down the race to the chase's tune, was bumped till it broke,
     ' and its keepsake taken, the zone's tune back
-    if m = 2 and was and Cart.st = 3 and Cart.hits = NBUMP and ZHeld = 1 then print "chase ok"
+    if m = 1 and was and Cart.st = 3 and Cart.hits = NBUMP and ZHeld = 1 then print "chase ok"
     print "act"; m; g.mode; g.lives - j; Stage; Zone; cint(p.x)
     k.l = 0
     k.r = 0
@@ -935,15 +926,12 @@ def main() -> None:
         sys.exit(f"charlie: the title's run not ended with the family, held and faded: {out[-300:]}")
     if "faded ok" not in out:
         sys.exit(f"charlie: the level's end not held, faded out and begun again in full colour: {out[-300:]}")
-    for act in ("2", "3"):
+    for act in ("1", "2", "3"):
         got = out[out.rfind(f"act {act} ") :].split()
-        if got[1:5] != [act, "2", "0", act]:
+        if got[1:6] != [act, "2", "0", act, str(int(act) // 2)]:
             sys.exit(
-                f"charlie: level {act} not cleared on one life (level, mode, lives lost, level, zone, x): {out[-300:]}"
+                f"charlie: stage {act} not cleared on one life (stage, mode, lives lost, stage, zone, x): {out[-300:]}"
             )
-    works = out[out.rfind("works") :].split()
-    if works[1:4] != ["2", "0", "1"]:
-        sys.exit(f"charlie: the Chrome Works not cleared on one life (mode, lives lost, zone, x, y): {out[-300:]}")
     words = out[out.rfind("result") :].split()
     if len(words) < 5 or words[1:3] != ["2", "3"] or words[4] != "10":
         sys.exit(

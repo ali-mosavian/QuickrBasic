@@ -195,7 +195,7 @@ const ICART = IBASKET + 2, ICARTW = ICART + 12, CARTW = 56, CARTH = 34, CARTLEAN
 ' Sprocket's crane as it goes and bumped, a length of its rail, its crate, the toolbox.
 const ICRANE = ICARTW + 4, IRAIL = ICRANE + 4, IWBOX = IRAIL + 2, ITOOLS = IWBOX + 2, NIMG = ITOOLS + 2
 const HUDW = 108, HUDH = 40
-' The levels: the two zones, then each again at another hour, in other colours.
+' The levels: a zone's two acts, the second at another hour in other colours, zone by zone.
 ' the stages played, and after them the intro's road
 const NSTAGE = 4, SINTRO = NSTAGE
 ' The intro: BEATS a second, ILEN of them, the ground HORIZON down the screen between two bars BARH high. Its
@@ -276,6 +276,8 @@ declare sub AddMover (x as integer, y as integer, a as integer, k as integer, e 
 declare sub Movers (p as Hero)
 declare function Swing! (m as integer, quarter as integer)
 declare sub GoStage (n as integer, g as Game, p as Hero, lo() as Loose, pt() as Part)
+declare function ZoneOf% (st as integer)
+declare sub SeekLevel (st as integer)
 declare sub Column (c as integer, g as integer, kind as integer)
 declare sub AddObj (k as integer, x as integer, y as integer)
 declare sub SortObjs ()
@@ -437,7 +439,7 @@ end
 
 ' The Amber Downs, left to right: a command and its count. g, the ground's
 ' height in tiles, starts at 10. plat and hb: height * 100 + length.
-Level:
+Downs1:
 data flat,4, dog,0, flat,4, flower,0, flat,4, bones,6, flat,8, tree,0, flat,4
 data upg,2, flat,3, cat,0, flat,6, bush,0, dng,3, boost,0, bones,8, flat,10
 data loop,0, flat,8, bones,6, flat,6, up45,2, flat,2, arc,7, gap,7, flat,8
@@ -461,23 +463,9 @@ data goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, "end",0
 ' pit: a jump's gap with a floor under it and a spring out; the platforms' gaps have one too.
 ' button, then bridge: a pit that wide, bridged once the button before it is trodden.
 ' cable: a basket down a cable over a pit that wide, the ground past it four lower.
-' The Chrome Works: mover: a gap that wide with a platform to and fro over it. hover: a gap of 4 with one up and
-' down, the ground past it that much higher. lift: a gap of 3 with a lift, the ground past it that much higher.
-Level2:
-data flat,4, dog,0, flat,8, bones,6, flat,8, boost,0, bones,8, flat,10, loop,0, flat,10
-data boost,0, flat,4, wave,1, flat,8
-data dng,3, boost,0, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8, up45,3, arc,9, pit,10, flat,8
-data cat,0, flat,12, mover,8, flat,8, jet,0, flat,3, bump,5, flat,3, bump,5, flat,6, button,0, flat,10, bridge,9, flat,6, mark,0, flat,6
-data boost,0, flat,6, pipe,6, flat,8, bones,8, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0, flat,10
-data lift,6, flat,8, spin,0, flat,8, bones,6, flat,6, cable,20, flat,8, dng,3, boost,0, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0
-data flat,8, up45,4, hoop,1, arc,11, pit,12, flat,10
-data mark,0, flat,6, cat,0, flat,12, hover,5, flat,8, bones,6, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0
-data flat,8, drop,4, flat,16, mover,7, flat,8, boost,0, flat,6, pipe,5, flat,8, dng,3, boost,0, flat,8, loop,0
-data flat,10, goal,0, flat,9, fam,0, flat,6, flat,5, "end",0
-
 ' The Amber Downs at evening. chase: a race from here that many columns long, down from two pipes: Biscuit's
 ' honey cart flees along it.
-Level3:
+Downs2:
 data flat,4, dog,0, flat,6, bones,6, flat,6, boost,0, flat,6, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
 data up45,3, arc,9, pit,10, flat,8, flower,0, flat,4
 data dng,4, boost,0, bones,10, flat,10, loop,0, flat,8, boost,0, flat,4, wave,2, flat,8
@@ -493,9 +481,23 @@ data chase,156, flat,12, bones,8, dng,3, flat,16, dng,3, flat,16, bones,8, dng,3
 data bones,8, dng,2, flat,16, dng,2, flat,36
 data goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, "end",0
 
+' The Chrome Works: mover: a gap that wide with a platform to and fro over it. hover: a gap of 4 with one up and
+' down, the ground past it that much higher. lift: a gap of 3 with a lift, the ground past it that much higher.
+Works1:
+data flat,4, dog,0, flat,8, bones,6, flat,8, boost,0, bones,8, flat,10, loop,0, flat,10
+data boost,0, flat,4, wave,1, flat,8
+data dng,3, boost,0, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8, up45,3, arc,9, pit,10, flat,8
+data cat,0, flat,12, mover,8, flat,8, jet,0, flat,3, bump,5, flat,3, bump,5, flat,6, button,0, flat,10, bridge,9, flat,6, mark,0, flat,6
+data boost,0, flat,6, pipe,6, flat,8, bones,8, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0, flat,10
+data lift,6, flat,8, spin,0, flat,8, bones,6, flat,6, cable,20, flat,8, dng,3, boost,0, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0
+data flat,8, up45,4, hoop,1, arc,11, pit,12, flat,10
+data mark,0, flat,6, cat,0, flat,12, hover,5, flat,8, bones,6, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0
+data flat,8, drop,4, flat,16, mover,7, flat,8, boost,0, flat,6, pipe,5, flat,8, dng,3, boost,0, flat,8, loop,0
+data flat,10, goal,0, flat,9, fam,0, flat,6, flat,5, "end",0
+
 ' The Chrome Works by night. chase: a hall that long, jets in its floor and hoops over them: Sprocket's crane
 ' goes along its roof.
-Level4:
+Works2:
 data flat,4, dog,0, flat,8, bones,6, flat,6, boost,0, flat,6, loop,0, flat,6, boost,0, flat,6, loop,0, flat,16
 data mover,7, flat,8, bones,6, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0, flat,8
 data up45,3, arc,9, pit,10, flat,8, cat,0, flat,10, hover,5, flat,8, mark,0, flat,6
@@ -716,16 +718,38 @@ sub Flop (k as integer, k2 as integer, w as integer, h as integer)
     Grab 100, 0, 100 + w - 1, h - 1, k2
 end sub
 
-' The ground's columns, then what stands on them, from the Level DATA.
+' A stage's zone: two acts a zone; the intro's road is the Downs.
+function ZoneOf% (st as integer)
+    ZoneOf% = st \ 2
+    if st = SINTRO then ZoneOf% = 0
+end function
+
+' The next DATA read is a stage's level: a zone's two acts, zone by zone, then the intro's road.
+sub SeekLevel (st as integer)
+    select case st
+    case 0
+        restore Downs1
+    case 1
+        restore Downs2
+    case 2
+        restore Works1
+    case 3
+        restore Works2
+    case else
+        restore Road
+    end select
+end sub
+
+' The ground's columns, then what stands on them, from the stage's DATA.
 sub LoadLevel (st as integer)
     dim cmd as string, n as integer, c as integer, g as integer, bx as integer
     dim i as integer, s as integer, k as integer, z as integer, light as integer
     Stage = st
-    z = st and 1
+    z = ZoneOf%(st)
     Zone = z
     ' the intro's road is the Downs at dawn, lit as at evening
     light = st
-    if st = SINTRO then light = 2
+    if st = SINTRO then light = 1
     for i = 0 to 255
         Pal(i) = Pal0(i)
     next
@@ -754,25 +778,14 @@ sub LoadLevel (st as integer)
         ZPipe = IZ2 + 7
         ZCard = ICARD2
         ZWave = IWAVE + 4
-        if st = 1 then
-            restore Level2
-        else
-            restore Level4
-        end if
     else
         ZTile = ITILE
         ZBack = IBG
         ZLoop = ILOOP
         ZCard = ICARD
         ZWave = IWAVE
-        if st = 0 then
-            restore Level
-        elseif st = SINTRO then
-            restore Road
-        else
-            restore Level3
-        end if
     end if
+    SeekLevel st
     do
         read cmd, n
         s = (MH - g) * TS
@@ -1746,7 +1759,7 @@ end sub
 
 ' Stage st's own tune, its number in CHARLIE.DAT: its zone's, the intro's for its road.
 function TuneOf% (st as integer)
-    TuneOf% = (st and 1) * 4
+    TuneOf% = ZoneOf%(st) * 4
     if st = SINTRO then TuneOf% = 3
 end function
 
@@ -2311,7 +2324,7 @@ sub Tick (g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part)
             end if
             if (Ticks and 3) = 0 then Sfx SBONE
         end if
-        ' met, a while and the fade over: on to the next zone, or after the last, the title
+        ' met, a while and the fade over: on to the next stage, or after the last, the title
         if k.quit then
             ResetWorld g, p, lo(), pt()
         elseif Met%(g, p, k, pt()) then
@@ -3699,7 +3712,7 @@ sub Render (g as Game, p as Hero, lo() as Loose, pt() as Part)
             line (x, 84)-(x + SW - 1, 85), CGOLD + 3, BF
             line (x, 109)-(x + SW - 1, 110), CGOLD + 3, BF
             Blit x + (SW - 178) \ 2, 89, ZCard, 178, 18
-            if Stage > 1 and x = 0 then Txt 14, 17, "ACT 2", CYELLOW
+            if (Stage and 1) and x = 0 then Txt 14, 17, "ACT 2", CYELLOW
         end if
     case CLEARED
         Blit 6, 5, IHUD, HUDW, HUDH
