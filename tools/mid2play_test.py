@@ -26,6 +26,7 @@ def song() -> bytes:
         [
             (0, b"\xff\x51\x03" + (60_000_000 // 240).to_bytes(3, "big")),
             (0, bytes([0xC0, 81])),
+            (0, bytes([0xB0, 10, 96])),  # panned half way right
             (0, bytes([on, 60, 100])),  # middle C, a quarter
             (0, bytes([on, 64, 100])),  # with an E over it: a voice each
             (QUARTER, bytes([off, 60, 0])),
@@ -118,6 +119,13 @@ def main() -> None:
     assert lines[1].startswith('PLAY "MBT240W0Q20'), lines[1]
     # no voice in a room: a recording fell silent 130 ms after its full band, where a room's tail stood 20 dB under
     assert "R" not in lines[1].replace("PLAY", ""), lines[1]
+    # and further from the middle as asked: a file's pans, half way to each side, were 4.6 dB narrower than a recording
+    wide = mid2play.program(mid2play.read(song()), 10, None, 16, wide=1.5).splitlines()[1]
+    assert wide.startswith('PLAY "MBT240W0Q20H3,4,9,1U5I4S13"'), wide
+    # a track is where its pan puts it, 1 the left to 15 the right: every voice was in the middle
+    assert lines[1].startswith('PLAY "MBT240W0Q20H3,4,9,1U5I4S12", "T240W0Q20H3,4,9,1U5I4S12", "T240Z1,0L16W4'), lines[
+        1
+    ]
     # but as much of one as is asked, on the voices that are not the kit's: with none at all a song was dry to the ear
     roomy = mid2play.program(mid2play.read(song()), 10, None, 16, room=1).splitlines()[1]
     assert roomy.startswith('PLAY "MBT240R1W0Q20') and roomy.count("R1") == 2, roomy

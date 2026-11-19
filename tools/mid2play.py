@@ -66,6 +66,7 @@ class Song(NamedTuple):
     tempo: float  # quarters a minute
     voices: dict[tuple[int, int], list[Note]]  # by track and channel
     programs: dict[tuple[int, int], int]
+    pans: dict[tuple[int, int], int]  # controller 10's last, 0 the left to 127 the right
 
 
 def number(data: bytes, at: int) -> tuple[int, int]:
@@ -87,6 +88,7 @@ def read(data: bytes) -> Song:
         sys.exit("mid2play: SMPTE time is not read")
     voices: dict[tuple[int, int], list[Note]] = defaultdict(list)
     programs: dict[tuple[int, int], int] = {}
+    pans: dict[tuple[int, int], int] = {}
     tempo, at = 120.0, 14
     for track in range(tracks):
         size = int.from_bytes(data[at + 4 : at + 8], "big")
@@ -113,6 +115,8 @@ def read(data: bytes) -> Song:
                 i += 1
                 continue
             pitch, velocity, i = chunk[i], chunk[i + 1], i + 2
+            if event == 0xB0 and pitch == 10:
+                pans[track, channel] = velocity
             if event == 0xE0:
                 wheel[channel] = (pitch | velocity << 7) - 8192
                 for (of, _), note in sounding.items():
@@ -125,7 +129,7 @@ def read(data: bytes) -> Song:
             elif event in (0x80, 0x90) and (channel, pitch) in sounding:
                 start, loud, bend, back = sounding.pop((channel, pitch))
                 voices[track, channel].append(Note(start, tick - start, pitch, loud, bend, back or tick - start))
-    return Song(division, tempo, voices, programs)
+    return Song(division, tempo, voices, programs, pans)
 
 
 GLIDES = (0, 10, 20, 30, 40, 60, 80, 100, 120, 150, 200, 250, 300, 400, 500, 800)  # K's times, ms
@@ -253,9 +257,10 @@ class Part(NamedTuple):
     notes: list[Note]
     sound: str
     drum: str | None  # a drum's note
+    side: str = ""  # S's command, if it is not in the middle
 
 
-def parts(song: Song, unit: int | None = None) -> list[Part]:
+def parts(song: Song, unit: int | None = None, wide: float = 1.0) -> list[Part]:
     """A voice a track, one more for each note under the highest of a chord (those struck at one place of `unit`
     ticks), and one a drum of the kit: the kit in one voice lost the hat under every kick and snare, 784 of a song's
     1600."""
@@ -263,6 +268,8 @@ def parts(song: Song, unit: int | None = None) -> list[Part]:
     out: list[Part] = []
     for key in sorted(song.voices):
         name = f"track {key[0]} channel {key[1] + 1}"
+        pan = max(1, min(15, 8 + round((song.pans.get(key, 64) - 64) * 7 / 63 * wide)))
+        side = f"S{pan}" if pan != 8 else ""
         if key[1] != KIT_CHANNEL:
             struck: dict[int, list[Note]] = defaultdict(list)
             for note in song.voices[key]:
@@ -271,13 +278,13 @@ def parts(song: Song, unit: int | None = None) -> list[Part]:
             for under in range(max(map(len, chords), default=0)):
                 notes = [chord[under] for chord in chords if under < len(chord)]
                 label = name + (f" note {under + 1}" if under else "")
-                out.append(Part(label, notes, sound(song.programs.get(key, -8) // 8), None))
+                out.append(Part(label, notes, sound(song.programs.get(key, -8) // 8), None, side))
             continue
         drums: dict[tuple[str, ...], list[Note]] = defaultdict(list)
         for note in song.voices[key]:
             drums[KIT.get(note.pitch, HAT)].append(note)
         for drum, notes in drums.items():
-            out.append(Part(f"{name} drum {notes[0].pitch}", notes, KIT_SOUND + "".join(drum[:-1]), drum[-1]))
+            out.append(Part(f"{name} drum {notes[0].pitch}", notes, KIT_SOUND + "".join(drum[:-1]), drum[-1], side))
     return out
 
 
@@ -290,9 +297,10 @@ def program(
     loud: dict[int, int] | None = None,
     wheel: int = 2,
     room: int = 0,
+    wide: float = 1.0,
 ) -> str:
     unit = song.division * 4 // grid
-    every = parts(song, unit)
+    every = parts(song, unit, wide)
     tick_ms = 60_000 / song.tempo / song.division
     kept = sorted(sorted(range(len(every)), key=lambda k: -len(every[k].notes))[:voices])
     keys = [every[k] for k in kept]
@@ -308,7 +316,10 @@ def program(
     # a room for the voices that are not the kit's or the bass's
     rooms = [f"R{room}" if room and part.drum is None and part.sound != SOUNDS[BASS] else "" for part in keys]
     out.append(
-        "PLAY " + ", ".join(f'"{"MB" if k == 0 else ""}T{tempo}{rooms[k]}{part.sound}"' for k, part in enumerate(keys))
+        "PLAY "
+        + ", ".join(
+            f'"{"MB" if k == 0 else ""}T{tempo}{rooms[k]}{part.sound}{part.side}"' for k, part in enumerate(keys)
+        )
     )
     for bar in range(count):
         strings = [
@@ -332,6 +343,7 @@ def main() -> None:
     parser.add_argument("--grid", type=int, default=16, choices=(8, 16), help="places a bar (4/4)")
     parser.add_argument("--bend", type=int, default=2, help="semitones at the pitch wheel's end")
     parser.add_argument("--reverb", type=int, default=0, choices=range(16), help="the room's answer, 0 none")
+    parser.add_argument("--wide", type=float, default=1.0, help="pans this many times as far from the middle")
     parser.add_argument("--transpose", default="", help="voices moved by semitones: 4=-12,5=-12")
     parser.add_argument(
         "--volume", default="", help="voices' volumes at velocity 127, 15 unless given, over it for a quiet file: 1=30"
@@ -342,7 +354,9 @@ def main() -> None:
         for text in (args.transpose, args.volume)
     )
     sys.stdout.write(
-        program(read(args.file.read_bytes()), args.voices, args.bars, args.grid, up, loud, args.bend, args.reverb)
+        program(
+            read(args.file.read_bytes()), args.voices, args.bars, args.grid, up, loud, args.bend, args.reverb, args.wide
+        )
     )
 
 
