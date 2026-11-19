@@ -225,10 +225,18 @@ declare sub Pace (d as single, c as Clock)
 declare function Steps% (c as Clock)
 declare function Elapsed! (a as single, b as single)
 declare sub Sfx (id as integer)
-declare sub LoadSong ()
+declare sub LoadSongs ()
+declare sub LoadSong (s as integer, id as integer)
+declare sub ReadKit (s as integer)
+declare sub ReadList (a() as string)
+declare sub ReadBar (s as integer, n as integer, bas() as string, hits() as string, pat() as string)
 declare sub FeedSong ()
+declare sub NextHalf ()
+declare sub StartSong ()
 declare sub PickSong (n as integer, late as integer)
-declare function Beat$ (x as string, loud as integer)
+declare function SongFor% (g as Game)
+declare function Vol$ (level as integer, loud as integer, up as integer)
+declare function Beat$ (s as integer, x as string, loud as integer)
 declare function Riff$ (p as string, h as integer, low as integer)
 declare function Surf% (sx as integer, y as integer)
 declare function Solid% (x as integer, y as integer)
@@ -303,12 +311,28 @@ dim shared Ticks as long, Muted as integer, LooseN as integer, PartN as integer
 dim shared Glint(2) as long
 ' The colours as loaded, Dusk sixteenths of them shown; MetT: the seconds Charlie has been with its family.
 dim shared Pal(255) as long, Dusk as integer, MetT as single, PastT as single
-' A song's most bars.
-const NBAR = 30
-dim shared Trk(NBAR * 20) as string, Kit(NBAR * 4) as string, Org(NBAR * 4) as string, Third(NBAR * 4) as string, Horn(1) as string, Keys(1) as string
-dim shared Order(1) as string, Voicing(1) as string, Tempo(1) as integer, BassIn(1) as integer
-dim shared Lvl(1, 4) as integer, Solo(1) as string, Fade(1) as integer, Entry(1) as integer
-dim shared Sng as integer, Bar as integer, HalfBar as integer
+' The songs held at once, each in its slot: the zone's tune, Charlie's theme, the level's end. A song's most bars,
+' voicings and drums.
+const NSLOT = 3, ZTUNE = 0, THEME = 1, CAUGHT = 2
+const NBAR = 30, NVOICE = 4, NDRUM = 8
+' A slot's half bars as PLAY strings: five tracks each (drums, bass, first chord voice, lead, second), the drums'
+' letters, the first voice an octave down, and the third voice.
+dim shared Trk(NSLOT * NBAR * 10) as string, Kit(NSLOT * NBAR * 2) as string
+dim shared Org(NSLOT * NBAR * 2) as string, Third(NSLOT * NBAR * 2) as string
+dim shared Order(NSLOT - 1) as string, Voicing(NSLOT - 1) as string, Tempo(NSLOT - 1) as integer
+dim shared BassIn(NSLOT - 1) as integer, Lvl(NSLOT - 1, 4) as integer, Fade(NSLOT - 1) as integer
+dim shared Entry(NSLOT - 1) as integer, Ends(NSLOT - 1) as integer
+' A slot's kit: the sounds of its lead, bass, low double and third voice; by voicing, its letter's place in VoLet,
+' the two chord voices' sounds and whether the double plays; by drum, its letter's place in DrLet, its sound, how
+' loud, what a fade rounds it up by, and its note.
+dim shared LeadP(NSLOT - 1) as string, BassP(NSLOT - 1) as string, UnderP(NSLOT - 1) as string
+dim shared MidP(NSLOT - 1) as string, VoLet(NSLOT - 1) as string, DrLet(NSLOT - 1) as string
+dim shared VoOne(NSLOT - 1, NVOICE - 1) as string, VoTwo(NSLOT - 1, NVOICE - 1) as string
+dim shared VoUnder(NSLOT - 1, NVOICE - 1) as integer
+dim shared DrPatch(NSLOT - 1, NDRUM - 1) as string, DrNote(NSLOT - 1, NDRUM - 1) as string
+dim shared DrVol(NSLOT - 1, NDRUM - 1) as integer, DrUp(NSLOT - 1, NDRUM - 1) as integer
+' The slot playing, its bar and half; Ended: it has ended and nothing plays.
+dim shared Sng as integer, Bar as integer, HalfBar as integer, Ended as integer
 dim shared Coming as integer, ComingBar as integer, FadeOut as integer, FadeIn as integer
 
 Main
@@ -394,7 +418,7 @@ sub Main
     LoadTables
     BuildArt
     LoadLevel 0
-    LoadSong
+    LoadSongs
     g.page = 1
     ResetWorld g, p, lo(), pt()
 
@@ -416,7 +440,7 @@ sub Main
                 Tick g, p, k, lo(), pt()
                 n = n - 1
             loop
-            PickSong -(g.mode = TITLE or g.mode = CLEARED), g.mode = CLEARED
+            PickSong SongFor%(g), g.mode = CLEARED
             FeedSong
             Render g, p, lo(), pt()
             Flip g.page
@@ -1462,110 +1486,133 @@ sub Sfx (id as integer)
     play , , , "T255W1V13Y0K0I0H0,0,15,0" + s
 end sub
 
-sub LoadSong
-    dim i as integer, j as integer, k as integer, root as integer, nb as integer, nd as integer
-    dim bas(4) as string, hits(2) as string, pat(6) as string, low as integer
-    dim st as string, br as string, sol as string
-    dim w as integer, n as integer, bars as integer, mid as string
-    OpenData
-    seek #1, Word&
-    for w = 0 to 1
-    Order(w) = Chars$
-    Voicing(w) = Chars$
-    bars = Word&
-    Tempo(w) = Word&
-    BassIn(w) = Word&
-    for i = 0 to 4
-        Lvl(w, i) = Word&
-    next
-    Fade(w) = Word&
-    Entry(w) = Word&
-    for i = 0 to 4
-        bas(i) = Chars$
-    next
-    for i = 0 to 2
-        hits(i) = Chars$
-    next
-    for i = 0 to 6
-        pat(i) = Chars$
-    next
-    for n = 0 to bars - 1
-        i = w * NBAR + n
-        root = Word&
-        nb = Word&
-        nd = Word&
-        st = Chars$
-        br = Chars$
-        sol = Chars$
-        ' Charlie's theme has a third brass a bar
-        mid = ""
-        if w then mid = Chars$
-        low = 27
-        if len(st) = 2 then
-            low = 15
-            st = hits(val(left$(st, 1))) + right$(st, 1)
-            do while instr(st, "x") and instr(st, "x") < 17
-                mid$(st, instr(st, "x"), 1) = mid$(st, 17, 1)
-            loop
-        end if
-        for j = 0 to 1
-            k = (i * 2 + j) * 5
-            Kit(i * 2 + j) = mid$(pat(nd), j * 8 + 1, 8)
-            Trk(k) = Beat$(Kit(i * 2 + j), 8)
-            Trk(k + 1) = Riff$(bas(nb - 1), j, 15 + root)
-            Trk(k + 2) = Riff$(br, j, 27)
-            Trk(k + 3) = Riff$(sol, j, 27)
-            Trk(k + 4) = Riff$(st, j, low)
-            Org(i * 2 + j) = Riff$(br, j, 15)
-            Third(i * 2 + j) = Riff$(mid, j, 27)
-        next
-    next
-    next
-    close #1
-    ' the kit; FM, as the consoles of the day: a round bass; a reedy pulse lead; two brasses that waver, their
-    ' harmonics a saw's by a modulator that bends itself, for the intro; then an organ that wavers as it is held, the
-    ' same an octave down on the other side, and a clavinet. Notes stop when they stop, and the room answers little.
-    ' In stereo: the brass and the organ to the left, the second brass, the clavinet and the low organ to the right,
-    ' a third organ between them
-    play "MBT140Z1,0L16", "T140W4Z1,6,3,3,2H0,5,5,1", "T140R2S4", , "T140R2W0Q42H1,4,10,1U5I4", "T140R2S12", "T140R2S12W4Z1,4,3,13,4H0,4,11,1U9", "T140R2W4Z1,4,3,13,4H0,4,11,1U9"
-    Horn(0) = "W4Z1,8,3,11,4H0,4,12,1U11I2"
-    Horn(1) = "W4Z1,4,3,13,5H1,4,11,2U9I7"
-    Keys(0) = "W4Z1,4,3,13,4H0,4,11,1U9I0"
-    Keys(1) = "W4Z3,9,3,1,3H0,4,1,2U0I0"
-    ' the lead: a reedy pulse, or, in Charlie's theme, a brass
-    Solo(0) = "W0Q42H1,4,10,1U5I4"
-    Solo(1) = "W4Z1,9,3,15,3H5,4,10,1U5I4"
-    Sng = 1
-    Bar = 0
-    HalfBar = 0
-    Coming = -1
+' The songs the game holds from its start, the theme the first to play; the level's end is led by the zone's lead.
+sub LoadSongs
+    LoadSong ZTUNE, 0
+    LoadSong THEME, 1
+    LoadSong CAUGHT, 2
+    LeadP(CAUGHT) = LeadP(ZTUNE)
+    Sng = -1
+    Coming = THEME
+    ComingBar = 0
+    Ended = -1
     Tune = -1
 end sub
 
-' Half a bar of the kit, `loud` eighths as loud: a kick, a sine that falls to its pitch, a thump and then a tail; a
-' tom; a snare, all the noise, and hats, the noise at its highest over 2.5 kHz: struck, a ghost of one (h), or left
-' open (O).
-function Beat$ (x as string, loud as integer)
-    dim q as integer, d as string
+' Song id of CHARLIE.DAT into slot s: its order and levels, its kit, and its bars as PLAY strings.
+sub LoadSong (s as integer, id as integer)
+    dim i as integer, n as integer, bars as integer, songs as long
+    dim bas(7) as string, hits(7) as string, pat(7) as string
+    OpenData
+    songs = Word&
+    seek #1, songs + 4 + id * 4
+    seek #1, songs + Word&
+    Order(s) = Chars$
+    Voicing(s) = Chars$
+    bars = Word&
+    Tempo(s) = Word&
+    BassIn(s) = Word&
+    for i = 0 to 4
+        Lvl(s, i) = Word&
+    next
+    Fade(s) = Word&
+    Entry(s) = Word&
+    Ends(s) = Word&
+    ReadKit s
+    ReadList bas()
+    ReadList hits()
+    ReadList pat()
+    for n = 0 to bars - 1
+        ReadBar s, n, bas(), hits(), pat()
+    next
+    close #1
+end sub
+
+' Slot s's kit, CHARLIE.DAT's next: four sounds, its voicings and its drums.
+sub ReadKit (s as integer)
+    dim i as integer, n as integer
+    LeadP(s) = Chars$
+    BassP(s) = Chars$
+    UnderP(s) = Chars$
+    MidP(s) = Chars$
+    VoLet(s) = ""
+    n = Word&
+    for i = 0 to n - 1
+        VoLet(s) = VoLet(s) + Chars$
+        VoOne(s, i) = Chars$
+        VoTwo(s, i) = Chars$
+        VoUnder(s, i) = Word&
+    next
+    DrLet(s) = ""
+    n = Word&
+    for i = 0 to n - 1
+        DrLet(s) = DrLet(s) + Chars$
+        DrPatch(s, i) = Chars$
+        DrVol(s, i) = Word&
+        DrUp(s, i) = Word&
+        DrNote(s, i) = Chars$
+    next
+end sub
+
+' CHARLIE.DAT's next list of strings, after its count.
+sub ReadList (a() as string)
+    dim i as integer, n as integer
+    n = Word&
+    for i = 0 to n - 1
+        a(i) = Chars$
+    next
+end sub
+
+' Slot s's bar n, CHARLIE.DAT's next: its root, bass riff and drum pattern, and four riffs, made its two half bars'
+' PLAY strings. A second voice of two characters is a chord pattern, its x the note, an octave down.
+sub ReadBar (s as integer, n as integer, bas() as string, hits() as string, pat() as string)
+    dim root as integer, nb as integer, nd as integer, low as integer, j as integer, h as integer
+    dim st as string, br as string, sol as string, mid as string
+    root = Word&
+    nb = Word&
+    nd = Word&
+    st = Chars$
+    br = Chars$
+    sol = Chars$
+    mid = Chars$
+    low = 27
+    if len(st) = 2 then
+        low = 15
+        st = hits(val(left$(st, 1))) + right$(st, 1)
+        do while instr(st, "x") and instr(st, "x") < 17
+            mid$(st, instr(st, "x"), 1) = mid$(st, 17, 1)
+        loop
+    end if
+    for j = 0 to 1
+        h = (s * NBAR + n) * 2 + j
+        Kit(h) = mid$(pat(nd), j * 8 + 1, 8)
+        Trk(h * 5) = Beat$(s, Kit(h), 8)
+        Trk(h * 5 + 1) = Riff$(bas(nb - 1), j, 15 + root)
+        Trk(h * 5 + 2) = Riff$(br, j, 27)
+        Trk(h * 5 + 3) = Riff$(sol, j, 27)
+        Trk(h * 5 + 4) = Riff$(st, j, low)
+        Org(h) = Riff$(br, j, 15)
+        Third(h) = Riff$(mid, j, 27)
+    next
+end sub
+
+' Half a bar of slot s's drums, `loud` eighths as loud: each of x's letters its drum, any other a rest.
+function Beat$ (s as integer, x as string, loud as integer)
+    dim q as integer, n as integer, d as string
     for q = 1 to 8
-        select case mid$(x, q, 1)
-        case "K"
-            d = d + "W4H0,4,3,3Y0K1,8V" + ltrim$(str$(12 * loud \ 8)) + "O1C"
-        case "S"
-            d = d + "W3H0,5,0,1K0Y0V" + ltrim$(str$(13 * loud \ 8)) + "O6C"
-        case "T"
-            d = d + "W4H0,5,0,3Y0K5,6V" + ltrim$(str$(11 * loud \ 8)) + "O2G"
-        case "H"
-            d = d + "W3H0,3,0,1K0Y3,2500,0V" + ltrim$(str$((12 * loud + 7) \ 8)) + "O6B"
-        case "h"
-            d = d + "W3H0,2,0,1K0Y3,2500,0V" + ltrim$(str$(5 * loud \ 8)) + "O6B"
-        case "O"
-            d = d + "W3H0,7,0,4K0Y3,2500,0V" + ltrim$(str$(11 * loud \ 8)) + "O6B"
-        case else
+        n = instr(DrLet(s), mid$(x, q, 1)) - 1
+        if n < 0 then
             d = d + "P16"
-        end select
+        else
+            d = d + DrPatch(s, n) + Vol$(DrVol(s, n), loud, DrUp(s, n)) + DrNote(s, n)
+        end if
     next
     Beat$ = d
+end function
+
+' PLAY's volume for a level `loud` eighths as loud, rounded up by `up` eighths.
+function Vol$ (level as integer, loud as integer, up as integer)
+    Vol$ = "V" + ltrim$(str$((level * loud + up) \ 8))
 end function
 
 ' Half h of a bar's riff as PLAY's notes, its lowest note `low`: at most eight, as the drums' always are.
@@ -1631,21 +1678,25 @@ end function
 
 ' The next half bar, once the last is nearly played: the drums are the first voice, eight sixteenths every time,
 ' so PLAY(0) counts the tune's own clock. The last four bars fade, an eighth a half bar.
+' The music kept fed: when little is left to play, its next half bar.
 sub FeedSong
-    dim k as integer, b as integer, loud as integer, d as string, bass as string, one as string, two as string, under as string
-    dim t as string, mid as string
     if Muted or not Tune then exit sub
     if play(0) > 2 then exit sub
-    ' the song picked comes in once this one has faded
-    if Coming >= 0 and FadeOut = 0 then
-        Sng = Coming
-        Bar = ComingBar
-        HalfBar = 0
-        Coming = -1
-    end if
+    NextHalf
+end sub
+
+' The playing song's next half bar to PLAY, its voices each their own string; or the song that was coming, begun.
+' Nothing once a song has ended.
+sub NextHalf
+    dim h as integer, b as integer, v as integer, loud as integer
+    dim t as string, d as string, bass as string, under as string
+    dim one as string, two as string, solo as string, midv as string
+    ' the song picked comes in once this one has faded, or at once when it has ended
+    if Coming >= 0 and (FadeOut = 0 or Ended) then StartSong
+    if Ended then exit sub
     t = "T" + ltrim$(str$(Tempo(Sng)))
     b = asc(mid$(Order(Sng), Bar + 1, 1)) - 97
-    k = (Sng * NBAR + b) * 2 + HalfBar
+    h = (Sng * NBAR + b) * 2 + HalfBar
     loud = (len(Order(Sng)) - Bar) * 2 - HalfBar
     if loud > 8 or Bar < len(Order(Sng)) - Fade(Sng) then loud = 8
     if FadeOut > 0 then
@@ -1655,35 +1706,55 @@ sub FeedSong
         loud = loud * (3 - FadeIn) \ 3
         FadeIn = FadeIn - 1
     end if
-    d = Trk(k * 5)
-    if loud < 8 then d = Beat$(Kit(k), loud)
-    ' the bass waits its bars; a bar's brasses are the horns or the organ, by the song
-    bass = "V" + ltrim$(str$(Lvl(Sng, 4) * loud \ 8)) + Trk(k * 5 + 1)
+    d = Trk(h * 5)
+    if loud < 8 then d = Beat$(Sng, Kit(h), loud)
+    ' the bass waits its bars; the low double plays under the voicings that have it
+    bass = Vol$(Lvl(Sng, 4), loud, 0) + Trk(h * 5 + 1)
     if Bar < BassIn(Sng) then bass = "P2"
-    ' the organ's low double: with the organ, not the intro's brass
-    one = Keys(0)
-    two = Keys(1)
-    under = "V" + ltrim$(str$(Lvl(Sng, 3) * loud \ 8)) + Org(k)
-    select case mid$(Voicing(Sng), b + 1, 1)
-    case "h"
-        one = Horn(0)
-        two = Horn(1)
-        under = "P2"
-    case "o"
-        two = Keys(0)
-    end select
-    mid = t + "V" + ltrim$(str$(Lvl(Sng, 2) * loud \ 8)) + Third(k)
-    k = k * 5
-    one = t + one + "V" + ltrim$(str$(Lvl(Sng, 0) * loud \ 8)) + Trk(k + 2)
-    two = t + two + "V" + ltrim$(str$(Lvl(Sng, 2) * loud \ 8)) + Trk(k + 4)
-    play t + d, t + bass, one, , t + Solo(Sng) + "V" + ltrim$(str$((Lvl(Sng, 1) * loud + 7) \ 8)) + Trk(k + 3), two, t + under, mid
+    v = instr(VoLet(Sng), mid$(Voicing(Sng), b + 1, 1)) - 1
+    under = "P2"
+    if VoUnder(Sng, v) then under = Vol$(Lvl(Sng, 3), loud, 0) + Org(h)
+    one = t + VoOne(Sng, v) + Vol$(Lvl(Sng, 0), loud, 0) + Trk(h * 5 + 2)
+    solo = t + LeadP(Sng) + Vol$(Lvl(Sng, 1), loud, 7) + Trk(h * 5 + 3)
+    two = t + VoTwo(Sng, v) + Vol$(Lvl(Sng, 2), loud, 0) + Trk(h * 5 + 4)
+    midv = t + Vol$(Lvl(Sng, 2), loud, 0) + Third(h)
+    play t + d, t + bass, one, , solo, two, t + under, midv
     HalfBar = 1 - HalfBar
-    if HalfBar = 0 then Bar = (Bar + 1) mod len(Order(Sng))
+    if HalfBar then exit sub
+    Bar = Bar + 1
+    if Bar < len(Order(Sng)) then exit sub
+    Bar = 0
+    Ended = Ends(Sng)
 end sub
 
-' Song n, when it is not the one playing, from its start or, late, from the bar it comes in at: Charlie's theme (1)
-' for the title and, from its hits, the level's end; the Downs' tune (0) for the run. The one playing fades over a
-' bar (half of one, late) and the next fades in over one; late, it comes in full.
+' The song that was coming begins: its kit to the voices that keep theirs. In stereo: the first chord voice to the
+' left, the second and the low double to the right; the room answers little.
+sub StartSong
+    dim t as string
+    Sng = Coming
+    Bar = ComingBar
+    HalfBar = 0
+    Coming = -1
+    Ended = 0
+    FadeOut = 0
+    t = "T" + ltrim$(str$(Tempo(Sng)))
+    play "MB" + t + "Z1,0L16", t + BassP(Sng), t + "R2S4", , t + "R2" + LeadP(Sng), t + "R2S12", t + UnderP(Sng), t + MidP(Sng)
+end sub
+
+' The slot to play for the game's state: the theme for the title, the level's end, else the zone's tune.
+function SongFor% (g as Game)
+    select case g.mode
+    case TITLE
+        SongFor% = THEME
+    case CLEARED
+        SongFor% = CAUGHT
+    case else
+        SongFor% = ZTUNE
+    end select
+end function
+
+' Slot n's song, when it is not the one playing, from its start or, late, from the bar it comes in at. The one
+' playing fades over a bar (half of one, late) and the next fades in over one; late, it comes in full.
 sub PickSong (n as integer, late as integer)
     if n = Sng then
         Coming = -1

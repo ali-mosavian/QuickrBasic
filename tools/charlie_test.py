@@ -57,19 +57,35 @@ for i = 1 to 300
 next
 print "edge ok"
 Muted = 0
-LoadSong
-play Beat$(Kit(0), 3), "V1", Horn(0), , "V1", Horn(1)
-play , , Keys(0), , , Keys(1)
+LoadSongs
+for j = 0 to NSLOT - 1
+    Coming = j
+    StartSong
+    play Beat$(j, Kit(j * NBAR * 2), 3)
+    for i = 0 to NVOICE - 1
+        play , , VoOne(j, i) + "V1", , , VoTwo(j, i) + "V1"
+    next
+next
 play "T255", "T255", "T255", , "T255", "T255", "T255", "T255"
-for j = 0 to NBAR * 4 - 1
+for j = 0 to NSLOT * NBAR * 2 - 1
     i = j * 5
     play Trk(i), Trk(i + 1), Trk(i + 2), , Trk(i + 3), Trk(i + 4), Org(j), Third(j)
 next
-for j = SJUMP to SHISS
+for j = SJUMP to SBARK
     Sfx j
 next
-Muted = -1
 print "sounds ok"
+' the level's end has a tune of its own, played once through its eight bars: it was Charlie's theme from its
+' hits, round and round
+g.mode = CLEARED
+PickSong SongFor%(g), -1
+for i = 1 to 40
+    NextHalf
+    if Ended then exit for
+next
+if Sng = CAUGHT and i = 16 then print "caught ok"
+g.mode = TITLE
+Muted = -1
 StartGame g, p, lo(), pt()
 g.bones = 3
 k.jump = -1
@@ -598,6 +614,7 @@ def main() -> None:
         ("twist ok", "at a ribbon's crest Charlie is drawn under its line, upside down"),
         ("turn ok", "a quarter round a ribbon's twist Charlie is drawn across its line, seen from over his back"),
         ("hid ok", "three quarters round a ribbon's twist Charlie is behind it, none of him drawn"),
+        ("caught ok", "the level's end played by its own tune, once"),
         ("bark ok", "a cat barked at stands startled a while, then goes on away from Charlie"),
         ("slow ok", "too slow for a ribbon's twist, Charlie drops from its crest to the pit under it"),
         ("carried ok", "carried by the platform stood on"),

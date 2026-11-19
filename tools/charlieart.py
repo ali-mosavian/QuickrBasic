@@ -2001,13 +2001,70 @@ def encode(vals: list[int]) -> list[int]:
 
 
 def song() -> bytes:
-    """SONG's DATA lines in order: a number a LONG, a string its length and its characters."""
-    out = b""
+    """SONG's songs, each its DATA in order: a number a LONG, a string its length and its characters. `USE name`
+    stands for `Part name:`'s DATA. Before them how many there are, and where each starts from the count."""
+    parts: dict[str, list[int | str]] = {}
+    songs: list[list[int | str]] = []
+    cur: list[int | str] = []
     for line in SONG.read_text().splitlines():
-        if line.startswith("DATA "):
-            for num, text in re.findall(r'(-?\d+)|"([^"]*)"', line[5:]):
-                out += struct.pack("<i", int(num)) if num else struct.pack("<i", len(text)) + text.encode("ascii")
-    return out
+        if m := re.match(r"(Part|Song) (\w+):$", line):
+            cur = []
+            if m[1] == "Part":
+                parts[m[2]] = cur
+            else:
+                songs.append(cur)
+        elif line.startswith("USE "):
+            cur += parts[line[4:].strip()]
+        elif line.startswith("DATA "):
+            cur += [int(num) if num else text for num, text in re.findall(r'(-?\d+)|"([^"]*)"', line[5:])]
+    for n, s in enumerate(songs):
+        sound(n, s)
+    blocks = [
+        b"".join(
+            struct.pack("<i", v) if isinstance(v, int) else struct.pack("<i", len(v)) + v.encode("ascii") for v in s
+        )
+        for s in songs
+    ]
+    at = [4 + 4 * len(blocks) + sum(len(b) for b in blocks[:n]) for n in range(len(blocks))]
+    return struct.pack(f"<{len(at) + 1}i", len(at), *at) + b"".join(blocks)
+
+
+def sound(n: int, s: list[int | str]) -> None:
+    """Song n's DATA read as the game reads it: a bar, voicing, riff or drum it names and has not would stop the
+    game as it loaded, or play a rest."""
+    it = iter(s)
+
+    def texts(k: int) -> list[str]:
+        return [str(next(it)) for _ in range(k)]
+
+    def bad(why: str) -> None:
+        sys.exit(f"charlieart: song {n}: {why}")
+
+    order, voicing = texts(2)
+    bars = int(next(it))
+    for _ in range(10):
+        next(it)
+    texts(4)
+    voices = [(str(next(it)), *texts(2), next(it))[0] for _ in range(int(next(it)))]
+    drums = [(str(next(it)), next(it), next(it), next(it), next(it))[0] for _ in range(int(next(it)))]
+    bass, chords, kits = (texts(int(next(it))) for _ in range(3))
+    if len(voicing) != bars or any(v not in voices for v in voicing):
+        bad(f"its voicings {voicing!r} are not {bars} of {voices}")
+    if any(ord(c) - 97 not in range(bars) for c in order) or bars > 30:
+        bad("its order names a bar it has not, or it has more than 30")
+    if any(len(k) != 16 or any(c not in [*drums, "."] for c in k) for k in kits):
+        bad("a drum pattern is not 16 of its drums")
+    for b in range(bars):
+        nb, nd = (next(it), next(it), next(it))[1:]
+        riffs = texts(4)
+        if nb not in range(1, len(bass) + 1) or nd not in range(len(kits)):
+            bad(f"bar {b} names a bass riff or drum pattern it has not")
+        if len(riffs[0]) == 2 and int(riffs[0][0]) not in range(len(chords)):
+            bad(f"bar {b} names a chord pattern it has not")
+        if any(len(r) not in (0, 16) for r in riffs[1:]) or len(riffs[0]) not in (0, 2, 16):
+            bad(f"bar {b} has a riff that is not 16 long")
+    if next(it, None) is not None:
+        bad("has DATA left over")
 
 
 def audit(pics: list[tuple[int, Pic, bool, int]]) -> None:
