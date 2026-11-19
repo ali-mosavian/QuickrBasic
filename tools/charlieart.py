@@ -1020,124 +1020,127 @@ NEART = ramp(189, (16, 28, 46), (46, 54, 62), 4)
 COPPER = ramp(193, (26, 10, 4), (63, 44, 22), 5)
 CHROME = ramp(198, (14, 16, 22), (60, 62, 63), 6)
 
-# A deck's machinery, 16 across and 6 down, two kinds: . plate, l lit, d dark, k ink, w white, r and R a red lamp,
-# y yellow, c cyan.
-GEAR = (
-    (
-        "dl...kkkk...l.ld",
-        "d.k.kwlllk..k..d",
-        "d...klrllk.....d",
-        "d...kllrlk..yy.d",
-        "d.k.klllwk..k..d",
-        "dd...kkkk.....dd",
-    ),
-    (
-        "dl.kkkkkkkkkk.ld",
-        "d..kRrkRrkRrk..d",
-        "d..kkkkkkkkkk..d",
-        "d.l.d.d.d.d.l..d",
-        "d.l.d.d.d.d.lc.d",
-        "dd............dd",
-    ),
-)
-INKS = {".": 2, "l": 4, "d": 0}
+PANEL = ramp(204, (4, 8, 18), (26, 42, 56), 6)
+GLOWC = ramp(210, (4, 34, 46), (56, 63, 63), 3)
 
 
-def gear(p: Pic, x: int, y: int, row: int, kind: int) -> None:
-    c = GEAR[kind][row][x % 16]
-    if c in INKS:
-        p.put(x, y, CHROME[INKS[c]])
-    else:
-        p.put(x, y, {"k": INK, "w": WHITE, "r": SCARF[3], "R": SCARF[1], "y": GOLD[3], "c": CYAN}[c])
-
-
-def deck(p: Pic, x: int, y: int, t: int, kind: int = 0) -> bool:
-    """A deck's edge t pixels under its surface: a bright lip, a band of machinery, warning stripes. False below."""
-    if t > 14:
+def deck(p: Pic, x: int, y: int, t: int, u: int = 0) -> bool:
+    """A deck's edge t pixels under its surface, u along its 64-pixel module: a white slab, a channel of light
+    bars, a steel face with one warning panel. False below."""
+    if t > 15:
         return False
-    if t < 2:
-        p.put(x, y, CHROME[5 - 2 * t])
-    elif t < 8:
-        gear(p, x, y, t - 2, kind)
-    elif t in (8, 14):
+    b = u % 16
+    if t < 4:
+        p.put(x, y, CHROME[(5, 5, 4, 2)[t]])
+    elif t in (4, 9, 13):
         p.put(x, y, INK)
+    elif t < 9:
+        if not 2 <= b <= 13:
+            p.put(x, y, STEEL[4] if b in (0, 15) else DARK[0])
+        elif u // 16 == 3:
+            p.put(x, y, GLOW[1] if t in (6, 7) else GLOW[0])
+        else:
+            p.put(x, y, GLOWC[2 if t in (6, 7) and 3 <= b <= 12 else 1])
+    elif t < 13:
+        if 18 <= u <= 45:
+            p.put(x, y, GOLD[3] if (u + t) // 4 % 2 else DARK[0])
+        elif b in (4, 11) and t == 11:
+            p.put(x, y, CHROME[5])
+        else:
+            p.put(x, y, STEEL[(5, 4, 3)[t - 10]])
     else:
-        p.put(x, y, (GOLD[4] if t == 9 else GOLD[3]) if (x + t) // 4 % 2 else DARK[0])
+        p.put(x, y, PANEL[0])
     return True
 
 
-def plate(p: Pic, x: int, y: int, depth: float, n: int) -> None:
-    """The works under a deck, 16 by 16 each: 0 a riveted panel with a vent, 1 a copper pipe along a wall, 2 a
-    ribbed panel with a label, 3 a girder's cross braces in the dark."""
-    u, v = x % 16, y % 16
-    val = 0.62 - min(depth, 60) * 0.004
-    if n == 3:
-        val = 0.16
-        if (u + v) % 16 < 2 or (u - v) % 16 < 2:
-            val = 0.5
-        if u in (7, 8) and v in (7, 8):
-            val = 0.8
-        if u == 0 or v == 0:
-            val = 0.36
-        p.shade(x, y, STEEL, val)
-        return
-    if n == 1 and 4 <= v <= 11:
-        if u < 2:
-            p.put(x, y, CHROME[4 if v < 8 else 2])
-        else:
-            p.shade(x, y, COPPER, 1.0 - abs(v - 6.5) / 5.5)
-        return
+def wall(p: Pic, x: int, y: int) -> None:
+    """The works' wall, 64 by 128 and meeting itself: panels 32 square, a vent, a fat pipe, a fan, a light, a
+    girder, ribs."""
+    u, v, n = x % 32, y % 32, y // 32 * 2 + x // 32
+    val = 0.52 - v * 0.007
+    if n in (2, 3):
+        if 6 <= v <= 21:
+            g = 1.0 - abs(v - 12) / 10 + (0.3 if v in (9, 10) else 0)
+            p.shade(x, y, CHROME if x < 5 else COPPER, g)
+            return
+        if x < 5 and v in (4, 5, 22, 23):
+            p.put(x, y, CHROME[1 if v > 20 else 4])
+            return
+        if 22 <= v <= 27:
+            val -= 0.3 - (v - 22) * 0.05
     if u == 0 or v == 0:
-        val -= 0.3
+        val = 0.0
     elif u == 1 or v == 1:
-        val += 0.18
-    elif u == 15 or v == 15:
-        val -= 0.12
-    elif u in (3, 12) and v in (3, 12):
-        val += 0.34
-    elif n == 0 and 6 <= u <= 10 and v in (6, 8, 10):
-        val -= 0.4
-    elif n == 2 and u in (7, 8):
-        val += 0.2 if u == 7 else -0.2
-    elif n == 2 and 10 <= u <= 13 and 10 <= v <= 12:
-        p.put(x, y, GOLD[3] if (u + v) % 2 else DARK[0])
+        val += 0.25
+    elif u == 31 or v == 31:
+        val -= 0.18
+    elif u in (4, 27) and v in (4, 27) and n not in (2, 3):
+        val = 1.0
+    elif n == 0 and 8 <= u <= 23 and 9 <= v <= 23:
+        val = 0.75 if (v - 9) % 3 == 0 else 0.08
+    elif n == 1 and v == 9 and u in (8, 11, 14):
+        p.put(x, y, PINK if u == 14 else CYAN)
         return
-    elif n == 1 and v in (3, 12):
-        val -= 0.3
-    p.shade(x, y, STEEL, val)
+    elif n == 1 and 16 <= u <= 25 and 19 <= v <= 24:
+        p.put(x, y, GOLD[3] if (u + v) // 3 % 2 else DARK[0])
+        return
+    elif n == 4:
+        r = math.hypot(u - 15.5, v - 15.5)
+        if r < 2.5:
+            val = 0.9
+        elif r <= 9:
+            p.put(x, y, STEEL[2] if int(math.atan2(v - 15.5, u - 15.5) / math.pi * 4 + 8.5) % 2 else DARK[0])
+            return
+        elif r <= 11.5:
+            p.shade(x, y, CHROME, 0.55 - (u + v - 31) / 30)
+            return
+    elif n == 5 and 6 <= u <= 25 and 13 <= v <= 18:
+        p.put(x, y, CHROME[4] if u in (6, 25) else GLOWC[(0, 1, 2, 2, 1, 0)[v - 13]])
+        return
+    elif n == 6 and 4 <= u <= 27 and 4 <= v <= 27:
+        val = 0.1 if v > 5 else 0.0
+        if abs(u - v) < 2 or abs(u + v - 31) < 2:
+            val = 0.5
+    elif n == 7 and 6 <= u <= 25 and 6 <= v <= 25:
+        val += 0.14 if u % 4 < 2 else -0.14
+    p.shade(x, y, PANEL, val)
 
 
-def tile2(kind: int, seed: int, ledge: bool = False) -> Pic:
+def mural() -> Pic:
+    p = Pic(64, 128)
+    for y in range(128):
+        for x in range(64):
+            wall(p, x, y)
+    return p
+
+
+def cut(p: Pic, x: int, y: int, w: int, h: int) -> Pic:
+    q = Pic(w, h)
+    for j in range(h):
+        for i in range(w):
+            q.put(i, j, p.get(x + i, y + j))
+    return q
+
+
+def tile2(kind: int, col: int, ledge: bool = False) -> Pic:
+    """A deck tile, the module's col-th 16 pixels; the wall's plain steel under a slope."""
     p = Pic(16, 16)
     for x in range(16):
         top = surface(kind, x)
         for y in range(top, 16):
             if ledge and y >= 15:
                 continue
-            if not deck(p, x, y, y - top, seed % 2):
-                plate(p, x, y, y - top, 0)
-    return p
-
-
-def earth2(n: int) -> Pic:
-    """The nth 16 rows of the works under a deck: the fourth, repeated below, a girder."""
-    p = Pic(16, 16)
-    for x in range(16):
-        for y in range(16):
-            plate(p, x, y, 16 * n + y, n)
+            if not deck(p, x, y, y - top, col * 16 + x):
+                p.shade(x, y, PANEL, 0.3)
     return p
 
 
 def mover() -> Pic:
-    """A moving platform: a deck, lights under it."""
+    """A moving platform: a deck's slab and lights, jets under it."""
     p = Pic(48, 12)
     for x in range(1, 47):
         for y in range(10):
-            t = y if y < 2 else y + 6
-            if y < 8:
-                deck(p, x, y, t, 1)
-            else:
-                p.shade(x, y, STEEL, 0.7 - (y - 8) * 0.3)
+            deck(p, x, y, y, x - 8 if 8 <= x < 40 else 0)
     for x in range(6, 48, 12):
         p.box(x - 1, 9, x, 10, CYAN)
     return p.outline()
@@ -1347,17 +1350,20 @@ def pictures() -> list[tuple[int, Pic, bool, int]]:
     z = k + 490 + 9
     for v, p in (
         (1, tile2(1, 0)),
-        (2, tile2(1, 1)),
+        (2, tile2(1, 0)),
         (4, tile2(2, 0)),
-        (5, tile2(3, 1)),
+        (5, tile2(3, 0)),
         (6, tile2(4, 0)),
-        (7, tile2(5, 1)),
+        (7, tile2(5, 0)),
         (8, tile2(6, 0)),
-        (9, tile2(7, 1)),
-        (10, tile2(1, 1, ledge=True)),
+        (9, tile2(7, 0)),
+        (10, tile2(1, 0, ledge=True)),
     ):
         out.append((z + (v - 1) * 2, p, True, -1))
-    out += [(z + 20 + n, earth2(n), False, -1) for n in range(4)]
+    m = mural()
+    out += [(z + 54 + c, tile2(1, c), False, -1) for c in range(4)]
+    out += [(z + 58 + c * 8 + r, cut(m, c * 16, r * 16, 16, 16), False, -1) for c in range(4) for r in range(8)]
+    out += [(z + 90 + c, cut(m, c * 16, 0, 16, 128), False, -1) for c in range(4)]
     out += [
         (z + 24, mover(), True, -1),
         (z + 26, post(), True, -1),
