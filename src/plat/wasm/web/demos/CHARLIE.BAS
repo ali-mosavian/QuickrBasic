@@ -216,7 +216,7 @@ DIM SHARED Glint(2) AS LONG
 CONST NBAR = 28
 DIM SHARED Trk(NBAR * 20) AS STRING, Kit(NBAR * 4) AS STRING, Org(NBAR * 4) AS STRING, Horn(1) AS STRING, Keys(1) AS STRING
 DIM SHARED Order(1) AS STRING, Voicing(1) AS STRING, Tempo(1) AS INTEGER, BassIn(1) AS INTEGER
-DIM SHARED Lvl(1, 3) AS INTEGER, Deep(1) AS STRING
+DIM SHARED Lvl(1, 3) AS INTEGER, Solo(1) AS STRING
 DIM SHARED Sng AS INTEGER, Bar AS INTEGER, HalfBar AS INTEGER
 
 Main
@@ -286,44 +286,44 @@ DATA -2, 3, 1, "0e", "q--.q..t--------", "q.qq.m.q-..t-q-m"
 DATA -5, 3, 1, "j-..j.k.m-k-j-f-", "m-..m.o.q-o-m-j-", "........7bejnqv-"
 DATA 0, 1, 0, "0f", "v--.v..v--------", "o.jo..m.oj..f.hj"
 
-' Charlie's own theme, for the title and the level's end: 48 bars of 28 in D, as fast. A sixteenth arpeggio runs
-' under all of it, on the second brass's voice; the tune is a square wave and its octave below (the low organ's
-' voice); the brass's voice holds a pad. Two bars of the arpeggio, the tune twice over a sparse bass, twelve bars
-' of arpeggio and organ alone, two of fill, and the tune twice more, full. As Song's.
+' Charlie's own theme, for the title and the level's end: 64 bars of 28 in G minor, as fast. Two organs in stereo
+' stab a four bar round, the second brass's voice the note under the brass's; a brass lead answers them, busy two
+' bars and held two; then eight bars of horn hits a run answers, and four where a low riff is joined a voice a bar.
+' A bar's brasses: o two organs, h horns, k the organ and a clavinet. As Song's.
 Song2:
-DATA "{|abcdefghabcdefgijklmjklmnonopqrstuvwxyrstuvwxz", "kkkkkkkkkkkkkkkkkkkkkkkkkkkk", 142, 0, 7, 12, 8, 9
-DATA "0.......0.....7.", "0.....0.......c.", "0...........7.c.", "0.0.0.0c0.0.0.7.", "................"
+DATA "abyzwxcdefcdefghijghijklmnopqrstuvcdefghijklmnopqrstuvcdefghij{|", "oooooooooohohohohokkkkoooohh", 140, 2, 11, 10, 9, 8
+DATA "0..0c.0..0c.7ac.", "0.c.0.c.0.0c7.5.", "0--0--0-........", "0.03.5.0.a.c5.3.", "................"
 DATA "..x..x....x..x..", "x..x..x...x.x...", "x.......x.....x."
-DATA "K.H.S.H.K.K.S.H.", "K.H.S.H.K.K.S.SS", "K.H.H.H.K.H.H.H.", "K.S.K.S.SSTTSSTT", "H.H.H.H.H.H.H.H."
-DATA "KHHHSHHHKHKHSHHH", "KHHHSHHKKHKHSSTS"
-DATA 0, 1, 0, "cjojgjojcjojgjoj", "g---------------", "o-..s-v-..s.o-q-"
-DATA -3, 2, 0, "9glgcglg9glgcglg", "g---------------", "s---..q.o-..l-o-"
-DATA 5, 3, 0, "5chc9chc5chc9chc", "h---------------", "q-..o-l-..o.q-t-"
-DATA -5, 1, 1, "7ejebeje7ejebeje", "e-------j-------", "s-q-..n.q---...."
-DATA 0, 2, 0, "cjojgjojcjojgjoj", "g---------------", "v-..s-o-..s.v-x-"
-DATA -3, 3, 0, "9glgcglg9glgcglg", "g---------------", "x---..v.s-..q-s-"
-DATA 5, 1, 0, "5chc9chc5chc9chc", "h---------------", "t-..q-o-..q.t-v-"
-DATA -5, 2, 1, "7ejebeje7ejebeje", "e-------j-------", "x-v-..s.v---..q."
-DATA 0, 3, 0, "cjojgjojcjojgjoj", "g---------------", "v-s-q-n-o-------"
-DATA 2, 5, 2, "29e959e929e959e9", "l.l.l-------....", ""
-DATA -5, 5, 2, "7ejebeje7ejebeje", "j.j.n-------....", ""
-DATA 4, 5, 2, "4bgb7bgb4bgb7bgb", "j.j.n-------....", ""
-DATA -3, 5, 2, "9glgcglg9glgcglg", "l.l.l-------....", ""
-DATA 5, 5, 2, "5chc9chc5chc9chc", "l.l.l-------....", ""
-DATA -5, 5, 2, "7ejebeje7ejebeje", "j.j.n-------....", ""
-DATA -5, 5, 3, "7ejebeje7ejebeje", "j.j.n-------....", ""
-DATA -5, 3, 3, "7ejebeje7ejebeje", "n-------q-------", "........j.n.q.v."
-DATA 0, 4, 5, "cjojgjojcjojgjoj", "j.j.j-------....", "o-..s-v-..s.o-q-"
-DATA -3, 4, 5, "9glgcglg9glgcglg", "l.l.l-------....", "s---..q.o-..l-o-"
-DATA 5, 4, 5, "5chc9chc5chc9chc", "l.l.l-------....", "q-..o-l-..o.q-t-"
-DATA -5, 4, 6, "7ejebeje7ejebeje", "j.j.n-------....", "s-q-..n.q---...."
-DATA 0, 4, 5, "cjojgjojcjojgjoj", "j.j.j-------....", "v-..s-o-..s.v-x-"
-DATA -3, 4, 5, "9glgcglg9glgcglg", "l.l.l-------....", "x---..v.s-..q-s-"
-DATA 5, 4, 5, "5chc9chc5chc9chc", "l.l.l-------....", "t-..q-o-..q.t-v-"
-DATA -5, 4, 6, "7ejebeje7ejebeje", "j.j.n-------....", "x-v-..s.v---..q."
-DATA 0, 4, 5, "cjojgjojcjojgjoj", "j.j.j-------....", "v-s-q-n-o-------"
-DATA 0, 5, 4, "cjojgjojcjojgjoj", "", ""
-DATA -5, 5, 4, "7ejebeje7ejebeje", "e-------j-------", ""
+DATA "K.H.S.HK.HK.S.H.", "K.H.S.HK.HK.SSTS", "K..K..K.S.H.S.HH", "K.H.S.H.K.H.S.H.", "H.H.H.HHH.H.H.HH"
+DATA "K.H.H.H.K.H.H.H.", "K.S.K.SSTTSSTSSS"
+DATA 5, 5, 4, "k..k..k-......j.", "o..o..o-......m.", ""
+DATA 5, 5, 4, ".k.k..m---------", ".o.o..r---------", ""
+DATA 5, 1, 0, "k..k..k-......j.", "o..o..o-......m.", "..h.k.m.o-m.k.m."
+DATA 5, 2, 0, ".k.k..m---------", ".o.o..r---------", "o-..r.o.m-k-h---"
+DATA 1, 1, 0, "h..h..h-......j.", "k..k..k-......m.", "..k.m.o.r-o.m.o."
+DATA 3, 2, 1, ".j.j..m---------", ".m.m..o---------", "r-..t.r.o-m-o---"
+DATA 5, 1, 0, "k..k..k-......j.", "o..o..o-......m.", "t---..r.t-w-t-r-"
+DATA 5, 2, 0, ".k.k..m---------", ".o.o..r---------", "o-------..m.o.r."
+DATA 1, 1, 0, "h..h..h-......j.", "k..k..k-......m.", "t---..r.t-w-y-w-"
+DATA 3, 2, 1, ".j.j..m---------", ".m.m..o---------", "v-------........"
+DATA -2, 3, 2, "h--h--h-........", "m--m--m-........", ""
+DATA -2, 2, 3, "", "", "..m.p.m.t-r.p.m."
+DATA 0, 3, 2, "j--j--j-........", "o--o--o-........", ""
+DATA 0, 2, 3, "", "", "..o.r.o.v-t.r.o."
+DATA 1, 3, 2, "k--k--k-........", "p--p--p-........", ""
+DATA 1, 2, 3, "", "", "..p.t.p.w-t.p.t."
+DATA 3, 3, 2, "m--m--m-........", "r--r--r-........", ""
+DATA 3, 2, 6, "", "", "r.r.t.t.v.v.y.y."
+DATA 5, 4, 5, "", "", ""
+DATA 5, 4, 5, "5.58.a.5.f.ha.8.", "", ""
+DATA 5, 4, 5, "5.58.a.5.f.ha.8.", "....t---....t---", ""
+DATA 5, 4, 6, "5.58.a.5.f.ha.8.", "....t---....w---", "........h.k.m.o."
+DATA 1, 1, 0, "h..h..h-......j.", "k..k..k-......m.", ""
+DATA 3, 2, 1, ".j.j..m---------", ".m.m..o---------", ""
+DATA 5, 1, 0, "k..k..k-......j.", "o..o..o-......m.", ""
+DATA 5, 2, 0, ".k.k..m---------", ".o.o..r---------", ""
+DATA 5, 3, 2, "o--o--o-........", "t--t--t-........", "..t.w.t.r-o.m.o."
+DATA 5, 5, 6, "o---------------", "t---------------", "t---------------"
 
 ' CharlieArt's begin.
 ' The palette and pictures, as tools/charlieart.py draws them.
@@ -2346,8 +2346,7 @@ SUB LoadSong
             Trk(k + 2) = Riff$(br, j, 27)
             Trk(k + 3) = Riff$(sol, j, 27)
             Trk(k + 4) = Riff$(st, j, low)
-            ' the low voice: the organ's line an octave down, or, in Charlie's theme, the tune's
-            IF w THEN Org(i * 2 + j) = Riff$(sol, j, 15) ELSE Org(i * 2 + j) = Riff$(br, j, 15)
+            Org(i * 2 + j) = Riff$(br, j, 15)
         NEXT
     NEXT
     NEXT
@@ -2358,7 +2357,8 @@ SUB LoadSong
     PLAY "MBT140Z1,0L16", "T140W4Z1,6,3,3,2H0,5,5,1", "T140R2S4", , "T140R2W0Q42H1,4,10,1U5I4", "T140R2S12", "T140R2S12W4Z1,4,3,13,4H0,4,11,1U9"
     Horn(0) = "W4Z1,8,3,11,4H0,4,12,1U11I2": Horn(1) = "W4Z1,4,3,13,5H1,4,11,2U9I7"
     Keys(0) = "W4Z1,4,3,13,4H0,4,11,1U9I0": Keys(1) = "W4Z3,9,3,1,3H0,4,1,2U0I0"
-    Deep(0) = "W4Z1,4,3,13,4H0,4,11,1U9": Deep(1) = "W0Q50H0,0,15,1U0"
+    ' the lead: a reedy pulse, or, in Charlie's theme, a brass
+    Solo(0) = "W0Q42H1,4,10,1U5I4": Solo(1) = "W4Z1,9,3,15,3H5,4,10,1U5I4"
     Sng = 1: Bar = 0: HalfBar = 0
     Tune = -1
 END SUB
@@ -2435,12 +2435,15 @@ SUB FeedSong
     bass = "V" + LTRIM$(STR$(13 * loud \ 8)) + Trk(k * 5 + 1)
     IF Bar < BassIn(Sng) THEN bass = "P2"
     ' the organ's low double: with the organ, not the intro's brass
-    one = Keys(0): two = Keys(1): under = Deep(Sng) + "V" + LTRIM$(STR$(Lvl(Sng, 3) * loud \ 8)) + Org(k)
-    IF MID$(Voicing(Sng), b + 1, 1) = "h" THEN one = Horn(0): two = Horn(1): under = "P2"
+    one = Keys(0): two = Keys(1): under = "V" + LTRIM$(STR$(Lvl(Sng, 3) * loud \ 8)) + Org(k)
+    SELECT CASE MID$(Voicing(Sng), b + 1, 1)
+    CASE "h": one = Horn(0): two = Horn(1): under = "P2"
+    CASE "o": two = Keys(0)
+    END SELECT
     k = k * 5
     one = t + one + "V" + LTRIM$(STR$(Lvl(Sng, 0) * loud \ 8)) + Trk(k + 2)
     two = t + two + "V" + LTRIM$(STR$(Lvl(Sng, 2) * loud \ 8)) + Trk(k + 4)
-    PLAY t + d, t + bass, one, , t + "V" + LTRIM$(STR$((Lvl(Sng, 1) * loud + 7) \ 8)) + Trk(k + 3), two, t + under
+    PLAY t + d, t + bass, one, , t + Solo(Sng) + "V" + LTRIM$(STR$((Lvl(Sng, 1) * loud + 7) \ 8)) + Trk(k + 3), two, t + under
     HalfBar = 1 - HalfBar
     IF HalfBar = 0 THEN Bar = (Bar + 1) MOD LEN(Order(Sng))
 END SUB
