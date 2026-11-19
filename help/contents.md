@@ -24,7 +24,7 @@ graphics, sound, files, math, strings, errors, system
 [PRINT USING formats](PRINT USING) [SCREEN modes](SCREEN modes)
 [Color attributes](color attributes)                   [DRAW strings](DRAW string)
 [Video pages](video pages)         [PLAY strings](PLAY string)
-[Six voices](play voices)          [Mouse and PEN](PEN)
+[Voices](play voices)              [Mouse and PEN](PEN)
 
 ## Tables
 [ASCII characters](ASCII)          [Keyboard scan codes](scan codes)
@@ -41,7 +41,7 @@ graphics, sound, files, math, strings, errors, system
 ## Added by QuickrBasic
 [BYTE](BYTE)  [SHORT](SHORT)  [CBYTE](CBYTE)  [DEFBYTE](DEFBYTE)
 [DEFSHORT](DEFSHORT)  [PEN](PEN)  [Video pages](video pages)
-[Six voices](play voices)  [No size limits](no limits)
+[32 voices](play voices)  [FM](play fm)  [No size limits](no limits)
 
 ## Common starting points
 [PRINT](PRINT)  [INPUT](INPUT)  [IF](IF)  [FOR](FOR)  [DO](DO)
