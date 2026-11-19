@@ -3,8 +3,8 @@
 
 A Standard MIDI File as a BASIC program of PLAY statements.
 
-Each track and channel with notes is a voice, the ten with the most notes kept; a voice is one note at a time, the
-highest of those struck together. Notes are put on a grid (sixteenths), a bar a PLAY statement, played in the
+Each track and channel with notes is a voice, the ten with the most notes kept; a voice is one note at a time, a
+chord's notes a voice each. Notes are put on a grid (sixteenths), a bar a PLAY statement, played in the
 background: in the foreground each statement waited for the last, and 24 bars took 8% longer than they should. A
 General MIDI program picks the voice's sound; channel 10 is the kit. A note longer than PLAY's lengths is its longest
 piece, then a rest."""
@@ -231,14 +231,23 @@ class Part(NamedTuple):
     drum: str | None  # a drum's note
 
 
-def parts(song: Song) -> list[Part]:
-    """A voice a track, and one a drum of the kit: the kit in one voice lost the hat under every kick and snare, 784
-    of a song's 1600."""
+def parts(song: Song, unit: int | None = None) -> list[Part]:
+    """A voice a track, one more for each note under the highest of a chord (those struck at one place of `unit`
+    ticks), and one a drum of the kit: the kit in one voice lost the hat under every kick and snare, 784 of a song's
+    1600."""
+    unit = unit or song.division // 4
     out: list[Part] = []
     for key in sorted(song.voices):
         name = f"track {key[0]} channel {key[1] + 1}"
         if key[1] != KIT_CHANNEL:
-            out.append(Part(name, song.voices[key], sound(song.programs.get(key, -8) // 8), None))
+            struck: dict[int, list[Note]] = defaultdict(list)
+            for note in song.voices[key]:
+                struck[(note.start + unit // 2) // unit].append(note)
+            chords = [sorted(chord, key=lambda note: -note.pitch) for _, chord in sorted(struck.items())]
+            for under in range(max(map(len, chords), default=0)):
+                notes = [chord[under] for chord in chords if under < len(chord)]
+                label = name + (f" note {under + 1}" if under else "")
+                out.append(Part(label, notes, sound(song.programs.get(key, -8) // 8), None))
             continue
         drums: dict[tuple[str, ...], list[Note]] = defaultdict(list)
         for note in song.voices[key]:
@@ -258,7 +267,7 @@ def program(
     wheel: int = 2,
 ) -> str:
     unit = song.division * 4 // grid
-    every = parts(song)
+    every = parts(song, unit)
     tick_ms = 60_000 / song.tempo / song.division
     kept = sorted(sorted(range(len(every)), key=lambda k: -len(every[k].notes))[:voices])
     keys = [every[k] for k in kept]

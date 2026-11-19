@@ -26,7 +26,7 @@ def song() -> bytes:
             (0, b"\xff\x51\x03" + (60_000_000 // 240).to_bytes(3, "big")),
             (0, bytes([0xC0, 81])),
             (0, bytes([on, 60, 100])),  # middle C, a quarter
-            (0, bytes([on, 64, 100])),  # with an E over it: the E is kept
+            (0, bytes([on, 64, 100])),  # with an E over it: a voice each
             (QUARTER, bytes([off, 60, 0])),
             (0, bytes([off, 64, 0])),
             # an eighth's rest, then a G of three sixteenths, the wheel half way down as it starts (a semitone under,
@@ -112,7 +112,8 @@ def main() -> None:
     # volume is set where it changes, the G at 64 of 127 a quarter of full
     # a note bent under at its start slides up into its pitch: the wheel was not read, and a lead's every note sat
     # where a recording's scooped up four semitones
-    assert lines[2] == 'PLAY "V9L4N41P8V4K8,0,1L8N44.P4.P16", "CP2.P8.", "CP8.CP2P8."', lines[2]
+    # a chord's notes each have a voice: only the highest was kept, and a track's chords were their top notes alone
+    assert lines[2] == 'PLAY "V9L4N41P8V4K8,0,1L8N44.P4.P16", "V9L4N37P2.", "CP2.P8.", "CP8.CP2P8."', lines[2]
     wide = mid2play.program(mid2play.read(song()), 10, None, 16, None, None, 8)
     assert "K8,0,4L8N44." in wide, wide
     hats = mid2play.bar_of(dict.fromkeys(range(16), (42, 1, 15, "")), 0, 16, "C", {})
