@@ -30,7 +30,7 @@ TEST(list_field_close)
 {
     unit_store(S, program);
     listed(S, "x(0).a = 2: print x(0) . a");
-    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, "x(0).a = 2: PRINT x(0).a");
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, "x(0).a = 2: print x(0).a");
 }
 
 /* A name in the casing it was first written with: each was listed as typed there. */
@@ -38,7 +38,7 @@ TEST(list_name_as_first_written)
 {
     unit_store(S, program);
     listed(S, "x(0).A = TOTAL: print r.A%");
-    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, "x(0).a = Total: PRINT r.A%");
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, "x(0).a = Total: print r.A%");
 }
 
 /* A statement's keyword before '(' a word, not a function, and a '-' between two points close:
@@ -49,15 +49,15 @@ TEST(list_statement_before_paren)
     CHECK_TEXT(
         S->cons.sbuf,
         S->cons.sblen,
-        "PSET (1, 1): LINE (0, 0)-STEP (2, 2): x = CINT(2) - (1)"
+        "pset (1, 1): line (0, 0)-step (2, 2): x = cint(2) - (1)"
     );
 }
 
-/* BYTE, DEFBYTE and CBYTE, ours, in capitals: they were names, listed as typed. */
+/* BYTE, DEFBYTE and CBYTE, ours, keywords: they were names, listed as typed. */
 TEST(list_byte_keywords)
 {
-    listed(S, "defbyte b: dim c as byte: c = cbyte(2.5)");
-    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, "DEFBYTE b: DIM c AS BYTE: c = CBYTE(2.5)");
+    listed(S, "DefByte b: Dim c As Byte: c = CByte(2.5)");
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, "defbyte b: dim c as byte: c = cbyte(2.5)");
 }
 
 /* A procedure's name where it is declared, a space before its '(' as QBasic's: SUB count (n%) was
@@ -65,7 +65,18 @@ TEST(list_byte_keywords)
 TEST(list_proc_name_before_paren)
 {
     listed(S, "declare sub hello (): sub count (n%): call count(1)");
-    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, "DECLARE SUB hello (): SUB count (n%): CALL count(1)");
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, "declare sub hello (): sub count (n%): call count(1)");
     listed(S, "function f% (a): x = f%(1)");
-    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, "FUNCTION f% (a): x = f%(1)");
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, "function f% (a): x = f%(1)");
+}
+
+/* Keywords lower case, however typed; the tables hold them in capitals. */
+TEST(list_keywords_lower_case)
+{
+    listed(S, "PRINT x MOD 2: Line Input a$: IF x THEN GOTO 10 ELSE END");
+    CHECK_TEXT(
+        S->cons.sbuf,
+        S->cons.sblen,
+        "print x mod 2: line input a$: if x then goto 10 else end"
+    );
 }

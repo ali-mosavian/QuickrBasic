@@ -4,7 +4,7 @@ keys: PLAY string, music macro language, macro language, music commands
 A string given to [PLAY](PLAY) is a list of commands. Spaces are
 ignored; case does not matter. n is a number.
 
-See also [PLAY](PLAY), [SOUND](SOUND), [Six voices](play voices)
+See also [PLAY](PLAY), [SOUND](SOUND), [Voices](play voices)
 
 ## Details
 Notes
@@ -55,18 +55,28 @@ PLAY "T=" + VARPTR$(t%) + "X" + VARPTR$(m$)
 ```
 
 QuickrBasic voices
-PLAY a$, b$, ... plays up to six voices at once, a string for each.
+PLAY a$, b$, ... plays up to 32 voices at once, a string for each.
 Each voice has its own octave, length, tempo and sound. These commands
 choose the sound and switch the voice to the synthesizer:
 ```
-V n        volume, 0 to 15 (default 8)
-W n        wave: 0 pulse, 1 triangle, 2 sawtooth, 3 noise
-Q n        pulse width, percent high, 1 to 99 (default 50)
-H a,d,s,r  envelope: attack, decay, sustain level, release, 0 to 15
-Y m,f,r    filter: m 0 off, 1 low-pass, 2 band-pass, 3 high-pass
-           f cutoff in Hz, 30 to 12000; r resonance, 0 to 15
+V n          volume, 0 to 15 (default 8)
+W n          wave: 0 pulse, 1 triangle, 2 sawtooth, 3 noise, 4 FM
+Q n          pulse width, percent high, 1 to 99 (default 50)
+H a,d,s,r    envelope: attack, decay, sustain level, release, 0 to 15
+Y m,f,r      filter: m 0 off, 1 low-pass, 2 band-pass, 3 high-pass
+             f cutoff in Hz, 30 to 12000; r resonance, 0 to 15
+Z r,d,f,l,b  FM's modulator: ratio 1 to 15; depth, fall and level
+             0 to 15; feedback 0 to 7
+U n          vibrato, 0 to 15
+K t,q,u      glide: time 0 to 15; from over, 0 to 15; from under,
+             0 to 24 semitones
+S n          stereo place, 1 left to 15 right (default 8)
+R n          reverb, 0 to 15
+I n          unison, 0 to 15
 ```
-See [Six voices](play voices).
+Under ML a note followed by one of the same pitch is held, not struck
+again. See [Voices](play voices), [FM](play fm),
+[vibrato and glide](play pitch), [stereo and reverb](play space).
 
 Example
 ```

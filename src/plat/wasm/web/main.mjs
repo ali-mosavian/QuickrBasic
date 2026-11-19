@@ -104,7 +104,7 @@ worker.onmessage = ({ data }) => {
     window.quickr = { display, irq, memory }; // for a look from the console, and the tests
     setInterval(ticker(irq, display), 1000 / MUSIC_HZ);
     requestAnimationFrame(draw);
-    status.textContent = run ? 'Press a key or click to start' : '';
+    status.textContent = '';
   } else if ('file' in data) {
     keep(data.file, data.bytes);
   } else if ('tone' in data) {
@@ -161,6 +161,7 @@ function draw(now) {
   const at = display.frame(Math.floor(now / BLINK_MS) % 2 === 0 ? 1 : 0);
   const [w, h, cellH] = new Uint32Array(memory.buffer, at, 3);
   cell = cellH;
+  if (curtain && hidden(now, w, h)) return requestAnimationFrame(draw);
   canvas.style.cursor = cell ? '' : 'none'; // a graphics mode's program draws its own (PEN)
   if (canvas.width !== w || canvas.height !== h || !image) {
     canvas.width = w;
@@ -177,8 +178,26 @@ function draw(now) {
 function begin() {
   if (begun) return false;
   begun = true;
-  status.textContent = '';
+  curtain = performance.now() + CURTAIN_MS;
   irq.type(F5);
+  return true;
+}
+
+// ?run= shows the program alone, never the IDE it starts in: the canvas stays black, asking for the key or click,
+// until the program has changed the screen's mode, or CURTAIN_MS after its start for one that keeps the IDE's.
+const CURTAIN_MS = 1000;
+let curtain = run ? Infinity : 0, ide;
+function hidden(now, w, h) {
+  ide ??= `${w}x${h}`;
+  if (begun && (now > curtain || ide !== `${w}x${h}`)) return !!(curtain = 0);
+  ctx.fillStyle = '#000';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  if (!begun) {
+    ctx.fillStyle = '#aaa';
+    ctx.font = '16px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Click or press a key to start', canvas.width / 2, canvas.height / 2);
+  }
   return true;
 }
 

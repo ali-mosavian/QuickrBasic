@@ -30,6 +30,9 @@ void qbrt_realtime(bool yes);
    not in real time, ticks. */
 void qbrt_idle(void);
 void qbrt_tick_wait(void);
+/* The program looked at the music (PLAY(n)). Not in real time, looking again with no wait between
+   is a hundredth of a second: time passes while a program spins on it. */
+void qbrt_tick_poll(void);
 
 /* Standard output is the screen: the console's text goes through the runtime's (cn_*), which keeps
    the cursor, the colours and the PRINT window, in text and graphics modes alike. */

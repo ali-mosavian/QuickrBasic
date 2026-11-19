@@ -171,31 +171,34 @@ enum : uint8_t {
     REF_LOW_BIAS = 0x43
 };
 
-/* Byte c of an entry: a character, or the message it refers to. */
-static void cons_entry_byte(Cons *const co, const uint8_t c)
+static void cons_nth(Cons *co, const uint16_t *at, uint8_t n, bool lower);
+
+/* Byte c of an entry: a character, or the message it refers to; lower: its letters lower case. */
+static void cons_entry_byte(Cons *const co, const uint8_t c, const bool lower)
 {
     if (c >= REF_HIGH)
-        cons_msg(co, c - REF_HIGH_BASE);
+        cons_nth(co, cons_msgs_at, c - REF_HIGH_BASE, lower);
     else if (c == NL || c >= ' ')
-        cons_putc(co, c);
+        cons_putc(co, lower ? downcase(c) : c);
     else
-        cons_msg(co, (c + REF_LOW_BIAS) & CHAR);
+        cons_nth(co, cons_msgs_at, (c + REF_LOW_BIAS) & CHAR, lower);
 }
 
 /* Entry n of the list whose entries' offsets are at. */
-static void cons_nth(Cons *const co, const uint16_t *const at, const uint8_t n)
+static void cons_nth(Cons *const co, const uint16_t *const at, const uint8_t n, const bool lower)
 {
     for (const uint8_t *list = cons_lists + at[n];; list++) {
-        cons_entry_byte(co, *list & CHAR);
+        cons_entry_byte(co, *list & CHAR, lower);
 
         if (*list & LAST)
             return;
     }
 }
 
-void cons_msg(Cons *const co, const uint8_t id) { cons_nth(co, cons_msgs_at, id); }
-void cons_kw(Cons *const co, const uint8_t tok) { cons_nth(co, cons_kwlist_at, tok & CHAR); }
-void cons_kw1(Cons *const co, const uint8_t n) { cons_nth(co, cons_kwlist1_at, n); }
+void cons_msg(Cons *const co, const uint8_t id) { cons_nth(co, cons_msgs_at, id, false); }
+/* Keywords listed lower case; the lists hold them upper case, as the lexer reads them. */
+void cons_kw(Cons *const co, const uint8_t tok) { cons_nth(co, cons_kwlist_at, tok & CHAR, true); }
+void cons_kw1(Cons *const co, const uint8_t n) { cons_nth(co, cons_kwlist1_at, n, true); }
 
 Status cons_prompt(Cons *const co)
 {

@@ -14,7 +14,7 @@ See also [PLAY string](PLAY string), [play voices](play voices),
 ## Details
 The commands are listed under [PLAY string](PLAY string).
 
-QuickrBasic has six voices. Give each its own string and they sound
+QuickrBasic has 32 voices. Give each its own string and they sound
 together; a single string plays on voice 1. See
 [play voices](play voices).
 

@@ -10,6 +10,7 @@
 enum { HUNDREDTHS_A_TICK = 6, WAIT_NANOSECONDS = 1000000 };
 
 static bool realtime = true;
+static bool polled; /* PLAY(n) looked at since the last wait */
 
 void qbrt_clock_set(const PclkTime *const t)
 {
@@ -25,15 +26,29 @@ void qbrt_device(void)
     qbrt_clock_set(&now);
     headless_set_stdout_is_screen(wasm_irq.keyboard); /* the page's: the screen; node's: a stream */
     headless_set_tick_thread(0);
+    polled = false;
 }
 
-void qbrt_realtime(const bool yes) { realtime = yes; }
+void qbrt_realtime(const bool yes)
+{
+    realtime = yes;
+    polled = false;
+}
+
+void qbrt_tick_poll(void)
+{
+    if (!realtime && polled)
+        headless_run(1);
+
+    polled = true;
+}
 
 /* A wait for the music: a millisecond, the tick the page's thread's (host_tick_fire, wasm.mjs); not in
    real time, each wait a tick. */
 void qbrt_tick_wait(void)
 {
     static int32_t never;
+    polled = false;
 
     if (realtime)
         __builtin_wasm_memory_atomic_wait32(&never, 0, WAIT_NANOSECONDS);

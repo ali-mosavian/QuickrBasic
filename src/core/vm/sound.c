@@ -45,5 +45,6 @@ void snd_play_voices(Session *const S)
 void snd_waiting(Session *const S)
 {
     (void)exec_popi(&S->vm);
+    qbrt_tick_poll();
     exec_pushi(&S->vm, (int32_t)music_waiting());
 }

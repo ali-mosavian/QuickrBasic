@@ -1,7 +1,7 @@
 # What QuickrBasic Adds to QBasic
 keys: QuickrBasic, additions, extensions, differences
 
-QuickrBasic runs QBasic 1.1 programs and adds new types, six-voice
+QuickrBasic runs QBasic 1.1 programs and adds new types, 32-voice
 PLAY, PEN, video pages, no 64 KB walls, and a better editor.
 
 See also [contents](contents)
@@ -14,7 +14,7 @@ Language
                            [SHORT](SHORT), [DEFSHORT](DEFSHORT)
     32-bit INTEGER         one type with LONG; 32767 + 1 is fine
                            [no limits](no limits)
-    PLAY a$, b$, ...       six voices; V, W, Q, H and Y commands
+    PLAY a$, b$, ...       32 synthesizer voices: waves, FM, reverb
                            [play voices](play voices)
     PEN(n)                 the mouse: left button n, right n + 10
                            [PEN](PEN)
