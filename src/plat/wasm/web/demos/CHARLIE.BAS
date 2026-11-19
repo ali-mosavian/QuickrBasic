@@ -126,7 +126,7 @@ CONST FSKID = 16, FCROUCH = 17, FHURT = 18, FUP = 19, FWIN = 20, FSHIVER = 22, N
 CONST KBONE = 1, KCAT = 2, KSPRING = 3, KMARK = 4, KBOOST = 5, KGOAL = 6, KPLAT = 7
 CONST KLOOP = 8, KTREE = 9, KBUSH = 10, KFLOWER = 11, KROCK = 12, KTHORN = 13, KLAMP = 14, KFAM = 15, KPIPE = 16
 CONST KMOVE = 17, KPOST = 18, KTANK = 19, KVENT = 20, KJET = 21, KBUMP = 22, KSPIN = 23, KHOOP = 24
-CONST CABLED = 64, CABLEH = 44
+CONST CABLED = 64, CABLEH = 44, KBUTTON = 27
 CONST KWAVE = 25, KWAVE2 = 26, WAVEA = 40, WAVEH = WAVEA + 16
 CONST JETV = 500!, BUMPV = 400!, HOOPV = 640!, SPINR = 30, SPINH = 70, PITD = 5
 
@@ -142,7 +142,7 @@ CONST ICARD = IDASH + 2, IGLYPH = ICARD + 2, NGLYPH = 27, IHUD = IGLYPH + NGLYPH
 CONST IZ2 = IPIPE + 2, ITILE2 = IZ2 + 9, IMOVE = ITILE2 + 24, IPOST = IMOVE + 2, ITANK = IPOST + 2, IVENT = ITANK + 2
 CONST ICARD2 = IVENT + 2, IBLD = ICARD2 + 2, IPLANT = IBLD + 12
 CONST IDK = IPLANT + 8, IWT = IDK + 4, IWS = IWT + 32
-CONST IJET = IWS + 4, IBUMP = IJET + 6, ISPIN = IBUMP + 4, IHOOP = ISPIN + 4, IWAVE = IHOOP + 4, NIMG = IWAVE + 8
+CONST IJET = IWS + 4, IBUMP = IJET + 6, ISPIN = IBUMP + 4, IHOOP = ISPIN + 4, IWAVE = IHOOP + 4, IBTN = IWAVE + 8, NIMG = IBTN + 4
 CONST HUDW = 108, HUDH = 40
 CONST IMGSZ = 340000
 
@@ -267,7 +267,7 @@ DIM SHARED ZA(NZONE) AS INTEGER, ZB(NZONE) AS INTEGER, ZM(NZONE) AS INTEGER, ZL(
 DIM SHARED ZR(NZONE) AS INTEGER, NZ AS INTEGER
 ' The zone played, 0 the Amber Downs, 1 the Chrome Works, and the one ResetWorld is to load; its pictures: tiles,
 ' strips, backdrop, loop, pipe, card.
-DIM SHARED ZWave AS INTEGER
+DIM SHARED ZWave AS INTEGER, MvB(NMOVE) AS INTEGER
 DIM SHARED Zone AS INTEGER, NextUp AS INTEGER, ZTile AS INTEGER, ZStrip AS INTEGER, ZBack AS INTEGER
 DIM SHARED ZLoop AS INTEGER, ZPipe AS INTEGER, ZCard AS INTEGER
 ' A moving platform m: its thing MvO, its stretch MvS and curve MvZ; its middle MvX, MvY and reach MvA; MvK 0 to
@@ -314,7 +314,7 @@ DATA mark,0, flat,4, cable,22, flat,8, dn45,2, dng,2, boost,0, flat,5, loop,0, f
 DATA flat,6, boost,0, flat,6, loop,0, flat,10, up45,4, hoop,1, arc,10, pit,12, flat,10
 DATA boost,0, flat,6, pipe,7, flat,6, jet,0, flat,3, bump,5, flat,3, bump,6, flat,3, bump,5, flat,6
 DATA dng,5, boost,0, bones,10, flat,12, loop,0, flat,8, up45,3, arc,10, pit,11, flat,8
-DATA flower,0, upg,3, flat,4, cat,0, dng,3, flat,6, tree,0, flat,4
+DATA flower,0, upg,3, flat,4, cat,0, dng,3, flat,6, tree,0, flat,4, button,0, flat,8, bridge,12, flat,6
 DATA mark,0, flat,4, dn45,3, dng,5, boost,0, bones,8, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
 DATA thorn,0, flat,6, rock,0, flat,4, up45,3, arc,8, pit,9, flat,8
 DATA dng,3, boost,0, bones,10, flat,10, loop,0, flat,7, boost,0, flat,6, up45,4, hoop,1, arc,12, pit,14
@@ -322,6 +322,7 @@ DATA flat,22, spin,0, flat,8, flower,0, flat,4
 DATA goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, "end",0
 
 ' pit: a jump's gap with a floor under it and a spring out; the platforms' gaps have one too.
+' button, then bridge: a pit that wide, bridged once the button before it is trodden.
 ' cable: a basket down a cable over a pit that wide, the ground past it four lower.
 ' The Chrome Works: mover: a gap that wide with a platform to and fro over it. hover: a gap of 4 with one up and
 ' down, the ground past it that much higher. lift: a gap of 3 with a lift, the ground past it that much higher.
@@ -329,7 +330,7 @@ Level2:
 DATA flat,4, dog,0, flat,8, bones,6, flat,8, boost,0, bones,8, flat,10, loop,0, flat,10
 DATA boost,0, flat,4, wave,2, flat,8
 DATA dng,3, boost,0, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8, up45,3, arc,9, pit,10, flat,8
-DATA cat,0, flat,12, mover,8, flat,8, jet,0, flat,3, bump,5, flat,3, bump,5, flat,6, mark,0, flat,6
+DATA cat,0, flat,12, mover,8, flat,8, jet,0, flat,3, bump,5, flat,3, bump,5, flat,6, button,0, flat,10, bridge,9, flat,6, mark,0, flat,6
 DATA boost,0, flat,6, pipe,6, flat,8, bones,8, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0, flat,10
 DATA lift,6, flat,8, spin,0, flat,8, bones,6, flat,6, cable,20, flat,8, dng,3, boost,0, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0
 DATA flat,8, up45,4, hoop,1, arc,11, pit,12, flat,10
@@ -419,7 +420,7 @@ END SUB
 
 ' The ground's columns, then what stands on them, from the Level DATA.
 SUB LoadLevel (z AS INTEGER)
-    DIM cmd AS STRING, n AS INTEGER, c AS INTEGER, g AS INTEGER
+    DIM cmd AS STRING, n AS INTEGER, c AS INTEGER, g AS INTEGER, bx AS INTEGER
     DIM i AS INTEGER, s AS INTEGER, k AS INTEGER
     Zone = z
     ERASE Map
@@ -497,6 +498,16 @@ SUB LoadLevel (z AS INTEGER)
             AddMover c * TS, s, n * TS, 2, c * TS
             Pit c, g, 3
             c = c + 3: g = g + n
+        CASE "button"
+            k = KBUTTON: bx = c * TS + 8
+        CASE "bridge"
+            ' a pit n wide, platforms lying on its floor that rise to bridge it once the last button is trodden
+            FOR i = 0 TO n \ 3 - 1
+                AddMover (c + i * 3) * TS, s + PITD * TS - 6, PITD * TS - 6, 4, c * TS
+                MvB(NMv - 1) = bx
+            NEXT
+            Pit c, g, n
+            c = c + n
         CASE "cable"
             ' a basket down a cable over a pit n wide, the ground past it CABLED lower
             AddMover c * TS - 8, s, n * TS - MOVEW + 16, 3, c * TS
@@ -617,6 +628,12 @@ SUB Track
             Knot CSNG(ObX(i)), CSNG(ObY(i)), 0
             Knot CSNG(ObX(i) + MOVEW), CSNG(ObY(i)), 3
             MvO(k) = i: MvS(k) = GN - 2: MvZ(k) = NZ: MvT(k) = 0
+            ' a bridge's button, by where it is
+            IF MvK(k) = 4 THEN
+                FOR j = 0 TO NObj - 1
+                    IF ObK(j) = KBUTTON AND ObX(j) = MvB(k) THEN MvB(k) = j: EXIT FOR
+                NEXT
+            END IF
             ZA(NZ) = GN - 2: ZB(NZ) = GN - 2: ZM(NZ) = -1: ZL(NZ) = ObX(i): ZR(NZ) = ObX(i) + MOVEW
             NZ = NZ + 1: k = k + 1
         END IF
@@ -678,6 +695,10 @@ SUB Movers (p AS Hero)
         CASE 2
             IF p.ground AND p.sg = s THEN MvT(m) = MvT(m) + 90 * STEPT ELSE MvT(m) = MvT(m) - 60 * STEPT
             IF MvT(m) < 0 THEN MvT(m) = 0
+            IF MvT(m) > MvA(m) THEN MvT(m) = MvA(m)
+            y = y - MvT(m)
+        CASE 4
+            IF ObS(MvB(m)) THEN MvT(m) = MvT(m) + 200 * STEPT
             IF MvT(m) > MvA(m) THEN MvT(m) = MvA(m)
             y = y - MvT(m)
         CASE 3
@@ -1747,6 +1768,10 @@ SUB Pilot (p AS Hero, k AS Pad)
         IF p.gsp > 20 THEN k.l = -1
         i = CINT(GX(p.sg)) + MOVEW + 10
         IF Surf%(i, y) <> NONE AND NOT Solid%(i, y - 12) THEN k.r = -1: k.l = 0: want = -1
+        ' a bridge is run over
+        FOR m = 0 TO NMv - 1
+            IF MvS(m) = p.sg AND MvK(m) = 4 THEN k.r = -1: k.l = 0: want = 0
+        NEXT
     ELSEIF p.ground AND GK(p.sg) = 1 THEN
         x = CINT(p.x): y = CINT(p.y)
         i = x + 22 + CINT(ABS(p.gsp)) \ 40
@@ -1762,6 +1787,7 @@ SUB Pilot (p AS Hero, k AS Pad)
         ' a platform's gap ahead: slowly to its edge, there till the platform is at it and staying, then on
         FOR m = 0 TO NMv - 1
             d = MvE(m) - x
+            IF MvK(m) = 4 THEN d = NONE
             IF d > -4 AND d < 300 AND ABS(MvY(m) + MvA(m) * (MvK(m) = 1) - y) < 200 THEN
                 IF d < 50 THEN want = 0
                 IF p.gsp > 70 + d THEN k.r = 0: k.l = -1 ELSE IF p.gsp > 30 + d THEN k.r = 0
@@ -1784,6 +1810,7 @@ SUB Pilot (p AS Hero, k AS Pad)
         ' in the air toward a platform's gap: slowed, to come down before it
         FOR m = 0 TO NMv - 1
             d = MvE(m) - CINT(p.x)
+            IF MvK(m) = 4 THEN d = NONE
             IF d > -40 AND d < 260 AND p.coyote <= 0 AND p.vx > d \ 3 AND p.sg <> MvS(m) THEN k.r = 0: k.l = -1
         NEXT
     END IF
@@ -2108,6 +2135,12 @@ SUB Touch (g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
             IF px >= x THEN ObS(i) = 1
         CASE KTHORN
             IF dx < 12 AND ABS(py - ObY(i)) < 8 THEN Hurt g, p, x, lo(), SHURT
+        CASE KBUTTON
+            IF ObS(i) = 0 AND dx < 9 AND p.ground AND ABS(py - ObY(i)) < 4 THEN
+                ObS(i) = 1
+                Burst pt(), CSNG(x), CSNG(ObY(i) - 6), 8, 80, CGOLD + 4
+                Sfx SMARK
+            END IF
         CASE KJET
             ' blowing 80 ticks of 180: who is over it goes up
             IF (Ticks + x) MOD 180 < 80 AND dx < 10 AND py <= ObY(i) + 2 AND py > ObY(i) - 64 AND p.vy > -JETV + 60 THEN
@@ -2495,6 +2528,8 @@ SUB DrawThings (cx AS INTEGER, cy AS INTEGER, back AS INTEGER)
                 NEXT
                 Blit x - 4, y - SPINH - 4, ISPIN + 2, 8, 8
                 Blit x + CINT(SPINR * COS(a)) - 8, y - SPINH + CINT(SPINR * SIN(a)) - 8, ISPIN, 16, 16
+            CASE KBUTTON
+                Blit x - 8, y - 8, IBTN + 2 * ObS(i), 16, 8
             CASE KWAVE, KWAVE2
                 Blit x, y - WAVEA - 2, ZWave - 2 * (k = KWAVE2), 64, WAVEH
             CASE KHOOP

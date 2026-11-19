@@ -261,7 +261,26 @@ NEXT
 c = MvS(m)
 p.x = GX(c) + 24: p.y = GY(c): p.sg = c: p.ground = -1: p.gsp = 0
 FOR i = 1 TO 300: Tick g, p, k, lo(), pt(): NEXT
-IF p.ground AND p.sg = c AND ABS(p.x - (MvX(m) + MvA(m) + 24)) < 2 AND ABS(p.y - (MvY(m) + CABLED)) < 2 THEN PRINT "cable ok"
+was = p.ground AND p.sg = c AND ABS(p.x - (MvX(m) + MvA(m) + 24)) < 2
+IF was AND ABS(p.y - (MvY(m) + CABLED)) < 2 THEN PRINT "cable ok"
+' a button trodden raises its bridge out of the pit, and the bridge carries
+NextZone g, p, lo(), pt()
+FOR m = 0 TO NMv - 1
+    IF MvK(m) = 4 THEN EXIT FOR
+NEXT
+j = MvB(m): c = MvS(m)
+FOR i = 1 TO 60: Tick g, p, k, lo(), pt(): NEXT
+was = MvT(m) = 0 AND ObS(j) = 0
+Stand p, ObX(j) - 12, 60
+k.r = -1
+FOR i = 1 TO 20: Tick g, p, k, lo(), pt(): NEXT
+k.r = 0
+was = was AND ObS(j) = 1
+FOR i = 1 TO 90: Tick g, p, k, lo(), pt(): NEXT
+p.x = GX(c) + 24: p.y = GY(c): p.sg = c: p.ground = -1: p.gsp = 0
+FOR i = 1 TO 30: Tick g, p, k, lo(), pt(): NEXT
+was = was AND MvT(m) = MvA(m) AND p.ground AND p.sg = c
+IF was AND ABS(p.y - (MvY(m) - MvA(m))) < 2 THEN PRINT "bridge ok"
 ' the Chrome Works played through by the pilot on one life, its platforms and lifts ridden
 NextZone g, p, lo(), pt()
 j = g.lives
@@ -372,6 +391,7 @@ def main() -> None:
         ("carried ok", "carried by the platform stood on"),
         ("lift ok", "taken up by a lift, which goes back down when left"),
         ("cable ok", "taken down a cable by its basket"),
+        ("bridge ok", "a bridge raised by its button, to stand on"),
         ("home ok", "back at the title on the Amber Downs after the Chrome Works"),
     ):
         if said not in out:

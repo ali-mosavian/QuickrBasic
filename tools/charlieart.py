@@ -1207,6 +1207,20 @@ def vent() -> Pic:
     return p.outline()
 
 
+def button(down: bool) -> Pic:
+    """A floor button: a red dome on a plate; trodden, flat and green."""
+    p = Pic(16, 8)
+    p.box(1, 5, 14, 7, CHROME[2])
+    p.box(1, 5, 14, 5, CHROME[4])
+    if down:
+        p.box(4, 4, 11, 4, GRASS[3])
+    else:
+        p.ball(7.5, 4.5, 4.4, 3.4, SCARF, 0.3, 1.0)
+        p.box(3, 5, 12, 7, CHROME[2])
+        p.box(3, 5, 12, 5, CHROME[4])
+    return p.outline()
+
+
 def nozzle() -> Pic:
     """A jet's mouth in the ground."""
     p = Pic(16, 6)
@@ -1436,6 +1450,8 @@ def pictures() -> list[tuple[int, Pic, bool, int]]:
         (z + 106, hub(), True, -1),
         (z + 108, hoop(False), True, -1),
         (z + 110, hoop(True), True, -1),
+        (z + 120, button(False), True, -1),
+        (z + 122, button(True), True, -1),
     ]
     out += [
         (z + 24, mover(), True, -1),
