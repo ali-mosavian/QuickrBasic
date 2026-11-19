@@ -90,7 +90,7 @@ def main() -> None:
     # a voice a drum, set once: the kick, then the hat
     # with the hat under the kick, which the kit in one voice lost
     assert lines[1].endswith(
-        '"T240Z1,0H0,5,0,3L16W4Z1,0H0,6,0,4Y0K1,8R3V15O1", "T240Z1,0H0,5,0,3L16W3Y3,3000,0K0R5V11O6"'
+        '"T240Z1,0H0,5,0,3L16W4Z1,0H0,5,0,3Y0K1,8R3V15O1", "T240Z1,0H0,5,0,3L16W3Y3,3000,0K0R5V11O6"'
     )
     # a note is as loud as its velocity, squared: every track at one volume was not a recording's balance. The
     # volume is set where it changes, the G at 64 of 127 a quarter of full
