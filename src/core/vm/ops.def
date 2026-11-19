@@ -449,5 +449,6 @@ K(LPRT, file_lprint)   /* LPRINT's start */
 K(LPWID, file_lpwidth) /* WIDTH LPRINT n */
 K(LPOS, file_lpos)     /* LPOS(n) */
 K(VARPS, func_varps)   /* VARPTR$(v) */
+K(RCLR, exec_r_clear)  /* a record emptied, ours: its address, its bytes */
 #undef K
 #endif

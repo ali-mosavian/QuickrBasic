@@ -148,6 +148,7 @@ void ast_init(Ast *t, Fault *f);
 void ast_reset(Ast *t);
 /* A node, zeroed but for kind; Out of memory when the arena is full. */
 Node *ast_new(Ast *t, NodeKind kind);
+Node *ast_last(const Node *parent); /* parent's last argument, null none */
 void ast_link(Node *parent, Node **last, Node *arg); /* arg after *last, parent's first if null */
 bool ast_islit(const Node *n);
 uint8_t ast_type(const Node *n); /* n's value's T_*, nothing compiled */

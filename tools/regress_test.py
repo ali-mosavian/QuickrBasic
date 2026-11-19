@@ -874,6 +874,60 @@ CASES |= {
                          " 7 \r\ns\r\n 9  9  1  3  3 \r\n", "ERROR"),
 }
 
+# FUNCTION f (..) AS type, ours, was a Syntax error, and DECLARE's AS ignored: f was a SINGLE. A
+# record result goes to a record of the caller's, one per call, emptied as the FUNCTION starts.
+VEC = ("type Vec", " x as single", " y as single", "end type")
+CASES |= {
+    "func_as_scalar": (bas("declare function half (x) as integer", "declare function greet (n$) as string",
+                           "declare function third (x) as double", "declare function big (x) as long",
+                           'print half(5); half(7); greet("bo"); third(1); big(3)',
+                           "function half (x) as integer", "half = x / 2", "end function",
+                           "function greet (n$) as string", 'greet = "hi " + n$', "end function",
+                           "function third (x) as double", "third = x / 3#", "end function",
+                           "function big (x) as long static", "big = x * 100000", "end function"),
+                       " 2  4 hi bo .3333333333333333  300000 \r\n", "ERROR"),
+    # The definition's AS, or its none, is the type, whatever a DECLARE says.
+    "func_as_declare": (bas("declare function f (x) as integer", "print f(5)", "function f (x)", "f = x / 2",
+                            "end function"), " 2.5 \r\n", "ERROR"),
+    "func_as_record": (bas(*VEC, "declare function Add (a as Vec, b as Vec) as Vec",
+                           "declare function Mk (x!, y!) as Vec", "declare function Swp (v as Vec) as Vec",
+                           "declare function Origin () as Vec", "declare function Tri (n%) as Vec",
+                           "declare sub Show (v as Vec)", "dim a as Vec, b as Vec, arr(3) as Vec",
+                           "a = Mk(1, 2): b = Mk(10, 20)", "Show Add(a, b)", "a = Swp(a): Show a",
+                           "Show Add(Add(a, b), Mk(100, 100))", "arr(2) = Mk(7, 8): Show arr(2)",
+                           "print Add(a, b).x; Mk(3, 4).y", 'if Mk(5, 0).x > 4 then print "big"',
+                           "for i = 1 to 3: arr(i) = Mk(i, i * i): next", "print arr(1).y; arr(2).y; arr(3).y",
+                           "Show Origin", "Show Tri(4)", "end",
+                           "sub Show (v as Vec)", " print v.x; v.y", "end sub",
+                           "function Add (a as Vec, b as Vec) as Vec", " Add.x = a.x + b.x", " Add.y = a.y + b.y",
+                           "end function", "function Mk (x!, y!) as Vec", " Mk.x = x!: Mk.y = y!", "end function",
+                           "function Swp (v as Vec) as Vec", " Swp.x = v.y: Swp.y = v.x", "end function",
+                           "function Origin () as Vec", "end function",
+                           "function Tri (n%) as Vec", " if n% = 0 then exit function", " Tri = Tri(n% - 1)",
+                           " Tri.x = Tri.x + n%: Tri.y = Tri.y + 1", "end function"),
+                       " 11  22 \r\n 2  1 \r\n 112  121 \r\n 7  8 \r\n 12  4 \r\nbig\r\n 1  4  9 \r\n 0  0 \r\n"
+                       " 10  4 \r\n", "ERROR"),
+    # Each call's result starts empty: a field the FUNCTION leaves is 0, not the last call's.
+    "func_as_record_empty": (bas(*VEC, "dim r as Vec", "for i% = 1 to 3: r = Part(i%): print r.x; r.y;: next",
+                                 "end", "function Part (i%) as Vec", " if i% = 1 then Part.y = 9", " Part.x = i%",
+                                 "end function"), " 1  9  2  0  3  0 ", "ERROR"),
+    "func_as_record_whole": (bas(*VEC, "print Mk(2)", "function Mk (x!) as Vec", "end function"),
+                             ".BAS:5: Type mismatch\r\n  print Mk(2)\r\n            ^", None),
+    "func_as_no_type": (bas("function Mk (x!) as Nope", "end function"),
+                        ".BAS:1: Syntax error\r\n  function Mk (x!) as Nope\r\n                      ^", None),
+    "func_as_suffix": (bas("print h%(5)", "function h% (x) as integer", "end function"),
+                       ".BAS:2: Syntax error\r\n  function h% (x) as integer\r\n                  ^", None),
+}
+
+# A record in a record, copied whole: its field's offset was dropped, so o.i = x wrote o's start
+# (" 7  0").
+CASES |= {
+    "qb_rec_nested_copy": (bas("TYPE Inner", "v AS INTEGER", "END TYPE", "TYPE Outer", "a AS INTEGER", "i AS Inner",
+                               "END TYPE", "DIM o AS Outer, x AS Inner", "x.v = 7: o.a = 1", "o.i = x",
+                               "PRINT o.a; o.i.v", "o.i.v = 5: x = o.i: PRINT x.v"),
+                           " 1  7 \r\n 5 \r\n", "ERROR"),
+}
+
 # Typed at the prompt, not run as a file.
 REPL = {
     # A direct line ran from DCODE, its statement map's place: nothing printed.

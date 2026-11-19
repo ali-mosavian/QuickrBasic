@@ -2,3 +2,5 @@
 # The statement's first word | how it is written.
 EXIT|EXIT FOR [counter] | DO | WHILE | SUB | FUNCTION | DEF
 CONTINUE|CONTINUE FOR [counter] | DO | WHILE
+FUNCTION|FUNCTION name [(parameters)] [AS type] [STATIC]
+DECLARE|DECLARE SUB name [(parameters)] | FUNCTION name [(parameters)] [AS type]

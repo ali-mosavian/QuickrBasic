@@ -1,0 +1,61 @@
+# Arrays and records as values
+
+Dynamic arrays and records follow the rules strings already follow: they grow at run time, are
+copied on assignment, can be returned from a FUNCTION and are freed with their owner. There are no
+pointers.
+
+```basic
+type Vec
+    x as single
+    y as single
+end type
+
+type Mesh
+    title as string            ' a variable-length string
+    corner(1 to 4) as Vec      ' a fixed array, inline
+    pts() as Vec               ' a dynamic array, empty until redim
+    kids() as Mesh             ' a type may hold an array of itself
+end type
+
+function Add (a as Vec, b as Vec) as Vec
+    Add.x = a.x + b.x
+    Add.y = a.y + b.y
+end function
+
+function Squares (n as integer) as long()
+    redim Squares(1 to n)
+    for i = 1 to n: Squares(i) = i * i: next
+end function
+
+dim m as Mesh, s() as long
+redim m.pts(1 to 100)
+m.pts(1) = Add(m.corner(1), m.corner(2))
+s() = Squares(10)
+```
+
+## Rules
+
+- Assignment copies. `b = a` copies a record and everything in it; `b() = a()` gives `b` the
+  bounds and elements of `a`.
+- A whole array is written `a()`: the scalar `a` and the array `a()` are separate variables.
+- Procedures receive references, as before.
+- A FUNCTION's name is its result: `Add.x = ...`, `redim Squares(...)`, `Squares(i) = ...`. With
+  arguments, or outside the FUNCTION, the name is a call.
+- A value lives as long as its owner: a local until its procedure returns, a field as long as its
+  record, an element as long as its array.
+- A type whose fields are all fixed keeps its byte layout, so `put`, `get` and `len` are unchanged.
+  `put` and `get` refuse a type with a dynamic part.
+
+## Steps
+
+1. `function ... as type` for the scalar types and records; `declare function ... as type`.
+2. `dim a()`, `b() = a()` and array results.
+3. Fixed arrays in a type.
+4. Dynamic arrays and `string` in a type.
+
+## How a record result is returned
+
+The caller passes the place for the result as a hidden last argument, a reference like any
+other. Inside the FUNCTION its name is that reference, so `Add.x = ...` writes the caller's
+place. Each call site has its own hidden variable in its scope, so recursion works as it does for
+any local.

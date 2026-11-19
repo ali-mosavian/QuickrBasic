@@ -544,6 +544,23 @@ static void decl_option(DeclScan *const ds)
     ds->at += 2 + INT_TOKEN_SIZE;
 }
 
+/* A FUNCTION's AS type, ours, past its parameters: its name n's in its own scope. The definition's
+   (define) is the type, BF_RES; a DECLARE's holds only until it. */
+static void decl_result(DeclScan *const ds, const uint16_t n, const bool define)
+{
+    Binding *const b = scop_bind(ds->sc, n, n);
+
+    if (*ds->at == ')')
+        ds->at++;
+    if (define) {
+        b->et[0] = b->rec[0] = 0;
+        b->fix[0] = 0;
+        b->flags |= BF_RES;
+    }
+    if (*ds->at == TK_AS && (define || !(b->flags & BF_RES)))
+        decl_dim1(ds, n);
+}
+
 /* DECLARE SUB|FUNCTION n: its flag; its parameters in its own scope. */
 static void decl_declare(DeclScan *const ds)
 {
@@ -562,6 +579,9 @@ static void decl_declare(DeclScan *const ds)
     symb_name(ds->sy, n)->flags |= flag;
     ds->d->scope = n;
     decl_params(ds);
+
+    if (flag == NM_FUNC)
+        decl_result(ds, n, false);
 }
 
 /* DEF FNn (params): their types; its name its own. */
@@ -598,6 +618,9 @@ static void decl_subfn(DeclScan *const ds, const uint8_t flag)
     ds->d->proc = n;
     ds->d->scope = n;
     decl_params(ds);
+
+    if (flag == NM_FUNC)
+        decl_result(ds, n, true);
 }
 
 /* SHARED (BF_REF), STATIC (BF_STAT) n[()] [AS t] {, ..} */

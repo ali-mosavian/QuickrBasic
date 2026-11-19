@@ -518,7 +518,7 @@ void flow_pret(Session *const S)
         repl_error(S, E_RG);
 
     const Proc *const p = blok_proc(&S->blok, f->call.proc);
-    const bool fn = p->kind == PK_FUNC;
+    const bool fn = p->result; /* a record result is in the caller's place already */
     const bool text = fn && is_string(symb_var(&S->symb, p->result));
     Cell result = {};
 

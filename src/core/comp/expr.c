@@ -103,7 +103,6 @@ static void mismatch(Comp *const C)
 
 static Node *parse(Comp *C, uint8_t p);
 static Node *parse_unary(Comp *C);
-static Node *addr_node(Comp *C, Node *at, uint8_t k);
 static Node *var_leaf(Comp *C);
 static Node *str_leaf(Comp *C);
 
@@ -264,7 +263,7 @@ void expr_target(Comp *const C)
 void expr_varaddr(Comp *const C)
 {
     uint32_t vk;
-    comp_step(C, addr_node(C, ref_place(C, &vk), 0));
+    comp_step(C, expr_addr(C, ref_place(C, &vk), 0));
     comp_int(C, vk);
 }
 
@@ -461,8 +460,7 @@ static Node *xfn_node(Comp *const C)
     return n;
 }
 
-/* VARPTR, VARSEG, SSEG, SADD of place at: CALL k after it, 0 none; cm_va's when k is 0. */
-static Node *addr_node(Comp *const C, Node *const at, const uint8_t k)
+Node *expr_addr(Comp *const C, Node *const at, const uint8_t k)
 {
     Node *const n = ast_new(C->ast, N_ADDR);
     n->a = at;
@@ -507,7 +505,8 @@ static Node *var_leaf(Comp *const C)
     if (nm->flags & (NM_FUNC | NM_FN)) { /* in FUNCTION f, f alone is its result */
         if (!nm->proc)
             return ref_undef(C);
-        if (*comp_skipname(C->p) == '(' || nm->proc != C->proc) {
+        if ((*comp_skipname(C->p) == '(' || nm->proc != C->proc) &&
+            !(blok_proc(C->blok, nm->proc)->flags & PF_RECRES)) { /* a record's: ref_record's */
             const uint8_t *const name = C->p;
             uint8_t idx;
             const Proc *const pr = ref_proc(C, &idx);
@@ -621,13 +620,13 @@ static Node *parse_unary(Comp *const C)
             comp_close(C);
 
             if (k == K_VARPS) {
-                Node *const n = addr_node(C, at, k);
+                Node *const n = expr_addr(C, at, k);
                 n->type = T_STR;
                 n->num = ref_vtype(C, at);
                 return n;
             }
 
-            return k || !ast_islit(at) ? addr_node(C, at, k) : at;
+            return k || !ast_islit(at) ? expr_addr(C, at, k) : at;
         }
 
         const uint8_t f = c - TK_SGN;

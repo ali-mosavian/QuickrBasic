@@ -50,7 +50,7 @@ enum {
 enum : uint8_t { NM_LBL = 1, NM_FN = 2, NM_SUB = 4, NM_FUNC = 8, NM_REC = 16 };
 
 /* A binding's flags (mem/scope). */
-enum : uint8_t { BF_SHR = 1, BF_REF = 2, BF_STAT = 4, BF_LBL = 8, BF_CON = 16, BF_USE = 32 };
+enum : uint8_t { BF_SHR = 1, BF_REF = 2, BF_STAT = 4, BF_LBL = 8, BF_CON = 16, BF_USE = 32, BF_RES = 64 };
 enum : uint16_t { SC_NUM = 0x8000, SC_ARR = 0x4000 };
 
 /* A jump target's mode: the statement, past the JMP it starts with, or the statement after it. */
@@ -277,6 +277,8 @@ enum : uint8_t { PK_SUB = 1, PK_FUNC = 2, PK_END = 3 };
 enum : uint8_t {
     PF_STAT = 1,
     PF_DEF = 2,
-    PF_ARRAYS = 4
-}; /* PF_ARRAYS: a local array or record in its frame */
+    PF_ARRAYS = 4,
+    PF_RECRES = 8
+}; /* PF_ARRAYS: a local array or record in its frame. PF_RECRES, ours: a FUNCTION's record result,
+      its last parameter (blok_nargs) */
 #endif

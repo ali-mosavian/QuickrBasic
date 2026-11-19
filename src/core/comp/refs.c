@@ -142,8 +142,75 @@ static Node *place(Comp *const C, const uint8_t op, const uint16_t id)
     return n;
 }
 
+/* The call at comp.p of FUNCTION pr, whose result is a record: its value the place of the record
+   its result went to, a (codegen pushes it past the call). */
+static Node *recresult(Comp *const C, const Proc *const pr)
+{
+    const uint8_t *const p = C->p;
+    uint8_t idx;
+    ref_proc(C, &idx);
+    Node *const call = ref_call(C, p, idx, pr, ARGS_PAREN);
+    call->a = ref_recplace(C, ast_last(call)->a->id);
+    call->rec = call->a->rec;
+    call->type = T_INT;
+    return call;
+}
+
+/* A line checked alone: a call of FUNCTION name, not linked yet, that its declaration made a
+   record's: its arguments passed over, a record of that TYPE in its place. Null: none such. */
+static Node *recunlinked(Comp *const C, const uint16_t name)
+{
+    const Binding *const b = scop_get(C->scop, name, name);
+
+    if (!C->check || !b || !b->rec[0])
+        return nullptr;
+
+    C->p = comp_skipname(C->p);
+
+    if (*C->p == '(') {
+        C->p++;
+        ref_dropargs(C, true);
+        comp_close(C);
+    }
+
+    return ref_recplace(C, recvar(C, comp_hidden(C, RES_NAME, 0, 0), b->rec[0], VI_RECARR));
+}
+
+/* A call at comp.p of a FUNCTION whose result is a record, ours: the record its result goes to,
+   or its field .f. Null: no such call; in the FUNCTION, its name alone is its result. */
+static Node *reccall(Comp *const C)
+{
+    const uint16_t name = comp_nameof(C->p);
+    const Name *const nm = symb_name(C->symb, name);
+
+    if (!(nm->flags & NM_FUNC) ||
+        (*comp_skipname(C->p) != '(' &&
+         (nm->proc ? nm->proc == C->proc : scop_own(C->scop) == name)))
+        return nullptr;
+
+    const Proc *const pr = blok_proc(C->blok, nm->proc);
+    Node *const n = !nm->proc ? recunlinked(C, name)
+                    : pr->flags & PF_RECRES ? recresult(C, pr)
+                                            : nullptr;
+
+    if (n == nullptr)
+        return nullptr;
+    if (C->p[0] == '.' && C->p[1] == M_VAR) { /* .f */
+        C->p++;
+        n->rec = path(C, (uint8_t)(n->rec.et - ET_REC), C->p + 2, C->p[1]);
+        C->p = decl_item(C->p);
+    }
+
+    return n;
+}
+
 Node *ref_record(Comp *const C)
 {
+    Node *const call = reccall(C);
+
+    if (call != nullptr)
+        return call;
+
     const uint8_t *const p = C->p;
     const uint8_t len = p[1];
     const uint16_t name = comp_nameof(p);
@@ -493,13 +560,30 @@ static Node *arg(Comp *const C, const uint16_t par, const bool byval)
     return argnode(C, PA_VALUE, expr_arg(C), par);
 }
 
+Node *ref_recplace(Comp *const C, const uint16_t id)
+{
+    Node *const r = place(C, O_R_ADDR, id);
+    r->rec = whole(C, (uint8_t)(symb_var(C->symb, id)->type - ET_REC), 0);
+    return r;
+}
+
+/* The record a call's record result goes to, ours: a hidden variable of the caller's, one per call,
+   keyed by its place in the program. */
+static Node *resplace(Comp *const C, const Proc *const pr)
+{
+    const uint8_t type = symb_var(C->symb, blok_resvar(pr))->type;
+    const uint16_t name = comp_hidden(C, RES_NAME, 0, C->line + (uint32_t)(C->p - C->body));
+    const bool stat = C->proc && blok_proc(C->blok, C->proc)->flags & PF_STAT;
+    return ref_recplace(C, symb_find_var(C->symb, name, type, VI_RECARR, C->proc, stat));
+}
+
 /* ct_args: for each of the procedure's parameters, its argument, to call n. */
 static void args(Comp *const C, Node *const n, const Proc *const pr)
 {
     const bool def = pr->flags & PF_DEF; /* a DEF FN's: by value */
     Node *last = nullptr;
 
-    for (uint32_t i = 0; i < pr->npar; i++) {
+    for (uint32_t i = 0; i < blok_nargs(pr); i++) {
         if (i) {
             if (comp_cur(C) != ',')
                 synerr(C);
@@ -539,7 +623,7 @@ Node *ref_call(
         C->p++;
         args(C, n, pr);
         comp_close(C);
-    } else if (pr->npar) { /* its frame would read cells the caller never pushed */
+    } else if (blok_nargs(pr)) { /* its frame would read cells the caller never pushed */
         C->p = name;
 
         if (is_variable(C, comp_nameof(name))) {
@@ -548,6 +632,11 @@ Node *ref_call(
         }
 
         fault_error(C->fault, E_ACM);
+    }
+
+    if (pr->flags & PF_RECRES) { /* ours: the record its result goes to, the last argument */
+        Node *last = ast_last(n);
+        ast_link(n, &last, argnode(C, PA_PREF, resplace(C, pr), blok_resvar(pr)));
     }
 
     return n;

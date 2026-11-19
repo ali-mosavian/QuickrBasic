@@ -241,12 +241,7 @@ static uint16_t loopcell(
 )
 {
     const Var v = *symb_var(C->symb, counter); /* the tables move as names are made */
-    uint8_t text[2 + 8] = {LOOP_NAME, which};
-
-    for (uint32_t i = 0; i < 8; i++)
-        text[2 + i] = "0123456789ABCDEF"[(key >> (28 - 4 * i)) & 15];
-
-    const uint16_t name = symb_find_name(C->symb, text, sizeof text);
+    const uint16_t name = comp_hidden(C, LOOP_NAME, which, key);
     const bool stat = C->proc && blok_proc(C->blok, C->proc)->flags & PF_STAT;
     return symb_find_var(C->symb, name, v.type, v.info & (SK_DBL | VK_MASK), C->proc, stat);
 }
@@ -787,7 +782,7 @@ void ctrl_recstore(Comp *const C)
     comp_byte(n, et);
 }
 
-/* ct_rcopy: a = b of two records of one TYPE: their addresses, R.COPY. */
+/* ct_rcopy: a = b of two records of one TYPE: their addresses, a field's offset added, R.COPY. */
 static bool reccopy(Comp *const C)
 {
     const uint8_t *const p = C->p;
@@ -799,8 +794,8 @@ static bool reccopy(Comp *const C)
         Node *const b = comp_cur(C) == M_VAR ? ref_record(C) : nullptr;
 
         if (b != nullptr && b->rec.et == rec.et && comp_end(C)) {
-            comp_step(C, a);
-            comp_step(C, b);
+            comp_step(C, expr_addr(C, a, 0));
+            comp_step(C, expr_addr(C, b, 0));
             comp_word(comp_op(C, O_R_COPY), rec.fix);
             return true;
         }
@@ -812,7 +807,7 @@ static bool reccopy(Comp *const C)
 
 /* ---- procedures */
 
-/* A SUB's or FUNCTION's parameters, checked: [([BYVAL] name[()] [AS type], ..)] [STATIC]. */
+/* A SUB's or FUNCTION's parameters, checked: [([BYVAL] name[()] [AS type], ..)]. */
 static void params(Comp *const C)
 {
     if (comp_cur(C) == '(') {
@@ -839,9 +834,27 @@ static void params(Comp *const C)
 
         comp_close(C);
     }
+}
 
-    if (comp_cur(C) == TK_STATIC)
-        C->p++;
+/* A FUNCTION's AS type, ours, name its name: a scalar's or a record's; none with a suffix. */
+static void result_as(Comp *const C, const uint8_t *const name)
+{
+    if (comp_cur(C) != TK_AS)
+        return;
+    if (comp_suffixof(name) || (C->p[1] == TK_STRING && C->p[2] == TK_MUL))
+        synerr(C);
+
+    comp_astype(C);
+}
+
+/* FUNCTION pr's record result emptied, ours, as a number's starts at 0: its body's first code. */
+static void result_empty(Comp *const C, const Proc *const pr)
+{
+    Node *const r = ref_recplace(C, blok_resvar(pr));
+    const uint16_t size = r->rec.fix;
+    comp_step(C, r);
+    comp_int(C, size);
+    comp_call(C, K_RCLR);
 }
 
 /* ct_pdecl: the name at comp.p a SUB's or FUNCTION's that a DECLARE or a definition named. */
@@ -947,7 +960,8 @@ static bool subcall(Comp *const C)
 /* SUB, FUNCTION: run into, passed: JMP past its END. */
 static void sub(Comp *const C)
 {
-    C->p++;
+    const bool fn = *C->p++ == TK_FUNCTION;
+    const uint8_t *const name = C->p;
     uint8_t idx;
     const Proc *const pr = ref_proc(C, &idx);
 
@@ -961,6 +975,13 @@ static void sub(Comp *const C)
         synerr(C);
 
     params(C);
+
+    if (fn)
+        result_as(C, name);
+    if (comp_cur(C) == TK_STATIC)
+        C->p++;
+    if (pr && pr->flags & PF_RECRES)
+        result_empty(C, pr);
 }
 
 /* PRET for procedure proc: its result's cell link's. */

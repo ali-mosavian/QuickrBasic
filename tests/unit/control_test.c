@@ -186,3 +186,28 @@ TEST(check_passes_record_argument_whole)
 
     CHECK(!typed_errs(S, lines));
 }
+
+/* A FUNCTION AS a TYPE, ours, and its calls, typed one line at a time before any link: a = Mk(2)
+   and Mk = Mk(1) were Type mismatch, the FUNCTION's result unknown there. */
+TEST(check_passes_record_result)
+{
+    static const char *const lines[] = {
+        "TYPE Vec",
+        "x AS SINGLE",
+        "END TYPE",
+        "DECLARE FUNCTION Mk (x!) AS Vec",
+        "DIM a AS Vec",
+        "a = Mk(2)",
+        "PRINT Mk(2).x",
+        "FUNCTION Mk (x!) AS Vec",
+        "Mk.x = x!",
+        "Mk = Mk(1)",
+        nullptr,
+    };
+    const char *typed[countof(lines)] = {};
+
+    for (size_t n = 0; lines[n]; n++) {
+        typed[n] = lines[n];
+        CHECK(!typed_errs(S, typed));
+    }
+}

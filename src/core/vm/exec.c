@@ -1068,6 +1068,12 @@ void exec_r_copy(Session *const S)
     copy_mem(a, b, exec_u16(&S->vm));
 }
 
+void exec_r_clear(Session *const S)
+{
+    const uint32_t n = exec_pop(&S->vm).u;
+    memset(at(exec_popa(&S->vm)), 0, n);
+}
+
 /* ---- record fields -------------------------------------------------------------------------- */
 
 static Cell cell_at(const Addr a) { return load_cell(at(a)); }

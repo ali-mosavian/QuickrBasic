@@ -61,10 +61,23 @@ void link_compile(Comp *const C, const uint32_t line)
     comp_text(C, (const uint8_t *)prog_line(C->prog, line) + HDR);
 }
 
-/* A parameter's variable: its type by AS, as decl_line entered the name. */
-static uint16_t link_param(Comp *const C, const Param *const pa)
+/* A record result's parameter, at its FUNCTION's name: of the TYPE its AS names. */
+static uint16_t link_recresult(Comp *const C, const uint8_t *const name)
 {
-    const uint8_t *const pv = at(C->prog->base + pa->at);
+    const uint8_t t = scop_rec(C->scop, comp_nameof(name), false);
+
+    C->p = name;
+    return comp_var(C, 1, (uint8_t)(ET_REC + t));
+}
+
+/* Parameter k of p's variable: its type by AS, as decl_line entered the name. */
+static uint16_t link_param(Comp *const C, const Proc *const p, const uint16_t k)
+{
+    const uint8_t *const pv = at(C->prog->base + p->params[k].at);
+
+    if (k == blok_nargs(p))
+        return link_recresult(C, pv);
+
     const uint8_t *q = decl_item(pv);
 
     if (*q == '(')
@@ -101,13 +114,13 @@ static void link_procvars(Comp *const C)
         symb_name(C->symb, p->name)->proc = i;
         comp_proc(C, i);
 
-        if (p->kind == PK_FUNC) {
+        if (p->kind == PK_FUNC && !(p->flags & PF_RECRES)) {
             C->p = at(C->prog->base + p->at); /* its result: a scalar of its name */
             p->result = comp_var(C, 1, 0);
         }
 
         for (uint16_t k = 0; k < p->npar; k++) { /* its ref cell's offset in the frame */
-            const uint16_t id = p->params[k].var = link_param(C, &p->params[k]);
+            const uint16_t id = p->params[k].var = link_param(C, p, k);
             symb_varx(C->symb, id)->par = 1;
             *symb_loc(C->symb, id) = loc_ref((uint32_t)(2 * sizeof(Cell) * (p->npar - 1u - k)));
         }

@@ -19,6 +19,9 @@ Node *expr_tree(Comp *C, bool dbl);
 void expr_compile(Comp *C); /* cm_expr: an expression at comp.p, a step */
 Node *expr_arg(Comp *C);    /* an argument: an expression's tree of its own, not for a DOUBLE */
 void expr_args(Comp *C, Node *node);                 /* ( e {, e} ): node's arguments */
+/* VARPTR, VARSEG, SSEG, SADD of place at: CALL k after it, 0 none; a record's field's offset
+   added. */
+Node *expr_addr(Comp *C, Node *at, uint8_t k);
 Node *expr_intleaf(Comp *C, uint32_t v, uint8_t sh); /* an INT literal's node */
 void expr_paren(Comp *C);                            /* ( expr ) */
 void expr_load(Comp *C);    /* a variable's, an element's, a FUNCTION's value */

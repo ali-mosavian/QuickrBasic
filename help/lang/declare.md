@@ -3,7 +3,7 @@ keys: DECLARE
 
 Syntax
     DECLARE SUB name[(parameterlist)]
-    DECLARE FUNCTION name[suffix][(parameterlist)]
+    DECLARE FUNCTION name[suffix][(parameterlist)] [AS type]
 
 DECLARE tells the compiler a SUB or FUNCTION's name and parameter
 types before its first use, so that calls can be checked and, where
@@ -25,6 +25,9 @@ one.
 
 A call whose arguments do not match the declaration is a Parameter
 type mismatch.
+
+QuickrBasic adds AS type: a FUNCTION's result type before its
+definition. The FUNCTION's own header decides it.
 
 ## Example
     DECLARE FUNCTION Twice% (n AS INTEGER)

@@ -2,7 +2,7 @@
 keys: FUNCTION, END FUNCTION
 
 Syntax
-    FUNCTION name[suffix][(parameterlist)] [STATIC]
+    FUNCTION name[suffix][(parameterlist)] [AS type] [STATIC]
       statements
       name = expression
     END FUNCTION
@@ -15,9 +15,15 @@ See also [SUB](SUB), [DECLARE](DECLARE), [DEF FN](DEF FN),
 
 ## Details
 A FUNCTION is a procedure that returns a value. The type of the
-result is given by the suffix, or by DEFtype. Set the result by
+result is given by the suffix, AS type, or DEFtype. Set the result by
 assigning to the function's own name; if you never do, it is 0 or "".
 Leave early with [EXIT](EXIT) FUNCTION.
+
+QuickrBasic adds AS type, written without a suffix. It names a number
+type, STRING, or a [TYPE](TYPE). A record result is set field by
+field (`Mk.x = 1`) or whole (`Mk = v`), starts empty at each call,
+and is used where a record is: `v = Mk(1)`, `Show Mk(1)`,
+`PRINT Mk(1).x`.
 
 Parameters are passed by reference: changing one changes the
 caller's variable. Pass an expression, or wrap a variable in

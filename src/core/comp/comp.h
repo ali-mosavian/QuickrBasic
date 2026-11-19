@@ -146,6 +146,8 @@ Status comp_line(Comp *C); /* the direct line in comp_cbuf, to comp_xbuf: comp_t
 Status comp_text(Comp *C, const uint8_t *body);
 /* The statement's steps resolved, folded and generated, in order. */
 void comp_flush(Comp *C);
+/* A hidden name: kind (LOOP_NAME, RES_NAME), which, key; no name typed starts with those bytes. */
+uint16_t comp_hidden(Comp *C, uint8_t kind, uint8_t which, uint32_t key);
 /* A part of the statement starts at comp.p, a statement of its own to a jump: its code's place in
    the statement map. NEXT a, b's b. */
 void comp_part(Comp *C);

@@ -596,6 +596,16 @@ static void mark(Comp *const C)
     mapstmt(C, (uint32_t)(C->p - C->body));
 }
 
+uint16_t comp_hidden(Comp *const C, const uint8_t kind, const uint8_t which, const uint32_t key)
+{
+    uint8_t text[2 + 8] = {kind, which};
+
+    for (uint32_t i = 0; i < 8; i++)
+        text[2 + i] = "0123456789ABCDEF"[(key >> (28 - 4 * i)) & 15];
+
+    return symb_find_name(C->symb, text, sizeof text);
+}
+
 void comp_part(Comp *const C)
 {
     comp_flush(C);
