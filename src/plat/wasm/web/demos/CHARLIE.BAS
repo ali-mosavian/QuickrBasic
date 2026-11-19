@@ -120,7 +120,7 @@ CONST IMGSZ = 130000
 
 CONST SCLEFT = 75, SCRIGHT = 77, SCUP = 72, SCDOWN = 80, SCSPACE = 57, SCZ = 44
 CONST SJUMP = 0, SBONE = 1, SHURT = 2, SSPRING = 3, SPOP = 4, SROLL = 5
-CONST SCHARGE = 6, SLAUNCH = 7, SCLEAR = 8, SDIE = 9, SMARK = 10, SBOOST = 11
+CONST SCHARGE = 6, SLAUNCH = 7, SCLEAR = 8, SDIE = 9, SMARK = 10, SBOOST = 11, SHISS = 12
 
 ' The palette's ramps, dark to light, as charlieart.py's.
 CONST CHUD = 0, CWHITE = 1, CINK = 2, CYELLOW = 3, CRED = 4
@@ -175,7 +175,7 @@ DECLARE SUB LoopRun (p AS Hero, hit AS INTEGER)
 DECLARE SUB Airborne (p AS Hero, l AS INTEGER, r AS INTEGER, d AS INTEGER, hold AS INTEGER, pt() AS Part)
 DECLARE SUB Slow (v AS SINGLE, f AS SINGLE)
 DECLARE SUB Touch (g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
-DECLARE SUB Hurt (g AS Game, p AS Hero, fromX AS INTEGER, lo() AS Loose)
+DECLARE SUB Hurt (g AS Game, p AS Hero, fromX AS INTEGER, lo() AS Loose, snd AS INTEGER)
 DECLARE SUB Lose (p AS Hero)
 DECLARE SUB Dying (g AS Game, p AS Hero)
 DECLARE SUB Things (g AS Game, lo() AS Loose, pt() AS Part)
@@ -2243,6 +2243,7 @@ SUB Sfx (id AS INTEGER)
     CASE SDIE: s = "L16O4CO3BAGL8F"
     CASE SMARK: s = "L32O5CEGO6C"
     CASE SBOOST: s = "L64O4CEGO5CEGO6C"
+    CASE SHISS: s = "W3Y3,3500,0H3,8,0,3L4O6B"
     END SELECT
     PLAY , , , "T255W1V13Y0K0H0,0,15,0" + s
 END SUB
@@ -2778,7 +2779,7 @@ SUB Touch (g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
                         Sfx SPOP
                         IF NOT p.ground AND p.vy > 0 THEN p.vy = -BOUNCEV
                     ELSE
-                        Hurt g, p, x, lo()
+                        Hurt g, p, x, lo(), SHISS
                     END IF
                 END IF
             END IF
@@ -2812,7 +2813,7 @@ SUB Touch (g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
         CASE KGOAL
             IF px >= x THEN ObS(i) = 1
         CASE KTHORN
-            IF dx < 12 AND ABS(py - ObY(i)) < 8 AND p.onloop = 0 THEN Hurt g, p, x, lo()
+            IF dx < 12 AND ABS(py - ObY(i)) < 8 AND p.onloop = 0 THEN Hurt g, p, x, lo(), SHURT
         END SELECT
         i = i + 1
     LOOP
@@ -2828,9 +2829,10 @@ SUB Touch (g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
 END SUB
 
 ' Hit: the bones fly loose and Charlie is knocked back; with none, it is out.
-SUB Hurt (g AS Game, p AS Hero, fromX AS INTEGER, lo() AS Loose)
+SUB Hurt (g AS Game, p AS Hero, fromX AS INTEGER, lo() AS Loose, snd AS INTEGER)
     DIM i AS INTEGER, n AS INTEGER, a AS SINGLE, v AS SINGLE
     IF p.inv > 0 THEN EXIT SUB
+    IF snd = SHISS THEN Sfx snd
     IF g.bones = 0 THEN Lose p: EXIT SUB
     n = g.bones
     IF n > NLOOSE THEN n = NLOOSE
@@ -2849,7 +2851,7 @@ SUB Hurt (g AS Game, p AS Hero, fromX AS INTEGER, lo() AS Loose)
     p.vy = -260
     IF p.x < fromX THEN p.vx = -140 ELSE p.vx = 140
     g.shake = .25
-    Sfx SHURT
+    IF snd = SHURT THEN Sfx snd
 END SUB
 
 SUB Lose (p AS Hero)
@@ -3169,6 +3171,8 @@ SUB DrawHero (p AS Hero, cx AS INTEGER, cy AS INTEGER)
         END IF
     END IF
     IF t = 0 THEN
+        ' afraid, it shakes
+        IF f = FHURT THEN x = x + ((Ticks \ 2) AND 1) * 2 - 1
         Blit x - 16, y - 31, IHERO + (p.face * NF + f) * 2, 32, 32
         EXIT SUB
     END IF
