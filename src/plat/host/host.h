@@ -6,6 +6,8 @@
 
 /* A key for pkey_read and pkey_wait: scan code << 8 | character. */
 void host_key_push(uint16_t key);
+/* A byte from the keyboard for port 60h: a key's scan code as it goes down, with 80h as it comes up. */
+void host_scan_push(uint8_t scan);
 /* Page's cell at row, col. */
 PscrCell host_cell(uint8_t page, uint8_t row, uint8_t col);
 

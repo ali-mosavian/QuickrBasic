@@ -182,3 +182,19 @@ TEST(varptr_string_is_the_type_and_address)
     CHECK(unit_run(S, lines) == ST_OK);
     CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 5  2  3  8  20  4 e 5 ");
 }
+
+/* Port 60h read FFh on a Mac: a game that reads held keys there fell back to INKEY$'s repeats, and a key held
+   was forgotten as a second went down. A byte a look, in order, the last one kept. */
+TEST(port_60h_is_the_keys_down_and_up)
+{
+    static const char *const lines[] = {
+        "10 PRINT INP(&H60); INP(&H60); INP(&H60); INP(&H60);",
+        nullptr,
+    };
+
+    host_scan_push(0x4D);
+    host_scan_push(0x39);
+    host_scan_push(0xCD);
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 77  57  205  205 ");
+}

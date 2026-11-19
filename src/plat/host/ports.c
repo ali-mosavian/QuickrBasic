@@ -1,5 +1,7 @@
 /* INP and OUT on a host: the VGA's DAC (the runtime's, the colours shown) and status, the 8042's command to type a
    key. */
+#include <stdatomic.h>
+
 #include "plat/host/host.h"
 #include "plat/psys.h"
 #include "qbrt/qbrt.h"
@@ -12,12 +14,31 @@ enum : uint16_t {
     PORT_DAC_DATA = 0x3C9,
     PORT_STATUS = 0x3DA,
 };
-enum : uint8_t { KBD_WRITE_OUTPUT = 0xD2, RETRACE = 8 };
+enum : uint8_t { KBD_WRITE_OUTPUT = 0xD2, RETRACE = 8, NO_KEYBOARD = 0xFF };
+enum { SCANS = 32 };
 
 static struct {
     uint8_t status;
     bool kbd_write; /* the next data byte is a key typed */
-} ports;
+    uint8_t scan;   /* the keyboard's last byte read */
+} ports = {.scan = NO_KEYBOARD};
+
+/* The keyboard's bytes not yet read, pushed by a window's thread and read by the program's. */
+static struct {
+    uint8_t bytes[SCANS];
+    atomic_uint pushed, read;
+} scans;
+
+void host_scan_push(const uint8_t scan)
+{
+    const unsigned at = atomic_load(&scans.pushed);
+
+    if (at - atomic_load(&scans.read) == SCANS)
+        return;
+
+    scans.bytes[at % SCANS] = scan;
+    atomic_store(&scans.pushed, at + 1);
+}
 
 uint8_t psys_inp(const uint16_t port)
 {
@@ -26,6 +47,18 @@ uint8_t psys_inp(const uint16_t port)
     case PORT_DAC_WRITE:
     case PORT_DAC_DATA:
         return (uint8_t)qb_port_in(port);
+    case PORT_KBD_DATA: {
+        /* a byte a look, in order: a press and a release between two looks are both seen */
+        const unsigned at = atomic_load(&scans.read);
+
+        if (at != atomic_load(&scans.pushed)) {
+            ports.scan = scans.bytes[at % SCANS];
+            atomic_store(&scans.read, at + 1);
+        }
+
+        return ports.scan;
+    }
+
     case PORT_STATUS:
         return ports.status ^= RETRACE; /* retrace starts and ends at each look */
     default:
