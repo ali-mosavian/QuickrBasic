@@ -185,15 +185,15 @@ def bar_of(
     up: int = 0,
 ) -> str:
     """A bar of a voice as PLAY's commands, its volume where it changes from what the voice is `set_to`; a drum's is
-    its one note, at its own volume."""
-    out, at = "", first
+    its one note, at its own volume. A note runs over the bar's end if it is longer, and the next bar starts where
+    it ends (`set_to`'s "at")."""
+    out, at = "", max(first, int(set_to.get("at", first)))
     while at < first + places:
         if at not in voice:
             gap = next((p for p in range(at, first + places) if p in voice), first + places) - at
             out, at = out + rest(gap), at + gap
             continue
         pitch, length, volume, slide = voice[at]
-        length = min(length, first + places - at)
         piece = max(p for p in PIECES if p <= length)
         if drum is not None:
             out += drum + rest(piece - 1)
@@ -210,6 +210,7 @@ def bar_of(
                 out, set_to["K"] = out + slide, slide
             out += f"L{PIECES[piece].rstrip('.')}N{note}{dot}"
         out, at = out + rest(length - piece), at + length
+    set_to["at"] = at
     return out
 
 

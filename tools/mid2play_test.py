@@ -51,7 +51,25 @@ def song() -> bytes:
     return b"MThd" + head + lead + kit
 
 
+def held() -> bytes:
+    """A half note from the fourth beat, over the bar line, then a quarter on the next bar's third."""
+    notes = track(
+        [
+            (72, bytes([0x90, 60, 100])),
+            (48, bytes([0x80, 60, 0])),
+            (24, bytes([0x90, 62, 100])),
+            (24, bytes([0x80, 62, 0])),
+        ]
+    )
+    head = (6).to_bytes(4, "big") + (1).to_bytes(2, "big") + (1).to_bytes(2, "big") + (24).to_bytes(2, "big")
+    return b"MThd" + head + notes
+
+
 def main() -> None:
+    # a note held over a bar line is held: it was cut at the line, and a brass chord a recording held into the next
+    # bar stopped dead
+    over = mid2play.program(mid2play.read(held()), 10, None, 16).splitlines()
+    assert over[2:4] == ['PLAY "P2.V9L2N37"', 'PLAY "P4L4N39P4"'], over
     exe = Path(sys.argv[1] if len(sys.argv) > 1 else ROOT / "build/host/basic").resolve()
     text = mid2play.program(mid2play.read(song()), 10, None, 16)
     # a voice moved an octave: the E an octave down
