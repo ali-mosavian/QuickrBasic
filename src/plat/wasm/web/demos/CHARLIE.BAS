@@ -213,11 +213,13 @@ DIM SHARED StartX AS INTEGER, StartY AS INTEGER
 DIM SHARED Tune AS INTEGER, BarkAt AS LONG
 DIM SHARED Ticks AS LONG, Muted AS INTEGER, LooseN AS INTEGER, PartN AS INTEGER
 DIM SHARED Glint(2) AS LONG
-CONST NBAR = 28
-DIM SHARED Trk(NBAR * 20) AS STRING, Kit(NBAR * 4) AS STRING, Org(NBAR * 4) AS STRING, Horn(1) AS STRING, Keys(1) AS STRING
+' A song's most bars.
+CONST NBAR = 30
+DIM SHARED Trk(NBAR * 20) AS STRING, Kit(NBAR * 4) AS STRING, Org(NBAR * 4) AS STRING, Third(NBAR * 4) AS STRING, Horn(1) AS STRING, Keys(1) AS STRING
 DIM SHARED Order(1) AS STRING, Voicing(1) AS STRING, Tempo(1) AS INTEGER, BassIn(1) AS INTEGER
 DIM SHARED Lvl(1, 4) AS INTEGER, Solo(1) AS STRING, Fade(1) AS INTEGER, Entry(1) AS INTEGER
 DIM SHARED Sng AS INTEGER, Bar AS INTEGER, HalfBar AS INTEGER
+DIM SHARED Coming AS INTEGER, ComingBar AS INTEGER, FadeOut AS INTEGER, FadeIn AS INTEGER
 
 Main
 END
@@ -249,11 +251,11 @@ DATA goal,0, flat,6, bush,0, flat,14, "end",0
 ' The tune: 76 bars of 28, each a letter of the order: an intro and its variation, then A, B, C and D twice
 ' round and four bars of A fading. A bar is its chord's root from D, a bass riff and a drum pattern by number, the
 ' second brass, the brass and the lead. After the order: each bar's brasses, h horns or k the organ and a clavinet;
-' the tempo; the bars the bass waits; how loud the brass, the lead, the second brass, the low voice and the
+' the bars there are; the tempo; the bars the bass waits; how loud the brass, the lead, the second brass, the low voice and the
 ' bass are; the bars at its end that fade; the bar it comes in at where it is not from its start. After the intro the brass is an organ, high, and the second a low chug. A riff is sixteen sixteenths: a note in semitones above its voice's lowest
 ' (0-9, a-z), a capital slid into, "-" holds it, "." rests. A second brass of two letters is a chord pattern by number and its note.
 Song:
-DATA "abcdabcefghefgh{ijkl|jkmnopqnoprstuvwxyzwxyzijkl|jkmnopqnoprstuvwxyzwxyzijkm", "hhhhhhhhkkkkkkkkkkkkkkkkkkhk", 140, 3, 12, 9, 10, 9, 13, 4, 0
+DATA "abcdabcefghefgh{ijkl|jkmnopqnoprstuvwxyzwxyzijkl|jkmnopqnoprstuvwxyzwxyzijkm", "hhhhhhhhkkkkkkkkkkkkkkkkkkhk", 28, 140, 3, 12, 9, 10, 9, 13, 4, 0
 DATA "0.0.C.0.00c.7.0C", "0.0.7.0.C.0c.7c7", "0.0.0.0.C.c.057c", "0.C00c7c0.C057ac", "0.......0.....7."
 DATA "x.x.x.xx.xx.x.x.", "x.......x.....x.", "x.x.x.x.x.x.x.x."
 DATA "KHHHSHHSKHKHSHHH", "KHHHSHKHSSTTSTSS", "K.H.S.H.K.K.S.H.", "K.H.S.SSKSSTSTTS", "KHHSHHKSKHHSHHSS"
@@ -287,46 +289,50 @@ DATA -2, 3, 1, "0e", "q--.q..t--------", "q.qq.m.q-..t-q-m"
 DATA -5, 3, 1, "j-..j.k.m-k-j-f-", "m-..m.o.q-o-m-j-", "........7bejnqv-"
 DATA 0, 1, 0, "0f", "v--.v..v--------", "o.jo..m.oj..f.hj"
 
-' Charlie's own theme, for the title and the level's end: 64 bars of 28 in G minor, as fast. Two organs in stereo
-' stab a four bar round, the second brass's voice the note under the brass's; a brass lead answers them, busy two
-' bars and held two; then eight bars of horn hits a run answers, and four where a low riff is joined a voice a bar.
-' A bar's brasses: o two organs, h horns, k the organ and a clavinet. It ends on a held chord, not a fade, and at
-' the level's end comes in at the hits. Its levels are a song's a listener passed, part for part against its drums:
-' as first written the lead was 2.8 dB under that and the bass 2.2 over. As Song's.
+' Charlie's own theme, for the title and the level's end: 64 bars of 30 in G minor, as fast. Three organs, two of
+' them in stereo, stab a four bar round: the brass's voice, the second brass's the note under it, and a third's
+' under that, a bar's last riff. A brass lead answers them, busy two bars and held two, its fourth bar another as
+' it comes round again; then eight bars of horn hits a run answers, and four where a low riff is joined a voice a
+' bar. A bar's brasses: o organs, h horns, k the organ and a clavinet. Hats have ghosts (h) between them and one
+' left open (O). It ends on a held chord, not a fade, and at the level's end comes in at the hits. Its levels are
+' a song's a listener passed, part for part against its drums: as first written the lead was 2.8 dB under that
+' and the bass 2.2 over. As Song's.
 Song2:
-DATA "abyzwxcdefcdefghijghijklmnopqrstuvcdefghijklmnopqrstuvcdefghij{|", "oooooooooohohohohokkkkoooohh", 140, 2, 12, 14, 10, 9, 11, 0, 22
+DATA "abyzwxcdefcde}ghijghi~klmnopqrstuvcdefghi~klmnopqrstuvcde}ghij{|", "oooooooooohohohohokkkkoooohhoo", 30, 140, 2, 10, 14, 9, 8, 11, 0, 22
 DATA "0..0c.0..0c.7ac.", "0.c.0.c.0.0c7.5.", "0--0--0-........", "0.03.5.0.a.c5.3.", "................"
 DATA "..x..x....x..x..", "x..x..x...x.x...", "x.......x.....x."
-DATA "K.H.S.HK.HK.S.H.", "K.H.S.HK.HK.SSTS", "K..K..K.S.H.S.HH", "K.H.S.H.K.H.S.H.", "H.H.H.HHH.H.H.HH"
-DATA "K.H.H.H.K.H.H.H.", "K.S.K.SSTTSSTSSS"
-DATA 5, 5, 4, "k..k..k-......j.", "o..o..o-......m.", ""
-DATA 5, 5, 4, ".k.k..m---------", ".o.o..r---------", ""
-DATA 5, 1, 0, "k..k..k-......j.", "o..o..o-......m.", "..h.k.m.o-m.k.m."
-DATA 5, 2, 0, ".k.k..m---------", ".o.o..r---------", "o-..r.o.m-k-h---"
-DATA 1, 1, 0, "h..h..h-......j.", "k..k..k-......m.", "..k.m.o.r-o.m.o."
-DATA 3, 2, 1, ".j.j..m---------", ".m.m..o---------", "r-..t.r.o-m-o---"
-DATA 5, 1, 0, "k..k..k-......j.", "o..o..o-......m.", "t---..r.t-w-t-r-"
-DATA 5, 2, 0, ".k.k..m---------", ".o.o..r---------", "o-------..m.o.r."
-DATA 1, 1, 0, "h..h..h-......j.", "k..k..k-......m.", "t---..r.t-w-y-w-"
-DATA 3, 2, 1, ".j.j..m---------", ".m.m..o---------", "v-------........"
-DATA -2, 3, 2, "h--h--h-........", "m--m--m-........", ""
-DATA -2, 2, 3, "", "", "..m.p.m.t-r.p.m."
-DATA 0, 3, 2, "j--j--j-........", "o--o--o-........", ""
-DATA 0, 2, 3, "", "", "..o.r.o.v-t.r.o."
-DATA 1, 3, 2, "k--k--k-........", "p--p--p-........", ""
-DATA 1, 2, 3, "", "", "..p.t.p.w-t.p.t."
-DATA 3, 3, 2, "m--m--m-........", "r--r--r-........", ""
-DATA 3, 2, 6, "", "", "r.r.t.t.v.v.y.y."
-DATA 5, 4, 5, "", "", ""
-DATA 5, 4, 5, "5.58.a.5.f.ha.8.", "", ""
-DATA 5, 4, 5, "5.58.a.5.f.ha.8.", "....t---....t---", ""
-DATA 5, 4, 6, "5.58.a.5.f.ha.8.", "....t---....w---", "........h.k.m.o."
-DATA 1, 1, 0, "h..h..h-......j.", "k..k..k-......m.", ""
-DATA 3, 2, 1, ".j.j..m---------", ".m.m..o---------", ""
-DATA 5, 1, 0, "k..k..k-......j.", "o..o..o-......m.", ""
-DATA 5, 2, 0, ".k.k..m---------", ".o.o..r---------", ""
-DATA 5, 3, 2, "o--o--o-........", "t--t--t-........", "..t.w.t.r-o.m.o."
-DATA 5, 5, 6, "o---------------", "t---------------", "t---------------"
+DATA "KhHhShHKhHKhShOh", "KhHhShHKhHKhSSTS", "K..K..K.ShHhShHH", "KhHhShHhKhHhShOh", "HhHhHhHHHhHhHhOh"
+DATA "KhHhHhHhKhHhHhOh", "K.S.K.SSTTSSTSSS"
+DATA 5, 5, 4, "k..k..k-......j.", "o..o..o-......m.", "", "h..h..h-......f."
+DATA 5, 5, 4, ".k.k..m---------", ".o.o..r---------", "", ".h.h..j---------"
+DATA 5, 1, 0, "k..k..k-......j.", "o..o..o-......m.", "..h.k.m.o-m.k.m.", "h..h..h-......f."
+DATA 5, 2, 0, ".k.k..m---------", ".o.o..r---------", "o-..r.o.m-k-h---", ".h.h..j---------"
+DATA 1, 1, 0, "h..h..h-......j.", "k..k..k-......m.", "..k.m.o.r-o.m.o.", "d..d..d-......f."
+DATA 3, 2, 1, ".j.j..m---------", ".m.m..o---------", "r-..t.r.o-m-o---", ".f.f..j---------"
+DATA 5, 1, 0, "k..k..k-......j.", "o..o..o-......m.", "t---..r.t-w-t-r-", "h..h..h-......f."
+DATA 5, 2, 0, ".k.k..m---------", ".o.o..r---------", "o-------..m.o.r.", ".h.h..j---------"
+DATA 1, 1, 0, "h..h..h-......j.", "k..k..k-......m.", "t---..r.t-w-y-w-", "d..d..d-......f."
+DATA 3, 2, 1, ".j.j..m---------", ".m.m..o---------", "v-------........", ".f.f..j---------"
+DATA -2, 3, 2, "h--h--h-........", "m--m--m-........", "", ""
+DATA -2, 2, 3, "", "", "..m.p.m.t-r.p.m.", ""
+DATA 0, 3, 2, "j--j--j-........", "o--o--o-........", "", ""
+DATA 0, 2, 3, "", "", "..o.r.o.v-t.r.o.", ""
+DATA 1, 3, 2, "k--k--k-........", "p--p--p-........", "", ""
+DATA 1, 2, 3, "", "", "..p.t.p.w-t.p.t.", ""
+DATA 3, 3, 2, "m--m--m-........", "r--r--r-........", "", ""
+DATA 3, 2, 6, "", "", "r.r.t.t.v.v.y.y.", ""
+DATA 5, 4, 5, "", "", "", ""
+DATA 5, 4, 5, "5.58.a.5.f.ha.8.", "", "", ""
+DATA 5, 4, 5, "5.58.a.5.f.ha.8.", "....t---....t---", "", ""
+DATA 5, 4, 6, "5.58.a.5.f.ha.8.", "....t---....w---", "........h.k.m.o.", ""
+DATA 1, 1, 0, "h..h..h-......j.", "k..k..k-......m.", "", "d..d..d-......f."
+DATA 3, 2, 1, ".j.j..m---------", ".m.m..o---------", "", ".f.f..j---------"
+DATA 5, 1, 0, "k..k..k-......j.", "o..o..o-......m.", "", "h..h..h-......f."
+DATA 5, 2, 0, ".k.k..m---------", ".o.o..r---------", "", ".h.h..j---------"
+DATA 5, 3, 2, "o--o--o-........", "t--t--t-........", "..t.w.t.r-o.m.o.", ""
+DATA 5, 5, 6, "o---------------", "t---------------", "t---------------", ""
+DATA 3, 2, 1, ".j.j..m---------", ".m.m..o---------", "r-..t.r.w-t-r.t.", ".f.f..j---------"
+DATA 3, 2, 6, ".j.j..m---------", ".m.m..o---------", "v---..t.v-y-w-t-", ".f.f..j---------"
 
 ' CharlieArt's begin.
 ' The palette and pictures, as tools/charlieart.py draws them.
@@ -2249,7 +2255,7 @@ SUB ReadPad (k AS Pad)
         CASE "m", "M": k.mute = -1
         CASE "n", "N"
             Tune = NOT Tune
-            IF NOT Tune THEN PLAY "P64", "P64", "P64", , "P64", "P64", "P64"
+            IF NOT Tune THEN PLAY "P64", "P64", "P64", , "P64", "P64", "P64", "P64"
         CASE CHR$(13): k.start = -1
         CASE " ": k.start = -1: KeyT(SCSPACE) = t
         CASE "z", "Z": KeyT(SCZ) = t
@@ -2323,19 +2329,22 @@ SUB LoadSong
     DIM i AS INTEGER, j AS INTEGER, k AS INTEGER, root AS INTEGER, nb AS INTEGER, nd AS INTEGER
     DIM bas(4) AS STRING, hits(2) AS STRING, pat(6) AS STRING, low AS INTEGER
     DIM st AS STRING, br AS STRING, sol AS STRING
-    DIM w AS INTEGER, n AS INTEGER
+    DIM w AS INTEGER, n AS INTEGER, bars AS INTEGER, mid AS STRING
     RESTORE Song
     FOR w = 0 TO 1
     IF w THEN RESTORE Song2
-    READ Order(w), Voicing(w), Tempo(w), BassIn(w)
+    READ Order(w), Voicing(w), bars, Tempo(w), BassIn(w)
     FOR i = 0 TO 4: READ Lvl(w, i): NEXT
     READ Fade(w), Entry(w)
     FOR i = 0 TO 4: READ bas(i): NEXT
     FOR i = 0 TO 2: READ hits(i): NEXT
     FOR i = 0 TO 6: READ pat(i): NEXT
-    FOR n = 0 TO NBAR - 1
+    FOR n = 0 TO bars - 1
         i = w * NBAR + n
         READ root, nb, nd, st, br, sol
+        ' Charlie's theme has a third brass a bar
+        mid = ""
+        IF w THEN READ mid
         low = 27
         IF LEN(st) = 2 THEN
             low = 15
@@ -2351,24 +2360,27 @@ SUB LoadSong
             Trk(k + 3) = Riff$(sol, j, 27)
             Trk(k + 4) = Riff$(st, j, low)
             Org(i * 2 + j) = Riff$(br, j, 15)
+            Third(i * 2 + j) = Riff$(mid, j, 27)
         NEXT
     NEXT
     NEXT
     ' the kit; FM, as the consoles of the day: a round bass; a reedy pulse lead; two brasses that waver, their
     ' harmonics a saw's by a modulator that bends itself, for the intro; then an organ that wavers as it is held, the
     ' same an octave down on the other side, and a clavinet. Notes stop when they stop, and the room answers little.
-    ' In stereo: the brass and the organ to the left, the second brass, the clavinet and the low organ to the right
-    PLAY "MBT140Z1,0L16", "T140W4Z1,6,3,3,2H0,5,5,1", "T140R2S4", , "T140R2W0Q42H1,4,10,1U5I4", "T140R2S12", "T140R2S12W4Z1,4,3,13,4H0,4,11,1U9"
+    ' In stereo: the brass and the organ to the left, the second brass, the clavinet and the low organ to the right,
+    ' a third organ between them
+    PLAY "MBT140Z1,0L16", "T140W4Z1,6,3,3,2H0,5,5,1", "T140R2S4", , "T140R2W0Q42H1,4,10,1U5I4", "T140R2S12", "T140R2S12W4Z1,4,3,13,4H0,4,11,1U9", "T140R2W4Z1,4,3,13,4H0,4,11,1U9"
     Horn(0) = "W4Z1,8,3,11,4H0,4,12,1U11I2": Horn(1) = "W4Z1,4,3,13,5H1,4,11,2U9I7"
     Keys(0) = "W4Z1,4,3,13,4H0,4,11,1U9I0": Keys(1) = "W4Z3,9,3,1,3H0,4,1,2U0I0"
     ' the lead: a reedy pulse, or, in Charlie's theme, a brass
     Solo(0) = "W0Q42H1,4,10,1U5I4": Solo(1) = "W4Z1,9,3,15,3H5,4,10,1U5I4"
-    Sng = 1: Bar = 0: HalfBar = 0
+    Sng = 1: Bar = 0: HalfBar = 0: Coming = -1
     Tune = -1
 END SUB
 
 ' Half a bar of the kit, `loud` eighths as loud: a kick, a sine that falls to its pitch, a thump and then a tail; a
-' tom; a snare, all the noise, and hats, the noise at its highest over 2.5 kHz.
+' tom; a snare, all the noise, and hats, the noise at its highest over 2.5 kHz: struck, a ghost of one (h), or left
+' open (O).
 FUNCTION Beat$ (x AS STRING, loud AS INTEGER)
     DIM q AS INTEGER, d AS STRING
     FOR q = 1 TO 8
@@ -2377,6 +2389,8 @@ FUNCTION Beat$ (x AS STRING, loud AS INTEGER)
         CASE "S": d = d + "W3H0,5,0,1K0Y0V" + LTRIM$(STR$(13 * loud \ 8)) + "O6C"
         CASE "T": d = d + "W4H0,5,0,3Y0K5,6V" + LTRIM$(STR$(11 * loud \ 8)) + "O2G"
         CASE "H": d = d + "W3H0,3,0,1K0Y3,2500,0V" + LTRIM$(STR$((12 * loud + 7) \ 8)) + "O6B"
+        CASE "h": d = d + "W3H0,2,0,1K0Y3,2500,0V" + LTRIM$(STR$(5 * loud \ 8)) + "O6B"
+        CASE "O": d = d + "W3H0,7,0,4K0Y3,2500,0V" + LTRIM$(STR$(11 * loud \ 8)) + "O6B"
         CASE ELSE: d = d + "P16"
         END SELECT
     NEXT
@@ -2425,14 +2439,21 @@ END FUNCTION
 ' so PLAY(0) counts the tune's own clock. The last four bars fade, an eighth a half bar.
 SUB FeedSong
     DIM k AS INTEGER, b AS INTEGER, loud AS INTEGER, d AS STRING, bass AS STRING, one AS STRING, two AS STRING, under AS STRING
-    DIM t AS STRING
+    DIM t AS STRING, mid AS STRING
     IF Muted OR NOT Tune THEN EXIT SUB
     IF PLAY(0) > 2 THEN EXIT SUB
+    ' the song picked comes in once this one has faded
+    IF Coming >= 0 AND FadeOut = 0 THEN Sng = Coming: Bar = ComingBar: HalfBar = 0: Coming = -1
     t = "T" + LTRIM$(STR$(Tempo(Sng)))
     b = ASC(MID$(Order(Sng), Bar + 1, 1)) - 97
     k = (Sng * NBAR + b) * 2 + HalfBar
     loud = (LEN(Order(Sng)) - Bar) * 2 - HalfBar
     IF loud > 8 OR Bar < LEN(Order(Sng)) - Fade(Sng) THEN loud = 8
+    IF FadeOut > 0 THEN
+        loud = loud * FadeOut \ 3: FadeOut = FadeOut - 1
+    ELSEIF FadeIn > 0 THEN
+        loud = loud * (3 - FadeIn) \ 3: FadeIn = FadeIn - 1
+    END IF
     d = Trk(k * 5)
     IF loud < 8 THEN d = Beat$(Kit(k), loud)
     ' the bass waits its bars; a bar's brasses are the horns or the organ, by the song
@@ -2444,20 +2465,23 @@ SUB FeedSong
     CASE "h": one = Horn(0): two = Horn(1): under = "P2"
     CASE "o": two = Keys(0)
     END SELECT
+    mid = t + "V" + LTRIM$(STR$(Lvl(Sng, 2) * loud \ 8)) + Third(k)
     k = k * 5
     one = t + one + "V" + LTRIM$(STR$(Lvl(Sng, 0) * loud \ 8)) + Trk(k + 2)
     two = t + two + "V" + LTRIM$(STR$(Lvl(Sng, 2) * loud \ 8)) + Trk(k + 4)
-    PLAY t + d, t + bass, one, , t + Solo(Sng) + "V" + LTRIM$(STR$((Lvl(Sng, 1) * loud + 7) \ 8)) + Trk(k + 3), two, t + under
+    PLAY t + d, t + bass, one, , t + Solo(Sng) + "V" + LTRIM$(STR$((Lvl(Sng, 1) * loud + 7) \ 8)) + Trk(k + 3), two, t + under, mid
     HalfBar = 1 - HalfBar
     IF HalfBar = 0 THEN Bar = (Bar + 1) MOD LEN(Order(Sng))
 END SUB
 
 ' Song n, when it is not the one playing, from its start or, late, from the bar it comes in at: Charlie's theme (1)
-' for the title and, from its hits, the level's end; the Downs' tune (0) for the run.
+' for the title and, from its hits, the level's end; the Downs' tune (0) for the run. The one playing fades over a
+' bar (half of one, late) and the next fades in over one; late, it comes in full.
 SUB PickSong (n AS INTEGER, late AS INTEGER)
-    IF n = Sng THEN EXIT SUB
-    Sng = n: Bar = 0: HalfBar = 0
-    IF late THEN Bar = Entry(n)
+    IF n = Sng THEN Coming = -1: FadeOut = 0: EXIT SUB
+    IF n = Coming THEN EXIT SUB
+    Coming = n: ComingBar = 0: FadeOut = 2: FadeIn = 2
+    IF late THEN ComingBar = Entry(n): FadeOut = 1: FadeIn = 0
 END SUB
 
 ' The ground's top at column sx near y: in y's tile, the one above when
@@ -2556,7 +2580,7 @@ SUB Tick (g AS Game, p AS Hero, k AS Pad, lo() AS Loose, pt() AS Part)
     IF g.shake > 0 THEN g.shake = g.shake - STEPT
     IF k.mute THEN
         Muted = NOT Muted: k.mute = 0
-        IF Muted THEN PLAY "P64", "P64", "P64", , "P64", "P64", "P64"
+        IF Muted THEN PLAY "P64", "P64", "P64", , "P64", "P64", "P64", "P64"
     END IF
     SELECT CASE g.mode
     CASE TITLE
