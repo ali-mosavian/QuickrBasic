@@ -6,6 +6,7 @@ import { imports, memory as newMemory, Irq, sidecar, ticker, MUSIC_HZ } from '..
 
 class Exit extends Error {}
 
+// QB_SCANS: port 60h's bytes in hex, comma apart, pushed as the module starts, for tools/wasm/scan_test.mjs.
 // QB_TONES: each tone and voice (its hertz and gate) and its time (ms) to standard error, for
 // tools/wasm/play_test.mjs.
 const log = (line) => fs.writeSync(2, `${line} ${performance.now().toFixed(1)}\n`);
@@ -24,7 +25,8 @@ if (isMainThread) {
   let irq, timer;
   worker.on('message', (m) => {
     if ('irq' in m) {
-      irq = new Irq(memory, m.irq);
+      irq = new Irq(memory, m.irq, m.scans);
+      for (const code of (process.env.QB_SCANS ?? '').split(',').filter(Boolean)) irq.scan(parseInt(code, 16));
       const tick = sidecar(module, memory, tone, voice);
       timer = setInterval(ticker(irq, tick), 1000 / MUSIC_HZ);
     } else if ('exit' in m) {
@@ -63,7 +65,7 @@ if (isMainThread) {
     },
   };
   const ex = new WebAssembly.Instance(module, imports(memory, host)).exports;
-  parentPort.postMessage({ irq: ex.irq() });
+  parentPort.postMessage({ irq: ex.irq(), scans: ex.scans() });
   let code = 0;
   try {
     ex.__wasm_call_ctors();

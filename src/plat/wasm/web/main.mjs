@@ -1,7 +1,7 @@
 // The page: the IDE's screen on a canvas, the keyboard and the speaker. The module runs in a worker
 // (worker.mjs); this thread is its VGA card and its interrupts: it renders the screen from the
 // shared memory in an instance of its own, ORs in the tick, types the keys.
-import { biosKey, shiftFlags } from './keys.mjs';
+import { biosKey, scanCode, shiftFlags } from './keys.mjs';
 import { memory as newMemory, Irq, sidecar, ticker, MUSIC_HZ } from './wasm.mjs';
 
 const BLINK_MS = 267;
@@ -85,7 +85,7 @@ let irq, display;
 
 worker.onmessage = ({ data }) => {
   if ('irq' in data) {
-    irq = new Irq(memory, data.irq);
+    irq = new Irq(memory, data.irq, data.scans);
     display = sidecar(module, memory, tone, voice);
     window.quickr = { display, irq, memory }; // for a look from the console, and the tests
     setInterval(ticker(irq, display), 1000 / MUSIC_HZ);
@@ -158,10 +158,17 @@ function draw(now) {
   requestAnimationFrame(draw);
 }
 
+// The keys down, by scan code: port 60h's bytes as each goes down and comes up.
+const held = new Set();
+function release(code) {
+  if (held.delete(code)) irq.scan(code | 0x80);
+}
 addEventListener('keydown', (e) => {
   wake();
   if (!irq || e.metaKey) return;
   irq.shift = shiftFlags(e);
+  held.add(scanCode(e));
+  irq.scan(scanCode(e));
   if (e.ctrlKey && (e.code === 'Pause' || e.code === 'Cancel' || e.code === 'KeyC')) irq.raise(4);
   const key = e.ctrlKey && (e.code === 'Pause' || e.code === 'Cancel') ? 0 : biosKey(e);
   e.preventDefault();
@@ -172,10 +179,15 @@ const ALT_TAP_MS = 60;
 addEventListener('keyup', (e) => {
   if (!irq) return;
   e.preventDefault();
+  release(scanCode(e));
   if (e.key === 'Alt') setTimeout(() => (irq.shift = shiftFlags(e)), ALT_TAP_MS);
   else irq.shift = shiftFlags(e);
 });
-addEventListener('blur', () => irq && (irq.shift = 0));
+addEventListener('blur', () => {
+  if (!irq) return;
+  irq.shift = 0;
+  for (const code of [...held]) release(code); // no key comes up for a page that lost the keyboard
+});
 addEventListener('pointerdown', wake);
 
 // An upload is kept and opened: the IDE starts again with it.

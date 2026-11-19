@@ -36,6 +36,16 @@ function fkey(n, e) {
 const ALT_DIGIT = { Digit1: 0x78, Digit2: 0x79, Digit3: 0x7A, Digit4: 0x7B, Digit5: 0x7C, Digit6: 0x7D,
   Digit7: 0x7E, Digit8: 0x7F, Digit9: 0x80, Digit0: 0x81, Minus: 0x82, Equal: 0x83 };
 
+// The key's scan code as port 60h has it, 0 none.
+export function scanCode(e) {
+  const { code } = e;
+  const m = /^F(\d+)$/.exec(code);
+  if (m && +m[1] <= 10) return 0x3B + +m[1] - 1;
+  if (code in GREY) return GREY[code][0];
+  if (code in TYPED) return TYPED[code][0];
+  return { Enter: 0x1C, NumpadEnter: 0x1C, Escape: 0x01, Backspace: 0x0E, Tab: 0x0F, F11: 0x57, F12: 0x58 }[code] ?? 0;
+}
+
 // The key an event types, or null (a modifier alone, a key the BIOS has none for).
 export function biosKey(e) {
   const { code } = e;
