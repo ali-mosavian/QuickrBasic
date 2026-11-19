@@ -87,10 +87,14 @@ def main() -> None:
     # every kick, which no drum of a recording had
     for drum in mid2play.KIT.values():
         assert "K0" in drum or "Z1,0" in drum, drum
+    # an organ's stab is bright: a duller one, fit to an octave under the written, lost a recording's 350 to 1400 Hz
+    assert mid2play.sound(2) == "R5W4Z1,4,3,13,4H0,4,11,2R0", mid2play.sound(2)
+    # a kick under full: at V15 its 55 Hz stood 5 dB over a recording's
+    assert "V11" in mid2play.KICK, mid2play.KICK
     # a voice a drum, set once: the kick, then the hat
     # with the hat under the kick, which the kit in one voice lost
     assert lines[1].endswith(
-        '"T240Z1,0H0,5,0,3L16W4Z1,0H0,5,0,3Y0K1,8R3V15O1", "T240Z1,0H0,5,0,3L16W3Y3,3000,0K0R5V11O6"'
+        '"T240Z1,0H0,5,0,3L16W4Z1,0H0,5,0,3Y0K1,8R3V11O1", "T240Z1,0H0,5,0,3L16W3Y3,3000,0K0R5V11O6"'
     )
     # a note is as loud as its velocity, squared: every track at one volume was not a recording's balance. The
     # volume is set where it changes, the G at 64 of 127 a quarter of full
