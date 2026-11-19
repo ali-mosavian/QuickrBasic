@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""pangdash_test.py [EXE]: PANGDASH.BAS's level played through by an autopilot on the host build.
+"""charlie_test.py [EXE]: CHARLIE.BAS's level played through by an autopilot on the host build.
 
 The main loop is swapped for one that plays with the game's own pilot, which holds Right and jumps
 at pits, walls and beetles ahead. The level must be cleared on the first life, round all five of
@@ -17,7 +17,7 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DEMO = ROOT / "src/plat/wasm/web/demos/PANGDASH.BAS"
+DEMO = ROOT / "src/plat/wasm/web/demos/CHARLIE.BAS"
 
 DRIVER = """OpenScreen
 LoadTables
@@ -58,22 +58,22 @@ END
 def main() -> None:
     exe = Path(sys.argv[1] if len(sys.argv) > 1 else ROOT / "build/host/basic").resolve()
     src = DEMO.read_text()
-    assert "\nMain\nEND\n" in src, "PANGDASH.BAS's main call moved"
+    assert "\nMain\nEND\n" in src, "CHARLIE.BAS's main call moved"
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "T.BAS"
         path.write_text(src.replace("\nMain\nEND\n", "\n" + DRIVER, 1))
         run = subprocess.run([exe, path.name], cwd=tmp, capture_output=True, timeout=120)
     out = run.stdout.decode(errors="replace") + run.stderr.decode(errors="replace")
     if "edge ok" not in out:
-        sys.exit(f"pangdash: a beetle at the level's left end: {out[-300:]}")
+        sys.exit(f"charlie: a beetle at the level's left end: {out[-300:]}")
     if "sounds ok" not in out:
-        sys.exit(f"pangdash: a bar of the tune or a sound effect: {out[-300:]}")
+        sys.exit(f"charlie: a bar of the tune or a sound effect: {out[-300:]}")
     words = out[out.rfind("result") :].split()
     if len(words) < 5 or words[1:3] != ["2", "3"] or words[4] != "5":
         sys.exit(
-            f"pangdash: not cleared on the first life round 5 loops (mode, lives, beads, loops, x, y): {out[-300:]}"
+            f"charlie: not cleared on the first life round 5 loops (mode, lives, beads, loops, x, y): {out[-300:]}"
         )
-    print(f"pangdash ok: cleared with {words[3]} beads")
+    print(f"charlie ok: cleared with {words[3]} beads")
 
 
 if __name__ == "__main__":

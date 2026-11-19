@@ -636,12 +636,12 @@ def cmd_fps(a: argparse.Namespace) -> int:
             print(f"{n:>12,} {n / total:6.1%} {calls:>9,} calls  {f}")
     return 0
 
-PANG = ROOT / "src/plat/wasm/web/demos/PANGDASH.BAS"
+CHARLIE = ROOT / "src/plat/wasm/web/demos/CHARLIE.BAS"
 # the game's own pilot playing from the start; each call for 2 s, a second of play between them
-PANG_EACH = ("Pilot p, k: Tick g, p, k, lo(), pt()", "DrawBack cx, cy", "DrawThings cx, cy, -1", "DrawTiles cx, cy",
+CHARLIE_EACH = ("Pilot p, k: Tick g, p, k, lo(), pt()", "DrawBack cx, cy", "DrawThings cx, cy, -1", "DrawTiles cx, cy",
              "DrawThings cx, cy, 0", "DrawHero p, cx, cy", "DrawParts pt(), cx, cy", "Blit 6, 5, IHUD, HUDW, HUDH", "Flip g.page",
              "Render g, p, lo(), pt()")
-PANG_SETUP = """OpenScreen
+CHARLIE_SETUP = """OpenScreen
 LoadTables
 LoadLevel
 BuildArt
@@ -654,36 +654,36 @@ OPEN "EACH.TXT" FOR OUTPUT AS #1
 """
 
 
-def pang_program() -> str:
-    """PANGDASH.BAS's Main swapped for a loop of each PANG_EACH call (after an empty one), its ms a call to EACH.TXT."""
-    head, rest = PANG.read_text().split("\nMain\nEND\n", 1)
+def charlie_program() -> str:
+    """CHARLIE.BAS's Main swapped for a loop of each CHARLIE_EACH call (after an empty one), its ms a call to EACH.TXT."""
+    head, rest = CHARLIE.read_text().split("\nMain\nEND\n", 1)
     move = "FOR q = 1 TO 60: Pilot p, k: Tick g, p, k, lo(), pt(): NEXT\ncx = INT(g.camx): cy = INT(g.camy)\n"
     loops = "".join(f"{move}n = 0: t0 = TIMER\nDO\n    FOR q = 1 TO {EACH_REPS}\n    {call}\n    NEXT\n"
                     f"    n = n + {EACH_REPS}\nLOOP UNTIL TIMER - t0 >= 2\n"
-                    "PRINT #1, (TIMER - t0) / n * 1000; n\n" for call in ("REM", *PANG_EACH))
-    return head + "\n" + PANG_SETUP + loops + "CLOSE #1\nEND\n" + rest
+                    "PRINT #1, (TIMER - t0) / n * 1000; n\n" for call in ("REM", *CHARLIE_EACH))
+    return head + "\n" + CHARLIE_SETUP + loops + "CLOSE #1\nEND\n" + rest
 
 
-def cmd_pang(a: argparse.Namespace) -> int:
-    """PANGDASH's calls, a ms each on a 486 at 10k cycles/ms, and the frames a second its Render and Flip allow."""
+def cmd_charlie(a: argparse.Namespace) -> int:
+    """CHARLIE's calls, a ms each on a 486 at 10k cycles/ms, and the frames a second its Render and Flip allow."""
     build(".", True)
     conf = dosrun.CONF
     dosrun.CONF = conf.replace("core=normal\ncputype=pentium\nvirtual time=true\nvirtual time rate=20000\n", FPS_CPU)
     assert dosrun.CONF != conf
     with tempfile.TemporaryDirectory() as d:
-        r = dosrun.run({"each": pang_program()}, Path(d) / "w", limit_ms=600000, file=True, mem=16)
+        r = dosrun.run({"each": charlie_program()}, Path(d) / "w", limit_ms=600000, file=True, mem=16)
         log = Path(d) / "w/EACH.TXT"
         rows = [ln.split() for ln in log.read_text().splitlines()] if log.exists() else []
     dosrun.CONF = conf
-    if len(PANG_EACH) >= len(rows):
+    if len(CHARLIE_EACH) >= len(rows):
         print(f"no EACH.TXT: {r['each'].reason} {r['each'].out[-400:]}")
         return 1
     got = [(float(ms), int(n)) for ms, n in rows]
-    cost = {call: ms - got[0][0] for call, (ms, _) in zip(PANG_EACH, got[1:], strict=True)}
+    cost = {call: ms - got[0][0] for call, (ms, _) in zip(CHARLIE_EACH, got[1:], strict=True)}
     for call, ms in cost.items():
         print(f"{ms:>8.2f} ms  {call}")
-    frame = cost[PANG_EACH[-1]] + cost["Flip g.page"]
-    print(f"{1000 / frame:.1f} fps drawn; a tick's {cost[PANG_EACH[0]]:.2f} ms sixty times a second on top")
+    frame = cost[CHARLIE_EACH[-1]] + cost["Flip g.page"]
+    print(f"{1000 / frame:.1f} fps drawn; a tick's {cost[CHARLIE_EACH[0]]:.2f} ms sixty times a second on top")
     return 0
 
 
@@ -726,7 +726,7 @@ def main() -> int:
     p.add_argument("--each", action="store_true", help="each FPS_EACH call's ms on its own")
     p.add_argument("--nosb", action="store_true", help="no Sound Blaster: the PC speaker's music")
     p.add_argument("-n", type=int, default=30)
-    sub.add_parser("pang")
+    sub.add_parser("charlie")
     a = ap.parse_args()
     return {
         "run": cmd_run,
@@ -737,7 +737,7 @@ def main() -> int:
         "qbasic": cmd_qbasic,
         "profile": cmd_profile,
         "fps": cmd_fps,
-        "pang": cmd_pang,
+        "charlie": cmd_charlie,
     }[a.cmd](a)
 
 

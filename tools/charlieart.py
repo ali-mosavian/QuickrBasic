@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""pangart.py [--check] [--sheet PNG]: PANGDASH.BAS's palette and pictures (Pip, tiles, things, props),
-drawn here as shaded, dithered pixels and written into the game as DATA between its PangArt markers:
+"""charlieart.py [--check] [--sheet PNG]: CHARLIE.BAS's palette and pictures (Charlie, tiles, things, props),
+drawn here as shaded, dithered pixels and written into the game as DATA between its CharlieArt markers:
 drawn by the game they would cost its start-up a pixel at a time. --check: fail when the DATA is
 stale. --sheet: every picture to a PNG, to look at.
 
@@ -14,8 +14,8 @@ import argparse
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DEMO = ROOT / "src/plat/wasm/web/demos/PANGDASH.BAS"
-BEGIN, END = "' PangArt's begin.\n", "' PangArt's end.\n"
+DEMO = ROOT / "src/plat/wasm/web/demos/CHARLIE.BAS"
+BEGIN, END = "' CharlieArt's begin.\n", "' CharlieArt's end.\n"
 WIDTH = 100  # a DATA line's most characters
 INK, WHITE = 2, 1
 BAYER = ((0, 8, 2, 10), (12, 4, 14, 6), (3, 11, 1, 9), (15, 7, 13, 5))
@@ -34,9 +34,8 @@ def ramp(first: int, a: tuple[int, int, int], b: tuple[int, int, int], n: int) -
     return list(range(first, first + n))
 
 
-SCALE = ramp(8, (20, 10, 5), (60, 44, 20), 6)
-SKIN = ramp(14, (38, 22, 18), (62, 48, 40), 4)
-BELLY = ramp(18, (48, 38, 28), (63, 58, 46), 3)
+FUR = ramp(8, (33, 30, 31), (63, 63, 61), 6)
+TONGUE = ramp(18, (46, 16, 24), (63, 38, 44), 3)
 SCARF = ramp(21, (30, 3, 8), (63, 20, 14), 4)
 GRASS = ramp(25, (4, 26, 6), (42, 63, 10), 5)
 EARTH = ramp(30, (18, 6, 3), (63, 38, 8), 8)
@@ -134,127 +133,103 @@ def noise(x: int, y: int, seed: int = 0) -> float:
     return ((n ^ (n >> 16)) & 0xFFFF) / 65536
 
 
-# ---- Pip ----
+# ---- Charlie ----
 
 
-def leg(p: Pic, hx: float, hy: float, a: float, far: bool, lift: float = 0) -> None:
-    """A leg from the hip at angle a from straight down, its clawed foot forward."""
-    fx, fy = hx + math.sin(a) * 7, hy + math.cos(a) * 7 - lift
-    p.line(hx, hy, fx, fy, SCALE[0] if far else SCALE[1], 3)
-    p.ball(fx + 1, fy + 0.5, 2.6, 1.6, SKIN, 0.0 if far else 0.2, 0.6 if far else 1.0)
-    p.put(round(fx + 3), round(fy + 1), WHITE if not far else SKIN[2])
+def paw(p: Pic, hx: float, hy: float, a: float, far: bool, lift: float = 0) -> None:
+    """A short leg from the hip at angle a from straight down, its paw a tuft."""
+    fx, fy = hx + math.sin(a) * 5.5, min(hy + math.cos(a) * 5.5, 28.5) - lift
+    p.line(hx, hy, fx, fy, FUR[1] if far else FUR[3], 3)
+    p.ball(fx + 0.8, fy + 0.6, 2.5, 1.7, FUR, 0.0 if far else 0.4, 0.5 if far else 1.1)
 
 
-def scarf(p: Pic, x: float, y: float, n: int, phase: float, rise: float, amp: float = 1.2) -> None:
-    """The scarf's tail, n pixels back from the neck, waving; rise lifts its end."""
-    for i in range(n):
-        t = i / max(n - 1, 1)
-        yy = y + math.sin(phase + i * 0.8) * amp * t - rise * t
-        p.line(x - i, yy, x - i, yy + 1.6, SCARF[3] if i % 4 < 2 else SCARF[2], 1)
-        p.put(round(x - i), round(yy + 2), SCARF[0])
+def plume(p: Pic, x: float, y: float, wag: float, stream: bool) -> None:
+    """The tail, a plume carried over the back; stream: flat out behind."""
+    arc = ((0, 0, 2.2), (-2, -3, 2.6), (-1.5, -6.5, 2.8), (1.5, -8.5, 2.6), (4.5, -7.5, 2.0))
+    flat = ((0, 0, 2.2), (-2.5, -1, 2.5), (-5, -1.5, 2.4), (-7, -1, 2.0), (-8.5, 0, 1.4))
+    for i, (dx, dy, r) in enumerate(flat if stream else arc):
+        p.ball(x + dx + wag * i * 0.6, y + dy + (wag * (i % 2) if stream else 0), r, r, FUR, 0.3, 1.1)
 
 
-def pip(
+def ears(p: Pic, hx: float, hy: float, back: float) -> None:
+    """A drop ear from the head's side, hung at angle back from straight down."""
+    for d, r in ((1.0, 2.6), (3.2, 2.7), (5.4, 2.1)):
+        p.ball(hx - 3.6 - math.sin(back) * d, hy - 1.5 + math.cos(back) * d, r, r, FUR, 0.1, 0.85)
+
+
+def dog(
     bob: float = 0,
     lean: float = 0,
     front: float = 0.15,
     back: float = -0.15,
     eye: str = "open",
-    tail: float = 0,
-    sc: tuple[int, float, float] = (5, 0, -3),
-    arm: float = 0.5,
+    wag: float = 0,
+    ear: float = 0.1,
     wheel: int = -1,
     lift: float = 0,
     squat: float = 0,
-    gog: bool = False,
-    cross: bool = False,
+    stretch: float = 0,
+    pant: bool = False,
 ) -> Pic:
-    """Pip standing, facing right, feet on row 30. bob drops the body, lean tips the head forward; front and back
-    are the legs' angles; sc the scarf's length, phase and rise; wheel a blur of legs instead; squat folds them."""
+    """Charlie standing, facing right, paws on row 30. bob drops the body, lean tips the head forward; front and
+    back are the leg pairs' angles; wag the tail's sway, ear its ears' fly; wheel a blur of legs instead; squat
+    lowers it, stretch lengthens it; pant: its tongue out."""
     p = Pic(32, 32)
-    by = 16 + bob + squat
-    hip = 21.5 + bob * 0.5 + squat * 0.8
-    for i, (tx, ty, tr) in enumerate(((7.5, 3.5, 3.4), (5, 5.6, 2.7), (3.2, 7.6, 2.0), (2, 9.2, 1.4))):
-        p.ball(tx - tail * i * 0.3, by + ty - abs(tail) * i * 0.4, tr, tr, SCALE, 0.1, 0.8)
+    by = 19.5 + bob + squat
+    hip = 23 + bob * 0.5 + squat
+    plume(p, 5.5 - stretch, by - 3, wag, wheel >= 0)
     if wheel >= 0:
         for i in range(7):
             a = (i + wheel * 0.5) * math.pi / 3.5
             p.line(
                 13 + math.cos(a) * 2,
-                26 + math.sin(a) * 1.5,
-                13 + math.cos(a) * 8,
-                26 + math.sin(a) * 4.5,
-                (SKIN[2], SCALE[2], SCARF[3])[i % 3],
+                27 + math.sin(a) * 1.2,
+                13 + math.cos(a) * 9,
+                27 + math.sin(a) * 3.5,
+                (FUR[2], FUR[4], FUR[1])[i % 3],
                 1,
             )
-        p.ball(13, 26, 3.5, 2.5, SKIN, 0.3, 0.9)
     else:
-        leg(p, 11, hip, back, True)
-        leg(p, 15, hip, -front * 0.7, True)
-    p.ball(12.5, by, 7.8, 6.6, SCALE, 0.0, 0.75)
-    for row in range(5):
-        for col in range(6):
-            sx, sy = 5.5 + col * 3.4 + (row % 2) * 1.7, by - 5.6 + row * 2.7
-            inside = ((sx - 12.5) / 7.8) ** 2 + ((sy - by) / 6.6) ** 2 < 0.8
-            if inside and not (sx > 14 and sy > by + 2.2):
-                p.ball(sx, sy, 2.3, 2.0, SCALE, 0.25, 1.0, over=True)
-                p.put(round(sx - 1), round(sy + 2), SCALE[0])
-                p.put(round(sx), round(sy + 2), SCALE[0])
-                p.put(round(sx + 1), round(sy + 2), SCALE[0])
-    p.ball(16, by + 3.2, 4.6, 3.1, BELLY, 0.2, 1.0, over=True)
+        paw(p, 8, hip, back * 0.6 + 0.15, True)
+        paw(p, 18, hip, front * 0.6 - 0.15, True)
+    p.ball(12.5, by, 8.5 + stretch, 6 - stretch * 0.5, FUR, 0.3, 1.15)
+    p.ball(18.5 + stretch * 0.5, by - 0.5, 4.6, 5.4 - stretch * 0.4, FUR, 0.35, 1.2)
     if wheel < 0:
-        leg(p, 12, hip, -back * 0.8, False)
-        leg(p, 16, hip, front, False, lift)
-    hx, hy = 22 + lean, 10.5 + bob + squat * 1.3 + lean * 0.4
-    n, ph, rise = sc
-    scarf(p, hx - 5, hy + 3.5, n, ph, rise)
-    scarf(p, hx - 5, hy + 5, max(n - 2, 2), ph + 1.6, rise * 0.8)
-    p.ball(hx - 3.5, hy - 3, 1.6, 2.2, SKIN, 0.0, 0.6)
-    p.ball(hx, hy, 5.6, 5.0, SKIN)
-    for cx, cy in ((-3.6, -3.2), (-1, -4.4), (1.8, -4.3)):
-        p.ball(hx + cx, hy + cy, 2.2, 1.7, SCALE, 0.3, 1.0)
-    p.ball(hx + 5, hy + 2.4, 4.2, 2.3, SKIN, 0.15, 1.0)
-    p.put(round(hx + 8), round(hy + 2), INK)
-    p.put(round(hx + 8), round(hy + 3), INK)
-    p.line(hx + 3.5, hy + 4.6, hx + 5.5, hy + 4.4, INK)
-    p.put(round(hx + 6.5), round(hy + 3.6), INK)
-    p.ball(hx - 4.2, hy + 3.6, 2.6, 2.1, SCARF, 0.3, 1.0)
-    ex, ey = hx + 1.5, hy - 1
-    if gog:
-        p.line(hx - 4.5, hy - 1.5, hx + 1, hy - 1, METAL[0])
-        p.ball(ex, ey, 2.6, 2.5, TEAL, 0.3, 1.0)
-        p.put(round(ex - 1), round(ey - 1), WHITE)
-    elif eye == "open":
-        p.ball(ex, ey + 0.4, 1.7, 1.9, [CLOUD[1], WHITE])
-        p.put(round(ex + 1), round(ey + 1), INK)
-        p.line(ex - 1.8, ey - 1.2, ex + 2, ey - 0.6, INK)
-        p.line(ex - 2.4, ey - 3.3, ex + 2.2, ey - 1.8, INK)
+        p.ball(12.5, by + 3, 8, 3.6, FUR, 0.25, 1.0)
+        for x in range(6, 20, 2):
+            p.put(x, round(by + 6), FUR[2])
+        paw(p, 8, hip, back, False)
+        paw(p, 18, hip, front, False, lift)
+    hx, hy = 22.5 + lean + stretch * 0.5, 12 + bob + squat * 1.2 + lean * 0.3 + stretch * 0.6
+    p.ball(hx, hy, 6.2, 5.8, FUR, 0.4, 1.2)
+    p.ball(hx + 3.6, hy + 4.2, 3.6, 2.6, FUR, 0.3, 1.0)
+    p.ball(hx + 4.8, hy + 2.2, 3.4, 2.5, FUR, 0.5, 1.25)
+    ears(p, hx, hy, ear)
+    p.box(round(hx + 6), round(hy + 1), round(hx + 8), round(hy + 2), INK)
+    p.put(round(hx + 6), round(hy + 1), FUR[5])
+    p.line(hx + 4.5, hy + 4.4, hx + 6.5, hy + 4.4, INK)
+    if pant or eye == "happy":
+        p.box(round(hx + 5), round(hy + 5), round(hx + 6), round(hy + 6), TONGUE[1])
+        p.put(round(hx + 5), round(hy + 7), TONGUE[0])
+    ex, ey = round(hx + 1), round(hy - 1)
+    if eye == "open":
+        p.box(ex, ey, ex + 1, ey + 1, INK)
+        p.put(ex, ey - 1, INK)
+        p.put(ex + 1, ey - 1, INK)
+        p.put(ex, ey - 1, WHITE)
     elif eye == "happy":
-        p.line(ex - 1.5, ey + 0.5, ex, ey - 1, INK)
-        p.line(ex, ey - 1, ex + 1.5, ey + 0.5, INK)
+        p.line(ex - 1, ey + 1, ex + 0.5, ey - 0.5, INK)
+        p.line(ex + 0.5, ey - 0.5, ex + 2, ey + 1, INK)
     elif eye == "hurt":
-        p.line(ex - 1.5, ey - 1.5, ex + 1.5, ey + 1.5, INK)
-        p.line(ex - 1.5, ey + 1.5, ex + 1.5, ey - 1.5, INK)
+        p.line(ex - 1, ey - 1.5, ex + 2, ey + 1.5, INK)
+        p.line(ex - 1, ey + 1.5, ex + 2, ey - 1.5, INK)
     else:
-        p.line(ex - 1.5, ey + 0.5, ex + 1.6, ey + 0.5, INK)
-        p.line(ex - 2.4, ey - 2.3, ex + 2, ey - 1.6, INK)
-    if not gog:
-        p.line(hx - 3.5, hy - 5.2, hx + 2.5, hy - 5.6, METAL[0])
-        p.ball(hx - 0.5, hy - 5.6, 1.9, 1.5, TEAL, 0.4, 1.0)
-    sx, sy = 18.5 + lean * 0.5, by + 0.5
-    if cross:
-        p.line(14.5, by + 1.5, 20, by + 2.5, SKIN[1], 2)
-        p.line(15, by + 3.2, 19.5, by + 1.6, SKIN[2], 2)
-        p.ball(14.5, by + 1.6, 1.6, 1.5, SKIN, 0.3, 1.0)
-    else:
-        ax, ay = sx + math.sin(arm) * 5, sy + math.cos(arm) * 5
-        p.line(sx, sy, ax, ay, SKIN[1], 2)
-        p.ball(ax + 0.5, ay + 0.5, 1.7, 1.6, SKIN, 0.3, 1.0)
+        p.line(ex - 1, ey + 0.5, ex + 2, ey + 0.5, INK)
     return p.outline()
 
 
 def curled(turn: float) -> Pic:
-    """Pip rolled up: a lit ball of plates in a spiral, the scarf's end round it, turned."""
+    """Charlie rolled up: a lit ball of fluff in a spiral, an ear and the nose round it, turned."""
     p = Pic(32, 32)
     cx, cy, r = 15.5, 17.5, 12.5
     for y in range(32):
@@ -265,38 +240,38 @@ def curled(turn: float) -> Pic:
                 a = math.atan2(dy, dx) - turn
                 band = (a / (2 * math.pi) * 7 + d * 0.16) % 1
                 lit = (-0.5 * dx - 0.62 * dy) / r + 0.6 * math.sqrt(max(0, 1 - (d / r) ** 2))
-                v = 0.14 + 0.8 * max(lit, 0) - (0.3 if band < 0.2 else 0) + (0.1 if 0.2 <= band < 0.4 else 0)
-                red = 7.5 < d < 10 and (a % (2 * math.pi)) < 1.1
-                p.shade(x, y, SCARF if red else SCALE, v + (0.25 if red else 0))
-    p.ball(cx + math.cos(turn + 2.4) * 4, cy + math.sin(turn + 2.4) * 4, 2.5, 2.0, SKIN, 0.2, 0.9)
+                p.shade(x, y, FUR, 0.42 + 0.7 * max(lit, 0) - (0.22 if band < 0.2 else 0))
+    for d in (5.5, 8.0):
+        p.ball(cx + math.cos(turn) * d, cy + math.sin(turn) * d, 2.4, 2.4, FUR, 0.0, 0.6)
+    p.ball(cx + math.cos(turn + 2.4) * 6, cy + math.sin(turn + 2.4) * 6, 1.6, 1.4, [INK, INK])
     return p.outline()
 
 
 def hero() -> list[Pic]:
-    """Idle, blink, two taps, six of the run, two of the dash, four curled, skid, crouch, hurt, sprung, two wins."""
-    out = [pip(), pip(eye="blink"), pip(lift=2.5, front=0.5, cross=True), pip(front=0.5, cross=True)]
+    """Idle, blink, two pants, six of the run, two of the dash, four curled, skid, crouch, hurt, sprung, two wins."""
+    out = [dog(), dog(eye="blink"), dog(pant=True, wag=0.8), dog(pant=True, wag=-0.8, lift=1.5, front=0.4)]
     for f in range(6):
         ph = 2 * math.pi * f / 6
         out.append(
-            pip(
-                bob=round(abs(math.sin(ph))),
+            dog(
+                bob=round(-abs(math.sin(ph))),
                 lean=1,
-                front=0.95 * math.sin(ph),
-                back=-0.95 * math.sin(ph),
-                sc=(9, ph * 2, 0.5),
-                arm=-0.7 * math.sin(ph),
-                tail=math.sin(ph),
+                front=1.0 * math.sin(ph),
+                back=-1.0 * math.sin(ph),
+                ear=0.7 + 0.4 * math.cos(ph),
+                wag=0.5 * math.sin(ph),
+                stretch=abs(math.sin(ph)),
             )
         )
     for f in range(2):
-        out.append(pip(bob=1, lean=2, wheel=f, sc=(12, f * 3.1, 1.5), arm=-1.2, tail=1.5, gog=True))
+        out.append(dog(bob=1, lean=2, wheel=f, ear=1.5, wag=f - 0.5, stretch=2, eye="happy"))
     out += [curled(i * math.pi / 14) for i in range(4)]
-    out.append(pip(bob=1, lean=-2, front=1.0, back=0.7, sc=(7, 0, 5), arm=1.4, tail=-1))
-    out.append(pip(squat=5, front=1.2, back=-1.2, sc=(5, 0, -2), arm=0.9))
-    out.append(pip(bob=-1, lean=-1, front=-0.9, back=0.9, eye="hurt", sc=(8, 1, 6), arm=2.4, tail=2))
-    out.append(pip(bob=-2, front=0.1, back=-0.1, sc=(8, 0, -7), arm=2.9, tail=-2))
-    out.append(pip(eye="happy", arm=2.6, sc=(6, 0, -2)))
-    out.append(pip(bob=-2, eye="happy", arm=3.0, front=0.4, back=-0.4, sc=(6, 2, 0)))
+    out.append(dog(bob=1, lean=-2, front=1.0, back=0.8, ear=-0.6, wag=-1))
+    out.append(dog(squat=4, lean=2, front=1.3, back=-1.2, ear=0.2))
+    out.append(dog(bob=-1, lean=-1, front=-0.9, back=0.9, eye="hurt", ear=1.2, wag=1))
+    out.append(dog(bob=-2, front=0.2, back=-0.2, ear=-0.5, wag=-0.6, stretch=1))
+    out.append(dog(eye="happy", wag=1.0))
+    out.append(dog(bob=-2, eye="happy", wag=-1.0, front=0.5, back=-0.5, ear=0.8))
     return out
 
 
@@ -610,7 +585,7 @@ def block() -> str:
         vals += [k, p.w, p.h, int(masked), k2, *encode(p.longs())]
         if masked:
             vals += encode(p.longs(mask=True))
-    lines, cur = ["' The palette and pictures, as tools/pangart.py draws them.", "PangArt:"], ""
+    lines, cur = ["' The palette and pictures, as tools/charlieart.py draws them.", "CharlieArt:"], ""
     for v in vals:
         item = str(v)
         if cur and len(cur) + 1 + len(item) > WIDTH:
@@ -651,9 +626,9 @@ def main() -> None:
     pre, rest = src.split(BEGIN, 1)
     new = pre + block() + rest.split(END, 1)[1]
     if a.check:
-        sys.exit(0 if new == src else "pangart: PANGDASH.BAS's PangArt is stale; run tools/pangart.py")
+        sys.exit(0 if new == src else "charlieart: CHARLIE.BAS's CharlieArt is stale; run tools/charlieart.py")
     DEMO.write_text(new)
-    print(f"pangart: {len(pictures())} pictures, {len(block())} characters")
+    print(f"charlieart: {len(pictures())} pictures, {len(block())} characters")
 
 
 if __name__ == "__main__":
