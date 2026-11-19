@@ -246,7 +246,8 @@ A still mockup of each zone is agreed before it is wired in.
 - A song that ends, swing, and scenes cut on a song's bar count.
 - The bark, and each zone's rule: tide, grip, sled, catapult, swing, dark, lines, turning ground.
 - A chase: a cat that flees along the course and is bumped.
-- A save file.
+- A save file (built): `CHARLIE.SAV` keeps the furthest zone reached; Left and Right on the title pick the
+  zone a game starts at.
 - The autopilot test clears every act, as it does now.
 
 ## Build order

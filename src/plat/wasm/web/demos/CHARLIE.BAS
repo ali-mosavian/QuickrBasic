@@ -198,6 +198,8 @@ const HUDW = 108, HUDH = 40
 ' The levels: a zone's two acts, the second at another hour in other colours, zone by zone.
 ' the stages played, and after them the intro's road
 const ZONES = 2, NSTAGE = ZONES * 2, SINTRO = NSTAGE
+' the zones' names, 12 letters each; what marks CHARLIE.SAV as the game's: its zone is added to it
+const ZNAMES = "AMBER DOWNS CHROME WORKS", SAVEMARK = 1128398848
 ' The intro: BEATS a second, ILEN of them, the ground HORIZON down the screen between two bars BARH high. Its
 ' cues' kinds, in QNAMES' order, six letters a name.
 const BEATS = 2!, ILEN = 112, HORIZON = 150, BARH = 14, NCUE = 96
@@ -344,6 +346,10 @@ declare sub Tick (g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part)
 declare sub Pilot (p as Hero, k as Pad)
 declare sub ResetWorld (g as Game, p as Hero, lo() as Loose, pt() as Part)
 declare sub StartGame (g as Game, p as Hero, lo() as Loose, pt() as Part)
+declare sub LoadSave ()
+declare sub Reach (z as integer)
+declare sub PickZone (k as Pad)
+declare function ZoneName$ (z as integer)
 declare sub Spawn (g as Game, p as Hero)
 declare sub MoveHero (p as Hero, k as Pad, pt() as Part)
 declare sub Walk (p as Hero, l as integer, r as integer, d as integer, hit as integer, pt() as Part)
@@ -439,6 +445,8 @@ dim shared Coming as integer, ComingBar as integer, FadeOut as integer, FadeIn a
 dim shared Cart as Runner, Box as Runner, ChaseX as integer, ChaseEnd as integer
 ' the song in the zone's slot, one more than its number in CHARLIE.DAT: 0 before any
 dim shared ZHeld as integer
+' the furthest zone a game has reached, kept in CHARLIE.SAV, and the zone picked on the title to start at
+dim shared Reached as integer, Pick as integer
 
 Main
 end
@@ -565,6 +573,7 @@ sub Main
     g.page = 1
     StartIntro g, cu()
     LoadSongs
+    LoadSave
 
     last = timer
     c.span = STEPT
@@ -2240,6 +2249,7 @@ sub Tick (g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part)
             if p.y > MH * TS + 24 then Lose p
             Camera g, p, 0
         end if
+        PickZone k
         if k.hit or k.start then StartGame g, p, lo(), pt()
     case PLAYING
         if k.quit then ResetWorld g, p, lo(), pt()
@@ -2275,6 +2285,7 @@ sub Tick (g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part)
             ResetWorld g, p, lo(), pt()
         elseif Met%(g, p, k, pt()) then
             if Stage < NSTAGE - 1 then
+                Reach ZoneOf%(Stage + 1)
                 GoStage Stage + 1, g, p, lo(), pt()
             else
                 ResetWorld g, p, lo(), pt()
@@ -2515,9 +2526,56 @@ function Met% (g as Game, p as Hero, k as Pad, pt() as Part)
     Met% = Dusk <= 0
 end function
 
+' A game from its start, at the first act of the zone picked on the title.
 sub StartGame (g as Game, p as Hero, lo() as Loose, pt() as Part)
+    NextUp = Pick * 2
     ResetWorld g, p, lo(), pt()
+    NextUp = 0
     g.mode = PLAYING
+end sub
+
+' ---- progress ----
+
+function ZoneName$ (z as integer)
+    ZoneName$ = rtrim$(mid$(ZNAMES, z * 12 + 1, 12))
+end function
+
+' The furthest zone reached, from CHARLIE.SAV: the first without the file, or with one that is not the game's.
+sub LoadSave
+    dim v as long
+    Reached = 0
+    open "CHARLIE.SAV" for binary as #2
+    if lof(2) >= 4 then get #2, , v
+    if lof(2) = 0 then
+        close #2
+        kill "CHARLIE.SAV"
+    else
+        close #2
+    end if
+    v = v - SAVEMARK
+    if v > 0 and v < ZONES then Reached = v
+end sub
+
+' Zone z is reached: kept in CHARLIE.SAV when it is further than any before.
+sub Reach (z as integer)
+    dim v as long
+    if z <= Reached then exit sub
+    Reached = z
+    v = SAVEMARK + z
+    open "CHARLIE.SAV" for binary as #2
+    put #2, , v
+    close #2
+end sub
+
+' On the title Left and Right pick the zone a game starts at, of those reached: a step a press.
+sub PickZone (k as Pad)
+    static leaning as integer
+    if (k.l or k.r) and not leaning then
+        Pick = Pick + k.l - k.r
+        if Pick < 0 then Pick = 0
+        if Pick > Reached then Pick = Reached
+    end if
+    leaning = k.l or k.r
 end sub
 
 sub Spawn (g as Game, p as Hero)
@@ -3615,7 +3673,7 @@ end sub
 
 ' Back to front, then the screen's words.
 sub Render (g as Game, p as Hero, lo() as Loose, pt() as Part)
-    dim cx as integer, cy as integer, x as integer
+    dim cx as integer, cy as integer, x as integer, s as string
     cx = int(g.camx)
     cy = int(g.camy)
     if g.shake > 0 then cy = cy + ((Ticks and 2) - 1) * 2
@@ -3635,7 +3693,16 @@ sub Render (g as Game, p as Hero, lo() as Loose, pt() as Part)
     case TITLE
         Blit (SW - 170) \ 2, 22, ITITLE, 170, 26
         Blit (SW - 170) \ 2, 52, IDASH, 170, 26
-        Panel 0, 181, SW - 1, SH - 1
+        if Reached then
+            ' the zone a game starts at, an arrow each way there is another to pick
+            Panel 0, 165, SW - 1, SH - 1
+            s = ZoneName$(Pick)
+            if Pick > 0 then s = "< " + s else s = "  " + s
+            if Pick < Reached then s = s + " >" else s = s + "  "
+            Banner 22, s, CWHITE
+        else
+            Panel 0, 181, SW - 1, SH - 1
+        end if
         if (Ticks \ 30) and 1 then
             Banner 24, "PRESS SPACE", CYELLOW
         else
@@ -3664,11 +3731,7 @@ sub Render (g as Game, p as Hero, lo() as Loose, pt() as Part)
         Blit 6, 5, IHUD, HUDW, HUDH
         ' up and to the right: under it Charlie meets its family
         Panel 124, 4, 315, 36
-        if Zone then
-            Txt 2, 17, "CHROME WORKS CLEARED", CYELLOW
-        else
-            Txt 2, 18, "AMBER DOWNS CLEARED", CYELLOW
-        end if
+        Txt 2, 27 - (len(ZoneName$(Zone)) + 8) \ 2, ZoneName$(Zone) + " CLEARED", CYELLOW
         Txt 3, 22, "BONUS " + Num$(g.bonus, 6), CWHITE
         Txt 4, 22, "SCORE " + Num$(g.score, 6), CWHITE
         if p.win then Say p, cx, cy, "WOOF!"

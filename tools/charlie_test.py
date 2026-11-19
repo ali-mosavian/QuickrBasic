@@ -771,6 +771,34 @@ for i = 1 to 900
     if p.x < GoalX then exit for
 next
 if was and p.x < GoalX and Dusk = 16 then print "title met ok"
+' progress is kept at each zone: the works, reached in the game above, are in CHARLIE.SAV and read back; a file that
+' is not the game's counts for nothing; a zone reached is written. On the title Right picks a zone reached and no
+' further, and a game starts at its first act
+Reached = 0
+LoadSave
+was = Reached = 1
+open "CHARLIE.SAV" for binary as #2
+hid = 12345
+put #2, , hid
+close #2
+LoadSave
+was = was and Reached = 0
+Reach 1
+Reached = 0
+LoadSave
+was = was and Reached = 1 and Pick = 0
+k.r = -1
+Tick g, p, k, lo(), pt()
+Tick g, p, k, lo(), pt()
+k.r = 0
+Tick g, p, k, lo(), pt()
+k.r = -1
+Tick g, p, k, lo(), pt()
+k.r = 0
+was = was and Pick = 1 and g.mode = TITLE
+k.start = -1
+Tick g, p, k, lo(), pt()
+if was and g.mode = PLAYING and Stage = 2 and g.lives = 3 then print "save ok"
 end
 
 ' 900 frames at hz a second, not in step with the clock, their times read off it at grain moves a second, the first
@@ -958,6 +986,7 @@ def main() -> None:
         ("toolbox ok", "the crane's third bump breaks it: its toolbox falls, and is Charlie's once it lies"),
         ("home ok", "back at the title on the Amber Downs, to their tune, after the Chrome Works"),
         ("palette ok", "a zone shown in its own colours, the shared ones back after it"),
+        ("save ok", "the furthest zone reached kept in CHARLIE.SAV, picked on the title and started at"),
     ):
         if said not in out:
             sys.exit(f"charlie: not {what}: {out[-300:]}")
