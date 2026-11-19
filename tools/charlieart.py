@@ -1758,8 +1758,8 @@ def cartwheel(f: int) -> Pic:
 
 
 def intro(k: int) -> list[tuple[int, Pic, bool, int]]:
-    """The intro's pictures from index k: the house and the hedge of the Downs' own colours."""
-    OWN[0].update({k + 12, k + 18})
+    """The intro's pictures from index k: the Downs' own, as its road is theirs."""
+    OWN[0].update(range(k, k + 28))
     return [
         (k, van(), True, -1),
         (k + 2, tyre(0), True, -1),
@@ -2265,7 +2265,9 @@ def toolbox() -> Pic:
     return p.outline()
 
 
-OWN: list[set[int]] = [set(), set()]  # the pictures only one zone shows: they may use that zone's own colours
+# the pictures only one zone shows: they may use that zone's own colours, and are in the store only while it is
+# played
+OWN: list[set[int]] = [set(), set()]
 
 
 def pictures() -> list[tuple[int, Pic, bool, int]]:
@@ -2337,7 +2339,7 @@ def pictures() -> list[tuple[int, Pic, bool, int]]:
         for c in range(4):
             out.append((b + ((kind - 2) * 4 + c) * 2, span(kind, c), True, -1))
             out.append((b + 48 + ((kind - 2) * 4 + c) * 2, span(kind, c, 1), True, -1))
-    OWN[1].update({*range(z - 9, z + 94), z + 116, z + 118, *range(b, b + 96), z + 642, z + 644})
+    OWN[1].update({*range(z - 9, z + 94), z + 116, z + 118, *range(b, b + 96), *range(z + 642, z + 652)})
     # Amber Downs' own: its backdrop, hills, loop and ribbon where the game once built them, then its ground by
     # the comb's column of 4 and row of 3: flats, each slope and the tile under it, the comb alone, pipes, a raft
     out += [(0, downs(), False, -1), (1, hills(), True, -1)]
@@ -2370,6 +2372,7 @@ def pictures() -> list[tuple[int, Pic, bool, int]]:
     out.append((5, ring(188, 72, 93, turf, AMBER, PLUM), True, -1))
     out += [(a + 270 + i * 2, bare(i > 1, bool(i & 1)), True, -1) for i in range(4)]
     OWN[0].update({0, 1, 5, itile + 18, z + 112, z + 114, *range(a, a + 278), *range(k + 36, k + 50)})
+    OWN[0].update(range(z + 626, z + 642))
     return out
 
 
@@ -2503,9 +2506,22 @@ def audit(pics: list[tuple[int, Pic, bool, int]]) -> None:
                 sys.exit(f"charlieart: picture {k} uses stage {z}'s own colours {sorted(used & ZPAL[z].keys())}")
 
 
+def group(pics: list[tuple[int, Pic, bool, int]], zone: int) -> list[int]:
+    """The pictures only zone shows, or with -1 those every zone does, as CHARLIE.DAT holds them: their count, then
+    each with its mask."""
+    mine = [q for q in pics if next((z for z, own in enumerate(OWN) if q[0] in own), -1) == zone]
+    vals = [len(mine)]
+    for k, p, masked, k2 in mine:
+        vals += [k, p.w, p.h, int(masked), k2, *encode(p.longs())]
+        if masked:
+            vals += encode(p.longs(mask=True))
+    return vals
+
+
 def blob() -> bytes:
-    """CHARLIE.DAT: the 1-based byte its tunes start at, the palette, each stage's own, the pictures, the tunes;
-    each value a little-endian LONG."""
+    """CHARLIE.DAT: the 1-based byte its tunes start at, the palette, each stage's own, the 1-based byte each zone's
+    own pictures start at, the pictures every zone shows, each zone's own, the tunes; each value a little-endian
+    LONG."""
     pics = pictures()
     audit(pics)
     vals = [len(PAL)]
@@ -2515,11 +2531,9 @@ def blob() -> bytes:
         vals.append(len(ZPAL[z]))
         for i, (r, g, b) in sorted(ZPAL[z].items()):
             vals += [i, r + 256 * g + 65536 * b]
-    vals.append(len(pics))
-    for k, p, masked, k2 in pics:
-        vals += [k, p.w, p.h, int(masked), k2, *encode(p.longs())]
-        if masked:
-            vals += encode(p.longs(mask=True))
+    groups = [group(pics, z) for z in range(-1, len(OWN))]
+    at = [4 * (1 + len(vals) + len(OWN) + sum(len(g) for g in groups[: z + 1])) + 1 for z in range(len(OWN))]
+    vals += at + [v for g in groups for v in g]
     return struct.pack(f"<{len(vals) + 1}i", len(vals) * 4 + 5, *vals) + song()
 
 

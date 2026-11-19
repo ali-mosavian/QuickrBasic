@@ -20,6 +20,8 @@ import tempfile
 import subprocess
 from pathlib import Path
 
+import charlieart
+
 ROOT = Path(__file__).resolve().parents[1]
 DEMO = ROOT / "src/plat/wasm/web/demos/CHARLIE.BAS"
 
@@ -637,6 +639,18 @@ for i = 1 to 60
 next
 if was and Cart.st = 3 and g.score = hid + 1500 then print "toolbox ok"
 was = 0
+' a zone's own pictures are in the store only while it is played, where the last zone's were: after the Downs the
+' works' tank is as the art tool drew it, after the works the Downs' tree, and the store no fuller for the change
+GoStage 0, g, p, lo(), pt()
+hid = NextAt
+GoStage 2, g, p, lo(), pt()
+line (0, 0)-(63, 79), 0, BF
+Blit 0, 0, ITANK, 32, 40
+print "zonetank"; Pix&(0, 32, 0, 39)
+GoStage 0, g, p, lo(), pt()
+line (0, 0)-(63, 79), 0, BF
+Blit 0, 0, ITREE, 64, 80
+print "zonetree"; Pix&(0, 64, 0, 79); NextAt - hid; ZoneAt > 0
 ' a lift goes up under Charlie to the ground above, and back down once it is left
 GoStage 2, g, p, lo(), pt()
 for m = 0 to NMv - 1
@@ -861,6 +875,11 @@ end function
 """
 
 
+def pix(p: charlieart.Pic) -> int:
+    """A picture summed by place as the driver's Pix& sums the screen."""
+    return sum(c * ((x + y * 7) % 31 + 1) for y, row in enumerate(p.p) for x, c in enumerate(row))
+
+
 def main() -> None:
     exe = Path(sys.argv[1] if len(sys.argv) > 1 else ROOT / "build/host/basic").resolve()
     src = DEMO.read_text()
@@ -922,6 +941,11 @@ def main() -> None:
     ):
         if said not in out:
             sys.exit(f"charlie: not {what}: {out[-300:]}")
+    tank, tree = out[out.rfind("zonetank") :].split(), out[out.rfind("zonetree") :].split()
+    if tank[1:2] != [str(pix(charlieart.tank()))] or tree[1:4] != [str(pix(charlieart.tree())), "0", "-1"]:
+        sys.exit(
+            f"charlie: a zone's own pictures not the store's while it is played, or the store fuller: {out[-300:]}"
+        )
     if "title met ok" not in out:
         sys.exit(f"charlie: the title's run not ended with the family, held and faded: {out[-300:]}")
     if "faded ok" not in out:

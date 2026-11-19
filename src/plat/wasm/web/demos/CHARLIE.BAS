@@ -197,13 +197,14 @@ const ICRANE = ICARTW + 4, IRAIL = ICRANE + 4, IWBOX = IRAIL + 2, ITOOLS = IWBOX
 const HUDW = 108, HUDH = 40
 ' The levels: a zone's two acts, the second at another hour in other colours, zone by zone.
 ' the stages played, and after them the intro's road
-const NSTAGE = 4, SINTRO = NSTAGE
+const ZONES = 2, NSTAGE = ZONES * 2, SINTRO = NSTAGE
 ' The intro: BEATS a second, ILEN of them, the ground HORIZON down the screen between two bars BARH high. Its
 ' cues' kinds, in QNAMES' order, six letters a name.
 const BEATS = 2!, ILEN = 112, HORIZON = 150, BARH = 14, NCUE = 96
 const QCAM = 1, QHOUSE = 2, QBOXES = 3, QCRATE = 4, QHEDGE = 5, QFAM = 6, QVAN = 7, QFLOAT = 8
 const QBARON = 9, QCAT = 10, QBASKET = 11, QEYES = 12, QHERO = 13, QWOOF = 14, QSND = 15
 const QNAMES = "cam   house boxes crate hedge fam   van   float baron cat   basketeyes  hero  woof  snd   "
+' the picture store's LONGs: for what every zone shows and the largest zone's own
 const IMGSZ = 420000
 
 const SCLEFT = 75, SCRIGHT = 77, SCUP = 72, SCDOWN = 80, SCSPACE = 57, SCZ = 44
@@ -277,6 +278,8 @@ declare sub Movers (p as Hero)
 declare function Swing! (m as integer, quarter as integer)
 declare sub GoStage (n as integer, g as Game, p as Hero, lo() as Loose, pt() as Part)
 declare function ZoneOf% (st as integer)
+declare sub ReadPics ()
+declare sub LoadZoneArt (z as integer)
 declare sub SeekLevel (st as integer)
 declare sub Column (c as integer, g as integer, kind as integer)
 declare sub AddObj (k as integer, x as integer, y as integer)
@@ -395,6 +398,9 @@ dim shared MvO(NMOVE) as integer, MvS(NMOVE) as integer, MvZ(NMOVE) as integer, 
 dim shared MvY(NMOVE) as integer, MvA(NMOVE) as integer, MvK(NMOVE) as integer, MvE(NMOVE) as integer
 dim shared MvT(NMOVE) as single, NMv as integer
 dim shared Img(IMGSZ) as long, At(NIMG) as long, NextAt as long
+' a zone's own pictures: where each zone's start in CHARLIE.DAT, where they go in the store, after all the
+' others, and the zone whose are there, one more than its number
+dim shared ZArtAt(ZONES - 1) as long, ZoneAt as long, ZArt as integer
 dim shared ObX(MAXOBJ - 1) as integer, ObY(MAXOBJ - 1) as integer, ObK(MAXOBJ - 1) as integer
 dim shared ObS(MAXOBJ - 1) as integer, ObA(MAXOBJ - 1) as integer
 dim shared First(MW) as integer, NObj as integer
@@ -747,6 +753,7 @@ sub LoadLevel (st as integer)
     Stage = st
     z = ZoneOf%(st)
     Zone = z
+    LoadZoneArt z
     ' the intro's road is the Downs at dawn, lit as at evening
     light = st
     if st = SINTRO then light = 1
@@ -1369,8 +1376,8 @@ sub SortObjs
     next
 end sub
 
-' Every picture: the DATA's, then those built from them or drawn here on
-' the hidden page; the backdrop last, as it fills the page.
+' The pictures every zone shows: CHARLIE.DAT's, then those built from them or drawn here on the hidden page. A
+' zone's own come after them with its level.
 sub BuildArt
     dim i as integer
     cls
@@ -1380,6 +1387,7 @@ sub BuildArt
         Flop ITILT + i, ITILT + 160 + i, 32, 32
     next
     BuildGlyphs
+    ZoneAt = NextAt
     for i = 0 to 255
         Pal0(i) = Pal(i)
     next
@@ -1420,10 +1428,9 @@ sub Shade
     next
 end sub
 
-' The palette and the pictures from CHARLIE.DAT; a mirrored one's mirror made.
+' The palette and the pictures every zone shows from CHARLIE.DAT.
 sub LoadArt
-    dim n as integer, i as integer, k as integer, w as integer, h as integer
-    dim masked as integer, k2 as integer, c as long
+    dim n as integer, i as integer, k as integer, c as long
     Dusk = 16
     OpenData
     c = Word&
@@ -1439,6 +1446,17 @@ sub LoadArt
             ZPC(k, i) = Word&
         next
     next
+    for k = 0 to ZONES - 1
+        ZArtAt(k) = Word&
+    next
+    ReadPics
+    close #1
+end sub
+
+' A group of CHARLIE.DAT's pictures, from where the file is, to the store: their count, then each, its mask and
+' its mirror with it.
+sub ReadPics
+    dim n as integer, i as integer, k as integer, w as integer, h as integer, masked as integer, k2 as integer
     n = Word&
     for i = 1 to n
         k = Word&
@@ -1457,6 +1475,16 @@ sub LoadArt
             Mirror k + 1, k2 + 1, w, h
         end if
     next
+end sub
+
+' Zone z's own pictures in the store, where the last zone's were.
+sub LoadZoneArt (z as integer)
+    if ZArt = z + 1 then exit sub
+    ZArt = z + 1
+    OpenData
+    seek #1, ZArtAt(z)
+    NextAt = ZoneAt
+    ReadPics
     close #1
 end sub
 
