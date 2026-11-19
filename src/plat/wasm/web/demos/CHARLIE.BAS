@@ -117,6 +117,18 @@ type Cue
     a as integer
 end type
 
+' Who flees with a keepsake at an act's end: x, y the foot of its cart, v its speed, t the seconds its last bump
+' or its breaking still tells, hits its bumps. st: 0 waiting, 1 fleeing, 2 broken and the keepsake lying, 3 the
+' keepsake taken back.
+type Runner
+    x as single
+    y as single
+    v as single
+    t as single
+    hits as integer
+    st as integer
+end type
+
 ' The world: MW by MH tiles of TS pixels; LW columns used. A tile's kind
 ' is its profile, Prof: each column's solid height from its bottom.
 const SW = 320, SH = 200, TS = 16, MW = 800, MH = 30, NONE = 30000
@@ -174,7 +186,9 @@ const ITW = IZU + 48, ICATF = ITW + 96
 ' from it; the old house, the boxes and one thrown, a hedge, the Mob's float, the Baron sat and pointing, the basket
 const IVAN = ICATF + 4, IWHEEL = IVAN + 2, IDOOR = IWHEEL + 4, IPEEK = IDOOR + 2, IHOUSE = IPEEK + 4
 const IBOXES = IHOUSE + 2, ICRATE = IBOXES + 2, IHEDGE = ICRATE + 2, IFLOAT = IHEDGE + 2, IBARON = IFLOAT + 2
-const IBASKET = IBARON + 4, NIMG = IBASKET + 2
+const IBASKET = IBARON + 4
+' Biscuit's honey cart at two turns of its wheels, and bumped
+const ICART = IBASKET + 2, NIMG = ICART + 6
 const HUDW = 108, HUDH = 40
 ' The levels: the two zones, then each again at another hour, in other colours.
 ' the stages played, and after them the intro's road
@@ -189,9 +203,14 @@ const IMGSZ = 420000
 
 const SCLEFT = 75, SCRIGHT = 77, SCUP = 72, SCDOWN = 80, SCSPACE = 57, SCZ = 44
 const SJUMP = 0, SBONE = 1, SHURT = 2, SSPRING = 3, SPOP = 4, SROLL = 5
-const SCHARGE = 6, SLAUNCH = 7, SCLEAR = 8, SDIE = 9, SMARK = 10, SBOOST = 11, SHISS = 12, SBARK = 13
+const SCHARGE = 6, SLAUNCH = 7, SCLEAR = 8, SDIE = 9, SMARK = 10, SBOOST = 11, SHISS = 12, SBARK = 13, SBUMP = 14
 ' A bark: how far it carries, the seconds to the next, and the steps a cat stands startled by it.
 const BARKR = 72, BARKT = .4, FLINCH = 24
+' A chase: the cart's speed, when Charlie is far behind it, and away from a bump; how far ahead of the race's
+' start it waits; how near touches it; the seconds a bump tells, the last of them bolting; the bumps that break
+' it; its tune's number in CHARLIE.DAT.
+const CRUISE = 330!, DAWDLE = 200!, BOLT = 560!, CARTLEAD = 260, CARTR = 26
+const DAZED = 1.4, BOLTS = 1!, NBUMP = 3, CHASETUNE = 5
 
 ' The palette's ramps, dark to light, as charlieart.py's.
 const CHUD = 0, CWHITE = 1, CINK = 2, CYELLOW = 3, CRED = 4
@@ -218,6 +237,14 @@ declare sub Spent (k as Pad)
 declare sub ZoneTune (id as integer)
 declare function TuneOf% (st as integer)
 declare sub HushSong ()
+declare sub ResetChase ()
+declare sub Flee (g as Game, p as Hero, lo() as Loose, pt() as Part)
+declare sub StartChase ()
+declare sub MoveCart (p as Hero)
+declare sub MeetCart (g as Game, p as Hero, lo() as Loose, pt() as Part)
+declare sub BreakCart (pt() as Part)
+declare sub TakeKeep (g as Game, pt() as Part)
+declare sub DrawCart (cx as integer, cy as integer)
 declare sub Tint (k as integer, c as long)
 declare sub Shade ()
 declare function Met% (g as Game, p as Hero, k as Pad, pt() as Part)
@@ -380,6 +407,8 @@ dim shared DrVol(NSLOT - 1, NDRUM - 1) as integer, DrUp(NSLOT - 1, NDRUM - 1) as
 ' The slot playing, its bar and half; Ended: it has ended and nothing plays.
 dim shared Sng as integer, Bar as integer, HalfBar as integer, Ended as integer
 dim shared Coming as integer, ComingBar as integer, FadeOut as integer, FadeIn as integer
+' who flees in this level's chase, and the race: from ChaseX, NONE where there is none, to ChaseEnd
+dim shared Cart as Runner, ChaseX as integer, ChaseEnd as integer
 ' the song in the zone's slot, one more than its number in CHARLIE.DAT: 0 before any
 dim shared ZHeld as integer
 
@@ -426,7 +455,8 @@ data mark,0, flat,6, cat,0, flat,12, hover,5, flat,8, bones,6, flat,6, dng,4, bo
 data flat,8, drop,4, flat,16, mover,7, flat,8, boost,0, flat,6, pipe,5, flat,8, dng,3, boost,0, flat,8, loop,0
 data flat,10, goal,0, flat,9, fam,0, flat,6, flat,5, "end",0
 
-' The Amber Downs at evening.
+' The Amber Downs at evening. chase: a race from here that many columns long, down from two pipes: Biscuit's
+' honey cart flees along it.
 Level3:
 data flat,4, dog,0, flat,6, bones,6, flat,6, boost,0, flat,6, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
 data up45,3, arc,9, pit,10, flat,8, flower,0, flat,4
@@ -438,6 +468,9 @@ data boost,0, flat,6, pipe,6, flat,6, bones,6, flat,22, boost,0, flat,4, wave,1,
 data dng,5, boost,0, bones,10, flat,12, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8, thorn,0, flat,6, rock,0, flat,4
 data jet,0, flat,3, bump,5, flat,3, bump,6, flat,6, mark,0, flat,4, up45,3, arc,10, pit,11, flat,8
 data dng,3, boost,0, bones,10, flat,10, loop,0, flat,10, spin,0, flat,8, flower,0, flat,4
+data boost,0, flat,6, pipe,7, flat,8, boost,0, flat,6, pipe,7, flat,6, mark,0, flat,8
+data chase,156, flat,12, bones,8, dng,3, flat,16, dng,3, flat,16, bones,8, dng,3, flat,16, dng,3, flat,16
+data bones,8, dng,2, flat,16, dng,2, flat,36
 data goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, "end",0
 
 ' The Chrome Works by night.
@@ -678,6 +711,8 @@ sub LoadLevel (st as integer)
     next
     GoalX = NONE
     FamX = NONE
+    ChaseX = NONE
+    Cart.st = 0
     for i = 0 to 2
         Glint(i) = Pal(CWATER + 1 + i)
     next
@@ -871,6 +906,9 @@ sub LoadLevel (st as integer)
         case "fam"
             k = KFAM
             FamX = c * TS + 8
+        case "chase"
+            ChaseX = c * TS
+            ChaseEnd = (c + n) * TS
         case "dog"
             StartX = c * TS + 8
             StartY = s
@@ -1663,6 +1701,9 @@ sub Sfx (id as integer)
     case SBARK
         ' two woofs, the second lower, through a mouth
         s = "W2I15Y2,1300,6H0,5,3,3K3,0,7L16O3FP32L8O3D"
+    case SBUMP
+        ' a thump, then his theme's first four notes
+        s = "L32O2GP32O4GA+O5CL16D"
     end select
     play , , , "T255W1V13Y0K0I0H0,0,15,0" + s
 end sub
@@ -2226,6 +2267,7 @@ sub Tick (g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part)
             g.clock = g.clock + STEPT
             MoveHero p, k, pt()
             Touch g, p, lo(), pt()
+            Flee g, p, lo(), pt()
             if p.y > MH * TS + 24 then Lose p
             if p.x >= GoalX then
                 g.mode = CLEARED
@@ -2322,6 +2364,7 @@ sub Pilot (p as Hero, k as Pad)
     dim x as integer, y as integer, i as integer, want as integer, m as integer, d as integer, ready as integer
     k.r = -1
     k.l = 0
+    k.d = 0
     if p.ground and GK(p.sg) = 3 then
         ' on a platform: still, till there is ground ahead to jump to
         x = cint(p.x)
@@ -2355,6 +2398,8 @@ sub Pilot (p as Hero, k as Pad)
             if ((ObK(i) = KCAT and ObS(i) <> 0) or ObK(i) = KTHORN) and ObX(i) > x then want = -1
             i = i + 1
         loop
+        ' who flees is rolled into, once there is the speed to roll
+        k.d = Cart.st = 1 and Cart.x > x and Cart.x - x < 120 and p.gsp > 150
         ' a platform's gap ahead: slowly to its edge, there till the platform is at it and staying, then on
         for m = 0 to NMv - 1
             d = MvE(m) - x
@@ -2501,6 +2546,7 @@ sub Spawn (g as Game, p as Hero)
     p.ground = -1
     p.sg = SegAt%(g.homeX, csng(g.homeY))
     g.bones = 0
+    ResetChase
     Camera g, p, -1
 end sub
 
@@ -3119,6 +3165,123 @@ sub Camera (g as Game, p as Hero, snap as integer)
     if g.camy > MH * TS - SH then g.camy = MH * TS - SH
 end sub
 
+' ---- the chase ----
+
+' The chase as before Charlie came to it: who flees waiting a little way into the race, the zone's tune back. A
+' keepsake taken stays taken.
+sub ResetChase
+    if ChaseX = NONE or Cart.st = 3 then exit sub
+    Cart.st = 0
+    Cart.hits = 0
+    Cart.v = 0
+    Cart.t = 0
+    Cart.x = ChaseX + CARTLEAD
+    Cart.y = ColTop(cint(Cart.x) \ TS) * TS
+    ZoneTune TuneOf%(Stage)
+end sub
+
+' A step of the chase, by its state: begun as Charlie comes to the race; then the cart flees him and he may meet
+' it; broken, its keepsake is his when he reaches it.
+sub Flee (g as Game, p as Hero, lo() as Loose, pt() as Part)
+    if ChaseX = NONE then exit sub
+    if Cart.t > 0 then Cart.t = Cart.t - STEPT
+    select case Cart.st
+    case 0
+        if p.x >= ChaseX then StartChase
+    case 1
+        MoveCart p
+        MeetCart g, p, lo(), pt()
+    case 2
+        ' over it will do: he comes down off the last bump past it
+        if abs(p.x - Cart.x) < 16 and p.y > Cart.y - 90 and p.y < Cart.y + 8 then TakeKeep g, pt()
+    end select
+end sub
+
+' The cart is off, to the chase's tune in the zone's slot: the zone's own lead plays it, and the level's end still.
+sub StartChase
+    dim zlead as string
+    Cart.st = 1
+    zlead = LeadP(CAUGHT)
+    ZoneTune CHASETUNE
+    LeadP(ZTUNE) = zlead
+    LeadP(CAUGHT) = zlead
+end sub
+
+' The cart along the ground: dawdling when Charlie is far behind it, slow while a bump has it dazed, then bolting;
+' no further than the race's end.
+sub MoveCart (p as Hero)
+    dim want as single, s as integer
+    want = CRUISE
+    if Cart.x - p.x > 240 then want = DAWDLE
+    if Cart.t > 0 then want = BOLT
+    if Cart.t > BOLTS then want = 60
+    Cart.v = Cart.v + (want - Cart.v) * 5 * STEPT
+    Cart.x = Cart.x + Cart.v * STEPT
+    if Cart.x >= ChaseEnd then
+        Cart.x = ChaseEnd
+        Cart.v = 0
+    end if
+    s = Surf%(cint(Cart.x), cint(Cart.y))
+    if s <> NONE then Cart.y = s
+end sub
+
+' Charlie at the cart, once it is over its last bump: curled, he bumps it and is thrown back off it; else it
+' hurts him. Its last bump breaks it.
+sub MeetCart (g as Game, p as Hero, lo() as Loose, pt() as Part)
+    if Cart.t > BOLTS or p.dead then exit sub
+    if abs(p.x - Cart.x) > CARTR or p.y < Cart.y - 46 or p.y > Cart.y + 6 then exit sub
+    if not (p.roll or p.charging) then
+        Hurt g, p, cint(Cart.x), lo(), SHISS
+        exit sub
+    end if
+    Cart.hits = Cart.hits + 1
+    Cart.t = DAZED
+    g.score = g.score + 500
+    g.shake = .2
+    Burst pt(), Cart.x + 0, Cart.y - 20, 12, 150, CYELLOW
+    Sfx SBUMP
+    p.ground = 0
+    p.jumped = 0
+    p.vx = -120
+    p.vy = -BOUNCEV
+    if Cart.hits >= NBUMP then BreakCart pt()
+end sub
+
+' The cart in bits, the cat off and the keepsake left lying; the zone's tune again.
+sub BreakCart (pt() as Part)
+    Cart.st = 2
+    Cart.t = 2
+    Burst pt(), Cart.x + 0, Cart.y - 12, 16, 200, CEARTH + 4
+    ZoneTune TuneOf%(Stage)
+end sub
+
+sub TakeKeep (g as Game, pt() as Part)
+    Cart.st = 3
+    g.score = g.score + 1000
+    Burst pt(), Cart.x + 0, Cart.y - 8, 12, 120, CYELLOW
+    Sfx SMARK
+end sub
+
+' Who flees, by the chase's state: the cart, its wheels turning as it goes, a pip over it for each bump it can still
+' take; broken, the keepsake where it fell, and the cat making off a while.
+sub DrawCart (cx as integer, cy as integer)
+    dim x as integer, y as integer, i as integer, k as integer
+    if ChaseX = NONE or Cart.st = 3 then exit sub
+    x = cint(Cart.x) - cx
+    y = cint(Cart.y) - cy
+    if Cart.st = 2 then
+        Blit x - 9, y - 14 - ((Ticks \ 16) and 1), IBASKET, 18, 15
+        if Cart.t > 0 then Blit x + cint((2 - Cart.t) * 260), y - 13, ICAT + ((Ticks \ 4) and 1) * 2, 20, 14
+        exit sub
+    end if
+    k = ICART + ((cint(Cart.x) \ 8) and 1) * 2
+    if Cart.t > BOLTS then k = ICART + 4
+    Blit x - 28, y - 41, k, 56, 42
+    for i = Cart.hits to NBUMP - 1
+        line (x - 10 + i * 8, y - 50)-(x - 6 + i * 8, y - 46), CYELLOW, BF
+    next
+end sub
+
 ' ---- the intro ----
 
 ' The intro from its first beat: its road, its script, the view on the road's start.
@@ -3337,6 +3500,7 @@ sub Render (g as Game, p as Hero, lo() as Loose, pt() as Part)
     DrawThings cx, cy, 0
     if NMv then DrawCables cx, cy
     if LooseN then DrawLoose cx, cy, lo()
+    DrawCart cx, cy
     DrawHero p, cx, cy
     DrawOver cx, cy
     if p.barkT > BARKT - .2 then DrawBark p, cx, cy

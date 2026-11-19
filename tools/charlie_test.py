@@ -74,7 +74,7 @@ for j = 0 to NSLOT * NBAR * 2 - 1
     i = j * 5
     play Trk(i), Trk(i + 1), Trk(i + 2), , Trk(i + 3), Trk(i + 4), Org(j), Third(j)
 next
-for j = SJUMP to SBARK
+for j = SJUMP to SBUMP
     Sfx j
 next
 print "sounds ok"
@@ -466,6 +466,37 @@ for i = 1 to 240
     if p.x > v then v = cint(p.x)
 next
 if p.ground and p.sg = c and abs(p.x - GX(c) - 24) < 2 and v - was > 40 then print "carried ok"
+' who flees in a chase, met at the race's end: run into, its cart hurts Charlie and takes no bump; rolled into, it
+' takes one and is dazed; dazed, it takes no other
+GoStage 2, g, p, lo(), pt()
+Cart.st = 1
+Cart.x = ChaseEnd
+Cart.y = GroundAt%(ChaseEnd)
+g.bones = 3
+k.r = -1
+Stand p, ChaseEnd - 60, 200
+for i = 1 to 40
+    Tick g, p, k, lo(), pt()
+next
+was = p.inv > 0 and g.bones = 0 and Cart.hits = 0
+g.bones = 3
+p.inv = 0
+p.stun = 0
+Stand p, ChaseEnd - 60, 300
+p.roll = -1
+for i = 1 to 30
+    Tick g, p, k, lo(), pt()
+    if Cart.hits then exit for
+next
+c = Cart.hits = 1 and Cart.t > BOLTS and g.bones = 3 and not p.ground
+Stand p, ChaseEnd - 10, 0
+p.roll = -1
+for i = 1 to 10
+    Tick g, p, k, lo(), pt()
+next
+if was and c and Cart.hits = 1 and g.bones = 3 then print "cart ok"
+was = 0
+k.r = 0
 ' a lift goes up under Charlie to the ground above, and back down once it is left
 GoStage 1, g, p, lo(), pt()
 for m = 0 to NMv - 1
@@ -553,6 +584,7 @@ k.d = 0
 k.jump = 0
 k.hit = 0
 ' after its family and its fade the Amber Downs at evening, then the works by night: each cleared on that life
+was = 0
 for m = 2 to 3
     for i = 1 to 1600
         Tick g, p, k, lo(), pt()
@@ -561,8 +593,12 @@ for m = 2 to 3
     for i = 1 to 16000
         Pilot p, k
         Tick g, p, k, lo(), pt()
+        if Cart.st = 1 and ZHeld = CHASETUNE + 1 and Cart.x > ChaseX + 600 then was = -1
         if g.mode <> PLAYING then exit for
     next
+    ' the Downs' evening ends in a chase: the cart fled down the race to the chase's tune, was bumped till it broke,
+    ' and its keepsake taken, the zone's tune back
+    if m = 2 and was and Cart.st = 3 and Cart.hits = NBUMP and ZHeld = 1 then print "chase ok"
     print "act"; m; g.mode; g.lives - j; Stage; Zone; cint(p.x)
     k.l = 0
     k.r = 0
@@ -729,6 +765,8 @@ def main() -> None:
         ("cable ok", "taken down a cable by its basket"),
         ("bridge ok", "a bridge raised by its button, to stand on"),
         ("works tune ok", "the Chrome Works played to their own tune"),
+        ("cart ok", "a chase's cart hurts Charlie run into it, is bumped by him curled, and not again while dazed"),
+        ("chase ok", "the Downs' evening ended in its chase: the cart fled, broken by three bumps, its keepsake taken"),
         ("home ok", "back at the title on the Amber Downs, to their tune, after the Chrome Works"),
         ("palette ok", "a zone shown in its own colours, the shared ones back after it"),
     ):

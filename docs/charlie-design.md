@@ -88,7 +88,8 @@ Progress is saved at each zone.
 - Enemies: prowlers, cats that walk a beat; thorns.
 - Act 1, dawn: a rolling run with room after every hazard.
 - Act 2, evening: the roads split high and low.
-- Chase, to add: Biscuit's honey cart, a straight race downhill. Bump it three times. The picnic basket.
+- Chase (built): Biscuit's honey cart, a straight race downhill from two pipes. Rolled into three times it
+  breaks and leaves the picnic basket. It waits at the race's end for whoever could not catch it.
 - Look: honeycomb soil under turf. Amber, leaf green, lilac. Peaks, downs, the lake.
 - Music: the tune it has, in D at 140: horns, organ, clavinet. Evening: the organ throughout, lighter drums.
 
@@ -207,7 +208,7 @@ tune.
 | Level's end | *Caught Up*, its own tune: the family tune as the big one plays it when Charlie arrives. Eight bars at 120, not looped. Two bars of guitar alone, four with the zone's lead and bass, a run and a held chord with his woof. The tally counts in time with it. It replaces Charlie's theme there. |
 | Level's end after a chase | The same in twelve bars: first the Mob's motif tumbling downward, the cat running off. |
 | Level's end, Lantern Quarter act 1 | Whistled: the guitar is gone. It comes back after the chase. |
-| Chase | One tune, the Mob's motif at 160 over a driving bass, led by the zone's own lead instrument. Each bump cuts to a bar of Charlie's theme. |
+| Chase | One tune, the Mob's motif at 160 over a driving bass, led by the zone's own lead instrument. Each bump sounds the first notes of Charlie's theme. |
 | The Baron | His own chase tune at 168, organ and bells. The third part is Charlie's theme outright. |
 | Between zones | Four bars: the stop-time hit, then the Mob's motif. |
 | Game over | Four bars: the family tune slow, in the minor, one organ. |

@@ -1717,6 +1717,33 @@ def house() -> Pic:
     return p.outline()
 
 
+def cart(f: int, hit: bool = False) -> Pic:
+    """Biscuit's honey cart, bound right: planks on two small wheels, a pot of honey slung behind, a pennant, the
+    picnic basket aboard and Biscuit at its front; f its wheels' turn; hit: bumped, the cat off its feet."""
+    p = Pic(56, 42)
+    p.box(27, 2, 27, 13, STONE[1])  # the pennant on its pole
+    for y in range(5):
+        for x in range(5 - y):
+            p.put(28 + x + (y % 2 if f else 0), 2 + y, SCARF[2])
+    paste(p, basket(), 8, 10)
+    paste(p, startled() if hit else cat(f), 31, 6 if hit else 11)
+    slab(p, 6, 25, 50, 32, WOOD)
+    for x in (16, 28, 40):
+        p.box(x, 27, x, 30, WOOD[1])
+    p.line(6, 26, 1, 21, WOOD[2])  # the pot on its hook, a drip from it
+    p.ball(3, 17, 4.2, 4.6, GOLD, 0.2, 1.1)
+    p.box(1, 12, 5, 13, EARTH[2])
+    p.put(4, 22 + f, GOLD[3])
+    for cx in (15, 41):
+        for y in range(-6, 7):
+            for x in range(-6, 7):
+                d = math.hypot(x, y)
+                if d <= 6.3:
+                    spoke = (math.degrees(math.atan2(y, x)) + f * 45) % 90 < 30
+                    p.put(cx + x, 35 + y, INK if d > 4.2 else STONE[3] if d < 1.5 else STONE[1] if spoke else STONE[2])
+    return p.outline()
+
+
 def intro(k: int) -> list[tuple[int, Pic, bool, int]]:
     """The intro's pictures from index k: the house and the hedge of the Downs' own colours."""
     OWN[0].update({k + 12, k + 18})
@@ -2240,6 +2267,7 @@ def pictures() -> list[tuple[int, Pic, bool, int]]:
     out.append((a + 268, raft(), True, -1))
     out.append((z + 594, startled(), True, z + 596))
     out += intro(z + 598)
+    out += [(z + 626 + i * 2, cart(i % 2, i == 2), True, -1) for i in range(3)]
     # Charlie round a twist: 12 turns of two strides, their mirrors facing left
     out += [
         (z + 498 + (n * 2 + f) * 2, turned(frames[5 + f * 3], n, f), True, z + 546 + (n * 2 + f) * 2)

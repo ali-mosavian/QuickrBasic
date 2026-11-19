@@ -214,3 +214,22 @@ DATA 5, 1, 1, "l.l..l.l.l..l.o.", "h.h..h.h.h..h.l.", "t-..t.v.X---v-t-", ".....
 DATA 0, 2, 1, "j.j..j.j.j..j.o.", "g.g..g.g.g..g.j.", "v-..v.t.S---o---", "......o.......o."
 DATA 7, 1, 1, "m.m..m.m.m..m.q.", "j.j..j.j.j..j.m.", "q-..q.t.V---t-q-", "......q.......q."
 DATA -3, 3, 2, "l.l..l.l.l..lpl.", "g.g..g.g.g..glg.", "s-..s.p.S-------", "......l.....l.l."
+
+' The chase, Catch That Cat: eight bars of five at 160, round and round: the Mob's tune on two clavinets over a bass
+' in driving eighths, down a tone for its third bar, a run to turn it round. The zone's own lead plays over it:
+' the game gives it that.
+Song Chase:
+DATA "abcdabce", "ccccc", 5, 160, 0, 10, 12, 9, 0, 13, 0, 0, 0
+DATA "W0Q42H1,4,10,1U5I4"
+USE Low
+DATA 1
+DATA "c", "W4Z3,9,3,1,3H0,4,1,2U0I0", "W4Z3,9,3,1,3H0,4,1,2U0I0", 0
+USE Drums
+DATA 2, "0.0.0.0.0.0.0.c.", "0.0.0.0.c.c.7.7."
+DATA 0
+DATA 2, "KhHhShHhKhKhShHh", "KhHhShHhKSSTSTTS"
+DATA 5, 1, 0, "......h.....g...", "5.58.757.4.58.7.", "h-..h.k.j-h-g-h-", ""
+DATA 5, 1, 0, "....h.g.....k.j.", "5.58.75a.9.8.7.5", "k-..k.m.l-k-j-k-", ""
+DATA 3, 1, 0, "......f.....e...", "3.36.535.2.36.5.", "f-..f.i.h-f-e-f-", ""
+DATA 5, 2, 1, "....h.g.....k.j.", "5.58.7.5.8.9.a.c", "o-m-k-j-h-g-f-e-", ""
+DATA 5, 2, 1, "....h.g.....k.j.", "5.58.7.5.8.a.c.e", "h.j.k.m.o.q.t---", ""
