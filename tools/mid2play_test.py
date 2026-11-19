@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """mid2play_test.py [EXE]: a small MIDI file made here, as PLAY statements, and the program run on the host build."""
 
+import re
 import sys
 import tempfile
 import subprocess
@@ -93,21 +94,33 @@ def main() -> None:
     quiet = mid2play.program(mid2play.read(song()), 10, None, 16, None, {1: 6})
     assert 'PLAY "V4L4N41' in quiet, quiet
     lines = text.splitlines()
-    assert lines[1].startswith('PLAY "MBT240R5W0Q20'), lines[1]
+    assert lines[1].startswith('PLAY "MBT240R2W0Q20'), lines[1]
     # E above middle C is N41, G N44: a quarter, an eighth's rest, a dotted eighth, the bar's seven sixteenths of rest
     # a drum whose pitch slides is a sine alone: a kick's click, a modulator, slid with it, a chirp from 5 kHz down at
     # every kick, which no drum of a recording had
     for drum in mid2play.KIT.values():
         assert "K0" in drum or "Z1,0" in drum, drum
     # an organ's stab is bright: a duller one, fit to an octave under the written, lost a recording's 350 to 1400 Hz
-    assert mid2play.sound(2) == "R5W4Z1,4,3,13,4H0,4,11,2R0", mid2play.sound(2)
+    # and wavers as a recording's held stab, 28 cents at its peak: with none, or U3's 7, the held chord sat still
+    assert mid2play.sound(2) == "R2W4Z1,4,3,13,4H0,4,11,1U9R0", mid2play.sound(2)
+    assert "U11" in mid2play.sound(7), mid2play.sound(7)
+    # a note stops when it stops: a room on every voice, releases of a twentieth of a second and a hat a sixth of a
+    # second long filled a recording's silences, its levels falling 12 dB in 23 ms where these fell 4
+    assert all(
+        text.endswith(",1")
+        for text in re.findall(
+            r"H\d+,\d+,\d+,\d+",
+            " ".join(
+                [mid2play.SOUNDS[family] for family in (0, 2, 4, 7, 8, 10)]
+                + ["".join(drum) for drum in (mid2play.KICK, mid2play.SNARE, mid2play.HAT)]
+            ),
+        )
+    )
     # a kick under full: at V15 its 55 Hz stood 5 dB over a recording's
     assert "V11" in mid2play.KICK, mid2play.KICK
     # a voice a drum, set once: the kick, then the hat
     # with the hat under the kick, which the kit in one voice lost
-    assert lines[1].endswith(
-        '"T240Z1,0H0,5,0,3L16W4Z1,0H0,5,0,3Y0K1,8R3V11O1", "T240Z1,0H0,5,0,3L16W3Y3,3000,0K0R5V11O6"'
-    )
+    assert lines[1].endswith('"T240Z1,0L16W4Z1,0H0,4,0,1Y0K1,8R0V11O1", "T240Z1,0L16W3H0,3,0,1Y3,3000,0K0R0V15O6"')
     # a note is as loud as its velocity, squared: every track at one volume was not a recording's balance. The
     # volume is set where it changes, the G at 64 of 127 a quarter of full
     # a note bent under at its start slides up into its pitch: the wheel was not read, and a lead's every note sat

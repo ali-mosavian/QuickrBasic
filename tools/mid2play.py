@@ -23,29 +23,29 @@ KIT_CHANNEL = 9
 PIECES = {16: "1", 12: "2.", 8: "2", 6: "4.", 4: "4", 3: "8.", 2: "8", 1: "16"}
 # a drum: what its voice is set to, then its note. A snare is all the noise, a hat what is over 4 kHz: a
 # recording's drums were in every band
-KICK = ("W4", "Z1,0", "H0,5,0,3", "Y0", "K1,8", "R3", "V11", "O1", "C")
-SNARE = ("W3", "Y0", "K0", "R5", "V15", "O6", "C")
-HAT = ("W3", "Y3,3000,0", "K0", "R5", "V11", "O6", "C")
+KICK = ("W4", "Z1,0", "H0,4,0,1", "Y0", "K1,8", "R0", "V11", "O1", "C")
+SNARE = ("W3", "H0,5,0,1", "Y0", "K0", "R0", "V15", "O6", "C")
+HAT = ("W3", "H0,3,0,1", "Y3,3000,0", "K0", "R0", "V15", "O6", "C")
 KIT = {35: KICK, 36: KICK, 38: SNARE, 40: SNARE} | {
-    key: ("W4", "Z1,0", "Y0", "K5,6", "R5", "V14", "O2", note)
+    key: ("W4", "Z1,0", "H0,5,0,3", "Y0", "K5,6", "R2", "V14", "O2", note)
     for key, note in ((41, "C"), (43, "E"), (45, "G"), (47, "B"))
 }
 LONGEST = 255  # a string's characters
 LEGATO = 8  # a note of so many sixteenths or more sounds all its length, but one struck again at its end
-KIT_SOUND = "Z1,0H0,5,0,3L16"
+KIT_SOUND = "Z1,0L16"
 # a General MIDI program's family (program // 8) as a sound
 SOUNDS = {
-    0: "W0Q15H2,5,2,3",
+    0: "W0Q15H2,5,2,1",
     1: "W4Z7,6,7,0H0,8,0,6",
-    2: "W4Z1,4,3,13,4H0,4,11,2R0",
+    2: "W4Z1,4,3,13,4H0,4,11,1U9R0",
     3: "W4Z3,9,3,1,3H0,6,3,3",
-    4: "W4Z1,6,3,3,2H0,5,5,2",
+    4: "W4Z1,6,3,3,2H0,5,5,1",
     5: "W2Y1,2400,4H3,5,11,4U4I6",
     6: "W2Y1,2000,3H4,6,11,5U3I8",
-    7: "W4Z1,8,3,11,4H0,4,12,2U3I2R0",
-    8: "W4Z1,9,3,15,3H5,4,10,3U5I4",
+    7: "W4Z1,8,3,11,4H0,4,12,1U11I2R0",
+    8: "W4Z1,9,3,15,3H5,4,10,1U5I4",
     9: "W1H1,3,12,3U4",
-    10: "W0Q20H3,4,9,3U5I4",
+    10: "W0Q20H3,4,9,1U5I4",
 }
 DEFAULT_SOUND = "W0Q50H0,5,9,3"
 BASS = 4
@@ -221,7 +221,7 @@ def bar_of(
 
 def sound(family: int) -> str:
     """A program family's sound, in a room but for the bass."""
-    return ("" if family == BASS else "R5") + SOUNDS.get(family, DEFAULT_SOUND)
+    return ("" if family == BASS else "R2") + SOUNDS.get(family, DEFAULT_SOUND)
 
 
 class Part(NamedTuple):
