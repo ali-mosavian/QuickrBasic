@@ -28959,30 +28959,30 @@ qb/stackover.bas 1 fb96549631c8
 qb/stackover.bas 2 fb96549631c8
 qb/stackover.bas 3 fb96549631c8
 qb/stackover.bas 4 fb96549631c8
-qb/stackover.bas 5 d5e1b94bb654
-qb/stackover.bas 6 8901f77532bc
-qb/stackover.bas 7 c3ae871a61bd
-qb/stackover.bas 8 f4f517d3ae72
-qb/stackover.bas 9 099305bf04e4
+qb/stackover.bas 5 596b5b755abc
+qb/stackover.bas 6 52630e19eed7
+qb/stackover.bas 7 359caafc3f98
+qb/stackover.bas 8 6af5518a2c32
+qb/stackover.bas 9 38aed78c0a6c
 qb/stackover.bas 10 01b38841b580
-qb/stackover.bas 11 6217f604e162
-qb/stackover.bas 12 8d8acfcd71d7
+qb/stackover.bas 11 845eab285487
+qb/stackover.bas 12 0667da130719
 qb/stackover.bas 13 fb96549631c8
 qb/stackover.bas 14 a5609dbfc75d
 qb/stackover.bas L 0 1ff5cace4e72
-qb/stackover.bas L 1 0131d02fb934
-qb/stackover.bas L 2 2830f95c014c
-qb/stackover.bas L 3 af1190da0ff9
-qb/stackover.bas L 4 3d669cf26850
-qb/stackover.bas L 5 38c861a85e7b
-qb/stackover.bas L 6 701c8fbd38b0
-qb/stackover.bas L 7 af4a95e91832
-qb/stackover.bas L 8 a9b9a75a25f3
-qb/stackover.bas L 9 001c5c8f279c
-qb/stackover.bas L 10 4a385c79f50b
-qb/stackover.bas L 11 7232b29bad53
-qb/stackover.bas L 12 b0c8b9e5cfe2
-qb/stackover.bas L 13 ed22ee4db423
+qb/stackover.bas L 1 17dc4af8b23e
+qb/stackover.bas L 2 bec71bcfadea
+qb/stackover.bas L 3 3f92544a3ffb
+qb/stackover.bas L 4 407029abf334
+qb/stackover.bas L 5 3e00a260ed6b
+qb/stackover.bas L 6 f76380a57414
+qb/stackover.bas L 7 3a00667a0733
+qb/stackover.bas L 8 6521bd852d86
+qb/stackover.bas L 9 5f19de8e6101
+qb/stackover.bas L 10 0b672f1f0493
+qb/stackover.bas L 11 3293ad2f9414
+qb/stackover.bas L 12 f38603093ed9
+qb/stackover.bas L 13 fd93986ecf72
 qb/stackover.bas L 14 a3c9e530b7e6
 qb/stackoverp.bas 0 fb96549631c8
 qb/stackoverp.bas 1 fb96549631c8
@@ -28990,31 +28990,31 @@ qb/stackoverp.bas 2 fb96549631c8
 qb/stackoverp.bas 3 fb96549631c8
 qb/stackoverp.bas 4 fb96549631c8
 qb/stackoverp.bas 5 fb96549631c8
-qb/stackoverp.bas 6 dd903098dc79
-qb/stackoverp.bas 7 def5b4d88f89
-qb/stackoverp.bas 8 38acda46c497
-qb/stackoverp.bas 9 dcec5c66441d
-qb/stackoverp.bas 10 d2431a519df6
+qb/stackoverp.bas 6 023433179e07
+qb/stackoverp.bas 7 c807a76b7f0d
+qb/stackoverp.bas 8 fcdd4534cc13
+qb/stackoverp.bas 9 793a6d437735
+qb/stackoverp.bas 10 1e5f17333cdc
 qb/stackoverp.bas 11 01b38841b580
-qb/stackoverp.bas 12 7d38a406cfd7
-qb/stackoverp.bas 13 70a337e34510
+qb/stackoverp.bas 12 1b79f18780b9
+qb/stackoverp.bas 13 0e25b7407861
 qb/stackoverp.bas 14 fb96549631c8
 qb/stackoverp.bas 15 a5609dbfc75d
 qb/stackoverp.bas L 0 1ff5cace4e72
 qb/stackoverp.bas L 1 4e65763095f7
-qb/stackoverp.bas L 2 1617a0b01b2b
-qb/stackoverp.bas L 3 b614a7db5044
-qb/stackoverp.bas L 4 fe44b27b026f
-qb/stackoverp.bas L 5 000b71567ae0
-qb/stackoverp.bas L 6 4ae7553c1daf
-qb/stackoverp.bas L 7 6551da4d9112
-qb/stackoverp.bas L 8 9f470aed1c2d
-qb/stackoverp.bas L 9 882638accc21
-qb/stackoverp.bas L 10 00ef3f7c8d12
-qb/stackoverp.bas L 11 f6c06fdd385f
-qb/stackoverp.bas L 12 5929aa9f2033
-qb/stackoverp.bas L 13 7ec3472a1826
-qb/stackoverp.bas L 14 33fadf2365e3
+qb/stackoverp.bas L 2 0afadb77c27b
+qb/stackoverp.bas L 3 eb52acf14b08
+qb/stackoverp.bas L 4 d8f86c1c802b
+qb/stackoverp.bas L 5 2d7ba6a3dd4d
+qb/stackoverp.bas L 6 670fa86a84fc
+qb/stackoverp.bas L 7 bd693e93ebe9
+qb/stackoverp.bas L 8 3622304780c1
+qb/stackoverp.bas L 9 551baa677f5c
+qb/stackoverp.bas L 10 595412d5153c
+qb/stackoverp.bas L 11 d11580e5d11a
+qb/stackoverp.bas L 12 16cd53379ec0
+qb/stackoverp.bas L 13 c4232add3ae9
+qb/stackoverp.bas L 14 3b7cd4ddaca1
 qb/stackoverp.bas L 15 a3c9e530b7e6
 qb/stackoverv.bas 0 fb96549631c8
 qb/stackoverv.bas 1 fb96549631c8
@@ -29022,31 +29022,31 @@ qb/stackoverv.bas 2 fb96549631c8
 qb/stackoverv.bas 3 fb96549631c8
 qb/stackoverv.bas 4 fb96549631c8
 qb/stackoverv.bas 5 fb96549631c8
-qb/stackoverv.bas 6 dd903098dc79
-qb/stackoverv.bas 7 def5b4d88f89
-qb/stackoverv.bas 8 38acda46c497
-qb/stackoverv.bas 9 dcec5c66441d
-qb/stackoverv.bas 10 d2431a519df6
+qb/stackoverv.bas 6 023433179e07
+qb/stackoverv.bas 7 c807a76b7f0d
+qb/stackoverv.bas 8 fcdd4534cc13
+qb/stackoverv.bas 9 793a6d437735
+qb/stackoverv.bas 10 1e5f17333cdc
 qb/stackoverv.bas 11 01b38841b580
-qb/stackoverv.bas 12 7d38a406cfd7
-qb/stackoverv.bas 13 70a337e34510
+qb/stackoverv.bas 12 1b79f18780b9
+qb/stackoverv.bas 13 0e25b7407861
 qb/stackoverv.bas 14 fb96549631c8
 qb/stackoverv.bas 15 a5609dbfc75d
 qb/stackoverv.bas L 0 1ff5cace4e72
 qb/stackoverv.bas L 1 4e65763095f7
-qb/stackoverv.bas L 2 1617a0b01b2b
-qb/stackoverv.bas L 3 b614a7db5044
-qb/stackoverv.bas L 4 fe44b27b026f
-qb/stackoverv.bas L 5 000b71567ae0
-qb/stackoverv.bas L 6 4ae7553c1daf
-qb/stackoverv.bas L 7 6551da4d9112
-qb/stackoverv.bas L 8 9f470aed1c2d
-qb/stackoverv.bas L 9 882638accc21
-qb/stackoverv.bas L 10 00ef3f7c8d12
-qb/stackoverv.bas L 11 f6c06fdd385f
-qb/stackoverv.bas L 12 5929aa9f2033
-qb/stackoverv.bas L 13 7ec3472a1826
-qb/stackoverv.bas L 14 33fadf2365e3
+qb/stackoverv.bas L 2 0afadb77c27b
+qb/stackoverv.bas L 3 eb52acf14b08
+qb/stackoverv.bas L 4 d8f86c1c802b
+qb/stackoverv.bas L 5 2d7ba6a3dd4d
+qb/stackoverv.bas L 6 670fa86a84fc
+qb/stackoverv.bas L 7 bd693e93ebe9
+qb/stackoverv.bas L 8 3622304780c1
+qb/stackoverv.bas L 9 551baa677f5c
+qb/stackoverv.bas L 10 595412d5153c
+qb/stackoverv.bas L 11 d11580e5d11a
+qb/stackoverv.bas L 12 16cd53379ec0
+qb/stackoverv.bas L 13 c4232add3ae9
+qb/stackoverv.bas L 14 3b7cd4ddaca1
 qb/stackoverv.bas L 15 a3c9e530b7e6
 qb/stackrt.bas 0 fb96549631c8
 qb/stackrt.bas 1 fb96549631c8
@@ -29054,27 +29054,27 @@ qb/stackrt.bas 2 fb96549631c8
 qb/stackrt.bas 3 fb96549631c8
 qb/stackrt.bas 4 fb96549631c8
 qb/stackrt.bas 5 fb96549631c8
-qb/stackrt.bas 6 f5521bae9bdd
-qb/stackrt.bas 7 90838ad7b3aa
-qb/stackrt.bas 8 0f1e08565d4a
-qb/stackrt.bas 9 72f0e414a0da
+qb/stackrt.bas 6 aaeca9661b28
+qb/stackrt.bas 7 66f94b664636
+qb/stackrt.bas 8 50147557d2c3
+qb/stackrt.bas 9 09d0d653d472
 qb/stackrt.bas 10 fb96549631c8
-qb/stackrt.bas 11 5ebe73887e11
-qb/stackrt.bas 12 866106d7b6fa
+qb/stackrt.bas 11 cfe399828ad8
+qb/stackrt.bas 12 0949aee35c23
 qb/stackrt.bas 13 a5609dbfc75d
 qb/stackrt.bas L 0 8e03262c3c05
-qb/stackrt.bas L 1 93733d8c1d22
-qb/stackrt.bas L 2 de4ec90e97fe
-qb/stackrt.bas L 3 d3a5282bd1f7
-qb/stackrt.bas L 4 9107eae7beae
-qb/stackrt.bas L 5 2ffef67568d8
-qb/stackrt.bas L 6 61867ad79288
-qb/stackrt.bas L 7 14cc08c5ad9f
-qb/stackrt.bas L 8 862613d95edd
-qb/stackrt.bas L 9 f6489cea08d2
-qb/stackrt.bas L 10 0fbec949d4d0
-qb/stackrt.bas L 11 404fbd252479
-qb/stackrt.bas L 12 2253d93cad5f
+qb/stackrt.bas L 1 32b0a6a0d2d5
+qb/stackrt.bas L 2 79728f361c83
+qb/stackrt.bas L 3 63b65157845a
+qb/stackrt.bas L 4 7f73ecce98cb
+qb/stackrt.bas L 5 ab584fa82cd1
+qb/stackrt.bas L 6 c39bbc9a0641
+qb/stackrt.bas L 7 398ec92d5231
+qb/stackrt.bas L 8 7f58477d16ea
+qb/stackrt.bas L 9 a5f876787d48
+qb/stackrt.bas L 10 6479371e1263
+qb/stackrt.bas L 11 f4dfcc48068b
+qb/stackrt.bas L 12 07925bfc103f
 qb/stackrt.bas L 13 a873165e41db
 qb/stackrtp.bas 0 fb96549631c8
 qb/stackrtp.bas 1 fb96549631c8
@@ -29083,28 +29083,28 @@ qb/stackrtp.bas 3 fb96549631c8
 qb/stackrtp.bas 4 fb96549631c8
 qb/stackrtp.bas 5 fb96549631c8
 qb/stackrtp.bas 6 fb96549631c8
-qb/stackrtp.bas 7 cc54d8ab2e6d
-qb/stackrtp.bas 8 20b558d6a1a3
-qb/stackrtp.bas 9 40e34673038d
-qb/stackrtp.bas 10 88627f63c37b
+qb/stackrtp.bas 7 d247aeaaed08
+qb/stackrtp.bas 8 9223635696a3
+qb/stackrtp.bas 9 c6da94b7ccb3
+qb/stackrtp.bas 10 3df986dccc97
 qb/stackrtp.bas 11 fb96549631c8
-qb/stackrtp.bas 12 0d206cb73c7e
-qb/stackrtp.bas 13 f0b72a78517f
+qb/stackrtp.bas 12 4334ab466bfd
+qb/stackrtp.bas 13 0fce135f32a1
 qb/stackrtp.bas 14 a5609dbfc75d
 qb/stackrtp.bas L 0 8e03262c3c05
 qb/stackrtp.bas L 1 1166310ee53a
-qb/stackrtp.bas L 2 83325cfe48e3
-qb/stackrtp.bas L 3 95730243ea2a
-qb/stackrtp.bas L 4 872af6266dc2
-qb/stackrtp.bas L 5 9617e16eeafe
-qb/stackrtp.bas L 6 9d076eded6cd
-qb/stackrtp.bas L 7 dc55e9736a21
-qb/stackrtp.bas L 8 7b19e459ec05
-qb/stackrtp.bas L 9 65c2b63d121c
-qb/stackrtp.bas L 10 e9e5b7575b6e
-qb/stackrtp.bas L 11 af4983ce999d
-qb/stackrtp.bas L 12 b023c985e6e9
-qb/stackrtp.bas L 13 b0dd89334bab
+qb/stackrtp.bas L 2 a82335b8c1f1
+qb/stackrtp.bas L 3 cd8cbb021cf5
+qb/stackrtp.bas L 4 a97020b63cb1
+qb/stackrtp.bas L 5 df6755b67875
+qb/stackrtp.bas L 6 6057f78ff5c7
+qb/stackrtp.bas L 7 702f85566f66
+qb/stackrtp.bas L 8 eb5749d66e99
+qb/stackrtp.bas L 9 7d3d0e1e04b1
+qb/stackrtp.bas L 10 1c5da20d98e5
+qb/stackrtp.bas L 11 34edc00ac001
+qb/stackrtp.bas L 12 09aa64be29b3
+qb/stackrtp.bas L 13 b533aa9fb948
 qb/stackrtp.bas L 14 a873165e41db
 qb/stackrtv.bas 0 fb96549631c8
 qb/stackrtv.bas 1 fb96549631c8
@@ -29113,28 +29113,28 @@ qb/stackrtv.bas 3 fb96549631c8
 qb/stackrtv.bas 4 fb96549631c8
 qb/stackrtv.bas 5 fb96549631c8
 qb/stackrtv.bas 6 fb96549631c8
-qb/stackrtv.bas 7 cc54d8ab2e6d
-qb/stackrtv.bas 8 20b558d6a1a3
-qb/stackrtv.bas 9 40e34673038d
-qb/stackrtv.bas 10 88627f63c37b
+qb/stackrtv.bas 7 d247aeaaed08
+qb/stackrtv.bas 8 9223635696a3
+qb/stackrtv.bas 9 c6da94b7ccb3
+qb/stackrtv.bas 10 3df986dccc97
 qb/stackrtv.bas 11 fb96549631c8
-qb/stackrtv.bas 12 0d206cb73c7e
-qb/stackrtv.bas 13 f0b72a78517f
+qb/stackrtv.bas 12 4334ab466bfd
+qb/stackrtv.bas 13 0fce135f32a1
 qb/stackrtv.bas 14 a5609dbfc75d
 qb/stackrtv.bas L 0 8e03262c3c05
 qb/stackrtv.bas L 1 1166310ee53a
-qb/stackrtv.bas L 2 83325cfe48e3
-qb/stackrtv.bas L 3 95730243ea2a
-qb/stackrtv.bas L 4 872af6266dc2
-qb/stackrtv.bas L 5 9617e16eeafe
-qb/stackrtv.bas L 6 9d076eded6cd
-qb/stackrtv.bas L 7 dc55e9736a21
-qb/stackrtv.bas L 8 7b19e459ec05
-qb/stackrtv.bas L 9 65c2b63d121c
-qb/stackrtv.bas L 10 e9e5b7575b6e
-qb/stackrtv.bas L 11 af4983ce999d
-qb/stackrtv.bas L 12 b023c985e6e9
-qb/stackrtv.bas L 13 b0dd89334bab
+qb/stackrtv.bas L 2 a82335b8c1f1
+qb/stackrtv.bas L 3 cd8cbb021cf5
+qb/stackrtv.bas L 4 a97020b63cb1
+qb/stackrtv.bas L 5 df6755b67875
+qb/stackrtv.bas L 6 6057f78ff5c7
+qb/stackrtv.bas L 7 702f85566f66
+qb/stackrtv.bas L 8 eb5749d66e99
+qb/stackrtv.bas L 9 7d3d0e1e04b1
+qb/stackrtv.bas L 10 1c5da20d98e5
+qb/stackrtv.bas L 11 34edc00ac001
+qb/stackrtv.bas L 12 09aa64be29b3
+qb/stackrtv.bas L 13 b533aa9fb948
 qb/stackrtv.bas L 14 a873165e41db
 qb/strcmp_smoke.bas 0 fb96549631c8
 qb/strcmp_smoke.bas 1 fb96549631c8
