@@ -402,5 +402,6 @@ int sdl_main(void)
         SDL_RenderTexture(r, t, &(SDL_FRect){0, 0, (float)shown_w, (float)shown_h}, nullptr);
 
         SDL_RenderPresent(r);
+        host_frame_shown(); /* port 3DAh's retrace */
     }
 }

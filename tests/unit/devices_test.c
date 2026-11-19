@@ -185,6 +185,28 @@ TEST(varptr_string_is_the_type_and_address)
 
 /* Port 60h read FFh on a Mac: a game that reads held keys there fell back to INKEY$'s repeats, and a key held
    was forgotten as a second went down. A byte a look, in order, the last one kept. */
+/* Port 3DAh's retrace began and ended at every look, on a display too: a game that waited for it to step with the
+   screen ran as fast as it could look, and paced by TIMER it showed some steps twice and some never. On a display it
+   begins once for each frame shown, however many were missed; with none it still ends a wait for either. */
+TEST(port_3dah_retrace_is_once_a_frame_shown)
+{
+    static const char *const lines[] = {
+        "10 PRINT INP(&H3DA) AND 8; INP(&H3DA) AND 8; INP(&H3DA) AND 8;",
+        nullptr,
+    };
+
+    host_frame_shown();
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 8  0  0 ");
+    host_frame_shown();
+    host_frame_shown();
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 8  0  0 ");
+    *host_frames() = 0; /* no display again, for the tests after */
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK(S->cons.sbuf[1] != S->cons.sbuf[4]);
+}
+
 TEST(port_60h_is_the_keys_down_and_up)
 {
     static const char *const lines[] = {

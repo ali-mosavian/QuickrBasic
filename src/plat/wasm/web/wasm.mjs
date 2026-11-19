@@ -175,12 +175,18 @@ export function sidecar(module, memory, tone, voice) {
 export const memory = () => new WebAssembly.Memory({ initial: 512, maximum: 16384, shared: true });
 
 // The shared block (wasm.h's WasmIrq) at the address irq() returns, and port 60h's bytes (host.h's
-// HostScans) at the one scans() returns.
+// HostScans) at the one scans() returns, the count of frames shown (host_frames) at the one frames() does.
 export class Irq {
-  constructor(memory, at, scans = 0) {
+  constructor(memory, at, scans = 0, frames = 0) {
     this.memory = memory;
     this.at = at;
     this.scans = scans;
+    this.frames = frames;
+  }
+
+  // A frame is on the screen: port 3DAh's vertical retrace, once.
+  frame() {
+    if (this.frames) Atomics.add(this.i32, this.frames >> 2, 1);
   }
 
   // A byte to port 60h: a key's scan code as it goes down, with 80h as it comes up.

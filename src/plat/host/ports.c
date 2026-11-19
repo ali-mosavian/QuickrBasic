@@ -20,6 +20,7 @@ static struct {
     uint8_t status;
     bool kbd_write; /* the next data byte is a key typed */
     uint8_t scan;   /* the keyboard's last byte read */
+    uint32_t seen;  /* the frames shown when the retrace was last read as begun */
 } ports = {.scan = NO_KEYBOARD};
 
 /* The keyboard's bytes not yet read, pushed by a window's thread and read by the program's. */
@@ -37,6 +38,13 @@ void host_scan_push(const uint8_t scan)
     scans.bytes[at % HOST_SCANS] = scan;
     atomic_store(&scans.pushed, at + 1);
 }
+
+/* The frames a display has shown. */
+static _Atomic uint32_t frames;
+
+_Atomic uint32_t *host_frames(void) { return &frames; }
+
+void host_frame_shown(void) { atomic_fetch_add(&frames, 1); }
 
 uint8_t psys_inp(const uint16_t port)
 {
@@ -57,8 +65,20 @@ uint8_t psys_inp(const uint16_t port)
         return ports.scan;
     }
 
-    case PORT_STATUS:
-        return ports.status ^= RETRACE; /* retrace starts and ends at each look */
+    case PORT_STATUS: {
+        const uint32_t shown = atomic_load(&frames);
+
+        if (!shown) /* no display: retrace starts and ends at each look, so a wait for either ends */
+            return ports.status ^= RETRACE;
+
+        /* a display's: begun once for each frame shown, over at the next look. A program that waits for it steps
+           with the display; one too slow for a frame sees the frames it missed as one */
+        if (shown == ports.seen)
+            return 0;
+
+        ports.seen = shown;
+        return RETRACE;
+    }
     default:
         return 0xFF;
     }
