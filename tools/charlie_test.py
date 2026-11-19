@@ -263,7 +263,7 @@ FOR i = 1 TO 240
 NEXT
 IF p.ground AND p.sg = c AND ABS(p.x - GX(c) - 24) < 2 AND v - was > 40 THEN PRINT "carried ok"
 ' a lift goes up under Charlie to the ground above, and back down once it is left
-NextZone g, p, lo(), pt()
+GoStage 1, g, p, lo(), pt()
 FOR m = 0 TO NMv - 1
     IF MvK(m) = 2 THEN EXIT FOR
 NEXT
@@ -278,7 +278,7 @@ was = was AND p.ground AND GK(p.sg) = 1 AND p.x > MvX(m) + MOVEW
 FOR i = 1 TO 200: Tick g, p, k, lo(), pt(): NEXT
 IF was AND MvT(m) = 0 THEN PRINT "lift ok"
 ' a basket goes down its cable under Charlie, to the ground past the pit
-NextZone g, p, lo(), pt()
+GoStage 1, g, p, lo(), pt()
 FOR m = 0 TO NMv - 1
     IF MvK(m) = 3 THEN EXIT FOR
 NEXT
@@ -288,7 +288,7 @@ FOR i = 1 TO 300: Tick g, p, k, lo(), pt(): NEXT
 was = p.ground AND p.sg = c AND ABS(p.x - (MvX(m) + MvA(m) + 24)) < 2
 IF was AND ABS(p.y - (MvY(m) + CABLED)) < 2 THEN PRINT "cable ok"
 ' a button trodden raises its bridge out of the pit, and the bridge carries
-NextZone g, p, lo(), pt()
+GoStage 1, g, p, lo(), pt()
 FOR m = 0 TO NMv - 1
     IF MvK(m) = 4 THEN EXIT FOR
 NEXT
@@ -306,7 +306,7 @@ FOR i = 1 TO 30: Tick g, p, k, lo(), pt(): NEXT
 was = was AND MvT(m) = MvA(m) AND p.ground AND p.sg = c
 IF was AND ABS(p.y - (MvY(m) - MvA(m))) < 2 THEN PRINT "bridge ok"
 ' the Chrome Works played through by the pilot on one life, its platforms and lifts ridden
-NextZone g, p, lo(), pt()
+GoStage 1, g, p, lo(), pt()
 j = g.lives
 FOR i = 1 TO 14000
     Pilot p, k
@@ -315,7 +315,21 @@ FOR i = 1 TO 14000
 NEXT
 PRINT "works"; g.mode; g.lives - j; Zone; CINT(p.x); CINT(p.y)
 k.l = 0: k.r = 0: k.d = 0: k.jump = 0: k.hit = 0
-' and after its family and its fade, the title, on the Amber Downs again
+' after its family and its fade the Amber Downs at evening, then the works by night: each cleared on that life
+FOR m = 2 TO 3
+    FOR i = 1 TO 1600
+        Tick g, p, k, lo(), pt()
+        IF Stage = m AND g.mode = PLAYING THEN EXIT FOR
+    NEXT
+    FOR i = 1 TO 16000
+        Pilot p, k
+        Tick g, p, k, lo(), pt()
+        IF g.mode <> PLAYING THEN EXIT FOR
+    NEXT
+    PRINT "act"; m; g.mode; g.lives - j; Stage; Zone; CINT(p.x)
+    k.l = 0: k.r = 0: k.d = 0: k.jump = 0: k.hit = 0
+NEXT
+' and after the last, the title, on the Amber Downs again
 FOR i = 1 TO 1600
     Tick g, p, k, lo(), pt()
     IF g.mode = TITLE THEN EXIT FOR
@@ -440,6 +454,12 @@ def main() -> None:
         sys.exit(f"charlie: the title's run not ended with the family, held and faded: {out[-300:]}")
     if "faded ok" not in out:
         sys.exit(f"charlie: the level's end not held, faded out and begun again in full colour: {out[-300:]}")
+    for act in ("2", "3"):
+        got = out[out.rfind(f"act {act} ") :].split()
+        if got[1:5] != [act, "2", "0", act]:
+            sys.exit(
+                f"charlie: level {act} not cleared on one life (level, mode, lives lost, level, zone, x): {out[-300:]}"
+            )
     works = out[out.rfind("works") :].split()
     if works[1:4] != ["2", "0", "1"]:
         sys.exit(f"charlie: the Chrome Works not cleared on one life (mode, lives lost, zone, x, y): {out[-300:]}")

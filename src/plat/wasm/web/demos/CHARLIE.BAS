@@ -150,6 +150,8 @@ CONST IAM = IAP + 24, IAE = IAM + 2
 ' The works' slopes, by the deck's four 16s: each kind's tile, then what of its deck runs on into the tile under.
 CONST IZS = IAE + 8, IZU = IZS + 48, NIMG = IZU + 48
 CONST HUDW = 108, HUDH = 40
+' The levels: the two zones, then each again at another hour, in other colours.
+CONST NSTAGE = 4
 CONST IMGSZ = 340000
 
 CONST SCLEFT = 75, SCRIGHT = 77, SCUP = 72, SCDOWN = 80, SCSPACE = 57, SCZ = 44
@@ -173,7 +175,7 @@ DECLARE SUB LoadLevel (z AS INTEGER)
 DECLARE SUB AddMover (x AS INTEGER, y AS INTEGER, a AS INTEGER, k AS INTEGER, e AS INTEGER)
 DECLARE SUB Movers (p AS Hero)
 DECLARE FUNCTION Swing! (m AS INTEGER, quarter AS INTEGER)
-DECLARE SUB NextZone (g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
+DECLARE SUB GoStage (n AS INTEGER, g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
 DECLARE SUB Column (c AS INTEGER, g AS INTEGER, kind AS INTEGER)
 DECLARE SUB AddObj (k AS INTEGER, x AS INTEGER, y AS INTEGER)
 DECLARE SUB SortObjs ()
@@ -266,7 +268,8 @@ DIM SHARED ZR(NZONE) AS INTEGER, NZ AS INTEGER
 ' The zone played, 0 the Amber Downs, 1 the Chrome Works, and the one ResetWorld is to load; its pictures: tiles,
 ' strips, backdrop, loop, pipe, card.
 ' The shared colours as built, and each zone's own over them: how many, which, what.
-DIM SHARED Pal0(255) AS LONG, ZPN(1) AS INTEGER, ZPK(1, 159) AS INTEGER, ZPC(1, 159) AS LONG
+DIM SHARED Pal0(255) AS LONG, ZPN(NSTAGE - 1) AS INTEGER, ZPK(NSTAGE - 1, 159) AS INTEGER, ZPC(NSTAGE - 1, 159) AS LONG
+DIM SHARED Stage AS INTEGER
 DIM SHARED ZWave AS INTEGER, MvB(NMOVE) AS INTEGER
 DIM SHARED Zone AS INTEGER, NextUp AS INTEGER, ZTile AS INTEGER, ZBack AS INTEGER
 DIM SHARED ZLoop AS INTEGER, ZPipe AS INTEGER, ZCard AS INTEGER
@@ -337,6 +340,33 @@ DATA flat,8, up45,4, hoop,1, arc,11, pit,12, flat,10
 DATA mark,0, flat,6, cat,0, flat,12, hover,5, flat,8, bones,6, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0
 DATA flat,8, drop,4, flat,16, mover,7, flat,8, boost,0, flat,6, pipe,5, flat,8, dng,3, boost,0, flat,8, loop,0
 DATA flat,10, goal,0, flat,9, fam,0, flat,6, flat,5, "end",0
+
+' The Amber Downs at evening.
+Level3:
+DATA flat,4, dog,0, flat,6, bones,6, flat,6, boost,0, flat,6, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
+DATA up45,3, arc,9, pit,10, flat,8, flower,0, flat,4
+DATA dng,4, boost,0, bones,10, flat,10, loop,0, flat,8, boost,0, flat,4, wave,4, flat,8
+DATA cat,0, flat,8, tree,0, flat,6, upg,3, flat,4, button,0, flat,8, bridge,10, flat,6, mark,0, flat,6
+DATA dn45,3, dng,3, boost,0, bones,8, flat,8, loop,0, flat,6, up45,4, hoop,1, arc,11, pit,12, flat,10
+DATA spring,0, flat,2, plat,608, hb,706, flat,16, bush,0, flat,6, cable,22, flat,8
+DATA boost,0, flat,6, pipe,6, flat,6, bones,6, flat,22, boost,0, flat,4, wave,2, flat,8
+DATA dng,5, boost,0, bones,10, flat,12, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8, thorn,0, flat,6, rock,0, flat,4
+DATA jet,0, flat,3, bump,5, flat,3, bump,6, flat,6, mark,0, flat,4, up45,3, arc,10, pit,11, flat,8
+DATA dng,3, boost,0, bones,10, flat,10, loop,0, flat,10, spin,0, flat,8, flower,0, flat,4
+DATA goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, "end",0
+
+' The Chrome Works by night.
+Level4:
+DATA flat,4, dog,0, flat,8, bones,6, flat,6, boost,0, flat,6, loop,0, flat,6, boost,0, flat,6, loop,0, flat,16
+DATA mover,7, flat,8, bones,6, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0, flat,8
+DATA up45,3, arc,9, pit,10, flat,8, cat,0, flat,10, hover,5, flat,8, mark,0, flat,6
+DATA boost,0, flat,4, wave,3, flat,8, dng,3, boost,0, flat,8, loop,0, flat,8, button,0, flat,10, bridge,10, flat,8
+DATA jet,0, flat,3, bump,5, flat,3, bump,5, flat,8, lift,6, flat,8, bones,6, flat,6
+DATA dng,4, boost,0, bones,10, flat,10, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
+DATA up45,4, hoop,1, arc,11, pit,12, flat,10, mark,0, flat,6, cable,20, flat,8
+DATA boost,0, flat,6, pipe,5, flat,8, bones,6, flat,20, drop,4, flat,16, mover,8, flat,8
+DATA dng,3, boost,0, flat,8, loop,0, flat,10, spin,0, flat,8
+DATA goal,0, flat,9, fam,0, flat,6, flat,5, "end",0
 
 ' The tunes are in CHARLIE.DAT with the pictures, from tools/charliesong.txt.
 
@@ -419,12 +449,13 @@ SUB Flop (k AS INTEGER, k2 AS INTEGER, w AS INTEGER, h AS INTEGER)
 END SUB
 
 ' The ground's columns, then what stands on them, from the Level DATA.
-SUB LoadLevel (z AS INTEGER)
+SUB LoadLevel (st AS INTEGER)
     DIM cmd AS STRING, n AS INTEGER, c AS INTEGER, g AS INTEGER, bx AS INTEGER
-    DIM i AS INTEGER, s AS INTEGER, k AS INTEGER
-    Zone = z
+    DIM i AS INTEGER, s AS INTEGER, k AS INTEGER, z AS INTEGER
+    Stage = st: z = st AND 1: Zone = z
     FOR i = 0 TO 255: Pal(i) = Pal0(i): NEXT
-    FOR i = 0 TO ZPN(z) - 1: Pal(ZPK(z, i)) = ZPC(z, i): NEXT
+    FOR i = 0 TO ZPN(st) - 1: Pal(ZPK(st, i)) = ZPC(st, i): NEXT
+    FOR i = 0 TO 2: Glint(i) = Pal(CWATER + 1 + i): NEXT
     Shade
     ERASE Map
     NObj = 0: NMv = 0
@@ -432,10 +463,10 @@ SUB LoadLevel (z AS INTEGER)
     g = 10
     IF z THEN
         ZTile = ITILE2: ZBack = IZ2: ZLoop = IZ2 + 5: ZPipe = IZ2 + 7: ZCard = ICARD2: ZWave = IWAVE + 4
-        RESTORE Level2
+        IF st = 1 THEN RESTORE Level2 ELSE RESTORE Level4
     ELSE
         ZTile = ITILE: ZBack = IBG: ZLoop = ILOOP: ZCard = ICARD: ZWave = IWAVE
-        RESTORE Level
+        IF st = 0 THEN RESTORE Level ELSE RESTORE Level3
     END IF
     DO
         READ cmd, n
@@ -875,7 +906,6 @@ SUB BuildArt
     ' the turned run, as drawn and mirrored: each upside down too, for the far side of a loop
     FOR i = 0 TO 159: Flop ITILT + i, ITILT + 160 + i, 32, 32: NEXT
     BuildGlyphs
-    FOR i = 0 TO 2: Glint(i) = Pal(CWATER + 1 + i): NEXT
     FOR i = 0 TO 255: Pal0(i) = Pal(i): NEXT
 END SUB
 
@@ -912,7 +942,7 @@ SUB LoadArt
         k = Word&
         Tint k, Word&
     NEXT
-    FOR k = 0 TO 1
+    FOR k = 0 TO NSTAGE - 1
         ZPN(k) = Word&
         FOR i = 0 TO ZPN(k) - 1: ZPK(k, i) = Word&: ZPC(k, i) = Word&: NEXT
     NEXT
@@ -1548,7 +1578,7 @@ SUB Tick (g AS Game, p AS Hero, k AS Pad, lo() AS Loose, pt() AS Part)
         IF k.quit THEN
             ResetWorld g, p, lo(), pt()
         ELSEIF Met%(g, p, k, pt()) THEN
-            IF Zone = 0 THEN NextZone g, p, lo(), pt() ELSE ResetWorld g, p, lo(), pt()
+            IF Stage < NSTAGE - 1 THEN GoStage Stage + 1, g, p, lo(), pt() ELSE ResetWorld g, p, lo(), pt()
         END IF
     CASE OVER
         IF g.modeT > 5 OR (g.modeT > 1.5 AND (k.hit OR k.start)) OR k.quit THEN ResetWorld g, p, lo(), pt()
@@ -1653,7 +1683,7 @@ END SUB
 ' The level as it starts, the title up, Charlie at the start for the pilot.
 SUB ResetWorld (g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
     DIM i AS INTEGER
-    IF Zone <> NextUp THEN LoadLevel NextUp
+    IF Stage <> NextUp THEN LoadLevel NextUp
     g.mode = TITLE: g.modeT = 0: Cheer = 0: MetT = 0: PastT = 0
     IF Dusk < 16 THEN Dusk = 16: Shade
     g.lives = 3: g.score = 0: g.clock = 0
@@ -1671,11 +1701,11 @@ SUB ResetWorld (g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
     Spawn g, p
 END SUB
 
-' The Amber Downs cleared: the Chrome Works, the score and lives kept.
-SUB NextZone (g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
+' A level cleared: on to level n, the score and lives kept.
+SUB GoStage (n AS INTEGER, g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
     DIM sc AS LONG, lv AS INTEGER
     sc = g.score: lv = g.lives
-    NextUp = 1
+    NextUp = n
     ResetWorld g, p, lo(), pt()
     NextUp = 0
     g.mode = PLAYING: g.score = sc: g.lives = lv
@@ -2211,6 +2241,7 @@ SUB Render (g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
             LINE (x, 84)-(x + SW - 1, 85), CGOLD + 3, BF
             LINE (x, 109)-(x + SW - 1, 110), CGOLD + 3, BF
             Blit x + (SW - 178) \ 2, 89, ZCard, 178, 18
+            IF Stage > 1 AND x = 0 THEN Txt 14, 17, "ACT 2", CYELLOW
         END IF
     CASE CLEARED
         Blit 6, 5, IHUD, HUDW, HUDH

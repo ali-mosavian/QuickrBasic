@@ -40,7 +40,7 @@ def ramp(first: int, a: tuple[int, int, int], b: tuple[int, int, int], n: int) -
 # backdrop use (CLOUD between them is shared), and those nothing uses.
 SPARE = [5, 6, 7, 148, 149, 172, 173, 174, *range(179, 185), *range(225, 256)]
 POOL = {1: [*range(96, 138), *range(141, 148), *range(156, 172), *range(185, 193), *SPARE]}
-ZPAL: dict[int, dict[int, tuple[int, int, int]]] = {0: {}, 1: {}}
+ZPAL: dict[int, dict[int, tuple[int, int, int]]] = {0: {}, 1: {}, 2: {}, 3: {}}
 
 
 def pal(z: int) -> dict[int, tuple[int, int, int]]:
@@ -1367,6 +1367,20 @@ DECK = tones(129, "#F4FCFF", "#C4D8EC", "#8CA4CC", "#5C7098", "#343C68", "#1C183
 HAZARD = tones(135, "#FFE478", "#FFC428", "#C88818", zone=1)
 SUNSET = tones(141, "#FFFCD8", "#FFE890", zone=1)
 
+# each zone again at another hour: the Amber Downs at evening, the works by night, their pictures recoloured
+tones(96, "#3A1C6C", "#5C2880", "#883490", "#B84890", "#E06080", "#F88468", "#FFAC60", "#FFD070", "#FFF0A0", zone=2)
+tones(105, "#FFE8E0", "#E8B8D8", "#C898CC", "#A87CBC", "#8C64A8", "#A074B8", "#8860A8", "#704C98", "#5C3C84", zone=2)
+tones(114, "#4C3074", "#7C6CA8", "#644C98", "#503C84", zone=2)
+tones(118, "#2C4C74", "#38648C", "#4C7C98", "#6898A0", "#90B4A4", "#C0D0A8", "#203860", "#FFD0C0", "#E890B0", zone=2)
+tones(128, "#C8589C", "#FFD0B0", "#FFE8A0", "#FFC050", "#F09028", "#D06420", "#A84024", "#782830", "#501C34", zone=2)
+tones(141, "#FFF4B0", "#FFD870", "#FFB850", "#7C3C98", "#F08090", "#FFC090", "#FFF0C0", zone=2)
+tones(225, "#E8F880", "#A0DC40", "#58B830", "#2C9034", "#186840", "#104444", zone=2)
+ZPAL[3].update(ZPAL[1])
+tones(96, "#0C1030", "#101840", "#182454", "#20306C", "#284084", "#30549C", "#3C6CB0", "#5088C4", "#70A8D8", zone=3)
+tones(107, "#8098D0", "#5870B0", "#405090", "#3C4C8C", "#2C3870", "#5870B0", zone=3)
+tones(113, "#1C2458", "#141A44", "#2C3C78", "#0C1030", zone=3)
+tones(141, "#F4F8FF", "#C8D8F0", zone=3)
+
 
 def plate(u: int, d: int) -> int:
     """The deck's colour d pixels under its surface, u along it; 0 below: plating and its rivets, a hazard
@@ -1879,10 +1893,9 @@ def audit(pics: list[tuple[int, Pic, bool, int]]) -> None:
         if any(TURF[5] not in [row[x] for row in both] for x in range(16)):
             sys.exit(f"charlieart: slope {kind}'s turf is cut short")
     for k, p, _, _ in pics:
-        own = 0 if k in OWN[0] else 1 if k in OWN[1] else -1
         used = {v for row in p.p for v in row}
         for z in ZPAL:
-            if z != own and own and used & ZPAL[z].keys():
+            if k not in OWN[0] | OWN[1] and used & ZPAL[z].keys():
                 sys.exit(f"charlieart: picture {k} uses zone {z}'s own colours {sorted(used & ZPAL[z].keys())}")
 
 
