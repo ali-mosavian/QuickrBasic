@@ -319,9 +319,13 @@ static bool view_mouse(HView *const v, const uint16_t rows, const uint8_t cols, 
     return true;
 }
 
-static uint8_t cell_slot(const uint8_t kind)
+/* A link's arrows are green and its words as the text, as QBasic's; a heading is bright. */
+static uint8_t cell_slot(const uint8_t kind, const uint8_t ch)
 {
-    return kind == HK_HEAD ? SL_HHEAD : kind == HK_LINK ? SL_HLINK : SL_HTXT;
+    if (kind == HK_LINK)
+        return ch == 0x10 || ch == 0x11 ? SL_HLINK : SL_HTXT;
+
+    return kind == HK_HEAD ? SL_HHEAD : SL_HTXT;
 }
 
 /* View v's text line `line` at row y from column x0, width columns of it, in the help's colours;
@@ -336,10 +340,12 @@ static void draw_line(const HView *const v, const uint8_t y, const uint8_t x0, c
     for (uint16_t i = 0; i < n;) {
         uint16_t j = i;
 
-        while (j < n && kind[j] == kind[i])
+        const uint8_t slot = cell_slot(kind[i], ch[i]);
+
+        while (j < n && cell_slot(kind[j], ch[j]) == slot)
             j++;
 
-        c = scrn_strn(y, c, ch + i, (uint16_t)(j - i), cell_slot(kind[i]));
+        c = scrn_strn(y, c, ch + i, (uint16_t)(j - i), slot);
         i = j;
     }
 
@@ -393,11 +399,10 @@ static const char *view_title(const HView *const v)
 
 static uint16_t hwin_rows(void) { return uimn.tree.help.rect.rows ? (uint16_t)(uimn.tree.help.rect.rows - 1) : 1; }
 
-/* The window sized to the topic: its lines and the title, half the windows' rows at most. */
+/* The window as tall as it goes. */
 static void win_fit(void)
 {
-    const uint16_t want = (uint16_t)(wv.doc.nlines + 1);
-    wind_help((uint8_t)(want < 250 ? want : 250)); /* as many rows as the topic has, ED1 keeping its least */
+    wind_help(250); /* as QBasic's: every row there is, ED1 and the rest keeping their least */
 }
 
 static void win_draw(Widget *const w, Session *const S)
@@ -409,7 +414,8 @@ static void win_draw(Widget *const w, Session *const S)
 
     draw_title_in(
         SL_HTXT, r->row, 0, r->cols, r->row == 1 ? GLYPH_TOP_LEFT : GLYPH_V_RIGHT,
-        r->row == 1 ? GLYPH_TOP_RIGHT : GLYPH_V_LEFT, view_title(&wv), uimn.tree.workspace.focus == FOC_HELP, uimn.win.maxed ? GLYPH_UPDOWN : GLYPH_UP
+        r->row == 1 ? GLYPH_TOP_RIGHT : GLYPH_V_LEFT, view_title(&wv), uimn.tree.workspace.focus == FOC_HELP, uimn.win.maxed ? GLYPH_UPDOWN : GLYPH_UP,
+        SL_HTTL
     );
     view_draw(&wv, (uint8_t)(r->row + 1), r->cols, (uint16_t)(r->rows - 1));
 }
@@ -605,7 +611,7 @@ void help_f1(Session *const S)
         return;
     }
 
-    open_window(S, keyword_topic(), false);
+    open_window(S, keyword_topic(), true);
 }
 
 void help_using(Session *const S) { open_window(S, hf.open ? hf.f.using_help : HLF_NONE, true); }
@@ -631,7 +637,7 @@ void help_next(Session *const S, const bool previous)
 }
 
 const StatusKeys help_keys = {
-    "<Shift+F1=Help> <F6=Window> <Esc=Cancel> <Alt+F1=Back>",
+    "<Shift+F1=Help> <F6=Window> <Esc=Cancel> <Ctrl+F1=Next> <Alt+F1=Back>",
     {{9, nullptr}},
 };
 

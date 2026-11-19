@@ -88,11 +88,13 @@ void them_set(const uint8_t n)
         them.attr[SL_HHEAD] = 0x0F;
         them.attr[SL_HLINK] = 0x0A;
         them.attr[SL_HSEL] = 0x0F;
+        them.attr[SL_HTTL] = 0x70;
     } else { /* the others': from the editor's */
         them.attr[SL_HTXT] = them.attr[SL_ED];
         them.attr[SL_HHEAD] = them.attr[SL_KW];
         them.attr[SL_HLINK] = them.attr[SL_STR];
         them.attr[SL_HSEL] = them.attr[SL_SEL];
+        them.attr[SL_HTTL] = (uint8_t)((them.attr[SL_HTXT] << 4) | (them.attr[SL_HTXT] >> 4));
     }
 
     them_in();

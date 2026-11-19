@@ -118,6 +118,14 @@ void wind_layout(void)
 
     uimn.tree.pane.visible = uimn.pane_on;
     dpan_layout();
+
+    if (win(W_HELP)->height) { /* the help window is the whole screen between the bars: QBasic's */
+        wind_widget(W_HELP)->rect = (Rect){1, 0, win_rows(), PSCR_COLS};
+        uimn.tree.editors.visible = false;
+        uimn.tree.pane.visible = false;
+    } else {
+        uimn.tree.editors.visible = true;
+    }
 }
 
 void wind_init(void)
@@ -229,6 +237,9 @@ enum { NWORD = countof(order) };
 /* The focus to the window shown d places on in order. */
 static void step(Session *const S, const uint32_t d)
 {
+    if (win(W_HELP)->height) /* it covers the rest: Esc closes it */
+        return;
+
     const uint8_t cur = wind_cur();
     uint32_t i = 0;
 

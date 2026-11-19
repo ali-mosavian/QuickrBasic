@@ -86,6 +86,7 @@ enum : uint8_t {
     SL_HHEAD,           /*   a heading */
     SL_HLINK,           /*   a hot link */
     SL_HSEL,            /*   the link chosen */
+    SL_HTTL,            /*   its title when it has the focus: the text reversed */
     NSLOT,              /* the asm's NATTR, and these */
 };
 
