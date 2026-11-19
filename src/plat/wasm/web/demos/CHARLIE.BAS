@@ -130,6 +130,7 @@ CONST CSKY = 96, NSKY = 32, CFAR = 128, CMID = 132, CCLOUD = 138, CSUN = 141, CW
 DECLARE SUB Main ()
 DECLARE SUB Tint (k AS INTEGER, c AS LONG)
 DECLARE SUB Shade ()
+DECLARE FUNCTION Met% (g AS Game, p AS Hero, k AS Pad, pt() AS Part)
 DECLARE SUB OpenScreen ()
 DECLARE SUB Flip (page AS INTEGER)
 DECLARE SUB LoadTables ()
@@ -215,7 +216,7 @@ DIM SHARED Tune AS INTEGER, BarkAt AS LONG
 DIM SHARED Ticks AS LONG, Muted AS INTEGER, LooseN AS INTEGER, PartN AS INTEGER
 DIM SHARED Glint(2) AS LONG
 ' The colours as loaded, Dusk sixteenths of them shown; MetT: the seconds Charlie has been with its family.
-DIM SHARED Pal(255) AS LONG, Dusk AS INTEGER, MetT AS SINGLE
+DIM SHARED Pal(255) AS LONG, Dusk AS INTEGER, MetT AS SINGLE, PastT AS SINGLE
 ' A song's most bars.
 CONST NBAR = 30
 DIM SHARED Trk(NBAR * 20) AS STRING, Kit(NBAR * 4) AS STRING, Org(NBAR * 4) AS STRING, Third(NBAR * 4) AS STRING, Horn(1) AS STRING, Keys(1) AS STRING
@@ -3447,8 +3448,10 @@ SUB Tick (g AS Game, p AS Hero, k AS Pad, lo() AS Loose, pt() AS Part)
     SELECT CASE g.mode
     CASE TITLE
         IF k.quit THEN g.quitting = -1
-        IF p.dead OR p.x >= GoalX THEN
+        IF p.dead THEN
             ResetWorld g, p, lo(), pt()
+        ELSEIF p.x >= GoalX THEN
+            IF Met%(g, p, k, pt()) THEN ResetWorld g, p, lo(), pt()
         ELSE
             Pilot p, auto
             MoveHero p, auto, pt()
@@ -3475,24 +3478,12 @@ SUB Tick (g AS Game, p AS Hero, k AS Pad, lo() AS Loose, pt() AS Part)
             Camera g, p, 0
         END IF
     CASE CLEARED
-        ' on to its family, past the goal, and no further
-        idle.r = p.x < FamX - 108 AND NOT p.win
-        MoveHero p, idle, pt()
-        IF p.x > FamX - 106 THEN p.x = FamX - 106: p.gsp = 0: p.vx = 0: p.roll = 0
-        IF p.ground AND ABS(p.gsp) < 5 AND p.x >= FamX - 108 THEN p.win = -1: p.face = 0
-        Cheer = p.win
         IF g.modeT > 1.5 AND g.bonus > 0 THEN
             g.bonus = g.bonus - 50: g.score = g.score + 50
             IF g.bonus < 0 THEN g.score = g.score + g.bonus: g.bonus = 0
             IF (Ticks AND 3) = 0 THEN Sfx SBONE
         END IF
-        ' the view slides on to hold them all, Charlie at its left
-        g.camx = g.camx + (FamX - 166 - g.camx) * 4 * STEPT
-        ' a while with them, then the picture fades and it starts again
-        IF p.win AND g.bonus = 0 THEN MetT = MetT + STEPT
-        IF Dusk = 16 AND (MetT > 6 OR g.modeT > 40 OR (MetT > 2 AND (k.hit OR k.start))) THEN Dusk = 15
-        IF Dusk < 16 AND (Ticks AND 3) = 0 THEN Dusk = Dusk - 1: Shade
-        IF k.quit OR Dusk <= 0 THEN ResetWorld g, p, lo(), pt()
+        IF Met%(g, p, k, pt()) OR k.quit THEN ResetWorld g, p, lo(), pt()
     CASE OVER
         IF g.modeT > 5 OR (g.modeT > 1.5 AND (k.hit OR k.start)) OR k.quit THEN ResetWorld g, p, lo(), pt()
     END SELECT
@@ -3530,7 +3521,7 @@ END SUB
 ' The level as it starts, the title up, Charlie at the start for the pilot.
 SUB ResetWorld (g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
     DIM i AS INTEGER
-    g.mode = TITLE: g.modeT = 0: Cheer = 0: MetT = 0
+    g.mode = TITLE: g.modeT = 0: Cheer = 0: MetT = 0: PastT = 0
     IF Dusk < 16 THEN Dusk = 16: Shade
     g.lives = 3: g.score = 0: g.clock = 0
     g.homeX = StartX: g.homeY = StartY
@@ -3545,6 +3536,23 @@ SUB ResetWorld (g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
     LooseN = 0: PartN = 0
     Spawn g, p
 END SUB
+
+' Past the goal, a game's or the title's: on to the family and no further, the view sliding on to hold them all
+' with Charlie at its left; a while with them, then the picture fades. Whether it has.
+FUNCTION Met% (g AS Game, p AS Hero, k AS Pad, pt() AS Part)
+    DIM idle AS Pad
+    idle.r = p.x < FamX - 108 AND NOT p.win
+    MoveHero p, idle, pt()
+    IF p.x > FamX - 106 THEN p.x = FamX - 106: p.gsp = 0: p.vx = 0: p.roll = 0
+    IF p.ground AND ABS(p.gsp) < 5 AND p.x >= FamX - 108 THEN p.win = -1: p.face = 0
+    Cheer = p.win
+    g.camx = g.camx + (FamX - 166 - g.camx) * 4 * STEPT
+    PastT = PastT + STEPT
+    IF p.win AND g.bonus = 0 THEN MetT = MetT + STEPT
+    IF Dusk = 16 AND (MetT > 6 OR PastT > 40 OR (MetT > 2 AND (k.hit OR k.start))) THEN Dusk = 15
+    IF Dusk < 16 AND (Ticks AND 3) = 0 THEN Dusk = Dusk - 1: Shade
+    Met% = Dusk <= 0
+END FUNCTION
 
 SUB StartGame (g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
     ResetWorld g, p, lo(), pt()
