@@ -1,11 +1,11 @@
 // The page: the IDE's screen on a canvas, the keyboard and the speaker. The module runs in a worker
 // (worker.mjs); this thread is its VGA card and its interrupts: it renders the screen from the
 // shared memory in an instance of its own, ORs in the tick, types the keys.
-import { biosKey, shiftFlags } from './keys.mjs';
+import { biosKey, scanCode, shiftFlags } from './keys.mjs';
 import { memory as newMemory, Irq, sidecar, ticker, MUSIC_HZ } from './wasm.mjs';
 
 const BLINK_MS = 267;
-const DEMOS = ['WELCOME.BAS', 'GORILLA.BAS', 'NIBBLES.BAS', 'MOTHLITE.BAS', 'RUSTLINE.BAS'];
+const DEMOS = ['WELCOME.BAS', 'GORILLA.BAS', 'NIBBLES.BAS', 'MOTHLITE.BAS', 'RUSTLINE.BAS', 'CHARLIE.BAS'];
 const SUPPORT = ['BASIC.HLP']; // F1's help file, beside the programs, as on DOS
 const STORE = 'qb:'; // localStorage: STORE + path -> the file in base64
 
@@ -64,7 +64,7 @@ function wake() {
     osc.connect(gain).connect(audio.destination);
     osc.start();
     Promise.all([synthModule, audio.audioWorklet.addModule('synth.mjs')]).then(([module]) => {
-      synth = new AudioWorkletNode(audio, 'synth', { processorOptions: { module } });
+      synth = new AudioWorkletNode(audio, 'synth', { outputChannelCount: [2], processorOptions: { module } });
       synth.connect(audio.destination);
       for (const v of voices.splice(0)) synth.port.postMessage(v);
     }).catch((e) => console.error('no synthesizer:', e));
@@ -83,7 +83,12 @@ function tone(hz) {
   if (hz) osc.frequency.setValueAtTime(hz, t);
 }
 
-const open = new URLSearchParams(location.search).get('open') ?? 'WELCOME.BAS';
+// ?open=NAME opens a file, ?run=NAME opens and runs it.
+const params = new URLSearchParams(location.search);
+const run = params.get('run');
+const open = run ?? params.get('open') ?? 'WELCOME.BAS';
+const F5 = 0x3f00;
+let begun = !run; // ?run= waits for a key or click, a browser's leave to sound: its title would be silent
 const module = await WebAssembly.compileStreaming(fetch('ide.wasm'));
 const memory = newMemory();
 const worker = new Worker(new URL('./worker.mjs', import.meta.url), { type: 'module' });
@@ -91,12 +96,12 @@ let irq, display;
 
 worker.onmessage = ({ data }) => {
   if ('irq' in data) {
-    irq = new Irq(memory, data.irq);
+    irq = new Irq(memory, data.irq, data.scans);
     display = sidecar(module, memory, tone, voice);
     window.quickr = { display, irq, memory }; // for a look from the console, and the tests
     setInterval(ticker(irq, display), 1000 / MUSIC_HZ);
     requestAnimationFrame(draw);
-    status.textContent = '';
+    status.textContent = run ? 'Press a key or click to start' : '';
   } else if ('file' in data) {
     keep(data.file, data.bytes);
   } else if ('tone' in data) {
@@ -164,10 +169,27 @@ function draw(now) {
   requestAnimationFrame(draw);
 }
 
+// ?run='s program, started at the first key or click: true as it starts.
+function begin() {
+  if (begun) return false;
+  begun = true;
+  status.textContent = '';
+  irq.type(F5);
+  return true;
+}
+
+// The keys down, by scan code: port 60h's bytes as each goes down and comes up.
+const held = new Set();
+function release(code) {
+  if (held.delete(code)) irq.scan(code | 0x80);
+}
 addEventListener('keydown', (e) => {
   wake();
   if (!irq || e.metaKey) return;
+  if (begin()) return e.preventDefault();
   irq.shift = shiftFlags(e);
+  held.add(scanCode(e));
+  irq.scan(scanCode(e));
   if (e.ctrlKey && (e.code === 'Pause' || e.code === 'Cancel' || e.code === 'KeyC')) irq.raise(4);
   const key = e.ctrlKey && (e.code === 'Pause' || e.code === 'Cancel') ? 0 : biosKey(e);
   e.preventDefault();
@@ -178,11 +200,19 @@ const ALT_TAP_MS = 60;
 addEventListener('keyup', (e) => {
   if (!irq) return;
   e.preventDefault();
+  release(scanCode(e));
   if (e.key === 'Alt') setTimeout(() => (irq.shift = shiftFlags(e)), ALT_TAP_MS);
   else irq.shift = shiftFlags(e);
 });
-addEventListener('blur', () => irq && (irq.shift = 0));
-addEventListener('pointerdown', wake);
+addEventListener('blur', () => {
+  if (!irq) return;
+  irq.shift = 0;
+  for (const code of [...held]) release(code); // no key comes up for a page that lost the keyboard
+});
+addEventListener('pointerdown', () => {
+  wake();
+  if (irq) begin();
+});
 
 // An upload is kept and opened: the IDE starts again with it.
 document.getElementById('upload').addEventListener('change', async (e) => {

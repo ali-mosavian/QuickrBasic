@@ -4,8 +4,13 @@
 #include "music.h"
 #include "nhstutil.h"
 
+/* The queues count time in parts of a clock tick: a synthesizer that renders its own samples ticks them from its
+   sample count (music_fine_tick, after MGL's mixer and its module player), else the clock tick runs a tick's parts
+   at once. */
+enum { FINE = MUSIC_FINE, FINE_KEPT = 2 };
+
 typedef struct Note {
-    unsigned sound, quiet; /* ticks of tone, then of silence */
+    unsigned sound, quiet; /* parts of tone, then of silence */
     byte synth;            /* through dev_voice, else the speaker */
     DevVoice v;            /* v.hertz 0 for a rest */
 } Note;
@@ -29,6 +34,7 @@ typedef struct Voice {
 static Voice voices[DEV_VOICES];
 static volatile unsigned long music_ticks;
 static byte tick_started;
+static volatile byte fine_live; /* clock ticks the synthesizer's ticking is trusted for */
 byte music_foreground = 1;
 
 #pragma aux music_tick "B$MUSICTICK"
@@ -45,9 +51,11 @@ static void note_off(Voice *v, unsigned index)
     }
 }
 
+/* A note run into by the one before it (legato), at its pitch, is that note held: not struck again. */
 static void note_on(Voice *v, unsigned index, const Note *n)
 {
-    const unsigned char trigger = (unsigned char)(v->now.trigger + 1);
+    const int tied = v->synth && v->gated && n->synth && v->now.hertz == n->v.hertz;
+    const unsigned char trigger = (unsigned char)(v->now.trigger + !tied);
 
     v->synth = n->synth;
     if (!n->v.hertz)
@@ -63,10 +71,19 @@ static void note_on(Voice *v, unsigned index, const Note *n)
     dev_voice(index, &v->now);
 }
 
+/* Whether the note ending runs into the next (legato) at its own pitch: it is held, not let go. */
+static int tied(const Voice *v)
+{
+    const Note *const next = &v->queue[v->tail];
+
+    return v->synth && v->gated && !v->quiet_left && v->tail != v->head && next->synth && next->sound &&
+           next->v.hertz == v->now.hertz;
+}
+
 /* A voice's tick: counts the note out, and starts the next. */
 static void voice_tick(Voice *v, unsigned index)
 {
-    if (v->sound_left && --v->sound_left == 0)
+    if (v->sound_left && --v->sound_left == 0 && !tied(v))
         note_off(v, index);
     else if (!v->sound_left && v->quiet_left)
         v->quiet_left--;
@@ -82,14 +99,32 @@ static void voice_tick(Voice *v, unsigned index)
     }
 }
 
-/* The clock tick. */
-void music_tick(void)
+static void part_tick(void)
 {
     unsigned i;
 
     music_ticks++;
     for (i = 0; i < DEV_VOICES; i++)
         voice_tick(&voices[i], i);
+}
+
+/* The clock tick: its parts, unless the synthesizer is ticking them. */
+void music_tick(void)
+{
+    unsigned i;
+
+    if (fine_live) {
+        fine_live--;
+        return;
+    }
+    for (i = 0; i < FINE; i++)
+        part_tick();
+}
+
+void music_fine_tick(void)
+{
+    fine_live = FINE_KEPT;
+    part_tick();
 }
 
 /* The notes waiting: PLAY(n) and ON PLAY (events.c).  The first voice's, whatever n is: QB's n is a dummy. */
@@ -153,6 +188,12 @@ static unsigned ticks_of(long thousandths, long *owed)
     return (unsigned)whole;
 }
 
+/* The same in parts of a tick, for the synthesizer's notes. */
+static unsigned parts_of(long thousandths, long *owed)
+{
+    return ticks_of(thousandths * FINE, owed);
+}
+
 void music_queue(unsigned voice, byte synth, const DevVoice *v, long sound, long quiet)
 {
     Voice *const at = &voices[voice];
@@ -164,8 +205,20 @@ void music_queue(unsigned voice, byte synth, const DevVoice *v, long sound, long
     n = &at->queue[at->head];
     n->synth = synth;
     n->v = *v;
-    n->sound = ticks_of(sound, &at->owed_sound);
-    n->quiet = ticks_of(quiet, &at->owed_quiet);
+    if (synth) {
+        /* the note's whole time on one count, so it starts where the bar puts it; its sound the nearest tick */
+        const unsigned whole = parts_of(sound + quiet, &at->owed_sound);
+        unsigned sounding = (unsigned)((sound * whole + (sound + quiet) / 2) / (sound + quiet ? sound + quiet : 1));
+
+        if (!sounding && whole && sound)
+            sounding = 1;
+        n->sound = sounding;
+        n->quiet = whole - sounding;
+    } else {
+        /* the speaker's: whole clock ticks, as QB's */
+        n->sound = ticks_of(sound, &at->owed_sound) * FINE;
+        n->quiet = ticks_of(quiet, &at->owed_quiet) * FINE;
+    }
     at->end = queue_end(at) + n->sound + n->quiet;
     at->head = (at->head + 1) % QUEUE;
 }
@@ -181,6 +234,7 @@ void music_clear(void)
 
         v->tail = v->head;
         v->sound_left = v->quiet_left = 0;
+        v->end = 0; /* what was queued ends now: a voice cleared is not behind the others */
         v->gated = 0;
         if (v->used) {
             v->used = 0;

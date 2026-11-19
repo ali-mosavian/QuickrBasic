@@ -1,5 +1,10 @@
 /* The synthesizer (plat/synth) rendered offline, and PLAY's voices on llrm's queues (play.c) through the headless
    device's logs. */
+#include <math.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
+
 #include "session.h"
 #include "plat/synth/synth.h"
 #include "qbrt/qbrt.h"
@@ -83,7 +88,7 @@ TEST(synth_waves_have_their_shape)
     int high = 0;
     for (int i = RATE / 10; i < RATE; i++)
         high += buf[i] > 0;
-    CHECK(high > (RATE - RATE / 10) * 24 / 100 && high < (RATE - RATE / 10) * 26 / 100);
+    CHECK(high > (RATE - RATE / 10) * 23 / 100 && high < (RATE - RATE / 10) * 26 / 100); /* an edge's sample is 0 */
 
     sound(&s, note(441, DEV_TRIANGLE, 0x00F0), RATE);
     int turns = 0;
@@ -95,7 +100,217 @@ TEST(synth_waves_have_their_shape)
     int drops = 0;
     for (int i = RATE / 10 + 1; i < RATE; i++)
         drops += buf[i] < buf[i - 1];
-    CHECK(drops >= 441 * 9 / 10 - 1 && drops <= 441 * 9 / 10 + 1);
+    CHECK(drops >= 441 * 9 / 10 - 1 && drops <= 2 * 441 * 9 / 10 + 2); /* its fall rounded: a sample or two */
+}
+
+/* FM (W4): with no depth a sine, which turns twice a period and has no step a saw's size; a modulator at three times
+   the note bends it into more turns, the period the same; and the bend falls at its own rate, so a note's tail is
+   the sine again while it is as loud. */
+TEST(synth_fm_bends_a_sine)
+{
+    Synth s;
+    DevVoice v = note(441, DEV_FM, 0x00F0);
+    v.ratio = 3;
+    v.fall = 0x0F;
+    sound(&s, v, RATE);
+    int turns = 0, step = 0;
+    for (int i = RATE / 10 + 1; i < RATE - 1; i++) {
+        turns += (buf[i] - buf[i - 1] > 0) != (buf[i + 1] - buf[i] > 0);
+        step = abs(buf[i] - buf[i - 1]) > step ? abs(buf[i] - buf[i - 1]) : step;
+    }
+    CHECK(peak(buf, RATE) > 11800 && peak(buf, RATE) <= 12000);
+    CHECK(turns >= 2 * 441 * 9 / 10 - 2 && turns <= 2 * 441 * 9 / 10 + 2);
+    CHECK(step < 12000 / 10);
+
+    v.depth = 10;
+    sound(&s, v, RATE);
+    turns = 0;
+    for (int i = RATE / 10 + 1; i < RATE - 1; i++)
+        turns += (buf[i] - buf[i - 1] > 0) != (buf[i + 1] - buf[i] > 0);
+    CHECK(turns > 4 * 441 * 9 / 10);
+    int apart = 0; /* 441 Hz: a period is 100 samples */
+    for (int i = RATE / 10; i < RATE - 100; i++)
+        apart = abs(buf[i] - buf[i + 100]) > apart ? abs(buf[i] - buf[i + 100]) : apart;
+    CHECK(apart < 6000 / 20);
+
+    v.fall = 0x60; /* the modulator falls to nothing in 204 ms */
+    sound(&s, v, RATE);
+    int early = 0, late = 0;
+    for (int i = 1; i < RATE / 50 - 1; i++)
+        early += (buf[i] - buf[i - 1] > 0) != (buf[i + 1] - buf[i] > 0);
+    for (int i = RATE / 2 + 1; i < RATE / 2 + RATE / 50 - 1; i++)
+        late += (buf[i] - buf[i - 1] > 0) != (buf[i + 1] - buf[i] > 0);
+    CHECK(early > late);
+}
+
+/* How far under a held note's whole sound the part of it off its harmonics is, in dB (0 is all of it): a second of
+   `v` from its second second, each harmonic under half the rate measured. 1000 Hz is no divisor of the rate, so what
+   folds back from over half of it lands between the harmonics. */
+static double off_the_note(const DevVoice v)
+{
+    static int16_t two[2 * RATE];
+    Synth s;
+    synth_init(&s, RATE);
+    synth_voice(&s, 0, &v);
+    synth_render(&s, two, 2 * RATE);
+    const int16_t *const x = two + RATE;
+    double all = 0, on = 0, mean = 0;
+    for (int i = 0; i < RATE; i++)
+        mean += x[i];
+    mean /= RATE;
+    for (int i = 0; i < RATE; i++)
+        all += (x[i] - mean) * (x[i] - mean);
+    for (unsigned f = v.hertz; f < RATE / 2; f += v.hertz) {
+        double re = 0, im = 0;
+        for (int i = 0; i < RATE; i++) {
+            re += x[i] * cos(2 * M_PI * f * i / RATE);
+            im += x[i] * sin(2 * M_PI * f * i / RATE);
+        }
+        on += 2 * (re * re + im * im) / RATE;
+    }
+    return 10 * log10((all - on) / all + 1e-12);
+}
+
+/* What a voice sounds that is not its note. A pulse and a saw jumped between two samples, and a sixth of a 1 kHz
+   note's power (-16 dB) was tones folded back from over half the rate; the sine's table of 1024 left -55 dB; and
+   feedback 5 bent the modulator twice as far as meant, into noise, -7 dB: a brass that hissed. */
+TEST(synth_voices_sound_their_note)
+{
+    DevVoice v = note(1000, DEV_PULSE, 0x00F0);
+    v.width = 4096 * 30 / 100;
+    CHECK(off_the_note(v) < -30);
+    v.wave = DEV_SAW;
+    CHECK(off_the_note(v) < -30);
+    v.wave = DEV_FM;
+    v.ratio = 1;
+    v.fall = 0x0F;
+    CHECK(off_the_note(v) < -62);
+    v.hertz = 500;
+    v.depth = 9;
+    v.fall = 0x3B;
+    v.feedback = 5;
+    CHECK(off_the_note(v) < -40);
+}
+
+/* The spacing of a second's rising zero crossings, the least and the most, from sample `from`. */
+static void spacing(const int from, int *const least, int *const most)
+{
+    int last = -1;
+
+    *least = RATE;
+    *most = 0;
+    for (int i = from + 1; i < RATE; i++)
+        if (buf[i - 1] < 0 && buf[i] >= 0) {
+            if (last >= 0) {
+                *least = i - last < *least ? i - last : *least;
+                *most = i - last > *most ? i - last : *most;
+            }
+            last = i;
+        }
+}
+
+/* A modulator that bends itself is brighter: the carrier's steepest step grows. */
+TEST(synth_fm_feedback_brightens)
+{
+    Synth s;
+    DevVoice v = note(441, DEV_FM, 0x00F0);
+    int steep[2];
+
+    v.ratio = 1;
+    v.depth = 4;
+    v.fall = 0x0F;
+    for (int f = 0; f < 2; f++) {
+        v.feedback = (unsigned char)(f * 6);
+        sound(&s, v, RATE);
+        steep[f] = 0;
+        for (int i = RATE / 10; i < RATE; i++)
+            steep[f] = abs(buf[i] - buf[i - 1]) > steep[f] ? abs(buf[i] - buf[i - 1]) : steep[f];
+    }
+    CHECK(steep[1] > steep[0] * 13 / 10);
+}
+
+/* Vibrato: a 441 Hz period is 100 samples every time; at depth 15 it runs from 97 to 103, but not in the note's first
+   fifth of a second. */
+TEST(synth_vibrato_wavers_after_a_wait)
+{
+    Synth s;
+    DevVoice v = note(441, DEV_TRIANGLE, 0x00F0);
+    int least, most;
+
+    sound(&s, v, RATE);
+    spacing(RATE / 4, &least, &most);
+    CHECK(most - least <= 1);
+    v.vibrato = 15;
+    sound(&s, v, RATE);
+    spacing(RATE / 4, &least, &most);
+    CHECK(least <= 98 && most >= 102 && least >= 96 && most <= 104);
+    synth_init(&s, RATE);
+    synth_voice(&s, 0, &v);
+    synth_render(&s, buf, RATE / 6);
+    int last = -1, off = 0;
+    for (int i = 1; i < RATE / 6; i++)
+        if (buf[i - 1] < 0 && buf[i] >= 0) {
+            off += last >= 0 && abs(i - last - 100) > 1;
+            last = i;
+        }
+    CHECK(off == 0);
+}
+
+/* A unison: two saws 16 cents apart beat four times a second, so the sound swells and thins; one alone is as loud
+   all through. */
+TEST(synth_unison_beats)
+{
+    Synth s;
+    DevVoice v = note(441, DEV_SAW, 0x00F0);
+    int least[2], most[2];
+
+    for (int u = 0; u < 2; u++) {
+        v.spread = (unsigned char)(u * 8);
+        sound(&s, v, RATE);
+        least[u] = 32767;
+        most[u] = 0;
+        for (int at = RATE / 10; at + RATE / 50 <= RATE; at += RATE / 50) {
+            const int top = peak(buf + at, RATE / 50);
+            least[u] = top < least[u] ? top : least[u];
+            most[u] = top > most[u] ? top : most[u];
+        }
+    }
+    CHECK(least[0] > most[0] * 9 / 10);
+    CHECK(least[1] < most[1] * 6 / 10);
+}
+
+/* A glide: the second note climbs from the first's pitch over 150 ms, so its first 50 ms hold fewer periods than
+   its last; and a note told to fall from twice its pitch starts with more. */
+TEST(synth_glide_slides_to_the_note)
+{
+    Synth s;
+    DevVoice v = note(220, DEV_TRIANGLE, 0x00F0);
+
+    v.glide = 9;
+    synth_init(&s, RATE);
+    synth_voice(&s, 0, &v);
+    synth_render(&s, buf, RATE / 2);
+    CHECK(rises(buf + RATE / 4, RATE / 20) >= 10 && rises(buf + RATE / 4, RATE / 20) <= 12); /* no last note: no slide */
+    v.hertz = 440;
+    v.trigger = 2;
+    synth_voice(&s, 0, &v);
+    synth_render(&s, buf, RATE / 2);
+    const int early = rises(buf, RATE / 20), late = rises(buf + RATE / 4, RATE / 20);
+    CHECK(early >= 11 && early <= 15 && late >= 21 && late <= 23);
+
+    v.from = 4;
+    v.trigger = 3;
+    synth_voice(&s, 0, &v);
+    synth_render(&s, buf, RATE / 2);
+    CHECK(rises(buf, RATE / 20) >= 34 && rises(buf + RATE / 4, RATE / 20) <= 23);
+
+    /* from an octave under its own pitch: a scoop up into the note, which a slide from over could not make */
+    v.under = 12;
+    v.trigger = 4;
+    synth_voice(&s, 0, &v);
+    synth_render(&s, buf, RATE / 2);
+    const int scoop = rises(buf, RATE / 20);
+    CHECK(scoop >= 11 && scoop <= 16 && rises(buf + RATE / 4, RATE / 20) >= 21);
 }
 
 /* H8,0,8,4: 100 ms of attack to full, a decay to about half, held, then a release to silence. */
@@ -109,7 +324,7 @@ TEST(synth_envelope_attacks_sustains_releases)
     const int full = peak(buf + RATE / 20 - RATE / 100, RATE / 100);
     synth_render(&s, buf, RATE / 2);
     const int held = peak(buf + RATE / 2 - RATE / 100, RATE / 100);
-    CHECK(full > 5900 && half_way > full * 4 / 10 && half_way < full * 6 / 10);
+    CHECK(full > 5600 && half_way > full * 4 / 10 && half_way < full * 6 / 10);
     CHECK(held > full * 45 / 100 && held < full * 6 / 10);
 
     v.gate = 0;
@@ -134,6 +349,101 @@ TEST(synth_filter_passes_its_band)
     CHECK(got[0] < 1000 && got[1] > 4000);
 }
 
+/* 32 voices at full volume, their sum six times what a sample holds: they were clipped flat, nine samples in ten at
+   the rail. The limiter turns the mix down instead, to just under full, and one voice after them is back at twice
+   its sum within a second. */
+TEST(synth_limits_many_voices)
+{
+    static Synth s;
+    static int16_t out[RATE];
+    int flat = 0;
+
+    synth_init(&s, RATE);
+    for (unsigned k = 0; k < DEV_VOICES; k++) {
+        const DevVoice v = note(110 + 7 * k, DEV_PULSE, 0x00F0);
+
+        synth_voice(&s, k, &v);
+    }
+    synth_render(&s, out, RATE);
+    for (int i = RATE / 10; i < RATE; i++)
+        flat += abs(out[i]) >= 32767;
+    CHECK(flat < RATE / 1000);
+    CHECK(peak(out + RATE / 10, RATE - RATE / 10) > 30000);
+
+    for (unsigned k = 1; k < DEV_VOICES; k++) {
+        const DevVoice off = {0};
+
+        synth_voice(&s, k, &off);
+    }
+    synth_render(&s, out, RATE);
+    CHECK(peak(out + RATE - RATE / 10, RATE / 10) == 12000);
+}
+
+/* A voice the room answers (R) sounds on after it is cut, fading, and is gone in three seconds; one it does not
+   answer stops dead, as every voice did: between its notes a tune was silence, where a recording has a room. */
+TEST(synth_room_answers_a_voice)
+{
+    static Synth s;
+    static int16_t out[RATE];
+    int tail[2], late = 0, end = 0;
+
+    for (int wet = 0; wet < 2; wet++) {
+        DevVoice v = note(441, DEV_SAW, 0x00F0);
+        const DevVoice off = {0};
+
+        v.reverb = wet ? 8 : 0;
+        synth_init(&s, RATE);
+        synth_voice(&s, 0, &v);
+        synth_render(&s, out, RATE / 2);
+        synth_voice(&s, 0, &off);
+        synth_render(&s, out, RATE);
+        tail[wet] = peak(out + RATE / 10, RATE / 10);
+        late = peak(out + RATE - RATE / 10, RATE / 10);
+        synth_render(&s, out, RATE);
+        synth_render(&s, out, RATE);
+        synth_render(&s, out, RATE);
+        end = peak(out, RATE);
+    }
+    CHECK(tail[0] == 0);
+    CHECK(tail[1] > 300);
+    CHECK(late > 0 && late < tail[1] / 4);
+    CHECK(end == 0);
+}
+
+/* In stereo a voice is where its pan puts it: all of it on its side, less on the other by how far it is, none at the
+   end; in the middle, and in mono whatever its pan, it is the same on both. */
+TEST(synth_stereo_puts_a_voice_where_its_pan_is)
+{
+    static Synth s;
+    static int16_t both[RATE / 5], left[RATE / 10], right[RATE / 10], mono[RATE / 10];
+    static const unsigned char pans[] = {1, 12, 15, 8, 0};
+    int tops[5][2];
+
+    for (int k = 0; k < 5; k++) {
+        DevVoice v = note(441, DEV_SAW, 0x00F0);
+
+        v.pan = pans[k];
+        synth_init(&s, RATE);
+        synth_voice(&s, 0, &v);
+        synth_render_stereo(&s, both, RATE / 10);
+        for (int i = 0; i < RATE / 10; i++) {
+            left[i] = both[i * 2];
+            right[i] = both[i * 2 + 1];
+        }
+        tops[k][0] = peak(left, RATE / 10);
+        tops[k][1] = peak(right, RATE / 10);
+        synth_init(&s, RATE);
+        synth_voice(&s, 0, &v);
+        synth_render(&s, mono, RATE / 10);
+        CHECK(peak(mono, RATE / 10) == (tops[k][0] > tops[k][1] ? tops[k][0] : tops[k][1]));
+    }
+    CHECK(tops[0][0] > 1000 && tops[0][1] == 0);
+    CHECK(tops[1][1] == tops[0][0] && tops[1][0] > tops[1][1] * 2 / 5 && tops[1][0] < tops[1][1] / 2);
+    CHECK(tops[2][1] == tops[0][0] && tops[2][0] == 0);
+    CHECK(tops[3][0] == tops[3][1] && tops[3][0] == tops[0][0]);
+    CHECK(tops[4][0] == tops[4][1] && tops[4][0] == tops[0][0]);
+}
+
 /* The page's AudioWorklet (synth.wasm) renders filtered noise to this hash; the Mac and DOS must too. A float filter
    once differed by arm64's fused multiply-adds. */
 TEST(synth_renders_as_the_page_does)
@@ -149,7 +459,7 @@ TEST(synth_renders_as_the_page_does)
     uint32_t hash = 0;
     for (int i = 0; i < RATE; i++)
         hash = hash * 31 + (uint32_t)buf[i];
-    CHECK(hash == 2313499851u);
+    CHECK(hash == 332032406u);
 }
 
 /* Every wave under every filter, six voices at once with the speaker, released halfway, one cut at three quarters,
@@ -159,7 +469,7 @@ TEST(synth_six_voices_render_as_before)
     Synth s;
     synth_init(&s, 15873);
     synth_tone(&s, 440);
-    for (unsigned k = 0; k < DEV_VOICES; k++) {
+    for (unsigned k = 0; k < 6; k++) {
         DevVoice v = note(110 + 97 * k, k % 4, 0x1A63 + 0x1111 * k);
         v.filter = (unsigned char)(k % 4 == 0 ? 3 - k / 4 : k % 4);
         v.cutoff = (unsigned short)(400 + 700 * k);
@@ -187,7 +497,7 @@ TEST(synth_six_voices_render_as_before)
     }
     for (int i = 0; i < RATE; i++)
         hash = hash * 31 + (uint32_t)buf[i];
-    CHECK(hash == 2531076252u);
+    CHECK(hash == 2292971059u); /* since the mix is doubled and limited */
 }
 
 /* QB's speaker as plat/sdl/audio.c made it before the synthesizer: the reference. */
@@ -250,7 +560,8 @@ TEST(play_of_one_string_sounds_as_before)
         synth_tone(&s, want);
         old_speaker(&o, want, old, TICK_SAMPLES);
         synth_render(&s, now, TICK_SAMPLES);
-        CHECK(!memcmp(old, now, sizeof old));
+        for (int i = 0; i < TICK_SAMPLES; i++) /* the mix is twice its sum */
+            CHECK(now[i] == old[i] * 2);
     }
 }
 
@@ -285,6 +596,87 @@ TEST(play_of_three_strings_plays_three_voices)
     CHECK(headless_tone_count() - tones <= 1); /* the program's end quiets the speaker, no more */
 }
 
+/* Sixteenths at T140 are 1.95 ticks: a voice's notes start at the tick their place in the bar falls in, whatever
+   rests and eighths came before. The sound and the silence of each note were rounded apart, so a run of them started
+   1, 2 or 3 ticks after the last and two voices' sixteenths up to 2 ticks from each other: a tune in pieces. */
+TEST(play_voices_keep_time_with_each_other)
+{
+    static const char *const lines[] = {
+        "10 PLAY \"MB T140 L16 W1 O3 CCCCCCCCCCCCCCCC\", \"T140 L16 O3 C P16 C C P16 C8 C P16 C C C C8 C C\"", nullptr};
+    static const int place[2][16] = {{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
+                                     {0, 2, 3, 5, 7, 9, 10, 11, 12, 14, 15, -1}};
+
+    qbrt_realtime(false);
+    music_clear();
+    const size_t first = headless_voice_count();
+    CHECK(unit_run(S, lines) == ST_OK);
+    headless_run(400);
+    qbrt_realtime(true);
+    int ons[2] = {0};
+    long zero = -1;
+    for (size_t i = first; i < headless_voice_count(); i++) {
+        const HeadlessVoice h = headless_voice(i);
+        if (h.voice > 1 || !h.v.gate || !h.v.hertz || ons[h.voice] >= 16)
+            continue;
+        zero = zero < 0 ? h.tick : zero;
+        CHECK(h.tick - zero == place[h.voice][ons[h.voice]++] * 1950L / 1000);
+    }
+    CHECK(ons[0] == 16 && ons[1] == 11);
+}
+
+/* The synthesizer's clock: its call comes by the count of samples, 291.3 times a second, however the rendering is cut
+   up, and a voice it sets sounds from that sample. */
+static int clock_calls;
+static Synth *clock_synth;
+static void clock_tick(void)
+{
+    if (++clock_calls == 100) {
+        const DevVoice v = note(441, DEV_SAW, 0x00F0);
+        synth_voice(clock_synth, 0, &v);
+    }
+}
+
+TEST(synth_clock_ticks_by_its_samples)
+{
+    Synth s;
+    synth_init(&s, RATE);
+    synth_clock(&s, clock_tick, 4661);
+    clock_calls = 0;
+    clock_synth = &s;
+    for (int at = 0, piece = 1; at < RATE; at += piece, piece = piece * 7 % 601 + 1)
+        synth_render(&s, buf + at, piece < RATE - at ? piece : RATE - at);
+    CHECK(clock_calls == 292); /* at sample 0, then every 151.4 */
+    int first = 0;
+    while (first < RATE && buf[first] == 0)
+        first++;
+    CHECK(first >= 99 * 1514 / 10 - 4 && first <= 99 * 1514 / 10 + 4);
+}
+
+/* A synthesizer's notes count in 16ths of a clock tick: sixteenths at T140 start 31 parts apart (1.95 ticks), where
+   the clock tick alone put them 1 or 2 ticks apart. */
+void music_fine_tick(void);
+TEST(play_synth_notes_start_between_clock_ticks)
+{
+    static const char *const lines[] = {"10 PLAY \"MB T140 L16 W1 O3 CCCC\"", nullptr};
+
+    qbrt_realtime(false);
+    music_clear();
+    const size_t first = headless_voice_count();
+    CHECK(unit_run(S, lines) == ST_OK);
+    int ons[3];
+    for (int k = 0; k < 3; k++) {
+        for (int i = 0; i < (k == 0 ? 1 : k == 1 ? 30 : 1); i++)
+            music_fine_tick();
+        ons[k] = 0;
+        for (size_t i = first; i < headless_voice_count(); i++)
+            ons[k] += headless_voice(i).v.gate && headless_voice(i).v.hertz;
+    }
+    CHECK(ons[0] == 1 && ons[1] == 1 && ons[2] == 2);
+    music_clear();
+    headless_run(20); /* the clock's tick takes the queues back */
+    qbrt_realtime(true);
+}
+
 /* The new commands set the voice: W wave, Q pulse width, V volume, H envelope, Y filter. */
 TEST(play_sets_the_voice)
 {
@@ -301,13 +693,43 @@ TEST(play_sets_the_voice)
     CHECK(v.filter == DEV_LOW_PASS && v.cutoff == 800 && v.resonance == 9 && v.gate == 1);
 }
 
+/* W4 is FM, Z its modulator: ratio, depth, decay, level and feedback; U is vibrato, K a glide, I a unison. */
+TEST(play_sets_fm)
+{
+    static const char *const lines[] = {"10 PLAY \"MF W4 Z3,11,6,2,5 U7 K4,8,5 I9 R6 S3 C P64\"", nullptr};
+    static const char *const aside[] = {"10 PLAY \"S0 C\"", nullptr};
+    static const char *const fed[] = {"10 PLAY \"W4 Z1,2,3,4,8 C\"", nullptr};
+    static const char *const waver[] = {"10 PLAY \"U16 C\"", nullptr};
+    static const char *const ratio[] = {"10 PLAY \"W4 Z0 C\"", nullptr};
+    static const char *const depth[] = {"10 PLAY \"W4 Z1,16 C\"", nullptr};
+
+    qbrt_realtime(false);
+    music_clear();
+    const size_t first = headless_voice_count();
+    CHECK(unit_run(S, lines) == ST_OK);
+    qbrt_realtime(true);
+    CHECK(headless_voice_count() > first);
+    const DevVoice v = headless_voice(first).v;
+    CHECK(v.wave == DEV_FM && v.ratio == 3 && v.depth == 11);
+    CHECK(v.fall == 0x62 && v.feedback == 5 && v.vibrato == 7 && v.glide == 4 && v.from == 8 && v.spread == 9);
+    CHECK(v.reverb == 6 && v.under == 5 && v.pan == 3);
+    CHECK(unit_run(S, aside) == E_USR);
+    CHECK(unit_run(S, fed) == E_USR);
+    CHECK(unit_run(S, waver) == E_USR);
+    CHECK(unit_run(S, ratio) == E_USR);
+    CHECK(unit_run(S, depth) == E_USR);
+}
+
 TEST(play_voice_out_of_range)
 {
-    static const char *const wave[] = {"10 PLAY \"W4 C\"", nullptr};
+    static const char *const wave[] = {"10 PLAY \"W5 C\"", nullptr};
     static const char *const envelope[] = {"10 PLAY \"H1,2 C\"", nullptr};
-    static const char *const seven[] = {"10 PLAY \"C\", \"D\", \"E\", \"F\", \"G\", \"A\", \"B\"", nullptr};
+    static char many[400] = "10 PLAY \"C\"";
+    static const char *const seven[] = {many, nullptr};
     static const char *const trailing[] = {"10 PLAY \"C\", ", nullptr};
 
+    for (int v = 0; v < DEV_VOICES; v++) /* a string more than there are voices */
+        strcat(many, ", \"C\"");
     CHECK(unit_run(S, wave) == E_USR);
     CHECK(unit_run(S, envelope) == E_USR);
     CHECK(unit_run(S, seven) != ST_OK);
@@ -330,15 +752,14 @@ TEST(play_voice_ends_with_the_program)
     CHECK(headless_tone_count() > tones && headless_tone(tones).hertz == 524);
 }
 
-/* Six strings, six voices, starting together. */
-TEST(play_of_six_strings_plays_six_voices)
+/* A string a voice, all 32 starting together: there were six, then ten. */
+TEST(play_of_32_strings_plays_32_voices)
 {
-    static const char *const lines[] = {
-        "10 PLAY \"MF T120 L4 O3 C\", \"T120 L4 O3 E\", \"T120 L4 O3 G\", \"T120 L4 O4 C\", \"T120 L4 O4 E\", "
-        "\"T120 L4 O4 G\"",
-        nullptr};
-    static const unsigned hertz[6] = {262, 330, 392, 524, 660, 784};
+    static char line[32 * 24 + 16] = "10 PLAY \"MF T120 L4 N1\"";
+    static const char *const lines[] = {line, nullptr};
 
+    for (int v = 1; v < 32; v++)
+        snprintf(line + strlen(line), 24, ", \"T120 L4 N%d\"", v + 1);
     qbrt_realtime(false);
     music_clear(); /* an earlier test's music */
     const size_t first = headless_voice_count();
@@ -346,16 +767,19 @@ TEST(play_of_six_strings_plays_six_voices)
     headless_run(200);
     qbrt_realtime(true);
 
-    long start[6] = {-1, -1, -1, -1, -1, -1};
+    long start[32];
+    unsigned hertz[32];
+    for (int v = 0; v < 32; v++)
+        start[v] = -1;
     for (size_t i = first; i < headless_voice_count(); i++) {
         const HeadlessVoice h = headless_voice(i);
         if (h.v.gate && start[h.voice] < 0) {
             start[h.voice] = h.tick;
-            CHECK(h.v.hertz == hertz[h.voice]);
+            hertz[h.voice] = h.v.hertz;
         }
     }
-    for (int v = 0; v < 6; v++)
-        CHECK(start[v] >= 0 && start[v] == start[0]);
+    for (int v = 0; v < 32; v++) /* each its own note, a semitone over the last */
+        CHECK(start[v] >= 0 && start[v] == start[0] && (v == 0 || hertz[v] > hertz[v - 1]));
 }
 
 /* PLAY , , a$ plays voice 3 alone: the first voice's music goes on, its notes neither cut nor joined. */
@@ -379,4 +803,43 @@ TEST(play_left_out_strings_leave_their_voices)
         others += h.voice != 2;
     }
     CHECK(third == 1 && others == 0);
+}
+
+/* A song's voices are all logged: at 4096 the log dropped the rest unsaid, and a 76-bar song's render stopped at bar
+ * 39, the bars after it never measured. */
+TEST(headless_logs_a_long_songs_voices)
+{
+    void dev_voice(unsigned voice, const DevVoice *v);
+    const DevVoice v = {.hertz = 440, .gate = 1};
+    const size_t first = headless_voice_count();
+
+    for (int i = 0; i < 5000; i++)
+        dev_voice(0, &v);
+    CHECK(headless_voice_count() == first + 5000);
+}
+
+/* A legato note run into its own pitch is held, not struck again: each was a new attack, so a length that is no one
+ * note's (nine sixteenths) could not be written, and a held chord was let go a sixteenth early. */
+TEST(play_legato_ties_a_pitch_to_itself)
+{
+    static const char *const lines[] = {"10 PLAY \"W0 ML L4 C C D\"", nullptr};
+
+    qbrt_realtime(false);
+    music_clear();
+    const size_t first = headless_voice_count();
+    CHECK(unit_run(S, lines) == ST_OK);
+    headless_run(400);
+    qbrt_realtime(true);
+    int struck = 0, last = -1;
+    unsigned hertz = 0;
+    for (size_t i = first; i < headless_voice_count(); i++) {
+        const DevVoice v = headless_voice(i).v;
+
+        if (v.gate && v.trigger != last) {
+            struck++;
+            last = v.trigger;
+            hertz = v.hertz;
+        }
+    }
+    CHECK(struck == 2 && hertz == 294);
 }

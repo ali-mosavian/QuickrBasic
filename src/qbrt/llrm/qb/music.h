@@ -14,6 +14,12 @@
 #define TICKS_PER_MINUTE CLOCK_TICKS_PER_MINUTE
 #endif
 
+/* the parts of a tick the queues count in, and how often a synthesizer that ticks them does: 16ths of a hertz */
+#define MUSIC_FINE 16
+#define MUSIC_FINE_RATE 4661 /* 16 * 18.2065 * 16 */
+/* A part of a tick has passed, by the synthesizer's count of its samples: the clock tick leaves the queues to it. */
+void music_fine_tick(void);
+
 /* music in the foreground (MF, the default): each note waits for the one sounding to end */
 extern byte music_foreground;
 

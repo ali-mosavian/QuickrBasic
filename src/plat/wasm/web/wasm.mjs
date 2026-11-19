@@ -27,7 +27,7 @@ function normal(path) {
 }
 
 // A DevVoice's bytes (qbrt's dev/voice.h), as the synthesizer's AudioWorklet takes them (synth.mjs).
-export const VOICE_BYTES = 16;
+export const VOICE_BYTES = 28;
 
 // host: { fs, cwd, args, write(fd, bytes), exit(code), stdin(n) -> bytes, stdio(fd) -> a stat,
 // tone(hz), voice(n, bytes) }; cwd is
@@ -174,11 +174,23 @@ export function sidecar(module, memory, tone, voice) {
 // The module's memory: shared, so the page's thread can write irq's block while it runs.
 export const memory = () => new WebAssembly.Memory({ initial: 512, maximum: 16384, shared: true });
 
-// The shared block (wasm.h's WasmIrq) at the address irq() returns.
+// The shared block (wasm.h's WasmIrq) at the address irq() returns, and port 60h's bytes (host.h's
+// HostScans) at the one scans() returns.
 export class Irq {
-  constructor(memory, at) {
+  constructor(memory, at, scans = 0) {
     this.memory = memory;
     this.at = at;
+    this.scans = scans;
+  }
+
+  // A byte to port 60h: a key's scan code as it goes down, with 80h as it comes up.
+  scan(code) {
+    if (!this.scans || !code) return;
+    const i32 = this.i32, pushed = (this.scans + 32) >> 2;
+    const at = Atomics.load(i32, pushed);
+    if (((at - Atomics.load(i32, pushed + 1)) >>> 0) >= 32) return;
+    this.u8[this.scans + (at >>> 0) % 32] = code;
+    Atomics.store(i32, pushed, at + 1);
   }
 
   get i32() { return new Int32Array(this.memory.buffer); }

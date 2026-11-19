@@ -32,7 +32,8 @@ adds half again. `P` is a rest. `T` is the tempo, in quarter notes a minute (32 
 PLAY "T100 O3 C4 D8 E4. P8 G2"
 ```
 
-`MN` plays 7/8 of each note, `ML` all of it (smooth), `MS` 3/4 (short).
+`MN` plays 7/8 of each note, `ML` all of it (smooth), `MS` 3/4 (short). Under `ML` a voice's note
+repeated at the same pitch is held, not struck again: `ML L2 C L16 C` is one C nine sixteenths long.
 
 ```basic
 PLAY "T140 O4 ML C D E F G2 MS C D E F G2 MN"
@@ -98,7 +99,7 @@ PLAY "Y1,800,0 C Y1,800,8 C Y1,800,15 C Y0 V15 C V7 C V3 C"
 
 ## 7. Several voices
 
-`PLAY a$, b$, ...` plays up to six voices, a string each. Each keeps its own tempo, octave, length
+`PLAY a$, b$, ...` plays up to 32 voices, a string each. Each keeps its own tempo, octave, length
 and sound, so set them in every string. `MF`/`MB` apply to all. A string left out leaves its voice
 alone: `PLAY , , fx$` plays voice 3 only.
 

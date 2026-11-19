@@ -17,6 +17,13 @@ WasmIrq *irq(void)
     return &wasm_irq;
 }
 
+/* Port 60h's bytes (host.h), for the page to push a key's scan code as it goes down and comes up. */
+[[clang::export_name("scans")]]
+HostScans *scans(void)
+{
+    return host_scans();
+}
+
 void host_term_open(void) {}
 void host_term_pause(const bool yes) {}
 bool host_term_on(void) { return wasm_irq.keyboard; }

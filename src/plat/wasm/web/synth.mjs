@@ -11,10 +11,14 @@ class Synth extends AudioWorkletProcessor {
     };
   }
 
-  process(inputs, [[out]]) {
-    const at = this.ex.worklet_render(out.length);
-    const samples = new Int16Array(this.ex.memory.buffer, at, out.length);
-    for (let i = 0; i < out.length; i++) out[i] = samples[i] / 32768;
+  // worklet_render's frames are a left sample then a right; an output of one channel is their mean
+  process(inputs, [[left, right]]) {
+    const at = this.ex.worklet_render(left.length);
+    const samples = new Int16Array(this.ex.memory.buffer, at, left.length * 2);
+    for (let i = 0; i < left.length; i++) {
+      if (right) [left[i], right[i]] = [samples[i * 2] / 32768, samples[i * 2 + 1] / 32768];
+      else left[i] = (samples[i * 2] + samples[i * 2 + 1]) / 65536;
+    }
     return true;
   }
 }

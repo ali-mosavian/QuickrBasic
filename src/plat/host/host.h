@@ -6,6 +6,15 @@
 
 /* A key for pkey_read and pkey_wait: scan code << 8 | character. */
 void host_key_push(uint16_t key);
+/* A byte from the keyboard for port 60h: a key's scan code as it goes down, with 80h as it comes up. */
+void host_scan_push(uint8_t scan);
+/* The bytes not yet read: one thread pushes, the program's reads. A page writes it as host_scan_push does. */
+enum { HOST_SCANS = 32 };
+typedef struct {
+    uint8_t bytes[HOST_SCANS];
+    _Atomic uint32_t pushed, read;
+} HostScans;
+HostScans *host_scans(void);
 /* Page's cell at row, col. */
 PscrCell host_cell(uint8_t page, uint8_t row, uint8_t col);
 

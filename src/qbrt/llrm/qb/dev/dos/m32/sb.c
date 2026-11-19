@@ -6,6 +6,7 @@
    synthesizer, so a program that never uses one never touches it. */
 #include "device.h"
 #include "llrm_os.h"
+#include "music.h"
 #include "plat/synth/synth.h"
 
 enum {
@@ -188,9 +189,17 @@ static void fill(unsigned half)
     unsigned char *const out = card.buffer + half * HALF;
     unsigned i;
 
+    /* half as loud again, so a voice is 70 of the card's 256 levels, not 47; what a sample loses to its 8 bits is
+       carried to the next, so the loss is hiss over the notes, not grit on them */
+    static int carry;
+
     synth_render(&synth, samples, HALF);
-    for (i = 0; i < HALF; i++)
-        out[i] = (unsigned char)((samples[i] >> 8) + 128);
+    for (i = 0; i < HALF; i++) {
+        const int exact = samples[i] * 3 + carry, level = exact >> 10;
+
+        carry = exact - level * 1024;
+        out[i] = (unsigned char)((level > 127 ? 127 : level < -128 ? -128 : level) + 128);
+    }
 }
 
 void dev_sb_fill(void)
@@ -238,6 +247,7 @@ void dev_synth_open(void)
         return;
 
     synth_init(&synth, 1000000L / (256 - TIME_CONSTANT));
+    synth_clock(&synth, music_fine_tick, MUSIC_FINE_RATE);
     card.half = 0;
     fill(0);
     fill(1);

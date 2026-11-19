@@ -84,7 +84,7 @@ BASIC_OBJ := $(CORE_OBJ) $(B)/obj/app/basic32.obj
 IDE_OBJ := $(CORE_OBJ) $(UI_C:src/%.c=$(B)/obj/%.obj) $(B)/obj/app/ide32.obj
 DOS_EXE := $(B)/basic32.exe $(B)/ide32.exe $(B)/DOS32A.EXE $(B)/BASIC.HLP
 # the release: the programs by their DOS names, with the games (src/plat/wasm/web/demos)
-DOS_GAMES := $(addprefix src/plat/wasm/web/demos/,GORILLA.BAS NIBBLES.BAS MOTHLITE.BAS RUSTLINE.BAS)
+DOS_GAMES := $(addprefix src/plat/wasm/web/demos/,GORILLA.BAS NIBBLES.BAS MOTHLITE.BAS RUSTLINE.BAS CHARLIE.BAS)
 
 all: $(DOS_EXE)
 
@@ -126,7 +126,7 @@ dos-zip: $(DOS_EXE) $(DOS_GAMES)
 	cp $(B)/ide32.exe $(B)/release/IDE32.EXE
 	cp $(B)/basic32.exe $(B)/release/BASIC32.EXE
 	cp $(B)/DOS32A.EXE $(B)/BASIC.HLP $(DOS_GAMES) $(B)/release/
-	cd $(B)/release && zip -q -X ../QuickrBasic-dos.zip IDE32.EXE BASIC32.EXE DOS32A.EXE BASIC.HLP GORILLA.BAS NIBBLES.BAS MOTHLITE.BAS RUSTLINE.BAS
+	cd $(B)/release && zip -q -X ../QuickrBasic-dos.zip IDE32.EXE BASIC32.EXE DOS32A.EXE BASIC.HLP GORILLA.BAS NIBBLES.BAS MOTHLITE.BAS RUSTLINE.BAS CHARLIE.BAS
 
 -include $(shell find $(B) -name '*.d' 2>/dev/null)
 
@@ -157,6 +157,8 @@ host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/h
 	BASIC_EXE=build/host/basic $(PY) tools/conformance.py
 	$(PY) tools/fold_test.py build/host/basic
 	$(PY) tools/mothlite_test.py build/host/basic
+	$(PY) tools/charlie_test.py build/host/basic
+	$(PY) tools/mid2play_test.py build/host/basic
 	$(PY) tools/pterm_test.py build/host/basic
 	$(PY) tools/bench_test.py
 
@@ -334,6 +336,7 @@ wasm-test: build/wasm/basic build/wasm/ide.wasm
 	BASIC_EXE=$< $(PY) tools/regress_test.py $<
 	node tools/wasm/frame_test.mjs build/wasm/ide.wasm
 	node tools/wasm/play_test.mjs build/wasm/basic.wasm
+	node tools/wasm/scan_test.mjs build/wasm/basic.wasm
 	BASIC_EXE=$< $(PY) tools/conformance.py
 
 # ---- LTO: the C as bitcode, one module optimized whole by tools/lto.py (LLVM's tools), linked with the asm's

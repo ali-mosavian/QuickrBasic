@@ -54,6 +54,13 @@ uint8_t sdl_shift(const SDL_Keymod mod)
                      (mod & SDL_KMOD_NUM ? PKEY_NUM : 0) | (mod & SDL_KMOD_CAPS ? PKEY_CAPS : 0));
 }
 
+uint8_t sdl_scan(const SDL_Scancode s)
+{
+    const uint32_t key = us_key(s);
+
+    return key ? (uint8_t)(host_bios_key(key, 0, 0) >> 8 & 0x7F) : 0;
+}
+
 int32_t sdl_bios_key(const SDL_KeyboardEvent *const e)
 {
     const uint32_t key = us_key(e->scancode);

@@ -48,6 +48,15 @@ static int keys_out = -1;
 
 static void send(const uint16_t key) { (void)!write(keys_out, &key, sizeof key); }
 
+/* The key at s to port 60h, down or up: a program that reads the port knows the keys held. */
+static void scan(const SDL_Scancode s, const bool up)
+{
+    const uint8_t code = sdl_scan(s);
+
+    if (code)
+        host_scan_push((uint8_t)(code | (up ? 0x80 : 0)));
+}
+
 /* A script's time at s, its frame; *end past it. */
 static uint32_t when(const char *const s, char **const end)
 {
@@ -163,7 +172,7 @@ static void home(void)
         return;
 
     const char *const base = SDL_GetBasePath(); /* the bundle's Resources */
-    static const char *const demos[] = {"WELCOME.BAS", "GORILLA.BAS", "NIBBLES.BAS", "MOTHLITE.BAS", "RUSTLINE.BAS"};
+    static const char *const demos[] = {"WELCOME.BAS", "GORILLA.BAS", "NIBBLES.BAS", "MOTHLITE.BAS", "RUSTLINE.BAS", "CHARLIE.BAS"};
 
     for (uint32_t i = 0; base && i < sizeof demos / sizeof demos[0]; i++) {
         struct stat st;
@@ -308,6 +317,7 @@ int sdl_main(void)
 
             case SDL_EVENT_KEY_DOWN: {
                 host_term_set_shift(sdl_shift(e.key.mod));
+                scan(e.key.scancode, false);
 
                 if (e.key.mod & SDL_KMOD_GUI)
                     break;
@@ -325,6 +335,8 @@ int sdl_main(void)
             }
 
             case SDL_EVENT_KEY_UP:
+                scan(e.key.scancode, true);
+
                 if (e.key.scancode == SDL_SCANCODE_LALT || e.key.scancode == SDL_SCANCODE_RALT)
                     alt_up = SDL_GetTicks() + ALT_TAP_MS;
                 else

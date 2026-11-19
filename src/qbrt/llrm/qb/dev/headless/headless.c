@@ -10,6 +10,7 @@
 enum {
     KEY_BYTES = 256,
     TONE_LOG = 4096,
+    VOICE_LOG = 65536, /* a long song's */
     CTRL_Z = 26,
     DAY = 8640000,
     TICK_UNITS = 1000, /* a tick is 1000 units; a hundredth is 182 of them (18.2 ticks a second) */
@@ -25,7 +26,7 @@ static int scan_pending, end_of_input;
 
 static HeadlessTone tones[TONE_LOG];
 static size_t tone_count;
-static HeadlessVoice voice_log[TONE_LOG];
+static HeadlessVoice voice_log[VOICE_LOG];
 static size_t voice_count;
 
 static long clock_now, clock_step;
@@ -153,7 +154,7 @@ void dev_tone(unsigned hertz)
 
 void dev_voice(unsigned voice, const DevVoice *v)
 {
-    if (voice_count < TONE_LOG) {
+    if (voice_count < VOICE_LOG) {
         voice_log[voice_count].voice = voice;
         voice_log[voice_count].v = *v;
         voice_log[voice_count].tick = ticks_run;
