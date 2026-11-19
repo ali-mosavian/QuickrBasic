@@ -77,6 +77,18 @@ FOR i = 1 TO 900
     IF g.mode = TITLE THEN EXIT FOR
 NEXT
 IF was > 60 AND g.mode = TITLE AND Dusk = 16 THEN PRINT "faded ok"
+' the title's own run ends the same way: it began again the moment Charlie passed the goal, the family never met
+FOR i = 1 TO 9000
+    Tick g, p, k, lo(), pt()
+    IF p.x >= GoalX THEN EXIT FOR
+NEXT
+FOR i = 1 TO 300: Tick g, p, k, lo(), pt(): NEXT
+was = g.mode = TITLE AND p.win AND Cheer AND ABS(p.x - (FamX - 106)) < 3
+FOR i = 1 TO 900
+    Tick g, p, k, lo(), pt()
+    IF p.x < GoalX THEN EXIT FOR
+NEXT
+IF was AND p.x < GoalX AND Dusk = 16 THEN PRINT "title met ok"
 END
 """
 
@@ -98,6 +110,8 @@ def main() -> None:
         sys.exit(f"charlie: jump held through a hit, and no jump as it ends: {out[-300:]}")
     if "met ok" not in out:
         sys.exit(f"charlie: the level cleared, Charlie not stopped at its family, all of them in view: {out[-300:]}")
+    if "title met ok" not in out:
+        sys.exit(f"charlie: the title's run not ended with the family, held and faded: {out[-300:]}")
     if "faded ok" not in out:
         sys.exit(f"charlie: the level's end not held, faded out and begun again in full colour: {out[-300:]}")
     words = out[out.rfind("result") :].split()
