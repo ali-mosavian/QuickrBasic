@@ -2594,7 +2594,8 @@ END SUB
 SUB MoveHero (p AS Hero, k AS Pad, pt() AS Part)
     DIM l AS INTEGER, r AS INTEGER, d AS INTEGER, hit AS INTEGER, hold AS INTEGER
     DIM v AS SINGLE
-    IF p.stun AND p.ground AND p.inv < 1 THEN p.stun = 0
+    ' a jump held through the hit is a jump as it ends: it was forgotten
+    IF p.stun AND p.ground AND p.inv < 1 THEN p.stun = 0: IF k.jump THEN k.hit = -1
     IF p.stun = 0 THEN l = k.l: r = k.r: d = k.d: hit = k.hit: hold = k.jump
     IF p.inv > 0 THEN p.inv = p.inv - STEPT
     p.lastx = p.x

@@ -7,7 +7,8 @@ its loops: a gap too wide, a wall too high, a loop entered too slowly or a landi
 ground fails it.
 
 Every half bar of the tune and every sound effect is played: a PLAY string the game builds wrong is an
-Illegal function call mid-game. First a cat is walked to the level's left end: its look ahead,
+Illegal function call mid-game. Jump held through a hit must jump as the hit's hold ends: it was forgotten.
+First a cat is walked to the level's left end: its look ahead,
 left of column 0, was a negative tile column, and the game stopped with Subscript out of range.
 """
 
@@ -42,6 +43,15 @@ FOR j = SJUMP TO SHISS: Sfx j: NEXT
 Muted = -1
 PRINT "sounds ok"
 StartGame g, p, lo(), pt()
+g.bones = 3: k.jump = -1: k.was = -1
+Hurt g, p, CINT(p.x) + 10, lo(), SHURT
+FOR i = 1 TO 150
+    Tick g, p, k, lo(), pt()
+    IF p.stun = 0 AND p.jumped THEN was = -1
+NEXT
+IF was THEN PRINT "held ok"
+was = 0: k.jump = 0: k.was = 0
+StartGame g, p, lo(), pt()
 FOR i = 1 TO 9000
     Pilot p, k
     Tick g, p, k, lo(), pt()
@@ -68,6 +78,8 @@ def main() -> None:
         sys.exit(f"charlie: a cat at the level's left end: {out[-300:]}")
     if "sounds ok" not in out:
         sys.exit(f"charlie: a bar of the tune or a sound effect: {out[-300:]}")
+    if "held ok" not in out:
+        sys.exit(f"charlie: jump held through a hit, and no jump as it ends: {out[-300:]}")
     words = out[out.rfind("result") :].split()
     if len(words) < 5 or words[1:3] != ["2", "3"] or words[4] != "5":
         sys.exit(
