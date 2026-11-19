@@ -5,6 +5,7 @@ Each case: its program, run as a file, the output it must print and one it must 
 
 import re
 import os
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -29,13 +30,13 @@ CASES = {
     # A procedure DECLAREd only was ERROR 35 or 18 when its call ran: these printed "ran", then the
     # error, or nothing; the TYPE argument's was Type mismatch. BC rejects the program first.
     "c_undef_function": ('DECLARE FUNCTION g% (x%)\r\nPRINT "ran"\r\n30 PRINT 1 + g%(2)\r\n',
-                         "Function not defined in line 30 ", "ran"),
-    "qb_snd_bare": ('DECLARE SUB S (x AS INTEGER)\r\nPRINT "ran"\r\n20 S 1\r\n', "Subprogram not defined in line 20 ", "ran"),
-    "qb_snd_call": ('DECLARE SUB S (x AS INTEGER)\r\nPRINT "ran"\r\n20 CALL S(1)\r\n', "Subprogram not defined in line 20 ", "ran"),
+                         "Function not defined in line 30\r\n", "ran"),
+    "qb_snd_bare": ('DECLARE SUB S (x AS INTEGER)\r\nPRINT "ran"\r\n20 S 1\r\n', "Subprogram not defined in line 20\r\n", "ran"),
+    "qb_snd_call": ('DECLARE SUB S (x AS INTEGER)\r\nPRINT "ran"\r\n20 CALL S(1)\r\n', "Subprogram not defined in line 20\r\n", "ran"),
     "qb_snd_record": ("TYPE T\r\nv AS INTEGER\r\nEND TYPE\r\nDECLARE SUB S (g AS T, a() AS INTEGER)\r\n"
-                      'DIM g AS T, a(3)\r\nPRINT "ran"\r\n20 S g, a()\r\n', "Subprogram not defined in line 20 ", "ran"),
+                      'DIM g AS T, a(3)\r\nPRINT "ran"\r\n20 S g, a()\r\n', "Subprogram not defined in line 20\r\n", "ran"),
     "qb_snd_uncalled": ('DECLARE SUB S ()\r\nPRINT "ran"\r\nSUB G\r\n20 IF 0 THEN S\r\nEND SUB\r\n',
-                        "Subprogram not defined in line 20 ", "ran"),
+                        "Subprogram not defined in line 20\r\n", "ran"),
     # C port: llrm-cc compiled REDIM's case of decl_line's switch (shared with DIM) past its load of
     # decl.proc, so REDIM bound the array in a garbage scope: UBOUND after it was Array not defined.
     "c_redim_ubound": ("REDIM v(3)\r\nPRINT UBOUND(v); LBOUND(v)\r\n", " 3  0 \r\n", "ERROR"),
@@ -336,24 +337,24 @@ CASES = {
     "qb_ptm_late": ('DECLARE FUNCTION F% (a AS SINGLE)\r\nDECLARE SUB G ()\r\nPRINT "ran"\r\nG\r\nSUB G\r\n'
                     "DIM t AS INTEGER\r\n70 IF 0 THEN IF F%(t) THEN PRINT 1\r\nEND SUB\r\n"
                     "FUNCTION F% (a AS SINGLE)\r\nEND FUNCTION\r\n",
-                    "Parameter type mismatch in line 70 ", "ran"),
+                    "Parameter type mismatch in line 70\r\n", "ran"),
     "qb_ptm_uncalled": ('DECLARE FUNCTION F% (a AS SINGLE)\r\nPRINT "ran"\r\nSUB G\r\nDIM t AS INTEGER\r\n'
                         "60 x = F%(t)\r\nEND SUB\r\nFUNCTION F% (a AS SINGLE)\r\nEND FUNCTION\r\n",
-                        "Parameter type mismatch in line 60 ", "ran"),
-    "qb_tm_uncalled": ('PRINT "ran"\r\nSUB G\r\n40 x% = "a"\r\nEND SUB\r\n', "Type mismatch in line 40 ", "ran"),
+                        "Parameter type mismatch in line 60\r\n", "ran"),
+    "qb_tm_uncalled": ('PRINT "ran"\r\nSUB G\r\n40 x% = "a"\r\nEND SUB\r\n', "Type mismatch in line 40\r\n", "ran"),
     # A variable under a CONST's name, any case or suffix, was the CONST: stores to it were
     # dropped and these printed 5. BC: Duplicate definition.
     "qb_rd_const_dim": ("CONST LIMIT = 5\r\n20 DIM SHARED limit AS SINGLE\r\nlimit = 9\r\nPRINT limit\r\n",
-                        "Duplicate definition in line 20 ", " 5"),
-    "qb_rd_const_let": ("CONST LIMIT = 5\r\n20 limit = 9\r\nPRINT limit\r\n", "Duplicate definition in line 20 ", " 5"),
-    "qb_rd_const_sfx": ("CONST LIMIT = 5\r\n20 limit! = 9\r\nPRINT limit\r\n", "Duplicate definition in line 20 ", " 5"),
-    "qb_rd_const_for": ("CONST LIMIT = 5\r\n20 FOR limit = 1 TO 2: NEXT\r\n", "Duplicate definition in line 20 ", None),
-    "qb_rd_const_input": ("CONST LIMIT = 5\r\n20 INPUT limit\r\n", "Duplicate definition in line 20 ", "?"),
-    "qb_rd_const_dimafter": ("20 DIM limit\r\nCONST LIMIT = 5\r\n", "Duplicate definition in line 20 ", None),
+                        "Duplicate definition in line 20\r\n", " 5"),
+    "qb_rd_const_let": ("CONST LIMIT = 5\r\n20 limit = 9\r\nPRINT limit\r\n", "Duplicate definition in line 20\r\n", " 5"),
+    "qb_rd_const_sfx": ("CONST LIMIT = 5\r\n20 limit! = 9\r\nPRINT limit\r\n", "Duplicate definition in line 20\r\n", " 5"),
+    "qb_rd_const_for": ("CONST LIMIT = 5\r\n20 FOR limit = 1 TO 2: NEXT\r\n", "Duplicate definition in line 20\r\n", None),
+    "qb_rd_const_input": ("CONST LIMIT = 5\r\n20 INPUT limit\r\n", "Duplicate definition in line 20\r\n", "?"),
+    "qb_rd_const_dimafter": ("20 DIM limit\r\nCONST LIMIT = 5\r\n", "Duplicate definition in line 20\r\n", None),
     "qb_rd_const_param": ("DECLARE SUB s (limit)\r\nCONST LIMIT = 5\r\ns 2\r\n20 SUB s (limit)\r\nEND SUB\r\n",
-                          "Duplicate definition in line 20 ", None),
+                          "Duplicate definition in line 20\r\n", None),
     "qb_rd_const_sub": ("DECLARE SUB s ()\r\nCONST LIMIT = 5\r\ns\r\nSUB s\r\n20 STATIC limit\r\n"
-                        "30 DIM limit\r\nEND SUB\r\n", "Duplicate definition in line 20 ", None),
+                        "30 DIM limit\r\nEND SUB\r\n", "Duplicate definition in line 20\r\n", None),
     # The CONST as a value, and a procedure's CONST beside the module's variable, still work.
     "qb_const_ok": ("DECLARE SUB s ()\r\nCONST LIMIT = 5\r\nDIM b AS SINGLE, lim\r\nb = LIMIT * 2: lim = 7\r\n"
                     "PRINT b; LIMIT; lim\r\ns\r\nSUB s\r\nCONST LIM = 3\r\nPRINT LIM; LIMIT\r\nEND SUB\r\n",
@@ -380,9 +381,9 @@ CASES = {
                              "FUNCTION Sides% (m() AS INTEGER, x AS INTEGER)\r\nSides% = m(x)\r\nEND FUNCTION\r\n",
                              "`Sides` is also the name of a FUNCTION", " 0"),
     "qb_acm_sub": ("DECLARE SUB s (a)\r\n20 s\r\nSUB s (a)\r\nPRINT a\r\nEND SUB\r\n",
-                   "Argument-count mismatch in line 20 ", " 0"),
+                   "Argument-count mismatch in line 20\r\n", " 0"),
     "qb_acm_call": ("DECLARE SUB s (a)\r\n20 CALL s\r\nSUB s (a)\r\nPRINT a\r\nEND SUB\r\n",
-                    "Argument-count mismatch in line 20 ", " 0"),
+                    "Argument-count mismatch in line 20\r\n", " 0"),
     "qb_byval": ("DECLARE SUB s (BYVAL a)\r\nx = 1: s x: PRINT x\r\nSUB s (BYVAL a)\r\na = 5\r\nEND SUB\r\n",
                  " 1 \r\n", "ERROR"),
     # A SUB's REDIM of its array parameter after ERASE made one the caller never saw.
@@ -613,17 +614,16 @@ CASES = {
                      "`RANDOM` in the OPEN statement, but found `FOO`.", None),
     "qb_diag_kw": ('NAME "a" "b"\r\n', 'Expected `AS` in the NAME statement, but found `"b"`.', None),
     # The blocks' errors were a Syntax error, or NEXT without FOR, with no line shown and no words.
-    "qb_blk_open": ("PRINT 1\r\nFOR i = 0 TO 9\r\nPRINT i\r\n", "FOR without NEXT in line No line number"
-                    " in module", None),
+    "qb_blk_open": ("PRINT 1\r\nFOR i = 0 TO 9\r\nPRINT i\r\n", ": FOR without NEXT\r\n", None),
     "qb_blk_open2": ("PRINT 1\r\nFOR i = 0 TO 9\r\nPRINT i\r\n", "  FOR i = 0 TO 9\r\n  ^\r\nThis FOR loop,"
                      " counting with `i`, is never closed", None),
     "qb_blk_nextv": ("FOR i = 1 TO 3\r\nNEXT j\r\n", "  NEXT j\r\n       ^\r\nThis NEXT ends a loop counting "
                      "with `j`, but the loop open here counts with `i`.\r\nWrite `NEXT i`, or just NEXT.", " 1"),
-    "qb_blk_cross": ("FOR i = 1 TO 3\r\nDO\r\nNEXT i\r\n", "NEXT without FOR in line No line number in module"
+    "qb_blk_cross": ("FOR i = 1 TO 3\r\nDO\r\nNEXT i\r\n", ": NEXT without FOR\r\n"
                      "", None),
     "qb_blk_cross2": ("FOR i = 1 TO 3\r\nDO\r\nNEXT i\r\n", "the DO block started inside it is still open",
                       None),
-    "qb_blk_loop": ("PRINT 1\r\nLOOP\r\n", "LOOP without DO in line", " 1"),
+    "qb_blk_loop": ("PRINT 1\r\nLOOP\r\n", ": LOOP without DO\r\n", " 1"),
     # A FOR's limit and step are the procedure's locals: a recursive call's loop keeps its own.
     "qb_for_rec": ("DECLARE SUB r (n%)\r\nr 3\r\nSUB r (n%)\r\nFOR i% = 1 TO n%\r\n"
                    "IF i% = 1 AND n% > 1 THEN r n% - 1\r\nPRINT n%;\r\nNEXT\r\nEND SUB\r\n",
@@ -637,14 +637,14 @@ CASES = {
     "qb_lbl_on": ("PRINT 1\r\nON 2 GOSUB a, b\r\nEND\r\na: RETURN\r\n", "There is no label `b`", " 1"),
     "qb_lbl_restore": ("PRINT 1\r\nIF 0 THEN RESTORE nowhere\r\nDATA 1\r\n", "There is no label `nowhere`", " 1"),
     "qb_lbl_run": ("PRINT 1\r\nIF 0 THEN RUN 90\r\n", "Label not defined", " 1"),
-    "qb_lbl_resume": ("ON ERROR GOTO h\r\nPRINT 1\r\nEND\r\nh: RESUME 90\r\n", "Label not defined in line", " 1"),
+    "qb_lbl_resume": ("ON ERROR GOTO h\r\nPRINT 1\r\nEND\r\nh: RESUME 90\r\n", ": Label not defined\r\n", " 1"),
     # &H and &O took no type suffix: &HFF& was a Syntax error at the &.
     "qb_hex_sfx": ("CONST a% = &H10%, b& = &HFF&: PRINT a%; b&; &O17&; &HFFFF&\r\n", " 16  255  15  65535 \r\n", "ERROR"),
     # A call of a SUB or FUNCTION only DECLAREd was a syntax error; as BC's, it is rejected before the run,
     # not trapped.
     "qb_pdecl": ('DECLARE SUB ext (a%, b$)\r\nDECLARE FUNCTION fx% (a%)\r\nON ERROR GOTO h\r\next 1, "x"\r\n'
                  'CALL ext(2, "y")\r\ny = fx%(3) + 1\r\nPRINT "d"\r\nEND\r\nh: PRINT ERR;: RESUME NEXT\r\n',
-                 "Subprogram not defined in line", " 35"),
+                 ": Subprogram not defined\r\n", " 35"),
     # A line's text was 255 characters at most, its body 2047 bytes, positions 11 bits: Out of memory at load.
     "qb_long_line": ("FOR i = 1 TO 3: " + "x = x + 1: " * 300 + "NEXT: IF x > 0 THEN PRINT x ELSE PRINT -1\r\n"
                      "DO: k = k + 1: " + "y = y + 1: " * 250 + "LOOP UNTIL k = 2: PRINT y\r\n", " 900 \r\n 500 \r\n",
@@ -659,15 +659,15 @@ CASES = {
     "qb_long_err": ("z = 1: " * 60 + "PRINT (z\r\n", "\r\n" + " " * 430 + "^\r\nThe PRINT statement is incomplete", None),
     # A file's errors named no line of it ("in line No line number"): each one bisected by hand.
     # The line read from the file, a continued one's first; blank lines count.
-    "qb_where_compile": ("PRINT 1\r\n\r\nX = 1 + _\r\n  (\r\nPRINT 3\r\n", ".BAS:3\r\n  X = 1 + (\r\n", " 1"),
-    "qb_where_dupdef": ("CONST SP = 1\r\nPRINT 1\r\nsp = 2\r\n", ".BAS:3\r\n  SP = 2\r\n  ^\r\n`SP` is", " 1"),
-    "qb_where_include": ("PRINT 1\r\n\r\nREM $INCLUDE: 'WHERE.BI'\r\nPRINT 2\r\n", "WHERE.BI:3\r\n  Y = 1 +\r\n", " 1"),
+    "qb_where_compile": ("PRINT 1\r\n\r\nX = 1 + _\r\n  (\r\nPRINT 3\r\n", ".BAS:3: Syntax error\r\n  X = 1 + (\r\n", " 1"),
+    "qb_where_dupdef": ("CONST SP = 1\r\nPRINT 1\r\nsp = 2\r\n", ".BAS:3: Duplicate definition\r\n  SP = 2\r\n  ^\r\n`SP` is", " 1"),
+    "qb_where_include": ("PRINT 1\r\n\r\nREM $INCLUDE: 'WHERE.BI'\r\nPRINT 2\r\n", "WHERE.BI:3: Syntax error\r\n  Y = 1 +\r\n", " 1"),
     # Errors loading the file (a label twice, a number past 63999): the bare message, no line.
-    "qb_where_label": ("PRINT 1\r\nfoo:\r\nfoo:\r\n", ".BAS:3\r\n  foo:\r\n  ^\r\n", " 1"),
-    "qb_where_lnum": ("PRINT 1\r\n70000 PRINT 2\r\n", ".BAS:2\r\n  70000 PRINT 2\r\n  ^\r\n", " 1"),
+    "qb_where_label": ("PRINT 1\r\nfoo:\r\nfoo:\r\n", ".BAS:3: Duplicate label\r\n  foo:\r\n  ^\r\n", " 1"),
+    "qb_where_lnum": ("PRINT 1\r\n70000 PRINT 2\r\n", ".BAS:2: Syntax error\r\n  70000 PRINT 2\r\n  ^\r\n", " 1"),
     # A keyword for a procedure's name: Syntax error, with neither the line nor a word why.
     "qb_where_reserved": ("PRINT 1\r\nFUNCTION Field% (x AS INTEGER)\r\nEND FUNCTION\r\n",
-                          ".BAS:2\r\n  FUNCTION FIELD %(x AS INTEGER)\r\n           ^\r\n`FIELD` is a reserved word", " 1"),
+                          ".BAS:2: Syntax error\r\n  FUNCTION FIELD %(x AS INTEGER)\r\n           ^\r\n`FIELD` is a reserved word", " 1"),
     "qb_blk_next2": ("FOR i = 1 TO 2: FOR j = 1 TO 2: NEXT j, i: PRINT \"ok\"\r\n", "ok", "ERROR"),
     "qb_sng_range": ('PRINT VAL("1.23456789012"); 1E-45; 1 / 1E-45\r\n'
                      'a! = 3.4E+38: d# = 1D+40: x! = 1E-38: PRINT a! * 10; CSNG(d#); x! / 1000\r\n',
@@ -854,10 +854,24 @@ def forbidden(forbid: str, out: str) -> bool:
 
 
 def check_forbidden() -> None:
-    """A forbidden " 1" matched the error's address ("at address 1732:BAA0"): qb_blk_loop failed
+    """A forbidden " 1" matched the error's address ("at address 1732BAA0"): qb_blk_loop failed
     when the code moved, though PRINT 1 never ran."""
-    assert not forbidden(" 1", "LOOP without DO in line No line number in module X at address 1732:BAA0\r\n")
+    assert not forbidden(" 1", "LOOP without DO in line No line number in module X at address 1732BAA0\r\n")
     assert forbidden(" 1", " 1 \r\nLOOP without DO in line")
+
+
+def check_host_errors(tmp: Path) -> None:
+    """A file named by a Unix path. Its compile error led with BC's runtime words ("Syntax error in
+    line No line number in module /TMP at address 0000:075B", the module cut at the first '/'),
+    and exited 0. Its runtime error's address was the bytecode offset split as a 16-bit seg:off."""
+    (tmp / "sub").mkdir()
+    for name, prog, want, rc in (
+        ("bad.bas", "PRINT 1\n\nX =\n", r"^sub/bad\.bas:3: Syntax error\r?\n  X =\r?\n", 1),
+        ("rt.bas", "X = 1 / 0\n", r"^Division by zero in line No line number in module RT {7}at address [0-9A-F]{8}\r?$", 0),
+    ):
+        (tmp / "sub" / name).write_text(prog)
+        p = subprocess.run([str(dosrun.COM.resolve()), f"sub/{name}"], cwd=tmp, capture_output=True, text=True, timeout=10)
+        assert re.search(want, p.stdout, re.M) and p.returncode == rc, (name, p.returncode, p.stdout)
 
 
 # What the host build (plat/host) cannot show as DOS does, each for its reason.
@@ -866,10 +880,11 @@ HOST_SKIP = {"qb_shell": "SHELL runs /bin/sh, whose SET lists its own variables"
 
 def main() -> None:
     check_forbidden()
+    tmp = Path(tempfile.mkdtemp())
     if dosrun.is_host(dosrun.COM):
+        check_host_errors(tmp)
         for k in HOST_SKIP:
             CASES.pop(k)
-    tmp = Path(tempfile.mkdtemp())
     batches = [dict(jobs=b, limit_ms=10000, file=True, files=FILES) for b in dosrun.split({k: v[0] for k, v in CASES.items()})]
     batches += [dict(jobs={k: v[0] for k, v in REPL.items()}, limit_ms=10000),
                 dict(jobs={k: v[0] for k, v in WARN.items()}, limit_ms=10000, file=True),

@@ -138,7 +138,7 @@ static void module_name(Session *const S)
     const char *s = S->repl.file;
 
     for (const char *p = s; *p; p++)
-        if (*p == '\\' || *p == ':')
+        if (*p == '\\' || *p == '/' || *p == ':')
             s = p + 1;
 
     uint32_t n = 0;
@@ -172,26 +172,42 @@ static const char *source_name(Session *const S, const uint16_t file)
     return S->repl.file;
 }
 
-/* "FILE:n", the error's line in its source file; nothing for a line not read from one. */
-static void source_where(Session *const S)
+/* The error's line in its source file, its file in *file; 0 for a line not read from one. */
+static uint16_t source_line(Session *const S, uint16_t *const file)
 {
-    const bool direct = S->vm.line == DLINE;
-    const Line *const l = direct ? nullptr : prog_line(&S->prog, S->vm.line);
-    const uint16_t src = direct ? (S->repl.loading ? S->prog.add_src : 0) : l->src;
+    if (S->vm.line == DLINE) {
+        *file = S->prog.add_file;
+        return S->repl.loading ? S->prog.add_src : 0;
+    }
 
-    if (!src)
-        return;
+    const Line *const l = prog_line(&S->prog, S->vm.line);
+    *file = l->file;
+    return l->src;
+}
 
-    cons_nl(&S->cons);
-    cons_puts(&S->cons, source_name(S, direct ? S->prog.add_file : l->file));
+/* "FILE:n" */
+static void put_where(Session *const S, const uint16_t file, const uint16_t src)
+{
+    cons_puts(&S->cons, source_name(S, file));
     cons_putc(&S->cons, ':');
     cons_uint(&S->cons, src);
 }
 
-/* An error loading a file: where, then the line read, marked at its start. */
+static bool load_error(const Session *const S) { return S->repl.loading && S->vm.line == DLINE; }
+
+/* The ERR op a compile error raised; null for any other error. */
+static const ErrOp *err_op(const Session *const S)
+{
+    const ErrOp *const e = (const ErrOp *)S->vm.opip;
+    return e && e->op == O_ERR ? e : nullptr;
+}
+
+/* An error found before the run: loading the file, or compiling. */
+static bool compile_error(const Session *const S) { return load_error(S) || err_op(S); }
+
+/* An error loading a file: the line read, marked at its start. */
 static void diagnose_load(Session *const S)
 {
-    source_where(S);
     cons_nl(&S->cons);
     cons_spaces(&S->cons, 2);
     cons_puts(&S->cons, (const char *)S->cons.inbuf);
@@ -205,12 +221,10 @@ static void diagnose_load(Session *const S)
    the place, what is wrong and what to do. Any other error: nothing. */
 static void diagnose(Session *const S)
 {
-    const ErrOp *const e = (const ErrOp *)S->vm.opip;
+    const ErrOp *const e = err_op(S);
 
-    if (!e || e->op != O_ERR)
+    if (!e)
         return;
-
-    source_where(S);
 
     const uint8_t *const body =
         S->vm.line == DLINE ? S->comp.cbuf : at(prog_addr(&S->prog, S->vm.line) + HDR);
@@ -238,8 +252,10 @@ static void diagnose(Session *const S)
     diag_say(&S->diag);
 }
 
-/* repl_error's message, a file run's where, as BC's: "in line n|No line number in module NAME at
-   address s:o"; or BREAK [IN n]. The stacks reset first; the editor takes it there. */
+/* repl_error's message. A file run's compile error: "FILE:n: " before it. Its runtime error, as
+   BC's, after it: "in line n|No line number in module NAME at address X", X the op's bytecode
+   offset. Else "in line n" if numbered, then a compile error's FILE:n on a line of its own. Or
+   BREAK [IN n]. The stacks reset first; the editor takes it there. */
 static void report(Session *const S, const uint8_t code)
 {
     const uint32_t line = S->vm.line;
@@ -258,10 +274,19 @@ static void report(Session *const S, const uint8_t code)
 
     S->vm.fp = 0;
     S->vm.cont.line = 0;
+    uint16_t file;
+    const uint16_t src = source_line(S, &file);
+    const bool compiled = compile_error(S), lead = S->repl.batch && compiled && src;
+
+    if (lead) {
+        put_where(S, file, src);
+        cons_puts(&S->cons, ": ");
+    }
+
     cons_puts(&S->cons, emsg_text(S->vm.err.user, code));
 
     if (line != DLINE) {
-        if (S->repl.batch) {
+        if (S->repl.batch && !compiled) {
             cons_puts(&S->cons, " in line ");
             const uint16_t erl = flow_erl(&S->prog, line);
 
@@ -275,7 +300,6 @@ static void report(Session *const S, const uint8_t code)
             cons_puts(&S->cons, " at address ");
             const uint32_t off = (uint32_t)(S->vm.opip - at(S->allo.cache));
             cons_hex4(&S->cons, (uint16_t)(off >> 16));
-            cons_putc(&S->cons, ':');
             cons_hex4(&S->cons, (uint16_t)off);
         } else if (prog_line(&S->prog, line)->num !=
                    NONUM) { /* typed lines: in line n, if numbered */
@@ -284,7 +308,12 @@ static void report(Session *const S, const uint8_t code)
         }
     }
 
-    if (S->repl.loading && line == DLINE)
+    if (compiled && src && !lead) {
+        cons_nl(&S->cons);
+        put_where(S, file, src);
+    }
+
+    if (load_error(S))
         diagnose_load(S);
     else
         diagnose(S);
@@ -469,7 +498,7 @@ void repl_main(Session *const S)
             qbrt_text(); /* the message stays: the exit's text mode would clear a graphics screen */
             report(S, (uint8_t)st);
 
-            if (S->repl.checking) /* a block's pairing, or the file not found */
+            if (S->repl.checking || (S->repl.batch && compile_error(S))) /* never ran */
                 cons_exit(&S->cons, 1);
         }
     }
