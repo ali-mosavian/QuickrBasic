@@ -15,6 +15,7 @@ left of column 0, was a negative tile column, and the game stopped with Subscrip
 """
 
 import sys
+import shutil
 import tempfile
 import subprocess
 from pathlib import Path
@@ -319,6 +320,7 @@ def main() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "T.BAS"
         path.write_text(src.replace("\nMain\nEND\n", "\n" + DRIVER, 1))
+        shutil.copy(DEMO.with_suffix(".DAT"), tmp)
         run = subprocess.run([exe, path.name], cwd=tmp, capture_output=True, timeout=120)
     out = run.stdout.decode(errors="replace") + run.stderr.decode(errors="replace")
     if "edge ok" not in out:

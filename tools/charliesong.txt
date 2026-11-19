@@ -1,0 +1,85 @@
+' The tune: 76 bars of 28, each a letter of the order: an intro and its variation, then A, B, C and D twice
+' round and four bars of A fading. A bar is its chord's root from D, a bass riff and a drum pattern by number, the
+' second brass, the brass and the lead. After the order: each bar's brasses, h horns or k the organ and a clavinet;
+' the bars there are; the tempo; the bars the bass waits; how loud the brass, the lead, the second brass, the low voice and the
+' bass are; the bars at its end that fade; the bar it comes in at where it is not from its start. After the intro the brass is an organ, high, and the second a low chug. A riff is sixteen sixteenths: a note in semitones above its voice's lowest
+' (0-9, a-z), a capital slid into, "-" holds it, "." rests. A second brass of two letters is a chord pattern by number and its note.
+Song:
+DATA "abcdabcefghefgh{ijkl|jkmnopqnoprstuvwxyzwxyzijkl|jkmnopqnoprstuvwxyzwxyzijkm", "hhhhhhhhkkkkkkkkkkkkkkkkkkhk", 28, 140, 3, 12, 9, 10, 9, 13, 4, 0
+DATA "0.0.C.0.00c.7.0C", "0.0.7.0.C.0c.7c7", "0.0.0.0.C.c.057c", "0.C00c7c0.C057ac", "0.......0.....7."
+DATA "x.x.x.xx.xx.x.x.", "x.......x.....x.", "x.x.x.x.x.x.x.x."
+DATA "KHHHSHHSKHKHSHHH", "KHHHSHKHSSTTSTSS", "K.H.S.H.K.K.S.H.", "K.H.S.SSKSSTSTTS", "KHHSHHKSKHHSHHSS"
+DATA "K.H.S.H.K.K.S.H.", "K.H.S.H.K.K.S.SS"
+DATA 0, 1, 0, "8-.8c.e-..f.e-c.", "c-.cf.h-..j.h-f.", ""
+DATA 0, 1, 0, "8-.8c.e-..j.f-e-", "c-.cf.h-..m.j-h-", ""
+DATA -4, 4, 0, "h..h....f..e..c.", "k..k....j..h..f.", ""
+DATA -5, 3, 1, "k-..k.j.f-e-b---", "o-..o.m.j-h-e---", ""
+DATA -5, 3, 1, "j-..j.k.m-k-j-f-", "m-..m.o.q-o-m-j-", ""
+DATA 5, 1, 0, "e-f-h-.e..h.k---", "h-j-k-.h..k.o---", "............o.r."
+DATA 0, 2, 0, "f-.fe.c-..7.c-f-", "j-.jh.f-..c.f-j-", "..........o.r.o."
+DATA -4, 1, 0, "h-j-k-.h..k.o---", "k-m-o-.k..o.r---", "........o.r.t.r."
+DATA 0, 1, 0, "0f", "v--.v..v--------", "c.fj..f.oj..f.hj"
+DATA -2, 1, 0, "0e", "t--.t..t--------", "a.hm..h.qm..h.ae"
+DATA -4, 1, 0, "0c", "r--.r..r--------", "8.fk..f.ok..f.8c"
+DATA -5, 2, 0, "0e", "q--.q..q--------", "7.ej..e.nj..e.be"
+DATA -5, 3, 1, "0e", "q--.q..v--------", "7.ej..n.qn.jeb7-"
+DATA 5, 5, 0, "1c", "....t-....w.t.w.", "o-..k.h-..k-o---"
+DATA -2, 5, 0, "1e", "....q-....t.q.t.", "m-..h.e-..h-m---"
+DATA 0, 5, 0, "1f", "....r-....v.r.v.", "o-..j.f-..j-r---"
+DATA -5, 5, 0, "1e", "..q...q-j-q-v---", "q-n-j-.q..n.j-e-"
+DATA -5, 3, 1, "1e", "..q...q-j-q-v---", "q-n-jnqnjnqnvvvv"
+DATA -4, 1, 4, "0c", "r-------r---w---", "kk.rr.k.rw.o.krw"
+DATA -2, 1, 4, "0e", "t-------t---y---", "mm.tt.m.ty.q.mty"
+DATA 0, 1, 4, "0f", "v-------v---o---", "oo.vv.o.vv.o.rov"
+DATA 0, 3, 1, "0f", "o---m---j---f---", "vtrqomkjhfecefhj"
+DATA 0, 2, 0, "0f", "r--.r..v--------", "o.oo.m.o-..j.m.o"
+DATA 0, 2, 0, "0f", "r--.r..v--------", "r.rr.q.o-..m.j.m"
+DATA -4, 2, 0, "0c", "r--.r..w--------", "o.oo.k.o-..r.o.k"
+DATA -2, 3, 1, "0e", "q--.q..t--------", "q.qq.m.q-..t-q-m"
+DATA -5, 3, 1, "j-..j.k.m-k-j-f-", "m-..m.o.q-o-m-j-", "........7bejnqv-"
+DATA 0, 1, 0, "0f", "v--.v..v--------", "o.jo..m.oj..f.hj"
+
+' Charlie's own theme, for the title and the level's end: 64 bars of 30 in G minor, as fast. Three organs, two of
+' them in stereo, stab a four bar round: the brass's voice, the second brass's the note under it, and a third's
+' under that, a bar's last riff. A brass lead answers them, busy two bars and held two, its fourth bar another as
+' it comes round again; then eight bars of horn hits a run answers, and four where a low riff is joined a voice a
+' bar. A bar's brasses: o organs, h horns, k the organ and a clavinet. Hats have ghosts (h) between them and one
+' left open (O). It ends on a held chord, not a fade, and at the level's end comes in at the hits. Its levels are
+' a song's a listener passed, part for part against its drums: as first written the lead was 2.8 dB under that
+' and the bass 2.2 over. As Song's.
+Song2:
+DATA "abyzwxcdefcde}ghijghi~klmnopqrstuvcdefghi~klmnopqrstuvcde}ghij{|", "oooooooooohohohohokkkkoooohhoo", 30, 140, 2, 10, 14, 9, 8, 11, 0, 22
+DATA "0..0c.0..0c.7ac.", "0.c.0.c.0.0c7.5.", "0--0--0-........", "0.03.5.0.a.c5.3.", "................"
+DATA "..x..x....x..x..", "x..x..x...x.x...", "x.......x.....x."
+DATA "KhHhShHKhHKhShOh", "KhHhShHKhHKhSSTS", "K..K..K.ShHhShHH", "KhHhShHhKhHhShOh", "HhHhHhHHHhHhHhOh"
+DATA "KhHhHhHhKhHhHhOh", "K.S.K.SSTTSSTSSS"
+DATA 5, 5, 4, "k..k..k-......j.", "o..o..o-......m.", "", "h..h..h-......f."
+DATA 5, 5, 4, ".k.k..m---------", ".o.o..r---------", "", ".h.h..j---------"
+DATA 5, 1, 0, "k..k..k-......j.", "o..o..o-......m.", "..h.k.m.o-m.k.m.", "h..h..h-......f."
+DATA 5, 2, 0, ".k.k..m---------", ".o.o..r---------", "o-..r.o.m-k-h---", ".h.h..j---------"
+DATA 1, 1, 0, "h..h..h-......j.", "k..k..k-......m.", "..k.m.o.r-o.m.o.", "d..d..d-......f."
+DATA 3, 2, 1, ".j.j..m---------", ".m.m..o---------", "r-..t.r.o-m-o---", ".f.f..j---------"
+DATA 5, 1, 0, "k..k..k-......j.", "o..o..o-......m.", "t---..r.t-w-t-r-", "h..h..h-......f."
+DATA 5, 2, 0, ".k.k..m---------", ".o.o..r---------", "o-------..m.o.r.", ".h.h..j---------"
+DATA 1, 1, 0, "h..h..h-......j.", "k..k..k-......m.", "t---..r.t-w-y-w-", "d..d..d-......f."
+DATA 3, 2, 1, ".j.j..m---------", ".m.m..o---------", "v-------........", ".f.f..j---------"
+DATA -2, 3, 2, "h--h--h-........", "m--m--m-........", "", ""
+DATA -2, 2, 3, "", "", "..m.p.m.t-r.p.m.", ""
+DATA 0, 3, 2, "j--j--j-........", "o--o--o-........", "", ""
+DATA 0, 2, 3, "", "", "..o.r.o.v-t.r.o.", ""
+DATA 1, 3, 2, "k--k--k-........", "p--p--p-........", "", ""
+DATA 1, 2, 3, "", "", "..p.t.p.w-t.p.t.", ""
+DATA 3, 3, 2, "m--m--m-........", "r--r--r-........", "", ""
+DATA 3, 2, 6, "", "", "r.r.t.t.v.v.y.y.", ""
+DATA 5, 4, 5, "", "", "", ""
+DATA 5, 4, 5, "5.58.a.5.f.ha.8.", "", "", ""
+DATA 5, 4, 5, "5.58.a.5.f.ha.8.", "....t---....t---", "", ""
+DATA 5, 4, 6, "5.58.a.5.f.ha.8.", "....t---....w---", "........h.k.m.o.", ""
+DATA 1, 1, 0, "h..h..h-......j.", "k..k..k-......m.", "", "d..d..d-......f."
+DATA 3, 2, 1, ".j.j..m---------", ".m.m..o---------", "", ".f.f..j---------"
+DATA 5, 1, 0, "k..k..k-......j.", "o..o..o-......m.", "", "h..h..h-......f."
+DATA 5, 2, 0, ".k.k..m---------", ".o.o..r---------", "", ".h.h..j---------"
+DATA 5, 3, 2, "o--o--o-........", "t--t--t-........", "..t.w.t.r-o.m.o.", ""
+DATA 5, 5, 6, "o---------------", "t---------------", "t---------------", ""
+DATA 3, 2, 1, ".j.j..m---------", ".m.m..o---------", "r-..t.r.w-t-r.t.", ".f.f..j---------"
+DATA 3, 2, 6, ".j.j..m---------", ".m.m..o---------", "v---..t.v-y-w-t-", ".f.f..j---------"

@@ -674,7 +674,8 @@ def cmd_charlie(a: argparse.Namespace) -> int:
     dosrun.CONF = conf.replace("core=normal\ncputype=pentium\nvirtual time=true\nvirtual time rate=20000\n", FPS_CPU)
     assert dosrun.CONF != conf
     with tempfile.TemporaryDirectory() as d:
-        r = dosrun.run({"each": charlie_program()}, Path(d) / "w", limit_ms=600000, file=True, mem=16)
+        r = dosrun.run({"each": charlie_program()}, Path(d) / "w", limit_ms=600000, file=True, mem=16,
+                       files={"CHARLIE.DAT": CHARLIE.with_suffix(".DAT").read_bytes()})
         log = Path(d) / "w/EACH.TXT"
         rows = [ln.split() for ln in log.read_text().splitlines()] if log.exists() else []
     dosrun.CONF = conf

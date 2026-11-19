@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """charlieart.py [--check] [--sheet PNG]: CHARLIE.BAS's palette and pictures (Charlie, tiles, things, props),
-drawn here as shaded, dithered pixels and written into the game as DATA between its CharlieArt markers:
-drawn by the game they would cost its start-up a pixel at a time. --check: fail when the DATA is
-stale. --sheet: every picture to a PNG, to look at.
+drawn here as shaded, dithered pixels and written to CHARLIE.DAT beside the game, a little-endian LONG a value:
+drawn by the game they would cost its start-up a pixel at a time. --check: fail when the file is
+stale. --sheet: every picture to a PNG, to look at. The game's tunes, tools/charliesong.txt, go in after them.
 
-A picture's DATA: its index, width, height, masked, mirror's index (-1 none), then its GET buffer's
+A picture in the file: its index, width, height, masked, mirror's index (-1 none), then its GET buffer's
 LONGs and, masked, its mask's: a count n then n values; -n then one value n times; 0 the end."""
 
+import re
 import sys
 import math
 import struct
@@ -16,9 +17,8 @@ from pathlib import Path
 from collections.abc import Callable
 
 ROOT = Path(__file__).resolve().parents[1]
-DEMO = ROOT / "src/plat/wasm/web/demos/CHARLIE.BAS"
-BEGIN, END = "' CharlieArt's begin.\n", "' CharlieArt's end.\n"
-WIDTH = 100  # a DATA line's most characters
+DAT = ROOT / "src/plat/wasm/web/demos/CHARLIE.DAT"
+SONG = ROOT / "tools/charliesong.txt"
 INK, WHITE = 2, 1
 BAYER = ((0, 8, 2, 10), (12, 4, 14, 6), (3, 11, 1, 9), (15, 7, 13, 5))
 PAL: dict[int, tuple[int, int, int]] = {0: (2, 2, 8), 1: (63, 63, 63), 2: (5, 3, 8), 3: (63, 56, 20), 4: (60, 14, 12)}
@@ -1406,8 +1406,19 @@ def encode(vals: list[int]) -> list[int]:
     return [*out, 0]
 
 
-def block() -> str:
-    """The DATA between the markers: the palette, then the pictures."""
+def song() -> bytes:
+    """SONG's DATA lines in order: a number a LONG, a string its length and its characters."""
+    out = b""
+    for line in SONG.read_text().splitlines():
+        if line.startswith("DATA "):
+            for num, text in re.findall(r'(-?\d+)|"([^"]*)"', line[5:]):
+                out += struct.pack("<i", int(num)) if num else struct.pack("<i", len(text)) + text.encode("ascii")
+    return out
+
+
+def blob() -> bytes:
+    """CHARLIE.DAT: the 1-based byte its tunes start at, the palette, the pictures, the tunes; each value a
+    little-endian LONG."""
     pics = pictures()
     vals = [len(PAL)]
     for i, (r, g, b) in sorted(PAL.items()):
@@ -1417,14 +1428,7 @@ def block() -> str:
         vals += [k, p.w, p.h, int(masked), k2, *encode(p.longs())]
         if masked:
             vals += encode(p.longs(mask=True))
-    lines, cur = ["' The palette and pictures, as tools/charlieart.py draws them.", "CharlieArt:"], ""
-    for v in vals:
-        item = str(v)
-        if cur and len(cur) + 1 + len(item) > WIDTH:
-            lines.append(cur)
-            cur = ""
-        cur = f"{cur},{item}" if cur else f"DATA {item}"
-    return BEGIN + "\n".join([*lines, cur]) + "\n" + END
+    return struct.pack(f"<{len(vals) + 1}i", len(vals) * 4 + 5, *vals) + song()
 
 
 def sheet(path: Path) -> None:
@@ -1448,19 +1452,18 @@ def sheet(path: Path) -> None:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--check", action="store_true", help="fail when the DATA is stale")
+    ap.add_argument("--check", action="store_true", help="fail when CHARLIE.DAT is stale")
     ap.add_argument("--sheet", type=Path, help="the pictures to this PNG")
     a = ap.parse_args()
     if a.sheet:
         sheet(a.sheet)
         return
-    src = DEMO.read_text()
-    pre, rest = src.split(BEGIN, 1)
-    new = pre + block() + rest.split(END, 1)[1]
+    new = blob()
     if a.check:
-        sys.exit(0 if new == src else "charlieart: CHARLIE.BAS's CharlieArt is stale; run tools/charlieart.py")
-    DEMO.write_text(new)
-    print(f"charlieart: {len(pictures())} pictures, {len(block())} characters")
+        fresh = DAT.exists() and DAT.read_bytes() == new
+        sys.exit(0 if fresh else "charlieart: CHARLIE.DAT is stale; run tools/charlieart.py")
+    DAT.write_bytes(new)
+    print(f"charlieart: {len(pictures())} pictures, {len(new)} bytes")
 
 
 if __name__ == "__main__":

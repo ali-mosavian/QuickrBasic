@@ -6,7 +6,8 @@ import { memory as newMemory, Irq, sidecar, ticker, MUSIC_HZ } from './wasm.mjs'
 
 const BLINK_MS = 267;
 const DEMOS = ['WELCOME.BAS', 'GORILLA.BAS', 'NIBBLES.BAS', 'MOTHLITE.BAS', 'RUSTLINE.BAS', 'CHARLIE.BAS'];
-const SUPPORT = ['BASIC.HLP']; // F1's help file, beside the programs, as on DOS
+// F1's help file and a game's pictures, beside the programs, as on DOS
+const SUPPORT = ['BASIC.HLP', 'demos/CHARLIE.DAT'];
 const STORE = 'qb:'; // localStorage: STORE + path -> the file in base64
 
 const canvas = document.getElementById('screen');
