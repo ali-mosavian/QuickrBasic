@@ -146,3 +146,43 @@ DATA 5, 1, 1, "l---------------", "h-l-o-l-h-l-o-l-", "o-t-v---x---v-t-", "o----
 DATA -2, 1, 1, "e---------------", "a-e-h-e-a-e-h-e-", "q-t-y---x-y-x-v-", "h---------------"
 DATA 0, 1, 2, "g---------------", "c-g-j-g-c-g-j-g-", "t-v-x-v-t-s-q-s-", "j---------------"
 DATA 5, 2, 3, "l---------------", "h-l-o-t-t-------", "t-------........", "o---------------"
+
+' The intro, Moving Day: 28 bars of 21 at 120, once, a scene every four. The family's tune on her guitar alone, then
+' with a bass and brushes; the Mob's, low on a clavinet, creeping by semitones; one hit where the van bumps, and the
+' Mob's again, busier; the first phrase of Charlie's theme; the family's and the Mob's a bar each, twice; the
+' theme's next phrase, a run up out of its last bar into the title's. A bar's voices: g her guitar over soft
+' pipes, c two clavinets, b the theme's organs.
+Song Intro:
+DATA "abcdefghijijklmlnopqeigjrstu", "ggggggggcccccbbbbbbbb", 21, 120, 4, 12, 12, 8, 8, 11, 0, 0, 1
+DATA "W4Z1,9,3,15,3H5,4,10,1U5I4"
+USE Low
+DATA 3
+DATA "g", "W4Z1,10,4,2H0,9,0,6", "W1H5,4,12,5U3", 0
+DATA "c", "W4Z3,9,3,1,3H0,4,1,2U0I0", "W4Z3,9,3,1,3H0,4,1,2U0I0", 0
+DATA "b", "W4Z1,4,3,13,4H0,4,11,1U9I0", "W4Z1,4,3,13,4H0,4,11,1U9I0", 1
+USE Drums
+DATA 5, "0-------7-------", "0..03.2.0.1.0...", "........0-------", "0..0c.0..0c.7ac.", "0.c.0.c.0.0c7.5."
+DATA 0
+DATA 8, "................", "K.h.S.h.K.h.S.hh", "K.h.S.h.KSSTSTTS", "K..h..K.S..h.K.h", "........K...S..."
+DATA "KhHhShHKhHKhShOh", "KhHhShHKhHKhSSTS", "K.S.K.SSTTSSTSSS"
+DATA 5, 1, 0, "", "o-t-v---x---v-t-", "", ""
+DATA -2, 1, 0, "", "q-t-y---x-v-t---", "", ""
+DATA 0, 1, 0, "", "v---s---o---s-v-", "", ""
+DATA 5, 1, 0, "", "t-----------o-s-", "", ""
+DATA 5, 1, 1, "l---------------", "o-t-v---x---v-t-", "", ""
+DATA -2, 1, 1, "h---------------", "q-t-y---x-v-t---", "", ""
+DATA 0, 1, 1, "g---------------", "v---s---o---s-v-", "", ""
+DATA 5, 1, 2, "h---------------", "t---------------", "", ""
+DATA 5, 2, 3, "", "5..58.7.5.4.5...", "", ""
+DATA 5, 2, 3, "............h.g.", "5..58.7.5.8.9.a.", "", ""
+DATA 5, 3, 4, "........o---....", "........t---....", "", ""
+DATA 5, 2, 3, "......h.....g...", "5.58.757.4.58.7.", "", ""
+DATA 5, 2, 3, "....h.g.....k.j.", "5.58.75a.9.8.7.5", "", ""
+DATA 5, 4, 5, "k..k..k-......j.", "o..o..o-......m.", "..h.k.m.o-m.k.m.", "h..h..h-......f."
+DATA 5, 5, 5, ".k.k..m---------", ".o.o..r---------", "o-..r.o.m-k-h---", ".h.h..j---------"
+DATA 1, 4, 5, "h..h..h-......j.", "k..k..k-......m.", "..k.m.o.r-o.m.o.", "d..d..d-......f."
+DATA 3, 5, 6, ".j.j..m---------", ".m.m..o---------", "r-..t.r.o-m-o---", ".f.f..j---------"
+DATA 5, 4, 5, "k..k..k-......j.", "o..o..o-......m.", "t---..r.t-w-t-r-", "h..h..h-......f."
+DATA 5, 5, 5, ".k.k..m---------", ".o.o..r---------", "o-------..m.o.r.", ".h.h..j---------"
+DATA 1, 4, 5, "h..h..h-......j.", "k..k..k-......m.", "t---..r.t-w-y-w-", "d..d..d-......f."
+DATA 3, 5, 7, ".j.j..m---------", ".m.m..o---------", "r.r.t.t.v.v.y.y.", ".f.f..j---------"

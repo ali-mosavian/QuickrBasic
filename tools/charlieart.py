@@ -213,7 +213,12 @@ def dog(
             p.put(x, round(by + 6), FUR[2])
         paw(p, 8, hip, back, False)
         paw(p, 18, hip, front, False, lift)
-    hx, hy = 22.5 + lean + stretch * 0.5, 12 + bob + squat * 1.2 + lean * 0.3 + stretch * 0.6
+    snout(p, 22.5 + lean + stretch * 0.5, 12 + bob + squat * 1.2 + lean * 0.3 + stretch * 0.6, ear, eye, pant)
+    return p.outline()
+
+
+def snout(p: Pic, hx: float, hy: float, ear: float, eye: str, pant: bool) -> None:
+    """Charlie's head about hx, hy, facing right: its muzzle, its ears hung at `ear`, its nose, mouth and eye."""
     p.ball(hx, hy, 6.2, 5.8, FUR, 0.4, 1.2)
     p.ball(hx + 3.6, hy + 4.2, 3.6, 2.6, FUR, 0.3, 1.0)
     p.ball(hx + 4.8, hy + 2.2, 3.4, 2.5, FUR, 0.5, 1.25)
@@ -238,7 +243,6 @@ def dog(
         p.line(ex - 1, ey + 1.5, ex + 2, ey - 1.5, INK)
     else:
         p.line(ex - 1, ey + 0.5, ex + 2, ey + 0.5, INK)
-    return p.outline()
 
 
 def afraid(f: int = 0) -> Pic:
@@ -1464,6 +1468,265 @@ def rock() -> Pic:
     return p
 
 
+# ---- the intro's: the van and the old house, the Mob's float and the Baron, what falls off ----
+
+CREAM = FUR[2:]
+CARTON = [EARTH[1], EARTH[2], EARTH[4], EARTH[6]]
+
+
+def slab(p: Pic, x0: int, y0: int, x1: int, y1: int, r: list[int]) -> None:
+    """A box side on, of r's four tones, dark to lit: its face, a lit top edge, a shaded foot and right side."""
+    for y in range(y0, y1 + 1):
+        for x in range(x0, x1 + 1):
+            p.put(x, y, r[3] if y - y0 < 2 else r[1] if y1 - y < 2 or x1 - x < 2 else r[2])
+
+
+def tyre(turn: int) -> Pic:
+    """A wheel of the van's or the float's, 18 across, its three spokes a sixth of a turn on at each `turn`."""
+    p = Pic(18, 18)
+    for y in range(18):
+        for x in range(18):
+            dx, dy = x - 8.5, y - 8.5
+            d = math.hypot(dx, dy)
+            if d > 8.6:
+                continue
+            spoke = (math.degrees(math.atan2(dy, dx)) + turn * 60) % 120 < 34
+            p.put(x, y, INK if d > 5.4 else STONE[3] if d < 1.8 else STONE[1] if spoke else STONE[2])
+    return p
+
+
+def van() -> Pic:
+    """The family's van, bound right, less its wheels: a cream box, a red band along its foot, its roof piled with
+    boxes roped down, a rolled rug and a lamp among them; its back door at the left."""
+    p = Pic(140, 80)
+    slab(p, 16, 10, 40, 27, WOOD)
+    slab(p, 42, 14, 66, 27, CARTON)
+    slab(p, 68, 6, 90, 27, WOOD)
+    slab(p, 92, 16, 110, 27, CARTON)
+    for x in range(20, 64):  # the rug, rolled
+        for y in range(4, 10):
+            p.put(x, y, SCARF[1] if y > 7 else SCARF[2] if (x // 4) % 2 else SCARF[3])
+    for x, y0 in ((28, 10), (54, 14), (79, 6), (101, 16)):  # the ropes
+        p.line(x, y0, x, 27, FUR[1])
+    for y in range(8):  # the lamp's shade
+        for x in range(96 - y // 2, 105 + y // 2):
+            p.put(x, y + 8, GOLD[2] if y < 6 else GOLD[1])
+    p.line(100, 4, 100, 8, STONE[1])
+    p.box(12, 26, 114, 28, STONE[1])  # the rack
+    for y in range(29, 70):  # the body, its nose stepped down
+        for x in range(4, 136):
+            if x > 116 and y < 47 - (136 - x) // 3:
+                continue
+            if (x < 6 or x > 133) and (y < 31 or y > 67):
+                continue
+            t = CREAM[3] if y < 31 else SCARF[1] if y > 66 else SCARF[2] if y > 56 else CREAM[2]
+            p.put(x, y, CREAM[1] if 54 <= y <= 56 else t)
+    for y in range(34, 50):  # the cab's window, slanted, then two along the side
+        for x in range(118, 131):
+            if x - 118 < (y - 34) * 0.9 + 9:
+                p.put(x, y, TEAL[4] if y < 37 else TEAL[3])
+    for x0 in (56, 86):
+        for y in range(34, 50):
+            for x in range(x0, x0 + 24):
+                p.put(x, y, TEAL[4] if (x - x0) + (y - 34) < 9 else TEAL[3])
+        p.box(x0 - 1, 33, x0 + 24, 33, CREAM[1])
+        p.box(x0 - 1, 50, x0 + 24, 50, CREAM[1])
+    for x, y0, y1 in ((8, 33, 64), (9, 33, 64), (22, 33, 64), (50, 33, 64), (114, 46, 64)):  # the doors' seams
+        p.box(x, y0, x, y1, CREAM[1])
+    p.box(11, 47, 13, 49, STONE[1])
+    p.box(108, 52, 111, 53, STONE[1])
+    p.box(132, 52, 135, 57, GOLD[4])  # its lamps and bumpers
+    p.box(4, 50, 5, 56, SCARF[3])
+    p.box(2, 66, 12, 69, STONE[2])
+    p.box(128, 66, 138, 69, STONE[2])
+    for cx in (32, 108):  # the arches
+        for y in range(58, 70):
+            for x in range(cx - 11, cx + 12):
+                if math.hypot(x - cx, y - 70) < 11.5:
+                    p.put(x, y, INK)
+    return p.outline()
+
+
+def door() -> Pic:
+    """The van's back door swung open, edge on."""
+    p = Pic(12, 36)
+    for y in range(34):
+        for x in range(9 - y // 12):
+            p.put(x + 1, y + 1, CREAM[3] if x == 0 else CREAM[1] if x > 5 else CREAM[2])
+    p.box(3, 15, 5, 17, STONE[1])
+    return p.outline()
+
+
+def peek() -> Pic:
+    """Charlie's head out of the van's window, into the wind: its ears flying, its tongue out."""
+    p = Pic(24, 17)
+    snout(p, 13, 7, 1.5, "happy", True)
+    return p.outline()
+
+
+def boxes() -> Pic:
+    """The last of the boxes by the gate: three, a plant in the top one."""
+    p = Pic(44, 40)
+    slab(p, 2, 22, 22, 38, WOOD)
+    slab(p, 23, 18, 41, 38, CARTON)
+    slab(p, 10, 8, 30, 21, WOOD)
+    p.box(11, 14, 29, 14, FUR[1])
+    p.box(3, 29, 21, 29, FUR[1])
+    for dx, dy in ((0, 0), (-3, -3), (3, -2), (-1, -6), (2, -5)):
+        p.ball(20 + dx, 7 + dy, 2.6, 2.6, GRASS, 0.3, 1.1)
+    return p.outline()
+
+
+def crate() -> Pic:
+    """One box, thrown."""
+    p = Pic(20, 16)
+    slab(p, 1, 1, 18, 14, CARTON)
+    p.box(2, 7, 17, 7, FUR[1])
+    return p.outline()
+
+
+def basket() -> Pic:
+    """The picnic basket: wicker, a checked cloth out of its side, a hooped handle."""
+    p = Pic(18, 15)
+    for x in range(4, 14):
+        p.put(x, 4 - round(3.5 * math.sin((x - 4) / 9 * math.pi)), WOOD[2])
+    for y in range(6, 14):
+        for x in range(2 + (y > 11), 16 - (y > 11)):
+            p.put(x, y, WOOD[3] if y == 6 else WOOD[1] if (x + y // 2) % 3 == 0 else WOOD[2])
+    for y in range(5, 10):
+        for x in range(9, 15):
+            if x - 9 >= (y - 5) - 1:
+                p.put(x, y, SCARF[2] if (x + y) % 2 else FUR[5])
+    return p.outline()
+
+
+def baron(point: bool) -> Pic:
+    """Baron Marmalade: a great ginger cat sat upright, cream fronted, in a top hat, a glass at one eye on its
+    chain; point: a paw out at what he wants."""
+    p = Pic(40, 44)
+    fur, bib = EARTH[2:], [FUR[2], FUR[4], FUR[5]]
+    for i, (dx, dy) in enumerate(((0, 0), (3, -3), (5, -7), (4, -11), (1, -13))):  # the tail, a hook
+        p.ball(6 + dx, 38 + dy, 2.6, 2.6, fur, 0.2, 1.0 - i * 0.05)
+    p.ball(19, 31, 10.5, 10.5, fur, 0.2, 1.05)
+    p.ball(20, 33, 6.2, 7.5, bib, 0.3, 1.1)
+    for x in (14, 25):  # hind paws
+        p.ball(x, 41, 4.2, 2.2, fur, 0.4, 1.1)
+    for x, y in ((11, 26), (11, 30), (12, 34)):  # stripes
+        p.line(x, y, x + 3, y + 1, fur[0])
+    if point:
+        p.line(26, 28, 35, 24, fur[3], 3)
+        p.ball(36, 23.5, 2.6, 2.2, fur, 0.5, 1.2)
+    else:
+        p.ball(27, 32, 2.6, 3.4, fur, 0.4, 1.1)
+    p.ball(13, 32, 2.6, 3.4, fur, 0.2, 0.9)
+    p.ball(20, 17, 8.2, 7.2, fur, 0.3, 1.1)
+    for x, d in ((14, -1), (26, 1)):  # ears, either side of the hat
+        for i in range(4):
+            p.box(x - (3 - i) * (d < 0), 9 + i, x + (3 - i) * (d > 0), 9 + i, fur[3])
+    p.ball(20, 20, 4.6, 3.4, bib, 0.4, 1.1)
+    p.box(19, 19, 21, 19, PETAL[0])
+    p.line(18, 22, 22, 22, INK)
+    p.box(15, 15, 16, 17, GRASS[4])
+    p.put(16, 16, INK)
+    for a in range(0, 360, 30):  # the eyeglass and its chain
+        p.put(round(24.5 + 2.6 * math.cos(math.radians(a))), round(16 + 2.6 * math.sin(math.radians(a))), GOLD[3])
+    p.box(24, 15, 25, 17, GRASS[4])
+    p.put(25, 16, INK)
+    p.line(27, 18, 30, 26, GOLD[2])
+    p.box(14, 1, 26, 10, DARK[1])  # the hat
+    p.box(14, 1, 26, 1, DARK[2])
+    p.box(14, 2, 15, 9, DARK[2])
+    p.box(14, 8, 26, 9, SCARF[2])
+    p.box(10, 10, 30, 11, DARK[1])
+    return p.outline()
+
+
+def milkfloat() -> Pic:
+    """The Mob's ride, a milk float bound right, less its wheels: a flat cart, crates of bottles at its back, a
+    bench at its front, a lamp on its nose."""
+    p = Pic(88, 40)
+    for x0 in (8, 23):  # the crates, a row of bottles in each
+        slab(p, x0, 9, x0 + 14, 18, WOOD)
+        for x in range(x0 + 2, x0 + 14, 4):
+            p.box(x, 4, x + 1, 8, FUR[5])
+            p.box(x, 3, x + 1, 3, TEAL[3])
+    slab(p, 60, 11, 76, 18, STONE)  # the bench
+    p.box(74, 4, 76, 10, STONE[2])
+    slab(p, 4, 19, 84, 29, [TEAL[0], TEAL[1], TEAL[2], TEAL[3]])
+    p.box(84, 22, 86, 25, GOLD[4])
+    for cx in (20, 68):  # the arches
+        for y in range(24, 30):
+            for x in range(cx - 10, cx + 11):
+                if math.hypot(x - cx, y - 30) < 10.5:
+                    p.put(x, y, INK)
+    return p.outline()
+
+
+def hedge() -> Pic:
+    """The hedge the Mob waits in: deep, clipped flat along its foot."""
+    p = Pic(160, 52)
+    rows = ((14, 10, 30, 7, 5, 12, 2), (13, 16, 20, 5, 6, 11, 1), (12, 22, 12, 3, 5, 9, 0))
+    clumps(
+        p,
+        [(x0 + i * 11, y + (i * m) % d, rad, lv) for n, x0, y, m, d, rad, lv in rows for i in range(n)],
+        SHRUB,
+        flat=50,
+    )
+    return p
+
+
+def house() -> Pic:
+    """The old house's front, left behind: a plastered wall under thatch, a door stood open on an empty hall, a
+    window with a box of flowers."""
+    p = Pic(132, 124)
+    for y in range(34, 122):
+        for x in range(6, 126):
+            p.put(x, y, AMBER[0] if x < 9 else AMBER[2] if x > 122 or y > 118 else AMBER[1])
+    for y in range(4, 38):  # the thatch, in courses
+        half = round(66 - (38 - y) * 0.2)
+        for x in range(max(66 - half - 4, 0), min(66 + half + 5, 132)):
+            under = (y - 4) % 8 > 5
+            p.put(x, y, BARK[0] if y < 7 else BARK[3] if under and (x + y) % 3 == 0 else BARK[2] if under else BARK[1])
+    for x in range(0, 132, 5):
+        p.box(x, 38, x + 2, 39, BARK[2])
+    slab(p, 92, 0, 104, 10, BOULDER[3::-1])  # the chimney
+    p.box(22, 62, 50, 121, BARK[3])  # the door, open: the dark of the hall, the door's edge
+    p.box(24, 64, 48, 121, PLUM)
+    p.box(44, 66, 48, 121, BARK[1])
+    p.box(20, 60, 52, 61, BARK[2])
+    p.box(18, 120, 54, 122, BOULDER[1])
+    p.box(72, 62, 108, 92, BARK[3])  # the window, its panes and its box
+    for x0, y0 in ((74, 64), (91, 64), (74, 79), (91, 79)):
+        for y in range(y0, y0 + 13):
+            for x in range(x0, x0 + 15):
+                p.put(x, y, TEAL[4] if (x - x0) + (y - y0) < 8 else TEAL[2])
+    slab(p, 70, 93, 110, 99, BARK[::-1])
+    for x in range(73, 108, 5):
+        p.ball(x, 91, 2.2, 2.2, BLOOM[1::-1] if (x // 5) % 2 else BLOOM[:1:-1], 0.2, 1.0)
+        p.put(x, 94, SHRUB[2])
+    return p.outline()
+
+
+def intro(k: int) -> list[tuple[int, Pic, bool, int]]:
+    """The intro's pictures from index k: the house and the hedge of the Downs' own colours."""
+    OWN[0].update({k + 12, k + 18})
+    return [
+        (k, van(), True, -1),
+        (k + 2, tyre(0), True, -1),
+        (k + 4, tyre(1), True, -1),
+        (k + 6, door(), True, -1),
+        (k + 8, peek(), True, k + 10),
+        (k + 12, house(), True, -1),
+        (k + 14, boxes(), True, -1),
+        (k + 16, crate(), True, -1),
+        (k + 18, hedge(), True, -1),
+        (k + 20, milkfloat(), True, -1),
+        (k + 22, baron(False), True, -1),
+        (k + 24, baron(True), True, -1),
+        (k + 26, basket(), True, -1),
+    ]
+
+
 # ---- the Chrome Works: machine decks under a dusk sky, a city behind; its colours its own ----
 
 CYAN, PINK = 177, 178
@@ -1966,6 +2229,7 @@ def pictures() -> list[tuple[int, Pic, bool, int]]:
                 out.append((a + 156 + (kind - 2) * 12 + v, top(kind, c, r, 1), False, -1))
     out.append((a + 268, raft(), True, -1))
     out.append((z + 594, startled(), True, z + 596))
+    out += intro(z + 598)
     # Charlie round a twist: 12 turns of two strides, their mirrors facing left
     out += [
         (z + 498 + (n * 2 + f) * 2, turned(frames[5 + f * 3], n, f), True, z + 546 + (n * 2 + f) * 2)
@@ -2063,6 +2327,10 @@ def sound(n: int, s: list[int | str]) -> None:
             bad(f"bar {b} names a chord pattern it has not")
         if any(len(r) not in (0, 16) for r in riffs[1:]) or len(riffs[0]) not in (0, 2, 16):
             bad(f"bar {b} has a riff that is not 16 long")
+        # the game's test plays no song through, a second a bar: a character that is no note would sound one below
+        # the riff's lowest
+        if any(not re.fullmatch(r"[0-9a-zA-Z.-]*", r) for r in [*riffs, *bass]):
+            bad(f"bar {b} or a bass riff has a character that is no note, hold or rest")
     if next(it, None) is not None:
         bad("has DATA left over")
 

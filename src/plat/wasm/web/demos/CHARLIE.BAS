@@ -4,7 +4,8 @@
 ' M mutes, N turns the tune off; Esc leaves. SCREEN 13 on two pages: one drawn, one shown.
 ' Held keys come from the keyboard's port (60h); where it reads FFh,
 ' from INKEY$'s repeats. Physics in pixels and seconds, 60 steps a
-' second; the pictures are DATA, drawn by tools/charlieart.py.
+' second; the pictures are DATA, drawn by tools/charlieart.py. First the
+' intro, how the chase began: any key skips it.
 defint A-Z
 
 ' Charlie. x, y: the feet. gsp: speed along the ground, ang its rise in
@@ -101,6 +102,21 @@ type Part
     c as integer
 end type
 
+' A cue of the intro's script: what, from beat t0 to t1, on its way from x0, y0 to x1, y1 in the world, y from the
+' ground and up under 0. ease: 1 gathering speed, 2 losing it; hop: an arc that high over its way; a: its own.
+type Cue
+    kind as integer
+    t0 as single
+    t1 as single
+    x0 as single
+    y0 as single
+    x1 as single
+    y1 as single
+    ease as integer
+    hop as integer
+    a as integer
+end type
+
 ' The world: MW by MH tiles of TS pixels; LW columns used. A tile's kind
 ' is its profile, Prof: each column's solid height from its bottom.
 const SW = 320, SH = 200, TS = 16, MW = 800, MH = 30, NONE = 30000
@@ -119,7 +135,7 @@ const NPTS = 1600, LOOPN = 48, PIPEN = 12, NZONE = 47, STALL = 150!
 const NMOVE = 23, MOVEW = 48
 const HW = 7, HH = 24, STRIPH = 192, MIDH = 80
 const MAXOBJ = 600, NLOOSE = 24, NPART = 48
-const TITLE = 0, PLAYING = 1, CLEARED = 2, OVER = 3
+const TITLE = 0, PLAYING = 1, CLEARED = 2, OVER = 3, INTRO = 4
 const FIDLE = 0, FBLINK = 1, FTAP = 2, FRUN = 4, FDASH = 10, FBALL = 12
 const FSKID = 16, FCROUCH = 17, FHURT = 18, FUP = 19, FWIN = 20, FSHIVER = 22, NF = 23
 
@@ -153,10 +169,22 @@ const IAM = IAP + 24, IAE = IAM + 2
 const IZS = IAE + 8, IZU = IZS + 48
 ' Charlie round a ribbon's twist, 8 pictures of two frames, then facing left: stood on it, pressed flatter twice,
 ' seen from over its back, hung under it flatter twice and whole, seen from under.
-const ITW = IZU + 48, ICATF = ITW + 96, NIMG = ICATF + 4
+const ITW = IZU + 48, ICATF = ITW + 96
+' the intro's: the van, a wheel at two turns, the van's back door open, Charlie at its window and looking back
+' from it; the old house, the boxes and one thrown, a hedge, the Mob's float, the Baron sat and pointing, the basket
+const IVAN = ICATF + 4, IWHEEL = IVAN + 2, IDOOR = IWHEEL + 4, IPEEK = IDOOR + 2, IHOUSE = IPEEK + 4
+const IBOXES = IHOUSE + 2, ICRATE = IBOXES + 2, IHEDGE = ICRATE + 2, IFLOAT = IHEDGE + 2, IBARON = IFLOAT + 2
+const IBASKET = IBARON + 4, NIMG = IBASKET + 2
 const HUDW = 108, HUDH = 40
 ' The levels: the two zones, then each again at another hour, in other colours.
-const NSTAGE = 4
+' the stages played, and after them the intro's road
+const NSTAGE = 4, SINTRO = NSTAGE
+' The intro: BEATS a second, ILEN of them, the ground HORIZON down the screen between two bars BARH high. Its
+' cues' kinds, in QNAMES' order, six letters a name.
+const BEATS = 2!, ILEN = 112, HORIZON = 150, BARH = 14, NCUE = 96
+const QCAM = 1, QHOUSE = 2, QBOXES = 3, QCRATE = 4, QHEDGE = 5, QFAM = 6, QVAN = 7, QFLOAT = 8
+const QBARON = 9, QCAT = 10, QBASKET = 11, QEYES = 12, QHERO = 13, QWOOF = 14, QSND = 15
+const QNAMES = "cam   house boxes crate hedge fam   van   float baron cat   basketeyes  hero  woof  snd   "
 const IMGSZ = 420000
 
 const SCLEFT = 75, SCRIGHT = 77, SCUP = 72, SCDOWN = 80, SCSPACE = 57, SCZ = 44
@@ -168,10 +196,28 @@ const BARKR = 72, BARKT = .4, FLINCH = 24
 ' The palette's ramps, dark to light, as charlieart.py's.
 const CHUD = 0, CWHITE = 1, CINK = 2, CYELLOW = 3, CRED = 4
 const CSCARF = 21, CGRASS = 25, CEARTH = 30, CSTONE = 38, CGOLD = 42
-const CWATER = 144
+const CWATER = 144, CHEDGE = 245
 const CCHASE = 213
 
 declare sub Main ()
+declare sub Advance (g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part, cu() as Cue)
+declare sub StartIntro (g as Game, cu() as Cue)
+declare sub LoadCues (cu() as Cue)
+declare function IntroOver% (g as Game, k as Pad, cu() as Cue)
+declare sub CueAt (cu() as Cue, i as integer, t as single, x as integer, y as integer)
+declare sub IntroDraw (g as Game, p as Hero, cu() as Cue)
+declare sub DrawCue (cu() as Cue, i as integer, now as single, p as Hero, cx as integer, cy as integer)
+declare sub DrawVan (x as integer, y as integer, wx as integer, a as integer)
+declare sub DrawFloat (x as integer, y as integer, wx as integer, a as integer)
+declare sub DrawCat (x as integer, y as integer, a as integer, west as integer)
+declare sub DrawEyes (x as integer, y as integer, n as integer)
+declare sub Pose (p as Hero, x as integer, y as integer, a as integer, west as integer)
+declare sub MuteKey (k as Pad)
+declare sub Shimmer ()
+declare sub Spent (k as Pad)
+declare sub ZoneTune (id as integer)
+declare function TuneOf% (st as integer)
+declare sub HushSong ()
 declare sub Tint (k as integer, c as long)
 declare sub Shade ()
 declare function Met% (g as Game, p as Hero, k as Pad, pt() as Part)
@@ -334,6 +380,8 @@ dim shared DrVol(NSLOT - 1, NDRUM - 1) as integer, DrUp(NSLOT - 1, NDRUM - 1) as
 ' The slot playing, its bar and half; Ended: it has ended and nothing plays.
 dim shared Sng as integer, Bar as integer, HalfBar as integer, Ended as integer
 dim shared Coming as integer, ComingBar as integer, FadeOut as integer, FadeIn as integer
+' the song in the zone's slot, one more than its number in CHARLIE.DAT: 0 before any
+dim shared ZHeld as integer
 
 Main
 end
@@ -405,22 +453,134 @@ data boost,0, flat,6, pipe,5, flat,8, bones,6, flat,20, drop,4, flat,16, mover,8
 data dng,3, boost,0, flat,8, loop,0, flat,10, spin,0, flat,8
 data goal,0, flat,9, fam,0, flat,6, flat,5, "end",0
 
+' The intro's road: the Downs, flat, the way the van goes; a rock where it bumps.
+Road:
+data flat,6, dog,0, flat,24, tree,0, flat,30, tree,0, flat,28, tree,0, flat,30, tree,0, flat,25, rock,0
+data flat,30, tree,0, flat,35, tree,0, flat,40, tree,0, flat,32, tree,0, flat,40, tree,0, flat,40, tree,0
+data flat,40, "end",0
+
+' The intro's script, back to front: a cue's kind, the beats it is on from and to, where it starts and where it
+' ends, its ease, its hop and its own number. A van's: 1 its door open, 2 Charlie at its window, 4 looking back
+' from it. A float's: 1 the Baron aboard. A cat's: 1 the basket on it, 2 stood still. Charlie's: Pose's. A sound's:
+' Sfx's. A scene every 16 beats, as the tune has them.
+Cues:
+' the last morning: the family at the door, the boxes thrown aboard, Charlie round them all and in
+data "cam", 0, 16, 0, 0, 60, 0, 0, 0, 0
+data "house", 0, 32, 40, 0, 40, 0, 0, 0, 0
+data "fam", 0, 16, 120, 0, 120, 0, 0, 0, 1
+data "boxes", 0, 10, 232, 0, 232, 0, 0, 0, 0
+data "van", 0, 16, 330, 0, 330, 0, 0, 0, 1
+data "crate", 4, 5.5, 232, -36, 266, -22, 0, 22, 0
+data "crate", 8, 9.5, 232, -36, 266, -22, 0, 22, 0
+data "hero", 0, 3, 70, 0, 250, 0, 0, 0, 1
+data "hero", 3, 6, 250, 0, 90, 0, 0, 0, 1
+data "hero", 6, 9, 90, 0, 250, 0, 0, 0, 1
+data "hero", 9, 11.5, 250, 0, 200, 0, 0, 0, 1
+data "hero", 11.5, 13, 200, 0, 200, 0, 0, 0, 6
+data "woof", 12, 12.8, 200, 0, 200, 0, 0, 0, 0
+data "snd", 12, 12.5, 0, 0, 0, 0, 0, 0, 13
+data "hero", 13, 14.5, 200, 0, 250, 0, 0, 0, 1
+data "hero", 14.5, 15.5, 250, 0, 268, -24, 0, 14, 3
+' the van pulls out, Charlie's head in the wind
+data "cam", 16, 17, 80, 0, 80, 0, 0, 0, 0
+data "cam", 17, 32, 80, 0, 1120, 0, 1, 0, 0
+data "van", 16, 17, 330, 0, 330, 0, 0, 0, 2
+data "van", 17, 32, 330, 0, 1280, 0, 1, 0, 2
+' a hedge it passes: eyes, then the Mob, the Baron last; he points, their float comes, and they are after it
+data "cam", 32, 48, 1400, 0, 1400, 0, 0, 0, 0
+data "cat", 37, 40, 1570, 0, 1660, 0, 0, 0, 0
+data "cat", 40, 46, 1660, 0, 1660, 0, 0, 0, 2
+data "cat", 38, 41, 1560, 0, 1690, 0, 0, 0, 0
+data "cat", 41, 46, 1690, 0, 1690, 0, 0, 0, 2
+data "baron", 39, 39.75, 1600, 0, 1622, 0, 0, 10, 0
+data "hedge", 32, 48, 1540, 0, 1540, 0, 0, 0, 0
+data "eyes", 33.5, 37, 1496, -22, 1496, -22, 0, 0, 3
+data "eyes", 37, 38.9, 1548, -22, 1548, -22, 0, 0, 1
+data "van", 32, 36, 1280, 0, 1800, 0, 0, 0, 2
+data "baron", 39.75, 40.5, 1622, 0, 1644, 0, 0, 10, 0
+data "baron", 40.5, 41.5, 1644, 0, 1644, 0, 0, 0, 0
+data "baron", 41.5, 45, 1644, 0, 1644, 0, 0, 0, 1
+data "float", 42.5, 45, 1340, 0, 1590, 0, 2, 0, 0
+data "float", 45, 45.75, 1590, 0, 1590, 0, 0, 0, 0
+data "baron", 45, 45.75, 1644, 0, 1568, -31, 0, 16, 0
+data "float", 45.75, 48, 1590, 0, 1890, 0, 1, 0, 1
+data "cat", 46, 48, 1660, 0, 1840, 0, 0, 0, 0
+data "cat", 46, 48, 1690, 0, 1860, 0, 0, 0, 0
+' a bump: the latch pops and the basket is out; eyes in a hedge, a leap, and Biscuit is away with it
+data "cam", 48, 64, 2140, 0, 2140, 0, 0, 0, 0
+data "hedge", 48, 64, 2180, 0, 2180, 0, 0, 0, 0
+data "eyes", 54, 58, 2146, -22, 2146, -22, 0, 0, 1
+data "van", 48, 50, 1998, 0, 2258, 0, 0, 0, 2
+data "van", 50, 51, 2258, 0, 2388, 0, 0, 9, 3
+data "van", 51, 55, 2388, 0, 2908, 0, 0, 0, 3
+data "snd", 50, 50.5, 0, 0, 0, 0, 0, 0, 3
+data "basket", 50.2, 51.5, 2216, -30, 2196, 0, 0, 22, 0
+data "basket", 51.5, 52.3, 2196, 0, 2186, 0, 0, 8, 0
+data "basket", 52.3, 59.25, 2186, 0, 2186, 0, 0, 0, 0
+data "cat", 58, 58.75, 2150, -20, 2172, 0, 0, 12, 0
+data "cat", 58.75, 59.25, 2172, 0, 2172, 0, 0, 0, 2
+data "snd", 58.75, 59, 0, 0, 0, 0, 0, 0, 12
+data "cat", 59.25, 63.5, 2186, 0, 2500, 0, 0, 0, 1
+' Charlie has seen: he barks from the window and no one hears; out of the door, then, and down
+data "cam", 64, 72, 2700, 0, 3740, 0, 0, 0, 0
+data "cam", 72, 75, 3740, 0, 3900, 0, 2, 0, 0
+data "cam", 75, 100, 3900, 0, 3900, 0, 0, 0, 0
+data "van", 64, 70.5, 2900, 0, 3745, 0, 0, 0, 5
+data "van", 70.5, 80, 3745, 0, 4980, 0, 0, 0, 1
+data "woof", 66, 66.8, 3152, -24, 3256, -24, 0, 0, 1
+data "snd", 66, 66.5, 0, 0, 0, 0, 0, 0, 13
+data "woof", 67.5, 68.3, 3347, -24, 3451, -24, 0, 0, 1
+data "snd", 67.5, 68, 0, 0, 0, 0, 0, 0, 13
+data "woof", 69, 69.8, 3542, -24, 3646, -24, 0, 0, 1
+data "snd", 69, 69.5, 0, 0, 0, 0, 0, 0, 13
+data "hero", 70.5, 72, 3679, -26, 3874, -26, 0, 0, 20
+data "hero", 72, 73.5, 3874, -26, 3960, 0, 0, 24, 3
+data "hero", 73.5, 75.5, 3960, 0, 4060, 0, 2, 0, 3
+data "hero", 75.5, 80, 4060, 0, 4060, 0, 0, 0, 5
+' the cat goes by him with the basket, then the Mob on its float: he looks after them, and barks
+data "float", 85.5, 89.5, 3830, 0, 4330, 0, 0, 0, 1
+data "hero", 80, 81, 4060, 0, 4060, 0, 0, 0, 0
+data "hero", 81, 82.6, 4060, 0, 4060, 0, 0, 0, 16
+data "cat", 81, 85, 3860, 0, 4300, 0, 0, 0, 1
+data "hero", 82.6, 83.4, 4060, 0, 4060, 0, 0, 10, 5
+data "hero", 83.4, 85.2, 4060, 0, 4060, 0, 0, 0, 0
+data "hero", 85.2, 87.1, 4060, 0, 4060, 0, 0, 0, 16
+data "hero", 87.1, 87.9, 4060, 0, 4060, 0, 0, 10, 5
+data "hero", 87.9, 96, 4060, 0, 4060, 0, 0, 0, 0
+data "cat", 86.5, 90.5, 3860, 0, 4300, 0, 0, 0, 0
+data "cat", 87, 91, 3860, 0, 4300, 0, 0, 0, 0
+data "woof", 92, 92.8, 4060, 0, 4060, 0, 0, 0, 0
+data "snd", 92, 92.5, 0, 0, 0, 0, 0, 0, 13
+data "woof", 93.5, 94.3, 4060, 0, 4060, 0, 0, 0, 0
+data "snd", 93.5, 94, 0, 0, 0, 0, 0, 0, 13
+' he winds up, as the player will, and is after them
+data "hero", 96, 97, 4060, 0, 4060, 0, 0, 0, 4
+data "hero", 97, 100, 4060, 0, 4060, 0, 0, 0, 7
+data "snd", 97, 97.5, 0, 0, 0, 0, 0, 0, 6
+data "snd", 98, 98.5, 0, 0, 0, 0, 0, 0, 6
+data "snd", 99, 99.5, 0, 0, 0, 0, 0, 0, 6
+data "snd", 100, 100.5, 0, 0, 0, 0, 0, 0, 7
+data "hero", 100, 102, 4060, 0, 4260, 0, 1, 0, 2
+data "hero", 102, 112, 4260, 0, 6160, 0, 0, 0, 2
+data "cam", 100, 102, 3900, 0, 4020, 0, 1, 0, 0
+data "cam", 102, 112, 4020, 0, 5940, 0, 0, 0, 0
+data "end"
+
 ' The tunes are in CHARLIE.DAT with the pictures, from tools/charliesong.txt.
 
 ' Set up, then read input, step in fixed ticks and draw, till Esc on the
 ' title.
 sub Main
     dim g as Game, p as Hero, k as Pad
-    dim lo(NLOOSE - 1) as Loose, pt(NPART - 1) as Part
+    dim lo(NLOOSE - 1) as Loose, pt(NPART - 1) as Part, cu(NCUE) as Cue
     dim now as single, last as single, c as Clock, n as integer
 
     OpenScreen
     LoadTables
     BuildArt
-    LoadLevel 0
-    LoadSongs
     g.page = 1
-    ResetWorld g, p, lo(), pt()
+    StartIntro g, cu()
+    LoadSongs
 
     last = timer
     c.span = STEPT
@@ -437,18 +597,31 @@ sub Main
         n = Steps%(c)
         if n then
             do while n
-                Tick g, p, k, lo(), pt()
+                Advance g, p, k, lo(), pt(), cu()
                 n = n - 1
             loop
             PickSong SongFor%(g), g.mode = CLEARED
             FeedSong
-            Render g, p, lo(), pt()
+            if g.mode = INTRO then
+                IntroDraw g, p, cu()
+            else
+                Render g, p, lo(), pt()
+            end if
             Flip g.page
         end if
     loop until g.quitting
 
     screen 0
     width 80
+end sub
+
+' A step: of the intro, and on to the title once it is over; else of the game.
+sub Advance (g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part, cu() as Cue)
+    if g.mode <> INTRO then
+        Tick g, p, k, lo(), pt()
+    elseif IntroOver%(g, k, cu()) then
+        ResetWorld g, p, lo(), pt()
+    end if
 end sub
 
 sub OpenScreen
@@ -490,16 +663,21 @@ end sub
 ' The ground's columns, then what stands on them, from the Level DATA.
 sub LoadLevel (st as integer)
     dim cmd as string, n as integer, c as integer, g as integer, bx as integer
-    dim i as integer, s as integer, k as integer, z as integer
+    dim i as integer, s as integer, k as integer, z as integer, light as integer
     Stage = st
     z = st and 1
     Zone = z
+    ' the intro's road is the Downs at dawn, lit as at evening
+    light = st
+    if st = SINTRO then light = 2
     for i = 0 to 255
         Pal(i) = Pal0(i)
     next
-    for i = 0 to ZPN(st) - 1
-        Pal(ZPK(st, i)) = ZPC(st, i)
+    for i = 0 to ZPN(light) - 1
+        Pal(ZPK(light, i)) = ZPC(light, i)
     next
+    GoalX = NONE
+    FamX = NONE
     for i = 0 to 2
         Glint(i) = Pal(CWATER + 1 + i)
     next
@@ -531,6 +709,8 @@ sub LoadLevel (st as integer)
         ZWave = IWAVE
         if st = 0 then
             restore Level
+        elseif st = SINTRO then
+            restore Road
         else
             restore Level3
         end if
@@ -706,6 +886,7 @@ sub LoadLevel (st as integer)
     SortObjs
     Track
     Faces
+    ZoneTune TuneOf%(st)
 end sub
 
 ' The ground's line from the columns' tops, left to right, broken where they do not meet; a loop spliced in where
@@ -1486,9 +1667,9 @@ sub Sfx (id as integer)
     play , , , "T255W1V13Y0K0I0H0,0,15,0" + s
 end sub
 
-' The songs the game holds from its start, the theme the first to play; the level's end is led by the zone's lead.
+' The songs the game holds from its start; a stage's own comes with its level. The level's end is led by the
+' zone's lead.
 sub LoadSongs
-    LoadSong ZTUNE, 0
     LoadSong THEME, 1
     LoadSong CAUGHT, 2
     LeadP(CAUGHT) = LeadP(ZTUNE)
@@ -1497,6 +1678,28 @@ sub LoadSongs
     ComingBar = 0
     Ended = -1
     Tune = -1
+end sub
+
+' Stage st's own tune, its number in CHARLIE.DAT: the Downs' for every stage yet, the intro's for its road.
+function TuneOf% (st as integer)
+    TuneOf% = 0
+    if st = SINTRO then TuneOf% = 3
+end function
+
+' Song id into the zone's slot, unless it is there: what was playing from the slot is dropped.
+sub ZoneTune (id as integer)
+    if ZHeld = id + 1 then exit sub
+    ZHeld = id + 1
+    LoadSong ZTUNE, id
+    LeadP(CAUGHT) = LeadP(ZTUNE)
+    if Sng = ZTUNE then HushSong
+end sub
+
+' The song playing dropped where it is: the next picked starts at once.
+sub HushSong
+    Sng = -1
+    Ended = -1
+    FadeOut = 0
 end sub
 
 ' Song id of CHARLIE.DAT into slot s: its order and levels, its kit, and its bars as PLAY strings.
@@ -1993,17 +2196,13 @@ end sub
 
 ' A step. The title plays itself: Charlie run by the pilot.
 sub Tick (g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part)
-    dim idle as Pad, auto as Pad, i as integer
+    dim idle as Pad, auto as Pad
     Ticks = Ticks + 1
     if Zone = 1 and (Ticks and 3) = 0 then Cycle
     if NMv then Movers p
     g.modeT = g.modeT + STEPT
     if g.shake > 0 then g.shake = g.shake - STEPT
-    if k.mute then
-        Muted = not Muted
-        k.mute = 0
-        if Muted then play "P64", "P64", "P64", , "P64", "P64", "P64", "P64"
-    end if
+    MuteKey k
     select case g.mode
     case TITLE
         if k.quit then g.quitting = -1
@@ -2061,12 +2260,30 @@ sub Tick (g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part)
         if g.modeT > 5 or (g.modeT > 1.5 and (k.hit or k.start)) or k.quit then ResetWorld g, p, lo(), pt()
     end select
     if (Ticks and 1) = 0 then Things g, lo(), pt()
-    if Zone = 0 and (Ticks and 15) = 0 then
-        i = Ticks \ 16
-        Tint CWATER + 1, Glint(i mod 3)
-        Tint CWATER + 2, Glint((i + 1) mod 3)
-        Tint CWATER + 3, Glint((i + 2) mod 3)
-    end if
+    Shimmer
+    Spent k
+end sub
+
+' M: the sound off, or on again.
+sub MuteKey (k as Pad)
+    if k.mute = 0 then exit sub
+    Muted = not Muted
+    k.mute = 0
+    if Muted then play "P64", "P64", "P64", , "P64", "P64", "P64", "P64"
+end sub
+
+' The Downs' lake glints: its three tones change places, every 16 steps.
+sub Shimmer
+    dim i as integer
+    if Zone <> 0 or (Ticks and 15) <> 0 then exit sub
+    i = Ticks \ 16
+    Tint CWATER + 1, Glint(i mod 3)
+    Tint CWATER + 2, Glint((i + 1) mod 3)
+    Tint CWATER + 3, Glint((i + 2) mod 3)
+end sub
+
+' The presses a step has seen are spent.
+sub Spent (k as Pad)
     k.hit = 0
     k.start = 0
     k.quit = 0
@@ -2900,6 +3117,211 @@ sub Camera (g as Game, p as Hero, snap as integer)
     if g.camx > LWPX - SW then g.camx = LWPX - SW
     if g.camy < 0 then g.camy = 0
     if g.camy > MH * TS - SH then g.camy = MH * TS - SH
+end sub
+
+' ---- the intro ----
+
+' The intro from its first beat: its road, its script, the view on the road's start.
+sub StartIntro (g as Game, cu() as Cue)
+    LoadLevel SINTRO
+    LoadCues cu()
+    g.mode = INTRO
+    g.modeT = 0
+    g.camx = 0
+    g.camy = StartY - HORIZON
+end sub
+
+' The script from its DATA: a row a cue, "end" after the last, its kind 0.
+sub LoadCues (cu() as Cue)
+    dim n as integer, kind as string
+    restore Cues
+    do
+        read kind
+        cu(n).kind = (instr(QNAMES, left$(kind + "     ", 6)) + 5) \ 6
+        if cu(n).kind = 0 then exit do
+        read cu(n).t0, cu(n).t1, cu(n).x0, cu(n).y0, cu(n).x1, cu(n).y1, cu(n).ease, cu(n).hop, cu(n).a
+        n = n + 1
+    loop
+end sub
+
+' A step of the intro: its view and its sounds by the script, its last beat fading. Whether it is over: played
+' out, or a key pressed.
+function IntroOver% (g as Game, k as Pad, cu() as Cue)
+    dim i as integer, x as integer, y as integer, was as single, now as single
+    Ticks = Ticks + 1
+    MuteKey k
+    was = g.modeT * BEATS
+    g.modeT = g.modeT + STEPT
+    now = g.modeT * BEATS
+    do while cu(i).kind
+        if now >= cu(i).t0 and now < cu(i).t1 then
+            select case cu(i).kind
+            case QCAM
+                CueAt cu(), i, now, x, y
+                g.camx = x
+            case QSND
+                if was < cu(i).t0 then Sfx cu(i).a
+            end select
+        end if
+        i = i + 1
+    loop
+    Shimmer
+    if now > ILEN - 1 and Dusk > 0 and (Ticks and 1) = 0 then
+        Dusk = Dusk - 1
+        Shade
+    end if
+    IntroOver% = now >= ILEN or k.hit or k.start or k.quit
+    Spent k
+end function
+
+' Where cue i is at beat t, in the world: along its way, eased, a hop's arc over it.
+sub CueAt (cu() as Cue, i as integer, t as single, x as integer, y as integer)
+    dim u as single, v as single
+    if cu(i).t1 > cu(i).t0 then u = (t - cu(i).t0) / (cu(i).t1 - cu(i).t0)
+    v = u
+    if cu(i).ease = 1 then v = u * u
+    if cu(i).ease = 2 then v = u * (2 - u)
+    x = cint(cu(i).x0 + (cu(i).x1 - cu(i).x0) * v)
+    y = StartY + cint(cu(i).y0 + (cu(i).y1 - cu(i).y0) * v - 4 * cu(i).hop * u * (1 - u))
+end sub
+
+' The intro's picture: the Downs, then each cue that is on, in the script's order, between two black bars.
+sub IntroDraw (g as Game, p as Hero, cu() as Cue)
+    dim i as integer, cx as integer, cy as integer, now as single
+    cx = int(g.camx)
+    cy = int(g.camy)
+    now = g.modeT * BEATS
+    DrawBack cx, cy
+    DrawThings cx, cy, -1
+    DrawTiles cx, cy
+    DrawThings cx, cy, 0
+    do while cu(i).kind
+        if now >= cu(i).t0 and now < cu(i).t1 then DrawCue cu(), i, now, p, cx, cy
+        i = i + 1
+    loop
+    line (0, 0)-(SW - 1, BARH - 1), 0, BF
+    line (0, SH - BARH)-(SW - 1, SH - 1), 0, BF
+end sub
+
+' Cue i's picture at beat `now`, the view at cx, cy: its foot's middle where the cue is.
+sub DrawCue (cu() as Cue, i as integer, now as single, p as Hero, cx as integer, cy as integer)
+    dim wx as integer, wy as integer, x as integer, y as integer, a as integer
+    CueAt cu(), i, now, wx, wy
+    x = wx - cx
+    y = wy - cy
+    a = cu(i).a
+    select case cu(i).kind
+    case QHOUSE
+        Blit x - 66, y - 123, IHOUSE, 132, 124
+    case QBOXES
+        Blit x - 22, y - 39, IBOXES, 44, 40
+    case QCRATE
+        Blit x - 10, y - 15, ICRATE, 20, 16
+    case QHEDGE
+        Blit x - 80, y - 51, IHEDGE, 160, 52
+    case QFAM
+        Blit x - 90, y - 81, IFAM + ((Ticks \ 14) and a) * 2, 180, 82
+    case QVAN
+        DrawVan x, y, wx, a
+    case QFLOAT
+        DrawFloat x, y, wx, a
+    case QBARON
+        Blit x - 20, y - 43, IBARON + a * 2, 40, 44
+    case QCAT
+        DrawCat x, y, a, cu(i).x1 < cu(i).x0
+    case QBASKET
+        Blit x - 9, y - 14, IBASKET, 18, 15
+    case QEYES
+        DrawEyes x, y, a
+    case QHERO
+        Pose p, wx, wy, a, cu(i).x1 < cu(i).x0
+        DrawHero p, cx, cy
+    case QWOOF
+        p.x = wx
+        p.y = wy
+        p.face = a
+        p.barkT = BARKT - (now - cu(i).t0) / BEATS
+        DrawBark p, cx, cy
+    end select
+end sub
+
+' The van, its foot's middle at x, y on the screen and wx along the road: it rides a pixel up and down as it goes,
+' its wheels turning. a: 1 its back door open, 2 Charlie's head out of its window, 4 looking back out of its rear one.
+sub DrawVan (x as integer, y as integer, wx as integer, a as integer)
+    dim ry as integer, k as integer
+    ry = y - 79 - ((wx \ 40) and 1)
+    Blit x - 70, ry, IVAN, 140, 80
+    k = IWHEEL + ((wx \ 6) and 1) * 2
+    Blit x - 47, y - 18, k, 18, 18
+    Blit x + 29, y - 18, k, 18, 18
+    if a and 1 then Blit x - 73, ry + 31, IDOOR, 12, 36
+    if a and 2 then Blit x + 22, ry + 22, IPEEK, 24, 17
+    if a and 4 then Blit x - 20, ry + 22, IPEEK + 2, 24, 17
+end sub
+
+' The Mob's float likewise, rattling. a: 1 the Baron sat on its crates.
+sub DrawFloat (x as integer, y as integer, wx as integer, a as integer)
+    dim ry as integer, k as integer
+    ry = y - 39 - ((wx \ 24) and 1)
+    Blit x - 44, ry, IFLOAT, 88, 40
+    k = IWHEEL + ((wx \ 6) and 1) * 2
+    Blit x - 33, y - 18, k, 18, 18
+    Blit x + 15, y - 18, k, 18, 18
+    if a and 1 then Blit x - 42, ry - 35, IBARON, 40, 44
+end sub
+
+' A cat of the Mob, a stride of its prowl, west or east. a: 1 the basket on its back, 2 stood still.
+sub DrawCat (x as integer, y as integer, a as integer, west as integer)
+    dim k as integer
+    k = ICAT
+    if (a and 2) = 0 then k = k + ((Ticks \ 6) and 1) * 2
+    if west then k = k + 4
+    Blit x - 10, y - 13, k, 20, 14
+    if a and 1 then Blit x - 11, y - 26, IBASKET, 18, 15
+end sub
+
+' Pairs of eyes in a hedge, n of them from x, y, each in a gap of its leaves and blinking in its turn.
+sub DrawEyes (x as integer, y as integer, n as integer)
+    dim i as integer, ex as integer, ey as integer
+    for i = 0 to n - 1
+        ex = x + i * 26
+        ey = y - (i and 1) * 9
+        line (ex - 1, ey - 2)-(ex + 7, ey + 3), CHEDGE, BF
+        line (ex - 2, ey - 1)-(ex + 8, ey + 2), CHEDGE, BF
+        if (Ticks + i * 37) mod 90 >= 6 then
+            line (ex, ey)-(ex + 1, ey + 1), CYELLOW, BF
+            line (ex + 5, ey)-(ex + 6, ey + 1), CYELLOW, BF
+        end if
+    next
+end sub
+
+' Charlie as a cue has it, at x, y in the world. a: 0 stood, 1 running, 2 at full tilt, 3 curled, 4 crouched,
+' 5 shaken, 6 glad, 7 wound up; 16 more, or west, facing left.
+sub Pose (p as Hero, x as integer, y as integer, a as integer, west as integer)
+    dim fresh as Hero
+    p = fresh
+    p.x = x
+    p.y = y
+    p.ground = -1
+    p.sg = SegAt%(x, csng(StartY))
+    p.anim = Ticks / 4!
+    if west or (a and 16) then p.face = 1
+    select case a and 15
+    case 1
+        p.gsp = 200 * (1 - 2 * p.face)
+    case 2
+        p.gsp = 450 * (1 - 2 * p.face)
+    case 3
+        p.roll = -1
+    case 4
+        p.crouch = -1
+    case 5
+        p.stun = -1
+    case 6
+        p.win = -1
+    case 7
+        p.charging = -1
+    end select
 end sub
 
 ' Back to front, then the screen's words.

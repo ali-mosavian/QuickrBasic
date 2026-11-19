@@ -39,8 +39,8 @@ LoadTables
 BuildArt
 LoadLevel 0
 dim g as Game, p as Hero, k as Pad, i as long, j as integer, loops as integer, was as integer
-dim c as integer, v as integer, m as integer, zp as integer
-dim lo(NLOOSE - 1) as Loose, pt(NPART - 1) as Part
+dim c as integer, v as integer, m as integer, zp as integer, seen as string
+dim lo(NLOOSE - 1) as Loose, pt(NPART - 1) as Part, cu(NCUE) as Cue
 Muted = -1
 StartGame g, p, lo(), pt()
 for j = 0 to NObj - 1
@@ -84,6 +84,56 @@ for i = 1 to 40
     if Ended then exit for
 next
 if Sng = CAUGHT and i = 16 then print "caught ok"
+' the intro has its own tune in the zone's slot, 28 bars that end: its kit, its voicings and its first half bar played
+StartIntro g, cu()
+PickSong SongFor%(g), 0
+NextHalf
+for i = 0 to NVOICE - 1
+    play , , VoOne(ZTUNE, i) + "V1", , , VoTwo(ZTUNE, i) + "V1"
+next
+if Sng = ZTUNE and ZHeld = 4 and len(Order(ZTUNE)) = 28 and Ends(ZTUNE) then print "intro tune ok"
+' the intro, played through and drawn: the view where the script has it, on the house, the hedge, the bump and
+' where Charlie lands; a cue of every kind; Charlie stood by the road, then away at full tilt; at its end the
+' title, on the Amber Downs in full colour with their own tune
+Muted = -1
+seen = string$(QSND, "0")
+for i = 0 to NCUE
+    if cu(i).kind = 0 then exit for
+    mid$(seen, cu(i).kind, 1) = "1"
+next
+was = seen = string$(QSND, "1")
+for i = 1 to 4000
+    Advance g, p, k, lo(), pt(), cu()
+    if g.mode <> INTRO then exit for
+    if i mod 15 = 0 then IntroDraw g, p, cu()
+    select case i
+    case 60
+        if point(0, 0) <> 0 or point(30, 100) < 130 or point(30, 100) > 136 then was = 0
+    case 300
+        if g.camx < 0 or g.camx > 60 or p.x < 70 or p.x > 250 then was = 0
+    case 1200
+        if g.camx <> 1400 then was = 0
+    case 1680
+        if g.camx <> 2140 then was = 0
+    case 2700
+        if g.camx <> 3900 or p.x <> 4060 or p.gsp <> 0 then was = 0
+    case 3300
+        if p.gsp < 400 or p.x - g.camx < 150 or p.x - g.camx > 300 then was = 0
+    end select
+next
+if was and abs(i - ILEN * 30) < 3 and g.mode = TITLE and Stage = 0 and ZHeld = 1 and Dusk = 16 then print "intro ok"
+was = 0
+' a key skips it
+StartIntro g, cu()
+for i = 1 to 10
+    Advance g, p, k, lo(), pt(), cu()
+next
+was = g.mode = INTRO
+k.hit = -1
+Advance g, p, k, lo(), pt(), cu()
+if was and g.mode = TITLE and Stage = 0 and k.hit = 0 then print "skip ok"
+was = 0
+Muted = 0
 g.mode = TITLE
 Muted = -1
 StartGame g, p, lo(), pt()
@@ -615,6 +665,9 @@ def main() -> None:
         ("turn ok", "a quarter round a ribbon's twist Charlie is drawn across its line, seen from over his back"),
         ("hid ok", "three quarters round a ribbon's twist Charlie is behind it, none of him drawn"),
         ("caught ok", "the level's end played by its own tune, once"),
+        ("intro tune ok", "the intro's own tune in the zone's slot, 28 bars that end"),
+        ("intro ok", "the intro played through by its script, scene by scene, to the title on the Amber Downs"),
+        ("skip ok", "the intro skipped by a key"),
         ("bark ok", "a cat barked at stands startled a while, then goes on away from Charlie"),
         ("slow ok", "too slow for a ribbon's twist, Charlie drops from its crest to the pit under it"),
         ("carried ok", "carried by the platform stood on"),

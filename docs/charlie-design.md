@@ -25,19 +25,20 @@ Scenes cut on the tune's bar count, so picture and music cannot drift. Its last 
 
 | Bars | Seen | Heard |
 |---|---|---|
-| 1–4 | Dawn on the Downs. The old house, the van at the gate, boxes piled high. The family carries the last ones out; Charlie circles them. | The family tune, the big one's guitar alone. |
+| 1–4 | Dawn on the Downs. The old house, the van at the gate, boxes piled high. The family at the door, the last boxes thrown aboard; Charlie circles them and jumps in. | The family tune, the big one's guitar alone. |
 | 5–8 | Everyone aboard. The van pulls out, sagging. Charlie's head is out of the window, ears flying. | Bass and brushed drums join; the tune again, fuller. |
 | 9–12 | A hedge. Pairs of eyes. The Mob steps out, the Baron last, and points at the van. They follow in a rattling milk float. | The Mob's motif: low clavinet and bass, swung. |
-| 13–16 | A bump. The latch pops and the picnic basket bounces out. A paw hooks it from the hedge; Biscuit runs. | A stop-time hit on the bump, then the motif faster. |
+| 13–16 | A bump. The latch pops and the picnic basket bounces out. Eyes in a hedge; Biscuit leaps out and runs with it. | A stop-time hit on the bump, then the motif faster. |
 | 17–20 | Charlie sees it through the back window and barks. Nobody hears. He squeezes out of the door and jumps. | The first phrase of Charlie's theme. |
-| 21–24 | He lands rolling and shakes. The van shrinks one way, the cat the other. He looks both ways, twice. | The two motifs, a bar each, call and answer. |
+| 21–24 | He lands rolling and shakes. Biscuit goes by with the basket, then the Mob on its float, all the way the van went. He looks after them and barks. | The two motifs, a bar each, call and answer. |
 | 25–28 | He winds up, as the player will, and launches after the cat. | Charlie's theme in full, rising. |
 | 29–30 | The title over the Downs. | The title tune begins. |
 
 Between zones the bump plays again, four bars: the next zone's backdrop, keepsake and cat.
 
-New pictures: the van, the old house and its gate, the milk float, the Baron, the family carrying, Charlie at
-the window.
+It is a script of cues in the game's DATA, a row each: what, from which beat to which, from where to where. Its
+pictures: the van, the old house, the boxes, a hedge, the milk float, the Baron, the basket, Charlie at the
+window.
 
 ## Charlie
 
