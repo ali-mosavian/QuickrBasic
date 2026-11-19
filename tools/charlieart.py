@@ -228,22 +228,23 @@ def dog(
     return p.outline()
 
 
-def afraid() -> Pic:
-    """Charlie up on its back legs, side on, its face turned out, afraid: its eyes wide, its paws hung before it."""
+def afraid(f: int = 0) -> Pic:
+    """Charlie up on its back legs, side on, its face turned out, afraid: its eyes wide, its paws hung before it;
+    f its shiver's frame."""
     p = Pic(32, 32)
     for x, y, r in ((8, 26, 2.3), (5.5, 24, 2.2), (4, 21.5, 1.7)):
-        p.ball(x, y, r, r, FUR, 0.2, 0.9)
+        p.ball(x - f, y, r, r, FUR, 0.2, 0.9)
     p.ball(12, 24.5, 4.6, 4.0, FUR, 0.3, 1.0)
     p.ball(14, 19.5, 4.8, 6.6, FUR, 0.35, 1.15)
     for x, lo in ((12.5, 0.2), (16, 0.45)):
         p.ball(x + 1.5, 28.4, 3.0, 1.7, FUR, lo, lo + 0.7)
     for y, lo in ((16.5, 0.3), (19.5, 0.6)):
-        p.line(17, y, 20, y + 1, FUR[3], 2)
-        p.ball(21, y + 1.6, 2.0, 1.8, FUR, lo, lo + 0.7)
-        p.line(20, y + 3.6, 22, y + 3.6, FUR[0])
+        p.line(17, y, 20, y + 1 + f, FUR[3], 2)
+        p.ball(21, y + 1.6 + f, 2.0, 1.8, FUR, lo, lo + 0.7)
+        p.line(20, y + 3.6 + f, 22, y + 3.6 + f, FUR[0])
     for side in (-1, 1):
         for y, r in ((8.5, 2.5), (11.5, 2.6), (14, 2.0)):
-            p.ball(17 + side * 7.4, y, r, r, FUR, 0.1, 0.85)
+            p.ball(17 + side * (7.4 + f * 0.8), y + f, r, r, FUR, 0.1, 0.85)
     p.ball(17, 9.5, 6.6, 6.0, FUR, 0.45, 1.2)
     p.ball(17, 12.5, 3.6, 2.8, FUR, 0.6, 1.3)
     p.box(16, 11, 18, 12, INK)
@@ -254,8 +255,8 @@ def afraid() -> Pic:
         p.put(ex - 1, 7, WHITE)
         p.put(ex + 1, 9, FUR[2])
         p.line(ex - side * 1.5, 5, ex + side * 1.5, 6, FUR[1])
-    p.put(26, 3, TEAL[3])
-    p.box(26, 4, 26, 5, TEAL[4])
+    p.put(26, 3 + f * 2, TEAL[3])
+    p.box(26, 4 + f * 2, 26, 5 + f * 2, TEAL[4])
     return p.outline()
 
 
@@ -279,7 +280,8 @@ def curled(turn: float) -> Pic:
 
 
 def hero() -> list[Pic]:
-    """Idle, blink, two pants, six of the run, two of the dash, four curled, skid, crouch, afraid, sprung, two wins."""
+    """Idle, blink, two pants, six of the run, two of the dash, four curled, skid, crouch, afraid, sprung, two wins,
+    afraid's shiver."""
     out = [dog(), dog(eye="blink"), dog(pant=True, wag=0.8), dog(pant=True, wag=-0.8, lift=1.5, front=0.4)]
     for f in range(6):
         ph = 2 * math.pi * f / 6
@@ -303,6 +305,7 @@ def hero() -> list[Pic]:
     out.append(dog(bob=-2, front=0.2, back=-0.2, ear=-0.5, wag=-0.6, stretch=1))
     out.append(dog(eye="happy", wag=1.0))
     out.append(dog(bob=-2, eye="happy", wag=-1.0, front=0.5, back=-0.5, ear=0.8))
+    out.append(afraid(1))
     return out
 
 
@@ -553,7 +556,7 @@ def thorn() -> Pic:
 def pictures() -> list[tuple[int, Pic, bool, int]]:
     """Each picture's index in the game's Img table, whether it is masked, and its mirror's index or -1."""
     out: list[tuple[int, Pic, bool, int]] = []
-    itile, iearth, ihero, nf = 10, 30, 34, 22
+    itile, iearth, ihero, nf = 10, 30, 34, 23
     for v, p in (
         (1, tile(1, 1)),
         (2, tile(1, 2)),
