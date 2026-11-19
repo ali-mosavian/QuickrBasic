@@ -21,8 +21,11 @@ attack, full sustain, instant release.
 
 Give all four numbers; fewer is Illegal function call.
 
-A note also lasts at least one clock tick (55 ms): for short sounds
-use a long enough note length.
+With sustain 0 a note is a pluck: it dies in the decay however long
+it is held. The times, for 0 to 15:
+
+    attack    2 8 16 24 38 56 68 80 100 250 500 800 ms, 1 3 5 8 s
+    decay     three times the attack's: 6 ms to 24 s
 
 ## Example
 An organ, a pluck, a swell and a bell:

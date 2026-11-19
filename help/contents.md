@@ -24,7 +24,7 @@ keys: contents, table of contents, toc
  │ [Procedures and Modules](procedures)           │ │ [BYTE and SHORT](BYTE)               │
  │ [Metacommands](metacommands)                     │ │ [PEN](PEN)                          │
  │ [File Input and Output](file I/O)            │ │ [Video Pages](video pages)                  │
- └────────────────────────────────────┘ │ [Six Voices](play voices)                   │
+ └────────────────────────────────────┘ │ [32 Voices](play voices)                    │
                                         │ [IDE Additions](ide additions)                │
                                         │ [No Limits](no limits)                    │
                                         │ [Test Scripts](test scripts)                 │

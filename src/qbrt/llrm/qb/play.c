@@ -7,9 +7,9 @@
    is empty (the last note has begun), music in the background only while it is
    full.
 
-   PLAY a$, b$, ... (after PCjr and Tandy BASIC's three) plays up to six voices
+   PLAY a$, b$, ... (after PCjr and Tandy BASIC's three) plays up to DEV_VOICES voices
    through the synthesizer (dev_voice), each from its own queue; so does one string with a
-   command QB never had: V volume, W wave, Q pulse width, H envelope, Y filter.
+   command QB never had (synth_commands; docs/sound.md).
    Without them a voice is the speaker, as in QB. */
 #include "music.h"
 #include "nhstutil.h"

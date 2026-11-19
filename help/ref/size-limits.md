@@ -34,8 +34,8 @@ Text is 25, 43 or 50 rows. Graphics go up to 640x480; see
 [SCREEN modes](SCREEN modes).
 
 Sound
-[PLAY](PLAY) a$, b$, ... plays up to six voices. See
-[Six voices](play voices).
+[PLAY](PLAY) a$, b$, ... plays up to 32 voices. See
+[Voices](play voices).
 
 ## Example
     x% = 2147483647

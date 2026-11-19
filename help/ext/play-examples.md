@@ -1,20 +1,22 @@
 # PLAY: Drums, Bass and Effects
 keys: play examples, play effects, drums, sound effects
 
-Short recipes for the six-voice synthesizer: drums on the noise voice,
-a three-voice tune, sound effects, and effects over music.
+Short recipes for the synthesizer: drums, a three-voice tune, sound
+effects, and effects over music.
 
-See also [PLAY voices](play voices), [PLAY string](PLAY string)
+See also [PLAY voices](play voices), [PLAY string](PLAY string),
+[writing a song](play song)
 
 ## Details
 Paste a recipe into the IDE and run it with Shift+F5.
 
-Drums: noise voice (W3) with a short envelope; Y sets a filter.
-    kick$ = "H0,4,0,3 Y1,300,4 O1 C"
-    snare$ = "H0,4,0,4 Y0 O4 C"
-    hat$ = "H0,1,0,1 Y3,6000 O6 C"
+Drums: a kick is a sine falling fast, a snare noise, a hat noise
+high-passed. Each sets all the others change, so any order works.
+    kick$ = "W4 Z1,0 H0,4,3,3 Y0 K1,8 O1 C"
+    snare$ = "W3 H0,5,0,1 Y0 K0 O6 C"
+    hat$ = "W3 H0,3,0,1 Y3,2500 K0 O6 B"
     bar$ = kick$ + hat$ + snare$ + hat$
-    PLAY "T130 L8 W3 V8 " + bar$ + bar$
+    PLAY "T130 L8 V12 " + bar$ + bar$
 
 Three voices
     PLAY "T130 O4 L8 W2 H0,5,9,3 V9 E G > C < G E G E C", _
@@ -22,7 +24,7 @@ Three voices
          "T130 L8 W3 V7 H0,4,0,3 O1 C P8 C P8 C P8 C P8"
 
 Effects
-Each note lasts at least 55 ms, so at T255 use L16 or longer.
+Notes are timed to 3.4 ms: at T255, L64 notes make a smooth slide.
     PLAY "T255 L16 W0 Q25 H0,3,0,1 V10 O3 C E G > C E"   ' jump
     PLAY "T255 W0 Q50 H0,6,0,6 V10 O5 L16 B > E4"        ' coin
     PLAY "T255 L16 W2 H0,3,0,1 V10 N76 N70 N64 N58 N52"  ' laser
