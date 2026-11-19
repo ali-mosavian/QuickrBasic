@@ -462,16 +462,17 @@ data flat,40, "end",0
 ' The intro's script, back to front: a cue's kind, the beats it is on from and to, where it starts and where it
 ' ends, its ease, its hop and its own number. A van's: 1 its door open, 2 Charlie at its window, 4 looking back
 ' from it. A float's: 1 the Baron aboard. A cat's: 1 the basket on it, 2 stood still. Charlie's: Pose's. A sound's:
-' Sfx's. A scene every 16 beats, as the tune has them.
+' Sfx's. A scene every 16 beats, as the tune has them. What goes into the van, or is in it, comes before it.
 Cues:
 ' the last morning: the family at the door, the boxes thrown aboard, Charlie round them all and in
 data "cam", 0, 16, 0, 0, 60, 0, 0, 0, 0
 data "house", 0, 32, 40, 0, 40, 0, 0, 0, 0
 data "fam", 0, 16, 120, 0, 120, 0, 0, 0, 1
 data "boxes", 0, 10, 232, 0, 232, 0, 0, 0, 0
+data "crate", 4, 5.5, 232, -36, 276, -22, 0, 22, 0
+data "crate", 8, 9.5, 232, -36, 276, -22, 0, 22, 0
+data "hero", 14.5, 15.5, 240, 0, 280, -13, 0, 18, 3
 data "van", 0, 16, 330, 0, 330, 0, 0, 0, 1
-data "crate", 4, 5.5, 232, -36, 266, -22, 0, 22, 0
-data "crate", 8, 9.5, 232, -36, 266, -22, 0, 22, 0
 data "hero", 0, 3, 70, 0, 250, 0, 0, 0, 1
 data "hero", 3, 6, 250, 0, 90, 0, 0, 0, 1
 data "hero", 6, 9, 90, 0, 250, 0, 0, 0, 1
@@ -479,8 +480,7 @@ data "hero", 9, 11.5, 250, 0, 200, 0, 0, 0, 1
 data "hero", 11.5, 13, 200, 0, 200, 0, 0, 0, 6
 data "woof", 12, 12.8, 200, 0, 200, 0, 0, 0, 0
 data "snd", 12, 12.5, 0, 0, 0, 0, 0, 0, 13
-data "hero", 13, 14.5, 200, 0, 250, 0, 0, 0, 1
-data "hero", 14.5, 15.5, 250, 0, 268, -24, 0, 14, 3
+data "hero", 13, 14.5, 200, 0, 240, 0, 0, 0, 1
 ' the van pulls out, Charlie's head in the wind
 data "cam", 16, 17, 80, 0, 80, 0, 0, 0, 0
 data "cam", 17, 32, 80, 0, 1120, 0, 1, 0, 0
@@ -525,16 +525,16 @@ data "cat", 59.25, 63.5, 2186, 0, 2500, 0, 0, 0, 1
 data "cam", 64, 72, 2700, 0, 3740, 0, 0, 0, 0
 data "cam", 72, 75, 3740, 0, 3900, 0, 2, 0, 0
 data "cam", 75, 100, 3900, 0, 3900, 0, 0, 0, 0
+data "hero", 70.5, 72, 3689, -13, 3864, -13, 0, 0, 20
 data "van", 64, 70.5, 2900, 0, 3745, 0, 0, 0, 5
 data "van", 70.5, 80, 3745, 0, 4980, 0, 0, 0, 1
-data "woof", 66, 66.8, 3152, -24, 3256, -24, 0, 0, 1
+data "woof", 66, 66.8, 3152, -20, 3256, -20, 0, 0, 1
 data "snd", 66, 66.5, 0, 0, 0, 0, 0, 0, 13
-data "woof", 67.5, 68.3, 3347, -24, 3451, -24, 0, 0, 1
+data "woof", 67.5, 68.3, 3347, -20, 3451, -20, 0, 0, 1
 data "snd", 67.5, 68, 0, 0, 0, 0, 0, 0, 13
-data "woof", 69, 69.8, 3542, -24, 3646, -24, 0, 0, 1
+data "woof", 69, 69.8, 3542, -20, 3646, -20, 0, 0, 1
 data "snd", 69, 69.5, 0, 0, 0, 0, 0, 0, 13
-data "hero", 70.5, 72, 3679, -26, 3874, -26, 0, 0, 20
-data "hero", 72, 73.5, 3874, -26, 3960, 0, 0, 24, 3
+data "hero", 72, 73.5, 3864, -13, 3960, 0, 0, 28, 3
 data "hero", 73.5, 75.5, 3960, 0, 4060, 0, 2, 0, 3
 data "hero", 75.5, 80, 4060, 0, 4060, 0, 0, 0, 5
 ' the cat goes by him with the basket, then the Mob on its float: he looks after them, and barks
@@ -3246,7 +3246,7 @@ sub DrawCue (cu() as Cue, i as integer, now as single, p as Hero, cx as integer,
 end sub
 
 ' The van, its foot's middle at x, y on the screen and wx along the road: it rides a pixel up and down as it goes,
-' its wheels turning. a: 1 its back door open, 2 Charlie's head out of its window, 4 looking back out of its rear one.
+' its wheels turning. a: 1 its back door open, 2 Charlie leaning from its window, open, 4 looking back from its rear one.
 sub DrawVan (x as integer, y as integer, wx as integer, a as integer)
     dim ry as integer, k as integer
     ry = y - 79 - ((wx \ 40) and 1)
@@ -3255,8 +3255,8 @@ sub DrawVan (x as integer, y as integer, wx as integer, a as integer)
     Blit x - 47, y - 18, k, 18, 18
     Blit x + 29, y - 18, k, 18, 18
     if a and 1 then Blit x - 73, ry + 31, IDOOR, 12, 36
-    if a and 2 then Blit x + 22, ry + 22, IPEEK, 24, 17
-    if a and 4 then Blit x - 20, ry + 22, IPEEK + 2, 24, 17
+    if a and 2 then Blit x + 13, ry + 32, IPEEK, 30, 20
+    if a and 4 then Blit x - 17, ry + 32, IPEEK + 2, 30, 20
 end sub
 
 ' The Mob's float likewise, rattling. a: 1 the Baron sat on its crates.

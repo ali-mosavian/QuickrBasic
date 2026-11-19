@@ -26,6 +26,8 @@ DEMO = ROOT / "src/plat/wasm/web/demos/CHARLIE.BAS"
 DRIVER = """declare function GroundAt% (x as integer)
 declare sub Stand (p as Hero, x as integer, v as single)
 declare function Fur% (x as integer, w as integer, y0 as integer, y1 as integer)
+declare function Pix& (x as integer, w as integer, y0 as integer, y1 as integer)
+declare function OnCue% (cu() as Cue, kind as integer, bt as single)
 declare function Uneven% (hz as single, grain as integer, per as integer, most as integer, want as integer)
 ' the game's steps against a screen's frames, timed by a clock of 128 or 256 moves a second: stepped by that clock
 ' some frames showed two steps and some none, and the picture juddered. At a screen's 59.94 or 60.1 frames a second
@@ -40,6 +42,7 @@ BuildArt
 LoadLevel 0
 dim g as Game, p as Hero, k as Pad, i as long, j as integer, loops as integer, was as integer
 dim c as integer, v as integer, m as integer, zp as integer, seen as string
+dim hid as long, shown as long, bt as single
 dim lo(NLOOSE - 1) as Loose, pt(NPART - 1) as Part, cu(NCUE) as Cue
 Muted = -1
 StartGame g, p, lo(), pt()
@@ -133,6 +136,27 @@ k.hit = -1
 Advance g, p, k, lo(), pt(), cu()
 if was and g.mode = TITLE and Stage = 0 and k.hit = 0 then print "skip ok"
 was = 0
+' before he jumps from the van Charlie is at its door, behind it: the van's side hides him and he shows past the
+' door. He was drawn over them both. The picture with him and without, where the van's side is and past its door
+StartIntro g, cu()
+for i = 1 to 2145
+    Advance g, p, k, lo(), pt(), cu()
+next
+bt = g.modeT * BEATS
+m = OnCue%(cu(), QHERO, bt)
+j = OnCue%(cu(), QVAN, bt)
+CueAt cu(), j, bt, c, v
+c = c - cint(g.camx)
+IntroDraw g, p, cu()
+hid = Pix&(c - 60, 8, HORIZON - 45, HORIZON - 14)
+shown = Pix&(c - 92, 16, HORIZON - 45, HORIZON - 14)
+cu(m).y0 = cu(m).y0 - 300
+cu(m).y1 = cu(m).y1 - 300
+IntroDraw g, p, cu()
+hid = hid - Pix&(c - 60, 8, HORIZON - 45, HORIZON - 14)
+shown = shown - Pix&(c - 92, 16, HORIZON - 45, HORIZON - 14)
+if hid = 0 and shown <> 0 then print "door ok"
+ResetWorld g, p, lo(), pt()
 Muted = 0
 g.mode = TITLE
 Muted = -1
@@ -620,6 +644,27 @@ function Fur% (x as integer, w as integer, y0 as integer, y1 as integer)
     Fur% = n
 end function
 
+' The screen's pixels from x, w wide, from y0 to y1, summed by place: the same for the same picture.
+function Pix& (x as integer, w as integer, y0 as integer, y1 as integer)
+    dim i as integer, j as integer, n as long
+    for j = y0 to y1
+        for i = x to x + w - 1
+            n = n + point(i, j) * ((i + j * 7) mod 31 + 1&)
+        next
+    next
+    Pix& = n
+end function
+
+' The last cue of a kind that is on at beat bt, -1 when none is.
+function OnCue% (cu() as Cue, kind as integer, bt as single)
+    dim i as integer
+    OnCue% = -1
+    do while cu(i).kind
+        if cu(i).kind = kind and bt >= cu(i).t0 and bt < cu(i).t1 then OnCue% = i
+        i = i + 1
+    loop
+end function
+
 ' The ground's top under x, NONE over a gap.
 function GroundAt% (x as integer)
     dim y as integer
@@ -676,6 +721,7 @@ def main() -> None:
         ("intro tune ok", "the intro's own tune in the zone's slot, 28 bars that end"),
         ("intro ok", "the intro played through by its script, scene by scene, to the title on the Amber Downs"),
         ("skip ok", "the intro skipped by a key"),
+        ("door ok", "at the van's door, before he jumps, Charlie is behind the van's side and shows past its door"),
         ("bark ok", "a cat barked at stands startled a while, then goes on away from Charlie"),
         ("slow ok", "too slow for a ribbon's twist, Charlie drops from its crest to the pit under it"),
         ("carried ok", "carried by the platform stood on"),

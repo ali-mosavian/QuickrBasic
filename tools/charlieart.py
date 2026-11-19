@@ -1558,10 +1558,20 @@ def door() -> Pic:
 
 
 def peek() -> Pic:
-    """Charlie's head out of the van's window, into the wind: its ears flying, its tongue out."""
-    p = Pic(24, 17)
-    snout(p, 13, 7, 1.5, "happy", True)
-    return p.outline()
+    """A window of the van's, open, and Charlie leaning from it into the wind: his chest on its sill, his ears
+    flying, his tongue out. The window's 24 by 16 with 3 over at its sides, 2 over and under."""
+    dog = Pic(30, 20)
+    dog.ball(13, 19, 7, 7.5, FUR, 0.3, 1.1)
+    snout(dog, 18, 9, 1.5, "happy", True)
+    dog.outline()
+    p = Pic(30, 20)
+    p.box(3, 2, 26, 17, DARK[1])
+    p.box(3, 2, 26, 2, DARK[0])
+    for y in range(18):  # under the sill he is inside
+        for x in range(30):
+            if dog.p[y][x]:
+                p.put(x, y, dog.p[y][x])
+    return p
 
 
 def boxes() -> Pic:
@@ -2349,6 +2359,14 @@ def audit(pics: list[tuple[int, Pic, bool, int]]) -> None:
         for f in range(2):
             if turned(run[5 + f * 3], turn, f).count() < 0.6 * run[5 + f * 3].count():
                 sys.exit(f"charlieart: Charlie is flat, turned {turn} twelfths round a twist")
+    # Charlie at the van's window was a head alone on its glass, cut off under the chin: the window is open, all
+    # of it the picture's, and he stands in it down to its sill
+    pk = peek()
+    if (
+        any(not pk.get(x, y) for y in range(2, 18) for x in range(3, 27))
+        or sum(pk.get(x, 17) in FUR for x in range(3, 27)) < 8
+    ):
+        sys.exit("charlieart: Charlie at the van's window is cut off, or its glass shows")
     # the game draws the comb from 12 tiles a kind: it must repeat every 64 across and 48 down
     if any(comb(x, y) != comb(x + 64, y) or comb(x, y) != comb(x, y + 48) for x in range(64) for y in range(48)):
         sys.exit("charlieart: the comb does not repeat every 64 by 48")
