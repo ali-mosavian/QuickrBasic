@@ -153,7 +153,7 @@ CONST SCHARGE = 6, SLAUNCH = 7, SCLEAR = 8, SDIE = 9, SMARK = 10, SBOOST = 11, S
 CONST CHUD = 0, CWHITE = 1, CINK = 2, CYELLOW = 3, CRED = 4
 CONST CSCARF = 21, CGRASS = 25, CEARTH = 30, CSTONE = 38, CGOLD = 42
 CONST CSKY = 96, NSKY = 32, CFAR = 128, CMID = 132, CCLOUD = 138, CSUN = 141, CWATER = 144
-CONST CSTEEL = 150, CDAY = 156, CFART = 185, CCHROME = 198, CPANEL = 204
+CONST CSTEEL = 150, CDAY = 156, CFART = 185, CCHROME = 198, CPANEL = 204, CCHASE = 213
 
 DECLARE SUB Main ()
 DECLARE SUB Tint (k AS INTEGER, c AS LONG)
@@ -187,6 +187,7 @@ DECLARE SUB BuildLoop (k AS INTEGER, ce AS INTEGER, cr AS INTEGER)
 DECLARE SUB BuildPipe (k AS INTEGER, ce AS INTEGER, cr AS INTEGER)
 DECLARE SUB BuildWave (k AS INTEGER, ce AS INTEGER, ct AS INTEGER)
 DECLARE SUB Track ()
+DECLARE SUB Cycle ()
 DECLARE FUNCTION Ribbon% (x AS INTEGER)
 DECLARE SUB Pit (c AS INTEGER, g AS INTEGER, n AS INTEGER)
 DECLARE SUB Knot (x AS SINGLE, y AS SINGLE, k AS INTEGER)
@@ -816,6 +817,16 @@ END SUB
 SUB Tint (k AS INTEGER, c AS LONG)
     Pal(k) = c
     PALETTE k, (c AND 63) * Dusk \ 16 + 256& * ((c \ 256 AND 63) * Dusk \ 16) + 65536 * ((c \ 65536) * Dusk \ 16)
+END SUB
+
+' The tiles that move: a deck's lights run along it, a fan's blades turn, glints go down a pipe; by their colours.
+SUB Cycle
+    DIM i AS INTEGER
+    FOR i = 0 TO 3
+        IF i = (Ticks \ 8 AND 3) THEN Tint CCHASE + i, 4144952 ELSE Tint CCHASE + i, 3550218
+        IF (i + Ticks \ 4) AND 2 THEN Tint CCHASE + 4 + i, 2235666 ELSE Tint CCHASE + 4 + i, 525317
+        IF i = (Ticks \ 4 AND 3) THEN Tint CCHASE + 8 + i, 2242111 ELSE Tint CCHASE + 8 + i, 991026
+    NEXT
 END SUB
 
 SUB Shade
@@ -1636,6 +1647,7 @@ END SUB
 SUB Tick (g AS Game, p AS Hero, k AS Pad, lo() AS Loose, pt() AS Part)
     DIM idle AS Pad, auto AS Pad, i AS INTEGER
     Ticks = Ticks + 1
+    IF (Ticks AND 3) = 0 THEN Cycle
     IF NMv THEN Movers p
     g.modeT = g.modeT + STEPT
     IF g.shake > 0 THEN g.shake = g.shake - STEPT

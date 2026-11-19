@@ -1022,6 +1022,9 @@ CHROME = ramp(198, (14, 16, 22), (60, 62, 63), 6)
 
 PANEL = ramp(204, (4, 8, 18), (26, 42, 56), 6)
 GLOWC = ramp(210, (4, 34, 46), (56, 63, 63), 3)
+# colours the game turns as it runs: a deck's four lights, a fan's blades, the glints along a pipe
+CHASE, FAN, FLOW = [213, 214, 215, 216], [217, 218, 219, 220], [221, 222, 223, 224]
+PAL.update(dict.fromkeys(CHASE, (4, 34, 46)) | dict.fromkeys(FAN, (5, 4, 8)) | dict.fromkeys(FLOW, (50, 31, 15)))
 
 
 def deck(p: Pic, x: int, y: int, t: int, u: int = 0) -> bool:
@@ -1037,10 +1040,8 @@ def deck(p: Pic, x: int, y: int, t: int, u: int = 0) -> bool:
     elif t < 9:
         if not 2 <= b <= 13:
             p.put(x, y, STEEL[4] if b in (0, 15) else DARK[0])
-        elif u // 16 == 3:
-            p.put(x, y, GLOW[1] if t in (6, 7) else GLOW[0])
         else:
-            p.put(x, y, GLOWC[2 if t in (6, 7) and 3 <= b <= 12 else 1])
+            p.put(x, y, CHASE[u // 16 % 4] if t in (6, 7) and 3 <= b <= 12 else GLOWC[0])
     elif t < 13:
         if 18 <= u <= 45:
             p.put(x, y, GOLD[3] if (u + t) // 4 % 2 else DARK[0])
@@ -1061,7 +1062,10 @@ def wall(p: Pic, x: int, y: int) -> None:
     if n in (2, 3):
         if 6 <= v <= 21:
             g = 1.0 - abs(v - 12) / 10 + (0.3 if v in (9, 10) else 0)
-            p.shade(x, y, CHROME if x < 5 else COPPER, g)
+            if x >= 5 and v == 9:
+                p.put(x, y, FLOW[x // 4 % 4])
+            else:
+                p.shade(x, y, CHROME if x < 5 else COPPER, g)
             return
         if x < 5 and v in (4, 5, 22, 23):
             p.put(x, y, CHROME[1 if v > 20 else 4])
@@ -1089,7 +1093,7 @@ def wall(p: Pic, x: int, y: int) -> None:
         if r < 2.5:
             val = 0.9
         elif r <= 9:
-            p.put(x, y, STEEL[2] if int(math.atan2(v - 15.5, u - 15.5) / math.pi * 4 + 8.5) % 2 else DARK[0])
+            p.put(x, y, FAN[int(math.atan2(v - 15.5, u - 15.5) / math.pi * 4 + 8) % 4])
             return
         elif r <= 11.5:
             p.shade(x, y, CHROME, 0.55 - (u + v - 31) / 30)
