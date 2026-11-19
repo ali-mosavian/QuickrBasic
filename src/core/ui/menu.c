@@ -34,6 +34,7 @@
 #include "ui/edit.h"
 #include "ui/mouse.h"
 #include "ui/screen.h"
+#include "ui/help.h"
 #include "ui/highlight.h"
 #include "ui/uimain.h"
 
@@ -126,10 +127,10 @@ static const Item m_size[] = {
     {},
 };
 static const Item m_help[] = {
-    {ACT_NONE, MF_GRAY, "&Index", ""},
-    {ACT_NONE, MF_GRAY, "&Contents", ""},
-    {ACT_NONE, MF_GRAY, "&Topic:", "F1"},
-    {ACT_NONE, MF_GRAY, "&Using Help", "Shift+F1"},
+    {ACT_HINDEX, 0, "&Index", ""},
+    {ACT_HCONT, 0, "&Contents", ""},
+    {ACT_HTOPIC, MF_KW, "&Topic:             ", "F1"}, /* room for the word: box_item */
+    {ACT_HUSING, 0, "&Using Help", "Shift+F1"},
     SEP,
     {ACT_ABOUT, 0, "&About...", ""},
     {},
@@ -174,6 +175,7 @@ static struct {
     uint8_t c; /* the bar's menu */
     bool open; /* its box open, else the bar lit */
     bool sub;  /* a sub-menu open */
+    bool alt;  /* Alt held: the bar's letters lit */
     Level box, saved;
 } mn;
 
@@ -202,6 +204,8 @@ static bool gray(const Item *const it)
         return true;
     if ((f & MF_ED) && uimn.tree.workspace.focus)
         return true;
+    if ((f & MF_KW) && !help_topic_exists())
+        return true;
 
     return false;
 }
@@ -229,17 +233,24 @@ static bool checked(Session *const S, const Item *const it)
     return false;
 }
 
+void menu_letters(const bool on) { mn.alt = on; }
+
+/* The bar: its letters lit only while Alt is held or the bar is browsed, its open box's title's
+   not (COW's HiliteMenuMnem, OpenMenuCur). */
 void menu_bar(void)
 {
     scrn_fill(0, 0, SL_BAR, ' ', PSCR_COLS);
+    const bool browsed = mn.w.visible && !mn.open;
+    const uint8_t hot = browsed || mn.alt ? SL_HOT : SL_BAR;
 
     for (uint8_t b = 0; b < NMENU; b++) {
         if (mn.w.visible && b == mn.c) {
             const uint8_t title = scrn_fill(0, menu_x[b] - 1, SL_MSEL, ' ', 1);
-            const uint8_t after = scrn_str(0, title, menu_title[b], SL_MSEL, SL_MHOT);
+            const uint8_t after =
+                scrn_str(0, title, menu_title[b], SL_MSEL, mn.open ? SL_MSEL : SL_MHOT);
             scrn_fill(0, after, SL_MSEL, ' ', 1);
         } else {
-            scrn_str(0, menu_x[b], menu_title[b], SL_BAR, SL_HOT);
+            scrn_str(0, menu_x[b], menu_title[b], SL_BAR, hot);
         }
     }
 }
@@ -257,7 +268,7 @@ static uint32_t help_lines(const Item *const items, const uint32_t n)
 }
 
 /* Item i's line in BASIC.HLP: the lines in item order over all the menus. */
-static uint32_t help_index(const uint8_t i)
+static uint32_t help_line_index(const uint8_t i)
 {
     uint32_t line = 0;
 
@@ -274,7 +285,7 @@ static void help(const uint8_t i)
     const uint32_t len = uimn.help_len;
     uint32_t pos = 0;
 
-    for (uint32_t line = help_index(i); line && pos < len; pos++)
+    for (uint32_t line = help_line_index(i); line && pos < len; pos++)
         if (s[pos] == '\n')
             line--;
 
@@ -347,6 +358,13 @@ static void box_item(Session *const S, const Level *const b, const uint8_t i, co
         scrn_fill(row, b->l + 1, slot, CHECK_MARK, 1);
 
     scrn_str(row, b->l + 2, it->text, slot, hot);
+
+    if (it->act == ACT_HTOPIC) { /* "Topic: " and the word F1 would look up */
+        char w[16];
+        help_keyword(w, sizeof w);
+        scrn_str(row, b->l + 2 + 8, w, off ? SL_GRAY : slot, off ? SL_GRAY : slot);
+    }
+
     const uint16_t k = scrn_slen(it->key);
 
     if (k)
@@ -446,8 +464,24 @@ static int find(const uint8_t c)
     return -1;
 }
 
+/* Item it's help key: its text less '&', "..." and ':', then " Command"; its length. */
+static uint32_t item_key(const Item *const it, char *const key)
+{
+    uint32_t n = 0;
+
+    for (const char *s = it->text; *s && n < 36; s++)
+        if (*s != '&' && *s != ':' && !(*s == '.' && s[1] == '.'))
+            key[n++] = *s;
+
+    while (n && (key[n - 1] == ' ' || key[n - 1] == '.'))
+        n--;
+
+    memcpy(key + n, " Command", 8);
+    return n + 8;
+}
+
 /* The menus' loop's next step. */
-typedef enum { NEXT, OPEN, CHOSEN, QUIT } Step;
+typedef enum { NEXT, OPEN, CHOSEN, QUIT, HELP } Step;
 
 /* The bar's menu's box afresh, its first item lit. */
 static void restart(void)
@@ -657,6 +691,8 @@ static Step on_key(const uint16_t k, const Item **const chosen)
 
     if (scan == SCAN_F10)
         return QUIT;
+    if (!ch && scan == SCAN_F1 && mn.open)
+        return HELP;
     if (ch)
         return key_letter(upcase(ch), chosen);
 
@@ -689,6 +725,10 @@ static void step(Session *const S, const uint16_t k)
     if (next == OPEN) {
         mn.open = true;
         restart();
+    } else if (next == HELP) {
+        char key[48];
+        const uint32_t n = item_key(item(mn.box.i), key);
+        help_box(S, key, n); /* the menus stay: Esc comes back to them */
     } else if (next == QUIT || next == CHOSEN) {
         mn.w.visible = false;
         uimn.help = nullptr;

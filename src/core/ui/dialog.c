@@ -52,6 +52,7 @@
 #include "plat/pscr.h"
 #include "ui/draw.h"
 #include "ui/edit.h"
+#include "ui/help.h"
 #include "ui/menu.h"
 #include "ui/mouse.h"
 #include "ui/screen.h"
@@ -96,12 +97,13 @@ static struct {
     const char *title;    /* msg_ttl: its title, nullptr none: its lines then left-aligned */
 } dl;
 
-static DlogList ls_files = {.size = NAMESZ}; /* items grown as names come */
+static DlogList ls_files = {.size = NAMESZ, .columns = true}; /* items grown as names come */
 static DlogList ls_dirs = {.size = NAMESZ};
 static uint32_t files_cap, dirs_cap; /* their items' room */
 static char mask[80];                /* dl_mask: the Open box's */
-static char path[80];                /* dl_path: the current directory */
-static PfilFind dta;                 /* dl_dta */
+static char *path;                   /* dl_path: the current directory, grown to fit */
+static uint32_t path_cap;
+static PfilFind dta; /* dl_dta */
 static char msg_text[640];
 static DlogCtl msg_ctl[NMSGCTL];
 static Dlog msg_dlog = {.ctl = msg_ctl};
@@ -120,7 +122,12 @@ static DlogCtl open_ctl[] = {
      .label = s_fname,
      .lrow = 2,
      .lcol = 2},
-    {.kind = CT_TXT, .row = 4, .col = 2, .flags = CF_NOF, .text = path},
+    {.kind = CT_TXT,
+     .row = 4,
+     .col = 2,
+     .cols = 45,
+     .flags = CF_NOF | CF_PATH,
+     .text = ""}, /* the Files list's width */
     {.kind = CT_LST,
      .row = 6,
      .col = 2,
@@ -157,7 +164,7 @@ static DlogCtl save_ctl[] = {
      .label = s_fname,
      .lrow = 2,
      .lcol = 2},
-    {.kind = CT_TXT, .row = 4, .col = 2, .flags = CF_NOF, .text = path},
+    {.kind = CT_TXT, .row = 4, .col = 2, .flags = CF_NOF | CF_PATH, .text = ""},
     {.kind = CT_LST,
      .row = 6,
      .col = 13,
@@ -360,7 +367,9 @@ static void draw_button(const DlogCtl *const c, const uint8_t row, uint8_t col)
     const uint8_t len = (uint8_t)scrn_slen(c->text);
     const uint8_t inner = (uint8_t)(width(c->text, c->cols) - 2 - len); /* the text centred */
     const uint8_t left = (uint8_t)(inner + 1) >> 1, right = inner - left;
-    const uint8_t edge = dl.focused ? SL_DFOC : SL_DLG;
+    const Dlog *const d = dl.d; /* the default one lit while no button has the focus (button.c) */
+    const bool def = c == &d->ctl[d->def] && d->ctl[dl.w.focus].kind != CT_BTN;
+    const uint8_t edge = dl.focused || def ? SL_DFOC : SL_DLG;
     col = scrn_fill(row, col, edge, '<', 1);
     col = scrn_fill(row, col, SL_DLG, ' ', left);
 
@@ -386,6 +395,59 @@ static void draw_check(const DlogCtl *const c, const uint8_t row, uint8_t col)
 }
 
 /* dl_one */
+/* A path to n cells at most: its drive and as many of its last folders as fit, ".." between
+   (C:\..\shot\files, COW's SzChopText); its last folder too long, that folder's end. */
+static void draw_path(const uint8_t row, const uint8_t col, const char *const s, const uint16_t n)
+{
+    static const uint8_t dots[] = "..";
+    enum : uint16_t { HEAD = 3, DOTS = 2 }; /* "C:\" */
+
+    const size_t len = strlen(s);
+
+    if (len <= n) {
+        scrn_strn(row, col, (const uint8_t *)s, (uint16_t)len, SL_DLG);
+        return;
+    }
+
+    size_t tail = 0; /* the last folders that fit, from their '\' */
+
+    for (size_t i = len; i-- > HEAD;) {
+        if (s[i] == '\\' && HEAD + DOTS + (len - i) <= n)
+            tail = len - i;
+    }
+
+    if (!tail) { /* the last folder's end */
+        const uint16_t keep = n > DOTS ? n - DOTS : 0;
+        const uint8_t c = scrn_strn(row, col, dots, n < DOTS ? n : DOTS, SL_DLG);
+        scrn_strn(row, c, (const uint8_t *)s + len - keep, keep, SL_DLG);
+        return;
+    }
+
+    uint8_t c = scrn_strn(row, col, (const uint8_t *)s, HEAD, SL_DLG);
+    c = scrn_strn(row, c, dots, DOTS, SL_DLG);
+    scrn_strn(row, c, (const uint8_t *)s + len - tail, (uint16_t)tail, SL_DLG);
+}
+
+/* A text control: cut at its cols, none at the box's right side a space short; a path in its
+   middle. */
+static void draw_text(
+    const Dlog *const d,
+    const DlogCtl *const c,
+    const uint8_t row,
+    const uint8_t col
+)
+{
+    const uint16_t side = d->cols > c->col + 2 ? d->cols - c->col - 2 : 0;
+    const uint16_t room = c->cols && c->cols < side ? c->cols : side;
+
+    if (c->flags & CF_PATH)
+        draw_path(row, col, c->text, room);
+    else if (scrn_slen(c->text) <= room)
+        scrn_str(row, col, c->text, SL_DLG, SL_DLG);
+    else
+        scrn_strn(row, col, (const uint8_t *)c->text, room, SL_DLG);
+}
+
 static void draw_ctl(const Dlog *const d, const DlogCtl *const c)
 {
     if (c->label)
@@ -408,6 +470,10 @@ static void draw_ctl(const Dlog *const d, const DlogCtl *const c)
 
     case CT_CHK:
         draw_check(c, row, col);
+        break;
+
+    case CT_TXT:
+        draw_text(d, c, row, col);
         break;
 
     default:
@@ -744,7 +810,7 @@ static bool dialog_key(uint16_t *const key)
     const uint8_t ch = (uint8_t)*key;
 
     return *key == KEY_ALT || *key == KEY_SHIFT_TAB || ch == CH_ESC || ch == CH_TAB ||
-           ch == CH_ENTER;
+           ch == CH_ENTER || *key == SCAN_F1 << 8; /* F1: Help */
 }
 
 /* A list's selection to sel, at most its last. */
@@ -815,6 +881,36 @@ static void ended(const uint8_t go, DlogCtl *const c, const uint32_t sel)
 
 static DlogCtl *ctl_of(const Widget *const w) { return &dl.d->ctl[w - dl.kids]; }
 
+static Session *dl_session; /* the box running's, for a Help button's hook */
+
+/* F1 or Help: the message box's first line is the topic's key (an error's message), else
+   "Message boxes"; another box's, its title and " Dialog". */
+static void dlog_help(Session *const S)
+{
+    char key[64];
+    uint32_t n;
+
+    if (dl.d == &msg_dlog) {
+        n = (uint32_t)strlen(msg_text);
+        memcpy(key, msg_text, n < sizeof key ? n : sizeof key - 1);
+        n = n < sizeof key ? n : sizeof key - 1;
+
+        if (!help_has(key, n)) {
+            n = sizeof "message boxes" - 1;
+            memcpy(key, "message boxes", n);
+        }
+    } else {
+        const char *const t = dl.d->title ? dl.d->title : "";
+        n = (uint32_t)strlen(t);
+        n = n < sizeof key - 8 ? n : sizeof key - 8;
+        memcpy(key, t, n);
+        memcpy(key + n, " Dialog", 7);
+        n += 7;
+    }
+
+    help_box(S, key, n);
+}
+
 /* The box's keys, and the hotkeys a button or a check box passes up. */
 static bool dl_key(Widget *const w, Session *const S, const uint16_t key)
 {
@@ -831,6 +927,8 @@ static bool dl_key(Widget *const w, Session *const S, const uint16_t key)
         dl.alt = true;
     else if (ch == CH_ESC)
         go = GO_ESC;
+    else if (!ch && (uint8_t)(key >> 8) == SCAN_F1)
+        dlog_help(S);
     else if (ch == CH_TAB)
         step(dl.d, 1);
     else if (k == KEY_SHIFT_TAB)
@@ -988,6 +1086,7 @@ static uint8_t run(Session *const S, Dlog *const d)
 
 uint8_t dlog_run(Session *const S, Dlog *const d)
 {
+    dl_session = S;
     uimn.help = uimn_dlog_help;
     const uint8_t r = run(S, d);
     uimn.help = nullptr;
@@ -1134,7 +1233,9 @@ uint8_t dlog_msg(Session *const S, const char *const text, const MsgButton *cons
 
 bool dlog_nohelp(const uint8_t why)
 {
-    pscr_beep();
+    if (why == DLOG_PRESS && dl_session)
+        dlog_help(dl_session);
+
     return true;
 }
 
@@ -1193,8 +1294,34 @@ uint8_t dlog_ync(Session *const S, const char *const text)
 
 /* ---- Open, Save As */
 
+int dlog_namecmp(const char *const a, const char *const b)
+{
+    const uint8_t *x = (const uint8_t *)a, *y = (const uint8_t *)b;
+
+    for (; *x && upcase(*x) == upcase(*y); x++, y++) {
+    }
+
+    return upcase(*x) - upcase(*y);
+}
+
+/* l's n items, NAMESZ each, by name. */
+static void sort_names(DlogList *const l, const uint32_t n)
+{
+    char item[NAMESZ];
+
+    for (uint32_t i = 1; i < n; i++) {
+        memcpy(item, l->items + i * NAMESZ, NAMESZ);
+        uint32_t at = i;
+
+        for (; at && dlog_namecmp(l->items + (at - 1) * NAMESZ, item) > 0; at--)
+            memcpy(l->items + at * NAMESZ, l->items + (at - 1) * NAMESZ, NAMESZ);
+
+        memcpy(l->items + at * NAMESZ, item, NAMESZ);
+    }
+}
+
 /* The names matching pattern with attrs (PFIL_ADIR: directories only, "." left out) to l's items,
-   cap of room, grown; their count, as many as memory holds. */
+   cap of room, grown, by name; their count, as many as memory holds. */
 static uint32_t find(
     DlogList *const l,
     uint32_t *const cap,
@@ -1214,7 +1341,34 @@ static uint32_t find(
         n++;
     }
 
+    sort_names(l, n);
     return n;
+}
+
+/* dl_path: the current directory, drive, colon and \ first, as long as it is; the Open, Save As
+   boxes' text. */
+static void set_path(void)
+{
+    enum : uint32_t { HEAD = 3 }; /* "C:\" */
+
+    for (uint32_t want = 128;; want *= 2) { /* pfil_curdir cuts to its room: more till it fits */
+        if (!GROW(path, path_cap, want))
+            break;
+
+        path[0] = (char)('A' + pfil_curdrive());
+        path[1] = ':';
+        path[2] = '\\';
+
+        if (pfil_curdir(0, path + HEAD, path_cap - HEAD) != PFIL_OK) {
+            path[HEAD] = 0;
+            break;
+        }
+
+        if (strlen(path + HEAD) + 1 < path_cap - HEAD)
+            break;
+    }
+
+    open_ctl[1].text = save_ctl[1].text = path ? path : "";
 }
 
 /* dl_files: the lists: the files matching the mask, the directories; the current path. */
@@ -1223,10 +1377,7 @@ static void list_files(void)
     ls_files.n = find(&ls_files, &files_cap, mask, 0);
     ls_dirs.n = find(&ls_dirs, &dirs_cap, "*.*", PFIL_ADIR);
     ls_files.sel = ls_files.top = ls_dirs.sel = ls_dirs.top = 0;
-    path[0] = (char)('A' + pfil_curdrive()); /* drive, colon, \, directory */
-    path[1] = ':';
-    path[2] = '\\';
-    pfil_curdir(0, path + 3, sizeof path - 3);
+    set_path();
 }
 
 /* dl_name1: the field set to s. */

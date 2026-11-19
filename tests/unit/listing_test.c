@@ -59,3 +59,13 @@ TEST(list_byte_keywords)
     listed(S, "defbyte b: dim c as byte: c = cbyte(2.5)");
     CHECK_TEXT(S->cons.sbuf, S->cons.sblen, "DEFBYTE b: DIM c AS BYTE: c = CBYTE(2.5)");
 }
+
+/* A procedure's name where it is declared, a space before its '(' as QBasic's: SUB count (n%) was
+   SUB count(n%); a call's stays close. */
+TEST(list_proc_name_before_paren)
+{
+    listed(S, "declare sub hello (): sub count (n%): call count(1)");
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, "DECLARE SUB hello (): SUB count (n%): CALL count(1)");
+    listed(S, "function f% (a): x = f%(1)");
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, "FUNCTION f% (a): x = f%(1)");
+}

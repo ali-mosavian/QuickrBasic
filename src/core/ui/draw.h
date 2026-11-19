@@ -25,7 +25,7 @@ void draw_status(void);
    to go on from: uimn_stopped), else the editor's. */
 const StatusKeys *draw_keys(void);
 /* dr_ttl: a window's title row: from col, width wide; left, right its corners; title centred,
-   lit (SL_TTL) when lit; arrow: the maximise arrow before the right corner. ttlx, ttlw were the
+   lit (SL_TTL) when lit; arrow: the glyph before the right corner, maximise or restore, 0 none. ttlx, ttlw were the
    asm's globals for col, width. */
 void draw_title(
     uint8_t row,
@@ -35,6 +35,18 @@ void draw_title(
     uint8_t right,
     const char *title,
     bool lit,
-    bool arrow
+    uint8_t arrow
+);
+/* draw_title with its line, and its title unlit, in slot. */
+void draw_title_in(
+    uint8_t slot,
+    uint8_t row,
+    uint8_t col,
+    uint8_t width,
+    uint8_t left,
+    uint8_t right,
+    const char *title,
+    bool lit,
+    uint8_t arrow
 );
 #endif

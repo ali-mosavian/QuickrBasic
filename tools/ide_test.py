@@ -12,6 +12,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 import dosplay  # noqa: E402
 import dosrun  # noqa: E402
+import mkhelp  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 IMG = ROOT / "docs/img"
@@ -27,8 +28,7 @@ def play() -> None:
     (work / exe).write_bytes(IDE.read_bytes())
     if IDE.suffix == ".exe":
         (work / "DOS32A.EXE").write_bytes((IDE.parent / "DOS32A.EXE").read_bytes())
-    hlp = "src/basic.hlp"
-    (work / "BASIC.HLP").write_bytes((ROOT / hlp).read_bytes())
+    (work / "BASIC.HLP").write_bytes(mkhelp.compiled())
     (work / "SQ.BAS").write_bytes(b"for i=1 to _\r\n 3\r\n  print i*i\r\nnext\r\n")
     (work / "SUB").mkdir()
     s = dosplay.Session(work)

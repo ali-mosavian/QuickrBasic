@@ -13,6 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 import dosrun
+import mkhelp
 
 N = 2000
 LOOP = "{}CLS\r\nFOR i% = 1 TO {}: LOCATE 1, 1: {}: NEXT\r\nEND\r\n{}"
@@ -38,7 +39,7 @@ def per_pass(exe: Path, ide: bool) -> float:
     """An empty FOR's instructions a pass, run by exe: the IDE's F5, else the file given."""
     dosrun.COM = exe
     jobs = {"a": f"FOR i% = 1 TO {N}: NEXT\r\nSYSTEM\r\n", "b": f"FOR i% = 1 TO {2 * N}: NEXT\r\nSYSTEM\r\n"}
-    more = dict(files={"BASIC.HLP": (dosrun.ROOT / "src/basic.hlp").read_bytes()},
+    more = dict(files={"BASIC.HLP": mkhelp.compiled()},
                 before=("AUTOTYPE -w 2 f5",), keyboard=True) if ide else {}
     r = dosrun.run(jobs, Path(tempfile.mkdtemp()) / "w", 60000, file=True, screen=True, **more)
     return (r["b"].instructions - r["a"].instructions) / N
@@ -56,7 +57,7 @@ def open_per_line(ide: Path) -> float:
     dosrun.COM = ide
     jobs = {"a": "SYSTEM\r\n", "b": "SYSTEM\r\n" + (OPEN_LINE + "\r\n") * OPEN_LINES}
     r = dosrun.run(jobs, Path(tempfile.mkdtemp()) / "w", 60000, file=True, screen=True, keyboard=True,
-                   files={"BASIC.HLP": (dosrun.ROOT / "src/basic.hlp").read_bytes()},
+                   files={"BASIC.HLP": mkhelp.compiled()},
                    before=("AUTOTYPE -w 2 f5",))
     return (r["b"].instructions - r["a"].instructions) / OPEN_LINES
 

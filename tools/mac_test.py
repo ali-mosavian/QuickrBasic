@@ -12,8 +12,18 @@ F2 lists every procedure: 64 views at most once left SUB 70 out, End, Enter show
 lines of the seven after it. A procedure's name is any length: 40 characters at most once cut
 the window's title. F2's list is by name, in columns (Right a column on): once one column in the
 file's order, Down chose Bbbbbb, Right did nothing. Its box's right side was the dialog's, and a list
-longer than its box had no scroll bar: now the SUBs list's arrow moves a column, the Open box's files
-show their thumb.
+longer than its box had no scroll bar: now the SUBs list's arrow moves a column. The Open box's files
+are by name in three columns, their bar sideways: once one column in the directory's order. A long
+path shows its drive, "..", then its last folders that fit the Files list's width: once 80
+characters, the rest run on past the box onto the next row.
+Drawn as QBasic's: a box's shadow, its bottom row too (none once, message boxes none at all); the
+menu bar's letters plain at rest and on an open menu's title (once always bright); the status bar's
+text bright white (once black); the current statement on a breakpoint white on red (once a blue
+patch); a maximised window's icon the up-down arrow (once the up arrow); the default button's < >
+lit while a field has the focus; the insert cursor VGA's lines 13-14 (once 12-15).
+F1 on a keyword opens the help window (Esc closes it, the frame as before; Alt+F1 after a link returns
+to the topic, Shift+F1 opens Using Help), F1 off a keyword only beeps, and F1 in a menu or in a
+dialog shows help over it: the help system was once "Help is not available".
 """
 
 import os
@@ -32,6 +42,12 @@ HIDDEN = {
     "text": "SCREEN 0, , 1, 0\nCOLOR 4, 4\nCLS\n",
 }
 LOOP = "DO\nLOOP\n"
+HELP = "60:3B00"  # F1
+HELP_ESC = "60:3B00 70:5900 80:011B"  # F1, Shift+F6 (focus it), Esc
+HELP_BACK = "60:3B00 70:5900 80:0F09 90:1C0D 100:6800"  # F1, Shift+F6, Tab, Enter (Index), Alt+F1
+HELP_USING = "60:5400"  # Shift+F1
+HELP_MENU = "60:2100 70:3B00"  # Alt+F, F1
+HELP_OPEN = "60:2100 70:1800 80:3B00"  # Alt+F, O, F1
 SUBS = "PRINT 1\n" + "".join(f"SUB S{i}\nEND SUB\n" for i in range(1, 71))
 LAST_SUB = "60:3C00 70:4F00 80:1C0D"  # F2, End, Enter
 LIST = "60:3C00"  # F2
@@ -40,6 +56,7 @@ ACROSS = "60:3C00 70:4D00 80:1C0D"  # F2, Right, Enter: a column on, S2 by name
 MANY = "PRINT 1\n" + "".join(f"SUB S{i}\nEND SUB\n" for i in range(1, 121))
 BAR_RIGHT = "2s:670,280 2.2s:670,280:1 2.4s:670,280"  # the SUBs list's bar's right arrow, cell 74 row 17
 OPEN = "60:2100 70:1800"  # Alt+F, O
+OPEN_FIRST = "60:2100 70:1800 80:0F09 90:5000 100:4800 110:1C0D"  # Open, Tab, Down, Up, Enter: the first file
 SORTED = "PRINT 1\nSUB Bbbbbb\nEND SUB\nSUB a\nEND SUB\n"
 LONG_NAME = "N" * 60
 LONG = f"PRINT 1\nSUB {LONG_NAME}\nEND SUB\n"
@@ -105,6 +122,37 @@ def clear_column(w: int, pixels: bytes, col: int) -> bool:
     return all(pixel(w, pixels, x, y) == GREY for x in range(9 * col, 9 * col + 9) for y in range(80, 272))
 
 
+def shown_path(path: Path, room: int = 45) -> str:
+    """The Open box's path in room cells, the Files list's width: C:\\..\\ then the last folders that fit."""
+    full = "C:" + str(path).replace("/", "\\")
+    if len(full) <= room:
+        return full
+    parts = full.split("\\")
+    for k in range(1, len(parts)):
+        shown = "C:\\..\\" + "\\".join(parts[k:])
+        if len(shown) <= room:
+            return shown
+    return ".." + full[len(full) - room + 2 :]
+
+
+def lit_cells(w: int, pixels: bytes, row: int) -> list[int]:
+    """Row row's cells with anything on them but the dialog's grey."""
+    return [
+        c
+        for c in range(80)
+        if any(pixel(w, pixels, x, y) != GREY for x in range(c * 9, c * 9 + 9) for y in range(row * 16, row * 16 + 16))
+    ]
+
+
+WHITE, BLACK = (0xFF, 0xFF, 0xFF), (0x00, 0x00, 0x00)
+RENDER = "PRINT 1\nPRINT 2\n"
+
+
+def cell(w: int, pixels: bytes, col: int, row: int) -> set[tuple[int, ...]]:
+    """Cell col, row's colours."""
+    return {pixel(w, pixels, x, y) for x in range(col * 9, col * 9 + 9) for y in range(row * 16, row * 16 + 16)}
+
+
 def main() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         program = Path(tmp) / "HELLO.BAS"
@@ -139,10 +187,38 @@ def main() -> None:
         files.mkdir()
         for i in range(30):
             (files / f"F{i}.BAS").write_text("PRINT 1\n")
+        (files / "A.BAS").write_text("PRINT 1\n")
         _, _, opened = frames(run, files / "F0.BAS", OPEN, ("2s",))[0]
+        _, _, first_file = frames(run, files / "F0.BAS", OPEN_FIRST, ("3s",))[0]
+        deep = Path(tmp).resolve().joinpath(*(f"PATHPART{i:02}" for i in range(9)))
+        deep.mkdir(parents=True)
+        (deep / "D.BAS").write_text("PRINT 1\n")
+        _, _, deep_open = frames(run, deep / "D.BAS", OPEN, ("2s",))[0]
+        deep_path = shown_path(deep)
+        render = Path(tmp) / "R.BAS"
+        render.write_text(RENDER)
+        rw, _, rstart = frames(run, render, "", ("2s",))[0]
+        _, _, rmenu = frames(run, render, "60:2100", ("2s",))[0]  # Alt+F
+        _, _, rbp = frames(run, render, "60:4300 80:3F00", ("3s",))[0]  # F9, F5
+        _, _, rmax = frames(run, render, "60:6700", ("2s",))[0]  # Ctrl+F10
+        _, _, ropen = frames(run, render, OPEN, ("2s",))[0]
         sorted_bas = Path(tmp) / "SORTED.BAS"
         sorted_bas.write_text(SORTED)
         _, _, first_sub = frames(run, sorted_bas, FIRST_SUB, ("2s",))[0]
+        _, _, base = frames(run, program, "", ("2s",))[0]
+        _, _, f1 = frames(run, program, HELP, ("2s",))[0]
+        _, _, f1_focus = frames(run, program, "60:3B00 70:5900", ("2s",))[0]
+        _, _, f1_esc = frames(run, program, HELP_ESC, ("2s",))[0]
+        _, _, f1_back = frames(run, program, HELP_BACK, ("2s",))[0]
+        _, _, using = frames(run, program, HELP_USING, ("2s",))[0]
+        _, _, menu_f1 = frames(run, program, HELP_MENU, ("2s",))[0]
+        _, _, menu_only = frames(run, program, "60:2100", ("2s",))[0]
+        _, _, open_f1 = frames(run, program, HELP_OPEN, ("2s",))[0]
+        _, _, open_only = frames(run, program, "60:2100 70:1800", ("2s",))[0]
+        plain = Path(tmp) / "PLAIN.BAS"
+        plain.write_text("x = 1\n")
+        _, _, plain_base = frames(run, plain, "", ("2s",))[0]
+        _, _, plain_f1 = frames(run, plain, HELP, ("2s",))[0]
         long = Path(tmp) / "LONG.BAS"
         long.write_text(LONG)
         lw, _, long_title = frames(run, long, "60:5500", ("2s",))[0]  # Shift+F2
@@ -170,7 +246,33 @@ def main() -> None:
         "F2's list by name": title_cells(sw, first_sub) == len("SORTED.BAS:a") + 3,
         "F2's list clear of the box's side": clear_column(sw, listed, 76),
         "F2's bar's arrow a column on": title_cells(sw, bar_right) == len("MANY.BAS:S109") + 3,
-        "Open's files' thumb": pixel(sw, opened, 52 * 9 + 1, 168) == (0, 0, 0),
+        "Open's files' thumb sideways": pixel(sw, opened, 10 * 9 + 1, 274)
+        == pixel(sw, opened, 10 * 9 + 1, 286)
+        == (0, 0, 0),
+        "Open's files in columns": any(
+            pixel(sw, opened, x, y) != GREY for x in range(23 * 9, 31 * 9) for y in range(160, 176)
+        ),
+        "Open's long path cut in its middle": [c for c in lit_cells(sw, deep_open, 6) if 7 < c < 72]
+        == list(range(8, 8 + len(deep_path))),
+        "Open's files by name": title_cells(sw, first_file) == len("A.BAS") + 3,
+        "a box's bottom shadow": all(pixel(sw, listed, c * 9, 21 * 16) == BLACK for c in range(5, 70)),
+        "menu bar letters plain at rest": WHITE not in cell(rw, rstart, 3, 0),
+        "open menu's title letter plain": WHITE not in cell(rw, rmenu, 3, 0),
+        "status text bright": all(WHITE in cell(rw, rstart, c, 24) for c in (2, 3, 4)),
+        "current statement on a breakpoint red": pixel(rw, rbp, 9, 32) == RED,
+        "maximised icon differs": [pixel(rw, rmax, x, y) for x in range(76 * 9, 77 * 9) for y in range(16, 32)]
+        != [pixel(rw, rstart, x, y) for x in range(76 * 9, 77 * 9) for y in range(16, 32)],
+        "default button lit": WHITE in cell(rw, ropen, 18, 20),
+        "insert cursor lines 13-14": pixel(rw, rstart, 13, 45) == pixel(rw, rstart, 13, 46) != pixel(rw, rstart, 13, 44)
+        and pixel(rw, rstart, 13, 47) != pixel(rw, rstart, 13, 45),
+        "F1 on PRINT opens help": f1 != base,
+        "F1 leaves the editor focused, Shift+F6 moves to help": f1_focus != f1,
+        "Esc closes help": f1_esc == base,
+        "Alt+F1 after a link returns": f1_back == f1_focus,
+        "Shift+F1 opens Using Help": using != base and using != f1,
+        "F1 off a keyword changes nothing": plain_f1 == plain_base,
+        "F1 in a menu shows help": menu_f1 != menu_only,
+        "F1 in a dialog shows help": open_f1 != open_only,
         "a long name's title whole": title_cells(lw, long_title) == len(f"LONG.BAS:{LONG_NAME}") + 3,
     }
     failed = [name for name, ok in checks.items() if not ok]

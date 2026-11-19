@@ -68,12 +68,14 @@ void wind_layout(void)
         }
 
         const uint16_t first = row + 1; /* the first row under the title */
-        Rect help;                      /* the help window has no widget */
-        Rect *const r = w == W_HELP ? &help : &wind_widget(w)->rect;
-        *r = (Rect){row, 0, p->height, PSCR_COLS};
+        Rect *const r = &wind_widget(w)->rect;
+        *r = (Rect){row, 0, p->height, w == W_HELP ? ws->cols : PSCR_COLS};
+        wind_widget(w)->visible = p->height != 0;
 
-        if (w != W_HELP)
-            wind_widget(w)->visible = p->height != 0;
+        if (w == W_HELP) { /* no edit state or text rows */
+            row += p->height;
+            continue;
+        }
 
         if (w == W_IMM) {
             uimn.imm.row0 = first;
@@ -108,7 +110,8 @@ void wind_layout(void)
     }
 
     const uint8_t imm_row = uimn.imm.row0 - 1; /* its title */
-    uimn.tree.editors.rect = (Rect){1, 0, imm_row - 1, ws->cols};
+    const uint8_t over = 1 + win(W_HELP)->height; /* the help window's rows are not the editors' */
+    uimn.tree.editors.rect = (Rect){over, 0, (uint8_t)(imm_row - over), ws->cols};
 
     uimn.tree.pane.rect =
         (Rect){1, uimn.dp_col - 1, win_rows() - win(W_IMM)->height, PSCR_COLS - uimn.dp_col + 1};
@@ -158,6 +161,8 @@ void wind_imm_draw(Widget *const x, Session *const S) { draw_imm(); }
 
 Widget *wind_widget(const uint8_t w)
 {
+    if (w == W_HELP)
+        return &uimn.tree.help;
     if (w == W_IMM)
         return &uimn.tree.imm;
 
@@ -193,6 +198,12 @@ void wind_act(Session *const S, const uint8_t w)
 
 void wind_focus(Session *const S, const uint8_t w)
 {
+    if (w == W_HELP) {
+        edit_commit(S);
+        uimn.tree.workspace.focus = FOC_HELP;
+        return;
+    }
+
     if (w != W_IMM && w != W_DBG) {
         wind_act(S, w);
         return;
@@ -204,13 +215,15 @@ void wind_focus(Session *const S, const uint8_t w)
 
 uint8_t wind_cur(void)
 {
+    if (uimn.tree.workspace.focus == FOC_HELP)
+        return W_HELP;
     if (uimn.tree.workspace.focus == FOC_EDIT)
         return wind_active();
 
     return uimn.tree.workspace.focus == FOC_IMM ? W_IMM : W_DBG;
 }
 
-static const uint8_t order[] = {W_ED1, W_ED2, W_DBG, W_IMM}; /* F6's */
+static const uint8_t order[] = {W_HELP, W_ED1, W_ED2, W_DBG, W_IMM}; /* F6's */
 enum { NWORD = countof(order) };
 
 /* The focus to the window shown d places on in order. */
@@ -468,6 +481,21 @@ void wind_fit(void)
         win(W_ED1)->height = win_rows() - win(W_IMM)->height;
     }
 
+    wind_layout();
+}
+
+void wind_help(const uint8_t want)
+{
+    unmax();
+    UiWin *const h = win(W_HELP), *const e = win(W_ED1);
+    const int room = h->height + e->height - least(W_ED1); /* ED1 keeps its least */
+    int n = want < room ? want : room;
+
+    if (n > 0 && n < least(W_HELP))
+        n = room >= least(W_HELP) ? least(W_HELP) : 0;
+
+    e->height = (uint8_t)(e->height + h->height - n);
+    h->height = (uint8_t)n;
     wind_layout();
 }
 

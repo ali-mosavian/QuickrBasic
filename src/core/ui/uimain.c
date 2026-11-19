@@ -57,6 +57,7 @@
 #include "ui/draw.h"
 #include "ui/edit.h"
 #include "ui/linemap.h"
+#include "ui/help.h"
 #include "ui/menu.h"
 #include "ui/mouse.h"
 #include "ui/pages.h"
@@ -107,7 +108,6 @@ static const char s_nomatch[] = "Match not found";
 static const char s_chdone[] = "Change complete";
 static const char s_notsaved[] = "Loaded file is not saved. Save it now?";
 static const char s_access[] = "Path/File access error";
-static const char s_nohelp[] = "Help is not available";
 static const char s_about[] = "QuickrBasic||A full-screen editor";
 static const char s_welcome[] = "Welcome to QuickrBasic||"
                                 "Lines may have numbers or not; GOTO and|"
@@ -123,13 +123,10 @@ static void ran(Session *S, Status st);
 /* ui_win: F6. */
 static void next_window(Session *const S) { wind_next(S); }
 
-/* ui_nohelp: F1. */
-static void nohelp(Session *const S) { dlog_ok(S, s_nohelp); }
-
 /* QBasic's status lines (qbasmsgs.txt) less the keys we lack; their keys for the mouse. */
 const StatusKeys uimn_keys_edit = {
     "<Shift+F1=Help> <F6=Window> <F5=Run> <F8=Step>",
-    {{15, nohelp}, {27, next_window}, {36, uimn_cont}, {46, udbg_step}},
+    {{15, help_using}, {27, next_window}, {36, uimn_cont}, {46, udbg_step}},
 };
 const StatusKeys uimn_keys_run = {
     "<F5=Continue> <F7=Over> <F8=Step> <Shift+F8=Out> <F9=Bkpt>",
@@ -137,7 +134,7 @@ const StatusKeys uimn_keys_run = {
 };
 const StatusKeys uimn_keys_imm = {
     "<Shift+F1=Help> <F6=Window> <Enter=Execute Line>",
-    {{15, nohelp}, {27, next_window}, {48, exec_line}},
+    {{15, help_using}, {27, next_window}, {48, exec_line}},
 };
 
 char *uimn_dec(char *const dst, uint16_t v)
@@ -165,6 +162,21 @@ static uint16_t key_of(const PkeyKey k)
     return (uint16_t)(k.scan << 8 | ch);
 }
 
+/* The bar's letters lit while Alt is held, as QBasic's; shown now when no menu or dialog is up. */
+static void bar_letters(const bool on)
+{
+    const Widget *const sc = &uimn.tree.screen;
+    menu_letters(on);
+
+    for (uint8_t i = 0; i < sc->nchildren; i++) {
+        if (sc->children[i]->modal && sc->children[i]->visible)
+            return;
+    }
+
+    menu_bar();
+    scrn_flip();
+}
+
 /* A key, the mouse, or Alt let go after going down alone. */
 static uint16_t wait_key(void)
 {
@@ -174,13 +186,19 @@ static uint16_t wait_key(void)
         if (mous_poll())
             return KEY_MOUSE;
         if (pkey_shift() & PKEY_ALT) {
-            if (ui.alt == ALT_NONE)
+            if (ui.alt == ALT_NONE) {
                 ui.alt = ALT_DOWN;
+                bar_letters(true);
+            }
 
             continue;
         }
 
         const bool tap = ui.alt == ALT_DOWN;
+
+        if (ui.alt != ALT_NONE)
+            bar_letters(false);
+
         ui.alt = ALT_NONE;
 
         if (tap)
@@ -1062,6 +1080,22 @@ void uimn_act(Session *const S, const uint8_t action)
         about(S);
         break;
 
+    case ACT_HINDEX:
+        help_index(S);
+        break;
+
+    case ACT_HCONT:
+        help_contents(S);
+        break;
+
+    case ACT_HTOPIC:
+        help_f1(S);
+        break;
+
+    case ACT_HUSING:
+        help_using(S);
+        break;
+
     case ACT_STEP:
         udbg_step(S);
         break;
@@ -1221,8 +1255,19 @@ static bool screen_key(Widget *const w, Session *const S, const uint16_t key)
         return true;
 
     case SCAN_F1:
+        help_f1(S);
+        return true;
+
     case SCAN_SHIFT_F1:
-        nohelp(S);
+        help_using(S);
+        return true;
+
+    case SCAN_ALT_F1:
+        help_back(S);
+        return true;
+
+    case SCAN_CTRL_F1:
+        help_next(S, pkey_shift() & PKEY_SHIFT);
         return true;
 
     case FKEY(SCAN_SHIFT_F1, 6):
@@ -1284,40 +1329,6 @@ static void loop(Session *const S)
 
 /* ---- the start */
 
-/* hl_load: BASIC.HLP, from the program's own directory. */
-static void load_help(void)
-{
-    static const char file[] = "BASIC.HLP";
-    char name[PFIL_PATH];
-    const uint32_t n = psys_self(name, sizeof name - sizeof file);
-
-    if (!n)
-        return;
-
-    uint32_t dir = 0; /* past the last '\' (the host's '/') */
-    for (uint32_t i = 0; i < n; i++)
-        if (name[i] == '\\' || name[i] == '/')
-            dir = i + 1;
-
-    memcpy(name + dir, file, sizeof file);
-    PfilHandle h;
-
-    if (pfil_open(name, PFIL_READ, &h) != PFIL_OK)
-        return;
-
-    uint32_t size, got;
-
-    if (pfil_seek(h, 0, PFIL_END, &size) == PFIL_OK && pfil_seek(h, 0, PFIL_SET, &got) == PFIL_OK) {
-        size = size < HLPSZ ? size : HLPSZ;
-        uimn.help_text = pmem_resize(nullptr, size);
-
-        if (uimn.help_text && pfil_read(h, uimn.help_text, size, &got) == PFIL_OK)
-            uimn.help_len = (uint16_t)got;
-    }
-
-    pfil_close(h);
-}
-
 static void menubar_draw(Widget *const w, Session *const S) { menu_bar(); }
 static void statusbar_draw(Widget *const w, Session *const S) { draw_status(); }
 static const WidgetOps screen_ops = {.key = screen_key, .mouse = mous_screen};
@@ -1368,6 +1379,7 @@ static void build_tree(void)
     dpan_build(&uimn.tree.pane, uimn.tree.dp);
     menu_build(&uimn.tree.screen); /* the modal ones, hidden till run */
     dlog_build(&uimn.tree.screen);
+    help_build(&uimn.tree.workspace, &uimn.tree.screen);
     tree_focus(&uimn.tree.ed[0]);
 }
 
@@ -1416,7 +1428,7 @@ static void init(Session *const S)
     udbg_init(S);
     wind_init();
     mous_init();
-    load_help();
+    help_init();
     text_init(S);
     view_reset(S);
     edit_load(S, 0);

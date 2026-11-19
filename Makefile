@@ -38,6 +38,12 @@ $(DEPS)/dosbox-x: tools/deps.sh
 
 # ---- The DOS build: clang for i386 (COFF), the start-up and OS layer by jwasm, linked by jwlink ----
 
+# BASIC.HLP: help/*.md and status.txt, compiled (tools/mkhelp.py)
+HELP := build/BASIC.HLP
+$(HELP): tools/mkhelp.py $(shell find help -type f)
+	@mkdir -p $(@D)
+	$(PY) tools/mkhelp.py help -o $@
+
 B := $(if $(GCC),build/gcc,build/c)
 CFLAGS := --target=i386-pc-win32 -march=i386 -mregparm=3 -std=c23 -O2 -ffreestanding -fno-asynchronous-unwind-tables \
 	-fno-stack-protector -mno-stack-arg-probe -mstack-alignment=4 -Wall -Wextra -Wno-unused-parameter -Werror=undef \
@@ -113,7 +119,7 @@ $(B)/ide32.exe: $(IDE_OBJ) tools/doslink.py | $(JWASM) $(JWLINK)
 	$(PY) tools/doslink.py $@ $(IDE_OBJ)
 $(B)/DOS32A.EXE: $(DOS32A)/dos32a.exe tools/dos32a_quiet.py
 	$(PY) tools/dos32a_quiet.py $< $@
-$(B)/BASIC.HLP: src/basic.hlp
+$(B)/BASIC.HLP: $(HELP)
 	cp $< $@
 dos-zip: $(DOS_EXE) $(DOS_GAMES)
 	mkdir -p $(B)/release
@@ -126,7 +132,7 @@ dos-zip: $(DOS_EXE) $(DOS_GAMES)
 
 # ---- The tests ----
 
-TOOLS_TEST := tools/cfmt_test.py tools/gas2coff_test.py tools/conformance_test.py
+TOOLS_TEST := tools/cfmt_test.py tools/gas2coff_test.py tools/conformance_test.py tools/mkhelp_test.py
 test: $(DOS_EXE) | $(DOSBOX_BIN)
 	sh tests/gen/dfa.sh
 	sh tests/gen/messages.sh
@@ -163,6 +169,7 @@ HOST_CC ?= $(CLANG)$(if $(SDK), -isysroot $(SDK))
 HOST_CFLAGS := -std=c23 -D_DEFAULT_SOURCE -O1 -g -Wall -Wextra -Wno-unused-parameter -Werror=undef -DARENA_AT_ZERO=0 -DPFIL_PATH=4096 -DEXEC_COUNT \
 	-Isrc/plat/host/include -Isrc -Isrc/core
 HOST_C := $(shell find src/core -name '*.c' -not -path 'src/core/ui/*') src/core/ui/tree.c src/core/ui/indent.c \
+	src/core/ui/helpfile.c src/core/ui/helpdoc.c \
 	$(wildcard src/plat/host/*.c) src/plat/synth/synth.c src/boot.c
 QBRT_HOST_C := $(QBRT_PORTABLE) $(addprefix qb/,posix/block.c posix/ad.c posix/mathops.c dev/headless/headless.c dev/pixmem.c \
 	dev/host/video.c dev/host/vgadata.c dev/host/tick.c) shared/posix/os.c
@@ -224,10 +231,10 @@ mac: $(APP)/Contents/Info.plist
 $(MAC)/QuickrBasic: $(MAC_OBJ) $(MAC)/obj/plat/sdl/app/main.o $(SDL_LIB)
 	$(HOST_CC) $(MAC_ARCH) $(filter %.o,$^) $(SDL_LIBS) -lm -o $@
 # the bundle, signed ad hoc (Apple silicon runs nothing unsigned)
-$(APP)/Contents/Info.plist: src/plat/sdl/Info.plist $(MAC)/QuickrBasic src/basic.hlp $(DEMOS)
+$(APP)/Contents/Info.plist: src/plat/sdl/Info.plist $(MAC)/QuickrBasic $(HELP) $(DEMOS)
 	mkdir -p $(APP)/Contents/MacOS $(APP)/Contents/Resources/demos
 	cp $(MAC)/QuickrBasic $(APP)/Contents/MacOS/
-	cp src/basic.hlp $(APP)/Contents/Resources/BASIC.HLP
+	cp $(HELP) $(APP)/Contents/Resources/BASIC.HLP
 	cp $(DEMOS) $(APP)/Contents/Resources/demos/
 	cp $< $@
 	codesign --force -s - $(APP)
@@ -248,8 +255,10 @@ UNIT_OBJ := $(patsubst tests/unit/%.c,build/host/unit/%.o,$(wildcard tests/unit/
 build/host/unit/%.o: tests/unit/%.c
 	@mkdir -p $(@D)
 	$(HOST_CC) $(HOST_CFLAGS) $(DEPFLAGS) -c $< -o $@
-build/host/unit_tests: $(build/host_OBJ) $(UNIT_OBJ)
-	$(HOST_CC) $^ -lm -o $@
+build/host/test.hlp: tools/mkhelp.py $(wildcard tests/help/*)
+	$(PY) tools/mkhelp.py tests/help -o $@
+build/host/unit_tests: $(build/host_OBJ) $(UNIT_OBJ) build/host/test.hlp
+	$(HOST_CC) $(filter-out %.hlp,$^) -lm -o $@
 build/host/golden/dump.o: tests/golden/dump.c
 	@mkdir -p $(@D)
 	$(HOST_CC) $(HOST_CFLAGS) $(DEPFLAGS) -c $< -o $@
@@ -315,7 +324,7 @@ build/web/synth.wasm: src/plat/wasm/worklet/worklet.c src/plat/synth/synth.c src
 build/web/ide.wasm: build/wasm/ide.wasm
 	@mkdir -p $(@D)
 	cp $< $@
-build/web/BASIC.HLP: src/basic.hlp
+build/web/BASIC.HLP: $(HELP)
 	@mkdir -p $(@D)
 	cp $< $@
 build/web/%: src/plat/wasm/web/%
@@ -370,7 +379,7 @@ build/lto/ide32.exe: $(call bitcode,$(IDE_OBJ)) $(ASM_OBJ) $(if $(PGO),build/lto
 	$(PY) tools/doslink.py $@ build/lto/ide32.obj $(ASM_OBJ)
 build/lto/DOS32A.EXE: $(DOS32A)/dos32a.exe
 	$(PY) tools/dos32a_quiet.py $< $@
-build/lto/BASIC.HLP: src/basic.hlp
+build/lto/BASIC.HLP: $(HELP)
 	cp $< $@
 -include $(shell find build/lto -name '*.d' 2>/dev/null)
 
