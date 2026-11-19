@@ -43,8 +43,8 @@ HIDDEN = {
 }
 LOOP = "DO\nLOOP\n"
 HELP = "60:3B00"  # F1
-HELP_ESC = "60:3B00 70:5900 80:011B"  # F1, Shift+F6 (focus it), Esc
-HELP_BACK = "60:3B00 70:5900 80:0F09 90:1C0D 100:6800"  # F1, Shift+F6, Tab, Enter (Index), Alt+F1
+HELP_ESC = "60:3B00 70:011B"  # F1, Esc
+HELP_BACK = "60:3B00 70:0F09 80:1C0D 90:6800"  # F1, Tab, Enter (Index), Alt+F1
 HELP_USING = "60:5400"  # Shift+F1
 HELP_MENU = "60:2100 70:3B00"  # Alt+F, F1
 HELP_OPEN = "60:2100 70:1800 80:3B00"  # Alt+F, O, F1
@@ -88,6 +88,16 @@ def frames(
 
 def frame(run: list[str], program: Path, keys: str = "") -> tuple[int, int, bytes]:
     return frames(run, program, keys)[0]
+
+
+def blue_cells(w: int, pixels: bytes) -> int:
+    """Pixels of the editor's blue under the help title, above the status bar."""
+    return sum(pixel(w, pixels, x, y) == BLUE for y in range(48, 384, 2) for x in range(0, w, 3))
+
+
+def green_cells(w: int, pixels: bytes, y0: int, y1: int, x0: int, x1: int) -> int:
+    """Pixels of the help's link-arrow green in a box."""
+    return sum(pixel(w, pixels, x, y) == (0x55, 0xFF, 0x55) for y in range(y0, y1) for x in range(x0, x1))
 
 
 def pixel(w: int, pixels: bytes, x: int, y: int) -> tuple[int, ...]:
@@ -207,7 +217,6 @@ def main() -> None:
         _, _, first_sub = frames(run, sorted_bas, FIRST_SUB, ("2s",))[0]
         _, _, base = frames(run, program, "", ("2s",))[0]
         _, _, f1 = frames(run, program, HELP, ("2s",))[0]
-        _, _, f1_focus = frames(run, program, "60:3B00 70:5900", ("2s",))[0]
         _, _, f1_esc = frames(run, program, HELP_ESC, ("2s",))[0]
         _, _, f1_back = frames(run, program, HELP_BACK, ("2s",))[0]
         _, _, using = frames(run, program, HELP_USING, ("2s",))[0]
@@ -215,6 +224,9 @@ def main() -> None:
         _, _, menu_only = frames(run, program, "60:2100", ("2s",))[0]
         _, _, open_f1 = frames(run, program, HELP_OPEN, ("2s",))[0]
         _, _, open_only = frames(run, program, "60:2100 70:1800", ("2s",))[0]
+        for_bas = Path(tmp) / "FORLOOP.BAS"
+        for_bas.write_text("FOR i = 1 TO 3\nNEXT\n")
+        fw, _, f1_for = frames(run, for_bas, HELP, ("2s",))[0]
         plain = Path(tmp) / "PLAIN.BAS"
         plain.write_text("x = 1\n")
         _, _, plain_base = frames(run, plain, "", ("2s",))[0]
@@ -266,9 +278,13 @@ def main() -> None:
         "insert cursor lines 13-14": pixel(rw, rstart, 13, 45) == pixel(rw, rstart, 13, 46) != pixel(rw, rstart, 13, 44)
         and pixel(rw, rstart, 13, 47) != pixel(rw, rstart, 13, 45),
         "F1 on PRINT opens help": f1 != base,
-        "F1 leaves the editor focused, Shift+F6 moves to help": f1_focus != f1,
+        "help's status line shows all its keys, no line:column": len({pixel(w, f1, x, y) for x in range(9 * 73, 9 * 80) for y in range(386, 398)}) == 1
+        and {pixel(w, f1, x, 392) for x in range(9 * 55, 9 * 70)} != {pixel(w, f1, 9 * 78, 392)},
+        "help fills the screen between the bars, a short topic too": blue_cells(fw, f1_for) == 0,
+        "a link's words are not the arrows' green": green_cells(fw, f1_for, 32, 48, 9 * 16, 9 * 21) == 0
+        and green_cells(fw, f1_for, 32, 48, 9 * 15, 9 * 16) > 0,
         "Esc closes help": f1_esc == base,
-        "Alt+F1 after a link returns": f1_back == f1_focus,
+        "Alt+F1 after a link returns": f1_back == f1,
         "Shift+F1 opens Using Help": using != base and using != f1,
         "F1 off a keyword changes nothing": plain_f1 == plain_base,
         "F1 in a menu shows help": menu_f1 != menu_only,

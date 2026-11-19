@@ -47,6 +47,7 @@ void draw_title_in(
     uint8_t right,
     const char *title,
     bool lit,
-    uint8_t arrow
+    uint8_t arrow,
+    uint8_t lit_slot /* the title when lit */
 );
 #endif

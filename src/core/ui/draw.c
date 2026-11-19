@@ -102,7 +102,8 @@ void draw_title_in(
     const uint8_t right,
     const char *const title,
     const bool lit,
-    const uint8_t arrow
+    const uint8_t arrow,
+    const uint8_t lit_slot
 )
 {
     uint8_t c = scrn_fill(row, col, base, left, 1);
@@ -116,7 +117,7 @@ void draw_title_in(
         scrn_fill(row, c, base, GLYPH_V_RIGHT, 1);
     }
 
-    const uint8_t slot = lit ? SL_TTL : base; /* at 1 + (the width - its length - 5) / 2 */
+    const uint8_t slot = lit ? lit_slot : base; /* at 1 + (the width - its length - 5) / 2 */
     const uint16_t len = scrn_slen(title), room = width > 7 ? width - 7 : 0;
     const uint16_t n = len < room ? len : room; /* a longer one cut, clear of the arrow */
     c = (uint8_t)((width - 5 - n) >> 1) + 1 + col;
@@ -137,7 +138,7 @@ void draw_title(
     const uint8_t arrow
 )
 {
-    draw_title_in(SL_ED, row, col, width, left, right, title, lit, arrow);
+    draw_title_in(SL_ED, row, col, width, left, right, title, lit, arrow, SL_TTL);
 }
 
 /* The selection on screen row row, the edit window's line line, its text from column col. */
@@ -404,9 +405,17 @@ static void status_pos(void)
     scrn_str(status_row(), wide ? STATUS_POS_COL - 2 : STATUS_POS_COL, pos, SL_STAT, SL_STAT);
 }
 
+enum : uint8_t { STATUS_HELP_BAR_COL = 72 }; /* where the bar is while the help window has the focus */
+
 void draw_status(void)
 {
     scrn_fill(status_row(), 0, SL_STAT, ' ', PSCR_COLS);
+
+    if (uimn.tree.workspace.focus == FOC_HELP && !uimn.help) { /* QBasic's: the longer keys, the bar moved, no position */
+        scrn_str(status_row(), 1, draw_keys()->text, SL_SMSG, SL_SMSG);
+        scrn_fill(status_row(), STATUS_HELP_BAR_COL, SL_STAT, GLYPH_V, 1);
+        return;
+    }
 
     if (!status_left())
         return;
