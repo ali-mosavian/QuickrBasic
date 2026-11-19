@@ -337,6 +337,9 @@ const Proc *ref_proc(Comp *const C, uint8_t *const idx)
     return blok_proc(C->blok, n->proc);
 }
 
+/* ct_aend: c ends an argument. */
+static bool aend(const uint8_t c) { return !c || c == ',' || c == ')' || c == ':' || c == TK_REM; }
+
 void ref_dropargs(Comp *const C, const bool paren)
 {
     for (;;) {
@@ -350,6 +353,8 @@ void ref_dropargs(Comp *const C, const bool paren)
 
         if (*p == M_VAR && after[0] == '(' && after[1] == ')')
             C->p = after + 2; /* a() an array whole */
+        else if (*p == M_VAR && aend(*after) && nrec(C, comp_nameof(p), false))
+            C->p = after; /* a record whole: no value, its parameter's type unknown till linked */
         else
             expr_arg(C);
         if (*C->p != ',')
@@ -358,9 +363,6 @@ void ref_dropargs(Comp *const C, const bool paren)
         C->p++;
     }
 }
-
-/* ct_aend: c ends an argument. */
-static bool aend(const uint8_t c) { return !c || c == ',' || c == ')' || c == ':' || c == TK_REM; }
 
 /* ct_ptm: variable id parameter par's type; else Parameter type mismatch, at the argument arg. */
 static void ptm(Comp *const C, const uint16_t id, const uint16_t par, const uint8_t *const arg)
