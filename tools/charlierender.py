@@ -325,6 +325,70 @@ def plant() -> tuple[np.ndarray, np.ndarray]:
     return shoot(320, 80)
 
 
+def deck() -> tuple[np.ndarray, np.ndarray]:
+    """A deck's edge, 64 by 16 and meeting itself across: a dark slab lit along its top, a channel of four light
+    housings (the art tool lays their lights, which run), a steel face with bolts and one warning panel."""
+    reset(64, 16)
+    navy, dark, steel = mat((15, 24, 42)), mat((5, 7, 15)), mat((46, 54, 60), 0.2)
+    box(-4, -2, 68, 16.5, dark, y=2)
+    box(-4, 12.2, 68, 15.3, navy, y=-3, deep=6, bevel=0.5)
+    box(-4, 15.1, 68, 16, mat((16, 60, 60), glow=True), y=-3.2, deep=1)
+    for i in range(5):
+        box(i * 16 - 1.2, 7, i * 16 + 1.2, 11.2, steel, y=-1, bevel=0.3)
+        box(i * 16 + 2.4, 7.6, i * 16 + 13.6, 10.6, mat((6, 30, 40)), y=0.6, deep=1)
+    box(-4, 2.2, 68, 5.9, steel, y=-2, deep=4, bevel=0.5)
+    box(18, 2.4, 46, 5.7, mat((63, 52, 10)), y=-2.4, deep=1)
+    for x in range(20, 46, 7):
+        rod(x, 1.8, x + 3.6, 6.2, 1.0, dark, y=-2.6)
+    for x in (5, 59):
+        ball(x, 4, 1.0, mat((60, 62, 63), 0.3), y=-2.2)
+    return shoot(64, 16)
+
+
+def tank() -> tuple[np.ndarray, np.ndarray]:
+    """A storage tank on legs: a drum under a dome, hoops, a warning band, a gauge, a lamp."""
+    reset(32, 40)
+    steel, dark = mat((50, 56, 62), 0.3), mat((10, 13, 24))
+    rod(15.5, 7, 15.5, 30, 12.5, steel)
+    ball(15.5, 30, 12.5, steel, squash=(1, 1, 0.42))
+    for z in (11, 22):
+        rod(15.5, z, 15.5, z + 1.2, 12.9, dark)
+    rod(15.5, 15, 15.5, 18.6, 12.8, mat((63, 52, 10)))
+    for x in (5.5, 25.5):
+        box(x - 1.3, 0, x + 1.3, 8, dark, y=-2)
+    disc(9.5, 26, 3.3, mat((62, 62, 60)), y=-12.2)
+    disc(9.5, 26, 1.0, dark, y=-13.4)
+    ball(15.5, 37.4, 2.0, mat((63, 16, 10), glow=True))
+    return shoot(32, 40)
+
+
+def post() -> tuple[np.ndarray, np.ndarray]:
+    """A street lamp: a pole on a foot, an arm, a lit head."""
+    reset(16, 48)
+    steel = mat((44, 52, 60), 0.2)
+    rod(6.5, 0, 6.5, 39, 1.1, steel)
+    box(3.5, 0, 9.5, 3.4, steel, y=-2, bevel=0.5)
+    rod(6.5, 38.4, 11.6, 42.6, 1.0, steel)
+    ball(11.8, 42.8, 3.4, mat((63, 58, 28), glow=True))
+    ball(11.0, 43.6, 1.3, mat((63, 63, 56), glow=True), y=-3)
+    return shoot(16, 48)
+
+
+def vent() -> tuple[np.ndarray, np.ndarray]:
+    """A pipe stack: a flanged copper pipe, a red valve wheel, a cyan lamp."""
+    reset(16, 28)
+    copper, steel = mat((60, 34, 12), 0.3), mat((50, 56, 62), 0.2)
+    rod(7.5, 0, 7.5, 23, 3.2, copper)
+    for z in (0.2, 20.4):
+        rod(7.5, z, 7.5, z + 3, 4.8, steel)
+    turn = (math.pi / 2, 0, 0)
+    bpy.ops.mesh.primitive_torus_add(major_radius=2.9, minor_radius=0.9, location=(7.5, -3.6, 12), rotation=turn)
+    done(mat((60, 12, 10)), True)
+    ball(7.5, 12, 1.0, mat((10, 13, 24)), y=-3.8)
+    ball(7.5, 25.6, 1.5, mat((16, 60, 60), glow=True))
+    return shoot(16, 28)
+
+
 def zone(n: int, jobs: dict[str, tuple], weigh: dict[str, int]) -> None:
     """Zone n's pictures, rendered, in a palette of their own colours: as many as its pool has, but 16 kept back."""
     shot = {name: job() for name, job in jobs.items()}
@@ -343,4 +407,5 @@ def zone(n: int, jobs: dict[str, tuple], weigh: dict[str, int]) -> None:
 
 if __name__ == "__main__":
     OUT.mkdir(exist_ok=True)
-    zone(1, {"city": city, "plant": plant, "mural": mural}, {"mural": 4, "plant": 2})
+    jobs = {"city": city, "plant": plant, "mural": mural, "deck": deck, "tank": tank, "post": post, "vent": vent}
+    zone(1, jobs, {"mural": 4, "plant": 2, "deck": 30, "tank": 10, "post": 10, "vent": 10})

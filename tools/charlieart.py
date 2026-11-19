@@ -9,6 +9,7 @@ LONGs and, masked, its mask's: a count n then n values; -n then one value n time
 
 import re
 import sys
+import functools
 import math
 import struct
 import argparse
@@ -128,9 +129,15 @@ class Pic:
         return list(struct.unpack(f"<{len(raw) // 4}i", raw))
 
 
+@functools.cache
+def _px(name: str) -> tuple[tuple[int, ...], ...]:
+    text = (PX / f"{name}.txt").read_text().split()
+    return tuple(tuple(int(ln[i : i + 2], 16) for i in range(0, len(ln), 2)) for ln in text)
+
+
 def rendered(name: str) -> Pic:
     """A picture tools/charlierender.py made."""
-    rows = [[int(ln[i : i + 2], 16) for i in range(0, len(ln), 2)] for ln in (PX / f"{name}.txt").read_text().split()]
+    rows = [list(r) for r in _px(name)]
     p = Pic(len(rows[0]), len(rows))
     p.p = rows
     return p
@@ -1054,29 +1061,12 @@ PAL.update(dict.fromkeys(CHASE, (4, 34, 46)) | dict.fromkeys(FAN, (5, 4, 8)) | d
 
 
 def deck(p: Pic, x: int, y: int, t: int, u: int = 0) -> bool:
-    """A deck's edge t pixels under its surface, u along its 64-pixel module: a dark slab lit along its top, a
-    channel of light bars, a steel face with one warning panel. False below."""
+    """A deck's edge t pixels under its surface, u along its 64-pixel module, as rendered; its four lights, which
+    run, over that. False below."""
     if t > 15:
         return False
-    b = u % 16
-    if t < 4:
-        p.put(x, y, (CYAN, PANEL[4], PANEL[3], PANEL[1])[t])
-    elif t in (4, 9, 13):
-        p.put(x, y, INK)
-    elif t < 9:
-        if not 2 <= b <= 13:
-            p.put(x, y, STEEL[4] if b in (0, 15) else DARK[0])
-        else:
-            p.put(x, y, CHASE[u // 16 % 4] if t in (6, 7) and 3 <= b <= 12 else GLOWC[0])
-    elif t < 13:
-        if 18 <= u <= 45:
-            p.put(x, y, GOLD[3] if (u + t) // 4 % 2 else DARK[0])
-        elif b in (4, 11) and t == 11:
-            p.put(x, y, CHROME[5])
-        else:
-            p.put(x, y, STEEL[(5, 4, 3)[t - 10]])
-    else:
-        p.put(x, y, PANEL[0])
+    lit = t in (6, 7) and 3 <= u % 16 <= 12
+    p.put(x, y, CHASE[u // 16 % 4] if lit else rendered("deck").p[t][u % 64])
     return True
 
 
@@ -1165,7 +1155,7 @@ def cut(p: Pic, x: int, y: int, w: int, h: int) -> Pic:
 
 
 def tile2(kind: int, col: int, ledge: bool = False) -> Pic:
-    """A deck tile, the module's col-th 16 pixels; the wall's plain steel under a slope."""
+    """A deck tile, the module's col-th 16 pixels; the deck's shadow under a slope."""
     p = Pic(16, 16)
     for x in range(16):
         top = surface(kind, x)
@@ -1173,7 +1163,7 @@ def tile2(kind: int, col: int, ledge: bool = False) -> Pic:
             if ledge and y >= 15:
                 continue
             if not deck(p, x, y, y - top, col * 16 + x):
-                p.shade(x, y, PANEL, 0.3)
+                p.put(x, y, rendered("deck").p[15][2])
     return p
 
 
@@ -1185,18 +1175,6 @@ def mover() -> Pic:
             deck(p, x, y, y, x - 8 if 8 <= x < 40 else 0)
     for x in range(6, 48, 12):
         p.box(x - 1, 9, x, 10, CYAN)
-    return p.outline()
-
-
-def post() -> Pic:
-    """A street lamp: a pole, an arm, a lit head."""
-    p = Pic(16, 48)
-    p.box(6, 10, 7, 47, CHROME[2])
-    p.box(6, 10, 6, 47, CHROME[4])
-    p.box(4, 44, 9, 47, CHROME[1])
-    p.line(7, 10, 12, 6, CHROME[3], 2)
-    p.ball(12, 5, 3.4, 3.0, GLOW, 0.4, 1.0)
-    p.put(11, 4, WHITE)
     return p.outline()
 
 
@@ -1212,37 +1190,6 @@ def drum(p: Pic, x0: int, y0: int, x1: int, y1: int, r: list[int], hoop: int = 9
                 r,
                 0.12 + 0.86 * math.sqrt(max(0.0, 1 - d * d)) * (0.75 - 0.25 * d) - (0.22 if y % hoop == 0 else 0),
             )
-
-
-def tank() -> Pic:
-    """A storage tank on legs: a lit drum, hoops, a warning band, a gauge, a lamp on top."""
-    p = Pic(32, 40)
-    drum(p, 3, 8, 28, 33, CHROME)
-    p.ball(15.5, 8, 13, 5, CHROME, 0.3, 1.0)
-    for x in range(3, 29):
-        p.put(x, 22, GOLD[4] if x // 3 % 2 else DARK[0])
-        p.put(x, 23, GOLD[3] if x // 3 % 2 else DARK[0])
-    p.ball(10, 15, 3, 3, FUR, 0.6, 1.0)
-    p.put(10, 15, INK)
-    p.put(11, 14, SCARF[3])
-    for x in (5, 26):
-        p.box(x, 34, x + 1, 39, CHROME[1])
-    p.box(15, 1, 16, 3, SCARF[3])
-    return p.outline()
-
-
-def vent() -> Pic:
-    """A pipe stack: a flanged copper pipe, a valve wheel, a cyan lamp."""
-    p = Pic(16, 28)
-    drum(p, 5, 4, 10, 27, COPPER, 99)
-    p.box(3, 4, 12, 6, CHROME[4])
-    p.box(3, 6, 12, 6, CHROME[1])
-    p.box(3, 24, 12, 27, CHROME[2])
-    p.box(3, 24, 12, 24, CHROME[4])
-    p.ball(8, 15, 3.2, 3.2, SCARF, 0.4, 1.0)
-    p.put(8, 15, INK)
-    p.box(7, 1, 8, 2, CYAN)
-    return p.outline()
 
 
 def button(down: bool) -> Pic:
@@ -1393,9 +1340,9 @@ def pictures() -> list[tuple[int, Pic, bool, int]]:
     ]
     out += [
         (z + 24, mover(), True, -1),
-        (z + 26, post(), True, -1),
-        (z + 28, tank(), True, -1),
-        (z + 30, vent(), True, -1),
+        (z + 26, rendered("post").outline(), True, -1),
+        (z + 28, rendered("tank").outline(), True, -1),
+        (z + 30, rendered("vent").outline(), True, -1),
         (z + 32, words("CHROME WORKS", 178, 18, 1.65, 3.0), True, -1),
         (z - 9, rendered("city"), False, -1),
         (z - 8, rendered("plant"), True, -1),
