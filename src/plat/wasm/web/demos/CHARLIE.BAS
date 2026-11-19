@@ -125,7 +125,8 @@ CONST FSKID = 16, FCROUCH = 17, FHURT = 18, FUP = 19, FWIN = 20, FSHIVER = 22, N
 ' the ground.
 CONST KBONE = 1, KCAT = 2, KSPRING = 3, KMARK = 4, KBOOST = 5, KGOAL = 6, KPLAT = 7
 CONST KLOOP = 8, KTREE = 9, KBUSH = 10, KFLOWER = 11, KROCK = 12, KTHORN = 13, KLAMP = 14, KFAM = 15, KPIPE = 16
-CONST KMOVE = 17, KPOST = 18, KTANK = 19, KVENT = 20
+CONST KMOVE = 17, KPOST = 18, KTANK = 19, KVENT = 20, KJET = 21, KBUMP = 22, KSPIN = 23, KHOOP = 24
+CONST JETV = 500!, BUMPV = 400!, HOOPV = 640!, SPINR = 30, SPINH = 70, PITD = 5
 
 ' Images in Img from At(k); a masked one's mask at k + 1. As charlieart.py's.
 CONST IBG = 0, IMID = 1, ISTRIP = 3, IDEEP = 4, ILOOP = 5, ITITLE = 7
@@ -138,7 +139,8 @@ CONST ICARD = IDASH + 2, IGLYPH = ICARD + 2, NGLYPH = 27, IHUD = IGLYPH + NGLYPH
 ' The Chrome Works' own: built here, then charlieart.py's.
 CONST IZ2 = IPIPE + 2, ITILE2 = IZ2 + 9, IMOVE = ITILE2 + 24, IPOST = IMOVE + 2, ITANK = IPOST + 2, IVENT = ITANK + 2
 CONST ICARD2 = IVENT + 2, IBLD = ICARD2 + 2, IPLANT = IBLD + 12
-CONST IDK = IPLANT + 8, IWT = IDK + 4, IWS = IWT + 32, NIMG = IWS + 4
+CONST IDK = IPLANT + 8, IWT = IDK + 4, IWS = IWT + 32
+CONST IJET = IWS + 4, IBUMP = IJET + 6, ISPIN = IBUMP + 4, IHOOP = ISPIN + 4, NIMG = IHOOP + 4
 CONST HUDW = 108, HUDH = 40
 CONST IMGSZ = 340000
 
@@ -183,6 +185,7 @@ DECLARE SUB BuildStrips (e AS INTEGER, k AS INTEGER)
 DECLARE SUB BuildLoop (k AS INTEGER, ce AS INTEGER, cr AS INTEGER)
 DECLARE SUB BuildPipe (k AS INTEGER, ce AS INTEGER, cr AS INTEGER)
 DECLARE SUB Track ()
+DECLARE SUB Pit (c AS INTEGER, g AS INTEGER, n AS INTEGER)
 DECLARE SUB Knot (x AS SINGLE, y AS SINGLE, k AS INTEGER)
 DECLARE FUNCTION SegAt% (x AS INTEGER, y AS SINGLE)
 DECLARE SUB Along (p AS Hero, d AS SINGLE)
@@ -296,29 +299,30 @@ DATA upg,2, flat,3, cat,0, flat,6, bush,0, dng,3, boost,0, bones,8, flat,10
 DATA loop,0, flat,8, bones,6, flat,6, up45,2, flat,2, arc,7, gap,7, flat,8
 DATA mark,0, flat,4, dn45,4, dng,4, boost,0, bones,10, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
 DATA tree,0, flat,4, boost,0, flat,6, pipe,6, flat,6, bones,6, flat,8
-DATA dng,5, boost,0, bones,10, flat,10, up45,3, arc,11, gap,12, flat,10
-DATA cat,0, flat,6, bush,0, flat,4, spring,0, flat,2, plat,608, hb,706, flat,12
+DATA dng,5, boost,0, bones,10, flat,10, up45,3, arc,11, pit,12, flat,10
+DATA cat,0, flat,6, bush,0, flat,4, spring,0, flat,2, plat,608, hb,706, flat,16, spin,0, flat,8
 DATA upg,4, flat,4, flower,0, flat,4
 DATA mark,0, flat,4, dn45,6, dng,2, boost,0, flat,5, loop,0, flat,6, boost,0, bones,8, flat,6, loop,0
-DATA flat,6, boost,0, flat,6, loop,0, flat,10, up45,4, arc,10, gap,12, flat,10
-DATA boost,0, flat,6, pipe,7, flat,6, tree,0, bones,8, flat,10
-DATA dng,5, boost,0, bones,10, flat,12, loop,0, flat,8, up45,3, arc,10, gap,11, flat,8
+DATA flat,6, boost,0, flat,6, loop,0, flat,10, up45,4, hoop,1, arc,10, pit,12, flat,10
+DATA boost,0, flat,6, pipe,7, flat,6, jet,0, flat,3, bump,5, flat,3, bump,6, flat,3, bump,5, flat,6
+DATA dng,5, boost,0, bones,10, flat,12, loop,0, flat,8, up45,3, arc,10, pit,11, flat,8
 DATA flower,0, upg,3, flat,4, cat,0, dng,3, flat,6, tree,0, flat,4
 DATA mark,0, flat,4, dn45,3, dng,5, boost,0, bones,8, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
-DATA thorn,0, flat,6, rock,0, flat,4, up45,3, arc,8, gap,9, flat,8
-DATA dng,3, boost,0, bones,10, flat,10, loop,0, flat,7, boost,0, flat,6, up45,4, arc,12, gap,14
-DATA flat,10, bush,0, flat,6, flower,0, flat,4
+DATA thorn,0, flat,6, rock,0, flat,4, up45,3, arc,8, pit,9, flat,8
+DATA dng,3, boost,0, bones,10, flat,10, loop,0, flat,7, boost,0, flat,6, up45,4, hoop,1, arc,12, pit,14
+DATA flat,22, spin,0, flat,8, flower,0, flat,4
 DATA goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, "end",0
 
+' pit: a jump's gap with a floor under it and a spring out; the platforms' gaps have one too.
 ' The Chrome Works: mover: a gap that wide with a platform to and fro over it. hover: a gap of 4 with one up and
 ' down, the ground past it that much higher. lift: a gap of 3 with a lift, the ground past it that much higher.
 Level2:
 DATA flat,4, dog,0, flat,8, bones,6, flat,8, boost,0, bones,8, flat,10, loop,0, flat,10
-DATA dng,3, boost,0, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8, up45,3, arc,9, gap,10, flat,8
-DATA cat,0, flat,12, mover,8, flat,8, bones,5, flat,6, mark,0, flat,6
+DATA dng,3, boost,0, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8, up45,3, arc,9, pit,10, flat,8
+DATA cat,0, flat,12, mover,8, flat,8, jet,0, flat,3, bump,5, flat,3, bump,5, flat,6, mark,0, flat,6
 DATA boost,0, flat,6, pipe,6, flat,8, bones,8, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0, flat,10
-DATA lift,6, flat,6, bones,6, flat,8, dn45,4, dng,3, boost,0, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0
-DATA flat,8, up45,4, arc,11, gap,12, flat,10
+DATA lift,6, flat,8, spin,0, flat,8, bones,6, flat,6, dn45,4, dng,3, boost,0, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0
+DATA flat,8, up45,4, hoop,1, arc,11, pit,12, flat,10
 DATA mark,0, flat,6, cat,0, flat,12, hover,5, flat,8, bones,6, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0
 DATA flat,8, drop,4, flat,16, mover,7, flat,8, boost,0, flat,6, pipe,5, flat,8, dng,3, boost,0, flat,8, loop,0
 DATA flat,10, goal,0, flat,9, fam,0, flat,6, flat,5, "end",0
@@ -445,6 +449,14 @@ SUB LoadLevel (z AS INTEGER)
             c = c + n
         CASE "wall"
             g = g + n
+        CASE "pit"
+            ' not a fall to nothing: a floor PITD down, a spring at its far wall
+            Pit c, g, n
+            c = c + n
+        CASE "bump"
+            AddObj KBUMP, c * TS + 8, s - n * TS
+        CASE "hoop"
+            AddObj KHOOP, c * TS + 8, s - n * TS
         CASE "pipe"
             ' a wall with a quarter pipe up to it, over the three columns before: nothing grows there
             FOR i = 0 TO NObj - 1
@@ -457,12 +469,15 @@ SUB LoadLevel (z AS INTEGER)
         CASE "mover"
             ' at each end of its way it lies 8 over the ground
             AddMover c * TS + (n * TS - MOVEW) \ 2, s, (n * TS - MOVEW) \ 2 + 8, 0, c * TS
+            Pit c, g, n
             c = c + n
         CASE "hover"
             AddMover c * TS + 8, s - n * TS \ 2, n * TS \ 2, 1, c * TS
+            Pit c, g, 4
             c = c + 4: g = g + n
         CASE "lift"
             AddMover c * TS, s, n * TS, 2, c * TS
+            Pit c, g, 3
             c = c + 3: g = g + n
         CASE "plat"
             FOR i = 1 TO n MOD 100
@@ -487,6 +502,8 @@ SUB LoadLevel (z AS INTEGER)
         CASE "flower": k = KFLOWER
         CASE "rock": k = KROCK
         CASE "thorn": k = KTHORN
+        CASE "jet": k = KJET
+        CASE "spin": k = KSPIN
         CASE "goal": k = KGOAL: GoalX = c * TS + 8
         CASE "fam": k = KFAM: FamX = c * TS + 8
         CASE "dog"
@@ -700,6 +717,17 @@ SUB Column (c AS INTEGER, g AS INTEGER, kind AS INTEGER)
     ELSE
         ColTop(c) = MH - g: ColVis(c) = 1 + (c AND 1)
     END IF
+END SUB
+
+' Under a jump or a platform, not a fall to nothing: n columns from c of floor PITD under the ground g, bones on
+' it, a spring at its far wall.
+SUB Pit (c AS INTEGER, g AS INTEGER, n AS INTEGER)
+    DIM i AS INTEGER
+    FOR i = 0 TO n - 1
+        Column c + i, g - PITD, 1
+        IF i > 1 AND i < n - 3 AND (i AND 1) = 0 THEN AddObj KBONE, (c + i) * TS + 8, (MH - g + PITD) * TS - 14
+    NEXT
+    AddObj KSPRING, (c + n - 2) * TS + 8, (MH - g + PITD) * TS
 END SUB
 
 SUB AddObj (k AS INTEGER, x AS INTEGER, y AS INTEGER)
@@ -1933,6 +1961,7 @@ END SUB
 ' Charlie against the things near it, and the loose bones.
 SUB Touch (g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
     DIM i AS INTEGER, c AS INTEGER, px AS INTEGER, py AS INTEGER, x AS INTEGER, dx AS INTEGER
+    DIM dy AS INTEGER, d AS SINGLE, a AS SINGLE
     px = CINT(p.x): py = CINT(p.y)
     c = (px - 80) \ TS
     IF c < 0 THEN c = 0
@@ -1990,6 +2019,37 @@ SUB Touch (g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
             IF px >= x THEN ObS(i) = 1
         CASE KTHORN
             IF dx < 12 AND ABS(py - ObY(i)) < 8 THEN Hurt g, p, x, lo(), SHURT
+        CASE KJET
+            ' blowing 80 ticks of 180: who is over it goes up
+            IF (Ticks + x) MOD 180 < 80 AND dx < 10 AND py <= ObY(i) + 2 AND py > ObY(i) - 64 AND p.vy > -JETV + 60 THEN
+                IF p.ground THEN p.vx = p.gsp: Sfx SHISS
+                p.ground = 0: p.vy = -JETV: p.roll = 0: p.jumped = 0: p.sprung = -1
+            END IF
+        CASE KBUMP
+            dy = py - 12 - ObY(i)
+            IF ObS(i) = 0 AND dx < 20 AND ABS(dy) < 20 THEN
+                d = SQR(CSNG(px - x) * (px - x) + CSNG(dy) * dy)
+                IF d < 20 THEN
+                    IF d < 1 THEN d = 1: dy = -1
+                    p.ground = 0: p.vx = (px - x) / d * BUMPV: p.vy = dy / d * BUMPV - 60
+                    p.jumped = 0: p.sprung = -1
+                    ObS(i) = 10: g.score = g.score + 10
+                    Burst pt(), CSNG(x), CSNG(ObY(i)), 6, 90, CGOLD + 4
+                    Sfx SSPRING
+                END IF
+            END IF
+        CASE KSPIN
+            a = Ticks * .06 + x
+            dy = ObY(i) - SPINH + CINT(SPINR * SIN(a))
+            IF ABS(x + CINT(SPINR * COS(a)) - px) < 11 AND ABS(dy - py + 12) < 16 THEN Hurt g, p, x, lo(), SHURT
+        CASE KHOOP
+            ' through it in the air: on, faster, the way Charlie was going
+            IF ObS(i) = 0 AND dx < 9 AND ABS(ObY(i) - py + 12) < 18 AND NOT p.ground THEN
+                p.vx = HOOPV * (1 + 2 * (p.vx < 0)): p.vy = -180: p.sprung = -1
+                ObS(i) = 20
+                Burst pt(), CSNG(x), CSNG(ObY(i)), 8, 120, CGOLD + 4
+                Sfx SBOOST
+            END IF
         END SELECT
         i = i + 1
     LOOP
@@ -2071,7 +2131,7 @@ SUB Things (g AS Game, lo() AS Loose, pt() AS Part)
                 s = Surf%(x, y)
                 IF ABS(s - y) <= 6 THEN ObY(i) = s
             END IF
-        ELSEIF ObK(i) = KSPRING AND ObS(i) > 0 THEN
+        ELSEIF (ObK(i) = KSPRING OR ObK(i) = KBUMP OR ObK(i) = KHOOP) AND ObS(i) > 0 THEN
             ObS(i) = ObS(i) - 1
         END IF
         i = i + 1
@@ -2276,7 +2336,7 @@ END SUB
 
 ' The things in view: back, the scenery behind the ground; else the rest.
 SUB DrawThings (cx AS INTEGER, cy AS INTEGER, back AS INTEGER)
-    DIM i AS INTEGER, c AS INTEGER, x AS INTEGER, y AS INTEGER, k AS INTEGER, f AS INTEGER
+    DIM i AS INTEGER, c AS INTEGER, x AS INTEGER, y AS INTEGER, k AS INTEGER, f AS INTEGER, a AS SINGLE
     c = (cx - 96) \ TS
     IF c < 0 THEN c = 0
     i = First(c)
@@ -2332,6 +2392,21 @@ SUB DrawThings (cx AS INTEGER, cy AS INTEGER, back AS INTEGER)
                 Blit x - 90, y - 81, IFAM + f * 2, 180, 82
             CASE KLAMP
                 Blit x - 10, y - 42, ILAMP, 20, 44
+            CASE KJET
+                Blit x - 8, y - 6, IJET, 16, 6
+                IF (Ticks + ObX(i)) MOD 180 < 80 THEN Blit x - 6, y - 70, IJET + 2 + ((Ticks \ 3) AND 1) * 2, 12, 64
+            CASE KBUMP
+                Blit x - 12, y - 12, IBUMP - 2 * (ObS(i) > 0), 24, 24
+            CASE KSPIN
+                LINE (x - 1, y - SPINH)-(x, y - 1), CINK, BF
+                a = Ticks * .06 + ObX(i)
+                FOR f = 1 TO 3
+                    PSET (x + CINT(SPINR * f / 4 * COS(a)), y - SPINH + CINT(SPINR * f / 4 * SIN(a))), CWHITE
+                NEXT
+                Blit x - 4, y - SPINH - 4, ISPIN + 2, 8, 8
+                Blit x + CINT(SPINR * COS(a)) - 8, y - SPINH + CINT(SPINR * SIN(a)) - 8, ISPIN, 16, 16
+            CASE KHOOP
+                Blit x - 6, y - 16, IHOOP - 2 * (ObS(i) > 0), 12, 32
             END SELECT
         END IF
         i = i + 1

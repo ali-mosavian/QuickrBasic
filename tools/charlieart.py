@@ -1203,6 +1203,64 @@ def vent() -> Pic:
     return p.outline()
 
 
+def nozzle() -> Pic:
+    """A jet's mouth in the ground."""
+    p = Pic(16, 6)
+    p.box(2, 3, 13, 5, CHROME[2])
+    p.box(4, 1, 11, 2, CHROME[4])
+    p.box(6, 1, 9, 1, DARK[0])
+    return p.outline()
+
+
+def steam(f: int) -> Pic:
+    """A jet's column, wider up, frame f."""
+    p = Pic(12, 64)
+    for y in range(64):
+        w = 1.5 + (63 - y) * 0.06
+        for x in range(12):
+            d = abs(x - 5.5) / w
+            if d < 1 and noise(x, (y + f * 5) // 2, 3 + f) > 0.25 + d * 0.3:
+                p.put(x, y, WHITE if d < 0.4 else CLOUD[2 if (x + y + f) % 2 else 1])
+    return p
+
+
+def bumper(lit: bool) -> Pic:
+    """A bumper: a ball that throws off what touches it; lit as it does."""
+    p = Pic(24, 24)
+    p.ball(11.5, 11.5, 10.5, 10.5, GOLD if lit else SCARF, 0.2, 1.0)
+    p.ball(11.5, 11.5, 5.5, 5.5, CLOUD if lit else GOLD, 0.5, 1.0)
+    p.put(8, 7, WHITE)
+    p.put(9, 7, WHITE)
+    return p.outline()
+
+
+def mace() -> Pic:
+    """A spiked ball."""
+    p = Pic(16, 16)
+    for i in range(8):
+        a = i * math.pi / 4
+        p.line(7.5, 7.5, 7.5 + 6.5 * math.cos(a), 7.5 + 6.5 * math.sin(a), STONE[3], 1.4)
+    p.ball(7.5, 7.5, 4.6, 4.6, METAL, 0.1, 1.0)
+    return p.outline()
+
+
+def hub() -> Pic:
+    p = Pic(8, 8)
+    p.ball(3.5, 3.5, 2.6, 2.6, METAL, 0.2, 1.0)
+    return p.outline()
+
+
+def hoop(lit: bool) -> Pic:
+    """A hoop seen edge on: through it is faster."""
+    p = Pic(12, 32)
+    for y in range(32):
+        for x in range(12):
+            e = ((x - 5.5) / 5) ** 2 + ((y - 15.5) / 15) ** 2
+            if 0.5 < e <= 1:
+                p.shade(x, y, CLOUD if lit else GOLD, 0.9 - 0.1 * x)
+    return p.outline()
+
+
 def tower(w: int, h: int, r: list[int], top: int) -> Pic:
     """An office tower: a lit left edge and a shaded right, bands of glass with mullions, a roof by kind: 0 a
     parapet, 1 a mast, 2 a setback and a tank."""
@@ -1364,6 +1422,17 @@ def pictures() -> list[tuple[int, Pic, bool, int]]:
     out += [(z + 54 + c, tile2(1, c), False, -1) for c in range(4)]
     out += [(z + 58 + c * 8 + r, cut(m, c * 16, r * 16, 16, 16), False, -1) for c in range(4) for r in range(8)]
     out += [(z + 90 + c, cut(m, c * 16, 0, 16, 128), False, -1) for c in range(4)]
+    out += [
+        (z + 94, nozzle(), True, -1),
+        (z + 96, steam(0), True, -1),
+        (z + 98, steam(1), True, -1),
+        (z + 100, bumper(False), True, -1),
+        (z + 102, bumper(True), True, -1),
+        (z + 104, mace(), True, -1),
+        (z + 106, hub(), True, -1),
+        (z + 108, hoop(False), True, -1),
+        (z + 110, hoop(True), True, -1),
+    ]
     out += [
         (z + 24, mover(), True, -1),
         (z + 26, post(), True, -1),
