@@ -21,11 +21,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DEMO = ROOT / "src/plat/wasm/web/demos/CHARLIE.BAS"
 
-DRIVER = """OpenScreen
+DRIVER = """DECLARE FUNCTION GroundAt% (x AS INTEGER)
+OpenScreen
 LoadTables
 LoadLevel
 BuildArt
 DIM g AS Game, p AS Hero, k AS Pad, i AS LONG, j AS INTEGER, loops AS INTEGER, was AS INTEGER
+DIM c AS INTEGER, v AS INTEGER
 DIM lo(NLOOSE - 1) AS Loose, pt(NPART - 1) AS Part
 Muted = -1
 StartGame g, p, lo(), pt()
@@ -55,6 +57,53 @@ FOR i = 1 TO 150
 NEXT
 IF was THEN PRINT "held ok"
 was = 0: k.jump = 0: k.was = 0
+' the first 45 degree ramp after flat ground, c its first column
+FOR c = 8 TO LW - 8
+    j = GroundAt%(c * TS - 1)
+    IF j <> NONE AND GroundAt%(c * TS - 40) = j AND GroundAt%(c * TS + 15) = j - TS THEN EXIT FOR
+NEXT
+' run onto it at every speed: at some, its rise ahead was taken for a wall and Charlie stopped dead at its foot
+StartGame g, p, lo(), pt()
+k.r = -1
+FOR v = 120 TO 840 STEP 60
+    p.x = c * TS - 30: p.y = GroundAt%(CINT(p.x)): p.gsp = v: p.ground = -1: p.ang = 0
+    FOR i = 1 TO 12
+        MoveHero p, k, pt()
+        IF p.x > c * TS + 24 THEN EXIT FOR
+        IF p.ground AND p.gsp < v / 2 THEN was = -1
+    NEXT
+NEXT
+' and stood on it, no key down, it stays: it slid back to the foot
+k.r = 0
+p.x = c * TS + 8: p.y = GroundAt%(CINT(p.x)): p.gsp = 0: p.ground = -1: p.roll = 0
+FOR i = 1 TO 90: MoveHero p, k, pt(): NEXT
+IF was = 0 AND ABS(p.x - (c * TS + 8)) < 2 THEN PRINT "slope ok"
+' a jump pressed a moment before landing is made on landing: it was lost
+StartGame g, p, lo(), pt()
+k.hit = -1: k.jump = -1: was = 0
+FOR i = 1 TO 120
+    Tick g, p, k, lo(), pt()
+    IF was = 0 AND NOT p.ground AND p.vy > 0 AND GroundAt%(CINT(p.x)) - p.y < 10 THEN k.hit = -1: was = 1
+    IF was = 1 AND p.ground THEN was = 2
+    IF was = 2 AND p.jumped AND p.vy < -200 THEN was = 3
+NEXT
+IF was = 3 THEN PRINT "buffer ok"
+' and one pressed a moment after running off an edge is still made: it was lost too
+StartGame g, p, lo(), pt()
+FOR c = 8 TO LW - 8
+    IF GroundAt%(c * TS) = NONE AND GroundAt%(c * TS - 20) <> NONE THEN EXIT FOR
+NEXT
+p.x = c * TS - 20: p.y = GroundAt%(CINT(p.x)): p.gsp = 200: p.ground = -1
+k.r = -1: k.jump = 0: k.hit = 0: was = 0
+FOR i = 1 TO 60
+    MoveHero p, k, pt()
+    k.hit = 0
+    IF NOT p.ground THEN was = was + 1
+    IF was = 3 THEN k.hit = -1: k.jump = -1
+    IF was = 4 THEN EXIT FOR
+NEXT
+IF p.jumped AND p.vy < -250 THEN PRINT "edge jump ok"
+was = 0: k.r = 0: k.jump = 0: k.hit = 0: k.was = 0
 StartGame g, p, lo(), pt()
 FOR i = 1 TO 9000
     Pilot p, k
@@ -90,6 +139,15 @@ FOR i = 1 TO 900
 NEXT
 IF was AND p.x < GoalX AND Dusk = 16 THEN PRINT "title met ok"
 END
+
+' The ground's top under x, NONE over a gap.
+FUNCTION GroundAt% (x AS INTEGER)
+    DIM y AS INTEGER
+    GroundAt% = NONE
+    FOR y = 16 TO MH * TS - 17
+        IF Solid%(x, y) THEN GroundAt% = y: EXIT FUNCTION
+    NEXT
+END FUNCTION
 """
 
 
@@ -110,6 +168,13 @@ def main() -> None:
         sys.exit(f"charlie: jump held through a hit, and no jump as it ends: {out[-300:]}")
     if "met ok" not in out:
         sys.exit(f"charlie: the level cleared, Charlie not stopped at its family, all of them in view: {out[-300:]}")
+    for said, what in (
+        ("slope ok", "a ramp run onto at any speed without a stop, and stood on without a slide"),
+        ("buffer ok", "a jump pressed just before landing, made on landing"),
+        ("edge jump ok", "a jump pressed just after running off an edge, made"),
+    ):
+        if said not in out:
+            sys.exit(f"charlie: not {what}: {out[-300:]}")
     if "title met ok" not in out:
         sys.exit(f"charlie: the title's run not ended with the family, held and faded: {out[-300:]}")
     if "faded ok" not in out:

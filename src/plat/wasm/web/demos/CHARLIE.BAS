@@ -20,6 +20,8 @@ TYPE Hero
     th AS SINGLE
     lastx AS SINGLE
     charge AS SINGLE
+    want AS SINGLE
+    coyote AS SINGLE
     inv AS SINGLE
     anim AS SINGLE
     deadT AS SINGLE
@@ -92,10 +94,12 @@ END TYPE
 CONST SW = 320, SH = 200, TS = 16, MW = 800, MH = 30, NONE = 30000
 CONST STEPT = 1! / 60!, PI = 3.141593
 CONST GRAV = 750!, JUMPV = 330!, JUMPCUT = 160!, TOP = 360!
-CONST RUNACC = 280!, DEC = 1800!, FRIC = 280!, AIRACC = 500!, SLOPE = 500!
+CONST RUNACC = 280!, DEC = 1800!, FRIC = 280!, AIRACC = 500!, SLOPE = 380!
 CONST RFRIC = 60!, RDEC = 450!, RUPS = 300!, RDNS = 1100!, MAXV = 900!
 CONST SPRINGV = 560!, CHARGE0 = 480!, CHARGEMAX = 360!, BOUNCEV = 330!
 CONST BOOSTV = 660!, LOOPR = 48, LOOPIN = 330!, LOOPG = 400!, LD = 124
+' A jump asked for this long before landing is made on it; one this long after running off an edge still is.
+CONST JBUFFER = .1, COYOTE = .1
 CONST HW = 7, HH = 24, STRIPH = 192, MIDH = 80
 CONST MAXOBJ = 600, NLOOSE = 24, NPART = 48
 CONST TITLE = 0, PLAYING = 1, CLEARED = 2, OVER = 3
@@ -2686,14 +2690,17 @@ SUB Main
         lag = lag + Elapsed!(last, now)
         last = now
         ReadPad k
-        DO WHILE lag >= STEPT
-            Tick g, p, k, lo(), pt()
-            lag = lag - STEPT
-        LOOP
-        PickSong -(g.mode = TITLE OR g.mode = CLEARED), g.mode = CLEARED
-        FeedSong
-        Render g, p, lo(), pt()
-        Flip g.page
+        ' a picture for each step, none for a look at the clock between two: two of five were the last one again
+        IF lag >= STEPT THEN
+            DO WHILE lag >= STEPT
+                Tick g, p, k, lo(), pt()
+                lag = lag - STEPT
+            LOOP
+            PickSong -(g.mode = TITLE OR g.mode = CLEARED), g.mode = CLEARED
+            FeedSong
+            Render g, p, lo(), pt()
+            Flip g.page
+        END IF
     LOOP UNTIL g.quitting
 
     SCREEN 0
@@ -3378,7 +3385,7 @@ END FUNCTION
 FUNCTION Wall% (p AS Hero, dir AS INTEGER)
     DIM n AS INTEGER, y AS INTEGER
     y = CINT(p.y)
-    DO WHILE Solid%(CINT(p.x) + dir * HW, y - 9) OR Solid%(CINT(p.x) + dir * HW, y - HH + 4)
+    DO WHILE Solid%(CINT(p.x) + dir * HW, y - 11) OR Solid%(CINT(p.x) + dir * HW, y - HH + 4)
         p.x = p.x - dir
         n = n + 1
         IF n > TS THEN EXIT DO
@@ -3431,7 +3438,7 @@ FUNCTION Land% (p AS Hero, d AS INTEGER)
     IF p.jumped AND NOT d THEN p.roll = 0
     ' hit, it lands where it is and stands afraid a while
     IF p.stun THEN p.gsp = 0
-    p.ground = -1: p.jumped = 0: p.sprung = 0
+    p.ground = -1: p.jumped = 0: p.sprung = 0: p.coyote = 0
     Land% = -1
 END FUNCTION
 
@@ -3573,6 +3580,18 @@ SUB MoveHero (p AS Hero, k AS Pad, pt() AS Part)
     ' a jump held through the hit is a jump as it ends: it was forgotten
     IF p.stun AND p.ground AND p.inv < 1 THEN p.stun = 0: IF k.jump THEN k.hit = -1
     IF p.stun = 0 THEN l = k.l: r = k.r: d = k.d: hit = k.hit: hold = k.jump
+    ' a jump pressed just before landing, or just after the ground ran out, was lost: it is kept a moment
+    IF hit THEN p.want = JBUFFER
+    IF p.want > 0 THEN
+        p.want = p.want - STEPT
+        IF p.ground OR p.onloop THEN
+            hit = -1: p.want = 0
+        ELSEIF p.coyote > 0 THEN
+            p.vy = -JUMPV: p.jumped = -1: p.roll = -1: p.coyote = 0: p.want = 0
+            Sfx SJUMP
+        END IF
+    END IF
+    IF p.coyote > 0 THEN p.coyote = p.coyote - STEPT
     IF p.inv > 0 THEN p.inv = p.inv - STEPT
     p.lastx = p.x
     IF p.onloop THEN
@@ -3636,7 +3655,7 @@ SUB Walk (p AS Hero, l AS INTEGER, r AS INTEGER, d AS INTEGER, hit AS INTEGER, p
         Slow p.gsp, RFRIC
         IF ABS(p.gsp) < 30 AND ABS(sn) < .2 THEN p.roll = 0
     ELSE
-        IF p.gsp <> 0 OR ABS(sn) > .5 THEN p.gsp = p.gsp - SLOPE * sn * STEPT
+        IF p.gsp <> 0 OR ABS(sn) > .75 THEN p.gsp = p.gsp - SLOPE * sn * STEPT
         IF p.crouch THEN
             Slow p.gsp, FRIC * 4
         ELSEIF r THEN
@@ -3671,11 +3690,13 @@ SUB Walk (p AS Hero, l AS INTEGER, r AS INTEGER, d AS INTEGER, hit AS INTEGER, p
         cs = COS(p.ang): sn = SIN(p.ang)
         p.x = p.x + p.gsp * cs * STEPT / n
         p.y = p.y - p.gsp * sn * STEPT / n
-        IF p.gsp <> 0 THEN IF Wall%(p, SGN(p.gsp)) THEN p.gsp = 0
+        ' onto the ground first, then into a wall: with the feet still under a slope's line its rise ahead was
+        ' taken for one, and Charlie stopped dead at a ramp's foot
         IF NOT Hug%(p) THEN
-            p.ground = 0: p.vx = p.gsp * cs: p.vy = -p.gsp * sn
+            p.ground = 0: p.vx = p.gsp * cs: p.vy = -p.gsp * sn: p.coyote = COYOTE
             EXIT FOR
         END IF
+        IF p.gsp <> 0 THEN IF Wall%(p, SGN(p.gsp)) THEN p.gsp = 0: s = Hug%(p)
     NEXT
 END SUB
 
