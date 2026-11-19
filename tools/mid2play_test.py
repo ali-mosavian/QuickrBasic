@@ -65,21 +65,33 @@ def held() -> bytes:
     return b"MThd" + head + notes
 
 
+def struck() -> bytes:
+    """Two halves of one pitch, the second struck where the first ends, then a quarter a tone up."""
+    on, off = bytes([0x90, 60, 100]), bytes([0x80, 60, 0])
+    notes = track([(0, on), (48, off), (0, on), (48, off), (0, bytes([0x90, 62, 100])), (24, bytes([0x80, 62, 0]))])
+    head = (6).to_bytes(4, "big") + (1).to_bytes(2, "big") + (1).to_bytes(2, "big") + (24).to_bytes(2, "big")
+    return b"MThd" + head + notes
+
+
 def main() -> None:
+    # a note struck again at its end is struck: sounded all its length (ML) the two ran into one, and an organ's
+    # duh duh duuuh was a duuuh duuuh
+    again = mid2play.program(mid2play.read(struck()), 10, None, 16).splitlines()
+    assert again[2:4] == ['PLAY "V9L2N37MLL2N37"', 'PLAY "MNL4N39P2."'], again
     # a note held over a bar line is held: it was cut at the line, and a brass chord a recording held into the next
     # bar stopped dead
     over = mid2play.program(mid2play.read(held()), 10, None, 16).splitlines()
-    # and a note of a quarter or more sounds all of it (ML): at PLAY's seven eighths a held chord fell a quarter of a
+    # and a note of a half or more sounds all of it (ML): at PLAY's seven eighths a held chord fell a quarter of a
     # second before a recording's
-    assert over[2:4] == ['PLAY "P2.V9MLL2N37"', 'PLAY "P4L4N39P4"'], over
+    assert over[2:4] == ['PLAY "P2.V9MLL2N37"', 'PLAY "P4MNL4N39P4"'], over
     exe = Path(sys.argv[1] if len(sys.argv) > 1 else ROOT / "build/host/basic").resolve()
     text = mid2play.program(mid2play.read(song()), 10, None, 16)
     # a voice moved an octave: the E an octave down
     low = mid2play.program(mid2play.read(song()), 10, None, 16, {1: -12})
-    assert 'PLAY "V9MLL4N29P8V4K8,0,1MNL8N32.' in low, low
+    assert 'PLAY "V9L4N29P8V4K8,0,1L8N32.' in low, low
     # a voice's volume as asked is its loudest note's: these, at 100 of 127, are 0.62 of it
     quiet = mid2play.program(mid2play.read(song()), 10, None, 16, None, {1: 6})
-    assert 'PLAY "V4MLL4N41' in quiet, quiet
+    assert 'PLAY "V4L4N41' in quiet, quiet
     lines = text.splitlines()
     assert lines[1].startswith('PLAY "MBT240R5W0Q20'), lines[1]
     # E above middle C is N41, G N44: a quarter, an eighth's rest, a dotted eighth, the bar's seven sixteenths of rest
@@ -100,9 +112,9 @@ def main() -> None:
     # volume is set where it changes, the G at 64 of 127 a quarter of full
     # a note bent under at its start slides up into its pitch: the wheel was not read, and a lead's every note sat
     # where a recording's scooped up four semitones
-    assert lines[2] == 'PLAY "V9MLL4N41P8V4K8,0,1MNL8N44.P4.P16", "CP2.P8.", "CP8.CP2P8."', lines[2]
+    assert lines[2] == 'PLAY "V9L4N41P8V4K8,0,1L8N44.P4.P16", "CP2.P8.", "CP8.CP2P8."', lines[2]
     wide = mid2play.program(mid2play.read(song()), 10, None, 16, None, None, 8)
-    assert "K8,0,4MNL8N44." in wide, wide
+    assert "K8,0,4L8N44." in wide, wide
     hats = mid2play.bar_of(dict.fromkeys(range(16), (42, 1, 15, "")), 0, 16, "C", {})
     assert hats == "C" * 16, hats
     with tempfile.TemporaryDirectory() as tmp:
