@@ -27,6 +27,7 @@
 #include "comp/expr.h"
 #include "comp/declare.h"
 #include "comp/dfa.h"
+#include "comp/link.h"
 #include "io/msg.h"
 #include "io/repl.h"
 #include "mem/scope.h"
@@ -462,6 +463,7 @@ static Node *arrayarg(Comp *const C, const uint16_t par)
     }
 
     ptm(C, id, par, arg);
+    link_given(C, id); /* the callee's REDIM's */
     return argnode(C, PA_ARRAY, call ? call : cell(C, id), id);
 }
 

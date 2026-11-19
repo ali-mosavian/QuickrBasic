@@ -56,6 +56,7 @@
 #include "comp/expr.h"
 #include "comp/fold.h"
 #include "comp/gfxstmt.h"
+#include "comp/link.h"
 #include "comp/sndstmt.h"
 #include "comp/refs.h"
 #include "io/msg.h"
@@ -827,6 +828,7 @@ static bool arrcopy(Comp *const C)
     if (!comp_end(C))
         synerr(C);
 
+    link_given(C, a);
     comp_int(C, a);
 
     if (call) {
@@ -1334,6 +1336,7 @@ static void common(Comp *const C)
                 synerr(C);
 
             C->p++;
+            link_given(C, id); /* by the program that CHAINed here */
         }
 
         comp_astype(C);

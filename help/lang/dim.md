@@ -34,6 +34,7 @@ array can be resized with [REDIM](REDIM) and dropped with
 
 QuickrBasic adds DIM name() [AS type]: a dynamic array with no
 elements until [REDIM](REDIM) or an [array assignment](array assignment).
+Running a file warns of one that no line REDIMs, assigns or passes.
 
 ## Example
     DIM SHARED total AS DOUBLE

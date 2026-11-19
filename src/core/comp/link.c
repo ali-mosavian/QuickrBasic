@@ -612,6 +612,36 @@ static uint32_t each_error(const Comp *const C, LinkEach *const each, void *cons
 
 static void raise_one(void *const fault, const Failure *const f) { fault_raise(fault, *f); }
 
+void link_empty(Comp *const C, const uint16_t var)
+{
+    Link *const k = C->link;
+
+    if (C->line == DLINE || C->check)
+        return;
+
+    for (uint32_t i = 0; i < k->nempty; i++)
+        if (k->empty[i].var == var)
+            return;
+
+    if (k->nempty < LINK_EMPTIES)
+        k->empty[k->nempty++] = (LinkEmpty){.line = C->line, .var = var};
+}
+
+void link_given(Comp *const C, const uint16_t var) { symb_varx(C->symb, var)->given = 1; }
+
+uint32_t link_empties(const Comp *const C, LinkEmptyEach *const each, void *const ctx)
+{
+    uint32_t n = 0;
+
+    for (uint32_t i = 0; i < C->link->nempty; i++)
+        if (!symb_varx(C->symb, C->link->empty[i].var)->given) {
+            each(ctx, &C->link->empty[i]);
+            n++;
+        }
+
+    return n;
+}
+
 void link_walk(const uint8_t *code, void (*each)(uint8_t op, const uint8_t *at))
 {
     for (; *code != O_EOL; code += flow_opsize(code))
@@ -641,6 +671,10 @@ static void build(Comp *const C)
         allo_grow(C->allo, HCACHE, guess);
 
     C->errs = false;
+    C->link->nempty = 0;
+
+    for (uint16_t id = 1; id < C->symb->nvars; id++)
+        symb_varx(C->symb, id)->given = 0;
 
     do { /* the cache grown moves the store: a literal's Addr of its text, compiled again */
         base = C->prog->base;

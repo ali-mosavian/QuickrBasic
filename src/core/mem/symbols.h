@@ -24,7 +24,7 @@ typedef struct PACKED {
     uint16_t next; /* its hash chain's next */
     uint16_t nloc; /* the next local of its procedure */
     uint8_t scope; /* 0 the module, else a procedure */
-    uint8_t pad;
+    uint8_t given; /* an array given elements by a line's code: link_given */
     uint8_t kop; /* a CONST's literal load, its operand in symb_kval; 0 none (comp/fold.h) */
     uint8_t par; /* a parameter of its procedure (link) */
 } VarX;          /* TVX */

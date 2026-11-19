@@ -70,6 +70,7 @@
 #include "comp/codegen.h"
 #include "comp/fold.h"
 #include "comp/fuse.h"
+#include "comp/link.h"
 #include "comp/sema.h"
 #include "io/console.h"
 #include "io/msg.h"
@@ -1086,6 +1087,7 @@ static void dim1(Comp *const C, const uint16_t id)
     const uint32_t flags = (C->isstatic ? DIM_STATIC : 0) | C->redim;
     uint32_t elems;
     const uint32_t n = dimsubs(C, &elems);
+    link_given(C, id);
     frame_shape(C, id, n, elems);
     comp_int(C, (uint32_t)C->dmask);
     comp_int(C, (uint32_t)(C->dmask >> 32));
@@ -1137,6 +1139,7 @@ void comp_astype(Comp *const C)
 /* DIM a(), ours: its id, CALL AEMPTY. */
 static void dimempty(Comp *const C, const uint16_t id)
 {
+    link_empty(C, id);
     C->p += 2;
     comp_int(C, id);
     comp_int(C, C->isstatic ? DIM_STATIC : 0);

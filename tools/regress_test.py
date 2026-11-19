@@ -713,6 +713,18 @@ WARN = {
                 "Warning: line 2: DEF SEG has no effect in 32-bit mode\n"
                 "Warning: line 5: DEF SEG has no effect in 32-bit mode\n"
                 "Warning: line 6: DEF SEG"),
+    # DIM a(), ours, and nothing gives the array elements: a REDIM, a() = .., a call passing it, a
+    # SUB's SHARED, COMMON. An element's use is a runtime error, found at the line.
+    "warn_empty_array": ("type Vec\r\n x as single\r\nend type\r\ncommon shared h() as long\r\n"
+                         "declare sub show (x() as long)\r\ndeclare sub fill ()\r\n"
+                         "dim a() as long, b() as long, c() as long, d() as long, e() as long, h() as long\r\n"
+                         "dim r() as Vec, q() as Vec: redim r(2): q() = r()\r\n"
+                         "redim b(2): c() = b(): show d(): fill\r\ndim f() as string\r\nprint 1\r\n"
+                         "sub show (x() as long)\r\nend sub\r\nsub fill\r\nshared e()\r\nredim e(3)\r\n"
+                         "dim g() as integer\r\nend sub\r\n",
+                         "Warning: line 7: nothing REDIMs, assigns or passes a()\n"
+                         "Warning: line 10: nothing REDIMs, assigns or passes f()\n"
+                         "Warning: line 17: nothing REDIMs, assigns or passes g()"),
 }
 
 # A line's code past its room left an op cut short before the error's: linking it never ended,
