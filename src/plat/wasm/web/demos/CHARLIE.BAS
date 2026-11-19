@@ -5,328 +5,328 @@
 ' Held keys come from the keyboard's port (60h); where it reads FFh,
 ' from INKEY$'s repeats. Physics in pixels and seconds, 60 steps a
 ' second; the pictures are DATA, drawn by tools/charlieart.py.
-DEFINT A-Z
+defint A-Z
 
 ' Charlie. x, y: the feet. gsp: speed along the ground, ang its rise in
 ' radians, uphill to the right > 0, right round on a loop. sg: the stretch
 ' of the ground's line it is on, or left last; slip: the seconds the keys
 ' are no help, slid off a slope too steep for its speed.
-TYPE Hero
-    x AS SINGLE
-    y AS SINGLE
-    vx AS SINGLE
-    vy AS SINGLE
-    gsp AS SINGLE
-    ang AS SINGLE
-    slip AS SINGLE
-    lastx AS SINGLE
-    charge AS SINGLE
-    want AS SINGLE
-    coyote AS SINGLE
-    inv AS SINGLE
-    anim AS SINGLE
-    deadT AS SINGLE
-    idleT AS SINGLE
-    ground AS INTEGER
-    roll AS INTEGER
-    jumped AS INTEGER
-    crouch AS INTEGER
-    charging AS INTEGER
-    stun AS INTEGER
-    face AS INTEGER
-    skid AS INTEGER
-    sprung AS INTEGER
-    dead AS INTEGER
-    sg AS INTEGER
-    win AS INTEGER
-END TYPE
+type Hero
+    x as single
+    y as single
+    vx as single
+    vy as single
+    gsp as single
+    ang as single
+    slip as single
+    lastx as single
+    charge as single
+    want as single
+    coyote as single
+    inv as single
+    anim as single
+    deadT as single
+    idleT as single
+    ground as integer
+    roll as integer
+    jumped as integer
+    crouch as integer
+    charging as integer
+    stun as integer
+    face as integer
+    skid as integer
+    sprung as integer
+    dead as integer
+    sg as integer
+    win as integer
+end type
 
 ' The game's time against the screen's frames: lag, the time not yet stepped; span, a frame's length as learnt; late,
 ' what the game is behind the clock; n, the frames seen.
-TYPE Clock
-    lag AS SINGLE
-    span AS SINGLE
-    late AS SINGLE
-    n AS SINGLE
-END TYPE
+type Clock
+    lag as single
+    span as single
+    late as single
+    n as single
+end type
 
 ' Held keys, and jump's press since the last step.
-TYPE Pad
-    l AS INTEGER
-    r AS INTEGER
-    d AS INTEGER
-    jump AS INTEGER
-    hit AS INTEGER
-    was AS INTEGER
-    quit AS INTEGER
-    start AS INTEGER
-    mute AS INTEGER
-END TYPE
+type Pad
+    l as integer
+    r as integer
+    d as integer
+    jump as integer
+    hit as integer
+    was as integer
+    quit as integer
+    start as integer
+    mute as integer
+end type
 
-TYPE Game
-    mode AS INTEGER
-    bones AS INTEGER
-    lives AS INTEGER
-    score AS LONG
-    bonus AS LONG
-    sig AS LONG
-    clock AS SINGLE
-    camx AS SINGLE
-    camy AS SINGLE
-    modeT AS SINGLE
-    shake AS SINGLE
-    homeX AS INTEGER
-    homeY AS INTEGER
-    page AS INTEGER
-    quitting AS INTEGER
-END TYPE
+type Game
+    mode as integer
+    bones as integer
+    lives as integer
+    score as long
+    bonus as long
+    sig as long
+    clock as single
+    camx as single
+    camy as single
+    modeT as single
+    shake as single
+    homeX as integer
+    homeY as integer
+    page as integer
+    quitting as integer
+end type
 
 ' A bone knocked loose: t its time left.
-TYPE Loose
-    x AS SINGLE
-    y AS SINGLE
-    vx AS SINGLE
-    vy AS SINGLE
-    t AS SINGLE
-END TYPE
+type Loose
+    x as single
+    y as single
+    vx as single
+    vy as single
+    t as single
+end type
 
-TYPE Part
-    x AS SINGLE
-    y AS SINGLE
-    vx AS SINGLE
-    vy AS SINGLE
-    t AS SINGLE
-    c AS INTEGER
-END TYPE
+type Part
+    x as single
+    y as single
+    vx as single
+    vy as single
+    t as single
+    c as integer
+end type
 
 ' The world: MW by MH tiles of TS pixels; LW columns used. A tile's kind
 ' is its profile, Prof: each column's solid height from its bottom.
-CONST SW = 320, SH = 200, TS = 16, MW = 800, MH = 30, NONE = 30000
-CONST STEPT = 1! / 60!, PI = 3.141593
-CONST GRAV = 750!, JUMPV = 330!, JUMPCUT = 160!, TOP = 360!
-CONST RUNACC = 280!, DEC = 1800!, FRIC = 280!, AIRACC = 500!, SLOPE = 380!
-CONST RFRIC = 60!, RDEC = 450!, RUPS = 300!, RDNS = 1100!, MAXV = 900!
-CONST SPRINGV = 560!, CHARGE0 = 480!, CHARGEMAX = 360!, BOUNCEV = 330!
-CONST BOOSTV = 660!, LOOPR = 72, LD = 188, PIPER = 48
+const SW = 320, SH = 200, TS = 16, MW = 800, MH = 30, NONE = 30000
+const STEPT = 1! / 60!, PI = 3.141593
+const GRAV = 750!, JUMPV = 330!, JUMPCUT = 160!, TOP = 360!
+const RUNACC = 280!, DEC = 1800!, FRIC = 280!, AIRACC = 500!, SLOPE = 380!
+const RFRIC = 60!, RDEC = 450!, RUPS = 300!, RDNS = 1100!, MAXV = 900!
+const SPRINGV = 560!, CHARGE0 = 480!, CHARGEMAX = 360!, BOUNCEV = 330!
+const BOOSTV = 660!, LOOPR = 72, LD = 188, PIPER = 48
 ' A jump asked for this long before landing is made on it; one this long after running off an edge still is.
-CONST JBUFFER = .1, COYOTE = .1
+const JBUFFER = .1, COYOTE = .1
 ' The ground's line: its most points, a loop's and a quarter pipe's stretches, the curves there can be; under STALL
 ' Charlie cannot stay on a wall or a roof.
-CONST NPTS = 1600, LOOPN = 48, PIPEN = 12, NZONE = 47, STALL = 150!
+const NPTS = 1600, LOOPN = 48, PIPEN = 12, NZONE = 47, STALL = 150!
 ' The moving platforms there can be, and their width.
-CONST NMOVE = 23, MOVEW = 48
-CONST HW = 7, HH = 24, STRIPH = 192, MIDH = 80
-CONST MAXOBJ = 600, NLOOSE = 24, NPART = 48
-CONST TITLE = 0, PLAYING = 1, CLEARED = 2, OVER = 3
-CONST FIDLE = 0, FBLINK = 1, FTAP = 2, FRUN = 4, FDASH = 10, FBALL = 12
-CONST FSKID = 16, FCROUCH = 17, FHURT = 18, FUP = 19, FWIN = 20, FSHIVER = 22, NF = 23
+const NMOVE = 23, MOVEW = 48
+const HW = 7, HH = 24, STRIPH = 192, MIDH = 80
+const MAXOBJ = 600, NLOOSE = 24, NPART = 48
+const TITLE = 0, PLAYING = 1, CLEARED = 2, OVER = 3
+const FIDLE = 0, FBLINK = 1, FTAP = 2, FRUN = 4, FDASH = 10, FBALL = 12
+const FSKID = 16, FCROUCH = 17, FHURT = 18, FUP = 19, FWIN = 20, FSHIVER = 22, NF = 23
 
 ' What stands in the level, by x. From KLOOP on: scenery, drawn behind
 ' the ground.
-CONST KBONE = 1, KCAT = 2, KSPRING = 3, KMARK = 4, KBOOST = 5, KGOAL = 6, KPLAT = 7
-CONST KLOOP = 8, KTREE = 9, KBUSH = 10, KFLOWER = 11, KROCK = 12, KTHORN = 13, KLAMP = 14, KFAM = 15, KPIPE = 16
-CONST KMOVE = 17, KPOST = 18, KTANK = 19, KVENT = 20, KJET = 21, KBUMP = 22, KSPIN = 23, KHOOP = 24
-CONST CABLED = 64, CABLEH = 44, KBUTTON = 27
-CONST KWAVE = 25, KWAVE2 = 26, WAVEA = 96, WAVEH = WAVEA + 36, WAVEL = 192
-CONST JETV = 500!, BUMPV = 400!, HOOPV = 640!, SPINR = 30, SPINH = 70, PITD = 5
+const KBONE = 1, KCAT = 2, KSPRING = 3, KMARK = 4, KBOOST = 5, KGOAL = 6, KPLAT = 7
+const KLOOP = 8, KTREE = 9, KBUSH = 10, KFLOWER = 11, KROCK = 12, KTHORN = 13, KLAMP = 14, KFAM = 15, KPIPE = 16
+const KMOVE = 17, KPOST = 18, KTANK = 19, KVENT = 20, KJET = 21, KBUMP = 22, KSPIN = 23, KHOOP = 24
+const CABLED = 64, CABLEH = 44, KBUTTON = 27
+const KWAVE = 25, KWAVE2 = 26, WAVEA = 96, WAVEH = WAVEA + 36, WAVEL = 192
+const JETV = 500!, BUMPV = 400!, HOOPV = 640!, SPINR = 30, SPINH = 70, PITD = 5
 
 ' Images in Img from At(k); a masked one's mask at k + 1. As charlieart.py's.
-CONST IBG = 0, IMID = 1, ILOOP = 5, ITITLE = 7
-CONST ITILE = 10, IHERO = 34, IBONE = IHERO + NF * 4
-CONST ICAT = IBONE + 8, ISPRING = ICAT + 8, IBOOST = ISPRING + 4, IMARK = IBOOST + 4
-CONST IGOAL = IMARK + 4, ITREE = IGOAL + 8, IBUSH = ITREE + 2, IFLOWER = IBUSH + 2
-CONST IROCK = IFLOWER + 4, ITHORN = IROCK + 2, ILAMP = ITHORN + 2, ITILT = ILAMP + 2
-CONST IFAM = ITILT + 320, IDASH = IFAM + 4
-CONST ICARD = IDASH + 2, IGLYPH = ICARD + 2, NGLYPH = 27, IHUD = IGLYPH + NGLYPH * 4, IPIPE = IHUD + 2
+const IBG = 0, IMID = 1, ILOOP = 5, ITITLE = 7
+const ITILE = 10, IHERO = 34, IBONE = IHERO + NF * 4
+const ICAT = IBONE + 8, ISPRING = ICAT + 8, IBOOST = ISPRING + 4, IMARK = IBOOST + 4
+const IGOAL = IMARK + 4, ITREE = IGOAL + 8, IBUSH = ITREE + 2, IFLOWER = IBUSH + 2
+const IROCK = IFLOWER + 4, ITHORN = IROCK + 2, ILAMP = ITHORN + 2, ITILT = ILAMP + 2
+const IFAM = ITILT + 320, IDASH = IFAM + 4
+const ICARD = IDASH + 2, IGLYPH = ICARD + 2, NGLYPH = 27, IHUD = IGLYPH + NGLYPH * 4, IPIPE = IHUD + 2
 ' The Chrome Works' own: built here, then charlieart.py's.
-CONST IZ2 = IPIPE + 2, ITILE2 = IZ2 + 9, IMOVE = ITILE2 + 24, IPOST = IMOVE + 2, ITANK = IPOST + 2, IVENT = ITANK + 2
-CONST ICARD2 = IVENT + 2, IBLD = ICARD2 + 2, IPLANT = IBLD + 12
-CONST IDK = IPLANT + 8, IWT = IDK + 4, IWS = IWT + 32
-CONST IJET = IWS + 4, IBUMP = IJET + 6, ISPIN = IBUMP + 4, IHOOP = ISPIN + 4, IWAVE = IHOOP + 4, IBTN = IWAVE + 8
+const IZ2 = IPIPE + 2, ITILE2 = IZ2 + 9, IMOVE = ITILE2 + 24, IPOST = IMOVE + 2, ITANK = IPOST + 2, IVENT = ITANK + 2
+const ICARD2 = IVENT + 2, IBLD = ICARD2 + 2, IPLANT = IBLD + 12
+const IDK = IPLANT + 8, IWT = IDK + 4, IWS = IWT + 32
+const IJET = IWS + 4, IBUMP = IJET + 6, ISPIN = IBUMP + 4, IHOOP = ISPIN + 4, IWAVE = IHOOP + 4, IBTN = IWAVE + 8
 ' Amber Downs' ground, by the comb's column of 4 and row of 3: flats, slopes, the tile under each slope, the comb
 ' alone and in strips, quarter pipes; its moving platform.
-CONST IAF = IBTN + 4, IAS = IAF + 12, IAU = IAS + 144, IAC = IAU + 72, IAL = IAC + 12, IAP = IAL + 4
-CONST IAM = IAP + 24, IAE = IAM + 2
+const IAF = IBTN + 4, IAS = IAF + 12, IAU = IAS + 144, IAC = IAU + 72, IAL = IAC + 12, IAP = IAL + 4
+const IAM = IAP + 24, IAE = IAM + 2
 ' The works' slopes, by the deck's four 16s: each kind's tile, then what of its deck runs on into the tile under.
-CONST IZS = IAE + 8, IZU = IZS + 48
+const IZS = IAE + 8, IZU = IZS + 48
 ' Charlie round a ribbon's twist, 8 pictures of two frames, then facing left: stood on it, pressed flatter twice,
 ' seen from over its back, hung under it flatter twice and whole, seen from under.
-CONST ITW = IZU + 48, NIMG = ITW + 96
-CONST HUDW = 108, HUDH = 40
+const ITW = IZU + 48, NIMG = ITW + 96
+const HUDW = 108, HUDH = 40
 ' The levels: the two zones, then each again at another hour, in other colours.
-CONST NSTAGE = 4
-CONST IMGSZ = 420000
+const NSTAGE = 4
+const IMGSZ = 420000
 
-CONST SCLEFT = 75, SCRIGHT = 77, SCUP = 72, SCDOWN = 80, SCSPACE = 57, SCZ = 44
-CONST SJUMP = 0, SBONE = 1, SHURT = 2, SSPRING = 3, SPOP = 4, SROLL = 5
-CONST SCHARGE = 6, SLAUNCH = 7, SCLEAR = 8, SDIE = 9, SMARK = 10, SBOOST = 11, SHISS = 12
+const SCLEFT = 75, SCRIGHT = 77, SCUP = 72, SCDOWN = 80, SCSPACE = 57, SCZ = 44
+const SJUMP = 0, SBONE = 1, SHURT = 2, SSPRING = 3, SPOP = 4, SROLL = 5
+const SCHARGE = 6, SLAUNCH = 7, SCLEAR = 8, SDIE = 9, SMARK = 10, SBOOST = 11, SHISS = 12
 
 ' The palette's ramps, dark to light, as charlieart.py's.
-CONST CHUD = 0, CWHITE = 1, CINK = 2, CYELLOW = 3, CRED = 4
-CONST CSCARF = 21, CGRASS = 25, CEARTH = 30, CSTONE = 38, CGOLD = 42
-CONST CWATER = 144
-CONST CCHASE = 213
+const CHUD = 0, CWHITE = 1, CINK = 2, CYELLOW = 3, CRED = 4
+const CSCARF = 21, CGRASS = 25, CEARTH = 30, CSTONE = 38, CGOLD = 42
+const CWATER = 144
+const CCHASE = 213
 
-DECLARE SUB Main ()
-DECLARE SUB Tint (k AS INTEGER, c AS LONG)
-DECLARE SUB Shade ()
-DECLARE FUNCTION Met% (g AS Game, p AS Hero, k AS Pad, pt() AS Part)
-DECLARE SUB OpenScreen ()
-DECLARE SUB Flip (page AS INTEGER)
-DECLARE SUB LoadTables ()
-DECLARE SUB LoadLevel (z AS INTEGER)
-DECLARE SUB AddMover (x AS INTEGER, y AS INTEGER, a AS INTEGER, k AS INTEGER, e AS INTEGER)
-DECLARE SUB Movers (p AS Hero)
-DECLARE FUNCTION Swing! (m AS INTEGER, quarter AS INTEGER)
-DECLARE SUB GoStage (n AS INTEGER, g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
-DECLARE SUB Column (c AS INTEGER, g AS INTEGER, kind AS INTEGER)
-DECLARE SUB AddObj (k AS INTEGER, x AS INTEGER, y AS INTEGER)
-DECLARE SUB SortObjs ()
-DECLARE SUB BuildArt ()
-DECLARE SUB LoadArt ()
-DECLARE SUB Unpack ()
-DECLARE FUNCTION Word& ()
-DECLARE FUNCTION Chars$ ()
-DECLARE SUB OpenData ()
-DECLARE SUB Mirror (k AS INTEGER, k2 AS INTEGER, w AS INTEGER, h AS INTEGER)
-DECLARE SUB Flop (k AS INTEGER, k2 AS INTEGER, w AS INTEGER, h AS INTEGER)
-DECLARE SUB Track ()
-DECLARE SUB Faces ()
-DECLARE FUNCTION Side% (c AS INTEGER, n AS INTEGER)
-DECLARE SUB Bare (x AS INTEGER, y0 AS INTEGER, n AS INTEGER, k AS INTEGER)
-DECLARE SUB DrawCables (cx AS INTEGER, cy AS INTEGER)
-DECLARE SUB Cycle ()
-DECLARE FUNCTION Ribbon% (x AS INTEGER)
-DECLARE FUNCTION Twist! (p AS Hero)
-DECLARE SUB DrawOver (cx AS INTEGER, cy AS INTEGER)
-DECLARE SUB Pit (c AS INTEGER, g AS INTEGER, n AS INTEGER)
-DECLARE SUB Knot (x AS SINGLE, y AS SINGLE, k AS INTEGER)
-DECLARE FUNCTION SegAt% (x AS INTEGER, y AS SINGLE)
-DECLARE SUB Along (p AS Hero, d AS SINGLE)
-DECLARE SUB Drop (p AS Hero)
-DECLARE SUB Settle (p AS Hero, s AS INTEGER, d AS INTEGER)
-DECLARE FUNCTION Curve% (p AS Hero, x0 AS SINGLE, y0 AS SINGLE, d AS INTEGER)
-DECLARE SUB Grab (x1 AS INTEGER, y1 AS INTEGER, x2 AS INTEGER, y2 AS INTEGER, k AS INTEGER)
-DECLARE SUB MaskGrab (x AS INTEGER, y AS INTEGER, w AS INTEGER, h AS INTEGER, mx AS INTEGER, my AS INTEGER, k AS INTEGER)
-DECLARE SUB Blit (x AS INTEGER, y AS INTEGER, k AS INTEGER, w AS INTEGER, h AS INTEGER)
-DECLARE SUB Poll ()
-DECLARE SUB ReadPad (k AS Pad)
-DECLARE FUNCTION Held2% (s AS INTEGER, t AS SINGLE)
-DECLARE SUB Pace (d AS SINGLE, c AS Clock)
-DECLARE FUNCTION Steps% (c AS Clock)
-DECLARE FUNCTION Elapsed! (a AS SINGLE, b AS SINGLE)
-DECLARE SUB Sfx (id AS INTEGER)
-DECLARE SUB LoadSong ()
-DECLARE SUB FeedSong ()
-DECLARE SUB PickSong (n AS INTEGER, late AS INTEGER)
-DECLARE FUNCTION Beat$ (x AS STRING, loud AS INTEGER)
-DECLARE FUNCTION Riff$ (p AS STRING, h AS INTEGER, low AS INTEGER)
-DECLARE FUNCTION Surf% (sx AS INTEGER, y AS INTEGER)
-DECLARE FUNCTION Solid% (x AS INTEGER, y AS INTEGER)
-DECLARE FUNCTION Wall% (p AS Hero, dir AS INTEGER)
-DECLARE FUNCTION Land% (p AS Hero, d AS INTEGER)
-DECLARE SUB Tick (g AS Game, p AS Hero, k AS Pad, lo() AS Loose, pt() AS Part)
-DECLARE SUB Pilot (p AS Hero, k AS Pad)
-DECLARE SUB ResetWorld (g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
-DECLARE SUB StartGame (g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
-DECLARE SUB Spawn (g AS Game, p AS Hero)
-DECLARE SUB MoveHero (p AS Hero, k AS Pad, pt() AS Part)
-DECLARE SUB Walk (p AS Hero, l AS INTEGER, r AS INTEGER, d AS INTEGER, hit AS INTEGER, pt() AS Part)
-DECLARE SUB Airborne (p AS Hero, l AS INTEGER, r AS INTEGER, d AS INTEGER, hold AS INTEGER, pt() AS Part)
-DECLARE SUB Slow (v AS SINGLE, f AS SINGLE)
-DECLARE SUB Touch (g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
-DECLARE SUB Hurt (g AS Game, p AS Hero, fromX AS INTEGER, lo() AS Loose, snd AS INTEGER)
-DECLARE SUB Lose (p AS Hero)
-DECLARE SUB Dying (g AS Game, p AS Hero)
-DECLARE SUB Things (g AS Game, lo() AS Loose, pt() AS Part)
-DECLARE SUB Emit (pt() AS Part, x AS SINGLE, y AS SINGLE, vx AS SINGLE, vy AS SINGLE, t AS SINGLE, c AS INTEGER)
-DECLARE SUB Burst (pt() AS Part, x AS SINGLE, y AS SINGLE, n AS INTEGER, v AS SINGLE, c AS INTEGER)
-DECLARE SUB Camera (g AS Game, p AS Hero, snap AS INTEGER)
-DECLARE SUB Render (g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
-DECLARE SUB DrawBack (cx AS INTEGER, cy AS INTEGER)
-DECLARE SUB DrawTiles (cx AS INTEGER, cy AS INTEGER)
-DECLARE SUB DrawThings (cx AS INTEGER, cy AS INTEGER, back AS INTEGER)
-DECLARE SUB DrawLoose (cx AS INTEGER, cy AS INTEGER, lo() AS Loose)
-DECLARE SUB DrawHero (p AS Hero, cx AS INTEGER, cy AS INTEGER)
-DECLARE FUNCTION HeroFrame% (p AS Hero)
-DECLARE SUB DrawParts (pt() AS Part, cx AS INTEGER, cy AS INTEGER)
-DECLARE SUB Hud (g AS Game)
-DECLARE SUB HudLine (row AS INTEGER, s AS STRING, n AS INTEGER)
-DECLARE SUB BuildGlyphs ()
-DECLARE SUB Scatter (c AS INTEGER, s AS INTEGER)
-DECLARE SUB Say (p AS Hero, cx AS INTEGER, cy AS INTEGER, s AS STRING)
-DECLARE SUB Panel (x1 AS INTEGER, y1 AS INTEGER, x2 AS INTEGER, y2 AS INTEGER)
-DECLARE SUB Txt (row AS INTEGER, col AS INTEGER, s AS STRING, c AS INTEGER)
-DECLARE SUB Banner (row AS INTEGER, s AS STRING, c AS INTEGER)
-DECLARE FUNCTION Num$ (v AS LONG, w AS INTEGER)
+declare sub Main ()
+declare sub Tint (k as integer, c as long)
+declare sub Shade ()
+declare function Met% (g as Game, p as Hero, k as Pad, pt() as Part)
+declare sub OpenScreen ()
+declare sub Flip (page as integer)
+declare sub LoadTables ()
+declare sub LoadLevel (z as integer)
+declare sub AddMover (x as integer, y as integer, a as integer, k as integer, e as integer)
+declare sub Movers (p as Hero)
+declare function Swing! (m as integer, quarter as integer)
+declare sub GoStage (n as integer, g as Game, p as Hero, lo() as Loose, pt() as Part)
+declare sub Column (c as integer, g as integer, kind as integer)
+declare sub AddObj (k as integer, x as integer, y as integer)
+declare sub SortObjs ()
+declare sub BuildArt ()
+declare sub LoadArt ()
+declare sub Unpack ()
+declare function Word& ()
+declare function Chars$ ()
+declare sub OpenData ()
+declare sub Mirror (k as integer, k2 as integer, w as integer, h as integer)
+declare sub Flop (k as integer, k2 as integer, w as integer, h as integer)
+declare sub Track ()
+declare sub Faces ()
+declare function Side% (c as integer, n as integer)
+declare sub Bare (x as integer, y0 as integer, n as integer, k as integer)
+declare sub DrawCables (cx as integer, cy as integer)
+declare sub Cycle ()
+declare function Ribbon% (x as integer)
+declare function Twist! (p as Hero)
+declare sub DrawOver (cx as integer, cy as integer)
+declare sub Pit (c as integer, g as integer, n as integer)
+declare sub Knot (x as single, y as single, k as integer)
+declare function SegAt% (x as integer, y as single)
+declare sub Along (p as Hero, d as single)
+declare sub Drop (p as Hero)
+declare sub Settle (p as Hero, s as integer, d as integer)
+declare function Curve% (p as Hero, x0 as single, y0 as single, d as integer)
+declare sub Grab (x1 as integer, y1 as integer, x2 as integer, y2 as integer, k as integer)
+declare sub MaskGrab (x as integer, y as integer, w as integer, h as integer, mx as integer, my as integer, k as integer)
+declare sub Blit (x as integer, y as integer, k as integer, w as integer, h as integer)
+declare sub Poll ()
+declare sub ReadPad (k as Pad)
+declare function Held2% (s as integer, t as single)
+declare sub Pace (d as single, c as Clock)
+declare function Steps% (c as Clock)
+declare function Elapsed! (a as single, b as single)
+declare sub Sfx (id as integer)
+declare sub LoadSong ()
+declare sub FeedSong ()
+declare sub PickSong (n as integer, late as integer)
+declare function Beat$ (x as string, loud as integer)
+declare function Riff$ (p as string, h as integer, low as integer)
+declare function Surf% (sx as integer, y as integer)
+declare function Solid% (x as integer, y as integer)
+declare function Wall% (p as Hero, dir as integer)
+declare function Land% (p as Hero, d as integer)
+declare sub Tick (g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part)
+declare sub Pilot (p as Hero, k as Pad)
+declare sub ResetWorld (g as Game, p as Hero, lo() as Loose, pt() as Part)
+declare sub StartGame (g as Game, p as Hero, lo() as Loose, pt() as Part)
+declare sub Spawn (g as Game, p as Hero)
+declare sub MoveHero (p as Hero, k as Pad, pt() as Part)
+declare sub Walk (p as Hero, l as integer, r as integer, d as integer, hit as integer, pt() as Part)
+declare sub Airborne (p as Hero, l as integer, r as integer, d as integer, hold as integer, pt() as Part)
+declare sub Slow (v as single, f as single)
+declare sub Touch (g as Game, p as Hero, lo() as Loose, pt() as Part)
+declare sub Hurt (g as Game, p as Hero, fromX as integer, lo() as Loose, snd as integer)
+declare sub Lose (p as Hero)
+declare sub Dying (g as Game, p as Hero)
+declare sub Things (g as Game, lo() as Loose, pt() as Part)
+declare sub Emit (pt() as Part, x as single, y as single, vx as single, vy as single, t as single, c as integer)
+declare sub Burst (pt() as Part, x as single, y as single, n as integer, v as single, c as integer)
+declare sub Camera (g as Game, p as Hero, snap as integer)
+declare sub Render (g as Game, p as Hero, lo() as Loose, pt() as Part)
+declare sub DrawBack (cx as integer, cy as integer)
+declare sub DrawTiles (cx as integer, cy as integer)
+declare sub DrawThings (cx as integer, cy as integer, back as integer)
+declare sub DrawLoose (cx as integer, cy as integer, lo() as Loose)
+declare sub DrawHero (p as Hero, cx as integer, cy as integer)
+declare function HeroFrame% (p as Hero)
+declare sub DrawParts (pt() as Part, cx as integer, cy as integer)
+declare sub Hud (g as Game)
+declare sub HudLine (row as integer, s as string, n as integer)
+declare sub BuildGlyphs ()
+declare sub Scatter (c as integer, s as integer)
+declare sub Say (p as Hero, cx as integer, cy as integer, s as string)
+declare sub Panel (x1 as integer, y1 as integer, x2 as integer, y2 as integer)
+declare sub Txt (row as integer, col as integer, s as string, c as integer)
+declare sub Banner (row as integer, s as string, c as integer)
+declare function Num$ (v as long, w as integer)
 
-DIM SHARED Map(MW - 1, MH - 1) AS INTEGER, Prof(7, TS - 1) AS INTEGER
-DIM SHARED ColTop(MW) AS INTEGER, ColVis(MW) AS INTEGER, FaceL(MW) AS INTEGER, FaceR(MW) AS INTEGER
+dim shared Map(MW - 1, MH - 1) as integer, Prof(7, TS - 1) as integer
+dim shared ColTop(MW) as integer, ColVis(MW) as integer, FaceL(MW) as integer, FaceR(MW) as integer
 ' The ground's line, what Charlie runs on: points GX, GY, GN of them; from each to the next a stretch of kind GK (0
 ' none, 1 the tiles' top, 2 a curve), GL long, GU, GV a pixel along it, its rise GA. ColSeg: a column's stretch;
 ' PlatA: the platforms' first. A curve z: stretches ZA to ZB, from ZM on a loop's far half, between x ZL and ZR.
-DIM SHARED GX(NPTS) AS SINGLE, GY(NPTS) AS SINGLE, GU(NPTS) AS SINGLE, GV(NPTS) AS SINGLE, GL(NPTS) AS SINGLE
-DIM SHARED GA(NPTS) AS SINGLE, GK(NPTS) AS INTEGER, GN AS INTEGER, ColSeg(MW) AS INTEGER, PlatA AS INTEGER
-DIM SHARED ZA(NZONE) AS INTEGER, ZB(NZONE) AS INTEGER, ZM(NZONE) AS INTEGER, ZL(NZONE) AS INTEGER
-DIM SHARED ZR(NZONE) AS INTEGER, NZ AS INTEGER
+dim shared GX(NPTS) as single, GY(NPTS) as single, GU(NPTS) as single, GV(NPTS) as single, GL(NPTS) as single
+dim shared GA(NPTS) as single, GK(NPTS) as integer, GN as integer, ColSeg(MW) as integer, PlatA as integer
+dim shared ZA(NZONE) as integer, ZB(NZONE) as integer, ZM(NZONE) as integer, ZL(NZONE) as integer
+dim shared ZR(NZONE) as integer, NZ as integer
 ' The zone played, 0 the Amber Downs, 1 the Chrome Works, and the one ResetWorld is to load; its pictures: tiles,
 ' strips, backdrop, loop, pipe, card.
 ' The shared colours as built, and each zone's own over them: how many, which, what.
-DIM SHARED Pal0(255) AS LONG, ZPN(NSTAGE - 1) AS INTEGER, ZPK(NSTAGE - 1, 159) AS INTEGER, ZPC(NSTAGE - 1, 159) AS LONG
-DIM SHARED Stage AS INTEGER
-DIM SHARED ZWave AS INTEGER, MvB(NMOVE) AS INTEGER
-DIM SHARED Zone AS INTEGER, NextUp AS INTEGER, ZTile AS INTEGER, ZBack AS INTEGER
-DIM SHARED ZLoop AS INTEGER, ZPipe AS INTEGER, ZCard AS INTEGER
+dim shared Pal0(255) as long, ZPN(NSTAGE - 1) as integer, ZPK(NSTAGE - 1, 159) as integer, ZPC(NSTAGE - 1, 159) as long
+dim shared Stage as integer
+dim shared ZWave as integer, MvB(NMOVE) as integer
+dim shared Zone as integer, NextUp as integer, ZTile as integer, ZBack as integer
+dim shared ZLoop as integer, ZPipe as integer, ZCard as integer
 ' A moving platform m: its thing MvO, its stretch MvS and curve MvZ; its middle MvX, MvY and reach MvA; MvK 0 to
 ' and fro, 1 up and down, 2 a lift, MvT how far up it is; MvE the edge before it.
-DIM SHARED MvO(NMOVE) AS INTEGER, MvS(NMOVE) AS INTEGER, MvZ(NMOVE) AS INTEGER, MvX(NMOVE) AS INTEGER
-DIM SHARED MvY(NMOVE) AS INTEGER, MvA(NMOVE) AS INTEGER, MvK(NMOVE) AS INTEGER, MvE(NMOVE) AS INTEGER
-DIM SHARED MvT(NMOVE) AS SINGLE, NMv AS INTEGER
-DIM SHARED Img(IMGSZ) AS LONG, At(NIMG) AS LONG, NextAt AS LONG
-DIM SHARED ObX(MAXOBJ - 1) AS INTEGER, ObY(MAXOBJ - 1) AS INTEGER, ObK(MAXOBJ - 1) AS INTEGER
-DIM SHARED ObS(MAXOBJ - 1) AS INTEGER, ObA(MAXOBJ - 1) AS INTEGER
-DIM SHARED First(MW) AS INTEGER, NObj AS INTEGER
-DIM SHARED Held(127) AS INTEGER, KeyT(127) AS SINGLE, LastScan AS INTEGER, PortOK AS INTEGER
-DIM SHARED LW AS INTEGER, LWPX AS INTEGER, GoalX AS INTEGER, FamX AS INTEGER, Cheer AS INTEGER
-DIM SHARED StartX AS INTEGER, StartY AS INTEGER
-DIM SHARED Tune AS INTEGER, BarkAt AS LONG
-DIM SHARED Ticks AS LONG, Muted AS INTEGER, LooseN AS INTEGER, PartN AS INTEGER
-DIM SHARED Glint(2) AS LONG
+dim shared MvO(NMOVE) as integer, MvS(NMOVE) as integer, MvZ(NMOVE) as integer, MvX(NMOVE) as integer
+dim shared MvY(NMOVE) as integer, MvA(NMOVE) as integer, MvK(NMOVE) as integer, MvE(NMOVE) as integer
+dim shared MvT(NMOVE) as single, NMv as integer
+dim shared Img(IMGSZ) as long, At(NIMG) as long, NextAt as long
+dim shared ObX(MAXOBJ - 1) as integer, ObY(MAXOBJ - 1) as integer, ObK(MAXOBJ - 1) as integer
+dim shared ObS(MAXOBJ - 1) as integer, ObA(MAXOBJ - 1) as integer
+dim shared First(MW) as integer, NObj as integer
+dim shared Held(127) as integer, KeyT(127) as single, LastScan as integer, PortOK as integer
+dim shared LW as integer, LWPX as integer, GoalX as integer, FamX as integer, Cheer as integer
+dim shared StartX as integer, StartY as integer
+dim shared Tune as integer, BarkAt as long
+dim shared Ticks as long, Muted as integer, LooseN as integer, PartN as integer
+dim shared Glint(2) as long
 ' The colours as loaded, Dusk sixteenths of them shown; MetT: the seconds Charlie has been with its family.
-DIM SHARED Pal(255) AS LONG, Dusk AS INTEGER, MetT AS SINGLE, PastT AS SINGLE
+dim shared Pal(255) as long, Dusk as integer, MetT as single, PastT as single
 ' A song's most bars.
-CONST NBAR = 30
-DIM SHARED Trk(NBAR * 20) AS STRING, Kit(NBAR * 4) AS STRING, Org(NBAR * 4) AS STRING, Third(NBAR * 4) AS STRING, Horn(1) AS STRING, Keys(1) AS STRING
-DIM SHARED Order(1) AS STRING, Voicing(1) AS STRING, Tempo(1) AS INTEGER, BassIn(1) AS INTEGER
-DIM SHARED Lvl(1, 4) AS INTEGER, Solo(1) AS STRING, Fade(1) AS INTEGER, Entry(1) AS INTEGER
-DIM SHARED Sng AS INTEGER, Bar AS INTEGER, HalfBar AS INTEGER
-DIM SHARED Coming AS INTEGER, ComingBar AS INTEGER, FadeOut AS INTEGER, FadeIn AS INTEGER
+const NBAR = 30
+dim shared Trk(NBAR * 20) as string, Kit(NBAR * 4) as string, Org(NBAR * 4) as string, Third(NBAR * 4) as string, Horn(1) as string, Keys(1) as string
+dim shared Order(1) as string, Voicing(1) as string, Tempo(1) as integer, BassIn(1) as integer
+dim shared Lvl(1, 4) as integer, Solo(1) as string, Fade(1) as integer, Entry(1) as integer
+dim shared Sng as integer, Bar as integer, HalfBar as integer
+dim shared Coming as integer, ComingBar as integer, FadeOut as integer, FadeIn as integer
 
 Main
-END
+end
 
 ' The Amber Downs, left to right: a command and its count. g, the ground's
 ' height in tiles, starts at 10. plat and hb: height * 100 + length.
 Level:
-DATA flat,4, dog,0, flat,4, flower,0, flat,4, bones,6, flat,8, tree,0, flat,4
-DATA upg,2, flat,3, cat,0, flat,6, bush,0, dng,3, boost,0, bones,8, flat,10
-DATA loop,0, flat,8, bones,6, flat,6, up45,2, flat,2, arc,7, gap,7, flat,8
-DATA mark,0, flat,4, dn45,4, dng,4, boost,0, bones,10, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
-DATA tree,0, flat,4, boost,0, flat,6, pipe,6, flat,6, bones,6, flat,22
-DATA boost,0, flat,4, wave,1, flat,8
-DATA dng,5, boost,0, bones,10, flat,10, up45,3, arc,11, pit,12, flat,10
-DATA cat,0, flat,6, bush,0, flat,4, spring,0, flat,2, plat,608, hb,706, flat,16, spin,0, flat,8
-DATA upg,4, flat,4, flower,0, flat,4
-DATA mark,0, flat,4, cable,22, flat,8, dn45,2, dng,2, boost,0, flat,5, loop,0, flat,6, boost,0, bones,8, flat,6, loop,0
-DATA flat,6, boost,0, flat,6, loop,0, flat,10, up45,4, hoop,1, arc,10, pit,12, flat,10
-DATA boost,0, flat,6, pipe,7, flat,6, jet,0, flat,3, bump,5, flat,3, bump,6, flat,3, bump,5, flat,6
-DATA dng,5, boost,0, bones,10, flat,12, loop,0, flat,8, up45,3, arc,10, pit,11, flat,8
-DATA flower,0, upg,3, flat,4, cat,0, dng,3, flat,6, tree,0, flat,4, button,0, flat,8, bridge,12, flat,6
-DATA mark,0, flat,4, dn45,3, dng,5, boost,0, bones,8, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
-DATA thorn,0, flat,6, rock,0, flat,4, up45,3, arc,8, pit,9, flat,8
-DATA dng,3, boost,0, bones,10, flat,10, loop,0, flat,7, boost,0, flat,6, up45,4, hoop,1, arc,12, pit,14
-DATA flat,22, spin,0, flat,8, flower,0, flat,4
-DATA goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, "end",0
+data flat,4, dog,0, flat,4, flower,0, flat,4, bones,6, flat,8, tree,0, flat,4
+data upg,2, flat,3, cat,0, flat,6, bush,0, dng,3, boost,0, bones,8, flat,10
+data loop,0, flat,8, bones,6, flat,6, up45,2, flat,2, arc,7, gap,7, flat,8
+data mark,0, flat,4, dn45,4, dng,4, boost,0, bones,10, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
+data tree,0, flat,4, boost,0, flat,6, pipe,6, flat,6, bones,6, flat,22
+data boost,0, flat,4, wave,1, flat,8
+data dng,5, boost,0, bones,10, flat,10, up45,3, arc,11, pit,12, flat,10
+data cat,0, flat,6, bush,0, flat,4, spring,0, flat,2, plat,608, hb,706, flat,16, spin,0, flat,8
+data upg,4, flat,4, flower,0, flat,4
+data mark,0, flat,4, cable,22, flat,8, dn45,2, dng,2, boost,0, flat,5, loop,0, flat,6, boost,0, bones,8, flat,6, loop,0
+data flat,6, boost,0, flat,6, loop,0, flat,10, up45,4, hoop,1, arc,10, pit,12, flat,10
+data boost,0, flat,6, pipe,7, flat,6, jet,0, flat,3, bump,5, flat,3, bump,6, flat,3, bump,5, flat,6
+data dng,5, boost,0, bones,10, flat,12, loop,0, flat,8, up45,3, arc,10, pit,11, flat,8
+data flower,0, upg,3, flat,4, cat,0, dng,3, flat,6, tree,0, flat,4, button,0, flat,8, bridge,12, flat,6
+data mark,0, flat,4, dn45,3, dng,5, boost,0, bones,8, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
+data thorn,0, flat,6, rock,0, flat,4, up45,3, arc,8, pit,9, flat,8
+data dng,3, boost,0, bones,10, flat,10, loop,0, flat,7, boost,0, flat,6, up45,4, hoop,1, arc,12, pit,14
+data flat,22, spin,0, flat,8, flower,0, flat,4
+data goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, "end",0
 
 ' pit: a jump's gap with a floor under it and a spring out; the platforms' gaps have one too.
 ' button, then bridge: a pit that wide, bridged once the button before it is trodden.
@@ -334,52 +334,52 @@ DATA goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, "end",0
 ' The Chrome Works: mover: a gap that wide with a platform to and fro over it. hover: a gap of 4 with one up and
 ' down, the ground past it that much higher. lift: a gap of 3 with a lift, the ground past it that much higher.
 Level2:
-DATA flat,4, dog,0, flat,8, bones,6, flat,8, boost,0, bones,8, flat,10, loop,0, flat,10
-DATA boost,0, flat,4, wave,1, flat,8
-DATA dng,3, boost,0, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8, up45,3, arc,9, pit,10, flat,8
-DATA cat,0, flat,12, mover,8, flat,8, jet,0, flat,3, bump,5, flat,3, bump,5, flat,6, button,0, flat,10, bridge,9, flat,6, mark,0, flat,6
-DATA boost,0, flat,6, pipe,6, flat,8, bones,8, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0, flat,10
-DATA lift,6, flat,8, spin,0, flat,8, bones,6, flat,6, cable,20, flat,8, dng,3, boost,0, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0
-DATA flat,8, up45,4, hoop,1, arc,11, pit,12, flat,10
-DATA mark,0, flat,6, cat,0, flat,12, hover,5, flat,8, bones,6, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0
-DATA flat,8, drop,4, flat,16, mover,7, flat,8, boost,0, flat,6, pipe,5, flat,8, dng,3, boost,0, flat,8, loop,0
-DATA flat,10, goal,0, flat,9, fam,0, flat,6, flat,5, "end",0
+data flat,4, dog,0, flat,8, bones,6, flat,8, boost,0, bones,8, flat,10, loop,0, flat,10
+data boost,0, flat,4, wave,1, flat,8
+data dng,3, boost,0, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8, up45,3, arc,9, pit,10, flat,8
+data cat,0, flat,12, mover,8, flat,8, jet,0, flat,3, bump,5, flat,3, bump,5, flat,6, button,0, flat,10, bridge,9, flat,6, mark,0, flat,6
+data boost,0, flat,6, pipe,6, flat,8, bones,8, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0, flat,10
+data lift,6, flat,8, spin,0, flat,8, bones,6, flat,6, cable,20, flat,8, dng,3, boost,0, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0
+data flat,8, up45,4, hoop,1, arc,11, pit,12, flat,10
+data mark,0, flat,6, cat,0, flat,12, hover,5, flat,8, bones,6, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0
+data flat,8, drop,4, flat,16, mover,7, flat,8, boost,0, flat,6, pipe,5, flat,8, dng,3, boost,0, flat,8, loop,0
+data flat,10, goal,0, flat,9, fam,0, flat,6, flat,5, "end",0
 
 ' The Amber Downs at evening.
 Level3:
-DATA flat,4, dog,0, flat,6, bones,6, flat,6, boost,0, flat,6, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
-DATA up45,3, arc,9, pit,10, flat,8, flower,0, flat,4
-DATA dng,4, boost,0, bones,10, flat,10, loop,0, flat,8, boost,0, flat,4, wave,2, flat,8
-DATA cat,0, flat,8, tree,0, flat,6, upg,3, flat,4, button,0, flat,8, bridge,10, flat,6, mark,0, flat,6
-DATA dn45,3, dng,3, boost,0, bones,8, flat,8, loop,0, flat,6, up45,4, hoop,1, arc,11, pit,12, flat,10
-DATA spring,0, flat,2, plat,608, hb,706, flat,16, bush,0, flat,6, cable,22, flat,8
-DATA boost,0, flat,6, pipe,6, flat,6, bones,6, flat,22, boost,0, flat,4, wave,1, flat,8
-DATA dng,5, boost,0, bones,10, flat,12, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8, thorn,0, flat,6, rock,0, flat,4
-DATA jet,0, flat,3, bump,5, flat,3, bump,6, flat,6, mark,0, flat,4, up45,3, arc,10, pit,11, flat,8
-DATA dng,3, boost,0, bones,10, flat,10, loop,0, flat,10, spin,0, flat,8, flower,0, flat,4
-DATA goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, "end",0
+data flat,4, dog,0, flat,6, bones,6, flat,6, boost,0, flat,6, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
+data up45,3, arc,9, pit,10, flat,8, flower,0, flat,4
+data dng,4, boost,0, bones,10, flat,10, loop,0, flat,8, boost,0, flat,4, wave,2, flat,8
+data cat,0, flat,8, tree,0, flat,6, upg,3, flat,4, button,0, flat,8, bridge,10, flat,6, mark,0, flat,6
+data dn45,3, dng,3, boost,0, bones,8, flat,8, loop,0, flat,6, up45,4, hoop,1, arc,11, pit,12, flat,10
+data spring,0, flat,2, plat,608, hb,706, flat,16, bush,0, flat,6, cable,22, flat,8
+data boost,0, flat,6, pipe,6, flat,6, bones,6, flat,22, boost,0, flat,4, wave,1, flat,8
+data dng,5, boost,0, bones,10, flat,12, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8, thorn,0, flat,6, rock,0, flat,4
+data jet,0, flat,3, bump,5, flat,3, bump,6, flat,6, mark,0, flat,4, up45,3, arc,10, pit,11, flat,8
+data dng,3, boost,0, bones,10, flat,10, loop,0, flat,10, spin,0, flat,8, flower,0, flat,4
+data goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, "end",0
 
 ' The Chrome Works by night.
 Level4:
-DATA flat,4, dog,0, flat,8, bones,6, flat,6, boost,0, flat,6, loop,0, flat,6, boost,0, flat,6, loop,0, flat,16
-DATA mover,7, flat,8, bones,6, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0, flat,8
-DATA up45,3, arc,9, pit,10, flat,8, cat,0, flat,10, hover,5, flat,8, mark,0, flat,6
-DATA boost,0, flat,4, wave,1, flat,8, dng,3, boost,0, flat,8, loop,0, flat,8, button,0, flat,10, bridge,10, flat,8
-DATA jet,0, flat,3, bump,5, flat,3, bump,5, flat,8, lift,6, flat,8, bones,6, flat,6
-DATA dng,4, boost,0, bones,10, flat,10, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
-DATA up45,4, hoop,1, arc,11, pit,12, flat,10, mark,0, flat,6, cable,20, flat,8
-DATA boost,0, flat,6, pipe,5, flat,8, bones,6, flat,20, drop,4, flat,16, mover,8, flat,8
-DATA dng,3, boost,0, flat,8, loop,0, flat,10, spin,0, flat,8
-DATA goal,0, flat,9, fam,0, flat,6, flat,5, "end",0
+data flat,4, dog,0, flat,8, bones,6, flat,6, boost,0, flat,6, loop,0, flat,6, boost,0, flat,6, loop,0, flat,16
+data mover,7, flat,8, bones,6, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0, flat,8
+data up45,3, arc,9, pit,10, flat,8, cat,0, flat,10, hover,5, flat,8, mark,0, flat,6
+data boost,0, flat,4, wave,1, flat,8, dng,3, boost,0, flat,8, loop,0, flat,8, button,0, flat,10, bridge,10, flat,8
+data jet,0, flat,3, bump,5, flat,3, bump,5, flat,8, lift,6, flat,8, bones,6, flat,6
+data dng,4, boost,0, bones,10, flat,10, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
+data up45,4, hoop,1, arc,11, pit,12, flat,10, mark,0, flat,6, cable,20, flat,8
+data boost,0, flat,6, pipe,5, flat,8, bones,6, flat,20, drop,4, flat,16, mover,8, flat,8
+data dng,3, boost,0, flat,8, loop,0, flat,10, spin,0, flat,8
+data goal,0, flat,9, fam,0, flat,6, flat,5, "end",0
 
 ' The tunes are in CHARLIE.DAT with the pictures, from tools/charliesong.txt.
 
 ' Set up, then read input, step in fixed ticks and draw, till Esc on the
 ' title.
-SUB Main
-    DIM g AS Game, p AS Hero, k AS Pad
-    DIM lo(NLOOSE - 1) AS Loose, pt(NPART - 1) AS Part
-    DIM now AS SINGLE, last AS SINGLE, c AS Clock, n AS INTEGER
+sub Main
+    dim g as Game, p as Hero, k as Pad
+    dim lo(NLOOSE - 1) as Loose, pt(NPART - 1) as Part
+    dim now as single, last as single, c as Clock, n as integer
 
     OpenScreen
     LoadTables
@@ -389,48 +389,50 @@ SUB Main
     g.page = 1
     ResetWorld g, p, lo(), pt()
 
-    last = TIMER
+    last = timer
     c.span = STEPT
-    DO
+    do
         ' the next frame on the screen (port 3DAh's retrace; with no display, the next look), the keys read meanwhile
-        DO: Poll: LOOP UNTIL INP(&H3DA) AND 8
-        now = TIMER
+        do
+            Poll
+        loop until inp(&H3DA) and 8
+        now = timer
         Pace Elapsed!(last, now), c
         last = now
         ReadPad k
         ' a picture for each step, none for a frame between two
         n = Steps%(c)
-        IF n THEN
-            DO WHILE n
+        if n then
+            do while n
                 Tick g, p, k, lo(), pt()
                 n = n - 1
-            LOOP
-            PickSong -(g.mode = TITLE OR g.mode = CLEARED), g.mode = CLEARED
+            loop
+            PickSong -(g.mode = TITLE or g.mode = CLEARED), g.mode = CLEARED
             FeedSong
             Render g, p, lo(), pt()
             Flip g.page
-        END IF
-    LOOP UNTIL g.quitting
+        end if
+    loop until g.quitting
 
-    SCREEN 0
-    WIDTH 80
-END SUB
+    screen 0
+    width 80
+end sub
 
-SUB OpenScreen
-    SCREEN 13, , 1, 0
-END SUB
+sub OpenScreen
+    screen 13, , 1, 0
+end sub
 
 ' Shows the page just drawn, draws on the other.
-SUB Flip (page AS INTEGER)
-    SCREEN , , 1 - page, page
+sub Flip (page as integer)
+    screen , , 1 - page, page
     page = 1 - page
-END SUB
+end sub
 
 ' Each tile kind's column heights: 1 solid; 2, 3 rise and fall at 45
 ' degrees; 4 and 5, 6 and 7 rise and fall half as steep over two tiles.
-SUB LoadTables
-    DIM i AS INTEGER
-    FOR i = 0 TO TS - 1
+sub LoadTables
+    dim i as integer
+    for i = 0 to TS - 1
         Prof(1, i) = TS
         Prof(2, i) = i + 1
         Prof(3, i) = TS - i
@@ -438,693 +440,920 @@ SUB LoadTables
         Prof(5, i) = 8 + (i + 2) \ 2
         Prof(6, i) = TS - i \ 2
         Prof(7, i) = 8 - i \ 2
-    NEXT
-END SUB
+    next
+end sub
 
 ' Image k upside down as k2.
-SUB Flop (k AS INTEGER, k2 AS INTEGER, w AS INTEGER, h AS INTEGER)
-    DIM y AS INTEGER, strip(40) AS LONG
-    PUT (0, 0), Img(At(k)), PSET
-    FOR y = 0 TO h - 1
-        GET (0, y)-(w - 1, y), strip
-        PUT (100, h - 1 - y), strip, PSET
-    NEXT
+sub Flop (k as integer, k2 as integer, w as integer, h as integer)
+    dim y as integer, strip(40) as long
+    put (0, 0), Img(At(k)), pset
+    for y = 0 to h - 1
+        get (0, y)-(w - 1, y), strip
+        put (100, h - 1 - y), strip, pset
+    next
     Grab 100, 0, 100 + w - 1, h - 1, k2
-END SUB
+end sub
 
 ' The ground's columns, then what stands on them, from the Level DATA.
-SUB LoadLevel (st AS INTEGER)
-    DIM cmd AS STRING, n AS INTEGER, c AS INTEGER, g AS INTEGER, bx AS INTEGER
-    DIM i AS INTEGER, s AS INTEGER, k AS INTEGER, z AS INTEGER
-    Stage = st: z = st AND 1: Zone = z
-    FOR i = 0 TO 255: Pal(i) = Pal0(i): NEXT
-    FOR i = 0 TO ZPN(st) - 1: Pal(ZPK(st, i)) = ZPC(st, i): NEXT
-    FOR i = 0 TO 2: Glint(i) = Pal(CWATER + 1 + i): NEXT
+sub LoadLevel (st as integer)
+    dim cmd as string, n as integer, c as integer, g as integer, bx as integer
+    dim i as integer, s as integer, k as integer, z as integer
+    Stage = st
+    z = st and 1
+    Zone = z
+    for i = 0 to 255
+        Pal(i) = Pal0(i)
+    next
+    for i = 0 to ZPN(st) - 1
+        Pal(ZPK(st, i)) = ZPC(st, i)
+    next
+    for i = 0 to 2
+        Glint(i) = Pal(CWATER + 1 + i)
+    next
     Shade
-    ERASE Map
-    NObj = 0: NMv = 0
-    FOR i = 0 TO MW: ColTop(i) = MH: NEXT
+    erase Map
+    NObj = 0
+    NMv = 0
+    for i = 0 to MW
+        ColTop(i) = MH
+    next
     g = 10
-    IF z THEN
-        ZTile = ITILE2: ZBack = IZ2: ZLoop = IZ2 + 5: ZPipe = IZ2 + 7: ZCard = ICARD2: ZWave = IWAVE + 4
-        IF st = 1 THEN RESTORE Level2 ELSE RESTORE Level4
-    ELSE
-        ZTile = ITILE: ZBack = IBG: ZLoop = ILOOP: ZCard = ICARD: ZWave = IWAVE
-        IF st = 0 THEN RESTORE Level ELSE RESTORE Level3
-    END IF
-    DO
-        READ cmd, n
+    if z then
+        ZTile = ITILE2
+        ZBack = IZ2
+        ZLoop = IZ2 + 5
+        ZPipe = IZ2 + 7
+        ZCard = ICARD2
+        ZWave = IWAVE + 4
+        if st = 1 then
+            restore Level2
+        else
+            restore Level4
+        end if
+    else
+        ZTile = ITILE
+        ZBack = IBG
+        ZLoop = ILOOP
+        ZCard = ICARD
+        ZWave = IWAVE
+        if st = 0 then
+            restore Level
+        else
+            restore Level3
+        end if
+    end if
+    do
+        read cmd, n
         s = (MH - g) * TS
         k = 0
-        SELECT CASE cmd
-        CASE "flat"
-            FOR i = 1 TO n: Column c, g, 1: Scatter c, s: c = c + 1: NEXT
-        CASE "up45"
-            FOR i = 1 TO n: Column c, g, 2: g = g + 1: c = c + 1: NEXT
-        CASE "dn45"
-            FOR i = 1 TO n: g = g - 1: Column c, g, 3: c = c + 1: NEXT
-        CASE "upg"
-            FOR i = 1 TO n
-                Column c, g, 4: Column c + 1, g, 5
-                g = g + 1: c = c + 2
-            NEXT
-        CASE "dng"
-            FOR i = 1 TO n
+        select case cmd
+        case "flat"
+            for i = 1 to n
+                Column c, g, 1
+                Scatter c, s
+                c = c + 1
+            next
+        case "up45"
+            for i = 1 to n
+                Column c, g, 2
+                g = g + 1
+                c = c + 1
+            next
+        case "dn45"
+            for i = 1 to n
                 g = g - 1
-                Column c, g, 6: Column c + 1, g, 7
+                Column c, g, 3
+                c = c + 1
+            next
+        case "upg"
+            for i = 1 to n
+                Column c, g, 4
+                Column c + 1, g, 5
+                g = g + 1
                 c = c + 2
-            NEXT
-        CASE "gap"
+            next
+        case "dng"
+            for i = 1 to n
+                g = g - 1
+                Column c, g, 6
+                Column c + 1, g, 7
+                c = c + 2
+            next
+        case "gap"
             c = c + n
-        CASE "wall"
+        case "wall"
             g = g + n
-        CASE "pit"
+        case "pit"
             ' not a fall to nothing: a floor PITD down, a spring at its far wall
             Pit c, g, n
             c = c + n
-        CASE "wave"
+        case "wave"
             ' a ribbon of n twists over a pit, each two halves of WAVEL, bones up its far side
-            FOR i = 0 TO n * 2 - 1
-                AddObj KWAVE + (i AND 1), (c + i * 12) * TS, s
-                IF (i AND 1) = 0 THEN
-                    FOR k = 3 TO 9 STEP 3
-                        AddObj KBONE, (c + i * 12 + k) * TS, s - CINT(WAVEA * (1 - COS(PI * k / 12)) / 2) - 6
-                    NEXT
-                END IF
-            NEXT
+            for i = 0 to n * 2 - 1
+                AddObj KWAVE + (i and 1), (c + i * 12) * TS, s
+                if (i and 1) = 0 then
+                    for k = 3 to 9 step 3
+                        AddObj KBONE, (c + i * 12 + k) * TS, s - cint(WAVEA * (1 - cos(PI * k / 12)) / 2) - 6
+                    next
+                end if
+            next
             k = 0
             Pit c, g, n * 24
             c = c + n * 24
-        CASE "bump"
+        case "bump"
             AddObj KBUMP, c * TS + 8, s - n * TS
-        CASE "hoop"
+        case "hoop"
             AddObj KHOOP, c * TS + 8, s - n * TS
-        CASE "pipe"
+        case "pipe"
             ' a wall with a quarter pipe up to it, over the three columns before: nothing grows there
-            FOR i = 0 TO NObj - 1
-                IF ((ObK(i) >= KTREE AND ObK(i) <= KLAMP) OR ObK(i) >= KPOST) AND ObX(i) >= c * TS - PIPER THEN ObK(i) = 0
-            NEXT
+            for i = 0 to NObj - 1
+                if ((ObK(i) >= KTREE and ObK(i) <= KLAMP) or ObK(i) >= KPOST) and ObX(i) >= c * TS - PIPER then ObK(i) = 0
+            next
             AddObj KPIPE, c * TS, s
             ' Amber Downs' pipe is drawn with the ground under it
-            IF z = 0 THEN ColVis(c - 1) = 0: ColVis(c - 2) = 0: ColVis(c - 3) = 0
+            if z = 0 then
+                ColVis(c - 1) = 0
+                ColVis(c - 2) = 0
+                ColVis(c - 3) = 0
+            end if
             g = g + n
-        CASE "drop"
+        case "drop"
             g = g - n
-        CASE "mover"
+        case "mover"
             ' at each end of its way it lies 8 over the ground
             AddMover c * TS + (n * TS - MOVEW) \ 2, s, (n * TS - MOVEW) \ 2 + 8, 0, c * TS
             Pit c, g, n
             c = c + n
-        CASE "hover"
+        case "hover"
             AddMover c * TS + 8, s - n * TS \ 2, n * TS \ 2, 1, c * TS
             Pit c, g, 4
-            c = c + 4: g = g + n
-        CASE "lift"
+            c = c + 4
+            g = g + n
+        case "lift"
             AddMover c * TS, s, n * TS, 2, c * TS
             Pit c, g, 3
-            c = c + 3: g = g + n
-        CASE "button"
-            k = KBUTTON: bx = c * TS + 8
-        CASE "bridge"
+            c = c + 3
+            g = g + n
+        case "button"
+            k = KBUTTON
+            bx = c * TS + 8
+        case "bridge"
             ' a pit n wide, platforms lying on its floor that rise to bridge it once the last button is trodden
-            FOR i = 0 TO n \ 3 - 1
+            for i = 0 to n \ 3 - 1
                 AddMover (c + i * 3) * TS, s + PITD * TS - 6, PITD * TS - 6, 4, c * TS
                 MvB(NMv - 1) = bx
-            NEXT
+            next
             Pit c, g, n
             c = c + n
-        CASE "cable"
+        case "cable"
             ' a basket down a cable over a pit n wide, the ground past it CABLED lower
             AddMover c * TS - 8, s, n * TS - MOVEW + 16, 3, c * TS
             Pit c, g - CABLED \ TS, n
-            c = c + n: g = g - CABLED \ TS
-        CASE "plat"
-            FOR i = 1 TO n MOD 100
+            c = c + n
+            g = g - CABLED \ TS
+        case "plat"
+            for i = 1 to n mod 100
                 Map(c + i, MH - g - n \ 100 - 1) = 1
                 AddObj KPLAT, (c + i) * TS, s - (n \ 100 + 1) * TS
-            NEXT
-        CASE "bones"
-            FOR i = 0 TO n - 1: AddObj KBONE, (c + i) * TS + 8, s - 14: NEXT
-        CASE "arc"
-            FOR i = 0 TO n - 1
-                AddObj KBONE, (c + i) * TS + 8, s - 20 - CINT(50 * SIN(PI * (i + .5) / n))
-            NEXT
-        CASE "hb"
-            FOR i = 1 TO n MOD 100: AddObj KBONE, (c + i) * TS + 8, s - (n \ 100) * TS - 14: NEXT
-        CASE "cat": k = KCAT
-        CASE "spring": k = KSPRING
-        CASE "mark": k = KMARK
-        CASE "boost": k = KBOOST
-        CASE "loop": k = KLOOP
-        CASE "tree": k = KTREE
-        CASE "bush": k = KBUSH
-        CASE "flower": k = KFLOWER
-        CASE "rock": k = KROCK
-        CASE "thorn": k = KTHORN
-        CASE "jet": k = KJET
-        CASE "spin": k = KSPIN
-        CASE "goal": k = KGOAL: GoalX = c * TS + 8
-        CASE "fam": k = KFAM: FamX = c * TS + 8
-        CASE "dog"
-            StartX = c * TS + 8: StartY = s
-        END SELECT
-        IF k THEN AddObj k, c * TS + 8, s
-    LOOP UNTIL cmd = "end"
-    LW = c: LWPX = c * TS
+            next
+        case "bones"
+            for i = 0 to n - 1
+                AddObj KBONE, (c + i) * TS + 8, s - 14
+            next
+        case "arc"
+            for i = 0 to n - 1
+                AddObj KBONE, (c + i) * TS + 8, s - 20 - cint(50 * sin(PI * (i + .5) / n))
+            next
+        case "hb"
+            for i = 1 to n mod 100
+                AddObj KBONE, (c + i) * TS + 8, s - (n \ 100) * TS - 14
+            next
+        case "cat"
+            k = KCAT
+        case "spring"
+            k = KSPRING
+        case "mark"
+            k = KMARK
+        case "boost"
+            k = KBOOST
+        case "loop"
+            k = KLOOP
+        case "tree"
+            k = KTREE
+        case "bush"
+            k = KBUSH
+        case "flower"
+            k = KFLOWER
+        case "rock"
+            k = KROCK
+        case "thorn"
+            k = KTHORN
+        case "jet"
+            k = KJET
+        case "spin"
+            k = KSPIN
+        case "goal"
+            k = KGOAL
+            GoalX = c * TS + 8
+        case "fam"
+            k = KFAM
+            FamX = c * TS + 8
+        case "dog"
+            StartX = c * TS + 8
+            StartY = s
+        end select
+        if k then AddObj k, c * TS + 8, s
+    loop until cmd = "end"
+    LW = c
+    LWPX = c * TS
     ' nothing grows in front of the family
-    FOR i = 0 TO NObj - 1
-        IF ((ObK(i) >= KBUSH AND ObK(i) <= KLAMP) OR ObK(i) >= KPOST) AND ABS(ObX(i) - FamX) < 112 THEN ObK(i) = 0
-    NEXT
+    for i = 0 to NObj - 1
+        if ((ObK(i) >= KBUSH and ObK(i) <= KLAMP) or ObK(i) >= KPOST) and abs(ObX(i) - FamX) < 112 then ObK(i) = 0
+    next
     SortObjs
     Track
     Faces
-END SUB
+end sub
 
 ' The ground's line from the columns' tops, left to right, broken where they do not meet; a loop spliced in where
 ' it stands, a quarter pipe and its wall over the three columns before the wall; then the platforms' tops.
 ' Where a flat column stands over a lower flat one, or over none, its side shows: for how many tiles down.
-SUB Faces
-    DIM c AS INTEGER
-    FOR c = 0 TO LW - 1
-        FaceL(c) = 0: FaceR(c) = 0
-        IF ColVis(c) = 1 OR ColVis(c) = 2 THEN
-            IF c > 0 THEN FaceL(c) = Side%(c, c - 1)
+sub Faces
+    dim c as integer
+    for c = 0 to LW - 1
+        FaceL(c) = 0
+        FaceR(c) = 0
+        if ColVis(c) = 1 or ColVis(c) = 2 then
+            if c > 0 then FaceL(c) = Side%(c, c - 1)
             FaceR(c) = Side%(c, c + 1)
-        END IF
-    NEXT
-END SUB
+        end if
+    next
+end sub
 
-FUNCTION Side% (c AS INTEGER, n AS INTEGER)
+function Side% (c as integer, n as integer)
     Side% = 0
-    IF ColTop(n) = MH THEN
+    if ColTop(n) = MH then
         Side% = MH - ColTop(c)
-    ELSEIF (ColVis(n) = 1 OR ColVis(n) = 2) AND ColTop(n) > ColTop(c) THEN
+    elseif (ColVis(n) = 1 or ColVis(n) = 2) and ColTop(n) > ColTop(c) then
         Side% = ColTop(n) - ColTop(c)
-    END IF
-END FUNCTION
+    end if
+end function
 
 ' A bare side of the ground from x, y0, n tiles down: picture k its turf's end, k + 2 the comb's.
-SUB Bare (x AS INTEGER, y0 AS INTEGER, n AS INTEGER, k AS INTEGER)
-    DIM i AS INTEGER, y AS INTEGER, j AS INTEGER
+sub Bare (x as integer, y0 as integer, n as integer, k as integer)
+    dim i as integer, y as integer, j as integer
     j = k
     y = y0
-    FOR i = 1 TO n
-        IF y >= SH THEN EXIT FOR
-        IF y > -TS THEN Blit x, y, j, TS, TS
+    for i = 1 to n
+        if y >= SH then exit for
+        if y > -TS then Blit x, y, j, TS, TS
         j = k + 2
         y = y + TS
-    NEXT
-END SUB
+    next
+end sub
 
-SUB Track
-    DIM c AS INTEGER, i AS INTEGER, j AS INTEGER, k AS INTEGER, x AS INTEGER, y AS INTEGER
-    DIM yl AS INTEGER, yr AS INTEGER, x1 AS INTEGER, a AS SINGLE
-    GN = 0: NZ = 0
-    FOR c = 0 TO MW: ColSeg(c) = -1: NEXT
-    FOR i = 0 TO NObj - 1
-        IF ObK(i) = KPIPE THEN ColSeg((ObX(i) - PIPER) \ TS) = -2 - i
-    NEXT
-    FOR c = 0 TO LW - 1
+sub Track
+    dim c as integer, i as integer, j as integer, k as integer, x as integer, y as integer
+    dim yl as integer, yr as integer, x1 as integer, a as single
+    GN = 0
+    NZ = 0
+    for c = 0 to MW
+        ColSeg(c) = -1
+    next
+    for i = 0 to NObj - 1
+        if ObK(i) = KPIPE then ColSeg((ObX(i) - PIPER) \ TS) = -2 - i
+    next
+    for c = 0 to LW - 1
         x = c * TS
-        IF ColSeg(c) < -1 THEN
+        if ColSeg(c) < -1 then
             y = ObY(-2 - ColSeg(c))
             ColSeg(c) = -1
-            IF GX(GN - 1) <> x OR GY(GN - 1) <> y THEN Knot CSNG(x), CSNG(y), 0
-            ZA(NZ) = GN - 1: ZM(NZ) = -1: ZL(NZ) = x: ZR(NZ) = x + PIPER
-            FOR j = 1 TO PIPEN - 1
+            if GX(GN - 1) <> x or GY(GN - 1) <> y then Knot csng(x), csng(y), 0
+            ZA(NZ) = GN - 1
+            ZM(NZ) = -1
+            ZL(NZ) = x
+            ZR(NZ) = x + PIPER
+            for j = 1 to PIPEN - 1
                 a = j * PI / 2 / PIPEN
-                Knot x + PIPER * SIN(a), y - PIPER + PIPER * COS(a), 2
-            NEXT
-            Knot CSNG(x + PIPER), CSNG(y - PIPER), 2
+                Knot x + PIPER * sin(a), y - PIPER + PIPER * cos(a), 2
+            next
+            Knot csng(x + PIPER), csng(y - PIPER), 2
             j = ColTop(c + PIPER \ TS) * TS
-            IF j < y - PIPER THEN Knot CSNG(x + PIPER), CSNG(j), 2
-            ZB(NZ) = GN - 2: NZ = NZ + 1
+            if j < y - PIPER then Knot csng(x + PIPER), csng(j), 2
+            ZB(NZ) = GN - 2
+            NZ = NZ + 1
             c = c + PIPER \ TS - 1
-        ELSEIF ColTop(c) < MH THEN
+        elseif ColTop(c) < MH then
             k = Map(c, ColTop(c))
             y = (ColTop(c) + 1) * TS
             ' a tile's top at its edges: its profile's, to the even pixel
-            yl = y - (Prof(k, 0) AND 30): yr = y - (Prof(k, TS - 1) AND 30)
+            yl = y - (Prof(k, 0) and 30)
+            yr = y - (Prof(k, TS - 1) and 30)
             j = GN = 0
-            IF NOT j THEN j = GX(GN - 1) <> x OR GY(GN - 1) <> yl
-            IF j THEN Knot CSNG(x), CSNG(yl), 0
+            if not j then j = GX(GN - 1) <> x or GY(GN - 1) <> yl
+            if j then Knot csng(x), csng(yl), 0
             ColSeg(c) = GN - 1
             i = First(c)
-            DO WHILE i < NObj
-                IF ObX(i) >= x + TS THEN EXIT DO
-                IF ObK(i) = KLOOP THEN
-                    Knot CSNG(ObX(i)), CSNG(yl), 1
-                    ZA(NZ) = GN - 1: ZM(NZ) = GN - 1 + LOOPN \ 2
-                    ZL(NZ) = ObX(i) - LOOPR: ZR(NZ) = ObX(i) + LOOPR
-                    FOR j = 1 TO LOOPN - 1
+            do while i < NObj
+                if ObX(i) >= x + TS then exit do
+                if ObK(i) = KLOOP then
+                    Knot csng(ObX(i)), csng(yl), 1
+                    ZA(NZ) = GN - 1
+                    ZM(NZ) = GN - 1 + LOOPN \ 2
+                    ZL(NZ) = ObX(i) - LOOPR
+                    ZR(NZ) = ObX(i) + LOOPR
+                    for j = 1 to LOOPN - 1
                         a = j * 2 * PI / LOOPN
-                        Knot ObX(i) + LOOPR * SIN(a), yl - LOOPR + LOOPR * COS(a), 2
-                    NEXT
-                    Knot CSNG(ObX(i)), CSNG(yl), 2
-                    ZB(NZ) = GN - 2: NZ = NZ + 1
-                END IF
+                        Knot ObX(i) + LOOPR * sin(a), yl - LOOPR + LOOPR * cos(a), 2
+                    next
+                    Knot csng(ObX(i)), csng(yl), 2
+                    ZB(NZ) = GN - 2
+                    NZ = NZ + 1
+                end if
                 i = i + 1
-            LOOP
-            Knot CSNG(x + TS), CSNG(yr), 1
-        END IF
-    NEXT
+            loop
+            Knot csng(x + TS), csng(yr), 1
+        end if
+    next
     PlatA = GN
     x = NONE
-    FOR i = 0 TO NObj - 1
-        IF ObK(i) = KPLAT THEN
-            IF x <> NONE AND ObX(i) = x1 AND ObY(i) = y THEN
+    for i = 0 to NObj - 1
+        if ObK(i) = KPLAT then
+            if x <> NONE and ObX(i) = x1 and ObY(i) = y then
                 x1 = x1 + TS
-            ELSE
-                IF x <> NONE THEN Knot CSNG(x), CSNG(y), 0: Knot CSNG(x1), CSNG(y), 1
-                x = ObX(i): x1 = x + TS: y = ObY(i)
-            END IF
-        END IF
-    NEXT
-    IF x <> NONE THEN Knot CSNG(x), CSNG(y), 0: Knot CSNG(x1), CSNG(y), 1
+            else
+                if x <> NONE then
+                    Knot csng(x), csng(y), 0
+                    Knot csng(x1), csng(y), 1
+                end if
+                x = ObX(i)
+                x1 = x + TS
+                y = ObY(i)
+            end if
+        end if
+    next
+    if x <> NONE then
+        Knot csng(x), csng(y), 0
+        Knot csng(x1), csng(y), 1
+    end if
     ' the moving platforms: a stretch each, a curve of one, in the order they were made
     k = 0
-    FOR i = 0 TO NObj - 1
-        IF ObK(i) = KMOVE THEN
-            Knot CSNG(ObX(i)), CSNG(ObY(i)), 0
-            Knot CSNG(ObX(i) + MOVEW), CSNG(ObY(i)), 3
-            MvO(k) = i: MvS(k) = GN - 2: MvZ(k) = NZ: MvT(k) = 0
+    for i = 0 to NObj - 1
+        if ObK(i) = KMOVE then
+            Knot csng(ObX(i)), csng(ObY(i)), 0
+            Knot csng(ObX(i) + MOVEW), csng(ObY(i)), 3
+            MvO(k) = i
+            MvS(k) = GN - 2
+            MvZ(k) = NZ
+            MvT(k) = 0
             ' a bridge's button, by where it is
-            IF MvK(k) = 4 THEN
-                FOR j = 0 TO NObj - 1
-                    IF ObK(j) = KBUTTON AND ObX(j) = MvB(k) THEN MvB(k) = j: EXIT FOR
-                NEXT
-            END IF
-            ZA(NZ) = GN - 2: ZB(NZ) = GN - 2: ZM(NZ) = -1: ZL(NZ) = ObX(i): ZR(NZ) = ObX(i) + MOVEW
-            NZ = NZ + 1: k = k + 1
-        END IF
-    NEXT
+            if MvK(k) = 4 then
+                for j = 0 to NObj - 1
+                    if ObK(j) = KBUTTON and ObX(j) = MvB(k) then
+                        MvB(k) = j
+                        exit for
+                    end if
+                next
+            end if
+            ZA(NZ) = GN - 2
+            ZB(NZ) = GN - 2
+            ZM(NZ) = -1
+            ZL(NZ) = ObX(i)
+            ZR(NZ) = ObX(i) + MOVEW
+            NZ = NZ + 1
+            k = k + 1
+        end if
+    next
     ' the ribbons: halves that meet are one stretch, 8 of flat at each end to run on and off by
     x1 = NONE
-    FOR i = 0 TO NObj - 1
-        IF ObK(i) = KWAVE OR ObK(i) = KWAVE2 THEN
-            IF ObX(i) <> x1 THEN
-                IF x1 <> NONE THEN Knot CSNG(x1 + 8), CSNG(y), 2: ZB(NZ) = GN - 2: NZ = NZ + 1
+    for i = 0 to NObj - 1
+        if ObK(i) = KWAVE or ObK(i) = KWAVE2 then
+            if ObX(i) <> x1 then
+                if x1 <> NONE then
+                    Knot csng(x1 + 8), csng(y), 2
+                    ZB(NZ) = GN - 2
+                    NZ = NZ + 1
+                end if
                 y = ObY(i)
-                Knot CSNG(ObX(i) - 8), CSNG(y), 0
-                ZA(NZ) = GN - 1: ZM(NZ) = -2: ZL(NZ) = ObX(i) - 8
-                Knot CSNG(ObX(i)), CSNG(y), 2
-            END IF
-            FOR j = 1 TO 12
+                Knot csng(ObX(i) - 8), csng(y), 0
+                ZA(NZ) = GN - 1
+                ZM(NZ) = -2
+                ZL(NZ) = ObX(i) - 8
+                Knot csng(ObX(i)), csng(y), 2
+            end if
+            for j = 1 to 12
                 a = PI * j / 12 - PI * (ObK(i) = KWAVE2)
-                Knot CSNG(ObX(i) + j * 16), y - WAVEA * (1 - COS(a)) / 2, 2
-            NEXT
-            x1 = ObX(i) + WAVEL: ZR(NZ) = x1 + 8
-        END IF
-    NEXT
-    IF x1 <> NONE THEN Knot CSNG(x1 + 8), CSNG(y), 2: ZB(NZ) = GN - 2: NZ = NZ + 1
-END SUB
+                Knot csng(ObX(i) + j * 16), y - WAVEA * (1 - cos(a)) / 2, 2
+            next
+            x1 = ObX(i) + WAVEL
+            ZR(NZ) = x1 + 8
+        end if
+    next
+    if x1 <> NONE then
+        Knot csng(x1 + 8), csng(y), 2
+        ZB(NZ) = GN - 2
+        NZ = NZ + 1
+    end if
+end sub
 
 ' A moving platform, its middle's left end at x, y; reach a, kind k; e the edge before it.
-SUB AddMover (x AS INTEGER, y AS INTEGER, a AS INTEGER, k AS INTEGER, e AS INTEGER)
+sub AddMover (x as integer, y as integer, a as integer, k as integer, e as integer)
     AddObj KMOVE, x, y
-    MvX(NMv) = x: MvY(NMv) = y: MvA(NMv) = a: MvK(NMv) = k: MvE(NMv) = e
+    MvX(NMv) = x
+    MvY(NMv) = y
+    MvA(NMv) = a
+    MvK(NMv) = k
+    MvE(NMv) = e
     NMv = NMv + 1
-END SUB
+end sub
 
 ' Platform m's swing now, -1 to 1, held a while at each end when it goes up and down; quarter: a quarter of its
 ' way on, which tells where it is going.
-FUNCTION Swing! (m AS INTEGER, quarter AS INTEGER)
-    DIM q AS SINGLE, v AS SINGLE
+function Swing! (m as integer, quarter as integer)
+    dim q as single, v as single
     q = Ticks * STEPT * (1.1 - .2 * MvK(m)) + m + quarter * PI / 2
-    v = SIN(q)
-    IF MvK(m) = 1 THEN
+    v = sin(q)
+    if MvK(m) = 1 then
         v = v * 1.3
-        IF v > 1 THEN v = 1
-        IF v < -1 THEN v = -1
-    END IF
+        if v > 1 then v = 1
+        if v < -1 then v = -1
+    end if
     Swing! = v
-END FUNCTION
+end function
 
 ' The platforms a step on: to and fro, up and down, or a lift, up while Charlie stands on it and down again
 ' when not. Charlie goes with the one it stands on.
-SUB Movers (p AS Hero)
-    DIM m AS INTEGER, s AS INTEGER, o AS INTEGER, x AS SINGLE, y AS SINGLE, dx AS SINGLE, dy AS SINGLE
-    FOR m = 0 TO NMv - 1
+sub Movers (p as Hero)
+    dim m as integer, s as integer, o as integer, x as single, y as single, dx as single, dy as single
+    for m = 0 to NMv - 1
         s = MvS(m)
-        x = MvX(m): y = MvY(m)
-        SELECT CASE MvK(m)
-        CASE 0
+        x = MvX(m)
+        y = MvY(m)
+        select case MvK(m)
+        case 0
             x = x + MvA(m) * Swing!(m, 0)
-        CASE 1
+        case 1
             y = y + MvA(m) * Swing!(m, 0)
-        CASE 2
-            IF p.ground AND p.sg = s THEN MvT(m) = MvT(m) + 90 * STEPT ELSE MvT(m) = MvT(m) - 60 * STEPT
-            IF MvT(m) < 0 THEN MvT(m) = 0
-            IF MvT(m) > MvA(m) THEN MvT(m) = MvA(m)
+        case 2
+            if p.ground and p.sg = s then
+                MvT(m) = MvT(m) + 90 * STEPT
+            else
+                MvT(m) = MvT(m) - 60 * STEPT
+            end if
+            if MvT(m) < 0 then MvT(m) = 0
+            if MvT(m) > MvA(m) then MvT(m) = MvA(m)
             y = y - MvT(m)
-        CASE 4
-            IF ObS(MvB(m)) THEN MvT(m) = MvT(m) + 200 * STEPT
-            IF MvT(m) > MvA(m) THEN MvT(m) = MvA(m)
+        case 4
+            if ObS(MvB(m)) then MvT(m) = MvT(m) + 200 * STEPT
+            if MvT(m) > MvA(m) then MvT(m) = MvA(m)
             y = y - MvT(m)
-        CASE 3
+        case 3
             ' down its cable while stood on, faster as it goes; back up when left
-            IF p.ground AND p.sg = s THEN MvT(m) = MvT(m) + (.25 + MvT(m)) * .6 * STEPT ELSE MvT(m) = MvT(m) - .4 * STEPT
-            IF MvT(m) < 0 THEN MvT(m) = 0
-            IF MvT(m) > 1 THEN MvT(m) = 1
-            x = x + MvA(m) * MvT(m): y = y + CABLED * MvT(m)
-        END SELECT
-        dx = x - GX(s): dy = y - GY(s)
-        IF dx <> 0 OR dy <> 0 THEN
-            GX(s) = x: GX(s + 1) = x + MOVEW: GY(s) = y: GY(s + 1) = y
-            ZL(MvZ(m)) = INT(x): ZR(MvZ(m)) = INT(x) + MOVEW + 1
-            o = MvO(m): ObX(o) = CINT(x): ObY(o) = CINT(y)
-            IF p.ground AND p.sg = s THEN p.x = p.x + dx: p.y = p.y + dy
-        END IF
-    NEXT
-END SUB
+            if p.ground and p.sg = s then
+                MvT(m) = MvT(m) + (.25 + MvT(m)) * .6 * STEPT
+            else
+                MvT(m) = MvT(m) - .4 * STEPT
+            end if
+            if MvT(m) < 0 then MvT(m) = 0
+            if MvT(m) > 1 then MvT(m) = 1
+            x = x + MvA(m) * MvT(m)
+            y = y + CABLED * MvT(m)
+        end select
+        dx = x - GX(s)
+        dy = y - GY(s)
+        if dx <> 0 or dy <> 0 then
+            GX(s) = x
+            GX(s + 1) = x + MOVEW
+            GY(s) = y
+            GY(s + 1) = y
+            ZL(MvZ(m)) = int(x)
+            ZR(MvZ(m)) = int(x) + MOVEW + 1
+            o = MvO(m)
+            ObX(o) = cint(x)
+            ObY(o) = cint(y)
+            if p.ground and p.sg = s then
+                p.x = p.x + dx
+                p.y = p.y + dy
+            end if
+        end if
+    next
+end sub
 
 ' The line's next point, x, y, a stretch of kind k to it from the last: 0, none.
-SUB Knot (x AS SINGLE, y AS SINGLE, k AS INTEGER)
-    DIM i AS INTEGER, u AS SINGLE, v AS SINGLE, d AS SINGLE
-    GX(GN) = x: GY(GN) = y: GK(GN) = 0
-    IF k <> 0 THEN
+sub Knot (x as single, y as single, k as integer)
+    dim i as integer, u as single, v as single, d as single
+    GX(GN) = x
+    GY(GN) = y
+    GK(GN) = 0
+    if k <> 0 then
         i = GN - 1
-        u = x - GX(i): v = y - GY(i)
-        d = SQR(u * u + v * v)
-        u = u / d: v = v / d
-        GU(i) = u: GV(i) = v: GL(i) = d: GK(i) = k
-        IF u > 0 THEN
-            GA(i) = ATN(-v / u)
-        ELSEIF u < 0 THEN
-            GA(i) = ATN(-v / u) + PI
-        ELSE
-            GA(i) = -SGN(v) * PI / 2
-        END IF
-    END IF
+        u = x - GX(i)
+        v = y - GY(i)
+        d = sqr(u * u + v * v)
+        u = u / d
+        v = v / d
+        GU(i) = u
+        GV(i) = v
+        GL(i) = d
+        GK(i) = k
+        if u > 0 then
+            GA(i) = atn(-v / u)
+        elseif u < 0 then
+            GA(i) = atn(-v / u) + PI
+        else
+            GA(i) = -sgn(v) * PI / 2
+        end if
+    end if
     GN = GN + 1
-END SUB
+end sub
 
 ' The tiles' stretch of the line under x, its top within 4 of y; -1 when there is none.
-FUNCTION SegAt% (x AS INTEGER, y AS SINGLE)
-    DIM s AS INTEGER
+function SegAt% (x as integer, y as single)
+    dim s as integer
     SegAt% = -1
-    IF x < 0 OR x >= LWPX THEN EXIT FUNCTION
+    if x < 0 or x >= LWPX then exit function
     s = ColSeg(x \ TS)
-    IF s >= 0 THEN
+    if s >= 0 then
         ' past a loop that stands in the column: the stretch after it
-        IF x > GX(s + 1) THEN s = s + LOOPN + 1
-        IF ABS(GY(s) + (x - GX(s)) * GV(s) / GU(s) - y) < 4 THEN SegAt% = s: EXIT FUNCTION
-    END IF
-    FOR s = PlatA TO GN - 2
-        IF GK(s) = 1 AND x >= GX(s) AND x <= GX(s + 1) AND ABS(GY(s) - y) < 4 THEN SegAt% = s: EXIT FUNCTION
-    NEXT
-END FUNCTION
+        if x > GX(s + 1) then s = s + LOOPN + 1
+        if abs(GY(s) + (x - GX(s)) * GV(s) / GU(s) - y) < 4 then
+            SegAt% = s
+            exit function
+        end if
+    end if
+    for s = PlatA to GN - 2
+        if GK(s) = 1 and x >= GX(s) and x <= GX(s + 1) and abs(GY(s) - y) < 4 then
+            SegAt% = s
+            exit function
+        end if
+    next
+end function
 
 ' Flowers, bushes and lantern plants along the flats, by the column.
-SUB Scatter (c AS INTEGER, s AS INTEGER)
-    IF c < 8 THEN EXIT SUB
-    IF Zone THEN
+sub Scatter (c as integer, s as integer)
+    if c < 8 then exit sub
+    if Zone then
         ' lamp posts, tanks and valve stacks along the decks
-        SELECT CASE (c * 37 + 11) MOD 23
-        CASE 0, 12: AddObj KPOST, c * TS + 8, s
-        CASE 5: AddObj KTANK, c * TS + 8, s
-        CASE 17: AddObj KVENT, c * TS + 8, s
-        END SELECT
-        EXIT SUB
-    END IF
-    SELECT CASE (c * 37 + 11) MOD 19
-    CASE 0, 7: AddObj KFLOWER, c * TS + 8, s
-    CASE 3: AddObj KBUSH, c * TS + 8, s
-    CASE 11: AddObj KLAMP, c * TS + 8, s
-    END SELECT
-END SUB
+        select case (c * 37 + 11) mod 23
+        case 0, 12
+            AddObj KPOST, c * TS + 8, s
+        case 5
+            AddObj KTANK, c * TS + 8, s
+        case 17
+            AddObj KVENT, c * TS + 8, s
+        end select
+        exit sub
+    end if
+    select case (c * 37 + 11) mod 19
+    case 0, 7
+        AddObj KFLOWER, c * TS + 8, s
+    case 3
+        AddObj KBUSH, c * TS + 8, s
+    case 11
+        AddObj KLAMP, c * TS + 8, s
+    end select
+end sub
 
 ' Column c solid g tiles up from the bottom; kind over 1 a slope on top.
-SUB Column (c AS INTEGER, g AS INTEGER, kind AS INTEGER)
-    DIM r AS INTEGER
-    FOR r = MH - g TO MH - 1
+sub Column (c as integer, g as integer, kind as integer)
+    dim r as integer
+    for r = MH - g to MH - 1
         Map(c, r) = 1
-    NEXT
-    IF kind > 1 THEN
+    next
+    if kind > 1 then
         Map(c, MH - g - 1) = kind
-        ColTop(c) = MH - g - 1: ColVis(c) = kind + 2
-    ELSE
-        ColTop(c) = MH - g: ColVis(c) = 1 + (c AND 1)
-    END IF
-END SUB
+        ColTop(c) = MH - g - 1
+        ColVis(c) = kind + 2
+    else
+        ColTop(c) = MH - g
+        ColVis(c) = 1 + (c and 1)
+    end if
+end sub
 
 ' Under a jump or a platform, not a fall to nothing: n columns from c of floor PITD under the ground g, bones on
 ' it, a spring at its far wall.
-SUB Pit (c AS INTEGER, g AS INTEGER, n AS INTEGER)
-    DIM i AS INTEGER
-    FOR i = 0 TO n - 1
+sub Pit (c as integer, g as integer, n as integer)
+    dim i as integer
+    for i = 0 to n - 1
         Column c + i, g - PITD, 1
-        IF i > 1 AND i < n - 3 AND (i AND 1) = 0 THEN AddObj KBONE, (c + i) * TS + 8, (MH - g + PITD) * TS - 14
-    NEXT
+        if i > 1 and i < n - 3 and (i and 1) = 0 then AddObj KBONE, (c + i) * TS + 8, (MH - g + PITD) * TS - 14
+    next
     AddObj KSPRING, (c + n - 2) * TS + 8, (MH - g + PITD) * TS
-END SUB
+end sub
 
-SUB AddObj (k AS INTEGER, x AS INTEGER, y AS INTEGER)
-    ObK(NObj) = k: ObX(NObj) = x: ObY(NObj) = y: ObA(NObj) = x
+sub AddObj (k as integer, x as integer, y as integer)
+    ObK(NObj) = k
+    ObX(NObj) = x
+    ObY(NObj) = y
+    ObA(NObj) = x
     NObj = NObj + 1
-END SUB
+end sub
 
 ' The things by x, and First(c) the first at or past column c.
-SUB SortObjs
-    DIM i AS INTEGER, j AS INTEGER, x AS INTEGER, y AS INTEGER, k AS INTEGER, c AS INTEGER
-    FOR i = 1 TO NObj - 1
-        x = ObX(i): y = ObY(i): k = ObK(i): j = i - 1
-        DO WHILE j >= 0
-            IF ObX(j) <= x THEN EXIT DO
-            ObX(j + 1) = ObX(j): ObY(j + 1) = ObY(j): ObK(j + 1) = ObK(j): j = j - 1
-        LOOP
-        ObX(j + 1) = x: ObY(j + 1) = y: ObK(j + 1) = k
-    NEXT
+sub SortObjs
+    dim i as integer, j as integer, x as integer, y as integer, k as integer, c as integer
+    for i = 1 to NObj - 1
+        x = ObX(i)
+        y = ObY(i)
+        k = ObK(i)
+        j = i - 1
+        do while j >= 0
+            if ObX(j) <= x then exit do
+            ObX(j + 1) = ObX(j)
+            ObY(j + 1) = ObY(j)
+            ObK(j + 1) = ObK(j)
+            j = j - 1
+        loop
+        ObX(j + 1) = x
+        ObY(j + 1) = y
+        ObK(j + 1) = k
+    next
     i = 0
-    FOR c = 0 TO MW
-        DO WHILE i < NObj
-            IF ObX(i) >= c * TS THEN EXIT DO
+    for c = 0 to MW
+        do while i < NObj
+            if ObX(i) >= c * TS then exit do
             i = i + 1
-        LOOP
+        loop
         First(c) = i
-    NEXT
-    FOR i = 0 TO NObj - 1: ObA(i) = ObX(i): NEXT
-END SUB
+    next
+    for i = 0 to NObj - 1
+        ObA(i) = ObX(i)
+    next
+end sub
 
 ' Every picture: the DATA's, then those built from them or drawn here on
 ' the hidden page; the backdrop last, as it fills the page.
-SUB BuildArt
-    DIM i AS INTEGER
-    CLS
+sub BuildArt
+    dim i as integer
+    cls
     LoadArt
     ' the turned run, as drawn and mirrored: each upside down too, for the far side of a loop
-    FOR i = 0 TO 159: Flop ITILT + i, ITILT + 160 + i, 32, 32: NEXT
+    for i = 0 to 159
+        Flop ITILT + i, ITILT + 160 + i, 32, 32
+    next
     BuildGlyphs
-    FOR i = 0 TO 255: Pal0(i) = Pal(i): NEXT
-END SUB
+    for i = 0 to 255
+        Pal0(i) = Pal(i)
+    next
+end sub
 
 ' Colour k is c, shown Dusk sixteenths as bright.
-SUB Tint (k AS INTEGER, c AS LONG)
+sub Tint (k as integer, c as long)
     Pal(k) = c
-    PALETTE k, (c AND 63) * Dusk \ 16 + 256& * ((c \ 256 AND 63) * Dusk \ 16) + 65536 * ((c \ 65536) * Dusk \ 16)
-END SUB
+    palette k, (c and 63) * Dusk \ 16 + 256& * ((c \ 256 and 63) * Dusk \ 16) + 65536 * ((c \ 65536) * Dusk \ 16)
+end sub
 
 ' The tiles that move: a deck's lights run along it, a fan's blades turn, glints go down a pipe; by their colours.
-SUB Cycle
-    DIM i AS INTEGER
-    FOR i = 0 TO 3
-        IF i = (Ticks \ 8 AND 3) THEN Tint CCHASE + i, 4144952 ELSE Tint CCHASE + i, 3550218
-        IF (i + Ticks \ 4) AND 2 THEN Tint CCHASE + 4 + i, 2235666 ELSE Tint CCHASE + 4 + i, 525317
-        IF i = (Ticks \ 4 AND 3) THEN Tint CCHASE + 8 + i, 2242111 ELSE Tint CCHASE + 8 + i, 991026
-    NEXT
-END SUB
+sub Cycle
+    dim i as integer
+    for i = 0 to 3
+        if i = (Ticks \ 8 and 3) then
+            Tint CCHASE + i, 4144952
+        else
+            Tint CCHASE + i, 3550218
+        end if
+        if (i + Ticks \ 4) and 2 then
+            Tint CCHASE + 4 + i, 2235666
+        else
+            Tint CCHASE + 4 + i, 525317
+        end if
+        if i = (Ticks \ 4 and 3) then
+            Tint CCHASE + 8 + i, 2242111
+        else
+            Tint CCHASE + 8 + i, 991026
+        end if
+    next
+end sub
 
-SUB Shade
-    DIM k AS INTEGER
-    FOR k = 0 TO 255: Tint k, Pal(k): NEXT
-END SUB
+sub Shade
+    dim k as integer
+    for k = 0 to 255
+        Tint k, Pal(k)
+    next
+end sub
 
 ' The palette and the pictures from CHARLIE.DAT; a mirrored one's mirror made.
-SUB LoadArt
-    DIM n AS INTEGER, i AS INTEGER, k AS INTEGER, w AS INTEGER, h AS INTEGER
-    DIM masked AS INTEGER, k2 AS INTEGER, c AS LONG
+sub LoadArt
+    dim n as integer, i as integer, k as integer, w as integer, h as integer
+    dim masked as integer, k2 as integer, c as long
     Dusk = 16
     OpenData
     c = Word&
     n = Word&
-    FOR i = 1 TO n
+    for i = 1 to n
         k = Word&
         Tint k, Word&
-    NEXT
-    FOR k = 0 TO NSTAGE - 1
+    next
+    for k = 0 to NSTAGE - 1
         ZPN(k) = Word&
-        FOR i = 0 TO ZPN(k) - 1: ZPK(k, i) = Word&: ZPC(k, i) = Word&: NEXT
-    NEXT
+        for i = 0 to ZPN(k) - 1
+            ZPK(k, i) = Word&
+            ZPC(k, i) = Word&
+        next
+    next
     n = Word&
-    FOR i = 1 TO n
-        k = Word&: w = Word&: h = Word&: masked = Word&: k2 = Word&
+    for i = 1 to n
+        k = Word&
+        w = Word&
+        h = Word&
+        masked = Word&
+        k2 = Word&
         At(k) = NextAt
         Unpack
-        IF masked THEN At(k + 1) = NextAt: Unpack
-        IF k2 >= 0 THEN Mirror k, k2, w, h: Mirror k + 1, k2 + 1, w, h
-    NEXT
-    CLOSE #1
-END SUB
+        if masked then
+            At(k + 1) = NextAt
+            Unpack
+        end if
+        if k2 >= 0 then
+            Mirror k, k2, w, h
+            Mirror k + 1, k2 + 1, w, h
+        end if
+    next
+    close #1
+end sub
 
 ' CHARLIE.DAT open as #1: where its tunes start, then its pictures.
-SUB OpenData
-    OPEN "CHARLIE.DAT" FOR BINARY AS #1
-    IF LOF(1) = 0 THEN
-        CLOSE #1
-        KILL "CHARLIE.DAT"
-        SCREEN 0
-        PRINT "CHARLIE.DAT, the game's pictures and tunes, must be beside CHARLIE.BAS."
-        END
-    END IF
-END SUB
+sub OpenData
+    open "CHARLIE.DAT" for binary as #1
+    if lof(1) = 0 then
+        close #1
+        kill "CHARLIE.DAT"
+        screen 0
+        print "CHARLIE.DAT, the game's pictures and tunes, must be beside CHARLIE.BAS."
+        end
+    end if
+end sub
 
 ' CHARLIE.DAT's next LONG.
-FUNCTION Word&
-    DIM v AS LONG
-    GET #1, , v
+function Word&
+    dim v as long
+    get #1, , v
     Word& = v
-END FUNCTION
+end function
 
 ' CHARLIE.DAT's next string: its length, then its characters.
-FUNCTION Chars$
-    DIM s AS STRING
-    s = SPACE$(Word&)
-    IF LEN(s) THEN GET #1, , s
+function Chars$
+    dim s as string
+    s = space$(Word&)
+    if len(s) then get #1, , s
     Chars$ = s
-END FUNCTION
+end function
 
 ' A run-length stream of the file's LONGs to Img at NextAt: n then n values, -n then
 ' one value n times, 0 the end.
-SUB Unpack
-    DIM n AS INTEGER, e AS LONG, v AS LONG
+sub Unpack
+    dim n as integer, e as long, v as long
     n = Word&
-    DO WHILE n
-        IF n > 0 THEN
-            FOR e = NextAt TO NextAt + n - 1: GET #1, , Img(e): NEXT
-        ELSE
+    do while n
+        if n > 0 then
+            for e = NextAt to NextAt + n - 1
+                get #1, , Img(e)
+            next
+        else
             n = -n
             v = Word&
-            FOR e = NextAt TO NextAt + n - 1: Img(e) = v: NEXT
-        END IF
+            for e = NextAt to NextAt + n - 1
+                Img(e) = v
+            next
+        end if
         NextAt = NextAt + n
         n = Word&
-    LOOP
-END SUB
+    loop
+end sub
 
 ' Image k, w by h, mirrored as k2: a column at a time.
-SUB Mirror (k AS INTEGER, k2 AS INTEGER, w AS INTEGER, h AS INTEGER)
-    DIM x AS INTEGER, strip(40) AS LONG
-    PUT (0, 0), Img(At(k)), PSET
-    FOR x = 0 TO w - 1
-        GET (x, 0)-(x, h - 1), strip
-        PUT (100 + w - 1 - x, 0), strip, PSET
-    NEXT
+sub Mirror (k as integer, k2 as integer, w as integer, h as integer)
+    dim x as integer, strip(40) as long
+    put (0, 0), Img(At(k)), pset
+    for x = 0 to w - 1
+        get (x, 0)-(x, h - 1), strip
+        put (100 + w - 1 - x, 0), strip, pset
+    next
     Grab 100, 0, 100 + w - 1, h - 1, k2
-END SUB
+end sub
 
 ' The HUD's characters, each 9 by 9 over a shadow: yellow, then white.
 ' And room for the HUD's picture and mask.
-SUB BuildGlyphs
-    DIM i AS INTEGER, x AS INTEGER, y AS INTEGER, c AS INTEGER, ink AS INTEGER
-    FOR c = 0 TO 1
+sub BuildGlyphs
+    dim i as integer, x as integer, y as integer, c as integer, ink as integer
+    for c = 0 to 1
         ink = CYELLOW
-        IF c THEN ink = CWHITE
-        FOR i = 0 TO NGLYPH - 1
-            LINE (0, 0)-(8, 8), 0, BF
-            COLOR CWHITE
-            LOCATE 24, 1: PRINT MID$("0123456789:xABCDEHILMNOPRST", i + 1, 1);
-            FOR y = 0 TO 7
-                FOR x = 0 TO 7
-                    IF POINT(x, 184 + y) THEN PSET (x + 1, y + 1), CINK
-                NEXT
-            NEXT
-            FOR y = 0 TO 7
-                FOR x = 0 TO 7
-                    IF POINT(x, 184 + y) THEN PSET (x, y), ink
-                NEXT
-            NEXT
+        if c then ink = CWHITE
+        for i = 0 to NGLYPH - 1
+            line (0, 0)-(8, 8), 0, BF
+            color CWHITE
+            locate 24, 1
+            print mid$("0123456789:xABCDEHILMNOPRST", i + 1, 1);
+            for y = 0 to 7
+                for x = 0 to 7
+                    if point(x, 184 + y) then pset (x + 1, y + 1), CINK
+                next
+            next
+            for y = 0 to 7
+                for x = 0 to 7
+                    if point(x, 184 + y) then pset (x, y), ink
+                next
+            next
             MaskGrab 0, 0, 9, 9, 20, 0, IGLYPH + (c * NGLYPH + i) * 2
-        NEXT
-    NEXT
-    LINE (0, 184)-(8, 191), 0, BF
+        next
+    next
+    line (0, 184)-(8, 191), 0, BF
     Grab 0, 0, HUDW - 1, HUDH - 1, IHUD
     Grab 0, 0, HUDW - 1, HUDH - 1, IHUD + 1
-END SUB
+end sub
 
-SUB Grab (x1 AS INTEGER, y1 AS INTEGER, x2 AS INTEGER, y2 AS INTEGER, k AS INTEGER)
+sub Grab (x1 as integer, y1 as integer, x2 as integer, y2 as integer, k as integer)
     At(k) = NextAt
-    GET (x1, y1)-(x2, y2), Img(NextAt)
-    NextAt = NextAt + (4 + CLNG(x2 - x1 + 1) * (y2 - y1 + 1) + 3) \ 4
-END SUB
+    get (x1, y1)-(x2, y2), Img(NextAt)
+    NextAt = NextAt + (4 + clng(x2 - x1 + 1) * (y2 - y1 + 1) + 3) \ 4
+end sub
 
 ' The w by h at x, y kept as k, and its mask, drawn at mx, my, as k + 1:
 ' 255 where it is clear, 0 where drawn.
-SUB MaskGrab (x AS INTEGER, y AS INTEGER, w AS INTEGER, h AS INTEGER, mx AS INTEGER, my AS INTEGER, k AS INTEGER)
-    DIM i AS INTEGER, j AS INTEGER
-    FOR j = 0 TO h - 1
-        FOR i = 0 TO w - 1
-            IF POINT(x + i, y + j) THEN PSET (mx + i, my + j), 0 ELSE PSET (mx + i, my + j), 255
-        NEXT
-    NEXT
+sub MaskGrab (x as integer, y as integer, w as integer, h as integer, mx as integer, my as integer, k as integer)
+    dim i as integer, j as integer
+    for j = 0 to h - 1
+        for i = 0 to w - 1
+            if point(x + i, y + j) then
+                pset (mx + i, my + j), 0
+            else
+                pset (mx + i, my + j), 255
+            end if
+        next
+    next
     Grab x, y, x + w - 1, y + h - 1, k
     Grab mx, my, mx + w - 1, my + h - 1, k + 1
-END SUB
+end sub
 
 ' Masked image k, w by h, at x, y; nothing when wholly off the screen.
-SUB Blit (x AS INTEGER, y AS INTEGER, k AS INTEGER, w AS INTEGER, h AS INTEGER)
-    IF x + w <= 0 OR x >= SW OR y + h <= 0 OR y >= SH THEN EXIT SUB
-    PUT (x, y), Img(At(k + 1)), AND
-    PUT (x, y), Img(At(k)), OR
-END SUB
+sub Blit (x as integer, y as integer, k as integer, w as integer, h as integer)
+    if x + w <= 0 or x >= SW or y + h <= 0 or y >= SH then exit sub
+    put (x, y), Img(At(k + 1)), and
+    put (x, y), Img(At(k)), or
+end sub
 
 ' The keyboard port's last scan code: a press sets Held, a release clears.
-SUB Poll
-    DIM s AS INTEGER
-    s = INP(&H60)
-    IF s = LastScan THEN EXIT SUB
+sub Poll
+    dim s as integer
+    s = inp(&H60)
+    if s = LastScan then exit sub
     LastScan = s
-    IF s = 255 OR s = 224 THEN EXIT SUB
+    if s = 255 or s = 224 then exit sub
     PortOK = -1
-    IF s AND 128 THEN Held(s AND 127) = 0 ELSE Held(s) = -1
-END SUB
+    if s and 128 then
+        Held(s and 127) = 0
+    else
+        Held(s) = -1
+    end if
+end sub
 
-SUB ReadPad (k AS Pad)
-    DIM c AS STRING, t AS SINGLE
+sub ReadPad (k as Pad)
+    dim c as string, t as single
     Poll
-    t = TIMER
-    DO
-        c = INKEY$
-        SELECT CASE c
-        CASE CHR$(27): k.quit = -1
-        CASE "m", "M": k.mute = -1
-        CASE "n", "N"
-            Tune = NOT Tune
-            IF NOT Tune THEN PLAY "P64", "P64", "P64", , "P64", "P64", "P64", "P64"
-        CASE CHR$(13): k.start = -1
-        CASE " ": k.start = -1: KeyT(SCSPACE) = t
-        CASE "z", "Z": KeyT(SCZ) = t
-        CASE CHR$(0) + "K": KeyT(SCLEFT) = t
-        CASE CHR$(0) + "M": KeyT(SCRIGHT) = t
-        CASE CHR$(0) + "H": KeyT(SCUP) = t
-        CASE CHR$(0) + "P": KeyT(SCDOWN) = t
-        END SELECT
-    LOOP WHILE LEN(c)
+    t = timer
+    do
+        c = inkey$
+        select case c
+        case chr$(27)
+            k.quit = -1
+        case "m", "M"
+            k.mute = -1
+        case "n", "N"
+            Tune = not Tune
+            if not Tune then play "P64", "P64", "P64", , "P64", "P64", "P64", "P64"
+        case chr$(13)
+            k.start = -1
+        case " "
+            k.start = -1
+            KeyT(SCSPACE) = t
+        case "z", "Z"
+            KeyT(SCZ) = t
+        case chr$(0) + "K"
+            KeyT(SCLEFT) = t
+        case chr$(0) + "M"
+            KeyT(SCRIGHT) = t
+        case chr$(0) + "H"
+            KeyT(SCUP) = t
+        case chr$(0) + "P"
+            KeyT(SCDOWN) = t
+        end select
+    loop while len(c)
     k.l = Held2%(SCLEFT, t)
     k.r = Held2%(SCRIGHT, t)
     k.d = Held2%(SCDOWN, t)
-    k.jump = Held2%(SCSPACE, t) OR Held2%(SCZ, t) OR Held2%(SCUP, t)
-    IF k.jump AND NOT k.was THEN k.hit = -1
+    k.jump = Held2%(SCSPACE, t) or Held2%(SCZ, t) or Held2%(SCUP, t)
+    if k.jump and not k.was then k.hit = -1
     k.was = k.jump
-END SUB
+end sub
 
 ' Key s held: by the port, or, without it, typed within a repeat's wait.
-FUNCTION Held2% (s AS INTEGER, t AS SINGLE)
-    IF PortOK THEN
+function Held2% (s as integer, t as single)
+    if PortOK then
         Held2% = Held(s)
-    ELSE
-        Held2% = t - KeyT(s) < .55 AND KeyT(s) > 0
-    END IF
-END FUNCTION
+    else
+        Held2% = t - KeyT(s) < .55 and KeyT(s) > 0
+    end if
+end function
 
 ' A frame has been shown, d by the clock after the last: the time the game is behind by, c.lag, moved on. The game
 ' runs by the clock, the same at any frame rate; but the clock is too coarse to time one frame (TIMER moves 4 to 8 ms
@@ -1132,107 +1361,142 @@ END FUNCTION
 ' have lasted (c.span, learnt from the clock): exactly a step, or half of one, where that is within a few percent, the
 ' lag then kept off the edge between a step and none; otherwise that long, with a little of what the game is behind
 ' the clock (c.late) made up each frame. A stall is made up at once.
-SUB Pace (d AS SINGLE, c AS Clock)
-    DIM a AS SINGLE, r AS SINGLE, ph AS SINGLE
+sub Pace (d as single, c as Clock)
+    dim a as single, r as single, ph as single
     c.n = c.n + 1
-    IF d < 3 * c.span OR c.n < 3 THEN
+    if d < 3 * c.span or c.n < 3 then
         a = 1 / c.n
-        IF a < .005 THEN a = .005
+        if a < .005 then a = .005
         c.span = c.span + (d - c.span) * a
-    END IF
+    end if
     r = c.span / STEPT
-    IF ABS(r - 1) < .05 THEN
+    if abs(r - 1) < .05 then
         a = STEPT
-    ELSEIF ABS(r - .5) < .03 THEN
+    elseif abs(r - .5) < .03 then
         a = STEPT / 2
-    ELSE
+    else
         a = c.span + c.late * .02
         c.late = c.late + d - a
-        IF ABS(c.late) > .1 THEN a = a + c.late: c.late = 0
-        IF a < 0 THEN a = 0
+        if abs(c.late) > .1 then
+            a = a + c.late
+            c.late = 0
+        end if
+        if a < 0 then a = 0
         c.lag = c.lag + a
-        EXIT SUB
-    END IF
+        exit sub
+    end if
     c.late = 0
-    ph = c.lag - a * INT(c.lag / a)
+    ph = c.lag - a * int(c.lag / a)
     c.lag = c.lag + (a / 2 - ph) * .05
-    IF d > 2.5 * a THEN a = a * CINT(d / a)
+    if d > 2.5 * a then a = a * cint(d / a)
     c.lag = c.lag + a
-END SUB
+end sub
 
 ' The steps the game is behind by, taken off its lag.
-FUNCTION Steps% (c AS Clock)
-    DIM n AS INTEGER
-    IF c.lag > .1 THEN c.lag = .1
-    DO WHILE c.lag >= STEPT
+function Steps% (c as Clock)
+    dim n as integer
+    if c.lag > .1 then c.lag = .1
+    do while c.lag >= STEPT
         c.lag = c.lag - STEPT
         n = n + 1
-    LOOP
+    loop
     Steps% = n
-END FUNCTION
+end function
 
-FUNCTION Elapsed! (a AS SINGLE, b AS SINGLE)
-    DIM d AS SINGLE
+function Elapsed! (a as single, b as single)
+    dim d as single
     d = b - a
-    IF d < 0 OR d > .1 THEN d = .1
+    if d < 0 or d > .1 then d = .1
     Elapsed! = d
-END FUNCTION
+end function
 
 ' A sound on the fourth voice, the tune's five left playing.
-SUB Sfx (id AS INTEGER)
-    DIM s AS STRING
-    IF Muted THEN EXIT SUB
-    SELECT CASE id
-    CASE SJUMP: s = "L64O4CEGO5C"
-    CASE SBONE
+sub Sfx (id as integer)
+    dim s as string
+    if Muted then exit sub
+    select case id
+    case SJUMP
+        s = "L64O4CEGO5C"
+    case SBONE
         ' a bark: a low woof slid up into, two voices beating, through a mouth; one at a time
-        IF ABS(Ticks - BarkAt) < 8 THEN EXIT SUB
+        if abs(Ticks - BarkAt) < 8 then exit sub
         BarkAt = Ticks
         s = "W2I15Y2,1000,6H0,6,2,3K4,0,6L8O3D"
-    CASE SHURT: s = "L32O3GECO2G"
-    CASE SSPRING: s = "L64O3CGO4EO5CG"
-    CASE SPOP: s = "L64O5GO4CO5E"
-    CASE SROLL: s = "L64O3CFA"
-    CASE SCHARGE: s = "L64O4CDEFG"
-    CASE SLAUNCH: s = "L64O3GO4CGO5CG"
-    CASE SCLEAR: s = "L16O5CEGO6CL8E"
-    CASE SDIE: s = "L16O4CO3BAGL8F"
-    CASE SMARK: s = "L32O5CEGO6C"
-    CASE SBOOST: s = "L64O4CEGO5CEGO6C"
-    CASE SHISS: s = "W3Y3,3500,0H3,8,0,3L4O6B"
-    END SELECT
-    PLAY , , , "T255W1V13Y0K0I0H0,0,15,0" + s
-END SUB
+    case SHURT
+        s = "L32O3GECO2G"
+    case SSPRING
+        s = "L64O3CGO4EO5CG"
+    case SPOP
+        s = "L64O5GO4CO5E"
+    case SROLL
+        s = "L64O3CFA"
+    case SCHARGE
+        s = "L64O4CDEFG"
+    case SLAUNCH
+        s = "L64O3GO4CGO5CG"
+    case SCLEAR
+        s = "L16O5CEGO6CL8E"
+    case SDIE
+        s = "L16O4CO3BAGL8F"
+    case SMARK
+        s = "L32O5CEGO6C"
+    case SBOOST
+        s = "L64O4CEGO5CEGO6C"
+    case SHISS
+        s = "W3Y3,3500,0H3,8,0,3L4O6B"
+    end select
+    play , , , "T255W1V13Y0K0I0H0,0,15,0" + s
+end sub
 
-SUB LoadSong
-    DIM i AS INTEGER, j AS INTEGER, k AS INTEGER, root AS INTEGER, nb AS INTEGER, nd AS INTEGER
-    DIM bas(4) AS STRING, hits(2) AS STRING, pat(6) AS STRING, low AS INTEGER
-    DIM st AS STRING, br AS STRING, sol AS STRING
-    DIM w AS INTEGER, n AS INTEGER, bars AS INTEGER, mid AS STRING
+sub LoadSong
+    dim i as integer, j as integer, k as integer, root as integer, nb as integer, nd as integer
+    dim bas(4) as string, hits(2) as string, pat(6) as string, low as integer
+    dim st as string, br as string, sol as string
+    dim w as integer, n as integer, bars as integer, mid as string
     OpenData
-    SEEK #1, Word&
-    FOR w = 0 TO 1
-    Order(w) = Chars$: Voicing(w) = Chars$: bars = Word&: Tempo(w) = Word&: BassIn(w) = Word&
-    FOR i = 0 TO 4: Lvl(w, i) = Word&: NEXT
-    Fade(w) = Word&: Entry(w) = Word&
-    FOR i = 0 TO 4: bas(i) = Chars$: NEXT
-    FOR i = 0 TO 2: hits(i) = Chars$: NEXT
-    FOR i = 0 TO 6: pat(i) = Chars$: NEXT
-    FOR n = 0 TO bars - 1
+    seek #1, Word&
+    for w = 0 to 1
+    Order(w) = Chars$
+    Voicing(w) = Chars$
+    bars = Word&
+    Tempo(w) = Word&
+    BassIn(w) = Word&
+    for i = 0 to 4
+        Lvl(w, i) = Word&
+    next
+    Fade(w) = Word&
+    Entry(w) = Word&
+    for i = 0 to 4
+        bas(i) = Chars$
+    next
+    for i = 0 to 2
+        hits(i) = Chars$
+    next
+    for i = 0 to 6
+        pat(i) = Chars$
+    next
+    for n = 0 to bars - 1
         i = w * NBAR + n
-        root = Word&: nb = Word&: nd = Word&: st = Chars$: br = Chars$: sol = Chars$
+        root = Word&
+        nb = Word&
+        nd = Word&
+        st = Chars$
+        br = Chars$
+        sol = Chars$
         ' Charlie's theme has a third brass a bar
         mid = ""
-        IF w THEN mid = Chars$
+        if w then mid = Chars$
         low = 27
-        IF LEN(st) = 2 THEN
+        if len(st) = 2 then
             low = 15
-            st = hits(VAL(LEFT$(st, 1))) + RIGHT$(st, 1)
-            DO WHILE INSTR(st, "x") AND INSTR(st, "x") < 17: MID$(st, INSTR(st, "x"), 1) = MID$(st, 17, 1): LOOP
-        END IF
-        FOR j = 0 TO 1
+            st = hits(val(left$(st, 1))) + right$(st, 1)
+            do while instr(st, "x") and instr(st, "x") < 17
+                mid$(st, instr(st, "x"), 1) = mid$(st, 17, 1)
+            loop
+        end if
+        for j = 0 to 1
             k = (i * 2 + j) * 5
-            Kit(i * 2 + j) = MID$(pat(nd), j * 8 + 1, 8)
+            Kit(i * 2 + j) = mid$(pat(nd), j * 8 + 1, 8)
             Trk(k) = Beat$(Kit(i * 2 + j), 8)
             Trk(k + 1) = Riff$(bas(nb - 1), j, 15 + root)
             Trk(k + 2) = Riff$(br, j, 27)
@@ -1240,1422 +1504,1773 @@ SUB LoadSong
             Trk(k + 4) = Riff$(st, j, low)
             Org(i * 2 + j) = Riff$(br, j, 15)
             Third(i * 2 + j) = Riff$(mid, j, 27)
-        NEXT
-    NEXT
-    NEXT
-    CLOSE #1
+        next
+    next
+    next
+    close #1
     ' the kit; FM, as the consoles of the day: a round bass; a reedy pulse lead; two brasses that waver, their
     ' harmonics a saw's by a modulator that bends itself, for the intro; then an organ that wavers as it is held, the
     ' same an octave down on the other side, and a clavinet. Notes stop when they stop, and the room answers little.
     ' In stereo: the brass and the organ to the left, the second brass, the clavinet and the low organ to the right,
     ' a third organ between them
-    PLAY "MBT140Z1,0L16", "T140W4Z1,6,3,3,2H0,5,5,1", "T140R2S4", , "T140R2W0Q42H1,4,10,1U5I4", "T140R2S12", "T140R2S12W4Z1,4,3,13,4H0,4,11,1U9", "T140R2W4Z1,4,3,13,4H0,4,11,1U9"
-    Horn(0) = "W4Z1,8,3,11,4H0,4,12,1U11I2": Horn(1) = "W4Z1,4,3,13,5H1,4,11,2U9I7"
-    Keys(0) = "W4Z1,4,3,13,4H0,4,11,1U9I0": Keys(1) = "W4Z3,9,3,1,3H0,4,1,2U0I0"
+    play "MBT140Z1,0L16", "T140W4Z1,6,3,3,2H0,5,5,1", "T140R2S4", , "T140R2W0Q42H1,4,10,1U5I4", "T140R2S12", "T140R2S12W4Z1,4,3,13,4H0,4,11,1U9", "T140R2W4Z1,4,3,13,4H0,4,11,1U9"
+    Horn(0) = "W4Z1,8,3,11,4H0,4,12,1U11I2"
+    Horn(1) = "W4Z1,4,3,13,5H1,4,11,2U9I7"
+    Keys(0) = "W4Z1,4,3,13,4H0,4,11,1U9I0"
+    Keys(1) = "W4Z3,9,3,1,3H0,4,1,2U0I0"
     ' the lead: a reedy pulse, or, in Charlie's theme, a brass
-    Solo(0) = "W0Q42H1,4,10,1U5I4": Solo(1) = "W4Z1,9,3,15,3H5,4,10,1U5I4"
-    Sng = 1: Bar = 0: HalfBar = 0: Coming = -1
+    Solo(0) = "W0Q42H1,4,10,1U5I4"
+    Solo(1) = "W4Z1,9,3,15,3H5,4,10,1U5I4"
+    Sng = 1
+    Bar = 0
+    HalfBar = 0
+    Coming = -1
     Tune = -1
-END SUB
+end sub
 
 ' Half a bar of the kit, `loud` eighths as loud: a kick, a sine that falls to its pitch, a thump and then a tail; a
 ' tom; a snare, all the noise, and hats, the noise at its highest over 2.5 kHz: struck, a ghost of one (h), or left
 ' open (O).
-FUNCTION Beat$ (x AS STRING, loud AS INTEGER)
-    DIM q AS INTEGER, d AS STRING
-    FOR q = 1 TO 8
-        SELECT CASE MID$(x, q, 1)
-        CASE "K": d = d + "W4H0,4,3,3Y0K1,8V" + LTRIM$(STR$(12 * loud \ 8)) + "O1C"
-        CASE "S": d = d + "W3H0,5,0,1K0Y0V" + LTRIM$(STR$(13 * loud \ 8)) + "O6C"
-        CASE "T": d = d + "W4H0,5,0,3Y0K5,6V" + LTRIM$(STR$(11 * loud \ 8)) + "O2G"
-        CASE "H": d = d + "W3H0,3,0,1K0Y3,2500,0V" + LTRIM$(STR$((12 * loud + 7) \ 8)) + "O6B"
-        CASE "h": d = d + "W3H0,2,0,1K0Y3,2500,0V" + LTRIM$(STR$(5 * loud \ 8)) + "O6B"
-        CASE "O": d = d + "W3H0,7,0,4K0Y3,2500,0V" + LTRIM$(STR$(11 * loud \ 8)) + "O6B"
-        CASE ELSE: d = d + "P16"
-        END SELECT
-    NEXT
+function Beat$ (x as string, loud as integer)
+    dim q as integer, d as string
+    for q = 1 to 8
+        select case mid$(x, q, 1)
+        case "K"
+            d = d + "W4H0,4,3,3Y0K1,8V" + ltrim$(str$(12 * loud \ 8)) + "O1C"
+        case "S"
+            d = d + "W3H0,5,0,1K0Y0V" + ltrim$(str$(13 * loud \ 8)) + "O6C"
+        case "T"
+            d = d + "W4H0,5,0,3Y0K5,6V" + ltrim$(str$(11 * loud \ 8)) + "O2G"
+        case "H"
+            d = d + "W3H0,3,0,1K0Y3,2500,0V" + ltrim$(str$((12 * loud + 7) \ 8)) + "O6B"
+        case "h"
+            d = d + "W3H0,2,0,1K0Y3,2500,0V" + ltrim$(str$(5 * loud \ 8)) + "O6B"
+        case "O"
+            d = d + "W3H0,7,0,4K0Y3,2500,0V" + ltrim$(str$(11 * loud \ 8)) + "O6B"
+        case else
+            d = d + "P16"
+        end select
+    next
     Beat$ = d
-END FUNCTION
+end function
 
 ' Half h of a bar's riff as PLAY's notes, its lowest note `low`: at most eight, as the drums' always are.
-FUNCTION Riff$ (p AS STRING, h AS INTEGER, low AS INTEGER)
-    DIM i AS INTEGER, j AS INTEGER, r AS INTEGER, last AS INTEGER, note AS INTEGER
-    DIM c AS STRING, s AS STRING, ln AS STRING
-    IF LEN(p) < 16 THEN Riff$ = "P2": EXIT FUNCTION
-    i = h * 8 + 1: last = h * 8 + 8
-    DO WHILE i <= last
-        c = MID$(p, i, 1): j = i
+function Riff$ (p as string, h as integer, low as integer)
+    dim i as integer, j as integer, r as integer, last as integer, note as integer
+    dim c as string, s as string, ln as string
+    if len(p) < 16 then
+        Riff$ = "P2"
+        exit function
+    end if
+    i = h * 8 + 1
+    last = h * 8 + 8
+    do while i <= last
+        c = mid$(p, i, 1)
+        j = i
         ' a note held over the half bar is struck again
-        DO WHILE c = "-" AND j > 1: j = j - 1: c = MID$(p, j, 1): LOOP
+        do while c = "-" and j > 1
+            j = j - 1
+            c = mid$(p, j, 1)
+        loop
         r = 1
-        IF c = "." OR c = "-" THEN
+        if c = "." or c = "-" then
             note = 0
-            DO WHILE i + r <= last AND MID$(p, i + r, 1) = ".": r = r + 1: LOOP
-        ELSE
-            note = low + INSTR("0123456789abcdefghijklmnopqrstuvwxyz", LCASE$(c)) - 1
-            DO WHILE i + r <= last AND MID$(p, i + r, 1) = "-": r = r + 1: LOOP
-        END IF
+            do while i + r <= last and mid$(p, i + r, 1) = "."
+                r = r + 1
+            loop
+        else
+            note = low + instr("0123456789abcdefghijklmnopqrstuvwxyz", lcase$(c)) - 1
+            do while i + r <= last and mid$(p, i + r, 1) = "-"
+                r = r + 1
+            loop
+        end if
         i = i + r
         ' five and seven sixteenths: four and six, then a rest
         j = 0
-        IF r = 5 OR r = 7 THEN r = r - 1: j = 1
-        SELECT CASE r
-        CASE 1: ln = "16"
-        CASE 2, 3: ln = "8"
-        CASE 4, 6: ln = "4"
-        CASE ELSE: ln = "2"
-        END SELECT
-        IF note THEN ln = "L" + ln + "N" + LTRIM$(STR$(note)) ELSE ln = "P" + ln
-        IF r = 3 OR r = 6 THEN ln = ln + "."
+        if r = 5 or r = 7 then
+            r = r - 1
+            j = 1
+        end if
+        select case r
+        case 1
+            ln = "16"
+        case 2, 3
+            ln = "8"
+        case 4, 6
+            ln = "4"
+        case else
+            ln = "2"
+        end select
+        if note then
+            ln = "L" + ln + "N" + ltrim$(str$(note))
+        else
+            ln = "P" + ln
+        end if
+        if r = 3 or r = 6 then ln = ln + "."
         ' a capital slides from the note before
-        IF note > 0 AND c <> LCASE$(c) THEN ln = "K6" + ln + "K0"
+        if note > 0 and c <> lcase$(c) then ln = "K6" + ln + "K0"
         s = s + ln
-        IF j THEN s = s + "P16"
-    LOOP
+        if j then s = s + "P16"
+    loop
     Riff$ = s
-END FUNCTION
+end function
 
 ' The next half bar, once the last is nearly played: the drums are the first voice, eight sixteenths every time,
 ' so PLAY(0) counts the tune's own clock. The last four bars fade, an eighth a half bar.
-SUB FeedSong
-    DIM k AS INTEGER, b AS INTEGER, loud AS INTEGER, d AS STRING, bass AS STRING, one AS STRING, two AS STRING, under AS STRING
-    DIM t AS STRING, mid AS STRING
-    IF Muted OR NOT Tune THEN EXIT SUB
-    IF PLAY(0) > 2 THEN EXIT SUB
+sub FeedSong
+    dim k as integer, b as integer, loud as integer, d as string, bass as string, one as string, two as string, under as string
+    dim t as string, mid as string
+    if Muted or not Tune then exit sub
+    if play(0) > 2 then exit sub
     ' the song picked comes in once this one has faded
-    IF Coming >= 0 AND FadeOut = 0 THEN Sng = Coming: Bar = ComingBar: HalfBar = 0: Coming = -1
-    t = "T" + LTRIM$(STR$(Tempo(Sng)))
-    b = ASC(MID$(Order(Sng), Bar + 1, 1)) - 97
+    if Coming >= 0 and FadeOut = 0 then
+        Sng = Coming
+        Bar = ComingBar
+        HalfBar = 0
+        Coming = -1
+    end if
+    t = "T" + ltrim$(str$(Tempo(Sng)))
+    b = asc(mid$(Order(Sng), Bar + 1, 1)) - 97
     k = (Sng * NBAR + b) * 2 + HalfBar
-    loud = (LEN(Order(Sng)) - Bar) * 2 - HalfBar
-    IF loud > 8 OR Bar < LEN(Order(Sng)) - Fade(Sng) THEN loud = 8
-    IF FadeOut > 0 THEN
-        loud = loud * FadeOut \ 3: FadeOut = FadeOut - 1
-    ELSEIF FadeIn > 0 THEN
-        loud = loud * (3 - FadeIn) \ 3: FadeIn = FadeIn - 1
-    END IF
+    loud = (len(Order(Sng)) - Bar) * 2 - HalfBar
+    if loud > 8 or Bar < len(Order(Sng)) - Fade(Sng) then loud = 8
+    if FadeOut > 0 then
+        loud = loud * FadeOut \ 3
+        FadeOut = FadeOut - 1
+    elseif FadeIn > 0 then
+        loud = loud * (3 - FadeIn) \ 3
+        FadeIn = FadeIn - 1
+    end if
     d = Trk(k * 5)
-    IF loud < 8 THEN d = Beat$(Kit(k), loud)
+    if loud < 8 then d = Beat$(Kit(k), loud)
     ' the bass waits its bars; a bar's brasses are the horns or the organ, by the song
-    bass = "V" + LTRIM$(STR$(Lvl(Sng, 4) * loud \ 8)) + Trk(k * 5 + 1)
-    IF Bar < BassIn(Sng) THEN bass = "P2"
+    bass = "V" + ltrim$(str$(Lvl(Sng, 4) * loud \ 8)) + Trk(k * 5 + 1)
+    if Bar < BassIn(Sng) then bass = "P2"
     ' the organ's low double: with the organ, not the intro's brass
-    one = Keys(0): two = Keys(1): under = "V" + LTRIM$(STR$(Lvl(Sng, 3) * loud \ 8)) + Org(k)
-    SELECT CASE MID$(Voicing(Sng), b + 1, 1)
-    CASE "h": one = Horn(0): two = Horn(1): under = "P2"
-    CASE "o": two = Keys(0)
-    END SELECT
-    mid = t + "V" + LTRIM$(STR$(Lvl(Sng, 2) * loud \ 8)) + Third(k)
+    one = Keys(0)
+    two = Keys(1)
+    under = "V" + ltrim$(str$(Lvl(Sng, 3) * loud \ 8)) + Org(k)
+    select case mid$(Voicing(Sng), b + 1, 1)
+    case "h"
+        one = Horn(0)
+        two = Horn(1)
+        under = "P2"
+    case "o"
+        two = Keys(0)
+    end select
+    mid = t + "V" + ltrim$(str$(Lvl(Sng, 2) * loud \ 8)) + Third(k)
     k = k * 5
-    one = t + one + "V" + LTRIM$(STR$(Lvl(Sng, 0) * loud \ 8)) + Trk(k + 2)
-    two = t + two + "V" + LTRIM$(STR$(Lvl(Sng, 2) * loud \ 8)) + Trk(k + 4)
-    PLAY t + d, t + bass, one, , t + Solo(Sng) + "V" + LTRIM$(STR$((Lvl(Sng, 1) * loud + 7) \ 8)) + Trk(k + 3), two, t + under, mid
+    one = t + one + "V" + ltrim$(str$(Lvl(Sng, 0) * loud \ 8)) + Trk(k + 2)
+    two = t + two + "V" + ltrim$(str$(Lvl(Sng, 2) * loud \ 8)) + Trk(k + 4)
+    play t + d, t + bass, one, , t + Solo(Sng) + "V" + ltrim$(str$((Lvl(Sng, 1) * loud + 7) \ 8)) + Trk(k + 3), two, t + under, mid
     HalfBar = 1 - HalfBar
-    IF HalfBar = 0 THEN Bar = (Bar + 1) MOD LEN(Order(Sng))
-END SUB
+    if HalfBar = 0 then Bar = (Bar + 1) mod len(Order(Sng))
+end sub
 
 ' Song n, when it is not the one playing, from its start or, late, from the bar it comes in at: Charlie's theme (1)
 ' for the title and, from its hits, the level's end; the Downs' tune (0) for the run. The one playing fades over a
 ' bar (half of one, late) and the next fades in over one; late, it comes in full.
-SUB PickSong (n AS INTEGER, late AS INTEGER)
-    IF n = Sng THEN Coming = -1: FadeOut = 0: EXIT SUB
-    IF n = Coming THEN EXIT SUB
-    Coming = n: ComingBar = 0: FadeOut = 2: FadeIn = 2
-    IF late THEN ComingBar = Entry(n): FadeOut = 1: FadeIn = 0
-END SUB
+sub PickSong (n as integer, late as integer)
+    if n = Sng then
+        Coming = -1
+        FadeOut = 0
+        exit sub
+    end if
+    if n = Coming then exit sub
+    Coming = n
+    ComingBar = 0
+    FadeOut = 2
+    FadeIn = 2
+    if late then
+        ComingBar = Entry(n)
+        FadeOut = 1
+        FadeIn = 0
+    end if
+end sub
 
 ' The ground's top at column sx near y: in y's tile, the one above when
 ' that is full, the one below when it is empty; NONE when both are, or
 ' off the level.
-FUNCTION Surf% (sx AS INTEGER, y AS INTEGER)
-    DIM tx AS INTEGER, ty AS INTEGER, i AS INTEGER, h AS INTEGER
+function Surf% (sx as integer, y as integer)
+    dim tx as integer, ty as integer, i as integer, h as integer
     Surf% = NONE
-    IF sx < 0 OR sx >= LWPX OR y < TS THEN EXIT FUNCTION
-    tx = sx \ TS: i = sx AND 15: ty = y \ TS
-    IF ty >= MH - 1 THEN EXIT FUNCTION
+    if sx < 0 or sx >= LWPX or y < TS then exit function
+    tx = sx \ TS
+    i = sx and 15
+    ty = y \ TS
+    if ty >= MH - 1 then exit function
     h = Prof(Map(tx, ty), i)
-    IF h = TS THEN
+    if h = TS then
         Surf% = ty * TS - Prof(Map(tx, ty - 1), i)
-    ELSEIF h = 0 THEN
+    elseif h = 0 then
         h = Prof(Map(tx, ty + 1), i)
-        IF h THEN Surf% = (ty + 2) * TS - h
-    ELSE
+        if h then Surf% = (ty + 2) * TS - h
+    else
         Surf% = (ty + 1) * TS - h
-    END IF
-END FUNCTION
+    end if
+end function
 
 ' Past the level's ends a wall; above and below it air.
-FUNCTION Solid% (x AS INTEGER, y AS INTEGER)
-    IF x < 0 OR x >= LWPX THEN Solid% = -1: EXIT FUNCTION
-    IF y < 0 OR y >= MH * TS THEN Solid% = 0: EXIT FUNCTION
-    Solid% = (y AND 15) >= TS - Prof(Map(x \ TS, y \ TS), x AND 15)
-END FUNCTION
+function Solid% (x as integer, y as integer)
+    if x < 0 or x >= LWPX then
+        Solid% = -1
+        exit function
+    end if
+    if y < 0 or y >= MH * TS then
+        Solid% = 0
+        exit function
+    end if
+    Solid% = (y and 15) >= TS - Prof(Map(x \ TS, y \ TS), x and 15)
+end function
 
 ' Charlie's side toward dir in a wall: pushed out, and true.
-FUNCTION Wall% (p AS Hero, dir AS INTEGER)
-    DIM n AS INTEGER, y AS INTEGER
-    y = CINT(p.y)
-    DO WHILE Solid%(CINT(p.x) + dir * HW, y - 11) OR Solid%(CINT(p.x) + dir * HW, y - HH + 4)
+function Wall% (p as Hero, dir as integer)
+    dim n as integer, y as integer
+    y = cint(p.y)
+    do while Solid%(cint(p.x) + dir * HW, y - 11) or Solid%(cint(p.x) + dir * HW, y - HH + 4)
         p.x = p.x - dir
         n = n + 1
-        IF n > TS THEN EXIT DO
-    LOOP
+        if n > TS then exit do
+    loop
     Wall% = n > 0
-END FUNCTION
+end function
 
 ' Falling Charlie's feet in the tiles' ground: on the line's stretch there, its speed along it kept.
-FUNCTION Land% (p AS Hero, d AS INTEGER)
-    DIM x AS INTEGER, y AS INTEGER, l AS INTEGER, c AS INTEGER, r AS INTEGER, s AS INTEGER
-    x = CINT(p.x): y = CINT(p.y)
-    l = Surf%(x - 6, y): c = Surf%(x, y): r = Surf%(x + 6, y)
-    IF l > y OR l < y - 14 THEN l = NONE
-    IF c > y OR c < y - 14 THEN c = NONE
-    IF r > y OR r < y - 14 THEN r = NONE
-    IF l = NONE AND c = NONE AND r = NONE THEN Land% = 0: EXIT FUNCTION
+function Land% (p as Hero, d as integer)
+    dim x as integer, y as integer, l as integer, c as integer, r as integer, s as integer
+    x = cint(p.x)
+    y = cint(p.y)
+    l = Surf%(x - 6, y)
+    c = Surf%(x, y)
+    r = Surf%(x + 6, y)
+    if l > y or l < y - 14 then l = NONE
+    if c > y or c < y - 14 then c = NONE
+    if r > y or r < y - 14 then r = NONE
+    if l = NONE and c = NONE and r = NONE then
+        Land% = 0
+        exit function
+    end if
     ' by a foot on an edge: onto the edge
-    IF c <> NONE THEN
-        s = SegAt%(x, CSNG(c))
-    ELSEIF l < r THEN
-        s = SegAt%(x - 6, CSNG(l))
+    if c <> NONE then
+        s = SegAt%(x, csng(c))
+    elseif l < r then
+        s = SegAt%(x - 6, csng(l))
         ' going off that edge, not onto it: no ground
-        IF p.vx > 0 THEN s = -1
-    ELSE
-        s = SegAt%(x + 6, CSNG(r))
-        IF p.vx < 0 THEN s = -1
-    END IF
-    IF s < 0 THEN Land% = 0: EXIT FUNCTION
-    IF p.x < GX(s) THEN p.x = GX(s)
-    IF p.x > GX(s + 1) THEN p.x = GX(s + 1)
+        if p.vx > 0 then s = -1
+    else
+        s = SegAt%(x + 6, csng(r))
+        if p.vx < 0 then s = -1
+    end if
+    if s < 0 then
+        Land% = 0
+        exit function
+    end if
+    if p.x < GX(s) then p.x = GX(s)
+    if p.x > GX(s + 1) then p.x = GX(s + 1)
     p.y = GY(s) + (p.x - GX(s)) * GV(s) / GU(s)
     Settle p, s, d
     Land% = -1
-END FUNCTION
+end function
 
 ' Down on stretch s: the speed along it kept.
-SUB Settle (p AS Hero, s AS INTEGER, d AS INTEGER)
-    p.sg = s: p.ang = GA(s)
+sub Settle (p as Hero, s as integer, d as integer)
+    p.sg = s
+    p.ang = GA(s)
     p.gsp = p.vx * GU(s) + p.vy * GV(s)
-    IF p.jumped AND NOT d THEN p.roll = 0
+    if p.jumped and not d then p.roll = 0
     ' hit, it lands where it is and stands afraid a while
-    IF p.stun THEN p.gsp = 0
-    p.ground = -1: p.jumped = 0: p.sprung = 0: p.coyote = 0
-END SUB
+    if p.stun then p.gsp = 0
+    p.ground = -1
+    p.jumped = 0
+    p.sprung = 0
+    p.coyote = 0
+end sub
 
 ' Charlie in the air, come from x0, y0, through a curve's stretch from its open side: down on it where it can be
 ' stood on, or is met fast enough to run along; else off it, sliding. A loop's far half is not there for one that
 ' has not run its near half.
-FUNCTION Curve% (p AS Hero, x0 AS SINGLE, y0 AS SINGLE, d AS INTEGER)
-    DIM z AS INTEGER, s AS INTEGER, a AS INTEGER, b AS INTEGER, far AS INTEGER
-    DIM d0 AS SINGLE, d1 AS SINGLE, t AS SINGLE, f AS SINGLE
+function Curve% (p as Hero, x0 as single, y0 as single, d as integer)
+    dim z as integer, s as integer, a as integer, b as integer, far as integer
+    dim d0 as single, d1 as single, t as single, f as single
     Curve% = 0
-    FOR z = 0 TO NZ - 1
-        IF p.x >= ZL(z) - 8 AND p.x <= ZR(z) + 8 THEN
-            a = ZA(z): b = ZB(z)
-            IF ZM(z) >= 0 THEN
+    for z = 0 to NZ - 1
+        if p.x >= ZL(z) - 8 and p.x <= ZR(z) + 8 then
+            a = ZA(z)
+            b = ZB(z)
+            if ZM(z) >= 0 then
                 far = p.sg >= ZM(z)
-                IF p.sg >= PlatA THEN far = x0 > ZL(z) + LOOPR
-                IF far THEN a = ZM(z) ELSE b = ZM(z) - 1
-            END IF
-            FOR s = a TO b
+                if p.sg >= PlatA then far = x0 > ZL(z) + LOOPR
+                if far then
+                    a = ZM(z)
+                else
+                    b = ZM(z) - 1
+                end if
+            end if
+            for s = a to b
                 d1 = (p.x - GX(s)) * GV(s) - (p.y - GY(s)) * GU(s)
-                IF d1 < 0 AND p.vx * GV(s) - p.vy * GU(s) < -1 THEN
+                if d1 < 0 and p.vx * GV(s) - p.vy * GU(s) < -1 then
                     d0 = (x0 - GX(s)) * GV(s) - (y0 - GY(s)) * GU(s)
                     t = (p.x - GX(s)) * GU(s) + (p.y - GY(s)) * GV(s)
                     ' from just behind it too, at a join; not behind a wall
                     ' and from further behind a platform, which moves
-                    IF d0 > -1 + 3 * (GK(s) = 3) AND (d0 >= 0 OR GU(s) >= .35) AND t >= -1 AND t <= GL(s) + 1 THEN
-                        IF t < 0 THEN t = 0
-                        IF t > GL(s) THEN t = GL(s)
-                        p.x = GX(s) + GU(s) * t: p.y = GY(s) + GV(s) * t
+                    if d0 > -1 + 3 * (GK(s) = 3) and (d0 >= 0 or GU(s) >= .35) and t >= -1 and t <= GL(s) + 1 then
+                        if t < 0 then t = 0
+                        if t > GL(s) then t = GL(s)
+                        p.x = GX(s) + GU(s) * t
+                        p.y = GY(s) + GV(s) * t
                         f = p.vx * GU(s) + p.vy * GV(s)
-                        IF GU(s) >= .35 OR ABS(f) >= STALL THEN
+                        if GU(s) >= .35 or abs(f) >= STALL then
                             Settle p, s, d
                             Curve% = -1
-                        ELSE
-                            p.x = p.x + GV(s): p.y = p.y - GU(s)
-                            p.vx = f * GU(s): p.vy = f * GV(s)
-                        END IF
-                        EXIT FUNCTION
-                    END IF
-                END IF
-            NEXT
-        END IF
-    NEXT
-END FUNCTION
+                        else
+                            p.x = p.x + GV(s)
+                            p.y = p.y - GU(s)
+                            p.vx = f * GU(s)
+                            p.vy = f * GV(s)
+                        end if
+                        exit function
+                    end if
+                end if
+            next
+        end if
+    next
+end function
 
 ' Charlie d pixels along the line, over its joins: slowed in a sharp hollow, into the air over a sharp crest or
 ' off the line's end.
-SUB Along (p AS Hero, d AS SINGLE)
-    DIM i AS INTEGER, j AS INTEGER, a AS INTEGER, t AS SINGLE, cr AS SINGLE, dt AS SINGLE
+sub Along (p as Hero, d as single)
+    dim i as integer, j as integer, a as integer, t as single, cr as single, dt as single
     i = p.sg
     t = (p.x - GX(i)) * GU(i) + (p.y - GY(i)) * GV(i) + d
-    DO
-        IF t > GL(i) THEN
-            j = i + 1: a = i
-        ELSEIF t < 0 THEN
-            j = i - 1: a = j
-        ELSE
-            EXIT DO
-        END IF
-        IF j >= 0 THEN IF GK(j) = 0 THEN j = -1
-        IF j >= 0 THEN
+    do
+        if t > GL(i) then
+            j = i + 1
+            a = i
+        elseif t < 0 then
+            j = i - 1
+            a = j
+        else
+            exit do
+        end if
+        if j >= 0 then if GK(j) = 0 then j = -1
+        if j >= 0 then
             cr = GU(a) * GV(a + 1) - GV(a) * GU(a + 1)
             dt = GU(a) * GU(a + 1) + GV(a) * GV(a + 1)
-            IF cr > 0 AND dt < .64 THEN j = -1
-        END IF
-        IF j < 0 THEN
-            IF t < 0 THEN t = 0 ELSE t = GL(i)
-            p.x = GX(i) + GU(i) * t: p.y = GY(i) + GV(i) * t
+            if cr > 0 and dt < .64 then j = -1
+        end if
+        if j < 0 then
+            if t < 0 then
+                t = 0
+            else
+                t = GL(i)
+            end if
+            p.x = GX(i) + GU(i) * t
+            p.y = GY(i) + GV(i) * t
             Drop p
-            EXIT SUB
-        END IF
-        IF t < 0 THEN t = t + GL(j) ELSE t = t - GL(i)
-        IF cr < 0 AND dt < .7 THEN
-            IF dt < 0 THEN dt = 0
+            exit sub
+        end if
+        if t < 0 then
+            t = t + GL(j)
+        else
+            t = t - GL(i)
+        end if
+        if cr < 0 and dt < .7 then
+            if dt < 0 then dt = 0
             p.gsp = p.gsp * dt
-            IF j > i THEN t = t * dt ELSE t = GL(j) - (GL(j) - t) * dt
-        END IF
+            if j > i then
+                t = t * dt
+            else
+                t = GL(j) - (GL(j) - t) * dt
+            end if
+        end if
         i = j
-    LOOP
-    p.sg = i: p.ang = GA(i)
-    p.x = GX(i) + GU(i) * t: p.y = GY(i) + GV(i) * t
-END SUB
+    loop
+    p.sg = i
+    p.ang = GA(i)
+    p.x = GX(i) + GU(i) * t
+    p.y = GY(i) + GV(i) * t
+end sub
 
 ' Off the ground, its speed kept: from a wall or a roof, clear of it.
-SUB Drop (p AS Hero)
-    DIM i AS INTEGER
+sub Drop (p as Hero)
+    dim i as integer
     i = p.sg
-    p.ground = 0: p.vx = p.gsp * GU(i): p.vy = p.gsp * GV(i)
-    IF GU(i) > .7 THEN
+    p.ground = 0
+    p.vx = p.gsp * GU(i)
+    p.vy = p.gsp * GV(i)
+    if GU(i) > .7 then
         p.coyote = COYOTE
-    ELSEIF GU(i) < .35 THEN
-        p.x = p.x + 2 * GV(i): p.y = p.y - 2 * GU(i)
-    END IF
-END SUB
+    elseif GU(i) < .35 then
+        p.x = p.x + 2 * GV(i)
+        p.y = p.y - 2 * GU(i)
+    end if
+end sub
 
 ' A step. The title plays itself: Charlie run by the pilot.
-SUB Tick (g AS Game, p AS Hero, k AS Pad, lo() AS Loose, pt() AS Part)
-    DIM idle AS Pad, auto AS Pad, i AS INTEGER
+sub Tick (g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part)
+    dim idle as Pad, auto as Pad, i as integer
     Ticks = Ticks + 1
-    IF Zone = 1 AND (Ticks AND 3) = 0 THEN Cycle
-    IF NMv THEN Movers p
+    if Zone = 1 and (Ticks and 3) = 0 then Cycle
+    if NMv then Movers p
     g.modeT = g.modeT + STEPT
-    IF g.shake > 0 THEN g.shake = g.shake - STEPT
-    IF k.mute THEN
-        Muted = NOT Muted: k.mute = 0
-        IF Muted THEN PLAY "P64", "P64", "P64", , "P64", "P64", "P64", "P64"
-    END IF
-    SELECT CASE g.mode
-    CASE TITLE
-        IF k.quit THEN g.quitting = -1
-        IF p.dead THEN
+    if g.shake > 0 then g.shake = g.shake - STEPT
+    if k.mute then
+        Muted = not Muted
+        k.mute = 0
+        if Muted then play "P64", "P64", "P64", , "P64", "P64", "P64", "P64"
+    end if
+    select case g.mode
+    case TITLE
+        if k.quit then g.quitting = -1
+        if p.dead then
             ResetWorld g, p, lo(), pt()
-        ELSEIF p.x >= GoalX THEN
-            IF Met%(g, p, k, pt()) THEN ResetWorld g, p, lo(), pt()
-        ELSE
+        elseif p.x >= GoalX then
+            if Met%(g, p, k, pt()) then ResetWorld g, p, lo(), pt()
+        else
             Pilot p, auto
             MoveHero p, auto, pt()
             Touch g, p, lo(), pt()
-            IF p.y > MH * TS + 24 THEN Lose p
+            if p.y > MH * TS + 24 then Lose p
             Camera g, p, 0
-        END IF
-        IF k.hit OR k.start THEN StartGame g, p, lo(), pt()
-    CASE PLAYING
-        IF k.quit THEN ResetWorld g, p, lo(), pt()
-        IF p.dead THEN
+        end if
+        if k.hit or k.start then StartGame g, p, lo(), pt()
+    case PLAYING
+        if k.quit then ResetWorld g, p, lo(), pt()
+        if p.dead then
             Dying g, p
-        ELSE
+        else
             g.clock = g.clock + STEPT
             MoveHero p, k, pt()
             Touch g, p, lo(), pt()
-            IF p.y > MH * TS + 24 THEN Lose p
-            IF p.x >= GoalX THEN
-                g.mode = CLEARED: g.modeT = 0
-                g.bonus = g.bones * 50& + 10& * (240 - INT(g.clock))
-                IF g.bonus < g.bones * 50& THEN g.bonus = g.bones * 50&
+            if p.y > MH * TS + 24 then Lose p
+            if p.x >= GoalX then
+                g.mode = CLEARED
+                g.modeT = 0
+                g.bonus = g.bones * 50& + 10& * (240 - int(g.clock))
+                if g.bonus < g.bones * 50& then g.bonus = g.bones * 50&
                 Sfx SCLEAR
-            END IF
+            end if
             Camera g, p, 0
-        END IF
-    CASE CLEARED
-        IF g.modeT > 1.5 AND g.bonus > 0 THEN
-            g.bonus = g.bonus - 50: g.score = g.score + 50
-            IF g.bonus < 0 THEN g.score = g.score + g.bonus: g.bonus = 0
-            IF (Ticks AND 3) = 0 THEN Sfx SBONE
-        END IF
+        end if
+    case CLEARED
+        if g.modeT > 1.5 and g.bonus > 0 then
+            g.bonus = g.bonus - 50
+            g.score = g.score + 50
+            if g.bonus < 0 then
+                g.score = g.score + g.bonus
+                g.bonus = 0
+            end if
+            if (Ticks and 3) = 0 then Sfx SBONE
+        end if
         ' met, a while and the fade over: on to the next zone, or after the last, the title
-        IF k.quit THEN
+        if k.quit then
             ResetWorld g, p, lo(), pt()
-        ELSEIF Met%(g, p, k, pt()) THEN
-            IF Stage < NSTAGE - 1 THEN GoStage Stage + 1, g, p, lo(), pt() ELSE ResetWorld g, p, lo(), pt()
-        END IF
-    CASE OVER
-        IF g.modeT > 5 OR (g.modeT > 1.5 AND (k.hit OR k.start)) OR k.quit THEN ResetWorld g, p, lo(), pt()
-    END SELECT
-    IF (Ticks AND 1) = 0 THEN Things g, lo(), pt()
-    IF Zone = 0 AND (Ticks AND 15) = 0 THEN
+        elseif Met%(g, p, k, pt()) then
+            if Stage < NSTAGE - 1 then
+                GoStage Stage + 1, g, p, lo(), pt()
+            else
+                ResetWorld g, p, lo(), pt()
+            end if
+        end if
+    case OVER
+        if g.modeT > 5 or (g.modeT > 1.5 and (k.hit or k.start)) or k.quit then ResetWorld g, p, lo(), pt()
+    end select
+    if (Ticks and 1) = 0 then Things g, lo(), pt()
+    if Zone = 0 and (Ticks and 15) = 0 then
         i = Ticks \ 16
-        Tint CWATER + 1, Glint(i MOD 3)
-        Tint CWATER + 2, Glint((i + 1) MOD 3)
-        Tint CWATER + 3, Glint((i + 2) MOD 3)
-    END IF
-    k.hit = 0: k.start = 0: k.quit = 0
-END SUB
+        Tint CWATER + 1, Glint(i mod 3)
+        Tint CWATER + 2, Glint((i + 1) mod 3)
+        Tint CWATER + 3, Glint((i + 2) mod 3)
+    end if
+    k.hit = 0
+    k.start = 0
+    k.quit = 0
+end sub
 
 ' The pad of a Charlie that holds right and jumps at pits, walls and cats.
 ' Whether a ribbon starts within 60 ahead of x: its edge is run off, not jumped.
-FUNCTION Ribbon% (x AS INTEGER)
-    DIM z AS INTEGER
+function Ribbon% (x as integer)
+    dim z as integer
     Ribbon% = 0
-    FOR z = 0 TO NZ - 1
-        IF ZM(z) < 0 AND GK(ZA(z)) = 2 AND ZL(z) > x - 16 AND ZL(z) < x + 60 THEN Ribbon% = -1
-    NEXT
-END FUNCTION
+    for z = 0 to NZ - 1
+        if ZM(z) < 0 and GK(ZA(z)) = 2 and ZL(z) > x - 16 and ZL(z) < x + 60 then Ribbon% = -1
+    next
+end function
 
 ' A ribbon is a strip wound once round a line along its way, each twist 2 * WAVEL long: its near edge rises to a
 ' crest and falls, and what runs it goes round its inside, on its far side going up and behind it coming down.
 ' How far round p on one is: 0 upright at its foot, PI upside down under its crest; -1 on none.
-FUNCTION Twist! (p AS Hero)
-    DIM z AS INTEGER, t AS SINGLE
+function Twist! (p as Hero)
+    dim z as integer, t as single
     Twist! = -1
-    IF NOT p.ground THEN EXIT FUNCTION
-    FOR z = 0 TO NZ - 1
-        IF ZM(z) = -2 AND p.sg >= ZA(z) AND p.sg <= ZB(z) THEN
+    if not p.ground then exit function
+    for z = 0 to NZ - 1
+        if ZM(z) = -2 and p.sg >= ZA(z) and p.sg <= ZB(z) then
             t = (p.x - ZL(z) - 8) / (2 * WAVEL)
-            IF t < 0 OR p.x > ZR(z) - 8 THEN t = 0
-            Twist! = (t - INT(t)) * 2 * PI
-            EXIT FUNCTION
-        END IF
-    NEXT
-END FUNCTION
+            if t < 0 or p.x > ZR(z) - 8 then t = 0
+            Twist! = (t - int(t)) * 2 * PI
+            exit function
+        end if
+    next
+end function
 
-SUB Pilot (p AS Hero, k AS Pad)
-    STATIC hold AS INTEGER
-    DIM x AS INTEGER, y AS INTEGER, i AS INTEGER, want AS INTEGER, m AS INTEGER, d AS INTEGER, ready AS INTEGER
-    k.r = -1: k.l = 0
-    IF p.ground AND GK(p.sg) = 3 THEN
+sub Pilot (p as Hero, k as Pad)
+    static hold as integer
+    dim x as integer, y as integer, i as integer, want as integer, m as integer, d as integer, ready as integer
+    k.r = -1
+    k.l = 0
+    if p.ground and GK(p.sg) = 3 then
         ' on a platform: still, till there is ground ahead to jump to
-        x = CINT(p.x): y = CINT(p.y)
+        x = cint(p.x)
+        y = cint(p.y)
         k.r = 0
-        IF p.gsp > 20 THEN k.l = -1
-        i = CINT(GX(p.sg)) + MOVEW + 10
-        IF Surf%(i, y) <> NONE AND NOT Solid%(i, y - 12) THEN k.r = -1: k.l = 0: want = -1
+        if p.gsp > 20 then k.l = -1
+        i = cint(GX(p.sg)) + MOVEW + 10
+        if Surf%(i, y) <> NONE and not Solid%(i, y - 12) then
+            k.r = -1
+            k.l = 0
+            want = -1
+        end if
         ' a bridge is run over
-        FOR m = 0 TO NMv - 1
-            IF MvS(m) = p.sg AND MvK(m) = 4 THEN k.r = -1: k.l = 0: want = 0
-        NEXT
-    ELSEIF p.ground AND GK(p.sg) = 1 THEN
-        x = CINT(p.x): y = CINT(p.y)
-        i = x + 22 + CINT(ABS(p.gsp)) \ 40
-        IF Surf%(i, y) = NONE AND Surf%(i, y + 2 * TS) = NONE AND NOT Ribbon%(x) THEN want = -1
+        for m = 0 to NMv - 1
+            if MvS(m) = p.sg and MvK(m) = 4 then
+                k.r = -1
+                k.l = 0
+                want = 0
+            end if
+        next
+    elseif p.ground and GK(p.sg) = 1 then
+        x = cint(p.x)
+        y = cint(p.y)
+        i = x + 22 + cint(abs(p.gsp)) \ 40
+        if Surf%(i, y) = NONE and Surf%(i, y + 2 * TS) = NONE and not Ribbon%(x) then want = -1
         ' a wall, not a ramp's foot
-        IF Solid%(x + 13, y - 20) THEN want = -1
+        if Solid%(x + 13, y - 20) then want = -1
         i = First(x \ TS)
-        DO WHILE i < NObj
-            IF ObX(i) > x + 50 THEN EXIT DO
-            IF ((ObK(i) = KCAT AND ObS(i) <> 0) OR ObK(i) = KTHORN) AND ObX(i) > x THEN want = -1
+        do while i < NObj
+            if ObX(i) > x + 50 then exit do
+            if ((ObK(i) = KCAT and ObS(i) <> 0) or ObK(i) = KTHORN) and ObX(i) > x then want = -1
             i = i + 1
-        LOOP
+        loop
         ' a platform's gap ahead: slowly to its edge, there till the platform is at it and staying, then on
-        FOR m = 0 TO NMv - 1
+        for m = 0 to NMv - 1
             d = MvE(m) - x
-            IF MvK(m) = 4 THEN d = NONE
-            IF d > -4 AND d < 300 AND ABS(MvY(m) + MvA(m) * (MvK(m) = 1) - y) < 200 THEN
-                IF d < 50 THEN want = 0
-                IF p.gsp > 70 + d THEN k.r = 0: k.l = -1 ELSE IF p.gsp > 30 + d THEN k.r = 0
-                IF d < 10 THEN
-                    SELECT CASE MvK(m)
-                    CASE 0: ready = Swing!(m, 0) < -.85 AND Swing!(m, 1) < 0
-                    CASE 1: ready = Swing!(m, 0) >= 1 AND Swing!(m, 1) > .2
-                    CASE 2, 3: ready = MvT(m) = 0
-                    END SELECT
-                    IF ready THEN
-                        k.r = -1: k.l = 0
-                    ELSE
+            if MvK(m) = 4 then d = NONE
+            if d > -4 and d < 300 and abs(MvY(m) + MvA(m) * (MvK(m) = 1) - y) < 200 then
+                if d < 50 then want = 0
+                if p.gsp > 70 + d then
+                    k.r = 0
+                    k.l = -1
+                else
+                    if p.gsp > 30 + d then k.r = 0
+                end if
+                if d < 10 then
+                    select case MvK(m)
+                    case 0
+                        ready = Swing!(m, 0) < -.85 and Swing!(m, 1) < 0
+                    case 1
+                        ready = Swing!(m, 0) >= 1 and Swing!(m, 1) > .2
+                    case 2, 3
+                        ready = MvT(m) = 0
+                    end select
+                    if ready then
+                        k.r = -1
+                        k.l = 0
+                    else
                         k.r = 0
-                        IF p.gsp > 5 THEN k.l = -1
-                    END IF
-                END IF
-            END IF
-        NEXT
-    ELSEIF NOT p.ground THEN
+                        if p.gsp > 5 then k.l = -1
+                    end if
+                end if
+            end if
+        next
+    elseif not p.ground then
         ' in the air toward a platform's gap: slowed, to come down before it
-        FOR m = 0 TO NMv - 1
-            d = MvE(m) - CINT(p.x)
-            IF MvK(m) = 4 THEN d = NONE
-            IF d > -40 AND d < 260 AND p.coyote <= 0 AND p.vx > d \ 3 AND p.sg <> MvS(m) THEN k.r = 0: k.l = -1
-        NEXT
-    END IF
-    IF want AND hold = 0 THEN k.hit = -1: hold = 24
-    IF hold > 0 THEN k.jump = -1: hold = hold - 1 ELSE k.jump = 0
-END SUB
+        for m = 0 to NMv - 1
+            d = MvE(m) - cint(p.x)
+            if MvK(m) = 4 then d = NONE
+            if d > -40 and d < 260 and p.coyote <= 0 and p.vx > d \ 3 and p.sg <> MvS(m) then
+                k.r = 0
+                k.l = -1
+            end if
+        next
+    end if
+    if want and hold = 0 then
+        k.hit = -1
+        hold = 24
+    end if
+    if hold > 0 then
+        k.jump = -1
+        hold = hold - 1
+    else
+        k.jump = 0
+    end if
+end sub
 
 ' The level as it starts, the title up, Charlie at the start for the pilot.
-SUB ResetWorld (g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
-    DIM i AS INTEGER
-    IF Stage <> NextUp THEN LoadLevel NextUp
-    g.mode = TITLE: g.modeT = 0: Cheer = 0: MetT = 0: PastT = 0
-    IF Dusk < 16 THEN Dusk = 16: Shade
-    g.lives = 3: g.score = 0: g.clock = 0
-    g.homeX = StartX: g.homeY = StartY
-    FOR i = 0 TO NObj - 1
+sub ResetWorld (g as Game, p as Hero, lo() as Loose, pt() as Part)
+    dim i as integer
+    if Stage <> NextUp then LoadLevel NextUp
+    g.mode = TITLE
+    g.modeT = 0
+    Cheer = 0
+    MetT = 0
+    PastT = 0
+    if Dusk < 16 then
+        Dusk = 16
+        Shade
+    end if
+    g.lives = 3
+    g.score = 0
+    g.clock = 0
+    g.homeX = StartX
+    g.homeY = StartY
+    for i = 0 to NObj - 1
         ObX(i) = ObA(i)
         ObS(i) = 0
-        IF ObK(i) = KBONE THEN ObS(i) = 1
-        IF ObK(i) = KCAT THEN ObS(i) = -1
-    NEXT
-    FOR i = 0 TO NMOVE: MvT(i) = 0: NEXT
-    FOR i = 0 TO NLOOSE - 1: lo(i).t = 0: NEXT
-    FOR i = 0 TO NPART - 1: pt(i).t = 0: NEXT
-    LooseN = 0: PartN = 0
+        if ObK(i) = KBONE then ObS(i) = 1
+        if ObK(i) = KCAT then ObS(i) = -1
+    next
+    for i = 0 to NMOVE
+        MvT(i) = 0
+    next
+    for i = 0 to NLOOSE - 1
+        lo(i).t = 0
+    next
+    for i = 0 to NPART - 1
+        pt(i).t = 0
+    next
+    LooseN = 0
+    PartN = 0
     Spawn g, p
-END SUB
+end sub
 
 ' A level cleared: on to level n, the score and lives kept.
-SUB GoStage (n AS INTEGER, g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
-    DIM sc AS LONG, lv AS INTEGER
-    sc = g.score: lv = g.lives
+sub GoStage (n as integer, g as Game, p as Hero, lo() as Loose, pt() as Part)
+    dim sc as long, lv as integer
+    sc = g.score
+    lv = g.lives
     NextUp = n
     ResetWorld g, p, lo(), pt()
     NextUp = 0
-    g.mode = PLAYING: g.score = sc: g.lives = lv
-END SUB
+    g.mode = PLAYING
+    g.score = sc
+    g.lives = lv
+end sub
 
 ' Past the goal, a game's or the title's: on to the family and no further, the view sliding on to hold them all
 ' with Charlie at its left; a while with them, then the picture fades. Whether it has.
-FUNCTION Met% (g AS Game, p AS Hero, k AS Pad, pt() AS Part)
-    DIM idle AS Pad
-    idle.r = p.x < FamX - 108 AND NOT p.win
+function Met% (g as Game, p as Hero, k as Pad, pt() as Part)
+    dim idle as Pad
+    idle.r = p.x < FamX - 108 and not p.win
     MoveHero p, idle, pt()
-    IF p.x > FamX - 106 THEN p.x = FamX - 106: p.gsp = 0: p.vx = 0: p.roll = 0
-    IF p.ground AND ABS(p.gsp) < 5 AND p.x >= FamX - 108 THEN p.win = -1: p.face = 0
+    if p.x > FamX - 106 then
+        p.x = FamX - 106
+        p.gsp = 0
+        p.vx = 0
+        p.roll = 0
+    end if
+    if p.ground and abs(p.gsp) < 5 and p.x >= FamX - 108 then
+        p.win = -1
+        p.face = 0
+    end if
     Cheer = p.win
     g.camx = g.camx + (FamX - 166 - g.camx) * 4 * STEPT
     PastT = PastT + STEPT
-    IF p.win AND g.bonus = 0 THEN MetT = MetT + STEPT
-    IF Dusk = 16 AND (MetT > 6 OR PastT > 40 OR (MetT > 2 AND (k.hit OR k.start))) THEN Dusk = 15
-    IF Dusk < 16 AND (Ticks AND 3) = 0 THEN Dusk = Dusk - 1: Shade
+    if p.win and g.bonus = 0 then MetT = MetT + STEPT
+    if Dusk = 16 and (MetT > 6 or PastT > 40 or (MetT > 2 and (k.hit or k.start))) then Dusk = 15
+    if Dusk < 16 and (Ticks and 3) = 0 then
+        Dusk = Dusk - 1
+        Shade
+    end if
     Met% = Dusk <= 0
-END FUNCTION
+end function
 
-SUB StartGame (g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
+sub StartGame (g as Game, p as Hero, lo() as Loose, pt() as Part)
     ResetWorld g, p, lo(), pt()
     g.mode = PLAYING
-END SUB
+end sub
 
-SUB Spawn (g AS Game, p AS Hero)
-    DIM fresh AS Hero
+sub Spawn (g as Game, p as Hero)
+    dim fresh as Hero
     p = fresh
-    p.x = g.homeX: p.y = g.homeY: p.ground = -1
-    p.sg = SegAt%(g.homeX, CSNG(g.homeY))
+    p.x = g.homeX
+    p.y = g.homeY
+    p.ground = -1
+    p.sg = SegAt%(g.homeX, csng(g.homeY))
     g.bones = 0
     Camera g, p, -1
-END SUB
+end sub
 
-SUB MoveHero (p AS Hero, k AS Pad, pt() AS Part)
-    DIM l AS INTEGER, r AS INTEGER, d AS INTEGER, hit AS INTEGER, hold AS INTEGER
-    DIM v AS SINGLE
+sub MoveHero (p as Hero, k as Pad, pt() as Part)
+    dim l as integer, r as integer, d as integer, hit as integer, hold as integer
+    dim v as single
     ' a jump held through the hit is a jump as it ends: it was forgotten
-    IF p.stun AND p.ground AND p.inv < 1 THEN p.stun = 0: IF k.jump THEN k.hit = -1
-    IF p.stun = 0 THEN l = k.l: r = k.r: d = k.d: hit = k.hit: hold = k.jump
+    if p.stun and p.ground and p.inv < 1 then
+        p.stun = 0
+        if k.jump then k.hit = -1
+    end if
+    if p.stun = 0 then
+        l = k.l
+        r = k.r
+        d = k.d
+        hit = k.hit
+        hold = k.jump
+    end if
     ' a jump pressed just before landing, or just after the ground ran out, was lost: it is kept a moment
-    IF hit THEN p.want = JBUFFER
-    IF p.want > 0 THEN
+    if hit then p.want = JBUFFER
+    if p.want > 0 then
         p.want = p.want - STEPT
-        IF p.ground THEN
-            hit = -1: p.want = 0
-        ELSEIF p.coyote > 0 THEN
-            p.vy = -JUMPV: p.jumped = -1: p.roll = -1: p.coyote = 0: p.want = 0
+        if p.ground then
+            hit = -1
+            p.want = 0
+        elseif p.coyote > 0 then
+            p.vy = -JUMPV
+            p.jumped = -1
+            p.roll = -1
+            p.coyote = 0
+            p.want = 0
             Sfx SJUMP
-        END IF
-    END IF
-    IF p.coyote > 0 THEN p.coyote = p.coyote - STEPT
-    IF p.inv > 0 THEN p.inv = p.inv - STEPT
+        end if
+    end if
+    if p.coyote > 0 then p.coyote = p.coyote - STEPT
+    if p.inv > 0 then p.inv = p.inv - STEPT
     p.lastx = p.x
     ' slid off a slope too steep for its speed, the keys are no help a while
-    IF p.slip > 0 THEN
+    if p.slip > 0 then
         p.slip = p.slip - STEPT
-        IF p.ground THEN l = 0: r = 0
-    END IF
-    IF p.ground THEN
+        if p.ground then
+            l = 0
+            r = 0
+        end if
+    end if
+    if p.ground then
         Walk p, l, r, d, hit, pt()
-    ELSE
+    else
         Airborne p, l, r, d, hold, pt()
-    END IF
-    IF p.x < 8 THEN p.x = 8: p.gsp = 0: p.vx = 0
-    IF p.x > LWPX - 8 THEN p.x = LWPX - 8: p.gsp = 0: p.vx = 0
-    IF p.ground THEN v = ABS(p.gsp) ELSE v = ABS(p.vx)
-    IF v < 5 AND p.ground THEN p.idleT = p.idleT + STEPT ELSE p.idleT = 0
-    IF p.roll OR p.charging THEN
-        IF p.charging THEN v = 300 + p.charge
+    end if
+    if p.x < 8 then
+        p.x = 8
+        p.gsp = 0
+        p.vx = 0
+    end if
+    if p.x > LWPX - 8 then
+        p.x = LWPX - 8
+        p.gsp = 0
+        p.vx = 0
+    end if
+    if p.ground then
+        v = abs(p.gsp)
+    else
+        v = abs(p.vx)
+    end if
+    if v < 5 and p.ground then
+        p.idleT = p.idleT + STEPT
+    else
+        p.idleT = 0
+    end if
+    if p.roll or p.charging then
+        if p.charging then v = 300 + p.charge
         p.anim = p.anim + (v + 120) * STEPT / 9
-    ELSEIF v >= TOP - 5 THEN
+    elseif v >= TOP - 5 then
         p.anim = p.anim + 20 * STEPT
-    ELSE
+    else
         p.anim = p.anim + v * STEPT / 7
-    END IF
-END SUB
+    end if
+end sub
 
 ' On the ground: wind up, jump, roll, run; then along it, a few pixels a
 ' move, into walls and onto the ground's curve.
-SUB Walk (p AS Hero, l AS INTEGER, r AS INTEGER, d AS INTEGER, hit AS INTEGER, pt() AS Part)
-    DIM sn AS SINGLE, cs AS SINGLE, f AS SINGLE, n AS INTEGER, s AS INTEGER, dir AS INTEGER, i AS INTEGER
-    sn = SIN(p.ang): cs = COS(p.ang)
+sub Walk (p as Hero, l as integer, r as integer, d as integer, hit as integer, pt() as Part)
+    dim sn as single, cs as single, f as single, n as integer, s as integer, dir as integer, i as integer
+    sn = sin(p.ang)
+    cs = cos(p.ang)
     dir = 1 - 2 * p.face
-    IF p.charging THEN
+    if p.charging then
         p.charge = p.charge * (1 - 2 * STEPT)
-        IF hit THEN
+        if hit then
             p.charge = p.charge + 130
-            IF p.charge > CHARGEMAX THEN p.charge = CHARGEMAX
+            if p.charge > CHARGEMAX then p.charge = CHARGEMAX
             Sfx SCHARGE
             Burst pt(), p.x - dir * 10, p.y - 2, 3, 70, CSTONE + 3
-        END IF
-        IF d THEN EXIT SUB
-        p.charging = 0: p.roll = -1
+        end if
+        if d then exit sub
+        p.charging = 0
+        p.roll = -1
         p.gsp = (CHARGE0 + p.charge) * dir
         Sfx SLAUNCH
-    ELSEIF hit THEN
-        IF p.crouch THEN
-            p.charging = -1: p.charge = 0: Sfx SCHARGE
-            EXIT SUB
-        END IF
+    elseif hit then
+        if p.crouch then
+            p.charging = -1
+            p.charge = 0
+            Sfx SCHARGE
+            exit sub
+        end if
         p.vx = p.gsp * cs - JUMPV * sn
         p.vy = -p.gsp * sn - JUMPV * cs
-        p.ground = 0: p.roll = -1: p.jumped = -1: p.crouch = 0
+        p.ground = 0
+        p.roll = -1
+        p.jumped = -1
+        p.crouch = 0
         Sfx SJUMP
-        EXIT SUB
-    END IF
+        exit sub
+    end if
 
-    p.crouch = d AND ABS(p.gsp) < 20 AND NOT p.roll
+    p.crouch = d and abs(p.gsp) < 20 and not p.roll
     p.skid = 0
-    IF p.roll THEN
-        IF (p.gsp > 0) = (sn > 0) THEN f = RUPS ELSE f = RDNS
+    if p.roll then
+        if (p.gsp > 0) = (sn > 0) then
+            f = RUPS
+        else
+            f = RDNS
+        end if
         p.gsp = p.gsp - f * sn * STEPT
-        IF l AND p.gsp > 0 THEN p.gsp = p.gsp - RDEC * STEPT
-        IF r AND p.gsp < 0 THEN p.gsp = p.gsp + RDEC * STEPT
+        if l and p.gsp > 0 then p.gsp = p.gsp - RDEC * STEPT
+        if r and p.gsp < 0 then p.gsp = p.gsp + RDEC * STEPT
         Slow p.gsp, RFRIC
-        IF ABS(p.gsp) < 30 AND ABS(sn) < .2 THEN p.roll = 0
-    ELSE
-        IF p.gsp <> 0 OR ABS(sn) > .75 OR p.slip > 0 THEN p.gsp = p.gsp - SLOPE * sn * STEPT
-        IF p.crouch THEN
+        if abs(p.gsp) < 30 and abs(sn) < .2 then p.roll = 0
+    else
+        if p.gsp <> 0 or abs(sn) > .75 or p.slip > 0 then p.gsp = p.gsp - SLOPE * sn * STEPT
+        if p.crouch then
             Slow p.gsp, FRIC * 4
-        ELSEIF r THEN
-            IF p.gsp < 0 THEN
+        elseif r then
+            if p.gsp < 0 then
                 p.gsp = p.gsp + DEC * STEPT
                 p.skid = p.gsp < -80
-            ELSEIF p.gsp < TOP THEN
+            elseif p.gsp < TOP then
                 p.gsp = p.gsp + RUNACC * STEPT
-                IF p.gsp > TOP THEN p.gsp = TOP
-            END IF
-            IF p.gsp >= 0 THEN p.face = 0
-        ELSEIF l THEN
-            IF p.gsp > 0 THEN
+                if p.gsp > TOP then p.gsp = TOP
+            end if
+            if p.gsp >= 0 then p.face = 0
+        elseif l then
+            if p.gsp > 0 then
                 p.gsp = p.gsp - DEC * STEPT
                 p.skid = p.gsp > 80
-            ELSEIF p.gsp > -TOP THEN
+            elseif p.gsp > -TOP then
                 p.gsp = p.gsp - RUNACC * STEPT
-                IF p.gsp < -TOP THEN p.gsp = -TOP
-            END IF
-            IF p.gsp <= 0 THEN p.face = 1
-        ELSEIF p.slip <= 0 AND cs >= .7 THEN
+                if p.gsp < -TOP then p.gsp = -TOP
+            end if
+            if p.gsp <= 0 then p.face = 1
+        elseif p.slip <= 0 and cs >= .7 then
             ' on steep ground nothing but the slope slows it
             Slow p.gsp, FRIC
-        END IF
-        IF d AND ABS(p.gsp) >= 60 THEN p.roll = -1: p.crouch = 0: Sfx SROLL
-        IF p.skid AND (Ticks AND 3) = 0 THEN Emit pt(), p.x, p.y - 1, -p.gsp * .1, -30, .4, CSTONE + 3
-    END IF
-    IF p.gsp > MAXV THEN p.gsp = MAXV
-    IF p.gsp < -MAXV THEN p.gsp = -MAXV
+        end if
+        if d and abs(p.gsp) >= 60 then
+            p.roll = -1
+            p.crouch = 0
+            Sfx SROLL
+        end if
+        if p.skid and (Ticks and 3) = 0 then Emit pt(), p.x, p.y - 1, -p.gsp * .1, -30, .4, CSTONE + 3
+    end if
+    if p.gsp > MAXV then p.gsp = MAXV
+    if p.gsp < -MAXV then p.gsp = -MAXV
 
-    n = 1 + INT(ABS(p.gsp) * STEPT / 8)
-    FOR s = 1 TO n
+    n = 1 + int(abs(p.gsp) * STEPT / 8)
+    for s = 1 to n
         Along p, p.gsp * STEPT / n
-        IF NOT p.ground THEN EXIT SUB
+        if not p.ground then exit sub
         ' a wall stops it on the tiles' ground; a curve is run up
         i = p.sg
-        IF GK(i) <> 2 AND p.gsp <> 0 THEN
-            IF Wall%(p, SGN(p.gsp)) THEN
+        if GK(i) <> 2 and p.gsp <> 0 then
+            if Wall%(p, sgn(p.gsp)) then
                 p.gsp = 0
                 p.y = GY(i) + (p.x - GX(i)) * GV(i) / GU(i)
                 Along p, 0
-                IF NOT p.ground THEN EXIT SUB
-            END IF
-        END IF
-    NEXT
+                if not p.ground then exit sub
+            end if
+        end if
+    next
     ' too slow for a wall or a roof, off it; for a steep slope, down it
     i = p.sg
-    IF ABS(p.gsp) < STALL THEN
-        IF GU(i) < .35 THEN
+    if abs(p.gsp) < STALL then
+        if GU(i) < .35 then
             Drop p
-        ELSEIF GU(i) < .7 THEN
+        elseif GU(i) < .7 then
             p.slip = .5
-        END IF
+        end if
         ' and off the roof of a ribbon's twist, down past the ribbon
-        IF Twist!(p) >= 0 THEN IF COS(Twist!(p)) < -.5 THEN Drop p: p.y = p.y + 26
-    END IF
-END SUB
+        if Twist!(p) >= 0 then
+            if cos(Twist!(p)) < -.5 then
+                Drop p
+                p.y = p.y + 26
+            end if
+        end if
+    end if
+end sub
 
 ' In the air: gravity, steering, a jump cut short when let go; then a few
 ' pixels a move, into walls, ceilings and onto the ground.
-SUB Airborne (p AS Hero, l AS INTEGER, r AS INTEGER, d AS INTEGER, hold AS INTEGER, pt() AS Part)
-    DIM n AS INTEGER, s AS INTEGER, m AS SINGLE, y AS INTEGER, fell AS SINGLE, x0 AS SINGLE, y0 AS SINGLE
-    p.crouch = 0: p.charging = 0: p.skid = 0
+sub Airborne (p as Hero, l as integer, r as integer, d as integer, hold as integer, pt() as Part)
+    dim n as integer, s as integer, m as single, y as integer, fell as single, x0 as single, y0 as single
+    p.crouch = 0
+    p.charging = 0
+    p.skid = 0
     p.vy = p.vy + GRAV * STEPT
-    IF p.vy > 900 THEN p.vy = 900
-    IF r THEN
-        IF p.vx < TOP THEN p.vx = p.vx + AIRACC * STEPT: IF p.vx > TOP THEN p.vx = TOP
+    if p.vy > 900 then p.vy = 900
+    if r then
+        if p.vx < TOP then
+            p.vx = p.vx + AIRACC * STEPT
+            if p.vx > TOP then p.vx = TOP
+        end if
         p.face = 0
-    ELSEIF l THEN
-        IF p.vx > -TOP THEN p.vx = p.vx - AIRACC * STEPT: IF p.vx < -TOP THEN p.vx = -TOP
+    elseif l then
+        if p.vx > -TOP then
+            p.vx = p.vx - AIRACC * STEPT
+            if p.vx < -TOP then p.vx = -TOP
+        end if
         p.face = 1
-    END IF
-    IF p.jumped AND NOT hold AND p.vy < -JUMPCUT THEN p.vy = -JUMPCUT
-    m = ABS(p.vx)
-    IF ABS(p.vy) > m THEN m = ABS(p.vy)
-    n = 1 + INT(m * STEPT / 8)
-    FOR s = 1 TO n
-        x0 = p.x: y0 = p.y
+    end if
+    if p.jumped and not hold and p.vy < -JUMPCUT then p.vy = -JUMPCUT
+    m = abs(p.vx)
+    if abs(p.vy) > m then m = abs(p.vy)
+    n = 1 + int(m * STEPT / 8)
+    for s = 1 to n
+        x0 = p.x
+        y0 = p.y
         p.x = p.x + p.vx * STEPT / n
-        IF p.vx <> 0 THEN IF Wall%(p, SGN(p.vx)) THEN p.vx = 0
+        if p.vx <> 0 then if Wall%(p, sgn(p.vx)) then p.vx = 0
         p.y = p.y + p.vy * STEPT / n
         fell = p.vy
-        IF Curve%(p, x0, y0, d) THEN
-            IF fell > 420 THEN Burst pt(), p.x, p.y - 2, 5, 60, CSTONE + 3
-            EXIT FOR
-        END IF
-        IF p.vy < 0 THEN
-            y = CINT(p.y) - HH
-            IF Solid%(CINT(p.x), y) OR Solid%(CINT(p.x) - 4, y) OR Solid%(CINT(p.x) + 4, y) THEN
+        if Curve%(p, x0, y0, d) then
+            if fell > 420 then Burst pt(), p.x, p.y - 2, 5, 60, CSTONE + 3
+            exit for
+        end if
+        if p.vy < 0 then
+            y = cint(p.y) - HH
+            if Solid%(cint(p.x), y) or Solid%(cint(p.x) - 4, y) or Solid%(cint(p.x) + 4, y) then
                 p.y = (y \ TS + 1) * TS + HH
                 p.vy = 0
-            END IF
-        ELSE
+            end if
+        else
             fell = p.vy
-            IF Land%(p, d) THEN
-                IF fell > 420 THEN Burst pt(), p.x, p.y - 2, 5, 60, CSTONE + 3
-                EXIT FOR
-            END IF
-        END IF
-    NEXT
-END SUB
+            if Land%(p, d) then
+                if fell > 420 then Burst pt(), p.x, p.y - 2, 5, 60, CSTONE + 3
+                exit for
+            end if
+        end if
+    next
+end sub
 
 ' v toward 0 by f a second, not past it.
-SUB Slow (v AS SINGLE, f AS SINGLE)
-    IF v > 0 THEN
-        v = v - f * STEPT: IF v < 0 THEN v = 0
-    ELSEIF v < 0 THEN
-        v = v + f * STEPT: IF v > 0 THEN v = 0
-    END IF
-END SUB
+sub Slow (v as single, f as single)
+    if v > 0 then
+        v = v - f * STEPT
+        if v < 0 then v = 0
+    elseif v < 0 then
+        v = v + f * STEPT
+        if v > 0 then v = 0
+    end if
+end sub
 
 ' Charlie against the things near it, and the loose bones.
-SUB Touch (g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
-    DIM i AS INTEGER, c AS INTEGER, px AS INTEGER, py AS INTEGER, x AS INTEGER, dx AS INTEGER
-    DIM dy AS INTEGER, d AS SINGLE, a AS SINGLE
-    px = CINT(p.x): py = CINT(p.y)
+sub Touch (g as Game, p as Hero, lo() as Loose, pt() as Part)
+    dim i as integer, c as integer, px as integer, py as integer, x as integer, dx as integer
+    dim dy as integer, d as single, a as single
+    px = cint(p.x)
+    py = cint(p.y)
     c = (px - 80) \ TS
-    IF c < 0 THEN c = 0
+    if c < 0 then c = 0
     i = First(c)
-    DO WHILE i < NObj
+    do while i < NObj
         x = ObX(i)
-        IF x > px + 80 THEN EXIT DO
-        dx = ABS(x - px)
-        SELECT CASE ObK(i)
-        CASE KBONE
-            IF ObS(i) AND dx < 12 THEN
-                IF ABS(ObY(i) - py + 13) < 16 THEN
-                    ObS(i) = 0: g.bones = g.bones + 1: g.score = g.score + 10
-                    Burst pt(), CSNG(x), CSNG(ObY(i)), 4, 50, CGOLD + 4
+        if x > px + 80 then exit do
+        dx = abs(x - px)
+        select case ObK(i)
+        case KBONE
+            if ObS(i) and dx < 12 then
+                if abs(ObY(i) - py + 13) < 16 then
+                    ObS(i) = 0
+                    g.bones = g.bones + 1
+                    g.score = g.score + 10
+                    Burst pt(), csng(x), csng(ObY(i)), 4, 50, CGOLD + 4
                     Sfx SBONE
-                END IF
-            END IF
-        CASE KCAT
-            IF ObS(i) <> 0 AND dx < 15 THEN
-                IF ABS(ObY(i) - 6 - py + 13) < 17 THEN
-                    IF p.roll OR p.charging THEN
-                        ObS(i) = 0: g.score = g.score + 100: g.shake = .15
-                        Burst pt(), CSNG(x), CSNG(ObY(i) - 6), 10, 130, CWHITE
+                end if
+            end if
+        case KCAT
+            if ObS(i) <> 0 and dx < 15 then
+                if abs(ObY(i) - 6 - py + 13) < 17 then
+                    if p.roll or p.charging then
+                        ObS(i) = 0
+                        g.score = g.score + 100
+                        g.shake = .15
+                        Burst pt(), csng(x), csng(ObY(i) - 6), 10, 130, CWHITE
                         Sfx SPOP
-                        IF NOT p.ground AND p.vy > 0 THEN p.vy = -BOUNCEV
-                    ELSE
+                        if not p.ground and p.vy > 0 then p.vy = -BOUNCEV
+                    else
                         Hurt g, p, x, lo(), SHISS
-                    END IF
-                END IF
-            END IF
-        CASE KSPRING
-            IF dx < 11 AND py >= ObY(i) - 12 AND py <= ObY(i) + 2 THEN
-                IF p.ground OR p.vy >= 0 THEN
-                    IF p.ground THEN p.vx = p.gsp
-                    p.ground = 0: p.vy = -SPRINGV: p.y = ObY(i) - 12
-                    p.roll = 0: p.jumped = 0: p.sprung = -1
+                    end if
+                end if
+            end if
+        case KSPRING
+            if dx < 11 and py >= ObY(i) - 12 and py <= ObY(i) + 2 then
+                if p.ground or p.vy >= 0 then
+                    if p.ground then p.vx = p.gsp
+                    p.ground = 0
+                    p.vy = -SPRINGV
+                    p.y = ObY(i) - 12
+                    p.roll = 0
+                    p.jumped = 0
+                    p.sprung = -1
                     ObS(i) = 8
                     Sfx SSPRING
-                END IF
-            END IF
-        CASE KBOOST
-            IF dx < 12 AND p.ground AND ABS(py - ObY(i)) < 4 AND ABS(p.gsp) < BOOSTV THEN
+                end if
+            end if
+        case KBOOST
+            if dx < 12 and p.ground and abs(py - ObY(i)) < 4 and abs(p.gsp) < BOOSTV then
                 p.gsp = BOOSTV * (1 - 2 * p.face)
                 g.shake = .2
                 Burst pt(), p.x, p.y - 4, 8, 150, CGOLD + 4
                 Sfx SBOOST
-            END IF
-        CASE KMARK
-            IF ObS(i) = 0 AND px >= x THEN
-                ObS(i) = 1: g.homeX = x: g.homeY = ObY(i)
-                Burst pt(), CSNG(x), CSNG(ObY(i) - 28), 8, 80, CGOLD + 4
-                Sfx SMARK
-            END IF
-        CASE KGOAL
-            IF px >= x THEN ObS(i) = 1
-        CASE KTHORN
-            IF dx < 12 AND ABS(py - ObY(i)) < 8 THEN Hurt g, p, x, lo(), SHURT
-        CASE KBUTTON
-            IF ObS(i) = 0 AND dx < 9 AND p.ground AND ABS(py - ObY(i)) < 4 THEN
+            end if
+        case KMARK
+            if ObS(i) = 0 and px >= x then
                 ObS(i) = 1
-                Burst pt(), CSNG(x), CSNG(ObY(i) - 6), 8, 80, CGOLD + 4
+                g.homeX = x
+                g.homeY = ObY(i)
+                Burst pt(), csng(x), csng(ObY(i) - 28), 8, 80, CGOLD + 4
                 Sfx SMARK
-            END IF
-        CASE KJET
+            end if
+        case KGOAL
+            if px >= x then ObS(i) = 1
+        case KTHORN
+            if dx < 12 and abs(py - ObY(i)) < 8 then Hurt g, p, x, lo(), SHURT
+        case KBUTTON
+            if ObS(i) = 0 and dx < 9 and p.ground and abs(py - ObY(i)) < 4 then
+                ObS(i) = 1
+                Burst pt(), csng(x), csng(ObY(i) - 6), 8, 80, CGOLD + 4
+                Sfx SMARK
+            end if
+        case KJET
             ' blowing 80 ticks of 180: who is over it goes up
-            IF (Ticks + x) MOD 180 < 80 AND dx < 10 AND py <= ObY(i) + 2 AND py > ObY(i) - 64 AND p.vy > -JETV + 60 THEN
-                IF p.ground THEN p.vx = p.gsp: Sfx SHISS
-                p.ground = 0: p.vy = -JETV: p.roll = 0: p.jumped = 0: p.sprung = -1
-            END IF
-        CASE KBUMP
+            if (Ticks + x) mod 180 < 80 and dx < 10 and py <= ObY(i) + 2 and py > ObY(i) - 64 and p.vy > -JETV + 60 then
+                if p.ground then
+                    p.vx = p.gsp
+                    Sfx SHISS
+                end if
+                p.ground = 0
+                p.vy = -JETV
+                p.roll = 0
+                p.jumped = 0
+                p.sprung = -1
+            end if
+        case KBUMP
             dy = py - 12 - ObY(i)
-            IF ObS(i) = 0 AND dx < 20 AND ABS(dy) < 20 THEN
-                d = SQR(CSNG(px - x) * (px - x) + CSNG(dy) * dy)
-                IF d < 20 THEN
-                    IF d < 1 THEN d = 1: dy = -1
-                    p.ground = 0: p.vx = (px - x) / d * BUMPV: p.vy = dy / d * BUMPV - 60
-                    p.jumped = 0: p.sprung = -1
-                    ObS(i) = 10: g.score = g.score + 10
-                    Burst pt(), CSNG(x), CSNG(ObY(i)), 6, 90, CGOLD + 4
+            if ObS(i) = 0 and dx < 20 and abs(dy) < 20 then
+                d = sqr(csng(px - x) * (px - x) + csng(dy) * dy)
+                if d < 20 then
+                    if d < 1 then
+                        d = 1
+                        dy = -1
+                    end if
+                    p.ground = 0
+                    p.vx = (px - x) / d * BUMPV
+                    p.vy = dy / d * BUMPV - 60
+                    p.jumped = 0
+                    p.sprung = -1
+                    ObS(i) = 10
+                    g.score = g.score + 10
+                    Burst pt(), csng(x), csng(ObY(i)), 6, 90, CGOLD + 4
                     Sfx SSPRING
-                END IF
-            END IF
-        CASE KSPIN
+                end if
+            end if
+        case KSPIN
             a = Ticks * .06 + x
-            dy = ObY(i) - SPINH + CINT(SPINR * SIN(a))
-            IF ABS(x + CINT(SPINR * COS(a)) - px) < 11 AND ABS(dy - py + 12) < 16 THEN Hurt g, p, x, lo(), SHURT
-        CASE KHOOP
+            dy = ObY(i) - SPINH + cint(SPINR * sin(a))
+            if abs(x + cint(SPINR * cos(a)) - px) < 11 and abs(dy - py + 12) < 16 then Hurt g, p, x, lo(), SHURT
+        case KHOOP
             ' through it in the air: on, faster, the way Charlie was going
-            IF ObS(i) = 0 AND dx < 9 AND ABS(ObY(i) - py + 12) < 18 AND NOT p.ground THEN
-                p.vx = HOOPV * (1 + 2 * (p.vx < 0)): p.vy = -180: p.sprung = -1
+            if ObS(i) = 0 and dx < 9 and abs(ObY(i) - py + 12) < 18 and not p.ground then
+                p.vx = HOOPV * (1 + 2 * (p.vx < 0))
+                p.vy = -180
+                p.sprung = -1
                 ObS(i) = 20
-                Burst pt(), CSNG(x), CSNG(ObY(i)), 8, 120, CGOLD + 4
+                Burst pt(), csng(x), csng(ObY(i)), 8, 120, CGOLD + 4
                 Sfx SBOOST
-            END IF
-        END SELECT
+            end if
+        end select
         i = i + 1
-    LOOP
-    IF LooseN = 0 THEN EXIT SUB
-    FOR i = 0 TO NLOOSE - 1
-        IF lo(i).t > 0 AND lo(i).t < 3.3 THEN
-            IF ABS(lo(i).x - px) < 12 AND ABS(lo(i).y - py + 13) < 16 THEN
-                lo(i).t = 0: LooseN = LooseN - 1: g.bones = g.bones + 1
+    loop
+    if LooseN = 0 then exit sub
+    for i = 0 to NLOOSE - 1
+        if lo(i).t > 0 and lo(i).t < 3.3 then
+            if abs(lo(i).x - px) < 12 and abs(lo(i).y - py + 13) < 16 then
+                lo(i).t = 0
+                LooseN = LooseN - 1
+                g.bones = g.bones + 1
                 Sfx SBONE
-            END IF
-        END IF
-    NEXT
-END SUB
+            end if
+        end if
+    next
+end sub
 
 ' Hit: the bones fly loose and Charlie is knocked back; with none, it is out.
-SUB Hurt (g AS Game, p AS Hero, fromX AS INTEGER, lo() AS Loose, snd AS INTEGER)
-    DIM i AS INTEGER, n AS INTEGER, a AS SINGLE, v AS SINGLE
-    IF p.inv > 0 THEN EXIT SUB
-    IF snd = SHISS THEN Sfx snd
-    IF g.bones = 0 THEN Lose p: EXIT SUB
+sub Hurt (g as Game, p as Hero, fromX as integer, lo() as Loose, snd as integer)
+    dim i as integer, n as integer, a as single, v as single
+    if p.inv > 0 then exit sub
+    if snd = SHISS then Sfx snd
+    if g.bones = 0 then
+        Lose p
+        exit sub
+    end if
     n = g.bones
-    IF n > NLOOSE THEN n = NLOOSE
+    if n > NLOOSE then n = NLOOSE
     g.bones = 0
-    FOR i = 0 TO n - 1
+    for i = 0 to n - 1
         a = PI * (.15 + .7 * i / n)
-        v = 240 - 70 * (i AND 1)
-        lo(i).x = p.x: lo(i).y = p.y - 13
-        lo(i).vx = COS(a) * v * (1 - 2 * (i AND 1)) * .8
-        lo(i).vy = -SIN(a) * v
+        v = 240 - 70 * (i and 1)
+        lo(i).x = p.x
+        lo(i).y = p.y - 13
+        lo(i).vx = cos(a) * v * (1 - 2 * (i and 1)) * .8
+        lo(i).vy = -sin(a) * v
         lo(i).t = 4
-    NEXT
+    next
     LooseN = n
-    p.ground = 0: p.roll = 0: p.charging = 0: p.crouch = 0: p.jumped = 0
-    p.stun = -1: p.inv = 2
+    p.ground = 0
+    p.roll = 0
+    p.charging = 0
+    p.crouch = 0
+    p.jumped = 0
+    p.stun = -1
+    p.inv = 2
     p.vy = -260
-    IF p.x < fromX THEN p.vx = -140 ELSE p.vx = 140
+    if p.x < fromX then
+        p.vx = -140
+    else
+        p.vx = 140
+    end if
     g.shake = .25
-    IF snd = SHURT THEN Sfx snd
-END SUB
+    if snd = SHURT then Sfx snd
+end sub
 
-SUB Lose (p AS Hero)
-    IF p.dead THEN EXIT SUB
-    p.dead = -1: p.deadT = 0: p.vy = -340: p.ground = 0
+sub Lose (p as Hero)
+    if p.dead then exit sub
+    p.dead = -1
+    p.deadT = 0
+    p.vy = -340
+    p.ground = 0
     Sfx SDIE
-END SUB
+end sub
 
 ' Out: Charlie rises and falls through everything; then the next life.
-SUB Dying (g AS Game, p AS Hero)
+sub Dying (g as Game, p as Hero)
     p.deadT = p.deadT + STEPT
     p.vy = p.vy + GRAV * STEPT
     p.y = p.y + p.vy * STEPT
-    IF p.deadT < 2 THEN EXIT SUB
+    if p.deadT < 2 then exit sub
     g.lives = g.lives - 1
-    IF g.lives <= 0 THEN
-        g.mode = OVER: g.modeT = 0
-    ELSE
+    if g.lives <= 0 then
+        g.mode = OVER
+        g.modeT = 0
+    else
         Spawn g, p
-    END IF
-END SUB
+    end if
+end sub
 
 ' Thirty times a second: cats near the view pace about their homes,
 ' turning at edges and walls; springs settle; loose bones bounce and
 ' fade; sparks fall.
-SUB Things (g AS Game, lo() AS Loose, pt() AS Part)
-    DIM i AS INTEGER, x AS INTEGER, y AS INTEGER, s AS INTEGER, c AS INTEGER
-    CONST DT = STEPT * 2
-    c = (CINT(g.camx) - 100) \ TS
-    IF c < 0 THEN c = 0
+sub Things (g as Game, lo() as Loose, pt() as Part)
+    dim i as integer, x as integer, y as integer, s as integer, c as integer
+    const DT = STEPT * 2
+    c = (cint(g.camx) - 100) \ TS
+    if c < 0 then c = 0
     i = First(c)
-    DO WHILE i < NObj
-        IF ObA(i) > g.camx + SW + 100 THEN EXIT DO
-        IF ObK(i) = KCAT AND ObS(i) <> 0 THEN
-            x = ObX(i) + ObS(i): y = ObY(i)
+    do while i < NObj
+        if ObA(i) > g.camx + SW + 100 then exit do
+        if ObK(i) = KCAT and ObS(i) <> 0 then
+            x = ObX(i) + ObS(i)
+            y = ObY(i)
             s = Surf%(x + ObS(i) * 8, y)
-            IF ABS(x - ObA(i)) > 40 OR ABS(s - y) > 6 OR Solid%(x + ObS(i) * 8, y - 6) THEN
+            if abs(x - ObA(i)) > 40 or abs(s - y) > 6 or Solid%(x + ObS(i) * 8, y - 6) then
                 ObS(i) = -ObS(i)
-            ELSE
+            else
                 ObX(i) = x
                 s = Surf%(x, y)
-                IF ABS(s - y) <= 6 THEN ObY(i) = s
-            END IF
-        ELSEIF (ObK(i) = KSPRING OR ObK(i) = KBUMP OR ObK(i) = KHOOP) AND ObS(i) > 0 THEN
+                if abs(s - y) <= 6 then ObY(i) = s
+            end if
+        elseif (ObK(i) = KSPRING or ObK(i) = KBUMP or ObK(i) = KHOOP) and ObS(i) > 0 then
             ObS(i) = ObS(i) - 1
-        END IF
+        end if
         i = i + 1
-    LOOP
-    IF LooseN THEN
-        FOR i = 0 TO NLOOSE - 1
-            IF lo(i).t > 0 THEN
+    loop
+    if LooseN then
+        for i = 0 to NLOOSE - 1
+            if lo(i).t > 0 then
                 lo(i).t = lo(i).t - DT
                 lo(i).vy = lo(i).vy + GRAV * .6 * DT
                 lo(i).x = lo(i).x + lo(i).vx * DT
-                IF Solid%(CINT(lo(i).x), CINT(lo(i).y) - 3) THEN lo(i).vx = -lo(i).vx
+                if Solid%(cint(lo(i).x), cint(lo(i).y) - 3) then lo(i).vx = -lo(i).vx
                 lo(i).y = lo(i).y + lo(i).vy * DT
-                x = CINT(lo(i).x): y = CINT(lo(i).y) + 4
+                x = cint(lo(i).x)
+                y = cint(lo(i).y) + 4
                 s = Surf%(x, y)
-                IF s <= y AND y - s < 14 AND lo(i).vy > 0 THEN
-                    lo(i).y = s - 4: lo(i).vy = -lo(i).vy * .7
-                END IF
-                IF lo(i).y > MH * TS + 16 THEN lo(i).t = 0
-                IF lo(i).t <= 0 THEN LooseN = LooseN - 1
-            END IF
-        NEXT
-    END IF
-    IF PartN THEN
-        FOR i = 0 TO NPART - 1
-            IF pt(i).t > 0 THEN
+                if s <= y and y - s < 14 and lo(i).vy > 0 then
+                    lo(i).y = s - 4
+                    lo(i).vy = -lo(i).vy * .7
+                end if
+                if lo(i).y > MH * TS + 16 then lo(i).t = 0
+                if lo(i).t <= 0 then LooseN = LooseN - 1
+            end if
+        next
+    end if
+    if PartN then
+        for i = 0 to NPART - 1
+            if pt(i).t > 0 then
                 pt(i).t = pt(i).t - DT
                 pt(i).x = pt(i).x + pt(i).vx * DT
                 pt(i).y = pt(i).y + pt(i).vy * DT
                 pt(i).vy = pt(i).vy + 300 * DT
-                IF pt(i).t <= 0 THEN PartN = PartN - 1
-            END IF
-        NEXT
-    END IF
-END SUB
+                if pt(i).t <= 0 then PartN = PartN - 1
+            end if
+        next
+    end if
+end sub
 
-SUB Emit (pt() AS Part, x AS SINGLE, y AS SINGLE, vx AS SINGLE, vy AS SINGLE, t AS SINGLE, c AS INTEGER)
-    DIM i AS INTEGER
-    IF PartN >= NPART THEN EXIT SUB
-    FOR i = 0 TO NPART - 1
-        IF pt(i).t <= 0 THEN
-            pt(i).x = x: pt(i).y = y: pt(i).vx = vx: pt(i).vy = vy
-            pt(i).t = t: pt(i).c = c
+sub Emit (pt() as Part, x as single, y as single, vx as single, vy as single, t as single, c as integer)
+    dim i as integer
+    if PartN >= NPART then exit sub
+    for i = 0 to NPART - 1
+        if pt(i).t <= 0 then
+            pt(i).x = x
+            pt(i).y = y
+            pt(i).vx = vx
+            pt(i).vy = vy
+            pt(i).t = t
+            pt(i).c = c
             PartN = PartN + 1
-            EXIT SUB
-        END IF
-    NEXT
-END SUB
+            exit sub
+        end if
+    next
+end sub
 
 ' n sparks out from x, y at speed v.
-SUB Burst (pt() AS Part, x AS SINGLE, y AS SINGLE, n AS INTEGER, v AS SINGLE, c AS INTEGER)
-    DIM i AS INTEGER, a AS SINGLE
-    FOR i = 0 TO n - 1
-        a = 2 * PI * (i + RND * .5) / n
-        Emit pt(), x, y, COS(a) * v, SIN(a) * v - v * .5, .5, c
-    NEXT
-END SUB
+sub Burst (pt() as Part, x as single, y as single, n as integer, v as single, c as integer)
+    dim i as integer, a as single
+    for i = 0 to n - 1
+        a = 2 * PI * (i + rnd * .5) / n
+        Emit pt(), x, y, cos(a) * v, sin(a) * v - v * .5, .5, c
+    next
+end sub
 
 ' The view ahead of Charlie's run, kept in the level; snap puts it there.
-SUB Camera (g AS Game, p AS Hero, snap AS INTEGER)
-    DIM tx AS SINGLE, ty AS SINGLE, v AS SINGLE
-    IF p.ground THEN v = p.gsp ELSE v = p.vx
+sub Camera (g as Game, p as Hero, snap as integer)
+    dim tx as single, ty as single, v as single
+    if p.ground then
+        v = p.gsp
+    else
+        v = p.vx
+    end if
     v = v * .2
-    IF v > 70 THEN v = 70
-    IF v < -70 THEN v = -70
+    if v > 70 then v = 70
+    if v < -70 then v = -70
     tx = p.x - SW \ 2 + v
     ty = p.y - 124
-    IF snap THEN
-        g.camx = tx: g.camy = ty
-    ELSE
+    if snap then
+        g.camx = tx
+        g.camy = ty
+    else
         g.camx = g.camx + (tx - g.camx) * 7 * STEPT
         g.camy = g.camy + (ty - g.camy) * 6 * STEPT
-        IF p.x - g.camx > 250 THEN g.camx = p.x - 250
-        IF p.x - g.camx < 70 THEN g.camx = p.x - 70
-        IF p.y - g.camy > 172 THEN g.camy = p.y - 172
-        IF p.y - g.camy < 48 THEN g.camy = p.y - 48
-    END IF
-    IF g.camx < 0 THEN g.camx = 0
-    IF g.camx > LWPX - SW THEN g.camx = LWPX - SW
-    IF g.camy < 0 THEN g.camy = 0
-    IF g.camy > MH * TS - SH THEN g.camy = MH * TS - SH
-END SUB
+        if p.x - g.camx > 250 then g.camx = p.x - 250
+        if p.x - g.camx < 70 then g.camx = p.x - 70
+        if p.y - g.camy > 172 then g.camy = p.y - 172
+        if p.y - g.camy < 48 then g.camy = p.y - 48
+    end if
+    if g.camx < 0 then g.camx = 0
+    if g.camx > LWPX - SW then g.camx = LWPX - SW
+    if g.camy < 0 then g.camy = 0
+    if g.camy > MH * TS - SH then g.camy = MH * TS - SH
+end sub
 
 ' Back to front, then the screen's words.
-SUB Render (g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
-    DIM cx AS INTEGER, cy AS INTEGER, x AS INTEGER
-    cx = INT(g.camx): cy = INT(g.camy)
-    IF g.shake > 0 THEN cy = cy + ((Ticks AND 2) - 1) * 2
-    IF g.mode <> TITLE THEN Hud g
+sub Render (g as Game, p as Hero, lo() as Loose, pt() as Part)
+    dim cx as integer, cy as integer, x as integer
+    cx = int(g.camx)
+    cy = int(g.camy)
+    if g.shake > 0 then cy = cy + ((Ticks and 2) - 1) * 2
+    if g.mode <> TITLE then Hud g
     DrawBack cx, cy
     DrawThings cx, cy, -1
     DrawTiles cx, cy
     DrawThings cx, cy, 0
-    IF NMv THEN DrawCables cx, cy
-    IF LooseN THEN DrawLoose cx, cy, lo()
+    if NMv then DrawCables cx, cy
+    if LooseN then DrawLoose cx, cy, lo()
     DrawHero p, cx, cy
     DrawOver cx, cy
-    IF PartN THEN DrawParts pt(), cx, cy
-    SELECT CASE g.mode
-    CASE TITLE
+    if PartN then DrawParts pt(), cx, cy
+    select case g.mode
+    case TITLE
         Blit (SW - 170) \ 2, 22, ITITLE, 170, 26
         Blit (SW - 170) \ 2, 52, IDASH, 170, 26
         Panel 0, 181, SW - 1, SH - 1
-        IF (Ticks \ 30) AND 1 THEN
+        if (Ticks \ 30) and 1 then
             Banner 24, "PRESS SPACE", CYELLOW
-        ELSE
+        else
             Banner 24, "ARROWS RUN  SPACE JUMPS  DOWN ROLLS", CWHITE
-        END IF
-    CASE PLAYING
+        end if
+    case PLAYING
         Blit 6, 5, IHUD, HUDW, HUDH
-        IF p.stun THEN
+        if p.stun then
             Say p, cx, cy, "HEY!"
-        ELSEIF p.idleT > 5 THEN
+        elseif p.idleT > 5 then
             Say p, cx, cy, "C'MON!"
-        ELSEIF p.idleT > 3 THEN
+        elseif p.idleT > 3 then
             Say p, cx, cy, "..."
-        END IF
-        IF g.modeT < 2.6 THEN
-            x = CINT(g.modeT * 900) - SW
-            IF x > 0 THEN x = 0
-            IF g.modeT > 2.2 THEN x = CINT((g.modeT - 2.2) * 900)
-            LINE (x, 84)-(x + SW - 1, 110), CSCARF, BF
-            LINE (x, 84)-(x + SW - 1, 85), CGOLD + 3, BF
-            LINE (x, 109)-(x + SW - 1, 110), CGOLD + 3, BF
+        end if
+        if g.modeT < 2.6 then
+            x = cint(g.modeT * 900) - SW
+            if x > 0 then x = 0
+            if g.modeT > 2.2 then x = cint((g.modeT - 2.2) * 900)
+            line (x, 84)-(x + SW - 1, 110), CSCARF, BF
+            line (x, 84)-(x + SW - 1, 85), CGOLD + 3, BF
+            line (x, 109)-(x + SW - 1, 110), CGOLD + 3, BF
             Blit x + (SW - 178) \ 2, 89, ZCard, 178, 18
-            IF Stage > 1 AND x = 0 THEN Txt 14, 17, "ACT 2", CYELLOW
-        END IF
-    CASE CLEARED
+            if Stage > 1 and x = 0 then Txt 14, 17, "ACT 2", CYELLOW
+        end if
+    case CLEARED
         Blit 6, 5, IHUD, HUDW, HUDH
         ' up and to the right: under it Charlie meets its family
         Panel 124, 4, 315, 36
-        IF Zone THEN Txt 2, 17, "CHROME WORKS CLEARED", CYELLOW ELSE Txt 2, 18, "AMBER DOWNS CLEARED", CYELLOW
+        if Zone then
+            Txt 2, 17, "CHROME WORKS CLEARED", CYELLOW
+        else
+            Txt 2, 18, "AMBER DOWNS CLEARED", CYELLOW
+        end if
         Txt 3, 22, "BONUS " + Num$(g.bonus, 6), CWHITE
         Txt 4, 22, "SCORE " + Num$(g.score, 6), CWHITE
-        IF p.win THEN Say p, cx, cy, "WOOF!"
-    CASE OVER
+        if p.win then Say p, cx, cy, "WOOF!"
+    case OVER
         Blit 6, 5, IHUD, HUDW, HUDH
         Panel 108, 68, 211, 92
         Banner 10, "GAME OVER", CYELLOW
-    END SELECT
-END SUB
+    end select
+end sub
 
 ' The far backdrop an eighth of the view's scroll, the near hills half,
 ' both wrapping; the hills sink as the view rises.
-SUB DrawBack (cx AS INTEGER, cy AS INTEGER)
-    DIM o AS INTEGER, y AS INTEGER
-    o = (cx \ 8) MOD SW
-    PUT (-o, 0), Img(At(ZBack)), PSET
-    IF o THEN PUT (SW - o, 0), Img(At(ZBack)), PSET
-    o = (cx \ 2) MOD SW
+sub DrawBack (cx as integer, cy as integer)
+    dim o as integer, y as integer
+    o = (cx \ 8) mod SW
+    put (-o, 0), Img(At(ZBack)), pset
+    if o then put (SW - o, 0), Img(At(ZBack)), pset
+    o = (cx \ 2) mod SW
     y = 132 - cy \ 6
-    IF y >= SH THEN EXIT SUB
-    PUT (-o, y), Img(At(ZBack + 2)), AND
-    PUT (-o, y), Img(At(ZBack + 1)), OR
-    IF o THEN
-        PUT (SW - o, y), Img(At(ZBack + 2)), AND
-        PUT (SW - o, y), Img(At(ZBack + 1)), OR
-    END IF
-END SUB
+    if y >= SH then exit sub
+    put (-o, y), Img(At(ZBack + 2)), and
+    put (-o, y), Img(At(ZBack + 1)), or
+    if o then
+        put (SW - o, y), Img(At(ZBack + 2)), and
+        put (SW - o, y), Img(At(ZBack + 1)), or
+    end if
+end sub
 
 ' Each column in view: its top tile, then its earth in strips below.
-SUB DrawTiles (cx AS INTEGER, cy AS INTEGER)
-    DIM tx AS INTEGER, tx1 AS INTEGER, x AS INTEGER, y AS INTEGER, v AS INTEGER, k AS INTEGER, r AS INTEGER
+sub DrawTiles (cx as integer, cy as integer)
+    dim tx as integer, tx1 as integer, x as integer, y as integer, v as integer, k as integer, r as integer
     tx1 = cx \ TS + SW \ TS
-    IF tx1 > LW - 1 THEN tx1 = LW - 1
-    FOR tx = cx \ TS TO tx1
+    if tx1 > LW - 1 then tx1 = LW - 1
+    for tx = cx \ TS to tx1
         y = ColTop(tx) * TS - cy
-        IF y < SH THEN
+        if y < SH then
             x = tx * TS - cx
             v = ColVis(tx)
             r = ColTop(tx)
-            IF Zone THEN
-                IF y > -TS THEN
-                    IF v <= 2 THEN
-                        PUT (x, y), Img(At(IDK + (tx AND 3))), PSET
-                    ELSE
-                        Blit x, y, IZS + ((v - 4) * 4 + (tx AND 3)) * 2, TS, TS
-                    END IF
-                END IF
+            if Zone then
+                if y > -TS then
+                    if v <= 2 then
+                        put (x, y), Img(At(IDK + (tx and 3))), pset
+                    else
+                        Blit x, y, IZS + ((v - 4) * 4 + (tx and 3)) * 2, TS, TS
+                    end if
+                end if
                 y = y + TS
                 ' The works' wall hangs from the world, not the deck: single tiles down to its next 128, then strips.
-                k = (tx AND 3) * 8
+                k = (tx and 3) * 8
                 r = r + 1
-                DO WHILE (r AND 7) <> 0 AND y < SH
-                    IF y > -TS THEN PUT (x, y), Img(At(IWT + k + (r AND 7))), PSET
+                do while (r and 7) <> 0 and y < SH
+                    if y > -TS then put (x, y), Img(At(IWT + k + (r and 7))), pset
                     r = r + 1
                     y = y + TS
-                LOOP
-                DO WHILE y < SH
-                    IF y > -128 THEN PUT (x, y), Img(At(IWS + (tx AND 3))), PSET
+                loop
+                do while y < SH
+                    if y > -128 then put (x, y), Img(At(IWS + (tx and 3))), pset
                     y = y + 128
-                LOOP
+                loop
                 ' a slope's deck runs on over the wall under it
                 y = (ColTop(tx) + 1) * TS - cy
-                IF v > 2 AND y < SH AND y > -TS THEN Blit x, y, IZU + ((v - 4) * 4 + (tx AND 3)) * 2, TS, TS
-            ELSE
+                if v > 2 and y < SH and y > -TS then Blit x, y, IZU + ((v - 4) * 4 + (tx and 3)) * 2, TS, TS
+            else
                 ' The downs' comb hangs from the world too, of period 64 by 48: a slope's turf runs on into the tile
                 ' under it; under a pipe, 0, the pipe's own picture is the ground.
-                k = (tx AND 3) * 3
-                IF y > -TS THEN
-                    IF v > 2 THEN
-                        PUT (x, y), Img(At(IAS + ((v - 4) * 12 + k + r MOD 3) * 2 + 1)), AND
-                        PUT (x, y), Img(At(IAS + ((v - 4) * 12 + k + r MOD 3) * 2)), OR
-                    ELSEIF v > 0 THEN
-                        PUT (x, y), Img(At(IAF + k + r MOD 3)), PSET
-                    END IF
-                END IF
+                k = (tx and 3) * 3
+                if y > -TS then
+                    if v > 2 then
+                        put (x, y), Img(At(IAS + ((v - 4) * 12 + k + r mod 3) * 2 + 1)), and
+                        put (x, y), Img(At(IAS + ((v - 4) * 12 + k + r mod 3) * 2)), or
+                    elseif v > 0 then
+                        put (x, y), Img(At(IAF + k + r mod 3)), pset
+                    end if
+                end if
                 y = y + TS
-                IF v > 2 AND y < SH THEN
-                    IF y > -TS THEN PUT (x, y), Img(At(IAU + (v - 4) * 12 + k + r MOD 3)), PSET
+                if v > 2 and y < SH then
+                    if y > -TS then put (x, y), Img(At(IAU + (v - 4) * 12 + k + r mod 3)), pset
                     y = y + TS
                     r = r + 1
-                END IF
+                end if
                 r = r + 1
-                DO WHILE r MOD 3 <> 0 AND y < SH
-                    IF y > -TS THEN PUT (x, y), Img(At(IAC + k + r MOD 3)), PSET
+                do while r mod 3 <> 0 and y < SH
+                    if y > -TS then put (x, y), Img(At(IAC + k + r mod 3)), pset
                     r = r + 1
                     y = y + TS
-                LOOP
-                DO WHILE y < SH
-                    IF y > -STRIPH THEN PUT (x, y), Img(At(IAL + (tx AND 3))), PSET
+                loop
+                do while y < SH
+                    if y > -STRIPH then put (x, y), Img(At(IAL + (tx and 3))), pset
                     y = y + STRIPH
-                LOOP
-                IF FaceL(tx) THEN Bare x, ColTop(tx) * TS - cy, FaceL(tx), IAE
-                IF FaceR(tx) THEN Bare x, ColTop(tx) * TS - cy, FaceR(tx), IAE + 4
-            END IF
-        END IF
-    NEXT
-END SUB
+                loop
+                if FaceL(tx) then Bare x, ColTop(tx) * TS - cy, FaceL(tx), IAE
+                if FaceR(tx) then Bare x, ColTop(tx) * TS - cy, FaceR(tx), IAE + 4
+            end if
+        end if
+    next
+end sub
 
 ' The things in view: back, the scenery behind the ground; else the rest.
-SUB DrawThings (cx AS INTEGER, cy AS INTEGER, back AS INTEGER)
-    DIM i AS INTEGER, c AS INTEGER, x AS INTEGER, y AS INTEGER, k AS INTEGER, f AS INTEGER, a AS SINGLE
+sub DrawThings (cx as integer, cy as integer, back as integer)
+    dim i as integer, c as integer, x as integer, y as integer, k as integer, f as integer, a as single
     c = (cx - WAVEL) \ TS
-    IF c < 0 THEN c = 0
+    if c < 0 then c = 0
     i = First(c)
-    DO WHILE i < NObj
+    do while i < NObj
         x = ObX(i) - cx
-        IF x > SW + 96 THEN EXIT DO
+        if x > SW + 96 then exit do
         k = ObK(i)
-        IF (k >= KLOOP) = back THEN
+        if (k >= KLOOP) = back then
             y = ObY(i) - cy
-            SELECT CASE k
-            CASE KBONE
-                IF ObS(i) THEN Blit x - 5, y - 5, IBONE + ((Ticks \ 6) AND 3) * 2, 10, 10
-            CASE KCAT
-                IF ObS(i) THEN Blit x - 10, y - 13, ICAT + ((Ticks \ 8) AND 1) * 2 - 4 * (ObS(i) < 0), 20, 14
-            CASE KSPRING
+            select case k
+            case KBONE
+                if ObS(i) then Blit x - 5, y - 5, IBONE + ((Ticks \ 6) and 3) * 2, 10, 10
+            case KCAT
+                if ObS(i) then Blit x - 10, y - 13, ICAT + ((Ticks \ 8) and 1) * 2 - 4 * (ObS(i) < 0), 20, 14
+            case KSPRING
                 Blit x - 8, y - 15, ISPRING - 2 * (ObS(i) > 0), 16, 16
-            CASE KBOOST
-                Blit x - 12, y - 9, IBOOST + ((Ticks \ 4) AND 1) * 2, 24, 10
-            CASE KMARK
+            case KBOOST
+                Blit x - 12, y - 9, IBOOST + ((Ticks \ 4) and 1) * 2, 24, 10
+            case KMARK
                 Blit x - 6, y - 31, IMARK + 2 * ObS(i), 12, 32
-            CASE KGOAL
+            case KGOAL
                 f = 0
-                IF ObS(i) THEN f = (Ticks \ 4) AND 3
+                if ObS(i) then f = (Ticks \ 4) and 3
                 Blit x - 12, y - 47, IGOAL + f * 2, 24, 48
-            CASE KPLAT
+            case KPLAT
                 Blit x, y, ZTile + 18, TS, TS
-            CASE KLOOP
+            case KLOOP
                 Blit x - LD \ 2, y - LOOPR - LD \ 2, ZLoop, LD, LD
-            CASE KPIPE
-                IF Zone THEN
+            case KPIPE
+                if Zone then
                     Blit x - PIPER, y - PIPER, ZPipe, PIPER, PIPER
-                ELSE
-                    k = IAP + (((ObX(i) \ TS + 1) AND 3) * 3 + (ObY(i) \ TS) MOD 3) * 2
+                else
+                    k = IAP + (((ObX(i) \ TS + 1) and 3) * 3 + (ObY(i) \ TS) mod 3) * 2
                     Blit x - PIPER, y - PIPER, k, PIPER, PIPER + TS
-                END IF
-            CASE KMOVE
-                IF Zone THEN Blit x, y, IMOVE, MOVEW, 12 ELSE Blit x, y, IAM, MOVEW, 12
-            CASE KPOST
+                end if
+            case KMOVE
+                if Zone then
+                    Blit x, y, IMOVE, MOVEW, 12
+                else
+                    Blit x, y, IAM, MOVEW, 12
+                end if
+            case KPOST
                 Blit x - 7, y - 47, IPOST, 16, 48
-            CASE KTANK
+            case KTANK
                 Blit x - 16, y - 39, ITANK, 32, 40
-            CASE KVENT
+            case KVENT
                 Blit x - 8, y - 27, IVENT, 16, 28
-            CASE KTREE
+            case KTREE
                 Blit x - 32, y - 78, ITREE, 64, 80
-            CASE KBUSH
+            case KBUSH
                 Blit x - 20, y - 18, IBUSH, 40, 20
-            CASE KFLOWER
-                Blit x - 6, y - 14, IFLOWER + ((Ticks \ 30 + i) AND 1) * 2, 12, 16
-            CASE KROCK
+            case KFLOWER
+                Blit x - 6, y - 14, IFLOWER + ((Ticks \ 30 + i) and 1) * 2, 12, 16
+            case KROCK
                 Blit x - 10, y - 10, IROCK, 20, 12
-            CASE KTHORN
+            case KTHORN
                 Blit x - 8, y - 10, ITHORN, 16, 12
-            CASE KFAM
+            case KFAM
                 ' who meets Charlie: they cheer once it has come to them
                 f = 0
-                IF Cheer THEN f = (Ticks \ 14) AND 1
+                if Cheer then f = (Ticks \ 14) and 1
                 Blit x - 90, y - 81, IFAM + f * 2, 180, 82
-            CASE KLAMP
+            case KLAMP
                 Blit x - 10, y - 42, ILAMP, 20, 44
-            CASE KJET
+            case KJET
                 Blit x - 8, y - 6, IJET, 16, 6
-                IF (Ticks + ObX(i)) MOD 180 < 80 THEN Blit x - 6, y - 70, IJET + 2 + ((Ticks \ 3) AND 1) * 2, 12, 64
-            CASE KBUMP
+                if (Ticks + ObX(i)) mod 180 < 80 then Blit x - 6, y - 70, IJET + 2 + ((Ticks \ 3) and 1) * 2, 12, 64
+            case KBUMP
                 Blit x - 12, y - 12, IBUMP - 2 * (ObS(i) > 0), 24, 24
-            CASE KSPIN
-                LINE (x - 1, y - SPINH)-(x, y - 1), CINK, BF
+            case KSPIN
+                line (x - 1, y - SPINH)-(x, y - 1), CINK, BF
                 a = Ticks * .06 + ObX(i)
-                FOR f = 1 TO 3
-                    PSET (x + CINT(SPINR * f / 4 * COS(a)), y - SPINH + CINT(SPINR * f / 4 * SIN(a))), CWHITE
-                NEXT
+                for f = 1 to 3
+                    pset (x + cint(SPINR * f / 4 * cos(a)), y - SPINH + cint(SPINR * f / 4 * sin(a))), CWHITE
+                next
                 Blit x - 4, y - SPINH - 4, ISPIN + 2, 8, 8
-                Blit x + CINT(SPINR * COS(a)) - 8, y - SPINH + CINT(SPINR * SIN(a)) - 8, ISPIN, 16, 16
-            CASE KBUTTON
+                Blit x + cint(SPINR * cos(a)) - 8, y - SPINH + cint(SPINR * sin(a)) - 8, ISPIN, 16, 16
+            case KBUTTON
                 Blit x - 8, y - 8, IBTN + 2 * ObS(i), 16, 8
-            CASE KWAVE
+            case KWAVE
                 ' a twist's far half; its near one is drawn over Charlie
                 Blit x, y - WAVEA - 22, ZWave, WAVEL, WAVEH
-            CASE KHOOP
+            case KHOOP
                 Blit x - 6, y - 16, IHOOP - 2 * (ObS(i) > 0), 12, 32
-            END SELECT
-        END IF
+            end select
+        end if
         i = i + 1
-    LOOP
-END SUB
+    loop
+end sub
 
 ' The cables and what their baskets hang by.
-SUB DrawCables (cx AS INTEGER, cy AS INTEGER)
-    DIM m AS INTEGER, x AS INTEGER, y AS INTEGER, x1 AS INTEGER, bx AS INTEGER, by AS INTEGER, i AS INTEGER
-    FOR m = 0 TO NMv - 1
-        IF MvK(m) = 3 THEN
-            x = MvE(m) - 8 - cx: y = MvY(m) - CABLEH - cy: x1 = x + MvA(m) + MOVEW
-            IF x < SW AND x1 >= 0 THEN
-                LINE (x, y)-(x1, y + CABLED), CINK
-                LINE (x, y + 1)-(x1, y + CABLED + 1), CYELLOW
-                LINE (x - 1, y - 2)-(x, y + CABLEH), CINK, BF
-                LINE (x1, y + CABLED - 2)-(x1 + 1, y + CABLED + CABLEH), CINK, BF
-                bx = ObX(MvO(m)) - cx: by = ObY(MvO(m)) - cy
-                FOR i = 4 TO MOVEW - 4 STEP MOVEW - 8
-                    LINE (bx + i, by)-(bx + i, y + 1 + CLNG(bx + i - x) * CABLED \ (x1 - x)), CINK
-                NEXT
-            END IF
-        END IF
-    NEXT
-END SUB
+sub DrawCables (cx as integer, cy as integer)
+    dim m as integer, x as integer, y as integer, x1 as integer, bx as integer, by as integer, i as integer
+    for m = 0 to NMv - 1
+        if MvK(m) = 3 then
+            x = MvE(m) - 8 - cx
+            y = MvY(m) - CABLEH - cy
+            x1 = x + MvA(m) + MOVEW
+            if x < SW and x1 >= 0 then
+                line (x, y)-(x1, y + CABLED), CINK
+                line (x, y + 1)-(x1, y + CABLED + 1), CYELLOW
+                line (x - 1, y - 2)-(x, y + CABLEH), CINK, BF
+                line (x1, y + CABLED - 2)-(x1 + 1, y + CABLED + CABLEH), CINK, BF
+                bx = ObX(MvO(m)) - cx
+                by = ObY(MvO(m)) - cy
+                for i = 4 to MOVEW - 4 step MOVEW - 8
+                    line (bx + i, by)-(bx + i, y + 1 + clng(bx + i - x) * CABLED \ (x1 - x)), CINK
+                next
+            end if
+        end if
+    next
+end sub
 
-SUB DrawLoose (cx AS INTEGER, cy AS INTEGER, lo() AS Loose)
-    DIM i AS INTEGER, k AS INTEGER
-    k = IBONE + ((Ticks \ 6) AND 3) * 2
-    FOR i = 0 TO NLOOSE - 1
-        IF lo(i).t > 1 OR (lo(i).t > 0 AND (Ticks AND 4)) THEN
-            Blit CINT(lo(i).x) - 5 - cx, CINT(lo(i).y) - 5 - cy, k, 10, 10
-        END IF
-    NEXT
-END SUB
+sub DrawLoose (cx as integer, cy as integer, lo() as Loose)
+    dim i as integer, k as integer
+    k = IBONE + ((Ticks \ 6) and 3) * 2
+    for i = 0 to NLOOSE - 1
+        if lo(i).t > 1 or (lo(i).t > 0 and (Ticks and 4)) then
+            Blit cint(lo(i).x) - 5 - cx, cint(lo(i).y) - 5 - cy, k, 10, 10
+        end if
+    next
+end sub
 
 ' Charlie, and streaks of wind behind it at speed; running on a slope, the
 ' frame turned to it.
 ' What is nearer than Charlie: the near half of each ribbon's twist, which hides what runs behind it.
-SUB DrawOver (cx AS INTEGER, cy AS INTEGER)
-    DIM i AS INTEGER, c AS INTEGER, x AS INTEGER
+sub DrawOver (cx as integer, cy as integer)
+    dim i as integer, c as integer, x as integer
     c = (cx - WAVEL) \ TS
-    IF c < 0 THEN c = 0
+    if c < 0 then c = 0
     i = First(c)
-    DO WHILE i < NObj
+    do while i < NObj
         x = ObX(i) - cx
-        IF x > SW THEN EXIT DO
-        IF ObK(i) = KWAVE2 THEN Blit x, ObY(i) - cy - WAVEA - 22, ZWave + 2, WAVEL, WAVEH
+        if x > SW then exit do
+        if ObK(i) = KWAVE2 then Blit x, ObY(i) - cy - WAVEA - 22, ZWave + 2, WAVEL, WAVEH
         i = i + 1
-    LOOP
-END SUB
+    loop
+end sub
 
-SUB DrawHero (p AS Hero, cx AS INTEGER, cy AS INTEGER)
-    DIM x AS INTEGER, y AS INTEGER, j AS INTEGER, d AS INTEGER, v AS SINGLE, sy AS INTEGER, n AS INTEGER
-    DIM f AS INTEGER, t AS INTEGER, sx AS INTEGER, hu AS SINGLE, hv AS SINGLE, a AS SINGLE, tw AS INTEGER
-    IF p.inv > 0 AND NOT p.stun AND (Ticks AND 4) THEN EXIT SUB
-    x = CINT(p.x) - cx: y = CINT(p.y) - cy
+sub DrawHero (p as Hero, cx as integer, cy as integer)
+    dim x as integer, y as integer, j as integer, d as integer, v as single, sy as integer, n as integer
+    dim f as integer, t as integer, sx as integer, hu as single, hv as single, a as single, tw as integer
+    if p.inv > 0 and not p.stun and (Ticks and 4) then exit sub
+    x = cint(p.x) - cx
+    y = cint(p.y) - cy
     ' the ground's lie under it; round a ribbon's twist it keeps to the inside, over the line then under it
     hu = 1
-    IF p.ground THEN
-        hu = GU(p.sg): hv = GV(p.sg)
-        IF Twist!(p) >= 0 THEN a = Twist!(p): hu = COS(a): hv = 0: tw = -1
-    END IF
-    IF p.ground THEN v = p.gsp ELSE v = p.vx
-    IF ABS(v) > 400 AND NOT p.dead THEN
-        d = SGN(v)
-        FOR j = 0 TO 3
-            sy = y - CINT(14 * hu) - 12 + (Ticks * 7 + j * 11) MOD 22
-            n = 12 + (Ticks * 5 + j * 9) MOD 18
-            LINE (x - d * 14, sy)-(x - d * (14 + n), sy), CWHITE
-        NEXT
-    END IF
+    if p.ground then
+        hu = GU(p.sg)
+        hv = GV(p.sg)
+        if Twist!(p) >= 0 then
+            a = Twist!(p)
+            hu = cos(a)
+            hv = 0
+            tw = -1
+        end if
+    end if
+    if p.ground then
+        v = p.gsp
+    else
+        v = p.vx
+    end if
+    if abs(v) > 400 and not p.dead then
+        d = sgn(v)
+        for j = 0 to 3
+            sy = y - cint(14 * hu) - 12 + (Ticks * 7 + j * 11) mod 22
+            n = 12 + (Ticks * 5 + j * 9) mod 18
+            line (x - d * 14, sy)-(x - d * (14 + n), sy), CWHITE
+        next
+    end if
     f = HeroFrame%(p)
     ' running round a twist: rolled with the ribbon, a twelfth of a turn a picture, its paws' line 12 off its middle
-    IF tw AND f >= FRUN AND f < FBALL THEN
-        t = CINT(a * 6 / PI) MOD 12
-        IF f >= FDASH THEN j = f - FDASH ELSE j = (f - FRUN) \ 3
-        Blit x - 16, y - 16 - CINT(12 * COS(t * PI / 6)), ITW + (p.face * 24 + t * 2 + j) * 2, 32, 32
-        EXIT SUB
-    END IF
+    if tw and f >= FRUN and f < FBALL then
+        t = cint(a * 6 / PI) mod 12
+        if f >= FDASH then
+            j = f - FDASH
+        else
+            j = (f - FRUN) \ 3
+        end if
+        Blit x - 16, y - 16 - cint(12 * cos(t * PI / 6)), ITW + (p.face * 24 + t * 2 + j) * 2, 32, 32
+        exit sub
+    end if
     ' running, turned to the ground: t sixteenths of a turn, nose up
-    IF p.ground AND f >= FRUN AND f < FBALL THEN
+    if p.ground and f >= FRUN and f < FBALL then
         v = p.ang
-        IF p.face THEN v = -v
-        t = CINT(v * 8 / PI)
-        IF t < 0 THEN t = t + 16
-        t = t AND 15
-    END IF
-    IF t = 0 THEN
+        if p.face then v = -v
+        t = cint(v * 8 / PI)
+        if t < 0 then t = t + 16
+        t = t and 15
+    end if
+    if t = 0 then
         ' curled on the ground: its middle 13 off it, whichever way that is
-        IF p.ground AND f >= FBALL AND f < FBALL + 4 THEN
-            x = x + CINT(13 * hv): y = y + 13 - CINT(13 * hu)
-        END IF
+        if p.ground and f >= FBALL and f < FBALL + 4 then
+            x = x + cint(13 * hv)
+            y = y + 13 - cint(13 * hu)
+        end if
         ' afraid, it shakes
-        IF f = FHURT OR f = FSHIVER THEN x = x + ((Ticks \ 2) AND 1) * 2 - 1
+        if f = FHURT or f = FSHIVER then x = x + ((Ticks \ 2) and 1) * 2 - 1
         Blit x - 16, y - 31, IHERO + (p.face * NF + f) * 2, 32, 32
-        EXIT SUB
-    END IF
+        exit sub
+    end if
     ' turned about its middle, 12 off the ground: the picture as drawn (0) or mirrored to face left (1); past
     ' half a turn the one half a turn back upside down, mirrored (3) or not (2)
-    IF f >= FDASH THEN f = 3 + f - FDASH ELSE f = (f - FRUN) \ 2
+    if f >= FDASH then
+        f = 3 + f - FDASH
+    else
+        f = (f - FRUN) \ 2
+    end if
     j = p.face
-    IF t >= 8 THEN t = t - 8: j = 3 - j
-    x = x + CINT(12 * hv) - 16 + (j AND 1)
-    y = y - CINT(12 * hu) - 18 - 5 * (j > 1)
+    if t >= 8 then
+        t = t - 8
+        j = 3 - j
+    end if
+    x = x + cint(12 * hv) - 16 + (j and 1)
+    y = y - cint(12 * hu) - 18 - 5 * (j > 1)
     Blit x, y, ITILT + (j * 40 + t * 5 + f) * 2, 32, 32
-END SUB
+end sub
 
-FUNCTION HeroFrame% (p AS Hero)
-    IF p.dead OR p.stun THEN
+function HeroFrame% (p as Hero)
+    if p.dead or p.stun then
         HeroFrame% = FHURT
-        IF (Ticks \ 3) AND 1 THEN HeroFrame% = FSHIVER
-    ELSEIF p.roll OR p.charging THEN
-        HeroFrame% = FBALL + (INT(p.anim) AND 3)
-    ELSEIF NOT p.ground THEN
-        IF p.sprung THEN HeroFrame% = FUP ELSE HeroFrame% = FRUN + INT(p.anim) MOD 6
-    ELSEIF p.skid THEN
+        if (Ticks \ 3) and 1 then HeroFrame% = FSHIVER
+    elseif p.roll or p.charging then
+        HeroFrame% = FBALL + (int(p.anim) and 3)
+    elseif not p.ground then
+        if p.sprung then
+            HeroFrame% = FUP
+        else
+            HeroFrame% = FRUN + int(p.anim) mod 6
+        end if
+    elseif p.skid then
         HeroFrame% = FSKID
-    ELSEIF p.crouch THEN
+    elseif p.crouch then
         HeroFrame% = FCROUCH
-    ELSEIF p.win THEN
-        HeroFrame% = FWIN + ((Ticks \ 20) AND 1)
-    ELSEIF ABS(p.gsp) < 5 THEN
-        IF p.idleT > 3 THEN
-            HeroFrame% = FTAP + ((Ticks \ 12) AND 1)
-        ELSEIF Ticks MOD 180 < 8 THEN
+    elseif p.win then
+        HeroFrame% = FWIN + ((Ticks \ 20) and 1)
+    elseif abs(p.gsp) < 5 then
+        if p.idleT > 3 then
+            HeroFrame% = FTAP + ((Ticks \ 12) and 1)
+        elseif Ticks mod 180 < 8 then
             HeroFrame% = FBLINK
-        ELSE
+        else
             HeroFrame% = FIDLE
-        END IF
-    ELSEIF ABS(p.gsp) >= TOP - 5 THEN
-        HeroFrame% = FDASH + (INT(p.anim) AND 1)
-    ELSE
-        HeroFrame% = FRUN + INT(p.anim) MOD 6
-    END IF
-END FUNCTION
+        end if
+    elseif abs(p.gsp) >= TOP - 5 then
+        HeroFrame% = FDASH + (int(p.anim) and 1)
+    else
+        HeroFrame% = FRUN + int(p.anim) mod 6
+    end if
+end function
 
-SUB DrawParts (pt() AS Part, cx AS INTEGER, cy AS INTEGER)
-    DIM i AS INTEGER, x AS INTEGER, y AS INTEGER
-    FOR i = 0 TO NPART - 1
-        IF pt(i).t > 0 THEN
-            x = CINT(pt(i).x) - cx: y = CINT(pt(i).y) - cy
-            IF x >= 0 AND x < SW - 1 AND y >= 0 AND y < SH - 1 THEN
-                PSET (x, y), pt(i).c
-                IF pt(i).t > .25 THEN PSET (x + 1, y), pt(i).c
-            END IF
-        END IF
-    NEXT
-END SUB
+sub DrawParts (pt() as Part, cx as integer, cy as integer)
+    dim i as integer, x as integer, y as integer
+    for i = 0 to NPART - 1
+        if pt(i).t > 0 then
+            x = cint(pt(i).x) - cx
+            y = cint(pt(i).y) - cy
+            if x >= 0 and x < SW - 1 and y >= 0 and y < SH - 1 then
+                pset (x, y), pt(i).c
+                if pt(i).t > .25 then pset (x + 1, y), pt(i).c
+            end if
+        end if
+    next
+end sub
 
 ' The score, time, bones and lives, top left over the scene: a picture
 ' and its mask, put together from the characters when a number moves.
 ' Called before the frame is drawn: it draws on the page's corner.
-SUB Hud (g AS Game)
-    DIM s AS INTEGER, sig AS LONG
-    s = INT(g.clock)
+sub Hud (g as Game)
+    dim s as integer, sig as long
+    s = int(g.clock)
     sig = g.score * 7 + g.bones * 131& + g.lives * 100003 + s * 13& + 1
-    IF sig = g.sig THEN EXIT SUB
+    if sig = g.sig then exit sub
     g.sig = sig
-    LINE (0, 0)-(HUDW - 1, HUDH - 1), 0, BF
-    LINE (0, 100)-(HUDW - 1, 100 + HUDH - 1), 255, BF
+    line (0, 0)-(HUDW - 1, HUDH - 1), 0, BF
+    line (0, 100)-(HUDW - 1, 100 + HUDH - 1), 255, BF
     HudLine 0, "SCORE " + Num$(g.score, 6), 6
-    HudLine 1, "TIME  " + LTRIM$(STR$(s \ 60)) + ":" + Num$(CLNG(s MOD 60), 2), 6
-    HudLine 2, "BONES " + Num$(CLNG(g.bones), 3), 6
-    HudLine 3, "CHARLIE x" + LTRIM$(STR$(g.lives)), 7
-    GET (0, 0)-(HUDW - 1, HUDH - 1), Img(At(IHUD))
-    GET (0, 100)-(HUDW - 1, 100 + HUDH - 1), Img(At(IHUD + 1))
-END SUB
+    HudLine 1, "TIME  " + ltrim$(str$(s \ 60)) + ":" + Num$(clng(s mod 60), 2), 6
+    HudLine 2, "BONES " + Num$(clng(g.bones), 3), 6
+    HudLine 3, "CHARLIE x" + ltrim$(str$(g.lives)), 7
+    get (0, 0)-(HUDW - 1, HUDH - 1), Img(At(IHUD))
+    get (0, 100)-(HUDW - 1, 100 + HUDH - 1), Img(At(IHUD + 1))
+end sub
 
 ' A row of the HUD's picture and mask: s, its first n characters yellow.
-SUB HudLine (row AS INTEGER, s AS STRING, n AS INTEGER)
-    DIM i AS INTEGER, k AS INTEGER
-    FOR i = 1 TO LEN(s)
-        k = INSTR("0123456789:xABCDEHILMNOPRST", MID$(s, i, 1)) - 1
-        IF k >= 0 THEN
+sub HudLine (row as integer, s as string, n as integer)
+    dim i as integer, k as integer
+    for i = 1 to len(s)
+        k = instr("0123456789:xABCDEHILMNOPRST", mid$(s, i, 1)) - 1
+        if k >= 0 then
             k = IGLYPH + (k - NGLYPH * (i > n)) * 2
-            PUT (i * 9 - 9, row * 10), Img(At(k)), PSET
-            PUT (i * 9 - 9, 100 + row * 10), Img(At(k + 1)), PSET
-        END IF
-    NEXT
-END SUB
+            put (i * 9 - 9, row * 10), Img(At(k)), pset
+            put (i * 9 - 9, 100 + row * 10), Img(At(k + 1)), pset
+        end if
+    next
+end sub
 
 ' What Charlie says, in a box over its head.
-SUB Say (p AS Hero, cx AS INTEGER, cy AS INTEGER, s AS STRING)
-    DIM row AS INTEGER, col AS INTEGER
-    col = (CINT(p.x) - cx) \ 8 - LEN(s) \ 2 + 1
-    row = (CINT(p.y) - cy - 42) \ 8
-    IF col < 2 THEN col = 2
-    IF col > 39 - LEN(s) THEN col = 39 - LEN(s)
-    IF row < 3 THEN row = 3
-    IF row > 23 THEN row = 23
-    Panel col * 8 - 12, row * 8 - 12, (col + LEN(s)) * 8 - 5, row * 8 + 3
+sub Say (p as Hero, cx as integer, cy as integer, s as string)
+    dim row as integer, col as integer
+    col = (cint(p.x) - cx) \ 8 - len(s) \ 2 + 1
+    row = (cint(p.y) - cy - 42) \ 8
+    if col < 2 then col = 2
+    if col > 39 - len(s) then col = 39 - len(s)
+    if row < 3 then row = 3
+    if row > 23 then row = 23
+    Panel col * 8 - 12, row * 8 - 12, (col + len(s)) * 8 - 5, row * 8 + 3
     Txt row, col, s, CWHITE
-END SUB
+end sub
 
 ' A dark box with a gold edge, for words: every other pixel of it, the scene through the rest.
-SUB Panel (x1 AS INTEGER, y1 AS INTEGER, x2 AS INTEGER, y2 AS INTEGER)
-    DIM y AS INTEGER
-    FOR y = y1 TO y2
-        IF (x1 + y) AND 1 THEN LINE (x1, y)-(x2, y), CHUD, , &H5555 ELSE LINE (x1, y)-(x2, y), CHUD, , &HAAAA
-    NEXT
-    LINE (x1, y1)-(x2, y2), CGOLD + 2, B
-END SUB
+sub Panel (x1 as integer, y1 as integer, x2 as integer, y2 as integer)
+    dim y as integer
+    for y = y1 to y2
+        if (x1 + y) and 1 then
+            line (x1, y)-(x2, y), CHUD, , &H5555
+        else
+            line (x1, y)-(x2, y), CHUD, , &HAAAA
+        end if
+    next
+    line (x1, y1)-(x2, y2), CGOLD + 2, B
+end sub
 
-SUB Txt (row AS INTEGER, col AS INTEGER, s AS STRING, c AS INTEGER)
-    COLOR c
-    LOCATE row, col
-    PRINT s;
-END SUB
+sub Txt (row as integer, col as integer, s as string, c as integer)
+    color c
+    locate row, col
+    print s;
+end sub
 
 ' s centred on row.
-SUB Banner (row AS INTEGER, s AS STRING, c AS INTEGER)
-    Txt row, 21 - LEN(s) \ 2, s, c
-END SUB
+sub Banner (row as integer, s as string, c as integer)
+    Txt row, 21 - len(s) \ 2, s, c
+end sub
 
 ' v in w digits, 0s first.
-FUNCTION Num$ (v AS LONG, w AS INTEGER)
-    Num$ = RIGHT$(STRING$(w, "0") + LTRIM$(STR$(v)), w)
-END FUNCTION
+function Num$ (v as long, w as integer)
+    Num$ = right$(string$(w, "0") + ltrim$(str$(v)), w)
+end function
