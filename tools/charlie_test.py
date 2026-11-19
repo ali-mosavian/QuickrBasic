@@ -6,7 +6,7 @@ at pits, walls and cats ahead. The level must be cleared on the first life, roun
 its loops: a gap too wide, a wall too high, a loop entered too slowly or a landing that misses the
 ground fails it.
 
-Every half bar of the tune and every sound effect is played: a PLAY string the game builds wrong is an
+Every half bar of both tunes and every sound effect is played: a PLAY string the game builds wrong is an
 Illegal function call mid-game. Jump held through a hit must jump as the hit's hold ends: it was forgotten.
 First a cat is walked to the level's left end: its look ahead,
 left of column 0, was a negative tile column, and the game stopped with Subscript out of range.
@@ -38,7 +38,7 @@ LoadSong
 PLAY Beat$(Kit(0), 3), "V1", Horn(0), , "V1", Horn(1)
 PLAY , , Keys(0), , , Keys(1)
 PLAY "T255", "T255", "T255", , "T255", "T255", "T255"
-FOR j = 0 TO NBAR * 2 - 1: i = j * 5: PLAY Trk(i), Trk(i + 1), Trk(i + 2), , Trk(i + 3), Trk(i + 4), Org(j): NEXT
+FOR j = 0 TO NBAR * 4 - 1: i = j * 5: PLAY Trk(i), Trk(i + 1), Trk(i + 2), , Trk(i + 3), Trk(i + 4), Org(j): NEXT
 FOR j = SJUMP TO SHISS: Sfx j: NEXT
 Muted = -1
 PRINT "sounds ok"
