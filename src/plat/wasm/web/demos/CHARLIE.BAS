@@ -126,6 +126,7 @@ CONST FSKID = 16, FCROUCH = 17, FHURT = 18, FUP = 19, FWIN = 20, FSHIVER = 22, N
 CONST KBONE = 1, KCAT = 2, KSPRING = 3, KMARK = 4, KBOOST = 5, KGOAL = 6, KPLAT = 7
 CONST KLOOP = 8, KTREE = 9, KBUSH = 10, KFLOWER = 11, KROCK = 12, KTHORN = 13, KLAMP = 14, KFAM = 15, KPIPE = 16
 CONST KMOVE = 17, KPOST = 18, KTANK = 19, KVENT = 20, KJET = 21, KBUMP = 22, KSPIN = 23, KHOOP = 24
+CONST KWAVE = 25, KWAVE2 = 26, WAVEA = 40, WAVEH = WAVEA + 16
 CONST JETV = 500!, BUMPV = 400!, HOOPV = 640!, SPINR = 30, SPINH = 70, PITD = 5
 
 ' Images in Img from At(k); a masked one's mask at k + 1. As charlieart.py's.
@@ -140,7 +141,7 @@ CONST ICARD = IDASH + 2, IGLYPH = ICARD + 2, NGLYPH = 27, IHUD = IGLYPH + NGLYPH
 CONST IZ2 = IPIPE + 2, ITILE2 = IZ2 + 9, IMOVE = ITILE2 + 24, IPOST = IMOVE + 2, ITANK = IPOST + 2, IVENT = ITANK + 2
 CONST ICARD2 = IVENT + 2, IBLD = ICARD2 + 2, IPLANT = IBLD + 12
 CONST IDK = IPLANT + 8, IWT = IDK + 4, IWS = IWT + 32
-CONST IJET = IWS + 4, IBUMP = IJET + 6, ISPIN = IBUMP + 4, IHOOP = ISPIN + 4, NIMG = IHOOP + 4
+CONST IJET = IWS + 4, IBUMP = IJET + 6, ISPIN = IBUMP + 4, IHOOP = ISPIN + 4, IWAVE = IHOOP + 4, NIMG = IWAVE + 8
 CONST HUDW = 108, HUDH = 40
 CONST IMGSZ = 340000
 
@@ -184,7 +185,9 @@ DECLARE SUB Flop (k AS INTEGER, k2 AS INTEGER, w AS INTEGER, h AS INTEGER)
 DECLARE SUB BuildStrips (e AS INTEGER, k AS INTEGER)
 DECLARE SUB BuildLoop (k AS INTEGER, ce AS INTEGER, cr AS INTEGER)
 DECLARE SUB BuildPipe (k AS INTEGER, ce AS INTEGER, cr AS INTEGER)
+DECLARE SUB BuildWave (k AS INTEGER, ce AS INTEGER, ct AS INTEGER)
 DECLARE SUB Track ()
+DECLARE FUNCTION Ribbon% (x AS INTEGER)
 DECLARE SUB Pit (c AS INTEGER, g AS INTEGER, n AS INTEGER)
 DECLARE SUB Knot (x AS SINGLE, y AS SINGLE, k AS INTEGER)
 DECLARE FUNCTION SegAt% (x AS INTEGER, y AS SINGLE)
@@ -261,6 +264,7 @@ DIM SHARED ZA(NZONE) AS INTEGER, ZB(NZONE) AS INTEGER, ZM(NZONE) AS INTEGER, ZL(
 DIM SHARED ZR(NZONE) AS INTEGER, NZ AS INTEGER
 ' The zone played, 0 the Amber Downs, 1 the Chrome Works, and the one ResetWorld is to load; its pictures: tiles,
 ' strips, backdrop, loop, pipe, card.
+DIM SHARED ZWave AS INTEGER
 DIM SHARED Zone AS INTEGER, NextUp AS INTEGER, ZTile AS INTEGER, ZStrip AS INTEGER, ZBack AS INTEGER
 DIM SHARED ZLoop AS INTEGER, ZPipe AS INTEGER, ZCard AS INTEGER
 ' A moving platform m: its thing MvO, its stretch MvS and curve MvZ; its middle MvX, MvY and reach MvA; MvK 0 to
@@ -299,6 +303,7 @@ DATA upg,2, flat,3, cat,0, flat,6, bush,0, dng,3, boost,0, bones,8, flat,10
 DATA loop,0, flat,8, bones,6, flat,6, up45,2, flat,2, arc,7, gap,7, flat,8
 DATA mark,0, flat,4, dn45,4, dng,4, boost,0, bones,10, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
 DATA tree,0, flat,4, boost,0, flat,6, pipe,6, flat,6, bones,6, flat,8
+DATA boost,0, flat,4, wave,3, flat,8
 DATA dng,5, boost,0, bones,10, flat,10, up45,3, arc,11, pit,12, flat,10
 DATA cat,0, flat,6, bush,0, flat,4, spring,0, flat,2, plat,608, hb,706, flat,16, spin,0, flat,8
 DATA upg,4, flat,4, flower,0, flat,4
@@ -318,6 +323,7 @@ DATA goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, "end",0
 ' down, the ground past it that much higher. lift: a gap of 3 with a lift, the ground past it that much higher.
 Level2:
 DATA flat,4, dog,0, flat,8, bones,6, flat,8, boost,0, bones,8, flat,10, loop,0, flat,10
+DATA boost,0, flat,4, wave,2, flat,8
 DATA dng,3, boost,0, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8, up45,3, arc,9, pit,10, flat,8
 DATA cat,0, flat,12, mover,8, flat,8, jet,0, flat,3, bump,5, flat,3, bump,5, flat,6, mark,0, flat,6
 DATA boost,0, flat,6, pipe,6, flat,8, bones,8, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0, flat,10
@@ -417,10 +423,10 @@ SUB LoadLevel (z AS INTEGER)
     FOR i = 0 TO MW: ColTop(i) = MH: NEXT
     g = 10
     IF z THEN
-        ZTile = ITILE2: ZStrip = IZ2 + 3: ZBack = IZ2: ZLoop = IZ2 + 5: ZPipe = IZ2 + 7: ZCard = ICARD2
+        ZTile = ITILE2: ZStrip = IZ2 + 3: ZBack = IZ2: ZLoop = IZ2 + 5: ZPipe = IZ2 + 7: ZCard = ICARD2: ZWave = IWAVE + 4
         RESTORE Level2
     ELSE
-        ZTile = ITILE: ZStrip = ISTRIP: ZBack = IBG: ZLoop = ILOOP: ZPipe = IPIPE: ZCard = ICARD
+        ZTile = ITILE: ZStrip = ISTRIP: ZBack = IBG: ZLoop = ILOOP: ZPipe = IPIPE: ZCard = ICARD: ZWave = IWAVE
         RESTORE Level
     END IF
     DO
@@ -453,6 +459,14 @@ SUB LoadLevel (z AS INTEGER)
             ' not a fall to nothing: a floor PITD down, a spring at its far wall
             Pit c, g, n
             c = c + n
+        CASE "wave"
+            ' a ribbon of n humps over a pit, each two halves of 64, bones along it
+            FOR i = 0 TO n * 2 - 1
+                AddObj KWAVE + (i AND 1), (c + i * 4) * TS, s
+                AddObj KBONE, (c + i * 4 + 2) * TS, s - WAVEA \ 2 - 14
+            NEXT
+            Pit c, g, n * 8
+            c = c + n * 8
         CASE "bump"
             AddObj KBUMP, c * TS + 8, s - n * TS
         CASE "hoop"
@@ -598,6 +612,25 @@ SUB Track
             NZ = NZ + 1: k = k + 1
         END IF
     NEXT
+    ' the ribbons: halves that meet are one stretch, 8 of flat at each end to run on and off by
+    x1 = NONE
+    FOR i = 0 TO NObj - 1
+        IF ObK(i) = KWAVE OR ObK(i) = KWAVE2 THEN
+            IF ObX(i) <> x1 THEN
+                IF x1 <> NONE THEN Knot CSNG(x1 + 8), CSNG(y), 2: ZB(NZ) = GN - 2: NZ = NZ + 1
+                y = ObY(i)
+                Knot CSNG(ObX(i) - 8), CSNG(y), 0
+                ZA(NZ) = GN - 1: ZM(NZ) = -1: ZL(NZ) = ObX(i) - 8
+                Knot CSNG(ObX(i)), CSNG(y), 2
+            END IF
+            FOR j = 1 TO 8
+                a = PI * j / 8 - PI * (ObK(i) = KWAVE2)
+                Knot CSNG(ObX(i) + j * 8), y - WAVEA * (1 - COS(a)) / 2, 2
+            NEXT
+            x1 = ObX(i) + 64: ZR(NZ) = x1 + 8
+        END IF
+    NEXT
+    IF x1 <> NONE THEN Knot CSNG(x1 + 8), CSNG(y), 2: ZB(NZ) = GN - 2: NZ = NZ + 1
 END SUB
 
 ' A moving platform, its middle's left end at x, y; reach a, kind k; e the edge before it.
@@ -770,6 +803,8 @@ SUB BuildArt
     BuildPipe IPIPE, CEARTH, CGRASS
     BuildLoop IZ2 + 5, CPANEL, CCHROME + 1
     BuildPipe IZ2 + 7, CPANEL, CCHROME + 1
+    BuildWave IWAVE, CEARTH + 1, CGOLD + 3
+    BuildWave IWAVE + 4, CPANEL, 177
     BuildGlyphs
     BuildMid
     BuildWorks
@@ -908,6 +943,25 @@ SUB BuildLoop (k AS INTEGER, ce AS INTEGER, cr AS INTEGER)
 END SUB
 
 ' A quarter pipe: the earth under its curve, grass along it, and its mask.
+' A ribbon's two halves, k and k + 2: a band that rises 64 and falls 64, narrow where it is steep as a twisted one
+' is, striped in ce's four tones under an edge of ct.
+SUB BuildWave (k AS INTEGER, ce AS INTEGER, ct AS INTEGER)
+    DIM x AS INTEGER, y AS INTEGER, j AS INTEGER, th AS INTEGER, a AS SINGLE
+    FOR x = 0 TO 127
+        a = PI * x / 64
+        y = 2 + WAVEA - CINT(WAVEA * (1 - COS(a)) / 2)
+        th = 8 + CINT(6 * ABS(COS(a)))
+        FOR j = 1 TO th - 1
+            PSET (x, y + j), ce + 1 + ((x + j * 2) \ 8 AND 1) * 2 - (SIN(a) > 0) - (j > th \ 2)
+        NEXT
+        PSET (x, y), ct
+        PSET (x, y + th), CINK
+    NEXT
+    MaskGrab 0, 0, 64, WAVEH, 140, 0, k
+    MaskGrab 64, 0, 64, WAVEH, 210, 0, k + 2
+    LINE (0, 0)-(SW - 1, WAVEH), 0, BF
+END SUB
+
 SUB BuildPipe (k AS INTEGER, ce AS INTEGER, cr AS INTEGER)
     DIM i AS INTEGER
     LINE (0, 0)-(PIPER - 1, PIPER - 1), ce + 4, BF
@@ -1647,6 +1701,15 @@ SUB Tick (g AS Game, p AS Hero, k AS Pad, lo() AS Loose, pt() AS Part)
 END SUB
 
 ' The pad of a Charlie that holds right and jumps at pits, walls and cats.
+' Whether a ribbon starts within 60 ahead of x: its edge is run off, not jumped.
+FUNCTION Ribbon% (x AS INTEGER)
+    DIM z AS INTEGER
+    Ribbon% = 0
+    FOR z = 0 TO NZ - 1
+        IF ZM(z) = -1 AND GK(ZA(z)) = 2 AND ZL(z) > x - 16 AND ZL(z) < x + 60 THEN Ribbon% = -1
+    NEXT
+END FUNCTION
+
 SUB Pilot (p AS Hero, k AS Pad)
     STATIC hold AS INTEGER
     DIM x AS INTEGER, y AS INTEGER, i AS INTEGER, want AS INTEGER, m AS INTEGER, d AS INTEGER, ready AS INTEGER
@@ -1661,7 +1724,7 @@ SUB Pilot (p AS Hero, k AS Pad)
     ELSEIF p.ground AND GK(p.sg) = 1 THEN
         x = CINT(p.x): y = CINT(p.y)
         i = x + 22 + CINT(ABS(p.gsp)) \ 40
-        IF Surf%(i, y) = NONE AND Surf%(i, y + 2 * TS) = NONE THEN want = -1
+        IF Surf%(i, y) = NONE AND Surf%(i, y + 2 * TS) = NONE AND NOT Ribbon%(x) THEN want = -1
         ' a wall, not a ramp's foot
         IF Solid%(x + 13, y - 20) THEN want = -1
         i = First(x \ TS)
@@ -2405,6 +2468,8 @@ SUB DrawThings (cx AS INTEGER, cy AS INTEGER, back AS INTEGER)
                 NEXT
                 Blit x - 4, y - SPINH - 4, ISPIN + 2, 8, 8
                 Blit x + CINT(SPINR * COS(a)) - 8, y - SPINH + CINT(SPINR * SIN(a)) - 8, ISPIN, 16, 16
+            CASE KWAVE, KWAVE2
+                Blit x, y - WAVEA - 2, ZWave - 2 * (k = KWAVE2), 64, WAVEH
             CASE KHOOP
                 Blit x - 6, y - 16, IHOOP - 2 * (ObS(i) > 0), 12, 32
             END SELECT

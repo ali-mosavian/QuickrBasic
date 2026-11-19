@@ -185,6 +185,21 @@ FOR i = 1 TO 300
     IF p.ground AND p.x > c + 8 THEN EXIT FOR
 NEXT
 IF was AND p.ground AND p.x > c + 8 AND ABS(p.y - ColTop(c \\ TS) * TS) < 2 THEN PRINT "pipe ok"
+' a ribbon is ground: run onto at speed it is ridden over each hump and off its far end onto the ground
+FOR j = 0 TO NObj - 1
+    IF ObK(j) = KWAVE THEN EXIT FOR
+NEXT
+c = ObX(j)
+Stand p, c - 40, 420
+k.r = -1: was = 0: v = 0
+FOR i = 1 TO 400
+    MoveHero p, k, pt()
+    IF p.ground THEN IF GK(p.sg) = 2 AND p.y < ObY(j) - WAVEA + 8 THEN was = was + 1
+    ' down its far sides too: with only the rising halves there it was flown from crest to crest
+    IF p.ground THEN IF GK(p.sg) = 2 AND GV(p.sg) > .3 THEN v = v + 1
+    IF p.ground AND GK(p.sg) = 1 AND p.x > c + 384 THEN EXIT FOR
+NEXT
+IF was > 3 AND v > 6 AND p.ground AND p.x > c + 384 AND ABS(p.y - ObY(j)) < 2 THEN PRINT "wave ok"
 was = 0: k.r = 0
 StartGame g, p, lo(), pt()
 FOR i = 1 TO 9000
@@ -344,6 +359,7 @@ def main() -> None:
         ("stall ok", "off a loop's top when too slow for it"),
         ("ghost ok", "down on the ground from a jump before a loop"),
         ("pipe ok", "up a quarter pipe and its wall onto the ground above"),
+        ("wave ok", "over a ribbon's humps and off its far end onto the ground"),
         ("carried ok", "carried by the platform stood on"),
         ("lift ok", "taken up by a lift, which goes back down when left"),
         ("home ok", "back at the title on the Amber Downs after the Chrome Works"),
