@@ -64,6 +64,8 @@ void qbrt_realtime(const bool yes) {}
 
 void qbrt_tick_wait(void) {}
 
+void qbrt_tick_poll(void) {}
+
 void qbrt_clock_set(const PclkTime *const t) {}
 
 enum {

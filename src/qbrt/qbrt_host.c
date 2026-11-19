@@ -13,6 +13,7 @@
 enum { HUNDREDTHS_A_TICK = 6, WAIT_NANOSECONDS = 1000000 };
 
 static bool realtime = true;
+static bool polled; /* PLAY(n) looked at since the last wait */
 
 void qbrt_clock_set(const PclkTime *const t)
 {
@@ -28,16 +29,28 @@ void qbrt_device(void)
     qbrt_clock_set(&now);
     headless_set_stdout_is_screen(QBRT_SCREEN);
     headless_set_tick_thread(realtime);
+    polled = false;
 }
 
 void qbrt_realtime(const bool yes)
 {
     realtime = yes;
+    polled = false;
     headless_set_tick_thread(yes);
+}
+
+void qbrt_tick_poll(void)
+{
+    if (!realtime && polled)
+        headless_run(1);
+
+    polled = true;
 }
 
 void qbrt_tick_wait(void)
 {
+    polled = false;
+
     if (realtime) {
         const struct timespec wait = {0, WAIT_NANOSECONDS};
 

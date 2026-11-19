@@ -45,3 +45,23 @@ TEST(play_tutorial_examples_run)
     qbrt_realtime(true);
     CHECK(examples >= 20);
 }
+
+/* Not in real time, the music moved only while the program waited for it: a loop polling PLAY(0)
+   saw it never drain, and play_tutorial_examples_run's DO WHILE bar < BARS * 2 hung. Here, after
+   the synthesizer's tests: those lean on the MB an earlier run left. */
+TEST(play_polled_drains_not_in_real_time)
+{
+    static const char *const lines[] = {
+        "10 PLAY \"MB L4 CDE\"",
+        "20 FOR i = 1 TO 1000: IF PLAY(0) = 0 THEN PRINT \"drained\": END",
+        "30 NEXT: PRINT \"stuck\"",
+        nullptr,
+    };
+
+    qbrt_realtime(false);
+    CHECK(unit_run(S, lines) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, "drained\r");
+    headless_run(DRAIN_HUNDREDTHS);
+    music_clear();
+    qbrt_realtime(true);
+}
