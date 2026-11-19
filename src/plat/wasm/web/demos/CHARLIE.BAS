@@ -3221,7 +3221,7 @@ SUB Tick (g AS Game, p AS Hero, k AS Pad, lo() AS Loose, pt() AS Part)
         END IF
         ' the view slides on to hold them all, Charlie at its left
         g.camx = g.camx + (FamX - 166 - g.camx) * 4 * STEPT
-        IF k.quit OR (g.bonus = 0 AND g.modeT > 4 AND (k.hit OR k.start OR g.modeT > 12)) THEN ResetWorld g, p, lo(), pt()
+        IF k.quit OR (g.bonus = 0 AND g.modeT > 10 AND (k.hit OR k.start OR g.modeT > 40)) THEN ResetWorld g, p, lo(), pt()
     CASE OVER
         IF g.modeT > 5 OR (g.modeT > 1.5 AND (k.hit OR k.start)) OR k.quit THEN ResetWorld g, p, lo(), pt()
     END SELECT
