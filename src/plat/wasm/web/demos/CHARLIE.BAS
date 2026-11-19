@@ -161,7 +161,7 @@ const FSKID = 16, FCROUCH = 17, FHURT = 18, FUP = 19, FWIN = 20, FSHIVER = 22, N
 const KBONE = 1, KCAT = 2, KSPRING = 3, KMARK = 4, KBOOST = 5, KGOAL = 6, KPLAT = 7
 const KLOOP = 8, KTREE = 9, KBUSH = 10, KFLOWER = 11, KROCK = 12, KTHORN = 13, KLAMP = 14, KFAM = 15, KPIPE = 16
 const KMOVE = 17, KPOST = 18, KTANK = 19, KVENT = 20, KJET = 21, KBUMP = 22, KSPIN = 23, KHOOP = 24
-const CABLED = 64, CABLEH = 44, KBUTTON = 27
+const CABLED = 64, CABLEH = 44, KBUTTON = 27, KCRAB = 28
 const KWAVE = 25, KWAVE2 = 26, WAVEA = 96, WAVEH = WAVEA + 36, WAVEL = 192
 const JETV = 500!, BUMPV = 400!, HOOPV = 640!, SPINR = 30, SPINH = 70, PITD = 5
 
@@ -199,7 +199,8 @@ const ICART = IBASKET + 2, ICARTW = ICART + 12, CARTW = 56, CARTH = 34, CARTLEAN
 ' Sprocket's crane as it goes and bumped, a length of its rail, its crate, the toolbox.
 const ICRANE = ICARTW + 4, IRAIL = ICRANE + 4, IWBOX = IRAIL + 2, ITOOLS = IWBOX + 2
 ' The sands' ground again as it is under the tide, picture for picture, and the water's edge.
-const IWET = ITOOLS + 2, WETO = IWET - IAF, ISURF = IWET + 278, NIMG = ISURF + 2
+const IWET = ITOOLS + 2, WETO = IWET - IAF, ISURF = IWET + 278, ICRAB = ISURF + 2
+const NIMG = ICRAB + 6
 const HUDW = 108, HUDH = 40
 ' The levels: a zone's two acts, the second at another hour in other colours, zone by zone.
 ' the stages played, and after them the intro's road
@@ -220,6 +221,8 @@ const SJUMP = 0, SBONE = 1, SHURT = 2, SSPRING = 3, SPOP = 4, SROLL = 5
 const SCHARGE = 6, SLAUNCH = 7, SCLEAR = 8, SDIE = 9, SMARK = 10, SBOOST = 11, SHISS = 12, SBARK = 13, SBUMP = 14
 ' A bark: how far it carries, the seconds to the next, and the steps a cat stands startled by it.
 const BARKR = 72, BARKT = .4, FLINCH = 24
+' A crab: the steps it keeps to its shell once barked at, and how fast Charlie goes up off its back.
+const SHELLT = 150, STEPV = 430!
 ' A chase: the cart's speed, when Charlie is far behind it, and away from a bump; how far ahead of the race's
 ' start it waits; how near touches it; the seconds a bump tells, the last of them bolting; the bumps that break
 ' it; its tune's number in CHARLIE.DAT.
@@ -315,6 +318,8 @@ declare function Ribbon% (x as integer)
 declare function Twist! (p as Hero)
 declare sub DrawOver (cx as integer, cy as integer)
 declare sub Bark (p as Hero)
+declare sub MeetCrab (g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
+declare function CrabPic% (s as integer)
 declare function Adrift% (m as integer)
 declare sub Flinch (i as integer, fromX as integer)
 declare sub Prowl (i as integer)
@@ -877,6 +882,8 @@ sub LoadLevel (st as integer)
             next
         case "cat"
             k = KCAT
+        case "crab"
+            k = KCRAB
         case "spring"
             k = KSPRING
         case "mark"
@@ -2459,8 +2466,12 @@ sub Pilot (p as Hero, k as Pad)
         if Solid%(x + 13, y - 20) then want = -1
         i = First(x \ TS)
         do while i < NObj
-            if ObX(i) > x + 50 then exit do
-            if ((ObK(i) = KCAT and ObS(i) <> 0) or ObK(i) = KTHORN) and ObX(i) > x then want = -1
+            if ObX(i) > x + 130 then exit do
+            if ObX(i) > x then
+                if ((ObK(i) = KCAT and ObS(i) <> 0) or ObK(i) = KTHORN) and ObX(i) <= x + 50 then want = -1
+                ' a crab is not rolled through: jumped from further back the faster he goes
+                if ObK(i) = KCRAB and abs(ObS(i)) = 1 and ObX(i) <= x + 34 + abs(cint(p.gsp)) \ 8 then want = -1
+            end if
             i = i + 1
         loop
         ' who flees is rolled into, once there is the speed to roll
@@ -2544,7 +2555,7 @@ sub ResetWorld (g as Game, p as Hero, lo() as Loose, pt() as Part)
         ObX(i) = ObA(i)
         ObS(i) = 0
         if ObK(i) = KBONE then ObS(i) = 1
-        if ObK(i) = KCAT then ObS(i) = -1
+        if ObK(i) = KCAT or ObK(i) = KCRAB then ObS(i) = -1
     next
     for i = 0 to NMOVE
         MvT(i) = 0
@@ -2972,6 +2983,8 @@ sub Touch (g as Game, p as Hero, lo() as Loose, pt() as Part)
                     end if
                 end if
             end if
+        case KCRAB
+            MeetCrab g, p, i, lo(), pt()
         case KSPRING
             if dx < 11 and py >= ObY(i) - 12 and py <= ObY(i) + 2 then
                 if p.ground or p.vy >= 0 then
@@ -3160,6 +3173,29 @@ sub Prowl (i as integer)
     if abs(s - y) <= 6 then ObY(i) = s
 end sub
 
+' Charlie at crab i. Down on its back he goes up off it, higher off its shell, and it ducks in a while; at its
+' side its claws pinch, even a rolling Charlie. In its shell it pinches nobody, and a roll knocks it off the sand.
+sub MeetCrab (g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
+    dim y as integer
+    y = ObY(i)
+    if ObS(i) = 0 or abs(ObX(i) - p.x) >= 15 or p.y < y - 22 or p.y > y + 10 then exit sub
+    if not p.ground and p.vy > 0 and p.y < y - 4 then
+        p.vy = -BOUNCEV
+        if abs(ObS(i)) > 1 then p.vy = -STEPV
+        p.jumped = 0
+        if abs(ObS(i)) < SHELLT \ 3 then ObS(i) = sgn(ObS(i)) * (SHELLT \ 3)
+        Sfx SSPRING
+    elseif abs(ObS(i)) = 1 then
+        Hurt g, p, ObX(i), lo(), SHURT
+    elseif p.roll or p.charging then
+        ObS(i) = 0
+        g.score = g.score + 100
+        g.shake = .15
+        Burst pt(), csng(ObX(i)), csng(y - 6), 10, 130, CWHITE
+        Sfx SPOP
+    end if
+end sub
+
 ' A cat barked at from fromX stands startled FLINCH steps, then prowls away from there: its state's size is the
 ' steps left, its sign the way it will go.
 sub Flinch (i as integer, fromX as integer)
@@ -3167,7 +3203,7 @@ sub Flinch (i as integer, fromX as integer)
     if ObX(i) < fromX then ObS(i) = -FLINCH
 end sub
 
-' Charlie barks: every cat the bark reaches flinches.
+' Charlie barks: every cat the bark reaches flinches, every crab goes into its shell.
 sub Bark (p as Hero)
     dim i as integer, c as integer
     p.barkT = BARKT
@@ -3177,7 +3213,14 @@ sub Bark (p as Hero)
     i = First(c)
     do while i < NObj
         if ObA(i) > p.x + BARKR + 40 then exit do
-        if ObK(i) = KCAT and ObS(i) <> 0 and abs(ObX(i) - p.x) <= BARKR and abs(ObY(i) - p.y) < 40 then Flinch i, cint(p.x)
+        if ObS(i) <> 0 and abs(ObX(i) - p.x) <= BARKR and abs(ObY(i) - p.y) < 40 then
+            select case ObK(i)
+            case KCAT
+                Flinch i, cint(p.x)
+            case KCRAB
+                ObS(i) = sgn(ObS(i)) * SHELLT
+            end select
+        end if
         i = i + 1
     loop
 end sub
@@ -3190,7 +3233,7 @@ sub Things (g as Game, lo() as Loose, pt() as Part)
     i = First(c)
     do while i < NObj
         if ObA(i) > g.camx + SW + 100 then exit do
-        if ObK(i) = KCAT and ObS(i) <> 0 then
+        if (ObK(i) = KCAT or ObK(i) = KCRAB) and ObS(i) <> 0 then
             Prowl i
         elseif (ObK(i) = KSPRING or ObK(i) = KBUMP or ObK(i) = KHOOP) and ObS(i) > 0 then
             ObS(i) = ObS(i) - 1
@@ -4062,6 +4105,8 @@ sub DrawThings (cx as integer, cy as integer, back as integer)
                 if ObS(i) then Blit x - 5, y - 5, IBONE + ((Ticks \ 6) and 3) * 2, 10, 10
             case KCAT
                 if ObS(i) then Blit x - 10, y - 13, CatPic%(ObS(i)), 20, 14
+            case KCRAB
+                if ObS(i) then Blit x - 12, y - 15, CrabPic%(ObS(i)), 24, 15
             case KSPRING
                 Blit x - 8, y - 15, ISPRING - 2 * (ObS(i) > 0), 16, 16
             case KBOOST
@@ -4193,6 +4238,15 @@ function CatPic% (s as integer)
         CatPic% = ICATF - 2 * (s > 0)
     else
         CatPic% = ICAT + ((Ticks \ 8) and 1) * 2 - 4 * (s < 0)
+    end if
+end function
+
+' A crab's picture by its state: in its shell, or a frame of its scuttle.
+function CrabPic% (s as integer)
+    if abs(s) > 1 then
+        CrabPic% = ICRAB + 4
+    else
+        CrabPic% = ICRAB + ((Ticks \ 8) and 1) * 2
     end if
 end function
 

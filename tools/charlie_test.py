@@ -791,6 +791,67 @@ for i = 1 to 30
 next
 was = was and GY(c) = Tide - FREEB and GX(c) <> MvX(m) and p.ground and p.sg = c and abs(p.y - GY(c)) < 1
 if was then print "boat ok"
+' a crab pinches at its side, a rolling Charlie too; down on its back he goes up off it unhurt and it ducks into
+' its shell, and comes out again
+GoStage 4, g, p, lo(), pt()
+for c = 0 to NObj - 1
+    if ObK(c) = KCRAB then exit for
+next
+was = c < NObj
+for j = 0 to 1
+    g.bones = 5
+    p.inv = 0
+    p.stun = 0
+    Stand p, ObX(c) - 16, 200
+    if j then p.roll = -1
+    Tick g, p, k, lo(), pt()
+    was = was and p.inv > 0 and abs(ObS(c)) = 1
+next
+for j = 0 to 1
+    ' barked at the second time round, it keeps to its shell: no pinch at its side, and a higher step
+    p.inv = 0
+    p.stun = 0
+    g.bones = 5
+    if j then
+        ObS(c) = 1
+        p.barkT = 0
+        Stand p, ObX(c) - 40, 0
+        k.bark = -1
+        Tick g, p, k, lo(), pt()
+        k.bark = 0
+        was = was and abs(ObS(c)) > SHELLT - 4
+        Stand p, ObX(c) - 12, 0
+        Tick g, p, k, lo(), pt()
+        was = was and p.inv <= 0
+    end if
+    p.x = ObX(c)
+    p.y = ObY(c) - 30
+    p.ground = 0
+    p.vx = 0
+    p.vy = 100
+    for i = 1 to 20
+        Tick g, p, k, lo(), pt()
+        if p.vy < 0 then exit for
+    next
+    was = was and p.inv <= 0 and abs(ObS(c)) > 1
+    if j = 0 then was = was and abs(p.vy + BOUNCEV) < 30
+    if j = 1 then was = was and abs(p.vy + STEPV) < 30
+next
+' in its shell a roll knocks it off the sand; out of it again after SHELLT of its steps
+ObS(c) = SHELLT
+Stand p, ObX(c) - 100, 0
+for i = 1 to SHELLT * 2 + 4
+    Tick g, p, k, lo(), pt()
+next
+was = was and abs(ObS(c)) = 1
+ObS(c) = SHELLT
+hid = g.score
+p.inv = 0
+p.stun = 0
+Stand p, ObX(c) - 16, 200
+p.roll = -1
+Tick g, p, k, lo(), pt()
+if was and ObS(c) = 0 and g.score = hid + 100 and p.inv <= 0 then print "crab ok"
 was = 0
 ' a lift goes up under Charlie to the ground above, and back down once it is left
 GoStage 2, g, p, lo(), pt()
@@ -1135,6 +1196,7 @@ def main() -> None:
         ("wet ok", "out of the water Charlie is slow till a roll shakes him dry"),
         ("shore ok", "no water of the sands is a trap: its far bank a hop over high water, or waded at low"),
         ("boat ok", "a boat aground and still at low water, afloat and adrift at high, Charlie aboard up with it"),
+        ("crab ok", "a crab pinches at its side and is a step from above; barked into its shell, a higher one"),
     ):
         if said not in out:
             sys.exit(f"charlie: not {what}: {out[-300:]}")

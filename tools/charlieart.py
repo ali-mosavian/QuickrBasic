@@ -2619,6 +2619,38 @@ def urchin() -> Pic:
     return p.outline()
 
 
+def crab(f: int) -> Pic:
+    """A crab, face on: frames 0 and 1 its scuttle, claws up and eyes on stalks; 2 in its shell, claws tucked."""
+    p = Pic(24, 15)
+    back = CORAL[::-1]
+    if f == 2:
+        for side in (-1, 1):
+            p.ball(12 + side * 7, 11, 2.6, 2.4, back, 0.3, 1.1)
+        p.ball(12, 10, 6.4, 3.6, back, 0.25, 1.1)
+        p.line(9.5, 9.5, 14.5, 9.5, CORAL[4])
+        p.put(10, 9, WHITE)
+        p.put(14, 9, WHITE)
+        return p.outline(SEAINK)
+    for side in (-1, 1):
+        for i in range(3):
+            tip = 13 - ((i + f) % 3 == 2)
+            p.line(12 + side * (4 + i * 1.5), 10, 12 + side * (7.5 + i * 1.6 - f * (i == 1)), tip, CORAL[3], 2)
+        cy = 3.6 - f * (side > 0) + f * (side < 0)
+        p.line(12 + side * 5, 8, 12 + side * 9, cy + 1.4, CORAL[3], 2)
+        p.ball(12 + side * 9.2, cy, 2.8, 2.6, back, 0.3, 1.1)
+        p.put(round(12 + side * 9.2), round(cy - 0.6), SEAINK)
+        p.put(round(12 + side * 9.2), round(cy - 1.6), 0)
+        p.put(round(12 + side * 9.2), round(cy - 2.6), 0)
+        p.box(round(12 + side * 2.5), 3, round(12 + side * 2.5), 5, CORAL[3])
+    p.ball(12, 9, 6.4, 3.6, back, 0.25, 1.1)
+    p.line(9.5, 10.5, 14.5, 10.5, CORAL[4])
+    for side in (-1, 1):
+        ex = round(12 + side * 2.5)
+        p.box(ex - (side < 0), 2, ex + (side > 0), 3, WHITE)
+        p.put(ex, 3, SEAINK)
+    return p.outline(SEAINK)
+
+
 def lifepost() -> Pic:
     """A post with a life ring where the Downs have a lantern plant."""
     p = Pic(20, 44)
@@ -2661,6 +2693,7 @@ def sands() -> list[tuple[int, Pic, bool, int]]:
     # its ground again under the tide, where no other zone has pictures, and the water's edge
     out += earth(z + 652, sandy(WET))
     out.append((z + 930, surf(), True, -1))
+    out += [(z + 932 + f * 2, crab(f), True, -1) for f in range(3)]
     out += [
         (k + 36, brolly(), True, -1),
         (k + 38, marram(), True, -1),
