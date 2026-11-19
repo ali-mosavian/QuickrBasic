@@ -229,32 +229,33 @@ def dog(
 
 
 def afraid() -> Pic:
-    """Charlie up on its back legs, facing out, afraid: its eyes wide, its paws at its chest."""
+    """Charlie up on its back legs, side on, its face turned out, afraid: its eyes wide, its paws hung before it."""
     p = Pic(32, 32)
-    for x, y, r in ((8, 25, 2.4), (6, 22.5, 2.2), (5.5, 20, 1.6)):
+    for x, y, r in ((8, 26, 2.3), (5.5, 24, 2.2), (4, 21.5, 1.7)):
         p.ball(x, y, r, r, FUR, 0.2, 0.9)
-    p.ball(16, 21.5, 6, 7, FUR, 0.3, 1.15)
-    for x in (12, 20):
-        p.ball(x, 28.3, 2.7, 1.8, FUR, 0.4, 1.1)
+    p.ball(12, 24.5, 4.6, 4.0, FUR, 0.3, 1.0)
+    p.ball(14, 19.5, 4.8, 6.6, FUR, 0.35, 1.15)
+    for x, lo in ((12.5, 0.2), (16, 0.45)):
+        p.ball(x + 1.5, 28.4, 3.0, 1.7, FUR, lo, lo + 0.7)
+    for y, lo in ((16.5, 0.3), (19.5, 0.6)):
+        p.line(17, y, 20, y + 1, FUR[3], 2)
+        p.ball(21, y + 1.6, 2.0, 1.8, FUR, lo, lo + 0.7)
+        p.line(20, y + 3.6, 22, y + 3.6, FUR[0])
     for side in (-1, 1):
         for y, r in ((8.5, 2.5), (11.5, 2.6), (14, 2.0)):
-            p.ball(16 + side * 7.4, y, r, r, FUR, 0.1, 0.85)
-    p.ball(16, 9.5, 6.6, 6.0, FUR, 0.45, 1.2)
-    p.ball(16, 12.5, 3.6, 2.8, FUR, 0.6, 1.3)
-    p.box(15, 11, 17, 12, INK)
-    p.box(15, 14, 16, 15, INK)
+            p.ball(17 + side * 7.4, y, r, r, FUR, 0.1, 0.85)
+    p.ball(17, 9.5, 6.6, 6.0, FUR, 0.45, 1.2)
+    p.ball(17, 12.5, 3.6, 2.8, FUR, 0.6, 1.3)
+    p.box(16, 11, 18, 12, INK)
+    p.box(16, 14, 17, 15, INK)
     for side in (-1, 1):
-        ex = 16 + side * 4
+        ex = 17 + side * 4
         p.box(ex - 1, 7, ex + 1, 9, INK)
         p.put(ex - 1, 7, WHITE)
         p.put(ex + 1, 9, FUR[2])
         p.line(ex - side * 1.5, 5, ex + side * 1.5, 6, FUR[1])
-        px = 16 + side * 4.5
-        p.ball(px, 18.5, 2.3, 2.1, FUR, 0.7, 1.3)
-        p.line(px - 2, 21, px + 2, 21, FUR[0])
-        p.put(round(px - 3 * side), 19, FUR[1])
-    p.put(25, 3, TEAL[3])
-    p.box(25, 4, 25, 5, TEAL[4])
+    p.put(26, 3, TEAL[3])
+    p.box(26, 4, 26, 5, TEAL[4])
     return p.outline()
 
 
