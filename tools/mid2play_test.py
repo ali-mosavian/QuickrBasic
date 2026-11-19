@@ -118,6 +118,9 @@ def main() -> None:
     assert lines[1].startswith('PLAY "MBT240W0Q20'), lines[1]
     # no voice in a room: a recording fell silent 130 ms after its full band, where a room's tail stood 20 dB under
     assert "R" not in lines[1].replace("PLAY", ""), lines[1]
+    # but as much of one as is asked, on the voices that are not the kit's: with none at all a song was dry to the ear
+    roomy = mid2play.program(mid2play.read(song()), 10, None, 16, room=1).splitlines()[1]
+    assert roomy.startswith('PLAY "MBT240R1W0Q20') and roomy.count("R1") == 2, roomy
     # E above middle C is N41, G N44: a quarter, an eighth's rest, a dotted eighth, the bar's seven sixteenths of rest
     # a drum whose pitch slides is a sine alone: a kick's click, a modulator, slid with it, a chirp from 5 kHz down at
     # every kick, which no drum of a recording had

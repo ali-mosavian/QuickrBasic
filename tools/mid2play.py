@@ -49,6 +49,7 @@ SOUNDS = {
     10: "W0Q20H3,4,9,1U5I4",
 }
 DEFAULT_SOUND = "W0Q50H0,5,9,3"
+BASS = 4
 
 
 class Note(NamedTuple):
@@ -288,6 +289,7 @@ def program(
     up: dict[int, int] | None = None,
     loud: dict[int, int] | None = None,
     wheel: int = 2,
+    room: int = 0,
 ) -> str:
     unit = song.division * 4 // grid
     every = parts(song, unit)
@@ -303,7 +305,11 @@ def program(
     count = min(bars or sys.maxsize, -(-last // grid))
     tempo = max(32, min(255, round(song.tempo)))
     out = ["' " + ", ".join(f"voice {k + 1}: {part.name}" for k, part in enumerate(keys))]
-    out.append("PLAY " + ", ".join(f'"{"MB" if k == 0 else ""}T{tempo}{part.sound}"' for k, part in enumerate(keys)))
+    # a room for the voices that are not the kit's or the bass's
+    rooms = [f"R{room}" if room and part.drum is None and part.sound != SOUNDS[BASS] else "" for part in keys]
+    out.append(
+        "PLAY " + ", ".join(f'"{"MB" if k == 0 else ""}T{tempo}{rooms[k]}{part.sound}"' for k, part in enumerate(keys))
+    )
     for bar in range(count):
         strings = [
             bar_of(lines[k], bar * grid, grid, part.drum, set_to[k], (up or {}).get(k + 1, 0))
@@ -325,6 +331,7 @@ def main() -> None:
     parser.add_argument("--bars", type=int)
     parser.add_argument("--grid", type=int, default=16, choices=(8, 16), help="places a bar (4/4)")
     parser.add_argument("--bend", type=int, default=2, help="semitones at the pitch wheel's end")
+    parser.add_argument("--reverb", type=int, default=0, choices=range(16), help="the room's answer, 0 none")
     parser.add_argument("--transpose", default="", help="voices moved by semitones: 4=-12,5=-12")
     parser.add_argument(
         "--volume", default="", help="voices' volumes at velocity 127, 15 unless given, over it for a quiet file: 1=30"
@@ -334,7 +341,9 @@ def main() -> None:
         {int(voice): int(by) for voice, by in (pair.split("=") for pair in text.split(",") if pair)}
         for text in (args.transpose, args.volume)
     )
-    sys.stdout.write(program(read(args.file.read_bytes()), args.voices, args.bars, args.grid, up, loud, args.bend))
+    sys.stdout.write(
+        program(read(args.file.read_bytes()), args.voices, args.bars, args.grid, up, loud, args.bend, args.reverb)
+    )
 
 
 if __name__ == "__main__":
