@@ -12,6 +12,7 @@ piece, then a rest."""
 from __future__ import annotations
 
 import sys
+import math
 import argparse
 from typing import NamedTuple
 from pathlib import Path
@@ -23,32 +24,31 @@ KIT_CHANNEL = 9
 PIECES = {16: "1", 12: "2.", 8: "2", 6: "4.", 4: "4", 3: "8.", 2: "8", 1: "16"}
 # a drum: what its voice is set to, then its note. A snare is all the noise, a hat what is over 4 kHz: a
 # recording's drums were in every band
-KICK = ("W4", "Z1,0", "H0,4,0,1", "Y0", "K1,8", "R0", "V11", "O1", "C")
-SNARE = ("W3", "H0,5,0,1", "Y0", "K0", "R0", "V15", "O6", "C")
-HAT = ("W3", "H0,3,0,1", "Y3,3000,0", "K0", "R0", "V15", "O6", "C")
+KICK = ("W4", "Z1,0", "H0,4,0,1", "Y0", "K2,8", "V11", "O1", "C")
+SNARE = ("W3", "H0,5,0,1", "Y0", "K0", "V15", "O6", "C")
+HAT = ("W3", "H0,3,0,1", "Y3,3000,0", "K0", "V15", "O6", "C")
 KIT = {35: KICK, 36: KICK, 38: SNARE, 40: SNARE} | {
-    key: ("W4", "Z1,0", "H0,5,0,3", "Y0", "K5,6", "R2", "V14", "O2", note)
+    key: ("W4", "Z1,0", "H0,5,0,3", "Y0", "K5,6", "V14", "O2", note)
     for key, note in ((41, "C"), (43, "E"), (45, "G"), (47, "B"))
 }
 LONGEST = 255  # a string's characters
-LEGATO = 8  # a note of so many sixteenths or more sounds all its length, but one struck again at its end
+STYLES = (("ML", 1.0), ("MN", 7 / 8), ("MS", 3 / 4))  # how much of a note's length sounds
 KIT_SOUND = "Z1,0L16"
 # a General MIDI program's family (program // 8) as a sound
 SOUNDS = {
     0: "W0Q15H2,5,2,1",
     1: "W4Z7,6,7,0H0,8,0,6",
-    2: "W4Z1,4,3,13,4H0,4,11,1U9R0",
+    2: "W4Z1,4,3,13,4H0,4,11,1U9",
     3: "W4Z3,9,3,1,3H0,6,3,3",
     4: "W4Z1,6,3,3,2H0,5,5,1",
     5: "W2Y1,2400,4H3,5,11,4U4I6",
     6: "W2Y1,2000,3H4,6,11,5U3I8",
-    7: "W4Z1,8,3,11,4H0,4,12,1U11I2R0",
+    7: "W4Z1,8,3,11,4H0,4,12,1U11I2",
     8: "W4Z1,9,3,15,3H5,4,10,1U5I4",
     9: "W1H1,3,12,3U4",
     10: "W0Q20H3,4,9,1U5I4",
 }
 DEFAULT_SOUND = "W0Q50H0,5,9,3"
-BASS = 4
 
 
 class Note(NamedTuple):
@@ -142,19 +142,19 @@ def glide(note: Note, tick_ms: float, wheel: int) -> str:
 
 def line(
     notes: list[Note], unit: int, kit: bool, full: int = 15, tick_ms: float = 0, wheel: int = 2
-) -> dict[int, tuple[int, int, int, str]]:
+) -> dict[int, tuple[int, float, int, str]]:
     """A voice on the grid: at each place a note starts, its pitch, its length in places, its volume (`full` at
     velocity 127 and as the velocity squared under it) and its slide; the highest of those struck together (the kit:
     the lowest, the drum over the hat), cut short where the next starts."""
     places: dict[int, int] = {}
-    lengths: dict[int, int] = {}
+    lengths: dict[int, float] = {}
     volumes: dict[int, int] = {}
     glides: dict[int, str] = {}
     for note in notes:
         place = (note.start + unit // 2) // unit
         better = min if kit else max
         if place not in places or better(places[place], note.pitch) == note.pitch:
-            places[place], lengths[place] = note.pitch, max(1, round(note.length / unit))
+            places[place], lengths[place] = note.pitch, note.length / unit
             volumes[place] = max(1, min(15, round(full * (note.velocity / 127) ** 2)))
             glides[place] = glide(note, tick_ms, wheel)
     order = sorted(places)
@@ -177,8 +177,34 @@ def rest(places: int) -> str:
     return out
 
 
+def sounded(voice: dict[int, tuple[int, float, int, str]], at: int) -> list[tuple[int, str]]:
+    """The lengths and styles that sound nearest a note's own length, in the room before the voice's next: one, or
+    where none is near (nine sixteenths) one sounding all its length tied to another (ML holds a pitch run into
+    itself). Not all of a length that ends where its own pitch is struck again, the two run into one."""
+    pitch, length = voice[at][:2]
+    room = min((place for place in voice if place > at), default=at + max(PIECES)) - at
+    again = voice.get(at + room, (None,))[0] == pitch
+
+    def one(length: float, room: int) -> tuple[float, int, str]:
+        return min(
+            (abs(piece * part - length), piece, style)
+            for piece in sorted(PIECES)
+            if piece <= room
+            for style, part in STYLES
+            if not (again and piece == room and style == "ML")
+        )
+
+    alone = one(length, room)
+    held = max((piece for piece in PIECES if piece < room and piece <= length - 3 / 4), default=0)
+    if alone[0] > 0.3 and held and not again:
+        tail = one(length - held, room - held)
+        if tail[0] < alone[0] - 0.2:
+            return [(held, "ML"), tail[1:]]
+    return [alone[1:]]
+
+
 def bar_of(
-    voice: dict[int, tuple[int, int, int, str]],
+    voice: dict[int, tuple[int, float, int, str]],
     first: int,
     places: int,
     drum: str | None,
@@ -194,34 +220,31 @@ def bar_of(
             gap = next((p for p in range(at, first + places) if p in voice), first + places) - at
             out, at = out + rest(gap), at + gap
             continue
-        pitch, length, volume, slide = voice[at]
-        piece = max(p for p in PIECES if p <= length)
+        pitch, _, volume, slide = voice[at]
         if drum is not None:
-            out += drum + rest(piece - 1)
+            out, at = out + drum, at + 1
         else:
             note = pitch - 23 + up
             while note < 1:
                 note += 12
             while note > 84:
                 note -= 12
-            dot = "." if PIECES[piece].endswith(".") else ""
             if set_to.get("V") != volume:
                 out, set_to["V"] = out + f"V{volume}", volume
             if set_to.get("K", "K0,0,0") != slide:
                 out, set_to["K"] = out + slide, slide
-            again = voice.get(at + length, (None,))[0] == pitch  # struck again at its end: not run into it
-            style = "ML" if piece >= LEGATO and not again else "MN"
-            if set_to.get("M", "MN") != style:
-                out, set_to["M"] = out + style, style
-            out += f"L{PIECES[piece].rstrip('.')}N{note}{dot}"
-        out, at = out + rest(length - piece), at + length
+            for piece, style in sounded(voice, at):
+                dot = "." if PIECES[piece].endswith(".") else ""
+                if set_to.get("M", "MN") != style:
+                    out, set_to["M"] = out + style, style
+                out, at = out + f"L{PIECES[piece].rstrip('.')}N{note}{dot}", at + piece
     set_to["at"] = at
     return out
 
 
 def sound(family: int) -> str:
-    """A program family's sound, in a room but for the bass."""
-    return ("" if family == BASS else "R2") + SOUNDS.get(family, DEFAULT_SOUND)
+    """A program family's sound."""
+    return SOUNDS.get(family, DEFAULT_SOUND)
 
 
 class Part(NamedTuple):
@@ -276,7 +299,7 @@ def program(
         for k, part in enumerate(keys)
     ]
     set_to: list[dict[str, int | str]] = [{} for _ in keys]
-    last = max(place + length for voice in lines for place, (_, length, _, _) in voice.items())
+    last = max(math.ceil(place + length) for voice in lines for place, (_, length, _, _) in voice.items())
     count = min(bars or sys.maxsize, -(-last // grid))
     tempo = max(32, min(255, round(song.tempo)))
     out = ["' " + ", ".join(f"voice {k + 1}: {part.name}" for k, part in enumerate(keys))]

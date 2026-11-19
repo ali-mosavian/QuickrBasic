@@ -74,27 +74,50 @@ def struck() -> bytes:
     return b"MThd" + head + notes
 
 
+def lengths() -> bytes:
+    """A sixteenth and a half long, a rest, nine sixteenths long, and at its end a sixteenth a tone up."""
+    notes = track(
+        [
+            (0, bytes([0x90, 60, 100])),
+            (9, bytes([0x80, 60, 0])),
+            (15, bytes([0x90, 62, 100])),
+            (54, bytes([0x80, 62, 0])),
+            (0, bytes([0x90, 64, 100])),
+            (6, bytes([0x80, 64, 0])),
+        ]
+    )
+    head = (6).to_bytes(4, "big") + (1).to_bytes(2, "big") + (1).to_bytes(2, "big") + (24).to_bytes(2, "big")
+    return b"MThd" + head + notes
+
+
 def main() -> None:
+    # a note sounds as long as it is written, by its length and its style (MS three quarters, MN seven eighths, ML
+    # all): one of a sixteenth and a half sounded an eighth's seven eighths, through a recording's 40 ms silences,
+    # and one of nine sixteenths a half note's eight, a held stab let go 0.15 s early: it is a half tied to a sixteenth
+    long = mid2play.program(mid2play.read(lengths()), 10, None, 16).splitlines()
+    assert long[2] == 'PLAY "V9MSL8N37P8MLL2N39L16N39L16N41P8"', long
     # a note struck again at its end is struck: sounded all its length (ML) the two ran into one, and an organ's
     # duh duh duuuh was a duuuh duuuh
     again = mid2play.program(mid2play.read(struck()), 10, None, 16).splitlines()
-    assert again[2:4] == ['PLAY "V9L2N37MLL2N37"', 'PLAY "MNL4N39P2."'], again
+    assert again[2:4] == ['PLAY "V9L2N37MLL2N37"', 'PLAY "L4N39P2."'], again
     # a note held over a bar line is held: it was cut at the line, and a brass chord a recording held into the next
     # bar stopped dead
     over = mid2play.program(mid2play.read(held()), 10, None, 16).splitlines()
-    # and a note of a half or more sounds all of it (ML): at PLAY's seven eighths a held chord fell a quarter of a
+    # and a note sounds all of it (ML): at PLAY's seven eighths a held chord fell a quarter of a
     # second before a recording's
-    assert over[2:4] == ['PLAY "P2.V9MLL2N37"', 'PLAY "P4MNL4N39P4"'], over
+    assert over[2:4] == ['PLAY "P2.V9MLL2N37"', 'PLAY "P4L4N39P4"'], over
     exe = Path(sys.argv[1] if len(sys.argv) > 1 else ROOT / "build/host/basic").resolve()
     text = mid2play.program(mid2play.read(song()), 10, None, 16)
     # a voice moved an octave: the E an octave down
     low = mid2play.program(mid2play.read(song()), 10, None, 16, {1: -12})
-    assert 'PLAY "V9L4N29P8V4K8,0,1L8N32.' in low, low
+    assert 'PLAY "V9MLL4N29P8V4K8,0,1L8N32.' in low, low
     # a voice's volume as asked is its loudest note's: these, at 100 of 127, are 0.62 of it
     quiet = mid2play.program(mid2play.read(song()), 10, None, 16, None, {1: 6})
-    assert 'PLAY "V4L4N41' in quiet, quiet
+    assert 'PLAY "V4MLL4N41' in quiet, quiet
     lines = text.splitlines()
-    assert lines[1].startswith('PLAY "MBT240R2W0Q20'), lines[1]
+    assert lines[1].startswith('PLAY "MBT240W0Q20'), lines[1]
+    # no voice in a room: a recording fell silent 130 ms after its full band, where a room's tail stood 20 dB under
+    assert "R" not in lines[1].replace("PLAY", ""), lines[1]
     # E above middle C is N41, G N44: a quarter, an eighth's rest, a dotted eighth, the bar's seven sixteenths of rest
     # a drum whose pitch slides is a sine alone: a kick's click, a modulator, slid with it, a chirp from 5 kHz down at
     # every kick, which no drum of a recording had
@@ -102,7 +125,7 @@ def main() -> None:
         assert "K0" in drum or "Z1,0" in drum, drum
     # an organ's stab is bright: a duller one, fit to an octave under the written, lost a recording's 350 to 1400 Hz
     # and wavers as a recording's held stab, 28 cents at its peak: with none, or U3's 7, the held chord sat still
-    assert mid2play.sound(2) == "R2W4Z1,4,3,13,4H0,4,11,1U9R0", mid2play.sound(2)
+    assert mid2play.sound(2) == "W4Z1,4,3,13,4H0,4,11,1U9", mid2play.sound(2)
     assert "U11" in mid2play.sound(7), mid2play.sound(7)
     # a note stops when it stops: a room on every voice, releases of a twentieth of a second and a hat a sixth of a
     # second long filled a recording's silences, its levels falling 12 dB in 23 ms where these fell 4
@@ -120,13 +143,13 @@ def main() -> None:
     assert "V11" in mid2play.KICK, mid2play.KICK
     # a voice a drum, set once: the kick, then the hat
     # with the hat under the kick, which the kit in one voice lost
-    assert lines[1].endswith('"T240Z1,0L16W4Z1,0H0,4,0,1Y0K1,8R0V11O1", "T240Z1,0L16W3H0,3,0,1Y3,3000,0K0R0V15O6"')
+    assert lines[1].endswith('"T240Z1,0L16W4Z1,0H0,4,0,1Y0K2,8V11O1", "T240Z1,0L16W3H0,3,0,1Y3,3000,0K0V15O6"')
     # a note is as loud as its velocity, squared: every track at one volume was not a recording's balance. The
     # volume is set where it changes, the G at 64 of 127 a quarter of full
     # a note bent under at its start slides up into its pitch: the wheel was not read, and a lead's every note sat
     # where a recording's scooped up four semitones
     # a chord's notes each have a voice: only the highest was kept, and a track's chords were their top notes alone
-    assert lines[2] == 'PLAY "V9L4N41P8V4K8,0,1L8N44.P4.P16", "V9L4N37P2.", "CP2.P8.", "CP8.CP2P8."', lines[2]
+    assert lines[2] == 'PLAY "V9MLL4N41P8V4K8,0,1L8N44.P4.P16", "V9MLL4N37P2.", "CP2.P8.", "CP8.CP2P8."', lines[2]
     wide = mid2play.program(mid2play.read(song()), 10, None, 16, None, None, 8)
     assert "K8,0,4L8N44." in wide, wide
     hats = mid2play.bar_of(dict.fromkeys(range(16), (42, 1, 15, "")), 0, 16, "C", {})
