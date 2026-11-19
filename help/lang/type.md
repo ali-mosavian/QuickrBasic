@@ -24,8 +24,10 @@ record holds exactly the sum of its elements' sizes, and that is what
 PUT and GET write. INTEGER takes 4 bytes here; use SHORT for a
 2-byte field to match files made by QBasic.
 
-TYPE goes at module level, before any use. Variable-length STRING
-elements are not allowed.
+TYPE goes at module level, before any use. A STRING element without
+* n holds a string of any length, as a variable does: QuickrBasic
+adds it. Copying the record copies its strings; PUT and GET refuse a
+record with one, its bytes not all its data.
 
 An element with bounds is a fixed array inside the record, as in
 QuickBASIC PDS: pts(1 TO 4) AS Pt. The bounds are numbers, the lower

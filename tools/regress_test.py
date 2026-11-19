@@ -1025,6 +1025,33 @@ CASES |= {
     "field_array_whole": (bas(*POLY, "p.pts.x = 2"), ".BAS:12: Syntax error", None),
 }
 
+# A STRING in a TYPE, ours, was 0 bytes: the field read "" and its writes were lost. Each copy of a
+# record, an array of them or a nested one owns its strings; GET and PUT refuse such a TYPE.
+ITEM = ("type Item", " nm as string", " tags(1 to 2) as string", " qty as long", "end type",
+        "type Box", " it as Item", " its(1) as Item", "end type")
+CASES |= {
+    "field_string": (bas(*ITEM, "declare sub greet (s as string)", "declare sub t ()",
+                         "dim a as Item, b as Item, bx as Box, cx as Box, xs(2) as Item, ys() as Item",
+                         'a.nm = "apple": a.tags(1) = "red": a.tags(2) = "sweet": a.qty = 3',
+                         'b = a: a.nm = "pear": a.tags(1) = "green"',
+                         'print b.nm; " "; b.tags(1); " "; b.tags(2); b.qty', 'print a.nm; " "; a.tags(1); len(a.nm)',
+                         'bx.it = a: bx.its(1).nm = "fig": cx = bx: bx.it.nm = "x": bx.its(1).nm = "y"',
+                         'print cx.it.nm; " "; cx.its(1).nm',
+                         'xs(1) = b: xs(1).tags(2) = "sour": print xs(1).nm; " "; xs(1).tags(2); " "; b.tags(2)',
+                         'ys() = xs(): xs(1).nm = "z": print ys(1).nm; " "; ys(1).tags(2)',
+                         "redim preserve ys(5): print ys(1).nm", "greet a.nm: print a.nm",
+                         'swap a.nm, b.nm: print a.nm; " "; b.nm',
+                         'for i = 1 to 2000: b.nm = string$(100, "q"): next',
+                         'print a.nm; " "; b.tags(1); " "; cx.its(1).nm; " "; ys(1).tags(2)',
+                         "t: t: f& = fre(-1): for i = 1 to 100: t: next: print fre(-1) = f&", "end",
+                         'sub greet (s as string): s = "hello " + s: end sub',
+                         'sub t: dim r as Item: r.nm = string$(1000, "x"): r.tags(2) = r.nm: end sub'),
+                     "apple red sweet 3 \r\npear green 4 \r\npear fig\r\napple sour sweet\r\napple sour\r\n"
+                     "apple\r\nhello pear\r\napple hello pear\r\napple red fig sour\r\n-1 \r\n", "ERROR"),
+    "field_string_put": (bas(*ITEM, "dim a as Item", 'open "x" for binary as 1: put 1, , a'),
+                         ".BAS:11: Type mismatch", None),
+}
+
 # Typed at the prompt, not run as a file.
 REPL = {
     # A direct line ran from DCODE, its statement map's place: nothing printed.

@@ -91,9 +91,15 @@ static RecRef whole(Comp *const C, const uint8_t t, const uint16_t off)
     return (RecRef){.et = ET_REC + t, .off = off, .fix = decl_type(C->decl, t)->size};
 }
 
+/* A STRING field's, ours: a Desc, not STRING * n's chars. */
+static bool desc_field(const RecRef *const r) { return r->et == ET_SD && !r->fix; }
+
 /* A record's place: its bytes. */
 static uint32_t field_size(const RecRef *const r)
 {
+    if (desc_field(r))
+        return DSZ;
+
     return r->et >= ET_REC || r->et == ET_SD ? r->fix : decl_etsize[r->et];
 }
 
@@ -388,7 +394,11 @@ Node *ref_place(Comp *const C, uint32_t *const vk)
 
     if (r != nullptr) {
         const RecRef *const rec = &r->rec;
-        *vk = va_pack(rec->et == ET_I2 ? VA_I2 : VA_RAW, field_size(rec));
+
+        if (rec->et >= ET_REC && decl_type(C->decl, rec->et - ET_REC)->nstr) /* its bytes not all */
+            mismatch(C);
+
+        *vk = desc_field(rec) ? va_pack(VA_DESC, 0) : va_pack(rec->et == ET_I2 ? VA_I2 : VA_RAW, field_size(rec));
         return r;
     }
 
@@ -434,7 +444,7 @@ bool ref_len(Comp *const C, uint32_t *const size)
 
         if (r != nullptr) {
             *size = field_size(&r->rec);
-            found = comp_cur(C) == ')';
+            found = comp_cur(C) == ')' && !desc_field(&r->rec);
         } else { /* a scalar: % 2, & ! 4, # 8 */
             const uint16_t id = comp_var(C, 0, 0);
 

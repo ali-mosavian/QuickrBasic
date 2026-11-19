@@ -1068,6 +1068,21 @@ void exec_r_copy(Session *const S)
     copy_mem(a, b, exec_u16(&S->vm));
 }
 
+/* a = b of records of a TYPE with STRINGs ( a b t -- ), ours: b's bytes over a's, then a's STRINGs
+   its own copies. */
+void exec_r_copys(Session *const S)
+{
+    const TypeDef *const td = decl_type(&S->decl, (uint16_t)exec_pop(&S->vm).u);
+    const Addr b = exec_popa(&S->vm);
+    const Addr a = exec_popa(&S->vm);
+
+    if (a == b)
+        return;
+
+    copy_mem(a, b, td->size);
+    strg_copy_owned(&S->strg, a, b, td->strs, td->nstr);
+}
+
 void exec_r_clear(Session *const S)
 {
     const uint32_t n = exec_pop(&S->vm).u;
@@ -1156,18 +1171,31 @@ void exec_sf_ld(Session *const S)
 {
     const uint16_t off = exec_u16(&S->vm);
     const uint16_t n = exec_u16(&S->vm);
+
+    if (!n) { /* a STRING's, ours: its Desc */
+        S->vm.sp->a += off;
+        return;
+    }
+
     const Addr chars = strg_alloc(&S->strg, n); /* the record does not move */
     const Addr a = exec_popa(&S->vm) + off;
     memcpy(at(chars), at(a), n);
     exec_pusha(&S->vm, strg_new(&S->strg, chars, n));
 }
 
-/* Into a STRING * n field: cut, or padded with spaces. */
+/* Into a STRING * n field: cut, or padded with spaces; a STRING's, ours, as a variable's. */
 void exec_sf_st(Session *const S)
 {
-    const Desc s = strg_get(&S->strg, exec_popa(&S->vm));
+    const Addr v = exec_popa(&S->vm);
     const Addr a = exec_popa(&S->vm) + exec_u16(&S->vm);
     const uint16_t n = exec_u16(&S->vm);
+
+    if (!n) {
+        strg_set(&S->strg, v, a);
+        return;
+    }
+
+    const Desc s = strg_get(&S->strg, v);
     const uint16_t k = s.len < n ? s.len : n;
     memcpy(at(a), at(s.ptr), k);
     memset(at(a + k), ' ', n - k);

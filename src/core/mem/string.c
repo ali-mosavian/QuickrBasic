@@ -290,3 +290,15 @@ void strg_move(const Strg *const sg, const Addr from, const Addr to)
     if (d.len && d.ptr >= sg->allo->strings && d.ptr < sg->allo->top)
         strg_own(d.ptr, d.len, to);
 }
+
+void strg_copy_owned(Strg *const sg, const Addr dst, const Addr src, const uint16_t *const offs, const uint32_t n)
+{
+    for (uint32_t i = 0; i < n; i++)
+        strg_set(sg, src + offs[i], dst + offs[i]);
+}
+
+void strg_move_owned(const Strg *const sg, const Addr dst, const Addr src, const uint16_t *const offs, const uint32_t n)
+{
+    for (uint32_t i = 0; i < n; i++)
+        strg_move(sg, src + offs[i], dst + offs[i]);
+}

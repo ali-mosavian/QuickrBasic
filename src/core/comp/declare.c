@@ -550,7 +550,21 @@ static uint32_t decl_fielddims(DeclScan *const ds, Field *const f, const FieldDi
     return (uint32_t)elems;
 }
 
-/* In a TYPE: f[(bounds)] AS type [* n]; the bounds ours. */
+/* Field f's STRINGs, of elems elements of size bytes, on td's list: a STRING's Desc, a record's
+   STRINGs. */
+static void decl_fieldstrs(DeclScan *const ds, TypeDef *const td, const Field *const f, const uint32_t elems, const uint32_t size)
+{
+    const TypeDef *const sub = f->sub ? ds->d->types[f->sub] : nullptr;
+    const uint32_t per = sub ? sub->nstr : f->et == ET_SD && !f->fix;
+
+    for (uint32_t k = 0; k < elems && per; k++)
+        for (uint32_t i = 0; i < per; i++) {
+            decl_room(ds, (void **)&td->strs, td->nstr, &td->strcap, sizeof *td->strs);
+            td->strs[td->nstr++] = (uint16_t)(f->off + k * size + (sub ? sub->strs[i] : 0));
+        }
+}
+
+/* In a TYPE: f[(bounds)] AS type [* n]; the bounds ours, STRING alone ours. */
 static void decl_field(DeclScan *const ds)
 {
     const uint16_t t = ds->d->type;
@@ -607,16 +621,21 @@ static void decl_field(DeclScan *const ds)
         ds->at += 2;
 
         if (f->et == ET_SD) {
-            size = 0;
+            size = DSZ; /* STRING alone: its Desc */
 
-            if (*ds->at == TK_MUL && ds->at[1] == M_INT) /* STRING * n */
+            if (*ds->at == TK_MUL && ds->at[1] == M_INT) { /* STRING * n */
                 size = f->fix = (uint16_t)load32(ds->at + 2);
+
+                if (!size)
+                    decl_fail(ds, E_IQ);
+            }
         }
     }
 
     if (td->size + (uint64_t)size * elems > UINT16_MAX)
         decl_fail(ds, E_OM);
 
+    decl_fieldstrs(ds, td, f, elems, size);
     td->size += (uint16_t)(size * elems);
 }
 

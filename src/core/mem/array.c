@@ -367,6 +367,18 @@ uint32_t arry_free(Arry *const ay, Vm *const vm, const uint16_t id, const Addr r
 
 /* ---- a() = b(), ours ------------------------------------------------------------------------ */
 
+/* Array id's TYPE, its elements holding STRINGs, ours; null: none. */
+static const TypeDef *arry_strtype(const Arry *const ay, const uint16_t id)
+{
+    const Var *const v = symb_var(ay->symb, id);
+
+    if (v->type < ET_REC)
+        return nullptr;
+
+    const TypeDef *const td = decl_type(ay->decl, v->type - ET_REC);
+    return td->nstr ? td : nullptr;
+}
+
 /* Array dst, assigned a whole array: its own freed, dynamic after. Duplicate definition: a DIM's
    with elements, whose bounds stay. */
 static void arry_assigned(Arry *const ay, Vm *const vm, const uint16_t dst)
@@ -407,9 +419,14 @@ void arry_copy(Arry *const ay, Vm *const vm, const uint16_t dst, const uint16_t 
     const Addr from = arry_hdr_at(s->hdr)->data, to = arry_hdr_at(d->hdr)->data;
     const uint32_t size = arry_size(ay, src, s->hdr);
     const Var *const v = symb_var(ay->symb, src);
+    const TypeDef *const td = arry_strtype(ay, src);
 
     if ((v->info & (SK_DBL | VK_MASK)) != VK_STR || v->type >= ET_REC) {
         copy_mem(to, from, size);
+
+        for (uint32_t k = 0; td && k < size; k += td->size) /* a record's STRINGs its own */
+            strg_copy_owned(ay->strg, to + k, from + k, td->strs, td->nstr);
+
         return;
     }
 
@@ -473,6 +490,7 @@ void arry_keep(Arry *const ay, const uint16_t id, const Addr old_hdr, const Addr
     const uint32_t esize = arry_esize(ay, id);
     const Var *const v = symb_var(ay->symb, id);
     const bool strings = (v->info & (SK_DBL | VK_MASK)) == VK_STR && v->type < ET_REC;
+    const TypeDef *const td = arry_strtype(ay, id);
     const uint32_t total = arry_elem_count(old);
 
     for (uint32_t k = 0; k < total; k++) {
@@ -488,6 +506,8 @@ void arry_keep(Arry *const ay, const uint16_t id, const Addr old_hdr, const Addr
             strg_move(ay->strg, src, dst); /* its block moves too */
         else
             copy_mem(dst, src, esize);
+        if (td) /* a record's STRINGs, ours: their blocks' owners follow */
+            strg_move_owned(ay->strg, dst, src, td->strs, td->nstr);
     }
 }
 

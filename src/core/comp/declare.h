@@ -24,11 +24,14 @@ typedef struct {
     uint16_t dim; /* its first in Decl.dims */
 } Field;
 
-/* A TYPE: its name, its fields, its bytes as QBasic lays them. */
+/* A TYPE: its name, its fields, its bytes as QBasic lays them; ours, its STRINGs' Desc offsets,
+   its records' and arrays' too. */
 typedef struct {
     uint16_t name, nfld, size;
     uint32_t cap;
     Field *fields;
+    uint32_t nstr, strcap;
+    uint16_t *strs;
 } TypeDef;
 
 /* A DEFtype line: the DEFtypes from it on. */

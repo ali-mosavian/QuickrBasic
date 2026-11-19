@@ -783,7 +783,8 @@ void ctrl_recstore(Comp *const C)
     comp_byte(n, et);
 }
 
-/* ct_rcopy: a = b of two records of one TYPE: their addresses, a field's offset added, R.COPY. */
+/* ct_rcopy: a = b of two records of one TYPE: their addresses, a field's offset added, R.COPY; a
+   TYPE with STRINGs, ours: its index, CALL RCOPY. */
 static bool reccopy(Comp *const C)
 {
     const uint8_t *const p = C->p;
@@ -795,8 +796,16 @@ static bool reccopy(Comp *const C)
         Node *const b = comp_cur(C) == M_VAR ? ref_record(C) : nullptr;
 
         if (b != nullptr && b->rec.et == rec.et && comp_end(C)) {
+            const uint8_t t = (uint8_t)(rec.et - ET_REC);
             comp_step(C, expr_addr(C, a, 0));
             comp_step(C, expr_addr(C, b, 0));
+
+            if (decl_type(C->decl, t)->nstr) {
+                comp_int(C, t);
+                comp_call(C, K_RCOPY);
+                return true;
+            }
+
             comp_word(comp_op(C, O_R_COPY), rec.fix);
             return true;
         }
