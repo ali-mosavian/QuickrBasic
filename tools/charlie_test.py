@@ -50,7 +50,7 @@ FOR i = 1 TO 9000
     IF i MOD 30 = 0 THEN Render g, p, lo(), pt()
     IF g.mode <> PLAYING THEN EXIT FOR
 NEXT
-PRINT "result"; g.mode; g.lives; g.beads; loops; CINT(p.x); CINT(p.y)
+PRINT "result"; g.mode; g.lives; g.bones; loops; CINT(p.x); CINT(p.y)
 END
 """
 
@@ -71,9 +71,9 @@ def main() -> None:
     words = out[out.rfind("result") :].split()
     if len(words) < 5 or words[1:3] != ["2", "3"] or words[4] != "5":
         sys.exit(
-            f"charlie: not cleared on the first life round 5 loops (mode, lives, beads, loops, x, y): {out[-300:]}"
+            f"charlie: not cleared on the first life round 5 loops (mode, lives, bones, loops, x, y): {out[-300:]}"
         )
-    print(f"charlie ok: cleared with {words[3]} beads")
+    print(f"charlie ok: cleared with {words[3]} bones")
 
 
 if __name__ == "__main__":

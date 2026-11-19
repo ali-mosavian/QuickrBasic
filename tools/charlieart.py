@@ -350,11 +350,14 @@ def earth(n: int) -> Pic:
 # ---- things and props ----
 
 
-def bead(rx: float) -> Pic:
+def bone(turn: float) -> Pic:
+    """A bone, turned: a shaft, two knobs an end."""
     p = Pic(10, 10)
-    p.ball(4.5, 4.5, rx, 3.6, GOLD, 0.15, 1.0)
-    if rx > 2:
-        p.put(3, 3, WHITE)
+    c, s = math.cos(turn), math.sin(turn)
+    p.line(4.5 - c * 2.4, 4.5 - s * 2.4, 4.5 + c * 2.4, 4.5 + s * 2.4, FUR[4], 2)
+    for end in (-2.6, 2.6):
+        for side in (-1.2, 1.2):
+            p.ball(4.5 + c * end - s * side, 4.5 + s * end + c * side, 1.3, 1.3, FUR, 0.5, 1.2)
     return p.outline()
 
 
@@ -533,7 +536,7 @@ def pictures() -> list[tuple[int, Pic, bool, int]]:
     assert len(frames) == nf
     out += [(ihero + f * 2, p, True, ihero + (nf + f) * 2) for f, p in enumerate(frames)]
     k = ihero + nf * 4
-    out += [(k + f * 2, bead(rx), True, -1) for f, rx in enumerate((3.6, 2.6, 1.0, 2.6))]
+    out += [(k + f * 2, bone(f * math.pi / 4), True, -1) for f in range(4)]
     out += [(k + 8 + f * 2, bug(f), True, k + 12 + f * 2) for f in range(2)]
     out += [(k + 16 + f * 2, spring(bool(f)), True, -1) for f in range(2)]
     out += [(k + 20 + f * 2, boost(f), True, -1) for f in range(2)]
