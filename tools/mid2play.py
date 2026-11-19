@@ -22,11 +22,11 @@ VOICES = 32
 KIT_CHANNEL = 9
 # a note of so many sixteenths: its PLAY length and dot
 PIECES = {16: "1", 12: "2.", 8: "2", 6: "4.", 4: "4", 3: "8.", 2: "8", 1: "16"}
-# a drum: what its voice is set to, then its note. A snare is all the noise, a hat what is over 4 kHz: a
+# a drum: what its voice is set to, then its note. A snare is all the noise, a hat what is over 600 Hz of its highest: a
 # recording's drums were in every band
-KICK = ("W4", "Z1,0", "H0,4,0,1", "Y0", "K2,8", "V11", "O1", "C")
+KICK = ("W4", "Z1,0", "H0,4,3,3", "Y0", "K1,8", "V12", "O1", "C")
 SNARE = ("W3", "H0,5,0,1", "Y0", "K0", "V15", "O6", "C")
-HAT = ("W3", "H0,3,0,1", "Y3,3000,0", "K0", "V15", "O6", "C")
+HAT = ("W3", "H0,3,0,1", "Y3,2500,0", "K0", "V13", "O6", "B")
 KIT = {35: KICK, 36: KICK, 38: SNARE, 40: SNARE} | {
     key: ("W4", "Z1,0", "H0,5,0,3", "Y0", "K5,6", "V14", "O2", note)
     for key, note in ((41, "C"), (43, "E"), (45, "G"), (47, "B"))

@@ -135,21 +135,23 @@ def main() -> None:
             r"H\d+,\d+,\d+,\d+",
             " ".join(
                 [mid2play.SOUNDS[family] for family in (0, 2, 4, 7, 8, 10)]
-                + ["".join(drum) for drum in (mid2play.KICK, mid2play.SNARE, mid2play.HAT)]
+                + ["".join(drum) for drum in (mid2play.SNARE, mid2play.HAT)]
             ),
         )
     )
-    # a kick under full: at V15 its 55 Hz stood 5 dB over a recording's
-    assert "V11" in mid2play.KICK, mid2play.KICK
+    # a kick is a thump and then a tail, as a recording's (22 dB under full, then 39, 36, 43 by 50 ms): one that only
+    # fell left silence between kicks. A hat is noise from 600 Hz up at the noise's highest pitch: over 3 kHz alone
+    # it had 10 to 20 dB less than a recording's under 1.3 kHz, and 3 dB less over 5 kHz
+    assert mid2play.HAT[-1] == "B" and "H0,4,3,3" in mid2play.KICK, (mid2play.HAT, mid2play.KICK)
     # a voice a drum, set once: the kick, then the hat
     # with the hat under the kick, which the kit in one voice lost
-    assert lines[1].endswith('"T240Z1,0L16W4Z1,0H0,4,0,1Y0K2,8V11O1", "T240Z1,0L16W3H0,3,0,1Y3,3000,0K0V15O6"')
+    assert lines[1].endswith('"T240Z1,0L16W4Z1,0H0,4,3,3Y0K1,8V12O1", "T240Z1,0L16W3H0,3,0,1Y3,2500,0K0V13O6"')
     # a note is as loud as its velocity, squared: every track at one volume was not a recording's balance. The
     # volume is set where it changes, the G at 64 of 127 a quarter of full
     # a note bent under at its start slides up into its pitch: the wheel was not read, and a lead's every note sat
     # where a recording's scooped up four semitones
     # a chord's notes each have a voice: only the highest was kept, and a track's chords were their top notes alone
-    assert lines[2] == 'PLAY "V9MLL4N41P8V4K8,0,1L8N44.P4.P16", "V9MLL4N37P2.", "CP2.P8.", "CP8.CP2P8."', lines[2]
+    assert lines[2] == 'PLAY "V9MLL4N41P8V4K8,0,1L8N44.P4.P16", "V9MLL4N37P2.", "CP2.P8.", "BP8.BP2P8."', lines[2]
     wide = mid2play.program(mid2play.read(song()), 10, None, 16, None, None, 8)
     assert "K8,0,4L8N44." in wide, wide
     hats = mid2play.bar_of(dict.fromkeys(range(16), (42, 1, 15, "")), 0, 16, "C", {})
