@@ -117,9 +117,10 @@ type Cue
     a as integer
 end type
 
-' Who flees with a keepsake at an act's end: x, y the foot of its cart, v its speed, t the seconds its last bump
-' or its breaking still tells, hits its bumps. st: 0 waiting, 1 fleeing, 2 broken and the keepsake lying, 3 the
-' keepsake taken back.
+' Who flees with a keepsake at an act's end: x, y the foot of its cart, or the floor under its crane, v its speed,
+' t the seconds its last bump or its breaking still tells, hits its bumps. st: 0 waiting, 1 fleeing, 2 broken and
+' the keepsake lying, 3 the keepsake taken back. A crane's crate is one too: x, y its foot, v its fall, t the
+' seconds to its next step. st: 0 on the hook once t is out, 1 held over Charlie, 2 falling.
 type Runner
     x as single
     y as single
@@ -190,7 +191,9 @@ const IBASKET = IBARON + 4
 ' Biscuit's honey cart less its wheels, as it goes and bumped: level, then leaning half a gentle slope's fall and
 ' all of one's, CARTLEAN higher over and under each time; then its wheel at two turns. Its wheels are WHEELS
 ' either side of its middle.
-const ICART = IBASKET + 2, ICARTW = ICART + 12, NIMG = ICARTW + 4, CARTW = 56, CARTH = 34, CARTLEAN = 7, WHEELS = 13
+const ICART = IBASKET + 2, ICARTW = ICART + 12, CARTW = 56, CARTH = 34, CARTLEAN = 7, WHEELS = 13
+' Sprocket's crane as it goes and bumped, a length of its rail, its crate, the toolbox.
+const ICRANE = ICARTW + 4, IRAIL = ICRANE + 4, IWBOX = IRAIL + 2, ITOOLS = IWBOX + 2, NIMG = ITOOLS + 2
 const HUDW = 108, HUDH = 40
 ' The levels: the two zones, then each again at another hour, in other colours.
 ' the stages played, and after them the intro's road
@@ -213,6 +216,12 @@ const BARKR = 72, BARKT = .4, FLINCH = 24
 ' it; its tune's number in CHARLIE.DAT.
 const CRUISE = 330!, DAWDLE = 200!, BOLT = 560!, CARTLEAD = 260, CARTR = 26
 const DAZED = 1.4, BOLTS = 1!, NBUMP = 3, CHASETUNE = 5
+' The works' crane: its speed after Charlie, what each bump adds, and away from one; how near touches it; its
+' gondola's foot over the floor, out of a jump's reach, and its rail's top; the seconds to its next crate, what
+' each bump takes off them, and the seconds one is held over Charlie; the view's height over him, by habit and
+' under a crane; the seconds its keepsake falls.
+const CRANEV = 90!, CRANEUP = 25!, CRANEBOLT = 260!, CRANER = 22, CRANEH = 120, RAILUP = 164
+const RELOAD = 1.6, HASTE = .3, POISE = .6, HEAD = 124, HEADUP = 172, TOOLFALL = .4
 
 ' The palette's ramps, dark to light, as charlieart.py's.
 const CHUD = 0, CWHITE = 1, CINK = 2, CYELLOW = 3, CRED = 4
@@ -248,6 +257,14 @@ declare sub BreakCart (pt() as Part)
 declare sub TakeKeep (g as Game, pt() as Part)
 declare sub DrawCart (cx as integer, cy as integer)
 declare sub DrawWheels (x as integer, cy as integer)
+declare sub Bumped (g as Game, pt() as Part, y as single)
+declare sub MoveCrane (p as Hero)
+declare sub MeetCrane (g as Game, p as Hero, pt() as Part)
+declare sub DropBox (g as Game, p as Hero, lo() as Loose, pt() as Part)
+declare sub BreakBox (pt() as Part)
+declare sub DrawChase (cx as integer, cy as integer)
+declare sub DrawCrane (cx as integer, cy as integer)
+declare function Headroom% (p as Hero)
 declare sub Tint (k as integer, c as long)
 declare sub Shade ()
 declare function Met% (g as Game, p as Hero, k as Pad, pt() as Part)
@@ -411,7 +428,7 @@ dim shared DrVol(NSLOT - 1, NDRUM - 1) as integer, DrUp(NSLOT - 1, NDRUM - 1) as
 dim shared Sng as integer, Bar as integer, HalfBar as integer, Ended as integer
 dim shared Coming as integer, ComingBar as integer, FadeOut as integer, FadeIn as integer
 ' who flees in this level's chase, and the race: from ChaseX, NONE where there is none, to ChaseEnd
-dim shared Cart as Runner, ChaseX as integer, ChaseEnd as integer
+dim shared Cart as Runner, Box as Runner, ChaseX as integer, ChaseEnd as integer
 ' the song in the zone's slot, one more than its number in CHARLIE.DAT: 0 before any
 dim shared ZHeld as integer
 
@@ -476,7 +493,8 @@ data chase,156, flat,12, bones,8, dng,3, flat,16, dng,3, flat,16, bones,8, dng,3
 data bones,8, dng,2, flat,16, dng,2, flat,36
 data goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, "end",0
 
-' The Chrome Works by night.
+' The Chrome Works by night. chase: a hall that long, jets in its floor and hoops over them: Sprocket's crane
+' goes along its roof.
 Level4:
 data flat,4, dog,0, flat,8, bones,6, flat,6, boost,0, flat,6, loop,0, flat,6, boost,0, flat,6, loop,0, flat,16
 data mover,7, flat,8, bones,6, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0, flat,8
@@ -486,7 +504,9 @@ data jet,0, flat,3, bump,5, flat,3, bump,5, flat,8, lift,6, flat,8, bones,6, fla
 data dng,4, boost,0, bones,10, flat,10, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
 data up45,4, hoop,1, arc,11, pit,12, flat,10, mark,0, flat,6, cable,20, flat,8
 data boost,0, flat,6, pipe,5, flat,8, bones,6, flat,20, drop,4, flat,16, mover,8, flat,8
-data dng,3, boost,0, flat,8, loop,0, flat,10, spin,0, flat,8
+data dng,3, boost,0, flat,8, loop,0, flat,10, spin,0, flat,8, mark,0, flat,8
+data chase,96, flat,10, jet,0, flat,8, hoop,8, flat,8, jet,0, flat,16, jet,0, flat,8, hoop,8, flat,8, jet,0, flat,16
+data jet,0, flat,22
 data goal,0, flat,9, fam,0, flat,6, flat,5, "end",0
 
 ' The intro's road: the Downs, flat, the way the van goes; a rock where it bumps.
@@ -2402,7 +2422,7 @@ sub Pilot (p as Hero, k as Pad)
             i = i + 1
         loop
         ' who flees is rolled into, once there is the speed to roll
-        k.d = Cart.st = 1 and Cart.x > x and Cart.x - x < 120 and p.gsp > 150
+        k.d = Zone = 0 and Cart.st = 1 and Cart.x > x and Cart.x - x < 120 and p.gsp > 150
         ' a platform's gap ahead: slowly to its edge, there till the platform is at it and staying, then on
         for m = 0 to NMv - 1
             d = MvE(m) - x
@@ -3150,7 +3170,7 @@ sub Camera (g as Game, p as Hero, snap as integer)
     if v > 70 then v = 70
     if v < -70 then v = -70
     tx = p.x - SW \ 2 + v
-    ty = p.y - 124
+    ty = p.y - Headroom%(p)
     if snap then
         g.camx = tx
         g.camy = ty
@@ -3168,6 +3188,13 @@ sub Camera (g as Game, p as Hero, snap as integer)
     if g.camy > MH * TS - SH then g.camy = MH * TS - SH
 end sub
 
+' How far under the view's top Charlie is kept: further in a crane's hall while it hangs there, to see it.
+function Headroom% (p as Hero)
+    Headroom% = HEAD
+    if Zone = 0 or ChaseX = NONE or p.x < ChaseX or p.x > ChaseEnd then exit function
+    if Cart.st = 1 or Cart.st = 2 then Headroom% = HEADUP
+end function
+
 ' ---- the chase ----
 
 ' The chase as before Charlie came to it: who flees waiting a little way into the race, the zone's tune back. A
@@ -3180,11 +3207,13 @@ sub ResetChase
     Cart.t = 0
     Cart.x = ChaseX + CARTLEAD
     Cart.y = ColTop(cint(Cart.x) \ TS) * TS
+    Box.st = 0
+    Box.t = RELOAD
     ZoneTune TuneOf%(Stage)
 end sub
 
-' A step of the chase, by its state: begun as Charlie comes to the race; then the cart flees him and he may meet
-' it; broken, its keepsake is his when he reaches it.
+' A step of the chase, by its state: begun as Charlie comes to the race; then who flees does, by its zone, and he
+' may meet it; broken, its keepsake is his when he reaches it.
 sub Flee (g as Game, p as Hero, lo() as Loose, pt() as Part)
     if ChaseX = NONE then exit sub
     if Cart.t > 0 then Cart.t = Cart.t - STEPT
@@ -3192,9 +3221,16 @@ sub Flee (g as Game, p as Hero, lo() as Loose, pt() as Part)
     case 0
         if p.x >= ChaseX then StartChase
     case 1
-        MoveCart p
-        MeetCart g, p, lo(), pt()
+        if Zone then
+            MoveCrane p
+            MeetCrane g, p, pt()
+            DropBox g, p, lo(), pt()
+        else
+            MoveCart p
+            MeetCart g, p, lo(), pt()
+        end if
     case 2
+        if Zone = 1 and Cart.t > 2 - TOOLFALL then exit sub
         ' over it will do: he comes down off the last bump past it
         if abs(p.x - Cart.x) < 16 and p.y > Cart.y - 90 and p.y < Cart.y + 8 then TakeKeep g, pt()
     end select
@@ -3237,20 +3273,25 @@ sub MeetCart (g as Game, p as Hero, lo() as Loose, pt() as Part)
         Hurt g, p, cint(Cart.x), lo(), SHISS
         exit sub
     end if
-    Cart.hits = Cart.hits + 1
-    Cart.t = DAZED
-    g.score = g.score + 500
-    g.shake = .2
-    Burst pt(), Cart.x + 0, Cart.y - 20, 12, 150, CYELLOW
-    Sfx SBUMP
+    Bumped g, pt(), Cart.y - 20
     p.ground = 0
     p.jumped = 0
     p.vx = -120
     p.vy = -BOUNCEV
+end sub
+
+' A bump told, its sparks at height y: who flees is dazed, and broken by its last.
+sub Bumped (g as Game, pt() as Part, y as single)
+    Cart.hits = Cart.hits + 1
+    Cart.t = DAZED
+    g.score = g.score + 500
+    g.shake = .2
+    Burst pt(), Cart.x + 0, y, 12, 150, CYELLOW
+    Sfx SBUMP
     if Cart.hits >= NBUMP then BreakCart pt()
 end sub
 
-' The cart in bits, the cat off and the keepsake left lying; the zone's tune again.
+' Who flees is broken and the keepsake left lying; the zone's tune again.
 sub BreakCart (pt() as Part)
     Cart.st = 2
     Cart.t = 2
@@ -3265,11 +3306,20 @@ sub TakeKeep (g as Game, pt() as Part)
     Sfx SMARK
 end sub
 
-' Who flees, by the chase's state: the cart, a pip over it for each bump it can still take; broken, the keepsake
-' where it fell, and the cat making off a while.
+' Who flees, by its zone; nothing once its keepsake is taken back.
+sub DrawChase (cx as integer, cy as integer)
+    if ChaseX = NONE or Cart.st = 3 then exit sub
+    if Zone then
+        DrawCrane cx, cy
+    else
+        DrawCart cx, cy
+    end if
+end sub
+
+' The cart, a pip over it for each bump it can still take; broken, the keepsake where it fell, and the cat making
+' off a while.
 sub DrawCart (cx as integer, cy as integer)
     dim x as integer, y as integer, i as integer
-    if ChaseX = NONE or Cart.st = 3 then exit sub
     x = cint(Cart.x) - cx
     y = cint(Cart.y) - cy
     if Cart.st = 2 then
@@ -3301,6 +3351,102 @@ sub DrawWheels (x as integer, cy as integer)
     k = ICARTW + ((cint(Cart.x) \ 8) and 1) * 2
     Blit x - WHEELS - 6, ya - cy - 12, k, 13, 13
     Blit x + WHEELS - 6, yb - cy - 12, k, 13, 13
+end sub
+
+' ---- the works' chase ----
+
+' The crane along its rail, kept to the hall: after Charlie, to be over him, faster for each bump, and still while
+' it holds a crate over him; bumped, still a while, then off from him at speed.
+sub MoveCrane (p as Hero)
+    dim want as single, dir as integer
+    dir = sgn(p.x - Cart.x)
+    want = dir * (CRANEV + CRANEUP * Cart.hits)
+    if Box.st = 1 then want = 0
+    if Cart.t > 0 then want = CRANEBOLT * (2 * (dir > 0) + 1)
+    if Cart.t > BOLTS then want = 0
+    Cart.v = Cart.v + (want - Cart.v) * 5 * STEPT
+    Cart.x = Cart.x + Cart.v * STEPT
+    if Cart.x < ChaseX + 40 then Cart.x = ChaseX + 40
+    if Cart.x > ChaseEnd - 40 then Cart.x = ChaseEnd - 40
+end sub
+
+' Charlie thrown up to the crane: in the air at its gondola he bumps it and is knocked aside, out of a jet's way,
+' and down, or up off it if he came down on it; its crate is lost.
+sub MeetCrane (g as Game, p as Hero, pt() as Part)
+    dim foot as single
+    if Cart.t > BOLTS or p.dead or p.ground then exit sub
+    foot = Cart.y - CRANEH
+    if abs(p.x - Cart.x) > CRANER or p.y - 26 > foot or p.y < foot - 24 then exit sub
+    if Box.st > 0 or Box.t <= 0 then BreakBox pt()
+    Bumped g, pt(), foot - 12
+    p.vx = 140 * (2 * (p.x <= Cart.x) + 1)
+    p.vy = 160
+    if p.y < foot - 14 then p.vy = -200
+end sub
+
+' The crane's crate, by its state: on the hook, and held still once it is over Charlie; let go a moment later; then
+' falling, to hurt him if it meets him and to break on the floor.
+sub DropBox (g as Game, p as Hero, lo() as Loose, pt() as Part)
+    if Box.t > 0 then Box.t = Box.t - STEPT
+    select case Box.st
+    case 0
+        Box.x = Cart.x
+        Box.y = Cart.y - CRANEH + 16
+        if Box.t <= 0 and Cart.t <= 0 and abs(p.x - Cart.x) < 10 then
+            Box.st = 1
+            Box.t = POISE
+        end if
+    case 1
+        if Box.t <= 0 then
+            Box.st = 2
+            Box.v = 0
+        end if
+    case 2
+        Box.v = Box.v + GRAV * STEPT
+        Box.y = Box.y + Box.v * STEPT
+        if abs(p.x - Box.x) < 14 and p.y > Box.y - 16 and p.y - 26 < Box.y and not p.dead then
+            Hurt g, p, cint(Box.x), lo(), SHISS
+            BreakBox pt()
+        elseif Box.y >= Cart.y then
+            BreakBox pt()
+        end if
+    end select
+end sub
+
+' The crate in bits where it is, the next a while off: sooner for each bump the crane has had.
+sub BreakBox (pt() as Part)
+    Burst pt(), Box.x + 0, Box.y - 8, 10, 140, CEARTH + 4
+    Sfx SPOP
+    Box.st = 0
+    Box.t = RELOAD - HASTE * Cart.hits
+end sub
+
+' The rail over the hall and the crane on it, a pip over it for each bump it can still take, its crate on the hook
+' or falling; broken, its lamp out and the toolbox fallen from it.
+sub DrawCrane (cx as integer, cy as integer)
+    dim x as integer, y as integer, i as integer, fy as integer, a as integer, b as integer
+    x = cint(Cart.x) - cx
+    fy = cint(Cart.y) - cy
+    y = fy - RAILUP
+    a = (cx - ChaseX) \ 32
+    if a < 0 then a = 0
+    b = (cx + SW - ChaseX) \ 32
+    if b > (ChaseEnd - ChaseX) \ 32 - 1 then b = (ChaseEnd - ChaseX) \ 32 - 1
+    for i = a to b
+        Blit ChaseX + i * 32 - cx, y, IRAIL, 32, 8
+    next
+    Blit x - 22, y - 2, ICRANE - 2 * (Cart.st = 2 or Cart.t > BOLTS), 44, 46
+    if Cart.st = 2 then
+        i = cint((Cart.t - 2 + TOOLFALL) * CRANEH / TOOLFALL)
+        if i < 0 then i = 0
+        Blit x - 10, fy - 13 - i - ((Ticks \ 16) and 1), ITOOLS, 20, 14
+        exit sub
+    end if
+    for i = Cart.hits to NBUMP - 1
+        line (x - 10 + i * 8, y - 7)-(x - 6 + i * 8, y - 3), CYELLOW, BF
+    next
+    if Box.st = 0 and Box.t > 0 then exit sub
+    Blit cint(Box.x) - cx - 8 + (Box.st = 1) * ((Ticks \ 3) and 1), cint(Box.y) - cy - 16, IWBOX, 16, 16
 end sub
 
 ' ---- the intro ----
@@ -3521,7 +3667,7 @@ sub Render (g as Game, p as Hero, lo() as Loose, pt() as Part)
     DrawThings cx, cy, 0
     if NMv then DrawCables cx, cy
     if LooseN then DrawLoose cx, cy, lo()
-    DrawCart cx, cy
+    DrawChase cx, cy
     DrawHero p, cx, cy
     DrawOver cx, cy
     if p.barkT > BARKT - .2 then DrawBark p, cx, cy

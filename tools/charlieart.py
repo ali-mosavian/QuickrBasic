@@ -2189,6 +2189,81 @@ def hoop(lit: bool) -> Pic:
     return p.outline()
 
 
+STEELBOX = [CHROME[0], CHROME[1], CHROME[2], CHROME[4]]
+BLUEBOX = [PANEL[0], PANEL[1], PANEL[3], PANEL[5]]
+
+
+def stripes(p: Pic, x0: int, y0: int, x1: int, y1: int) -> None:
+    """A hazard band: yellow and dark, slanted."""
+    for y in range(y0, y1 + 1):
+        for x in range(x0, x1 + 1):
+            p.put(x, y, HAZARD[1] if (x + y) // 3 % 2 else DARK[0])
+
+
+def gondola(hit: bool) -> Pic:
+    """Sprocket's crane, 44 by 46: a trolley clamped on the rail, two cables, the gondola slung from them with the
+    cat at its rail in a hard hat, a lamp at its bow and a hook under; hit: bumped, the cat off its feet, its hat
+    off its head and the lamp out."""
+    p = Pic(44, 46)
+    slab(p, 8, 1, 35, 10, STEELBOX)
+    stripes(p, 10, 5, 33, 7)
+    for x in (12, 31):  # a wheel each end, on the rail's top
+        p.ball(x, 2.5, 2.6, 2.6, METAL, 0.3, 1.0)
+    for x in (14, 29):
+        p.box(x, 11, x, 20, CHROME[3])
+    p.box(8, 20, 35, 21, CHROME[3])  # the gondola's frame: a bar and a post each end
+    for x in (9, 34):
+        p.box(x, 22, x, 30, CHROME[2])
+    paste(p, startled() if hit else cat(0), 12, 16 if hit else 19)
+    hy = 13 if hit else 20  # its hard hat: on its head, or knocked off it
+    p.box(25, hy, 29, hy + 1, HAZARD[1])
+    p.box(26, hy, 27, hy, HAZARD[0])
+    p.box(24, hy + 2, 31, hy + 2, HAZARD[2])
+    slab(p, 6, 30, 37, 41, BLUEBOX)
+    stripes(p, 8, 35, 35, 37)
+    p.box(38, 32, 39, 33, DARK[1] if hit else LAMP[0])
+    p.box(21, 42, 22, 44, CHROME[3])  # the hook
+    p.put(20, 44, CHROME[3])
+    return p.outline()
+
+
+def girder() -> Pic:
+    """A length of the crane's rail, 32 by 8: two flanges and a lattice between, open."""
+    p = Pic(32, 8)
+    p.box(0, 0, 31, 0, CHROME[4])
+    p.box(0, 1, 31, 1, CHROME[2])
+    p.box(0, 6, 31, 6, CHROME[2])
+    p.box(0, 7, 31, 7, CHROME[0])
+    for x in range(32):
+        d = x % 8
+        p.put(x, 2 + min(d, 7 - d), CHROME[1])
+    return p
+
+
+def woodbox() -> Pic:
+    """A crate of the works, 16 square: planks, braced corner to corner, steel at its corners."""
+    p = Pic(16, 16)
+    slab(p, 1, 1, 14, 14, WOOD)
+    for i in range(3, 13):
+        p.put(i, i, WOOD[0])
+        p.put(15 - i, i, WOOD[0])
+    for x, y in ((1, 1), (13, 1), (1, 13), (13, 13)):
+        p.box(x, y, x + 1, y + 1, CHROME[3])
+    return p.outline()
+
+
+def toolbox() -> Pic:
+    """The bearded one's toolbox: red, a lid's seam, a latch and a handle over it."""
+    p = Pic(20, 14)
+    p.box(7, 1, 12, 1, CHROME[3])
+    for x in (6, 13):
+        p.box(x, 2, x, 3, CHROME[3])
+    slab(p, 1, 4, 18, 12, SCARF)
+    p.box(1, 7, 18, 7, SCARF[0])
+    p.box(9, 6, 10, 8, GOLD[3])
+    return p.outline()
+
+
 OWN: list[set[int]] = [set(), set()]  # the pictures only one zone shows: they may use that zone's own colours
 
 
@@ -2261,7 +2336,7 @@ def pictures() -> list[tuple[int, Pic, bool, int]]:
         for c in range(4):
             out.append((b + ((kind - 2) * 4 + c) * 2, span(kind, c), True, -1))
             out.append((b + 48 + ((kind - 2) * 4 + c) * 2, span(kind, c, 1), True, -1))
-    OWN[1].update({*range(z - 9, z + 94), z + 116, z + 118, *range(b, b + 96)})
+    OWN[1].update({*range(z - 9, z + 94), z + 116, z + 118, *range(b, b + 96), z + 642, z + 644})
     # Amber Downs' own: its backdrop, hills, loop and ribbon where the game once built them, then its ground by
     # the comb's column of 4 and row of 3: flats, each slope and the tile under it, the comb alone, pipes, a raft
     out += [(0, downs(), False, -1), (1, hills(), True, -1)]
@@ -2282,6 +2357,9 @@ def pictures() -> list[tuple[int, Pic, bool, int]]:
     # the cart level, leaning half a gentle slope's fall and all of one's, each as it goes and bumped; its wheel
     out += [(z + 626 + (t * 2 + h) * 2, cart(bool(h), t), True, -1) for t in range(3) for h in range(2)]
     out += [(z + 638 + f * 2, cartwheel(f), True, -1) for f in range(2)]
+    # the works' crane, as it goes and bumped; its rail, its crate, the toolbox
+    out += [(z + 642 + h * 2, gondola(bool(h)), True, -1) for h in range(2)]
+    out += [(z + 646, girder(), True, -1), (z + 648, woodbox(), True, -1), (z + 650, toolbox(), True, -1)]
     # Charlie round a twist: 12 turns of two strides, their mirrors facing left
     out += [
         (z + 498 + (n * 2 + f) * 2, turned(frames[5 + f * 3], n, f), True, z + 546 + (n * 2 + f) * 2)

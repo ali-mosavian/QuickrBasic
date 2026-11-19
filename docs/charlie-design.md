@@ -101,8 +101,9 @@ Progress is saved at each zone.
   rails, safe while dark.
 - Act 1, dusk: the gadgets one at a time.
 - Act 2, night: gadgets chained, with timed presses to add.
-- Chase, to add: Sprocket on the overhead crane, out of reach of a run. Jets and hoops throw Charlie up to
-  him; he drops crates. The bearded one's toolbox.
+- Chase (built): Sprocket on the overhead crane, out of reach of a jump, in a hall of jets and hoops. They
+  throw Charlie up to it; it follows him and drops crates. Bumped three times it sticks and lets the bearded
+  one's toolbox fall.
 - Look: plated deck, hazard stripe, running lights. Steel blue, chrome, signal yellow. The skyline and the
   works' stacks.
 - Music (written): machine funk in E minor at 132. A pulse bass in sixteenths that never stops, clavinet

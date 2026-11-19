@@ -531,6 +531,110 @@ for j = 0 to 1
 next
 if was then print "tilt ok"
 was = 0
+' the works' night ends under Sprocket's crane, on a rail over a hall. The view holds the rail while it is fought; a
+' jump does not reach it; a jet's throw does and bumps it: it is dazed and Charlie knocked back down
+GoStage 3, g, p, lo(), pt()
+for j = 0 to NObj - 1
+    if ObK(j) = KJET and ObX(j) > ChaseX then exit for
+next
+c = ObX(j)
+Stand p, c - 40, 0
+Tick g, p, k, lo(), pt()
+Box.t = 9
+k.hit = -1
+k.jump = -1
+m = 0
+for i = 1 to 70
+    Cart.x = p.x
+    Tick g, p, k, lo(), pt()
+    if not p.ground then m = -1
+next
+k.jump = 0
+v = cint(Cart.y) - RAILUP - cint(g.camy)
+was = Cart.st = 1 and ZHeld = CHASETUNE + 1 and m and p.ground and Cart.hits = 0 and v >= 0 and v < 40
+Ticks = 180 - (c mod 180)
+Stand p, c, 0
+Cart.x = c
+for i = 1 to 40
+    Tick g, p, k, lo(), pt()
+    if Cart.hits then exit for
+next
+was = was and Cart.hits = 1 and Cart.t > BOLTS and p.vy > 0 and not p.ground
+' and a hoop's throw does, from the side
+for j = 0 to NObj - 1
+    if ObK(j) = KHOOP and ObX(j) > ChaseX then exit for
+next
+Cart.t = 0
+Cart.x = ObX(j) + 200
+Box.t = 9
+p.x = ObX(j) - 12
+p.y = ObY(j) + 12
+p.ground = 0
+p.vx = 300
+p.vy = 0
+m = 0
+for i = 1 to 40
+    Tick g, p, k, lo(), pt()
+    if p.vx > 500 then m = -1
+    if Cart.hits > 1 then exit for
+next
+if was and m and Cart.hits = 2 then print "crane ok"
+' its crate is held over Charlie stood still, let go, and hurts him; he aside, it breaks on the floor and the next
+' is a while off
+GoStage 3, g, p, lo(), pt()
+Stand p, ChaseX + 300, 0
+Tick g, p, k, lo(), pt()
+Cart.x = p.x
+Box.t = 0
+g.bones = 3
+m = 0
+for i = 1 to 120
+    Tick g, p, k, lo(), pt()
+    if Box.st = 1 then m = -1
+    if p.inv > 0 then exit for
+next
+was = m and p.inv > 0 and g.bones = 0 and Box.st = 0
+p.inv = 0
+p.stun = 0
+g.bones = 3
+Stand p, ChaseX + 300, 0
+Cart.x = p.x
+Cart.v = 0
+Box.t = 0
+m = 0
+for i = 1 to 120
+    Tick g, p, k, lo(), pt()
+    if Box.st = 2 and m = 0 then
+        Stand p, ChaseX + 240, 0
+        m = -1
+    end if
+    if m and Box.st = 0 then exit for
+next
+if was and m and p.inv = 0 and g.bones = 3 and Box.st = 0 and Box.t > 1 then print "crate ok"
+' its third bump breaks it: the toolbox falls, is not Charlie's while it does, and is once it lies; the works' own
+' tune is back
+Cart.hits = NBUMP - 1
+Cart.t = 0
+Box.t = 9
+Ticks = 180 - (c mod 180)
+Stand p, c, 0
+Cart.x = c
+hid = g.score
+for i = 1 to 40
+    Tick g, p, k, lo(), pt()
+    if Cart.st = 2 then exit for
+next
+was = Cart.st = 2 and Cart.hits = NBUMP and ZHeld = 5
+for i = 1 to 10
+    Tick g, p, k, lo(), pt()
+next
+was = was and Cart.st = 2
+for i = 1 to 60
+    Stand p, cint(Cart.x), 0
+    Tick g, p, k, lo(), pt()
+next
+if was and Cart.st = 3 and g.score = hid + 1500 then print "toolbox ok"
+was = 0
 ' a lift goes up under Charlie to the ground above, and back down once it is left
 GoStage 1, g, p, lo(), pt()
 for m = 0 to NMv - 1
@@ -819,6 +923,9 @@ def main() -> None:
         ("cart ok", "a chase's cart hurts Charlie run into it, is bumped by him curled, and not again while dazed"),
         ("chase ok", "the Downs' evening ended in its chase: the cart fled, broken by three bumps, its keepsake taken"),
         ("tilt ok", "on a slope the chase's cart follows it, each wheel on the ground under it"),
+        ("crane ok", "the works' crane is in view, out of a jump's reach, and bumped by a jet's throw and a hoop's"),
+        ("crate ok", "the crane's crate hurts Charlie stood under it and breaks on the floor when he steps aside"),
+        ("toolbox ok", "the crane's third bump breaks it: its toolbox falls, and is Charlie's once it lies"),
         ("home ok", "back at the title on the Amber Downs, to their tune, after the Chrome Works"),
         ("palette ok", "a zone shown in its own colours, the shared ones back after it"),
     ):
