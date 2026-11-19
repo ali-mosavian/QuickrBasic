@@ -157,7 +157,7 @@ DECLARE FUNCTION Elapsed! (a AS SINGLE, b AS SINGLE)
 DECLARE SUB Sfx (id AS INTEGER)
 DECLARE SUB LoadSong ()
 DECLARE SUB FeedSong ()
-DECLARE SUB PickSong (n AS INTEGER)
+DECLARE SUB PickSong (n AS INTEGER, late AS INTEGER)
 DECLARE FUNCTION Beat$ (x AS STRING, loud AS INTEGER)
 DECLARE FUNCTION Riff$ (p AS STRING, h AS INTEGER, low AS INTEGER)
 DECLARE FUNCTION Surf% (sx AS INTEGER, y AS INTEGER)
@@ -216,7 +216,7 @@ DIM SHARED Glint(2) AS LONG
 CONST NBAR = 28
 DIM SHARED Trk(NBAR * 20) AS STRING, Kit(NBAR * 4) AS STRING, Org(NBAR * 4) AS STRING, Horn(1) AS STRING, Keys(1) AS STRING
 DIM SHARED Order(1) AS STRING, Voicing(1) AS STRING, Tempo(1) AS INTEGER, BassIn(1) AS INTEGER
-DIM SHARED Lvl(1, 3) AS INTEGER, Solo(1) AS STRING
+DIM SHARED Lvl(1, 4) AS INTEGER, Solo(1) AS STRING, Fade(1) AS INTEGER, Entry(1) AS INTEGER
 DIM SHARED Sng AS INTEGER, Bar AS INTEGER, HalfBar AS INTEGER
 
 Main
@@ -249,10 +249,11 @@ DATA goal,0, flat,6, bush,0, flat,14, "end",0
 ' The tune: 76 bars of 28, each a letter of the order: an intro and its variation, then A, B, C and D twice
 ' round and four bars of A fading. A bar is its chord's root from D, a bass riff and a drum pattern by number, the
 ' second brass, the brass and the lead. After the order: each bar's brasses, h horns or k the organ and a clavinet;
-' the tempo; the bars the bass waits; how loud the brass, the lead, the second brass and the low voice are. After the intro the brass is an organ, high, and the second a low chug. A riff is sixteen sixteenths: a note in semitones above its voice's lowest
+' the tempo; the bars the bass waits; how loud the brass, the lead, the second brass, the low voice and the
+' bass are; the bars at its end that fade; the bar it comes in at where it is not from its start. After the intro the brass is an organ, high, and the second a low chug. A riff is sixteen sixteenths: a note in semitones above its voice's lowest
 ' (0-9, a-z), a capital slid into, "-" holds it, "." rests. A second brass of two letters is a chord pattern by number and its note.
 Song:
-DATA "abcdabcefghefgh{ijkl|jkmnopqnoprstuvwxyzwxyzijkl|jkmnopqnoprstuvwxyzwxyzijkm", "hhhhhhhhkkkkkkkkkkkkkkkkkkhk", 140, 3, 12, 9, 10, 9
+DATA "abcdabcefghefgh{ijkl|jkmnopqnoprstuvwxyzwxyzijkl|jkmnopqnoprstuvwxyzwxyzijkm", "hhhhhhhhkkkkkkkkkkkkkkkkkkhk", 140, 3, 12, 9, 10, 9, 13, 4, 0
 DATA "0.0.C.0.00c.7.0C", "0.0.7.0.C.0c.7c7", "0.0.0.0.C.c.057c", "0.C00c7c0.C057ac", "0.......0.....7."
 DATA "x.x.x.xx.xx.x.x.", "x.......x.....x.", "x.x.x.x.x.x.x.x."
 DATA "KHHHSHHSKHKHSHHH", "KHHHSHKHSSTTSTSS", "K.H.S.H.K.K.S.H.", "K.H.S.SSKSSTSTTS", "KHHSHHKSKHHSHHSS"
@@ -289,9 +290,11 @@ DATA 0, 1, 0, "0f", "v--.v..v--------", "o.jo..m.oj..f.hj"
 ' Charlie's own theme, for the title and the level's end: 64 bars of 28 in G minor, as fast. Two organs in stereo
 ' stab a four bar round, the second brass's voice the note under the brass's; a brass lead answers them, busy two
 ' bars and held two; then eight bars of horn hits a run answers, and four where a low riff is joined a voice a bar.
-' A bar's brasses: o two organs, h horns, k the organ and a clavinet. As Song's.
+' A bar's brasses: o two organs, h horns, k the organ and a clavinet. It ends on a held chord, not a fade, and at
+' the level's end comes in at the hits. Its levels are a song's a listener passed, part for part against its drums:
+' as first written the lead was 2.8 dB under that and the bass 2.2 over. As Song's.
 Song2:
-DATA "abyzwxcdefcdefghijghijklmnopqrstuvcdefghijklmnopqrstuvcdefghij{|", "oooooooooohohohohokkkkoooohh", 140, 2, 11, 10, 9, 8
+DATA "abyzwxcdefcdefghijghijklmnopqrstuvcdefghijklmnopqrstuvcdefghij{|", "oooooooooohohohohokkkkoooohh", 140, 2, 12, 14, 10, 9, 11, 0, 22
 DATA "0..0c.0..0c.7ac.", "0.c.0.c.0.0c7.5.", "0--0--0-........", "0.03.5.0.a.c5.3.", "................"
 DATA "..x..x....x..x..", "x..x..x...x.x...", "x.......x.....x."
 DATA "K.H.S.HK.HK.S.H.", "K.H.S.HK.HK.SSTS", "K..K..K.S.H.S.HH", "K.H.S.H.K.H.S.H.", "H.H.H.HHH.H.H.HH"
@@ -1802,7 +1805,7 @@ SUB Main
             Tick g, p, k, lo(), pt()
             lag = lag - STEPT
         LOOP
-        PickSong -(g.mode = TITLE OR g.mode = CLEARED)
+        PickSong -(g.mode = TITLE OR g.mode = CLEARED), g.mode = CLEARED
         FeedSong
         Render g, p, lo(), pt()
         Flip g.page
@@ -2325,7 +2328,8 @@ SUB LoadSong
     FOR w = 0 TO 1
     IF w THEN RESTORE Song2
     READ Order(w), Voicing(w), Tempo(w), BassIn(w)
-    FOR i = 0 TO 3: READ Lvl(w, i): NEXT
+    FOR i = 0 TO 4: READ Lvl(w, i): NEXT
+    READ Fade(w), Entry(w)
     FOR i = 0 TO 4: READ bas(i): NEXT
     FOR i = 0 TO 2: READ hits(i): NEXT
     FOR i = 0 TO 6: READ pat(i): NEXT
@@ -2428,11 +2432,11 @@ SUB FeedSong
     b = ASC(MID$(Order(Sng), Bar + 1, 1)) - 97
     k = (Sng * NBAR + b) * 2 + HalfBar
     loud = (LEN(Order(Sng)) - Bar) * 2 - HalfBar
-    IF loud > 8 THEN loud = 8
+    IF loud > 8 OR Bar < LEN(Order(Sng)) - Fade(Sng) THEN loud = 8
     d = Trk(k * 5)
     IF loud < 8 THEN d = Beat$(Kit(k), loud)
     ' the bass waits its bars; a bar's brasses are the horns or the organ, by the song
-    bass = "V" + LTRIM$(STR$(13 * loud \ 8)) + Trk(k * 5 + 1)
+    bass = "V" + LTRIM$(STR$(Lvl(Sng, 4) * loud \ 8)) + Trk(k * 5 + 1)
     IF Bar < BassIn(Sng) THEN bass = "P2"
     ' the organ's low double: with the organ, not the intro's brass
     one = Keys(0): two = Keys(1): under = "V" + LTRIM$(STR$(Lvl(Sng, 3) * loud \ 8)) + Org(k)
@@ -2448,11 +2452,12 @@ SUB FeedSong
     IF HalfBar = 0 THEN Bar = (Bar + 1) MOD LEN(Order(Sng))
 END SUB
 
-' Song n from its start, when it is not the one playing: Charlie's theme (1) for the title and the level's end,
-' the Downs' tune (0) for the run.
-SUB PickSong (n AS INTEGER)
+' Song n, when it is not the one playing, from its start or, late, from the bar it comes in at: Charlie's theme (1)
+' for the title and, from its hits, the level's end; the Downs' tune (0) for the run.
+SUB PickSong (n AS INTEGER, late AS INTEGER)
     IF n = Sng THEN EXIT SUB
     Sng = n: Bar = 0: HalfBar = 0
+    IF late THEN Bar = Entry(n)
 END SUB
 
 ' The ground's top at column sx near y: in y's tile, the one above when
