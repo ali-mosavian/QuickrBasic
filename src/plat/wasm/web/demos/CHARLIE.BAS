@@ -127,7 +127,7 @@ CONST KBONE = 1, KCAT = 2, KSPRING = 3, KMARK = 4, KBOOST = 5, KGOAL = 6, KPLAT 
 CONST KLOOP = 8, KTREE = 9, KBUSH = 10, KFLOWER = 11, KROCK = 12, KTHORN = 13, KLAMP = 14, KFAM = 15, KPIPE = 16
 CONST KMOVE = 17, KPOST = 18, KTANK = 19, KVENT = 20, KJET = 21, KBUMP = 22, KSPIN = 23, KHOOP = 24
 CONST CABLED = 64, CABLEH = 44, KBUTTON = 27
-CONST KWAVE = 25, KWAVE2 = 26, WAVEA = 40, WAVEH = WAVEA + 30
+CONST KWAVE = 25, KWAVE2 = 26, WAVEA = 96, WAVEH = WAVEA + 36, WAVEL = 192
 CONST JETV = 500!, BUMPV = 400!, HOOPV = 640!, SPINR = 30, SPINH = 70, PITD = 5
 
 ' Images in Img from At(k); a masked one's mask at k + 1. As charlieart.py's.
@@ -148,11 +148,14 @@ CONST IJET = IWS + 4, IBUMP = IJET + 6, ISPIN = IBUMP + 4, IHOOP = ISPIN + 4, IW
 CONST IAF = IBTN + 4, IAS = IAF + 12, IAU = IAS + 144, IAC = IAU + 72, IAL = IAC + 12, IAP = IAL + 4
 CONST IAM = IAP + 24, IAE = IAM + 2
 ' The works' slopes, by the deck's four 16s: each kind's tile, then what of its deck runs on into the tile under.
-CONST IZS = IAE + 8, IZU = IZS + 48, NIMG = IZU + 48
+CONST IZS = IAE + 8, IZU = IZS + 48
+' Charlie round a ribbon's twist, 8 pictures of two frames, then facing left: stood on it, pressed flatter twice,
+' seen from over its back, hung under it flatter twice and whole, seen from under.
+CONST ITW = IZU + 48, NIMG = ITW + 96
 CONST HUDW = 108, HUDH = 40
 ' The levels: the two zones, then each again at another hour, in other colours.
 CONST NSTAGE = 4
-CONST IMGSZ = 340000
+CONST IMGSZ = 420000
 
 CONST SCLEFT = 75, SCRIGHT = 77, SCUP = 72, SCDOWN = 80, SCSPACE = 57, SCZ = 44
 CONST SJUMP = 0, SBONE = 1, SHURT = 2, SSPRING = 3, SPOP = 4, SROLL = 5
@@ -195,6 +198,7 @@ DECLARE SUB DrawCables (cx AS INTEGER, cy AS INTEGER)
 DECLARE SUB Cycle ()
 DECLARE FUNCTION Ribbon% (x AS INTEGER)
 DECLARE FUNCTION Twist! (p AS Hero)
+DECLARE SUB DrawOver (cx AS INTEGER, cy AS INTEGER)
 DECLARE SUB Pit (c AS INTEGER, g AS INTEGER, n AS INTEGER)
 DECLARE SUB Knot (x AS SINGLE, y AS SINGLE, k AS INTEGER)
 DECLARE FUNCTION SegAt% (x AS INTEGER, y AS SINGLE)
@@ -309,7 +313,7 @@ DATA upg,2, flat,3, cat,0, flat,6, bush,0, dng,3, boost,0, bones,8, flat,10
 DATA loop,0, flat,8, bones,6, flat,6, up45,2, flat,2, arc,7, gap,7, flat,8
 DATA mark,0, flat,4, dn45,4, dng,4, boost,0, bones,10, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
 DATA tree,0, flat,4, boost,0, flat,6, pipe,6, flat,6, bones,6, flat,22
-DATA boost,0, flat,4, wave,3, flat,8
+DATA boost,0, flat,4, wave,1, flat,8
 DATA dng,5, boost,0, bones,10, flat,10, up45,3, arc,11, pit,12, flat,10
 DATA cat,0, flat,6, bush,0, flat,4, spring,0, flat,2, plat,608, hb,706, flat,16, spin,0, flat,8
 DATA upg,4, flat,4, flower,0, flat,4
@@ -331,7 +335,7 @@ DATA goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, "end",0
 ' down, the ground past it that much higher. lift: a gap of 3 with a lift, the ground past it that much higher.
 Level2:
 DATA flat,4, dog,0, flat,8, bones,6, flat,8, boost,0, bones,8, flat,10, loop,0, flat,10
-DATA boost,0, flat,4, wave,2, flat,8
+DATA boost,0, flat,4, wave,1, flat,8
 DATA dng,3, boost,0, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8, up45,3, arc,9, pit,10, flat,8
 DATA cat,0, flat,12, mover,8, flat,8, jet,0, flat,3, bump,5, flat,3, bump,5, flat,6, button,0, flat,10, bridge,9, flat,6, mark,0, flat,6
 DATA boost,0, flat,6, pipe,6, flat,8, bones,8, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0, flat,10
@@ -345,11 +349,11 @@ DATA flat,10, goal,0, flat,9, fam,0, flat,6, flat,5, "end",0
 Level3:
 DATA flat,4, dog,0, flat,6, bones,6, flat,6, boost,0, flat,6, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
 DATA up45,3, arc,9, pit,10, flat,8, flower,0, flat,4
-DATA dng,4, boost,0, bones,10, flat,10, loop,0, flat,8, boost,0, flat,4, wave,4, flat,8
+DATA dng,4, boost,0, bones,10, flat,10, loop,0, flat,8, boost,0, flat,4, wave,2, flat,8
 DATA cat,0, flat,8, tree,0, flat,6, upg,3, flat,4, button,0, flat,8, bridge,10, flat,6, mark,0, flat,6
 DATA dn45,3, dng,3, boost,0, bones,8, flat,8, loop,0, flat,6, up45,4, hoop,1, arc,11, pit,12, flat,10
 DATA spring,0, flat,2, plat,608, hb,706, flat,16, bush,0, flat,6, cable,22, flat,8
-DATA boost,0, flat,6, pipe,6, flat,6, bones,6, flat,22, boost,0, flat,4, wave,2, flat,8
+DATA boost,0, flat,6, pipe,6, flat,6, bones,6, flat,22, boost,0, flat,4, wave,1, flat,8
 DATA dng,5, boost,0, bones,10, flat,12, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8, thorn,0, flat,6, rock,0, flat,4
 DATA jet,0, flat,3, bump,5, flat,3, bump,6, flat,6, mark,0, flat,4, up45,3, arc,10, pit,11, flat,8
 DATA dng,3, boost,0, bones,10, flat,10, loop,0, flat,10, spin,0, flat,8, flower,0, flat,4
@@ -360,7 +364,7 @@ Level4:
 DATA flat,4, dog,0, flat,8, bones,6, flat,6, boost,0, flat,6, loop,0, flat,6, boost,0, flat,6, loop,0, flat,16
 DATA mover,7, flat,8, bones,6, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0, flat,8
 DATA up45,3, arc,9, pit,10, flat,8, cat,0, flat,10, hover,5, flat,8, mark,0, flat,6
-DATA boost,0, flat,4, wave,3, flat,8, dng,3, boost,0, flat,8, loop,0, flat,8, button,0, flat,10, bridge,10, flat,8
+DATA boost,0, flat,4, wave,1, flat,8, dng,3, boost,0, flat,8, loop,0, flat,8, button,0, flat,10, bridge,10, flat,8
 DATA jet,0, flat,3, bump,5, flat,3, bump,5, flat,8, lift,6, flat,8, bones,6, flat,6
 DATA dng,4, boost,0, bones,10, flat,10, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
 DATA up45,4, hoop,1, arc,11, pit,12, flat,10, mark,0, flat,6, cable,20, flat,8
@@ -499,13 +503,18 @@ SUB LoadLevel (st AS INTEGER)
             Pit c, g, n
             c = c + n
         CASE "wave"
-            ' a ribbon of n twists over a pit, each two halves of 64, bones along its middle
+            ' a ribbon of n twists over a pit, each two halves of WAVEL, bones up its far side
             FOR i = 0 TO n * 2 - 1
-                AddObj KWAVE + (i AND 1), (c + i * 4) * TS, s
-                AddObj KBONE, (c + i * 4 + 2) * TS, s - WAVEA \ 2 - 6
+                AddObj KWAVE + (i AND 1), (c + i * 12) * TS, s
+                IF (i AND 1) = 0 THEN
+                    FOR k = 3 TO 9 STEP 3
+                        AddObj KBONE, (c + i * 12 + k) * TS, s - CINT(WAVEA * (1 - COS(PI * k / 12)) / 2) - 6
+                    NEXT
+                END IF
             NEXT
-            Pit c, g, n * 8
-            c = c + n * 8
+            k = 0
+            Pit c, g, n * 24
+            c = c + n * 24
         CASE "bump"
             AddObj KBUMP, c * TS + 8, s - n * TS
         CASE "hoop"
@@ -720,11 +729,11 @@ SUB Track
                 ZA(NZ) = GN - 1: ZM(NZ) = -2: ZL(NZ) = ObX(i) - 8
                 Knot CSNG(ObX(i)), CSNG(y), 2
             END IF
-            FOR j = 1 TO 8
-                a = PI * j / 8 - PI * (ObK(i) = KWAVE2)
-                Knot CSNG(ObX(i) + j * 8), y - WAVEA * (1 - COS(a)) / 2, 2
+            FOR j = 1 TO 12
+                a = PI * j / 12 - PI * (ObK(i) = KWAVE2)
+                Knot CSNG(ObX(i) + j * 16), y - WAVEA * (1 - COS(a)) / 2, 2
             NEXT
-            x1 = ObX(i) + 64: ZR(NZ) = x1 + 8
+            x1 = ObX(i) + WAVEL: ZR(NZ) = x1 + 8
         END IF
     NEXT
     IF x1 <> NONE THEN Knot CSNG(x1 + 8), CSNG(y), 2: ZB(NZ) = GN - 2: NZ = NZ + 1
@@ -1603,15 +1612,16 @@ FUNCTION Ribbon% (x AS INTEGER)
     NEXT
 END FUNCTION
 
-' A ribbon is a loop pulled out along its way: its line rises to a crest and falls, and what runs it goes round
-' its inside. How far round p on one is: 0 upright at its foot, PI upside down under its crest; -1 on none.
+' A ribbon is a strip wound once round a line along its way, each twist 2 * WAVEL long: its near edge rises to a
+' crest and falls, and what runs it goes round its inside, on its far side going up and behind it coming down.
+' How far round p on one is: 0 upright at its foot, PI upside down under its crest; -1 on none.
 FUNCTION Twist! (p AS Hero)
     DIM z AS INTEGER, t AS SINGLE
     Twist! = -1
     IF NOT p.ground THEN EXIT FUNCTION
     FOR z = 0 TO NZ - 1
         IF ZM(z) = -2 AND p.sg >= ZA(z) AND p.sg <= ZB(z) THEN
-            t = (p.x - ZL(z) - 8) / 128
+            t = (p.x - ZL(z) - 8) / (2 * WAVEL)
             IF t < 0 OR p.x > ZR(z) - 8 THEN t = 0
             Twist! = (t - INT(t)) * 2 * PI
             EXIT FUNCTION
@@ -2213,6 +2223,7 @@ SUB Render (g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
     IF NMv THEN DrawCables cx, cy
     IF LooseN THEN DrawLoose cx, cy, lo()
     DrawHero p, cx, cy
+    DrawOver cx, cy
     IF PartN THEN DrawParts pt(), cx, cy
     SELECT CASE g.mode
     CASE TITLE
@@ -2349,7 +2360,7 @@ END SUB
 ' The things in view: back, the scenery behind the ground; else the rest.
 SUB DrawThings (cx AS INTEGER, cy AS INTEGER, back AS INTEGER)
     DIM i AS INTEGER, c AS INTEGER, x AS INTEGER, y AS INTEGER, k AS INTEGER, f AS INTEGER, a AS SINGLE
-    c = (cx - 96) \ TS
+    c = (cx - WAVEL) \ TS
     IF c < 0 THEN c = 0
     i = First(c)
     DO WHILE i < NObj
@@ -2424,8 +2435,9 @@ SUB DrawThings (cx AS INTEGER, cy AS INTEGER, back AS INTEGER)
                 Blit x + CINT(SPINR * COS(a)) - 8, y - SPINH + CINT(SPINR * SIN(a)) - 8, ISPIN, 16, 16
             CASE KBUTTON
                 Blit x - 8, y - 8, IBTN + 2 * ObS(i), 16, 8
-            CASE KWAVE, KWAVE2
-                Blit x, y - WAVEA - 14, ZWave - 2 * (k = KWAVE2), 64, WAVEH
+            CASE KWAVE
+                ' a twist's far half; its near one is drawn over Charlie
+                Blit x, y - WAVEA - 22, ZWave, WAVEL, WAVEH
             CASE KHOOP
                 Blit x - 6, y - 16, IHOOP - 2 * (ObS(i) > 0), 12, 32
             END SELECT
@@ -2466,16 +2478,30 @@ END SUB
 
 ' Charlie, and streaks of wind behind it at speed; running on a slope, the
 ' frame turned to it.
+' What is nearer than Charlie: the near half of each ribbon's twist, which hides what runs behind it.
+SUB DrawOver (cx AS INTEGER, cy AS INTEGER)
+    DIM i AS INTEGER, c AS INTEGER, x AS INTEGER
+    c = (cx - WAVEL) \ TS
+    IF c < 0 THEN c = 0
+    i = First(c)
+    DO WHILE i < NObj
+        x = ObX(i) - cx
+        IF x > SW THEN EXIT DO
+        IF ObK(i) = KWAVE2 THEN Blit x, ObY(i) - cy - WAVEA - 22, ZWave + 2, WAVEL, WAVEH
+        i = i + 1
+    LOOP
+END SUB
+
 SUB DrawHero (p AS Hero, cx AS INTEGER, cy AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER, j AS INTEGER, d AS INTEGER, v AS SINGLE, sy AS INTEGER, n AS INTEGER
-    DIM f AS INTEGER, t AS INTEGER, sx AS INTEGER, hu AS SINGLE, hv AS SINGLE, a AS SINGLE
+    DIM f AS INTEGER, t AS INTEGER, sx AS INTEGER, hu AS SINGLE, hv AS SINGLE, a AS SINGLE, tw AS INTEGER
     IF p.inv > 0 AND NOT p.stun AND (Ticks AND 4) THEN EXIT SUB
     x = CINT(p.x) - cx: y = CINT(p.y) - cy
-    ' the ground's lie under it; round a ribbon's twist, the twist's: it runs the inside, turned with it
+    ' the ground's lie under it; round a ribbon's twist it keeps to the inside, over the line then under it
     hu = 1
     IF p.ground THEN
-        hu = GU(p.sg): hv = GV(p.sg): a = p.ang
-        IF Twist!(p) >= 0 THEN a = Twist!(p): hu = COS(a): hv = -SIN(a)
+        hu = GU(p.sg): hv = GV(p.sg)
+        IF Twist!(p) >= 0 THEN a = Twist!(p): hu = COS(a): hv = 0: tw = -1
     END IF
     IF p.ground THEN v = p.gsp ELSE v = p.vx
     IF ABS(v) > 400 AND NOT p.dead THEN
@@ -2487,9 +2513,16 @@ SUB DrawHero (p AS Hero, cx AS INTEGER, cy AS INTEGER)
         NEXT
     END IF
     f = HeroFrame%(p)
+    ' running round a twist: rolled with the ribbon, a twelfth of a turn a picture, its paws' line 12 off its middle
+    IF tw AND f >= FRUN AND f < FBALL THEN
+        t = CINT(a * 6 / PI) MOD 12
+        IF f >= FDASH THEN j = f - FDASH ELSE j = (f - FRUN) \ 3
+        Blit x - 16, y - 16 - CINT(12 * COS(t * PI / 6)), ITW + (p.face * 24 + t * 2 + j) * 2, 32, 32
+        EXIT SUB
+    END IF
     ' running, turned to the ground: t sixteenths of a turn, nose up
     IF p.ground AND f >= FRUN AND f < FBALL THEN
-        v = a
+        v = p.ang
         IF p.face THEN v = -v
         t = CINT(v * 8 / PI)
         IF t < 0 THEN t = t + 16

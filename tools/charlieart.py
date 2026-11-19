@@ -59,6 +59,10 @@ class Pic:
         if 0 <= x < self.w and 0 <= y < self.h:
             self.p[y][x] = c
 
+    def count(self) -> int:
+        """How many of its dots are drawn."""
+        return sum(1 for row in self.p for c in row if c)
+
     def get(self, x: int, y: int) -> int:
         return self.p[y][x] if 0 <= x < self.w and 0 <= y < self.h else 0
 
@@ -150,11 +154,13 @@ def paw(p: Pic, hx: float, hy: float, a: float, far: bool, lift: float = 0) -> N
     p.ball(fx + 0.8, fy + 0.6, 2.5, 1.7, FUR, 0.0 if far else 0.4, 0.5 if far else 1.1)
 
 
+ARC = ((0, 0, 2.2), (-2, -3, 2.6), (-1.5, -6.5, 2.8), (1.5, -8.5, 2.6), (4.5, -7.5, 2.0))  # the tail carried
+
+
 def plume(p: Pic, x: float, y: float, wag: float, stream: bool) -> None:
     """The tail, a plume carried over the back; stream: flat out behind."""
-    arc = ((0, 0, 2.2), (-2, -3, 2.6), (-1.5, -6.5, 2.8), (1.5, -8.5, 2.6), (4.5, -7.5, 2.0))
     flat = ((0, 0, 2.2), (-2.5, -1, 2.5), (-5, -1.5, 2.4), (-7, -1, 2.0), (-8.5, 0, 1.4))
-    for i, (dx, dy, r) in enumerate(flat if stream else arc):
+    for i, (dx, dy, r) in enumerate(flat if stream else ARC):
         p.ball(x + dx + wag * i * 0.6, y + dy + (wag * (i % 2) if stream else 0), r, r, FUR, 0.3, 1.1)
 
 
@@ -314,6 +320,80 @@ def hero() -> list[Pic]:
     out.append(dog(bob=-2, eye="happy", wag=-1.0, front=0.5, back=-0.5, ear=0.8))
     out.append(afraid(1))
     return out
+
+
+def turned(run: Pic, turn: int, f: int) -> Pic:
+    """Charlie running a ribbon's twist, turn twelfths of the way round it, stride f of run's two: the balls dog()
+    draws his side with, set in depth and rolled about the line under his paws, the far ones drawn first, so his
+    back, then his belly, comes round as his side goes. The line is on row 16 + 12 cos; upright he is run as drawn."""
+    p = Pic(32, 32)
+    c, s = math.cos(turn * math.pi / 6), math.sin(turn * math.pi / 6)
+    if turn == 0:
+        p.p[:28] = [list(row) for row in run.p[3:31]]
+        return p
+    ph = 2 * math.pi * (1 + f * 3) / 6
+    st, swing = abs(math.sin(ph)), math.sin(ph)
+    by, hip, hx, hy = 18.5, 22.5, 23.5 + st * 0.5, 11.3 + st * 0.6
+    ear = 0.7 + 0.4 * math.cos(ph)
+    line = 16 + round(12 * c) - 0.5
+    balls = []
+
+    def row(y: float, z: float) -> float:
+        return line - (30.5 - y) * c + z * s
+
+    def add(
+        x: float,
+        y: float,
+        z: float,
+        rx: float,
+        rh: float,
+        rz: float,
+        lo: float,
+        hi: float,
+        r: list[int] = FUR,
+        fore: float = 0,
+    ) -> None:
+        """A ball at x along him, on row y side on, z to our side of him; its radii those three ways; fore: how
+        much nearer it counts, a part that lies on another."""
+        balls.append(
+            ((30.5 - y) * s + z * c + fore, x, row(y, z), rx, max(math.hypot(rh * c, rz * s), 1.0), r, lo, hi, fore)
+        )
+
+    add(12.5, by, 0, 8.5 + st, 6 - st * 0.5, 4.8, 0.3, 1.15)
+    add(18.5 + st * 0.5, by - 0.5, 0, 4.6, 5.4 - st * 0.4, 4.4, 0.35, 1.2)
+    add(12.5, by + 3, 0, 8, 3.6, 4.2, 0.25, 1.0)
+    add(hx, hy, 0, 6.2, 5.8, 5.6, 0.4, 1.2, fore=1)
+    add(hx + 3.6, hy + 4.2, 0, 3.6, 2.6, 2.8, 0.3, 1.0, fore=1)
+    add(hx + 4.8, hy + 2.2, 0, 3.4, 2.5, 2.6, 0.5, 1.25, fore=1)
+    for i, (dx, dy, r) in enumerate(ARC):
+        add(5.5 - st + dx + swing * i * 0.3, by - 3 + dy, swing * i * 0.5, r, r, r * 0.8, 0.3, 1.1, fore=1)
+    for side in (-1, 1):
+        for d, r in ((1.0, 2.6), (3.2, 2.7), (5.4, 2.1)):
+            add(hx - 3.6 - math.sin(ear) * d, hy - 1.5 + math.cos(ear) * d, side * 6.4, r, r, 2.2, 0.2, 1.0, FUR[:4], 2)
+        for x0, way in ((8, -swing), (18, swing)):  # a leg under each corner, the far pair's reach the shorter
+            a = way if side > 0 else way * 0.6 + (0.15 if x0 == 8 else -0.15)
+            fx, fy = x0 + math.sin(a) * 5.5, min(hip + math.cos(a) * 5.5, 28.5)
+            lo = 0.0 if side * c + 0.4 * s < 0 else 0.4  # the pair in his own shade
+            add((x0 + fx) / 2, (hip + fy) / 2, side * 5.0, 1.7, 2.8, 1.7, lo, lo + 0.5)
+            add(fx + 0.8, fy + 0.6, side * 5.0, 2.5, 1.7, 2.4, lo, lo + 0.7)
+    if s < -0.2:  # from under, his belly's skin
+        add(13, by + 5.8, 0, 5.5, 1.2, 3.0, 0.5, 1.0, SKIN, 1)
+    for _, x, y, rx, ry, r, lo, hi, fore in sorted(balls, key=lambda b: b[0]):
+        if fore:  # its shade on what it lies on
+            p.ball(x + 1, y + 1, rx, ry, [FUR[2], FUR[2]], over=True)
+        p.ball(x, y, rx, ry, r, lo, hi)
+    ny = round(row(hy + 1.5, 0) - 0.5)
+    p.box(round(hx + 6), ny, round(hx + 8), ny + 1, INK)
+    p.put(round(hx + 6), ny, FUR[5])
+    if abs(c) > 0.8:
+        p.line(hx + 4.5, row(hy + 4.4, 0), hx + 6.5, row(hy + 4.4, 0), INK)
+    for side in (-1, 1):  # an eye on the side of his head that is to us
+        if 0.3 * s + 0.95 * side * c > 0.4:
+            ex, ey = round(hx + 1), round(row(hy - 0.5, side * 4.6))
+            p.box(ex, ey, ex + 1, ey + 1, INK)
+            p.put(ex, ey - 1, WHITE)
+            p.put(ex + 1, ey - 1, INK)
+    return p.outline()
 
 
 def tilted(src: Pic, deg: float) -> Pic:
@@ -1250,18 +1330,36 @@ def pipe(col: int, row: int) -> Pic:
 
 
 def ribbon(half: int, r: list[int], ink: int) -> Pic:
-    """A ribbon's rising or falling 64, a loop pulled out along its way: its line is what runs it, the band on the
-    line's outer side, under it low and over it high, thin where it is seen edge on; planks of r's tones, light to
-    dark, the high half a tone darker."""
-    p = Pic(64, 70)
-    for i in range(64):
-        a = math.pi * (half * 64 + i) / 64
-        y = 14 + 40 - round(40 * (1 - math.cos(a)) / 2)
-        th, out = 3 + round(9 * abs(math.cos(a))), 1 if math.cos(a) >= 0 else -1
-        for j in range(th + 1):
-            plank = r[1 + ((half * 64 + i + j) // 8) % 2 + (out < 0) + (j > th * 0.6)]
-            edge = (half * 64 + i + j) % 8 == 0
-            p.put(i, y + j * out, r[j] if j < 2 else ink if j == th else r[5] if edge else plank)
+    """Half a ribbon's twist, 192 along: a plank road 40 wide and 10 thick wound once round a line in a turn of 384,
+    seen from the side. Its running face is to the line; the path is that face's middle. On edge at its foot and at
+    its crest, flat to us between: the rising half its lit face, the falling its dark back, nearer than what runs
+    it. r: the tones, light to dark."""
+    p = Pic(192, 132)
+    for i in range(192):
+        x = half * 192 + i
+        a = math.pi * x / 192
+        s, c = math.sin(a), math.cos(a)
+        y = 22 + 96 - 96 * (1 - c) / 2
+        # the road's section here: its face from one edge to the other, then its back, 10 from the line's side
+        ya, yb = y + s * 20, y - s * 20
+        faces = [(ya, yb, 0 if s > 0 else -1), (ya + c * 10, yb + c * 10, -1 if s > 0 else 1)]
+        faces += [(ya, ya + c * 10, 2 if c > 0 else -1), (yb, yb + c * 10, 2 if c < 0 else -1)]
+        rows = {}
+        for y0, y1, kind in faces:
+            if kind >= 0:
+                for yy in range(round(min(y0, y1)), round(max(y0, y1)) + 1):
+                    rows[yy] = (kind, (yy - min(y0, y1)) / max(abs(y1 - y0), 1))
+        for yy, (kind, across) in rows.items():
+            seam = x % 16 == 0
+            if yy in (min(rows), max(rows)):
+                tone = ink
+            elif kind == 0:  # the face run on: planks, a line down its middle
+                tone = r[4] if seam else r[0] if abs(across - 0.5) < 0.06 else r[1 + (x // 16) % 2]
+            elif kind == 1:
+                tone = r[5] if seam else r[3 + (x // 16) % 2]
+            else:
+                tone = r[4] if seam else r[2 if yy == min(rows) + 1 else 3]
+            p.put(i, yy, tone)
     return p
 
 
@@ -1844,6 +1942,12 @@ def pictures() -> list[tuple[int, Pic, bool, int]]:
                 out.append((a + 12 + ((kind - 2) * 12 + v) * 2, top(kind, c, r), True, -1))
                 out.append((a + 156 + (kind - 2) * 12 + v, top(kind, c, r, 1), False, -1))
     out.append((a + 268, raft(), True, -1))
+    # Charlie round a twist: 12 turns of two strides, their mirrors facing left
+    out += [
+        (z + 498 + (n * 2 + f) * 2, turned(frames[5 + f * 3], n, f), True, z + 546 + (n * 2 + f) * 2)
+        for n in range(12)
+        for f in range(2)
+    ]
     out.append((5, ring(188, 72, 93, turf, AMBER, PLUM), True, -1))
     out += [(a + 270 + i * 2, bare(i > 1, bool(i & 1)), True, -1) for i in range(4)]
     OWN[0].update({0, 1, 5, itile + 18, z + 112, z + 114, *range(a, a + 278), *range(k + 36, k + 50)})
@@ -1884,6 +1988,18 @@ def song() -> bytes:
 
 def audit(pics: list[tuple[int, Pic, bool, int]]) -> None:
     """A zone's own colours are only in its own pictures: elsewhere they would show as another zone's."""
+    # the game's store ran out, an Illegal function call as it loaded: these with their masks and mirrors, the 160
+    # turned runs it flops and its own glyphs and HUD (6000 at most) must fit it
+    room = int(re.search(r"CONST IMGSZ = (\d+)", DAT.with_suffix(".BAS").read_text())[1])
+    need = sum(len(p.longs()) * (2 if m else 1) * (2 if k2 >= 0 else 1) for _, p, m, k2 in pics) + 160 * 258 + 6000
+    if need > room:
+        sys.exit(f"charlieart: the pictures need {need} LONGs of the game's IMGSZ, {room}")
+    # turned a sixth of the way round a twist he was his side pressed to half its height, flat: he keeps his bulk
+    run = hero()
+    for turn in range(1, 12):
+        for f in range(2):
+            if turned(run[5 + f * 3], turn, f).count() < 0.6 * run[5 + f * 3].count():
+                sys.exit(f"charlieart: Charlie is flat, turned {turn} twelfths round a twist")
     # the game draws the comb from 12 tiles a kind: it must repeat every 64 across and 48 down
     if any(comb(x, y) != comb(x + 64, y) or comb(x, y) != comb(x, y + 48) for x in range(64) for y in range(48)):
         sys.exit("charlieart: the comb does not repeat every 64 by 48")
