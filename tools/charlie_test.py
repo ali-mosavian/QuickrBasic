@@ -2,12 +2,12 @@
 """charlie_test.py [EXE]: CHARLIE.BAS's level played through by an autopilot on the host build.
 
 The main loop is swapped for one that plays with the game's own pilot, which holds Right and jumps
-at pits, walls and beetles ahead. The level must be cleared on the first life, round all five of
+at pits, walls and cats ahead. The level must be cleared on the first life, round all five of
 its loops: a gap too wide, a wall too high, a loop entered too slowly or a landing that misses the
 ground fails it.
 
 Every half bar of the tune and every sound effect is played: a PLAY string the game builds wrong is an
-Illegal function call mid-game. First a beetle is walked to the level's left end: its look ahead,
+Illegal function call mid-game. First a cat is walked to the level's left end: its look ahead,
 left of column 0, was a negative tile column, and the game stopped with Subscript out of range.
 """
 
@@ -28,7 +28,7 @@ DIM lo(NLOOSE - 1) AS Loose, pt(NPART - 1) AS Part
 Muted = -1
 StartGame g, p, lo(), pt()
 FOR j = 0 TO NObj - 1
-    IF ObK(j) = KBUG THEN ObX(j) = 24: ObA(j) = 24: ObY(j) = StartY: g.camx = 0: EXIT FOR
+    IF ObK(j) = KCAT THEN ObX(j) = 24: ObA(j) = 24: ObY(j) = StartY: g.camx = 0: EXIT FOR
 NEXT
 FOR i = 1 TO 300: Things g, lo(), pt(): NEXT
 PRINT "edge ok"
@@ -65,7 +65,7 @@ def main() -> None:
         run = subprocess.run([exe, path.name], cwd=tmp, capture_output=True, timeout=120)
     out = run.stdout.decode(errors="replace") + run.stderr.decode(errors="replace")
     if "edge ok" not in out:
-        sys.exit(f"charlie: a beetle at the level's left end: {out[-300:]}")
+        sys.exit(f"charlie: a cat at the level's left end: {out[-300:]}")
     if "sounds ok" not in out:
         sys.exit(f"charlie: a bar of the tune or a sound effect: {out[-300:]}")
     words = out[out.rfind("result") :].split()

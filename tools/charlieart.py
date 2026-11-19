@@ -228,6 +228,36 @@ def dog(
     return p.outline()
 
 
+def afraid() -> Pic:
+    """Charlie up on its back legs, facing out, afraid: its eyes wide, its paws at its chest."""
+    p = Pic(32, 32)
+    for x, y, r in ((8, 25, 2.4), (6, 22.5, 2.2), (5.5, 20, 1.6)):
+        p.ball(x, y, r, r, FUR, 0.2, 0.9)
+    p.ball(16, 21.5, 6, 7, FUR, 0.3, 1.15)
+    for x in (12, 20):
+        p.ball(x, 28.3, 2.7, 1.8, FUR, 0.4, 1.1)
+    for side in (-1, 1):
+        for y, r in ((8.5, 2.5), (11.5, 2.6), (14, 2.0)):
+            p.ball(16 + side * 7.4, y, r, r, FUR, 0.1, 0.85)
+    p.ball(16, 9.5, 6.6, 6.0, FUR, 0.45, 1.2)
+    p.ball(16, 12.5, 3.6, 2.8, FUR, 0.6, 1.3)
+    p.box(15, 11, 17, 12, INK)
+    p.box(15, 14, 16, 15, INK)
+    for side in (-1, 1):
+        ex = 16 + side * 4
+        p.box(ex - 1, 7, ex + 1, 9, INK)
+        p.put(ex - 1, 7, WHITE)
+        p.put(ex + 1, 9, FUR[2])
+        p.line(ex - side * 1.5, 5, ex + side * 1.5, 6, FUR[1])
+        px = 16 + side * 4.5
+        p.ball(px, 18.5, 2.3, 2.1, FUR, 0.7, 1.3)
+        p.line(px - 2, 21, px + 2, 21, FUR[0])
+        p.put(round(px - 3 * side), 19, FUR[1])
+    p.put(25, 3, TEAL[3])
+    p.box(25, 4, 25, 5, TEAL[4])
+    return p.outline()
+
+
 def curled(turn: float) -> Pic:
     """Charlie rolled up: a lit ball of fluff in a spiral, an ear and the nose round it, turned."""
     p = Pic(32, 32)
@@ -248,7 +278,7 @@ def curled(turn: float) -> Pic:
 
 
 def hero() -> list[Pic]:
-    """Idle, blink, two pants, six of the run, two of the dash, four curled, skid, crouch, hurt, sprung, two wins."""
+    """Idle, blink, two pants, six of the run, two of the dash, four curled, skid, crouch, afraid, sprung, two wins."""
     out = [dog(), dog(eye="blink"), dog(pant=True, wag=0.8), dog(pant=True, wag=-0.8, lift=1.5, front=0.4)]
     for f in range(6):
         ph = 2 * math.pi * f / 6
@@ -268,7 +298,7 @@ def hero() -> list[Pic]:
     out += [curled(i * math.pi / 14) for i in range(4)]
     out.append(dog(bob=1, lean=-2, front=1.0, back=0.8, ear=-0.6, wag=-1))
     out.append(dog(squat=4, lean=2, front=1.3, back=-1.2, ear=0.2))
-    out.append(dog(bob=-1, lean=-1, front=-0.9, back=0.9, eye="hurt", ear=1.2, wag=1))
+    out.append(afraid())
     out.append(dog(bob=-2, front=0.2, back=-0.2, ear=-0.5, wag=-0.6, stretch=1))
     out.append(dog(eye="happy", wag=1.0))
     out.append(dog(bob=-2, eye="happy", wag=-1.0, front=0.5, back=-0.5, ear=0.8))
@@ -361,20 +391,24 @@ def bone(turn: float) -> Pic:
     return p.outline()
 
 
-def bug(f: int) -> Pic:
+def cat(f: int) -> Pic:
+    """A ginger cat, prowling right: its tail up, its back striped."""
     p = Pic(20, 14)
-    for i in range(3):
-        x = 5 + i * 4
-        p.line(x, 9, x + (1 if (i + f) % 2 else -1), 12, INK)
-    p.ball(9, 6.5, 7, 5.2, TEAL)
-    p.line(9, 2, 9, 11, TEAL[0])
-    for x, y in ((6, 5), (12, 5), (5, 8), (13, 8)):
-        p.put(x, y, TEAL[0])
-    p.ball(15.5, 9, 2.8, 2.8, TEAL, 0.0, 0.5)
-    p.put(16, 8, WHITE)
-    p.put(17, 8, 4)
-    p.line(15, 6, 17, 4, INK)
-    p.line(14, 6.5, 17.5, 7, INK)
+    fur = EARTH[2:]
+    p.line(3, 8, 1.5, 4, fur[2])
+    p.line(1.5, 4, 2 + f, 2, fur[3])
+    for i, x in enumerate((4, 6, 11, 13)):
+        p.line(x, 10, x + (1 if (i + f) % 2 else -1), 12, fur[1 + i % 2])
+    p.ball(8, 8.5, 5.5, 2.8, fur, 0.2, 1.0)
+    for x in (6, 9):
+        p.line(x, 6, x - 1, 8, fur[0])
+    for x, y in ((13, 1), (13, 2), (14, 2), (17, 1), (16, 2), (17, 2)):
+        p.put(x, y, fur[3])
+    p.ball(15, 5.5, 3.2, 3.0, fur, 0.3, 1.1)
+    p.put(16, 5, GRASS[4])
+    p.put(17, 5, INK)
+    p.put(18, 6, PETAL[0])
+    p.line(16, 7, 17, 7, INK)
     return p.outline()
 
 
@@ -537,7 +571,7 @@ def pictures() -> list[tuple[int, Pic, bool, int]]:
     out += [(ihero + f * 2, p, True, ihero + (nf + f) * 2) for f, p in enumerate(frames)]
     k = ihero + nf * 4
     out += [(k + f * 2, bone(f * math.pi / 4), True, -1) for f in range(4)]
-    out += [(k + 8 + f * 2, bug(f), True, k + 12 + f * 2) for f in range(2)]
+    out += [(k + 8 + f * 2, cat(f), True, k + 12 + f * 2) for f in range(2)]
     out += [(k + 16 + f * 2, spring(bool(f)), True, -1) for f in range(2)]
     out += [(k + 20 + f * 2, boost(f), True, -1) for f in range(2)]
     out += [(k + 24 + f * 2, mark(bool(f)), True, -1) for f in range(2)]
