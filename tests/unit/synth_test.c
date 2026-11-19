@@ -768,3 +768,16 @@ TEST(play_left_out_strings_leave_their_voices)
     }
     CHECK(third == 1 && others == 0);
 }
+
+/* A song's voices are all logged: at 4096 the log dropped the rest unsaid, and a 76-bar song's render stopped at bar
+ * 39, the bars after it never measured. */
+TEST(headless_logs_a_long_songs_voices)
+{
+    void dev_voice(unsigned voice, const DevVoice *v);
+    const DevVoice v = {.hertz = 440, .gate = 1};
+    const size_t first = headless_voice_count();
+
+    for (int i = 0; i < 5000; i++)
+        dev_voice(0, &v);
+    CHECK(headless_voice_count() == first + 5000);
+}
