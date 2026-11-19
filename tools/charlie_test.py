@@ -22,6 +22,14 @@ ROOT = Path(__file__).resolve().parents[1]
 DEMO = ROOT / "src/plat/wasm/web/demos/CHARLIE.BAS"
 
 DRIVER = """DECLARE FUNCTION GroundAt% (x AS INTEGER)
+DECLARE FUNCTION Uneven% (hz AS SINGLE, grain AS INTEGER, per AS INTEGER, most AS INTEGER, want AS INTEGER)
+' the game's steps against a screen's frames, timed by a clock of 128 or 256 moves a second: stepped by that clock
+' some frames showed two steps and some none, and the picture juddered. At a screen's 59.94 or 60.1 frames a second
+' each shows a step; at 119.88 every other; at 75 four of five, never three; and with no screen, looked at 20000
+' times a second, the steps still come
+IF Uneven%(59.94, 128, 1, 1, 600) + Uneven%(60.1, 256, 1, 1, 600) = 0 THEN PRINT "paced 60 ok"
+IF Uneven%(119.88, 128, 2, 1, 300) = 0 THEN PRINT "paced 120 ok"
+IF Uneven%(75, 256, 0, 2, 480) + Uneven%(20000, 128, 0, 1, 2) = 0 THEN PRINT "paced by time ok"
 OpenScreen
 LoadTables
 LoadLevel
@@ -140,6 +148,34 @@ NEXT
 IF was AND p.x < GoalX AND Dusk = 16 THEN PRINT "title met ok"
 END
 
+' 900 frames at hz a second, not in step with the clock, their times read off it at grain moves a second, the first
+' 300 to settle: the
+' frames whose steps are not as they should be (per > 0: one step every per frames, exactly; most: never more in a
+' frame), and whether the steps in all are more than 3 from want.
+FUNCTION Uneven% (hz AS SINGLE, grain AS INTEGER, per AS INTEGER, most AS INTEGER, want AS INTEGER)
+    DIM c AS Clock, i AS LONG, n AS INTEGER, bad AS INTEGER, tot AS LONG, t AS DOUBLE, was AS DOUBLE, since AS INTEGER
+    c.span = STEPT
+    FOR i = 1 TO 900
+        t = INT((i / CDBL(hz) + .0031) * grain) / CDBL(grain)
+        Pace CSNG(t - was), c
+        was = t
+        n = Steps%(c)
+        IF i > 300 THEN
+            tot = tot + n
+            IF n > most THEN bad = bad + 1
+            IF per THEN
+                since = since + 1
+                IF n THEN
+                    IF since <> per AND tot > n THEN bad = bad + 1
+                    since = 0
+                END IF
+            END IF
+        END IF
+    NEXT
+    IF ABS(tot - want) > 3 THEN bad = bad + 1
+    Uneven% = bad
+END FUNCTION
+
 ' The ground's top under x, NONE over a gap.
 FUNCTION GroundAt% (x AS INTEGER)
     DIM y AS INTEGER
@@ -169,6 +205,9 @@ def main() -> None:
     if "met ok" not in out:
         sys.exit(f"charlie: the level cleared, Charlie not stopped at its family, all of them in view: {out[-300:]}")
     for said, what in (
+        ("paced 60 ok", "a step for each frame of a 60 Hz screen, by a coarse clock"),
+        ("paced 120 ok", "a step every other frame of a 120 Hz screen"),
+        ("paced by time ok", "the game's speed kept at 75 Hz and with no screen"),
         ("slope ok", "a ramp run onto at any speed without a stop, and stood on without a slide"),
         ("buffer ok", "a jump pressed just before landing, made on landing"),
         ("edge jump ok", "a jump pressed just after running off an edge, made"),

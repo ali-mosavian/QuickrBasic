@@ -40,6 +40,15 @@ TYPE Hero
     win AS INTEGER
 END TYPE
 
+' The game's time against the screen's frames: lag, the time not yet stepped; span, a frame's length as learnt; late,
+' what the game is behind the clock; n, the frames seen.
+TYPE Clock
+    lag AS SINGLE
+    span AS SINGLE
+    late AS SINGLE
+    n AS SINGLE
+END TYPE
+
 ' Held keys, and jump's press since the last step.
 TYPE Pad
     l AS INTEGER
@@ -158,7 +167,8 @@ DECLARE SUB Blit (x AS INTEGER, y AS INTEGER, k AS INTEGER, w AS INTEGER, h AS I
 DECLARE SUB Poll ()
 DECLARE SUB ReadPad (k AS Pad)
 DECLARE FUNCTION Held2% (s AS INTEGER, t AS SINGLE)
-DECLARE FUNCTION NextTime! (last AS SINGLE)
+DECLARE SUB Pace (d AS SINGLE, c AS Clock)
+DECLARE FUNCTION Steps% (c AS Clock)
 DECLARE FUNCTION Elapsed! (a AS SINGLE, b AS SINGLE)
 DECLARE SUB Sfx (id AS INTEGER)
 DECLARE SUB LoadSong ()
@@ -2674,7 +2684,7 @@ DATA -1,-16777216,16777215,-65536,65535,0,-256,-5,-1,0
 SUB Main
     DIM g AS Game, p AS Hero, k AS Pad
     DIM lo(NLOOSE - 1) AS Loose, pt(NPART - 1) AS Part
-    DIM now AS SINGLE, last AS SINGLE, lag AS SINGLE
+    DIM now AS SINGLE, last AS SINGLE, c AS Clock, n AS INTEGER
 
     OpenScreen
     LoadTables
@@ -2685,16 +2695,20 @@ SUB Main
     ResetWorld g, p, lo(), pt()
 
     last = TIMER
+    c.span = STEPT
     DO
-        now = NextTime!(last)
-        lag = lag + Elapsed!(last, now)
+        ' the next frame on the screen (port 3DAh's retrace; with no display, the next look), the keys read meanwhile
+        DO: Poll: LOOP UNTIL INP(&H3DA) AND 8
+        now = TIMER
+        Pace Elapsed!(last, now), c
         last = now
         ReadPad k
-        ' a picture for each step, none for a look at the clock between two: two of five were the last one again
-        IF lag >= STEPT THEN
-            DO WHILE lag >= STEPT
+        ' a picture for each step, none for a frame between two
+        n = Steps%(c)
+        IF n THEN
+            DO WHILE n
                 Tick g, p, k, lo(), pt()
-                lag = lag - STEPT
+                n = n - 1
             LOOP
             PickSong -(g.mode = TITLE OR g.mode = CLEARED), g.mode = CLEARED
             FeedSong
@@ -3152,14 +3166,49 @@ FUNCTION Held2% (s AS INTEGER, t AS SINGLE)
     END IF
 END FUNCTION
 
-' The next TIMER value, waited for; the port read meanwhile.
-FUNCTION NextTime! (last AS SINGLE)
-    DIM t AS SINGLE
-    DO
-        Poll
-        t = TIMER
-    LOOP WHILE t = last
-    NextTime! = t
+' A frame has been shown, d by the clock after the last: the time the game is behind by, c.lag, moved on. The game
+' runs by the clock, the same at any frame rate; but the clock is too coarse to time one frame (TIMER moves 4 to 8 ms
+' at a time, 55 on DOS), and stepped by it a frame showed two steps or none. So a frame is taken to last what frames
+' have lasted (c.span, learnt from the clock): exactly a step, or half of one, where that is within a few percent, the
+' lag then kept off the edge between a step and none; otherwise that long, with a little of what the game is behind
+' the clock (c.late) made up each frame. A stall is made up at once.
+SUB Pace (d AS SINGLE, c AS Clock)
+    DIM a AS SINGLE, r AS SINGLE, ph AS SINGLE
+    c.n = c.n + 1
+    IF d < 3 * c.span OR c.n < 3 THEN
+        a = 1 / c.n
+        IF a < .005 THEN a = .005
+        c.span = c.span + (d - c.span) * a
+    END IF
+    r = c.span / STEPT
+    IF ABS(r - 1) < .05 THEN
+        a = STEPT
+    ELSEIF ABS(r - .5) < .03 THEN
+        a = STEPT / 2
+    ELSE
+        a = c.span + c.late * .02
+        c.late = c.late + d - a
+        IF ABS(c.late) > .1 THEN a = a + c.late: c.late = 0
+        IF a < 0 THEN a = 0
+        c.lag = c.lag + a
+        EXIT SUB
+    END IF
+    c.late = 0
+    ph = c.lag - a * INT(c.lag / a)
+    c.lag = c.lag + (a / 2 - ph) * .05
+    IF d > 2.5 * a THEN a = a * CINT(d / a)
+    c.lag = c.lag + a
+END SUB
+
+' The steps the game is behind by, taken off its lag.
+FUNCTION Steps% (c AS Clock)
+    DIM n AS INTEGER
+    IF c.lag > .1 THEN c.lag = .1
+    DO WHILE c.lag >= STEPT
+        c.lag = c.lag - STEPT
+        n = n + 1
+    LOOP
+    Steps% = n
 END FUNCTION
 
 FUNCTION Elapsed! (a AS SINGLE, b AS SINGLE)
