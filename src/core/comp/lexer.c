@@ -291,7 +291,7 @@ static_assert(countof(lexr_kw_start) <= KW_ROW);
 
 /* The scanner's transitions, a row a state (0 none), from its lists the first keyword scanned: a
    step a table read, not a search of the state's list (7% of a large program's load). kw_class:
-   each byte's class in a word, any case (a digit's or a '.''s 0, no keyword's), KW_NOT none. */
+   each byte's class in a word, any case (a digit's, '.''s or '_''s 0, no keyword's), KW_NOT none. */
 static uint16_t kw_next[KW_STATES][KW_ROW];
 static uint8_t kw_class[256];
 
@@ -302,7 +302,7 @@ static void kw_dense(void)
             kw_next[st][lexr_kw_char[i]] = lexr_kw_next[i];
 
     for (uint32_t c = 0; c < 256; c++)
-        kw_class[c] = is_letter((uint8_t)c) || is_digit((uint8_t)c) || c == '.'
+        kw_class[c] = is_name_char((uint8_t)c)
                           ? lexr_kw_class[upcase((uint8_t)c)]
                           : KW_NOT;
 }

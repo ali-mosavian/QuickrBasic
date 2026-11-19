@@ -980,7 +980,7 @@ static uint16_t sugg_callee(const int32_t open, uint8_t *const name)
 
     int32_t b = e;
 
-    while (b > 0 && (is_letter(sg.before[b - 1]) || is_digit(sg.before[b - 1]) ||
+    while (b > 0 && (is_word_char(sg.before[b - 1]) ||
                      sugg_suffix(sg.before[b - 1])))
         b--;
 
@@ -1011,7 +1011,7 @@ static uint16_t sugg_bare(int32_t *const open, uint8_t *const name)
 
     int32_t e = s;
 
-    while (e < sg.nbefore && (is_letter(sg.before[e]) || is_digit(sg.before[e])))
+    while (e < sg.nbefore && is_word_char(sg.before[e]))
         e++;
 
     if (e == s || e >= sg.nbefore || sg.before[e] != ' ' || e - s > SUGG_LEN)
@@ -1082,7 +1082,7 @@ static uint8_t sugg_record(const SuggSrc *const src)
 
         if (c == ')')
             s = sugg_back(b, s);
-        else if (is_letter(c) || is_digit(c) || c == '.' || sugg_suffix(c))
+        else if (is_name_char(c) || sugg_suffix(c))
             s--;
         else
             break;
@@ -1093,7 +1093,7 @@ static uint8_t sugg_record(const SuggSrc *const src)
 
     int32_t i = s;
 
-    while (i < e && (is_letter(b[i]) || is_digit(b[i])))
+    while (i < e && is_word_char(b[i]))
         i++;
 
     if (i == s || !is_letter(b[s]))
@@ -1115,7 +1115,7 @@ static uint8_t sugg_record(const SuggSrc *const src)
     while (t && i < e && b[i] == '.') { /* .f: its TYPE's field, a record */
         const int32_t f0 = ++i;
 
-        while (i < e && (is_letter(b[i]) || is_digit(b[i])))
+        while (i < e && is_word_char(b[i]))
             i++;
 
         const uint16_t fn = symb_find_name(src->symb, b + f0, (uint8_t)(i - f0));
@@ -1314,14 +1314,14 @@ static bool sugg_word(
     uint16_t *const start
 )
 {
-    if (col > n || (col < n && (is_letter(text[col]) || is_digit(text[col]))))
+    if (col > n || (col < n && is_word_char(text[col])))
         return false;
 
     uint16_t s = col;
 
     if (s >= 2 && sugg_suffix(text[s - 1]) && is_letter(text[s - 2])) /* a name's type: its own */
         s--;
-    while (s && (is_letter(text[s - 1]) || is_digit(text[s - 1])))
+    while (s && is_word_char(text[s - 1]))
         s--;
     if (s < col && is_digit(text[s]) && s >= 2 && text[s - 1] == '.' && is_digit(text[s - 2]))
         for (s--; s && is_digit(text[s - 1]); s--) /* a number's whole part */

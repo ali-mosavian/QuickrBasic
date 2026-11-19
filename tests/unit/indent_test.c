@@ -41,6 +41,7 @@ TEST(indent_opens)
     CHECK(enter(nullptr, 0, "10 WHILE x", 0, 4));
     CHECK(enter(nullptr, 0, "PRINT \"FOR\"", 0, 0));
     CHECK(enter(nullptr, 0, "REM FOR", 0, 0));
+    CHECK(enter(nullptr, 0, "do_it: x = 1", 0, 0)); /* '_' in a name, ours: it was DO */
 }
 
 /* An end back at its start's column, across blocks of its kind between. */

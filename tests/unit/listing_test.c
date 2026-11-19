@@ -92,3 +92,10 @@ TEST(list_continue_keyword)
         "if x then continue for else continue do: Continue = 1: print Continue"
     );
 }
+
+/* '_' in a name, ours: my_var was my _ var, do_it the keyword DO and _ it. */
+TEST(list_underscore_names)
+{
+    listed(S, "My_Var = 1: print MY_VAR: gosub do_it");
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, "My_Var = 1: print My_Var: gosub do_it");
+}

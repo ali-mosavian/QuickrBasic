@@ -863,6 +863,17 @@ CASES |= {
                           "No FOR loop counting with `q` is open here.", " 1"),
 }
 
+# '_' in a name, ours: my_var was Syntax error, do_it the keyword DO; my_rem's REM a comment, its
+# line's continuation lost. A '_' after a blank at a line's end still continues it.
+CASES |= {
+    "underscore_names": (bas("DECLARE SUB show_it (a_b AS INTEGER)", "TYPE pt_t", "  x_pos AS INTEGER", "END TYPE",
+                             "CONST max_n = 4", "DIM p AS pt_t, arr_a(max_n)", "DEF fn_sq (x) = x * x",
+                             "p.x_pos = 7: arr_a(max_n) = 9: end_x = 1: x_ = 3", "my_rem = 1 + _", "  2",
+                             "show_it p.x_pos: GOSUB do_it", "PRINT arr_a(4); fn_sq(3); end_x; x_; my_rem", "END",
+                             'do_it: PRINT "s": RETURN', "SUB show_it (a_b AS INTEGER)", "PRINT a_b", "END SUB"),
+                         " 7 \r\ns\r\n 9  9  1  3  3 \r\n", "ERROR"),
+}
+
 # Typed at the prompt, not run as a file.
 REPL = {
     # A direct line ran from DCODE, its statement map's place: nothing printed.

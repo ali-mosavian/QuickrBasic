@@ -40,10 +40,7 @@ static const char *const leads[] = {
 /* A name's or a number's byte: a letter, a digit or . _ $ % & ! # @. */
 static bool is_word(const char c)
 {
-    if (is_digit((uint8_t)c) || is_letter((uint8_t)c))
-        return true;
-
-    return c && strchr("._$%&!#@", c);
+    return is_name_char((uint8_t)c) || (c && strchr("$%&!#@", c));
 }
 
 /* The letters at s, at most max. */

@@ -184,8 +184,7 @@ bool hhist_pop(HelpHist *const h, uint16_t *const id)
 
 static bool word_char(const uint8_t c)
 {
-    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '.' ||
-           c == '_' || c == '$' || c == '%' || c == '&' || c == '!' || c == '#';
+    return is_name_char(c) || memchr("$%&!#", c, 5) != nullptr;
 }
 
 uint16_t hdoc_word(const uint8_t *const s, const uint16_t len, uint16_t col, char *const out, const uint16_t max)
