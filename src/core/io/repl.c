@@ -205,27 +205,26 @@ static const ErrOp *err_op(const Session *const S)
 /* An error found before the run: loading the file, or compiling. */
 static bool compile_error(const Session *const S) { return load_error(S) || err_op(S); }
 
-/* An error loading a file: the line read, marked at its start. */
-static void diagnose_load(Session *const S)
+/* text on a line of its own, a mark under its column mark. */
+static void put_marked(Session *const S, const uint8_t *const text, const uint32_t mark)
 {
     cons_nl(&S->cons);
     cons_spaces(&S->cons, 2);
-    cons_puts(&S->cons, (const char *)S->cons.inbuf);
+    cons_puts(&S->cons, (const char *)text);
     cons_nl(&S->cons);
     cons_spaces(&S->cons, 2);
+
+    for (uint32_t i = 0; i < mark; i++)
+        cons_space(&S->cons);
+
     cons_putc(&S->cons, '^');
     cons_nl(&S->cons);
 }
 
-/* A compile error's place and words under BC's message: the line as LIST spells it, a mark under
-   the place, what is wrong and what to do. Any other error: nothing. */
-static void diagnose(Session *const S)
+/* A compile error's place and words: the line as LIST spells it, a mark under the place, what is
+   wrong and what to do. */
+static void diagnose(Session *const S, const ErrOp *const e)
 {
-    const ErrOp *const e = err_op(S);
-
-    if (!e)
-        return;
-
     const uint8_t *const body =
         S->vm.line == DLINE ? S->comp.cbuf : at(prog_addr(&S->prog, S->vm.line) + HDR);
     const uint32_t col = list_text(&S->comp, body, e->at);
@@ -238,23 +237,28 @@ static void diagnose(Session *const S)
         e->dg,
         e->state
     );
-    cons_nl(&S->cons);
-    cons_spaces(&S->cons, 2);
-    cons_puts(&S->cons, (const char *)S->cons.sbuf);
-    cons_nl(&S->cons);
-    cons_spaces(&S->cons, 2);
-
-    for (uint32_t i = 0; i < mark; i++)
-        cons_space(&S->cons);
-
-    cons_putc(&S->cons, '^');
-    cons_nl(&S->cons);
+    put_marked(S, S->cons.sbuf, mark);
     diag_say(&S->diag);
+}
+
+/* A runtime error's place: the line as LIST spells it, marked at the failing statement. */
+static void diagnose_run(Session *const S)
+{
+    uint32_t left;
+    const Stmt *const st = flow_stmtof(&S->prog, &S->allo, S->vm.line, S->vm.opip, &left);
+    const uint8_t *const body = at(prog_addr(&S->prog, S->vm.line) + HDR);
+    uint32_t col = list_text(&S->comp, body, st->body == BOFF ? 0 : st->body);
+
+    while (S->cons.sbuf[col] == ' ') /* the statement's text starts after the blanks past ':' */
+        col++;
+
+    put_marked(S, S->cons.sbuf, col);
 }
 
 /* repl_error's message. A file run's compile error: "FILE:n: " before it. Its runtime error, as
    BC's, after it: "in line n|No line number in module NAME at address X", X the op's bytecode
-   offset. Else "in line n" if numbered, then a compile error's FILE:n on a line of its own. Or
+   offset. Else "in line n" if numbered. Then FILE:n on a line of its own, if not before, and the
+   line, marked; a typed line's runtime error has neither. Or
    BREAK [IN n]. The stacks reset first; the editor takes it there. */
 static void report(Session *const S, const uint8_t code)
 {
@@ -308,15 +312,21 @@ static void report(Session *const S, const uint8_t code)
         }
     }
 
-    if (compiled && src && !lead) {
+    const bool placed = compiled || (S->repl.batch && line != DLINE);
+
+    if (placed && src && !lead) {
         cons_nl(&S->cons);
         put_where(S, file, src);
     }
 
+    const ErrOp *const e = err_op(S);
+
     if (load_error(S))
-        diagnose_load(S);
-    else
-        diagnose(S);
+        put_marked(S, S->cons.inbuf, 0);
+    else if (e)
+        diagnose(S, e);
+    else if (placed)
+        diagnose_run(S);
 }
 
 /* The input's end in a file run, or at READY: files closed, exit. */
@@ -498,7 +508,7 @@ void repl_main(Session *const S)
             qbrt_text(); /* the message stays: the exit's text mode would clear a graphics screen */
             report(S, (uint8_t)st);
 
-            if (S->repl.checking || (S->repl.batch && compile_error(S))) /* never ran */
+            if (S->repl.checking || S->repl.batch)
                 cons_exit(&S->cons, 1);
         }
     }

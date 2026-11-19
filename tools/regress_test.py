@@ -209,7 +209,7 @@ CASES = {
     "qb_onlocal": ('DECLARE SUB t ()\r\nDECLARE SUB m ()\r\nt\r\nPRINT "d": x = 1 / 0: PRINT "no"\r\n'
                    'SUB t\r\nON LOCAL ERROR GOTO h\r\nm\r\nPRINT "t"\r\nEXIT SUB\r\nh: PRINT "e"; ERR: RESUME NEXT\r\n'
                    'END SUB\r\nSUB m\r\nx = 1 / 0: PRINT "m"\r\nEND SUB\r\n',
-                   "e 11 \r\nt\r\nd\r\nDivision by zero", "no"),
+                   "e 11 \r\nt\r\nd\r\nDivision by zero", "\nno\r"),
     # PDS's REDIM PRESERVE was a syntax error. Elements keep their subscripts; strings move with them;
     # another array after it stays.
     "qb_redim_keep": ('REDIM a(3) AS INTEGER, s$(2), z(1)\r\nFOR i = 0 TO 3: a(i) = i * 10: NEXT\r\n'
@@ -863,11 +863,14 @@ def check_forbidden() -> None:
 def check_host_errors(tmp: Path) -> None:
     """A file named by a Unix path. Its compile error led with BC's runtime words ("Syntax error in
     line No line number in module /TMP at address 0000:075B", the module cut at the first '/'),
-    and exited 0. Its runtime error's address was the bytecode offset split as a 16-bit seg:off."""
+    and exited 0. Its runtime error named no line of the file, ended without a newline, exited 0,
+    and its address was the bytecode offset split as a 16-bit seg:off."""
     (tmp / "sub").mkdir()
     for name, prog, want, rc in (
         ("bad.bas", "PRINT 1\n\nX =\n", r"^sub/bad\.bas:3: Syntax error\r?\n  X =\r?\n", 1),
-        ("rt.bas", "X = 1 / 0\n", r"^Division by zero in line No line number in module RT {7}at address [0-9A-F]{8}\r?$", 0),
+        ("rt.bas", "PRINT 1\n\nPRINT 2: X = 1 / 0\n",
+         r"^Division by zero in line No line number in module RT {7}at address [0-9A-F]{8}\r?\n"
+         r"sub/rt\.bas:3\r?\n  PRINT 2: X = 1 / 0\r?\n {11}\^\r?\n\Z", 1),
     ):
         (tmp / "sub" / name).write_text(prog)
         p = subprocess.run([str(dosrun.COM.resolve()), f"sub/{name}"], cwd=tmp, capture_output=True, text=True, timeout=10)
