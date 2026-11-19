@@ -563,32 +563,48 @@ static void room_run(SynthRoom *const r, const int32_t *const wet, int32_t *cons
 }
 
 /* The voices into `sum`, and the room's answer to those it answers: each of them alone first, so its share can be
-   sent. With none and the tail over, the room costs nothing. */
-static void voices(Synth *const s, int32_t *const sum, const int n)
+   sent. With none and the tail over, the room costs nothing. In stereo (`left` and `right` given) `sum` is the
+   middle, in both; a voice to one side is in `left` and `right` instead, the far side's share less by its pan. */
+static void voices(Synth *const s, int32_t *const sum, int32_t *const left, int32_t *const right, const int n)
 {
     int32_t wet[SYNTH_BLOCK], one[SYNTH_BLOCK];
     bool sent = false;
 
     for (int v = 0; v < DEV_VOICES; v++) {
         SynthOsc *const o = &s->osc[v];
+        const bool silent = o->level == 0 && (o->stage == STAGE_CUT || o->stage == STAGE_RELEASE);
+        const int to = o->set.pan ? o->set.pan - PAN_MIDDLE : 0; /* -7 the left, 7 the right */
+        const bool aside = left && to && !silent;
+        const bool roomed = o->set.reverb && !silent;
 
-        if (!o->set.reverb || (o->level == 0 && (o->stage == STAGE_CUT || o->stage == STAGE_RELEASE))) {
+        if (!aside && !roomed) {
             voice(s, o, sum, n);
             continue;
         }
-        if (!sent && !s->room.live)
+        if (roomed && !sent && !s->room.live)
             s->room = (SynthRoom){.comb_len = {s->room.comb_len[0], s->room.comb_len[1], s->room.comb_len[2],
                                                s->room.comb_len[3]},
                                   .pass_len = {s->room.pass_len[0], s->room.pass_len[1]}};
         for (int i = 0; i < n; i++) {
             one[i] = 0;
-            wet[i] = sent ? wet[i] : 0;
+            wet[i] = sent || !roomed ? wet[i] : 0;
         }
-        sent = true;
         voice(s, o, one, n);
-        for (int i = 0; i < n; i++) {
-            sum[i] += one[i];
-            wet[i] += one[i] * o->set.reverb / 16;
+        if (aside) {
+            const int32_t near = PAN_MIDDLE - 1, far = near - (to < 0 ? -to : to);
+            int32_t *const more = to < 0 ? left : right, *const less = to < 0 ? right : left;
+
+            for (int i = 0; i < n; i++) {
+                more[i] += one[i];
+                less[i] += one[i] * far / near;
+            }
+        } else
+            for (int i = 0; i < n; i++)
+                sum[i] += one[i];
+        if (roomed) {
+            sent = true;
+            for (int i = 0; i < n; i++)
+                wet[i] += one[i] * o->set.reverb / 16;
         }
     }
     if (sent)
@@ -605,9 +621,11 @@ static void voices(Synth *const s, int32_t *const sum, const int n)
 /* The mix at twice its sum, held under full: a block that would pass it is turned down, from its first sample, by as
    much as its loudest needs, and the gain climbs back at `release`. Many voices at once were clipped flat; kept under
    full by their volumes alone they were 8 dB under a recording. A block under full with nothing held is its sum
-   doubled, no more. */
-static void limit(Synth *const s, const int32_t *const sum, int16_t *const out, const int n)
+   doubled, no more.
+   `sum` is `sides` channels, a sample of each in turn, turned down as one. */
+static void limit(Synth *const s, const int32_t *const sum, int16_t *const out, const int frames, const int sides)
 {
+    const int n = frames * sides;
     int32_t top = 0;
 
     for (int i = 0; i < n; i++) {
@@ -623,21 +641,22 @@ static void limit(Synth *const s, const int32_t *const sum, int16_t *const out, 
     }
 
     const int32_t need = top > LOUDEST ? FULL - LOUDEST * (FULL / top) : 0;
-    const int32_t eased = s->held > s->release * n ? s->held - s->release * n : 0;
+    const int32_t eased = s->held > s->release * frames ? s->held - s->release * frames : 0;
     const int32_t held = need > eased ? need : eased;
     const int32_t from = need > s->held ? need : s->held; /* down at once: a ramp down let its first samples clip */
-    const int32_t step = (held - from) / n;
+    const int32_t step = (held - from) / frames;
 
     for (int i = 0; i < n; i++) {
-        const int32_t v = sum[i] * 2 * ((FULL - from - step * (i + 1)) >> GAIN_SHIFT) >> GAIN_SHIFT;
+        const int32_t v = sum[i] * 2 * ((FULL - from - step * (i / sides + 1)) >> GAIN_SHIFT) >> GAIN_SHIFT;
 
         out[i] = (int16_t)(v > LOUDEST ? LOUDEST : v < -LOUDEST ? -LOUDEST : v);
     }
     s->held = held;
 }
 
-/* A block at a time, each voice over the block in turn: the sum is the same, an int32 till it is limited. */
-void synth_render(Synth *const s, int16_t *const out, const int count)
+/* A block at a time, each voice over the block in turn: the sum is the same, an int32 till it is limited. With
+   `sides` 2 a frame is its left sample then its right. */
+static void render(Synth *const s, int16_t *const out, const int count, const int sides)
 {
     for (int at = 0, n; at < count; at += n) {
         int32_t sum[SYNTH_BLOCK];
@@ -658,7 +677,28 @@ void synth_render(Synth *const s, int16_t *const out, const int count)
         else
             for (int i = 0; i < n; i++)
                 sum[i] = speaker(s);
-        voices(s, sum, n);
-        limit(s, sum, out + at, n);
+        if (sides == 1) {
+            voices(s, sum, nullptr, nullptr, n);
+            limit(s, sum, out + at, n, 1);
+        } else {
+            int32_t left[SYNTH_BLOCK] = {0}, right[SYNTH_BLOCK] = {0}, both[SYNTH_BLOCK * 2];
+
+            voices(s, sum, left, right, n);
+            for (int i = 0; i < n; i++) {
+                both[i * 2] = sum[i] + left[i];
+                both[i * 2 + 1] = sum[i] + right[i];
+            }
+            limit(s, both, out + at * 2, n, 2);
+        }
     }
+}
+
+void synth_render(Synth *const s, int16_t *const out, const int count)
+{
+    render(s, out, count, 1);
+}
+
+void synth_render_stereo(Synth *const s, int16_t *const out, const int frames)
+{
+    render(s, out, frames, 2);
 }

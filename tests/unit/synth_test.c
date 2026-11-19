@@ -410,6 +410,40 @@ TEST(synth_room_answers_a_voice)
     CHECK(end == 0);
 }
 
+/* In stereo a voice is where its pan puts it: all of it on its side, less on the other by how far it is, none at the
+   end; in the middle, and in mono whatever its pan, it is the same on both. */
+TEST(synth_stereo_puts_a_voice_where_its_pan_is)
+{
+    static Synth s;
+    static int16_t both[RATE / 5], left[RATE / 10], right[RATE / 10], mono[RATE / 10];
+    static const unsigned char pans[] = {1, 12, 15, 8, 0};
+    int tops[5][2];
+
+    for (int k = 0; k < 5; k++) {
+        DevVoice v = note(441, DEV_SAW, 0x00F0);
+
+        v.pan = pans[k];
+        synth_init(&s, RATE);
+        synth_voice(&s, 0, &v);
+        synth_render_stereo(&s, both, RATE / 10);
+        for (int i = 0; i < RATE / 10; i++) {
+            left[i] = both[i * 2];
+            right[i] = both[i * 2 + 1];
+        }
+        tops[k][0] = peak(left, RATE / 10);
+        tops[k][1] = peak(right, RATE / 10);
+        synth_init(&s, RATE);
+        synth_voice(&s, 0, &v);
+        synth_render(&s, mono, RATE / 10);
+        CHECK(peak(mono, RATE / 10) == (tops[k][0] > tops[k][1] ? tops[k][0] : tops[k][1]));
+    }
+    CHECK(tops[0][0] > 1000 && tops[0][1] == 0);
+    CHECK(tops[1][1] == tops[0][0] && tops[1][0] > tops[1][1] * 2 / 5 && tops[1][0] < tops[1][1] / 2);
+    CHECK(tops[2][1] == tops[0][0] && tops[2][0] == 0);
+    CHECK(tops[3][0] == tops[3][1] && tops[3][0] == tops[0][0]);
+    CHECK(tops[4][0] == tops[4][1] && tops[4][0] == tops[0][0]);
+}
+
 /* The page's AudioWorklet (synth.wasm) renders filtered noise to this hash; the Mac and DOS must too. A float filter
    once differed by arm64's fused multiply-adds. */
 TEST(synth_renders_as_the_page_does)
@@ -662,7 +696,8 @@ TEST(play_sets_the_voice)
 /* W4 is FM, Z its modulator: ratio, depth, decay, level and feedback; U is vibrato, K a glide, I a unison. */
 TEST(play_sets_fm)
 {
-    static const char *const lines[] = {"10 PLAY \"MF W4 Z3,11,6,2,5 U7 K4,8,5 I9 R6 C P64\"", nullptr};
+    static const char *const lines[] = {"10 PLAY \"MF W4 Z3,11,6,2,5 U7 K4,8,5 I9 R6 S3 C P64\"", nullptr};
+    static const char *const aside[] = {"10 PLAY \"S0 C\"", nullptr};
     static const char *const fed[] = {"10 PLAY \"W4 Z1,2,3,4,8 C\"", nullptr};
     static const char *const waver[] = {"10 PLAY \"U16 C\"", nullptr};
     static const char *const ratio[] = {"10 PLAY \"W4 Z0 C\"", nullptr};
@@ -677,7 +712,8 @@ TEST(play_sets_fm)
     const DevVoice v = headless_voice(first).v;
     CHECK(v.wave == DEV_FM && v.ratio == 3 && v.depth == 11);
     CHECK(v.fall == 0x62 && v.feedback == 5 && v.vibrato == 7 && v.glide == 4 && v.from == 8 && v.spread == 9);
-    CHECK(v.reverb == 6 && v.under == 5);
+    CHECK(v.reverb == 6 && v.under == 5 && v.pan == 3);
+    CHECK(unit_run(S, aside) == E_USR);
     CHECK(unit_run(S, fed) == E_USR);
     CHECK(unit_run(S, waver) == E_USR);
     CHECK(unit_run(S, ratio) == E_USR);

@@ -58,7 +58,7 @@ function wake() {
     osc.connect(gain).connect(audio.destination);
     osc.start();
     Promise.all([synthModule, audio.audioWorklet.addModule('synth.mjs')]).then(([module]) => {
-      synth = new AudioWorkletNode(audio, 'synth', { processorOptions: { module } });
+      synth = new AudioWorkletNode(audio, 'synth', { outputChannelCount: [2], processorOptions: { module } });
       synth.connect(audio.destination);
       for (const v of voices.splice(0)) synth.port.postMessage(v);
     }).catch((e) => console.error('no synthesizer:', e));

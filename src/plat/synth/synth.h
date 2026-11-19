@@ -71,5 +71,8 @@ void synth_voice(Synth *s, unsigned voice, const DevVoice *v);
    clock with no timer, as exact as the samples. It may set voices. */
 void synth_clock(Synth *s, void (*tick)(void), uint32_t sixteenths);
 void synth_render(Synth *s, int16_t *out, int count);
+/* The same in stereo, a frame its left sample then its right: each voice where its pan puts it. synth_render is
+   every voice in the middle. */
+void synth_render_stereo(Synth *s, int16_t *out, int frames);
 
 #endif

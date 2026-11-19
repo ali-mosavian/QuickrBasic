@@ -38,20 +38,20 @@ void __wrap_dev_voice(const unsigned voice, const DevVoice *const v)
 
 static void fill(void *const user, SDL_AudioStream *const s, const int more, const int total)
 {
-    int16_t buf[CHUNK];
+    int16_t buf[CHUNK * 2]; /* a frame its left sample then its right */
 
-    for (int n = more / (int)sizeof buf[0]; n > 0;) {
+    for (int n = more / (int)(2 * sizeof buf[0]); n > 0;) {
         const int chunk = n < CHUNK ? n : CHUNK;
 
-        synth_render(&synth, buf, chunk);
-        SDL_PutAudioStreamData(s, buf, chunk * (int)sizeof buf[0]);
+        synth_render_stereo(&synth, buf, chunk);
+        SDL_PutAudioStreamData(s, buf, chunk * (int)(2 * sizeof buf[0]));
         n -= chunk;
     }
 }
 
 void sdl_audio_open(void)
 {
-    const SDL_AudioSpec spec = {.format = SDL_AUDIO_S16, .channels = 1, .freq = RATE};
+    const SDL_AudioSpec spec = {.format = SDL_AUDIO_S16, .channels = 2, .freq = RATE};
 
     synth_init(&synth, RATE);
     synth_clock(&synth, tick, FINE_RATE);

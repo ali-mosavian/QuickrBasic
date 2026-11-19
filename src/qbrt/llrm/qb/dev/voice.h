@@ -3,7 +3,7 @@
 #ifndef QB_DEV_VOICE_H
 #define QB_DEV_VOICE_H
 
-enum { DEV_VOICES = 32 };
+enum { DEV_VOICES = 32, PAN_MIDDLE = 8 };
 enum DevWave { DEV_PULSE, DEV_TRIANGLE, DEV_SAW, DEV_NOISE, DEV_FM };
 enum DevFilter { DEV_UNFILTERED, DEV_LOW_PASS, DEV_BAND_PASS, DEV_HIGH_PASS };
 
@@ -29,6 +29,7 @@ typedef struct DevVoice {
     unsigned char spread;    /* a second voice in unison, n times 2 cents sharp, 0 to 15: the two beat, as a section */
     unsigned char reverb;    /* how much of the voice the room answers, 0 to 15 */
     unsigned char under;     /* it slides from n semitones under its own pitch instead, 1 to 24 */
+    unsigned char pan;       /* where it is in stereo: 1 the left to 15 the right, 8 (and 0) the middle */
 } DevVoice;
 
 #endif
