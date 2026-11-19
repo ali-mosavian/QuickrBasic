@@ -454,5 +454,6 @@ K(AEMPTY, stmt_aempty) /* DIM a(), ours */
 K(ACOPY, stmt_acopy)   /* a() = b(), ours */
 K(AMOVE, stmt_amove)   /* a() = f(..), ours */
 K(ARESET, stmt_areset) /* an array result's start, ours */
+K(FIDX, stmt_fidx)     /* a fixed array field's element, ours */
 #undef K
 #endif

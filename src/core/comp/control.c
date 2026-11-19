@@ -1459,10 +1459,17 @@ static void mids(Comp *const C)
     comp_store(C);
 }
 
-/* A statement starting with a name: a TYPE's field, a record's copy, a SUB's call. */
+/* A statement starting with a name: a TYPE's field (its bounds ours), a record's copy, a SUB's
+   call. */
 static bool namestmt(Comp *const C)
 {
-    if (*comp_skipname(C->p) == TK_AS) {
+    const uint8_t *q = comp_skipname(C->p);
+    FieldDim dims[MAXD];
+    uint8_t nd;
+
+    if (*q == '(')
+        q = decl_dims(q, 0, dims, &nd);
+    if (q && *q == TK_AS) {
         skip(C);
         return true;
     }

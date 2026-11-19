@@ -3,7 +3,7 @@ keys: TYPE, END TYPE
 
 Syntax
     TYPE name
-        element AS type
+        element[(bounds)] AS type
         ...
     END TYPE
 
@@ -26,6 +26,11 @@ PUT and GET write. INTEGER takes 4 bytes here; use SHORT for a
 
 TYPE goes at module level, before any use. Variable-length STRING
 elements are not allowed.
+
+An element with bounds is a fixed array inside the record, as in
+QuickBASIC PDS: pts(1 TO 4) AS Pt. The bounds are numbers, the lower
+OPTION BASE's when left out. Reach an element as v.pts(i).x; outside
+the bounds is Subscript out of range.
 
 Nested records: an element AS another TYPE. Whole-record assignment
 (a = b) copies every element, and works between two variables of the

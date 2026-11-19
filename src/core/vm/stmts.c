@@ -506,6 +506,20 @@ void stmt_amove(Session *const S)
     arry_move(&S->arry, &S->vm, (uint16_t)exec_pop(&S->vm).u, s);
 }
 
+/* A fixed array field's element ( addr s lb count stride -- addr ), ours: s's place in its
+   dimension, stride bytes each. Subscript out of range: past it. */
+void stmt_fidx(Session *const S)
+{
+    const uint32_t stride = exec_pop(&S->vm).u, count = exec_pop(&S->vm).u;
+    const int32_t lb = exec_pop(&S->vm).i;
+    const int64_t k = (int64_t)exec_pop(&S->vm).i - lb;
+
+    if (k < 0 || k >= count)
+        arry_bad_sub(&S->arry);
+
+    S->vm.sp->a += (Addr)k * stride;
+}
+
 /* An array result's start ( id -- ), ours: as arry_reset. */
 void stmt_areset(Session *const S) { arry_reset(&S->arry, &S->vm, (uint16_t)exec_pop(&S->vm).u); }
 

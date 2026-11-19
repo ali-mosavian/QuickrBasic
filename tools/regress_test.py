@@ -1002,6 +1002,29 @@ CASES |= {
                                  "function Mk () as Vec", "end function"), ".BAS:4: Parameter type mismatch", None),
 }
 
+# A fixed array in a TYPE, ours, was a Syntax error: inline, its first subscript the fastest; its
+# element a field, a record, an argument; out of its bounds Subscript out of range, a constant's
+# when compiled. A subscript with an operator left the statement at its end: Syntax error.
+POLY = ("type Vec", " x as single", " y as single", "end type", "type Poly", " n as integer",
+        " pts(1 to 4) as Vec", " w(2, 1 to 3) as integer", " tag(3) as string * 2", "end type",
+        "dim p as Poly")
+CASES |= {
+    "field_array": (bas(*POLY, "declare sub showv (v as Vec)", "declare sub inc (k as integer)",
+                        "declare function mk () as Poly", "dim q as Poly, ps(3) as Poly", "on error goto h",
+                        "p.pts(2).x = 5: p.w(1, 2) = 7: i = 2: p.pts(i).y = p.pts(2).x + 1",
+                        'p.tag(3) = "ab": p.n = 1', "print p.pts(2).x; p.pts(i).y; p.w(1, 2); len(p); p.tag(3); p.n",
+                        "q = p: p.pts(2).x = 0: print q.pts(2).x; q.w(1, 2)",
+                        "ps(1).w(2, 3) = 9: print ps(1).w(2, 3); ps(2).w(2, 3)",
+                        "showv q.pts(2): inc p.w(1, 2): print p.w(1, 2)", "q = mk: print q.pts(i + 1).x",
+                        "i = 5: print p.pts(i).x", "j = 0: print p.w(1, j)", "end", OV,
+                        "sub showv (v as Vec): print v.x: end sub", "sub inc (k as integer): k = k + 1: end sub",
+                        "function mk () as Poly", " mk.pts(3).x = 4", "end function"),
+                    " 5  6  7  80 ab 1 \r\n 5  7 \r\n 9  0 \r\n 5 \r\n 8 \r\n 4 \r\nov 9 \r\nov 9 \r\n", "ERROR"),
+    "field_array_bound": (bas(*POLY, "p.pts(5).x = 1"), ".BAS:12: Subscript out of range", None),
+    "field_array_dims": (bas(*POLY, "p.w(1) = 2"), ".BAS:12: Subscript out of range", None),
+    "field_array_whole": (bas(*POLY, "p.pts.x = 2"), ".BAS:12: Syntax error", None),
+}
+
 # Typed at the prompt, not run as a file.
 REPL = {
     # A direct line ran from DCODE, its statement map's place: nothing printed.

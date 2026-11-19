@@ -878,6 +878,12 @@ static void cg_ref(Code *const c, const Node *const n)
     } else
         code_opid(c, n->op, n->id, n->par);
 
+    for (const Node *x = n->a; x != nullptr; x = x->next) /* a fixed array field's, ours */
+        if (x->kind == N_INT || x->kind == N_KCALL)
+            gen(c, x);
+        else
+            cg_as(c, x, T_INT, false);
+
     c->type = T_INT;
     c->iload = c->iloadend = nullptr;
 }

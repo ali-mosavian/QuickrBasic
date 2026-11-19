@@ -235,3 +235,27 @@ TEST(check_passes_array_result)
         CHECK(!typed_errs(S, typed));
     }
 }
+
+/* A fixed array in a TYPE, ours, its elements typed one line at a time before any link: the field
+   line was a Syntax error at its TO. */
+TEST(check_passes_field_array)
+{
+    static const char *const lines[] = {
+        "TYPE Vec",
+        "x AS SINGLE",
+        "END TYPE",
+        "TYPE Poly",
+        "pts(1 TO 4) AS Vec",
+        "w(2, -1 TO 1) AS INTEGER",
+        "END TYPE",
+        "DIM p AS Poly, ps(2) AS Poly",
+        "p.pts(i).x = p.w(1, 0) + ps(1).pts(2).x",
+        nullptr,
+    };
+    const char *typed[countof(lines)] = {};
+
+    for (size_t n = 0; lines[n]; n++) {
+        typed[n] = lines[n];
+        CHECK(!typed_errs(S, typed));
+    }
+}

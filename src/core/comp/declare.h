@@ -9,11 +9,19 @@
 
 enum { NDEV = 256, NLETTERS = 26 };
 
+/* A fixed array field's dimension, ours: its lower bound, its elements. */
+typedef struct {
+    int32_t lb;
+    uint32_t count;
+} FieldDim;
+
 /* A field of a TYPE. */
 typedef struct {
     uint16_t name;
-    uint8_t et, sub; /* its ET_*, or its TYPE's */
+    uint8_t et, sub; /* its ET_*, or its TYPE's; an array's, its element's */
     uint16_t fix, off;
+    uint8_t ndim; /* ours: a fixed array's dimensions, 0 none */
+    uint16_t dim; /* its first in Decl.dims */
 } Field;
 
 /* A TYPE: its name, its fields, its bytes as QBasic lays them. */
@@ -48,6 +56,8 @@ typedef struct {
     DefEvent *defevs;
     uint32_t typecap;
     TypeDef **types; /* g_typ, from 1 */
+    uint32_t ndims, dimcap;
+    FieldDim *dims; /* the fixed array fields' dimensions */
 } Decl;
 
 extern const uint8_t decl_astype[5]; /* g_dast: AS INTEGER .. AS STRING to ET_* */
@@ -74,6 +84,14 @@ static inline const TypeDef *decl_type(const Decl *const d, const uint16_t t) { 
    *at past it; null none. */
 const char *decl_warning(const uint8_t **at);
 const uint8_t *decl_item(const uint8_t *p); /* dc_item: past the item at p */
+/* A TYPE's fixed array field's ( [lo TO] hi {, ..} ) at p, ours, each bound [-]n, base the lower
+   one's when none: its dimensions to dims, MAXD at most, their count *n; past it, null not one. */
+const uint8_t *decl_dims(const uint8_t *p, uint8_t base, FieldDim *dims, uint8_t *n);
+/* Field f's dimension k. */
+static inline const FieldDim *decl_fielddim(const Decl *const d, const Field *const f, const uint32_t k)
+{
+    return &d->dims[f->dim + k];
+}
 /* dc_proc: the body is a SUB's or FUNCTION's first line (PK_SUB, PK_FUNC; *name its M_VAR), their
    END (PK_END), else 0. */
 uint8_t decl_proc(const uint8_t *body, const uint8_t **name);

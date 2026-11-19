@@ -27,7 +27,9 @@
 #include "comp/expr.h"
 #include "comp/declare.h"
 #include "comp/dfa.h"
+#include "comp/fold.h"
 #include "comp/link.h"
+#include "comp/sema.h"
 #include "io/msg.h"
 #include "io/repl.h"
 #include "mem/scope.h"
@@ -89,50 +91,158 @@ static RecRef whole(Comp *const C, const uint8_t t, const uint16_t off)
     return (RecRef){.et = ET_REC + t, .off = off, .fix = decl_type(C->decl, t)->size};
 }
 
-/* rc_path: the fields f.g.. of TYPE t, the text len long. */
-static RecRef path(Comp *const C, uint8_t t, const uint8_t *text, uint32_t len)
+/* A record's place: its bytes. */
+static uint32_t field_size(const RecRef *const r)
 {
-    uint16_t off = 0;
+    return r->et >= ET_REC || r->et == ET_SD ? r->fix : decl_etsize[r->et];
+}
 
-    if (text[len - 1] < '.') /* a suffix is not the name's */
-        len--;
+/* Field f's place at off; a fixed array's, its element's. */
+static RecRef fieldref(Comp *const C, const Field *const f, const uint32_t off)
+{
+    if (f->sub) /* a record in it */
+        return whole(C, f->sub, (uint16_t)off);
 
+    return (RecRef){.et = f->et, .off = (uint16_t)off, .fix = f->fix};
+}
+
+/* Field name of TYPE t, its text n letters. Syntax error: none. */
+static const Field *field(Comp *const C, const uint8_t t, const uint8_t *const text, const uint32_t n)
+{
+    const uint16_t name = symb_find_name(C->symb, text, (uint8_t)n);
+    const TypeDef *const td = decl_type(C->decl, t);
+
+    for (uint32_t i = 0; i < td->nfld; i++)
+        if (td->fields[i].name == name)
+            return &td->fields[i];
+
+    synerr(C);
+}
+
+/* at's index step, ours: ( addr s -- addr ) by subscript s of dimension d, its stride bytes. */
+static void index_step(Comp *const C, Node **const last, Node *const s, const FieldDim *const d, const uint32_t stride)
+{
+    const uint32_t k[] = {(uint32_t)d->lb, d->count, stride};
+    *last = (*last)->next = s;
+
+    for (uint32_t i = 0; i < 3; i++) {
+        Node *const n = ast_new(C->ast, N_INT);
+        n->num = k[i];
+        *last = (*last)->next = n;
+    }
+
+    Node *const call = ast_new(C->ast, N_KCALL);
+    call->op = K_FIDX;
+    *last = (*last)->next = call;
+}
+
+/* An element of fixed array field f, ours, its ( s {, s} ) at comp.p, the first subscript the
+   fastest: its offset in f by the constant subscripts; the others' code on at's index steps.
+   Subscript out of range: a constant past its bounds, a count not f's. */
+static uint32_t element(Comp *const C, Node *const at, const Field *const f)
+{
+    const uint8_t *const open = C->p;
+    Node *const subs = ast_new(C->ast, N_ELEM);
+    expr_args(C, subs);
+    const uint8_t *const past = C->p; /* sema_tree moves it to an operator's end */
+    Node head = {.next = at->a}, *last = &head;
+
+    while (last->next)
+        last = last->next;
+
+    const RecRef e = fieldref(C, f, 0);
+    uint64_t off = 0, stride = field_size(&e);
+    uint32_t k = 0;
+
+    for (Node *s = subs->b, *next; s; s = next, k++) {
+        next = s->next;
+        s->next = nullptr;
+        sema_tree(C, s);
+        Cell v;
+
+        if (ast_type(s) & T_STR)
+            mismatch(C);
+        if (k == f->ndim) {
+            C->p = open;
+            fault_error(C->fault, E_BS);
+        }
+
+        const FieldDim *const d = decl_fielddim(C->decl, f, k);
+
+        if (ast_type(s) == T_INT && fold_number(C, s, &v)) {
+            const int64_t i = (int64_t)v.i - d->lb;
+
+            if (i < 0 || i >= d->count) {
+                C->p = open;
+                fault_error(C->fault, E_BS);
+            }
+
+            off += (uint64_t)i * stride;
+        } else
+            index_step(C, &last, s, d, (uint32_t)stride);
+
+        stride *= d->count;
+    }
+
+    if (k != f->ndim) {
+        C->p = open;
+        fault_error(C->fault, E_BS);
+    }
+
+    C->p = past;
+    at->a = head.next;
+    return (uint32_t)off;
+}
+
+/* rc_path: the place of fields f.g.. of TYPE t, at's: the text len long, then at comp.p a fixed
+   array's subscripts and .h.. after them, ours. */
+static RecRef path(Comp *const C, Node *const at, uint8_t t, const uint8_t *text, uint32_t len)
+{
+    uint32_t off = 0;
     const Field *f;
 
     for (;;) {
-        uint32_t n = 0;
+        if (text[len - 1] < '.') /* a suffix is not the name's */
+            len--;
 
-        while (n < len && text[n] != '.')
-            n++;
+        for (;;) {
+            uint32_t n = 0;
 
-        const uint16_t name = symb_find_name(C->symb, text, (uint8_t)n);
-        const TypeDef *const td = decl_type(C->decl, t);
-        f = nullptr;
+            while (n < len && text[n] != '.')
+                n++;
 
-        for (uint32_t i = 0; i < td->nfld && !f; i++)
-            if (td->fields[i].name == name)
-                f = &td->fields[i];
-        if (!f)
-            synerr(C);
+            f = field(C, t, text, n);
+            off += f->off;
+            text += n;
+            len -= n;
 
-        off += f->off;
-        text += n;
-        len -= n;
+            if (!len)
+                break;
+            if (!f->sub || f->ndim) /* .g: a field of a TYPE's */
+                synerr(C);
 
-        if (!len)
+            t = f->sub;
+            text++;
+            len--;
+        }
+
+        if (!f->ndim)
             break;
-        if (!f->sub) /* .g: a field of a TYPE's */
+        if (*C->p != '(') /* an array field whole */
             synerr(C);
+
+        off += element(C, at, f);
+
+        if (!f->sub || C->p[0] != '.' || C->p[1] != M_VAR) /* (i).h */
+            break;
 
         t = f->sub;
-        text++;
-        len--;
+        text = C->p + 3;
+        len = C->p[2];
+        C->p = decl_item(C->p + 1);
     }
 
-    if (f->sub) /* a record in it */
-        return whole(C, f->sub, off);
-
-    return (RecRef){.et = f->et, .off = off, .fix = f->fix};
+    return fieldref(C, f, off);
 }
 
 /* An N_REF of op and variable id; an element's subscripts follow at comp.p. */
@@ -167,9 +277,9 @@ static Node *reccall(Comp *const C)
     if (n->rec.et < ET_REC)
         mismatch(C);
     if (C->p[0] == '.' && C->p[1] == M_VAR) { /* .f */
-        C->p++;
-        n->rec = path(C, (uint8_t)(n->rec.et - ET_REC), C->p + 2, C->p[1]);
+        const uint8_t *const f = ++C->p;
         C->p = decl_item(C->p);
+        n->rec = path(C, n->a, (uint8_t)(n->rec.et - ET_REC), f + 2, f[1]);
     }
 
     return n;
@@ -188,35 +298,28 @@ Node *ref_record(Comp *const C)
     const uint8_t *const after = comp_skipname(p);
     uint8_t t;
 
-    if (*after == '(') { /* a(i) */
-        t = nrec(C, name, true);
-
-        if (!t)
-            return nullptr;
-
+    if (*after == '(' && (t = nrec(C, name, true))) { /* a(i) */
         C->p = after;
         Node *const n = place(C, O_RA_ADDR, ref_recarray(C, name, t));
 
         if (C->p[0] == '.' && C->p[1] == M_VAR) { /* .f */
-            C->p++;
-            n->rec = path(C, t, C->p + 2, C->p[1]);
+            const uint8_t *const f = ++C->p;
             C->p = decl_item(C->p);
+            n->rec = path(C, n, t, f + 2, f[1]);
         } else
             n->rec = whole(C, t, 0);
 
         return n;
     }
 
-    t = nrec(C, name, false);
-
-    if (t) { /* r */
+    if (*after != '(' && (t = nrec(C, name, false))) { /* r */
         C->p = after;
         Node *const n = place(C, O_R_ADDR, recvar(C, name, t, VI_RECARR));
         n->rec = whole(C, t, 0);
         return n;
     }
 
-    const uint8_t *const text = p + 2; /* r.f: the longest prefix a record's */
+    const uint8_t *const text = p + 2; /* r.f, r.f(i) ours: the longest prefix a record's */
     for (uint32_t i = len - 1; (int32_t)i > 0; i--) {
         if (text[i] != '.')
             continue;
@@ -228,8 +331,8 @@ Node *ref_record(Comp *const C)
             continue;
 
         Node *const n = place(C, O_R_ADDR, recvar(C, pre, t, VI_RECARR));
-        n->rec = path(C, t, text + i + 1, len - i - 1);
         C->p = after;
+        n->rec = path(C, n, t, text + i + 1, len - i - 1);
         return n;
     }
 
@@ -274,12 +377,6 @@ static uint32_t vakind(Comp *const C, const uint16_t id)
     default:
         return va_pack(VA_RAW, 4);
     }
-}
-
-/* A record's place: its bytes. */
-static uint32_t field_size(const RecRef *const r)
-{
-    return r->et >= ET_REC || r->et == ET_SD ? r->fix : decl_etsize[r->et];
 }
 
 Node *ref_place(Comp *const C, uint32_t *const vk)

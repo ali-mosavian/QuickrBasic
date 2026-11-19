@@ -32,8 +32,8 @@ Language
                            [no limits](no limits)
 
 From QuickBASIC PDS and VB-DOS, also accepted: REDIM PRESERVE,
-OPTION EXPLICIT (an undeclared variable is "Variable not declared")
-and ON LOCAL ERROR.
+OPTION EXPLICIT (an undeclared variable is "Variable not declared"),
+ON LOCAL ERROR and fixed arrays in a [TYPE](TYPE).
 
 Editor
     Syntax highlighting    by the compiler's own lexer

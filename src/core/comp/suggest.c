@@ -1065,8 +1065,20 @@ static int32_t sugg_back(const uint8_t *const b, int32_t e)
     return -1;
 }
 
+/* Past the ( .. ) at b[i], before e. */
+static int32_t sugg_parens(const uint8_t *const b, int32_t i, const int32_t e)
+{
+    int32_t depth = 0;
+
+    do
+        depth += b[i] == '(' ? 1 : b[i] == ')' ? -1 : 0;
+    while (++i < e && depth);
+
+    return i;
+}
+
 /* The TYPE of the record the line before the word ends in, a '.' after it: a variable's, an
-   element's, down its fields' path; 0 none. */
+   element's, down its fields' path, a fixed array field's element ours; 0 none. */
 static uint8_t sugg_record(const SuggSrc *const src)
 {
     const uint8_t *const b = sg.before;
@@ -1102,13 +1114,8 @@ static uint8_t sugg_record(const SuggSrc *const src)
     const uint16_t name = symb_find_name(src->symb, b + s, (uint8_t)(i - s));
     const bool arr = b[i] == '(';
 
-    if (arr) {
-        int32_t depth = 0;
-
-        do
-            depth += b[i] == '(' ? 1 : b[i] == ')' ? -1 : 0;
-        while (++i < e && depth);
-    }
+    if (arr)
+        i = sugg_parens(b, i, e);
 
     uint8_t t = scop_rec(src->scop, name, arr);
 
@@ -1120,13 +1127,16 @@ static uint8_t sugg_record(const SuggSrc *const src)
 
         const uint16_t fn = symb_find_name(src->symb, b + f0, (uint8_t)(i - f0));
         const TypeDef *const td = decl_type(src->decl, t);
-        uint8_t sub = 0;
+        const Field *f = nullptr;
 
         for (uint32_t k = 0; k < td->nfld; k++)
             if (td->fields[k].name == fn)
-                sub = (uint8_t)td->fields[k].sub;
+                f = &td->fields[k];
 
-        t = sub;
+        t = f ? f->sub : 0;
+
+        if (f && f->ndim && i < e && b[i] == '(')
+            i = sugg_parens(b, i, e);
     }
 
     return i == e ? t : 0;

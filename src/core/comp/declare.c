@@ -101,6 +101,52 @@ const uint8_t *decl_item(const uint8_t *p)
     }
 }
 
+/* A bound at *p, [-]n: its value, *p past it; false: not one. */
+static bool dims_bound(const uint8_t **const p, int64_t *const v)
+{
+    const uint8_t *q = *p;
+    const bool neg = *q == TK_MINUS;
+    q += neg;
+
+    if (*q != M_INT)
+        return false;
+
+    const int64_t n = (int32_t)load32(q + 1);
+    *v = neg ? -n : n;
+    *p = q + INT_TOKEN_SIZE;
+    return true;
+}
+
+const uint8_t *decl_dims(const uint8_t *p, const uint8_t base, FieldDim *const dims, uint8_t *const n)
+{
+    if (*p != '(')
+        return nullptr;
+
+    p++;
+    *n = 0;
+
+    do {
+        int64_t lo = base, hi;
+
+        if (!dims_bound(&p, &hi))
+            return nullptr;
+        if (*p == TK_TO) {
+            p++;
+            lo = hi;
+
+            if (!dims_bound(&p, &hi))
+                return nullptr;
+        }
+        if (*n == MAXD)
+            return nullptr;
+
+        const int64_t count = hi < lo ? 0 : hi - lo + 1; /* 0: Subscript out of range */
+        dims[(*n)++] = (FieldDim){(int32_t)lo, count > UINT16_MAX ? UINT16_MAX + 1u : (uint32_t)count};
+    } while (*p == ',' && p++);
+
+    return *p == ')' ? p + 1 : nullptr;
+}
+
 /* The name at s (M_VAR), stepped past; *sfx its suffix, 0 none. */
 static uint16_t decl_name(DeclScan *const ds, uint8_t *const sfx)
 {
@@ -477,7 +523,34 @@ static void decl_typedef(DeclScan *const ds)
     d->types[t] = td;
 }
 
-/* In a TYPE: f AS type [* n]. */
+/* Field f's fixed array, ours: its dimensions, nd of them, on Decl.dims; its elements. Subscript out
+   of range: a bound past the other. */
+static uint32_t decl_fielddims(DeclScan *const ds, Field *const f, const FieldDim *const dims, const uint8_t nd)
+{
+    Decl *const d = ds->d;
+    uint64_t elems = 1;
+    f->ndim = nd;
+    f->dim = (uint16_t)d->ndims;
+
+    for (uint32_t k = 0; k < nd; k++) {
+        if (!dims[k].count)
+            decl_fail(ds, E_BS);
+        if (d->ndims > UINT16_MAX)
+            decl_fail(ds, E_OM);
+
+        decl_room(ds, (void **)&d->dims, d->ndims, &d->dimcap, sizeof *d->dims);
+        d->dims[d->ndims++] = dims[k];
+        elems *= dims[k].count;
+
+        if (elems > UINT16_MAX)
+            decl_fail(ds, E_OM);
+    }
+
+    d->dimmed = true;
+    return (uint32_t)elems;
+}
+
+/* In a TYPE: f[(bounds)] AS type [* n]; the bounds ours. */
 static void decl_field(DeclScan *const ds)
 {
     const uint16_t t = ds->d->type;
@@ -486,6 +559,17 @@ static void decl_field(DeclScan *const ds)
         return;
 
     const uint16_t n = decl_name(ds, nullptr);
+    FieldDim dims[MAXD];
+    uint8_t nd = 0;
+
+    if (*ds->at == '(') {
+        const uint8_t *const past = decl_dims(ds->at, ds->d->base, dims, &nd);
+
+        if (!past)
+            return;
+
+        ds->at = past;
+    }
 
     if (*ds->at != TK_AS)
         return;
@@ -497,6 +581,7 @@ static void decl_field(DeclScan *const ds)
     ds->d->nfields++;
     Field *const f = &td->fields[td->nfld++];
     *f = (Field){.name = n, .off = td->size}; /* at the TYPE's end */
+    const uint32_t elems = decl_fielddims(ds, f, dims, nd);
     uint16_t size;
     const uint8_t c = ds->at[1];
 
@@ -529,7 +614,10 @@ static void decl_field(DeclScan *const ds)
         }
     }
 
-    td->size += size;
+    if (td->size + (uint64_t)size * elems > UINT16_MAX)
+        decl_fail(ds, E_OM);
+
+    td->size += (uint16_t)(size * elems);
 }
 
 /* OPTION BASE n, OPTION EXPLICIT. */
