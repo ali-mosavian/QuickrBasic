@@ -602,9 +602,9 @@ CASES = {
     # a denormal 0 (and 1 / it Division by zero), the rest error 6.
     # A compile error gave BC's line alone; now the line, a mark under the place, what is wrong
     # and what to do.
-    "qb_diag_end": ("PRINT a(1\r\n", "  PRINT a(1\r\n           ^\r\nThe PRINT statement is incomplete: "
+    "qb_diag_end": ("PRINT a(1\r\n", "  print a(1\r\n           ^\r\nThe PRINT statement is incomplete: "
                     "the line ends where more is needed.\r\nPRINT is written:\r\n  PRINT [#file,]", None),
-    "qb_diag_goto": ("ON 1 PRINT\r\n", "\r\n       ^\r\n`PRINT` should be followed by GOTO or GOSUB "
+    "qb_diag_goto": ("ON 1 PRINT\r\n", "\r\n       ^\r\n`print` should be followed by GOTO or GOSUB "
                      "here.\r\nWrite `ON expression GOTO label, label`.", None),
     "qb_diag_tm": ('x = "a" + 1\r\n', '\r\n            ^\r\n`1` has the wrong type for this place (', None),
     # A statement the automaton rejected said only that it does not fit; now what it wanted.
@@ -615,9 +615,9 @@ CASES = {
     "qb_diag_kw": ('NAME "a" "b"\r\n', 'Expected `AS` in the NAME statement, but found `"b"`.', None),
     # The blocks' errors were a Syntax error, or NEXT without FOR, with no line shown and no words.
     "qb_blk_open": ("PRINT 1\r\nFOR i = 0 TO 9\r\nPRINT i\r\n", ": FOR without NEXT\r\n", None),
-    "qb_blk_open2": ("PRINT 1\r\nFOR i = 0 TO 9\r\nPRINT i\r\n", "  FOR i = 0 TO 9\r\n  ^\r\nThis FOR loop,"
+    "qb_blk_open2": ("PRINT 1\r\nFOR i = 0 TO 9\r\nPRINT i\r\n", "  for i = 0 to 9\r\n  ^\r\nThis FOR loop,"
                      " counting with `i`, is never closed", None),
-    "qb_blk_nextv": ("FOR i = 1 TO 3\r\nNEXT j\r\n", "  NEXT j\r\n       ^\r\nThis NEXT ends a loop counting "
+    "qb_blk_nextv": ("FOR i = 1 TO 3\r\nNEXT j\r\n", "  next j\r\n       ^\r\nThis NEXT ends a loop counting "
                      "with `j`, but the loop open here counts with `i`.\r\nWrite `NEXT i`, or just NEXT.", " 1"),
     "qb_blk_cross": ("FOR i = 1 TO 3\r\nDO\r\nNEXT i\r\n", ": NEXT without FOR\r\n"
                      "", None),
@@ -667,7 +667,7 @@ CASES = {
     "qb_where_lnum": ("PRINT 1\r\n70000 PRINT 2\r\n", ".BAS:2: Syntax error\r\n  70000 PRINT 2\r\n  ^\r\n", " 1"),
     # A keyword for a procedure's name: Syntax error, with neither the line nor a word why.
     "qb_where_reserved": ("PRINT 1\r\nFUNCTION Field% (x AS INTEGER)\r\nEND FUNCTION\r\n",
-                          ".BAS:2: Syntax error\r\n  FUNCTION FIELD %(x AS INTEGER)\r\n           ^\r\n`FIELD` is a reserved word", " 1"),
+                          ".BAS:2: Syntax error\r\n  function field %(x as integer)\r\n           ^\r\n`field` is a reserved word", " 1"),
     "qb_blk_next2": ("FOR i = 1 TO 2: FOR j = 1 TO 2: NEXT j, i: PRINT \"ok\"\r\n", "ok", "ERROR"),
     "qb_sng_range": ('PRINT VAL("1.23456789012"); 1E-45; 1 / 1E-45\r\n'
                      'a! = 3.4E+38: d# = 1D+40: x! = 1E-38: PRINT a! * 10; CSNG(d#); x! / 1000\r\n',
@@ -697,7 +697,7 @@ BIG = {
                           + 'PRINT "end"\r\n', "lit0\r\nlit1\r\n", "ERROR"),
     # A procedure named by a keyword (FIELD) was a Syntax error with no line or caret.
     "proc_keyword_name": ("PRINT 1\r\nFUNCTION Field% (x AS INTEGER)\r\nEND FUNCTION\r\n",
-                          "FUNCTION FIELD %(x AS INTEGER)\r\n           ^", None),
+                          "function field %(x as integer)\r\n           ^", None),
     "many_vars": ("".join(f"v{i} = {i}\r\n" for i in range(5000)) + "PRINT v0; v4999\r\n", " 0  4999 \r\n", "ERROR"),
 }
 
@@ -871,7 +871,7 @@ def check_host_errors(tmp: Path) -> None:
         ("bad.bas", "PRINT 1\n\nX =\n", r"^sub/bad\.bas:3: Syntax error\r?\n  X =\r?\n", r"^$", 1),
         ("rt.bas", "PRINT 1\n\nPRINT 2: X = 1 / 0\n",
          r"\nDivision by zero in line No line number in module RT {7}at address [0-9A-F]{8}\r?\n\Z",
-         r"^sub/rt\.bas:3\r?\n  PRINT 2: X = 1 / 0\r?\n {11}\^\r?\n\Z", 1),
+         r"^sub/rt\.bas:3\r?\n  print 2: X = 1 / 0\r?\n {11}\^\r?\n\Z", 1),
     ):
         (tmp / "sub" / name).write_text(prog)
         p = subprocess.run([str(dosrun.COM.resolve()), f"sub/{name}"], cwd=tmp, capture_output=True, text=True, timeout=10)
