@@ -485,6 +485,30 @@ void stmt_dim(Session *const S)
     arry_rep(&S->arry, &S->vm, id);
 }
 
+/* DIM a() ( id flags -- ), ours: as arry_empty. */
+void stmt_aempty(Session *const S)
+{
+    const uint32_t flags = exec_pop(&S->vm).u;
+    arry_empty(&S->arry, (uint16_t)exec_pop(&S->vm).u, flags & DIM_STATIC);
+}
+
+/* a() = b() ( dst src -- ), ours: as arry_copy. */
+void stmt_acopy(Session *const S)
+{
+    const uint16_t src = (uint16_t)exec_pop(&S->vm).u;
+    arry_copy(&S->arry, &S->vm, (uint16_t)exec_pop(&S->vm).u, src);
+}
+
+/* a() = f(..) ( dst cell -- ), ours: as arry_move. */
+void stmt_amove(Session *const S)
+{
+    ArrSlot *const s = (ArrSlot *)at(exec_popa(&S->vm));
+    arry_move(&S->arry, &S->vm, (uint16_t)exec_pop(&S->vm).u, s);
+}
+
+/* An array result's start ( id -- ), ours: as arry_reset. */
+void stmt_areset(Session *const S) { arry_reset(&S->arry, &S->vm, (uint16_t)exec_pop(&S->vm).u); }
+
 /* ERASE ( id -- ): REDIM's array freed, another's elements zeroed. */
 void stmt_erase(Session *const S)
 {

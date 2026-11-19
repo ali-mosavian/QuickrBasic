@@ -75,6 +75,13 @@ uint16_t ref_recarray(Comp *const C, const uint16_t name, const uint8_t t)
     return recvar(C, name, t, VI_ARR);
 }
 
+uint16_t ref_arrayof(Comp *const C, const uint16_t id)
+{
+    const uint16_t name = symb_var(C->symb, id)->name;
+    const uint8_t t = scop_rec(C->scop, name, true); /* a record array: its own variable */
+    return t ? ref_recarray(C, name, t) : id;
+}
+
 /* rc_whole: all of a record of TYPE t, at off. */
 static RecRef whole(Comp *const C, const uint8_t t, const uint16_t off)
 {
@@ -142,59 +149,22 @@ static Node *place(Comp *const C, const uint8_t op, const uint16_t id)
     return n;
 }
 
-/* The call at comp.p of FUNCTION pr, whose result is a record: its value the place of the record
-   its result went to, a (codegen pushes it past the call). */
-static Node *recresult(Comp *const C, const Proc *const pr)
-{
-    const uint8_t *const p = C->p;
-    uint8_t idx;
-    ref_proc(C, &idx);
-    Node *const call = ref_call(C, p, idx, pr, ARGS_PAREN);
-    call->a = ref_recplace(C, ast_last(call)->a->id);
-    call->rec = call->a->rec;
-    call->type = T_INT;
-    return call;
-}
-
-/* A line checked alone: a call of FUNCTION name, not linked yet, that its declaration made a
-   record's: its arguments passed over, a record of that TYPE in its place. Null: none such. */
-static Node *recunlinked(Comp *const C, const uint16_t name)
-{
-    const Binding *const b = scop_get(C->scop, name, name);
-
-    if (!C->check || !b || !b->rec[0])
-        return nullptr;
-
-    C->p = comp_skipname(C->p);
-
-    if (*C->p == '(') {
-        C->p++;
-        ref_dropargs(C, true);
-        comp_close(C);
-    }
-
-    return ref_recplace(C, recvar(C, comp_hidden(C, RES_NAME, 0, 0), b->rec[0], VI_RECARR));
-}
-
 /* A call at comp.p of a FUNCTION whose result is a record, ours: the record its result goes to,
-   or its field .f. Null: no such call; in the FUNCTION, its name alone is its result. */
+   or its field .f. Null: no such call. An array result: Type mismatch. */
 static Node *reccall(Comp *const C)
 {
     const uint16_t name = comp_nameof(C->p);
     const Name *const nm = symb_name(C->symb, name);
 
-    if (!(nm->flags & NM_FUNC) ||
-        (*comp_skipname(C->p) != '(' &&
-         (nm->proc ? nm->proc == C->proc : scop_own(C->scop) == name)))
+    if (!(nm->flags & NM_FUNC))
         return nullptr;
 
-    const Proc *const pr = blok_proc(C->blok, nm->proc);
-    Node *const n = !nm->proc ? recunlinked(C, name)
-                    : pr->flags & PF_RECRES ? recresult(C, pr)
-                                            : nullptr;
+    Node *const n = ref_result(C);
 
     if (n == nullptr)
         return nullptr;
+    if (n->rec.et < ET_REC)
+        mismatch(C);
     if (C->p[0] == '.' && C->p[1] == M_VAR) { /* .f */
         C->p++;
         n->rec = path(C, (uint8_t)(n->rec.et - ET_REC), C->p + 2, C->p[1]);
@@ -456,35 +426,43 @@ static Node *cell(Comp *const C, const uint16_t id)
 }
 
 /* An array parameter's argument: n() an array whole. */
-static Node *arrayarg(Comp *const C, const uint16_t par)
+uint16_t ref_wholearray(Comp *const C)
 {
-    const uint8_t *const arg = C->p;
-
     if (comp_cur(C) != M_VAR)
         synerr(C);
 
-    const uint16_t name = comp_nameof(C->p);
-    const uint8_t *const after = comp_skipname(C->p);
-
-    if (*after != '(')
+    if (*comp_skipname(C->p) != '(')
         synerr(C);
 
-    const uint8_t t = scop_rec(C->scop, name, true);
-    uint16_t id;
-
-    if (t) {
-        C->p = after;
-        id = ref_recarray(C, name, t);
-    } else
-        id = comp_var(C, 0, 0);
+    const uint16_t id = ref_arrayof(C, comp_var(C, 0, 0));
 
     if (!(symb_var(C->symb, id)->info & VI_ARR))
         synerr(C);
 
-    ptm(C, id, par, arg);
     comp_open(C);
     comp_close(C);
-    return argnode(C, PA_ARRAY, cell(C, id), id);
+    return id;
+}
+
+uint16_t ref_arrayvalue(Comp *const C, Node **const call)
+{
+    *call = comp_cur(C) == M_VAR ? ref_result(C) : nullptr;
+    return *call ? (*call)->a->id : ref_wholearray(C);
+}
+
+static Node *arrayarg(Comp *const C, const uint16_t par)
+{
+    const uint8_t *const arg = C->p;
+    Node *call;
+    const uint16_t id = ref_arrayvalue(C, &call);
+
+    if (symb_is_record(C->symb, id)) {
+        C->p = arg;
+        fault_error(C->fault, E_PTM);
+    }
+
+    ptm(C, id, par, arg);
+    return argnode(C, PA_ARRAY, call ? call : cell(C, id), id);
 }
 
 /* A record parameter's argument, by P.REF: a record, an element of a record array, a record field,
@@ -510,7 +488,7 @@ static Node *arg(Comp *const C, const uint16_t par, const bool byval)
 {
     const Var *const pv = symb_var(C->symb, par);
 
-    if (pv->type >= ET_REC && (pv->info & (VI_ARR | VK_MASK)) == VI_RECARR)
+    if (symb_is_record(C->symb, par))
         return recarg(C, par);
     if (pv->info & VI_ARR)
         return arrayarg(C, par);
@@ -567,14 +545,85 @@ Node *ref_recplace(Comp *const C, const uint16_t id)
     return r;
 }
 
-/* The record a call's record result goes to, ours: a hidden variable of the caller's, one per call,
-   keyed by its place in the program. */
-static Node *resplace(Comp *const C, const Proc *const pr)
+/* The place of record or array id: a record's whole, an array's cell. */
+static Node *resplace(Comp *const C, const uint16_t id)
 {
-    const uint8_t type = symb_var(C->symb, blok_resvar(pr))->type;
+    return symb_is_record(C->symb, id) ? ref_recplace(C, id) : cell(C, id);
+}
+
+/* The argument for FUNCTION pr's record or array result, ours: a hidden variable of the caller's,
+   one per call, keyed by its place in the program, by reference. */
+static Node *resarg(Comp *const C, const Proc *const pr)
+{
+    const uint16_t par = blok_resvar(pr);
+    const Var v = *symb_var(C->symb, par);
     const uint16_t name = comp_hidden(C, RES_NAME, 0, C->line + (uint32_t)(C->p - C->body));
     const bool stat = C->proc && blok_proc(C->blok, C->proc)->flags & PF_STAT;
-    return ref_recplace(C, symb_find_var(C->symb, name, type, VI_RECARR, C->proc, stat));
+    const uint16_t id = symb_find_var(C->symb, name, v.type, v.info, C->proc, stat);
+    return symb_is_record(C->symb, par) ? argnode(C, PA_PREF, resplace(C, id), par)
+                                        : argnode(C, PA_ARRAY, resplace(C, id), id);
+}
+
+/* The call at comp.p of FUNCTION pr, whose result is a record or an array: its value the place of
+   what its result went to, a (codegen pushes it past the call). */
+static Node *resultcall(Comp *const C, const Proc *const pr)
+{
+    const uint8_t *const p = C->p;
+    uint8_t idx;
+    ref_proc(C, &idx);
+    Node *const call = ref_call(C, p, idx, pr, ARGS_PAREN);
+    call->a = resplace(C, ast_last(call)->a->id);
+    call->rec = call->a->rec;
+    call->type = T_INT;
+    return call;
+}
+
+/* A line checked alone: a call of a FUNCTION not linked yet, its result's type b's, the array's
+   when arr: its arguments passed over; an N_CALL CALL_UNDEF, a the place of a variable of that
+   type. */
+static Node *resunlinked(Comp *const C, const Binding *const b, const bool arr)
+{
+    C->p = comp_skipname(C->p);
+
+    if (*C->p == '(') {
+        C->p++;
+        ref_dropargs(C, true);
+        comp_close(C);
+    }
+
+    const uint8_t t = b->rec[arr];
+    const uint8_t et = t ? (uint8_t)(ET_REC + t) : b->et[arr];
+    const uint8_t kind = !arr ? VI_RECARR : VI_ARR | (t ? 0 : comp_etkind[et]);
+    const uint16_t name = comp_hidden(C, RES_NAME, 0, 0);
+    Node *const n = ast_new(C->ast, N_CALL);
+    n->mode = CALL_UNDEF;
+    n->id = symb_find_var(C->symb, name, et, kind, C->proc, false);
+    n->a = resplace(C, n->id);
+    n->rec = n->a->rec;
+    n->type = T_INT;
+    return n;
+}
+
+Node *ref_result(Comp *const C)
+{
+    const uint16_t name = comp_nameof(C->p);
+    const Name *const nm = symb_name(C->symb, name);
+    const Binding *const b = scop_get(C->scop, name, name); /* its own scope's: its result's type */
+
+    if (!(nm->flags & NM_FUNC) || !b)
+        return nullptr;
+
+    const bool arr = b->et[1] || b->rec[1];
+
+    if (!arr && !b->rec[0]) /* a number's or a string's */
+        return nullptr;
+    if ((nm->proc ? nm->proc == C->proc : scop_own(C->scop) == name) &&
+        (*comp_skipname(C->p) != '(' || arr))
+        return nullptr; /* in it: its result, or an element of an array result */
+    if (nm->proc)
+        return resultcall(C, blok_proc(C->blok, nm->proc));
+
+    return C->check ? resunlinked(C, b, arr) : nullptr;
 }
 
 /* ct_args: for each of the procedure's parameters, its argument, to call n. */
@@ -634,9 +683,9 @@ Node *ref_call(
         fault_error(C->fault, E_ACM);
     }
 
-    if (pr->flags & PF_RECRES) { /* ours: the record its result goes to, the last argument */
+    if (pr->flags & PF_RESARG) { /* ours: the record its result goes to, the last argument */
         Node *last = ast_last(n);
-        ast_link(n, &last, argnode(C, PA_PREF, resplace(C, pr), blok_resvar(pr)));
+        ast_link(n, &last, resarg(C, pr));
     }
 
     return n;

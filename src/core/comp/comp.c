@@ -1134,19 +1134,29 @@ void comp_astype(Comp *const C)
     }
 }
 
-/* A DIM item: the subscripts, its id, n, CALL DIM; a scalar STRING * n: n spaces. */
+/* DIM a(), ours: its id, CALL AEMPTY. */
+static void dimempty(Comp *const C, const uint16_t id)
+{
+    C->p += 2;
+    comp_int(C, id);
+    comp_int(C, C->isstatic ? DIM_STATIC : 0);
+    comp_call(C, K_AEMPTY);
+}
+
+/* A DIM item: the subscripts, its id, n, CALL DIM; a scalar STRING * n: n spaces; DIM a(). */
 static void act_dv(Comp *const C)
 {
     comp_notconst(C);
     uint16_t id = comp_name(C);
 
     if (*C->p == '(') {
-        const uint16_t name = symb_var(C->symb, id)->name;
-        const uint8_t t = scop_rec(C->scop, name, true); /* a record array: its own variable */
-        if (t)
-            id = ref_recarray(C, name, t);
+        id = ref_arrayof(C, id);
 
-        dim1(C, id);
+        if (C->p[1] == ')' && !C->redim)
+            dimempty(C, id);
+        else
+            dim1(C, id);
+
         comp_astype(C);
         return;
     }

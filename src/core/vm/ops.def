@@ -450,5 +450,9 @@ K(LPWID, file_lpwidth) /* WIDTH LPRINT n */
 K(LPOS, file_lpos)     /* LPOS(n) */
 K(VARPS, func_varps)   /* VARPTR$(v) */
 K(RCLR, exec_r_clear)  /* a record emptied, ours: its address, its bytes */
+K(AEMPTY, stmt_aempty) /* DIM a(), ours */
+K(ACOPY, stmt_acopy)   /* a() = b(), ours */
+K(AMOVE, stmt_amove)   /* a() = f(..), ours */
+K(ARESET, stmt_areset) /* an array result's start, ours */
 #undef K
 #endif

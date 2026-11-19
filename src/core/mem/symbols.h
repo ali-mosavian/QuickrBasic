@@ -102,6 +102,12 @@ static inline bool symb_is_local(const Symb *const sy, uint16_t id)
 {
     return loc_is_local(*symb_loc(sy, id));
 }
+/* A record, not an array of them. */
+static inline bool symb_is_record(const Symb *const sy, uint16_t id)
+{
+    const Var *const v = symb_var(sy, id);
+    return v->type >= ET_REC && (v->info & (VI_ARR | VK_MASK)) == VI_RECARR;
+}
 static inline FrameArr *symb_farr(const Symb *const sy, uint16_t id)
 {
     return (FrameArr *)at(sy->vars.at[5]) + id;

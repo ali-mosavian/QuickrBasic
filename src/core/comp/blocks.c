@@ -424,9 +424,9 @@ static const uint8_t *blok_pastparams(const uint8_t *q)
     return q;
 }
 
-/* FUNCTION p's result AS a TYPE, ours: a parameter past its own, at its name; the caller passes
-   the record for it. */
-static void blok_recresult(BlokScan *const sc, Proc *const p)
+/* FUNCTION p's result AS a TYPE or an array, ours: a parameter past its own, at its name; the
+   caller passes the record or the array for it. */
+static void blok_resultarg(BlokScan *const sc, Proc *const p)
 {
     Param *const params = blok_alloc(sc, (p->npar + 1u) * sizeof *params);
 
@@ -435,7 +435,7 @@ static void blok_recresult(BlokScan *const sc, Proc *const p)
 
     params[p->npar++] = (Param){.at = p->at};
     p->params = params;
-    p->flags |= PF_RECRES;
+    p->flags |= PF_RESARG;
 }
 
 /* SUB, FUNCTION, DEF FN at s: a procedure's entry. Its variables are link_start's. */
@@ -483,15 +483,17 @@ static void blok_procstmt(BlokScan *const sc, const uint8_t *const s, const uint
     }
 
     if (kind == PK_FUNC && *q == TK_AS) { /* ours */
-        if (q[1] == M_VAR) { /* its body past the JMP: the result emptied there */
-            if (!symb_name(sc->sy, comp_nameof(q + 1))->rec) /* no such TYPE */
-                blok_fail(sc, E_SN, 0, defoff + (uint32_t)(q + 1 - s), sc->line, nullptr, 0);
+        const uint8_t *const after = decl_item(q + 1);
+        const bool arr = after[0] == '(' && after[1] == ')';
 
-            blok_recresult(sc, p);
+        if (q[1] == M_VAR && !symb_name(sc->sy, comp_nameof(q + 1))->rec) /* no such TYPE */
+            blok_fail(sc, E_SN, 0, defoff + (uint32_t)(q + 1 - s), sc->line, nullptr, 0);
+        if (q[1] == M_VAR || arr) { /* its body past the JMP: the result emptied there */
+            blok_resultarg(sc, p);
             p->entry = blok_target(sc, defoff, PAST_JMP);
         }
 
-        q = decl_item(q + 1);
+        q = arr ? after + 2 : after;
     }
 
     if (*q == TK_STATIC)

@@ -805,6 +805,41 @@ static bool reccopy(Comp *const C)
     return false;
 }
 
+/* a() = b(), ours: arrays of one type; CALL ACOPY. a() = f(..), an array result: the call, its
+   array's cell, CALL AMOVE. */
+static bool arrcopy(Comp *const C)
+{
+    const uint8_t *const after = comp_skipname(C->p);
+
+    if (after[0] != '(' || after[1] != ')' || after[2] != TK_EQ)
+        return false;
+
+    const uint16_t a = ref_wholearray(C);
+    C->p++;
+    const uint8_t *const at = C->p;
+    Node *call;
+    const uint16_t b = ref_arrayvalue(C, &call);
+
+    if (symb_var(C->symb, a)->type != symb_var(C->symb, b)->type || symb_is_record(C->symb, b)) {
+        C->p = at;
+        fault_error(C->fault, E_TM);
+    }
+    if (!comp_end(C))
+        synerr(C);
+
+    comp_int(C, a);
+
+    if (call) {
+        comp_step(C, call);
+        comp_call(C, K_AMOVE);
+        return true;
+    }
+
+    comp_int(C, b);
+    comp_call(C, K_ACOPY);
+    return true;
+}
+
 /* ---- procedures */
 
 /* A SUB's or FUNCTION's parameters, checked: [([BYVAL] name[()] [AS type], ..)]. */
@@ -836,7 +871,8 @@ static void params(Comp *const C)
     }
 }
 
-/* A FUNCTION's AS type, ours, name its name: a scalar's or a record's; none with a suffix. */
+/* A FUNCTION's AS type [()], ours, name its name: a scalar's, a record's, () an array's; none
+   with a suffix. */
 static void result_as(Comp *const C, const uint8_t *const name)
 {
     if (comp_cur(C) != TK_AS)
@@ -845,12 +881,26 @@ static void result_as(Comp *const C, const uint8_t *const name)
         synerr(C);
 
     comp_astype(C);
+
+    if (comp_cur(C) == '(') {
+        C->p++;
+        comp_close(C);
+    }
 }
 
-/* FUNCTION pr's record result emptied, ours, as a number's starts at 0: its body's first code. */
+/* FUNCTION pr's record or array result emptied, ours, as a number's starts at 0: its body's first
+   code. */
 static void result_empty(Comp *const C, const Proc *const pr)
 {
-    Node *const r = ref_recplace(C, blok_resvar(pr));
+    const uint16_t id = blok_resvar(pr);
+
+    if (!symb_is_record(C->symb, id)) {
+        comp_int(C, id);
+        comp_call(C, K_ARESET);
+        return;
+    }
+
+    Node *const r = ref_recplace(C, id);
     const uint16_t size = r->rec.fix;
     comp_step(C, r);
     comp_int(C, size);
@@ -980,7 +1030,7 @@ static void sub(Comp *const C)
         result_as(C, name);
     if (comp_cur(C) == TK_STATIC)
         C->p++;
-    if (pr && pr->flags & PF_RECRES)
+    if (pr && pr->flags & PF_RESARG)
         result_empty(C, pr);
 }
 
@@ -1070,13 +1120,7 @@ static void erase(Comp *const C)
     C->p++;
 
     do {
-        uint16_t id = shaped(C, 2);
-        const uint16_t name = symb_var(C->symb, id)->name;
-        const uint8_t t = scop_rec(C->scop, name, true); /* a record array: its own variable */
-        if (t)
-            id = ref_recarray(C, name, t);
-
-        comp_int(C, id);
+        comp_int(C, ref_arrayof(C, shaped(C, 2)));
         comp_call(C, K_ERASE);
     } while (comp_optcomma(C));
 }
@@ -1420,15 +1464,15 @@ static bool namestmt(Comp *const C)
         return true;
     }
 
-    return reccopy(C) || subcall(C);
+    return arrcopy(C) || reccopy(C) || subcall(C);
 }
 
-/* LET: a record's copy, else not one. */
+/* LET: an array's or a record's copy, else not one. */
 static bool let(Comp *const C)
 {
     C->p++;
 
-    if (*C->p == M_VAR && reccopy(C))
+    if (*C->p == M_VAR && (arrcopy(C) || reccopy(C)))
         return true;
 
     C->p--;

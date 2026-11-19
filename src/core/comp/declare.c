@@ -324,6 +324,8 @@ static void decl_shareddim(DeclScan *const ds, const uint16_t n)
         decl_fail(ds, E_RD);
 }
 
+static void decl_as(DeclScan *ds, Binding *b, uint16_t n, bool arr);
+
 /* One of DIM's names, a parameter: its binding, ( ) an array's, AS type [* n]. */
 static void decl_dim1(DeclScan *const ds, const uint16_t n)
 {
@@ -347,6 +349,12 @@ static void decl_dim1(DeclScan *const ds, const uint16_t n)
         } while (depth);
     }
 
+    decl_as(ds, b, n, arr);
+}
+
+/* AS type [* n] at ds.at, name n's: its binding b's, the array's when arr. */
+static void decl_as(DeclScan *const ds, Binding *const b, const uint16_t n, const bool arr)
+{
     if (*ds->at != TK_AS)
         return;
     if (b->flags == BF_USE) /* used with a suffix before */
@@ -544,8 +552,8 @@ static void decl_option(DeclScan *const ds)
     ds->at += 2 + INT_TOKEN_SIZE;
 }
 
-/* A FUNCTION's AS type, ours, past its parameters: its name n's in its own scope. The definition's
-   (define) is the type, BF_RES; a DECLARE's holds only until it. */
+/* A FUNCTION's AS type [()], ours, past its parameters: its name n's in its own scope, () an array's.
+   The definition's (define) is the type, BF_RES; a DECLARE's holds only until it. */
 static void decl_result(DeclScan *const ds, const uint16_t n, const bool define)
 {
     Binding *const b = scop_bind(ds->sc, n, n);
@@ -553,12 +561,13 @@ static void decl_result(DeclScan *const ds, const uint16_t n, const bool define)
     if (*ds->at == ')')
         ds->at++;
     if (define) {
-        b->et[0] = b->rec[0] = 0;
-        b->fix[0] = 0;
+        memset(b->et, 0, sizeof b->et);
+        memset(b->rec, 0, sizeof b->rec);
+        memset(b->fix, 0, sizeof b->fix);
         b->flags |= BF_RES;
     }
     if (*ds->at == TK_AS && (define || !(b->flags & BF_RES)))
-        decl_dim1(ds, n);
+        decl_as(ds, b, n, *decl_item(ds->at + 1) == '(');
 }
 
 /* DECLARE SUB|FUNCTION n: its flag; its parameters in its own scope. */

@@ -67,6 +67,17 @@ bool arry_heap(const Arry *ay, Addr h);
 /* DIM: array id made, its counts arry.subs[0..n) + 1; dyn a REDIM's. Illegal function call: a
    subscript under 0. Duplicate definition: it exists. Out of memory. */
 void arry_dim(Arry *ay, uint16_t id, uint8_t n, bool dyn);
+/* DIM a(), ours: array id dynamic and empty until a REDIM, as ERASE leaves one; keep: a STATIC's
+   with elements kept. Duplicate definition: it has elements. */
+void arry_empty(Arry *ay, uint16_t id, bool keep);
+/* a() = b(), ours: array dst gets src's bounds and a copy of its elements, its own freed first;
+   dst a dynamic array after. Duplicate definition: dst a DIM's with elements. Out of memory. */
+void arry_copy(Arry *ay, Vm *vm, uint16_t dst, uint16_t src);
+/* a() = f(..), ours: array dst takes the array of cell s, an array result's, its own freed first; s
+   is left empty. Duplicate definition: dst a DIM's with elements. */
+void arry_move(Arry *ay, Vm *vm, uint16_t dst, ArrSlot *s);
+/* An array result emptied as its FUNCTION starts, ours: array id freed, dynamic and empty. */
+void arry_reset(Arry *ay, Vm *vm, uint16_t id);
 /* Array id made: its header at arry.hdr, arry.counts and arry.lbounds [0..n), its data zeroed at
    allo.arrays; dyn a REDIM's. Returns the header. Out of memory. */
 Addr arry_new(Arry *ay, uint16_t id, uint8_t n, bool dyn);

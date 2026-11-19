@@ -25,6 +25,10 @@ field (`Mk.x = 1`) or whole (`Mk = v`), starts empty at each call,
 and is used where a record is: `v = Mk(1)`, `Show Mk(1)`,
 `PRINT Mk(1).x`.
 
+AS type() returns an array. In the FUNCTION, REDIM gives it its
+bounds and `Sq(i)` is its element; outside, `s() = Sq(4)` takes the
+result and `Show Sq(4)` passes it. See [array assignment](array assignment).
+
 Parameters are passed by reference: changing one changes the
 caller's variable. Pass an expression, or wrap a variable in
 parentheses, to pass a copy. Variables are local, and recreated at

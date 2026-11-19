@@ -928,6 +928,68 @@ CASES |= {
                            " 1  7 \r\n 5 \r\n", "ERROR"),
 }
 
+# DIM a(), ours, was a Syntax error: a dynamic array with no elements until REDIM, as ERASE leaves
+# one. A procedure's goes when it returns; a STATIC one's elements stay.
+CASES |= {
+    "dim_empty": (bas("dim a() as integer", "on error goto h", "print lbound(a)",
+                      "redim a(1 to 3)", "a(3) = 7: print a(3); ubound(a)", "erase a", "redim a(2): print ubound(a)",
+                      "dim a()", "s: s: f& = FRE(-1): t: t: print FRE(-1) = f&", "end", OV,
+                      "sub s static", "dim b() as string", "redim b(2): b(2) = \"x\"", "end sub",
+                      "sub t", "dim c() as long", "redim c(100000)", "end sub"),
+                  "ov 9 \r\n 7  3 \r\n 2 \r\nov 10 \r\n-1 \r\n", "ERROR"),
+}
+
+# LBOUND and UBOUND of a record array read another array of its name, made 0 TO 10 (" 0  10").
+CASES |= {
+    "qb_rec_array_bounds": (bas("TYPE Vec", "x AS SINGLE", "END TYPE", "DIM r(2 TO 5) AS Vec", "r(3).x = 1",
+                                "PRINT LBOUND(r); UBOUND(r)"), " 2  5 \r\n", "ERROR"),
+}
+
+# a() = b(), ours, was a Syntax error: a gets b's bounds and its own copy of the elements, strings
+# too; a DIM'd array keeps its bounds (Duplicate definition).
+CASES |= {
+    "array_copy": (bas("type Vec", " x as single", "end type", "declare sub show (a() as long)",
+                       "dim a() as long, b() as long, s() as string, t() as string, r(2) as Vec, q() as Vec",
+                       "dim f(3) as long", "redim a(2 to 4): a(2) = 1: a(3) = 2: a(4) = 3",
+                       "b() = a(): a(3) = 99: show b(): show a()",
+                       'redim s(1 to 2): s(1) = "one": s(2) = "two"', 't() = s(): s(1) = "uno": print t(1); t(2); s(1)',
+                       "r(1).x = 5: q() = r(): r(1).x = 6: print q(1).x; lbound(q); ubound(q)",
+                       "b() = b(): show b()", "dim e() as long: on error goto h: b() = e(): print ubound(b)",
+                       "let a() = f(): show a()", "f() = a()", "end", OV,
+                       "sub show (a() as long)", " for i = lbound(a) to ubound(a): print a(i);: next: print", "end sub"),
+                   " 1  2  3 \r\n 1  99  3 \r\nonetwouno\r\n 5  0  2 \r\n 1  2  3 \r\nov 9 \r\n 0  0  0  0 \r\nov 10 ",
+                   "ERROR"),
+    "array_copy_type": (bas("dim a() as long, s() as string", "s() = a()"), ".BAS:2: Type mismatch\r\n  s() = a()\r\n        ^",
+                        None),
+}
+
+# FUNCTION f (..) AS type(), ours: its result an array, the caller's hidden one passed, emptied as the
+# FUNCTION starts; a() = f(..) moves it, f(..) passes it. In f, f(i) is its result's element.
+SQUARES = ("function Squares (n as integer) as long()", " redim Squares(1 to n)",
+           " for i = 1 to n: Squares(i) = i * i: next", " if n > 1 then Squares(1) = Squares(2) + ubound(Squares)",
+           "end function")
+CASES |= {
+    "func_as_array": (bas("type Vec", " x as single", "end type", "declare sub show (a() as long)",
+                          "declare sub t ()", "dim s() as long, w() as string, p() as Vec",
+                          "s() = Squares(4): show s()", "show Squares(3)", "w() = Names(): print w(1); w(2); ubound(w)",
+                          "p() = Pts(2): print p(1).x; p(2).x", "for k% = 1 to 3: s() = Squares(k%): next: show s()",
+                          "for k = 1 to 50: show Squares(1): if k = 1 then f& = fre(-1)", "next: print f& - fre(-1)",
+                          "t: f& = fre(-1): t: t: print f& - fre(-1)", "end",
+                          "sub t", " dim u() as long", " u() = Squares(1000): show2 Squares(2000)", "end sub",
+                          "sub show2 (a() as long): end sub",
+                          "sub show (a() as long)", " for i = lbound(a) to ubound(a): print a(i);: next: print", "end sub",
+                          *SQUARES, "function Names () as string()", " redim Names(1 to 2)",
+                          ' Names(1) = "ab": Names(2) = "cd"', "end function", "function Pts (n%) as Vec()",
+                          " redim Pts(1 to n%)", " Pts(1).x = 7: Pts(n%).x = 9", "end function"),
+                      " 8  4  9  16 \r\n 7  4  9 \r\nabcd 2 \r\n 7  9 \r\n 7  4  9 \r\n" + " 1 \r\n" * 50
+                      + " 0 \r\n 0 \r\n", "ERROR"),
+    "func_as_array_value": (bas("print Squares(3)", *SQUARES), ".BAS:1: Type mismatch\r\n  print Squares(3)", None),
+    "func_as_array_fixed": (bas("dim s(5) as long", "on error goto h", "s() = Squares(3)", "end", OV, *SQUARES),
+                            "ov 10 ", "ERROR"),
+    "func_as_array_record": (bas("type Vec", " x as single", "end type", "show Mk", "sub show (a() as long): end sub",
+                                 "function Mk () as Vec", "end function"), ".BAS:4: Parameter type mismatch", None),
+}
+
 # Typed at the prompt, not run as a file.
 REPL = {
     # A direct line ran from DCODE, its statement map's place: nothing printed.

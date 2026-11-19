@@ -190,6 +190,16 @@ void arry_dim(Arry *const ay, const uint16_t id, const uint8_t n, const bool dyn
     arry_new(ay, id, n, dyn);
 }
 
+void arry_empty(Arry *const ay, const uint16_t id, const bool keep)
+{
+    ArrSlot *const s = arry_slot(ay, id);
+
+    if (s->hdr && !keep)
+        fault_error(ay->fault, E_RD);
+    if (!s->hdr)
+        s->dyn = 1;
+}
+
 Addr arry_new(Arry *const ay, const uint16_t id, const uint8_t n, const bool dyn)
 {
     uint64_t size = arry_esize(ay, id);
@@ -353,6 +363,78 @@ uint32_t arry_free(Arry *const ay, Vm *const vm, const uint16_t id, const Addr r
     }
 
     return f.hdr_size;
+}
+
+/* ---- a() = b(), ours ------------------------------------------------------------------------ */
+
+/* Array dst, assigned a whole array: its own freed, dynamic after. Duplicate definition: a DIM's
+   with elements, whose bounds stay. */
+static void arry_assigned(Arry *const ay, Vm *const vm, const uint16_t dst)
+{
+    ArrSlot *const d = arry_slot(ay, dst);
+
+    if (d->hdr && !d->dyn)
+        fault_error(ay->fault, E_RD);
+    if (d->hdr)
+        arry_free(ay, vm, dst, 0);
+
+    d->dyn = 1;
+}
+
+void arry_copy(Arry *const ay, Vm *const vm, const uint16_t dst, const uint16_t src)
+{
+    ArrSlot *const d = arry_slot(ay, dst);
+    const ArrSlot *const s = arry_slot(ay, src);
+
+    if (d == s)
+        return;
+
+    arry_assigned(ay, vm, dst);
+
+    if (!s->hdr)
+        return;
+
+    const ArrayHdr *const a = arry_hdr_at(s->hdr);
+    const uint8_t n = a->dims;
+
+    for (uint32_t i = 0; i < n; i++) {
+        ay->counts[i] = arry_count(a, i);
+        ay->lbounds[i] = arry_lbound(a, i);
+    }
+
+    arry_new(ay, dst, n, true);
+
+    const Addr from = arry_hdr_at(s->hdr)->data, to = arry_hdr_at(d->hdr)->data;
+    const uint32_t size = arry_size(ay, src, s->hdr);
+    const Var *const v = symb_var(ay->symb, src);
+
+    if ((v->info & (SK_DBL | VK_MASK)) != VK_STR || v->type >= ET_REC) {
+        copy_mem(to, from, size);
+        return;
+    }
+
+    for (uint32_t k = 0; k < size; k += DSZ) /* each string its own copy */
+        strg_set(ay->strg, from + k, to + k);
+}
+
+void arry_move(Arry *const ay, Vm *const vm, const uint16_t dst, ArrSlot *const s)
+{
+    ArrSlot *const d = arry_slot(ay, dst);
+
+    if (d == s)
+        return;
+
+    arry_assigned(ay, vm, dst);
+    *d = (ArrSlot){s->hdr, 1};
+    *s = (ArrSlot){0, 1};
+}
+
+void arry_reset(Arry *const ay, Vm *const vm, const uint16_t id)
+{
+    if (arry_slot(ay, id)->hdr)
+        arry_free(ay, vm, id, 0);
+
+    *arry_slot(ay, id) = (ArrSlot){0, 1};
 }
 
 /* ---- REDIM PRESERVE ------------------------------------------------------------------------- */

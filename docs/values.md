@@ -46,6 +46,21 @@ s() = Squares(10)
 - A type whose fields are all fixed keeps its byte layout, so `put`, `get` and `len` are unchanged.
   `put` and `get` refuse a type with a dynamic part.
 
+## Ownership
+
+Every array has one owner, and the owner's end frees it. Nothing is shared, so nothing is counted.
+
+- A module's array lives for the run; RUN, CLEAR and END reset the heap.
+- A procedure's local array is freed when the procedure returns (`PF_ARRAYS`, `end_call`).
+- A parameter is the caller's; the callee never frees it.
+- A call's result goes to a hidden variable of the caller's, one per call site: a local inside a
+  procedure, freed on return; at module level, replaced by the next call there.
+- Assignment frees the target's old array. `b() = a()` copies; `s() = f(10)` moves the result,
+  leaving the hidden variable empty.
+- `erase` and `redim` free as before.
+- From step 4, freeing a record frees its dynamic fields, by its TYPE's fields. An array header then
+  names its owner, so the compacting heap can find a slot inside a record.
+
 ## Steps
 
 1. `function ... as type` for the scalar types and records; `declare function ... as type`.

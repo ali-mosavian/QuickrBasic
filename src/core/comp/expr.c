@@ -417,7 +417,7 @@ static Node *xfn_node(Comp *const C)
             if (comp_cur(C) != M_VAR)
                 synerr(C);
 
-            const uint16_t id = comp_var(C, 2, 0);
+            const uint16_t id = ref_arrayof(C, comp_var(C, 2, 0));
 
             if (*C->p == '(') {
                 if (C->p[1] != ')')
@@ -506,7 +506,7 @@ static Node *var_leaf(Comp *const C)
         if (!nm->proc)
             return ref_undef(C);
         if ((*comp_skipname(C->p) == '(' || nm->proc != C->proc) &&
-            !(blok_proc(C->blok, nm->proc)->flags & PF_RECRES)) { /* a record's: ref_record's */
+            !(blok_proc(C->blok, nm->proc)->flags & PF_RESARG)) { /* a record's: ref_record's */
             const uint8_t *const name = C->p;
             uint8_t idx;
             const Proc *const pr = ref_proc(C, &idx);

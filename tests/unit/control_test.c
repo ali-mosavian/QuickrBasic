@@ -211,3 +211,27 @@ TEST(check_passes_record_result)
         CHECK(!typed_errs(S, typed));
     }
 }
+
+/* A FUNCTION AS an array, ours, its calls and its result's elements, typed one line at a time
+   before any link: s() = Sq(4) was a Syntax error at its 4. */
+TEST(check_passes_array_result)
+{
+    static const char *const lines[] = {
+        "DECLARE FUNCTION Sq (n AS INTEGER) AS LONG()",
+        "DECLARE SUB Show (a() AS LONG)",
+        "DIM s() AS LONG",
+        "s() = Sq(4)",
+        "Show Sq(2)",
+        "FUNCTION Sq (n AS INTEGER) AS LONG()",
+        "REDIM Sq(1 TO n)",
+        "Sq(1) = 5",
+        "x = Sq(1) + UBOUND(Sq)",
+        nullptr,
+    };
+    const char *typed[countof(lines)] = {};
+
+    for (size_t n = 0; lines[n]; n++) {
+        typed[n] = lines[n];
+        CHECK(!typed_errs(S, typed));
+    }
+}

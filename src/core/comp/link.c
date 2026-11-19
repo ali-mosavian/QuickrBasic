@@ -61,13 +61,16 @@ void link_compile(Comp *const C, const uint32_t line)
     comp_text(C, (const uint8_t *)prog_line(C->prog, line) + HDR);
 }
 
-/* A record result's parameter, at its FUNCTION's name: of the TYPE its AS names. */
-static uint16_t link_recresult(Comp *const C, const uint8_t *const name)
+/* A record or array result's parameter, at its FUNCTION's name: of the type its AS gave the name,
+   an array's when it had (). */
+static uint16_t link_result(Comp *const C, const uint8_t *const name)
 {
-    const uint8_t t = scop_rec(C->scop, comp_nameof(name), false);
+    const uint16_t n = comp_nameof(name);
+    const bool arr = scop_type(C->scop, n, true) || scop_rec(C->scop, n, true);
+    const uint8_t t = scop_rec(C->scop, n, arr);
 
     C->p = name;
-    return comp_var(C, 1, (uint8_t)(ET_REC + t));
+    return comp_var(C, arr ? 2 : 1, t ? (uint8_t)(ET_REC + t) : scop_type(C->scop, n, arr));
 }
 
 /* Parameter k of p's variable: its type by AS, as decl_line entered the name. */
@@ -76,7 +79,7 @@ static uint16_t link_param(Comp *const C, const Proc *const p, const uint16_t k)
     const uint8_t *const pv = at(C->prog->base + p->params[k].at);
 
     if (k == blok_nargs(p))
-        return link_recresult(C, pv);
+        return link_result(C, pv);
 
     const uint8_t *q = decl_item(pv);
 
@@ -114,7 +117,7 @@ static void link_procvars(Comp *const C)
         symb_name(C->symb, p->name)->proc = i;
         comp_proc(C, i);
 
-        if (p->kind == PK_FUNC && !(p->flags & PF_RECRES)) {
+        if (p->kind == PK_FUNC && !(p->flags & PF_RESARG)) {
             C->p = at(C->prog->base + p->at); /* its result: a scalar of its name */
             p->result = comp_var(C, 1, 0);
         }
