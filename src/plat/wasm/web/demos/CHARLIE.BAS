@@ -107,7 +107,7 @@ CONST GRAV = 750!, JUMPV = 330!, JUMPCUT = 160!, TOP = 360!
 CONST RUNACC = 280!, DEC = 1800!, FRIC = 280!, AIRACC = 500!, SLOPE = 380!
 CONST RFRIC = 60!, RDEC = 450!, RUPS = 300!, RDNS = 1100!, MAXV = 900!
 CONST SPRINGV = 560!, CHARGE0 = 480!, CHARGEMAX = 360!, BOUNCEV = 330!
-CONST BOOSTV = 660!, LOOPR = 72, LD = 172, PIPER = 48
+CONST BOOSTV = 660!, LOOPR = 72, LD = 188, PIPER = 48
 ' A jump asked for this long before landing is made on it; one this long after running off an edge still is.
 CONST JBUFFER = .1, COYOTE = .1
 ' The ground's line: its most points, a loop's and a quarter pipe's stretches, the curves there can be; under STALL
@@ -131,8 +131,8 @@ CONST KWAVE = 25, KWAVE2 = 26, WAVEA = 40, WAVEH = WAVEA + 16
 CONST JETV = 500!, BUMPV = 400!, HOOPV = 640!, SPINR = 30, SPINH = 70, PITD = 5
 
 ' Images in Img from At(k); a masked one's mask at k + 1. As charlieart.py's.
-CONST IBG = 0, IMID = 1, ISTRIP = 3, IDEEP = 4, ILOOP = 5, ITITLE = 7
-CONST ITILE = 10, IEARTH = 30, IHERO = 34, IBONE = IHERO + NF * 4
+CONST IBG = 0, IMID = 1, ILOOP = 5, ITITLE = 7
+CONST ITILE = 10, IHERO = 34, IBONE = IHERO + NF * 4
 CONST ICAT = IBONE + 8, ISPRING = ICAT + 8, IBOOST = ISPRING + 4, IMARK = IBOOST + 4
 CONST IGOAL = IMARK + 4, ITREE = IGOAL + 8, IBUSH = ITREE + 2, IFLOWER = IBUSH + 2
 CONST IROCK = IFLOWER + 4, ITHORN = IROCK + 2, ILAMP = ITHORN + 2, ITILT = ILAMP + 2
@@ -142,7 +142,11 @@ CONST ICARD = IDASH + 2, IGLYPH = ICARD + 2, NGLYPH = 27, IHUD = IGLYPH + NGLYPH
 CONST IZ2 = IPIPE + 2, ITILE2 = IZ2 + 9, IMOVE = ITILE2 + 24, IPOST = IMOVE + 2, ITANK = IPOST + 2, IVENT = ITANK + 2
 CONST ICARD2 = IVENT + 2, IBLD = ICARD2 + 2, IPLANT = IBLD + 12
 CONST IDK = IPLANT + 8, IWT = IDK + 4, IWS = IWT + 32
-CONST IJET = IWS + 4, IBUMP = IJET + 6, ISPIN = IBUMP + 4, IHOOP = ISPIN + 4, IWAVE = IHOOP + 4, IBTN = IWAVE + 8, NIMG = IBTN + 4
+CONST IJET = IWS + 4, IBUMP = IJET + 6, ISPIN = IBUMP + 4, IHOOP = ISPIN + 4, IWAVE = IHOOP + 4, IBTN = IWAVE + 8
+' Amber Downs' ground, by the comb's column of 4 and row of 3: flats, slopes, the tile under each slope, the comb
+' alone and in strips, quarter pipes; its moving platform.
+CONST IAF = IBTN + 4, IAS = IAF + 12, IAU = IAS + 144, IAC = IAU + 72, IAL = IAC + 12, IAP = IAL + 4
+CONST IAM = IAP + 24, IAE = IAM + 2, NIMG = IAE + 8
 CONST HUDW = 108, HUDH = 40
 CONST IMGSZ = 340000
 
@@ -153,7 +157,7 @@ CONST SCHARGE = 6, SLAUNCH = 7, SCLEAR = 8, SDIE = 9, SMARK = 10, SBOOST = 11, S
 ' The palette's ramps, dark to light, as charlieart.py's.
 CONST CHUD = 0, CWHITE = 1, CINK = 2, CYELLOW = 3, CRED = 4
 CONST CSCARF = 21, CGRASS = 25, CEARTH = 30, CSTONE = 38, CGOLD = 42
-CONST CSKY = 96, NSKY = 32, CFAR = 128, CMID = 132, CCLOUD = 138, CSUN = 141, CWATER = 144
+CONST CWATER = 144
 CONST CSTEEL = 150, CDAY = 156, CFART = 185, CCHROME = 198, CPANEL = 204, CCHASE = 213
 
 DECLARE SUB Main ()
@@ -168,7 +172,6 @@ DECLARE SUB AddMover (x AS INTEGER, y AS INTEGER, a AS INTEGER, k AS INTEGER, e 
 DECLARE SUB Movers (p AS Hero)
 DECLARE FUNCTION Swing! (m AS INTEGER, quarter AS INTEGER)
 DECLARE SUB NextZone (g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
-DECLARE SUB Slab (x1 AS INTEGER, y1 AS INTEGER, x2 AS INTEGER, y2 AS INTEGER, c AS INTEGER)
 DECLARE SUB Column (c AS INTEGER, g AS INTEGER, kind AS INTEGER)
 DECLARE SUB AddObj (k AS INTEGER, x AS INTEGER, y AS INTEGER)
 DECLARE SUB SortObjs ()
@@ -180,11 +183,13 @@ DECLARE FUNCTION Chars$ ()
 DECLARE SUB OpenData ()
 DECLARE SUB Mirror (k AS INTEGER, k2 AS INTEGER, w AS INTEGER, h AS INTEGER)
 DECLARE SUB Flop (k AS INTEGER, k2 AS INTEGER, w AS INTEGER, h AS INTEGER)
-DECLARE SUB BuildStrips (e AS INTEGER, k AS INTEGER)
 DECLARE SUB BuildLoop (k AS INTEGER, ce AS INTEGER, cr AS INTEGER)
 DECLARE SUB BuildPipe (k AS INTEGER, ce AS INTEGER, cr AS INTEGER)
 DECLARE SUB BuildWave (k AS INTEGER, ce AS INTEGER, ct AS INTEGER)
 DECLARE SUB Track ()
+DECLARE SUB Faces ()
+DECLARE FUNCTION Side% (c AS INTEGER, n AS INTEGER)
+DECLARE SUB Bare (x AS INTEGER, y0 AS INTEGER, n AS INTEGER, k AS INTEGER)
 DECLARE SUB DrawCables (cx AS INTEGER, cy AS INTEGER)
 DECLARE SUB Cycle ()
 DECLARE FUNCTION Ribbon% (x AS INTEGER)
@@ -195,10 +200,6 @@ DECLARE SUB Along (p AS Hero, d AS SINGLE)
 DECLARE SUB Drop (p AS Hero)
 DECLARE SUB Settle (p AS Hero, s AS INTEGER, d AS INTEGER)
 DECLARE FUNCTION Curve% (p AS Hero, x0 AS SINGLE, y0 AS SINGLE, d AS INTEGER)
-DECLARE SUB BuildMid ()
-DECLARE SUB BuildBack ()
-DECLARE SUB Cloud (x AS INTEGER, y AS INTEGER)
-DECLARE SUB FillEll (cx AS INTEGER, cy AS INTEGER, rx AS INTEGER, ry AS INTEGER, c AS INTEGER)
 DECLARE SUB Grab (x1 AS INTEGER, y1 AS INTEGER, x2 AS INTEGER, y2 AS INTEGER, k AS INTEGER)
 DECLARE SUB MaskGrab (x AS INTEGER, y AS INTEGER, w AS INTEGER, h AS INTEGER, mx AS INTEGER, my AS INTEGER, k AS INTEGER)
 DECLARE SUB Blit (x AS INTEGER, y AS INTEGER, k AS INTEGER, w AS INTEGER, h AS INTEGER)
@@ -254,7 +255,7 @@ DECLARE SUB Banner (row AS INTEGER, s AS STRING, c AS INTEGER)
 DECLARE FUNCTION Num$ (v AS LONG, w AS INTEGER)
 
 DIM SHARED Map(MW - 1, MH - 1) AS INTEGER, Prof(7, TS - 1) AS INTEGER
-DIM SHARED ColTop(MW) AS INTEGER, ColVis(MW) AS INTEGER
+DIM SHARED ColTop(MW) AS INTEGER, ColVis(MW) AS INTEGER, FaceL(MW) AS INTEGER, FaceR(MW) AS INTEGER
 ' The ground's line, what Charlie runs on: points GX, GY, GN of them; from each to the next a stretch of kind GK (0
 ' none, 1 the tiles' top, 2 a curve), GL long, GU, GV a pixel along it, its rise GA. ColSeg: a column's stretch;
 ' PlatA: the platforms' first. A curve z: stretches ZA to ZB, from ZM on a loop's far half, between x ZL and ZR.
@@ -267,7 +268,7 @@ DIM SHARED ZR(NZONE) AS INTEGER, NZ AS INTEGER
 ' The shared colours as built, and each zone's own over them: how many, which, what.
 DIM SHARED Pal0(255) AS LONG, ZPN(1) AS INTEGER, ZPK(1, 159) AS INTEGER, ZPC(1, 159) AS LONG
 DIM SHARED ZWave AS INTEGER, MvB(NMOVE) AS INTEGER
-DIM SHARED Zone AS INTEGER, NextUp AS INTEGER, ZTile AS INTEGER, ZStrip AS INTEGER, ZBack AS INTEGER
+DIM SHARED Zone AS INTEGER, NextUp AS INTEGER, ZTile AS INTEGER, ZBack AS INTEGER
 DIM SHARED ZLoop AS INTEGER, ZPipe AS INTEGER, ZCard AS INTEGER
 ' A moving platform m: its thing MvO, its stretch MvS and curve MvZ; its middle MvX, MvY and reach MvA; MvK 0 to
 ' and fro, 1 up and down, 2 a lift, MvT how far up it is; MvE the edge before it.
@@ -430,10 +431,10 @@ SUB LoadLevel (z AS INTEGER)
     FOR i = 0 TO MW: ColTop(i) = MH: NEXT
     g = 10
     IF z THEN
-        ZTile = ITILE2: ZStrip = IZ2 + 3: ZBack = IZ2: ZLoop = IZ2 + 5: ZPipe = IZ2 + 7: ZCard = ICARD2: ZWave = IWAVE + 4
+        ZTile = ITILE2: ZBack = IZ2: ZLoop = IZ2 + 5: ZPipe = IZ2 + 7: ZCard = ICARD2: ZWave = IWAVE + 4
         RESTORE Level2
     ELSE
-        ZTile = ITILE: ZStrip = ISTRIP: ZBack = IBG: ZLoop = ILOOP: ZPipe = IPIPE: ZCard = ICARD: ZWave = IWAVE
+        ZTile = ITILE: ZBack = IBG: ZLoop = ILOOP: ZCard = ICARD: ZWave = IWAVE
         RESTORE Level
     END IF
     DO
@@ -484,6 +485,8 @@ SUB LoadLevel (z AS INTEGER)
                 IF ((ObK(i) >= KTREE AND ObK(i) <= KLAMP) OR ObK(i) >= KPOST) AND ObX(i) >= c * TS - PIPER THEN ObK(i) = 0
             NEXT
             AddObj KPIPE, c * TS, s
+            ' Amber Downs' pipe is drawn with the ground under it
+            IF z = 0 THEN ColVis(c - 1) = 0: ColVis(c - 2) = 0: ColVis(c - 3) = 0
             g = g + n
         CASE "drop"
             g = g - n
@@ -554,10 +557,45 @@ SUB LoadLevel (z AS INTEGER)
     NEXT
     SortObjs
     Track
+    Faces
 END SUB
 
 ' The ground's line from the columns' tops, left to right, broken where they do not meet; a loop spliced in where
 ' it stands, a quarter pipe and its wall over the three columns before the wall; then the platforms' tops.
+' Where a flat column stands over a lower flat one, or over none, its side shows: for how many tiles down.
+SUB Faces
+    DIM c AS INTEGER
+    FOR c = 0 TO LW - 1
+        FaceL(c) = 0: FaceR(c) = 0
+        IF ColVis(c) = 1 OR ColVis(c) = 2 THEN
+            IF c > 0 THEN FaceL(c) = Side%(c, c - 1)
+            FaceR(c) = Side%(c, c + 1)
+        END IF
+    NEXT
+END SUB
+
+FUNCTION Side% (c AS INTEGER, n AS INTEGER)
+    Side% = 0
+    IF ColTop(n) = MH THEN
+        Side% = MH - ColTop(c)
+    ELSEIF (ColVis(n) = 1 OR ColVis(n) = 2) AND ColTop(n) > ColTop(c) THEN
+        Side% = ColTop(n) - ColTop(c)
+    END IF
+END FUNCTION
+
+' A bare side of the ground from x, y0, n tiles down: picture k its turf's end, k + 2 the comb's.
+SUB Bare (x AS INTEGER, y0 AS INTEGER, n AS INTEGER, k AS INTEGER)
+    DIM i AS INTEGER, y AS INTEGER, j AS INTEGER
+    j = k
+    y = y0
+    FOR i = 1 TO n
+        IF y >= SH THEN EXIT FOR
+        IF y > -TS THEN Blit x, y, j, TS, TS
+        j = k + 2
+        y = y + TS
+    NEXT
+END SUB
+
 SUB Track
     DIM c AS INTEGER, i AS INTEGER, j AS INTEGER, k AS INTEGER, x AS INTEGER, y AS INTEGER
     DIM yl AS INTEGER, yr AS INTEGER, x1 AS INTEGER, a AS SINGLE
@@ -836,16 +874,11 @@ SUB BuildArt
     LoadArt
     ' the turned run, as drawn and mirrored: each upside down too, for the far side of a loop
     FOR i = 0 TO 159: Flop ITILT + i, ITILT + 160 + i, 32, 32: NEXT
-    BuildStrips IEARTH, ISTRIP
-    BuildLoop ILOOP, CEARTH, CGRASS
-    BuildPipe IPIPE, CEARTH, CGRASS
     BuildLoop IZ2 + 5, CPANEL, CCHROME + 1
     BuildPipe IZ2 + 7, CPANEL, CCHROME + 1
-    BuildWave IWAVE, CEARTH + 1, CGOLD + 3
     BuildWave IWAVE + 4, CPANEL, 177
     BuildGlyphs
-    BuildMid
-    BuildBack
+    FOR i = 0 TO 2: Glint(i) = Pal(CWATER + 1 + i): NEXT
     FOR i = 0 TO 255: Pal0(i) = Pal(i): NEXT
 END SUB
 
@@ -953,21 +986,6 @@ SUB Mirror (k AS INTEGER, k2 AS INTEGER, w AS INTEGER, h AS INTEGER)
     Grab 100, 0, 100 + w - 1, h - 1, k2
 END SUB
 
-' A column's earth under its top tile, lighter near the top; and deep
-' earth for under that.
-' Earth e's four tiles as two strips, k and k + 1: the ground under a column's top, and what repeats below it.
-SUB BuildStrips (e AS INTEGER, k AS INTEGER)
-    DIM i AS INTEGER, n AS INTEGER
-    FOR i = 0 TO STRIPH \ TS - 1
-        n = i
-        IF n > 3 THEN n = 3
-        PUT (0, i * TS), Img(At(e + n)), PSET
-        PUT (20, i * TS), Img(At(e + 3)), PSET
-    NEXT
-    Grab 0, 0, TS - 1, STRIPH - 1, k
-    Grab 20, 0, 20 + TS - 1, STRIPH - 1, k + 1
-END SUB
-
 ' A loop: a ring of earth, grass on its inside, and its mask.
 SUB BuildLoop (k AS INTEGER, ce AS INTEGER, cr AS INTEGER)
     DIM r AS INTEGER, i AS INTEGER, m AS INTEGER
@@ -1030,86 +1048,6 @@ SUB BuildPipe (k AS INTEGER, ce AS INTEGER, cr AS INTEGER)
     LINE (0, 0)-(SW - 1, PIPER), 0, BF
 END SUB
 
-' The near hills, a masked band of period SW that scrolls on its own.
-SUB BuildMid
-    DIM x AS INTEGER, h AS INTEGER, t AS SINGLE
-    LINE (0, 0)-(SW - 1, MIDH - 1), 0, BF
-    LINE (0, 100)-(SW - 1, 100 + MIDH - 1), 255, BF
-    FOR x = 0 TO SW - 1
-        t = 2 * PI * x / SW
-        h = CINT(26 - 12 * SIN(3 * t + .3) - 7 * SIN(7 * t + 1.3) - 3 * SIN(17 * t))
-        LINE (x, h)-(x, MIDH - 1), CMID + 3
-        LINE (x, h)-(x, h + 1 + (x AND 1)), CMID + 5
-        LINE (x, h + 9 + CINT(3 * SIN(9 * t)))-(x, MIDH - 1), CMID + 2
-        LINE (x, h + 24 + CINT(4 * SIN(5 * t + 1)))-(x, MIDH - 1), CMID + 1
-        LINE (x, 100 + h)-(x, 100 + MIDH - 1), 0
-    NEXT
-    FOR x = 6 TO SW - 12 STEP 23
-        FillEll x + (x * 7) MOD 9, 40 + (x * 5) MOD 22, 5, 3, CMID + 4
-    NEXT
-    Grab 0, 0, SW - 1, MIDH - 1, IMID
-    Grab 0, 100, SW - 1, 100 + MIDH - 1, IMID + 1
-END SUB
-
-
-' A box of the band being built, and of its mask 100 below.
-SUB Slab (x1 AS INTEGER, y1 AS INTEGER, x2 AS INTEGER, y2 AS INTEGER, c AS INTEGER)
-    LINE (x1, y1)-(x2, y2), c, BF
-    LINE (x1, y1 + 100)-(x2, y2 + 100), 0, BF
-END SUB
-
-
-
-' The sky, sun, clouds and far peaks, of period SW so the backdrop wraps.
-SUB BuildBack
-    DIM x AS INTEGER, y AS INTEGER, m AS INTEGER, k AS INTEGER, was AS INTEGER
-    DIM t AS SINGLE
-    FOR y = 0 TO SH - 1
-        k = y * NSKY \ 132
-        IF k > NSKY - 1 THEN k = NSKY - 1
-        LINE (0, y)-(SW - 1, y), CSKY + k
-        IF (y + 2) * NSKY \ 132 > k AND k < NSKY - 1 THEN LINE (0, y)-(SW - 1, y), CSKY + k + 1, , &H5555 * (1 + (y AND 1))
-    NEXT
-    FillEll 236, 52, 22, 22, CSKY + NSKY - 6
-    FillEll 236, 52, 17, 17, CSUN
-    FillEll 236, 52, 14, 14, CSUN + 1
-    FillEll 234, 50, 10, 10, CSUN + 2
-    FOR k = 0 TO 5
-        x = k * 53 + 20: y = 16 + (k * 37) MOD 46
-        Cloud x, y: Cloud x - SW, y: Cloud x + SW, y
-    NEXT
-    was = 100
-    FOR x = 0 TO SW - 1
-        t = 2 * PI * x / SW
-        m = CINT(96 - 18 * SIN(2 * t + .7) - 10 * SIN(5 * t + 2.1) - 4 * SIN(11 * t))
-        LINE (x, m)-(x, SH - 1), CFAR + 1 - (m > was)
-        IF m < 84 THEN LINE (x, m)-(x, m + (84 - m) \ 3), CFAR + 3
-        PSET (x, m), CFAR + 2
-        was = m
-    NEXT
-    Tint CWATER, 12 + 256& * 26 + 65536 * 46
-    Glint(0) = 18 + 256& * 34 + 65536 * 52
-    Glint(1) = 28 + 256& * 44 + 65536 * 58
-    Glint(2) = 44 + 256& * 56 + 65536 * 62
-    LINE (0, 122)-(SW - 1, 141), CWATER, BF
-    FOR y = 123 TO 140 STEP 2
-        FOR x = (y * 37) MOD 23 TO SW - 12 STEP 19 + y MOD 7
-            LINE (x, y)-(x + 4 + (x + y) MOD 7, y), CWATER + 1 + (x + y) MOD 3
-        NEXT
-    NEXT
-    LINE (0, 142)-(SW - 1, SH - 1), CMID + 1, BF
-    Grab 0, 0, SW - 1, SH - 1, IBG
-END SUB
-
-SUB Cloud (x AS INTEGER, y AS INTEGER)
-    FillEll x, y + 1, 15, 5, CCLOUD
-    FillEll x - 9, y + 2, 9, 4, CCLOUD
-    FillEll x + 9, y + 3, 8, 3, CCLOUD
-    FillEll x, y - 1, 12, 4, CCLOUD + 2
-    FillEll x - 8, y, 6, 3, CCLOUD + 2
-    FillEll x + 8, y + 1, 6, 2, CCLOUD + 1
-END SUB
-
 ' The HUD's characters, each 9 by 9 over a shadow: yellow, then white.
 ' And room for the HUD's picture and mask.
 SUB BuildGlyphs
@@ -1137,15 +1075,6 @@ SUB BuildGlyphs
     LINE (0, 184)-(8, 191), 0, BF
     Grab 0, 0, HUDW - 1, HUDH - 1, IHUD
     Grab 0, 0, HUDW - 1, HUDH - 1, IHUD + 1
-END SUB
-
-SUB FillEll (cx AS INTEGER, cy AS INTEGER, rx AS INTEGER, ry AS INTEGER, c AS INTEGER)
-    DIM y AS INTEGER, w AS INTEGER, d AS SINGLE
-    FOR y = -ry TO ry
-        d = y / (ry + .5)
-        w = CINT(rx * SQR(1 - d * d))
-        LINE (cx - w, cy + y)-(cx + w, cy + y), c
-    NEXT
 END SUB
 
 SUB Grab (x1 AS INTEGER, y1 AS INTEGER, x2 AS INTEGER, y2 AS INTEGER, k AS INTEGER)
@@ -2372,23 +2301,22 @@ SUB DrawTiles (cx AS INTEGER, cy AS INTEGER)
         y = ColTop(tx) * TS - cy
         IF y < SH THEN
             x = tx * TS - cx
-            IF y > -TS THEN
-                v = ColVis(tx)
-                k = ZTile + (v - 1) * 2
-                IF v <= 2 AND Zone THEN
-                    PUT (x, y), Img(At(IDK + (tx AND 3))), PSET
-                ELSEIF v <= 2 THEN
-                    PUT (x, y), Img(At(k)), PSET
-                ELSE
-                    PUT (x, y), Img(At(k + 1)), AND
-                    PUT (x, y), Img(At(k)), OR
-                END IF
-            END IF
-            y = y + TS
+            v = ColVis(tx)
+            r = ColTop(tx)
             IF Zone THEN
+                IF y > -TS THEN
+                    k = ZTile + (v - 1) * 2
+                    IF v <= 2 THEN
+                        PUT (x, y), Img(At(IDK + (tx AND 3))), PSET
+                    ELSE
+                        PUT (x, y), Img(At(k + 1)), AND
+                        PUT (x, y), Img(At(k)), OR
+                    END IF
+                END IF
+                y = y + TS
                 ' The works' wall hangs from the world, not the deck: single tiles down to its next 128, then strips.
                 k = (tx AND 3) * 8
-                r = ColTop(tx) + 1
+                r = r + 1
                 DO WHILE (r AND 7) <> 0 AND y < SH
                     IF y > -TS THEN PUT (x, y), Img(At(IWT + k + (r AND 7))), PSET
                     r = r + 1
@@ -2398,13 +2326,37 @@ SUB DrawTiles (cx AS INTEGER, cy AS INTEGER)
                     IF y > -128 THEN PUT (x, y), Img(At(IWS + (tx AND 3))), PSET
                     y = y + 128
                 LOOP
+            ELSE
+                ' The downs' comb hangs from the world too, of period 64 by 48: a slope's turf runs on into the tile
+                ' under it; under a pipe, 0, the pipe's own picture is the ground.
+                k = (tx AND 3) * 3
+                IF y > -TS THEN
+                    IF v > 2 THEN
+                        PUT (x, y), Img(At(IAS + ((v - 4) * 12 + k + r MOD 3) * 2 + 1)), AND
+                        PUT (x, y), Img(At(IAS + ((v - 4) * 12 + k + r MOD 3) * 2)), OR
+                    ELSEIF v > 0 THEN
+                        PUT (x, y), Img(At(IAF + k + r MOD 3)), PSET
+                    END IF
+                END IF
+                y = y + TS
+                IF v > 2 AND y < SH THEN
+                    IF y > -TS THEN PUT (x, y), Img(At(IAU + (v - 4) * 12 + k + r MOD 3)), PSET
+                    y = y + TS
+                    r = r + 1
+                END IF
+                r = r + 1
+                DO WHILE r MOD 3 <> 0 AND y < SH
+                    IF y > -TS THEN PUT (x, y), Img(At(IAC + k + r MOD 3)), PSET
+                    r = r + 1
+                    y = y + TS
+                LOOP
+                DO WHILE y < SH
+                    IF y > -STRIPH THEN PUT (x, y), Img(At(IAL + (tx AND 3))), PSET
+                    y = y + STRIPH
+                LOOP
+                IF FaceL(tx) THEN Bare x, ColTop(tx) * TS - cy, FaceL(tx), IAE
+                IF FaceR(tx) THEN Bare x, ColTop(tx) * TS - cy, FaceR(tx), IAE + 4
             END IF
-            IF y < SH AND y > -STRIPH THEN PUT (x, y), Img(At(ZStrip)), PSET
-            y = y + STRIPH
-            DO WHILE y < SH
-                IF y > -STRIPH THEN PUT (x, y), Img(At(ZStrip + 1)), PSET
-                y = y + STRIPH
-            LOOP
         END IF
     NEXT
 END SUB
@@ -2441,9 +2393,14 @@ SUB DrawThings (cx AS INTEGER, cy AS INTEGER, back AS INTEGER)
             CASE KLOOP
                 Blit x - LD \ 2, y - LOOPR - LD \ 2, ZLoop, LD, LD
             CASE KPIPE
-                Blit x - PIPER, y - PIPER, ZPipe, PIPER, PIPER
+                IF Zone THEN
+                    Blit x - PIPER, y - PIPER, ZPipe, PIPER, PIPER
+                ELSE
+                    k = IAP + (((ObX(i) \ TS + 1) AND 3) * 3 + (ObY(i) \ TS) MOD 3) * 2
+                    Blit x - PIPER, y - PIPER, k, PIPER, PIPER + TS
+                END IF
             CASE KMOVE
-                Blit x, y, IMOVE, MOVEW, 12
+                IF Zone THEN Blit x, y, IMOVE, MOVEW, 12 ELSE Blit x, y, IAM, MOVEW, 12
             CASE KPOST
                 Blit x - 7, y - 47, IPOST, 16, 48
             CASE KTANK
@@ -2451,9 +2408,9 @@ SUB DrawThings (cx AS INTEGER, cy AS INTEGER, back AS INTEGER)
             CASE KVENT
                 Blit x - 8, y - 27, IVENT, 16, 28
             CASE KTREE
-                Blit x - 24, y - 70, ITREE, 48, 72
+                Blit x - 32, y - 78, ITREE, 64, 80
             CASE KBUSH
-                Blit x - 12, y - 12, IBUSH, 24, 14
+                Blit x - 20, y - 18, IBUSH, 40, 20
             CASE KFLOWER
                 Blit x - 6, y - 14, IFLOWER + ((Ticks \ 30 + i) AND 1) * 2, 12, 16
             CASE KROCK
