@@ -77,7 +77,11 @@ function tone(hz) {
   if (hz) osc.frequency.setValueAtTime(hz, t);
 }
 
-const open = new URLSearchParams(location.search).get('open') ?? 'WELCOME.BAS';
+// ?open=NAME opens a file, ?run=NAME opens and runs it.
+const params = new URLSearchParams(location.search);
+const run = params.get('run');
+const open = run ?? params.get('open') ?? 'WELCOME.BAS';
+const F5 = 0x3f00;
 const module = await WebAssembly.compileStreaming(fetch('ide.wasm'));
 const memory = newMemory();
 const worker = new Worker(new URL('./worker.mjs', import.meta.url), { type: 'module' });
@@ -91,6 +95,7 @@ worker.onmessage = ({ data }) => {
     setInterval(ticker(irq, display), 1000 / MUSIC_HZ);
     requestAnimationFrame(draw);
     status.textContent = '';
+    if (run) irq.type(F5);
   } else if ('file' in data) {
     keep(data.file, data.bytes);
   } else if ('tone' in data) {
