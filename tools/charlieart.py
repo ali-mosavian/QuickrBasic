@@ -716,6 +716,76 @@ def family(cheer: int) -> Pic:
     return p.outline()
 
 
+# ---- the words ----
+
+# A letter: how wide, then its strokes, on a grid 6 high.
+LETTERS: dict[str, tuple[float, list[list[tuple[float, float]]]]] = {
+    "A": (4, [[(0, 6), (2, 0), (4, 6)], [(1, 4), (3, 4)]]),
+    "B": (
+        4,
+        [
+            [(0, 0), (0, 6)],
+            [(0, 0), (2.4, 0), (3.5, 0.8), (3.5, 2.2), (2.4, 3), (0, 3)],
+            [(2.4, 3), (4, 3.8), (4, 5.2), (3, 6), (0, 6)],
+        ],
+    ),
+    "C": (4, [[(4, 1.2), (3, 0), (1, 0), (0, 1), (0, 5), (1, 6), (3, 6), (4, 4.8)]]),
+    "D": (4, [[(0, 0), (0, 6)], [(0, 0), (2.4, 0), (4, 1.5), (4, 4.5), (2.4, 6), (0, 6)]]),
+    "E": (3.6, [[(3.6, 0), (0, 0), (0, 6), (3.6, 6)], [(0, 3), (2.8, 3)]]),
+    "H": (4, [[(0, 0), (0, 6)], [(4, 0), (4, 6)], [(0, 3), (4, 3)]]),
+    "I": (2.4, [[(1.2, 0), (1.2, 6)], [(0, 0), (2.4, 0)], [(0, 6), (2.4, 6)]]),
+    "K": (4, [[(0, 0), (0, 6)], [(4, 0), (0, 3.6)], [(1.5, 2.5), (4, 6)]]),
+    "L": (3.6, [[(0, 0), (0, 6), (3.6, 6)]]),
+    "M": (5, [[(0, 6), (0, 0), (2.5, 3.6), (5, 0), (5, 6)]]),
+    "N": (4, [[(0, 6), (0, 0), (4, 6), (4, 0)]]),
+    "O": (4, [[(1, 0), (3, 0), (4, 1), (4, 5), (3, 6), (1, 6), (0, 5), (0, 1), (1, 0)]]),
+    "R": (4, [[(0, 0), (0, 6)], [(0, 0), (2.4, 0), (3.8, 0.8), (3.8, 2.4), (2.4, 3.2), (0, 3.2)], [(2, 3.2), (4, 6)]]),
+    "S": (
+        4,
+        [[(4, 1.1), (3, 0), (1, 0), (0, 1), (0, 2.2), (1, 3), (3, 3), (4, 3.8), (4, 5), (3, 6), (1, 6), (0, 4.9)]],
+    ),
+    "W": (5.4, [[(0, 0), (1.3, 6), (2.7, 1.8), (4.1, 6), (5.4, 0)]]),
+    "Y": (4, [[(0, 0), (2, 3.2), (4, 0)], [(2, 3.2), (2, 6)]]),
+    " ": (2, []),
+}
+
+
+def words(s: str, w: int, h: int, u: float, pen: float) -> Pic:
+    """s as a w by h picture: round stroked letters u a grid step, pen thick, gold from light to deep with a lit
+    upper edge and a dark lower one, an ink edge and a shadow. The 8 by 8 font drawn large was all squares."""
+    gap = pen + 2
+    wide = sum(LETTERS[c][0] * u + gap for c in s) - 2
+    x0, y0 = (w - 2 - wide) / 2 + pen / 2, (h - 2 - 6 * u) / 2
+    p = Pic(w, h)
+    on: set[tuple[int, int]] = set()
+    for c in s:
+        lw, strokes = LETTERS[c]
+        for st in strokes:
+            for (ax, ay), (bx, by) in itertools.pairwise(st):
+                n = int(max(abs(bx - ax), abs(by - ay)) * u * 2) + 1
+                for i in range(n + 1):
+                    cx, cy = x0 + (ax + (bx - ax) * i / n) * u, y0 + (ay + (by - ay) * i / n) * u
+                    for y in range(int(cy - pen), int(cy + pen) + 1):
+                        for x in range(int(cx - pen), int(cx + pen) + 1):
+                            if (x - cx) ** 2 + (y - cy) ** 2 <= (pen / 2) ** 2:
+                                on.add((x, y))
+        x0 += lw * u + gap
+    for x, y in on:
+        v = 1 - (y - y0 + pen / 2) / (6 * u + pen)
+        c = GOLD[1 + min(3, int(v * 3.6))]
+        if (x - 1, y - 1) not in on or (x, y - 1) not in on:
+            c = WHITE if v > 0.5 else GOLD[4]
+        elif (x + 1, y + 1) not in on or (x, y + 1) not in on:
+            c = GOLD[0]
+        p.put(x, y, c)
+    p.outline(EARTH[0])
+    edge = {(x, y) for y in range(h) for x in range(w) if p.p[y][x]}
+    for x, y in edge:
+        if not p.get(x + 1, y + 1):
+            p.put(x + 1, y + 1, INK)
+    return p.outline()
+
+
 # ---- the ground ----
 
 
@@ -975,6 +1045,11 @@ def pictures() -> list[tuple[int, Pic, bool, int]]:
     ]
     out += [(k + 50 + i * 2, t, True, k + 90 + i * 2) for i, t in enumerate(tilts())]
     out += [(k + 130 + f * 2, family(f), True, -1) for f in range(2)]
+    out += [
+        (7, words("CHARLIE", 170, 26, 2.8, 5), True, -1),
+        (k + 134, words("BARKLEY", 170, 26, 2.8, 5), True, -1),
+        (k + 136, words("AMBER DOWNS", 178, 18, 1.8, 3.2), True, -1),
+    ]
     return out
 
 
