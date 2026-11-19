@@ -1025,13 +1025,13 @@ GLOWC = ramp(210, (4, 34, 46), (56, 63, 63), 3)
 
 
 def deck(p: Pic, x: int, y: int, t: int, u: int = 0) -> bool:
-    """A deck's edge t pixels under its surface, u along its 64-pixel module: a white slab, a channel of light
-    bars, a steel face with one warning panel. False below."""
+    """A deck's edge t pixels under its surface, u along its 64-pixel module: a dark slab lit along its top, a
+    channel of light bars, a steel face with one warning panel. False below."""
     if t > 15:
         return False
     b = u % 16
     if t < 4:
-        p.put(x, y, CHROME[(5, 5, 4, 2)[t]])
+        p.put(x, y, (CYAN, PANEL[4], PANEL[3], PANEL[1])[t])
     elif t in (4, 9, 13):
         p.put(x, y, INK)
     elif t < 9:
