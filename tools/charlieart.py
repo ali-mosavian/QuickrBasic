@@ -1008,6 +1008,120 @@ def thorn() -> Pic:
     return p.outline()
 
 
+# ---- the Neon Works: steel decks, a night sky, a far city ----
+
+STEEL = ramp(150, (6, 12, 18), (40, 54, 58), 6)
+NIGHT = ramp(156, (3, 2, 14), (52, 16, 40), 16)
+TOWER = ramp(172, (5, 4, 16), (16, 11, 32), 3)
+GLOW = ramp(175, (63, 38, 8), (63, 60, 30), 2)
+CYAN, PINK = 177, 178
+PAL[CYAN], PAL[PINK] = (10, 60, 58), (63, 14, 44)
+WORKS = ramp(179, (4, 8, 14), (18, 30, 38), 4)
+MOON = ramp(183, (44, 48, 58), (62, 63, 63), 2)
+
+
+def plate(p: Pic, x: int, y: int, depth: float, seed: int, truss: bool = False) -> None:
+    """Steel under a deck: plates 16 by 16, a seam and a lit edge to each, a rivet in each corner, darker down;
+    truss: a girder's cross braces instead."""
+    u, v = x % 16, y % 16
+    val = 0.6 - min(depth, 70) * 0.005 + (noise(u // 4, v // 4, seed) - 0.5) * 0.08
+    if truss:
+        val -= 0.22
+        if (u + v) % 16 < 2 or (u - v) % 16 < 2:
+            val += 0.3
+    if u == 0 or v == 0:
+        val -= 0.3
+    elif u == 1 or v == 1:
+        val += 0.16
+    elif u in (3, 12) and v in (3, 12):
+        val += 0.3
+    p.shade(x, y, STEEL, val)
+
+
+def deck(p: Pic, x: int, y: int, t: int) -> bool:
+    """A deck's edge t pixels under its surface: a bright lip over warning stripes. False below them."""
+    if t > 5:
+        return False
+    p.put(x, y, {0: METAL[3], 1: METAL[1], 5: INK}.get(t, GOLD[3] if (x + t) // 4 % 2 else DARK[0]))
+    return True
+
+
+def tile2(kind: int, seed: int, ledge: bool = False) -> Pic:
+    p = Pic(16, 16)
+    for x in range(16):
+        top = surface(kind, x)
+        for y in range(top, 16):
+            if ledge and y >= 11:
+                continue
+            if not deck(p, x, y, y - top):
+                plate(p, x, y, y - top, seed)
+    return p
+
+
+def earth2(n: int) -> Pic:
+    """The nth 16 rows of steel under a deck: the fourth, repeated below, a girder."""
+    p = Pic(16, 16)
+    for x in range(16):
+        for y in range(16):
+            plate(p, x, y, 16 * (n + 1) + y, 11, truss=n == 3)
+    return p
+
+
+def mover() -> Pic:
+    """A moving platform: a deck, a slim body, lights under it."""
+    p = Pic(48, 12)
+    for x in range(1, 47):
+        for y in range(10):
+            if not deck(p, x, y, y):
+                p.shade(x, y, STEEL, 0.75 - (y - 6) * 0.15)
+    for x in range(6, 48, 12):
+        p.box(x - 1, 8, x, 9, CYAN)
+    return p.outline()
+
+
+def post() -> Pic:
+    """A street lamp: a pole, an arm, a lit head."""
+    p = Pic(16, 48)
+    p.box(6, 10, 7, 47, METAL[1])
+    p.box(6, 10, 6, 47, METAL[2])
+    p.box(4, 44, 9, 47, METAL[0])
+    p.line(7, 10, 12, 6, METAL[1], 2)
+    p.ball(12, 5, 3.4, 3.0, GLOW, 0.4, 1.0)
+    p.put(11, 4, WHITE)
+    return p.outline()
+
+
+def tank() -> Pic:
+    """A storage tank on legs: a lit drum, hoops, a warning band, a pink lamp on top."""
+    p = Pic(32, 40)
+    for y in range(8, 34):
+        for x in range(3, 29):
+            d = (x - 15.5) / 13
+            p.shade(x, y, STEEL, 0.15 + 0.8 * math.sqrt(max(0.0, 1 - d * d)) - (0.25 if y % 9 == 0 else 0))
+    p.ball(15.5, 8, 13, 5, STEEL, 0.3, 1.0)
+    for x in range(3, 29):
+        p.put(x, 22, GOLD[3] if x // 3 % 2 else DARK[0])
+        p.put(x, 23, GOLD[2] if x // 3 % 2 else DARK[0])
+    for x in (5, 26):
+        p.box(x, 34, x + 1, 39, METAL[1])
+    p.box(15, 1, 16, 3, PINK)
+    return p.outline()
+
+
+def vent() -> Pic:
+    """A pipe stack: a flanged pipe, a valve wheel, a cyan lamp."""
+    p = Pic(16, 28)
+    for y in range(4, 28):
+        for x in range(5, 11):
+            p.shade(x, y, STEEL, 0.25 + 0.7 * (1 - abs(x - 7.5) / 3.5))
+    p.box(3, 4, 12, 6, METAL[2])
+    p.box(3, 24, 12, 27, METAL[1])
+    p.ball(8, 15, 3.2, 3.2, SCARF, 0.4, 1.0)
+    p.put(8, 15, INK)
+    p.box(7, 1, 8, 2, CYAN)
+    return p.outline()
+
+
 def pictures() -> list[tuple[int, Pic, bool, int]]:
     """Each picture's index in the game's Img table, whether it is masked, and its mirror's index or -1."""
     out: list[tuple[int, Pic, bool, int]] = []
@@ -1050,6 +1164,28 @@ def pictures() -> list[tuple[int, Pic, bool, int]]:
         (7, words("CHARLIE", 170, 26, 2.8, 5), True, -1),
         (k + 374, words("BARKLEY", 170, 26, 2.8, 5), True, -1),
         (k + 376, words("AMBER DOWNS", 178, 18, 1.8, 3.2), True, -1),
+    ]
+    # the Neon Works' own: after the pictures the game builds (its backdrops, strips, loop and pipe)
+    z = k + 490 + 9
+    for v, p in (
+        (1, tile2(1, 1)),
+        (2, tile2(1, 2)),
+        (4, tile2(2, 3)),
+        (5, tile2(3, 4)),
+        (6, tile2(4, 5)),
+        (7, tile2(5, 6)),
+        (8, tile2(6, 7)),
+        (9, tile2(7, 8)),
+        (10, tile2(1, 9, ledge=True)),
+    ):
+        out.append((z + (v - 1) * 2, p, True, -1))
+    out += [(z + 20 + n, earth2(n), False, -1) for n in range(4)]
+    out += [
+        (z + 24, mover(), True, -1),
+        (z + 26, post(), True, -1),
+        (z + 28, tank(), True, -1),
+        (z + 30, vent(), True, -1),
+        (z + 32, words("NEON WORKS", 178, 18, 1.8, 3.2), True, -1),
     ]
     return out
 

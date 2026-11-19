@@ -8,7 +8,8 @@ misses the ground fails it.
 
 Every half bar of both tunes and every sound effect is played: a PLAY string the game builds wrong is an
 Illegal function call mid-game. Jump held through a hit must jump as the hit's hold ends: it was forgotten.
-The level cleared, Charlie must go on to its family past the goal and stop by them.
+The level cleared, Charlie must go on to its family past the goal and stop by them; then the second zone, the
+Neon Works, is played through the same way, its moving platforms and lifts ridden.
 First a cat is walked to the level's left end: its look ahead,
 left of column 0, was a negative tile column, and the game stopped with Subscript out of range.
 """
@@ -33,10 +34,10 @@ IF Uneven%(119.88, 128, 2, 1, 300) = 0 THEN PRINT "paced 120 ok"
 IF Uneven%(75, 256, 0, 2, 480) + Uneven%(20000, 128, 0, 1, 2) = 0 THEN PRINT "paced by time ok"
 OpenScreen
 LoadTables
-LoadLevel
 BuildArt
+LoadLevel 0
 DIM g AS Game, p AS Hero, k AS Pad, i AS LONG, j AS INTEGER, loops AS INTEGER, was AS INTEGER
-DIM c AS INTEGER, v AS INTEGER
+DIM c AS INTEGER, v AS INTEGER, m AS INTEGER
 DIM lo(NLOOSE - 1) AS Loose, pt(NPART - 1) AS Part
 Muted = -1
 StartGame g, p, lo(), pt()
@@ -112,6 +113,13 @@ FOR i = 1 TO 60
     IF was = 4 THEN EXIT FOR
 NEXT
 IF p.jumped AND p.vy < -250 THEN PRINT "edge jump ok"
+' walked slowly off an edge, Charlie falls at once: a foot still over the ground put it back on the edge, and it
+' hung there half a second, till it was fast enough to clear it in a step
+Stand p, c * TS - 20, 60
+k.r = -1: k.jump = 0: k.hit = 0
+v = CINT(p.y)
+FOR i = 1 TO 45: MoveHero p, k, pt(): NEXT
+IF p.y > v + 20 THEN PRINT "ledge ok"
 was = 0: k.r = 0: k.jump = 0: k.hit = 0: k.was = 0
 ' dropped anywhere over the ground, Charlie lands: past the first loop it fell through the level
 StartGame g, p, lo(), pt()
@@ -193,14 +201,58 @@ k.l = 0: k.r = 0: k.d = 0: k.jump = 0: k.hit = 0
 FOR i = 1 TO 400: Tick g, p, k, lo(), pt(): NEXT
 Render g, p, lo(), pt()
 IF p.win AND ABS(p.x - (FamX - 106)) < 3 AND Cheer AND ABS(g.camx - (FamX - 166)) < 3 THEN PRINT "met ok"
-' it stays a while, fades, and is at the title again in full colour
-was = 0
+' it stays a while, fades, and the Neon Works begin in full colour, the score and lives kept
+was = 0: j = g.lives
 FOR i = 1 TO 900
     Tick g, p, k, lo(), pt()
     IF Dusk < 8 THEN was = i
+    IF Zone = 1 THEN EXIT FOR
+NEXT
+IF was > 60 AND Zone = 1 AND g.mode = PLAYING AND Dusk = 16 AND g.score > 0 AND g.lives = j THEN PRINT "faded ok"
+' a platform carries who stands on it, to and fro
+FOR m = 0 TO NMv - 1
+    IF MvK(m) = 0 THEN EXIT FOR
+NEXT
+c = MvS(m)
+p.x = GX(c) + 24: p.y = GY(c): p.sg = c: p.ground = -1: p.gsp = 0
+was = CINT(p.x): v = was
+FOR i = 1 TO 240
+    Tick g, p, k, lo(), pt()
+    IF p.x < was THEN was = CINT(p.x)
+    IF p.x > v THEN v = CINT(p.x)
+NEXT
+IF p.ground AND p.sg = c AND ABS(p.x - GX(c) - 24) < 2 AND v - was > 40 THEN PRINT "carried ok"
+' a lift goes up under Charlie to the ground above, and back down once it is left
+NextZone g, p, lo(), pt()
+FOR m = 0 TO NMv - 1
+    IF MvK(m) = 2 THEN EXIT FOR
+NEXT
+c = MvS(m)
+p.x = GX(c) + 20: p.y = GY(c): p.sg = c: p.ground = -1: p.gsp = 0
+FOR i = 1 TO 200: Tick g, p, k, lo(), pt(): NEXT
+was = MvT(m) = MvA(m) AND p.ground AND ABS(p.y - (MvY(m) - MvA(m))) < 2
+k.r = -1
+FOR i = 1 TO 60: Tick g, p, k, lo(), pt(): NEXT
+k.r = 0
+was = was AND p.ground AND GK(p.sg) = 1 AND p.x > MvX(m) + MOVEW
+FOR i = 1 TO 200: Tick g, p, k, lo(), pt(): NEXT
+IF was AND MvT(m) = 0 THEN PRINT "lift ok"
+' the Neon Works played through by the pilot on one life, its platforms and lifts ridden
+NextZone g, p, lo(), pt()
+j = g.lives
+FOR i = 1 TO 14000
+    Pilot p, k
+    Tick g, p, k, lo(), pt()
+    IF g.mode <> PLAYING THEN EXIT FOR
+NEXT
+PRINT "works"; g.mode; g.lives - j; Zone; CINT(p.x); CINT(p.y)
+k.l = 0: k.r = 0: k.d = 0: k.jump = 0: k.hit = 0
+' and after its family and its fade, the title, on the Amber Downs again
+FOR i = 1 TO 1600
+    Tick g, p, k, lo(), pt()
     IF g.mode = TITLE THEN EXIT FOR
 NEXT
-IF was > 60 AND g.mode = TITLE AND Dusk = 16 THEN PRINT "faded ok"
+IF g.mode = TITLE AND Zone = 0 AND Dusk = 16 THEN PRINT "home ok"
 ' the title's own run ends the same way: it began again the moment Charlie passed the goal, the family never met
 FOR i = 1 TO 9000
     Tick g, p, k, lo(), pt()
@@ -284,11 +336,15 @@ def main() -> None:
         ("slope ok", "a ramp run onto at any speed without a stop, and stood on without a slide"),
         ("buffer ok", "a jump pressed just before landing, made on landing"),
         ("edge jump ok", "a jump pressed just after running off an edge, made"),
+        ("ledge ok", "fallen from an edge walked off slowly"),
         ("drop ok", "landed wherever dropped over the ground"),
         ("loop ok", "round a loop when fast, back out of it when slow"),
         ("stall ok", "off a loop's top when too slow for it"),
         ("ghost ok", "down on the ground from a jump before a loop"),
         ("pipe ok", "up a quarter pipe and its wall onto the ground above"),
+        ("carried ok", "carried by the platform stood on"),
+        ("lift ok", "taken up by a lift, which goes back down when left"),
+        ("home ok", "back at the title on the Amber Downs after the Neon Works"),
     ):
         if said not in out:
             sys.exit(f"charlie: not {what}: {out[-300:]}")
@@ -296,6 +352,9 @@ def main() -> None:
         sys.exit(f"charlie: the title's run not ended with the family, held and faded: {out[-300:]}")
     if "faded ok" not in out:
         sys.exit(f"charlie: the level's end not held, faded out and begun again in full colour: {out[-300:]}")
+    works = out[out.rfind("works") :].split()
+    if works[1:4] != ["2", "0", "1"]:
+        sys.exit(f"charlie: the Neon Works not cleared on one life (mode, lives lost, zone, x, y): {out[-300:]}")
     words = out[out.rfind("result") :].split()
     if len(words) < 5 or words[1:3] != ["2", "3"] or words[4] != "5":
         sys.exit(
