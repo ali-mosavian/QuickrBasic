@@ -2633,6 +2633,19 @@ def lifepost() -> Pic:
     return p.outline()
 
 
+def surf() -> Pic:
+    """The water's edge, 16 along: foam, broken where a wavelet dips, over the first of the water under it."""
+    p = Pic(16, 8)
+    for x in range(16):
+        w = (x // 2) % 8
+        if w in (2, 3):
+            p.put(x, 0, LAGOON[0])
+        p.put(x, 1, LAGOON[1] if w == 7 else LAGOON[0])
+        p.put(x, 2, LAGOON[1])
+        p.box(x, 3, x, 7, LAGOON[2])
+    return p
+
+
 def sands() -> list[tuple[int, Pic, bool, int]]:
     """Saltwick Sands' own pictures, at the indices the Downs' own have: the game draws a zone of this kind from
     one layout."""
@@ -2645,6 +2658,9 @@ def sands() -> list[tuple[int, Pic, bool, int]]:
     out += [(z + 112 + h * 2, ribbon(h, planks, SEAINK), True, -1) for h in range(2)]
     out += earth(a, dry)
     out.append((a + 268, skiff(), True, -1))
+    # its ground again under the tide, where no other zone has pictures, and the water's edge
+    out += earth(z + 652, sandy(WET))
+    out.append((z + 930, surf(), True, -1))
     out += [
         (k + 36, brolly(), True, -1),
         (k + 38, marram(), True, -1),

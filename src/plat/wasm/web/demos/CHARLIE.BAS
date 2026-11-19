@@ -41,6 +41,8 @@ type Hero
     sg as integer
     win as integer
     barkT as single
+    swim as integer
+    wet as single
 end type
 
 ' The game's time against the screen's frames: lag, the time not yet stepped; span, a frame's length as learnt; late,
@@ -193,7 +195,9 @@ const IBASKET = IBARON + 4
 ' either side of its middle.
 const ICART = IBASKET + 2, ICARTW = ICART + 12, CARTW = 56, CARTH = 34, CARTLEAN = 7, WHEELS = 13
 ' Sprocket's crane as it goes and bumped, a length of its rail, its crate, the toolbox.
-const ICRANE = ICARTW + 4, IRAIL = ICRANE + 4, IWBOX = IRAIL + 2, ITOOLS = IWBOX + 2, NIMG = ITOOLS + 2
+const ICRANE = ICARTW + 4, IRAIL = ICRANE + 4, IWBOX = IRAIL + 2, ITOOLS = IWBOX + 2
+' The sands' ground again as it is under the tide, picture for picture, and the water's edge.
+const IWET = ITOOLS + 2, WETO = IWET - IAF, ISURF = IWET + 278, NIMG = ISURF + 2
 const HUDW = 108, HUDH = 40
 ' The levels: a zone's two acts, the second at another hour in other colours, zone by zone.
 ' the stages played, and after them the intro's road
@@ -225,6 +229,11 @@ const DAZED = 1.4, BOLTS = 1!, NBUMP = 3, CHASETUNE = 5
 ' under a crane; the seconds its keepsake falls.
 const CRANEV = 90!, CRANEUP = 25!, CRANEBOLT = 260!, CRANER = 22, CRANEH = 120, RAILUP = 164
 const RELOAD = 1.6, HASTE = .3, POISE = .6, HEAD = 124, HEADUP = 172, TOOLFALL = .4
+' The tide: the steps of its turn; how deep Charlie floats, and how deep he wades before he does; his paddling
+' speed and its gain; his hop out of the water; the seconds of rolling that shake him dry, and his top speed
+' till then; the first of the sea's colours.
+const TIDEP = 1440, AFLOAT = 6, WADE = 10, PADV = 80!, PADACC = 260!, HOPV = 250!, DRYT = .35, WETTOP = 220!
+const CSEA = 141
 
 ' The palette's ramps, dark to light, as charlieart.py's.
 const CHUD = 0, CWHITE = 1, CINK = 2, CYELLOW = 3, CRED = 4
@@ -350,6 +359,12 @@ declare sub LoadSave ()
 declare sub Reach (z as integer)
 declare sub PickZone (k as Pad)
 declare function ZoneName$ (z as integer)
+declare sub Flow ()
+declare sub Soak (p as Hero, pt() as Part)
+declare sub Paddle (p as Hero, l as integer, r as integer, hit as integer, pt() as Part)
+declare sub DrawSea (cx as integer, cy as integer)
+declare sub SeaBand (x0 as integer, x1 as integer, a as integer, b as integer, last as integer, c as integer)
+declare sub DrawSurf (cx as integer, cy as integer)
 declare sub Spawn (g as Game, p as Hero)
 declare sub MoveHero (p as Hero, k as Pad, pt() as Part)
 declare sub Walk (p as Hero, l as integer, r as integer, d as integer, hit as integer, pt() as Part)
@@ -449,6 +464,8 @@ dim shared Cart as Runner, Box as Runner, ChaseX as integer, ChaseEnd as integer
 dim shared ZHeld as integer
 ' the furthest zone a game has reached, kept in CHARLIE.SAV, and the zone picked on the title to start at
 dim shared Reached as integer, Pick as integer
+' the sea's surface, NONE where a stage has none, and where it is at low water and at high
+dim shared Tide as integer, TideLo as integer, TideHi as integer
 
 Main
 end
@@ -692,6 +709,8 @@ sub LoadLevel (st as integer)
     GoalX = NONE
     FamX = NONE
     ChaseX = NONE
+    TideLo = NONE
+    Tide = NONE
     Cart.st = 0
     for i = 0 to 2
         Glint(i) = Pal(CWATER + 1 + i)
@@ -880,6 +899,11 @@ sub LoadLevel (st as integer)
         case "chase"
             ChaseX = c * TS
             ChaseEnd = (c + n) * TS
+        case "tide"
+            ' the sea: its height at low water * 100 + at high, in the ground's tiles
+            TideLo = (MH - n \ 100) * TS
+            TideHi = (MH - n mod 100) * TS
+            Tide = TideLo
         case "dog"
             StartX = c * TS + 8
             StartY = s
@@ -2235,6 +2259,7 @@ sub Tick (g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part)
     dim idle as Pad, auto as Pad
     Ticks = Ticks + 1
     if Zone = 1 and (Ticks and 3) = 0 then Cycle
+    if TideLo <> NONE then Flow
     if NMv then Movers p
     g.modeT = g.modeT + STEPT
     if g.shake > 0 then g.shake = g.shake - STEPT
@@ -2362,7 +2387,13 @@ sub Pilot (p as Hero, k as Pad)
     k.r = -1
     k.l = 0
     k.d = 0
-    if p.ground and GK(p.sg) = 3 then
+    if p.swim then
+        ' afloat: on to the right, a hop where a bank is in the way
+        if Solid%(cint(p.x) + HW + 2, cint(p.y) - 11) then
+            k.hit = -1
+            hold = 24
+        end if
+    elseif p.ground and GK(p.sg) = 3 then
         ' on a platform: still, till there is ground ahead to jump to
         x = cint(p.x)
         y = cint(p.y)
@@ -2638,11 +2669,14 @@ sub MoveHero (p as Hero, k as Pad, pt() as Part)
             r = 0
         end if
     end if
-    if p.ground then
+    if p.swim then
+        Paddle p, l, r, hit, pt()
+    elseif p.ground then
         Walk p, l, r, d, hit, pt()
     else
         Airborne p, l, r, d, hold, pt()
     end if
+    if Tide <> NONE then Soak p, pt()
     if p.x < 8 then
         p.x = 8
         p.gsp = 0
@@ -2677,6 +2711,9 @@ end sub
 ' move, into walls and onto the ground's curve.
 sub Walk (p as Hero, l as integer, r as integer, d as integer, hit as integer, pt() as Part)
     dim sn as single, cs as single, f as single, n as integer, s as integer, dir as integer, i as integer
+    dim most as single
+    most = TOP
+    if p.wet > 0 then most = WETTOP
     sn = sin(p.ang)
     cs = cos(p.ang)
     dir = 1 - 2 * p.face
@@ -2731,18 +2768,18 @@ sub Walk (p as Hero, l as integer, r as integer, d as integer, hit as integer, p
             if p.gsp < 0 then
                 p.gsp = p.gsp + DEC * STEPT
                 p.skid = p.gsp < -80
-            elseif p.gsp < TOP then
+            elseif p.gsp < most then
                 p.gsp = p.gsp + RUNACC * STEPT
-                if p.gsp > TOP then p.gsp = TOP
+                if p.gsp > most then p.gsp = most
             end if
             if p.gsp >= 0 then p.face = 0
         elseif l then
             if p.gsp > 0 then
                 p.gsp = p.gsp - DEC * STEPT
                 p.skid = p.gsp > 80
-            elseif p.gsp > -TOP then
+            elseif p.gsp > -most then
                 p.gsp = p.gsp - RUNACC * STEPT
-                if p.gsp < -TOP then p.gsp = -TOP
+                if p.gsp < -most then p.gsp = -most
             end if
             if p.gsp <= 0 then p.face = 1
         elseif p.slip <= 0 and cs >= .7 then
@@ -3376,6 +3413,132 @@ sub DrawWheels (x as integer, cy as integer)
     Blit x + WHEELS - 6, yb - cy - 12, k, 13, 13
 end sub
 
+' ---- the tide ----
+
+' The sea's level by the clock: from low water up to high and back, a turn every TIDEP steps.
+sub Flow
+    Tide = TideLo - cint((TideLo - TideHi) * (1 - cos(Ticks * 2 * PI / TIDEP)) / 2)
+end sub
+
+' Charlie and the sea. He is afloat once his feet are under it, falling or deeper than he can wade. Out of it he
+' is wet, slow and dripping, till a roll shakes him dry.
+sub Soak (p as Hero, pt() as Part)
+    if p.swim then exit sub
+    if (p.ground and p.y > Tide + WADE) or (not p.ground and p.vy >= 0 and p.y > Tide + AFLOAT) then
+        if p.ground then
+            p.vx = p.gsp * cos(p.ang)
+        elseif p.vy > 200 then
+            Burst pt(), p.x, Tide + 0!, 8, 110, CSEA
+        end if
+        p.swim = -1
+        p.ground = 0
+        exit sub
+    end if
+    if p.wet <= 0 then exit sub
+    if p.roll and p.ground then
+        p.wet = p.wet - STEPT
+        if p.wet <= 0 then Burst pt(), p.x, p.y - 12, 10, 130, CSEA + 1
+    elseif (Ticks and 7) = 0 then
+        Emit pt(), p.x, p.y - 14, 0, 30, .3, CSEA + 2
+    end if
+end sub
+
+' Afloat: at the water's surface as it rises and falls, paddled left and right, slowly; a jump is a hop out of
+' it, and ground come to under the surface is waded onto.
+sub Paddle (p as Hero, l as integer, r as integer, hit as integer, pt() as Part)
+    p.roll = 0
+    p.jumped = 0
+    p.sprung = 0
+    p.crouch = 0
+    p.charging = 0
+    p.skid = 0
+    p.wet = DRYT
+    if hit then
+        p.swim = 0
+        p.vy = -HOPV
+        p.jumped = -1
+        Burst pt(), p.x, Tide + 0!, 5, 80, CSEA
+        Sfx SJUMP
+        exit sub
+    end if
+    if r then
+        if p.vx < PADV then p.vx = p.vx + PADACC * STEPT
+        p.face = 0
+    elseif l then
+        if p.vx > -PADV then p.vx = p.vx - PADACC * STEPT
+        p.face = 1
+    else
+        Slow p.vx, PADACC
+    end if
+    ' the speed he came in with is soon lost
+    if abs(p.vx) > PADV then Slow p.vx, PADACC * 4
+    p.x = p.x + p.vx * STEPT
+    if p.vx <> 0 then
+        if Wall%(p, sgn(p.vx)) then p.vx = 0
+    end if
+    p.y = Tide + AFLOAT
+    p.vy = 0
+    if Land%(p, 0) then p.swim = 0
+end sub
+
+' The sea in each column whose ground is under it: bands of water from its surface down behind the column's top
+' tile, a run of columns alike at a time.
+sub DrawSea (cx as integer, cy as integer)
+    dim tx as integer, tx0 as integer, tx1 as integer, y0 as integer, y1 as integer, x0 as integer, x1 as integer
+    y0 = Tide - cy
+    if y0 >= SH then exit sub
+    tx1 = cx \ TS + SW \ TS
+    if tx1 > LW - 1 then tx1 = LW - 1
+    tx = cx \ TS
+    do while tx <= tx1
+        if ColTop(tx) * TS > Tide then
+            tx0 = tx
+            do while tx < tx1 and ColTop(tx + 1) = ColTop(tx0)
+                tx = tx + 1
+            loop
+            y1 = (ColTop(tx0) + 1) * TS - 1 - cy
+            x0 = tx0 * TS - cx
+            x1 = tx * TS + TS - 1 - cx
+            SeaBand x0, x1, y0, y0 + 1, y1, CSEA + 1
+            SeaBand x0, x1, y0 + 2, y0 + 7, y1, CSEA + 2
+            SeaBand x0, x1, y0 + 8, y0 + 25, y1, CSEA + 3
+            SeaBand x0, x1, y0 + 26, SH - 1, y1, CSEA + 4
+        end if
+        tx = tx + 1
+    loop
+end sub
+
+' Rows a to b of a band of the sea, of colour c, no lower than row last or the screen's foot.
+sub SeaBand (x0 as integer, x1 as integer, a as integer, b as integer, last as integer, c as integer)
+    dim y0 as integer, y1 as integer
+    y0 = a
+    y1 = b
+    if y0 < 0 then y0 = 0
+    if y1 > last then y1 = last
+    if y1 > SH - 1 then y1 = SH - 1
+    if y0 <= y1 then line (x0, y0)-(x1, y1), c, BF
+end sub
+
+' The water's edge over what is in it: foam and the first of the water, in each column of the sea deep enough
+' for them; in a shallower one the foam's line alone, and on a slope nothing.
+sub DrawSurf (cx as integer, cy as integer)
+    dim tx as integer, tx1 as integer, y as integer, deep as integer
+    y = Tide - cy - 1
+    if y >= SH or y < -8 then exit sub
+    tx1 = cx \ TS + SW \ TS
+    if tx1 > LW - 1 then tx1 = LW - 1
+    for tx = cx \ TS to tx1
+        deep = ColTop(tx) * TS - Tide
+        if deep > 0 and ColVis(tx) <= 2 then
+            if deep >= 7 then
+                Blit tx * TS - cx, y, ISURF, TS, 8
+            else
+                line (tx * TS - cx, y + 1)-(tx * TS - cx + TS - 1, y + 1), CSEA, BF
+            end if
+        end if
+    next
+end sub
+
 ' ---- the works' chase ----
 
 ' The crane along its rail, kept to the hall: after Charlie, to be over him, faster for each bump, and still while
@@ -3685,6 +3848,7 @@ sub Render (g as Game, p as Hero, lo() as Loose, pt() as Part)
     if g.shake > 0 then cy = cy + ((Ticks and 2) - 1) * 2
     if g.mode <> TITLE then Hud g
     DrawBack cx, cy
+    if Tide <> NONE then DrawSea cx, cy
     DrawThings cx, cy, -1
     DrawTiles cx, cy
     DrawThings cx, cy, 0
@@ -3692,6 +3856,7 @@ sub Render (g as Game, p as Hero, lo() as Loose, pt() as Part)
     if LooseN then DrawLoose cx, cy, lo()
     DrawChase cx, cy
     DrawHero p, cx, cy
+    if Tide <> NONE then DrawSurf cx, cy
     DrawOver cx, cy
     if p.barkT > BARKT - .2 then DrawBark p, cx, cy
     if PartN then DrawParts pt(), cx, cy
@@ -3769,6 +3934,7 @@ end sub
 ' Each column in view: its top tile, then its earth in strips below.
 sub DrawTiles (cx as integer, cy as integer)
     dim tx as integer, tx1 as integer, x as integer, y as integer, v as integer, k as integer, r as integer
+    dim w as integer
     tx1 = cx \ TS + SW \ TS
     if tx1 > LW - 1 then tx1 = LW - 1
     for tx = cx \ TS to tx1
@@ -3804,29 +3970,32 @@ sub DrawTiles (cx as integer, cy as integer)
             else
                 ' The downs' comb hangs from the world too, of period 64 by 48: a slope's turf runs on into the tile
                 ' under it; under a pipe, 0, the pipe's own picture is the ground.
+                ' a column whose top the tide is over is of the wet pictures, w on from the dry
                 k = (tx and 3) * 3
+                w = 0
+                if r * TS > Tide then w = WETO
                 if y > -TS then
                     if v > 2 then
-                        put (x, y), Img(At(IAS + ((v - 4) * 12 + k + r mod 3) * 2 + 1)), and
-                        put (x, y), Img(At(IAS + ((v - 4) * 12 + k + r mod 3) * 2)), or
+                        put (x, y), Img(At(IAS + w + ((v - 4) * 12 + k + r mod 3) * 2 + 1)), and
+                        put (x, y), Img(At(IAS + w + ((v - 4) * 12 + k + r mod 3) * 2)), or
                     elseif v > 0 then
-                        put (x, y), Img(At(IAF + k + r mod 3)), pset
+                        put (x, y), Img(At(IAF + w + k + r mod 3)), pset
                     end if
                 end if
                 y = y + TS
                 if v > 2 and y < SH then
-                    if y > -TS then put (x, y), Img(At(IAU + (v - 4) * 12 + k + r mod 3)), pset
+                    if y > -TS then put (x, y), Img(At(IAU + w + (v - 4) * 12 + k + r mod 3)), pset
                     y = y + TS
                     r = r + 1
                 end if
                 r = r + 1
                 do while r mod 3 <> 0 and y < SH
-                    if y > -TS then put (x, y), Img(At(IAC + k + r mod 3)), pset
+                    if y > -TS then put (x, y), Img(At(IAC + w + k + r mod 3)), pset
                     r = r + 1
                     y = y + TS
                 loop
                 do while y < SH
-                    if y > -STRIPH then put (x, y), Img(At(IAL + (tx and 3))), pset
+                    if y > -STRIPH then put (x, y), Img(At(IAL + w + (tx and 3))), pset
                     y = y + STRIPH
                 loop
                 if FaceL(tx) then Bare x, ColTop(tx) * TS - cy, FaceL(tx), IAE
@@ -4084,6 +4253,8 @@ function HeroFrame% (p as Hero)
         if (Ticks \ 3) and 1 then HeroFrame% = FSHIVER
     elseif p.roll or p.charging then
         HeroFrame% = FBALL + (int(p.anim) and 3)
+    elseif p.swim then
+        HeroFrame% = FRUN + (Ticks \ 10) mod 6
     elseif not p.ground then
         if p.sprung then
             HeroFrame% = FUP

@@ -651,6 +651,109 @@ GoStage 0, g, p, lo(), pt()
 line (0, 0)-(63, 79), 0, BF
 Blit 0, 0, ITREE, 64, 80
 print "zonetree"; Pix&(0, 64, 0, 79); NextAt - hid; ZoneAt > 0
+' Saltwick Sands' sea rises and falls by the clock, from low water to high and back
+GoStage 4, g, p, lo(), pt()
+g.modeT = 5
+hid = Ticks
+Ticks = 0
+Flow
+was = Tide = TideLo and TideLo > TideHi
+Ticks = TIDEP \\ 2
+Flow
+was = was and Tide = TideHi
+Ticks = hid
+' Charlie over a gap comes down into the sea and floats, his feet under its surface, and paddles slowly: before
+' the sea he fell out of the level. c the gap's first column, m the far bank's, v the bank's top: the sea is held
+' 24 under it
+for c = 8 to LW - 1
+    if ColTop(c) = MH then exit for
+next
+for m = c to LW - 1
+    if ColTop(m) < MH then exit for
+next
+v = ColTop(m) * TS
+TideLo = v + 24
+TideHi = TideLo
+p.x = c * TS + 24
+p.y = v - 20
+p.ground = 0
+p.vx = 0
+p.vy = 0
+j = g.lives
+for i = 1 to 90
+    Tick g, p, k, lo(), pt()
+next
+was = was and p.swim and not p.dead and g.lives = j and abs(p.y - (Tide + AFLOAT)) < 1
+j = cint(p.x)
+k.r = -1
+for i = 1 to 40
+    Tick g, p, k, lo(), pt()
+next
+if was and p.x - j > 20 and p.x - j < 50 then print "tide ok"
+' the sea is drawn in the gap up to its surface and not over it; ground the sea is over is under it too, and of
+' the wet pictures: its top tile was sand
+g.camx = c * TS - 100
+g.camy = Tide - 100
+Render g, p, lo(), pt()
+was = point(104, 104) = CSEA + 2 and (point(104, 94) < CSEA or point(104, 94) > CSEA + 6)
+TideLo = ColTop(c - 2) * TS - 20
+TideHi = TideLo
+Tick g, p, k, lo(), pt()
+g.camx = c * TS - 100
+g.camy = Tide - 100
+Render g, p, lo(), pt()
+j = point(72, 130)
+if was and point(72, 104) = CSEA + 2 and j >= CSEA and j <= CSEA + 6 then print "sea ok"
+' a hop from the water gets him onto a bank near its surface, and not onto one far over it: the tide opens and
+' closes the way
+was = 0
+for j = 0 to 1
+    TideLo = v + 24 + 36 * j
+    TideHi = TideLo
+    Flow
+    p.x = m * TS - 12
+    p.y = Tide + AFLOAT
+    p.swim = -1
+    p.ground = 0
+    p.vx = 0
+    k.r = -1
+    k.jump = -1
+    for i = 1 to 90
+        if i = 20 then k.hit = -1
+        Tick g, p, k, lo(), pt()
+        if p.ground then exit for
+    next
+    if j = 0 and p.ground and p.x > m * TS - 8 then was = -1
+    if j = 1 and p.ground then was = 0
+next
+k.jump = 0
+if was and p.swim then print "bank ok"
+' out of the water he is wet and slow, till a roll shakes him dry
+TideLo = v + 24
+TideHi = TideLo
+Stand p, m * TS + 24, WETTOP - 20
+p.swim = 0
+p.wet = DRYT
+k.r = -1
+for i = 1 to 30
+    Tick g, p, k, lo(), pt()
+next
+was = p.wet > 0 and p.gsp > WETTOP - 20 and p.gsp <= WETTOP + 1
+Stand p, m * TS + 24, WETTOP - 20
+p.roll = -1
+k.r = 0
+for i = 1 to 30
+    Tick g, p, k, lo(), pt()
+next
+was = was and p.wet <= 0
+Stand p, m * TS + 24, WETTOP - 20
+k.r = -1
+for i = 1 to 30
+    Tick g, p, k, lo(), pt()
+next
+k.r = 0
+if was and p.gsp > WETTOP + 60 then print "wet ok"
+was = 0
 ' a lift goes up under Charlie to the ground above, and back down once it is left
 GoStage 2, g, p, lo(), pt()
 for m = 0 to NMv - 1
@@ -988,6 +1091,10 @@ def main() -> None:
         ("home ok", "back at the title on the Amber Downs, to their tune, after the Chrome Works"),
         ("palette ok", "a zone shown in its own colours, the shared ones back after it"),
         ("save ok", "the furthest zone reached kept in CHARLIE.SAV, picked on the title and started at"),
+        ("tide ok", "the sands' sea rises and falls by the clock; Charlie floats on it and paddles slowly"),
+        ("sea ok", "the sea drawn up to its surface, and the ground under it of the wet pictures"),
+        ("bank ok", "a hop from the water reaches a bank near its surface and not one far over it"),
+        ("wet ok", "out of the water Charlie is slow till a roll shakes him dry"),
     ):
         if said not in out:
             sys.exit(f"charlie: not {what}: {out[-300:]}")
