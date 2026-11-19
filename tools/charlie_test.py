@@ -292,8 +292,31 @@ for i = 1 to 300
     if p.ground and p.y > ObY(j) + 40 then exit for
 next
 if p.ground and GK(p.sg) = 1 and p.y > ObY(j) + 40 and p.x < c + 384 then print "slow ok"
-was = 0
+' a bark stops a prowler where it is a while, and it goes on away from him: it walked on as if deaf
 k.r = 0
+StartGame g, p, lo(), pt()
+j = -1
+for i = 0 to NObj - 1
+    c = ObA(i) - 40
+    if ObK(i) = KCAT and j < 0 and abs(GroundAt%(c) - ObY(i)) < 8 then
+        if SegAt%(c, csng(GroundAt%(c))) >= 0 then j = i
+    end if
+next
+ObX(j) = ObA(j)
+ObS(j) = -1
+Stand p, ObA(j) - 40, 0
+k.bark = -1
+Tick g, p, k, lo(), pt()
+was = 0
+for i = 1 to 20
+    Tick g, p, k, lo(), pt()
+    if ObX(j) <> ObA(j) then was = was + 1
+next
+for i = 1 to 60
+    Tick g, p, k, lo(), pt()
+next
+if was = 0 and ObX(j) > ObA(j) then print "bark ok"
+was = 0
 StartGame g, p, lo(), pt()
 for i = 1 to 9000
     Pilot p, k
@@ -541,6 +564,9 @@ def main() -> None:
     exe = Path(sys.argv[1] if len(sys.argv) > 1 else ROOT / "build/host/basic").resolve()
     src = DEMO.read_text()
     assert "\nMain\nend\n" in src, "CHARLIE.BAS's main call moved"
+    art = subprocess.run([sys.executable, ROOT / "tools/charlieart.py", "--check"], capture_output=True, text=True)
+    if art.returncode:
+        sys.exit(f"charlie: the art tool does not run, or CHARLIE.DAT is not what it writes: {art.stderr[-300:]}")
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "T.BAS"
         path.write_text(src.replace("\nMain\nend\n", "\n" + DRIVER, 1))
@@ -572,6 +598,7 @@ def main() -> None:
         ("twist ok", "at a ribbon's crest Charlie is drawn under its line, upside down"),
         ("turn ok", "a quarter round a ribbon's twist Charlie is drawn across its line, seen from over his back"),
         ("hid ok", "three quarters round a ribbon's twist Charlie is behind it, none of him drawn"),
+        ("bark ok", "a cat barked at stands startled a while, then goes on away from Charlie"),
         ("slow ok", "too slow for a ribbon's twist, Charlie drops from its crest to the pit under it"),
         ("carried ok", "carried by the platform stood on"),
         ("lift ok", "taken up by a lift, which goes back down when left"),

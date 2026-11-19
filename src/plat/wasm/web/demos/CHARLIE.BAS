@@ -39,6 +39,7 @@ type Hero
     dead as integer
     sg as integer
     win as integer
+    barkT as single
 end type
 
 ' The game's time against the screen's frames: lag, the time not yet stepped; span, a frame's length as learnt; late,
@@ -58,6 +59,7 @@ type Pad
     jump as integer
     hit as integer
     was as integer
+    bark as integer
     quit as integer
     start as integer
     mute as integer
@@ -151,7 +153,7 @@ const IAM = IAP + 24, IAE = IAM + 2
 const IZS = IAE + 8, IZU = IZS + 48
 ' Charlie round a ribbon's twist, 8 pictures of two frames, then facing left: stood on it, pressed flatter twice,
 ' seen from over its back, hung under it flatter twice and whole, seen from under.
-const ITW = IZU + 48, NIMG = ITW + 96
+const ITW = IZU + 48, ICATF = ITW + 96, NIMG = ICATF + 4
 const HUDW = 108, HUDH = 40
 ' The levels: the two zones, then each again at another hour, in other colours.
 const NSTAGE = 4
@@ -159,7 +161,9 @@ const IMGSZ = 420000
 
 const SCLEFT = 75, SCRIGHT = 77, SCUP = 72, SCDOWN = 80, SCSPACE = 57, SCZ = 44
 const SJUMP = 0, SBONE = 1, SHURT = 2, SSPRING = 3, SPOP = 4, SROLL = 5
-const SCHARGE = 6, SLAUNCH = 7, SCLEAR = 8, SDIE = 9, SMARK = 10, SBOOST = 11, SHISS = 12
+const SCHARGE = 6, SLAUNCH = 7, SCLEAR = 8, SDIE = 9, SMARK = 10, SBOOST = 11, SHISS = 12, SBARK = 13
+' A bark: how far it carries, the seconds to the next, and the steps a cat stands startled by it.
+const BARKR = 72, BARKT = .4, FLINCH = 24
 
 ' The palette's ramps, dark to light, as charlieart.py's.
 const CHUD = 0, CWHITE = 1, CINK = 2, CYELLOW = 3, CRED = 4
@@ -199,6 +203,11 @@ declare sub Cycle ()
 declare function Ribbon% (x as integer)
 declare function Twist! (p as Hero)
 declare sub DrawOver (cx as integer, cy as integer)
+declare sub Bark (p as Hero)
+declare sub Flinch (i as integer, fromX as integer)
+declare sub Prowl (i as integer)
+declare sub DrawBark (p as Hero, cx as integer, cy as integer)
+declare function CatPic% (s as integer)
 declare sub Pit (c as integer, g as integer, n as integer)
 declare sub Knot (x as single, y as single, k as integer)
 declare function SegAt% (x as integer, y as single)
@@ -1326,6 +1335,8 @@ sub ReadPad (k as Pad)
         case " "
             k.start = -1
             KeyT(SCSPACE) = t
+        case "x", "X"
+            k.bark = -1
         case "z", "Z"
             KeyT(SCZ) = t
         case chr$(0) + "K"
@@ -1444,6 +1455,9 @@ sub Sfx (id as integer)
         s = "L64O4CEGO5CEGO6C"
     case SHISS
         s = "W3Y3,3500,0H3,8,0,3L4O6B"
+    case SBARK
+        ' two woofs, the second lower, through a mouth
+        s = "W2I15Y2,1300,6H0,5,3,3K3,0,7L16O3FP32L8O3D"
     end select
     play , , , "T255W1V13Y0K0I0H0,0,15,0" + s
 end sub
@@ -1985,6 +1999,7 @@ sub Tick (g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part)
     k.hit = 0
     k.start = 0
     k.quit = 0
+    k.bark = 0
 end sub
 
 ' The pad of a Charlie that holds right and jumps at pits, walls and cats.
@@ -2216,6 +2231,8 @@ sub MoveHero (p as Hero, k as Pad, pt() as Part)
         hit = k.hit
         hold = k.jump
     end if
+    if p.barkT > 0 then p.barkT = p.barkT - STEPT
+    if k.bark and p.stun = 0 and p.barkT <= 0 then Bark p
     ' a jump pressed just before landing, or just after the ground ran out, was lost: it is kept a moment
     if hit then p.want = JBUFFER
     if p.want > 0 then
@@ -2668,6 +2685,48 @@ end sub
 ' Thirty times a second: cats near the view pace about their homes,
 ' turning at edges and walls; springs settle; loose bones bounce and
 ' fade; sparks fall.
+' A cat's step: startled, it stands and counts its state down to a prowl's; prowling, a pixel along its beat, turned
+' at the beat's end, a drop or a wall.
+sub Prowl (i as integer)
+    dim x as integer, y as integer, s as integer
+    if abs(ObS(i)) > 1 then
+        ObS(i) = ObS(i) - sgn(ObS(i))
+        exit sub
+    end if
+    x = ObX(i) + ObS(i)
+    y = ObY(i)
+    s = Surf%(x + ObS(i) * 8, y)
+    if abs(x - ObA(i)) > 40 or abs(s - y) > 6 or Solid%(x + ObS(i) * 8, y - 6) then
+        ObS(i) = -ObS(i)
+        exit sub
+    end if
+    ObX(i) = x
+    s = Surf%(x, y)
+    if abs(s - y) <= 6 then ObY(i) = s
+end sub
+
+' A cat barked at from fromX stands startled FLINCH steps, then prowls away from there: its state's size is the
+' steps left, its sign the way it will go.
+sub Flinch (i as integer, fromX as integer)
+    ObS(i) = FLINCH
+    if ObX(i) < fromX then ObS(i) = -FLINCH
+end sub
+
+' Charlie barks: every cat the bark reaches flinches.
+sub Bark (p as Hero)
+    dim i as integer, c as integer
+    p.barkT = BARKT
+    Sfx SBARK
+    c = (cint(p.x) - BARKR - 40) \ TS
+    if c < 0 then c = 0
+    i = First(c)
+    do while i < NObj
+        if ObA(i) > p.x + BARKR + 40 then exit do
+        if ObK(i) = KCAT and ObS(i) <> 0 and abs(ObX(i) - p.x) <= BARKR and abs(ObY(i) - p.y) < 40 then Flinch i, cint(p.x)
+        i = i + 1
+    loop
+end sub
+
 sub Things (g as Game, lo() as Loose, pt() as Part)
     dim i as integer, x as integer, y as integer, s as integer, c as integer
     const DT = STEPT * 2
@@ -2677,16 +2736,7 @@ sub Things (g as Game, lo() as Loose, pt() as Part)
     do while i < NObj
         if ObA(i) > g.camx + SW + 100 then exit do
         if ObK(i) = KCAT and ObS(i) <> 0 then
-            x = ObX(i) + ObS(i)
-            y = ObY(i)
-            s = Surf%(x + ObS(i) * 8, y)
-            if abs(x - ObA(i)) > 40 or abs(s - y) > 6 or Solid%(x + ObS(i) * 8, y - 6) then
-                ObS(i) = -ObS(i)
-            else
-                ObX(i) = x
-                s = Surf%(x, y)
-                if abs(s - y) <= 6 then ObY(i) = s
-            end if
+            Prowl i
         elseif (ObK(i) = KSPRING or ObK(i) = KBUMP or ObK(i) = KHOOP) and ObS(i) > 0 then
             ObS(i) = ObS(i) - 1
         end if
@@ -2796,6 +2846,7 @@ sub Render (g as Game, p as Hero, lo() as Loose, pt() as Part)
     if LooseN then DrawLoose cx, cy, lo()
     DrawHero p, cx, cy
     DrawOver cx, cy
+    if p.barkT > BARKT - .2 then DrawBark p, cx, cy
     if PartN then DrawParts pt(), cx, cy
     select case g.mode
     case TITLE
@@ -2805,7 +2856,7 @@ sub Render (g as Game, p as Hero, lo() as Loose, pt() as Part)
         if (Ticks \ 30) and 1 then
             Banner 24, "PRESS SPACE", CYELLOW
         else
-            Banner 24, "ARROWS RUN  SPACE JUMPS  DOWN ROLLS", CWHITE
+            Banner 24, "SPACE JUMPS  DOWN ROLLS  X BARKS", CWHITE
         end if
     case PLAYING
         Blit 6, 5, IHUD, HUDW, HUDH
@@ -2949,7 +3000,7 @@ sub DrawThings (cx as integer, cy as integer, back as integer)
             case KBONE
                 if ObS(i) then Blit x - 5, y - 5, IBONE + ((Ticks \ 6) and 3) * 2, 10, 10
             case KCAT
-                if ObS(i) then Blit x - 10, y - 13, ICAT + ((Ticks \ 8) and 1) * 2 - 4 * (ObS(i) < 0), 20, 14
+                if ObS(i) then Blit x - 10, y - 13, CatPic%(ObS(i)), 20, 14
             case KSPRING
                 Blit x - 8, y - 15, ISPRING - 2 * (ObS(i) > 0), 16, 16
             case KBOOST
@@ -3073,6 +3124,27 @@ sub DrawOver (cx as integer, cy as integer)
         if ObK(i) = KWAVE2 then Blit x, ObY(i) - cy - WAVEA - 22, ZWave + 2, WAVEL, WAVEH
         i = i + 1
     loop
+end sub
+
+' A cat's picture by its state: startled, turned to what barked, or a stride of its prowl the way it goes.
+function CatPic% (s as integer)
+    if abs(s) > 1 then
+        CatPic% = ICATF - 2 * (s > 0)
+    else
+        CatPic% = ICAT + ((Ticks \ 8) and 1) * 2 - 4 * (s < 0)
+    end if
+end function
+
+' The bark, seen: two arcs before his muzzle, wider as it goes.
+sub DrawBark (p as Hero, cx as integer, cy as integer)
+    dim x as integer, y as integer, r as integer, a as single
+    x = cint(p.x) - cx + (1 - 2 * p.face) * 12
+    y = cint(p.y) - cy - 18
+    r = 5 + cint((BARKT - p.barkT) * 50)
+    ' a quarter turn about the way he faces: to the right through 0, to the left about PI
+    a = PI * (7 / 4 - p.face)
+    circle (x, y), r, CWHITE, a, a + PI / 2 - 2 * PI * (1 - p.face)
+    circle (x, y), r + 4, CWHITE, a, a + PI / 2 - 2 * PI * (1 - p.face)
 end sub
 
 sub DrawHero (p as Hero, cx as integer, cy as integer)

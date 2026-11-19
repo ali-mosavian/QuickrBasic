@@ -894,6 +894,29 @@ def bone(turn: float) -> Pic:
     return p.outline()
 
 
+def startled() -> Pic:
+    """The cat barked at: its back arched, its legs stiff, its tail a brush, an eye wide."""
+    p = Pic(20, 14)
+    fur = EARTH[2:]
+    p.line(3, 7, 2, 3, fur[2], 2)
+    p.ball(2.5, 2.5, 2.2, 2.2, fur, 0.4, 1.1)
+    for x in (4, 6, 11, 13):
+        p.line(x, 9, x, 12, fur[1 + x % 2])
+    p.ball(8, 6.5, 5.2, 3.2, fur, 0.2, 1.0)
+    for x in (4, 6, 8, 10):  # its fur on end
+        p.put(x, 2, fur[3])
+    for x in (6, 9):
+        p.line(x, 4, x - 1, 6, fur[0])
+    for x, y in ((13, 1), (13, 2), (14, 2), (17, 1), (16, 2), (17, 2)):
+        p.put(x, y, fur[3])
+    p.ball(15, 5.5, 3.2, 3.0, fur, 0.3, 1.1)
+    p.box(16, 4, 17, 5, WHITE)
+    p.put(17, 5, INK)
+    p.put(18, 6, PETAL[0])
+    p.box(16, 7, 17, 8, INK)
+    return p.outline()
+
+
 def cat(f: int) -> Pic:
     """A ginger cat, prowling right: its tail up, its back striped."""
     p = Pic(20, 14)
@@ -1942,6 +1965,7 @@ def pictures() -> list[tuple[int, Pic, bool, int]]:
                 out.append((a + 12 + ((kind - 2) * 12 + v) * 2, top(kind, c, r), True, -1))
                 out.append((a + 156 + (kind - 2) * 12 + v, top(kind, c, r, 1), False, -1))
     out.append((a + 268, raft(), True, -1))
+    out.append((z + 594, startled(), True, z + 596))
     # Charlie round a twist: 12 turns of two strides, their mirrors facing left
     out += [
         (z + 498 + (n * 2 + f) * 2, turned(frames[5 + f * 3], n, f), True, z + 546 + (n * 2 + f) * 2)
@@ -1990,7 +2014,7 @@ def audit(pics: list[tuple[int, Pic, bool, int]]) -> None:
     """A zone's own colours are only in its own pictures: elsewhere they would show as another zone's."""
     # the game's store ran out, an Illegal function call as it loaded: these with their masks and mirrors, the 160
     # turned runs it flops and its own glyphs and HUD (6000 at most) must fit it
-    room = int(re.search(r"CONST IMGSZ = (\d+)", DAT.with_suffix(".BAS").read_text())[1])
+    room = int(re.search(r"(?i)const IMGSZ = (\d+)", DAT.with_suffix(".BAS").read_text())[1])
     need = sum(len(p.longs()) * (2 if m else 1) * (2 if k2 >= 0 else 1) for _, p, m, k2 in pics) + 160 * 258 + 6000
     if need > room:
         sys.exit(f"charlieart: the pictures need {need} LONGs of the game's IMGSZ, {room}")
