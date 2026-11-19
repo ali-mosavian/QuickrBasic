@@ -822,6 +822,47 @@ CASES |= {
                          " 7  10  7 \r\n 1 -5  1 \r\n 4  1 \r\n-6 -5 \r\nov 6 \r\n 255  7 \r\n", "ERROR"),
 }
 
+# NEXT a, b skipped b's NEXT when a's loop was left, by EXIT FOR or never entered: b ran once
+# (" 1 done").
+CASES |= {
+    "qb_next_ab_left": (bas("FOR b = 1 TO 3: PRINT b;: FOR a = 1 TO 0: NEXT a, b", 'PRINT "done"',
+                            "FOR b = 1 TO 3", " PRINT b;", " FOR a = 1 TO 5", "  IF a = 2 THEN EXIT FOR",
+                            "NEXT a, b", 'PRINT "done"; a; b'),
+                        " 1  2  3 done\r\n 1  2  3 done 2  4 \r\n", "ERROR"),
+}
+
+# CONTINUE FOR | DO | WHILE, EXIT WHILE and a FOR's counter after EXIT FOR or CONTINUE FOR, ours,
+# were Syntax errors. CONTINUE stays a name unless a loop word follows it at a statement's start.
+CASES |= {
+    "loop_continue": (bas("FOR i = 1 TO 5", " IF i = 2 THEN CONTINUE FOR", " PRINT i;", "NEXT", "PRINT",
+                          "DO", " n = n + 1", " IF n MOD 2 THEN n = n + 0: CONTINUE DO", " PRINT n;",
+                          "LOOP UNTIL n >= 6", "PRINT",
+                          "WHILE w < 6", " w = w + 1", " IF w <> 3 THEN PRINT w; ELSE CONTINUE WHILE",
+                          ' PRINT "-";', "WEND", "PRINT"),
+                      " 1  3  4  5 \r\n 2  4  6 \r\n 1 - 2 - 4 - 5 - 6 -\r\n", "ERROR"),
+    "loop_exit_while": (bas("WHILE 1", " n = n + 1", " IF n = 3 THEN EXIT WHILE", "WEND",
+                            "WHILE 1", " FOR i = 1 TO 9", "  IF i = 4 THEN EXIT WHILE", " NEXT",
+                            ' PRINT "never"', "WEND", "PRINT n; i"),
+                        " 3  4 \r\n", "ERROR"),
+    "loop_counter": (bas("FOR y = 1 TO 3", " FOR x = 1 TO 3", "  IF x = 2 THEN EXIT FOR y", "  PRINT y; x;",
+                         " NEXT", "NEXT", 'PRINT "|"; y; x',
+                         "FOR y = 1 TO 3", " FOR x = 1 TO 3", "  IF x = 2 THEN CONTINUE FOR y",
+                         "  PRINT y; x;", " NEXT", ' PRINT "never"', "NEXT", 'PRINT "|"; y; x',
+                         "FOR b = 1 TO 3", " FOR a = 1 TO 3", "  IF a = 2 THEN CONTINUE FOR b",
+                         "  PRINT b; a;", "NEXT a, b", 'PRINT "|"; a; b'),
+                     " 1  1 | 1  2 \r\n 1  1  2  1  3  1 | 4  2 \r\n 1  1  2  1  3  1 | 2  4 \r\n", "ERROR"),
+    "loop_continue_name": (bas("continue = 5", "PRINT continue", "GOTO continue", "PRINT 1",
+                               "continue:", "PRINT 2"), " 5 \r\n 2 \r\n", " 1"),
+    "loop_continue_open": (bas("DEFSTR C", 'continue = "C.TMP"', "OPEN continue FOR OUTPUT AS #1",
+                               'PRINT #1, "a"', "CLOSE", "KILL continue", 'PRINT "ok"'), "ok", "ERROR"),
+    "loop_continue_none": (bas("PRINT 1", "CONTINUE FOR"),
+                           ".BAS:2: CONTINUE not within matching block\r\n  continue for\r\n  ^\r\n"
+                           "This CONTINUE FOR is not inside a FOR loop.", " 1"),
+    "loop_exit_counter": (bas("FOR i = 1 TO 2", " EXIT FOR q", "NEXT"),
+                          ".BAS:2: EXIT not within matching block\r\n  exit for q\r\n           ^\r\n"
+                          "No FOR loop counting with `q` is open here.", " 1"),
+}
+
 # Typed at the prompt, not run as a file.
 REPL = {
     # A direct line ran from DCODE, its statement map's place: nothing printed.

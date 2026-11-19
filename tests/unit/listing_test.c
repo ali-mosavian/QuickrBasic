@@ -80,3 +80,15 @@ TEST(list_keywords_lower_case)
         "print x mod 2: line input a$: if x then goto 10 else end"
     );
 }
+
+/* CONTINUE, ours, a keyword only at a statement's start before FOR, DO or WHILE; elsewhere a
+   name, listed as first written. */
+TEST(list_continue_keyword)
+{
+    listed(S, "IF x THEN Continue For ELSE CONTINUE DO: Continue = 1: print CONTINUE");
+    CHECK_TEXT(
+        S->cons.sbuf,
+        S->cons.sblen,
+        "if x then continue for else continue do: Continue = 1: print Continue"
+    );
+}

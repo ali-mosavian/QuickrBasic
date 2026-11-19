@@ -371,13 +371,40 @@ static void lexr_name(Lexr *const lx)
     lx->out += 2;
 }
 
-/* A word: its keyword's token written, else a name; the token, 0 a name. */
-static uint8_t lexr_word(Lexr *const lx)
+enum { LOOP_WORD = 5 }; /* WHILE: the longest of FOR, DO, WHILE */
+
+/* The word of n characters at lexr.in is CONTINUE: FOR, DO or WHILE follows it. Any other
+   CONTINUE is the name it was before the statement. */
+static bool lexr_continues(Lexr *const lx, const uint32_t n)
+{
+    for (;;) {
+        const uint8_t *q = lx->in + n;
+
+        while (is_blank(*q))
+            q++;
+
+        const bool whole = !lx->source || lx->drained || lx->source->end - q > LOOP_WORD;
+
+        if (whole || !lexr_more(lx)) { /* more: the window slid, lexr.in with it */
+            const uint16_t t = kw_scan(&q);
+            return t == TK_FOR || t == TK_DO || t == TK_WHILE;
+        }
+    }
+}
+
+/* A word, start where a statement starts: its keyword's token written, else a name; the token
+   (100h + n for TK_X n), 0 a name. */
+static uint16_t lexr_word(Lexr *const lx, const bool start)
 {
     lx->word = lx->in;
     const uint8_t *p = lx->in;
-    const uint16_t t = kw_scan(&p);
-    lx->in = (uint8_t *)p;
+    uint16_t t = kw_scan(&p);
+    const uint32_t n = (uint32_t)(p - lx->in);
+
+    if (t == 0x100 + TK1_CONTINUE && !(start && lexr_continues(lx, n)))
+        t = 0;
+
+    lx->in += n;
 
     if (!t) {
         lexr_name(lx);
@@ -390,7 +417,7 @@ static uint8_t lexr_word(Lexr *const lx)
     }
 
     *lx->out++ = (uint8_t)t;
-    return (uint8_t)t;
+    return t;
 }
 
 /* The line's end: its column, its 0. */
@@ -508,6 +535,7 @@ uint8_t *lexr_line(Lexr *const lx, uint8_t *const text, uint8_t *const body)
     lx->last = -1;
     lx->drained = false;
     lx->escaped = false;
+    lx->start = true;
     lexr_near(lx);
 
     for (;;) {
@@ -536,6 +564,9 @@ uint8_t *lexr_line(Lexr *const lx, uint8_t *const text, uint8_t *const body)
         if (lx->cols)
             lexr_markcol_kept(lx);
 
+        const bool start = lx->start, first = lx->out == lx->dst;
+        lx->start = false;
+
         if (c == '"') {
             *lx->out++ = c;
 
@@ -552,10 +583,12 @@ uint8_t *lexr_line(Lexr *const lx, uint8_t *const text, uint8_t *const body)
         else if (c == '.' || is_digit(c)) {
             lx->in--;
             lexr_number(lx);
+            lx->start = first; /* the line's number */
         } else if (is_letter(c)) {
             lx->in--;
             lexr_joinfn(lx);
-            const uint8_t t = lexr_word(lx);
+            const uint16_t t = lexr_word(lx, start);
+            lx->start = t == TK_THEN || t == TK_ELSE;
 
             if (t == TK_REM)
                 return lexr_copy_rest(lx);
@@ -564,6 +597,7 @@ uint8_t *lexr_line(Lexr *const lx, uint8_t *const text, uint8_t *const body)
         } else {
             const uint8_t t = lexr_char_token[c];
             *lx->out++ = t ? t : c;
+            lx->start = c == ':';
         }
     }
 }

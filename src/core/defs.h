@@ -213,7 +213,8 @@ enum : uint8_t {
     E_SLC = 60, /* Statements/labels illegal between SELECT CASE and CASE */
     E_SND = 61, /* Subprogram not defined: a SUB DECLAREd only */
     E_ACM = 62, /* Argument-count mismatch */
-    E_LAST = E_ACM,
+    E_CNW = 63, /* CONTINUE not within matching block */
+    E_LAST = E_CNW,
 };
 
 /* QBasic's ERR numbers the runtime raises (fault_qberr), as ERROR n raises them. */
@@ -270,6 +271,7 @@ enum : uint8_t {
     BK_EXIT,
     BK_FOR,
     BK_NEXT, /* one per variable a NEXT closes; sel its FOR */
+    BK_CONT, /* CONTINUE FOR, DO, WHILE */
 };
 enum : uint8_t { PK_SUB = 1, PK_FUNC = 2, PK_END = 3 };
 enum : uint8_t {

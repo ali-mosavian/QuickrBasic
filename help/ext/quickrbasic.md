@@ -12,6 +12,8 @@ Language
                            [BYTE](BYTE), [DEFBYTE](DEFBYTE), [CBYTE](CBYTE)
     SHORT, DEFSHORT        QBasic's 16-bit integer
                            [SHORT](SHORT), [DEFSHORT](DEFSHORT)
+    CONTINUE, EXIT WHILE   skip a loop's round, leave a WHILE or outer FOR
+                           [CONTINUE](CONTINUE), [EXIT](EXIT)
     32-bit INTEGER         one type with LONG; 32767 + 1 is fine
                            [no limits](no limits)
     PLAY a$, b$, ...       32 synthesizer voices: waves, FM, reverb

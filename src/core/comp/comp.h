@@ -146,6 +146,9 @@ Status comp_line(Comp *C); /* the direct line in comp_cbuf, to comp_xbuf: comp_t
 Status comp_text(Comp *C, const uint8_t *body);
 /* The statement's steps resolved, folded and generated, in order. */
 void comp_flush(Comp *C);
+/* A part of the statement starts at comp.p, a statement of its own to a jump: its code's place in
+   the statement map. NEXT a, b's b. */
+void comp_part(Comp *C);
 void comp_dfa(Comp *C, uint16_t state); /* run the statement automaton from state */
 uint8_t comp_expnames(uint16_t state, const char *names[]); /* what state wanted; PS_NC*2 room */
 void comp_expected(Cons *co, uint16_t state);               /* print it, "a, b or c" */

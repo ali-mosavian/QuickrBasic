@@ -444,11 +444,14 @@ void ctrl_next(Comp *const C)
         back = target(C, off, TO_NEXT_STMT);
         forat = C->body + off;
     } else {
-        C->nextent = C->nextkw == C->kw ? C->nextent->link : entry(C, C->kw);
+        const bool more = C->nextkw == C->kw; /* NEXT a, b's b */
+        C->nextent = more ? C->nextent->link : entry(C, C->kw);
         C->nextkw = C->kw;
 
         if (!C->nextent || C->nextent->kind != BK_NEXT)
             synerr(C);
+        if (more)
+            comp_part(C); /* a's loop leaves to here, as the block pass sent it */
 
         key = C->nextent->sel->pos;
         back = C->nextent->next;
@@ -542,17 +545,21 @@ static void wend(Comp *const C)
     jmp(C, nextof(e));
 }
 
-/* EXIT FOR, EXIT DO. */
-static void exitblock(Comp *const C)
+/* EXIT or CONTINUE, its statement at stmt and comp.p past the word: FOR [counter], DO, WHILE.
+   The jump is where the block pass sent it: past the loop, or to its closing statement. */
+static void leave(Comp *const C, const uint8_t *const stmt)
 {
-    const BlockEnt *const e = entry(C, C->p);
-    const uint8_t c = C->p[1];
+    const BlockEnt *const e = entry(C, stmt);
+    const uint8_t c = comp_cur(C);
+
+    if (c != TK_FOR && c != TK_DO && c != TK_WHILE)
+        synerr(C); /* at the word after */
+
     C->p++;
 
-    if (c != TK_FOR && c != TK_DO)
-        synerr(C); /* at the word after EXIT */
+    if (c == TK_FOR && comp_cur(C) == M_VAR)
+        C->p = comp_skipname(C->p);
 
-    C->p++;
     jmp(C, doneof(e));
 }
 
@@ -1340,6 +1347,11 @@ static bool xstmt(Comp *const C)
     case TK1_RESUME:
         resume(C);
         return true;
+
+    case TK1_CONTINUE:
+        C->p += 2;
+        leave(C, C->p - 2);
+        return true;
     }
 
     return evstate(C);
@@ -1496,8 +1508,10 @@ bool ctrl_stmt(Comp *const C)
     case TK_EXIT:
         if (n == TK_SUB || n == TK_FUNCTION || n == TK_DEF)
             pret(C);
-        else
-            exitblock(C);
+        else {
+            C->p++;
+            leave(C, C->p - 1);
+        }
 
         return true;
 

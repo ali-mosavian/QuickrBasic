@@ -596,6 +596,12 @@ static void mark(Comp *const C)
     mapstmt(C, (uint32_t)(C->p - C->body));
 }
 
+void comp_part(Comp *const C)
+{
+    comp_flush(C);
+    mapstmt(C, (uint32_t)(C->p - C->body));
+}
+
 /* DBG before a program statement's code, when the debugger wants it; not SUB's, FUNCTION's. */
 static void dbg(Comp *const C)
 {
