@@ -1008,42 +1008,103 @@ def thorn() -> Pic:
     return p.outline()
 
 
-# ---- the Neon Works: steel decks, a night sky, a far city ----
+# ---- the Chrome Works: machine decks, a bright sky, a city of glass ----
 
 STEEL = ramp(150, (6, 12, 18), (40, 54, 58), 6)
-NIGHT = ramp(156, (3, 2, 14), (52, 16, 40), 16)
-TOWER = ramp(172, (5, 4, 16), (16, 11, 32), 3)
+DAY = ramp(156, (20, 40, 60), (56, 62, 63), 16)
 GLOW = ramp(175, (63, 38, 8), (63, 60, 30), 2)
 CYAN, PINK = 177, 178
 PAL[CYAN], PAL[PINK] = (10, 60, 58), (63, 14, 44)
-WORKS = ramp(179, (4, 8, 14), (18, 30, 38), 4)
-MOON = ramp(183, (44, 48, 58), (62, 63, 63), 2)
+FART = ramp(185, (34, 48, 60), (56, 61, 63), 4)
+NEART = ramp(189, (16, 28, 46), (46, 54, 62), 4)
+COPPER = ramp(193, (26, 10, 4), (63, 44, 22), 5)
+CHROME = ramp(198, (14, 16, 22), (60, 62, 63), 6)
+
+# A deck's machinery, 16 across and 6 down, two kinds: . plate, l lit, d dark, k ink, w white, r and R a red lamp,
+# y yellow, c cyan.
+GEAR = (
+    (
+        "dl...kkkk...l.ld",
+        "d.k.kwlllk..k..d",
+        "d...klrllk.....d",
+        "d...kllrlk..yy.d",
+        "d.k.klllwk..k..d",
+        "dd...kkkk.....dd",
+    ),
+    (
+        "dl.kkkkkkkkkk.ld",
+        "d..kRrkRrkRrk..d",
+        "d..kkkkkkkkkk..d",
+        "d.l.d.d.d.d.l..d",
+        "d.l.d.d.d.d.lc.d",
+        "dd............dd",
+    ),
+)
+INKS = {".": 2, "l": 4, "d": 0}
 
 
-def plate(p: Pic, x: int, y: int, depth: float, seed: int, truss: bool = False) -> None:
-    """Steel under a deck: plates 16 by 16, a seam and a lit edge to each, a rivet in each corner, darker down;
-    truss: a girder's cross braces instead."""
+def gear(p: Pic, x: int, y: int, row: int, kind: int) -> None:
+    c = GEAR[kind][row][x % 16]
+    if c in INKS:
+        p.put(x, y, CHROME[INKS[c]])
+    else:
+        p.put(x, y, {"k": INK, "w": WHITE, "r": SCARF[3], "R": SCARF[1], "y": GOLD[3], "c": CYAN}[c])
+
+
+def deck(p: Pic, x: int, y: int, t: int, kind: int = 0) -> bool:
+    """A deck's edge t pixels under its surface: a bright lip, a band of machinery, warning stripes. False below."""
+    if t > 14:
+        return False
+    if t < 2:
+        p.put(x, y, CHROME[5 - 2 * t])
+    elif t < 8:
+        gear(p, x, y, t - 2, kind)
+    elif t in (8, 14):
+        p.put(x, y, INK)
+    else:
+        p.put(x, y, (GOLD[4] if t == 9 else GOLD[3]) if (x + t) // 4 % 2 else DARK[0])
+    return True
+
+
+def plate(p: Pic, x: int, y: int, depth: float, n: int) -> None:
+    """The works under a deck, 16 by 16 each: 0 a riveted panel with a vent, 1 a copper pipe along a wall, 2 a
+    ribbed panel with a label, 3 a girder's cross braces in the dark."""
     u, v = x % 16, y % 16
-    val = 0.6 - min(depth, 70) * 0.005 + (noise(u // 4, v // 4, seed) - 0.5) * 0.08
-    if truss:
-        val -= 0.22
+    val = 0.62 - min(depth, 60) * 0.004
+    if n == 3:
+        val = 0.16
         if (u + v) % 16 < 2 or (u - v) % 16 < 2:
-            val += 0.3
+            val = 0.5
+        if u in (7, 8) and v in (7, 8):
+            val = 0.8
+        if u == 0 or v == 0:
+            val = 0.36
+        p.shade(x, y, STEEL, val)
+        return
+    if n == 1 and 4 <= v <= 11:
+        if u < 2:
+            p.put(x, y, CHROME[4 if v < 8 else 2])
+        else:
+            p.shade(x, y, COPPER, 1.0 - abs(v - 6.5) / 5.5)
+        return
     if u == 0 or v == 0:
         val -= 0.3
     elif u == 1 or v == 1:
-        val += 0.16
+        val += 0.18
+    elif u == 15 or v == 15:
+        val -= 0.12
     elif u in (3, 12) and v in (3, 12):
-        val += 0.3
+        val += 0.34
+    elif n == 0 and 6 <= u <= 10 and v in (6, 8, 10):
+        val -= 0.4
+    elif n == 2 and u in (7, 8):
+        val += 0.2 if u == 7 else -0.2
+    elif n == 2 and 10 <= u <= 13 and 10 <= v <= 12:
+        p.put(x, y, GOLD[3] if (u + v) % 2 else DARK[0])
+        return
+    elif n == 1 and v in (3, 12):
+        val -= 0.3
     p.shade(x, y, STEEL, val)
-
-
-def deck(p: Pic, x: int, y: int, t: int) -> bool:
-    """A deck's edge t pixels under its surface: a bright lip over warning stripes. False below them."""
-    if t > 5:
-        return False
-    p.put(x, y, {0: METAL[3], 1: METAL[1], 5: INK}.get(t, GOLD[3] if (x + t) // 4 % 2 else DARK[0]))
-    return True
 
 
 def tile2(kind: int, seed: int, ledge: bool = False) -> Pic:
@@ -1051,75 +1112,192 @@ def tile2(kind: int, seed: int, ledge: bool = False) -> Pic:
     for x in range(16):
         top = surface(kind, x)
         for y in range(top, 16):
-            if ledge and y >= 11:
+            if ledge and y >= 15:
                 continue
-            if not deck(p, x, y, y - top):
-                plate(p, x, y, y - top, seed)
+            if not deck(p, x, y, y - top, seed % 2):
+                plate(p, x, y, y - top, 0)
     return p
 
 
 def earth2(n: int) -> Pic:
-    """The nth 16 rows of steel under a deck: the fourth, repeated below, a girder."""
+    """The nth 16 rows of the works under a deck: the fourth, repeated below, a girder."""
     p = Pic(16, 16)
     for x in range(16):
         for y in range(16):
-            plate(p, x, y, 16 * (n + 1) + y, 11, truss=n == 3)
+            plate(p, x, y, 16 * n + y, n)
     return p
 
 
 def mover() -> Pic:
-    """A moving platform: a deck, a slim body, lights under it."""
+    """A moving platform: a deck, lights under it."""
     p = Pic(48, 12)
     for x in range(1, 47):
         for y in range(10):
-            if not deck(p, x, y, y):
-                p.shade(x, y, STEEL, 0.75 - (y - 6) * 0.15)
+            t = y if y < 2 else y + 6
+            if y < 8:
+                deck(p, x, y, t, 1)
+            else:
+                p.shade(x, y, STEEL, 0.7 - (y - 8) * 0.3)
     for x in range(6, 48, 12):
-        p.box(x - 1, 8, x, 9, CYAN)
+        p.box(x - 1, 9, x, 10, CYAN)
     return p.outline()
 
 
 def post() -> Pic:
     """A street lamp: a pole, an arm, a lit head."""
     p = Pic(16, 48)
-    p.box(6, 10, 7, 47, METAL[1])
-    p.box(6, 10, 6, 47, METAL[2])
-    p.box(4, 44, 9, 47, METAL[0])
-    p.line(7, 10, 12, 6, METAL[1], 2)
+    p.box(6, 10, 7, 47, CHROME[2])
+    p.box(6, 10, 6, 47, CHROME[4])
+    p.box(4, 44, 9, 47, CHROME[1])
+    p.line(7, 10, 12, 6, CHROME[3], 2)
     p.ball(12, 5, 3.4, 3.0, GLOW, 0.4, 1.0)
     p.put(11, 4, WHITE)
     return p.outline()
 
 
+def drum(p: Pic, x0: int, y0: int, x1: int, y1: int, r: list[int], hoop: int = 9) -> None:
+    """An upright drum, lit from the left, a hoop every so many rows."""
+    m, h = (x0 + x1) / 2, (x1 - x0) / 2 + 0.5
+    for y in range(y0, y1 + 1):
+        for x in range(x0, x1 + 1):
+            d = (x - m) / h
+            p.shade(
+                x,
+                y,
+                r,
+                0.12 + 0.86 * math.sqrt(max(0.0, 1 - d * d)) * (0.75 - 0.25 * d) - (0.22 if y % hoop == 0 else 0),
+            )
+
+
 def tank() -> Pic:
-    """A storage tank on legs: a lit drum, hoops, a warning band, a pink lamp on top."""
+    """A storage tank on legs: a lit drum, hoops, a warning band, a gauge, a lamp on top."""
     p = Pic(32, 40)
-    for y in range(8, 34):
-        for x in range(3, 29):
-            d = (x - 15.5) / 13
-            p.shade(x, y, STEEL, 0.15 + 0.8 * math.sqrt(max(0.0, 1 - d * d)) - (0.25 if y % 9 == 0 else 0))
-    p.ball(15.5, 8, 13, 5, STEEL, 0.3, 1.0)
+    drum(p, 3, 8, 28, 33, CHROME)
+    p.ball(15.5, 8, 13, 5, CHROME, 0.3, 1.0)
     for x in range(3, 29):
-        p.put(x, 22, GOLD[3] if x // 3 % 2 else DARK[0])
-        p.put(x, 23, GOLD[2] if x // 3 % 2 else DARK[0])
+        p.put(x, 22, GOLD[4] if x // 3 % 2 else DARK[0])
+        p.put(x, 23, GOLD[3] if x // 3 % 2 else DARK[0])
+    p.ball(10, 15, 3, 3, FUR, 0.6, 1.0)
+    p.put(10, 15, INK)
+    p.put(11, 14, SCARF[3])
     for x in (5, 26):
-        p.box(x, 34, x + 1, 39, METAL[1])
-    p.box(15, 1, 16, 3, PINK)
+        p.box(x, 34, x + 1, 39, CHROME[1])
+    p.box(15, 1, 16, 3, SCARF[3])
     return p.outline()
 
 
 def vent() -> Pic:
-    """A pipe stack: a flanged pipe, a valve wheel, a cyan lamp."""
+    """A pipe stack: a flanged copper pipe, a valve wheel, a cyan lamp."""
     p = Pic(16, 28)
-    for y in range(4, 28):
-        for x in range(5, 11):
-            p.shade(x, y, STEEL, 0.25 + 0.7 * (1 - abs(x - 7.5) / 3.5))
-    p.box(3, 4, 12, 6, METAL[2])
-    p.box(3, 24, 12, 27, METAL[1])
+    drum(p, 5, 4, 10, 27, COPPER, 99)
+    p.box(3, 4, 12, 6, CHROME[4])
+    p.box(3, 6, 12, 6, CHROME[1])
+    p.box(3, 24, 12, 27, CHROME[2])
+    p.box(3, 24, 12, 24, CHROME[4])
     p.ball(8, 15, 3.2, 3.2, SCARF, 0.4, 1.0)
     p.put(8, 15, INK)
     p.box(7, 1, 8, 2, CYAN)
     return p.outline()
+
+
+def tower(w: int, h: int, r: list[int], top: int) -> Pic:
+    """An office tower: a lit left edge and a shaded right, bands of glass with mullions, a roof by kind: 0 a
+    parapet, 1 a mast, 2 a setback and a tank."""
+    p = Pic(w, h)
+    y0 = 14
+    for y in range(y0, h):
+        for x in range(w):
+            c = r[2]
+            if x < 3:
+                c = r[3]
+            elif x >= w - 4:
+                c = r[1]
+            elif (y - y0) % 7 in (2, 3, 4) and y < h - 3:
+                c = r[0] if (x - 3) % 9 else r[1]
+                if (y - y0) % 7 == 2 and (x * 5 + y * 3) % 23 < 6:
+                    c = r[3]
+            p.put(x, y, c)
+    p.box(0, y0, w - 1, y0, r[3])
+    if top == 1:
+        p.box(w // 2, 0, w // 2, y0 - 1, r[1])
+        p.box(w // 2 - 3, y0 - 4, w // 2 + 3, y0 - 1, r[2])
+        p.put(w // 2, 0, SCARF[3])
+    elif top == 2:
+        p.box(4, y0 - 6, w - 10, y0 - 1, r[2])
+        p.box(4, y0 - 6, w - 10, y0 - 6, r[3])
+        p.box(w - 8, y0 - 9, w - 4, y0 - 1, r[1])
+    else:
+        p.box(2, y0 - 2, w - 3, y0 - 1, r[1])
+    return p
+
+
+def sphere() -> Pic:
+    """The plant, far off: a ball tank on a ring of legs, a stair round it."""
+    p = Pic(44, 46)
+    for x in (9, 15, 28, 34):
+        p.box(x, 30, x + 1, 45, CHROME[1])
+    p.line(9, 44, 35, 34, CHROME[1])
+    p.ball(21.5, 19, 19, 18, CHROME, 0.1, 1.0)
+    for x in range(4, 40):
+        y = 22 + round(4 * math.sin((x - 4) / 36 * math.pi))
+        if p.get(x, y):
+            p.put(x, y, GOLD[3] if x // 3 % 2 else DARK[0])
+    return p
+
+
+def chimney() -> Pic:
+    """A tall stack: a lit drum, red and white bands at its top."""
+    p = Pic(14, 74)
+    drum(p, 3, 2, 10, 73, CHROME, 99)
+    for y in range(2, 20):
+        for x in range(3, 11):
+            if (y - 2) // 6 % 2 == 0:
+                p.put(x, y, SCARF[3 if x < 6 else 2 if x < 9 else 1])
+    p.box(2, 0, 11, 1, CHROME[1])
+    return p
+
+
+def piping() -> Pic:
+    """A wall of the plant: copper pipes along and down it, elbows, flanges, a valve."""
+    p = Pic(64, 40)
+    for y in range(40):
+        for x in range(64):
+            p.shade(x, y, STEEL, 0.34 - (0.14 if x % 16 == 0 or y % 20 == 0 else 0) + (0.1 if x % 16 == 1 else 0))
+    for y0 in (6, 24):
+        for y in range(y0, y0 + 7):
+            for x in range(64):
+                p.shade(x, y, COPPER, 1.0 - abs(y - y0 - 2.5) / 4.5)
+    for x0 in (14, 44):
+        for x in range(x0, x0 + 6):
+            for y in range(12, 25) if x0 == 14 else range(30, 40):
+                p.shade(x, y, COPPER, 1.0 - abs(x - x0 - 2) / 4)
+    for x in (0, 30, 60):
+        p.box(x, 5, x + 2, 13, CHROME[3])
+        p.box(x, 5, x, 13, CHROME[5])
+        p.box(x, 23, x + 2, 31, CHROME[3])
+    p.ball(52, 9, 4, 4, SCARF, 0.4, 1.0)
+    p.put(52, 9, INK)
+    return p
+
+
+def shed() -> Pic:
+    """A machine house: ribbed walls, a row of vents, a warning stripe along its foot, lamps on its roof."""
+    p = Pic(56, 36)
+    for y in range(4, 36):
+        for x in range(56):
+            v = 0.55 + (0.15 if x % 8 == 0 else -0.1 if x % 8 == 7 else 0) - (y - 4) * 0.004
+            p.shade(x, y, STEEL, v)
+    p.box(0, 4, 55, 5, CHROME[4])
+    for x0 in range(6, 50, 14):
+        for y in range(11, 20, 2):
+            p.box(x0, y, x0 + 8, y, DARK[0])
+            p.box(x0, y + 1, x0 + 8, y + 1, STEEL[4])
+    for x in range(56):
+        for y in (30, 31, 32):
+            p.put(x, y, GOLD[3] if (x + y) // 4 % 2 else DARK[0])
+    for x in (10, 44):
+        p.box(x, 1, x + 1, 3, SCARF[3])
+    return p
 
 
 def pictures() -> list[tuple[int, Pic, bool, int]]:
@@ -1165,18 +1343,18 @@ def pictures() -> list[tuple[int, Pic, bool, int]]:
         (k + 374, words("BARKLEY", 170, 26, 2.8, 5), True, -1),
         (k + 376, words("AMBER DOWNS", 178, 18, 1.8, 3.2), True, -1),
     ]
-    # the Neon Works' own: after the pictures the game builds (its backdrops, strips, loop and pipe)
+    # the Chrome Works' own: after the pictures the game builds (its backdrops, strips, loop and pipe)
     z = k + 490 + 9
     for v, p in (
-        (1, tile2(1, 1)),
-        (2, tile2(1, 2)),
-        (4, tile2(2, 3)),
-        (5, tile2(3, 4)),
-        (6, tile2(4, 5)),
-        (7, tile2(5, 6)),
-        (8, tile2(6, 7)),
-        (9, tile2(7, 8)),
-        (10, tile2(1, 9, ledge=True)),
+        (1, tile2(1, 0)),
+        (2, tile2(1, 1)),
+        (4, tile2(2, 0)),
+        (5, tile2(3, 1)),
+        (6, tile2(4, 0)),
+        (7, tile2(5, 1)),
+        (8, tile2(6, 0)),
+        (9, tile2(7, 1)),
+        (10, tile2(1, 1, ledge=True)),
     ):
         out.append((z + (v - 1) * 2, p, True, -1))
     out += [(z + 20 + n, earth2(n), False, -1) for n in range(4)]
@@ -1185,7 +1363,17 @@ def pictures() -> list[tuple[int, Pic, bool, int]]:
         (z + 26, post(), True, -1),
         (z + 28, tank(), True, -1),
         (z + 30, vent(), True, -1),
-        (z + 32, words("NEON WORKS", 178, 18, 1.8, 3.2), True, -1),
+        (z + 32, words("CHROME WORKS", 178, 18, 1.65, 3.0), True, -1),
+        (z + 34, tower(40, 124, FART, 1), True, -1),
+        (z + 36, tower(28, 88, FART, 0), True, -1),
+        (z + 38, tower(52, 70, FART, 2), True, -1),
+        (z + 40, tower(44, 100, NEART, 2), True, -1),
+        (z + 42, tower(30, 74, NEART, 1), True, -1),
+        (z + 44, tower(58, 56, NEART, 0), True, -1),
+        (z + 46, sphere(), True, -1),
+        (z + 48, chimney(), True, -1),
+        (z + 50, piping(), True, -1),
+        (z + 52, shed(), True, -1),
     ]
     return out
 

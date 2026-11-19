@@ -9,7 +9,7 @@ misses the ground fails it.
 Every half bar of both tunes and every sound effect is played: a PLAY string the game builds wrong is an
 Illegal function call mid-game. Jump held through a hit must jump as the hit's hold ends: it was forgotten.
 The level cleared, Charlie must go on to its family past the goal and stop by them; then the second zone, the
-Neon Works, is played through the same way, its moving platforms and lifts ridden.
+Chrome Works, is played through the same way, its moving platforms and lifts ridden.
 First a cat is walked to the level's left end: its look ahead,
 left of column 0, was a negative tile column, and the game stopped with Subscript out of range.
 """
@@ -201,7 +201,7 @@ k.l = 0: k.r = 0: k.d = 0: k.jump = 0: k.hit = 0
 FOR i = 1 TO 400: Tick g, p, k, lo(), pt(): NEXT
 Render g, p, lo(), pt()
 IF p.win AND ABS(p.x - (FamX - 106)) < 3 AND Cheer AND ABS(g.camx - (FamX - 166)) < 3 THEN PRINT "met ok"
-' it stays a while, fades, and the Neon Works begin in full colour, the score and lives kept
+' it stays a while, fades, and the Chrome Works begin in full colour, the score and lives kept
 was = 0: j = g.lives
 FOR i = 1 TO 900
     Tick g, p, k, lo(), pt()
@@ -237,7 +237,7 @@ k.r = 0
 was = was AND p.ground AND GK(p.sg) = 1 AND p.x > MvX(m) + MOVEW
 FOR i = 1 TO 200: Tick g, p, k, lo(), pt(): NEXT
 IF was AND MvT(m) = 0 THEN PRINT "lift ok"
-' the Neon Works played through by the pilot on one life, its platforms and lifts ridden
+' the Chrome Works played through by the pilot on one life, its platforms and lifts ridden
 NextZone g, p, lo(), pt()
 j = g.lives
 FOR i = 1 TO 14000
@@ -344,7 +344,7 @@ def main() -> None:
         ("pipe ok", "up a quarter pipe and its wall onto the ground above"),
         ("carried ok", "carried by the platform stood on"),
         ("lift ok", "taken up by a lift, which goes back down when left"),
-        ("home ok", "back at the title on the Amber Downs after the Neon Works"),
+        ("home ok", "back at the title on the Amber Downs after the Chrome Works"),
     ):
         if said not in out:
             sys.exit(f"charlie: not {what}: {out[-300:]}")
@@ -354,7 +354,7 @@ def main() -> None:
         sys.exit(f"charlie: the level's end not held, faded out and begun again in full colour: {out[-300:]}")
     works = out[out.rfind("works") :].split()
     if works[1:4] != ["2", "0", "1"]:
-        sys.exit(f"charlie: the Neon Works not cleared on one life (mode, lives lost, zone, x, y): {out[-300:]}")
+        sys.exit(f"charlie: the Chrome Works not cleared on one life (mode, lives lost, zone, x, y): {out[-300:]}")
     words = out[out.rfind("result") :].split()
     if len(words) < 5 or words[1:3] != ["2", "3"] or words[4] != "5":
         sys.exit(
