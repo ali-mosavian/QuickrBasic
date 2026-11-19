@@ -128,6 +128,8 @@ CONST CSCARF = 21, CGRASS = 25, CEARTH = 30, CSTONE = 38, CGOLD = 42
 CONST CSKY = 96, NSKY = 32, CFAR = 128, CMID = 132, CCLOUD = 138, CSUN = 141, CWATER = 144
 
 DECLARE SUB Main ()
+DECLARE SUB Tint (k AS INTEGER, c AS LONG)
+DECLARE SUB Shade ()
 DECLARE SUB OpenScreen ()
 DECLARE SUB Flip (page AS INTEGER)
 DECLARE SUB LoadTables ()
@@ -213,6 +215,8 @@ DIM SHARED StartX AS INTEGER, StartY AS INTEGER
 DIM SHARED Tune AS INTEGER, BarkAt AS LONG
 DIM SHARED Ticks AS LONG, Muted AS INTEGER, LooseN AS INTEGER, PartN AS INTEGER
 DIM SHARED Glint(2) AS LONG
+' The colours as loaded, Dusk sixteenths of them shown; MetT: the seconds Charlie has been with its family.
+DIM SHARED Pal(255) AS LONG, Dusk AS INTEGER, MetT AS SINGLE
 ' A song's most bars.
 CONST NBAR = 30
 DIM SHARED Trk(NBAR * 20) AS STRING, Kit(NBAR * 4) AS STRING, Org(NBAR * 4) AS STRING, Third(NBAR * 4) AS STRING, Horn(1) AS STRING, Keys(1) AS STRING
@@ -2575,15 +2579,27 @@ SUB BuildArt
     BuildBack
 END SUB
 
+' Colour k is c, shown Dusk sixteenths as bright.
+SUB Tint (k AS INTEGER, c AS LONG)
+    Pal(k) = c
+    PALETTE k, (c AND 63) * Dusk \ 16 + 256& * ((c \ 256 AND 63) * Dusk \ 16) + 65536 * ((c \ 65536) * Dusk \ 16)
+END SUB
+
+SUB Shade
+    DIM k AS INTEGER
+    FOR k = 0 TO 255: Tint k, Pal(k): NEXT
+END SUB
+
 ' The palette and the pictures from CharlieArt; a mirrored one's mirror made.
 SUB LoadArt
     DIM n AS INTEGER, i AS INTEGER, k AS INTEGER, w AS INTEGER, h AS INTEGER
     DIM masked AS INTEGER, k2 AS INTEGER, c AS LONG
+    Dusk = 16
     RESTORE CharlieArt
     READ n
     FOR i = 1 TO n
         READ k, c
-        PALETTE k, c
+        Tint k, c
     NEXT
     READ n
     FOR i = 1 TO n
@@ -2711,7 +2727,7 @@ SUB BuildBack
         PSET (x, m), CFAR + 2
         was = m
     NEXT
-    PALETTE CWATER, 12 + 256& * 26 + 65536 * 46
+    Tint CWATER, 12 + 256& * 26 + 65536 * 46
     Glint(0) = 18 + 256& * 34 + 65536 * 52
     Glint(1) = 28 + 256& * 44 + 65536 * 58
     Glint(2) = 44 + 256& * 56 + 65536 * 62
@@ -3221,16 +3237,20 @@ SUB Tick (g AS Game, p AS Hero, k AS Pad, lo() AS Loose, pt() AS Part)
         END IF
         ' the view slides on to hold them all, Charlie at its left
         g.camx = g.camx + (FamX - 166 - g.camx) * 4 * STEPT
-        IF k.quit OR (g.bonus = 0 AND g.modeT > 10 AND (k.hit OR k.start OR g.modeT > 40)) THEN ResetWorld g, p, lo(), pt()
+        ' a while with them, then the picture fades and it starts again
+        IF p.win AND g.bonus = 0 THEN MetT = MetT + STEPT
+        IF Dusk = 16 AND (MetT > 6 OR g.modeT > 40 OR (MetT > 2 AND (k.hit OR k.start))) THEN Dusk = 15
+        IF Dusk < 16 AND (Ticks AND 3) = 0 THEN Dusk = Dusk - 1: Shade
+        IF k.quit OR Dusk <= 0 THEN ResetWorld g, p, lo(), pt()
     CASE OVER
         IF g.modeT > 5 OR (g.modeT > 1.5 AND (k.hit OR k.start)) OR k.quit THEN ResetWorld g, p, lo(), pt()
     END SELECT
     IF (Ticks AND 1) = 0 THEN Things g, lo(), pt()
     IF (Ticks AND 15) = 0 THEN
         i = Ticks \ 16
-        PALETTE CWATER + 1, Glint(i MOD 3)
-        PALETTE CWATER + 2, Glint((i + 1) MOD 3)
-        PALETTE CWATER + 3, Glint((i + 2) MOD 3)
+        Tint CWATER + 1, Glint(i MOD 3)
+        Tint CWATER + 2, Glint((i + 1) MOD 3)
+        Tint CWATER + 3, Glint((i + 2) MOD 3)
     END IF
     k.hit = 0: k.start = 0: k.quit = 0
 END SUB
@@ -3259,7 +3279,8 @@ END SUB
 ' The level as it starts, the title up, Charlie at the start for the pilot.
 SUB ResetWorld (g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
     DIM i AS INTEGER
-    g.mode = TITLE: g.modeT = 0: Cheer = 0
+    g.mode = TITLE: g.modeT = 0: Cheer = 0: MetT = 0
+    IF Dusk < 16 THEN Dusk = 16: Shade
     g.lives = 3: g.score = 0: g.clock = 0
     g.homeX = StartX: g.homeY = StartY
     FOR i = 0 TO NObj - 1

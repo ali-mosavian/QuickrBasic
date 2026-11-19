@@ -69,6 +69,14 @@ k.l = 0: k.r = 0: k.d = 0: k.jump = 0: k.hit = 0
 FOR i = 1 TO 400: Tick g, p, k, lo(), pt(): NEXT
 Render g, p, lo(), pt()
 IF p.win AND ABS(p.x - (FamX - 106)) < 3 AND Cheer AND ABS(g.camx - (FamX - 166)) < 3 THEN PRINT "met ok"
+' it stays a while, fades, and is at the title again in full colour
+was = 0
+FOR i = 1 TO 900
+    Tick g, p, k, lo(), pt()
+    IF Dusk < 8 THEN was = i
+    IF g.mode = TITLE THEN EXIT FOR
+NEXT
+IF was > 60 AND g.mode = TITLE AND Dusk = 16 THEN PRINT "faded ok"
 END
 """
 
@@ -89,7 +97,9 @@ def main() -> None:
     if "held ok" not in out:
         sys.exit(f"charlie: jump held through a hit, and no jump as it ends: {out[-300:]}")
     if "met ok" not in out:
-        sys.exit(f"charlie: the level cleared, and Charlie not come to its family, stopped, and all of them in view: {out[-300:]}")
+        sys.exit(f"charlie: the level cleared, Charlie not stopped at its family, all of them in view: {out[-300:]}")
+    if "faded ok" not in out:
+        sys.exit(f"charlie: the level's end not held, faded out and begun again in full colour: {out[-300:]}")
     words = out[out.rfind("result") :].split()
     if len(words) < 5 or words[1:3] != ["2", "3"] or words[4] != "5":
         sys.exit(
