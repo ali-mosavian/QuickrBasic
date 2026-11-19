@@ -213,7 +213,7 @@ DIM SHARED Tune AS INTEGER
 DIM SHARED Ticks AS LONG, Muted AS INTEGER, LooseN AS INTEGER, PartN AS INTEGER
 DIM SHARED Glint(2) AS LONG
 CONST NBAR = 28
-DIM SHARED Trk(NBAR * 10) AS STRING, Kit(NBAR * 2) AS STRING, Horn(1) AS STRING, Keys(1) AS STRING, Order AS STRING, Bar AS INTEGER, HalfBar AS INTEGER
+DIM SHARED Trk(NBAR * 10) AS STRING, Kit(NBAR * 2) AS STRING, Org(NBAR * 2) AS STRING, Horn(1) AS STRING, Keys(1) AS STRING, Order AS STRING, Bar AS INTEGER, HalfBar AS INTEGER
 
 Main
 END
@@ -2121,7 +2121,7 @@ SUB ReadPad (k AS Pad)
         CASE "m", "M": k.mute = -1
         CASE "n", "N"
             Tune = NOT Tune
-            IF NOT Tune THEN PLAY "P64", "P64", "P64", , "P64", "P64"
+            IF NOT Tune THEN PLAY "P64", "P64", "P64", , "P64", "P64", "P64"
         CASE CHR$(13): k.start = -1
         CASE " ": k.start = -1: KeyT(SCSPACE) = t
         CASE "z", "Z": KeyT(SCZ) = t
@@ -2211,28 +2211,30 @@ SUB LoadSong
             Trk(k + 2) = Riff$(br, j, 27)
             Trk(k + 3) = Riff$(sol, j, 27)
             Trk(k + 4) = Riff$(st, j, low)
+            Org(i * 2 + j) = Riff$(br, j, 15)
         NEXT
     NEXT
-    ' the kit; FM, as the consoles of the day: a picked bass that starts bright; a reedy pulse lead; two brasses that
-    ' waver, their harmonics a saw's by a modulator that bends itself, for the intro; then stabs of the same brass
-    ' and a clavinet. All but the clavinet are unisons, two voices a few cents apart: a section, not a player
-    PLAY "MBT140Z1,0H0,3,0,1L16", "T140W4Z1,12,4,4,4H0,5,6,1I2", "T140", , "T140W0Q42H1,4,10,3U5I4", "T140"
-    Horn(0) = "W4Z1,5,3,11,5H1,4,12,5U7I5": Horn(1) = "W4Z1,4,3,13,5H1,4,11,5U7I7"
-    Keys(0) = "W4Z1,5,3,11,5H0,4,10,4U6I6": Keys(1) = "W4Z3,9,3,1,3H0,4,1,2U0I0"
+    ' the kit; FM, as the consoles of the day: a round bass; a reedy pulse lead; two brasses that waver, their
+    ' harmonics a saw's by a modulator that bends itself, for the intro; then an organ that wavers as it is held, the
+    ' same an octave down on the other side, and a clavinet. Notes stop when they stop, and the room answers little.
+    ' In stereo: the brass and the organ to the left, the second brass, the clavinet and the low organ to the right
+    PLAY "MBT140Z1,0L16", "T140W4Z1,6,3,3,2H0,5,5,1", "T140R2S4", , "T140R2W0Q42H1,4,10,1U5I4", "T140R2S12", "T140R2S12W4Z1,4,3,13,4H0,4,11,1U9"
+    Horn(0) = "W4Z1,8,3,11,4H0,4,12,1U11I2": Horn(1) = "W4Z1,4,3,13,5H1,4,11,2U9I7"
+    Keys(0) = "W4Z1,4,3,13,4H0,4,11,1U9I0": Keys(1) = "W4Z3,9,3,1,3H0,4,1,2U0I0"
     Bar = 0: HalfBar = 0
     Tune = -1
 END SUB
 
-' Half a bar of the kit, `loud` eighths as loud: a kick and a tom, sines that fall to their pitch; a snare and hats,
-' the noise under 6 kHz and what is over 4.
+' Half a bar of the kit, `loud` eighths as loud: a kick, a sine that falls to its pitch, a thump and then a tail; a
+' tom; a snare, all the noise, and hats, the noise at its highest over 2.5 kHz.
 FUNCTION Beat$ (x AS STRING, loud AS INTEGER)
     DIM q AS INTEGER, d AS STRING
     FOR q = 1 TO 8
         SELECT CASE MID$(x, q, 1)
-        CASE "K": d = d + "W4Y0K4,8V" + LTRIM$(STR$(13 * loud \ 8)) + "O1C"
-        CASE "S": d = d + "W3K0Y1,6000,2V" + LTRIM$(STR$(11 * loud \ 8)) + "O6C"
-        CASE "T": d = d + "W4Y0K5,6V" + LTRIM$(STR$(11 * loud \ 8)) + "O2G"
-        CASE "H": d = d + "W3K0Y3,4000,0V" + LTRIM$(STR$((6 * loud + 7) \ 8)) + "O6C"
+        CASE "K": d = d + "W4H0,4,3,3Y0K1,8V" + LTRIM$(STR$(12 * loud \ 8)) + "O1C"
+        CASE "S": d = d + "W3H0,5,0,1K0Y0V" + LTRIM$(STR$(13 * loud \ 8)) + "O6C"
+        CASE "T": d = d + "W4H0,5,0,3Y0K5,6V" + LTRIM$(STR$(11 * loud \ 8)) + "O2G"
+        CASE "H": d = d + "W3H0,3,0,1K0Y3,2500,0V" + LTRIM$(STR$((12 * loud + 7) \ 8)) + "O6B"
         CASE ELSE: d = d + "P16"
         END SELECT
     NEXT
@@ -2280,7 +2282,7 @@ END FUNCTION
 ' The next half bar, once the last is nearly played: the drums are the first voice, eight sixteenths every time,
 ' so PLAY(0) counts the tune's own clock. The last four bars fade, an eighth a half bar.
 SUB FeedSong
-    DIM k AS INTEGER, b AS INTEGER, loud AS INTEGER, d AS STRING, bass AS STRING, one AS STRING, two AS STRING
+    DIM k AS INTEGER, b AS INTEGER, loud AS INTEGER, d AS STRING, bass AS STRING, one AS STRING, two AS STRING, under AS STRING
     IF Muted OR NOT Tune THEN EXIT SUB
     IF PLAY(0) > 2 THEN EXIT SUB
     b = ASC(MID$(Order, Bar + 1, 1)) - 97
@@ -2290,12 +2292,13 @@ SUB FeedSong
     d = Trk(k * 5)
     IF loud < 8 THEN d = Beat$(Kit(k), loud)
     ' the bass waits three bars; the intro's bars (and its last, the 27th) are the brasses'
-    bass = "V" + LTRIM$(STR$(14 * loud \ 8)) + Trk(k * 5 + 1)
+    bass = "V" + LTRIM$(STR$(13 * loud \ 8)) + Trk(k * 5 + 1)
     IF Bar < 3 THEN bass = "P2"
-    one = Keys(0): two = Keys(1)
-    IF b < 8 OR b = 26 THEN one = Horn(0): two = Horn(1)
+    ' the organ's low double: with the organ, not the intro's brass
+    one = Keys(0): two = Keys(1): under = "V" + LTRIM$(STR$(9 * loud \ 8)) + Org(k)
+    IF b < 8 OR b = 26 THEN one = Horn(0): two = Horn(1): under = "P2"
     k = k * 5
-    PLAY d, bass, one + "V" + LTRIM$(STR$(12 * loud \ 8)) + Trk(k + 2), , "V" + LTRIM$(STR$((9 * loud + 7) \ 8)) + Trk(k + 3), two + "V" + LTRIM$(STR$(10 * loud \ 8)) + Trk(k + 4)
+    PLAY d, bass, one + "V" + LTRIM$(STR$(12 * loud \ 8)) + Trk(k + 2), , "V" + LTRIM$(STR$((9 * loud + 7) \ 8)) + Trk(k + 3), two + "V" + LTRIM$(STR$(10 * loud \ 8)) + Trk(k + 4), under
     HalfBar = 1 - HalfBar
     IF HalfBar = 0 THEN Bar = (Bar + 1) MOD LEN(Order)
 END SUB
@@ -2394,7 +2397,7 @@ SUB Tick (g AS Game, p AS Hero, k AS Pad, lo() AS Loose, pt() AS Part)
     IF g.shake > 0 THEN g.shake = g.shake - STEPT
     IF k.mute THEN
         Muted = NOT Muted: k.mute = 0
-        IF Muted THEN PLAY "P64", "P64", "P64", , "P64"
+        IF Muted THEN PLAY "P64", "P64", "P64", , "P64", "P64", "P64"
     END IF
     SELECT CASE g.mode
     CASE TITLE
