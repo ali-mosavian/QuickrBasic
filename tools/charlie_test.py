@@ -25,6 +25,7 @@ DEMO = ROOT / "src/plat/wasm/web/demos/CHARLIE.BAS"
 
 DRIVER = """DECLARE FUNCTION GroundAt% (x AS INTEGER)
 DECLARE SUB Stand (p AS Hero, x AS INTEGER, v AS SINGLE)
+DECLARE FUNCTION Fur% (x AS INTEGER, y0 AS INTEGER, y1 AS INTEGER)
 DECLARE FUNCTION Uneven% (hz AS SINGLE, grain AS INTEGER, per AS INTEGER, most AS INTEGER, want AS INTEGER)
 ' the game's steps against a screen's frames, timed by a clock of 128 or 256 moves a second: stepped by that clock
 ' some frames showed two steps and some none, and the picture juddered. At a screen's 59.94 or 60.1 frames a second
@@ -200,6 +201,27 @@ FOR i = 1 TO 400
     IF p.ground AND GK(p.sg) = 1 AND p.x > c + 384 THEN EXIT FOR
 NEXT
 IF was > 3 AND v > 6 AND p.ground AND p.x > c + 384 AND ABS(p.y - ObY(j)) < 2 THEN PRINT "wave ok"
+' a ribbon is a twist, run on its inside: at its crest Charlie hangs under its line, not stood on it as on a hill
+Stand p, c - 40, 420
+was = 0
+FOR i = 1 TO 200
+    MoveHero p, k, pt()
+    IF p.ground AND ABS(p.x - c - 64) < 5 THEN
+        g.camx = p.x - 160: g.camy = p.y - 100
+        Render g, p, lo(), pt()
+        IF Fur%(160, 104, 124) > 40 AND Fur%(160, 76, 96) = 0 THEN was = -1
+        EXIT FOR
+    END IF
+NEXT
+IF was THEN PRINT "twist ok"
+' and too slow for it, drops from under the crest to the pit's floor
+Stand p, c - 40, 420
+FOR i = 1 TO 300
+    IF p.ground AND p.x >= c + 48 AND p.x < c + 80 THEN p.gsp = 100: k.r = 0
+    MoveHero p, k, pt()
+    IF p.ground AND p.y > ObY(j) + 40 THEN EXIT FOR
+NEXT
+IF p.ground AND GK(p.sg) = 1 AND p.y > ObY(j) + 40 AND p.x < c + 128 THEN PRINT "slow ok"
 was = 0: k.r = 0
 StartGame g, p, lo(), pt()
 FOR i = 1 TO 9000
@@ -349,6 +371,17 @@ SUB Stand (p AS Hero, x AS INTEGER, v AS SINGLE)
     p.sg = SegAt%(x, p.y): p.ang = GA(p.sg)
 END SUB
 
+' How many pixels of Charlie's fur the screen holds, 8 either side of x from y0 to y1.
+FUNCTION Fur% (x AS INTEGER, y0 AS INTEGER, y1 AS INTEGER)
+    DIM i AS INTEGER, j AS INTEGER, n AS INTEGER
+    FOR j = y0 TO y1
+        FOR i = x - 8 TO x + 8
+            IF POINT(i, j) >= 8 AND POINT(i, j) <= 13 THEN n = n + 1
+        NEXT
+    NEXT
+    Fur% = n
+END FUNCTION
+
 ' The ground's top under x, NONE over a gap.
 FUNCTION GroundAt% (x AS INTEGER)
     DIM y AS INTEGER
@@ -392,6 +425,8 @@ def main() -> None:
         ("ghost ok", "down on the ground from a jump before a loop"),
         ("pipe ok", "up a quarter pipe and its wall onto the ground above"),
         ("wave ok", "over a ribbon's humps and off its far end onto the ground"),
+        ("twist ok", "at a ribbon's crest Charlie is drawn under its line, upside down"),
+        ("slow ok", "too slow for a ribbon's twist, Charlie drops from its crest to the pit under it"),
         ("carried ok", "carried by the platform stood on"),
         ("lift ok", "taken up by a lift, which goes back down when left"),
         ("cable ok", "taken down a cable by its basket"),

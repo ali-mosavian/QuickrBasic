@@ -127,7 +127,7 @@ CONST KBONE = 1, KCAT = 2, KSPRING = 3, KMARK = 4, KBOOST = 5, KGOAL = 6, KPLAT 
 CONST KLOOP = 8, KTREE = 9, KBUSH = 10, KFLOWER = 11, KROCK = 12, KTHORN = 13, KLAMP = 14, KFAM = 15, KPIPE = 16
 CONST KMOVE = 17, KPOST = 18, KTANK = 19, KVENT = 20, KJET = 21, KBUMP = 22, KSPIN = 23, KHOOP = 24
 CONST CABLED = 64, CABLEH = 44, KBUTTON = 27
-CONST KWAVE = 25, KWAVE2 = 26, WAVEA = 40, WAVEH = WAVEA + 16
+CONST KWAVE = 25, KWAVE2 = 26, WAVEA = 40, WAVEH = WAVEA + 30
 CONST JETV = 500!, BUMPV = 400!, HOOPV = 640!, SPINR = 30, SPINH = 70, PITD = 5
 
 ' Images in Img from At(k); a masked one's mask at k + 1. As charlieart.py's.
@@ -192,6 +192,7 @@ DECLARE SUB Bare (x AS INTEGER, y0 AS INTEGER, n AS INTEGER, k AS INTEGER)
 DECLARE SUB DrawCables (cx AS INTEGER, cy AS INTEGER)
 DECLARE SUB Cycle ()
 DECLARE FUNCTION Ribbon% (x AS INTEGER)
+DECLARE FUNCTION Twist! (p AS Hero)
 DECLARE SUB Pit (c AS INTEGER, g AS INTEGER, n AS INTEGER)
 DECLARE SUB Knot (x AS SINGLE, y AS SINGLE, k AS INTEGER)
 DECLARE FUNCTION SegAt% (x AS INTEGER, y AS SINGLE)
@@ -304,7 +305,7 @@ DATA flat,4, dog,0, flat,4, flower,0, flat,4, bones,6, flat,8, tree,0, flat,4
 DATA upg,2, flat,3, cat,0, flat,6, bush,0, dng,3, boost,0, bones,8, flat,10
 DATA loop,0, flat,8, bones,6, flat,6, up45,2, flat,2, arc,7, gap,7, flat,8
 DATA mark,0, flat,4, dn45,4, dng,4, boost,0, bones,10, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
-DATA tree,0, flat,4, boost,0, flat,6, pipe,6, flat,6, bones,6, flat,8
+DATA tree,0, flat,4, boost,0, flat,6, pipe,6, flat,6, bones,6, flat,22
 DATA boost,0, flat,4, wave,3, flat,8
 DATA dng,5, boost,0, bones,10, flat,10, up45,3, arc,11, pit,12, flat,10
 DATA cat,0, flat,6, bush,0, flat,4, spring,0, flat,2, plat,608, hb,706, flat,16, spin,0, flat,8
@@ -467,10 +468,10 @@ SUB LoadLevel (z AS INTEGER)
             Pit c, g, n
             c = c + n
         CASE "wave"
-            ' a ribbon of n humps over a pit, each two halves of 64, bones along it
+            ' a ribbon of n twists over a pit, each two halves of 64, bones along its middle
             FOR i = 0 TO n * 2 - 1
                 AddObj KWAVE + (i AND 1), (c + i * 4) * TS, s
-                AddObj KBONE, (c + i * 4 + 2) * TS, s - WAVEA \ 2 - 14
+                AddObj KBONE, (c + i * 4 + 2) * TS, s - WAVEA \ 2 - 6
             NEXT
             Pit c, g, n * 8
             c = c + n * 8
@@ -685,7 +686,7 @@ SUB Track
                 IF x1 <> NONE THEN Knot CSNG(x1 + 8), CSNG(y), 2: ZB(NZ) = GN - 2: NZ = NZ + 1
                 y = ObY(i)
                 Knot CSNG(ObX(i) - 8), CSNG(y), 0
-                ZA(NZ) = GN - 1: ZM(NZ) = -1: ZL(NZ) = ObX(i) - 8
+                ZA(NZ) = GN - 1: ZM(NZ) = -2: ZL(NZ) = ObX(i) - 8
                 Knot CSNG(ObX(i)), CSNG(y), 2
             END IF
             FOR j = 1 TO 8
@@ -1568,7 +1569,23 @@ FUNCTION Ribbon% (x AS INTEGER)
     DIM z AS INTEGER
     Ribbon% = 0
     FOR z = 0 TO NZ - 1
-        IF ZM(z) = -1 AND GK(ZA(z)) = 2 AND ZL(z) > x - 16 AND ZL(z) < x + 60 THEN Ribbon% = -1
+        IF ZM(z) < 0 AND GK(ZA(z)) = 2 AND ZL(z) > x - 16 AND ZL(z) < x + 60 THEN Ribbon% = -1
+    NEXT
+END FUNCTION
+
+' A ribbon is a loop pulled out along its way: its line rises to a crest and falls, and what runs it goes round
+' its inside. How far round p on one is: 0 upright at its foot, PI upside down under its crest; -1 on none.
+FUNCTION Twist! (p AS Hero)
+    DIM z AS INTEGER, t AS SINGLE
+    Twist! = -1
+    IF NOT p.ground THEN EXIT FUNCTION
+    FOR z = 0 TO NZ - 1
+        IF ZM(z) = -2 AND p.sg >= ZA(z) AND p.sg <= ZB(z) THEN
+            t = (p.x - ZL(z) - 8) / 128
+            IF t < 0 OR p.x > ZR(z) - 8 THEN t = 0
+            Twist! = (t - INT(t)) * 2 * PI
+            EXIT FUNCTION
+        END IF
     NEXT
 END FUNCTION
 
@@ -1833,6 +1850,8 @@ SUB Walk (p AS Hero, l AS INTEGER, r AS INTEGER, d AS INTEGER, hit AS INTEGER, p
         ELSEIF GU(i) < .7 THEN
             p.slip = .5
         END IF
+        ' and off the roof of a ribbon's twist, down past the ribbon
+        IF Twist!(p) >= 0 THEN IF COS(Twist!(p)) < -.5 THEN Drop p: p.y = p.y + 26
     END IF
 END SUB
 
@@ -2375,7 +2394,7 @@ SUB DrawThings (cx AS INTEGER, cy AS INTEGER, back AS INTEGER)
             CASE KBUTTON
                 Blit x - 8, y - 8, IBTN + 2 * ObS(i), 16, 8
             CASE KWAVE, KWAVE2
-                Blit x, y - WAVEA - 2, ZWave - 2 * (k = KWAVE2), 64, WAVEH
+                Blit x, y - WAVEA - 14, ZWave - 2 * (k = KWAVE2), 64, WAVEH
             CASE KHOOP
                 Blit x - 6, y - 16, IHOOP - 2 * (ObS(i) > 0), 12, 32
             END SELECT
@@ -2418,14 +2437,20 @@ END SUB
 ' frame turned to it.
 SUB DrawHero (p AS Hero, cx AS INTEGER, cy AS INTEGER)
     DIM x AS INTEGER, y AS INTEGER, j AS INTEGER, d AS INTEGER, v AS SINGLE, sy AS INTEGER, n AS INTEGER
-    DIM f AS INTEGER, t AS INTEGER, sx AS INTEGER
+    DIM f AS INTEGER, t AS INTEGER, sx AS INTEGER, hu AS SINGLE, hv AS SINGLE, a AS SINGLE
     IF p.inv > 0 AND NOT p.stun AND (Ticks AND 4) THEN EXIT SUB
     x = CINT(p.x) - cx: y = CINT(p.y) - cy
+    ' the ground's lie under it; round a ribbon's twist, the twist's: it runs the inside, turned with it
+    hu = 1
+    IF p.ground THEN
+        hu = GU(p.sg): hv = GV(p.sg): a = p.ang
+        IF Twist!(p) >= 0 THEN a = Twist!(p): hu = COS(a): hv = -SIN(a)
+    END IF
     IF p.ground THEN v = p.gsp ELSE v = p.vx
     IF ABS(v) > 400 AND NOT p.dead THEN
         d = SGN(v)
         FOR j = 0 TO 3
-            sy = y - 26 + (Ticks * 7 + j * 11) MOD 22
+            sy = y - CINT(14 * hu) - 12 + (Ticks * 7 + j * 11) MOD 22
             n = 12 + (Ticks * 5 + j * 9) MOD 18
             LINE (x - d * 14, sy)-(x - d * (14 + n), sy), CWHITE
         NEXT
@@ -2433,7 +2458,7 @@ SUB DrawHero (p AS Hero, cx AS INTEGER, cy AS INTEGER)
     f = HeroFrame%(p)
     ' running, turned to the ground: t sixteenths of a turn, nose up
     IF p.ground AND f >= FRUN AND f < FBALL THEN
-        v = p.ang
+        v = a
         IF p.face THEN v = -v
         t = CINT(v * 8 / PI)
         IF t < 0 THEN t = t + 16
@@ -2442,7 +2467,7 @@ SUB DrawHero (p AS Hero, cx AS INTEGER, cy AS INTEGER)
     IF t = 0 THEN
         ' curled on the ground: its middle 13 off it, whichever way that is
         IF p.ground AND f >= FBALL AND f < FBALL + 4 THEN
-            x = x + CINT(13 * GV(p.sg)): y = y + 13 - CINT(13 * GU(p.sg))
+            x = x + CINT(13 * hv): y = y + 13 - CINT(13 * hu)
         END IF
         ' afraid, it shakes
         IF f = FHURT OR f = FSHIVER THEN x = x + ((Ticks \ 2) AND 1) * 2 - 1
@@ -2454,8 +2479,8 @@ SUB DrawHero (p AS Hero, cx AS INTEGER, cy AS INTEGER)
     IF f >= FDASH THEN f = 3 + f - FDASH ELSE f = (f - FRUN) \ 2
     j = p.face
     IF t >= 8 THEN t = t - 8: j = 3 - j
-    x = x + CINT(12 * GV(p.sg)) - 16 + (j AND 1)
-    y = y - CINT(12 * GU(p.sg)) - 18 - 5 * (j > 1)
+    x = x + CINT(12 * hv) - 16 + (j AND 1)
+    y = y - CINT(12 * hu) - 18 - 5 * (j > 1)
     Blit x, y, ITILT + (j * 40 + t * 5 + f) * 2, 32, 32
 END SUB
 

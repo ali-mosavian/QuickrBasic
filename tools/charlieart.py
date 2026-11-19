@@ -1250,17 +1250,18 @@ def pipe(col: int, row: int) -> Pic:
 
 
 def ribbon(half: int, r: list[int], ink: int) -> Pic:
-    """A ribbon's rising or falling 64: planks of r's tones, light to dark, narrow where it is steep, its far half
-    seen from under."""
-    p = Pic(64, 56)
+    """A ribbon's rising or falling 64, a loop pulled out along its way: its line is what runs it, the band on the
+    line's outer side, under it low and over it high, thin where it is seen edge on; planks of r's tones, light to
+    dark, the high half a tone darker."""
+    p = Pic(64, 70)
     for i in range(64):
-        x = half * 64 + i
-        a = math.pi * x / 64
-        y = 2 + 40 - round(40 * (1 - math.cos(a)) / 2)
-        th = 8 + round(6 * abs(math.cos(a)))
+        a = math.pi * (half * 64 + i) / 64
+        y = 14 + 40 - round(40 * (1 - math.cos(a)) / 2)
+        th, out = 3 + round(9 * abs(math.cos(a))), 1 if math.cos(a) >= 0 else -1
         for j in range(th + 1):
-            plank = r[1 + ((x + j) // 8) % 2 + (math.sin(a) < 0) + (j > th * 0.6)]
-            p.put(i, y + j, r[j] if j < 2 else ink if j == th else r[5] if (x + j) % 8 == 0 else plank)
+            plank = r[1 + ((half * 64 + i + j) // 8) % 2 + (out < 0) + (j > th * 0.6)]
+            edge = (half * 64 + i + j) % 8 == 0
+            p.put(i, y + j * out, r[j] if j < 2 else ink if j == th else r[5] if edge else plank)
     return p
 
 
