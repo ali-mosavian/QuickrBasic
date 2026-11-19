@@ -23,7 +23,7 @@ KIT_CHANNEL = 9
 PIECES = {16: "1", 12: "2.", 8: "2", 6: "4.", 4: "4", 3: "8.", 2: "8", 1: "16"}
 # a drum: what its voice is set to, then its note. A snare is all the noise, a hat what is over 4 kHz: a
 # recording's drums were in every band
-KICK = ("W4", "Z1,0", "H0,3,0,2", "Y0", "K1,8", "R3", "V15", "O1", "C")
+KICK = ("W4", "Z1,0", "H0,6,0,4", "Y0", "K1,8", "R3", "V15", "O1", "C")
 SNARE = ("W3", "Y0", "K0", "R5", "V15", "O6", "C")
 HAT = ("W3", "Y3,3000,0", "K0", "R5", "V11", "O6", "C")
 KIT = {35: KICK, 36: KICK, 38: SNARE, 40: SNARE} | {
@@ -31,6 +31,7 @@ KIT = {35: KICK, 36: KICK, 38: SNARE, 40: SNARE} | {
     for key, note in ((41, "C"), (43, "E"), (45, "G"), (47, "B"))
 }
 LONGEST = 255  # a string's characters
+LEGATO = 4  # a note of so many sixteenths or more sounds all its length
 KIT_SOUND = "Z1,0H0,5,0,3L16"
 # a General MIDI program's family (program // 8) as a sound
 SOUNDS = {
@@ -208,6 +209,9 @@ def bar_of(
                 out, set_to["V"] = out + f"V{volume}", volume
             if set_to.get("K", "K0,0,0") != slide:
                 out, set_to["K"] = out + slide, slide
+            style = "ML" if piece >= LEGATO else "MN"
+            if set_to.get("M", "MN") != style:
+                out, set_to["M"] = out + style, style
             out += f"L{PIECES[piece].rstrip('.')}N{note}{dot}"
         out, at = out + rest(length - piece), at + length
     set_to["at"] = at
