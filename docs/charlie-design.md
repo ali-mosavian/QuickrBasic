@@ -113,8 +113,8 @@ Progress is saved at each zone.
 ### 3. Saltwick Sands (its look built)
 
 - Built: its backdrop, ground, props and card at noon and sunset, on the Downs' layout; the tide, paddling,
-  and wet till a roll; both levels, with tide pools, a low road under a jetty, and boats over pools.
-  To add: its gadgets, enemies, chase and tune.
+  and wet till a roll; both levels, with tide pools, a low road under a jetty, and boats adrift in pools,
+  afloat on the tide and aground at low water. To add: its other gadgets, enemies, chase and tune.
 - Rule: the tide. Water rises and falls on a clock, and roads open and close with it. Charlie paddles on the
   surface, slow, and stays slow out of it until a roll shakes him dry.
 - Gadgets: boats, flumes that end in water, deckchair springs, buoys that bump.

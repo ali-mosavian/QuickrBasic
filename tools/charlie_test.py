@@ -768,6 +768,29 @@ for m = 4 to 5
     next
 next
 if was and brim < ebb then print "shore ok"
+' a boat lies on the floor of its pool at low water, and still; afloat it drifts, its deck just over the sea, and
+' Charlie aboard goes up with it
+GoStage 4, g, p, lo(), pt()
+for m = 0 to NMv - 1
+    if MvK(m) = 5 then exit for
+next
+c = MvS(m)
+for i = 1 to 30
+    Tick g, p, k, lo(), pt()
+next
+was = m < NMv and GY(c) = MvY(m) and GX(c) = MvX(m) and Tide - FREEB > MvY(m)
+TideLo = MvY(m) - 20
+TideHi = TideLo
+p.x = GX(c) + 20
+p.y = GY(c)
+p.sg = c
+p.ground = -1
+p.gsp = 0
+for i = 1 to 30
+    Tick g, p, k, lo(), pt()
+next
+was = was and GY(c) = Tide - FREEB and GX(c) <> MvX(m) and p.ground and p.sg = c and abs(p.y - GY(c)) < 1
+if was then print "boat ok"
 was = 0
 ' a lift goes up under Charlie to the ground above, and back down once it is left
 GoStage 2, g, p, lo(), pt()
@@ -1111,6 +1134,7 @@ def main() -> None:
         ("bank ok", "a hop from the water reaches a bank near its surface and not one far over it"),
         ("wet ok", "out of the water Charlie is slow till a roll shakes him dry"),
         ("shore ok", "no water of the sands is a trap: its far bank a hop over high water, or waded at low"),
+        ("boat ok", "a boat aground and still at low water, afloat and adrift at high, Charlie aboard up with it"),
     ):
         if said not in out:
             sys.exit(f"charlie: not {what}: {out[-300:]}")

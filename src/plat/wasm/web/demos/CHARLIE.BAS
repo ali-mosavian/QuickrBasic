@@ -148,6 +148,8 @@ const JBUFFER = .1, COYOTE = .1
 const NPTS = 1600, LOOPN = 48, PIPEN = 12, NZONE = 47, STALL = 150!
 ' The moving platforms there can be, and their width.
 const NMOVE = 23, MOVEW = 48
+' a boat's deck over the water it floats on, and over the floor it lies on
+const FREEB = 7, HULL = 11
 const HW = 7, HH = 24, STRIPH = 192, MIDH = 80
 const MAXOBJ = 600, NLOOSE = 24, NPART = 48
 const TITLE = 0, PLAYING = 1, CLEARED = 2, OVER = 3, INTRO = 4
@@ -313,6 +315,7 @@ declare function Ribbon% (x as integer)
 declare function Twist! (p as Hero)
 declare sub DrawOver (cx as integer, cy as integer)
 declare sub Bark (p as Hero)
+declare function Adrift% (m as integer)
 declare sub Flinch (i as integer, fromX as integer)
 declare sub Prowl (i as integer)
 declare sub DrawBark (p as Hero, cx as integer, cy as integer)
@@ -823,6 +826,11 @@ sub LoadLevel (st as integer)
             AddMover c * TS + (n * TS - MOVEW) \ 2, s, (n * TS - MOVEW) \ 2 + 8, 0, c * TS
             Pit c, g, n
             c = c + n
+        case "boat"
+            ' a pool n wide and a boat adrift in it, wall to wall: up and down with the tide, aground at low water
+            AddMover c * TS + (n * TS - MOVEW) \ 2, s + PITD * TS - HULL, (n * TS - MOVEW) \ 2, 5, c * TS
+            Pit c, g, n
+            c = c + n
         case "hover"
             AddMover c * TS + 8, s - n * TS \ 2, n * TS \ 2, 1, c * TS
             Pit c, g, 4
@@ -1117,11 +1125,21 @@ sub AddMover (x as integer, y as integer, a as integer, k as integer, e as integ
     NMv = NMv + 1
 end sub
 
+' Boat m is off the floor of its pool.
+function Adrift% (m as integer)
+    Adrift% = Tide - FREEB < MvY(m)
+end function
+
 ' Platform m's swing now, -1 to 1, held a while at each end when it goes up and down; quarter: a quarter of its
 ' way on, which tells where it is going.
 function Swing! (m as integer, quarter as integer)
     dim q as single, v as single
-    q = Ticks * STEPT * (1.1 - .2 * MvK(m)) + m + quarter * PI / 2
+    if MvK(m) = 5 then
+        ' a boat by its own clock, which stops while it is aground
+        q = MvT(m) + m + quarter * PI / 2
+    else
+        q = Ticks * STEPT * (1.1 - .2 * MvK(m)) + m + quarter * PI / 2
+    end if
     v = sin(q)
     if MvK(m) = 1 then
         v = v * 1.3
@@ -1141,6 +1159,12 @@ sub Movers (p as Hero)
         y = MvY(m)
         select case MvK(m)
         case 0
+            x = x + MvA(m) * Swing!(m, 0)
+        case 5
+            if Adrift%(m) then
+                MvT(m) = MvT(m) + STEPT
+                y = Tide - FREEB
+            end if
             x = x + MvA(m) * Swing!(m, 0)
         case 1
             y = y + MvA(m) * Swing!(m, 0)
@@ -2407,12 +2431,23 @@ sub Pilot (p as Hero, k as Pad)
             k.l = 0
             want = -1
         end if
-        ' a bridge is run over
         for m = 0 to NMv - 1
-            if MvS(m) = p.sg and MvK(m) = 4 then
-                k.r = -1
-                k.l = 0
-                want = 0
+            if MvS(m) = p.sg then
+                select case MvK(m)
+                case 4
+                    ' a bridge is run over
+                    k.r = -1
+                    k.l = 0
+                    want = 0
+                case 5
+                    ' a boat low in its pool: off it at the wall, once the bank is a jump up
+                    d = ColTop((i + 6) \ TS) * TS
+                    if Swing!(m, 0) > .85 and d < y and d > y - 44 then
+                        k.r = -1
+                        k.l = 0
+                        want = -1
+                    end if
+                end select
             end if
         next
     elseif p.ground and GK(p.sg) = 1 then
@@ -2446,6 +2481,9 @@ sub Pilot (p as Hero, k as Pad)
                     select case MvK(m)
                     case 0
                         ready = Swing!(m, 0) < -.85 and Swing!(m, 1) < 0
+                    case 5
+                        ' a boat aground is no way over: down into its pool
+                        ready = not Adrift%(m) or (Swing!(m, 0) < -.85 and Swing!(m, 1) < 0)
                     case 1
                         ready = Swing!(m, 0) >= 1 and Swing!(m, 1) > .2
                     case 2, 3
