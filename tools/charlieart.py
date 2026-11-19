@@ -335,6 +335,8 @@ def tilts() -> list[Pic]:
 
 # ---- the family ----
 
+BROWN, BLUE = WOOD[0], SKY[24]
+
 
 def person(
     p: Pic,
@@ -344,94 +346,131 @@ def person(
     top: list[int],
     legs: int,
     cheer: int,
+    eyes: int,
     shorts: int = 0,
     shoes: int = INK,
     wide: float = 4.5,
-    long: float = 0,
+    sleeve: float = 1,
+    tan: float = 0,
 ) -> tuple[float, float]:
-    """Someone stood facing out, feet on row 44, tall high: hair, a top and legs of a colour (shorts: the bare rows
-    under them); long: hair that far down the sides; cheer: arms up. The head's middle."""
-    feet, r = 44, 4.6
+    """Someone stood facing out, feet on row 44, tall high: hair over the head's top, a top (sleeve: how far down
+    the arm it comes) and legs of a colour (shorts: the bare rows under them), eyes of one; tan: darker skin;
+    cheer: arms up. The head's middle."""
+    feet, r = 44, 5.4
+    skin = [SKIN[1], SKIN[2], SKIN[3]] if not tan else [SKIN[0], SKIN[1], SKIN[2]]
     hy = feet - tall + r
-    sh, hip = hy + r + 0.5, feet - tall * 0.36
+    sh, hip = hy + r + 0.5, feet - tall * 0.34
     for side in (-1, 1):
         x = round(cx + side * 2)
-        p.box(x - 1, round(hip), x + 1, feet - 2, legs)
-        if shorts:
-            p.box(x - 1, feet - 2 - shorts, x + 1, feet - 2, SKIN[2] if side < 0 else SKIN[3])
-        p.box(x - 1, feet - 1, x + 1 + (side > 0), feet, shoes)
+        p.box(x - 1, round(hip), x + 1, feet - 2, (skin[1] if side < 0 else skin[2]) if shorts else legs)
+        p.box(x - 1, feet - 1 - (shorts > 0), x + 1 + (side > 0), feet, shoes)
         ax, ay = cx + side * (wide + 0.5), sh + 1.5
-        if cheer:
-            p.line(ax, ay, ax + side * 2.5, ay - 6, top[len(top) // 2], 2)
-            p.box(round(ax + side * 2.5), round(ay - 8), round(ax + side * 2.5) + 1, round(ay - 7), SKIN[3])
-        else:
-            hx, hand = ax + side * 1.2, ay + tall * 0.24
-            p.line(ax, ay, hx, hand, top[len(top) // 2], 2)
-            p.box(round(hx), round(hand), round(hx) + 1, round(hand) + 1, SKIN[3])
+        ex, ey = (ax + side * 2.5, ay - 6.5) if cheer else (ax + side * 1.2, ay + tall * 0.23)
+        p.line(ax, ay, ex, ey, skin[1], 2)
+        p.line(ax, ay, ax + (ex - ax) * sleeve, ay + (ey - ay) * sleeve, top[len(top) // 2], 2)
+        p.box(round(ex), round(ey) - cheer, round(ex) + 1, round(ey) + 1 - cheer, skin[2])
+    if shorts:
+        # loose, wider than the legs, to the knee
+        p.box(round(cx - 4), round(hip), round(cx + 4), round(hip) + shorts, legs)
+        p.box(round(cx), round(hip) + shorts - 1, round(cx), round(hip) + shorts, INK)
     for y in range(round(sh), round(hip) + 2):
         for x in range(round(cx - wide), round(cx + wide) + 1):
             p.shade(x, y, top, 0.95 - (x - cx + wide) / (2 * wide) * 0.55 - (y - sh) / (hip - sh + 2) * 0.2)
-    if long:
-        for side in (-1, 1):
-            p.ball(cx + side * (r + 0.2), hy + long / 2, 1.8, r * 0.6 + long / 2, hair, 0.1, 0.9)
-    p.ball(cx, hy - 0.8, r + 0.6, r, hair, 0.2, 1.0)
-    p.ball(cx, hy + 0.9, r - 0.7, r - 0.9, SKIN, 0.45, 1.1)
+    p.ball(cx, hy - 1.2, r + 0.4, r - 0.4, hair, 0.2, 1.0)
+    p.ball(cx, hy + 0.8, r - 0.6, r - 0.9, skin, 0.5, 1.1)
     for side in (-1, 1):
-        p.put(round(cx + side * 1.7), round(hy + 0.6), INK)
-    p.line(cx - 1, hy + 2.8, cx + 1, hy + 2.8, SCARF[1])
+        x = round(cx + side * 2.2)
+        p.box(x, round(hy + 0.2), x, round(hy + 1.2), eyes)
+    p.line(cx - 1, hy + 3.4, cx + 1, hy + 3.4, SCARF[0])
     return cx, hy
 
 
-def blackdog(p: Pic, cx: float, hop: int) -> None:
-    """A small black dog, fluffy and prick eared, sat facing out: its tail up, its tongue out."""
+def pomchi(p: Pic, cx: float, hop: int) -> None:
+    """The Pomchi: small, black and fluffy, a fox's face going grey at the muzzle, big pricked ears, a plume of a
+    tail curled over its back; sat facing out."""
     feet = 44 - hop
     dark = [INK, INK, STONE[0]]
-    p.ball(cx + 5, feet - 8, 2.4, 3.4, dark, 0.2, 0.9)
-    p.ball(cx, feet - 5, 5.2, 5.2, dark, 0.1, 0.8)
+    for x, y, r in ((6, -9, 2.6), (7.5, -12, 2.2), (6, -14.5, 1.8)):
+        p.ball(cx + x, feet + y, r, r, dark, 0.2, 1.0)
+    p.ball(cx, feet - 4.5, 5.0, 4.6, dark, 0.1, 0.8)
+    p.ball(cx, feet - 7, 4.4, 3.0, [INK, STONE[0], STONE[0]], 0.2, 1.0)
     for side in (-1, 1):
-        p.ball(cx + side * 2.5, feet - 0.6, 2.0, 1.2, dark, 0.3, 1.0)
-        p.line(cx + side * 3, feet - 15, cx + side * 4, feet - 18.5, INK, 2)
-    p.ball(cx, feet - 12, 4.6, 4.2, dark, 0.15, 0.9)
-    p.ball(cx, feet - 10.5, 2.2, 1.7, [STONE[0], STONE[1]])
+        p.ball(cx + side * 2.6, feet - 0.6, 1.8, 1.1, dark, 0.3, 1.0)
+        for i in range(4):
+            p.line(cx + side * (1.5 + i * 0.4), feet - 14, cx + side * (3.4 + i * 0.2), feet - 17.5 + i, INK)
+        p.put(round(cx + side * 3), round(feet - 15), PETAL[0])
+    p.ball(cx, feet - 11.5, 4.0, 3.6, dark, 0.15, 0.9)
+    p.ball(cx, feet - 9.8, 2.0, 1.6, [STONE[1], STONE[2]])
     for side in (-1, 1):
-        p.put(round(cx + side * 2), round(feet - 13), FUR[5])
-    p.put(round(cx), round(feet - 11), INK)
-    p.put(round(cx), round(feet - 9), TONGUE[1])
+        p.put(round(cx + side * 2), round(feet - 12.4), EARTH[5])
+    p.put(round(cx), round(feet - 10.4), INK)
+    p.put(round(cx), round(feet - 8.6), TONGUE[1])
 
 
 def family(cheer: int) -> Pic:
-    """Who meets Charlie at the level's end, left to right: the black dog, the little one in her spotted cap, the
-    big one with her guitar and headphones, and the two grown ups. cheer: arms up, the dog off the ground."""
+    """Who meets Charlie at the level's end, left to right: the Pomchi, the little one in her paint spotted cap,
+    the big one with her guitar and headphones, and the two grown ups. cheer: arms up, the dog off the ground."""
     p = Pic(112, 46)
-    grey, white, dark = STONE, FUR[2:], [INK, INK, STONE[0]]
-    blackdog(p, 9, cheer * 2)
-    # the little one: a white cap with spots, a pale hoodie, spotted leggings
-    cx, hy = person(p, 28, 22, WOOD, FUR[1:], FUR[3], cheer, shoes=FUR[5], wide=4.2, long=4)
-    p.ball(cx, hy - 2.6, 5.4, 3.0, white, 0.5, 1.2)
-    p.line(cx - 6, hy - 0.6, cx + 3, hy - 0.6, FUR[5])
-    for x, y, c in ((-3, -4, PETAL[0]), (1, -3, TEAL[3]), (3, -4, GOLD[3]), (-1, -5, PETAL[1])):
-        p.put(round(cx + x), round(hy + y), c)
-    for x, y in ((-3, 38), (-1, 40), (1, 37), (3, 39), (2, 41), (-2, 36)):
-        p.put(round(cx + x), y, INK)
-    # the big one: hair tied up, white headphones, a black hoodie, pale jeans, a guitar
-    cx, hy = person(p, 50, 31, WOOD, dark, METAL[2], cheer, wide=4.8)
-    p.ball(cx, hy - 5.6, 2.2, 1.8, WOOD, 0.3, 1.0)
-    p.line(cx - 5, hy - 3.6, cx + 5, hy - 3.6, FUR[5])
+    white, dark = FUR[2:], [INK, INK, STONE[0]]
+    pomchi(p, 8, cheer * 2)
+    # the little one: brown eyed, wavy brown hair to her shoulders under a white cap spotted with paint, its brim
+    # out front; a pale zipped hoodie with a ruffle, leggings spotted as a leopard
+    cx, hy = 28, 44 - 24 + 5.4
     for side in (-1, 1):
-        p.ball(cx + side * 5.2, hy + 0.5, 1.6, 2.2, white, 0.5, 1.2)
-    p.ball(cx - 1, 31, 4.2, 3.6, EARTH[2:], 0.3, 1.0)
-    p.line(cx + 2, 29, cx + 11, 21 - cheer * 2, WOOD[3], 2)
-    p.put(round(cx + 11), 20 - cheer * 2, EARTH[7])
-    # a grown up: short fair hair, a grey hoodie, dark shorts, white socks
-    cx, hy = person(p, 74, 38, GOLD, grey[1:], SKY[5], cheer, shorts=7, shoes=FUR[5], wide=5.4, long=2)
-    # a grown up: short dark hair, stubble, a white shirt, dark shorts, white socks
-    cx, hy = person(p, 98, 41, dark, white, STONE[0], cheer, shorts=7, shoes=FUR[5], wide=5.8)
-    for x in range(-3, 4):
-        if (x & 1) == 0 or abs(x) == 3:
-            p.put(round(cx + x), round(hy + 3), STONE[1])
-        if x & 1 and abs(x) < 3:
-            p.put(round(cx + x), round(hy + 4), STONE[1])
-    p.line(cx - 1, hy + 2.8, cx + 1, hy + 2.8, SCARF[1])
+        for i in range(4):
+            p.ball(cx + side * (5.6 + (i & 1) * 0.6), hy + i * 1.8, 1.7, 1.6, WOOD[1:], 0.2, 1.0)
+    person(p, cx, 24, WOOD[1:], FUR[2:], FUR[4], cheer, BROWN, shoes=FUR[5], wide=4.2)
+    p.ball(cx, hy - 3.6, 6.0, 3.0, white, 0.6, 1.2)
+    p.line(cx - 7, hy - 1.6, cx + 6, hy - 1.6, FUR[5])
+    for x, y, c in (
+        (-3, -5, PETAL[0]),
+        (-2, -5, PETAL[0]),
+        (1, -4, GRASS[3]),
+        (3, -5, GOLD[3]),
+        (4, -3, PETAL[1]),
+        (-1, -3, TEAL[3]),
+    ):
+        p.put(round(cx + x), round(hy + y), c)
+    p.line(cx, hy + 6.5, cx, hy + 13, STONE[2])
+    p.line(cx - 3, hy + 6.5, cx + 3, hy + 6.5, FUR[3])
+    for x, y in ((-3, 37), (-1, 39), (1, 36), (3, 38), (2, 41), (-2, 41), (-3, 34), (2, 33)):
+        p.put(round(cx + x), y, INK)
+    # the big one: brown eyed, brown hair tied up behind, white headphones, a black hoodie, pale jeans worn through
+    # at a knee, black shoes on white soles; a guitar, amber going dark at its edge, its long pale neck up
+    cx, hy = person(p, 50, 32, WOOD, dark, SKY[27], cheer, BROWN, wide=4.8)
+    p.ball(cx + 1, hy - 6.6, 2.4, 1.8, WOOD, 0.3, 1.0)
+    p.line(cx - 5, hy - 5.4, cx + 5, hy - 5.4, FUR[5])
+    for side in (-1, 1):
+        p.ball(cx + side * 6, hy + 0.2, 1.7, 2.6, white, 0.6, 1.2)
+        p.box(round(cx + side * 2) - 1, 43, round(cx + side * 2) + 1 + (side > 0), 44, FUR[5])
+        p.box(round(cx + side * 2) - 1, 42, round(cx + side * 2) + 1 + (side > 0), 42, INK)
+    p.put(cx - 2, 37, SKIN[2])
+    p.put(cx - 3, 37, FUR[5])
+    p.put(cx - 2, round(hy + 9), FUR[4])
+    p.ball(cx - 1.5, 31.5, 4.6, 3.8, [EARTH[1], EARTH[4], GOLD[2], GOLD[3]], 0.0, 1.1)
+    p.ball(cx - 4, 29.5, 2.6, 2.4, [EARTH[1], EARTH[4], GOLD[2]], 0.2, 1.1)
+    p.box(cx - 2, 31, cx - 1, 32, STONE[0])
+    p.line(cx + 2, 29.5, cx + 12, 19.5 - cheer * 2, WOOD[3], 2)
+    p.box(cx + 12, 17 - cheer * 2, cx + 13, 19 - cheer * 2, EARTH[3])
+    # a grown up: blue eyed, tanned, a fair bob swept to her chin, a big grey hoodie, dark shorts, white socks
+    cx, hy = 75, 44 - 39 + 5.4
+    for side in (-1, 1):
+        p.ball(cx + side * 5.2, hy + 1.5, 2.0, 4.6, GOLD[1:], 0.2, 1.0)
+    person(p, cx, 39, GOLD[1:], STONE[1:], SKY[4], cheer, BLUE, shorts=3, shoes=FUR[5], wide=5.6, tan=1)
+    p.line(cx - 5, hy - 3.5, cx + 2, hy - 2, GOLD[4])
+    p.line(cx - 3, hy + 7, cx + 3, hy + 7, STONE[1])
+    p.line(cx - 3, 26, cx + 3, 26, STONE[1])
+    # a grown up: tanned, short dark hair up in front, dark brows and stubble, a big white shirt to his elbows,
+    # dark shorts, white socks
+    cx, hy = person(p, 99, 42, dark, white, STONE[0], cheer, BROWN, shorts=7, shoes=FUR[5], wide=6, sleeve=0.45, tan=1)
+    p.ball(cx + 1, hy - 5.6, 3.6, 1.8, dark, 0.3, 1.0)
+    for side in (-1, 1):
+        p.line(cx + side * 1.6, hy - 1.8, cx + side * 3, hy - 1.8, INK)
+    for side in (-1, 1):
+        p.put(round(cx + side * 4), round(hy + 2), STONE[0])
+        p.put(round(cx + side * 3), round(hy + 3.4), STONE[0])
+        p.put(round(cx + side * 2), round(hy + 4.4), STONE[1])
+    p.put(round(cx), round(hy + 4.6), STONE[0])
     return p.outline()
 
 
