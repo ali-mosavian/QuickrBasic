@@ -267,6 +267,8 @@ DIM SHARED ZA(NZONE) AS INTEGER, ZB(NZONE) AS INTEGER, ZM(NZONE) AS INTEGER, ZL(
 DIM SHARED ZR(NZONE) AS INTEGER, NZ AS INTEGER
 ' The zone played, 0 the Amber Downs, 1 the Chrome Works, and the one ResetWorld is to load; its pictures: tiles,
 ' strips, backdrop, loop, pipe, card.
+' The shared colours as built, and each zone's own over them: how many, which, what.
+DIM SHARED Pal0(255) AS LONG, ZPN(1) AS INTEGER, ZPK(1, 159) AS INTEGER, ZPC(1, 159) AS LONG
 DIM SHARED ZWave AS INTEGER, MvB(NMOVE) AS INTEGER
 DIM SHARED Zone AS INTEGER, NextUp AS INTEGER, ZTile AS INTEGER, ZStrip AS INTEGER, ZBack AS INTEGER
 DIM SHARED ZLoop AS INTEGER, ZPipe AS INTEGER, ZCard AS INTEGER
@@ -423,6 +425,9 @@ SUB LoadLevel (z AS INTEGER)
     DIM cmd AS STRING, n AS INTEGER, c AS INTEGER, g AS INTEGER, bx AS INTEGER
     DIM i AS INTEGER, s AS INTEGER, k AS INTEGER
     Zone = z
+    FOR i = 0 TO 255: Pal(i) = Pal0(i): NEXT
+    FOR i = 0 TO ZPN(z) - 1: Pal(ZPK(z, i)) = ZPC(z, i): NEXT
+    Shade
     ERASE Map
     NObj = 0: NMv = 0
     FOR i = 0 TO MW: ColTop(i) = MH: NEXT
@@ -846,6 +851,7 @@ SUB BuildArt
     BuildWorks
     BuildDay
     BuildBack
+    FOR i = 0 TO 255: Pal0(i) = Pal(i): NEXT
 END SUB
 
 ' Colour k is c, shown Dusk sixteenths as bright.
@@ -880,6 +886,10 @@ SUB LoadArt
     FOR i = 1 TO n
         k = Word&
         Tint k, Word&
+    NEXT
+    FOR k = 0 TO 1
+        ZPN(k) = Word&
+        FOR i = 0 TO ZPN(k) - 1: ZPK(k, i) = Word&: ZPC(k, i) = Word&: NEXT
     NEXT
     n = Word&
     FOR i = 1 TO n
@@ -1682,7 +1692,7 @@ END SUB
 SUB Tick (g AS Game, p AS Hero, k AS Pad, lo() AS Loose, pt() AS Part)
     DIM idle AS Pad, auto AS Pad, i AS INTEGER
     Ticks = Ticks + 1
-    IF (Ticks AND 3) = 0 THEN Cycle
+    IF Zone = 1 AND (Ticks AND 3) = 0 THEN Cycle
     IF NMv THEN Movers p
     g.modeT = g.modeT + STEPT
     IF g.shake > 0 THEN g.shake = g.shake - STEPT
@@ -1738,7 +1748,7 @@ SUB Tick (g AS Game, p AS Hero, k AS Pad, lo() AS Loose, pt() AS Part)
         IF g.modeT > 5 OR (g.modeT > 1.5 AND (k.hit OR k.start)) OR k.quit THEN ResetWorld g, p, lo(), pt()
     END SELECT
     IF (Ticks AND 1) = 0 THEN Things g, lo(), pt()
-    IF (Ticks AND 15) = 0 THEN
+    IF Zone = 0 AND (Ticks AND 15) = 0 THEN
         i = Ticks \ 16
         Tint CWATER + 1, Glint(i MOD 3)
         Tint CWATER + 2, Glint((i + 1) MOD 3)

@@ -105,8 +105,8 @@ def ball(x: float, z: float, r: float, m: Mat, y: float = 0.0, squash: tuple[flo
     return ob
 
 
-def take(w: int, h: int, ramps: list[list[int]], spread: float = 5.0) -> list[list[int]]:
-    """The scene rendered and brought down to w by h palette indices of ramps, 0 where it is clear."""
+def take(w: int, h: int, ramps: list[list[int]], spread: float = 5.0, zone: int = 0) -> list[list[int]]:
+    """The scene rendered and brought down to w by h indices of ramps in zone's palette, 0 where it is clear."""
     with tempfile.TemporaryDirectory() as tmp:
         bpy.context.scene.render.filepath = str(Path(tmp) / "r.png")
         bpy.ops.render.render(write_still=True)
@@ -116,7 +116,7 @@ def take(w: int, h: int, ramps: list[list[int]], spread: float = 5.0) -> list[li
     alpha = px[..., 3].mean(axis=(1, 3))
     rgb = (px[..., :3] * px[..., 3:]).mean(axis=(1, 3)) / np.maximum(alpha, 1e-6)[..., None] * 63
     allowed = sorted({c for r in ramps for c in r})
-    table = np.array([art.PAL[c] for c in allowed], dtype=np.float32)
+    table = np.array([art.pal(zone)[c] for c in allowed], dtype=np.float32)
     rows = []
     for y in range(h):
         row = []
@@ -234,7 +234,7 @@ def mural() -> None:
     rod(-8, 82, 72, 82, 7.6, mat((60, 34, 12), 1.0, 0.3), y=-9)
     for x in (2.5, 66.5):
         rod(x - 2.5, 82, x + 2.5, 82, 9.4, steel, y=-9)
-    rows = take(64, 128, [art.PANEL, art.CHROME, art.COPPER, art.GOLD, art.DARK, [art.INK]], spread=4.0)
+    rows = take(64, 128, [art.PANELX, art.CHROMEX, art.COPPERX, art.GOLD, art.DARK, [art.INK]], spread=1.2, zone=1)
     save("mural", rows)
 
 

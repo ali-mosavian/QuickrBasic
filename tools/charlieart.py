@@ -19,6 +19,7 @@ from collections.abc import Callable
 ROOT = Path(__file__).resolve().parents[1]
 DAT = ROOT / "src/plat/wasm/web/demos/CHARLIE.DAT"
 SONG = ROOT / "tools/charliesong.txt"
+PX = ROOT / "tools/charlie_px"
 INK, WHITE = 2, 1
 BAYER = ((0, 8, 2, 10), (12, 4, 14, 6), (3, 11, 1, 9), (15, 7, 13, 5))
 PAL: dict[int, tuple[int, int, int]] = {0: (2, 2, 8), 1: (63, 63, 63), 2: (5, 3, 8), 3: (63, 56, 20), 4: (60, 14, 12)}
@@ -36,24 +37,24 @@ def ramp(first: int, a: tuple[int, int, int], b: tuple[int, int, int], n: int) -
     return list(range(first, first + n))
 
 
-FUR = ramp(8, (33, 30, 31), (63, 63, 61), 6)
-SKIN = ramp(14, (38, 24, 18), (62, 47, 38), 4)
-TONGUE = ramp(18, (46, 16, 24), (63, 38, 44), 3)
-SCARF = ramp(21, (30, 3, 8), (63, 20, 14), 4)
-GRASS = ramp(25, (4, 26, 6), (42, 63, 10), 5)
-EARTH = ramp(30, (18, 6, 3), (63, 38, 8), 8)
-STONE = ramp(38, (22, 20, 24), (56, 54, 54), 4)
-GOLD = ramp(42, (40, 20, 2), (63, 62, 34), 5)
-TEAL = ramp(47, (2, 16, 24), (30, 60, 58), 5)
-METAL = ramp(52, (16, 18, 24), (58, 60, 63), 4)
-WOOD = ramp(56, (16, 9, 5), (42, 28, 14), 4)
-LEAF = ramp(60, (40, 6, 2), (63, 54, 6), 6)
-PETAL = ramp(66, (48, 16, 34), (63, 56, 60), 3)
-SKY = ramp(96, (2, 6, 46), (26, 50, 63), 32)
-FAR = ramp(128, (18, 12, 46), (46, 42, 63), 4)
-MID = ramp(132, (2, 24, 16), (26, 58, 18), 6)
-CLOUD = ramp(138, (48, 44, 52), (63, 62, 60), 3)
-SUN = ramp(141, (63, 50, 30), (63, 63, 52), 3)
+# A zone's own colours, over the shared ones while it is played: the indices only the other zone's pictures and
+# backdrop use (CLOUD between them is shared), and those nothing uses.
+SPARE = [5, 6, 7, 148, 149, 172, 173, 174, *range(179, 185), *range(225, 256)]
+POOL = {1: [*range(96, 138), *range(141, 148), *SPARE]}
+ZPAL: dict[int, dict[int, tuple[int, int, int]]] = {0: {}, 1: {}}
+
+
+def zramp(z: int, a: tuple[int, int, int], b: tuple[int, int, int], n: int) -> list[int]:
+    """n of zone z's own palette entries, a to b; their indices."""
+    out = [POOL[z].pop(0) for _ in range(n)]
+    for i, k in enumerate(out):
+        ZPAL[z][k] = tuple(round(a[j] + (b[j] - a[j]) * i / (n - 1)) for j in range(3))
+    return out
+
+
+def pal(z: int) -> dict[int, tuple[int, int, int]]:
+    """The colours on screen in zone z."""
+    return PAL | ZPAL[z]
 
 
 class Pic:
@@ -128,6 +129,34 @@ class Pic:
         raw = struct.pack("<HH", self.w * 8, self.h) + px
         raw += bytes(-len(raw) % 4)
         return list(struct.unpack(f"<{len(raw) // 4}i", raw))
+
+
+def rendered(name: str) -> Pic:
+    """A picture tools/charlierender.py made."""
+    rows = [[int(ln[i : i + 2], 16) for i in range(0, len(ln), 2)] for ln in (PX / f"{name}.txt").read_text().split()]
+    p = Pic(len(rows[0]), len(rows))
+    p.p = rows
+    return p
+
+
+FUR = ramp(8, (33, 30, 31), (63, 63, 61), 6)
+SKIN = ramp(14, (38, 24, 18), (62, 47, 38), 4)
+TONGUE = ramp(18, (46, 16, 24), (63, 38, 44), 3)
+SCARF = ramp(21, (30, 3, 8), (63, 20, 14), 4)
+GRASS = ramp(25, (4, 26, 6), (42, 63, 10), 5)
+EARTH = ramp(30, (18, 6, 3), (63, 38, 8), 8)
+STONE = ramp(38, (22, 20, 24), (56, 54, 54), 4)
+GOLD = ramp(42, (40, 20, 2), (63, 62, 34), 5)
+TEAL = ramp(47, (2, 16, 24), (30, 60, 58), 5)
+METAL = ramp(52, (16, 18, 24), (58, 60, 63), 4)
+WOOD = ramp(56, (16, 9, 5), (42, 28, 14), 4)
+LEAF = ramp(60, (40, 6, 2), (63, 54, 6), 6)
+PETAL = ramp(66, (48, 16, 34), (63, 56, 60), 3)
+SKY = ramp(96, (2, 6, 46), (26, 50, 63), 32)
+FAR = ramp(128, (18, 12, 46), (46, 42, 63), 4)
+MID = ramp(132, (2, 24, 16), (26, 58, 18), 6)
+CLOUD = ramp(138, (48, 44, 52), (63, 62, 60), 3)
+SUN = ramp(141, (63, 50, 30), (63, 63, 52), 3)
 
 
 def noise(x: int, y: int, seed: int = 0) -> float:
@@ -1022,6 +1051,10 @@ CHROME = ramp(198, (14, 16, 22), (60, 62, 63), 6)
 
 PANEL = ramp(204, (4, 8, 18), (26, 42, 56), 6)
 GLOWC = ramp(210, (4, 34, 46), (56, 63, 63), 3)
+# the wall's own, long enough to shade without a dither
+PANELX = zramp(1, (3, 6, 14), (32, 48, 61), 16)
+COPPERX = zramp(1, (18, 6, 3), (63, 52, 30), 10)
+CHROMEX = zramp(1, (9, 11, 17), (62, 63, 63), 10)
 # colours the game turns as it runs: a deck's four lights, a fan's blades, the glints along a pipe
 CHASE, FAN, FLOW = [213, 214, 215, 216], [217, 218, 219, 220], [221, 222, 223, 224]
 PAL.update(dict.fromkeys(CHASE, (4, 34, 46)) | dict.fromkeys(FAN, (5, 4, 8)) | dict.fromkeys(FLOW, (50, 31, 15)))
@@ -1110,11 +1143,23 @@ def wall(p: Pic, x: int, y: int) -> None:
     p.shade(x, y, PANEL, val)
 
 
+def moving(x: int, y: int) -> bool:
+    """Whether the wall at x, y is one of the parts the game moves: a fan's blades, the light, a pipe's glints."""
+    u, v, n = x % 32, y % 32, y // 32 * 2 + x // 32
+    if n == 4:
+        return 2.5 <= math.hypot(u - 15.5, v - 15.5) <= 9
+    if n == 5:
+        return 7 <= u <= 24 and 14 <= v <= 17
+    return n in (2, 3) and v == 9 and x >= 5
+
+
 def mural() -> Pic:
-    p = Pic(64, 128)
+    """The wall as rendered, the parts that move drawn over it."""
+    p = rendered("mural")
     for y in range(128):
         for x in range(64):
-            wall(p, x, y)
+            if moving(x, y):
+                wall(p, x, y)
     return p
 
 
@@ -1505,13 +1550,29 @@ def song() -> bytes:
     return out
 
 
+def audit(pics: list[tuple[int, Pic, bool, int]]) -> None:
+    """A zone's own colours are only in its own pictures: elsewhere they would show as another zone's."""
+    z2 = min(k for k, p, _, _ in pics if any(v in ZPAL[1] for row in p.p for v in row))
+    for k, p, _, _ in pics:
+        own = 1 if z2 <= k < z2 + 94 else 0
+        used = {v for row in p.p for v in row}
+        for z in ZPAL:
+            if z != own and used & ZPAL[z].keys() and (z2 > k or k >= z2 + 94):
+                sys.exit(f"charlieart: picture {k} uses zone {z}'s own colours {sorted(used & ZPAL[z].keys())}")
+
+
 def blob() -> bytes:
-    """CHARLIE.DAT: the 1-based byte its tunes start at, the palette, the pictures, the tunes; each value a
-    little-endian LONG."""
+    """CHARLIE.DAT: the 1-based byte its tunes start at, the palette, each zone's own, the pictures, the tunes;
+    each value a little-endian LONG."""
     pics = pictures()
+    audit(pics)
     vals = [len(PAL)]
     for i, (r, g, b) in sorted(PAL.items()):
         vals += [i, r + 256 * g + 65536 * b]
+    for z in sorted(ZPAL):
+        vals.append(len(ZPAL[z]))
+        for i, (r, g, b) in sorted(ZPAL[z].items()):
+            vals += [i, r + 256 * g + 65536 * b]
     vals.append(len(pics))
     for k, p, masked, k2 in pics:
         vals += [k, p.w, p.h, int(masked), k2, *encode(p.longs())]

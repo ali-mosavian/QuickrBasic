@@ -38,7 +38,7 @@ LoadTables
 BuildArt
 LoadLevel 0
 DIM g AS Game, p AS Hero, k AS Pad, i AS LONG, j AS INTEGER, loops AS INTEGER, was AS INTEGER
-DIM c AS INTEGER, v AS INTEGER, m AS INTEGER
+DIM c AS INTEGER, v AS INTEGER, m AS INTEGER, zp AS INTEGER
 DIM lo(NLOOSE - 1) AS Loose, pt(NPART - 1) AS Part
 Muted = -1
 StartGame g, p, lo(), pt()
@@ -225,6 +225,8 @@ FOR i = 1 TO 900
     IF Zone = 1 THEN EXIT FOR
 NEXT
 IF was > 60 AND Zone = 1 AND g.mode = PLAYING AND Dusk = 16 AND g.score > 0 AND g.lives = j THEN PRINT "faded ok"
+' and in its own colours, over the shared ones
+zp = Zone = 1 AND ZPN(1) > 0 AND Pal(ZPK(1, 0)) = ZPC(1, 0) AND ZPC(1, 0) <> Pal0(ZPK(1, 0))
 ' a platform carries who stands on it, to and fro
 FOR m = 0 TO NMv - 1
     IF MvK(m) = 0 THEN EXIT FOR
@@ -297,6 +299,8 @@ FOR i = 1 TO 1600
     IF g.mode = TITLE THEN EXIT FOR
 NEXT
 IF g.mode = TITLE AND Zone = 0 AND Dusk = 16 THEN PRINT "home ok"
+' the Amber Downs in the shared colours again: a zone's own are put back when it is left
+IF zp AND Pal(ZPK(1, 0)) = Pal0(ZPK(1, 0)) THEN PRINT "palette ok"
 ' the title's own run ends the same way: it began again the moment Charlie passed the goal, the family never met
 FOR i = 1 TO 9000
     Tick g, p, k, lo(), pt()
@@ -393,6 +397,7 @@ def main() -> None:
         ("cable ok", "taken down a cable by its basket"),
         ("bridge ok", "a bridge raised by its button, to stand on"),
         ("home ok", "back at the title on the Amber Downs after the Chrome Works"),
+        ("palette ok", "a zone shown in its own colours, the shared ones back after it"),
     ):
         if said not in out:
             sys.exit(f"charlie: not {what}: {out[-300:]}")
