@@ -443,86 +443,6 @@ dim shared ZHeld as integer
 Main
 end
 
-' The Amber Downs, left to right: a command and its count. g, the ground's
-' height in tiles, starts at 10. plat and hb: height * 100 + length.
-Downs1:
-data flat,4, dog,0, flat,4, flower,0, flat,4, bones,6, flat,8, tree,0, flat,4
-data upg,2, flat,3, cat,0, flat,6, bush,0, dng,3, boost,0, bones,8, flat,10
-data loop,0, flat,8, bones,6, flat,6, up45,2, flat,2, arc,7, gap,7, flat,8
-data mark,0, flat,4, dn45,4, dng,4, boost,0, bones,10, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
-data tree,0, flat,4, boost,0, flat,6, pipe,6, flat,6, bones,6, flat,22
-data boost,0, flat,4, wave,1, flat,8
-data dng,5, boost,0, bones,10, flat,10, up45,3, arc,11, pit,12, flat,10
-data cat,0, flat,6, bush,0, flat,4, spring,0, flat,2, plat,608, hb,706, flat,16, spin,0, flat,8
-data upg,4, flat,4, flower,0, flat,4
-data mark,0, flat,4, cable,22, flat,8, dn45,2, dng,2, boost,0, flat,5, loop,0, flat,6, boost,0, bones,8, flat,6, loop,0
-data flat,6, boost,0, flat,6, loop,0, flat,10, up45,4, hoop,1, arc,10, pit,12, flat,10
-data boost,0, flat,6, pipe,7, flat,6, jet,0, flat,3, bump,5, flat,3, bump,6, flat,3, bump,5, flat,6
-data dng,5, boost,0, bones,10, flat,12, loop,0, flat,8, up45,3, arc,10, pit,11, flat,8
-data flower,0, upg,3, flat,4, cat,0, dng,3, flat,6, tree,0, flat,4, button,0, flat,8, bridge,12, flat,6
-data mark,0, flat,4, dn45,3, dng,5, boost,0, bones,8, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
-data thorn,0, flat,6, rock,0, flat,4, up45,3, arc,8, pit,9, flat,8
-data dng,3, boost,0, bones,10, flat,10, loop,0, flat,7, boost,0, flat,6, up45,4, hoop,1, arc,12, pit,14
-data flat,22, spin,0, flat,8, flower,0, flat,4
-data goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, "end",0
-
-' pit: a jump's gap with a floor under it and a spring out; the platforms' gaps have one too.
-' button, then bridge: a pit that wide, bridged once the button before it is trodden.
-' cable: a basket down a cable over a pit that wide, the ground past it four lower.
-' The Amber Downs at evening. chase: a race from here that many columns long, down from two pipes: Biscuit's
-' honey cart flees along it.
-Downs2:
-data flat,4, dog,0, flat,6, bones,6, flat,6, boost,0, flat,6, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
-data up45,3, arc,9, pit,10, flat,8, flower,0, flat,4
-data dng,4, boost,0, bones,10, flat,10, loop,0, flat,8, boost,0, flat,4, wave,2, flat,8
-data cat,0, flat,8, tree,0, flat,6, upg,3, flat,4, button,0, flat,8, bridge,10, flat,6, mark,0, flat,6
-data dn45,3, dng,3, boost,0, bones,8, flat,8, loop,0, flat,6, up45,4, hoop,1, arc,11, pit,12, flat,10
-data spring,0, flat,2, plat,608, hb,706, flat,16, bush,0, flat,6, cable,22, flat,8
-data boost,0, flat,6, pipe,6, flat,6, bones,6, flat,22, boost,0, flat,4, wave,1, flat,8
-data dng,5, boost,0, bones,10, flat,12, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8, thorn,0, flat,6, rock,0, flat,4
-data jet,0, flat,3, bump,5, flat,3, bump,6, flat,6, mark,0, flat,4, up45,3, arc,10, pit,11, flat,8
-data dng,3, boost,0, bones,10, flat,10, loop,0, flat,10, spin,0, flat,8, flower,0, flat,4
-data boost,0, flat,6, pipe,7, flat,8, boost,0, flat,6, pipe,7, flat,6, mark,0, flat,8
-data chase,156, flat,12, bones,8, dng,3, flat,16, dng,3, flat,16, bones,8, dng,3, flat,16, dng,3, flat,16
-data bones,8, dng,2, flat,16, dng,2, flat,36
-data goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, "end",0
-
-' The Chrome Works: mover: a gap that wide with a platform to and fro over it. hover: a gap of 4 with one up and
-' down, the ground past it that much higher. lift: a gap of 3 with a lift, the ground past it that much higher.
-Works1:
-data flat,4, dog,0, flat,8, bones,6, flat,8, boost,0, bones,8, flat,10, loop,0, flat,10
-data boost,0, flat,4, wave,1, flat,8
-data dng,3, boost,0, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8, up45,3, arc,9, pit,10, flat,8
-data cat,0, flat,12, mover,8, flat,8, jet,0, flat,3, bump,5, flat,3, bump,5, flat,6, button,0, flat,10, bridge,9, flat,6, mark,0, flat,6
-data boost,0, flat,6, pipe,6, flat,8, bones,8, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0, flat,10
-data lift,6, flat,8, spin,0, flat,8, bones,6, flat,6, cable,20, flat,8, dng,3, boost,0, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0
-data flat,8, up45,4, hoop,1, arc,11, pit,12, flat,10
-data mark,0, flat,6, cat,0, flat,12, hover,5, flat,8, bones,6, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0
-data flat,8, drop,4, flat,16, mover,7, flat,8, boost,0, flat,6, pipe,5, flat,8, dng,3, boost,0, flat,8, loop,0
-data flat,10, goal,0, flat,9, fam,0, flat,6, flat,5, "end",0
-
-' The Chrome Works by night. chase: a hall that long, jets in its floor and hoops over them: Sprocket's crane
-' goes along its roof.
-Works2:
-data flat,4, dog,0, flat,8, bones,6, flat,6, boost,0, flat,6, loop,0, flat,6, boost,0, flat,6, loop,0, flat,16
-data mover,7, flat,8, bones,6, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0, flat,8
-data up45,3, arc,9, pit,10, flat,8, cat,0, flat,10, hover,5, flat,8, mark,0, flat,6
-data boost,0, flat,4, wave,1, flat,8, dng,3, boost,0, flat,8, loop,0, flat,8, button,0, flat,10, bridge,10, flat,8
-data jet,0, flat,3, bump,5, flat,3, bump,5, flat,8, lift,6, flat,8, bones,6, flat,6
-data dng,4, boost,0, bones,10, flat,10, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
-data up45,4, hoop,1, arc,11, pit,12, flat,10, mark,0, flat,6, cable,20, flat,8
-data boost,0, flat,6, pipe,5, flat,8, bones,6, flat,20, drop,4, flat,16, mover,8, flat,8
-data dng,3, boost,0, flat,8, loop,0, flat,10, spin,0, flat,8, mark,0, flat,8
-data chase,96, flat,10, jet,0, flat,8, hoop,8, flat,8, jet,0, flat,16, jet,0, flat,8, hoop,8, flat,8, jet,0, flat,16
-data jet,0, flat,22
-data goal,0, flat,9, fam,0, flat,6, flat,5, "end",0
-
-' The intro's road: the Downs, flat, the way the van goes; a rock where it bumps.
-Road:
-data flat,6, dog,0, flat,24, tree,0, flat,30, tree,0, flat,28, tree,0, flat,30, tree,0, flat,25, rock,0
-data flat,30, tree,0, flat,35, tree,0, flat,40, tree,0, flat,32, tree,0, flat,40, tree,0, flat,40, tree,0
-data flat,40, "end",0
-
 ' The intro's script, back to front: a cue's kind, the beats it is on from and to, where it starts and where it
 ' ends, its ease, its hop and its own number. A van's: 1 its door open, 2 Charlie at its window, 4 looking back
 ' from it. A float's: 1 the Baron aboard. A cat's: 1 the basket on it, 2 stood still. Charlie's: Pose's. A sound's:
@@ -730,23 +650,18 @@ function ZoneOf% (st as integer)
     if st = SINTRO then ZoneOf% = 0
 end function
 
-' The next DATA read is a stage's level: a zone's two acts, zone by zone, then the intro's road.
+' CHARLIE.DAT open at a stage's level: a zone's two acts, zone by zone, then the intro's road. They are written
+' in tools/charlielevels.txt.
 sub SeekLevel (st as integer)
-    select case st
-    case 0
-        restore Downs1
-    case 1
-        restore Downs2
-    case 2
-        restore Works1
-    case 3
-        restore Works2
-    case else
-        restore Road
-    end select
+    dim levels as long
+    OpenData
+    seek #1, 5
+    levels = Word&
+    seek #1, levels + 4 + st * 4
+    seek #1, levels + Word&
 end sub
 
-' The ground's columns, then what stands on them, from the stage's DATA.
+' The ground's columns, then what stands on them, from the stage's level: a command and its count, to its end.
 sub LoadLevel (st as integer)
     dim cmd as string, n as integer, c as integer, g as integer, bx as integer
     dim i as integer, s as integer, k as integer, z as integer, light as integer
@@ -794,7 +709,8 @@ sub LoadLevel (st as integer)
     end if
     SeekLevel st
     do
-        read cmd, n
+        cmd = Chars$
+        n = Word&
         s = (MH - g) * TS
         k = 0
         select case cmd
@@ -958,6 +874,7 @@ sub LoadLevel (st as integer)
         end select
         if k then AddObj k, c * TS + 8, s
     loop until cmd = "end"
+    close #1
     LW = c
     LWPX = c * TS
     ' nothing grows in front of the family
@@ -1434,6 +1351,7 @@ sub LoadArt
     Dusk = 16
     OpenData
     c = Word&
+    c = Word&
     n = Word&
     for i = 1 to n
         k = Word&
@@ -1488,7 +1406,7 @@ sub LoadZoneArt (z as integer)
     close #1
 end sub
 
-' CHARLIE.DAT open as #1: where its tunes start, then its pictures.
+' CHARLIE.DAT open as #1: where its tunes and its levels start, then its pictures.
 sub OpenData
     open "CHARLIE.DAT" for binary as #1
     if lof(1) = 0 then

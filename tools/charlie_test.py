@@ -880,6 +880,21 @@ def pix(p: charlieart.Pic) -> int:
     return sum(c * ((x + y * 7) % 31 + 1) for y, row in enumerate(p.p) for x, c in enumerate(row))
 
 
+def refused(levels: str) -> bool:
+    """Whether the art tool will not pack these levels."""
+    kept = charlieart.LEVELS
+    with tempfile.TemporaryDirectory() as tmp:
+        charlieart.LEVELS = Path(tmp) / "levels.txt"
+        charlieart.LEVELS.write_text(levels)
+        try:
+            charlieart.levels()
+        except SystemExit:
+            return True
+        finally:
+            charlieart.LEVELS = kept
+    return False
+
+
 def main() -> None:
     exe = Path(sys.argv[1] if len(sys.argv) > 1 else ROOT / "build/host/basic").resolve()
     src = DEMO.read_text()
@@ -887,6 +902,11 @@ def main() -> None:
     art = subprocess.run([sys.executable, ROOT / "tools/charlieart.py", "--check"], capture_output=True, text=True)
     if art.returncode:
         sys.exit(f"charlie: the art tool does not run, or CHARLIE.DAT is not what it writes: {art.stderr[-300:]}")
+    # a level's command the game has no case for it would pass over, and a level without its end it would read past:
+    # the art tool packs neither
+    lv = charlieart.LEVELS.read_text()
+    if refused(lv) or not refused(lv.replace("boost,0", "bosst,0", 1)) or not refused(lv.replace(", end,0", "", 1)):
+        sys.exit("charlie: the art tool packs a level with a command misspelt or without its end, or none")
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "T.BAS"
         path.write_text(src.replace("\nMain\nend\n", "\n" + DRIVER, 1))

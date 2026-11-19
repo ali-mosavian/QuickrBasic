@@ -240,7 +240,7 @@ A still mockup of each zone is agreed before it is wired in.
 
 - Pictures loaded a zone at a time (built): what every zone shows at the start, a zone's own with its level.
   Stages are in zone order: a zone's two acts, then the next zone's.
-- Levels in the data file, not the program's DATA.
+- Levels in the data file, not the program's DATA (built): written in `tools/charlielevels.txt`.
 - Songs loaded a zone at a time, more than the two there are.
 - A kit named by each song. The horn, organ and clavinet are fixed in the loader now.
 - A song that ends, swing, and scenes cut on a song's bar count.

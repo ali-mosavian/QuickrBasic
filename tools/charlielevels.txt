@@ -1,0 +1,82 @@
+' CHARLIE BARKLEY's levels, packed into CHARLIE.DAT by tools/charlieart.py: a zone's two acts, zone by zone, then
+' the intro's road. A level is "Level name" and its commands, left to right: a command and its count, to "end".
+' g, the ground's height in tiles, starts at 10. plat and hb: height * 100 + length.
+
+' The Amber Downs.
+Level Downs1
+flat,4, dog,0, flat,4, flower,0, flat,4, bones,6, flat,8, tree,0, flat,4
+upg,2, flat,3, cat,0, flat,6, bush,0, dng,3, boost,0, bones,8, flat,10
+loop,0, flat,8, bones,6, flat,6, up45,2, flat,2, arc,7, gap,7, flat,8
+mark,0, flat,4, dn45,4, dng,4, boost,0, bones,10, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
+tree,0, flat,4, boost,0, flat,6, pipe,6, flat,6, bones,6, flat,22
+boost,0, flat,4, wave,1, flat,8
+dng,5, boost,0, bones,10, flat,10, up45,3, arc,11, pit,12, flat,10
+cat,0, flat,6, bush,0, flat,4, spring,0, flat,2, plat,608, hb,706, flat,16, spin,0, flat,8
+upg,4, flat,4, flower,0, flat,4
+mark,0, flat,4, cable,22, flat,8, dn45,2, dng,2, boost,0, flat,5, loop,0, flat,6, boost,0, bones,8, flat,6, loop,0
+flat,6, boost,0, flat,6, loop,0, flat,10, up45,4, hoop,1, arc,10, pit,12, flat,10
+boost,0, flat,6, pipe,7, flat,6, jet,0, flat,3, bump,5, flat,3, bump,6, flat,3, bump,5, flat,6
+dng,5, boost,0, bones,10, flat,12, loop,0, flat,8, up45,3, arc,10, pit,11, flat,8
+flower,0, upg,3, flat,4, cat,0, dng,3, flat,6, tree,0, flat,4, button,0, flat,8, bridge,12, flat,6
+mark,0, flat,4, dn45,3, dng,5, boost,0, bones,8, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
+thorn,0, flat,6, rock,0, flat,4, up45,3, arc,8, pit,9, flat,8
+dng,3, boost,0, bones,10, flat,10, loop,0, flat,7, boost,0, flat,6, up45,4, hoop,1, arc,12, pit,14
+flat,22, spin,0, flat,8, flower,0, flat,4
+goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
+
+' pit: a jump's gap with a floor under it and a spring out; the platforms' gaps have one too.
+' button, then bridge: a pit that wide, bridged once the button before it is trodden.
+' cable: a basket down a cable over a pit that wide, the ground past it four lower.
+' The Amber Downs at evening. chase: a race from here that many columns long, down from two pipes: Biscuit's
+' honey cart flees along it.
+Level Downs2
+flat,4, dog,0, flat,6, bones,6, flat,6, boost,0, flat,6, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
+up45,3, arc,9, pit,10, flat,8, flower,0, flat,4
+dng,4, boost,0, bones,10, flat,10, loop,0, flat,8, boost,0, flat,4, wave,2, flat,8
+cat,0, flat,8, tree,0, flat,6, upg,3, flat,4, button,0, flat,8, bridge,10, flat,6, mark,0, flat,6
+dn45,3, dng,3, boost,0, bones,8, flat,8, loop,0, flat,6, up45,4, hoop,1, arc,11, pit,12, flat,10
+spring,0, flat,2, plat,608, hb,706, flat,16, bush,0, flat,6, cable,22, flat,8
+boost,0, flat,6, pipe,6, flat,6, bones,6, flat,22, boost,0, flat,4, wave,1, flat,8
+dng,5, boost,0, bones,10, flat,12, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8, thorn,0, flat,6, rock,0, flat,4
+jet,0, flat,3, bump,5, flat,3, bump,6, flat,6, mark,0, flat,4, up45,3, arc,10, pit,11, flat,8
+dng,3, boost,0, bones,10, flat,10, loop,0, flat,10, spin,0, flat,8, flower,0, flat,4
+boost,0, flat,6, pipe,7, flat,8, boost,0, flat,6, pipe,7, flat,6, mark,0, flat,8
+chase,156, flat,12, bones,8, dng,3, flat,16, dng,3, flat,16, bones,8, dng,3, flat,16, dng,3, flat,16
+bones,8, dng,2, flat,16, dng,2, flat,36
+goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
+
+' The Chrome Works: mover: a gap that wide with a platform to and fro over it. hover: a gap of 4 with one up and
+' down, the ground past it that much higher. lift: a gap of 3 with a lift, the ground past it that much higher.
+Level Works1
+flat,4, dog,0, flat,8, bones,6, flat,8, boost,0, bones,8, flat,10, loop,0, flat,10
+boost,0, flat,4, wave,1, flat,8
+dng,3, boost,0, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8, up45,3, arc,9, pit,10, flat,8
+cat,0, flat,12, mover,8, flat,8, jet,0, flat,3, bump,5, flat,3, bump,5, flat,6, button,0, flat,10, bridge,9, flat,6, mark,0, flat,6
+boost,0, flat,6, pipe,6, flat,8, bones,8, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0, flat,10
+lift,6, flat,8, spin,0, flat,8, bones,6, flat,6, cable,20, flat,8, dng,3, boost,0, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0
+flat,8, up45,4, hoop,1, arc,11, pit,12, flat,10
+mark,0, flat,6, cat,0, flat,12, hover,5, flat,8, bones,6, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0
+flat,8, drop,4, flat,16, mover,7, flat,8, boost,0, flat,6, pipe,5, flat,8, dng,3, boost,0, flat,8, loop,0
+flat,10, goal,0, flat,9, fam,0, flat,6, flat,5, end,0
+
+' The Chrome Works by night. chase: a hall that long, jets in its floor and hoops over them: Sprocket's crane
+' goes along its roof.
+Level Works2
+flat,4, dog,0, flat,8, bones,6, flat,6, boost,0, flat,6, loop,0, flat,6, boost,0, flat,6, loop,0, flat,16
+mover,7, flat,8, bones,6, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0, flat,8
+up45,3, arc,9, pit,10, flat,8, cat,0, flat,10, hover,5, flat,8, mark,0, flat,6
+boost,0, flat,4, wave,1, flat,8, dng,3, boost,0, flat,8, loop,0, flat,8, button,0, flat,10, bridge,10, flat,8
+jet,0, flat,3, bump,5, flat,3, bump,5, flat,8, lift,6, flat,8, bones,6, flat,6
+dng,4, boost,0, bones,10, flat,10, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
+up45,4, hoop,1, arc,11, pit,12, flat,10, mark,0, flat,6, cable,20, flat,8
+boost,0, flat,6, pipe,5, flat,8, bones,6, flat,20, drop,4, flat,16, mover,8, flat,8
+dng,3, boost,0, flat,8, loop,0, flat,10, spin,0, flat,8, mark,0, flat,8
+chase,96, flat,10, jet,0, flat,8, hoop,8, flat,8, jet,0, flat,16, jet,0, flat,8, hoop,8, flat,8, jet,0, flat,16
+jet,0, flat,22
+goal,0, flat,9, fam,0, flat,6, flat,5, end,0
+
+' The intro's road: the Downs, flat, the way the van goes; a rock where it bumps.
+Level Road
+flat,6, dog,0, flat,24, tree,0, flat,30, tree,0, flat,28, tree,0, flat,30, tree,0, flat,25, rock,0
+flat,30, tree,0, flat,35, tree,0, flat,40, tree,0, flat,32, tree,0, flat,40, tree,0, flat,40, tree,0
+flat,40, end,0

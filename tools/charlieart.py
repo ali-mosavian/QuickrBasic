@@ -20,6 +20,8 @@ from collections.abc import Callable
 ROOT = Path(__file__).resolve().parents[1]
 DAT = ROOT / "src/plat/wasm/web/demos/CHARLIE.DAT"
 SONG = ROOT / "tools/charliesong.txt"
+LEVELS = ROOT / "tools/charlielevels.txt"
+GAME = ROOT / "src/plat/wasm/web/demos/CHARLIE.BAS"
 INK, WHITE = 2, 1
 PAL: dict[int, tuple[int, int, int]] = {0: (2, 2, 8), 1: (63, 63, 63), 2: (5, 3, 8), 3: (63, 56, 20), 4: (60, 14, 12)}
 
@@ -2427,6 +2429,34 @@ def song() -> bytes:
     return struct.pack(f"<{len(at) + 1}i", len(at), *at) + b"".join(blocks)
 
 
+def levels() -> bytes:
+    """LEVELS' levels in order, each its commands to its end: a command its length and its characters, its count a
+    LONG. Before them how many there are, and where each starts from the count. A command the game's loader has no
+    case for it would pass over, and a level without its end it would read past: either stops this."""
+    src = GAME.read_text()
+    loader = src[src.index("\nsub LoadLevel ") :]
+    known = {*re.findall(r'case "(\w+)"', loader[: loader.index("\nend sub")]), "end"}
+    found: list[list[tuple[str, str]]] = []
+    for n, line in enumerate(LEVELS.read_text().splitlines(), 1):
+        if line.startswith("Level "):
+            found.append([])
+        elif line and not line.startswith("'"):
+            if not re.fullmatch(r"\w+,\d+(, \w+,\d+)*", line):
+                sys.exit(f"charlieart: {LEVELS.name} line {n} is not commands and counts")
+            found[-1] += re.findall(r"(\w+),(\d+)", line)
+    for i, lv in enumerate(found):
+        if unknown := {c for c, _ in lv} - known:
+            sys.exit(f"charlieart: level {i} has commands the game does not know: {sorted(unknown)}")
+        if [c for c, _ in lv].count("end") != 1 or lv[-1][0] != "end":
+            sys.exit(f"charlieart: level {i} does not end with its end")
+    blocks = [
+        b"".join(struct.pack("<i", len(c)) + c.encode("ascii") + struct.pack("<i", int(v)) for c, v in lv)
+        for lv in found
+    ]
+    at = [4 + 4 * len(blocks) + sum(len(b) for b in blocks[:n]) for n in range(len(blocks))]
+    return struct.pack(f"<{len(at) + 1}i", len(at), *at) + b"".join(blocks)
+
+
 def sound(n: int, s: list[int | str]) -> None:
     """Song n's DATA read as the game reads it: a bar, voicing, riff or drum it names and has not would stop the
     game as it loaded, or play a rest."""
@@ -2519,9 +2549,9 @@ def group(pics: list[tuple[int, Pic, bool, int]], zone: int) -> list[int]:
 
 
 def blob() -> bytes:
-    """CHARLIE.DAT: the 1-based byte its tunes start at, the palette, each stage's own, the 1-based byte each zone's
-    own pictures start at, the pictures every zone shows, each zone's own, the tunes; each value a little-endian
-    LONG."""
+    """CHARLIE.DAT: the 1-based bytes its tunes and its levels start at, the palette, each stage's own, the 1-based
+    byte each zone's own pictures start at, the pictures every zone shows, each zone's own, the levels, the tunes;
+    each value a little-endian LONG."""
     pics = pictures()
     audit(pics)
     vals = [len(PAL)]
@@ -2532,9 +2562,10 @@ def blob() -> bytes:
         for i, (r, g, b) in sorted(ZPAL[z].items()):
             vals += [i, r + 256 * g + 65536 * b]
     groups = [group(pics, z) for z in range(-1, len(OWN))]
-    at = [4 * (1 + len(vals) + len(OWN) + sum(len(g) for g in groups[: z + 1])) + 1 for z in range(len(OWN))]
+    at = [4 * (2 + len(vals) + len(OWN) + sum(len(g) for g in groups[: z + 1])) + 1 for z in range(len(OWN))]
     vals += at + [v for g in groups for v in g]
-    return struct.pack(f"<{len(vals) + 1}i", len(vals) * 4 + 5, *vals) + song()
+    lv = levels()
+    return struct.pack(f"<{len(vals) + 2}i", len(vals) * 4 + 9 + len(lv), len(vals) * 4 + 9, *vals) + lv + song()
 
 
 def sheet(path: Path) -> None:
