@@ -169,3 +169,20 @@ TEST(check_passes_record_parameter_field)
 
     CHECK(!typed_errs(S, lines));
 }
+
+/* A record passed whole to a FUNCTION not yet linked, checked alone: taken for a value, Type
+   mismatch at its ')'. CHARLIE.BAS's IF Wall%(p, ...) and IF Land%(p, d) were kept as typed. */
+TEST(check_passes_record_argument_whole)
+{
+    static const char *const lines[] = {
+        "TYPE Hero",
+        "x AS INTEGER",
+        "END TYPE",
+        "DECLARE FUNCTION W% (p AS Hero)",
+        "SUB S (p AS Hero)",
+        "IF W%(p) THEN PRINT 1",
+        nullptr,
+    };
+
+    CHECK(!typed_errs(S, lines));
+}
