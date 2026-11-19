@@ -95,6 +95,21 @@ type Loose
     t as single
 end type
 
+' A gull: where it is, its home, where its dive is aimed, the seconds till it may dive again, what it is doing,
+' the bones it carries, and whether it heads left.
+type Bird
+    x as single
+    y as single
+    hx as integer
+    hy as integer
+    tx as single
+    ty as single
+    t as single
+    st as integer
+    loot as integer
+    face as integer
+end type
+
 type Part
     x as single
     y as single
@@ -200,7 +215,7 @@ const ICART = IBASKET + 2, ICARTW = ICART + 12, CARTW = 56, CARTH = 34, CARTLEAN
 const ICRANE = ICARTW + 4, IRAIL = ICRANE + 4, IWBOX = IRAIL + 2, ITOOLS = IWBOX + 2
 ' The sands' ground again as it is under the tide, picture for picture, and the water's edge.
 const IWET = ITOOLS + 2, WETO = IWET - IAF, ISURF = IWET + 278, ICRAB = ISURF + 2
-const IJELLY = ICRAB + 6, IBUOY = IJELLY + 4, ICHAIR = IBUOY + 4, NIMG = ICHAIR + 4
+const IJELLY = ICRAB + 6, IBUOY = IJELLY + 4, ICHAIR = IBUOY + 4, IGULL = ICHAIR + 4, NIMG = IGULL + 8
 const HUDW = 108, HUDH = 40
 ' The levels: a zone's two acts, the second at another hour in other colours, zone by zone.
 ' the stages played, and after them the intro's road
@@ -219,12 +234,17 @@ const IMGSZ = 420000
 const SCLEFT = 75, SCRIGHT = 77, SCUP = 72, SCDOWN = 80, SCSPACE = 57, SCZ = 44
 const SJUMP = 0, SBONE = 1, SHURT = 2, SSPRING = 3, SPOP = 4, SROLL = 5
 const SCHARGE = 6, SLAUNCH = 7, SCLEAR = 8, SDIE = 9, SMARK = 10, SBOOST = 11, SHISS = 12, SBARK = 13, SBUMP = 14
+const SSQUAWK = 15
 ' A bark: how far it carries, the seconds to the next, and the steps a cat stands startled by it.
 const BARKR = 72, BARKT = .4, FLINCH = 24
 ' A crab: the steps it keeps to its shell once barked at, and how fast Charlie goes up off its back.
 const SHELLT = 150, STEPV = 430!
 ' How fast Charlie goes up off a jellyfish's bell, and how far under the sea's top its arms' ends float.
 const JELLYV = 480!, JELLYD = 10
+' A gull: how near Charlie passes under it for a dive, its dive's speed and its climb's, its rest between dives,
+' the bones it takes, how far a bark reaches it; and what it is doing: gone is 0.
+const NGULL = 6, GULLSEE = 100, DIVEV = 210!, CLIMBV = 90!, GULLREST = 2.5, GULLTAKE = 5, GULLHEAR = 130
+const GHOVER = 1, GDIVE = 2, GCLIMB = 3, GSCARED = 4
 ' A chase: the cart's speed, when Charlie is far behind it, and away from a bump; how far ahead of the race's
 ' start it waits; how near touches it; the seconds a bump tells, the last of them bolting; the bumps that break
 ' it; its tune's number in CHARLIE.DAT.
@@ -324,6 +344,11 @@ declare sub MeetCrab (g as Game, p as Hero, i as integer, lo() as Loose, pt() as
 declare function CrabPic% (s as integer)
 declare sub MeetJelly (g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
 declare function Bob% (x as integer, h as integer, up as integer)
+declare function Glide% (b as Bird, x as single, y as single, v as single)
+declare sub Spill (b as Bird, lo() as Loose)
+declare sub Gull (b as Bird, n as integer, g as Game, p as Hero, lo() as Loose, pt() as Part)
+declare sub Flock (g as Game, p as Hero, lo() as Loose, pt() as Part)
+declare sub DrawGulls (cx as integer, cy as integer)
 declare function Adrift% (m as integer)
 declare sub Flinch (i as integer, fromX as integer)
 declare sub Prowl (i as integer)
@@ -479,6 +504,7 @@ dim shared Reached as integer, Pick as integer
 ' the sea's surface, NONE where a stage has none; where it is at the level's start, at step TideAt, and half a
 ' tide later
 dim shared Tide as integer, TideLo as integer, TideHi as integer, TideAt as long
+dim shared Gulls(NGULL - 1) as Bird, NGulls as integer
 
 Main
 end
@@ -732,6 +758,7 @@ sub LoadLevel (st as integer)
     erase Map
     NObj = 0
     NMv = 0
+    NGulls = 0
     for i = 0 to MW
         ColTop(i) = MH
     next
@@ -893,6 +920,11 @@ sub LoadLevel (st as integer)
             AddObj KJELLY, (c + n) * TS + 8, s
         case "buoy"
             AddObj KBUOY, (c + n) * TS + 8, s
+        case "gull"
+            ' a gull, its home n tiles over the ground here
+            Gulls(NGulls).hx = c * TS + 8
+            Gulls(NGulls).hy = s - n * TS
+            NGulls = NGulls + 1
         case "spring"
             k = KSPRING
         case "mark"
@@ -1764,6 +1796,9 @@ sub Sfx (id as integer)
     case SBUMP
         ' a thump, then his theme's first four notes
         s = "L32O2GP32O4GA+O5CL16D"
+    case SSQUAWK
+        ' a gull's cry, twice, falling
+        s = "W2L32O6ECP32EC"
     end select
     play , , , "T255W1V13Y0K0I0H0,0,15,0" + s
 end sub
@@ -2331,6 +2366,7 @@ sub Tick (g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part)
             MoveHero p, k, pt()
             Touch g, p, lo(), pt()
             Flee g, p, lo(), pt()
+            if NGulls then Flock g, p, lo(), pt()
             if p.y > MH * TS + 24 then Lose p
             if p.x >= GoalX then
                 g.mode = CLEARED
@@ -2578,6 +2614,13 @@ sub ResetWorld (g as Game, p as Hero, lo() as Loose, pt() as Part)
     next
     for i = 0 to NMOVE
         MvT(i) = 0
+    next
+    for i = 0 to NGulls - 1
+        Gulls(i).x = Gulls(i).hx
+        Gulls(i).y = Gulls(i).hy
+        Gulls(i).t = 0
+        Gulls(i).st = GHOVER
+        Gulls(i).loot = 0
     next
     for i = 0 to NLOOSE - 1
         lo(i).t = 0
@@ -3217,6 +3260,113 @@ sub MeetCrab (g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
     end if
 end sub
 
+' ---- the sands' gulls ----
+
+' Gull b toward x, y at v: there, or nearer. Whether it is there.
+function Glide% (b as Bird, x as single, y as single, v as single)
+    dim dx as single, dy as single, d as single
+    dx = x - b.x
+    dy = y - b.y
+    d = sqr(dx * dx + dy * dy)
+    if dx <> 0 then b.face = dx < 0
+    if d <= v * STEPT then
+        b.x = x
+        b.y = y
+        Glide% = -1
+    else
+        b.x = b.x + dx / d * v * STEPT
+        b.y = b.y + dy / d * v * STEPT
+        Glide% = 0
+    end if
+end function
+
+' Gull b lets go of the bones it carries: they fall loose, to be picked up.
+sub Spill (b as Bird, lo() as Loose)
+    dim i as integer
+    for i = 0 to NLOOSE - 1
+        if b.loot = 0 then exit for
+        if lo(i).t <= 0 then
+            lo(i).x = b.x
+            lo(i).y = b.y
+            lo(i).vx = (b.loot * 37 mod 90) - 45
+            lo(i).vy = -40
+            lo(i).t = 4
+            LooseN = LooseN + 1
+            b.loot = b.loot - 1
+        end if
+    next
+    b.loot = 0
+end sub
+
+' Gull b, the n'th, for a step. It hovers about its home till Charlie, with bones, passes under: then dives at
+' where he will be, takes bones if it reaches him, and climbs home with them, to dive no more. A bark scares it
+' home and makes it drop what it took; a rolling Charlie knocks it out of the air.
+sub Gull (b as Bird, n as integer, g as Game, p as Hero, lo() as Loose, pt() as Part)
+    dim x as single, y as single, lead as single
+    x = b.hx + 24 * sin(Ticks * .02 + n * 2)
+    y = b.hy + 4 * sin(Ticks * .07 + n)
+    select case b.st
+    case GHOVER
+        b.face = cos(Ticks * .02 + n * 2) < 0
+        b.x = x
+        b.y = y
+        if b.t > 0 then b.t = b.t - STEPT
+        if b.t <= 0 and b.loot = 0 and g.bones > 0 and abs(p.x - x) < GULLSEE and p.y > y + 30 then
+            lead = (p.y - 13 - y) / DIVEV * 60
+            b.tx = p.x + (p.x - p.lastx) * lead
+            b.ty = p.y - 13
+            b.st = GDIVE
+            Sfx SSQUAWK
+        end if
+    case GDIVE
+        if Glide%(b, b.tx, b.ty, DIVEV) then b.st = GCLIMB
+    case GCLIMB
+        if Glide%(b, x, y, CLIMBV) then
+            b.st = GHOVER
+            b.t = GULLREST
+        end if
+    case GSCARED
+        Spill b, lo()
+        b.st = GCLIMB
+    end select
+    if abs(b.x - p.x) >= 13 or abs(b.y - p.y + 13) >= 15 then exit sub
+    if p.roll or p.charging then
+        Spill b, lo()
+        b.st = 0
+        g.score = g.score + 100
+        Burst pt(), b.x, b.y, 10, 130, CWHITE
+        Sfx SPOP
+    elseif b.st = GDIVE then
+        b.loot = g.bones
+        if b.loot > GULLTAKE then b.loot = GULLTAKE
+        g.bones = g.bones - b.loot
+        b.st = GCLIMB
+        Sfx SSQUAWK
+    end if
+end sub
+
+sub Flock (g as Game, p as Hero, lo() as Loose, pt() as Part)
+    dim i as integer
+    for i = 0 to NGulls - 1
+        if Gulls(i).st > 0 then Gull Gulls(i), i, g, p, lo(), pt()
+    next
+end sub
+
+' The gulls, a bone under one that carries any; wings still in a dive.
+sub DrawGulls (cx as integer, cy as integer)
+    dim i as integer, x as integer, y as integer, k as integer
+    for i = 0 to NGulls - 1
+        x = cint(Gulls(i).x) - cx
+        y = cint(Gulls(i).y) - cy
+        if Gulls(i).st > 0 and x > -20 and x < SW + 20 then
+            k = IGULL - 4 * Gulls(i).face
+            if Gulls(i).st <> GDIVE then k = k + ((Ticks \ 8) and 1) * 2
+            Blit x - 13, y - 10, k, 26, 20
+            if Gulls(i).loot then Blit x - 5, y + 3, IBONE, 10, 10
+        end if
+    next
+end sub
+
 ' Where a thing afloat at x lies: h under the sea's top, or up over the ground there when the sea is lower.
 function Bob% (x as integer, h as integer, up as integer)
     dim y as integer
@@ -3250,7 +3400,7 @@ sub Flinch (i as integer, fromX as integer)
     if ObX(i) < fromX then ObS(i) = -FLINCH
 end sub
 
-' Charlie barks: every cat the bark reaches flinches, every crab goes into its shell.
+' Charlie barks: every cat the bark reaches flinches, every crab goes into its shell, every gull is scared.
 sub Bark (p as Hero)
     dim i as integer, c as integer
     p.barkT = BARKT
@@ -3270,6 +3420,9 @@ sub Bark (p as Hero)
         end if
         i = i + 1
     loop
+    for i = 0 to NGulls - 1
+        if Gulls(i).st > 0 and abs(Gulls(i).x - p.x) < GULLHEAR and abs(Gulls(i).y - p.y) < GULLHEAR then Gulls(i).st = GSCARED
+    next
 end sub
 
 sub Things (g as Game, lo() as Loose, pt() as Part)
@@ -3995,6 +4148,7 @@ sub Render (g as Game, p as Hero, lo() as Loose, pt() as Part)
     if LooseN then DrawLoose cx, cy, lo()
     DrawChase cx, cy
     DrawHero p, cx, cy
+    if NGulls then DrawGulls cx, cy
     if Tide <> NONE then DrawSurf cx, cy
     DrawOver cx, cy
     if p.barkT > BARKT - .2 then DrawBark p, cx, cy

@@ -951,6 +951,55 @@ for i = 1 to 20
     if p.vy < 0 then exit for
 next
 if was and p.vy < -300 and ObS(c) > 0 and not p.swim then print "buoy ok"
+' a gull hovers about its home while Charlie is far off; once he stands under it with bones it dives, takes
+' five, and climbs home with them, to dive no more
+GoStage 4, g, p, lo(), pt()
+c = Gulls(0).hx
+g.bones = 8
+Stand p, c - 300, 0
+for i = 1 to 30
+    Tick g, p, k, lo(), pt()
+next
+was = NGulls > 0 and Gulls(0).st = GHOVER and abs(Gulls(0).x - c) <= 24 and abs(Gulls(0).y - Gulls(0).hy) <= 4
+Stand p, c, 0
+for i = 1 to 120
+    Tick g, p, k, lo(), pt()
+    if Gulls(0).loot then exit for
+next
+was = was and Gulls(0).loot = 5 and g.bones = 3 and Gulls(0).st = GCLIMB and p.inv <= 0
+for i = 1 to 300
+    Tick g, p, k, lo(), pt()
+next
+was = was and Gulls(0).st = GHOVER and Gulls(0).loot = 5 and g.bones = 3
+' a bark makes it drop them, loose
+p.barkT = 0
+k.bark = -1
+Tick g, p, k, lo(), pt()
+k.bark = 0
+was = was and Gulls(0).loot = 0 and LooseN = 5
+' a Charlie with no bones it leaves alone
+Stand p, c - 300, 0
+for i = 1 to 260
+    Tick g, p, k, lo(), pt()
+next
+g.bones = 0
+Stand p, c, 0
+for i = 1 to 150
+    Tick g, p, k, lo(), pt()
+    if Gulls(0).st <> GHOVER then was = 0
+next
+' and a rolling Charlie knocks it out of the air
+hid = g.score
+p.ground = 0
+p.vy = -100
+p.roll = -1
+Gulls(0).st = GDIVE
+Gulls(0).x = p.x
+Gulls(0).y = p.y - 13
+Gulls(0).tx = p.x
+Gulls(0).ty = p.y - 13
+Tick g, p, k, lo(), pt()
+if was and Gulls(0).st = 0 and g.score = hid + 100 then print "gull ok"
 was = 0
 ' a lift goes up under Charlie to the ground above, and back down once it is left
 GoStage 2, g, p, lo(), pt()
@@ -1299,6 +1348,7 @@ def main() -> None:
         ("jelly ok", "a jellyfish afloat or aground: a high bounce off its bell, a sting for feet in it only"),
         ("dazed ok", "a Charlie hurt into the sea paddles again"),
         ("buoy ok", "a buoy rides the sea's top and bumps Charlie off it"),
+        ("gull ok", "a gull dives for five bones and keeps them till barked at; a roll knocks it away"),
     ):
         if said not in out:
             sys.exit(f"charlie: not {what}: {out[-300:]}")

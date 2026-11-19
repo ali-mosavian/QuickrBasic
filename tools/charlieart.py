@@ -2706,6 +2706,24 @@ def deckchair(f: int) -> Pic:
     return p.outline(SEAINK)
 
 
+def gull(f: int) -> Pic:
+    """A gull on the wing, heading right: grey wings, up in frame 0 and down in 1, a yellow bill."""
+    p = Pic(26, 20)
+    up = 1 - 2 * f
+    p.line(11, 10 - 2 * up, 15, 10 - 7 * up, STONE[1], 3)
+    p.line(15, 10 - 7 * up, 17, 10 - 8 * up, STONE[0], 2)
+    p.line(4, 10, 1, 11, STONE[2], 2)
+    p.ball(11, 10, 6.5, 2.8, [STONE[2], STONE[3], WHITE, WHITE], 0.3, 1.2)
+    p.ball(18.5, 9, 2.8, 2.5, [STONE[3], WHITE, WHITE], 0.4, 1.2)
+    p.line(10, 10 - up, 4, 10 - 7 * up, STONE[2], 4)
+    p.line(9, 10 - up, 5, 10 - 5 * up, STONE[3], 2)
+    p.line(4, 10 - 7 * up, 2, 10 - 9 * up, STONE[0], 2)
+    p.line(21, 9.5, 23.5, 10.5, GOLD[2], 2)
+    p.put(24, 11, GOLD[1])
+    p.put(19, 8, SEAINK)
+    return p.outline(SEAINK)
+
+
 def lifepost() -> Pic:
     """A post with a life ring where the Downs have a lantern plant."""
     p = Pic(20, 44)
@@ -2751,6 +2769,7 @@ def sands() -> list[tuple[int, Pic, bool, int]]:
     out += [(z + 932 + f * 2, crab(f), True, -1) for f in range(3)]
     for i, thing in enumerate((jelly, buoy, deckchair)):
         out += [(z + 938 + i * 4 + f * 2, thing(f), True, -1) for f in range(2)]
+    out += [(z + 950 + f * 2, gull(f), True, z + 954 + f * 2) for f in range(2)]
     out += [
         (k + 36, brolly(), True, -1),
         (k + 38, marram(), True, -1),

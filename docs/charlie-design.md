@@ -115,7 +115,8 @@ Progress is saved at each zone.
 - Built: its backdrop, ground, props and card at noon and sunset, on the Downs' layout; the tide, paddling,
   and wet till a roll; both levels, with tide pools, a low road under a jetty, and boats adrift in pools,
   afloat on the tide and aground at low water; buoys that bump, deckchairs for springs; crabs, a step when
-  barked into their shells; jellyfish, afloat or stranded. To add: flumes, gulls, its chase and tune.
+  barked into their shells; jellyfish, afloat or stranded; gulls, which drop the bones they took at a bark.
+  To add: flumes, its chase and tune.
 - Rule: the tide. Water rises and falls on a clock, and roads open and close with it. Charlie paddles on the
   surface, slow, and stays slow out of it until a roll shakes him dry.
 - Gadgets: boats, flumes that end in water, deckchair springs, buoys that bump.
