@@ -168,10 +168,7 @@ DECLARE SUB AddMover (x AS INTEGER, y AS INTEGER, a AS INTEGER, k AS INTEGER, e 
 DECLARE SUB Movers (p AS Hero)
 DECLARE FUNCTION Swing! (m AS INTEGER, quarter AS INTEGER)
 DECLARE SUB NextZone (g AS Game, p AS Hero, lo() AS Loose, pt() AS Part)
-DECLARE SUB BuildDay ()
-DECLARE SUB BuildWorks ()
 DECLARE SUB Slab (x1 AS INTEGER, y1 AS INTEGER, x2 AS INTEGER, y2 AS INTEGER, c AS INTEGER)
-DECLARE SUB Stamp (x AS INTEGER, y AS INTEGER, k AS INTEGER, band AS INTEGER)
 DECLARE SUB Column (c AS INTEGER, g AS INTEGER, kind AS INTEGER)
 DECLARE SUB AddObj (k AS INTEGER, x AS INTEGER, y AS INTEGER)
 DECLARE SUB SortObjs ()
@@ -848,8 +845,6 @@ SUB BuildArt
     BuildWave IWAVE + 4, CPANEL, 177
     BuildGlyphs
     BuildMid
-    BuildWorks
-    BuildDay
     BuildBack
     FOR i = 0 TO 255: Pal0(i) = Pal(i): NEXT
 END SUB
@@ -1056,25 +1051,6 @@ SUB BuildMid
     Grab 0, 100, SW - 1, 100 + MIDH - 1, IMID + 1
 END SUB
 
-' The Chrome Works' near band: the plant, its pipe walls, machine houses, ball tanks and stacks, of period SW.
-SUB BuildWorks
-    DIM x AS INTEGER
-    LINE (0, 0)-(SW - 1, MIDH - 1), 0, BF
-    LINE (0, 100)-(SW - 1, 100 + MIDH - 1), 255, BF
-    Slab 0, 74, SW - 1, MIDH - 1, CSTEEL + 1
-    Stamp 138, 0, IPLANT + 2, -1
-    Stamp 160, 5, IPLANT + 2, -1
-    Stamp 62, 3, IPLANT + 2, -1
-    Stamp 8, 2, IPLANT + 6, -1
-    Stamp 196, 2, IPLANT + 6, -1
-    Stamp 84, 0, IPLANT, -1
-    Stamp 268, 0, IPLANT, -1
-    FOR x = 0 TO SW - 1 STEP 64: Stamp x, 38, IPLANT + 4, -1: NEXT
-    Slab 0, 36, SW - 1, 37, CCHROME + 4
-    Slab 0, 38, SW - 1, 38, CCHROME + 1
-    Grab 0, 0, SW - 1, MIDH - 1, IZ2 + 1
-    Grab 0, 100, SW - 1, 100 + MIDH - 1, IZ2 + 2
-END SUB
 
 ' A box of the band being built, and of its mask 100 below.
 SUB Slab (x1 AS INTEGER, y1 AS INTEGER, x2 AS INTEGER, y2 AS INTEGER, c AS INTEGER)
@@ -1082,41 +1058,7 @@ SUB Slab (x1 AS INTEGER, y1 AS INTEGER, x2 AS INTEGER, y2 AS INTEGER, c AS INTEG
     LINE (x1, y1 + 100)-(x2, y2 + 100), 0, BF
 END SUB
 
-' Picture k onto what is being built, at x, y; band: its shape onto the band's mask 100 below too.
-SUB Stamp (x AS INTEGER, y AS INTEGER, k AS INTEGER, band AS INTEGER)
-    PUT (x, y), Img(At(k + 1)), AND
-    PUT (x, y), Img(At(k)), OR
-    IF band THEN PUT (x, y + 100), Img(At(k + 1)), AND
-END SUB
 
-' The Chrome Works' far backdrop: a bright sky, streaks of cloud, a city of glass towers in two rows, of period SW.
-SUB BuildDay
-    DIM x AS INTEGER, y AS INTEGER, k AS INTEGER, i AS INTEGER
-    FOR y = 0 TO SH - 1
-        k = y * 16 \ 150
-        IF k > 15 THEN k = 15
-        LINE (0, y)-(SW - 1, y), CDAY + k
-        IF (y + 3) * 16 \ 150 > k AND k < 15 THEN LINE (0, y)-(SW - 1, y), CDAY + k + 1, , &H5555 * (1 + (y AND 1))
-    NEXT
-    FOR i = 0 TO 8
-        y = 12 + i * 11: x = (i * 83) MOD 230: k = 40 + (i * 37) MOD 70
-        LINE (x, y)-(x + k, y + 1), CDAY + 15, BF
-        LINE (x + 6, y - 1)-(x + k - 8, y - 1), CDAY + 15, , &HAAAA
-        LINE (x + 10, y + 2)-(x + k - 4, y + 2), CDAY + 15, , &H5555
-    NEXT
-    Stamp 4, 28, IBLD, 0
-    Stamp 72, 64, IBLD + 2, 0
-    Stamp 122, 82, IBLD + 4, 0
-    Stamp 198, 28, IBLD, 0
-    Stamp 250, 64, IBLD + 2, 0
-    Stamp 30, 52, IBLD + 6, 0
-    Stamp 96, 78, IBLD + 8, 0
-    Stamp 146, 96, IBLD + 10, 0
-    Stamp 222, 52, IBLD + 6, 0
-    Stamp 284, 78, IBLD + 8, 0
-    LINE (0, 152)-(SW - 1, SH - 1), CSTEEL + 1, BF
-    Grab 0, 0, SW - 1, SH - 1, IZ2
-END SUB
 
 ' The sky, sun, clouds and far peaks, of period SW so the backdrop wraps.
 SUB BuildBack

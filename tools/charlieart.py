@@ -40,16 +40,13 @@ def ramp(first: int, a: tuple[int, int, int], b: tuple[int, int, int], n: int) -
 # A zone's own colours, over the shared ones while it is played: the indices only the other zone's pictures and
 # backdrop use (CLOUD between them is shared), and those nothing uses.
 SPARE = [5, 6, 7, 148, 149, 172, 173, 174, *range(179, 185), *range(225, 256)]
-POOL = {1: [*range(96, 138), *range(141, 148), *SPARE]}
+POOL = {1: [*range(96, 138), *range(141, 148), *range(156, 172), *range(185, 193), *SPARE]}
 ZPAL: dict[int, dict[int, tuple[int, int, int]]] = {0: {}, 1: {}}
-
-
-def zramp(z: int, a: tuple[int, int, int], b: tuple[int, int, int], n: int) -> list[int]:
-    """n of zone z's own palette entries, a to b; their indices."""
-    out = [POOL[z].pop(0) for _ in range(n)]
-    for i, k in enumerate(out):
-        ZPAL[z][k] = tuple(round(a[j] + (b[j] - a[j]) * i / (n - 1)) for j in range(3))
-    return out
+# those tools/charlierender.py chose, from the zone's rendered pictures
+for _z in ZPAL:
+    if (PX / f"zone{_z}.pal").exists():
+        for _k, *_c in (map(int, ln.split()) for ln in (PX / f"zone{_z}.pal").read_text().splitlines()):
+            ZPAL[_z][_k] = tuple(_c)
 
 
 def pal(z: int) -> dict[int, tuple[int, int, int]]:
@@ -1051,10 +1048,6 @@ CHROME = ramp(198, (14, 16, 22), (60, 62, 63), 6)
 
 PANEL = ramp(204, (4, 8, 18), (26, 42, 56), 6)
 GLOWC = ramp(210, (4, 34, 46), (56, 63, 63), 3)
-# the wall's own, long enough to shade without a dither
-PANELX = zramp(1, (3, 6, 14), (32, 48, 61), 16)
-COPPERX = zramp(1, (18, 6, 3), (63, 52, 30), 10)
-CHROMEX = zramp(1, (9, 11, 17), (62, 63, 63), 10)
 # colours the game turns as it runs: a deck's four lights, a fan's blades, the glints along a pipe
 CHASE, FAN, FLOW = [213, 214, 215, 216], [217, 218, 219, 220], [221, 222, 223, 224]
 PAL.update(dict.fromkeys(CHASE, (4, 34, 46)) | dict.fromkeys(FAN, (5, 4, 8)) | dict.fromkeys(FLOW, (50, 31, 15)))
@@ -1324,106 +1317,6 @@ def hoop(lit: bool) -> Pic:
     return p.outline()
 
 
-def tower(w: int, h: int, r: list[int], top: int) -> Pic:
-    """An office tower: a lit left edge and a shaded right, bands of glass with mullions, a roof by kind: 0 a
-    parapet, 1 a mast, 2 a setback and a tank."""
-    p = Pic(w, h)
-    y0 = 14
-    for y in range(y0, h):
-        for x in range(w):
-            c = r[2]
-            if x < 3:
-                c = r[3]
-            elif x >= w - 4:
-                c = r[1]
-            elif (y - y0) % 7 in (2, 3, 4) and y < h - 3:
-                c = r[0] if (x - 3) % 9 else r[1]
-                if (y - y0) % 7 == 2 and (x * 5 + y * 3) % 23 < 6:
-                    c = r[3]
-            p.put(x, y, c)
-    p.box(0, y0, w - 1, y0, r[3])
-    if top == 1:
-        p.box(w // 2, 0, w // 2, y0 - 1, r[1])
-        p.box(w // 2 - 3, y0 - 4, w // 2 + 3, y0 - 1, r[2])
-        p.put(w // 2, 0, SCARF[3])
-    elif top == 2:
-        p.box(4, y0 - 6, w - 10, y0 - 1, r[2])
-        p.box(4, y0 - 6, w - 10, y0 - 6, r[3])
-        p.box(w - 8, y0 - 9, w - 4, y0 - 1, r[1])
-    else:
-        p.box(2, y0 - 2, w - 3, y0 - 1, r[1])
-    return p
-
-
-def sphere() -> Pic:
-    """The plant, far off: a ball tank on a ring of legs, a stair round it."""
-    p = Pic(44, 46)
-    for x in (9, 15, 28, 34):
-        p.box(x, 30, x + 1, 45, CHROME[1])
-    p.line(9, 44, 35, 34, CHROME[1])
-    p.ball(21.5, 19, 19, 18, CHROME, 0.1, 1.0)
-    for x in range(4, 40):
-        y = 22 + round(4 * math.sin((x - 4) / 36 * math.pi))
-        if p.get(x, y):
-            p.put(x, y, GOLD[3] if x // 3 % 2 else DARK[0])
-    return p
-
-
-def chimney() -> Pic:
-    """A tall stack: a lit drum, red and white bands at its top."""
-    p = Pic(14, 74)
-    drum(p, 3, 2, 10, 73, CHROME, 99)
-    for y in range(2, 20):
-        for x in range(3, 11):
-            if (y - 2) // 6 % 2 == 0:
-                p.put(x, y, SCARF[3 if x < 6 else 2 if x < 9 else 1])
-    p.box(2, 0, 11, 1, CHROME[1])
-    return p
-
-
-def piping() -> Pic:
-    """A wall of the plant: copper pipes along and down it, elbows, flanges, a valve."""
-    p = Pic(64, 40)
-    for y in range(40):
-        for x in range(64):
-            p.shade(x, y, STEEL, 0.34 - (0.14 if x % 16 == 0 or y % 20 == 0 else 0) + (0.1 if x % 16 == 1 else 0))
-    for y0 in (6, 24):
-        for y in range(y0, y0 + 7):
-            for x in range(64):
-                p.shade(x, y, COPPER, 1.0 - abs(y - y0 - 2.5) / 4.5)
-    for x0 in (14, 44):
-        for x in range(x0, x0 + 6):
-            for y in range(12, 25) if x0 == 14 else range(30, 40):
-                p.shade(x, y, COPPER, 1.0 - abs(x - x0 - 2) / 4)
-    for x in (0, 30, 60):
-        p.box(x, 5, x + 2, 13, CHROME[3])
-        p.box(x, 5, x, 13, CHROME[5])
-        p.box(x, 23, x + 2, 31, CHROME[3])
-    p.ball(52, 9, 4, 4, SCARF, 0.4, 1.0)
-    p.put(52, 9, INK)
-    return p
-
-
-def shed() -> Pic:
-    """A machine house: ribbed walls, a row of vents, a warning stripe along its foot, lamps on its roof."""
-    p = Pic(56, 36)
-    for y in range(4, 36):
-        for x in range(56):
-            v = 0.55 + (0.15 if x % 8 == 0 else -0.1 if x % 8 == 7 else 0) - (y - 4) * 0.004
-            p.shade(x, y, STEEL, v)
-    p.box(0, 4, 55, 5, CHROME[4])
-    for x0 in range(6, 50, 14):
-        for y in range(11, 20, 2):
-            p.box(x0, y, x0 + 8, y, DARK[0])
-            p.box(x0, y + 1, x0 + 8, y + 1, STEEL[4])
-    for x in range(56):
-        for y in (30, 31, 32):
-            p.put(x, y, GOLD[3] if (x + y) // 4 % 2 else DARK[0])
-    for x in (10, 44):
-        p.box(x, 1, x + 1, 3, SCARF[3])
-    return p
-
-
 def pictures() -> list[tuple[int, Pic, bool, int]]:
     """Each picture's index in the game's Img table, whether it is masked, and its mirror's index or -1."""
     out: list[tuple[int, Pic, bool, int]] = []
@@ -1504,16 +1397,8 @@ def pictures() -> list[tuple[int, Pic, bool, int]]:
         (z + 28, tank(), True, -1),
         (z + 30, vent(), True, -1),
         (z + 32, words("CHROME WORKS", 178, 18, 1.65, 3.0), True, -1),
-        (z + 34, tower(40, 124, FART, 1), True, -1),
-        (z + 36, tower(28, 88, FART, 0), True, -1),
-        (z + 38, tower(52, 70, FART, 2), True, -1),
-        (z + 40, tower(44, 100, NEART, 2), True, -1),
-        (z + 42, tower(30, 74, NEART, 1), True, -1),
-        (z + 44, tower(58, 56, NEART, 0), True, -1),
-        (z + 46, sphere(), True, -1),
-        (z + 48, chimney(), True, -1),
-        (z + 50, piping(), True, -1),
-        (z + 52, shed(), True, -1),
+        (z - 9, rendered("city"), False, -1),
+        (z - 8, rendered("plant"), True, -1),
     ]
     return out
 
@@ -1552,12 +1437,13 @@ def song() -> bytes:
 
 def audit(pics: list[tuple[int, Pic, bool, int]]) -> None:
     """A zone's own colours are only in its own pictures: elsewhere they would show as another zone's."""
+    # the Chrome Works' pictures: 103 slots from its backdrop, the first to use its colours
     z2 = min(k for k, p, _, _ in pics if any(v in ZPAL[1] for row in p.p for v in row))
     for k, p, _, _ in pics:
-        own = 1 if z2 <= k < z2 + 94 else 0
+        own = 1 if z2 <= k < z2 + 103 else 0
         used = {v for row in p.p for v in row}
         for z in ZPAL:
-            if z != own and used & ZPAL[z].keys() and (z2 > k or k >= z2 + 94):
+            if z != own and used & ZPAL[z].keys():
                 sys.exit(f"charlieart: picture {k} uses zone {z}'s own colours {sorted(used & ZPAL[z].keys())}")
 
 

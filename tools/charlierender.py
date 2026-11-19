@@ -1,39 +1,42 @@
-"""blender -b -P tools/charlierender.py [-- NAME ...]: CHARLIE.BAS's rendered pictures. Each is a small scene built
-here, a unit a pixel, lit from the upper left, rendered at eight times its size, averaged down and matched to the
-game's palette with a dither; written to tools/charlie_px/NAME.txt, which tools/charlieart.py reads. The files are
-kept, so drawing the game's art needs no Blender."""
+"""blender -b -P tools/charlierender.py: CHARLIE.BAS's rendered pictures. Each is a small scene built here, a unit
+a pixel, lit from the upper left and shaded in flat tones as a cel is, rendered at several times its size and
+averaged down, so its edges are soft. A zone's pictures then share a palette made from their own colours, with no
+dither: tools/charlie_px/zoneN.pal, and each picture's indices in NAME.txt, which tools/charlieart.py reads. The
+files are kept, so drawing the game's art needs no Blender."""
 
 import sys
 import math
+import random
 import tempfile
 from pathlib import Path
 
 import bpy
+import bmesh
 import numpy as np
+from mathutils import Matrix
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "tools"))
 import charlieart as art  # noqa: E402
 
 OUT = ROOT / "tools/charlie_px"
-OVER = 8  # rendered pixels a picture's pixel, each way
+OVER = 8  # rendered pixels a picture's pixel, each way, unless said
 Mat, Ob = bpy.types.Material, bpy.types.Object
 
 
-def reset(w: int, h: int) -> None:
-    """An empty scene looked at from the front, w by h units in view, a sun over the left shoulder."""
+def reset(w: int, h: int, over: int = OVER) -> None:
+    """An empty scene looked at from the front, w by h units in view, a sun over the left shoulder; over rendered
+    pixels a picture's, each way."""
     bpy.ops.wm.read_factory_settings(use_empty=True)
     sc = bpy.context.scene
-    sc.render.engine = "CYCLES"
-    sc.cycles.samples = 32
-    sc.cycles.use_denoising = False
+    sc.render.engine = "BLENDER_EEVEE"
     sc.render.film_transparent = True
-    sc.render.resolution_x, sc.render.resolution_y, sc.render.resolution_percentage = w * OVER, h * OVER, 100
+    sc.render.resolution_x, sc.render.resolution_y, sc.render.resolution_percentage = w * over, h * over, 100
     sc.view_settings.view_transform = "Standard"
     world = bpy.data.worlds.new("w")
     world.use_nodes = True
     back = world.node_tree.nodes["Background"]
-    back.inputs[0].default_value, back.inputs[1].default_value = (0.75, 0.85, 1.0, 1.0), 0.55
+    back.inputs[0].default_value, back.inputs[1].default_value = (0.8, 0.8, 1.0, 1.0), 0.25
     sc.world = world
     cam = bpy.data.objects.new("cam", bpy.data.cameras.new("cam"))
     cam.data.type, cam.data.ortho_scale = "ORTHO", max(w, h)
@@ -46,16 +49,46 @@ def reset(w: int, h: int) -> None:
     sc.collection.objects.link(sun)
 
 
-def mat(rgb: tuple[int, int, int], metal: float = 0.0, rough: float = 0.5, glow: float = 0.0) -> Mat:
-    """A material of a palette colour's hue (6 bits a part)."""
+def lin(rgb: tuple[float, float, float], k: float = 1.0) -> tuple[float, float, float, float]:
+    """A colour of 6 bits a part, k times as bright, as the renderer wants it."""
+    return (*((min(v * k, 63) / 63) ** 2.2 for v in rgb), 1.0)
+
+
+def mat(rgb: tuple[int, int, int], shine: float = 0.0, glow: bool = False) -> Mat:
+    """A cel's material: rgb where the light falls, two flat tones darker away from it, a flat glint where shine
+    says; glow: its own light, unshaded."""
     m = bpy.data.materials.new("m")
     m.use_nodes = True
-    b = m.node_tree.nodes["Principled BSDF"]
-    c = (*((v / 63) ** 2.2 for v in rgb), 1.0)
-    b.inputs["Base Color"].default_value = c
-    b.inputs["Metallic"].default_value, b.inputs["Roughness"].default_value = metal, rough
+    nt = m.node_tree
+    nt.nodes.clear()
+    out, emit = nt.nodes.new("ShaderNodeOutputMaterial"), nt.nodes.new("ShaderNodeEmission")
+    nt.links.new(emit.outputs[0], out.inputs[0])
     if glow:
-        b.inputs["Emission Color"].default_value, b.inputs["Emission Strength"].default_value = c, glow
+        emit.inputs[0].default_value = lin(rgb)
+        return m
+    ramp = nt.nodes.new("ShaderNodeValToRGB")
+    ramp.color_ramp.interpolation = "CONSTANT"
+    for i, (at, k) in enumerate(((0.0, 0.42), (0.22, 0.7), (0.62, 1.0))):
+        e = ramp.color_ramp.elements[i] if i < 2 else ramp.color_ramp.elements.new(at)
+        e.position, e.color = at, lin(rgb, k)
+    lit = nt.nodes.new("ShaderNodeShaderToRGB")
+    nt.links.new(nt.nodes.new("ShaderNodeBsdfDiffuse").outputs[0], lit.inputs[0])
+    nt.links.new(lit.outputs[0], ramp.inputs[0])
+    if not shine:
+        nt.links.new(ramp.outputs[0], emit.inputs[0])
+        return m
+    gloss, seen = nt.nodes.new("ShaderNodeBsdfGlossy"), nt.nodes.new("ShaderNodeShaderToRGB")
+    band = nt.nodes.new("ShaderNodeValToRGB")
+    gloss.inputs["Roughness"].default_value = 0.3
+    band.color_ramp.interpolation = "CONSTANT"
+    band.color_ramp.elements[0].color = (0, 0, 0, 1)
+    band.color_ramp.elements[1].position, band.color_ramp.elements[1].color = 0.5, (shine, shine, shine, 1)
+    add = nt.nodes.new("ShaderNodeVectorMath")
+    nt.links.new(gloss.outputs[0], seen.inputs[0])
+    nt.links.new(seen.outputs[0], band.inputs[0])
+    nt.links.new(ramp.outputs[0], add.inputs[0])
+    nt.links.new(band.outputs[0], add.inputs[1])
+    nt.links.new(add.outputs[0], emit.inputs[0])
     return m
 
 
@@ -105,29 +138,41 @@ def ball(x: float, z: float, r: float, m: Mat, y: float = 0.0, squash: tuple[flo
     return ob
 
 
-def take(w: int, h: int, ramps: list[list[int]], spread: float = 5.0, zone: int = 0) -> list[list[int]]:
-    """The scene rendered and brought down to w by h indices of ramps in zone's palette, 0 where it is clear."""
+def shoot(w: int, h: int) -> tuple[np.ndarray, np.ndarray]:
+    """The scene rendered and averaged down to w by h: its colours, 6 bits a part, and how solid each pixel is."""
+    over = bpy.context.scene.render.resolution_x // w
     with tempfile.TemporaryDirectory() as tmp:
         bpy.context.scene.render.filepath = str(Path(tmp) / "r.png")
         bpy.ops.render.render(write_still=True)
         img = bpy.data.images.load(str(Path(tmp) / "r.png"))
-        px = np.array(img.pixels[:], dtype=np.float32).reshape(h * OVER, w * OVER, 4)[::-1]
-    px = px.reshape(h, OVER, w, OVER, 4)
+        px = np.array(img.pixels[:], dtype=np.float32).reshape(h * over, w * over, 4)[::-1]
+    px = px.reshape(h, over, w, over, 4)
     alpha = px[..., 3].mean(axis=(1, 3))
-    rgb = (px[..., :3] * px[..., 3:]).mean(axis=(1, 3)) / np.maximum(alpha, 1e-6)[..., None] * 63
-    allowed = sorted({c for r in ramps for c in r})
-    table = np.array([art.pal(zone)[c] for c in allowed], dtype=np.float32)
-    rows = []
-    for y in range(h):
-        row = []
-        for x in range(w):
-            if alpha[y, x] < 0.5:
-                row.append(0)
-                continue
-            c = rgb[y, x] + ((art.BAYER[y & 3][x & 3] + 0.5) / 16 - 0.5) * spread
-            row.append(allowed[int(((table - c) ** 2 * (2, 4, 3)).sum(axis=1).argmin())])
-        rows.append(row)
-    return rows
+    return (px[..., :3] * px[..., 3:]).mean(axis=(1, 3)) / np.maximum(alpha, 1e-6)[..., None] * 63, alpha
+
+
+def palette(px: np.ndarray, k: int) -> np.ndarray:
+    """k colours, 6 bits a part, that px's colours are nearest to: their means, settled over a few rounds."""
+    rnd = np.random.default_rng(7)
+    seen = np.unique(np.round(px * 2) / 2, axis=0)
+    means = seen[rnd.choice(len(seen), k, replace=False)].astype(np.float32)
+    for _ in range(24):
+        near = nearest(px, means)
+        for i in range(k):
+            if (near == i).any():
+                means[i] = px[near == i].mean(axis=0)
+            else:
+                means[i] = seen[rnd.integers(len(seen))]
+    return np.unique(np.round(means), axis=0)
+
+
+def nearest(px: np.ndarray, table: np.ndarray) -> np.ndarray:
+    """Each of px's colours' nearest in table, by eye: green counts most."""
+    out = np.empty(len(px), dtype=np.int64)
+    for a in range(0, len(px), 20000):
+        d = ((px[a : a + 20000, None, :] - table[None]) ** 2 * (2, 4, 3)).sum(axis=2)
+        out[a : a + 20000] = d.argmin(axis=1)
+    return out
 
 
 def save(name: str, rows: list[list[int]]) -> None:
@@ -136,71 +181,12 @@ def save(name: str, rows: list[list[int]]) -> None:
     print("charlierender:", name, len(rows[0]), "by", len(rows))
 
 
-def chrome() -> Mat:
-    return mat((54, 58, 62), 1.0, 0.32)
-
-
-def tank() -> None:
-    """A storage tank on legs: a drum under a dome, a warning band, a gauge, a lamp."""
-    reset(32, 40)
-    steel, dark = chrome(), mat((12, 14, 20), 0.6, 0.5)
-    rod(15.5, 7, 15.5, 30, 12.5, steel)
-    ball(15.5, 30, 12.5, steel, squash=(1, 1, 0.42))
-    for z in (12, 21):
-        rod(15.5, z, 15.5, z + 1.2, 12.9, dark)
-    rod(15.5, 16, 15.5, 18.4, 12.8, mat((63, 50, 10), 0.0, 0.5))
-    for x in (5.5, 25.5):
-        box(x - 1.2, 0, x + 1.2, 8, dark, y=-2)
-    disc(10, 25, 3.2, mat((60, 60, 58), 0, 0.4), y=-12.2)
-    disc(10, 25, 0.9, dark, y=-13.4)
-    ball(15.5, 37.2, 1.9, mat((63, 12, 8), 0, 0.3, 2.0))
-    save("tank", take(32, 40, [art.CHROME, art.GOLD, art.DARK, art.SCARF, art.STEEL, [art.INK, art.WHITE]]))
-
-
-def sphere() -> None:
-    """A ball tank on a ring of legs, a walkway round it."""
-    reset(44, 46)
-    steel, dark = chrome(), mat((12, 14, 20), 0.6, 0.5)
-    ball(21.5, 27, 18.5, steel)
-    bpy.ops.mesh.primitive_torus_add(major_radius=19.2, minor_radius=1.3, location=(21.5, 0, 24))
-    done(mat((63, 50, 10), 0, 0.5), True)
-    for x in (8, 15, 28, 35):
-        rod(x, 0, x, 16, 1.1, dark, y=-6 if x in (15, 28) else 4)
-    rod(8, 2, 35, 12, 0.7, dark, y=-6)
-    save("sphere", take(44, 46, [art.CHROME, art.GOLD, art.DARK, art.STEEL, [art.INK, art.WHITE]]))
-
-
-def bumper(lit: bool) -> None:
-    """A bumper: a red ring round a gold dome; lit, it glows."""
-    reset(24, 24)
-    turn = (math.pi / 2, 0, 0)
-    bpy.ops.mesh.primitive_torus_add(major_radius=8.2, minor_radius=3.2, location=(12, 0, 12), rotation=turn)
-    done(mat((63, 56, 20) if lit else (60, 10, 10), 0.1, 0.25, 1.5 if lit else 0), True)
-    dome = mat((63, 63, 60) if lit else (63, 52, 12), 0.3, 0.25, 2.0 if lit else 0)
-    ball(12, 12, 6.2, dome, y=-1, squash=(1, 0.6, 1))
-    ramps = [art.SCARF, art.GOLD, art.CLOUD, art.DARK, [art.INK, art.WHITE]]
-    save("bumper1" if lit else "bumper0", take(24, 24, ramps))
-
-
-def mace() -> None:
-    """A spiked ball."""
-    reset(16, 16)
-    iron = mat((40, 42, 48), 1.0, 0.35)
-    ball(8, 8, 4.8, iron)
-    for i in range(8):
-        a = i * math.pi / 4
-        bpy.ops.mesh.primitive_cone_add(vertices=16, radius1=1.7, depth=4.2,
-                                        location=(8 + 5.6 * math.cos(a), 0, 8 + 5.6 * math.sin(a)))
-        done(iron, True).rotation_euler = (0, math.pi / 2 - a, 0)
-    save("mace", take(16, 16, [art.METAL, art.STONE, art.DARK, [art.INK, art.WHITE]]))
-
-
-def mural() -> None:
+def mural() -> tuple[np.ndarray, np.ndarray]:
     """The works' wall, 64 by 128 and meeting itself: bevelled panels 32 square, a vent, a fat pipe on brackets, a
     fan's housing, a light's fitting, a girder's cross in a recess, ribs. The game's art tool lays the lights, the
     fan's blades and the pipe's glints over it, as they move."""
     reset(64, 128)
-    panel, dark, steel = mat((14, 24, 40), 0.5, 0.45), mat((5, 8, 16), 0.3, 0.6), chrome()
+    panel, dark, steel = mat((17, 29, 47)), mat((6, 9, 19)), mat((54, 58, 62), 0.25)
     box(-8, -8, 72, 136, dark, y=3)
     for j in range(4):
         for i in range(2):
@@ -210,7 +196,7 @@ def mural() -> None:
                 for k in (-1, 1):
                     rod(x + 5, z + 16 - 11 * k, x + 27, z + 16 + 11 * k, 1.3, steel, y=1.4)
                 continue
-            box(x + 0.7, z + 0.7, x + 31.3, z + 31.3, panel, bevel=1.4)
+            box(x + 0.7, z + 0.7, x + 31.3, z + 31.3, panel, bevel=1.6)
             if n not in (2, 3):
                 for cx, cz in ((4.5, 4.5), (27.5, 4.5), (4.5, 27.5), (27.5, 27.5)):
                     ball(x + cx, z + cz, 1.1, steel, y=-0.3)
@@ -220,10 +206,11 @@ def mural() -> None:
                     slat = box(x + 8.5, z + 9 + k * 3, x + 23.5, z + 10.2 + k * 3, steel, y=-1.2, deep=1.4)
                     slat.rotation_euler = (0.5, 0, 0)
             if n == 1:
-                box(x + 16, z + 7, x + 26, z + 13, mat((63, 50, 10), 0, 0.5), y=-0.5, deep=0.6)
+                box(x + 16, z + 7, x + 26, z + 13, mat((63, 50, 10)), y=-0.5, deep=0.6)
             if n == 4:
-                bpy.ops.mesh.primitive_torus_add(major_radius=10.4, minor_radius=1.5, location=(x + 16, -0.6, z + 16),
-                                                 rotation=(math.pi / 2, 0, 0))
+                turn = (math.pi / 2, 0, 0)
+                at = (x + 16, -0.6, z + 16)
+                bpy.ops.mesh.primitive_torus_add(major_radius=10.4, minor_radius=1.5, location=at, rotation=turn)
                 done(steel, True)
                 disc(x + 16, z + 16, 9.4, dark, y=0.4, deep=1)
             if n == 5:
@@ -231,17 +218,129 @@ def mural() -> None:
             if n == 7:
                 for k in range(5):
                     box(x + 6.5 + k * 4, z + 6, x + 8.5 + k * 4, z + 26, panel, y=-1.4, deep=1.6, bevel=0.5)
-    rod(-8, 82, 72, 82, 7.6, mat((60, 34, 12), 1.0, 0.3), y=-9)
+    rod(-8, 82, 72, 82, 7.6, mat((60, 34, 12), 0.3), y=-9)
     for x in (2.5, 66.5):
         rod(x - 2.5, 82, x + 2.5, 82, 9.4, steel, y=-9)
-    rows = take(64, 128, [art.PANELX, art.CHROMEX, art.COPPERX, art.GOLD, art.DARK, [art.INK]], spread=1.2, zone=1)
-    save("mural", rows)
+    return shoot(64, 128)
 
 
-JOBS = {"tank": tank, "sphere": sphere, "bumper0": lambda: bumper(False), "bumper1": lambda: bumper(True),
-        "mace": mace, "mural": mural}
+def windows(towers: list[tuple[float, float, float, float, float]], turn: float, lit: bool, seed: int) -> None:
+    """The towers' windows, lit ones or dark, as one mesh: rows of them on the two faces seen."""
+    rnd = random.Random(seed)
+    bm = bmesh.new()
+    for x, y, w, d, h in towers:
+        base = Matrix.Translation((x, y, 0)) @ Matrix.Rotation(turn, 4, "Z")
+        for face in range(2):
+            wide = w if face == 0 else d
+            for i in range(int((wide - 3) // 5)):
+                for j in range(int((h - 6) // 6)):
+                    if (rnd.random() < 0.55) != lit:
+                        continue
+                    u, v = -wide / 2 + 3.5 + i * 5, 4 + j * 6
+                    at = (u, -d / 2 - 0.15, v) if face == 0 else (-w / 2 - 0.15, u, v)
+                    size = (3, 0.3, 3.4) if face == 0 else (0.3, 3, 3.4)
+                    m = base @ Matrix.Translation(at) @ Matrix.Diagonal((*size, 1))
+                    bmesh.ops.create_cube(bm, size=1, matrix=m)
+    mesh = bpy.data.meshes.new("win")
+    bm.to_mesh(mesh)
+    bm.free()
+    ob = bpy.data.objects.new("win", mesh)
+    mesh.materials.append(mat((63, 56, 30), glow=True) if lit else mat((14, 8, 20), glow=True))
+    bpy.context.scene.collection.objects.link(ob)
+
+
+def skyline(spots: list[tuple[float, float, float, float]], y: float, m: Mat, seed: int) -> None:
+    """A row of towers at depth y, turned to show two faces, each also a screen to its left and right so the
+    picture meets itself; a block and a mast on some roofs."""
+    turn = 0.55
+    towers = [(x + k, y, w, d, h) for x, w, d, h in spots for k in (-320, 0, 320)]
+    for i, (x, _, w, d, h) in enumerate(towers):
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(x, y, h / 2), rotation=(0, 0, turn))
+        done(m).scale = (w, d, h)
+        if i // 3 % 2 == 0:
+            bpy.ops.mesh.primitive_cube_add(size=1, location=(x, y, h + 3), rotation=(0, 0, turn))
+            done(m).scale = (w * 0.5, d * 0.5, 6)
+        if i // 3 % 3 == 0:
+            rod(x, h, x, h + 16, 0.5, m, y=y)
+    windows(towers, turn, True, seed)
+    windows(towers, turn, False, seed)
+
+
+def city() -> tuple[np.ndarray, np.ndarray]:
+    """The Chrome Works' sky and city, 320 by 200, meeting itself across: a dusk sky, a low sun's glow, streaks
+    of cloud, far towers in its haze and near ones dark against it, their windows lit."""
+    reset(320, 200, 4)
+    skyline([(20, 34, 26, 150), (78, 26, 22, 122), (128, 40, 30, 104), (196, 30, 24, 158), (256, 28, 22, 128)], 80,
+            mat((58, 40, 46)), 1)
+    skyline([(48, 40, 30, 112), (112, 32, 26, 90), (164, 46, 34, 74), (232, 36, 28, 118), (296, 34, 26, 94)], 0,
+            mat((40, 20, 36)), 2)
+    rgb, alpha = shoot(320, 200)
+    yy, xx = np.mgrid[0:200, 0:320].astype(np.float32)
+    t = np.clip(yy / 150, 0, 1)[..., None]
+    top, mid, low = np.array((34, 20, 44.0)), np.array((58, 34, 44.0)), np.array((63, 56, 36.0))
+    sky = np.where(t < 0.55, top + (mid - top) * t / 0.55, mid + (low - mid) * (t - 0.55) / 0.45)
+    dx = np.minimum(np.abs(xx - 236), 320 - np.abs(xx - 236))
+    sky += np.exp(-(dx**2 / 9000 + (yy - 150) ** 2 / 3200))[..., None] * (np.array((63, 62, 50.0)) - sky) * 0.75
+    rnd = random.Random(5)
+    for _ in range(11):
+        cx, cy, wide, thick = rnd.uniform(0, 320), rnd.uniform(14, 120), rnd.uniform(30, 70), rnd.uniform(1.2, 2.6)
+        ex = np.minimum(np.abs(xx - cx), 320 - np.abs(xx - cx))
+        streak = np.exp(-(ex**2 / wide**2 + (yy - cy) ** 2 / thick**2))[..., None]
+        sky += streak * (np.array((63, 58, 52.0)) - sky) * 0.5
+    rgb = np.where(alpha[..., None] < 0.5, sky, rgb * alpha[..., None] + sky * (1 - alpha[..., None]))
+    rgb[152:] = (10, 14, 26)
+    return rgb, np.ones_like(alpha)
+
+
+def plant() -> tuple[np.ndarray, np.ndarray]:
+    """The works behind the ground, 320 by 80 and meeting itself across: ball tanks, drums, banded chimneys and
+    sheds over a rack of pipes."""
+    reset(320, 80)
+    steel, dark = mat((44, 54, 62), 0.2), mat((10, 14, 26))
+    copper, red, white = mat((60, 34, 12), 0.3), mat((60, 12, 10)), mat((62, 60, 58))
+    box(-8, 0, 328, 6, dark, y=-20, deep=40)
+    for k in (-320, 0, 320):
+        for x in (106, 290):
+            ball(x + k, 44, 19, steel)
+            bpy.ops.mesh.primitive_torus_add(major_radius=19.6, minor_radius=1.0, location=(x + k, 0, 42))
+            done(mat((63, 50, 10)), True)
+            for lx in (-12, -5, 5, 12):
+                rod(x + k + lx, 6, x + k + lx, 30, 1.0, dark, y=-8 if abs(lx) == 5 else 6)
+        for x, h in ((143, 76), (165, 70), (67, 73)):
+            rod(x + k, 6, x + k, h, 4.6, steel, y=20)
+            for z in range(3):
+                rod(x + k, h - 5 - z * 12, x + k, h - z * 12, 4.9, red if z % 2 == 0 else white, y=20)
+        for x in (32, 220):
+            box(x + k - 24, 6, x + k + 24, 34, steel, y=10, deep=30, bevel=0.6)
+            for i in range(6):
+                box(x + k - 21 + i * 7.2, 12, x + k - 17 + i * 7.2, 28, dark, y=9.6, deep=1)
+            rod(x + k - 26, 36, x + k + 26, 36, 2.6, steel, y=25)
+        for x in (190, 250):
+            rod(x + k, 6, x + k, 46, 9, steel, y=14)
+            ball(x + k, 46, 9, steel, y=14, squash=(1, 1, 0.4))
+    for z, r in ((30, 3.0), (21, 2.2)):
+        rod(-8, z, 328, z, r, copper, y=-14)
+    for x in range(-16, 336, 32):
+        box(x - 1.2, 6, x + 1.2, 34, dark, y=-12, deep=3)
+    return shoot(320, 80)
+
+
+def zone(n: int, jobs: dict[str, tuple], weigh: dict[str, int]) -> None:
+    """Zone n's pictures, rendered, in a palette of their own colours: as many as its pool has, but 16 kept back."""
+    shot = {name: job() for name, job in jobs.items()}
+    parts = [np.repeat(rgb[alpha >= 0.5], weigh.get(name, 1), axis=0) for name, (rgb, alpha) in shot.items()]
+    px = np.concatenate(parts)
+    pool = art.POOL[n]
+    table = palette(px.astype(np.float32), len(pool) - 16)
+    table = table[np.argsort(table @ (2, 4, 3))]
+    rows = (f"{k} {int(r)} {int(g)} {int(b)}\n" for k, (r, g, b) in zip(pool, table, strict=False))
+    (OUT / f"zone{n}.pal").write_text("".join(rows))
+    print("charlierender: zone", n, len(table), "colours")
+    for name, (rgb, alpha) in shot.items():
+        idx = np.array(pool)[nearest(rgb.reshape(-1, 3), table.astype(np.float32))].reshape(alpha.shape)
+        save(name, np.where(alpha < 0.5, 0, idx).tolist())
+
 
 if __name__ == "__main__":
-    names = sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else list(JOBS)
-    for name in names:
-        JOBS[name]()
+    OUT.mkdir(exist_ok=True)
+    zone(1, {"city": city, "plant": plant, "mural": mural}, {"mural": 4, "plant": 2})
