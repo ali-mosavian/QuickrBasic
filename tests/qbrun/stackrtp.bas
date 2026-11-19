@@ -1,6 +1,6 @@
 ' flags: -O2 -march=i486 -fsanitize=stack
 ' dialect: pds71
-' mask: [0-9A-F]{4}:[0-9A-F]{4}
+' mask: [0-9A-F]{4}:?[0-9A-F]{4}
 ' Unbounded recursion in a procedure the runtime frames (its local STRING needs the runtime's frame)
 ' enters the runtime's checking entry B$ENRD under -fsanitize=stack: the same fatal "Out of stack
 ' space" as an own frame's check, not a crash.

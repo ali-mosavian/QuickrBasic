@@ -864,17 +864,19 @@ def check_host_errors(tmp: Path) -> None:
     """A file named by a Unix path. Its compile error led with BC's runtime words ("Syntax error in
     line No line number in module /TMP at address 0000:075B", the module cut at the first '/'),
     and exited 0. Its runtime error named no line of the file, ended without a newline, exited 0,
-    and its address was the bytecode offset split as a 16-bit seg:off."""
+    and its address was the bytecode offset split as a 16-bit seg:off. The runtime error's place
+    goes to standard error: standard output stays BC's."""
     (tmp / "sub").mkdir()
-    for name, prog, want, rc in (
-        ("bad.bas", "PRINT 1\n\nX =\n", r"^sub/bad\.bas:3: Syntax error\r?\n  X =\r?\n", 1),
+    for name, prog, out, err, rc in (
+        ("bad.bas", "PRINT 1\n\nX =\n", r"^sub/bad\.bas:3: Syntax error\r?\n  X =\r?\n", r"^$", 1),
         ("rt.bas", "PRINT 1\n\nPRINT 2: X = 1 / 0\n",
-         r"^Division by zero in line No line number in module RT {7}at address [0-9A-F]{8}\r?\n"
-         r"sub/rt\.bas:3\r?\n  PRINT 2: X = 1 / 0\r?\n {11}\^\r?\n\Z", 1),
+         r"\nDivision by zero in line No line number in module RT {7}at address [0-9A-F]{8}\r?\n\Z",
+         r"^sub/rt\.bas:3\r?\n  PRINT 2: X = 1 / 0\r?\n {11}\^\r?\n\Z", 1),
     ):
         (tmp / "sub" / name).write_text(prog)
         p = subprocess.run([str(dosrun.COM.resolve()), f"sub/{name}"], cwd=tmp, capture_output=True, text=True, timeout=10)
-        assert re.search(want, p.stdout, re.M) and p.returncode == rc, (name, p.returncode, p.stdout)
+        got = (name, p.returncode, p.stdout, p.stderr)
+        assert re.search(out, p.stdout) and re.search(err, p.stderr) and p.returncode == rc, got
 
 
 # What the host build (plat/host) cannot show as DOS does, each for its reason.

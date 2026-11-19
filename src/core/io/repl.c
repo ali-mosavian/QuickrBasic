@@ -205,12 +205,9 @@ static const ErrOp *err_op(const Session *const S)
 /* An error found before the run: loading the file, or compiling. */
 static bool compile_error(const Session *const S) { return load_error(S) || err_op(S); }
 
-/* text on a line of its own, a mark under its column mark. */
-static void put_marked(Session *const S, const uint8_t *const text, const uint32_t mark)
+/* A line below the line just printed, a mark at its column mark. */
+static void put_mark(Session *const S, const uint32_t mark)
 {
-    cons_nl(&S->cons);
-    cons_spaces(&S->cons, 2);
-    cons_puts(&S->cons, (const char *)text);
     cons_nl(&S->cons);
     cons_spaces(&S->cons, 2);
 
@@ -219,6 +216,15 @@ static void put_marked(Session *const S, const uint8_t *const text, const uint32
 
     cons_putc(&S->cons, '^');
     cons_nl(&S->cons);
+}
+
+/* text on a line of its own, a mark under its column mark. */
+static void put_marked(Session *const S, const uint8_t *const text, const uint32_t mark)
+{
+    cons_nl(&S->cons);
+    cons_spaces(&S->cons, 2);
+    cons_puts(&S->cons, (const char *)text);
+    put_mark(S, mark);
 }
 
 /* A compile error's place and words: the line as LIST spells it, a mark under the place, what is
@@ -241,8 +247,25 @@ static void diagnose(Session *const S, const ErrOp *const e)
     diag_say(&S->diag);
 }
 
-/* A runtime error's place: the line as LIST spells it, marked at the failing statement. */
-static void diagnose_run(Session *const S)
+/* What cons.sbuf captured, on standard error: each NL a CR LF. */
+static void warn_captured(Session *const S)
+{
+    const uint8_t *const t = S->cons.sbuf;
+    uint32_t from = 0;
+
+    for (uint32_t i = 0; i < S->cons.sblen; i++)
+        if (t[i] == NL) {
+            S->repl.fe->warn(S, (const char *)t + from, i - from);
+            S->repl.fe->warn(S, "\r\n", 2);
+            from = i + 1;
+        }
+
+    S->repl.fe->warn(S, (const char *)t + from, S->cons.sblen - from);
+}
+
+/* A file run's runtime error's place, on standard error so that standard output is BC's alone:
+   FILE:n, then the line as LIST spells it, marked at the failing statement. */
+static void diagnose_run(Session *const S, const uint16_t file, const uint16_t src)
 {
     uint32_t left;
     const Stmt *const st = flow_stmtof(&S->prog, &S->allo, S->vm.line, S->vm.opip, &left);
@@ -252,14 +275,21 @@ static void diagnose_run(Session *const S)
     while (S->cons.sbuf[col] == ' ') /* the statement's text starts after the blanks past ':' */
         col++;
 
-    put_marked(S, S->cons.sbuf, col);
+    S->cons.capture = CAP_SBUF;
+    S->cons.sblen = 0;
+    put_where(S, file, src);
+    cons_nl(&S->cons);
+    cons_spaces(&S->cons, 2);
+    list_body(&S->comp, body);
+    put_mark(S, col);
+    S->cons.capture = 0;
+    warn_captured(S);
 }
 
 /* repl_error's message. A file run's compile error: "FILE:n: " before it. Its runtime error, as
    BC's, after it: "in line n|No line number in module NAME at address X", X the op's bytecode
-   offset. Else "in line n" if numbered. Then FILE:n on a line of its own, if not before, and the
-   line, marked; a typed line's runtime error has neither. Or
-   BREAK [IN n]. The stacks reset first; the editor takes it there. */
+   offset, then its place on standard error. Else "in line n" if numbered. A compile error's
+   FILE:n on a line of its own, if not before, and the line, marked. Or BREAK [IN n]. The stacks reset first; the editor takes it there. */
 static void report(Session *const S, const uint8_t code)
 {
     const uint32_t line = S->vm.line;
@@ -312,9 +342,7 @@ static void report(Session *const S, const uint8_t code)
         }
     }
 
-    const bool placed = compiled || (S->repl.batch && line != DLINE);
-
-    if (placed && src && !lead) {
+    if (compiled && src && !lead) {
         cons_nl(&S->cons);
         put_where(S, file, src);
     }
@@ -325,8 +353,12 @@ static void report(Session *const S, const uint8_t code)
         put_marked(S, S->cons.inbuf, 0);
     else if (e)
         diagnose(S, e);
-    else if (placed)
-        diagnose_run(S);
+    else if (S->repl.batch && line != DLINE) {
+        cons_nl(&S->cons);
+
+        if (src)
+            diagnose_run(S, file, src);
+    }
 }
 
 /* The input's end in a file run, or at READY: files closed, exit. */
