@@ -51,9 +51,11 @@ static void note_off(Voice *v, unsigned index)
     }
 }
 
+/* A note run into by the one before it (legato), at its pitch, is that note held: not struck again. */
 static void note_on(Voice *v, unsigned index, const Note *n)
 {
-    const unsigned char trigger = (unsigned char)(v->now.trigger + 1);
+    const int tied = v->synth && v->gated && n->synth && v->now.hertz == n->v.hertz;
+    const unsigned char trigger = (unsigned char)(v->now.trigger + !tied);
 
     v->synth = n->synth;
     if (!n->v.hertz)
@@ -69,10 +71,19 @@ static void note_on(Voice *v, unsigned index, const Note *n)
     dev_voice(index, &v->now);
 }
 
+/* Whether the note ending runs into the next (legato) at its own pitch: it is held, not let go. */
+static int tied(const Voice *v)
+{
+    const Note *const next = &v->queue[v->tail];
+
+    return v->synth && v->gated && !v->quiet_left && v->tail != v->head && next->synth && next->sound &&
+           next->v.hertz == v->now.hertz;
+}
+
 /* A voice's tick: counts the note out, and starts the next. */
 static void voice_tick(Voice *v, unsigned index)
 {
-    if (v->sound_left && --v->sound_left == 0)
+    if (v->sound_left && --v->sound_left == 0 && !tied(v))
         note_off(v, index);
     else if (!v->sound_left && v->quiet_left)
         v->quiet_left--;

@@ -32,7 +32,8 @@ adds half again. `P` is a rest. `T` is the tempo, in quarter notes a minute (32 
 PLAY "T100 O3 C4 D8 E4. P8 G2"
 ```
 
-`MN` plays 7/8 of each note, `ML` all of it (smooth), `MS` 3/4 (short).
+`MN` plays 7/8 of each note, `ML` all of it (smooth), `MS` 3/4 (short). Under `ML` a voice's note
+repeated at the same pitch is held, not struck again: `ML L2 C L16 C` is one C nine sixteenths long.
 
 ```basic
 PLAY "T140 O4 ML C D E F G2 MS C D E F G2 MN"

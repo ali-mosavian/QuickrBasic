@@ -781,3 +781,29 @@ TEST(headless_logs_a_long_songs_voices)
         dev_voice(0, &v);
     CHECK(headless_voice_count() == first + 5000);
 }
+
+/* A legato note run into its own pitch is held, not struck again: each was a new attack, so a length that is no one
+ * note's (nine sixteenths) could not be written, and a held chord was let go a sixteenth early. */
+TEST(play_legato_ties_a_pitch_to_itself)
+{
+    static const char *const lines[] = {"10 PLAY \"W0 ML L4 C C D\"", nullptr};
+
+    qbrt_realtime(false);
+    music_clear();
+    const size_t first = headless_voice_count();
+    CHECK(unit_run(S, lines) == ST_OK);
+    headless_run(400);
+    qbrt_realtime(true);
+    int struck = 0, last = -1;
+    unsigned hertz = 0;
+    for (size_t i = first; i < headless_voice_count(); i++) {
+        const DevVoice v = headless_voice(i).v;
+
+        if (v.gate && v.trigger != last) {
+            struck++;
+            last = v.trigger;
+            hertz = v.hertz;
+        }
+    }
+    CHECK(struck == 2 && hertz == 294);
+}
