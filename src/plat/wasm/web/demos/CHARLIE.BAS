@@ -464,8 +464,9 @@ dim shared Cart as Runner, Box as Runner, ChaseX as integer, ChaseEnd as integer
 dim shared ZHeld as integer
 ' the furthest zone a game has reached, kept in CHARLIE.SAV, and the zone picked on the title to start at
 dim shared Reached as integer, Pick as integer
-' the sea's surface, NONE where a stage has none, and where it is at low water and at high
-dim shared Tide as integer, TideLo as integer, TideHi as integer
+' the sea's surface, NONE where a stage has none; where it is at the level's start, at step TideAt, and half a
+' tide later
+dim shared Tide as integer, TideLo as integer, TideHi as integer, TideAt as long
 
 Main
 end
@@ -904,6 +905,7 @@ sub LoadLevel (st as integer)
             TideLo = (MH - n \ 100) * TS
             TideHi = (MH - n mod 100) * TS
             Tide = TideLo
+            TideAt = Ticks
         case "dog"
             StartX = c * TS + 8
             StartY = s
@@ -3415,9 +3417,9 @@ end sub
 
 ' ---- the tide ----
 
-' The sea's level by the clock: from low water up to high and back, a turn every TIDEP steps.
+' The sea's level by the clock: from where the level began it to its other end and back, every TIDEP steps.
 sub Flow
-    Tide = TideLo - cint((TideLo - TideHi) * (1 - cos(Ticks * 2 * PI / TIDEP)) / 2)
+    Tide = TideLo - cint((TideLo - TideHi) * (1 - cos((Ticks - TideAt) * 2 * PI / TIDEP)) / 2)
 end sub
 
 ' Charlie and the sea. He is afloat once his feet are under it, falling or deeper than he can wade. Out of it he

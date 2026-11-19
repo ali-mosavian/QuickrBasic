@@ -45,7 +45,7 @@ LoadTables
 BuildArt
 LoadLevel 0
 dim g as Game, p as Hero, k as Pad, i as long, j as integer, loops as integer, was as integer
-dim c as integer, v as integer, m as integer, zp as integer, seen as string
+dim c as integer, v as integer, m as integer, zp as integer, seen as string, brim as integer, ebb as integer
 dim hid as long, shown as long, bt as single, colA(SH - 1) as integer, colB(SH - 1) as integer
 dim lo(NLOOSE - 1) as Loose, pt(NPART - 1) as Part, cu(NCUE) as Cue
 Muted = -1
@@ -651,14 +651,14 @@ GoStage 0, g, p, lo(), pt()
 line (0, 0)-(63, 79), 0, BF
 Blit 0, 0, ITREE, 64, 80
 print "zonetree"; Pix&(0, 64, 0, 79); NextAt - hid; ZoneAt > 0
-' Saltwick Sands' sea rises and falls by the clock, from low water to high and back
+' Saltwick Sands' sea rises and falls by the clock, from low water to high and back, and from low water at the
+' level's start whatever the clock then: it began where the game's clock had it, a sunset's high water by chance
 GoStage 4, g, p, lo(), pt()
 g.modeT = 5
 hid = Ticks
-Ticks = 0
 Flow
-was = Tide = TideLo and TideLo > TideHi
-Ticks = TIDEP \\ 2
+was = Tide = TideLo and TideLo > TideHi and Ticks > 0
+Ticks = Ticks + TIDEP \\ 2
 Flow
 was = was and Tide = TideHi
 Ticks = hid
@@ -704,11 +704,11 @@ g.camy = Tide - 100
 Render g, p, lo(), pt()
 j = point(72, 130)
 if was and point(72, 104) = CSEA + 2 and j >= CSEA and j <= CSEA + 6 then print "sea ok"
-' a hop from the water gets him onto a bank near its surface, and not onto one far over it: the tide opens and
-' closes the way
+' a hop from the water gets him onto a bank two tiles over its surface, which the levels count on, and not onto
+' one far over it: the tide opens and closes the way
 was = 0
 for j = 0 to 1
-    TideLo = v + 24 + 36 * j
+    TideLo = v + 2 * TS + 28 * j
     TideHi = TideLo
     Flow
     p.x = m * TS - 12
@@ -753,6 +753,21 @@ for i = 1 to 30
 next
 k.r = 0
 if was and p.gsp > WETTOP + 60 then print "wet ok"
+' no water is a trap: the bank past each stretch swum at high water is within a hop of it, two tiles, or the
+' stretch is waded at low water, to its spring. A sea gap's far bank was seven tiles up, Charlie afloat for good.
+was = -1
+for m = 4 to 5
+    GoStage m, g, p, lo(), pt()
+    brim = TideLo
+    ebb = TideHi
+    if TideHi < brim then swap brim, ebb
+    for c = 1 to LW - 2
+        v = ColTop(c) * TS
+        j = ColTop(c + 1) * TS
+        if v > brim + WADE and j <= brim + WADE and brim - j > 2 * TS and v > ebb + WADE then was = 0
+    next
+next
+if was and brim < ebb then print "shore ok"
 was = 0
 ' a lift goes up under Charlie to the ground above, and back down once it is left
 GoStage 2, g, p, lo(), pt()
@@ -1095,6 +1110,7 @@ def main() -> None:
         ("sea ok", "the sea drawn up to its surface, and the ground under it of the wet pictures"),
         ("bank ok", "a hop from the water reaches a bank near its surface and not one far over it"),
         ("wet ok", "out of the water Charlie is slow till a roll shakes him dry"),
+        ("shore ok", "no water of the sands is a trap: its far bank a hop over high water, or waded at low"),
     ):
         if said not in out:
             sys.exit(f"charlie: not {what}: {out[-300:]}")

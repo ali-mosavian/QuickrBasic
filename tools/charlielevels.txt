@@ -75,22 +75,35 @@ chase,96, flat,10, jet,0, flat,8, hoop,8, flat,8, jet,0, flat,16, jet,0, flat,8,
 jet,0, flat,22
 goal,0, flat,9, fam,0, flat,6, flat,5, end,0
 
-' Saltwick Sands at noon. tide: the sea, its height at low water * 100 + at high, in the ground's tiles.
+' Saltwick Sands at noon. tide: the sea's height at the level's start * 100 + half a tide later, in the ground's
+' tiles. Its pools are dry at low water, their springs working; at high they are swum and hopped out of, so no
+' bank past water is more than two tiles over high water. The low road is fast at low water, the jetty dry always.
 Level Sands1
-tide,609, flat,4, dog,0, flat,4, flower,0, flat,4, bones,6, flat,8, tree,0, flat,4
-upg,2, flat,6, bush,0, dng,3, boost,0, bones,8, flat,10
-loop,0, flat,8, bones,6, flat,6, up45,2, flat,2, arc,7, gap,7, flat,8
-mark,0, flat,4, dn45,4, dng,4, boost,0, bones,10, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
-tree,0, flat,4, boost,0, flat,6, pipe,6, flat,6, bones,6, flat,22
-spring,0, flat,2, plat,608, hb,706, flat,16, bush,0, flat,8
+tide,409, flat,4, dog,0, flat,6, flower,0, flat,4, bones,6, flat,8, tree,0, flat,6
+pit,8, flat,8, bones,6, flat,6, bush,0, flat,4
+upg,2, flat,4, dng,3, boost,0, bones,8, flat,10, loop,0, flat,8
+up45,2, flat,2, arc,7, gap,7, flat,10
+mark,0, flat,6, dng,1, flat,4
+dng,3, plat,318, hb,416, boost,0, bones,12, flat,20, upg,3, flat,6
+tree,0, flat,4, boost,0, flat,6, pipe,6, flat,6, bones,6, flat,10
+dn45,3, dng,3, flat,6, mover,8, flat,8, loop,0, flat,8
+up45,1, flat,2, arc,9, gap,9, flat,10, mark,0, flat,6
+dng,1, flat,4, pit,12, flat,8, spring,0, flat,2, plat,608, hb,706, flat,16, bush,0, flat,6
+boost,0, flat,6, loop,0, flat,6, boost,0, flat,6, pipe,5, flat,10, flower,0, flat,6
 goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
 
-' Saltwick Sands at sunset.
+' Saltwick Sands at sunset, the tide in at the start and the beach awash: its pools are never dry, crossed boat to
+' boat or swum.
 Level Sands2
-flat,4, dog,0, flat,6, bones,6, flat,6, boost,0, flat,6, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
-up45,3, arc,9, pit,10, flat,8, flower,0, flat,4
-dng,4, boost,0, bones,10, flat,10, loop,0, flat,8, boost,0, flat,4, wave,2, flat,8
-tree,0, flat,6, upg,3, flat,4, button,0, flat,8, bridge,10, flat,6, mark,0, flat,6
+tide,1008, flat,4, dog,0, flat,6, bones,6, flat,6, boost,0, flat,6, loop,0, flat,8
+mover,10, flat,6, bones,6, flat,4, mover,12, flat,8, mark,0, flat,6
+dng,2, plat,316, hb,414, boost,0, bones,10, flat,18, upg,2, flat,6
+up45,1, flat,2, arc,9, gap,9, flat,10, tree,0, flat,6
+dng,1, flat,4, boost,0, flat,6, loop,0, flat,8, pit,10, flat,8
+bush,0, flat,4, boost,0, flat,6, pipe,5, flat,6, bones,6, flat,10, dn45,2, dng,3, flat,6
+mover,12, flat,6, mark,0, flat,4, mover,10, flat,8
+spring,0, flat,2, plat,608, hb,706, flat,16, pit,12, flat,8
+boost,0, flat,6, loop,0, flat,6, boost,0, flat,6, pipe,5, flat,10
 goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
 
 ' The intro's road: the Downs, flat, the way the van goes; a rock where it bumps.
