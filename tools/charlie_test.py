@@ -416,6 +416,14 @@ next
 if was > 60 and Zone = 1 and g.mode = PLAYING and Dusk = 16 and g.score > 0 and g.lives = j then print "faded ok"
 ' and in its own colours, over the shared ones
 zp = Zone = 1 and ZPN(1) > 0 and Pal(ZPK(1, 0)) = ZPC(1, 0) and ZPC(1, 0) <> Pal0(ZPK(1, 0))
+' the works have their own tune in the zone's slot, at 132: its kit, its voicings and its first half bar played. They
+' had the Downs'
+PickSong SongFor%(g), 0
+NextHalf
+for i = 0 to NVOICE - 1
+    play , , VoOne(ZTUNE, i) + "V1", , , VoTwo(ZTUNE, i) + "V1"
+next
+if Sng = ZTUNE and ZHeld = 5 and Tempo(ZTUNE) = 132 then print "works tune ok"
 ' a platform carries who stands on it, to and fro
 for m = 0 to NMv - 1
     if MvK(m) = 0 then exit for
@@ -543,7 +551,7 @@ for i = 1 to 1600
     Tick g, p, k, lo(), pt()
     if g.mode = TITLE then exit for
 next
-if g.mode = TITLE and Zone = 0 and Dusk = 16 then print "home ok"
+if g.mode = TITLE and Zone = 0 and Dusk = 16 and ZHeld = 1 then print "home ok"
 ' the Amber Downs in the shared colours again: a zone's own are put back when it is left
 if zp and Pal(ZPK(1, 0)) = Pal0(ZPK(1, 0)) then print "palette ok"
 ' the title's own run ends the same way: it began again the moment Charlie passed the goal, the family never met
@@ -674,7 +682,8 @@ def main() -> None:
         ("lift ok", "taken up by a lift, which goes back down when left"),
         ("cable ok", "taken down a cable by its basket"),
         ("bridge ok", "a bridge raised by its button, to stand on"),
-        ("home ok", "back at the title on the Amber Downs after the Chrome Works"),
+        ("works tune ok", "the Chrome Works played to their own tune"),
+        ("home ok", "back at the title on the Amber Downs, to their tune, after the Chrome Works"),
         ("palette ok", "a zone shown in its own colours, the shared ones back after it"),
     ):
         if said not in out:

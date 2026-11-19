@@ -186,3 +186,31 @@ DATA 5, 4, 5, "k..k..k-......j.", "o..o..o-......m.", "t---..r.t-w-t-r-", "h..h.
 DATA 5, 5, 5, ".k.k..m---------", ".o.o..r---------", "o-------..m.o.r.", ".h.h..j---------"
 DATA 1, 4, 5, "h..h..h-......j.", "k..k..k-......m.", "t---..r.t-w-y-w-", "d..d..d-......f."
 DATA 3, 5, 7, ".j.j..m---------", ".m.m..o---------", "r.r.t.t.v.v.y.y.", ".f.f..j---------"
+
+' The works' tune, Night Shift: 28 bars of 13 in E minor at 132, machine funk, round and round. A pulse bass in
+' sixteenths that never stops, two clavinets chugging, a filtered saw that leads and slides into its long notes, a
+' metal hit off the beat. Four bars of the bass, the hats and the hits, the clavinets in for the last two; then A
+' twice, B twice and A twice more.
+Song Works:
+DATA "abcdefghefgijklmjklmefghefgi", "mmmmmmmmmmmmm", 13, 132, 0, 9, 12, 9, 0, 13, 0, 0, 0
+DATA "W2Y1,2400,5H0,4,11,2U3I6"
+DATA "W0Q25Y1,900,4H0,3,9,1", "R2S12W1H5,4,12,5U3", "R3W4Z7,6,7,0H0,6,0,4"
+DATA 1
+DATA "m", "W4Z3,9,3,1,3H0,4,1,2U0I0", "W4Z3,9,3,1,3H0,4,1,2U0I0", 0
+USE Drums
+DATA 3, "000c000c0007000c", "000c000c00a0070c", "000c0007000a00bc"
+DATA 0
+DATA 4, "H.h.H.h.H.h.H.hh", "K.hhS.hK.hK.S.hh", "K.hhS.hK.hK.SSTS", "K.h.S.hhK.KhS.Oh"
+DATA 2, 1, 0, "", "", "", ""
+DATA 2, 2, 0, "", "", "", "......l.......l."
+DATA 2, 1, 0, "h.h..h.h.h..h.l.", "e.e..e.e.e..e.h.", "", "......l.......l."
+DATA 2, 3, 2, "h.h..h.h.h..hjl.", "e.e..e.e.e..egh.", "", "......l.....l.l."
+DATA 2, 1, 1, "h.h..h.h.h..h.l.", "e.e..e.e.e..e.h.", "q---..o.Q-----o.", "......l.......l."
+DATA 2, 2, 1, "h.h..h.h.h..h.l.", "e.e..e.e.e..e.h.", "l---..o.q-t-q-o-", "......l.......l."
+DATA -2, 1, 1, "h.h..h.h.h..h.m.", "e.e..e.e.e..e.h.", "t---..q.T-----q.", "......m.......m."
+DATA 0, 2, 3, "j.j..j.j.j..j.o.", "g.g..g.g.g..g.j.", "s---..o.s-v-s-o-", "......o.......o."
+DATA -3, 3, 2, "l.l..l.l.l..lpl.", "g.g..g.g.g..glg.", "s---p---l-p-s-x-", "......l.....l.l."
+DATA 5, 1, 1, "l.l..l.l.l..l.o.", "h.h..h.h.h..h.l.", "t-..t.v.X---v-t-", "......o.......o."
+DATA 0, 2, 1, "j.j..j.j.j..j.o.", "g.g..g.g.g..g.j.", "v-..v.t.S---o---", "......o.......o."
+DATA 7, 1, 1, "m.m..m.m.m..m.q.", "j.j..j.j.j..j.m.", "q-..q.t.V---t-q-", "......q.......q."
+DATA -3, 3, 2, "l.l..l.l.l..lpl.", "g.g..g.g.g..glg.", "s-..s.p.S-------", "......l.....l.l."

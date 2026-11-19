@@ -104,9 +104,9 @@ Progress is saved at each zone.
   him; he drops crates. The bearded one's toolbox.
 - Look: plated deck, hazard stripe, running lights. Steel blue, chrome, signal yellow. The skyline and the
   works' stacks.
-- Music, new (it plays the Downs' tune now): machine funk in E minor at 132. A pulse bass in sixteenths that
-  never stops, clavinet chugs, metal hits off the beat, a saw lead that slides. Night: half-time drums, the
-  lead an octave down, more room.
+- Music (written): machine funk in E minor at 132. A pulse bass in sixteenths that never stops, clavinet
+  chugs, metal hits off the beat, a saw lead that slides. Night, to add: half-time drums, the lead an octave
+  down, more room.
 
 ### 3. Saltwick Sands
 

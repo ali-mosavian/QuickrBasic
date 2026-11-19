@@ -1680,9 +1680,9 @@ sub LoadSongs
     Tune = -1
 end sub
 
-' Stage st's own tune, its number in CHARLIE.DAT: the Downs' for every stage yet, the intro's for its road.
+' Stage st's own tune, its number in CHARLIE.DAT: its zone's, the intro's for its road.
 function TuneOf% (st as integer)
-    TuneOf% = 0
+    TuneOf% = (st and 1) * 4
     if st = SINTRO then TuneOf% = 3
 end function
 
