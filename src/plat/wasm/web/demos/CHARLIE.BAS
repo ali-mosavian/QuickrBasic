@@ -187,8 +187,10 @@ const ITW = IZU + 48, ICATF = ITW + 96
 const IVAN = ICATF + 4, IWHEEL = IVAN + 2, IDOOR = IWHEEL + 4, IPEEK = IDOOR + 2, IHOUSE = IPEEK + 4
 const IBOXES = IHOUSE + 2, ICRATE = IBOXES + 2, IHEDGE = ICRATE + 2, IFLOAT = IHEDGE + 2, IBARON = IFLOAT + 2
 const IBASKET = IBARON + 4
-' Biscuit's honey cart at two turns of its wheels, and bumped
-const ICART = IBASKET + 2, NIMG = ICART + 6
+' Biscuit's honey cart less its wheels, as it goes and bumped: level, then leaning half a gentle slope's fall and
+' all of one's, CARTLEAN higher over and under each time; then its wheel at two turns. Its wheels are WHEELS
+' either side of its middle.
+const ICART = IBASKET + 2, ICARTW = ICART + 12, NIMG = ICARTW + 4, CARTW = 56, CARTH = 34, CARTLEAN = 7, WHEELS = 13
 const HUDW = 108, HUDH = 40
 ' The levels: the two zones, then each again at another hour, in other colours.
 ' the stages played, and after them the intro's road
@@ -245,6 +247,7 @@ declare sub MeetCart (g as Game, p as Hero, lo() as Loose, pt() as Part)
 declare sub BreakCart (pt() as Part)
 declare sub TakeKeep (g as Game, pt() as Part)
 declare sub DrawCart (cx as integer, cy as integer)
+declare sub DrawWheels (x as integer, cy as integer)
 declare sub Tint (k as integer, c as long)
 declare sub Shade ()
 declare function Met% (g as Game, p as Hero, k as Pad, pt() as Part)
@@ -3262,10 +3265,10 @@ sub TakeKeep (g as Game, pt() as Part)
     Sfx SMARK
 end sub
 
-' Who flees, by the chase's state: the cart, its wheels turning as it goes, a pip over it for each bump it can still
-' take; broken, the keepsake where it fell, and the cat making off a while.
+' Who flees, by the chase's state: the cart, a pip over it for each bump it can still take; broken, the keepsake
+' where it fell, and the cat making off a while.
 sub DrawCart (cx as integer, cy as integer)
-    dim x as integer, y as integer, i as integer, k as integer
+    dim x as integer, y as integer, i as integer
     if ChaseX = NONE or Cart.st = 3 then exit sub
     x = cint(Cart.x) - cx
     y = cint(Cart.y) - cy
@@ -3274,12 +3277,30 @@ sub DrawCart (cx as integer, cy as integer)
         if Cart.t > 0 then Blit x + cint((2 - Cart.t) * 260), y - 13, ICAT + ((Ticks \ 4) and 1) * 2, 20, 14
         exit sub
     end if
-    k = ICART + ((cint(Cart.x) \ 8) and 1) * 2
-    if Cart.t > BOLTS then k = ICART + 4
-    Blit x - 28, y - 41, k, 56, 42
+    DrawWheels x, cy
     for i = Cart.hits to NBUMP - 1
         line (x - 10 + i * 8, y - 50)-(x - 6 + i * 8, y - 46), CYELLOW, BF
     next
+end sub
+
+' The cart on its ground, its middle at x on the screen: each wheel on the ground under it, turning as it goes,
+' and the planks between them, leaning by what the wheels' grounds differ: not at all, half a gentle slope's fall,
+' or all of one's.
+sub DrawWheels (x as integer, cy as integer)
+    dim ya as integer, yb as integer, lean as integer, k as integer
+    ya = Surf%(cint(Cart.x) - WHEELS, cint(Cart.y))
+    yb = Surf%(cint(Cart.x) + WHEELS, cint(Cart.y))
+    if ya = NONE then ya = cint(Cart.y)
+    if yb = NONE then yb = cint(Cart.y)
+    lean = (yb - ya + 3) \ 7
+    if lean < 0 then lean = 0
+    if lean > 2 then lean = 2
+    k = ICART + lean * 4
+    if Cart.t > BOLTS then k = k + 2
+    Blit x - CARTW \ 2, (ya + yb) \ 2 - cy - 41 - lean * CARTLEAN, k, CARTW, CARTH + lean * CARTLEAN * 2
+    k = ICARTW + ((cint(Cart.x) \ 8) and 1) * 2
+    Blit x - WHEELS - 6, ya - cy - 12, k, 13, 13
+    Blit x + WHEELS - 6, yb - cy - 12, k, 13, 13
 end sub
 
 ' ---- the intro ----

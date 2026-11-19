@@ -28,6 +28,8 @@ declare sub Stand (p as Hero, x as integer, v as single)
 declare function Fur% (x as integer, w as integer, y0 as integer, y1 as integer)
 declare function Pix& (x as integer, w as integer, y0 as integer, y1 as integer)
 declare function OnCue% (cu() as Cue, kind as integer, bt as single)
+declare sub KeepCol (x as integer, a() as integer)
+declare function Lowest% (x as integer, a() as integer)
 declare function Uneven% (hz as single, grain as integer, per as integer, most as integer, want as integer)
 ' the game's steps against a screen's frames, timed by a clock of 128 or 256 moves a second: stepped by that clock
 ' some frames showed two steps and some none, and the picture juddered. At a screen's 59.94 or 60.1 frames a second
@@ -42,7 +44,7 @@ BuildArt
 LoadLevel 0
 dim g as Game, p as Hero, k as Pad, i as long, j as integer, loops as integer, was as integer
 dim c as integer, v as integer, m as integer, zp as integer, seen as string
-dim hid as long, shown as long, bt as single
+dim hid as long, shown as long, bt as single, colA(SH - 1) as integer, colB(SH - 1) as integer
 dim lo(NLOOSE - 1) as Loose, pt(NPART - 1) as Part, cu(NCUE) as Cue
 Muted = -1
 StartGame g, p, lo(), pt()
@@ -497,6 +499,38 @@ next
 if was and c and Cart.hits = 1 and g.bones = 3 then print "cart ok"
 was = 0
 k.r = 0
+' on a slope the cart follows it, each wheel on the ground under it: it was drawn level, a wheel sunk in the slope
+' and a wheel in the air. The picture without the cart and with it, down its wheels' columns: halfway down a slope
+' of the race, then at the slope's foot, its front wheel on the level
+GoStage 2, g, p, lo(), pt()
+g.modeT = 5
+g.shake = 0
+was = -1
+c = ChaseX + 104
+for j = 0 to 1
+    do while c < ChaseEnd - 104
+        v = GroundAt%(c + 13) - GroundAt%(c - 13)
+        if j = 0 and v = 13 and GroundAt%(c + 30) - GroundAt%(c - 30) = 30 then exit do
+        if j = 1 and v >= 5 and v <= 8 and GroundAt%(c + 30) = GroundAt%(c + 13) then exit do
+        c = c + 8 - 6 * j
+    loop
+    Cart.st = 3
+    Cart.x = c
+    Cart.y = GroundAt%(c)
+    Stand p, c - 200, 0
+    g.camx = c - 160
+    g.camy = Cart.y - 124
+    Render g, p, lo(), pt()
+    KeepCol 147, colA()
+    KeepCol 173, colB()
+    Cart.st = 1
+    Render g, p, lo(), pt()
+    v = Lowest%(147, colA()) - (GroundAt%(c - 13) - cint(g.camy))
+    m = Lowest%(173, colB()) - (GroundAt%(c + 13) - cint(g.camy))
+    if c >= ChaseEnd - 104 or abs(v) > 1 or abs(m) > 1 then was = 0
+next
+if was then print "tilt ok"
+was = 0
 ' a lift goes up under Charlie to the ground above, and back down once it is left
 GoStage 1, g, p, lo(), pt()
 for m = 0 to NMv - 1
@@ -691,6 +725,23 @@ function Pix& (x as integer, w as integer, y0 as integer, y1 as integer)
     Pix& = n
 end function
 
+' Column x of the screen, kept in a.
+sub KeepCol (x as integer, a() as integer)
+    dim y as integer
+    for y = 0 to SH - 1
+        a(y) = point(x, y)
+    next
+end sub
+
+' The lowest row where column x of the screen is not as a kept it, -1 where it all is.
+function Lowest% (x as integer, a() as integer)
+    dim y as integer
+    Lowest% = -1
+    for y = 0 to SH - 1
+        if point(x, y) <> a(y) then Lowest% = y
+    next
+end function
+
 ' The last cue of a kind that is on at beat bt, -1 when none is.
 function OnCue% (cu() as Cue, kind as integer, bt as single)
     dim i as integer
@@ -767,6 +818,7 @@ def main() -> None:
         ("works tune ok", "the Chrome Works played to their own tune"),
         ("cart ok", "a chase's cart hurts Charlie run into it, is bumped by him curled, and not again while dazed"),
         ("chase ok", "the Downs' evening ended in its chase: the cart fled, broken by three bumps, its keepsake taken"),
+        ("tilt ok", "on a slope the chase's cart follows it, each wheel on the ground under it"),
         ("home ok", "back at the title on the Amber Downs, to their tune, after the Chrome Works"),
         ("palette ok", "a zone shown in its own colours, the shared ones back after it"),
     ):

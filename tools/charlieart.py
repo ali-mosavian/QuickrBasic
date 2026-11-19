@@ -1717,31 +1717,43 @@ def house() -> Pic:
     return p.outline()
 
 
-def cart(f: int, hit: bool = False) -> Pic:
-    """Biscuit's honey cart, bound right: planks on two small wheels, a pot of honey slung behind, a pennant, the
-    picnic basket aboard and Biscuit at its front; f its wheels' turn; hit: bumped, the cat off its feet."""
-    p = Pic(56, 42)
-    p.box(27, 2, 27, 13, STONE[1])  # the pennant on its pole
+def cart(hit: bool, lean: int) -> Pic:
+    """Biscuit's honey cart, bound right, less its wheels: planks, a pot of honey slung behind, a pennant, the picnic
+    basket aboard and Biscuit at its front; hit: bumped, the cat off its feet. lean: its front wheel that many
+    sevenths of a gentle slope's fall under its back one: each column slid down its length about its middle, the
+    picture 7 higher over and under a seventh."""
+    body = Pic(56, 34)
+    body.box(27, 2, 27, 13, STONE[1])  # the pennant on its pole
     for y in range(5):
         for x in range(5 - y):
-            p.put(28 + x + (y % 2 if f else 0), 2 + y, SCARF[2])
-    paste(p, basket(), 8, 10)
-    paste(p, startled() if hit else cat(f), 31, 6 if hit else 11)
-    slab(p, 6, 25, 50, 32, WOOD)
+            body.put(28 + x, 2 + y, SCARF[2])
+    paste(body, basket(), 8, 10)
+    paste(body, startled() if hit else cat(0), 31, 6 if hit else 11)
+    slab(body, 6, 25, 50, 32, WOOD)
     for x in (16, 28, 40):
-        p.box(x, 27, x, 30, WOOD[1])
-    p.line(6, 26, 1, 21, WOOD[2])  # the pot on its hook, a drip from it
-    p.ball(3, 17, 4.2, 4.6, GOLD, 0.2, 1.1)
-    p.box(1, 12, 5, 13, EARTH[2])
-    p.put(4, 22 + f, GOLD[3])
-    for cx in (15, 41):
-        for y in range(-6, 7):
-            for x in range(-6, 7):
-                d = math.hypot(x, y)
-                if d <= 6.3:
-                    spoke = (math.degrees(math.atan2(y, x)) + f * 45) % 90 < 30
-                    p.put(cx + x, 35 + y, INK if d > 4.2 else STONE[3] if d < 1.5 else STONE[1] if spoke else STONE[2])
+        body.box(x, 27, x, 30, WOOD[1])
+    body.line(6, 26, 1, 21, WOOD[2])  # the pot on its hook, a drip from it
+    body.ball(3, 17, 4.2, 4.6, GOLD, 0.2, 1.1)
+    body.box(1, 12, 5, 13, EARTH[2])
+    body.put(4, 22, GOLD[3])
+    p = Pic(56, 34 + 14 * lean)
+    for y in range(34):
+        for x in range(56):
+            if body.p[y][x]:
+                p.put(x, y + 7 * lean + round((x - 28) * lean / 4), body.p[y][x])
     return p.outline()
+
+
+def cartwheel(f: int) -> Pic:
+    """A wheel of the cart's, 13 across, its spokes an eighth of a turn on at f."""
+    p = Pic(13, 13)
+    for y in range(13):
+        for x in range(13):
+            d = math.hypot(x - 6, y - 6)
+            if d <= 6.3:
+                spoke = (math.degrees(math.atan2(y - 6, x - 6)) + f * 45) % 90 < 30
+                p.put(x, y, INK if d > 4.2 else STONE[3] if d < 1.5 else STONE[1] if spoke else STONE[2])
+    return p
 
 
 def intro(k: int) -> list[tuple[int, Pic, bool, int]]:
@@ -2267,7 +2279,9 @@ def pictures() -> list[tuple[int, Pic, bool, int]]:
     out.append((a + 268, raft(), True, -1))
     out.append((z + 594, startled(), True, z + 596))
     out += intro(z + 598)
-    out += [(z + 626 + i * 2, cart(i % 2, i == 2), True, -1) for i in range(3)]
+    # the cart level, leaning half a gentle slope's fall and all of one's, each as it goes and bumped; its wheel
+    out += [(z + 626 + (t * 2 + h) * 2, cart(bool(h), t), True, -1) for t in range(3) for h in range(2)]
+    out += [(z + 638 + f * 2, cartwheel(f), True, -1) for f in range(2)]
     # Charlie round a twist: 12 turns of two strides, their mirrors facing left
     out += [
         (z + 498 + (n * 2 + f) * 2, turned(frames[5 + f * 3], n, f), True, z + 546 + (n * 2 + f) * 2)
