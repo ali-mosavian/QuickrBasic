@@ -292,38 +292,36 @@ END
 ' height in tiles, starts at 10. plat and hb: height * 100 + length.
 Level:
 DATA flat,4, dog,0, flat,4, flower,0, flat,4, bones,6, flat,8, tree,0, flat,4
-DATA upg,2, flat,3, cat,0, flat,6, bush,0, dng,3, bones,5, flat,8, flower,0
-DATA up45,2, flat,2, arc,6, gap,6, flat,5, cat,0, flat,6, tree,0, flat,3
-DATA spring,0, flat,1, wall,6, flat,4, rock,0, bones,6, flat,8, plat,305, hb,504, flat,8
-DATA mark,0, flat,4, dn45,4, dng,4, boost,0, bones,10, flat,8, flower,0, flat,6
-DATA loop,0, flat,7, tree,0, flat,5, bones,6, flat,6, upg,2, up45,3, arc,9, gap,10, flat,8
-DATA cat,0, flat,5, bush,0, cat,0, flat,6, tree,0, flat,6, drop,3, flat,6
-DATA spring,0, flat,2, plat,608, hb,706, flat,12, upg,4, flat,4, flower,0, flat,4
-DATA mark,0, flat,4, dn45,6, dng,6, boost,0, flat,5, rock,0, flat,7, loop,0, flat,8
-DATA boost,0, bones,8, flat,6, tree,0, flat,8, loop,0, flat,10, up45,4, arc,10, gap,12, flat,10
-DATA gap,3, flat,3, gap,3, flat,3, gap,3, flat,6, cat,0, flat,6, bush,0, cat,0, flat,6
-DATA boost,0, flat,6, pipe,7, flat,6, tree,0, bones,8, flat,10, dng,5, boost,0, bones,10, flat,16
+DATA upg,2, flat,3, cat,0, flat,6, bush,0, dng,3, boost,0, bones,8, flat,10
+DATA loop,0, flat,8, bones,6, flat,6, up45,2, flat,2, arc,7, gap,7, flat,8
+DATA mark,0, flat,4, dn45,4, dng,4, boost,0, bones,10, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
+DATA tree,0, flat,4, boost,0, flat,6, pipe,6, flat,6, bones,6, flat,8
+DATA dng,5, boost,0, bones,10, flat,10, up45,3, arc,11, gap,12, flat,10
+DATA cat,0, flat,6, bush,0, flat,4, spring,0, flat,2, plat,608, hb,706, flat,12
+DATA upg,4, flat,4, flower,0, flat,4
+DATA mark,0, flat,4, dn45,6, dng,2, boost,0, flat,5, loop,0, flat,6, boost,0, bones,8, flat,6, loop,0
+DATA flat,6, boost,0, flat,6, loop,0, flat,10, up45,4, arc,10, gap,12, flat,10
+DATA boost,0, flat,6, pipe,7, flat,6, tree,0, bones,8, flat,10
+DATA dng,5, boost,0, bones,10, flat,12, loop,0, flat,8, up45,3, arc,10, gap,11, flat,8
 DATA flower,0, upg,3, flat,4, cat,0, dng,3, flat,6, tree,0, flat,4
-DATA mark,0, flat,4, spring,0, flat,2, plat,722, hb,820, flat,6, thorn,0, flat,5, cat,0, flat,5
-DATA thorn,0, flat,6, rock,0, flat,4, dn45,3, dng,3, boost,0, flat,8, loop,0, flat,8
-DATA up45,3, arc,8, gap,9, flat,6, thorn,0, flat,5, upg,3, flat,3, tree,0, flat,3
-DATA dng,4, boost,0, bones,8, flat,10, loop,0, flat,7, boost,0, flat,6, up45,4, arc,12, gap,14
-DATA flat,10, bush,0, flat,4, spring,0, flat,2, plat,618, hb,716, flat,7, thorn,0, flat,6
-DATA thorn,0, flat,8, flower,0, flat,4
+DATA mark,0, flat,4, dn45,3, dng,5, boost,0, bones,8, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
+DATA thorn,0, flat,6, rock,0, flat,4, up45,3, arc,8, gap,9, flat,8
+DATA dng,3, boost,0, bones,10, flat,10, loop,0, flat,7, boost,0, flat,6, up45,4, arc,12, gap,14
+DATA flat,10, bush,0, flat,6, flower,0, flat,4
 DATA goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, "end",0
 
 ' The Chrome Works: mover: a gap that wide with a platform to and fro over it. hover: a gap of 4 with one up and
 ' down, the ground past it that much higher. lift: a gap of 3 with a lift, the ground past it that much higher.
 Level2:
-DATA flat,4, dog,0, flat,8, bones,6, flat,8, cat,0, flat,12, bones,4, flat,8
-DATA mover,8, flat,8, bones,5, flat,6, upg,2, flat,3, boost,0, bones,8, flat,8, loop,0, flat,10
-DATA lift,6, flat,6, bones,6, flat,8, cat,0, flat,12, mark,0, flat,8
-DATA mover,10, flat,6, dng,3, flat,4, drop,5, flat,5, boost,0, flat,6, pipe,6, flat,8, bones,8, flat,6
-DATA drop,4, flat,8, cat,0, flat,16, hover,5, flat,8, bones,6, flat,6, mover,7, flat,6, mover,7, flat,8
-DATA mark,0, flat,4, dn45,4, dng,3, boost,0, bones,10, flat,8, loop,0, flat,8, up45,3, arc,8, gap,9, flat,8
-DATA cat,0, flat,14, lift,6, flat,6, bones,8, flat,8, drop,5, flat,6, spring,0, flat,2, plat,608, hb,706, flat,10
-DATA boost,0, flat,8, loop,0, flat,10, drop,3, flat,6, cat,0, flat,8
-DATA goal,0, flat,9, fam,0, flat,6, flat,5, "end",0
+DATA flat,4, dog,0, flat,8, bones,6, flat,8, boost,0, bones,8, flat,10, loop,0, flat,10
+DATA dng,3, boost,0, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8, up45,3, arc,9, gap,10, flat,8
+DATA cat,0, flat,12, mover,8, flat,8, bones,5, flat,6, mark,0, flat,6
+DATA boost,0, flat,6, pipe,6, flat,8, bones,8, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0, flat,10
+DATA lift,6, flat,6, bones,6, flat,8, dn45,4, dng,3, boost,0, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0
+DATA flat,8, up45,4, arc,11, gap,12, flat,10
+DATA mark,0, flat,6, cat,0, flat,12, hover,5, flat,8, bones,6, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0
+DATA flat,8, drop,4, flat,16, mover,7, flat,8, boost,0, flat,6, pipe,5, flat,8, dng,3, boost,0, flat,8, loop,0
+DATA flat,10, goal,0, flat,9, fam,0, flat,6, flat,5, "end",0
 
 ' The tunes are in CHARLIE.DAT with the pictures, from tools/charliesong.txt.
 

@@ -358,9 +358,9 @@ def main() -> None:
     if works[1:4] != ["2", "0", "1"]:
         sys.exit(f"charlie: the Chrome Works not cleared on one life (mode, lives lost, zone, x, y): {out[-300:]}")
     words = out[out.rfind("result") :].split()
-    if len(words) < 5 or words[1:3] != ["2", "3"] or words[4] != "5":
+    if len(words) < 5 or words[1:3] != ["2", "3"] or words[4] != "10":
         sys.exit(
-            f"charlie: not cleared on the first life round 5 loops (mode, lives, bones, loops, x, y): {out[-300:]}"
+            f"charlie: not cleared on the first life round 10 loops (mode, lives, bones, loops, x, y): {out[-300:]}"
         )
     print(f"charlie ok: cleared with {words[3]} bones")
 
