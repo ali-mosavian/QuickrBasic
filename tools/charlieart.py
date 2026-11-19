@@ -20,7 +20,6 @@ from collections.abc import Callable
 ROOT = Path(__file__).resolve().parents[1]
 DAT = ROOT / "src/plat/wasm/web/demos/CHARLIE.DAT"
 SONG = ROOT / "tools/charliesong.txt"
-PX = ROOT / "tools/charlie_px"
 INK, WHITE = 2, 1
 PAL: dict[int, tuple[int, int, int]] = {0: (2, 2, 8), 1: (63, 63, 63), 2: (5, 3, 8), 3: (63, 56, 20), 4: (60, 14, 12)}
 
@@ -42,11 +41,6 @@ def ramp(first: int, a: tuple[int, int, int], b: tuple[int, int, int], n: int) -
 SPARE = [5, 6, 7, 148, 149, 172, 173, 174, *range(179, 185), *range(225, 256)]
 POOL = {1: [*range(96, 138), *range(141, 148), *range(156, 172), *range(185, 193), *SPARE]}
 ZPAL: dict[int, dict[int, tuple[int, int, int]]] = {0: {}, 1: {}}
-# those tools/charlierender.py chose, from the zone's rendered pictures
-for _z in ZPAL:
-    if (PX / f"zone{_z}.pal").exists():
-        for _k, *_c in (map(int, ln.split()) for ln in (PX / f"zone{_z}.pal").read_text().splitlines()):
-            ZPAL[_z][_k] = tuple(_c)
 
 
 def pal(z: int) -> dict[int, tuple[int, int, int]]:
@@ -122,20 +116,6 @@ class Pic:
         raw = struct.pack("<HH", self.w * 8, self.h) + px
         raw += bytes(-len(raw) % 4)
         return list(struct.unpack(f"<{len(raw) // 4}i", raw))
-
-
-@functools.cache
-def _px(name: str) -> tuple[tuple[int, ...], ...]:
-    text = (PX / f"{name}.txt").read_text().split()
-    return tuple(tuple(int(ln[i : i + 2], 16) for i in range(0, len(ln), 2)) for ln in text)
-
-
-def rendered(name: str) -> Pic:
-    """A picture tools/charlierender.py made."""
-    rows = [list(r) for r in _px(name)]
-    p = Pic(len(rows[0]), len(rows))
-    p.p = rows
-    return p
 
 
 FUR = ramp(8, (33, 30, 31), (63, 63, 61), 6)
@@ -935,10 +915,11 @@ def thorn() -> Pic:
 # ---- Amber Downs: every tone placed by rule, none dithered; its colours its own ----
 
 
-def tones(first: int, *hexes: str) -> list[int]:
-    """Palette entries from first, a colour each; their indices."""
+def tones(first: int, *hexes: str, zone: int = -1) -> list[int]:
+    """Palette entries from first, a colour each; their indices. zone: only that zone's, over the shared ones."""
     for i, h in enumerate(hexes):
-        PAL[first + i] = (int(h[1:3], 16) * 63 // 255, int(h[3:5], 16) * 63 // 255, int(h[5:7], 16) * 63 // 255)
+        rgb = (int(h[1:3], 16) * 63 // 255, int(h[3:5], 16) * 63 // 255, int(h[5:7], 16) * 63 // 255)
+        (PAL if zone < 0 else ZPAL[zone])[first + i] = rgb
     return list(range(first, first + len(hexes)))
 
 
@@ -1225,18 +1206,8 @@ def bare(right: bool, body: bool) -> Pic:
     return p
 
 
-def bevel(p: Pic, flat: dict[tuple[int, int], int], walls: set[tuple[int, int]]) -> None:
-    """Amber faces between walls: each face's edge by a wall above or left of it lit, below or right shaded."""
-    for (x, y), t in flat.items():
-        if (x - 1, y) in walls or (x, y - 1) in walls:
-            t -= 1
-        elif (x + 1, y) in walls or (x, y + 1) in walls:
-            t += 1
-        p.put(x, y, AMBER[t])
-
-
-def ring(size: int, r0: float, r1: float) -> Pic:
-    """A loop: turf round its inside, r0, then 40 blocks of amber out to r1."""
+def ring(size: int, r0: float, r1: float, cap: Callable[[int, int], int], body: list[int], ink: int) -> Pic:
+    """A loop: its surface, cap, round its inside r0, then 40 blocks of body's tones, light to dark, out to r1."""
     p = Pic(size, size)
     m = size / 2
     flat: dict[tuple[int, int], int] = {}
@@ -1247,19 +1218,21 @@ def ring(size: int, r0: float, r1: float) -> Pic:
             a = math.atan2(y + 0.5 - m, x + 0.5 - m) % (2 * math.pi)
             if not r0 - 0.5 <= r < r1 + 0.5:
                 continue
-            hem = int(a / (2 * math.pi) * 448)  # the hem's 32 goes round 14 times
+            hem = int(a / (2 * math.pi) * 448)  # the cap's 32 or 64 goes round 14 or 7 times
             d = int(r - r0 + 0.5)
-            under = d - FRINGE[hem % 32] - 2
-            if turf(hem, d):
-                p.put(x, y, turf(hem, d))
+            under = d - next(i for i in range(40) if not cap(hem, i))
+            if cap(hem, d):
+                p.put(x, y, cap(hem, d))
             elif r >= r1 - 0.5:
-                p.put(x, y, PLUM)
+                p.put(x, y, ink)
             elif a % (math.pi / 20) * r < 1 or r >= r1 - 1.5:
                 walls.add((x, y))
-                p.put(x, y, AMBER[5])
+                p.put(x, y, body[5])
             else:
                 flat[x, y] = (1 if int(a / (math.pi / 20)) % 5 == 2 else 2) + (2 if under < 2 else under < 4)
-    bevel(p, flat, walls)
+    for (x, y), tone in flat.items():  # each block's edge by a wall above or left of it lit, below or right shaded
+        lit = (x - 1, y) in walls or (x, y - 1) in walls
+        p.put(x, y, body[tone - 1 if lit else tone + ((x + 1, y) in walls or (x, y + 1) in walls)])
     return p
 
 
@@ -1276,8 +1249,9 @@ def pipe(col: int, row: int) -> Pic:
     return p
 
 
-def ribbon(half: int) -> Pic:
-    """A ribbon's rising or falling 64: planks of amber, narrow where it is steep, its far half seen from under."""
+def ribbon(half: int, r: list[int], ink: int) -> Pic:
+    """A ribbon's rising or falling 64: planks of r's tones, light to dark, narrow where it is steep, its far half
+    seen from under."""
     p = Pic(64, 56)
     for i in range(64):
         x = half * 64 + i
@@ -1285,15 +1259,8 @@ def ribbon(half: int) -> Pic:
         y = 2 + 40 - round(40 * (1 - math.cos(a)) / 2)
         th = 8 + round(6 * abs(math.cos(a)))
         for j in range(th + 1):
-            if j < 2:
-                t = AMBER[j]
-            elif j == th:
-                t = PLUM
-            elif (x + j) % 8 == 0:
-                t = AMBER[5]
-            else:
-                t = AMBER[1 + ((x + j) // 8) % 2 + (math.sin(a) < 0) + (j > th * 0.6)]
-            p.put(i, y + j, t)
+            plank = r[1 + ((x + j) // 8) % 2 + (math.sin(a) < 0) + (j > th * 0.6)]
+            p.put(i, y + j, r[j] if j < 2 else ink if j == th else r[5] if (x + j) % 8 == 0 else plank)
     return p
 
 
@@ -1375,33 +1342,60 @@ def rock() -> Pic:
     return p
 
 
-# ---- the Chrome Works: machine decks, a bright sky, a city of glass ----
+# ---- the Chrome Works: machine decks under a dusk sky, a city behind; its colours its own ----
 
-STEEL = ramp(150, (6, 12, 18), (40, 54, 58), 6)
-DAY = ramp(156, (48, 30, 46), (63, 58, 40), 16)
-GLOW = ramp(175, (63, 38, 8), (63, 60, 30), 2)
 CYAN, PINK = 177, 178
 PAL[CYAN], PAL[PINK] = (10, 60, 58), (63, 14, 44)
-FART = ramp(185, (50, 34, 40), (63, 57, 48), 4)
-NEART = ramp(189, (30, 14, 28), (62, 42, 36), 4)
-COPPER = ramp(193, (26, 10, 4), (63, 44, 22), 5)
-CHROME = ramp(198, (14, 16, 22), (60, 62, 63), 6)
-
-PANEL = ramp(204, (4, 8, 18), (26, 42, 56), 6)
+COPPER = tones(193, "#4C1C24", "#8C3828", "#C86430", "#F09848", "#FFD088")
+CHROME = tones(198, "#1C1C38", "#404868", "#7480A0", "#A8B8D0", "#D8E4F0", "#FFFFFF")
+PANEL = tones(204, "#141A44", "#1E2C64", "#2C4488", "#3C60AC", "#5884CC", "#84B0EC")
 GLOWC = ramp(210, (4, 34, 46), (56, 63, 63), 3)
 # colours the game turns as it runs: a deck's four lights, a fan's blades, the glints along a pipe
 CHASE, FAN, FLOW = [213, 214, 215, 216], [217, 218, 219, 220], [221, 222, 223, 224]
 PAL.update(dict.fromkeys(CHASE, (4, 34, 46)) | dict.fromkeys(FAN, (5, 4, 8)) | dict.fromkeys(FLOW, (50, 31, 15)))
+DUSK = tones(96, "#241858", "#3C2070", "#5C2C88", "#84389C", "#B048A4", "#D8609C", "#F08088", "#FFA878", zone=1)
+DUSK += tones(104, "#FFD488", zone=1)
+STAR = tones(105, "#FFF0FF", "#B894D8", zone=1)
+WISP = tones(107, "#FFC8A0", "#E888A8", "#A85CA8", zone=1)  # a cloud's lit underside, its body, its top
+TOWN = tones(110, "#B060A0", "#94488C", "#D888B0", zone=1)  # the far city: a face, its shade, its lit edge
+CITY = tones(113, "#4C2C78", "#382060", "#6C4498", "#241448", zone=1)  # the near: and the dark under it
+PANE = tones(117, "#FFE890", "#FFB060", "#7C54A8", zone=1)  # a window lit, warm, dark
+WORKS = tones(120, "#0C1438", "#142454", "#1E3C74", "#2C5C98", "#58A4CC", "#A8E4F0", zone=1)
+LAMP = tones(126, "#FFE478", "#F04858", "#F0E8F8", zone=1)
+DECK = tones(129, "#F4FCFF", "#C4D8EC", "#8CA4CC", "#5C7098", "#343C68", "#1C1838", zone=1)
+HAZARD = tones(135, "#FFE478", "#FFC428", "#C88818", zone=1)
+SUNSET = tones(141, "#FFFCD8", "#FFE890", zone=1)
 
 
-def deck(p: Pic, x: int, y: int, t: int, u: int = 0) -> bool:
-    """A deck's edge t pixels under its surface, u along its 64-pixel module, as rendered; its four lights, which
-    run, over that. False below."""
-    if t > 15:
-        return False
-    lit = t in (6, 7) and 3 <= u % 16 <= 12
-    p.put(x, y, CHASE[u // 16 % 4] if lit else rendered("deck").p[t][u % 64])
-    return True
+def plate(u: int, d: int) -> int:
+    """The deck's colour d pixels under its surface, u along it; 0 below: plating and its rivets, a hazard
+    stripe, the four lights that run, a lip."""
+    if d < 3:
+        return DECK[0] if d == 0 else DECK[2] if d == 2 and u % 8 == 3 else DECK[1]
+    if d < 5:
+        return DECK[d - 1]
+    if d < 10:
+        return DECK[5] if (u + d) // 4 % 2 else HAZARD[0 if d == 5 else 2 if d == 9 else 1]
+    if d in (11, 12) and 3 <= u % 16 <= 12:
+        return CHASE[u // 16 % 4]
+    return (DECK[5], DECK[4], DECK[4], DECK[5], DECK[4], PANEL[0], 0)[min(d, 16) - 10]
+
+
+def span(kind: int, col: int, under: int = 0) -> Pic:
+    """A deck tile, the deck's col-th 16 of 64; under: what of a slope's deck runs on into the tile below."""
+    p = Pic(16, 16)
+    for x in range(16):
+        s = surface(kind, x) - under * 16
+        for y in range(max(s, 0), 16):
+            p.put(x, y, plate(col * 16 + x, y - s))
+    return p
+
+
+def shelf() -> Pic:
+    """A floating shelf's 16 of deck."""
+    p = span(1, 0)
+    p.p[15] = [0] * 16
+    return p
 
 
 def wall(p: Pic, x: int, y: int) -> None:
@@ -1460,23 +1454,11 @@ def wall(p: Pic, x: int, y: int) -> None:
     p.shade(x, y, PANEL, val)
 
 
-def moving(x: int, y: int) -> bool:
-    """Whether the wall at x, y is one of the parts the game moves: a fan's blades, the light, a pipe's glints."""
-    u, v, n = x % 32, y % 32, y // 32 * 2 + x // 32
-    if n == 4:
-        return 2.5 <= math.hypot(u - 15.5, v - 15.5) <= 9
-    if n == 5:
-        return 7 <= u <= 24 and 14 <= v <= 17
-    return n in (2, 3) and v == 9 and x >= 5
-
-
 def mural() -> Pic:
-    """The wall as rendered, the parts that move drawn over it."""
-    p = rendered("mural")
+    p = Pic(64, 128)
     for y in range(128):
         for x in range(64):
-            if moving(x, y):
-                wall(p, x, y)
+            wall(p, x, y)
     return p
 
 
@@ -1488,42 +1470,203 @@ def cut(p: Pic, x: int, y: int, w: int, h: int) -> Pic:
     return q
 
 
-def tile2(kind: int, col: int, ledge: bool = False) -> Pic:
-    """A deck tile, the module's col-th 16 pixels; the deck's shadow under a slope."""
-    p = Pic(16, 16)
-    for x in range(16):
-        top = surface(kind, x)
-        for y in range(top, 16):
-            if ledge and y >= 15:
-                continue
-            if not deck(p, x, y, y - top, col * 16 + x):
-                p.put(x, y, rendered("deck").p[15][2])
-    return p
-
-
 def mover() -> Pic:
-    """A moving platform: a deck's slab and lights, jets under it."""
+    """A moving platform: a deck's slab, jets under it."""
     p = Pic(48, 12)
     for x in range(1, 47):
         for y in range(10):
-            deck(p, x, y, y, x - 8 if 8 <= x < 40 else 0)
+            p.put(x, y, plate(x, y))
     for x in range(6, 48, 12):
         p.box(x - 1, 9, x, 10, CYAN)
     return p.outline()
 
 
-def drum(p: Pic, x0: int, y0: int, x1: int, y1: int, r: list[int], hoop: int = 9) -> None:
-    """An upright drum, lit from the left, a hoop every so many rows."""
-    m, h = (x0 + x1) / 2, (x1 - x0) / 2 + 0.5
-    for y in range(y0, y1 + 1):
-        for x in range(x0, x1 + 1):
-            d = (x - m) / h
-            p.shade(
-                x,
-                y,
-                r,
-                0.12 + 0.86 * math.sqrt(max(0.0, 1 - d * d)) * (0.75 - 0.25 * d) - (0.22 if y % hoop == 0 else 0),
-            )
+def chute() -> Pic:
+    """The works' quarter pipe: a block of plating, the deck up its curve."""
+    p = Pic(48, 48)
+    for y in range(48):
+        for x in range(48):
+            d = int(math.hypot(x + 0.5, y + 0.5) - 48.5)
+            if d < 0:
+                continue
+            c = plate(int(math.atan2(x + 0.5, y + 0.5) * 48.5) % 64, d) if d < 11 else 0
+            rivet = (x == 44 and y % 8 == 4) or (y == 44 and x % 8 == 4)
+            p.put(x, y, c or PANEL[0 if d < 13 or x == 47 or y == 47 else 4 if rivet else 2])
+    return p
+
+
+def column(p: Pic, x0: int, x1: int, y0: int, y1: int, r: list[int]) -> None:
+    """An upright cylinder in r's tones, dark to light, lit from the left: a rim, a glint, a long shade."""
+    for x in range(x0, x1 + 1):
+        f = (x - x0) / max(x1 - x0, 1)
+        t = 3 if f < 0.1 else 5 if f < 0.24 else 4 if f < 0.4 else 3 if f < 0.6 else 2 if f < 0.9 else 3
+        p.box(x, y0, x, y1, r[min(t, len(r) - 1) if x1 - x0 > 3 else (4, 5, 3, 2)[x - x0]])
+
+
+def post() -> Pic:
+    """A lamp post."""
+    p = Pic(16, 48)
+    p.box(7, 9, 8, 44, CHROME[2])
+    p.box(7, 9, 7, 44, CHROME[4])
+    p.box(4, 44, 11, 46, CHROME[2])
+    p.box(4, 44, 11, 44, CHROME[4])
+    p.box(6, 9, 9, 10, CHROME[3])
+    p.ball(7.5, 4.5, 4.4, 4.4, [LAMP[1], HAZARD[2], HAZARD[1], LAMP[0], WHITE], 0.45, 1.0)
+    return p.outline()
+
+
+def tank() -> Pic:
+    """A tank on legs: a dome, hoops, a gauge, a hazard band."""
+    p = Pic(32, 40)
+    for x in (5, 6, 25, 26):
+        p.box(x, 34, x, 38, CHROME[1 + (x in (5, 25))])
+    column(p, 3, 28, 9, 34, CHROME)
+    for y in range(2, 9):  # the dome, a tone lighter up
+        half = round(13 * math.sqrt(1 - ((9 - y) / 7.5) ** 2))
+        column(p, 16 - half, 15 + half, y, y, CHROME)
+    for y in (13, 24):  # hoops
+        for x in range(3, 29):
+            p.put(x, y, CHROME[max(CHROME.index(p.get(x, y)) - 1, 0)])
+    for y in range(29, 33):
+        for x in range(3, 29):
+            p.put(x, y, DECK[5] if (x + y) // 3 % 2 else HAZARD[1 if 6 < x < 22 else 2])
+    p.ball(11.5, 18.5, 3.4, 3.4, [CHROME[1], CHROME[5], CHROME[5]], 0.6, 1.0)
+    p.put(11, 18, LAMP[1])
+    p.put(12, 17, LAMP[1])
+    p.box(14, 0, 17, 1, CHROME[2])
+    return p.outline()
+
+
+def vent() -> Pic:
+    """Two stacks, the taller ringed red."""
+    p = Pic(16, 28)
+    column(p, 2, 6, 3, 25, CHROME)
+    column(p, 9, 13, 10, 25, CHROME)
+    p.box(1, 1, 7, 2, CHROME[4])
+    p.box(8, 8, 14, 9, CHROME[3])
+    p.box(2, 7, 6, 8, LAMP[1])
+    p.box(1, 26, 14, 27, CHROME[2])
+    p.box(1, 26, 14, 26, CHROME[4])
+    return p.outline()
+
+
+def skyline(p: Pic, base: int, seed: int, low: int, high: int, r: list[int], panes: bool) -> None:
+    """A row of buildings standing on base, of period 320: each a lit left edge, a face and a shaded right; some
+    stepped, some masted, some sloped; windows in rows, a few lit."""
+    x = i = 0
+    while x < 320:
+        w = 12 + int(noise(i, 1, seed) * 16)
+        if 320 - x - w < 12:
+            w = 320 - x
+        gap = 2 if noise(i, 4, seed) > 0.7 else 0
+        top, style, x1 = base - low - int(noise(i, 2, seed) * (high - low)), int(noise(i, 3, seed) * 4), x + w - gap - 1
+
+        def slab(xa: int, xb: int, ya: int, yb: int) -> None:
+            for xx in range(xa, xb + 1):
+                p.box(xx, ya, xx, yb, r[2] if xx == xa else r[1] if xx > xb - 3 else r[0])
+
+        slab(x, x1, top, base)
+        if style == 1 and w > 16:
+            slab(x + 3, x1 - 4, top - 6, top - 1)
+        elif style == 2:
+            p.box(x + w // 2, top - 9, x + w // 2, top - 1, r[1])
+            p.put(x + w // 2, top - 10, LAMP[1])
+        elif style == 3:
+            for k in range(1, 5):
+                slab(x, x1 - k * 2, top - k, top - k)
+        if panes:
+            for wy in range(top + 4, base - 3, 5):
+                for wx in range(x + 3, x1 - 3, 4):
+                    v = noise(wx, wy, seed)
+                    p.box(wx, wy, wx + 1, wy + 2, PANE[0] if v > 0.72 else PANE[1] if v > 0.6 else PANE[2])
+        x, i = x + w, i + 1
+
+
+def works() -> Pic:
+    """The works' far backdrop, of period 320: a banded dusk, stars, a sun half set, streaks of cloud, two rows of
+    city, a lamplit road."""
+    p = Pic(320, 200)
+    edges = [0, 16, 32, 48, 64, 80, 96, 110, 124, 200]
+    for y in range(160):
+        k = max(i for i in range(9) if edges[i] <= y)
+        if k < 8 and y == edges[k + 1] - 2:
+            k += 1
+        p.box(0, y, 319, y, DUSK[k])
+    for i in range(40):
+        x, y = int(noise(i, 1, 9) * 320), int(noise(i, 2, 9) * 60)
+        p.put(x, y, STAR[i % 3 > 0])
+        if i % 9 == 0:
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                p.put(x + dx, y + dy, STAR[1])
+    for y in range(86, 136):  # the sun, in slices as it sets
+        for x in range(50, 143):
+            d = math.hypot(x - 96 + 0.5, y - 136 + 0.5)
+            if d < 38 and (136 - y) not in (3, 4, 9, 10, 15, 20):
+                p.put(x, y, SUNSET[0] if d < 30 else SUNSET[1])
+            elif 38 <= d < 44:
+                p.put(x, y, DUSK[min(DUSK.index(p.get(x, y)) + 1, 8)])
+    for cx, cy, w in ((60, 30, 34), (190, 22, 26), (250, 58, 40), (130, 70, 22), (20, 84, 28), (296, 96, 20)):
+        for row, half in enumerate((w * 0.5, w, w * 0.8, w * 0.35)):
+            for x in range(int(cx - half + row * 3), int(cx + half + row * 5)):
+                for dx in (-320, 0, 320):
+                    p.put(x + dx, cy + row, WISP[2 if row == 0 else 0 if row == 3 else 1])
+    skyline(p, 160, 5, 34, 78, TOWN, False)
+    skyline(p, 160, 8, 16, 52, CITY, True)
+    p.box(0, 156, 319, 159, CITY[3])
+    for x in range(4, 320, 12):
+        p.put(x, 155, PANE[1])
+        p.put(x, 156, PANE[0])
+    p.box(0, 160, 319, 199, WORKS[1])
+    return p
+
+
+def plant() -> Pic:
+    """The works' near band, masked, of period 320: tanks, chimneys, a pipe rack, a sphere, a shed, a mast; lit from
+    the left, lamps on."""
+    p = Pic(320, 80)
+    p.box(0, 56, 319, 79, WORKS[1])
+    p.box(0, 56, 319, 56, WORKS[3])
+    column(p, 14, 54, 20, 55, WORKS)  # a tank and its dome
+    for y in range(12, 20):
+        half = round(20 * math.sqrt(1 - ((20 - y) / 8.5) ** 2))
+        column(p, 34 - half, 34 + half, y, y, WORKS)
+    p.box(14, 30, 54, 30, WORKS[1])
+    p.box(14, 44, 54, 44, WORKS[1])
+    for x0, y0 in ((70, 4), (82, 14)):  # chimneys, banded red and white, a lamp on each
+        column(p, x0, x0 + 5, y0, 55, WORKS)
+        for k in range(3):
+            p.box(x0, y0 + 2 + k * 4, x0 + 5, y0 + 3 + k * 4, LAMP[1 + k % 2])
+        p.put(x0 + 2, y0 - 1, LAMP[0])
+        p.put(x0 + 3, y0 - 1, LAMP[0])
+    for y0 in (38, 47):  # a rack of pipes on posts
+        p.box(96, y0, 150, y0 + 2, WORKS[2])
+        p.box(96, y0, 150, y0, WORKS[4])
+        p.box(96, y0 + 3, 150, y0 + 3, WORKS[0])
+    for x in range(100, 150, 16):
+        p.box(x, 38, x + 1, 55, WORKS[1])
+    for x in (166, 186):
+        p.box(x, 40, x + 1, 55, WORKS[1])
+    p.ball(176.5, 28.5, 17, 17, WORKS[1:], 0.0, 1.0)  # a sphere on legs, belted
+    p.box(160, 29, 193, 29, WORKS[1])
+    for i in range(4):  # a shed, its roof in teeth, its windows lit
+        for k in range(12):
+            p.box(204 + i * 12 + k, 44 - k * 10 // 12, 204 + i * 12 + k, 44, WORKS[4 if k == 0 else 2])
+    p.box(204, 45, 251, 55, WORKS[2])
+    p.box(204, 45, 205, 55, WORKS[4])
+    p.box(244, 45, 251, 55, WORKS[1])
+    for x in range(210, 242, 7):
+        p.box(x, 48, x + 3, 50, LAMP[0])
+    for y in range(6, 56):  # a lattice mast, a lamp at its top
+        p.put(264, y, WORKS[4])
+        p.put(276, y, WORKS[2])
+        p.put(264 + (y % 12), y, WORKS[3])
+        p.put(276 - (y % 12), y, WORKS[2])
+        if y % 12 == 0:
+            p.box(264, y, 276, y, WORKS[3])
+    p.box(269, 3, 271, 5, LAMP[1])
+    column(p, 290, 312, 36, 55, WORKS)  # a low tank
+    p.box(290, 34, 312, 35, WORKS[4])
+    return p
 
 
 def button(down: bool) -> Pic:
@@ -1598,7 +1741,7 @@ def hoop(lit: bool) -> Pic:
     return p.outline()
 
 
-DOWNS: set[int] = set()  # the pictures only Amber Downs shows: they may use what the Chrome Works recolours
+OWN: list[set[int]] = [set(), set()]  # the pictures only one zone shows: they may use that zone's own colours
 
 
 def pictures() -> list[tuple[int, Pic, bool, int]]:
@@ -1632,22 +1775,11 @@ def pictures() -> list[tuple[int, Pic, bool, int]]:
         (k + 374, words("BARKLEY", 170, 26, 2.8, 5), True, -1),
         (k + 376, words("AMBER DOWNS", 178, 18, 1.8, 3.2), True, -1),
     ]
-    # the Chrome Works' own: after the pictures the game builds (its backdrops, strips, loop and pipe)
+    # the Chrome Works' own
     z = k + 490 + 9
-    for v, p in (
-        (1, tile2(1, 0)),
-        (2, tile2(1, 0)),
-        (4, tile2(2, 0)),
-        (5, tile2(3, 0)),
-        (6, tile2(4, 0)),
-        (7, tile2(5, 0)),
-        (8, tile2(6, 0)),
-        (9, tile2(7, 0)),
-        (10, tile2(1, 0, ledge=True)),
-    ):
-        out.append((z + (v - 1) * 2, p, True, -1))
-    m = mural()
-    out += [(z + 54 + c, tile2(1, c), False, -1) for c in range(4)]
+    out.append((z + 18, shelf(), True, -1))
+    m, steel = mural(), PANEL[::-1]
+    out += [(z + 54 + c, span(1, c), False, -1) for c in range(4)]
     out += [(z + 58 + c * 8 + r, cut(m, c * 16, r * 16, 16, 16), False, -1) for c in range(4) for r in range(8)]
     out += [(z + 90 + c, cut(m, c * 16, 0, 16, 128), False, -1) for c in range(4)]
     out += [
@@ -1665,17 +1797,27 @@ def pictures() -> list[tuple[int, Pic, bool, int]]:
     ]
     out += [
         (z + 24, mover(), True, -1),
-        (z + 26, rendered("post").outline(), True, -1),
-        (z + 28, rendered("tank").outline(), True, -1),
-        (z + 30, rendered("vent").outline(), True, -1),
+        (z + 26, post(), True, -1),
+        (z + 28, tank(), True, -1),
+        (z + 30, vent(), True, -1),
         (z + 32, words("CHROME WORKS", 178, 18, 1.65, 3.0), True, -1),
-        (z - 9, rendered("city"), False, -1),
-        (z - 8, rendered("plant"), True, -1),
+        (z - 9, works(), False, -1),
+        (z - 8, plant(), True, -1),
+        (z - 4, ring(188, 72, 93, lambda u, d: plate(u % 64, d) if d < 11 else 0, steel, INK), True, -1),
+        (z - 2, chute(), True, -1),
     ]
+    out += [(z + 116 + h * 2, ribbon(h, [DECK[0], DECK[1], *steel[1:4], steel[5]], INK), True, -1) for h in range(2)]
+    # a slope of deck, by the deck's four 16s: its tile, then what runs on into the tile under it
+    b = z + 402
+    for kind in range(2, 8):
+        for c in range(4):
+            out.append((b + ((kind - 2) * 4 + c) * 2, span(kind, c), True, -1))
+            out.append((b + 48 + ((kind - 2) * 4 + c) * 2, span(kind, c, 1), True, -1))
+    OWN[1].update({*range(z - 9, z + 94), z + 116, z + 118, *range(b, b + 96)})
     # Amber Downs' own: its backdrop, hills, loop and ribbon where the game once built them, then its ground by
     # the comb's column of 4 and row of 3: flats, each slope and the tile under it, the comb alone, pipes, a raft
-    out += [(0, downs(), False, -1), (1, hills(), True, -1), (5, ring(188, 72, 93), True, -1)]
-    out += [(z + 112, ribbon(0), True, -1), (z + 114, ribbon(1), True, -1)]
+    out += [(0, downs(), False, -1), (1, hills(), True, -1)]
+    out += [(z + 112 + h * 2, ribbon(h, AMBER, PLUM), True, -1) for h in range(2)]
     a = z + 124
     for c in range(4):
         out.append((a + 240 + c, deep(c, 0, 192), False, -1))
@@ -1687,8 +1829,9 @@ def pictures() -> list[tuple[int, Pic, bool, int]]:
                 out.append((a + 12 + ((kind - 2) * 12 + v) * 2, top(kind, c, r), True, -1))
                 out.append((a + 156 + (kind - 2) * 12 + v, top(kind, c, r, 1), False, -1))
     out.append((a + 268, raft(), True, -1))
+    out.append((5, ring(188, 72, 93, turf, AMBER, PLUM), True, -1))
     out += [(a + 270 + i * 2, bare(i > 1, bool(i & 1)), True, -1) for i in range(4)]
-    DOWNS.update({0, 1, 5, itile + 18, z + 112, z + 114, *range(a, a + 278), *range(k + 36, k + 50)})
+    OWN[0].update({0, 1, 5, itile + 18, z + 112, z + 114, *range(a, a + 278), *range(k + 36, k + 50)})
     return out
 
 
@@ -1726,8 +1869,6 @@ def song() -> bytes:
 
 def audit(pics: list[tuple[int, Pic, bool, int]]) -> None:
     """A zone's own colours are only in its own pictures: elsewhere they would show as another zone's."""
-    # the Chrome Works' pictures: 103 slots from its backdrop, the first to use its colours
-    z2 = min(k for k, p, _, _ in pics if k not in DOWNS and any(v in ZPAL[1] for row in p.p for v in row))
     # the game draws the comb from 12 tiles a kind: it must repeat every 64 across and 48 down
     if any(comb(x, y) != comb(x + 64, y) or comb(x, y) != comb(x, y + 48) for x in range(64) for y in range(48)):
         sys.exit("charlieart: the comb does not repeat every 64 by 48")
@@ -1737,7 +1878,7 @@ def audit(pics: list[tuple[int, Pic, bool, int]]) -> None:
         if any(TURF[5] not in [row[x] for row in both] for x in range(16)):
             sys.exit(f"charlieart: slope {kind}'s turf is cut short")
     for k, p, _, _ in pics:
-        own = 0 if k in DOWNS else 1 if z2 <= k < z2 + 103 else -1
+        own = 0 if k in OWN[0] else 1 if k in OWN[1] else -1
         used = {v for row in p.p for v in row}
         for z in ZPAL:
             if z != own and own and used & ZPAL[z].keys():

@@ -146,7 +146,9 @@ CONST IJET = IWS + 4, IBUMP = IJET + 6, ISPIN = IBUMP + 4, IHOOP = ISPIN + 4, IW
 ' Amber Downs' ground, by the comb's column of 4 and row of 3: flats, slopes, the tile under each slope, the comb
 ' alone and in strips, quarter pipes; its moving platform.
 CONST IAF = IBTN + 4, IAS = IAF + 12, IAU = IAS + 144, IAC = IAU + 72, IAL = IAC + 12, IAP = IAL + 4
-CONST IAM = IAP + 24, IAE = IAM + 2, NIMG = IAE + 8
+CONST IAM = IAP + 24, IAE = IAM + 2
+' The works' slopes, by the deck's four 16s: each kind's tile, then what of its deck runs on into the tile under.
+CONST IZS = IAE + 8, IZU = IZS + 48, NIMG = IZU + 48
 CONST HUDW = 108, HUDH = 40
 CONST IMGSZ = 340000
 
@@ -158,7 +160,7 @@ CONST SCHARGE = 6, SLAUNCH = 7, SCLEAR = 8, SDIE = 9, SMARK = 10, SBOOST = 11, S
 CONST CHUD = 0, CWHITE = 1, CINK = 2, CYELLOW = 3, CRED = 4
 CONST CSCARF = 21, CGRASS = 25, CEARTH = 30, CSTONE = 38, CGOLD = 42
 CONST CWATER = 144
-CONST CSTEEL = 150, CDAY = 156, CFART = 185, CCHROME = 198, CPANEL = 204, CCHASE = 213
+CONST CCHASE = 213
 
 DECLARE SUB Main ()
 DECLARE SUB Tint (k AS INTEGER, c AS LONG)
@@ -183,9 +185,6 @@ DECLARE FUNCTION Chars$ ()
 DECLARE SUB OpenData ()
 DECLARE SUB Mirror (k AS INTEGER, k2 AS INTEGER, w AS INTEGER, h AS INTEGER)
 DECLARE SUB Flop (k AS INTEGER, k2 AS INTEGER, w AS INTEGER, h AS INTEGER)
-DECLARE SUB BuildLoop (k AS INTEGER, ce AS INTEGER, cr AS INTEGER)
-DECLARE SUB BuildPipe (k AS INTEGER, ce AS INTEGER, cr AS INTEGER)
-DECLARE SUB BuildWave (k AS INTEGER, ce AS INTEGER, ct AS INTEGER)
 DECLARE SUB Track ()
 DECLARE SUB Faces ()
 DECLARE FUNCTION Side% (c AS INTEGER, n AS INTEGER)
@@ -874,9 +873,6 @@ SUB BuildArt
     LoadArt
     ' the turned run, as drawn and mirrored: each upside down too, for the far side of a loop
     FOR i = 0 TO 159: Flop ITILT + i, ITILT + 160 + i, 32, 32: NEXT
-    BuildLoop IZ2 + 5, CPANEL, CCHROME + 1
-    BuildPipe IZ2 + 7, CPANEL, CCHROME + 1
-    BuildWave IWAVE + 4, CPANEL, 177
     BuildGlyphs
     FOR i = 0 TO 2: Glint(i) = Pal(CWATER + 1 + i): NEXT
     FOR i = 0 TO 255: Pal0(i) = Pal(i): NEXT
@@ -984,68 +980,6 @@ SUB Mirror (k AS INTEGER, k2 AS INTEGER, w AS INTEGER, h AS INTEGER)
         PUT (100 + w - 1 - x, 0), strip, PSET
     NEXT
     Grab 100, 0, 100 + w - 1, h - 1, k2
-END SUB
-
-' A loop: a ring of earth, grass on its inside, and its mask.
-SUB BuildLoop (k AS INTEGER, ce AS INTEGER, cr AS INTEGER)
-    DIM r AS INTEGER, i AS INTEGER, m AS INTEGER
-    m = LD \ 2
-    LINE (0, 0)-(LD - 1, LD - 1), 0, BF
-    CIRCLE (m, m), LOOPR + 13, ce, , , 1
-    CIRCLE (m, m), LOOPR - 1, ce, , , 1
-    PAINT (m, m - LOOPR - 6), ce + 4, ce
-    FOR r = LOOPR + 7 TO LOOPR + 12 STEP 2
-        CIRCLE (m, m), r, ce + 3 - (r AND 2), , , 1
-    NEXT
-    FOR i = 0 TO 4
-        CIRCLE (m, m), LOOPR + i, cr + 4 - i, , , 1
-    NEXT
-    LINE (0, 0)-(LD - 1, 2), 0, BF
-    Grab 0, 0, LD - 1, LD - 1, k
-    LINE (0, 0)-(LD - 1, LD - 1), 255, BF
-    CIRCLE (m, m), LOOPR + 13, 0, , , 1
-    CIRCLE (m, m), LOOPR - 1, 0, , , 1
-    PAINT (m, m - LOOPR - 6), 0, 0
-    LINE (0, 0)-(LD - 1, 2), 255, BF
-    Grab 0, 0, LD - 1, LD - 1, k + 1
-    LINE (0, 0)-(SW - 1, LD), 0, BF
-END SUB
-
-' A quarter pipe: the earth under its curve, grass along it, and its mask.
-' A ribbon's two halves, k and k + 2: a band that rises 64 and falls 64, narrow where it is steep as a twisted one
-' is, striped in ce's four tones under an edge of ct.
-SUB BuildWave (k AS INTEGER, ce AS INTEGER, ct AS INTEGER)
-    DIM x AS INTEGER, y AS INTEGER, j AS INTEGER, th AS INTEGER, a AS SINGLE
-    FOR x = 0 TO 127
-        a = PI * x / 64
-        y = 2 + WAVEA - CINT(WAVEA * (1 - COS(a)) / 2)
-        th = 8 + CINT(6 * ABS(COS(a)))
-        FOR j = 1 TO th - 1
-            PSET (x, y + j), ce + 1 + ((x + j * 2) \ 8 AND 1) * 2 - (SIN(a) > 0) - (j > th \ 2)
-        NEXT
-        PSET (x, y), ct
-        PSET (x, y + th), CINK
-    NEXT
-    MaskGrab 0, 0, 64, WAVEH, 140, 0, k
-    MaskGrab 64, 0, 64, WAVEH, 210, 0, k + 2
-    LINE (0, 0)-(SW - 1, WAVEH), 0, BF
-END SUB
-
-SUB BuildPipe (k AS INTEGER, ce AS INTEGER, cr AS INTEGER)
-    DIM i AS INTEGER
-    LINE (0, 0)-(PIPER - 1, PIPER - 1), ce + 4, BF
-    CIRCLE (0, 0), PIPER, cr, , , 1
-    PAINT (1, 1), 0, cr
-    FOR i = 0 TO 4
-        CIRCLE (0, 0), PIPER + i, cr + 4 - i, , , 1
-    NEXT
-    LINE (130, 0)-(130 + PIPER - 1, PIPER - 1), 0, BF
-    CIRCLE (130, 0), PIPER, 1, , , 1
-    PAINT (131, 1), 255, 1
-    CIRCLE (130, 0), PIPER, 0, , , 1
-    Grab 0, 0, PIPER - 1, PIPER - 1, k
-    Grab 130, 0, 130 + PIPER - 1, PIPER - 1, k + 1
-    LINE (0, 0)-(SW - 1, PIPER), 0, BF
 END SUB
 
 ' The HUD's characters, each 9 by 9 over a shadow: yellow, then white.
@@ -2305,12 +2239,10 @@ SUB DrawTiles (cx AS INTEGER, cy AS INTEGER)
             r = ColTop(tx)
             IF Zone THEN
                 IF y > -TS THEN
-                    k = ZTile + (v - 1) * 2
                     IF v <= 2 THEN
                         PUT (x, y), Img(At(IDK + (tx AND 3))), PSET
                     ELSE
-                        PUT (x, y), Img(At(k + 1)), AND
-                        PUT (x, y), Img(At(k)), OR
+                        Blit x, y, IZS + ((v - 4) * 4 + (tx AND 3)) * 2, TS, TS
                     END IF
                 END IF
                 y = y + TS
@@ -2326,6 +2258,9 @@ SUB DrawTiles (cx AS INTEGER, cy AS INTEGER)
                     IF y > -128 THEN PUT (x, y), Img(At(IWS + (tx AND 3))), PSET
                     y = y + 128
                 LOOP
+                ' a slope's deck runs on over the wall under it
+                y = (ColTop(tx) + 1) * TS - cy
+                IF v > 2 AND y < SH AND y > -TS THEN Blit x, y, IZU + ((v - 4) * 4 + (tx AND 3)) * 2, TS, TS
             ELSE
                 ' The downs' comb hangs from the world too, of period 64 by 48: a slope's turf runs on into the tile
                 ' under it; under a pipe, 0, the pipe's own picture is the ground.
