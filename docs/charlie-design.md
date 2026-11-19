@@ -110,8 +110,10 @@ Progress is saved at each zone.
   chugs, metal hits off the beat, a saw lead that slides. Night, to add: half-time drums, the lead an octave
   down, more room.
 
-### 3. Saltwick Sands
+### 3. Saltwick Sands (its look built)
 
+- Built: its backdrop, ground, props and card at noon and sunset, on the Downs' layout; two stand-in levels.
+  To add: the tide, its gadgets, enemies, levels, chase and tune.
 - Rule: the tide. Water rises and falls on a clock, and roads open and close with it. Charlie paddles on the
   surface, slow, and stays slow out of it until a roll shakes him dry.
 - Gadgets: boats, flumes that end in water, deckchair springs, buoys that bump.

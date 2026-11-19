@@ -724,11 +724,12 @@ next
 was = was and MvT(m) = MvA(m) and p.ground and p.sg = c
 if was and abs(p.y - (MvY(m) - MvA(m))) < 2 then print "bridge ok"
 ' the Amber Downs at evening played through by the pilot on one life; after its family and its fade the Chrome
-' Works, their platforms and lifts ridden, then the works by night: each cleared on that life
+' Works, their platforms and lifts ridden, the works by night, then Saltwick Sands at noon and at sunset: each
+' cleared on that life
 GoStage 1, g, p, lo(), pt()
 j = g.lives
 was = 0
-for m = 1 to 3
+for m = 1 to NSTAGE - 1
     for i = 1 to 1600
         if Stage = m and g.mode = PLAYING then exit for
         Tick g, p, k, lo(), pt()
@@ -771,12 +772,12 @@ for i = 1 to 900
     if p.x < GoalX then exit for
 next
 if was and p.x < GoalX and Dusk = 16 then print "title met ok"
-' progress is kept at each zone: the works, reached in the game above, are in CHARLIE.SAV and read back; a file that
+' progress is kept at each zone: the last, reached in the game above, is in CHARLIE.SAV and read back; a file that
 ' is not the game's counts for nothing; a zone reached is written. On the title Right picks a zone reached and no
 ' further, and a game starts at its first act
 Reached = 0
 LoadSave
-was = Reached = 1
+was = Reached = ZONES - 1
 open "CHARLIE.SAV" for binary as #2
 hid = 12345
 put #2, , hid
@@ -999,7 +1000,7 @@ def main() -> None:
         sys.exit(f"charlie: the title's run not ended with the family, held and faded: {out[-300:]}")
     if "faded ok" not in out:
         sys.exit(f"charlie: the level's end not held, faded out and begun again in full colour: {out[-300:]}")
-    for act in ("1", "2", "3"):
+    for act in ("1", "2", "3", "4", "5"):
         got = out[out.rfind(f"act {act} ") :].split()
         if got[1:6] != [act, "2", "0", act, str(int(act) // 2)]:
             sys.exit(

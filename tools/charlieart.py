@@ -15,6 +15,7 @@ import struct
 import argparse
 import itertools
 from pathlib import Path
+from typing import NamedTuple
 from collections.abc import Callable
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -42,7 +43,7 @@ def ramp(first: int, a: tuple[int, int, int], b: tuple[int, int, int], n: int) -
 # backdrop use (CLOUD between them is shared), and those nothing uses.
 SPARE = [5, 6, 7, 148, 149, 172, 173, 174, *range(179, 185), *range(225, 256)]
 POOL = {1: [*range(96, 138), *range(141, 148), *range(156, 172), *range(185, 193), *SPARE]}
-ZPAL: dict[int, dict[int, tuple[int, int, int]]] = {0: {}, 1: {}, 2: {}, 3: {}}
+ZPAL: dict[int, dict[int, tuple[int, int, int]]] = {stage: {} for stage in range(6)}
 
 
 def pal(z: int) -> dict[int, tuple[int, int, int]]:
@@ -835,6 +836,7 @@ LETTERS: dict[str, tuple[float, list[list[tuple[float, float]]]]] = {
         4,
         [[(4, 1.1), (3, 0), (1, 0), (0, 1), (0, 2.2), (1, 3), (3, 3), (4, 3.8), (4, 5), (3, 6), (1, 6), (0, 4.9)]],
     ),
+    "T": (4, [[(0, 0), (4, 0)], [(2, 0), (2, 6)]]),
     "W": (5.4, [[(0, 0), (1.3, 6), (2.7, 1.8), (4.1, 6), (5.4, 0)]]),
     "Y": (4, [[(0, 0), (2, 3.2), (4, 0)], [(2, 3.2), (2, 6)]]),
     " ": (2, []),
@@ -1073,8 +1075,9 @@ PUFFS = {
 }
 
 
-def cloud(p: Pic, cx: int, cy: int, kind: str) -> None:
-    """A cloud of puffs on a flat base: white where the sun reaches, a tone where the cloud itself is in the way."""
+def cloud(p: Pic, cx: int, cy: int, kind: str, r: list[int] | None = None) -> None:
+    """A cloud of puffs on a flat base: white where the sun reaches, a tone where the cloud itself is in the way.
+    r: its three tones, the Downs' unless given."""
     puffs = PUFFS[kind]
     base = max(py + r // 2 for _, py, r in puffs)
 
@@ -1092,7 +1095,7 @@ def cloud(p: Pic, cx: int, cy: int, kind: str) -> None:
             if deep or (y == base and inside(x - 3, y - 4)):
                 t = 2
             for dx in (-320, 0, 320):
-                p.put(cx + x + dx, cy + y, PUFF[t])
+                p.put(cx + x + dx, cy + y, (r or PUFF)[t])
 
 
 # a range: its skyline's corners, then its peaks, each lit on its left
@@ -1267,22 +1270,36 @@ def soil(x: int, y: int, d: int, hem: int) -> int:
     return turf(hem, d) or AMBER[min(comb(x, y) + max(0, 2 - (d - FRINGE[hem % 32] - 2) // 2), 6)]
 
 
-def top(kind: int, col: int, row: int, under: int = 0) -> Pic:
-    """A surface tile of the comb's col-th column of 4 and row-th of 3; under: the tile below a slope's."""
+class Skin(NamedTuple):
+    """What a zone's earth is made of, repeating every 64 across and 48 down: its colour at a world pixel d under
+    the surface, the surface's column hem; its colour far under it; its outline; on a bare side the crust's end,
+    the body's lit side and its dark one."""
+
+    soil: Callable[[int, int, int, int], int]
+    far: Callable[[int, int], int]
+    ink: int
+    edge: tuple[int, int, int]
+
+
+TURFED = Skin(soil, lambda x, y: AMBER[comb(x, y)], PLUM, (TURF[5], AMBER[1], AMBER[5]))
+
+
+def top(kind: int, col: int, row: int, under: int = 0, skin: Skin = TURFED) -> Pic:
+    """A surface tile of the earth's col-th column of 4 and row-th of 3; under: the tile below a slope's."""
     p = Pic(16, 16)
     for x in range(16):
         s = surface(kind, x) - under * 16
         for y in range(max(s, 0), 16):
-            p.put(x, y, soil(col * 16 + x, row * 16 + under * 16 + y, y - s, col * 16 + x))
+            p.put(x, y, skin.soil(col * 16 + x, row * 16 + under * 16 + y, y - s, col * 16 + x))
     return p
 
 
-def deep(col: int, row: int, h: int) -> Pic:
-    """The comb far under the turf."""
+def deep(col: int, row: int, h: int, skin: Skin = TURFED) -> Pic:
+    """The earth far under its surface."""
     p = Pic(16, h)
     for x in range(16):
         for y in range(h):
-            p.put(x, y, AMBER[comb(col * 16 + x, row * 16 + y)])
+            p.put(x, y, skin.far(col * 16 + x, row * 16 + y))
     return p
 
 
@@ -1305,14 +1322,14 @@ def ledge() -> Pic:
     return p
 
 
-def bare(right: bool, body: bool) -> Pic:
-    """A tile of the ground's bare side: the turf's end, then the comb's, lit on the left and dark on the right."""
+def bare(right: bool, body: bool, skin: Skin = TURFED) -> Pic:
+    """A tile of the ground's bare side: the crust's end, then the body's, lit on the left and dark on the right."""
     p = Pic(16, 16)
     x, into = (15, -1) if right else (0, 1)
     for y in range(16):
-        p.put(x, y, PLUM if body or y > 9 else TURF[5])
+        p.put(x, y, skin.ink if body or y > 9 else skin.edge[0])
         if body or y > 12:
-            p.put(x + into, y, AMBER[5 if right else 1])
+            p.put(x + into, y, skin.edge[2 if right else 1])
     return p
 
 
@@ -1346,16 +1363,16 @@ def ring(size: int, r0: float, r1: float, cap: Callable[[int, int], int], body: 
     return p
 
 
-def pipe(col: int, row: int) -> Pic:
-    """A quarter pipe and the row of ground under it, the comb's col-th column and row-th row at its top left: the
-    turf follows the curve, from the floor's on its left up to the wall's top."""
+def pipe(col: int, row: int, skin: Skin = TURFED) -> Pic:
+    """A quarter pipe and the row of ground under it, the earth's col-th column and row-th row at its top left: the
+    crust follows the curve, from the floor's on its left up to the wall's top."""
     p = Pic(48, 64)
     for y in range(64):
         for x in range(48):
             r = math.hypot(x + 0.5, y + 0.5)
             if y >= 48 or r >= 48.5:
                 hem = col * 16 + int(math.atan2(x + 0.5, y + 0.5) * 48.5)
-                p.put(x, y, soil(col * 16 + x, row * 16 + y, int(r - 48.5), hem))
+                p.put(x, y, skin.soil(col * 16 + x, row * 16 + y, int(r - 48.5), hem))
     return p
 
 
@@ -2267,9 +2284,400 @@ def toolbox() -> Pic:
     return p.outline()
 
 
+# ---- Saltwick Sands: sand in strata, a boardwalk, the sea; its colours its own, at noon and at sunset ----
+
+
+def both(first: int, noon: str, dusk: str) -> list[int]:
+    """A ramp of the sands' own colours from index first: its tones at noon, and the same places at sunset."""
+    a, b = noon.split(), dusk.split()
+    assert len(a) == len(b)
+    tones(first, *a, stage=4)
+    return tones(first, *b, stage=5)
+
+
+# the backdrop: pale, and paler than the playfield
+SEASKY = both(
+    96,
+    "#2F86D6 #469ADE #60AEE6 #80C2EC #A4D6F0 #C8E8F2 #E8F4EC",
+    "#4A3A80 #6A4690 #9058A0 #BC70A4 #E08C98 #F8AC84 #FFD08C",
+)
+SEAPUFF = both(103, "#FFFFFF #E6F2FA #C2DCF2", "#FFDCB4 #F4A0A0 #B870A8")
+FARSEA = both(106, "#E2F4EE #A4D8DE #88C8D6 #70B8CC", "#FFDC98 #F09C98 #C078A4 #9060A0")
+NEARSEA = both(110, "#62ACC6 #569EBC #B4E0E4", "#74509C #5C4290 #F0A0A0")  # two bands, a crest's line
+CHALK = both(113, "#D4E0E4 #B4C8D6 #98B0C8", "#8C68A0 #70508C #58407C")  # the headland's cliff: lit, mid, shade
+CHALKTOP = both(116, "#C4E0B8 #A2CCA6", "#7C7498 #645C84")
+# the lighthouse: white lit and shaded, red lit and shaded, its ironwork, its lamp, dark by day
+TOWER = both(118, "#FFFFFF #D0DAE8 #EE8C80 #C8686C #665872 #D0DAE8", "#FFDCC8 #B89CC0 #D05C70 #983C60 #3C2C58 #FFFFD8")
+# the playfield: cream sand, coral, teal
+SAND = both(
+    127,
+    "#FFFBEA #FBEEC8 #F4DCA4 #E6C088 #D0A074 #B08068 #845C64",
+    "#FFE8C4 #FCCC9C #F0AC7C #DC8C6C #BC7068 #94586C #683E5E",
+)
+ROSE = both(134, "#F6C4B0 #E8A090", "#EE9888 #CE7478")
+SEAINK = both(136, "#3A1E36", "#2C1838")[0]  # the ground's own ink
+LAGOON = both(
+    141,
+    "#F0FFFA #B4F4E4 #64DCCC #2CB8B8 #1C94A4 #16708C #124E70",
+    "#FFF4D8 #FFC8A8 #60C0BC #3098A8 #247898 #1E5C88 #184470",
+)
+PLANK = both(156, "#F0E8F0 #C8BACE #9C8EAC #72648A #4A3C62", "#F0C8C4 #BC94A8 #8E6A90 #664A78 #40305C")
+WEED = both(161, "#A4E070 #58B458 #247C50", "#8CB874 #4C8C60 #285C50")
+CORAL = both(164, "#FFD8C8 #FFA890 #F4786C #D04C58 #94304C", "#FFC8B0 #FF9080 #EC6068 #B83C58 #7C284C")
+# the sun on the horizon, and its path on the sea's two far bands: the sky's and the sea's colours by day, when
+# neither shows
+LOWSUN = both(169, "#E8F4EC #E8F4EC #E8F4EC", "#FFFFE0 #FFF0A0 #FFD070")
+GLEAM = both(185, "#A4D8DE #88C8D6", "#FFF0A0 #FFD070")
+SEALINE, LOWSUNX = 104, 296
+
+
+def shore() -> Pic:
+    """The sands' far backdrop, of period 320: a banded sky, the low sun, clouds, the sea to the picture's foot
+    and its swells, the sun's path, three sails, the headland and its lighthouse."""
+    p = Pic(320, 200)
+    edges = [0, 14, 28, 42, 56, 70, 86, SEALINE]
+    for y in range(SEALINE):
+        k = max(i for i in range(7) if edges[i] <= y)
+        if k < 6 and y == edges[k + 1] - 2:  # a line of the next band before it starts
+            k += 1
+        p.box(0, y, 319, y, SEASKY[k])
+    for y in range(88, SEALINE):
+        for x in range(LOWSUNX - 15, LOWSUNX + 16):
+            d = math.hypot(x - LOWSUNX + 0.5, y - SEALINE + 3.5)
+            if d < 14:
+                p.put(x, y, LOWSUN[0] if d < 9 else LOWSUN[1] if d < 12 else LOWSUN[2])
+    for x, y, kind in ((34, 20, "mid"), (150, 30, "big"), (236, 18, "small"), (286, 46, "mid"), (70, 58, "small")):
+        cloud(p, x, y, kind, SEAPUFF)
+    for y in range(SEALINE, 200):
+        d = y - SEALINE
+        tone = (
+            FARSEA[0]
+            if d == 0
+            else FARSEA[1]
+            if d < 7
+            else FARSEA[2]
+            if d < 20
+            else FARSEA[3]
+            if d < 40
+            else NEARSEA[0]
+        )
+        p.box(0, y, 319, y, {5: FARSEA[2], 17: FARSEA[3], 36: NEARSEA[0]}.get(d, tone))
+    # swells: long flat crests, longer and further apart nearer
+    for row, (y, step, run) in enumerate(((112, 40, 9), (121, 64, 14), (133, 80, 20), (150, 160, 30), (172, 160, 40))):
+        for x in range(320):
+            u = (x + row * 37) % step
+            if u < run:
+                p.put(x, y, NEARSEA[2] if y > 126 else FARSEA[0])
+                if y > 140 and 2 < u < run - 3:
+                    p.put(x, y + 1, NEARSEA[1])
+    for d in range(1, 20, 2):
+        for x in range(320):
+            if abs(x - LOWSUNX) <= 4 + d * 0.3 and (x + d * 3) % 7 < 5:
+                p.put(x, SEALINE + d, GLEAM[0 if d < 7 else 1])
+    for x, y, h, lean in ((196, 108, 9, 1), (232, 111, 12, -1), (262, 107, 7, 1)):
+        sail(p, x, y, h, lean)
+    headland(p)
+    lighthouse(p, 100, 75)
+    return p
+
+
+def sail(p: Pic, x: int, y: int, h: int, lean: int) -> None:
+    """A far boat: a white sail lit on one side, a jib, a sliver of hull on the water at y."""
+    for i in range(h):
+        w = max(1, round((i + 1) * 0.55))
+        for j in range(w):
+            p.put(x + lean * j, y - h + i, TOWER[0] if j < w - 1 or w == 1 else TOWER[1])
+        if i > 2:
+            for j in range(1, max(1, round((i - 2) * 0.4)) + 1):
+                p.put(x - lean * (j + 1), y - h + i, TOWER[1])
+    p.box(x - 4, y, x + 4, y, TOWER[4])
+    p.box(x - 3, y + 1, x + 3, y + 1, FARSEA[0])
+
+
+HEADLINE = [(8, SEALINE), (12, 92), (20, 80), (34, 73), (56, 70), (84, 73), (112, 77), (132, 83), (148, 92)]
+HEADLINE += [(158, 100), (163, SEALINE)]
+GULLY = {0: 14, 9: 22, 15: 9}  # a gully's line down the chalk, by its place in each 23 across: how far down
+
+
+def headland(p: Pic) -> None:
+    """The far point the lighthouse stands on, sea either side of it: a chalk cliff under a cap of grass, lit
+    from the left."""
+    for x in range(8, 164):
+        i = max(k for k in range(len(HEADLINE) - 1) if HEADLINE[k][0] <= x)
+        (xa, ya), (xb, yb) = HEADLINE[i], HEADLINE[i + 1]
+        top = round(ya + (yb - ya) * (x - xa) / (xb - xa))
+        cap = 3 + (1 if (x // 5) % 3 == 0 else 0)
+        for y in range(top, SEALINE + 1):
+            if y - top < cap and 16 < x < 150:
+                p.put(x, y, CHALKTOP[0] if y == top else CHALKTOP[1])
+                continue
+            # chalk: lit under the grass, a gully's line here and there, shade at its foot
+            d, u = y - top - cap, x % 23
+            gully = d < GULLY.get(u, -9) + (x // 23 % 3) * 3
+            lit = d < 3 or (u in (1, 10, 16) and d < 8)
+            p.put(x, y, CHALK[2] if gully or y > SEALINE - 4 else CHALK[0] if lit else CHALK[1])
+    p.box(4, SEALINE + 1, 168, SEALINE + 1, FARSEA[0])  # the surf at its foot
+
+
+def lighthouse(p: Pic, x: int, base: int) -> None:
+    """The landmark: a white tower banded red, a gallery, the lamp under a cap."""
+    for i in range(30):
+        half = 5.2 - i * 0.07
+        for xx in range(round(x - half), round(x + half) + 1):
+            red = 7 <= i < 13 or 19 <= i < 25
+            shade = xx > x + half * 0.35
+            p.put(xx, base - i, (TOWER[3] if shade else TOWER[2]) if red else (TOWER[1] if shade else TOWER[0]))
+    p.box(x - 1, base - 3, x, base, TOWER[4])  # its door
+    g = base - 30
+    p.box(x - 6, g, x + 6, g, TOWER[4])  # the gallery and its rail
+    p.box(x - 6, g - 2, x + 6, g - 2, TOWER[4])
+    for xx in (x - 6, x - 3, x, x + 3, x + 6):
+        p.put(xx, g - 1, TOWER[4])
+    p.box(x - 3, g - 7, x + 3, g - 3, TOWER[5])  # the lamp room
+    for xx in (x - 3, x, x + 3):
+        p.box(xx, g - 7, xx, g - 3, TOWER[4])
+    for i in range(4):  # the cap
+        p.box(x - 4 + i, g - 8 - i, x + 4 - i, g - 8 - i, TOWER[3] if i else TOWER[4])
+    p.box(x, g - 14, x, g - 12, TOWER[4])
+
+
+def swell() -> Pic:
+    """The nearer sea, a masked band of period 320 that goes by faster: clear over its first crest, then its
+    water and three rows of swells."""
+    p = Pic(320, 80)
+    p.box(0, 37, 319, 79, NEARSEA[0])
+    for x in range(320):
+        p.put(x, 36, NEARSEA[2] if x % 40 < 31 else NEARSEA[0])
+    for row, (y, step, run) in enumerate(((46, 64, 18), (59, 80, 28), (73, 160, 44))):
+        for x in range(320):
+            u = (x + row * 29) % step
+            if u < run:
+                p.put(x, y, NEARSEA[2])
+                if 2 < u < run - 3:
+                    p.put(x, y + 1, NEARSEA[1])
+    return p
+
+
+# the sand's cut face: its beds down a period of 48, each from a row to a row and its tone's slot
+BEDS = [(0, 6, 2), (6, 9, 7), (9, 17, 3), (17, 23, 1), (23, 29, 2), (29, 33, 8), (33, 41, 3), (41, 44, 4), (44, 48, 2)]
+SHELLS = {
+    3: ("..www.", ".wWcw.", ".wcWw.", "..ww.."),  # a whorl
+    19: ("......", ".wwww.", "wwswsw", ".wwww."),  # a cockle
+    35: ("......", "..tT..", "..Tt..", "......"),  # a chip of sea glass
+    51: ("......", "....ww", "..ww..", "ww...."),  # a razor shell
+}
+PEBBLES = {(5, 3), (6, 3), (5, 4), (21, 5), (22, 5), (40, 2), (41, 2), (41, 3), (55, 4), (56, 4), (56, 5), (30, 6)}
+# a slot's colour dry, and under the tide: 0..6 sand light to dark, 7 and 8 the rose beds, 9 white, 10 coral, 11
+# and 12 sea glass
+DRY = [*SAND, *ROSE, WHITE, CORAL[2], LAGOON[2], LAGOON[3]]
+WET = [LAGOON[4], LAGOON[4], LAGOON[5], LAGOON[5], LAGOON[6], LAGOON[6], LAGOON[6], LAGOON[5], LAGOON[6]]
+WET += [LAGOON[2], LAGOON[3], LAGOON[3], LAGOON[4]]
+CRUST = (6, 7, 8, 8, 7, 6, 5, 5, 6, 7, 7, 6, 5, 6, 7, 8)  # the crust's foot, by twos: a period of 32
+
+
+def strata(x: int, y: int) -> int:
+    """The slot of the sand's cut face at a world pixel, repeating every 64 across and 48 down: flat beds that
+    rise and fall together in a long fold, a seam's line over each; one bed holds shells, one pebbles."""
+    fold = round(3 * math.sin(2 * math.pi * x / 64) + 1.5 * math.sin(4 * math.pi * x / 64 + 1.1))
+    v = (y - fold) % 48
+    lo, hi, tone = next(b for b in BEDS if b[0] <= v < b[1])
+    u = x % 64
+    if v == lo:  # the seam over a bed: dark, but over the shells and the thin beds a soft one
+        return 5 if tone in (2, 3) else 4
+    if v == lo + 1 and tone in (2, 3):
+        return tone - 1  # the light under a seam
+    if tone == 1:  # the shell bed
+        for x0, rows in SHELLS.items():
+            if 0 <= u - x0 < 6 and 0 <= v - lo - 1 < 4 and rows[v - lo - 1][u - x0] != ".":
+                return {"w": 9, "W": 0, "c": 10, "t": 11, "T": 12, "s": 3}[rows[v - lo - 1][u - x0]]
+        return 1
+    return 5 if (lo, hi) == (33, 41) and (u, v - lo) in PEBBLES else tone
+
+
+def crust(hem: int, d: int) -> int:
+    """The slot of the sand's crust d pixels under the surface at column hem, -1 under it: pale sand, a line where
+    it ends, its shade on the beds."""
+    f = CRUST[(hem // 2) % 16]
+    return 0 if d < 2 else 1 if d < f - 1 else 3 if d < f else 5 if d == f else -1
+
+
+def sandy(r: list[int]) -> Skin:
+    """The sand's skin in a slot's colours r: dry, or under the tide."""
+
+    def soil(x: int, y: int, d: int, hem: int) -> int:
+        return r[crust(hem, d) if crust(hem, d) >= 0 else strata(x, y)]
+
+    return Skin(soil, lambda x, y: r[strata(x, y)], SEAINK, (r[3], r[1], r[5]))
+
+
+def boards() -> Pic:
+    """A boardwalk's 16: planks on a beam."""
+    p = Pic(16, 16)
+    for x in range(16):
+        seam = x % 8 == 7
+        p.put(x, 0, PLANK[0])
+        p.put(x, 1, PLANK[3] if seam else PLANK[0] if x % 8 == 0 else PLANK[1])
+        p.put(x, 2, PLANK[3] if seam else PLANK[1])
+        for y, tone in ((3, PLANK[2]), (4, SEAINK), (5, PLANK[3]), (6, PLANK[4]), (7, SEAINK)):
+            p.put(x, y, tone)
+    return p
+
+
+def skiff() -> Pic:
+    """The sands' moving platform: a rowing boat, coral strakes under a white gunwale, its bow to the right."""
+    p = Pic(48, 12)
+    for x in range(2, 46):
+        top = 3 - round(1.6 * ((x - 23) / 22) ** 2)
+        lo = 10 - (round((x - 39) * 1.2) if x > 39 else (4 - x) * 2 if x < 4 else 0)
+        for y in range(top, lo + 1):
+            d = y - top
+            tone = (
+                WHITE
+                if d == 0
+                else TOWER[1]
+                if d == 1
+                else CORAL[4]
+                if d in (2, 6)
+                else CORAL[1]
+                if d == 3
+                else CORAL[2]
+                if d < 6
+                else CORAL[3]
+            )
+            p.put(x, y, CORAL[3] if x > 36 and d >= 2 and d != 6 else tone)
+    return p.outline(SEAINK)
+
+
+def brolly() -> Pic:
+    """A beach umbrella where the Downs have a tree: six gores, coral and white, a scalloped rim, a pole."""
+    p = Pic(64, 80)
+    cx, cy, rx, ry = 32, 51, 20, 14
+    p.box(31, 48, 32, 79, PLANK[2])
+    p.box(31, 48, 31, 79, PLANK[1])
+    for y in range(cy - ry, cy + 2):
+        v = (y - cy) / ry
+        half = rx * math.sqrt(max(0.0, 1 - v * v)) if y <= cy else rx - 1
+        for x in range(cx - rx, cx + rx + 1):
+            if abs(x - cx + 0.5) > half:
+                continue
+            a = math.asin(max(-1.0, min(1.0, (x - cx + 0.5) / max(half, 1))))
+            gore = int((a / math.pi + 0.5) * 6 - 1e-6)
+            rim = y >= cy - 1
+            if y > cy and int((a / math.pi + 0.5) * 12) % 2 == 0:
+                continue  # the rim's scallops
+            if gore % 2 == 0:
+                tone = CORAL[3] if rim or gore >= 4 else CORAL[1] if gore == 0 and v < -0.3 else CORAL[2]
+            else:
+                tone = TOWER[1] if rim or gore >= 4 else WHITE
+            p.put(x, y, tone)
+    p.box(31, 35, 32, 36, CORAL[3])
+    return p.outline()
+
+
+def marram() -> Pic:
+    """Marram grass where the Downs have a bush: three tufts, a few blades from each root."""
+    p = Pic(40, 20)
+    for x0, tall in ((5, 0), (16, 3), (28, 1)):
+        for dx, h, lean in ((0, 7, -2), (1, 9, -1), (2, 10, 0), (3, 8, 2), (4, 6, 3)):
+            for i in range(h + tall):
+                p.put(
+                    x0 + dx + round(lean * i / (h + tall)), 18 - i, WEED[2] if i < 2 else WEED[1] if dx % 2 else WEED[0]
+                )
+    return p.outline(SEAINK)
+
+
+STARFISH = (
+    "....o....",
+    "...oco...",
+    "...oco...",
+    "ooooCoooo",
+    "occCCCcco",
+    ".oocCcoo.",
+    "..ocCco..",
+    ".oco.oco.",
+    ".oo...oo.",
+)
+
+
+def starfish(f: int) -> Pic:
+    """A starfish where the Downs have a flower: frame f, an arm lifted."""
+    p = Pic(12, 16)
+    for y, row in enumerate(STARFISH):
+        for x, ch in enumerate(row if f == 0 else row[::-1]):
+            if ch != "." and not (f and (x, y) in ((1, 8), (2, 8), (1, 7))):
+                p.put(1 + x, 7 + y - (f and x < 3), {"o": INK, "c": CORAL[2], "C": CORAL[1]}[ch])
+    return p
+
+
+def urchin() -> Pic:
+    """A sea urchin where the Downs have thorns: spines round a dark ball."""
+    p = Pic(16, 12)
+    for i in range(9):
+        a = math.pi * i / 8
+        p.line(7.5, 9, 7.5 - 7 * math.cos(a), 9 - 8 * math.sin(a), PLANK[4])
+    p.ball(7.5, 8, 4.4, 3.6, [PLANK[4], PLANK[3], PLANK[2]], 0.1, 1.0)
+    return p.outline()
+
+
+def lifepost() -> Pic:
+    """A post with a life ring where the Downs have a lantern plant."""
+    p = Pic(20, 44)
+    p.box(9, 14, 10, 43, PLANK[2])
+    p.box(9, 14, 9, 43, PLANK[1])
+    for y in range(1, 15):
+        for x in range(3, 17):
+            d = math.hypot(x - 9.5, y - 7.5)
+            if 3 <= d <= 6.6:
+                quarter = (x > 9) ^ (y > 7)
+                p.put(x, y, (CORAL[2] if x + y < 18 else CORAL[3]) if quarter else (WHITE if x + y < 18 else TOWER[1]))
+    return p.outline()
+
+
+def sands() -> list[tuple[int, Pic, bool, int]]:
+    """Saltwick Sands' own pictures, at the indices the Downs' own have: the game draws a zone of this kind from
+    one layout."""
+    k, z = 126, 625
+    a, dry, planks = z + 124, sandy(DRY), [*PLANK, PLANK[4]]
+    out = [(0, shore(), False, -1), (1, swell(), True, -1), (28, boards(), True, -1)]
+    out.append(
+        (5, ring(188, 72, 93, lambda hem, d: DRY[crust(hem, d)] if crust(hem, d) >= 0 else 0, SAND, SEAINK), True, -1)
+    )
+    out += [(z + 112 + h * 2, ribbon(h, planks, SEAINK), True, -1) for h in range(2)]
+    out += earth(a, dry)
+    out.append((a + 268, skiff(), True, -1))
+    out += [
+        (k + 36, brolly(), True, -1),
+        (k + 38, marram(), True, -1),
+        (k + 40, starfish(0), True, -1),
+        (k + 42, starfish(1), True, -1),
+        (k + 44, rock(), True, -1),
+        (k + 46, urchin(), True, -1),
+        (k + 48, lifepost(), True, -1),
+        (k + 376, words("SALTWICK SANDS", 178, 18, 1.42, 2.7), True, -1),
+    ]
+    return out
+
+
 # the pictures only one zone shows: they may use that zone's own colours, and are in the store only while it is
 # played
 OWN: list[set[int]] = [set(), set()]
+ZONES = 3
+
+
+def earth(a: int, skin: Skin) -> list[tuple[int, Pic, bool, int]]:
+    """A zone's ground from index a, by its earth's column of 4 and row of 3: flats, each slope and the tile under
+    it, the body alone and in tall strips, pipes, its bare sides."""
+    out: list[tuple[int, Pic, bool, int]] = []
+    for c in range(4):
+        out.append((a + 240 + c, deep(c, 0, 192, skin), False, -1))
+        for r in range(3):
+            v = c * 3 + r
+            out += [(a + v, top(1, c, r, 0, skin), False, -1), (a + 228 + v, deep(c, r, 16, skin), False, -1)]
+            out.append((a + 244 + v * 2, pipe(c, r, skin), True, -1))
+            for kind in range(2, 8):
+                out.append((a + 12 + ((kind - 2) * 12 + v) * 2, top(kind, c, r, 0, skin), True, -1))
+                out.append((a + 156 + (kind - 2) * 12 + v, top(kind, c, r, 1, skin), False, -1))
+    return out + [(a + 270 + i * 2, bare(i > 1, bool(i & 1), skin), True, -1) for i in range(4)]
 
 
 def pictures() -> list[tuple[int, Pic, bool, int]]:
@@ -2347,15 +2755,7 @@ def pictures() -> list[tuple[int, Pic, bool, int]]:
     out += [(0, downs(), False, -1), (1, hills(), True, -1)]
     out += [(z + 112 + h * 2, ribbon(h, AMBER, PLUM), True, -1) for h in range(2)]
     a = z + 124
-    for c in range(4):
-        out.append((a + 240 + c, deep(c, 0, 192), False, -1))
-        for r in range(3):
-            v = c * 3 + r
-            out += [(a + v, top(1, c, r), False, -1), (a + 228 + v, deep(c, r, 16), False, -1)]
-            out.append((a + 244 + v * 2, pipe(c, r), True, -1))
-            for kind in range(2, 8):
-                out.append((a + 12 + ((kind - 2) * 12 + v) * 2, top(kind, c, r), True, -1))
-                out.append((a + 156 + (kind - 2) * 12 + v, top(kind, c, r, 1), False, -1))
+    out += earth(a, TURFED)
     out.append((a + 268, raft(), True, -1))
     out.append((z + 594, startled(), True, z + 596))
     out += intro(z + 598)
@@ -2372,9 +2772,8 @@ def pictures() -> list[tuple[int, Pic, bool, int]]:
         for f in range(2)
     ]
     out.append((5, ring(188, 72, 93, turf, AMBER, PLUM), True, -1))
-    out += [(a + 270 + i * 2, bare(i > 1, bool(i & 1)), True, -1) for i in range(4)]
     OWN[0].update({0, 1, 5, itile + 18, z + 112, z + 114, *range(a, a + 278), *range(k + 36, k + 50)})
-    OWN[0].update(range(z + 626, z + 642))
+    OWN[0].update({*range(z + 626, z + 642), k + 376})
     return out
 
 
@@ -2538,8 +2937,10 @@ def audit(pics: list[tuple[int, Pic, bool, int]]) -> None:
 
 def group(pics: list[tuple[int, Pic, bool, int]], zone: int) -> list[int]:
     """The pictures only zone shows, or with -1 those every zone does, as CHARLIE.DAT holds them: their count, then
-    each with its mask."""
+    each with its mask. The sands' are their own list, at the Downs' indices."""
     mine = [q for q in pics if next((z for z, own in enumerate(OWN) if q[0] in own), -1) == zone]
+    if zone == 2:
+        mine = sands()
     vals = [len(mine)]
     for k, p, masked, k2 in mine:
         vals += [k, p.w, p.h, int(masked), k2, *encode(p.longs())]
@@ -2561,8 +2962,8 @@ def blob() -> bytes:
         vals.append(len(ZPAL[z]))
         for i, (r, g, b) in sorted(ZPAL[z].items()):
             vals += [i, r + 256 * g + 65536 * b]
-    groups = [group(pics, z) for z in range(-1, len(OWN))]
-    at = [4 * (2 + len(vals) + len(OWN) + sum(len(g) for g in groups[: z + 1])) + 1 for z in range(len(OWN))]
+    groups = [group(pics, z) for z in range(-1, ZONES)]
+    at = [4 * (2 + len(vals) + ZONES + sum(len(g) for g in groups[: z + 1])) + 1 for z in range(ZONES)]
     vals += at + [v for g in groups for v in g]
     lv = levels()
     return struct.pack(f"<{len(vals) + 2}i", len(vals) * 4 + 9 + len(lv), len(vals) * 4 + 9, *vals) + lv + song()

@@ -197,9 +197,9 @@ const ICRANE = ICARTW + 4, IRAIL = ICRANE + 4, IWBOX = IRAIL + 2, ITOOLS = IWBOX
 const HUDW = 108, HUDH = 40
 ' The levels: a zone's two acts, the second at another hour in other colours, zone by zone.
 ' the stages played, and after them the intro's road
-const ZONES = 2, NSTAGE = ZONES * 2, SINTRO = NSTAGE
-' the zones' names, 12 letters each; what marks CHARLIE.SAV as the game's: its zone is added to it
-const ZNAMES = "AMBER DOWNS CHROME WORKS", SAVEMARK = 1128398848
+const ZONES = 3, NSTAGE = ZONES * 2, SINTRO = NSTAGE
+' the zones' names, 16 letters each; what marks CHARLIE.SAV as the game's: its zone is added to it
+const ZNAMES = "AMBER DOWNS     CHROME WORKS    SALTWICK SANDS", SAVEMARK = 1128398848
 ' The intro: BEATS a second, ILEN of them, the ground HORIZON down the screen between two bars BARH high. Its
 ' cues' kinds, in QNAMES' order, six letters a name.
 const BEATS = 2!, ILEN = 112, HORIZON = 150, BARH = 14, NCUE = 96
@@ -397,6 +397,8 @@ dim shared Pal0(255) as long, ZPN(NSTAGE - 1) as integer, ZPK(NSTAGE - 1, 159) a
 dim shared Stage as integer
 dim shared ZWave as integer, MvB(NMOVE) as integer
 dim shared Zone as integer, NextUp as integer, ZTile as integer, ZBack as integer
+' the zone's ground is a deck, the works' kind: else earth, the Downs' kind, its pictures at the Downs' places
+dim shared Decked as integer
 dim shared ZLoop as integer, ZPipe as integer, ZCard as integer
 ' A moving platform m: its thing MvO, its stretch MvS and curve MvZ; its middle MvX, MvY and reach MvA; MvK 0 to
 ' and fro, 1 up and down, 2 a lift, MvT how far up it is; MvE the edge before it.
@@ -702,7 +704,8 @@ sub LoadLevel (st as integer)
         ColTop(i) = MH
     next
     g = 10
-    if z then
+    Decked = z = 1
+    if Decked then
         ZTile = ITILE2
         ZBack = IZ2
         ZLoop = IZ2 + 5
@@ -1213,7 +1216,7 @@ end function
 ' Flowers, bushes and lantern plants along the flats, by the column.
 sub Scatter (c as integer, s as integer)
     if c < 8 then exit sub
-    if Zone then
+    if Decked then
         ' lamp posts, tanks and valve stacks along the decks
         select case (c * 37 + 11) mod 23
         case 0, 12
@@ -1714,7 +1717,8 @@ end sub
 
 ' Stage st's own tune, its number in CHARLIE.DAT: its zone's, the intro's for its road.
 function TuneOf% (st as integer)
-    TuneOf% = ZoneOf%(st) * 4
+    ' the sands have the Downs' until their own is written
+    TuneOf% = (ZoneOf%(st) and 1) * 4
     if st = SINTRO then TuneOf% = 3
 end function
 
@@ -2537,7 +2541,7 @@ end sub
 ' ---- progress ----
 
 function ZoneName$ (z as integer)
-    ZoneName$ = rtrim$(mid$(ZNAMES, z * 12 + 1, 12))
+    ZoneName$ = rtrim$(mid$(ZNAMES, z * 16 + 1, 16))
 end function
 
 ' The furthest zone reached, from CHARLIE.SAV: the first without the file, or with one that is not the game's.
@@ -3208,7 +3212,7 @@ end sub
 ' How far under the view's top Charlie is kept: further in a crane's hall while it hangs there, to see it.
 function Headroom% (p as Hero)
     Headroom% = HEAD
-    if Zone = 0 or ChaseX = NONE or p.x < ChaseX or p.x > ChaseEnd then exit function
+    if Zone <> 1 or ChaseX = NONE or p.x < ChaseX or p.x > ChaseEnd then exit function
     if Cart.st = 1 or Cart.st = 2 then Headroom% = HEADUP
 end function
 
@@ -3238,14 +3242,15 @@ sub Flee (g as Game, p as Hero, lo() as Loose, pt() as Part)
     case 0
         if p.x >= ChaseX then StartChase
     case 1
-        if Zone then
+        select case Zone
+        case 0
+            MoveCart p
+            MeetCart g, p, lo(), pt()
+        case 1
             MoveCrane p
             MeetCrane g, p, pt()
             DropBox g, p, lo(), pt()
-        else
-            MoveCart p
-            MeetCart g, p, lo(), pt()
-        end if
+        end select
     case 2
         if Zone = 1 and Cart.t > 2 - TOOLFALL then exit sub
         ' over it will do: he comes down off the last bump past it
@@ -3326,11 +3331,12 @@ end sub
 ' Who flees, by its zone; nothing once its keepsake is taken back.
 sub DrawChase (cx as integer, cy as integer)
     if ChaseX = NONE or Cart.st = 3 then exit sub
-    if Zone then
-        DrawCrane cx, cy
-    else
+    select case Zone
+    case 0
         DrawCart cx, cy
-    end if
+    case 1
+        DrawCrane cx, cy
+    end select
 end sub
 
 ' The cart, a pip over it for each bump it can still take; broken, the keepsake where it fell, and the cat making
@@ -3730,7 +3736,7 @@ sub Render (g as Game, p as Hero, lo() as Loose, pt() as Part)
     case CLEARED
         Blit 6, 5, IHUD, HUDW, HUDH
         ' up and to the right: under it Charlie meets its family
-        Panel 124, 4, 315, 36
+        Panel 116, 4, 315, 36
         Txt 2, 27 - (len(ZoneName$(Zone)) + 8) \ 2, ZoneName$(Zone) + " CLEARED", CYELLOW
         Txt 3, 22, "BONUS " + Num$(g.bonus, 6), CWHITE
         Txt 4, 22, "SCORE " + Num$(g.score, 6), CWHITE
@@ -3771,7 +3777,7 @@ sub DrawTiles (cx as integer, cy as integer)
             x = tx * TS - cx
             v = ColVis(tx)
             r = ColTop(tx)
-            if Zone then
+            if Decked then
                 if y > -TS then
                     if v <= 2 then
                         put (x, y), Img(At(IDK + (tx and 3))), pset
@@ -3862,14 +3868,14 @@ sub DrawThings (cx as integer, cy as integer, back as integer)
             case KLOOP
                 Blit x - LD \ 2, y - LOOPR - LD \ 2, ZLoop, LD, LD
             case KPIPE
-                if Zone then
+                if Decked then
                     Blit x - PIPER, y - PIPER, ZPipe, PIPER, PIPER
                 else
                     k = IAP + (((ObX(i) \ TS + 1) and 3) * 3 + (ObY(i) \ TS) mod 3) * 2
                     Blit x - PIPER, y - PIPER, k, PIPER, PIPER + TS
                 end if
             case KMOVE
-                if Zone then
+                if Decked then
                     Blit x, y, IMOVE, MOVEW, 12
                 else
                     Blit x, y, IAM, MOVEW, 12
