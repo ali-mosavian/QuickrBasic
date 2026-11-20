@@ -82,7 +82,14 @@ enum : uint8_t { XM_ARGS, XM_COUNT, XM_NONE };
 
 /* N_ARG's passing: the value and FFFFh; a variable's cell (0, V.ADDR); an element's, a field's or a
    record's P.REF; an array whole (its id twice). */
-enum : uint8_t { PA_VALUE, PA_VAR, PA_PREF, PA_ARRAY, PA_NREF /* a SHORT or BYTE element */ };
+enum : uint8_t {
+    PA_VALUE,
+    PA_VAR,
+    PA_PREF,
+    PA_ARRAY,
+    PA_NREF,  /* a SHORT or BYTE element */
+    PA_FIELD, /* a fixed array field whole: its field cell (mem/array.c) */
+};
 
 /* N_CALL's mode: a procedure's, or one DECLAREd only: ERROR when run, then its result's load. */
 enum : uint8_t { CALL_PROC, CALL_UNDEF };
@@ -99,8 +106,8 @@ enum : uint8_t { WH_PAREN = 1, WH_FIXED = 2 };
    elements', wr how it was written, key a fixed one's (decl_fieldkey), 0 a dynamic one's. */
 typedef struct {
     uint32_t et;
-    uint16_t off;
-    uint16_t fix;
+    uint32_t off;
+    uint32_t fix;
     bool arr;
     Written wr;
     uint32_t key;

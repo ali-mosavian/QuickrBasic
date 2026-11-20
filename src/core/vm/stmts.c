@@ -513,6 +513,14 @@ void stmt_erase(Session *const S)
     arry_clear(&S->arry, &S->vm, &v);
 }
 
+/* FCELL ( place key -- cell ): a fixed array field's cell for an array parameter (arry_field_cell). */
+void stmt_fcell(Session *const S)
+{
+    const Addr key = exec_popa(&S->vm) & ~ARR_FIELD;
+    const Addr data = exec_popa(&S->vm);
+    exec_pusha(&S->vm, addr_of(arry_field_cell(&S->arry, data, key)));
+}
+
 /* ---- RUN, LIST, CONT, END, STOP ------------------------------------------------------------- */
 
 /* Back to READY, the frames kept. */

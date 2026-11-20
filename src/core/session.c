@@ -146,7 +146,7 @@ void session_clear(Session *const S)
     symb_clear(&S->symb);
     S->allo.arrays = S->allo.bot;
     S->allo.strings = S->allo.top;
-    S->arry.hdr = S->allo.hdr_base;
+    arry_clear_heap(&S->arry);
     S->strg.tmp_used = 0;
     S->strg.tmp_floor = 0;
     stmt_restore(S);

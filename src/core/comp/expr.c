@@ -203,11 +203,12 @@ static void target_field(Comp *const C, Node *const r)
     if (rec.et >= ET_REC)
         mismatch(C);
 
-    comp_step(C, r);
-    C->tgt = rec.off;
+    const bool far = rec.off > UINT16_MAX; /* past a store's 16 bits, ours: in the address */
+    comp_step(C, far ? expr_addr(C, r, 0) : r);
+    C->tgt = far ? 0 : rec.off;
     C->tgtsubs = TGT_FIELD;
     C->ctrl->fieldet = rec.et;
-    C->ctrl->fieldfix = rec.fix;
+    C->ctrl->fieldfix = (uint16_t)rec.fix; /* a STRING * n's */
     C->tgtinfo = comp_etkind[rec.et];
 }
 

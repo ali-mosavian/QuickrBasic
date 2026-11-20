@@ -1161,10 +1161,17 @@ static void dimempty(Comp *const C, const uint32_t id)
 static bool dimfield(Comp *const C)
 {
     uint32_t type;
-    Node *const cell = ref_arrayfield(C, &type, WH_PAREN);
+    const uint8_t *const at = C->p;
+    Node *const cell = ref_arrayfield(C, &type, WH_PAREN | WH_FIXED);
 
     if (cell == nullptr)
         return false;
+    if (cell->a->rec.key) { /* a fixed one's size is its TYPE's */
+        C->p = at;
+        C->dg = DG_DUPLICATE_DEFINITION_FIXED;
+        fault_error(C->fault, E_RD);
+    }
+
     if (*C->p != '(')
         synerr(C);
 
