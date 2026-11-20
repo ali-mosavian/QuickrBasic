@@ -1601,7 +1601,7 @@ next
 k.d = 0
 if was and p.dug = c + 1 and p.x = wd.lv.ob(c).x then print "burrow ok"
 ' a squirrel stands on its bough, and keeps over him who is under it, turned his way; SQWAIT of the things' steps
-' on, the last SQAIM of them with an acorn held out, it lets one fall: 39 pixels to his head, 19 steps, and it
+' on, the last SQAIM of them with an acorn held out, it lets one fall: 52 pixels to his head, 22 steps, and it
 ' hurts; run under, he is gone before it lands; a bark cows it, still and without acorns; on its bough he is
 ' scratched by it on foot, and beats it curled
 for c = 0 to wd.lv.nObj - 1
@@ -1609,7 +1609,7 @@ for c = 0 to wd.lv.nObj - 1
 next
 v = wd.lv.ob(c).a
 was = c < wd.lv.nObj and wd.lv.ob(c).s <> 0 and GroundAt%(wd.lv, v) = wd.lv.ob(c).y
-was = was and GroundAt%(wd.lv, v + 100) = wd.lv.ob(c).y + 64
+was = was and GroundAt%(wd.lv, v + 100) = wd.lv.ob(c).y + 80
 p.inv = 0
 p.stun = 0
 p.roll = 0
@@ -1637,7 +1637,7 @@ Render wd, g, p, lo(), pt()
 was = was and point(j + 6, m - 5) = 116 and wd.lv.lobN = 0 and p.stun = 0
 Tick wd, g, p, k, lo(), pt()
 was = was and wd.lv.lobN = 1 and wd.lv.ob(c).s = SQWAIT
-for i = 1 to 18
+for i = 1 to 21
     Tick wd, g, p, k, lo(), pt()
 next
 g.shake = 0
@@ -1706,7 +1706,7 @@ if was and colA(0) = -1 and colA(1) = -6 then print "squirrel ok"
 ' a swarm of bees keeps at home while he is far, drawn there; near it he wakes it, and it is on him and stings
 ' on the 15th step, 53 pixels at BEEV; a walk does not lose it, a run has by the 50th step, BEELOSE behind, and it
 ' goes home; so it does when he starts again
-was = wd.lv.nSwarm = 1
+was = wd.lv.nSwarm > 0
 v = wd.lv.swarms(0).hx
 m = wd.lv.swarms(0).hy
 was = was and GroundAt%(wd.lv, v) = m + 48
@@ -1768,6 +1768,25 @@ wd.lv.swarms(0).st = 1
 wd.lv.swarms(0).x = v + 50
 Spawn wd.lv, wd.gr, wd.zn, wd.mu, g, p
 if was and wd.lv.swarms(0).st = 0 and wd.lv.swarms(0).x = v then print "bees ok"
+' the pilot, curled still past what he rolled through and slower than a run, hops out of the roll: left in it
+' he was a crawl by the bees, and stung to death
+for c = 0 to wd.lv.nObj - 1
+    if wd.lv.ob(c).k = KSQUIRREL then exit for
+next
+p.inv = 0
+p.stun = 0
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).a + 80, 250
+p.roll = -1
+for i = 1 to 65
+    Pilot wd.lv, wd.gr, wd.zn, wd.se, p, k
+    Tick wd, g, p, k, lo(), pt()
+next
+k.l = 0
+k.r = 0
+k.d = 0
+k.jump = 0
+k.hit = 0
+if p.roll = 0 and p.ground and p.gsp >= 250 then print "uncurl ok"
 ' the pass's bare ice keeps his speed and will not give it back: let go at a run he slides on where snow stops
 ' him, held back he is long in stopping, and from a stand he is slow away; it is drawn bare, the snow's white gone
 GoStage wd, 6, g, p, lo(), pt()
@@ -3106,6 +3125,7 @@ def main() -> None:
         ),
         ("squirrel ok", "a squirrel keeps over him, drops an acorn on the slow, is cowed by a bark, beaten by a roll"),
         ("bees ok", "a swarm wakes when he is near, stings, keeps up with a walk, is lost by a run and goes home"),
+        ("uncurl ok", "the pilot hops out of a roll that nothing ahead asks for, and is at a run again"),
         ("ice ok", "bare ice keeps his speed: a long slide, a long stop, a slow start; drawn bare of snow"),
         ("sled ok", "a sled is boarded, follows the slope, has no brake, keeps him through a hop, ends in deep snow"),
         ("geyser ok", "in the pass a jet is a geyser, the pass's water: it throws him up as it blows"),

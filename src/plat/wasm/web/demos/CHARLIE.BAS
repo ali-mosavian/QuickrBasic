@@ -3434,12 +3434,13 @@ function PilotRun% (lv as Level, gr as Ground, zn as Realm, se as Session, p as 
     PilotGoat lv, p, k, want
     ' who flees is rolled into, once there is the speed to roll
     k.d = (zn.id = 0 or zn.id = 3) and lv.cart.st = 1 and lv.cart.x > x and lv.cart.x - x < 120 and p.gsp > 150
-    PilotCurl lv, p, k, want
+    if zn.id = 4 then PilotCurl lv, p, k, want
     PilotGaps lv, se, p, k, want
     PilotRun% = want
 end function
 
-' Grown bramble or a log ahead, or about him: rolled through with the speed to roll, else jumped.
+' Grown bramble or a log ahead, or about him: rolled through with the speed to roll, else jumped. Past them,
+' curled still and slower than a run: out of the roll by a hop.
 sub PilotCurl (lv as Level, p as Hero, k as Pad, want as integer)
     dim i as integer, x as integer, c as integer
     x = cint(p.x)
@@ -3456,6 +3457,7 @@ sub PilotCurl (lv as Level, p as Hero, k as Pad, want as integer)
         end if
         exit sub
     next
+    if p.roll and abs(p.gsp) < TOP then want = -1
 end sub
 
 ' A row of presses ahead: to a stop before it, on once its first is well risen, and no jump under one.

@@ -170,24 +170,26 @@ mark,0, flat,10, avalanche,0, dng,5, boost,0, bones,10, flat,12, loop,0, flat,8
 up45,4, hoop,1, arc,11, pit,12, flat,10, dng,4, bones,10, flat,14
 goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
 
-' Russet Wood on a misty noon: stand-ins, until its oak, gadgets and creatures are in. sapling: one bowed to the
-' ground, a catapult. vine: one hung from that many tiles over the ground, to swing on.
+' Russet Wood on a misty noon: down to the wood's floor, then up two storeys, each by a sapling's throw over a
+' wall; a fall from one costs the climb, not a life. sapling: one bowed to the ground, a catapult: the wall
+' twelve columns past it, a run of twenty before it, and nothing that hurts for forty past the wall, where he
+' lands. wall: the ground that many tiles higher from here, sheer. vine: one hung from that many tiles over the
+' ground, to swing on.
 ' bramble: a patch that hurts, cut by a roll and grown back seconds on. log: a hollow one across the way, rolled
 ' through. burrow: a mound, dug into crouched; the level's other mound of that number is where he comes out.
-' squirrel: one that many tiles over the ground, on the bough put there for it, dropping acorns. bees: a swarm,
-' its home that many tiles over the ground.
+' squirrel: one that many tiles over the ground, on the bough put there for it, five up and out of a jump's
+' reach, dropping acorns. bees: a swarm, its home that many tiles over the ground.
 Level Wood1
 tune,Russet
-flat,4, dog,0, flat,4, flower,0, flat,4, bones,6, flat,8, tree,0, flat,4
-lift,6, flat,8, bones,6, flat,6, hover,5, flat,10, tree,0, flat,4
-dng,5, boost,0, bones,10, flat,10, loop,0, flat,8, dng,4, bones,8, flat,8, up45,3, arc,9, pit,10, flat,14
-mark,0, flat,4, bush,0, flat,6, dn45,3, dng,4, boost,0, bones,10, flat,10, loop,0, flat,6, boost,0, flat,6, loop,0
-flat,8, rock,0, flat,6, upg,3, flat,4, tree,0, flat,6, mover,8, flat,8, lift,6, flat,10
-dng,5, boost,0, bones,10, flat,12, boost,0, flat,4, wave,1, flat,8
-dng,4, bones,8, flat,8, thorn,0, flat,8, flower,0, flat,4, up45,3, arc,10, pit,11, flat,8
-mark,0, flat,6, dng,5, boost,0, bones,10, flat,10, loop,0, flat,8, boost,0, flat,6, pipe,6, flat,8
-tree,0, flat,6, spring,0, flat,2, plat,608, hb,706, flat,16, sapling,0, flat,8, vine,12, flat,22, bramble,0, flat,12, log,0, flat,8, bees,3, flat,8, bush,0, flat,6
-burrow,0, flat,2, bones,3, flat,5, bramble,0, flat,7, burrow,0, flat,4, plat,307, flat,4, squirrel,4, flat,12
+flat,4, dog,0, flat,4, flower,0, flat,4, bones,6, flat,6, dng,6, bones,6, flat,10, tree,0, flat,6
+bramble,0, flat,12, bones,5, flat,8, log,0, flat,12, bees,3, flat,24, tree,0, flat,6
+burrow,0, flat,2, bones,3, flat,1, bramble,0, flat,3, bramble,0, flat,3, bramble,0, flat,5, burrow,0, flat,4, plat,407, flat,4, squirrel,5
+flat,10, bones,6, flat,22
+sapling,0, flat,12, wall,7, flat,8, mark,0, flat,8, tree,0, flat,6, bones,5, flat,10
+vine,5, pit,7, flat,10, log,0, flat,12, bramble,0, flat,10, plat,407, flat,4, squirrel,5, flat,12
+bees,4, flat,10, bones,6, flat,24
+sapling,0, flat,12, wall,9, flat,14, mark,0, flat,12, bones,6, flat,16
+bramble,0, flat,4, bramble,0, flat,10, vine,5, pit,8, flat,12, log,0, flat,14, tree,0, flat,8
 goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
 
 ' Russet Wood on the firefly night: a stand-in too. night: the level is dark, but for the seconds after a bark.
