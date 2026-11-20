@@ -37,7 +37,8 @@ enum {
     SK_DBL = 4,   /* a variable's info: a DOUBLE's */
     VS = 4,       /* a variable's slot, a number's bytes */
     NB = 4,       /* a stored FLOAT's bytes */
-    MAXD = 16,    /* dimensions at most */
+    MAXD = 16,    /* a fixed array field's dimensions at most */
+    MAXDIMS = 60, /* an array's, BC's */
     NTMP = 48,    /* string temporaries */
     NPROC = 256,  /* procedures, 1 .. NPROC-1 */
     NPPAR = 2048, /* their parameters, all */
@@ -231,7 +232,8 @@ enum : uint8_t {
     E_SND = 61, /* Subprogram not defined: a SUB DECLAREd only */
     E_ACM = 62, /* Argument-count mismatch */
     E_CNW = 63, /* CONTINUE not within matching block */
-    E_LAST = E_CNW,
+    E_TMD = 64, /* Too many dimensions */
+    E_LAST = E_TMD,
 };
 
 /* QBasic's ERR numbers the runtime raises (fault_qberr), as ERROR n raises them. */

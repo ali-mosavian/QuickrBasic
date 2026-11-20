@@ -18,7 +18,7 @@ Node *expr_tree(Comp *C, bool dbl);
    way, its address emitted. */
 void expr_compile(Comp *C); /* cm_expr: an expression at comp.p, a step */
 Node *expr_arg(Comp *C);    /* an argument: an expression's tree of its own, not for a DOUBLE */
-void expr_args(Comp *C, Node *node);                 /* ( e {, e} ): node's arguments */
+void expr_args(Comp *C, Node *node); /* ( e {, e} ): node's subscripts, MAXDIMS at most */
 /* VARPTR, VARSEG, SSEG, SADD of place at: CALL k after it, 0 none; a record's field's offset
    added. */
 Node *expr_addr(Comp *C, Node *at, uint8_t k);

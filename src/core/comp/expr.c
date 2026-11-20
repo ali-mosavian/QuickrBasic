@@ -236,7 +236,7 @@ void expr_target(Comp *const C)
     comp_open(C);
 
     do {
-        n++;
+        comp_dim(C, ++n);
         Node *const e = expr_tree(C, false);
         comp_check(C, e);
 
@@ -339,11 +339,13 @@ static Node *elem_node(Comp *const C, const uint16_t id)
 void expr_args(Comp *const C, Node *const n)
 {
     Node *last = nullptr;
+    uint32_t k = 0;
     comp_open(C);
 
-    do
+    do {
+        comp_dim(C, ++k);
         ast_link(n, &last, expr_arg(C));
-    while (comp_optcomma(C));
+    } while (comp_optcomma(C));
 
     comp_close(C);
 }

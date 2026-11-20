@@ -230,15 +230,11 @@ static uint32_t element(Comp *const C, Node *const at, const Field *const f)
 }
 
 /* An element of a dynamic array field, ours, its cell off bytes into at's place: its ( s {, s} ) at
-   comp.p, then at's index step ( addr s.. off n -- addr ) by FELEM. Subscript out of range: more
-   than an array has. */
+   comp.p, then at's index step ( addr s.. off n -- addr ) by FELEM. */
 static void dyn_element(Comp *const C, Node *const at, const uint32_t off)
 {
     uint32_t n;
     Node *s = subscripts(C, &n);
-
-    if (n > DIM_COUNT)
-        fault_error(C->fault, E_BS);
 
     Node **end = steps_end(at);
 

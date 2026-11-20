@@ -197,6 +197,12 @@ void comp_need(Comp *C, uint8_t b); /* cm_chk: comp.p at b, stepped past; else S
 static inline void comp_open(Comp *const C) { comp_need(C, '('); }
 static inline void comp_close(Comp *const C) { comp_need(C, ')'); }
 static inline void comp_comma(Comp *const C) { comp_need(C, ','); }
+/* A dimension's subscript or bounds, the k-th: Too many dimensions past MAXDIMS. */
+static inline void comp_dim(Comp *const C, const uint32_t k)
+{
+    if (k > MAXDIMS)
+        fault_error(C->fault, E_TMD);
+}
 void comp_equals(Comp *C);   /* cm_chkeq: comp_need(TK_EQ) */
 bool comp_optcomma(Comp *C); /* past a ',', if there */
 void comp_astype(Comp *C);   /* cm_dvas: past AS type [* n], if there; not a type: Syntax error */

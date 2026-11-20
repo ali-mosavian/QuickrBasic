@@ -19,11 +19,11 @@
 #include "vm/exec.h"
 
 const uint8_t emsg_errnum[E_LAST + 1] = {
-    0,  0,    2,    3,    4,    5,    7,    8,    9,    10,   11,   13,   17,   0,  6,  1,
-    16, 15,   12,   0,    0,    0,    0,    67,   55,   52,   53,   68,   54,   54, 64, 52,
-    0,  13,   18,   0,    0xFF, 73,   33,   40,   0xF0, 0xF1, 0xF2, 0xF3, 0xF4, 38, 26, 29,
-    30, 0xE0, 0xE1, 0xE2, 0xE3, 0xE4, 0xE5, 0xE6, 0xE7, 0xE8, 0xE9, 0xEA, 0xEB, 35, 37,
-    0xEC,
+    0,    0,    2,    3,    4,    5,    7,    8,    9,    10, 11,   13,   17,
+    0,    6,    1,    16,   15,   12,   0,    0,    0,    0,  67,   55,   52,
+    53,   68,   54,   54,   64,   52,   0,    13,   18,   0,  0xFF, 73,   33,
+    40,   0xF0, 0xF1, 0xF2, 0xF3, 0xF4, 38,   26,   29,   30, 0xE0, 0xE1, 0xE2,
+    0xE3, 0xE4, 0xE5, 0xE6, 0xE7, 0xE8, 0xE9, 0xEA, 0xEB, 35, 37,   0xEC, 0xED,
 };
 
 static const struct {
@@ -97,6 +97,7 @@ static const struct {
     {234, "EXIT not within matching block"},
     {235, "Statements/labels illegal between SELECT CASE and CASE"},
     {236, "CONTINUE not within matching block"},
+    {237, "Too many dimensions"},
     {240, "Subprogram error"},
     {241, "AS clause required on first declaration"},
     {242, "Array already dimensioned"},

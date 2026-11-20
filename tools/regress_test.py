@@ -1104,11 +1104,19 @@ CASES |= {
                                 "print fre(-1) = f&"),
                             " 20 \r\n-1 \r\n", "ERROR"),
     "field_dynamic_empty": (bas(*MESH, "m.pts(1).x = 1"), "Subscript out of range in line", None),
-    # More subscripts than an array can have ran: past 64, written beyond the subscripts' buffer.
-    "field_dynamic_dims": (bas(*MESH, "m.pts(" + ",".join("0" * 64) + ").x = 1"), ".BAS:12: Subscript out of range", None),
+    "field_dynamic_dims": (bas(*MESH, "m.pts(" + ",".join("0" * 61) + ").x = 1"), ".BAS:12: Too many dimensions", None),
     "field_dynamic_type": (bas(*MESH, "dim s() as Mesh", "s() = m.pts()"), ".BAS:13: Type mismatch", None),
     "field_dynamic_value": (bas(*MESH, "print m.pts"), ".BAS:12: Type mismatch", None),
     "field_dynamic_put": (bas(*MESH, 'open "x" for binary as 1: put 1, , m'), ".BAS:12: Type mismatch", None),
+}
+
+# BC's 60 dimensions at most. Past 63 a DIM's count ran into its flags (REDIM b(64 bounds) made an
+# array of none); past 64 an element's subscripts were written beyond their buffer.
+DIMS = "(" + ",".join("0" * 60) + ")"
+CASES |= {
+    "dims_60": (bas(f"redim b{DIMS}", f"b{DIMS} = 7: print b{DIMS}; ubound(b, 60)"), " 7  0 \r\n", "ERROR"),
+    "dims_61": (bas("redim b(" + ",".join("1" * 64) + ")", "print ubound(b, 1)"), ".BAS:1: Too many dimensions", None),
+    "dims_61_element": (bas("dim a(3)", "a(" + ",".join("0" * 61) + ") = 1"), ".BAS:2: Too many dimensions", None),
 }
 
 # Typed at the prompt, not run as a file.

@@ -10,6 +10,7 @@
 #include "vm/exec.h"
 
 enum { ADIMS = 64 }; /* the subscript buffers' words */
+static_assert(MAXDIMS <= ADIMS && MAXDIMS <= DIM_COUNT);
 
 typedef struct Arry {
     Allo *allo;             /* the headers' region; the data from allo.bot up to allo.arrays */

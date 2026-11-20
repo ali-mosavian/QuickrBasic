@@ -1044,6 +1044,7 @@ static uint32_t dimsubs(Comp *const C, uint32_t *const elems)
     C->dmask = 0;
 
     do {
+        comp_dim(C, n + 1);
         int32_t lo, hi;
         bool constant = bound(C, &lo);
 
