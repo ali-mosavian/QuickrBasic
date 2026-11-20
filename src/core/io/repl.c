@@ -801,11 +801,14 @@ static void reserve(Session *const S, const uint32_t len)
     allo_grow(&S->allo, HPROG, PROGBASE + len / 4 * 7);
 }
 
-/* An include's file: beside its includer, from, when there; else name as written, from the
-   current folder. */
+/* An include's file to out: beside its includer, from, when there; else name as written, from the
+   current folder. out, as name (repl.incl) is the next include's. */
 static const char *include_path(const char *const from, const char *const name, char *const out)
 {
-    return path_join(out, PFIL_PATH, from, path_dir(from), name) && path_exists(out) ? out : name;
+    if (!path_join(out, PFIL_PATH, from, path_dir(from), name) || !path_exists(out))
+        strcpy(out, name);
+
+    return out;
 }
 
 /* Enter the lines of file name, read as file number num; an include's on the number below, in
