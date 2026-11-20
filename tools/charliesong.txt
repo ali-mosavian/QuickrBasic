@@ -129,6 +129,17 @@ DATA 5, 5, 6, "o---------------", "t---------------", "t---------------", ""
 DATA 3, 2, 1, ".j.j..m---------", ".m.m..o---------", "r-..t.r.w-t-r.t.", ".f.f..j---------"
 DATA 3, 2, 6, ".j.j..m---------", ".m.m..o---------", "v---..t.v-y-w-t-", ".f.f..j---------"
 
+' The level's end's bars: after a chase they come second.
+Part CaughtBars:
+DATA 5, 1, 0, "", "o-t-v---x---v-t-", "", ""
+DATA -2, 1, 0, "", "q-t-y---x-v-t---", "", ""
+DATA 2, 1, 1, "h---------------", "e-h-l-h-e-h-l-h-", "q-s-t---v---t-q-", "l---------------"
+DATA 0, 1, 1, "g---------------", "c-g-j-g-c-g-j-g-", "o---s---v-------", "j---------------"
+DATA 5, 1, 1, "l---------------", "h-l-o-l-h-l-o-l-", "o-t-v---x---v-t-", "o---------------"
+DATA -2, 1, 1, "e---------------", "a-e-h-e-a-e-h-e-", "q-t-y---x-y-x-v-", "h---------------"
+DATA 0, 1, 2, "g---------------", "c-g-j-g-c-g-j-g-", "t-v-x-v-t-s-q-s-", "j---------------"
+DATA 5, 2, 3, "l---------------", "h-l-o-t-t-------", "t-------........", "o---------------"
+
 ' The level's end, Caught Up: the family's tune as the big one plays it when Charlie arrives. Eight bars in G at
 ' 120, once: two of her guitar alone, four with the bass and a lead (the game gives it the zone's own), a run and a
 ' held chord. The guitar is plucked, a string that starts bright and dies; under the lead two soft pipes hold the
@@ -143,14 +154,7 @@ USE Drums
 DATA 2, "0-------7-------", "0---------------"
 DATA 0
 DATA 4, "................", "K.h.S.h.K.h.S.hh", "K.h.S.h.KSSTSTTS", "K..............."
-DATA 5, 1, 0, "", "o-t-v---x---v-t-", "", ""
-DATA -2, 1, 0, "", "q-t-y---x-v-t---", "", ""
-DATA 2, 1, 1, "h---------------", "e-h-l-h-e-h-l-h-", "q-s-t---v---t-q-", "l---------------"
-DATA 0, 1, 1, "g---------------", "c-g-j-g-c-g-j-g-", "o---s---v-------", "j---------------"
-DATA 5, 1, 1, "l---------------", "h-l-o-l-h-l-o-l-", "o-t-v---x---v-t-", "o---------------"
-DATA -2, 1, 1, "e---------------", "a-e-h-e-a-e-h-e-", "q-t-y---x-y-x-v-", "h---------------"
-DATA 0, 1, 2, "g---------------", "c-g-j-g-c-g-j-g-", "t-v-x-v-t-s-q-s-", "j---------------"
-DATA 5, 2, 3, "l---------------", "h-l-o-t-t-------", "t-------........", "o---------------"
+USE CaughtBars
 
 ' The intro, Moving Day: 28 bars of 21 at 120, once, a scene every four. The family's tune on her guitar alone, then
 ' with a bass and brushes; the Mob's, low on a clavinet, creeping by semitones; one hit where the van bumps, and the
@@ -322,3 +326,41 @@ DATA 4, "0-------7-------", "0-------7---5---", "0-------7---a---", "0-------7--
 DATA 0
 DATA 3, "h...h...h...h.h.", "K.h.h.hTK.h.T.h.", "K.h.h.hTK.TTS.T."
 USE SandsBars
+
+' The level's end after a chase, Sent Packing: Caught Up with four bars before it, twelve in all. The Mob's tune on
+' two clavinets, down a tone for its second bar, tumbles down a run to one low note, and the cat's feet patter off
+' on the toms.
+Song Packing:
+DATA "abcdefghijkl", "ccccgggggggg", 12, 120, 6, 12, 11, 6, 0, 11, 6, 0, 0, 1, 0
+DATA "W0Q42H1,4,10,1U5I4"
+DATA "W4Z1,6,3,3,2H0,5,5,1", "R2S12W1H5,4,12,5U3", "R2W1H5,4,12,5U3"
+DATA 2
+DATA "g", "W4Z1,10,4,2H0,9,0,6", "W1H5,4,12,5U3", 0
+DATA "c", "W4Z3,9,3,1,3H0,4,1,2U0I0", "W4Z3,9,3,1,3H0,4,1,2U0I0", 0
+USE Drums
+DATA 2, "0-------7-------", "0---------------"
+DATA 0
+DATA 6, "................", "K.h.S.h.K.h.S.hh", "K.h.S.h.KSSTSTTS", "K...............", "K..h..K.S..h.K.h"
+DATA "T.T.TTTTSTSTK..."
+DATA 5, 1, 4, "......h.....g...", "5.58.757.4.58.7.", "", ""
+DATA 3, 1, 4, "......f.....e...", "3.36.535.2.36.5.", "", ""
+DATA 5, 1, 4, "", "o.m.k.j.h.g.f.ed", "", ""
+DATA 5, 1, 5, "", "c---............", "", ""
+USE CaughtBars
+
+' Game over, Left Behind: the family's tune slow and in the minor, four bars at 80, once. One organ, and its double
+' an octave under.
+Song Over:
+DATA "abcd", "bbbb", 4, 80, 4, 12, 0, 0, 10, 0, 0, 0, 0, 1, 0
+DATA "W0Q42H1,4,10,1U5I4"
+USE Low
+DATA 1
+DATA "b", "W4Z1,4,3,13,4H0,4,11,1U9I0", "W4Z1,4,3,13,4H0,4,11,1U9I0", 1
+USE Drums
+DATA 1, "0---------------"
+DATA 0
+DATA 1, "................"
+DATA 5, 1, 0, "", "o-t-v---w---v-t-", "", ""
+DATA -2, 1, 0, "", "p-t-y---w-v-t---", "", ""
+DATA 0, 1, 0, "", "v---r---o---r-v-", "", ""
+DATA 5, 1, 0, "", "t---------------", "", ""

@@ -685,6 +685,42 @@ for m = 1 to 5 step 2
 next
 GoStage 0, g, p, lo(), pt()
 if was then print "arranged ok"
+' after a chase the level's end is the longer one, twelve bars that end, the cat sent packing first, its first half
+' bar played; where there is no chase it is the eight. It was the eight everywhere
+GoStage 1, g, p, lo(), pt()
+was = CHeld = PACKING + 1 and len(Order(CAUGHT)) = 12 and Ends(CAUGHT)
+g.mode = CLEARED
+PickSong SongFor%(g), -1
+NextHalf
+was = was and Sng = CAUGHT and Bar = 0 and HalfBar = 1
+GoStage 0, g, p, lo(), pt()
+if was and CHeld = CAUGHTUP + 1 and len(Order(CAUGHT)) = 8 then print "packing ok"
+' the last life lost, game over has its own tune in that slot, four bars at 80 that end, its first half bar played,
+' and stays while it plays; then the title, the level's end back in its slot. Game over was five seconds of the
+' zone's tune
+k.hit = 0
+k.start = 0
+k.quit = 0
+g.lives = 1
+Lose p
+for i = 1 to 200
+    Tick g, p, k, lo(), pt()
+    if g.mode = OVER then exit for
+next
+was = g.mode = OVER and CHeld = LEFTBEHIND + 1 and SongFor%(g) = CAUGHT and Tempo(CAUGHT) = 80
+PickSong SongFor%(g), -1
+NextHalf
+was = was and Sng = CAUGHT and len(Order(CAUGHT)) = 4 and Ends(CAUGHT)
+for i = 1 to 600
+    Tick g, p, k, lo(), pt()
+next
+was = was and g.mode = OVER
+for i = 1 to 400
+    Tick g, p, k, lo(), pt()
+    if g.mode = TITLE then exit for
+next
+if was and g.mode = TITLE and i < 400 and CHeld = CAUGHTUP + 1 then print "over ok"
+GoStage 0, g, p, lo(), pt()
 ' Saltwick Sands' sea rises and falls by the clock, from low water to high and back, and from low water at the
 ' level's start whatever the clock then: it began where the game's clock had it, a sunset's high water by chance
 GoStage 4, g, p, lo(), pt()
@@ -1441,6 +1477,8 @@ def main() -> None:
         ("works tune ok", "the Chrome Works played to their own tune"),
         ("sands tune ok", "Saltwick Sands played to their own tune"),
         ("arranged ok", "a zone's second act played to its tune arranged again: evening, night and sunset"),
+        ("packing ok", "after a chase the level's end is the longer one, twelve bars; the eight elsewhere"),
+        ("over ok", "game over played by its own tune and held while it plays; then the title"),
         ("cart ok", "a chase's cart hurts Charlie run into it, is bumped by him curled, and not again while dazed"),
         ("chase ok", "the Downs' evening ended in its chase: the cart fled, broken by three bumps, its keepsake taken"),
         ("tilt ok", "on a slope the chase's cart follows it, each wheel on the ground under it"),

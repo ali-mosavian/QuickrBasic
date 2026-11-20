@@ -214,12 +214,12 @@ tune.
 |---|---|
 | Title | Charlie's theme, as now. |
 | Level's end | *Caught Up*, its own tune: the family tune as the big one plays it when Charlie arrives. Eight bars at 120, not looped. Two bars of guitar alone, four with the zone's lead and bass, a run and a held chord with his woof. The tally counts in time with it. It replaces Charlie's theme there. |
-| Level's end after a chase | The same in twelve bars: first the Mob's motif tumbling downward, the cat running off. |
+| Level's end after a chase | *Sent Packing*, the same in twelve bars: first the Mob's motif tumbling downward, the cat running off. |
 | Level's end, Lantern Quarter act 1 | Whistled: the guitar is gone. It comes back after the chase. |
 | Chase | One tune, the Mob's motif at 160 over a driving bass, led by the zone's own lead instrument. Each bump sounds the first notes of Charlie's theme. |
 | The Baron | His own chase tune at 168, organ and bells. The third part is Charlie's theme outright. |
 | Between zones | Four bars: the stop-time hit, then the Mob's motif. |
-| Game over | Four bars: the family tune slow, in the minor, one organ. |
+| Game over | *Left Behind*, four bars: the family tune slow, in the minor, one organ. |
 | Ending | The family tune in full, 16 bars, a voice joining each row. Then Charlie's theme under the credits. The longer ending adds the Mob's motif turned major. |
 
 Golden bone, extra life and bark are sound effects, not tunes.

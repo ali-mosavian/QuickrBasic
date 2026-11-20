@@ -254,6 +254,8 @@ const PEDALV = 130!, PEDALMORE = 40!, PEDALW = 48, PEDALUP = 8
 ' it; its tune's number in CHARLIE.DAT.
 const CRUISE = 330!, DAWDLE = 200!, BOLT = 560!, CARTLEAD = 260, CARTR = 26
 const DAZED = 1.4, BOLTS = 1!, NBUMP = 3, CHASETUNE = 5
+' The level's end's songs, and game over's, by their numbers in CHARLIE.DAT; how long game over stays, its tune's length.
+const CAUGHTUP = 2, PACKING = 10, LEFTBEHIND = 11, OVERT = 13
 ' The works' crane: its speed after Charlie, what each bump adds, and away from one; how near touches it; its
 ' gondola's foot over the floor, out of a jump's reach, and its rail's top; the seconds to its next crate, what
 ' each bump takes off them, and the seconds one is held over Charlie; the view's height over him, by habit and
@@ -289,6 +291,8 @@ declare sub MuteKey (k as Pad)
 declare sub Shimmer ()
 declare sub Spent (k as Pad)
 declare sub ZoneTune (id as integer)
+declare sub SceneTune (id as integer)
+declare sub EndTune
 declare sub HushSong ()
 declare sub ResetChase ()
 declare sub Flee (g as Game, p as Hero, lo() as Loose, pt() as Part)
@@ -505,7 +509,7 @@ dim shared Coming as integer, ComingBar as integer, FadeOut as integer, FadeIn a
 ' who flees in this level's chase, and the race: from ChaseX, NONE where there is none, to ChaseEnd
 dim shared Cart as Runner, Box as Runner, ChaseX as integer, ChaseEnd as integer
 ' the song in the zone's slot, one more than its number in CHARLIE.DAT: 0 before any
-dim shared ZHeld as integer
+dim shared ZHeld as integer, CHeld as integer
 ' the furthest zone a game has reached, kept in CHARLIE.SAV, and the zone picked on the title to start at
 dim shared Reached as integer, Pick as integer
 ' the sea's surface, NONE where a stage has none; where it is at the level's start, at step TideAt, and half a
@@ -658,7 +662,7 @@ sub Main
                 Advance g, p, k, lo(), pt(), cu()
                 n = n - 1
             loop
-            PickSong SongFor%(g), g.mode = CLEARED
+            PickSong SongFor%(g), g.mode = CLEARED or g.mode = OVER
             FeedSong
             if g.mode = INTRO then
                 IntroDraw g, p, cu()
@@ -1827,8 +1831,7 @@ end sub
 ' zone's lead.
 sub LoadSongs
     LoadSong THEME, 1
-    LoadSong CAUGHT, 2
-    LeadP(CAUGHT) = LeadP(ZTUNE)
+    SceneTune CAUGHTUP
     Sng = -1
     Coming = THEME
     ComingBar = 0
@@ -1843,6 +1846,25 @@ sub ZoneTune (id as integer)
     LoadSong ZTUNE, id
     LeadP(CAUGHT) = LeadP(ZTUNE)
     if Sng = ZTUNE then HushSong
+end sub
+
+' Song id into the level's end's slot, unless it is there, the zone's lead its own: what was playing from the
+' slot is dropped.
+sub SceneTune (id as integer)
+    if CHeld = id + 1 then exit sub
+    CHeld = id + 1
+    LoadSong CAUGHT, id
+    LeadP(CAUGHT) = LeadP(ZTUNE)
+    if Sng = CAUGHT then HushSong
+end sub
+
+' The level's end for the level there is: after a chase the longer one, the cat sent packing first.
+sub EndTune
+    if ChaseX = NONE then
+        SceneTune CAUGHTUP
+    else
+        SceneTune PACKING
+    end if
 end sub
 
 ' The song playing dropped where it is: the next picked starts at once.
@@ -2097,12 +2119,13 @@ sub StartSong
     play "MB" + t + "Z1,0L16", t + BassP(Sng), t + "R2S4", , t + "R2" + LeadP(Sng), t + "R2S12", t + UnderP(Sng), t + MidP(Sng)
 end sub
 
-' The slot to play for the game's state: the theme for the title, the level's end, else the zone's tune.
+' The slot to play for the game's state: the theme for the title, the level's end or game over, else the zone's
+' tune.
 function SongFor% (g as Game)
     select case g.mode
     case TITLE
         SongFor% = THEME
-    case CLEARED
+    case CLEARED, OVER
         SongFor% = CAUGHT
     case else
         SongFor% = ZTUNE
@@ -2415,7 +2438,7 @@ sub Tick (g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part)
             end if
         end if
     case OVER
-        if g.modeT > 5 or (g.modeT > 1.5 and (k.hit or k.start)) or k.quit then ResetWorld g, p, lo(), pt()
+        if g.modeT > OVERT or (g.modeT > 1.5 and (k.hit or k.start)) or k.quit then ResetWorld g, p, lo(), pt()
     end select
     if (Ticks and 1) = 0 then Things g, lo(), pt()
     Shimmer
@@ -2615,6 +2638,7 @@ end sub
 sub ResetWorld (g as Game, p as Hero, lo() as Loose, pt() as Part)
     dim i as integer
     if Stage <> NextUp then LoadLevel NextUp
+    EndTune
     g.mode = TITLE
     g.modeT = 0
     Cheer = 0
@@ -3233,6 +3257,7 @@ sub Dying (g as Game, p as Hero)
     if g.lives <= 0 then
         g.mode = OVER
         g.modeT = 0
+        SceneTune LEFTBEHIND
     else
         Spawn g, p
     end if
