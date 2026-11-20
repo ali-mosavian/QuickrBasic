@@ -670,6 +670,8 @@ CASES = {
     # The line read from the file, a continued one's first; blank lines count.
     "qb_where_compile": ("PRINT 1\r\n\r\nX = 1 + _\r\n  (\r\nPRINT 3\r\n", ".BAS:3: Syntax error\r\n  X = 1 + (\r\n", " 1"),
     "qb_where_dupdef": ("CONST SP = 1\r\nPRINT 1\r\nsp = 2\r\n", ".BAS:3: Duplicate definition\r\n  SP = 2\r\n  ^\r\n`SP` is", " 1"),
+    # An include's include was looked for in the current folder, not beside it: File not found.
+    "include_beside": ("REM $INCLUDE: 'SUB/A.BI'\r\nPRINT 3\r\n", " 1 \r\n 2 \r\n 3 \r\n", "ERROR"),
     "qb_where_include": ("PRINT 1\r\n\r\nREM $INCLUDE: 'WHERE.BI'\r\nPRINT 2\r\n", "WHERE.BI:3: Syntax error\r\n  Y = 1 +\r\n", " 1"),
     # Errors loading the file (a label twice, a number past 63999): the bare message, no line.
     "qb_where_label": ("PRINT 1\r\nfoo:\r\nfoo:\r\n", ".BAS:3: Duplicate label\r\n  foo:\r\n  ^\r\n", " 1"),
@@ -1379,6 +1381,8 @@ REPL = {
 # Companions the cases read, beside them.
 FILES = {
     "WHERE.BI": b"' included\r\n\r\nY = 1 +\r\n",
+    "SUB/A.BI": b"PRINT 1\r\nREM $INCLUDE: 'B.BI'\r\n",
+    "SUB/B.BI": b"PRINT 2\r\n",
     "QB_CH3.BAS": b'COMMON q$, y()\r\nPRINT LEN(q$); RIGHT$(q$, 1); y(500)\r\n',
     "QB_CH4.BAS": b"COMMON m AS BYTE, y() AS BYTE\r\nPRINT m; LEN(m); y(2)\r\nm = m + 6\r\n",
     "QB_CH5.BAS": f"COMMON {', '.join(f'd{i}' for i in range(600))}, y() AS LONG\r\nPRINT d0; d599; y(30000)\r\n".encode(),

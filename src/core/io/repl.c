@@ -52,6 +52,7 @@
 #include "io/console.h"
 #include "io/diag.h"
 #include "io/errmsg.h"
+#include "io/path.h"
 #include "io/source.h"
 #include "mem/alloc.h"
 #include "mem/program.h"
@@ -800,6 +801,13 @@ static void reserve(Session *const S, const uint32_t len)
     allo_grow(&S->allo, HPROG, PROGBASE + len / 4 * 7);
 }
 
+/* An include's file: beside its includer, from, when there; else name as written, from the
+   current folder. */
+static const char *include_path(const char *const from, const char *const name, char *const out)
+{
+    return path_join(out, PFIL_PATH, from, path_dir(from), name) && path_exists(out) ? out : name;
+}
+
 /* Enter the lines of file name, read as file number num; an include's on the number below, in
    place. Then the console's again. */
 static void read_file(Session *const S, const char *const name, const int32_t num)
@@ -833,7 +841,8 @@ static void read_file(Session *const S, const char *const name, const int32_t nu
         S->lexr.source = nullptr;
 
         if (inc) { /* its lines next */
-            read_file(S, S->repl.incl, num - 1);
+            char path[PFIL_PATH];
+            read_file(S, include_path(name, S->repl.incl, path), num - 1);
             fault_check(&S->fault, chnl_find(cl, num, &c));
             fault_check(&S->fault, chnl_in(cl, c));
         }
@@ -897,7 +906,8 @@ void repl_relink(Session *const S)
 
         S->prog.add_at = line;
         S->prog.add_flags = LF_INC;
-        read_file(S, S->repl.incl, SOURCE_FILENO - 1);
+        char path[PFIL_PATH];
+        read_file(S, include_path(S->repl.file, S->repl.incl, path), SOURCE_FILENO - 1);
         line = S->prog.add_at;
         S->prog.add_at = 0;
         S->prog.add_flags = 0;

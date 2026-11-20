@@ -23,8 +23,10 @@ contents.
 ```
 '$INCLUDE: 'COMMON.BI'
 ```
-A file that can not be found is a [File not found](File not found)
-error. A wrong form is a metacommand error.
+The file is looked for beside the file that includes it, then in the
+current folder, in QuickrBasic. A file that can not be found is a
+[File not found](File not found) error. A wrong form is a metacommand
+error.
 
 $STATIC and $DYNAMIC
 They set how arrays that are dimensioned with constant bounds are

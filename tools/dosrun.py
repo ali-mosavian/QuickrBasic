@@ -73,7 +73,8 @@ def run(jobs: dict[str, str | tuple], work: Path, limit_ms: int = 60000, file: b
     # stub32a loads DOS32A.EXE from the program's directory
     if (COM.parent / "DOS32A.EXE").exists() and COM.suffix.lower() == ".exe":
         shutil.copy(COM.parent / "DOS32A.EXE", work / "DOS32A.EXE")
-    for n, data in (files or {}).items():  # companions the programs read
+    for n, data in (files or {}).items():  # companions the programs read, a folder's too
+        (work / n).parent.mkdir(parents=True, exist_ok=True)
         (work / n).write_bytes(data)
     if is_host(COM):
         return run_host(jobs, work, limit_ms, file)
