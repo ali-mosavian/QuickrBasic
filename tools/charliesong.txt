@@ -1,9 +1,10 @@
 ' The game's songs, packed into CHARLIE.DAT by tools/charlieart.py; the game plays any of them from its data alone.
 ' A song is "Song name:" and its DATA, in this order. "USE name" stands for the DATA of "Part name:".
+' A zone's second act is its tune arranged again: a song of its own over the first's bars, a Part.
 '   Its order, a letter a bar; each bar's voicing, a letter of its kit; the bars there are; the tempo; the bars the
-'   bass waits; how loud the first chord voice, the lead, the second and third, the low double and the bass are; the
-'   bars at its end that fade; the bar it comes in at where it is not from its start; 1 when it ends, 0 when it
-'   goes round.
+'   bass waits; how loud the first chord voice, the lead, the second, the low double, the bass and the third voice
+'   are, the third's 0 leaving it out; the bars at its end that fade; the bar it comes in at where it is not from
+'   its start; 1 when it ends, 0 when it goes round; the octaves the lead is moved.
 '   Its kit: the lead's sound, the bass's, the low double's and the third voice's. Then its voicings: how many, and
 '   for each its letter, the first chord voice's sound, the second's, and 1 when the low double plays under them.
 '   Then its drums: how many, and for each its letter, its sound, how loud, 7 when a fade rounds it up, its note.
@@ -34,18 +35,8 @@ DATA "k", "W4Z1,4,3,13,4H0,4,11,1U9I0", "W4Z3,9,3,1,3H0,4,1,2U0I0", 1
 Part Low:
 DATA "W4Z1,6,3,3,2H0,5,5,1", "R2S12W4Z1,4,3,13,4H0,4,11,1U9", "R2W4Z1,4,3,13,4H0,4,11,1U9"
 
-' The Downs' tune: 76 bars of 28 in D at 140: an intro and its variation, then A, B, C and D twice round and four
-' bars of A fading. Horns for the intro, then an organ, high, and a low chug; a reedy pulse leads.
-Song Downs:
-DATA "abcdabcefghefgh{ijkl|jkmnopqnoprstuvwxyzwxyzijkl|jkmnopqnoprstuvwxyzwxyzijkm", "hhhhhhhhkkkkkkkkkkkkkkkkkkhk", 28, 140, 3, 12, 9, 10, 9, 13, 4, 0, 0
-DATA "W0Q42H1,4,10,1U5I4"
-USE Low
-USE Brasses
-USE Drums
-DATA 5, "0.0.C.0.00c.7.0C", "0.0.7.0.C.0c.7c7", "0.0.0.0.C.c.057c", "0.C00c7c0.C057ac", "0.......0.....7."
-DATA 3, "x.x.x.xx.xx.x.x.", "x.......x.....x.", "x.x.x.x.x.x.x.x."
-DATA 7, "KHHHSHHSKHKHSHHH", "KHHHSHKHSSTTSTSS", "K.H.S.H.K.K.S.H.", "K.H.S.SSKSSTSTTS", "KHHSHHKSKHHSHHSS"
-DATA "K.H.S.H.K.K.S.H.", "K.H.S.H.K.K.S.SS"
+' The Downs' bars: both its acts play them.
+Part DownsBars:
 DATA 0, 1, 0, "8-.8c.e-..f.e-c.", "c-.cf.h-..j.h-f.", "", ""
 DATA 0, 1, 0, "8-.8c.e-..j.f-e-", "c-.cf.h-..m.j-h-", "", ""
 DATA -4, 4, 0, "h..h....f..e..c.", "k..k....j..h..f.", "", ""
@@ -75,6 +66,20 @@ DATA -2, 3, 1, "0e", "q--.q..t--------", "q.qq.m.q-..t-q-m", ""
 DATA -5, 3, 1, "j-..j.k.m-k-j-f-", "m-..m.o.q-o-m-j-", "........7bejnqv-", ""
 DATA 0, 1, 0, "0f", "v--.v..v--------", "o.jo..m.oj..f.hj", ""
 
+' The Downs' tune: 76 bars of 28 in D at 140: an intro and its variation, then A, B, C and D twice round and four
+' bars of A fading. Horns for the intro, then an organ, high, and a low chug; a reedy pulse leads.
+Song Downs:
+DATA "abcdabcefghefgh{ijkl|jkmnopqnoprstuvwxyzwxyzijkl|jkmnopqnoprstuvwxyzwxyzijkm", "hhhhhhhhkkkkkkkkkkkkkkkkkkhk", 28, 140, 3, 12, 9, 10, 9, 13, 10, 4, 0, 0, 0
+DATA "W0Q42H1,4,10,1U5I4"
+USE Low
+USE Brasses
+USE Drums
+DATA 5, "0.0.C.0.00c.7.0C", "0.0.7.0.C.0c.7c7", "0.0.0.0.C.c.057c", "0.C00c7c0.C057ac", "0.......0.....7."
+DATA 3, "x.x.x.xx.xx.x.x.", "x.......x.....x.", "x.x.x.x.x.x.x.x."
+DATA 7, "KHHHSHHSKHKHSHHH", "KHHHSHKHSSTTSTSS", "K.H.S.H.K.K.S.H.", "K.H.S.SSKSSTSTTS", "KHHSHHKSKHHSHHSS"
+DATA "K.H.S.H.K.K.S.H.", "K.H.S.H.K.K.S.SS"
+USE DownsBars
+
 ' Charlie's own theme, for the title and the level's end: 64 bars of 30 in G minor, as fast. Three organs, two of
 ' them in stereo, stab a four bar round: the brass's voice, the second brass's the note under it, and a third's
 ' under that, a bar's last riff. A brass lead answers them, busy two bars and held two, its fourth bar another as
@@ -84,7 +89,7 @@ DATA 0, 1, 0, "0f", "v--.v..v--------", "o.jo..m.oj..f.hj", ""
 ' a song's a listener passed, part for part against its drums: as first written the lead was 2.8 dB under that
 ' and the bass 2.2 over. As Song's.
 Song Theme:
-DATA "abyzwxcdefcde}ghijghi~klmnopqrstuvcdefghi~klmnopqrstuvcde}ghij{|", "oooooooooohohohohokkkkoooohhoo", 30, 140, 2, 10, 14, 9, 8, 11, 0, 22, 0
+DATA "abyzwxcdefcde}ghijghi~klmnopqrstuvcdefghi~klmnopqrstuvcde}ghij{|", "oooooooooohohohohokkkkoooohhoo", 30, 140, 2, 10, 14, 9, 8, 11, 9, 0, 22, 0, 0
 DATA "W4Z1,9,3,15,3H5,4,10,1U5I4"
 USE Low
 USE Brasses
@@ -129,7 +134,7 @@ DATA 3, 2, 6, ".j.j..m---------", ".m.m..o---------", "v---..t.v-y-w-t-", ".f.f.
 ' held chord. The guitar is plucked, a string that starts bright and dies; under the lead two soft pipes hold the
 ' chord.
 Song Caught:
-DATA "abcdefgh", "gggggggg", 8, 120, 2, 12, 11, 6, 0, 11, 0, 0, 1
+DATA "abcdefgh", "gggggggg", 8, 120, 2, 12, 11, 6, 0, 11, 6, 0, 0, 1, 0
 DATA "W0Q42H1,4,10,1U5I4"
 DATA "W4Z1,6,3,3,2H0,5,5,1", "R2S12W1H5,4,12,5U3", "R2W1H5,4,12,5U3"
 DATA 1
@@ -153,7 +158,7 @@ DATA 5, 2, 3, "l---------------", "h-l-o-t-t-------", "t-------........", "o----
 ' theme's next phrase, a run up out of its last bar into the title's. A bar's voices: g her guitar over soft
 ' pipes, c two clavinets, b the theme's organs.
 Song Intro:
-DATA "abcdefghijijklmlnopqeigjrstu", "ggggggggcccccbbbbbbbb", 21, 120, 4, 12, 12, 8, 8, 11, 0, 0, 1
+DATA "abcdefghijijklmlnopqeigjrstu", "ggggggggcccccbbbbbbbb", 21, 120, 4, 12, 12, 8, 8, 11, 8, 0, 0, 1, 0
 DATA "W4Z1,9,3,15,3H5,4,10,1U5I4"
 USE Low
 DATA 3
@@ -187,20 +192,8 @@ DATA 5, 5, 5, ".k.k..m---------", ".o.o..r---------", "o-------..m.o.r.", ".h.h.
 DATA 1, 4, 5, "h..h..h-......j.", "k..k..k-......m.", "t---..r.t-w-y-w-", "d..d..d-......f."
 DATA 3, 5, 7, ".j.j..m---------", ".m.m..o---------", "r.r.t.t.v.v.y.y.", ".f.f..j---------"
 
-' The works' tune, Night Shift: 28 bars of 13 in E minor at 132, machine funk, round and round. A pulse bass in
-' sixteenths that never stops, two clavinets chugging, a filtered saw that leads and slides into its long notes, a
-' metal hit off the beat. Four bars of the bass, the hats and the hits, the clavinets in for the last two; then A
-' twice, B twice and A twice more.
-Song Works:
-DATA "abcdefghefgijklmjklmefghefgi", "mmmmmmmmmmmmm", 13, 132, 0, 9, 12, 9, 0, 13, 0, 0, 0
-DATA "W2Y1,2400,5H0,4,11,2U3I6"
-DATA "W0Q25Y1,900,4H0,3,9,1", "R2S12W1H5,4,12,5U3", "R3W4Z7,6,7,0H0,6,0,4"
-DATA 1
-DATA "m", "W4Z3,9,3,1,3H0,4,1,2U0I0", "W4Z3,9,3,1,3H0,4,1,2U0I0", 0
-USE Drums
-DATA 3, "000c000c0007000c", "000c000c00a0070c", "000c0007000a00bc"
-DATA 0
-DATA 4, "H.h.H.h.H.h.H.hh", "K.hhS.hK.hK.S.hh", "K.hhS.hK.hK.SSTS", "K.h.S.hhK.KhS.Oh"
+' The works' bars: both their acts play them.
+Part WorksBars:
 DATA 2, 1, 0, "", "", "", ""
 DATA 2, 2, 0, "", "", "", "......l.......l."
 DATA 2, 1, 0, "h.h..h.h.h..h.l.", "e.e..e.e.e..e.h.", "", "......l.......l."
@@ -215,11 +208,27 @@ DATA 0, 2, 1, "j.j..j.j.j..j.o.", "g.g..g.g.g..g.j.", "v-..v.t.S---o---", ".....
 DATA 7, 1, 1, "m.m..m.m.m..m.q.", "j.j..j.j.j..j.m.", "q-..q.t.V---t-q-", "......q.......q."
 DATA -3, 3, 2, "l.l..l.l.l..lpl.", "g.g..g.g.g..glg.", "s-..s.p.S-------", "......l.....l.l."
 
+' The works' tune, Night Shift: 28 bars of 13 in E minor at 132, machine funk, round and round. A pulse bass in
+' sixteenths that never stops, two clavinets chugging, a filtered saw that leads and slides into its long notes, a
+' metal hit off the beat. Four bars of the bass, the hats and the hits, the clavinets in for the last two; then A
+' twice, B twice and A twice more.
+Song Works:
+DATA "abcdefghefgijklmjklmefghefgi", "mmmmmmmmmmmmm", 13, 132, 0, 9, 12, 9, 0, 13, 9, 0, 0, 0, 0
+DATA "W2Y1,2400,5H0,4,11,2U3I6"
+DATA "W0Q25Y1,900,4H0,3,9,1", "R2S12W1H5,4,12,5U3", "R3W4Z7,6,7,0H0,6,0,4"
+DATA 1
+DATA "m", "W4Z3,9,3,1,3H0,4,1,2U0I0", "W4Z3,9,3,1,3H0,4,1,2U0I0", 0
+USE Drums
+DATA 3, "000c000c0007000c", "000c000c00a0070c", "000c0007000a00bc"
+DATA 0
+DATA 4, "H.h.H.h.H.h.H.hh", "K.hhS.hK.hK.S.hh", "K.hhS.hK.hK.SSTS", "K.h.S.hhK.KhS.Oh"
+USE WorksBars
+
 ' The chase, Catch That Cat: eight bars of five at 160, round and round: the Mob's tune on two clavinets over a bass
 ' in driving eighths, down a tone for its third bar, a run to turn it round. The zone's own lead plays over it:
 ' the game gives it that.
 Song Chase:
-DATA "abcdabce", "ccccc", 5, 160, 0, 10, 12, 9, 0, 13, 0, 0, 0
+DATA "abcdabce", "ccccc", 5, 160, 0, 10, 12, 9, 0, 13, 9, 0, 0, 0, 0
 DATA "W0Q42H1,4,10,1U5I4"
 USE Low
 DATA 1
@@ -234,11 +243,34 @@ DATA 3, 1, 0, "......f.....e...", "3.36.535.2.36.5.", "f-..f.i.h-f-e-f-", ""
 DATA 5, 2, 1, "....h.g.....k.j.", "5.58.7.5.8.9.a.c", "o-m-k-j-h-g-f-e-", ""
 DATA 5, 2, 1, "....h.g.....k.j.", "5.58.7.5.8.a.c.e", "h.j.k.m.o.q.t---", ""
 
+' The sands' bars: both their acts play them, the sunset the third voice too, the lead's notes a third down.
+Part SandsBars:
+DATA -2, 1, 0, "", "", "", ""
+DATA -2, 2, 0, "", "", "", ""
+DATA 3, 1, 1, "..j...jj..j...j.", "..f...ff..f...f.", "", ""
+DATA 5, 4, 2, "..l...ll..l...l.", "..f...ff..f...f.", "", ""
+DATA -2, 1, 1, "..h...hh..h...h.", "..e...ee..e...e.", "q-.qt-.tq-m-..m.", "m-.mq-.qm-j-..j."
+DATA -2, 2, 1, "..h...hh..h...h.", "..e...ee..e...e.", "q-.qt-.ty-..t-q-", "m-.mq-.qv-..q-m-"
+DATA 3, 1, 1, "..j...jj..j...j.", "..f...ff..f...f.", "r-.rv-.vr-m-..m.", "o-.or-.ro-j-..j."
+DATA 5, 2, 1, "..l...ll..l...l.", "..h...hh..h...h.", "t-.tx-.xv-t-..o.", "q-.qt-.tr-q-..l."
+DATA -2, 1, 1, "..h...hh..h...h.", "..e...ee..e...e.", "q-.qt-.tq-m-..m.", "m-.mq-.qm-j-..j."
+DATA 7, 3, 1, "..j...jj..j...j.", "..e...ee..e...e.", "q-.qv-.vt-q-..m.", "m-.mr-.rq-m-..j."
+DATA 0, 3, 1, "..j...jj..j...j.", "..f...ff..f...f.", "r-.ro-.or-o-..l.", "o-.ol-.lo-l-..h."
+DATA 5, 4, 2, "..l...ll..l...l.", "..f...ff..f...f.", "t-x-o-x-t-..v-x-", "q-t-l-t-q-..r-t-"
+DATA 3, 1, 1, "..j...jj..j...j.", "..f...ff..f...f.", "y---..v.r---..v.", "v---..r.o---..r."
+DATA 3, 2, 1, "..j...jj..j...j.", "..f...ff..f...f.", "y-v-r-v-y---....", "v-r-o-r-v---...."
+DATA -2, 1, 1, "..h...hh..h...h.", "..e...ee..e...e.", "y---..t.q---..t.", "v---..q.m---..q."
+DATA -2, 2, 1, "..h...hh..h...h.", "..e...ee..e...e.", "y-t-q-t-m---....", "v-q-m-q-j---...."
+DATA 5, 1, 1, "..l...ll..l...l.", "..h...hh..h...h.", "x---..t.o---..t.", "t---..q.l---..q."
+DATA 5, 2, 1, "..l...ll..l...l.", "..f...ff..f...f.", "x-t-o-t-r---....", "t-q-l-q-o---...."
+DATA -2, 1, 1, "..h...hh..h...h.", "..e...ee..e...e.", "q-.qt-.ty---..t.", "m-.mq-.qv---..q."
+DATA 5, 4, 2, "..l...ll..l...l.", "..f...ff..f...f.", "v-t-r-o-l---..t.", "r-q-o-l-h---..q."
+
 ' The sands' tune, Low Water: 36 bars of 20 in C at 120, a calypso, round and round. A triangle bass that walks, a
 ' marimba's two notes off the beat, hats shaken in sixteenths and a tom for a conga; a steel pan leads, a bell
 ' that falls to a hollow tone. Four bars in, then A twice, B, and A.
 Song Sands:
-DATA "abcdefghijklefghijklmnopqrstefghijkl", "pppppppppppppppppppp", 20, 120, 0, 8, 12, 8, 0, 12, 0, 0, 0
+DATA "abcdefghijklefghijklmnopqrstefghijkl", "pppppppppppppppppppp", 20, 120, 0, 8, 12, 8, 0, 12, 0, 0, 0, 0, 0
 DATA "W4Z2,8,5,3,1H0,9,5,6R5I4"
 DATA "W1H0,6,10,2", "W1H0,6,10,2", "W4Z4,6,2,0H0,6,0,3R3"
 DATA 1
@@ -247,23 +279,46 @@ USE Drums
 DATA 4, "0-..4-..7-..9-7-", "0-..7-..c-..7-5-", "0-..3-..7-..a-7-", "0-..4-..7-..a-7-"
 DATA 0
 DATA 3, "h.H.h.H.h.H.h.Hh", "KhHhhhHTKhHhThHh", "KhHhhhHTKhTTSTTS"
-DATA -2, 1, 0, "", "", "", ""
-DATA -2, 2, 0, "", "", "", ""
-DATA 3, 1, 1, "..j...jj..j...j.", "..f...ff..f...f.", "", ""
-DATA 5, 4, 2, "..l...ll..l...l.", "..f...ff..f...f.", "", ""
-DATA -2, 1, 1, "..h...hh..h...h.", "..e...ee..e...e.", "q-.qt-.tq-m-..m.", ""
-DATA -2, 2, 1, "..h...hh..h...h.", "..e...ee..e...e.", "q-.qt-.ty-..t-q-", ""
-DATA 3, 1, 1, "..j...jj..j...j.", "..f...ff..f...f.", "r-.rv-.vr-m-..m.", ""
-DATA 5, 2, 1, "..l...ll..l...l.", "..h...hh..h...h.", "t-.tx-.xv-t-..o.", ""
-DATA -2, 1, 1, "..h...hh..h...h.", "..e...ee..e...e.", "q-.qt-.tq-m-..m.", ""
-DATA 7, 3, 1, "..j...jj..j...j.", "..e...ee..e...e.", "q-.qv-.vt-q-..m.", ""
-DATA 0, 3, 1, "..j...jj..j...j.", "..f...ff..f...f.", "r-.ro-.or-o-..l.", ""
-DATA 5, 4, 2, "..l...ll..l...l.", "..f...ff..f...f.", "t-x-o-x-t-..v-x-", ""
-DATA 3, 1, 1, "..j...jj..j...j.", "..f...ff..f...f.", "y---..v.r---..v.", ""
-DATA 3, 2, 1, "..j...jj..j...j.", "..f...ff..f...f.", "y-v-r-v-y---....", ""
-DATA -2, 1, 1, "..h...hh..h...h.", "..e...ee..e...e.", "y---..t.q---..t.", ""
-DATA -2, 2, 1, "..h...hh..h...h.", "..e...ee..e...e.", "y-t-q-t-m---....", ""
-DATA 5, 1, 1, "..l...ll..l...l.", "..h...hh..h...h.", "x---..t.o---..t.", ""
-DATA 5, 2, 1, "..l...ll..l...l.", "..f...ff..f...f.", "x-t-o-t-r---....", ""
-DATA -2, 1, 1, "..h...hh..h...h.", "..e...ee..e...e.", "q-.qt-.ty---..t.", ""
-DATA 5, 4, 2, "..l...ll..l...l.", "..f...ff..f...f.", "v-t-r-o-l---..t.", ""
+USE SandsBars
+
+' The Downs at evening: their tune over the organs from its first bar, the horns and the clavinet gone, on drums
+' that leave room: soft hats, a kick and a snare.
+Song Evening:
+DATA "abcdabcefghefgh{ijkl|jkmnopqnoprstuvwxyzwxyzijkl|jkmnopqnoprstuvwxyzwxyzijkm", "oooooooooooooooooooooooooooo", 28, 140, 3, 11, 9, 10, 9, 12, 10, 4, 0, 0, 0
+DATA "W0Q42H1,4,10,1U5I4"
+USE Low
+USE Brasses
+USE Drums
+DATA 5, "0.0.C.0.00c.7.0C", "0.0.7.0.C.0c.7c7", "0.0.0.0.C.c.057c", "0.C00c7c0.C057ac", "0.......0.....7."
+DATA 3, "x.x.x.xx.xx.x.x.", "x.......x.....x.", "x.x.x.x.x.x.x.x."
+DATA 7, "K.h.S.h.K.h.S.h.", "K.h.S.h.K.h.S.TS", "K...S...K.K.S...", "K...S..hK.h.STTS", "K.hhS.h.K.hhS.h."
+DATA "K...S...K.K.S...", "K...S...K.K.S.hh"
+USE DownsBars
+
+' The works by night: their tune in half time, the snare on the bar's third beat alone; the saw an octave down and
+' darker, and a bigger room round all of it.
+Song Night:
+DATA "abcdefghefgijklmjklmefghefgi", "nnnnnnnnnnnnn", 13, 132, 0, 8, 12, 8, 0, 12, 9, 0, 0, 0, -1
+DATA "W2Y1,1800,5H0,4,11,2U3I6R7"
+DATA "W0Q25Y1,900,4H0,3,9,1", "R2S12W1H5,4,12,5U3", "R8W4Z7,6,7,0H0,6,0,4"
+DATA 1
+DATA "n", "R5W4Z3,9,3,1,3H0,4,1,2U0I0", "R5W4Z3,9,3,1,3H0,4,1,2U0I0", 0
+USE Drums
+DATA 3, "000c000c0007000c", "000c000c00a0070c", "000c0007000a00bc"
+DATA 0
+DATA 4, "H...h...H...h.h.", "K.h.h.h.S.hKh.h.", "K.h.h.h.S.hKSTTS", "K.h.h.hKS.h.h.Oh"
+USE WorksBars
+
+' The sands at sunset: their tune at 108, the pan in thirds, a second pan under the first; the bass holds a note
+' half a bar, and the shaker thins.
+Song Sunset:
+DATA "abcdefghijklefghijklmnopqrstefghijkl", "pppppppppppppppppppp", 20, 108, 0, 7, 11, 7, 0, 12, 8, 0, 0, 0, 0
+DATA "W4Z2,8,5,3,1H0,9,5,6R5I4"
+DATA "W1H0,6,10,2", "W1H0,6,10,2", "S10W4Z2,8,5,3,1H0,9,5,6R5"
+DATA 1
+DATA "p", "S5W4Z4,7,2,0H0,6,0,3R4", "S11W4Z4,7,2,0H0,6,0,3R4", 0
+USE Drums
+DATA 4, "0-------7-------", "0-------7---5---", "0-------7---a---", "0-------7---a-7-"
+DATA 0
+DATA 3, "h...h...h...h.h.", "K.h.h.hTK.h.T.h.", "K.h.h.hTK.TTS.T."
+USE SandsBars

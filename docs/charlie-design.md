@@ -91,7 +91,8 @@ Progress is saved at each zone.
 - Chase (built): Biscuit's honey cart, a straight race downhill from two pipes. Rolled into three times it
   breaks and leaves the picnic basket. It waits at the race's end for whoever could not catch it.
 - Look: honeycomb soil under turf. Amber, leaf green, lilac. Peaks, downs, the lake.
-- Music: the tune it has, in D at 140: horns, organ, clavinet. Evening: the organ throughout, lighter drums.
+- Music (written): the tune it has, in D at 140: horns, organ, clavinet. Evening: the organ throughout, lighter
+  drums.
 
 ### 2. Chrome Works (built)
 
@@ -107,8 +108,8 @@ Progress is saved at each zone.
 - Look: plated deck, hazard stripe, running lights. Steel blue, chrome, signal yellow. The skyline and the
   works' stacks.
 - Music (written): machine funk in E minor at 132. A pulse bass in sixteenths that never stops, clavinet
-  chugs, metal hits off the beat, a saw lead that slides. Night, to add: half-time drums, the lead an octave
-  down, more room.
+  chugs, metal hits off the beat, a saw lead that slides. Night: half-time drums, the lead an octave down, more
+  room.
 
 ### 3. Saltwick Sands (built)
 
@@ -117,7 +118,7 @@ Progress is saved at each zone.
   afloat on the tide and aground at low water; buoys that bump, deckchairs for springs; crabs, a step when
   barked into their shells; jellyfish, afloat or stranded; gulls, which drop the bones they took at a bark;
   its chase, Kipper's pedal boat up and down a sea channel, sunk by three landings on its deck; its tune,
-  both acts to the noon's. To add: flumes, the sunset's arrangement.
+  and the sunset's arrangement of it. To add: flumes.
 - Rule: the tide. Water rises and falls on a clock, and roads open and close with it. Charlie paddles on the
   surface, slow, and stays slow out of it until a roll shakes him dry.
 - Gadgets: boats, flumes that end in water, deckchair springs, buoys that bump.
@@ -128,7 +129,7 @@ Progress is saved at each zone.
 - Chase: Captain Kipper's pedal boat. The course turns round twice as the tide turns. The little one's teddy.
 - Look: wavy sand strata with shell bands, a boardwalk on stilts. Teal, cream, coral. Sea horizon, sails,
   the lighthouse.
-- Music: calypso in C at 120. A steel pan lead, marimba chords off the beat, a walking triangle bass, a
+- Music (written): calypso in C at 120. A steel pan lead, marimba chords off the beat, a walking triangle bass, a
   shaker. Sunset: 108, the pan in thirds, the bass held.
 
 ### 4. Whitecap Pass

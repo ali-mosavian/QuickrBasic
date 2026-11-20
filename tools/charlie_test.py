@@ -46,7 +46,7 @@ BuildArt
 LoadLevel 0
 dim g as Game, p as Hero, k as Pad, i as long, j as integer, loops as integer, was as integer
 dim c as integer, v as integer, m as integer, zp as integer, seen as string, brim as integer, ebb as integer
-dim hid as long, shown as long, bt as single, colA(SH - 1) as integer, colB(SH - 1) as integer
+dim hid as long, shown as long, bt as single, colA(SH - 1) as integer, colB(SH - 1) as integer, act1 as string
 dim lo(NLOOSE - 1) as Loose, pt(NPART - 1) as Part, cu(NCUE) as Cue
 Muted = -1
 StartGame g, p, lo(), pt()
@@ -628,7 +628,7 @@ for i = 1 to 40
     Tick g, p, k, lo(), pt()
     if Cart.st = 2 then exit for
 next
-was = Cart.st = 2 and Cart.hits = NBUMP and ZHeld = 5
+was = Cart.st = 2 and Cart.hits = NBUMP and ZHeld = 9
 for i = 1 to 10
     Tick g, p, k, lo(), pt()
 next
@@ -660,6 +660,31 @@ for i = 0 to NVOICE - 1
     play , , VoOne(ZTUNE, i) + "V1", , , VoTwo(ZTUNE, i) + "V1"
 next
 if Sng = ZTUNE and ZHeld = 7 and Tempo(ZTUNE) = 120 and len(Order(ZTUNE)) = 36 then print "sands tune ok"
+' a zone's second act plays its tune arranged again, a song of its own over the first act's bars, its first half
+' bar and voicings played: the sands' sunset at 108 with a second pan under the first, silent at noon; the works'
+' night with its lead an octave down; the Downs' evening on the organs from its first bar. Each had its first act's
+was = Third(8) = "P2" and Lvl(ZTUNE, 5) = 0
+GoStage 5, g, p, lo(), pt()
+was = was and ZHeld = 10 and Tempo(ZTUNE) = 108 and len(Order(ZTUNE)) = 36 and instr(Third(8), "N49") = 3
+GoStage 2, g, p, lo(), pt()
+act1 = Trk(8 * 5 + 3)
+GoStage 3, g, p, lo(), pt()
+was = was and ZHeld = 9 and Tempo(ZTUNE) = 132 and instr(act1, "N53") = 3 and instr(Trk(8 * 5 + 3), "N41") = 3
+GoStage 0, g, p, lo(), pt()
+was = was and ZHeld = 1 and left$(Voicing(ZTUNE), 1) = "h"
+GoStage 1, g, p, lo(), pt()
+was = was and ZHeld = 8 and Voicing(ZTUNE) = string$(28, "o") and len(Order(ZTUNE)) = 76
+for m = 1 to 5 step 2
+    GoStage m, g, p, lo(), pt()
+    PickSong SongFor%(g), 0
+    NextHalf
+    for i = 0 to NVOICE - 1
+        play , , VoOne(ZTUNE, i) + "V1", , , VoTwo(ZTUNE, i) + "V1"
+    next
+    was = was and Sng = ZTUNE
+next
+GoStage 0, g, p, lo(), pt()
+if was then print "arranged ok"
 ' Saltwick Sands' sea rises and falls by the clock, from low water to high and back, and from low water at the
 ' level's start whatever the clock then: it began where the game's clock had it, a sunset's high water by chance
 GoStage 4, g, p, lo(), pt()
@@ -1175,7 +1200,7 @@ for m = 1 to NSTAGE - 1
     next
     ' the Downs' evening ends in a chase: the cart fled down the race to the chase's tune, was bumped till it broke,
     ' and its keepsake taken, the zone's tune back
-    if m = 1 and was and Cart.st = 3 and Cart.hits = NBUMP and ZHeld = 1 then print "chase ok"
+    if m = 1 and was and Cart.st = 3 and Cart.hits = NBUMP and ZHeld = 8 then print "chase ok"
     ' and the sands' sunset: the pilot hops out of the sea onto Kipper's boat till it sinks, and takes the teddy
     if m = 5 and Cart.st = 3 and Cart.hits = NBUMP then print "kipper ok"
     print "act"; m; g.mode; g.lives - j; Stage; Zone; cint(p.x)
@@ -1415,6 +1440,7 @@ def main() -> None:
         ("bridge ok", "a bridge raised by its button, to stand on"),
         ("works tune ok", "the Chrome Works played to their own tune"),
         ("sands tune ok", "Saltwick Sands played to their own tune"),
+        ("arranged ok", "a zone's second act played to its tune arranged again: evening, night and sunset"),
         ("cart ok", "a chase's cart hurts Charlie run into it, is bumped by him curled, and not again while dazed"),
         ("chase ok", "the Downs' evening ended in its chase: the cart fled, broken by three bumps, its keepsake taken"),
         ("tilt ok", "on a slope the chase's cart follows it, each wheel on the ground under it"),

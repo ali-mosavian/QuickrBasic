@@ -3010,8 +3010,10 @@ def song() -> bytes:
 
 def levels() -> bytes:
     """LEVELS' levels in order, each its commands to its end: a command its length and its characters, its count a
-    LONG. Before them how many there are, and where each starts from the count. A command the game's loader has no
-    case for it would pass over, and a level without its end it would read past: either stops this."""
+    LONG; a tune's count is its song's number. Before them how many there are, and where each starts from the count.
+    A command the game's loader has no case for it would pass over, and a level without its end it would read past:
+    either stops this."""
+    tunes = re.findall(r"(?m)^Song (\w+):$", SONG.read_text())
     src = GAME.read_text()
     loader = src[src.index("\nsub LoadLevel ") :]
     known = {*re.findall(r'case "(\w+)"', loader[: loader.index("\nend sub")]), "end"}
@@ -3019,6 +3021,10 @@ def levels() -> bytes:
     for n, line in enumerate(LEVELS.read_text().splitlines(), 1):
         if line.startswith("Level "):
             found.append([])
+        elif m := re.fullmatch(r"tune,(\w+)", line):
+            if m[1] not in tunes:
+                sys.exit(f"charlieart: {LEVELS.name} line {n} names a song there is not")
+            found[-1].append(("tune", str(tunes.index(m[1]))))
         elif line and not line.startswith("'"):
             if not re.fullmatch(r"\w+,\d+(, \w+,\d+)*", line):
                 sys.exit(f"charlieart: {LEVELS.name} line {n} is not commands and counts")
@@ -3028,6 +3034,8 @@ def levels() -> bytes:
             sys.exit(f"charlieart: level {i} has commands the game does not know: {sorted(unknown)}")
         if [c for c, _ in lv].count("end") != 1 or lv[-1][0] != "end":
             sys.exit(f"charlieart: level {i} does not end with its end")
+        if [c for c, _ in lv].count("tune") != 1:
+            sys.exit(f"charlieart: level {i} does not name its one tune")
     blocks = [
         b"".join(struct.pack("<i", len(c)) + c.encode("ascii") + struct.pack("<i", int(v)) for c, v in lv)
         for lv in found
@@ -3049,7 +3057,7 @@ def sound(n: int, s: list[int | str]) -> None:
 
     order, voicing = texts(2)
     bars = int(next(it))
-    for _ in range(10):
+    for _ in range(12):
         next(it)
     texts(4)
     voices = [(str(next(it)), *texts(2), next(it))[0] for _ in range(int(next(it)))]

@@ -224,7 +224,6 @@ const ZONES = 3, NSTAGE = ZONES * 2, SINTRO = NSTAGE
 ' the zones' names, 16 letters each; what marks CHARLIE.SAV as the game's: its zone is added to it
 const ZNAMES = "AMBER DOWNS     CHROME WORKS    SALTWICK SANDS", SAVEMARK = 1128398848
 ' each zone's tune, its number in CHARLIE.DAT: a digit a zone
-const ZTUNES = "046"
 ' The intro: BEATS a second, ILEN of them, the ground HORIZON down the screen between two bars BARH high. Its
 ' cues' kinds, in QNAMES' order, six letters a name.
 const BEATS = 2!, ILEN = 112, HORIZON = 150, BARH = 14, NCUE = 96
@@ -290,7 +289,6 @@ declare sub MuteKey (k as Pad)
 declare sub Shimmer ()
 declare sub Spent (k as Pad)
 declare sub ZoneTune (id as integer)
-declare function TuneOf% (st as integer)
 declare sub HushSong ()
 declare sub ResetChase ()
 declare sub Flee (g as Game, p as Hero, lo() as Loose, pt() as Part)
@@ -384,7 +382,7 @@ declare sub LoadSongs ()
 declare sub LoadSong (s as integer, id as integer)
 declare sub ReadKit (s as integer)
 declare sub ReadList (a() as string)
-declare sub ReadBar (s as integer, n as integer, bas() as string, hits() as string, pat() as string)
+declare sub ReadBar (s as integer, n as integer, bas() as string, hits() as string, pat() as string, lead as integer)
 declare sub FeedSong ()
 declare sub NextHalf ()
 declare sub StartSong ()
@@ -490,8 +488,8 @@ const NBAR = 30, NVOICE = 4, NDRUM = 8
 dim shared Trk(NSLOT * NBAR * 10) as string, Kit(NSLOT * NBAR * 2) as string
 dim shared Org(NSLOT * NBAR * 2) as string, Third(NSLOT * NBAR * 2) as string
 dim shared Order(NSLOT - 1) as string, Voicing(NSLOT - 1) as string, Tempo(NSLOT - 1) as integer
-dim shared BassIn(NSLOT - 1) as integer, Lvl(NSLOT - 1, 4) as integer, Fade(NSLOT - 1) as integer
-dim shared Entry(NSLOT - 1) as integer, Ends(NSLOT - 1) as integer
+dim shared BassIn(NSLOT - 1) as integer, Lvl(NSLOT - 1, 5) as integer, Fade(NSLOT - 1) as integer
+dim shared Entry(NSLOT - 1) as integer, Ends(NSLOT - 1) as integer, StageTune as integer
 ' A slot's kit: the sounds of its lead, bass, low double and third voice; by voicing, its letter's place in VoLet,
 ' the two chord voices' sounds and whether the double plays; by drum, its letter's place in DrLet, its sound, how
 ' loud, what a fade rounds it up by, and its note.
@@ -971,6 +969,8 @@ sub LoadLevel (st as integer)
             TideHi = (MH - n mod 100) * TS
             Tide = TideLo
             TideAt = Ticks
+        case "tune"
+            StageTune = n
         case "dog"
             StartX = c * TS + 8
             StartY = s
@@ -987,7 +987,7 @@ sub LoadLevel (st as integer)
     SortObjs
     Track
     Faces
-    ZoneTune TuneOf%(st)
+    ZoneTune StageTune
 end sub
 
 ' The ground's line from the columns' tops, left to right, broken where they do not meet; a loop spliced in where
@@ -1836,12 +1836,6 @@ sub LoadSongs
     Tune = -1
 end sub
 
-' Stage st's own tune, its number in CHARLIE.DAT: its zone's, the intro's for its road.
-function TuneOf% (st as integer)
-    TuneOf% = val(mid$(ZTUNES, ZoneOf%(st) + 1, 1))
-    if st = SINTRO then TuneOf% = 3
-end function
-
 ' Song id into the zone's slot, unless it is there: what was playing from the slot is dropped.
 sub ZoneTune (id as integer)
     if ZHeld = id + 1 then exit sub
@@ -1860,7 +1854,7 @@ end sub
 
 ' Song id of CHARLIE.DAT into slot s: its order and levels, its kit, and its bars as PLAY strings.
 sub LoadSong (s as integer, id as integer)
-    dim i as integer, n as integer, bars as integer, songs as long
+    dim i as integer, n as integer, bars as integer, octs as integer, songs as long
     dim bas(7) as string, hits(7) as string, pat(7) as string
     OpenData
     songs = Word&
@@ -1871,18 +1865,19 @@ sub LoadSong (s as integer, id as integer)
     bars = Word&
     Tempo(s) = Word&
     BassIn(s) = Word&
-    for i = 0 to 4
+    for i = 0 to 5
         Lvl(s, i) = Word&
     next
     Fade(s) = Word&
     Entry(s) = Word&
     Ends(s) = Word&
+    octs = Word&
     ReadKit s
     ReadList bas()
     ReadList hits()
     ReadList pat()
     for n = 0 to bars - 1
-        ReadBar s, n, bas(), hits(), pat()
+        ReadBar s, n, bas(), hits(), pat(), 27 + 12 * octs
     next
     close #1
 end sub
@@ -1923,8 +1918,9 @@ sub ReadList (a() as string)
 end sub
 
 ' Slot s's bar n, CHARLIE.DAT's next: its root, bass riff and drum pattern, and four riffs, made its two half bars'
-' PLAY strings. A second voice of two characters is a chord pattern, its x the note, an octave down.
-sub ReadBar (s as integer, n as integer, bas() as string, hits() as string, pat() as string)
+' PLAY strings, the lead's lowest note `lead`. A second voice of two characters is a chord pattern, its x the note,
+' an octave down. A third voice of no loudness is left out.
+sub ReadBar (s as integer, n as integer, bas() as string, hits() as string, pat() as string, lead as integer)
     dim root as integer, nb as integer, nd as integer, low as integer, j as integer, h as integer
     dim st as string, br as string, sol as string, mid as string
     root = Word&
@@ -1934,6 +1930,7 @@ sub ReadBar (s as integer, n as integer, bas() as string, hits() as string, pat(
     br = Chars$
     sol = Chars$
     mid = Chars$
+    if Lvl(s, 5) = 0 then mid = ""
     low = 27
     if len(st) = 2 then
         low = 15
@@ -1948,7 +1945,7 @@ sub ReadBar (s as integer, n as integer, bas() as string, hits() as string, pat(
         Trk(h * 5) = Beat$(s, Kit(h), 8)
         Trk(h * 5 + 1) = Riff$(bas(nb - 1), j, 15 + root)
         Trk(h * 5 + 2) = Riff$(br, j, 27)
-        Trk(h * 5 + 3) = Riff$(sol, j, 27)
+        Trk(h * 5 + 3) = Riff$(sol, j, lead)
         Trk(h * 5 + 4) = Riff$(st, j, low)
         Org(h) = Riff$(br, j, 15)
         Third(h) = Riff$(mid, j, 27)
@@ -2076,7 +2073,7 @@ sub NextHalf
     one = t + VoOne(Sng, v) + Vol$(Lvl(Sng, 0), loud, 0) + Trk(h * 5 + 2)
     solo = t + LeadP(Sng) + Vol$(Lvl(Sng, 1), loud, 7) + Trk(h * 5 + 3)
     two = t + VoTwo(Sng, v) + Vol$(Lvl(Sng, 2), loud, 0) + Trk(h * 5 + 4)
-    midv = t + Vol$(Lvl(Sng, 2), loud, 0) + Third(h)
+    midv = t + Vol$(Lvl(Sng, 5), loud, 0) + Third(h)
     play t + d, t + bass, one, , solo, two, t + under, midv
     HalfBar = 1 - HalfBar
     if HalfBar then exit sub
@@ -3584,7 +3581,7 @@ sub ResetChase
     Cart.y = ColTop(cint(Cart.x) \ TS) * TS
     Box.st = 0
     Box.t = RELOAD
-    ZoneTune TuneOf%(Stage)
+    ZoneTune StageTune
 end sub
 
 ' A step of the chase, by its state: begun as Charlie comes to the race; then who flees does, by its zone, and he
@@ -3678,7 +3675,7 @@ sub BreakCart (pt() as Part)
     Cart.st = 2
     Cart.t = 2
     Burst pt(), Cart.x + 0, Cart.y - 12, 16, 200, CEARTH + 4
-    ZoneTune TuneOf%(Stage)
+    ZoneTune StageTune
 end sub
 
 sub TakeKeep (g as Game, pt() as Part)

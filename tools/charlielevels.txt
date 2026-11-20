@@ -1,9 +1,11 @@
 ' CHARLIE BARKLEY's levels, packed into CHARLIE.DAT by tools/charlieart.py: a zone's two acts, zone by zone, then
 ' the intro's road. A level is "Level name" and its commands, left to right: a command and its count, to "end".
 ' g, the ground's height in tiles, starts at 10. plat and hb: height * 100 + length.
+' tune: the level's song, by its name in tools/charliesong.txt.
 
 ' The Amber Downs.
 Level Downs1
+tune,Downs
 flat,4, dog,0, flat,4, flower,0, flat,4, bones,6, flat,8, tree,0, flat,4
 upg,2, flat,3, cat,0, flat,6, bush,0, dng,3, boost,0, bones,8, flat,10
 loop,0, flat,8, bones,6, flat,6, up45,2, flat,2, arc,7, gap,7, flat,8
@@ -30,6 +32,7 @@ goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
 ' The Amber Downs at evening. chase: a race from here that many columns long, down from two pipes: Biscuit's
 ' honey cart flees along it.
 Level Downs2
+tune,Evening
 flat,4, dog,0, flat,6, bones,6, flat,6, boost,0, flat,6, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
 up45,3, arc,9, pit,10, flat,8, flower,0, flat,4
 dng,4, boost,0, bones,10, flat,10, loop,0, flat,8, boost,0, flat,4, wave,2, flat,8
@@ -48,6 +51,7 @@ goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
 ' The Chrome Works: mover: a gap that wide with a platform to and fro over it. hover: a gap of 4 with one up and
 ' down, the ground past it that much higher. lift: a gap of 3 with a lift, the ground past it that much higher.
 Level Works1
+tune,Works
 flat,4, dog,0, flat,8, bones,6, flat,8, boost,0, bones,8, flat,10, loop,0, flat,10
 boost,0, flat,4, wave,1, flat,8
 dng,3, boost,0, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8, up45,3, arc,9, pit,10, flat,8
@@ -62,6 +66,7 @@ flat,10, goal,0, flat,9, fam,0, flat,6, flat,5, end,0
 ' The Chrome Works by night. chase: a hall that long, jets in its floor and hoops over them: Sprocket's crane
 ' goes along its roof.
 Level Works2
+tune,Night
 flat,4, dog,0, flat,8, bones,6, flat,6, boost,0, flat,6, loop,0, flat,6, boost,0, flat,6, loop,0, flat,16
 mover,7, flat,8, bones,6, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0, flat,8
 up45,3, arc,9, pit,10, flat,8, cat,0, flat,10, hover,5, flat,8, mark,0, flat,6
@@ -79,6 +84,7 @@ goal,0, flat,9, fam,0, flat,6, flat,5, end,0
 ' tiles. Its pools are dry at low water, their springs working; at high they are swum and hopped out of, so no
 ' bank past water is more than two tiles over high water. The low road is fast at low water, the jetty dry always.
 Level Sands1
+tune,Sands
 tide,409, flat,4, dog,0, flat,6, flower,0, flat,4, bones,6, flat,8, tree,0, flat,6
 jelly,3, pit,8, flat,6, crab,0, plat,604, hb,704, flat,8, bones,6, flat,6, gull,6, bush,0, flat,4
 upg,2, flat,4, dng,3, boost,0, bones,8, flat,10, loop,0, flat,8
@@ -95,6 +101,7 @@ goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
 ' Saltwick Sands at sunset, the tide in at the start and the beach awash: its pools are never dry, crossed boat to
 ' boat or swum. chase: a sea channel that long, open to the sky: Kipper's pedal boat goes up and down it.
 Level Sands2
+tune,Sunset
 tide,1008, flat,4, dog,0, flat,6, bones,6, flat,6, boost,0, flat,6, loop,0, flat,8
 boat,10, flat,6, crab,0, bones,6, gull,6, flat,8, jelly,6, boat,12, flat,8, mark,0, flat,6
 dng,2, plat,310, hb,408, boost,0, bones,8, flat,12, jelly,4, flat,10, upg,2, flat,6
@@ -109,6 +116,7 @@ goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
 
 ' The intro's road: the Downs, flat, the way the van goes; a rock where it bumps.
 Level Road
+tune,Intro
 flat,6, dog,0, flat,24, tree,0, flat,30, tree,0, flat,28, tree,0, flat,30, tree,0, flat,25, rock,0
 flat,30, tree,0, flat,35, tree,0, flat,40, tree,0, flat,32, tree,0, flat,40, tree,0, flat,40, tree,0
 flat,40, end,0
