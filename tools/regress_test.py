@@ -1221,6 +1221,9 @@ CASES |= {
                               "sub chk (r as T)", " print ubound(r.g); r.g(399): erase r.g", "end sub"),
                           " 0  4  399 -2  3 \r\n-2  2 \r\nov 9 \r\n 0  0 \r\n-1 -1 -1 \r\n 7 \r\nov 5 \r\n"
                           " 399  9 \r\n 0 \r\n", "ERROR"),
+    # REDIM of a fixed array field said Subscript out of range: its size is its TYPE's.
+    "field_fixed_redim": (bas("type T", " g(4) as long", "end type", "dim t as T", "redim t.g(5)"),
+                          ".BAS:5: Duplicate definition", None),
     "field_dynamic_dims": (bas(*MESH, "m.pts(" + ",".join("0" * 61) + ").x = 1"), ".BAS:12: Too many dimensions", None),
     "field_dynamic_type": (bas(*MESH, "dim s() as Mesh", "s(:) = m.pts(:)"), ".BAS:13: Type mismatch", None),
     "field_dynamic_value": (bas(*MESH, "print m.pts"), ".BAS:12: Type mismatch", None),

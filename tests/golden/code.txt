@@ -29531,9 +29531,9 @@ stmts/s033.bas 0 632a0e769ab9
 stmts/s033.bas L error 17ba0791499d
 stmts/s033.bas L 0 6f7e071da892
 stmts/s034.bas error da4b9237bacc
-stmts/s034.bas 0 ff32a34d5a3c
+stmts/s034.bas 0 3f477c342866
 stmts/s034.bas L error da4b9237bacc
-stmts/s034.bas L 0 50cc61664ab6
+stmts/s034.bas L 0 3491b9044f53
 stmts/s035.bas error 902ba3cda188
 stmts/s035.bas 0 a3f13deb925c
 stmts/s035.bas L error 902ba3cda188
@@ -29709,9 +29709,9 @@ stmts/s100.bas 0 6efeef24becf
 stmts/s100.bas L error 17ba0791499d
 stmts/s100.bas L 0 84c098d4e37b
 stmts/s101.bas error da4b9237bacc
-stmts/s101.bas 0 99fdd3cfd255
+stmts/s101.bas 0 59ccc3a3581a
 stmts/s101.bas L error da4b9237bacc
-stmts/s101.bas L 0 cd63d9637f34
+stmts/s101.bas L 0 25cbf6947802
 stmts/s102.bas 0 e497818e6969
 stmts/s102.bas L 0 0399a2582765
 stmts/s103.bas 0 9c0a3f0b8391
@@ -30009,9 +30009,9 @@ stmts/s164.bas L 0 799ba93216a7
 stmts/s165.bas 0 106409c329da
 stmts/s165.bas L 0 54a6a53ea02c
 stmts/s166.bas error da4b9237bacc
-stmts/s166.bas 0 76dab4c18430
+stmts/s166.bas 0 7d26861133c1
 stmts/s166.bas L error da4b9237bacc
-stmts/s166.bas L 0 d5ef85f53a8d
+stmts/s166.bas L 0 b3a1684a811c
 stmts/s167.bas error 902ba3cda188
 stmts/s167.bas 0 b4bfc38c1da2
 stmts/s167.bas L error 902ba3cda188
