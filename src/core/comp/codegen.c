@@ -970,6 +970,12 @@ static void cg_arg(Code *const c, const Node *const n)
     case PA_NREF:
         gen(c, n->a);
         code_opb(c, O_P_REFN, (uint8_t)n->a->vtype);
+        break;
+
+    case PA_FIELD:
+        code_int(c, 0);
+        gen(c, n->a);
+        code_call(c, K_FCELL);
     }
 }
 

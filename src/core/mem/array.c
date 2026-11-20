@@ -18,6 +18,11 @@
  * new one under it, moves the elements, then slides it up into the old one's room. The arrays made
  * mid-statement, in a GOSUB, too big for the room, or in a caller's cell are the heap's.
  *
+ * A fixed array field passed whole to an array parameter gets a field cell: the cell and a header
+ * at the headers' region's top, growing down, the header's data the field. A call's field cells
+ * lie above its arguments' stack: given back once vm.sp is above them, their call over. Their data
+ * follows its record as the heap moves.
+ *
  * A heap header names its owner, the cell holding it (ours): a variable's by its id, else the
  * cell's Addr, which may be a record's in the heap; an arena's names OWN_ARENA. arry_kill marks an
  * array dead (owner 0), and the arrays its records hold; arry_sweep removes the dead: each one's
@@ -71,6 +76,12 @@ void arry_init(
 }
 
 static ArrayHdr *arry_hdr_at(const Addr h) { return (ArrayHdr *)at(h); }
+
+void arry_clear_heap(Arry *const ay)
+{
+    ay->hdr = ay->allo->hdr_base;
+    ay->fcells = ay->allo->hdr_base + HDRSZ;
+}
 
 ArrSlot *arry_slot(const Arry *const ay, const uint32_t id)
 {
@@ -155,6 +166,39 @@ static bool arry_heap(const Arry *const ay, const Addr h)
 static bool arry_arena(const Addr h) { return arry_hdr_at(h)->owner == OWN_ARENA; }
 
 bool arry_fixed(const Arry *const ay, const Addr h) { return !arry_heap(ay, h) && !arry_arena(h); }
+
+/* A field cell: the stack its call's arguments lie above, the cell, then its header. */
+typedef struct {
+    Addr sp;
+    ArrSlot slot;
+} FieldCell;
+
+static Addr arry_fcells_end(const Arry *const ay) { return ay->allo->hdr_base + HDRSZ; }
+
+static ArrayHdr *arry_fcell_hdr(const Addr c) { return arry_hdr_at(c + sizeof(FieldCell)); }
+
+static uint32_t arry_fcell_size(const uint8_t dims)
+{
+    return (sizeof(FieldCell) + arry_hdr_size(dims) + BLOCK_ALIGN - 1) &
+           ~(uint32_t)(BLOCK_ALIGN - 1);
+}
+
+static Addr arry_fcell_next(const Addr c) { return c + arry_fcell_size(arry_fcell_hdr(c)->dims); }
+
+/* Header h is a field cell's. */
+static bool arry_fcell(const Arry *const ay, const Addr h)
+{
+    return h >= ay->fcells && h < arry_fcells_end(ay);
+}
+
+/* The field cells of the calls over given back: their stack under vm.sp. */
+static void arry_fcells_drop(Arry *const ay)
+{
+    const Addr sp = addr_of(ay->vm->sp);
+
+    while (ay->fcells < arry_fcells_end(ay) && ((const FieldCell *)at(ay->fcells))->sp <= sp)
+        ay->fcells = arry_fcell_next(ay->fcells);
+}
 
 /* Header h filled: arry.counts and arry.lbounds [0..n) its shape, its et elements at data. */
 static void arry_fill(
@@ -297,7 +341,9 @@ static Addr arry_heap_take(
     Addr *const data
 )
 {
-    if (ay->hdr + arry_hdr_size(n) > ay->allo->hdr_base + HDRSZ)
+    arry_fcells_drop(ay); /* their room first */
+
+    if (ay->hdr + arry_hdr_size(n) > ay->fcells)
         fault_error(ay->fault, E_OM);
     if (arry_aligned_end(ay->allo->arrays, size) > ay->allo->strings) {
         strg_gc(ay->strg);
@@ -465,6 +511,9 @@ static void arry_remove(Arry *const ay, Vm *const vm, const Addr h)
 
     arry_follow_owners(ay, &f);
 
+    for (Addr c = ay->fcells; c < arry_fcells_end(ay); c = arry_fcell_next(c))
+        arry_fcell_hdr(c)->data = arry_moved_cell(&f, arry_fcell_hdr(c)->data);
+
     for (uint32_t i = 0; i < vm_nframes(vm); i++) { /* the arguments: an element's address */
         const Call *const c = &vm->frames[i].call;
 
@@ -570,6 +619,32 @@ uint32_t arry_view_elems(const ArrView *const v)
 uint32_t arry_view_size(const Arry *const ay, const ArrView *const v)
 {
     return arry_view_elems(v) * arry_et_size(ay->decl, v->et);
+}
+
+ArrSlot *arry_field_cell(Arry *const ay, const Addr data, const uint32_t key)
+{
+    const Field *const f = decl_keyfield(ay->decl, key);
+    const FieldDim *const fd = decl_fielddim(ay->decl, f, 0);
+    const uint32_t size = arry_fcell_size(f->ndim);
+
+    arry_fcells_drop(ay);
+
+    if (ay->fcells - ay->hdr < size)
+        fault_error(ay->fault, E_OM);
+
+    ay->fcells -= size;
+    FieldCell *const c = (FieldCell *)at(ay->fcells);
+    const Addr h = ay->fcells + sizeof(FieldCell);
+
+    for (uint32_t i = 0; i < f->ndim; i++) {
+        ay->counts[i] = fd[i].count;
+        ay->lbounds[i] = fd[i].lb;
+    }
+
+    arry_fill(ay, h, data, decl_fieldtype(f), f->ndim, addr_of(&c->slot));
+    *c = (FieldCell){addr_of(ay->vm->sp), {h, false}};
+
+    return &c->slot;
 }
 
 void arry_clear(Arry *const ay, Vm *const vm, const ArrView *const v)
@@ -706,6 +781,10 @@ void arry_move(Arry *const ay, Vm *const vm, ArrSlot *const d, ArrSlot *const s)
 {
     if (d == s)
         return;
+    if (s->hdr && arry_fcell(ay, s->hdr)) { /* a fixed field's: its record keeps it */
+        arry_copy(ay, vm, d, s);
+        return;
+    }
 
     const Addr old = arry_assigned(ay, d);
 

@@ -738,7 +738,7 @@ static Node *arrayarg(Comp *const C, const uint32_t par)
 {
     const uint8_t *const arg = C->p;
     uint32_t type;
-    Node *const f = ref_fieldarray(C, &type, nullptr); /* m.a(), ours */
+    Node *const f = ref_arrayfield(C, &type, WH_FIXED); /* m.a(), ours */
 
     if (f != nullptr) {
         if (type != symb_var(C->symb, par)->type) {
@@ -746,7 +746,7 @@ static Node *arrayarg(Comp *const C, const uint32_t par)
             fault_error(C->fault, E_PTM);
         }
 
-        return argnode(C, PA_ARRAY, f, par);
+        return argnode(C, f->a->rec.key ? PA_FIELD : PA_ARRAY, f, par);
     }
 
     Node *call;

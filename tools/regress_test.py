@@ -1224,6 +1224,33 @@ CASES |= {
     # REDIM of a fixed array field said Subscript out of range: its size is its TYPE's.
     "field_fixed_redim": (bas("type T", " g(4) as long", "end type", "dim t as T", "redim t.g(5)"),
                           ".BAS:5: Duplicate definition", None),
+    # A fixed array field passed whole to an array parameter was a Syntax error. The parameter is the
+    # field: from a record, a record array's element, a local record, a record parameter, passed on.
+    "field_fixed_arg": (bas("type T", " a as integer", " g(1 to 4) as long", " m(2, 1) as integer", "end type",
+                            "declare sub show (x() as long)", "declare sub deep (x() as long)",
+                            "declare sub mat (m() as integer)", "declare sub inner (r as T)",
+                            "dim t as T, rs(2) as T", "t.g(3) = 30: show t.g(): print t.g(1)",
+                            "rs(1).m(2, 1) = 5: mat rs(1).m()", "inner t", "end",
+                            "sub show (x() as long)", " print lbound(x); ubound(x); x(3)", " x(1) = 11: deep x()",
+                            "end sub", "sub deep (x() as long)", " print ubound(x); x(1)", "end sub",
+                            "sub mat (m() as integer)", " print ubound(m, 1); ubound(m, 2); m(2, 1)", "end sub",
+                            "sub inner (r as T)", " dim u as T", " u.g(3) = 3: show u.g(): show r.g()",
+                            " print u.g(1); r.g(1)", "end sub"),
+                        " 1  4  30 \r\n 4  11 \r\n 11 \r\n 2  1  5 \r\n 1  4  3 \r\n 4  11 \r\n"
+                        " 1  4  30 \r\n 4  11 \r\n 11  11 \r\n", "ERROR"),
+    # The field's record moved as the heap shrank under it during the call: the parameter follows.
+    # REDIM of it is refused, ERASE zeroes it, a() = it copies it: its record keeps it. Its cell's room
+    # comes back as the call ends.
+    "field_fixed_arg_moves": (bas("type T", " g(4) as long", "end type",
+                                  "declare sub grow (x() as long, b() as long)", "declare sub keep (x() as long)",
+                                  "redim big(5000) as long", "dim t as T", "on error goto h",
+                                  "grow t.g(), big(): print t.g(2); t.g(3)",
+                                  "for i = 1 to 2000: keep t.g(): next", "end", OV,
+                                  "sub grow (x() as long, b() as long)", " x(3) = 3: erase b: x(2) = 7: keep x()",
+                                  "end sub", "sub keep (x() as long)", " if x(4) then exit sub",
+                                  " dim y() as long", " y() = x()", " print ubound(y); y(2); x(2)", " redim x(9)",
+                                  " erase x: print x(2): x(4) = 1", "end sub"),
+                              " 4  7  7 \r\nov 10 \r\n 0 \r\n 0  0 \r\n", "ov 7"),
     "field_dynamic_dims": (bas(*MESH, "m.pts(" + ",".join("0" * 61) + ").x = 1"), ".BAS:12: Too many dimensions", None),
     "field_dynamic_type": (bas(*MESH, "dim s() as Mesh", "s(:) = m.pts(:)"), ".BAS:13: Type mismatch", None),
     "field_dynamic_value": (bas(*MESH, "print m.pts"), ".BAS:12: Type mismatch", None),

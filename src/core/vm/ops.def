@@ -458,5 +458,6 @@ K(AMOVE, stmt_amove)   /* a() = f(..), ours */
 K(ARESET, stmt_areset) /* an array result's start, ours */
 K(RCOPY, exec_r_copys) /* a = b of records with STRINGs, ours */
 K(RSWAP, exec_r_swap)  /* SWAP a, b of records, ours */
+K(FCELL, stmt_fcell)   /* a fixed array field's cell for an array parameter, ours */
 #undef K
 #endif
