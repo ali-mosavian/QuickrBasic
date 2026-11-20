@@ -71,6 +71,7 @@
 #include "ui/text.h"
 #include "ui/theme.h"
 #include "ui/debugui.h"
+#include "ui/definition.h"
 #include "ui/view.h"
 #include "ui/window.h"
 #include "vm/exec.h"
@@ -392,6 +393,10 @@ static bool edit_control(Session *const S, const uint8_t ch)
     case CTRL('Y'):
         uimn.ed.sel_on = false;
         edit_ctrly(S);
+        return true;
+
+    case CTRL('B'): /* Go to Definition, ours */
+        defn_goto(S);
         return true;
 
     case CH_ESC:

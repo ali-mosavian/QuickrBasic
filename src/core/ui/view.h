@@ -41,6 +41,10 @@ bool view_modules(Session *S);
 const DlogList *view_list(Session *S);
 /* View v's procedure: its name; 0 the module's. Uses comp_cbuf. */
 uint32_t view_proc(Session *S, uint32_t v);
+/* The view of module's procedure name (an id of its file's), 0 none. Uses comp_cbuf. */
+uint32_t view_procedure(Session *S, uint32_t module, uint32_t name);
+/* The view of module's own lines, its file's first; the main's, 0, when it has none. */
+uint32_t view_of_module(uint32_t module);
 /* vw_next, vw_prev: Shift+F2, Ctrl+F2: the next view, the one before, in the active window. */
 void view_next(Session *S);
 void view_prev(Session *S);
