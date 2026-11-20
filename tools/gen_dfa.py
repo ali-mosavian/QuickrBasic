@@ -66,9 +66,12 @@ WIDTH WINDOW WRITE XOR""".split()
 PAGE0 = [*C64, *((w, w) for w in MORE)]
 assert len(PAGE0) == 0xFF - 0x80, len(PAGE0)
 _lexed = {s for _, s in PAGE0 if s}
-EXTRA = ["SHORT", "SSEG", "PRESERVE", "EXPLICIT", "DEFSHORT", "BYTE", "DEFBYTE", "CBYTE", "CONTINUE"]
+EXTRA = ["SHORT", "SSEG", "PRESERVE", "EXPLICIT", "DEFSHORT", "BYTE", "DEFBYTE", "CBYTE", "CONTINUE", "IMPORT",
+         "FROM", "PRIVATE", "PUBLIC"]
 # ours: a 2-byte integer, for records' QBasic layout (INTEGER is 4 bytes); PDS's REDIM PRESERVE; VBDOS's OPTION EXPLICIT;
-# ours: an unsigned byte; CONTINUE FOR | DO | WHILE (the lexer makes it a keyword only there: lexr_continues)
+# ours: an unsigned byte; CONTINUE FOR | DO | WHILE (the lexer makes it a keyword only there: lexr_continues);
+# IMPORT and FROM, keywords only where they start such a statement (comp/lexer.c lexr_word); PRIVATE before SUB,
+# FUNCTION, CONST or TYPE, PUBLIC after DIM: a module's exports (comp/bind.c)
 # ours, listed only, by its name in the code: (:), an array whole by its elements (comp/lexer.c)
 LISTED1 = {"(:)": "WHOLE"}
 PAGE1 = [w for w in QB45 if w not in _lexed] + EXTRA + list(LISTED1)

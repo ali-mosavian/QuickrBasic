@@ -31,6 +31,8 @@
  * - D3. The asm compiles a line when first run, into a fixed cache it flushes when full. Here
  *   link_start compiles all of them and the cache grows: a run resolves nothing.
  */
+#include "comp/bind.h"
+#include "mem/module.h"
 #include "comp/link.h"
 #include "comp/blocks.h"
 #include "comp/comp.h"
@@ -56,6 +58,7 @@ void link_compile(Comp *const C, const uint32_t line)
     const Proc *const in = C->proc ? blok_proc(C->blok, C->proc) : nullptr;
 
     /* the line before's procedure, most often: lines compile in order */
+    C->module = comp_module(C, line);
     comp_proc(C, in && line >= in->first && line <= in->last ? C->proc : blok_procof(C->blok, line));
     decl_deftype(C->decl, C->symb, line);
     comp_text(C, (const uint8_t *)prog_line(C->prog, line) + HDR);
@@ -115,6 +118,7 @@ static void link_procvars(Comp *const C)
         Proc *const p = btab_at(&C->blok->procs, i);
         decl_deftype(C->decl, C->symb, p->first);
         symb_name(C->symb, p->name)->proc = i;
+        p->module = comp_module(C, p->first);
         comp_proc(C, i);
 
         if (p->kind == PK_FUNC && !(p->flags & PF_RESARG)) {
@@ -130,6 +134,8 @@ static void link_procvars(Comp *const C)
 
         comp_proc(C, 0);
     }
+
+    bind_procs(C->symb);
 
     for (uint32_t id = 1; id < C->symb->nvars; id++) { /* no longer a parameter: a local again */
         VarX *const x = symb_varx(C->symb, id);
@@ -394,7 +400,7 @@ static bool jump_dest(const Comp *const C, Jump *const j)
 static uint32_t line_slot(const uint16_t num, const uint32_t mask) { return num * 40503u & mask; }
 
 /* The numbered lines, hashed by number: a reference's search was a walk from the first line,
-   9% of a link. The first of a number wins, as prog_find's. */
+   9% of a link. The first of a number in its module wins, as prog_find's. */
 static void index_lines(Comp *const C)
 {
     uint32_t n = 0;
@@ -423,7 +429,9 @@ static void index_lines(Comp *const C)
         if (num == NONUM)
             continue;
 
-        while (t[s] && prog_line(C->prog, t[s])->num != num)
+        const uint32_t module = comp_module(C, l);
+
+        while (t[s] && (prog_line(C->prog, t[s])->num != num || comp_module(C, t[s]) != module))
             s = (s + 1) & (slots - 1);
         if (!t[s])
             t[s] = l;
@@ -432,16 +440,22 @@ static void index_lines(Comp *const C)
     C->link->lmask = slots - 1;
 }
 
-/* The line numbered num, hashed or walked to; false none. */
-static bool find_line(const Comp *const C, const uint16_t num, uint32_t *const line)
+/* Module's line numbered num, hashed or walked to; false none. */
+static bool find_line(
+    const Comp *const C,
+    const uint32_t module,
+    const uint16_t num,
+    uint32_t *const line
+)
 {
     const uint32_t mask = C->link->lmask;
 
     if (!mask || num == NONUM)
-        return prog_find(C->prog, 0, num, line);
+        return prog_find(C->prog, 0, num, line) && comp_module(C, *line) == module;
 
     for (uint32_t s = line_slot(num, mask); C->link->lines[s]; s = (s + 1) & mask)
-        if (prog_line(C->prog, C->link->lines[s])->num == num) {
+        if (prog_line(C->prog, C->link->lines[s])->num == num &&
+            comp_module(C, C->link->lines[s]) == module) {
             *line = C->link->lines[s];
             return true;
         }
@@ -449,9 +463,14 @@ static bool find_line(const Comp *const C, const uint16_t num, uint32_t *const l
     return false;
 }
 
-/* LineRef r's line: the one the compiler found, else any numbered num; false none, *at its label's
-   body offset. */
-static bool ref_line(const Comp *const C, LineRef *const r, uint32_t *const at)
+/* LineRef r's line: the one the compiler found, else any numbered num of module; false none, *at
+   its label's body offset. */
+static bool ref_line(
+    const Comp *const C,
+    const uint32_t module,
+    LineRef *const r,
+    uint32_t *const at
+)
 {
     uint32_t line = r->line;
 
@@ -460,7 +479,7 @@ static bool ref_line(const Comp *const C, LineRef *const r, uint32_t *const at)
 
     *at = line & ~LREF_AT;
 
-    if (!find_line(C, r->num, &line))
+    if (!find_line(C, module, r->num, &line))
         return false;
 
     r->line = line;
@@ -541,7 +560,7 @@ static void resolve_op(Comp *const C, const uint32_t line, const Addr base, uint
     for (uint32_t i = 0; refs && i < nrefs; i++) {
         uint32_t at;
 
-        if (!ref_line(C, &refs[i], &at))
+        if (!ref_line(C, comp_module(C, line), &refs[i], &at))
             note(C, line, at, E_US);
     }
 }
@@ -648,6 +667,40 @@ void link_walk(const uint8_t *code, void (*each)(uint8_t op, const uint8_t *at))
         each(*code, code);
 }
 
+/* Each module's LF_TOP line again, the k-th the k-th module's (io/repl.c read_modules): lines
+   typed before them moved them. */
+static void link_tops(Comp *const C)
+{
+    uint32_t m = 1;
+
+    for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)
+        if (prog_line(C->prog, l)->flags & LF_TOP && m < modu_count(C->modu))
+            modu_top(C->modu, m++, l);
+}
+
+/* Every line compiled: each module's after those it imports, the main's last, so a use of another
+   module's CONST loads its literal (comp/fold.c). */
+static void link_lines(Comp *const C)
+{
+    const uint32_t n = modu_count(C->modu);
+    link_tops(C);
+
+    if (n <= 1) {
+        for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)
+            link_line(C, l);
+
+        return;
+    }
+
+    for (uint32_t i = 0; i < n; i++) {
+        const uint32_t m = sc_module(modu_ordered(C->modu)[i]);
+
+        for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)
+            if (comp_module(C, l) == m)
+                link_line(C, l);
+    }
+}
+
 /* Blocks paired, every line compiled and resolved; the ledger holds what was not found. */
 static void build(Comp *const C)
 {
@@ -682,8 +735,7 @@ static void build(Comp *const C)
         uncache(C);
         C->link->end = C->allo->cache + CACHE0;
 
-        for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)
-            link_line(C, l);
+        link_lines(C);
     } while (C->prog->base != base);
 
     C->memo_on = false;

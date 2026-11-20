@@ -124,12 +124,27 @@ void prog_put(
     pg->user->edited(pg->user);
 }
 
+uint32_t prog_modules(const Prog *const pg)
+{
+    uint32_t tops = 0;
+
+    for (uint32_t line = PROGBASE; prog_line(pg, line)->len; line += prog_line(pg, line)->len)
+        tops += prog_line(pg, line)->flags & LF_TOP ? 1 : 0;
+
+    return tops ? tops : 1;
+}
+
+void prog_cut_to(Prog *const pg, const uint32_t line, const uint32_t end)
+{
+    prog_copy(pg, line, end, pg->end - end);
+    pg->end -= end - line;
+    prog_terminate(pg);
+}
+
 uint32_t prog_cut(Prog *const pg, const uint32_t line)
 {
     const uint32_t size = prog_line(pg, line)->len;
-    prog_copy(pg, line, line + size, pg->end - (line + size));
-    pg->end -= size;
-    prog_terminate(pg);
+    prog_cut_to(pg, line, line + size);
     return size;
 }
 

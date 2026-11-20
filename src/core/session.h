@@ -14,6 +14,7 @@
 #include "comp/declare.h"
 #include "comp/expr.h"
 #include "comp/codegen.h"
+#include "comp/import.h"
 #include "comp/lexer.h"
 #include "comp/link.h"
 #include "comp/listing.h"
@@ -27,6 +28,7 @@
 #include "mem/array.h"
 #include "mem/program.h"
 #include "mem/scope.h"
+#include "mem/module.h"
 #include "mem/string.h"
 #include "mem/symbols.h"
 #include "num/random.h"
@@ -59,12 +61,14 @@ struct Session {
     Code code;
     Fault fault;
     LexrNames names;
+    ImptFind impt;
     UsngOut usng_out;
     File file;
     Flow flow;
     Lexr lexr;
     Link link;
     List list;
+    Modu modu;
     Prog prog;
     ProgUser prog_user;
     CompRun comp_run;

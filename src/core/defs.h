@@ -39,11 +39,24 @@ enum {
     MAXDIMS = 60, /* an array's dimensions at most, BC's */
 };
 
-/* A name's flags. NM_REC: declared AS a TYPE somewhere, never cleared. */
-enum : uint8_t { NM_LBL = 1, NM_FN = 2, NM_SUB = 4, NM_FUNC = 8, NM_REC = 16 };
-
-/* A binding's flags (mem/scope). */
+/* A name's flags. NM_REC: declared AS a TYPE somewhere, never cleared. NM_PRIV: PRIVATE, not
+   exported. NM_MOD: a module IMPORT binds, its number the name's alias. NM_BAD: an error where used,
+   its code the alias (comp/bind.h). */
 enum : uint8_t {
+    NM_LBL = 1,
+    NM_FN = 2,
+    NM_SUB = 4,
+    NM_FUNC = 8,
+    NM_REC = 16,
+    NM_PRIV = 32,
+    NM_MOD = 64,
+    NM_BAD = 128
+};
+
+/* A binding's flags (mem/scope). BF_IMP: another module's variable or CONST, the name's alias.
+   BF_PUB: DIM PUBLIC's, exported. BF_PROC: a SUB or FUNCTION its module defines. BF_CMN: COMMON's
+   name for another module's COMMON variable, BF_IMP too. */
+enum : uint16_t {
     BF_SHR = 1,
     BF_REF = 2,
     BF_STAT = 4,
@@ -51,9 +64,26 @@ enum : uint8_t {
     BF_CON = 16,
     BF_USE = 32,
     BF_RES = 64,
-    BF_VAL = 128 /* a CONST's integer value known as declared: Binding.val */
+    BF_VAL = 128, /* a CONST's integer value known as declared: Binding.val */
+    BF_IMP = 256,
+    BF_PUB = 512,
+    BF_PROC = 1024,
+    BF_CMN = 2048
 };
-enum : uint32_t { SC_NUM = 0x80000000, SC_ARR = 0x40000000 };
+/* A scope key's flags (mem/scope): a line number's, an array's, a module's (an imported file's,
+   its number below; the main's is 0), the labels any scope of a module has. Names are below. */
+enum : uint32_t {
+    SC_NUM = 0x80000000,
+    SC_ARR = 0x40000000,
+    SC_MOD = 0x20000000,
+    SC_LBL = 0x10000000
+};
+/* Module m's scope key. */
+static inline uint32_t sc_module(const uint32_t m) { return m ? SC_MOD | m : 0; }
+/* Module scope key's number. */
+static inline uint32_t sc_number(const uint32_t key) { return key & ~SC_MOD; }
+/* A procedure's scope key, not a module's. */
+static inline bool sc_is_proc(const uint32_t scope) { return scope && !(scope & SC_MOD); }
 
 /* A jump target's mode: the statement, past the JMP it starts with, or the statement after it. */
 typedef enum : uint8_t { TO_STMT, PAST_JMP, TO_NEXT_STMT } JumpMode;
@@ -88,12 +118,13 @@ typedef struct PACKED {
     uint8_t flags; /* LF_* */
     uint8_t sep;   /* the byte before the body the compiler reads */
     uint16_t src;  /* its first line in its source file, 0 none */
-    uint16_t file; /* that file: 0 the main, n the nth include read */
+    uint16_t file; /* that file: 0 the main's (mem/module.h) */
 } Line;
 static_assert(sizeof(Line) == 20);
 enum { HDR = sizeof(Line) };
-/* LF_NODEF: decl_line found no DEFtype in it, decl_defevents passes it. */
-enum : uint8_t { LF_ASIS = 1, LF_BP = 2, LF_INC = 4, LF_NODEF = 8 };
+/* LF_NODEF: decl_line found no DEFtype in it, decl_defevents passes it. LF_TOP: the END before an
+   imported module's lines, where its file's settings start, and past the last module's. */
+enum : uint8_t { LF_ASIS = 1, LF_BP = 2, LF_INC = 4, LF_NODEF = 8, LF_TOP = 32 };
 enum : uint32_t {
     NONUM = 0xFFFF,
     LMAX = 0x17000,    /* a line's body at most: 0xFEE0 with 2-byte name ids, times 7/5 */
@@ -232,7 +263,8 @@ enum : uint8_t {
     E_CNW = 63, /* CONTINUE not within matching block */
     E_TMD = 64, /* Too many dimensions */
     E_TTB = 65, /* TYPE more than 65535 bytes */
-    E_LAST = E_TTB,
+    E_NEX = 66, /* Name not exported: FROM's, or mod.name's */
+    E_LAST = E_NEX,
 };
 
 /* QBasic's ERR numbers the runtime raises (fault_qberr), as ERROR n raises them. */

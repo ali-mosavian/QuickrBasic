@@ -1,7 +1,8 @@
 /* CHAIN and COMMON: carry named variables' values from one program to the next.
  *
  * # How it works
- * COMMON names its variables in order as a run reaches them (chai_cmn). CHAIN copies their values
+ * COMMON names its variables in order as a run reaches them (chai_cmn), each once: two files'
+ * COMMONs name the same, joined by position (comp/declare.c). CHAIN copies their values
  * into a buffer, loads its file (repl_load) and runs it; each COMMON there takes the next value by
  * position, an array with its bounds. Files stay open. In the editor CHAIN is Advanced feature
  * unavailable.
@@ -182,14 +183,19 @@ static void get_array(Session *const S, const uint8_t **const p, const uint32_t 
 }
 
 /* COMMON's variable ( id -- ): named, for a CHAIN; CHAIN's next value, if any, stored in it.
-   Type mismatch: not the value's kind. Out of memory. */
+   Named already, another file's COMMON's: nothing. Type mismatch: not the value's kind. Out of
+   memory. */
 void chai_cmn(Session *const S)
 {
     const uint32_t id = exec_pop(&S->vm).u;
+    Var *const v = symb_var(&S->symb, id);
 
+    if (v->cmn)
+        return;
     if (!GROW(S->chai.id, S->chai.ncap, S->chai.n + 1))
         repl_error(S, E_OM);
 
+    v->cmn = true;
     S->chai.id[S->chai.n++] = id;
     const uint8_t *p = S->chai.next;
 
@@ -261,8 +267,12 @@ void chai_chain(Session *const S)
     stmt_rungo(S, PROGBASE);
 }
 
-void chai_start(Chai *const ch)
+void chai_start(Chai *const ch, Symb *const sy)
 {
+    for (uint32_t i = 0; i < ch->n; i++) /* a CHAIN's: the old program's, the same slots */
+        if (ch->id[i] < sy->nvars)
+            symb_var(sy, ch->id[i])->cmn = false;
+
     ch->n = 0;
 
     if (!ch->chained)

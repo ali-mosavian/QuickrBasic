@@ -11,6 +11,16 @@ extern const FrontEnd uimn_front_end;
    the command line names, else the welcome box), never returning; else returns, and the READY
    loop runs. Each key's command runs under repl_call: an error comes back to the key loop. */
 void uimn_start(Session *S);
+/* The editor's state at its start, an empty program, the screen aside (uimn_start's). */
+void uimn_init(Session *S);
+/* File, Open's: the program at name and the modules it imports read; one not found errors at the
+   run. Not there: a box. */
+void uimn_open(Session *S, const char *name);
+/* File, Save: the program and each module changed written (unnamed: Save As). false: not saved. */
+bool uimn_save(Session *S);
+/* ui_sync: a run's first step: the program entered again when the text changed. Errors: as
+   repl_relink, at its line. */
+void uimn_sync(Session *S);
 /* The screen rows rows (25, 43, 50), as many as the card has: the text mode set, the windows
    fitted to it. */
 void uimn_rows(uint8_t rows);

@@ -61,6 +61,7 @@
  *   to calibrate). wv is lnum, and comp_opw's word.
  */
 #include "comp/comp.h"
+#include "comp/bind.h"
 #include "comp/blocks.h"
 #include "comp/control.h"
 #include "comp/declare.h"
@@ -76,6 +77,7 @@
 #include "io/msg.h"
 #include "io/repl.h"
 #include "mem/alloc.h"
+#include "mem/module.h"
 #include "mem/scope.h"
 #include "mem/symbols.h"
 #include "num/fpmath.h"
@@ -274,9 +276,7 @@ void comp_store(Comp *const C)
         synerr(C);
 
     const uint32_t id = C->tgt;
-    const uint16_t fix = (info & (SK_DBL | VK_MASK)) == VK_STR
-                             ? scop_fix(C->scop, symb_var(C->symb, id)->name, C->tgtsubs)
-                             : 0;
+    const uint16_t fix = (info & (SK_DBL | VK_MASK)) == VK_STR ? comp_fix(C, id, C->tgtsubs) : 0;
     Node *const n = ast_wrap(C->ast, N_STORE);
     n->id = id;
     n->op = C->tgtsubs;
@@ -342,9 +342,9 @@ bool comp_optcomma(Comp *const C)
 /* Label key of DX's kind: jline, in the scope's own or, when modlabel (cleared), the module's. */
 static void lfind(Comp *const C, const uint32_t key, const uint32_t kind)
 {
-    const uint32_t scope = C->modlabel ? 0 : scop_own(C->scop);
+    const uint32_t scope = C->modlabel ? C->module : scop_own(C->scop);
     C->modlabel = false;
-    C->jline = scop_lfind(C->scop, C->symb, scope | kind, key);
+    C->jline = scop_lfind(C->scop, C->module, scope | kind, key);
 }
 
 uint8_t comp_lnum(Comp *const C)
@@ -466,33 +466,61 @@ bool comp_param(Comp *const C, const uint32_t name, const uint8_t array, uint32_
     return false;
 }
 
-void comp_scope(Comp *const C, const uint32_t name)
+/* Name, the module's, as b binds it: another module's variable, BF_IMP, in its scope. */
+static uint32_t comp_module_var(Comp *const C, const uint32_t name, const Binding *const b)
+{
+    C->scope = C->module;
+
+    if (!b || !(b->flags & BF_IMP))
+        return name;
+
+    const uint32_t to = *symb_alias(C->symb, name) & ~BIND_STAR;
+    C->scope = sc_module(symb_name(C->symb, to)->module);
+    return to;
+}
+
+uint32_t comp_scope(Comp *const C, const uint32_t name)
 {
     C->isstatic = false;
-    C->scope = C->proc;
+    bind_use(C->symb, C->fault, name);
 
     if (!C->proc)
-        return;
+        return comp_module_var(C, name, scop_get(C->scop, C->module, name));
 
     uint32_t scope;
     const Binding *b = nullptr;
 
     if (!(symb_name(C->symb, name)->flags & NM_LBL))
         b = scop_look(C->scop, name, &scope);
-    if (!b || !scope) {
-        C->scope = 0; /* the module's */
-        return;
-    }
+    if (!b || !sc_is_proc(scope))
+        return comp_module_var(C, name, b);
+
+    C->scope = C->proc;
 
     /* STATIC; or new in the direct line, where the running call's frame has no cell for it */
     if (b->flags & BF_STAT || blok_proc(C->blok, C->proc)->flags & PF_STAT || C->line == DLINE)
         C->isstatic = true;
+
+    return name;
+}
+
+uint16_t comp_fix(const Comp *const C, const uint32_t id, const bool array)
+{
+    const uint32_t name = symb_var(C->symb, id)->name;
+    const uint32_t module = sc_module(symb_name(C->symb, name)->module);
+
+    if (module == C->module)
+        return scop_fix(C->scop, name, array);
+
+    const Binding *const b = scop_get(C->scop, module, name);
+    return b ? b->fix[array] : 0;
 }
 
 /* var_decl: under OPTION EXPLICIT, name declared, or a procedure's; else Variable not declared. */
 static void declared(Comp *const C, const uint32_t name)
 {
-    if (!C->decl->explicit_ || symb_name(C->symb, name)->flags & (NM_SUB | NM_FUNC | NM_FN))
+    if (!(decl_opts(C->decl, C->module) & DO_EXPLICIT) ||
+        symb_name(C->symb, name)->flags & (NM_SUB | NM_FUNC | NM_FN))
         return;
     if (!scop_known(C->scop, name))
         fault_error(C->fault, E_VND);
@@ -513,8 +541,10 @@ uint32_t comp_var(Comp *const C, const uint8_t shape, const uint32_t et)
     MemoKey key = {};
 
     if (C->memo_on && !et && C->line != DLINE && !C->check) {
-        key = (MemoKey){name, C->proc, sfx, !!kind, C->symb->deft[upcase(first) - 'A'], 1};
-        m = &C->memo[(name * 2654435761u ^ C->proc * 40503u) >> 22 & (countof(C->memo) - 1)];
+        const uint32_t own = C->proc ? C->proc : C->module;
+        key = (MemoKey){name, own, sfx, !!kind, C->symb->deft[upcase(first) - 'A'], 1};
+
+        m = &C->memo[(name * 2654435761u ^ own * 40503u) >> 22 & (countof(C->memo) - 1)];
 
         if (!memcmp(&m->key, &key, sizeof key)) {
             if (!(m->how & VM_PARAM)) {
@@ -552,8 +582,9 @@ uint32_t comp_var(Comp *const C, const uint8_t shape, const uint32_t et)
     } else
         kind |= comp_etkind[type];
 
-    comp_scope(C, name);
-    const uint32_t id = symb_find_var(C->symb, name, type, kind, C->scope, C->isstatic);
+    const uint32_t own = comp_scope(C, name);
+    const uint32_t id = symb_find_var(C->symb, own, type, kind, C->scope, C->isstatic);
+    symb_varx(C->symb, id)->base = decl_base(C->decl, sc_is_proc(C->scope) ? C->module : C->scope);
 
     if (m)
         *m = (typeof(*m)){
@@ -613,7 +644,7 @@ uint32_t comp_hidden(Comp *const C, const uint8_t kind, const uint8_t which, con
     for (uint32_t i = 0; i < 8; i++)
         text[2 + i] = "0123456789ABCDEF"[(key >> (28 - 4 * i)) & 15];
 
-    return symb_find_name(C->symb, text, sizeof text);
+    return symb_find_name(C->symb, 0, text, sizeof text);
 }
 
 void comp_part(Comp *const C)
@@ -771,6 +802,16 @@ static void token(Comp *const C)
 {
     C->tok = 0; /* an implied LET's: none */
     mark(C);
+
+    if (C->p[0] == TK_X && C->p[1] == TK1_PRIVATE) { /* a module's, not exported (comp/bind.c) */
+        C->p += 2;
+
+        if (C->proc && *C->p == TK_CONST) {
+            C->dg = DG_ILLEGAL_INSIDE_SUB_OR_FUNCTION;
+            fault_error(C->fault, E_SN);
+        }
+    }
+
     dbg(C);
 
     if (ctrl_stmt(C))
@@ -901,20 +942,31 @@ Status comp_text(Comp *const C, const uint8_t *const body)
 
 void comp_proc(Comp *const C, const uint32_t proc)
 {
+    const Proc *const p = proc ? blok_proc(C->blok, proc) : nullptr;
     C->proc = proc;
-    scop_enter(C->scop, proc ? blok_proc(C->blok, proc) : nullptr);
+
+    if (p)
+        C->module = p->module;
+
+    scop_enter(C->scop, C->module, p);
+}
+
+uint32_t comp_module(const Comp *const C, const uint32_t line)
+{
+    return line == DLINE ? 0 : sc_module(modu_of(C->modu, prog_line(C->prog, line)->file));
 }
 
 Status comp_line(Comp *const C)
 {
     C->line = DLINE;
     C->ndfor = 0;
+    C->module = 0;
     comp_proc(C, C->dlproc);
 
     if (C->check && !C->proc && C->decl->proc) /* a line alone: in the procedure being entered */
         scop_inside(C->scop, C->decl->proc);
 
-    decl_deftype(C->decl, C->symb, 0xFFFFFFFF); /* the program's end's DEFtypes */
+    decl_deftype(C->decl, C->symb, C->decl->top - 1); /* the main's end's DEFtypes */
     return comp_text(C, C->cbuf);
 }
 
@@ -1058,8 +1110,8 @@ static uint32_t dimsubs(Comp *const C, uint32_t *const elems)
             constant &= bound(C, &hi);
         } else {
             hi = lo;
-            lo = C->decl->base;
-            comp_int(C, C->decl->base);
+            lo = decl_base(C->decl, C->module);
+            comp_int(C, lo);
             C->dmask |= (uint64_t)1 << (n & 63);
         }
 
@@ -1210,7 +1262,7 @@ static void act_dv(Comp *const C)
     }
 
     comp_astype(C);
-    const uint16_t fix = scop_fix(C->scop, symb_var(C->symb, id)->name, false);
+    const uint16_t fix = comp_fix(C, id, false);
 
     if (!fix || symb_var(C->symb, id)->info & VI_ARR)
         return;

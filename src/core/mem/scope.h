@@ -9,10 +9,10 @@
 
 typedef struct Binding Binding;
 struct Binding {
-    uint32_t scope;  /* 0 the module, a procedure's name; | SC_NUM a line number's */
+    uint32_t scope;  /* a module's (sc_module), a procedure's name; | SC_NUM a line number's */
     uint32_t name;   /* the name, or the line number */
     Binding *next;   /* its hash chain's next */
-    uint8_t flags;   /* BF_* */
+    uint16_t flags;  /* BF_* */
     uint32_t et[2];  /* the declared type: the scalar's, the array's */
     uint32_t rec[2]; /* the record's TYPE: the scalar's, the array's */
     uint16_t fix[2]; /* STRING * n: the scalar's, the array's */
@@ -23,10 +23,9 @@ struct Binding {
 enum {
     NSCS = 4,
     SCHASH = 1024,
-    WORD_BITS = 32,
 };
 
-/* A scope on the stack: its name (0 the module), and whether a DEF FN's. */
+/* A scope on the stack: its name (a module's key at the bottom), and whether a DEF FN's. */
 typedef struct {
     uint32_t name;
     bool deffn;
@@ -46,8 +45,6 @@ typedef struct {
     uint32_t depth; /* the stack's scopes */
     ScopFrame stack[NSCS];
     Binding **heads; /* SCHASH, from the arena */
-    uint32_t *lnbit; /* the line numbers a scope has: nlnbit words, grown as numbers come */
-    uint32_t nlnbit;
     /* scop_look's answers by name and the stack (its depth and top) while look_on: a link's
        compile (comp/link.c), which binds nothing. gen counts the bindings made and look_on's
        starts, an answer of another gen stale. A link asked 12K times. */
@@ -64,8 +61,8 @@ void scop_reset(Scop *sc);
 Binding *scop_get(const Scop *sc, uint32_t scope, uint32_t name);
 /* Scope's binding of name, made (zeroed) when none. Out of memory. */
 Binding *scop_bind(Scop *sc, uint32_t scope, uint32_t name);
-/* The stack: the module, then procedure p (null none). */
-void scop_enter(Scop *sc, const Proc *p);
+/* The stack: module's scope (sc_module), then procedure p (null none), which is module's. */
+void scop_enter(Scop *sc, uint32_t module, const Proc *p);
 /* Name's scope pushed on the stack: a line checked alone in the procedure being entered. */
 void scop_inside(Scop *sc, uint32_t name);
 /* The scope a new name is made in: the top one not a DEF FN's. */
@@ -85,17 +82,17 @@ uint32_t scop_sfx(const Scop *sc, uint32_t name, uint8_t type, bool array);
 bool scop_con(const Scop *sc, uint32_t name);
 /* Name a CONST's: the module's (every procedure's), or the procedure compiled's own? */
 bool scop_conname(const Scop *sc, uint32_t name);
-/* CONST name's integer value as scope sees it (its own, else the module's): *v. false: none known
-   (comp/declare.c decl_const). */
-bool scop_conval(const Scop *sc, uint32_t scope, uint32_t name, int32_t *v);
+/* CONST name's integer value as procedure proc (0 none) of module sees it, its own else the
+   module's: *v. false: none known (comp/declare.c decl_const). */
+bool scop_conval(const Scop *sc, uint32_t module, uint32_t proc, uint32_t name, int32_t *v);
 /* Name bound, as the procedure compiled sees it? */
 bool scop_known(const Scop *sc, uint32_t name);
-/* Name a variable the module shares: DIM SHARED, not a CONST? */
-bool scop_mshr(const Scop *sc, uint32_t name);
-/* Label key (a name, or a line number when scope has SC_NUM) of scope at line. Duplicate label
-   (E_DL): any scope has it. */
-void scop_label(Scop *sc, Symb *sy, uint32_t scope, uint32_t key, uint32_t line);
-/* Label key of scope: its line, 0 when no scope has it. Subprogram error (E_SPE): another
-   scope's. */
-uint32_t scop_lfind(const Scop *sc, const Symb *sy, uint32_t scope, uint32_t key);
+/* Name a variable module shares: DIM SHARED, not a CONST? */
+bool scop_mshr(const Scop *sc, uint32_t module, uint32_t name);
+/* Label key (a name, or a line number when scope has SC_NUM) of scope, which is module's, at
+   line. Duplicate label (E_DL): any scope of module has it. */
+void scop_label(Scop *sc, Symb *sy, uint32_t module, uint32_t scope, uint32_t key, uint32_t line);
+/* Label key of scope, which is module's: its line, 0 when no scope of module has it. Subprogram
+   error (E_SPE): another scope's. */
+uint32_t scop_lfind(const Scop *sc, uint32_t module, uint32_t scope, uint32_t key);
 #endif

@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include "boot.h"
 #include "session.h"
+#include "ui/linemap.h"
 #include "unit.h"
 
 enum { MAX_TESTS = 256 };
@@ -57,15 +58,19 @@ Status unit_run_shown(Session *const S, const char *const *const lines)
     return typed(S, "RUN");
 }
 
+Status unit_typed(Session *const S, const char *const line)
+{
+    S->cons.capture = CAP_SBUF;
+    S->cons.sblen = 0;
+    const Status st = typed(S, line);
+    S->cons.capture = 0;
+    return st;
+}
+
 Status unit_run(Session *const S, const char *const *const lines)
 {
     unit_store(S, lines);
-
-    S->cons.capture = CAP_SBUF;
-    S->cons.sblen = 0;
-    const Status st = typed(S, "RUN");
-    S->cons.capture = 0;
-    return st;
+    return unit_typed(S, "RUN");
 }
 
 static Session session;
@@ -73,9 +78,11 @@ static Session session;
 int main(void)
 {
     Session *const S = &session;
-    static const FrontEnd none = {};
+    static const FrontEnd editor = {
+        .regions = lmap_init
+    }; /* the editor's line map (editor_test.c) */
 
-    boot(S, &none);
+    boot(S, &editor);
 
     for (uint32_t i = 0; i < ntests; i++) {
         current = tests[i].name;

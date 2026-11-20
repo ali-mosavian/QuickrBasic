@@ -85,7 +85,11 @@ void symb_new(Symb *const sy, Allo *const al, Fault *const f)
     };
 
     tabl_new(al, &sy->vars, VINIT);
-    sy->names = (Table){.narr = 2, .size = {sizeof(Name), sizeof(uint32_t)}, .max = SC_ARR};
+    sy->names = (Table){
+        .narr = 3,
+        .size = {sizeof(Name), sizeof(uint32_t), sizeof(uint32_t)},
+        .max = SC_LBL,
+    };
 
     tabl_new(al, &sy->names, NINIT);
     sy->text = (Table){.narr = 1, .size = {1}, .max = UINT32_MAX};
@@ -137,26 +141,55 @@ static bool symb_spells(const uint8_t *const t, const uint8_t *const text, const
     return true;
 }
 
-uint32_t symb_find_name(Symb *const sy, const uint8_t *const text, const uint8_t len)
+/* The hash chain of text[0..len) in module. */
+static uint32_t symb_name_hash(const uint32_t module, const uint8_t *const text, const uint8_t len)
 {
-    uint32_t hash = 0;
+    uint32_t hash = module;
 
     for (uint8_t i = 0; i < len; i++)
         hash = hash * NAME_HASH_MUL + up[text[i]];
 
-    const uint32_t h = hash & (HSIZE - 1);
+    return hash & (HSIZE - 1);
+}
 
-    for (uint32_t id = sy->nhead[h]; id; id = symb_name_next(sy)[id])
-        if (symb_spells(symb_text(sy, id), text, len))
+uint32_t symb_look_name(
+    const Symb *const sy,
+    const uint32_t module,
+    const uint8_t *const text,
+    const uint8_t len
+)
+{
+    for (uint32_t id = sy->nhead[symb_name_hash(module, text, len)]; id;
+
+         id = symb_name_next(sy)[id])
+        if (symb_name(sy, id)->module == module && symb_spells(symb_text(sy, id), text, len))
             return id;
 
+    return 0;
+}
+
+uint32_t symb_find_name(
+    Symb *const sy,
+    const uint32_t module,
+    const uint8_t *const text,
+    const uint8_t len
+)
+{
+    const uint32_t found = symb_look_name(sy, module, text, len);
+
+    if (found)
+        return found;
+
+    const uint32_t h = symb_name_hash(module, text, len);
     const uint32_t id = sy->nnames;
 
     if (!tabl_room(&sy->names, id + 1u) || !tabl_room(&sy->text, 2u * len + sy->text_free + 1))
         fault_error(sy->fault, E_OM);
 
     Name *const n = symb_name(sy, id);
-    *n = (Name){.text = sy->text_free};
+    *n = (Name){.text = sy->text_free, .module = (uint16_t)module};
+
+    *symb_alias(sy, id) = 0;
 
     uint8_t *const d = at(sy->text.at[0] + sy->text_free);
     d[0] = len;
@@ -175,6 +208,16 @@ uint32_t symb_find_name(Symb *const sy, const uint8_t *const text, const uint8_t
 
     sy->nnames++;
     return id;
+}
+
+uint32_t symb_name_in(Symb *const sy, const uint32_t module, const uint32_t id)
+{
+    uint8_t text[UINT8_MAX]; /* the table may move as it grows */
+    const uint8_t *const t = symb_text(sy, id);
+    const uint8_t len = t[0];
+
+    memcpy(text, t + 1 + len, len);
+    return symb_find_name(sy, module, text, len);
 }
 
 /* Room in locals for procedure proc, the new heads empty. Out of memory. */
@@ -226,7 +269,7 @@ uint32_t symb_find_var(
 
     *symb_farr(sy, id) = (FrameArr){};
 
-    if (scope && !stat) { /* a local: on its procedure's list, a cell of its frame */
+    if (sc_is_proc(scope) && !stat) { /* a local: on its procedure's list, a cell of its frame */
         symb_locals_room(sy, scope);
 
         uint32_t *const first = (uint32_t *)at(sy->locals.at[0]) + scope;

@@ -23,7 +23,7 @@
  * | dc_dfev, dc_redim, dc_shdim, dc_bind, dc_nam, dc_use, dc_arr, dc_ause, dc_bnd, dc_next | decl_defevent, decl_redimscope, decl_shareddim, decl_dim1, decl_name, decl_use, decl_array, decl_arrayuse, decl_bound, decl_next | MIRROR |
  * | dc_warn | decl_warning; repl_declare formats it | D4 |
  * | g_typ, g_fld | Decl.types, TypeDef.fields (TypeDef: T_NAM T_NF T_SIZE, Field: F_NAM F_ET F_SUB F_FIX F_OFF) | D2 |
- * | g_obase, g_oexp, g_obset, g_odim, g_ndev, g_dscope, g_dredim | decl.base, explicit_, baseset, dimmed, ndefev, scope, redim | D2 |
+ * | g_obase, g_oexp, g_obset, g_odim, g_ndev, g_dscope, g_dredim | decl.opts, baseset, dimmed, ndefev, scope, redim | D2 |
  * | g_dfev, TDEFEV, NDEV, DEVSZ | Decl.defevs of DefEvent {line, deft[26]} | D2 |
  * | g_dast, g_etsz | decl_astype[5], decl_etsize[8] | MIRROR |
  * | g_dft0, g_dett | deft0, deftype | MIRROR |
@@ -38,6 +38,7 @@
  */
 #include "comp/declare.h"
 #include <string.h>
+#include "comp/bind.h"
 #include "comp/comp.h"
 #include "comp/dfa.h"
 #include "mem/program.h"
@@ -57,7 +58,13 @@ typedef struct {
     bool deft_only;      /* decl_defevents': the names' uses not noted */
     const uint8_t *body; /* the line entered's, its errors' places in it; null none */
     const uint8_t *at;
+    bool priv;      /* the statement's PRIVATE */
+    bool common;    /* the statement's a COMMON */
+    uint32_t block; /* COMMON's block's name, the main's; 0 the blank block */
 } DeclScan;
+
+/* The scope of the procedure being entered, else its module's. */
+static uint32_t decl_own(const Decl *const d) { return d->proc ? d->proc : d->module; }
 
 const uint8_t decl_astype[5] = {ET_I2, ET_I4, ET_R4, ET_R8, ET_SD};
 const uint8_t decl_etsize[8] = {0, 4, 4, 4, 8, 0, 2, 1};
@@ -122,10 +129,10 @@ const uint8_t *decl_paren(const uint8_t *p)
     }
 }
 
-/* decl_int's scan: the CONSTs as scope sees them, the cursor. */
+/* decl_int's scan: the CONSTs as procedure proc (0 none) of module sees them, the cursor. */
 typedef struct {
     const Scop *sc;
-    uint32_t scope;
+    uint32_t module, proc;
     const uint8_t *p;
 } IntScan;
 
@@ -172,7 +179,7 @@ static bool int_atom(IntScan *const s, int64_t *const v)
         return true;
     }
 
-    if (c != M_VAR || !scop_conval(s->sc, s->scope, comp_nameof(s->p), &k))
+    if (c != M_VAR || !scop_conval(s->sc, s->module, s->proc, comp_nameof(s->p), &k))
         return false;
 
     *v = k;
@@ -209,16 +216,17 @@ static bool int_level(IntScan *const s, const uint32_t level, int64_t *const v)
 }
 
 /* An integer constant at *p, as the declarations know one before any is compiled (comp/fold.c
-   folds the rest): n and the CONSTs scope knows the values of, ( ), signs, + - * \ MOD. Its
-   value, *p past it; false: not one, or past a LONG. */
+   folds the rest): n and the CONSTs procedure proc (0 none) of module knows the values of, ( ),
+   signs, + - * \ MOD. Its value, *p past it; false: not one, or past a LONG. */
 static bool decl_int(
     const Scop *const sc,
-    const uint32_t scope,
+    const uint32_t module,
+    const uint32_t proc,
     const uint8_t **const p,
     int64_t *const v
 )
 {
-    IntScan s = {sc, scope, *p};
+    IntScan s = {sc, module, proc, *p};
 
     if (!int_level(&s, 0, v))
         return false;
@@ -229,7 +237,8 @@ static bool decl_int(
 
 const uint8_t *decl_dims(
     const Scop *const sc,
-    const uint32_t scope,
+    const uint32_t module,
+    const uint32_t proc,
     const uint8_t *p,
     const uint8_t base,
     FieldDim *const dims,
@@ -248,13 +257,13 @@ const uint8_t *decl_dims(
     do {
         int64_t lo = base, hi;
 
-        if (!decl_int(sc, scope, &p, &hi))
+        if (!decl_int(sc, module, proc, &p, &hi))
             return nullptr;
         if (*p == TK_TO) {
             p++;
             lo = hi;
 
-            if (!decl_int(sc, scope, &p, &hi))
+            if (!decl_int(sc, module, proc, &p, &hi))
                 return nullptr;
         }
 
@@ -289,6 +298,8 @@ uint8_t decl_proc(const uint8_t *const body, const uint8_t **const name)
 
     if (*p == M_INT)
         p += INT_TOKEN_SIZE;
+    if (p[0] == TK_X && p[1] == TK1_PRIVATE)
+        p += 2;
 
     const uint8_t c = *p++;
 
@@ -400,6 +411,16 @@ static void decl_fail(const DeclScan *const ds, const uint8_t code)
     decl_fail_at(ds, ds->at, code);
 }
 
+/* The name n at p declared by the module, NM_PRIV by PRIVATE: an imported one's * binding dropped.
+   Duplicate definition: another the module binds. */
+static void decl_mine(const DeclScan *const ds, const uint8_t *const p, const uint32_t n)
+{
+    if (!bind_own(ds->sc, ds->sy, n))
+        decl_fail_at(ds, p, E_RD);
+    if (ds->priv)
+        symb_name(ds->sy, n)->flags |= NM_PRIV;
+}
+
 /* Room in the array *t of n used, *cap, each size bytes, for one more. */
 static void decl_room(
     DeclScan *const ds,
@@ -432,7 +453,7 @@ void decl_init(Decl *const d, Fault *const f)
 void decl_reset(Decl *const d, Scop *const sc, Symb *const sy)
 {
     arena_reset(&d->arena);
-    *d = (Decl){.arena = d->arena, .fault = d->fault};
+    *d = (Decl){.arena = d->arena, .fault = d->fault, .top = UINT32_MAX};
     btab_init(&d->types, sizeof(TypeDef));
 
     memcpy(sy->deft, deft0, NLETTERS);
@@ -443,6 +464,7 @@ void decl_reset(Decl *const d, Scop *const sc, Symb *const sy)
         n->flags &= NM_FN;
         n->rec = 0;
         n->proc = 0;
+        *symb_alias(sy, i) = 0;
     }
 }
 
@@ -487,21 +509,21 @@ static void decl_array(DeclScan *const ds, const uint32_t n, const uint32_t scop
 /* A procedure's REDIM of a name the module shares with it: the module's array. */
 static void decl_redimscope(DeclScan *const ds, const uint32_t n)
 {
-    if (!ds->d->redim || !ds->d->scope)
+    if (!ds->d->redim || !sc_is_proc(ds->d->scope))
         return;
 
     const Binding *const own = scop_get(ds->sc, ds->d->scope, n);
-    const Binding *const module = scop_get(ds->sc, 0, n);
+    const Binding *const module = scop_get(ds->sc, ds->d->module, n);
     const bool shared = (own && own->flags & BF_REF) || (module && module->flags & BF_SHR);
 
     if (shared)
-        ds->d->scope = 0;
+        ds->d->scope = ds->d->module;
 }
 
 /* A procedure's DIM of a name the module shares: Duplicate definition (QB45's, PDS's). */
 static void decl_shareddim(DeclScan *const ds, const uint32_t n)
 {
-    if (ds->d->scope && scop_mshr(ds->sc, n))
+    if (sc_is_proc(ds->d->scope) && scop_mshr(ds->sc, ds->d->module, n))
         decl_fail(ds, E_RD);
 }
 
@@ -604,24 +626,113 @@ static void decl_params(DeclScan *const ds)
     }
 }
 
+/* Types a and b (ET_*, ET_REC + t) the same: two TYPEs laid out the same, field by field. */
+static bool decl_sametype(const Decl *const d, const uint32_t a, const uint32_t b)
+{
+    if (a == b)
+        return true;
+    if (a < ET_REC || b < ET_REC)
+        return false;
+
+    const TypeDef *const s = decl_type(d, a - ET_REC), *const t = decl_type(d, b - ET_REC);
+
+    if (s->nfld != t->nfld || s->size != t->size)
+        return false;
+
+    for (uint32_t i = 0; i < s->nfld; i++) {
+        const Field *const f = &s->fields[i], *const g = &t->fields[i];
+
+        if (f->name != g->name || f->off != g->off || f->fix != g->fix || f->ndim != g->ndim ||
+            f->dyn != g->dyn || !decl_sametype(d, decl_fieldtype(f), decl_fieldtype(g)))
+            return false;
+
+        for (uint32_t k = 0; k < f->ndim; k++)
+            if (memcmp(decl_fielddim(d, f, k), decl_fielddim(d, g, k), sizeof(FieldDim)))
+                return false;
+    }
+
+    return true;
+}
+
+/* COMMON's name n at p, its suffix sfx, an array's: the variable at its place in its block, the
+   module's next. Another module's: n stands for it. Type mismatch: not of its type. */
+static void decl_join(
+    DeclScan *const ds,
+    const uint8_t *const p,
+    const uint32_t n,
+    const uint8_t sfx,
+    const bool arr
+)
+{
+    Decl *const d = ds->d;
+
+    if (!ds->loading) /* typed: the main's alone */
+        return;
+
+    Binding *const b = scop_get(ds->sc, d->module, n);
+    const uint32_t type = b->rec[arr]  ? ET_REC + b->rec[arr]
+                          : b->et[arr] ? b->et[arr]
+                          : sfx        ? comp_suffix(sfx)
+                                       : ds->sy->deft[symb_text(ds->sy, n)[1] - 'A'];
+    CmnVar *v = d->cmn;
+    const CmnVar *const end = d->cmn + d->ncmn;
+
+    while (v < end && (v->block != ds->block || v->scope == d->module))
+        v++;
+
+    if (v == end) {
+        decl_room(ds, (void **)&d->cmn, d->ncmn, &d->cmncap, sizeof *d->cmn);
+        d->cmn[d->ncmn++] = (CmnVar){
+            .block = ds->block,
+            .name = n,
+            .type = type,
+            .scope = d->module,
+            .fix = b->fix[arr],
+            .array = arr,
+        };
+
+        return;
+    }
+
+    v->scope = d->module;
+
+    if (v->array != arr || v->fix != b->fix[arr] || !decl_sametype(d, v->type, type))
+        decl_fail_at(ds, p, E_TM);
+    if (type >= ET_REC) /* its TYPE the first's */
+        b->rec[arr] = v->type - ET_REC;
+
+    bind_common(ds->sc, ds->sy, n, v->name);
+}
+
 /* DIM's names, flags their bindings'. */
-static void decl_dimlist(DeclScan *const ds, const uint8_t flags)
+static void decl_dimlist(DeclScan *const ds, const uint16_t flags)
 {
     for (;;) {
         if (*ds->at != M_VAR)
             return;
 
-        const uint32_t n = decl_name(ds, nullptr);
+        const uint8_t *const at = ds->at;
+        uint8_t sfx;
+        const uint32_t n = decl_name(ds, &sfx);
+        const bool arr = *ds->at == '(';
 
-        if (*ds->at == '(')
+        if (arr)
             ds->d->dimmed = true;
+        if (!ds->d->redim && !sc_is_proc(ds->d->scope))
+            decl_mine(ds, at, n);
 
         const uint32_t scope = ds->d->scope;
         decl_redimscope(ds, n);
         decl_shareddim(ds, n);
-        scop_bind(ds->sc, ds->d->scope, n)->flags |= flags;
+        Binding *const b = scop_bind(ds->sc, ds->d->scope, n);
+        b->flags |= flags;
         decl_dim1(ds, n);
         ds->d->scope = scope;
+
+        if (flags & BF_PUB && !b->et[arr] && !b->rec[arr]) /* its type, whoever imports it */
+            b->et[arr] = sfx ? comp_suffix(sfx) : ds->sy->deft[symb_text(ds->sy, n)[1] - 'A'];
+        if (ds->common)
+            decl_join(ds, at, n, sfx, arr);
 
         if (*ds->at != ',')
             return;
@@ -637,6 +748,7 @@ static void decl_typedef(DeclScan *const ds)
         return;
 
     ds->at++;
+    decl_mine(ds, ds->at, comp_nameof(ds->at));
     const uint32_t n = decl_name(ds, nullptr);
 
     Decl *const d = ds->d;
@@ -739,13 +851,22 @@ static void decl_field(DeclScan *const ds)
         return;
 
     const uint8_t *const name = ds->at;
-    const uint32_t n = decl_name(ds, nullptr);
+    const uint32_t n =
+        symb_name_in(ds->sy, 0, decl_name(ds, nullptr)); /* the main's: any module's */
     FieldDim dims[MAXDIMS];
     uint8_t nd = 0;
     const bool paren = *ds->at == '(';
 
     if (paren) {
-        const uint8_t *const past = decl_dims(ds->sc, ds->d->proc, ds->at, ds->d->base, dims, &nd);
+        const uint8_t *const past = decl_dims(
+            ds->sc,
+            ds->d->module,
+            ds->d->proc,
+            ds->at,
+            decl_base(ds->d, ds->d->module),
+            dims,
+            &nd
+        );
 
         if (nd > MAXDIMS)
             decl_fail_at(ds, name, E_TMD);
@@ -810,11 +931,25 @@ static void decl_field(DeclScan *const ds)
     td->size += size * elems;
 }
 
-/* OPTION BASE n, OPTION EXPLICIT. */
+/* The module being entered's DO_* (its file's), room made for it. */
+static uint8_t *decl_opt(DeclScan *const ds)
+{
+    Decl *const d = ds->d;
+    const uint32_t m = d->module & ~SC_MOD;
+
+    while (m >= d->optcap)
+        decl_room(ds, (void **)&d->opts, d->optcap, &d->optcap, sizeof *d->opts);
+    for (; d->nopts <= m; d->nopts++)
+        d->opts[d->nopts] = 0;
+
+    return &d->opts[m];
+}
+
+/* OPTION BASE n, OPTION EXPLICIT: the file's. */
 static void decl_option(DeclScan *const ds)
 {
     if (ds->at[1] == TK_X && ds->at[2] == TK1_EXPLICIT) {
-        ds->d->explicit_ = true;
+        *decl_opt(ds) |= DO_EXPLICIT;
         return;
     }
 
@@ -825,7 +960,7 @@ static void decl_option(DeclScan *const ds)
     if (ds->d->dimmed)
         decl_fail(ds, E_AAD);
 
-    ds->d->base = ds->at[3];
+    *decl_opt(ds) |= ds->at[3] ? DO_BASE1 : 0;
     ds->d->baseset = true;
     ds->at += 2 + INT_TOKEN_SIZE;
 }
@@ -889,8 +1024,15 @@ static void decl_deffn(DeclScan *const ds)
 void decl_enter(Decl *const d, const uint32_t proc)
 {
     d->proc = proc;
-    d->scope = proc;
+    d->scope = decl_own(d);
     d->type = 0;
+}
+
+void decl_main(Decl *const d, Symb *const sy)
+{
+    d->module = 0;
+    decl_enter(d, 0);
+    decl_deftype(d, sy, d->top - 1);
 }
 
 /* SUB n, FUNCTION n: in it from here. */
@@ -901,8 +1043,10 @@ static void decl_subfn(DeclScan *const ds, const uint8_t flag)
     if (*ds->at != M_VAR)
         return;
 
+    decl_mine(ds, ds->at, comp_nameof(ds->at));
     const uint32_t n = decl_name(ds, nullptr);
     symb_name(ds->sy, n)->flags |= flag;
+    scop_bind(ds->sc, ds->d->module, n)->flags |= BF_PROC;
     ds->d->proc = n;
     ds->d->scope = n;
     decl_params(ds);
@@ -925,9 +1069,9 @@ static void decl_shared(DeclScan *const ds, const uint8_t flag)
         if (flag == BF_STAT) /* its ( ), AS type as DIM's */
             decl_dim1(ds, n);
         else if (*ds->at == '(')
-            decl_array(ds, n, ds->d->proc);
+            decl_array(ds, n, decl_own(ds->d));
 
-        scop_bind(ds->sc, ds->d->proc, n)->flags |= flag;
+        scop_bind(ds->sc, decl_own(ds->d), n)->flags |= flag;
 
         for (;;) { /* past ( ) and AS type */
             const uint8_t c = *ds->at;
@@ -981,20 +1125,24 @@ static void decl_deflist(DeclScan *const ds, const uint8_t et)
     }
 }
 
-/* COMMON [SHARED] [/b/]: as DIM's. */
+/* COMMON [SHARED] [/b/]: as DIM's, each name joined to its block's variable at its place. */
 static void decl_common(DeclScan *const ds)
 {
     ds->at += 2;
-    ds->d->scope = 0;
+    ds->d->scope = ds->d->module;
     const bool shared = *ds->at == TK_SHARED;
+    ds->block = 0;
 
     if (shared)
         ds->at++;
     if (*ds->at == TK_DIV) {
-        if (ds->at[1] != M_VAR)
+        const uint8_t *const name = ds->at + 1;
+
+        if (*name != M_VAR)
             return;
 
-        ds->at = comp_skipname(ds->at + 1);
+        ds->block = symb_find_name(ds->sy, 0, name + 2, name[1]);
+        ds->at = comp_skipname(name);
 
         if (*ds->at != TK_DIV)
             return;
@@ -1002,7 +1150,9 @@ static void decl_common(DeclScan *const ds)
         ds->at++;
     }
 
+    ds->common = true;
     decl_dimlist(ds, shared ? BF_SHR : 0);
+    ds->common = false;
 }
 
 /* DIM [SHARED] n[( )] [AS type] {, ..} */
@@ -1011,12 +1161,12 @@ static void decl_dim(DeclScan *const ds, const bool redim)
     ds->d->redim = redim;
     ds->at++;
     const bool shared = *ds->at == TK_SHARED;
+    const bool public =
+        ds->at[0] == TK_X && ds->at[1] == TK1_PUBLIC; /* ours: DIM SHARED, exported */
 
-    if (shared)
-        ds->at++;
-
-    ds->d->scope = shared ? 0 : ds->d->proc;
-    decl_dimlist(ds, shared ? BF_SHR : 0);
+    ds->at += shared ? 1 : public ? 2 : 0;
+    ds->d->scope = shared || public ? ds->d->module : decl_own(ds->d);
+    decl_dimlist(ds, shared ? BF_SHR : public ? BF_SHR | BF_PUB : 0);
 }
 
 /* CONST n = e {, n = e} */
@@ -1029,10 +1179,13 @@ static void decl_const(DeclScan *const ds)
             return;
 
         uint8_t sfx;
+        const uint8_t *const at = ds->at;
         const uint32_t n = decl_name(ds, &sfx);
 
         if (*ds->at != TK_EQ)
             return;
+        if (!ds->d->proc)
+            decl_mine(ds, at, n);
 
         ds->at++;
         const uint8_t *const value = ds->at;
@@ -1067,10 +1220,11 @@ static void decl_const(DeclScan *const ds)
             ds->at = decl_item(ds->at);
         }
 
-        if (ds->d->proc && scop_mshr(ds->sc, n)) /* a procedure's of a DIM SHARED name */
+        if (ds->d->proc &&
+            scop_mshr(ds->sc, ds->d->module, n)) /* a procedure's of a DIM SHARED name */
             decl_fail(ds, E_SN);
 
-        Binding *const b = scop_bind(ds->sc, ds->d->proc, n);
+        Binding *const b = scop_bind(ds->sc, decl_own(ds->d), n);
         b->flags |= BF_CON;
 
         if (!ds->d->proc)
@@ -1081,8 +1235,9 @@ static void decl_const(DeclScan *const ds)
         b->et[0] = et;
         const uint8_t *q = value;
         int64_t v;
-        const bool known = et != ET_SD && decl_int(ds->sc, ds->d->proc, &q, &v) && q == ds->at;
-        b->flags = (uint8_t)((b->flags & ~BF_VAL) | (known ? BF_VAL : 0));
+        const bool known =
+            et != ET_SD && decl_int(ds->sc, ds->d->module, ds->d->proc, &q, &v) && q == ds->at;
+        b->flags = (uint16_t)((b->flags & ~BF_VAL) | (known ? BF_VAL : 0));
         b->val = known ? (int32_t)v : 0;
 
         if (*ds->at != ',')
@@ -1097,24 +1252,26 @@ static void decl_use(DeclScan *const ds, const uint8_t *const p)
 {
     const uint32_t n = comp_nameof(p);
 
-    if (!comp_suffixof(p) || scop_get(ds->sc, ds->d->proc, n))
+    if (!comp_suffixof(p) || scop_get(ds->sc, decl_own(ds->d), n))
         return;
 
-    scop_bind(ds->sc, ds->d->proc, n)->flags = BF_USE;
+    scop_bind(ds->sc, decl_own(ds->d), n)->flags = BF_USE;
 }
 
 /* The name at p: followed by (, an array known in decl.proc's scope. */
 static void decl_arrayuse(DeclScan *const ds, const uint8_t *const p)
 {
     if (*comp_skipname(p) == '(')
-        decl_array(ds, comp_nameof(p), ds->d->proc);
+        decl_array(ds, comp_nameof(p), decl_own(ds->d));
 }
 
 /* The name at p r.f..: its text to a dot a record's, ours. */
 static bool decl_recpath(DeclScan *const ds, const uint8_t *const p)
 {
     for (uint8_t i = 1; i < p[1]; i++)
-        if (p[2 + i] == '.' && symb_name(ds->sy, symb_find_name(ds->sy, p + 2, i))->flags & NM_REC)
+        if (p[2 + i] == '.' &&
+            symb_name(ds->sy, symb_find_name(ds->sy, sc_number(ds->d->module), p + 2, i))->flags &
+                NM_REC)
             return true;
 
     return false;
@@ -1128,12 +1285,12 @@ static void decl_bound(DeclScan *const ds, const uint8_t *const p)
         return;
 
     const uint32_t n = comp_nameof(p + 2);
-    const uint32_t scope = ds->d->proc | SC_ARR;
+    const uint32_t module = ds->d->module;
 
-    if (scop_get(ds->sc, scope, n))
+    if (scop_get(ds->sc, decl_own(ds->d) | SC_ARR, n))
         return;
-    if (scope != SC_ARR && scop_get(ds->sc, SC_ARR, n)) {
-        const Binding *b = scop_get(ds->sc, 0, n);
+    if (ds->d->proc && scop_get(ds->sc, module | SC_ARR, n)) {
+        const Binding *b = scop_get(ds->sc, module, n);
 
         if (b && (b->flags & BF_SHR))
             return;
@@ -1203,6 +1360,8 @@ void decl_line(
     if (*ds->at == M_INT) /* a line number */
         ds->at += INT_TOKEN_SIZE;
     do {
+        ds->priv = ds->at[0] == TK_X && ds->at[1] == TK1_PRIVATE;
+        ds->at += ds->priv ? 2 : 0;
         const uint8_t c = *ds->at;
 
         switch (c) {
@@ -1281,9 +1440,48 @@ void decl_line(
     } while (decl_next(ds));
 }
 
+/* A module's file's DEFtypes from its first line on, at line, LF_TOP: QBasic's. */
+static void decl_deftop(DeclScan *const ds)
+{
+    if (ds->d->top == UINT32_MAX)
+        ds->d->top = ds->line;
+
+    memcpy(ds->sy->deft, deft0, NLETTERS);
+    decl_defevent(ds);
+}
+
+void decl_module(
+    Decl *const d,
+    Scop *const sc,
+    Symb *const sy,
+    const uint32_t module,
+    const uint32_t line
+)
+{
+    DeclScan ds = {
+        .d = d,
+        .sc = sc,
+        .sy = sy,
+        .line = line,
+        .loading = true,
+    };
+
+    d->module = module;
+    d->proc = d->type = 0;
+    d->scope = module;
+    d->baseset = d->dimmed = false;
+    *decl_opt(&ds) = 0;
+
+    if (module)
+        decl_deftop(&ds);
+    else
+        memcpy(sy->deft, deft0, NLETTERS);
+}
+
 void decl_defevents(Decl *const d, Scop *const sc, Symb *const sy, const Prog *const pg)
 {
     d->ndefev = 0;
+    d->top = UINT32_MAX;
     memcpy(sy->deft, deft0, NLETTERS);
 
     for (uint32_t rec = PROGBASE, len; (len = prog_line(pg, rec)->len); rec += len) {
@@ -1300,6 +1498,10 @@ void decl_defevents(Decl *const d, Scop *const sc, Symb *const sy, const Prog *c
         };
 
         DeclScan *const ds = &scan;
+
+        if (prog_line(pg, rec)->flags & LF_TOP)
+            decl_deftop(ds);
+
         ds->at = at(prog_addr(pg, rec + HDR));
 
         if (*ds->at == M_INT)

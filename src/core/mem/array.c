@@ -251,9 +251,12 @@ Addr arry_ref(Arry *const ay, ArrSlot *const s, const uint32_t id, const uint8_t
     if (!h) {
         if (s->dyn) /* ERASE freed it: not made again */
             arry_bad_sub(ay);
-        for (uint32_t i = 0; i < n; i++) { /* OPTION BASE to 10 */
-            ay->counts[i] = 11 - ay->decl->base;
-            ay->lbounds[i] = ay->decl->base;
+
+        const uint8_t base = symb_varx(ay->symb, id)->base;
+
+        for (uint32_t i = 0; i < n; i++) { /* its file's OPTION BASE to 10 */
+            ay->counts[i] = 11 - base;
+            ay->lbounds[i] = base;
         }
 
         h = arry_new(ay, id, n, false);

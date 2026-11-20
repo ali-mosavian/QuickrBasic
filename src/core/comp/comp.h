@@ -54,6 +54,8 @@ typedef struct Comp {
     Vm *vm;
     Dbug *dbug;
     CompRun *run;
+    struct Modu *modu;     /* each line's module, by its file; their tops again at link */
+    struct ImptFind *impt; /* the modules an IMPORT or FROM runs (comp/import.h) */
 
     /* the cursor and the code */
     const uint8_t *p;    /* (ESI) the token cursor */
@@ -93,8 +95,9 @@ typedef struct Comp {
     bool modlabel;            /* g_lmod: comp_lnum's label is the module's (cleared) */
 
     /* scopes */
-    uint32_t proc;   /* cproc: the procedure the line is in, 0 the module (mem/scope sets it) */
-    uint32_t scope;  /* cscope: var_find's scope: 0 the module, a procedure */
+    uint32_t module; /* the line's module: its scope (sc_module) */
+    uint32_t proc;   /* cproc: the procedure the line is in, 0 none (mem/scope sets it) */
+    uint32_t scope;  /* cscope: var_find's scope: the module's, a procedure's */
     bool isstatic;  /* cstat: var_find makes a STATIC, not a local */
     uint32_t dlproc; /* g_dlprc: the direct line's procedure (the debugger's probe) */
     bool check;     /* cchk: the IDE's check of a line alone, unlinked */
@@ -145,8 +148,10 @@ static inline uint8_t comp_suffixof(const uint8_t *const p)
 
 /* Compiling */
 void comp_init(Comp *C); /* comp_cbuf carved (allo_carve), comp_xbuf's first bytes */
-/* Procedure proc compiled, 0 the module: its scopes seen. */
+/* Procedure proc compiled, 0 none (comp.module's top level): its scopes seen. */
 void comp_proc(Comp *C, uint32_t proc);
+/* The module line is in: its scope (sc_module); the direct line's the main's. */
+uint32_t comp_module(const Comp *C, uint32_t line);
 Status comp_line(Comp *C); /* the direct line in comp_cbuf, to comp_xbuf: comp_text's */
 /* The body at body to comp.buf, comp.len its length. An error ends the code with ERR, raised
    when it runs: its code, else ST_OK. */
@@ -230,7 +235,11 @@ static inline bool comp_ispar(const Comp *const C, const uint32_t id)
     return !(symb_var(C->symb, id)->info & VI_ARR) && symb_is_ref(C->symb, id);
 }
 bool comp_param(Comp *C, uint32_t name, uint8_t array, uint32_t *id); /* var_par: array 80h */
-void comp_scope(Comp *C, uint32_t name); /* var_scope: comp.scope, comp.isstatic for it */
+/* var_scope: comp.scope, comp.isstatic for name; the name its variable has, another module's for
+   one it imports. bind_use's errors. */
+uint32_t comp_scope(Comp *C, uint32_t name);
+/* Variable id's STRING * n, its array's: n, 0 none. Another module's: as its module declares it. */
+uint16_t comp_fix(const Comp *C, uint32_t id, bool array);
 uint8_t comp_suffix(uint8_t c);          /* et_sfx: % & ! # $ to ET_*, 0 none */
 const uint8_t *comp_label(
     const uint8_t *body

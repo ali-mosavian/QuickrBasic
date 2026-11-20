@@ -79,7 +79,8 @@ uint32_t flow_target(Vm *vm);
 uint8_t *flow_dcode(Session *S);
 
 /* The handler for an error now: the innermost call's ON LOCAL ERROR, the calls above it returned
-   as if the error were at their call; else ON ERROR's. 0 none. */
+   as if the error were at their call; else ON ERROR's of the running line's module, or of the
+   nearest caller's (a call's or an IMPORT's) with one, those above it returned so. 0 none. */
 uint32_t flow_handler(Session *S);
 /* Run handler for error code: sets ERR, ERL and RESUME's places, then back into the loop. */
 [[noreturn]]

@@ -14,6 +14,8 @@ Language
                            [SHORT](SHORT), [DEFSHORT](DEFSHORT)
     CONTINUE, EXIT WHILE   skip a loop's round, leave a WHILE or outer FOR
                            [CONTINUE](CONTINUE), [EXIT](EXIT)
+    IMPORT gfx             modules and packages, from files and folders
+                           [IMPORT](IMPORT)
     FUNCTION f () AS Vec   a result's type by AS; records, arrays
                            [FUNCTION](FUNCTION)
     b() = a(), b(:) = a(:) an array moved; copied

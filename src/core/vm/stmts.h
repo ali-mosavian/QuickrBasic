@@ -9,7 +9,7 @@ void stmt_init(Session *S);
 void stmt_runfirst(Session *S);
 /* ex_rungo: both stacks emptied, events, COMMON and ON ERROR cleared; on at line. */
 void stmt_rungo(Session *S, uint32_t line);
-/* rd_first: the next READ starts at the first DATA. */
+/* rd_first: each module's next READ starts at its first DATA. */
 void stmt_restore(Session *S);
 /* sc_cont, K_CONT: on where the run stopped. Can't continue: no place. */
 void stmt_cont(Session *S);
@@ -26,6 +26,7 @@ typedef struct {
     uint32_t data_at;        /* the DATA's first byte in the store, 0 none */
     uint32_t data_line;      /* the line it is in */
     bool before_first;       /* data_pos is before the DATA's first item */
+    uint32_t data_module;    /* the module they are of; another's kept in its ModuMod */
     uint8_t *input_end;      /* where an INPUT's empty line goes on */
     uint8_t *input_start;    /* REDO comes back here */
     bool redo;               /* a bad field: REDO FROM START after the stores */

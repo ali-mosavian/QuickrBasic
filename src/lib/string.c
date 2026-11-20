@@ -111,3 +111,5 @@ char *strchr(const char *const s, const int c)
             return nullptr;
     }
 }
+
+char *strcpy(char *const dst, const char *const src) { return memcpy(dst, src, strlen(src) + 1); }

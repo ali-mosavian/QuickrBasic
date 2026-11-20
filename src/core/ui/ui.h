@@ -211,7 +211,7 @@ typedef struct {
     uint32_t all;                               /* tx_all: the text's lines */
     void (*hook)(uint32_t line, int32_t delta); /* tx_hook: text line added (1), removed (-1) */
     bool changed;      /* tx_mod: since the program was entered (a run enters it again) */
-    bool unsaved;      /* tx_chg: since it was saved */
+    bool unsaved;      /* tx_chg: a file since it was saved (text_unsaved) */
     bool check;        /* syn_on: Options, Syntax Checking */
     bool asis;         /* tx_asis: the next line stored as typed */
     uint16_t clip_len; /* cb_len: the clipboard's bytes */

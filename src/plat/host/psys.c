@@ -90,16 +90,47 @@ uint32_t psys_cmdline(char *const buf, const uint32_t cap)
     return n;
 }
 
-/* DOS's environment as DOSBox starts it, not the host's: programs see the same either way. */
 static const char COMSPEC[] = "Z:\\COMMAND.COM";
-static const char DOS_ENV[] = "COMSPEC=Z:\\COMMAND.COM\0PATH=Z:\\\0";
 
+/* name=value and its 0 at buf + n if it fits before the block's last 0 (cap bytes), else *full;
+   n past it. */
+static uint32_t entry(
+    char *const buf,
+    const uint32_t cap,
+    const uint32_t n,
+    const char *const name,
+    const char *const value,
+    bool *const full
+)
+{
+    const size_t a = strlen(name), b = strlen(value);
+
+    if (*full || n + a + b + 2 >= cap) {
+        *full = true;
+        return n;
+    }
+
+    memcpy(buf + n, name, a);
+    buf[n + a] = '=';
+    memcpy(buf + n + a + 1, value, b + 1);
+    return (uint32_t)(n + a + b + 2);
+}
+
+/* DOS's environment as DOSBox starts it, not the host's: programs see the same either way. The
+   host's BASICLIB is passed on, as DOS passes its own: the folders modules are found in. */
 uint32_t psys_environ(char *const buf, const uint32_t cap)
 {
-    const uint32_t n = sizeof DOS_ENV < cap ? sizeof DOS_ENV : cap;
-    memcpy(buf, DOS_ENV, n);
-    buf[n - 1] = 0;
-    return n;
+    const char *const lib = getenv("BASICLIB");
+    bool full = false;
+    uint32_t n = entry(buf, cap, 0, "COMSPEC", COMSPEC, &full);
+
+    n = entry(buf, cap, n, "PATH", "Z:\\", &full);
+
+    if (lib)
+        n = entry(buf, cap, n, "BASICLIB", lib, &full);
+
+    buf[n] = 0;
+    return full ? cap : n + 1; /* cap: the caller's to grow */
 }
 
 uint32_t psys_self(char *const buf, const uint32_t cap)
@@ -118,6 +149,13 @@ uint32_t psys_self(char *const buf, const uint32_t cap)
 
     if (_NSGetExecutablePath(buf, &size))
         return 0;
+
+    char *const real = realpath(buf, nullptr); /* a link's target, as Linux's /proc/self/exe */
+
+    if (real && strlen(real) < cap)
+        strcpy(buf, real);
+
+    free(real);
 
     /* in an app: its files are in Contents/Resources, beside Contents/MacOS */
     static const char code[] = "/Contents/MacOS/", data[] = "/Contents/Resources/";

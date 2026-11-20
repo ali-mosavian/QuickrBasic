@@ -64,6 +64,7 @@ Press F1 in an error box to reach its topic. Pick a message:
   [DECLARE required / Equal sign missing](DECLARE required)
   [COMMON and DECLARE must precede executable statements](COMMON and DECLARE must precede executable statements)
   [Array too big / TYPE more than 65535 bytes](Array too big)
+  [Name not exported](Name not exported)
   [Dimension errors](Dynamic array illegal)
   [Asterisk missing / Integer between 1 and 32767 required](Asterisk missing)
   [FOR index variable errors](FOR index variable already in use)
