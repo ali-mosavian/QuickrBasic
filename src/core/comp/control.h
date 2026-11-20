@@ -8,9 +8,9 @@
 enum : uint32_t { NOTARGET = 0xFFFFFFFF };
 
 typedef struct Ctrl {
-    uint8_t fieldet;   /* g_ctfet: expr_target's field (its offset in comp.tgt): ET_*, n */
+    uint32_t fieldet;  /* g_ctfet: expr_target's field (its offset in comp.tgt): ET_*, n */
     uint16_t fieldfix; /* g_ctffix */
-    uint16_t selid;    /* g_ctvr: a SELECT's or SWAP's variable */
+    uint32_t selid;    /* g_ctvr: a SELECT's or SWAP's variable */
     uint8_t seltype;   /* g_cttp: its T_* */
     uint8_t seldepth;  /* its SELECT's depth */
     bool selfree;      /* a CASE checked alone: its type its first item's */

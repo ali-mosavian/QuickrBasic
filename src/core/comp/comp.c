@@ -145,7 +145,7 @@ void comp_flush(Comp *const C)
             cg_tree(C->code, n);
     }
 
-    if (!C->nofuse && C->code->out != start) {
+    if (!C->nofuse && !C->code->full && C->code->out != start) { /* full: its last op cut short */
         C->code->out = fuse_code(C->symb, start, C->code->out);
         C->code->iload = C->code->iloadend = C->code->cmpend = C->code->shend = nullptr;
     }
@@ -185,7 +185,13 @@ void comp_word(Node *const n, const uint16_t w)
     comp_byte(n, (uint8_t)(w >> 8));
 }
 
-void comp_opid(Comp *const C, const uint8_t op, const uint16_t id) { node(C, N_OPID, op)->id = id; }
+void comp_dword(Node *const n, const uint32_t d)
+{
+    comp_word(n, (uint16_t)d);
+    comp_word(n, (uint16_t)(d >> 16));
+}
+
+void comp_opid(Comp *const C, const uint8_t op, const uint32_t id) { node(C, N_OPID, op)->id = id; }
 
 Node *comp_jump(Comp *const C, const uint8_t op)
 {
@@ -239,7 +245,7 @@ void comp_toinfo(Comp *const C, const uint8_t info)
         conv(C, CV_STR);
 }
 
-void comp_target(Comp *const C, const uint16_t id)
+void comp_target(Comp *const C, const uint32_t id)
 {
     C->tgt = id;
     C->tgtinfo = symb_var(C->symb, id)->info;
@@ -267,7 +273,7 @@ void comp_store(Comp *const C)
     } else
         synerr(C);
 
-    const uint16_t id = C->tgt;
+    const uint32_t id = C->tgt;
     const uint16_t fix = (info & (SK_DBL | VK_MASK)) == VK_STR
                              ? scop_fix(C->scop, symb_var(C->symb, id)->name, C->tgtsubs)
                              : 0;
@@ -334,9 +340,9 @@ bool comp_optcomma(Comp *const C)
 }
 
 /* Label key of DX's kind: jline, in the scope's own or, when modlabel (cleared), the module's. */
-static void lfind(Comp *const C, const uint16_t key, const uint16_t kind)
+static void lfind(Comp *const C, const uint32_t key, const uint32_t kind)
 {
-    const uint16_t scope = C->modlabel ? 0 : scop_own(C->scop);
+    const uint32_t scope = C->modlabel ? 0 : scop_own(C->scop);
     C->modlabel = false;
     C->jline = scop_lfind(C->scop, C->symb, scope | kind, key);
 }
@@ -369,7 +375,7 @@ uint8_t comp_lnum(Comp *const C)
     C->p += INT_TOKEN_SIZE;
 
     if (n) /* 0: ON ERROR GOTO 0's, none */
-        lfind(C, (uint16_t)n, SC_NUM);
+        lfind(C, n, SC_NUM);
 
     C->modlabel = false;
     return comp_cur(C);
@@ -418,7 +424,7 @@ const uint8_t *comp_label(const uint8_t *const body)
     return *colon == ':' ? colon : nullptr;
 }
 
-uint16_t comp_nameof(const uint8_t *const at) { return load16(at + at[1] + 2); }
+uint32_t comp_nameof(const uint8_t *const at) { return load32(at + 2 + at[1]); }
 
 const uint8_t *comp_skipdata(const uint8_t *p)
 {
@@ -440,7 +446,7 @@ const uint8_t *comp_skipdata(const uint8_t *p)
     }
 }
 
-bool comp_param(Comp *const C, const uint16_t name, const uint8_t array, uint16_t *const id)
+bool comp_param(Comp *const C, const uint32_t name, const uint8_t array, uint32_t *const id)
 {
     if (!C->proc)
         return false;
@@ -448,7 +454,7 @@ bool comp_param(Comp *const C, const uint16_t name, const uint8_t array, uint16_
     const Proc *const p = blok_proc(C->blok, C->proc);
 
     for (uint32_t i = 0; i < p->npar; i++) {
-        const uint16_t v = p->params[i].var;
+        const uint32_t v = p->params[i].var;
         const Var *const var = symb_var(C->symb, v);
 
         if (var->name == name && !((var->info ^ array) & VI_ARR)) {
@@ -460,7 +466,7 @@ bool comp_param(Comp *const C, const uint16_t name, const uint8_t array, uint16_
     return false;
 }
 
-void comp_scope(Comp *const C, const uint16_t name)
+void comp_scope(Comp *const C, const uint32_t name)
 {
     C->isstatic = false;
     C->scope = C->proc;
@@ -468,7 +474,7 @@ void comp_scope(Comp *const C, const uint16_t name)
     if (!C->proc)
         return;
 
-    uint16_t scope;
+    uint32_t scope;
     const Binding *b = nullptr;
 
     if (!(symb_name(C->symb, name)->flags & NM_LBL))
@@ -484,7 +490,7 @@ void comp_scope(Comp *const C, const uint16_t name)
 }
 
 /* var_decl: under OPTION EXPLICIT, name declared, or a procedure's; else Variable not declared. */
-static void declared(Comp *const C, const uint16_t name)
+static void declared(Comp *const C, const uint32_t name)
 {
     if (!C->decl->explicit_ || symb_name(C->symb, name)->flags & (NM_SUB | NM_FUNC | NM_FN))
         return;
@@ -494,24 +500,23 @@ static void declared(Comp *const C, const uint16_t name)
 
 enum { VM_PARAM = 1, VM_STATIC = 2 };
 
-uint16_t comp_var(Comp *const C, const uint8_t shape, const uint8_t et)
+uint32_t comp_var(Comp *const C, const uint8_t shape, const uint32_t et)
 {
     const uint8_t *const q = C->p;
     const uint8_t first = q[2];
     const uint8_t sfx = comp_suffix(comp_suffixof(q));
-    const uint16_t name = comp_nameof(q);
+    const uint32_t name = comp_nameof(q);
     C->p = comp_skipname(q);
     uint8_t kind = shape > 1 || (!shape && *C->p == '(') ? VI_ARR : 0;
-    uint8_t type = et;
+    uint32_t type = et;
     typeof(C->memo[0]) *m = nullptr;
-    uint32_t key = 0;
+    MemoKey key = {};
 
     if (C->memo_on && !et && C->line != DLINE && !C->check) {
-        key = name | (uint32_t)C->proc << 16 | (uint32_t)sfx << 24 | (uint32_t)!!kind << 27 |
-              (uint32_t)C->symb->deft[upcase(first) - 'A'] << 28;
+        key = (MemoKey){name, C->proc, sfx, !!kind, C->symb->deft[upcase(first) - 'A'], 1};
         m = &C->memo[(name * 2654435761u ^ C->proc * 40503u) >> 22 & (countof(C->memo) - 1)];
 
-        if (m->key == key) {
+        if (!memcmp(&m->key, &key, sizeof key)) {
             if (!(m->how & VM_PARAM)) {
                 C->scope = m->scope;
                 C->isstatic = m->how & VM_STATIC;
@@ -524,7 +529,7 @@ uint16_t comp_var(Comp *const C, const uint8_t shape, const uint8_t et)
     if (!type && sfx)
         type = scop_sfx(C->scop, name, sfx, kind != 0);
     else if (!type) {
-        uint16_t id;
+        uint32_t id;
 
         if (comp_param(C, name, kind, &id)) { /* no suffix: a parameter's own type */
             if (m)
@@ -548,7 +553,7 @@ uint16_t comp_var(Comp *const C, const uint8_t shape, const uint8_t et)
         kind |= comp_etkind[type];
 
     comp_scope(C, name);
-    const uint16_t id = symb_find_var(C->symb, name, type, kind, C->scope, C->isstatic);
+    const uint32_t id = symb_find_var(C->symb, name, type, kind, C->scope, C->isstatic);
 
     if (m)
         *m = (typeof(*m)){
@@ -567,7 +572,7 @@ void comp_notconst(Comp *const C)
         fault_error(C->fault, E_RD);
 }
 
-uint16_t comp_name(Comp *const C)
+uint32_t comp_name(Comp *const C)
 {
     if (comp_cur(C) != M_VAR)
         synerr(C);
@@ -601,7 +606,7 @@ static void mark(Comp *const C)
     mapstmt(C, (uint32_t)(C->p - C->body));
 }
 
-uint16_t comp_hidden(Comp *const C, const uint8_t kind, const uint8_t which, const uint32_t key)
+uint32_t comp_hidden(Comp *const C, const uint8_t kind, const uint8_t which, const uint32_t key)
 {
     uint8_t text[2 + 8] = {kind, which};
 
@@ -894,7 +899,7 @@ Status comp_text(Comp *const C, const uint8_t *const body)
     }
 }
 
-void comp_proc(Comp *const C, const uint8_t proc)
+void comp_proc(Comp *const C, const uint32_t proc)
 {
     C->proc = proc;
     scop_enter(C->scop, proc ? blok_proc(C->blok, proc) : nullptr);
@@ -973,7 +978,7 @@ static void act_if(Comp *const C)
 static void act_fv(Comp *const C)
 {
     comp_notconst(C);
-    const uint16_t id = comp_name(C);
+    const uint32_t id = comp_name(C);
     const uint8_t info = symb_var(C->symb, id)->info;
 
     if (info & VI_ARR)
@@ -1070,7 +1075,7 @@ static uint32_t dimsubs(Comp *const C, uint32_t *const elems)
 
 /* A local array's DIM: the shape its frame keeps room for (comp/frame.c), the largest asked; a
    REDIM, bounds not constant or another count of dimensions: none. */
-static void frame_shape(Comp *const C, const uint16_t id, const uint32_t dims, const uint32_t elems)
+static void frame_shape(Comp *const C, const uint32_t id, const uint32_t dims, const uint32_t elems)
 {
     FrameArr *const fa = symb_farr(C->symb, id);
 
@@ -1087,7 +1092,7 @@ static void frame_shape(Comp *const C, const uint16_t id, const uint32_t dims, c
 
 /* DIM's array id: ( subscripts ), the mask as 2 INTs, its id, the count, CALL DIM. A STATIC's
    array is dimensioned once. */
-static void dim1(Comp *const C, const uint16_t id)
+static void dim1(Comp *const C, const uint32_t id)
 {
     const uint32_t flags = (C->isstatic ? DIM_STATIC : 0) | C->redim;
     uint32_t elems;
@@ -1142,7 +1147,7 @@ void comp_astype(Comp *const C)
 }
 
 /* DIM a(), ours: its id, CALL AEMPTY. */
-static void dimempty(Comp *const C, const uint16_t id)
+static void dimempty(Comp *const C, const uint32_t id)
 {
     link_empty(C, id);
     C->p += 2;
@@ -1155,7 +1160,7 @@ static void dimempty(Comp *const C, const uint16_t id)
    cell, its elements' type, n, CALL DIM; false: not one. */
 static bool dimfield(Comp *const C)
 {
-    uint8_t type;
+    uint32_t type;
     C->dimtarget = true;
     Node *const cell = ref_fieldarray(C, &type);
     C->dimtarget = false;
@@ -1185,7 +1190,7 @@ static void act_dv(Comp *const C)
     if (C->redim && comp_cur(C) == M_VAR && dimfield(C))
         return;
 
-    uint16_t id = comp_name(C);
+    uint32_t id = comp_name(C);
 
     if (*C->p == '(') {
         id = ref_arrayof(C, id);

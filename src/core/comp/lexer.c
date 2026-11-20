@@ -2,7 +2,7 @@
  *
  * # How it works
  * In the body:
- *   M_VAR len name nam:2  a name as typed, its suffix too; nam its entry in the name table
+ *   M_VAR len name nam:4  a name as typed, its suffix too; nam its entry in the name table
  *   M_INT n:4             a whole number under 2^31, &H, &O
  *   a token               80h..FEh, or TK_X and a byte (comp/dfa.h)
  * Spaces go, but in strings, REM and DATA. A number with a point, an exponent or 2^31 and over
@@ -27,7 +27,8 @@
  * | g_lxlst, g_lxend, g_lxlc | lexr.last, lexr.end, lexr.lastcol | MIRROR |
  * | lx.lxsrc, lx.lxdst | lexr.src, lexr.dst | MIRROR |
  * | lx.nsyms, lx.nnams | symb.nvars, symb.nnames (mem's) | MOVED |
- * | lx.dproc, lx.ntyps, lx.nflds, lx.dtype | decl.proc, decl.ntypes, decl.nfields, decl.type (declare.c) | MOVED |
+ * | lx.dproc, lx.ntyps, lx.dtype | decl.proc, decl.ntypes, decl.type (declare.c) | MOVED |
+ * | lx.nflds | | D4 |
  * | lx.lxf, lx.lxn, lx.lxs | locals | MIRROR |
  * | lx.nlen, lx.nptr | symb_find_name's parameters | D1 |
  * | lx.lxst, lx.nkey, lx.nlenp, lx.lxv, lx.lxm | | D2 |
@@ -36,6 +37,7 @@
  * - D2. Unused in the asm; dropped.
  * - D3. It takes its own state; names, streamed text and errors come through LexrNames,
  *   LexrSource and Fault, which the session provides.
+ * - D4. It counted the fields for a limit there no longer is; dropped.
  */
 #define DFA_DATA
 #include "comp/lexer.h"
@@ -350,7 +352,7 @@ uint16_t lexr_keyword(const uint8_t **const at)
     return kw_scan(at);
 }
 
-/* The word from wstart to src is a name: M_VAR len name nam:2, a suffix in the text but not the
+/* The word from wstart to src is a name: M_VAR len name nam:4, a suffix in the text but not the
    name's key. */
 static void lexr_name(Lexr *const lx)
 {
@@ -366,9 +368,8 @@ static void lexr_name(Lexr *const lx)
         *lx->out++ = *lx->in++;
 
     *len = (uint8_t)(lx->out - text);
-    const uint16_t id = lx->names->intern(lx->names, text, n);
-    store16(lx->out, id);
-    lx->out += 2;
+    store32(lx->out, lx->names->intern(lx->names, text, n));
+    lx->out += NAME_ID;
 }
 
 enum { LOOP_WORD = 5 }; /* WHILE: the longest of FOR, DO, WHILE */

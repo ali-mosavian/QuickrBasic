@@ -30,6 +30,8 @@ SKIP = {
     "divmod": NOD,
     "palette_using_pds71": "PDS 7.1's PALETTE USING, and the screen",
 }
+SKIP |= dict.fromkeys(["stackover", "stackoverp", "stackoverv", "stackrt", "stackrtp", "stackrtv"],
+                      "BC's stack is fixed, this one grows to memory: 30,000 calls deep fit")
 # DOSBox-X off x86 runs the x87 in 64-bit doubles: the last digit of LOG, EXP, ^ and PRINT can differ.
 if platform.machine() not in ("x86_64", "AMD64", "i386", "i686"):
     SKIP |= dict.fromkeys(["log_exp_digits", "range_power_digits", "data_after_checked", "pow_stack_depth",

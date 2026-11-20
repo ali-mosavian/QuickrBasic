@@ -75,10 +75,10 @@ static void cg_on(Code *c, const Node *n);
 static void cg_casecmp(Code *c, const Node *n);
 
 /* A SHORT's or a BYTE's: its array's elements are 2 or 1 bytes. */
-static bool narrow(const uint8_t type) { return type == ET_SH || type == ET_BY; }
+static bool narrow(const uint32_t type) { return type == ET_SH || type == ET_BY; }
 
 /* cm_shid: variable v's load just made: a SHORT's, class 1. */
-static void shortid(Code *const c, const uint8_t vtype)
+static void shortid(Code *const c, const uint32_t vtype)
 {
     if (vtype == ET_SH) {
         c->sh = SH_SHORT;
@@ -591,7 +591,7 @@ static void gen(Code *const c, const Node *const i)
         if (n->op)
             cg_op(c, n);
 
-        code_word(c, n->id);
+        code_word(c, (uint16_t)n->id); /* the line number */
         code_dword(c, n->num);
         break;
 
@@ -644,7 +644,7 @@ void cg_tree(Code *const c, const Node *const n) { gen(c, n); }
 /* A scalar's value, n's variable's: X.LD.V. */
 static void loadvar(Code *const c, const Node *const n)
 {
-    const uint16_t id = n->id;
+    const uint32_t id = n->id;
     const uint8_t info = n->vinfo;
 
     if (info & SK_DBL) {
@@ -757,7 +757,7 @@ static void cg_elem(Code *const c, const Node *const n)
     for (const Node *a = n->b; a != nullptr; a = a->next)
         cg_as(c, a, T_INT, false);
 
-    const uint16_t id = n->id;
+    const uint32_t id = n->id;
     const uint8_t k = n->vinfo & (SK_DBL | VK_MASK);
     c->type = expr_ktype[k];
     c->iload = c->iloadend = nullptr;
@@ -765,7 +765,7 @@ static void cg_elem(Code *const c, const Node *const n)
     if (narrow(n->vtype)) {
         code_opid(c, O_N_LD_A, id, n->par);
         code_byte(c, n->nargs);
-        code_byte(c, n->vtype);
+        code_byte(c, (uint8_t)n->vtype);
     } else if (n->nargs == 1)
         code_opid(c, lda1[k], id, n->par);
     else {
@@ -899,7 +899,7 @@ static void cg_field(Code *const c, const Node *const n)
         code_word(c, rec->fix);
     } else {
         code_opw(c, O_FL_LD, rec->off);
-        code_byte(c, rec->et);
+        code_byte(c, (uint8_t)rec->et); /* a number's */
     }
 
     c->type = n->type;
@@ -954,7 +954,7 @@ static void cg_arg(Code *const c, const Node *const n)
 
     case PA_NREF:
         gen(c, n->a);
-        code_opb(c, O_P_REFN, n->a->vtype);
+        code_opb(c, O_P_REFN, (uint8_t)n->a->vtype);
     }
 }
 
@@ -972,9 +972,10 @@ static void cg_call(Code *const c, const Node *const n)
     for (const Node *a = n->b; a != nullptr; a = a->next)
         gen(c, a);
 
-    code_opb(c, O_PCALL, n->op); /* its locals' cells, its parameters (link's), its entry's Jump */
+    code_op(c, O_PCALL); /* the procedure, its locals' cells, its parameters (link's), its Jump */
+    code_dword(c, n->num);
+    code_dword(c, 0);
     code_word(c, 0);
-    code_byte(c, 0);
     code_dword(c, n->jump.line);
     code_dword(c, n->jump.body);
     code_dword(c, n->jump.dest);
@@ -1076,7 +1077,7 @@ void cg_store_op(Code *const c, const Node *const n)
     if (n->op && narrow(n->vtype)) {
         code_opid(c, O_N_ST_A, n->id, n->par);
         code_byte(c, n->op);
-        code_byte(c, n->vtype);
+        code_byte(c, (uint8_t)n->vtype);
     } else if (n->op > 1) {
         code_opid(c, many, n->id, n->par);
         code_byte(c, n->op);

@@ -45,7 +45,7 @@ TEST(not_a_function_marked_at_itself)
         op += flow_opsize(op);
 
     CHECK(*op == O_ERR);
-    CHECK(((const ErrOp *)op)->at == 6); /* x: 5 bytes, =, then MKDIR */
+    CHECK(((const ErrOp *)op)->at == 8); /* x: 7 bytes, =, then MKDIR */
 }
 
 /* A variable of another type than its parameter: the error at the argument; it was at the ','
@@ -72,7 +72,7 @@ TEST(parameter_mismatch_marked_at_its_argument)
         op += flow_opsize(op);
 
     CHECK(*op == O_ERR);
-    CHECK(((const ErrOp *)op)->at == 15); /* x: 5 bytes, =, sum%: 8, (, then a */
+    CHECK(((const ErrOp *)op)->at == 19); /* x: 7 bytes, =, sum%: 10, (, then a */
 }
 
 /* A FUNCTION's result set in its body passes the IDE's check of the line alone, after a run linked

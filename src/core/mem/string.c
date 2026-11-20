@@ -121,10 +121,11 @@ Addr strg_alloc(Strg *const sg, const uint16_t len)
 }
 
 /* Is the block at chars live: its owner a Desc still pointing at them? */
-/* Is d a Desc of the data stack's below its top: a frame gone? */
+/* Is d a Desc popped off the data stack: from the strings up to sp, the frames and the segments
+   past sp's between them (vm/stack.c)? */
 static bool strg_is_popped_frame(const Strg *const sg, const Addr d)
 {
-    return d >= sg->stack && d < sg->stack_end && d < addr_of(*sg->sp);
+    return d >= sg->allo->strings && d < addr_of(*sg->sp);
 }
 
 static bool strg_is_live(const Strg *const sg, const Addr chars, const Addr owner)
@@ -133,6 +134,8 @@ static bool strg_is_live(const Strg *const sg, const Addr chars, const Addr owne
            strg_peek(owner).ptr == chars;
 }
 
+/* Out of line: inlined into strg_alloc, every allocation saved and set up its registers. */
+[[gnu::noinline]]
 void strg_gc(Strg *const sg)
 {
     Addr dst = sg->allo->top;
@@ -150,6 +153,38 @@ void strg_gc(Strg *const sg)
     }
 
     sg->allo->strings = dst;
+}
+
+/* The strings, collected, and the heap's top moved by delta bytes, the owners following. */
+static void strg_slide(Strg *const sg, const int32_t delta)
+{
+    Allo *const al = sg->allo;
+    copy_mem(al->strings + (uint32_t)delta, al->strings, al->top - al->strings);
+    al->strings += (uint32_t)delta;
+    al->top += (uint32_t)delta;
+
+    for (Addr end = al->top; end > al->strings;) {
+        const StrTail tail = *(const StrTail *)at(end - BHDR);
+        end -= BHDR + tail.len;
+        wr32(tail.owner + offsetof(Desc, ptr), end);
+    }
+}
+
+bool strg_take_top(Strg *const sg, const uint32_t size)
+{
+    strg_gc(sg);
+
+    if (sg->allo->strings - sg->allo->arrays < size)
+        return false;
+
+    strg_slide(sg, -(int32_t)size);
+    return true;
+}
+
+void strg_give_top(Strg *const sg, const uint32_t size)
+{
+    strg_gc(sg);
+    strg_slide(sg, (int32_t)size);
 }
 
 /* Are s's chars in the program's text? */
@@ -291,13 +326,25 @@ void strg_move(const Strg *const sg, const Addr from, const Addr to)
         strg_own(d.ptr, d.len, to);
 }
 
-void strg_copy_owned(Strg *const sg, const Addr dst, const Addr src, const uint16_t *const offs, const uint32_t n)
+void strg_copy_owned(
+    Strg *const sg,
+    const Addr dst,
+    const Addr src,
+    const uint16_t *const offs,
+    const uint32_t n
+)
 {
     for (uint32_t i = 0; i < n; i++)
         strg_set(sg, src + offs[i], dst + offs[i]);
 }
 
-void strg_move_owned(const Strg *const sg, const Addr dst, const Addr src, const uint16_t *const offs, const uint32_t n)
+void strg_move_owned(
+    const Strg *const sg,
+    const Addr dst,
+    const Addr src,
+    const uint16_t *const offs,
+    const uint32_t n
+)
 {
     for (uint32_t i = 0; i < n; i++)
         strg_move(sg, src + offs[i], dst + offs[i]);

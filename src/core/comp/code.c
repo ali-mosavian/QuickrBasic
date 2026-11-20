@@ -111,7 +111,7 @@ void code_call(Code *const c, const uint8_t k) { code_opb(c, O_CALL, k); }
 
 /* cm_vop: X.LD.V or X.ST.V of a scalar parameter: V.LD, V.ST id kind (kind 0 4 bytes, 1 8, 2 a
    Desc); false: op not one of them. */
-static bool parop(Code *const c, const uint8_t op, const uint16_t id)
+static bool parop(Code *const c, const uint8_t op, const uint32_t id)
 {
     uint8_t vop, kind;
 
@@ -152,22 +152,20 @@ static bool parop(Code *const c, const uint8_t op, const uint16_t id)
         return false;
     }
 
-    code_opw(c, vop, id);
+    code_op(c, vop);
+    code_dword(c, id);
     code_byte(c, kind);
     return true;
 }
 
-void code_opid(Code *const c, const uint8_t op, const uint16_t id, const bool par)
+void code_opid(Code *const c, const uint8_t op, const uint32_t id, const bool par)
 {
     if (par && parop(c, op, id))
         return;
 
     code_op(c, op);
 
-    if (exec_flags(op) & FV) /* the cell's VCELL, the id till linked */
-        code_dword(c, id);
-    else
-        code_word(c, id);
+    code_dword(c, id); /* FV: the cell's VCELL, the id till linked */
 
     if (exec_flags(op) & FA) /* the array's cell, link's */
         code_dword(c, 0);

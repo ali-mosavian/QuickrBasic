@@ -38,7 +38,7 @@
  * | narr | arry_*'s n parameter (mem) | MOVED |
  * | stv, aret, cnarg, cop, fid, flim, fstep, fop, fvp, fsv, isw_si, lk, onk, runl, ppip, ppend, pres | locals, statics | MIRROR |
  * | dlp, dataat, dyo, inend, iny0, iredo | StmtState (stmts.h) | MOVED |
- * | (none) | vm.ip, vm.sp, vm.stktop, vm.loop, vm.running | D3 |
+ * | (none) | vm.ip, vm.sp, vm.stak, vm.loop, vm.running | D3 |
  *
  * - D1. The control stack is vm.frames, typed records; no save stack: a call's locals and
  *   arguments are its frame on the data stack (vm/flow.c).
@@ -62,8 +62,18 @@ typedef struct PACKED {
     uint32_t dest; /* its code's offset in the cache; under 3 the mode, till found (flow) */
 } Jump;
 enum { JSIZE = 1 + sizeof(Jump) };
+/* PCALL's operands: the procedure, its frame's cells and its parameters (link's), its body's Jump. */
+enum {
+    PCALL_PROC = 1,
+    PCALL_CELLS = 5,
+    PCALL_NPAR = 9,
+    PCALL_JUMP = 11,
+    PCALL_SIZE = PCALL_JUMP + sizeof(Jump)
+};
 /* An FV op's operand: the variable's id as compiled, its cell's Addr once linked. */
 enum { VCELL = 4 };
+/* An FA or FP op's operand: the variable's id; an FP op's its ref cell's frame offset once linked. */
+enum { VID = 4 };
 /* I.NEXT.UP, I.NEXT.DN: counter, step, limit cells, the Jump back */
 enum { NEXT_SIZE = 1 + 3 * VCELL + sizeof(Jump) };
 /* EOL.TO: the next line, its code's offset in the cache */
@@ -113,18 +123,22 @@ typedef struct {
     uint32_t code;
 } Place;
 
-/* NONE: the floor below the first frame. */
-typedef enum : uint8_t { FRAME_GOSUB, FRAME_EVENT, FRAME_CALL, FRAME_NONE } FrameKind;
+/* CALL_X: a call whose return does more, off exec_run's inline PRET: its own segment (vm/stack.c),
+   or its locals' arrays on the heap (mem/array.c). NONE: the floor below the first frame. */
+typedef enum : uint8_t { FRAME_GOSUB, FRAME_EVENT, FRAME_CALL, FRAME_CALL_X, FRAME_NONE } FrameKind;
 
 /* A SUB or FUNCTION running. */
 typedef struct {
-    uint8_t proc;
-    uint16_t temp_floor; /* the caller's floor of string temporaries */
+    uint32_t proc;
+    uint32_t temp_floor; /* the caller's floor of string temporaries */
     Cell *stack;         /* the data stack at its body's start, past its locals */
     Addr fp;             /* its frame (vm.fp): npar arguments above it */
     uint16_t npar;
     Addr caller;       /* the caller's */
     uint32_t on_error; /* ON LOCAL ERROR's line, 0 none */
+    Cell *back;        /* CALL_X's: in a segment of its own, the caller's sp past the arguments */
+    uint32_t seg;      /*   the caller's segment */
+    bool heap;         /* CALL_X's: its locals' arrays on the heap, freed at its return */
 } Call;
 
 typedef struct {
@@ -136,7 +150,21 @@ typedef struct {
     };
 } Frame;
 
-enum { MAX_FRAMES = 800 };
+static inline bool frame_is_call(const Frame *const f)
+{
+    return f->kind == FRAME_CALL || f->kind == FRAME_CALL_X;
+}
+
+/* A segment of the data stack: [base, end). */
+typedef struct {
+    Addr base, end;
+} StakSeg;
+
+/* The data stack's segments, each below the one before (vm/stack.c); sp in the cur'th. */
+typedef struct {
+    StakSeg *seg;
+    uint32_t n, cap, cur;
+} Stak;
 
 /* The run's state. */
 typedef struct Vm {
@@ -144,13 +172,14 @@ typedef struct Vm {
     uint8_t *opip; /* the op dispatch ran last: CONT after BREAK, an error's address */
     Cell *sp;      /* the data stack's top cell */
     Cell *rsp;     /* the stack empty, at a statement's start */
-    Cell *stklim;  /* PCALL's floor of sp */
-    Cell *stktop;  /* the data stack's region's top; its base stktop - STKSZ/8 */
+    Cell *stklim;  /* PCALL's floor of sp: its segment's base past STKEVAL */
+    Stak stak;     /* the data stack's segments (vm/stack.c) */
     Addr fp;       /* the running procedure's frame: its link cell, locals below, arguments above */
 
-    Frame *frames; /* the first; frames[-1] the floor, FRAME_NONE */
-    Frame *ftop;   /* past the last */
-    Frame *fend;   /* past the room, grown to MAX_FRAMES as calls nest */
+    Frame *frames;   /* the first; frames[-1] the floor, FRAME_NONE (vm/stack.c) */
+    Frame *ftop;     /* past the last */
+    Frame *fend;     /* past the room, grown as calls nest */
+    uint32_t fbytes; /* the room's bytes from the floor */
 
     uint32_t line;         /* the running line */
     uint16_t lnum;         /* a line number to find, as prog_find's */
@@ -232,10 +261,10 @@ bool exec_brk(Session *S);
 /* arr_r1: element sub, size bytes each, of the 1-D array the X.A1 op at vm.ip names; frame: an
    X.A1F's, the array in the frame. Subscript out of range past a word. */
 Addr exec_elem1(Session *S, int32_t sub, uint32_t size, bool frame);
-/* arr_pn: the element an FA op's `id:2 cell:4 n:1` at vm.ip names, its n subscripts popped. */
+/* arr_pn: the element an FA op's `id:4 cell:4 n:1` at vm.ip names, its n subscripts popped. */
 Addr exec_elem(Arry *ar, Vm *vm);
 /* rec_get: record id's header (s its cell), the record made, zeroed, at its first use. */
-Addr exec_record(Arry *ar, ArrSlot *s, uint16_t id);
+Addr exec_record(Arry *ar, ArrSlot *s, uint32_t id);
 /* int_div: a / b truncated, *rem its remainder. Division by zero; Overflow -2^31 / -1. */
 int32_t exec_idiv(Fault *f, int32_t a, int32_t b, int32_t *rem);
 #endif

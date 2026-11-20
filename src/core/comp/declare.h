@@ -5,7 +5,7 @@
 #include "fault.h"
 #include "mem/scope.h"
 #include "mem/symbols.h"
-#include "util/arena.h"
+#include "util/btab.h"
 
 enum { NDEV = 256, NLETTERS = 26 };
 
@@ -17,8 +17,8 @@ typedef struct {
 
 /* A field of a TYPE. */
 typedef struct {
-    uint16_t name;
-    uint8_t et, sub; /* its ET_*, or its TYPE's; an array's, its element's */
+    uint32_t name;
+    uint32_t et, sub; /* its ET_*, or its TYPE's; an array's, its element's */
     uint16_t fix, off;
     uint8_t ndim; /* ours: a fixed array's dimensions, 0 none */
     bool dyn;     /* ours: a dynamic array's cell (ArrSlot), empty until REDIM */
@@ -28,7 +28,8 @@ typedef struct {
 /* A TYPE: its name, its fields, its bytes as QBasic lays them; ours, its STRINGs' Desc offsets and
    its dynamic arrays' cells', its records' and fixed arrays' too. */
 typedef struct {
-    uint16_t name, nfld, size;
+    uint32_t name;
+    uint16_t nfld, size;
     uint32_t cap;
     Field *fields;
     uint32_t nstr, strcap;
@@ -47,11 +48,10 @@ typedef struct {
 typedef struct {
     Arena arena;
     Fault *fault;
-    uint16_t proc;           /* lx.dproc: the procedure being entered, its name; 0 the module */
-    uint16_t ntypes;         /* lx.ntyps: the last TYPE's index */
-    uint16_t nfields;        /* lx.nflds: all TYPEs' */
-    uint16_t type;           /* lx.dtype: the TYPE being entered, 0 none */
-    uint16_t scope;          /* g_dscope: where declarations go */
+    uint32_t proc;           /* lx.dproc: the procedure being entered, its name; 0 the module */
+    uint32_t ntypes;         /* lx.ntyps: the last TYPE's index */
+    uint32_t type;           /* lx.dtype: the TYPE being entered, 0 none */
+    uint32_t scope;          /* g_dscope: where declarations go */
     bool redim;              /* g_dredim: the DIM is a REDIM */
     uint8_t base;            /* g_obase: OPTION BASE */
     bool baseset;            /* g_obset */
@@ -60,8 +60,7 @@ typedef struct {
     bool deft;               /* decl_line's line has a DEFtype */
     uint32_t ndefev, defcap; /* g_ndev: DEFtype lines */
     DefEvent *defevs;
-    uint32_t typecap;
-    TypeDef **types; /* g_typ, from 1 */
+    BTab types; /* TypeDef, g_typ: by number, from 1 */
     uint32_t ndims, dimcap;
     FieldDim *dims; /* the fixed array fields' dimensions */
 } Decl;
@@ -85,9 +84,9 @@ void decl_defevents(Decl *d, Scop *sc, Symb *sy, const Prog *pg);
 /* dc_deft: the DEFtypes (sy->deft) line sees. */
 void decl_deftype(const Decl *d, Symb *sy, uint32_t line);
 /* TYPE t. */
-static inline const TypeDef *decl_type(const Decl *const d, const uint16_t t)
+static inline const TypeDef *decl_type(const Decl *const d, const uint32_t t)
 {
-    return d->types[t];
+    return btab_at(&d->types, t);
 }
 /* The next statement from *at with no effect in 32-bit mode (DEF SEG, VARSEG, SSEG): its name,
    *at past it; null none. */
@@ -101,7 +100,7 @@ const uint8_t *decl_dims(const uint8_t *p, uint8_t base, FieldDim *dims, uint8_t
 /* TYPE td holds STRINGs or dynamic arrays, ours: its bytes are not all its data. */
 static inline bool decl_dynamic(const TypeDef *const td) { return td->nstr || td->nslot; }
 /* Field f's elements' type as a variable's: ET_*, ET_REC + t a TYPE's. */
-static inline uint8_t decl_fieldtype(const Field *const f)
+static inline uint32_t decl_fieldtype(const Field *const f)
 {
     return f->sub ? ET_REC + f->sub : f->et;
 }
@@ -118,7 +117,7 @@ static inline const FieldDim *decl_fielddim(
    END (PK_END), else 0. */
 uint8_t decl_proc(const uint8_t *body, const uint8_t **name);
 /* The lines declared from here are procedure proc's (its name), 0 the module's. */
-void decl_enter(Decl *d, uint16_t proc);
+void decl_enter(Decl *d, uint32_t proc);
 bool decl_tail(const uint8_t **at); /* *at the body to its last statement; true ends in a string,
                                        REM's or DATA's text */
 const uint8_t *decl_step(const uint8_t *p); /* decl_item, a number kept as text whole */

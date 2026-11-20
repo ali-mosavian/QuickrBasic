@@ -15,7 +15,7 @@ struct LexrSource {
 /* The names a body's words become: intern gives a name's id, made when new. */
 typedef struct LexrNames LexrNames;
 struct LexrNames {
-    uint16_t (*intern)(LexrNames *names, const uint8_t *text, uint8_t len);
+    uint32_t (*intern)(LexrNames *names, const uint8_t *text, uint8_t len);
 };
 
 typedef struct {

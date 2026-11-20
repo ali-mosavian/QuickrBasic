@@ -116,16 +116,16 @@ bool session_set_next(Session *S, uint32_t line);
    procedure's call frame (-1 the module). */
 typedef struct {
     uint32_t line;
-    uint8_t proc;
+    uint32_t proc;
     int32_t call;
 } DebugFrame;
 
 /* The stopped run's frames to out, newest first, at most max; how many. */
 uint32_t session_frames(const Session *S, DebugFrame out[], uint32_t max);
 /* Variable id's cell as frame f sees it (par unused: the frame knows its parameters). */
-Addr session_cell(const Session *S, const DebugFrame *f, uint16_t id, int32_t par);
+Addr session_cell(const Session *S, const DebugFrame *f, uint32_t id, int32_t par);
 /* A direct line called into the stopped run: evaluating would drop its code. */
 bool session_in_direct(const Session *S);
 /* PRINT expr in procedure proc's scope to out (dbug_eval): its error, else ST_OK. */
-Status session_eval(Session *S, const char *expr, uint8_t proc, char out[static 80]);
+Status session_eval(Session *S, const char *expr, uint32_t proc, char out[static 80]);
 #endif

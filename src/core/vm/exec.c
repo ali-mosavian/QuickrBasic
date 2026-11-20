@@ -35,9 +35,10 @@
  * | op_sstv, op_ista1, op_fsta1, op_ssta1, op_istan, op_fstan, op_sstan | exec_s_st_v, exec_i_st_a1, exec_f_st_a1, exec_s_st_a1, exec_i_st_a, exec_f_st_a, exec_s_st_a | MIRROR |
  * | ex_cmpt | static | MIRROR |
  * | op_scmp, op_sif, op_scat | exec_s_cmp, exec_s_if, exec_s_cat | MIRROR |
- * | g_stkb, STKTOP | carved by exec_init; vm.stktop | D1 |
+ * | g_stkb, STKTOP | vm.stak's first segment, from the heap's top (vm/stack.c) | D1 |
  *
- * - D1. exec_init carves the data stack from the arena; the asm's is a fixed buffer.
+ * - D1. The data stack is segments from the heap's top, grown as calls nest; the asm's is a fixed
+ *   buffer.
  */
 #include "vm/exec.h"
 #include "session.h"
@@ -58,6 +59,7 @@
 #include "vm/event.h"
 #include "vm/flow.h"
 #include "vm/hot.h"
+#include "vm/stack.h"
 #include "vm/stmts.h"
 
 #define OP(name, h, size, fl) void h(Session *S);
@@ -97,13 +99,8 @@ void exec_until(Session *const S, const uint8_t *const end)
 
 void exec_init(Session *const S)
 {
-    const Addr stack = allo_carve(&S->allo, STKSZ);
-    S->vm.stktop = (Cell *)at(stack + STKSZ - 16);
-    S->vm.sp = S->vm.rsp = S->vm.stktop;
-    S->vm.stklim = S->vm.stktop - STKROOM / sizeof(Cell);
-    S->strg.stack = stack;
-    S->strg.stack_end = stack + STKSZ;
     S->strg.sp = &S->vm.sp;
+    stack_init(S);
     pkey_init(&S->vm.stop, SF_TICK);
     pclk_init(&S->vm.stop, SF_TICK);
 }
@@ -145,10 +142,10 @@ static inline bool ld_a1(Regs *const r, const Addr fp, const bool frame)
 {
     Addr e;
 
-    if (!elem1_fast(hdr1(r->ip + 3, fp, frame), r->sp->i, VS, frame, &e))
+    if (!elem1_fast(hdr1(r->ip + 1 + VID, fp, frame), r->sp->i, VS, frame, &e))
         return false;
 
-    r->ip += 3 + VCELL;
+    r->ip += 1 + VID + VCELL;
     r->sp->a = rd32(e);
     return true;
 }
@@ -158,10 +155,10 @@ static inline bool st_a1(Regs *const r, const Addr fp, const bool frame)
 {
     Addr e;
 
-    if (!elem1_fast(hdr1(r->ip + 3, fp, frame), r->sp[1].i, VS, frame, &e))
+    if (!elem1_fast(hdr1(r->ip + 1 + VID, fp, frame), r->sp[1].i, VS, frame, &e))
         return false;
 
-    r->ip += 3 + VCELL;
+    r->ip += 1 + VID + VCELL;
     wr32(e, r->sp->u);
     r->sp += 2;
     return true;
@@ -170,9 +167,10 @@ static inline bool st_a1(Regs *const r, const Addr fp, const bool frame)
 /* RA.ADDR ( sub -- a ) of a 1-D record array from 0, in range; false: the handler's. */
 static inline bool ra_addr1(Regs *const r, const Arry *const ar)
 {
-    const ArrSlot *const s = (const ArrSlot *)at(loc_at((Loc){(int32_t)load32(r->ip + 3)}, r->fp));
+    const ArrSlot *const s =
+        (const ArrSlot *)at(loc_at((Loc){(int32_t)load32(r->ip + 1 + VID)}, r->fp));
 
-    if (!s->hdr || r->ip[3 + VCELL] != 1)
+    if (!s->hdr || r->ip[1 + VID + VCELL] != 1)
         return false;
 
     const ArrayHdr *const a = (const ArrayHdr *)at(s->hdr);
@@ -180,8 +178,8 @@ static inline bool ra_addr1(Regs *const r, const Arry *const ar)
     if ((uint32_t)r->sp->i >= a->fast)
         return false;
 
-    r->sp->a = a->data + (uint32_t)r->sp->i * arry_esize(ar, load16(r->ip + 1));
-    r->ip += 4 + VCELL;
+    r->sp->a = a->data + (uint32_t)r->sp->i * arry_esize(ar, load32(r->ip + 1));
+    r->ip += 2 + VID + VCELL;
     return true;
 }
 
@@ -228,32 +226,32 @@ typedef enum : uint8_t { CELL_NUMBER, CELL_DOUBLE, CELL_STRING } CellKind;
    handler's, a narrow element's tagged ref too. */
 static inline bool v_ld(Regs *const r)
 {
-    const uint32_t ref = rd32(r->fp + load16(r->ip + 1));
+    const uint32_t ref = rd32(r->fp + load32(r->ip + 1));
 
-    if (r->ip[3] != CELL_NUMBER || ref > REF_ADDR)
+    if (r->ip[1 + VID] != CELL_NUMBER || ref > REF_ADDR)
         return false;
 
     (--r->sp)->u = rd32(ref);
-    r->ip += 4;
+    r->ip += 2 + VID;
     return true;
 }
 
 static inline bool v_st(Regs *const r)
 {
-    const uint32_t ref = rd32(r->fp + load16(r->ip + 1));
+    const uint32_t ref = rd32(r->fp + load32(r->ip + 1));
 
-    if (r->ip[3] != CELL_NUMBER || ref > REF_ADDR)
+    if (r->ip[1 + VID] != CELL_NUMBER || ref > REF_ADDR)
         return false;
 
     wr32(ref, r->sp++->u);
-    r->ip += 4;
+    r->ip += 2 + VID;
     return true;
 }
 
 /* R.ADDR ( -- a ) of a parameter's record or one made; false: the handler's (one to make). */
 static inline bool r_addr(Regs *const r)
 {
-    const Loc loc = {(int32_t)load32(r->ip + 3)};
+    const Loc loc = {(int32_t)load32(r->ip + 1 + VID)};
 
     const Addr a = loc_at(loc, r->fp);
 
@@ -264,7 +262,7 @@ static inline bool r_addr(Regs *const r)
     else
         return false;
 
-    r->ip += 3 + VCELL;
+    r->ip += 1 + VID + VCELL;
     return true;
 }
 
@@ -494,14 +492,16 @@ next: /* r.ip at the op: each label steps past it */
 
 /* An op's handler, from the ops table: vm.ip, vm.sp and vm.opip stored around it. cold is the
    dispatch's, slow a hot op's way out: one label for both had every dispatch copy ip and sp into
-   the registers the fallbacks left them in, three instructions an op. */
+   the registers the fallbacks left them in, three instructions an op. Each dispatches the next op
+   itself: through next, every hot op copied ip through another register, two instructions. */
 #define COLD_RUN()                                                                                 \
     v->ip = r.ip + 1;                                                                              \
     v->sp = r.sp;                                                                                  \
     v->opip = r.ip;                                                                                \
     ops[*r.ip](S);                                                                                 \
     r = (Regs){v->ip, v->sp, v->fp};                                                               \
-    goto next;
+    exec_counted(v);                                                                               \
+    goto *at_op[*r.ip];
 
 cold:
     COLD_RUN()
@@ -635,8 +635,8 @@ pcall: /* PCALL proc n npar body: the frame at the arguments, n local cells zero
         goto slow;
 
     {
-        const uint32_t n = load16(r.ip + 2);
-        const Jump *const j = (const Jump *)(r.ip + 5);
+        const uint32_t n = load32(r.ip + PCALL_CELLS);
+        const Jump *const j = (const Jump *)(r.ip + PCALL_JUMP);
 
         if (r.sp < v->stklim || (uint32_t)(r.sp - v->stklim) < n || v->ftop == v->fend ||
             j->dest <= TO_NEXT_STMT)
@@ -645,12 +645,12 @@ pcall: /* PCALL proc n npar body: the frame at the arguments, n local cells zero
         const Addr fp = addr_of(r.sp);
         Frame *const f = v->ftop++; /* field by field: no padding zeroed */
         f->kind = FRAME_CALL;
-        f->ret = (Place){v->line, addr_of(r.ip + 5 + sizeof(Jump)) - S->allo.cache};
+        f->ret = (Place){v->line, addr_of(r.ip + PCALL_SIZE) - S->allo.cache};
 
-        f->call.proc = r.ip[1];
+        f->call.proc = load32(r.ip + PCALL_PROC);
         f->call.temp_floor = S->strg.tmp_floor;
         f->call.fp = fp;
-        f->call.npar = r.ip[4];
+        f->call.npar = load16(r.ip + PCALL_NPAR);
         f->call.caller = r.fp;
         f->call.on_error = 0;
         r.fp = v->fp = fp;
@@ -697,9 +697,9 @@ pret: /* a SUB's */
 #undef PRET_PUSH
 #define PRET_PUSH *--r.sp = x;
 pret_fv: /* a FUNCTION's number: its result's cell */
-    PRET_RUN(load_cell(at(load32(r.ip + 2))))
+    PRET_RUN(load_cell(at(load32(r.ip + 5))))
 pret_fl: /*   in the frame */
-    PRET_RUN(load_cell(at(r.fp + load32(r.ip + 2))))
+    PRET_RUN(load_cell(at(r.fp + load32(r.ip + 5))))
 #undef PRET_PUSH
 
 i_jf: /* JF: past its jump, or to its target; a stop, a jump not resolved: flow_i_jf's */
@@ -915,24 +915,24 @@ int32_t exec_idiv(Fault *const f, const int32_t a, const int32_t b, int32_t *con
 /* ---- arrays and records --------------------------------------------------------------------- */
 
 /* An FA op's operands at vm->ip: its id to *id, its cell. */
-static ArrSlot *op_slot(Vm *const vm, uint16_t *const id)
+static ArrSlot *op_slot(Vm *const vm, uint32_t *const id)
 {
-    *id = exec_u16(vm);
+    *id = exec_u32(vm);
     return (ArrSlot *)at(loc_at((Loc){(int32_t)exec_u32(vm)}, vm->fp));
 }
 
 Addr exec_elem1(Session *const S, const int32_t sub, const uint32_t size, const bool frame)
 {
     Vm *const vm = &S->vm;
-    const Addr h = hdr1(vm->ip + 2, vm->fp, frame);
+    const Addr h = hdr1(vm->ip + VID, vm->fp, frame);
     Addr e;
 
     if (elem1_fast(h, sub, size, frame, &e)) {
-        vm->ip += 2 + VCELL;
+        vm->ip += VID + VCELL;
         return e;
     }
 
-    const uint16_t id = exec_u16(vm);
+    const uint32_t id = exec_u32(vm);
     const Loc c = {(int32_t)exec_u32(vm)};
 
     ArrSlot *const s = frame ? arry_slot(&S->arry, id) : (ArrSlot *)at(loc_at(c, vm->fp));
@@ -942,7 +942,7 @@ Addr exec_elem1(Session *const S, const int32_t sub, const uint32_t size, const 
 
 Addr exec_elem(Arry *const ar, Vm *const vm)
 {
-    uint16_t id;
+    uint32_t id;
     ArrSlot *const s = op_slot(vm, &id);
     const uint8_t n = exec_u8(vm);
 
@@ -981,7 +981,7 @@ Addr exec_elem(Arry *const ar, Vm *const vm)
     return arry_ref(ar, s, id, n);
 }
 
-Addr exec_record(Arry *const ar, ArrSlot *const s, const uint16_t id)
+Addr exec_record(Arry *const ar, ArrSlot *const s, const uint32_t id)
 {
     if (s->hdr)
         return s->hdr;
@@ -1056,7 +1056,7 @@ void exec_s_st_a(Session *const S)
    argument's address: a record's, an element's, a field's. */
 void exec_r_addr(Session *const S)
 {
-    const uint16_t id = exec_u16(&S->vm);
+    const uint32_t id = exec_u32(&S->vm);
     const Loc loc = {(int32_t)exec_u32(&S->vm)};
 
     const Addr a = loc_at(loc, S->vm.fp);
@@ -1085,7 +1085,7 @@ void exec_r_copy(Session *const S)
    a's STRINGs and arrays its own copies; its old arrays freed. */
 void exec_r_copys(Session *const S)
 {
-    const TypeDef *const td = decl_type(&S->decl, (uint16_t)exec_pop(&S->vm).u);
+    const TypeDef *const td = decl_type(&S->decl, exec_pop(&S->vm).u);
     const Addr b = exec_popa(&S->vm);
     const Addr a = exec_popa(&S->vm);
 
@@ -1102,7 +1102,7 @@ void exec_r_copys(Session *const S)
 
 void exec_r_clear(Session *const S)
 {
-    const TypeDef *const td = decl_type(&S->decl, (uint16_t)exec_pop(&S->vm).u);
+    const TypeDef *const td = decl_type(&S->decl, exec_pop(&S->vm).u);
     const Addr a = exec_popa(&S->vm);
 
     for (uint32_t i = 0; i < td->nslot; i++) /* its arrays go */
@@ -1247,7 +1247,7 @@ void exec_p_refn(Session *const S)
 
 /* A scalar parameter's ref cell's word, at its offset from the frame: its argument's address,
    tagged (mem/loc.h). */
-static uint32_t param_ref(Vm *const vm) { return rd32(vm->fp + exec_u16(vm)); }
+static uint32_t param_ref(Vm *const vm) { return rd32(vm->fp + exec_u32(vm)); }
 
 static Addr param_cell(Vm *const vm) { return param_ref(vm) & REF_ADDR; }
 

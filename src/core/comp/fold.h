@@ -10,7 +10,7 @@ typedef struct Comp Comp;
 void fold_code(Comp *C, uint8_t *start);
 /* cm_krec: a CONST's scalar store, variable id's: its value's code from start folded; one literal
    load is kept as the variable's. */
-void fold_const(Comp *C, uint8_t *start, uint16_t id);
+void fold_const(Comp *C, uint8_t *start, uint32_t id);
 /* The tree at node: each operator whose operands are literals becomes the literal of its value. */
 void fold_tree(Comp *C, Node *node);
 /* Tree n's value, an INT or a SINGLE, when its code is pure (a constant); false, not one. */

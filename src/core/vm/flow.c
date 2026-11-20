@@ -1,7 +1,7 @@
 /* Control flow: lines, jumps, GOSUB, FOR and NEXT, SUB and FUNCTION calls, ON ERROR and RESUME.
  *
  * # How it works
- * GOSUBs, events and calls are Frames on vm.frames (flow_push, flow_find). A FOR loop is none: its
+ * GOSUBs, events and calls are Frames on vm.frames (flow_push, flow_find_call). A FOR loop is none: its
  * limit and step are cells the compiler gave it, its NEXT jumps back to its body. A call's frame
  * is on the data stack: its arguments' addresses above vm.fp, its locals below, an array's cell
  * among them (mem/array.c); exec_run runs PCALL and PRET inline.
@@ -52,6 +52,7 @@
  */
 #include "vm/flow.h"
 #include "vm/hot.h"
+#include "vm/stack.h"
 #include "session.h"
 #include "comp/blocks.h"
 #include "comp/comp.h"
@@ -69,7 +70,6 @@
 #include "vm/debug.h"
 #include "vm/event.h"
 #include "vm/stmts.h"
-#include "util/grow.h"
 
 /* stopchk: the STOP check at jumps, line ends, RETURN, NEXT; true: return from the handler. */
 static inline bool exec_stopchk(Session *const S) { return S->vm.stop && exec_brk(S); }
@@ -83,15 +83,7 @@ enum {
     DCODE_SIZE = CACHE0 - DCODE, /* the direct line's room in the cache */
 };
 
-static bool frames_hold(Vm *vm, uint32_t n);
-
-void flow_init(Session *const S)
-{
-    S->flow.text = allo_carve(&S->allo, DSZ + 2);
-
-    if (!S->vm.frames && !frames_hold(&S->vm, 0))
-        fault_error(&S->fault, E_OM);
-}
+void flow_init(Session *const S) { S->flow.text = allo_carve(&S->allo, DSZ + 2); }
 
 static inline uint8_t *cache_at(const Allo *const al, const uint32_t off)
 {
@@ -193,38 +185,29 @@ static void go_to(Vm *const vm, const Allo *const al, const Place p)
 
 /* ---- frames --------------------------------------------------------------------------------- */
 
-/* Room for n frames, the floor below them: false, past MAX_FRAMES or no memory. */
-static bool frames_hold(Vm *const vm, const uint32_t n)
+/* Room for one more frame: false, no memory. The frames may move. */
+static bool frame_room(Session *const S)
 {
-    const uint32_t had = vm->frames ? vm_nframes(vm) : 0;
-    Frame *floor = vm->frames ? vm->frames - 1 : nullptr;
-    uint32_t cap = vm->frames ? (uint32_t)(vm->fend - floor) : 0;
-
-    if (n > MAX_FRAMES || !GROW(floor, cap, n + 1))
-        return false;
-
-    floor->kind = FRAME_NONE;
-    vm->frames = floor + 1;
-    vm->ftop = vm->frames + had;
-    vm->fend = floor + cap;
-    return true;
+    return S->vm.ftop < S->vm.fend || stack_frames(S, vm_nframes(&S->vm) + 1);
 }
 
-/* Room for one more frame: false, MAX_FRAMES of them or no memory. */
-static bool frame_room(Vm *const vm)
+Frame *flow_push(Session *const S, const FrameKind kind)
 {
-    return vm->ftop < vm->fend || frames_hold(vm, vm_nframes(vm) + 1);
-}
+    if (!frame_room(S))
+        fault_error(&S->fault, E_OS);
 
-Frame *flow_push(Vm *const vm, const Allo *const al, Fault *const f, const FrameKind kind)
-{
-    if (!frame_room(vm))
-        fault_error(f, E_OS);
-
-    Frame *const fr = vm->ftop++;
-    *fr = (Frame){.kind = kind, .ret = flow_here(vm, al)};
+    Frame *const fr = S->vm.ftop++;
+    *fr = (Frame){.kind = kind, .ret = flow_here(&S->vm, &S->allo)};
 
     return fr;
+}
+
+void flow_drop_calls(Session *const S)
+{
+    S->vm.sp = S->vm.rsp;
+    S->vm.ftop = S->vm.frames;
+    S->vm.fp = 0;
+    stack_reset(S);
 }
 
 static Frame *top_frame(Vm *const vm) { return vm->ftop > vm->frames ? vm->ftop - 1 : nullptr; }
@@ -232,10 +215,10 @@ static Frame *top_frame(Vm *const vm) { return vm->ftop > vm->frames ? vm->ftop 
 /* Drop f and the frames above it. */
 static void pop_to(Vm *const vm, const Frame *const f) { vm->ftop = vm->frames + (f - vm->frames); }
 
-Frame *flow_find(Vm *const vm, const FrameKind kind)
+Frame *flow_find_call(Vm *const vm)
 {
     for (uint32_t i = vm_nframes(vm); i-- > 0;)
-        if (vm->frames[i].kind == kind)
+        if (frame_is_call(&vm->frames[i]))
             return &vm->frames[i];
 
     return nullptr;
@@ -257,7 +240,7 @@ void flow_gosub(Session *const S)
         return;
 
     const uint32_t line = flow_target(&S->vm);
-    flow_push(&S->vm, &S->allo, &S->fault, FRAME_GOSUB);
+    flow_push(S, FRAME_GOSUB);
     flow_jump(S, line);
 }
 
@@ -297,7 +280,7 @@ void flow_on(Session *const S)
     const uint32_t line = lines[k].line;
 
     if (kind & ON_GOSUB)
-        flow_push(&S->vm, &S->allo, &S->fault, FRAME_GOSUB);
+        flow_push(S, FRAME_GOSUB);
 
     flow_jump(S, line);
 }
@@ -450,11 +433,20 @@ void flow_pcall(Session *const S)
         return;
 
     Vm *const vm = &S->vm;
-    uint8_t *const call = vm->ip;
-    const uint8_t proc = *call;
-    const uint32_t n = load16(call + 1);
+    uint8_t *const op = vm->ip - 1;
+    const uint32_t n = load32(op + PCALL_CELLS);
+    const uint16_t npar = load16(op + PCALL_NPAR);
+    Cell *back = nullptr;
+    const uint32_t seg = vm->stak.cur;
 
-    if (vm->sp < vm->stklim || (uint32_t)(vm->sp - vm->stklim) < n || !frame_room(vm))
+    if (vm->sp < vm->stklim || (uint32_t)(vm->sp - vm->stklim) < n) { /* a segment of its own */
+        back = vm->sp + 2 * npar;
+
+        if (!stack_call(S, npar, n))
+            repl_error(S, E_OS);
+    }
+
+    if (!frame_room(S))
         repl_error(S, E_OS);
 
     const Addr caller = vm->fp;
@@ -462,38 +454,38 @@ void flow_pcall(Session *const S)
     vm->sp -= n;
     memset(vm->sp, 0, n * sizeof(Cell));
     *vm->ftop++ = (Frame){
-        .kind = FRAME_CALL,
-        .ret = {vm->line, cache_off(&S->allo, call + 4 + sizeof(Jump))},
+        .kind = back ? FRAME_CALL_X : FRAME_CALL,
+        .ret = {vm->line, cache_off(&S->allo, op + PCALL_SIZE)},
         .call = {
-            .proc = proc,
+            .proc = load32(op + PCALL_PROC),
             .temp_floor = S->strg.tmp_floor,
             .stack = vm->sp,
             .fp = vm->fp,
-            .npar = blok_proc(&S->blok, proc)->npar,
+            .npar = npar,
             .caller = caller,
+            .back = back,
+            .seg = seg,
         },
     };
 
     S->strg.tmp_floor = S->strg.tmp_used;
-    vm->ip = call + 4;
+    vm->ip = op + PCALL_JUMP;
     take_jump(vm, &S->strg, &S->allo, &S->fault);
 }
 
-/* End call f, the innermost, and drop the frames above it: its local arrays freed (PF_ARRAYS,
-   while its frame is there for arry_free to fix), its frame popped, its arguments with it. */
-static void end_call(
-    Vm *const vm,
-    Symb *const sy,
-    Strg *const sg,
-    Arry *const ar,
-    const Proc *const p,
-    const Frame *const f
-)
+/* End call f, the innermost, and drop the frames above it: its local arrays on the heap freed
+   (CALL_X's, while its frame is there for arry_free to fix), its frame popped, its arguments with
+   it. */
+static void end_call(Session *const S, const Frame *const f)
 {
+    Vm *const vm = &S->vm;
+    Symb *const sy = &S->symb;
+    Arry *const ar = &S->arry;
     const Call c = f->call;
+    const bool x = f->kind == FRAME_CALL_X;
 
-    if (p->flags & PF_ARRAYS) {
-        for (uint16_t id = sy->first_local[c.proc]; id; id = symb_varx(sy, id)->nloc)
+    if (x && c.heap) {
+        for (uint32_t id = symb_first_local(sy, c.proc); id; id = symb_varx(sy, id)->nloc)
             if (is_array(symb_var(sy, id)) && symb_is_local(sy, id)) {
                 ArrSlot *const s = (ArrSlot *)at(loc_frame_at(*symb_loc(sy, id), c.fp));
                 arry_kill(ar, s->hdr); /* a frame's goes with the frame */
@@ -504,10 +496,13 @@ static void end_call(
     }
 
     pop_to(vm, f);
-    vm->sp = (Cell *)at(c.fp) + 2 * c.npar;
+    vm->sp = x && c.back ? c.back : (Cell *)at(c.fp) + 2 * c.npar;
     vm->fp = c.caller;
-    drop_temps(sg); /* the callee's */
-    sg->tmp_floor = c.temp_floor;
+    drop_temps(&S->strg); /* the callee's */
+    S->strg.tmp_floor = c.temp_floor;
+
+    if (x && c.back)
+        stack_back(S, c.seg, 1);
 }
 
 /* PRET: return from the call, a FUNCTION's result pushed. */
@@ -516,7 +511,7 @@ void flow_pret(Session *const S)
     if (exec_stopchk(S))
         return;
 
-    const Frame *const f = flow_find(&S->vm, FRAME_CALL);
+    const Frame *const f = flow_find_call(&S->vm);
 
     if (!f)
         repl_error(S, E_RG);
@@ -536,7 +531,7 @@ void flow_pret(Session *const S)
     }
 
     const Place back = f->ret;
-    end_call(&S->vm, &S->symb, &S->strg, &S->arry, p, f);
+    end_call(S, f);
     go_to(&S->vm, &S->allo, back);
 
     if (!fn)
@@ -586,7 +581,7 @@ void flow_onerr(Session *const S)
 /* ON LOCAL ERROR GOTO: the running procedure's handler; in the module, ON ERROR's. */
 void flow_onlerr(Session *const S)
 {
-    Frame *const f = flow_find(&S->vm, FRAME_CALL);
+    Frame *const f = flow_find_call(&S->vm);
 
     if (f)
         f->call.on_error = handler_line(&S->vm);
@@ -596,27 +591,27 @@ void flow_onlerr(Session *const S)
 
 uint32_t flow_handler(Session *const S)
 {
-    Frame *h = nullptr;
+    uint32_t h = vm_nframes(&S->vm); /* by index: the frames move as segments go */
 
-    for (uint32_t i = vm_nframes(&S->vm); i-- > 0 && !h;)
-        if (S->vm.frames[i].kind == FRAME_CALL && S->vm.frames[i].call.on_error)
-            h = &S->vm.frames[i];
-    if (!h)
+    for (uint32_t i = h; i-- > 0 && h == vm_nframes(&S->vm);)
+        if (frame_is_call(&S->vm.frames[i]) && S->vm.frames[i].call.on_error)
+            h = i;
+    if (h == vm_nframes(&S->vm))
         return S->vm.err.handler;
-    for (const Frame *f; (f = flow_find(&S->vm, FRAME_CALL)) != h;) {
+    for (const Frame *f; (f = flow_find_call(&S->vm)) != &S->vm.frames[h];) {
         const Place back = f->ret;
-        end_call(&S->vm, &S->symb, &S->strg, &S->arry, blok_proc(&S->blok, f->call.proc), f);
+        end_call(S, f);
         go_to(&S->vm, &S->allo, back); /* the error is now at the call */
         S->vm.opip = --S->vm.ip;
     }
 
-    return h->call.on_error;
+    return S->vm.frames[h].call.on_error;
 }
 
 /* The data stack as the running procedure's body started, or the module's. */
 Cell *flow_stack_base(Vm *const vm)
 {
-    const Frame *const f = flow_find(vm, FRAME_CALL);
+    const Frame *const f = flow_find_call(vm);
     return f ? f->call.stack : vm->rsp;
 }
 
@@ -718,9 +713,7 @@ void flow_end(Session *const S)
         dbug_done(S);
 
     fault_check(&S->fault, chnl_closeall(&S->chnl));
-    S->vm.sp = S->vm.rsp;
-    S->vm.ftop = S->vm.frames;
-    S->vm.fp = 0;
+    flow_drop_calls(S);
     repl_ready(S);
 }
 

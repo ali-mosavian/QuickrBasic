@@ -11,29 +11,25 @@
 
 enum { FRAME_ARRAYS = 0x2000 };
 
-void frame_layout(Symb *const sy, const Decl *const d, Proc *const p, const uint8_t proc)
+void frame_layout(Symb *const sy, const Decl *const d, Proc *const p, const uint32_t proc)
 {
     uint32_t cells = 0;
 
-    for (uint16_t id = sy->first_local[proc]; id; id = symb_varx(sy, id)->nloc)
+    for (uint32_t id = symb_first_local(sy, proc); id; id = symb_varx(sy, id)->nloc)
         cells += symb_is_local(sy, id);
 
     uint32_t k = cells; /* the list is newest first: the newest has the deepest cell */
-    p->flags &= ~PF_ARRAYS;
 
-    for (uint16_t id = sy->first_local[proc]; id; id = symb_varx(sy, id)->nloc) {
+    for (uint32_t id = symb_first_local(sy, proc); id; id = symb_varx(sy, id)->nloc) {
         if (!symb_is_local(sy, id))
             continue;
 
         *symb_loc(sy, id) = loc_frame(-(int32_t)(sizeof(Cell) * k--));
-
-        if (symb_var(sy, id)->info & VI_ARR)
-            p->flags |= PF_ARRAYS; /* its return frees them (vm/flow.c) */
     }
 
     uint32_t bytes = 0;
 
-    for (uint16_t id = sy->first_local[proc]; id; id = symb_varx(sy, id)->nloc) {
+    for (uint32_t id = symb_first_local(sy, proc); id; id = symb_varx(sy, id)->nloc) {
         FrameArr *const fa = symb_farr(sy, id);
         fa->at = 0;
 
@@ -52,5 +48,5 @@ void frame_layout(Symb *const sy, const Decl *const d, Proc *const p, const uint
         fa->at = -(int32_t)(cells * sizeof(Cell));
     }
 
-    p->nframe = (uint16_t)cells;
+    p->nframe = cells;
 }

@@ -63,18 +63,18 @@ void link_compile(Comp *const C, const uint32_t line)
 
 /* A record or array result's parameter, at its FUNCTION's name: of the type its AS gave the name,
    an array's when it had (). */
-static uint16_t link_result(Comp *const C, const uint8_t *const name)
+static uint32_t link_result(Comp *const C, const uint8_t *const name)
 {
-    const uint16_t n = comp_nameof(name);
+    const uint32_t n = comp_nameof(name);
     const bool arr = scop_type(C->scop, n, true) || scop_rec(C->scop, n, true);
-    const uint8_t t = scop_rec(C->scop, n, arr);
+    const uint32_t t = scop_rec(C->scop, n, arr);
 
     C->p = name;
-    return comp_var(C, arr ? 2 : 1, t ? (uint8_t)(ET_REC + t) : scop_type(C->scop, n, arr));
+    return comp_var(C, arr ? 2 : 1, t ? ET_REC + t : scop_type(C->scop, n, arr));
 }
 
 /* Parameter k of p's variable: its type by AS, as decl_line entered the name. */
-static uint16_t link_param(Comp *const C, const Proc *const p, const uint16_t k)
+static uint32_t link_param(Comp *const C, const Proc *const p, const uint16_t k)
 {
     const uint8_t *const pv = at(C->prog->base + p->params[k].at);
 
@@ -86,7 +86,7 @@ static uint16_t link_param(Comp *const C, const Proc *const p, const uint16_t k)
     if (*q == '(')
         q += 2;
 
-    uint8_t et = 0;
+    uint32_t et = 0;
 
     if (*q == TK_AS) {
         if (q[1] == TK_X)
@@ -94,9 +94,9 @@ static uint16_t link_param(Comp *const C, const Proc *const p, const uint16_t k)
         else if ((uint8_t)(q[1] - TK_INTEGER) <= TK_STRING - TK_INTEGER)
             et = decl_astype[q[1] - TK_INTEGER];
         else { /* AS a TYPE: its record, its array */
-            const bool arr = pv[pv[1] + 4] == '(';
-            const uint16_t t = scop_rec(C->scop, comp_nameof(pv), arr);
-            et = t ? (uint8_t)(t + ET_REC) : 0;
+            const bool arr = *comp_skipname(pv) == '(';
+            const uint32_t t = scop_rec(C->scop, comp_nameof(pv), arr);
+            et = t ? t + ET_REC : 0;
         }
     }
 
@@ -108,11 +108,11 @@ static uint16_t link_param(Comp *const C, const Proc *const p, const uint16_t k)
    program order. */
 static void link_procvars(Comp *const C)
 {
-    for (uint16_t id = 1; id < C->symb->nvars; id++) /* each parameter till now: 2 */
+    for (uint32_t id = 1; id < C->symb->nvars; id++) /* each parameter till now: 2 */
         symb_varx(C->symb, id)->par *= 2;
 
-    for (uint8_t i = 1; i < C->blok->nprocs; i++) {
-        Proc *const p = C->blok->procs[i];
+    for (uint32_t i = 1; i < C->blok->procs.n; i++) {
+        Proc *const p = btab_at(&C->blok->procs, i);
         decl_deftype(C->decl, C->symb, p->first);
         symb_name(C->symb, p->name)->proc = i;
         comp_proc(C, i);
@@ -123,7 +123,7 @@ static void link_procvars(Comp *const C)
         }
 
         for (uint16_t k = 0; k < p->npar; k++) { /* its ref cell's offset in the frame */
-            const uint16_t id = p->params[k].var = link_param(C, p, k);
+            const uint32_t id = p->params[k].var = link_param(C, p, k);
             symb_varx(C->symb, id)->par = 1;
             *symb_loc(C->symb, id) = loc_ref((uint32_t)(2 * sizeof(Cell) * (p->npar - 1u - k)));
         }
@@ -131,7 +131,7 @@ static void link_procvars(Comp *const C)
         comp_proc(C, 0);
     }
 
-    for (uint16_t id = 1; id < C->symb->nvars; id++) { /* no longer a parameter: a local again */
+    for (uint32_t id = 1; id < C->symb->nvars; id++) { /* no longer a parameter: a local again */
         VarX *const x = symb_varx(C->symb, id);
 
         if (x->par != 2)
@@ -485,10 +485,10 @@ static void resolve_op(Comp *const C, const uint32_t line, const Addr base, uint
         break;
 
     case O_PCALL: /* the procedure, its locals' cells, its parameters, the Jump */
-        store16(op + 2, blok_proc(C->blok, op[1])->nframe);
-        op[4] = (uint8_t)blok_proc(C->blok, op[1])->npar;
+        store32(op + PCALL_CELLS, blok_proc(C->blok, load32(op + PCALL_PROC))->nframe);
+        store16(op + PCALL_NPAR, blok_proc(C->blok, load32(op + PCALL_PROC))->npar);
 
-        j = (Jump *)(op + 5);
+        j = (Jump *)(op + PCALL_JUMP);
         break;
 
     case O_I_NEXT_UP: /* comp/fuse.c's: three cells (FV3), then the Jump */
@@ -612,7 +612,7 @@ static uint32_t each_error(const Comp *const C, LinkEach *const each, void *cons
 
 static void raise_one(void *const fault, const Failure *const f) { fault_raise(fault, *f); }
 
-void link_empty(Comp *const C, const uint16_t var)
+void link_empty(Comp *const C, const uint32_t var)
 {
     Link *const k = C->link;
 
@@ -627,7 +627,7 @@ void link_empty(Comp *const C, const uint16_t var)
         k->empty[k->nempty++] = (LinkEmpty){.line = C->line, .var = var};
 }
 
-void link_given(Comp *const C, const uint16_t var) { symb_varx(C->symb, var)->given = 1; }
+void link_given(Comp *const C, const uint32_t var) { symb_varx(C->symb, var)->given = 1; }
 
 uint32_t link_empties(const Comp *const C, LinkEmptyEach *const each, void *const ctx)
 {
@@ -673,7 +673,7 @@ static void build(Comp *const C)
     C->errs = false;
     C->link->nempty = 0;
 
-    for (uint16_t id = 1; id < C->symb->nvars; id++)
+    for (uint32_t id = 1; id < C->symb->nvars; id++)
         symb_varx(C->symb, id)->given = 0;
 
     do { /* the cache grown moves the store: a literal's Addr of its text, compiled again */
@@ -690,8 +690,8 @@ static void build(Comp *const C)
     C->scop->look_on = false;
     C->link->nmiss = 0;
 
-    for (uint8_t i = 1; i < C->blok->nprocs; i++) /* every line compiled: every local made */
-        frame_layout(C->symb, C->decl, C->blok->procs[i], i);
+    for (uint32_t i = 1; i < C->blok->procs.n; i++) /* every line compiled: every local made */
+        frame_layout(C->symb, C->decl, btab_at(&C->blok->procs, i), i);
 
     index_lines(C);
 

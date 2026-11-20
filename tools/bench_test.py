@@ -106,6 +106,40 @@ def charlie_each() -> None:
         assert len(rows) == 1 + len(bench.CHARLIE_EACH), rows[:3]
 
 
+# Instructions a pass on arm64 macOS, with room over what they measured; past one, a regression.
+# A string's allocation over a literal's store: strg_gc inlined into strg_alloc saved and set up
+# its registers on every allocation, 238 (217 out of line).
+ALLOC_BUDGET = 228
+# A SUB with a fixed local array over an empty SUB: its return looped over its locals and swept
+# the arrays, 457 (402 by the inline PRET).
+FRAME_ARRAY_BUDGET = 430
+# A SUB DIMming a dynamic local array over one that does not: on the heap, made and swept at its
+# return, 900 (850 on main); 536 on its call's arena.
+DYN_ARRAY_BUDGET = 590
+# A DOUBLE function's pass, its op a cold one, a million passes for a tenth of an instruction: back
+# through next's join every op copied ip through another register, 101 (100 on main); 92 without.
+COLD_OP_BUDGET = 94
+
+
+def per_pass(b: bench.Build, body: str, setup: str = "", tail: str = "", n: int = 100000) -> float:
+    """body's instructions a pass of a FOR loop: the loop run n and 2n times, the difference."""
+    progs = {k: f"{setup}\nFOR i& = 1 TO {m}: {body}: NEXT\n{tail}" for k, m in (("one", n), ("two", 2 * n))}
+    r = bench.run_native(b, progs, runs=3)
+    return (r["two"].insns - r["one"].insns) / n
+
+
+def costs(b: bench.Build) -> None:
+    """The budgets: each part's instructions over its base's."""
+    alloc = per_pass(b, 's$ = a$ + "x"', 'a$ = "abcdefgh"') - per_pass(b, 's$ = "abc"', 'a$ = "abcdefgh"')
+    assert alloc <= ALLOC_BUDGET, f"a string's allocation {alloc:.0f} instructions, budget {ALLOC_BUDGET}"
+    frame = per_pass(b, "s", tail="SUB s\nDIM b(10)\nEND SUB") - per_pass(b, "z", tail="SUB z\nEND SUB")
+    assert frame <= FRAME_ARRAY_BUDGET, f"a frame array's call {frame:.0f} instructions, budget {FRAME_ARRAY_BUDGET}"
+    dyn = per_pass(b, "s 10", tail="SUB s (n)\nDIM b(n)\nEND SUB") - per_pass(b, "z 10", tail="SUB z (n)\nEND SUB")
+    assert dyn <= DYN_ARRAY_BUDGET, f"a dynamic local array's call {dyn:.0f} instructions, budget {DYN_ARRAY_BUDGET}"
+    cold = per_pass(b, "y# = ABS(i&)", n=1000000)
+    assert cold <= COLD_OP_BUDGET, f"a cold op's pass {cold:.0f} instructions, budget {COLD_OP_BUDGET}"
+
+
 def main() -> int:
     each_reps()
     charlie_each()
@@ -124,6 +158,7 @@ def main() -> int:
     assert 1.95 < ratio < 2.05, f"twice the loop cost {ratio:.3f}x"
     again = [bench.run_native(b, {"two": loop(2000000)}, runs=1)["two"].insns for _ in range(5)]
     assert max(again) / min(again) < 1 + bench.INSNS_SLACK, f"one program's counts {again}"
+    costs(b)
     exe = bench.ROOT / "build/c/basic32.exe"
     if exe.exists():  # the loaded bytes, not the file's: its fixups moved with layout
         assert bench.image(exe) > 100_000 and bench.image(exe) != exe.stat().st_size, bench.image(exe)
