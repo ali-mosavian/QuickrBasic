@@ -35,6 +35,7 @@ def rows(key: str, lines: list[str]) -> dict[str, tuple[str, str]]:
 
 
 def main() -> None:
+    subprocess.run(["make", "-s", "-C", str(ROOT), "build/host/golden_dump"], check=True)  # the compiler's own
     progs = programs()
     with ThreadPoolExecutor(os.cpu_count()) as ex:
         dumps = list(ex.map(lambda kp: rows(kp[0], dump(kp[1])) | rows(f"{kp[0]} L", dump(kp[1], "-l")), progs))

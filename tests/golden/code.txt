@@ -23494,13 +23494,13 @@ qb/bounds.bas 14 b8add98b3689
 qb/bounds.bas 15 fb96549631c8
 qb/bounds.bas 16 38cc3a8ca48e
 qb/bounds.bas 17 b24f679d3778
-qb/bounds.bas 18 8c280ef8ee4b
+qb/bounds.bas 18 300fc4771faa
 qb/bounds.bas 19 801d2a3c4b09
 qb/bounds.bas 20 fb96549631c8
 qb/bounds.bas 21 8189039a2c47
-qb/bounds.bas 22 7e8d73b50158
+qb/bounds.bas 22 b7cc80d690b6
 qb/bounds.bas 23 65cbc1e9488a
-qb/bounds.bas 24 d826abbe9996
+qb/bounds.bas 24 0862f7b907c2
 qb/bounds.bas 25 8ee8b403a502
 qb/bounds.bas 26 fb96549631c8
 qb/bounds.bas 27 8d9f9aa920e9
@@ -23513,10 +23513,10 @@ qb/bounds.bas 33 1e0847a3f36f
 qb/bounds.bas 34 7d1a21543bcb
 qb/bounds.bas 35 d5a3047376a0
 qb/bounds.bas 36 740863eaddc1
-qb/bounds.bas 37 66f8a865ed5b
+qb/bounds.bas 37 51a25f42be9d
 qb/bounds.bas 38 2046dce04ce9
 qb/bounds.bas 39 0b0dc02ff6da
-qb/bounds.bas 40 8177d11098c2
+qb/bounds.bas 40 c35812973080
 qb/bounds.bas 41 a5609dbfc75d
 qb/bounds.bas 42 f0e8175fc955
 qb/bounds.bas 43 64d3337ba353
@@ -23525,36 +23525,36 @@ qb/bounds.bas 45 8ee20b61fb95
 qb/bounds.bas 46 24d3bccfb7fe
 qb/bounds.bas 47 19329bb09e2a
 qb/bounds.bas 48 7f4ba8baff07
-qb/bounds.bas 49 d04fe46c6f9a
+qb/bounds.bas 49 04f280b844fa
 qb/bounds.bas 50 a6d9fb00328e
 qb/bounds.bas 51 44b68e1741bb
-qb/bounds.bas 52 c69da6f18d25
-qb/bounds.bas 53 1131bb83e322
+qb/bounds.bas 52 bf29250da730
+qb/bounds.bas 53 7b52a2c6623a
 qb/bounds.bas 54 fb96549631c8
 qb/bounds.bas 55 e073c85dca76
 qb/bounds.bas 56 77395c30a882
-qb/bounds.bas 57 ded4a7ce34bc
+qb/bounds.bas 57 c4be7ca946ce
 qb/bounds.bas 58 c4c5f33a0848
-qb/bounds.bas 59 d9769de98b3e
+qb/bounds.bas 59 5238a9665916
 qb/bounds.bas 60 4cd7dbcbdac7
 qb/bounds.bas 61 fb96549631c8
 qb/bounds.bas 62 eba3f196a821
-qb/bounds.bas 63 5989dd104079
+qb/bounds.bas 63 973c05254003
 qb/bounds.bas 64 470772569bdf
 qb/bounds.bas 65 372d1deae53b
 qb/bounds.bas 66 e49c42dabcf2
-qb/bounds.bas 67 7973f9178df6
+qb/bounds.bas 67 2367a1378305
 qb/bounds.bas 68 c2fe62e15ea2
-qb/bounds.bas 69 d09ee7d33199
+qb/bounds.bas 69 f459c60ea484
 qb/bounds.bas 70 c1454ec41218
 qb/bounds.bas 71 9ac85deff87f
 qb/bounds.bas 72 26b6e7b36764
-qb/bounds.bas 73 39f70b4e2a06
+qb/bounds.bas 73 3ac468f462bc
 qb/bounds.bas 74 27c382e923cc
-qb/bounds.bas 75 a076d9d26b0d
+qb/bounds.bas 75 7ff5865da8cc
 qb/bounds.bas 76 1949fe5d2db3
 qb/bounds.bas 77 17c91eb0a9c6
-qb/bounds.bas 78 8faab5f7a573
+qb/bounds.bas 78 dff35c360964
 qb/bounds.bas 79 3f4c9d301534
 qb/bounds.bas 80 bb7597927336
 qb/bounds.bas L 0 f2019d7f0559
@@ -23570,73 +23570,73 @@ qb/bounds.bas L 9 6a4013cf3eea
 qb/bounds.bas L 10 af584ab2f48c
 qb/bounds.bas L 11 5d87b50744bf
 qb/bounds.bas L 12 cf6111c9ca06
-qb/bounds.bas L 13 e7de70d76bb7
-qb/bounds.bas L 14 ac9c0a33d061
+qb/bounds.bas L 13 48a786ea3026
+qb/bounds.bas L 14 d922ff854c5f
 qb/bounds.bas L 15 dfa40579c2c3
 qb/bounds.bas L 16 17d08966ff7f
 qb/bounds.bas L 17 a3433ac0a676
-qb/bounds.bas L 18 a643eab71229
-qb/bounds.bas L 19 324b7ccd7818
-qb/bounds.bas L 20 94a98f7f4617
-qb/bounds.bas L 21 496389d6f9a6
-qb/bounds.bas L 22 66d790fbdd1c
-qb/bounds.bas L 23 a233cd6dc2d4
-qb/bounds.bas L 24 88909987426c
-qb/bounds.bas L 25 2ee9a9ddb19b
-qb/bounds.bas L 26 67f56d1844e0
-qb/bounds.bas L 27 9b09cc8033af
-qb/bounds.bas L 28 a3db35cd8afb
-qb/bounds.bas L 29 449cc9815976
-qb/bounds.bas L 30 4aef3f67ae32
-qb/bounds.bas L 31 7b2251c55aa5
-qb/bounds.bas L 32 ff37fdfc1724
-qb/bounds.bas L 33 2e2436bb5254
-qb/bounds.bas L 34 72127421bf72
-qb/bounds.bas L 35 70daa6281d54
-qb/bounds.bas L 36 13df033c4238
-qb/bounds.bas L 37 1d83bd64426c
-qb/bounds.bas L 38 127a324b8c58
-qb/bounds.bas L 39 58f4e4ac454d
-qb/bounds.bas L 40 5fa2a93b634f
-qb/bounds.bas L 41 31a26e7adc10
-qb/bounds.bas L 42 fa9f933b563c
-qb/bounds.bas L 43 081d2d412e07
-qb/bounds.bas L 44 1b0358b9520e
-qb/bounds.bas L 45 455e5495d57b
-qb/bounds.bas L 46 0f8291af830f
-qb/bounds.bas L 47 c64026cb7d2c
-qb/bounds.bas L 48 306992a383cd
-qb/bounds.bas L 49 ffcd58ff54f0
-qb/bounds.bas L 50 3eb53a8736d5
-qb/bounds.bas L 51 653ada671c7d
-qb/bounds.bas L 52 ee3cf5d865a0
-qb/bounds.bas L 53 36f107e07942
-qb/bounds.bas L 54 206c653e75a1
-qb/bounds.bas L 55 ac1fbc01ea47
-qb/bounds.bas L 56 78e4760272f7
-qb/bounds.bas L 57 686be88b18af
-qb/bounds.bas L 58 a459eca90125
-qb/bounds.bas L 59 8e26130ba177
-qb/bounds.bas L 60 113883f89c97
-qb/bounds.bas L 61 f61ace6e4220
-qb/bounds.bas L 62 af7c24581f44
-qb/bounds.bas L 63 fa875324ad03
-qb/bounds.bas L 64 0a66aa2a1e95
-qb/bounds.bas L 65 1695336d272a
-qb/bounds.bas L 66 3e10284919b0
-qb/bounds.bas L 67 fe8703c8273d
-qb/bounds.bas L 68 19e03f8519fe
-qb/bounds.bas L 69 000eb1160231
-qb/bounds.bas L 70 cf047bf8151e
-qb/bounds.bas L 71 4f2d7685eb82
-qb/bounds.bas L 72 d84bc2826b6c
-qb/bounds.bas L 73 fe218438a932
-qb/bounds.bas L 74 a94fd7b8e81c
-qb/bounds.bas L 75 8bca73d07476
-qb/bounds.bas L 76 3f9efd26b46a
-qb/bounds.bas L 77 4e7fb605c563
-qb/bounds.bas L 78 e6ab006c41c8
-qb/bounds.bas L 79 f3781ac54128
+qb/bounds.bas L 18 9146a4faeb55
+qb/bounds.bas L 19 510bb95064ca
+qb/bounds.bas L 20 d7350c43b438
+qb/bounds.bas L 21 48495d1f7621
+qb/bounds.bas L 22 658b4b37e48e
+qb/bounds.bas L 23 7a7babc16aa0
+qb/bounds.bas L 24 c6b546d26e53
+qb/bounds.bas L 25 4071d63b07f0
+qb/bounds.bas L 26 fb77749e785b
+qb/bounds.bas L 27 0a7f610135c8
+qb/bounds.bas L 28 7fc01610dd06
+qb/bounds.bas L 29 eaa119fa76d1
+qb/bounds.bas L 30 ace3fbcf3695
+qb/bounds.bas L 31 b215ece1dbf2
+qb/bounds.bas L 32 5b2030436afb
+qb/bounds.bas L 33 958155b33aae
+qb/bounds.bas L 34 6c55e13f73ed
+qb/bounds.bas L 35 e46a0a36dc5a
+qb/bounds.bas L 36 d6535115927c
+qb/bounds.bas L 37 670a515c2623
+qb/bounds.bas L 38 90141d23fb19
+qb/bounds.bas L 39 e6fc0e55d4d7
+qb/bounds.bas L 40 7ec8b0f86c5a
+qb/bounds.bas L 41 6664deff0e2b
+qb/bounds.bas L 42 07054a535f23
+qb/bounds.bas L 43 1d1217f508f2
+qb/bounds.bas L 44 b77d624baad3
+qb/bounds.bas L 45 92fa6a7f7f63
+qb/bounds.bas L 46 f7d21c21a0ce
+qb/bounds.bas L 47 1cfc554d2b57
+qb/bounds.bas L 48 cce88801483e
+qb/bounds.bas L 49 a9a466e73ded
+qb/bounds.bas L 50 2ce945c5da6f
+qb/bounds.bas L 51 2964f385ee59
+qb/bounds.bas L 52 d670be1197c6
+qb/bounds.bas L 53 9148eaf3c174
+qb/bounds.bas L 54 947efa892fbe
+qb/bounds.bas L 55 d6874803d924
+qb/bounds.bas L 56 e1676be2abca
+qb/bounds.bas L 57 50550d5f1fa9
+qb/bounds.bas L 58 3e46df720229
+qb/bounds.bas L 59 d39cec10cb89
+qb/bounds.bas L 60 19e82e35fef7
+qb/bounds.bas L 61 1ac213642b19
+qb/bounds.bas L 62 11cbaa4e4da4
+qb/bounds.bas L 63 9a2353eafb0a
+qb/bounds.bas L 64 d3a98533c371
+qb/bounds.bas L 65 a565d94d3367
+qb/bounds.bas L 66 ffbfb0bebc6f
+qb/bounds.bas L 67 e0f4757eb41a
+qb/bounds.bas L 68 621b39194528
+qb/bounds.bas L 69 7448ffa4fbbf
+qb/bounds.bas L 70 078ec41eac25
+qb/bounds.bas L 71 3fd2f5db6117
+qb/bounds.bas L 72 186c9c600871
+qb/bounds.bas L 73 376fb09f8852
+qb/bounds.bas L 74 0ec308c1f57b
+qb/bounds.bas L 75 6b0ea736f6d7
+qb/bounds.bas L 76 db66c70e3181
+qb/bounds.bas L 77 cd80f11cebbf
+qb/bounds.bas L 78 7b47bfa2145a
+qb/bounds.bas L 79 e157bb6a880e
 qb/bounds.bas L 80 e85c67ccb645
 qb/byref2.bas 0 fb96549631c8
 qb/byref2.bas 1 fb96549631c8
@@ -24403,7 +24403,7 @@ qb/farchk.bas 15 f360d8d22ff1
 qb/farchk.bas 16 6d5aab5b2a97
 qb/farchk.bas 17 a2a4029d4ea6
 qb/farchk.bas 18 3b57ce25bd2e
-qb/farchk.bas 19 3874b1a2184a
+qb/farchk.bas 19 9aab61299edc
 qb/farchk.bas 20 22a150e54838
 qb/farchk.bas 21 7083bad28bf9
 qb/farchk.bas 22 8ee8b403a502
@@ -24429,12 +24429,12 @@ qb/farchk.bas L 15 561cb2af6370
 qb/farchk.bas L 16 57c040d8a5fa
 qb/farchk.bas L 17 77f7622012c3
 qb/farchk.bas L 18 4046aa0bef24
-qb/farchk.bas L 19 be75e5cf3ebe
-qb/farchk.bas L 20 dd032f0b9312
-qb/farchk.bas L 21 ebb7e9a5849e
-qb/farchk.bas L 22 3b260e62ad68
-qb/farchk.bas L 23 94680d52934c
-qb/farchk.bas L 24 f5f9d223a777
+qb/farchk.bas L 19 be2fc4a55c2f
+qb/farchk.bas L 20 ac52004636b7
+qb/farchk.bas L 21 082e1634ef50
+qb/farchk.bas L 22 ce8afbd26f5a
+qb/farchk.bas L 23 4c60d8ad5969
+qb/farchk.bas L 24 7e2606f3d31f
 qb/farchk.bas L 25 2b304bce497a
 qb/flags.bas 0 fb96549631c8
 qb/flags.bas 1 fb96549631c8
@@ -25024,7 +25024,7 @@ qb/hugebnd.bas 12 2c00b9316072
 qb/hugebnd.bas 13 b78813a1c0ef
 qb/hugebnd.bas 14 e3528e0aebd1
 qb/hugebnd.bas 15 d3dffd6f8ff9
-qb/hugebnd.bas 16 9c4a07a19d10
+qb/hugebnd.bas 16 62a01977250e
 qb/hugebnd.bas L 0 8819361e7f3c
 qb/hugebnd.bas L 1 e27432b22a06
 qb/hugebnd.bas L 2 b3d4af5412bf
@@ -25041,7 +25041,7 @@ qb/hugebnd.bas L 12 d2ffdb5b7058
 qb/hugebnd.bas L 13 b5e19273e9d7
 qb/hugebnd.bas L 14 cccf30573f54
 qb/hugebnd.bas L 15 b17fbedbab8a
-qb/hugebnd.bas L 16 7b8fd0719ad2
+qb/hugebnd.bas L 16 876eeb0dabcf
 qb/hugechk.bas 0 fb96549631c8
 qb/hugechk.bas 1 fb96549631c8
 qb/hugechk.bas 2 fb96549631c8
@@ -25061,7 +25061,7 @@ qb/hugechk.bas 15 f360d8d22ff1
 qb/hugechk.bas 16 6d5aab5b2a97
 qb/hugechk.bas 17 a2a4029d4ea6
 qb/hugechk.bas 18 3b57ce25bd2e
-qb/hugechk.bas 19 3874b1a2184a
+qb/hugechk.bas 19 9aab61299edc
 qb/hugechk.bas 20 22a150e54838
 qb/hugechk.bas 21 369af5072af7
 qb/hugechk.bas 22 8ee8b403a502
@@ -25087,12 +25087,12 @@ qb/hugechk.bas L 15 0dbe0e22bf95
 qb/hugechk.bas L 16 f6c7dac27492
 qb/hugechk.bas L 17 3cc6d7b0afa3
 qb/hugechk.bas L 18 c82b0e47af22
-qb/hugechk.bas L 19 c208251ab14f
-qb/hugechk.bas L 20 4ccaa055d101
-qb/hugechk.bas L 21 f5122fb21c91
-qb/hugechk.bas L 22 e69c51803732
-qb/hugechk.bas L 23 6d170ac99401
-qb/hugechk.bas L 24 c49899f2cbe8
+qb/hugechk.bas L 19 990c1e3716a8
+qb/hugechk.bas L 20 340402fe9c65
+qb/hugechk.bas L 21 39c7becb249f
+qb/hugechk.bas L 22 6940132c2fa8
+qb/hugechk.bas L 23 cd0446592888
+qb/hugechk.bas L 24 8826f0c558b4
 qb/hugechk.bas L 25 2b304bce497a
 qb/hugelp.bas 0 fb96549631c8
 qb/hugelp.bas 1 fb96549631c8
@@ -29531,9 +29531,9 @@ stmts/s033.bas 0 73a0b9a266b7
 stmts/s033.bas L error 17ba0791499d
 stmts/s033.bas L 0 8151317db5d0
 stmts/s034.bas error da4b9237bacc
-stmts/s034.bas 0 f74fe90229f8
+stmts/s034.bas 0 408163cbc860
 stmts/s034.bas L error da4b9237bacc
-stmts/s034.bas L 0 b6eb6e0f6ca8
+stmts/s034.bas L 0 431cafeec2cc
 stmts/s035.bas error 902ba3cda188
 stmts/s035.bas 0 a8dc9eee102f
 stmts/s035.bas L error 902ba3cda188
@@ -29678,8 +29678,8 @@ stmts/s086.bas error 17ba0791499d
 stmts/s086.bas 0 dc9d5bcf557c
 stmts/s086.bas L error 17ba0791499d
 stmts/s086.bas L 0 a30b0a334a1c
-stmts/s087.bas 0 db108c54bfd2
-stmts/s087.bas L 0 42794f5d9950
+stmts/s087.bas 0 07b53d5c83e8
+stmts/s087.bas L 0 971d5cf0c99f
 stmts/s088.bas 0 ea57f93949e9
 stmts/s088.bas L 0 6907b949abe3
 stmts/s089.bas 0 5ea1c112bdf4
@@ -29709,9 +29709,9 @@ stmts/s100.bas 0 4b312a44b143
 stmts/s100.bas L error 17ba0791499d
 stmts/s100.bas L 0 3cafbc0bc0df
 stmts/s101.bas error da4b9237bacc
-stmts/s101.bas 0 c68b7324a3c2
+stmts/s101.bas 0 8bc9454eaf68
 stmts/s101.bas L error da4b9237bacc
-stmts/s101.bas L 0 c3b983f4378b
+stmts/s101.bas L 0 8c3493a90063
 stmts/s102.bas 0 e497818e6969
 stmts/s102.bas L 0 0399a2582765
 stmts/s103.bas 0 9c0a3f0b8391
@@ -30009,9 +30009,9 @@ stmts/s164.bas L 0 dbec069822a0
 stmts/s165.bas 0 106409c329da
 stmts/s165.bas L 0 9ddc4b6493f9
 stmts/s166.bas error da4b9237bacc
-stmts/s166.bas 0 a32de4b69c15
+stmts/s166.bas 0 07c51a0d1447
 stmts/s166.bas L error da4b9237bacc
-stmts/s166.bas L 0 698ad07643df
+stmts/s166.bas L 0 9f156dafa868
 stmts/s167.bas error 902ba3cda188
 stmts/s167.bas 0 19712426e66a
 stmts/s167.bas L error 902ba3cda188
