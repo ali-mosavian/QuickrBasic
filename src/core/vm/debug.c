@@ -111,7 +111,7 @@ typedef struct {
     uint8_t stop;
     bool in_error, running;
     jmp_buf loop;
-    uint16_t tmp_used, tmp_floor;
+    uint32_t tmp_used, tmp_floor;
     uint8_t capture, col;
     uint32_t sblen;
     uint8_t mode;

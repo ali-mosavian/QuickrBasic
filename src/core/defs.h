@@ -37,8 +37,6 @@ enum {
     VS = 4,       /* a variable's slot, a number's bytes */
     NB = 4,       /* a stored FLOAT's bytes */
     MAXDIMS = 60, /* an array's dimensions at most, BC's */
-    NTMP = 48,    /* string temporaries */
-    NBLK = 2048, /* block statements' entries */
 };
 
 /* A name's flags. NM_REC: declared AS a TYPE somewhere, never cleared. */
@@ -270,6 +268,8 @@ enum {
     CPROOM = 0x4000,  /* the compiler's frames */
     OBSZ = 256,       /* the output buffer */
 };
+/* String temporaries: one per data stack cell of the run, 48 over, so the stack runs out first. */
+enum { NTMP = STKROOM / sizeof(Cell) + 48 };
 
 /* Block statements (comp/block), procedures, TYPEs: their records are comp's. */
 enum : uint8_t {

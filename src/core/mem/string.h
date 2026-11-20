@@ -13,8 +13,8 @@ typedef struct {
     Fault *fault;          /* String formula too complex, String too long, Out of memory */
     const Prog *prog;      /* a value in the program's text is kept there */
     Addr tmp;              /* the temporaries' Descs, DSZ * NTMP bytes (g_tmpd, sg.tmplin) */
-    uint16_t tmp_used;     /* the temporaries in use, DSZ bytes each (sg.tsp) */
-    uint16_t tmp_floor;    /* a procedure's floor of tmp_used (sg.tspb) */
+    uint32_t tmp_used;     /* the temporaries in use, DSZ bytes each (sg.tsp) */
+    uint32_t tmp_floor;    /* a procedure's floor of tmp_used (sg.tspb) */
     Addr stack, stack_end; /* the data stack's region (exec_init): its Descs live at or above sp */
     Cell *const *sp;       /* vm.sp */
     uint8_t near_buf[NEAR_MAX + 1]; /* strg_near's */

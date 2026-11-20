@@ -1266,6 +1266,10 @@ BIG |= {
     "limit_scope_bits": (bas(*[":".join(f"w{i} = 1" for i in range(k, k + 20)) for k in range(0, 17000, 20)],
                              "s", "sub s", " dim y as integer", " print lbound(y)", "end sub"),
                          "Array not defined", " 0"),
+    # 48 string temporaries, a caller's kept through each call: a string FUNCTION 48 deep was
+    # String formula too complex.
+    "limit_temps": (bas("function wrap$ (n)", ' if n = 0 then wrap$ = "" else wrap$ = "(" + wrap$(n - 1) + ")"',
+                        "end function", "print len(wrap$(1000)); right$(wrap$(1000), 3)"), " 2000 )))\r\n", "ERROR"),
 }
 
 

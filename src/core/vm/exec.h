@@ -121,7 +121,7 @@ typedef enum : uint8_t { FRAME_GOSUB, FRAME_EVENT, FRAME_CALL, FRAME_NONE } Fram
 /* A SUB or FUNCTION running. */
 typedef struct {
     uint32_t proc;
-    uint16_t temp_floor; /* the caller's floor of string temporaries */
+    uint32_t temp_floor; /* the caller's floor of string temporaries */
     Cell *stack;         /* the data stack at its body's start, past its locals */
     Addr fp;             /* its frame (vm.fp): npar arguments above it */
     uint16_t npar;
