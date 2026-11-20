@@ -1444,6 +1444,12 @@ CASES |= {
     "import_own_explicit": (beside(bas("option explicit", "from ex import *", "dim a: a = 1", "ex1"),
                                    {"ex.bas": bas("sub ex1", " y = 3: print y", "end sub")}),
                             " 3 \r\n", "ERROR"),
+    # A module's declarations go before its importer's: main's DIM AS a module's TYPE was a Syntax
+    # error, the module declared after the main.
+    "import_type_first": (beside(bas("from tp import *", "dim p as pt", "p.x = 3: show p"),
+                                 {"tp.bas": bas("type pt", " x as integer", "end type", "sub show (q as pt)",
+                                                " print q.x", "end sub")}),
+                          " 3 \r\n", "ERROR"),
     "import_own_base": (beside(bas("option base 1", "from bs import *", "dim m(2): print lbound(m)", "lb"),
                                {"bs.bas": bas("sub lb", " dim a(3): print lbound(a)", " z(2) = 1: print lbound(z)",
                                               "end sub")}),

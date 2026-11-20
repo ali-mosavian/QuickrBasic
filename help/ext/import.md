@@ -25,7 +25,8 @@ FROM's leading dots start at the importing file's folder instead: `.`
 is that folder, `..` its parent, and so on.
 
 Each module is loaded once, after the program's own lines, however
-many lines import it, cycles included. One that is not found is a
+many lines import it, cycles included. Its declarations go before
+those of the file importing it, so its TYPEs can be used there. One that is not found is a
 [File not found](File not found) error at the importing line. An error
 in a module is reported at its own file and line.
 

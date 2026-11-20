@@ -87,7 +87,7 @@ void decl_init(Decl *d, Fault *f);
 void decl_reset(Decl *d, Scop *sc, Symb *sy);
 /* Enter the body's declarations, of the line at line; loading: from a file. */
 void decl_line(Decl *d, Scop *sc, Symb *sy, const uint8_t *body, uint32_t line, bool loading);
-/* The lines entered next module's (sc_module, not the main's), from its first at line, LF_TOP:
+/* The lines entered next module's (sc_module), from line on, the LF_TOP before an imported one's:
    its file's DEFtypes and OPTIONs start again. */
 void decl_module(Decl *d, Scop *sc, Symb *sy, uint32_t module, uint32_t line);
 /* Module's file's DO_*. */

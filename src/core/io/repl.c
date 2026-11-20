@@ -184,7 +184,8 @@ static void put_where(Session *const S, const uint16_t file, const uint16_t src)
     cons_uint(&S->cons, src);
 }
 
-static bool load_error(const Session *const S) { return S->repl.loading && S->vm.line == DLINE; }
+/* An error loading: reading a line, or declaring one read (vm.line its line). */
+static bool load_error(const Session *const S) { return S->repl.loading; }
 
 /* The ERR op a compile error raised; null for any other error. */
 static const ErrOp *err_op(const Session *const S)
@@ -222,8 +223,9 @@ static void put_marked(Session *const S, const uint8_t *const text, const uint32
    wrong and what to do. */
 static void diagnose(Session *const S, const ErrOp *const e)
 {
-    const uint8_t *const body =
-        S->vm.line == DLINE ? S->comp.cbuf : at(prog_addr(&S->prog, S->vm.line) + HDR);
+    const uint8_t *const body = S->vm.line == DLINE || S->repl.loading
+                                    ? S->comp.cbuf
+                                    : at(prog_addr(&S->prog, S->vm.line) + HDR);
     const uint32_t col = list_text(&S->comp, body, e->at);
     const uint32_t mark = diag_at(
         &S->diag,
@@ -308,7 +310,7 @@ static void report(Session *const S, const uint8_t code)
 
     cons_puts(&S->cons, emsg_text(S->vm.err.user, code));
 
-    if (line != DLINE) {
+    if (line != DLINE && !load_error(S)) {
         if (S->repl.batch && !compiled) {
             cons_puts(&S->cons, " in line ");
             const uint16_t erl = flow_erl(&S->prog, line);
@@ -340,9 +342,12 @@ static void report(Session *const S, const uint8_t code)
 
     if (e)
         diagnose(S, e);
-    else if (load_error(S))
+    else if (load_error(S) && line == DLINE)
         put_marked(S, S->cons.inbuf, 0);
-    else if (S->repl.batch && line != DLINE) {
+    else if (load_error(S)) { /* a line read: as LIST spells it */
+        list_text(&S->comp, S->comp.cbuf, 0);
+        put_marked(S, S->cons.sbuf, 0);
+    } else if (S->repl.batch && line != DLINE) {
         cons_nl(&S->cons);
 
         if (src)
@@ -677,9 +682,10 @@ uint32_t repl_intern(LexrNames *const names, const uint8_t *const text, const ui
     return symb_find_name(&S->symb, text, len);
 }
 
-void repl_declare(Session *const S, const uint8_t *const body)
+/* The body just lexed: each statement with no effect in 32-bit mode warned of. */
+static void warn_effectless(Session *const S, const uint8_t *const body)
 {
-    if (S->repl.fe->warn && S->lexr.escaped) /* the body just lexed */
+    if (S->repl.fe->warn && S->lexr.escaped)
         for (const uint8_t *p = body; *p;) {
             const char *const what = decl_warning(&p);
 
@@ -690,7 +696,10 @@ void repl_declare(Session *const S, const uint8_t *const body)
 
             repl_warn(S, S->repl.fline, text, 2);
         }
+}
 
+void repl_declare(Session *const S, const uint8_t *const body)
+{
     decl_line(&S->decl, &S->scop, &S->symb, body, S->prog.entering, S->repl.loading);
 }
 
@@ -716,12 +725,9 @@ Status repl_declare_check(Session *const S, const uint8_t *const body, ErrOp *co
     return c.code;
 }
 
-/* The line in comp_cbuf, to be stored at place: its declarations. vm.lnum its number, NONUM
-   none; returns its body past the number. */
-static const uint8_t *declare(Session *const S, const uint32_t place)
+/* The line in comp_cbuf: vm.lnum its number, NONUM none; its body past the number. */
+static const uint8_t *numbered(Session *const S)
 {
-    S->prog.entering = place;
-    repl_declare(S, S->comp.cbuf);
     const uint8_t *p = S->comp.cbuf;
     S->vm.lnum = NONUM;
 
@@ -731,6 +737,14 @@ static const uint8_t *declare(Session *const S, const uint32_t place)
     }
 
     return p;
+}
+
+/* The line in comp_cbuf, to be stored at place: its declarations; numbered's. */
+static const uint8_t *declare(Session *const S, const uint32_t place)
+{
+    S->prog.entering = place;
+    repl_declare(S, S->comp.cbuf);
+    return numbered(S);
 }
 
 /* declare, and the line's number's and label's labels. */
@@ -757,12 +771,12 @@ uint8_t repl_enter(Session *const S, const uint32_t len)
 
     if (!S->comp.cbuf[0])
         return ENTER_EMPTY;
-    if (S->repl.loading) { /* every line stored, at the end */
-        const uint8_t *const body = enter_decls(S, place);
-        const uint8_t keep = S->prog.add_flags;
-        S->prog.add_flags |= S->decl.deft ? 0 : LF_NODEF;
+
+    warn_effectless(S, S->comp.cbuf);
+
+    if (S->repl.loading) { /* every line stored, at the end; declared once all are */
+        const uint8_t *const body = numbered(S);
         prog_add(&S->prog, S->vm.lnum, body, (uint32_t)(end - body));
-        S->prog.add_flags = keep;
         return ENTER_STORED;
     }
 
@@ -814,6 +828,12 @@ static void not_found(Session *const S)
     fault_qberr(&S->fault, QB_FILE_NOT_FOUND);
 }
 
+/* The module at path imported by the one being read: loaded once, declared before it. */
+static void import(Session *const S, const char *const path)
+{
+    modu_import(&S->modu, S->repl.module, modu_module(&S->modu, path));
+}
+
 /* One name the line gives: a module's file added to those to load, once. */
 static void imported(void *const ctx, const ImptKind kind, const ImptName *const n)
 {
@@ -825,7 +845,7 @@ static void imported(void *const ctx, const ImptKind kind, const ImptName *const
         if (!locate(&im->where, n, path, nullptr))
             not_found(im->S);
 
-        modu_module(&im->S->modu, path);
+        import(im->S, path);
         return;
 
     case IMPT_FROM:
@@ -834,7 +854,7 @@ static void imported(void *const ctx, const ImptKind kind, const ImptName *const
         if (im->in_package)
             strcpy(im->package, path);
         else
-            modu_module(&im->S->modu, path);
+            import(im->S, path);
 
         return;
 
@@ -844,18 +864,21 @@ static void imported(void *const ctx, const ImptKind kind, const ImptName *const
         if (!locate_in(im->package, n, path))
             not_found(im->S);
 
-        modu_module(&im->S->modu, path);
+        import(im->S, path);
     }
 }
 
-/* The line just entered (comp.cbuf), of the file at path: the modules its IMPORT or FROM names
+/* The line just read (comp.cbuf), of the file at path: the modules its IMPORT or FROM names
    found, each to be loaded once after the program's lines. One in a SUB is the compiler's to
    refuse. File not found. */
 static void find_imports(Session *const S, const char *const path)
 {
-    const uint8_t *body = S->comp.cbuf;
+    const uint8_t *body = S->comp.cbuf, *name;
+    const uint8_t kind = decl_proc(body, &name);
 
-    if (S->decl.proc)
+    if (kind)
+        S->repl.inproc = kind != PK_END;
+    if (kind || S->repl.inproc)
         return;
     if (comp_peek(&body) == M_INT) /* past its number */
         body += INT_TOKEN_SIZE;
@@ -884,6 +907,9 @@ static void read_file(Session *const S, const char *const name, const int32_t nu
     S->repl.fline = 0;
     S->prog.add_file = S->repl.nfile++;
     modu_file(&S->modu, S->prog.add_file, name, S->repl.module);
+
+    if (num == SOURCE_FILENO) /* an include's lines may be a SUB's */
+        S->repl.inproc = false;
 
     for (;;) {
         S->prog.add_src = S->repl.fline + 1; /* a continued line's first */
@@ -916,10 +942,26 @@ static void read_file(Session *const S, const char *const name, const int32_t nu
     S->prog.add_file = file;
 }
 
+/* Stored line line in comp.cbuf as entered, its number then its body, vm.line it: numbered's. */
+static const uint8_t *restore(Session *const S, const uint32_t line)
+{
+    S->vm.line = line;
+    uint8_t *d = S->comp.cbuf;
+    const uint32_t num = prog_line(&S->prog, line)->num;
+
+    if (num != NONUM) {
+        *d = M_INT;
+        store32(d + 1, num);
+        d += INT_TOKEN_SIZE;
+    }
+
+    prog_body(&S->prog, line, d);
+    return numbered(S);
+}
+
 /* The modules the program imports, after its lines, each once and in the order first named; a
    module's own imports after it. Their lines are LF_MOD, and so is the END before each, LF_TOP: a
-   run, by any way to the next line, stops where its module's lines end, and the file's
-   declarations start there. Then the main's again. */
+   run, by any way to the next line, stops where its module's lines end. */
 static void read_modules(Session *const S)
 {
     static const uint8_t end[] = {TK_END, 0};
@@ -929,17 +971,45 @@ static void read_modules(Session *const S)
     for (uint32_t m = 1; m < modu_count(&S->modu); m++) {
         char path[PFIL_PATH]; /* the table may move as it grows */
         strcpy(path, modu_module_path(&S->modu, m));
-        const uint32_t top = prog_at(&S->prog);
+        modu_top(&S->modu, m, prog_at(&S->prog));
         S->prog.add_flags = flags | LF_MOD | LF_TOP;
         prog_add(&S->prog, NONUM, end, sizeof end);
         S->prog.add_flags = flags | LF_MOD;
-        decl_module(&S->decl, &S->scop, &S->symb, sc_module(m), top);
         S->repl.module = m;
         read_file(S, path, SOURCE_FILENO);
     }
 
     S->repl.module = 0;
     S->prog.add_flags = flags;
+}
+
+/* Stored line line's declarations, labels and LF_NODEF. */
+static void redeclare(Session *const S, const uint32_t line)
+{
+    restore(S, line);
+    enter_decls(S, line);
+    Line *const l = prog_line(&S->prog, line);
+    l->flags = (uint8_t)((l->flags & ~LF_NODEF) | (S->decl.deft ? 0 : LF_NODEF));
+}
+
+/* The program's lines read, declared: each module's after those it imports, the main's last,
+   its file's DEFtypes and OPTIONs from its first line. Then the main's again, for lines typed. */
+static void declare_program(Session *const S)
+{
+    const uint32_t n = modu_count(&S->modu), *const order = modu_order(&S->modu);
+
+    for (uint32_t i = 0; i < n; i++) {
+        const uint32_t m = order[i], top = modu_top_of(&S->modu, m);
+        const uint32_t from = m ? top + prog_line(&S->prog, top)->len : PROGBASE;
+        const uint32_t to = m + 1 < n ? modu_top_of(&S->modu, m + 1) : prog_at(&S->prog);
+        decl_module(&S->decl, &S->scop, &S->symb, sc_module(m), top);
+
+        for (uint32_t line = from; line < to; line += prog_line(&S->prog, line)->len)
+            redeclare(S, line);
+    }
+
+    S->vm.line = DLINE;
+    decl_defevents(&S->decl, &S->scop, &S->symb, &S->prog);
     decl_main(&S->decl, &S->symb);
 }
 
@@ -953,6 +1023,7 @@ void repl_load(Session *const S)
     modu_clear(&S->modu, S->repl.file);
     read_file(S, S->repl.file, SOURCE_FILENO);
     read_modules(S);
+    declare_program(S);
     S->repl.loading = false;
 }
 
@@ -972,20 +1043,10 @@ void repl_relink(Session *const S)
     S->repl.module = 0;
     modu_clear(&S->modu, S->repl.file);
     modu_file(&S->modu, 0, S->repl.file, 0);
+    S->repl.inproc = false;
 
     for (uint32_t line = PROGBASE; prog_line(&S->prog, line)->len;) {
-        S->vm.line = line;
-        uint8_t *d = S->comp.cbuf; /* its number, then its body */
-        const uint32_t num = prog_line(&S->prog, line)->num;
-
-        if (num != NONUM) {
-            *d = M_INT;
-            store32(d + 1, num);
-            d += INT_TOKEN_SIZE;
-        }
-
-        prog_body(&S->prog, line, d);
-        const uint8_t *body = enter_decls(S, line);
+        const uint8_t *body = restore(S, line);
         find_imports(S, source_name(S, prog_line(&S->prog, line)->file));
         const uint8_t tok = comp_peek(&body);
         line += prog_line(&S->prog, line)->len;
@@ -1008,5 +1069,6 @@ void repl_relink(Session *const S)
     }
 
     read_modules(S);
+    declare_program(S);
     S->repl.loading = false;
 }

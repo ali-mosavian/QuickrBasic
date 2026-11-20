@@ -34,6 +34,7 @@ typedef struct {
     uint16_t fline;       /* loading a file: its line, for a warning */
     uint16_t nfile;       /* the files read: the next one's Line.file */
     uint32_t module;      /* loading: the module whose lines are read (mem/module.h) */
+    bool inproc;          /* loading: the lines read are a SUB's or FUNCTION's */
     bool loading;         /* loading a file: every line is stored, at the end */
     bool batch;           /* a file run: its end exits */
     bool checking;        /* --check's: the file compiled, not run */

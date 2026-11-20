@@ -5,7 +5,8 @@
  * A file's number is its lines' Line.file: the main program's 0, then each as it is read, an
  * include's or a module's. A file knows its path and its module: the main program's (0) for its
  * own lines and its includes', else the module whose file it is or includes it. A module is
- * loaded once however many import it: paths compare without case.
+ * loaded once however many import it: paths compare without case. The imports are edges; a
+ * depth-first walk from the main program orders the modules for their declarations.
  */
 #include "mem/module.h"
 #include "util/grow.h"
@@ -27,7 +28,7 @@ static uint32_t keep(Modu *const mu, const char *const path)
 
 void modu_clear(Modu *const mu, const char *const main)
 {
-    mu->nfiles = mu->nmods = mu->ntext = 0;
+    mu->nfiles = mu->nmods = mu->ntext = mu->nedges = 0;
     modu_module(mu, main);
 }
 
@@ -45,21 +46,61 @@ static bool same(const char *a, const char *b)
 uint32_t modu_module(Modu *const mu, const char *const path)
 {
     for (uint32_t m = 0; m < mu->nmods; m++)
-        if (same(mu->text + mu->mods[m], path))
+        if (same(mu->text + mu->mods[m].path, path))
             return m;
 
     if (!GROW(mu->mods, mu->modcap, mu->nmods + 1))
         fault_error(mu->fault, E_OM);
 
-    mu->mods[mu->nmods] = keep(mu, path);
+    mu->mods[mu->nmods] = (ModuMod){keep(mu, path), 0};
     return mu->nmods++;
+}
+
+void modu_import(Modu *const mu, const uint32_t from, const uint32_t to)
+{
+    if (!GROW(mu->edges, mu->edgecap, mu->nedges + 1))
+        fault_error(mu->fault, E_OM);
+
+    mu->edges[mu->nedges++] = (ModuEdge){from, to};
+}
+
+void modu_top(Modu *const mu, const uint32_t m, const uint32_t line) { mu->mods[m].top = line; }
+
+uint32_t modu_top_of(const Modu *const mu, const uint32_t m) { return mu->mods[m].top; }
+
+/* Module m after those it imports not yet seen, from n on: past them. */
+static uint32_t after(Modu *const mu, const uint32_t m, uint32_t n)
+{
+    mu->seen[m] = 1;
+
+    for (uint32_t i = 0; i < mu->nedges; i++)
+        if (mu->edges[i].from == m && !mu->seen[mu->edges[i].to])
+            n = after(mu, mu->edges[i].to, n);
+
+    mu->order[n] = m;
+    return n + 1;
+}
+
+const uint32_t *modu_order(Modu *const mu)
+{
+    if (!GROW(mu->order, mu->ordercap, mu->nmods) || !GROW(mu->seen, mu->seencap, mu->nmods))
+        fault_error(mu->fault, E_OM);
+
+    memset(mu->seen, 0, mu->nmods);
+    uint32_t n = after(mu, 0, 0);
+
+    for (uint32_t m = 1; m < mu->nmods; m++) /* none unreached: each was found by an import */
+        if (!mu->seen[m])
+            n = after(mu, m, n);
+
+    return mu->order;
 }
 
 uint32_t modu_count(const Modu *const mu) { return mu->nmods; }
 
 const char *modu_module_path(const Modu *const mu, const uint32_t m)
 {
-    return m < mu->nmods ? mu->text + mu->mods[m] : "";
+    return m < mu->nmods ? mu->text + mu->mods[m].path : "";
 }
 
 void modu_file(Modu *const mu, const uint32_t file, const char *const path, const uint32_t m)

@@ -1348,7 +1348,11 @@ void decl_module(
     d->scope = module;
     d->baseset = d->dimmed = false;
     *decl_opt(&ds) = 0;
-    decl_deftop(&ds);
+
+    if (module)
+        decl_deftop(&ds);
+    else
+        memcpy(sy->deft, deft0, NLETTERS);
 }
 
 void decl_defevents(Decl *const d, Scop *const sc, Symb *const sy, const Prog *const pg)
