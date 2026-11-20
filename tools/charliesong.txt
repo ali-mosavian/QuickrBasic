@@ -1,0 +1,525 @@
+' The game's songs, packed into CHARLIE.DAT by tools/charlieart.py; the game plays any of them from its data alone.
+' A song is "Song name:" and its DATA, in this order. "USE name" stands for the DATA of "Part name:".
+' A zone's second act is its tune arranged again: a song of its own over the first's bars, a Part.
+'   Its order, a letter a bar; each bar's voicing, a letter of its kit; the bars there are; the tempo; the bars the
+'   bass waits; how loud the first chord voice, the lead, the second, the low double, the bass and the third voice
+'   are, the third's 0 leaving it out; the bars at its end that fade; the bar it comes in at where it is not from
+'   its start; 1 when it ends, 0 when it goes round; the octaves the lead is moved.
+'   Its kit: the lead's sound, the bass's, the low double's and the third voice's. Then its voicings: how many, and
+'   for each its letter, the first chord voice's sound, the second's, and 1 when the low double plays under them.
+'   Then its drums: how many, and for each its letter, its sound, how loud, 7 when a fade rounds it up, its note.
+'   Its bass riffs, its chord patterns and its drum patterns, each list after its count.
+'   Its bars: the chord's root from D, a bass riff (from 1) and a drum pattern (from 0) by number, then the second
+'   chord voice, the first, the lead and the third.
+' A riff is 16 sixteenths: a note (0-9, a-z, semitones from D), a capital slid into, "-" holds it, "." rests; ""
+' is a bar's rest. A second voice of two characters is a chord pattern by number and its note.
+
+Part DrumSet:
+DATA "K", "W4H0,4,3,3Y0K1,8", 12, 0, "O1C"
+DATA "S", "W3H0,5,0,1K0Y0", 13, 0, "O6C"
+DATA "T", "W4H0,5,0,3Y0K5,6", 11, 0, "O2G"
+DATA "H", "W3H0,3,0,1K0Y3,2500,0", 12, 7, "O6B"
+DATA "h", "W3H0,2,0,1K0Y3,2500,0", 5, 0, "O6B"
+DATA "O", "W3H0,7,0,4K0Y3,2500,0", 11, 0, "O6B"
+
+' The six of them, a kit as most songs have it.
+Part Drums:
+DATA 6
+USE DrumSet
+
+' The brasses: h two horns that waver, their harmonics a saw's by a modulator that bends itself; o two organs that
+' waver as they are held; k the organ and a clavinet. Under the organ its double an octave down.
+Part Brasses:
+DATA 3
+DATA "h", "W4Z1,8,3,11,4H0,4,12,1U11I2", "W4Z1,4,3,13,5H1,4,11,2U9I7", 0
+DATA "o", "W4Z1,4,3,13,4H0,4,11,1U9I0", "W4Z1,4,3,13,4H0,4,11,1U9I0", 1
+DATA "k", "W4Z1,4,3,13,4H0,4,11,1U9I0", "W4Z3,9,3,1,3H0,4,1,2U0I0", 1
+
+' A round bass; the organ's double to the right, a third organ in the middle.
+Part Low:
+DATA "W4Z1,6,3,3,2H0,5,5,1", "R2S12W4Z1,4,3,13,4H0,4,11,1U9", "R2W4Z1,4,3,13,4H0,4,11,1U9"
+
+' The Downs' bars: both its acts play them.
+Part DownsBars:
+DATA 0, 1, 0, "8-.8c.e-..f.e-c.", "c-.cf.h-..j.h-f.", "", ""
+DATA 0, 1, 0, "8-.8c.e-..j.f-e-", "c-.cf.h-..m.j-h-", "", ""
+DATA -4, 4, 0, "h..h....f..e..c.", "k..k....j..h..f.", "", ""
+DATA -5, 3, 1, "k-..k.j.f-e-b---", "o-..o.m.j-h-e---", "", ""
+DATA -5, 3, 1, "j-..j.k.m-k-j-f-", "m-..m.o.q-o-m-j-", "", ""
+DATA 5, 1, 0, "e-f-h-.e..h.k---", "h-j-k-.h..k.o---", "............o.r.", ""
+DATA 0, 2, 0, "f-.fe.c-..7.c-f-", "j-.jh.f-..c.f-j-", "..........o.r.o.", ""
+DATA -4, 1, 0, "h-j-k-.h..k.o---", "k-m-o-.k..o.r---", "........o.r.t.r.", ""
+DATA 0, 1, 0, "0f", "v--.v..v--------", "c.fj..f.oj..f.hj", ""
+DATA -2, 1, 0, "0e", "t--.t..t--------", "a.hm..h.qm..h.ae", ""
+DATA -4, 1, 0, "0c", "r--.r..r--------", "8.fk..f.ok..f.8c", ""
+DATA -5, 2, 0, "0e", "q--.q..q--------", "7.ej..e.nj..e.be", ""
+DATA -5, 3, 1, "0e", "q--.q..v--------", "7.ej..n.qn.jeb7-", ""
+DATA 5, 5, 0, "1c", "....t-....w.t.w.", "o-..k.h-..k-o---", ""
+DATA -2, 5, 0, "1e", "....q-....t.q.t.", "m-..h.e-..h-m---", ""
+DATA 0, 5, 0, "1f", "....r-....v.r.v.", "o-..j.f-..j-r---", ""
+DATA -5, 5, 0, "1e", "..q...q-j-q-v---", "q-n-j-.q..n.j-e-", ""
+DATA -5, 3, 1, "1e", "..q...q-j-q-v---", "q-n-jnqnjnqnvvvv", ""
+DATA -4, 1, 4, "0c", "r-------r---w---", "kk.rr.k.rw.o.krw", ""
+DATA -2, 1, 4, "0e", "t-------t---y---", "mm.tt.m.ty.q.mty", ""
+DATA 0, 1, 4, "0f", "v-------v---o---", "oo.vv.o.vv.o.rov", ""
+DATA 0, 3, 1, "0f", "o---m---j---f---", "vtrqomkjhfecefhj", ""
+DATA 0, 2, 0, "0f", "r--.r..v--------", "o.oo.m.o-..j.m.o", ""
+DATA 0, 2, 0, "0f", "r--.r..v--------", "r.rr.q.o-..m.j.m", ""
+DATA -4, 2, 0, "0c", "r--.r..w--------", "o.oo.k.o-..r.o.k", ""
+DATA -2, 3, 1, "0e", "q--.q..t--------", "q.qq.m.q-..t-q-m", ""
+DATA -5, 3, 1, "j-..j.k.m-k-j-f-", "m-..m.o.q-o-m-j-", "........7bejnqv-", ""
+DATA 0, 1, 0, "0f", "v--.v..v--------", "o.jo..m.oj..f.hj", ""
+
+' The Downs' tune: 76 bars of 28 in D at 140: an intro and its variation, then A, B, C and D twice round and four
+' bars of A fading. Horns for the intro, then an organ, high, and a low chug; a reedy pulse leads.
+Song Downs:
+DATA "abcdabcefghefgh{ijkl|jkmnopqnoprstuvwxyzwxyzijkl|jkmnopqnoprstuvwxyzwxyzijkm", "hhhhhhhhkkkkkkkkkkkkkkkkkkhk", 28, 140, 3, 12, 9, 10, 9, 13, 10, 4, 0, 0, 0
+DATA "W0Q42H1,4,10,1U5I4"
+USE Low
+USE Brasses
+USE Drums
+DATA 5, "0.0.C.0.00c.7.0C", "0.0.7.0.C.0c.7c7", "0.0.0.0.C.c.057c", "0.C00c7c0.C057ac", "0.......0.....7."
+DATA 3, "x.x.x.xx.xx.x.x.", "x.......x.....x.", "x.x.x.x.x.x.x.x."
+DATA 7, "KHHHSHHSKHKHSHHH", "KHHHSHKHSSTTSTSS", "K.H.S.H.K.K.S.H.", "K.H.S.SSKSSTSTTS", "KHHSHHKSKHHSHHSS"
+DATA "K.H.S.H.K.K.S.H.", "K.H.S.H.K.K.S.SS"
+USE DownsBars
+
+' Charlie's own theme, for the title and the level's end: 64 bars of 30 in G minor, as fast. Three organs, two of
+' them in stereo, stab a four bar round: the brass's voice, the second brass's the note under it, and a third's
+' under that, a bar's last riff. A brass lead answers them, busy two bars and held two, its fourth bar another as
+' it comes round again; then eight bars of horn hits a run answers, and four where a low riff is joined a voice a
+' bar. A bar's brasses: o organs, h horns, k the organ and a clavinet. Hats have ghosts (h) between them and one
+' left open (O). It ends on a held chord, not a fade, and at the level's end comes in at the hits. Its levels are
+' a song's a listener passed, part for part against its drums: as first written the lead was 2.8 dB under that
+' and the bass 2.2 over. As Song's.
+Song Theme:
+DATA "abyzwxcdefcde}ghijghi~klmnopqrstuvcdefghi~klmnopqrstuvcde}ghij{|", "oooooooooohohohohokkkkoooohhoo", 30, 140, 2, 10, 14, 9, 8, 11, 9, 0, 22, 0, 0
+DATA "W4Z1,9,3,15,3H5,4,10,1U5I4"
+USE Low
+USE Brasses
+USE Drums
+DATA 5, "0..0c.0..0c.7ac.", "0.c.0.c.0.0c7.5.", "0--0--0-........", "0.03.5.0.a.c5.3.", "................"
+DATA 3, "..x..x....x..x..", "x..x..x...x.x...", "x.......x.....x."
+DATA 7, "KhHhShHKhHKhShOh", "KhHhShHKhHKhSSTS", "K..K..K.ShHhShHH", "KhHhShHhKhHhShOh", "HhHhHhHHHhHhHhOh"
+DATA "KhHhHhHhKhHhHhOh", "K.S.K.SSTTSSTSSS"
+DATA 5, 5, 4, "k..k..k-......j.", "o..o..o-......m.", "", "h..h..h-......f."
+DATA 5, 5, 4, ".k.k..m---------", ".o.o..r---------", "", ".h.h..j---------"
+DATA 5, 1, 0, "k..k..k-......j.", "o..o..o-......m.", "..h.k.m.o-m.k.m.", "h..h..h-......f."
+DATA 5, 2, 0, ".k.k..m---------", ".o.o..r---------", "o-..r.o.m-k-h---", ".h.h..j---------"
+DATA 1, 1, 0, "h..h..h-......j.", "k..k..k-......m.", "..k.m.o.r-o.m.o.", "d..d..d-......f."
+DATA 3, 2, 1, ".j.j..m---------", ".m.m..o---------", "r-..t.r.o-m-o---", ".f.f..j---------"
+DATA 5, 1, 0, "k..k..k-......j.", "o..o..o-......m.", "t---..r.t-w-t-r-", "h..h..h-......f."
+DATA 5, 2, 0, ".k.k..m---------", ".o.o..r---------", "o-------..m.o.r.", ".h.h..j---------"
+DATA 1, 1, 0, "h..h..h-......j.", "k..k..k-......m.", "t---..r.t-w-y-w-", "d..d..d-......f."
+DATA 3, 2, 1, ".j.j..m---------", ".m.m..o---------", "v-------........", ".f.f..j---------"
+DATA -2, 3, 2, "h--h--h-........", "m--m--m-........", "", ""
+DATA -2, 2, 3, "", "", "..m.p.m.t-r.p.m.", ""
+DATA 0, 3, 2, "j--j--j-........", "o--o--o-........", "", ""
+DATA 0, 2, 3, "", "", "..o.r.o.v-t.r.o.", ""
+DATA 1, 3, 2, "k--k--k-........", "p--p--p-........", "", ""
+DATA 1, 2, 3, "", "", "..p.t.p.w-t.p.t.", ""
+DATA 3, 3, 2, "m--m--m-........", "r--r--r-........", "", ""
+DATA 3, 2, 6, "", "", "r.r.t.t.v.v.y.y.", ""
+DATA 5, 4, 5, "", "", "", ""
+DATA 5, 4, 5, "5.58.a.5.f.ha.8.", "", "", ""
+DATA 5, 4, 5, "5.58.a.5.f.ha.8.", "....t---....t---", "", ""
+DATA 5, 4, 6, "5.58.a.5.f.ha.8.", "....t---....w---", "........h.k.m.o.", ""
+DATA 1, 1, 0, "h..h..h-......j.", "k..k..k-......m.", "", "d..d..d-......f."
+DATA 3, 2, 1, ".j.j..m---------", ".m.m..o---------", "", ".f.f..j---------"
+DATA 5, 1, 0, "k..k..k-......j.", "o..o..o-......m.", "", "h..h..h-......f."
+DATA 5, 2, 0, ".k.k..m---------", ".o.o..r---------", "", ".h.h..j---------"
+DATA 5, 3, 2, "o--o--o-........", "t--t--t-........", "..t.w.t.r-o.m.o.", ""
+DATA 5, 5, 6, "o---------------", "t---------------", "t---------------", ""
+DATA 3, 2, 1, ".j.j..m---------", ".m.m..o---------", "r-..t.r.w-t-r.t.", ".f.f..j---------"
+DATA 3, 2, 6, ".j.j..m---------", ".m.m..o---------", "v---..t.v-y-w-t-", ".f.f..j---------"
+
+' The level's end's bars: after a chase they come second.
+Part CaughtBars:
+DATA 5, 1, 0, "", "o-t-v---x---v-t-", "", ""
+DATA -2, 1, 0, "", "q-t-y---x-v-t---", "", ""
+DATA 2, 1, 1, "h---------------", "e-h-l-h-e-h-l-h-", "q-s-t---v---t-q-", "l---------------"
+DATA 0, 1, 1, "g---------------", "c-g-j-g-c-g-j-g-", "o---s---v-------", "j---------------"
+DATA 5, 1, 1, "l---------------", "h-l-o-l-h-l-o-l-", "o-t-v---x---v-t-", "o---------------"
+DATA -2, 1, 1, "e---------------", "a-e-h-e-a-e-h-e-", "q-t-y---x-y-x-v-", "h---------------"
+DATA 0, 1, 2, "g---------------", "c-g-j-g-c-g-j-g-", "t-v-x-v-t-s-q-s-", "j---------------"
+DATA 5, 2, 3, "l---------------", "h-l-o-t-t-------", "t-------........", "o---------------"
+
+' The level's end, Caught Up: the family's tune as the big one plays it when Charlie arrives. Eight bars in G at
+' 120, once: two of her guitar alone, four with the bass and a lead (the game gives it the zone's own), a run and a
+' held chord. The guitar is plucked, a string that starts bright and dies; under the lead two soft pipes hold the
+' chord.
+Song Caught:
+DATA "abcdefgh", "gggggggg", 8, 120, 2, 12, 11, 6, 0, 11, 6, 0, 0, 1, 0
+DATA "W0Q42H1,4,10,1U5I4"
+DATA "W4Z1,6,3,3,2H0,5,5,1", "R2S12W1H5,4,12,5U3", "R2W1H5,4,12,5U3"
+DATA 1
+DATA "g", "W4Z1,10,4,2H0,9,0,6", "W1H5,4,12,5U3", 0
+USE Drums
+DATA 2, "0-------7-------", "0---------------"
+DATA 0
+DATA 4, "................", "K.h.S.h.K.h.S.hh", "K.h.S.h.KSSTSTTS", "K..............."
+USE CaughtBars
+
+' The intro's bars: the scene between zones plays four of them.
+Part IntroBars:
+DATA 5, 1, 0, "", "o-t-v---x---v-t-", "", ""
+DATA -2, 1, 0, "", "q-t-y---x-v-t---", "", ""
+DATA 0, 1, 0, "", "v---s---o---s-v-", "", ""
+DATA 5, 1, 0, "", "t-----------o-s-", "", ""
+DATA 5, 1, 1, "l---------------", "o-t-v---x---v-t-", "", ""
+DATA -2, 1, 1, "h---------------", "q-t-y---x-v-t---", "", ""
+DATA 0, 1, 1, "g---------------", "v---s---o---s-v-", "", ""
+DATA 5, 1, 2, "h---------------", "t---------------", "", ""
+DATA 5, 2, 3, "", "5..58.7.5.4.5...", "", ""
+DATA 5, 2, 3, "............h.g.", "5..58.7.5.8.9.a.", "", ""
+DATA 5, 3, 4, "........o---....", "........t---....", "", ""
+DATA 5, 2, 3, "......h.....g...", "5.58.757.4.58.7.", "", ""
+DATA 5, 2, 3, "....h.g.....k.j.", "5.58.75a.9.8.7.5", "", ""
+DATA 5, 4, 5, "k..k..k-......j.", "o..o..o-......m.", "..h.k.m.o-m.k.m.", "h..h..h-......f."
+DATA 5, 5, 5, ".k.k..m---------", ".o.o..r---------", "o-..r.o.m-k-h---", ".h.h..j---------"
+DATA 1, 4, 5, "h..h..h-......j.", "k..k..k-......m.", "..k.m.o.r-o.m.o.", "d..d..d-......f."
+DATA 3, 5, 6, ".j.j..m---------", ".m.m..o---------", "r-..t.r.o-m-o---", ".f.f..j---------"
+DATA 5, 4, 5, "k..k..k-......j.", "o..o..o-......m.", "t---..r.t-w-t-r-", "h..h..h-......f."
+DATA 5, 5, 5, ".k.k..m---------", ".o.o..r---------", "o-------..m.o.r.", ".h.h..j---------"
+DATA 1, 4, 5, "h..h..h-......j.", "k..k..k-......m.", "t---..r.t-w-y-w-", "d..d..d-......f."
+DATA 3, 5, 7, ".j.j..m---------", ".m.m..o---------", "r.r.t.t.v.v.y.y.", ".f.f..j---------"
+
+' The intro, Moving Day: 28 bars of 21 at 120, once, a scene every four. The family's tune on her guitar alone, then
+' with a bass and brushes; the Mob's, low on a clavinet, creeping by semitones; one hit where the van bumps, and the
+' Mob's again, busier; the first phrase of Charlie's theme; the family's and the Mob's a bar each, twice; the
+' theme's next phrase, a run up out of its last bar into the title's. A bar's voices: g her guitar over soft
+' pipes, c two clavinets, b the theme's organs.
+Song Intro:
+DATA "abcdefghijijklmlnopqeigjrstu", "ggggggggcccccbbbbbbbb", 21, 120, 4, 12, 12, 8, 8, 11, 8, 0, 0, 1, 0
+DATA "W4Z1,9,3,15,3H5,4,10,1U5I4"
+USE Low
+DATA 3
+DATA "g", "W4Z1,10,4,2H0,9,0,6", "W1H5,4,12,5U3", 0
+DATA "c", "W4Z3,9,3,1,3H0,4,1,2U0I0", "W4Z3,9,3,1,3H0,4,1,2U0I0", 0
+DATA "b", "W4Z1,4,3,13,4H0,4,11,1U9I0", "W4Z1,4,3,13,4H0,4,11,1U9I0", 1
+USE Drums
+DATA 5, "0-------7-------", "0..03.2.0.1.0...", "........0-------", "0..0c.0..0c.7ac.", "0.c.0.c.0.0c7.5."
+DATA 0
+DATA 8, "................", "K.h.S.h.K.h.S.hh", "K.h.S.h.KSSTSTTS", "K..h..K.S..h.K.h", "........K...S..."
+DATA "KhHhShHKhHKhShOh", "KhHhShHKhHKhSSTS", "K.S.K.SSTTSSTSSS"
+USE IntroBars
+
+' The works' bars: both their acts play them.
+Part WorksBars:
+DATA 2, 1, 0, "", "", "", ""
+DATA 2, 2, 0, "", "", "", "......l.......l."
+DATA 2, 1, 0, "h.h..h.h.h..h.l.", "e.e..e.e.e..e.h.", "", "......l.......l."
+DATA 2, 3, 2, "h.h..h.h.h..hjl.", "e.e..e.e.e..egh.", "", "......l.....l.l."
+DATA 2, 1, 1, "h.h..h.h.h..h.l.", "e.e..e.e.e..e.h.", "q---..o.Q-----o.", "......l.......l."
+DATA 2, 2, 1, "h.h..h.h.h..h.l.", "e.e..e.e.e..e.h.", "l---..o.q-t-q-o-", "......l.......l."
+DATA -2, 1, 1, "h.h..h.h.h..h.m.", "e.e..e.e.e..e.h.", "t---..q.T-----q.", "......m.......m."
+DATA 0, 2, 3, "j.j..j.j.j..j.o.", "g.g..g.g.g..g.j.", "s---..o.s-v-s-o-", "......o.......o."
+DATA -3, 3, 2, "l.l..l.l.l..lpl.", "g.g..g.g.g..glg.", "s---p---l-p-s-x-", "......l.....l.l."
+DATA 5, 1, 1, "l.l..l.l.l..l.o.", "h.h..h.h.h..h.l.", "t-..t.v.X---v-t-", "......o.......o."
+DATA 0, 2, 1, "j.j..j.j.j..j.o.", "g.g..g.g.g..g.j.", "v-..v.t.S---o---", "......o.......o."
+DATA 7, 1, 1, "m.m..m.m.m..m.q.", "j.j..j.j.j..j.m.", "q-..q.t.V---t-q-", "......q.......q."
+DATA -3, 3, 2, "l.l..l.l.l..lpl.", "g.g..g.g.g..glg.", "s-..s.p.S-------", "......l.....l.l."
+
+' The works' tune, Night Shift: 28 bars of 13 in E minor at 132, machine funk, round and round. A pulse bass in
+' sixteenths that never stops, two clavinets chugging, a filtered saw that leads and slides into its long notes, a
+' metal hit off the beat. Four bars of the bass, the hats and the hits, the clavinets in for the last two; then A
+' twice, B twice and A twice more.
+Song Works:
+DATA "abcdefghefgijklmjklmefghefgi", "mmmmmmmmmmmmm", 13, 132, 0, 9, 12, 9, 0, 13, 9, 0, 0, 0, 0
+DATA "W2Y1,2400,5H0,4,11,2U3I6"
+DATA "W0Q25Y1,900,4H0,3,9,1", "R2S12W1H5,4,12,5U3", "R3W4Z7,6,7,0H0,6,0,4"
+DATA 1
+DATA "m", "W4Z3,9,3,1,3H0,4,1,2U0I0", "W4Z3,9,3,1,3H0,4,1,2U0I0", 0
+USE Drums
+DATA 3, "000c000c0007000c", "000c000c00a0070c", "000c0007000a00bc"
+DATA 0
+DATA 4, "H.h.H.h.H.h.H.hh", "K.hhS.hK.hK.S.hh", "K.hhS.hK.hK.SSTS", "K.h.S.hhK.KhS.Oh"
+USE WorksBars
+
+' The chase, Catch That Cat: eight bars of five at 160, round and round: the Mob's tune on two clavinets over a bass
+' in driving eighths, down a tone for its third bar, a run to turn it round. The zone's own lead plays over it:
+' the game gives it that.
+Song Chase:
+DATA "abcdabce", "ccccc", 5, 160, 0, 10, 12, 9, 0, 13, 9, 0, 0, 0, 0
+DATA "W0Q42H1,4,10,1U5I4"
+USE Low
+DATA 1
+DATA "c", "W4Z3,9,3,1,3H0,4,1,2U0I0", "W4Z3,9,3,1,3H0,4,1,2U0I0", 0
+USE Drums
+DATA 2, "0.0.0.0.0.0.0.c.", "0.0.0.0.c.c.7.7."
+DATA 0
+DATA 2, "KhHhShHhKhKhShHh", "KhHhShHhKSSTSTTS"
+DATA 5, 1, 0, "......h.....g...", "5.58.757.4.58.7.", "h-..h.k.j-h-g-h-", ""
+DATA 5, 1, 0, "....h.g.....k.j.", "5.58.75a.9.8.7.5", "k-..k.m.l-k-j-k-", ""
+DATA 3, 1, 0, "......f.....e...", "3.36.535.2.36.5.", "f-..f.i.h-f-e-f-", ""
+DATA 5, 2, 1, "....h.g.....k.j.", "5.58.7.5.8.9.a.c", "o-m-k-j-h-g-f-e-", ""
+DATA 5, 2, 1, "....h.g.....k.j.", "5.58.7.5.8.a.c.e", "h.j.k.m.o.q.t---", ""
+
+' The sands' bars: both their acts play them, the sunset the third voice too, the lead's notes a third down.
+Part SandsBars:
+DATA -2, 1, 0, "", "", "", ""
+DATA -2, 2, 0, "", "", "", ""
+DATA 3, 1, 1, "..j...jj..j...j.", "..f...ff..f...f.", "", ""
+DATA 5, 4, 2, "..l...ll..l...l.", "..f...ff..f...f.", "", ""
+DATA -2, 1, 1, "..h...hh..h...h.", "..e...ee..e...e.", "q-.qt-.tq-m-..m.", "m-.mq-.qm-j-..j."
+DATA -2, 2, 1, "..h...hh..h...h.", "..e...ee..e...e.", "q-.qt-.ty-..t-q-", "m-.mq-.qv-..q-m-"
+DATA 3, 1, 1, "..j...jj..j...j.", "..f...ff..f...f.", "r-.rv-.vr-m-..m.", "o-.or-.ro-j-..j."
+DATA 5, 2, 1, "..l...ll..l...l.", "..h...hh..h...h.", "t-.tx-.xv-t-..o.", "q-.qt-.tr-q-..l."
+DATA -2, 1, 1, "..h...hh..h...h.", "..e...ee..e...e.", "q-.qt-.tq-m-..m.", "m-.mq-.qm-j-..j."
+DATA 7, 3, 1, "..j...jj..j...j.", "..e...ee..e...e.", "q-.qv-.vt-q-..m.", "m-.mr-.rq-m-..j."
+DATA 0, 3, 1, "..j...jj..j...j.", "..f...ff..f...f.", "r-.ro-.or-o-..l.", "o-.ol-.lo-l-..h."
+DATA 5, 4, 2, "..l...ll..l...l.", "..f...ff..f...f.", "t-x-o-x-t-..v-x-", "q-t-l-t-q-..r-t-"
+DATA 3, 1, 1, "..j...jj..j...j.", "..f...ff..f...f.", "y---..v.r---..v.", "v---..r.o---..r."
+DATA 3, 2, 1, "..j...jj..j...j.", "..f...ff..f...f.", "y-v-r-v-y---....", "v-r-o-r-v---...."
+DATA -2, 1, 1, "..h...hh..h...h.", "..e...ee..e...e.", "y---..t.q---..t.", "v---..q.m---..q."
+DATA -2, 2, 1, "..h...hh..h...h.", "..e...ee..e...e.", "y-t-q-t-m---....", "v-q-m-q-j---...."
+DATA 5, 1, 1, "..l...ll..l...l.", "..h...hh..h...h.", "x---..t.o---..t.", "t---..q.l---..q."
+DATA 5, 2, 1, "..l...ll..l...l.", "..f...ff..f...f.", "x-t-o-t-r---....", "t-q-l-q-o---...."
+DATA -2, 1, 1, "..h...hh..h...h.", "..e...ee..e...e.", "q-.qt-.ty---..t.", "m-.mq-.qv---..q."
+DATA 5, 4, 2, "..l...ll..l...l.", "..f...ff..f...f.", "v-t-r-o-l---..t.", "r-q-o-l-h---..q."
+
+' The sands' tune, Low Water: 36 bars of 20 in C at 120, a calypso, round and round. A triangle bass that walks, a
+' marimba's two notes off the beat, hats shaken in sixteenths and a tom for a conga; a steel pan leads, a bell
+' that falls to a hollow tone. Four bars in, then A twice, B, and A.
+Song Sands:
+DATA "abcdefghijklefghijklmnopqrstefghijkl", "pppppppppppppppppppp", 20, 120, 0, 8, 12, 8, 0, 12, 0, 0, 0, 0, 0
+DATA "W4Z2,8,5,3,1H0,9,5,6R5I4"
+DATA "W1H0,6,10,2", "W1H0,6,10,2", "W4Z4,6,2,0H0,6,0,3R3"
+DATA 1
+DATA "p", "S5W4Z4,7,2,0H0,6,0,3R4", "S11W4Z4,7,2,0H0,6,0,3R4", 0
+USE Drums
+DATA 4, "0-..4-..7-..9-7-", "0-..7-..c-..7-5-", "0-..3-..7-..a-7-", "0-..4-..7-..a-7-"
+DATA 0
+DATA 3, "h.H.h.H.h.H.h.Hh", "KhHhhhHTKhHhThHh", "KhHhhhHTKhTTSTTS"
+USE SandsBars
+
+' The Downs at evening: their tune over the organs from its first bar, the horns and the clavinet gone, on drums
+' that leave room: soft hats, a kick and a snare.
+Song Evening:
+DATA "abcdabcefghefgh{ijkl|jkmnopqnoprstuvwxyzwxyzijkl|jkmnopqnoprstuvwxyzwxyzijkm", "oooooooooooooooooooooooooooo", 28, 140, 3, 11, 9, 10, 9, 12, 10, 4, 0, 0, 0
+DATA "W0Q42H1,4,10,1U5I4"
+USE Low
+USE Brasses
+USE Drums
+DATA 5, "0.0.C.0.00c.7.0C", "0.0.7.0.C.0c.7c7", "0.0.0.0.C.c.057c", "0.C00c7c0.C057ac", "0.......0.....7."
+DATA 3, "x.x.x.xx.xx.x.x.", "x.......x.....x.", "x.x.x.x.x.x.x.x."
+DATA 7, "K.h.S.h.K.h.S.h.", "K.h.S.h.K.h.S.TS", "K...S...K.K.S...", "K...S..hK.h.STTS", "K.hhS.h.K.hhS.h."
+DATA "K...S...K.K.S...", "K...S...K.K.S.hh"
+USE DownsBars
+
+' The works by night: their tune in half time, the snare on the bar's third beat alone; the saw an octave down and
+' darker, and a bigger room round all of it.
+Song Night:
+DATA "abcdefghefgijklmjklmefghefgi", "nnnnnnnnnnnnn", 13, 132, 0, 8, 12, 8, 0, 12, 9, 0, 0, 0, -1
+DATA "W2Y1,1800,5H0,4,11,2U3I6R7"
+DATA "W0Q25Y1,900,4H0,3,9,1", "R2S12W1H5,4,12,5U3", "R8W4Z7,6,7,0H0,6,0,4"
+DATA 1
+DATA "n", "R5W4Z3,9,3,1,3H0,4,1,2U0I0", "R5W4Z3,9,3,1,3H0,4,1,2U0I0", 0
+USE Drums
+DATA 3, "000c000c0007000c", "000c000c00a0070c", "000c0007000a00bc"
+DATA 0
+DATA 4, "H...h...H...h.h.", "K.h.h.h.S.hKh.h.", "K.h.h.h.S.hKSTTS", "K.h.h.hKS.h.h.Oh"
+USE WorksBars
+
+' The sands at sunset: their tune at 108, the pan in thirds, a second pan under the first; the bass holds a note
+' half a bar, and the shaker thins.
+Song Sunset:
+DATA "abcdefghijklefghijklmnopqrstefghijkl", "pppppppppppppppppppp", 20, 108, 0, 7, 11, 7, 0, 12, 8, 0, 0, 0, 0
+DATA "W4Z2,8,5,3,1H0,9,5,6R5I4"
+DATA "W1H0,6,10,2", "W1H0,6,10,2", "S10W4Z2,8,5,3,1H0,9,5,6R5"
+DATA 1
+DATA "p", "S5W4Z4,7,2,0H0,6,0,3R4", "S11W4Z4,7,2,0H0,6,0,3R4", 0
+USE Drums
+DATA 4, "0-------7-------", "0-------7---5---", "0-------7---a---", "0-------7---a-7-"
+DATA 0
+DATA 3, "h...h...h...h.h.", "K.h.h.hTK.h.T.h.", "K.h.h.hTK.TTS.T."
+USE SandsBars
+
+' The level's end after a chase, Sent Packing: Caught Up with four bars before it, twelve in all. The Mob's tune on
+' two clavinets, down a tone for its second bar, tumbles down a run to one low note, and the cat's feet patter off
+' on the toms.
+Song Packing:
+DATA "abcdefghijkl", "ccccgggggggg", 12, 120, 6, 12, 11, 6, 0, 11, 6, 0, 0, 1, 0
+DATA "W0Q42H1,4,10,1U5I4"
+DATA "W4Z1,6,3,3,2H0,5,5,1", "R2S12W1H5,4,12,5U3", "R2W1H5,4,12,5U3"
+DATA 2
+DATA "g", "W4Z1,10,4,2H0,9,0,6", "W1H5,4,12,5U3", 0
+DATA "c", "W4Z3,9,3,1,3H0,4,1,2U0I0", "W4Z3,9,3,1,3H0,4,1,2U0I0", 0
+USE Drums
+DATA 2, "0-------7-------", "0---------------"
+DATA 0
+DATA 6, "................", "K.h.S.h.K.h.S.hh", "K.h.S.h.KSSTSTTS", "K...............", "K..h..K.S..h.K.h"
+DATA "T.T.TTTTSTSTK..."
+DATA 5, 1, 4, "......h.....g...", "5.58.757.4.58.7.", "", ""
+DATA 3, 1, 4, "......f.....e...", "3.36.535.2.36.5.", "", ""
+DATA 5, 1, 4, "", "o.m.k.j.h.g.f.ed", "", ""
+DATA 5, 1, 5, "", "c---............", "", ""
+USE CaughtBars
+
+' Game over, Left Behind: the family's tune slow and in the minor, four bars at 80, once. One organ, and its double
+' an octave under.
+Song Over:
+DATA "abcd", "bbbb", 4, 80, 4, 12, 0, 0, 10, 0, 0, 0, 0, 1, 0
+DATA "W0Q42H1,4,10,1U5I4"
+USE Low
+DATA 1
+DATA "b", "W4Z1,4,3,13,4H0,4,11,1U9I0", "W4Z1,4,3,13,4H0,4,11,1U9I0", 1
+USE Drums
+DATA 1, "0---------------"
+DATA 0
+DATA 1, "................"
+DATA 5, 1, 0, "", "o-t-v---w---v-t-", "", ""
+DATA -2, 1, 0, "", "p-t-y---w-v-t---", "", ""
+DATA 0, 1, 0, "", "v---r---o---r-v-", "", ""
+DATA 5, 1, 0, "", "t---------------", "", ""
+
+' Between zones, The Bump: four of the intro's bars at 120, once: the hit where the van bumps, then the Mob's tune
+' on two clavinets, busier each bar.
+Song Between:
+DATA "klml", "ggggggggcccccbbbbbbbb", 21, 120, 0, 12, 12, 8, 8, 11, 8, 0, 0, 1, 0
+DATA "W4Z1,9,3,15,3H5,4,10,1U5I4"
+USE Low
+DATA 3
+DATA "g", "W4Z1,10,4,2H0,9,0,6", "W1H5,4,12,5U3", 0
+DATA "c", "W4Z3,9,3,1,3H0,4,1,2U0I0", "W4Z3,9,3,1,3H0,4,1,2U0I0", 0
+DATA "b", "W4Z1,4,3,13,4H0,4,11,1U9I0", "W4Z1,4,3,13,4H0,4,11,1U9I0", 1
+USE Drums
+DATA 5, "0-------7-------", "0..03.2.0.1.0...", "........0-------", "0..0c.0..0c.7ac.", "0.c.0.c.0.0c7.5."
+DATA 0
+DATA 8, "................", "K.h.S.h.K.h.S.hh", "K.h.S.h.KSSTSTTS", "K..h..K.S..h.K.h", "........K...S..."
+DATA "KhHhShHKhHKhShOh", "KhHhShHKhHKhSSTS", "K.S.K.SSTTSSTSSS"
+USE IntroBars
+
+' The pass's tune, First Tracks: 36 bars of 20 in A at 150, brisk, round and round. A glockenspiel leads, a bell an
+' octave over the rest; a pulse runs each chord's notes up and down, two soft horns hold them, the bass steps root
+' and fifth, and sleigh bells shake on the eighths between a kick and a snare. Four bars in, then A twice, B, and A.
+Song Whitecap:
+DATA "abcdefghijklefghijklmnopqrstefghijkl", "wwwwwwwwwwwwwwwwwwww", 20, 150, 1, 7, 12, 7, 0, 12, 7, 0, 0, 0, 1
+DATA "W4Z7,6,3,0H0,8,0,6R6"
+DATA "W4Z1,6,3,3,2H0,5,5,1", "W1H0,6,10,2", "S10R3W4Z1,4,3,13,5H3,4,11,3U5"
+DATA 1
+DATA "w", "S5R3W0Q30H0,3,7,1", "S11R3W4Z1,4,3,13,5H3,4,11,3U5", 0
+DATA 7
+USE DrumSet
+DATA "J", "W3H0,3,0,2K0Y3,7000,5", 8, 0, "O6B"
+DATA 4, "0...7...0...7.c.", "0...7...0.c.7.5.", "0...4...7...4.7.", "0...3...7...3.7."
+DATA 0
+DATA 4, "J.J.J.J.J.J.J.J.", "K.J.S.J.K.J.S.J.", "K.J.S.J.K.JJSJSS", "K.J.J.J.S.J.J.J."
+DATA 7, 1, 0, "", "j.nqv.qnj.nqv.qn", "", ""
+DATA 7, 1, 0, "q---------------", "j.nqv.qnj.nqv.qn", "", ""
+DATA 12, 1, 1, "s---------------", "j.osv.soj.osv.so", "", "o---------------"
+DATA 14, 2, 2, "q---------------", "i.lqu.qli.lqu.ql", "........q-s-u-x-", "l---------------"
+DATA 7, 1, 1, "q---------------", "j.nqv.qnj.nqv.qn", "q-..n-q-v-----u-", "n---------------"
+DATA 12, 3, 1, "s---------------", "j.osv.soj.osv.so", "s-..o-s-v-------", "o---------------"
+DATA 7, 1, 1, "q---------------", "j.nqv.qnj.nqv.qn", "q-..n-q-v---x-z-", "n---------------"
+DATA 14, 2, 1, "q---------------", "i.lqu.qli.lqu.ql", "x-----u-q-------", "l---------------"
+DATA 16, 4, 1, "n---------------", "g.jns.njg.jns.nj", "z-..v-z-x---v---", "j---------------"
+DATA 12, 3, 1, "s---------------", "j.osv.soj.osv.so", "v-..s-v-s---o---", "o---------------"
+DATA 14, 1, 1, "q---------------", "i.lqu.qli.lqu.ql", "q-s-u-x-v-u-s-u-", "l---------------"
+DATA 7, 2, 2, "q---------------", "j.nqv.qnj.nqv.qn", "v-------........", "n---------------"
+DATA 12, 3, 3, "s---------------", "j.osv.soj.osv.so", "s-------v-------", "o---------------"
+DATA 12, 1, 3, "s---------------", "j.osv.soj.osv.so", "o---s---v---s---", "o---------------"
+DATA 7, 3, 3, "q---------------", "j.nqv.qnj.nqv.qn", "q-------n---q---", "n---------------"
+DATA 7, 1, 3, "q---------------", "j.nqv.qnj.nqv.qn", "v-----------q---", "n---------------"
+DATA 9, 4, 3, "s---------------", "l.osx.sol.osx.so", "o-------s-------", "o---------------"
+DATA 9, 4, 1, "s---------------", "l.osx.sol.osx.so", "x---v---s---o---", "o---------------"
+DATA 14, 3, 1, "q---------------", "i.lqu.qli.lqu.ql", "q---u---x---u---", "l---------------"
+DATA 14, 2, 2, "q---------------", "i.lqu.qli.lqu.ql", "q-s-u-v-x-z-x-u-", "l---------------"
+
+' The pass in a blizzard, Whiteout: First Tracks in F sharp minor, its bars its own for their chords, the lead as
+' the morning has it. The third voice is the wind, a band of noise that swells half a bar where the lead rests;
+' the kick is heavier and comes twice in the bar's second half, the bass on every eighth, the sleigh bells softer.
+Song Blizzard:
+DATA "abcdefghijklefghijklmnopqrstefghijkl", "wwwwwwwwwwwwwwwwwwww", 20, 150, 1, 6, 12, 7, 0, 13, 9, 0, 0, 0, 1
+DATA "W4Z7,6,3,0H0,8,0,6R6"
+DATA "W4Z1,6,3,3,2H0,5,5,1", "W1H0,6,10,2", "R8W3H10,0,15,10Y2,800,8"
+DATA 1
+DATA "w", "S5R3W0Q30H0,3,7,1", "S11R3W4Z1,4,3,13,5H3,4,11,3U5", 0
+DATA 8
+USE DrumSet
+DATA "J", "W3H0,3,0,2K0Y3,7000,5", 7, 0, "O6B"
+DATA "B", "W4H0,6,4,5Y0K2,10", 15, 0, "O1C"
+DATA 4, "0.0.0.0.0.0.7.c.", "0.0.0.0.0.c.7.5.", "0...4...7...4.7.", "0...3...7...3.7."
+DATA 0
+DATA 4, "J...J...J...J...", "B.J.S.J.B.B.S.J.", "B.J.S.J.B.BJSTTS", "B...J...S...J.B."
+DATA 4, 1, 0, "", "g.jns.njg.jns.nj", "", "j---------------"
+DATA 4, 1, 0, "n---------------", "g.jns.njg.jns.nj", "", "........q-------"
+DATA 12, 1, 1, "s---------------", "j.osv.soj.osv.so", "", "s---------------"
+DATA 14, 2, 2, "q---------------", "i.lqu.qli.lqu.ql", "........q-s-u-x-", "j-------........"
+DATA 4, 1, 1, "n---------------", "g.jns.njg.jns.nj", "q-..n-q-v-----u-", ""
+DATA 12, 3, 1, "s---------------", "j.osv.soj.osv.so", "s-..o-s-v-------", "........o-------"
+DATA 4, 1, 1, "n---------------", "g.jns.njg.jns.nj", "q-..n-q-v---x-z-", ""
+DATA 11, 2, 1, "q---------------", "i.nqu.qni.nqu.qn", "x-----u-q-------", "........q-------"
+DATA 7, 3, 1, "q---------------", "j.nqv.qnj.nqv.qn", "z-..v-z-x---v---", ""
+DATA 12, 3, 1, "s---------------", "j.osv.soj.osv.so", "v-..s-v-s---o---", "........o-------"
+DATA 14, 1, 1, "q---------------", "i.lqu.qli.lqu.ql", "q-s-u-x-v-u-s-u-", ""
+DATA 4, 2, 2, "n---------------", "g.jns.njg.jns.nj", "v-------........", "........j-------"
+DATA 9, 4, 3, "s---------------", "l.osx.sol.osx.so", "s-------v-------", ""
+DATA 9, 1, 3, "s---------------", "l.osx.sol.osx.so", "o---s---v---s---", "........v-------"
+DATA 4, 4, 3, "n---------------", "g.jns.njg.jns.nj", "q-------n---q---", ""
+DATA 4, 1, 3, "n---------------", "g.jns.njg.jns.nj", "v-----------q---", "........q-------"
+DATA 12, 3, 3, "s---------------", "j.osv.soj.osv.so", "o-------s-------", ""
+DATA 12, 3, 1, "s---------------", "j.osv.soj.osv.so", "x---v---s---o---", "........o-------"
+DATA 11, 4, 1, "q---------------", "i.nqu.qni.nqu.qn", "q---u---x---u---", ""
+DATA 14, 2, 2, "q---------------", "i.lqu.qli.lqu.ql", "q-s-u-v-x-z-x-u-", ""
+
+' The wood's bars: both its acts play them.
+Part WoodBars:
+DATA 0, 4, 4, "c---------------", "", "", ""
+DATA 0, 4, 4, "c---------------", "..j...o...j...o.", "", ""
+DATA -2, 4, 1, "a---------------", "..h...m...h...m.", "", "........t-v-y---"
+DATA 0, 1, 3, "c---------------", "..j...o...j...o.", "........j-l-m-q-", ""
+DATA 0, 1, 1, "c---------------", "..j...o...j...o.", "o-j-o-q-rqr-o-j-", ""
+DATA 0, 2, 1, "c---------------", "..j...o...j...o.", "r-q-o-q-r-t-v-t-", ""
+DATA -2, 1, 2, "a---------------", "..h...m...h...m.", "q-m-q-t-q-m-j-m-", ""
+DATA -2, 2, 2, "a---------------", "..h...m...h...m.", "q-t-q-m-j-l-m-q-", "........y-x-v-t-"
+DATA 0, 1, 1, "c---------------", "..j...o...j...o.", "o-j-o-q-rqr-o-j-", ""
+DATA 0, 2, 1, "c---------------", "..j...o...j...o.", "r-q-o-q-r-t-v-y-", ""
+DATA -2, 3, 2, "a---------------", "..h...m...h...m.", "x-v-t-q-t-v-t-q-", ""
+DATA 0, 1, 3, "c---------------", "..j...o...j...o.", "r-q-o-m-o---o---", "........r-t-v---"
+DATA 3, 1, 2, "f---------------", "..j...m...j...m.", "v-r-v-y-v-r-o-r-", "y---------------"
+DATA -2, 2, 2, "a---------------", "..h...m...h...m.", "t-q-t-y-t-q-m-q-", "t---------------"
+DATA 0, 1, 2, "c---------------", "..j...o...j...o.", "r-o-r-v-r-o-j-o-", "v---------------"
+DATA -5, 3, 2, "e---------------", "..j...m...j...q.", "q-m-q-v-q-m-j-l-", "........x-y-x-v-"
+DATA 3, 1, 2, "f---------------", "..j...m...j...m.", "v-r-v-y-v-r-o-r-", "y---------------"
+DATA -2, 2, 2, "a---------------", "..h...m...h...m.", "t-q-t-y-xyx-t-q-", "t---------------"
+DATA -5, 3, 2, "e---------------", "..j...m...j...q.", "v-q-m-q-j-l-m-q-", "q-------........"
+DATA 0, 1, 3, "c---------------", "..j...o...j...o.", "r-q-o-m-o---o---", "........r-t-v---"
+
+' The wood's tune, Leaf Fall: 36 bars of 20 in D minor at 126, a reel, round and round. A fiddle leads in running
+' eighths, a bowed saw that scoops into its notes; a flute answers at a phrase's end and holds over the second
+' part; a plucked bass steps root and fifth, a string is plucked off the beat over a drone, and a hand drum and
+' two wood blocks keep time. Four bars in, then A twice, B, and A.
+Song Russet:
+DATA "abcdefghijklefghijklmnopqrstefghijkl", "ffffffffffffffffffff", 20, 126, 1, 7, 12, 6, 0, 11, 8, 0, 0, 0, 0
+DATA "W2Y1,2600,3H2,3,12,2U6K1,0,1R4"
+DATA "W4Z1,12,4,4H0,8,0,3", "W4Z1,12,4,4H0,8,0,3", "S10R5W1H3,2,12,3U5"
+DATA 1
+DATA "f", "S5R3W4Z2,6,3,2H0,6,0,2", "S11R3W2Y1,900,2H4,3,10,4", 0
+DATA 5
+DATA "D", "W4Z1,4,2,0H0,4,0,2K1,3", 12, 0, "O1G"
+DATA "d", "W4Z1,4,2,0H0,3,0,1K1,2", 8, 0, "O2D"
+DATA "B", "W1H0,2,0,1", 10, 0, "O5E"
+DATA "b", "W1H0,2,0,1", 10, 0, "O5C"
+DATA "h", "W3H0,2,0,1K0Y3,2500,0", 5, 0, "O6B"
+DATA 4, "0...7...0...7...", "0...7...c...7...", "0.0.7...0.0.7.c.", "0-------7-------"
+DATA 0
+DATA 5, "................", "D..dD.d.D..dD.d.", "D.b.d.B.D.b.d.Bb", "D.d.D.d.DdDdBbBb", "B...b...B..bb..."
+USE WoodBars
+
+' The wood on the firefly night, Glow Worms: Leaf Fall at 112, the flute leading and a muted fiddle answering; the
+' bass plucks a note a bar or two, the string is softer, and crickets chirr where the drum and the blocks were.
+Song Fireflies:
+DATA "abcdefghijklefghijklmnopqrstefghijkl", "ffffffffffffffffffff", 20, 112, 1, 4, 11, 6, 0, 9, 7, 0, 0, 0, 0
+DATA "R6W1H3,2,12,3U5"
+DATA "W4Z1,12,4,4H0,8,0,3", "W4Z1,12,4,4H0,8,0,3", "S6R6W2Y1,1400,2H4,3,10,3U4"
+DATA 1
+DATA "f", "S5R4W4Z2,5,3,1H0,5,0,2", "S11R5W1H5,3,9,5", 0
+DATA 3
+DATA "D", "W4Z1,4,2,0H0,4,0,2K1,3", 8, 0, "O1G"
+DATA "C", "W0Q12H0,1,0,1", 5, 0, "O6G"
+DATA "c", "W0Q12H0,1,0,1", 4, 0, "O6E"
+DATA 4, "0-------........", "0-------7-------", "0---....7---....", "0---------------"
+DATA 0
+DATA 5, "................", "C.C.C.......c.c.", "D.......C.C.C...", "D...c.c.....C.C.", "C.C.C..........."
+USE WoodBars

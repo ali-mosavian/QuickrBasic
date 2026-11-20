@@ -24,6 +24,13 @@ HostScans *scans(void)
     return host_scans();
 }
 
+/* The frames shown (host.h), for the page to count each it draws: port 3DAh's retrace. */
+[[clang::export_name("frames")]]
+_Atomic uint32_t *frames(void)
+{
+    return host_frames();
+}
+
 void host_term_open(void) {}
 void host_term_pause(const bool yes) {}
 bool host_term_on(void) { return wasm_irq.keyboard; }

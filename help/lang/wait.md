@@ -25,5 +25,5 @@ XOR flips the bits that are set in xormask before the AND, so a bit
 that should be 0 is waited for by setting it in xormask.
 
 ## Example
-    WAIT &H3DA, 8           ' VGA: until the vertical retrace starts
-    PRINT "retrace"         ' printed once it has
+    WAIT &H3DA, 8           ' until the next frame is on the screen
+    PRINT "retrace"         ' printed once it is

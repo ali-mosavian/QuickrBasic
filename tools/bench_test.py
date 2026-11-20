@@ -5,6 +5,7 @@ read as lexr_line's, 19% of a load."""
 
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -93,6 +94,20 @@ def each_reps() -> None:
         assert body.count("TIMER") == 0 and f"FOR q = 1 TO {bench.EACH_REPS}" in body, body
 
 
+def charlie_each() -> None:
+    """bench.py charlie's program is the game as it is written now, every call timed. Made for an upper-case END
+    and a LoadLevel without its level, it found no Main in the game and stopped before a single measurement."""
+    with tempfile.TemporaryDirectory() as d:
+        (Path(d) / "CHARLIE.DAT").write_bytes(bench.CHARLIE.with_suffix(".DAT").read_bytes())
+        shutil.copytree(bench.CHARLIE.with_name("barkley"), Path(d) / "barkley")
+        (Path(d) / "C.BAS").write_text(bench.charlie_program().replace("TIMER - t0 >= 2", "TIMER - t0 >= 0"))
+        subprocess.run([str(bench.ROOT / "build/host/basic"), "C.BAS"], cwd=d, stdin=subprocess.DEVNULL,
+                       capture_output=True, timeout=120, env=os.environ | {"SDL_VIDEODRIVER": "dummy"})
+        log = Path(d) / "EACH.TXT"
+        rows = [r for r in log.read_text().split("\n") if r.strip()] if log.exists() else []
+        assert len(rows) == 1 + len(bench.CHARLIE_EACH), rows[:3]
+
+
 # Instructions a pass on arm64 macOS, with room over what they measured; past one, a regression.
 # A string's allocation over a literal's store: strg_gc inlined into strg_alloc saved and set up
 # its registers on every allocation, 238 (217 out of line).
@@ -141,6 +156,7 @@ def costs(b: bench.Build) -> None:
 
 def main() -> int:
     each_reps()
+    charlie_each()
     profile_cycles()
     profile_stop()
     broken_counter()

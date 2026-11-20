@@ -24,6 +24,8 @@ lit while a field has the focus; the insert cursor VGA's lines 13-14 (once 12-15
 F1 on a keyword opens the help window (Esc closes it, the frame as before; Alt+F1 after a link returns
 to the topic, Shift+F1 opens Using Help), F1 off a keyword only beeps, and F1 in a menu or in a
 dialog shows help over it: the help system was once "Help is not available".
+Started in / as from Finder, the app copies its demos into ~/Documents/QuickrBasic, the folders beside
+them too: a fixed list of files once left CHARLIE.BAS without its barkley package.
 """
 
 import os
@@ -163,12 +165,27 @@ def cell(w: int, pixels: bytes, col: int, row: int) -> set[tuple[int, ...]]:
     return {pixel(w, pixels, x, y) for x in range(col * 9, col * 9 + 9) for y in range(row * 16, row * 16 + 16)}
 
 
+def finder_copy(run: list[str], binary: str) -> bool:
+    """Started in /, as from Finder: each of the app's demos, in the folders beside them too, copied as it is."""
+    demos = Path(binary).parents[1] / "Resources/demos"
+    want = {p.relative_to(demos) for p in demos.rglob("*") if p.is_file() and not p.name.startswith(".")}
+    with tempfile.TemporaryDirectory() as home:
+        (Path(home) / "Documents").mkdir()
+        env = os.environ | {"HOME": home, "QB_SHOT": f"{home}/shot.ppm", "SDL_VIDEO_DRIVER": "offscreen",
+                            "SDL_AUDIO_DRIVER": "dummy"}
+        subprocess.run(run, env=env, timeout=30, check=True, cwd="/")
+        got = Path(home) / "Documents/QuickrBasic"
+        return any(p.parts[0] == "barkley" for p in want) and all(
+            (got / p).is_file() and (got / p).read_bytes() == (demos / p).read_bytes() for p in want)
+
+
 def main() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         program = Path(tmp) / "HELLO.BAS"
         program.write_text('PRINT "HELLO"\n')
         binary = str(Path(sys.argv[1]).resolve())
         run = ["arch", f"-{sys.argv[2]}", binary] if len(sys.argv) > 2 else [binary]
+        copied = finder_copy(run, binary)
         w, h, pixels = frame(run, program)
         _, _, menu = frame(run, program, "2100")
         box = Path(tmp) / "BOX.BAS"
@@ -290,6 +307,7 @@ def main() -> None:
         "F1 in a menu shows help": menu_f1 != menu_only,
         "F1 in a dialog shows help": open_f1 != open_only,
         "a long name's title whole": title_cells(lw, long_title) == len(f"LONG.BAS:{LONG_NAME}") + 3,
+        "a Finder start copies the demos, their folders too": copied,
     }
     failed = [name for name, ok in checks.items() if not ok]
     print(f"mac {sys.argv[2] if len(sys.argv) > 2 else ''} " + ("ok" if not failed else "FAIL " + ", ".join(failed)))
