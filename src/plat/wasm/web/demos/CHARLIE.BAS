@@ -4836,7 +4836,8 @@ end sub
 
 sub Things (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose, pt() as Part)
     dim i as integer, c as integer
-    const DT = STEPT * 2
+    ' typed: a const made from a const and left typeless is rounded to a whole number, 0 here
+    const DT! = STEPT * 2
     c = (cint(g.camx) - 100) \ TS
     if c < 0 then c = 0
     for i = lv.first(c) to lv.nObj - 1

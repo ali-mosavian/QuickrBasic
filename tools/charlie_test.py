@@ -178,6 +178,25 @@ if was then print "held ok"
 was = 0
 k.jump = 0
 k.was = 0
+' hit, his bones fly out and are gone in their four seconds, and a burst's dust dies: their step read 0, so both
+' hung in the air where they were made for ever, the bones never to be picked up
+dim bx as single, by as single
+StartGame wd, g, p, lo(), pt()
+g.bones = 3
+Hurt wd.mu, wd.se, g, p, cint(p.x) + 10, lo(), SHURT
+Burst wd.se, pt(), p.x, p.y - 40, 8, 100, CWHITE
+bx = lo(0).x
+by = lo(0).y
+was = wd.se.looseN = 3 and wd.se.partN >= 8
+for i = 1 to 30
+    Tick wd, g, p, k, lo(), pt()
+next
+was = was and lo(0).x <> bx and lo(0).y <> by
+for i = 1 to 300
+    Tick wd, g, p, k, lo(), pt()
+next
+if was and wd.se.looseN = 0 and wd.se.partN = 0 then print "spill ok"
+was = 0
 ' the first 45 degree ramp after flat ground, c its first column
 for c = 8 to wd.lv.w - 8
     j = GroundAt%(wd.lv, c * TS - 1)
@@ -618,7 +637,7 @@ for i = 1 to 40
 next
 if was and m and wd.lv.cart.hits = 2 then print "crane ok"
 ' its crate is held over Charlie stood still, let go, and hurts him; he aside, it breaks on the floor and the next
-' is a while off
+' is a while off, his bones his own still, with any of the first hit's he has picked up
 GoStage wd, 3, g, p, lo(), pt()
 Stand wd.lv, wd.gr, p, wd.lv.chaseX + 300, 0
 Tick wd, g, p, k, lo(), pt()
@@ -648,7 +667,7 @@ for i = 1 to 120
     end if
     if m and wd.lv.box.st = 0 then exit for
 next
-if was and m and p.inv = 0 and g.bones = 3 and wd.lv.box.st = 0 and wd.lv.box.t > 1 then print "crate ok"
+if was and m and p.inv = 0 and g.bones >= 3 and wd.lv.box.st = 0 and wd.lv.box.t > 1 then print "crate ok"
 ' its third bump breaks it: the toolbox falls, is not Charlie's while it does, and is once it lies; the works' own
 ' tune is back
 wd.lv.cart.hits = NBUMP - 1
@@ -2433,6 +2452,8 @@ def main() -> None:
         sys.exit(f"charlie: a bar of the tune or a sound effect: {out[-300:]}")
     if "held ok" not in out:
         sys.exit(f"charlie: jump held through a hit, and no jump as it ends: {out[-300:]}")
+    if "spill ok" not in out:
+        sys.exit(f"charlie: loose bones and dust still in the air five seconds on: {out[-300:]}")
     if "met ok" not in out:
         sys.exit(f"charlie: the level cleared, Charlie not stopped at its family, all of them in view: {out[-300:]}")
     for said, what in (
