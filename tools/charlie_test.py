@@ -1362,6 +1362,8 @@ for m = 0 to 1
         if not p.ground then exit for
     next
     was = was and p.sprung and wd.lv.ob(c).s > 0 and abs(p.x - wd.lv.ob(c).x - SAPREACH) < 20
+    ' the vine in his way is not for this throw
+    p.vineT = 9
     for i = 1 to 200
         Tick wd, g, p, k, lo(), pt()
         if p.vy >= 0 then exit for
@@ -1390,6 +1392,56 @@ for m = 0 to 1
     wd.lv.ob(c).s = 0
 next
 if was and (colB(0) < 134 or colB(0) > 137) and colB(1) >= 134 and colB(1) <= 137 then print "sapling ok"
+' a vine's end caught in the air: he hangs from it and swings as a weight would, 200 a second at its foot to 58
+' degrees, 1.02 of a radian, and back as far, the vine drawn with him; a jump at its foot lets go with the swing's
+' speed and a hop; the vine is not caught again at once, and hangs straight again
+for c = 0 to wd.lv.nObj - 1
+    if wd.lv.ob(c).k = KVINE then exit for
+next
+was = c < wd.lv.nObj
+p.vineT = 0
+p.ground = 0
+p.x = wd.lv.ob(c).x
+p.y = wd.lv.ob(c).y + VINELEN + VINEGRIP
+p.vx = 200
+p.vy = 0
+colA(0) = 0
+colA(1) = 0
+colB(0) = 0
+for i = 1 to 120
+    Tick wd, g, p, k, lo(), pt()
+    if p.sway * 100 > colA(0) then colA(0) = p.sway * 100
+    if p.sway * 100 < colA(1) then colA(1) = p.sway * 100
+    if colB(0) <> 0 or p.sway < .8 then continue for
+    g.shake = 0
+    Render wd, g, p, lo(), pt()
+    m = wd.lv.ob(c).x + cint(28 * sin(p.sway)) - int(g.camx)
+    colB(0) = point(m, wd.lv.ob(c).y + cint(28 * cos(p.sway)) - int(g.camy))
+    colB(1) = point(wd.lv.ob(c).x - int(g.camx), wd.lv.ob(c).y + 28 - int(g.camy))
+next
+was = was and p.vine = c + 1 and colA(0) > 97 and colA(0) < 107 and colA(1) < -97 and colA(1) > -107
+was = was and colB(0) = CVINE and colB(1) <> CVINE and colB(1) <> CVINED
+for i = 1 to 200
+    Tick wd, g, p, k, lo(), pt()
+    if p.swayV > 0 and abs(p.sway) < .05 then exit for
+next
+k.hit = -1
+Tick wd, g, p, k, lo(), pt()
+k.hit = 0
+was = was and p.vine = 0 and abs(p.vx - 200) < 15 and p.vy < -100
+for i = 1 to 3
+    Tick wd, g, p, k, lo(), pt()
+next
+was = was and p.vine = 0
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 60, 0
+for i = 1 to 80
+    Tick wd, g, p, k, lo(), pt()
+next
+g.shake = 0
+g.camy = wd.lv.ob(c).y - 40
+Render wd, g, p, lo(), pt()
+j = point(wd.lv.ob(c).x - int(g.camx), 68)
+if was and wd.lv.ob(c).s = 0 and j = CVINE then print "vine ok"
 ' the pass's bare ice keeps his speed and will not give it back: let go at a run he slides on where snow stops
 ' him, held back he is long in stopping, and from a stand he is slow away; it is drawn bare, the snow's white gone
 GoStage wd, 6, g, p, lo(), pt()
@@ -2707,6 +2759,7 @@ def main() -> None:
         ("wood ok", "Russet Wood, the fifth zone: its litter russet gold at a misty noon, not on the firefly night"),
         ("firefly ok", "the wood's night dark but for a few fireflies; a bark wakes them and lights it for a while"),
         ("sapling ok", "a bowed sapling throws him who crosses its crown, higher the faster; sprung it throws no one"),
+        ("vine ok", "a vine caught in the air swings him as a weight, lets go at a jump, and hangs straight again"),
         ("ice ok", "bare ice keeps his speed: a long slide, a long stop, a slow start; drawn bare of snow"),
         ("sled ok", "a sled is boarded, follows the slope, has no brake, keeps him through a hop, ends in deep snow"),
         ("geyser ok", "in the pass a jet is a geyser, the pass's water: it throws him up as it blows"),

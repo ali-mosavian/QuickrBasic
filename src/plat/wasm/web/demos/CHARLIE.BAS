@@ -47,6 +47,10 @@ type Hero
     snow as integer
     goat as integer
     rideT as single
+    vine as integer
+    vineT as single
+    sway as single
+    swayV as single
 end type
 
 ' The game's time against the screen's frames: lag, the time not yet stepped; span, a frame's length as learnt; late,
@@ -310,6 +314,9 @@ const CFLY = 163, GLOWT = 300, GLOWFADE = 60, GLOWN = 8, NFLY = 18, FLYREST = 5
 ' A sapling: its crown that far from its foot; its throw, what each of his speed adds to it, and at the most;
 ' the things' steps it stands sprung.
 const KSAPLING = 38, SAPREACH = 38, SAPV = 280!, SAPGAIN = .8, SAPMAX = 700!, SAPT = 30
+' A vine: its length; how far under its end his feet hang; the hop up as he lets go, and the seconds before he
+' may catch one again; its two colours.
+const KVINE = 39, VINELEN = 56, VINEGRIP = 14, VINEHOP = 150!, VINEWAIT = .4, CVINE = 147, CVINED = 156
 const HUDW = 108, HUDH = 40
 ' The levels: a zone's two acts, the second at another hour in other colours, zone by zone.
 ' the stages played, and after them the intro's road
@@ -603,6 +610,9 @@ declare sub MeetDrift (lv as Level, mu as Deck, se as Session, p as Hero, i as i
 declare sub MeetSpark (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose)
 declare sub MeetSpring (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
 declare sub MeetSapling (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
+declare sub MeetVine (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
+declare sub Hang (lv as Level, mu as Deck, se as Session, p as Hero, hit as integer)
+declare sub DrawVine (x as integer, y as integer, a as single)
 declare sub MeetBoost (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, pt() as Part)
 declare sub MeetFlume (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
 declare sub MeetMark (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, pt() as Part)
@@ -1495,6 +1505,7 @@ sub LoadLevel (wd as World, st as integer)
             wd.lv.nGulls = wd.lv.nGulls + 1
         case "spring": k = KSPRING
         case "sapling": k = KSAPLING
+        case "vine": AddObj wd.lv, KVINE, c * TS + 8, s - n * TS
         case "mark": k = KMARK
         case "boost": k = KBOOST
         case "loop": k = KLOOP
@@ -3237,7 +3248,10 @@ sub Pilot (lv as Level, gr as Ground, zn as Realm, se as Session, p as Hero, k a
     k.r = -1
     k.l = 0
     k.d = 0
-    if p.swim then
+    if p.vine then
+        ' hung from a vine: let go on the way up and forward, or where a small swing turns
+        hopNow = p.swayV > 0 and p.sway > 0 and (p.sway > .5 or p.swayV < 1)
+    elseif p.swim then
         hopNow = PilotSwim%(lv, zn, p, k)
     elseif p.ground and gr.pt(p.sg).k = 3 then
         want = PilotRide%(lv, gr, se, p, k)
@@ -3617,6 +3631,7 @@ sub MoveHero (lv as Level, gr as Ground, mu as Deck, se as Session, p as Hero, k
         hold = k.jump
     end if
     if p.barkT > 0 then p.barkT = p.barkT - STEPT
+    if p.vineT > 0 then p.vineT = p.vineT - STEPT
     if k.bark and p.stun = 0 and p.barkT <= 0 then Bark lv, mu, se, p
     KeepJump mu, se, p, hit
     if p.coyote > 0 then p.coyote = p.coyote - STEPT
@@ -3630,7 +3645,9 @@ sub MoveHero (lv as Level, gr as Ground, mu as Deck, se as Session, p as Hero, k
     end if
     if p.slip > 0 then p.slip = p.slip - STEPT
     if lv.gale then Buffet lv, se, p
-    if p.swim then
+    if p.vine then
+        Hang lv, mu, se, p, hit
+    elseif p.swim then
         Paddle lv, gr, mu, se, p, l, r, hit, pt()
     elseif p.ground then
         Walk lv, gr, mu, se, p, l, r, d, hit, pt()
@@ -3965,6 +3982,7 @@ sub Touch (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as
         case KJELLY: MeetJelly lv, mu, se, g, p, i, lo(), pt()
         case KSPRING: MeetSpring lv, mu, se, p, i
         case KSAPLING: MeetSapling lv, mu, se, p, i
+        case KVINE: MeetVine lv, mu, se, p, i
         case KBOOST: MeetBoost lv, mu, se, g, p, i, pt()
         case KFLUME, KSPOUT: MeetFlume lv, mu, se, p, i
         case KMARK: MeetMark lv, mu, se, g, p, i, pt()
@@ -4099,6 +4117,41 @@ sub MeetSapling (lv as Level, mu as Deck, se as Session, p as Hero, i as integer
     p.sprung = -1
     lv.ob(i).s = SAPT
     Sfx mu, se, SSPRING
+end sub
+
+' A vine's end reached in the air, and no vine just let go: he hangs from it, his way become its swing.
+sub MeetVine (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
+    if p.vine or p.vineT > 0 or p.ground or p.swim or p.stun or p.dead then exit sub
+    if abs(p.x - lv.ob(i).x) >= 12 or abs(p.y - VINEGRIP - lv.ob(i).y - VINELEN) >= 12 then exit sub
+    p.vine = i + 1
+    p.sway = (p.x - lv.ob(i).x) / VINELEN
+    p.swayV = p.vx / VINELEN
+    p.roll = 0
+    p.jumped = 0
+    p.sprung = 0
+    Sfx mu, se, SSPRING
+end sub
+
+' Hung from a vine: he swings as a weight on it, the vine with him; a jump lets go, with the swing's speed and a
+' hop up, and a hurt lets go without one.
+sub Hang (lv as Level, mu as Deck, se as Session, p as Hero, hit as integer)
+    dim i as integer
+    i = p.vine - 1
+    p.swayV = p.swayV - GRAV / VINELEN * sin(p.sway) * STEPT
+    p.sway = p.sway + p.swayV * STEPT
+    p.x = lv.ob(i).x + VINELEN * sin(p.sway)
+    p.y = lv.ob(i).y + VINELEN * cos(p.sway) + VINEGRIP
+    p.vx = VINELEN * p.swayV * cos(p.sway)
+    p.vy = -VINELEN * p.swayV * sin(p.sway)
+    lv.ob(i).s = cint(p.sway * 100)
+    if not (hit or p.stun or p.dead) then exit sub
+    p.vine = 0
+    p.vineT = VINEWAIT
+    p.want = 0
+    if not hit then exit sub
+    p.vy = p.vy - VINEHOP
+    p.roll = -1
+    Sfx mu, se, SJUMP
 end sub
 
 ' A boost pad: run over slower than it sends, he is sent the way he faces.
@@ -4643,6 +4696,20 @@ sub Buffet (lv as Level, se as Session, p as Hero)
     end if
 end sub
 
+' A vine hung from x, y on the screen, swung a radians from straight down: two strands, a leaf to each side turn
+' about, a loop at its end.
+sub DrawVine (x as integer, y as integer, a as single)
+    dim j as integer, u as integer, v as integer
+    for j = 0 to VINELEN
+        u = x + cint(j * sin(a))
+        v = y + cint(j * cos(a))
+        pset (u, v), CVINE
+        pset (u + 1, v), CVINED
+        if j mod 7 = 3 then line (u + 2 - 5 * ((j \ 7) and 1), v)-(u + 3 - 5 * ((j \ 7) and 1), v + 1), CVINE, bf
+    next
+    circle (u, v + 3), 3, CVINE
+end sub
+
 ' The wood's fireflies over the view, drifting, each dark a moment in turn: a few at rest, and all of them, haloed,
 ' while a bark's light lasts.
 sub DrawFlies (lv as Level, se as Session, cx as integer)
@@ -5021,6 +5088,7 @@ sub Things (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() a
         case KGOAT: if lv.ob(i).s <> 0 then Graze lv, se, i, p
         case KTHROW: TakeAim lv, i, p
         case KSPRING, KBUMP, KHOOP, KSAPLING: if lv.ob(i).s > 0 then lv.ob(i).s = lv.ob(i).s - 1
+        case KVINE: if p.vine <> i + 1 then lv.ob(i).s = lv.ob(i).s * 7 \ 8
         case KBUOY
             lv.ob(i).y = Bob%(lv, lv.ob(i).x, -4, 9)
             if lv.ob(i).s > 0 then lv.ob(i).s = lv.ob(i).s - 1
@@ -6085,6 +6153,7 @@ sub DrawThings (lv as Level, zn as Realm, art as Store, se as Session, cx as int
                 Blit art, x - 8, y - 15, ISPRING - 2 * (lv.ob(i).s > 0), 16, 16
             end if
         case KSAPLING: Blit art, x - 6, y - 49, ISAPLING - 2 * (lv.ob(i).s > 0), 60, 50
+        case KVINE: DrawVine x, y, lv.ob(i).s / 100
         case KBOOST: Blit art, x - 12, y - 9, IBOOST + ((se.ticks \ 4) and 1) * 2, 24, 10
         case KMARK: Blit art, x - 6, y - 31, IMARK + 2 * lv.ob(i).s, 12, 32
         case KGOAL
@@ -6439,7 +6508,7 @@ function HeroFrame% (se as Session, p as Hero)
     elseif p.swim then
         HeroFrame% = FRUN + (se.ticks \ 10) mod 6
     elseif not p.ground then
-        if p.sprung then HeroFrame% = FUP
+        if p.sprung or p.vine then HeroFrame% = FUP
     elseif p.skid then
         HeroFrame% = FSKID
     elseif p.crouch then

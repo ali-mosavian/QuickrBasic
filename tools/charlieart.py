@@ -4066,6 +4066,7 @@ FOLIAGE = both(
     141, "#FFE278 #F8BA40 #E88628 #C45624 #8C3028 #4A1C2C", "#BCB890 #9C9478 #7E6E68 #5E4E60 #42324E #20183A", 4
 )
 BERRY = both(157, "#EC5078 #A42858", "#A85088 #6C2C60", 4)
+VINE = both(147, "#8CB44C", "#4C7C6C", 4) + both(156, "#4C7C3C", "#2C5054", 4)  # the game draws its vines in these
 FIREFLY = both(163, "#B8E850 #F8FFA0", "#B8E850 #F8FFA0", 4)  # a jar's glass, what glows in it
 WOODFLOOR = 104  # where the far ferns begin, down the backdrop
 FROND = (2, 4, 6, 7, 6, 4, 3, 5, 7, 8, 6, 3, 2, 3, 5, 4)  # a rank of ferns' tops, by twos: a period of 32
