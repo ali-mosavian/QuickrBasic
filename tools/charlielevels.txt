@@ -151,7 +151,7 @@ goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
 ' chase: from here Frost flees on her toboggan, that many columns, down gentle falls; a sled waits before it and
 ' deep snow ends its ride short of the race's end, where she is come to on foot.
 Level Pass2
-tune,Whitecap
+tune,Blizzard
 gale,0
 flat,4, dog,0, flat,6, bones,6, flat,6, upg,2, flat,6, tree,0, flat,6, boost,0, flat,6, loop,0, flat,8
 up45,3, arc,9, pit,10, flat,14, rock,0, flat,6, jet,0, flat,4, upg,2, flat,6, bones,6, flat,6, chair,18, flat,10

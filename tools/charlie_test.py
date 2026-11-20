@@ -730,7 +730,13 @@ GoStage wd, 0, g, p, lo(), pt()
 was = was and wd.mu.zHeld = 1 and left$(wd.mu.song(ZTUNE).voicing, 1) = "h"
 GoStage wd, 1, g, p, lo(), pt()
 was = was and wd.mu.zHeld = 8 and wd.mu.song(ZTUNE).voicing = string$(28, "o") and len(wd.mu.song(ZTUNE).order) = 76
-for m = 1 to 5 step 2
+' the pass's blizzard in F sharp minor, its third voice the wind: it played the morning's tune, in A
+GoStage wd, 6, g, p, lo(), pt()
+was = was and wd.mu.zHeld = 14 and instr(wd.mu.song(ZTUNE).half(8).bass, "N22") > 0
+GoStage wd, 7, g, p, lo(), pt()
+was = was and wd.mu.zHeld = 15 and wd.mu.song(ZTUNE).tempo = 150 and len(wd.mu.song(ZTUNE).order) = 36
+was = was and instr(wd.mu.song(ZTUNE).half(8).bass, "N19") > 0 and instr(wd.mu.song(ZTUNE).midP, "W3") > 0
+for m = 1 to 7 step 2
     GoStage wd, m, g, p, lo(), pt()
     PickSong wd.mu, SongFor%(g), 0
     NextHalf wd.mu, wd.se
@@ -2413,18 +2419,18 @@ def pix(p: charlieart.Pic) -> int:
     return sum(c * ((x + y * 7) % 31 + 1) for y, row in enumerate(p.p) for x, c in enumerate(row))
 
 
-def refused(levels: str) -> bool:
-    """Whether the art tool will not pack these levels."""
-    kept = charlieart.LEVELS
+def refused(kind: str, text: str) -> bool:
+    """Whether the art tool will not pack this text as its levels ("LEVELS") or its songs ("SONG")."""
+    kept = getattr(charlieart, kind)
     with tempfile.TemporaryDirectory() as tmp:
-        charlieart.LEVELS = Path(tmp) / "levels.txt"
-        charlieart.LEVELS.write_text(levels)
+        setattr(charlieart, kind, Path(tmp) / "in.txt")
+        getattr(charlieart, kind).write_text(text)
         try:
-            charlieart.levels()
+            (charlieart.levels if kind == "LEVELS" else charlieart.song)()
         except SystemExit:
             return True
         finally:
-            charlieart.LEVELS = kept
+            setattr(charlieart, kind, kept)
     return False
 
 
@@ -2438,8 +2444,16 @@ def main() -> None:
     # a level's command the game has no case for it would pass over, and a level without its end it would read past:
     # the art tool packs neither
     lv = charlieart.LEVELS.read_text()
-    if refused(lv) or not refused(lv.replace("boost,0", "bosst,0", 1)) or not refused(lv.replace(", end,0", "", 1)):
+    if (
+        refused("LEVELS", lv)
+        or not refused("LEVELS", lv.replace("boost,0", "bosst,0", 1))
+        or not refused("LEVELS", lv.replace(", end,0", "", 1))
+    ):
         sys.exit("charlie: the art tool packs a level with a command misspelt or without its end, or none")
+    # a sound PLAY refuses stops the game where its song first plays: the art tool packs no song with one
+    sg = charlieart.SONG.read_text()
+    if refused("SONG", sg) or not refused("SONG", sg.replace('"W4H0,6,4,5Y0K2,10"', '"W4H0,6,4Y0K2,10"', 1)):
+        sys.exit("charlie: the art tool packs a song with a sound PLAY refuses, or none")
     with tempfile.TemporaryDirectory() as tmp:
         path = Path(tmp) / "T.BAS"
         path.write_text(src.replace("\nMain wd\nend\n", "\n" + DRIVER, 1))
@@ -2487,7 +2501,7 @@ def main() -> None:
         ("bridge ok", "a bridge raised by its button, to stand on"),
         ("works tune ok", "the Chrome Works played to their own tune"),
         ("sands tune ok", "Saltwick Sands played to their own tune"),
-        ("arranged ok", "a zone's second act played to its tune arranged again: evening, night and sunset"),
+        ("arranged ok", "a zone's second act played to its tune arranged again: evening, night, sunset, blizzard"),
         ("packing ok", "after a chase the level's end is the longer one, twelve bars; the eight elsewhere"),
         ("over ok", "game over played by its own tune and held while it plays; then the title"),
         ("tally ok", "the level's end's bonus counted on its tune's beats, a step each, and all at once at a key"),

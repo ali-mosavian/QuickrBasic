@@ -4223,9 +4223,40 @@ def levels() -> bytes:
     return struct.pack(f"<{len(at) + 1}i", len(at), *at) + b"".join(blocks)
 
 
+# A sound's commands, docs/sound.md: the numbers each takes at most and their ranges. H takes all four.
+PATCH = {
+    "V": [(0, 15)],
+    "W": [(0, 4)],
+    "Q": [(1, 99)],
+    "H": [(0, 15)] * 4,
+    "Y": [(0, 3), (30, 12000), (0, 15)],
+    "Z": [(1, 15), (0, 15), (0, 15), (0, 15), (0, 7)],
+    "U": [(0, 15)],
+    "K": [(0, 15), (0, 15), (0, 24)],
+    "S": [(1, 15)],
+    "R": [(0, 15)],
+    "I": [(0, 15)],
+}
+
+
+def refused_by_play(patch: str) -> bool:
+    """Whether PLAY would refuse this sound: a command it has not, too many numbers or one out of its range."""
+    found = re.findall(r"([A-Z])(\d+(?:,\d+)*)", patch)
+    if "".join(c + nums for c, nums in found) != patch:
+        return True
+    for c, nums in found:
+        vals = [int(v) for v in nums.split(",")]
+        ranges = PATCH.get(c, [])
+        if len(vals) > len(ranges) or (c == "H" and len(vals) != 4):
+            return True
+        if any(not lo <= v <= hi for v, (lo, hi) in zip(vals, ranges, strict=False)):
+            return True
+    return False
+
+
 def sound(n: int, s: list[int | str]) -> None:
     """Song n's DATA read as the game reads it: a bar, voicing, riff or drum it names and has not would stop the
-    game as it loaded, or play a rest."""
+    game as it loaded, or play a rest; a sound PLAY refuses would stop it where the song first played."""
     it = iter(s)
 
     def texts(k: int) -> list[str]:
@@ -4238,10 +4269,27 @@ def sound(n: int, s: list[int | str]) -> None:
     bars = int(next(it))
     for _ in range(12):
         next(it)
-    texts(4)
-    voices = [(str(next(it)), *texts(2), next(it))[0] for _ in range(int(next(it)))]
-    drums = [(str(next(it)), next(it), next(it), next(it), next(it))[0] for _ in range(int(next(it)))]
+    patches = texts(4)
+    voices, drums, notes = [], [], []
+    for _ in range(int(next(it))):
+        voices.append(str(next(it)))
+        patches += texts(2)
+        next(it)
+    for _ in range(int(next(it))):
+        drums.append(str(next(it)))
+        patches.append(str(next(it)))
+        notes.append(str((next(it), next(it), next(it))[2]))
     bass, chords, kits = (texts(int(next(it))) for _ in range(3))
+    if wrong := [x for x in patches if refused_by_play(x)]:
+        bad(f"PLAY would refuse its sound {wrong[0]!r}")
+    if any(not re.fullmatch(r"O[0-6][A-G][#+-]?", x) for x in notes):
+        bad(f"a drum's note is not an octave and a note: {notes}")
+    if (
+        len(voices) > game_const("NVOICE")
+        or len(drums) > game_const("NDRUM")
+        or max(map(len, (bass, chords, kits))) > 8
+    ):
+        bad("it has more voicings, drums, riffs or patterns than the game holds")
     if len(voicing) != bars or any(v not in voices for v in voicing):
         bad(f"its voicings {voicing!r} are not {bars} of {voices}")
     if any(ord(c) - 97 not in range(bars) for c in order) or bars > 30:

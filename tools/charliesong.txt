@@ -425,3 +425,40 @@ DATA 9, 4, 3, "s---------------", "l.osx.sol.osx.so", "o-------s-------", "o----
 DATA 9, 4, 1, "s---------------", "l.osx.sol.osx.so", "x---v---s---o---", "o---------------"
 DATA 14, 3, 1, "q---------------", "i.lqu.qli.lqu.ql", "q---u---x---u---", "l---------------"
 DATA 14, 2, 2, "q---------------", "i.lqu.qli.lqu.ql", "q-s-u-v-x-z-x-u-", "l---------------"
+
+' The pass in a blizzard, Whiteout: First Tracks in F sharp minor, its bars its own for their chords, the lead as
+' the morning has it. The third voice is the wind, a band of noise that swells half a bar where the lead rests;
+' the kick is heavier and comes twice in the bar's second half, the bass on every eighth, the sleigh bells softer.
+Song Blizzard:
+DATA "abcdefghijklefghijklmnopqrstefghijkl", "wwwwwwwwwwwwwwwwwwww", 20, 150, 1, 6, 12, 7, 0, 13, 9, 0, 0, 0, 1
+DATA "W4Z7,6,3,0H0,8,0,6R6"
+DATA "W4Z1,6,3,3,2H0,5,5,1", "W1H0,6,10,2", "R8W3H10,0,15,10Y2,800,8"
+DATA 1
+DATA "w", "S5R3W0Q30H0,3,7,1", "S11R3W4Z1,4,3,13,5H3,4,11,3U5", 0
+DATA 8
+USE DrumSet
+DATA "J", "W3H0,3,0,2K0Y3,7000,5", 7, 0, "O6B"
+DATA "B", "W4H0,6,4,5Y0K2,10", 15, 0, "O1C"
+DATA 4, "0.0.0.0.0.0.7.c.", "0.0.0.0.0.c.7.5.", "0...4...7...4.7.", "0...3...7...3.7."
+DATA 0
+DATA 4, "J...J...J...J...", "B.J.S.J.B.B.S.J.", "B.J.S.J.B.BJSTTS", "B...J...S...J.B."
+DATA 4, 1, 0, "", "g.jns.njg.jns.nj", "", "j---------------"
+DATA 4, 1, 0, "n---------------", "g.jns.njg.jns.nj", "", "........q-------"
+DATA 12, 1, 1, "s---------------", "j.osv.soj.osv.so", "", "s---------------"
+DATA 14, 2, 2, "q---------------", "i.lqu.qli.lqu.ql", "........q-s-u-x-", "j-------........"
+DATA 4, 1, 1, "n---------------", "g.jns.njg.jns.nj", "q-..n-q-v-----u-", ""
+DATA 12, 3, 1, "s---------------", "j.osv.soj.osv.so", "s-..o-s-v-------", "........o-------"
+DATA 4, 1, 1, "n---------------", "g.jns.njg.jns.nj", "q-..n-q-v---x-z-", ""
+DATA 11, 2, 1, "q---------------", "i.nqu.qni.nqu.qn", "x-----u-q-------", "........q-------"
+DATA 7, 3, 1, "q---------------", "j.nqv.qnj.nqv.qn", "z-..v-z-x---v---", ""
+DATA 12, 3, 1, "s---------------", "j.osv.soj.osv.so", "v-..s-v-s---o---", "........o-------"
+DATA 14, 1, 1, "q---------------", "i.lqu.qli.lqu.ql", "q-s-u-x-v-u-s-u-", ""
+DATA 4, 2, 2, "n---------------", "g.jns.njg.jns.nj", "v-------........", "........j-------"
+DATA 9, 4, 3, "s---------------", "l.osx.sol.osx.so", "s-------v-------", ""
+DATA 9, 1, 3, "s---------------", "l.osx.sol.osx.so", "o---s---v---s---", "........v-------"
+DATA 4, 4, 3, "n---------------", "g.jns.njg.jns.nj", "q-------n---q---", ""
+DATA 4, 1, 3, "n---------------", "g.jns.njg.jns.nj", "v-----------q---", "........q-------"
+DATA 12, 3, 3, "s---------------", "j.osv.soj.osv.so", "o-------s-------", ""
+DATA 12, 3, 1, "s---------------", "j.osv.soj.osv.so", "x---v---s---o---", "........o-------"
+DATA 11, 4, 1, "q---------------", "i.nqu.qni.nqu.qn", "q---u---x---u---", ""
+DATA 14, 2, 2, "q---------------", "i.lqu.qli.lqu.ql", "q-s-u-v-x-z-x-u-", ""
