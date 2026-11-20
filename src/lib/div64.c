@@ -1,31 +1,67 @@
-/* 64-bit division by shifts and subtractions, for a target whose compiler calls a helper for it.
+/* 64-bit division on the CPU's divide, for a target whose compiler calls a helper for it.
  *
  * # How it works
- * Operands of 32 bits take the 32-bit division. Wider ones shift the dividend's bits into the
- * remainder, highest first, subtracting the divisor where it fits. Nothing here divides 64 bits,
- * so the helpers built on it (lib/crt.c) never call themselves (tools/libcalls_test.py).
+ * Each target's divide gives 64 bits by 32 (div_64by32): i386's DIV, x86-64's 32-bit one, arm64's
+ * UDIV and MSUB. A 32-bit divisor takes two, the high word first. A wider one makes a quotient of 32
+ * bits: the divisor normalized to its top bit, half the dividend divided by its high word, the
+ * estimate one low at most, corrected once (Hacker's Delight, divdu). Nothing here divides 64 bits
+ * in C, so the helpers built on it (lib/crt.c) never call themselves (tools/libcalls_test.py).
  */
 #include "lib/div64.h"
 
+/* hi:lo / d, hi below d: the quotient, *r the remainder. d 0: the CPU's divide by zero. */
+static inline uint32_t div_64by32(
+    const uint32_t hi,
+    const uint32_t lo,
+    const uint32_t d,
+    uint32_t *const r
+)
+{
+#if defined(__i386__) || defined(__x86_64__)
+    uint32_t q, rest;
+    __asm__("divl %[d]" : "=a"(q), "=d"(rest) : "a"(lo), "d"(hi), [d] "rm"(d) : "cc");
+    *r = rest;
+    return q;
+#elif defined(__aarch64__)
+    const uint64_t n = (uint64_t)hi << 32 | lo;
+    uint64_t q, rest;
+    __asm__("udiv %[q], %[n], %[d]\n\tmsub %[r], %[q], %[d], %[n]"
+            : [q] "=&r"(q), [r] "=r"(rest)
+            : [n] "r"(n), [d] "r"((uint64_t)d));
+    *r = (uint32_t)rest;
+    return (uint32_t)q;
+#else
+#error "lib/div64.c: no divide for this target"
+#endif
+}
+
 uint64_t div64_u(const uint64_t n, const uint64_t d, uint64_t *const rem)
 {
-    if (!(d >> 32) && (!(n >> 32) || !d)) {
-        *rem = (uint32_t)n % (uint32_t)d;
-        return (uint32_t)n / (uint32_t)d;
+    const uint32_t dh = (uint32_t)(d >> 32);
+
+    if (!dh) {
+        uint32_t r;
+        const uint32_t qh = div_64by32(0, (uint32_t)(n >> 32), (uint32_t)d, &r);
+        const uint32_t ql = div_64by32(r, (uint32_t)n, (uint32_t)d, &r);
+        *rem = r;
+        return (uint64_t)qh << 32 | ql;
     }
 
-    uint64_t q = 0, r = 0;
+    const uint32_t s = (uint32_t)__builtin_clz(dh);
+    const uint64_t half = n >> 1; /* its high word below the normalized divisor's */
+    uint32_t r;
+    uint64_t q =
+        ((uint64_t)
+             div_64by32((uint32_t)(half >> 32), (uint32_t)half, (uint32_t)((d << s) >> 32), &r)
+         << s) >>
+        31;
 
-    for (uint32_t i = 64; i-- > 0;) {
-        r = r << 1 | (n >> i & 1);
+    if (q)
+        q--;
+    if (n - q * d >= d)
+        q++;
 
-        if (r >= d) {
-            r -= d;
-            q |= (uint64_t)1 << i;
-        }
-    }
-
-    *rem = r;
+    *rem = n - q * d;
     return q;
 }
 
