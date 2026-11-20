@@ -259,6 +259,9 @@ CASES = {
     # COMMON's values past the CHAIN buffer's first bytes: it grows.
     "qb_chainbig": ('COMMON s$, x()\r\nDIM x(600)\r\nx(500) = 5: s$ = STRING$(3000, "z")\r\nCHAIN "QB_CH3"\r\n',
                     " 3000 z 5 \r\n", None),
+    # 512 COMMON variables and 64 KB of values at most: past either, CHAIN was Out of memory.
+    "qb_chain_many": (f"COMMON {', '.join(f'c{i}' for i in range(600))}, x() AS LONG\r\nDIM x(30000) AS LONG\r\n"
+                      'c0 = 1: c599 = 599: x(30000) = 7\r\nCHAIN "QB_CH5"\r\n', " 1  599  7 \r\n", "ERROR"),
     # Declarations were by name, program-wide: a module's DIM AS typed a SUB's local, a SUB's DIM AS
     # and CONST the module's and other SUBs' (Type mismatch; the module's k became 2), and a GOSUB
     # took another procedure's label. Each scope is now its own, the module's seen when shared.
@@ -1186,6 +1189,7 @@ FILES = {
     "WHERE.BI": b"' included\r\n\r\nY = 1 +\r\n",
     "QB_CH3.BAS": b'COMMON q$, y()\r\nPRINT LEN(q$); RIGHT$(q$, 1); y(500)\r\n',
     "QB_CH4.BAS": b"COMMON m AS BYTE, y() AS BYTE\r\nPRINT m; LEN(m); y(2)\r\nm = m + 6\r\n",
+    "QB_CH5.BAS": f"COMMON {', '.join(f'd{i}' for i in range(600))}, y() AS LONG\r\nPRINT d0; d599; y(30000)\r\n".encode(),
     "QB_CH2.BAS": b'COMMON b%, q$, e#, y(), u AS SHORT\r\nPRINT b%; q$; e#; y(3); LBOUND(y); u; t\r\n'
                   b'PRINT #1, "kept": CLOSE #1\r\nON ERROR GOTO h\r\nCHAIN "NONE"\r\nEND\r\nh: PRINT "e"; ERR: RESUME NEXT\r\n',
 }
@@ -1227,6 +1231,108 @@ def check_host_errors(tmp: Path) -> None:
         p = subprocess.run([str(dosrun.COM.resolve()), f"sub/{name}"], cwd=tmp, capture_output=True, text=True, timeout=10)
         got = (name, p.returncode, p.stdout, p.stderr)
         assert re.search(out, p.stdout) and re.search(err, p.stderr) and p.returncode == rc, got
+
+
+# The compiler's fixed tables, each Out of memory or a Syntax error one past its size; a program
+# grows until memory runs out.
+BIG |= {
+    # 2,048 block entries: 1,100 block IFs were Out of memory, with no line.
+    "limit_blocks": (bas("n = 0", *["if n = 0 then", " n = 0", "end if"] * 1100, "print n"), " 0 \r\n", "ERROR"),
+    # 64 blocks open: the 65th IF in was a Syntax error.
+    "limit_nesting": (bas("n = 0", *["if n = 0 then"] * 100, "n = 7", *["end if"] * 100, "print n"), " 7 \r\n", "ERROR"),
+    # 255 procedures, numbered by a byte: the 256th was Out of memory, with no line.
+    "limit_procs": (bas(*[f"declare function f{i}% (x%)" for i in range(600)], "print f599%(1); f0%(2)",
+                        *[x for i in range(600) for x in (f"function f{i}% (x%)", " dim a(3) as integer: a(1) = x%",
+                                                          f" f{i}% = a(1) + {i}", "end function")]),
+                    " 600  2 \r\n", "ERROR"),
+    # 63 TYPEs, numbered in a byte as ET_REC + t: the 64th was Out of memory. TYPE 299 in each role.
+    "limit_types": (bas(*[x for i in range(299) for x in (f"type t{i}", " a as integer", "end type")],
+                        "type t299", " n as long", " s as string * 4", " v as string", " k() as long", " c as t298",
+                        "end type", "declare sub show (r as t299)", "declare function mk (n as long) as t299",
+                        "dim r as t299, rs(2) as t299", 'r.n = 299: r.s = "abcd": r.v = "var": r.c.a = 298',
+                        "redim r.k(3): r.k(3) = 33", "rs(1) = r", "redim preserve rs(4)", "show rs(1)",
+                        "dim q as t299", "q = mk(7)", "print q.n; q.k(2); len(rs(0)) = len(r)", "end",
+                        "sub show (r as t299)", " dim l(1) as t299", " l(0) = r",
+                        " print l(0).n; l(0).s; l(0).v; l(0).k(3); l(0).c.a", "end sub",
+                        "function mk (n as long) as t299", " mk.n = n", " redim mk.k(2): mk.k(2) = n * 2",
+                        "end function"),
+                    " 299 abcdvar 33  298 \r\n 7  14 -1 \r\n", "ERROR"),
+    # 16,384 bindings, line numbers' too: line 16384 was Out of memory.
+    "limit_bindings": ("".join(f"{i + 1} n = n + 1\r\n" for i in range(17000)) + "17001 print n\r\n",
+                       " 17000 \r\n", "ERROR"),
+    # 512 fields, all TYPEs': the 513th was Out of memory.
+    "limit_fields": (bas(*[x for i in range(6) for x in (f"type t{i}", *[f" f{j} as integer" for j in range(100)], "end type")],
+                         "dim v as t5", "v.f99 = 599", "print v.f99"), " 599 \r\n", "ERROR"),
+    # 65,535 variables and names, numbered in 16 bits: the 65,536th was Out of memory.
+    "limit_vars": (bas(*[":".join(f"v{i} = {i}" for i in range(k, k + 20)) for k in range(0, 70000, 20)],
+                       "print v0; v69999; v35000"), " 0  69999  35000 \r\n", "ERROR"),
+    # A procedure's name past 16,383 names carried the array scope's bit: LBOUND of its scalar was 0.
+    "limit_scope_bits": (bas(*[":".join(f"w{i} = 1" for i in range(k, k + 20)) for k in range(0, 17000, 20)],
+                             "s", "sub s", " dim y as integer", " print lbound(y)", "end sub"),
+                         "Array not defined", " 0"),
+    # 48 string temporaries, a caller's kept through each call: a string FUNCTION 48 deep was
+    # String formula too complex.
+    "limit_temps": (bas("function wrap$ (n)", ' if n = 0 then wrap$ = "" else wrap$ = "(" + wrap$(n - 1) + ")"',
+                        "end function", "print len(wrap$(1000)); right$(wrap$(1000), 3)"), " 2000 )))\r\n", "ERROR"),
+    # A call's parameter count in a byte: past 255 the return left the stack short, 5 + f(..) * 2 598.
+    "limit_params": (bas("for i = 1 to 2", f"print 5 + f({', '.join(map(str, range(300)))}) * 2; 9", "next",
+                         f"function f ({', '.join(f'p{i}' for i in range(300))})", " f = p0 + p299", "end function"),
+                     " 603  9 \r\n 603  9 \r\n", "ERROR"),
+    # A frame's cells in 16 bits: 65,540 locals made a 4-cell frame, and the call wrote past the stack.
+    # Then a frame past 32 KB was Out of stack space.
+    "limit_frame": (bas("s", "sub s", *[":".join(f"v{i} = {i}" for i in range(k, k + 20)) for k in range(0, 65540, 20)],
+                        "print v65539", "end sub"), " 65539 \r\n", "ERROR"),
+    # The data stack was 32 KB and the frames 800: a FUNCTION 100,000 deep, GOSUB 100,000 deep were
+    # Out of stack space.
+    "limit_calls": (bas("print f&(100000)", "function f& (n&)", " if n& > 0 then f& = 1 + f&(n& - 1)", "end function"),
+                    " 100000 \r\n", "ERROR"),
+    "limit_gosubs": (bas("gosub 10: print d&: end", "10 d& = d& + 1", "if d& < 100000 then gosub 10", "return"),
+                     " 100000 \r\n", "ERROR"),
+    # Calls past the data stack's first segment: by-value strings and a caller's local string live
+    # on in the callers' segments, a by-reference argument is the caller's, and ON LOCAL ERROR deep
+    # down unwinds to the segment it was set in.
+    "limit_call_segments": (bas("print h$(1500, \"\")", "t& = 0: c 3000, t&: print t&", "o", "print f&(5000)",
+                                "function h$ (n&, s$)", " dim t$", " t$ = chr$(65 + n& mod 26)",
+                                " if n& = 0 then h$ = left$(s$, 3) + right$(s$, 3): exit function",
+                                " h$ = h$(n& - 1, (s$ + t$))", "end function",
+                                "sub c (n&, t&)", " t& = t& + 1", " if n& > 0 then c n& - 1, t&", "end sub",
+                                "sub o", " on local error goto oh", " d 4000", " exit sub", "oh:",
+                                " print \"caught\"; err", " resume next", "end sub",
+                                "sub d (n&)", " if n& = 0 then error 5 else d n& - 1", "end sub",
+                                "function f& (n&)", " if n& > 0 then f& = 1 + f&(n& - 1)", "end function"),
+                            "SRQDCB\r\n 3001 \r\ncaught 5 \r\n 5000 \r\n", "ERROR"),
+    # A local array on the heap freed at its call's return, the call marked when the array was
+    # made: by its own DIM, or by a callee's REDIM of it. Unmarked, 300 calls left 48 MB: Out of
+    # memory.
+    "local_heap_arrays": (bas("for i = 1 to 300: s 20000: c: next: print \"ok\"",
+                              "sub s (n)", " dim b(n): b(n) = 1", "end sub",
+                              "sub c", " r a()", "end sub", "sub r (x())", " redim x(20000): x(5) = 1", "end sub"),
+                          "ok\r\n", "ERROR"),
+    # A SUB's dynamic arrays on its call's arena, not the heap: the newest one ERASEd or REDIMmed
+    # gives its room back, REDIM PRESERVE slides into the old one's, its strings' owners following
+    # (else z$ moves over them). On the heap FRE dropped 60; an error's recovery keeps the arena.
+    "local_arena_arrays": (bas("type t", " s as string", " n as integer", "end type",
+                               "s 10", "print \"back\"",
+                               "sub s (n)", " f = fre(0)",
+                               " for i = 1 to 3000: redim c(n): c(1) = i: erase c: next",
+                               " dim a(n)", " for i = 1 to 3000: redim preserve a(n + i mod 7): a(n) = i: next",
+                               " print a(n); ubound(a); f - fre(0)",
+                               " dim b$(n)", " for j = 0 to n: b$(j) = str$(j): next", " z$ = string$(40, \"z\")",
+                               " for i = 1 to 3000: redim preserve b$(n + i mod 5): if i mod 50 = 0 then x = fre(0)",
+                               " next", " print b$(0); b$(n); ubound(b$)",
+                               " r n", " e n", " k n", "end sub",
+                               "sub r (n)", " dim p(n) as t",
+                               " for j = 0 to n: p(j).s = \"r\" + str$(j): p(j).n = j: next", " z$ = string$(40, \"z\")",
+                               " for i = 1 to 2000: redim preserve p(n + i mod 4) as t: if i mod 50 = 0 then x = fre(0)",
+                               " next", " print p(0).s; p(n).s; p(n).n; ubound(p)", "end sub",
+                               "sub e (n)", " on local error goto h", " dim a(n): a(1) = 5", " x = 1 / 0",
+                               " print a(1); a(n)", " exit sub", "h: resume next", "end sub",
+                               "sub k (n)", " redim a(n): a(1) = 7", " g a()", " print a(1); ubound(a)",
+                               " redim a(3): a(3) = 2", " print a(3); ubound(a)", "end sub",
+                               "sub g (x())", " redim x(20): x(1) = 3", "end sub"),
+                           " 3000  14  0 \r\n 0 10 10 \r\nr 0r 10 10  10 \r\n 5  0 \r\n 3  20 \r\n 2  3 \r\n"
+                           "back\r\n", "ERROR"),
+}
 
 
 # What the host build (plat/host) cannot show as DOS does, each for its reason.

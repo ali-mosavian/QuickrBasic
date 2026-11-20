@@ -40,6 +40,7 @@
 #include "num/fpmath.h"
 #include "vm/event.h"
 #include "vm/flow.h"
+#include "vm/stack.h"
 #include "vm/stmts.h"
 
 enum { PROBE_OUT_MAX = 79 };
@@ -85,7 +86,7 @@ uint32_t dbug_depth(const Vm *const vm)
     uint32_t n = 0;
 
     for (uint32_t i = 0; i < vm_nframes(vm); i++)
-        n += vm->frames[i].kind == FRAME_CALL || vm->frames[i].kind == FRAME_GOSUB;
+        n += frame_is_call(&vm->frames[i]) || vm->frames[i].kind == FRAME_GOSUB;
 
     return n;
 }
@@ -103,7 +104,7 @@ DebugPos dbug_pos(Session *const S, const uint32_t line, const uint8_t *const co
 typedef struct {
     uint8_t *ip, *opip;
     Cell *sp, *rsp;
-    uint32_t nframes;
+    uint32_t nframes, seg;
     Addr fp;
     Place cont;
     uint32_t line;
@@ -111,7 +112,7 @@ typedef struct {
     uint8_t stop;
     bool in_error, running;
     jmp_buf loop;
-    uint16_t tmp_used, tmp_floor;
+    uint32_t tmp_used, tmp_floor;
     uint8_t capture, col;
     uint32_t sblen;
     uint8_t mode;
@@ -127,6 +128,7 @@ static void save(Session *const S, Saved *const s)
         .sp = S->vm.sp,
         .rsp = S->vm.rsp,
         .nframes = vm_nframes(&S->vm),
+        .seg = S->vm.stak.cur,
         .fp = S->vm.fp,
         .cont = S->vm.cont,
         .line = S->vm.line,
@@ -157,6 +159,7 @@ static void restore(Session *const S, const Saved *const s)
     S->vm.sp = s->sp;
     S->vm.rsp = s->rsp;
     S->vm.ftop = S->vm.frames + s->nframes;
+    stack_back(S, s->seg, 1); /* the probe's calls' segments */
     S->vm.fp = s->fp;
     S->vm.cont = s->cont;
     S->vm.line = s->line;
@@ -203,7 +206,7 @@ static Status run_probe(Session *const S, const char *const expr)
     return c.code;
 }
 
-Status dbug_eval(Session *const S, const char *const expr, const uint8_t proc, char out[static 80])
+Status dbug_eval(Session *const S, const char *const expr, const uint32_t proc, char out[static 80])
 {
     static Saved s; /* one probe at a time: no line of its can run another */
     save(S, &s);

@@ -155,6 +155,8 @@ routines (PRINT, INPUT, MID$ ...). `ops.def` defines all 244 ops.
 
 **Control.** GOSUB, a SUB or FUNCTION call, and an event's handler each push a `Frame` on
 `vm.frames`. A call's frame is on the data stack: its arguments above `vm.fp`, its locals below.
+The frames and the data stack's segments grow from the heap's top as calls nest, memory their
+only limit (`vm/stack.c`).
 A FOR loop is no frame: it is plain loads, stores, a compare and a jump, its limit and step hidden
 variables. Before fusion:
 

@@ -62,15 +62,14 @@ bool session_stopped_at(Session *const S, DebugPos *const pos)
 
 void session_drop_stop(Session *const S)
 {
-    S->vm.ftop = S->vm.frames;
-    S->vm.fp = 0;
+    flow_drop_calls(S);
     S->vm.cont.line = 0;
 }
 
 bool session_set_next(Session *const S, const uint32_t line)
 {
     comp_proc(&S->comp, blok_procof(&S->blok, line));
-    const uint8_t proc = S->comp.proc;
+    const uint32_t proc = S->comp.proc;
     comp_proc(&S->comp, blok_procof(&S->blok, S->vm.cont.line));
 
     if (proc != S->comp.proc)
@@ -85,7 +84,7 @@ bool session_set_next(Session *const S, const uint32_t line)
 static int32_t call_from(const Vm *const vm, int32_t i)
 {
     for (; i >= 0; i--)
-        if (vm->frames[i].kind == FRAME_CALL)
+        if (frame_is_call(&vm->frames[i]))
             return i;
 
     return -1;
@@ -114,7 +113,7 @@ uint32_t session_frames(const Session *const S, DebugFrame out[], const uint32_t
 Addr session_cell(
     const Session *const S,
     const DebugFrame *const f,
-    const uint16_t id,
+    const uint32_t id,
     const int32_t par
 )
 {
@@ -135,7 +134,7 @@ bool session_in_direct(const Session *const S)
 Status session_eval(
     Session *const S,
     const char *const expr,
-    const uint8_t proc,
+    const uint32_t proc,
     char out[static 80]
 )
 {
@@ -160,8 +159,7 @@ void session_drop(Session *const S)
     S->link.cursor = 0;
     S->link.linked = false;
     S->link.lmask = 0;
-    S->vm.ftop = S->vm.frames;
-    S->vm.fp = 0;
+    flow_drop_calls(S);
     prog_terminate(&S->prog);
     session_clear(S);
 }

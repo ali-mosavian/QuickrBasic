@@ -29,7 +29,6 @@ enum : uint8_t {
     ET_SH = 6, /* SHORT: 2 bytes in a record, else an INT */
     ET_BY = 7, /* BYTE: 0 .. 255, 1 byte in a record, else an INT */
     ET_REC = 0x40,
-    EMAX = 254,
 };
 
 enum {
@@ -38,12 +37,6 @@ enum {
     VS = 4,       /* a variable's slot, a number's bytes */
     NB = 4,       /* a stored FLOAT's bytes */
     MAXDIMS = 60, /* an array's dimensions at most, BC's */
-    NTMP = 48,    /* string temporaries */
-    NPROC = 256,  /* procedures, 1 .. NPROC-1 */
-    NPPAR = 2048, /* their parameters, all */
-    NTYPE = 64,
-    NFLD = 512,
-    NBLK = 2048, /* block statements' entries */
 };
 
 /* A name's flags. NM_REC: declared AS a TYPE somewhere, never cleared. */
@@ -59,7 +52,7 @@ enum : uint8_t {
     BF_USE = 32,
     BF_RES = 64
 };
-enum : uint16_t { SC_NUM = 0x8000, SC_ARR = 0x4000 };
+enum : uint32_t { SC_NUM = 0x80000000, SC_ARR = 0x40000000 };
 
 /* A jump target's mode: the statement, past the JMP it starts with, or the statement after it. */
 typedef enum : uint8_t { TO_STMT, PAST_JMP, TO_NEXT_STMT } JumpMode;
@@ -82,6 +75,8 @@ enum : uint32_t {
 
 /* Tokens in a stored line. */
 enum : uint8_t { M_VAR = 1, M_INT = 2, REM_Q = 3 };
+/* An M_VAR's name id: its bytes, after its length and text. */
+enum { NAME_ID = 4 };
 
 /* A line's record in the program store, its body after it. */
 typedef struct PACKED {
@@ -100,7 +95,7 @@ enum { HDR = sizeof(Line) };
 enum : uint8_t { LF_ASIS = 1, LF_BP = 2, LF_INC = 4, LF_NODEF = 8 };
 enum : uint32_t {
     NONUM = 0xFFFF,
-    LMAX = 0xFEE0,     /* a line's body at most */
+    LMAX = 0x17000,    /* a line's body at most: 0xFEE0 with 2-byte name ids, times 7/5 */
     BOFF = 0xFFFFFFFF, /* a statement map's body offset of the line's end */
     PDIR = 0x80000000, /* a target's flag: the direct line's */
     XSLK = 48,         /* the most one op writes past its size */
@@ -161,7 +156,7 @@ enum { BHDR = sizeof(StrTail) };
    bounds. */
 typedef struct PACKED {
     uint8_t dims;
-    uint8_t et; /* ours: its elements' ET_*, ET_REC + t a TYPE's */
+    uint32_t et; /* ours: its elements' ET_*, ET_REC + t a TYPE's */
     Addr data;
     uint32_t fast;
     Addr owner; /* ours: its cell (mem/array.c), 0 dead */
@@ -267,12 +262,15 @@ enum {
     HSIZE = 1024,      /* the symbols' hash chains */
     DCODE = 0x0100,    /* the direct line's stream */
     CACHE0 = DCODE + 1536,
-    HMIN = 0x40000,   /* the heap at least */
-    STKSZ = 0x10000,  /* the data stack */
-    STKROOM = 0x8000, /* its room for the run */
-    CPROOM = 0x4000,  /* the compiler's frames */
-    OBSZ = 256,       /* the output buffer */
+    HMIN = 0x40000,            /* the heap at least */
+    STKSZ = 0x10000,           /* the data stack */
+    STKROOM = 0x8000,          /* its room for the run */
+    STKEVAL = STKSZ - STKROOM, /* under vm.stklim: a statement's own values */
+    CPROOM = 0x4000,           /* the compiler's frames */
+    OBSZ = 256,                /* the output buffer */
 };
+/* String temporaries: one per cell of the data stack's first room, 48 over. */
+enum { NTMP = STKROOM / sizeof(Cell) + 48 };
 
 /* Block statements (comp/block), procedures, TYPEs: their records are comp's. */
 enum : uint8_t {
@@ -296,8 +294,6 @@ enum : uint8_t { PK_SUB = 1, PK_FUNC = 2, PK_END = 3 };
 enum : uint8_t {
     PF_STAT = 1,
     PF_DEF = 2,
-    PF_ARRAYS = 4,
     PF_RESARG = 8
-}; /* PF_ARRAYS: a local array or record in its frame. PF_RESARG, ours: a FUNCTION's record or array
-      result, its last parameter (blok_nargs) */
+}; /* PF_RESARG, ours: a FUNCTION's record or array result, its last parameter (blok_nargs) */
 #endif

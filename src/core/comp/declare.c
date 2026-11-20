@@ -28,7 +28,7 @@
  * | g_dast, g_etsz | decl_astype[5], decl_etsize[8] | MIRROR |
  * | g_dft0, g_dett | deft0, deftype | MIRROR |
  * | g_wpre .. g_wtail, g_wbuf | repl_warn (io/repl.c) | MOVED |
- * | lx.dproc, lx.ntyps, lx.nflds, lx.dtype | decl.proc, decl.ntypes, decl.nfields, decl.type | MOVED: lex's state before |
+ * | lx.dproc, lx.ntyps, lx.dtype | decl.proc, decl.ntypes, decl.type | MOVED: lex's state before |
  *
  * - D1. The asm's reads g_cbuf; the C takes the body.
  * - D2. The tables live in Decl's arena: a TYPE holds its own fields; limits as the asm's.
@@ -181,9 +181,9 @@ const uint8_t *decl_dims(
 }
 
 /* The name at s (M_VAR), stepped past; *sfx its suffix, 0 none. */
-static uint16_t decl_name(DeclScan *const ds, uint8_t *const sfx)
+static uint32_t decl_name(DeclScan *const ds, uint8_t *const sfx)
 {
-    const uint16_t n = comp_nameof(ds->at);
+    const uint32_t n = comp_nameof(ds->at);
 
     if (sfx)
         *sfx = comp_suffixof(ds->at);
@@ -334,6 +334,7 @@ static void decl_room(
 void decl_init(Decl *const d, Fault *const f)
 {
     arena_init(&d->arena, DECL_CHUNK);
+    btab_init(&d->types, sizeof(TypeDef));
     d->fault = f;
 }
 
@@ -341,11 +342,12 @@ void decl_reset(Decl *const d, Scop *const sc, Symb *const sy)
 {
     arena_reset(&d->arena);
     *d = (Decl){.arena = d->arena, .fault = d->fault};
+    btab_init(&d->types, sizeof(TypeDef));
 
     memcpy(sy->deft, deft0, NLETTERS);
     scop_reset(sc);
 
-    for (uint16_t i = sy->nnames; i-- > 1;) {
+    for (uint32_t i = sy->nnames; i-- > 1;) {
         Name *const n = symb_name(sy, i);
         n->flags &= NM_FN;
         n->rec = 0;
@@ -386,13 +388,13 @@ void decl_deftype(const Decl *const d, Symb *const sy, const uint32_t line)
 }
 
 /* Name n an array known in scope from here on. */
-static void decl_array(DeclScan *const ds, const uint16_t n, const uint16_t scope)
+static void decl_array(DeclScan *const ds, const uint32_t n, const uint32_t scope)
 {
     scop_bind(ds->sc, scope | SC_ARR, n);
 }
 
 /* A procedure's REDIM of a name the module shares with it: the module's array. */
-static void decl_redimscope(DeclScan *const ds, const uint16_t n)
+static void decl_redimscope(DeclScan *const ds, const uint32_t n)
 {
     if (!ds->d->redim || !ds->d->scope)
         return;
@@ -406,16 +408,16 @@ static void decl_redimscope(DeclScan *const ds, const uint16_t n)
 }
 
 /* A procedure's DIM of a name the module shares: Duplicate definition (QB45's, PDS's). */
-static void decl_shareddim(DeclScan *const ds, const uint16_t n)
+static void decl_shareddim(DeclScan *const ds, const uint32_t n)
 {
     if (ds->d->scope && scop_mshr(ds->sc, n))
         decl_fail(ds, E_RD);
 }
 
-static void decl_as(DeclScan *ds, Binding *b, uint16_t n, bool arr);
+static void decl_as(DeclScan *ds, Binding *b, uint32_t n, bool arr);
 
 /* One of DIM's names, a parameter: its binding, ( ) an array's, AS type [* n]. */
-static void decl_dim1(DeclScan *const ds, const uint16_t n)
+static void decl_dim1(DeclScan *const ds, const uint32_t n)
 {
     Binding *const b = scop_bind(ds->sc, ds->d->scope, n);
     const bool arr = *ds->at == '(';
@@ -441,7 +443,7 @@ static void decl_dim1(DeclScan *const ds, const uint16_t n)
 }
 
 /* AS type [* n] at ds.at, name n's: its binding b's, the array's when arr. */
-static void decl_as(DeclScan *const ds, Binding *const b, const uint16_t n, const bool arr)
+static void decl_as(DeclScan *const ds, Binding *const b, const uint32_t n, const bool arr)
 {
     if (*ds->at != TK_AS)
         return;
@@ -518,12 +520,12 @@ static void decl_dimlist(DeclScan *const ds, const uint8_t flags)
         if (*ds->at != M_VAR)
             return;
 
-        const uint16_t n = decl_name(ds, nullptr);
+        const uint32_t n = decl_name(ds, nullptr);
 
         if (*ds->at == '(')
             ds->d->dimmed = true;
 
-        const uint16_t scope = ds->d->scope;
+        const uint32_t scope = ds->d->scope;
         decl_redimscope(ds, n);
         decl_shareddim(ds, n);
         scop_bind(ds->sc, ds->d->scope, n)->flags |= flags;
@@ -544,25 +546,22 @@ static void decl_typedef(DeclScan *const ds)
         return;
 
     ds->at++;
-    const uint16_t n = decl_name(ds, nullptr);
+    const uint32_t n = decl_name(ds, nullptr);
 
     Decl *const d = ds->d;
 
-    if (d->ntypes >= NTYPE - 1)
+    if (!d->types.n && !btab_add(&d->types, &d->arena)) /* 0: none */
         decl_fail(ds, E_OM);
 
-    decl_room(ds, (void **)&d->types, d->ntypes + 1u, &d->typecap, sizeof *d->types);
-    TypeDef *const td = arena_alloc(&d->arena, sizeof *td);
+    TypeDef *const td = btab_add(&d->types, &d->arena);
 
     if (!td)
         decl_fail(ds, E_OM);
 
-    const uint16_t t = ++d->ntypes;
+    const uint32_t t = ++d->ntypes;
     d->type = t;
-    symb_name(ds->sy, n)->rec = (uint8_t)t;
+    symb_name(ds->sy, n)->rec = t;
     *td = (TypeDef){.name = n};
-
-    d->types[t] = td;
 }
 
 /* Field f's fixed array, ours: its dimensions, nd of them, on Decl.dims; its elements. Subscript out
@@ -626,7 +625,7 @@ static void decl_fielddeep(
         return;
     }
 
-    const TypeDef *const sub = f->sub ? ds->d->types[f->sub] : nullptr;
+    const TypeDef *const sub = f->sub ? decl_type(ds->d, f->sub) : nullptr;
 
     for (uint32_t k = 0; k < elems; k++) {
         const uint32_t at = f->off + k * size;
@@ -643,13 +642,13 @@ static void decl_fielddeep(
 /* In a TYPE: f[(bounds)] AS type [* n]; the bounds ours, STRING alone ours. */
 static void decl_field(DeclScan *const ds)
 {
-    const uint16_t t = ds->d->type;
+    const uint32_t t = ds->d->type;
 
     if (!t)
         return;
 
     const uint8_t *const name = ds->at;
-    const uint16_t n = decl_name(ds, nullptr);
+    const uint32_t n = decl_name(ds, nullptr);
     FieldDim dims[MAXDIMS];
     uint8_t nd = 0;
     const bool paren = *ds->at == '(';
@@ -667,12 +666,8 @@ static void decl_field(DeclScan *const ds)
 
     if (*ds->at != TK_AS)
         return;
-    if (ds->d->nfields >= NFLD)
-        decl_fail(ds, E_OM);
-
-    TypeDef *const td = ds->d->types[t];
+    TypeDef *const td = btab_at(&ds->d->types, t);
     decl_room(ds, (void **)&td->fields, td->nfld, &td->cap, sizeof *td->fields);
-    ds->d->nfields++;
     Field *const f = &td->fields[td->nfld++];
     *f = (Field){.name = n, .off = td->size, .dyn = paren && !nd}; /* at its end */
     const uint32_t elems = decl_fielddims(ds, f, dims, nd, name);
@@ -682,7 +677,7 @@ static void decl_field(DeclScan *const ds)
     if (c == M_VAR) { /* another TYPE's */
         ds->at++;
         f->sub = symb_name(ds->sy, decl_name(ds, nullptr))->rec;
-        size = ds->d->types[f->sub]->size;
+        size = decl_type(ds->d, f->sub)->size;
     } else if (c == TK_X) {
         f->et = decl_xastype(ds->at[2]);
 
@@ -745,7 +740,7 @@ static void decl_option(DeclScan *const ds)
 
 /* A FUNCTION's AS type [()], ours, past its parameters: its name n's in its own scope, () an array's.
    The definition's (define) is the type, BF_RES; a DECLARE's holds only until it. */
-static void decl_result(DeclScan *const ds, const uint16_t n, const bool define)
+static void decl_result(DeclScan *const ds, const uint32_t n, const bool define)
 {
     Binding *const b = scop_bind(ds->sc, n, n);
 
@@ -776,7 +771,7 @@ static void decl_declare(DeclScan *const ds)
     if (*ds->at != M_VAR)
         return;
 
-    const uint16_t n = decl_name(ds, nullptr);
+    const uint32_t n = decl_name(ds, nullptr);
     symb_name(ds->sy, n)->flags |= flag;
     ds->d->scope = n;
     decl_params(ds);
@@ -793,13 +788,13 @@ static void decl_deffn(DeclScan *const ds)
     if (*ds->at != M_VAR)
         return;
 
-    const uint16_t n = decl_name(ds, nullptr);
+    const uint32_t n = decl_name(ds, nullptr);
     ds->d->scope = n;
     scop_bind(ds->sc, ds->d->scope, n);
     decl_params(ds);
 }
 
-void decl_enter(Decl *const d, const uint16_t proc)
+void decl_enter(Decl *const d, const uint32_t proc)
 {
     d->proc = proc;
     d->scope = proc;
@@ -814,7 +809,7 @@ static void decl_subfn(DeclScan *const ds, const uint8_t flag)
     if (*ds->at != M_VAR)
         return;
 
-    const uint16_t n = decl_name(ds, nullptr);
+    const uint32_t n = decl_name(ds, nullptr);
     symb_name(ds->sy, n)->flags |= flag;
     ds->d->proc = n;
     ds->d->scope = n;
@@ -833,7 +828,7 @@ static void decl_shared(DeclScan *const ds, const uint8_t flag)
         if (*ds->at != M_VAR)
             return;
 
-        const uint16_t n = decl_name(ds, nullptr);
+        const uint32_t n = decl_name(ds, nullptr);
 
         if (flag == BF_STAT) /* its ( ), AS type as DIM's */
             decl_dim1(ds, n);
@@ -942,7 +937,7 @@ static void decl_const(DeclScan *const ds)
             return;
 
         uint8_t sfx;
-        const uint16_t n = decl_name(ds, &sfx);
+        const uint32_t n = decl_name(ds, &sfx);
 
         if (*ds->at != TK_EQ)
             return;
@@ -1002,7 +997,7 @@ static void decl_const(DeclScan *const ds)
 /* The name at p used: with a suffix and no binding in decl.proc's scope, one of BF_USE. */
 static void decl_use(DeclScan *const ds, const uint8_t *const p)
 {
-    const uint16_t n = comp_nameof(p);
+    const uint32_t n = comp_nameof(p);
 
     if (!comp_suffixof(p) || scop_get(ds->sc, ds->d->proc, n))
         return;
@@ -1034,8 +1029,8 @@ static void decl_bound(DeclScan *const ds, const uint8_t *const p)
     if (p[1] != '(' || p[2] != M_VAR || decl_recpath(ds, p + 2))
         return;
 
-    const uint16_t n = comp_nameof(p + 2);
-    const uint16_t scope = ds->d->proc | SC_ARR;
+    const uint32_t n = comp_nameof(p + 2);
+    const uint32_t scope = ds->d->proc | SC_ARR;
 
     if (scop_get(ds->sc, scope, n))
         return;

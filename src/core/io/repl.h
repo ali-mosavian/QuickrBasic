@@ -54,7 +54,7 @@ void repl_main(Session *S);
    else the error that ended it, the stacks reset. */
 Status repl_call(Session *S, void (*fn)(Session *S));
 /* Session.names' intern: the symbol table's name. */
-uint16_t repl_intern(LexrNames *names, const uint8_t *text, uint8_t len);
+uint32_t repl_intern(LexrNames *names, const uint8_t *text, uint8_t len);
 /* The line's declarations entered, after its 32-bit warnings to the front end. */
 void repl_declare(Session *S, const uint8_t *body); /* body lexr_line's last */
 /* repl_declare, its error returned, not raised: ST_OK, else the error and *op its ERR op, at its

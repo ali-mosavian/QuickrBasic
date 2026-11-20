@@ -44,28 +44,28 @@ TWIN(I_LD_V, I_LD_L, oper_i_ld_v, oper_i_ld_l, 1 + VCELL, FX, FV)
 OP(I_LD_I16, oper_i_ld_i16, 3, FX + FK)
 OP(I_LD_U8, oper_i_ld_u8, 2, FX + FK)
 OP(I_LD_I32, oper_i_ld_i32, 5, FX + FK)
-TWIN(I_LD_A1, I_LD_A1F, exec_i_ld_a1, exec_i_ld_a1f, 3 + VCELL, FX, FA)
-OP(I_LD_A, exec_i_ld_a, 4 + VCELL, FX + FA)
+TWIN(I_LD_A1, I_LD_A1F, exec_i_ld_a1, exec_i_ld_a1f, 1 + VID + VCELL, FX, FA)
+OP(I_LD_A, exec_i_ld_a, 2 + VID + VCELL, FX + FA)
 TWIN(F_LD_V, F_LD_L, oper_i_ld_v, oper_i_ld_l, 1 + VCELL, FX, FV)
 TWIN(F_LD_VI, F_LD_LI, oper_f_ld_vi, oper_f_ld_li, 1 + VCELL, FX, FV)
 OP(F_LD_F32, oper_f_ld_f32, 5, FX + FK)
 OP(F_LD_U8, oper_f_ld_u8, 2, FX + FK)
-TWIN(F_LD_A1, F_LD_A1F, exec_f_ld_a1, exec_f_ld_a1f, 3 + VCELL, FX, FA)
-OP(F_LD_A, exec_i_ld_a, 4 + VCELL, FX + FA)
+TWIN(F_LD_A1, F_LD_A1F, exec_f_ld_a1, exec_f_ld_a1f, 1 + VID + VCELL, FX, FA)
+OP(F_LD_A, exec_i_ld_a, 2 + VID + VCELL, FX + FA)
 TWIN(S_LD_V, S_LD_L, oper_s_ld_v, oper_s_ld_l, 1 + VCELL, FX, FV)
 OP(S_LD_TXT, exec_s_ld_txt, 6, FX)
-TWIN(S_LD_A1, S_LD_A1F, exec_s_ld_a1, exec_s_ld_a1f, 3 + VCELL, FX, FA)
-OP(S_LD_A, exec_s_ld_a, 4 + VCELL, FX + FA)
+TWIN(S_LD_A1, S_LD_A1F, exec_s_ld_a1, exec_s_ld_a1f, 1 + VID + VCELL, FX, FA)
+OP(S_LD_A, exec_s_ld_a, 2 + VID + VCELL, FX + FA)
 OP(F_LD_PI, oper_f_ld_pi, 1, FX + FK)
 TWIN(I_ST_V, I_ST_L, oper_i_st_v, oper_i_st_l, 1 + VCELL, 0, FV)
 TWIN(F_ST_V, F_ST_L, oper_f_st_v, oper_f_st_l, 1 + VCELL, 0, FV)
 TWIN(S_ST_V, S_ST_L, exec_s_st_v, exec_s_st_l, 1 + VCELL, 0, FV)
-TWIN(I_ST_A1, I_ST_A1F, exec_i_st_a1, exec_i_st_a1f, 3 + VCELL, 0, FA)
-TWIN(F_ST_A1, F_ST_A1F, exec_f_st_a1, exec_f_st_a1f, 3 + VCELL, 0, FA)
-TWIN(S_ST_A1, S_ST_A1F, exec_s_st_a1, exec_s_st_a1f, 3 + VCELL, 0, FA)
-OP(I_ST_A, exec_i_st_a, 4 + VCELL, FA)
-OP(F_ST_A, exec_f_st_a, 4 + VCELL, FA)
-OP(S_ST_A, exec_s_st_a, 4 + VCELL, FA)
+TWIN(I_ST_A1, I_ST_A1F, exec_i_st_a1, exec_i_st_a1f, 1 + VID + VCELL, 0, FA)
+TWIN(F_ST_A1, F_ST_A1F, exec_f_st_a1, exec_f_st_a1f, 1 + VID + VCELL, 0, FA)
+TWIN(S_ST_A1, S_ST_A1F, exec_s_st_a1, exec_s_st_a1f, 1 + VID + VCELL, 0, FA)
+OP(I_ST_A, exec_i_st_a, 2 + VID + VCELL, FA)
+OP(F_ST_A, exec_f_st_a, 2 + VID + VCELL, FA)
+OP(S_ST_A, exec_s_st_a, 2 + VID + VCELL, FA)
 OP(I_ADD, oper_i_add, 1, FX + FK)
 OP(I_SUB, oper_i_sub, 1, FX + FK)
 OP(I_MUL, oper_i_mul, 1, FX + FK)
@@ -153,14 +153,14 @@ OP(F_JF, flow_f_jf, JSIZE, 0)
 OP(I_JT, flow_i_jt, JSIZE, 0)
 OP(F_JT, flow_f_jt, JSIZE, 0)
 OP(NXLN, flow_nextln, 1, 0)
-OP(PCALL, flow_pcall, JSIZE + 4, 0) /* proc, its locals' cells and parameters (link's), body's Jump */
-OP(PRET, flow_pret, 2 + VCELL, 0) /* proc; link's: a FUNCTION's result's cell, or PRET.X */
+OP(PCALL, flow_pcall, PCALL_SIZE, 0) /* proc, its locals' cells and parameters (link's), body's Jump */
+OP(PRET, flow_pret, 5 + VCELL, 0) /* proc; link's: a FUNCTION's result's cell, or PRET.X */
 OP(I_MOD, oper_i_mod, 1, FX + FK)
 OP(I_XOR, oper_i_xor, 1, FX + FK)
 OP(I_EQV, oper_i_eqv, 1, FX + FK)
 OP(I_IMP, oper_i_imp, 1, FX + FK)
-OP(R_ADDR, exec_r_addr, 3 + VCELL, FA)
-OP(RA_ADDR, exec_ra_addr, 4 + VCELL, FA)
+OP(R_ADDR, exec_r_addr, 1 + VID + VCELL, FA)
+OP(RA_ADDR, exec_ra_addr, 2 + VID + VCELL, FA)
 OP(FL_LD, exec_fl_ld, 4, 0)
 OP(FL_ST, exec_fl_st, 4, 0)
 OP(SF_LD, exec_sf_ld, 5, 0)
@@ -174,10 +174,10 @@ OP(RESUME, flow_resume, 2 + sizeof(LineRef), 0)
 TWIN(D_LD_V, D_LD_L, dubl_ldv, oper_d_ld_l, 1 + VCELL, FX, FV)
 TWIN(D_ST_V, D_ST_L, dubl_stv, oper_d_st_l, 1 + VCELL, 0, FV)
 OP(D_LD_K, dubl_ldk, 9, FX + FK)
-TWIN(D_LD_A1, D_LD_A1F, dubl_lda1, dubl_lda1f, 3 + VCELL, FX, FA)
-OP(D_LD_A, dubl_lda, 4 + VCELL, FX + FA)
-TWIN(D_ST_A1, D_ST_A1F, dubl_sta1, dubl_sta1f, 3 + VCELL, 0, FA)
-OP(D_ST_A, dubl_sta, 4 + VCELL, FA)
+TWIN(D_LD_A1, D_LD_A1F, dubl_lda1, dubl_lda1f, 1 + VID + VCELL, FX, FA)
+OP(D_LD_A, dubl_lda, 2 + VID + VCELL, FX + FA)
+TWIN(D_ST_A1, D_ST_A1F, dubl_sta1, dubl_sta1f, 1 + VID + VCELL, 0, FA)
+OP(D_ST_A, dubl_sta, 2 + VID + VCELL, FA)
 OP(D_ADD, dubl_add, 1, FX + FK)
 OP(D_SUB, dubl_sub, 1, FX + FK)
 OP(D_MUL, dubl_mul, 1, FX + FK)
@@ -193,10 +193,10 @@ OP(D_FN, dubl_fn, 2, FX)
 OP(D_POW, dubl_pow, 1, FX)
 OP(DBG, dbug_dbg, 1, 0)
 OP(P_REF, exec_p_ref, 3, 0)
-OP(V_ADDR, exec_v_addr, 3, FP)
+OP(V_ADDR, exec_v_addr, 1 + VID, FP)
 TWIN(V_CELL, L_CELL, oper_s_ld_v, oper_s_ld_l, 1 + VCELL, FX, FV) /* a scalar's cell, as S.LD.V a descriptor's */
-OP(V_LD, exec_v_ld, 4, FX + FP)
-OP(V_ST, exec_v_st, 4, FP)
+OP(V_LD, exec_v_ld, 2 + VID, FX + FP)
+OP(V_ST, exec_v_st, 2 + VID, FP)
 OP(SYSCALL, sysc_call, 2, 0) /* the runtime's service n (vm/syscalls.def) */
 OP(D_PAST, flow_d_past, 1, FX)
 /* fused (comp/fuse.c), no asm counterpart */
@@ -242,19 +242,19 @@ OP(I_MOV, oper_i_mov, 1 + 2 * VCELL, FV + FV2)
 /* link_xlate's line end of a stored line: the next line, its code; 0 none */
 OP(EOL_TO, flow_eol, EOL_TO_SIZE, 0)
 OP(BYVAL, exec_byval, 2, 0)
-OP(PRET_FV, flow_pret_fv, 2 + VCELL, 0) /* a FUNCTION's number, its result a cell */
-OP(PRET_FL, flow_pret_fl, 2 + VCELL, 0) /*   its result in the frame */
-OP(PRET_X, flow_pret_x, 2 + VCELL, 0)   /* local arrays, or a string result */ /* the address of the value on top, a string's copied there */
+OP(PRET_FV, flow_pret_fv, 5 + VCELL, 0) /* a FUNCTION's number, its result a cell */
+OP(PRET_FL, flow_pret_fl, 5 + VCELL, 0) /*   its result in the frame */
+OP(PRET_X, flow_pret_x, 5 + VCELL, 0)   /* a string result */ /* the address of the value on top, a string's copied there */
 OP(I_CHK8, exec_i_chk8, 1, FX + FK)
 /* fused ops on a frame's locals alone: each cell an offset from the frame */
 OP(I_NEXT_UP_L, flow_i_next_up_l, NEXT_SIZE, 0)
 FRAME(I_NEXT_UP, I_NEXT_UP_L)
 OP(I_NEXT_DN_L, flow_i_next_dn_l, NEXT_SIZE, 0)
 FRAME(I_NEXT_DN, I_NEXT_DN_L)
-OP(N_LD_A, exec_n_ld_a, 5 + VCELL, FX + FA) /* a SHORT or BYTE array's element: id cell n et */
-OP(N_ST_A, exec_n_st_a, 5 + VCELL, FA)
+OP(N_LD_A, exec_n_ld_a, 3 + VID + VCELL, FX + FA) /* a SHORT or BYTE array's element: id cell n et */
+OP(N_ST_A, exec_n_st_a, 3 + VID + VCELL, FA)
 OP(P_REFN, exec_p_refn, 2, 0) /* such an element by reference: et */
-OP(V_REF, exec_v_ref, 3, FP)  /* a parameter's ref, passed on */
+OP(V_REF, exec_v_ref, 1 + VID, FP)  /* a parameter's ref, passed on */
 #undef TWIN
 #undef FRAME
 #undef OP

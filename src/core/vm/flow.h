@@ -12,9 +12,12 @@ enum : uint32_t { LINE_END = 0xFFFFFFFF }; /* a Place's code: the start of the l
 void flow_init(Session *S);
 
 /* Push a frame of kind, returning where the running statement goes on. Out of stack space. */
-Frame *flow_push(Vm *vm, const Allo *al, Fault *f, FrameKind kind);
-/* The innermost frame of kind, nullptr none. */
-Frame *flow_find(Vm *vm, FrameKind kind);
+Frame *flow_push(Session *S, FrameKind kind);
+/* No calls nor GOSUBs: the frames and the data stack emptied, the memory they grew into back to the
+   heap. */
+void flow_drop_calls(Session *S);
+/* The innermost call's frame, nullptr none. */
+Frame *flow_find_call(Vm *vm);
 /* The place of vm->ip in the running line. */
 Place flow_here(const Vm *vm, const Allo *al);
 /* The code at place, its line compiled if the cache dropped it. */

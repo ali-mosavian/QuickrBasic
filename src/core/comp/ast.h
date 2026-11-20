@@ -90,7 +90,7 @@ enum : uint8_t { CALL_PROC, CALL_UNDEF };
 /* A record's place: its field's ET_* (ET_REC + t all of a record of TYPE t), offset, its STRING * n
    or a record's size. Ours, arr: a dynamic array field whole, off its cell's, et its elements'. */
 typedef struct {
-    uint8_t et;
+    uint32_t et;
     uint16_t off;
     uint16_t fix;
     bool arr;
@@ -119,13 +119,15 @@ struct Node {
                           child (N_STORE's its value); b: the first argument, N_TARGET's subscript */
     Node *next;    /* an argument, a step: the next, null none */
     uint16_t fix;  /* N_STORE: a STRING * n target's n, 0 none */
-    uint32_t num;  /* N_INT: its value; N_JUMP: its target's line, the line number in id */
-    uint16_t
+    uint32_t num;  /* N_INT: its value; N_JUMP: its target's line, the line number in id; N_CALL
+                      CALL_PROC: its procedure */
+    uint32_t
         id; /* N_VAR, N_ELEM, N_REF, N_TARGET, N_STORE, N_OPID, N_CASECMP: the variable; N_ARG: PA_VALUE's parameter, an array's
                           or a record's; N_CALL CALL_UNDEF: its result */
     RecRef rec; /* N_REF of a record: the place in it */
     /* Resolved by sema (comp/sema.h), for gen: */
-    uint8_t vtype, vinfo; /* id's variable's ET_*, info: by value, the table may move */
+    uint32_t vtype; /* id's variable's ET_*: by value, the table may move */
+    uint8_t vinfo;  /* its info */
     bool par;             /* id a scalar parameter of the procedure compiled */
     Jump jump;            /* N_CALL CALL_PROC: its procedure's entry; N_GO, N_COND: the target */
     uint8_t lit[LIT_MAX]; /* N_LIT, N_OP, N_JUMP: its operand bytes */

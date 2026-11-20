@@ -59,7 +59,7 @@ static void resolve(Comp *const C, Node *const n)
             own(C, n);
             n->par = comp_ispar(C, n->id);
         } else
-            n->jump = ctrl_jump(C, blok_proc(C->blok, n->op)->entry);
+            n->jump = ctrl_jump(C, blok_proc(C->blok, n->num)->entry);
 
         break;
 

@@ -430,41 +430,15 @@ void stmt_resl(Session *const S) { seek_data(S, flow_target(&S->vm)); }
 
 /* ---- DIM and ERASE -------------------------------------------------------------------------- */
 
-/* DIM ( i1..in mlo mhi id flags -- ): bit i of m: subscript i was written hi, base. As arry_dim. A
-   record's array field's, ours: ( i1..in mlo mhi cell et flags -- ). */
-/* REDIM [PRESERVE] of a record's array field, ours: cell s, its elements et: the new one made, the
-   old one's elements moved, then the old one swept (s may move with its record). */
-static void redim_field(
-    Session *const S,
-    ArrSlot *const s,
-    const uint8_t et,
-    const uint8_t dims,
-    const uint32_t flags
-)
-{
-    const Addr old = s->hdr;
-    const bool keep = old && flags & DIM_PRESERVE;
-
-    if (keep && dims != ((const ArrayHdr *)at(old))->dims)
-        arry_bad_sub(&S->arry);
-
-    arry_counts(&S->arry, dims);
-    arry_make(&S->arry, s, et, dims, true);
-
-    if (keep)
-        arry_keep(&S->arry, old, s->hdr);
-
-    arry_kill(&S->arry, old);
-    arry_sweep(&S->arry, &S->vm);
-}
-
+/* DIM ( i1..in mlo mhi id flags -- ): bit i of m: subscript i was written hi, base. As arry_dim,
+   REDIM as arry_redim. A record's array field's, ours: ( i1..in mlo mhi cell et flags -- ). */
 void stmt_dim(Session *const S)
 {
     const uint32_t flags = exec_pop(&S->vm).u;
     const uint8_t dims = flags & DIM_COUNT;
     const uint32_t target = exec_pop(&S->vm).u; /* its id; a field's elements' ET_* */
     const Addr field = flags & DIM_FIELD ? exec_popa(&S->vm) : 0;
-    const uint16_t id = (uint16_t)target;
+    const uint32_t id = target;
     const uint32_t mask_hi = exec_pop(&S->vm).u;
     const uint64_t swapped = (uint64_t)mask_hi << 32 | exec_pop(&S->vm).u;
 
@@ -479,48 +453,26 @@ void stmt_dim(Session *const S)
         S->arry.lbounds[i] = lo;
     }
 
+    const bool keep = flags & DIM_PRESERVE;
+
     if (field) {
-        redim_field(S, (ArrSlot *)at(field), (uint8_t)target, dims, flags);
+        arry_redim(&S->arry, (ArrSlot *)at(field), target, dims, keep);
         return;
     }
 
-    ArrSlot *const s =
-        arry_slot(&S->arry, id); /* in the symbols or the frame: arry_free keeps it */
+    ArrSlot *const s = arry_slot(&S->arry, id); /* in the symbols or the frame: it stays */
 
-    if (!(flags & DIM_REDIM)) {
-        if (!(flags & DIM_STATIC) || !s->hdr) /* a STATIC's, dimensioned: kept */
-            arry_dim(&S->arry, id, dims, false);
-
-        return;
-    }
-
-    const Addr old = s->hdr; /* REDIM: the old one goes; a frame's is fixed */
-
-    if (old && !arry_heap(&S->arry, old))
-        repl_error(S, E_RD);
-    if (old && flags & DIM_PRESERVE) { /* the new one made, the old one's elements moved */
-        if (dims != ((const ArrayHdr *)at(old))->dims)
-            arry_bad_sub(&S->arry);
-
-        s->hdr = 0;
-        arry_dim(&S->arry, id, dims, true);
-        arry_keep(&S->arry, old, s->hdr);
-        arry_kill(&S->arry, old); /* the new one's cell follows it down */
-        arry_sweep(&S->arry, &S->vm);
-        return;
-    }
-
-    if (old)
-        arry_free(&S->arry, &S->vm, s);
-
-    arry_dim(&S->arry, id, dims, true);
+    if (flags & DIM_REDIM)
+        arry_redim(&S->arry, s, arry_var_et(&S->symb, id), dims, keep);
+    else if (!(flags & DIM_STATIC) || !s->hdr) /* a STATIC's, dimensioned: kept */
+        arry_dim(&S->arry, id, dims);
 }
 
 /* DIM a() ( id flags -- ), ours: as arry_empty. */
 void stmt_aempty(Session *const S)
 {
     const uint32_t flags = exec_pop(&S->vm).u;
-    arry_empty(&S->arry, (uint16_t)exec_pop(&S->vm).u, flags & DIM_STATIC);
+    arry_empty(&S->arry, exec_pop(&S->vm).u, flags & DIM_STATIC);
 }
 
 /* a() = b() ( src dst -- ), ours, their cells: as arry_copy. */
@@ -572,7 +524,7 @@ void stmt_fidx(Session *const S)
 /* An array result's start ( id -- ), ours: as arry_reset. */
 void stmt_areset(Session *const S)
 {
-    arry_reset(&S->arry, &S->vm, arry_slot(&S->arry, (uint16_t)exec_pop(&S->vm).u));
+    arry_reset(&S->arry, &S->vm, arry_slot(&S->arry, exec_pop(&S->vm).u));
 }
 
 /* ERASE ( cell -- ): REDIM's array freed, another's elements zeroed. */
@@ -614,15 +566,13 @@ static void ready(Session *const S)
 
 void stmt_rungo(Session *const S, const uint32_t line)
 {
-    S->vm.sp = S->vm.rsp;
+    flow_drop_calls(S);
     evnt_clear(S);
     chai_start(&S->chai);
     S->vm.err.handler = 0;
     S->vm.err.active = false;
     S->vm.err.code = 0;
     S->vm.err.line = 0;
-    S->vm.ftop = S->vm.frames;
-    S->vm.fp = 0;
     S->strg.tmp_floor = 0;
     flow_jump(S, line);
 }
@@ -682,9 +632,8 @@ void stmt_cont(Session *const S)
 /* CLEAR: the variables, and the frames. */
 void stmt_clr(Session *const S)
 {
+    flow_drop_calls(S);
     session_clear(S);
-    S->vm.ftop = S->vm.frames;
-    S->vm.fp = 0;
 }
 
 void stmt_new(Session *const S)

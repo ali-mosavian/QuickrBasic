@@ -136,7 +136,7 @@ bool fold_isliteral(const uint8_t op)
     }
 }
 
-void fold_const(Comp *const C, uint8_t *const start, const uint16_t id)
+void fold_const(Comp *const C, uint8_t *const start, const uint32_t id)
 {
     fold_code(C, start);
     const uint8_t op = *start;
@@ -250,6 +250,6 @@ bool fold_number(Comp *const C, const Node *const n, Cell *const v)
 
 void fold_clear(Comp *const C)
 {
-    for (uint16_t id = 0; id < C->symb->nvars; id++)
+    for (uint32_t id = 0; id < C->symb->nvars; id++)
         symb_varx(C->symb, id)->kop = 0;
 }

@@ -154,7 +154,7 @@ void list_body(Comp *const C, const uint8_t *p)
             for (uint8_t i = 0; i < n; i++)
                 cons_putc(C->cons, name[i]);
 
-            p += n + 3u;
+            p = comp_skipname(p - 1);
             C->list->last = C->list->last == LS_DECL ? LS_PROC : LS_WORD;
             continue;
         }

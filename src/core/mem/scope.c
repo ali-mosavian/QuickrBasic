@@ -41,7 +41,7 @@
 
 static const Binding none; /* a binding of nothing */
 
-static uint32_t scop_hash(const uint16_t scope, const uint16_t name)
+static uint32_t scop_hash(const uint32_t scope, const uint32_t name)
 {
     return (scope * 7u + name) & (SCHASH - 1);
 }
@@ -75,7 +75,7 @@ void scop_reset(Scop *const sc)
         memset(sc->lnbit, 0, sc->nlnbit * sizeof *sc->lnbit);
 }
 
-Binding *scop_get(const Scop *const sc, const uint16_t scope, const uint16_t name)
+Binding *scop_get(const Scop *const sc, const uint32_t scope, const uint32_t name)
 {
     for (Binding *b = sc->heads[scop_hash(scope, name)]; b; b = b->next)
         if (b->scope == scope && b->name == name)
@@ -84,7 +84,7 @@ Binding *scop_get(const Scop *const sc, const uint16_t scope, const uint16_t nam
     return nullptr;
 }
 
-Binding *scop_bind(Scop *const sc, const uint16_t scope, const uint16_t name)
+Binding *scop_bind(Scop *const sc, const uint32_t scope, const uint32_t name)
 {
     Binding *const found = scop_get(sc, scope, name);
     sc->gen++; /* scop_look's answers stale: a binding made, or its flags to be changed */
@@ -92,7 +92,7 @@ Binding *scop_bind(Scop *const sc, const uint16_t scope, const uint16_t name)
     if (found)
         return found;
 
-    Binding *const b = sc->nbnd < NBND ? arena_alloc(&sc->arena, sizeof *b) : nullptr;
+    Binding *const b = arena_alloc(&sc->arena, sizeof *b);
 
     if (!b)
         scop_fail(sc, E_OM);
@@ -114,12 +114,12 @@ void scop_enter(Scop *const sc, const Proc *const p)
         sc->stack[sc->depth++] = (ScopFrame){.name = p->name, .deffn = p->flags & PF_DEF};
 }
 
-void scop_inside(Scop *const sc, const uint16_t name)
+void scop_inside(Scop *const sc, const uint32_t name)
 {
     sc->stack[sc->depth++] = (ScopFrame){.name = name};
 }
 
-uint16_t scop_own(const Scop *const sc)
+uint32_t scop_own(const Scop *const sc)
 {
     uint32_t i = sc->depth;
 
@@ -130,7 +130,7 @@ uint16_t scop_own(const Scop *const sc)
     return sc->stack[i].name;
 }
 
-static const Binding *look(const Scop *const sc, const uint16_t name, uint16_t *const scope)
+static const Binding *look(const Scop *const sc, const uint32_t name, uint32_t *const scope)
 {
     uint32_t i = sc->depth;
     bool shared_only = false; /* only what the scope above sees */
@@ -159,22 +159,20 @@ static const Binding *look(const Scop *const sc, const uint16_t name, uint16_t *
     return &none;
 }
 
-const Binding *scop_look(const Scop *const sc, const uint16_t name, uint16_t *const scope)
+const Binding *scop_look(const Scop *const sc, const uint32_t name, uint32_t *const scope)
 {
     const uint32_t top = sc->stack[sc->depth - 1].name;
 
     if (!sc->look_on || sc->depth > 2) /* a DEF FN's: the stack more than its top */
         return look(sc, name, scope);
 
-    const uint32_t key = (name | top << 16) ^ sc->depth << 31;
     /* kept in a const Scop: an answer, not a binding */
     ScopLook *const m = (ScopLook *)&sc->look[(name * 2654435761u ^ top * 40503u) >> 23 &
                                                (countof(sc->look) - 1)];
 
-    if (m->key != key || m->gen != sc->gen || !m->b) {
+    if (m->name != name || m->top != top || m->depth != sc->depth || m->gen != sc->gen || !m->b) {
         m->b = look(sc, name, &m->scope);
-        m->key = key;
-        m->gen = sc->gen;
+        *m = (ScopLook){name, top, sc->depth, sc->gen, m->b, m->scope};
     }
 
     *scope = m->scope;
@@ -182,35 +180,35 @@ const Binding *scop_look(const Scop *const sc, const uint16_t name, uint16_t *co
 }
 
 /* Name's binding as the procedure compiled sees it. */
-static const Binding *scop_seen(const Scop *const sc, const uint16_t name)
+static const Binding *scop_seen(const Scop *const sc, const uint32_t name)
 {
-    uint16_t scope;
+    uint32_t scope;
     return scop_look(sc, name, &scope);
 }
 
-uint8_t scop_type(const Scop *const sc, const uint16_t name, const bool array)
+uint32_t scop_type(const Scop *const sc, const uint32_t name, const bool array)
 {
     return scop_seen(sc, name)->et[array];
 }
 
-uint8_t scop_rec(const Scop *const sc, const uint16_t name, const bool array)
+uint32_t scop_rec(const Scop *const sc, const uint32_t name, const bool array)
 {
     return scop_seen(sc, name)->rec[array];
 }
 
-uint16_t scop_fix(const Scop *const sc, const uint16_t name, const bool array)
+uint16_t scop_fix(const Scop *const sc, const uint32_t name, const bool array)
 {
     return scop_seen(sc, name)->fix[array];
 }
 
-uint8_t scop_sfx(const Scop *const sc, const uint16_t name, const uint8_t type, const bool array)
+uint32_t scop_sfx(const Scop *const sc, const uint32_t name, const uint8_t type, const bool array)
 {
     const Binding *const b = scop_seen(sc, name);
 
     if (b->flags & BF_CON)
         return b->et[0];
 
-    const uint8_t et = b->et[array];
+    const uint32_t et = b->et[array];
 
     if (b->rec[array] || (et && et != type))
         scop_fail(sc, E_RD);
@@ -218,21 +216,21 @@ uint8_t scop_sfx(const Scop *const sc, const uint16_t name, const uint8_t type, 
     return type;
 }
 
-bool scop_con(const Scop *const sc, const uint16_t name)
+bool scop_con(const Scop *const sc, const uint32_t name)
 {
     return scop_seen(sc, name)->flags & BF_CON;
 }
 
-bool scop_conname(const Scop *const sc, const uint16_t name)
+bool scop_conname(const Scop *const sc, const uint32_t name)
 {
     const Binding *const module = scop_get(sc, 0, name);
     const Binding *const own = scop_get(sc, scop_own(sc), name);
     return (module && module->flags & BF_CON) || (own && own->flags & BF_CON);
 }
 
-bool scop_known(const Scop *const sc, const uint16_t name) { return scop_seen(sc, name) != &none; }
+bool scop_known(const Scop *const sc, const uint32_t name) { return scop_seen(sc, name) != &none; }
 
-bool scop_mshr(const Scop *const sc, const uint16_t name)
+bool scop_mshr(const Scop *const sc, const uint32_t name)
 {
     const Binding *const b = scop_get(sc, 0, name);
     return b && (b->flags & (BF_SHR | BF_CON)) == BF_SHR;
@@ -242,8 +240,8 @@ bool scop_mshr(const Scop *const sc, const uint16_t name)
 static bool scop_lany(
     const Scop *const sc,
     const Symb *const sy,
-    const uint16_t scope,
-    const uint16_t key
+    const uint32_t scope,
+    const uint32_t key
 )
 {
     if (scope & SC_NUM)
@@ -255,8 +253,8 @@ static bool scop_lany(
 void scop_label(
     Scop *const sc,
     Symb *const sy,
-    const uint16_t scope,
-    const uint16_t key,
+    const uint32_t scope,
+    const uint32_t key,
     const uint32_t line
 )
 {
@@ -278,8 +276,8 @@ void scop_label(
 uint32_t scop_lfind(
     const Scop *const sc,
     const Symb *const sy,
-    const uint16_t scope,
-    const uint16_t key
+    const uint32_t scope,
+    const uint32_t key
 )
 {
     const Binding *const b = scop_get(sc, scope, key);

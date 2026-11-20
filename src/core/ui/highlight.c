@@ -134,7 +134,7 @@ static uint8_t token(const uint8_t t, uint8_t *const state)
 static uint8_t item(const uint8_t c, const uint8_t **const p, uint8_t *const state)
 {
     if (c == M_VAR) {
-        *p += **p + 3; /* len name nam:2 */
+        *p += 1 + **p + NAME_ID; /* len name nam */
         if (hl.state & HS_AS)
             return SL_TYP;
         if (hl.state & HS_DEF) {

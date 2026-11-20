@@ -57,7 +57,7 @@ void boot(Session *const S, const FrontEnd *const fe)
     ); /* the arrays' headers, the control stack, the POKE memory */
     qbrt_init(&S->fault, &S->vm.stop, at(allo_carve(&S->allo, QBRT_HEAP)), QBRT_HEAP);
     strg_init(&S->strg, &S->allo, &S->fault, &S->prog);
-    arry_init(&S->arry, &S->allo, &S->fault, &S->symb, &S->decl, &S->strg, &S->vm.fp);
+    arry_init(&S->arry, &S->allo, &S->fault, &S->symb, &S->decl, &S->strg, &S->vm);
     exec_init(S);
     cons_init(&S->cons, &S->allo, &S->chnl, &S->vm);
     diag_init(&S->diag, &S->cons);

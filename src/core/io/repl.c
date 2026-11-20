@@ -308,9 +308,7 @@ static void report(Session *const S, const uint8_t code)
         return;
     }
 
-    S->vm.ftop = S->vm.frames;
-
-    S->vm.fp = 0;
+    flow_drop_calls(S);
     S->vm.cont.line = 0;
     uint16_t file;
     const uint16_t src = source_line(S, &file);
@@ -442,10 +440,8 @@ static void read_lines(Session *const S)
 
         if (r == ENTER_DIRECT)
             return;
-        if (r == ENTER_STORED) {
-            S->vm.ftop = S->vm.frames;
-            S->vm.fp = 0;
-        }
+        if (r == ENTER_STORED)
+            flow_drop_calls(S);
     }
 }
 
@@ -688,7 +684,7 @@ static uint16_t line_number(Session *const S, const uint8_t *const p)
     return (uint16_t)num;
 }
 
-uint16_t repl_intern(LexrNames *const names, const uint8_t *const text, const uint8_t len)
+uint32_t repl_intern(LexrNames *const names, const uint8_t *const text, const uint8_t len)
 {
     Session *const S = container_of(names, Session, names);
     return symb_find_name(&S->symb, text, len);
