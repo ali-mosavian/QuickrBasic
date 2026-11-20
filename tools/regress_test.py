@@ -1146,6 +1146,17 @@ CASES |= {
                                 "for k = 1 to 100: redim rs(22).xs(500): redim preserve rs(1 to 21): redim preserve rs(1 to 22): next",
                                 "print fre(-1) = f&"),
                             " 20 \r\n-1 \r\n", "ERROR"),
+    # FE.ADDR's element from the header: n dimensions, lower bounds, its size by the field's type;
+    # past a bound or with too few subscripts arry_ref's error.
+    "field_dynamic_index": (bas("type R", " w as integer", " m() as integer", " s() as string", "end type",
+                                "dim r as R, a(1 to 3, -2 to 2) as integer", "redim r.m(1 to 3, -2 to 2): redim r.s(4)",
+                                "for i = 1 to 3: for j = -2 to 2: r.m(i, j) = i * 10 + j: a(i, j) = i * 10 + j: next: next",
+                                "for i = 1 to 3: for j = -2 to 2: if r.m(i, j) = a(i, j) then ok = ok + 1", "next: next",
+                                'r.s(4) = "four": r.m(3, 2) = r.m(3, 2) + 1',
+                                "print ok; r.m(3, 2); r.s(4); varptr(r.m(2, -1)) - varptr(r.m(1, -2)); "
+                                "varptr(r.m(2, 1)) - varptr(r.m(1, -2)); varptr(r.s(3)) - varptr(r.s(1))",
+                                "on error goto h", "print r.m(4, 0)", "print r.m(1)", "end", OV),
+                            " 15  33 four 16  40  12 \r\nov 9 \r\nov 9 \r\n", "ERROR"),
     "field_dynamic_empty": (bas(*MESH, "m.pts(1).x = 1"), "Subscript out of range in line", None),
     "field_dynamic_dims": (bas(*MESH, "m.pts(" + ",".join("0" * 61) + ").x = 1"), ".BAS:12: Too many dimensions", None),
     "field_dynamic_type": (bas(*MESH, "dim s() as Mesh", "s() = m.pts()"), ".BAS:13: Type mismatch", None),

@@ -255,6 +255,7 @@ OP(N_LD_A, exec_n_ld_a, 3 + VID + VCELL, FX + FA) /* a SHORT or BYTE array's ele
 OP(N_ST_A, exec_n_st_a, 3 + VID + VCELL, FA)
 OP(P_REFN, exec_p_refn, 2, 0) /* such an element by reference: et */
 OP(V_REF, exec_v_ref, 1 + VID, FP)  /* a parameter's ref, passed on */
+OP(FE_ADDR, exec_fe_addr, 6, 0)     /* a record's array field's element ( a s.. -- e ): off n esize */
 #undef TWIN
 #undef FRAME
 #undef OP
@@ -456,7 +457,6 @@ K(AMOVE, stmt_amove)   /* a() = f(..), ours */
 K(ARESET, stmt_areset) /* an array result's start, ours */
 K(FIDX, stmt_fidx)     /* a fixed array field's element, ours */
 K(RCOPY, exec_r_copys) /* a = b of records with STRINGs, ours */
-K(FELEM, stmt_felem)   /* a record's array field's element, ours */
 K(RSWAP, exec_r_swap)  /* SWAP a, b of records, ours */
 #undef K
 #endif
