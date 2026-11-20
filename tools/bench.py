@@ -646,6 +646,21 @@ CHARLIE_EACH = (CHARLIE_STEP, "DrawBack wd.zn, wd.art, cx, cy",
                 "DrawThings wd.lv, wd.zn, wd.art, wd.se, cx, cy, -1", "DrawTiles wd.lv, wd.zn, wd.art, cx, cy",
                 "DrawThings wd.lv, wd.zn, wd.art, wd.se, cx, cy, 0", "DrawHero wd.gr, wd.art, wd.se, p, cx, cy",
                 "DrawParts pt(), cx, cy", "Blit wd.art, 6, 5, IHUD, HUDW, HUDH", "Flip g.page", "Render wd, g, p, lo(), pt()")
+CHARLIE_IMPORTS = "".join(f"FROM barkley.{m} IMPORT {n}\n" for m, n in (
+    ("engine.video", "Blit, Flip, OpenScreen"),
+    ("model.images", "IHUD"),
+    ("model.hero", "Hero, Pad"),
+    ("model.game", "Game, Loose, NLOOSE, NPART, Part"),
+    ("assets.store", "BuildArt, HUDH, HUDW"),
+    ("assets.tunes", "LoadSongs"),
+    ("world.terrain.ground", "LoadTables"),
+    ("world.level", "LoadLevel"),
+    ("world.backdrop", "DrawBack, DrawTiles"),
+    ("stage.hero.draw", "DrawHero"),
+    ("stage.scene", "DrawParts, DrawThings, Render"),
+    ("control.pilot", "Pilot"),
+    ("flow.states", "StartGame, Tick"),
+))
 CHARLIE_SETUP = """OpenScreen
 LoadTables wd.lv
 BuildArt wd.art, wd.tn
@@ -660,14 +675,20 @@ OPEN "EACH.TXT" FOR OUTPUT AS #1
 """
 
 
+def charlie_modules() -> dict[str, bytes]:
+    """The game's package by the path each module sits at beside CHARLIE.BAS."""
+    root = CHARLIE.with_name("barkley")
+    return {f"barkley/{p.relative_to(root).as_posix()}": p.read_bytes() for p in sorted(root.rglob("*.bas"))}
+
+
 def charlie_program() -> str:
     """CHARLIE.BAS's Main swapped for a loop of each CHARLIE_EACH call (after an empty one), its ms a call to EACH.TXT."""
-    head, rest = CHARLIE.read_text().split("\nMain wd\nend\n", 1)
+    head = CHARLIE.read_text().split("\nMain wd\nend\n", 1)[0]
     move = f"FOR q = 1 TO 60: {CHARLIE_STEP}: NEXT\ncx = INT(g.camx): cy = INT(g.camy)\n"
     loops = "".join(f"{move}n = 0: t0 = TIMER\nDO\n    FOR q = 1 TO {EACH_REPS}\n    {call}\n    NEXT\n"
                     f"    n = n + {EACH_REPS}\nLOOP UNTIL TIMER - t0 >= 2\n"
                     "PRINT #1, (TIMER - t0) / n * 1000; n\n" for call in ("REM", *CHARLIE_EACH))
-    return head + "\n" + CHARLIE_SETUP + loops + "CLOSE #1\nEND\n" + rest
+    return head + "\n" + CHARLIE_IMPORTS + CHARLIE_SETUP + loops + "CLOSE #1\nEND\n"
 
 
 def cmd_charlie(a: argparse.Namespace) -> int:
@@ -677,7 +698,8 @@ def cmd_charlie(a: argparse.Namespace) -> int:
     dosrun.CONF = conf.replace("core=normal\ncputype=pentium\nvirtual time=true\nvirtual time rate=20000\n", FPS_CPU)
     assert dosrun.CONF != conf
     with tempfile.TemporaryDirectory() as d:
-        r = dosrun.run({"each": charlie_program()}, Path(d) / "w", limit_ms=600000, file=True, mem=16,
+        r = dosrun.run({"each": (charlie_program(), "", "", charlie_modules())}, Path(d) / "w", limit_ms=600000,
+                       file=True, mem=16,
                        files={"CHARLIE.DAT": CHARLIE.with_suffix(".DAT").read_bytes()})
         log = Path(d) / "w/EACH.TXT"
         rows = [ln.split() for ln in log.read_text().splitlines()] if log.exists() else []

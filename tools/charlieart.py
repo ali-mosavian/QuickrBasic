@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DAT = ROOT / "src/plat/wasm/web/demos/CHARLIE.DAT"
 SONG = ROOT / "tools/charliesong.txt"
 LEVELS = ROOT / "tools/charlielevels.txt"
-GAME = ROOT / "src/plat/wasm/web/demos/CHARLIE.BAS"
+GAME = ROOT / "src/plat/wasm/web/demos/barkley"  # the game's package
 INK, WHITE = 2, 1
 PAL: dict[int, tuple[int, int, int]] = {0: (2, 2, 8), 1: (63, 63, 63), 2: (5, 3, 8), 3: (63, 56, 20), 4: (60, 14, 12)}
 
@@ -5041,7 +5041,7 @@ def levels() -> bytes:
     A command the game's loader has no case for it would pass over, and a level without its end it would read past:
     either stops this."""
     tunes = re.findall(r"(?m)^Song (\w+):$", SONG.read_text())
-    src = GAME.read_text()
+    src = (GAME / "world/level.bas").read_text()
     loader = src[src.index("\nsub LoadLevel ") :]
     known = {*re.findall(r'case "(\w+)"', loader[: loader.index("\nend sub")]), "end"}
     found: list[list[tuple[str, str]]] = []
@@ -5166,7 +5166,7 @@ def sound(n: int, s: list[int | str]) -> None:
 
 def game_const(name: str) -> int:
     """A CONST of the game's, a whole number."""
-    m = re.search(rf"(?i)\b{name} = (\d+)", DAT.with_suffix(".BAS").read_text())
+    m = re.search(rf"(?i)\b{name} = (\d+)", "\n".join(p.read_text() for p in sorted(GAME.rglob("*.bas"))))
     if not m:
         sys.exit(f"charlieart: the game has no const {name}")
     return int(m[1])

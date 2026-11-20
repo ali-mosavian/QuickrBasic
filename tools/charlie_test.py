@@ -25,7 +25,49 @@ import charlieart
 ROOT = Path(__file__).resolve().parents[1]
 DEMO = ROOT / "src/plat/wasm/web/demos/CHARLIE.BAS"
 
-DRIVER = """declare function GroundAt% (lv as Level, x as integer)
+DRIVER = """from barkley.engine.video import Blit, OpenScreen, SH, SW
+from barkley.engine.clock import Clock, Pace, Steps, STEPT
+from barkley.engine.audio import Beat, Half, NBAR, NextHalf, NSLOT, NVOICE, StartSong
+from barkley.model.images import FAMF, IBARON, ICISTERN, IFAM, ITANK, ITREE, NFAM
+from barkley.model.hero import Hero, Pad
+from barkley.model.level import GRAV, Ground, KBONE, KBRAMBLE, KBUOY, KCAT, KCISTERN, KCRAB, KDRIFT, KGOAT, KHOOP
+from barkley.model.level import KICICLE, KJELLY, KJET, KLEG, KLOAD, KLOG, KLOOP, KMOUND, KPIPE, KPRESS, KSAPLING, KSEAT
+from barkley.model.level import KSLED, KSPAN, KSPARK, KSPRING, KSQUIRREL, KSWEEP, KTHROW, KVINE, KWALL, KWAVE, Level, MH
+from barkley.model.level import NONE, NSTAGE, TS, ZONES
+from barkley.model.game import CLEARED, Cue, Game, INTRO, Loose, NCUE, NLOOSE, NPART, OVER, Part, PLAYING, Session
+from barkley.model.game import TITLE
+from barkley.assets.palette import CBEE, CFLY, CNUT, CSEA, CVINE, CVINED, CWHITE
+from barkley.assets.store import BuildArt
+from barkley.assets.cast import BaronPic, FamPic
+from barkley.assets.tunes import CAUGHT, CAUGHTUP, EndBeat, LEFTBEHIND, LoadSongs, PACKING, PickSong, SCLANK, Sfx, SHURT
+from barkley.assets.tunes import SJUMP, SongFor, Sudden, ZTUNE
+from barkley.world.terrain.ground import LoadTables, LOOPR, SegAt, Solid, Surf, WADE, WAVEL
+from barkley.world.terrain.track import MOVEW, WAVEA
+from barkley.world.layout import PITD
+from barkley.world.level import CABLED, LoadLevel, Mend, SINTRO, ZoneName
+from barkley.world.movers import FREEB
+from barkley.stage.fx.parts import Burst
+from barkley.stage.fx.damage import BOUNCEV, Hurt, Lose
+from barkley.stage.hero.modes import AFLOAT, DIGV, DRYT, Lull, VINEGRIP, VINELEN
+from barkley.stage.hero.moves import GLOWT, JUMPV, MoveHero, SHELLT, THROWC, TOP, WETTOP
+from barkley.stage.hero.draw import LOGR
+from barkley.stage.zones.works import PRESSFALL, PRESSLAG, PRESSP, PRESSRISE, PressT, PRESSUP, SPARKLIT, SPARKP, Stroke
+from barkley.stage.zones.sands import Flow, FLUMEV, GCLIMB, GDIVE, GHOVER, JELLYV, STEPV, TIDEP
+from barkley.stage.zones.wood import BRAMBLET, FLYREST, GLOWFADE, LOGH, LOGV, MOUNDR, NBEE, SAPREACH, SAPT, SQNEAR
+from barkley.stage.zones.wood import SQRUN, SQV, SQWAIT
+from barkley.stage.zones.pass import Fallen, GCHARGE, HeapOf, HEAPR, LOADRUN, LOADSLIDE, SLEDV, Slid, THROWAT, THROWUP
+from barkley.stage.zones.pass import TREMBLE, WALLR
+from barkley.stage.zones.chase import BOLTS, CARTLEAD, CHASETUNE, NBUMP, PAWUP, PEDALMORE, PEDALUP, PEDALV, PEDALW
+from barkley.stage.zones.chase import RAILUP, TwinPose
+from barkley.stage.camera import Camera, HEAD, Headroom, HEADUP
+from barkley.stage.scene import Render
+from barkley.stage.play import JELLYD, SPARKR, Spawn, Things
+from barkley.control.pilot import Pilot
+from barkley.flow.save import LoadSave, Reach
+from barkley.flow.intro import BEATS, BETWEEN, BUMP0, CueAt, HORIZON, ILEN, IntroDraw, QHERO, QSND, QVAN, StartIntro
+from barkley.flow.states import GoStage, ResetWorld, StartGame, TALLYN, Tick
+from barkley.main import Advance
+declare function GroundAt% (lv as Level, x as integer)
 declare sub Stand (lv as Level, gr as Ground, p as Hero, x as integer, v as single)
 declare sub StandUnder (lv as Level, gr as Ground, p as Hero, x as integer, x0 as integer)
 declare sub AtBall (lv as Level, p as Hero)
@@ -71,7 +113,7 @@ wd.mu.muted = 0
 LoadSongs wd.mu
 for j = 0 to NSLOT - 1
     wd.mu.coming = j
-    StartSong wd.mu, wd.se
+    StartSong wd.mu, wd.se.ticks
     play Beat$(wd.mu, j, wd.mu.song(j).half(0).kit, 3)
     for i = 0 to NVOICE - 1
         play , , wd.mu.song(j).voOne(i) + "V1", , , wd.mu.song(j).voTwo(i) + "V1"
@@ -94,14 +136,14 @@ print "sounds ok"
 g.mode = CLEARED
 PickSong wd.mu, SongFor%(g), -1
 for i = 1 to 40
-    NextHalf wd.mu, wd.se
+    NextHalf wd.mu, wd.se.ticks
     if wd.mu.ended then exit for
 next
 if wd.mu.slot = CAUGHT and i = 16 then print "caught ok"
 ' the intro has its own tune in the zone's slot, 28 bars that end: its kit, its voicings and its first half bar played
 StartIntro wd, g, cu()
 PickSong wd.mu, SongFor%(g), 0
-NextHalf wd.mu, wd.se
+NextHalf wd.mu, wd.se.ticks
 for i = 0 to NVOICE - 1
     play , , wd.mu.song(ZTUNE).voOne(i) + "V1", , , wd.mu.song(ZTUNE).voTwo(i) + "V1"
 next
@@ -504,7 +546,7 @@ zp = zp and wd.tn.own(1, 0) <> wd.tn.day(wd.tn.which(1, 0))
 ' had the Downs'
 GoStage wd, 2, g, p, lo(), pt()
 PickSong wd.mu, SongFor%(g), 0
-NextHalf wd.mu, wd.se
+NextHalf wd.mu, wd.se.ticks
 for i = 0 to NVOICE - 1
     play , , wd.mu.song(ZTUNE).voOne(i) + "V1", , , wd.mu.song(ZTUNE).voTwo(i) + "V1"
 next
@@ -710,7 +752,7 @@ print "zonetree"; Pix&(0, 64, 0, 79); wd.art.nextAt - hid; wd.art.zoneAt > 0
 ' They had the Downs'
 GoStage wd, 4, g, p, lo(), pt()
 PickSong wd.mu, SongFor%(g), 0
-NextHalf wd.mu, wd.se
+NextHalf wd.mu, wd.se.ticks
 for i = 0 to NVOICE - 1
     play , , wd.mu.song(ZTUNE).voOne(i) + "V1", , , wd.mu.song(ZTUNE).voTwo(i) + "V1"
 next
@@ -748,7 +790,7 @@ was = was and wd.mu.zHeld = 17 and wd.mu.song(ZTUNE).tempo = 112 and instr(wd.mu
 for m = 1 to 9 step 2
     GoStage wd, m, g, p, lo(), pt()
     PickSong wd.mu, SongFor%(g), 0
-    NextHalf wd.mu, wd.se
+    NextHalf wd.mu, wd.se.ticks
     for i = 0 to NVOICE - 1
         play , , wd.mu.song(ZTUNE).voOne(i) + "V1", , , wd.mu.song(ZTUNE).voTwo(i) + "V1"
     next
@@ -762,7 +804,7 @@ GoStage wd, 1, g, p, lo(), pt()
 was = wd.mu.cHeld = PACKING + 1 and len(wd.mu.song(CAUGHT).order) = 12 and wd.mu.song(CAUGHT).ends
 g.mode = CLEARED
 PickSong wd.mu, SongFor%(g), -1
-NextHalf wd.mu, wd.se
+NextHalf wd.mu, wd.se.ticks
 was = was and wd.mu.slot = CAUGHT and wd.mu.bar = 0 and wd.mu.half = 1
 GoStage wd, 0, g, p, lo(), pt()
 if was and wd.mu.cHeld = CAUGHTUP + 1 and len(wd.mu.song(CAUGHT).order) = 8 then print "packing ok"
@@ -780,7 +822,7 @@ for i = 1 to 200
 next
 was = g.mode = OVER and wd.mu.cHeld = LEFTBEHIND + 1 and SongFor%(g) = CAUGHT and wd.mu.song(CAUGHT).tempo = 80
 PickSong wd.mu, SongFor%(g), -1
-NextHalf wd.mu, wd.se
+NextHalf wd.mu, wd.se.ticks
 was = was and wd.mu.slot = CAUGHT and len(wd.mu.song(CAUGHT).order) = 4 and wd.mu.song(CAUGHT).ends
 for i = 1 to 600
     Tick wd, g, p, k, lo(), pt()
@@ -3186,6 +3228,7 @@ def main() -> None:
         path = Path(tmp) / "T.BAS"
         path.write_text(src.replace("\nMain wd\nend\n", "\n" + DRIVER, 1))
         shutil.copy(DEMO.with_suffix(".DAT"), tmp)
+        shutil.copytree(DEMO.parent / "barkley", Path(tmp) / "barkley")
         run = subprocess.run([exe, path.name], cwd=tmp, capture_output=True, timeout=300)
     out = run.stdout.decode(errors="replace") + run.stderr.decode(errors="replace")
     if "edge ok" not in out:
