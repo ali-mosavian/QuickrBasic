@@ -34,7 +34,8 @@ adds it.
 An element with bounds is a fixed array inside the record, as in
 QuickBASIC PDS: pts(1 TO 4) AS Pt. The bounds are numbers, the lower
 OPTION BASE's when left out. Reach an element as v.pts(i).x; outside
-the bounds is Subscript out of range.
+the bounds is Subscript out of range. LBOUND, UBOUND, ERASE and the
+graphics GET and PUT take v.pts whole, in QuickrBasic.
 
 An element with empty parentheses is a dynamic array, QuickrBasic's:
 pts() AS Pt. It is empty until REDIM v.pts(1 TO n), and grows with

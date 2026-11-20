@@ -186,6 +186,20 @@ static inline bool fe_addr(Regs *const r)
     return true;
 }
 
+/* FX.IDX ( a s -- e ) of a fixed array field, ours, s in range; false: out of it. */
+static inline bool fx_idx(Regs *const r)
+{
+    const uint32_t k = (uint32_t)r->sp->i - load32(r->ip + 1); /* past count when under lb */
+
+    if (k >= load32(r->ip + 5))
+        return false;
+
+    r->sp++;
+    r->sp->a += k * load32(r->ip + 9);
+    r->ip += 13;
+    return true;
+}
+
 /* X.LD.A1 ( sub -- x ) in range; false: the handler's. */
 static inline bool ld_a1(Regs *const r, const Addr fp, const bool frame)
 {
@@ -525,6 +539,7 @@ static void exec_loop(Session *const S)
                 {exec_v_st, &&v_st},
                 {exec_r_addr, &&r_addr},
                 {exec_fe_addr, &&fe_addr},
+                {exec_fx_idx, &&fx_idx},
                 {exec_call, &&call},
                 {nullptr, &&cold},
             },
@@ -925,6 +940,13 @@ fe_addr:
 
     goto next;
 
+fx_idx:
+
+    if (!fx_idx(&r))
+        goto slow;
+
+    goto next;
+
 fail:
     v->ip = r.ip;
     v->sp = r.sp;
@@ -1033,6 +1055,35 @@ void exec_fe_addr(Session *const S)
         arry_bad_sub(&S->arry);
 
     S->vm.sp->a = arry_ref(&S->arry, s, 0, n);
+}
+
+/* A fixed array field's element ( a s -- e ), ours: FX.IDX's. Subscript out of range. */
+void exec_fx_idx(Session *const S)
+{
+    Regs r = {S->vm.ip - 1, S->vm.sp, S->vm.fp}; /* vm.ip at its operands */
+
+    if (!fx_idx(&r))
+        arry_bad_sub(&S->arry);
+
+    S->vm.ip = r.ip;
+    S->vm.sp = r.sp;
+}
+
+ArrSlot *exec_arrayop(Arry *const ar, Vm *const vm, ArrView *const v)
+{
+    const Addr top = exec_popa(vm);
+
+    if (top & ARR_FIELD) {
+        *v = arry_view_field(ar, exec_popa(vm), top & ~ARR_FIELD);
+        return nullptr;
+    }
+
+    ArrSlot *const s = (ArrSlot *)at(top);
+
+    if (s->hdr)
+        *v = arry_view(s->hdr);
+
+    return s;
 }
 
 Addr exec_record(Arry *const ar, ArrSlot *const s, const uint32_t id)

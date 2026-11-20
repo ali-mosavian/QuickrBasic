@@ -491,48 +491,26 @@ void stmt_amove(Session *const S)
 
 /* A fixed array field's element ( addr s lb count stride -- addr ), ours: s's place in its
    dimension, stride bytes each. Subscript out of range: past it. */
-void stmt_fidx(Session *const S)
-{
-    const uint32_t stride = exec_pop(&S->vm).u, count = exec_pop(&S->vm).u;
-    const int32_t lb = exec_pop(&S->vm).i;
-    const int64_t k = (int64_t)exec_pop(&S->vm).i - lb;
-
-    if (k < 0 || k >= count)
-        arry_bad_sub(&S->arry);
-
-    S->vm.sp->a += (Addr)k * stride;
-}
-
 /* An array result's start ( id -- ), ours: as arry_reset. */
 void stmt_areset(Session *const S)
 {
     arry_reset(&S->arry, &S->vm, arry_slot(&S->arry, exec_pop(&S->vm).u));
 }
 
-/* ERASE ( cell -- ): REDIM's array freed, another's elements zeroed. */
+/* ERASE ( array -- ), an operand (exec_arrayop): REDIM's array freed, another's elements zeroed. */
 void stmt_erase(Session *const S)
 {
-    ArrSlot *const s = (ArrSlot *)at(exec_popa(&S->vm));
-    const Addr hdr = s->hdr;
+    ArrView v;
+    ArrSlot *const s = exec_arrayop(&S->arry, &S->vm, &v);
 
-    if (!hdr)
+    if (s && !s->hdr)
         return;
-    if (s->dyn) {
+    if (s && s->dyn) {
         arry_free(&S->arry, &S->vm, s);
         return;
     }
 
-    const ArrayHdr *const a = (const ArrayHdr *)at(hdr);
-    const uint32_t size = arry_size(&S->arry, hdr);
-    arry_kill_elems(&S->arry, hdr); /* a record's arrays, ours */
-    copy_zero(a->data, size);
-
-    if (a->et >= ET_REC) {
-        const TypeDef *const td = decl_type(&S->decl, a->et - ET_REC);
-        arry_empty_cells(a->data, size / td->size, td);
-    }
-
-    arry_sweep(&S->arry, &S->vm);
+    arry_clear(&S->arry, &S->vm, &v);
 }
 
 /* ---- RUN, LIST, CONT, END, STOP ------------------------------------------------------------- */

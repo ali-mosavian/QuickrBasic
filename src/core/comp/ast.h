@@ -90,15 +90,20 @@ enum : uint8_t { CALL_PROC, CALL_UNDEF };
 /* How a whole array is written, ours: f alone (a record's field), a(), a(:) its elements. */
 typedef enum : uint8_t { WR_ALONE, WR_ARRAY, WR_ELEMS } Written;
 
+/* What a record's array field whole may be, ours, besides a dynamic one's f or f(): f(..), its (..)
+   a REDIM's bounds or an element's subscripts; a fixed one's. */
+enum : uint8_t { WH_PAREN = 1, WH_FIXED = 2 };
+
 /* A record's place: its field's ET_* (ET_REC + t all of a record of TYPE t), offset, its STRING * n
-   or a record's size. Ours, arr: a dynamic array field whole, off its cell's, et its elements', wr
-   how it was written. */
+   or a record's size. Ours, arr: an array field whole, off its cell's or a fixed one's place, et its
+   elements', wr how it was written, key a fixed one's (decl_fieldkey), 0 a dynamic one's. */
 typedef struct {
     uint32_t et;
     uint16_t off;
     uint16_t fix;
     bool arr;
     Written wr;
+    uint32_t key;
 } RecRef;
 
 typedef struct Node Node;

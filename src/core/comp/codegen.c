@@ -918,6 +918,8 @@ static void cg_addr(Code *const c, const Node *const n)
         code_op(c, O_I_ADD);
     }
 
+    if (at->rec.key) /* a fixed array field whole's: the array operand, ours */
+        code_int(c, ARR_FIELD | at->rec.key);
     if (n->op == K_VARPS)
         code_int(c, n->num);
     if (n->op)

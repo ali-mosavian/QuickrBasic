@@ -1200,6 +1200,27 @@ CASES |= {
                                 "on error goto h", "print r.m(4, 0)", "print r.m(1)", "end", OV),
                             " 15  33 four 16  40  12 \r\nov 9 \r\nov 9 \r\n", "ERROR"),
     "field_dynamic_empty": (bas(*MESH, "m.pts(1).x = 1"), "Subscript out of range in line", None),
+    # A field in a REDIM's or UBOUND's subscripts was taken whole: Type mismatch at t.d(1).
+    "field_whole_subscript": (bas("type R", " xs() as long", "end type", "type H", " d() as long", "end type",
+                                  "dim rs(3) as R, t as H", "redim t.d(2): t.d(1) = 2",
+                                  "redim rs(t.d(1)).xs(4): print ubound(rs(t.d(1)).xs); ubound(rs(2).xs)"),
+                              " 4  4 \r\n", "ERROR"),
+    # A fixed array field whole, ours, was refused: LBOUND, UBOUND and ERASE a Syntax error, GET into
+    # it Illegal function call. Its bounds are its TYPE's; ERASE zeroes it, as a DIM'd array's.
+    "field_fixed_whole": (bas("const N = 4", "type T", " at(N) as long", " g(N * 100 - 1) as long",
+                              " m(1 to 3, -2 to 2) as integer", " s(2) as string", " d() as long", "end type",
+                              "declare sub chk (r as T)", "dim t as T, rs(2) as T", "on error goto h",
+                              "print lbound(t.at); ubound(t.at); ubound(t.g()); lbound(t.m, 2); ubound(t.m, 1)",
+                              "k = 2: print lbound(t.m, k); ubound(rs(1).m, k): print ubound(t.m, 3)",
+                              't.at(2) = 5: t.s(1) = "x": erase t.at, t.s: print t.at(2); len(t.s(1))',
+                              "screen 13: pset (3, 3), 7: redim t.d(399)",
+                              "get (0, 0)-(7, 7), t.g(20): get (0, 0)-(7, 7), t.d(20)",
+                              "print t.g(20) = t.d(20); t.g(21) = t.d(21); t.g(25) = t.d(25)",
+                              "cls: put (10, 10), t.g(20): print point(13, 13)", "get (0, 0)-(63, 63), t.at(0)",
+                              "t.g(399) = 9: chk t: print t.g(399)", "end", OV,
+                              "sub chk (r as T)", " print ubound(r.g); r.g(399): erase r.g", "end sub"),
+                          " 0  4  399 -2  3 \r\n-2  2 \r\nov 9 \r\n 0  0 \r\n-1 -1 -1 \r\n 7 \r\nov 5 \r\n"
+                          " 399  9 \r\n 0 \r\n", "ERROR"),
     "field_dynamic_dims": (bas(*MESH, "m.pts(" + ",".join("0" * 61) + ").x = 1"), ".BAS:12: Too many dimensions", None),
     "field_dynamic_type": (bas(*MESH, "dim s() as Mesh", "s(:) = m.pts(:)"), ".BAS:13: Type mismatch", None),
     "field_dynamic_value": (bas(*MESH, "print m.pts"), ".BAS:12: Type mismatch", None),

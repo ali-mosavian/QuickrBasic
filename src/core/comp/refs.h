@@ -51,8 +51,9 @@ Node *ref_cell(
 /* A record's dynamic array field whole at comp.p, ours, f or f(): its cell's place, *type its
    elements' (a variable's ET_*); null, comp.p kept: none. wr: f(:) too, *wr how it is written. */
 Node *ref_fieldarray(Comp *C, uint32_t *type, Written *wr);
-/* ref_fieldarray's, f(..) too, the (..) left at comp.p: a REDIM's bounds, an element's subscripts. */
-Node *ref_fieldcell(Comp *C, uint32_t *type);
+/* ref_fieldarray's, whole (WH_*) its other forms: WH_PAREN's (..) left at comp.p; WH_FIXED a fixed
+   one's place, its address the array operand (defs.h ARR_FIELD). */
+Node *ref_arrayfield(Comp *C, uint32_t *type, uint8_t whole);
 /* An array at comp.p, ours: a() whole, or f(..), a FUNCTION's array result, its call to *call (null
    for a()): its variable, a record for a record result. wr: b(:) too, *wr how it is written. */
 uint32_t ref_arrayvalue(Comp *C, Node **call, Written *wr);

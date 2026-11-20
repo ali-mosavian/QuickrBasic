@@ -131,11 +131,30 @@ Addr arry_make(Arry *ay, ArrSlot *s, uint32_t et, uint8_t n, bool dyn);
 Addr arry_new(Arry *ay, uint32_t id, uint8_t n, bool dyn);
 /* The data's bytes of the array with header hdr. */
 uint32_t arry_size(const Arry *ay, Addr hdr);
+/* An array's elements as LBOUND, ERASE and GET see them, ours: a header's, or a fixed array
+   field's, its dimensions its field's. */
+typedef struct ArrView {
+    Addr data;
+    uint32_t et;
+    uint8_t dims;
+    const ArrayHdr *hdr;   /* a header's: its counts and lower bounds */
+    const FieldDim *fdims; /* a field's */
+} ArrView;
+/* Header h's array's view. */
+ArrView arry_view(Addr h);
+/* The view of the fixed array field key names (decl_fieldkey), its place at data. */
+ArrView arry_view_field(const Arry *ay, Addr data, uint32_t key);
+/* Its dimension i's count, lower bound; its elements' count, their bytes. */
+uint32_t arry_view_count(const ArrView *v, uint32_t i);
+int32_t arry_view_lbound(const ArrView *v, uint32_t i);
+uint32_t arry_view_elems(const ArrView *v);
+uint32_t arry_view_size(const Arry *ay, const ArrView *v);
+/* ERASE of a DIM'd array or a fixed array field: its elements zeroed, its records' arrays freed and
+   emptied (ours). */
+void arry_clear(Arry *ay, Vm *vm, const ArrView *v);
 /* Header h's array dead, ours, and the arrays its records hold: arry_sweep removes them. A frame's
    or an arena's is not the heap's: it goes with the frame, its records' arrays here. */
 void arry_kill(const Arry *ay, Addr h);
-/* The arrays the records of header h's array hold dead, ours; the array itself kept. */
-void arry_kill_elems(const Arry *ay, Addr h);
 /* The dead arrays removed, ours: what follows each moves down, and the headers' data, their
    owners in the moved data, the moved headers' cells, the moved string blocks' owners and the
    parameters' cells in the moved data follow. A cell held in the heap moves: not to be used after. */

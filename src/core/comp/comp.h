@@ -86,7 +86,7 @@ typedef struct Comp {
     uint32_t ndfor;
     struct Node *on, *onlast; /* ON's node, its last line */
     uint16_t redim;           /* credim: DIM_REDIM, DIM_PRESERVE or 0 */
-    bool dimtarget;           /* ours: ref_fieldcell's read: f(..) an array field whole */
+    uint8_t whole;            /* ours: ref_arrayfield's read: WH_* */
     uint16_t lnum;            /* wv: a jump's line number, NONUM a label's */
     uint32_t jline;           /* jline: its line, 0 not found */
     uint32_t lnumat;          /* the line number's or label's body offset */

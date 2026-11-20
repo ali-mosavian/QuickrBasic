@@ -421,7 +421,7 @@ static Node *xfn_node(Comp *const C)
                 synerr(C);
 
             uint32_t type;
-            a = ref_fieldarray(C, &type, nullptr);
+            a = ref_arrayfield(C, &type, WH_FIXED);
 
             if (a == nullptr) {
                 const uint32_t id = ref_arrayof(C, comp_var(C, 2, 0));

@@ -215,7 +215,7 @@ static void gstm_array(Comp *const C)
 
     const uint8_t *const name = C->p;
     uint32_t type;
-    Node *const field = ref_fieldcell(C, &type);
+    Node *const field = ref_arrayfield(C, &type, WH_PAREN | WH_FIXED);
     comp_step(C, field ? field : ref_cell(C, comp_var(C, 2, 0)));
 
     if (*C->p == '(') {

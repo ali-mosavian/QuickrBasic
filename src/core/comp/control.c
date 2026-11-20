@@ -1222,7 +1222,7 @@ static void erase(Comp *const C)
 
     do {
         uint32_t type;
-        Node *const f = ref_fieldarray(C, &type, nullptr); /* m.a, ours */
+        Node *const f = ref_arrayfield(C, &type, WH_FIXED); /* m.a, ours */
         comp_step(C, f ? f : ref_cell(C, ref_arrayof(C, shaped(C, 2))));
         comp_call(C, K_ERASE);
     } while (comp_optcomma(C));

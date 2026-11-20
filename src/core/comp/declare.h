@@ -112,6 +112,15 @@ static inline uint32_t decl_fieldtype(const Field *const f)
 {
     return f->sub ? ET_REC + f->sub : f->et;
 }
+/* Field i of TYPE t's key, ours, a fixed array field's for the run (vm/exec.c exec_arrayop); t
+   FIELD_KEY_TYPES at most. */
+enum : uint32_t { FIELD_KEY_TYPES = 0x7FFF };
+static inline uint32_t decl_fieldkey(const uint32_t t, const uint32_t i) { return t << 16 | i; }
+/* The field a key names. */
+static inline const Field *decl_keyfield(const Decl *const d, const uint32_t key)
+{
+    return &decl_type(d, key >> 16)->fields[key & 0xFFFF];
+}
 /* Field f's dimension k. */
 static inline const FieldDim *decl_fielddim(
     const Decl *const d,
