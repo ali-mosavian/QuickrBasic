@@ -641,27 +641,29 @@ def cmd_fps(a: argparse.Namespace) -> int:
 
 CHARLIE = ROOT / "src/plat/wasm/web/demos/CHARLIE.BAS"
 # the game's own pilot playing from the start; each call for 2 s, a second of play between them
-CHARLIE_EACH = ("Pilot p, k: Tick g, p, k, lo(), pt()", "DrawBack cx, cy", "DrawThings cx, cy, -1", "DrawTiles cx, cy",
-             "DrawThings cx, cy, 0", "DrawHero p, cx, cy", "DrawParts pt(), cx, cy", "Blit 6, 5, IHUD, HUDW, HUDH", "Flip g.page",
-             "Render g, p, lo(), pt()")
+CHARLIE_STEP = "Pilot wd.lv, wd.gr, wd.zn, wd.se, p, k: Tick wd, g, p, k, lo(), pt()"
+CHARLIE_EACH = (CHARLIE_STEP, "DrawBack wd.zn, wd.art, cx, cy",
+                "DrawThings wd.lv, wd.zn, wd.art, wd.se, cx, cy, -1", "DrawTiles wd.lv, wd.zn, wd.art, cx, cy",
+                "DrawThings wd.lv, wd.zn, wd.art, wd.se, cx, cy, 0", "DrawHero wd.gr, wd.art, wd.se, p, cx, cy",
+                "DrawParts pt(), cx, cy", "Blit wd.art, 6, 5, IHUD, HUDW, HUDH", "Flip g.page", "Render wd, g, p, lo(), pt()")
 CHARLIE_SETUP = """OpenScreen
-LoadTables
-BuildArt
-LoadLevel 0
+LoadTables wd.lv
+BuildArt wd.art, wd.tn
+LoadLevel wd, 0
 DIM g AS Game, p AS Hero, k AS Pad, lo(NLOOSE - 1) AS Loose, pt(NPART - 1) AS Part
 DIM q AS INTEGER, n AS LONG, t0 AS SINGLE, cx AS INTEGER, cy AS INTEGER
-LoadSongs
-Mu.muted = -1
+LoadSongs wd.mu
+wd.mu.muted = -1
 g.page = 1
-StartGame g, p, lo(), pt()
+StartGame wd, g, p, lo(), pt()
 OPEN "EACH.TXT" FOR OUTPUT AS #1
 """
 
 
 def charlie_program() -> str:
     """CHARLIE.BAS's Main swapped for a loop of each CHARLIE_EACH call (after an empty one), its ms a call to EACH.TXT."""
-    head, rest = CHARLIE.read_text().split("\nMain\nend\n", 1)
-    move = "FOR q = 1 TO 60: Pilot p, k: Tick g, p, k, lo(), pt(): NEXT\ncx = INT(g.camx): cy = INT(g.camy)\n"
+    head, rest = CHARLIE.read_text().split("\nMain wd\nend\n", 1)
+    move = f"FOR q = 1 TO 60: {CHARLIE_STEP}: NEXT\ncx = INT(g.camx): cy = INT(g.camy)\n"
     loops = "".join(f"{move}n = 0: t0 = TIMER\nDO\n    FOR q = 1 TO {EACH_REPS}\n    {call}\n    NEXT\n"
                     f"    n = n + {EACH_REPS}\nLOOP UNTIL TIMER - t0 >= 2\n"
                     "PRINT #1, (TIMER - t0) / n * 1000; n\n" for call in ("REM", *CHARLIE_EACH))
