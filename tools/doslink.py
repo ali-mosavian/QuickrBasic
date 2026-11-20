@@ -31,9 +31,11 @@ DEFINES = {
 
 
 def run(command: list[str]) -> None:
+    """command: a warning fails too."""
     done = subprocess.run(command, capture_output=True, text=True)
-    if done.returncode != 0:
-        sys.exit(f"{Path(command[0]).name}: {(done.stdout + done.stderr).strip()}")
+    said = (done.stdout + done.stderr).strip()
+    if done.returncode != 0 or "Warning" in said:
+        sys.exit(f"{Path(command[0]).name}: {said}")
 
 
 def assemble(name: str, out: Path) -> Path:

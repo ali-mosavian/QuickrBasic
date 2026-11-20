@@ -10,9 +10,7 @@
 
 int _fltused;
 
-#define HELPER(type, name)                                                                         \
-    [[gnu::stdcall, gnu::used]]                                                                    \
-    type name(type n, type d) __asm__("__" #name)
+#define HELPER(type, name) [[gnu::stdcall]] type name(type n, type d) __asm__("__" #name)
 
 HELPER(int64_t, alldiv);
 HELPER(int64_t, allrem);
