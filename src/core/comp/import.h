@@ -36,7 +36,7 @@ const uint8_t *impt_scan(const uint8_t *p, ImptEach *each, void *ctx, bool *ok);
 /* A line's body starts with an IMPORT or FROM statement, written as one: its names to each. */
 bool impt_line(const uint8_t *body, ImptEach *each, void *ctx);
 /* IMPORT or FROM at comp.p (TK_X, then its token): IMPORT ops, one per module it names, its code
-   run once. Syntax error: not the line's first statement, inside a SUB or FUNCTION, or not written
-   as one. Illegal direct: typed alone. */
+   run once; the editor's check (comp.check): none. Syntax error: not the line's first statement,
+   inside a SUB or FUNCTION, or not written as one. Illegal direct: typed alone. */
 void impt_compile(Comp *C);
 #endif

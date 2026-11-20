@@ -8,6 +8,9 @@
  * loaded once however many import it: paths compare without case. The imports are edges; a
  * depth-first walk from the main program orders the modules for their declarations. Each module
  * keeps its run's state too: its code run, its ON ERROR handler, its READ place (vm/).
+ *
+ * The editor enters its lines again with the modules kept (modu_relink): each module's own file
+ * is numbered as the module, its includes' after them.
  */
 #include "mem/module.h"
 #include "util/grow.h"
@@ -49,6 +52,20 @@ static bool same(const char *a, const char *b)
         ;
 
     return fold(*a) == fold(*b);
+}
+
+void modu_relink(Modu *const mu, const char *const main, const uint32_t n)
+{
+    if (!same(mu->text + mu->mods[0].path, main)) /* Save As */
+        mu->mods[0].path = keep(mu, main);
+    if (!GROW(mu->files, mu->filecap, n))
+        fault_error(mu->fault, E_OM);
+
+    for (uint32_t m = 0; m < n; m++)
+        mu->files[m] = (ModuFile){mu->mods[m].path, m};
+
+    mu->nmods = mu->nfiles = n;
+    mu->nedges = 0;
 }
 
 uint32_t modu_find(const Modu *const mu, const char *const path)

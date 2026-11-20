@@ -7,6 +7,9 @@
  * A run enters the text again when it changed (repl_relink); an error, BREAK or STOP comes back to
  * the editor at its line. The editor runs only when standard input and output are both the console.
  *
+ * Open reads the program and the modules it imports (repl_open), Save writes it and each module
+ * changed (text_unsaved); Save As names the program.
+ *
  * Each key's command runs under repl_call, and a run under its own: an error or a run's end comes
  * back to its caller as a Status, the C stack below it unwound.
  *
@@ -44,6 +47,7 @@
 #include "io/console.h"
 #include "io/repl.h"
 #include "mem/alloc.h"
+#include "mem/module.h"
 #include "mem/program.h"
 #include "plat/pfil.h"
 #include "plat/pkey.h"
@@ -647,18 +651,39 @@ static void change(Session *const S)
 /* ui_save: File, Save: to its name, else Save As. false: not saved. */
 static bool save_as(Session *S);
 
-static bool write_file(Session *const S)
+/* Module module's text to its file name. false: not written. */
+static bool write_module(Session *const S, const char *const name, const uint32_t module)
 {
-    if (text_write(S, uimn.file) != PFIL_OK) {
+    if (text_write(S, name, module) != PFIL_OK) {
         dlog_ok(S, s_access);
         return false;
     }
 
-    uimn.text.unsaved = false;
+    text_saved(module);
     return true;
 }
 
-static bool save(Session *const S)
+/* The program to uimn.file, each module changed to its own. */
+static bool write_file(Session *const S)
+{
+    if (!write_module(S, uimn.file, 0))
+        return false;
+
+    for (uint32_t m = 1; m < modu_count(&S->modu); m++)
+        if (text_unsaved(m) && !write_module(S, modu_module_path(&S->modu, m), m))
+            return false;
+
+    return true;
+}
+
+/* The program named uimn.file: its imports found from its folder. */
+static void named(Session *const S)
+{
+    memcpy(S->repl.file, uimn.file, sizeof uimn.file);
+    uimn.text.changed = true;
+}
+
+bool uimn_save(Session *const S)
 {
     edit_commit(S);
 
@@ -702,6 +727,7 @@ static bool save_as(Session *const S)
     }
 
     memcpy(uimn.file, uimn.chosen, sizeof uimn.file);
+    named(S);
     return write_file(S);
 }
 
@@ -720,7 +746,7 @@ static bool ask_save(Session *const S)
     if (r > YNC_NO)
         return false;
 
-    return save(S);
+    return uimn_save(S);
 }
 
 /* ui_reset: the editor at the text's start: a new or loaded text. */
@@ -731,10 +757,10 @@ static void reset(Session *const S)
     uimn.edline.col = 0;
     uimn.ed.sel_on = false;
     uimn.tree.workspace.focus = FOC_EDIT;
-    uimn.text.unsaved = false;
     uimn.text.changed = true;
     dpan_close();
     view_reset(S);
+    text_clean();
     edit_load(S, 0);
 }
 
@@ -746,7 +772,17 @@ static void file_new(Session *const S)
 
     text_init(S);
     uimn.file[0] = 0;
+    named(S);
     reset(S);
+}
+
+/* fn, a load (repl_open, repl_relink), under its own boundary: the modules it read shown
+   (view_modules), *read whether there were; its Status. */
+static Status loaded(Session *const S, void (*const fn)(Session *S), bool *const read)
+{
+    const Status st = repl_call(S, fn);
+    *read = view_modules(S);
+    return st;
 }
 
 /* ui_load: the file uimn.chosen into the text; not found: a new one of that name, from the
@@ -763,7 +799,12 @@ static void load(Session *const S)
     }
 
     memcpy(uimn.file, uimn.chosen, sizeof uimn.file);
+    named(S);
     reset(S);
+    bool read;
+    const Status st = loaded(S, repl_open, &read);
+    text_clean(); /* as read: a blank line before a SUB aside */
+    fault_check(&S->fault, st);
 }
 
 /* ui_open: File, Open. */
@@ -773,7 +814,16 @@ static void open_program(Session *const S)
         load(S);
 }
 
-static void file_save(Session *const S) { save(S); }
+void uimn_open(Session *const S, const char *const name)
+{
+    const size_t n = strlen(name);
+    const size_t fit = n < sizeof uimn.chosen ? n : sizeof uimn.chosen - 1;
+    memcpy(uimn.chosen, name, fit);
+    uimn.chosen[fit] = 0;
+    load(S);
+}
+
+static void file_save(Session *const S) { uimn_save(S); }
 static void file_saveas(Session *const S) { save_as(S); }
 
 /* ui_exit: File, Exit: back to DOS. */
@@ -802,23 +852,27 @@ static void about(Session *const S) { dlog_ok(S, s_about); }
 
 /* ---- running */
 
-/* ui_sync: the program entered again when the text changed. Errors: as repl_relink, at its
-   line. */
-static void sync(Session *const S)
+/* The modules read for it shown, their lines ordered, then entered again. */
+void uimn_sync(Session *const S)
 {
     edit_commit(S);
 
     if (!uimn.text.changed)
         return;
 
-    repl_relink(S);
+    bool read;
+    fault_check(&S->fault, loaded(S, repl_relink, &read));
+
+    if (read)
+        repl_relink(S);
+
     lmap_build(S);
     uimn.text.changed = false;
 }
 
 void uimn_run(Session *const S)
 {
-    sync(S);
+    uimn_sync(S);
     udbg_prep(S);
     upag_clear(S);
     ui.run_wait = true;
@@ -852,7 +906,7 @@ void uimn_cont(Session *const S)
 /* ui_exec: Enter in the immediate window: its line run on the output page. */
 static void exec_line(Session *const S)
 {
-    sync(S);
+    uimn_sync(S);
     const uint16_t len = edit_imm_next(S);
 
     if (!len)
@@ -1399,9 +1453,9 @@ void uimn_modal(Session *const S, Widget *const w)
     }
 }
 
-/* The editor's state at its start. */
-static void init(Session *const S)
+void uimn_init(Session *const S)
 {
+    S->repl.keep_pre = true; /* a module's lines shown as typed */
     uimn.rows = 25; /* till uimn_rows */
     build_tree();
     uimn.on = true;
@@ -1482,7 +1536,7 @@ void uimn_start(Session *const S)
     if (!S->cons.stdin_dev || !pfil_isdev(PFIL_STDOUT))
         return;
 
-    init(S);
+    uimn_init(S);
     bool most;
     const uint16_t n = cmdline_file(&most);
     uimn_rows(most ? 50 : 25); /* /H: the most the card has */

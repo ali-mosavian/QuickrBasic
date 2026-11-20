@@ -191,7 +191,7 @@ static void run(void *const ctx, const uint32_t module)
 
 void impt_compile(Comp *const C)
 {
-    if (C->line == DLINE)
+    if (C->line == DLINE && !C->check) /* the editor's check: a line of the program */
         fault_error(C->fault, E_ID);
     if (C->proc) {
         C->dg = DG_ILLEGAL_INSIDE_SUB_OR_FUNCTION;
@@ -208,6 +208,6 @@ void impt_compile(Comp *const C)
 
     if (!ok)
         fault_error(C->fault, E_SN);
-
-    C->impt->find(C->impt, C->line, stmt, run, C);
+    if (!C->check)
+        C->impt->find(C->impt, C->line, stmt, run, C);
 }

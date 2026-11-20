@@ -124,6 +124,16 @@ void prog_put(
     pg->user->edited(pg->user);
 }
 
+uint32_t prog_modules(const Prog *const pg)
+{
+    uint32_t tops = 0;
+
+    for (uint32_t line = PROGBASE; prog_line(pg, line)->len; line += prog_line(pg, line)->len)
+        tops += prog_line(pg, line)->flags & LF_TOP ? 1 : 0;
+
+    return tops ? tops : 1;
+}
+
 uint32_t prog_cut(Prog *const pg, const uint32_t line)
 {
     const uint32_t size = prog_line(pg, line)->len;

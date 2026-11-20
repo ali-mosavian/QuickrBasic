@@ -29,14 +29,18 @@ typedef struct {
 enum { C_HEAP = 0x60000 }; /* the batch's C side: the compiler's and the run's buffers */
 
 typedef struct {
-    const FrontEnd *fe;   /* boot's */
-    jmp_buf *top;         /* the innermost repl_call's: every unwind but a trap's and a stage's */
-    uint8_t err;          /* REPL_ERROR's error, E_* */
-    uint16_t fline;       /* loading a file: its line, for a warning */
-    uint16_t nfile;       /* the files read: the next one's Line.file */
-    uint32_t module;      /* loading: the module whose lines are read (mem/module.h) */
-    bool inproc;          /* loading: the lines read are a SUB's or FUNCTION's */
-    bool loading;         /* loading a file: every line is stored, at the end */
+    const FrontEnd *fe; /* boot's */
+    jmp_buf *top;       /* the innermost repl_call's: every unwind but a trap's and a stage's */
+    uint8_t err;        /* REPL_ERROR's error, E_* */
+    uint16_t fline;     /* loading a file: its line, for a warning */
+    uint16_t nfile;     /* the files read: the next one's Line.file */
+    uint32_t module;    /* the module whose lines are read or entered (mem/module.h) */
+    bool inproc;        /* loading: the lines read are a SUB's or FUNCTION's */
+    bool loading;       /* loading a file: every line is stored, at the end */
+    bool lenient;       /* loading: a module not found skipped (repl_open) */
+    bool keep_pre;      /* the editor's: a line loaded keeps its indent and number as typed */
+    uint8_t *pre;       /* keep_pre's, precap bytes */
+    uint32_t precap;
     bool batch;           /* a file run: its end exits */
     bool checking;        /* --check's: the file compiled, not run */
     char file[PFIL_PATH]; /* the command line's file name; CHAIN's */
@@ -85,6 +89,10 @@ void repl_load(Session *S);
    label. */
 uint8_t repl_enter(Session *S, uint32_t len);
 /* The stored lines entered again, as a loaded file's: declarations, labels, variables new;
-   an include's lines stored after its line (LF_INC), those of before dropped first. */
+   an include's lines stored after its line (LF_INC), those of before dropped first; a module's
+   kept, one imported and not stored read after the rest. Errors: as repl_load. */
 void repl_relink(Session *S);
+/* The editor's program, its main's lines in the store or more: as repl_relink, a module not found
+   skipped. */
+void repl_open(Session *S);
 #endif

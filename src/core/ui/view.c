@@ -1,9 +1,10 @@
-/* Views: the module and each SUB or FUNCTION on its own.
+/* Views: each file's module and each SUB or FUNCTION on its own.
  *
  * # How it works
- * The text keeps the module's lines first, then each procedure from its SUB or FUNCTION line to the
- * next one's (view_reset orders it so). A view is a part: first, n lines. A window's uimn.ed.view
- * is its view, applied to the text (text_view) by view_apply.
+ * The text is each of the program's files, the main's first (text.h). A file keeps its module's
+ * lines first, then each procedure from its SUB or FUNCTION line to the next one's (order() makes
+ * it so). A view is a part: first, n lines, of one file. A window's uimn.ed.view is its view,
+ * applied to the text (text_view) by view_apply.
  *
  * A line added or removed (uimn.text.hook) moves the views after the active window's. The cursor's
  * place in a view is kept when another is shown.
@@ -36,7 +37,10 @@
 #include "ui/window.h"
 #include "comp/comp.h"
 #include "comp/declare.h"
+#include "comp/import.h"
+#include "io/repl.h"
 #include "mem/copy.h"
+#include "mem/module.h"
 #include "mem/program.h"
 #include "util/grow.h"
 
@@ -53,8 +57,9 @@ static struct {
     LineBuf new_line; /* vw_new, vw_nlen: add's line, grown to fit */
     char *list_text;
     uint32_t list_cap;
-    uint32_t *order; /* the SUBs list's views: the module, then the procedures by name */
+    uint32_t *order; /* the SUBs list's views: each file's module, then its procedures by name */
     uint32_t order_cap;
+    uint32_t modules; /* the modules with lines in the store when the views were made */
 } vw = {.new_line = {.grows = true}};
 
 static LineBuf name_field = {.text = vw.name_text, .cap = DLBUF}; /* vw_fld: New SUB's name */
@@ -124,10 +129,10 @@ static Dlog dg_subs = {
 enum : uint8_t { VNEW_OK = 1 };
 enum : uint8_t { SUBS_ACTIVE = 1, SUBS_SPLIT = 2, SUBS_DELETE = 3 };
 
-/* Text line line's body to comp_cbuf: decl_proc's answer; *name its M_VAR for PK_SUB, PK_FUNC. */
-static uint8_t kind(Session *const S, const uint32_t line, const uint8_t **const name)
+/* Record rec's body to comp_cbuf: decl_proc's answer; *name its M_VAR for PK_SUB, PK_FUNC. */
+static uint8_t kind_of(Session *const S, const uint32_t rec, const uint8_t **const name)
 {
-    prog_body(&S->prog, lmap_off(S, line), S->comp.cbuf);
+    prog_body(&S->prog, rec, S->comp.cbuf);
     const uint8_t *nm = nullptr;
     const uint8_t k = decl_proc(S->comp.cbuf, &nm);
 
@@ -137,44 +142,79 @@ static uint8_t kind(Session *const S, const uint32_t line, const uint8_t **const
     return k;
 }
 
+/* The same, of text line line. */
+static uint8_t kind(Session *const S, const uint32_t line, const uint8_t **const name)
+{
+    return kind_of(S, lmap_off(S, line), name);
+}
+
 static bool is_proc(const uint8_t k) { return k >= PK_SUB && k < PK_END; }
+
+/* View v a procedure's. */
+static bool proc_view(const uint32_t v) { return v < vw.n && vw.tab[v].kind; }
 
 /* Kind k's keyword, its END line. */
 static const char *keyword(const uint8_t k) { return k == PK_SUB ? "SUB" : "FUNCTION"; }
 static const char *end_line(const uint8_t k) { return k == PK_SUB ? "END SUB" : "END FUNCTION"; }
 
-/* The text's module lines first, then the procedures', each from its SUB or FUNCTION line to its
-   END; in their order. */
+/* Record rec and the include's after it (LF_INC): their bytes. */
+static uint32_t with_includes(const Prog *const pg, const uint32_t rec)
+{
+    uint32_t end = rec + prog_line(pg, rec)->len;
+
+    while (prog_line(pg, end)->len && prog_line(pg, end)->flags & LF_INC)
+        end += prog_line(pg, end)->len;
+
+    return end - rec;
+}
+
+/* Each file's records, from to its LF_TOP or the end: its module's lines first, then the
+   procedures', each from its SUB or FUNCTION line to its END; in their order. An include's records
+   go with its line; the LF_TOP lines stay between the files. */
 static void order(Session *const S)
 {
+    Prog *const pg = &S->prog;
     text_whole();
-    prog_room(&S->prog, S->prog.end * 2 + 8); /* the lines copied after the store, then back */
-    const uint32_t start = S->prog.end + 4;
+    prog_room(pg, pg->end * 2 + 8); /* the lines copied after the store, then back */
+    const uint32_t start = pg->end + 4;
     uint32_t to = start;
 
-    for (uint8_t pass = 0; pass < 2; pass++) { /* 0: the module's lines, 1 the rest */
-        bool in_proc = false;
+    for (uint32_t from = PROGBASE; prog_line(pg, from)->len;) {
+        uint32_t end = from; /* the file's LF_TOP, else the terminator */
 
-        for (uint32_t line = 0; line < uimn.text.all; line++) {
-            const uint8_t k = kind(S, line, nullptr);
-            uint8_t mine = in_proc;
+        while (prog_line(pg, end)->len && !(prog_line(pg, end)->flags & LF_TOP))
+            end += prog_line(pg, end)->len;
 
-            if (k == PK_END)
-                in_proc = false; /* the END is the procedure's */
-            else if (k >= PK_SUB)
-                in_proc = mine = true;
-            if (mine != pass)
-                continue;
+        for (uint8_t pass = 0; pass < 2; pass++) { /* 0: the module's lines, 1 the rest */
+            bool in_proc = false;
 
-            const uint32_t rec = lmap_off(S, line), len = prog_line(&S->prog, rec)->len;
-            prog_copy(&S->prog, to, rec, len);
-            to += len;
+            for (uint32_t rec = from; rec < end;) {
+                const uint8_t k = kind_of(S, rec, nullptr);
+                const uint32_t len = with_includes(pg, rec);
+                uint8_t mine = in_proc;
+
+                if (k == PK_END)
+                    in_proc = false; /* the END is the procedure's */
+                else if (k >= PK_SUB)
+                    in_proc = mine = true;
+                if (mine == pass) {
+                    prog_copy(pg, to, rec, len);
+                    to += len;
+                }
+
+                rec += len;
+            }
         }
+
+        const uint32_t top = prog_line(pg, end)->len;
+        prog_copy(pg, to, end, top);
+        to += top;
+        from = end + top;
     }
 
-    prog_copy(&S->prog, PROGBASE, start, to - start);
-    S->prog.end = PROGBASE + (to - start);
-    prog_line(&S->prog, S->prog.end)->len = 0;
+    prog_copy(pg, PROGBASE, start, to - start);
+    pg->end = PROGBASE + (to - start);
+    prog_line(pg, pg->end)->len = 0;
     lmap_build(S);
 }
 
@@ -189,44 +229,56 @@ static void shift(const uint32_t line, const int32_t delta)
         vw.tab[i].first += delta;
 }
 
-/* The views from the text: the module, then a view from each SUB or FUNCTION line; the module
-   never empty. */
+/* Text line line starts a file. */
+static bool starts_file(Session *const S, const uint32_t line)
+{
+    return !line || text_module(S, line) != text_module(S, line - 1);
+}
+
+/* The views from the text: each file's module, then a view from each SUB or FUNCTION line; a
+   file's module never empty. */
 static void scan(Session *const S)
 {
     text_whole();
-    uimn.text.hook = nullptr; /* not told of the module's line */
-    if (is_proc(kind(S, 0, nullptr)))
-        text_insert(S, 0, (const uint8_t *)"", 0); /* a blank line before */
+    uimn.text.hook = nullptr; /* not told of the files' first lines */
+
+    for (uint32_t line = 0; line < uimn.text.all; line++)
+        if (starts_file(S, line) && is_proc(kind(S, line, nullptr)))
+            text_insert(S, line++, (const uint8_t *)"", 0); /* a blank line before, the file's */
+
     uimn.text.hook = shift;
     vw.n = 0;
+    vw.modules = prog_modules(&S->prog);
 
     /* no memory: no views, the whole text shown; for a procedure, its lines the last view's */
-    if (!GROW(vw.tab, vw.cap, 1) || !GROW(vw.names, vw.ncap, 1))
+    if (!GROW(vw.names, vw.ncap, 1))
         return;
 
-    vw.tab[0].first = 0;
-    vw.tab[0].kind = 0;
-    vw.tab[0].name = 0;
     vw.names[0] = 0;
     vw.nlen = 1;
-    uint32_t n = 1;
+    uint32_t n = 0;
 
-    for (uint32_t line = 1; line < uimn.text.all; line++) {
+    for (uint32_t line = 0; line < uimn.text.all; line++) {
         const uint8_t *name;
         const uint8_t k = kind(S, line, &name);
-        const uint32_t len = name ? name[1] : 0; /* as typed: the M_VAR's */
+        const bool file = !n || starts_file(S, line);
+        const uint32_t len = !file && name ? name[1] : 0; /* as typed: the M_VAR's */
 
-        if (!is_proc(k) || !GROW(vw.tab, vw.cap, n + 1) ||
+        if ((!file && !is_proc(k)) || !GROW(vw.tab, vw.cap, n + 1) ||
             !GROW(vw.names, vw.ncap, vw.nlen + len + 1))
             continue;
 
         View *const v = &vw.tab[n++];
-        v->kind = k;
+        v->kind = file ? 0 : k;
+        v->module = text_module(S, line);
         v->first = line;
-        v->name = vw.nlen;
-        memcpy(vw.names + vw.nlen, name + 2, len);
-        vw.nlen += len;
-        vw.names[vw.nlen++] = 0;
+        v->name = file ? 0 : vw.nlen;
+
+        if (!file) {
+            memcpy(vw.names + vw.nlen, name + 2, len);
+            vw.nlen += len;
+            vw.names[vw.nlen++] = 0;
+        }
     }
 
     vw.n = n;
@@ -235,7 +287,7 @@ static void scan(Session *const S)
         vw.tab[i].n = (i + 1 < n ? vw.tab[i + 1].first : uimn.text.all) - vw.tab[i].first;
 }
 
-/* Both edit windows on the module. */
+/* Both edit windows on the main's module. */
 static void windows_on_module(void)
 {
     uimn.ed.view = 0;
@@ -243,12 +295,51 @@ static void windows_on_module(void)
     uimn.win.win[W_ED2].ed.view = 0;
 }
 
-/* The text changed by the views: since entered, since saved. */
-static void touched(void)
+/* View v the place kept in view from. */
+static void keep_place(View *const v, const View *const from)
 {
-    uimn.text.changed = true;
-    uimn.text.unsaved = true;
+    v->line = from->line;
+    v->top = from->top;
+    v->col = from->col;
 }
+
+/* After scan: a view added at at (delta 1), or the one at at gone (-1). The views past it move:
+   each window's, the places kept in them; a window on the one gone to view to. */
+static void views_moved(const uint32_t at, const int32_t delta, const uint32_t to)
+{
+    uint32_t *const views[] =
+        {&uimn.ed.view, &uimn.win.win[W_ED1].ed.view, &uimn.win.win[W_ED2].ed.view};
+
+    for (uint32_t i = 0; i < sizeof views / sizeof views[0]; i++) {
+        uint32_t *const v = views[i];
+
+        if (*v == at && delta < 0)
+            *v = to;
+        else if (*v >= at)
+            *v = (uint32_t)((int32_t)*v + delta);
+    }
+
+    if (delta > 0) /* scan left them where they were */
+        for (uint32_t i = vw.n - 1; i > at; i--)
+            keep_place(&vw.tab[i], &vw.tab[i - 1]);
+    else
+        for (uint32_t i = at; i < vw.n; i++)
+            keep_place(&vw.tab[i], &vw.tab[i + 1]);
+}
+
+/* View v's file's first view, its module's. */
+static uint32_t file_view(const uint32_t v)
+{
+    uint32_t f = v;
+
+    while (f && vw.tab[f].kind)
+        f--;
+
+    return f;
+}
+
+/* The text changed by the views: since entered. */
+static void touched(void) { uimn.text.changed = true; }
 
 void view_reset(Session *const S)
 {
@@ -321,6 +412,31 @@ const View *view_at(const uint32_t v) { return &vw.tab[v]; }
 
 const char *view_name(const uint32_t v) { return vw.names + vw.tab[v].name; }
 
+uint32_t view_module(const uint32_t v) { return v < vw.n ? vw.tab[v].module : 0; }
+
+const char *view_file(Session *const S, const uint32_t v)
+{
+    const uint32_t m = view_module(v);
+
+    if (m)
+        return modu_module_path(&S->modu, m);
+
+    return uimn.file[0] ? uimn.file : uimn_untitled;
+}
+
+bool view_modules(Session *const S)
+{
+    lmap_build(S);
+
+    if (prog_modules(&S->prog) == vw.modules)
+        return false;
+
+    order(S);
+    scan(S);
+    view_apply();
+    return true;
+}
+
 uint32_t view_proc(Session *const S, const uint32_t v)
 {
     const uint8_t *nm = nullptr;
@@ -346,34 +462,60 @@ void view_next(Session *const S)
 
 void view_prev(Session *const S) { show(S, uimn.ed.view ? uimn.ed.view - 1 : vw.n - 1); }
 
-/* A procedure at the text's end: vw.new_line, a blank a step in, its END (kind PK_SUB,
-   PK_FUNC); shown, the cursor on the blank. */
+/* A procedure at the end of the active view's file: vw.new_line, a blank a step in, its END (kind
+   PK_SUB, PK_FUNC); shown, the cursor on the blank. */
 static void add(Session *const S, const uint8_t k)
 {
-    text_whole();
+    const uint32_t file = file_view(uimn.ed.view);
+    uint32_t last = file; /* the file's last view */
+
+    while (last + 1 < vw.n && vw.tab[last + 1].kind)
+        last++;
+
+    const uint32_t first = vw.tab[file].first, end = vw.tab[last].first + vw.tab[last].n;
+    text_view(first, end - first); /* the lines added the file's */
     uimn.text.hook = nullptr;
-    const uint32_t line = uimn.text.all;
-    const char *const end = end_line(k);
+    const char *const end_text = end_line(k);
     uint8_t body[INDT_STEP];
     memset(body, ' ', sizeof body);
-    text_insert(S, line, vw.new_line.text, vw.new_line.len);
-    text_insert(S, line + 1, body, sizeof body);
-    text_insert(S, line + 2, (const uint8_t *)end, (uint16_t)strlen(end));
+    const uint32_t at = end - first;
+    text_insert(S, at, vw.new_line.text, vw.new_line.len);
+    text_insert(S, at + 1, body, sizeof body);
+    text_insert(S, at + 2, (const uint8_t *)end_text, (uint16_t)strlen(end_text));
     touched();
     scan(S);
-    View *const v = &vw.tab[vw.n - 1]; /* the last view, at its blank */
+    views_moved(last + 1, 1, 0);
+    View *const v = &vw.tab[last + 1]; /* the new view, at its blank */
     v->line = 1;
     v->top = 0;
     v->col = INDT_STEP;
     view_apply(); /* the old view's place kept */
-    show(S, vw.n - 1);
+    show(S, last + 1);
+}
+
+/* Text line line (the active view's) an IMPORT or FROM: the modules it names loaded, shown. */
+static void imports(Session *const S, const uint32_t line)
+{
+    prog_body(&S->prog, lmap_off(S, line), S->comp.cbuf);
+
+    if (!impt_line(S->comp.cbuf, nullptr, nullptr))
+        return;
+
+    const uint32_t had = prog_modules(&S->prog);
+    const Status st = repl_call(S, repl_open);
+
+    if (view_modules(S))
+        for (uint32_t m = had; m < prog_modules(&S->prog); m++)
+            text_saved(m); /* as read: a blank line before a SUB aside */
+
+    fault_check(&S->fault, st);
 }
 
 void view_commit(Session *const S)
 {
     const uint32_t line = uimn.ed.line;
 
-    if (!line && uimn.ed.view) {
+    if (!line && proc_view(uimn.ed.view)) {
         scan(S); /* its name may be another */
         view_apply();
         return;
@@ -381,8 +523,10 @@ void view_commit(Session *const S)
 
     const uint8_t k = kind(S, line + uimn.text.first, nullptr);
 
-    if (!is_proc(k))
+    if (!is_proc(k)) {
+        imports(S, line + uimn.text.first);
         return;
+    }
 
     vw.new_line.len = (uint16_t)text_get(S, uimn.ed.line, &vw.new_line);
     text_delete(S, uimn.ed.line); /* out of its view */
@@ -400,11 +544,12 @@ static bool field_names(const char *const s)
     return j == name_field.len && !s[j];
 }
 
-/* The view named as the field; false: none. */
+/* The active view's file's procedure named as the field; false: none. */
 static bool find(uint32_t *const v)
 {
     for (uint32_t i = 1; i < vw.n; i++) {
-        if (field_names(view_name(i))) {
+        if (proc_view(i) && vw.tab[i].module == view_module(uimn.ed.view) &&
+            field_names(view_name(i))) {
             *v = i;
             return true;
         }
@@ -444,13 +589,14 @@ static void new_proc(Session *const S, const uint8_t k, const char *const title)
 void view_newsub(Session *const S) { new_proc(S, PK_SUB, u_nsub); }
 void view_newfn(Session *const S) { new_proc(S, PK_FUNC, u_nfn); }
 
-/* View v's procedure out of the text, after asking; the module stays. */
+/* View v's procedure out of the text, after asking; a file's module stays. */
 static void del(Session *const S, const uint32_t v)
 {
-    if (!v || dlog_ync(S, u_delp) != YNC_YES)
+    if (!proc_view(v) || dlog_ync(S, u_delp) != YNC_YES)
         return;
 
     const uint32_t first = vw.tab[v].first, n = vw.tab[v].n; /* at least its SUB line */
+    const uint32_t file = file_view(v);
     text_whole();
     uimn.text.hook = nullptr;
 
@@ -459,21 +605,27 @@ static void del(Session *const S, const uint32_t v)
 
     touched();
     scan(S);
-    windows_on_module(); /* the windows on it */
+    views_moved(v, -1, file); /* the windows on it: its file's module */
     view_apply();
     uimn.ed.top = 0;
     edit_load(S, 0);
 }
 
-/* The SUBs box's list: the file's name, then each procedure's indented, by name; each item as
-   wide as the longest. false: no memory. */
-static bool list_fill(void)
+/* View v's item in the SUBs box: its file's name, a procedure's indented. */
+static uint32_t item_len(Session *const S, const uint32_t v)
 {
-    const char *const file = uimn.file[0] ? uimn.file : uimn_untitled;
-    uint32_t size = (uint32_t)strlen(file) + 1;
+    return (uint32_t)strlen(vw.tab[v].kind ? view_name(v) : view_file(S, v)) +
+           (vw.tab[v].kind ? 3 : 1); /* two spaces in; its 0 */
+}
 
-    for (uint32_t i = 1; i < vw.n; i++) {
-        const uint32_t len = (uint32_t)strlen(view_name(i)) + 3; /* two spaces in, its 0 */
+/* The SUBs box's list: each file's name, then its procedures' indented, by name; each item as wide
+   as the longest. false: no memory. */
+static bool list_fill(Session *const S)
+{
+    uint32_t size = 1;
+
+    for (uint32_t i = 0; i < vw.n; i++) {
+        const uint32_t len = item_len(S, i);
         size = len > size ? len : size;
     }
 
@@ -483,10 +635,13 @@ static bool list_fill(void)
 
     list.sel = 0;
 
-    for (uint32_t i = 0; i < vw.n; i++) { /* insertion: the module, 0, stays first */
+    for (uint32_t i = 0; i < vw.n; i++) { /* insertion: a procedure among its file's, by name */
         uint32_t at = i;
 
-        for (; at > 1 && dlog_namecmp(view_name(vw.order[at - 1]), view_name(i)) > 0; at--)
+        for (; vw.tab[i].kind && vw.tab[vw.order[at - 1]].kind &&
+               dlog_namecmp(view_name(vw.order[at - 1]), view_name(i)) > 0;
+
+             at--)
             vw.order[at] = vw.order[at - 1];
 
         vw.order[at] = i;
@@ -499,8 +654,8 @@ static bool list_fill(void)
         if (v == uimn.ed.view)
             list.sel = k;
 
-        if (!v) {
-            copy_str(d, file);
+        if (!vw.tab[v].kind) {
+            copy_str(d, view_file(S, v));
         } else {
             d[0] = d[1] = ' ';
             copy_str(d + 2, view_name(v));
@@ -514,11 +669,13 @@ static bool list_fill(void)
     return true;
 }
 
+const DlogList *view_list(Session *const S) { return list_fill(S) ? &list : nullptr; }
+
 void view_subs(Session *const S)
 {
     edit_commit(S);
 
-    if (!list_fill())
+    if (!list_fill(S))
         return;
 
     dg_subs.focus = 0;

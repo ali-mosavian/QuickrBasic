@@ -2,7 +2,7 @@
  *
  * # How it works
  * A block of uint32_t: text line i's record's offset, uimn.text.all of them, rising. An include's
- * records (LF_INC) and an imported module's (LF_MOD) are no line's.
+ * records (LF_INC) and the END before a module's (LF_TOP) are no line's.
  *
  * lmap_init takes the block from the heap (main, after the store's, before the symbols').
  * lmap_build rebuilds the map from the store; growing it empties the heap first (symb_clear).
@@ -38,7 +38,7 @@ void lmap_build(Session *const S)
     for (uint32_t rec = PROGBASE; prog_line(&S->prog, rec)->len;
 
          rec += prog_line(&S->prog, rec)->len) {
-        if (prog_line(&S->prog, rec)->flags & (LF_INC | LF_MOD))
+        if (prog_line(&S->prog, rec)->flags & (LF_INC | LF_TOP))
             continue;
 
         const uint32_t need = (n + 1) * sizeof(uint32_t);

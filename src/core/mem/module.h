@@ -52,6 +52,9 @@ typedef struct Modu {
 void modu_init(Modu *mu, Fault *f);
 /* No files, and no modules but the main program, at path main, its run's ON ERROR and READ kept. */
 void modu_clear(Modu *mu, const char *main);
+/* The first n modules kept (n at most their count), the main's path main; their run's state kept;
+   no imports; no files but each module's own, file m module m's. */
+void modu_relink(Modu *mu, const char *main, uint32_t n);
 /* The module at path, added last when new (paths compared without case): its number. Out of memory:
    past 65536 modules. */
 uint32_t modu_module(Modu *mu, const char *path);

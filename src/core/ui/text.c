@@ -11,6 +11,11 @@
  * procedure's lines, view.h). Lines below are the view's unless said. A line added or removed goes
  * to uimn.text.hook (the text's line, 1 or -1). Storing a line can raise Out of memory.
  *
+ * The text is each of the program's files, the main's first (mem/module.h): a line is its
+ * record's file's, its names its module's. A line stored in place of another is that one's file's;
+ * one added is its view's neighbour's, the line it goes before, past the view's end its last. A
+ * module changed since saved is unsaved (text_unsaved); uimn.text.unsaved: any is.
+ *
  * The clipboard is uimn.text.clip_len bytes of uimn.text.clip: whole lines (uimn.text.clip_lines,
  * each ended by NL) or a piece of one.
  *
@@ -45,6 +50,7 @@
 #include "comp/listing.h"
 #include "io/console.h"
 #include "io/source.h"
+#include "mem/module.h"
 #include "mem/program.h"
 #include "vm/exec.h"
 #include "plat/pfil.h"
@@ -60,6 +66,11 @@ static struct {
     uint32_t lines; /* text_read's */
     uint8_t buf[RDSZ];
 } io;
+
+static struct {
+    bool *unsaved; /* by module */
+    uint32_t cap;
+} mods;
 
 /* A record's made by make(): its number, body (in comp_cbuf), its flags. */
 typedef struct {
@@ -172,8 +183,28 @@ static Made make(Session *const S, const uint8_t *const src, const uint32_t len)
     return m;
 }
 
+/* File file's module changed since saved. Out of memory. */
+static void touch(Session *const S, const uint16_t file)
+{
+    const uint32_t m = modu_of(&S->modu, file);
+
+    if (!GROW(mods.unsaved, mods.cap, m + 1))
+        repl_error(S, E_OM);
+
+    mods.unsaved[m] = true;
+    uimn.text.unsaved = true;
+}
+
+/* The file of a line added before text line line: its view's neighbour's. */
+static uint16_t neighbour(Session *const S, const uint32_t line)
+{
+    const bool past = line >= uimn.text.first + uimn.text.n && line > uimn.text.first;
+    const uint32_t near = past ? line - 1 : line;
+    return near < uimn.text.all ? prog_line(&S->prog, lmap_off(S, near))->file : 0;
+}
+
 /* The line of len characters at src stored as text line line: before it (insert), else in its
-   place, its mark kept. */
+   place, its mark, file and source line kept; its names its file's module's. */
 static void put(
     Session *const S,
     const uint32_t line,
@@ -182,17 +213,26 @@ static void put(
     const bool insert
 )
 {
+    const Line *const old = prog_line(&S->prog, lmap_off(S, line));
+    const uint16_t file = insert ? neighbour(S, line) : old->file, src_line = insert ? 0 : old->src;
+    const uint8_t mark = insert ? 0 : old->flags & LF_BP;
+    const uint32_t module = S->repl.module;
+    S->repl.module = modu_of(&S->modu, file);
     Made m = make(S, src, len);
+    S->repl.module = module;
+    touch(S, file);
     const uint32_t rec = lmap_off(S, line);
 
-    if (!insert) {
-        m.flags |= prog_line(&S->prog, rec)->flags & LF_BP;
+    if (!insert)
         prog_cut(&S->prog, rec);
-    }
 
-    S->prog.add_flags = m.flags;
+    S->prog.add_flags = m.flags | mark;
+    S->prog.add_file = file;
+    S->prog.add_src = src_line;
     prog_ins(&S->prog, rec, m.num, S->comp.cbuf, m.len);
     S->prog.add_flags = 0;
+    S->prog.add_file = 0;
+    S->prog.add_src = 0;
     uimn.text.changed = true;
     lmap_build(S);
 }
@@ -249,12 +289,39 @@ void text_delete(Session *const S, const uint32_t line)
         return;
     }
 
+    touch(S, prog_line(&S->prog, text_rec(S, line))->file);
     prog_cut(&S->prog, text_rec(S, line));
     session_drop(S);
     uimn.text.changed = true;
     lmap_build(S);
     uimn.text.n--;
     tell(line + uimn.text.first, -1);
+}
+
+uint32_t text_module(Session *const S, const uint32_t line)
+{
+    return modu_of(&S->modu, prog_line(&S->prog, lmap_off(S, line))->file);
+}
+
+bool text_unsaved(const uint32_t module) { return module < mods.cap && mods.unsaved[module]; }
+
+void text_saved(const uint32_t module)
+{
+    if (module < mods.cap)
+        mods.unsaved[module] = false;
+
+    uimn.text.unsaved = false;
+
+    for (uint32_t m = 0; m < mods.cap; m++)
+        uimn.text.unsaved |= mods.unsaved[m];
+}
+
+void text_clean(void)
+{
+    if (mods.cap)
+        memset(mods.unsaved, 0, mods.cap * sizeof *mods.unsaved);
+
+    uimn.text.unsaved = false;
 }
 
 bool text_mark(Session *const S, const uint32_t line)
@@ -456,7 +523,7 @@ static void flush(void)
     out(io.buf, n);
 }
 
-uint16_t text_write(Session *const S, const char *const name)
+uint16_t text_write(Session *const S, const char *const name, const uint32_t module)
 {
     const uint16_t e = pfil_create(name, &io.h);
 
@@ -467,6 +534,9 @@ uint16_t text_write(Session *const S, const char *const name)
     io.err = 0;
 
     for (uint32_t line = 0; line < uimn.text.all; line++) {
+        if (text_module(S, line) != module)
+            continue;
+
         uint32_t len = text_record(S, lmap_off(S, line), &uimn.build);
         uint8_t *const buf = uimn.build.text;
         buf[len++] = NL;

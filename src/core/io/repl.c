@@ -66,6 +66,7 @@
 #include "plat/pfil.h"
 #include "plat/psys.h"
 #include "qbrt/qbrt.h"
+#include "util/grow.h"
 #include "vm/debug.h"
 #include "vm/exec.h"
 #include "vm/flow.h"
@@ -763,9 +764,31 @@ static const uint8_t *enter_decls(Session *const S, const uint32_t place)
     return p;
 }
 
+/* The editor's (repl.keep_pre): the text before inbuf's body, its indent and number as typed, a
+   tab to the next column of 8, to repl.pre; its length. Out of memory. */
+static uint32_t keep_pre(Session *const S)
+{
+    const uint8_t *const t = S->cons.inbuf;
+    uint32_t i = 0, n = 0;
+
+    for (uint8_t part = 0; part < 3; part++) /* blanks, digits, blanks */
+        for (; part == 1 ? is_digit(t[i]) : is_blank(t[i]); i++) {
+            const uint32_t to = t[i] == '\t' ? (n / 8 + 1) * 8 : n + 1;
+
+            if (!GROW(S->repl.pre, S->repl.precap, to))
+                repl_error(S, E_OM);
+
+            memset(S->repl.pre + n, t[i] == '\t' ? ' ' : t[i], to - n);
+            n = to;
+        }
+
+    return n;
+}
+
 uint8_t repl_enter(Session *const S, const uint32_t len)
 {
     S->cons.inbuf[len] = 0;
+    const uint32_t pre = S->repl.loading && S->repl.keep_pre ? keep_pre(S) : 0;
     S->vm.line = DLINE;
     const uint8_t *const end = lexr_line(&S->lexr, S->cons.inbuf, S->comp.cbuf);
     const uint32_t place = prog_at(&S->prog);
@@ -777,6 +800,8 @@ uint8_t repl_enter(Session *const S, const uint32_t len)
 
     if (S->repl.loading) { /* every line stored, at the end; declared once all are */
         const uint8_t *const body = numbered(S);
+        S->prog.pre = S->repl.pre;
+        S->prog.pre_len = pre;
         prog_add(&S->prog, S->vm.lnum, body, (uint32_t)(end - body));
         return ENTER_STORED;
     }
@@ -825,10 +850,11 @@ typedef struct {
     uint32_t module; /* FROM's module's number */
 } Imports;
 
-[[noreturn]]
+/* A module not found: File not found, unless the editor's open skips it (repl.lenient). */
 static void not_found(Session *const S)
 {
-    fault_qberr(&S->fault, QB_FILE_NOT_FOUND);
+    if (!S->repl.lenient)
+        fault_qberr(&S->fault, QB_FILE_NOT_FOUND);
 }
 
 /* The module at path imported by the one being read: loaded once, declared before it. */
@@ -845,16 +871,17 @@ static void imported(void *const ctx, const ImptKind kind, const ImptName *const
 
     switch (kind) {
     case IMPT_MODULE:
-        if (!locate(&im->where, n, path, nullptr))
+        if (locate(&im->where, n, path, nullptr))
+            import(im->S, path);
+        else
             not_found(im->S);
 
-        import(im->S, path);
         return;
 
     case IMPT_FROM:
         if (!locate(&im->where, n, path, &im->in_package))
             not_found(im->S);
-        if (im->in_package)
+        else if (im->in_package)
             strcpy(im->package, path);
         else
             import(im->S, path);
@@ -864,10 +891,11 @@ static void imported(void *const ctx, const ImptKind kind, const ImptName *const
     case IMPT_NAME: /* a module's export: its file is there already */
         if (!im->in_package)
             return;
-        if (!locate_in(im->package, n, path))
+        if (locate_in(im->package, n, path))
+            import(im->S, path);
+        else
             not_found(im->S);
 
-        import(im->S, path);
         return;
 
     case IMPT_STAR:
@@ -1008,39 +1036,39 @@ static const uint8_t *restore(Session *const S, const uint32_t line)
     return numbered(S);
 }
 
-/* An END, LF_MOD and LF_TOP, past the lines read: where a run of a module's code stops, by any way
-   to the next line (comp/import.c). */
+/* An END, LF_TOP, past the lines read: where a run of a module's code stops, by any way to the
+   next line (comp/import.c). */
 static void module_end(Session *const S)
 {
     static const uint8_t end[] = {TK_END, 0};
 
     const uint8_t flags = S->prog.add_flags;
-    S->prog.add_flags = flags | LF_MOD | LF_TOP;
+    S->prog.add_flags = flags | LF_TOP;
     prog_add(&S->prog, NONUM, end, sizeof end);
     S->prog.add_flags = flags;
 }
 
-/* The modules the program imports, after its lines, each once and in the order first named; a
-   module's own imports after it. Their lines are LF_MOD; an END ends each module's, the main's too,
-   its LF_TOP the next module's top. */
-static void read_modules(Session *const S)
+/* The modules the program imports from module from on, after the store's lines, each once and in
+   the order first named; a module's own imports after it. An END ends each module's lines, the
+   main's too, its LF_TOP the next module's top. last: the LF_TOP past the lines of the modules
+   before from, cut first; 0 none. */
+static void read_modules(Session *const S, const uint32_t from, const uint32_t last)
 {
-    const uint8_t flags = S->prog.add_flags;
+    if (modu_count(&S->modu) == from)
+        return;
+    if (last)
+        prog_cut(&S->prog, last);
 
-    for (uint32_t m = 1; m < modu_count(&S->modu); m++) {
+    for (uint32_t m = from; m < modu_count(&S->modu); m++) {
         char path[PFIL_PATH]; /* the table may move as it grows */
         strcpy(path, modu_module_path(&S->modu, m));
         modu_top(&S->modu, m, prog_at(&S->prog));
         module_end(S);
-        S->prog.add_flags = flags | LF_MOD;
         S->repl.module = m;
         read_file(S, path, SOURCE_FILENO);
-        S->prog.add_flags = flags;
     }
 
-    if (modu_count(&S->modu) > 1) /* the last module's */
-        module_end(S);
-
+    module_end(S); /* the last module's */
     S->repl.module = 0;
 }
 
@@ -1166,15 +1194,18 @@ void repl_load(Session *const S)
     S->repl.module = 0;
     modu_clear(&S->modu, S->repl.file);
     read_file(S, S->repl.file, SOURCE_FILENO);
-    read_modules(S);
+    read_modules(S, 1, 0);
     declare_program(S);
     S->repl.loading = false;
 }
 
-void repl_relink(Session *const S)
+/* The program's lines in the store, read again as loaded: the includes' read again, each module's
+   own lines its number's file (modu_relink), the modules imported and not stored read after the
+   rest; lenient: one not found skipped. Not declared. */
+static void reread(Session *const S, const bool lenient)
 {
-    for (uint32_t line = PROGBASE; prog_line(&S->prog, line)->len;) /* includes' and modules' out */
-        if (prog_line(&S->prog, line)->flags & (LF_INC | LF_MOD))
+    for (uint32_t line = PROGBASE; prog_line(&S->prog, line)->len;) /* the includes' out */
+        if (prog_line(&S->prog, line)->flags & LF_INC)
             prog_cut(&S->prog, line);
         else
             line += prog_line(&S->prog, line)->len;
@@ -1183,15 +1214,31 @@ void repl_relink(Session *const S)
     decl_reset(&S->decl, &S->scop, &S->symb);
     session_drop(S);
     S->repl.loading = true;
-    S->repl.nfile = 1; /* the includes' numbers as the load's */
+    S->repl.lenient = lenient;
+    const uint32_t n = prog_modules(&S->prog);
+    modu_relink(&S->modu, S->repl.file, n);
+    S->repl.nfile = (uint16_t)n; /* the includes' numbers after */
     S->repl.module = 0;
-    modu_clear(&S->modu, S->repl.file);
-    modu_file(&S->modu, 0, S->repl.file, 0);
     S->repl.inproc = false;
+    uint32_t last = 0; /* the LF_TOP past the last module's lines */
 
     for (uint32_t line = PROGBASE; prog_line(&S->prog, line)->len;) {
+        Line *const l = prog_line(&S->prog, line);
+
+        if (l->flags & LF_TOP) {
+            last = line;
+            line += l->len;
+
+            if (S->repl.module + 1 < n)
+                modu_top(&S->modu, ++S->repl.module, last);
+
+            S->repl.inproc = false;
+            continue;
+        }
+
+        l->file = (uint16_t)S->repl.module;
         const uint8_t *body = restore(S, line);
-        find_imports(S, source_name(S, prog_line(&S->prog, line)->file));
+        find_imports(S, modu_module_path(&S->modu, S->repl.module));
         const uint8_t tok = comp_peek(&body);
         line += prog_line(&S->prog, line)->len;
 
@@ -1206,13 +1253,25 @@ void repl_relink(Session *const S)
         S->prog.add_at = line;
         S->prog.add_flags = LF_INC;
         char path[PFIL_PATH];
-        read_file(S, include_path(S->repl.file, S->repl.incl, path), SOURCE_FILENO - 1);
+        const char *const from = modu_module_path(&S->modu, S->repl.module);
+        read_file(S, include_path(from, S->repl.incl, path), SOURCE_FILENO - 1);
         line = S->prog.add_at;
         S->prog.add_at = 0;
         S->prog.add_flags = 0;
     }
 
-    read_modules(S);
+    read_modules(S, n, last);
+    S->repl.module = 0;
+    S->repl.lenient = false;
+}
+
+/* repl_relink's, repl_open's (lenient). */
+static void relink(Session *const S, const bool lenient)
+{
+    reread(S, lenient);
     declare_program(S);
     S->repl.loading = false;
 }
+
+void repl_relink(Session *const S) { relink(S, false); }
+void repl_open(Session *const S) { relink(S, true); }

@@ -69,11 +69,7 @@ static struct {
 
 /* ed_tab's tab stops */
 
-static void changed(void)
-{
-    uimn.text.changed = true;
-    uimn.text.unsaved = true;
-}
+static void changed(void) { uimn.text.changed = true; }
 
 /* ---- a line buffer */
 
@@ -440,10 +436,15 @@ bool edit_commit(Session *const S)
         b->len--;
 
     changed();
-    decl_enter(&S->decl, view_proc(S, uimn.ed.view)); /* its declarations its procedure's */
+    const uint32_t module = view_module(uimn.ed.view), was = S->repl.module;
+    S->repl.module = module; /* its names, its declarations its file's */
+    S->decl.module = sc_module(module);
+    decl_enter(&S->decl, view_proc(S, uimn.ed.view)); /* its procedure's */
     uint32_t lexed;
+    const bool canon = edit_canon(S, b->text, b->len, &lexed);
+    S->repl.module = was;
 
-    if (!edit_canon(S, b->text, b->len, &lexed)) { /* a syntax error: kept as typed */
+    if (!canon) { /* a syntax error: kept as typed */
         uimn.text.asis = true;
         text_repl(S, uimn.ed.line, b->text, b->len);
         uimn_selword(uc.ecol); /* the error's word */

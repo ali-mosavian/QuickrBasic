@@ -241,7 +241,7 @@ void draw_edit(Session *const S, const bool ina)
     const UiEdit *const e = &uimn.ed;
     const uint8_t row = (uint8_t)(e->row0 - 1), width = (uint8_t)(e->width + 2);
     scrn_box(row, e->x, (uint8_t)(e->rows + 2), width, SL_ED, nullptr);
-    const char *const file = uimn.file[0] ? uimn.file : uimn_untitled;    /* its name or Untitled */
+    const char *const file = view_file(S, uimn.ed.view);                  /* its name or Untitled */
     const char *const proc = uimn.ed.view ? view_name(uimn.ed.view) : ""; /* ":" its procedure */
     const uint32_t flen = (uint32_t)strlen(file), plen = (uint32_t)strlen(proc);
     const bool room = GROW(ttl, ttl_cap, flen + 1 + plen + 1); /* none: the file's name alone */
