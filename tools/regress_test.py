@@ -1253,6 +1253,9 @@ BIG |= {
                         "function mk (n as long) as t299", " mk.n = n", " redim mk.k(2): mk.k(2) = n * 2",
                         "end function"),
                     " 299 abcdvar 33  298 \r\n 7  14 -1 \r\n", "ERROR"),
+    # 16,384 bindings, line numbers' too: line 16384 was Out of memory.
+    "limit_bindings": ("".join(f"{i + 1} n = n + 1\r\n" for i in range(17000)) + "17001 print n\r\n",
+                       " 17000 \r\n", "ERROR"),
     # 512 fields, all TYPEs': the 513th was Out of memory.
     "limit_fields": (bas(*[x for i in range(6) for x in (f"type t{i}", *[f" f{j} as integer" for j in range(100)], "end type")],
                          "dim v as t5", "v.f99 = 599", "print v.f99"), " 599 \r\n", "ERROR"),

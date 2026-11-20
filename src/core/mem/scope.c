@@ -92,7 +92,7 @@ Binding *scop_bind(Scop *const sc, const uint16_t scope, const uint16_t name)
     if (found)
         return found;
 
-    Binding *const b = sc->nbnd < NBND ? arena_alloc(&sc->arena, sizeof *b) : nullptr;
+    Binding *const b = arena_alloc(&sc->arena, sizeof *b);
 
     if (!b)
         scop_fail(sc, E_OM);

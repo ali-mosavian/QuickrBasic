@@ -20,7 +20,6 @@ struct Binding {
 };
 
 enum {
-    NBND = 16384, /* numbered lines' too */
     NSCS = 4,
     SCHASH = 1024,
     WORD_BITS = 32,
@@ -62,7 +61,7 @@ void scop_init(Scop *sc, Fault *f);
 void scop_reset(Scop *sc);
 /* Scope's binding of name, nullptr none. */
 Binding *scop_get(const Scop *sc, uint16_t scope, uint16_t name);
-/* Scope's binding of name, made (zeroed) when none. Out of memory past NBND. */
+/* Scope's binding of name, made (zeroed) when none. Out of memory. */
 Binding *scop_bind(Scop *sc, uint16_t scope, uint16_t name);
 /* The stack: the module, then procedure p (null none). */
 void scop_enter(Scop *sc, const Proc *p);
