@@ -1508,6 +1508,10 @@ CASES |= {
                            " 70000  2 \r\n", "ERROR"),
     "import_public_suffix": (beside(bas("from vm import total", "total! = 1"), VM),
                              "IMPORT_P.BAS:2: Duplicate definition", None),
+    # Its STRING * n looked up in the importer's scope, which has none: the string took any length.
+    "import_public_fixed": (beside(bas("from fx import s, t", 's = "abcdef": t(2) = "abcdef"', 'print s; "|"; t(2)'),
+                                   {"fx.bas": bas("dim public s as string * 4", "dim public t(3) as string * 3")}),
+                            "abcd|abc\r\n", "ERROR"),
     "import_record_sub": (beside(bas("from rc import origin, show", "origin.x = 7", "s", "show", "sub s",
                                      " origin.y = 9", "end sub"), RC),
                           "show 7  9 \r\n", "ERROR"),

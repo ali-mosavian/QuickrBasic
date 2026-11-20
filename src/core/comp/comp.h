@@ -238,6 +238,8 @@ bool comp_param(Comp *C, uint32_t name, uint8_t array, uint32_t *id); /* var_par
 /* var_scope: comp.scope, comp.isstatic for name; the name its variable has, another module's for
    one it imports. bind_use's errors. */
 uint32_t comp_scope(Comp *C, uint32_t name);
+/* Variable id's STRING * n, its array's: n, 0 none. Another module's: as its module declares it. */
+uint16_t comp_fix(const Comp *C, uint32_t id, bool array);
 uint8_t comp_suffix(uint8_t c);          /* et_sfx: % & ! # $ to ET_*, 0 none */
 const uint8_t *comp_label(
     const uint8_t *body

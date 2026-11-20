@@ -276,9 +276,7 @@ void comp_store(Comp *const C)
         synerr(C);
 
     const uint32_t id = C->tgt;
-    const uint16_t fix = (info & (SK_DBL | VK_MASK)) == VK_STR
-                             ? scop_fix(C->scop, symb_var(C->symb, id)->name, C->tgtsubs)
-                             : 0;
+    const uint16_t fix = (info & (SK_DBL | VK_MASK)) == VK_STR ? comp_fix(C, id, C->tgtsubs) : 0;
     Node *const n = ast_wrap(C->ast, N_STORE);
     n->id = id;
     n->op = C->tgtsubs;
@@ -504,6 +502,18 @@ uint32_t comp_scope(Comp *const C, const uint32_t name)
         C->isstatic = true;
 
     return name;
+}
+
+uint16_t comp_fix(const Comp *const C, const uint32_t id, const bool array)
+{
+    const uint32_t name = symb_var(C->symb, id)->name;
+    const uint32_t module = sc_module(symb_name(C->symb, name)->module);
+
+    if (module == C->module)
+        return scop_fix(C->scop, name, array);
+
+    const Binding *const b = scop_get(C->scop, module, name);
+    return b ? b->fix[array] : 0;
 }
 
 /* var_decl: under OPTION EXPLICIT, name declared, or a procedure's; else Variable not declared. */
@@ -1252,7 +1262,7 @@ static void act_dv(Comp *const C)
     }
 
     comp_astype(C);
-    const uint16_t fix = scop_fix(C->scop, symb_var(C->symb, id)->name, false);
+    const uint16_t fix = comp_fix(C, id, false);
 
     if (!fix || symb_var(C->symb, id)->info & VI_ARR)
         return;

@@ -530,7 +530,7 @@ static uint32_t vakind(Comp *const C, const uint32_t id)
         return va_pack(v->type == ET_I4 ? VA_RAW : VA_I2, 4);
 
     case VK_STR:
-        return va_pack(VA_DESC, scop_fix(C->scop, v->name, v->info & VI_ARR));
+        return va_pack(VA_DESC, comp_fix(C, id, v->info & VI_ARR));
 
     default:
         return va_pack(VA_RAW, 4);
@@ -809,7 +809,7 @@ static Node *arg(Comp *const C, const uint32_t par, const bool byval)
                 const uint32_t id = comp_var(C, 0, 0);
                 const Var *const v = symb_var(C->symb, id);
 
-                if (v->info & VI_ARR && !scop_fix(C->scop, v->name, true) && v->type == ptype) {
+                if (v->info & VI_ARR && !comp_fix(C, id, true) && v->type == ptype) {
                     Node *const e = place(C, O_RA_ADDR, id);
 
                     if (aend(comp_cur(C)))
