@@ -40,6 +40,7 @@ s() = Squares(10)
   written alone copies: `c.pts = m.pts`.
 - `swap a, b` of two records of one type swaps everything in them.
 - A fixed array's bounds in a type are integer constants: numbers, CONSTs and `+ - * \ mod`.
+  `lbound`, `ubound`, `erase` and the graphics `get` and `put` take it whole: `ubound(m.corner)`.
 - A whole array is written `a()`: the scalar `a` and the array `a()` are separate variables.
 - Procedures receive references, as before.
 - A FUNCTION's name is its result: `Add.x = ...`, `redim Squares(...)`, `Squares(i) = ...`. With

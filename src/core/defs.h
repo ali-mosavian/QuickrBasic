@@ -168,6 +168,9 @@ typedef struct {
     Addr hdr;
     uint32_t dyn;
 } ArrSlot;
+/* An array operand on the stack, ours: its cell's Addr, or a fixed array field's place then its key
+   (decl_fieldkey) | ARR_FIELD. */
+enum : uint32_t { ARR_FIELD = 0x80000000u };
 
 /* Errors and messages: E_* QBasic's errors, MSG_* the other messages. */
 enum : uint8_t {

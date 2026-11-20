@@ -478,29 +478,29 @@ static void arry_remove(Arry *const ay, Vm *const vm, const Addr h)
     }
 }
 
-void arry_kill_elems(const Arry *const ay, const Addr h)
+/* The arrays the n et elements at data hold dead, ours, a record's. */
+static void arry_kill_recs(const Arry *const ay, const Addr data, const uint32_t n, const uint32_t et)
 {
-    const ArrayHdr *const a = arry_hdr_at(h);
-
-    if (a->et < ET_REC)
+    if (et < ET_REC)
         return;
 
-    const TypeDef *const td = decl_type(ay->decl, a->et - ET_REC);
-    const uint32_t n = td->nslot ? arry_elem_count(a) : 0;
+    const TypeDef *const td = decl_type(ay->decl, et - ET_REC);
 
-    for (uint32_t k = 0; k < n; k++)
+    for (uint32_t k = 0; td->nslot && k < n; k++)
         for (uint32_t i = 0; i < td->nslot; i++)
-            arry_kill(ay, ((const ArrSlot *)at(a->data + k * td->size + td->slots[i]))->hdr);
+            arry_kill(ay, ((const ArrSlot *)at(data + k * td->size + td->slots[i]))->hdr);
 }
 
 void arry_kill(const Arry *const ay, const Addr h)
 {
     if (!h)
         return;
+    const ArrayHdr *const a = arry_hdr_at(h);
+
     if (arry_heap(ay, h)) /* a frame's goes with the frame, its records' arrays do not */
         arry_hdr_at(h)->owner = 0;
 
-    arry_kill_elems(ay, h);
+    arry_kill_recs(ay, a->data, arry_elem_count(a), a->et);
 }
 
 void arry_sweep(Arry *const ay, Vm *const vm)
@@ -526,6 +526,62 @@ void arry_free(Arry *const ay, Vm *const vm, ArrSlot *const s)
     const Addr h = s->hdr;
     s->hdr = 0;
     arry_drop(ay, h);
+    arry_sweep(ay, vm);
+}
+
+/* ---- views, ours ---------------------------------------------------------------------------- */
+
+ArrView arry_view(const Addr h)
+{
+    const ArrayHdr *const a = arry_hdr_at(h);
+    return (ArrView){.data = a->data, .et = a->et, .dims = a->dims, .hdr = a};
+}
+
+ArrView arry_view_field(const Arry *const ay, const Addr data, const uint32_t key)
+{
+    const Field *const f = decl_keyfield(ay->decl, key);
+    return (ArrView){.data = data, .et = decl_fieldtype(f), .dims = f->ndim,
+                     .fdims = decl_fielddim(ay->decl, f, 0)};
+}
+
+uint32_t arry_view_count(const ArrView *const v, const uint32_t i)
+{
+    return v->hdr ? arry_count(v->hdr, i) : v->fdims[i].count;
+}
+
+int32_t arry_view_lbound(const ArrView *const v, const uint32_t i)
+{
+    return v->hdr ? arry_lbound(v->hdr, i) : v->fdims[i].lb;
+}
+
+uint32_t arry_view_elems(const ArrView *const v)
+{
+    if (v->hdr)
+        return arry_elem_count(v->hdr);
+
+    uint32_t n = 1;
+
+    for (uint32_t i = 0; i < v->dims; i++)
+        n *= v->fdims[i].count;
+
+    return n;
+}
+
+uint32_t arry_view_size(const Arry *const ay, const ArrView *const v)
+{
+    return arry_view_elems(v) * arry_et_size(ay->decl, v->et);
+}
+
+void arry_clear(Arry *const ay, Vm *const vm, const ArrView *const v)
+{
+    const uint32_t n = arry_view_elems(v);
+
+    arry_kill_recs(ay, v->data, n, v->et);
+    copy_zero(v->data, arry_view_size(ay, v));
+
+    if (v->et >= ET_REC)
+        arry_empty_cells(v->data, n, decl_type(ay->decl, v->et - ET_REC));
+
     arry_sweep(ay, vm);
 }
 

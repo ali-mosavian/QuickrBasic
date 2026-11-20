@@ -893,8 +893,19 @@ static bool arrcopy(Comp *const C)
 
 /* ---- procedures */
 
-/* A SUB's or FUNCTION's parameters, checked: [([BYVAL] name[()] [AS type], ..)]. */
-static void params(Comp *const C)
+/* QB's keyword n at comp.p, FFh n: stepped past. */
+static bool kw1(Comp *const C, const uint8_t n)
+{
+    if (C->p[0] != TK_X || C->p[1] != n)
+        return false;
+
+    C->p += 2;
+    return true;
+}
+
+/* A SUB's or FUNCTION's parameters, checked: [([BYVAL] name[()] [AS type], ..)]; declared, a
+   DECLARE's: SEG and AS ANY too, its names only placeholders (a CONST's passes, as QB's). */
+static void params(Comp *const C, const bool declared)
 {
     if (comp_cur(C) == '(') {
         C->p++;
@@ -903,10 +914,14 @@ static void params(Comp *const C)
             do {
                 if (comp_cur(C) == TK_BYVAL)
                     C->p++;
+                else if (declared)
+                    kw1(C, TK1_SEG);
                 if (comp_cur(C) != M_VAR)
                     synerr(C);
 
-                comp_notconst(C);
+                if (!declared)
+                    comp_notconst(C);
+
                 skipvar(C);
 
                 if (comp_cur(C) == '(') {
@@ -914,7 +929,10 @@ static void params(Comp *const C)
                     comp_close(C);
                 }
 
-                comp_astype(C);
+                if (declared && comp_cur(C) == TK_AS && C->p[1] == TK_X && C->p[2] == TK1_ANY)
+                    C->p += 3;
+                else
+                    comp_astype(C);
             } while (comp_optcomma(C));
         }
 
@@ -937,6 +955,39 @@ static void result_as(Comp *const C, const uint8_t *const name)
         C->p++;
         comp_close(C);
     }
+}
+
+/* A SUB's or FUNCTION's parameters, then a FUNCTION's AS type, name its name; declared: as params. */
+static void header(Comp *const C, const bool fn, const uint8_t *const name, const bool declared)
+{
+    params(C, declared);
+
+    if (fn)
+        result_as(C, name);
+}
+
+/* DECLARE SUB|FUNCTION name [CDECL] [ALIAS "name"] [(parameters)] [AS type]: entered with the line
+   (decl_line), no code; checked as the definition's header. */
+static void declare(Comp *const C)
+{
+    const bool fn = C->p[1] == TK_FUNCTION;
+
+    if ((!fn && C->p[1] != TK_SUB) || C->p[2] != M_VAR)
+        synerr(C);
+
+    C->p += 2;
+    const uint8_t *const name = C->p;
+    skipvar(C);
+    kw1(C, TK1_CDECL);
+
+    if (kw1(C, TK1_ALIAS)) {
+        if (comp_cur(C) != '"')
+            synerr(C);
+
+        C->p = decl_item(C->p);
+    }
+
+    header(C, fn, name, true);
 }
 
 /* FUNCTION pr's record or array result emptied, ours, as a number's starts at 0: its body's first
@@ -1077,10 +1128,8 @@ static void sub(Comp *const C)
     else
         synerr(C);
 
-    params(C);
+    header(C, fn, name, false);
 
-    if (fn)
-        result_as(C, name);
     if (comp_cur(C) == TK_STATIC)
         C->p++;
     if (pr && pr->flags & PF_RESARG)
@@ -1173,7 +1222,7 @@ static void erase(Comp *const C)
 
     do {
         uint32_t type;
-        Node *const f = ref_fieldarray(C, &type, nullptr); /* m.a, ours */
+        Node *const f = ref_arrayfield(C, &type, WH_FIXED); /* m.a, ours */
         comp_step(C, f ? f : ref_cell(C, ref_arrayof(C, shaped(C, 2))));
         comp_call(C, K_ERASE);
     } while (comp_optcomma(C));
@@ -1627,8 +1676,11 @@ bool ctrl_stmt(Comp *const C)
         sharedlist(C);
         return true;
 
-    case TK_TYPE:
     case TK_DECLARE:
+        declare(C);
+        return true;
+
+    case TK_TYPE:
     case TK_OPTION:
         skip(C);
         return true; /* entered with the line (decl_line), no code */

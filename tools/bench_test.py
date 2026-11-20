@@ -122,6 +122,9 @@ COLD_OP_BUDGET = 94
 # A read of a record's dynamic array field's element over a literal's store: through CALL FELEM and
 # arry_ref, 173; 66 by FE.ADDR from its header.
 FIELD_ELEM_BUDGET = 72
+# A read of a record's fixed array field's element by a variable subscript over the subscript's
+# store: its bounds pushed and CALL FIDX, 104, more than a dynamic one's; 58 by FX.IDX inline.
+FIXED_ELEM_BUDGET = 64
 
 
 def per_pass(b: bench.Build, body: str, setup: str = "", tail: str = "", n: int = 100000) -> float:
@@ -144,6 +147,9 @@ def costs(b: bench.Build) -> None:
     rec = "TYPE R\n w AS INTEGER\n a() AS INTEGER\nEND TYPE\nDIM r AS R\nREDIM r.a(10)"
     elem = per_pass(b, "x% = r.a(5)", rec, n=1000000) - per_pass(b, "x% = 0", rec, n=1000000)
     assert elem <= FIELD_ELEM_BUDGET, f"a record's array element {elem:.0f} instructions, budget {FIELD_ELEM_BUDGET}"
+    fix = "TYPE R\n w AS INTEGER\n f(10) AS INTEGER\nEND TYPE\nDIM r AS R\nk% = 5"
+    fixed = per_pass(b, "x% = r.f(k%)", fix, n=1000000) - per_pass(b, "x% = k%", fix, n=1000000)
+    assert fixed <= FIXED_ELEM_BUDGET, f"a fixed field's element {fixed:.0f} instructions, budget {FIXED_ELEM_BUDGET}"
 
 
 def main() -> int:

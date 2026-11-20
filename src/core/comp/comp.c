@@ -1161,7 +1161,7 @@ static void dimempty(Comp *const C, const uint32_t id)
 static bool dimfield(Comp *const C)
 {
     uint32_t type;
-    Node *const cell = ref_fieldcell(C, &type);
+    Node *const cell = ref_arrayfield(C, &type, WH_PAREN);
 
     if (cell == nullptr)
         return false;
