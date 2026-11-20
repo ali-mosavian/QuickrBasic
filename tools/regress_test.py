@@ -1313,18 +1313,28 @@ CASES |= {
                       ".BAS:2: Too many dimensions", None),
 }
 
-# A TYPE over 65535 bytes was Out of memory; BC's: TYPE more than 65535 bytes.
+# A TYPE over 65535 bytes was BC's TYPE more than 65535 bytes. Ours holds 16 MB: a field past 64 KB
+# read, set, passed and copied as any other; past 16 MB, Out of memory (GET's and PUT's sizes).
 CASES |= {
     "type_65535": (bas("type T", " a as string * 32767", " b as string * 32767", " c as byte", "end type",
                        "dim r as T", "print len(r)"), " 65535 \r\n", "ERROR"),
-    "type_too_big": (bas("type T", " a as string * 32767", " b as string * 32767", " c as short", "end type"),
-                     ".BAS:4: TYPE more than 65535 bytes", None),
-    "type_too_big_array": (bas("type T", " w(1 to 70000) as byte", "end type"), ".BAS:2: TYPE more than 65535 bytes", None),
+    "type_big": (bas("type Plain", " m(699, 23) as integer", " n as long", "end type", "type Big",
+                     " m(699, 23) as integer", " s as string", " f as string * 5", " n as long", " d() as long",
+                     "end type", "declare sub inc (x as long)", "dim b as Big, p as Plain, q as Plain, bs(1) as Big",
+                     'b.s = "hi": b.f = "abc": b.n = 7: redim b.d(3): b.d(2) = 9: b.m(699, 23) = 5',
+                     "i = 699: j = 23: inc b.n",
+                     "print b.s; b.f; b.n; b.d(2); b.m(i, j); b.m(699, 23); len(p); len(b.f)",
+                     "p.n = 4: p.m(1, 1) = 6: q = p: p.n = 0: print q.n; q.m(1, 1)", "swap p, q: print p.n; q.n",
+                     'bs(1).n = 3: bs(1).s = "x": print bs(1).n; bs(1).s; bs(0).n',
+                     'open "big.dat" for binary as 1: put 1, , p: q.n = 0: get 1, 1, q: close 1: print q.n',
+                     "sub inc (x as long): x = x + 1: end sub"),
+                 "hiabc   8  9  5  5  67204  5 \r\n 4  6 \r\n 4  0 \r\n 3 x 0 \r\n 4 \r\n", "ERROR"),
+    "type_too_big": (bas("type T", " w(1 to 17000000) as byte", "end type"), ".BAS:2: Out of memory", None),
     # An error a declaration met was marked at the line's start, with no words of what is wrong; then
     # UBOUND's at UBOUND, its words naming it, not the array.
     "decl_error_name": (bas("print ubound(q)"), "`q` is used as an array here", None),
-    "decl_error_words": (bas("type T", " a as string * 32767", " b as string * 32767", " c as short", "end type"),
-                         "  c as short\r\n  ^\r\nThe record type is larger than 64 KB.", None),
+    "decl_error_words": (bas("type T", " a as byte", " w(" + ",".join("0" * 61) + ") as byte", "end type"),
+                         ") as byte\r\n  ^\r\nAn array has at most 60 dimensions", None),
 }
 
 # Typed at the prompt, not run as a file.

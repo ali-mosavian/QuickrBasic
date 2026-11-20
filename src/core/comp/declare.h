@@ -19,7 +19,8 @@ typedef struct {
 typedef struct {
     uint32_t name;
     uint32_t et, sub; /* its ET_*, or its TYPE's; an array's, its element's */
-    uint16_t fix, off;
+    uint32_t off;
+    uint16_t fix;
     uint8_t ndim; /* ours: a fixed array's dimensions, 0 none */
     bool dyn;     /* ours: a dynamic array's cell (ArrSlot), empty until REDIM */
     uint16_t dim; /* its first in Decl.dims */
@@ -29,14 +30,17 @@ typedef struct {
    its dynamic arrays' cells', its records' and fixed arrays' too. */
 typedef struct {
     uint32_t name;
-    uint16_t nfld, size;
+    uint16_t nfld;
+    uint32_t size; /* TYPE_MAX at most, ours; QBasic's 65535 */
     uint32_t cap;
     Field *fields;
     uint32_t nstr, strcap;
-    uint16_t *strs;
+    uint32_t *strs;
     uint32_t nslot, slotcap;
-    uint16_t *slots; /* ours: its dynamic arrays' cells' offsets, its records' too */
+    uint32_t *slots; /* ours: its dynamic arrays' cells' offsets, its records' too */
 } TypeDef;
+/* A TYPE's bytes at most, ours: GET's and PUT's sizes are 24 bits (defs.h va_pack). */
+enum : uint32_t { TYPE_MAX = 0xFFFFFF };
 
 /* A DEFtype line: the DEFtypes from it on. */
 typedef struct {

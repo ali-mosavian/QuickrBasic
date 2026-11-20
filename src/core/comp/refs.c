@@ -87,7 +87,7 @@ uint32_t ref_arrayof(Comp *const C, const uint32_t id)
 }
 
 /* rc_whole: all of a record of TYPE t, at off. */
-static RecRef whole(Comp *const C, const uint32_t t, const uint16_t off)
+static RecRef whole(Comp *const C, const uint32_t t, const uint32_t off)
 {
     return (RecRef){.et = ET_REC + t, .off = off, .fix = decl_type(C->decl, t)->size};
 }
@@ -108,9 +108,9 @@ static uint32_t field_size(const RecRef *const r)
 static RecRef fieldref(Comp *const C, const Field *const f, const uint32_t off)
 {
     if (f->sub) /* a record in it */
-        return whole(C, f->sub, (uint16_t)off);
+        return whole(C, f->sub, off);
 
-    return (RecRef){.et = f->et, .off = (uint16_t)off, .fix = f->fix};
+    return (RecRef){.et = f->et, .off = off, .fix = f->fix};
 }
 
 /* Field name of TYPE t, its text n letters. Syntax error: none. */
@@ -252,9 +252,9 @@ static void dyn_element(Comp *const C, Node *const at, const Field *const f, con
     }
 
     Node *const e = step_op(C, &end, O_FE_ADDR);
-    comp_word(e, (uint16_t)off);
+    comp_dword(e, off);
     comp_byte(e, (uint8_t)n);
-    comp_word(e, (uint16_t)arry_et_size(C->decl, decl_fieldtype(f)));
+    comp_dword(e, arry_et_size(C->decl, decl_fieldtype(f)));
 }
 
 /* An array field whole at comp.p, ours: f() or f(:) (stepped past) or f alone, not f(i); with
@@ -282,7 +282,7 @@ static RecRef field_array(Comp *const C, const uint32_t t, const Field *const f,
     if (!f->dyn && t > FIELD_KEY_TYPES)
         fault_error(C->fault, E_OM);
 
-    return (RecRef){.et = decl_fieldtype(f), .off = (uint16_t)off, .arr = true, .wr = wr,
+    return (RecRef){.et = decl_fieldtype(f), .off = off, .arr = true, .wr = wr,
                     .key = f->dyn ? 0 : decl_fieldkey(t, i)};
 }
 

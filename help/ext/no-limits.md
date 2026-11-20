@@ -11,6 +11,7 @@ See also [data types](data types), [QuickrBasic](QuickrBasic)
 What grows
  - the program: its length, its lines (any length) and its symbols
  - arrays: the number of elements and of dimensions; no 64 KB array
+ - a TYPE: up to 16 MB, not 64 KB
  - the number of strings and the total string space
  - the editor's buffers, the Open box's file list, completion's names
  - the code of a procedure, however large the module

@@ -265,7 +265,7 @@ const uint8_t *decl_dims(
 
         const int64_t count = hi < lo ? 0 : hi - lo + 1; /* 0: Subscript out of range */
         dims[(*n)++] =
-            (FieldDim){(int32_t)lo, count > UINT16_MAX ? UINT16_MAX + 1u : (uint32_t)count};
+            (FieldDim){(int32_t)lo, count > TYPE_MAX ? TYPE_MAX + 1u : (uint32_t)count};
     } while (*p == ',' && p++);
 
     return *p == ')' ? p + 1 : nullptr;
@@ -680,8 +680,8 @@ static uint32_t decl_fielddims(
         d->dims[d->ndims++] = dims[k];
         elems *= dims[k].count;
 
-        if (elems > UINT16_MAX)
-            decl_fail_at(ds, name, E_TTB);
+        if (elems > TYPE_MAX)
+            decl_fail_at(ds, name, E_OM);
     }
 
     d->dimmed = true;
@@ -691,14 +691,14 @@ static uint32_t decl_fielddims(
 /* Offset off on the list *t of *n, room *cap. */
 static void decl_offset(
     DeclScan *const ds,
-    uint16_t **const t,
+    uint32_t **const t,
     uint32_t *const n,
     uint32_t *const cap,
     const uint32_t off
 )
 {
     decl_room(ds, (void **)t, *n, cap, sizeof **t);
-    (*t)[(*n)++] = (uint16_t)off;
+    (*t)[(*n)++] = off;
 }
 
 /* Field f's STRINGs and dynamic arrays, of elems elements of size bytes, on td's lists: a STRING's
@@ -762,7 +762,7 @@ static void decl_field(DeclScan *const ds)
     Field *const f = &td->fields[td->nfld++];
     *f = (Field){.name = n, .off = td->size, .dyn = paren && !nd}; /* at its end */
     const uint32_t elems = decl_fielddims(ds, f, dims, nd, name);
-    uint16_t size;
+    uint32_t size;
     const uint8_t c = ds->at[1];
 
     if (c == M_VAR) { /* another TYPE's */
@@ -790,7 +790,8 @@ static void decl_field(DeclScan *const ds)
             size = DSZ; /* STRING alone: its Desc */
 
             if (*ds->at == TK_MUL && ds->at[1] == M_INT) { /* STRING * n */
-                size = f->fix = (uint16_t)load32(ds->at + 2);
+                f->fix = (uint16_t)load32(ds->at + 2);
+                size = f->fix;
 
                 if (!size)
                     decl_fail(ds, E_IQ);
@@ -802,11 +803,11 @@ static void decl_field(DeclScan *const ds)
         decl_fail_at(ds, name, E_TM);
     if (f->dyn)
         size = sizeof(ArrSlot);
-    if (td->size + (uint64_t)size * elems > UINT16_MAX)
-        decl_fail_at(ds, name, E_TTB);
+    if (td->size + (uint64_t)size * elems > TYPE_MAX)
+        decl_fail_at(ds, name, E_OM);
 
     decl_fielddeep(ds, td, f, elems, size);
-    td->size += (uint16_t)(size * elems);
+    td->size += size * elems;
 }
 
 /* OPTION BASE n, OPTION EXPLICIT. */
