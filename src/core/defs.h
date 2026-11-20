@@ -40,9 +40,7 @@ enum {
     MAXDIMS = 60, /* an array's dimensions at most, BC's */
     NTMP = 48,    /* string temporaries */
     NPROC = 256,  /* procedures, 1 .. NPROC-1 */
-    NPPAR = 2048, /* their parameters, all */
     NTYPE = 64,
-    NFLD = 512,
     NBLK = 2048, /* block statements' entries */
 };
 

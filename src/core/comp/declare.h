@@ -49,7 +49,6 @@ typedef struct {
     Fault *fault;
     uint16_t proc;           /* lx.dproc: the procedure being entered, its name; 0 the module */
     uint16_t ntypes;         /* lx.ntyps: the last TYPE's index */
-    uint16_t nfields;        /* lx.nflds: all TYPEs' */
     uint16_t type;           /* lx.dtype: the TYPE being entered, 0 none */
     uint16_t scope;          /* g_dscope: where declarations go */
     bool redim;              /* g_dredim: the DIM is a REDIM */

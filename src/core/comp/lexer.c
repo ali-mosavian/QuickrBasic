@@ -27,7 +27,8 @@
  * | g_lxlst, g_lxend, g_lxlc | lexr.last, lexr.end, lexr.lastcol | MIRROR |
  * | lx.lxsrc, lx.lxdst | lexr.src, lexr.dst | MIRROR |
  * | lx.nsyms, lx.nnams | symb.nvars, symb.nnames (mem's) | MOVED |
- * | lx.dproc, lx.ntyps, lx.nflds, lx.dtype | decl.proc, decl.ntypes, decl.nfields, decl.type (declare.c) | MOVED |
+ * | lx.dproc, lx.ntyps, lx.dtype | decl.proc, decl.ntypes, decl.type (declare.c) | MOVED |
+ * | lx.nflds | | D4 |
  * | lx.lxf, lx.lxn, lx.lxs | locals | MIRROR |
  * | lx.nlen, lx.nptr | symb_find_name's parameters | D1 |
  * | lx.lxst, lx.nkey, lx.nlenp, lx.lxv, lx.lxm | | D2 |
@@ -36,6 +37,7 @@
  * - D2. Unused in the asm; dropped.
  * - D3. It takes its own state; names, streamed text and errors come through LexrNames,
  *   LexrSource and Fault, which the session provides.
+ * - D4. It counted the fields for a limit there no longer is; dropped.
  */
 #define DFA_DATA
 #include "comp/lexer.h"

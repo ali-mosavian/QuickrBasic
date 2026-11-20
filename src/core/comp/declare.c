@@ -28,7 +28,7 @@
  * | g_dast, g_etsz | decl_astype[5], decl_etsize[8] | MIRROR |
  * | g_dft0, g_dett | deft0, deftype | MIRROR |
  * | g_wpre .. g_wtail, g_wbuf | repl_warn (io/repl.c) | MOVED |
- * | lx.dproc, lx.ntyps, lx.nflds, lx.dtype | decl.proc, decl.ntypes, decl.nfields, decl.type | MOVED: lex's state before |
+ * | lx.dproc, lx.ntyps, lx.dtype | decl.proc, decl.ntypes, decl.type | MOVED: lex's state before |
  *
  * - D1. The asm's reads g_cbuf; the C takes the body.
  * - D2. The tables live in Decl's arena: a TYPE holds its own fields; limits as the asm's.
@@ -667,12 +667,8 @@ static void decl_field(DeclScan *const ds)
 
     if (*ds->at != TK_AS)
         return;
-    if (ds->d->nfields >= NFLD)
-        decl_fail(ds, E_OM);
-
     TypeDef *const td = ds->d->types[t];
     decl_room(ds, (void **)&td->fields, td->nfld, &td->cap, sizeof *td->fields);
-    ds->d->nfields++;
     Field *const f = &td->fields[td->nfld++];
     *f = (Field){.name = n, .off = td->size, .dyn = paren && !nd}; /* at its end */
     const uint32_t elems = decl_fielddims(ds, f, dims, nd, name);
