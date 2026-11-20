@@ -24,11 +24,11 @@ typedef struct PACKED {
 typedef struct PACKED {
     uint32_t next;  /* its hash chain's next */
     uint32_t nloc;  /* the next local of its procedure */
-    uint32_t scope; /* 0 the module, else a procedure */
+    uint32_t scope; /* 0 the main module, SC_MOD | n another, else a procedure */
     uint8_t given;  /* an array given elements by a line's code: link_given */
     uint8_t kop;    /* a CONST's literal load, its operand in symb_kval; 0 none (comp/fold.h) */
     uint8_t par;    /* a parameter of its procedure (link) */
-    uint8_t pad;
+    uint8_t base;   /* its file's OPTION BASE: an array's lower bound when not DIMmed */
 } VarX;             /* TVX */
 typedef struct PACKED {
     uint32_t text; /* its text's offset in text: its length, then its letters */
@@ -153,11 +153,11 @@ void symb_reset(Symb *sy);
 /* No variables; the names kept. */
 void symb_vars_init(Symb *sy);
 /* The name of text[0..len) (no suffix), made when new (NM_FN when it starts FN). Out of memory:
-   past SC_ARR names, or the heap not empty. */
+   past SC_LBL names, or the heap not empty. */
 uint32_t symb_find_name(Symb *sy, const uint8_t *text, uint8_t len);
-/* The variable of name, type (ET_*) and kind (VI_ARR, the low bits as info's) in scope (0 the
-   module, else a procedure), made when new, a scalar zeroed; a new one of a procedure joins its
-   locals unless stat. Out of memory: the heap not empty. */
+/* The variable of name, type (ET_*) and kind (VI_ARR, the low bits as info's) in scope (a module's
+   or a procedure's), made when new, a scalar zeroed; a new one of a procedure joins its locals
+   unless stat. Out of memory: the heap not empty. */
 uint32_t symb_find_var(
     Symb *sy,
     uint32_t name,

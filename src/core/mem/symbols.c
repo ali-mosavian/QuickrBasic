@@ -85,7 +85,7 @@ void symb_new(Symb *const sy, Allo *const al, Fault *const f)
     };
 
     tabl_new(al, &sy->vars, VINIT);
-    sy->names = (Table){.narr = 2, .size = {sizeof(Name), sizeof(uint32_t)}, .max = SC_ARR};
+    sy->names = (Table){.narr = 2, .size = {sizeof(Name), sizeof(uint32_t)}, .max = SC_LBL};
 
     tabl_new(al, &sy->names, NINIT);
     sy->text = (Table){.narr = 1, .size = {1}, .max = UINT32_MAX};
@@ -226,7 +226,7 @@ uint32_t symb_find_var(
 
     *symb_farr(sy, id) = (FrameArr){};
 
-    if (scope && !stat) { /* a local: on its procedure's list, a cell of its frame */
+    if (sc_is_proc(scope) && !stat) { /* a local: on its procedure's list, a cell of its frame */
         symb_locals_room(sy, scope);
 
         uint32_t *const first = (uint32_t *)at(sy->locals.at[0]) + scope;

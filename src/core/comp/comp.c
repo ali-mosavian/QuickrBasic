@@ -76,6 +76,7 @@
 #include "io/msg.h"
 #include "io/repl.h"
 #include "mem/alloc.h"
+#include "mem/module.h"
 #include "mem/scope.h"
 #include "mem/symbols.h"
 #include "num/fpmath.h"
@@ -342,9 +343,9 @@ bool comp_optcomma(Comp *const C)
 /* Label key of DX's kind: jline, in the scope's own or, when modlabel (cleared), the module's. */
 static void lfind(Comp *const C, const uint32_t key, const uint32_t kind)
 {
-    const uint32_t scope = C->modlabel ? 0 : scop_own(C->scop);
+    const uint32_t scope = C->modlabel ? C->module : scop_own(C->scop);
     C->modlabel = false;
-    C->jline = scop_lfind(C->scop, C->symb, scope | kind, key);
+    C->jline = scop_lfind(C->scop, C->module, scope | kind, key);
 }
 
 uint8_t comp_lnum(Comp *const C)
@@ -469,7 +470,7 @@ bool comp_param(Comp *const C, const uint32_t name, const uint8_t array, uint32_
 void comp_scope(Comp *const C, const uint32_t name)
 {
     C->isstatic = false;
-    C->scope = C->proc;
+    C->scope = C->proc ? C->proc : C->module;
 
     if (!C->proc)
         return;
@@ -479,8 +480,8 @@ void comp_scope(Comp *const C, const uint32_t name)
 
     if (!(symb_name(C->symb, name)->flags & NM_LBL))
         b = scop_look(C->scop, name, &scope);
-    if (!b || !scope) {
-        C->scope = 0; /* the module's */
+    if (!b || !sc_is_proc(scope)) {
+        C->scope = C->module;
         return;
     }
 
@@ -492,7 +493,8 @@ void comp_scope(Comp *const C, const uint32_t name)
 /* var_decl: under OPTION EXPLICIT, name declared, or a procedure's; else Variable not declared. */
 static void declared(Comp *const C, const uint32_t name)
 {
-    if (!C->decl->explicit_ || symb_name(C->symb, name)->flags & (NM_SUB | NM_FUNC | NM_FN))
+    if (!(decl_opts(C->decl, C->module) & DO_EXPLICIT) ||
+        symb_name(C->symb, name)->flags & (NM_SUB | NM_FUNC | NM_FN))
         return;
     if (!scop_known(C->scop, name))
         fault_error(C->fault, E_VND);
@@ -513,8 +515,10 @@ uint32_t comp_var(Comp *const C, const uint8_t shape, const uint32_t et)
     MemoKey key = {};
 
     if (C->memo_on && !et && C->line != DLINE && !C->check) {
-        key = (MemoKey){name, C->proc, sfx, !!kind, C->symb->deft[upcase(first) - 'A'], 1};
-        m = &C->memo[(name * 2654435761u ^ C->proc * 40503u) >> 22 & (countof(C->memo) - 1)];
+        const uint32_t own = C->proc ? C->proc : C->module;
+        key = (MemoKey){name, own, sfx, !!kind, C->symb->deft[upcase(first) - 'A'], 1};
+
+        m = &C->memo[(name * 2654435761u ^ own * 40503u) >> 22 & (countof(C->memo) - 1)];
 
         if (!memcmp(&m->key, &key, sizeof key)) {
             if (!(m->how & VM_PARAM)) {
@@ -554,6 +558,7 @@ uint32_t comp_var(Comp *const C, const uint8_t shape, const uint32_t et)
 
     comp_scope(C, name);
     const uint32_t id = symb_find_var(C->symb, name, type, kind, C->scope, C->isstatic);
+    symb_varx(C->symb, id)->base = decl_base(C->decl, C->module);
 
     if (m)
         *m = (typeof(*m)){
@@ -901,20 +906,31 @@ Status comp_text(Comp *const C, const uint8_t *const body)
 
 void comp_proc(Comp *const C, const uint32_t proc)
 {
+    const Proc *const p = proc ? blok_proc(C->blok, proc) : nullptr;
     C->proc = proc;
-    scop_enter(C->scop, proc ? blok_proc(C->blok, proc) : nullptr);
+
+    if (p)
+        C->module = p->module;
+
+    scop_enter(C->scop, C->module, p);
+}
+
+uint32_t comp_module(const Comp *const C, const uint32_t line)
+{
+    return line == DLINE ? 0 : sc_module(modu_of(C->modu, prog_line(C->prog, line)->file));
 }
 
 Status comp_line(Comp *const C)
 {
     C->line = DLINE;
     C->ndfor = 0;
+    C->module = 0;
     comp_proc(C, C->dlproc);
 
     if (C->check && !C->proc && C->decl->proc) /* a line alone: in the procedure being entered */
         scop_inside(C->scop, C->decl->proc);
 
-    decl_deftype(C->decl, C->symb, 0xFFFFFFFF); /* the program's end's DEFtypes */
+    decl_deftype(C->decl, C->symb, C->decl->top - 1); /* the main's end's DEFtypes */
     return comp_text(C, C->cbuf);
 }
 
@@ -1058,8 +1074,8 @@ static uint32_t dimsubs(Comp *const C, uint32_t *const elems)
             constant &= bound(C, &hi);
         } else {
             hi = lo;
-            lo = C->decl->base;
-            comp_int(C, C->decl->base);
+            lo = decl_base(C->decl, C->module);
+            comp_int(C, lo);
             C->dmask |= (uint64_t)1 << (n & 63);
         }
 

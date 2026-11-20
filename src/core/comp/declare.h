@@ -48,20 +48,25 @@ typedef struct {
     uint8_t deft[NLETTERS];
 } DefEvent;
 
+/* A file's OPTIONs: OPTION BASE 1, OPTION EXPLICIT. */
+enum : uint8_t { DO_BASE1 = 1, DO_EXPLICIT = 2 };
+
 /* The program's declarations; its arena holds the tables. */
 typedef struct {
     Arena arena;
     Fault *fault;
-    uint32_t proc;           /* lx.dproc: the procedure being entered, its name; 0 the module */
-    uint32_t ntypes;         /* lx.ntyps: the last TYPE's index */
-    uint32_t type;           /* lx.dtype: the TYPE being entered, 0 none */
-    uint32_t scope;          /* g_dscope: where declarations go */
-    bool redim;              /* g_dredim: the DIM is a REDIM */
-    uint8_t base;            /* g_obase: OPTION BASE */
-    bool baseset;            /* g_obset */
-    bool dimmed;             /* g_odim: an array DIMmed (OPTION BASE after: an error) */
-    bool explicit_;          /* g_oexp: OPTION EXPLICIT */
-    bool deft;               /* decl_line's line has a DEFtype */
+    uint32_t module; /* the module being entered: its scope (sc_module) */
+    uint32_t top;    /* the first module's first line, LF_TOP: the main's end; ~0 none */
+    uint32_t proc;   /* lx.dproc: the procedure being entered, its name; 0 none */
+    uint32_t ntypes; /* lx.ntyps: the last TYPE's index */
+    uint32_t type;   /* lx.dtype: the TYPE being entered, 0 none */
+    uint32_t scope;  /* g_dscope: where declarations go */
+    bool redim;      /* g_dredim: the DIM is a REDIM */
+    bool baseset;    /* g_obset: the module's OPTION BASE given */
+    bool dimmed;     /* g_odim: an array DIMmed (OPTION BASE after: an error) */
+    bool deft;       /* decl_line's line has a DEFtype */
+    uint8_t *opts;   /* g_obase, g_oexp: each module's DO_*, by its number */
+    uint32_t nopts, optcap;
     uint32_t ndefev, defcap; /* g_ndev: DEFtype lines */
     DefEvent *defevs;
     BTab types; /* TypeDef, g_typ: by number, from 1 */
@@ -82,6 +87,20 @@ void decl_init(Decl *d, Fault *f);
 void decl_reset(Decl *d, Scop *sc, Symb *sy);
 /* Enter the body's declarations, of the line at line; loading: from a file. */
 void decl_line(Decl *d, Scop *sc, Symb *sy, const uint8_t *body, uint32_t line, bool loading);
+/* The lines entered next module's (sc_module, not the main's), from its first at line, LF_TOP:
+   its file's DEFtypes and OPTIONs start again. */
+void decl_module(Decl *d, Scop *sc, Symb *sy, uint32_t module, uint32_t line);
+/* Module's file's DO_*. */
+static inline uint8_t decl_opts(const Decl *const d, const uint32_t module)
+{
+    const uint32_t m = module & ~SC_MOD;
+    return m < d->nopts ? d->opts[m] : 0;
+}
+/* Module's file's OPTION BASE. */
+static inline uint8_t decl_base(const Decl *const d, const uint32_t module)
+{
+    return decl_opts(d, module) & DO_BASE1;
+}
 /* Each DEFtype line's event, again from the program pg in its order: a line typed, or put
    between others, has its place. */
 void decl_defevents(Decl *d, Scop *sc, Symb *sy, const Prog *pg);
@@ -98,12 +117,13 @@ const char *decl_warning(const uint8_t **at);
 const uint8_t *decl_item(const uint8_t *p);  /* dc_item: past the item at p */
 const uint8_t *decl_paren(const uint8_t *p); /* past the ( .. ) at p; p itself when none */
 /* A TYPE's array field's ( [lo TO] hi {, ..} ) at p, ours, each bound an integer constant (the
-   CONSTs as scope sees them), base the lower one's when none: its dimensions to dims, MAXDIMS at
-   most, their count *n, 0 for (), a dynamic one's; past it, null not one, *n past MAXDIMS for too
-   many. */
+   CONSTs as procedure proc, 0 none, of module sees them), base the lower one's when none: its
+   dimensions to dims, MAXDIMS at most, their count *n, 0 for (), a dynamic one's; past it, null
+   not one, *n past MAXDIMS for too many. */
 const uint8_t *decl_dims(
     const Scop *sc,
-    uint32_t scope,
+    uint32_t module,
+    uint32_t proc,
     const uint8_t *p,
     uint8_t base,
     FieldDim *dims,
@@ -139,6 +159,8 @@ static inline const FieldDim *decl_fielddim(
 uint8_t decl_proc(const uint8_t *body, const uint8_t **name);
 /* The lines declared from here are procedure proc's (its name), 0 the module's. */
 void decl_enter(Decl *d, uint32_t proc);
+/* The lines declared from here are the main module's, its end's DEFtypes theirs. */
+void decl_main(Decl *d, Symb *sy);
 bool decl_tail(const uint8_t **at); /* *at the body to its last statement; true ends in a string,
                                        REM's or DATA's text */
 const uint8_t *decl_step(const uint8_t *p); /* decl_item, a number kept as text whole */

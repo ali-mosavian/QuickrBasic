@@ -9,7 +9,7 @@ typedef struct {
     uint32_t module; /* its module: 0 the main program's */
 } ModuFile;
 
-typedef struct {
+typedef struct Modu {
     ModuFile *files; /* by number, Line.file */
     uint32_t nfiles, filecap;
     uint32_t *mods; /* each module's path: an offset in Modu.text; [0] the main program's */

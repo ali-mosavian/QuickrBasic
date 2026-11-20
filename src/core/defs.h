@@ -53,7 +53,18 @@ enum : uint8_t {
     BF_RES = 64,
     BF_VAL = 128 /* a CONST's integer value known as declared: Binding.val */
 };
-enum : uint32_t { SC_NUM = 0x80000000, SC_ARR = 0x40000000 };
+/* A scope key's flags (mem/scope): a line number's, an array's, a module's (an imported file's,
+   its number below; the main's is 0), the labels any scope of a module has. Names are below. */
+enum : uint32_t {
+    SC_NUM = 0x80000000,
+    SC_ARR = 0x40000000,
+    SC_MOD = 0x20000000,
+    SC_LBL = 0x10000000
+};
+/* Module m's scope key. */
+static inline uint32_t sc_module(const uint32_t m) { return m ? SC_MOD | m : 0; }
+/* A procedure's scope key, not a module's. */
+static inline bool sc_is_proc(const uint32_t scope) { return scope && !(scope & SC_MOD); }
 
 /* A jump target's mode: the statement, past the JMP it starts with, or the statement after it. */
 typedef enum : uint8_t { TO_STMT, PAST_JMP, TO_NEXT_STMT } JumpMode;
@@ -93,8 +104,9 @@ typedef struct PACKED {
 static_assert(sizeof(Line) == 20);
 enum { HDR = sizeof(Line) };
 /* LF_NODEF: decl_line found no DEFtype in it, decl_defevents passes it. LF_MOD: an imported
-   module's, loaded with the program as an include's lines are. */
-enum : uint8_t { LF_ASIS = 1, LF_BP = 2, LF_INC = 4, LF_NODEF = 8, LF_MOD = 16 };
+   module's, loaded with the program as an include's lines are. LF_TOP: the END before a module's
+   lines, where its file's settings start. */
+enum : uint8_t { LF_ASIS = 1, LF_BP = 2, LF_INC = 4, LF_NODEF = 8, LF_MOD = 16, LF_TOP = 32 };
 enum : uint32_t {
     NONUM = 0xFFFF,
     LMAX = 0x17000,    /* a line's body at most: 0xFEE0 with 2-byte name ids, times 7/5 */

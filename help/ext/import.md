@@ -29,10 +29,13 @@ many lines import it, cycles included. One that is not found is a
 [File not found](File not found) error at the importing line. An error
 in a module is reported at its own file and line.
 
-For now, as in QuickBASIC's programs of several modules, the modules'
-SUBs, FUNCTIONs, CONSTs, TYPEs and shared variables are the program's
-own, under their plain names, and a module's top-level code does not
-run.
+Each file's variables, its DIM SHARED ones too, its CONSTs, labels
+and line numbers are its own. DEFtype, OPTION BASE and OPTION EXPLICIT
+start again at its first line.
+
+For now, as in QuickBASIC's programs of several modules, SUBs,
+FUNCTIONs, DEF FNs and TYPEs are the whole program's, under their plain
+names, and a module's top-level code does not run.
 
 IMPORT and FROM are keywords only at the start of a line's first
 statement, outside SUBs and FUNCTIONs. A variable called import still

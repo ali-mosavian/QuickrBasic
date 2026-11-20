@@ -1,20 +1,23 @@
 /* Scoped declarations: what each name means in the module and in each procedure.
  *
  * # How it works
- * A binding is a name's in one scope, the module's (0) or a procedure's (its name), holding the
- * declared type, record and STRING * n of the scalar and of the array, a label's line and BF_*
- * flags. A procedure's binding, any but BF_USE alone, makes the name its own there.
+ * A binding is a name's in one scope, a module's (sc_module: 0 the main's) or a procedure's (its
+ * name), holding the declared type, record and STRING * n of the scalar and of the array, a
+ * label's line and BF_* flags. A procedure's binding, any but BF_USE alone, makes the name its own
+ * there.
  *
- * A label is a binding too; a line number's is in its scope | SC_NUM, keyed by the number. The
- * compiler's scopes are a stack of procedures, the module at its bottom; a name is looked up from
- * the top down. From a SUB or FUNCTION the module's names are seen only when BF_SHR, or BF_REF
- * there; from a DEF FN all.
+ * A label is a binding too; a line number's is in its scope | SC_NUM, keyed by the number. Each
+ * also binds in its module's | SC_LBL (| SC_NUM), the labels a module has in any of its scopes.
+ * The compiler's scopes are a stack of procedures, the module at its bottom; a name is looked up
+ * from the top down. From a SUB or FUNCTION the module's names are seen only when BF_SHR, or
+ * BF_REF there; from a DEF FN all.
  *
  * # asm structure (retired/asm32/mem/scope.asm)
  * | asm | here | |
  * |---|---|---|
  * | B_SC B_NAM B_NXT B_FLG B_ET B_REC B_FIX B_LINE, BSZ | Binding | MIRROR |
- * | g_bnd, g_nbnd, g_bhead, g_lnbit, g_scs, g_scn | Scop.arena, nbnd, heads, lnbit, stack, depth | D5 |
+ * | g_bnd, g_nbnd, g_bhead, g_scs, g_scn | Scop.arena, nbnd, heads, stack, depth | D5 |
+ * | g_lnbit | bindings in a module's SC_LBL scope | D6 |
  * | g_bzero | `none` | MIRROR; static |
  * | scp_init | scop_init, scop_reset | MIRROR |
  * | scp_get, scp_bind | scop_get, scop_bind | MIRROR; D1 |
@@ -34,10 +37,9 @@
  * - D4. True when bound; the asm's CF is the opposite.
  * - D5. Bindings come from Scop's arena and chain by pointer; a frame keeps its procedure's
  *   name and DEF FN flag. Errors raise through Fault.
+ * - D6. A program has a module per file it imports, each with its own labels.
  */
 #include "mem/scope.h"
-#include "util/grow.h"
-#include <string.h>
 
 static const Binding none; /* a binding of nothing */
 
@@ -71,8 +73,6 @@ void scop_reset(Scop *const sc)
 
     if (!sc->heads)
         scop_fail(sc, E_OM);
-    if (sc->lnbit)
-        memset(sc->lnbit, 0, sc->nlnbit * sizeof *sc->lnbit);
 }
 
 Binding *scop_get(const Scop *const sc, const uint32_t scope, const uint32_t name)
@@ -105,10 +105,10 @@ Binding *scop_bind(Scop *const sc, const uint32_t scope, const uint32_t name)
     return b;
 }
 
-void scop_enter(Scop *const sc, const Proc *const p)
+void scop_enter(Scop *const sc, const uint32_t module, const Proc *const p)
 {
     sc->depth = 1;
-    sc->stack[0] = (ScopFrame){};
+    sc->stack[0] = (ScopFrame){.name = module};
 
     if (p)
         sc->stack[sc->depth++] = (ScopFrame){.name = p->name, .deffn = p->flags & PF_DEF};
@@ -223,17 +223,23 @@ bool scop_con(const Scop *const sc, const uint32_t name)
 
 bool scop_conname(const Scop *const sc, const uint32_t name)
 {
-    const Binding *const module = scop_get(sc, 0, name);
+    const Binding *const module = scop_get(sc, sc->stack[0].name, name);
     const Binding *const own = scop_get(sc, scop_own(sc), name);
     return (module && module->flags & BF_CON) || (own && own->flags & BF_CON);
 }
 
-bool scop_conval(const Scop *const sc, const uint32_t scope, const uint32_t name, int32_t *const v)
+bool scop_conval(
+    const Scop *const sc,
+    const uint32_t module,
+    const uint32_t proc,
+    const uint32_t name,
+    int32_t *const v
+)
 {
-    const Binding *b = scop_get(sc, scope, name);
+    const Binding *b = proc ? scop_get(sc, proc, name) : nullptr;
 
     if (!b || !(b->flags & BF_CON))
-        b = scop_get(sc, 0, name);
+        b = scop_get(sc, module, name);
     if (!b || !(b->flags & BF_CON) || !(b->flags & BF_VAL))
         return false;
 
@@ -243,42 +249,32 @@ bool scop_conval(const Scop *const sc, const uint32_t scope, const uint32_t name
 
 bool scop_known(const Scop *const sc, const uint32_t name) { return scop_seen(sc, name) != &none; }
 
-bool scop_mshr(const Scop *const sc, const uint32_t name)
+bool scop_mshr(const Scop *const sc, const uint32_t module, const uint32_t name)
 {
-    const Binding *const b = scop_get(sc, 0, name);
+    const Binding *const b = scop_get(sc, module, name);
     return b && (b->flags & (BF_SHR | BF_CON)) == BF_SHR;
 }
 
-/* Has a scope label key: a name, a line number when scope has SC_NUM? */
-static bool scop_lany(
-    const Scop *const sc,
-    const Symb *const sy,
-    const uint32_t scope,
-    const uint32_t key
-)
-{
-    if (scope & SC_NUM)
-        return key / WORD_BITS < sc->nlnbit && sc->lnbit[key / WORD_BITS] >> (key % WORD_BITS) & 1;
-
-    return symb_name(sy, key)->flags & NM_LBL;
-}
+/* The scope of the labels module has in any of its scopes, line numbers' when num. */
+static uint32_t labels(const uint32_t module, const uint32_t num) { return module | SC_LBL | num; }
 
 void scop_label(
     Scop *const sc,
     Symb *const sy,
+    const uint32_t module,
     const uint32_t scope,
     const uint32_t key,
     const uint32_t line
 )
 {
-    if (scop_lany(sc, sy, scope, key))
-        scop_fail(sc, E_DL);
-    if (scope & SC_NUM) {
-        if (!GROW(sc->lnbit, sc->nlnbit, key / WORD_BITS + 1u))
-            scop_fail(sc, E_OM);
+    const uint32_t any = labels(module, scope & SC_NUM);
 
-        sc->lnbit[key / WORD_BITS] |= 1u << (key % WORD_BITS);
-    } else
+    if (scop_get(sc, any, key))
+        scop_fail(sc, E_DL);
+
+    scop_bind(sc, any, key);
+
+    if (!(scope & SC_NUM))
         symb_name(sy, key)->flags |= NM_LBL;
 
     Binding *const b = scop_bind(sc, scope, key);
@@ -288,7 +284,7 @@ void scop_label(
 
 uint32_t scop_lfind(
     const Scop *const sc,
-    const Symb *const sy,
+    const uint32_t module,
     const uint32_t scope,
     const uint32_t key
 )
@@ -297,7 +293,7 @@ uint32_t scop_lfind(
 
     if (b && (b->flags & BF_LBL))
         return b->line;
-    if (scop_lany(sc, sy, scope, key))
+    if (scop_get(sc, labels(module, scope & SC_NUM), key))
         scop_fail(sc, E_SPE);
 
     return 0;

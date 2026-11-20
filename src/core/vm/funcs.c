@@ -358,7 +358,8 @@ static void bound(Session *const S, const bool upper)
         if (s->dyn) /* ERASEd: none */
             arry_bad_sub(&S->arry);
 
-        exec_pushi(&S->vm, upper ? 10 : S->decl.base); /* none yet: OPTION BASE to 10 */
+        /* none yet: the running line's file's OPTION BASE to 10 */
+        exec_pushi(&S->vm, upper ? 10 : decl_base(&S->decl, comp_module(&S->comp, S->vm.line)));
         return;
     }
 

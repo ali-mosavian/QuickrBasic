@@ -738,10 +738,12 @@ static const uint8_t *enter_decls(Session *const S, const uint32_t place)
 {
     const uint8_t *const p = declare(S, place);
 
+    const uint32_t module = S->decl.module, own = S->decl.proc ? S->decl.proc : module;
+
     if (S->vm.lnum != NONUM)
-        scop_label(&S->scop, &S->symb, SC_NUM | S->decl.proc, S->vm.lnum, S->prog.entering);
+        scop_label(&S->scop, &S->symb, module, SC_NUM | own, S->vm.lnum, S->prog.entering);
     if (comp_label(p))
-        scop_label(&S->scop, &S->symb, S->decl.proc, comp_nameof(p), S->prog.entering);
+        scop_label(&S->scop, &S->symb, module, own, comp_nameof(p), S->prog.entering);
 
     return p;
 }
@@ -915,25 +917,30 @@ static void read_file(Session *const S, const char *const name, const int32_t nu
 }
 
 /* The modules the program imports, after its lines, each once and in the order first named; a
-   module's own imports after it. Their lines are LF_MOD, and so is the END before each: a run, by
-   any way to the next line, stops where its module's lines end. */
+   module's own imports after it. Their lines are LF_MOD, and so is the END before each, LF_TOP: a
+   run, by any way to the next line, stops where its module's lines end, and the file's
+   declarations start there. Then the main's again. */
 static void read_modules(Session *const S)
 {
     static const uint8_t end[] = {TK_END, 0};
 
     const uint8_t flags = S->prog.add_flags;
-    S->prog.add_flags = flags | LF_MOD;
 
     for (uint32_t m = 1; m < modu_count(&S->modu); m++) {
         char path[PFIL_PATH]; /* the table may move as it grows */
         strcpy(path, modu_module_path(&S->modu, m));
+        const uint32_t top = prog_at(&S->prog);
+        S->prog.add_flags = flags | LF_MOD | LF_TOP;
         prog_add(&S->prog, NONUM, end, sizeof end);
+        S->prog.add_flags = flags | LF_MOD;
+        decl_module(&S->decl, &S->scop, &S->symb, sc_module(m), top);
         S->repl.module = m;
         read_file(S, path, SOURCE_FILENO);
     }
 
     S->repl.module = 0;
     S->prog.add_flags = flags;
+    decl_main(&S->decl, &S->symb);
 }
 
 void repl_load(Session *const S)

@@ -1423,6 +1423,33 @@ CASES |= {
                             "bad.bas:3: Syntax error\r\n  x =", None),
 }
 
+# Each file its own module: its variables, CONSTs, labels, line numbers, DEFtypes and OPTIONs. One
+# file's leaked into the next: a variable was every file's, a module's CONST the main's too, a label
+# in two Duplicate, the main's DEFINT, OPTION EXPLICIT and OPTION BASE the module's too.
+CASES |= {
+    "import_own_vars": (beside(bas("from cnt import *", "n = 10", "bump", "bump", "print n"),
+                               {"cnt.bas": bas("dim shared n", "sub bump", " n = n + 1: print n", "end sub")}),
+                        " 1 \r\n 2 \r\n 10 \r\n", "ERROR"),
+    "import_own_const": (beside(bas("from kc import *", "k = 5: print k: showk"),
+                                {"kc.bas": bas("const k = 2", "sub showk", " print k", "end sub")}),
+                         " 5 \r\n 2 \r\n", "ERROR"),
+    "import_own_labels": (beside(bas("import lb", "gosub h", "10 lbsub", "end", "h: print \"main h\"", "return"),
+                                 {"lb.bas": bas("10 rem", "h: rem", "sub lbsub", ' print "lb"', "end sub")}),
+                          "main h\r\nlb\r\n", "ERROR"),
+    "import_other_line": (beside(bas("import ln", "goto 20"), {"ln.bas": bas("20 rem")}),
+                          "IMPORT_O.BAS:2: Label not defined", None),
+    "import_own_deftype": (beside(bas("defint a-z", "from fl import *", "x = 2.5: print x", "half 5"),
+                                  {"fl.bas": bas("sub half (v)", " r = v / 2: print r", "end sub")}),
+                           " 2 \r\n 2.5 \r\n", "ERROR"),
+    "import_own_explicit": (beside(bas("option explicit", "from ex import *", "dim a: a = 1", "ex1"),
+                                   {"ex.bas": bas("sub ex1", " y = 3: print y", "end sub")}),
+                            " 3 \r\n", "ERROR"),
+    "import_own_base": (beside(bas("option base 1", "from bs import *", "dim m(2): print lbound(m)", "lb"),
+                               {"bs.bas": bas("sub lb", " dim a(3): print lbound(a)", " z(2) = 1: print lbound(z)",
+                                              "end sub")}),
+                        " 1 \r\n 0 \r\n 0 \r\n", "ERROR"),
+}
+
 
 # Typed at the prompt, not run as a file.
 REPL = {

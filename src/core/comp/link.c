@@ -56,6 +56,7 @@ void link_compile(Comp *const C, const uint32_t line)
     const Proc *const in = C->proc ? blok_proc(C->blok, C->proc) : nullptr;
 
     /* the line before's procedure, most often: lines compile in order */
+    C->module = comp_module(C, line);
     comp_proc(C, in && line >= in->first && line <= in->last ? C->proc : blok_procof(C->blok, line));
     decl_deftype(C->decl, C->symb, line);
     comp_text(C, (const uint8_t *)prog_line(C->prog, line) + HDR);
@@ -115,6 +116,7 @@ static void link_procvars(Comp *const C)
         Proc *const p = btab_at(&C->blok->procs, i);
         decl_deftype(C->decl, C->symb, p->first);
         symb_name(C->symb, p->name)->proc = i;
+        p->module = comp_module(C, p->first);
         comp_proc(C, i);
 
         if (p->kind == PK_FUNC && !(p->flags & PF_RESARG)) {
@@ -394,7 +396,7 @@ static bool jump_dest(const Comp *const C, Jump *const j)
 static uint32_t line_slot(const uint16_t num, const uint32_t mask) { return num * 40503u & mask; }
 
 /* The numbered lines, hashed by number: a reference's search was a walk from the first line,
-   9% of a link. The first of a number wins, as prog_find's. */
+   9% of a link. The first of a number in its module wins, as prog_find's. */
 static void index_lines(Comp *const C)
 {
     uint32_t n = 0;
@@ -423,7 +425,9 @@ static void index_lines(Comp *const C)
         if (num == NONUM)
             continue;
 
-        while (t[s] && prog_line(C->prog, t[s])->num != num)
+        const uint32_t module = comp_module(C, l);
+
+        while (t[s] && (prog_line(C->prog, t[s])->num != num || comp_module(C, t[s]) != module))
             s = (s + 1) & (slots - 1);
         if (!t[s])
             t[s] = l;
@@ -432,16 +436,22 @@ static void index_lines(Comp *const C)
     C->link->lmask = slots - 1;
 }
 
-/* The line numbered num, hashed or walked to; false none. */
-static bool find_line(const Comp *const C, const uint16_t num, uint32_t *const line)
+/* Module's line numbered num, hashed or walked to; false none. */
+static bool find_line(
+    const Comp *const C,
+    const uint32_t module,
+    const uint16_t num,
+    uint32_t *const line
+)
 {
     const uint32_t mask = C->link->lmask;
 
     if (!mask || num == NONUM)
-        return prog_find(C->prog, 0, num, line);
+        return prog_find(C->prog, 0, num, line) && comp_module(C, *line) == module;
 
     for (uint32_t s = line_slot(num, mask); C->link->lines[s]; s = (s + 1) & mask)
-        if (prog_line(C->prog, C->link->lines[s])->num == num) {
+        if (prog_line(C->prog, C->link->lines[s])->num == num &&
+            comp_module(C, C->link->lines[s]) == module) {
             *line = C->link->lines[s];
             return true;
         }
@@ -449,9 +459,14 @@ static bool find_line(const Comp *const C, const uint16_t num, uint32_t *const l
     return false;
 }
 
-/* LineRef r's line: the one the compiler found, else any numbered num; false none, *at its label's
-   body offset. */
-static bool ref_line(const Comp *const C, LineRef *const r, uint32_t *const at)
+/* LineRef r's line: the one the compiler found, else any numbered num of module; false none, *at
+   its label's body offset. */
+static bool ref_line(
+    const Comp *const C,
+    const uint32_t module,
+    LineRef *const r,
+    uint32_t *const at
+)
 {
     uint32_t line = r->line;
 
@@ -460,7 +475,7 @@ static bool ref_line(const Comp *const C, LineRef *const r, uint32_t *const at)
 
     *at = line & ~LREF_AT;
 
-    if (!find_line(C, r->num, &line))
+    if (!find_line(C, module, r->num, &line))
         return false;
 
     r->line = line;
@@ -541,7 +556,7 @@ static void resolve_op(Comp *const C, const uint32_t line, const Addr base, uint
     for (uint32_t i = 0; refs && i < nrefs; i++) {
         uint32_t at;
 
-        if (!ref_line(C, &refs[i], &at))
+        if (!ref_line(C, comp_module(C, line), &refs[i], &at))
             note(C, line, at, E_US);
     }
 }

@@ -35,6 +35,7 @@ typedef struct {
     uint32_t entry; /* its body: a target */
     uint32_t first; /* its first line, its last (program store offsets) */
     uint32_t last;
+    uint32_t module; /* its module's scope (sc_module) */
     uint16_t npar;
     uint32_t result; /* a FUNCTION's result variable */
     uint32_t nframe; /* its frame's cells (comp/frame.c) */
