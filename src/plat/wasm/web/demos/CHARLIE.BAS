@@ -304,6 +304,9 @@ const IFAM = IDUNKED + 2, NFAM = 5, FAMF = 9, FAMSTEP = 36, IBARON = IFAM + NFAM
 const ILOAD = IBARON + 12, IHEAP = ILOAD + 2
 ' The wood's keepsake, the Pomchi's ball.
 const IBALL = IHEAP + 2, NIMG = IBALL + 2
+' The wood's night: its fireflies' two colours, never dimmed; the steps a bark's light lasts, the last of them
+' fading; the parts its light is counted in; the fireflies awake, and at rest.
+const CFLY = 163, GLOWT = 300, GLOWFADE = 60, GLOWN = 8, NFLY = 18, FLYREST = 5
 const HUDW = 108, HUDH = 40
 ' The levels: a zone's two acts, the second at another hour in other colours, zone by zone.
 ' the stages played, and after them the intro's road
@@ -386,6 +389,8 @@ declare sub DrawEyes (se as Session, x as integer, y as integer, n as integer)
 declare sub Pose (lv as Level, gr as Ground, se as Session, p as Hero, x as integer, y as integer, a as integer, west as integer)
 declare sub MuteKey (mu as Deck, k as Pad)
 declare sub Shimmer (zn as Realm, tn as Tones, se as Session)
+declare sub Nightfall (lv as Level, zn as Realm, tn as Tones)
+declare function Dimmed% (v as integer, f as integer, n as integer)
 declare sub Spent (k as Pad)
 declare sub ZoneTune (mu as Deck, id as integer)
 declare sub SceneTune (mu as Deck, id as integer)
@@ -623,6 +628,7 @@ declare sub DrawAvalanche (lv as Level, art as Store, se as Session, cx as integ
 declare function SnowTop% (lv as Level, x as integer)
 declare sub Buffet (lv as Level, se as Session, p as Hero)
 declare sub DrawGale (lv as Level, se as Session)
+declare sub DrawFlies (lv as Level, se as Session, cx as integer)
 declare sub Graze (lv as Level, se as Session, i as integer, p as Hero)
 declare sub MeetGoat (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose)
 declare sub Mount (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
@@ -735,6 +741,9 @@ type Level
     icing as integer
     fallow as integer
     gale as integer
+    murk as integer
+    glow as integer
+    glowAt as integer
     prof() as integer
     top() as integer
     vis() as integer
@@ -1254,6 +1263,8 @@ sub LoadLevel (wd as World, st as integer)
     redim wd.lv.glaze(MW)
     wd.lv.icing = 0
     wd.lv.gale = 0
+    wd.lv.murk = 0
+    wd.lv.glowAt = GLOWN
     wd.lv.avalX = NONE
     wd.lv.fallow = 0
     wd.lv.nObj = 0
@@ -1441,6 +1452,7 @@ sub LoadLevel (wd as World, st as integer)
         case "sled": k = KSLED
         case "thrower": k = KTHROW
         case "gale": wd.lv.gale = -1
+        case "night": wd.lv.murk = -1
         case "avalanche": wd.lv.avalX = c * TS + 8
         case "goat"
             Clearing wd.lv, c
@@ -3046,6 +3058,7 @@ end sub
 sub Tick (wd as World, g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part)
     wd.se.ticks = wd.se.ticks + 1
     if wd.zn.id = 1 and (wd.se.ticks and 3) = 0 then Cycle wd.tn, wd.se
+    if wd.lv.murk then Nightfall wd.lv, wd.zn, wd.tn
     if wd.lv.tideLo <> NONE then Flow wd.lv, wd.se
     if wd.lv.nMv then Movers wd.lv, wd.gr, wd.mu, wd.se, p
     g.modeT = g.modeT + STEPT
@@ -3143,6 +3156,30 @@ sub MuteKey (mu as Deck, k as Pad)
     k.mute = 0
     if mu.muted then play "P64", "P64", "P64", , "P64", "P64", "P64", "P64"
 end sub
+
+' The wood's night: a bark's light counted down, and the zone's own colours as bright as it leaves them, the
+' fireflies' always.
+sub Nightfall (lv as Level, zn as Realm, tn as Tones)
+    dim i as integer, n as integer, k as integer, c as long
+    if lv.glow > 0 then lv.glow = lv.glow - 1
+    n = GLOWN
+    if lv.glow < GLOWFADE then n = lv.glow * GLOWN \ GLOWFADE
+    if n = lv.glowAt then exit sub
+    lv.glowAt = n
+    for i = 0 to tn.n(zn.stage) - 1
+        k = tn.which(zn.stage, i)
+        if k = CFLY or k = CFLY + 1 then continue for
+        c = tn.own(zn.stage, i)
+        Tint tn, k, Dimmed%(c and 63, 2, n) + 256& * Dimmed%(c \ 256 and 63, 2, n) + 65536 * Dimmed%(c \ 65536, 6, n)
+    next
+end sub
+
+' v of a colour's 63 with n of GLOWN parts of its light: with none, three tenths of it over f.
+function Dimmed% (v as integer, f as integer, n as integer)
+    dim d as integer
+    d = f + v * 3 \ 10
+    Dimmed% = d + (v - d) * n \ GLOWN
+end function
 
 ' The Downs' lake glints: its three tones change places, every 16 steps.
 sub Shimmer (zn as Realm, tn as Tones, se as Session)
@@ -3394,6 +3431,7 @@ sub ResetWorld (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
     dim i as integer
     if wd.zn.stage <> wd.zn.nextUp then LoadLevel wd, wd.zn.nextUp
     EndTune wd.lv, wd.mu
+    wd.lv.glow = 0
     g.mode = TITLE
     g.modeT = 0
     wd.se.cheer = 0
@@ -4580,6 +4618,26 @@ sub Buffet (lv as Level, se as Session, p as Hero)
     end if
 end sub
 
+' The wood's fireflies over the view, drifting, each dark a moment in turn: a few at rest, and all of them, haloed,
+' while a bark's light lasts.
+sub DrawFlies (lv as Level, se as Session, cx as integer)
+    dim j as integer, x as integer, y as integer
+    for j = 0 to FLYREST + (NFLY - FLYREST) * lv.glowAt \ GLOWN - 1
+        if ((se.ticks \ 16 + j * 3) and 7) = 0 then continue for
+        x = (j * 73 + 31 + SW - (cx \ 2) mod SW) mod SW + cint(6 * sin(se.ticks * .02 + j))
+        y = 22 + (j * 47) mod 136 + cint(4 * sin(se.ticks * .031 + j * 2))
+        if lv.glowAt = 0 then
+            pset (x, y), CFLY
+            continue for
+        end if
+        pset (x, y), CFLY + 1
+        pset (x - 1, y), CFLY
+        pset (x + 1, y), CFLY
+        pset (x, y - 1), CFLY
+        pset (x, y + 1), CFLY
+    next
+end sub
+
 ' The blizzard over the view: flakes aslant always; a gust's streaks of snow from the right, fewer as it rises.
 sub DrawGale (lv as Level, se as Session)
     dim j as integer, x as integer, y as integer, n as integer
@@ -4898,6 +4956,7 @@ sub Bark (lv as Level, mu as Deck, se as Session, p as Hero)
     dim i as integer, c as integer, dx as single, dy as single, hung as integer
     p.barkT = BARKT
     Sfx mu, se, SBARK
+    if lv.murk then lv.glow = GLOWT
     c = (cint(p.x) - BARKR - 40) \ TS
     if c < 0 then c = 0
     for i = lv.first(c) to lv.nObj - 1
@@ -5829,6 +5888,7 @@ sub Render (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
     DrawHero wd.gr, wd.art, wd.se, p, cx, cy
     if wd.lv.avalX <> NONE then DrawAvalanche wd.lv, wd.art, wd.se, cx, cy
     if wd.lv.gale then DrawGale wd.lv, wd.se
+    if wd.lv.murk then DrawFlies wd.lv, wd.se, cx
     if wd.lv.nGulls then DrawGulls wd.lv, wd.art, wd.se, cx, cy
     if wd.lv.lobN then DrawLobs wd.lv, wd.art, cx, cy
     if wd.lv.tide <> NONE then DrawSurf wd.lv, wd.art, cx, cy

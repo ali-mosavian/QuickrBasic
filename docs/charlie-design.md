@@ -173,9 +173,10 @@ Progress is saved at each zone.
 
 ### 5. Russet Wood (its look built)
 
-- Built: its backdrop, ground, props, card and keepsake at a misty noon and on the firefly night, lit, on the
-  Downs' layout; two stand-in levels, to the Downs' tunes. To add: the night's dark and the bark that lights it,
-  height, its gadgets, enemies, levels, chase and tune.
+- Built: its backdrop, ground, props, card and keepsake at a misty noon and on the firefly night, on the
+  Downs' layout; two stand-in levels, to the Downs' tunes; the night's dark, its own colours sunk and a few
+  fireflies about, and the bark that wakes the rest and lights it for five seconds, the last of them fading. To
+  add: height, its gadgets, enemies, levels, chase and tune.
 - Rule: height. The way is up, and a fall costs the climb, not a life.
 - Gadgets: sapling catapults, which bend under him and throw by his speed; vine swings; hollow logs; burrows,
   dug into at one mound and left by another.

@@ -1293,6 +1293,52 @@ for j = 0 to 1
     was = was and wd.zn.id = 4
 next
 if was and colA(0) = colA(1) and hid = &H0B2338 and wd.tn.now(colA(1)) <> hid then print "wood ok"
+' the wood's night is dark: its own colours sunk, its fireflies' not, a few of them about; a bark wakes the rest,
+' haloed, and lights it; the light fades and GLOWT steps on is gone; a restart in the light finds it dark; its
+' noon is never dark. The mist's first tone, 6 7 16 of 63, is 3 4 10 dark and 4 5 13 half lit
+GoStage wd, 9, g, p, lo(), pt()
+for i = 1 to 5
+    Tick wd, g, p, k, lo(), pt()
+next
+was = wd.lv.murk and wd.tn.which(9, 0) = 96 and wd.tn.now(96) = &H0A0403 and wd.tn.now(CFLY) = &H13392D
+for m = 0 to 1
+    g.shake = 0
+    Render wd, g, p, lo(), pt()
+    colA(m) = 0
+    for i = 0 to SH - 1
+        for j = 0 to SW - 1
+            if point(j, i) = CFLY or point(j, i) = CFLY + 1 then colA(m) = colA(m) + 1
+        next
+    next
+    if m = 1 then exit for
+    p.barkT = 0
+    k.bark = -1
+    Tick wd, g, p, k, lo(), pt()
+    k.bark = 0
+    Tick wd, g, p, k, lo(), pt()
+    was = was and wd.tn.now(96) = &H100706
+next
+was = was and colA(0) >= 1 and colA(0) <= FLYREST and colA(1) > 8 * FLYREST
+for i = 2 to GLOWT - GLOWFADE \\ 2
+    Tick wd, g, p, k, lo(), pt()
+next
+was = was and wd.tn.now(96) = &H0D0504
+for i = 1 to GLOWFADE \\ 2
+    Tick wd, g, p, k, lo(), pt()
+next
+was = was and wd.tn.now(96) = &H0A0403
+p.barkT = 0
+k.bark = -1
+Tick wd, g, p, k, lo(), pt()
+k.bark = 0
+Tick wd, g, p, k, lo(), pt()
+was = was and wd.tn.now(96) = &H100706
+GoStage wd, 9, g, p, lo(), pt()
+Tick wd, g, p, k, lo(), pt()
+was = was and wd.tn.now(96) = &H0A0403
+GoStage wd, 8, g, p, lo(), pt()
+Tick wd, g, p, k, lo(), pt()
+if was and wd.lv.murk = 0 and wd.tn.now(96) = wd.tn.own(8, 0) then print "firefly ok"
 ' the pass's bare ice keeps his speed and will not give it back: let go at a run he slides on where snow stops
 ' him, held back he is long in stopping, and from a stand he is slow away; it is drawn bare, the snow's white gone
 GoStage wd, 6, g, p, lo(), pt()
@@ -2608,6 +2654,7 @@ def main() -> None:
         ("press ok", "presses fall in turn along a row, hurt under and jumped into, and are run under from a stop"),
         ("pass ok", "Whitecap Pass, the fourth zone: its snow white on a clear morning, not at dusk"),
         ("wood ok", "Russet Wood, the fifth zone: its litter russet gold at a misty noon, not on the firefly night"),
+        ("firefly ok", "the wood's night dark but for a few fireflies; a bark wakes them and lights it for a while"),
         ("ice ok", "bare ice keeps his speed: a long slide, a long stop, a slow start; drawn bare of snow"),
         ("sled ok", "a sled is boarded, follows the slope, has no brake, keeps him through a hop, ends in deep snow"),
         ("geyser ok", "in the pass a jet is a geyser, the pass's water: it throws him up as it blows"),
