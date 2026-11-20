@@ -111,8 +111,8 @@ static void link_procvars(Comp *const C)
     for (uint16_t id = 1; id < C->symb->nvars; id++) /* each parameter till now: 2 */
         symb_varx(C->symb, id)->par *= 2;
 
-    for (uint32_t i = 1; i < C->blok->nprocs; i++) {
-        Proc *const p = C->blok->procs[i];
+    for (uint32_t i = 1; i < C->blok->procs.n; i++) {
+        Proc *const p = btab_at(&C->blok->procs, i);
         decl_deftype(C->decl, C->symb, p->first);
         symb_name(C->symb, p->name)->proc = i;
         comp_proc(C, i);
@@ -690,8 +690,8 @@ static void build(Comp *const C)
     C->scop->look_on = false;
     C->link->nmiss = 0;
 
-    for (uint32_t i = 1; i < C->blok->nprocs; i++) /* every line compiled: every local made */
-        frame_layout(C->symb, C->decl, C->blok->procs[i], i);
+    for (uint32_t i = 1; i < C->blok->procs.n; i++) /* every line compiled: every local made */
+        frame_layout(C->symb, C->decl, btab_at(&C->blok->procs, i), i);
 
     index_lines(C);
 

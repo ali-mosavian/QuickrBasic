@@ -30,7 +30,7 @@
  * | bk_proc | blok_procof | D3 |
  * | bk_line, bk_stmt, bk_next, bk_new, bk_push, bk_top, bk_fail, bk_clause, bk_close, bk_exits, bk_target | blok_scanline, blok_stmt, blok_next, blok_add, blok_push, blok_top, blok_fail, blok_clause, blok_close, blok_exits, blok_target | MIRROR |
  * | g_blk, g_prc, g_ppar, g_pbyv | Blok.blocks, Blok.procs, Proc.params | D4 |
- * | g_bst, NBST | BlokScan.open | MIRROR; grows |
+ * | g_bst, NBST | BlokScan.open | MIRROR; a block table (util/btab.h) |
  *
  * - D1. The procedures' variables (result, parameters) are declared by link_start after the
  *   scan, in the same order.
@@ -65,9 +65,7 @@ typedef struct {
     uint32_t line;       /* scanln: the line scanned */
     const uint8_t *body; /* (EBP) the body scanned */
     uint32_t off;        /* (ECX) the statement's offset in it */
-    uint32_t depth;      /* bsp */
-    BlokOpen *open;      /* the open blocks */
-    uint32_t opencap, blockcap, proccap;
+    BTab open;           /* BlokOpen: the open blocks, the innermost last (bsp: its n) */
     Proc *proc;   /* the procedure the scan is in, null none */
     bool isdef;   /* g_bkdef: the procedure is a DEF FN's */
     bool selcase; /* a SELECT scanned, its first CASE not yet */
@@ -154,32 +152,19 @@ static void *blok_alloc(BlokScan *const sc, const size_t size)
     return p;
 }
 
-/* Room in table *t of size-byte entries, of n used and *cap, for one more. */
-static void blok_room(
-    BlokScan *const sc,
-    void *const t,
-    const size_t size,
-    const uint32_t n,
-    uint32_t *const cap
-)
+/* A new entry of table t, zeroed. Out of memory. */
+static void *blok_new(BlokScan *const sc, BTab *const t)
 {
-    if (n < *cap)
-        return;
+    void *const e = btab_add(t, &sc->b->arena);
 
-    void **const tp = t;
-    const uint64_t cap2 = *cap ? (uint64_t)*cap * 2 : 64;
-
-    if (cap2 * size > UINT32_MAX)
+    if (!e)
         blok_nomem(sc);
 
-    void *const g = arena_grow(&sc->b->arena, *tp, *cap * size, (size_t)(cap2 * size));
-
-    if (!g)
-        blok_nomem(sc);
-
-    *tp = g;
-    *cap = (uint32_t)cap2;
+    return e;
 }
+
+/* Open block k, 0 the outermost. */
+static BlokOpen *blok_open(const BlokScan *const sc, const uint32_t k) { return btab_at(&sc->open, k); }
 
 /* The target of the statement at offset at of the line scanned. */
 static uint32_t blok_target(const BlokScan *const sc, const uint32_t at, const JumpMode mode)
@@ -191,14 +176,15 @@ BlockEnt *blok_find(const Blok *const b, const uint32_t line, const uint32_t at)
 {
     const uint32_t key = line + at + HDR;
     uint32_t lo = 0;
-    uint32_t hi = b->nblocks;
+    uint32_t hi = b->blocks.n;
 
     while (lo < hi) {
         const uint32_t mid = (lo + hi) / 2;
-        const uint32_t pos = b->blocks[mid]->pos;
+        BlockEnt *const e = btab_at(&b->blocks, mid);
+        const uint32_t pos = e->pos;
 
         if (pos == key)
-            return b->blocks[mid];
+            return e;
         if (pos > key)
             hi = mid;
         else
@@ -214,12 +200,12 @@ const Proc blok_noproc;
    order, as blok_pair's scan met them. */
 static uint32_t proc_before(const Blok *const b, const uint32_t pos)
 {
-    uint32_t lo = 0, hi = b->nprocs;
+    uint32_t lo = 0, hi = b->procs.n;
 
     while (hi - lo > 1) {
         const uint32_t mid = (lo + hi) / 2;
 
-        if (b->procs[mid]->first <= pos)
+        if (blok_proc(b, mid)->first <= pos)
             lo = mid;
         else
             hi = mid;
@@ -231,13 +217,13 @@ static uint32_t proc_before(const Blok *const b, const uint32_t pos)
 uint32_t blok_procof(const Blok *const b, const uint32_t line)
 {
     const uint32_t i = proc_before(b, line);
-    return i && line <= b->procs[i]->last ? i : 0;
+    return i && line <= blok_proc(b, i)->last ? i : 0;
 }
 
 uint32_t blok_line_before(const Blok *const b, const uint32_t pos)
 {
     const uint32_t i = proc_before(b, pos);
-    return i ? b->procs[i]->first : PROGBASE;
+    return i ? blok_proc(b, i)->first : PROGBASE;
 }
 
 /* A new entry here, of kind. */
@@ -245,31 +231,27 @@ static BlockEnt *blok_add(BlokScan *const sc, const uint8_t kind)
 {
     Blok *const b = sc->b;
 
-    blok_room(sc, &b->blocks, sizeof *b->blocks, b->nblocks, &sc->blockcap);
-    BlockEnt *const e = blok_alloc(sc, sizeof *e);
+    BlockEnt *const e = blok_new(sc, &b->blocks);
     *e = (BlockEnt){.pos = sc->line + sc->off + HDR, .kind = kind};
-
-    b->blocks[b->nblocks++] = e;
     return e;
 }
 
 /* Open a block of kind, its opener e. */
 static void blok_push(BlokScan *const sc, const uint8_t kind, BlockEnt *const e)
 {
-    blok_room(sc, &sc->open, sizeof *sc->open, sc->depth, &sc->opencap);
-    sc->open[sc->depth++] = (BlokOpen){.kind = kind, .open = e, .last = e};
+    *(BlokOpen *)blok_new(sc, &sc->open) = (BlokOpen){.kind = kind, .open = e, .last = e};
 }
 
 /* The innermost block, which must be of kind; else error code (X without Y), or blocks crossed. */
 static BlokOpen *blok_top(BlokScan *const sc, const uint8_t kind, const uint8_t code)
 {
-    if (sc->depth) {
-        BlokOpen *const o = &sc->open[sc->depth - 1];
+    if (sc->open.n) {
+        BlokOpen *const o = blok_open(sc, sc->open.n - 1);
 
         if (o->kind == kind)
             return o;
-        for (uint32_t i = sc->depth; i-- > 0;)
-            if (sc->open[i].kind == kind) /* open further out: crossed */
+        for (uint32_t i = sc->open.n; i-- > 0;)
+            if (blok_open(sc, i)->kind == kind) /* open further out: crossed */
                 blok_failw(sc, code, DG_BLOCKS_CROSSED, words[o->kind]);
     }
 
@@ -305,7 +287,7 @@ static void blok_exits(
     for (BlockEnt *c = o->chain; c; c = c->link)
         c->done = c->kind == BK_CONT ? again : t;
 
-    sc->depth--;
+    sc->open.n--;
 }
 
 /* END IF, END SELECT here: the last clause's false test comes here, every clause leaves here. */
@@ -457,9 +439,7 @@ static void blok_procstmt(BlokScan *const sc, const uint8_t *const s, const uint
     if (s[1] != M_VAR)
         blok_synerr(sc);
 
-    blok_room(sc, &b->procs, sizeof *b->procs, b->nprocs, &sc->proccap);
-    Proc *const p = blok_alloc(sc, sizeof *p);
-    b->procs[b->nprocs++] = p;
+    Proc *const p = blok_new(sc, &b->procs);
     sc->proc = p;
     const uint8_t *q = s + 1;
     *p = (Proc){
@@ -548,8 +528,8 @@ static void blok_leave(
 
     bool open = false;
 
-    for (uint32_t k = sc->depth; k-- > 0;) {
-        BlokOpen *const o = &sc->open[k];
+    for (uint32_t k = sc->open.n; k-- > 0;) {
+        BlokOpen *const o = blok_open(sc, k);
 
         if (o->kind != loop)
             continue;
@@ -624,8 +604,8 @@ static void blok_stmt(BlokScan *const sc, const uint8_t *const s)
     case TK_SELECT: /* its depth, for its value's variable */
         e = blok_add(sc, BK_SELECT);
 
-        for (uint32_t k = 0; k < sc->depth; k++)
-            if (sc->open[k].kind == BK_SELECT)
+        for (uint32_t k = 0; k < sc->open.n; k++)
+            if (blok_open(sc, k)->kind == BK_SELECT)
                 e->aux++;
 
         blok_push(sc, BK_SELECT, e);
@@ -792,9 +772,10 @@ void blok_pair(Blok *const b, const Prog *const pg, const Symb *const sy, Fault 
         .f = f,
     };
 
-    blok_room(&sc, &b->procs, sizeof *b->procs, 0, &sc.proccap);
-    b->procs[0] = blok_alloc(&sc, sizeof(Proc)); /* the module */
-    b->nprocs = 1;
+    btab_init(&b->blocks, sizeof(BlockEnt));
+    btab_init(&b->procs, sizeof(Proc));
+    btab_init(&sc.open, sizeof(BlokOpen));
+    blok_new(&sc, &b->procs); /* 0, the module */
 
     for (uint32_t ln = PROGBASE; prog_line(pg, ln)->len; ln += prog_line(pg, ln)->len) {
         sc.line = ln;
@@ -808,8 +789,8 @@ void blok_pair(Blok *const b, const Prog *const pg, const Symb *const sy, Fault 
         blok_fail(&sc, E_PWE, 0, at_, ln, nullptr, 0);
     }
 
-    if (sc.depth) { /* a block left open: at its opener */
-        const BlokOpen *const o = &sc.open[sc.depth - 1];
+    if (sc.open.n) { /* a block left open: at its opener */
+        const BlokOpen *const o = blok_open(&sc, sc.open.n - 1);
         const uint32_t ln = prog_lineof(pg, o->open->pos, &at_);
         const uint8_t code = leftopen[o->kind];
 

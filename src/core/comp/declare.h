@@ -5,7 +5,7 @@
 #include "fault.h"
 #include "mem/scope.h"
 #include "mem/symbols.h"
-#include "util/arena.h"
+#include "util/btab.h"
 
 enum { NDEV = 256, NLETTERS = 26 };
 
@@ -59,8 +59,7 @@ typedef struct {
     bool deft;               /* decl_line's line has a DEFtype */
     uint32_t ndefev, defcap; /* g_ndev: DEFtype lines */
     DefEvent *defevs;
-    uint32_t typecap;
-    TypeDef **types; /* g_typ, from 1 */
+    BTab types; /* TypeDef, g_typ: by number, from 1 */
     uint32_t ndims, dimcap;
     FieldDim *dims; /* the fixed array fields' dimensions */
 } Decl;
@@ -86,7 +85,7 @@ void decl_deftype(const Decl *d, Symb *sy, uint32_t line);
 /* TYPE t. */
 static inline const TypeDef *decl_type(const Decl *const d, const uint32_t t)
 {
-    return d->types[t];
+    return btab_at(&d->types, t);
 }
 /* The next statement from *at with no effect in 32-bit mode (DEF SEG, VARSEG, SSEG): its name,
    *at past it; null none. */

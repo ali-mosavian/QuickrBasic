@@ -5,7 +5,7 @@
 #include "fault.h"
 #include "mem/program.h"
 #include "mem/symbols.h"
-#include "util/arena.h"
+#include "util/btab.h"
 
 /* A block statement's entry. */
 typedef struct BlockEnt BlockEnt;
@@ -45,10 +45,8 @@ typedef struct {
 /* The program's blocks and procedures, as blok_pair found them; its arena holds them. */
 typedef struct {
     Arena arena;
-    BlockEnt **blocks; /* by position */
-    uint32_t nblocks;
-    Proc **procs;    /* by number, from 1 */
-    uint32_t nprocs; /* procedures + 1 */
+    BTab blocks;     /* BlockEnt, by position */
+    BTab procs;      /* Proc, by number: 0 the module */
     uint32_t nnames; /* the program's M_VAR tokens */
 } Blok;
 
@@ -60,7 +58,7 @@ BlockEnt *blok_find(const Blok *b, uint32_t line, uint32_t off);
 extern const Proc blok_noproc;
 static inline const Proc *blok_proc(const Blok *const b, const uint32_t i)
 {
-    return i && i < b->nprocs ? b->procs[i] : &blok_noproc;
+    return i && i < b->procs.n ? (const Proc *)btab_at(&b->procs, i) : &blok_noproc;
 }
 /* Procedure p's parameters the program writes: all but a record or array result's. */
 static inline uint16_t blok_nargs(const Proc *const p)

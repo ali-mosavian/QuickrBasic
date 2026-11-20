@@ -334,6 +334,7 @@ static void decl_room(
 void decl_init(Decl *const d, Fault *const f)
 {
     arena_init(&d->arena, DECL_CHUNK);
+    btab_init(&d->types, sizeof(TypeDef));
     d->fault = f;
 }
 
@@ -341,6 +342,7 @@ void decl_reset(Decl *const d, Scop *const sc, Symb *const sy)
 {
     arena_reset(&d->arena);
     *d = (Decl){.arena = d->arena, .fault = d->fault};
+    btab_init(&d->types, sizeof(TypeDef));
 
     memcpy(sy->deft, deft0, NLETTERS);
     scop_reset(sc);
@@ -548,8 +550,10 @@ static void decl_typedef(DeclScan *const ds)
 
     Decl *const d = ds->d;
 
-    decl_room(ds, (void **)&d->types, d->ntypes + 1, &d->typecap, sizeof *d->types);
-    TypeDef *const td = arena_alloc(&d->arena, sizeof *td);
+    if (!d->types.n && !btab_add(&d->types, &d->arena)) /* 0: none */
+        decl_fail(ds, E_OM);
+
+    TypeDef *const td = btab_add(&d->types, &d->arena);
 
     if (!td)
         decl_fail(ds, E_OM);
@@ -558,8 +562,6 @@ static void decl_typedef(DeclScan *const ds)
     d->type = t;
     symb_name(ds->sy, n)->rec = t;
     *td = (TypeDef){.name = n};
-
-    d->types[t] = td;
 }
 
 /* Field f's fixed array, ours: its dimensions, nd of them, on Decl.dims; its elements. Subscript out
@@ -623,7 +625,7 @@ static void decl_fielddeep(
         return;
     }
 
-    const TypeDef *const sub = f->sub ? ds->d->types[f->sub] : nullptr;
+    const TypeDef *const sub = f->sub ? decl_type(ds->d, f->sub) : nullptr;
 
     for (uint32_t k = 0; k < elems; k++) {
         const uint32_t at = f->off + k * size;
@@ -664,7 +666,7 @@ static void decl_field(DeclScan *const ds)
 
     if (*ds->at != TK_AS)
         return;
-    TypeDef *const td = ds->d->types[t];
+    TypeDef *const td = btab_at(&ds->d->types, t);
     decl_room(ds, (void **)&td->fields, td->nfld, &td->cap, sizeof *td->fields);
     Field *const f = &td->fields[td->nfld++];
     *f = (Field){.name = n, .off = td->size, .dyn = paren && !nd}; /* at its end */
@@ -675,7 +677,7 @@ static void decl_field(DeclScan *const ds)
     if (c == M_VAR) { /* another TYPE's */
         ds->at++;
         f->sub = symb_name(ds->sy, decl_name(ds, nullptr))->rec;
-        size = ds->d->types[f->sub]->size;
+        size = decl_type(ds->d, f->sub)->size;
     } else if (c == TK_X) {
         f->et = decl_xastype(ds->at[2]);
 
