@@ -6,13 +6,14 @@
 
 /* A name as written: its dotted text, len bytes (0: FROM's dots alone); the folders up a module's
    leading dots go (0 none: the search path's; 1 the importing file's folder); the name its AS gives
-   (aslen 0 none); FROM's name with (): an array. */
+   (aslen 0 none); FROM's name with (): an array; the suffix FROM's name has, past len (0 none). */
 typedef struct {
     const uint8_t *text;
     uint8_t len;
     uint8_t up;
     uint8_t aslen;
     bool arr;
+    uint8_t sfx;
     const uint8_t *as;
 } ImptName;
 

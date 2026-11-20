@@ -13,7 +13,7 @@ enum : uint32_t { BIND_STAR = 0x80000000 };
 void bind_module(Scop *sc, Symb *sy, Fault *f, uint32_t m, const ImptName *n, uint32_t to);
 /* Module m binds n (its AS name, else its text) to module from's export of n's text. Name not
    exported: from has none, or no array for n's (). Duplicate definition: m declares the name, or
-   binds it already. */
+   binds it already, or a variable's or CONST's suffix is not its type. */
 void bind_name(Scop *sc, Symb *sy, Fault *f, uint32_t m, uint32_t from, const ImptName *n);
 /* Module m binds each SUB, FUNCTION, CONST and TYPE module from exports, but its own names and
    those it binds already. One two *'s bind: Duplicate definition where it is used. */

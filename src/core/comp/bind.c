@@ -185,6 +185,9 @@ void bind_name(
 
     if (!k || (n->arr && !(k & EX_VAR && scop_get(sc, sc_module(from) | SC_ARR, t))))
         fail(f, E_NEX);
+    if (n->sfx && k & (EX_CONST | EX_VAR) &&
+        module_binding(sc, sy, t)->et[n->arr] != comp_suffix(n->sfx)) /* as where it is used */
+        fail(f, E_RD);
 
     const uint32_t name = bound_name(sy, m, n);
     fresh(sc, sy, f, name);

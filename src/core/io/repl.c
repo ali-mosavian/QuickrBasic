@@ -891,7 +891,7 @@ static void imported(void *const ctx, const ImptKind kind, const ImptName *const
     case IMPT_NAME: /* a module's export: its file is there already */
         if (!im->in_package)
             return;
-        if (locate_in(im->package, n, path))
+        if (!n->sfx && locate_in(im->package, n, path))
             import(im->S, path);
         else
             not_found(im->S);

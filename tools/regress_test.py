@@ -1510,6 +1510,14 @@ CASES |= {
     "import_public_type": (beside(bas("defsng a-z", "from vm import big, total", "big& = 70000: total% = 2",
                                       "print big; total"), VM),
                            " 70000  2 \r\n", "ERROR"),
+    # FROM's name with its suffix: the exporter's of that type; another, as where used. The suffix was
+    # the name's: Name not exported.
+    "import_from_suffix": (beside(bas("from vm import total%, grid&(), big&, bump", "bump",
+                                      "print total%; grid&(2); big&"), VM),
+                           "bump 1  10 \r\n 1  10  0 \r\n", "ERROR"),
+    "import_from_suffix_type": (beside(bas("from vm import total!"), VM), "IMPORT_F.BAS:1: Duplicate definition", None),
+    "import_from_suffix_module": (beside(bas("from lib.pkg import util$"), SPR),
+                                  "IMPORT_F.BAS:1: File not found", None),
     "import_public_suffix": (beside(bas("from vm import total", "total! = 1"), VM),
                              "IMPORT_P.BAS:2: Duplicate definition", None),
     # Its STRING * n looked up in the importer's scope, which has none: the string took any length.

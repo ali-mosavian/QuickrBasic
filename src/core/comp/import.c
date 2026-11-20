@@ -99,7 +99,8 @@ static const uint8_t *names(const uint8_t *p, ImptEach *const each, void *const 
         if (comp_peek(&p) != M_VAR || memchr(p + 2, '.', p[1]))
             return p;
 
-        ImptName n = {.text = p + 2, .len = p[1]};
+        const uint8_t sfx = comp_suffixof(p);
+        ImptName n = {.text = p + 2, .len = (uint8_t)(p[1] - !!sfx), .sfx = sfx};
         p = comp_skipname(p);
 
         if (comp_peek(&p) == '(') {
