@@ -1703,6 +1703,71 @@ for j = 0 to 1
     colA(j) = (p.stun <> 0) + 2 * (wd.lv.ob(c).s = 0) + 4 * (g.score = hid + 100)
 next
 if was and colA(0) = -1 and colA(1) = -6 then print "squirrel ok"
+' a swarm of bees keeps at home while he is far, drawn there; near it he wakes it, and it is on him and stings
+' on the 15th step, 53 pixels at BEEV; a walk does not lose it, a run has by the 50th step, BEELOSE behind, and it
+' goes home; so it does when he starts again
+was = wd.lv.nSwarm = 1
+v = wd.lv.swarms(0).hx
+m = wd.lv.swarms(0).hy
+was = was and GroundAt%(wd.lv, v) = m + 48
+p.inv = 0
+p.stun = 0
+p.roll = 0
+Stand wd.lv, wd.gr, p, v - 100, 0
+Camera wd.lv, wd.zn, g, p, -1
+Mend wd.lv
+for i = 1 to 30
+    Tick wd, g, p, k, lo(), pt()
+next
+was = was and wd.lv.swarms(0).st = 0 and wd.lv.swarms(0).x = v and wd.lv.swarms(0).y = m
+g.shake = 0
+Render wd, g, p, lo(), pt()
+c = 0
+for j = m - int(g.camy) - 12 to m - int(g.camy) + 12
+    for i = v - int(g.camx) - 18 to v - int(g.camx) + 18
+        if point(i, j) = CBEE then c = c + 1
+    next
+next
+was = was and c >= NBEE * 2
+g.bones = 5
+Stand wd.lv, wd.gr, p, v - 40, 0
+for i = 1 to 40
+    Tick wd, g, p, k, lo(), pt()
+    if p.stun then exit for
+next
+was = was and i = 15 and g.bones = 0 and wd.lv.swarms(0).st = 1
+' walked from, it keeps up
+p.stun = 0
+Stand wd.lv, wd.gr, p, v - 40, 0
+wd.lv.swarms(0).x = p.x
+wd.lv.swarms(0).y = p.y - 13
+for i = 1 to 60
+    p.inv = 9
+    p.gsp = 100
+    Tick wd, g, p, k, lo(), pt()
+next
+was = was and wd.lv.swarms(0).st = 1 and abs(wd.lv.swarms(0).x - p.x) < 8 and p.x > v
+' run from, it is lost
+wd.lv.swarms(0).x = p.x
+k.r = -1
+for i = 1 to 70
+    p.inv = 9
+    p.gsp = TOP
+    Tick wd, g, p, k, lo(), pt()
+    if wd.lv.swarms(0).st = 2 then exit for
+next
+k.r = 0
+was = was and i = 50
+bx = wd.lv.swarms(0).x
+Stand wd.lv, wd.gr, p, cint(p.x), 0
+for i = 1 to 200
+    Tick wd, g, p, k, lo(), pt()
+next
+was = was and bx > v + 100 and wd.lv.swarms(0).st = 0 and wd.lv.swarms(0).x = v and wd.lv.swarms(0).y = m
+wd.lv.swarms(0).st = 1
+wd.lv.swarms(0).x = v + 50
+Spawn wd.lv, wd.gr, wd.zn, wd.mu, g, p
+if was and wd.lv.swarms(0).st = 0 and wd.lv.swarms(0).x = v then print "bees ok"
 ' the pass's bare ice keeps his speed and will not give it back: let go at a run he slides on where snow stops
 ' him, held back he is long in stopping, and from a stand he is slow away; it is drawn bare, the snow's white gone
 GoStage wd, 6, g, p, lo(), pt()
@@ -3040,6 +3105,7 @@ def main() -> None:
             "a burrow takes him crouched on its mound, unseen and unhurt, to its other, and not back at once",
         ),
         ("squirrel ok", "a squirrel keeps over him, drops an acorn on the slow, is cowed by a bark, beaten by a roll"),
+        ("bees ok", "a swarm wakes when he is near, stings, keeps up with a walk, is lost by a run and goes home"),
         ("ice ok", "bare ice keeps his speed: a long slide, a long stop, a slow start; drawn bare of snow"),
         ("sled ok", "a sled is boarded, follows the slope, has no brake, keeps him through a hop, ends in deep snow"),
         ("geyser ok", "in the pass a jet is a geyser, the pass's water: it throws him up as it blows"),

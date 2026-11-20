@@ -106,6 +106,15 @@ type Loose
     t as single
 end type
 
+' A swarm of bees: where it is, its home, and what it does: 0 at home, 1 after him, 2 on its way home.
+type Swarm
+    x as single
+    y as single
+    hx as integer
+    hy as integer
+    st as integer
+end type
+
 ' A gull: where it is, its home, where its dive is aimed, the seconds till it may dive again, what it is doing,
 ' the bones it carries, and whether it heads left.
 type Bird
@@ -337,6 +346,9 @@ const KMOUND = 52, MOUNDR = 12, DIGV = 400!, DIGPOP = 260!, CLOAM = 124
 ' and how near under it he must be for it to fall; the steps a bark keeps it cowed; an acorn's colour.
 const KSQUIRREL = 53, SQRUN = 48, SQSEE = 100, SQV = 3, SQWAIT = 60, SQAIM = 15, SQNEAR = 24, SQFRIGHT = 150
 const CNUT = 130
+' Bees: the swarms a level may hold, and the bees drawn in one; how near he wakes it; its speed, under his
+' run's; how near it stings; how far behind he has lost it; a bee's body and its wings.
+const NSWARM = 4, NBEE = 9, BEESEE = 60, BEEV = 170!, BEER = 12, BEELOSE = 160, CBEE = 116, CWING = 102
 const HUDW = 108, HUDH = 40
 ' The levels: a zone's two acts, the second at another hour in other colours, zone by zone.
 ' the stages played, and after them the intro's road
@@ -527,6 +539,9 @@ declare function Glide% (b as Bird, x as single, y as single, v as single)
 declare sub Spill (se as Session, b as Bird, lo() as Loose)
 declare sub Gull (mu as Deck, se as Session, b as Bird, n as integer, g as Game, p as Hero, lo() as Loose, pt() as Part)
 declare sub Flock (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose, pt() as Part)
+declare sub Swarms (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose)
+declare sub Buzz (mu as Deck, se as Session, b as Swarm, g as Game, p as Hero, lo() as Loose)
+declare sub DrawBees (lv as Level, se as Session, cx as integer, cy as integer)
 declare sub DrawGulls (lv as Level, art as Store, se as Session, cx as integer, cy as integer)
 declare function Adrift% (lv as Level, m as integer)
 declare function Dip% (lv as Level, m as integer)
@@ -800,6 +815,8 @@ type Level
     mv() as Mover
     nGulls as integer
     gulls() as Bird
+    nSwarm as integer
+    swarms() as Swarm
     lobN as integer
     lobs() as Lob
     map() as integer
@@ -1002,6 +1019,7 @@ sub Allot (wd as World)
     redim wd.lv.ob(MAXOBJ - 1)
     redim wd.lv.mv(NMOVE)
     redim wd.lv.gulls(NGULL - 1)
+    redim wd.lv.swarms(NSWARM - 1)
     redim wd.lv.lobs(NLOB - 1)
     redim wd.gr.pt(NPTS)
     redim wd.gr.cv(NZONE)
@@ -1313,6 +1331,7 @@ sub LoadLevel (wd as World, st as integer)
     wd.lv.nObj = 0
     wd.lv.nMv = 0
     wd.lv.nGulls = 0
+    wd.lv.nSwarm = 0
     for i = 0 to MW
         wd.lv.top(i) = MH
     next
@@ -1538,6 +1557,11 @@ sub LoadLevel (wd as World, st as integer)
         case "log": k = KLOG
         case "vine": AddObj wd.lv, KVINE, c * TS + 8, s - n * TS
         case "squirrel": AddObj wd.lv, KSQUIRREL, c * TS + 8, s - n * TS
+        case "bees"
+            ' a swarm, its home n tiles over the ground here
+            wd.lv.swarms(wd.lv.nSwarm).hx = c * TS + 8
+            wd.lv.swarms(wd.lv.nSwarm).hy = s - n * TS
+            wd.lv.nSwarm = wd.lv.nSwarm + 1
         case "burrow"
             ' a burrow's mound, its other end the mound of the same n: till they are told each other, -n - 1
             AddObj wd.lv, KMOUND, c * TS + 8, s
@@ -1824,9 +1848,14 @@ sub Slide (mu as Deck, se as Session, p as Hero)
     if p.gsp < FLUMEV then p.gsp = FLUMEV
 end sub
 
-' The pier's fallen spans back in their places: Charlie starts again before them.
+' The pier's fallen spans back in their places, the swarms at home: Charlie starts again before them.
 sub Mend (lv as Level)
     dim m as integer
+    for m = 0 to lv.nSwarm - 1
+        lv.swarms(m).x = lv.swarms(m).hx
+        lv.swarms(m).y = lv.swarms(m).hy
+        lv.swarms(m).st = 0
+    next
     for m = 0 to lv.nMv - 1
         if lv.mv(m).k = 6 then lv.mv(m).t = 0
     next
@@ -3177,6 +3206,7 @@ sub PlayStep (wd as World, g as Game, p as Hero, k as Pad, lo() as Loose, pt() a
     if wd.lv.avalX <> NONE then Avalanche wd.lv, wd.mu, wd.se, g, p
     Flee wd.lv, wd.zn, wd.mu, wd.se, g, p, lo(), pt()
     if wd.lv.nGulls then Flock wd.lv, wd.mu, wd.se, g, p, lo(), pt()
+    if wd.lv.nSwarm then Swarms wd.lv, wd.mu, wd.se, g, p, lo()
     if wd.lv.lobN then Volley wd.lv, wd.mu, wd.se, g, p, lo(), pt()
     if p.y > MH * TS + 24 then Lose wd.mu, wd.se, p
     if p.x >= wd.lv.goalX then StageClear wd.mu, wd.se, g
@@ -4697,6 +4727,55 @@ sub Flock (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as
     next
 end sub
 
+sub Swarms (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose)
+    dim i as integer
+    for i = 0 to lv.nSwarm - 1
+        Buzz mu, se, lv.swarms(i), g, p, lo()
+    next
+end sub
+
+' A swarm's step: he comes within BEESEE of it and it is after his head, at BEEV; on him, it stings; left
+' BEELOSE behind, it goes home.
+sub Buzz (mu as Deck, se as Session, b as Swarm, g as Game, p as Hero, lo() as Loose)
+    dim dx as single, dy as single, d as single
+    dx = p.x - b.x
+    dy = p.y - 13 - b.y
+    d = sqr(dx * dx + dy * dy)
+    if d < BEESEE then b.st = 1
+    if b.st = 1 and d > BEELOSE then b.st = 2
+    if b.st = 0 then exit sub
+    if b.st = 1 and d < BEER + BEEV * STEPT then Hurt mu, se, g, p, cint(b.x), lo(), SHURT
+    if b.st = 2 then
+        dx = b.hx - b.x
+        dy = b.hy - b.y
+        d = sqr(dx * dx + dy * dy)
+    end if
+    if d > BEEV * STEPT then
+        b.x = b.x + dx * BEEV * STEPT / d
+        b.y = b.y + dy * BEEV * STEPT / d
+        exit sub
+    end if
+    b.x = b.x + dx
+    b.y = b.y + dy
+    if b.st = 2 then b.st = 0
+end sub
+
+' The swarms: each bee round its swarm's middle on a loop of its own, its wings over it.
+sub DrawBees (lv as Level, se as Session, cx as integer, cy as integer)
+    dim i as integer, j as integer, x as integer, y as integer
+    for i = 0 to lv.nSwarm - 1
+        if abs(lv.swarms(i).x - cx - SW \ 2) > SW \ 2 + 24 then continue for
+        for j = 0 to NBEE - 1
+            x = cint(lv.swarms(i).x) - cx + cint(13 * sin(se.ticks * .21 + j * 2.4)) - 2
+            y = cint(lv.swarms(i).y) - cy + cint(9 * cos(se.ticks * .17 + j * 1.7))
+            line (x, y)-(x + 3, y + 1), CBEE, BF
+            line (x + 1, y)-(x + 1, y + 1), CINK
+            line (x + 3, y)-(x + 3, y + 1), CINK
+            line (x + 1, y - 2)-(x + 2, y - 1), CWING, BF
+        next
+    next
+end sub
+
 ' The gulls, a bone under one that carries any; wings still in a dive.
 sub DrawGulls (lv as Level, art as Store, se as Session, cx as integer, cy as integer)
     dim i as integer, x as integer, y as integer, k as integer
@@ -6193,6 +6272,7 @@ sub Render (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
     if wd.lv.gale then DrawGale wd.lv, wd.se
     if wd.lv.murk then DrawFlies wd.lv, wd.se, cx
     if wd.lv.nGulls then DrawGulls wd.lv, wd.art, wd.se, cx, cy
+    if wd.lv.nSwarm then DrawBees wd.lv, wd.se, cx, cy
     if wd.lv.lobN then DrawLobs wd.lv, wd.art, cx, cy
     if wd.lv.tide <> NONE then DrawSurf wd.lv, wd.art, cx, cy
     DrawOver wd.lv, wd.zn, wd.art, cx, cy

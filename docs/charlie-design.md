@@ -182,7 +182,8 @@ Progress is saved at each zone.
   three seconds on; hollow logs, which stop him on foot and shoot him through curled, out of sight; burrows,
   dug into crouched on one mound and left by its other, nothing met on the way under; squirrels, which keep
   over him along their bough, hold an acorn out and drop it once he is near under them, are cowed five
-  seconds by a bark, and are beaten by a roll. To add: height, bees, its levels and chase.
+  seconds by a bark, and are beaten by a roll; bee swarms, woken when he is near, which follow at under
+  his run, sting, keep up with a walk, are lost by a run and go home. To add: height, its levels and chase.
 - Rule: height. The way is up, and a fall costs the climb, not a life.
 - Gadgets: sapling catapults, which bend under him and throw by his speed; vine swings; hollow logs; burrows,
   dug into at one mound and left by another.
