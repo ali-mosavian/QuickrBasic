@@ -16,7 +16,7 @@ Language
                            [CONTINUE](CONTINUE), [EXIT](EXIT)
     FUNCTION f () AS Vec   a result's type by AS; records, arrays
                            [FUNCTION](FUNCTION)
-    b() = a(), DIM a()     arrays copied whole; empty until REDIM
+    b() = a(), b(:) = a(:) an array moved; copied
                            [array assignment](array assignment)
     pts() AS Vec in TYPE   records with arrays and strings that grow
                            [records as values](records as values)

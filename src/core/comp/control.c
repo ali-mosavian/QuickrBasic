@@ -824,23 +824,28 @@ void ctrl_swap(Comp *const C)
     C->p = end;
 }
 
-/* a() = b(), ours: arrays of one type, a record's array fields too; their cells, CALL ACOPY. a() =
-   f(..), an array result: the call, its result's cell, the target's, CALL AMOVE. The source first: a
-   call can move a record. */
+/* A whole array's a() or a(:) at p, then '='. */
+static bool whole_eq(const uint8_t *const p)
+{
+    return (p[0] == '(' && p[1] == ')') || (p[0] == TK_X && p[1] == TK1_WHOLE) ? p[2] == TK_EQ : false;
+}
+
+/* Ours, arrays of one type, a record's array fields too: their cells, the source first (a call can
+   move a record). a() = b() moves (b left empty), CALL AMOVE, as a() = f(..), an array result, the
+   call its cell; a(:) = b(:) copies, CALL ACOPY, as a field alone does. */
 static bool arrcopy(Comp *const C)
 {
     const uint8_t *const start = C->p;
     uint32_t ta, tb;
-    Node *dst = ref_fieldarray(C, &ta);
+    Written wa, wb;
+    Node *dst = ref_fieldarray(C, &ta, &wa);
     uint32_t a = 0;
 
     if (dst == nullptr) {
-        const uint8_t *const after = comp_skipname(C->p);
-
-        if (after[0] != '(' || after[1] != ')' || after[2] != TK_EQ)
+        if (!whole_eq(comp_skipname(C->p)))
             return false;
 
-        a = ref_wholearray(C);
+        a = ref_wholearray(C, &wa);
         ta = symb_var(C->symb, a)->type;
         dst = ref_cell(C, a);
     } else if (comp_cur(C) != TK_EQ) {
@@ -851,10 +856,10 @@ static bool arrcopy(Comp *const C)
     C->p++;
     const uint8_t *const at = C->p;
     Node *call = nullptr;
-    Node *src = ref_fieldarray(C, &tb);
+    Node *src = ref_fieldarray(C, &tb, &wb);
 
     if (src == nullptr) {
-        const uint32_t b = ref_arrayvalue(C, &call);
+        const uint32_t b = ref_arrayvalue(C, &call, &wb);
 
         if (symb_is_record(C->symb, b)) { /* a record result */
             C->p = at;
@@ -870,14 +875,19 @@ static bool arrcopy(Comp *const C)
         fault_error(C->fault, E_TM);
     }
 
-    if (!comp_end(C))
+    const bool copy = wb != WR_ARRAY;
+
+    if (!comp_end(C) || copy != (wa != WR_ARRAY)) { /* a() = b(:), a(:) = b(): which is meant */
+        C->p = at;
         synerr(C);
+    }
+
     if (a)
         link_given(C, a);
 
     comp_step(C, src);
     comp_step(C, dst);
-    comp_call(C, call ? K_AMOVE : K_ACOPY);
+    comp_call(C, copy ? K_ACOPY : K_AMOVE);
     return true;
 }
 
@@ -1163,7 +1173,7 @@ static void erase(Comp *const C)
 
     do {
         uint32_t type;
-        Node *const f = ref_fieldarray(C, &type); /* m.a, ours */
+        Node *const f = ref_fieldarray(C, &type, nullptr); /* m.a, ours */
         comp_step(C, f ? f : ref_cell(C, ref_arrayof(C, shaped(C, 2))));
         comp_call(C, K_ERASE);
     } while (comp_optcomma(C));

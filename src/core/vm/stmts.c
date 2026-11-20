@@ -475,14 +475,14 @@ void stmt_aempty(Session *const S)
     arry_empty(&S->arry, exec_pop(&S->vm).u, flags & DIM_STATIC);
 }
 
-/* a() = b() ( src dst -- ), ours, their cells: as arry_copy. */
+/* a(:) = b(:) ( src dst -- ), ours, their cells: as arry_copy. */
 void stmt_acopy(Session *const S)
 {
     ArrSlot *const d = (ArrSlot *)at(exec_popa(&S->vm));
     arry_copy(&S->arry, &S->vm, d, (const ArrSlot *)at(exec_popa(&S->vm)));
 }
 
-/* a() = f(..) ( src dst -- ), ours, their cells, src an array result's: as arry_move. */
+/* a() = b() or f(..) ( src dst -- ), ours, their cells: as arry_move. */
 void stmt_amove(Session *const S)
 {
     ArrSlot *const d = (ArrSlot *)at(exec_popa(&S->vm));

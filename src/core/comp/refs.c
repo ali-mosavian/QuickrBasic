@@ -260,11 +260,15 @@ static void dyn_element(Comp *const C, Node *const at, const Field *const f, con
     comp_word(e, (uint16_t)arry_et_size(C->decl, decl_fieldtype(f)));
 }
 
-/* A dynamic array field whole at comp.p, ours: f() (stepped past) or f alone, not f(i); a REDIM's
-   target's f(bounds), no .g after them. */
-static bool dyn_whole(Comp *const C)
+/* A dynamic array field whole at comp.p, ours: f() or f(:) (stepped past) or f alone, not f(i);
+   ref_fieldcell's f(..), no .g after them. *wr how it is written. */
+static bool dyn_whole(Comp *const C, Written *const wr)
 {
-    if (C->p[0] == '(' && C->p[1] == ')') {
+    *wr = C->p[0] == TK_X && C->p[1] == TK1_WHOLE ? WR_ELEMS
+          : C->p[0] == '(' && C->p[1] == ')'      ? WR_ARRAY
+                                                  : WR_ALONE;
+
+    if (*wr != WR_ALONE) {
         C->p += 2;
         return true;
     }
@@ -305,8 +309,10 @@ static RecRef path(Comp *const C, Node *const at, uint32_t t, const uint8_t *tex
         }
 
         if (f->dyn) {
-            if (dyn_whole(C))
-                return (RecRef){.et = decl_fieldtype(f), .off = (uint16_t)off, .arr = true};
+            Written wr;
+
+            if (dyn_whole(C, &wr))
+                return (RecRef){.et = decl_fieldtype(f), .off = (uint16_t)off, .arr = true, .wr = wr};
 
             dyn_element(C, at, f, off);
             off = 0; /* from the element */
@@ -452,12 +458,17 @@ static bool nofield(const uint8_t *const p)
     return !memchr(p + 2, '.', p[1]) && (*after != '(' || *decl_paren(after) != '.');
 }
 
-Node *ref_fieldarray(Comp *const C, uint32_t *const type)
+Node *ref_fieldarray(Comp *const C, uint32_t *const type, Written *const wr)
 {
     const uint8_t *const p = C->p;
     Node *const r = comp_cur(C) == M_VAR && !arrayresult(C) && !nofield(p) ? record(C) : nullptr;
 
     if (r != nullptr && r->rec.arr) {
+        if (!wr && r->rec.wr == WR_ELEMS)
+            synerr(C);
+        if (wr)
+            *wr = r->rec.wr;
+
         *type = r->rec.et;
         return expr_addr(C, r, 0);
     }
@@ -469,7 +480,7 @@ Node *ref_fieldarray(Comp *const C, uint32_t *const type)
 Node *ref_fieldcell(Comp *const C, uint32_t *const type)
 {
     C->dimtarget = true;
-    Node *const cell = ref_fieldarray(C, type);
+    Node *const cell = ref_fieldarray(C, type, nullptr);
     C->dimtarget = false;
     return cell;
 }
@@ -674,35 +685,48 @@ Node *ref_cell(Comp *const C, const uint32_t id)
 }
 
 /* An array parameter's argument: n() an array whole. */
-uint32_t ref_wholearray(Comp *const C)
+uint32_t ref_wholearray(Comp *const C, Written *const wr)
 {
     if (comp_cur(C) != M_VAR)
         synerr(C);
 
-    if (*comp_skipname(C->p) != '(')
+    const uint8_t *const after = comp_skipname(C->p);
+    const bool elems = after[0] == TK_X && after[1] == TK1_WHOLE;
+
+    if (*after != '(' && !(elems && wr))
         synerr(C);
 
-    const uint32_t id = ref_arrayof(C, comp_var(C, 0, 0));
+    const uint32_t id = ref_arrayof(C, comp_var(C, 2, 0));
 
     if (!(symb_var(C->symb, id)->info & VI_ARR))
         synerr(C);
+    if (wr)
+        *wr = elems ? WR_ELEMS : WR_ARRAY;
+    if (elems) {
+        C->p += 2;
+        return id;
+    }
 
     comp_open(C);
     comp_close(C);
     return id;
 }
 
-uint32_t ref_arrayvalue(Comp *const C, Node **const call)
+uint32_t ref_arrayvalue(Comp *const C, Node **const call, Written *const wr)
 {
     *call = comp_cur(C) == M_VAR ? ref_result(C) : nullptr;
-    return *call ? (*call)->a->id : ref_wholearray(C);
+
+    if (*call && wr)
+        *wr = WR_ARRAY;
+
+    return *call ? (*call)->a->id : ref_wholearray(C, wr);
 }
 
 static Node *arrayarg(Comp *const C, const uint32_t par)
 {
     const uint8_t *const arg = C->p;
     uint32_t type;
-    Node *const f = ref_fieldarray(C, &type); /* m.a(), ours */
+    Node *const f = ref_fieldarray(C, &type, nullptr); /* m.a(), ours */
 
     if (f != nullptr) {
         if (type != symb_var(C->symb, par)->type) {
@@ -714,7 +738,7 @@ static Node *arrayarg(Comp *const C, const uint32_t par)
     }
 
     Node *call;
-    const uint32_t id = ref_arrayvalue(C, &call);
+    const uint32_t id = ref_arrayvalue(C, &call, nullptr);
 
     if (symb_is_record(C->symb, id)) {
         C->p = arg;
