@@ -135,8 +135,10 @@ Progress is saved at each zone.
 - Music (written): calypso in C at 120. A steel pan lead, marimba chords off the beat, a walking triangle bass, a
   shaker. Sunset: 108, the pan in thirds, the bass held.
 
-### 4. Whitecap Pass
+### 4. Whitecap Pass (its look built)
 
+- Built: its backdrop, ground, props, card and keepsake on a clear morning and at dusk, on the Downs' layout;
+  two stand-in levels, to its tune. To add: grip, its gadgets, enemies, levels, the blizzard and the chase.
 - Rule: grip. Ice keeps speed and will not give it back. Stopping and turning are the challenge, not going.
 - Gadgets: sleds, steered by jumps; ski-lift cables; geysers; a snowball gathered by rolling through deep
   snow, which takes one hit.

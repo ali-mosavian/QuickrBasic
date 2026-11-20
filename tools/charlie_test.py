@@ -1195,6 +1195,20 @@ for j = 0 to 1
     colB(j) = point(160, ObY(c) - int(g.camy) - PRESSUP - 4)
 next
 if was and colA(0) <> colA(1) and colB(0) <> colB(1) then print "press ok"
+' Whitecap Pass is the fourth zone, by name and in its own colours: its snow's top the same picture at both hours,
+' white on a clear morning and not at dusk
+was = ZoneName$(3) = "WHITECAP PASS"
+for j = 0 to 1
+    GoStage 6 + j, g, p, lo(), pt()
+    Tick g, p, k, lo(), pt()
+    g.camx = 150
+    g.shake = 0
+    Render g, p, lo(), pt()
+    colA(j) = point(100, GroundAt%(250) - int(g.camy))
+    if j = 0 then hid = Pal(colA(0))
+    was = was and Zone = 3
+next
+if was and colA(0) = colA(1) and hid = &H3F3F3F and Pal(colA(1)) <> hid then print "pass ok"
 ' a crab pinches at its side, a rolling Charlie too; down on its back he goes up off it unhurt and it ducks into
 ' its shell, and comes out again
 GoStage 4, g, p, lo(), pt()
@@ -1825,6 +1839,7 @@ def main() -> None:
         ("sweeper ok", "a sweeper's hood hurts a roll too; beaten from behind, or landed on with a bounce"),
         ("spark ok", "a spark goes along its rail, hurts while alight and is safe dark"),
         ("press ok", "presses fall in turn along a row, hurt under and jumped into, and are run under from a stop"),
+        ("pass ok", "Whitecap Pass, the fourth zone: its snow white on a clear morning, not at dusk"),
         ("crab ok", "a crab pinches at its side and is a step from above; barked into its shell, a higher one"),
         ("jelly ok", "a jellyfish afloat or aground: a high bounce off its bell, a sting for feet in it only"),
         ("dazed ok", "a Charlie hurt into the sea paddles again"),
@@ -1845,7 +1860,7 @@ def main() -> None:
         sys.exit(f"charlie: the title's run not ended with the family, held and faded: {out[-300:]}")
     if "faded ok" not in out:
         sys.exit(f"charlie: the level's end not held, faded out and begun again in full colour: {out[-300:]}")
-    for act in ("1", "2", "3", "4", "5"):
+    for act in ("1", "2", "3", "4", "5", "6", "7"):
         got = out[out.rfind(f"act {act} ") :].split()
         if got[1:6] != [act, "2", "0", act, str(int(act) // 2)]:
             sys.exit(

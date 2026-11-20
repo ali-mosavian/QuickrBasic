@@ -233,13 +233,15 @@ const IPEDAL = IGULL + 8, ITEDDY = IPEDAL + 4
 const IFLUME = ITEDDY + 2, ISPOUT = IFLUME + 8, IRUNNEL = ISPOUT + 8, ICISTERN = IRUNNEL + 8
 ' The works' sweeper, two frames going left and their mirrors; a spark's carriage dark and two frames alight, a
 ' tile of its rail; a press's housing, a length of its rod, its head.
-const ISWEEP = ICISTERN + 2, ISPARK = ISWEEP + 8, ISRAIL = ISPARK + 6, IPRESS = ISRAIL + 2, NIMG = IPRESS + 6
+const ISWEEP = ICISTERN + 2, ISPARK = ISWEEP + 8, ISRAIL = ISPARK + 6, IPRESS = ISRAIL + 2
+' The pass's keepsake, the fair one's camera.
+const ICAMERA = IPRESS + 6, NIMG = ICAMERA + 2
 const HUDW = 108, HUDH = 40
 ' The levels: a zone's two acts, the second at another hour in other colours, zone by zone.
 ' the stages played, and after them the intro's road
-const ZONES = 3, NSTAGE = ZONES * 2, SINTRO = NSTAGE
+const ZONES = 4, NSTAGE = ZONES * 2, SINTRO = NSTAGE
 ' the zones' names, 16 letters each; what marks CHARLIE.SAV as the game's: its zone is added to it
-const ZNAMES = "AMBER DOWNS     CHROME WORKS    SALTWICK SANDS", SAVEMARK = 1128398848
+const ZNAMES = "AMBER DOWNS     CHROME WORKS    SALTWICK SANDS  WHITECAP PASS", SAVEMARK = 1128398848
 ' each zone's tune, its number in CHARLIE.DAT: a digit a zone
 ' The intro: BEATS a second, ILEN of them, the ground HORIZON down the screen between two bars BARH high. Its
 ' cues' kinds, in QNAMES' order, six letters a name.
@@ -4443,7 +4445,8 @@ sub DrawCue (cu() as Cue, i as integer, now as single, p as Hero, cx as integer,
     end select
 end sub
 
-' The zone's keepsake, its foot's middle at x, y on the screen: the picnic basket, the toolbox, the teddy.
+' The zone's keepsake, its foot's middle at x, y on the screen: the picnic basket, the toolbox, the teddy, the
+' camera.
 sub DrawKeep (x as integer, y as integer)
     select case Zone
     case 0
@@ -4452,6 +4455,8 @@ sub DrawKeep (x as integer, y as integer)
         Blit x - 10, y - 13, ITOOLS, 20, 14
     case 2
         Blit x - 7, y - 15, ITEDDY, 14, 16
+    case 3
+        Blit x - 9, y - 13, ICAMERA, 18, 14
     end select
 end sub
 

@@ -43,7 +43,7 @@ def ramp(first: int, a: tuple[int, int, int], b: tuple[int, int, int], n: int) -
 # backdrop use (CLOUD between them is shared), and those nothing uses.
 SPARE = [5, 6, 7, 148, 149, 172, 173, 174, *range(179, 185), *range(225, 256)]
 POOL = {1: [*range(96, 138), *range(141, 148), *range(156, 172), *range(185, 193), *SPARE]}
-ZPAL: dict[int, dict[int, tuple[int, int, int]]] = {stage: {} for stage in range(6)}
+ZPAL: dict[int, dict[int, tuple[int, int, int]]] = {stage: {} for stage in range(8)}
 
 
 def pal(z: int) -> dict[int, tuple[int, int, int]]:
@@ -831,6 +831,7 @@ LETTERS: dict[str, tuple[float, list[list[tuple[float, float]]]]] = {
     "M": (5, [[(0, 6), (0, 0), (2.5, 3.6), (5, 0), (5, 6)]]),
     "N": (4, [[(0, 6), (0, 0), (4, 6), (4, 0)]]),
     "O": (4, [[(1, 0), (3, 0), (4, 1), (4, 5), (3, 6), (1, 6), (0, 5), (0, 1), (1, 0)]]),
+    "P": (4, [[(0, 0), (0, 6)], [(0, 0), (2.4, 0), (3.8, 0.8), (3.8, 2.4), (2.4, 3.2), (0, 3.2)]]),
     "R": (4, [[(0, 0), (0, 6)], [(0, 0), (2.4, 0), (3.8, 0.8), (3.8, 2.4), (2.4, 3.2), (0, 3.2)], [(2, 3.2), (4, 6)]]),
     "S": (
         4,
@@ -2392,12 +2393,13 @@ def toolbox() -> Pic:
 # ---- Saltwick Sands: sand in strata, a boardwalk, the sea; its colours its own, at noon and at sunset ----
 
 
-def both(first: int, noon: str, dusk: str) -> list[int]:
-    """A ramp of the sands' own colours from index first: its tones at noon, and the same places at sunset."""
+def both(first: int, noon: str, dusk: str, zone: int = 2) -> list[int]:
+    """A ramp of a zone's own colours from index first: its tones in its first act, and the same places in its
+    second. The sands' unless told."""
     a, b = noon.split(), dusk.split()
     assert len(a) == len(b)
-    tones(first, *a, stage=4)
-    return tones(first, *b, stage=5)
+    tones(first, *a, stage=zone * 2)
+    return tones(first, *b, stage=zone * 2 + 1)
 
 
 # the backdrop: pale, and paler than the playfield
@@ -3003,10 +3005,312 @@ def sands() -> list[tuple[int, Pic, bool, int]]:
     return out
 
 
+# ---- Whitecap Pass: a snow cap over faceted ice, peaks and pines; its colours its own, a clear morning and dusk ----
+
+ALPSKY = both(
+    96,
+    "#2C5CC4 #3C74D4 #5490E0 #78ACE8 #A4C8EE #D0DCEC #F8DCD8",
+    "#262448 #34305C #483C74 #62508C #846498 #AC7CA0 #D89CA4",
+    3,
+)
+FARPEAK = both(103, "#FFF0EC #F8C4CC #C4B0DC #9890C8", "#E0B8CC #B088B4 #6C5894 #4A3E74", 3)  # snow, rock: lit, shade
+NEARPEAK = both(107, "#FFFFFF #D0E2F8 #98B4E4 #7090CC #5070B0", "#C8C0E0 #9A94C4 #6A68A4 #4A4A84 #363664", 3)
+PINE = both(112, "#3C7C74 #285C60 #1A4250 #EAF4FC", "#34446C #263458 #1A2644 #B4B0D8", 3)  # lit, mid, shade, its snow
+SNOW = both(116, "#FFFFFF #EAF4FC #C6DCF4 #A0C0E8 #7CA0D4", "#EEE4F4 #CCC2E4 #A69CCC #8278B4 #5E5A98", 3)
+ICE = both(121, "#DCF6FC #AEE2F4 #78C6E8 #4CA2D8 #2E7AC0 #1E5298", "#C0BCEC #9894D8 #7270C4 #5252A6 #3C3C88 #2A2A66", 3)
+FROSTINK = both(127, "#1A2248", "#141432", 3)[0]  # the ground's own ink
+ALPGLOW = both(128, "#FFC8D0 #F4A0B4", "#F090A8 #C4648C", 3)
+HEARTH = both(130, "#FFD468 #FFF4B0", "#FFFFC8 #FFE070", 3)  # a window, a lantern: its glass, its flame
+LOG = both(132, "#B87850 #8C5438 #643828", "#845878 #5E3C60 #3E2848", 3)
+SKYLINE = 106
+FARLINE = [(-10, 70), (22, 40), (40, 58), (66, 28), (84, 50), (104, 44), (132, 66), (160, 36), (176, 52), (204, 24)]
+FARLINE += [(226, 50), (250, 42), (274, 64), (300, 38), (330, 72)]
+NEARLINE = [(-10, 92), (30, 72), (52, 88), (88, 62), (118, 90), (150, 78), (186, 96), (224, 68), (252, 92), (286, 74)]
+NEARLINE += [(330, 91)]
+
+
+def crags(p: Pic, pts: list[tuple[int, int]], r: list[int], cap: int) -> None:
+    """A range along pts, of period 320: rock, lit on the flanks that face left, and a snow cap down from its ridge,
+    its foot in fingers. r: snow lit and shaded, rock lit and shaded."""
+    for x in range(320):
+        (x0, y0), (x1, y1) = next(seg for seg in itertools.pairwise(pts) if seg[0][0] <= x <= seg[1][0])
+        ridge, lit = y0 + (y1 - y0) * (x - x0) / (x1 - x0), y1 < y0
+        foot = cap + (3 if x % 7 < 3 else 0) + (4 if x % 11 < 2 else 0)
+        for y in range(round(ridge), SKYLINE + 30):
+            snowy = y - ridge < foot * (1.0 if lit else 0.7)
+            p.put(x, y, r[(0 if snowy else 2) + (0 if lit else 1)])
+
+
+def spruce(p: Pic, x: int, foot: int, h: int, snowy: bool = True) -> None:
+    """A pine: three tiers, each a triangle lit to the left of its trunk; snow on each tier's upper edge."""
+    for t in range(3):
+        y0 = foot - h + t * h // 4
+        y1 = foot - (2 - t) * h // 5 - 2
+        half = 2 + (t + 1) * h // 7
+        for y in range(y0, y1 + 1):
+            w = round(half * (y - y0 + 1) / (y1 - y0 + 1))
+            for dx in range(-w, w + 1):
+                tone = PINE[0] if dx < -w // 3 else PINE[1] if dx <= w // 3 else PINE[2]
+                if snowy and dx <= 0 and y - y0 < 3 and y - y0 <= 1 + abs(dx) * (y1 - y0) // max(1, half) // 3:
+                    tone = PINE[3]
+                p.put(x + dx, y, tone)
+        if snowy:  # a line of snow down the lit edge
+            for dx in range(-half, 1):
+                p.put(x + dx, y0 + round((y1 - y0) * abs(dx) / half), PINE[3])
+    p.box(x, foot - 2, x, foot, WOOD[1])
+
+
+def cabin(p: Pic, x: int, foot: int) -> None:
+    """A log cabin: snow on its roof, a window, smoke from its chimney."""
+    for y in range(foot - 12, foot + 1):
+        p.box(x, y, x + 25, y, LOG[0] if (foot - y) % 4 else LOG[1])
+    p.box(x + 20, foot - 12, x + 25, foot, LOG[2])
+    for i in range(9):  # the roof: a gable, white on top, a shade line under its eave
+        p.box(x - 3 + i, foot - 13 - i, x + 28 - i * 2, foot - 13 - i, SNOW[0] if i else SNOW[2])
+    p.box(x + 5, foot - 9, x + 10, foot - 4, HEARTH[0])
+    p.box(x + 5, foot - 7, x + 10, foot - 7, LOG[2])
+    p.box(x + 8, foot - 9, x + 8, foot - 4, LOG[2])
+    p.box(x + 14, foot - 8, x + 18, foot, LOG[2])
+    p.box(x + 19, foot - 24, x + 22, foot - 17, LOG[1])
+    p.box(x + 18, foot - 25, x + 23, foot - 25, SNOW[0])
+    for dx, dy, r in ((22, -29, 3), (26, -33, 4)):
+        p.ball(x + dx, foot + dy, r, r * 0.8, [SNOW[2], SNOW[1], SNOW[0]], 0.3, 1.0)
+
+
+def skilift(p: Pic) -> None:
+    """A ski lift, of period 320: a cable from pylon to pylon, sagging between them, and two chairs hung from it."""
+    posts = ((96, 46), (256, 56), (416, 46))
+
+    def cable(x: int) -> int:
+        (x0, y0), (x1, y1) = next(seg for seg in itertools.pairwise(posts) if seg[0][0] <= x < seg[1][0])
+        u = (x - x0) / (x1 - x0)
+        return round(y0 + (y1 - y0) * u + 8 * (1 - (2 * u - 1) ** 2))
+
+    for x in range(320):
+        p.put(x, cable(x if x >= 96 else x + 320), FROSTINK)
+    for x, y in posts[:2]:
+        p.box(x, y, x + 1, SKYLINE + 30, NEARPEAK[4])
+        p.box(x - 3, y, x + 4, y + 1, NEARPEAK[4])
+    for x in (40, 178):
+        y = cable(x if x >= 96 else x + 320)
+        p.box(x, y, x, y + 8, FROSTINK)
+        p.box(x - 4, y + 8, x + 4, y + 9, ALPGLOW[1])
+        p.box(x - 4, y + 9, x - 4, y + 13, FROSTINK)
+        p.box(x - 4, y + 13, x + 4, y + 13, FROSTINK)
+
+
+def alps() -> Pic:
+    """The pass's far backdrop, of period 320: a banded sky, two ranges, a ski lift before them, snow to its foot."""
+    p = Pic(320, 200)
+    edges = [0, 14, 30, 46, 62, 78, 92, SKYLINE + 30]
+    for y in range(SKYLINE + 30):
+        k = max(i for i in range(7) if edges[i] <= y)
+        if k < 6 and y == edges[k + 1] - 2:  # a line of the next band before it starts
+            k += 1
+        p.box(0, y, 319, y, ALPSKY[k])
+    crags(p, FARLINE, FARPEAK, 12)
+    crags(p, NEARLINE, NEARPEAK[:4], 9)
+    skilift(p)
+    p.box(0, SKYLINE + 30, 319, 199, NEARPEAK[2])
+    return p
+
+
+def firwood() -> Pic:
+    """The pass's nearer band, masked, of period 320, which goes by faster: two ranks of pine on a snowfield, its
+    drifts' crests across it, a cabin among them."""
+    p = Pic(320, 80)
+    for y in range(24, 80):
+        p.box(0, y, 319, y, NEARPEAK[1] if y < 68 or y == 70 else NEARPEAK[2])
+    for row, (y, step, run) in enumerate(((52, 64, 26), (64, 80, 38), (76, 160, 50))):
+        for x in range(320):
+            if (x + row * 41) % step < run:
+                p.put(x, y, NEARPEAK[0])
+    for i in range(32):  # the far rank
+        for wrap in (-320, 0, 320):
+            spruce(p, i * 10 + (i * 5) % 4 + wrap, 26 + (i * 3) % 3, 14 + (i * 7) % 5, i % 3 == 0)
+    for i in range(20):  # the near rank
+        for wrap in (-320, 0, 320):
+            spruce(p, i * 16 + 2 + (i * 7) % 6 + wrap, 42 + (i * 5) % 4, 22 + (i * 11) % 7)
+    cabin(p, 64, 38)
+    return p
+
+
+CAPHEM = (5, 6, 7, 7, 6, 5, 4, 4, 5, 6, 6, 5, 4, 5, 6, 7)  # the snow cap's foot, by twos: a period of 32
+
+
+def snowcap(hem: int, d: int, thin: int = 1) -> int:
+    """The slot of the snow cap d pixels under the surface at column hem, -1 under it: white, its shade under its
+    lip, a hem that drips. thin: that many times thinner."""
+    foot = (5 + CAPHEM[(hem // 2) % 16]) // thin
+    return 0 if d <= 0 else 1 if d < foot - 2 else 2 if d < foot else 3 if d == foot else -1
+
+
+def facet(x: int, y: int, deep: int = 0) -> int:
+    """The ice's tone at a world pixel, repeating every 64 across and 48 down: a lattice of triangles, 16 across
+    and 12 down, each flat, a pale line along some of their edges; deep: a tone darker."""
+    cx, cy = (x // 16) % 4, (y // 12) % 4
+    if (x % 16 == 0 and (cx + cy) % 3 == 0) or (y % 12 == 0 and (cx + cy) % 4 == 1):
+        return ICE[0]
+    u, v = (x % 16) / 16, (y % 12) / 12
+    upper = (u + v < 1) if (cx + cy) % 2 else (u > v)
+    return ICE[1 + (cx * 5 + cy * 3 + (2 if upper else 0)) % 4 // 2 + upper + deep]
+
+
+def icy() -> Skin:
+    """The pass's ground: a snow cap, a fleck of light on it here and there, over ice paler than it is far down."""
+
+    def soil(x: int, y: int, d: int, hem: int) -> int:
+        slot = snowcap(hem, d)
+        if slot < 0:
+            return facet(x, y)
+        return SNOW[0 if slot == 1 and d == 1 and (x + y) % 9 == 0 else slot]
+
+    return Skin(soil, lambda x, y: facet(x, y, 1), FROSTINK, (SNOW[2], ICE[1], ICE[4]))
+
+
+def iceledge() -> Pic:
+    """A floating shelf's 16: snow on a slab of ice, icicles under it."""
+    p = Pic(16, 16)
+    for x in range(16):
+        for y, tone in enumerate((SNOW[0], SNOW[1], SNOW[1], SNOW[2], SNOW[3])):
+            p.put(x, y, tone)
+        p.box(x, 5, x, 8, ICE[2] if (x // 4) % 2 else ICE[3])
+        p.put(x, 5, ICE[1])
+        p.put(x, 9, FROSTINK)
+        n = (0, 3, 0, 0, 5, 0, 2, 0, 0, 4, 0, 0, 3, 0, 5, 0)[x]
+        for d in range(n):
+            p.put(x, 10 + d, ICE[0] if d < 2 else ICE[1])
+    return p
+
+
+def floe() -> Pic:
+    """The pass's moving platform: a deck of logs, snow on it."""
+    p = Pic(48, 12)
+    for x in range(1, 47):
+        for y, tone in enumerate(
+            (SNOW[0], SNOW[1], SNOW[2] if x % 6 < 4 else SNOW[1], SNOW[3] if x % 6 < 2 else LOG[0])
+        ):
+            p.put(x, 1 + y, tone)
+        p.box(x, 5, x, 8, LOG[2] if x % 12 == 0 else LOG[0] if x % 12 < 7 else LOG[1])
+        p.put(x, 9, LOG[2])
+    return p.outline(FROSTINK)
+
+
+def fir() -> Pic:
+    """A pine where the Downs have a tree, by the backdrop's rule, bigger."""
+    p = Pic(64, 80)
+    spruce(p, 32, 75, 66)
+    p.box(31, 70, 33, 78, WOOD[1])
+    p.box(31, 70, 31, 78, WOOD[2])
+    return p.outline(FROSTINK)
+
+
+def drift() -> Pic:
+    """A drift where the Downs have a bush: a mound of snow over a low pine, its twigs out of it."""
+    p = Pic(40, 20)
+    for x0, y0, lean in ((6, 12, -3), (14, 9, -1), (26, 10, 2), (33, 13, 3)):
+        p.line(x0, 17, x0 + lean, y0 - 3, PINE[1], 2)
+        p.put(x0 + lean, y0 - 4, PINE[0])
+    p.ball(20, 16, 16, 8, [SNOW[3], SNOW[2], SNOW[1], SNOW[0]], 0.35, 1.2)
+    p.box(0, 19, 39, 19, 0)
+    return p.outline(FROSTINK)
+
+
+def pennant(f: int) -> Pic:
+    """A trail's pennant where the Downs have a flower: frame f, its tip lifted."""
+    p = Pic(12, 16)
+    p.box(3, 1, 3, 15, LOG[1])
+    for i in range(6):
+        y = 2 + i // 2 - (f and i > 3)
+        p.box(4 + i, y, 4 + i, y + 3 - i // 2, ALPGLOW[1] if i % 3 else ALPGLOW[0])
+    return p.outline(FROSTINK)
+
+
+def boulder() -> Pic:
+    """A rock under snow."""
+    p = rock()
+    for x in range(p.w):
+        ys = [y for y in range(p.h) if p.p[y][x]]
+        for d, y in enumerate(ys[: 2 + (x % 5 < 2)]):
+            p.put(x, y, SNOW[0] if d == 0 else SNOW[1] if d == 1 else SNOW[2])
+    return p.outline(FROSTINK)
+
+
+def shards() -> Pic:
+    """Shards of ice where the Downs have thorns: spikes, lit on their left."""
+    p = Pic(16, 12)
+    for x0, h in ((2, 6), (5, 10), (9, 8), (12, 5)):
+        for d in range(h):
+            w = 1 + d * 3 // h
+            for dx in range(-(w // 2), w - w // 2):
+                p.put(
+                    x0 + dx,
+                    11 - h + d + 1 - 1,
+                    ICE[0] if dx == -(w // 2) else ICE[4] if dx == w - w // 2 - 1 and w > 2 else ICE[2],
+                )
+    return p.outline(FROSTINK)
+
+
+def lantern() -> Pic:
+    """A lantern on a post where the Downs have a lantern plant: its glass lit, snow on its cap."""
+    p = Pic(20, 44)
+    p.box(9, 14, 10, 43, LOG[1])
+    p.box(9, 14, 9, 43, LOG[0])
+    p.box(6, 4, 13, 5, METAL[1])
+    p.box(7, 6, 12, 12, HEARTH[0])
+    p.box(9, 8, 10, 11, HEARTH[1])
+    for x in (6, 13):
+        p.box(x, 6, x, 12, METAL[1])
+    p.box(6, 13, 13, 13, METAL[1])
+    p.box(5, 2, 14, 3, SNOW[0])
+    p.box(7, 1, 12, 1, SNOW[0])
+    p.box(5, 3, 14, 3, SNOW[2])
+    return p.outline(FROSTINK)
+
+
+def snapshot() -> Pic:
+    """The fair one's camera: a black box, its lens, a pink button, a strap's loop."""
+    p = Pic(18, 14)
+    p.box(1, 4, 16, 12, METAL[0])
+    p.box(1, 4, 16, 4, METAL[2])
+    p.box(1, 11, 16, 12, STONE[0])
+    p.box(4, 2, 8, 3, METAL[1])
+    p.box(12, 2, 14, 3, ALPGLOW[1])
+    p.ball(9, 8, 3.6, 3.6, [METAL[1], METAL[2], METAL[3]], 0.4, 1.0)
+    p.ball(9, 8, 2.2, 2.2, [ICE[5], ICE[3], ICE[1]], 0.2, 1.0)
+    p.put(8, 7, ICE[0])
+    p.box(2, 6, 3, 7, HEARTH[1])
+    return p.outline(FROSTINK)
+
+
+def whitecap() -> list[tuple[int, Pic, bool, int]]:
+    """Whitecap Pass's own pictures, at the indices the Downs' own have; its keepsake after the works' last."""
+    k, z = 126, 625
+    out = [(0, alps(), False, -1), (1, firwood(), True, -1), (28, iceledge(), True, -1)]
+    cap = lambda hem, d: SNOW[snowcap(hem, d, 2)] if snowcap(hem, d, 2) >= 0 else 0  # noqa: E731
+    out.append((5, ring(188, 72, 93, cap, ICE, FROSTINK), True, -1))
+    road = [SNOW[0], SNOW[1], ICE[1], ICE[2], ICE[4], ICE[5]]
+    out += [(z + 112 + h * 2, ribbon(h, road, FROSTINK), True, -1) for h in range(2)]
+    out += earth(z + 124, icy())
+    out.append((z + 124 + 268, floe(), True, -1))
+    out += [
+        (k + 36, fir(), True, -1),
+        (k + 38, drift(), True, -1),
+        (k + 40, pennant(0), True, -1),
+        (k + 42, pennant(1), True, -1),
+        (k + 44, boulder(), True, -1),
+        (k + 46, shards(), True, -1),
+        (k + 48, lantern(), True, -1),
+        (k + 376, words("WHITECAP PASS", 178, 18, 1.53, 2.85), True, -1),
+        (z + 1012, snapshot(), True, -1),
+    ]
+    return out
+
+
 # the pictures only one zone shows: they may use that zone's own colours, and are in the store only while it is
 # played
 OWN: list[set[int]] = [set(), set()]
-ZONES = 3
+ZONES = 4
 
 
 def earth(a: int, skin: Skin) -> list[tuple[int, Pic, bool, int]]:
@@ -3301,10 +3605,10 @@ def audit(pics: list[tuple[int, Pic, bool, int]]) -> None:
 
 def group(pics: list[tuple[int, Pic, bool, int]], zone: int) -> list[int]:
     """The pictures only zone shows, or with -1 those every zone does, as CHARLIE.DAT holds them: their count, then
-    each with its mask. The sands' are their own list, at the Downs' indices."""
+    each with its mask. The sands' and the pass's are their own lists, at the Downs' indices."""
     mine = [q for q in pics if next((z for z, own in enumerate(OWN) if q[0] in own), -1) == zone]
-    if zone == 2:
-        mine = sands()
+    if zone >= 2:
+        mine = (sands, whitecap)[zone - 2]()
     vals = [len(mine)]
     for k, p, masked, k2 in mine:
         vals += [k, p.w, p.h, int(masked), k2, *encode(p.longs())]
