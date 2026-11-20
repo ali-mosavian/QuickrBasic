@@ -98,10 +98,12 @@ Progress is saved at each zone.
 
 - Rule: gadgets throw Charlie, and the way goes up as well as along.
 - Gadgets: jets, bumpers, spinners, hoops, lifts, cables, bridges.
-- Enemies, to add: sweepers, floor polishers armoured in front, beaten from above or behind; sparkers on
+- Enemies (built): sweepers, floor polishers armoured in front, beaten from above or behind; sparkers on
   rails, safe while dark.
 - Act 1, dusk: the gadgets one at a time.
-- Act 2, night: gadgets chained, with timed presses to add.
+- Act 2, night: gadgets chained, and rows of presses (built) that fall in turn, run under after the first
+  has risen.
+- Hazards stand where Charlie comes on foot: not after a boost, nor where a jump from a lift lands.
 - Chase (built): Sprocket on the overhead crane, out of reach of a jump, in a hall of jets and hoops. They
   throw Charlie up to it; it follows him and drops crates. Bumped three times it sticks and lets the bearded
   one's toolbox fall.

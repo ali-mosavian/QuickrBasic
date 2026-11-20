@@ -78,7 +78,7 @@ for j = 0 to NSLOT * NBAR * 2 - 1
     i = j * 5
     play Trk(i), Trk(i + 1), Trk(i + 2), , Trk(i + 3), Trk(i + 4), Org(j), Third(j)
 next
-for j = SJUMP to SCRACK
+for j = SJUMP to SCLANK
     Sfx j
 next
 print "sounds ok"
@@ -1040,6 +1040,161 @@ Render g, p, lo(), pt()
 c = 100
 m = ObY(j) - int(g.camy)
 if was and point(c + 40, m + 42) = point(c + 95, m + 77) and At(ICISTERN) > 0 then print "flume ok"
+' a works' sweeper hurts whoever meets its hood, a rolling Charlie too; rolled into from behind it is beaten, and
+' landed on, with a bounce. Jumped at 50 pixels like a cat, its hood caught the pilot rising
+GoStage 2, g, p, lo(), pt()
+for c = 0 to NObj - 1
+    if ObK(c) = KSWEEP then exit for
+next
+was = c < NObj
+for j = 0 to 1
+    g.bones = 5
+    p.inv = 0
+    p.stun = 0
+    ObS(c) = -1
+    Stand p, ObX(c) - 14, 200
+    if j then p.roll = -1
+    Tick g, p, k, lo(), pt()
+    was = was and p.inv > 0 and ObS(c) <> 0
+next
+hid = g.score
+p.inv = 0
+p.stun = 0
+ObS(c) = -1
+Stand p, ObX(c) + 14, -200
+p.roll = -1
+Tick g, p, k, lo(), pt()
+was = was and ObS(c) = 0 and g.score = hid + 100 and p.inv <= 0
+' rising past its hood, his feet over its top, he is clear of it
+ObS(c) = -1
+p.x = ObX(c) - 15
+p.y = ObY(c) - 22
+p.ground = 0
+p.roll = 0
+p.vx = 0
+p.vy = -200
+Tick g, p, k, lo(), pt()
+was = was and p.inv <= 0 and ObS(c) <> 0
+p.x = ObX(c)
+p.y = ObY(c) - 30
+p.ground = 0
+p.roll = 0
+p.vx = 0
+p.vy = 100
+for i = 1 to 20
+    Tick g, p, k, lo(), pt()
+    if p.vy < 0 then exit for
+next
+if was and ObS(c) = 0 and p.inv <= 0 and abs(p.vy + BOUNCEV) < 30 then print "sweeper ok"
+' a works' spark goes SPARKR either way along its rail; its carriage hurts for the SPARKLIT steps of SPARKP it is
+' alight, and is safe dark
+for c = 0 to NObj - 1
+    if ObK(c) = KSPARK then exit for
+next
+was = c < NObj
+Stand p, ObA(c) - 100, 0
+m = ObX(c)
+v = ObX(c)
+for i = 1 to 240
+    Tick g, p, k, lo(), pt()
+    if ObX(c) < m then m = ObX(c)
+    if ObX(c) > v then v = ObX(c)
+next
+was = was and m >= ObA(c) - SPARKR and m < ObA(c) - SPARKR + 4 and v <= ObA(c) + SPARKR and v > ObA(c) + SPARKR - 4
+for j = 0 to 1
+    do until (Ticks + ObA(c)) mod SPARKP = 10 + j * SPARKLIT
+        Ticks = Ticks + 1
+    loop
+    g.bones = 5
+    p.inv = 0
+    p.stun = 0
+    Stand p, ObX(c) - 4, 0
+    Tick g, p, k, lo(), pt()
+    was = was and (p.inv > 0) = (j = 0)
+next
+if was then print "spark ok"
+' the works' presses: a head comes down in its turn, a press along a row after the one before it by the pixels
+' between them over PRESSLAG; it hurts who is under it once it is down to him, and who jumps into it while it is
+' up; from a stop, a run begun as the first has risen goes under the whole row; the head is drawn where it is
+GoStage 3, g, p, lo(), pt()
+for c = 0 to NObj - 1
+    if ObK(c) = KPRESS then exit for
+next
+for m = c + 1 to NObj - 1
+    if ObK(m) = KPRESS then exit for
+next
+was = m < NObj
+do until Stroke%(c) = 0 and PressT%(c) < 20
+    Ticks = Ticks + 1
+loop
+g.bones = 5
+p.inv = 0
+p.stun = 0
+Stand p, ObX(c), 0
+v = -1
+j = -1
+for i = 1 to PRESSP
+    Tick g, p, k, lo(), pt()
+    if p.inv > 0 and v < 0 then v = Stroke%(c)
+    if Stroke%(c) = PRESSUP and j < 0 then j = Ticks
+next
+was = was and v > PRESSUP - 28
+do until Stroke%(m) = PRESSUP
+    Ticks = Ticks + 1
+loop
+do while Stroke%(m) = PRESSUP
+    Ticks = Ticks - 1
+loop
+was = was and (Ticks + 1 - j) mod PRESSP = (ObX(m) - ObX(c)) \\ PRESSLAG
+do until Stroke%(c) = 0 and PressT%(c) < 20
+    Ticks = Ticks + 1
+loop
+g.bones = 5
+p.inv = 0
+p.stun = 0
+Stand p, ObX(c), 0
+k.hit = -1
+k.jump = -1
+for i = 1 to 20
+    Tick g, p, k, lo(), pt()
+    if p.inv > 0 then exit for
+next
+k.hit = 0
+k.jump = 0
+was = was and i < 20 and Stroke%(c) = 0
+for i = 1 to 200
+    Tick g, p, k, lo(), pt()
+next
+do until PressT%(c) = PRESSRISE + 28
+    Ticks = Ticks + 1
+loop
+g.bones = 5
+p.inv = 0
+p.stun = 0
+Stand p, ObX(c) - 60, 0
+for j = m to NObj - 1
+    if ObK(j) = KLEG then exit for
+next
+k.r = -1
+for i = 1 to 400
+    Tick g, p, k, lo(), pt()
+    if p.inv > 0 then was = 0
+    if p.x > ObX(j) + 20 then exit for
+next
+k.r = 0
+was = was and i < 400
+Stand p, ObX(c) - 60, 0
+g.camx = ObX(c) - 160
+g.shake = 0
+for j = 0 to 1
+    do until PressT%(c) = 20 + j * (PRESSFALL - 4)
+        Ticks = Ticks + 1
+    loop
+    Render g, p, lo(), pt()
+    colA(j) = point(160, ObY(c) - int(g.camy) - 4)
+    colB(j) = point(160, ObY(c) - int(g.camy) - PRESSUP - 4)
+next
+if was and colA(0) <> colA(1) and colB(0) <> colB(1) then print "press ok"
 ' a crab pinches at its side, a rolling Charlie too; down on its back he goes up off it unhurt and it ducks into
 ' its shell, and comes out again
 GoStage 4, g, p, lo(), pt()
@@ -1667,6 +1822,9 @@ def main() -> None:
         ("boat ok", "a boat aground and still at low water, afloat and adrift at high, Charlie aboard up with it"),
         ("pier ok", "the old pier's spans totter and fall once trodden, hold under a run, and are back at a restart"),
         ("flume ok", "a flume sweeps Charlie down it curled and throws him from its end; drawn over the ground"),
+        ("sweeper ok", "a sweeper's hood hurts a roll too; beaten from behind, or landed on with a bounce"),
+        ("spark ok", "a spark goes along its rail, hurts while alight and is safe dark"),
+        ("press ok", "presses fall in turn along a row, hurt under and jumped into, and are run under from a stop"),
         ("crab ok", "a crab pinches at its side and is a step from above; barked into its shell, a higher one"),
         ("jelly ok", "a jellyfish afloat or aground: a high bounce off its bell, a sting for feet in it only"),
         ("dazed ok", "a Charlie hurt into the sea paddles again"),

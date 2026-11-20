@@ -2273,6 +2273,110 @@ def woodbox() -> Pic:
     return p.outline()
 
 
+def sweeper(f: int) -> Pic:
+    """A floor polisher going left, its brush a sixteenth of a turn on at f: an armoured hood over the brush, a
+    housing behind it with a cap on top to land on, a handle."""
+    p = Pic(30, 20)
+    p.ball(7, 15.0, 6.4, 4.6, COPPER[1:], 0.2, 0.8)
+    for i in range(8):
+        a = i * math.pi / 4 + f * math.pi / 8
+        p.put(round(7 + 4.4 * math.cos(a)), round(15.0 + 3.0 * math.sin(a)), COPPER[4])
+        p.put(round(7 + 2.2 * math.cos(a + 0.4)), round(15.0 + 1.5 * math.sin(a + 0.4)), COPPER[0])
+    p.box(11, 7, 26, 15, PANEL[2])
+    p.box(11, 7, 26, 7, PANEL[4])
+    p.box(11, 14, 26, 15, PANEL[1])
+    for y in (10, 12):
+        p.box(19, y, 24, y, PANEL[0])
+    p.ball(23.5, 16.5, 2.8, 2.8, CHROME, 0.1, 0.8)
+    for y in range(3, 13):
+        for x in range(15):
+            dx, dy = (x - 9) / 9.0, (y - 14) / 11.0
+            if dx * dx + dy * dy <= 1 and x <= 13:
+                p.shade(x, y, CHROME[1:5], 0.3 - 0.45 * dx - 0.5 * dy)
+    p.box(1, 12, 13, 12, CHROME[1])
+    for i in range(3):
+        p.box(3 + i * 3, 10, 4 + i * 3, 11, HAZARD[1])
+    p.box(15, 9, 16, 10, LAMP[1])
+    p.put(15, 9, WHITE)
+    p.box(17, 5, 23, 6, HAZARD[1])
+    p.box(17, 5, 23, 5, HAZARD[0])
+    p.line(25, 7, 28, 2, CHROME[3], 1.5)
+    p.ball(28, 1.6, 1.6, 1.6, CHROME, 0.4, 1.0)
+    return p.outline()
+
+
+def sparker(lit: bool, f: int = 0) -> Pic:
+    """A spark's carriage on its floor rail: an insulator, dark and safe, or alight, its rays an eighth on at f."""
+    p = Pic(22, 22)
+    p.ball(10.5, 12.5, 5.2, 5.2, CHROME[2:] if lit else CHROME[:4], 0.1, 0.9)
+    p.box(6, 12, 15, 13, GLOWC[1] if lit else CHROME[0])
+    p.box(8, 17, 13, 19, CHROME[1])
+    p.outline()
+    if lit:
+        p.ball(10.5, 12.5, 3.2, 3.2, [GLOWC[1], GLOWC[2], WHITE], 0.4, 1.0)
+        for i in range(8):
+            a = i * math.pi / 4 + f * math.pi / 8
+            r1 = 9.5 if (i + f) % 2 else 7.5
+            mx, my = 10.5 + 6.5 * math.cos(a + 0.25), 12.5 + 6.5 * math.sin(a + 0.25)
+            p.line(10.5 + 5.6 * math.cos(a), 12.5 + 5.6 * math.sin(a), mx, my, GLOWC[2])
+            p.line(mx, my, 10.5 + r1 * math.cos(a - 0.1), 12.5 + r1 * math.sin(a - 0.1), WHITE)
+    return p
+
+
+def floorrail() -> Pic:
+    """A tile's length of the rail a spark runs on: a bar on ties."""
+    p = Pic(16, 4)
+    for x in range(16):
+        p.put(x, 0, CHROME[4])
+        p.put(x, 1, CHROME[2])
+        if x % 8 < 2:
+            p.put(x, 2, CHROME[1])
+            p.put(x, 3, CHROME[0])
+    return p
+
+
+def lipstripes(p: Pic, x0: int, y0: int, x1: int, y1: int) -> None:
+    """A hazard stripe over a box: lit along its top, shaded along its foot."""
+    for y in range(y0, y1 + 1):
+        for x in range(x0, x1 + 1):
+            p.put(x, y, DECK[5] if (x + y) // 4 % 2 else HAZARD[0 if y == y0 else 2 if y == y1 else 1])
+
+
+def presshouse() -> Pic:
+    """A press's housing, hung from a girder: two lamps, a striped lip."""
+    p = Pic(36, 21)
+    p.box(2, 0, 33, 19, PANEL[2])
+    p.box(2, 0, 33, 1, PANEL[4])
+    for x in (5, 30):
+        for y in (4, 10):
+            p.put(x, y, PANEL[5])
+    lipstripes(p, 2, 15, 33, 19)
+    p.box(12, 5, 23, 11, PANEL[0])
+    p.box(14, 7, 15, 8, LAMP[0])
+    p.box(20, 7, 21, 8, LAMP[1])
+    return p.outline()
+
+
+def pressrod() -> Pic:
+    """A length of a press's rod, and of its gantry's legs."""
+    p = Pic(8, 8)
+    for y in range(8):
+        for i, tone in enumerate((1, 3, 5, 5, 4, 3, 2, 1)):
+            p.put(i, y, CHROME[tone])
+    return p
+
+
+def presshead() -> Pic:
+    """A press's head: a plate, striped at its lip."""
+    p = Pic(38, 16)
+    p.box(1, 1, 36, 14, DECK[2])
+    p.box(1, 1, 36, 2, DECK[0])
+    p.box(1, 3, 36, 4, DECK[1])
+    p.box(1, 9, 36, 9, DECK[3])
+    lipstripes(p, 1, 10, 36, 14)
+    return p.outline()
+
+
 def toolbox() -> Pic:
     """The bearded one's toolbox: red, a lid's seam, a latch and a handle over it."""
     p = Pic(20, 14)
@@ -3006,6 +3110,17 @@ def pictures() -> list[tuple[int, Pic, bool, int]]:
     # the works' crane, as it goes and bumped; its rail, its crate, the toolbox
     out += [(z + 642 + h * 2, gondola(bool(h)), True, -1) for h in range(2)]
     out += [(z + 646, girder(), True, -1), (z + 648, woodbox(), True, -1), (z + 650, toolbox(), True, -1)]
+    # the works' sweepers, going left and mirrored; a spark's carriage dark and alight, its rail; a press's parts
+    w = z + 990
+    out += [(w + f * 2, sweeper(f), True, w + 4 + f * 2) for f in range(2)]
+    out += [
+        (w + 8, sparker(False), True, -1),
+        (w + 10, sparker(True, 0), True, -1),
+        (w + 12, sparker(True, 1), True, -1),
+    ]
+    out += [(w + 14, floorrail(), True, -1)]
+    out += [(w + 16, presshouse(), True, -1), (w + 18, pressrod(), True, -1), (w + 20, presshead(), True, -1)]
+    OWN[1].update(range(w, w + 22))
     # Charlie round a twist: 12 turns of two strides, their mirrors facing left
     out += [
         (z + 498 + (n * 2 + f) * 2, turned(frames[5 + f * 3], n, f), True, z + 546 + (n * 2 + f) * 2)

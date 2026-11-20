@@ -180,6 +180,12 @@ const KMOVE = 17, KPOST = 18, KTANK = 19, KVENT = 20, KJET = 21, KBUMP = 22, KSP
 const CABLED = 64, CABLEH = 44, KBUTTON = 27, KCRAB = 28, KJELLY = 29, KBUOY = 30
 ' A span of the sands' old pier: the seconds it totters once trodden, and how far it falls.
 const KSPAN = 31, SPANT = .25, SPANDROP = 400
+' The works' own: a press and a leg of its gantry; a sweeper and a spark's carriage. A spark goes SPARKR either way
+' along its rail, alight SPARKLIT steps of every SPARKP. A press hangs PRESSH over the floor, its head's foot
+' PRESSUP over it when up; of its turn's PRESSP steps it is up till PRESSFALL, down by ten on, held till PRESSRISE,
+' then rising; a press a step later for every PRESSLAG along, so a row's turns go along it with a run.
+const KPRESS = 32, KLEG = 33, KSWEEP = 43, KSPARK = 44, SPARKR = 40, SPARKP = 150, SPARKLIT = 90
+const PRESSH = 112, PRESSUP = 68, PRESSP = 180, PRESSFALL = 90, PRESSRISE = 130, PRESSLAG = 4
 ' From KFRONT on: drawn over the ground. The sands' flume: a column of its fall, its level end, the tank at its
 ' head; the speed its water carries Charlie at.
 const KFRONT = 40, KFLUME = 40, KSPOUT = 41, KCISTERN = 42, FLUMEV = 460!
@@ -224,7 +230,10 @@ const IWET = ITOOLS + 2, WETO = IWET - IAF, ISURF = IWET + 278, ICRAB = ISURF + 
 const IJELLY = ICRAB + 6, IBUOY = IJELLY + 4, ICHAIR = IBUOY + 4, IGULL = ICHAIR + 4
 const IPEDAL = IGULL + 8, ITEDDY = IPEDAL + 4
 ' The flume: its fall and its end, four frames each of running water, the water falling from it, its tank.
-const IFLUME = ITEDDY + 2, ISPOUT = IFLUME + 8, IRUNNEL = ISPOUT + 8, ICISTERN = IRUNNEL + 8, NIMG = ICISTERN + 2
+const IFLUME = ITEDDY + 2, ISPOUT = IFLUME + 8, IRUNNEL = ISPOUT + 8, ICISTERN = IRUNNEL + 8
+' The works' sweeper, two frames going left and their mirrors; a spark's carriage dark and two frames alight, a
+' tile of its rail; a press's housing, a length of its rod, its head.
+const ISWEEP = ICISTERN + 2, ISPARK = ISWEEP + 8, ISRAIL = ISPARK + 6, IPRESS = ISRAIL + 2, NIMG = IPRESS + 6
 const HUDW = 108, HUDH = 40
 ' The levels: a zone's two acts, the second at another hour in other colours, zone by zone.
 ' the stages played, and after them the intro's road
@@ -246,7 +255,7 @@ const IMGSZ = 420000
 const SCLEFT = 75, SCRIGHT = 77, SCUP = 72, SCDOWN = 80, SCSPACE = 57, SCZ = 44
 const SJUMP = 0, SBONE = 1, SHURT = 2, SSPRING = 3, SPOP = 4, SROLL = 5
 const SCHARGE = 6, SLAUNCH = 7, SCLEAR = 8, SDIE = 9, SMARK = 10, SBOOST = 11, SHISS = 12, SBARK = 13, SBUMP = 14
-const SSQUAWK = 15, SCRACK = 16
+const SSQUAWK = 15, SCRACK = 16, SCLANK = 17
 ' A bark: how far it carries, the seconds to the next, and the steps a cat stands startled by it.
 const BARKR = 72, BARKT = .4, FLINCH = 24
 ' A crab: the steps it keeps to its shell once barked at, and how fast Charlie goes up off its back.
@@ -370,6 +379,16 @@ declare function Twist! (p as Hero)
 declare sub DrawOver (cx as integer, cy as integer)
 declare sub Bark (p as Hero)
 declare sub MeetCrab (g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
+declare sub MeetSweep (g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
+declare sub MeetPress (g as Game, p as Hero, i as integer, lo() as Loose)
+declare sub Beaten (g as Game, pt() as Part, i as integer, dy as integer)
+declare function Lit% (i as integer)
+declare function PressT% (i as integer)
+declare function Stroke% (i as integer)
+declare function PressAhead% (x as integer)
+declare sub DrawSpark (i as integer, x as integer, y as integer, cx as integer)
+declare sub DrawPress (i as integer, x as integer, y as integer)
+declare sub DrawLeg (x as integer, y as integer)
 declare function CrabPic% (s as integer)
 declare sub MeetJelly (g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
 declare function Bob% (x as integer, h as integer, up as integer)
@@ -1008,6 +1027,19 @@ sub LoadLevel (st as integer)
             k = KCAT
         case "crab"
             k = KCRAB
+        case "sweeper"
+            k = KSWEEP
+        case "spark"
+            k = KSPARK
+        case "press"
+            ' n presses on a gantry over level ground, four columns each, a leg at either end
+            AddObj KLEG, c * TS, s
+            for i = 0 to n * 4 - 1
+                Column c + i, g, 1
+                if (i and 3) = 1 then AddObj KPRESS, (c + i + 1) * TS, s
+            next
+            c = c + n * 4
+            AddObj KLEG, c * TS - 8, s
         case "jelly"
             ' a jellyfish n columns on, a buoy: afloat where the sea is over the ground there, aground where not
             AddObj KJELLY, (c + n) * TS + 8, s
@@ -1941,6 +1973,9 @@ sub Sfx (id as integer)
     case SCRACK
         ' a plank gives: a crack, then its thud
         s = "W3L32O5CO3GL16O2C"
+    case SCLANK
+        ' a press lands
+        s = "W3L32O2CL16O1C"
     end select
     play , , , "T255W1V13Y0K0I0H0,0,15,0" + s
 end sub
@@ -2717,12 +2752,24 @@ sub Pilot (p as Hero, k as Pad)
             if ObX(i) > x + 130 then exit do
             if ObX(i) > x then
                 if ((ObK(i) = KCAT and ObS(i) <> 0) or ObK(i) = KTHORN) and ObX(i) <= x + 50 then want = -1
-                ' a crab is not rolled through, nor a jellyfish: jumped from further back the faster he goes
-                d = ObK(i) = KJELLY or (ObK(i) = KCRAB and abs(ObS(i)) = 1)
+                ' what is not rolled through, a crab, a jellyfish, a sweeper, a spark: jumped from further back
+                ' the faster he goes
+                d = ObK(i) = KJELLY or ObK(i) = KSPARK or (ObK(i) = KCRAB and abs(ObS(i)) = 1)
+                d = d or (ObK(i) = KSWEEP and ObS(i) <> 0)
                 if d and ObX(i) <= x + 34 + abs(cint(p.gsp)) \ 8 then want = -1
             end if
             i = i + 1
         loop
+        ' a row of presses: to a stop before it, on once its first is well risen, and no jump under one
+        i = PressAhead%(x)
+        if i <> NONE then
+            d = ObX(i) - 26 - x
+            if d < 60 then want = 0
+            if d > 0 and d < 40 + cint(p.gsp) \ 5 and (PressT%(i) + 22) mod PRESSP > 52 then
+                k.r = 0
+                if p.gsp > 20 then k.l = -1
+            end if
+        end if
         ' who flees is rolled into, once there is the speed to roll
         k.d = Zone = 0 and Cart.st = 1 and Cart.x > x and Cart.x - x < 120 and p.gsp > 150
         ' a platform's gap ahead: slowly to its edge, there till the platform is at it and staying, then on
@@ -2807,7 +2854,7 @@ sub ResetWorld (g as Game, p as Hero, lo() as Loose, pt() as Part)
         ObX(i) = ObA(i)
         ObS(i) = 0
         if ObK(i) = KBONE then ObS(i) = 1
-        if ObK(i) = KCAT or ObK(i) = KCRAB then ObS(i) = -1
+        if ObK(i) = KCAT or ObK(i) = KCRAB or ObK(i) = KSWEEP then ObS(i) = -1
         if ObK(i) = KJELLY then ObS(i) = 1
     next
     for i = 0 to NMOVE
@@ -3233,11 +3280,7 @@ sub Touch (g as Game, p as Hero, lo() as Loose, pt() as Part)
             if ObS(i) <> 0 and dx < 15 then
                 if abs(ObY(i) - 6 - py + 13) < 17 then
                     if p.roll or p.charging then
-                        ObS(i) = 0
-                        g.score = g.score + 100
-                        g.shake = .15
-                        Burst pt(), csng(x), csng(ObY(i) - 6), 10, 130, CWHITE
-                        Sfx SPOP
+                        Beaten g, pt(), i, 6
                         if not p.ground and p.vy > 0 then p.vy = -BOUNCEV
                     else
                         Hurt g, p, x, lo(), SHISS
@@ -3246,6 +3289,12 @@ sub Touch (g as Game, p as Hero, lo() as Loose, pt() as Part)
             end if
         case KCRAB
             MeetCrab g, p, i, lo(), pt()
+        case KSWEEP
+            MeetSweep g, p, i, lo(), pt()
+        case KSPARK
+            if Lit%(i) and dx < 11 and py > ObY(i) - 24 and py - 26 < ObY(i) then Hurt g, p, x, lo(), SHISS
+        case KPRESS
+            MeetPress g, p, i, lo()
         case KJELLY
             MeetJelly g, p, i, lo(), pt()
         case KSPRING
@@ -3454,13 +3503,85 @@ sub MeetCrab (g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
     elseif abs(ObS(i)) = 1 then
         Hurt g, p, ObX(i), lo(), SHURT
     elseif p.roll or p.charging then
-        ObS(i) = 0
-        g.score = g.score + 100
-        g.shake = .15
-        Burst pt(), csng(ObX(i)), csng(y - 6), 10, 130, CWHITE
-        Sfx SPOP
+        Beaten g, pt(), i, 6
     end if
 end sub
+
+' Thing i beaten: gone, its points, a shake and a puff dy over its foot.
+sub Beaten (g as Game, pt() as Part, i as integer, dy as integer)
+    ObS(i) = 0
+    g.score = g.score + 100
+    g.shake = .15
+    Burst pt(), csng(ObX(i)), csng(ObY(i) - dy), 10, 130, CWHITE
+    Sfx SPOP
+end sub
+
+' A sweeper met: armoured before, its hood hurts whoever meets it, curled or not; landed on, or rolled into from
+' behind, it is beaten.
+sub MeetSweep (g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
+    dim y as integer, behind as integer
+    y = ObY(i)
+    if ObS(i) = 0 or abs(ObX(i) - p.x) >= 18 or p.y < y - 20 or p.y > y + 10 then exit sub
+    behind = sgn(p.x - ObX(i)) <> sgn(ObS(i))
+    if not p.ground and p.vy > 0 and p.y < y - 8 then
+        Beaten g, pt(), i, 8
+        p.vy = -BOUNCEV
+    elseif behind and (p.roll or p.charging) then
+        Beaten g, pt(), i, 8
+    else
+        Hurt g, p, ObX(i), lo(), SHURT
+    end if
+end sub
+
+' Whether spark i is alight: its carriage hurts then, and is safe dark.
+function Lit% (i as integer)
+    Lit% = (Ticks + ObA(i)) mod SPARKP < SPARKLIT
+end function
+
+' Where press i is in its turn, 0 to PRESSP - 1: a press further along a row is later.
+function PressT% (i as integer)
+    PressT% = (Ticks + PRESSP * 100 - ObA(i) \ PRESSLAG) mod PRESSP
+end function
+
+' How far down press i's head is, 0 to PRESSUP.
+function Stroke% (i as integer)
+    dim t as integer
+    t = PressT%(i)
+    if t < PRESSFALL then
+        Stroke% = 0
+    elseif t < PRESSFALL + 10 then
+        Stroke% = (t - PRESSFALL) * PRESSUP \ 10
+    elseif t < PRESSRISE then
+        Stroke% = PRESSUP
+    else
+        Stroke% = PRESSUP - (t - PRESSRISE) * PRESSUP \ (PRESSP - PRESSRISE)
+    end if
+end function
+
+' A press met: its head, wherever in its stroke, hurts who is under it or against it. It lands with a clank.
+sub MeetPress (g as Game, p as Hero, i as integer, lo() as Loose)
+    dim y as integer
+    if PressT%(i) = PRESSFALL + 10 then Sfx SCLANK
+    y = ObY(i) - PRESSUP + Stroke%(i)
+    if abs(ObX(i) - p.x) < 26 and p.y - 26 < y and p.y > y - 14 then Hurt g, p, ObX(i), lo(), SHURT
+end sub
+
+' For the pilot at x: the nearest press he is under or coming to, NONE with none near.
+function PressAhead% (x as integer)
+    dim i as integer, c as integer
+    PressAhead% = NONE
+    c = (x - 64) \ TS
+    if c < 0 then c = 0
+    i = First(c)
+    do while i < NObj
+        if ObX(i) > x + 200 then exit do
+        if ObK(i) = KPRESS and ObX(i) + 50 >= x then
+            PressAhead% = i
+            exit do
+        end if
+        i = i + 1
+    loop
+end function
 
 ' ---- the sands' gulls ----
 
@@ -3636,8 +3757,10 @@ sub Things (g as Game, lo() as Loose, pt() as Part)
     do while i < NObj
         if ObA(i) > g.camx + SW + 100 then exit do
         select case ObK(i)
-        case KCAT, KCRAB
+        case KCAT, KCRAB, KSWEEP
             if ObS(i) <> 0 then Prowl i
+        case KSPARK
+            ObX(i) = ObA(i) + cint(SPARKR * sin((Ticks + ObA(i)) * .03))
         case KSPRING, KBUMP, KHOOP
             if ObS(i) > 0 then ObS(i) = ObS(i) - 1
         case KBUOY
@@ -4621,6 +4744,14 @@ sub DrawThings (cx as integer, cy as integer, back as integer)
                     k = IAP + (((ObX(i) \ TS + 1) and 3) * 3 + (ObY(i) \ TS) mod 3) * 2
                     Blit x - PIPER, y - PIPER, k, PIPER, PIPER + TS
                 end if
+            case KSWEEP
+                if ObS(i) then Blit x - 15, y - 19, ISWEEP + ((Ticks \ 6) and 1) * 2 - 4 * (ObS(i) > 0), 30, 20
+            case KSPARK
+                DrawSpark i, x, y, cx
+            case KPRESS
+                DrawPress i, x, y
+            case KLEG
+                DrawLeg x, y
             case KFLUME
                 Blit x, y - 8, IFLUME + ((Ticks \ 3) and 3) * 2, TS, 29
             case KSPOUT
@@ -4690,6 +4821,39 @@ sub DrawThings (cx as integer, cy as integer, back as integer)
         end if
         i = i + 1
     loop
+end sub
+
+' Spark i, its carriage at x, y on the screen: its rail, a tile's length from its home either way and between;
+' the carriage dark, or alight.
+sub DrawSpark (i as integer, x as integer, y as integer, cx as integer)
+    dim f as integer, k as integer
+    for f = -3 to 2
+        Blit ObA(i) + f * TS - cx, y - 4, ISRAIL, TS, 4
+    next
+    k = ISPARK
+    if Lit%(i) then k = ISPARK + 2 + ((Ticks \ 3) and 1) * 2
+    Blit x - 11, y - 24, k, 22, 22
+end sub
+
+' Press i at x, the floor at y on the screen: its length of girder, its rod down to its head, its housing.
+sub DrawPress (i as integer, x as integer, y as integer)
+    dim yy as integer, hy as integer
+    Blit x - 32, y - PRESSH - 8, IRAIL, 32, 8
+    Blit x, y - PRESSH - 8, IRAIL, 32, 8
+    hy = y - PRESSUP + Stroke%(i) - 15
+    for yy = hy - 8 to y - PRESSH + 12 step -8
+        Blit x - 4, yy, IPRESS + 2, 8, 8
+    next
+    Blit x - 18, y - PRESSH, IPRESS, 36, 21
+    Blit x - 19, hy, IPRESS + 4, 38, 16
+end sub
+
+' A leg of a gantry, its left at x, the floor at y on the screen.
+sub DrawLeg (x as integer, y as integer)
+    dim yy as integer
+    for yy = y - 8 to y - PRESSH step -8
+        Blit x, yy, IPRESS + 2, 8, 8
+    next
 end sub
 
 ' A flume's end at x, y on the screen, over column c: the water falling from it to the sea, or to the floor of a

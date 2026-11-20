@@ -50,16 +50,19 @@ goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
 
 ' The Chrome Works: mover: a gap that wide with a platform to and fro over it. hover: a gap of 4 with one up and
 ' down, the ground past it that much higher. lift: a gap of 3 with a lift, the ground past it that much higher.
+' sweeper, spark: one here, a sweeper to and fro on the floor, a spark along its rail. press: that many
+' presses in a row, four columns each. They stand where Charlie comes on foot: not after a boost, and
+' 14 columns or more past a pit, 20 past a lift, a platform or a cable, where the jump off it lands.
 Level Works1
 tune,Works
 flat,4, dog,0, flat,8, bones,6, flat,8, boost,0, bones,8, flat,10, loop,0, flat,10
 boost,0, flat,4, wave,1, flat,8
-dng,3, boost,0, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8, up45,3, arc,9, pit,10, flat,8
-cat,0, flat,12, mover,8, flat,8, jet,0, flat,3, bump,5, flat,3, bump,5, flat,6, button,0, flat,10, bridge,9, flat,6, mark,0, flat,6
+dng,3, boost,0, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8, up45,3, arc,9, pit,10, flat,14
+sweeper,0, flat,12, mover,8, flat,8, jet,0, flat,3, bump,5, flat,3, bump,5, flat,6, button,0, flat,10, bridge,9, flat,6, mark,0, flat,6
 boost,0, flat,6, pipe,6, flat,8, bones,8, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0, flat,10
-lift,6, flat,8, spin,0, flat,8, bones,6, flat,6, cable,20, flat,8, dng,3, boost,0, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0
+lift,6, flat,8, spin,0, flat,8, bones,6, flat,6, cable,20, flat,22, spark,0, flat,14, dng,3, boost,0, flat,8, loop,0, flat,6, boost,0, flat,6, loop,0
 flat,8, up45,4, hoop,1, arc,11, pit,12, flat,10
-mark,0, flat,6, cat,0, flat,12, hover,5, flat,8, bones,6, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0
+mark,0, flat,18, hover,5, flat,22, sweeper,0, flat,8, bones,6, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0
 flat,8, drop,4, flat,16, mover,7, flat,8, boost,0, flat,6, pipe,5, flat,8, dng,3, boost,0, flat,8, loop,0
 flat,10, goal,0, flat,9, fam,0, flat,6, flat,5, end,0
 
@@ -69,12 +72,12 @@ Level Works2
 tune,Night
 flat,4, dog,0, flat,8, bones,6, flat,6, boost,0, flat,6, loop,0, flat,6, boost,0, flat,6, loop,0, flat,16
 mover,7, flat,8, bones,6, flat,6, dng,4, boost,0, bones,10, flat,10, loop,0, flat,8
-up45,3, arc,9, pit,10, flat,8, cat,0, flat,10, hover,5, flat,8, mark,0, flat,6
+up45,3, arc,9, pit,10, flat,14, sweeper,0, flat,10, hover,5, flat,8, mark,0, flat,6
 boost,0, flat,4, wave,1, flat,8, dng,3, boost,0, flat,8, loop,0, flat,8, button,0, flat,10, bridge,10, flat,8
-jet,0, flat,3, bump,5, flat,3, bump,5, flat,8, lift,6, flat,8, bones,6, flat,6
+jet,0, flat,3, bump,5, flat,3, bump,5, flat,8, lift,6, flat,8, bones,6, flat,8, bones,12, press,3, flat,6
 dng,4, boost,0, bones,10, flat,10, loop,0, flat,6, boost,0, flat,6, loop,0, flat,8
-up45,4, hoop,1, arc,11, pit,12, flat,10, mark,0, flat,6, cable,20, flat,8
-boost,0, flat,6, pipe,5, flat,8, bones,6, flat,20, drop,4, flat,16, mover,8, flat,8
+up45,4, hoop,1, arc,11, pit,12, flat,10, mark,0, flat,6, cable,20, flat,22, spark,0, flat,8
+boost,0, flat,6, pipe,5, flat,8, bones,6, flat,20, drop,4, flat,16, mover,8, flat,20, bones,16, press,4, flat,6
 dng,3, boost,0, flat,8, loop,0, flat,10, spin,0, flat,8, mark,0, flat,8
 chase,96, flat,10, jet,0, flat,8, hoop,8, flat,8, jet,0, flat,16, jet,0, flat,8, hoop,8, flat,8, jet,0, flat,16
 jet,0, flat,22
