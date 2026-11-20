@@ -155,6 +155,8 @@ const STEPT = 1! / 60!, PI = 3.141593
 const GRAV = 750!, JUMPV = 330!, JUMPCUT = 160!, TOP = 360!
 const RUNACC = 280!, DEC = 1800!, FRIC = 280!, AIRACC = 500!, SLOPE = 380!
 const RFRIC = 60!, RDEC = 450!, RUPS = 300!, RDNS = 1100!, MAXV = 900!
+' On bare ice: what is left of the ground's braking and its friction, and of a run's push.
+const ICEGRIP = .12, ICEPUSH = .4
 const SPRINGV = 560!, CHARGE0 = 480!, CHARGEMAX = 360!, BOUNCEV = 330!
 const BOOSTV = 660!, LOOPR = 72, LD = 188, PIPER = 48
 ' A jump asked for this long before landing is made on it; one this long after running off an edge still is.
@@ -385,6 +387,7 @@ declare sub MeetSweep (g as Game, p as Hero, i as integer, lo() as Loose, pt() a
 declare sub MeetPress (g as Game, p as Hero, i as integer, lo() as Loose)
 declare sub Beaten (g as Game, pt() as Part, i as integer, dy as integer)
 declare function Lit% (i as integer)
+declare function Slick% (p as Hero)
 declare function PressT% (i as integer)
 declare function Stroke% (i as integer)
 declare function PressAhead% (x as integer)
@@ -489,6 +492,8 @@ declare function Num$ (v as long, w as integer)
 
 dim shared Map(MW - 1, MH - 1) as integer, Prof(7, TS - 1) as integer
 dim shared ColTop(MW) as integer, ColVis(MW) as integer, FaceL(MW) as integer, FaceR(MW) as integer
+' The pass's bare ice: the columns glazed, and whether those the level lays now are.
+dim shared Glaze(MW) as integer, Icing as integer
 ' The ground's line, what Charlie runs on: points GX, GY, GN of them; from each to the next a stretch of kind GK (0
 ' none, 1 the tiles' top, 2 a curve), GL long, GU, GV a pixel along it, its rise GA. ColSeg: a column's stretch;
 ' PlatA: the platforms' first. A curve z: stretches ZA to ZB, from ZM on a loop's far half, between x ZL and ZR.
@@ -847,6 +852,8 @@ sub LoadLevel (st as integer)
     next
     Shade
     erase Map
+    erase Glaze
+    Icing = 0
     NObj = 0
     NMv = 0
     NGulls = 0
@@ -926,6 +933,9 @@ sub LoadLevel (st as integer)
             next
         case "gap"
             c = c + n
+        case "ice"
+            ' the ground from here bare ice, or with 0 under snow again
+            Icing = n <> 0
         case "wall"
             g = g + n
         case "pit"
@@ -1504,6 +1514,7 @@ sub Column (c as integer, g as integer, kind as integer)
     for r = MH - g to MH - 1
         Map(c, r) = 1
     next
+    Glaze(c) = Icing
     if kind > 1 then
         Map(c, MH - g - 1) = kind
         ColTop(c) = MH - g - 1
@@ -3068,13 +3079,25 @@ sub MoveHero (p as Hero, k as Pad, pt() as Part)
     end if
 end sub
 
+' Whether Charlie is on bare ice: it keeps his speed and will not give it back.
+function Slick% (p as Hero)
+    Slick% = 0
+    if GK(p.sg) = 1 and p.x >= 0 then Slick% = Glaze(cint(p.x) \ TS)
+end function
+
 ' On the ground: wind up, jump, roll, run; then along it, a few pixels a
 ' move, into walls and onto the ground's curve.
 sub Walk (p as Hero, l as integer, r as integer, d as integer, hit as integer, pt() as Part)
     dim sn as single, cs as single, f as single, n as integer, s as integer, dir as integer, i as integer
-    dim most as single
+    dim most as single, grip as single, push as single
     most = TOP
     if p.wet > 0 then most = WETTOP
+    grip = 1
+    push = 1
+    if Slick%(p) then
+        grip = ICEGRIP
+        push = ICEPUSH
+    end if
     sn = sin(p.ang)
     cs = cos(p.ang)
     dir = 1 - 2 * p.face
@@ -3117,35 +3140,35 @@ sub Walk (p as Hero, l as integer, r as integer, d as integer, hit as integer, p
             f = RDNS
         end if
         p.gsp = p.gsp - f * sn * STEPT
-        if l and p.gsp > 0 then p.gsp = p.gsp - RDEC * STEPT
-        if r and p.gsp < 0 then p.gsp = p.gsp + RDEC * STEPT
-        Slow p.gsp, RFRIC
+        if l and p.gsp > 0 then p.gsp = p.gsp - RDEC * grip * STEPT
+        if r and p.gsp < 0 then p.gsp = p.gsp + RDEC * grip * STEPT
+        Slow p.gsp, RFRIC * grip
         if abs(p.gsp) < 30 and abs(sn) < .2 then p.roll = 0
     else
         if p.gsp <> 0 or abs(sn) > .75 or p.slip > 0 then p.gsp = p.gsp - SLOPE * sn * STEPT
         if p.crouch then
-            Slow p.gsp, FRIC * 4
+            Slow p.gsp, FRIC * 4 * grip
         elseif r then
             if p.gsp < 0 then
-                p.gsp = p.gsp + DEC * STEPT
+                p.gsp = p.gsp + DEC * grip * STEPT
                 p.skid = p.gsp < -80
             elseif p.gsp < most then
-                p.gsp = p.gsp + RUNACC * STEPT
+                p.gsp = p.gsp + RUNACC * push * STEPT
                 if p.gsp > most then p.gsp = most
             end if
             if p.gsp >= 0 then p.face = 0
         elseif l then
             if p.gsp > 0 then
-                p.gsp = p.gsp - DEC * STEPT
+                p.gsp = p.gsp - DEC * grip * STEPT
                 p.skid = p.gsp > 80
             elseif p.gsp > -most then
-                p.gsp = p.gsp - RUNACC * STEPT
+                p.gsp = p.gsp - RUNACC * push * STEPT
                 if p.gsp < -most then p.gsp = -most
             end if
             if p.gsp <= 0 then p.face = 1
         elseif p.slip <= 0 and cs >= .7 then
             ' on steep ground nothing but the slope slows it
-            Slow p.gsp, FRIC
+            Slow p.gsp, FRIC * grip
         end if
         if d and abs(p.gsp) >= 60 then
             p.roll = -1
@@ -4670,10 +4693,11 @@ sub DrawTiles (cx as integer, cy as integer)
             else
                 ' The downs' comb hangs from the world too, of period 64 by 48: a slope's turf runs on into the tile
                 ' under it; under a pipe, 0, the pipe's own picture is the ground.
-                ' a column whose top the tide is over is of the wet pictures, w on from the dry
+                ' a column whose top the tide is over is of the wet pictures, w on from the dry; so is the
+                ' pass's bare ice
                 k = (tx and 3) * 3
                 w = 0
-                if r * TS > Tide then w = WETO
+                if r * TS > Tide or Glaze(tx) then w = WETO
                 if y > -TS then
                     if v > 2 then
                         put (x, y), Img(At(IAS + w + ((v - 4) * 12 + k + r mod 3) * 2 + 1)), and

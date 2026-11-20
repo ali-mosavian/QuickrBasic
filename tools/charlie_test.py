@@ -27,6 +27,7 @@ DEMO = ROOT / "src/plat/wasm/web/demos/CHARLIE.BAS"
 
 DRIVER = """declare function GroundAt% (x as integer)
 declare sub Stand (p as Hero, x as integer, v as single)
+declare function FlatRun% (ice as integer)
 declare function Fur% (x as integer, w as integer, y0 as integer, y1 as integer)
 declare function Pix& (x as integer, w as integer, y0 as integer, y1 as integer)
 declare function OnCue% (cu() as Cue, kind as integer, bt as single)
@@ -1209,6 +1210,43 @@ for j = 0 to 1
     was = was and Zone = 3
 next
 if was and colA(0) = colA(1) and hid = &H3F3F3F and Pal(colA(1)) <> hid then print "pass ok"
+' the pass's bare ice keeps his speed and will not give it back: let go at a run he slides on where snow stops
+' him, held back he is long in stopping, and from a stand he is slow away; it is drawn bare, the snow's white gone
+GoStage 6, g, p, lo(), pt()
+was = FlatRun%(-1) <> NONE and FlatRun%(0) <> NONE
+for j = 0 to 1
+    c = FlatRun%(-j)
+    Stand p, c * TS + 8, 200
+    for i = 1 to 40
+        Tick g, p, k, lo(), pt()
+    next
+    colA(j) = cint(p.gsp)
+    Stand p, c * TS + 8, 200
+    k.l = -1
+    for i = 1 to 10
+        Tick g, p, k, lo(), pt()
+    next
+    k.l = 0
+    colB(j) = cint(p.gsp)
+    Stand p, c * TS + 8, 0
+    k.r = -1
+    for i = 1 to 30
+        Tick g, p, k, lo(), pt()
+    next
+    k.r = 0
+    colA(2 + j) = cint(p.gsp)
+    g.camx = c * TS - 32
+    g.shake = 0
+    Render g, p, lo(), pt()
+    v = 0
+    for i = 32 to 287
+        if Pal(point(i, ColTop(c) * TS - int(g.camy))) = &H3F3F3F then v = v + 1
+    next
+    colB(2 + j) = v
+next
+was = was and colA(0) < 40 and colA(1) > 160 and colB(0) < 20 and colB(1) > 140
+was = was and colA(2) > 120 and colA(3) > 30 and colA(3) < 80
+if was and colB(2) > 180 and colB(3) < 100 then print "ice ok"
 ' a crab pinches at its side, a rolling Charlie too; down on its back he goes up off it unhurt and it ducks into
 ' its shell, and comes out again
 GoStage 4, g, p, lo(), pt()
@@ -1735,6 +1773,23 @@ function GroundAt% (x as integer)
         end if
     next
 end function
+
+' The first of 16 level columns in a row, bare ice if ice, under snow if not; NONE without them.
+function FlatRun% (ice as integer)
+    dim c as integer, n as integer
+    FlatRun% = NONE
+    for c = 9 to LW - 1
+        if ColVis(c) >= 1 and ColVis(c) <= 2 and (Glaze(c) <> 0) = (ice <> 0) and ColTop(c) = ColTop(c - 1) then
+            n = n + 1
+        else
+            n = 0
+        end if
+        if n = 16 then
+            FlatRun% = c - 15
+            exit function
+        end if
+    next
+end function
 """
 
 
@@ -1840,6 +1895,7 @@ def main() -> None:
         ("spark ok", "a spark goes along its rail, hurts while alight and is safe dark"),
         ("press ok", "presses fall in turn along a row, hurt under and jumped into, and are run under from a stop"),
         ("pass ok", "Whitecap Pass, the fourth zone: its snow white on a clear morning, not at dusk"),
+        ("ice ok", "bare ice keeps his speed: a long slide, a long stop, a slow start; drawn bare of snow"),
         ("crab ok", "a crab pinches at its side and is a step from above; barked into its shell, a higher one"),
         ("jelly ok", "a jellyfish afloat or aground: a high bounce off its bell, a sting for feet in it only"),
         ("dazed ok", "a Charlie hurt into the sea paddles again"),

@@ -3168,6 +3168,21 @@ def icy() -> Skin:
     return Skin(soil, lambda x, y: facet(x, y, 1), FROSTINK, (SNOW[2], ICE[1], ICE[4]))
 
 
+def glassy() -> Skin:
+    """The pass's bare ice: a bright lip, a band of sheen with glints across it, then the facets."""
+
+    def soil(x: int, y: int, d: int, hem: int) -> int:
+        if d <= 0:
+            return SNOW[0] if hem % 16 in (3, 4, 11) else ICE[0]
+        if d == 1:
+            return ICE[1]
+        if d < 6:
+            return ICE[0] if (hem - d) % 16 in (2, 3, 7) else ICE[2]
+        return facet(x, y)
+
+    return Skin(soil, lambda x, y: facet(x, y, 1), FROSTINK, (ICE[1], ICE[1], ICE[4]))
+
+
 def iceledge() -> Pic:
     """A floating shelf's 16: snow on a slab of ice, icicles under it."""
     p = Pic(16, 16)
@@ -3293,6 +3308,8 @@ def whitecap() -> list[tuple[int, Pic, bool, int]]:
     out += [(z + 112 + h * 2, ribbon(h, road, FROSTINK), True, -1) for h in range(2)]
     out += earth(z + 124, icy())
     out.append((z + 124 + 268, floe(), True, -1))
+    # its ground again as bare ice, where the sands have theirs under the tide
+    out += earth(z + 652, glassy())
     out += [
         (k + 36, fir(), True, -1),
         (k + 38, drift(), True, -1),

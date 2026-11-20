@@ -138,7 +138,8 @@ Progress is saved at each zone.
 ### 4. Whitecap Pass (its look built)
 
 - Built: its backdrop, ground, props, card and keepsake on a clear morning and at dusk, on the Downs' layout;
-  two stand-in levels, to its tune. To add: grip, its gadgets, enemies, levels, the blizzard and the chase.
+  two stand-in levels, to its tune; bare ice, where braking, friction and a run's push are a fraction of
+  the snow's. To add: its gadgets, enemies, levels, the blizzard and the chase.
 - Rule: grip. Ice keeps speed and will not give it back. Stopping and turning are the challenge, not going.
 - Gadgets: sleds, steered by jumps; ski-lift cables; geysers; a snowball gathered by rolling through deep
   snow, which takes one hit.
