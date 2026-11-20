@@ -178,7 +178,8 @@ goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
 ' bramble: a patch that hurts, cut by a roll and grown back seconds on. log: a hollow one across the way, rolled
 ' through. burrow: a mound, dug into crouched; the level's other mound of that number is where he comes out.
 ' squirrel: one that many tiles over the ground, on the bough put there for it, five up and out of a jump's
-' reach, dropping acorns. bees: a swarm, its home that many tiles over the ground.
+' reach, dropping acorns. bees: a swarm, its home that many tiles over the ground. oak: the great oak, three limbs
+' either side of it to stand on, where the twins play the chase.
 Level Wood1
 tune,Russet
 flat,4, dog,0, flat,4, flower,0, flat,4, bones,6, flat,6, dng,6, bones,6, flat,10, tree,0, flat,6
@@ -195,6 +196,7 @@ goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
 ' Russet Wood on the firefly night, under the roots: three hollows, each shut by a wall no jump clears and left
 ' by its burrows, of which more than one leads on and one leads back; a sapling too out of the last. night:
 ' the level is dark, but for the seconds after a bark. No bees within forty columns before a mound that leads on.
+' Then the great oak and the twins' game, a sapling before it and a toadstool after, both throwing him up it.
 Level Wood2
 tune,Fireflies
 night,0
@@ -203,7 +205,8 @@ dn45,4, flat,8, bones,4, flat,6, burrow,0, flat,10, bramble,0, flat,8, burrow,1,
 wall,6, flat,4, burrow,0, flat,6, bones,6, flat,6, mark,0, flat,10, dn45,6
 flat,6, burrow,1, flat,6, bees,3, flat,10, plat,407, flat,4, squirrel,5, flat,8, burrow,2, flat,22, burrow,3, flat,6
 wall,6, flat,4, burrow,3, flat,6, bones,6, flat,6, mark,0, flat,10, dn45,6
-flat,8, burrow,4, flat,24, sapling,0, flat,12, wall,7, flat,6, burrow,4, flat,10, bones,6, flat,14, tree,0, flat,6
+flat,8, burrow,4, flat,24, sapling,0, flat,12, wall,7, flat,6, burrow,4, flat,8, bones,6, flat,4
+chase,44, flat,6, sapling,0, flat,14, oak,0, flat,11, spring,0, flat,13
 goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
 
 ' The intro's road: the Downs, flat, the way the van goes; a rock where it bumps.

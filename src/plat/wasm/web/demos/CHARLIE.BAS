@@ -324,7 +324,12 @@ const ILOAD = IBARON + 12, IHEAP = ILOAD + 2
 ' The wood's keepsake, the Pomchi's ball; a sapling bowed, and sprung; bramble grown, and cut; a hollow log; a
 ' burrow's mound; a squirrel to the left, and with an acorn held out, and both to the right; an acorn.
 const IBALL = IHEAP + 2, ISAPLING = IBALL + 2, IBRAMBLE = ISAPLING + 4, ILOG = IBRAMBLE + 4, IMOUND = ILOG + 2
-const ISQUIRREL = IMOUND + 2, IACORN = ISQUIRREL + 8, NIMG = IACORN + 2
+const ISQUIRREL = IMOUND + 2, IACORN = ISQUIRREL + 8
+' The wood's spring, a toadstool, and trodden; a length of the great oak's trunk and its foot; a limb of it to
+' the right, near and far, then their mirrors; its hollow; a bracket of fungus and its mirror; the Bramble
+' twins, five pictures each: grinning, reaching, a paw out, shocked, sulking.
+const ITOAD = IACORN + 2, IOAK = ITOAD + 4, IOAKFOOT = IOAK + 2, ILIMB = IOAKFOOT + 2, IKNOT = ILIMB + 8
+const IBRACKET = IKNOT + 2, ITWIN = IBRACKET + 4, NIMG = ITWIN + 20
 ' The wood's night: its fireflies' two colours, never dimmed; the steps a bark's light lasts, the last of them
 ' fading; the parts its light is counted in; the fireflies awake, and at rest.
 const CFLY = 163, GLOWT = 300, GLOWFADE = 60, GLOWN = 8, NFLY = 18, FLYREST = 5
@@ -349,6 +354,13 @@ const CNUT = 130
 ' Bees: the swarms a level may hold, and the bees drawn in one; how near he wakes it; its speed, under his
 ' run's; how near it stings; how far behind he has lost it; a bee's body and its wings.
 const NSWARM = 4, NBEE = 9, BEESEE = 60, BEEV = 170!, BEER = 12, BEELOSE = 160, CBEE = 116, CWING = 102
+' The great oak, its foot at lv.oakX, lv.oakY: NLIMB limbs up it, left and right in turn, each a flat LIMBW long
+' to stand on, LIMBRISE down its picture. The Bramble twins sit on a pair of them, and after each catch on the
+' pair above: one holds the ball PAWUP over its limb TWINHOLD seconds, then lobs it to the other, TWINLOB seconds
+' on its way and LOBUP over the straight line, TWINHASTE less for each catch. Within CATCHR of the ball on its
+' way, he has caught it.
+const NLIMB = 6, LIMBW = 48, LIMBRISE = 14, TWINHOLD = .6, TWINLOB = 1.5, TWINHASTE = .2, LOBUP = 40, PAWUP = 24
+const CATCHR = 18
 const HUDW = 108, HUDH = 40
 ' The levels: a zone's two acts, the second at another hour in other colours, zone by zone.
 ' the stages played, and after them the intro's road
@@ -702,6 +714,19 @@ declare sub DrawLoad (lv as Level, art as Store, se as Session, i as integer, x 
 declare sub DrawStray (lv as Level, art as Store, se as Session, cx as integer, cy as integer)
 declare function Lie% (lv as Level, x as integer, y as integer)
 declare sub DrawFrost (lv as Level, zn as Realm, art as Store, se as Session, cx as integer, cy as integer)
+declare sub Limbs (lv as Level, g as integer)
+declare function LimbX% (n as integer)
+declare function LimbUp% (n as integer)
+declare sub TrackLimbs (lv as Level, gr as Ground)
+declare function Roost% (lv as Level)
+declare function SeatX% (lv as Level, n as integer)
+declare function SeatY% (lv as Level, n as integer)
+declare function LobTime! (lv as Level)
+declare sub BallAt (lv as Level)
+declare sub Juggle (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, pt() as Part)
+declare function TwinPose% (lv as Level, sd as integer)
+declare sub DrawOak (lv as Level, art as Store, cx as integer, cy as integer)
+declare sub DrawTwins (lv as Level, zn as Realm, art as Store, cx as integer, cy as integer)
 declare sub Plunge (lv as Level, mu as Deck, se as Session, g as Game, pt() as Part, i as integer)
 declare sub Shatter (lv as Level, mu as Deck, se as Session, pt() as Part, i as integer)
 declare sub Hurl (lv as Level, i as integer, p as Hero)
@@ -783,7 +808,7 @@ end type
 ' glaze (the pass's bare ice; icing: those laid now are), the first thing at it. prof: a tile kind's solid height
 ' by column. The race from chaseX to chaseEnd and the avalanche's head avalX, NONE where there is none. The
 ' sea's surface tide, NONE without one, from tideLo at step tideAt to tideHi half a tide later. Who flees in its
-' chase, a crane's crate, the goat out of its place, the avalanche.
+' chase, a crane's crate, the goat out of its place, the avalanche. The great oak's foot oakX, oakY, NONE without.
 type Level
     w as integer
     wpx as integer
@@ -794,6 +819,8 @@ type Level
     chaseX as integer
     chaseEnd as integer
     avalX as integer
+    oakX as integer
+    oakY as integer
     tide as integer
     tideLo as integer
     tideHi as integer
@@ -1329,6 +1356,7 @@ sub LoadLevel (wd as World, st as integer)
     wd.lv.murk = 0
     wd.lv.glowAt = GLOWN
     wd.lv.avalX = NONE
+    wd.lv.oakX = NONE
     wd.lv.fallow = 0
     wd.lv.nObj = 0
     wd.lv.nMv = 0
@@ -1568,6 +1596,11 @@ sub LoadLevel (wd as World, st as integer)
             ' a burrow's mound, its other end the mound of the same n: till they are told each other, -n - 1
             AddObj wd.lv, KMOUND, c * TS + 8, s
             wd.lv.ob(wd.lv.nObj - 1).s = -n - 1
+        case "oak"
+            ' the great oak here, its limbs' flats over the ground either side of it
+            wd.lv.oakX = c * TS + 8
+            wd.lv.oakY = s
+            Limbs wd.lv, g
         case "mark": k = KMARK
         case "boost": k = KBOOST
         case "loop": k = KLOOP
@@ -1673,6 +1706,7 @@ sub Track (lv as Level, gr as Ground)
     next
     gr.platA = gr.n
     TrackPlats lv, gr
+    TrackLimbs lv, gr
     TrackMovers lv, gr
     TrackRibbons lv, gr
 end sub
@@ -1759,6 +1793,16 @@ sub Plank (gr as Ground, x as integer, x1 as integer, y as integer)
     if x = NONE then exit sub
     Knot gr, csng(x), csng(y), 0
     Knot gr, csng(x1), csng(y), 1
+end sub
+
+' The great oak's limbs' flats, a stretch each.
+sub TrackLimbs (lv as Level, gr as Ground)
+    dim n as integer, x as integer
+    if lv.oakX = NONE then exit sub
+    for n = 0 to NLIMB - 1
+        x = lv.oakX + LimbX%(n)
+        Plank gr, x, x + LIMBW, lv.oakY - LimbUp%(n)
+    next
 end sub
 
 ' The moving platforms: a stretch each, a curve of one, in the order they were made.
@@ -2120,6 +2164,32 @@ sub Shelf (lv as Level, c as integer, g as integer, s as integer, n as integer, 
         AddObj lv, KPLAT, (c + i) * TS, s - (n + 1) * TS
     next
 end sub
+
+' The great oak's limbs' flats, solid to stand on; g the ground's height in tiles at its foot.
+sub Limbs (lv as Level, g as integer)
+    dim n as integer, i as integer, c as integer
+    for n = 0 to NLIMB - 1
+        c = (lv.oakX + LimbX%(n)) \ TS
+        for i = 0 to LIMBW \ TS - 1
+            lv.map(c + i, MH - g - LimbUp%(n) \ TS) = 1
+        next
+    next
+end sub
+
+' Limb n of the oak, 0 its lowest, left and right in turn: its flat's left end from the oak's middle, the middle
+' pair's further out.
+function LimbX% (n as integer)
+    dim d as integer
+    d = 40
+    if n \ 2 = 1 then d = 88
+    if (n and 1) = 0 then d = -d - LIMBW
+    LimbX% = d
+end function
+
+' And its flat's top over the oak's foot: three tiles a pair, the right a tile over the left.
+function LimbUp% (n as integer)
+    LimbUp% = (3 + (n \ 2) * 3 + (n and 1)) * TS
+end function
 
 sub AddObj (lv as Level, k as integer, x as integer, y as integer)
     lv.ob(lv.nObj).k = k
@@ -5567,11 +5637,13 @@ sub Camera (lv as Level, zn as Realm, g as Game, p as Hero, snap as integer)
     if g.camy > MH * TS - SH then g.camy = MH * TS - SH
 end sub
 
-' How far under the view's top Charlie is kept: further in a crane's hall while it hangs there, to see it.
+' How far under the view's top Charlie is kept: further in a crane's hall while it hangs there, to see it, and
+' under the great oak while the twins have the ball.
 function Headroom% (lv as Level, zn as Realm, p as Hero)
     Headroom% = HEAD
-    if zn.id <> 1 or lv.chaseX = NONE or p.x < lv.chaseX or p.x > lv.chaseEnd then exit function
-    if lv.cart.st = 1 or lv.cart.st = 2 then Headroom% = HEADUP
+    if lv.chaseX = NONE or p.x < lv.chaseX or p.x > lv.chaseEnd then exit function
+    if zn.id = 1 and (lv.cart.st = 1 or lv.cart.st = 2) then Headroom% = HEADUP
+    if zn.id = 4 and lv.cart.st = 1 then Headroom% = HEADUP
 end function
 
 ' ---- the chase ----
@@ -5599,6 +5671,7 @@ sub Flee (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as H
     select case lv.cart.st
     case 0
         if zn.id = 2 then lv.cart.y = lv.tide - PEDALUP
+        if zn.id = 4 then BallAt lv
         if p.x >= lv.chaseX then StartChase lv, mu
     case 1
         select case zn.id
@@ -5613,6 +5686,7 @@ sub Flee (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as H
         case 2
             MovePedalo lv
             MeetPedalo lv, mu, se, g, p, pt()
+        case 4: Juggle lv, mu, se, g, p, pt()
         end select
     case 2
         if zn.id = 1 and lv.cart.t > 2 - TOOLFALL then exit sub
@@ -5703,15 +5777,167 @@ sub TakeKeep (lv as Level, mu as Deck, se as Session, g as Game, pt() as Part)
     Sfx mu, se, SMARK
 end sub
 
-' Who flees, by its zone; nothing once its keepsake is taken back.
+' Who flees, by its zone; nothing once its keepsake is taken back, but the wood's oak, which stands, and its
+' twins, who stay to sulk.
 sub DrawChase (lv as Level, zn as Realm, art as Store, se as Session, cx as integer, cy as integer)
-    if lv.chaseX = NONE or lv.cart.st = 3 then exit sub
+    if lv.chaseX = NONE then exit sub
+    if zn.id = 4 then
+        DrawOak lv, art, cx, cy
+        DrawTwins lv, zn, art, cx, cy
+    end if
+    if lv.cart.st = 3 then exit sub
     select case zn.id
     case 0: DrawCart lv, zn, art, se, cx, cy
     case 1: DrawCrane lv, zn, art, se, cx, cy
     case 2: DrawPedalo lv, zn, art, se, cx, cy
     case 3: DrawFrost lv, zn, art, se, cx, cy
     end select
+end sub
+
+' The twins' pair of limbs: one higher for each catch, the highest for the last.
+function Roost% (lv as Level)
+    Roost% = lv.cart.hits
+    if lv.cart.hits > NLIMB \ 2 - 1 then Roost% = NLIMB \ 2 - 1
+end function
+
+' Where a twin sits on limb n, the middle of its flat.
+function SeatX% (lv as Level, n as integer)
+    SeatX% = lv.oakX + LimbX%(n) + LIMBW \ 2
+end function
+
+function SeatY% (lv as Level, n as integer)
+    SeatY% = lv.oakY - LimbUp%(n)
+end function
+
+' The seconds the ball is in the air between the twins: fewer for each catch.
+function LobTime! (lv as Level)
+    LobTime! = TWINLOB - TWINHASTE * lv.cart.hits
+end function
+
+' The ball where it is, lv.cart its foot: over the paws of the twin that holds it, lv.box.st 0 the left and 2 the
+' right; odd, on its way from that one to the other, lv.box.t seconds still to go; a catch still telling, up from
+' where he caught it, lv.box.x, lv.box.y, to who holds it next.
+sub BallAt (lv as Level)
+    dim n as integer, x as single, y as single, u as single
+    n = Roost%(lv) * 2 + lv.box.st \ 2
+    x = SeatX%(lv, n)
+    y = SeatY%(lv, n) - PAWUP
+    if lv.cart.t > 0 then
+        u = lv.cart.t / DAZED
+        x = x + (lv.box.x - x) * u
+        y = y + (lv.box.y - y) * u
+    elseif lv.box.st and 1 then
+        u = 1 - lv.box.t / LobTime!(lv)
+        x = x + (SeatX%(lv, n xor 1) - x) * u
+        y = y + (SeatY%(lv, n xor 1) - PAWUP - y) * u
+    end if
+    lv.cart.x = x
+    lv.cart.y = y - LOBUP * 4 * u * (1 - u)
+end sub
+
+' The twins' game, a step: the ball held, then lobbed across, then held again; held too while a catch tells. At
+' the ball on its way he has caught it: a bump, the twins off to the pair above and the ball tossed up after
+' them. The third catch, and the ball is his.
+sub Juggle (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, pt() as Part)
+    if lv.cart.t <= 0 then lv.box.t = lv.box.t - STEPT
+    if lv.box.t <= 0 then
+        lv.box.st = (lv.box.st + 1) and 3
+        lv.box.t = TWINHOLD
+        if lv.box.st and 1 then lv.box.t = LobTime!(lv)
+    end if
+    BallAt lv
+    if (lv.box.st and 1) = 0 or p.dead then exit sub
+    if abs(p.x - lv.cart.x) > CATCHR or abs(p.y - 12 - (lv.cart.y - 7)) > CATCHR then exit sub
+    lv.box.x = lv.cart.x
+    lv.box.y = lv.cart.y
+    lv.box.st = 0
+    lv.box.t = TWINHOLD
+    Bumped lv, mu, se, g, pt(), lv.cart.y - 7
+    if lv.cart.st = 2 then TakeKeep lv, mu, se, g, pt()
+end sub
+
+' The picture of the twin on side sd, 0 the left: 0 grinning, 1 reaching, 2 a paw out, 3 shocked, 4 sulking. The
+' ball his, they sulk; a catch shocks them, then they reach for the pair above; who holds the ball reaches up with
+' it while the other grins; thrown, the thrower's paw is out a while, and the other reaches for it.
+function TwinPose% (lv as Level, sd as integer)
+    dim mine as integer
+    TwinPose% = 4
+    if lv.cart.st = 3 then exit function
+    TwinPose% = 3
+    if lv.cart.t > DAZED * .6 then exit function
+    TwinPose% = 1
+    if lv.cart.t > 0 then exit function
+    mine = lv.box.st \ 2 = sd
+    if (lv.box.st and 1) = 0 then
+        TwinPose% = -mine
+        exit function
+    end if
+    if not mine then exit function
+    TwinPose% = 0
+    if lv.box.t > LobTime!(lv) - .35 then TwinPose% = 2
+end function
+
+' The great oak: its limbs, out from behind it; its foot, and its trunk up from there out of sight; its hollow
+' and its brackets.
+sub DrawOak (lv as Level, art as Store, cx as integer, cy as integer)
+    dim n as integer, x as integer, y as integer, k as integer, w as integer, h as integer
+    x = lv.oakX - cx
+    if x < -170 or x > SW + 170 then exit sub
+    for n = 0 to NLIMB - 1
+        y = lv.oakY - LimbUp%(n) - LIMBRISE - cy
+        ' the middle pair's are the far ones, longer and deeper
+        k = ILIMB
+        w = 94
+        h = 50
+        if n \ 2 = 1 then
+            k = ILIMB + 2
+            w = 142
+            h = 58
+        end if
+        if n and 1 then
+            Blit art, x + 22, y, k, w, h
+        else
+            Blit art, x - 22 - w, y, k + 4, w, h
+        end if
+    next
+    y = lv.oakY - 45 - cy
+    Blit art, x - 76, y, IOAKFOOT, 152, 48
+    do while y > 0
+        y = y - 64
+        Blit art, x - 33, y, IOAK, 66, 64
+    loop
+    y = lv.oakY - cy
+    Blit art, x - 2, y - 84, IKNOT, 17, 20
+    Blit art, x + 23, y - 34, IBRACKET, 12, 5
+    Blit art, x + 26, y - 26, IBRACKET, 12, 5
+    Blit art, x - 35, y - 60, IBRACKET + 2, 12, 5
+end sub
+
+' The twins on their limbs, each in the picture of what it does, and the ball with a pip over it for each catch
+' still to make. A catch telling, they are shocked where they sat, then leap to the pair above.
+sub DrawTwins (lv as Level, zn as Realm, art as Store, cx as integer, cy as integer)
+    dim sd as integer, n as integer, x as single, y as single, u as single, i as integer, bx as integer
+    dim by as integer
+    for sd = 0 to 1
+        n = Roost%(lv) * 2 + sd
+        x = SeatX%(lv, n)
+        y = SeatY%(lv, n)
+        u = 0
+        if lv.cart.st = 1 and lv.cart.t > 0 then u = lv.cart.t / (DAZED * .6)
+        if u > 1 then u = 1
+        if u > 0 then
+            x = x + (SeatX%(lv, n - 2) - x) * u
+            y = y + (SeatY%(lv, n - 2) - y) * u - 24 * 4 * u * (1 - u)
+        end if
+        Blit art, cint(x) - 15 - cx, cint(y) - 27 - cy, ITWIN + (sd * 5 + TwinPose%(lv, sd)) * 2, 31, 28
+    next
+    if lv.cart.st = 3 then exit sub
+    bx = cint(lv.cart.x) - cx
+    by = cint(lv.cart.y) - cy
+    DrawKeep zn, art, bx, by
+    for i = lv.cart.hits to NBUMP - 1
+        line (bx - 10 + i * 8, by - 22)-(bx - 6 + i * 8, by - 18), CYELLOW, BF
+    next
 end sub
 
 ' Frost on her toboggan as the ground lies, shaken while a bump has her dazed, the bumps she can yet take over
@@ -6477,8 +6703,11 @@ sub DrawThings (lv as Level, zn as Realm, art as Store, se as Session, cx as int
         case KCAT: if lv.ob(i).s then Blit art, x - 10, y - 13, CatPic%(se, lv.ob(i).s), 20, 14
         case KCRAB: if lv.ob(i).s then Blit art, x - 12, y - 15, CrabPic%(se, lv.ob(i).s), 24, 15
         case KSPRING
+            ' the sands' is a deck chair, the wood's a toadstool
             if zn.id = 2 then
                 Blit art, x - 15, y - 21, ICHAIR - 2 * (lv.ob(i).s > 0), 30, 22
+            elseif zn.id = 4 then
+                Blit art, x - 8, y - 15, ITOAD - 2 * (lv.ob(i).s > 0), 16, 16
             else
                 Blit art, x - 8, y - 15, ISPRING - 2 * (lv.ob(i).s > 0), 16, 16
             end if

@@ -28,6 +28,7 @@ DEMO = ROOT / "src/plat/wasm/web/demos/CHARLIE.BAS"
 DRIVER = """declare function GroundAt% (lv as Level, x as integer)
 declare sub Stand (lv as Level, gr as Ground, p as Hero, x as integer, v as single)
 declare sub StandUnder (lv as Level, gr as Ground, p as Hero, x as integer, x0 as integer)
+declare sub AtBall (lv as Level, p as Hero)
 declare function FlatRun% (lv as Level, ice as integer)
 declare function Fall% (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part, hue%, a%, b%)
 declare function Fur% (x as integer, w as integer, y0 as integer, y1 as integer)
@@ -1374,6 +1375,107 @@ k.d = 0
 k.jump = 0
 k.hit = 0
 if dugOut then print "dig ok"
+' the wood's night ends at the great oak, where the Bramble twins lob the Pomchi's ball across a pair of its
+' limbs. Come to, the game is on to the chase's tune and the view is higher over him; the left twin holds the
+' ball over its limb, then lobs it: halfway it is LOBUP over the straight line, and TWINLOB on in the right
+' twin's paws. At the ball held he has not caught it; at it on its way he has: a bump, and none again while it
+' tells; then the twins sit on the pair above, the ball quicker across. He stands on a limb, and there catches
+' it as it comes by. The third catch and the ball is his, the zone's tune back, the twins sulking
+dim twinsOk as integer, twScore as long, twTune as integer
+GoStage wd, 9, g, p, lo(), pt()
+twTune = wd.mu.zHeld
+Stand wd.lv, wd.gr, p, wd.lv.chaseX - 40, 0
+Tick wd, g, p, k, lo(), pt()
+twinsOk = wd.lv.oakX <> NONE and wd.lv.cart.st = 0 and Headroom%(wd.lv, wd.zn, p) = HEAD
+twinsOk = twinsOk and TwinPose%(wd.lv, 0) = 1 and TwinPose%(wd.lv, 1) = 0
+Stand wd.lv, wd.gr, p, wd.lv.oakX - 20, 0
+Tick wd, g, p, k, lo(), pt()
+twinsOk = twinsOk and wd.lv.cart.st = 1 and wd.lv.box.st = 0 and Headroom%(wd.lv, wd.zn, p) = HEADUP
+twinsOk = twinsOk and wd.mu.zHeld = CHASETUNE + 1 and twTune <> CHASETUNE + 1
+twinsOk = twinsOk and wd.lv.cart.x = wd.lv.oakX - 64 and wd.lv.cart.y = wd.lv.oakY - 3 * TS - PAWUP
+for i = 1 to 120
+    Tick wd, g, p, k, lo(), pt()
+    if wd.lv.box.st = 1 then exit for
+next
+twinsOk = twinsOk and i < 120
+for i = 1 to 45
+    Tick wd, g, p, k, lo(), pt()
+next
+twinsOk = twinsOk and abs(wd.lv.cart.x - wd.lv.oakX) < 3 and abs(wd.lv.cart.y - (wd.lv.oakY - 120)) < 2
+twinsOk = twinsOk and TwinPose%(wd.lv, 0) = 0 and TwinPose%(wd.lv, 1) = 1
+for i = 1 to 47
+    Tick wd, g, p, k, lo(), pt()
+next
+twinsOk = twinsOk and wd.lv.box.st = 2 and wd.lv.cart.x = wd.lv.oakX + 64
+twinsOk = twinsOk and wd.lv.cart.y = wd.lv.oakY - 4 * TS - PAWUP
+AtBall wd.lv, p
+Tick wd, g, p, k, lo(), pt()
+twinsOk = twinsOk and wd.lv.cart.hits = 0 and wd.lv.box.st = 2
+for i = 1 to 60
+    Tick wd, g, p, k, lo(), pt()
+    if wd.lv.box.st = 3 then exit for
+next
+for j = 1 to 20
+    Tick wd, g, p, k, lo(), pt()
+next
+twScore = g.score
+AtBall wd.lv, p
+Tick wd, g, p, k, lo(), pt()
+twinsOk = twinsOk and i < 60 and wd.lv.cart.hits = 1 and g.score = twScore + 500 and wd.lv.cart.t > 0
+twinsOk = twinsOk and TwinPose%(wd.lv, 0) = 3 and TwinPose%(wd.lv, 1) = 3
+for j = 0 to 1
+    AtBall wd.lv, p
+    for i = 1 to 30
+        Tick wd, g, p, k, lo(), pt()
+    next
+    twinsOk = twinsOk and wd.lv.cart.hits = 1 and wd.lv.cart.t > 0
+next
+for i = 1 to 60
+    Tick wd, g, p, k, lo(), pt()
+    if wd.lv.cart.t <= 0 then exit for
+next
+twinsOk = twinsOk and i < 60 and wd.lv.box.st = 0 and wd.lv.cart.x = wd.lv.oakX - 112
+twinsOk = twinsOk and wd.lv.cart.y = wd.lv.oakY - 6 * TS - PAWUP
+Stand wd.lv, wd.gr, p, wd.lv.oakX - 42, 0
+twinsOk = twinsOk and p.y = wd.lv.oakY - 9 * TS and p.sg >= wd.gr.platA
+for i = 1 to 200
+    Tick wd, g, p, k, lo(), pt()
+    if wd.lv.cart.hits = 2 then exit for
+next
+twinsOk = twinsOk and i < 200 and p.ground and p.y = wd.lv.oakY - 9 * TS and wd.lv.box.x > wd.lv.oakX - 62
+' the third pair's lob is TWINHASTE * 2 the quicker: 66 steps
+for i = 1 to 200
+    Tick wd, g, p, k, lo(), pt()
+    if wd.lv.cart.t <= 0 and wd.lv.box.st = 1 then exit for
+next
+for j = 1 to 100
+    Tick wd, g, p, k, lo(), pt()
+    if wd.lv.box.st = 2 then exit for
+next
+twinsOk = twinsOk and i < 200 and abs(j - 66) < 2 and wd.lv.cart.hits = 2 and wd.lv.cart.x = wd.lv.oakX + 64
+for i = 1 to 60
+    Tick wd, g, p, k, lo(), pt()
+    if wd.lv.box.st = 3 then exit for
+next
+for j = 1 to 10
+    Tick wd, g, p, k, lo(), pt()
+next
+AtBall wd.lv, p
+Tick wd, g, p, k, lo(), pt()
+twinsOk = twinsOk and i < 60 and wd.lv.cart.st = 3 and wd.lv.cart.hits = NBUMP and g.score = twScore + 2500
+twinsOk = twinsOk and wd.mu.zHeld = twTune and TwinPose%(wd.lv, 0) = 4 and TwinPose%(wd.lv, 1) = 4
+' drawn: the oak's bark at its trunk; each twin's mask where it sits on the top pair; the wood's spring a
+' toadstool, its cap the wood's berry
+g.shake = 0
+g.camx = wd.lv.oakX - 160
+g.camy = wd.lv.oakY - 190
+Render wd, g, p, lo(), pt()
+twinsOk = twinsOk and point(160, 90) >= 129 and point(160, 90) <= 133
+twinsOk = twinsOk and point(160 - 64 - 6, 190 - 9 * TS - 19) = 79 and point(160 + 64 + 6, 190 - 10 * TS - 19) = 79
+g.camx = wd.lv.oakX + 16
+Render wd, g, p, lo(), pt()
+twinsOk = twinsOk and point(157, 180) = 157
+if twinsOk then print "twins ok"
 GoStage wd, 8, g, p, lo(), pt()
 Tick wd, g, p, k, lo(), pt()
 if was and wd.lv.murk = 0 and wd.tn.now(96) = wd.tn.own(8, 0) then print "firefly ok"
@@ -2900,6 +3002,16 @@ function Uneven% (hz as single, grain as integer, per as integer, most as intege
     Uneven% = bad
 end function
 
+' Charlie in the air and still, his middle at the twins' ball.
+sub AtBall (lv as Level, p as Hero)
+    p.x = lv.cart.x
+    p.y = lv.cart.y + 5
+    p.ground = 0
+    p.vx = 0
+    p.vy = 0
+    p.jumped = 0
+end sub
+
 ' Charlie on the tiles' ground at x, running at v.
 ' Charlie stood at x under a shelf, on the ground as high as it is at x0, which the shelf is not over.
 sub StandUnder (lv as Level, gr as Ground, p as Hero, x as integer, x0 as integer)
@@ -3156,6 +3268,7 @@ def main() -> None:
         ("squirrel ok", "a squirrel keeps over him, drops an acorn on the slow, is cowed by a bark, beaten by a roll"),
         ("bees ok", "a swarm wakes when he is near, stings, keeps up with a walk, is lost by a run and goes home"),
         ("dig ok", "the pilot digs at a mound whose burrow passes a wall, and runs over one that leads back"),
+        ("twins ok", "the oak's twins lob the ball across a pair of limbs; touched on its way it is caught"),
         ("uncurl ok", "the pilot hops out of a roll that nothing ahead asks for, and is at a run again"),
         ("ice ok", "bare ice keeps his speed: a long slide, a long stop, a slow start; drawn bare of snow"),
         ("sled ok", "a sled is boarded, follows the slope, has no brake, keeps him through a hop, ends in deep snow"),

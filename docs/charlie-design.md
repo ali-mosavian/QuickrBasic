@@ -171,7 +171,7 @@ Progress is saved at each zone.
 - Music (written): brisk in A at 150. A glockenspiel lead, sleigh bells on the eighths, pulse arpeggios, soft
   horns under. Blizzard (written): F sharp minor, wind between the phrases, a heavier kick.
 
-### 5. Russet Wood (built but for its chase)
+### 5. Russet Wood (built)
 
 - Built: its backdrop, ground, props, card and keepsake at a misty noon and on the firefly night, on the
   Downs' layout; two stand-in levels, to its tune and the night's arrangement of it; the night's dark, its
@@ -186,7 +186,8 @@ Progress is saved at each zone.
   his run, sting, keep up with a walk, are lost by a run and go home; its first act, down to the wood's
   floor and up two storeys, each by a sapling's throw over a wall, a fall costing the climb; its second,
   the night under the roots: three hollows shut by walls and left by their burrows, more than one leading
-  on and one back. To add: its chase, a spring of its own.
+  on and one back; its chase at the night's end, the great oak with three limbs either side to stand on,
+  the twins on a pair of them; its spring, a toadstool.
 - Rule: height. The way is up, and a fall costs the climb, not a life.
 - Gadgets: sapling catapults, which bend under him and throw by his speed; vine swings; hollow logs; burrows,
   dug into at one mound and left by another.
@@ -195,8 +196,8 @@ Progress is saved at each zone.
 - Act 1, misty noon: up the great oak, catapult to swing to bough.
 - Act 2, firefly night: dark, lit a few seconds at a time by the fireflies a bark wakes. Under the roots, a
   burrow maze with more than one way out.
-- Chase: the Bramble twins throw the ball between them up the oak. Catch it in the air three times. The
-  Pomchi's ball.
+- Chase: the Bramble twins lob the ball between them across the oak. Touched on its way it is caught, and
+  they climb to the next pair of limbs and lob it quicker. Caught three times it is his. The Pomchi's ball.
 - Look: woven roots in dark loam under leaf litter. Russet, gold, moss, plum. Ranked trunks, shafts of light,
   the great oak.
 - Music (written): a reel in D minor at 126. A fiddle lead, plucked bass, wood blocks and a hand drum, a

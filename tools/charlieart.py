@@ -4282,12 +4282,12 @@ def sapling(sprung: bool) -> Pic:
     pts = bent(p, (6, 49), (6, 22) if sprung else (10, -14), tip, OAKBARK[2], 2)
     for x, y in pts[::2]:
         p.put(round(x), round(y), OAKBARK[0])
-    for i in (12, 20, 28):
-        x, y = pts[i]
-        p.box(round(x) + 2, round(y) - 1, round(x) + 3, round(y), MOSS[i % 3])
+    p.outline(WOODINK)
     cx, cy = round(tip[0]), round(tip[1])
-    clumps(p, [(cx + 5, cy - 2, 7, 0), (cx - 3, cy - 5, 5, 0)], [*MOSS, WOODINK], flat=48)
-    return p.outline(WOODINK)
+    crown = Pic(60, 48)
+    leafy(crown, [(cx + 5, cy - 1, 7), (cx - 3, cy - 4, 6)], [*MOSS, WOODINK])
+    paste(p, crown, 0, 0)
+    return p
 
 
 def bramble(cut: bool) -> Pic:
@@ -4380,6 +4380,427 @@ def mound() -> Pic:
     return p.outline(WOODINK)
 
 
+# ---- the wood's chase: its leaves, the great oak, the Bramble twins ----
+LEAFDOTS = ((1, 0, 0), (2, 0, 0), (0, 1, 0), (1, 1, 1), (2, 1, 1), (3, 1, 1), (1, 2, 1), (2, 2, 1))  # lit 0, body 1
+MOSSHEM = (2, 3, 4, 3, 2, 2, 3, 5, 4, 2, 1, 2, 3, 3, 2, 4, 5, 3, 2, 2, 3, 4, 2, 1)  # moss hung down, by its column
+CAPLIT = both(165, "#FF9CB4", "#D279B2", 4)[0]  # a berry cap's light
+
+
+def mirrored(p: Pic) -> Pic:
+    q = Pic(p.w, p.h)
+    q.p = [row[::-1] for row in p.p]
+    return q
+
+
+def leafy(p: Pic, parts: list[tuple[int, int, int]], r: list[int]) -> None:
+    """Leaves in masses (x, y, radius): the dark between leaves, and leaves over it in rows, each a lit top and a
+    body, those to a mass's upper left the lighter, those at its edge standing out of it. r: a leaf's light, its
+    body, the dark between, the line round the lot."""
+    mass: Mask = set()
+    for px, py, rad in parts:
+        mass |= oval(px, py, rad, rad * 0.9)
+    fill(p, mass, r[2])
+    xs, ys = [x for x, _ in mass], [y for _, y in mass]
+    for j in range(min(ys) // 3 - 1, max(ys) // 3 + 2):
+        for i in range(min(xs) // 5 - 1, max(xs) // 5 + 2):
+            x, y = i * 5 + (j % 2) * 2 + (j * 7 + i * 3) % 3 - 1, j * 3 + (i * 5 + j) % 2
+            if (x + 1, y + 1) not in mass:
+                continue
+            lit = any((x - px + 2) ** 2 + (y - py + 3) ** 2 < (rad * 0.8) ** 2 for px, py, rad in parts)
+            for dx, dy, tone in LEAFDOTS:
+                p.put(x + dx, y + dy, r[tone + (0 if lit else 1)])
+    p.outline(r[3])
+
+
+def sprig(p: Pic, pts: list[Pt], n: int, r: list[int]) -> None:
+    """A twig's leaves: n along pts, a side each in turn, and one at its end; each lit to its upper left, the line
+    round it its own. r: a leaf's light, its body, its line."""
+    path = spline(pts, 6, closed=False)
+    for i in range(n + 1):
+        j = min(len(path) - 1, (i + 1) * (len(path) - 1) // n)
+        (xa, ya), (xb, yb) = path[j - 1], path[j]
+        way = math.atan2(yb - ya, xb - xa) + (0 if i == n else 0.95 if i % 2 else -0.95)
+        cx, cy = xb + math.cos(way) * 2.8, yb + math.sin(way) * 2.8
+        q = Pic(p.w, p.h)
+        for x, y in oval(cx, cy, 3.4, 1.8, way):
+            q.put(x, y, r[0] if (x + 0.5 - cx) * 0.55 + (y + 0.5 - cy) * 0.83 < 0.3 else r[1])
+        paste(p, q.outline(r[2]), 0, 0)
+
+
+def mossed(p: Pic, blobs: list[tuple[float, float, float, float]]) -> None:
+    """A patch of moss on what is drawn: blobs (x, y, half width, half height) run together, hung down a little
+    by its column, its top lit and its hem dark."""
+    m: Mask = set()
+    for cx, cy, rx, ry in blobs:
+        m |= oval(cx, cy, rx, ry)
+    for x in {x for x, _ in m}:
+        foot = max(y for xx, y in m if xx == x)
+        m |= {(x, foot + d) for d in range(1, MOSSHEM[x % len(MOSSHEM)] - 1)}
+    m = {q for q in m if p.get(*q) and p.get(*q) != WOODINK}
+    for x, y in m:
+        p.put(x, y, MOSS[0] if (x, y - 1) not in m else MOSS[2] if (x, y + 1) not in m else MOSS[1])
+
+
+SPRINGCAP = {
+    False: """
+......hhRR......
+....hhhRRRRR....
+...hhwwRRRRRr...
+..hRRwwRRRRwRr..
+.hRRRRRRRRRRRrr.
+.RRwRRRRRwwRRrr.
+RRRRRRRRRwwRRrrr
+.rrrrrrrrrrrrrr.
+...gGgGGgGGgg...
+""",
+    True: """
+.....hhhRRR.....
+..hhhwwRRRRwRr..
+hhRRRwwRRRRRRRrr
+RRwRRRRRRwwRRrrr
+.rrrrrrrrrrrrrr.
+...gGgGGgGGgg...
+""",
+}
+SPRINGSTALK = {
+    False: """
+...SSSs...
+...SSSs...
+..SSSSs...
+..SSSSss..
+m.SSSSssm.
+mmSSSSssmm
+""",
+    True: """
+..SSSSss..
+m.SSSSssm.
+mmSSSSssmm
+""",
+}
+
+
+def toadspring(pressed: bool) -> Pic:
+    """The wood's spring, 16 by 16: a broad toadstool, its cap down on its stalk when trodden."""
+    p = Pic(16, 16)
+    tones = {"R": BERRY[0], "r": BERRY[1], "h": CAPLIT, "w": WHITE, "S": FUR[5], "s": FUR[2]}
+    tones |= {"g": FUR[1], "G": FUR[3], "m": MOSS[1]}
+    cap, stalk = SPRINGCAP[pressed].split(), SPRINGSTALK[pressed].split()
+    stamp(p, SPRINGSTALK[pressed], 3, 16 - len(stalk), tones)
+    stamp(p, SPRINGCAP[pressed], 0, 16 - len(stalk) - len(cap), tones)
+    return p.outline(WOODINK)
+
+
+TAU = 2 * math.pi
+OAKW, OAKMID, OAKFLARE = 152, 76, 44  # the oak's foot's picture: its width, its middle, the rows its foot flares over
+OAKTILE, OAKFOOT = 64, 48  # the rows of a length of its trunk, which repeats, and of its foot
+PLATE = 0.24  # a plate of bark's width, round the trunk
+LIMBTOP, LIMBFLAT, LIMBHID = 14, 48, 8  # a limb's picture: the row stood on, its flat's length, what the trunk hides
+
+
+def girth(y: int, foot: int) -> tuple[float, float]:
+    """The trunk's edges at row y, from its middle: a period of 64 down it, flared over its last rows to foot."""
+    t = max(0.0, (y - (foot - OAKFLARE)) / OAKFLARE)
+    left = -30 - 1.5 * math.sin(TAU * y / 64 + 0.5) - 24 * t**2.6
+    return left, 30 + 1.5 * math.sin(TAU * y / 64 + 2.4) + 21 * t**2.6
+
+
+def furrows(y: int, m: float, half: float) -> list[int]:
+    """Where row y's furrows fall: each wanders with a period of 32 and of 64, its neighbours the other way, so the
+    plates between them pinch and swell. The first is plate -5's right edge."""
+    out = []
+    for k in range(-5, 5):
+        way = 0.21 * (-1) ** k * math.sin(TAU * y / 32 + 1.7 * k) + 0.17 * math.sin(TAU * y / 64 + 2.9 * k)
+        out.append(math.floor(m + half * math.sin(PLATE * (k + 0.5 + way))))
+    return out
+
+
+def oak(w: int, mid: int, h: int, foot: int) -> Pic:
+    """The great oak's trunk, h rows, its foot at row foot: plates of bark between furrows, each plate one tone
+    by where it lies round the trunk, lit from the upper left, a rim of light on its far edge."""
+    p = Pic(w, h)
+    for y in range(h):
+        left, right = girth(y, foot)
+        m, half = mid + (left + right) / 2, (right - left) / 2
+        fx = furrows(y, m, half)
+        x0, x1 = math.ceil(m - half - 0.5), math.floor(m + half - 0.5)
+        for x in range(x0, x1 + 1):
+            k = next((i - 5 for i, f in enumerate(fx) if x <= f), 5)
+            base = 2 if k <= -5 else 1 if k <= -2 else 2 if k <= 1 else 3
+            tone = base
+            if x in fx:
+                tone = min(base + 2, 4)
+            elif x - 1 in fx and base < 3:
+                tone = base - 1
+            elif (y + 11 * k) % 32 == 0 or (y + 7 * k + 17) % 64 == 0:
+                tone = base + 1
+            if x >= x1 - 1 and tone == 3:
+                tone = 2
+            p.put(x, y, OAKBARK[tone])
+    return p
+
+
+def oaktrunk() -> Pic:
+    """A length of the great oak's trunk, 66 by 64: it repeats up it."""
+    return oak(66, 33, OAKTILE, 10**9).outline(WOODINK)
+
+
+def oakfoot() -> Pic:
+    """The great oak's foot, 152 by 48, under a length of its trunk: flared into roots, moss on their backs and
+    up its lit side, the dark under them."""
+    h = OAKTILE + OAKFOOT
+    p = oak(OAKW, OAKMID, h, h)
+    lit, shaded = [OAKBARK[2], OAKBARK[1], OAKBARK[0]], [OAKBARK[4], OAKBARK[3], OAKBARK[2]]
+    for x, y, rx, ry in ((OAKMID - 27, h, 9, 5), (OAKMID + 3, h, 8, 4), (OAKMID + 33, h, 8, 5)):
+        fill(p, oval(x, y, rx, ry), WOODINK)
+    roots = [
+        ([(-30, -22), (-46, -9), (-66, -2.5)], 10, 4, lit),
+        ([(31, -21), (45, -9), (63, -2.5)], 10, 4, shaded),
+        ([(-12, -24), (-14, -10), (-22, -2.5)], 9, 5, lit),
+        ([(13, -22), (17, -9), (27, -2.5)], 9, 5, shaded),
+    ]
+    for pts, w0, w1, tones in roots:
+        m = stroke(spline([(OAKMID + x, h + y) for x, y in pts], 8, closed=False), w0, w1)
+        part(p, m, tones, sh=1.6, hl=1.2, line=WOODINK)
+        for x, y in m:
+            if (x, y - 1) not in m and x % 9 < 5 and y < h - 3:
+                p.put(x, y, MOSS[0] if x % 9 < 3 else MOSS[1])
+    p.outline(WOODINK)
+    mossed(p, [(OAKMID - 36, h - 33, 6, 4), (OAKMID - 28, h - 29, 7, 5), (OAKMID - 40, h - 25, 5, 3)])
+    return cut(p, 0, OAKTILE, OAKW, OAKFOOT)
+
+
+def limb(reach: int) -> Pic:
+    """A limb of the great oak, out to the right from behind the trunk: reach rows of rise, then 48 flat to
+    stand on, mossed, then twigs in leaf. Its flat's top is row LIMBTOP, and begins LIMBHID + 4 + reach along."""
+    a = LIMBHID + 4 + reach
+    w, e = a + LIMBFLAT + 28, a + LIMBFLAT
+    p = Pic(w, 50 if reach < 30 else 58)
+    mid = LIMBTOP + 4.5
+    spine = [(0.0, mid + 5 + reach * 0.35), (6 + reach * 0.5, mid + 2.5 + reach * 0.14), (a + 2.0, mid), (e, mid)]
+    m = stroke(spline([*spine, (e + 9, mid - 2.5), (e + 17, mid - 7.5)], 8, closed=False), 23, 3.2)
+    m |= rect(a, LIMBTOP, e, LIMBTOP + 8)
+    m |= stroke(spline([(e - 6, mid + 2), (e + 4, mid + 7), (e + 12, mid + 8)], 6, closed=False), 3.4, 2)
+    m = {(x, y) for x, y in m if 0 <= x < w and not (a <= x <= e and y < LIMBTOP)}
+    for x in range(w):
+        col = sorted(y for xx, y in m if xx == x)
+        if not col:
+            continue
+        top, bot = col[0], col[-1]
+        for y in col:
+            d, u = y - top, bot - y
+            tone = 1 if d < 2 else 4 if u < 1 else 3 if u < 3 else 2
+            if tone == 2 and (x + y * 5) % 13 < 7 and (y - top) % 4 == 3:
+                tone = 3  # the bark's grain along it
+            if tone == 1 and d == 0 and x % 7 < 3:
+                tone = 0
+            p.put(x, y, OAKBARK[tone])
+        if a <= x <= e + 2:
+            hem = MOSSHEM[x % len(MOSSHEM)] if x <= e else 2
+            for d in range(min(hem, bot - top)):
+                p.put(x, top + d, MOSS[0] if d == 0 else MOSS[1] if d < hem - 1 else MOSS[2])
+    p.outline(WOODINK)
+    leaves = [FOLIAGE[1], FOLIAGE[3], FOLIAGE[5]]
+    sprig(p, [(e - 2, mid + 4), (e + 4, mid + 7), (e + 13, mid + 8.5)], 3, leaves)
+    sprig(p, [(e + 3, mid - 1), (e + 9, mid - 2.5), (e + 17, mid - 7.5)], 4, leaves)
+    return p
+
+
+def knot() -> Pic:
+    """A hollow in the oak: a lip of bark round it, light on its far wall, two eyes in its dark."""
+    p = Pic(17, 20)
+    part(p, oval(8.5, 10, 8, 9.5), [OAKBARK[4], OAKBARK[2], OAKBARK[0]], sh=2.0, hl=1.6)
+    part(p, oval(8.5, 10.3, 5.2, 6.6), [OAKBARK[3], WOODINK], sh=1.2)
+    dots(p, FIREFLY[1], (6, 10), (10, 10))
+    return p
+
+
+BRACKET = """
+..LLLLLLL...
+.LLlllllllL.
+llllllllllll
+.dddddddddd.
+...DDDDDD...
+"""
+
+
+def bracket() -> Pic:
+    """A bracket fungus, a shelf out from the bark."""
+    p = Pic(12, 5)
+    stamp(p, BRACKET, 0, 0, {"L": LITTER[0], "l": LITTER[1], "d": LITTER[2], "D": LITTER[3]})
+    return p.outline(WOODINK)
+
+
+TWINZ = 25 / 33  # the twins are drawn in a room of 33 by 34, then to this: three quarters the size
+TWINEDGE, TWINHEAD = 3, 2  # the room their paws reach into: at their picture's sides, over their heads
+TCOAT, TFAR = [HAIR[1], HAIR[2], HAIR[3]], [HAIR[0], HAIR[1], HAIR[2]]  # a brown tabby: its near side, its far
+TSTRIPE, TSEAM = WOOD[1], HAIR[0]
+HOOD = [DARK[1], DARK[2]]  # a burglar's mask, and its top edge
+KERCHIEF = ([PETAL[0], PETAL[1], PETAL[2]], [GRASS[1], GRASS[2], GRASS[3]])  # berry, leaf
+TWINPOSES = ("grin", "reach", "throw", "shock", "sulk")
+TWINFACE = {
+    "grin": """
+mmmmmmmmmmmmm
+MKKKMMMMMKKKM
+MwwKMMMMMwwKM
+.MMMMnnnMMMM.
+K...........K
+.KKKKKKKKKKK.
+..wKwKwKwKw..
+...KKKKKKK...
+""",
+    "reach": """
+mmmmmmmmmmmmm
+MwKwMMMMMwKwM
+MwwwMMMMMwwwM
+.MMMMnnnMMMM.
+....KKKKK....
+....KRRRK....
+.....KtK.....
+......K......
+""",
+    "throw": """
+mmmmmmmmmmmmm
+MMwMMMMMMwwKM
+MwMwMMMMMwwKM
+.MMMMnnnMMMM.
+K............
+.KKKKKKKKKKK.
+..wwwwwwwtt..
+...KKKKKKttK.
+""",
+    "shock": """
+mwwwmmmmmwwwm
+MwKwMMMMMwKwM
+MwwwMMMMMwwwM
+.MMMMnnnMMMM.
+...KKKKKKK...
+...KRRRRRK...
+...KRtttRK...
+....KKKKK....
+""",
+    "sulk": """
+mmmmmmmmmmmmm
+MKKMMMMMMMKKM
+MwwKMMMMMKwwM
+.MMMMnnnMMMM.
+.............
+....KKKKK....
+...K.....K...
+.............
+""",
+}
+
+
+def along(pts: list[Pt]) -> list[Pt]:
+    """Points of a twin as it is drawn, where they fall in its picture."""
+    return [(x * TWINZ + TWINEDGE, y * TWINZ + TWINHEAD) for x, y in pts]
+
+
+def lump(cx: float, cy: float, rx: float, ry: float) -> Mask:
+    """An oval of a twin as it is drawn, in its picture: never thinner than a dot or two."""
+    return oval(cx * TWINZ + TWINEDGE, cy * TWINZ + TWINHEAD, max(1.2, rx * TWINZ), max(1.0, ry * TWINZ))
+
+
+def girt(w: float) -> float:
+    """A line of a twin as it is drawn, as wide in its picture: never under two dots."""
+    return max(1.9, w * TWINZ)
+
+
+def foreleg(p: Pic, pts: list[Pt], tones: list[int], paw: float = 2.2) -> None:
+    """A twin's foreleg, thin as a noodle, from its shoulder through pts, a cream mitt at its end."""
+    path = spline(along(pts), 6, closed=False)
+    part(p, stroke(path, girt(3.4), girt(3.0)), tones, sh=0.9, hl=0.7 if len(tones) > 2 else 0, line=TSEAM)
+    (xa, ya), (xb, yb) = path[-4], path[-1]
+    d = math.hypot(xb - xa, yb - ya) or 1
+    mitt = oval(xb + (xb - xa) / d * paw / 2, yb + (yb - ya) / d * paw / 2, paw, paw - 0.2)
+    part(p, mitt, BIB, sh=0.8, line=TSEAM)
+
+
+def twin(pose: str, who: int) -> Pic:
+    """A Bramble twin, 31 by 28, its feet on row 26: a brown tabby burglar sat on a limb, a mask over its eyes
+    tied behind its head, a kerchief of its own colour, a head too big for it, forelegs thin as noodles, big cream
+    feet, a kink in its tail. who: 0 in berry and facing right, 1 in leaf and facing left. pose: grin, its paws
+    on its hips; reach, both up for the ball; throw, one flung out the way it faces, its tongue out; shock, the
+    ball caught from it, its fur and tail on end; sulk, its ears flat and its forelegs folded."""
+    p = Pic(25 + 2 * TWINEDGE, 26 + TWINHEAD)
+    z, shock, flat = TWINZ, pose == "shock", pose == "sulk"
+    curl = [(10.8, 31.2), (6.2, 31.4), (3.4, 28.6), (3.6, 25), (5.8, 22.6), (3.8, 20.4)]
+    if shock:
+        curl = [(10.8, 31.2), (6.0, 31.2), (3.6, 27.5), (3.6, 19.5)]
+    path = spline(along(curl), 8, closed=False)
+    tail = part(p, stroke(path, girt(5.6 if shock else 3.4), girt(5.0 if shock else 2.4)), TFAR, sh=1.0)
+    for i in range(5, len(path) - 5, 6):
+        fill(p, stroke(path[i : i + 2], 6), TSTRIPE, tail)
+    if not shock:
+        fill(p, stroke(path[-4:], girt(2.6), girt(2.4)), TSEAM, tail)
+    left = [(14.2, 18.5), (11.4, 22), (9.6, 26), (9.3, 29.6), (11.3, 32.4)]
+    body = curved(along([*left, *((33 - x, y) for x, y in left[::-1])]))
+    part(p, body, TCOAT, sh=1.8 * z, hl=1.0 * z, line=TSEAM)
+    for x, y in ((10.4, 23.4), (9.8, 26.2)):
+        fill(p, stroke(along([(x, y), (x + 2.2, y + 0.7)]), 1.3 * z), TSTRIPE, body)
+        fill(p, stroke(along([(33 - x, y), (33 - x - 2.0, y + 0.7)]), 1.3 * z), TSTRIPE, body)
+    part(p, lump(11.7, 29.4, 3.3, 3.5), TFAR, sh=1.2 * z, line=TSEAM, within=body)
+    part(p, lump(21.3, 29.4, 3.4, 3.5), TCOAT, sh=1.4 * z, hl=0.9 * z, line=TSEAM, within=body)
+    for cx in (10.4, 22.6):
+        part(p, lump(cx, 31.7, 3.5, 1.8), BIB, sh=0.7, line=TSEAM)
+    if pose == "throw":
+        part(p, stroke(along([(15.0, 24), (15.0, 30.4)]), girt(3.0)), TFAR, 0.7, line=TSEAM)
+        part(p, lump(15.0, 31.8, 2.1, 1.6), BIB, sh=0.7, line=TSEAM)
+    chest = [(14.3, 19.5), (13.1, 22), (13.3, 24.6), (14.9, 26.6), (16.5, 27.2), (18.1, 26.6), (19.7, 24.6), (19.9, 22)]
+    part(p, curved(along([*chest, (18.7, 19.5)])), BIB, sh=1.2 * z, line=TSEAM)
+    for s in (-1, 1):
+        tones = TFAR if s < 0 else TCOAT
+        if pose == "grin":
+            foreleg(p, [(16.5 + s * 5.2, 21.6), (16.5 + s * 9.6, 24.4), (16.5 + s * 7.2, 27.0)], tones, 1.8)
+        if pose == "reach":
+            foreleg(p, [(16.5 + s * 5.4, 22.2), (16.5 + s * 11.6, 20.0), (16.5 + s * 13.0, 7.0)], tones)
+        if shock:
+            foreleg(p, [(16.5 + s * 5.4, 22.4), (16.5 + s * 9.6, 22.6), (16.5 + s * 12.0, 18.6)], tones)
+    if pose == "throw":
+        foreleg(p, [(21.9, 22.2), (26.4, 20.6), (28.0, 13.2)], TCOAT)
+    k = KERCHIEF[who]
+    scarf = rect(11, 16, 19, 17) | poly(along([(11.6, 19.2), (21.4, 19.2), (16.5, 25.6)]))
+    part(p, scarf, k, sh=1.0 * z, hl=0.8 * z, line=INK)
+    part(p, rect(9, 16, 10, 17) | rect(8, 18, 9, 18), k[:2], sh=0.6, line=INK)
+    for end in ((2.6, 7.4), (3.4, 12.8)):  # the mask's ends, tied behind its head
+        fill(p, stroke(along([(8.0, 10.0), end]), girt(2.6), girt(2.0)), HOOD[1])
+    fill(p, lump(6.4, 10.0, 1.6, 1.6), HOOD[0])
+    for s in (-1, 1):
+        cx = 16.5 + s * 7.4
+        ear = [(cx - s * 3.4, 6.2), (cx + s * 2.4, 10.4), (cx + s * 2.8, 0.4 if shock else 0.8)]
+        inner = [(cx - s * 1.2, 6.4), (cx + s * 1.5, 8.4), (cx + s * 1.8, 2.8)]
+        if flat:
+            ear = [(cx - s * 3.0, 5.4), (cx + s * 1.8, 10.0), (cx + s * 5.6, 5.4)]
+            inner = [(cx - s * 0.6, 6.2), (cx + s * 1.5, 8.2), (cx + s * 3.6, 6.2)]
+        part(p, poly(along(ear)), TCOAT, 0.8, line=TSEAM)
+        fill(p, poly(along(inner)), BLUSH)
+    if not flat:
+        p.put(8, 5, 0)  # a bite out of one ear
+    lh = [(16.5, 4.6), (10.0, 6.0), (7.2, 10.4), (6.2, 14.4), (8.2, 15.0), (7.4, 17.0), (11.0, 18.4), (16.5, 19.3)]
+    head = curved(along([*lh, *((33 - x, y) for x, y in lh[-2:0:-1])]), 8)
+    part(p, head, TCOAT, sh=1.4 * z, hl=1.0 * z, line=TSEAM)
+    if shock:
+        for x in (12.5, 16.5, 20.5):  # its fur on end
+            part(p, poly(along([(x - 1.6, 5.6), (x + 1.6, 5.6), (x, 2.2)])), TCOAT, 0.6)
+    for x in (13, 15, 17):
+        fill(p, rect(x, 6, x, 6), TSTRIPE, head)
+    part(p, lump(16.5, 16.0, 6.6, 3.5), BIB, sh=1.0 * z, within=head)
+    fill(p, rect(0, 8, p.w - 1, 10), HOOD[0], head)
+    tones = {"m": HOOD[1], "M": HOOD[0], "w": WHITE, "K": INK, "n": TONGUE[1], "t": TONGUE[2], "R": TONGUE[0]}
+    stamp(p, TWINFACE[pose], 9, 8, tones)
+    if flat:
+        part(p, stroke(along([(11.6, 25.0), (21.4, 25.0)]), girt(3.4)), TCOAT, sh=0.9, hl=0.7, line=TSEAM)
+        part(p, lump(11.6, 24.8, 2.2, 2.0), BIB, sh=0.6, line=TSEAM)
+        part(p, lump(21.4, 25.2, 2.2, 2.0), BIB, sh=0.6, line=TSEAM)
+    if shock:
+        for y in (21, 24, 27):  # its tail a brush
+            part(p, poly(along([(1.4, y + 1.6), (1.4, y - 1.6), (-1.4, y - 0.4)])), TFAR, 0.6)
+    p.outline(INK)
+    for s in (-1, 1):
+        dots(p, WHITE, (15 + s * 8, 12), (15 + s * 9, 11), (15 + s * 8, 14), (15 + s * 9, 14))
+    return mirrored(p) if who else p
+
+
 def pomball() -> Pic:
     """The Pomchi's ball: red, a white band round it."""
     p = Pic(14, 14)
@@ -4417,7 +4838,16 @@ def russet() -> list[tuple[int, Pic, bool, int]]:
         (z + 1228, mound(), True, -1),
         *[(z + 1230 + f * 2, squirrel(f % 2 == 1, f > 1), True, -1) for f in range(4)],
         (z + 1238, acorn(), True, -1),
+        (z + 1240, toadspring(False), True, -1),
+        (z + 1242, toadspring(True), True, -1),
+        (z + 1244, oaktrunk(), True, -1),
+        (z + 1246, oakfoot(), True, -1),
+        (z + 1248, limb(6), True, z + 1252),
+        (z + 1250, limb(54), True, z + 1254),
+        (z + 1256, knot(), True, -1),
+        (z + 1258, bracket(), True, z + 1260),
     ]
+    out += [(z + 1262 + (who * 5 + f) * 2, twin(q, who), True, -1) for who in (0, 1) for f, q in enumerate(TWINPOSES)]
     return out
 
 
