@@ -7,5 +7,5 @@
 
 /* Procedure proc's frame, every line compiled: each local's Loc, its arrays' room, p->nframe and
    PF_ARRAYS. */
-void frame_layout(Symb *sy, const Decl *d, Proc *p, uint8_t proc);
+void frame_layout(Symb *sy, const Decl *d, Proc *p, uint32_t proc);
 #endif

@@ -203,7 +203,7 @@ static Status run_probe(Session *const S, const char *const expr)
     return c.code;
 }
 
-Status dbug_eval(Session *const S, const char *const expr, const uint8_t proc, char out[static 80])
+Status dbug_eval(Session *const S, const char *const expr, const uint32_t proc, char out[static 80])
 {
     static Saved s; /* one probe at a time: no line of its can run another */
     save(S, &s);

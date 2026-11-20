@@ -212,7 +212,7 @@ const Proc blok_noproc;
 
 /* The last procedure whose first line is at or before pos, 0 none: they are in the program's
    order, as blok_pair's scan met them. */
-static uint8_t proc_before(const Blok *const b, const uint32_t pos)
+static uint32_t proc_before(const Blok *const b, const uint32_t pos)
 {
     uint32_t lo = 0, hi = b->nprocs;
 
@@ -225,18 +225,18 @@ static uint8_t proc_before(const Blok *const b, const uint32_t pos)
             hi = mid;
     }
 
-    return (uint8_t)lo;
+    return lo;
 }
 
-uint8_t blok_procof(const Blok *const b, const uint32_t line)
+uint32_t blok_procof(const Blok *const b, const uint32_t line)
 {
-    const uint8_t i = proc_before(b, line);
+    const uint32_t i = proc_before(b, line);
     return i && line <= b->procs[i]->last ? i : 0;
 }
 
 uint32_t blok_line_before(const Blok *const b, const uint32_t pos)
 {
-    const uint8_t i = proc_before(b, pos);
+    const uint32_t i = proc_before(b, pos);
     return i ? b->procs[i]->first : PROGBASE;
 }
 
@@ -456,8 +456,6 @@ static void blok_procstmt(BlokScan *const sc, const uint8_t *const s, const uint
         blok_fail(sc, E_SN, DG_NAME_OF_SUBPROGRAM_ILLEGAL_RESERVED, defoff + 1, sc->line, nullptr, 0);
     if (s[1] != M_VAR)
         blok_synerr(sc);
-    if (b->nprocs >= NPROC)
-        blok_nomem(sc);
 
     blok_room(sc, &b->procs, sizeof *b->procs, b->nprocs, &sc->proccap);
     Proc *const p = blok_alloc(sc, sizeof *p);

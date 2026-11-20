@@ -33,7 +33,7 @@ uint16_t ref_recarray(
     uint16_t name,
     uint8_t type
 );                                           /* rc_avar: record array name's variable */
-const Proc *ref_proc(Comp *C, uint8_t *idx); /* ct_proc: the procedure named at comp.p; null none */
+const Proc *ref_proc(Comp *C, uint32_t *idx); /* ct_proc: the procedure named at comp.p; null none */
 uint16_t ref_arrayof(Comp *C, uint16_t id);  /* array id, or its name's record array */
 /* ours: a call at comp.p of a FUNCTION whose result is a record or an array, its N_CALL, a the place
    of what the result went to; null none: in that FUNCTION its name alone, and an array result's
@@ -54,7 +54,7 @@ Node *ref_recplace(Comp *C, uint16_t id); /* record variable id's place, the who
 Node *ref_call(
     Comp *C,
     const uint8_t *name,
-    uint8_t idx,
+    uint32_t idx,
     const Proc *pr,
     ArgsForm form
 );                        /* its N_CALL */

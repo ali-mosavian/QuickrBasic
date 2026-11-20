@@ -23,19 +23,20 @@ typedef struct PACKED {
 typedef struct PACKED {
     uint16_t next; /* its hash chain's next */
     uint16_t nloc; /* the next local of its procedure */
-    uint8_t scope; /* 0 the module, else a procedure */
+    uint32_t scope; /* 0 the module, else a procedure */
     uint8_t given; /* an array given elements by a line's code: link_given */
     uint8_t kop; /* a CONST's literal load, its operand in symb_kval; 0 none (comp/fold.h) */
     uint8_t par; /* a parameter of its procedure (link) */
+    uint8_t pad;
 } VarX;          /* TVX */
 typedef struct PACKED {
     uint32_t text; /* its text's offset in text: its length, then its letters */
+    uint32_t proc; /* its procedure, 0 none */
     uint8_t flags; /* NM_* */
     uint8_t rec;   /* its TYPE, 0 none */
-    uint8_t proc;  /* its procedure, 0 none */
-    uint8_t pad;
+    uint16_t pad;
 } Name; /* TNAM */
-static_assert(sizeof(Var) == 8 && sizeof(VarX) == 8 && sizeof(Name) == 8);
+static_assert(sizeof(Var) == 8 && sizeof(VarX) == 12 && sizeof(Name) == 12);
 
 /* A local array's place in its frame (vm/flow.c): what its DIMs asked (dims << 24 | elements;
    FARR_NEVER: one not constant, or a REDIM), and where link put its header (from vm.fp; 0 the
@@ -54,7 +55,7 @@ typedef struct Symb {
     uint32_t text_free;                  /* text's next byte, an offset (sym.tfree) */
     uint16_t nvars;                      /* the next variable (lx.nsyms) */
     uint16_t nnames;                     /* the next name (lx.nnams) */
-    uint16_t first_local[NPROC];         /* a procedure's first local, VarX.nloc on (g_plh) */
+    Table locals;                        /* by procedure, its first local, VarX.nloc on (g_plh) */
     uint8_t deft[26];                    /* DEFtype's ET_*, by first letter (g_deft) */
     uint16_t vhead[HSIZE], nhead[HSIZE]; /* the hash chains' heads */
 } Symb;
@@ -66,6 +67,11 @@ static inline Addr symb_cell(const Symb *const sy, uint16_t id)
 static inline Var *symb_var(const Symb *const sy, uint16_t id)
 {
     return (Var *)at(sy->vars.at[1]) + id;
+}
+/* Procedure proc's first local, 0 none. */
+static inline uint16_t symb_first_local(const Symb *const sy, const uint32_t proc)
+{
+    return proc < sy->locals.cap ? ((const uint16_t *)at(sy->locals.at[0]))[proc] : 0;
 }
 static inline VarX *symb_varx(const Symb *const sy, uint16_t id)
 {
@@ -156,7 +162,7 @@ uint16_t symb_find_var(
     uint16_t name,
     uint8_t type,
     uint8_t kind,
-    uint8_t scope,
+    uint32_t scope,
     bool stat
 );
 #endif

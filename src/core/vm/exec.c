@@ -635,8 +635,8 @@ pcall: /* PCALL proc n npar body: the frame at the arguments, n local cells zero
         goto slow;
 
     {
-        const uint32_t n = load16(r.ip + 2);
-        const Jump *const j = (const Jump *)(r.ip + 5);
+        const uint32_t n = load16(r.ip + 5);
+        const Jump *const j = (const Jump *)(r.ip + 8);
 
         if (r.sp < v->stklim || (uint32_t)(r.sp - v->stklim) < n || v->ftop == v->fend ||
             j->dest <= TO_NEXT_STMT)
@@ -645,12 +645,12 @@ pcall: /* PCALL proc n npar body: the frame at the arguments, n local cells zero
         const Addr fp = addr_of(r.sp);
         Frame *const f = v->ftop++; /* field by field: no padding zeroed */
         f->kind = FRAME_CALL;
-        f->ret = (Place){v->line, addr_of(r.ip + 5 + sizeof(Jump)) - S->allo.cache};
+        f->ret = (Place){v->line, addr_of(r.ip + 8 + sizeof(Jump)) - S->allo.cache};
 
-        f->call.proc = r.ip[1];
+        f->call.proc = load32(r.ip + 1);
         f->call.temp_floor = S->strg.tmp_floor;
         f->call.fp = fp;
-        f->call.npar = r.ip[4];
+        f->call.npar = r.ip[7];
         f->call.caller = r.fp;
         f->call.on_error = 0;
         r.fp = v->fp = fp;
@@ -697,9 +697,9 @@ pret: /* a SUB's */
 #undef PRET_PUSH
 #define PRET_PUSH *--r.sp = x;
 pret_fv: /* a FUNCTION's number: its result's cell */
-    PRET_RUN(load_cell(at(load32(r.ip + 2))))
+    PRET_RUN(load_cell(at(load32(r.ip + 5))))
 pret_fl: /*   in the frame */
-    PRET_RUN(load_cell(at(r.fp + load32(r.ip + 2))))
+    PRET_RUN(load_cell(at(r.fp + load32(r.ip + 5))))
 #undef PRET_PUSH
 
 i_jf: /* JF: past its jump, or to its target; a stop, a jump not resolved: flow_i_jf's */

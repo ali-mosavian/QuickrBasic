@@ -48,7 +48,7 @@ typedef struct {
     BlockEnt **blocks; /* by position */
     uint32_t nblocks;
     Proc **procs;    /* by number, from 1 */
-    uint16_t nprocs; /* procedures + 1 */
+    uint32_t nprocs; /* procedures + 1 */
     uint32_t nnames; /* the program's M_VAR tokens */
 } Blok;
 
@@ -58,7 +58,7 @@ void blok_pair(Blok *b, const Prog *pg, const Symb *sy, Fault *f);
 BlockEnt *blok_find(const Blok *b, uint32_t line, uint32_t off);
 /* Procedure i; 0, or none yet, an empty one: the module. */
 extern const Proc blok_noproc;
-static inline const Proc *blok_proc(const Blok *const b, const uint8_t i)
+static inline const Proc *blok_proc(const Blok *const b, const uint32_t i)
 {
     return i && i < b->nprocs ? b->procs[i] : &blok_noproc;
 }
@@ -70,7 +70,7 @@ static inline uint16_t blok_nargs(const Proc *const p)
 /* A FUNCTION's record or array result's parameter, its variable (PF_RESARG). */
 static inline uint16_t blok_resvar(const Proc *const p) { return p->params[p->npar - 1].var; }
 /* bk_proc: the procedure line is in, 0 none. */
-uint8_t blok_procof(const Blok *b, uint32_t line);
+uint32_t blok_procof(const Blok *b, uint32_t line);
 /* A line at or before position pos: the first of the last procedure that starts there, else the
    program's. */
 uint32_t blok_line_before(const Blok *b, uint32_t pos);

@@ -972,7 +972,8 @@ static void cg_call(Code *const c, const Node *const n)
     for (const Node *a = n->b; a != nullptr; a = a->next)
         gen(c, a);
 
-    code_opb(c, O_PCALL, n->op); /* its locals' cells, its parameters (link's), its entry's Jump */
+    code_op(c, O_PCALL); /* the procedure, its locals' cells, its parameters (link's), its Jump */
+    code_dword(c, n->num);
     code_word(c, 0);
     code_byte(c, 0);
     code_dword(c, n->jump.line);

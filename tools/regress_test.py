@@ -1236,6 +1236,11 @@ BIG |= {
     "limit_blocks": (bas("n = 0", *["if n = 0 then", " n = 0", "end if"] * 1100, "print n"), " 0 \r\n", "ERROR"),
     # 64 blocks open: the 65th IF in was a Syntax error.
     "limit_nesting": (bas("n = 0", *["if n = 0 then"] * 100, "n = 7", *["end if"] * 100, "print n"), " 7 \r\n", "ERROR"),
+    # 255 procedures, numbered by a byte: the 256th was Out of memory, with no line.
+    "limit_procs": (bas(*[f"declare function f{i}% (x%)" for i in range(600)], "print f599%(1); f0%(2)",
+                        *[x for i in range(600) for x in (f"function f{i}% (x%)", " dim a(3) as integer: a(1) = x%",
+                                                          f" f{i}% = a(1) + {i}", "end function")]),
+                    " 600  2 \r\n", "ERROR"),
     # 512 fields, all TYPEs': the 513th was Out of memory.
     "limit_fields": (bas(*[x for i in range(6) for x in (f"type t{i}", *[f" f{j} as integer" for j in range(100)], "end type")],
                          "dim v as t5", "v.f99 = 599", "print v.f99"), " 599 \r\n", "ERROR"),

@@ -119,7 +119,8 @@ struct Node {
                           child (N_STORE's its value); b: the first argument, N_TARGET's subscript */
     Node *next;    /* an argument, a step: the next, null none */
     uint16_t fix;  /* N_STORE: a STRING * n target's n, 0 none */
-    uint32_t num;  /* N_INT: its value; N_JUMP: its target's line, the line number in id */
+    uint32_t num;  /* N_INT: its value; N_JUMP: its target's line, the line number in id; N_CALL
+                      CALL_PROC: its procedure */
     uint16_t
         id; /* N_VAR, N_ELEM, N_REF, N_TARGET, N_STORE, N_OPID, N_CASECMP: the variable; N_ARG: PA_VALUE's parameter, an array's
                           or a record's; N_CALL CALL_UNDEF: its result */

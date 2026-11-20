@@ -87,10 +87,10 @@ typedef struct Comp {
     bool modlabel;            /* g_lmod: comp_lnum's label is the module's (cleared) */
 
     /* scopes */
-    uint8_t proc;   /* cproc: the procedure the line is in, 0 the module (mem/scope sets it) */
-    uint8_t scope;  /* cscope: var_find's scope: 0 the module, a procedure */
+    uint32_t proc;   /* cproc: the procedure the line is in, 0 the module (mem/scope sets it) */
+    uint32_t scope;  /* cscope: var_find's scope: 0 the module, a procedure */
     bool isstatic;  /* cstat: var_find makes a STATIC, not a local */
-    uint8_t dlproc; /* g_dlprc: the direct line's procedure (the debugger's probe) */
+    uint32_t dlproc; /* g_dlprc: the direct line's procedure (the debugger's probe) */
     bool check;     /* cchk: the IDE's check of a line alone, unlinked */
     bool nofuse;    /* the code as the asm's: no fused ops (comp/fuse.c) */
 
@@ -113,9 +113,9 @@ typedef struct Comp {
     bool memo_on;
     bool errs; /* an ERR compiled since link.c's build began: its error walk needed */
     struct {
-        uint32_t key; /* 0 none */
+        uint64_t key; /* 0 none */
         uint16_t id;
-        uint8_t scope;
+        uint32_t scope;
         uint8_t how; /* VM_PARAM a parameter (no scope set), VM_STATIC */
     } memo[1024];
 } Comp;
@@ -140,7 +140,7 @@ static inline uint8_t comp_suffixof(const uint8_t *const p)
 /* Compiling */
 void comp_init(Comp *C); /* comp_cbuf carved (allo_carve), comp_xbuf's first bytes */
 /* Procedure proc compiled, 0 the module: its scopes seen. */
-void comp_proc(Comp *C, uint8_t proc);
+void comp_proc(Comp *C, uint32_t proc);
 Status comp_line(Comp *C); /* the direct line in comp_cbuf, to comp_xbuf: comp_text's */
 /* The body at body to comp.buf, comp.len its length. An error ends the code with ERR, raised
    when it runs: its code, else ST_OK. */
@@ -168,6 +168,7 @@ void comp_int(Comp *C, uint32_t n);     /* an INT's load */
 Node *comp_op(Comp *C, uint8_t op);     /* op; its operands after, by comp_byte, comp_word */
 void comp_byte(Node *n, uint8_t b);
 void comp_word(Node *n, uint16_t w);
+void comp_dword(Node *n, uint32_t d);
 /* op, a variable; a parameter's X.LD.V/X.ST.V as V.LD/V.ST */
 void comp_opid(Comp *C, uint8_t op, uint16_t id);
 /* op (0 none), its operands by comp_byte, then comp.lnum's line: num addr */

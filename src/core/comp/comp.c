@@ -185,6 +185,12 @@ void comp_word(Node *const n, const uint16_t w)
     comp_byte(n, (uint8_t)(w >> 8));
 }
 
+void comp_dword(Node *const n, const uint32_t d)
+{
+    comp_word(n, (uint16_t)d);
+    comp_word(n, (uint16_t)(d >> 16));
+}
+
 void comp_opid(Comp *const C, const uint8_t op, const uint16_t id) { node(C, N_OPID, op)->id = id; }
 
 Node *comp_jump(Comp *const C, const uint8_t op)
@@ -504,11 +510,11 @@ uint16_t comp_var(Comp *const C, const uint8_t shape, const uint8_t et)
     uint8_t kind = shape > 1 || (!shape && *C->p == '(') ? VI_ARR : 0;
     uint8_t type = et;
     typeof(C->memo[0]) *m = nullptr;
-    uint32_t key = 0;
+    uint64_t key = 0;
 
     if (C->memo_on && !et && C->line != DLINE && !C->check) {
-        key = name | (uint32_t)C->proc << 16 | (uint32_t)sfx << 24 | (uint32_t)!!kind << 27 |
-              (uint32_t)C->symb->deft[upcase(first) - 'A'] << 28;
+        key = name | (uint64_t)C->proc << 16 | (uint64_t)sfx << 48 | (uint64_t)!!kind << 51 |
+              (uint64_t)C->symb->deft[upcase(first) - 'A'] << 52;
         m = &C->memo[(name * 2654435761u ^ C->proc * 40503u) >> 22 & (countof(C->memo) - 1)];
 
         if (m->key == key) {
@@ -894,7 +900,7 @@ Status comp_text(Comp *const C, const uint8_t *const body)
     }
 }
 
-void comp_proc(Comp *const C, const uint8_t proc)
+void comp_proc(Comp *const C, const uint32_t proc)
 {
     C->proc = proc;
     scop_enter(C->scop, proc ? blok_proc(C->blok, proc) : nullptr);

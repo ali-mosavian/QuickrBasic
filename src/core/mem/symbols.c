@@ -21,7 +21,7 @@
  * | sym.vars, sym.nams, sym.ntext | Symb.vars, Symb.names, Symb.text | MIRROR |
  * | sym.tfree | Symb.text_free | MIRROR |
  * | lx.nsyms, lx.nnams | Symb.nvars, Symb.nnames | MOVED: declared here, not by the lexer |
- * | g_plh, g_deft | Symb.first_local[], Symb.deft[] | MIRROR |
+ * | g_plh, g_deft | Symb.locals, Symb.deft[] | MIRROR; locals grows |
  * | g_vhead, g_nhead | Symb.vhead, Symb.nhead | MIRROR |
  * | fs:[id*8].TVAR, vxat, nmat, cellof | symb_var, symb_varx, symb_name, symb_cell | MIRROR; D1 |
  * | nmtest id, bits | symb_name(id)->flags & bits | MIRROR |
@@ -44,6 +44,7 @@
 enum {
     VINIT = 1024, /* the first variables' room */
     NINIT = 1024, /*   names' */
+    LINIT = 256,  /*   procedures' locals' heads */
     IDMAX = 0xFFFF,
     VSLACK = 256, /* variables past the program's: direct lines' */
     NAME_HASH_MUL = 31,
@@ -91,6 +92,9 @@ void symb_new(Symb *const sy, Allo *const al, Fault *const f)
     sy->text = (Table){.narr = 1, .size = {1}, .max = IDMAX * 256};
 
     tabl_new(al, &sy->text, NINIT * 8);
+    sy->locals = (Table){.narr = 1, .size = {sizeof(uint16_t)}, .max = UINT32_MAX};
+
+    tabl_new(al, &sy->locals, LINIT);
 }
 
 void symb_size(Symb *const sy, const uint32_t nnames)
@@ -124,7 +128,7 @@ void symb_vars_init(Symb *const sy)
 {
     sy->nvars = 1;
     memset(sy->vhead, 0, sizeof sy->vhead);
-    memset(sy->first_local, 0, sizeof sy->first_local);
+    memset(at(sy->locals.at[0]), 0, sy->locals.cap * sizeof(uint16_t));
 }
 
 /* Do the len chars at text, case not told, spell name text t (its length, then upper case)? */
@@ -179,12 +183,25 @@ uint16_t symb_find_name(Symb *const sy, const uint8_t *const text, const uint8_t
     return id;
 }
 
+/* Room in locals for procedure proc, the new heads empty. Out of memory. */
+static void symb_locals_room(Symb *const sy, const uint32_t proc)
+{
+    const uint32_t had = sy->locals.cap;
+
+    if (proc < had)
+        return;
+    if (!tabl_room(&sy->locals, proc + 1u))
+        fault_error(sy->fault, E_OM);
+
+    memset((uint16_t *)at(sy->locals.at[0]) + had, 0, (sy->locals.cap - had) * sizeof(uint16_t));
+}
+
 uint16_t symb_find_var(
     Symb *const sy,
     const uint16_t name,
     const uint8_t type,
     const uint8_t kind,
-    const uint8_t scope,
+    const uint32_t scope,
     const bool stat
 )
 {
@@ -216,8 +233,11 @@ uint16_t symb_find_var(
     *symb_farr(sy, id) = (FrameArr){};
 
     if (scope && !stat) { /* a local: on its procedure's list, a cell of its frame */
-        x->nloc = sy->first_local[scope];
-        sy->first_local[scope] = id;
+        symb_locals_room(sy, scope);
+
+        uint16_t *const first = (uint16_t *)at(sy->locals.at[0]) + scope;
+        x->nloc = *first;
+        *first = id;
         *symb_loc(sy, id) = loc_local();
     }
 

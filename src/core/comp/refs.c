@@ -588,7 +588,7 @@ bool ref_len(Comp *const C, uint32_t *const size)
 
 /* ---- procedures */
 
-const Proc *ref_proc(Comp *const C, uint8_t *const idx)
+const Proc *ref_proc(Comp *const C, uint32_t *const idx)
 {
     const uint8_t *const p = C->p;
 
@@ -812,7 +812,7 @@ static Node *resarg(Comp *const C, const Proc *const pr)
 static Node *resultcall(Comp *const C, const Proc *const pr)
 {
     const uint8_t *const p = C->p;
-    uint8_t idx;
+    uint32_t idx;
     ref_proc(C, &idx);
     Node *const call = ref_call(C, p, idx, pr, ARGS_PAREN);
     call->a = resplace(C, ast_last(call)->a->id);
@@ -901,13 +901,13 @@ static bool is_variable(const Comp *const C, const uint16_t name)
 Node *ref_call(
     Comp *const C,
     const uint8_t *const name,
-    const uint8_t idx,
+    const uint32_t idx,
     const Proc *const pr,
     const ArgsForm form
 )
 {
     Node *const n = ast_new(C->ast, N_CALL);
-    n->op = idx;
+    n->num = idx;
     n->b = nullptr;
 
     if (pr->result)

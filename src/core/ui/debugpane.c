@@ -96,7 +96,7 @@ static struct {
     uint8_t nvars;
     char vt[NDVAR][DP_TWMAX];
     PaneFrame fr[NDFRM];
-    uint8_t proc;         /* g_dpp: Locals' procedure, 0 the module */
+    uint32_t proc;        /* g_dpp: Locals' procedure, 0 the module */
     char row_text[ROWSZ]; /* g_dprow */
     char tip[DP_TWMAX];   /* g_dptip: a module variable's tooltip */
     uint32_t stops;       /* the stops so far: each a step of the clock seen counts by */

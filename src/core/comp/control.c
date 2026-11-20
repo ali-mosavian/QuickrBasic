@@ -934,7 +934,7 @@ static bool checkonly(Comp *const C) { return C->check && declname(C); }
 static void pcall(
     Comp *const C,
     const uint8_t *const name,
-    const uint8_t idx,
+    const uint32_t idx,
     const Proc *const pr,
     const ArgsForm form
 )
@@ -947,7 +947,7 @@ static void call(Comp *const C)
 {
     C->p++;
     const uint8_t *const name = C->p;
-    uint8_t idx;
+    uint32_t idx;
     const Proc *const pr = ref_proc(C, &idx);
 
     if (!pr) {
@@ -968,7 +968,7 @@ static void call(Comp *const C)
 static bool subcall(Comp *const C)
 {
     const uint8_t *const start = C->p;
-    uint8_t idx;
+    uint32_t idx;
     const Proc *const pr = ref_proc(C, &idx);
 
     if (pr) {
@@ -1027,7 +1027,7 @@ static void sub(Comp *const C)
 {
     const bool fn = *C->p++ == TK_FUNCTION;
     const uint8_t *const name = C->p;
-    uint8_t idx;
+    uint32_t idx;
     const Proc *const pr = ref_proc(C, &idx);
 
     if (pr)
@@ -1050,12 +1050,11 @@ static void sub(Comp *const C)
 }
 
 /* PRET for procedure proc: its result's cell link's. */
-static void ret(Comp *const C, const uint8_t proc)
+static void ret(Comp *const C, const uint32_t proc)
 {
     Node *const n = comp_op(C, O_PRET);
-    comp_byte(n, proc);
-    comp_word(n, 0);
-    comp_word(n, 0);
+    comp_dword(n, proc);
+    comp_dword(n, 0);
 }
 
 /* END or EXIT SUB, FUNCTION, DEF: PRET. */
@@ -1069,7 +1068,7 @@ static void pret(Comp *const C)
 static void deffn(Comp *const C)
 {
     const uint8_t *const name = ++C->p;
-    uint8_t idx;
+    uint32_t idx;
     const Proc *const pr = ref_proc(C, &idx);
 
     if (!pr) {

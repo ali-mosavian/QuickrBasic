@@ -153,8 +153,8 @@ OP(F_JF, flow_f_jf, JSIZE, 0)
 OP(I_JT, flow_i_jt, JSIZE, 0)
 OP(F_JT, flow_f_jt, JSIZE, 0)
 OP(NXLN, flow_nextln, 1, 0)
-OP(PCALL, flow_pcall, JSIZE + 4, 0) /* proc, its locals' cells and parameters (link's), body's Jump */
-OP(PRET, flow_pret, 2 + VCELL, 0) /* proc; link's: a FUNCTION's result's cell, or PRET.X */
+OP(PCALL, flow_pcall, JSIZE + 7, 0) /* proc, its locals' cells and parameters (link's), body's Jump */
+OP(PRET, flow_pret, 5 + VCELL, 0) /* proc; link's: a FUNCTION's result's cell, or PRET.X */
 OP(I_MOD, oper_i_mod, 1, FX + FK)
 OP(I_XOR, oper_i_xor, 1, FX + FK)
 OP(I_EQV, oper_i_eqv, 1, FX + FK)
@@ -242,9 +242,9 @@ OP(I_MOV, oper_i_mov, 1 + 2 * VCELL, FV + FV2)
 /* link_xlate's line end of a stored line: the next line, its code; 0 none */
 OP(EOL_TO, flow_eol, EOL_TO_SIZE, 0)
 OP(BYVAL, exec_byval, 2, 0)
-OP(PRET_FV, flow_pret_fv, 2 + VCELL, 0) /* a FUNCTION's number, its result a cell */
-OP(PRET_FL, flow_pret_fl, 2 + VCELL, 0) /*   its result in the frame */
-OP(PRET_X, flow_pret_x, 2 + VCELL, 0)   /* local arrays, or a string result */ /* the address of the value on top, a string's copied there */
+OP(PRET_FV, flow_pret_fv, 5 + VCELL, 0) /* a FUNCTION's number, its result a cell */
+OP(PRET_FL, flow_pret_fl, 5 + VCELL, 0) /*   its result in the frame */
+OP(PRET_X, flow_pret_x, 5 + VCELL, 0)   /* local arrays, or a string result */ /* the address of the value on top, a string's copied there */
 OP(I_CHK8, exec_i_chk8, 1, FX + FK)
 /* fused ops on a frame's locals alone: each cell an offset from the frame */
 OP(I_NEXT_UP_L, flow_i_next_up_l, NEXT_SIZE, 0)

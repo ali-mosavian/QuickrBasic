@@ -56,17 +56,17 @@ static bool frame_op(const Symb *const sy, uint8_t *const op)
    arrays to free, a string to keep: PRET.X. */
 static void select_pret(const Symb *const sy, const Blok *const b, uint8_t *const op)
 {
-    const Proc *const p = blok_proc(b, op[1]);
+    const Proc *const p = blok_proc(b, load32(op + 1));
     const uint16_t res = p->result;
 
     if (p->flags & PF_ARRAYS || (res && (symb_var(sy, res)->info & VK_MASK) == VK_STR))
         op[0] = O_PRET_X;
     else if (res && symb_in_frame(sy, res)) {
         op[0] = O_PRET_FL;
-        store32(op + 2, (uint32_t)loc_off(*symb_loc(sy, res)));
+        store32(op + 5, (uint32_t)loc_off(*symb_loc(sy, res)));
     } else if (res) {
         op[0] = O_PRET_FV;
-        store32(op + 2, symb_cell(sy, res));
+        store32(op + 5, symb_cell(sy, res));
     }
 }
 

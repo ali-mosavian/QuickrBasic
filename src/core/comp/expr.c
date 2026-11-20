@@ -516,7 +516,7 @@ static Node *var_leaf(Comp *const C)
         if ((*comp_skipname(C->p) == '(' || nm->proc != C->proc) &&
             !(blok_proc(C->blok, nm->proc)->flags & PF_RESARG)) { /* a record's: ref_record's */
             const uint8_t *const name = C->p;
-            uint8_t idx;
+            uint32_t idx;
             const Proc *const pr = ref_proc(C, &idx);
             return ref_call(C, name, idx, pr, ARGS_PAREN);
         }

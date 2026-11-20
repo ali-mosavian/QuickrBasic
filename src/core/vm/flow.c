@@ -451,8 +451,8 @@ void flow_pcall(Session *const S)
 
     Vm *const vm = &S->vm;
     uint8_t *const call = vm->ip;
-    const uint8_t proc = *call;
-    const uint32_t n = load16(call + 1);
+    const uint32_t proc = load32(call);
+    const uint32_t n = load16(call + 4);
 
     if (vm->sp < vm->stklim || (uint32_t)(vm->sp - vm->stklim) < n || !frame_room(vm))
         repl_error(S, E_OS);
@@ -463,7 +463,7 @@ void flow_pcall(Session *const S)
     memset(vm->sp, 0, n * sizeof(Cell));
     *vm->ftop++ = (Frame){
         .kind = FRAME_CALL,
-        .ret = {vm->line, cache_off(&S->allo, call + 4 + sizeof(Jump))},
+        .ret = {vm->line, cache_off(&S->allo, call + 7 + sizeof(Jump))},
         .call = {
             .proc = proc,
             .temp_floor = S->strg.tmp_floor,
@@ -475,7 +475,7 @@ void flow_pcall(Session *const S)
     };
 
     S->strg.tmp_floor = S->strg.tmp_used;
-    vm->ip = call + 4;
+    vm->ip = call + 7;
     take_jump(vm, &S->strg, &S->allo, &S->fault);
 }
 
@@ -493,7 +493,7 @@ static void end_call(
     const Call c = f->call;
 
     if (p->flags & PF_ARRAYS) {
-        for (uint16_t id = sy->first_local[c.proc]; id; id = symb_varx(sy, id)->nloc)
+        for (uint16_t id = symb_first_local(sy, c.proc); id; id = symb_varx(sy, id)->nloc)
             if (is_array(symb_var(sy, id)) && symb_is_local(sy, id)) {
                 ArrSlot *const s = (ArrSlot *)at(loc_frame_at(*symb_loc(sy, id), c.fp));
                 arry_kill(ar, s->hdr); /* a frame's goes with the frame */

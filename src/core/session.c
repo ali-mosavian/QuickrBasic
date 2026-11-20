@@ -70,7 +70,7 @@ void session_drop_stop(Session *const S)
 bool session_set_next(Session *const S, const uint32_t line)
 {
     comp_proc(&S->comp, blok_procof(&S->blok, line));
-    const uint8_t proc = S->comp.proc;
+    const uint32_t proc = S->comp.proc;
     comp_proc(&S->comp, blok_procof(&S->blok, S->vm.cont.line));
 
     if (proc != S->comp.proc)
@@ -135,7 +135,7 @@ bool session_in_direct(const Session *const S)
 Status session_eval(
     Session *const S,
     const char *const expr,
-    const uint8_t proc,
+    const uint32_t proc,
     char out[static 80]
 )
 {
