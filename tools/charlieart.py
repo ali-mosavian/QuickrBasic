@@ -3298,10 +3298,22 @@ def snapshot() -> Pic:
     return p.outline(FROSTINK)
 
 
+def leant(o: Pic, lean: int) -> Pic:
+    """o as the ground lies under it: lean halves of a pixel's fall for each along, about its middle; room over and
+    under it for the steepest."""
+    pad = o.w // 2
+    p = Pic(o.w, o.h + 2 * pad)
+    for x in range(o.w):
+        for y in range(o.h):
+            if o.p[y][x]:
+                p.put(x, pad + y + round(lean * (x - pad) / 2), o.p[y][x])
+    return p
+
+
 def sledge(lean: int) -> Pic:
     """A toboggan, its nose to the right: slats curled up at it, a runner under. It follows the ground: lean halves
     of a pixel's fall for each along, about its middle, which is at the picture's row 24."""
-    o = Pic(30, 11)
+    o = Pic(30, 12)
     o.box(2, 5, 24, 6, WOOD[3])
     o.box(2, 7, 24, 7, WOOD[1])
     for x in (6, 11, 16, 21):
@@ -3313,12 +3325,7 @@ def sledge(lean: int) -> Pic:
     for x in (5, 20):
         o.put(x, 8, METAL[1])
     o.outline(FROSTINK)
-    p = Pic(30, 42)
-    for x in range(30):
-        for y in range(11):
-            if o.p[y][x]:
-                p.put(x, 15 + y + round(lean * (x - 15) / 2), o.p[y][x])
-    return p
+    return leant(o, lean)
 
 
 def deepsnow() -> Pic:
@@ -3424,6 +3431,74 @@ def liftchair() -> Pic:
     return p.outline(FROSTINK)
 
 
+GOATHEAD = """
+....HHHH.......
+..HHhhhhH......
+.Hhh....hH.....
+Hh......hbb....
+H......bbaab...
+.......baakaw..
+......bbaaawwp.
+.....bbbaaaww..
+.....bbbbaa.w..
+.....bbbb...w..
+.....bbb.......
+......b........
+"""
+GOATBODY = """
+.c....aaaaaaaa.....
+cbbaaaaaaaaaaaaab..
+cbaaaaaaaaaaaaaaabb
+.bbaaaaaaaaaaaaaabb
+.bbbaaaaaaaaaaaabbb
+.cbbbaaaaaaaaaabbbc
+..ccbbbbbbbbbbbbcc.
+...c.cb.bc.cb.bc...
+"""
+
+
+def stamp(p: Pic, rows: str, x0: int, y0: int, tones: dict[str, int]) -> None:
+    """A hand-placed grid's dots onto p: a letter a tone, a dot clear."""
+    for y, row in enumerate(rows.split()):
+        for x, ch in enumerate(row):
+            if ch != ".":
+                p.put(x0 + x, y0 + y, tones[ch])
+
+
+def goat(f: int, down: bool) -> Pic:
+    """A mountain goat, facing right: horns swept back, a beard, a shaggy coat; down: its head low, at a charge,
+    its legs flung out (f 0) or gathered."""
+    p = Pic(34, 24)
+    tones = {"a": LOG[0], "b": LOG[1], "c": LOG[2], "w": SNOW[0], "h": SNOW[2], "H": SNOW[4], "k": FROSTINK}
+    tones["p"] = ALPGLOW[1]
+    for i, x in enumerate((5, 8, 16, 19)):
+        fore = 1 if i > 1 else -1
+        s = (fore * 3 if f == 0 else -fore) if down else (1 if (i + f) % 2 else -1)
+        p.line(x, 15, x + s, 20, LOG[2 - i % 2], 2)
+        p.box(x + s, 21, x + s + 1, 21, FROSTINK)
+    stamp(p, GOATBODY, 2, 8, tones)
+    if down:
+        stamp(p, GOATHEAD, 17, 6, tones)
+    else:
+        stamp(p, GOATHEAD, 14, 1, tones)
+    return p.outline(FROSTINK)
+
+
+def icewall(broken: bool) -> Pic:
+    """A wall of ice across the road, five tiles tall, snow on its head; broken: its stump."""
+    h = 22 if broken else 82
+    p = Pic(18, h)
+    for y in range(1, h - 1):
+        for x in range(1, 17):
+            if broken and y < 8 and (x * 7 + y * 3) % 11 < 5:
+                continue
+            p.put(x, y, SNOW[0] if y < 3 and not broken else ICE[0] if x == 1 else facet(x + 5, y + 7 + 82 - h))
+    if not broken:
+        p.line(5, 22, 9, 30, ICE[0])
+        p.line(9, 30, 7, 40, ICE[0])
+    return p.outline(FROSTINK)
+
+
 def whitecap() -> list[tuple[int, Pic, bool, int]]:
     """Whitecap Pass's own pictures, at the indices the Downs' own have; its keepsake after the works' last."""
     k, z = 126, 625
@@ -3457,7 +3532,15 @@ def whitecap() -> list[tuple[int, Pic, bool, int]]:
         (z + 1044, lobbed(), True, -1),
         (z + 1046, icicle(), True, -1),
         (z + 1048, liftchair(), True, -1),
+        (z + 1050, goat(0, False), True, z + 1052),
+        (z + 1094, icewall(False), True, -1),
+        (z + 1096, icewall(True), True, -1),
     ]
+    # a goat at a charge as the ground lies, like the sled: each stride, and each mirrored for the fall the other way
+    for lean in range(-2, 3):
+        for f in range(2):
+            at = z + 1054 + ((lean + 2) * 2 + f) * 4
+            out.append((at, leant(goat(f, True), -lean), True, z + 1054 + ((2 - lean) * 2 + f) * 4 + 2))
     # a sled as the ground lies: falling steeply to the right, gently, level, rising gently, steeply
     out += [(z + 1014 + (lean + 2) * 2, sledge(-lean), True, -1) for lean in range(-2, 3)]
     return out

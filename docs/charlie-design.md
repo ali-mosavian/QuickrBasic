@@ -144,7 +144,9 @@ Progress is saved at each zone.
   roll; snow-throwers, ducked behind a wall that throws him back, up and open before each throw, ducked
   again at a bark; icicles under a shelf, loosed from under them or by a bark, that tremble, fall, hurt
   him and beat a snow-thrower or cat under them; a ski lift's chair, up its cable over a pit while he
-  stands on it. To add: goats, levels, the blizzard and the chase.
+  stands on it; goats, which lower their heads and charge where he stands, stop under a jump, and come
+  down on bolt along the road with him, through the ice walls that stop him on foot. To add: levels,
+  the blizzard and the chase.
 - Rule: grip. Ice keeps speed and will not give it back. Stopping and turning are the challenge, not going.
 - Gadgets: sleds, steered by jumps; ski-lift cables; geysers; a snowball gathered by rolling through deep
   snow, which takes one hit.

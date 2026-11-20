@@ -45,6 +45,8 @@ type Hero
     wet as single
     sled as integer
     snow as integer
+    goat as integer
+    rideT as single
 end type
 
 ' The game's time against the screen's frames: lag, the time not yet stepped; span, a frame's length as learnt; late,
@@ -213,6 +215,15 @@ const KICICLE = 35, TREMBLE = 10
 ' A ski lift's chair, a platform that goes up its cable SEATV of the way a second while he stands on it; its
 ' frame stands SEATH over its seat.
 const KSEAT = 36, SEATV = .35, SEATH = 30
+' A goat, its state's sign the way it faces: 1 at graze, till it sees him within GOATSEE on its ledge; then its
+' head is down GOATWIND of the things' steps and it charges, GOATSTEP a step, till it is under or past him or
+' GOATRUN from home, and stands dazed GOATDAZE steps; 0 while it is ridden or on its way home. Its lowered horns
+' hurt. Come down on, it bolts on along the road, to the right, at GOATV, he astride GOATH up, till he is off the
+' ground, stopped or GOATRIDE seconds on; then it runs home at STRAYV.
+const KGOAT = 47, GOATSEE = 72, GOATWIND = 12, GCHARGE = 100, GOATDAZE = 30, GOATSTEP = 8, GOATRUN = 64
+const GOATV = 240!, GOATH = 14, GOATRIDE = 2!, STRAYV = 300!
+' An ice wall, WALLH tall, stops him WALLR from its middle: only a goat ridden breaks it.
+const KWALL = 37, WALLH = 80, WALLR = 15
 const PRESSH = 112, PRESSUP = 68, PRESSP = 180, PRESSFALL = 90, PRESSRISE = 130, PRESSLAG = 4
 ' From KFRONT on: drawn over the ground. The sands' flume: a column of its fall, its level end, the tank at its
 ' head; the speed its water carries Charlie at.
@@ -269,7 +280,9 @@ const ICAMERA = IPRESS + 6, ISLED = ICAMERA + 2, IDRIFT = ISLED + 10
 ' The snowball he is in, at two turns.
 const IGEYSER = IDRIFT + 2, ISNOWBALL = IGEYSER + 6
 ' A snow-thrower ducked and up, facing left, then their mirrors; its snowball.
-const IFORT = ISNOWBALL + 4, ILOB = IFORT + 8, IICICLE = ILOB + 2, ISEAT = IICICLE + 2, NIMG = ISEAT + 2
+const IFORT = ISNOWBALL + 4, ILOB = IFORT + 8, IICICLE = ILOB + 2, ISEAT = IICICLE + 2
+' A goat's: at graze, then at a charge as the ground lies, five ways, two strides each; each with its mirror.
+const IGOAT = ISEAT + 2, IGOATR = IGOAT + 4, IWALL = IGOATR + 40, NIMG = IWALL + 4
 const HUDW = 108, HUDH = 40
 ' The levels: a zone's two acts, the second at another hour in other colours, zone by zone.
 ' the stages played, and after them the intro's road
@@ -421,6 +434,7 @@ declare sub Beaten (g as Game, pt() as Part, i as integer, dy as integer)
 declare function Lit% (i as integer)
 declare function Slick% (p as Hero)
 declare sub Weed (x as integer)
+declare sub Clearing (c as integer)
 declare sub Board (p as Hero, i as integer)
 declare sub Alight (p as Hero, pt() as Part, c as integer)
 declare function PressT% (i as integer)
@@ -507,6 +521,16 @@ declare sub Dying (g as Game, p as Hero)
 declare sub Things (g as Game, p as Hero, lo() as Loose, pt() as Part)
 declare function Risen% (i as integer)
 declare function Fallen% (i as integer)
+declare sub Graze (i as integer, p as Hero)
+declare sub MeetGoat (g as Game, p as Hero, i as integer, lo() as Loose)
+declare sub Mount (p as Hero, i as integer)
+declare sub Ride (p as Hero, l as integer, r as integer, d as integer)
+declare sub Homeward (g as Game)
+declare sub MeetWall (g as Game, p as Hero, i as integer, pt() as Part)
+declare function GoatNear% (x as integer)
+declare function Slant% (p as Hero)
+declare sub DrawGoat (i as integer, x as integer, y as integer)
+declare sub DrawStray (cx as integer, cy as integer)
 declare sub Plunge (g as Game, pt() as Part, i as integer)
 declare sub Shatter (pt() as Part, i as integer)
 declare sub Hurl (i as integer, p as Hero)
@@ -612,6 +636,14 @@ dim shared Reached as integer, Pick as integer
 dim shared Tide as integer, TideLo as integer, TideHi as integer, TideAt as long
 dim shared Gulls(NGULL - 1) as Bird, NGulls as integer
 dim shared Lobs(NLOB - 1) as Lob, LobN as integer
+' The goat out of its place, i: st 1 ridden, 2 on its way home from x, y, 0 none.
+type Rover
+    x as single
+    y as single
+    i as integer
+    st as integer
+end type
+dim shared Stray as Rover
 
 Main
 end
@@ -1096,6 +1128,12 @@ sub LoadLevel (st as integer)
             k = KSLED
         case "thrower"
             k = KTHROW
+        case "goat"
+            Clearing c
+            k = KGOAT
+        case "icewall"
+            Clearing c
+            k = KWALL
         case "icicle"
             ' a shelf of three, n tiles over the ground here, and an icicle under its middle
             for i = 0 to 2
@@ -1145,9 +1183,7 @@ sub LoadLevel (st as integer)
         case "thorn"
             k = KTHORN
         case "jet"
-            ' nothing grows at its mouth, to hide it
-            Weed c * TS - 28
-            Fallow = c + 3
+            Clearing c
             k = KJET
         case "spin"
             k = KSPIN
@@ -1403,7 +1439,12 @@ sub Mend
     next
     for m = 0 to NObj - 1
         if ObK(m) = KSLED then ObS(m) = 0
+        if ObK(m) = KGOAT then
+            ObS(m) = 1
+            ObX(m) = ObA(m)
+        end if
     next
+    Stray.st = 0
 end sub
 
 ' How far cable m's far end hangs under its near one: a basket's cable falls, a ski lift's climbs.
@@ -1572,6 +1613,12 @@ sub Weed (x as integer)
     for i = 0 to NObj - 1
         if ObK(i) >= KTREE and ObK(i) <= KLAMP and ObX(i) > x then ObK(i) = 0
     next
+end sub
+
+' Nothing grows about column c, to hide what stands there.
+sub Clearing (c as integer)
+    Weed c * TS - 28
+    Fallow = c + 3
 end sub
 
 ' Flowers, bushes and lantern plants along the flats, by the column; none before column Fallow.
@@ -2696,6 +2743,7 @@ sub Tick (g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part)
             g.clock = g.clock + STEPT
             MoveHero p, k, pt()
             Touch g, p, lo(), pt()
+            if Stray.st = 2 then Homeward g
             Flee g, p, lo(), pt()
             if NGulls then Flock g, p, lo(), pt()
             if LobN then Volley g, p, lo(), pt()
@@ -2875,6 +2923,19 @@ sub Pilot (p as Hero, k as Pad)
                 if p.gsp > 20 then k.l = -1
             end if
         end if
+        ' a goat: to a stand short of it, up as it charges, and down on its back
+        i = GoatNear%(x)
+        if i <> NONE and p.goat = 0 then
+            d = ObX(i) - x
+            if abs(ObS(i)) = GCHARGE then
+                k.r = 0
+                want = abs(d) < 70
+            elseif d > 0 and d < 56 + cint(p.gsp) \ 4 then
+                want = 0
+                k.r = 0
+                if p.gsp > 20 then k.l = -1
+            end if
+        end if
         ' who flees is rolled into, once there is the speed to roll
         k.d = Zone = 0 and Cart.st = 1 and Cart.x > x and Cart.x - x < 120 and p.gsp > 150
         ' a platform's gap ahead: slowly to its edge, there till the platform is at it and staying, then on
@@ -2914,6 +2975,8 @@ sub Pilot (p as Hero, k as Pad)
     elseif not p.ground then
         ' over Kipper's channel: straight down, onto its deck or into the sea
         if Zone = 2 and Cart.st = 1 then k.r = 0
+        ' over a goat: straight down, onto its back
+        if GoatNear%(cint(p.x)) <> NONE then k.r = 0
         ' in the air toward a platform's gap: slowed, to come down before it
         for m = 0 to NMv - 1
             d = MvE(m) - cint(p.x)
@@ -2962,6 +3025,7 @@ sub ResetWorld (g as Game, p as Hero, lo() as Loose, pt() as Part)
         if ObK(i) = KCAT or ObK(i) = KCRAB or ObK(i) = KSWEEP then ObS(i) = -1
         if ObK(i) = KJELLY then ObS(i) = 1
         if ObK(i) = KTHROW then ObS(i) = THROWC
+        if ObK(i) = KGOAT or ObK(i) = KWALL then ObS(i) = 1
     next
     for i = 0 to NLOB - 1
         Lobs(i).live = 0
@@ -3138,6 +3202,7 @@ sub MoveHero (p as Hero, k as Pad, pt() as Part)
     end if
     if p.coyote > 0 then p.coyote = p.coyote - STEPT
     if p.inv > 0 then p.inv = p.inv - STEPT
+    if p.goat then Ride p, l, r, d
     p.lastx = p.x
     ' slid off a slope too steep for its speed, the keys are no help a while
     if p.slip > 0 then
@@ -3448,6 +3513,10 @@ sub Touch (g as Game, p as Hero, lo() as Loose, pt() as Part)
             MeetSweep g, p, i, lo(), pt()
         case KTHROW
             MeetThrow g, p, i, lo(), pt()
+        case KGOAT
+            MeetGoat g, p, i, lo()
+        case KWALL
+            MeetWall g, p, i, pt()
         case KICICLE
             ' walked under, it is loosed; falling, it hurts whom it lands on, and breaks
             if ObS(i) = 0 and dx < 20 and py > ObY(i) and py < ObY(i) + 140 then ObS(i) = 1
@@ -3920,6 +3989,166 @@ function Fallen% (i as integer)
     Fallen% = cint(GRAV * t * t / 2)
 end function
 
+' A goat's step: at graze it faces him and, seeing him on its ledge, lowers its head; then it charges till it is
+' under or past him or its ledge ends, and stands dazed.
+sub Graze (i as integer, p as Hero)
+    dim s as integer, f as integer, x as integer
+    s = abs(ObS(i))
+    f = sgn(ObS(i))
+    select case s
+    case 1
+        f = 1 + 2 * (p.x < ObX(i))
+        if p.goat = 0 and abs(p.x - ObX(i)) < GOATSEE and abs(p.y - ObY(i)) < 30 then s = GOATWIND + 1
+    case 2
+        s = GCHARGE
+    case GCHARGE
+        x = ObX(i) + f * GOATSTEP
+        if (p.x - x) * f < 0 or abs(x - ObA(i)) > GOATRUN or Surf%(x + f * 12, ObY(i)) <> ObY(i) then
+            s = GCHARGE + GOATDAZE
+        else
+            ObX(i) = x
+        end if
+    case else
+        s = s - 1
+        if s = GCHARGE then s = 1
+    end select
+    ObS(i) = s * f
+end sub
+
+' A goat met: come down on, it is ridden; its horns, lowered or at a charge, hurt.
+sub MeetGoat (g as Game, p as Hero, i as integer, lo() as Loose)
+    dim s as integer
+    s = abs(ObS(i))
+    if s = 0 or p.goat or abs(ObX(i) - p.x) >= 16 or p.y < ObY(i) - 30 or p.y > ObY(i) + 8 then exit sub
+    if not p.ground and p.vy > 0 and p.y < ObY(i) - 6 and not p.sled then
+        Mount p, i
+    elseif s > 1 and s <= GCHARGE and p.y > ObY(i) - 18 then
+        Hurt g, p, ObX(i), lo(), SHURT
+    end if
+end sub
+
+' Onto goat i's back: it bolts on along the road. A goat still on its way home is there.
+sub Mount (p as Hero, i as integer)
+    if Stray.st then ObS(Stray.i) = 1
+    Stray.i = i
+    Stray.st = 1
+    Stray.x = ObX(i)
+    Stray.y = ObY(i)
+    ObS(i) = 0
+    ObX(i) = ObA(i)
+    p.goat = -1
+    p.rideT = 0
+    p.x = Stray.x
+    p.y = Stray.y - 1
+    p.face = 0
+    p.vx = GOATV
+    p.vy = 60
+    p.roll = 0
+    p.jumped = 0
+    Sfx SBUMP
+end sub
+
+' Astride a goat: it runs on along the road and takes no rein. Off the ground, stopped or GOATRIDE on, he is off
+' it, and it turns for home from where it last stood.
+sub Ride (p as Hero, l as integer, r as integer, d as integer)
+    p.rideT = p.rideT + STEPT
+    l = 0
+    r = 0
+    d = 0
+    if p.rideT > .1 and (not p.ground or p.rideT > GOATRIDE or abs(p.x - p.lastx) < 1) then
+        p.goat = 0
+        Stray.st = 2
+    elseif p.ground then
+        p.gsp = GOATV
+        p.face = 0
+        p.roll = 0
+        Stray.x = p.x
+        Stray.y = p.y
+    end if
+end sub
+
+' The goat let go runs home along the ground; there, or out of sight, it is at graze again.
+sub Homeward (g as Game)
+    dim y as integer
+    Stray.x = Stray.x + sgn(ObA(Stray.i) - Stray.x) * STRAYV * STEPT
+    y = Surf%(cint(Stray.x), cint(Stray.y))
+    if y <> NONE then Stray.y = y
+    if abs(Stray.x - ObA(Stray.i)) < 6 or abs(Stray.x - g.camx - SW \ 2) > SW then
+        ObS(Stray.i) = 1
+        Stray.st = 0
+    end if
+end sub
+
+' An ice wall across the road: he is stopped at it; a goat ridden goes through, and leaves its stump.
+sub MeetWall (g as Game, p as Hero, i as integer, pt() as Part)
+    dim s as integer
+    if ObS(i) = 0 or abs(ObX(i) - p.x) >= WALLR or p.y <= ObY(i) - WALLH or p.y > ObY(i) + 20 then exit sub
+    if p.goat then
+        ObS(i) = 0
+        g.score = g.score + 100
+        g.shake = .2
+        Burst pt(), csng(ObX(i)), csng(ObY(i) - WALLH \ 2), 16, 180, CWHITE
+        Sfx SCRACK
+        exit sub
+    end if
+    s = 1 + 2 * (p.x < ObX(i))
+    p.x = ObX(i) + s * WALLR
+    if p.ground then
+        if p.gsp * s < 0 then p.gsp = 0
+    elseif p.vx * s < 0 then
+        p.vx = 0
+    end if
+end sub
+
+' The goat not ridden within 150 of x, NONE when there is none.
+function GoatNear% (x as integer)
+    dim i as integer, c as integer
+    GoatNear% = NONE
+    c = (x - 220) \ TS
+    if c < 0 then c = 0
+    i = First(c)
+    do while i < NObj
+        if ObA(i) > x + 220 then exit do
+        if ObK(i) = KGOAT and ObS(i) <> 0 and abs(ObX(i) - x) < 150 then GoatNear% = i
+        i = i + 1
+    loop
+end function
+
+' How the ground lies under him, of the five ways what rides it is drawn: -2 to 2, level 0.
+function Slant% (p as Hero)
+    dim t as integer
+    if p.ground then t = cint(p.ang * 8 / PI)
+    if t > 2 then t = 2
+    if t < -2 then t = -2
+    Slant% = t
+end function
+
+' Goat i at x, y on the screen: its head up at graze and dazed, down while it gathers itself and charges.
+sub DrawGoat (i as integer, x as integer, y as integer)
+    dim s as integer, f as integer
+    s = abs(ObS(i))
+    if s = 0 then exit sub
+    f = -2 * (ObS(i) < 0)
+    if s > 1 and s <= GCHARGE then
+        Blit x - 17, y - 40, IGOATR + (5 + (s = GCHARGE) * ((Ticks \ 6) and 1)) * 4 + f, 34, 58
+    else
+        Blit x - 17, y - 23, IGOAT + f, 34, 24
+    end if
+end sub
+
+' The goat on its way home, as the ground lies under it.
+sub DrawStray (cx as integer, cy as integer)
+    dim x as integer, y as integer, a as integer, b as integer, t as integer
+    x = cint(Stray.x)
+    y = cint(Stray.y)
+    a = Surf%(x - 8, y)
+    b = Surf%(x + 8, y)
+    if a <> NONE and b <> NONE then t = (a - b) \ 8
+    if t > 2 then t = 2
+    if t < -2 then t = -2
+    Blit x - cx - 17, y - cy - 40, IGOATR + ((t + 2) * 2 + ((Ticks \ 6) and 1)) * 4 - 2 * (ObA(Stray.i) < x), 34, 58
+end sub
+
 ' Icicle i breaks.
 sub Shatter (pt() as Part, i as integer)
     Burst pt(), csng(ObX(i)), csng(ObY(i) + Fallen%(i) + 12), 8, 110, CWHITE
@@ -4069,6 +4298,8 @@ sub Things (g as Game, p as Hero, lo() as Loose, pt() as Part)
                 ObS(i) = ObS(i) + 1
                 if ObS(i) > TREMBLE then Plunge g, pt(), i
             end if
+        case KGOAT
+            if ObS(i) <> 0 then Graze i, p
         case KTHROW
             ' a step of its turn, facing Charlie; its throw
             if ObS(i) <> 0 then
@@ -4865,6 +5096,7 @@ sub Render (g as Game, p as Hero, lo() as Loose, pt() as Part)
     DrawThings cx, cy, -1
     DrawTiles cx, cy
     DrawThings cx, cy, 0
+    if Stray.st = 2 then DrawStray cx, cy
     if NMv then DrawCables cx, cy
     if LooseN then DrawLoose cx, cy, lo()
     DrawChase cx, cy
@@ -5091,6 +5323,14 @@ sub DrawThings (cx as integer, cy as integer, back as integer)
                 Blit x - 30, y - 25, ICISTERN, 30, 30
             case KSEAT
                 Blit x, y - SEATH, ISEAT, MOVEW, SEATH + 8
+            case KWALL
+                if ObS(i) then
+                    Blit x - 9, y - 81, IWALL, 18, 82
+                else
+                    Blit x - 9, y - 21, IWALL + 2, 18, 22
+                end if
+            case KGOAT
+                DrawGoat i, x, y
             case KSPAN
                 ' three planks; tottering, it shakes
                 if ObS(i) then y = y + ((Ticks \ 2) and 1)
@@ -5331,14 +5571,15 @@ sub DrawHero (p as Hero, cx as integer, cy as integer)
     f = HeroFrame%(p)
     ' on a sled: it lies as the ground does, and he stands on it
     if p.sled then
-        t = 0
-        if p.ground then t = cint(p.ang * 8 / PI)
-        if t > 2 then t = 2
-        if t < -2 then t = -2
-        Blit x - 15, y - 25, ISLED + (t + 2) * 2, 30, 42
+        Blit x - 15, y - 25, ISLED + (Slant%(p) + 2) * 2, 30, 42
         x = x + cint(SLEDH * hv)
         y = y - cint(SLEDH * hu)
-        t = 0
+    end if
+    ' astride a goat: it gallops as the ground lies, and he is GOATH up its back
+    if p.goat then
+        Blit x - 17, y - 40, IGOATR + ((Slant%(p) + 2) * 2 + ((Ticks \ 6) and 1)) * 4, 34, 58
+        x = x + cint(GOATH * hv)
+        y = y - cint(GOATH * hu)
     end if
     ' running round a twist: rolled with the ribbon, a twelfth of a turn a picture, its paws' line 12 off its middle
     if tw and f >= FRUN and f < FBALL then
@@ -5396,7 +5637,7 @@ function HeroFrame% (p as Hero)
     if p.dead or p.stun then
         HeroFrame% = FHURT
         if (Ticks \ 3) and 1 then HeroFrame% = FSHIVER
-    elseif p.sled then
+    elseif p.sled or p.goat then
         HeroFrame% = FDASH
     elseif p.roll or p.charging then
         HeroFrame% = FBALL + (int(p.anim) and 3)

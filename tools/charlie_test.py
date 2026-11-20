@@ -28,7 +28,7 @@ DEMO = ROOT / "src/plat/wasm/web/demos/CHARLIE.BAS"
 DRIVER = """declare function GroundAt% (x as integer)
 declare sub Stand (p as Hero, x as integer, v as single)
 declare function FlatRun% (ice as integer)
-declare function SledFall% (g as Game, p as Hero, lo() as Loose, pt() as Part)
+declare function Fall% (g as Game, p as Hero, lo() as Loose, pt() as Part, tone as integer, a as integer, b as integer)
 declare function Fur% (x as integer, w as integer, y0 as integer, y1 as integer)
 declare function Pix& (x as integer, w as integer, y0 as integer, y1 as integer)
 declare function OnCue% (cu() as Cue, kind as integer, bt as single)
@@ -1264,7 +1264,7 @@ for i = 1 to 20
     Tick g, p, k, lo(), pt()
     if p.sled then exit for
 next
-was = was and p.sled and ObS(c) = 1 and p.gsp >= SLEDV and SledFall%(g, p, lo(), pt()) = 0
+was = was and p.sled and ObS(c) = 1 and p.gsp >= SLEDV and Fall%(g, p, lo(), pt(), 59, -10, 8) = 0
 for i = 1 to 200
     Tick g, p, k, lo(), pt()
     if p.ground and p.ang < -.3 then exit for
@@ -1273,7 +1273,7 @@ v = cint(p.gsp)
 for i = 1 to 12
     Tick g, p, k, lo(), pt()
 next
-j = SledFall%(g, p, lo(), pt())
+j = Fall%(g, p, lo(), pt(), 59, -10, 8)
 was = was and p.ground and p.ang < -.3 and p.gsp > v + 60 and j > 6 and j < 12
 for i = 1 to 200
     Tick g, p, k, lo(), pt()
@@ -1810,6 +1810,71 @@ for i = 1 to 300
 next
 was = p.ground and p.sg = c and abs(p.x - (MvX(m) + MvA(m) + 24)) < 2
 if was and abs(p.y - (MvY(m) + CABLED)) < 2 then print "cable ok"
+' the pass's goat and ice wall: the wall stops him on foot. The goat grazes with him 92 off, further than it sees;
+' with him 50 off it lowers its head 24 ticks where it stands, then charges 8 a step of two ticks and hurts him
+' where he stood, 36 to 38 ticks on. Jumped as it charges, it stops under him; he comes down on its back and it
+' bolts on along the road, no rein taken, through the wall, drawn as the ground lies, level on the flat and
+' falling on a fall; two seconds on he is off it, and it runs home to graze
+GoStage 6, g, p, lo(), pt()
+for m = 0 to NObj - 1
+    if ObK(m) = KGOAT then exit for
+next
+for c = 0 to NObj - 1
+    if ObK(c) = KWALL then exit for
+next
+was = m < NObj and c < NObj
+Stand p, ObX(c) - 60, 200
+k.r = -1
+for i = 1 to 60
+    Tick g, p, k, lo(), pt()
+next
+k.r = 0
+was = was and ObS(c) = 1 and p.x <= ObX(c) - WALLR and p.gsp = 0
+Stand p, ObX(m) - 92, 0
+for i = 1 to 60
+    Tick g, p, k, lo(), pt()
+next
+was = was and abs(ObS(m)) = 1 and ObX(m) = ObA(m)
+g.bones = 5
+Stand p, ObX(m) - 50, 0
+for i = 1 to 120
+    Tick g, p, k, lo(), pt()
+    if i <= 24 and ObX(m) <> ObA(m) then was = 0
+    if p.inv > 0 then exit for
+next
+was = was and i > 33 and i < 41 and g.bones = 0
+GoStage 6, g, p, lo(), pt()
+g.bones = 5
+Stand p, ObX(m) - 50, 0
+for i = 1 to 60
+    Tick g, p, k, lo(), pt()
+    if abs(ObS(m)) = GCHARGE then exit for
+next
+k.hit = -1
+k.jump = -1
+for i = 1 to 80
+    Tick g, p, k, lo(), pt()
+    if p.goat then exit for
+next
+k.jump = 0
+was = was and p.goat and ObS(m) = 0 and p.inv <= 0 and g.bones = 5 and abs(p.x - (ObA(m) - 50)) < 12
+k.l = -1
+v = NONE
+j = NONE
+for i = 1 to 200
+    Tick g, p, k, lo(), pt()
+    if not p.goat then exit for
+    if p.ground and p.gsp < 200 then was = 0
+    if i = 30 then v = Fall%(g, p, lo(), pt(), 132, -8, -2)
+    if j = NONE and p.ground and p.y > ObY(m) + 8 then j = Fall%(g, p, lo(), pt(), 132, -8, -2)
+next
+k.l = 0
+was = was and i > 114 and i < 124 and ObS(c) = 0 and v = 0 and j = 3 and p.x > ObX(c) + 100
+for i = 1 to 300
+    Tick g, p, k, lo(), pt()
+    if Stray.st = 0 then exit for
+next
+if was and i < 300 and abs(ObS(m)) = 1 and ObX(m) = ObA(m) then print "goat ok"
 ' the pass's ski lift: its chair takes him up its cable steadily, to the ground CABLED higher past the pit in
 ' 1 / SEATV seconds, and goes back down once he is off it
 GoStage 7, g, p, lo(), pt()
@@ -2052,20 +2117,36 @@ function GroundAt% (x as integer)
     next
 end function
 
-' How far a sled's slats fall from 10 behind Charlie to 8 before him, as drawn: 0 level, NONE with none seen.
-function SledFall% (g as Game, p as Hero, lo() as Loose, pt() as Part)
-    dim y as integer, ya as integer, yb as integer, sx as integer
-    SledFall% = NONE
+' How much lower what he rides is drawn at column b from Charlie's middle than at column a: the lowest row of its
+' tone at each, within 40 rows over his feet; 0 level. NONE with none seen, or where the scene without him has
+' the tone there too and the measure would read that.
+function Fall% (g as Game, p as Hero, lo() as Loose, pt() as Part, tone as integer, a as integer, b as integer)
+    dim y as integer, ya as integer, yb as integer, sx as integer, sy as integer, pass as integer, was as single
+    Fall% = NONE
     g.shake = 0
-    Render g, p, lo(), pt()
     sx = cint(p.x) - int(g.camx)
-    ya = NONE
-    yb = NONE
-    for y = 0 to SH - 1
-        if ya = NONE and point(sx - 10, y) = 59 then ya = y
-        if yb = NONE and point(sx + 8, y) = 59 then yb = y
+    sy = cint(p.y) - int(g.camy)
+    for pass = 0 to 1
+        ' first with him blinked out, as when he has been hurt
+        was = p.inv
+        if pass = 0 then
+            p.inv = 1
+            Ticks = Ticks + 4 - (Ticks and 4)
+        end if
+        Render g, p, lo(), pt()
+        if pass = 0 then Ticks = Ticks - 4
+        p.inv = was
+        ya = NONE
+        yb = NONE
+        for y = sy - 40 to sy + 20
+            if y >= 0 and y < SH then
+                if point(sx + a, y) = tone then ya = y
+                if point(sx + b, y) = tone then yb = y
+            end if
+        next
+        if pass = 0 and (ya <> NONE or yb <> NONE) then exit function
     next
-    if ya <> NONE and yb <> NONE then SledFall% = yb - ya
+    if ya <> NONE and yb <> NONE then Fall% = yb - ya
 end function
 
 ' The first of 16 level columns in a row, bare ice if ice, under snow if not; NONE without them.
@@ -2194,6 +2275,7 @@ def main() -> None:
         ("sled ok", "a sled is boarded, follows the slope, has no brake, keeps him through a hop, ends in deep snow"),
         ("geyser ok", "in the pass a jet is a geyser, the pass's water: it throws him up as it blows"),
         ("snowball ok", "deep snow rolled through fast makes him a snowball: it takes one hit, and ends with the roll"),
+        ("goat ok", "an ice wall stops him; a goat's charge hurts; jumped, it is ridden through, as the ground lies"),
         ("thrower ok", "a snow-thrower's wall throws a roll back; its snowball hurts where he stood; up, it is beaten"),
         ("icicle ok", "an icicle is loosed from under it or by a bark, trembles, falls on him or a snow-thrower"),
         ("crab ok", "a crab pinches at its side and is a step from above; barked into its shell, a higher one"),
