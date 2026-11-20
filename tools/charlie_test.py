@@ -1530,6 +1530,75 @@ for i = 1 to 90
 next
 was = was and colA(1) = 1 and colA(0) = 0 and p.x > wd.lv.ob(c).x + LOGR and p.roll
 if was and abs(p.gsp - LOGV) < 30 then print "log ok"
+' a burrow's mound leaves him be who runs over it; crouched on it he digs in, and goes DIGV for its other mound
+' unseen, the bones and the bramble over his way and a hit nothing to him; there he is thrown up DIGPOP, and it
+' does not take him back while he stays on it; stepped off and on again it does, to the first
+for c = 0 to wd.lv.nObj - 1
+    if wd.lv.ob(c).k = KMOUND then exit for
+next
+was = c < wd.lv.nObj
+v = wd.lv.ob(c).s - 1
+if v < 0 then v = c
+was = was and v > c and wd.lv.ob(v).k = KMOUND and wd.lv.ob(v).s = c + 1 and wd.lv.ob(v).x = wd.lv.ob(c).x + 224
+p.inv = 0
+p.stun = 0
+p.roll = 0
+p.dug = 0
+k.d = 0
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 40, 0
+k.r = -1
+for i = 1 to 60
+    Tick wd, g, p, k, lo(), pt()
+    was = was and p.dig = 0
+    if p.x > wd.lv.ob(c).x + MOUNDR + 2 then exit for
+next
+k.r = 0
+was = was and p.x > wd.lv.ob(c).x + MOUNDR and p.x < wd.lv.ob(c).x + 20
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 40, 0
+g.shake = 0
+Render wd, g, p, lo(), pt()
+j = wd.lv.ob(c).x - int(g.camx) - 1
+m = wd.lv.ob(c).y - int(g.camy)
+was = was and point(j, m - 3) = 137 and point(j, m - 9) = 123
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).x + 3, 0
+k.d = -1
+Tick wd, g, p, k, lo(), pt()
+was = was and p.dig = v + 1
+bx = p.x
+m = g.bones
+for i = 1 to 15
+    Tick wd, g, p, k, lo(), pt()
+next
+was = was and p.dig = v + 1 and abs(p.x - bx - 15 * DIGV / 60) < 1
+Hurt wd.mu, wd.se, g, p, 0, lo(), SHURT
+g.shake = 0
+Render wd, g, p, lo(), pt()
+was = was and Fur%(cint(p.x) - int(g.camx), 14, cint(p.y) - 26 - int(g.camy), cint(p.y) - int(g.camy)) = 0
+for i = 16 to 60
+    Tick wd, g, p, k, lo(), pt()
+    if p.dig = 0 then exit for
+next
+' 224 pixels at 400 a second: 33 steps, and out on the 34th
+was = was and i = 34 and p.x = wd.lv.ob(v).x and g.bones = m and p.stun = 0 and not p.dead
+by = p.y
+for i = 1 to 120
+    Tick wd, g, p, k, lo(), pt()
+    if p.y < by then by = p.y
+    was = was and p.dig = 0
+next
+' thrown up at 260 against 750: 45 pixels
+was = was and abs(wd.lv.ob(v).y - by - 45) < 4 and p.ground and abs(p.x - wd.lv.ob(v).x) < 2
+k.d = 0
+Stand wd.lv, wd.gr, p, wd.lv.ob(v).x + MOUNDR + 4, 0
+Tick wd, g, p, k, lo(), pt()
+Stand wd.lv, wd.gr, p, wd.lv.ob(v).x - 2, 0
+k.d = -1
+for i = 1 to 80
+    Tick wd, g, p, k, lo(), pt()
+    if p.dug = c + 1 then exit for
+next
+k.d = 0
+if was and p.dug = c + 1 and p.x = wd.lv.ob(c).x then print "burrow ok"
 ' the pass's bare ice keeps his speed and will not give it back: let go at a run he slides on where snow stops
 ' him, held back he is long in stopping, and from a stand he is slow away; it is drawn bare, the snow's white gone
 GoStage wd, 6, g, p, lo(), pt()
@@ -2850,6 +2919,10 @@ def main() -> None:
         ("vine ok", "a vine caught in the air swings him as a weight, lets go at a jump, and hangs straight again"),
         ("bramble ok", "bramble hurts on foot, is cut by a roll with his bones kept, and grows back to hurt again"),
         ("log ok", "a hollow log stops him on foot, is jumped, and shoots him through it curled, out of sight"),
+        (
+            "burrow ok",
+            "a burrow takes him crouched on its mound, unseen and unhurt, to its other, and not back at once",
+        ),
         ("ice ok", "bare ice keeps his speed: a long slide, a long stop, a slow start; drawn bare of snow"),
         ("sled ok", "a sled is boarded, follows the slope, has no brake, keeps him through a hop, ends in deep snow"),
         ("geyser ok", "in the pass a jet is a geyser, the pass's water: it throws him up as it blows"),

@@ -179,8 +179,9 @@ Progress is saved at each zone.
   seconds, the last of them fading; saplings bowed to the ground, which throw him who crosses their crown,
   the higher the faster he came, and stand sprung a second; vines, caught by their end in the air, which
   swing him as a weight till a jump lets go; bramble, which hurts on foot, is cut by a roll and grows back
-  three seconds on; hollow logs, which stop him on foot and shoot him through curled, out of sight. To add:
-  height, burrows, squirrels, bees, its levels and chase.
+  three seconds on; hollow logs, which stop him on foot and shoot him through curled, out of sight; burrows,
+  dug into crouched on one mound and left by its other, nothing met on the way under. To add: height,
+  squirrels, bees, its levels and chase.
 - Rule: height. The way is up, and a fall costs the climb, not a life.
 - Gadgets: sapling catapults, which bend under him and throw by his speed; vine swings; hollow logs; burrows,
   dug into at one mound and left by another.

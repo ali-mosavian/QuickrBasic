@@ -4336,6 +4336,23 @@ def hollowlog() -> Pic:
     return p.outline(WOODINK)
 
 
+def mound() -> Pic:
+    """A burrow's mound: thrown loam, the hole in its face, leaves on it."""
+    p = Pic(34, 14)
+    for y in range(1, 13):
+        for x in range(1, 33):
+            d = ((x - 16.5) / 15.5) ** 2 + ((y - 12) / 11) ** 2
+            if d <= 1:
+                p.put(x, y, LOAM[3] if d > 0.62 and x < 16 and y < 9 else LOAM[2])
+    for y in range(4, 13):
+        for x in range(9, 24):
+            if ((x - 16.5) / 6.5) ** 2 + ((y - 9) / 4.5) ** 2 <= 1:
+                p.put(x, y, WOODINK)
+    for x, y in ((5, 8), (27, 7), (24, 3), (12, 2)):
+        p.box(x, y, x + 1, y, LITTER[(x + y) % 2])
+    return p.outline(WOODINK)
+
+
 def pomball() -> Pic:
     """The Pomchi's ball: red, a white band round it."""
     p = Pic(14, 14)
@@ -4370,6 +4387,7 @@ def russet() -> list[tuple[int, Pic, bool, int]]:
         (z + 1222, bramble(False), True, -1),
         (z + 1224, bramble(True), True, -1),
         (z + 1226, hollowlog(), True, -1),
+        (z + 1228, mound(), True, -1),
     ]
     return out
 
@@ -4584,6 +4602,9 @@ def levels() -> bytes:
             sys.exit(f"charlieart: level {i} has commands the game does not know: {sorted(unknown)}")
         if [c for c, _ in lv].count("end") != 1 or lv[-1][0] != "end":
             sys.exit(f"charlieart: level {i} does not end with its end")
+        ends = [v for c, v in lv if c == "burrow"]
+        if any(ends.count(v) != 2 for v in ends):
+            sys.exit(f"charlieart: level {i} has a burrow without its two mounds")
         if [c for c, _ in lv].count("tune") != 1:
             sys.exit(f"charlieart: level {i} does not name its one tune")
     blocks = [

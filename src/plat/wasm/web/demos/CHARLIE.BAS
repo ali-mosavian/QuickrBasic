@@ -51,6 +51,8 @@ type Hero
     vineT as single
     sway as single
     swayV as single
+    dig as integer
+    dug as integer
 end type
 
 ' The game's time against the screen's frames: lag, the time not yet stepped; span, a frame's length as learnt; late,
@@ -306,8 +308,10 @@ const IFROST = IWALL + 4, IDUNKED = IFROST + 10
 const IFAM = IDUNKED + 2, NFAM = 5, FAMF = 9, FAMSTEP = 36, IBARON = IFAM + NFAM * FAMF * 2
 ' The pass's load of snow on its ledge, and down in a heap.
 const ILOAD = IBARON + 12, IHEAP = ILOAD + 2
-' The wood's keepsake, the Pomchi's ball; a sapling bowed, and sprung; bramble grown, and cut; a hollow log.
-const IBALL = IHEAP + 2, ISAPLING = IBALL + 2, IBRAMBLE = ISAPLING + 4, ILOG = IBRAMBLE + 4, NIMG = ILOG + 2
+' The wood's keepsake, the Pomchi's ball; a sapling bowed, and sprung; bramble grown, and cut; a hollow log; a
+' burrow's mound.
+const IBALL = IHEAP + 2, ISAPLING = IBALL + 2, IBRAMBLE = ISAPLING + 4, ILOG = IBRAMBLE + 4, IMOUND = ILOG + 2
+const NIMG = IMOUND + 2
 ' The wood's night: its fireflies' two colours, never dimmed; the steps a bark's light lasts, the last of them
 ' fading; the parts its light is counted in; the fireflies awake, and at rest.
 const CFLY = 163, GLOWT = 300, GLOWFADE = 60, GLOWN = 8, NFLY = 18, FLYREST = 5
@@ -321,6 +325,9 @@ const KVINE = 39, VINELEN = 56, VINEGRIP = 14, VINEHOP = 150!, VINEWAIT = .4, CV
 const KBRAMBLE = 50, BRAMBLER = 16, BRAMBLET = 90, CLEAF = 135
 ' A hollow log: half its length, its height, and the speed he is shot through it curled.
 const KLOG = 51, LOGR = 32, LOGH = 30, LOGV = 520!
+' A burrow's mound: how near he digs in; his speed under the ground, and up out of the other end; the loam's
+' colour.
+const KMOUND = 52, MOUNDR = 12, DIGV = 400!, DIGPOP = 260!, CLOAM = 124
 const HUDW = 108, HUDH = 40
 ' The levels: a zone's two acts, the second at another hour in other colours, zone by zone.
 ' the stages played, and after them the intro's road
@@ -619,6 +626,9 @@ declare sub MeetBramble (lv as Level, mu as Deck, se as Session, g as Game, p as
 declare sub Regrow (lv as Level, se as Session, pt() as Part, i as integer)
 declare sub PilotCurl (lv as Level, p as Hero, k as Pad, want as integer)
 declare sub MeetLog (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
+declare sub MeetMound (lv as Level, mu as Deck, se as Session, p as Hero, i as integer, pt() as Part)
+declare sub Tunnel (lv as Level, mu as Deck, se as Session, p as Hero, pt() as Part)
+declare sub Burrows (lv as Level)
 declare sub Hang (lv as Level, mu as Deck, se as Session, p as Hero, hit as integer)
 declare sub DrawVine (x as integer, y as integer, a as single)
 declare sub MeetBoost (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, pt() as Part)
@@ -1516,6 +1526,10 @@ sub LoadLevel (wd as World, st as integer)
         case "bramble": k = KBRAMBLE
         case "log": k = KLOG
         case "vine": AddObj wd.lv, KVINE, c * TS + 8, s - n * TS
+        case "burrow"
+            ' a burrow's mound, its other end the mound of the same n: till they are told each other, -n - 1
+            AddObj wd.lv, KMOUND, c * TS + 8, s
+            wd.lv.ob(wd.lv.nObj - 1).s = -n - 1
         case "mark": k = KMARK
         case "boost": k = KBOOST
         case "loop": k = KLOOP
@@ -1559,6 +1573,7 @@ sub LoadLevel (wd as World, st as integer)
         if Rooted%(wd.lv, i, KBUSH) and abs(wd.lv.ob(i).x - wd.lv.famX) < 112 then wd.lv.ob(i).k = 0
     next
     SortObjs wd.lv
+    Burrows wd.lv
     Track wd.lv, wd.gr
     Faces wd.lv
     ZoneTune wd.mu, wd.mu.stageTune
@@ -2075,6 +2090,20 @@ end sub
 function Rooted% (lv as Level, i as integer, lo as integer)
     Rooted% = (lv.ob(i).k >= lo and lv.ob(i).k <= KLAMP) or lv.ob(i).k >= KPOST
 end function
+
+' Each burrow's two mounds told each other: a mound's state its other end, counted from 1.
+sub Burrows (lv as Level)
+    dim i as integer, j as integer
+    for i = 0 to lv.nObj - 1
+        if lv.ob(i).k <> KMOUND or lv.ob(i).s > 0 then continue for
+        for j = i + 1 to lv.nObj - 1
+            if lv.ob(j).k <> KMOUND or lv.ob(j).s <> lv.ob(i).s then continue for
+            lv.ob(i).s = j + 1
+            lv.ob(j).s = i + 1
+            exit for
+        next
+    next
+end sub
 
 ' The things by x, and first(c) the first at or past column c.
 sub SortObjs (lv as Level)
@@ -3497,6 +3526,8 @@ sub ResetWorld (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
     g.homeY = wd.lv.startY
     for i = 0 to wd.lv.nObj - 1
         wd.lv.ob(i).x = wd.lv.ob(i).a
+        ' a burrow's mound keeps its other end
+        if wd.lv.ob(i).k = KMOUND then continue for
         wd.lv.ob(i).s = 0
         if wd.lv.ob(i).k = KBONE then wd.lv.ob(i).s = 1
         if wd.lv.ob(i).k = KCAT or wd.lv.ob(i).k = KCRAB or wd.lv.ob(i).k = KSWEEP then wd.lv.ob(i).s = -1
@@ -3639,6 +3670,10 @@ end sub
 sub MoveHero (lv as Level, gr as Ground, mu as Deck, se as Session, p as Hero, k as Pad, pt() as Part)
     dim l as integer, r as integer, d as integer, hit as integer, hold as integer
     dim v as single
+    if p.dig then
+        Tunnel lv, mu, se, p, pt()
+        exit sub
+    end if
     ' a snowball lasts as long as its roll; broken, by a hit or his uncurling, it flies apart
     if p.snow < 0 and not p.roll then p.snow = 1
     if p.snow > 0 then
@@ -3986,6 +4021,8 @@ end sub
 ' Charlie against the things near it, and the loose bones.
 sub Touch (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose, pt() as Part)
     dim i as integer, c as integer, px as integer, py as integer, x as integer, dx as integer
+    ' under the ground nothing is met
+    if p.dig then exit sub
     px = cint(p.x)
     py = cint(p.y)
     c = (px - 80) \ TS
@@ -4015,6 +4052,7 @@ sub Touch (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as
         case KVINE: MeetVine lv, mu, se, p, i
         case KBRAMBLE: MeetBramble lv, mu, se, g, p, i, lo()
         case KLOG: MeetLog lv, mu, se, p, i
+        case KMOUND: MeetMound lv, mu, se, p, i, pt()
         case KBOOST: MeetBoost lv, mu, se, g, p, i, pt()
         case KFLUME, KSPOUT: MeetFlume lv, mu, se, p, i
         case KMARK: MeetMark lv, mu, se, g, p, i, pt()
@@ -4198,6 +4236,51 @@ sub MeetBramble (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i
     Sfx mu, se, SPOP
 end sub
 
+' A burrow's mound: crouched on it he digs in, for its other end; the mound he comes out of will not take him
+' back till he has stepped off it.
+sub MeetMound (lv as Level, mu as Deck, se as Session, p as Hero, i as integer, pt() as Part)
+    dim onIt as integer
+    onIt = abs(lv.ob(i).x - p.x) < MOUNDR
+    if p.dug = i + 1 then
+        if not onIt then p.dug = 0
+        exit sub
+    end if
+    if not (onIt and p.crouch and p.ground) or abs(lv.ob(i).y - p.y) >= 8 or lv.ob(i).s < 1 then exit sub
+    p.dig = lv.ob(i).s
+    p.ground = 0
+    p.crouch = 0
+    p.gsp = 0
+    p.vy = 0
+    Burst se, pt(), p.x, p.y - 4, 10, 140, CLOAM
+    Sfx mu, se, SROLL
+end sub
+
+' Under the ground to the mound he digs for: straight there at DIGV, unseen, the loam stirred over him; there,
+' thrown up out of it.
+sub Tunnel (lv as Level, mu as Deck, se as Session, p as Hero, pt() as Part)
+    dim i as integer, dx as single
+    i = p.dig - 1
+    dx = lv.ob(i).x - p.x
+    if abs(dx) > DIGV * STEPT then
+        p.vx = sgn(dx) * DIGV
+        p.x = p.x + p.vx * STEPT
+        p.y = p.y + (lv.ob(i).y - p.y) * DIGV * STEPT / abs(dx)
+        if (se.ticks and 3) = 0 then Burst se, pt(), p.x, p.y, 2, 50, CLOAM
+        exit sub
+    end if
+    p.x = lv.ob(i).x
+    p.y = lv.ob(i).y
+    p.vx = 0
+    p.vy = -DIGPOP
+    p.dig = 0
+    p.dug = i + 1
+    p.roll = 0
+    p.jumped = 0
+    p.sprung = -1
+    Burst se, pt(), p.x, p.y - 4, 10, 140, CLOAM
+    Sfx mu, se, SPOP
+end sub
+
 ' A hollow log across the way: on foot he is stopped at its end; curled he is shot through it, out of sight, and
 ' leaves it at LOGV. Its state: he is in it.
 sub MeetLog (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
@@ -4326,7 +4409,7 @@ end sub
 ' Hit: the bones fly loose and Charlie is knocked back; with none, it is out.
 sub Hurt (mu as Deck, se as Session, g as Game, p as Hero, fromX as integer, lo() as Loose, snd as integer)
     dim i as integer, n as integer, a as single, v as single
-    if p.inv > 0 then exit sub
+    if p.inv > 0 or p.dig then exit sub
     ' a snowball takes the hit for him
     if p.snow < 0 then
         p.snow = 1
@@ -6287,6 +6370,7 @@ sub DrawThings (lv as Level, zn as Realm, art as Store, se as Session, cx as int
         case KROCK: Blit art, x - 10, y - 10, IROCK, 20, 12
         case KTHORN: Blit art, x - 8, y - 10, ITHORN, 16, 12
         case KBRAMBLE: Blit art, x - 19, y - 25, IBRAMBLE - 2 * (lv.ob(i).s > 0), 38, 26
+        case KMOUND: Blit art, x - 17, y - 12, IMOUND, 34, 14
         case KFAM
             ' who meets Charlie: they cheer once it has come to them
             DrawFamily art, se, x, y, se.cheer
@@ -6458,6 +6542,7 @@ end sub
 sub DrawHero (gr as Ground, art as Store, se as Session, p as Hero, cx as integer, cy as integer)
     dim x as integer, y as integer, f as integer, t as integer, tw as integer
     dim hu as single, hv as single, a as single, v as single
+    if p.dig then exit sub
     if p.inv > 0 and not p.stun and (se.ticks and 4) then exit sub
     x = cint(p.x) - cx
     y = cint(p.y) - cy
