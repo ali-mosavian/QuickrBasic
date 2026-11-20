@@ -22,6 +22,8 @@ Node *ref_place(
     Comp *C,
     uint32_t *vakind
 ); /* cm_addr: a variable's place at comp.p, its VA_* kind */
+/* ref_place's, for GET, PUT and FIELD: Type mismatch a record holding a STRING or an array. */
+Node *ref_bytes(Comp *C, uint32_t *vakind);
 bool ref_len(
     Comp *C,
     uint32_t *size

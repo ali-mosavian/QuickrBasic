@@ -44,6 +44,7 @@
 #include "comp/control.h"
 #include "comp/declare.h"
 #include "comp/dfa.h"
+#include "io/msg.h"
 #include "io/repl.h"
 #include "mem/scope.h"
 #include "mem/string.h"
@@ -263,7 +264,7 @@ void expr_target(Comp *const C)
 void expr_varaddr(Comp *const C)
 {
     uint32_t vk;
-    comp_step(C, expr_addr(C, ref_place(C, &vk), 0));
+    comp_step(C, expr_addr(C, ref_bytes(C, &vk), 0));
     comp_int(C, vk);
 }
 
@@ -620,10 +621,19 @@ static Node *parse_unary(Comp *const C)
         uint8_t k;
 
         if (c == TK_X && addr_call(C->p[1], &k)) {
+            const bool text = C->p[1] == TK1_SADD || C->p[1] == TK1_SSEG;
             C->p += 2;
             comp_open(C);
+            const uint8_t *const v = C->p;
             uint32_t vk;
             Node *const at = ref_place(C, &vk);
+
+            if (text && vk != va_pack(VA_DESC, 0)) { /* a variable-length STRING alone */
+                C->p = v;
+                C->dg = DG_TYPE_MISMATCH_SADD;
+                mismatch(C);
+            }
+
             comp_close(C);
 
             if (k == K_VARPS) {

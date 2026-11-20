@@ -25,3 +25,5 @@ Duplicate definition /function|`{name}` is also the name of a FUNCTION that take
 Name of subprogram illegal /reserved|`{text}` is a reserved word, so it cannot name a SUB or FUNCTION|rename it
 Subprogram not defined|`{name}` is DECLAREd, but no SUB of that name is defined|write `SUB {name} ... END SUB`, or remove the DECLARE and its calls
 Function not defined /declared|`{name}` is DECLAREd, but no FUNCTION of that name is defined|write `FUNCTION {name} ... END FUNCTION`, or remove the DECLARE and its calls
+Type mismatch /record|`{name}` holds a variable-length STRING or a dynamic array, so its bytes are not all its data|read and write its fields one by one, or keep its TYPE to numbers and STRING * n
+Type mismatch /sadd|`{name}` is not a variable-length STRING, the one kind of variable SADD and SSEG take|use VARPTR for any other variable

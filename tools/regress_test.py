@@ -185,6 +185,12 @@ CASES = {
                 "POKE VARPTR(n) + 1, 1: POKE SADD(b$), 74\r\n"
                 "PRINT n; PEEK(VARPTR(a(2))); b$; PEEK(SADD(b$) + 4); VARSEG(n); SSEG(b$)\r\n",
                 " 256  7 JELLO 79  0  0 \r\n", "ERROR"),
+    # SADD and SSEG take a variable-length STRING alone: SADD of a SINGLE's 1 gave 16256, a record's
+    # 0, a STRING * n's 16777206; SSEG of a number 0.
+    **{f"qb_{fn.lower()}_{k}": (f"{d}\r\nPRINT {fn}({v})\r\n", f"^\r\n`{v}` is not a variable-length STRING", None)
+       for fn, k, d, v in (("SADD", "num", "x = 1", "x"), ("SADD", "fixed", "DIM f AS STRING * 4", "f"),
+                           ("SADD", "record", "TYPE P\r\n a AS INTEGER\r\nEND TYPE\r\nDIM r AS P", "r"),
+                           ("SSEG", "num", "x = 1", "x"))},
     # ON ERROR: the handler runs on the failing procedure's frames; RESUME NEXT goes on inside
     # the FUNCTION a statement called mid-expression.
     "qb_onerr": ("DECLARE FUNCTION f% (d%)\r\nON ERROR GOTO h\r\nPRINT 1 + f(0); ERR\r\n"
@@ -1127,6 +1133,15 @@ CASES |= {
     "field_dynamic_type": (bas(*MESH, "dim s() as Mesh", "s() = m.pts()"), ".BAS:13: Type mismatch", None),
     "field_dynamic_value": (bas(*MESH, "print m.pts"), ".BAS:12: Type mismatch", None),
     "field_dynamic_put": (bas(*MESH, 'open "x" for binary as 1: put 1, , m'), ".BAS:12: Type mismatch", None),
+    # PUT's refusal said a string was where a number is needed.
+    "field_dynamic_put_words": (bas(*MESH, 'open "x" for binary as 1: put 1, , m'),
+                                "^\r\n`m` holds a variable-length STRING or a dynamic array", None),
+    # VARPTR of such a record was PUT's Type mismatch; BC's takes any variable.
+    "field_dynamic_varptr": (bas(*MESH, "declare sub t ()", "dim rs(2) as Mesh",
+                                 "print varptr(m) > 0; varptr(rs(2)) - varptr(rs(0)) = 2 * len(m)", "t", "end",
+                                 "sub t", " dim q(1) as Mesh", " print varptr(q(1)) - varptr(q(0)) = len(q(0))",
+                                 "end sub"),
+                             "-1 -1 \r\n-1 \r\n", "ERROR"),
 }
 
 # BC's 60 dimensions at most. Past 63 a DIM's count ran into its flags (REDIM b(64 bounds) made an

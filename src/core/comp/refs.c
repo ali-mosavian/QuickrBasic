@@ -505,11 +505,6 @@ Node *ref_place(Comp *const C, uint32_t *const vk)
 
     if (r != nullptr) {
         const RecRef *const rec = &r->rec;
-
-        if (rec->et >= ET_REC &&
-            decl_dynamic(decl_type(C->decl, rec->et - ET_REC))) /* its bytes not all */
-            mismatch(C);
-
         *vk = desc_field(rec) ? va_pack(VA_DESC, 0)
                               : va_pack(rec->et == ET_I2 ? VA_I2 : VA_RAW, field_size(rec));
         return r;
@@ -524,6 +519,21 @@ Node *ref_place(Comp *const C, uint32_t *const vk)
         return place(C, O_V_ADDR, id);
 
     return place(C, O_V_CELL, id); /* its cell set at link: the cells move while linking */
+}
+
+Node *ref_bytes(Comp *const C, uint32_t *const vk)
+{
+    const uint8_t *const at = C->p;
+    Node *const r = ref_place(C, vk);
+    const uint8_t et = r->rec.et;
+
+    if (et >= ET_REC && decl_dynamic(decl_type(C->decl, et - ET_REC))) { /* its bytes not all */
+        C->p = at;
+        C->dg = DG_TYPE_MISMATCH_RECORD;
+        mismatch(C);
+    }
+
+    return r;
 }
 
 uint8_t ref_vtype(Comp *const C, const Node *const at)
