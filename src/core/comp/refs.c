@@ -456,6 +456,14 @@ Node *ref_fieldarray(Comp *const C, uint32_t *const type)
     return nullptr;
 }
 
+Node *ref_fieldcell(Comp *const C, uint32_t *const type)
+{
+    C->dimtarget = true;
+    Node *const cell = ref_fieldarray(C, type);
+    C->dimtarget = false;
+    return cell;
+}
+
 Node *ref_field(Comp *const C, Node *const ref)
 {
     const uint32_t et = ref->rec.et;

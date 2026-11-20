@@ -1205,6 +1205,26 @@ CASES |= {
                                 " 0  3  50 \r\n", "ERROR"),
 }
 
+# Graphics GET and PUT of a record's array field took it for an array named s.img: Illegal function
+# call. They take the array's cell, a variable's, a parameter's or a field's.
+CASES |= {
+    "gfx_get_put_field": (bas("type Sprite", " w as integer", " img() as integer", "end type",
+                              "declare sub show (b() as integer)", "declare sub own ()",
+                              "dim s as Sprite, rs(1 to 2) as Sprite", "redim s.img(100): redim rs(2).img(200)",
+                              "screen 13", "pset (1, 1), 9: pset (2, 3), 12",
+                              "get (0, 0)-(3, 3), s.img", "put (20, 20), s.img",
+                              "get (0, 0)-(3, 3), rs(2).img(50)", "put (40, 40), rs(2).img(50), pset",
+                              "p = point(21, 21): q = point(22, 23): r = point(41, 41): t = point(42, 43)",
+                              "screen 0", "print p; q; r; t; s.img(0) = rs(2).img(50)", "show s.img(): own", "end",
+                              "sub show (b() as integer)",
+                              " screen 13: pset (1, 1), 9: get (0, 0)-(3, 3), b: put (60, 60), b",
+                              " p = point(61, 61): screen 0: print p; b(0) = 262176", "end sub",
+                              "sub own", " dim l(50) as integer",
+                              " screen 13: pset (2, 3), 12: get (0, 0)-(3, 3), l: put (60, 60), l",
+                              " p = point(62, 63): screen 0: print p; l(0) = 262176", "end sub"),
+                          " 9  12  9  12 -1 \r\n 9 -1 \r\n 12 -1 \r\n", "ERROR"),
+}
+
 # BC's 60 dimensions at most. Past 63 a DIM's count ran into its flags (REDIM b(64 bounds) made an
 # array of none); past 64 an element's subscripts were written beyond their buffer.
 DIMS = "(" + ",".join("0" * 60) + ")"

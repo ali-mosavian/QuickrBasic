@@ -1161,9 +1161,7 @@ static void dimempty(Comp *const C, const uint32_t id)
 static bool dimfield(Comp *const C)
 {
     uint32_t type;
-    C->dimtarget = true;
-    Node *const cell = ref_fieldarray(C, &type);
-    C->dimtarget = false;
+    Node *const cell = ref_fieldcell(C, &type);
 
     if (cell == nullptr)
         return false;
