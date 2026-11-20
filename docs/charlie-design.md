@@ -138,15 +138,16 @@ Progress is saved at each zone.
 ### 4. Whitecap Pass (its look built)
 
 - Built: its backdrop, ground, props, card and keepsake on a clear morning and at dusk, on the Downs' layout;
-  two stand-in levels, to its tune; bare ice, where braking, friction and a run's push are a fraction of
+  its two acts, to its tune: the morning's up by lift and chair and down by sled, twice, the dusk's up to
+  the summit and the run down from it; bare ice, where braking, friction and a run's push are a fraction of
   the snow's; sleds, which follow the slope, have no brake and end in deep snow; geysers, the works' jets
   as the pass has them; the snowball deep snow makes of a fast roll, which takes one hit and ends with the
   roll; snow-throwers, ducked behind a wall that throws him back, up and open before each throw, ducked
   again at a bark; icicles under a shelf, loosed from under them or by a bark, that tremble, fall, hurt
   him and beat a snow-thrower or cat under them; a ski lift's chair, up its cable over a pit while he
   stands on it; goats, which lower their heads and charge where he stands, stop under a jump, and come
-  down on bolt along the road with him, through the ice walls that stop him on foot. To add: levels,
-  the blizzard and the chase.
+  down on bolt along the road with him, through the ice walls that stop him on foot. To add: the blizzard
+  and the chase.
 - Rule: grip. Ice keeps speed and will not give it back. Stopping and turning are the challenge, not going.
 - Gadgets: sleds, steered by jumps; ski-lift cables; geysers; a snowball gathered by rolling through deep
   snow, which takes one hit.
