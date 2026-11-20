@@ -24,7 +24,7 @@ TEST(heap_grows_in_place_moves_and_reuses)
     CHECK(heap_resize(&h, b, 2500) == b); /* into c's freed bytes */
 }
 
-/* Calls nest past the frames' first block, to MAX_FRAMES: each frame kept as more grow. */
+/* Calls nest past the frames' first room: each frame kept as more grow. */
 TEST(frames_grow_as_calls_nest)
 {
     static const char *const lines[] = {
@@ -37,6 +37,28 @@ TEST(frames_grow_as_calls_nest)
 
     CHECK(unit_run(S, lines) == ST_OK);
     CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 245350 \r");
+}
+
+/* The frames' room and the data stack's segments a deep call grew stayed taken from the heap:
+   each deep run left less for the next. */
+TEST(deep_calls_give_their_memory_back)
+{
+    static const char *const deep[] = {
+        "10 PRINT f&(20000)",
+        "20 FUNCTION f& (n&)",
+        "30 IF n& > 0 THEN f& = 1 + f&(n& - 1)",
+        "40 END FUNCTION",
+        nullptr,
+    };
+
+    static const char *const next[] = {"10 PRINT 1", nullptr};
+
+    CHECK(unit_run(S, next) == ST_OK);
+    const Addr top = S->allo.top;
+    CHECK(unit_run(S, deep) == ST_OK);
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 20000 \r");
+    CHECK(unit_run(S, next) == ST_OK);
+    CHECK(S->allo.top == top);
 }
 
 TEST(endless_calls_end_out_of_stack_space)

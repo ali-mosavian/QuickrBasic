@@ -9,14 +9,13 @@
 enum { NEAR_MAX = 255 };
 
 typedef struct {
-    Allo *allo;            /* the heap: the blocks from allo.strings up to its top */
-    Fault *fault;          /* String formula too complex, String too long, Out of memory */
-    const Prog *prog;      /* a value in the program's text is kept there */
-    Addr tmp;              /* the temporaries' Descs, DSZ * NTMP bytes (g_tmpd, sg.tmplin) */
-    uint32_t tmp_used;     /* the temporaries in use, DSZ bytes each (sg.tsp) */
-    uint32_t tmp_floor;    /* a procedure's floor of tmp_used (sg.tspb) */
-    Addr stack, stack_end; /* the data stack's region (exec_init): its Descs live at or above sp */
-    Cell *const *sp;       /* vm.sp */
+    Allo *allo;         /* the heap: the blocks from allo.strings up to its top */
+    Fault *fault;       /* String formula too complex, String too long, Out of memory */
+    const Prog *prog;   /* a value in the program's text is kept there */
+    Addr tmp;           /* the temporaries' Descs, DSZ * NTMP bytes (g_tmpd, sg.tmplin) */
+    uint32_t tmp_used;  /* the temporaries in use, DSZ bytes each (sg.tsp) */
+    uint32_t tmp_floor; /* a procedure's floor of tmp_used (sg.tspb) */
+    Cell *const *sp;    /* vm.sp: the data stack's Descs live at or above it (vm/stack.c) */
     uint8_t near_buf[NEAR_MAX + 1]; /* strg_near's */
 } Strg;
 
@@ -45,6 +44,10 @@ Addr strg_new(Strg *sg, Addr chars, uint16_t len);
 void strg_own(Addr chars, uint16_t len, Addr owner);
 /* Collect the heap: the live blocks slide up, their owners follow, the dead go; low set. */
 void strg_gc(Strg *sg);
+/* size bytes from the heap's top, the strings collected and slid down under them: false, no room.
+   strg_give_top gives them back, the strings slid up. */
+bool strg_take_top(Strg *sg, uint32_t size);
+void strg_give_top(Strg *sg, uint32_t size);
 /* Store value in the Desc at desc: pointed at when empty or in the program store, a temporary's
    own block taken over, else copied. Out of memory. */
 void strg_set(Strg *sg, Addr value, Addr desc);

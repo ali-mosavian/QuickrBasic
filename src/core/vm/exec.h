@@ -38,7 +38,7 @@
  * | narr | arry_*'s n parameter (mem) | MOVED |
  * | stv, aret, cnarg, cop, fid, flim, fstep, fop, fvp, fsv, isw_si, lk, onk, runl, ppip, ppend, pres | locals, statics | MIRROR |
  * | dlp, dataat, dyo, inend, iny0, iredo | StmtState (stmts.h) | MOVED |
- * | (none) | vm.ip, vm.sp, vm.stktop, vm.loop, vm.running | D3 |
+ * | (none) | vm.ip, vm.sp, vm.stak, vm.loop, vm.running | D3 |
  *
  * - D1. The control stack is vm.frames, typed records; no save stack: a call's locals and
  *   arguments are its frame on the data stack (vm/flow.c).
@@ -63,7 +63,13 @@ typedef struct PACKED {
 } Jump;
 enum { JSIZE = 1 + sizeof(Jump) };
 /* PCALL's operands: the procedure, its frame's cells and its parameters (link's), its body's Jump. */
-enum { PCALL_PROC = 1, PCALL_CELLS = 5, PCALL_NPAR = 9, PCALL_JUMP = 11, PCALL_SIZE = PCALL_JUMP + sizeof(Jump) };
+enum {
+    PCALL_PROC = 1,
+    PCALL_CELLS = 5,
+    PCALL_NPAR = 9,
+    PCALL_JUMP = 11,
+    PCALL_SIZE = PCALL_JUMP + sizeof(Jump)
+};
 /* An FV op's operand: the variable's id as compiled, its cell's Addr once linked. */
 enum { VCELL = 4 };
 /* An FA or FP op's operand: the variable's id; an FP op's its ref cell's frame offset once linked. */
@@ -129,6 +135,8 @@ typedef struct {
     uint16_t npar;
     Addr caller;       /* the caller's */
     uint32_t on_error; /* ON LOCAL ERROR's line, 0 none */
+    Cell *back; /* a call in a segment of its own: the caller's sp past the arguments; null none */
+    uint32_t seg; /* with back: the caller's segment */
 } Call;
 
 typedef struct {
@@ -140,7 +148,16 @@ typedef struct {
     };
 } Frame;
 
-enum { MAX_FRAMES = 800 };
+/* A segment of the data stack: [base, end). */
+typedef struct {
+    Addr base, end;
+} StakSeg;
+
+/* The data stack's segments, each below the one before (vm/stack.c); sp in the cur'th. */
+typedef struct {
+    StakSeg *seg;
+    uint32_t n, cap, cur;
+} Stak;
 
 /* The run's state. */
 typedef struct Vm {
@@ -148,13 +165,14 @@ typedef struct Vm {
     uint8_t *opip; /* the op dispatch ran last: CONT after BREAK, an error's address */
     Cell *sp;      /* the data stack's top cell */
     Cell *rsp;     /* the stack empty, at a statement's start */
-    Cell *stklim;  /* PCALL's floor of sp */
-    Cell *stktop;  /* the data stack's region's top; its base stktop - STKSZ/8 */
+    Cell *stklim;  /* PCALL's floor of sp: its segment's base past STKEVAL */
+    Stak stak;     /* the data stack's segments (vm/stack.c) */
     Addr fp;       /* the running procedure's frame: its link cell, locals below, arguments above */
 
-    Frame *frames; /* the first; frames[-1] the floor, FRAME_NONE */
-    Frame *ftop;   /* past the last */
-    Frame *fend;   /* past the room, grown to MAX_FRAMES as calls nest */
+    Frame *frames;   /* the first; frames[-1] the floor, FRAME_NONE (vm/stack.c) */
+    Frame *ftop;     /* past the last */
+    Frame *fend;     /* past the room, grown as calls nest */
+    uint32_t fbytes; /* the room's bytes from the floor */
 
     uint32_t line;         /* the running line */
     uint16_t lnum;         /* a line number to find, as prog_find's */

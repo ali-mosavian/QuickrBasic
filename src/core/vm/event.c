@@ -256,7 +256,7 @@ bool evnt_run(Session *const S)
 
         if (runnable(s)) {
             s->flags = EF_RUNNING; /* no longer pending */
-            flow_push(&S->vm, &S->allo, &S->fault, FRAME_EVENT)->event = (uint8_t)i;
+            flow_push(S, FRAME_EVENT)->event = (uint8_t)i;
             flow_jump(S, s->line);
             break;
         }

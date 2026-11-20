@@ -40,6 +40,7 @@
 #include "num/fpmath.h"
 #include "vm/event.h"
 #include "vm/flow.h"
+#include "vm/stack.h"
 #include "vm/stmts.h"
 
 enum { PROBE_OUT_MAX = 79 };
@@ -103,7 +104,7 @@ DebugPos dbug_pos(Session *const S, const uint32_t line, const uint8_t *const co
 typedef struct {
     uint8_t *ip, *opip;
     Cell *sp, *rsp;
-    uint32_t nframes;
+    uint32_t nframes, seg;
     Addr fp;
     Place cont;
     uint32_t line;
@@ -127,6 +128,7 @@ static void save(Session *const S, Saved *const s)
         .sp = S->vm.sp,
         .rsp = S->vm.rsp,
         .nframes = vm_nframes(&S->vm),
+        .seg = S->vm.stak.cur,
         .fp = S->vm.fp,
         .cont = S->vm.cont,
         .line = S->vm.line,
@@ -157,6 +159,7 @@ static void restore(Session *const S, const Saved *const s)
     S->vm.sp = s->sp;
     S->vm.rsp = s->rsp;
     S->vm.ftop = S->vm.frames + s->nframes;
+    stack_back(S, s->seg, 1); /* the probe's calls' segments */
     S->vm.fp = s->fp;
     S->vm.cont = s->cont;
     S->vm.line = s->line;

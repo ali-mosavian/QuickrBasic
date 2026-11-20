@@ -35,9 +35,10 @@
  * | op_sstv, op_ista1, op_fsta1, op_ssta1, op_istan, op_fstan, op_sstan | exec_s_st_v, exec_i_st_a1, exec_f_st_a1, exec_s_st_a1, exec_i_st_a, exec_f_st_a, exec_s_st_a | MIRROR |
  * | ex_cmpt | static | MIRROR |
  * | op_scmp, op_sif, op_scat | exec_s_cmp, exec_s_if, exec_s_cat | MIRROR |
- * | g_stkb, STKTOP | carved by exec_init; vm.stktop | D1 |
+ * | g_stkb, STKTOP | vm.stak's first segment, from the heap's top (vm/stack.c) | D1 |
  *
- * - D1. exec_init carves the data stack from the arena; the asm's is a fixed buffer.
+ * - D1. The data stack is segments from the heap's top, grown as calls nest; the asm's is a fixed
+ *   buffer.
  */
 #include "vm/exec.h"
 #include "session.h"
@@ -58,6 +59,7 @@
 #include "vm/event.h"
 #include "vm/flow.h"
 #include "vm/hot.h"
+#include "vm/stack.h"
 #include "vm/stmts.h"
 
 #define OP(name, h, size, fl) void h(Session *S);
@@ -97,13 +99,8 @@ void exec_until(Session *const S, const uint8_t *const end)
 
 void exec_init(Session *const S)
 {
-    const Addr stack = allo_carve(&S->allo, STKSZ);
-    S->vm.stktop = (Cell *)at(stack + STKSZ - 16);
-    S->vm.sp = S->vm.rsp = S->vm.stktop;
-    S->vm.stklim = S->vm.stktop - STKROOM / sizeof(Cell);
-    S->strg.stack = stack;
-    S->strg.stack_end = stack + STKSZ;
     S->strg.sp = &S->vm.sp;
+    stack_init(S);
     pkey_init(&S->vm.stop, SF_TICK);
     pclk_init(&S->vm.stop, SF_TICK);
 }
@@ -170,7 +167,8 @@ static inline bool st_a1(Regs *const r, const Addr fp, const bool frame)
 /* RA.ADDR ( sub -- a ) of a 1-D record array from 0, in range; false: the handler's. */
 static inline bool ra_addr1(Regs *const r, const Arry *const ar)
 {
-    const ArrSlot *const s = (const ArrSlot *)at(loc_at((Loc){(int32_t)load32(r->ip + 1 + VID)}, r->fp));
+    const ArrSlot *const s =
+        (const ArrSlot *)at(loc_at((Loc){(int32_t)load32(r->ip + 1 + VID)}, r->fp));
 
     if (!s->hdr || r->ip[1 + VID + VCELL] != 1)
         return false;
@@ -653,6 +651,7 @@ pcall: /* PCALL proc n npar body: the frame at the arguments, n local cells zero
         f->call.npar = load16(r.ip + PCALL_NPAR);
         f->call.caller = r.fp;
         f->call.on_error = 0;
+        f->call.back = nullptr;
         r.fp = v->fp = fp;
         r.sp -= n;
 
@@ -667,10 +666,10 @@ pcall: /* PCALL proc n npar body: the frame at the arguments, n local cells zero
 
     goto next;
 
-/* PRET: the call on the top frame ended, its arguments popped; a stop, another frame on top:
-   flow_pret's. */
+/* PRET: the call on the top frame ended, its arguments popped; a stop, another frame on top, a
+   segment of its own: flow_pret's. */
 #define PRET_RUN(result)                                                                           \
-    if (v->stop || v->ftop[-1].kind != FRAME_CALL)                                                 \
+    if (v->stop || v->ftop[-1].kind != FRAME_CALL || v->ftop[-1].call.back)                        \
         goto slow;                                                                                 \
                                                                                                    \
     {                                                                                              \

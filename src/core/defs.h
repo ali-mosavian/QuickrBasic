@@ -262,13 +262,14 @@ enum {
     HSIZE = 1024,      /* the symbols' hash chains */
     DCODE = 0x0100,    /* the direct line's stream */
     CACHE0 = DCODE + 1536,
-    HMIN = 0x40000,   /* the heap at least */
-    STKSZ = 0x10000,  /* the data stack */
-    STKROOM = 0x8000, /* its room for the run */
-    CPROOM = 0x4000,  /* the compiler's frames */
-    OBSZ = 256,       /* the output buffer */
+    HMIN = 0x40000,            /* the heap at least */
+    STKSZ = 0x10000,           /* the data stack */
+    STKROOM = 0x8000,          /* its room for the run */
+    STKEVAL = STKSZ - STKROOM, /* under vm.stklim: a statement's own values */
+    CPROOM = 0x4000,           /* the compiler's frames */
+    OBSZ = 256,                /* the output buffer */
 };
-/* String temporaries: one per data stack cell of the run, 48 over, so the stack runs out first. */
+/* String temporaries: one per cell of the data stack's first room, 48 over. */
 enum { NTMP = STKROOM / sizeof(Cell) + 48 };
 
 /* Block statements (comp/block), procedures, TYPEs: their records are comp's. */

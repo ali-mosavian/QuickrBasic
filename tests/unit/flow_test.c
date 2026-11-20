@@ -24,7 +24,7 @@ TEST(event_at_a_conditional_jump_keeps_the_stack)
 
     CHECK(unit_run(S, lines) == ST_OK);
     CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 3 ");
-    CHECK(S->vm.sp == S->vm.stktop);
+    CHECK(S->vm.sp == S->vm.rsp);
 }
 
 /* A SUB call took its arguments and pushed its frame before the stop check: the event ran the call
@@ -35,7 +35,7 @@ TEST(event_at_a_call_keeps_the_stack)
 
     CHECK(unit_run(S, lines) == ST_OK);
     CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 6 ");
-    CHECK(S->vm.sp == S->vm.stktop);
+    CHECK(S->vm.sp == S->vm.rsp);
 }
 
 /* A step whose sign is known only when run counts each way; a loop past its limit is not entered. */
@@ -137,8 +137,11 @@ TEST(record_field_and_element_by_reference)
 TEST(record_argument_of_another_type)
 {
     static const char *const field[] = {RECORDS, "30 Move w.p", MOVE, nullptr};
+
     static const char *const elem[] = {RECORDS, "30 Move r(1)", MOVE, nullptr};
+
     static const char *const whole[] = {RECORDS, "30 Move w", MOVE, nullptr};
+
     static const char *const number[] = {RECORDS, "30 Move w.m.x", MOVE, nullptr};
 
     CHECK(unit_run(S, field) == E_PTM);
@@ -190,9 +193,7 @@ TEST(bounds_past_16_bits)
     };
 
     CHECK(unit_run(S, lines) == ST_OK);
-    CHECK_TEXT(
-        S->cons.sbuf, S->cons.sblen, " 70000  5  6 \r-40000  100001  7 \r 65537  8 \r"
-    );
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, " 70000  5  6 \r-40000  100001  7 \r 65537  8 \r");
 }
 
 /* Arrays were row-major: a(1, 0) was 12 bytes past a(0, 0) and a(0, 1) 4. QB 4.5's first subscript

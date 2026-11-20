@@ -308,9 +308,7 @@ static void report(Session *const S, const uint8_t code)
         return;
     }
 
-    S->vm.ftop = S->vm.frames;
-
-    S->vm.fp = 0;
+    flow_drop_calls(S);
     S->vm.cont.line = 0;
     uint16_t file;
     const uint16_t src = source_line(S, &file);
@@ -442,10 +440,8 @@ static void read_lines(Session *const S)
 
         if (r == ENTER_DIRECT)
             return;
-        if (r == ENTER_STORED) {
-            S->vm.ftop = S->vm.frames;
-            S->vm.fp = 0;
-        }
+        if (r == ENTER_STORED)
+            flow_drop_calls(S);
     }
 }
 

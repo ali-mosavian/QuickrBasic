@@ -614,15 +614,13 @@ static void ready(Session *const S)
 
 void stmt_rungo(Session *const S, const uint32_t line)
 {
-    S->vm.sp = S->vm.rsp;
+    flow_drop_calls(S);
     evnt_clear(S);
     chai_start(&S->chai);
     S->vm.err.handler = 0;
     S->vm.err.active = false;
     S->vm.err.code = 0;
     S->vm.err.line = 0;
-    S->vm.ftop = S->vm.frames;
-    S->vm.fp = 0;
     S->strg.tmp_floor = 0;
     flow_jump(S, line);
 }
@@ -682,9 +680,8 @@ void stmt_cont(Session *const S)
 /* CLEAR: the variables, and the frames. */
 void stmt_clr(Session *const S)
 {
+    flow_drop_calls(S);
     session_clear(S);
-    S->vm.ftop = S->vm.frames;
-    S->vm.fp = 0;
 }
 
 void stmt_new(Session *const S)

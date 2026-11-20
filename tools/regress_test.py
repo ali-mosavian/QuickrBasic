@@ -1279,8 +1279,28 @@ BIG |= {
                          f"function f ({', '.join(f'p{i}' for i in range(300))})", " f = p0 + p299", "end function"),
                      " 603  9 \r\n 603  9 \r\n", "ERROR"),
     # A frame's cells in 16 bits: 65,540 locals made a 4-cell frame, and the call wrote past the stack.
+    # Then a frame past 32 KB was Out of stack space.
     "limit_frame": (bas("s", "sub s", *[":".join(f"v{i} = {i}" for i in range(k, k + 20)) for k in range(0, 65540, 20)],
-                        "end sub"), "Out of stack space", ""),
+                        "print v65539", "end sub"), " 65539 \r\n", "ERROR"),
+    # The data stack was 32 KB and the frames 800: a FUNCTION 100,000 deep, GOSUB 100,000 deep were
+    # Out of stack space.
+    "limit_calls": (bas("print f&(100000)", "function f& (n&)", " if n& > 0 then f& = 1 + f&(n& - 1)", "end function"),
+                    " 100000 \r\n", "ERROR"),
+    "limit_gosubs": (bas("gosub 10: print d&: end", "10 d& = d& + 1", "if d& < 100000 then gosub 10", "return"),
+                     " 100000 \r\n", "ERROR"),
+    # Calls past the data stack's first segment: by-value strings and a caller's local string live
+    # on in the callers' segments, a by-reference argument is the caller's, and ON LOCAL ERROR deep
+    # down unwinds to the segment it was set in.
+    "limit_call_segments": (bas("print h$(1500, \"\")", "t& = 0: c 3000, t&: print t&", "o", "print f&(5000)",
+                                "function h$ (n&, s$)", " dim t$", " t$ = chr$(65 + n& mod 26)",
+                                " if n& = 0 then h$ = left$(s$, 3) + right$(s$, 3): exit function",
+                                " h$ = h$(n& - 1, (s$ + t$))", "end function",
+                                "sub c (n&, t&)", " t& = t& + 1", " if n& > 0 then c n& - 1, t&", "end sub",
+                                "sub o", " on local error goto oh", " d 4000", " exit sub", "oh:",
+                                " print \"caught\"; err", " resume next", "end sub",
+                                "sub d (n&)", " if n& = 0 then error 5 else d n& - 1", "end sub",
+                                "function f& (n&)", " if n& > 0 then f& = 1 + f&(n& - 1)", "end function"),
+                            "SRQDCB\r\n 3001 \r\ncaught 5 \r\n 5000 \r\n", "ERROR"),
 }
 
 

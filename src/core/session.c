@@ -62,8 +62,7 @@ bool session_stopped_at(Session *const S, DebugPos *const pos)
 
 void session_drop_stop(Session *const S)
 {
-    S->vm.ftop = S->vm.frames;
-    S->vm.fp = 0;
+    flow_drop_calls(S);
     S->vm.cont.line = 0;
 }
 
@@ -160,8 +159,7 @@ void session_drop(Session *const S)
     S->link.cursor = 0;
     S->link.linked = false;
     S->link.lmask = 0;
-    S->vm.ftop = S->vm.frames;
-    S->vm.fp = 0;
+    flow_drop_calls(S);
     prog_terminate(&S->prog);
     session_clear(S);
 }
