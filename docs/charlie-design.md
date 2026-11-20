@@ -171,8 +171,11 @@ Progress is saved at each zone.
 - Music (written): brisk in A at 150. A glockenspiel lead, sleigh bells on the eighths, pulse arpeggios, soft
   horns under. Blizzard (written): F sharp minor, wind between the phrases, a heavier kick.
 
-### 5. Russet Wood
+### 5. Russet Wood (its look built)
 
+- Built: its backdrop, ground, props, card and keepsake at a misty noon and on the firefly night, lit, on the
+  Downs' layout; two stand-in levels, to the Downs' tunes. To add: the night's dark and the bark that lights it,
+  height, its gadgets, enemies, levels, chase and tune.
 - Rule: height. The way is up, and a fall costs the climb, not a life.
 - Gadgets: sapling catapults, which bend under him and throw by his speed; vine swings; hollow logs; burrows,
   dug into at one mound and left by another.

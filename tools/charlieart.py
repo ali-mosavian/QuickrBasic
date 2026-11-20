@@ -44,7 +44,7 @@ def ramp(first: int, a: tuple[int, int, int], b: tuple[int, int, int], n: int) -
 # backdrop use (CLOUD between them is shared), and those nothing uses.
 SPARE = [5, 6, 7, 148, 149, 172, 173, 174, *range(179, 185), *range(225, 256)]
 POOL = {1: [*range(96, 138), *range(141, 148), *range(156, 172), *range(185, 193), *SPARE]}
-ZPAL: dict[int, dict[int, tuple[int, int, int]]] = {stage: {} for stage in range(8)}
+ZPAL: dict[int, dict[int, tuple[int, int, int]]] = {stage: {} for stage in range(10)}
 
 
 def pal(z: int) -> dict[int, tuple[int, int, int]]:
@@ -1168,6 +1168,7 @@ LETTERS: dict[str, tuple[float, list[list[tuple[float, float]]]]] = {
         ],
     ),
     "C": (4, [[(4, 1.2), (3, 0), (1, 0), (0, 1), (0, 5), (1, 6), (3, 6), (4, 4.8)]]),
+    "U": (4, [[(0, 0), (0, 5), (1, 6), (3, 6), (4, 5), (4, 0)]]),
     "D": (4, [[(0, 0), (0, 6)], [(0, 0), (2.4, 0), (4, 1.5), (4, 4.5), (2.4, 6), (0, 6)]]),
     "E": (3.6, [[(3.6, 0), (0, 0), (0, 6), (3.6, 6)], [(0, 3), (2.8, 3)]]),
     "H": (4, [[(0, 0), (0, 6)], [(4, 0), (4, 6)], [(0, 3), (4, 3)]]),
@@ -1794,7 +1795,8 @@ def clumps(p: Pic, parts: list[tuple[int, int, int, int]], r: list[int], flat: i
     p.outline(r[-1])
 
 
-def tree() -> Pic:
+def tree(bark: list[int] = BARK, crown: list[int] = CROWN) -> Pic:
+    """A tree: bark's four tones, light to dark, and a crown of leaf clumps in crown's six."""
     p = Pic(64, 80)
     for y in range(40, 80):  # the trunk, flaring to its roots
         half = 4 + (y > 70) + 2 * (y > 75) + (y > 77)
@@ -1802,9 +1804,9 @@ def tree() -> Pic:
             t = 0 if x <= -half + 1 else 1 if x < 1 else 2
             if -half + 1 < x < half and (x + y // 5) % 4 == 0 and y % 5:
                 t += 1  # the bark's furrows
-            p.put(32 + x, y, BARK[min(t + 1, 2) if y < 47 else t])  # darker in the crown's shadow
+            p.put(32 + x, y, bark[min(t + 1, 2) if y < 47 else t])  # darker in the crown's shadow
     back = [(44, 34, 10, 3), (32, 38, 9, 3), (20, 35, 9, 2), (50, 24, 9, 2), (38, 28, 11, 2), (14, 26, 9, 1)]
-    clumps(p, [*back, (26, 26, 11, 1), (42, 15, 10, 1), (30, 13, 11, 0), (19, 16, 9, 0), (34, 22, 8, 1)], CROWN)
+    clumps(p, [*back, (26, 26, 11, 1), (42, 15, 10, 1), (30, 13, 11, 0), (19, 16, 9, 0), (34, 22, 8, 1)], crown)
     return p
 
 
@@ -3652,14 +3654,14 @@ def pennant(f: int) -> Pic:
     return p.outline(FROSTINK)
 
 
-def boulder() -> Pic:
-    """A rock under snow."""
+def boulder(cap: list[int] = SNOW, ink: int = FROSTINK) -> Pic:
+    """A rock under snow, or what else lies on it: cap's first three tones, down from its top."""
     p = rock()
     for x in range(p.w):
         ys = [y for y in range(p.h) if p.p[y][x]]
         for d, y in enumerate(ys[: 2 + (x % 5 < 2)]):
-            p.put(x, y, SNOW[0] if d == 0 else SNOW[1] if d == 1 else SNOW[2])
-    return p.outline(FROSTINK)
+            p.put(x, y, cap[min(d, 2)])
+    return p.outline(ink)
 
 
 def shards() -> Pic:
@@ -3677,21 +3679,27 @@ def shards() -> Pic:
     return p.outline(FROSTINK)
 
 
-def lantern() -> Pic:
-    """A lantern on a post where the Downs have a lantern plant: its glass lit, snow on its cap."""
+def lantern(
+    post: tuple[int, int] = (LOG[0], LOG[1]),
+    light: list[int] = HEARTH,
+    cap: tuple[int, int] = (SNOW[0], SNOW[2]),
+    ink: int = FROSTINK,
+) -> Pic:
+    """A lantern on a post where the Downs have a lantern plant: its glass lit, snow on its cap. post: its lit side
+    and its body; light: the glass and what burns in it; cap: what lies on it and that's shade."""
     p = Pic(20, 44)
-    p.box(9, 14, 10, 43, LOG[1])
-    p.box(9, 14, 9, 43, LOG[0])
+    p.box(9, 14, 10, 43, post[1])
+    p.box(9, 14, 9, 43, post[0])
     p.box(6, 4, 13, 5, METAL[1])
-    p.box(7, 6, 12, 12, HEARTH[0])
-    p.box(9, 8, 10, 11, HEARTH[1])
+    p.box(7, 6, 12, 12, light[0])
+    p.box(9, 8, 10, 11, light[1])
     for x in (6, 13):
         p.box(x, 6, x, 12, METAL[1])
     p.box(6, 13, 13, 13, METAL[1])
-    p.box(5, 2, 14, 3, SNOW[0])
-    p.box(7, 1, 12, 1, SNOW[0])
-    p.box(5, 3, 14, 3, SNOW[2])
-    return p.outline(FROSTINK)
+    p.box(5, 2, 14, 3, cap[0])
+    p.box(7, 1, 12, 1, cap[0])
+    p.box(5, 3, 14, 3, cap[1])
+    return p.outline(ink)
 
 
 def snapshot() -> Pic:
@@ -4031,10 +4039,277 @@ def whitecap() -> list[tuple[int, Pic, bool, int]]:
     return out
 
 
+# ---- Russet Wood: leaf litter over loam, roots woven through it, trunks in mist; its colours its own, a misty noon
+# and the firefly night ----
+
+# the mist: the canopy's shade at its top down to the floor's pale haze
+MIST = both(
+    96,
+    "#B4C690 #C2CF9A #CFD8A4 #DCE0AE #E7E7B8 #F0ECC4 #F7F1D0",
+    "#1C1E42 #22244A #282A52 #2E325A #343A64 #3A426E #424C78",
+    4,
+)
+# the trunks' ranks, far, mid and near: each its lit edge, its body
+TRUNK = both(
+    103, "#B9C59A #A7B68A #A0A584 #8A9072 #857C68 #6C6456", "#363E6A #2E3460 #2E345E #262A52 #24284C #1C1E40", 4
+)
+CANOPY = both(109, "#8C6C44 #AC8850 #C8A460 #E4C878", "#1A1638 #221E44 #2A2850 #3A3A64", 4)  # shade to a gold leaf
+FERN = both(113, "#A9C084 #8EAA76 #76946C", "#2C3C5C #243254 #1C2848", 4)  # far to near
+LITTER = both(116, "#F6CC54 #E48E30 #BC5C28 #7E3828 #4A2030", "#C0B080 #A0806C #7C5858 #563A4C #32203C", 4)
+LOAM = both(121, "#2A1620 #3A2028 #4E2E2C #6A4234", "#141024 #1E162C #2A1E36 #3A2A42", 4)
+# a root: lit, body, shade, the gap under a crossing
+ROOTS = both(125, "#DCAC74 #AC7248 #74462C #20101A", "#94889C #6A5C7C #483E60 #0E0A1E", 4)
+OAKBARK = both(129, "#CC9058 #A46E44 #7E4E34 #5A362C #381E24", "#7E7490 #5E5478 #463E62 #322A4E #1E1838", 4)
+MOSS = both(134, "#BCDC64 #7CB444 #46843C", "#74A488 #487C6C #2E5658", 4)
+WOODINK = both(137, "#22101C", "#0C0A1C", 4)[0]  # the ground's own ink
+FOLIAGE = both(
+    141, "#FFE278 #F8BA40 #E88628 #C45624 #8C3028 #4A1C2C", "#BCB890 #9C9478 #7E6E68 #5E4E60 #42324E #20183A", 4
+)
+BERRY = both(157, "#EC5078 #A42858", "#A85088 #6C2C60", 4)
+FIREFLY = both(163, "#B8E850 #F8FFA0", "#B8E850 #F8FFA0", 4)  # a jar's glass, what glows in it
+WOODFLOOR = 104  # where the far ferns begin, down the backdrop
+FROND = (2, 4, 6, 7, 6, 4, 3, 5, 7, 8, 6, 3, 2, 3, 5, 4)  # a rank of ferns' tops, by twos: a period of 32
+LITTERHEM = (0, 1, 2, 2, 1, 0, 0, 1, 2, 1, 0, 0, 1, 2, 2, 1)  # the litter's foot, by twos: a period of 32
+
+
+def trunks(p: Pic, x0: int, step: int, w0: int, rank: int, sway: int) -> None:
+    """A rank of trunks down to the wood's floor: each a flat tone, a lit edge to its left, a bough's stub on the
+    nearer ones. None stands across the picture's edge."""
+    lit, tone = TRUNK[rank * 2], TRUNK[rank * 2 + 1]
+    for i, x in enumerate(range(x0, 320 - step // 3 - w0 - 16, step)):
+        x += (i * sway) % (step // 3)
+        w = w0 + (i * 5) % (2 + rank)
+        p.box(x, 0, x + w - 1, WOODFLOOR + 4, tone)
+        p.box(x, 0, x + rank // 2, WOODFLOOR + 4, lit)
+        if rank:
+            y = 24 + (i * 37) % 44
+            p.line(x + w, y, x + w + 9 + rank * 3, y - 8 - rank * 2, tone, 2)
+
+
+def shafts(p: Pic) -> None:
+    """Shafts of light down from the left: the mist and the far trunks they cross are lighter."""
+    lift = {MIST[i]: MIST[min(i + 2, 6)] for i in range(7)} | {TRUNK[1]: MIST[2], TRUNK[0]: MIST[5]}
+    for x0, w in ((34, 20), (128, 26), (236, 16)):
+        for y in range(10, WOODFLOOR + 4):
+            for x in range(x0 + y * 2 // 5, x0 + y * 2 // 5 + w):
+                p.put(x, y, lift.get(p.get(x, y), p.get(x, y)))
+
+
+def canopy(p: Pic) -> None:
+    """The far canopy, of period 320: a band along the top, its hem in clumps, a gold leaf here and there."""
+    p.box(0, 0, 319, 8, CANOPY[1])
+    for i in range(20):
+        for wrap in (-320, 0, 320):
+            p.ball(i * 16 + 4 + wrap, 4 + (i * 5) % 7, 10 + (i * 3) % 5, 9 + (i * 3) % 4, CANOPY[:3])
+    for i in range(40):
+        x, y = (i * 67 + 11) % 320, (i * 29) % 14
+        if p.get(x, y) in CANOPY:
+            p.put(x, y, CANOPY[3])
+
+
+def bracken(p: Pic, y0: int, tone: int, shift: int) -> None:
+    """A rank of ferns across p from y0 down, its tops in fronds."""
+    for x in range(p.w):
+        p.box(x, y0 - FROND[((x + shift) // 2) % 16], x, p.h - 1, tone)
+
+
+def mistwood() -> Pic:
+    """The wood's far backdrop, of period 320: mist in bands, three ranks of trunks into it, shafts of light across
+    the far one, the canopy over them, ferns at their feet."""
+    p = Pic(320, 200)
+    edges = [0, 21, 39, 56, 72, 86, 98, 200]
+    for y in range(200):
+        p.box(0, y, 319, y, MIST[max(i for i in range(7) if edges[i] <= y)])
+    trunks(p, 4, 19, 3, 0, 5)
+    shafts(p)
+    canopy(p)
+    trunks(p, 18, 43, 7, 1, 11)
+    bracken(p, WOODFLOOR, FERN[0], 0)
+    trunks(p, 52, 131, 13, 2, 29)
+    bracken(p, WOODFLOOR + 8, FERN[1], 7)
+    return p
+
+
+def bent(p: Pic, a: Pt, b: Pt, d: Pt, tone: int, w: int) -> list[Pt]:
+    """A bent line on p from a to d, pulled toward b; its points."""
+    pts = [
+        (
+            (1 - t) ** 2 * a[0] + 2 * t * (1 - t) * b[0] + t * t * d[0],
+            (1 - t) ** 2 * a[1] + 2 * t * (1 - t) * b[1] + t * t * d[1],
+        )
+        for t in (i / 40 for i in range(41))
+    ]
+    for (xa, ya), (xb, yb) in itertools.pairwise(pts):
+        p.line(xa, ya, xb, yb, tone, w)
+    return pts
+
+
+def spray(p: Pic, x: int, foot: int, h: int, r: list[int]) -> None:
+    """A fern at x, its foot at foot: five fronds arched out h high, r's dark for each and its light along its rib."""
+    for lean, lift in ((-1.0, 0.5), (-0.55, 0.9), (0.0, 1.0), (0.55, 0.9), (1.0, 0.5)):
+        tip = (x + lean * h * 0.9, foot - lift * h + abs(lean) * h * 0.35)
+        mid = (x + lean * h * 0.45, foot - lift * h * 1.25)
+        bent(p, (x, foot), mid, tip, r[1], 3)
+        bent(p, (x, foot), mid, tip, r[0], 1)
+
+
+def undergrowth() -> Pic:
+    """The wood's nearer band, masked, of period 320, which goes by faster: the nearest ferns, taller ones among
+    them."""
+    p = Pic(320, 80)
+    bracken(p, 24, FERN[2], 15)
+    for i, x in enumerate((22, 74, 139, 191, 248, 297)):
+        for wrap in (-320, 0, 320):
+            spray(p, x + wrap, 26, 15 + (i * 7) % 6, [FERN[1], FERN[2]])
+    return p
+
+
+def litter(hem: int, d: int) -> int:
+    """The leaf litter's tone d pixels under the surface at column hem, of period 64; 0 under it: bright leaves on
+    top, russet under them, a dark hem."""
+    hem %= 64
+    foot = 7 + LITTERHEM[(hem // 2) % 16]
+    if d > foot:
+        return 0
+    if d <= 0:
+        return LITTER[0] if (hem // 2) % 3 == 0 else LITTER[1]
+    if d < 4:
+        return LITTER[0] if (hem * 7 + d * 5) % 11 == 0 else LITTER[2] if (hem * 3 + d * 7) % 8 == 0 else LITTER[1]
+    if d < foot:
+        return LITTER[3] if (hem + d) % 6 == 0 or d == foot - 1 else LITTER[2]
+    return LITTER[4]
+
+
+def loam(x: int, y: int) -> int:
+    """The loam's tone at a world pixel, repeating every 64 across and 48 down: a braid of two roots every 24 down,
+    one over the other turn about, a rootlet hung from it, specks between."""
+    x, y = x % 64, y % 48
+    k = y // 24
+    yc = k * 24 + 12
+    u = x + 16 * (k % 2)
+    over = (u + 8) // 16 % 2
+    off = [y - (yc + 5 * math.sin(2 * math.pi * u / 32 + s * math.pi)) for s in (0, 1)]
+    for s in (over, 1 - over):
+        if -2 <= off[s] < 2:
+            if s != over and -3.4 <= off[over] < 3.4:
+                return ROOTS[3]
+            return ROOTS[(0, 1, 1, 2)[math.floor(off[s] + 2)]]
+    if u % 32 == 8 and 5 <= y - yc <= 10:
+        return ROOTS[2]
+    if (x * 13 + y * 7) % 53 == 0:
+        return LOAM[3]
+    if (x * 5 + y * 11) % 37 < 2:
+        return LOAM[2]
+    return LOAM[1]
+
+
+def loamy() -> Skin:
+    """The wood's ground: leaf litter over loam."""
+    return Skin(lambda x, y, d, hem: litter(hem, d) or loam(x, y), loam, WOODINK, (LITTER[3], LOAM[3], LOAM[0]))
+
+
+def mossledge() -> Pic:
+    """A floating shelf's 16: moss on a slab of bark, rootlets hung under it."""
+    p = Pic(16, 16)
+    for x in range(16):
+        for y, tone in enumerate((MOSS[0], MOSS[1], MOSS[1], MOSS[2])):
+            p.put(x, y, tone)
+        p.box(x, 4, x, 8, OAKBARK[1] if (x // 4) % 2 else OAKBARK[2])
+        if x % 5 == 2:
+            p.put(x, 4, MOSS[2])
+        p.put(x, 9, WOODINK)
+        n = (0, 2, 0, 0, 4, 0, 1, 0, 0, 3, 0, 0, 2, 0, 4, 0)[x]
+        for d in range(n):
+            p.put(x, 10 + d, ROOTS[1] if d < 2 else ROOTS[2])
+    return p
+
+
+def bough() -> Pic:
+    """The wood's moving platform: a length of bough, moss along its top, a furrow down it."""
+    p = Pic(48, 12)
+    for x in range(1, 47):
+        mossy = x % 11 < 8
+        p.put(x, 1, MOSS[0] if mossy else OAKBARK[0])
+        p.put(x, 2, MOSS[1] if mossy else OAKBARK[1])
+        p.put(x, 3, MOSS[2] if mossy and x % 5 == 0 else OAKBARK[1])
+        p.box(x, 4, x, 8, OAKBARK[2])
+        if x % 9 < 6:
+            p.put(x, 6, OAKBARK[4])
+        p.put(x, 9, OAKBARK[3])
+    return p.outline(WOODINK)
+
+
+def fern() -> Pic:
+    """A fern where the Downs have a bush."""
+    p = Pic(40, 20)
+    spray(p, 20, 18, 17, [MOSS[0], MOSS[1]])
+    return p.outline(WOODINK)
+
+
+CAP = """
+...RRRR...
+..RRwRRr..
+.RRRRRwRr.
+.RwRRRRRr.
+RRRRwRRRrr
+rrrrrrrrrr
+"""
+STALK = """
+...sSS...
+....sS...
+....sS...
+...ssS...
+...sSS...
+..gsSSg..
+"""
+
+
+def toadstool(f: int) -> Pic:
+    """A toadstool where the Downs have a flower: frame f, its cap a pixel aside."""
+    p = Pic(12, 16)
+    tones = {"R": BERRY[0], "r": BERRY[1], "w": WHITE, "s": FUR[4], "S": FUR[1], "g": MOSS[1]}
+    stamp(p, STALK, 1, 9, tones)
+    stamp(p, CAP, 1 + f, 3, tones)
+    return p.outline(WOODINK)
+
+
+def pomball() -> Pic:
+    """The Pomchi's ball: red, a white band round it."""
+    p = Pic(14, 14)
+    p.ball(7, 7, 5.5, 5.5, SCARF, 0.2, 1.0)
+    for x in range(14):
+        for y in range(14):
+            if p.get(x, y) and abs((y - 7) + (x - 7) * 0.35) < 1.3:
+                p.put(x, y, WHITE if x < 9 else FUR[3])
+    return p.outline(WOODINK)
+
+
+def russet() -> list[tuple[int, Pic, bool, int]]:
+    """Russet Wood's own pictures, at the indices the Downs' own have; its keepsake after the pass's last."""
+    k, z = 126, 625
+    out = [(0, mistwood(), False, -1), (1, undergrowth(), True, -1), (28, mossledge(), True, -1)]
+    out.append((5, ring(188, 72, 93, litter, [ROOTS[0], *OAKBARK], WOODINK), True, -1))
+    out += [(z + 112 + h * 2, ribbon(h, [LITTER[0], *OAKBARK], WOODINK), True, -1) for h in range(2)]
+    out += earth(z + 124, loamy())
+    out += [
+        (z + 124 + 268, bough(), True, -1),
+        (k + 36, tree(OAKBARK[:4], FOLIAGE), True, -1),
+        (k + 38, fern(), True, -1),
+        (k + 40, toadstool(0), True, -1),
+        (k + 42, toadstool(1), True, -1),
+        (k + 44, boulder(MOSS, WOODINK), True, -1),
+        (k + 46, thorn(), True, -1),
+        (k + 48, lantern((OAKBARK[0], OAKBARK[2]), FIREFLY, (MOSS[0], MOSS[2]), WOODINK), True, -1),
+        (k + 376, words("RUSSET WOOD", 178, 18, 1.8, 3.2), True, -1),
+        (z + 1216, pomball(), True, -1),
+    ]
+    return out
+
+
 # the pictures only one zone shows: they may use that zone's own colours, and are in the store only while it is
 # played
 OWN: list[set[int]] = [set(), set()]
-ZONES = 4
+ZONES = 5
 
 
 def earth(a: int, skin: Skin) -> list[tuple[int, Pic, bool, int]]:
@@ -4406,10 +4681,10 @@ def audit(pics: list[tuple[int, Pic, bool, int]]) -> None:
 
 def group(pics: list[tuple[int, Pic, bool, int]], zone: int) -> list[int]:
     """The pictures only zone shows, or with -1 those every zone does, as CHARLIE.DAT holds them: their count, then
-    each with its mask. The sands' and the pass's are their own lists, at the Downs' indices."""
+    each with its mask. The sands', the pass's and the wood's are their own lists, at the Downs' indices."""
     mine = [q for q in pics if next((z for z, own in enumerate(OWN) if q[0] in own), -1) == zone]
     if zone >= 2:
-        mine = (sands, whitecap)[zone - 2]()
+        mine = (sands, whitecap, russet)[zone - 2]()
     vals = [len(mine)]
     for k, p, masked, k2 in mine:
         vals += [k, p.w, p.h, int(masked), k2, *encode(p.longs())]

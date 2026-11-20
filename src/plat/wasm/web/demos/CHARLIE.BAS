@@ -301,13 +301,15 @@ const IFROST = IWALL + 4, IDUNKED = IFROST + 10
 ' four sat, his tail swaying and a blink, then two pointing.
 const IFAM = IDUNKED + 2, NFAM = 5, FAMF = 9, FAMSTEP = 36, IBARON = IFAM + NFAM * FAMF * 2
 ' The pass's load of snow on its ledge, and down in a heap.
-const ILOAD = IBARON + 12, IHEAP = ILOAD + 2, NIMG = IHEAP + 2
+const ILOAD = IBARON + 12, IHEAP = ILOAD + 2
+' The wood's keepsake, the Pomchi's ball.
+const IBALL = IHEAP + 2, NIMG = IBALL + 2
 const HUDW = 108, HUDH = 40
 ' The levels: a zone's two acts, the second at another hour in other colours, zone by zone.
 ' the stages played, and after them the intro's road
-const ZONES = 4, NSTAGE = ZONES * 2, SINTRO = NSTAGE
+const ZONES = 5, NSTAGE = ZONES * 2, SINTRO = NSTAGE
 ' the zones' names, 16 letters each; what marks CHARLIE.SAV as the game's: its zone is added to it
-const ZNAMES = "AMBER DOWNS     CHROME WORKS    SALTWICK SANDS  WHITECAP PASS", SAVEMARK = 1128398848
+const ZNAMES = "AMBER DOWNS     CHROME WORKS    SALTWICK SANDS  WHITECAP PASS   RUSSET WOOD", SAVEMARK = 1128398848
 ' each zone's tune, its number in CHARLIE.DAT: a digit a zone
 ' The intro: BEATS a second, ILEN of them, the ground HORIZON down the screen between two bars BARH high. Its
 ' cues' kinds, in QNAMES' order, six letters a name.
@@ -5692,13 +5694,14 @@ sub DrawCue (wd as World, cu() as Cue, i as integer, now as single, p as Hero, c
 end sub
 
 ' The zone's keepsake, its foot's middle at x, y on the screen: the picnic basket, the toolbox, the teddy, the
-' camera.
+' camera, the ball.
 sub DrawKeep (zn as Realm, art as Store, x as integer, y as integer)
     select case zn.id
     case 0: Blit art, x - 9, y - 14, IBASKET, 18, 15
     case 1: Blit art, x - 10, y - 13, ITOOLS, 20, 14
     case 2: Blit art, x - 7, y - 15, ITEDDY, 14, 16
     case 3: Blit art, x - 9, y - 13, ICAMERA, 18, 14
+    case 4: Blit art, x - 7, y - 13, IBALL, 14, 14
     end select
 end sub
 
