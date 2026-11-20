@@ -62,7 +62,7 @@ for j = 0 to NObj - 1
     end if
 next
 for i = 1 to 300
-    Things g, lo(), pt()
+    Things g, p, lo(), pt()
 next
 print "edge ok"
 Muted = 0
@@ -1381,6 +1381,66 @@ was = was and p.snow <> 0
 p.roll = 0
 Tick g, p, k, lo(), pt()
 if was and p.snow = 0 then print "snowball ok"
+' the pass's snow-thrower: ducked, its wall throws a roll back, neither hurt; its snowball comes down where
+' Charlie stood as it was thrown, hurts him there still and misses him stepped aside; up, it is drawn up and a roll
+' beats it; a bark ducks it
+GoStage 6, g, p, lo(), pt()
+for c = 0 to NObj - 1
+    if ObK(c) = KTHROW then exit for
+next
+was = c < NObj
+for i = 1 to 240
+    Tick g, p, k, lo(), pt()
+next
+ObS(c) = THROWC
+g.bones = 5
+hid = g.score
+Stand p, ObX(c) - 18, 200
+p.roll = -1
+Tick g, p, k, lo(), pt()
+was = was and ObS(c) <> 0 and p.inv <= 0 and p.gsp < 0 and g.score = hid
+for j = 0 to 1
+    g.bones = 5
+    p.inv = 0
+    p.stun = 0
+    p.roll = 0
+    ObS(c) = THROWAT + 1
+    Stand p, ObX(c) - 100, 0
+    for i = 1 to 4
+        Tick g, p, k, lo(), pt()
+        if LobN then exit for
+    next
+    was = was and LobN = 1
+    if j then Stand p, ObX(c) - 160, 0
+    for i = 1 to 70
+        Tick g, p, k, lo(), pt()
+        if LobN = 0 then exit for
+    next
+    was = was and i > 40 and i < 60 and (p.inv > 0) = (j = 0) and (g.bones = 0) = (j = 0)
+next
+p.inv = 0
+p.stun = 0
+Stand p, ObX(c) - 60, 0
+g.shake = 0
+for j = 0 to 1
+    ObS(c) = THROWC - j * (THROWC - THROWUP)
+    Render g, p, lo(), pt()
+    shown = Pix&(ObX(c) - int(g.camx) - 14, 28, ObY(c) - int(g.camy) - 25, ObY(c) - int(g.camy) - 12)
+    if j = 0 then bt = shown
+next
+was = was and shown <> bt
+hid = g.score
+Stand p, ObX(c) - 18, 200
+p.roll = -1
+Tick g, p, k, lo(), pt()
+was = was and ObS(c) = 0 and g.score = hid + 100
+ObS(c) = THROWUP - 2
+Stand p, ObX(c) - 40, 0
+p.barkT = 0
+k.bark = -1
+Tick g, p, k, lo(), pt()
+k.bark = 0
+if was and abs(ObS(c)) > THROWUP then print "thrower ok"
 ' a crab pinches at its side, a rolling Charlie too; down on its back he goes up off it unhurt and it ducks into
 ' its shell, and comes out again
 GoStage 4, g, p, lo(), pt()
@@ -2049,6 +2109,7 @@ def main() -> None:
         ("sled ok", "a sled is boarded, follows the slope, has no brake, keeps him through a hop, ends in deep snow"),
         ("geyser ok", "in the pass a jet is a geyser, the pass's water: it throws him up as it blows"),
         ("snowball ok", "deep snow rolled through fast makes him a snowball: it takes one hit, and ends with the roll"),
+        ("thrower ok", "a snow-thrower's wall throws a roll back; its snowball hurts where he stood; up, it is beaten"),
         ("crab ok", "a crab pinches at its side and is a step from above; barked into its shell, a higher one"),
         ("jelly ok", "a jellyfish afloat or aground: a high bounce off its bell, a sting for feet in it only"),
         ("dazed ok", "a Charlie hurt into the sea paddles again"),

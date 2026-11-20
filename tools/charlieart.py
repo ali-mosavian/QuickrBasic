@@ -3368,6 +3368,38 @@ def snowball(f: int) -> Pic:
     return p.outline(FROSTINK)
 
 
+def fort(up: bool) -> Pic:
+    """A snow-thrower, facing left: a cat in a bobble hat behind a wall of snow, ducked; or up, a snowball held."""
+    p = Pic(28, 26)
+    if up:
+        q = cat(0)
+        for y in range(q.h):
+            for x in range(q.w):
+                if q.p[y][x]:
+                    p.put(8 + q.w - 1 - x, 9 + y, q.p[y][x])
+        p.box(10, 8, 14, 9, ALPGLOW[1])
+        p.box(9, 10, 15, 10, SNOW[0])
+        p.box(11, 6, 12, 7, SNOW[0])
+        p.ball(7.5, 4, 2.6, 2.6, [SNOW[2], SNOW[1], SNOW[0]], 0.3, 1.0)
+    else:
+        p.box(10, 13, 14, 14, ALPGLOW[1])
+        p.box(11, 11, 12, 12, SNOW[0])
+    p.outline(FROSTINK)
+    for x in range(1, 17):
+        h = 10 - (1 if x in (1, 16) else 0) - (1 if x % 5 == 2 else 0)
+        for d in range(h):
+            brick = d % 4 == 0 or (x + (d // 4) * 3) % 6 == 0
+            p.put(x, 24 - d, SNOW[0] if d >= h - 2 else SNOW[2] if brick else SNOW[1])
+    return p.outline(FROSTINK)
+
+
+def lobbed() -> Pic:
+    """A thrown snowball."""
+    p = Pic(8, 8)
+    p.ball(3.5, 3.5, 2.8, 2.8, [SNOW[2], SNOW[1], SNOW[0]], 0.3, 1.0)
+    return p.outline(FROSTINK)
+
+
 def whitecap() -> list[tuple[int, Pic, bool, int]]:
     """Whitecap Pass's own pictures, at the indices the Downs' own have; its keepsake after the works' last."""
     k, z = 126, 625
@@ -3396,6 +3428,9 @@ def whitecap() -> list[tuple[int, Pic, bool, int]]:
         (z + 1030, geyserjet(1), True, -1),
         (z + 1032, snowball(0), True, -1),
         (z + 1034, snowball(1), True, -1),
+        (z + 1036, fort(False), True, z + 1040),
+        (z + 1038, fort(True), True, z + 1042),
+        (z + 1044, lobbed(), True, -1),
     ]
     # a sled as the ground lies: falling steeply to the right, gently, level, rising gently, steeply
     out += [(z + 1014 + (lean + 2) * 2, sledge(-lean), True, -1) for lean in range(-2, 3)]

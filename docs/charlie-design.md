@@ -141,7 +141,8 @@ Progress is saved at each zone.
   two stand-in levels, to its tune; bare ice, where braking, friction and a run's push are a fraction of
   the snow's; sleds, which follow the slope, have no brake and end in deep snow; geysers, the works' jets
   as the pass has them; the snowball deep snow makes of a fast roll, which takes one hit and ends with the
-  roll. To add: ski lifts, its enemies, levels, the blizzard and the chase.
+  roll; snow-throwers, ducked behind a wall that throws him back, up and open before each throw, ducked
+  again at a bark. To add: ski lifts, icicles, goats, levels, the blizzard and the chase.
 - Rule: grip. Ice keeps speed and will not give it back. Stopping and turning are the challenge, not going.
 - Gadgets: sleds, steered by jumps; ski-lift cables; geysers; a snowball gathered by rolling through deep
   snow, which takes one hit.

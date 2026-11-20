@@ -122,6 +122,15 @@ type Part
     c as integer
 end type
 
+' A thrown snowball on its arc.
+type Lob
+    x as single
+    y as single
+    vx as single
+    vy as single
+    live as integer
+end type
+
 ' A cue of the intro's script: what, from beat t0 to t1, on its way from x0, y0 to x1, y1 in the world, y from the
 ' ground and up under 0. ease: 1 gathering speed, 2 losing it; hop: an arc that high over its way; a: its own.
 type Cue
@@ -194,6 +203,10 @@ const KPRESS = 32, KLEG = 33, KSWEEP = 43, KSPARK = 44, SPARKR = 40, SPARKP = 15
 const KDRIFT = 34, KSLED = 45, SLEDV = 120!, SLEDGRIP = .3, SLEDH = 5
 ' Rolled through at SNOWV or faster, deep snow packs round him.
 const SNOWV = 100!
+' A snow-thrower, a cat behind a wall of snow, its state's sign the way it faces: its turn is THROWC of the
+' things' steps, ducked till THROWUP are left, then up and open; with THROWAT left it throws, if Charlie is
+' within THROWR, a snowball LOBT in the air, and ducks. NLOB of them fly at once.
+const KTHROW = 46, THROWC = 75, THROWUP = 30, THROWAT = 10, THROWR = 180, LOBT = .9, NLOB = 4
 const PRESSH = 112, PRESSUP = 68, PRESSP = 180, PRESSFALL = 90, PRESSRISE = 130, PRESSLAG = 4
 ' From KFRONT on: drawn over the ground. The sands' flume: a column of its fall, its level end, the tank at its
 ' head; the speed its water carries Charlie at.
@@ -248,7 +261,9 @@ const ISWEEP = ICISTERN + 2, ISPARK = ISWEEP + 8, ISRAIL = ISPARK + 6, IPRESS = 
 const ICAMERA = IPRESS + 6, ISLED = ICAMERA + 2, IDRIFT = ISLED + 10
 ' A geyser, where the works have a jet: its mouth, its column at two beats.
 ' The snowball he is in, at two turns.
-const IGEYSER = IDRIFT + 2, ISNOWBALL = IGEYSER + 6, NIMG = ISNOWBALL + 4
+const IGEYSER = IDRIFT + 2, ISNOWBALL = IGEYSER + 6
+' A snow-thrower ducked and up, facing left, then their mirrors; its snowball.
+const IFORT = ISNOWBALL + 4, ILOB = IFORT + 8, NIMG = ILOB + 2
 const HUDW = 108, HUDH = 40
 ' The levels: a zone's two acts, the second at another hour in other colours, zone by zone.
 ' the stages played, and after them the intro's road
@@ -482,7 +497,13 @@ declare sub Touch (g as Game, p as Hero, lo() as Loose, pt() as Part)
 declare sub Hurt (g as Game, p as Hero, fromX as integer, lo() as Loose, snd as integer)
 declare sub Lose (p as Hero)
 declare sub Dying (g as Game, p as Hero)
-declare sub Things (g as Game, lo() as Loose, pt() as Part)
+declare sub Things (g as Game, p as Hero, lo() as Loose, pt() as Part)
+declare function Risen% (i as integer)
+declare sub Hurl (i as integer, p as Hero)
+declare sub Volley (g as Game, p as Hero, lo() as Loose, pt() as Part)
+declare sub Splat (n as integer, pt() as Part)
+declare sub MeetThrow (g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
+declare sub DrawLobs (cx as integer, cy as integer)
 declare sub Emit (pt() as Part, x as single, y as single, vx as single, vy as single, t as single, c as integer)
 declare sub Burst (pt() as Part, x as single, y as single, n as integer, v as single, c as integer)
 declare sub Camera (g as Game, p as Hero, snap as integer)
@@ -580,6 +601,7 @@ dim shared Reached as integer, Pick as integer
 ' tide later
 dim shared Tide as integer, TideLo as integer, TideHi as integer, TideAt as long
 dim shared Gulls(NGULL - 1) as Bird, NGulls as integer
+dim shared Lobs(NLOB - 1) as Lob, LobN as integer
 
 Main
 end
@@ -1056,6 +1078,8 @@ sub LoadLevel (st as integer)
             k = KSWEEP
         case "sled"
             k = KSLED
+        case "thrower"
+            k = KTHROW
         case "drift"
             k = KDRIFT
         case "spark"
@@ -2638,6 +2662,7 @@ sub Tick (g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part)
             Touch g, p, lo(), pt()
             Flee g, p, lo(), pt()
             if NGulls then Flock g, p, lo(), pt()
+            if LobN then Volley g, p, lo(), pt()
             if p.y > MH * TS + 24 then Lose p
             if p.x >= GoalX then
                 g.mode = CLEARED
@@ -2669,7 +2694,7 @@ sub Tick (g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part)
     case OVER
         if g.modeT > OVERT or (g.modeT > 1.5 and (k.hit or k.start)) or k.quit then ResetWorld g, p, lo(), pt()
     end select
-    if (Ticks and 1) = 0 then Things g, lo(), pt()
+    if (Ticks and 1) = 0 then Things g, p, lo(), pt()
     Shimmer
     Spent k
 end sub
@@ -2799,7 +2824,7 @@ sub Pilot (p as Hero, k as Pad)
                 ' what is not rolled through, a crab, a jellyfish, a sweeper, a spark: jumped from further back
                 ' the faster he goes
                 d = ObK(i) = KJELLY or ObK(i) = KSPARK or (ObK(i) = KCRAB and abs(ObS(i)) = 1)
-                d = d or (ObK(i) = KSWEEP and ObS(i) <> 0)
+                d = d or ((ObK(i) = KSWEEP or ObK(i) = KTHROW) and ObS(i) <> 0)
                 if d and ObX(i) <= x + 34 + abs(cint(p.gsp)) \ 8 then want = -1
             end if
             i = i + 1
@@ -2900,7 +2925,12 @@ sub ResetWorld (g as Game, p as Hero, lo() as Loose, pt() as Part)
         if ObK(i) = KBONE then ObS(i) = 1
         if ObK(i) = KCAT or ObK(i) = KCRAB or ObK(i) = KSWEEP then ObS(i) = -1
         if ObK(i) = KJELLY then ObS(i) = 1
+        if ObK(i) = KTHROW then ObS(i) = THROWC
     next
+    for i = 0 to NLOB - 1
+        Lobs(i).live = 0
+    next
+    LobN = 0
     for i = 0 to NMOVE
         MvT(i) = 0
     next
@@ -3380,6 +3410,8 @@ sub Touch (g as Game, p as Hero, lo() as Loose, pt() as Part)
             MeetCrab g, p, i, lo(), pt()
         case KSWEEP
             MeetSweep g, p, i, lo(), pt()
+        case KTHROW
+            MeetThrow g, p, i, lo(), pt()
         case KSLED
             d = p.ground or p.vy > 0
             if ObS(i) = 0 and not p.sled and not p.stun and d and dx < 14 and abs(py - ObY(i) + 5) < 10 then Board p, i
@@ -3835,7 +3867,86 @@ sub Flinch (i as integer, fromX as integer)
     if ObX(i) < fromX then ObS(i) = -FLINCH
 end sub
 
-' Charlie barks: every cat the bark reaches flinches, every crab goes into its shell, every gull is scared.
+' Whether snow-thrower i is up from behind its wall: open to a roll, and about to throw.
+function Risen% (i as integer)
+    Risen% = abs(ObS(i)) <= THROWUP and abs(ObS(i)) > THROWAT
+end function
+
+' Thrower i's snowball, from its paw, lobbed to land where Charlie is now; none if he is far.
+sub Hurl (i as integer, p as Hero)
+    dim n as integer
+    if abs(p.x - ObX(i)) > THROWR or abs(p.y - ObY(i)) > 60 then exit sub
+    for n = 0 to NLOB - 1
+        if not Lobs(n).live then exit for
+    next
+    if n = NLOB then exit sub
+    Lobs(n).x = ObX(i) + 6 * sgn(ObS(i))
+    Lobs(n).y = ObY(i) - 20
+    Lobs(n).vx = (p.x - Lobs(n).x) / LOBT
+    Lobs(n).vy = (p.y - 12 - Lobs(n).y) / LOBT - GRAV * LOBT / 2
+    Lobs(n).live = -1
+    LobN = LobN + 1
+end sub
+
+' Snowball n bursts.
+sub Splat (n as integer, pt() as Part)
+    Lobs(n).live = 0
+    LobN = LobN - 1
+    Burst pt(), Lobs(n).x, Lobs(n).y, 6, 90, CWHITE
+    Sfx SPOP
+end sub
+
+' The snowballs in the air, each on its arc till it meets Charlie, whom it hurts, or the ground.
+sub Volley (g as Game, p as Hero, lo() as Loose, pt() as Part)
+    dim n as integer
+    for n = 0 to NLOB - 1
+        if Lobs(n).live then
+            Lobs(n).vy = Lobs(n).vy + GRAV * STEPT
+            Lobs(n).x = Lobs(n).x + Lobs(n).vx * STEPT
+            Lobs(n).y = Lobs(n).y + Lobs(n).vy * STEPT
+            if abs(Lobs(n).x - p.x) < 10 and abs(Lobs(n).y - p.y + 13) < 14 then
+                Hurt g, p, cint(Lobs(n).x - sgn(Lobs(n).vx) * 10), lo(), SHURT
+                Splat n, pt()
+            elseif Solid%(cint(Lobs(n).x), cint(Lobs(n).y)) or Lobs(n).y > MH * TS then
+                Splat n, pt()
+            end if
+        end if
+    next
+end sub
+
+' A snow-thrower met: ducked, its wall throws him back, neither hurt; up, it is a cat, beaten by a roll.
+sub MeetThrow (g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
+    dim s as integer
+    if ObS(i) = 0 or abs(ObX(i) - p.x) >= 16 or p.y < ObY(i) - 22 or p.y > ObY(i) + 8 then exit sub
+    if Risen%(i) then
+        if p.roll or p.charging then
+            Beaten g, pt(), i, 8
+            if not p.ground and p.vy > 0 then p.vy = -BOUNCEV
+        else
+            Hurt g, p, ObX(i), lo(), SHISS
+        end if
+        exit sub
+    end if
+    s = 1 + 2 * (p.x < ObX(i))
+    p.x = ObX(i) + s * 16
+    if p.ground then
+        p.gsp = s * 150
+    else
+        p.vx = s * 150
+    end if
+    Sfx SBUMP
+end sub
+
+' The snowballs in the air.
+sub DrawLobs (cx as integer, cy as integer)
+    dim n as integer
+    for n = 0 to NLOB - 1
+        if Lobs(n).live then Blit cint(Lobs(n).x) - cx - 4, cint(Lobs(n).y) - cy - 4, ILOB, 8, 8
+    next
+end sub
+
+' Charlie barks: every cat the bark reaches flinches, every crab goes into its shell, every gull is scared, every
+' snow-thrower ducks.
 sub Bark (p as Hero)
     dim i as integer, c as integer
     p.barkT = BARKT
@@ -3851,6 +3962,8 @@ sub Bark (p as Hero)
                 Flinch i, cint(p.x)
             case KCRAB
                 ObS(i) = sgn(ObS(i)) * SHELLT
+            case KTHROW
+                ObS(i) = sgn(ObS(i)) * THROWC
             end select
         end if
         i = i + 1
@@ -3860,7 +3973,7 @@ sub Bark (p as Hero)
     next
 end sub
 
-sub Things (g as Game, lo() as Loose, pt() as Part)
+sub Things (g as Game, p as Hero, lo() as Loose, pt() as Part)
     dim i as integer, x as integer, y as integer, s as integer, c as integer
     const DT = STEPT * 2
     c = (cint(g.camx) - 100) \ TS
@@ -3873,6 +3986,14 @@ sub Things (g as Game, lo() as Loose, pt() as Part)
             if ObS(i) <> 0 then Prowl i
         case KSPARK
             ObX(i) = ObA(i) + cint(SPARKR * sin((Ticks + ObA(i)) * .03))
+        case KTHROW
+            ' a step of its turn, facing Charlie; its throw
+            if ObS(i) <> 0 then
+                s = abs(ObS(i)) - 1
+                if s = 0 then s = THROWC
+                ObS(i) = s * (1 + 2 * (p.x > ObX(i)))
+                if s = THROWAT then Hurl i, p
+            end if
         case KSPRING, KBUMP, KHOOP
             if ObS(i) > 0 then ObS(i) = ObS(i) - 1
         case KBUOY
@@ -4666,6 +4787,7 @@ sub Render (g as Game, p as Hero, lo() as Loose, pt() as Part)
     DrawChase cx, cy
     DrawHero p, cx, cy
     if NGulls then DrawGulls cx, cy
+    if LobN then DrawLobs cx, cy
     if Tide <> NONE then DrawSurf cx, cy
     DrawOver cx, cy
     if p.barkT > BARKT - .2 then DrawBark p, cx, cy
@@ -4862,6 +4984,8 @@ sub DrawThings (cx as integer, cy as integer, back as integer)
                 end if
             case KSLED
                 if ObS(i) = 0 then Blit x - 15, y - 25, ISLED + 4, 30, 42
+            case KTHROW
+                if ObS(i) then Blit x - 14, y - 25, IFORT - 2 * Risen%(i) - 4 * (ObS(i) < 0), 28, 26
             case KDRIFT
                 Blit x - 28, y - 11, IDRIFT, 56, 12
             case KSWEEP
