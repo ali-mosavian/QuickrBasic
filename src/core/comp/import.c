@@ -6,10 +6,16 @@
  * A module is a name token, its parts joined by dots (lexer.c makes `lib.gfx` one token); FROM's
  * leading dots are '.' bytes. One scanner reads them for the compiler, which checks the statement,
  * and for the loader (io/repl.c), which finds the modules a line names.
+ *
+ * The statement runs each module it names, IMPORT's or FROM's: an IMPORT op (vm/flow.c) runs its
+ * code from its first line, the first time only. Its code ends at the END past its lines (LF_TOP,
+ * io/repl.c), a MODEND op, which goes back past the IMPORT; with no IMPORT running, it ENDs, as the
+ * main's.
  */
 #include "comp/import.h"
 #include "comp/dfa.h"
 #include "io/msg.h"
+#include "mem/module.h"
 
 static bool at_end(const uint8_t c) { return !c || c == ':' || c == TK_REM; }
 
@@ -173,6 +179,16 @@ bool impt_line(const uint8_t *body, ImptEach *const each, void *const ctx)
     return ok && (impt_scan(body, each, ctx, &ok), true);
 }
 
+/* IMPORT module line: module's code run from its first line, past its LF_TOP. */
+static void run(void *const ctx, const uint32_t module)
+{
+    Comp *const C = ctx;
+    const uint32_t top = modu_top_of(C->modu, module);
+    Node *const n = comp_op(C, O_IMPORT);
+    comp_dword(n, module);
+    comp_dword(n, top + prog_line(C->prog, top)->len);
+}
+
 void impt_compile(Comp *const C)
 {
     if (C->line == DLINE)
@@ -187,8 +203,11 @@ void impt_compile(Comp *const C)
     }
 
     bool ok;
+    const uint8_t *const stmt = C->p;
     C->p = impt_scan(C->p, nullptr, nullptr, &ok);
 
     if (!ok)
         fault_error(C->fault, E_SN);
+
+    C->impt->find(C->impt, C->line, stmt, run, C);
 }

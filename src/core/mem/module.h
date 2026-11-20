@@ -14,10 +14,23 @@ typedef struct {
     uint32_t from, to;
 } ModuEdge;
 
-/* Each module's: its path, its LF_TOP line as read (the END before its lines; 0 the main's). */
+/* A module's READ place (vm/stmts.c), kept while another module's DATA is read: none before its
+   first READ; its DATA's line and first byte (0 none left), the item's offset in its text. */
+typedef struct {
+    bool set;
+    bool before_first;
+    uint32_t line, at, pos;
+} ModuRead;
+
+/* Each module's: its path, its LF_TOP line (the END before its lines; 0 the main's), as read and
+   again at each link; its run's state: its code run by an IMPORT, its ON ERROR handler's line (0
+   none), its READ place. */
 typedef struct {
     uint32_t path; /* an offset in Modu.text */
     uint32_t top;
+    bool ran;
+    uint32_t handler;
+    ModuRead read;
 } ModuMod;
 
 typedef struct Modu {
@@ -35,12 +48,15 @@ typedef struct Modu {
     Fault *fault; /* Out of memory */
 } Modu;
 
+/* Only the main program's module, its path unknown. */
 void modu_init(Modu *mu, Fault *f);
-/* No files, and no modules but the main program, at path main. */
+/* No files, and no modules but the main program, at path main, its run's ON ERROR and READ kept. */
 void modu_clear(Modu *mu, const char *main);
 /* The module at path, added last when new (paths compared without case): its number. Out of memory:
    past 65536 modules. */
 uint32_t modu_module(Modu *mu, const char *path);
+/* The module at path, modu_count none. */
+uint32_t modu_find(const Modu *mu, const char *path);
 uint32_t modu_count(const Modu *mu);
 const char *modu_module_path(const Modu *mu, uint32_t m);
 /* Module from imports module to. */
@@ -49,6 +65,10 @@ void modu_import(Modu *mu, uint32_t from, uint32_t to);
 void modu_top(Modu *mu, uint32_t m, uint32_t line);
 /* Module m's LF_TOP line as read; the main's 0. */
 uint32_t modu_top_of(const Modu *mu, uint32_t m);
+/* Module m's run state (the main's when m is past them). */
+ModuMod *modu_mod(Modu *mu, uint32_t m);
+/* No module's code run, no handler: a run's start. */
+void modu_run_reset(Modu *mu);
 /* The modules in the order their declarations go: each after those it imports, the main's last;
    in a cycle, the first met first. modu_count of them. */
 const uint32_t *modu_order(Modu *mu);

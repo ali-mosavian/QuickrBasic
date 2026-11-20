@@ -54,7 +54,8 @@ typedef struct Comp {
     Vm *vm;
     Dbug *dbug;
     CompRun *run;
-    const struct Modu *modu; /* each line's module, by its file */
+    struct Modu *modu;     /* each line's module, by its file; their tops again at link */
+    struct ImptFind *impt; /* the modules an IMPORT or FROM runs (comp/import.h) */
 
     /* the cursor and the code */
     const uint8_t *p;    /* (ESI) the token cursor */

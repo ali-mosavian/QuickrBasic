@@ -4,6 +4,7 @@
 #include <setjmp.h>
 #include "defs.h"
 #include "fault.h"
+#include "comp/import.h"
 #include "comp/lexer.h"
 #include "plat/pfil.h"
 #include "vm/exec.h"
@@ -57,6 +58,8 @@ void repl_main(Session *S);
 Status repl_call(Session *S, void (*fn)(Session *S));
 /* Session.names' intern: the symbol table's name. */
 uint32_t repl_intern(LexrNames *names, const uint8_t *text, uint8_t len);
+/* ImptFind's: the modules the IMPORT or FROM at stmt, of line, runs, found as they were loaded. */
+void repl_runs(ImptFind *f, uint32_t line, const uint8_t *stmt, ImptRun *each, void *ctx);
 /* The line's declarations entered, after its 32-bit warnings to the front end. */
 void repl_declare(Session *S, const uint8_t *body); /* body lexr_line's last */
 /* repl_declare, its error returned, not raised: ST_OK, else the error and *op its ERR op, at its

@@ -9,8 +9,12 @@
  * A jump op holds a Jump, a GOTO a LineRef; link_resolve set both before the run. Every line's
  * code is in the cache while linked (link_start).
  *
- * An error goes to flow_handler: the innermost call's ON LOCAL ERROR, else ON ERROR's. flow_trap
- * sets ERR, ERL and RESUME's places, then longjmps into exec_run's loop at the handler.
+ * An IMPORT runs a module's code once, on a MODULE frame its END past the module's lines returns
+ * from (comp/import.c).
+ *
+ * An error goes to flow_handler: the innermost call's ON LOCAL ERROR, else the ON ERROR of the
+ * running line's module, or of the nearest caller's module with one, a call's or an IMPORT's.
+ * flow_trap sets ERR, ERL and RESUME's places, then longjmps into exec_run's loop at the handler.
  *
  * # Example
  *   10 FOR i = 1 TO 3     FOR pushes a FOR frame
@@ -256,6 +260,49 @@ void flow_return(Session *const S)
         repl_error(S, E_RG);
     if (f->kind == FRAME_EVENT)
         evnt_return(&S->evnt, &S->vm, f->event);
+
+    pop_to(&S->vm, f);
+    drop_temps(&S->strg);
+    go_to(&S->vm, &S->allo, f->ret);
+}
+
+/* IMPORT's run of module's code, its first line's: once a run. */
+void flow_import(Session *const S)
+{
+    if (exec_stopchk(S))
+        return;
+
+    const uint32_t module = load32(S->vm.ip), line = load32(S->vm.ip + 4);
+    S->vm.ip += 8;
+    ModuMod *const m = modu_mod(&S->modu, module);
+
+    if (m->ran)
+        return;
+
+    m->ran = true;
+    flow_push(S, FRAME_MODULE);
+    flow_jump(S, line);
+}
+
+/* The innermost module run's frame, nullptr none. */
+static Frame *find_module(Vm *const vm)
+{
+    for (uint32_t i = vm_nframes(vm); i-- > 0;)
+        if (vm->frames[i].kind == FRAME_MODULE)
+            return &vm->frames[i];
+
+    return nullptr;
+}
+
+/* The END past a module's lines: back to the IMPORT that ran them, its GOSUBs dropped; none, END. */
+void flow_modend(Session *const S)
+{
+    const Frame *const f = find_module(&S->vm);
+
+    if (!f) {
+        stmt_end(S);
+        return;
+    }
 
     pop_to(&S->vm, f);
     drop_temps(&S->strg);
@@ -567,12 +614,19 @@ static uint32_t handler_line(Vm *const vm)
     return 0;
 }
 
-/* ON ERROR GOTO. GOTO 0 inside the handler raises the error being handled. */
+/* The module line is in: its ON ERROR handler's. */
+static uint32_t *module_handler(Session *const S, const uint32_t line)
+{
+    return &modu_mod(&S->modu, modu_of(&S->modu, prog_line(&S->prog, line)->file))->handler;
+}
+
+/* ON ERROR GOTO: the running line's module's handler. GOTO 0 inside the handler raises the error
+   being handled. */
 void flow_onerr(Session *const S)
 {
-    S->vm.err.handler = handler_line(&S->vm);
+    const uint32_t h = *module_handler(S, S->vm.line) = handler_line(&S->vm);
 
-    if (!S->vm.err.handler && S->vm.err.active) {
+    if (!h && S->vm.err.active) {
         S->vm.err.user = S->vm.err.code;
         repl_error(S, E_USR);
     }
@@ -589,23 +643,60 @@ void flow_onlerr(Session *const S)
         flow_onerr(S);
 }
 
-uint32_t flow_handler(Session *const S)
+/* A call's frame or a module run's: a caller's place below it. */
+static bool frame_is_caller(const Frame *const f)
 {
-    uint32_t h = vm_nframes(&S->vm); /* by index: the frames move as segments go */
+    return frame_is_call(f) || f->kind == FRAME_MODULE;
+}
 
-    for (uint32_t i = h; i-- > 0 && h == vm_nframes(&S->vm);)
-        if (frame_is_call(&S->vm.frames[i]) && S->vm.frames[i].call.on_error)
-            h = i;
-    if (h == vm_nframes(&S->vm))
-        return S->vm.err.handler;
-    for (const Frame *f; (f = flow_find_call(&S->vm)) != &S->vm.frames[h];) {
+/* Each call and module run from frame index on returned, as if the error were at its caller. */
+static void unwind_to(Session *const S, const uint32_t index)
+{
+    for (uint32_t i = vm_nframes(&S->vm); i-- > index;) { /* by index: the frames move */
+        const Frame *const f = &S->vm.frames[i];
+
+        if (!frame_is_caller(f))
+            continue;
+
         const Place back = f->ret;
-        end_call(S, f);
+
+        if (frame_is_call(f))
+            end_call(S, f);
+        else
+            pop_to(&S->vm, f);
+
         go_to(&S->vm, &S->allo, back); /* the error is now at the call */
         S->vm.opip = --S->vm.ip;
     }
+}
 
-    return S->vm.frames[h].call.on_error;
+uint32_t flow_handler(Session *const S)
+{
+    const uint32_t n = vm_nframes(&S->vm);
+    uint32_t h = n;
+
+    for (uint32_t i = h; i-- > 0 && h == n;)
+        if (frame_is_call(&S->vm.frames[i]) && S->vm.frames[i].call.on_error)
+            h = i;
+    if (h != n) {
+        unwind_to(S, h + 1);
+        return S->vm.frames[h].call.on_error;
+    }
+
+    uint32_t line = S->vm.line, i = n; /* the running line's module, then each caller's */
+
+    while (!*module_handler(S, line)) {
+        while (i-- > 0 && !frame_is_caller(&S->vm.frames[i]))
+            ;
+
+        if (i == UINT32_MAX)
+            return 0;
+
+        line = S->vm.frames[i].ret.line;
+    }
+
+    unwind_to(S, i);
+    return *module_handler(S, S->vm.line);
 }
 
 /* The data stack as the running procedure's body started, or the module's. */

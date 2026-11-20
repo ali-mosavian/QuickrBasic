@@ -7,7 +7,8 @@
  * stmt_din); a bad field redoes the line from its start after the stores (StmtState.redo).
  *
  * READ finds the next DATA statement in the program store (next_data), copies its text to a buffer
- * in the arena and parses an item from it. RESTORE starts again at the first DATA.
+ * in the arena and parses an item from it. RESTORE starts again at the first DATA. Each module
+ * reads its own file's DATA: its place kept in its ModuMod while another's is in hand.
  *
  * RUN clears both stacks, events, COMMON and ON ERROR, then goes on at its line (stmt_rungo). END
  * and STOP leave CONT a place to go on from, then READY or BREAK.
@@ -309,13 +310,14 @@ static uint8_t skip_stmt(Prog *const pg, uint32_t *const b)
     return *p;
 }
 
-/* The next line's body: *line on, *b its first byte; false at the end. By the record's length: the
-   line's pre bytes (the editor's indent) follow its 0. */
+/* The next line's body: *line on, *b its first byte; false at the end, the program's or its
+   module's (LF_TOP). By the record's length: the line's pre bytes (the editor's indent) follow its
+   0. */
 static bool next_line(Prog *const pg, uint32_t *const line, uint32_t *const b)
 {
     *line += prog_line(pg, *line)->len;
     *b = *line + HDR;
-    return prog_line(pg, *line)->len;
+    return prog_line(pg, *line)->len && !(prog_line(pg, *line)->flags & LF_TOP);
 }
 
 /* The first DATA at or after the statement starting at *b, in *line; *b its first byte. */
@@ -358,12 +360,54 @@ static void load_data(Session *const S, const uint32_t line, const uint32_t b)
     S->stmt.data_text[n] = 0;
 }
 
+/* The running line's module, as READ and RESTORE take it: its DATA's place in hand, the one
+   before kept in its module's ModuMod. */
+static void data_module(Session *const S)
+{
+    StmtState *const st = &S->stmt;
+    const uint32_t m = modu_of(&S->modu, prog_line(&S->prog, S->vm.line)->file);
+
+    if (m == st->data_module)
+        return;
+
+    modu_mod(&S->modu, st->data_module)->read = (ModuRead){
+        .set = st->data_pos,
+        .before_first = st->before_first,
+        .line = st->data_line,
+        .at = st->data_at,
+        .pos = st->data_pos ? (uint32_t)(st->data_pos - st->data_text) : 0,
+    };
+
+    const ModuRead r = modu_mod(&S->modu, m)->read;
+    st->data_module = m;
+    st->data_pos = nullptr;
+
+    if (!r.set)
+        return;
+    if (r.at)
+        load_data(S, r.line, r.at);
+
+    st->data_at = r.at;
+    st->data_line = r.line;
+    st->data_text[0] = r.at ? st->data_text[0] : 0;
+    st->data_pos = st->data_text + r.pos;
+    st->before_first = r.before_first;
+}
+
+/* The running module's first line: past its LF_TOP, the main's PROGBASE. */
+static uint32_t data_first(Session *const S)
+{
+    const uint32_t m = S->stmt.data_module, top = modu_top_of(&S->modu, m);
+    return m ? top + prog_line(&S->prog, top)->len : PROGBASE;
+}
+
 /* READ goes on at the first DATA at or after line. */
 static void seek_data(Session *const S, const uint32_t line)
 {
     uint32_t at_line = line, b = line + HDR;
+    const Line *const l = prog_line(&S->prog, line); /* LF_TOP: a module with no lines */
 
-    if (prog_line(&S->prog, line)->len && scan_data(&S->prog, &at_line, &b))
+    if (l->len && !(l->flags & LF_TOP) && scan_data(&S->prog, &at_line, &b))
         load_data(S, at_line, b);
     else {
         S->stmt.data_at = 0;
@@ -377,8 +421,10 @@ static void seek_data(Session *const S, const uint32_t line)
 /* The next DATA item. Out of DATA. */
 static const uint8_t *next_data(Session *const S)
 {
+    data_module(S);
+
     if (!S->stmt.data_pos) {
-        seek_data(S, PROGBASE);
+        seek_data(S, data_first(S));
 
         if (!S->stmt.data_at)
             repl_error(S, E_OD);
@@ -421,12 +467,28 @@ void stmt_fread(Session *const S) { read(S, ITEM_SNGL); }
 void stmt_sread(Session *const S) { read(S, ITEM_STRING); }
 void stmt_dread(Session *const S) { read(S, ITEM_DOUBLE); }
 
-/* RESTORE: the first DATA. */
-void stmt_res(Session *const S) { stmt_restore(S); }
-void stmt_restore(Session *const S) { S->stmt.data_pos = nullptr; }
+/* RESTORE: the running module's first DATA. */
+void stmt_res(Session *const S)
+{
+    data_module(S);
+    S->stmt.data_pos = nullptr;
+}
 
-/* RESTORE line: its line set at link. */
-void stmt_resl(Session *const S) { seek_data(S, flow_target(&S->vm)); }
+void stmt_restore(Session *const S)
+{
+    S->stmt.data_pos = nullptr;
+    S->stmt.data_module = 0;
+
+    for (uint32_t m = 0; m < modu_count(&S->modu); m++)
+        modu_mod(&S->modu, m)->read = (ModuRead){};
+}
+
+/* RESTORE line: its line set at link, in the running module. */
+void stmt_resl(Session *const S)
+{
+    data_module(S);
+    seek_data(S, flow_target(&S->vm));
+}
 
 /* ---- DIM and ERASE -------------------------------------------------------------------------- */
 
@@ -537,7 +599,7 @@ void stmt_rungo(Session *const S, const uint32_t line)
     flow_drop_calls(S);
     evnt_clear(S);
     chai_start(&S->chai);
-    S->vm.err.handler = 0;
+    modu_run_reset(&S->modu);
     S->vm.err.active = false;
     S->vm.err.code = 0;
     S->vm.err.line = 0;

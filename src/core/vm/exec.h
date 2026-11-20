@@ -126,7 +126,15 @@ typedef struct {
 
 /* CALL_X: a call whose return does more, off exec_run's inline PRET: its own segment (vm/stack.c),
    or its locals' arrays on the heap (mem/array.c). NONE: the floor below the first frame. */
-typedef enum : uint8_t { FRAME_GOSUB, FRAME_EVENT, FRAME_CALL, FRAME_CALL_X, FRAME_NONE } FrameKind;
+/* FRAME_MODULE: a module's code an IMPORT runs (vm/flow.c flow_import). */
+typedef enum : uint8_t {
+    FRAME_GOSUB,
+    FRAME_EVENT,
+    FRAME_CALL,
+    FRAME_CALL_X,
+    FRAME_MODULE,
+    FRAME_NONE
+} FrameKind;
 
 /* A SUB or FUNCTION running. */
 typedef struct {

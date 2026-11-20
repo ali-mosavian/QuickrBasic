@@ -14,6 +14,7 @@
 #include "comp/declare.h"
 #include "comp/expr.h"
 #include "comp/codegen.h"
+#include "comp/import.h"
 #include "comp/lexer.h"
 #include "comp/link.h"
 #include "comp/listing.h"
@@ -60,6 +61,7 @@ struct Session {
     Code code;
     Fault fault;
     LexrNames names;
+    ImptFind impt;
     UsngOut usng_out;
     File file;
     Flow flow;

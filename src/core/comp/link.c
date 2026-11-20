@@ -667,11 +667,23 @@ void link_walk(const uint8_t *code, void (*each)(uint8_t op, const uint8_t *at))
         each(*code, code);
 }
 
+/* Each module's LF_TOP line again, the k-th the k-th module's (io/repl.c read_modules): lines
+   typed before them moved them. */
+static void link_tops(Comp *const C)
+{
+    uint32_t m = 1;
+
+    for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)
+        if (prog_line(C->prog, l)->flags & LF_TOP && m < modu_count(C->modu))
+            modu_top(C->modu, m++, l);
+}
+
 /* Every line compiled: each module's after those it imports, the main's last, so a use of another
    module's CONST loads its literal (comp/fold.c). */
 static void link_lines(Comp *const C)
 {
     const uint32_t n = modu_count(C->modu);
+    link_tops(C);
 
     if (n <= 1) {
         for (uint32_t l = PROGBASE, len; (len = prog_line(C->prog, l)->len); l += len)

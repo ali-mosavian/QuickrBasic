@@ -148,6 +148,10 @@ void bind_module(
 )
 {
     const uint32_t name = bound_name(sy, m, n);
+
+    if (symb_name(sy, name)->flags & NM_MOD && *symb_alias(sy, name) == to) /* imported again */
+        return;
+
     fresh(sc, sy, f, name);
     symb_name(sy, name)->flags |= NM_MOD;
     *symb_alias(sy, name) = to;

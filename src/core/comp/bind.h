@@ -8,8 +8,8 @@
 /* An alias by FROM's *: it yields to the module's own name. */
 enum : uint32_t { BIND_STAR = 0x80000000 };
 
-/* Module m binds n (its AS name, else its text) to module to: IMPORT's, FROM's of a package.
-   Duplicate definition: m declares the name, or binds it already. */
+/* Module m binds n (its AS name, else its text) to module to: IMPORT's, FROM's of a package; again
+   to the same, nothing. Duplicate definition: m declares the name, or binds it otherwise. */
 void bind_module(Scop *sc, Symb *sy, Fault *f, uint32_t m, const ImptName *n, uint32_t to);
 /* Module m binds n (its AS name, else its text) to module from's export of n's text. Name not
    exported: from has none, or no array for n's (). Duplicate definition: m declares the name, or

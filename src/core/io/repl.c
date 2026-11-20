@@ -1008,28 +1008,109 @@ static const uint8_t *restore(Session *const S, const uint32_t line)
     return numbered(S);
 }
 
-/* The modules the program imports, after its lines, each once and in the order first named; a
-   module's own imports after it. Their lines are LF_MOD, and so is the END before each, LF_TOP: a
-   run, by any way to the next line, stops where its module's lines end. */
-static void read_modules(Session *const S)
+/* An END, LF_MOD and LF_TOP, past the lines read: where a run of a module's code stops, by any way
+   to the next line (comp/import.c). */
+static void module_end(Session *const S)
 {
     static const uint8_t end[] = {TK_END, 0};
 
+    const uint8_t flags = S->prog.add_flags;
+    S->prog.add_flags = flags | LF_MOD | LF_TOP;
+    prog_add(&S->prog, NONUM, end, sizeof end);
+    S->prog.add_flags = flags;
+}
+
+/* The modules the program imports, after its lines, each once and in the order first named; a
+   module's own imports after it. Their lines are LF_MOD; an END ends each module's, the main's too,
+   its LF_TOP the next module's top. */
+static void read_modules(Session *const S)
+{
     const uint8_t flags = S->prog.add_flags;
 
     for (uint32_t m = 1; m < modu_count(&S->modu); m++) {
         char path[PFIL_PATH]; /* the table may move as it grows */
         strcpy(path, modu_module_path(&S->modu, m));
         modu_top(&S->modu, m, prog_at(&S->prog));
-        S->prog.add_flags = flags | LF_MOD | LF_TOP;
-        prog_add(&S->prog, NONUM, end, sizeof end);
+        module_end(S);
         S->prog.add_flags = flags | LF_MOD;
         S->repl.module = m;
         read_file(S, path, SOURCE_FILENO);
+        S->prog.add_flags = flags;
     }
 
+    if (modu_count(&S->modu) > 1) /* the last module's */
+        module_end(S);
+
     S->repl.module = 0;
-    S->prog.add_flags = flags;
+}
+
+/* An IMPORT or FROM statement's modules run, each to each. */
+typedef struct {
+    Imports im;
+    ImptRun *each;
+    void *ctx;
+} Runs;
+
+/* The module at path, as loaded, run. */
+static void runs_one(Runs *const r, const char *const path)
+{
+    const uint32_t m = modu_find(&r->im.S->modu, path);
+
+    if (m < modu_count(&r->im.S->modu)) /* one gone since: nothing run */
+        r->each(r->ctx, m);
+}
+
+/* One name the statement gives: the module it runs. */
+static void runs_name(void *const ctx, const ImptKind kind, const ImptName *const n)
+{
+    Runs *const r = ctx;
+    Imports *const im = &r->im;
+    char path[PFIL_PATH];
+
+    switch (kind) {
+    case IMPT_MODULE:
+        if (locate(&im->where, n, path, nullptr))
+            runs_one(r, path);
+
+        return;
+
+    case IMPT_FROM:
+        if (!locate(&im->where, n, path, &im->in_package))
+            return;
+        if (im->in_package)
+            strcpy(im->package, path);
+        else
+            runs_one(r, path);
+
+        return;
+
+    case IMPT_NAME:
+        if (im->in_package && locate_in(im->package, n, path))
+            runs_one(r, path);
+
+        return;
+
+    case IMPT_STAR:
+        return;
+    }
+}
+
+void repl_runs(
+    ImptFind *const f,
+    const uint32_t line,
+    const uint8_t *const stmt,
+    ImptRun *const each,
+    void *const ctx
+)
+{
+    Session *const S = container_of(f, Session, impt);
+    Runs r = {.im = {.S = S, .where = {S->repl.file, syst_env(&S->syst, "BASICLIB"), r.im.from}}};
+
+    r.each = each;
+    r.ctx = ctx;
+    strcpy(r.im.from, source_name(S, prog_line(&S->prog, line)->file));
+    bool ok;
+    impt_scan(stmt, runs_name, &r, &ok);
 }
 
 /* Stored line line's IMPORT or FROM, body in comp.cbuf: its names bound in its module. One in a SUB

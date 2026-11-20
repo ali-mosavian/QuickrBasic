@@ -1720,6 +1720,11 @@ bool ctrl_stmt(Comp *const C)
         return true;
 
     case TK_END:
+        if (C->line != DLINE && prog_line(C->prog, C->line)->flags & LF_TOP) { /* past a module's */
+            C->p++;
+            comp_op(C, O_MODEND);
+            return true;
+        }
         if (n == TK_IF || n == TK_SELECT || n == TK_TYPE) { /* no code */
             C->p += 2;
             return true;

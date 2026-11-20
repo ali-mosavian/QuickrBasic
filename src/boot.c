@@ -36,6 +36,7 @@ void boot(Session *const S, const FrontEnd *const fe)
     S->fault.raise = repl_fault;
     decl_init(&S->decl, &S->fault);
     S->names.intern = repl_intern;
+    S->impt.find = repl_runs;
     lexr_init(&S->lexr, &S->fault, &S->names);
     stmt_usng_init(S);
     Addr lo, hi;
@@ -67,6 +68,7 @@ void boot(Session *const S, const FrontEnd *const fe)
     S->comp.allo = &S->allo;
     modu_init(&S->modu, &S->fault);
     S->comp.modu = &S->modu;
+    S->comp.impt = &S->impt;
     S->comp.prog = &S->prog;
     S->comp.symb = &S->symb;
     S->comp.scop = &S->scop;

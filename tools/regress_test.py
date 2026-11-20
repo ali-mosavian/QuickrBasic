@@ -1421,7 +1421,7 @@ CASES |= {
     # The main program's end, a false one-line IF's too, ran on into a module's top-level code.
     "import_main_ends": (beside(bas("import noisy", 'print "main"', 'if 0 then print "x"'),
                                 {"noisy.bas": bas('print "noisy"', "sub nz", "end sub")}),
-                         "main\r\n", "noisy"),
+                         "noisy\r\nmain\r\n", "main\r\nnoisy"),
     "import_missing": (bas("print 1", "import nothere"), "IMPORT_M.BAS:2: File not found\r\n  import nothere", " 1"),
     "import_missing_name": (beside(bas("from lib.pkg import util, nothere"), SPR),
                             "IMPORT_M.BAS:1: File not found", None),
@@ -1516,6 +1516,35 @@ CASES |= {
     "import_module_taken": (beside(bas("import gfx", "gfx = 1"), GFX), "IMPORT_M.BAS:2: Duplicate definition", None),
     "import_module_missing": (beside(bas("import gfx", "print gfx.nothere"), GFX),
                               "IMPORT_M.BAS:2: Name not exported", None),
+}
+
+DA = {"da.bas": bas("data 1, 2", "sub rd", ' read x: print "a"; x', "end sub", "sub rs", " restore", "end sub"),
+      "db.bas": bas("data 99")}
+# A module's code runs at its first import, its ON ERROR and its DATA its own. Its code never ran: its variables
+# stayed 0; ON ERROR was the program's, the last one run; READ went on through every file's DATA in turn.
+CASES |= {
+    "import_runs_code": (beside(bas("import a", "import a", "from b import total, hi", 'print "main"; total', "hi"),
+                                {"a.bas": bas('print "a runs"', "import b", 'print "a again"'),
+                                 "b.bas": bas('print "b runs"', "import a", "dim public total", "total = 5",
+                                              "sub hi", ' print "hi"', "end sub", 'print "b end"')}),
+                         "a runs\r\nb runs\r\nb end\r\na again\r\nmain 5 \r\nhi\r\n", "ERROR"),
+    "import_module_end": (beside(bas("import e", 'print "no"'), {"e.bas": bas('print "e"', "end")}), "e\r\n", "no"),
+    "import_on_error": (beside(bas("on error goto h", "from ea import boom", "from eb import bad", "boom", "bad",
+                                   'print "after"', "end", 'h: print "main trapped"; err', "resume next"),
+                               {"ea.bas": bas("on error goto h", "goto done", 'h: print "a trapped"; err',
+                                              "resume next", "done:", "sub boom", " error 5", ' print "boom on"',
+                                              "end sub"),
+                                "eb.bas": bas("sub bad", " error 7", ' print "rest of bad"', "end sub")}),
+                        "a trapped 5 \r\nboom on\r\nmain trapped 7 \r\nafter\r\n", "rest of bad"),
+    "import_error_at_import": (beside(bas("on error goto h", "import zc", 'print "after"', "end",
+                                          'h: print "trapped"; err', "resume next"),
+                                      {"zc.bas": bas("error 9", 'print "zc rest"')}),
+                               "trapped 9 \r\nafter\r\n", "zc rest"),
+    "import_error_place": (beside(bas("import zb"), {"zb.bas": bas("x = 1", "y = x / 0")}),
+                           "Division by zero in line No line number in module ZB ", None),
+    "import_data": (beside(bas("from da import rd, rs", "import db", "data 10, 20", "read y: print y", "rd",
+                               "read y: print y", "rd", "rs", "rd", "rd", "rd"), DA),
+                    " 10 \r\na 1 \r\n 20 \r\na 2 \r\na 1 \r\na 2 \r\nOut of DATA", "a 99"),
 }
 
 

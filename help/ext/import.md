@@ -34,8 +34,19 @@ in a module is reported at its own file and line.
 
 Each file's names are its own: its variables, CONSTs, SUBs,
 FUNCTIONs, TYPEs, labels and line numbers. DEFtype, OPTION BASE and
-OPTION EXPLICIT start again at its first line. A module's top-level
-code does not run yet.
+OPTION EXPLICIT start again at its first line.
+
+## Running
+A module's top-level code runs the first time a line imports it,
+then the program goes on after that line. Later imports run nothing.
+In a cycle a module may be used before its code has finished. END and
+SYSTEM in it end the program; STOP breaks.
+
+ON ERROR GOTO in a file covers the errors in that file, its SUBs
+included. An error in a file with no handler goes to the handler of
+the nearest caller's file that has one, as if it happened at the call
+or IMPORT there: RESUME NEXT goes on after it. READ and RESTORE use
+the file's own DATA.
 
 ## Names
 A module exports its SUBs, FUNCTIONs, CONSTs and TYPEs, but those
