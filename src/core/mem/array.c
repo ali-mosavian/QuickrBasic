@@ -234,7 +234,7 @@ void arry_empty(Arry *const ay, const uint16_t id, const bool keep)
         s->dyn = 1;
 }
 
-Addr arry_make(Arry *const ay, ArrSlot *const s, const uint8_t et, const uint8_t n, const bool dyn)
+Addr arry_make(Arry *const ay, ArrSlot *const s, const uint32_t et, const uint8_t n, const bool dyn)
 {
     uint64_t size = arry_et_size(ay->decl, et);
 

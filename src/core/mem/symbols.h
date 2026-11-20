@@ -15,10 +15,11 @@ enum : uint8_t { LOOP_NAME = 1, RES_NAME = 2 };
 enum : uint8_t { VI_RECARR = VI_ARR | VK_INT };
 
 typedef struct PACKED {
-    Addr vt; /* its cell; an array's holds its ArrSlot */
+    Addr vt;       /* its cell; an array's holds its ArrSlot */
+    uint32_t type; /* ET_*, ET_REC + t a TYPE's */
     uint16_t name;
-    uint8_t type; /* ET_* */
     uint8_t info; /* VI_ARR, SK_DBL, the kind */
+    uint8_t pad;
 } Var;            /* TVAR */
 typedef struct PACKED {
     uint16_t next; /* its hash chain's next */
@@ -32,11 +33,11 @@ typedef struct PACKED {
 typedef struct PACKED {
     uint32_t text; /* its text's offset in text: its length, then its letters */
     uint32_t proc; /* its procedure, 0 none */
+    uint32_t rec;  /* its TYPE, 0 none */
     uint8_t flags; /* NM_* */
-    uint8_t rec;   /* its TYPE, 0 none */
-    uint16_t pad;
+    uint8_t pad[3];
 } Name; /* TNAM */
-static_assert(sizeof(Var) == 8 && sizeof(VarX) == 12 && sizeof(Name) == 12);
+static_assert(sizeof(Var) == 12 && sizeof(VarX) == 12 && sizeof(Name) == 16);
 
 /* A local array's place in its frame (vm/flow.c): what its DIMs asked (dims << 24 | elements;
    FARR_NEVER: one not constant, or a REDIM), and where link put its header (from vm.fp; 0 the
@@ -160,7 +161,7 @@ uint16_t symb_find_name(Symb *sy, const uint8_t *text, uint8_t len);
 uint16_t symb_find_var(
     Symb *sy,
     uint16_t name,
-    uint8_t type,
+    uint32_t type,
     uint8_t kind,
     uint32_t scope,
     bool stat

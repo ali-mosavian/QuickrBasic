@@ -67,10 +67,10 @@ static uint16_t link_result(Comp *const C, const uint8_t *const name)
 {
     const uint16_t n = comp_nameof(name);
     const bool arr = scop_type(C->scop, n, true) || scop_rec(C->scop, n, true);
-    const uint8_t t = scop_rec(C->scop, n, arr);
+    const uint32_t t = scop_rec(C->scop, n, arr);
 
     C->p = name;
-    return comp_var(C, arr ? 2 : 1, t ? (uint8_t)(ET_REC + t) : scop_type(C->scop, n, arr));
+    return comp_var(C, arr ? 2 : 1, t ? ET_REC + t : scop_type(C->scop, n, arr));
 }
 
 /* Parameter k of p's variable: its type by AS, as decl_line entered the name. */
@@ -86,7 +86,7 @@ static uint16_t link_param(Comp *const C, const Proc *const p, const uint16_t k)
     if (*q == '(')
         q += 2;
 
-    uint8_t et = 0;
+    uint32_t et = 0;
 
     if (*q == TK_AS) {
         if (q[1] == TK_X)
@@ -95,8 +95,8 @@ static uint16_t link_param(Comp *const C, const Proc *const p, const uint16_t k)
             et = decl_astype[q[1] - TK_INTEGER];
         else { /* AS a TYPE: its record, its array */
             const bool arr = pv[pv[1] + 4] == '(';
-            const uint16_t t = scop_rec(C->scop, comp_nameof(pv), arr);
-            et = t ? (uint8_t)(t + ET_REC) : 0;
+            const uint32_t t = scop_rec(C->scop, comp_nameof(pv), arr);
+            et = t ? t + ET_REC : 0;
         }
     }
 

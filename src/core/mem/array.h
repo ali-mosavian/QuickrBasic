@@ -38,7 +38,7 @@ Addr arry_ref(Arry *ay, ArrSlot *s, uint16_t id, uint8_t n);
 [[noreturn]]
 void arry_bad_sub(const Arry *ay);
 /* Array id's elements' ET_*: ET_REC + t a TYPE's, ET_I4 an INT's (VS bytes), ours. */
-static inline uint8_t arry_var_et(const Symb *const sy, const uint16_t id)
+static inline uint32_t arry_var_et(const Symb *const sy, const uint16_t id)
 {
     const Var *const v = symb_var(sy, id);
 
@@ -53,7 +53,7 @@ static inline uint8_t arry_var_et(const Symb *const sy, const uint16_t id)
 }
 
 /* An element's bytes by its ET_*. */
-static inline uint32_t arry_et_size(const Decl *const d, const uint8_t et)
+static inline uint32_t arry_et_size(const Decl *const d, const uint32_t et)
 {
     switch (et) {
     case ET_R8:
@@ -118,7 +118,7 @@ void arry_reset(Arry *ay, Vm *vm, ArrSlot *s);
 /* An array of et elements made in cell s, ours: its header at arry.hdr, its owner s, arry.counts
    and arry.lbounds [0..n), its data zeroed at allo.arrays; dyn a REDIM's. Returns the header. Out
    of memory. */
-Addr arry_make(Arry *ay, ArrSlot *s, uint8_t et, uint8_t n, bool dyn);
+Addr arry_make(Arry *ay, ArrSlot *s, uint32_t et, uint8_t n, bool dyn);
 /* arry_make for array id in its cell. */
 Addr arry_new(Arry *ay, uint16_t id, uint8_t n, bool dyn);
 /* The data's bytes of the array with header hdr. */

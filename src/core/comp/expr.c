@@ -420,7 +420,7 @@ static Node *xfn_node(Comp *const C)
             if (comp_cur(C) != M_VAR)
                 synerr(C);
 
-            uint8_t type;
+            uint32_t type;
             a = ref_fieldarray(C, &type);
 
             if (a == nullptr) {

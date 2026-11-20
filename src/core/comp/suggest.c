@@ -1078,7 +1078,7 @@ static int32_t sugg_parens(const uint8_t *const b, int32_t i, const int32_t e)
 
 /* The TYPE of the record the line before the word ends in, a '.' after it: a variable's, an
    element's, down its fields' path, a fixed array field's element ours; 0 none. */
-static uint8_t sugg_record(const SuggSrc *const src)
+static uint32_t sugg_record(const SuggSrc *const src)
 {
     const uint8_t *const b = sg.before;
     const int32_t e = sg.nbefore - 1;
@@ -1116,7 +1116,7 @@ static uint8_t sugg_record(const SuggSrc *const src)
     if (arr)
         i = sugg_parens(b, i, e);
 
-    uint8_t t = scop_rec(src->scop, name, arr);
+    uint32_t t = scop_rec(src->scop, name, arr);
 
     while (t && i < e && b[i] == '.') { /* .f: its TYPE's field, a record */
         const int32_t f0 = ++i;
@@ -1149,7 +1149,7 @@ static bool sugg_fields(
     const uint16_t wn
 )
 {
-    const uint8_t t = sugg_record(src);
+    const uint32_t t = sugg_record(src);
 
     if (!t)
         return false;

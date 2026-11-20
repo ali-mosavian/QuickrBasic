@@ -18,7 +18,7 @@ typedef struct {
 /* A field of a TYPE. */
 typedef struct {
     uint16_t name;
-    uint8_t et, sub; /* its ET_*, or its TYPE's; an array's, its element's */
+    uint32_t et, sub; /* its ET_*, or its TYPE's; an array's, its element's */
     uint16_t fix, off;
     uint8_t ndim; /* ours: a fixed array's dimensions, 0 none */
     bool dyn;     /* ours: a dynamic array's cell (ArrSlot), empty until REDIM */
@@ -48,8 +48,8 @@ typedef struct {
     Arena arena;
     Fault *fault;
     uint16_t proc;           /* lx.dproc: the procedure being entered, its name; 0 the module */
-    uint16_t ntypes;         /* lx.ntyps: the last TYPE's index */
-    uint16_t type;           /* lx.dtype: the TYPE being entered, 0 none */
+    uint32_t ntypes;         /* lx.ntyps: the last TYPE's index */
+    uint32_t type;           /* lx.dtype: the TYPE being entered, 0 none */
     uint16_t scope;          /* g_dscope: where declarations go */
     bool redim;              /* g_dredim: the DIM is a REDIM */
     uint8_t base;            /* g_obase: OPTION BASE */
@@ -84,7 +84,7 @@ void decl_defevents(Decl *d, Scop *sc, Symb *sy, const Prog *pg);
 /* dc_deft: the DEFtypes (sy->deft) line sees. */
 void decl_deftype(const Decl *d, Symb *sy, uint32_t line);
 /* TYPE t. */
-static inline const TypeDef *decl_type(const Decl *const d, const uint16_t t)
+static inline const TypeDef *decl_type(const Decl *const d, const uint32_t t)
 {
     return d->types[t];
 }
@@ -100,7 +100,7 @@ const uint8_t *decl_dims(const uint8_t *p, uint8_t base, FieldDim *dims, uint8_t
 /* TYPE td holds STRINGs or dynamic arrays, ours: its bytes are not all its data. */
 static inline bool decl_dynamic(const TypeDef *const td) { return td->nstr || td->nslot; }
 /* Field f's elements' type as a variable's: ET_*, ET_REC + t a TYPE's. */
-static inline uint8_t decl_fieldtype(const Field *const f)
+static inline uint32_t decl_fieldtype(const Field *const f)
 {
     return f->sub ? ET_REC + f->sub : f->et;
 }

@@ -29,7 +29,6 @@ enum : uint8_t {
     ET_SH = 6, /* SHORT: 2 bytes in a record, else an INT */
     ET_BY = 7, /* BYTE: 0 .. 255, 1 byte in a record, else an INT */
     ET_REC = 0x40,
-    EMAX = 254,
 };
 
 enum {
@@ -39,7 +38,6 @@ enum {
     NB = 4,       /* a stored FLOAT's bytes */
     MAXDIMS = 60, /* an array's dimensions at most, BC's */
     NTMP = 48,    /* string temporaries */
-    NTYPE = 64,
     NBLK = 2048, /* block statements' entries */
 };
 
@@ -158,7 +156,7 @@ enum { BHDR = sizeof(StrTail) };
    bounds. */
 typedef struct PACKED {
     uint8_t dims;
-    uint8_t et; /* ours: its elements' ET_*, ET_REC + t a TYPE's */
+    uint32_t et; /* ours: its elements' ET_*, ET_REC + t a TYPE's */
     Addr data;
     uint32_t fast;
     Addr owner; /* ours: its cell (mem/array.c), 0 dead */

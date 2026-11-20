@@ -548,18 +548,15 @@ static void decl_typedef(DeclScan *const ds)
 
     Decl *const d = ds->d;
 
-    if (d->ntypes >= NTYPE - 1)
-        decl_fail(ds, E_OM);
-
-    decl_room(ds, (void **)&d->types, d->ntypes + 1u, &d->typecap, sizeof *d->types);
+    decl_room(ds, (void **)&d->types, d->ntypes + 1, &d->typecap, sizeof *d->types);
     TypeDef *const td = arena_alloc(&d->arena, sizeof *td);
 
     if (!td)
         decl_fail(ds, E_OM);
 
-    const uint16_t t = ++d->ntypes;
+    const uint32_t t = ++d->ntypes;
     d->type = t;
-    symb_name(ds->sy, n)->rec = (uint8_t)t;
+    symb_name(ds->sy, n)->rec = t;
     *td = (TypeDef){.name = n};
 
     d->types[t] = td;
@@ -643,7 +640,7 @@ static void decl_fielddeep(
 /* In a TYPE: f[(bounds)] AS type [* n]; the bounds ours, STRING alone ours. */
 static void decl_field(DeclScan *const ds)
 {
-    const uint16_t t = ds->d->type;
+    const uint32_t t = ds->d->type;
 
     if (!t)
         return;

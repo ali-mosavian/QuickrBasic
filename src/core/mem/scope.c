@@ -188,12 +188,12 @@ static const Binding *scop_seen(const Scop *const sc, const uint16_t name)
     return scop_look(sc, name, &scope);
 }
 
-uint8_t scop_type(const Scop *const sc, const uint16_t name, const bool array)
+uint32_t scop_type(const Scop *const sc, const uint16_t name, const bool array)
 {
     return scop_seen(sc, name)->et[array];
 }
 
-uint8_t scop_rec(const Scop *const sc, const uint16_t name, const bool array)
+uint32_t scop_rec(const Scop *const sc, const uint16_t name, const bool array)
 {
     return scop_seen(sc, name)->rec[array];
 }
@@ -203,14 +203,14 @@ uint16_t scop_fix(const Scop *const sc, const uint16_t name, const bool array)
     return scop_seen(sc, name)->fix[array];
 }
 
-uint8_t scop_sfx(const Scop *const sc, const uint16_t name, const uint8_t type, const bool array)
+uint32_t scop_sfx(const Scop *const sc, const uint16_t name, const uint8_t type, const bool array)
 {
     const Binding *const b = scop_seen(sc, name);
 
     if (b->flags & BF_CON)
         return b->et[0];
 
-    const uint8_t et = b->et[array];
+    const uint32_t et = b->et[array];
 
     if (b->rec[array] || (et && et != type))
         scop_fail(sc, E_RD);

@@ -500,7 +500,7 @@ static void declared(Comp *const C, const uint16_t name)
 
 enum { VM_PARAM = 1, VM_STATIC = 2 };
 
-uint16_t comp_var(Comp *const C, const uint8_t shape, const uint8_t et)
+uint16_t comp_var(Comp *const C, const uint8_t shape, const uint32_t et)
 {
     const uint8_t *const q = C->p;
     const uint8_t first = q[2];
@@ -508,7 +508,7 @@ uint16_t comp_var(Comp *const C, const uint8_t shape, const uint8_t et)
     const uint16_t name = comp_nameof(q);
     C->p = comp_skipname(q);
     uint8_t kind = shape > 1 || (!shape && *C->p == '(') ? VI_ARR : 0;
-    uint8_t type = et;
+    uint32_t type = et;
     typeof(C->memo[0]) *m = nullptr;
     uint64_t key = 0;
 
@@ -1161,7 +1161,7 @@ static void dimempty(Comp *const C, const uint16_t id)
    cell, its elements' type, n, CALL DIM; false: not one. */
 static bool dimfield(Comp *const C)
 {
-    uint8_t type;
+    uint32_t type;
     C->dimtarget = true;
     Node *const cell = ref_fieldarray(C, &type);
     C->dimtarget = false;

@@ -437,7 +437,7 @@ void stmt_resl(Session *const S) { seek_data(S, flow_target(&S->vm)); }
 static void redim_field(
     Session *const S,
     ArrSlot *const s,
-    const uint8_t et,
+    const uint32_t et,
     const uint8_t dims,
     const uint32_t flags
 )
@@ -480,7 +480,7 @@ void stmt_dim(Session *const S)
     }
 
     if (field) {
-        redim_field(S, (ArrSlot *)at(field), (uint8_t)target, dims, flags);
+        redim_field(S, (ArrSlot *)at(field), target, dims, flags);
         return;
     }
 

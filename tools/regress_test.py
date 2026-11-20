@@ -1241,6 +1241,18 @@ BIG |= {
                         *[x for i in range(600) for x in (f"function f{i}% (x%)", " dim a(3) as integer: a(1) = x%",
                                                           f" f{i}% = a(1) + {i}", "end function")]),
                     " 600  2 \r\n", "ERROR"),
+    # 63 TYPEs, numbered in a byte as ET_REC + t: the 64th was Out of memory. TYPE 299 in each role.
+    "limit_types": (bas(*[x for i in range(299) for x in (f"type t{i}", " a as integer", "end type")],
+                        "type t299", " n as long", " s as string * 4", " v as string", " k() as long", " c as t298",
+                        "end type", "declare sub show (r as t299)", "declare function mk (n as long) as t299",
+                        "dim r as t299, rs(2) as t299", 'r.n = 299: r.s = "abcd": r.v = "var": r.c.a = 298',
+                        "redim r.k(3): r.k(3) = 33", "rs(1) = r", "redim preserve rs(4)", "show rs(1)",
+                        "dim q as t299", "q = mk(7)", "print q.n; q.k(2); len(rs(0)) = len(r)", "end",
+                        "sub show (r as t299)", " dim l(1) as t299", " l(0) = r",
+                        " print l(0).n; l(0).s; l(0).v; l(0).k(3); l(0).c.a", "end sub",
+                        "function mk (n as long) as t299", " mk.n = n", " redim mk.k(2): mk.k(2) = n * 2",
+                        "end function"),
+                    " 299 abcdvar 33  298 \r\n 7  14 -1 \r\n", "ERROR"),
     # 512 fields, all TYPEs': the 513th was Out of memory.
     "limit_fields": (bas(*[x for i in range(6) for x in (f"type t{i}", *[f" f{j} as integer" for j in range(100)], "end type")],
                          "dim v as t5", "v.f99 = 599", "print v.f99"), " 599 \r\n", "ERROR"),

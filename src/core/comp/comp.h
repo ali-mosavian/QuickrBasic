@@ -215,7 +215,7 @@ void comp_notconst(Comp *C); /* the M_VAR at comp.p declared or stored to: a CON
 uint16_t comp_var(
     Comp *C,
     uint8_t shape,
-    uint8_t et
+    uint32_t et
 ); /* var_id: shape 1 a scalar, 2 an array, 0 by '(';
                                             et its type, 0 by suffix, AS, DEFtype */
 /* A scalar parameter of the procedure compiled (only its own are in scope). */

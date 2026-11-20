@@ -199,7 +199,7 @@ static void symb_locals_room(Symb *const sy, const uint32_t proc)
 uint16_t symb_find_var(
     Symb *const sy,
     const uint16_t name,
-    const uint8_t type,
+    const uint32_t type,
     const uint8_t kind,
     const uint32_t scope,
     const bool stat

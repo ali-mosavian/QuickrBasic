@@ -748,7 +748,7 @@ void ctrl_swap(Comp *const C)
 
 void ctrl_recstore(Comp *const C)
 {
-    const uint8_t et = C->ctrl->fieldet;
+    const uint32_t et = C->ctrl->fieldet;
 
     if (et == ET_SD) {
         comp_tostring(C);
@@ -761,7 +761,7 @@ void ctrl_recstore(Comp *const C)
     comp_toinfo(C, comp_etkind[et]);
     Node *const n = comp_op(C, O_FL_ST);
     comp_word(n, C->tgt);
-    comp_byte(n, et);
+    comp_byte(n, (uint8_t)et); /* a number's */
 }
 
 /* ct_rcopy: a = b of two records of one TYPE: their addresses, a field's offset added, R.COPY; a
@@ -777,7 +777,7 @@ static bool reccopy(Comp *const C)
         Node *const b = comp_cur(C) == M_VAR ? ref_record(C) : nullptr;
 
         if (b != nullptr && b->rec.et == rec.et && comp_end(C)) {
-            const uint8_t t = (uint8_t)(rec.et - ET_REC);
+            const uint32_t t = rec.et - ET_REC;
             comp_step(C, expr_addr(C, a, 0));
             comp_step(C, expr_addr(C, b, 0));
 
@@ -802,7 +802,7 @@ static bool reccopy(Comp *const C)
 static bool arrcopy(Comp *const C)
 {
     const uint8_t *const start = C->p;
-    uint8_t ta, tb;
+    uint32_t ta, tb;
     Node *dst = ref_fieldarray(C, &ta);
     uint16_t a = 0;
 
@@ -1134,7 +1134,7 @@ static void erase(Comp *const C)
     C->p++;
 
     do {
-        uint8_t type;
+        uint32_t type;
         Node *const f = ref_fieldarray(C, &type); /* m.a, ours */
         comp_step(C, f ? f : ref_cell(C, ref_arrayof(C, shaped(C, 2))));
         comp_call(C, K_ERASE);

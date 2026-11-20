@@ -13,8 +13,8 @@ struct Binding {
     uint16_t name;   /* the name, or the line number */
     Binding *next;   /* its hash chain's next */
     uint8_t flags;   /* BF_* */
-    uint8_t et[2];   /* the declared type: the scalar's, the array's */
-    uint8_t rec[2];  /* the record's TYPE: the scalar's, the array's */
+    uint32_t et[2];  /* the declared type: the scalar's, the array's */
+    uint32_t rec[2]; /* the record's TYPE: the scalar's, the array's */
     uint16_t fix[2]; /* STRING * n: the scalar's, the array's */
     uint32_t line;   /* a label's line */
 };
@@ -75,12 +75,12 @@ uint16_t scop_own(const Scop *sc);
 const Binding *scop_look(const Scop *sc, uint16_t name, uint16_t *scope);
 /* Name's declared type (ET_*), record TYPE and STRING * n, the array's when array, as the
    procedure compiled sees it; 0 none. */
-uint8_t scop_type(const Scop *sc, uint16_t name, bool array);
-uint8_t scop_rec(const Scop *sc, uint16_t name, bool array);
+uint32_t scop_type(const Scop *sc, uint16_t name, bool array);
+uint32_t scop_rec(const Scop *sc, uint16_t name, bool array);
 uint16_t scop_fix(const Scop *sc, uint16_t name, bool array);
 /* Name used with suffix type (ET_*), the array when array: a CONST's type for a CONST, else type.
    Duplicate definition (E_RD): DIM AS another type, or a record. */
-uint8_t scop_sfx(const Scop *sc, uint16_t name, uint8_t type, bool array);
+uint32_t scop_sfx(const Scop *sc, uint16_t name, uint8_t type, bool array);
 /* Name a CONST, as the procedure compiled sees it? */
 bool scop_con(const Scop *sc, uint16_t name);
 /* Name a CONST's: the module's (every procedure's), or the procedure compiled's own? */

@@ -1085,7 +1085,7 @@ void exec_r_copy(Session *const S)
    a's STRINGs and arrays its own copies; its old arrays freed. */
 void exec_r_copys(Session *const S)
 {
-    const TypeDef *const td = decl_type(&S->decl, (uint16_t)exec_pop(&S->vm).u);
+    const TypeDef *const td = decl_type(&S->decl, exec_pop(&S->vm).u);
     const Addr b = exec_popa(&S->vm);
     const Addr a = exec_popa(&S->vm);
 
@@ -1102,7 +1102,7 @@ void exec_r_copys(Session *const S)
 
 void exec_r_clear(Session *const S)
 {
-    const TypeDef *const td = decl_type(&S->decl, (uint16_t)exec_pop(&S->vm).u);
+    const TypeDef *const td = decl_type(&S->decl, exec_pop(&S->vm).u);
     const Addr a = exec_popa(&S->vm);
 
     for (uint32_t i = 0; i < td->nslot; i++) /* its arrays go */
