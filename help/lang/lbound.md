@@ -14,7 +14,8 @@ result is 0 unless the array was declared with a lower bound or
 OPTION BASE 1 is in force.
 
 An array that is not dimensioned, or a dimension out of range, is a
-Subscript out of range error.
+Subscript out of range error. array may be a record's array element,
+LBOUND(v.pts), in QuickrBasic.
 
 ## Example
     DIM a(5 TO 9, 3)

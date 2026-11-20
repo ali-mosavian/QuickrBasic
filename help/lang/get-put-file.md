@@ -20,7 +20,9 @@ With a variable, the data is moved to or from it directly:
     - a numeric variable moves its own size;
     - a fixed-length string moves its length, a variable-length
       string in BINARY mode moves its current length;
-    - a TYPE record moves the whole record.
+    - a TYPE record moves the whole record. One with a STRING of
+      any length or a dynamic array is a Type mismatch: its bytes
+      are not all its data.
 Without one, RANDOM files use the FIELD buffer.
 
 A RANDOM record is the LEN given in OPEN; a variable longer than

@@ -44,6 +44,7 @@
 #include "comp/control.h"
 #include "comp/declare.h"
 #include "comp/dfa.h"
+#include "io/msg.h"
 #include "io/repl.h"
 #include "mem/scope.h"
 #include "mem/string.h"
@@ -103,7 +104,6 @@ static void mismatch(Comp *const C)
 
 static Node *parse(Comp *C, uint8_t p);
 static Node *parse_unary(Comp *C);
-static Node *addr_node(Comp *C, Node *at, uint8_t k);
 static Node *var_leaf(Comp *C);
 static Node *str_leaf(Comp *C);
 
@@ -237,7 +237,7 @@ void expr_target(Comp *const C)
     comp_open(C);
 
     do {
-        n++;
+        comp_dim(C, ++n);
         Node *const e = expr_tree(C, false);
         comp_check(C, e);
 
@@ -264,7 +264,7 @@ void expr_target(Comp *const C)
 void expr_varaddr(Comp *const C)
 {
     uint32_t vk;
-    comp_step(C, addr_node(C, ref_place(C, &vk), 0));
+    comp_step(C, expr_addr(C, ref_bytes(C, &vk), 0));
     comp_int(C, vk);
 }
 
@@ -340,11 +340,13 @@ static Node *elem_node(Comp *const C, const uint16_t id)
 void expr_args(Comp *const C, Node *const n)
 {
     Node *last = nullptr;
+    uint32_t k = 0;
     comp_open(C);
 
-    do
+    do {
+        comp_dim(C, ++k);
         ast_link(n, &last, expr_arg(C));
-    while (comp_optcomma(C));
+    } while (comp_optcomma(C));
 
     comp_close(C);
 }
@@ -414,20 +416,25 @@ static Node *xfn_node(Comp *const C)
         char k = f->arg[i];
         Node *a;
 
-        if (k == 'R') { /* an array, n or n(): its id */
+        if (k == 'R') { /* an array, n or n(): its cell; a record's array field, ours */
             if (comp_cur(C) != M_VAR)
                 synerr(C);
 
-            const uint16_t id = comp_var(C, 2, 0);
+            uint8_t type;
+            a = ref_fieldarray(C, &type);
 
-            if (*C->p == '(') {
-                if (C->p[1] != ')')
-                    synerr(C);
+            if (a == nullptr) {
+                const uint16_t id = ref_arrayof(C, comp_var(C, 2, 0));
 
-                C->p += 2;
+                if (*C->p == '(') {
+                    if (C->p[1] != ')')
+                        synerr(C);
+
+                    C->p += 2;
+                }
+
+                a = ref_cell(C, id);
             }
-
-            a = expr_intleaf(C, id, SH_NONE);
         } else {
             if (k == 'H') { /* a file number, its # or not */
                 if (comp_cur(C) == '#')
@@ -461,8 +468,7 @@ static Node *xfn_node(Comp *const C)
     return n;
 }
 
-/* VARPTR, VARSEG, SSEG, SADD of place at: CALL k after it, 0 none; cm_va's when k is 0. */
-static Node *addr_node(Comp *const C, Node *const at, const uint8_t k)
+Node *expr_addr(Comp *const C, Node *const at, const uint8_t k)
 {
     Node *const n = ast_new(C->ast, N_ADDR);
     n->a = at;
@@ -507,7 +513,8 @@ static Node *var_leaf(Comp *const C)
     if (nm->flags & (NM_FUNC | NM_FN)) { /* in FUNCTION f, f alone is its result */
         if (!nm->proc)
             return ref_undef(C);
-        if (*comp_skipname(C->p) == '(' || nm->proc != C->proc) {
+        if ((*comp_skipname(C->p) == '(' || nm->proc != C->proc) &&
+            !(blok_proc(C->blok, nm->proc)->flags & PF_RESARG)) { /* a record's: ref_record's */
             const uint8_t *const name = C->p;
             uint8_t idx;
             const Proc *const pr = ref_proc(C, &idx);
@@ -614,20 +621,29 @@ static Node *parse_unary(Comp *const C)
         uint8_t k;
 
         if (c == TK_X && addr_call(C->p[1], &k)) {
+            const bool text = C->p[1] == TK1_SADD || C->p[1] == TK1_SSEG;
             C->p += 2;
             comp_open(C);
+            const uint8_t *const v = C->p;
             uint32_t vk;
             Node *const at = ref_place(C, &vk);
+
+            if (text && vk != va_pack(VA_DESC, 0)) { /* a variable-length STRING alone */
+                C->p = v;
+                C->dg = DG_TYPE_MISMATCH_SADD;
+                mismatch(C);
+            }
+
             comp_close(C);
 
             if (k == K_VARPS) {
-                Node *const n = addr_node(C, at, k);
+                Node *const n = expr_addr(C, at, k);
                 n->type = T_STR;
                 n->num = ref_vtype(C, at);
                 return n;
             }
 
-            return k || !ast_islit(at) ? addr_node(C, at, k) : at;
+            return k || !ast_islit(at) ? expr_addr(C, at, k) : at;
         }
 
         const uint8_t f = c - TK_SGN;

@@ -88,11 +88,12 @@ enum : uint8_t { PA_VALUE, PA_VAR, PA_PREF, PA_ARRAY, PA_NREF /* a SHORT or BYTE
 enum : uint8_t { CALL_PROC, CALL_UNDEF };
 
 /* A record's place: its field's ET_* (ET_REC + t all of a record of TYPE t), offset, its STRING * n
-   or a record's size. */
+   or a record's size. Ours, arr: a dynamic array field whole, off its cell's, et its elements'. */
 typedef struct {
     uint8_t et;
     uint16_t off;
     uint16_t fix;
+    bool arr;
 } RecRef;
 
 typedef struct Node Node;
@@ -148,6 +149,7 @@ void ast_init(Ast *t, Fault *f);
 void ast_reset(Ast *t);
 /* A node, zeroed but for kind; Out of memory when the arena is full. */
 Node *ast_new(Ast *t, NodeKind kind);
+Node *ast_last(const Node *parent);                  /* parent's last argument, null none */
 void ast_link(Node *parent, Node **last, Node *arg); /* arg after *last, parent's first if null */
 bool ast_islit(const Node *n);
 uint8_t ast_type(const Node *n); /* n's value's T_*, nothing compiled */

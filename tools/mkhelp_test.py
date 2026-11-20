@@ -47,6 +47,8 @@ CASES = [
      {"a.md": "# A\n\nSee [B](nowhere).\n"}, "unknown key"),
     ("two topics with one key: the second was unreachable",
      {"a.md": "# A\nkeys: X\n\n.\n", "b.md": "# B\nkeys: x\n\n.\n"}, "also"),
+    ("a link in a line indented with spaces is code: it showed as typed, its key and all",
+     {"a.md": "# A\nkeys: K\n\n    x   [A](K)\n"}, "link in code"),
     ("a line over 76 columns ran off the help window",
      {"a.md": "# A\n\n" + "w" * 80 + "\n"}, "columns"),
     ("a character outside code page 437 drew as garbage",

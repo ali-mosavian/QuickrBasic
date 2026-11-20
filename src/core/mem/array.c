@@ -12,9 +12,11 @@
  * A local array DIMmed with constant bounds has its header and data in its call's frame
  * (comp/frame.c), zeroed by PCALL, gone with the frame; never freed or REDIMmed.
  *
- * arry_free drops an array: its header and data go and what follows moves down. The headers' data
- * Addrs, the moved string blocks' owners, the headers in the cells, the frames' too, and the
- * parameters' cells in the moved data follow.
+ * A heap header names its owner, the cell holding it (ours): a variable's by its id, else the
+ * cell's Addr, which may be a record's in the heap. arry_kill marks an array dead (owner 0), and
+ * the arrays its records hold; arry_sweep removes the dead: each one's header and data go and what
+ * follows moves down. The headers' data, their owners in the moved data, the cells of the moved
+ * headers, the moved string blocks' owners and the parameters' cells in the moved data follow.
  *
  * # asm structure (retired/asm32/mem/arr.asm)
  * | asm | here | |
@@ -33,7 +35,8 @@
  * - D1. The lower bounds follow the counts in the header.
  * - D2. Parameters, not globals: mm.aid is id, rn.narr is n, g_dyn is dyn, g_pold and g_pnew are
  *   old and fresh. The other scratch globals (mm.asz, g_afh, g_kn ...) are locals.
- * - D3. rep is 0 or AREP (g_afrep); the return value is the header's bytes (g_afhs).
+ * - D3. arry_free takes the cell; the asm's rep (AREP) and its scan of the cells are gone: the
+ *   header's owner is its cell.
  */
 #include "mem/array.h"
 #include "mem/copy.h"
@@ -66,6 +69,25 @@ ArrSlot *arry_slot(const Arry *const ay, const uint16_t id)
     return (ArrSlot *)at(symb_at(ay->symb, *ay->fp, id));
 }
 
+/* A header's owner, ours: a variable's own cell by its id (the cells move as the table grows), else
+   its cell's Addr. */
+enum : Addr { OWN_VAR = 0x80000000u };
+
+static Addr arry_owner(const Arry *const ay, const ArrSlot *const s)
+{
+    const Addr a = addr_of(s), cells = symb_cell(ay->symb, 0);
+
+    if (a >= cells && a < symb_cell(ay->symb, ay->symb->nvars))
+        return OWN_VAR | (a - cells) / (uint32_t)sizeof(Cell);
+
+    return a;
+}
+
+static ArrSlot *arry_owner_slot(const Arry *const ay, const Addr owner)
+{
+    return (ArrSlot *)at(owner & OWN_VAR ? symb_cell(ay->symb, (uint16_t)owner) : owner);
+}
+
 /* A header's bytes: the fixed part, then a count and a lower bound a dimension. */
 static uint32_t arry_hdr_size(const uint8_t dims)
 {
@@ -94,11 +116,6 @@ static uint64_t arry_aligned_end(const Addr a, const uint32_t size)
     return ((uint64_t)a + size + DATA_ALIGN - 1) & ~(uint64_t)(DATA_ALIGN - 1);
 }
 
-static bool arry_is_array(const Arry *const ay, const uint16_t id)
-{
-    return symb_var(ay->symb, id)->info & VI_ARR;
-}
-
 [[noreturn]]
 void arry_bad_sub(const Arry *const ay)
 {
@@ -108,6 +125,15 @@ void arry_bad_sub(const Arry *const ay)
 uint32_t arry_frame_hdr(const uint8_t dims) { return (arry_hdr_size(dims) + 7) & ~7u; }
 
 static_assert(ARRY_FRAME_HDR1 == ((sizeof(ArrayHdr) + 2 * sizeof(uint32_t) + 7) & ~7u));
+
+/* Header h's records' array fields empty, ours. */
+static void arry_empty_recs(const Arry *const ay, const Addr h)
+{
+    const ArrayHdr *const a = arry_hdr_at(h);
+
+    if (a->et >= ET_REC)
+        arry_empty_cells(a->data, arry_elem_count(a), decl_type(ay->decl, a->et - ET_REC));
+}
 
 bool arry_heap(const Arry *const ay, const Addr h)
 {
@@ -133,9 +159,12 @@ static bool arry_in_frame(Arry *const ay, const uint16_t id, const uint8_t n)
     a->dims = n;
     a->data = h + arry_frame_hdr(n);
     a->fast = n == 1 && ay->lbounds[0] == 0 ? ay->counts[0] : 0;
+    a->et = arry_var_et(ay->symb, id);
+    a->owner = arry_owner(ay, arry_slot(ay, id));
     memcpy(&a->count[0], ay->counts, n * sizeof ay->counts[0]);
     memcpy(&a->count[n], ay->lbounds, n * sizeof ay->lbounds[0]);
     *arry_slot(ay, id) = (ArrSlot){h, false};
+    arry_empty_recs(ay, h);
 
     return true;
 }
@@ -170,10 +199,10 @@ Addr arry_ref(Arry *const ay, ArrSlot *const s, const uint16_t id, const uint8_t
         idx = idx * arry_count(a, i) + r;
     }
 
-    return a->data + idx * arry_esize(ay, id);
+    return a->data + idx * arry_et_size(ay->decl, a->et);
 }
 
-void arry_dim(Arry *const ay, const uint16_t id, const uint8_t n, const bool dyn)
+void arry_counts(Arry *const ay, const uint8_t n)
 {
     for (uint32_t i = n; i-- > 0;) {
         if (ay->subs[i] < 0)
@@ -181,6 +210,11 @@ void arry_dim(Arry *const ay, const uint16_t id, const uint8_t n, const bool dyn
 
         ay->counts[i] = (uint32_t)ay->subs[i] + 1;
     }
+}
+
+void arry_dim(Arry *const ay, const uint16_t id, const uint8_t n, const bool dyn)
+{
+    arry_counts(ay, n);
 
     if (arry_slot(ay, id)->hdr)
         fault_error(ay->fault, E_RD);
@@ -190,9 +224,19 @@ void arry_dim(Arry *const ay, const uint16_t id, const uint8_t n, const bool dyn
     arry_new(ay, id, n, dyn);
 }
 
-Addr arry_new(Arry *const ay, const uint16_t id, const uint8_t n, const bool dyn)
+void arry_empty(Arry *const ay, const uint16_t id, const bool keep)
 {
-    uint64_t size = arry_esize(ay, id);
+    ArrSlot *const s = arry_slot(ay, id);
+
+    if (s->hdr && !keep)
+        fault_error(ay->fault, E_RD);
+    if (!s->hdr)
+        s->dyn = 1;
+}
+
+Addr arry_make(Arry *const ay, ArrSlot *const s, const uint8_t et, const uint8_t n, const bool dyn)
+{
+    uint64_t size = arry_et_size(ay->decl, et);
 
     for (uint32_t i = 0; i < n; i++) {
         size *= ay->counts[i];
@@ -217,111 +261,90 @@ Addr arry_new(Arry *const ay, const uint16_t id, const uint8_t n, const bool dyn
     const Addr h = ay->hdr;
     ArrayHdr *const a = arry_hdr_at(h);
     a->dims = n;
+    a->et = et;
     a->data = data;
     a->fast = n == 1 && ay->lbounds[0] == 0 ? ay->counts[0] : 0; /* 1-D from 0 */
+    a->owner = arry_owner(ay, s);
     memcpy(&a->count[0], ay->counts, n * sizeof ay->counts[0]);
     memcpy(&a->count[n], ay->lbounds, n * sizeof ay->lbounds[0]);
     ay->hdr = h + arry_hdr_size(n);
-    *arry_slot(ay, id) = (ArrSlot){h, dyn};
+    *s = (ArrSlot){h, dyn};
+    arry_empty_recs(ay, h);
 
     return h;
 }
 
-uint32_t arry_size(const Arry *const ay, const uint16_t id, const Addr hdr)
+void arry_empty_cells(const Addr data, const uint32_t n, const TypeDef *const td)
 {
-    return arry_esize(ay, id) * arry_elem_count(arry_hdr_at(hdr));
+    for (uint32_t k = 0; td->nslot && k < n; k++)
+        for (uint32_t i = 0; i < td->nslot; i++)
+            *(ArrSlot *)at(data + k * td->size + td->slots[i]) = (ArrSlot){0, 1};
+}
+
+Addr arry_new(Arry *const ay, const uint16_t id, const uint8_t n, const bool dyn)
+{
+    return arry_make(ay, arry_slot(ay, id), arry_var_et(ay->symb, id), n, dyn);
+}
+
+uint32_t arry_size(const Arry *const ay, const Addr hdr)
+{
+    const ArrayHdr *const a = arry_hdr_at(hdr);
+    return arry_et_size(ay->decl, a->et) * arry_elem_count(a);
 }
 
 /* ---- freeing -------------------------------------------------------------------------------- */
 
-/* An array being freed: its header and the header's bytes, its data [data, data + size), the
-   data's old end, what references to the header become. */
+/* An array being removed: its header and the header's bytes, its data [data, data + size), the
+   data's old end. */
 typedef struct {
     Addr hdr;
     uint32_t hdr_size;
     Addr data;
     uint32_t size;
     Addr old_end;
-    Addr rep;
 } Freed;
 
-/* A header kept: past the dropped one it moves down; the dropped one's becomes rep. */
-static Addr arry_moved_hdr(const Arry *const ay, const Freed *const f, const Addr h)
-{
-    if (h < f->hdr)
-        return h;
-    if (h == f->hdr)
-        return f->rep;
-
-    return h < ay->hdr + f->hdr_size ? h - f->hdr_size : h;
-}
-
-/* A parameter's cell kept: in the data moved down, it follows. */
+/* A cell kept: in the data moved down, it follows. */
 static Addr arry_moved_cell(const Freed *const f, const Addr c)
 {
     const bool moved = c >= f->data && c - f->data >= f->size && c < f->old_end;
     return moved ? c - f->size : c;
 }
 
-/* Each array's cell holding a header: the variables' own, then each call's locals' in its frame. */
-static void arry_each_slot(
-    const Arry *const ay,
-    const Vm *const vm,
-    void (*const each)(const Arry *, ArrSlot *, const Freed *),
-    const Freed *const f
-)
+/* In the data removed. */
+static bool arry_in_removed(const Freed *const f, const Addr c)
 {
-    const Symb *const sy = ay->symb;
-
-    for (uint16_t c = sy->nvars; c-- > 1;)
-        if (arry_is_array(ay, c))
-            each(ay, (ArrSlot *)at(symb_cell(sy, c)), f);
-
-    for (uint32_t i = 0; i < vm_nframes(vm); i++) {
-        const Frame *const fr = &vm->frames[i];
-
-        if (fr->kind != FRAME_CALL)
-            continue;
-
-        for (uint16_t c = sy->first_local[fr->call.proc]; c; c = symb_varx(sy, c)->nloc)
-            if (arry_is_array(ay, c) && symb_is_local(sy, c))
-                each(ay, (ArrSlot *)at(loc_frame_at(*symb_loc(sy, c), fr->call.fp)), f);
-    }
+    return c >= f->data && c - f->data < f->size;
 }
 
-static void arry_slot_moved(const Arry *const ay, ArrSlot *const s, const Freed *const f)
-{
-    if (s->hdr) /* a frame's is past the headers' region: it stays */
-        s->hdr = arry_moved_hdr(ay, f, s->hdr);
-}
-
-/* The moved string blocks' owners follow. */
+/* The moved string blocks' owners follow; a block owned in the data removed is dead. */
 static void arry_follow_owners(const Arry *const ay, const Freed *const f)
 {
     for (Addr b = ay->allo->top; b > ay->allo->strings;) {
         b -= BHDR;
         StrTail *const tail = (StrTail *)at(b);
 
-        if (tail->owner >= f->data && tail->owner < f->old_end)
-            tail->owner -= f->size;
+        if (arry_in_removed(f, tail->owner))
+            tail->owner = 0;
+        else
+            tail->owner = arry_moved_cell(f, tail->owner);
 
         b -= tail->len;
     }
 }
 
-uint32_t arry_free(Arry *const ay, Vm *const vm, const uint16_t id, const Addr rep)
+/* Dead header h's array removed: its header and data go and what follows moves down. The headers'
+   data, their owners in the moved data, the cells of the headers moved, the moved string blocks'
+   owners and the parameters' cells in the moved data follow. */
+static void arry_remove(Arry *const ay, Vm *const vm, const Addr h)
 {
-    ArrSlot *const s = arry_slot(ay, id);
-    const Addr h = s->hdr;
-    s->hdr = 0;
     const ArrayHdr *const a = arry_hdr_at(h);
     const Freed f = {
         .hdr = h,
         .hdr_size = arry_hdr_size(a->dims),
         .data = a->data,
-        .size = (uint32_t)(arry_aligned_end(a->data, arry_size(ay, id, h)) - a->data),
+        .size = (uint32_t)(arry_aligned_end(a->data, arry_size(ay, h)) - a->data),
         .old_end = ay->allo->arrays,
-        .rep = rep,
     };
 
     copy_mem(f.data, f.data + f.size, ay->allo->arrays - (f.data + f.size));
@@ -334,11 +357,20 @@ uint32_t arry_free(Arry *const ay, Vm *const vm, const uint16_t id, const Addr r
 
         if (kept->data > f.data)
             kept->data -= f.size;
+        if (!kept->owner) /* dead: removed next */
+            continue;
+        if (!(kept->owner & OWN_VAR) && arry_in_removed(&f, kept->owner)) { /* its cell gone */
+            kept->owner = 0;
+            continue;
+        }
+
+        if (!(kept->owner & OWN_VAR))
+            kept->owner = arry_moved_cell(&f, kept->owner);
+
+        arry_owner_slot(ay, kept->owner)->hdr = p;
     }
 
     arry_follow_owners(ay, &f);
-
-    arry_each_slot(ay, vm, arry_slot_moved, &f);
 
     for (uint32_t i = 0; i < vm_nframes(vm); i++) { /* the arguments: an element's address */
         const Call *const c = &vm->frames[i].call;
@@ -351,8 +383,156 @@ uint32_t arry_free(Arry *const ay, Vm *const vm, const uint16_t id, const Addr r
         for (uint32_t k = 0; k < c->npar; k++)
             refs[2 * k].a = arry_moved_cell(&f, refs[2 * k].a);
     }
+}
 
-    return f.hdr_size;
+void arry_kill_elems(const Arry *const ay, const Addr h)
+{
+    const ArrayHdr *const a = arry_hdr_at(h);
+
+    if (a->et < ET_REC)
+        return;
+
+    const TypeDef *const td = decl_type(ay->decl, a->et - ET_REC);
+    const uint32_t n = td->nslot ? arry_elem_count(a) : 0;
+
+    for (uint32_t k = 0; k < n; k++)
+        for (uint32_t i = 0; i < td->nslot; i++)
+            arry_kill(ay, ((const ArrSlot *)at(a->data + k * td->size + td->slots[i]))->hdr);
+}
+
+void arry_kill(const Arry *const ay, const Addr h)
+{
+    if (!h)
+        return;
+    if (arry_heap(ay, h)) /* a frame's goes with the frame, its records' arrays do not */
+        arry_hdr_at(h)->owner = 0;
+
+    arry_kill_elems(ay, h);
+}
+
+void arry_sweep(Arry *const ay, Vm *const vm)
+{
+    for (Addr p = ay->allo->hdr_base; p < ay->hdr;)
+        if (arry_hdr_at(p)->owner)
+            p += arry_hdr_size(arry_hdr_at(p)->dims);
+        else
+            arry_remove(ay, vm, p); /* the next one moves down to p */
+}
+
+void arry_free(Arry *const ay, Vm *const vm, ArrSlot *const s)
+{
+    const Addr h = s->hdr;
+    s->hdr = 0;
+    arry_kill(ay, h);
+    arry_sweep(ay, vm);
+}
+
+/* ---- a() = b(), ours ------------------------------------------------------------------------ */
+
+/* The TYPE of header h's elements holding STRINGs or arrays, ours; null: none. */
+static const TypeDef *arry_deeptype(const Arry *const ay, const Addr h)
+{
+    const ArrayHdr *const a = arry_hdr_at(h);
+
+    if (a->et < ET_REC)
+        return nullptr;
+
+    const TypeDef *const td = decl_type(ay->decl, a->et - ET_REC);
+    return td->nstr || td->nslot ? td : nullptr;
+}
+
+/* Cell d, assigned a whole array: Duplicate definition when a DIM's with elements, whose bounds
+   stay; its old header, which the caller kills once d holds the new one. */
+static Addr arry_assigned(const Arry *const ay, const ArrSlot *const d)
+{
+    if (d->hdr && !d->dyn)
+        fault_error(ay->fault, E_RD);
+
+    return d->hdr;
+}
+
+void arry_copy_rec(Arry *const ay, const Addr dst, const Addr src, const TypeDef *const td)
+{
+    strg_copy_owned(ay->strg, dst, src, td->strs, td->nstr);
+
+    for (uint32_t i = 0; i < td->nslot; i++) { /* each array its own copy */
+        ArrSlot *const d = (ArrSlot *)at(dst + td->slots[i]);
+        *d = (ArrSlot){0, 1};
+
+        arry_copy_into(ay, d, (const ArrSlot *)at(src + td->slots[i]));
+    }
+}
+
+void arry_copy_into(Arry *const ay, ArrSlot *const d, const ArrSlot *const s)
+{
+    if (!s->hdr)
+        return;
+
+    const ArrayHdr *const a = arry_hdr_at(s->hdr);
+    const uint8_t n = a->dims;
+
+    for (uint32_t i = 0; i < n; i++) {
+        ay->counts[i] = arry_count(a, i);
+        ay->lbounds[i] = arry_lbound(a, i);
+    }
+
+    arry_make(ay, d, a->et, n, true); /* at the end: nothing moves */
+
+    const ArrayHdr *const b = arry_hdr_at(s->hdr);
+    const Addr from = b->data, to = arry_hdr_at(d->hdr)->data;
+    const uint32_t size = arry_size(ay, s->hdr);
+    const TypeDef *const td = arry_deeptype(ay, s->hdr);
+
+    if (b->et == ET_SD) {
+        for (uint32_t k = 0; k < size; k += DSZ) /* each string its own copy */
+            strg_set(ay->strg, from + k, to + k);
+
+        return;
+    }
+
+    copy_mem(to, from, size);
+
+    for (uint32_t k = 0; td && k < size; k += td->size) /* a record's STRINGs and arrays its own */
+        arry_copy_rec(ay, to + k, from + k, td);
+}
+
+void arry_copy(Arry *const ay, Vm *const vm, ArrSlot *const d, const ArrSlot *const s)
+{
+    if (d == s)
+        return;
+
+    const Addr old = arry_assigned(ay, d);
+    *d = (ArrSlot){0, 1};
+
+    arry_copy_into(ay, d, s);
+    arry_kill(ay, old);
+    arry_sweep(ay, vm);
+}
+
+void arry_move(Arry *const ay, Vm *const vm, ArrSlot *const d, ArrSlot *const s)
+{
+    if (d == s)
+        return;
+
+    const Addr old = arry_assigned(ay, d);
+    *d = (ArrSlot){s->hdr, 1};
+
+    *s = (ArrSlot){0, 1};
+
+    if (d->hdr)
+        arry_hdr_at(d->hdr)->owner = arry_owner(ay, d);
+
+    arry_kill(ay, old);
+    arry_sweep(ay, vm);
+}
+
+void arry_reset(Arry *const ay, Vm *const vm, ArrSlot *const s)
+{
+    const Addr old = s->hdr;
+    *s = (ArrSlot){0, 1};
+
+    arry_kill(ay, old);
+    arry_sweep(ay, vm);
 }
 
 /* ---- REDIM PRESERVE ------------------------------------------------------------------------- */
@@ -384,13 +564,27 @@ static bool arry_index_in(
     return true;
 }
 
-void arry_keep(Arry *const ay, const uint16_t id, const Addr old_hdr, const Addr fresh_hdr)
+void arry_move_rec(const Arry *const ay, const Addr dst, const Addr src, const TypeDef *const td)
+{
+    strg_move_owned(ay->strg, dst, src, td->strs, td->nstr);
+
+    for (uint32_t i = 0; i < td->nslot; i++) {
+        ArrSlot *const d = (ArrSlot *)at(dst + td->slots[i]);
+        ArrSlot *const s = (ArrSlot *)at(src + td->slots[i]);
+
+        if (d->hdr && arry_heap(ay, d->hdr))
+            arry_hdr_at(d->hdr)->owner = arry_owner(ay, d);
+
+        *s = (ArrSlot){0, 1}; /* not the old one's to kill */
+    }
+}
+
+void arry_keep(Arry *const ay, const Addr old_hdr, const Addr fresh_hdr)
 {
     const ArrayHdr *const old = arry_hdr_at(old_hdr);
     const ArrayHdr *const fresh = arry_hdr_at(fresh_hdr);
-    const uint32_t esize = arry_esize(ay, id);
-    const Var *const v = symb_var(ay->symb, id);
-    const bool strings = (v->info & (SK_DBL | VK_MASK)) == VK_STR && v->type < ET_REC;
+    const uint32_t esize = arry_et_size(ay->decl, old->et);
+    const TypeDef *const td = arry_deeptype(ay, old_hdr);
     const uint32_t total = arry_elem_count(old);
 
     for (uint32_t k = 0; k < total; k++) {
@@ -402,22 +596,11 @@ void arry_keep(Arry *const ay, const uint16_t id, const Addr old_hdr, const Addr
         const Addr src = old->data + k * esize;
         const Addr dst = fresh->data + idx * esize;
 
-        if (strings)
+        if (old->et == ET_SD)
             strg_move(ay->strg, src, dst); /* its block moves too */
         else
             copy_mem(dst, src, esize);
+        if (td) /* a record's STRINGs and arrays, ours: their owners follow */
+            arry_move_rec(ay, dst, src, td);
     }
-}
-
-static void arry_slot_rep(const Arry *const ay, ArrSlot *const s, const Freed *const f)
-{
-    if (s->hdr == AREP)
-        s->hdr = f->rep;
-}
-
-void arry_rep(Arry *const ay, Vm *const vm, const uint16_t id)
-{
-    const Freed f = {.rep = arry_slot(ay, id)->hdr};
-
-    arry_each_slot(ay, vm, arry_slot_rep, &f);
 }

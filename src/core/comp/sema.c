@@ -272,6 +272,8 @@ static void check(Comp *const C, Node *const n)
     case N_CALL:
         for (Node *a = n->b; a; a = a->next)
             check(C, a);
+        if (n->a != nullptr) /* a record result's place */
+            check(C, n->a);
 
         break;
 

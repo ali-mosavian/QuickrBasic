@@ -980,8 +980,7 @@ static uint16_t sugg_callee(const int32_t open, uint8_t *const name)
 
     int32_t b = e;
 
-    while (b > 0 && (is_letter(sg.before[b - 1]) || is_digit(sg.before[b - 1]) ||
-                     sugg_suffix(sg.before[b - 1])))
+    while (b > 0 && (is_word_char(sg.before[b - 1]) || sugg_suffix(sg.before[b - 1])))
         b--;
 
     if (open < 0 || b == e || e - b > SUGG_LEN)
@@ -1011,7 +1010,7 @@ static uint16_t sugg_bare(int32_t *const open, uint8_t *const name)
 
     int32_t e = s;
 
-    while (e < sg.nbefore && (is_letter(sg.before[e]) || is_digit(sg.before[e])))
+    while (e < sg.nbefore && is_word_char(sg.before[e]))
         e++;
 
     if (e == s || e >= sg.nbefore || sg.before[e] != ' ' || e - s > SUGG_LEN)
@@ -1065,8 +1064,20 @@ static int32_t sugg_back(const uint8_t *const b, int32_t e)
     return -1;
 }
 
+/* Past the ( .. ) at b[i], before e. */
+static int32_t sugg_parens(const uint8_t *const b, int32_t i, const int32_t e)
+{
+    int32_t depth = 0;
+
+    do
+        depth += b[i] == '(' ? 1 : b[i] == ')' ? -1 : 0;
+    while (++i < e && depth);
+
+    return i;
+}
+
 /* The TYPE of the record the line before the word ends in, a '.' after it: a variable's, an
-   element's, down its fields' path; 0 none. */
+   element's, down its fields' path, a fixed array field's element ours; 0 none. */
 static uint8_t sugg_record(const SuggSrc *const src)
 {
     const uint8_t *const b = sg.before;
@@ -1082,7 +1093,7 @@ static uint8_t sugg_record(const SuggSrc *const src)
 
         if (c == ')')
             s = sugg_back(b, s);
-        else if (is_letter(c) || is_digit(c) || c == '.' || sugg_suffix(c))
+        else if (is_name_char(c) || sugg_suffix(c))
             s--;
         else
             break;
@@ -1093,7 +1104,7 @@ static uint8_t sugg_record(const SuggSrc *const src)
 
     int32_t i = s;
 
-    while (i < e && (is_letter(b[i]) || is_digit(b[i])))
+    while (i < e && is_word_char(b[i]))
         i++;
 
     if (i == s || !is_letter(b[s]))
@@ -1102,31 +1113,29 @@ static uint8_t sugg_record(const SuggSrc *const src)
     const uint16_t name = symb_find_name(src->symb, b + s, (uint8_t)(i - s));
     const bool arr = b[i] == '(';
 
-    if (arr) {
-        int32_t depth = 0;
-
-        do
-            depth += b[i] == '(' ? 1 : b[i] == ')' ? -1 : 0;
-        while (++i < e && depth);
-    }
+    if (arr)
+        i = sugg_parens(b, i, e);
 
     uint8_t t = scop_rec(src->scop, name, arr);
 
     while (t && i < e && b[i] == '.') { /* .f: its TYPE's field, a record */
         const int32_t f0 = ++i;
 
-        while (i < e && (is_letter(b[i]) || is_digit(b[i])))
+        while (i < e && is_word_char(b[i]))
             i++;
 
         const uint16_t fn = symb_find_name(src->symb, b + f0, (uint8_t)(i - f0));
         const TypeDef *const td = decl_type(src->decl, t);
-        uint8_t sub = 0;
+        const Field *f = nullptr;
 
         for (uint32_t k = 0; k < td->nfld; k++)
             if (td->fields[k].name == fn)
-                sub = (uint8_t)td->fields[k].sub;
+                f = &td->fields[k];
 
-        t = sub;
+        t = f ? f->sub : 0;
+
+        if (f && (f->ndim || f->dyn) && i < e && b[i] == '(')
+            i = sugg_parens(b, i, e);
     }
 
     return i == e ? t : 0;
@@ -1314,14 +1323,14 @@ static bool sugg_word(
     uint16_t *const start
 )
 {
-    if (col > n || (col < n && (is_letter(text[col]) || is_digit(text[col]))))
+    if (col > n || (col < n && is_word_char(text[col])))
         return false;
 
     uint16_t s = col;
 
     if (s >= 2 && sugg_suffix(text[s - 1]) && is_letter(text[s - 2])) /* a name's type: its own */
         s--;
-    while (s && (is_letter(text[s - 1]) || is_digit(text[s - 1])))
+    while (s && is_word_char(text[s - 1]))
         s--;
     if (s < col && is_digit(text[s]) && s >= 2 && text[s - 1] == '.' && is_digit(text[s - 2]))
         for (s--; s && is_digit(text[s - 1]); s--) /* a number's whole part */

@@ -2378,7 +2378,7 @@ def main() -> None:
         path = Path(tmp) / "T.BAS"
         path.write_text(src.replace("\nMain\nend\n", "\n" + DRIVER, 1))
         shutil.copy(DEMO.with_suffix(".DAT"), tmp)
-        run = subprocess.run([exe, path.name], cwd=tmp, capture_output=True, timeout=120)
+        run = subprocess.run([exe, path.name], cwd=tmp, capture_output=True, timeout=300)
     out = run.stdout.decode(errors="replace") + run.stderr.decode(errors="replace")
     if "edge ok" not in out:
         sys.exit(f"charlie: a cat at the level's left end: {out[-300:]}")

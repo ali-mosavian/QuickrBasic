@@ -80,3 +80,22 @@ TEST(list_keywords_lower_case)
         "print x mod 2: line input a$: if x then goto 10 else end"
     );
 }
+
+/* CONTINUE, ours, a keyword only at a statement's start before FOR, DO or WHILE; elsewhere a
+   name, listed as first written. */
+TEST(list_continue_keyword)
+{
+    listed(S, "IF x THEN Continue For ELSE CONTINUE DO: Continue = 1: print CONTINUE");
+    CHECK_TEXT(
+        S->cons.sbuf,
+        S->cons.sblen,
+        "if x then continue for else continue do: Continue = 1: print Continue"
+    );
+}
+
+/* '_' in a name, ours: my_var was my _ var, do_it the keyword DO and _ it. */
+TEST(list_underscore_names)
+{
+    listed(S, "My_Var = 1: print MY_VAR: gosub do_it");
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, "My_Var = 1: print My_Var: gosub do_it");
+}

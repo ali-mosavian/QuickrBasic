@@ -82,8 +82,6 @@ static const struct {
 /* What a key in the list does. */
 typedef enum : uint8_t { STEP_STAY, STEP_TAKE, STEP_LEAVE } Step;
 
-static bool cmpl_wordc(const uint8_t c) { return is_letter(c) || is_digit(c); }
-
 /* What fits at the cursor, to ac.s; false nothing. */
 static bool cmpl_find(Session *const S)
 {
@@ -377,7 +375,7 @@ static Step cmpl_key(Session *const S, const uint16_t key)
         return STEP_TAKE;
     if (ch == CH_ESC)
         return STEP_LEAVE;
-    if (cmpl_wordc(ch) || ch == CH_BACKSPACE) { /* the word goes on: the list follows it */
+    if (is_word_char(ch) || ch == CH_BACKSPACE) { /* the word goes on: the list follows it */
         uimn_key(S, key);
         return cmpl_refind(S) ? STEP_STAY : STEP_LEAVE;
     }
@@ -456,7 +454,7 @@ void cmpl_typed(Session *const S)
 
     const uint8_t prev = col ? b->text[col - 1] : 0; /* a word's end, or a space */
 
-    if (!cmpl_wordc(prev) && !strchr("$%&!# ", prev))
+    if (!is_word_char(prev) && !strchr("$%&!# ", prev))
         return;
     if (!cmpl_find(S))
         return;

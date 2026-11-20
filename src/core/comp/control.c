@@ -56,6 +56,7 @@
 #include "comp/expr.h"
 #include "comp/fold.h"
 #include "comp/gfxstmt.h"
+#include "comp/link.h"
 #include "comp/sndstmt.h"
 #include "comp/refs.h"
 #include "io/msg.h"
@@ -115,27 +116,7 @@ static void sharedlist(Comp *const C)
 }
 
 /* ct_skip0: past a ( .. ), if there. */
-static void skipparen(Comp *const C)
-{
-    if (*C->p != '(')
-        return;
-
-    uint32_t n = 0;
-
-    for (;;) {
-        const uint8_t c = *C->p;
-
-        if (!c)
-            return;
-        if (c == '(')
-            n++;
-
-        C->p = decl_item(C->p);
-
-        if (c == ')' && !--n)
-            return;
-    }
-}
+static void skipparen(Comp *const C) { C->p = decl_paren(C->p); }
 
 /* ---- targets and jumps */
 
@@ -162,7 +143,8 @@ Jump ctrl_jump(Comp *const C, const uint32_t t)
                target's, 30% of a 2600-line program's compile */
             const uint32_t pos = t >> 2;
             const uint32_t near = blok_line_before(C->blok, pos);
-            const uint32_t from = C->line != DLINE && pos >= C->line && C->line > near ? C->line : near;
+            const uint32_t from =
+                C->line != DLINE && pos >= C->line && C->line > near ? C->line : near;
             uint32_t off;
             j.line = prog_lineof_from(C->prog, from, pos, &off);
             j.body = off;
@@ -241,12 +223,7 @@ static uint16_t loopcell(
 )
 {
     const Var v = *symb_var(C->symb, counter); /* the tables move as names are made */
-    uint8_t text[2 + 8] = {LOOP_NAME, which};
-
-    for (uint32_t i = 0; i < 8; i++)
-        text[2 + i] = "0123456789ABCDEF"[(key >> (28 - 4 * i)) & 15];
-
-    const uint16_t name = symb_find_name(C->symb, text, sizeof text);
+    const uint16_t name = comp_hidden(C, LOOP_NAME, which, key);
     const bool stat = C->proc && blok_proc(C->blok, C->proc)->flags & PF_STAT;
     return symb_find_var(C->symb, name, v.type, v.info & (SK_DBL | VK_MASK), C->proc, stat);
 }
@@ -444,11 +421,14 @@ void ctrl_next(Comp *const C)
         back = target(C, off, TO_NEXT_STMT);
         forat = C->body + off;
     } else {
-        C->nextent = C->nextkw == C->kw ? C->nextent->link : entry(C, C->kw);
+        const bool more = C->nextkw == C->kw; /* NEXT a, b's b */
+        C->nextent = more ? C->nextent->link : entry(C, C->kw);
         C->nextkw = C->kw;
 
         if (!C->nextent || C->nextent->kind != BK_NEXT)
             synerr(C);
+        if (more)
+            comp_part(C); /* a's loop leaves to here, as the block pass sent it */
 
         key = C->nextent->sel->pos;
         back = C->nextent->next;
@@ -542,17 +522,21 @@ static void wend(Comp *const C)
     jmp(C, nextof(e));
 }
 
-/* EXIT FOR, EXIT DO. */
-static void exitblock(Comp *const C)
+/* EXIT or CONTINUE, its statement at stmt and comp.p past the word: FOR [counter], DO, WHILE.
+   The jump is where the block pass sent it: past the loop, or to its closing statement. */
+static void leave(Comp *const C, const uint8_t *const stmt)
 {
-    const BlockEnt *const e = entry(C, C->p);
-    const uint8_t c = C->p[1];
+    const BlockEnt *const e = entry(C, stmt);
+    const uint8_t c = comp_cur(C);
+
+    if (c != TK_FOR && c != TK_DO && c != TK_WHILE)
+        synerr(C); /* at the word after */
+
     C->p++;
 
-    if (c != TK_FOR && c != TK_DO)
-        synerr(C); /* at the word after EXIT */
+    if (c == TK_FOR && comp_cur(C) == M_VAR)
+        C->p = comp_skipname(C->p);
 
-    C->p++;
     jmp(C, doneof(e));
 }
 
@@ -780,7 +764,8 @@ void ctrl_recstore(Comp *const C)
     comp_byte(n, et);
 }
 
-/* ct_rcopy: a = b of two records of one TYPE: their addresses, R.COPY. */
+/* ct_rcopy: a = b of two records of one TYPE: their addresses, a field's offset added, R.COPY; a
+   TYPE with STRINGs, ours: its index, CALL RCOPY. */
 static bool reccopy(Comp *const C)
 {
     const uint8_t *const p = C->p;
@@ -792,8 +777,16 @@ static bool reccopy(Comp *const C)
         Node *const b = comp_cur(C) == M_VAR ? ref_record(C) : nullptr;
 
         if (b != nullptr && b->rec.et == rec.et && comp_end(C)) {
-            comp_step(C, a);
-            comp_step(C, b);
+            const uint8_t t = (uint8_t)(rec.et - ET_REC);
+            comp_step(C, expr_addr(C, a, 0));
+            comp_step(C, expr_addr(C, b, 0));
+
+            if (decl_dynamic(decl_type(C->decl, t))) {
+                comp_int(C, t);
+                comp_call(C, K_RCOPY);
+                return true;
+            }
+
             comp_word(comp_op(C, O_R_COPY), rec.fix);
             return true;
         }
@@ -803,9 +796,66 @@ static bool reccopy(Comp *const C)
     return false;
 }
 
+/* a() = b(), ours: arrays of one type, a record's array fields too; their cells, CALL ACOPY. a() =
+   f(..), an array result: the call, its result's cell, the target's, CALL AMOVE. The source first: a
+   call can move a record. */
+static bool arrcopy(Comp *const C)
+{
+    const uint8_t *const start = C->p;
+    uint8_t ta, tb;
+    Node *dst = ref_fieldarray(C, &ta);
+    uint16_t a = 0;
+
+    if (dst == nullptr) {
+        const uint8_t *const after = comp_skipname(C->p);
+
+        if (after[0] != '(' || after[1] != ')' || after[2] != TK_EQ)
+            return false;
+
+        a = ref_wholearray(C);
+        ta = symb_var(C->symb, a)->type;
+        dst = ref_cell(C, a);
+    } else if (comp_cur(C) != TK_EQ) {
+        C->p = start;
+        return false;
+    }
+
+    C->p++;
+    const uint8_t *const at = C->p;
+    Node *call = nullptr;
+    Node *src = ref_fieldarray(C, &tb);
+
+    if (src == nullptr) {
+        const uint16_t b = ref_arrayvalue(C, &call);
+
+        if (symb_is_record(C->symb, b)) { /* a record result */
+            C->p = at;
+            fault_error(C->fault, E_TM);
+        }
+
+        tb = symb_var(C->symb, b)->type;
+        src = call ? call : ref_cell(C, b);
+    }
+
+    if (ta != tb) {
+        C->p = at;
+        fault_error(C->fault, E_TM);
+    }
+
+    if (!comp_end(C))
+        synerr(C);
+    if (a)
+        link_given(C, a);
+
+    comp_step(C, src);
+    comp_step(C, dst);
+    comp_call(C, call ? K_AMOVE : K_ACOPY);
+    return true;
+}
+
 /* ---- procedures */
 
-/* A SUB's or FUNCTION's parameters, checked: [([BYVAL] name[()] [AS type], ..)] [STATIC]. */
+/* A SUB's or FUNCTION's parameters, checked: [([BYVAL] name[()] [AS type], ..)]. */
 static void params(Comp *const C)
 {
     if (comp_cur(C) == '(') {
@@ -832,9 +882,41 @@ static void params(Comp *const C)
 
         comp_close(C);
     }
+}
 
-    if (comp_cur(C) == TK_STATIC)
+/* A FUNCTION's AS type [()], ours, name its name: a scalar's, a record's, () an array's; none
+   with a suffix. */
+static void result_as(Comp *const C, const uint8_t *const name)
+{
+    if (comp_cur(C) != TK_AS)
+        return;
+    if (comp_suffixof(name) || (C->p[1] == TK_STRING && C->p[2] == TK_MUL))
+        synerr(C);
+
+    comp_astype(C);
+
+    if (comp_cur(C) == '(') {
         C->p++;
+        comp_close(C);
+    }
+}
+
+/* FUNCTION pr's record or array result emptied, ours, as a number's starts at 0: its body's first
+   code. */
+static void result_empty(Comp *const C, const Proc *const pr)
+{
+    const uint16_t id = blok_resvar(pr);
+
+    if (!symb_is_record(C->symb, id)) {
+        comp_int(C, id);
+        comp_call(C, K_ARESET);
+        return;
+    }
+
+    Node *const r = ref_recplace(C, id);
+    comp_step(C, r);
+    comp_int(C, (uint32_t)(r->rec.et - ET_REC));
+    comp_call(C, K_RCLR);
 }
 
 /* ct_pdecl: the name at comp.p a SUB's or FUNCTION's that a DECLARE or a definition named. */
@@ -850,7 +932,10 @@ static bool checkonly(Comp *const C) { return C->check && declname(C); }
 
 /* Procedure idx's call, its arguments as form writes them. */
 static void pcall(
-    Comp *const C, const uint8_t *const name, const uint8_t idx, const Proc *const pr,
+    Comp *const C,
+    const uint8_t *const name,
+    const uint8_t idx,
+    const Proc *const pr,
     const ArgsForm form
 )
 {
@@ -940,7 +1025,8 @@ static bool subcall(Comp *const C)
 /* SUB, FUNCTION: run into, passed: JMP past its END. */
 static void sub(Comp *const C)
 {
-    C->p++;
+    const bool fn = *C->p++ == TK_FUNCTION;
+    const uint8_t *const name = C->p;
     uint8_t idx;
     const Proc *const pr = ref_proc(C, &idx);
 
@@ -954,6 +1040,13 @@ static void sub(Comp *const C)
         synerr(C);
 
     params(C);
+
+    if (fn)
+        result_as(C, name);
+    if (comp_cur(C) == TK_STATIC)
+        C->p++;
+    if (pr && pr->flags & PF_RESARG)
+        result_empty(C, pr);
 }
 
 /* PRET for procedure proc: its result's cell link's. */
@@ -1036,19 +1129,15 @@ static void redim(Comp *const C)
     C->redim = 0;
 }
 
-/* ERASE a {, a}: each array's id, CALL ERASE. */
+/* ERASE a {, a}: each array's cell, CALL ERASE. */
 static void erase(Comp *const C)
 {
     C->p++;
 
     do {
-        uint16_t id = shaped(C, 2);
-        const uint16_t name = symb_var(C->symb, id)->name;
-        const uint8_t t = scop_rec(C->scop, name, true); /* a record array: its own variable */
-        if (t)
-            id = ref_recarray(C, name, t);
-
-        comp_int(C, id);
+        uint8_t type;
+        Node *const f = ref_fieldarray(C, &type); /* m.a, ours */
+        comp_step(C, f ? f : ref_cell(C, ref_arrayof(C, shaped(C, 2))));
         comp_call(C, K_ERASE);
     } while (comp_optcomma(C));
 }
@@ -1262,6 +1351,7 @@ static void common(Comp *const C)
                 synerr(C);
 
             C->p++;
+            link_given(C, id); /* by the program that CHAINed here */
         }
 
         comp_astype(C);
@@ -1340,6 +1430,11 @@ static bool xstmt(Comp *const C)
     case TK1_RESUME:
         resume(C);
         return true;
+
+    case TK1_CONTINUE:
+        C->p += 2;
+        leave(C, C->p - 2);
+        return true;
     }
 
     return evstate(C);
@@ -1379,23 +1474,30 @@ static void mids(Comp *const C)
     comp_store(C);
 }
 
-/* A statement starting with a name: a TYPE's field, a record's copy, a SUB's call. */
+/* A statement starting with a name: a TYPE's field (its bounds ours), a record's copy, a SUB's
+   call. */
 static bool namestmt(Comp *const C)
 {
-    if (*comp_skipname(C->p) == TK_AS) {
+    const uint8_t *q = comp_skipname(C->p);
+    FieldDim dims[MAXDIMS];
+    uint8_t nd;
+
+    if (*q == '(')
+        q = decl_dims(q, 0, dims, &nd);
+    if (q && *q == TK_AS) {
         skip(C);
         return true;
     }
 
-    return reccopy(C) || subcall(C);
+    return arrcopy(C) || reccopy(C) || subcall(C);
 }
 
-/* LET: a record's copy, else not one. */
+/* LET: an array's or a record's copy, else not one. */
 static bool let(Comp *const C)
 {
     C->p++;
 
-    if (*C->p == M_VAR && reccopy(C))
+    if (*C->p == M_VAR && (arrcopy(C) || reccopy(C)))
         return true;
 
     C->p--;
@@ -1496,8 +1598,10 @@ bool ctrl_stmt(Comp *const C)
     case TK_EXIT:
         if (n == TK_SUB || n == TK_FUNCTION || n == TK_DEF)
             pret(C);
-        else
-            exitblock(C);
+        else {
+            C->p++;
+            leave(C, C->p - 1);
+        }
 
         return true;
 

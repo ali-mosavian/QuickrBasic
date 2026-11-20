@@ -166,7 +166,7 @@ static void get_array(Session *const S, const uint8_t **const p, const uint16_t 
     if (!dims)
         return;
     if (arry_slot(&S->arry, id)->hdr)
-        arry_free(&S->arry, &S->vm, id, 0);
+        arry_free(&S->arry, &S->vm, arry_slot(&S->arry, id));
 
     get(p, S->arry.counts, dims * sizeof S->arry.counts[0]);
     get(p, S->arry.lbounds, dims * sizeof S->arry.lbounds[0]);

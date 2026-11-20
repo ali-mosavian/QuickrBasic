@@ -16,8 +16,14 @@ CASE without SELECT|this CASE has no SELECT CASE open above it|add `SELECT CASE 
 SUB/FUNCTION without END SUB/FUNCTION|`{name}` is never closed|add END {statement} after its last line
 END SUB/FUNCTION without SUB/FUNCTION|this line ends a SUB or FUNCTION, but none is open|remove it, or start the procedure with SUB or FUNCTION above
 EXIT not within matching block|this EXIT {other} is not inside a {other} loop|move it inside the loop, or remove it
+EXIT not within matching block /counter|no FOR loop counting with `{text}` is open here|name the counter of a loop this line is inside, or leave it out for the innermost
+Too many dimensions|an array has at most 60 dimensions, BC's limit|use fewer dimensions
+CONTINUE not within matching block|this CONTINUE {other} is not inside a {other} loop|move it inside the loop, or remove it
+CONTINUE not within matching block /counter|no FOR loop counting with `{text}` is open here|name the counter of a loop this line is inside, or leave it out for the innermost
 Blocks crossed|this line ends a block while the {other} block started inside it is still open|blocks end in the reverse order they start: end the {other} block first
 Duplicate definition /function|`{name}` is also the name of a FUNCTION that takes arguments, so here it calls that FUNCTION instead of reading the variable|rename the variable: a variable can't share a FUNCTION's name
 Name of subprogram illegal /reserved|`{text}` is a reserved word, so it cannot name a SUB or FUNCTION|rename it
 Subprogram not defined|`{name}` is DECLAREd, but no SUB of that name is defined|write `SUB {name} ... END SUB`, or remove the DECLARE and its calls
 Function not defined /declared|`{name}` is DECLAREd, but no FUNCTION of that name is defined|write `FUNCTION {name} ... END FUNCTION`, or remove the DECLARE and its calls
+Type mismatch /record|`{name}` holds a variable-length STRING or a dynamic array, so its bytes are not all its data|read and write its fields one by one, or keep its TYPE to numbers and STRING * n
+Type mismatch /sadd|`{name}` is not a variable-length STRING, the one kind of variable SADD and SSEG take|use VARPTR for any other variable

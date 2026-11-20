@@ -186,3 +186,139 @@ TEST(check_passes_record_argument_whole)
 
     CHECK(!typed_errs(S, lines));
 }
+
+/* A FUNCTION AS a TYPE, ours, and its calls, typed one line at a time before any link: a = Mk(2)
+   and Mk = Mk(1) were Type mismatch, the FUNCTION's result unknown there. */
+TEST(check_passes_record_result)
+{
+    static const char *const lines[] = {
+        "TYPE Vec",
+        "x AS SINGLE",
+        "END TYPE",
+        "DECLARE FUNCTION Mk (x!) AS Vec",
+        "DIM a AS Vec",
+        "a = Mk(2)",
+        "PRINT Mk(2).x",
+        "FUNCTION Mk (x!) AS Vec",
+        "Mk.x = x!",
+        "Mk = Mk(1)",
+        nullptr,
+    };
+
+    const char *typed[countof(lines)] = {};
+
+    for (size_t n = 0; lines[n]; n++) {
+        typed[n] = lines[n];
+        CHECK(!typed_errs(S, typed));
+    }
+}
+
+/* A FUNCTION AS an array, ours, its calls and its result's elements, typed one line at a time
+   before any link: s() = Sq(4) was a Syntax error at its 4. */
+TEST(check_passes_array_result)
+{
+    static const char *const lines[] = {
+        "DECLARE FUNCTION Sq (n AS INTEGER) AS LONG()",
+        "DECLARE SUB Show (a() AS LONG)",
+        "DIM s() AS LONG",
+        "s() = Sq(4)",
+        "Show Sq(2)",
+        "FUNCTION Sq (n AS INTEGER) AS LONG()",
+        "REDIM Sq(1 TO n)",
+        "Sq(1) = 5",
+        "x = Sq(1) + UBOUND(Sq)",
+        nullptr,
+    };
+
+    const char *typed[countof(lines)] = {};
+
+    for (size_t n = 0; lines[n]; n++) {
+        typed[n] = lines[n];
+        CHECK(!typed_errs(S, typed));
+    }
+}
+
+/* A fixed array in a TYPE, ours, its elements typed one line at a time before any link: the field
+   line was a Syntax error at its TO. */
+TEST(check_passes_field_array)
+{
+    static const char *const lines[] = {
+        "TYPE Vec",
+        "x AS SINGLE",
+        "END TYPE",
+        "TYPE Poly",
+        "pts(1 TO 4) AS Vec",
+        "w(2, -1 TO 1) AS INTEGER",
+        "END TYPE",
+        "DIM p AS Poly, ps(2) AS Poly",
+        "p.pts(i).x = p.w(1, 0) + ps(1).pts(2).x",
+        nullptr,
+    };
+
+    const char *typed[countof(lines)] = {};
+
+    for (size_t n = 0; lines[n]; n++) {
+        typed[n] = lines[n];
+        CHECK(!typed_errs(S, typed));
+    }
+}
+
+/* A dynamic array in a TYPE, ours, typed one line at a time before any link: its field line, its
+   REDIM and UBOUND of it were errors. */
+TEST(check_passes_dynamic_field)
+{
+    static const char *const lines[] = {
+        "TYPE Vec",
+        "x AS SINGLE",
+        "END TYPE",
+        "TYPE Mesh",
+        "pts() AS Vec",
+        "kids() AS Mesh",
+        "END TYPE",
+        "DIM m AS Mesh, a() AS Vec",
+        "REDIM PRESERVE m.kids(1 TO 2)",
+        "REDIM m.kids(1).pts(3)",
+        "REDIM m.pts(1 TO 4)",
+        "m.pts(2).x = UBOUND(m.pts) + m.kids(1).pts(0).x",
+        "a() = m.kids(2).pts()",
+        "ERASE m.pts",
+        nullptr,
+    };
+
+    const char *typed[countof(lines)] = {};
+
+    for (size_t n = 0; lines[n]; n++) {
+        typed[n] = lines[n];
+        CHECK(!typed_errs(S, typed));
+    }
+}
+
+static Status declared;
+static ErrOp declared_op;
+
+static void declare_big_field(Session *const S)
+{
+    uint8_t text[] = "c AS SHORT";
+    S->vm.line = DLINE;
+    lexr_line(&S->lexr, text, S->comp.cbuf);
+    declared = repl_declare_check(S, S->comp.cbuf, &declared_op);
+}
+
+/* A typed line's declaration error, as the editor checks it: it reached the session's top, so the
+   editor showed its message with no words and no place. */
+TEST(typed_declaration_error_returned_at_its_place)
+{
+    static const char *const lines[] = {
+        "10 TYPE T",
+        "20 a AS STRING * 32767",
+        "30 b AS STRING * 32767",
+        nullptr,
+    };
+
+    unit_store(S, lines);
+    declared = ST_OK;
+    CHECK(repl_call(S, declare_big_field) == ST_OK);
+    CHECK(declared == E_TTB);
+    CHECK(declared_op.code == E_TTB && declared_op.at == 0); /* at c, the field */
+    CHECK(!S->vm.err.active);
+}

@@ -8,7 +8,7 @@
  *
  * srcr_phys_* decide, byte by byte, whether a physical line continues (the editor uses them too):
  * a line starts; its next byte; it ended, true when it continues. SrcrCont tracks where the byte
- * is (Where: code, string, comment), the word's letters so far (REM starts a comment), and whether
+ * is (Where: code, string, comment), the word's characters so far (REM starts a comment), and whether
  * the last code byte was a '_' after a blank.
  *
  * # Example
@@ -37,7 +37,7 @@
 void srcr_phys_start(SrcrCont *const cn)
 {
     cn->st = IN_CODE;
-    cn->letters = 0;
+    cn->chars = 0;
     cn->under = false;
     cn->blank = true; /* the line's start */
 }
@@ -45,10 +45,10 @@ void srcr_phys_start(SrcrCont *const cn)
 /* A word ended: REM's comment. */
 static void srcr_word_end(SrcrCont *const cn)
 {
-    if (cn->letters == 3 && !memcmp(cn->rem, "rem", 3))
+    if (cn->chars == 3 && !memcmp(cn->rem, "rem", 3))
         cn->st = IN_COMMENT;
 
-    cn->letters = 0;
+    cn->chars = 0;
 }
 
 void srcr_phys_byte(SrcrCont *const cn, const uint8_t c)
@@ -68,11 +68,11 @@ void srcr_phys_byte(SrcrCont *const cn, const uint8_t c)
         srcr_word_end(cn);
         cn->blank = true;
         return;
-    } else if (is_letter(c)) { /* a word's letters: REM a comment */
-        if (cn->letters < 3)
-            cn->rem[cn->letters] = (char)(c | 0x20);
+    } else if (cn->chars ? is_name_char(c) : is_letter(c)) { /* a word's: REM a comment */
+        if (cn->chars < 3)
+            cn->rem[cn->chars] = (char)(c | 0x20);
 
-        cn->letters++;
+        cn->chars++;
     } else {
         srcr_word_end(cn);
 

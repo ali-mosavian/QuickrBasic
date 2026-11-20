@@ -70,6 +70,7 @@
 #include "comp/codegen.h"
 #include "comp/fold.h"
 #include "comp/fuse.h"
+#include "comp/link.h"
 #include "comp/sema.h"
 #include "io/console.h"
 #include "io/msg.h"
@@ -551,7 +552,11 @@ uint16_t comp_var(Comp *const C, const uint8_t shape, const uint8_t et)
 
     if (m)
         *m = (typeof(*m)){
-            .key = key, .id = id, .scope = C->scope, .how = C->isstatic ? VM_STATIC : 0};
+            .key = key,
+            .id = id,
+            .scope = C->scope,
+            .how = C->isstatic ? VM_STATIC : 0,
+        };
 
     return id;
 }
@@ -593,6 +598,22 @@ static void mark(Comp *const C)
 {
     comp_flush(C); /* an IF's before its THEN's statement */
     ast_reset(C->ast);
+    mapstmt(C, (uint32_t)(C->p - C->body));
+}
+
+uint16_t comp_hidden(Comp *const C, const uint8_t kind, const uint8_t which, const uint32_t key)
+{
+    uint8_t text[2 + 8] = {kind, which};
+
+    for (uint32_t i = 0; i < 8; i++)
+        text[2 + i] = "0123456789ABCDEF"[(key >> (28 - 4 * i)) & 15];
+
+    return symb_find_name(C->symb, text, sizeof text);
+}
+
+void comp_part(Comp *const C)
+{
+    comp_flush(C);
     mapstmt(C, (uint32_t)(C->p - C->body));
 }
 
@@ -1023,6 +1044,7 @@ static uint32_t dimsubs(Comp *const C, uint32_t *const elems)
     C->dmask = 0;
 
     do {
+        comp_dim(C, n + 1);
         int32_t lo, hi;
         bool constant = bound(C, &lo);
 
@@ -1070,6 +1092,7 @@ static void dim1(Comp *const C, const uint16_t id)
     const uint32_t flags = (C->isstatic ? DIM_STATIC : 0) | C->redim;
     uint32_t elems;
     const uint32_t n = dimsubs(C, &elems);
+    link_given(C, id);
     frame_shape(C, id, n, elems);
     comp_int(C, (uint32_t)C->dmask);
     comp_int(C, (uint32_t)(C->dmask >> 32));
@@ -1118,19 +1141,60 @@ void comp_astype(Comp *const C)
     }
 }
 
-/* A DIM item: the subscripts, its id, n, CALL DIM; a scalar STRING * n: n spaces. */
+/* DIM a(), ours: its id, CALL AEMPTY. */
+static void dimempty(Comp *const C, const uint16_t id)
+{
+    link_empty(C, id);
+    C->p += 2;
+    comp_int(C, id);
+    comp_int(C, C->isstatic ? DIM_STATIC : 0);
+    comp_call(C, K_AEMPTY);
+}
+
+/* REDIM f(bounds) of a record's array field, ours: the bounds, the mask as 2 INTs, the field's
+   cell, its elements' type, n, CALL DIM; false: not one. */
+static bool dimfield(Comp *const C)
+{
+    uint8_t type;
+    C->dimtarget = true;
+    Node *const cell = ref_fieldarray(C, &type);
+    C->dimtarget = false;
+
+    if (cell == nullptr)
+        return false;
+    if (*C->p != '(')
+        synerr(C);
+
+    uint32_t elems;
+    const uint32_t n = dimsubs(C, &elems);
+    comp_int(C, (uint32_t)C->dmask);
+    comp_int(C, (uint32_t)(C->dmask >> 32));
+    comp_step(C, cell);
+    comp_int(C, type);
+    comp_int(C, n | C->redim | DIM_FIELD);
+    comp_call(C, K_DIM);
+    return true;
+}
+
+/* A DIM item: the subscripts, its id, n, CALL DIM; a scalar STRING * n: n spaces; DIM a(); REDIM of
+   a record's array field. */
 static void act_dv(Comp *const C)
 {
     comp_notconst(C);
+
+    if (C->redim && comp_cur(C) == M_VAR && dimfield(C))
+        return;
+
     uint16_t id = comp_name(C);
 
     if (*C->p == '(') {
-        const uint16_t name = symb_var(C->symb, id)->name;
-        const uint8_t t = scop_rec(C->scop, name, true); /* a record array: its own variable */
-        if (t)
-            id = ref_recarray(C, name, t);
+        id = ref_arrayof(C, id);
 
-        dim1(C, id);
+        if (C->p[1] == ')' && !C->redim)
+            dimempty(C, id);
+        else
+            dim1(C, id);
+
         comp_astype(C);
         return;
     }

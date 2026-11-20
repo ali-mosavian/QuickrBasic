@@ -5,9 +5,15 @@
 #include "corpus.h"
 
 static const char *const program[] = {
+    "1 TYPE lot",
+    "2 qty AS INTEGER",
+    "3 day AS INTEGER",
+    "4 END TYPE",
     "10 TYPE item",
     "20 nm AS STRING * 10",
     "30 price AS SINGLE",
+    "35 lots(1 TO 3) AS lot",
+    "37 bins() AS lot",
     "40 END TYPE",
     "50 DIM SHARED stock(20) AS item, count AS INTEGER",
     "60 CONST maxn = 20",
@@ -49,6 +55,10 @@ static const CorpusCase cases[] = {
     /* a record's fields */
     {"print stock(1).", nullptr, "", "NM|PRICE", "COUNT|PRINT", 0},
     {"print stock(1).p", "PRICE", "RICE", "", "", 0},
+    /* a fixed array field's element's, ours: none after its ( ) was not a record's */
+    {"print stock(1).lots(2).", nullptr, "", "QTY|DAY", "NM|PRICE", 0},
+    /* a dynamic array field's, ours: the same */
+    {"print stock(1).bins(2).", nullptr, "", "QTY|DAY", "NM|PRICE", 0},
     {"x$ = stock(1).", "NM", "", "", "PRICE", 0},
     {"dim x as it", "ITEM", "EM", "", "", 0},
     /* a statement's later parts */

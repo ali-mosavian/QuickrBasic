@@ -13,10 +13,10 @@ reversed. Any move without Shift drops the selection, as does Esc.
 Typing a character replaces a selection inside one line.
 Backspace and Del clear it.
 
-    Shift+Del   [Cut Command](Cut Command)
-    Ctrl+Ins    [Copy Command](Copy Command)
-    Shift+Ins   [Paste Command](Paste Command)
-    Del         [Clear Command](Clear Command)
+    Shift+Del   [Cut Command](Cut Command)
+    Ctrl+Ins    [Copy Command](Copy Command)
+    Shift+Ins   [Paste Command](Paste Command)
+    Del         [Clear Command](Clear Command)
 
 A selection spanning several lines selects whole lines. Dim menu
 items need a selection; the items come alive as soon as there is

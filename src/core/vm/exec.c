@@ -195,7 +195,9 @@ static inline bool fl_ld(Regs *const r)
     if (type == ET_R8)
         return false;
 
-    r->sp->i = type == ET_SH ? (int16_t)rd16(a) : type == ET_BY ? (int32_t)rd8(a) : (int32_t)rd32(a);
+    r->sp->i = type == ET_SH   ? (int16_t)rd16(a)
+               : type == ET_BY ? (int32_t)rd8(a)
+                               : (int32_t)rd32(a);
     r->ip += 4;
     return true;
 }
@@ -252,6 +254,7 @@ static inline bool v_st(Regs *const r)
 static inline bool r_addr(Regs *const r)
 {
     const Loc loc = {(int32_t)load32(r->ip + 3)};
+
     const Addr a = loc_at(loc, r->fp);
 
     if (loc_is_ref(loc))
@@ -722,7 +725,7 @@ i_jf: /* JF: past its jump, or to its target; a stop, a jump not resolved: flow_
     goto next;
 
 /* NEXT: stepped, back to the body until past; a stop, a jump not resolved: its handler's. */
-#define NEXT_RUN(base, up)                                                                               \
+#define NEXT_RUN(base, up)                                                                         \
     {                                                                                              \
         const Jump *const j = (const Jump *)(r.ip + NEXT_SIZE - sizeof(Jump));                     \
                                                                                                    \
@@ -731,7 +734,7 @@ i_jf: /* JF: past its jump, or to its target; a stop, a jump not resolved: flow_
                                                                                                    \
         bool back;                                                                                 \
                                                                                                    \
-        if ((st = hot_next(r.ip, base, up, &back)) != ST_OK) {                                           \
+        if ((st = hot_next(r.ip, base, up, &back)) != ST_OK) {                                     \
             op = r.ip;                                                                             \
             goto fail;                                                                             \
         }                                                                                          \
@@ -824,36 +827,42 @@ call: /* INT of a SINGLE inline: the CALL's way through func_fn1 was 89 instruct
     goto next;
 
 ra_addr:
+
     if (!ra_addr1(&r, &S->arry))
         goto slow;
 
     goto next;
 
 fl_ld:
+
     if (!fl_ld(&r))
         goto slow;
 
     goto next;
 
 fl_st:
+
     if (!fl_st(&r))
         goto slow;
 
     goto next;
 
 v_ld:
+
     if (!v_ld(&r))
         goto slow;
 
     goto next;
 
 v_st:
+
     if (!v_st(&r))
         goto slow;
 
     goto next;
 
 r_addr:
+
     if (!r_addr(&r))
         goto slow;
 
@@ -956,13 +965,16 @@ Addr exec_elem(Arry *const ar, Vm *const vm)
 
                 if (r >= a->count[i])
                     break;
+
                 idx = idx * a->count[i] + r;
             }
+
         if (i == UINT8_MAX) {
             vm->sp += n;
             return a->data + idx * arry_esize(ar, id);
         }
     }
+
     for (uint8_t i = n; i-- > 0;)
         ar->subs[i] = exec_popi(vm);
 
@@ -1046,6 +1058,7 @@ void exec_r_addr(Session *const S)
 {
     const uint16_t id = exec_u16(&S->vm);
     const Loc loc = {(int32_t)exec_u32(&S->vm)};
+
     const Addr a = loc_at(loc, S->vm.fp);
 
     if (loc_is_ref(loc)) {
@@ -1066,6 +1079,40 @@ void exec_r_copy(Session *const S)
     const Addr b = exec_popa(&S->vm);
     const Addr a = exec_popa(&S->vm);
     copy_mem(a, b, exec_u16(&S->vm));
+}
+
+/* a = b of records of a TYPE with STRINGs or arrays ( a b t -- ), ours: b's bytes over a's, then
+   a's STRINGs and arrays its own copies; its old arrays freed. */
+void exec_r_copys(Session *const S)
+{
+    const TypeDef *const td = decl_type(&S->decl, (uint16_t)exec_pop(&S->vm).u);
+    const Addr b = exec_popa(&S->vm);
+    const Addr a = exec_popa(&S->vm);
+
+    if (a == b)
+        return;
+
+    for (uint32_t i = 0; i < td->nslot; i++) /* a's arrays go, ours */
+        arry_kill(&S->arry, ((const ArrSlot *)at(a + td->slots[i]))->hdr);
+
+    copy_mem(a, b, td->size);
+    arry_copy_rec(&S->arry, a, b, td);
+    arry_sweep(&S->arry, &S->vm);
+}
+
+void exec_r_clear(Session *const S)
+{
+    const TypeDef *const td = decl_type(&S->decl, (uint16_t)exec_pop(&S->vm).u);
+    const Addr a = exec_popa(&S->vm);
+
+    for (uint32_t i = 0; i < td->nslot; i++) /* its arrays go */
+        arry_kill(&S->arry, ((const ArrSlot *)at(a + td->slots[i]))->hdr);
+
+    memset(at(a), 0, td->size);
+    arry_empty_cells(a, 1, td);
+
+    if (td->nslot)
+        arry_sweep(&S->arry, &S->vm);
 }
 
 /* ---- record fields -------------------------------------------------------------------------- */
@@ -1150,18 +1197,31 @@ void exec_sf_ld(Session *const S)
 {
     const uint16_t off = exec_u16(&S->vm);
     const uint16_t n = exec_u16(&S->vm);
+
+    if (!n) { /* a STRING's, ours: its Desc */
+        S->vm.sp->a += off;
+        return;
+    }
+
     const Addr chars = strg_alloc(&S->strg, n); /* the record does not move */
     const Addr a = exec_popa(&S->vm) + off;
     memcpy(at(chars), at(a), n);
     exec_pusha(&S->vm, strg_new(&S->strg, chars, n));
 }
 
-/* Into a STRING * n field: cut, or padded with spaces. */
+/* Into a STRING * n field: cut, or padded with spaces; a STRING's, ours, as a variable's. */
 void exec_sf_st(Session *const S)
 {
-    const Desc s = strg_get(&S->strg, exec_popa(&S->vm));
+    const Addr v = exec_popa(&S->vm);
     const Addr a = exec_popa(&S->vm) + exec_u16(&S->vm);
     const uint16_t n = exec_u16(&S->vm);
+
+    if (!n) {
+        strg_set(&S->strg, v, a);
+        return;
+    }
+
+    const Desc s = strg_get(&S->strg, v);
     const uint16_t k = s.len < n ? s.len : n;
     memcpy(at(a), at(s.ptr), k);
     memset(at(a + k), ' ', n - k);

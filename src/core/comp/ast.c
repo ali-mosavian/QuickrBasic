@@ -46,6 +46,16 @@ Node *ast_new(Ast *const t, const NodeKind kind)
     return n;
 }
 
+Node *ast_last(const Node *const parent)
+{
+    Node *a = parent->b;
+
+    while (a && a->next)
+        a = a->next;
+
+    return a;
+}
+
 void ast_link(Node *const parent, Node **const last, Node *const arg)
 {
     arg->next = nullptr;

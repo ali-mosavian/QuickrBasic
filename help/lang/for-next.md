@@ -9,7 +9,8 @@ Syntax
 FOR runs its block with counter going from start to end, in steps of
 1 or STEP.
 
-See also [DO...LOOP](DO), [WHILE...WEND](WHILE), [EXIT](EXIT)
+See also [DO...LOOP](DO), [WHILE...WEND](WHILE), [EXIT](EXIT),
+[CONTINUE](CONTINUE)
 
 ## Details
 FOR runs its block with counter going from start to end. Start, end
@@ -19,7 +20,8 @@ end. The block is skipped if the counter starts already past end. A
 zero step loops until the block exits it.
 
 After a normal finish the counter holds the first value past end.
-Leave early with [EXIT](EXIT) FOR. A name after NEXT must match the
+Leave early with [EXIT](EXIT) FOR; skip to the next round with
+[CONTINUE](CONTINUE) FOR. A name after NEXT must match the
 loop; one NEXT may close several loops: NEXT j, i. Use a whole-number
 counter for speed and to avoid rounding drift in fractional steps.
 

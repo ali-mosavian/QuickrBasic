@@ -8,8 +8,9 @@
 
 /* A variable's info: its kind in bits 1-0 (comp's g_etk), SK_DBL, VI_ARR. */
 enum : uint8_t { VK_FLT = 0, VK_INT = 1, VK_STR = 2, VK_MASK = 3, VI_ARR = 0x80 };
-/* A hidden name's first byte: a FOR loop's limit or step (comp/control.c). */
-enum : uint8_t { LOOP_NAME = 1 };
+/* A hidden name's first byte: a FOR loop's limit or step (comp/control.c); the record a call's
+   record result goes to (comp/refs.c). */
+enum : uint8_t { LOOP_NAME = 1, RES_NAME = 2 };
 /* A record array's info. */
 enum : uint8_t { VI_RECARR = VI_ARR | VK_INT };
 
@@ -23,7 +24,7 @@ typedef struct PACKED {
     uint16_t next; /* its hash chain's next */
     uint16_t nloc; /* the next local of its procedure */
     uint8_t scope; /* 0 the module, else a procedure */
-    uint8_t pad;
+    uint8_t given; /* an array given elements by a line's code: link_given */
     uint8_t kop; /* a CONST's literal load, its operand in symb_kval; 0 none (comp/fold.h) */
     uint8_t par; /* a parameter of its procedure (link) */
 } VarX;          /* TVX */
@@ -100,6 +101,12 @@ static inline bool symb_is_ref(const Symb *const sy, uint16_t id)
 static inline bool symb_is_local(const Symb *const sy, uint16_t id)
 {
     return loc_is_local(*symb_loc(sy, id));
+}
+/* A record, not an array of them. */
+static inline bool symb_is_record(const Symb *const sy, uint16_t id)
+{
+    const Var *const v = symb_var(sy, id);
+    return v->type >= ET_REC && (v->info & (VI_ARR | VK_MASK)) == VI_RECARR;
 }
 static inline FrameArr *symb_farr(const Symb *const sy, uint16_t id)
 {

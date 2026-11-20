@@ -878,6 +878,12 @@ static void cg_ref(Code *const c, const Node *const n)
     } else
         code_opid(c, n->op, n->id, n->par);
 
+    for (const Node *x = n->a; x != nullptr; x = x->next) /* a fixed array field's, ours */
+        if (x->kind == N_INT || x->kind == N_KCALL)
+            gen(c, x);
+        else
+            cg_as(c, x, T_INT, false);
+
     c->type = T_INT;
     c->iload = c->iloadend = nullptr;
 }
@@ -907,7 +913,7 @@ static void cg_addr(Code *const c, const Node *const n)
     gen(c, n->a);
     const Node *const at = n->a;
 
-    if (at->kind == N_REF && at->rec.off) {
+    if (at->rec.off) {
         code_int(c, at->rec.off);
         code_op(c, O_I_ADD);
     }
@@ -952,7 +958,8 @@ static void cg_arg(Code *const c, const Node *const n)
     }
 }
 
-/* A procedure's call: its arguments, PCALL; one DECLAREd only: ERROR, its result's load. */
+/* A procedure's call: its arguments, PCALL, a record result's place; one DECLAREd only: ERROR, its
+   result's load. */
 static void cg_call(Code *const c, const Node *const n)
 {
     if (n->mode == CALL_UNDEF) {
@@ -971,6 +978,10 @@ static void cg_call(Code *const c, const Node *const n)
     code_dword(c, n->jump.line);
     code_dword(c, n->jump.body);
     code_dword(c, n->jump.dest);
+
+    if (n->a != nullptr) /* a record result's place, ours */
+        gen(c, n->a);
+
     c->type = n->type;
     c->iload = c->iloadend = nullptr;
 }

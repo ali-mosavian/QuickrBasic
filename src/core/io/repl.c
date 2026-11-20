@@ -85,8 +85,9 @@ void repl_error(Session *const S, uint8_t code)
     longjmp(*S->repl.top, REPL_ERROR);
 }
 
-/* An error found off the code (the block pass) set as if an ERR op at body offset at of line (a
-   program store offset) raised it. vm.opip is set to an ErrOp (vm/exec.h) of its own. */
+/* An error found off the code (the block pass, a declaration) set as if an ERR op at body offset
+   at of line (a program store offset; FAULT_KEEP the current one) raised it. vm.opip is set to an
+   ErrOp (vm/exec.h) of its own. */
 static void place(Session *const S, const Failure *const e)
 {
     static ErrOp op;
@@ -98,7 +99,9 @@ static void place(Session *const S, const Failure *const e)
         .state = DX_NOSTATE,
     };
 
-    S->vm.line = e->line;
+    if (e->line != FAULT_KEEP)
+        S->vm.line = e->line;
+
     S->vm.opip = e->op ? (uint8_t *)e->op : (uint8_t *)&op;
     S->vm.err.active = true;
     diag_other(&S->diag, e->other, e->len);
@@ -157,6 +160,7 @@ static const char *source_name(Session *const S, const uint16_t file)
     uint16_t n = 0;
 
     for (uint32_t line = PROGBASE; file && prog_line(&S->prog, line)->len;
+
          line += prog_line(&S->prog, line)->len) {
         const uint8_t *body = at(prog_addr(&S->prog, line) + HDR);
 
@@ -349,10 +353,10 @@ static void report(Session *const S, const uint8_t code)
 
     const ErrOp *const e = err_op(S);
 
-    if (load_error(S))
-        put_marked(S, S->cons.inbuf, 0);
-    else if (e)
+    if (e)
         diagnose(S, e);
+    else if (load_error(S))
+        put_marked(S, S->cons.inbuf, 0);
     else if (S->repl.batch && line != DLINE) {
         cons_nl(&S->cons);
 
@@ -481,6 +485,54 @@ static void say(void *const ctx, const Failure *const e)
     S->vm.err.active = false;
 }
 
+/* To the front end's warn: "Warning: [line src: ]", the n texts, CR LF. */
+static void repl_warn(
+    Session *const S,
+    const uint16_t src,
+    const char *const text[],
+    const uint32_t n
+)
+{
+    char buf[24], *w = buf;
+    memcpy(w, "Warning: ", 9);
+    w += 9;
+
+    if (src) {
+        memcpy(w, "line ", 5);
+        w += 5;
+        char dig[5];
+        int k = 0;
+
+        for (uint32_t v = src; v; v /= 10)
+            dig[k++] = (char)('0' + v % 10);
+        while (k)
+            *w++ = dig[--k];
+
+        *w++ = ':';
+        *w++ = ' ';
+    }
+
+    S->repl.fe->warn(S, buf, (uint32_t)(w - buf));
+
+    for (uint32_t i = 0; i < n; i++)
+        S->repl.fe->warn(S, text[i], (uint32_t)strlen(text[i]));
+
+    S->repl.fe->warn(S, "\r\n", 2);
+}
+
+/* A DIM a() whose array nothing fills, to the front end's warn. */
+static void warn_empty(void *const ctx, const LinkEmpty *const e)
+{
+    Session *const S = ctx;
+    const uint8_t *const t = symb_text(&S->symb, symb_var(&S->symb, e->var)->name);
+    char name[UINT8_MAX + 3];
+    memcpy(name, t + 1 + t[0], t[0]); /* as first written */
+    memcpy(name + t[0], "()", 3);
+    const char *const text[] = {"nothing REDIMs, assigns or passes ", name};
+
+    repl_warn(S, prog_line(&S->prog, e->line)->src, text, 2);
+}
+
 /* Run the file the command line names, then exit; no name: back. --check FILE: every compile
    error reported, not run; the exit 1 if any. */
 static void run_file(Session *const S)
@@ -514,11 +566,13 @@ static void run_file(Session *const S)
 
     if (S->repl.checking) {
         const uint32_t errors = link_report(&S->comp, say, S);
+        link_empties(&S->comp, warn_empty, S);
         fault_check(&S->fault, chnl_closeall(&S->chnl));
         cons_exit(&S->cons, errors ? 1 : 0);
     }
 
     link_start(&S->comp);
+    link_empties(&S->comp, warn_empty, S);
     stmt_runfirst(S);
     exec_run(S);
 }
@@ -634,37 +688,6 @@ static uint16_t line_number(Session *const S, const uint8_t *const p)
     return (uint16_t)num;
 }
 
-/* To the front end's warn: "Warning: [line n: ]what has no effect in 32-bit mode". */
-static void repl_warn(Session *const S, const char *const what)
-{
-    char buf[80], *w = buf;
-    memcpy(w, "Warning: ", 9);
-    w += 9;
-
-    if (S->repl.fline) {
-        memcpy(w, "line ", 5);
-        w += 5;
-        char dig[5];
-        int n = 0;
-
-        for (uint32_t v = S->repl.fline; v; v /= 10)
-            dig[n++] = (char)('0' + v % 10);
-        while (n)
-            *w++ = dig[--n];
-
-        *w++ = ':';
-        *w++ = ' ';
-    }
-
-    static const char tail[] = " has no effect in 32-bit mode\r\n";
-    const uint32_t len = (uint32_t)strlen(what);
-    memcpy(w, what, len);
-    w += len;
-    memcpy(w, tail, sizeof tail - 1);
-    w += sizeof tail - 1;
-    S->repl.fe->warn(S, buf, (uint32_t)(w - buf));
-}
-
 uint16_t repl_intern(LexrNames *const names, const uint8_t *const text, const uint8_t len)
 {
     Session *const S = container_of(names, Session, names);
@@ -680,10 +703,34 @@ void repl_declare(Session *const S, const uint8_t *const body)
             if (!what)
                 break;
 
-            repl_warn(S, what);
+            const char *const text[] = {what, " has no effect in 32-bit mode"};
+
+            repl_warn(S, S->repl.fline, text, 2);
         }
 
     decl_line(&S->decl, &S->scop, &S->symb, body, S->prog.entering, S->repl.loading);
+}
+
+Status repl_declare_check(Session *const S, const uint8_t *const body, ErrOp *const op)
+{
+    const bool active = S->vm.err.active;
+    uint8_t *const opip = S->vm.opip;
+    S->vm.opip = nullptr; /* set again: its place known */
+    Catch c;
+    fault_push(&S->fault, &c);
+
+    if (!setjmp(c.jb)) {
+        repl_declare(S, body);
+        fault_pop(&S->fault);
+        c.code = ST_OK;
+    } else {
+        const ErrOp *const e = err_op(S);
+        *op = e ? *e : (ErrOp){.op = O_ERR, .code = (uint8_t)c.code, .state = DX_NOSTATE};
+    }
+
+    S->vm.err.active = active;
+    S->vm.opip = opip;
+    return c.code;
 }
 
 /* The line in comp_cbuf, to be stored at place: its declarations. vm.lnum its number, NONUM
@@ -769,6 +816,7 @@ static void read_file(Session *const S, const char *const name, const int32_t nu
 
     if (num == SOURCE_FILENO && chnl_lof(c, &len) == ST_OK)
         reserve(S, len);
+
     fault_check(&S->fault, chnl_in(cl, c));
     const uint16_t fline = S->repl.fline, file = S->prog.add_file;
     S->repl.fline = 0;

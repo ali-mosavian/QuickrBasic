@@ -185,6 +185,12 @@ CASES = {
                 "POKE VARPTR(n) + 1, 1: POKE SADD(b$), 74\r\n"
                 "PRINT n; PEEK(VARPTR(a(2))); b$; PEEK(SADD(b$) + 4); VARSEG(n); SSEG(b$)\r\n",
                 " 256  7 JELLO 79  0  0 \r\n", "ERROR"),
+    # SADD and SSEG take a variable-length STRING alone: SADD of a SINGLE's 1 gave 16256, a record's
+    # 0, a STRING * n's 16777206; SSEG of a number 0.
+    **{f"qb_{fn.lower()}_{k}": (f"{d}\r\nPRINT {fn}({v})\r\n", f"^\r\n`{v}` is not a variable-length STRING", None)
+       for fn, k, d, v in (("SADD", "num", "x = 1", "x"), ("SADD", "fixed", "DIM f AS STRING * 4", "f"),
+                           ("SADD", "record", "TYPE P\r\n a AS INTEGER\r\nEND TYPE\r\nDIM r AS P", "r"),
+                           ("SSEG", "num", "x = 1", "x"))},
     # ON ERROR: the handler runs on the failing procedure's frames; RESUME NEXT goes on inside
     # the FUNCTION a statement called mid-expression.
     "qb_onerr": ("DECLARE FUNCTION f% (d%)\r\nON ERROR GOTO h\r\nPRINT 1 + f(0); ERR\r\n"
@@ -713,6 +719,18 @@ WARN = {
                 "Warning: line 2: DEF SEG has no effect in 32-bit mode\n"
                 "Warning: line 5: DEF SEG has no effect in 32-bit mode\n"
                 "Warning: line 6: DEF SEG"),
+    # DIM a(), ours, and nothing gives the array elements: a REDIM, a() = .., a call passing it, a
+    # SUB's SHARED, COMMON. An element's use is a runtime error, found at the line.
+    "warn_empty_array": ("type Vec\r\n x as single\r\nend type\r\ncommon shared h() as long\r\n"
+                         "declare sub show (x() as long)\r\ndeclare sub fill ()\r\n"
+                         "dim a() as long, b() as long, c() as long, d() as long, e() as long, h() as long\r\n"
+                         "dim r() as Vec, q() as Vec: redim r(2): q() = r()\r\n"
+                         "redim b(2): c() = b(): show d(): fill\r\ndim f() as string\r\nprint 1\r\n"
+                         "sub show (x() as long)\r\nend sub\r\nsub fill\r\nshared e()\r\nredim e(3)\r\n"
+                         "dim g() as integer\r\nend sub\r\n",
+                         "Warning: line 7: nothing REDIMs, assigns or passes a()\n"
+                         "Warning: line 10: nothing REDIMs, assigns or passes f()\n"
+                         "Warning: line 17: nothing REDIMs, assigns or passes g()"),
 }
 
 # A line's code past its room left an op cut short before the error's: linking it never ended,
@@ -820,6 +838,338 @@ CASES |= {
                              "SUB neg (x AS SHORT)", "x = -x", "END SUB",
                              "SUB outer (x AS SHORT)", "neg x: x = x - 1", "END SUB"),
                          " 7  10  7 \r\n 1 -5  1 \r\n 4  1 \r\n-6 -5 \r\nov 6 \r\n 255  7 \r\n", "ERROR"),
+}
+
+# NEXT a, b skipped b's NEXT when a's loop was left, by EXIT FOR or never entered: b ran once
+# (" 1 done").
+CASES |= {
+    "qb_next_ab_left": (bas("FOR b = 1 TO 3: PRINT b;: FOR a = 1 TO 0: NEXT a, b", 'PRINT "done"',
+                            "FOR b = 1 TO 3", " PRINT b;", " FOR a = 1 TO 5", "  IF a = 2 THEN EXIT FOR",
+                            "NEXT a, b", 'PRINT "done"; a; b'),
+                        " 1  2  3 done\r\n 1  2  3 done 2  4 \r\n", "ERROR"),
+}
+
+# CONTINUE FOR | DO | WHILE, EXIT WHILE and a FOR's counter after EXIT FOR or CONTINUE FOR, ours,
+# were Syntax errors. CONTINUE stays a name unless a loop word follows it at a statement's start.
+CASES |= {
+    "loop_continue": (bas("FOR i = 1 TO 5", " IF i = 2 THEN CONTINUE FOR", " PRINT i;", "NEXT", "PRINT",
+                          "DO", " n = n + 1", " IF n MOD 2 THEN n = n + 0: CONTINUE DO", " PRINT n;",
+                          "LOOP UNTIL n >= 6", "PRINT",
+                          "WHILE w < 6", " w = w + 1", " IF w <> 3 THEN PRINT w; ELSE CONTINUE WHILE",
+                          ' PRINT "-";', "WEND", "PRINT"),
+                      " 1  3  4  5 \r\n 2  4  6 \r\n 1 - 2 - 4 - 5 - 6 -\r\n", "ERROR"),
+    "loop_exit_while": (bas("WHILE 1", " n = n + 1", " IF n = 3 THEN EXIT WHILE", "WEND",
+                            "WHILE 1", " FOR i = 1 TO 9", "  IF i = 4 THEN EXIT WHILE", " NEXT",
+                            ' PRINT "never"', "WEND", "PRINT n; i"),
+                        " 3  4 \r\n", "ERROR"),
+    "loop_counter": (bas("FOR y = 1 TO 3", " FOR x = 1 TO 3", "  IF x = 2 THEN EXIT FOR y", "  PRINT y; x;",
+                         " NEXT", "NEXT", 'PRINT "|"; y; x',
+                         "FOR y = 1 TO 3", " FOR x = 1 TO 3", "  IF x = 2 THEN CONTINUE FOR y",
+                         "  PRINT y; x;", " NEXT", ' PRINT "never"', "NEXT", 'PRINT "|"; y; x',
+                         "FOR b = 1 TO 3", " FOR a = 1 TO 3", "  IF a = 2 THEN CONTINUE FOR b",
+                         "  PRINT b; a;", "NEXT a, b", 'PRINT "|"; a; b'),
+                     " 1  1 | 1  2 \r\n 1  1  2  1  3  1 | 4  2 \r\n 1  1  2  1  3  1 | 2  4 \r\n", "ERROR"),
+    "loop_continue_name": (bas("continue = 5", "PRINT continue", "GOTO continue", "PRINT 1",
+                               "continue:", "PRINT 2"), " 5 \r\n 2 \r\n", " 1"),
+    "loop_continue_open": (bas("DEFSTR C", 'continue = "C.TMP"', "OPEN continue FOR OUTPUT AS #1",
+                               'PRINT #1, "a"', "CLOSE", "KILL continue", 'PRINT "ok"'), "ok", "ERROR"),
+    "loop_continue_none": (bas("PRINT 1", "CONTINUE FOR"),
+                           ".BAS:2: CONTINUE not within matching block\r\n  continue for\r\n  ^\r\n"
+                           "This CONTINUE FOR is not inside a FOR loop.", " 1"),
+    "loop_exit_counter": (bas("FOR i = 1 TO 2", " EXIT FOR q", "NEXT"),
+                          ".BAS:2: EXIT not within matching block\r\n  exit for q\r\n           ^\r\n"
+                          "No FOR loop counting with `q` is open here.", " 1"),
+}
+
+# '_' in a name, ours: my_var was Syntax error, do_it the keyword DO; my_rem's REM a comment, its
+# line's continuation lost. A '_' after a blank at a line's end still continues it.
+CASES |= {
+    "underscore_names": (bas("DECLARE SUB show_it (a_b AS INTEGER)", "TYPE pt_t", "  x_pos AS INTEGER", "END TYPE",
+                             "CONST max_n = 4", "DIM p AS pt_t, arr_a(max_n)", "DEF fn_sq (x) = x * x",
+                             "p.x_pos = 7: arr_a(max_n) = 9: end_x = 1: x_ = 3", "my_rem = 1 + _", "  2",
+                             "show_it p.x_pos: GOSUB do_it", "PRINT arr_a(4); fn_sq(3); end_x; x_; my_rem", "END",
+                             'do_it: PRINT "s": RETURN', "SUB show_it (a_b AS INTEGER)", "PRINT a_b", "END SUB"),
+                         " 7 \r\ns\r\n 9  9  1  3  3 \r\n", "ERROR"),
+}
+
+# FUNCTION f (..) AS type, ours, was a Syntax error, and DECLARE's AS ignored: f was a SINGLE. A
+# record result goes to a record of the caller's, one per call, emptied as the FUNCTION starts.
+VEC = ("type Vec", " x as single", " y as single", "end type")
+CASES |= {
+    "func_as_scalar": (bas("declare function half (x) as integer", "declare function greet (n$) as string",
+                           "declare function third (x) as double", "declare function big (x) as long",
+                           'print half(5); half(7); greet("bo"); third(1); big(3)',
+                           "function half (x) as integer", "half = x / 2", "end function",
+                           "function greet (n$) as string", 'greet = "hi " + n$', "end function",
+                           "function third (x) as double", "third = x / 3#", "end function",
+                           "function big (x) as long static", "big = x * 100000", "end function"),
+                       " 2  4 hi bo .3333333333333333  300000 \r\n", "ERROR"),
+    # The definition's AS, or its none, is the type, whatever a DECLARE says.
+    "func_as_declare": (bas("declare function f (x) as integer", "print f(5)", "function f (x)", "f = x / 2",
+                            "end function"), " 2.5 \r\n", "ERROR"),
+    "func_as_record": (bas(*VEC, "declare function Add (a as Vec, b as Vec) as Vec",
+                           "declare function Mk (x!, y!) as Vec", "declare function Swp (v as Vec) as Vec",
+                           "declare function Origin () as Vec", "declare function Tri (n%) as Vec",
+                           "declare sub Show (v as Vec)", "dim a as Vec, b as Vec, arr(3) as Vec",
+                           "a = Mk(1, 2): b = Mk(10, 20)", "Show Add(a, b)", "a = Swp(a): Show a",
+                           "Show Add(Add(a, b), Mk(100, 100))", "arr(2) = Mk(7, 8): Show arr(2)",
+                           "print Add(a, b).x; Mk(3, 4).y", 'if Mk(5, 0).x > 4 then print "big"',
+                           "for i = 1 to 3: arr(i) = Mk(i, i * i): next", "print arr(1).y; arr(2).y; arr(3).y",
+                           "Show Origin", "Show Tri(4)", "end",
+                           "sub Show (v as Vec)", " print v.x; v.y", "end sub",
+                           "function Add (a as Vec, b as Vec) as Vec", " Add.x = a.x + b.x", " Add.y = a.y + b.y",
+                           "end function", "function Mk (x!, y!) as Vec", " Mk.x = x!: Mk.y = y!", "end function",
+                           "function Swp (v as Vec) as Vec", " Swp.x = v.y: Swp.y = v.x", "end function",
+                           "function Origin () as Vec", "end function",
+                           "function Tri (n%) as Vec", " if n% = 0 then exit function", " Tri = Tri(n% - 1)",
+                           " Tri.x = Tri.x + n%: Tri.y = Tri.y + 1", "end function"),
+                       " 11  22 \r\n 2  1 \r\n 112  121 \r\n 7  8 \r\n 12  4 \r\nbig\r\n 1  4  9 \r\n 0  0 \r\n"
+                       " 10  4 \r\n", "ERROR"),
+    # Each call's result starts empty: a field the FUNCTION leaves is 0, not the last call's.
+    "func_as_record_empty": (bas(*VEC, "dim r as Vec", "for i% = 1 to 3: r = Part(i%): print r.x; r.y;: next",
+                                 "end", "function Part (i%) as Vec", " if i% = 1 then Part.y = 9", " Part.x = i%",
+                                 "end function"), " 1  9  2  0  3  0 ", "ERROR"),
+    "func_as_record_whole": (bas(*VEC, "print Mk(2)", "function Mk (x!) as Vec", "end function"),
+                             ".BAS:5: Type mismatch\r\n  print Mk(2)\r\n            ^", None),
+    "func_as_no_type": (bas("function Mk (x!) as Nope", "end function"),
+                        ".BAS:1: Syntax error\r\n  function Mk (x!) as Nope\r\n                      ^", None),
+    "func_as_suffix": (bas("print h%(5)", "function h% (x) as integer", "end function"),
+                       ".BAS:2: Syntax error\r\n  function h% (x) as integer\r\n                  ^", None),
+}
+
+# A record in a record, copied whole: its field's offset was dropped, so o.i = x wrote o's start
+# (" 7  0").
+CASES |= {
+    "qb_rec_nested_copy": (bas("TYPE Inner", "v AS INTEGER", "END TYPE", "TYPE Outer", "a AS INTEGER", "i AS Inner",
+                               "END TYPE", "DIM o AS Outer, x AS Inner", "x.v = 7: o.a = 1", "o.i = x",
+                               "PRINT o.a; o.i.v", "o.i.v = 5: x = o.i: PRINT x.v"),
+                           " 1  7 \r\n 5 \r\n", "ERROR"),
+}
+
+# DIM a(), ours, was a Syntax error: a dynamic array with no elements until REDIM, as ERASE leaves
+# one. A procedure's goes when it returns; a STATIC one's elements stay.
+CASES |= {
+    "dim_empty": (bas("dim a() as integer", "on error goto h", "print lbound(a)",
+                      "redim a(1 to 3)", "a(3) = 7: print a(3); ubound(a)", "erase a", "redim a(2): print ubound(a)",
+                      "dim a()", "s: s: f& = FRE(-1): t: t: print FRE(-1) = f&", "end", OV,
+                      "sub s static", "dim b() as string", "redim b(2): b(2) = \"x\"", "end sub",
+                      "sub t", "dim c() as long", "redim c(100000)", "end sub"),
+                  "ov 9 \r\n 7  3 \r\n 2 \r\nov 10 \r\n-1 \r\n", "ERROR"),
+}
+
+# LBOUND and UBOUND of a record array read another array of its name, made 0 TO 10 (" 0  10").
+CASES |= {
+    "qb_rec_array_bounds": (bas("TYPE Vec", "x AS SINGLE", "END TYPE", "DIM r(2 TO 5) AS Vec", "r(3).x = 1",
+                                "PRINT LBOUND(r); UBOUND(r)"), " 2  5 \r\n", "ERROR"),
+}
+
+# a() = b(), ours, was a Syntax error: a gets b's bounds and its own copy of the elements, strings
+# too; a DIM'd array keeps its bounds (Duplicate definition).
+CASES |= {
+    "array_copy": (bas("type Vec", " x as single", "end type", "declare sub show (a() as long)",
+                       "dim a() as long, b() as long, s() as string, t() as string, r(2) as Vec, q() as Vec",
+                       "dim f(3) as long", "redim a(2 to 4): a(2) = 1: a(3) = 2: a(4) = 3",
+                       "b() = a(): a(3) = 99: show b(): show a()",
+                       'redim s(1 to 2): s(1) = "one": s(2) = "two"', 't() = s(): s(1) = "uno": print t(1); t(2); s(1)',
+                       "r(1).x = 5: q() = r(): r(1).x = 6: print q(1).x; lbound(q); ubound(q)",
+                       "b() = b(): show b()", "dim e() as long: on error goto h: b() = e(): print ubound(b)",
+                       "let a() = f(): show a()", "f() = a()", "end", OV,
+                       "sub show (a() as long)", " for i = lbound(a) to ubound(a): print a(i);: next: print", "end sub"),
+                   " 1  2  3 \r\n 1  99  3 \r\nonetwouno\r\n 5  0  2 \r\n 1  2  3 \r\nov 9 \r\n 0  0  0  0 \r\nov 10 ",
+                   "ERROR"),
+    "array_copy_type": (bas("dim a() as long, s() as string", "s() = a()"), ".BAS:2: Type mismatch\r\n  s() = a()\r\n        ^",
+                        None),
+}
+
+# FUNCTION f (..) AS type(), ours: its result an array, the caller's hidden one passed, emptied as the
+# FUNCTION starts; a() = f(..) moves it, f(..) passes it. In f, f(i) is its result's element.
+SQUARES = ("function Squares (n as integer) as long()", " redim Squares(1 to n)",
+           " for i = 1 to n: Squares(i) = i * i: next", " if n > 1 then Squares(1) = Squares(2) + ubound(Squares)",
+           "end function")
+CASES |= {
+    "func_as_array": (bas("type Vec", " x as single", "end type", "declare sub show (a() as long)",
+                          "declare sub t ()", "dim s() as long, w() as string, p() as Vec",
+                          "s() = Squares(4): show s()", "show Squares(3)", "w() = Names(): print w(1); w(2); ubound(w)",
+                          "p() = Pts(2): print p(1).x; p(2).x", "for k% = 1 to 3: s() = Squares(k%): next: show s()",
+                          "for k = 1 to 50: show Squares(1): if k = 1 then f& = fre(-1)", "next: print f& - fre(-1)",
+                          "t: f& = fre(-1): t: t: print f& - fre(-1)", "end",
+                          "sub t", " dim u() as long", " u() = Squares(1000): show2 Squares(2000)", "end sub",
+                          "sub show2 (a() as long): end sub",
+                          "sub show (a() as long)", " for i = lbound(a) to ubound(a): print a(i);: next: print", "end sub",
+                          *SQUARES, "function Names () as string()", " redim Names(1 to 2)",
+                          ' Names(1) = "ab": Names(2) = "cd"', "end function", "function Pts (n%) as Vec()",
+                          " redim Pts(1 to n%)", " Pts(1).x = 7: Pts(n%).x = 9", "end function"),
+                      " 8  4  9  16 \r\n 7  4  9 \r\nabcd 2 \r\n 7  9 \r\n 7  4  9 \r\n" + " 1 \r\n" * 50
+                      + " 0 \r\n 0 \r\n", "ERROR"),
+    "func_as_array_value": (bas("print Squares(3)", *SQUARES), ".BAS:1: Type mismatch\r\n  print Squares(3)", None),
+    "func_as_array_fixed": (bas("dim s(5) as long", "on error goto h", "s() = Squares(3)", "end", OV, *SQUARES),
+                            "ov 10 ", "ERROR"),
+    "func_as_array_record": (bas("type Vec", " x as single", "end type", "show Mk", "sub show (a() as long): end sub",
+                                 "function Mk () as Vec", "end function"), ".BAS:4: Parameter type mismatch", None),
+}
+
+# A fixed array in a TYPE, ours, was a Syntax error: inline, its first subscript the fastest; its
+# element a field, a record, an argument; out of its bounds Subscript out of range, a constant's
+# when compiled. A subscript with an operator left the statement at its end: Syntax error.
+POLY = ("type Vec", " x as single", " y as single", "end type", "type Poly", " n as integer",
+        " pts(1 to 4) as Vec", " w(2, 1 to 3) as integer", " tag(3) as string * 2", "end type",
+        "dim p as Poly")
+CASES |= {
+    "field_array": (bas(*POLY, "declare sub showv (v as Vec)", "declare sub inc (k as integer)",
+                        "declare function mk () as Poly", "dim q as Poly, ps(3) as Poly", "on error goto h",
+                        "p.pts(2).x = 5: p.w(1, 2) = 7: i = 2: p.pts(i).y = p.pts(2).x + 1",
+                        'p.tag(3) = "ab": p.n = 1', "print p.pts(2).x; p.pts(i).y; p.w(1, 2); len(p); p.tag(3); p.n",
+                        "q = p: p.pts(2).x = 0: print q.pts(2).x; q.w(1, 2)",
+                        "ps(1).w(2, 3) = 9: print ps(1).w(2, 3); ps(2).w(2, 3)",
+                        "showv q.pts(2): inc p.w(1, 2): print p.w(1, 2)", "q = mk: print q.pts(i + 1).x",
+                        "i = 5: print p.pts(i).x", "j = 0: print p.w(1, j)", "end", OV,
+                        "sub showv (v as Vec): print v.x: end sub", "sub inc (k as integer): k = k + 1: end sub",
+                        "function mk () as Poly", " mk.pts(3).x = 4", "end function"),
+                    " 5  6  7  80 ab 1 \r\n 5  7 \r\n 9  0 \r\n 5 \r\n 8 \r\n 4 \r\nov 9 \r\nov 9 \r\n", "ERROR"),
+    "field_array_bound": (bas(*POLY, "p.pts(5).x = 1"), ".BAS:12: Subscript out of range", None),
+    "field_array_dims": (bas(*POLY, "p.w(1) = 2"), ".BAS:12: Subscript out of range", None),
+    "field_array_whole": (bas(*POLY, "p.pts.x = 2"), ".BAS:12: Syntax error", None),
+}
+
+# A STRING in a TYPE, ours, was 0 bytes: the field read "" and its writes were lost. Each copy of a
+# record, an array of them or a nested one owns its strings; GET and PUT refuse such a TYPE.
+ITEM = ("type Item", " nm as string", " tags(1 to 2) as string", " qty as long", "end type",
+        "type Box", " it as Item", " its(1) as Item", "end type")
+CASES |= {
+    "field_string": (bas(*ITEM, "declare sub greet (s as string)", "declare sub t ()",
+                         "dim a as Item, b as Item, bx as Box, cx as Box, xs(2) as Item, ys() as Item",
+                         'a.nm = "apple": a.tags(1) = "red": a.tags(2) = "sweet": a.qty = 3',
+                         'b = a: a.nm = "pear": a.tags(1) = "green"',
+                         'print b.nm; " "; b.tags(1); " "; b.tags(2); b.qty', 'print a.nm; " "; a.tags(1); len(a.nm)',
+                         'bx.it = a: bx.its(1).nm = "fig": cx = bx: bx.it.nm = "x": bx.its(1).nm = "y"',
+                         'print cx.it.nm; " "; cx.its(1).nm',
+                         'xs(1) = b: xs(1).tags(2) = "sour": print xs(1).nm; " "; xs(1).tags(2); " "; b.tags(2)',
+                         'ys() = xs(): xs(1).nm = "z": print ys(1).nm; " "; ys(1).tags(2)',
+                         "redim preserve ys(5): print ys(1).nm", "greet a.nm: print a.nm",
+                         'swap a.nm, b.nm: print a.nm; " "; b.nm',
+                         'for i = 1 to 2000: b.nm = string$(100, "q"): next',
+                         'print a.nm; " "; b.tags(1); " "; cx.its(1).nm; " "; ys(1).tags(2)',
+                         "t: t: f& = fre(-1): for i = 1 to 100: t: next: print fre(-1) = f&", "end",
+                         'sub greet (s as string): s = "hello " + s: end sub',
+                         'sub t: dim r as Item: r.nm = string$(1000, "x"): r.tags(2) = r.nm: end sub'),
+                     "apple red sweet 3 \r\npear green 4 \r\npear fig\r\napple sour sweet\r\napple sour\r\n"
+                     "apple\r\nhello pear\r\napple hello pear\r\napple red fig sour\r\n-1 \r\n", "ERROR"),
+    "field_string_put": (bas(*ITEM, "dim a as Item", 'open "x" for binary as 1: put 1, , a'),
+                         ".BAS:11: Type mismatch", None),
+}
+
+# A dynamic array in a TYPE, ours, was a Syntax error: empty until REDIM, copied with its record,
+# freed with it; its header names its cell, so the heap's compaction moves records that own arrays.
+MESH = ("type Vec", " x as single", " y as single", "end type", "type Mesh", " title as string",
+        " pts() as Vec", " tags() as string", " kids() as Mesh", "end type", "dim m as Mesh")
+CASES |= {
+    "field_dynamic": (bas(*MESH, "declare sub fill (a() as Vec, n as integer)",
+                          "declare function mk (n as integer) as Mesh",
+                          "dim c as Mesh, a() as Vec, rs() as Mesh", "on error goto h",
+                          'm.title = "root": redim m.pts(1 to 3)',
+                          "for i = 1 to 3: m.pts(i).x = i: m.pts(i).y = i * 10: next",
+                          "print lbound(m.pts); ubound(m.pts()); m.pts(2).x; m.pts(3).y",
+                          "redim preserve m.pts(1 to 5): m.pts(5).x = 55: print ubound(m.pts); m.pts(3).y; m.pts(5).x",
+                          'redim m.tags(2): m.tags(0) = "a": m.tags(2) = "c" + "c": print m.tags(0); m.tags(2); len(m.tags(1))',
+                          "a() = m.pts(): a(1).x = 99: print ubound(a); a(5).x; m.pts(1).x",
+                          'redim m.kids(1 to 2): m.kids(2).title = "kid": redim m.kids(2).pts(0 to 1): m.kids(2).pts(1).y = 7',
+                          'c = m: c.kids(2).pts(1).y = 8: c.tags(0) = "z"',
+                          "print m.kids(2).pts(1).y; c.kids(2).pts(1).y; m.tags(0); c.tags(0); ubound(c.kids(2).pts); c.title",
+                          "erase m.pts: m.kids(1).pts() = a(): print ubound(m.kids(1).pts); m.kids(1).pts(1).x",
+                          "print ubound(m.pts)", "fill m.pts(), 4: print ubound(m.pts); m.pts(4).y",
+                          "c = mk(3): print ubound(c.kids); c.kids(3).title; ubound(c.kids(3).pts)", "print ubound(c.pts)",
+                          'redim rs(1 to 2): redim rs(2).tags(1): rs(2).tags(1) = "t": redim preserve rs(0 to 9): print rs(2).tags(1)',
+                          "end", OV, "sub fill (a() as Vec, n as integer)", " redim a(1 to n): a(n).y = n * n", "end sub",
+                          "function mk (n as integer) as Mesh", " redim mk.kids(1 to n)",
+                          " for i = 1 to n: mk.kids(i).title = str$(i): redim mk.kids(i).pts(i): next", "end function"),
+                      " 1  3  2  30 \r\n 5  30  55 \r\nacc 0 \r\n 5  55  1 \r\n 7  8 az 1 root\r\n 5  99 \r\nov 9 \r\n"
+                      " 4  16 \r\n 3  3 3 \r\nov 9 \r\nt\r\n", "ERROR"),
+    # Locals, results and copies freed: no bytes lost a round; the same keeping its arrays lost them.
+    "field_dynamic_free": (bas(*MESH, "declare sub scratch (n as integer)", "declare function mk (n as integer) as Mesh",
+                               "dim keep as Mesh",
+                               "for k = 1 to 200", " scratch 5: dim q as Mesh: q = mk(5): q.kids(2) = q.kids(1): erase q.kids",
+                               " if k = 2 then f0& = fre(-1)", "next", "f1& = fre(-1): redim keep.kids(1 to 500)",
+                               "print f0& - f1&; f1& - fre(-1) > 1000", "end",
+                               "sub scratch (n as integer)", " dim t as Mesh: redim t.kids(1 to n)",
+                               ' for i = 1 to n: redim t.kids(i).kids(1 to n): t.kids(i).kids(n).title = string$(100, "z"): next',
+                               "end sub", "function mk (n as integer) as Mesh", " redim mk.kids(1 to n)",
+                               " for i = 1 to n: redim mk.kids(i).pts(1 to 3): mk.kids(i).title = str$(i): next",
+                               "end function"),
+                           " 0 -1 \r\n", "ERROR"),
+    # A local record array kept in its frame: its records' arrays were never freed, 176616 bytes in 198 calls.
+    "field_dynamic_frame_free": (bas(*MESH, "declare sub frame (n as integer)",
+                                     "for k = 1 to 200", " frame 5", " if k = 2 then f0& = fre(-1)", "next",
+                                     "print f0& - fre(-1)", "end", "sub frame (n as integer)", " dim rs(2) as Mesh",
+                                     " redim rs(1).pts(1 to 100): rs(1).pts(n).x = n",
+                                     ' redim rs(2).tags(n): rs(2).tags(n) = string$(50, "t")', "end sub"),
+                                 " 0 \r\n", "ERROR"),
+    # Its array fields were not empty: UBOUND made one of 10, as an undeclared array's.
+    "field_dynamic_frame_empty": (bas(*MESH, "declare sub frame ()", "frame", "end", "sub frame",
+                                      " dim q(2) as Mesh", " print ubound(q(0).pts)", "end sub"),
+                                  "Subscript out of range in line", None),
+    # A returned call's leaked array, its owner cell in the frame gone: compaction wrote it into the
+    # next call's record there, which then held the dead call's 7 elements.
+    "field_dynamic_frame_dead": (bas(*MESH, "declare sub t ()", "declare sub u ()", "dim shared early() as long",
+                                     "redim early(1000)", "on error goto h", "t", "u", "end", OV, "sub t",
+                                     " dim rs(2) as Mesh", " redim rs(0).pts(7): rs(0).pts(3).x = 33", "end sub",
+                                     "sub u", " dim q(2) as Mesh", " erase early", " print ubound(q(0).pts)",
+                                     "end sub"),
+                                 "ov 9 \r\n", "ERROR"),
+    # Records that own arrays and strings, moved by REDIMs around them 1000 times and more.
+    "field_dynamic_moves": (bas("type Cell", " v as long", " xs() as long", " s as string", "end type",
+                                "dim rs() as Cell, junk() as long, last(1 to 20) as long", "redim rs(1 to 20)",
+                                "for k = 1 to 3000", " i = k mod 20 + 1", " redim preserve rs(i).xs(k mod 13)",
+                                " rs(i).xs(k mod 13) = k: rs(i).s = str$(k): last(i) = k", " redim junk(k mod 97 * 10)",
+                                " if k mod 50 = 0 then redim preserve rs(1 to 20 + k mod 3): "
+                                "if ubound(rs) > 20 then redim rs(ubound(rs)).xs(500)",
+                                "next", "for i = 1 to 20",
+                                " if rs(i).xs(last(i) mod 13) = last(i) and val(rs(i).s) = last(i) then ok = ok + 1",
+                                "next", "print ok", "redim preserve rs(1 to 22): f& = fre(-1)",
+                                "for k = 1 to 100: redim rs(22).xs(500): redim preserve rs(1 to 21): redim preserve rs(1 to 22): next",
+                                "print fre(-1) = f&"),
+                            " 20 \r\n-1 \r\n", "ERROR"),
+    "field_dynamic_empty": (bas(*MESH, "m.pts(1).x = 1"), "Subscript out of range in line", None),
+    "field_dynamic_dims": (bas(*MESH, "m.pts(" + ",".join("0" * 61) + ").x = 1"), ".BAS:12: Too many dimensions", None),
+    "field_dynamic_type": (bas(*MESH, "dim s() as Mesh", "s() = m.pts()"), ".BAS:13: Type mismatch", None),
+    "field_dynamic_value": (bas(*MESH, "print m.pts"), ".BAS:12: Type mismatch", None),
+    "field_dynamic_put": (bas(*MESH, 'open "x" for binary as 1: put 1, , m'), ".BAS:12: Type mismatch", None),
+    # PUT's refusal said a string was where a number is needed.
+    "field_dynamic_put_words": (bas(*MESH, 'open "x" for binary as 1: put 1, , m'),
+                                "^\r\n`m` holds a variable-length STRING or a dynamic array", None),
+    # VARPTR of such a record was PUT's Type mismatch; BC's takes any variable.
+    "field_dynamic_varptr": (bas(*MESH, "declare sub t ()", "dim rs(2) as Mesh",
+                                 "print varptr(m) > 0; varptr(rs(2)) - varptr(rs(0)) = 2 * len(m)", "t", "end",
+                                 "sub t", " dim q(1) as Mesh", " print varptr(q(1)) - varptr(q(0)) = len(q(0))",
+                                 "end sub"),
+                             "-1 -1 \r\n-1 \r\n", "ERROR"),
+}
+
+# BC's 60 dimensions at most. Past 63 a DIM's count ran into its flags (REDIM b(64 bounds) made an
+# array of none); past 64 an element's subscripts were written beyond their buffer.
+DIMS = "(" + ",".join("0" * 60) + ")"
+CASES |= {
+    "dims_60": (bas(f"redim b{DIMS}", f"b{DIMS} = 7: print b{DIMS}; ubound(b, 60)"), " 7  0 \r\n", "ERROR"),
+    "dims_61": (bas("redim b(" + ",".join("1" * 64) + ")", "print ubound(b, 1)"), ".BAS:1: Too many dimensions", None),
+    "dims_61_element": (bas("dim a(3)", "a(" + ",".join("0" * 61) + ") = 1"), ".BAS:2: Too many dimensions", None),
+    # A fixed array in a TYPE: past 16 dimensions a Syntax error.
+    "dims_60_field": (bas("type T", f" w{DIMS} as byte", "end type", "dim p as T", f"p.w{DIMS} = 5: print p.w{DIMS}; len(p)"),
+                      " 5  1 \r\n", "ERROR"),
+    "dims_61_field": (bas("type T", " w(" + ",".join("0" * 61) + ") as byte", "end type"),
+                      ".BAS:2: Too many dimensions", None),
+}
+
+# A TYPE over 65535 bytes was Out of memory; BC's: TYPE more than 65535 bytes.
+CASES |= {
+    "type_65535": (bas("type T", " a as string * 32767", " b as string * 32767", " c as byte", "end type",
+                       "dim r as T", "print len(r)"), " 65535 \r\n", "ERROR"),
+    "type_too_big": (bas("type T", " a as string * 32767", " b as string * 32767", " c as short", "end type"),
+                     ".BAS:4: TYPE more than 65535 bytes", None),
+    "type_too_big_array": (bas("type T", " w(1 to 70000) as byte", "end type"), ".BAS:2: TYPE more than 65535 bytes", None),
+    # An error a declaration met was marked at the line's start, with no words of what is wrong; then
+    # UBOUND's at UBOUND, its words naming it, not the array.
+    "decl_error_name": (bas("print ubound(q)"), "`q` is used as an array here", None),
+    "decl_error_words": (bas("type T", " a as string * 32767", " b as string * 32767", " c as short", "end type"),
+                         "  c as short\r\n  ^\r\nThe record type is larger than 64 KB.", None),
 }
 
 # Typed at the prompt, not run as a file.

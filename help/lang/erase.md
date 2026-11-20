@@ -14,7 +14,8 @@ ERASE resets arrays. A dynamic array is freed completely; its
 memory is returned and it must be DIMensioned or REDIMed again
 before use. A static array stays, with every number set to 0 and
 every string to "". Arrays are named without parentheses. Erasing a
-name that is not an array is an error.
+name that is not an array is an error. ERASE v.pts frees a record's
+dynamic array element, in QuickrBasic.
 
 ## Example
     DIM a(100)

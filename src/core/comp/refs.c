@@ -27,6 +27,9 @@
 #include "comp/expr.h"
 #include "comp/declare.h"
 #include "comp/dfa.h"
+#include "comp/fold.h"
+#include "comp/link.h"
+#include "comp/sema.h"
 #include "io/msg.h"
 #include "io/repl.h"
 #include "mem/scope.h"
@@ -75,56 +78,246 @@ uint16_t ref_recarray(Comp *const C, const uint16_t name, const uint8_t t)
     return recvar(C, name, t, VI_ARR);
 }
 
+uint16_t ref_arrayof(Comp *const C, const uint16_t id)
+{
+    const uint16_t name = symb_var(C->symb, id)->name;
+    const uint8_t t = scop_rec(C->scop, name, true); /* a record array: its own variable */
+    return t ? ref_recarray(C, name, t) : id;
+}
+
 /* rc_whole: all of a record of TYPE t, at off. */
 static RecRef whole(Comp *const C, const uint8_t t, const uint16_t off)
 {
     return (RecRef){.et = ET_REC + t, .off = off, .fix = decl_type(C->decl, t)->size};
 }
 
-/* rc_path: the fields f.g.. of TYPE t, the text len long. */
-static RecRef path(Comp *const C, uint8_t t, const uint8_t *text, uint32_t len)
+/* A STRING field's, ours: a Desc, not STRING * n's chars. */
+static bool desc_field(const RecRef *const r) { return r->et == ET_SD && !r->fix; }
+
+/* A record's place: its bytes. */
+static uint32_t field_size(const RecRef *const r)
 {
-    uint16_t off = 0;
+    if (desc_field(r))
+        return DSZ;
 
-    if (text[len - 1] < '.') /* a suffix is not the name's */
-        len--;
+    return r->et >= ET_REC || r->et == ET_SD ? r->fix : decl_etsize[r->et];
+}
 
+/* Field f's place at off; a fixed array's, its element's. */
+static RecRef fieldref(Comp *const C, const Field *const f, const uint32_t off)
+{
+    if (f->sub) /* a record in it */
+        return whole(C, f->sub, (uint16_t)off);
+
+    return (RecRef){.et = f->et, .off = (uint16_t)off, .fix = f->fix};
+}
+
+/* Field name of TYPE t, its text n letters. Syntax error: none. */
+static const Field *field(
+    Comp *const C,
+    const uint8_t t,
+    const uint8_t *const text,
+    const uint32_t n
+)
+{
+    const uint16_t name = symb_find_name(C->symb, text, (uint8_t)n);
+    const TypeDef *const td = decl_type(C->decl, t);
+
+    for (uint32_t i = 0; i < td->nfld; i++)
+        if (td->fields[i].name == name)
+            return &td->fields[i];
+
+    synerr(C);
+}
+
+/* Where at's next index step goes: the end of its list (at.a). */
+static Node **steps_end(Node *const at)
+{
+    Node **p = &at->a;
+
+    while (*p)
+        p = &(*p)->next;
+
+    return p;
+}
+
+/* Node n at *end, the list's end past it. */
+static void step(Node ***const end, Node *const n)
+{
+    **end = n;
+    *end = &n->next;
+}
+
+static void step_int(Comp *const C, Node ***const end, const uint32_t v)
+{
+    Node *const n = ast_new(C->ast, N_INT);
+    n->num = v;
+    step(end, n);
+}
+
+static void step_call(Comp *const C, Node ***const end, const uint8_t k)
+{
+    Node *const n = ast_new(C->ast, N_KCALL);
+    n->op = k;
+    step(end, n);
+}
+
+/* The ( s {, s} ) at comp.p, ours: each checked as a number; the first, linked, their count *n. */
+static Node *subscripts(Comp *const C, uint32_t *const n)
+{
+    Node *const subs = ast_new(C->ast, N_ELEM);
+    expr_args(C, subs);
+    const uint8_t *const past = C->p; /* sema_tree moves it to an operator's end */
+    uint32_t k = 0;
+
+    for (Node *s = subs->b; s; s = s->next, k++) {
+        sema_tree(C, s);
+
+        if (ast_type(s) & T_STR)
+            mismatch(C);
+    }
+
+    C->p = past;
+    *n = k;
+    return subs->b;
+}
+
+/* An element of fixed array field f, ours, its ( s {, s} ) at comp.p, the first subscript the
+   fastest: its offset in f by the constant subscripts; for the others, at's index steps ( addr s --
+   addr ) by FIDX. Subscript out of range: a constant past its bounds, a count not f's. */
+static uint32_t element(Comp *const C, Node *const at, const Field *const f)
+{
+    const uint8_t *const open = C->p;
+    uint32_t n;
+    Node *s = subscripts(C, &n);
+    Node **end = steps_end(at);
+    const RecRef e = fieldref(C, f, 0);
+    uint64_t off = 0, stride = field_size(&e);
+
+    if (n != f->ndim) {
+        C->p = open;
+        fault_error(C->fault, E_BS);
+    }
+
+    for (uint32_t k = 0; k < n; k++) {
+        Node *const next = s->next;
+        s->next = nullptr;
+        const FieldDim *const d = decl_fielddim(C->decl, f, k);
+        Cell v;
+
+        if (ast_type(s) == T_INT && fold_number(C, s, &v)) {
+            const int64_t i = (int64_t)v.i - d->lb;
+
+            if (i < 0 || i >= d->count) {
+                C->p = open;
+                fault_error(C->fault, E_BS);
+            }
+
+            off += (uint64_t)i * stride;
+        } else {
+            step(&end, s);
+            step_int(C, &end, (uint32_t)d->lb);
+            step_int(C, &end, d->count);
+            step_int(C, &end, (uint32_t)stride);
+            step_call(C, &end, K_FIDX);
+        }
+
+        stride *= d->count;
+        s = next;
+    }
+
+    return (uint32_t)off;
+}
+
+/* An element of a dynamic array field, ours, its cell off bytes into at's place: its ( s {, s} ) at
+   comp.p, then at's index step ( addr s.. off n -- addr ) by FELEM. */
+static void dyn_element(Comp *const C, Node *const at, const uint32_t off)
+{
+    uint32_t n;
+    Node *s = subscripts(C, &n);
+
+    Node **end = steps_end(at);
+
+    while (s) {
+        Node *const next = s->next;
+        s->next = nullptr;
+        step(&end, s);
+        s = next;
+    }
+
+    step_int(C, &end, off);
+    step_int(C, &end, n);
+    step_call(C, &end, K_FELEM);
+}
+
+/* A dynamic array field whole at comp.p, ours: f() (stepped past) or f alone, not f(i); a REDIM's
+   target's f(bounds), no .g after them. */
+static bool dyn_whole(Comp *const C)
+{
+    if (C->p[0] == '(' && C->p[1] == ')') {
+        C->p += 2;
+        return true;
+    }
+
+    return C->p[0] != '(' || (C->dimtarget && *decl_paren(C->p) != '.');
+}
+
+/* rc_path: the place of fields f.g.. of TYPE t, at's: the text len long, then at comp.p an array
+   field's subscripts and .h.. after them, ours. A dynamic array field whole: its cell's place, arr. */
+static RecRef path(Comp *const C, Node *const at, uint8_t t, const uint8_t *text, uint32_t len)
+{
+    uint32_t off = 0;
     const Field *f;
 
     for (;;) {
-        uint32_t n = 0;
+        if (text[len - 1] < '.') /* a suffix is not the name's */
+            len--;
 
-        while (n < len && text[n] != '.')
-            n++;
+        for (;;) {
+            uint32_t n = 0;
 
-        const uint16_t name = symb_find_name(C->symb, text, (uint8_t)n);
-        const TypeDef *const td = decl_type(C->decl, t);
-        f = nullptr;
+            while (n < len && text[n] != '.')
+                n++;
 
-        for (uint32_t i = 0; i < td->nfld && !f; i++)
-            if (td->fields[i].name == name)
-                f = &td->fields[i];
-        if (!f)
-            synerr(C);
+            f = field(C, t, text, n);
+            off += f->off;
+            text += n;
+            len -= n;
 
-        off += f->off;
-        text += n;
-        len -= n;
+            if (!len)
+                break;
+            if (!f->sub || f->ndim || f->dyn) /* .g: a field of a TYPE's */
+                synerr(C);
 
-        if (!len)
+            t = f->sub;
+            text++;
+            len--;
+        }
+
+        if (f->dyn) {
+            if (dyn_whole(C))
+                return (RecRef){.et = decl_fieldtype(f), .off = (uint16_t)off, .arr = true};
+
+            dyn_element(C, at, off);
+            off = 0; /* from the element */
+        } else if (f->ndim) {
+            if (*C->p != '(') /* a fixed array field whole */
+                synerr(C);
+
+            off += element(C, at, f);
+        } else
             break;
-        if (!f->sub) /* .g: a field of a TYPE's */
-            synerr(C);
+
+        if (!f->sub || C->p[0] != '.' || C->p[1] != M_VAR) /* (i).h */
+            break;
 
         t = f->sub;
-        text++;
-        len--;
+        text = C->p + 3;
+        len = C->p[2];
+        C->p = decl_item(C->p + 1);
     }
 
-    if (f->sub) /* a record in it */
-        return whole(C, f->sub, off);
-
-    return (RecRef){.et = f->et, .off = off, .fix = f->fix};
+    return fieldref(C, f, off);
 }
 
 /* An N_REF of op and variable id; an element's subscripts follow at comp.p. */
@@ -142,43 +335,67 @@ static Node *place(Comp *const C, const uint8_t op, const uint16_t id)
     return n;
 }
 
-Node *ref_record(Comp *const C)
+/* A call at comp.p of a FUNCTION whose result is a record, ours: the record its result goes to,
+   or its field .f. Null: no such call. An array result: Type mismatch. */
+static Node *reccall(Comp *const C)
 {
+    const uint16_t name = comp_nameof(C->p);
+    const Name *const nm = symb_name(C->symb, name);
+
+    if (!(nm->flags & NM_FUNC))
+        return nullptr;
+
+    Node *const n = ref_result(C);
+
+    if (n == nullptr)
+        return nullptr;
+    if (n->rec.et < ET_REC)
+        mismatch(C);
+    if (C->p[0] == '.' && C->p[1] == M_VAR) { /* .f */
+        const uint8_t *const f = ++C->p;
+        C->p = decl_item(C->p);
+        n->rec = path(C, n->a, (uint8_t)(n->rec.et - ET_REC), f + 2, f[1]);
+    }
+
+    return n;
+}
+
+/* ref_record's, a dynamic array field whole too (rec.arr). */
+static Node *record(Comp *const C)
+{
+    Node *const call = reccall(C);
+
+    if (call != nullptr)
+        return call;
+
     const uint8_t *const p = C->p;
     const uint8_t len = p[1];
     const uint16_t name = comp_nameof(p);
     const uint8_t *const after = comp_skipname(p);
     uint8_t t;
 
-    if (*after == '(') { /* a(i) */
-        t = nrec(C, name, true);
-
-        if (!t)
-            return nullptr;
-
+    if (*after == '(' && (t = nrec(C, name, true))) { /* a(i) */
         C->p = after;
         Node *const n = place(C, O_RA_ADDR, ref_recarray(C, name, t));
 
         if (C->p[0] == '.' && C->p[1] == M_VAR) { /* .f */
-            C->p++;
-            n->rec = path(C, t, C->p + 2, C->p[1]);
+            const uint8_t *const f = ++C->p;
             C->p = decl_item(C->p);
+            n->rec = path(C, n, t, f + 2, f[1]);
         } else
             n->rec = whole(C, t, 0);
 
         return n;
     }
 
-    t = nrec(C, name, false);
-
-    if (t) { /* r */
+    if (*after != '(' && (t = nrec(C, name, false))) { /* r */
         C->p = after;
         Node *const n = place(C, O_R_ADDR, recvar(C, name, t, VI_RECARR));
         n->rec = whole(C, t, 0);
         return n;
     }
 
-    const uint8_t *const text = p + 2; /* r.f: the longest prefix a record's */
+    const uint8_t *const text = p + 2; /* r.f, r.f(i) ours: the longest prefix a record's */
     for (uint32_t i = len - 1; (int32_t)i > 0; i--) {
         if (text[i] != '.')
             continue;
@@ -190,11 +407,52 @@ Node *ref_record(Comp *const C)
             continue;
 
         Node *const n = place(C, O_R_ADDR, recvar(C, pre, t, VI_RECARR));
-        n->rec = path(C, t, text + i + 1, len - i - 1);
         C->p = after;
+        n->rec = path(C, n, t, text + i + 1, len - i - 1);
         return n;
     }
 
+    return nullptr;
+}
+
+Node *ref_record(Comp *const C)
+{
+    Node *const r = record(C);
+
+    if (r != nullptr && r->rec.arr) /* an array, not a value */
+        mismatch(C);
+
+    return r;
+}
+
+/* The name at comp.p a FUNCTION's whose result is an array, ours. */
+static bool arrayresult(Comp *const C)
+{
+    const uint16_t name = comp_nameof(C->p);
+    const Binding *const b =
+        symb_name(C->symb, name)->flags & NM_FUNC ? scop_get(C->scop, name, name) : nullptr;
+
+    return b && (b->et[1] || b->rec[1]);
+}
+
+/* At p a name without a dot, no .f after its (..): no field. */
+static bool nofield(const uint8_t *const p)
+{
+    const uint8_t *const after = comp_skipname(p);
+    return !memchr(p + 2, '.', p[1]) && (*after != '(' || *decl_paren(after) != '.');
+}
+
+Node *ref_fieldarray(Comp *const C, uint8_t *const type)
+{
+    const uint8_t *const p = C->p;
+    Node *const r = comp_cur(C) == M_VAR && !arrayresult(C) && !nofield(p) ? record(C) : nullptr;
+
+    if (r != nullptr && r->rec.arr) {
+        *type = r->rec.et;
+        return expr_addr(C, r, 0);
+    }
+
+    C->p = p;
     return nullptr;
 }
 
@@ -238,12 +496,6 @@ static uint32_t vakind(Comp *const C, const uint16_t id)
     }
 }
 
-/* A record's place: its bytes. */
-static uint32_t field_size(const RecRef *const r)
-{
-    return r->et >= ET_REC || r->et == ET_SD ? r->fix : decl_etsize[r->et];
-}
-
 Node *ref_place(Comp *const C, uint32_t *const vk)
 {
     if (comp_cur(C) != M_VAR)
@@ -253,7 +505,8 @@ Node *ref_place(Comp *const C, uint32_t *const vk)
 
     if (r != nullptr) {
         const RecRef *const rec = &r->rec;
-        *vk = va_pack(rec->et == ET_I2 ? VA_I2 : VA_RAW, field_size(rec));
+        *vk = desc_field(rec) ? va_pack(VA_DESC, 0)
+                              : va_pack(rec->et == ET_I2 ? VA_I2 : VA_RAW, field_size(rec));
         return r;
     }
 
@@ -266,6 +519,21 @@ Node *ref_place(Comp *const C, uint32_t *const vk)
         return place(C, O_V_ADDR, id);
 
     return place(C, O_V_CELL, id); /* its cell set at link: the cells move while linking */
+}
+
+Node *ref_bytes(Comp *const C, uint32_t *const vk)
+{
+    const uint8_t *const at = C->p;
+    Node *const r = ref_place(C, vk);
+    const uint8_t et = r->rec.et;
+
+    if (et >= ET_REC && decl_dynamic(decl_type(C->decl, et - ET_REC))) { /* its bytes not all */
+        C->p = at;
+        C->dg = DG_TYPE_MISMATCH_RECORD;
+        mismatch(C);
+    }
+
+    return r;
 }
 
 uint8_t ref_vtype(Comp *const C, const Node *const at)
@@ -299,7 +567,7 @@ bool ref_len(Comp *const C, uint32_t *const size)
 
         if (r != nullptr) {
             *size = field_size(&r->rec);
-            found = comp_cur(C) == ')';
+            found = comp_cur(C) == ')' && !desc_field(&r->rec);
         } else { /* a scalar: % 2, & ! 4, # 8 */
             const uint16_t id = comp_var(C, 0, 0);
 
@@ -382,42 +650,62 @@ static Node *argnode(Comp *const C, const uint8_t pass, Node *const a, const uin
     return n;
 }
 
-/* Variable id's cell, an argument's ref: a parameter's is its argument's. */
-static Node *cell(Comp *const C, const uint16_t id)
+Node *ref_cell(Comp *const C, const uint16_t id)
 {
     return place(C, symb_is_ref(C->symb, id) ? O_V_REF : O_V_CELL, id);
 }
 
 /* An array parameter's argument: n() an array whole. */
-static Node *arrayarg(Comp *const C, const uint16_t par)
+uint16_t ref_wholearray(Comp *const C)
 {
-    const uint8_t *const arg = C->p;
-
     if (comp_cur(C) != M_VAR)
         synerr(C);
 
-    const uint16_t name = comp_nameof(C->p);
-    const uint8_t *const after = comp_skipname(C->p);
-
-    if (*after != '(')
+    if (*comp_skipname(C->p) != '(')
         synerr(C);
 
-    const uint8_t t = scop_rec(C->scop, name, true);
-    uint16_t id;
-
-    if (t) {
-        C->p = after;
-        id = ref_recarray(C, name, t);
-    } else
-        id = comp_var(C, 0, 0);
+    const uint16_t id = ref_arrayof(C, comp_var(C, 0, 0));
 
     if (!(symb_var(C->symb, id)->info & VI_ARR))
         synerr(C);
 
-    ptm(C, id, par, arg);
     comp_open(C);
     comp_close(C);
-    return argnode(C, PA_ARRAY, cell(C, id), id);
+    return id;
+}
+
+uint16_t ref_arrayvalue(Comp *const C, Node **const call)
+{
+    *call = comp_cur(C) == M_VAR ? ref_result(C) : nullptr;
+    return *call ? (*call)->a->id : ref_wholearray(C);
+}
+
+static Node *arrayarg(Comp *const C, const uint16_t par)
+{
+    const uint8_t *const arg = C->p;
+    uint8_t type;
+    Node *const f = ref_fieldarray(C, &type); /* m.a(), ours */
+
+    if (f != nullptr) {
+        if (type != symb_var(C->symb, par)->type) {
+            C->p = arg;
+            fault_error(C->fault, E_PTM);
+        }
+
+        return argnode(C, PA_ARRAY, f, par);
+    }
+
+    Node *call;
+    const uint16_t id = ref_arrayvalue(C, &call);
+
+    if (symb_is_record(C->symb, id)) {
+        C->p = arg;
+        fault_error(C->fault, E_PTM);
+    }
+
+    ptm(C, id, par, arg);
+    link_given(C, id); /* the callee's REDIM's */
+    return argnode(C, PA_ARRAY, call ? call : ref_cell(C, id), id);
 }
 
 /* A record parameter's argument, by P.REF: a record, an element of a record array, a record field,
@@ -443,7 +731,7 @@ static Node *arg(Comp *const C, const uint16_t par, const bool byval)
 {
     const Var *const pv = symb_var(C->symb, par);
 
-    if (pv->type >= ET_REC && (pv->info & (VI_ARR | VK_MASK)) == VI_RECARR)
+    if (symb_is_record(C->symb, par))
         return recarg(C, par);
     if (pv->info & VI_ARR)
         return arrayarg(C, par);
@@ -485,12 +773,100 @@ static Node *arg(Comp *const C, const uint16_t par, const bool byval)
             if (aend(*after)) { /* a variable alone: its cell */
                 const uint16_t id = comp_var(C, 0, 0);
                 ptm(C, id, par, p);
-                return argnode(C, PA_VAR, cell(C, id), par);
+                return argnode(C, PA_VAR, ref_cell(C, id), par);
             }
         }
     }
 
     return argnode(C, PA_VALUE, expr_arg(C), par);
+}
+
+Node *ref_recplace(Comp *const C, const uint16_t id)
+{
+    Node *const r = place(C, O_R_ADDR, id);
+    r->rec = whole(C, (uint8_t)(symb_var(C->symb, id)->type - ET_REC), 0);
+    return r;
+}
+
+/* The place of record or array id: a record's whole, an array's cell. */
+static Node *resplace(Comp *const C, const uint16_t id)
+{
+    return symb_is_record(C->symb, id) ? ref_recplace(C, id) : ref_cell(C, id);
+}
+
+/* The argument for FUNCTION pr's record or array result, ours: a hidden variable of the caller's,
+   one per call, keyed by its place in the program, by reference. */
+static Node *resarg(Comp *const C, const Proc *const pr)
+{
+    const uint16_t par = blok_resvar(pr);
+    const Var v = *symb_var(C->symb, par);
+    const uint16_t name = comp_hidden(C, RES_NAME, 0, C->line + (uint32_t)(C->p - C->body));
+    const bool stat = C->proc && blok_proc(C->blok, C->proc)->flags & PF_STAT;
+    const uint16_t id = symb_find_var(C->symb, name, v.type, v.info, C->proc, stat);
+    return symb_is_record(C->symb, par) ? argnode(C, PA_PREF, resplace(C, id), par)
+                                        : argnode(C, PA_ARRAY, resplace(C, id), id);
+}
+
+/* The call at comp.p of FUNCTION pr, whose result is a record or an array: its value the place of
+   what its result went to, a (codegen pushes it past the call). */
+static Node *resultcall(Comp *const C, const Proc *const pr)
+{
+    const uint8_t *const p = C->p;
+    uint8_t idx;
+    ref_proc(C, &idx);
+    Node *const call = ref_call(C, p, idx, pr, ARGS_PAREN);
+    call->a = resplace(C, ast_last(call)->a->id);
+    call->rec = call->a->rec;
+    call->type = T_INT;
+    return call;
+}
+
+/* A line checked alone: a call of a FUNCTION not linked yet, its result's type b's, the array's
+   when arr: its arguments passed over; an N_CALL CALL_UNDEF, a the place of a variable of that
+   type. */
+static Node *resunlinked(Comp *const C, const Binding *const b, const bool arr)
+{
+    C->p = comp_skipname(C->p);
+
+    if (*C->p == '(') {
+        C->p++;
+        ref_dropargs(C, true);
+        comp_close(C);
+    }
+
+    const uint8_t t = b->rec[arr];
+    const uint8_t et = t ? (uint8_t)(ET_REC + t) : b->et[arr];
+    const uint8_t kind = !arr ? VI_RECARR : VI_ARR | (t ? 0 : comp_etkind[et]);
+    const uint16_t name = comp_hidden(C, RES_NAME, 0, 0);
+    Node *const n = ast_new(C->ast, N_CALL);
+    n->mode = CALL_UNDEF;
+    n->id = symb_find_var(C->symb, name, et, kind, C->proc, false);
+    n->a = resplace(C, n->id);
+    n->rec = n->a->rec;
+    n->type = T_INT;
+    return n;
+}
+
+Node *ref_result(Comp *const C)
+{
+    const uint16_t name = comp_nameof(C->p);
+    const Name *const nm = symb_name(C->symb, name);
+    const Binding *const b = scop_get(C->scop, name, name); /* its own scope's: its result's type */
+
+    if (!(nm->flags & NM_FUNC) || !b)
+        return nullptr;
+
+    const bool arr = arrayresult(C);
+
+    if (!arr && !b->rec[0]) /* a number's or a string's */
+        return nullptr;
+    if ((nm->proc ? nm->proc == C->proc : scop_own(C->scop) == name) &&
+        (*comp_skipname(C->p) != '(' || arr))
+        return nullptr; /* in it: its result, or an element of an array result */
+    if (nm->proc)
+        return resultcall(C, blok_proc(C->blok, nm->proc));
+
+    return C->check ? resunlinked(C, b, arr) : nullptr;
 }
 
 /* ct_args: for each of the procedure's parameters, its argument, to call n. */
@@ -499,7 +875,7 @@ static void args(Comp *const C, Node *const n, const Proc *const pr)
     const bool def = pr->flags & PF_DEF; /* a DEF FN's: by value */
     Node *last = nullptr;
 
-    for (uint32_t i = 0; i < pr->npar; i++) {
+    for (uint32_t i = 0; i < blok_nargs(pr); i++) {
         if (i) {
             if (comp_cur(C) != ',')
                 synerr(C);
@@ -523,7 +899,10 @@ static bool is_variable(const Comp *const C, const uint16_t name)
 }
 
 Node *ref_call(
-    Comp *const C, const uint8_t *const name, const uint8_t idx, const Proc *const pr,
+    Comp *const C,
+    const uint8_t *const name,
+    const uint8_t idx,
+    const Proc *const pr,
     const ArgsForm form
 )
 {
@@ -539,7 +918,7 @@ Node *ref_call(
         C->p++;
         args(C, n, pr);
         comp_close(C);
-    } else if (pr->npar) { /* its frame would read cells the caller never pushed */
+    } else if (blok_nargs(pr)) { /* its frame would read cells the caller never pushed */
         C->p = name;
 
         if (is_variable(C, comp_nameof(name))) {
@@ -548,6 +927,11 @@ Node *ref_call(
         }
 
         fault_error(C->fault, E_ACM);
+    }
+
+    if (pr->flags & PF_RESARG) { /* ours: the record its result goes to, the last argument */
+        Node *last = ast_last(n);
+        ast_link(n, &last, resarg(C, pr));
     }
 
     return n;

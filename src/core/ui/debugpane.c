@@ -775,8 +775,6 @@ void dpan_hover(const uint8_t row, const uint8_t col)
     dp.tip_col = col;
 }
 
-static bool is_name_char(const uint8_t c) { return c == '.' || is_digit(c) || is_letter(c); }
-
 static bool is_suffix(const uint8_t c) { return c && strchr(sfx_char, c); }
 
 /* dp_word: the name at column col of s, len long, not in a string or after a '. *start its

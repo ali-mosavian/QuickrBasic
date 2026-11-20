@@ -300,3 +300,12 @@ TEST(suggest_past_the_first_names)
     CHECK(suggest(S, "print zv9"));
     CHECK(place("zv99") >= 0);
 }
+
+/* A name with '_', ours: the word went back only to the '_', so max_c suggested c's names. */
+TEST(suggest_underscore_name)
+{
+    static const char *const prog[] = {"10 max_count = 1", "20 count_b = 2", nullptr};
+    unit_store(S, prog);
+    CHECK(suggest(S, "print max_c"));
+    CHECK(place("MAX_COUNT") >= 0 && place("COUNT_B") < 0);
+}

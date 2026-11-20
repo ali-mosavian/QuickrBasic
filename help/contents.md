@@ -28,4 +28,7 @@ keys: contents, table of contents, toc
                                         │ [IDE Additions](ide additions)                │
                                         │ [No Limits](no limits)                    │
                                         │ [Test Scripts](test scripts)                 │
+                                        │ [Records as Values](records as values)            │
+                                        │ [Array Assignment](array assignment)             │
+                                        │ [CONTINUE](CONTINUE)                     │
                                         └────────────────────────────────┘
