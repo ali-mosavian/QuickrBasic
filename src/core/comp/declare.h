@@ -95,8 +95,8 @@ const char *decl_warning(const uint8_t **at);
 const uint8_t *decl_item(const uint8_t *p);  /* dc_item: past the item at p */
 const uint8_t *decl_paren(const uint8_t *p); /* past the ( .. ) at p; p itself when none */
 /* A TYPE's array field's ( [lo TO] hi {, ..} ) at p, ours, each bound [-]n, base the lower one's
-   when none: its dimensions to dims, MAXD at most, their count *n, 0 for (), a dynamic one's;
-   past it, null not one. */
+   when none: its dimensions to dims, MAXDIMS at most, their count *n, 0 for (), a dynamic one's;
+   past it, null not one, *n past MAXDIMS for too many. */
 const uint8_t *decl_dims(const uint8_t *p, uint8_t base, FieldDim *dims, uint8_t *n);
 /* TYPE td holds STRINGs or dynamic arrays, ours: its bytes are not all its data. */
 static inline bool decl_dynamic(const TypeDef *const td) { return td->nstr || td->nslot; }

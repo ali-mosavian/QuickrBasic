@@ -1479,7 +1479,7 @@ static void mids(Comp *const C)
 static bool namestmt(Comp *const C)
 {
     const uint8_t *q = comp_skipname(C->p);
-    FieldDim dims[MAXD];
+    FieldDim dims[MAXDIMS];
     uint8_t nd;
 
     if (*q == '(')

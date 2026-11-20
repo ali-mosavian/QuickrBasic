@@ -1117,6 +1117,11 @@ CASES |= {
     "dims_60": (bas(f"redim b{DIMS}", f"b{DIMS} = 7: print b{DIMS}; ubound(b, 60)"), " 7  0 \r\n", "ERROR"),
     "dims_61": (bas("redim b(" + ",".join("1" * 64) + ")", "print ubound(b, 1)"), ".BAS:1: Too many dimensions", None),
     "dims_61_element": (bas("dim a(3)", "a(" + ",".join("0" * 61) + ") = 1"), ".BAS:2: Too many dimensions", None),
+    # A fixed array in a TYPE: past 16 dimensions a Syntax error.
+    "dims_60_field": (bas("type T", f" w{DIMS} as byte", "end type", "dim p as T", f"p.w{DIMS} = 5: print p.w{DIMS}; len(p)"),
+                      " 5  1 \r\n", "ERROR"),
+    "dims_61_field": (bas("type T", " w(" + ",".join("0" * 61) + ") as byte", "end type"),
+                      ".BAS:2: Too many dimensions", None),
 }
 
 # Typed at the prompt, not run as a file.

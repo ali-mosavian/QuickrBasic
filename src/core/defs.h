@@ -37,8 +37,7 @@ enum {
     SK_DBL = 4,   /* a variable's info: a DOUBLE's */
     VS = 4,       /* a variable's slot, a number's bytes */
     NB = 4,       /* a stored FLOAT's bytes */
-    MAXD = 16,    /* a fixed array field's dimensions at most */
-    MAXDIMS = 60, /* an array's, BC's */
+    MAXDIMS = 60, /* an array's dimensions at most, BC's */
     NTMP = 48,    /* string temporaries */
     NPROC = 256,  /* procedures, 1 .. NPROC-1 */
     NPPAR = 2048, /* their parameters, all */

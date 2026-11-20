@@ -166,8 +166,10 @@ const uint8_t *decl_dims(
                 return nullptr;
         }
 
-        if (*n == MAXD)
+        if (*n == MAXDIMS) {
+            *n = MAXDIMS + 1;
             return nullptr;
+        }
 
         const int64_t count = hi < lo ? 0 : hi - lo + 1; /* 0: Subscript out of range */
         dims[(*n)++] =
@@ -636,13 +638,15 @@ static void decl_field(DeclScan *const ds)
         return;
 
     const uint16_t n = decl_name(ds, nullptr);
-    FieldDim dims[MAXD];
+    FieldDim dims[MAXDIMS];
     uint8_t nd = 0;
     const bool paren = *ds->at == '(';
 
     if (paren) {
         const uint8_t *const past = decl_dims(ds->at, ds->d->base, dims, &nd);
 
+        if (nd > MAXDIMS)
+            decl_fail(ds, E_TMD);
         if (!past)
             return;
 
