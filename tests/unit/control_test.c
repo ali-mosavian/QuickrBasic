@@ -292,3 +292,33 @@ TEST(check_passes_dynamic_field)
         CHECK(!typed_errs(S, typed));
     }
 }
+
+static Status declared;
+static ErrOp declared_op;
+
+static void declare_big_field(Session *const S)
+{
+    uint8_t text[] = "c AS SHORT";
+    S->vm.line = DLINE;
+    lexr_line(&S->lexr, text, S->comp.cbuf);
+    declared = repl_declare_check(S, S->comp.cbuf, &declared_op);
+}
+
+/* A typed line's declaration error, as the editor checks it: it reached the session's top, so the
+   editor showed its message with no words and no place. */
+TEST(typed_declaration_error_returned_at_its_place)
+{
+    static const char *const lines[] = {
+        "10 TYPE T",
+        "20 a AS STRING * 32767",
+        "30 b AS STRING * 32767",
+        nullptr,
+    };
+
+    unit_store(S, lines);
+    declared = ST_OK;
+    CHECK(repl_call(S, declare_big_field) == ST_OK);
+    CHECK(declared == E_TTB);
+    CHECK(declared_op.code == E_TTB && declared_op.at == 0); /* at c, the field */
+    CHECK(!S->vm.err.active);
+}

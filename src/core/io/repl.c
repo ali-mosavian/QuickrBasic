@@ -711,6 +711,28 @@ void repl_declare(Session *const S, const uint8_t *const body)
     decl_line(&S->decl, &S->scop, &S->symb, body, S->prog.entering, S->repl.loading);
 }
 
+Status repl_declare_check(Session *const S, const uint8_t *const body, ErrOp *const op)
+{
+    const bool active = S->vm.err.active;
+    uint8_t *const opip = S->vm.opip;
+    S->vm.opip = nullptr; /* set again: its place known */
+    Catch c;
+    fault_push(&S->fault, &c);
+
+    if (!setjmp(c.jb)) {
+        repl_declare(S, body);
+        fault_pop(&S->fault);
+        c.code = ST_OK;
+    } else {
+        const ErrOp *const e = err_op(S);
+        *op = e ? *e : (ErrOp){.op = O_ERR, .code = (uint8_t)c.code, .state = DX_NOSTATE};
+    }
+
+    S->vm.err.active = active;
+    S->vm.opip = opip;
+    return c.code;
+}
+
 /* The line in comp_cbuf, to be stored at place: its declarations. vm.lnum its number, NONUM
    none; returns its body past the number. */
 static const uint8_t *declare(Session *const S, const uint32_t place)

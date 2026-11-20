@@ -1046,7 +1046,7 @@ static void decl_bound(DeclScan *const ds, const uint8_t *const p)
             return;
     }
 
-    decl_fail(ds, E_AND);
+    decl_fail_at(ds, p + 2, E_AND); /* at the array */
 }
 
 /* To the next statement: past a ':' out of strings; REM's and DATA's text skipped. False: the
