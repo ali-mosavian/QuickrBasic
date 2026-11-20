@@ -1943,6 +1943,45 @@ was = was and i > 50 and i < 57 and p.x - j < -150 and p.x - j > -175
 ' and it is over with its level
 GoStage 6, g, p, lo(), pt()
 if was and Gale = 0 then print "gale ok"
+' the dusk's avalanche, none on the morning: it waits while he is short of its head. Stood 10 past it he is taken
+' 45 ticks on, its front come from 220 behind its head at 300 a second; 30 ticks on, 80 behind him, a spot 30
+' behind its front and 30 over the ground is under its snow, which it was not before. He starts again before it,
+' a life the fewer, and it waits again
+GoStage 6, g, p, lo(), pt()
+was = AvalX = NONE
+GoStage 7, g, p, lo(), pt()
+was = was and AvalX <> NONE
+Ticks = 1920
+Stand p, AvalX - 40, 0
+k.d = -1
+for i = 1 to 100
+    Tick g, p, k, lo(), pt()
+next
+was = was and Aval.st = 0 and not p.dead
+Ticks = 1920
+Stand p, AvalX + 10, 0
+p.x = AvalX + 10
+j = g.lives
+g.shake = 0
+Render g, p, lo(), pt()
+v = point(AvalX - 100 - int(g.camx), cint(p.y) - 30 - int(g.camy))
+for i = 1 to 80
+    Tick g, p, k, lo(), pt()
+    if p.dead then exit for
+    if i = 30 then
+        g.shake = 0
+        Render g, p, lo(), pt()
+        c = point(AvalX - 100 - int(g.camx), cint(p.y) - 30 - int(g.camy))
+    end if
+next
+' the snow's tones are 116 to 118
+was = was and i >= 44 and i <= 46 and (v < 116 or v > 118) and c >= 116 and c <= 118
+for i = 1 to 400
+    Tick g, p, k, lo(), pt()
+    if not p.dead then exit for
+next
+k.d = 0
+if was and i < 400 and g.lives = j - 1 and Aval.st = 0 and p.x < AvalX then print "avalanche ok"
 ' the pass's ski lift: its chair takes him up its cable steadily, to the ground CABLED higher past the pit in
 ' 1 / SEATV seconds, and goes back down once he is off it. He rides and waits crouched: the dusk's gusts would
 ' have him off it
@@ -2349,6 +2388,7 @@ def main() -> None:
         ("sled ok", "a sled is boarded, follows the slope, has no brake, keeps him through a hop, ends in deep snow"),
         ("geyser ok", "in the pass a jet is a geyser, the pass's water: it throws him up as it blows"),
         ("snowball ok", "deep snow rolled through fast makes him a snowball: it takes one hit, and ends with the roll"),
+        ("avalanche ok", "the dusk's avalanche waits till he is past, comes on behind him, takes him where he stops"),
         ("gale ok", "the dusk's gusts bear him back on his feet and in the air, not crouched or curled; snow streams"),
         ("goat ok", "an ice wall stops him; a goat's charge hurts; jumped, it is ridden through, as the ground lies"),
         ("thrower ok", "a snow-thrower's wall throws a roll back; its snowball hurts where he stood; up, it is beaten"),

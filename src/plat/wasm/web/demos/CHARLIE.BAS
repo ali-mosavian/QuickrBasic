@@ -226,6 +226,9 @@ const GOATV = 240!, GOATH = 14, GOATRIDE = 2!, STRAYV = 300!
 ' before it does. On his feet it bears him back, WINDG a second each second on the ground and WINDA in the air,
 ' curled or not, till he goes with it at WINDV; curled or crouched on the ground, or mounted, it passes over him.
 const GUSTP = 192, GUSTON = 72, GUSTTELL = 24, WINDG = 600!, WINDA = 900!, WINDV = 200!, CFLAKE = 118
+' The avalanche: let go as he passes AvalX, its front comes on from AVALLEAD behind at AVALV, the snow AVALH deep
+' behind it, and takes him where it reaches him.
+const AVALV = 300!, AVALLEAD = 220, AVALH = 70, CSNOW = 117, CICE = 123
 ' An ice wall, WALLH tall, stops him WALLR from its middle: only a goat ridden breaks it.
 const KWALL = 37, WALLH = 80, WALLR = 15
 const PRESSH = 112, PRESSUP = 68, PRESSP = 180, PRESSFALL = 90, PRESSRISE = 130, PRESSLAG = 4
@@ -526,6 +529,9 @@ declare sub Things (g as Game, p as Hero, lo() as Loose, pt() as Part)
 declare function Risen% (i as integer)
 declare function Fallen% (i as integer)
 declare function Lull% ()
+declare sub Avalanche (g as Game, p as Hero)
+declare sub DrawAvalanche (cx as integer, cy as integer)
+declare function SnowTop% (x as integer)
 declare sub Buffet (p as Hero)
 declare sub DrawGale ()
 declare sub Graze (i as integer, p as Hero)
@@ -652,6 +658,12 @@ type Rover
 end type
 dim shared Stray as Rover
 dim shared Gale as integer
+' The avalanche's front, and whether it is let go; its head, NONE where a level has none.
+type Front
+    x as single
+    st as integer
+end type
+dim shared Aval as Front, AvalX as integer
 
 Main
 end
@@ -941,6 +953,7 @@ sub LoadLevel (st as integer)
     erase Glaze
     Icing = 0
     Gale = 0
+    AvalX = NONE
     Fallow = 0
     NObj = 0
     NMv = 0
@@ -1139,6 +1152,8 @@ sub LoadLevel (st as integer)
             k = KTHROW
         case "gale"
             Gale = -1
+        case "avalanche"
+            AvalX = c * TS + 8
         case "goat"
             Clearing c
             k = KGOAT
@@ -1456,6 +1471,7 @@ sub Mend
         end if
     next
     Stray.st = 0
+    Aval.st = 0
 end sub
 
 ' How far cable m's far end hangs under its near one: a basket's cable falls, a ski lift's climbs.
@@ -2755,6 +2771,7 @@ sub Tick (g as Game, p as Hero, k as Pad, lo() as Loose, pt() as Part)
             MoveHero p, k, pt()
             Touch g, p, lo(), pt()
             if Stray.st = 2 then Homeward g
+            if AvalX <> NONE then Avalanche g, p
             Flee g, p, lo(), pt()
             if NGulls then Flock g, p, lo(), pt()
             if LobN then Volley g, p, lo(), pt()
@@ -4014,6 +4031,64 @@ function Fallen% (i as integer)
     Fallen% = cint(GRAV * t * t / 2)
 end function
 
+' The avalanche's step: let go as he passes its head, its front comes on, the ground shaking while it is in
+' view, and takes him where it reaches him.
+sub Avalanche (g as Game, p as Hero)
+    if Aval.st = 0 then
+        if p.x < AvalX then exit sub
+        Aval.st = 1
+        Aval.x = AvalX - AVALLEAD
+        g.shake = .5
+        Sfx SCRACK
+    end if
+    Aval.x = Aval.x + AVALV * STEPT
+    if (Ticks and 15) = 0 and Aval.x > g.camx - 40 then g.shake = .12
+    if Aval.x > p.x - 6 then Lose p
+end sub
+
+' The avalanche over the view: its snow from the view's left to its front, AVALH deep on the ground it has
+' covered, paler at its top; its face rounded, its top heaving, balls of snow rolling on both; blocks of ice
+' thrown on ahead of it.
+sub DrawAvalanche (cx as integer, cy as integer)
+    dim x as integer, wx as integer, d as integer, h as integer, y as integer, j as integer
+    if Aval.st = 0 or Aval.x < cx then exit sub
+    for x = 0 to SW - 1 step 4
+        wx = cx + x
+        d = cint(Aval.x) - wx
+        if d <= 0 then exit for
+        h = AVALH
+        if d < 64 then h = cint(AVALH * sqr(d / 64))
+        h = h + cint(4 * sin((wx + Ticks * 3) / 11))
+        y = SnowTop%(wx) - cy - h
+        line (x, y + 22)-(x + 3, SH - 1), CFLAKE, BF
+        line (x, y)-(x + 3, y + 21), CSNOW, BF
+        line (x, y)-(x + 3, y + 1), CWHITE, BF
+        ' a ball on its top every 36 along, turning
+        j = wx \ 36
+        if wx mod 36 < 4 and d > 24 then Blit x - 12, y - 14 + j mod 3 * 4, ISNOWBALL + ((Ticks \ 8 + j) and 1) * 2, 28, 28
+    next
+    ' and down its face, tumbling
+    for j = 0 to 3
+        wx = cint(Aval.x) - 20 + j * 5 - (Ticks * 2 + j * 9) mod 12
+        y = SnowTop%(wx) - cy - 26 - j * 13 + (Ticks + j * 7) mod 10
+        Blit wx - cx - 14, y, ISNOWBALL + ((Ticks \ 6 + j) and 1) * 2, 28, 28
+    next
+    for j = 0 to 4
+        wx = cint(Aval.x) + 8 + j * 11 + (Ticks * (2 + j)) mod 16
+        y = SnowTop%(wx) - cy - 6 - abs((Ticks * (4 + j) + j * 13) mod 36 - 18)
+        line (wx - cx, y)-(wx - cx + 3, y + 3), CICE, BF
+        line (wx - cx, y)-(wx - cx + 3, y), CWHITE
+    next
+end sub
+
+' The ground's top at x, for the snow to lie on.
+function SnowTop% (x as integer)
+    dim y as integer
+    y = Surf%(x, ColTop(x \ TS) * TS + 8)
+    if y = NONE then y = ColTop(x \ TS) * TS
+    SnowTop% = y
+end function
+
 ' The ticks of calm left before the blizzard's next gust: 0 while it blows.
 function Lull% ()
     dim t as integer
@@ -5171,6 +5246,7 @@ sub Render (g as Game, p as Hero, lo() as Loose, pt() as Part)
     if LooseN then DrawLoose cx, cy, lo()
     DrawChase cx, cy
     DrawHero p, cx, cy
+    if AvalX <> NONE then DrawAvalanche cx, cy
     if Gale then DrawGale
     if NGulls then DrawGulls cx, cy
     if LobN then DrawLobs cx, cy
