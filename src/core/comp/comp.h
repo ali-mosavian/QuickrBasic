@@ -80,6 +80,7 @@ typedef struct Comp {
     uint32_t ndfor;
     struct Node *on, *onlast; /* ON's node, its last line */
     uint16_t redim;           /* credim: DIM_REDIM, DIM_PRESERVE or 0 */
+    bool dimtarget;           /* ours: a REDIM's target read: f(bounds) an array field whole */
     uint16_t lnum;            /* wv: a jump's line number, NONUM a label's */
     uint32_t jline;           /* jline: its line, 0 not found */
     uint32_t lnumat;          /* the line number's or label's body offset */
@@ -146,6 +147,11 @@ Status comp_line(Comp *C); /* the direct line in comp_cbuf, to comp_xbuf: comp_t
 Status comp_text(Comp *C, const uint8_t *body);
 /* The statement's steps resolved, folded and generated, in order. */
 void comp_flush(Comp *C);
+/* A hidden name: kind (LOOP_NAME, RES_NAME), which, key; no name typed starts with those bytes. */
+uint16_t comp_hidden(Comp *C, uint8_t kind, uint8_t which, uint32_t key);
+/* A part of the statement starts at comp.p, a statement of its own to a jump: its code's place in
+   the statement map. NEXT a, b's b. */
+void comp_part(Comp *C);
 void comp_dfa(Comp *C, uint16_t state); /* run the statement automaton from state */
 uint8_t comp_expnames(uint16_t state, const char *names[]); /* what state wanted; PS_NC*2 room */
 void comp_expected(Cons *co, uint16_t state);               /* print it, "a, b or c" */
@@ -191,6 +197,12 @@ void comp_need(Comp *C, uint8_t b); /* cm_chk: comp.p at b, stepped past; else S
 static inline void comp_open(Comp *const C) { comp_need(C, '('); }
 static inline void comp_close(Comp *const C) { comp_need(C, ')'); }
 static inline void comp_comma(Comp *const C) { comp_need(C, ','); }
+/* A dimension's subscript or bounds, the k-th: Too many dimensions past MAXDIMS. */
+static inline void comp_dim(Comp *const C, const uint32_t k)
+{
+    if (k > MAXDIMS)
+        fault_error(C->fault, E_TMD);
+}
 void comp_equals(Comp *C);   /* cm_chkeq: comp_need(TK_EQ) */
 bool comp_optcomma(Comp *C); /* past a ',', if there */
 void comp_astype(Comp *C);   /* cm_dvas: past AS type [* n], if there; not a type: Syntax error */

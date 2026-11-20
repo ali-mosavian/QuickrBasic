@@ -66,6 +66,10 @@ static inline uint8_t downcase(const uint8_t c)
 static inline bool is_letter(const uint8_t c) { return (uint8_t)(upcase(c) - 'A') < 26; }
 static inline bool is_digit(const uint8_t c) { return (uint8_t)(c - '0') < 10; }
 static inline bool is_blank(const uint8_t c) { return c == ' ' || c == '\t'; }
+/* A name's character past its first letter, '.' apart: a letter, a digit or '_' (ours). */
+static inline bool is_word_char(const uint8_t c) { return is_letter(c) || is_digit(c) || c == '_'; }
+/* A name's character past its first letter. */
+static inline bool is_name_char(const uint8_t c) { return is_word_char(c) || c == '.'; }
 
 /* The bytes b in [p, p+n), four at a time: byte by byte, symb_size spent 3% of a link. */
 static inline uint32_t count_byte(const uint8_t *p, uint32_t n, const uint8_t b)

@@ -345,14 +345,13 @@ void func_sadd(Session *const S) { S->vm.sp->a = strg_peek(S->vm.sp->a).ptr; }
 /* FIX ( f -- f ): toward 0. */
 void func_fix(Session *const S) { S->vm.sp->u = fmth_fix(S->vm.sp->u); }
 
-/* LBOUND, UBOUND ( id [d] count -- i ): of dimension d, 1 the first. Subscript out of range: no
+/* LBOUND, UBOUND ( cell [d] count -- i ): of dimension d, 1 the first. Subscript out of range: no
    dimension d, or ERASEd. */
 static void bound(Session *const S, const bool upper)
 {
     const uint32_t count = exec_pop(&S->vm).u;
     const uint32_t d = count == 2 ? exec_pop(&S->vm).u : 1;
-    const uint16_t id = (uint16_t)exec_pop(&S->vm).u;
-    const ArrSlot s = *arry_slot(&S->arry, id);
+    const ArrSlot s = *(const ArrSlot *)at(exec_popa(&S->vm));
     const Addr hdr = s.hdr;
 
     if (!hdr) {

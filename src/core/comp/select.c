@@ -59,13 +59,12 @@ static void select_pret(const Symb *const sy, const Blok *const b, uint8_t *cons
     const Proc *const p = blok_proc(b, op[1]);
     const uint16_t res = p->result;
 
-    if (p->flags & PF_ARRAYS ||
-        (p->kind == PK_FUNC && (symb_var(sy, res)->info & VK_MASK) == VK_STR))
+    if (p->flags & PF_ARRAYS || (res && (symb_var(sy, res)->info & VK_MASK) == VK_STR))
         op[0] = O_PRET_X;
-    else if (p->kind == PK_FUNC && symb_in_frame(sy, res)) {
+    else if (res && symb_in_frame(sy, res)) {
         op[0] = O_PRET_FL;
         store32(op + 2, (uint32_t)loc_off(*symb_loc(sy, res)));
-    } else if (p->kind == PK_FUNC) {
+    } else if (res) {
         op[0] = O_PRET_FV;
         store32(op + 2, symb_cell(sy, res));
     }

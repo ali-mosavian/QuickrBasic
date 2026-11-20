@@ -62,6 +62,13 @@ static inline const Proc *blok_proc(const Blok *const b, const uint8_t i)
 {
     return i && i < b->nprocs ? b->procs[i] : &blok_noproc;
 }
+/* Procedure p's parameters the program writes: all but a record or array result's. */
+static inline uint16_t blok_nargs(const Proc *const p)
+{
+    return p->npar - !!(p->flags & PF_RESARG);
+}
+/* A FUNCTION's record or array result's parameter, its variable (PF_RESARG). */
+static inline uint16_t blok_resvar(const Proc *const p) { return p->params[p->npar - 1].var; }
 /* bk_proc: the procedure line is in, 0 none. */
 uint8_t blok_procof(const Blok *b, uint32_t line);
 /* A line at or before position pos: the first of the last procedure that starts there, else the

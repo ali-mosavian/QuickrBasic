@@ -61,10 +61,26 @@ void link_compile(Comp *const C, const uint32_t line)
     comp_text(C, (const uint8_t *)prog_line(C->prog, line) + HDR);
 }
 
-/* A parameter's variable: its type by AS, as decl_line entered the name. */
-static uint16_t link_param(Comp *const C, const Param *const pa)
+/* A record or array result's parameter, at its FUNCTION's name: of the type its AS gave the name,
+   an array's when it had (). */
+static uint16_t link_result(Comp *const C, const uint8_t *const name)
 {
-    const uint8_t *const pv = at(C->prog->base + pa->at);
+    const uint16_t n = comp_nameof(name);
+    const bool arr = scop_type(C->scop, n, true) || scop_rec(C->scop, n, true);
+    const uint8_t t = scop_rec(C->scop, n, arr);
+
+    C->p = name;
+    return comp_var(C, arr ? 2 : 1, t ? (uint8_t)(ET_REC + t) : scop_type(C->scop, n, arr));
+}
+
+/* Parameter k of p's variable: its type by AS, as decl_line entered the name. */
+static uint16_t link_param(Comp *const C, const Proc *const p, const uint16_t k)
+{
+    const uint8_t *const pv = at(C->prog->base + p->params[k].at);
+
+    if (k == blok_nargs(p))
+        return link_result(C, pv);
+
     const uint8_t *q = decl_item(pv);
 
     if (*q == '(')
@@ -101,13 +117,13 @@ static void link_procvars(Comp *const C)
         symb_name(C->symb, p->name)->proc = i;
         comp_proc(C, i);
 
-        if (p->kind == PK_FUNC) {
+        if (p->kind == PK_FUNC && !(p->flags & PF_RESARG)) {
             C->p = at(C->prog->base + p->at); /* its result: a scalar of its name */
             p->result = comp_var(C, 1, 0);
         }
 
         for (uint16_t k = 0; k < p->npar; k++) { /* its ref cell's offset in the frame */
-            const uint16_t id = p->params[k].var = link_param(C, &p->params[k]);
+            const uint16_t id = p->params[k].var = link_param(C, p, k);
             symb_varx(C->symb, id)->par = 1;
             *symb_loc(C->symb, id) = loc_ref((uint32_t)(2 * sizeof(Cell) * (p->npar - 1u - k)));
         }
@@ -596,6 +612,36 @@ static uint32_t each_error(const Comp *const C, LinkEach *const each, void *cons
 
 static void raise_one(void *const fault, const Failure *const f) { fault_raise(fault, *f); }
 
+void link_empty(Comp *const C, const uint16_t var)
+{
+    Link *const k = C->link;
+
+    if (C->line == DLINE || C->check)
+        return;
+
+    for (uint32_t i = 0; i < k->nempty; i++)
+        if (k->empty[i].var == var)
+            return;
+
+    if (k->nempty < LINK_EMPTIES)
+        k->empty[k->nempty++] = (LinkEmpty){.line = C->line, .var = var};
+}
+
+void link_given(Comp *const C, const uint16_t var) { symb_varx(C->symb, var)->given = 1; }
+
+uint32_t link_empties(const Comp *const C, LinkEmptyEach *const each, void *const ctx)
+{
+    uint32_t n = 0;
+
+    for (uint32_t i = 0; i < C->link->nempty; i++)
+        if (!symb_varx(C->symb, C->link->empty[i].var)->given) {
+            each(ctx, &C->link->empty[i]);
+            n++;
+        }
+
+    return n;
+}
+
 void link_walk(const uint8_t *code, void (*each)(uint8_t op, const uint8_t *at))
 {
     for (; *code != O_EOL; code += flow_opsize(code))
@@ -625,6 +671,10 @@ static void build(Comp *const C)
         allo_grow(C->allo, HCACHE, guess);
 
     C->errs = false;
+    C->link->nempty = 0;
+
+    for (uint16_t id = 1; id < C->symb->nvars; id++)
+        symb_varx(C->symb, id)->given = 0;
 
     do { /* the cache grown moves the store: a literal's Addr of its text, compiled again */
         base = C->prog->base;

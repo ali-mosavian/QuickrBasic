@@ -284,15 +284,20 @@ static void chkop(const uint8_t op, const uint8_t *const at)
 }
 
 /* The body at uc.pre, n characters, tokenized into comp_cbuf, its declarations entered; the
-   tokens' length. */
-static uint32_t tokenize(Session *const S, const uint32_t n)
+   tokens' length in *len. False: a declaration's error, its column in uc.ecol. */
+static bool tokenize(Session *const S, const uint32_t n, uint32_t *const len)
 {
     memcpy(edit_lb_need(S, &uimn.line, n), uc.pre, n + 1);
     S->vm.line = DLINE;
-    const uint32_t len =
-        (uint32_t)(lexr_line(&S->lexr, uimn.line.text, S->comp.cbuf) - S->comp.cbuf);
-    repl_declare(S, S->comp.cbuf); /* a typed SUB known to the lines after */
-    return len;
+    *len = (uint32_t)(lexr_line(&S->lexr, uimn.line.text, S->comp.cbuf) - S->comp.cbuf);
+    ErrOp op;
+
+    if (repl_declare_check(S, S->comp.cbuf, &op) ==
+        ST_OK) /* a typed SUB known to the lines after */
+        return true;
+
+    uc.ecol = edit_dxerr(S, uc.src, &op);
+    return false;
 }
 
 /* The body compiled for its syntax; false: an error, its column in uc.ecol. */
@@ -332,8 +337,10 @@ bool edit_canon(Session *const S, uint8_t *const text, const uint16_t len, uint3
 
     if (*body) {
         uc.pre = body;
-        const uint32_t n = tokenize(S, (uint32_t)(text + len - body));
+        uint32_t n;
 
+        if (!tokenize(S, (uint32_t)(text + len - body), &n))
+            return false;
         if (uimn.text.check && !check(S))
             return false;
         if (captured(S, print_line) <= LNMAX) {

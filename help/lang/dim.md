@@ -32,6 +32,10 @@ DIM of a name already in use is Duplicate definition. A dynamic
 array can be resized with [REDIM](REDIM) and dropped with
 [ERASE](ERASE). Arrays are limited only by memory, not 64 KB.
 
+QuickrBasic adds DIM name() [AS type]: a dynamic array with no
+elements until [REDIM](REDIM) or an [array assignment](array assignment).
+Running a file warns of one that no line REDIMs, assigns or passes.
+
 ## Example
     DIM SHARED total AS DOUBLE
     DIM grid(1 TO 8, 1 TO 8) AS INTEGER

@@ -86,7 +86,11 @@ void vgfx_s2(Session *const S)
 }
 
 /* ( x y -- ) INTs: the runtime's INTEGER point where both fit one, else its SINGLE's, as a DOUBLE converted. */
-static void vgfx_ixy(Vm *const vm, void (*const whole)(short, short), void (*const single)(float, float))
+static void vgfx_ixy(
+    Vm *const vm,
+    void (*const whole)(short, short),
+    void (*const single)(float, float)
+)
 {
     const int32_t y = exec_popi(vm);
     const int32_t x = exec_popi(vm);
@@ -167,7 +171,7 @@ static Span vgfx_array(Session *const S)
         repl_error(S, E_IQ);
 
     const Addr data = ((const ArrayHdr *)at(hdr))->data;
-    const Addr end = data + arry_size(&S->arry, id, hdr);
+    const Addr end = data + arry_size(&S->arry, hdr);
     const Addr from = el ? el : data;
 
     if (from < data || from >= end)

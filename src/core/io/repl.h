@@ -6,6 +6,7 @@
 #include "fault.h"
 #include "comp/lexer.h"
 #include "plat/pfil.h"
+#include "vm/exec.h"
 
 /* setjmp(*repl.top)'s values */
 enum { REPL_CALLED = 0, REPL_READY = 1, REPL_ERROR = 2 };
@@ -56,6 +57,9 @@ Status repl_call(Session *S, void (*fn)(Session *S));
 uint16_t repl_intern(LexrNames *names, const uint8_t *text, uint8_t len);
 /* The line's declarations entered, after its 32-bit warnings to the front end. */
 void repl_declare(Session *S, const uint8_t *body); /* body lexr_line's last */
+/* repl_declare, its error returned, not raised: ST_OK, else the error and *op its ERR op, at its
+   place in body when known. */
+Status repl_declare_check(Session *S, const uint8_t *body, ErrOp *op);
 /* Session.fault's raise: a module's error, reported as repl_error does, at its line when the block pass found it. */
 [[noreturn]]
 void repl_fault(Fault *f, const Failure *e);

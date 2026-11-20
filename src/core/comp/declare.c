@@ -52,9 +52,10 @@ typedef struct {
     Decl *d;
     Scop *sc;
     Symb *sy;
-    uint32_t line; /* the line entered */
-    bool loading;  /* from a file: a DEFtype is an event */
-    bool deft_only; /* decl_defevents': the names' uses not noted */
+    uint32_t line;       /* the line entered */
+    bool loading;        /* from a file: a DEFtype is an event */
+    bool deft_only;      /* decl_defevents': the names' uses not noted */
+    const uint8_t *body; /* the line entered's, its errors' places in it; null none */
     const uint8_t *at;
 } DeclScan;
 
@@ -99,6 +100,84 @@ const uint8_t *decl_item(const uint8_t *p)
     default:
         return p + 1;
     }
+}
+
+const uint8_t *decl_paren(const uint8_t *p)
+{
+    if (*p != '(')
+        return p;
+
+    for (uint32_t n = 0;;) {
+        const uint8_t c = *p;
+
+        if (!c)
+            return p;
+        if (c == '(')
+            n++;
+
+        p = decl_item(p);
+
+        if (c == ')' && !--n)
+            return p;
+    }
+}
+
+/* A bound at *p, [-]n: its value, *p past it; false: not one. */
+static bool dims_bound(const uint8_t **const p, int64_t *const v)
+{
+    const uint8_t *q = *p;
+    const bool neg = *q == TK_MINUS;
+    q += neg;
+
+    if (*q != M_INT)
+        return false;
+
+    const int64_t n = (int32_t)load32(q + 1);
+    *v = neg ? -n : n;
+    *p = q + INT_TOKEN_SIZE;
+    return true;
+}
+
+const uint8_t *decl_dims(
+    const uint8_t *p,
+    const uint8_t base,
+    FieldDim *const dims,
+    uint8_t *const n
+)
+{
+    if (*p != '(')
+        return nullptr;
+
+    p++;
+    *n = 0;
+
+    if (*p == ')') /* a dynamic array's */
+        return p + 1;
+
+    do {
+        int64_t lo = base, hi;
+
+        if (!dims_bound(&p, &hi))
+            return nullptr;
+        if (*p == TK_TO) {
+            p++;
+            lo = hi;
+
+            if (!dims_bound(&p, &hi))
+                return nullptr;
+        }
+
+        if (*n == MAXDIMS) {
+            *n = MAXDIMS + 1;
+            return nullptr;
+        }
+
+        const int64_t count = hi < lo ? 0 : hi - lo + 1; /* 0: Subscript out of range */
+        dims[(*n)++] =
+            (FieldDim){(int32_t)lo, count > UINT16_MAX ? UINT16_MAX + 1u : (uint32_t)count};
+    } while (*p == ',' && p++);
+
+    return *p == ')' ? p + 1 : nullptr;
 }
 
 /* The name at s (M_VAR), stepped past; *sfx its suffix, 0 none. */
@@ -215,10 +294,19 @@ const uint8_t *decl_step(const uint8_t *p)
     }
 }
 
+/* Error code at p in the line entered. */
+[[noreturn]]
+static void decl_fail_at(const DeclScan *const ds, const uint8_t *const p, const uint8_t code)
+{
+    const uint32_t at = ds->body ? (uint32_t)(p - ds->body) : FAULT_KEEP;
+    fault_raise(ds->d->fault, (Failure){.code = code, .at = at, .line = FAULT_KEEP});
+}
+
+/* Error code at the scan's cursor. */
 [[noreturn]]
 static void decl_fail(const DeclScan *const ds, const uint8_t code)
 {
-    fault_error(ds->d->fault, code);
+    decl_fail_at(ds, ds->at, code);
 }
 
 /* Room in the array *t of n used, *cap, each size bytes, for one more. */
@@ -324,6 +412,8 @@ static void decl_shareddim(DeclScan *const ds, const uint16_t n)
         decl_fail(ds, E_RD);
 }
 
+static void decl_as(DeclScan *ds, Binding *b, uint16_t n, bool arr);
+
 /* One of DIM's names, a parameter: its binding, ( ) an array's, AS type [* n]. */
 static void decl_dim1(DeclScan *const ds, const uint16_t n)
 {
@@ -347,6 +437,12 @@ static void decl_dim1(DeclScan *const ds, const uint16_t n)
         } while (depth);
     }
 
+    decl_as(ds, b, n, arr);
+}
+
+/* AS type [* n] at ds.at, name n's: its binding b's, the array's when arr. */
+static void decl_as(DeclScan *const ds, Binding *const b, const uint16_t n, const bool arr)
+{
     if (*ds->at != TK_AS)
         return;
     if (b->flags == BF_USE) /* used with a suffix before */
@@ -469,7 +565,82 @@ static void decl_typedef(DeclScan *const ds)
     d->types[t] = td;
 }
 
-/* In a TYPE: f AS type [* n]. */
+/* Field f's fixed array, ours: its dimensions, nd of them, on Decl.dims; its elements. Subscript out
+   of range: a bound past the other; errors at name, the field's. */
+static uint32_t decl_fielddims(
+    DeclScan *const ds,
+    Field *const f,
+    const FieldDim *const dims,
+    const uint8_t nd,
+    const uint8_t *const name
+)
+{
+    Decl *const d = ds->d;
+    uint64_t elems = 1;
+    f->ndim = nd;
+    f->dim = (uint16_t)d->ndims;
+
+    for (uint32_t k = 0; k < nd; k++) {
+        if (!dims[k].count)
+            decl_fail_at(ds, name, E_BS);
+        if (d->ndims > UINT16_MAX)
+            decl_fail(ds, E_OM);
+
+        decl_room(ds, (void **)&d->dims, d->ndims, &d->dimcap, sizeof *d->dims);
+        d->dims[d->ndims++] = dims[k];
+        elems *= dims[k].count;
+
+        if (elems > UINT16_MAX)
+            decl_fail_at(ds, name, E_TTB);
+    }
+
+    d->dimmed = true;
+    return (uint32_t)elems;
+}
+
+/* Offset off on the list *t of *n, room *cap. */
+static void decl_offset(
+    DeclScan *const ds,
+    uint16_t **const t,
+    uint32_t *const n,
+    uint32_t *const cap,
+    const uint32_t off
+)
+{
+    decl_room(ds, (void **)t, *n, cap, sizeof **t);
+    (*t)[(*n)++] = (uint16_t)off;
+}
+
+/* Field f's STRINGs and dynamic arrays, of elems elements of size bytes, on td's lists: a STRING's
+   Desc, a dynamic array's cell, a record's own. */
+static void decl_fielddeep(
+    DeclScan *const ds,
+    TypeDef *const td,
+    const Field *const f,
+    const uint32_t elems,
+    const uint32_t size
+)
+{
+    if (f->dyn) { /* its elements' are in its data */
+        decl_offset(ds, &td->slots, &td->nslot, &td->slotcap, f->off);
+        return;
+    }
+
+    const TypeDef *const sub = f->sub ? ds->d->types[f->sub] : nullptr;
+
+    for (uint32_t k = 0; k < elems; k++) {
+        const uint32_t at = f->off + k * size;
+
+        if (!sub && f->et == ET_SD && !f->fix)
+            decl_offset(ds, &td->strs, &td->nstr, &td->strcap, at);
+        for (uint32_t i = 0; sub && i < sub->nstr; i++)
+            decl_offset(ds, &td->strs, &td->nstr, &td->strcap, at + sub->strs[i]);
+        for (uint32_t i = 0; sub && i < sub->nslot; i++)
+            decl_offset(ds, &td->slots, &td->nslot, &td->slotcap, at + sub->slots[i]);
+    }
+}
+
+/* In a TYPE: f[(bounds)] AS type [* n]; the bounds ours, STRING alone ours. */
 static void decl_field(DeclScan *const ds)
 {
     const uint16_t t = ds->d->type;
@@ -477,7 +648,22 @@ static void decl_field(DeclScan *const ds)
     if (!t)
         return;
 
+    const uint8_t *const name = ds->at;
     const uint16_t n = decl_name(ds, nullptr);
+    FieldDim dims[MAXDIMS];
+    uint8_t nd = 0;
+    const bool paren = *ds->at == '(';
+
+    if (paren) {
+        const uint8_t *const past = decl_dims(ds->at, ds->d->base, dims, &nd);
+
+        if (nd > MAXDIMS)
+            decl_fail_at(ds, name, E_TMD);
+        if (!past)
+            return;
+
+        ds->at = past;
+    }
 
     if (*ds->at != TK_AS)
         return;
@@ -488,7 +674,8 @@ static void decl_field(DeclScan *const ds)
     decl_room(ds, (void **)&td->fields, td->nfld, &td->cap, sizeof *td->fields);
     ds->d->nfields++;
     Field *const f = &td->fields[td->nfld++];
-    *f = (Field){.name = n, .off = td->size}; /* at the TYPE's end */
+    *f = (Field){.name = n, .off = td->size, .dyn = paren && !nd}; /* at its end */
+    const uint32_t elems = decl_fielddims(ds, f, dims, nd, name);
     uint16_t size;
     const uint8_t c = ds->at[1];
 
@@ -514,14 +701,26 @@ static void decl_field(DeclScan *const ds)
         ds->at += 2;
 
         if (f->et == ET_SD) {
-            size = 0;
+            size = DSZ; /* STRING alone: its Desc */
 
-            if (*ds->at == TK_MUL && ds->at[1] == M_INT) /* STRING * n */
+            if (*ds->at == TK_MUL && ds->at[1] == M_INT) { /* STRING * n */
                 size = f->fix = (uint16_t)load32(ds->at + 2);
+
+                if (!size)
+                    decl_fail(ds, E_IQ);
+            }
         }
     }
 
-    td->size += size;
+    if (f->dyn && f->fix) /* STRING * n elements: not a dynamic field's */
+        decl_fail_at(ds, name, E_TM);
+    if (f->dyn)
+        size = sizeof(ArrSlot);
+    if (td->size + (uint64_t)size * elems > UINT16_MAX)
+        decl_fail_at(ds, name, E_TTB);
+
+    decl_fielddeep(ds, td, f, elems, size);
+    td->size += (uint16_t)(size * elems);
 }
 
 /* OPTION BASE n, OPTION EXPLICIT. */
@@ -544,6 +743,25 @@ static void decl_option(DeclScan *const ds)
     ds->at += 2 + INT_TOKEN_SIZE;
 }
 
+/* A FUNCTION's AS type [()], ours, past its parameters: its name n's in its own scope, () an array's.
+   The definition's (define) is the type, BF_RES; a DECLARE's holds only until it. */
+static void decl_result(DeclScan *const ds, const uint16_t n, const bool define)
+{
+    Binding *const b = scop_bind(ds->sc, n, n);
+
+    if (*ds->at == ')')
+        ds->at++;
+    if (define) {
+        memset(b->et, 0, sizeof b->et);
+        memset(b->rec, 0, sizeof b->rec);
+        memset(b->fix, 0, sizeof b->fix);
+        b->flags |= BF_RES;
+    }
+
+    if (*ds->at == TK_AS && (define || !(b->flags & BF_RES)))
+        decl_as(ds, b, n, *decl_item(ds->at + 1) == '(');
+}
+
 /* DECLARE SUB|FUNCTION n: its flag; its parameters in its own scope. */
 static void decl_declare(DeclScan *const ds)
 {
@@ -562,6 +780,9 @@ static void decl_declare(DeclScan *const ds)
     symb_name(ds->sy, n)->flags |= flag;
     ds->d->scope = n;
     decl_params(ds);
+
+    if (flag == NM_FUNC)
+        decl_result(ds, n, false);
 }
 
 /* DEF FNn (params): their types; its name its own. */
@@ -598,6 +819,9 @@ static void decl_subfn(DeclScan *const ds, const uint8_t flag)
     ds->d->proc = n;
     ds->d->scope = n;
     decl_params(ds);
+
+    if (flag == NM_FUNC)
+        decl_result(ds, n, true);
 }
 
 /* SHARED (BF_REF), STATIC (BF_STAT) n[()] [AS t] {, ..} */
@@ -738,7 +962,8 @@ static void decl_const(DeclScan *const ds)
                 depth--;
             if (c == '"')
                 et = ET_SD;
-            if ((c == '.' || is_digit(c)) && et != ET_SD) { /* a number's spelling: a DOUBLE's by D, # or digits */
+            if ((c == '.' || is_digit(c)) &&
+                et != ET_SD) { /* a number's spelling: a DOUBLE's by D, # or digits */
                 uint8_t kind;
                 const uint8_t *p = ds->at;
 
@@ -747,8 +972,10 @@ static void decl_const(DeclScan *const ds)
                 ds->at = p;
                 continue;
             }
+
             if (c == TK_DIV && et != ET_SD && et != ET_R8)
                 et = ET_R4;
+
             ds->at = decl_item(ds->at);
         }
 
@@ -790,10 +1017,21 @@ static void decl_arrayuse(DeclScan *const ds, const uint8_t *const p)
         decl_array(ds, comp_nameof(p), ds->d->proc);
 }
 
-/* LBOUND or UBOUND at p: of an array known in decl.proc's scope, or one the module shares. */
+/* The name at p r.f..: its text to a dot a record's, ours. */
+static bool decl_recpath(DeclScan *const ds, const uint8_t *const p)
+{
+    for (uint8_t i = 1; i < p[1]; i++)
+        if (p[2 + i] == '.' && symb_name(ds->sy, symb_find_name(ds->sy, p + 2, i))->flags & NM_REC)
+            return true;
+
+    return false;
+}
+
+/* LBOUND or UBOUND at p: of an array known in decl.proc's scope, or one the module shares; a
+   record's array field the compiler's to check. */
 static void decl_bound(DeclScan *const ds, const uint8_t *const p)
 {
-    if (p[1] != '(' || p[2] != M_VAR)
+    if (p[1] != '(' || p[2] != M_VAR || decl_recpath(ds, p + 2))
         return;
 
     const uint16_t n = comp_nameof(p + 2);
@@ -808,7 +1046,7 @@ static void decl_bound(DeclScan *const ds, const uint8_t *const p)
             return;
     }
 
-    decl_fail(ds, E_AND);
+    decl_fail_at(ds, p + 2, E_AND); /* at the array */
 }
 
 /* To the next statement: past a ':' out of strings; REM's and DATA's text skipped. False: the
@@ -862,6 +1100,7 @@ void decl_line(
         .sy = sy,
         .line = line,
         .loading = loading,
+        .body = body,
         .at = body,
     };
 

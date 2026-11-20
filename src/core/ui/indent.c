@@ -51,7 +51,7 @@ static void indt_word(Cur *const c, char *const w)
     indt_blanks(c);
     uint32_t n = 0;
 
-    while (c->p < c->end && (is_letter(*c->p) || is_digit(*c->p) || *c->p == '$')) {
+    while (c->p < c->end && (is_word_char(*c->p) || *c->p == '$')) {
         if (n < WORD - 1)
             w[n++] = (char)upcase(*c->p);
 

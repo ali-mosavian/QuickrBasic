@@ -22,6 +22,10 @@ bounds, with DIM or REDIM, or in a $DYNAMIC part of the program.
 With PRESERVE the old values are kept. Only the last dimension may
 change then, and the number of dimensions stays.
 
+A record's dynamic array element is REDIMed as v.pts(1 TO n), in
+QuickrBasic; see [TYPE](TYPE). In a FUNCTION AS type(), REDIM of the
+FUNCTION's name gives its result array its bounds.
+
 The type and the number of dimensions cannot change: "Array already
 dimensioned". A static array cannot be REDIMed at all; ERASE it first
 or declare it dynamic.

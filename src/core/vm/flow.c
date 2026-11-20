@@ -492,12 +492,16 @@ static void end_call(
 {
     const Call c = f->call;
 
-    if (p->flags & PF_ARRAYS)
-        for (uint16_t id = sy->first_local[c.proc]; id; id = symb_varx(sy, id)->nloc) {
-            if (is_array(symb_var(sy, id)) && symb_is_local(sy, id) &&
-                arry_heap(ar, ((ArrSlot *)at(loc_frame_at(*symb_loc(sy, id), c.fp)))->hdr))
-                arry_free(ar, vm, id, 0); /* a frame's goes with the frame */
-        }
+    if (p->flags & PF_ARRAYS) {
+        for (uint16_t id = sy->first_local[c.proc]; id; id = symb_varx(sy, id)->nloc)
+            if (is_array(symb_var(sy, id)) && symb_is_local(sy, id)) {
+                ArrSlot *const s = (ArrSlot *)at(loc_frame_at(*symb_loc(sy, id), c.fp));
+                arry_kill(ar, s->hdr); /* a frame's goes with the frame */
+                s->hdr = 0;
+            }
+
+        arry_sweep(ar, vm);
+    }
 
     pop_to(vm, f);
     vm->sp = (Cell *)at(c.fp) + 2 * c.npar;
@@ -518,7 +522,7 @@ void flow_pret(Session *const S)
         repl_error(S, E_RG);
 
     const Proc *const p = blok_proc(&S->blok, f->call.proc);
-    const bool fn = p->kind == PK_FUNC;
+    const bool fn = p->result; /* a record result is in the caller's place already */
     const bool text = fn && is_string(symb_var(&S->symb, p->result));
     Cell result = {};
 

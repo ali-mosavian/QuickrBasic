@@ -7,6 +7,11 @@
  * by position. A clause joins its block's chain; when the block closes, every entry on the
  * chain gets the target that leaves it. SUB, FUNCTION and DEF FN each get a Proc.
  *
+ * EXIT leaves the innermost loop of its kind, CONTINUE goes to that loop's closing statement
+ * (NEXT, LOOP, WEND), which steps and tests as ever. A FOR's may name its counter: an outer loop.
+ * Each counter of NEXT a, b is a part of its own, a statement to a jump (comp_part): leaving a's
+ * loop comes to b's NEXT.
+ *
  * A target is a position * 4 + a mode: 0 the statement, 1 past the JMP it starts with, 2 the
  * statement after it. The direct line's has PDIR and its body offset. A jump op holds it as a
  * TJUMP.
@@ -83,6 +88,9 @@ static const uint8_t leftopen[] = {
     [BK_SELECT] = E_SWE,
     [BK_FOR] = E_FWN,
 };
+
+/* By the word after EXIT or CONTINUE: its loop's BK_*, 0 not a loop's. */
+static const uint8_t loopkind[256] = {[TK_FOR] = BK_FOR, [TK_DO] = BK_DO, [TK_WHILE] = BK_WHILE};
 
 /* By the word after END: does it end a procedure? */
 static const bool endproc[256] = {[TK_SUB] = true, [TK_FUNCTION] = true, [TK_DEF] = true};
@@ -280,11 +288,16 @@ static void blok_clause(
     o->chain = e;
 }
 
-/* The block o closes: its chain's clauses, its EXITs leave to t. */
-static void blok_exits(BlokScan *const sc, const BlokOpen *const o, const uint32_t t)
+/* The block o closes: its chain's clauses and EXITs leave to t, its CONTINUEs go to again. */
+static void blok_exits(
+    BlokScan *const sc,
+    const BlokOpen *const o,
+    const uint32_t t,
+    const uint32_t again
+)
 {
     for (BlockEnt *c = o->chain; c; c = c->link)
-        c->done = t;
+        c->done = c->kind == BK_CONT ? again : t;
 
     sc->depth--;
 }
@@ -295,7 +308,8 @@ static void blok_close(BlokScan *const sc, const BlokOpen *const o)
     if (!o->elsed)
         o->last->next = blok_target(sc, sc->off, TO_STMT);
 
-    blok_exits(sc, o, blok_target(sc, sc->off, TO_STMT));
+    const uint32_t t = blok_target(sc, sc->off, TO_STMT);
+    blok_exits(sc, o, t, t);
 }
 
 static void blok_endif(BlokScan *const sc)
@@ -305,27 +319,36 @@ static void blok_endif(BlokScan *const sc)
     blok_close(sc, o);
 }
 
+/* The counter of the FOR o: its name's token; null when no name follows FOR. */
+static const uint8_t *blok_counter(const BlokScan *const sc, const BlokOpen *const o)
+{
+    const uint8_t *const f = at(sc->pg->base + o->open->pos + 1); /* FOR v */
+    return *f == M_VAR ? f : nullptr;
+}
+
+/* The names at a and b are one variable's: the name and its suffix. */
+static bool blok_same(const uint8_t *const a, const uint8_t *const b)
+{
+    return comp_nameof(a) == comp_nameof(b) && comp_suffixof(a) == comp_suffixof(b);
+}
+
 /* NEXT closes the innermost FOR, which counts with the variable at v (null any). Its entry, after
    prev (the NEXT's last, null none): next its FOR's body, sel its FOR. */
 static BlockEnt *blok_next(BlokScan *const sc, const uint8_t *const v, BlockEnt *const prev)
 {
     const BlokOpen *const o = blok_top(sc, BK_FOR, E_NF);
+    const uint8_t *const f = blok_counter(sc, o);
 
-    if (v) {
-        const uint8_t *const f = at(sc->pg->base + o->open->pos + 1); /* FOR v */
-        if (*f == M_VAR) {
-            if (comp_nameof(f) != comp_nameof(v) || comp_suffixof(f) != comp_suffixof(v))
-                blok_fail(
-                    sc,
-                    E_NF,
-                    DG_NEXT_WITHOUT_FOR_MISMATCH,
-                    (uint32_t)(v - sc->body),
-                    sc->line,
-                    (const char *)f + 2,
-                    f[1]
-                ); /* the caret at NEXT's, {other} the FOR's */
-        }
-    }
+    if (v && f && !blok_same(f, v))
+        blok_fail(
+            sc,
+            E_NF,
+            DG_NEXT_WITHOUT_FOR_MISMATCH,
+            (uint32_t)(v - sc->body),
+            sc->line,
+            (const char *)f + 2,
+            f[1]
+        ); /* the caret at NEXT's, {other} the FOR's */
 
     BlockEnt *e;
 
@@ -340,9 +363,11 @@ static BlockEnt *blok_next(BlokScan *const sc, const uint8_t *const v, BlockEnt 
     e->sel = o->open;
     e->next = o->open->pos * 4 + TO_NEXT_STMT;
 
-    const uint32_t t = blok_target(sc, sc->off, TO_NEXT_STMT);
+    /* a counter after the first is a part of its own, at its name: the loop before leaves to it */
+    const uint32_t part = prev && v ? (uint32_t)(v - sc->body) : sc->off;
+    const uint32_t t = blok_target(sc, part, TO_NEXT_STMT);
     o->open->done = t;
-    blok_exits(sc, o, t);
+    blok_exits(sc, o, t, blok_target(sc, part, TO_STMT));
     return e;
 }
 
@@ -399,6 +424,20 @@ static const uint8_t *blok_pastparams(const uint8_t *q)
     return q;
 }
 
+/* FUNCTION p's result AS a TYPE or an array, ours: a parameter past its own, at its name; the
+   caller passes the record or the array for it. */
+static void blok_resultarg(BlokScan *const sc, Proc *const p)
+{
+    Param *const params = blok_alloc(sc, (p->npar + 1u) * sizeof *params);
+
+    for (uint16_t k = 0; k < p->npar; k++)
+        params[k] = p->params[k];
+
+    params[p->npar++] = (Param){.at = p->at};
+    p->params = params;
+    p->flags |= PF_RESARG;
+}
+
 /* SUB, FUNCTION, DEF FN at s: a procedure's entry. Its variables are link_start's. */
 static void blok_procstmt(BlokScan *const sc, const uint8_t *const s, const uint8_t kind)
 {
@@ -443,6 +482,20 @@ static void blok_procstmt(BlokScan *const sc, const uint8_t *const s, const uint
         q = blok_pastparams(q);
     }
 
+    if (kind == PK_FUNC && *q == TK_AS) { /* ours */
+        const uint8_t *const after = decl_item(q + 1);
+        const bool arr = after[0] == '(' && after[1] == ')';
+
+        if (q[1] == M_VAR && !symb_name(sc->sy, comp_nameof(q + 1))->rec) /* no such TYPE */
+            blok_fail(sc, E_SN, 0, defoff + (uint32_t)(q + 1 - s), sc->line, nullptr, 0);
+        if (q[1] == M_VAR || arr) { /* its body past the JMP: the result emptied there */
+            blok_resultarg(sc, p);
+            p->entry = blok_target(sc, defoff, PAST_JMP);
+        }
+
+        q = arr ? after + 2 : after;
+    }
+
     if (*q == TK_STATIC)
         p->flags |= PF_STAT;
     if (sc->isdef) {
@@ -470,7 +523,59 @@ static void blok_loopend(
     e->next = o->open->pos * 4 + TO_STMT;
     const uint32_t t = blok_target(sc, sc->off, TO_NEXT_STMT);
     o->open->done = t;
-    blok_exits(sc, o, t);
+    blok_exits(sc, o, t, blok_target(sc, sc->off, TO_STMT));
+}
+
+/* EXIT or CONTINUE (kind: BK_EXIT, BK_CONT; err its error) of the loop whose word is at w, a FOR's
+   counter after it or none: on the chain of the innermost such loop. Not a loop's word: nothing
+   (EXIT SUB ..). */
+static void blok_leave(
+    BlokScan *const sc,
+    const uint8_t *const w,
+    const uint8_t kind,
+    const uint8_t err
+)
+{
+    const uint8_t loop = loopkind[*w];
+    const uint8_t *const v = loop == BK_FOR && w[1] == M_VAR ? w + 1 : nullptr;
+
+    if (!loop)
+        return;
+
+    bool open = false;
+
+    for (uint32_t k = sc->depth; k-- > 0;) {
+        BlokOpen *const o = &sc->open[k];
+
+        if (o->kind != loop)
+            continue;
+
+        open = true;
+        const uint8_t *const f = blok_counter(sc, o);
+
+        if (v && f && !blok_same(f, v))
+            continue;
+
+        BlockEnt *const e = blok_add(sc, kind);
+        e->aux = loop;
+        e->link = o->chain;
+        o->chain = e;
+        return;
+    }
+
+    if (open) /* in such loops, none counting with v: the caret at it */
+        blok_fail(
+            sc,
+            err,
+            err == E_EXW ? DG_EXIT_NOT_WITHIN_MATCHING_BLOCK_COUNTER
+                         : DG_CONTINUE_NOT_WITHIN_MATCHING_BLOCK_COUNTER,
+            (uint32_t)(v - sc->body),
+            sc->line,
+            nullptr,
+            0
+        );
+
+    blok_failw(sc, err, 0, words[loop]);
 }
 
 /* The statement at s: a block statement's entry and the stack. */
@@ -571,22 +676,16 @@ static void blok_stmt(BlokScan *const sc, const uint8_t *const s)
         blok_next(sc, v, e);
         return;
     }
-    case TK_EXIT: { /* EXIT FOR, EXIT DO: on the chain of the innermost such block */
-        const uint8_t kind = s[1] == TK_FOR ? BK_FOR : s[1] == TK_DO ? BK_DO : 0;
+    case TK_EXIT:
+        blok_leave(sc, s + 1, BK_EXIT, E_EXW);
+        return;
 
-        if (!kind)
-            return; /* EXIT SUB ..: not a block's */
-        for (uint32_t k = sc->depth; k-- > 0;)
-            if (sc->open[k].kind == kind) {
-                e = blok_add(sc, BK_EXIT);
-                e->aux = kind;
-                e->link = sc->open[k].chain;
-                sc->open[k].chain = e;
-                return;
-            }
+    case TK_X:
+        if (s[1] == TK1_CONTINUE)
+            blok_leave(sc, s + 2, BK_CONT, E_CNW);
 
-        blok_failw(sc, E_EXW, 0, words[kind]);
-    }
+        return;
+
     case TK_SUB:
         blok_procstmt(sc, s, PK_SUB);
         return;

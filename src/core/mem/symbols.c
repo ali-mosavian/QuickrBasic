@@ -15,7 +15,7 @@
  * | asm | here | |
  * |---|---|---|
  * | TVAR (vt nam typ info) | Var (.vt .name .type .info) | MIRROR |
- * | TVX (next nloc scp dyn) | VarX (.next .nloc .scope .pad) | DIVERGES: dyn is the array's cell's |
+ * | TVX (next nloc scp dyn) | VarX (.next .nloc .scope .given) | DIVERGES: dyn is the array's cell's |
  * | TNAM (text flag typ prc) | Name (.text .flags .rec .proc) | MIRROR |
  * | TSYM, g_state.sym | Symb | MIRROR |
  * | sym.vars, sym.nams, sym.ntext | Symb.vars, Symb.names, Symb.text | MIRROR |

@@ -436,11 +436,11 @@ static bool edit_key(Widget *const w, Session *const S, const uint16_t key)
 
 /* ---- Search */
 
-/* ui_wordc: c in a word: a letter, a digit, or one of "!#$%&." (QBasic's wordCharBitMask,
-   uiword.asm). */
+/* ui_wordc: c in a word: a name's, or one of "!#$%&" (QBasic's wordCharBitMask, uiword.asm,
+   and '_'). */
 static bool wordc(const uint8_t c)
 {
-    return is_digit(c) || is_letter(c) || memchr("!#$%&.", c, 6) != nullptr;
+    return is_name_char(c) || memchr("!#$%&", c, 5) != nullptr;
 }
 
 /* ui_match: Find What at column col of uimn.line. */

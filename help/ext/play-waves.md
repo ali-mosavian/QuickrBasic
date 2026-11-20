@@ -18,7 +18,7 @@ W n: the wave (0 to 4)
     2   sawtooth: bright, buzzy
     3   noise: a hiss, for drums and explosions; the note's pitch
         sets its colour
-    4   FM: a sine bent by a second sine. See [FM](play fm)
+    4   FM: a sine bent by a second sine. See [FM](play fm)
 
 Q n: pulse width, 1 to 99 (default 50)
 The percentage of each cycle the pulse is high. 50 is a hollow square
