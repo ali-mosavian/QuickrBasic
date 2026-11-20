@@ -1313,7 +1313,8 @@ for m = 0 to 1
     g.shake = 0
     Render wd, g, p, lo(), pt()
     colA(m) = 0
-    for i = 0 to SH - 1
+    ' counted over the lamps' heads: a lamp's jar is of the fireflies' colours, and one in view read as forty
+    for i = 0 to 79
         for j = 0 to SW - 1
             if point(j, i) = CFLY or point(j, i) = CFLY + 1 then colA(m) = colA(m) + 1
         next
@@ -1326,7 +1327,7 @@ for m = 0 to 1
     Tick wd, g, p, k, lo(), pt()
     was = was and wd.tn.now(96) = &H100706
 next
-was = was and colA(0) >= 1 and colA(0) <= FLYREST and colA(1) > 8 * FLYREST
+was = was and colA(0) >= 1 and colA(0) <= FLYREST and colA(1) > 4 * FLYREST
 for i = 2 to GLOWT - GLOWFADE \\ 2
     Tick wd, g, p, k, lo(), pt()
 next
@@ -1344,6 +1345,35 @@ was = was and wd.tn.now(96) = &H100706
 GoStage wd, 9, g, p, lo(), pt()
 Tick wd, g, p, k, lo(), pt()
 was = was and wd.tn.now(96) = &H0A0403
+' the pilot stops on a mound whose burrow comes out past a wall it could not jump, digs, and goes on from the
+' other end, six tiles up; the next mound, whose burrow leads back, it runs over
+dim dugOut as integer
+for c = 0 to wd.lv.nObj - 1
+    if wd.lv.ob(c).k = KMOUND then exit for
+next
+v = wd.lv.ob(c).s - 1
+dugOut = c < wd.lv.nObj and v > c
+if v < 0 then v = c
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 150, 300
+for i = 1 to 200
+    Pilot wd.lv, wd.gr, wd.zn, wd.se, p, k
+    Tick wd, g, p, k, lo(), pt()
+    if p.ground and p.x > wd.lv.ob(v).x + 40 then exit for
+next
+dugOut = dugOut and i < 200 and p.ground and abs(p.y - wd.lv.ob(c).y + 6 * TS) < 2
+for i = 1 to 400
+    Pilot wd.lv, wd.gr, wd.zn, wd.se, p, k
+    Tick wd, g, p, k, lo(), pt()
+    dugOut = dugOut and p.dig = 0
+    if p.x > wd.lv.ob(v).x + 600 then exit for
+next
+dugOut = dugOut and i < 400
+k.l = 0
+k.r = 0
+k.d = 0
+k.jump = 0
+k.hit = 0
+if dugOut then print "dig ok"
 GoStage wd, 8, g, p, lo(), pt()
 Tick wd, g, p, k, lo(), pt()
 if was and wd.lv.murk = 0 and wd.tn.now(96) = wd.tn.own(8, 0) then print "firefly ok"
@@ -3125,6 +3155,7 @@ def main() -> None:
         ),
         ("squirrel ok", "a squirrel keeps over him, drops an acorn on the slow, is cowed by a bark, beaten by a roll"),
         ("bees ok", "a swarm wakes when he is near, stings, keeps up with a walk, is lost by a run and goes home"),
+        ("dig ok", "the pilot digs at a mound whose burrow passes a wall, and runs over one that leads back"),
         ("uncurl ok", "the pilot hops out of a roll that nothing ahead asks for, and is at a run again"),
         ("ice ok", "bare ice keeps his speed: a long slide, a long stop, a slow start; drawn bare of snow"),
         ("sled ok", "a sled is boarded, follows the slope, has no brake, keeps him through a hop, ends in deep snow"),

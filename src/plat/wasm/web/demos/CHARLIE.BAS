@@ -649,6 +649,8 @@ declare sub MeetVine (lv as Level, mu as Deck, se as Session, p as Hero, i as in
 declare sub MeetBramble (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose)
 declare sub Regrow (lv as Level, se as Session, pt() as Part, i as integer)
 declare sub PilotCurl (lv as Level, p as Hero, k as Pad, want as integer)
+declare sub PilotDig (lv as Level, p as Hero, k as Pad, want as integer)
+declare function Walled% (lv as Level, i as integer)
 declare sub MeetLog (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
 declare sub MeetMound (lv as Level, mu as Deck, se as Session, p as Hero, i as integer, pt() as Part)
 declare sub Tunnel (lv as Level, mu as Deck, se as Session, p as Hero, pt() as Part)
@@ -3436,8 +3438,44 @@ function PilotRun% (lv as Level, gr as Ground, zn as Realm, se as Session, p as 
     k.d = (zn.id = 0 or zn.id = 3) and lv.cart.st = 1 and lv.cart.x > x and lv.cart.x - x < 120 and p.gsp > 150
     if zn.id = 4 then PilotCurl lv, p, k, want
     PilotGaps lv, se, p, k, want
+    if zn.id = 4 then PilotDig lv, p, k, want
     PilotRun% = want
 end function
+
+' Whether mound i's burrow comes out further on past a wall no jump clears: a column on its way five tiles over
+' its own ground, or more.
+function Walled% (lv as Level, i as integer)
+    dim c as integer, j as integer
+    Walled% = 0
+    j = lv.ob(i).s - 1
+    if j < 0 then exit function
+    for c = lv.ob(i).x \ TS to lv.ob(j).x \ TS
+        if lv.top(c) > lv.ob(i).y \ TS - 5 then continue for
+        Walled% = -1
+        exit function
+    next
+end function
+
+' Such a mound ahead, or just passed: braked to a stand on it, and down. The faster he comes the sooner he
+' brakes; short of it he goes on at a walk.
+sub PilotDig (lv as Level, p as Hero, k as Pad, want as integer)
+    dim i as integer, x as integer, c as integer, d as integer, v as integer
+    x = cint(p.x)
+    v = cint(p.gsp)
+    c = (x - 48) \ TS
+    if c < 0 then c = 0
+    for i = lv.first(c) to lv.nObj - 1
+        d = lv.ob(i).x - x
+        if d > 10 + v \ 20 + v * v \ 3600 then exit for
+        if lv.ob(i).k <> KMOUND or d < -40 or p.dug = i + 1 or abs(lv.ob(i).y - p.y) > 8 then continue for
+        if not Walled%(lv, i) then continue for
+        want = 0
+        k.d = abs(d) < MOUNDR - 3 and abs(v) < 20
+        k.r = d >= MOUNDR - 3 and v < 40 + d * 3
+        k.l = (d <= 3 - MOUNDR and v > -60) or (d > 3 - MOUNDR and v > 70 + d * 3)
+        exit sub
+    next
+end sub
 
 ' Grown bramble or a log ahead, or about him: rolled through with the speed to roll, else jumped. Past them,
 ' curled still and slower than a run: out of the roll by a hop.
