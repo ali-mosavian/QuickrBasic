@@ -28,6 +28,7 @@ DEMO = ROOT / "src/plat/wasm/web/demos/CHARLIE.BAS"
 DRIVER = """declare function GroundAt% (x as integer)
 declare sub Stand (p as Hero, x as integer, v as single)
 declare function FlatRun% (ice as integer)
+declare function SledFall% (g as Game, p as Hero, lo() as Loose, pt() as Part)
 declare function Fur% (x as integer, w as integer, y0 as integer, y1 as integer)
 declare function Pix& (x as integer, w as integer, y0 as integer, y1 as integer)
 declare function OnCue% (cu() as Cue, kind as integer, bt as single)
@@ -1247,6 +1248,71 @@ next
 was = was and colA(0) < 40 and colA(1) > 160 and colB(0) < 20 and colB(1) > 140
 was = was and colA(2) > 120 and colA(3) > 30 and colA(3) < 80
 if was and colB(2) > 180 and colB(3) < 100 then print "ice ok"
+' the pass's sled: walked onto, he is off on it at SLEDV; it lies as the ground does, level on the flat and its
+' nose down a fall, where it gathers speed with no key held; a key against it is no brake; a hop keeps him on it;
+' deep snow ends the ride, he unhurt; a restart puts the sled back; hurt, he is off it
+GoStage 6, g, p, lo(), pt()
+for c = 0 to NObj - 1
+    if ObK(c) = KSLED then exit for
+next
+for m = c to NObj - 1
+    if ObK(m) = KDRIFT then exit for
+next
+was = c < NObj and m < NObj
+Stand p, ObX(c) - 16, 40
+for i = 1 to 20
+    Tick g, p, k, lo(), pt()
+    if p.sled then exit for
+next
+was = was and p.sled and ObS(c) = 1 and p.gsp >= SLEDV and SledFall%(g, p, lo(), pt()) = 0
+for i = 1 to 200
+    Tick g, p, k, lo(), pt()
+    if p.ground and p.ang < -.3 then exit for
+next
+v = cint(p.gsp)
+for i = 1 to 12
+    Tick g, p, k, lo(), pt()
+next
+j = SledFall%(g, p, lo(), pt())
+was = was and p.ground and p.ang < -.3 and p.gsp > v + 60 and j > 6 and j < 12
+for i = 1 to 200
+    Tick g, p, k, lo(), pt()
+    if p.ground and abs(p.ang) < .05 then exit for
+next
+v = cint(p.gsp)
+k.l = -1
+for i = 1 to 15
+    Tick g, p, k, lo(), pt()
+next
+k.l = 0
+was = was and p.sled and p.gsp > v - 15
+k.hit = -1
+k.jump = -1
+Tick g, p, k, lo(), pt()
+k.hit = 0
+was = was and not p.ground
+for i = 1 to 200
+    Tick g, p, k, lo(), pt()
+    if p.ground then exit for
+next
+k.jump = 0
+was = was and p.sled and p.roll
+for i = 1 to 600
+    Tick g, p, k, lo(), pt()
+    if not p.sled then exit for
+next
+was = was and i < 600 and abs(p.x - ObX(m)) < 40 and p.inv <= 0 and p.ground and not p.roll and ObS(c) = 1
+Spawn g, p
+was = was and ObS(c) = 0
+Stand p, ObX(c) - 16, 40
+for i = 1 to 20
+    Tick g, p, k, lo(), pt()
+next
+g.bones = 5
+was = was and p.sled
+Hurt g, p, cint(p.x) + 10, lo(), SHURT
+Tick g, p, k, lo(), pt()
+if was and not p.sled and p.inv > 0 then print "sled ok"
 ' a crab pinches at its side, a rolling Charlie too; down on its back he goes up off it unhurt and it ducks into
 ' its shell, and comes out again
 GoStage 4, g, p, lo(), pt()
@@ -1774,6 +1840,22 @@ function GroundAt% (x as integer)
     next
 end function
 
+' How far a sled's slats fall from 10 behind Charlie to 8 before him, as drawn: 0 level, NONE with none seen.
+function SledFall% (g as Game, p as Hero, lo() as Loose, pt() as Part)
+    dim y as integer, ya as integer, yb as integer, sx as integer
+    SledFall% = NONE
+    g.shake = 0
+    Render g, p, lo(), pt()
+    sx = cint(p.x) - int(g.camx)
+    ya = NONE
+    yb = NONE
+    for y = 0 to SH - 1
+        if ya = NONE and point(sx - 10, y) = 59 then ya = y
+        if yb = NONE and point(sx + 8, y) = 59 then yb = y
+    next
+    if ya <> NONE and yb <> NONE then SledFall% = yb - ya
+end function
+
 ' The first of 16 level columns in a row, bare ice if ice, under snow if not; NONE without them.
 function FlatRun% (ice as integer)
     dim c as integer, n as integer
@@ -1896,6 +1978,7 @@ def main() -> None:
         ("press ok", "presses fall in turn along a row, hurt under and jumped into, and are run under from a stop"),
         ("pass ok", "Whitecap Pass, the fourth zone: its snow white on a clear morning, not at dusk"),
         ("ice ok", "bare ice keeps his speed: a long slide, a long stop, a slow start; drawn bare of snow"),
+        ("sled ok", "a sled is boarded, follows the slope, has no brake, keeps him through a hop, ends in deep snow"),
         ("crab ok", "a crab pinches at its side and is a step from above; barked into its shell, a higher one"),
         ("jelly ok", "a jellyfish afloat or aground: a high bounce off its bell, a sting for feet in it only"),
         ("dazed ok", "a Charlie hurt into the sea paddles again"),

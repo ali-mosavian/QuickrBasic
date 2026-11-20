@@ -43,6 +43,7 @@ type Hero
     barkT as single
     swim as integer
     wet as single
+    sled as integer
 end type
 
 ' The game's time against the screen's frames: lag, the time not yet stepped; span, a frame's length as learnt; late,
@@ -187,6 +188,9 @@ const KSPAN = 31, SPANT = .25, SPANDROP = 400
 ' PRESSUP over it when up; of its turn's PRESSP steps it is up till PRESSFALL, down by ten on, held till PRESSRISE,
 ' then rising; a press a step later for every PRESSLAG along, so a row's turns go along it with a run.
 const KPRESS = 32, KLEG = 33, KSWEEP = 43, KSPARK = 44, SPARKR = 40, SPARKP = 150, SPARKLIT = 90
+' The pass's own: deep snow, and a sled. Boarded, a sled goes off at SLEDV at the least; the snow's friction on
+' it is SLEDGRIP of a roll's; Charlie stands SLEDH over the ground on it.
+const KDRIFT = 34, KSLED = 45, SLEDV = 120!, SLEDGRIP = .3, SLEDH = 5
 const PRESSH = 112, PRESSUP = 68, PRESSP = 180, PRESSFALL = 90, PRESSRISE = 130, PRESSLAG = 4
 ' From KFRONT on: drawn over the ground. The sands' flume: a column of its fall, its level end, the tank at its
 ' head; the speed its water carries Charlie at.
@@ -237,7 +241,8 @@ const IFLUME = ITEDDY + 2, ISPOUT = IFLUME + 8, IRUNNEL = ISPOUT + 8, ICISTERN =
 ' tile of its rail; a press's housing, a length of its rod, its head.
 const ISWEEP = ICISTERN + 2, ISPARK = ISWEEP + 8, ISRAIL = ISPARK + 6, IPRESS = ISRAIL + 2
 ' The pass's keepsake, the fair one's camera.
-const ICAMERA = IPRESS + 6, NIMG = ICAMERA + 2
+' A sled as the ground lies, from a steep fall to the right to a steep rise; deep snow.
+const ICAMERA = IPRESS + 6, ISLED = ICAMERA + 2, IDRIFT = ISLED + 10, NIMG = IDRIFT + 2
 const HUDW = 108, HUDH = 40
 ' The levels: a zone's two acts, the second at another hour in other colours, zone by zone.
 ' the stages played, and after them the intro's road
@@ -388,6 +393,8 @@ declare sub MeetPress (g as Game, p as Hero, i as integer, lo() as Loose)
 declare sub Beaten (g as Game, pt() as Part, i as integer, dy as integer)
 declare function Lit% (i as integer)
 declare function Slick% (p as Hero)
+declare sub Board (p as Hero, i as integer)
+declare sub Alight (p as Hero, pt() as Part, c as integer)
 declare function PressT% (i as integer)
 declare function Stroke% (i as integer)
 declare function PressAhead% (x as integer)
@@ -1041,6 +1048,10 @@ sub LoadLevel (st as integer)
             k = KCRAB
         case "sweeper"
             k = KSWEEP
+        case "sled"
+            k = KSLED
+        case "drift"
+            k = KDRIFT
         case "spark"
             k = KSPARK
         case "press"
@@ -1330,6 +1341,9 @@ sub Mend
     dim m as integer
     for m = 0 to NMv - 1
         if MvK(m) = 6 then MvT(m) = 0
+    next
+    for m = 0 to NObj - 1
+        if ObK(m) = KSLED then ObS(m) = 0
     next
 end sub
 
@@ -2442,7 +2456,7 @@ sub Settle (p as Hero, s as integer, d as integer)
     p.sg = s
     p.ang = GA(s)
     p.gsp = p.vx * GU(s) + p.vy * GV(s)
-    if p.jumped and not d then p.roll = 0
+    if p.jumped and not d and not p.sled then p.roll = 0
     ' hit, it lands where it is and stands afraid a while
     if p.stun then p.gsp = 0
     p.ground = -1
@@ -3000,6 +3014,8 @@ end sub
 sub MoveHero (p as Hero, k as Pad, pt() as Part)
     dim l as integer, r as integer, d as integer, hit as integer, hold as integer
     dim v as single
+    ' a ride lasts as long as its roll: come to a stand, hurt or thrown, the sled is left in pieces
+    if p.sled and not p.roll then Alight p, pt(), CEARTH + 4
     ' a jump held through the hit is a jump as it ends: it was forgotten
     if p.stun and p.ground and p.inv < 1 then
         p.stun = 0
@@ -3079,6 +3095,28 @@ sub MoveHero (p as Hero, k as Pad, pt() as Part)
     end if
 end sub
 
+' Onto sled i: off on it at once, to the right, curled in nothing but the game's reckoning.
+sub Board (p as Hero, i as integer)
+    ObS(i) = 1
+    p.sled = -1
+    p.roll = -1
+    p.jumped = 0
+    p.face = 0
+    if p.ground then
+        if p.gsp < SLEDV then p.gsp = SLEDV
+    elseif p.vx < SLEDV then
+        p.vx = SLEDV
+    end if
+    Sfx SROLL
+end sub
+
+' Off the sled, which is no more: a puff of colour c where it was.
+sub Alight (p as Hero, pt() as Part, c as integer)
+    p.sled = 0
+    Burst pt(), p.x, p.y - 4, 10, 120, c
+    Sfx SPOP
+end sub
+
 ' Whether Charlie is on bare ice: it keeps his speed and will not give it back.
 function Slick% (p as Hero)
     Slick% = 0
@@ -3098,6 +3136,7 @@ sub Walk (p as Hero, l as integer, r as integer, d as integer, hit as integer, p
         grip = ICEGRIP
         push = ICEPUSH
     end if
+    if p.sled then grip = grip * SLEDGRIP
     sn = sin(p.ang)
     cs = cos(p.ang)
     dir = 1 - 2 * p.face
@@ -3140,8 +3179,9 @@ sub Walk (p as Hero, l as integer, r as integer, d as integer, hit as integer, p
             f = RDNS
         end if
         p.gsp = p.gsp - f * sn * STEPT
-        if l and p.gsp > 0 then p.gsp = p.gsp - RDEC * grip * STEPT
-        if r and p.gsp < 0 then p.gsp = p.gsp + RDEC * grip * STEPT
+        ' a sled has no brake
+        if l and p.gsp > 0 and not p.sled then p.gsp = p.gsp - RDEC * grip * STEPT
+        if r and p.gsp < 0 and not p.sled then p.gsp = p.gsp + RDEC * grip * STEPT
         Slow p.gsp, RFRIC * grip
         if abs(p.gsp) < 30 and abs(sn) < .2 then p.roll = 0
     else
@@ -3316,6 +3356,16 @@ sub Touch (g as Game, p as Hero, lo() as Loose, pt() as Part)
             MeetCrab g, p, i, lo(), pt()
         case KSWEEP
             MeetSweep g, p, i, lo(), pt()
+        case KSLED
+            d = p.ground or p.vy > 0
+            if ObS(i) = 0 and not p.sled and not p.stun and d and dx < 14 and abs(py - ObY(i) + 5) < 10 then Board p, i
+        case KDRIFT
+            ' deep snow stops a sled dead: he tumbles out of it
+            if p.sled and p.ground and dx < 22 and abs(py - ObY(i)) < 8 then
+                Alight p, pt(), CWHITE
+                p.roll = 0
+                p.gsp = p.gsp * .25
+            end if
         case KSPARK
             if Lit%(i) and dx < 11 and py > ObY(i) - 24 and py - 26 < ObY(i) then Hurt g, p, x, lo(), SHISS
         case KPRESS
@@ -4773,6 +4823,10 @@ sub DrawThings (cx as integer, cy as integer, back as integer)
                     k = IAP + (((ObX(i) \ TS + 1) and 3) * 3 + (ObY(i) \ TS) mod 3) * 2
                     Blit x - PIPER, y - PIPER, k, PIPER, PIPER + TS
                 end if
+            case KSLED
+                if ObS(i) = 0 then Blit x - 15, y - 25, ISLED + 4, 30, 42
+            case KDRIFT
+                Blit x - 28, y - 11, IDRIFT, 56, 12
             case KSWEEP
                 if ObS(i) then Blit x - 15, y - 19, ISWEEP + ((Ticks \ 6) and 1) * 2 - 4 * (ObS(i) > 0), 30, 20
             case KSPARK
@@ -5013,6 +5067,17 @@ sub DrawHero (p as Hero, cx as integer, cy as integer)
         next
     end if
     f = HeroFrame%(p)
+    ' on a sled: it lies as the ground does, and he stands on it
+    if p.sled then
+        t = 0
+        if p.ground then t = cint(p.ang * 8 / PI)
+        if t > 2 then t = 2
+        if t < -2 then t = -2
+        Blit x - 15, y - 25, ISLED + (t + 2) * 2, 30, 42
+        x = x + cint(SLEDH * hv)
+        y = y - cint(SLEDH * hu)
+        t = 0
+    end if
     ' running round a twist: rolled with the ribbon, a twelfth of a turn a picture, its paws' line 12 off its middle
     if tw and f >= FRUN and f < FBALL then
         t = cint(a * 6 / PI) mod 12
@@ -5064,6 +5129,8 @@ function HeroFrame% (p as Hero)
     if p.dead or p.stun then
         HeroFrame% = FHURT
         if (Ticks \ 3) and 1 then HeroFrame% = FSHIVER
+    elseif p.sled then
+        HeroFrame% = FDASH
     elseif p.roll or p.charging then
         HeroFrame% = FBALL + (int(p.anim) and 3)
     elseif p.swim then

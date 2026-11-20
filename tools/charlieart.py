@@ -3298,6 +3298,41 @@ def snapshot() -> Pic:
     return p.outline(FROSTINK)
 
 
+def sledge(lean: int) -> Pic:
+    """A toboggan, its nose to the right: slats curled up at it, a runner under. It follows the ground: lean halves
+    of a pixel's fall for each along, about its middle, which is at the picture's row 24."""
+    o = Pic(30, 11)
+    o.box(2, 5, 24, 6, WOOD[3])
+    o.box(2, 7, 24, 7, WOOD[1])
+    for x in (6, 11, 16, 21):
+        o.put(x, 5, WOOD[1])
+    for i, (x, y) in enumerate(((25, 5), (26, 4), (27, 3), (27, 2), (26, 1), (25, 1))):
+        o.box(x, y, x + 1, y, WOOD[3] if i < 3 else WOOD[2])
+    o.box(3, 9, 23, 9, METAL[2])
+    o.put(24, 8, METAL[2])
+    for x in (5, 20):
+        o.put(x, 8, METAL[1])
+    o.outline(FROSTINK)
+    p = Pic(30, 42)
+    for x in range(30):
+        for y in range(11):
+            if o.p[y][x]:
+                p.put(x, 15 + y + round(lean * (x - 15) / 2), o.p[y][x])
+    return p
+
+
+def deepsnow() -> Pic:
+    """Deep snow: a long soft mound, flecks of shade on it."""
+    p = Pic(56, 12)
+    for x in range(56):
+        h = round(9 * (1 - ((x - 27.5) / 28) ** 2) + (1 if x % 9 < 4 else 0))
+        for d in range(h):
+            p.put(x, 11 - d, SNOW[0] if d >= h - 2 else SNOW[1] if d > 1 else SNOW[2])
+        if x % 7 == 3 and h > 4:
+            p.put(x, 11 - h + 3, SNOW[2])
+    return p.outline(FROSTINK)
+
+
 def whitecap() -> list[tuple[int, Pic, bool, int]]:
     """Whitecap Pass's own pictures, at the indices the Downs' own have; its keepsake after the works' last."""
     k, z = 126, 625
@@ -3320,7 +3355,10 @@ def whitecap() -> list[tuple[int, Pic, bool, int]]:
         (k + 48, lantern(), True, -1),
         (k + 376, words("WHITECAP PASS", 178, 18, 1.53, 2.85), True, -1),
         (z + 1012, snapshot(), True, -1),
+        (z + 1024, deepsnow(), True, -1),
     ]
+    # a sled as the ground lies: falling steeply to the right, gently, level, rising gently, steeply
+    out += [(z + 1014 + (lean + 2) * 2, sledge(-lean), True, -1) for lean in range(-2, 3)]
     return out
 
 
