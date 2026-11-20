@@ -56,6 +56,26 @@ def messages() -> list[str]:
     return msgs + ["Unprintable error"]
 
 
+def job(spec: str | tuple) -> tuple[str, str, str, dict[str, bytes]]:
+    """A job's (program, input, arguments, files): files go in its own folder, beside its program."""
+    given: tuple = (spec,) if isinstance(spec, str) else spec
+    unset: tuple = ("", "", "", {})
+    prog, stdin, args, files = (*given, *unset[len(given):])
+    return prog, stdin, args, files
+
+
+def job_file(work: Path, i: int, name: str, prog: str, files: dict[str, bytes]) -> str:
+    """Job i's program written as J{i}\\NAME.BAS, its files beside it; the DOS path."""
+    # the file named as the job, its first 8 letters: BC's module name in an error's message
+    bas = f"J{i}\\{re.sub(r'[^A-Za-z0-9_]', '', name)[:8].upper() or 'PROG'}.BAS"
+    (work / f"J{i}").mkdir()
+    (work / bas.replace("\\", "/")).write_bytes(prog.encode("latin-1"))
+    for n, data in files.items():
+        (work / f"J{i}" / n).parent.mkdir(parents=True, exist_ok=True)
+        (work / f"J{i}" / n).write_bytes(data)
+    return bas
+
+
 def run(jobs: dict[str, str | tuple], work: Path, limit_ms: int = 60000, file: bool = False,
         files: dict[str, bytes] | None = None, mem: int = 4, screen: bool = False,
         before: tuple[str, ...] = (), keyboard: bool = False, profile: bool = False) -> dict[str, Result]:
@@ -73,19 +93,16 @@ def run(jobs: dict[str, str | tuple], work: Path, limit_ms: int = 60000, file: b
     # stub32a loads DOS32A.EXE from the program's directory
     if (COM.parent / "DOS32A.EXE").exists() and COM.suffix.lower() == ".exe":
         shutil.copy(COM.parent / "DOS32A.EXE", work / "DOS32A.EXE")
-    for n, data in (files or {}).items():  # companions the programs read
+    for n, data in (files or {}).items():  # companions the programs read, a folder's too
+        (work / n).parent.mkdir(parents=True, exist_ok=True)
         (work / n).write_bytes(data)
     if is_host(COM):
         return run_host(jobs, work, limit_ms, file)
     names = list(jobs)
     lines = []
     for i, name in enumerate(names):
-        prog, stdin, args = (jobs[name], "", "") if isinstance(jobs[name], str) else (*jobs[name], "")[:3]
-        # the file named as the job, its first 8 letters: BC's module name in an error's message
-        bas = f"J{i}\\{re.sub(r'[^A-Za-z0-9_]', '', name)[:8].upper() or 'PROG'}.BAS"
-        if file:
-            (work / f"J{i}").mkdir()
-            (work / bas.replace("\\", "/")).write_bytes(prog.encode("latin-1"))
+        prog, stdin, args, own = job(jobs[name])
+        bas = job_file(work, i, name, prog, own) if file else ""
         (work / f"J{i}.IN").write_bytes((stdin if file else prog).encode("latin-1"))
         run = f"BASIC.COM {bas} {args}".rstrip() + ("" if keyboard else f" < J{i}.IN") if file else f"BASIC.COM < J{i}.IN"
         lines += [":profile"] * profile + [f":ms {limit_ms}", f"mount c {work}", "c:", *before, run if screen else f"{run} > J{i}.TXT", "."]
@@ -142,13 +159,10 @@ def run_host(jobs: dict[str, str | tuple], work: Path, limit_ms: int, file: bool
     """run's jobs with the host build, natively: the same files, names and streams, no DOSBox."""
     out: dict[str, Result] = {}
     for i, name in enumerate(jobs):
-        prog, stdin, args = (jobs[name], "", "") if isinstance(jobs[name], str) else (*jobs[name], "")[:3]
-        bas = f"J{i}\\{re.sub(r'[^A-Za-z0-9_]', '', name)[:8].upper() or 'PROG'}.BAS"
+        prog, stdin, args, own = job(jobs[name])
         argv = [str(COM.resolve())]
         if file:
-            (work / f"J{i}").mkdir()
-            (work / bas.replace("\\", "/")).write_bytes(prog.encode("latin-1"))
-            argv += [bas, *args.split()]
+            argv += [job_file(work, i, name, prog, own), *args.split()]
         data = (stdin if file else prog).encode("latin-1")
         try:
             p = subprocess.run(argv, cwd=work, input=data, capture_output=True, timeout=limit_ms / 1000,

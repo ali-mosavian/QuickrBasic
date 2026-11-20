@@ -198,9 +198,12 @@ void list_body(Comp *const C, const uint8_t *p)
             continue;
         }
 
-        if (c == '.' && *p == M_VAR) { /* a ( .. )'s field: r(i).f close */
+        if (c == '.' && (*p == M_VAR || *p == '.' || *p == TK_X)) { /* r(i).f, FROM's dots: close */
+            if (C->list->last == LS_KW)
+                lead(C); /* FROM .x */
+
             cons_putc(C->cons, c);
-            C->list->last = LS_NONE;
+            C->list->last = *p == TK_X ? LS_WORD : LS_NONE; /* FROM . IMPORT */
             continue;
         }
 

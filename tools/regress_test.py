@@ -670,6 +670,8 @@ CASES = {
     # The line read from the file, a continued one's first; blank lines count.
     "qb_where_compile": ("PRINT 1\r\n\r\nX = 1 + _\r\n  (\r\nPRINT 3\r\n", ".BAS:3: Syntax error\r\n  X = 1 + (\r\n", " 1"),
     "qb_where_dupdef": ("CONST SP = 1\r\nPRINT 1\r\nsp = 2\r\n", ".BAS:3: Duplicate definition\r\n  SP = 2\r\n  ^\r\n`SP` is", " 1"),
+    # An include's include was looked for in the current folder, not beside it: File not found.
+    "include_beside": ("REM $INCLUDE: 'SUB/A.BI'\r\nPRINT 3\r\n", " 1 \r\n 2 \r\n 3 \r\n", "ERROR"),
     "qb_where_include": ("PRINT 1\r\n\r\nREM $INCLUDE: 'WHERE.BI'\r\nPRINT 2\r\n", "WHERE.BI:3: Syntax error\r\n  Y = 1 +\r\n", " 1"),
     # Errors loading the file (a label twice, a number past 63999): the bare message, no line.
     "qb_where_label": ("PRINT 1\r\nfoo:\r\nfoo:\r\n", ".BAS:3: Duplicate label\r\n  foo:\r\n  ^\r\n", " 1"),
@@ -1367,6 +1369,245 @@ CASES |= {
                          ") as byte\r\n  ^\r\nAn array has at most 60 dimensions", None),
 }
 
+# IMPORT and FROM, ours: keywords only where they start such a statement, so a variable or SUB of
+# either name still works; the statement is its line's first, at module level. PRIVATE only before SUB, FUNCTION,
+# CONST or TYPE, PUBLIC only after DIM and before a name.
+CASES |= {
+    "import_words": (bas("private = 1: public = 2", "dim public(3), x as public", "print private; public",
+                         "type public", " a as integer", "end type", "private const k = 4: print k",
+                         "sub s", " private const j = 1", "end sub"),
+                     "IMPORT_W.BAS:9: Syntax error", None),
+    "import_names": (bas("import = 5: from = 2: print import; from", "import(1) = 3: print import(1)"),
+                     " 5  2 \r\n 3 \r\n", "ERROR"),
+    "import_sub": (bas("declare sub import (x)", "call import(3)", "end", "sub import (x)", " print x * 2", "end sub"),
+                   " 6 \r\n", "ERROR"),
+    "import_first": (bas("print 1: import gfx"), "IMPORT must be the first statement on its line", None),
+    "import_in_sub": (bas("sub s", " from gfx import a", "end sub"), "`FROM` cannot be used inside a SUB or FUNCTION",
+                      None),
+    "import_form": (bas("import gfx."), "`gfx.` does not fit the IMPORT statement here", None),
+    "import_from_star": (bas("from gfx import *, a"), "`,` does not fit the FROM statement here", None),
+}
+
+
+def beside(prog: str, files: dict[str, str]) -> tuple[str, str, str, dict[str, bytes]]:
+    """A case run with files in its own folder, its modules found there."""
+    return prog, "", "", {n: text.encode("latin-1") for n, text in files.items()}
+
+
+SPR = {"lib/pkg/sprite.bas": bas("sub spr (x)", ' print "spr"; x', "end sub"),
+       "lib/pkg/util.bas": bas("sub utl (x)", ' print "utl"; x', "end sub")}
+# The modules an IMPORT or FROM names load once each, after the program's lines: the main program's
+# folder, a package's, FROM's dots from the importing file's. IMPORT and FROM loaded nothing:
+# each module's SUBs were Subprogram not defined.
+CASES |= {
+    "import_star": (beside(bas("from gfx import *", "plot 3", "print area(2)"),
+                           {"gfx.bas": bas("sub plot (x)", ' print "plot"; x', "end sub",
+                                           "function area (r)", " area = r * r", "end function")}),
+                    "plot 3 \r\n 4 \r\n", "ERROR"),
+    "import_package": (beside(bas("import lib.pkg.sprite", "from lib.pkg import util",
+                                  "lib.pkg.sprite.spr 1: util.utl 2"), SPR),
+                       "spr 1 \r\nutl 2 \r\n", "ERROR"),
+    "import_relative": (beside(bas("import lib.pkg.rel", "lib.pkg.rel.go"),
+                               {"lib/pkg/rel.bas": bas("from . import near", "from ..top import tp", "sub go",
+                                                       " near.nr 1: tp 2", "end sub"),
+                                "lib/pkg/near.bas": bas("sub nr (x)", ' print "nr"; x', "end sub"),
+                                "lib/top.bas": bas("sub tp (x)", ' print "tp"; x', "end sub")}),
+                        "nr 1 \r\ntp 2 \r\n", "ERROR"),
+    # Imported twice, and in a cycle: loaded twice, its SUB was a Duplicate definition.
+    "import_twice": (beside(bas("import ca", "from ca import *", "a 1: ca.a 3"),
+                            {"ca.bas": bas("import cb", "sub a (x)", ' print "a"; x', " cb.b x + 1", "end sub"),
+                             "cb.bas": bas("import ca", "sub b (x)", ' print "b"; x', "end sub")}),
+                     "a 1 \r\nb 2 \r\na 3 \r\nb 4 \r\n", "ERROR"),
+    # The main program's end, a false one-line IF's too, ran on into a module's top-level code.
+    "import_main_ends": (beside(bas("import noisy", 'print "main"', 'if 0 then print "x"'),
+                                {"noisy.bas": bas('print "noisy"', "sub nz", "end sub")}),
+                         "noisy\r\nmain\r\n", "main\r\nnoisy"),
+    "import_missing": (bas("print 1", "import nothere"), "IMPORT_M.BAS:2: File not found\r\n  import nothere", " 1"),
+    "import_missing_name": (beside(bas("from lib.pkg import util, nothere"), SPR),
+                            "IMPORT_M.BAS:1: File not found", None),
+    # An error in a module: at its own file's line.
+    "import_module_error": (beside(bas("import bad"), {"bad.bas": bas("sub b", "end sub", "x =")}),
+                            "bad.bas:3: Syntax error\r\n  x =", None),
+}
+
+# Each file its own module: its variables, CONSTs, labels, line numbers, DEFtypes and OPTIONs. One
+# file's leaked into the next: a variable was every file's, a module's CONST the main's too, a label
+# in two Duplicate, the main's DEFINT, OPTION EXPLICIT and OPTION BASE the module's too.
+CASES |= {
+    "import_own_vars": (beside(bas("from cnt import *", "n = 10", "bump", "bump", "print n"),
+                               {"cnt.bas": bas("dim shared n", "sub bump", " n = n + 1: print n", "end sub")}),
+                        " 1 \r\n 2 \r\n 10 \r\n", "ERROR"),
+    "import_own_const": (beside(bas("import kc", "k = 5: print k: kc.showk"),
+                                {"kc.bas": bas("const k = 2", "sub showk", " print k", "end sub")}),
+                         " 5 \r\n 2 \r\n", "ERROR"),
+    "import_own_labels": (beside(bas("import lb", "gosub h", "10 lb.lbsub", "end", "h: print \"main h\"", "return"),
+                                 {"lb.bas": bas("10 rem", "h: rem", "sub lbsub", ' print "lb"', "end sub")}),
+                          "main h\r\nlb\r\n", "ERROR"),
+    "import_other_line": (beside(bas("import ln", "goto 20"), {"ln.bas": bas("20 rem")}),
+                          "IMPORT_O.BAS:2: Label not defined", None),
+    "import_own_deftype": (beside(bas("defint a-z", "from fl import *", "x = 2.5: print x", "half 5"),
+                                  {"fl.bas": bas("sub half (v)", " r = v / 2: print r", "end sub")}),
+                           " 2 \r\n 2.5 \r\n", "ERROR"),
+    "import_own_explicit": (beside(bas("option explicit", "from ex import *", "dim a: a = 1", "ex1"),
+                                   {"ex.bas": bas("sub ex1", " y = 3: print y", "end sub")}),
+                            " 3 \r\n", "ERROR"),
+    # A module's declarations go before its importer's: main's DIM AS a module's TYPE was a Syntax
+    # error, the module declared after the main.
+    "import_type_first": (beside(bas("from tp import *", "dim p as pt", "p.x = 3: show p"),
+                                 {"tp.bas": bas("type pt", " x as integer", "end type", "sub show (q as pt)",
+                                                " print q.x", "end sub")}),
+                          " 3 \r\n", "ERROR"),
+    "import_own_base": (beside(bas("option base 1", "from bs import *", "dim m(2): print lbound(m)", "lb"),
+                               {"bs.bas": bas("sub lb", " dim a(3): print lbound(a)", " z(2) = 1: print lbound(z)",
+                                              "end sub")}),
+                        " 1 \r\n 0 \r\n 0 \r\n", "ERROR"),
+}
+
+GFX = {"gfx.bas": bas("const maxw = 320", "type pt", " x as integer", " y as integer", "end type",
+                      "sub plot (p as pt)", ' print "plot"; p.x; p.y', "end sub",
+                      "function area (r)", " area = r * r", "end function")}
+VM = {"vm.bas": bas("defint a-z", "dim public total", "dim public grid(5) as long", "dim public big as long",
+                    "dim shared pages", "private const hid = 7",
+                    "sub bump", " total = total + 1: grid(2) = grid(2) + 10", ' print "bump"; total; grid(2)',
+                    "end sub", "private sub clip", "end sub")}
+RC = {"rc.bas": bas("type pt", " x as integer", " y as integer", "end type", "dim public origin as pt",
+                    "sub show", ' print "show"; origin.x; origin.y', "end sub")}
+# What an import binds. Names were the whole program's: a module's SUB, FUNCTION and TYPE plain everywhere, its
+# CONSTs and variables nowhere, a name two modules defined Duplicate; AS, mod.name, PRIVATE and DIM PUBLIC were
+# Syntax errors or another name.
+CASES |= {
+    "import_from_names": (beside(bas("from gfx import plot as show, pt, maxw", "dim q as pt: q.x = maxw: show q"), GFX),
+                          "plot 320  0 \r\n", "ERROR"),
+    # A module's CONST, used before its CONST line compiled, read its variable, which its code never set: 0.
+    "import_module_names": (beside(bas("import gfx", "dim p as gfx.pt", "p.x = 3", "gfx.plot p",
+                                       "print gfx.area(3); gfx.maxw"), GFX),
+                            "plot 3  0 \r\n 9  320 \r\n", "ERROR"),
+    "import_star_own": (beside(bas("from gfx import *", "plot 1", "sub plot (x)", ' print "own"; x', "end sub"), GFX),
+                        "own 1 \r\n", "ERROR"),
+    # QB's multi-file programs DECLARE the SUBs another file has.
+    "import_star_declared": (beside(bas("declare sub plot (p as any)", "from gfx import *", "dim q as pt", "plot q"),
+                                    GFX),
+                             "plot 0  0 \r\n", "ERROR"),
+    "import_star_two": (beside(bas("from k1 import *", "from k2 import *", "print k"),
+                               {"k1.bas": bas("const k = 1"), "k2.bas": bas("const k = 2")}),
+                        "IMPORT_S.BAS:3: Duplicate definition", None),
+    "import_listed_clash": (beside(bas("from gfx import maxw", "const maxw = 1"), GFX),
+                            "IMPORT_L.BAS:2: Duplicate definition", None),
+    "import_not_exported": (beside(bas("from vm import pages"), VM), "IMPORT_N.BAS:1: Name not exported", None),
+    "import_private": (beside(bas("from vm import clip"), VM), "IMPORT_P.BAS:1: Name not exported", None),
+    # A PRIVATE SUB's body started at the SUB, past the statement's start: a call to it was a Syntax error.
+    "import_private_call": (beside(bas("from pv import go", "go"),
+                                   {"pv.bas": bas("sub go", " hid 3", "end sub", "private sub hid (x)",
+                                                  ' print "hid"; x', "end sub", "hid 4")}),
+                            "hid 3 \r\n", "ERROR"),
+    "import_no_reexport": (beside(bas("from ca import b"), {"ca.bas": bas("from cb import b"),
+                                                             "cb.bas": bas("sub b", "end sub")}),
+                           "IMPORT_N.BAS:1: Name not exported", None),
+    "import_public": (beside(bas("from vm import total, grid(), bump", "total = 5", "bump", "print total; grid(2)"),
+                             VM),
+                      "bump 6  10 \r\n 6  10 \r\n", "ERROR"),
+    # Its type the exporter's: big a LONG, total an INTEGER, whatever the importer's DEFtype.
+    "import_public_type": (beside(bas("defsng a-z", "from vm import big, total", "big& = 70000: total% = 2",
+                                      "print big; total"), VM),
+                           " 70000  2 \r\n", "ERROR"),
+    # FROM's name with its suffix: the exporter's of that type; another, as where used. The suffix was
+    # the name's: Name not exported.
+    "import_from_suffix": (beside(bas("from vm import total%, grid&(), big&, bump", "bump",
+                                      "print total%; grid&(2); big&"), VM),
+                           "bump 1  10 \r\n 1  10  0 \r\n", "ERROR"),
+    "import_from_suffix_type": (beside(bas("from vm import total!"), VM), "IMPORT_F.BAS:1: Duplicate definition", None),
+    "import_from_suffix_module": (beside(bas("from lib.pkg import util$"), SPR),
+                                  "IMPORT_F.BAS:1: File not found", None),
+    "import_public_suffix": (beside(bas("from vm import total", "total! = 1"), VM),
+                             "IMPORT_P.BAS:2: Duplicate definition", None),
+    # Its STRING * n looked up in the importer's scope, which has none: the string took any length.
+    "import_public_fixed": (beside(bas("from fx import s, t", 's = "abcdef": t(2) = "abcdef"', 'print s; "|"; t(2)'),
+                                   {"fx.bas": bas("dim public s as string * 4", "dim public t(3) as string * 3")}),
+                            "abcd|abc\r\n", "ERROR"),
+    "import_record_sub": (beside(bas("from rc import origin, show", "origin.x = 7", "s", "show", "sub s",
+                                     " origin.y = 9", "end sub"), RC),
+                          "show 7  9 \r\n", "ERROR"),
+    "import_module_record": (beside(bas("import rc", "rc.origin.x = 5", "rc.show", "print rc.origin.x"), RC),
+                             "show 5  0 \r\n 5 \r\n", "ERROR"),
+    "import_module_taken": (beside(bas("import gfx", "gfx = 1"), GFX), "IMPORT_M.BAS:2: Duplicate definition", None),
+    "import_module_missing": (beside(bas("import gfx", "print gfx.nothere"), GFX),
+                              "IMPORT_M.BAS:2: Name not exported", None),
+}
+
+DA = {"da.bas": bas("data 1, 2", "sub rd", ' read x: print "a"; x', "end sub", "sub rs", " restore", "end sub"),
+      "db.bas": bas("data 99")}
+# A module's code runs at its first import, its ON ERROR and its DATA its own. Its code never ran: its variables
+# stayed 0; ON ERROR was the program's, the last one run; READ went on through every file's DATA in turn.
+CASES |= {
+    "import_runs_code": (beside(bas("import a", "import a", "from b import total, hi", 'print "main"; total', "hi"),
+                                {"a.bas": bas('print "a runs"', "import b", 'print "a again"'),
+                                 "b.bas": bas('print "b runs"', "import a", "dim public total", "total = 5",
+                                              "sub hi", ' print "hi"', "end sub", 'print "b end"')}),
+                         "a runs\r\nb runs\r\nb end\r\na again\r\nmain 5 \r\nhi\r\n", "ERROR"),
+    "import_module_end": (beside(bas("import e", 'print "no"'), {"e.bas": bas('print "e"', "end")}), "e\r\n", "no"),
+    "import_on_error": (beside(bas("on error goto h", "from ea import boom", "from eb import bad", "boom", "bad",
+                                   'print "after"', "end", 'h: print "main trapped"; err', "resume next"),
+                               {"ea.bas": bas("on error goto h", "goto done", 'h: print "a trapped"; err',
+                                              "resume next", "done:", "sub boom", " error 5", ' print "boom on"',
+                                              "end sub"),
+                                "eb.bas": bas("sub bad", " error 7", ' print "rest of bad"', "end sub")}),
+                        "a trapped 5 \r\nboom on\r\nmain trapped 7 \r\nafter\r\n", "rest of bad"),
+    "import_error_at_import": (beside(bas("on error goto h", "import zc", 'print "after"', "end",
+                                          'h: print "trapped"; err', "resume next"),
+                                      {"zc.bas": bas("error 9", 'print "zc rest"')}),
+                               "trapped 9 \r\nafter\r\n", "zc rest"),
+    "import_error_place": (beside(bas("import zb"), {"zb.bas": bas("x = 1", "y = x / 0")}),
+                           "Division by zero in line No line number in module ZB ", None),
+    "import_data": (beside(bas("from da import rd, rs", "import db", "data 10, 20", "read y: print y", "rd",
+                               "read y: print y", "rd", "rs", "rd", "rd", "rd"), DA),
+                    " 10 \r\na 1 \r\n 20 \r\na 2 \r\na 1 \r\na 2 \r\nOut of DATA", "a 99"),
+}
+
+CM = {"cm.bas": bas("type pt", " x as integer", "end type", "common shared x, y$, w(), o as pt",
+                    "common shared /blk/ r", "sub show", " print x; y$; w(2); o.x; r", "end sub")}
+# COMMON joins a program's files' variables by position, a named block's by its name. Each file's were its own:
+# a module saw none of the main's values, and a CHAIN passed each file's in turn.
+CASES |= {
+    "import_common": (beside(bas("from cm import show", "type pt", " x as integer", "end type",
+                                 "common shared /blk/ p", "common shared a, b$, v(), q as pt", "dim v(3)",
+                                 'a = 1: b$ = "b": v(2) = 3: q.x = 4: p = 5', "show"), CM),
+                      " 1 b 3  4  5 \r\n", "ERROR"),
+    "import_common_type": (beside(bas("from cm import show", "common shared a$"), CM),
+                           "IMPORT_C.BAS:2: Type mismatch", None),
+    "import_common_array": (beside(bas("from cm import show", "common shared a, b$, v"), CM),
+                            "IMPORT_C.BAS:2: Type mismatch", None),
+    "import_common_record": (beside(bas("from cm import show", "type pt", " y as integer", "end type",
+                                        "common shared a, b$, v(), q as pt"), CM),
+                             "IMPORT_C.BAS:5: Type mismatch", None),
+    # A variable two files name passes once, each way.
+    "import_common_chain": (beside(bas("import ck", "common shared a, b$, c", 'a = 1: b$ = "b": c = 9',
+                                       'chain "QB_CN1"'), {"ck.bas": bas("common shared x, y$")}),
+                            " 1 b 9 \r\n", "ERROR"),
+    "import_common_chained": (bas("common a, b$, c", 'a = 1: b$ = "b": c = 9', 'chain "QB_CN2"'),
+                              " 1 b\r\n 9 \r\n", "ERROR"),
+}
+
+
+def recipes(page: Path) -> dict[str, tuple[tuple, str]]:
+    """A help page's recipes: each main.bas, beside the files the page gave before it, and the lines
+    after its `' prints:`, which must be all it prints."""
+    files: dict[str, str] = {}
+    out: dict[str, tuple[tuple, str]] = {}
+    blocks = re.findall(r"^    ' (\S+\.bas)\n((?:(?!    ' \S+\.bas\n)    .*\n|\n)*)", page.read_text(), re.M)
+    for name, body in blocks:
+        lines = [line[4:] for line in body.rstrip("\n").split("\n")]
+        if name != "main.bas":
+            files[name] = bas(*lines)
+            continue
+        said = lines[lines.index("' prints:") + 1:]
+        out[f"import_example_{len(out) + 1}"] = (beside(bas(*lines), dict(files)), bas(*(s[2:] for s in said)))
+    return out
+
+
+# The IMPORT examples page's: a recipe no longer printing what the page says.
+EXAMPLES = recipes(ROOT / "help/ext/import-examples.md")
+
+
 # Typed at the prompt, not run as a file.
 REPL = {
     # A direct line ran from DCODE, its statement map's place: nothing printed.
@@ -1379,9 +1620,14 @@ REPL = {
 # Companions the cases read, beside them.
 FILES = {
     "WHERE.BI": b"' included\r\n\r\nY = 1 +\r\n",
+    "SUB/A.BI": b"PRINT 1\r\nREM $INCLUDE: 'B.BI'\r\n",
+    "SUB/B.BI": b"PRINT 2\r\n",
     "QB_CH3.BAS": b'COMMON q$, y()\r\nPRINT LEN(q$); RIGHT$(q$, 1); y(500)\r\n',
     "QB_CH4.BAS": b"COMMON m AS BYTE, y() AS BYTE\r\nPRINT m; LEN(m); y(2)\r\nm = m + 6\r\n",
     "QB_CH5.BAS": f"COMMON {', '.join(f'd{i}' for i in range(600))}, y() AS LONG\r\nPRINT d0; d599; y(30000)\r\n".encode(),
+    "QB_CN1.BAS": bas("common d, e$, h", "print d; e$; h").encode(),
+    "QB_CN2.BAS": bas("from qbcnm import pr", "common d, e$, h", "pr", "print h").encode(),
+    "qbcnm.bas": bas("common shared k, l$", "sub pr", " print k; l$", "end sub").encode(),
     "QB_CH2.BAS": b'COMMON b%, q$, e#, y(), u AS SHORT\r\nPRINT b%; q$; e#; y(3); LBOUND(y); u; t\r\n'
                   b'PRINT #1, "kept": CLOSE #1\r\nON ERROR GOTO h\r\nCHAIN "NONE"\r\nEND\r\nh: PRINT "e"; ERR: RESUME NEXT\r\n',
 }
@@ -1538,7 +1784,8 @@ def main() -> None:
         check_host_errors(tmp)
         for k in HOST_SKIP:
             CASES.pop(k)
-    batches = [dict(jobs=b, limit_ms=10000, file=True, files=FILES) for b in dosrun.split({k: v[0] for k, v in CASES.items()})]
+    jobs = {k: v[0] for k, v in (CASES | EXAMPLES).items()}
+    batches = [dict(jobs=b, limit_ms=10000, file=True, files=FILES) for b in dosrun.split(jobs)]
     batches += [dict(jobs={k: v[0] for k, v in REPL.items()}, limit_ms=10000),
                 dict(jobs={k: v[0] for k, v in WARN.items()}, limit_ms=10000, file=True),
                 dict(jobs={k: v[0] for k, v in BIG.items()}, limit_ms=10000, file=True, mem=8)]
@@ -1546,6 +1793,7 @@ def main() -> None:
     every = CASES | REPL | BIG
     bad = [k for k, (_, want, forbid) in every.items() if want not in res[k].out or (forbid and forbidden(forbid, res[k].out))]
     bad += [k for k, (_, want) in WARN.items() if want not in res[k].screen]
+    bad += [k for k, (_, want) in EXAMPLES.items() if re.sub(r" +\r\n", "\r\n", res[k].out) != want]
     for k in bad:
         print(f"FAIL {k}: {res[k].reason} {res[k].out!r}")
     sys.exit(1 if bad else print("ok") or 0)

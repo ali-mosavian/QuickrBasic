@@ -17,6 +17,8 @@ void unit_store(Session *S, const char *const *lines);
 Status unit_run(Session *S, const char *const *lines);
 /* unit_store, then RUN: its output where it goes, the screen when standard output is. */
 Status unit_run_shown(Session *S, const char *const *lines);
+/* A direct line typed and run: its output in S->cons.sbuf. */
+Status unit_typed(Session *S, const char *line);
 /* lines, unnumbered as a file's may be, stored as a file's load does, then RUN: its output in
    S->cons.sbuf. */
 Status unit_run_file(Session *S, const char *const *lines);

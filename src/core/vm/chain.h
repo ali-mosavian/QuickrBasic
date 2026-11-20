@@ -4,8 +4,8 @@
 #include "vm/exec.h"
 typedef struct Chai Chai;
 
-/* chn_start: a run's start: no COMMON named; CHAIN's values for this run only. */
-void chai_start(Chai *ch);
+/* chn_start: a run's start: no COMMON named (sy's variables'); CHAIN's values for this run only. */
+void chai_start(Chai *ch, Symb *sy);
 enum { CHAIN_NAME_MAX = 120 };
 
 /* CHAIN's state: COMMON's values carried to the next program */

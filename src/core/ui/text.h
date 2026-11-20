@@ -24,6 +24,12 @@ void text_repl(Session *S, uint32_t line, const uint8_t *src, uint16_t len);
 void text_insert(Session *S, uint32_t line, const uint8_t *src, uint16_t len);
 /* tx_dell: line out, the hook told; the view's last line left is emptied instead. */
 void text_delete(Session *S, uint32_t line);
+/* Text line line's module (not the view's line). */
+uint32_t text_module(Session *S, uint32_t line);
+/* Module module changed since saved; then saved; none changed (a program opened). */
+bool text_unsaved(Session *S, uint32_t module);
+void text_saved(Session *S, uint32_t module);
+void text_clean(Session *S);
 /* tx_mark: line's mark (a breakpoint). */
 bool text_mark(Session *S, uint32_t line);
 /* tx_mtog: line's mark on, off. */
@@ -41,7 +47,7 @@ void text_clip_lines(Session *S, uint32_t from, uint32_t to);
    physical lines); each line as edit_canon makes it, a syntax error's kept as typed.
    PFIL_OK, else the DOS error of opening it, the text as it was. Errors: Out of memory. */
 uint16_t text_read(Session *S, const char *name);
-/* tx_write: the whole text to the file name, lines ended by CR LF; PFIL_OK, else the DOS error
+/* tx_write: module module's lines to the file name, ended by CR LF; PFIL_OK, else the DOS error
    (creating it, or the last write's). */
-uint16_t text_write(Session *S, const char *name);
+uint16_t text_write(Session *S, const char *name, uint32_t module);
 #endif

@@ -33,6 +33,7 @@ No 64 KB walls. Programs, lines, strings, arrays and symbol tables grow until me
 | 16-bit integers | the only kind | **`SHORT` and `DEFSHORT`**, for records laid out as QBasic's |
 | Bytes | none | **`BYTE`, `DEFBYTE` and `CBYTE`**: unsigned, 0 to 255, else Overflow; 1 byte in a `TYPE` and a file; no suffix |
 | Whole arrays | an element at a time | **`b() = a()` moves one, `b(:) = a(:)` copies it**; a FUNCTION `AS type()` returns one ([help](help/ext/array-assign.md)) |
+| Modules | one file | **`IMPORT` and `FROM`**: modules and packages, found in the program's folder, `BASICLIB` and `lib/` ([help](help/ext/import.md)) |
 | Sound | the PC speaker | **a 32-voice synthesizer**: `PLAY a$, b$, ...`, waves, FM, envelopes, filters, vibrato, glide, stereo, reverb ([reference](docs/sound.md), [tutorial](docs/play-tutorial.md)) |
 | Memory | 64 KB segments | **all of it**: everything grows as needed |
 | Mouse | `CALL INTERRUPT` and a driver | **`PEN(n)`**: the left button the pen's switch, `PEN(n + 10)` the right's |

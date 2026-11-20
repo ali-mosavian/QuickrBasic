@@ -38,6 +38,8 @@ typedef struct {
     const uint8_t *near; /* lexr_ahead's: an item past it may need the window refilled */
     bool escaped;        /* the line has a TK_X token: DEF SEG, VARSEG, SSEG's warnings need one */
     bool start;          /* the next item starts a statement: the line's, after ':', THEN, ELSE */
+    bool from;           /* in a FROM statement: its IMPORT a keyword */
+    bool dim;            /* the last item DIM: PUBLIC a keyword */
 } Lexr;
 
 /* Errors raise through f; words become names through names. */

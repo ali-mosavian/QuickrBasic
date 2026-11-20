@@ -152,6 +152,7 @@ host-test: build/host/basic build/host/unit_tests build/host/golden_dump build/h
 	sh tests/host/longpath.sh build/host/basic
 	sh tests/host/dosname.sh build/host/basic
 	sh tests/host/check.sh build/host/basic
+	sh tests/host/import.sh build/host/basic
 	$(PY) tools/golden.py
 	BASIC_EXE=build/host/basic $(PY) tools/regress_test.py build/host/basic
 	BASIC_EXE=build/host/basic $(PY) tools/conformance.py
@@ -252,12 +253,15 @@ sound-diagrams: build/host/synthdump
 	$(PY) tools/diagrams/sound.py $< docs/img/play
 
 UNIT_OBJ := $(patsubst tests/unit/%.c,build/host/unit/%.o,$(wildcard tests/unit/*.c))
+# the editor's, for tests/unit/editor_test.c
+UNIT_UI_OBJ := $(patsubst src/%.c,build/host/obj/%.o,$(filter-out $(HOST_C),$(wildcard src/core/ui/*.c)))
+$(UNIT_UI_OBJ): APP_FLAGS := -DAC=$(AC)
 build/host/unit/%.o: tests/unit/%.c
 	@mkdir -p $(@D)
 	$(HOST_CC) $(HOST_CFLAGS) $(DEPFLAGS) -c $< -o $@
 build/host/test.hlp: tools/mkhelp.py $(wildcard tests/help/*)
 	$(PY) tools/mkhelp.py tests/help -o $@
-build/host/unit_tests: $(build/host_OBJ) $(UNIT_OBJ) build/host/obj/lib/div64.o build/host/test.hlp
+build/host/unit_tests: $(build/host_OBJ) $(UNIT_UI_OBJ) $(UNIT_OBJ) build/host/obj/lib/div64.o build/host/test.hlp
 	$(HOST_CC) $(filter-out %.hlp,$^) -lm -o $@
 build/host/golden/dump.o: tests/golden/dump.c
 	@mkdir -p $(@D)

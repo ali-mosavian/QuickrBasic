@@ -1110,7 +1110,7 @@ static uint32_t sugg_record(const SuggSrc *const src)
     if (i == s || !is_letter(b[s]))
         return 0;
 
-    const uint32_t name = symb_find_name(src->symb, b + s, (uint8_t)(i - s));
+    const uint32_t name = symb_find_name(src->symb, 0, b + s, (uint8_t)(i - s));
     const bool arr = b[i] == '(';
 
     if (arr)
@@ -1124,7 +1124,7 @@ static uint32_t sugg_record(const SuggSrc *const src)
         while (i < e && is_word_char(b[i]))
             i++;
 
-        const uint32_t fn = symb_find_name(src->symb, b + f0, (uint8_t)(i - f0));
+        const uint32_t fn = symb_find_name(src->symb, 0, b + f0, (uint8_t)(i - f0));
         const TypeDef *const td = decl_type(src->decl, t);
         const Field *f = nullptr;
 

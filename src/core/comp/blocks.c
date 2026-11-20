@@ -563,9 +563,11 @@ static void blok_leave(
 }
 
 /* The statement at s: a block statement's entry and the stack. */
-static void blok_stmt(BlokScan *const sc, const uint8_t *const s)
+static void blok_stmt(BlokScan *const sc, const uint8_t *s)
 {
     sc->off = (uint32_t)(s - sc->body);
+    s += s[0] == TK_X && s[1] == TK1_PRIVATE ? 2
+                                             : 0; /* PRIVATE SUB, FUNCTION: the statement its own */
     BlokOpen *o;
     BlockEnt *e;
 
