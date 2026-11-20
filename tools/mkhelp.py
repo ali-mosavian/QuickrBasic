@@ -164,6 +164,9 @@ def render(t: Topic, keymap: dict[str, int], index_id: int, contents_id: int, us
         if kind == "code":
             body = (b" " if text else b"") + cp437(text, where)
             width = len(body)
+            for m in LINK_RE.finditer(text):  # [STEP](x, y) is syntax; a key's is a link meant
+                if " ".join(m.group(2).split()).upper() in keymap:  # norm's, which refuses some
+                    errors.append(f"{where}: link in code, shown as typed: indent with no-break spaces")
         else:
             if kind == "text" and text == "Syntax":
                 kind = "head"  # bright, as QBasic's
