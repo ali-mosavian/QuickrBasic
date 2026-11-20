@@ -69,9 +69,11 @@ _lexed = {s for _, s in PAGE0 if s}
 EXTRA = ["SHORT", "SSEG", "PRESERVE", "EXPLICIT", "DEFSHORT", "BYTE", "DEFBYTE", "CBYTE", "CONTINUE"]
 # ours: a 2-byte integer, for records' QBasic layout (INTEGER is 4 bytes); PDS's REDIM PRESERVE; VBDOS's OPTION EXPLICIT;
 # ours: an unsigned byte; CONTINUE FOR | DO | WHILE (the lexer makes it a keyword only there: lexr_continues)
-PAGE1 = [w for w in QB45 if w not in _lexed] + EXTRA
+# ours, listed only, by its name in the code: (:), an array whole by its elements (comp/lexer.c)
+LISTED1 = {"(:)": "WHOLE"}
+PAGE1 = [w for w in QB45 if w not in _lexed] + EXTRA + list(LISTED1)
 TOKENS: dict[str, int] = {s: 0x80 + n for n, (_, s) in enumerate(PAGE0) if s}
-TOKENS |= {w: 0x100 + n for n, w in enumerate(PAGE1)}  # FFh, n
+TOKENS |= {w: 0x100 + n for n, w in enumerate(PAGE1) if w not in LISTED1}  # FFh, n
 assert set(QB45) <= set(TOKENS), set(QB45) - set(TOKENS)
 assert len(PAGE1) < 256
 
@@ -564,7 +566,7 @@ def c_emit(T: dict) -> str:
         "    TK_X = 0xFF,",
         "};",
         "enum : uint8_t {",
-        *(f"    TK1_{w.replace('$', 'S')} = {n}," for n, w in enumerate(PAGE1)),
+        *(f"    TK1_{LISTED1.get(w, w.replace('$', 'S'))} = {n}," for n, w in enumerate(PAGE1)),
         "};",
         "enum {",
         f"    KW_NC = {T['KW_NC']},",

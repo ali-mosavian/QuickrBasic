@@ -18,6 +18,7 @@
 #include "comp/gfxstmt.h"
 #include "comp/dfa.h"
 #include "comp/expr.h"
+#include "comp/refs.h"
 #include "vm/exec.h"
 #include "vm/syscall.h"
 
@@ -205,14 +206,17 @@ static void gstm_str(Comp *const C)
     comp_tostring(C);
 }
 
-/* An array, name or name(subscripts): its id, its element's place and kind; 0 0 its first. */
+/* An array, name or name(subscripts), a record's array field too (ours): its cell, its element's
+   place and kind; 0 0 its first. */
 static void gstm_array(Comp *const C)
 {
     if (comp_cur(C) != M_VAR)
         fault_error(C->fault, E_SN);
 
     const uint8_t *const name = C->p;
-    comp_int(C, comp_var(C, 2, 0));
+    uint32_t type;
+    Node *const field = ref_fieldcell(C, &type);
+    comp_step(C, field ? field : ref_cell(C, comp_var(C, 2, 0)));
 
     if (*C->p == '(') {
         C->p = name;

@@ -595,6 +595,10 @@ uint8_t *lexr_line(Lexr *const lx, uint8_t *const text, uint8_t *const body)
                 return lexr_copy_rest(lx);
             if (t == TK_DATA && !lexr_copy_data(lx))
                 return lexr_finish(lx);
+        } else if (c == '(' && lx->in[0] == ':' && lx->in[1] == ')') { /* ours: an array whole */
+            lx->in += 2;
+            *lx->out++ = TK_X;
+            *lx->out++ = TK1_WHOLE;
         } else {
             const uint8_t t = lexr_char_token[c];
             *lx->out++ = t ? t : c;

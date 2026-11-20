@@ -326,7 +326,15 @@ static uint32_t arry_block(const Arry *const ay, const Addr h)
     return (uint32_t)arry_block_of(arry_hdr_at(h)->dims, arry_size(ay, h));
 }
 
-Addr arry_make(Arry *const ay, ArrSlot *const s, const uint32_t et, const uint8_t n, const bool dyn)
+/* arry_make's array; arena: on the running call's arena if it can be. */
+static Addr arry_make_on(
+    Arry *const ay,
+    ArrSlot *const s,
+    const uint32_t et,
+    const uint8_t n,
+    const bool dyn,
+    const bool arena
+)
 {
     uint64_t size = arry_et_size(ay->decl, et);
 
@@ -338,7 +346,8 @@ Addr arry_make(Arry *const ay, ArrSlot *const s, const uint32_t et, const uint8_
     }
 
     const uint64_t block = arry_block_of(n, size);
-    Addr h = block <= UINT32_MAX ? stack_arena_take(ay->vm, addr_of(s), (uint32_t)block) : 0;
+    Addr h =
+        arena && block <= UINT32_MAX ? stack_arena_take(ay->vm, addr_of(s), (uint32_t)block) : 0;
     Addr data = h + arry_frame_hdr(n);
 
     if (!h)
@@ -351,6 +360,11 @@ Addr arry_make(Arry *const ay, ArrSlot *const s, const uint32_t et, const uint8_
     arry_empty_recs(ay, h);
 
     return h;
+}
+
+Addr arry_make(Arry *const ay, ArrSlot *const s, const uint32_t et, const uint8_t n, const bool dyn)
+{
+    return arry_make_on(ay, s, et, n, dyn, true);
 }
 
 void arry_empty_cells(const Addr data, const uint32_t n, const TypeDef *const td)
@@ -551,7 +565,8 @@ void arry_copy_rec(Arry *const ay, const Addr dst, const Addr src, const TypeDef
     }
 }
 
-void arry_copy_into(Arry *const ay, ArrSlot *const d, const ArrSlot *const s)
+/* arry_copy_into's copy; arena: on the running call's arena if it can be. */
+static void arry_copy_on(Arry *const ay, ArrSlot *const d, const ArrSlot *const s, const bool arena)
 {
     if (!s->hdr)
         return;
@@ -564,7 +579,7 @@ void arry_copy_into(Arry *const ay, ArrSlot *const d, const ArrSlot *const s)
         ay->lbounds[i] = arry_lbound(a, i);
     }
 
-    arry_make(ay, d, a->et, n, true); /* at the end: nothing moves */
+    arry_make_on(ay, d, a->et, n, true, arena); /* at the end: nothing moves */
 
     const ArrayHdr *const b = arry_hdr_at(s->hdr);
     const Addr from = b->data, to = arry_hdr_at(d->hdr)->data;
@@ -584,6 +599,11 @@ void arry_copy_into(Arry *const ay, ArrSlot *const d, const ArrSlot *const s)
         arry_copy_rec(ay, to + k, from + k, td);
 }
 
+void arry_copy_into(Arry *const ay, ArrSlot *const d, const ArrSlot *const s)
+{
+    arry_copy_on(ay, d, s, true);
+}
+
 void arry_copy(Arry *const ay, Vm *const vm, ArrSlot *const d, const ArrSlot *const s)
 {
     if (d == s)
@@ -597,19 +617,49 @@ void arry_copy(Arry *const ay, Vm *const vm, ArrSlot *const d, const ArrSlot *co
     arry_sweep(ay, vm);
 }
 
+/* Cell d's array, the heap's, its: its owner d, d's call to free it (arry_own_call). */
+static void arry_own(const Arry *const ay, const ArrSlot *const d)
+{
+    if (d->hdr && arry_heap(ay, d->hdr)) {
+        arry_hdr_at(d->hdr)->owner = arry_owner(ay, d);
+        arry_own_call(ay, addr_of(d));
+    }
+}
+
+/* Cell c is the running call's, in its frame or arena: its frame's and arena's arrays live as long. */
+static bool arry_in_call(const Vm *const vm, const Addr c)
+{
+    return c >= addr_of(vm->sp) && c < vm->fp;
+}
+
+/* Cell s's array, a frame's or an arena's, copied to the heap, the old one dropped: s's array goes
+   to a cell its call may outlive. Its records' arrays are the heap's: their cells are. */
+static void arry_off_call(Arry *const ay, ArrSlot *const s)
+{
+    const ArrSlot old = *s;
+
+    if (!old.hdr || arry_heap(ay, old.hdr))
+        return;
+
+    *s = (ArrSlot){0, 1};
+    arry_copy_on(ay, s, &old, false);
+    arry_drop(ay, old.hdr);
+}
+
 void arry_move(Arry *const ay, Vm *const vm, ArrSlot *const d, ArrSlot *const s)
 {
     if (d == s)
         return;
 
     const Addr old = arry_assigned(ay, d);
-    *d = (ArrSlot){s->hdr, 1};
 
+    if (!arry_in_call(vm, addr_of(d)))
+        arry_off_call(ay, s);
+
+    *d = (ArrSlot){s->hdr, 1};
     *s = (ArrSlot){0, 1};
 
-    if (d->hdr && arry_heap(ay, d->hdr))
-        arry_hdr_at(d->hdr)->owner = arry_owner(ay, d);
-
+    arry_own(ay, d);
     arry_drop(ay, old);
     arry_sweep(ay, vm);
 }
@@ -652,19 +702,35 @@ static bool arry_index_in(
     return true;
 }
 
+/* Record r of TYPE td: its heap arrays' owners its cells, their call's to free (arry_own_call). */
+static void arry_own_slots(const Arry *const ay, const Addr r, const TypeDef *const td)
+{
+    for (uint32_t i = 0; i < td->nslot; i++)
+        arry_own(ay, (const ArrSlot *)at(r + td->slots[i]));
+}
+
 void arry_move_rec(const Arry *const ay, const Addr dst, const Addr src, const TypeDef *const td)
 {
     strg_move_owned(ay->strg, dst, src, td->strs, td->nstr);
+    arry_own_slots(ay, dst, td);
 
+    for (uint32_t i = 0; i < td->nslot; i++) /* not the old one's to kill */
+        *(ArrSlot *)at(src + td->slots[i]) = (ArrSlot){0, 1};
+}
+
+void arry_swap_rec(Arry *const ay, const Addr a, const Addr b, const TypeDef *const td)
+{
     for (uint32_t i = 0; i < td->nslot; i++) {
-        ArrSlot *const d = (ArrSlot *)at(dst + td->slots[i]);
-        ArrSlot *const s = (ArrSlot *)at(src + td->slots[i]);
-
-        if (d->hdr && arry_heap(ay, d->hdr))
-            arry_hdr_at(d->hdr)->owner = arry_owner(ay, d);
-
-        *s = (ArrSlot){0, 1}; /* not the old one's to kill */
+        arry_off_call(ay, (ArrSlot *)at(a + td->slots[i])); /* a SWAP may hand it on */
+        arry_off_call(ay, (ArrSlot *)at(b + td->slots[i]));
     }
+
+    copy_swap(a, b, td->size);
+    strg_move_owned(ay->strg, a, a, td->strs, td->nstr); /* in place: the owners follow */
+    strg_move_owned(ay->strg, b, b, td->strs, td->nstr);
+    arry_own_slots(ay, a, td);
+    arry_own_slots(ay, b, td);
+    arry_sweep(ay, ay->vm); /* last: a and b may be in the heap */
 }
 
 /* Header h's element at src moved to dst: a string's block's owner follows, a record's STRINGs'

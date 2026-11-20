@@ -32,24 +32,30 @@ uint32_t ref_recarray(
     Comp *C,
     uint32_t name,
     uint32_t type
-);                                           /* rc_avar: record array name's variable */
-const Proc *ref_proc(Comp *C, uint32_t *idx); /* ct_proc: the procedure named at comp.p; null none */
-uint32_t ref_arrayof(Comp *C, uint32_t id);  /* array id, or its name's record array */
+); /* rc_avar: record array name's variable */
+const Proc *ref_proc(
+    Comp *C,
+    uint32_t *idx
+);                                          /* ct_proc: the procedure named at comp.p; null none */
+uint32_t ref_arrayof(Comp *C, uint32_t id); /* array id, or its name's record array */
 /* ours: a call at comp.p of a FUNCTION whose result is a record or an array, its N_CALL, a the place
    of what the result went to; null none: in that FUNCTION its name alone, and an array result's
    name(..), are its result. */
 Node *ref_result(Comp *C);
-uint32_t ref_wholearray(Comp *C); /* a() at comp.p, stepped past: its variable */
+/* a() at comp.p, stepped past: its variable. wr: a(:) too, ours, *wr which. */
+uint32_t ref_wholearray(Comp *C, Written *wr);
 Node *ref_cell(
     Comp *C,
     uint32_t id
 ); /* variable id's cell, an argument's ref: a parameter's is its argument's */
 /* A record's dynamic array field whole at comp.p, ours, f or f(): its cell's place, *type its
-   elements' (a variable's ET_*); null, comp.p kept: none. */
-Node *ref_fieldarray(Comp *C, uint32_t *type);
+   elements' (a variable's ET_*); null, comp.p kept: none. wr: f(:) too, *wr how it is written. */
+Node *ref_fieldarray(Comp *C, uint32_t *type, Written *wr);
+/* ref_fieldarray's, f(..) too, the (..) left at comp.p: a REDIM's bounds, an element's subscripts. */
+Node *ref_fieldcell(Comp *C, uint32_t *type);
 /* An array at comp.p, ours: a() whole, or f(..), a FUNCTION's array result, its call to *call (null
-   for a()): its variable, a record for a record result. */
-uint32_t ref_arrayvalue(Comp *C, Node **call);
+   for a()): its variable, a record for a record result. wr: b(:) too, *wr how it is written. */
+uint32_t ref_arrayvalue(Comp *C, Node **call, Written *wr);
 Node *ref_recplace(Comp *C, uint32_t id); /* record variable id's place, the whole of it */
 Node *ref_call(
     Comp *C,

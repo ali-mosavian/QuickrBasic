@@ -53,6 +53,13 @@ TEST(list_statement_before_paren)
     );
 }
 
+/* a(:), ours, an array whole by its elements, listed as typed, close to its name. */
+TEST(list_whole_array)
+{
+    listed(S, "x(:) = y (:): m.a(:)=n.b(:)");
+    CHECK_TEXT(S->cons.sbuf, S->cons.sblen, "x(:) = y(:): m.a(:) = n.b(:)");
+}
+
 /* BYTE, DEFBYTE and CBYTE, ours, keywords: they were names, listed as typed. */
 TEST(list_byte_keywords)
 {

@@ -122,23 +122,114 @@ const uint8_t *decl_paren(const uint8_t *p)
     }
 }
 
-/* A bound at *p, [-]n: its value, *p past it; false: not one. */
-static bool dims_bound(const uint8_t **const p, int64_t *const v)
-{
-    const uint8_t *q = *p;
-    const bool neg = *q == TK_MINUS;
-    q += neg;
+/* decl_int's scan: the CONSTs as scope sees them, the cursor. */
+typedef struct {
+    const Scop *sc;
+    uint32_t scope;
+    const uint8_t *p;
+} IntScan;
 
-    if (*q != M_INT)
+/* The operators by precedence, the lowest first: + -, MOD, \, *. */
+enum { INT_LEVELS = 4 };
+
+static bool int_op(const uint8_t c, const uint32_t level)
+{
+    static const uint8_t ops[INT_LEVELS][2] = {{TK_PLUS, TK_MINUS}, {TK_MOD}, {'\\'}, {TK_MUL}};
+    return c && (c == ops[level][0] || c == ops[level][1]);
+}
+
+static bool int_level(IntScan *s, uint32_t level, int64_t *v);
+
+/* n, a CONST's known value, ( e ), or a signed one. */
+static bool int_atom(IntScan *const s, int64_t *const v)
+{
+    const uint8_t c = *s->p;
+    int32_t k;
+
+    if (c == TK_MINUS || c == TK_PLUS) {
+        s->p++;
+
+        if (!int_atom(s, v))
+            return false;
+
+        *v = c == TK_MINUS ? -*v : *v;
+        return true;
+    }
+
+    if (c == M_INT) {
+        *v = (int32_t)load32(s->p + 1);
+        s->p += INT_TOKEN_SIZE;
+        return true;
+    }
+
+    if (c == '(') {
+        s->p++;
+
+        if (!int_level(s, 0, v) || *s->p != ')')
+            return false;
+
+        s->p++;
+        return true;
+    }
+
+    if (c != M_VAR || !scop_conval(s->sc, s->scope, comp_nameof(s->p), &k))
         return false;
 
-    const int64_t n = (int32_t)load32(q + 1);
-    *v = neg ? -n : n;
-    *p = q + INT_TOKEN_SIZE;
+    *v = k;
+    s->p = comp_skipname(s->p);
+    return true;
+}
+
+/* The operands of level's operators and their results, left to right. */
+static bool int_level(IntScan *const s, const uint32_t level, int64_t *const v)
+{
+    if (level == INT_LEVELS)
+        return int_atom(s, v);
+    if (!int_level(s, level + 1, v))
+        return false;
+
+    while (int_op(*s->p, level)) {
+        const uint8_t op = *s->p++;
+        int64_t r;
+
+        if (!int_level(s, level + 1, &r) || (!r && (op == '\\' || op == TK_MOD)))
+            return false;
+
+        *v = op == TK_PLUS    ? *v + r
+             : op == TK_MINUS ? *v - r
+             : op == TK_MUL   ? *v * r
+             : op == '\\'     ? *v / r
+                              : *v % r;
+
+        if (*v < INT32_MIN || *v > INT32_MAX)
+            return false;
+    }
+
+    return true;
+}
+
+/* An integer constant at *p, as the declarations know one before any is compiled (comp/fold.c
+   folds the rest): n and the CONSTs scope knows the values of, ( ), signs, + - * \ MOD. Its
+   value, *p past it; false: not one, or past a LONG. */
+static bool decl_int(
+    const Scop *const sc,
+    const uint32_t scope,
+    const uint8_t **const p,
+    int64_t *const v
+)
+{
+    IntScan s = {sc, scope, *p};
+
+    if (!int_level(&s, 0, v))
+        return false;
+
+    *p = s.p;
     return true;
 }
 
 const uint8_t *decl_dims(
+    const Scop *const sc,
+    const uint32_t scope,
     const uint8_t *p,
     const uint8_t base,
     FieldDim *const dims,
@@ -157,13 +248,13 @@ const uint8_t *decl_dims(
     do {
         int64_t lo = base, hi;
 
-        if (!dims_bound(&p, &hi))
+        if (!decl_int(sc, scope, &p, &hi))
             return nullptr;
         if (*p == TK_TO) {
             p++;
             lo = hi;
 
-            if (!dims_bound(&p, &hi))
+            if (!decl_int(sc, scope, &p, &hi))
                 return nullptr;
         }
 
@@ -654,7 +745,7 @@ static void decl_field(DeclScan *const ds)
     const bool paren = *ds->at == '(';
 
     if (paren) {
-        const uint8_t *const past = decl_dims(ds->at, ds->d->base, dims, &nd);
+        const uint8_t *const past = decl_dims(ds->sc, ds->d->proc, ds->at, ds->d->base, dims, &nd);
 
         if (nd > MAXDIMS)
             decl_fail_at(ds, name, E_TMD);
@@ -943,6 +1034,7 @@ static void decl_const(DeclScan *const ds)
             return;
 
         ds->at++;
+        const uint8_t *const value = ds->at;
         uint8_t et = ET_I4; /* the value's type: its items' */
         int32_t depth = 0;
 
@@ -986,6 +1078,11 @@ static void decl_const(DeclScan *const ds)
             et = comp_suffix(sfx);
 
         b->et[0] = et;
+        const uint8_t *q = value;
+        int64_t v;
+        const bool known = et != ET_SD && decl_int(ds->sc, ds->d->proc, &q, &v) && q == ds->at;
+        b->flags = (uint8_t)((b->flags & ~BF_VAL) | (known ? BF_VAL : 0));
+        b->val = known ? (int32_t)v : 0;
 
         if (*ds->at != ',')
             return;

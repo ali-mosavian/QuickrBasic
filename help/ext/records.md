@@ -23,7 +23,8 @@ a procedure's local record frees them when the procedure returns.
 A dynamic array element, element() AS type, is empty until
 REDIM v.element(bounds). REDIM PRESERVE, ERASE, LBOUND, UBOUND and
 array assignment take it as any array, and v.element() passes it to
-a SUB's array parameter. A TYPE may hold an array of itself.
+a SUB's array parameter. Written alone, v.element = w.element copies
+it. A TYPE may hold an array of itself.
 
 A FUNCTION AS name returns a record: v = f(1) copies the result in.
 

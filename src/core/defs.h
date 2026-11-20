@@ -50,7 +50,8 @@ enum : uint8_t {
     BF_LBL = 8,
     BF_CON = 16,
     BF_USE = 32,
-    BF_RES = 64
+    BF_RES = 64,
+    BF_VAL = 128 /* a CONST's integer value known as declared: Binding.val */
 };
 enum : uint32_t { SC_NUM = 0x80000000, SC_ARR = 0x40000000 };
 

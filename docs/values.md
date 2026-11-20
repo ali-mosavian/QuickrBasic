@@ -35,8 +35,11 @@ s() = Squares(10)
 
 ## Rules
 
-- Assignment copies. `b = a` copies a record and everything in it; `b() = a()` gives `b` the
-  bounds and elements of `a`.
+- `b = a` copies a record and everything in it. `b(:) = a(:)` gives `b` the bounds and a copy of
+  the elements of `a`; `b() = a()` moves the array, leaving `a` empty. A record's array field
+  written alone copies: `c.pts = m.pts`.
+- `swap a, b` of two records of one type swaps everything in them.
+- A fixed array's bounds in a type are integer constants: numbers, CONSTs and `+ - * \ mod`.
 - A whole array is written `a()`: the scalar `a` and the array `a()` are separate variables.
 - Procedures receive references, as before.
 - A FUNCTION's name is its result: `Add.x = ...`, `redim Squares(...)`, `Squares(i) = ...`. With
@@ -55,8 +58,9 @@ Every array has one owner, and the owner's end frees it. Nothing is shared, so n
 - A parameter is the caller's; the callee never frees it.
 - A call's result goes to a hidden variable of the caller's, one per call site: a local inside a
   procedure, freed on return; at module level, replaced by the next call there.
-- Assignment frees the target's old array. `b() = a()` copies; `s() = f(10)` moves the result,
-  leaving the hidden variable empty.
+- Assignment frees the target's old array. `b(:) = a(:)` copies; `b() = a()` and `s() = f(10)`
+  move, leaving the source empty. A local's frame or arena array moved to a cell its procedure may
+  outlive is copied to the heap first.
 - `erase` and `redim` free as before.
 - Freeing a record frees its dynamic fields, by its TYPE's slots. An array header names its cell,
   so the compacting heap can update a cell inside a record that moved.
@@ -64,7 +68,7 @@ Every array has one owner, and the owner's end frees it. Nothing is shared, so n
 ## Steps
 
 1. `function ... as type` for the scalar types and records; `declare function ... as type`.
-2. `dim a()`, `b() = a()` and array results.
+2. `dim a()`, `b() = a()`, `b(:) = a(:)` and array results.
 3. Fixed arrays in a type.
 4. Dynamic arrays and `string` in a type.
 

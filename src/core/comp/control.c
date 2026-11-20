@@ -713,8 +713,88 @@ static void casestmt(Comp *const C)
     ctrl_jf(C, nextof(e));
 }
 
+/* ---- records */
+
+void ctrl_recstore(Comp *const C)
+{
+    const uint32_t et = C->ctrl->fieldet;
+
+    if (et == ET_SD) {
+        comp_tostring(C);
+        Node *const n = comp_op(C, O_SF_ST);
+        comp_word(n, (uint16_t)C->tgt); /* the field's offset */
+        comp_word(n, C->ctrl->fieldfix);
+        return;
+    }
+
+    comp_toinfo(C, comp_etkind[et]);
+    Node *const n = comp_op(C, O_FL_ST);
+    comp_word(n, (uint16_t)C->tgt);
+    comp_byte(n, (uint8_t)et); /* a number's */
+}
+
+/* Two whole records of one TYPE at comp.p, sep between them, then the statement's end: their
+   addresses, a field's offset added; *rec the first's place. false, comp.p kept: not so. */
+static bool recpair(Comp *const C, const uint8_t sep, RecRef *const rec)
+{
+    const uint8_t *const p = C->p;
+    Node *const a = comp_cur(C) == M_VAR ? ref_record(C) : nullptr;
+
+    if (a != nullptr && a->rec.et >= ET_REC && comp_cur(C) == sep) {
+        C->p++;
+        Node *const b = comp_cur(C) == M_VAR ? ref_record(C) : nullptr;
+
+        if (b != nullptr && b->rec.et == a->rec.et && comp_end(C)) {
+            *rec = a->rec;
+            comp_step(C, expr_addr(C, a, 0));
+            comp_step(C, expr_addr(C, b, 0));
+            return true;
+        }
+    }
+
+    C->p = p;
+    return false;
+}
+
+/* ct_rcopy: a = b of two records of one TYPE: R.COPY; a TYPE with STRINGs, ours: its index, CALL
+   RCOPY. */
+static bool reccopy(Comp *const C)
+{
+    RecRef rec;
+
+    if (!recpair(C, TK_EQ, &rec))
+        return false;
+
+    const uint32_t t = rec.et - ET_REC;
+
+    if (decl_dynamic(decl_type(C->decl, t))) {
+        comp_int(C, t);
+        comp_call(C, K_RCOPY);
+        return true;
+    }
+
+    comp_word(comp_op(C, O_R_COPY), rec.fix);
+    return true;
+}
+
+/* SWAP a, b of two records of one TYPE, ours: its index, CALL RSWAP. */
+static bool recswap(Comp *const C)
+{
+    RecRef rec;
+
+    if (!recpair(C, ',', &rec))
+        return false;
+
+    comp_int(C, rec.et - ET_REC);
+    comp_call(C, K_RSWAP);
+    return true;
+}
+
 void ctrl_swap(Comp *const C)
 {
+    if (recswap(C))
+        return;
+
     const uint8_t *const a = C->p;
     expr_load(C);
     selvar(C, 'S' - '0', comp_type(C));
@@ -744,75 +824,28 @@ void ctrl_swap(Comp *const C)
     C->p = end;
 }
 
-/* ---- records */
-
-void ctrl_recstore(Comp *const C)
+/* A whole array's a() or a(:) at p, then '='. */
+static bool whole_eq(const uint8_t *const p)
 {
-    const uint32_t et = C->ctrl->fieldet;
-
-    if (et == ET_SD) {
-        comp_tostring(C);
-        Node *const n = comp_op(C, O_SF_ST);
-        comp_word(n, (uint16_t)C->tgt); /* the field's offset */
-        comp_word(n, C->ctrl->fieldfix);
-        return;
-    }
-
-    comp_toinfo(C, comp_etkind[et]);
-    Node *const n = comp_op(C, O_FL_ST);
-    comp_word(n, (uint16_t)C->tgt);
-    comp_byte(n, (uint8_t)et); /* a number's */
+    return (p[0] == '(' && p[1] == ')') || (p[0] == TK_X && p[1] == TK1_WHOLE) ? p[2] == TK_EQ : false;
 }
 
-/* ct_rcopy: a = b of two records of one TYPE: their addresses, a field's offset added, R.COPY; a
-   TYPE with STRINGs, ours: its index, CALL RCOPY. */
-static bool reccopy(Comp *const C)
-{
-    const uint8_t *const p = C->p;
-    Node *const a = ref_record(C);
-
-    if (a != nullptr && a->rec.et >= ET_REC && comp_cur(C) == TK_EQ) {
-        const RecRef rec = a->rec;
-        C->p++;
-        Node *const b = comp_cur(C) == M_VAR ? ref_record(C) : nullptr;
-
-        if (b != nullptr && b->rec.et == rec.et && comp_end(C)) {
-            const uint32_t t = rec.et - ET_REC;
-            comp_step(C, expr_addr(C, a, 0));
-            comp_step(C, expr_addr(C, b, 0));
-
-            if (decl_dynamic(decl_type(C->decl, t))) {
-                comp_int(C, t);
-                comp_call(C, K_RCOPY);
-                return true;
-            }
-
-            comp_word(comp_op(C, O_R_COPY), rec.fix);
-            return true;
-        }
-    }
-
-    C->p = p;
-    return false;
-}
-
-/* a() = b(), ours: arrays of one type, a record's array fields too; their cells, CALL ACOPY. a() =
-   f(..), an array result: the call, its result's cell, the target's, CALL AMOVE. The source first: a
-   call can move a record. */
+/* Ours, arrays of one type, a record's array fields too: their cells, the source first (a call can
+   move a record). a() = b() moves (b left empty), CALL AMOVE, as a() = f(..), an array result, the
+   call its cell; a(:) = b(:) copies, CALL ACOPY, as a field alone does. */
 static bool arrcopy(Comp *const C)
 {
     const uint8_t *const start = C->p;
     uint32_t ta, tb;
-    Node *dst = ref_fieldarray(C, &ta);
+    Written wa, wb;
+    Node *dst = ref_fieldarray(C, &ta, &wa);
     uint32_t a = 0;
 
     if (dst == nullptr) {
-        const uint8_t *const after = comp_skipname(C->p);
-
-        if (after[0] != '(' || after[1] != ')' || after[2] != TK_EQ)
+        if (!whole_eq(comp_skipname(C->p)))
             return false;
 
-        a = ref_wholearray(C);
+        a = ref_wholearray(C, &wa);
         ta = symb_var(C->symb, a)->type;
         dst = ref_cell(C, a);
     } else if (comp_cur(C) != TK_EQ) {
@@ -823,10 +856,10 @@ static bool arrcopy(Comp *const C)
     C->p++;
     const uint8_t *const at = C->p;
     Node *call = nullptr;
-    Node *src = ref_fieldarray(C, &tb);
+    Node *src = ref_fieldarray(C, &tb, &wb);
 
     if (src == nullptr) {
-        const uint32_t b = ref_arrayvalue(C, &call);
+        const uint32_t b = ref_arrayvalue(C, &call, &wb);
 
         if (symb_is_record(C->symb, b)) { /* a record result */
             C->p = at;
@@ -842,14 +875,19 @@ static bool arrcopy(Comp *const C)
         fault_error(C->fault, E_TM);
     }
 
-    if (!comp_end(C))
+    const bool copy = wb != WR_ARRAY;
+
+    if (!comp_end(C) || copy != (wa != WR_ARRAY)) { /* a() = b(:), a(:) = b(): which is meant */
+        C->p = at;
         synerr(C);
+    }
+
     if (a)
         link_given(C, a);
 
     comp_step(C, src);
     comp_step(C, dst);
-    comp_call(C, call ? K_AMOVE : K_ACOPY);
+    comp_call(C, copy ? K_ACOPY : K_AMOVE);
     return true;
 }
 
@@ -1135,7 +1173,7 @@ static void erase(Comp *const C)
 
     do {
         uint32_t type;
-        Node *const f = ref_fieldarray(C, &type); /* m.a, ours */
+        Node *const f = ref_fieldarray(C, &type, nullptr); /* m.a, ours */
         comp_step(C, f ? f : ref_cell(C, ref_arrayof(C, shaped(C, 2))));
         comp_call(C, K_ERASE);
     } while (comp_optcomma(C));
@@ -1482,7 +1520,7 @@ static bool namestmt(Comp *const C)
     uint8_t nd;
 
     if (*q == '(')
-        q = decl_dims(q, 0, dims, &nd);
+        q = decl_dims(C->scop, C->proc, q, 0, dims, &nd);
     if (q && *q == TK_AS) {
         skip(C);
         return true;

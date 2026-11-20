@@ -17,6 +17,7 @@ struct Binding {
     uint32_t rec[2]; /* the record's TYPE: the scalar's, the array's */
     uint16_t fix[2]; /* STRING * n: the scalar's, the array's */
     uint32_t line;   /* a label's line */
+    int32_t val;     /* BF_VAL: a CONST's value */
 };
 
 enum {
@@ -84,6 +85,9 @@ uint32_t scop_sfx(const Scop *sc, uint32_t name, uint8_t type, bool array);
 bool scop_con(const Scop *sc, uint32_t name);
 /* Name a CONST's: the module's (every procedure's), or the procedure compiled's own? */
 bool scop_conname(const Scop *sc, uint32_t name);
+/* CONST name's integer value as scope sees it (its own, else the module's): *v. false: none known
+   (comp/declare.c decl_const). */
+bool scop_conval(const Scop *sc, uint32_t scope, uint32_t name, int32_t *v);
 /* Name bound, as the procedure compiled sees it? */
 bool scop_known(const Scop *sc, uint32_t name);
 /* Name a variable the module shares: DIM SHARED, not a CONST? */

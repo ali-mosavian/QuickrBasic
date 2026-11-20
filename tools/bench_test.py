@@ -119,6 +119,9 @@ DYN_ARRAY_BUDGET = 590
 # A DOUBLE function's pass, its op a cold one, a million passes for a tenth of an instruction: back
 # through next's join every op copied ip through another register, 101 (100 on main); 92 without.
 COLD_OP_BUDGET = 94
+# A read of a record's dynamic array field's element over a literal's store: through CALL FELEM and
+# arry_ref, 173; 66 by FE.ADDR from its header.
+FIELD_ELEM_BUDGET = 72
 
 
 def per_pass(b: bench.Build, body: str, setup: str = "", tail: str = "", n: int = 100000) -> float:
@@ -138,6 +141,9 @@ def costs(b: bench.Build) -> None:
     assert dyn <= DYN_ARRAY_BUDGET, f"a dynamic local array's call {dyn:.0f} instructions, budget {DYN_ARRAY_BUDGET}"
     cold = per_pass(b, "y# = ABS(i&)", n=1000000)
     assert cold <= COLD_OP_BUDGET, f"a cold op's pass {cold:.0f} instructions, budget {COLD_OP_BUDGET}"
+    rec = "TYPE R\n w AS INTEGER\n a() AS INTEGER\nEND TYPE\nDIM r AS R\nREDIM r.a(10)"
+    elem = per_pass(b, "x% = r.a(5)", rec, n=1000000) - per_pass(b, "x% = 0", rec, n=1000000)
+    assert elem <= FIELD_ELEM_BUDGET, f"a record's array element {elem:.0f} instructions, budget {FIELD_ELEM_BUDGET}"
 
 
 def main() -> int:

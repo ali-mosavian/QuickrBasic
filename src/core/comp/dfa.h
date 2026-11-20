@@ -262,6 +262,7 @@ enum : uint8_t {
     TK1_DEFBYTE = 120,
     TK1_CBYTE = 121,
     TK1_CONTINUE = 122,
+    TK1_WHOLE = 123,
 };
 enum {
     KW_NC = 27,
@@ -337,7 +338,7 @@ extern const uint16_t lexr_ps_first[309];
 extern const uint8_t lexr_ps_xclass[122];
 extern const uint32_t lexr_ps_xentry[122];
 extern const uint16_t lexr_ps_entry[127];
-extern const uint16_t lexr_ps_entry1[123];
+extern const uint16_t lexr_ps_entry1[124];
 extern const char *const lexr_ps_classname[25]; /* empty: none */
 
 #ifdef DFA_DATA
@@ -617,12 +618,12 @@ const uint16_t lexr_ps_entry[127] = {
     0, 0, 7, 0, 0, 0, 0, 0, 0, 0, 4, 4, 4, 4, 4, 0, 0, 0, 0, 0, 44, 48, 0, 0, 0, 1, 0, 0, 0, 0, 0,
     0, 0, 0, 0, 0,
 };
-const uint16_t lexr_ps_entry1[123] = {
+const uint16_t lexr_ps_entry1[124] = {
     0, 0, 0, 0, 0, 0, 41, 40, 0, 0, 0, 54, 31, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 50, 0, 52,
     0, 0, 0, 0, 0, 0, 45, 37, 0, 33, 0, 0, 0, 0, 0, 0, 0, 28, 0, 24, 0, 0, 42, 0, 0, 0, 38, 0, 0,
     29, 0, 0, 0, 0, 0, 32, 0, 0, 20, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 36, 0, 27, 0, 30, 39, 0, 0, 0,
     34, 0, 0, 53, 0, 49, 0, 0, 0, 0, 0, 51, 0, 47, 46, 0, 0, 42, 0, 0, 0, 0, 0, 0, 0, 23, 0, 0, 0,
-    0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0,
 };
 const char *const lexr_ps_classname[25] = {
     "the end of the statement",
