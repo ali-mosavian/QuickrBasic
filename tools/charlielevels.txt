@@ -83,6 +83,7 @@ goal,0, flat,9, fam,0, flat,6, flat,5, end,0
 ' Saltwick Sands at noon. tide: the sea's height at the level's start * 100 + half a tide later, in the ground's
 ' tiles. Its pools are dry at low water, their springs working; at high they are swum and hopped out of, so no
 ' bank past water is more than two tiles over high water. The low road is fast at low water, the jetty dry always.
+' pier: a pool that wide under the old pier, a span every three columns, each falling once trodden.
 Level Sands1
 tune,Sands
 tide,409, flat,4, dog,0, flat,6, flower,0, flat,4, bones,6, flat,8, tree,0, flat,6
@@ -93,7 +94,7 @@ mark,0, flat,6, dng,1, flat,4
 dng,3, plat,312, hb,410, boost,0, bones,10, flat,14, jelly,4, flat,10, upg,3, flat,6
 tree,0, flat,4, boost,0, flat,6, pipe,6, flat,6, bones,6, gull,5, flat,10
 dn45,3, dng,3, flat,6, boat,10, flat,8, loop,0, flat,8
-up45,1, flat,2, arc,9, buoy,4, gap,9, flat,10, mark,0, flat,6
+up45,1, flat,2, arc,9, buoy,4, gap,9, flat,10, mark,0, flat,6, bones,22, pier,24, flat,8
 dng,1, flat,4, jelly,4, buoy,8, pit,12, flat,8, spring,0, flat,2, plat,608, hb,706, flat,20, crab,0, flat,10, bush,0, flat,6
 boost,0, flat,6, loop,0, flat,6, boost,0, flat,6, pipe,5, flat,10, flower,0, flat,6
 goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0

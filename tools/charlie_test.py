@@ -47,7 +47,7 @@ LoadLevel 0
 dim g as Game, p as Hero, k as Pad, i as long, j as integer, loops as integer, was as integer
 dim c as integer, v as integer, m as integer, zp as integer, seen as string, brim as integer, ebb as integer
 dim hid as long, shown as long, bt as single, colA(SH - 1) as integer, colB(SH - 1) as integer, act1 as string
-dim lo(NLOOSE - 1) as Loose, pt(NPART - 1) as Part, cu(NCUE) as Cue
+dim lo(NLOOSE - 1) as Loose, pt(NPART - 1) as Part, cu(NCUE) as Cue, spans as integer
 Muted = -1
 StartGame g, p, lo(), pt()
 for j = 0 to NObj - 1
@@ -78,7 +78,7 @@ for j = 0 to NSLOT * NBAR * 2 - 1
     i = j * 5
     play Trk(i), Trk(i + 1), Trk(i + 2), , Trk(i + 3), Trk(i + 4), Org(j), Third(j)
 next
-for j = SJUMP to SBUMP
+for j = SJUMP to SCRACK
     Sfx j
 next
 print "sounds ok"
@@ -959,6 +959,60 @@ for i = 1 to 30
 next
 was = was and GY(c) = Tide - FREEB and GX(c) <> MvX(m) and p.ground and p.sg = c and abs(p.y - GY(c)) < 1
 if was then print "boat ok"
+' the sands' old pier: a span stays while no one is on it, totters under Charlie stood on it, then falls from under
+' him into its pool, where he is not lost, and is back when he starts again; run over at speed every span holds
+' till he is past, he is on the far bank dry, and all of them have fallen behind him. At the level's own low
+' water, its pool dry: the check before held the tide high
+GoStage 0, g, p, lo(), pt()
+GoStage 4, g, p, lo(), pt()
+for m = 0 to NMv - 1
+    if MvK(m) = 6 then exit for
+next
+c = MvS(m)
+spans = 0
+for i = m to NMv - 1
+    if MvK(i) = 6 then spans = spans + 1
+next
+for i = 1 to 60
+    Tick g, p, k, lo(), pt()
+next
+was = m < NMv and spans > 5 and GY(c) = MvY(m) and MvT(m) = 0 and ObK(MvO(m)) = KSPAN
+p.x = GX(c) + 24
+p.y = GY(c)
+p.sg = c
+p.ground = -1
+p.gsp = 0
+for i = 1 to 12
+    Tick g, p, k, lo(), pt()
+next
+was = was and GY(c) = MvY(m) and p.ground and p.sg = c and ObS(MvO(m)) <> 0
+for i = 1 to 60
+    Tick g, p, k, lo(), pt()
+next
+was = was and GY(c) > MvY(m) + 200 and ObY(MvO(m)) > MvY(m) + 200 and not (p.ground and p.sg = c)
+' down on the pool's dry floor, not through it
+was = was and not p.dead and p.ground and abs(p.y - (MvY(m) + PITD * TS)) < 2
+Spawn g, p
+Tick g, p, k, lo(), pt()
+was = was and GY(c) = MvY(m) and MvT(m) = 0 and ObS(MvO(m)) = 0
+Stand p, MvE(m) - 40, 300
+k.r = -1
+v = 0
+for i = 1 to 200
+    Tick g, p, k, lo(), pt()
+    if p.swim or p.y > MvY(m) + 8 then v = -1
+    if p.x > MvE(m) + spans * MOVEW + 30 then exit for
+next
+k.r = 0
+was = was and i < 200 and v = 0 and p.ground and abs(p.y - MvY(m)) < 2
+for i = 1 to 90
+    Tick g, p, k, lo(), pt()
+next
+j = 0
+for i = m to NMv - 1
+    if MvK(i) = 6 and GY(MvS(i)) > MvY(i) + 200 then j = j + 1
+next
+if was and j = spans then print "pier ok"
 ' a crab pinches at its side, a rolling Charlie too; down on its back he goes up off it unhurt and it ducks into
 ' its shell, and comes out again
 GoStage 4, g, p, lo(), pt()
@@ -1584,6 +1638,7 @@ def main() -> None:
         ("wet ok", "out of the water Charlie is slow till a roll shakes him dry"),
         ("shore ok", "no water of the sands is a trap: its far bank a hop over high water, or waded at low"),
         ("boat ok", "a boat aground and still at low water, afloat and adrift at high, Charlie aboard up with it"),
+        ("pier ok", "the old pier's spans totter and fall once trodden, hold under a run, and are back at a restart"),
         ("crab ok", "a crab pinches at its side and is a step from above; barked into its shell, a higher one"),
         ("jelly ok", "a jellyfish afloat or aground: a high bounce off its bell, a sting for feet in it only"),
         ("dazed ok", "a Charlie hurt into the sea paddles again"),

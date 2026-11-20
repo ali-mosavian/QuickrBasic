@@ -178,6 +178,8 @@ const KBONE = 1, KCAT = 2, KSPRING = 3, KMARK = 4, KBOOST = 5, KGOAL = 6, KPLAT 
 const KLOOP = 8, KTREE = 9, KBUSH = 10, KFLOWER = 11, KROCK = 12, KTHORN = 13, KLAMP = 14, KFAM = 15, KPIPE = 16
 const KMOVE = 17, KPOST = 18, KTANK = 19, KVENT = 20, KJET = 21, KBUMP = 22, KSPIN = 23, KHOOP = 24
 const CABLED = 64, CABLEH = 44, KBUTTON = 27, KCRAB = 28, KJELLY = 29, KBUOY = 30
+' A span of the sands' old pier: the seconds it totters once trodden, and how far it falls.
+const KSPAN = 31, SPANT = .25, SPANDROP = 400
 const KWAVE = 25, KWAVE2 = 26, WAVEA = 96, WAVEH = WAVEA + 36, WAVEL = 192
 const JETV = 500!, BUMPV = 400!, HOOPV = 640!, SPINR = 30, SPINH = 70, PITD = 5
 
@@ -239,7 +241,7 @@ const IMGSZ = 420000
 const SCLEFT = 75, SCRIGHT = 77, SCUP = 72, SCDOWN = 80, SCSPACE = 57, SCZ = 44
 const SJUMP = 0, SBONE = 1, SHURT = 2, SSPRING = 3, SPOP = 4, SROLL = 5
 const SCHARGE = 6, SLAUNCH = 7, SCLEAR = 8, SDIE = 9, SMARK = 10, SBOOST = 11, SHISS = 12, SBARK = 13, SBUMP = 14
-const SSQUAWK = 15
+const SSQUAWK = 15, SCRACK = 16
 ' A bark: how far it carries, the seconds to the next, and the steps a cat stands startled by it.
 const BARKR = 72, BARKT = .4, FLINCH = 24
 ' A crab: the steps it keeps to its shell once barked at, and how fast Charlie goes up off its back.
@@ -304,6 +306,7 @@ declare function Sudden% (g as Game)
 declare function EndBeat! (g as Game)
 declare sub Tally (g as Game, k as Pad)
 declare sub HushSong ()
+declare sub Mend ()
 declare sub ResetChase ()
 declare sub Flee (g as Game, p as Hero, lo() as Loose, pt() as Part)
 declare sub StartChase ()
@@ -926,6 +929,13 @@ sub LoadLevel (st as integer)
             AddMover c * TS + (n * TS - MOVEW) \ 2, s + PITD * TS - HULL, (n * TS - MOVEW) \ 2, 5, c * TS
             Pit c, g, n
             c = c + n
+        case "pier"
+            ' a pool n wide under an old pier, a span every three columns: each falls once it is trodden
+            for i = 0 to n \ 3 - 1
+                AddMover (c + i * 3) * TS, s, 0, 6, c * TS
+            next
+            Pit c, g, n
+            c = c + n
         case "hover"
             AddMover c * TS + 8, s - n * TS \ 2, n * TS \ 2, 1, c * TS
             Pit c, g, 4
@@ -1167,7 +1177,7 @@ sub Track
     ' the moving platforms: a stretch each, a curve of one, in the order they were made
     k = 0
     for i = 0 to NObj - 1
-        if ObK(i) = KMOVE then
+        if ObK(i) = KMOVE or ObK(i) = KSPAN then
             Knot csng(ObX(i)), csng(ObY(i)), 0
             Knot csng(ObX(i) + MOVEW), csng(ObY(i)), 3
             MvO(k) = i
@@ -1226,13 +1236,25 @@ end sub
 
 ' A moving platform, its middle's left end at x, y; reach a, kind k; e the edge before it.
 sub AddMover (x as integer, y as integer, a as integer, k as integer, e as integer)
-    AddObj KMOVE, x, y
+    if k = 6 then
+        AddObj KSPAN, x, y
+    else
+        AddObj KMOVE, x, y
+    end if
     MvX(NMv) = x
     MvY(NMv) = y
     MvA(NMv) = a
     MvK(NMv) = k
     MvE(NMv) = e
     NMv = NMv + 1
+end sub
+
+' The pier's fallen spans back in their places: Charlie starts again before them.
+sub Mend
+    dim m as integer
+    for m = 0 to NMv - 1
+        if MvK(m) = 6 then MvT(m) = 0
+    next
 end sub
 
 ' Boat m is off the floor of its pool.
@@ -1278,6 +1300,18 @@ sub Movers (p as Hero)
             x = x + MvA(m) * Swing!(m, 0)
         case 1
             y = y + MvA(m) * Swing!(m, 0)
+        case 6
+            ' a pier's span: trodden, it totters a moment, then falls from under who is on it, and stays fallen
+            if MvT(m) > 0 or (p.ground and p.sg = s) then MvT(m) = MvT(m) + STEPT
+            if MvT(m) > SPANT + 2 then MvT(m) = SPANT + 2
+            ObS(MvO(m)) = MvT(m) > 0 and MvT(m) < SPANT
+            if MvT(m) >= SPANT then
+                if MvT(m) - STEPT < SPANT then Sfx SCRACK
+                if p.ground and p.sg = s then Drop p
+                dy = MvT(m) - SPANT
+                y = y + 80 * dy + GRAV * dy * dy
+                if y > MvY(m) + SPANDROP then y = MvY(m) + SPANDROP
+            end if
         case 2
             if p.ground and p.sg = s then
                 MvT(m) = MvT(m) + 90 * STEPT
@@ -1872,6 +1906,9 @@ sub Sfx (id as integer)
     case SSQUAWK
         ' a gull's cry, twice, falling
         s = "W2L32O6ECP32EC"
+    case SCRACK
+        ' a plank gives: a crack, then its thud
+        s = "W3L32O5CO3GL16O2C"
     end select
     play , , , "T255W1V13Y0K0I0H0,0,15,0" + s
 end sub
@@ -2620,8 +2657,8 @@ sub Pilot (p as Hero, k as Pad)
         for m = 0 to NMv - 1
             if MvS(m) = p.sg then
                 select case MvK(m)
-                case 4
-                    ' a bridge is run over
+                case 4, 6
+                    ' a bridge is run over, and a pier
                     k.r = -1
                     k.l = 0
                     want = 0
@@ -2659,7 +2696,7 @@ sub Pilot (p as Hero, k as Pad)
         ' a platform's gap ahead: slowly to its edge, there till the platform is at it and staying, then on
         for m = 0 to NMv - 1
             d = MvE(m) - x
-            if MvK(m) = 4 then d = NONE
+            if MvK(m) = 4 or MvK(m) = 6 then d = NONE
             if d > -4 and d < 300 and abs(MvY(m) + MvA(m) * (MvK(m) = 1) - y) < 200 then
                 if d < 50 then want = 0
                 if p.gsp > 70 + d then
@@ -2696,7 +2733,7 @@ sub Pilot (p as Hero, k as Pad)
         ' in the air toward a platform's gap: slowed, to come down before it
         for m = 0 to NMv - 1
             d = MvE(m) - cint(p.x)
-            if MvK(m) = 4 then d = NONE
+            if MvK(m) = 4 or MvK(m) = 6 then d = NONE
             if d > -40 and d < 260 and p.coyote <= 0 and p.vx > d \ 3 and p.sg <> MvS(m) then
                 k.r = 0
                 k.l = -1
@@ -2864,6 +2901,7 @@ sub Spawn (g as Game, p as Hero)
     p.sg = SegAt%(g.homeX, csng(g.homeY))
     g.bones = 0
     ResetChase
+    Mend
     Camera g, p, -1
 end sub
 
@@ -4549,6 +4587,12 @@ sub DrawThings (cx as integer, cy as integer, back as integer)
                     k = IAP + (((ObX(i) \ TS + 1) and 3) * 3 + (ObY(i) \ TS) mod 3) * 2
                     Blit x - PIPER, y - PIPER, k, PIPER, PIPER + TS
                 end if
+            case KSPAN
+                ' three planks; tottering, it shakes
+                if ObS(i) then y = y + ((Ticks \ 2) and 1)
+                for f = 0 to 2
+                    Blit x + f * TS, y, ZTile + 18, TS, TS
+                next
             case KMOVE
                 if Decked then
                     Blit x, y, IMOVE, MOVEW, 12
