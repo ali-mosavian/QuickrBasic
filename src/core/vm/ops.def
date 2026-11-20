@@ -244,7 +244,7 @@ OP(EOL_TO, flow_eol, EOL_TO_SIZE, 0)
 OP(BYVAL, exec_byval, 2, 0)
 OP(PRET_FV, flow_pret_fv, 5 + VCELL, 0) /* a FUNCTION's number, its result a cell */
 OP(PRET_FL, flow_pret_fl, 5 + VCELL, 0) /*   its result in the frame */
-OP(PRET_X, flow_pret_x, 5 + VCELL, 0)   /* local arrays, or a string result */ /* the address of the value on top, a string's copied there */
+OP(PRET_X, flow_pret_x, 5 + VCELL, 0)   /* a string result */ /* the address of the value on top, a string's copied there */
 OP(I_CHK8, exec_i_chk8, 1, FX + FK)
 /* fused ops on a frame's locals alone: each cell an offset from the frame */
 OP(I_NEXT_UP_L, flow_i_next_up_l, NEXT_SIZE, 0)

@@ -51,10 +51,10 @@ void arry_init(
     Symb *const sy,
     const Decl *const d,
     Strg *const sg,
-    const Addr *const fp
+    Vm *const vm
 )
 {
-    ay->fp = fp;
+    ay->vm = vm;
     ay->allo = al;
     ay->fault = f;
     ay->symb = sy;
@@ -66,7 +66,7 @@ static ArrayHdr *arry_hdr_at(const Addr h) { return (ArrayHdr *)at(h); }
 
 ArrSlot *arry_slot(const Arry *const ay, const uint32_t id)
 {
-    return (ArrSlot *)at(symb_at(ay->symb, *ay->fp, id));
+    return (ArrSlot *)at(symb_at(ay->symb, ay->vm->fp, id));
 }
 
 /* A header's owner, ours: a variable's own cell by its id (the cells move as the table grows), else
@@ -154,7 +154,7 @@ static bool arry_in_frame(Arry *const ay, const uint32_t id, const uint8_t n)
         elems > (fa->shape & 0xFFFFFF)) /* at: a local's (comp/frame.c) */
         return false;
 
-    const Addr h = *ay->fp + (uint32_t)fa->at; /* the data after it, zeroed by PCALL */
+    const Addr h = ay->vm->fp + (uint32_t)fa->at; /* the data after it, zeroed by PCALL */
     ArrayHdr *const a = arry_hdr_at(h);
     a->dims = n;
     a->data = h + arry_frame_hdr(n);
@@ -164,6 +164,7 @@ static bool arry_in_frame(Arry *const ay, const uint32_t id, const uint8_t n)
     memcpy(&a->count[0], ay->counts, n * sizeof ay->counts[0]);
     memcpy(&a->count[n], ay->lbounds, n * sizeof ay->lbounds[0]);
     *arry_slot(ay, id) = (ArrSlot){h, false};
+
     arry_empty_recs(ay, h);
 
     return true;
@@ -234,6 +235,30 @@ void arry_empty(Arry *const ay, const uint32_t id, const bool keep)
         s->dyn = 1;
 }
 
+/* The call whose frame holds cell s, a local's or in one of its records, marked to free its heap
+   arrays at its return (vm/flow.c); none for a variable's or a heap array's cell. Only such calls
+   take the slow return. */
+static void arry_own_call(const Arry *const ay, const Addr s)
+{
+    Vm *const vm = ay->vm;
+
+    if (s < ay->allo->top) /* the variables and the heap: no call's */
+        return;
+
+    for (uint32_t i = vm_nframes(vm); i-- > 0;) { /* its locals under its fp, above its callees' */
+        Frame *const f = &vm->frames[i];
+
+        if (!frame_is_call(f) || s >= f->call.fp)
+            continue;
+        if (f->kind == FRAME_CALL)
+            f->call.back = nullptr; /* the inline PCALL left it */
+
+        f->kind = FRAME_CALL_X;
+        f->call.heap = true;
+        return;
+    }
+}
+
 Addr arry_make(Arry *const ay, ArrSlot *const s, const uint32_t et, const uint8_t n, const bool dyn)
 {
     uint64_t size = arry_et_size(ay->decl, et);
@@ -254,6 +279,7 @@ Addr arry_make(Arry *const ay, ArrSlot *const s, const uint32_t et, const uint8_
             fault_error(ay->fault, E_OM);
     }
 
+    arry_own_call(ay, addr_of(s));
     const Addr data = ay->allo->arrays;
     ay->allo->arrays = (Addr)arry_aligned_end(data, (uint32_t)size);
     copy_zero(data, (uint32_t)size);
@@ -269,6 +295,7 @@ Addr arry_make(Arry *const ay, ArrSlot *const s, const uint32_t et, const uint8_
     memcpy(&a->count[n], ay->lbounds, n * sizeof ay->lbounds[0]);
     ay->hdr = h + arry_hdr_size(n);
     *s = (ArrSlot){h, dyn};
+
     arry_empty_recs(ay, h);
 
     return h;
@@ -375,7 +402,7 @@ static void arry_remove(Arry *const ay, Vm *const vm, const Addr h)
     for (uint32_t i = 0; i < vm_nframes(vm); i++) { /* the arguments: an element's address */
         const Call *const c = &vm->frames[i].call;
 
-        if (vm->frames[i].kind != FRAME_CALL)
+        if (!frame_is_call(&vm->frames[i]))
             continue;
 
         Cell *const refs = (Cell *)at(c->fp);

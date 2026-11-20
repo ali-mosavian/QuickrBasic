@@ -84,7 +84,7 @@ bool session_set_next(Session *const S, const uint32_t line)
 static int32_t call_from(const Vm *const vm, int32_t i)
 {
     for (; i >= 0; i--)
-        if (vm->frames[i].kind == FRAME_CALL)
+        if (frame_is_call(&vm->frames[i]))
             return i;
 
     return -1;

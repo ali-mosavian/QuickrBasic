@@ -52,14 +52,14 @@ static bool frame_op(const Symb *const sy, uint8_t *const op)
     return true;
 }
 
-/* PRET for its procedure: a SUB's; a FUNCTION's, its result's cell or offset in the frame; local
-   arrays to free, a string to keep: PRET.X. */
+/* PRET for its procedure: a SUB's; a FUNCTION's, its result's cell or offset in the frame; a string
+   to keep: PRET.X. */
 static void select_pret(const Symb *const sy, const Blok *const b, uint8_t *const op)
 {
     const Proc *const p = blok_proc(b, load32(op + 1));
     const uint32_t res = p->result;
 
-    if (p->flags & PF_ARRAYS || (res && (symb_var(sy, res)->info & VK_MASK) == VK_STR))
+    if (res && (symb_var(sy, res)->info & VK_MASK) == VK_STR)
         op[0] = O_PRET_X;
     else if (res && symb_in_frame(sy, res)) {
         op[0] = O_PRET_FL;

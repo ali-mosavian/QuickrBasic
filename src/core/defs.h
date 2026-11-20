@@ -294,8 +294,6 @@ enum : uint8_t { PK_SUB = 1, PK_FUNC = 2, PK_END = 3 };
 enum : uint8_t {
     PF_STAT = 1,
     PF_DEF = 2,
-    PF_ARRAYS = 4,
     PF_RESARG = 8
-}; /* PF_ARRAYS: a local array or record in its frame. PF_RESARG, ours: a FUNCTION's record or array
-      result, its last parameter (blok_nargs) */
+}; /* PF_RESARG, ours: a FUNCTION's record or array result, its last parameter (blok_nargs) */
 #endif

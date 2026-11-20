@@ -123,8 +123,9 @@ typedef struct {
     uint32_t code;
 } Place;
 
-/* NONE: the floor below the first frame. */
-typedef enum : uint8_t { FRAME_GOSUB, FRAME_EVENT, FRAME_CALL, FRAME_NONE } FrameKind;
+/* CALL_X: a call whose return does more, off exec_run's inline PRET: its own segment (vm/stack.c),
+   or its locals' arrays on the heap (mem/array.c). NONE: the floor below the first frame. */
+typedef enum : uint8_t { FRAME_GOSUB, FRAME_EVENT, FRAME_CALL, FRAME_CALL_X, FRAME_NONE } FrameKind;
 
 /* A SUB or FUNCTION running. */
 typedef struct {
@@ -135,8 +136,9 @@ typedef struct {
     uint16_t npar;
     Addr caller;       /* the caller's */
     uint32_t on_error; /* ON LOCAL ERROR's line, 0 none */
-    Cell *back; /* a call in a segment of its own: the caller's sp past the arguments; null none */
-    uint32_t seg; /* with back: the caller's segment */
+    Cell *back;        /* CALL_X's: in a segment of its own, the caller's sp past the arguments */
+    uint32_t seg;      /*   the caller's segment */
+    bool heap;         /* CALL_X's: its locals' arrays on the heap, freed at its return */
 } Call;
 
 typedef struct {
@@ -147,6 +149,11 @@ typedef struct {
         uint8_t event; /* the event's slot */
     };
 } Frame;
+
+static inline bool frame_is_call(const Frame *const f)
+{
+    return f->kind == FRAME_CALL || f->kind == FRAME_CALL_X;
+}
 
 /* A segment of the data stack: [base, end). */
 typedef struct {

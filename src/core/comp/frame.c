@@ -19,16 +19,12 @@ void frame_layout(Symb *const sy, const Decl *const d, Proc *const p, const uint
         cells += symb_is_local(sy, id);
 
     uint32_t k = cells; /* the list is newest first: the newest has the deepest cell */
-    p->flags &= ~PF_ARRAYS;
 
     for (uint32_t id = symb_first_local(sy, proc); id; id = symb_varx(sy, id)->nloc) {
         if (!symb_is_local(sy, id))
             continue;
 
         *symb_loc(sy, id) = loc_frame(-(int32_t)(sizeof(Cell) * k--));
-
-        if (symb_var(sy, id)->info & VI_ARR)
-            p->flags |= PF_ARRAYS; /* its return frees them (vm/flow.c) */
     }
 
     uint32_t bytes = 0;

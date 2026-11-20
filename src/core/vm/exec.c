@@ -651,7 +651,6 @@ pcall: /* PCALL proc n npar body: the frame at the arguments, n local cells zero
         f->call.npar = load16(r.ip + PCALL_NPAR);
         f->call.caller = r.fp;
         f->call.on_error = 0;
-        f->call.back = nullptr;
         r.fp = v->fp = fp;
         r.sp -= n;
 
@@ -666,10 +665,10 @@ pcall: /* PCALL proc n npar body: the frame at the arguments, n local cells zero
 
     goto next;
 
-/* PRET: the call on the top frame ended, its arguments popped; a stop, another frame on top, a
-   segment of its own: flow_pret's. */
+/* PRET: the call on the top frame ended, its arguments popped; a stop, another frame on top:
+   flow_pret's. */
 #define PRET_RUN(result)                                                                           \
-    if (v->stop || v->ftop[-1].kind != FRAME_CALL || v->ftop[-1].call.back)                        \
+    if (v->stop || v->ftop[-1].kind != FRAME_CALL)                                                 \
         goto slow;                                                                                 \
                                                                                                    \
     {                                                                                              \

@@ -13,20 +13,20 @@ enum { ADIMS = 64 }; /* the subscript buffers' words */
 static_assert(MAXDIMS <= ADIMS && MAXDIMS <= DIM_COUNT);
 
 typedef struct Arry {
-    Allo *allo;             /* the headers' region; the data from allo.bot up to allo.arrays */
-    Fault *fault;           /* Subscript out of range, Out of memory, ... */
-    Symb *symb;             /* the arrays' variables */
-    const Decl *decl;       /* the TYPEs' sizes, OPTION BASE */
-    Strg *strg;             /* collected for room; a string element's block follows it */
-    const Addr *fp;         /* the running call's frame (vm.fp): its arrays' cells */
-    Addr hdr;               /* past the headers (mm.ahd) */
-    int32_t subs[ADIMS];    /* the subscripts (g_dimbuf) */
+    Allo *allo;          /* the headers' region; the data from allo.bot up to allo.arrays */
+    Fault *fault;        /* Subscript out of range, Out of memory, ... */
+    Symb *symb;          /* the arrays' variables */
+    const Decl *decl;    /* the TYPEs' sizes, OPTION BASE */
+    Strg *strg;          /* collected for room; a string element's block follows it */
+    Vm *vm;              /* the run: its call's frame (vm.fp), the calls that own a heap's array */
+    Addr hdr;            /* past the headers (mm.ahd) */
+    int32_t subs[ADIMS]; /* the subscripts (g_dimbuf) */
     uint32_t counts[ADIMS]; /* the counts (g_cntbuf) */
     int32_t lbounds[ADIMS]; /* the lower bounds (g_lbbuf) */
 } Arry;
 
 /* ay's links set. */
-void arry_init(Arry *ay, Allo *al, Fault *f, Symb *sy, const Decl *d, Strg *sg, const Addr *fp);
+void arry_init(Arry *ay, Allo *al, Fault *f, Symb *sy, const Decl *d, Strg *sg, Vm *vm);
 /* Array id's cell in the running call: its own, a local's in the frame, a parameter's its
    argument's. */
 ArrSlot *arry_slot(const Arry *ay, uint32_t id);

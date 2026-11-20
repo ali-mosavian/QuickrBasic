@@ -93,6 +93,30 @@ def each_reps() -> None:
         assert body.count("TIMER") == 0 and f"FOR q = 1 TO {bench.EACH_REPS}" in body, body
 
 
+# Instructions a pass on arm64 macOS, with room over what they measured; past one, a regression.
+# A string's allocation over a literal's store: strg_gc inlined into strg_alloc saved and set up
+# its registers on every allocation, 238 (217 out of line).
+ALLOC_BUDGET = 228
+# A SUB with a fixed local array over an empty SUB: its return looped over its locals and swept
+# the arrays, 457 (402 by the inline PRET).
+FRAME_ARRAY_BUDGET = 430
+
+
+def per_pass(b: bench.Build, body: str, setup: str = "", tail: str = "", n: int = 100000) -> float:
+    """body's instructions a pass of a FOR loop: the loop run n and 2n times, the difference."""
+    progs = {k: f"{setup}\nFOR i& = 1 TO {m}: {body}: NEXT\n{tail}" for k, m in (("one", n), ("two", 2 * n))}
+    r = bench.run_native(b, progs, runs=3)
+    return (r["two"].insns - r["one"].insns) / n
+
+
+def costs(b: bench.Build) -> None:
+    """The budgets: each part's instructions over its base's."""
+    alloc = per_pass(b, 's$ = a$ + "x"', 'a$ = "abcdefgh"') - per_pass(b, 's$ = "abc"', 'a$ = "abcdefgh"')
+    assert alloc <= ALLOC_BUDGET, f"a string's allocation {alloc:.0f} instructions, budget {ALLOC_BUDGET}"
+    frame = per_pass(b, "s", tail="SUB s\nDIM b(10)\nEND SUB") - per_pass(b, "z", tail="SUB z\nEND SUB")
+    assert frame <= FRAME_ARRAY_BUDGET, f"a frame array's call {frame:.0f} instructions, budget {FRAME_ARRAY_BUDGET}"
+
+
 def main() -> int:
     each_reps()
     profile_cycles()
@@ -110,6 +134,7 @@ def main() -> int:
     assert 1.95 < ratio < 2.05, f"twice the loop cost {ratio:.3f}x"
     again = [bench.run_native(b, {"two": loop(2000000)}, runs=1)["two"].insns for _ in range(5)]
     assert max(again) / min(again) < 1 + bench.INSNS_SLACK, f"one program's counts {again}"
+    costs(b)
     exe = bench.ROOT / "build/c/basic32.exe"
     if exe.exists():  # the loaded bytes, not the file's: its fixups moved with layout
         assert bench.image(exe) > 100_000 and bench.image(exe) != exe.stat().st_size, bench.image(exe)

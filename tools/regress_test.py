@@ -1301,6 +1301,13 @@ BIG |= {
                                 "sub d (n&)", " if n& = 0 then error 5 else d n& - 1", "end sub",
                                 "function f& (n&)", " if n& > 0 then f& = 1 + f&(n& - 1)", "end function"),
                             "SRQDCB\r\n 3001 \r\ncaught 5 \r\n 5000 \r\n", "ERROR"),
+    # A local array on the heap freed at its call's return, the call marked when the array was
+    # made: by its own DIM, or by a callee's REDIM of it. Unmarked, 300 calls left 48 MB: Out of
+    # memory.
+    "local_heap_arrays": (bas("for i = 1 to 300: s 20000: c: next: print \"ok\"",
+                              "sub s (n)", " dim b(n): b(n) = 1", "end sub",
+                              "sub c", " r a()", "end sub", "sub r (x())", " redim x(20000): x(5) = 1", "end sub"),
+                          "ok\r\n", "ERROR"),
 }
 
 

@@ -1,7 +1,7 @@
 /* Control flow: lines, jumps, GOSUB, FOR and NEXT, SUB and FUNCTION calls, ON ERROR and RESUME.
  *
  * # How it works
- * GOSUBs, events and calls are Frames on vm.frames (flow_push, flow_find). A FOR loop is none: its
+ * GOSUBs, events and calls are Frames on vm.frames (flow_push, flow_find_call). A FOR loop is none: its
  * limit and step are cells the compiler gave it, its NEXT jumps back to its body. A call's frame
  * is on the data stack: its arguments' addresses above vm.fp, its locals below, an array's cell
  * among them (mem/array.c); exec_run runs PCALL and PRET inline.
@@ -215,10 +215,10 @@ static Frame *top_frame(Vm *const vm) { return vm->ftop > vm->frames ? vm->ftop 
 /* Drop f and the frames above it. */
 static void pop_to(Vm *const vm, const Frame *const f) { vm->ftop = vm->frames + (f - vm->frames); }
 
-Frame *flow_find(Vm *const vm, const FrameKind kind)
+Frame *flow_find_call(Vm *const vm)
 {
     for (uint32_t i = vm_nframes(vm); i-- > 0;)
-        if (vm->frames[i].kind == kind)
+        if (frame_is_call(&vm->frames[i]))
             return &vm->frames[i];
 
     return nullptr;
@@ -454,7 +454,7 @@ void flow_pcall(Session *const S)
     vm->sp -= n;
     memset(vm->sp, 0, n * sizeof(Cell));
     *vm->ftop++ = (Frame){
-        .kind = FRAME_CALL,
+        .kind = back ? FRAME_CALL_X : FRAME_CALL,
         .ret = {vm->line, cache_off(&S->allo, op + PCALL_SIZE)},
         .call = {
             .proc = load32(op + PCALL_PROC),
@@ -473,17 +473,18 @@ void flow_pcall(Session *const S)
     take_jump(vm, &S->strg, &S->allo, &S->fault);
 }
 
-/* End call f, the innermost, and drop the frames above it: its local arrays freed (PF_ARRAYS,
-   while its frame is there for arry_free to fix), its frame popped, its arguments with it. */
+/* End call f, the innermost, and drop the frames above it: its local arrays on the heap freed
+   (CALL_X's, while its frame is there for arry_free to fix), its frame popped, its arguments with
+   it. */
 static void end_call(Session *const S, const Frame *const f)
 {
     Vm *const vm = &S->vm;
     Symb *const sy = &S->symb;
     Arry *const ar = &S->arry;
     const Call c = f->call;
-    const Proc *const p = blok_proc(&S->blok, c.proc);
+    const bool x = f->kind == FRAME_CALL_X;
 
-    if (p->flags & PF_ARRAYS) {
+    if (x && c.heap) {
         for (uint32_t id = symb_first_local(sy, c.proc); id; id = symb_varx(sy, id)->nloc)
             if (is_array(symb_var(sy, id)) && symb_is_local(sy, id)) {
                 ArrSlot *const s = (ArrSlot *)at(loc_frame_at(*symb_loc(sy, id), c.fp));
@@ -495,12 +496,12 @@ static void end_call(Session *const S, const Frame *const f)
     }
 
     pop_to(vm, f);
-    vm->sp = c.back ? c.back : (Cell *)at(c.fp) + 2 * c.npar;
+    vm->sp = x && c.back ? c.back : (Cell *)at(c.fp) + 2 * c.npar;
     vm->fp = c.caller;
     drop_temps(&S->strg); /* the callee's */
     S->strg.tmp_floor = c.temp_floor;
 
-    if (c.back)
+    if (x && c.back)
         stack_back(S, c.seg, 1);
 }
 
@@ -510,7 +511,7 @@ void flow_pret(Session *const S)
     if (exec_stopchk(S))
         return;
 
-    const Frame *const f = flow_find(&S->vm, FRAME_CALL);
+    const Frame *const f = flow_find_call(&S->vm);
 
     if (!f)
         repl_error(S, E_RG);
@@ -580,7 +581,7 @@ void flow_onerr(Session *const S)
 /* ON LOCAL ERROR GOTO: the running procedure's handler; in the module, ON ERROR's. */
 void flow_onlerr(Session *const S)
 {
-    Frame *const f = flow_find(&S->vm, FRAME_CALL);
+    Frame *const f = flow_find_call(&S->vm);
 
     if (f)
         f->call.on_error = handler_line(&S->vm);
@@ -593,11 +594,11 @@ uint32_t flow_handler(Session *const S)
     uint32_t h = vm_nframes(&S->vm); /* by index: the frames move as segments go */
 
     for (uint32_t i = h; i-- > 0 && h == vm_nframes(&S->vm);)
-        if (S->vm.frames[i].kind == FRAME_CALL && S->vm.frames[i].call.on_error)
+        if (frame_is_call(&S->vm.frames[i]) && S->vm.frames[i].call.on_error)
             h = i;
     if (h == vm_nframes(&S->vm))
         return S->vm.err.handler;
-    for (const Frame *f; (f = flow_find(&S->vm, FRAME_CALL)) != &S->vm.frames[h];) {
+    for (const Frame *f; (f = flow_find_call(&S->vm)) != &S->vm.frames[h];) {
         const Place back = f->ret;
         end_call(S, f);
         go_to(&S->vm, &S->allo, back); /* the error is now at the call */
@@ -610,7 +611,7 @@ uint32_t flow_handler(Session *const S)
 /* The data stack as the running procedure's body started, or the module's. */
 Cell *flow_stack_base(Vm *const vm)
 {
-    const Frame *const f = flow_find(vm, FRAME_CALL);
+    const Frame *const f = flow_find_call(vm);
     return f ? f->call.stack : vm->rsp;
 }
 

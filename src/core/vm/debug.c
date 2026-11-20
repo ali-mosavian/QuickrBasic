@@ -86,7 +86,7 @@ uint32_t dbug_depth(const Vm *const vm)
     uint32_t n = 0;
 
     for (uint32_t i = 0; i < vm_nframes(vm); i++)
-        n += vm->frames[i].kind == FRAME_CALL || vm->frames[i].kind == FRAME_GOSUB;
+        n += frame_is_call(&vm->frames[i]) || vm->frames[i].kind == FRAME_GOSUB;
 
     return n;
 }

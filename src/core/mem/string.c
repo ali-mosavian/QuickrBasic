@@ -134,6 +134,8 @@ static bool strg_is_live(const Strg *const sg, const Addr chars, const Addr owne
            strg_peek(owner).ptr == chars;
 }
 
+/* Out of line: inlined into strg_alloc, every allocation saved and set up its registers. */
+[[gnu::noinline]]
 void strg_gc(Strg *const sg)
 {
     Addr dst = sg->allo->top;
