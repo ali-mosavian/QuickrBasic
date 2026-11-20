@@ -457,5 +457,6 @@ K(ARESET, stmt_areset) /* an array result's start, ours */
 K(FIDX, stmt_fidx)     /* a fixed array field's element, ours */
 K(RCOPY, exec_r_copys) /* a = b of records with STRINGs, ours */
 K(FELEM, stmt_felem)   /* a record's array field's element, ours */
+K(RSWAP, exec_r_swap)  /* SWAP a, b of records, ours */
 #undef K
 #endif

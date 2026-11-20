@@ -1147,6 +1147,49 @@ CASES |= {
                              "-1 -1 \r\n-1 \r\n", "ERROR"),
 }
 
+# SWAP of two records was a Type mismatch.
+CASES |= {
+    "swap_records": (bas("type P", " n as integer", " s as string * 3", "end type", "dim a as P, b as P, r(1 to 2) as P",
+                         'a.n = 1: a.s = "abc": b.n = 2: b.s = "xyz"', "swap a, b: print a.n; a.s; b.n; b.s",
+                         "r(1) = a: swap r(1), b: print r(1).n; r(1).s; b.n; b.s"),
+                     " 2 xyz 1 abc\r\n 1 abc 2 xyz\r\n", "ERROR"),
+    "swap_records_type": (bas("type P", " n as integer", "end type", "type Q", " n as integer", "end type",
+                              "dim a as P, c as Q", "swap a, c"), ".BAS:8: Type mismatch", None),
+    # Their STRINGs' and arrays' owners follow, else the heap's compaction writes each into the
+    # other's cell; a local's arena array copied to the heap, else it dies with its call.
+    "swap_records_dynamic": (bas(*MESH, "declare sub swapin (x as Mesh, n as integer)", "declare sub scrub ()",
+                                 "declare sub inarr (x as Mesh, n as integer)",
+                                 "dim c as Mesh, early() as long, rs() as Mesh", "redim early(1000)",
+                                 'g$ = string$(100, "g"): m.title = string$(2, "m"): redim m.pts(1 to 2): m.pts(2).x = 2',
+                                 'redim m.tags(1): m.tags(1) = string$(2, "t")',
+                                 'c.title = string$(2, "c"): redim c.pts(1 to 3): c.pts(3).x = 3',
+                                 'redim c.kids(1 to 1): c.kids(1).title = "ck"',
+                                 "redim rs(1 to 2): redim rs(1).pts(5): rs(1).pts(5).x = 15: redim rs(2).pts(7): rs(2).pts(7).x = 27",
+                                 "swap m, c: swap rs(1), rs(2)",
+                                 'g$ = "": erase early: x& = fre(-1): h$ = string$(300, "h")',
+                                 "print m.title; ubound(m.pts); m.pts(3).x; m.kids(1).title; c.title; ubound(c.pts); c.pts(2).x; c.tags(1)",
+                                 "print ubound(rs(1).pts); rs(1).pts(7).x; ubound(rs(2).pts); rs(2).pts(5).x",
+                                 "swapin m, 1: f& = fre(-1)", "for k% = 2 to 50: swapin m, k%: next", "call scrub: x& = fre(-1)",
+                                 "print m.title; ubound(m.pts); m.pts(4).x; m.tags(2); fre(-1) - f&",
+                                 "inarr m, 1: f& = fre(-1)", "for k% = 2 to 50: inarr m, k%: next", "call scrub: x& = fre(-1)",
+                                 "print m.title; ubound(m.pts); m.pts(5).x; fre(-1) - f&", "end",
+                                 "sub swapin (x as Mesh, n as integer)", " dim t as Mesh",
+                                 ' t.title = "t" + chr$(64 + n): redim t.pts(1 to 4): t.pts(4).x = n',
+                                 ' redim t.tags(2): t.tags(2) = string$(3, "q")', " swap t, x", "end sub",
+                                 "sub scrub", " dim z(2000) as long", " for i = 0 to 2000: z(i) = -1: next", "end sub",
+                                 "sub inarr (x as Mesh, n as integer)", " redim q(1 to 2) as Mesh",
+                                 ' q(2).title = "q" + chr$(64 + n): redim q(2).pts(1 to 5): q(2).pts(5).x = n',
+                                 " swap q(2), x", "end sub"),
+                             "cc 3  3 ckmm 2  2 tt\r\n 7  27  5  15 \r\ntr 4  50 qqq 0 \r\nqr 5  50  0 \r\n", "ERROR"),
+    # A heap array swapped into a local array's record was never freed: 12 bytes a call.
+    "swap_records_arena_free": (bas("type T", " pts() as single", "end type", "declare sub give (x as T, n as integer)",
+                                    "dim m as T", "give m, 1: f& = fre(-1)", "for k% = 2 to 50: give m, k%: next",
+                                    "print fre(-1) - f&; ubound(m.pts); m.pts(3)", "end",
+                                    "sub give (x as T, n as integer)", " redim q(1 to 2) as T", " swap q(2), x",
+                                    " redim x.pts(1 to 3): x.pts(3) = n", "end sub"),
+                                " 0  3  50 \r\n", "ERROR"),
+}
+
 # BC's 60 dimensions at most. Past 63 a DIM's count ran into its flags (REDIM b(64 bounds) made an
 # array of none); past 64 an element's subscripts were written beyond their buffer.
 DIMS = "(" + ",".join("0" * 60) + ")"

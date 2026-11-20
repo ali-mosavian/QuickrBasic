@@ -1100,6 +1100,17 @@ void exec_r_copys(Session *const S)
     arry_sweep(&S->arry, &S->vm);
 }
 
+/* SWAP a, b of records of a TYPE ( a b t -- ). */
+void exec_r_swap(Session *const S)
+{
+    const TypeDef *const td = decl_type(&S->decl, exec_pop(&S->vm).u);
+    const Addr b = exec_popa(&S->vm);
+    const Addr a = exec_popa(&S->vm);
+
+    if (a != b)
+        arry_swap_rec(&S->arry, a, b, td);
+}
+
 void exec_r_clear(Session *const S)
 {
     const TypeDef *const td = decl_type(&S->decl, exec_pop(&S->vm).u);

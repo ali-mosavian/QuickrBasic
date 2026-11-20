@@ -114,6 +114,9 @@ void arry_copy_rec(Arry *ay, Addr dst, Addr src, const TypeDef *td);
 /* A record of TYPE td moved from src to dst, ours: its STRINGs' and arrays' owners follow; src's
    cells let go. */
 void arry_move_rec(const Arry *ay, Addr dst, Addr src, const TypeDef *td);
+/* SWAP a, b of records of TYPE td: their bytes swapped, their STRINGs' and arrays' owners
+   following; their arrays on the arena first copied to the heap. Out of memory. */
+void arry_swap_rec(Arry *ay, Addr a, Addr b, const TypeDef *td);
 /* a() = f(..), ours: cell d takes the array of cell s, an array result's, its old one freed; s is
    left empty. Duplicate definition: d a DIM's with elements. */
 void arry_move(Arry *ay, Vm *vm, ArrSlot *d, ArrSlot *s);
