@@ -1014,6 +1014,18 @@ CASES |= {
     "array_copy_mixed": (bas("dim a() as long, b() as long", "a(:) = b()"), ".BAS:2: Syntax error", None),
 }
 
+# A DECLARE's line was not checked: a keyword for a parameter's name passed it, the procedure left
+# undeclared, and the error came at its call. QB's forms of it, SEG, AS ANY, CDECL, ALIAS, still pass.
+CASES |= {
+    "declare_keyword_param": (bas("declare function F% (a as integer, point as integer)", "print F%(1, 2)",
+                                  "function F% (a as integer, point as integer)", "F% = a + point", "end function"),
+                              ".BAS:1: Syntax error\r\n  declare function F% (a as integer, point as integer)\r\n"
+                              + " " * 37 + "^", None),
+    "declare_qb_forms": (bas("declare sub s (x as any)", "declare sub c cdecl (byval x as integer)",
+                             'declare sub d alias "dd" (seg x as integer)', "s 5", "sub s (x as integer)", " print x",
+                             "end sub"), " 5 \r\n", "ERROR"),
+}
+
 # FUNCTION f (..) AS type(), ours: its result an array, the caller's hidden one passed, emptied as the
 # FUNCTION starts; a() = f(..) moves it, f(..) passes it. In f, f(i) is its result's element.
 SQUARES = ("function Squares (n as integer) as long()", " redim Squares(1 to n)",
