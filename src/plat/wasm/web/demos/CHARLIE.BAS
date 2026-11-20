@@ -244,7 +244,7 @@ const ITILE = 10, IHERO = 34, IBONE = IHERO + NF * 4
 const ICAT = IBONE + 8, ISPRING = ICAT + 8, IBOOST = ISPRING + 4, IMARK = IBOOST + 4
 const IGOAL = IMARK + 4, ITREE = IGOAL + 8, IBUSH = ITREE + 2, IFLOWER = IBUSH + 2
 const IROCK = IFLOWER + 4, ITHORN = IROCK + 2, ILAMP = ITHORN + 2, ITILT = ILAMP + 2
-const IFAM = ITILT + 320, IDASH = IFAM + 4
+const IDASH = ITILT + 324
 const ICARD = IDASH + 2, IGLYPH = ICARD + 2, NGLYPH = 27, IHUD = IGLYPH + NGLYPH * 4, IPIPE = IHUD + 2
 ' The Chrome Works' own: built here, then charlieart.py's.
 const IZ2 = IPIPE + 2, ITILE2 = IZ2 + 9, IMOVE = ITILE2 + 24, IPOST = IMOVE + 2, ITANK = IPOST + 2, IVENT = ITANK + 2
@@ -261,10 +261,10 @@ const IZS = IAE + 8, IZU = IZS + 48
 ' seen from over its back, hung under it flatter twice and whole, seen from under.
 const ITW = IZU + 48, ICATF = ITW + 96
 ' the intro's: the van, a wheel at two turns, the van's back door open, Charlie at its window and looking back
-' from it; the old house, the boxes and one thrown, a hedge, the Mob's float, the Baron sat and pointing, the basket
+' from it; the old house, the boxes and one thrown, a hedge, the Mob's float, the basket
 const IVAN = ICATF + 4, IWHEEL = IVAN + 2, IDOOR = IWHEEL + 4, IPEEK = IDOOR + 2, IHOUSE = IPEEK + 4
-const IBOXES = IHOUSE + 2, ICRATE = IBOXES + 2, IHEDGE = ICRATE + 2, IFLOAT = IHEDGE + 2, IBARON = IFLOAT + 2
-const IBASKET = IBARON + 4
+const IBOXES = IHOUSE + 2, ICRATE = IBOXES + 2, IHEDGE = ICRATE + 2, IFLOAT = IHEDGE + 2
+const IBASKET = IFLOAT + 6
 ' Biscuit's honey cart less its wheels, as it goes and bumped: level, then leaning half a gentle slope's fall and
 ' all of one's, CARTLEAN higher over and under each time; then its wheel at two turns. Its wheels are WHEELS
 ' either side of its middle.
@@ -291,7 +291,10 @@ const IFORT = ISNOWBALL + 4, ILOB = IFORT + 8, IICICLE = ILOB + 2, ISEAT = IICIC
 ' A goat's: at graze, then at a charge as the ground lies, five ways, two strides each; each with its mirror.
 const IGOAT = ISEAT + 2, IGOATR = IGOAT + 4, IWALL = IGOATR + 40
 ' Frost on her toboggan as the ground lies, five ways; and knocked into deep snow.
-const IFROST = IWALL + 4, IDUNKED = IFROST + 10, NIMG = IDUNKED + 2
+const IFROST = IWALL + 4, IDUNKED = IFROST + 10
+' Who meets Charlie, NFAM of them FAMSTEP apart, each in FAMF pictures: three of a wait, six of a cheer. The Baron's:
+' four sat, his tail swaying and a blink, then two pointing.
+const IFAM = IDUNKED + 2, NFAM = 5, FAMF = 9, FAMSTEP = 36, IBARON = IFAM + NFAM * FAMF * 2, NIMG = IBARON + 12
 const HUDW = 108, HUDH = 40
 ' The levels: a zone's two acts, the second at another hour in other colours, zone by zone.
 ' the stages played, and after them the intro's road
@@ -308,7 +311,7 @@ const QCAM = 1, QHOUSE = 2, QBOXES = 3, QCRATE = 4, QHEDGE = 5, QFAM = 6, QVAN =
 const QBARON = 9, QCAT = 10, QBASKET = 11, QEYES = 12, QHERO = 13, QWOOF = 14, QSND = 15
 const QNAMES = "cam   house boxes crate hedge fam   van   float baron cat   basketeyes  hero  woof  snd   "
 ' the picture store's LONGs: for what every zone shows and the largest zone's own
-const IMGSZ = 420000
+const IMGSZ = 490000
 
 const SCLEFT = 75, SCRIGHT = 77, SCUP = 72, SCDOWN = 80, SCSPACE = 57, SCZ = 44
 const SJUMP = 0, SBONE = 1, SHURT = 2, SSPRING = 3, SPOP = 4, SROLL = 5
@@ -365,7 +368,10 @@ declare sub CueAt (lv as Level, cu() as Cue, i as integer, t as single, x as int
 declare sub IntroDraw (wd as World, g as Game, p as Hero, cu() as Cue)
 declare sub DrawCue (wd as World, cu() as Cue, i as integer, now as single, p as Hero, cx as integer, cy as integer)
 declare sub DrawVan (art as Store, x as integer, y as integer, wx as integer, a as integer)
-declare sub DrawFloat (art as Store, x as integer, y as integer, wx as integer, a as integer)
+declare sub DrawFloat (art as Store, se as Session, x as integer, y as integer, wx as integer, a as integer)
+declare sub DrawFamily (art as Store, se as Session, x as integer, y as integer, cheer as integer)
+declare function FamPic% (se as Session, n as integer, cheer as integer)
+declare function BaronPic% (se as Session, aim as integer)
 declare sub DrawCat (zn as Realm, art as Store, se as Session, x as integer, y as integer, a as integer, west as integer)
 declare sub DrawEyes (se as Session, x as integer, y as integer, n as integer)
 declare sub Pose (lv as Level, gr as Ground, se as Session, p as Hero, x as integer, y as integer, a as integer, west as integer)
@@ -5382,13 +5388,13 @@ sub DrawCue (wd as World, cu() as Cue, i as integer, now as single, p as Hero, c
     case QHEDGE
         Blit wd.art, x - 80, y - 51, IHEDGE, 160, 52
     case QFAM
-        Blit wd.art, x - 90, y - 81, IFAM + ((wd.se.ticks \ 14) and a) * 2, 180, 82
+        DrawFamily wd.art, wd.se, x, y, a
     case QVAN
         DrawVan wd.art, x, y, wx, a
     case QFLOAT
-        DrawFloat wd.art, x, y, wx, a
+        DrawFloat wd.art, wd.se, x, y, wx, a
     case QBARON
-        Blit wd.art, x - 20, y - 43, IBARON + a * 2, 40, 44
+        Blit wd.art, x - 20, y - 43, BaronPic%(wd.se, a), 40, 44
     case QCAT
         DrawCat wd.zn, wd.art, wd.se, x, y, a, cu(i).x1 < cu(i).x0
     case QBASKET
@@ -5437,15 +5443,49 @@ sub DrawVan (art as Store, x as integer, y as integer, wx as integer, a as integ
 end sub
 
 ' The Mob's float likewise, rattling. a: 1 the Baron sat on its crates.
-sub DrawFloat (art as Store, x as integer, y as integer, wx as integer, a as integer)
+sub DrawFloat (art as Store, se as Session, x as integer, y as integer, wx as integer, a as integer)
     dim ry as integer, k as integer
     ry = y - 39 - ((wx \ 24) and 1)
     Blit art, x - 44, ry, IFLOAT, 88, 40
     k = IWHEEL + ((wx \ 6) and 1) * 2
     Blit art, x - 33, y - 18, k, 18, 18
     Blit art, x + 15, y - 18, k, 18, 18
-    if a and 1 then Blit art, x - 42, ry - 35, IBARON, 40, 44
+    if a and 1 then Blit art, x - 42, ry - 35, BaronPic%(se, 0), 40, 44
 end sub
+
+' The Baron's picture: sat, his tail swaying and now and then a blink; or pointing.
+function BaronPic% (se as Session, aim as integer)
+    dim s as integer, f as integer
+    s = (se.ticks \ 12) and 7
+    f = s and 3
+    if f = 3 then f = 1
+    if s = 7 then f = 3
+    if aim then f = 4 + ((s \ 2) and 1)
+    BaronPic% = IBARON + f * 2
+end function
+
+' Who meets Charlie, the middle one's feet at x, y. A picture's first LONG holds its size, as GET left it: each
+' stands with its middle column on its place in the line and its last row on the ground.
+sub DrawFamily (art as Store, se as Session, x as integer, y as integer, cheer as integer)
+    dim n as integer, k as integer, w as integer, h as integer
+    for n = 0 to NFAM - 1
+        k = FamPic%(se, n, cheer)
+        w = (Img(art.at(k)) and 65535) \ 8
+        h = Img(art.at(k)) \ 65536
+        Blit art, x + (n - NFAM \ 2) * FAMSTEP - w \ 2, y - h + 1, k, w, h
+    next
+end sub
+
+' The picture of the family's n-th: waiting it sways and now and then blinks; cheering it runs its six, each out
+' of step with the next.
+function FamPic% (se as Session, n as integer, cheer as integer)
+    dim s as integer, f as integer
+    s = (se.ticks \ 16 + n * 3) mod 12
+    f = (s \ 3) and 1
+    if s = 10 then f = 2
+    if cheer then f = 3 + (se.ticks \ 6 + n * 2) mod 6
+    FamPic% = IFAM + (n * FAMF + f) * 2
+end function
 
 ' A cat of the Mob, a stride of its prowl, west or east. a: 1 the basket on its back, 2 stood still.
 sub DrawCat (zn as Realm, art as Store, se as Session, x as integer, y as integer, a as integer, west as integer)
@@ -5780,9 +5820,7 @@ sub DrawThings (lv as Level, zn as Realm, art as Store, se as Session, cx as int
                 Blit art, x - 8, y - 10, ITHORN, 16, 12
             case KFAM
                 ' who meets Charlie: they cheer once it has come to them
-                f = 0
-                if se.cheer then f = (se.ticks \ 14) and 1
-                Blit art, x - 90, y - 81, IFAM + f * 2, 180, 82
+                DrawFamily art, se, x, y, se.cheer
             case KLAMP
                 Blit art, x - 10, y - 42, ILAMP, 20, 44
             case KJET

@@ -16,6 +16,7 @@ import argparse
 import itertools
 from pathlib import Path
 from typing import NamedTuple
+from dataclasses import dataclass
 from collections.abc import Callable
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -427,6 +428,127 @@ def tilts() -> list[Pic]:
     return [tilted(h[f], i * 22.5) for i in range(8) for f in (4, 6, 8, 10, 11)]
 
 
+# ---- shapes as masks: what the Baron and the family are built of ----
+
+Pt = tuple[float, float]
+Mask = set[tuple[int, int]]
+FALL = (0.55, 0.83)  # the way a shadow falls: down and to the right
+
+
+def spline(pts: list[Pt], n: int = 10, closed: bool = True) -> list[Pt]:
+    """A smooth curve through pts, n steps a span."""
+    out: list[Pt] = []
+    m = len(pts)
+    for i in range(m if closed else m - 1):
+        p0 = pts[(i - 1) % m] if closed or i > 0 else pts[0]
+        p1, p2 = pts[i % m], pts[(i + 1) % m]
+        p3 = pts[(i + 2) % m] if closed or i + 2 < m else pts[m - 1]
+        for k in range(n):
+            t = k / n
+            x, y = (
+                0.5
+                * (
+                    2 * p1[a]
+                    + (p2[a] - p0[a]) * t
+                    + (2 * p0[a] - 5 * p1[a] + 4 * p2[a] - p3[a]) * t * t
+                    + (3 * p1[a] - p0[a] - 3 * p2[a] + p3[a]) * t**3
+                )
+                for a in (0, 1)
+            )
+            out.append((x, y))
+    return out if closed else [*out, pts[-1]]
+
+
+def poly(pts: list[Pt]) -> Mask:
+    """The dots whose middles are inside a polygon."""
+    out: Mask = set()
+    ys = [y for _, y in pts]
+    for y in range(math.floor(min(ys)), math.ceil(max(ys)) + 1):
+        cy = y + 0.5
+        xs = sorted(
+            x0 + (cy - y0) * (x1 - x0) / (y1 - y0)
+            for (x0, y0), (x1, y1) in zip(pts, pts[1:] + pts[:1], strict=True)
+            if (y0 <= cy) != (y1 <= cy)
+        )
+        for a, b in zip(xs[::2], xs[1::2], strict=False):
+            out |= {(x, y) for x in range(math.ceil(a - 0.5), math.floor(b - 0.5) + 1)}
+    return out
+
+
+def curved(pts: list[Pt], n: int = 10) -> Mask:
+    """What a closed curve through pts holds."""
+    return poly(spline(pts, n))
+
+
+def oval(cx: float, cy: float, rx: float, ry: float, rot: float = 0) -> Mask:
+    """An ellipse, turned rot."""
+    c, s, r = math.cos(rot), math.sin(rot), max(rx, ry)
+    out: Mask = set()
+    for y in range(math.floor(cy - r) - 1, math.ceil(cy + r) + 1):
+        for x in range(math.floor(cx - r) - 1, math.ceil(cx + r) + 1):
+            dx, dy = x + 0.5 - cx, y + 0.5 - cy
+            if ((dx * c + dy * s) / rx) ** 2 + ((dy * c - dx * s) / ry) ** 2 <= 1:
+                out.add((x, y))
+    return out
+
+
+def stroke(pts: list[Pt], w0: float, w1: float | None = None) -> Mask:
+    """A line through pts, w0 wide at its start to w1 at its end, its ends round."""
+    w1 = w0 if w1 is None else w1
+    spans = list(itertools.pairwise(pts)) or [(pts[0], pts[0])]
+    total = sum(math.dist(a, b) for a, b in spans) or 1
+    out: Mask = set()
+    done = 0.0
+    for a, b in spans:
+        d = math.dist(a, b)
+        n = max(1, int(d * 3))
+        for i in range(n + 1):
+            t = i / n
+            x, y = a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t
+            r = (w0 + (w1 - w0) * (done + d * t) / total) / 2
+            out |= oval(x, y, r, r)
+        done += d
+    return out
+
+
+def rect(x0: int, y0: int, x1: int, y1: int) -> Mask:
+    return {(x, y) for y in range(y0, y1 + 1) for x in range(x0, x1 + 1)}
+
+
+def near_edge(m: Mask, q: tuple[int, int], way: Pt, d: float) -> bool:
+    """Whether q is within d of m's edge, going way."""
+    return any((round(q[0] + way[0] * k / 2), round(q[1] + way[1] * k / 2)) not in m for k in range(1, int(d * 2) + 1))
+
+
+def part(
+    p: Pic, m: Mask, r: list[int], sh: float = 1.5, hl: float = 0, line: int = 0, within: Mask | None = None
+) -> Mask:
+    """m painted in r's tones, shadow then base then, if it has one, light: its shadow within sh of its lower right
+    edge, its light within hl of its upper left; line: a line of that tone round it where it lies on what is drawn.
+    within: only there."""
+    if within is not None:
+        m = m & within
+    if line:
+        for x, y in m:
+            for i, j in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                if (x + i, y + j) not in m and p.get(x + i, y + j):
+                    p.put(x + i, y + j, line)
+    for q in m:
+        lit = hl and len(r) > 2 and near_edge(m, q, (-FALL[0], -FALL[1]), hl)
+        p.put(*q, r[0] if sh and near_edge(m, q, FALL, sh) else r[2] if lit else r[1])
+    return m
+
+
+def fill(p: Pic, m: Mask, c: int, within: Mask | None = None) -> None:
+    for x, y in m if within is None else m & within:
+        p.put(x, y, c)
+
+
+def dots(p: Pic, c: int, *at: tuple[int, int]) -> None:
+    for x, y in at:
+        p.put(x, y, c)
+
+
 # ---- the family ----
 
 HAIR = ramp(69, (18, 9, 5), (52, 35, 18), 4)
@@ -438,374 +560,598 @@ TAN = ramp(87, (34, 19, 12), (58, 41, 30), 3)
 BLUSH, BROWN, BLUE, LIP, ASH = 90, 91, 92, 93, 94
 PAL.update({BLUSH: (62, 38, 38), BROWN: (26, 13, 5), BLUE: (14, 34, 62), LIP: (48, 16, 20), ASH: (40, 40, 44)})
 PALE = SKIN[1:]  # a skin: its lines, its shadow, itself
-FAMW, FAMH, FEET, HEAD = 180, 82, 80, 9.5
+CLOTH = [CLOUD[1], CLOUD[2]]  # white cloth: its shadow, itself
+BLACK, GREY, JEANS = DARK[:3], STONE[1:], [DENIM[1], DENIM[2], WHITE]
+# a tone in something's shadow
+SHADE = {TAN[2]: TAN[1], TAN[1]: TAN[0], PALE[2]: PALE[1], PALE[1]: PALE[0], CLOUD[2]: CLOUD[1], CLOUD[1]: CLOUD[0]}
+SHADE |= {DARK[3]: DARK[2], DARK[2]: DARK[1], DARK[1]: DARK[0], STONE[3]: STONE[2], STONE[2]: STONE[1]}
+SHADE |= {DENIM[2]: DENIM[1], DENIM[1]: DENIM[0], NAVY[2]: NAVY[1], NAVY[1]: NAVY[0], STONE[1]: STONE[0]}
+SHADE |= {FUR[5]: FUR[4], FUR[4]: FUR[3], PETAL[2]: CLOUD[1], WHITE: DENIM[2]}
+# Each is drawn on a stage, its middle column MID and its feet on row FEET, then cut to what it fills.
+STAGE, MID, FEET = (97, 116), 48.5, 104
 
 
-def oval(p: Pic, cx: float, cy: float, rx: float, ry: float, r: list[int], sh: float = 0.45, hl: float = -0.6) -> None:
-    """An ellipse in flat tones, lit from the upper left: r's first in its shadow, its third, if any, in its light."""
-    for y in range(int(cy - ry) - 1, int(cy + ry) + 2):
-        for x in range(int(cx - rx) - 1, int(cx + rx) + 2):
-            dx, dy = (x - cx) / rx, (y - cy) / ry
-            if dx * dx + dy * dy <= 1:
-                s = 0.6 * dx + 0.8 * dy
-                p.put(x, y, r[0] if s > sh else r[2] if len(r) > 2 and s < hl else r[1])
+@dataclass
+class Pose:
+    """How someone stands: bob drops all over the hips, squat bends the knees; left and right the arms at our left
+    and right, or the Pomchi's front and back legs; wave moves a raised hand, or tips the Pomchi's nose up; lift:
+    how far off the ground; f: a count for what else moves."""
+
+    bob: int = 0
+    squat: int = 0
+    left: str = "down"
+    right: str = "down"
+    blink: bool = False
+    joy: bool = False  # the mouth open
+    wave: float = 0
+    lift: int = 0
+    f: int = 0
 
 
-def limb(p: Pic, x0: float, y0: float, x1: float, y1: float, w0: float, w1: float, r: list[int]) -> None:
-    """A round ended limb, w0 wide to w1, r's first down its shadowed side."""
-    n = int(max(abs(x1 - x0), abs(y1 - y0)) * 2) + 1
-    near: dict[tuple[int, int], tuple[float, float]] = {}
-    for i in range(n + 1):
-        t = i / n
-        x, y, w = x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, (w0 + (w1 - w0) * t) / 2
-        for yy in range(int(y - w) - 1, int(y + w) + 2):
-            for xx in range(int(x - w) - 1, int(x + w) + 2):
-                d = (xx - x) ** 2 + (yy - y) ** 2
-                if d <= w * w and d < near.get((xx, yy), (1e9, 0))[0]:
-                    near[(xx, yy)] = (d, (0.85 * (xx - x) + 0.35 * (yy - y)) / w)
-    for (xx, yy), (_, s) in near.items():
-        p.put(xx, yy, r[0] if s > 0.38 else r[1])
+ARMS: dict[str, tuple[Pt, Pt]] = {  # an arm's elbow and wrist from its shoulder, in arm lengths, out and down
+    "down": ((0.2, 0.98), (0.22, 1.9)),
+    "back": ((0.36, 0.92), (0.62, 1.74)),
+    "hip": ((0.7, 0.7), (0.0, 1.2)),
+    "half": ((0.84, 0.36), (1.3, -0.4)),
+    "up": ((0.56, -0.78), (0.5, -1.76)),
+    "high": ((0.32, -0.92), (0.2, -1.9)),
+    "out": ((0.9, -0.36), (1.42, -1.2)),
+}
+LOW = ("down", "back")  # the arms drawn before what they hang beside
+Arm = tuple[Pt, Pt, Pt]  # a shoulder, an elbow, a wrist
 
 
-def trunk(p: Pic, cx: float, rows: list[tuple[float, float]], r: list[int]) -> None:
-    """A body between rows of (y, half its width), shadowed down its right, lit, with a third tone, down its left."""
-    for (ya, wa), (yb, wb) in itertools.pairwise(rows):
-        for y in range(round(ya), round(yb) + 1):
-            w = wa + (wb - wa) * (y - ya) / max(yb - ya, 1)
-            for x in range(round(cx - w), round(cx + w) + 1):
-                u = (x - cx) / w
-                p.put(x, y, r[0] if u > 0.5 else r[2] if len(r) > 2 and u < -0.6 else r[1])
+def cast(p: Pic, m: Mask, rows: int = 1) -> None:
+    """m's shadow on what is drawn under its lower edge."""
+    for x, y in m:
+        for k in range(1, rows + 1) if (x, y + 1) not in m else ():
+            if (x, y + k) not in m and p.get(x, y + k) in SHADE:
+                p.put(x, y + k, SHADE[p.get(x, y + k)])
 
 
-def tri(p: Pic, a: tuple[float, float], b: tuple[float, float], c: tuple[float, float], col: int) -> None:
-    def side(u: tuple[float, float], v: tuple[float, float], x: float, y: float) -> float:
-        return (v[0] - u[0]) * (y - u[1]) - (v[1] - u[1]) * (x - u[0])
-
-    for y in range(int(min(a[1], b[1], c[1])), int(max(a[1], b[1], c[1])) + 2):
-        for x in range(int(min(a[0], b[0], c[0])), int(max(a[0], b[0], c[0])) + 2):
-            d = side(a, b, x, y), side(b, c, x, y), side(c, a, x, y)
-            if all(v >= 0 for v in d) or all(v <= 0 for v in d):
-                p.put(x, y, col)
+def joints(sx: float, sy: float, side: int, pose: str, length: float, wave: float = 0) -> Arm:
+    (ex, ey), (wx, wy) = ARMS[pose]
+    return (sx, sy), (sx + side * ex * length, sy + ey * length), (sx + side * wx * length + wave, sy + wy * length)
 
 
-def body(
-    p: Pic,
-    cx: int,
-    tall: int,
-    top: list[int],
-    legs: list[int],
-    skin: list[int],
-    cheer: int,
-    sw: int,
-    leg: int,
-    tee: bool = False,
-    shorts: int = 0,
-    hem: int = 2,
-    lx: int = 4,
-    lw: tuple[float, float] = (7, 5),
-    aw: float = 5,
-    arms: tuple[int, int] = (1, 1),
-) -> tuple[int, int, int]:
-    """Someone stood facing out, feet on row FEET, tall high under a head HEAD round: a top to hem rows under the
-    hips, sw half its width (tee: its sleeves short), legs leg rows long of a ramp (shorts: their rows, bare under
-    them); cheer: arms up; arms: which are drawn, the left and the right. The rows of the head's middle, the
-    shoulders and the hips."""
-    hy = FEET - tall + 10
-    sy, hip = hy + 11, FEET - leg
+def hand(p: Pic, j: Arm, side: int, skin: list[int]) -> None:
+    """A hand past a wrist: a mitt, its thumb a dot to the body's side."""
+    _, el, wr = j
+    d = max(math.dist(el, wr), 1)
+    hx, hy = wr[0] + (wr[0] - el[0]) / d * 1.6, wr[1] + (wr[1] - el[1]) / d * 1.6
+    part(p, oval(hx, hy, 2.6, 2.6), skin[1:], sh=1.0, line=skin[1])
+    dots(p, skin[1], (round(hx - side * 0.9 - 0.5), round(hy + (0.8 if wr[1] > el[1] else -0.8) - 0.5)))
+
+
+def arm(p: Pic, j: Arm, side: int, w: float, top: list[int], skin: list[int], sleeve: float, line: int) -> None:
+    """An arm by its joints, w wide: sleeved in top for `sleeve` of its upper arm (2: to the wrist), then a hand."""
+    sh, el, wr = j
+    limb = stroke([sh, el], w + 0.6, w) | stroke([el, wr], w - 0.1, w - 1.0)
+    if sleeve >= 2:
+        part(p, limb, top, sh=1.3, line=line)
+        d = max(math.dist(el, wr), 1)
+        cuff = (wr[0] - (wr[0] - el[0]) / d * 1.2, wr[1] - (wr[1] - el[1]) / d * 1.2)
+        fill(p, stroke([cuff], w - 0.6), top[0], limb)
+        hand(p, j, side, skin)
+        return
+    part(p, limb, skin[1:], sh=1.3, line=skin[0])
+    hand(p, j, side, skin)
+    end = (sh[0] + (el[0] - sh[0]) * sleeve, sh[1] + (el[1] - sh[1]) * sleeve)
+    cast(p, part(p, stroke([sh, end], w + 2.0), top, sh=1.3, line=line))
+
+
+def bare_legs(p: Pic, hip: float, stance: float, squat: int, skin: list[int], w: float) -> float:
+    """Two bare legs to the ankles, w half a thigh: a knee, a calf's swell on its outer side. The knee's row."""
+    knee = (hip + FEET - 5) / 2 + 1
     for side in (-1, 1):
-        limb(p, cx + side * lx, hip, cx + side * lx, FEET - 4, lw[0], lw[1], skin[1:] if shorts else legs)
-    if shorts:
-        trunk(p, cx, [(hip - 2, sw - 2), (hip + shorts, lx + lw[0] / 2 + 1.5)], legs)
-        p.line(cx, hip + shorts - 5, cx, hip + shorts - 2, legs[0])
-        p.p[hip + shorts][cx] = p.p[hip + shorts - 1][cx] = 0
-        for side in (-1, 1):
-            p.line(cx + side * 2, hip + shorts, cx + side * (lx + lw[0] / 2 + 1), hip + shorts, legs[0])
-    for i, side in enumerate((-1, 1)):
-        if not arms[i]:
-            continue
-        sx, ay, n = cx + side * (sw - 1), sy + 3, hip - sy - 2
-        if cheer:
-            pts = [(sx, ay), (sx + side * 5, ay - 3), (sx + side * 6, ay - 12)]
-        else:
-            pts = [(sx, ay), (sx + side * 2, ay + n * 0.5), (sx + side * 2, ay + n)]
-        limb(p, *pts[0], *pts[1], aw + 1, aw, top)
-        limb(p, *pts[1], *pts[2], aw, aw - 1, skin[1:] if tee else top)
-        if tee:
-            p.line(pts[1][0] - 2, pts[1][1], pts[1][0] + 2, pts[1][1], top[0])
-        oval(p, pts[2][0], pts[2][1] + (-2 if cheer else 2), 2.6, 2.6, skin[1:])
-    trunk(p, cx, [(sy, sw - 4), (sy + 2, sw - 1), (sy + 4, sw), (hip + hem, sw - 1)], top)
-    p.box(cx - 2, hy + 8, cx + 2, sy + 1, skin[1])
-    return hy, sy, hip
+        x, k = MID + side * stance, MID + side * (stance + squat * 1.2)
+        out = [(x + side * (w + 0.2), hip), (k + side * w, knee - 3), (k + side * (w - 0.6), knee + 1)]
+        out += [(k + side * (w - 0.3), knee + 5), (x + side * (w - 0.9), FEET - 6), (x + side * (w - 1.2), FEET - 3)]
+        back = [(x - side * (w - 1.5), FEET - 3), (x - side * (w - 1.3), FEET - 7), (k - side * (w - 0.8), knee + 4)]
+        back += [(k - side * (w - 0.9), knee), (x - side * (w - 0.3), hip)]
+        part(p, poly(spline(out + back, 6)), skin[1:], sh=1.4)
+        dots(
+            p, skin[1], (round(k - 1.5), round(knee)), (round(k - 0.5), round(knee) + 1), (round(k + 0.5), round(knee))
+        )
+    return knee
 
 
-def shoes(p: Pic, cx: int, lx: int, upper: list[int], sole: int, sock: int = 0) -> None:
-    """A pair of shoes under legs lx from cx, of a shadow and a tone: socks above them, rows of sock."""
+def trousers(p: Pic, hip: float, stance: float, squat: int, r: list[int], w0: float, w1: float) -> float:
+    """Two legs in cloth from the hips to the ankles, joined at the seat. The knee's row."""
+    knee, mid = (hip + FEET - 4) / 2, (w0 + w1) / 2 + 0.3
     for side in (-1, 1):
-        x0 = cx + side * lx
+        h, a = (MID + side * stance, hip), (MID + side * (stance + 0.5), FEET - 3.5)
+        k = (MID + side * (stance + 0.3 + squat * 1.2), knee)
+        part(p, stroke([h, k], w0, mid) | stroke([k, a], mid, w1), r, sh=1.4, line=r[0])
+    half = round(stance + w0 / 2 - 0.5)
+    part(p, rect(int(MID) - half, round(hip) - 3, int(MID) + half, round(hip) + 1), r, sh=1.4)
+    return knee
+
+
+SHOE = "..uuuu.. .uuuuuu. uuuuuuud uuuuuudd ssssssss"
+SMALL = ".uuuu. uuuuud uuuudd ssssss"
+
+
+def sneakers(p: Pic, stance: float, upper: list[int], sole: int, sock: int = 0, rows: str = SHOE) -> None:
+    """Shoes from in front, toes a little out; sock rows of white rib over them."""
+    n, w = len(rows.split()), len(rows.split()[0])
+    for side in (-1, 1):
+        x, y = int(MID) + side * round(stance), FEET - n + 1
         if sock:
-            p.box(x0 - 2, FEET - 4 - sock, x0 + 2, FEET - 4, FUR[5])
-            p.box(x0 + 2, FEET - 4 - sock, x0 + 2, FEET - 4, FUR[3])
-            p.box(x0 - 2, FEET - 4 - sock, x0 + 2, FEET - 4 - sock, FUR[4])
-        p.box(x0 - 2, FEET - 4, x0 + 2, FEET - 4, upper[1])
-        p.box(x0 - 3 - (side < 0), FEET - 3, x0 + 3 + (side > 0), FEET - 1, upper[1])
-        p.box(x0 - 3 - (side < 0), FEET - 1, x0 + 3 + (side > 0), FEET - 1, upper[0])
-        p.box(x0 - 3 - (side < 0), FEET, x0 + 3 + (side > 0), FEET, sole)
+            part(p, rect(x - 2, y - sock, x + 2, y), CLOTH, sh=1.0)
+            fill(p, rect(x - 2, y - sock, x + 2, y - sock), CLOUD[1])
+        grid = rows if side > 0 else " ".join(r[::-1] for r in rows.split())
+        stamp(p, grid, x - (w // 2 - 1 if side > 0 else w // 2), y, {"u": upper[1], "d": upper[0], "s": sole})
+        dots(p, upper[0], (x - 1 + (side > 0), y + 1), (x + (side > 0), y + 2))
 
 
-def head(p: Pic, cx: int, hy: int, skin: list[int], ears: bool = True) -> None:
-    if ears:
-        for side in (-1, 1):
-            oval(p, cx + side * 9.6, hy + 2, 1.9, 2.7, skin[1:])
-            p.put(cx + side * 10, hy + 2, skin[0])
-    oval(p, cx, hy, HEAD, 10, skin[1:], sh=0.66)
+def shorts(p: Pic, top: float, hem: float, w0: float, w1: float, r: list[int], squat: int = 0) -> None:
+    """Loose shorts from their waist to their hems, parted under the crotch; r: shadow, tone, light."""
+    crotch = top + (hem - top) * 0.55
+    left = [(MID - w0, top), (MID - w1 - squat, hem), (MID - 1.4 - squat * 0.5, hem)]
+    m = poly([*left, (MID, crotch), *((2 * MID - x, y) for x, y in left[::-1])])
+    part(p, m, r, sh=2.0)
+    fill(p, stroke([(MID + 0.5, crotch - 1), (MID + 4.5, crotch - 4)], 1.0), r[0], m)  # folds from the crotch
+    fill(p, stroke([(MID - 1.5, crotch - 1), (MID - 5, crotch - 3.5)], 1.0), r[0], m)
+    fill(p, {(x, y - 1) for x, y in m if (x, y + 1) not in m and y > crotch}, r[2], m)  # the hems' turn
+    cast(p, m, 2)
 
 
-def crown(
-    p: Pic, cx: int, hy: int, r: list[int], line: Callable[[int], float], puff: float = 1.0, top: float = 0.0
-) -> None:
-    """Hair on a head: what of an ellipse puff bigger than it, top higher, is over row line(dx) from its middle."""
-    rx, ry = HEAD + puff, 10 + puff + top
-    for y in range(int(hy - ry) - 1, hy + 12):
-        for x in range(int(cx - rx) - 1, int(cx + rx) + 2):
-            dx, dy = (x - cx) / rx, (y - hy) / ry
-            if dx * dx + dy * dy <= 1 and y <= hy + line(x - cx):
-                s = 0.6 * dx + 0.8 * dy
-                p.put(x, y, r[2] if -0.8 < s < -0.55 else r[0] if dx > 0.6 else r[1])
+def torso(p: Pic, sy: float, hem: float, half: float, low: float, r: list[int], line: int, slope: float) -> Mask:
+    """A top from its shoulders to its hem: half the shoulders across, `low` half its hem."""
+    left = [(MID - 3.6, sy - 1.2), (MID - half, sy + slope - 1), (MID - half - 0.8, sy + 5)]
+    left += [(MID - (half + low) / 2 + 0.6, (sy + hem) / 2 + 1), (MID - low, hem - 0.6)]
+    m = poly(spline([*left, (MID, hem), *((2 * MID - x, y) for x, y in left[::-1])], 6))
+    part(p, m, r, sh=2.2, line=line)
+    cast(p, m, 2)
+    return m
 
 
-def face(
-    p: Pic,
-    cx: int,
-    ey: int,
-    iris: int,
-    brow: int,
-    skin: list[int],
-    lip: int,
-    wide: int = 2,
-    lash: bool = False,
-    blush: bool = False,
-    teeth: bool = True,
-    heavy: bool = False,
-    nose: int = 3,
-) -> None:
-    """A face, its eyes on rows ey and under: irises of a colour under lids and brows, a nose, a smile wide a side."""
-    for side in (-1, 1):
-        xo = cx + side * 6
-        for i in range(4):
-            x = xo - side * i
-            p.put(x, ey - 1, INK)
-            p.put(x, ey - 3, brow)
-            if heavy and i:
-                p.put(x, ey - 4, brow)
-            p.put(x, ey, iris if i in (1, 2) else WHITE)
-            p.put(x, ey + 1, WHITE if i in (0, 3) else INK if i == 2 else iris)
-        if lash:
-            p.put(xo + side, ey - 2, INK)
-        if blush:
-            p.box(min(xo, xo + side), ey + 3, max(xo, xo + side), ey + 3, BLUSH)
-    p.put(cx + 1, ey + nose - 1, skin[1])
-    p.box(cx, ey + nose, cx + 1, ey + nose, skin[0])
-    my = ey + 6
-    p.box(cx - wide, my, cx + wide, my, lip)
-    if teeth:
-        p.box(cx - wide + 1, my, cx + wide - 1, my, WHITE)
-        p.box(cx - wide + 1, my + 1, cx + wide - 1, my + 1, lip)
-    for side in (-1, 1):
-        p.put(cx + side * (wide + 1), my - 1, skin[0])
+def neck(p: Pic, sy: float, skin: list[int], top: Mask, collar: int, deep: float = 2.2) -> None:
+    """A neck into a top's round collar."""
+    hole, throat = oval(MID, sy + 0.2, 3.9, deep), rect(int(MID) - 2, round(sy) - 5, int(MID) + 2, round(sy))
+    fill(p, throat, skin[1])
+    fill(p, hole, skin[1], top | throat)
+    fill(p, {(x, y + 1) for x, y in hole if (x, y + 1) not in hole}, collar, top)
 
 
-def pomchi(p: Pic, cx: int, hop: int) -> None:
-    """The Pomchi: small, black and fluffy, a fox's face going grey at the muzzle, big pricked ears, a ruff, a plume
-    of a tail curled over its back; sat facing out, its tongue out."""
-    f = FEET - hop
-    fur = [DARK[0], DARK[1], DARK[2]]
-    for x, y, r in ((10, -9, 4), (12, -14, 4.2), (11, -19, 3.6), (8, -23, 2.8)):
-        oval(p, cx + x, f + y, r, r, [DARK[0], DARK[1], DARK[3]], hl=-0.3)
-    oval(p, cx, f - 8, 9, 8, fur, hl=-0.75)
-    for x, y, r in ((-5, -12, 3.2), (0, -10, 4.2), (5, -12, 3.2), (-3, -7, 2.6), (3, -7, 2.6)):
-        oval(p, cx + x, f + y, r, r, [DARK[1], DARK[2], DARK[3]], hl=-0.5)
-    for side in (-1, 1):
-        oval(p, cx + side * 4.5, f - 1.6, 3.2, 2, [DARK[1], DARK[2], DARK[3]], hl=-0.4)
-        tri(p, (cx + side * 2, f - 25), (cx + side * 8, f - 23), (cx + side * 7, f - 33), DARK[1])
-        tri(p, (cx + side * 4, f - 25), (cx + side * 7, f - 24), (cx + side * 6.5, f - 30), BLUSH)
-        p.line(cx + side * 2, f - 25, cx + side * 6, f - 32, DARK[0])
-        oval(p, cx + side * 7.5, f - 18, 3, 3.2, fur)
-    oval(p, cx, f - 20, 8, 6.5, fur, hl=-0.7)
-    oval(p, cx, f - 17.5, 3.6, 3, [ASH, STONE[2], STONE[3]], hl=-0.5)
-    for side in (-1, 1):
-        x = cx + side * 4
-        p.box(x - (side > 0), f - 22, x + (side < 0), f - 21, EARTH[5])
-        p.put(x, f - 21, INK)
-        p.put(x - side, f - 22, WHITE)
-        p.put(x, f - 24, DARK[3])
-    p.box(cx - 1, f - 19, cx, f - 18, INK)
-    p.put(cx - 1, f - 19, STONE[1])
-    p.box(cx - 2, f - 17, cx + 1, f - 17, INK)
-    p.box(cx - 1, f - 16, cx, f - 14, TONGUE[1])
-    p.put(cx, f - 15, TONGUE[2])
+def face(grid: str, pose: Pose, eye: int, mouth: int, deep: int = 1) -> str:
+    """A head's rows, its eyes shut or its mouth open: eye the lash line's row, deep the rows of eye under it,
+    mouth the lower lip's row."""
+    rows = grid.split()
+    if pose.blink:
+        rows[eye] = rows[eye].replace("K", "s")
+        for k in range(1, deep):
+            rows[eye + k] = rows[eye + k].replace("Kbw", "sss")
+        rows[eye + deep] = rows[eye + deep].replace("Kbw", "KKK")
+    if pose.joy:
+        a, b = rows[mouth].index("l"), rows[mouth].rindex("l")
+        rows[mouth] = rows[mouth][:a] + "R" + "t" * (b - a - 1) + "R" + rows[mouth][b + 1 :]
+        rows[mouth + 1] = rows[mouth + 1][: a + 1] + "l" * (b - a - 1) + rows[mouth + 1][b:]
+    return " ".join(rows)
 
 
-def little(p: Pic, cx: int, cheer: int) -> None:
-    """The little one: brown eyed, wavy light brown hair to her shoulders under a white cap spotted with paint, its
-    brim out; a pale zipped hoodie with ruffled shoulders, leggings spotted as a leopard, white shoes."""
-    pale, hair = [FUR[3], FUR[4], FUR[5]], [HAIR[1], HAIR[2], HAIR[3]]
-    hy, sy = FEET - 45 + 10, FEET - 45 + 21
-    for side in (-1, 1):
-        for y in range(hy - 4, sy + 5):
-            x = cx + side * (9.5 + math.sin(y * 1.1 + side) * 1.2 + min(2.0, (y - hy + 4) * 0.25))
-            oval(p, x, y, 2.6, 1.6, hair if (y // 2) & 1 else [HAIR[1], HAIR[2], HAIR[2]])
-    hy, sy, hip = body(p, cx, 45, pale, [FUR[3], FUR[5]], PALE, cheer, sw=8, leg=13, lx=3, lw=(6, 5), aw=4)
-    for x, y in ((-5, 1), (-2, 3), (-4, 5), (2, 1), (5, 3), (3, 5), (-2, 0), (4, 0)):
-        if hip + 2 + y < FEET - 4:
-            p.put(cx + x, hip + 2 + y, INK)
-            p.put(cx + x - 1, hip + 2 + y, GOLD[1])
-    shoes(p, cx, 3, [FUR[3], FUR[5]], FUR[2])
-    p.line(cx, sy + 1, cx, hip + 2, STONE[2])
-    p.put(cx, sy + 2, GOLD[3])
-    for side in (-1, 1):
-        for i in range(3):
-            oval(p, cx + side * (4 + i * 2), sy + 1 + i * 0.6, 1.7, 1.5, [FUR[4], WHITE])
-    head(p, cx, hy, PALE, ears=False)
-    face(p, cx, hy + 2, BROWN, HAIR[1], PALE, LIP, wide=3, blush=True)
-    crown(p, cx, hy, [FUR[3], FUR[5], WHITE], lambda dx: -5, puff=1.4, top=1.0)
-    p.box(cx - 13, hy - 4, cx + 12, hy - 4, FUR[5])
-    p.box(cx - 13, hy - 3, cx + 12, hy - 3, FUR[3])
-    p.box(cx - 13, hy - 5, cx - 11, hy - 5, FUR[5])
-    spots = ((-6, -8, LIP, 2), (0, -11, GRASS[3], 2), (5, -8, PETAL[1], 2), (-2, -7, TEAL[3], 1), (3, -10, GOLD[3], 1))
-    for x, y, c, n in spots:
-        p.box(cx + x, hy + y, cx + x + n - 1, hy + y + (n > 1), c)
+FACE = {"K": INK, "w": WHITE, "l": LIP, "u": LIP, "R": SCARF[0], "t": TONGUE[1], "p": BLUSH}
 
 
-def big(p: Pic, cx: int, cheer: int) -> None:
-    """The big one: brown eyed, brown hair pulled back and tied up, white headphones, a black hoodie, pale jeans
-    worn through at a knee, black shoes on white soles; a guitar on a strap, amber going dark at its edge, two
-    pickups, its long pale neck up."""
-    black, hair = [DARK[0], DARK[1], DARK[2]], [HAIR[0], HAIR[1], HAIR[2]]
-    oval(p, cx, FEET - 58 - 2, 4.2, 3.6, hair)
-    hy, sy, hip = body(p, cx, 58, black, DENIM[:2], PALE, cheer, sw=10, leg=19, hem=1, arms=(cheer, 0))
-    for side in (-1, 1):
-        p.line(cx + side * 4 - 1, hip + 3, cx + side * 4 - 1, FEET - 6, DENIM[2])
-    shoes(p, cx, 4, [DARK[0], DARK[1]], FUR[5])
-    p.box(cx - 6, hip + 8, cx - 3, hip + 9, PALE[2])
-    p.box(cx - 6, hip + 7, cx - 2, hip + 7, WHITE)
-    p.box(cx - 5, hip + 10, cx - 2, hip + 10, WHITE)
-    oval(p, cx, sy + 1, 6, 2.6, [DARK[1], DARK[2], DARK[3]])
-    for side in (-1, 1):
-        p.line(cx + side * 2, sy + 3, cx + side * 2, sy + 7, FUR[4])
-    gy = hip - 3
-    p.line(cx - 8, sy + 1, cx + 6, gy - 5, ASH, 2)
-    if not cheer:
-        limb(p, cx - 9, sy + 3, cx - 13, sy + 10, 6, 5, black)
-        limb(p, cx - 13, sy + 10, cx - 5, gy - 1, 5, 4, black)
-    limb(p, cx + 9, sy + 3, cx + 13, sy + 9, 6, 5, black)
-    nx, ny = cx + 25, gy - 17 - cheer * 2
-    p.line(cx + 6, gy - 1, nx, ny, HAIR[1], 4)
-    p.line(cx + 6, gy - 2, nx, ny - 1, BLOND[3], 2)
-    for i in range(1, 7):
-        fx, fy = cx + 6 + (nx - cx - 6) * i / 7, gy - 2 + (ny - gy + 1) * i / 7
-        p.put(round(fx), round(fy), ASH)
-    oval(p, nx + 2, ny - 2, 3, 3.6, [HAIR[1], HAIR[2], HAIR[3]])
-    p.put(nx + 1, ny - 3, WHITE)
-    p.put(nx + 3, ny - 1, WHITE)
-    for bx, by, rx, ry in ((cx - 2, gy + 2, 9.5, 7), (cx + 5, gy - 2, 5, 4.6)):
-        for y in range(int(by - ry) - 1, int(by + ry) + 2):
-            for x in range(int(bx - rx) - 1, int(bx + rx) + 2):
-                d = ((x - bx) / rx) ** 2 + ((y - by) / ry) ** 2
-                if d <= 1:
-                    p.put(x, y, EARTH[1] if d > 0.72 else EARTH[4] if d > 0.42 else GOLD[2])
-    oval(p, cx - 3, gy + 1, 5.5, 4, [GOLD[2], GOLD[3]])
-    for x in (-5, 0):
-        p.box(cx + x, gy - 1, cx + x + 1, gy + 4, DARK[1])
-        p.box(cx + x, gy, cx + x, gy + 3, ASH)
-    p.box(cx - 9, gy, cx - 8, gy + 3, METAL[3])
-    p.line(cx - 8, gy + 2, cx + 6, gy - 1, METAL[3])
-    if not cheer:
-        oval(p, cx - 4, gy + 1, 2.6, 2.6, PALE[1:])
-    oval(p, cx + 14, gy - 8, 2.8, 2.8, PALE[1:])
-    head(p, cx, hy, PALE)
-    crown(p, cx, hy, hair, lambda dx: -6 + abs(dx) * 0.2 + (abs(dx) > 7) * 3, puff=0.7)
-    for dx in (-5, -2, 2, 5):
-        p.line(cx + dx, hy - 7, cx + dx * 0.5, hy - 10, HAIR[0])
-    face(p, cx, hy + 1, BROWN, HAIR[0], PALE, LIP, wide=2, blush=True)
-    for x in range(cx - 11, cx + 12):
-        y = hy - 12 + ((x - cx) / 11) ** 2 * 9
-        p.box(x, round(y), x, round(y) + 1, FUR[5])
-        p.put(x, round(y) + 2, FUR[3])
-    for side in (-1, 1):
-        oval(p, cx + side * 10.5, hy + 1, 3, 4.6, [FUR[3], FUR[5], WHITE])
-        oval(p, cx + side * 11, hy + 1, 1.2, 2.6, [STONE[1], STONE[2]])
+def sides(pose: Pose) -> tuple[tuple[int, str], tuple[int, str]]:
+    """Each arm's side, -1 ours left, and how it is held."""
+    return (-1, pose.left), (1, pose.right)
 
 
-def fair(p: Pic, cx: int, cheer: int) -> None:
-    """A grown up: blue eyed, tanned, a fair bob swept across her brow and down to her chin, darker at its roots; a
-    big grey hoodie, its hood behind and a pocket in front, dark shorts, white socks."""
-    grey, blond = [STONE[1], STONE[2], STONE[3]], [BLOND[1], BLOND[2], BLOND[3]]
-    oval(p, cx, FEET - 69 + 22, 10, 4.5, grey)
-    hy, sy, hip = body(p, cx, 69, grey, NAVY, TAN, cheer, sw=12, leg=28, shorts=9, hem=4, lw=(6, 5))
-    shoes(p, cx, 4, [FUR[3], FUR[5]], FUR[2], sock=3)
-    p.line(cx - 6, hip - 6, cx + 6, hip - 6, STONE[1])
-    p.line(cx - 6, hip - 6, cx - 8, hip + 1, STONE[1])
-    p.line(cx + 6, hip - 6, cx + 8, hip + 1, STONE[1])
-    p.line(cx - 11, hip + 2, cx + 11, hip + 2, STONE[1])
-    p.line(cx - 5, sy, cx, sy + 4, STONE[1])
-    p.line(cx + 5, sy, cx, sy + 4, STONE[1])
-    for side in (-1, 1):
-        p.line(cx + side * 2, sy + 4, cx + side * 2, sy + 10, WHITE)
-    for y in range(hy - 6, hy + 9):
-        w = 11.5 - max(0, y - hy - 6) * 1.2
-        for x in range(round(cx - w), round(cx + w) + 1):
-            p.put(x, y, BLOND[1] if x > cx + 6 or y > hy + 6 else BLOND[2])
-    head(p, cx, hy, TAN, ears=False)
-
-    def fringe(dx: int) -> float:
-        if abs(dx) >= 8:
-            return 7
-        return -7 + (3 - dx) * 0.45 if dx < 3 else -7 + (dx - 3) * 0.9
-
-    crown(p, cx, hy, blond, fringe, puff=1.6, top=0.6)
-    p.line(cx + 3, hy - 11, cx + 3, hy - 8, BLOND[0])
-    p.line(cx + 2, hy - 8, cx - 8, hy - 3, BLOND[1])
-    p.line(cx + 1, hy - 10, cx - 9, hy - 6, BLOND[3])
-    p.line(cx + 5, hy - 9, cx + 9, hy - 3, BLOND[1])
-    for side in (-1, 1):
-        p.line(cx + side * 10, hy - 2, cx + side * 9, hy + 7, BLOND[1 if side > 0 else 3])
-    face(p, cx, hy + 1, BLUE, BLOND[0], TAN, LIP, wide=3, lash=True)
+# Hair in tufts leaning one way over sides cut close, a brow's hair high at the temples, a short beard going grey.
+DAD = """
+.........h.hh.h....
+.....h.hhhHhhHhh...
+....hhhhHhhHhhHhh..
+...hhHhhHhhHhhHhhn.
+..hhHhhHhhHhhHhhhn.
+.vhhhhhhhhhhhhhhhv.
+.vhsshhhhhhhhhssnv.
+.vsssssssssssssssv.
+.vsssssssssssssssv.
+.vsssssssssssssssv.
+.vsBBBBBsssBBBBBsv.
+essssssssssssssssse
+edssKKKsssssKKKssde
+edssKbwsssssKbwssde
+.ssssssssdsssssssd.
+.NssssssdddssssssN.
+.NNsssssssssssssNx.
+.NNNsmmmmmmmmmsNNx.
+.NNNmmuuuuuuummNNx.
+..NNNmuwwwwwumNNx..
+..NNNNmlllllmNNNx..
+...NNNGgggggGNNx...
+....NNNGgggGNNx....
+......NNNNNNx......
+"""
 
 
-def bearded(p: Pic, cx: int, cheer: int) -> None:
-    """A grown up: tanned, short dark hair up in front and close at the sides, heavy dark brows, a short beard going
-    grey; a big white shirt, its sleeves to the elbow, loose dark shorts to the knee, white socks."""
-    white, hair = [FUR[3], FUR[5]], [DARK[0], DARK[1], DARK[2]]
-    hy, sy, hip = body(p, cx, 74, white, [DARK[1], DARK[2], DARK[3]], TAN, cheer, sw=12, leg=27, tee=True, shorts=14)
-    shoes(p, cx, 4, [FUR[3], FUR[5]], FUR[2], sock=3)
-    oval(p, cx, sy, 4.5, 2.4, TAN[1:])
-    p.line(cx - 4, sy + 2, cx + 4, sy + 2, FUR[3])
-    p.line(cx - 11, hip + 2, cx + 11, hip + 2, FUR[3])
-    p.line(cx - 6, sy + 12, cx - 4, sy + 16, FUR[4])
-    p.line(cx + 5, sy + 9, cx + 3, sy + 15, FUR[4])
-    head(p, cx, hy, TAN)
-    for y in range(hy + 1, hy + 13):
-        for x in range(cx - 11, cx + 12):
-            dx, dy = (x - cx) / 9.9, (y - hy - 0.6) / 11
-            if dx * dx + dy * dy <= 1 and (y >= hy + 6 or abs(x - cx) >= 9 - (y - hy - 1) * 0.6):
-                grey = y >= hy + 8 and abs(x - cx) < 6 and (x * 7 + y * 3) % 4 == 0
-                p.put(x, y, ASH if grey else DARK[2] if (x + y) % 5 == 0 else DARK[1])
-    crown(p, cx, hy, hair, lambda dx: -5 + (abs(dx) > 7) * 6, puff=0.5, top=1.6)
-    oval(p, cx + 1, hy - 10, 6.5, 3, hair, hl=-0.3)
-    p.line(cx - 3, hy - 11, cx + 4, hy - 12, DARK[2])
-    face(p, cx, hy + 1, BROWN, DARK[0], TAN, LIP, wide=2, heavy=True, nose=2)
-
-
-def family(cheer: int) -> Pic:
-    """Who meets Charlie at the level's end, left to right: the Pomchi, the little one, the big one with her guitar,
-    and the two grown ups. cheer: arms up, the dog off the ground."""
-    p = Pic(FAMW, FAMH)
-    pomchi(p, 12, cheer * 3)
-    little(p, 42, cheer)
-    big(p, 76, cheer)
-    fair(p, 124, cheer)
-    bearded(p, 160, cheer)
+def bearded(pose: Pose) -> Pic:
+    """A grown up: tanned, dark hair up in tufts over short sides, heavy brows, a short beard going grey; a big
+    white shirt, its sleeves to the elbow, loose dark shorts to the knee, white socks and shoes."""
+    p = Pic(*STAGE)
+    half, top = 10.8, FEET - 77 + pose.bob + pose.squat * 2  # the hair's top row
+    sy, hip = top + 24, top + 46
+    knee = bare_legs(p, hip, 4.8, pose.squat, TAN, 3.8)
+    sneakers(p, 4.8, CLOTH, FUR[1], sock=3)
+    shorts(p, hip - 6, knee - 2, 10.0, 10.6, BLACK, pose.squat)
+    arms = [(joints(MID + s * (half + 0.4), sy + 3, s, how, 11, s * pose.wave), s, how) for s, how in sides(pose)]
+    for j, side, _ in (a for a in arms if a[2] in LOW):
+        arm(p, j, side, 5.6, CLOTH, TAN, 0.66, CLOUD[0])
+    shirt = torso(p, sy, hip - 1, half, half + 0.4, CLOTH, CLOUD[0], 1.6)
+    for a, b in (((-6, 12), (-4.4, 17)), ((4.2, 9), (2.4, 15)), ((-2, 15), (-0.5, 19))):  # its folds
+        fill(p, stroke([(MID + a[0], sy + a[1]), (MID + b[0], sy + b[1])], 1.0), CLOUD[1], shirt)
+    hem = round(half + 1)
+    fill(p, rect(int(MID) - hem, round(hip) - 4, int(MID) + hem, round(hip) - 4), CLOUD[1], shirt)
+    neck(p, sy, TAN, shirt, CLOUD[1])
+    for j, side, _ in (a for a in arms if a[2] not in LOW):
+        arm(p, j, side, 5.6, CLOTH, TAN, 0.66, CLOUD[0])
+    key = FACE | {"h": DARK[1], "H": DARK[2], "n": DARK[0], "v": DARK[2], "s": TAN[2], "d": TAN[1], "e": TAN[2]}
+    key |= {"B": DARK[0], "b": BROWN, "N": DARK[2], "m": DARK[2], "x": DARK[1], "g": ASH, "G": DARK[3]}
+    stamp(p, face(DAD, pose, 12, 20), int(MID) - 9, top, key | {"u": SCARF[0]})
     return p.outline()
+
+
+# A fair bob parted at one side and swept across, darker at its roots, down to the jaw.
+MUM = """
+.......oooooo........
+.....ooyyYYYyoo......
+....oyyOyYYYYyyoo....
+...oyyOOyyYYYYyyyo...
+..oyyyOyyyyyYYYyyyo..
+..oyyysssyyyyyyYyyo..
+.oyyyssssssyyyyyYyyo.
+.oyysssssssssoyyyyyo.
+.oyyssssssssssoyyyyo.
+.oyysssssssssssoyyyo.
+.oyysBBBsssssBBBsyyo.
+.oYyKsssssssssssKyyo.
+.oYysKKKsssssKKKsyyo.
+.oYysKbwsssssKbwsyyo.
+.oyysssssssssssssyyo.
+.oyyspssssdsssspdyyo.
+.oyysssuuuuuuusssyyo.
+.oyysssuwwwwwusssyyo.
+..oyyssslllllssdyyo..
+..ooyysssssssssdyoo..
+...ooyysssssssdyoo...
+.....oo.dddddd.oo....
+"""
+
+
+def fair(pose: Pose) -> Pic:
+    """A grown up: blue eyed, tanned, short fair hair parted at one side, darker at its roots; a big grey hoodie,
+    its hood behind and a pocket in front, dark shorts, white socks and shoes."""
+    p = Pic(*STAGE)
+    half, top = 8.8, FEET - 72 + pose.bob + pose.squat * 2
+    sy, hip = top + 22, top + 42
+    bare_legs(p, hip, 4.1, pose.squat, TAN, 3.9)
+    sneakers(p, 4.1, CLOTH, FUR[1], sock=3)
+    shorts(p, hip - 4, hip + 7, 8.8, 9.4, NAVY, pose.squat)
+    arms = [(joints(MID + s * (half + 0.4), sy + 3, s, how, 10, s * pose.wave), s, how) for s, how in sides(pose)]
+    for j, side, _ in (a for a in arms if a[2] in LOW):
+        arm(p, j, side, 5.0, GREY, TAN, 2, STONE[0])
+    part(p, oval(MID, sy + 0.6, 9.2, 3.6), GREY, sh=1.4)  # the hood, behind
+    top_ = torso(p, sy, hip + 3, half, half + 1.2, GREY, STONE[0], 2.0)
+    band = round(half + 2)
+    fill(p, rect(int(MID) - band, round(hip) + 1, int(MID) + band, round(hip) + 1), STONE[1], top_)
+    pocket = poly([(MID - 5, sy + 11), (MID + 5, sy + 11), (MID + 7.4, sy + 18), (MID - 7.4, sy + 18)])
+    rim = {(x, y) for x, y in pocket if any((x + i, y + j) not in pocket for i, j in ((1, 0), (-1, 0), (0, -1)))}
+    fill(p, rim, STONE[1], top_)
+    fill(p, {(x, y) for x, y in pocket if (x - 1, y - 1) not in pocket and (x, y - 1) in pocket}, STONE[3], top_)
+    neck(p, sy, TAN, top_, STONE[1], 2.8)
+    for dx in (-2, 2):  # the hood's cords
+        fill(p, rect(int(MID) + dx, round(sy) + 3, int(MID) + dx, round(sy) + 9), CLOUD[2], top_)
+        dots(p, CLOUD[0], (int(MID) + dx, round(sy) + 10))
+    for j, side, _ in (a for a in arms if a[2] not in LOW):
+        arm(p, j, side, 5.0, GREY, TAN, 2, STONE[0])
+    key = FACE | {"y": BLOND[2], "Y": BLOND[3], "o": BLOND[1], "O": BLOND[0], "s": TAN[2], "d": TAN[1]}
+    stamp(p, face(MUM, pose, 12, 18), int(MID) - 10, top, key | {"B": BLOND[0], "b": BLUE})
+    return p.outline()
+
+
+# Hair pulled back to a knot on top, headphones over it: their band, a cup an ear.
+TEEN = """
+........nhhhn........
+.......nhHHhhn.......
+.......nhhhhhn.......
+......WWWWWWWWW......
+....WWGhhHHhhhGWW....
+...WGhhhHHhhhhhhGW...
+..WGhhhHHhnhhhhhhGW..
+.WGhhhssssssssshhhGW.
+.WGhsssssssssssssnGW.
+WWWhsssssssssssssnWWW
+WGWhsBBBsssssBBBsnWGW
+WGWssssssssssssssdWGW
+WGWssKKKsssssKKKsdWGW
+WGWssKbwsssssKbwsdWGW
+WGWssssssssssssssdWGW
+WWWsspssssdsssspsdWWW
+.WWsssssssssssssdWW..
+...ssssusssssussd....
+....sssslllllssd.....
+.....sssssssssd......
+......ssssssdd.......
+........dddd.........
+"""
+
+
+def guitar(p: Pic, bx: float, by: float, nx: float, ny: float) -> None:
+    """A guitar, its body about bx, by, its neck up to nx, ny: amber going dark at its edge, two pickups."""
+    part(p, stroke([(bx + 5, by - 2.4), (nx, ny)], 3.2, 2.8), [HAIR[1], BLOND[3]], sh=0.9, line=INK)
+    for i in range(1, 7):  # its frets
+        dots(p, ASH, (round(bx + 4.5 + (nx - bx - 5) * i / 7), round(by - 2.9 + (ny - by + 2.4) * i / 7)))
+    part(p, oval(nx + 1.8, ny - 1.6, 2.6, 3.2, 0.6), HAIR[:3], sh=1.0, hl=0.8, line=INK)
+    dots(p, WHITE, (round(nx + 0.5), round(ny - 3)), (round(nx + 2.5), round(ny - 1)))
+    body = oval(bx - 2, by + 2, 9.2, 6.8) | oval(bx + 5, by - 1.6, 5.2, 4.8)
+    edge = {(x + i, y + j) for x, y in body for i, j in ((1, 0), (-1, 0), (0, 1), (0, -1)) if p.get(x + i, y + j)}
+    fill(p, edge - body, INK)
+    for x, y in body:  # the burst: by how much of the body is about a dot
+        near = sum((x + i, y + j) in body for i in range(-2, 3) for j in range(-2, 3))
+        p.put(x, y, EARTH[1] if near < 19 else EARTH[4] if near < 25 else GOLD[2])
+    fill(p, oval(bx - 2.6, by + 1.2, 4.6, 3.2), GOLD[3], body)
+    for x in (round(bx) - 5, round(bx)):
+        fill(p, rect(x, round(by) - 1, x + 1, round(by) + 4), DARK[1])
+        fill(p, rect(x, round(by), x, round(by) + 3), ASH)
+    fill(p, rect(round(bx) - 9, round(by), round(bx) - 8, round(by) + 3), METAL[3])
+    fill(p, stroke([(bx - 8, by + 1.6), (bx + 6, by - 1.6)], 1.0), METAL[3], body)
+
+
+STRUM = {"s0": -1.0, "s1": 1.0, "s2": 3.0}  # a strumming hand's row over the strings
+
+
+def big(pose: Pose) -> Pic:
+    """The big one: brown eyed, light brown hair pulled back and tied up, white headphones, a black hoodie, pale
+    wide jeans worn through at a knee, black shoes on white soles; a guitar on a strap, its long pale neck up.
+    left: its strumming hand's stroke, or that arm up."""
+    p = Pic(*STAGE)
+    half, top, c = 8.4, FEET - 62 + pose.bob + pose.squat * 2, int(MID)
+    sy, hip = top + 21, top + 38
+    knee = round(trousers(p, hip, 3.8, pose.squat, JEANS, 6.8, 6.2))
+    fill(p, rect(c - 6, knee - 1, c - 3, knee + 1), PALE[1])  # a knee worn through
+    fill(p, rect(c - 6, knee - 2, c - 2, knee - 2), WHITE)
+    fill(p, rect(c - 5, knee + 2, c - 2, knee + 2), WHITE)
+    sneakers(p, 4.2, BLACK, CLOUD[2])
+    part(p, oval(MID, sy + 0.6, 8.8, 3.4), DARK[1:], sh=1.4)  # the hood
+    hood = torso(p, sy, hip + 1, half, half + 0.8, BLACK, DARK[0], 2.0)
+    neck(p, sy, PALE, hood, DARK[2], 2.4)
+    for dx in (-2, 2):
+        fill(p, rect(c + dx, round(sy) + 3, c + dx, round(sy) + 7), CLOUD[1], hood)
+    gx, gy = MID - 1, hip - 3 + (pose.f % 2)
+    fill(p, stroke([(MID - 7, sy + 1), (MID + 7, gy - 4)], 2.0), ASH, hood)  # the strap
+    fill(p, stroke([(MID - 7, sy + 2), (MID + 7, gy - 3)], 1.0), STONE[1], hood)
+    guitar(p, gx, gy, MID + 25, gy - 17)
+    # the hand on its neck, the hand at its strings: or that one up
+    sr, sl = (MID + half + 0.4, sy + 3), (MID - half - 0.4, sy + 3)
+    arm(p, (sr, (sr[0] + 3.6, sr[1] + 6.5), (MID + 13.5, gy - 8.5)), 1, 4.8, BLACK, PALE, 2, DARK[2])
+    if pose.left in STRUM:
+        arm(p, (sl, (sl[0] - 3.4, sl[1] + 7), (gx - 3.5, gy + STRUM[pose.left])), -1, 4.8, BLACK, PALE, 2, DARK[2])
+    else:
+        arm(p, joints(*sl, -1, pose.left, 9.5), -1, 4.8, BLACK, PALE, 2, DARK[2])
+    key = FACE | {"h": HAIR[2], "H": HAIR[3], "n": HAIR[1], "W": CLOUD[2], "G": CLOUD[0], "s": PALE[2], "d": PALE[1]}
+    stamp(p, face(TEEN, pose, 12, 18), c - 10, top, key | {"B": HAIR[1], "b": BROWN})
+    return p.outline()
+
+
+# A peaked cap spotted with paint over wavy hair to the shoulders.
+KID = """
+........WWWWWWW........
+......WWWW5WWWWWG......
+.....WW3W45WWWWWGG.....
+.....WWWW4WWWW33GG.....
+.....WWWWWWWWW33GG.....
+.WWWW2WWWWWWWWWWWGG....
+..GGGGGGGGGGGGGGGG.....
+..hhhhsssssssssssnhhh..
+.hHhhsssssssssssssnhHh.
+.hHhhsBBBsssssBBBsnhhh.
+hhHhhsssssssssssssnhhhh
+hHhhhsKKKsssssKKKsnhHhh
+hHhhnsKbwsssssKbwsnhhHh
+.hhhnsKbwsssssKbwsnhhh.
+.hHhhspssssdsssspsnhHh.
+hhHhhsssssssssssssnhhHh
+hHhhnsssusssssusssnhhHh
+.hhhhnssslllllssdnnhhh.
+.hHhhhnsssssssssdnhhHh.
+hhHhhhhnddddddddnhhhHhh
+hHhhhhn.........nhhHhhh
+.hhHhhn.........nhHhhh.
+.hHhhn...........nhhHh.
+..hhhn...........nhhh..
+..nhn.............nhn..
+"""
+
+
+def little(pose: Pose) -> Pic:
+    """The little one: brown eyed, wavy light brown hair to her shoulders under a white peaked cap spotted with
+    paint; a pale zipped hoodie with ruffled shoulders, pale leggings spotted as a leopard, white shoes."""
+    p = Pic(*STAGE)
+    half, top, c = 7.0, FEET - 50 + pose.bob + pose.squat * 2, int(MID)
+    sy, hip = top + 19, top + 34
+    pale, pink = [FUR[3], FUR[4]], [CLOUD[1], PETAL[2]]
+    trousers(p, hip, 3.0, pose.squat, pink, 5.6, 4.6)
+    for x, y in ((-5, 0), (-2, 2), (-4, 5), (2, 0), (5, 2), (3, 5), (-2, -3), (4, -3), (-5, 8), (3, 9)):
+        q = (c + x, round(hip + 3 + y))  # a leopard's spot, a paler dot beside it
+        if p.get(*q) in pink and q[1] < FEET - 4:
+            p.put(*q, DARK[1])
+            if p.get(q[0] - 1, q[1]) in pink:
+                p.put(q[0] - 1, q[1], DARK[3])
+    sneakers(p, 3.2, CLOTH, FUR[1], rows=SMALL)
+    arms = [(joints(MID + s * (half + 0.2), sy + 2.6, s, how, 7.2, s * pose.wave), s, how) for s, how in sides(pose)]
+    for j, side, _ in (a for a in arms if a[2] in LOW):
+        arm(p, j, side, 4.2, pale, PALE, 2, FUR[2])
+    top_ = torso(p, sy, hip + 1, half, half + 0.6, pale, FUR[2], 1.4)
+    fill(p, rect(c, round(sy) + 2, c, round(hip)), STONE[2], top_)  # the zip
+    dots(p, GOLD[3], (c, round(sy) + 2))
+    neck(p, sy, PALE, top_, FUR[3], 1.8)
+    for j, side, _ in (a for a in arms if a[2] not in LOW):
+        arm(p, j, side, 4.2, pale, PALE, 2, FUR[2])
+    for side in (-1, 1):  # the ruffles on her shoulders
+        for i in range(3):
+            ruffle = oval(MID + side * (4.6 + i * 1.8), sy + 1.2 + i * 0.7, 1.6, 1.5)
+            part(p, ruffle, [FUR[4], WHITE], sh=0.8, line=FUR[1])
+    key = FACE | {"W": CLOUD[2], "G": CLOUD[1], "1": LIP, "2": GRASS[3], "3": PETAL[0], "4": TEAL[3], "5": GOLD[3]}
+    key |= {"h": HAIR[2], "H": HAIR[3], "n": HAIR[1], "s": PALE[2], "d": PALE[1], "B": HAIR[1], "b": BROWN}
+    stamp(p, face(KID, pose, 11, 17, deep=2), c - 11, top, key)
+    return p.outline()
+
+
+LEGS = {"down": (0.0, 6.0), "fwd": (-0.95, 6.2), "up": (-1.45, 5.2), "back": (0.95, 6.2), "tuck": (0.35, 3.2)}
+
+
+def pomchi(pose: Pose) -> Pic:
+    """The Pomchi: small, black and fluffy, a fox's face going grey at the muzzle, big pricked ears, a ruff, a white
+    fleck on its chest, a plume of a tail curled over its back; stood side on, facing left. left and right: how
+    its front and its back legs are held, each a lean from straight down and a length; wave: how far its nose is
+    tipped up; squat: crouched; f: its tail's wag."""
+    p = Pic(*STAGE)
+    ground = FEET + 1.0
+    fur, fluff, far = DARK[:3], DARK[1:], DARK[:2]
+    wag = (0, 1, 0, -1)[pose.f % 4]
+    by = ground - 9.6 + pose.squat * 2
+    c, s = math.cos(pose.wave), math.sin(pose.wave)
+
+    def at(dx: float, dy: float) -> Pt:
+        """A place on its body, turned with it."""
+        return (MID + dx * c - dy * s, by + dx * s + dy * c)
+
+    def leg(hip: Pt, how: str, r: list[int]) -> None:
+        a, n = (0.0, 4.0) if pose.squat and how == "down" else LEGS[how]
+        y = hip[1] + math.cos(a) * n
+        paw = (hip[0] + math.sin(a) * n, min(y, ground - 1.4) if how == "down" else y)
+        part(p, stroke([hip, paw], 3.2, 2.6), r, sh=0.9, line=DARK[0])
+        part(p, oval(paw[0] - 0.6, paw[1] + 0.2, 2.0, 1.4), r, sh=0.7, line=DARK[0])
+
+    front = pose.left if pose.left in LEGS else "down"
+    back = pose.right if pose.right in LEGS else "down"
+    leg(at(-3.6, 2.4), front, far)  # the far pair
+    leg(at(6.2, 2.4), back, far)
+    rump = at(7.0, -2.6)
+    for x, y, r in (
+        (1.2, -1.6, 3.2),
+        (0.6 + wag * 0.6, -5.4, 3.5),
+        (-2.2 + wag, -7.4, 3.1),
+        (-4.8 + wag * 1.4, -6.2, 2.4),
+    ):
+        part(p, oval(rump[0] + x, rump[1] + y, r, r), fluff, sh=1.2, hl=0.9)  # the plume
+    part(p, oval(MID, by, 7.8, 5.0, pose.wave), fur, sh=1.6, hl=1.0, line=DARK[0])
+    leg(at(-5.4, 3.0), front, DARK[1:3])  # the near pair
+    leg(at(4.4, 3.0), back, DARK[1:3])
+    for dx, dy, r in ((-5.2, -1.8, 3.7), (-6.4, 1.2, 3.1), (-3.4, 1.6, 2.6)):  # the ruff
+        part(p, oval(*at(dx, dy), r, r), fluff, sh=1.0, hl=0.9)
+    part(p, oval(*at(-7.4, 2.0), 1.3, 1.7), CLOTH, sh=0.7)
+    hx, hy = at(-8.6, -7.2)
+    hy += pose.bob
+    flat = (1.2, 1) if pose.squat else (0, 0)  # its ears laid back as it crouches
+    for ex, tip, r in ((-3.0, -3.2, far), (1.6, 2.2, fur)):  # the far ear, the near one
+        ear = poly([(hx + ex - 2.0, hy - 3.2), (hx + ex + 2.4, hy - 3.6), (hx + tip + flat[0], hy - 10.2 + flat[1])])
+        part(p, ear, r, sh=0.8, line=DARK[0])
+    fill(p, poly([(hx + 0.6, hy - 4.0), (hx + 2.8, hy - 4.4), (hx + 2.2 + flat[0], hy - 8.2 + flat[1])]), STONE[1])
+    head = oval(hx, hy, 5.4, 5.0) | oval(hx + 3.6, hy + 2.4, 2.6, 2.6)
+    part(p, head, fur, sh=1.3, hl=1.0, line=DARK[0])
+    part(p, oval(hx - 4.6, hy + 1.9, 3.0, 2.1), [DARK[3], ASH], sh=0.9, line=DARK[0])
+    nx, ny = round(hx - 7.6), round(hy + 0.4)
+    fill(p, rect(nx, ny, nx + 1, ny + 1), INK)
+    ex, ey = round(hx - 2.6), round(hy - 2.0)
+    fill(p, rect(ex - 1, ey - 1, ex + 2, ey + 2), DARK[2], head)
+    if pose.blink:
+        dots(p, INK, (ex, ey + 1), (ex + 1, ey + 1))
+    else:
+        fill(p, rect(ex, ey, ex + 1, ey + 1), INK)
+        dots(p, WHITE, (ex, ey))
+    dots(p, DARK[1], (nx + 2, ny + 3), (nx + 3, ny + 3), (nx + 4, ny + 3))
+    if pose.joy:
+        fill(p, rect(nx + 2, ny + 3, nx + 3, ny + 5), TONGUE[1])
+        dots(p, TONGUE[2], (nx + 2, ny + 4))
+    return p.outline()
+
+
+NFAM, FAMF = 5, 9  # who meets Charlie at the level's end, and the pictures each has: the game's own counts
+# Who meets Charlie at the level's end, left to right, and how far right of its place in the line each is drawn.
+WHO: list[tuple[Callable[[Pose], Pic], int]] = [(pomchi, 4), (little, 1), (big, -5), (fair, 0), (bearded, 5)]
+WAIT = [Pose(), Pose(bob=1), Pose(bob=1, blink=True)]
+CHEER: dict[Callable[[Pose], Pic], list[Pose]] = {
+    pomchi: [  # a hop: crouched, reared, stretched out, gathered, coming down, landed
+        Pose(squat=1),
+        Pose(left="up", wave=0.5, joy=True, lift=1),
+        Pose(left="fwd", right="back", wave=0.3, joy=True, lift=6, f=1),
+        Pose(left="tuck", right="tuck", joy=True, lift=9, f=2),
+        Pose(left="fwd", right="back", wave=-0.25, joy=True, lift=5, f=3),
+        Pose(squat=1, joy=True, f=1),
+    ],
+    little: [  # a jump, her arms thrown up
+        Pose(squat=1, left="back", right="back"),
+        Pose(left="half", right="half", joy=True, lift=3),
+        Pose(left="up", right="up", joy=True, lift=7),
+        Pose(left="high", right="high", joy=True, lift=9),
+        Pose(left="up", right="up", joy=True, lift=6),
+        Pose(squat=1, left="half", right="half", joy=True),
+    ],
+    big: [  # a few strokes of the strings, then a fist up
+        Pose(left="s0", joy=True),
+        Pose(left="s1", joy=True, bob=1, f=1),
+        Pose(left="s2", joy=True),
+        Pose(left="s1", joy=True, bob=1, f=1, blink=True),
+        Pose(left="up", joy=True),
+        Pose(left="high", joy=True, lift=1),
+    ],
+    fair: [  # a wave, a hand on her hip
+        Pose(left="hip", right="out", wave=-2, joy=True),
+        Pose(left="hip", right="out", wave=0, joy=True, bob=1),
+        Pose(left="hip", right="out", wave=2, joy=True),
+        Pose(left="hip", right="out", wave=3, joy=True, blink=True),
+        Pose(left="hip", right="out", wave=2, joy=True, bob=1),
+        Pose(left="hip", right="out", wave=0, joy=True),
+    ],
+    bearded: [  # both fists up and up again
+        Pose(left="half", right="half", joy=True, bob=1),
+        Pose(left="up", right="up", joy=True),
+        Pose(left="high", right="high", joy=True, lift=1),
+        Pose(left="high", right="high", joy=True, lift=2, blink=True),
+        Pose(left="up", right="up", joy=True, lift=1),
+        Pose(left="half", right="half", joy=True, bob=1),
+    ],
+}
+WAITING: dict[Callable[[Pose], Pic], list[Pose]] = {
+    pomchi: [Pose(), Pose(f=1, bob=1), Pose(f=3, bob=1, blink=True)],
+    big: [Pose(left="s1"), Pose(left="s1", bob=1), Pose(left="s1", bob=1, blink=True)],
+}
+
+
+@functools.cache
+def staged(who: Callable[[Pose], Pic]) -> list[Pic]:
+    """who on the stage, frame by frame: three of the wait, six of the cheer, each as high as its jump has it."""
+    out = []
+    for pose in WAITING.get(who, WAIT) + CHEER[who]:
+        src, p = who(pose), Pic(*STAGE)
+        for y in range(pose.lift, src.h):
+            p.p[y - pose.lift] = list(src.p[y])
+        out.append(p)
+    return out
+
+
+@functools.cache
+def family() -> list[list[Pic]]:
+    """Who meets Charlie, each their own pictures, FAMF of them: the wait's, then the cheer's. One's are all one
+    size: their foot the picture's last row, and their middle column its place in the line, the game told neither."""
+    out = []
+    for who, off in WHO:
+        frames = staged(who)
+        drawn = [(x, y) for p in frames for y in range(p.h) for x in range(p.w) if p.p[y][x]]
+        place = int(MID) - off
+        half = max(abs(x - place) for x, _ in drawn)
+        top = min(y for _, y in drawn)
+        cut = []
+        for p in frames:
+            q = Pic(2 * half + 1, FEET + 2 - top)
+            q.p = [row[place - half : place + half + 1] for row in p.p[top : FEET + 2]]
+            cut.append(q)
+        out.append(cut)
+    return out
 
 
 # ---- the words ----
@@ -1631,45 +1977,112 @@ def basket() -> Pic:
     return p.outline()
 
 
-def baron(point: bool) -> Pic:
-    """Baron Marmalade: a great ginger cat sat upright, cream fronted, in a top hat, a glass at one eye on its
-    chain; point: a paw out at what he wants."""
+GINGER, FARSIDE, BIB = [EARTH[4], EARTH[6], EARTH[7]], [EARTH[3], EARTH[5], EARTH[6]], [CLOUD[1], CLOUD[2]]
+SEAM, TABBY = EARTH[2], EARTH[3]  # a line where ginger lies on ginger; a stripe
+GLASS = ((25, 13), (26, 13), (27, 13), (24, 14), (28, 14), (23, 15), (29, 15), (23, 16), (29, 16), (23, 17), (29, 17))
+GLASS += ((24, 18), (28, 18), (25, 19), (26, 19), (27, 19))  # the ring of his eyeglass
+
+
+def baron(point: bool = False, f: int = 0, blink: bool = False) -> Pic:
+    """Baron Marmalade: a great ginger tabby sat as a cat sits, cream fronted and socked, in a top hat and a bow
+    tie, a glass at one eye on its chain; his tail thin, curled up beside him and tipped with cream, f its sway.
+    point: a paw out at what he wants."""
     p = Pic(40, 44)
-    fur, bib = EARTH[2:], [FUR[2], FUR[4], FUR[5]]
-    for i, (dx, dy) in enumerate(((0, 0), (3, -3), (5, -7), (4, -11), (1, -13))):  # the tail, a hook
-        p.ball(6 + dx, 38 + dy, 2.6, 2.6, fur, 0.2, 1.0 - i * 0.05)
-    p.ball(19, 31, 10.5, 10.5, fur, 0.2, 1.05)
-    p.ball(20, 33, 6.2, 7.5, bib, 0.3, 1.1)
-    for x in (14, 25):  # hind paws
-        p.ball(x, 41, 4.2, 2.2, fur, 0.4, 1.1)
-    for x, y in ((11, 26), (11, 30), (12, 34)):  # stripes
-        p.line(x, y, x + 3, y + 1, fur[0])
+    sway = (0, 1, 2, 1)[f % 4]
+    curl = [(11, 41), (6, 41), (2.8 - sway * 0.3, 37.5), (3.2 + sway * 0.4, 32), (6 + sway, 28.2)]
+    path = spline([*curl, (8.5 + sway * 1.5, 29.5)], 8, closed=False)
+    tail = part(p, stroke(path, 3.6, 2.6), FARSIDE, sh=1.0)
+    for i in range(6, len(path) - 8, 7):
+        fill(p, stroke(path[i : i + 2], 3.4), TABBY, tail)
+    fill(p, stroke(path[-5:], 2.8, 2.6), CLOUD[2], tail)
+    fill(p, stroke(path[-2:], 2.6), CLOUD[1], tail)
+    # the body, a pear; a haunch a side, its paw out in front
+    left = [(15, 21.5), (11.6, 27), (9.2, 33), (8.8, 39), (11.5, 43.4)]
+    body = curved([*left, *((41 - x, y) for x, y in left[::-1])])
+    part(p, body, GINGER, sh=2.0, hl=1.0, line=SEAM)
+    for x, y in ((10.8, 28.2), (9.8, 31.6)):  # his sides' stripes
+        fill(p, stroke([(x, y), (x + 2.6, y + 0.8)], 1.4), TABBY, body)
+        fill(p, stroke([(41 - x, y), (41 - x - 2.2, y + 0.8)], 1.4), TABBY, body)
+    part(p, oval(12.6, 38.4, 4.3, 4.8), FARSIDE, sh=1.4, line=SEAM, within=body)
+    part(p, oval(28.4, 38.4, 4.5, 4.8), GINGER, sh=1.6, hl=1.0, line=SEAM, within=body)
+    for cx in (11.8, 29.2):  # hind paws, socked in cream
+        part(p, oval(cx, 42.4, 3.4, 2.0), BIB, sh=0.8, line=SEAM)
+    # his front legs, together between his haunches, socked too; or one out
+    part(p, stroke([(18.9, 32), (19.0, 40.6)], 3.8), FARSIDE, sh=0.8, line=SEAM)
+    part(p, oval(18.8, 42.4, 2.6, 2.0), BIB, sh=0.8, line=SEAM)
+    if not point:
+        part(p, stroke([(23.1, 32), (23.0, 40.6)], 3.8), GINGER, sh=0.8, hl=0.8, line=SEAM)
+        part(p, oval(23.2, 42.4, 2.6, 2.0), BIB, sh=0.8, line=SEAM)
+    chest = [(17.5, 22.5), (15.2, 27), (15, 31.5), (17.4, 35), (21, 36.6), (24.6, 35), (27, 31.5), (26.8, 27)]
+    part(p, curved([*chest, (24.5, 22.5)]), BIB, sh=1.6, line=SEAM)  # cream, over where they start
     if point:
-        p.line(26, 28, 35, 24, fur[3], 3)
-        p.ball(36, 23.5, 2.6, 2.2, fur, 0.5, 1.2)
-    else:
-        p.ball(27, 32, 2.6, 3.4, fur, 0.4, 1.1)
-    p.ball(13, 32, 2.6, 3.4, fur, 0.2, 0.9)
-    p.ball(20, 17, 8.2, 7.2, fur, 0.3, 1.1)
-    for x, d in ((14, -1), (26, 1)):  # ears, either side of the hat
-        for i in range(4):
-            p.box(x - (3 - i) * (d < 0), 9 + i, x + (3 - i) * (d > 0), 9 + i, fur[3])
-    p.ball(20, 20, 4.6, 3.4, bib, 0.4, 1.1)
-    p.box(19, 19, 21, 19, PETAL[0])
-    p.line(18, 22, 22, 22, INK)
-    p.box(15, 15, 16, 17, GRASS[4])
-    p.put(16, 16, INK)
-    for a in range(0, 360, 30):  # the eyeglass and its chain
-        p.put(round(24.5 + 2.6 * math.cos(math.radians(a))), round(16 + 2.6 * math.sin(math.radians(a))), GOLD[3])
-    p.box(24, 15, 25, 17, GRASS[4])
-    p.put(25, 16, INK)
-    p.line(27, 18, 30, 26, GOLD[2])
-    p.box(14, 1, 26, 10, DARK[1])  # the hat
-    p.box(14, 1, 26, 1, DARK[2])
-    p.box(14, 2, 15, 9, DARK[2])
-    p.box(14, 8, 26, 9, SCARF[2])
-    p.box(10, 10, 30, 11, DARK[1])
-    return p.outline()
+        part(p, stroke([(26.4, 27.6), (31, 26.6), (35.6, 23)], 4.8, 4.2), GINGER, sh=1.2, hl=0.8, line=SEAM)
+        part(p, oval(36.4, 22.4, 2.8, 2.5), GINGER, sh=1.0, hl=0.8, line=SEAM)
+    for side in (-1, 1):  # ears, behind the head
+        cx = 20.5 + side * 8.2
+        part(p, poly([(cx - side * 3.6, 10.5), (cx + side * 2.4, 15), (cx + side * 2.6, 5.2)]), GINGER, 0.8, line=SEAM)
+        fill(p, poly([(cx - side * 1.2, 10.8), (cx + side * 1.6, 13), (cx + side * 1.8, 7.4)]), BLUSH)
+    # the head, its cheeks tufted
+    left = [(20.5, 9.2), (13.5, 10.8), (10.6, 15.5), (9.4, 19.4), (11.6, 20), (10.6, 22), (14.5, 23), (20.5, 24.2)]
+    head = curved([*left, *((41 - x, y) for x, y in left[-2:0:-1])], 8)
+    part(p, head, GINGER, sh=1.6, hl=1.0, line=SEAM)
+    for x in (19, 21, 23):
+        fill(p, rect(x, 11, x, 13 - (x != 21)), TABBY, head)
+    for side in (-1, 1):
+        for y, out in ((17, 8.6), (19, 9.2)):
+            x = 20.5 + side * out
+            fill(p, stroke([(x, y + 0.5), (x - side * 1.8, y + 0.5)], 1.0), TABBY, head)
+    part(p, oval(22, 20.1, 4.8, 3.0), BIB, sh=1.2, within=head)
+    fill(p, rect(21, 18, 23, 18), TONGUE[1])
+    dots(p, TONGUE[1], (22, 19))
+    dots(p, SEAM, (22, 20), (21, 21), (20, 21), (23, 21), (24, 21), (19, 20), (25, 20))
+    for ex in (16, 25):  # eyes, half shut: a lid, a green iris, a slit
+        fill(p, rect(ex, 15, ex + 2, 15), INK)
+        if not blink:
+            fill(p, rect(ex, 16, ex + 2, 17), GRASS[4])
+            fill(p, rect(ex + 1, 16, ex + 1, 17), INK)
+            dots(p, GRASS[2], (ex, 17), (ex + 2, 17))
+    for side in (-1, 1):  # the bow tie
+        wing = poly([(21.5 + side * 4.4, 22.2), (21.5 + side * 4.4, 26.8), (21.5 + side * 0.4, 24.5)])
+        part(p, wing, SCARF[1:3], sh=1.0, line=INK)
+    fill(p, rect(21, 24, 22, 25), SCARF[3])
+    # the top hat: silk, a red band, a curled brim
+    crown = poly([(14.6, 0.6), (27.4, 0.6), (26.4, 9), (15.6, 9)])
+    part(p, crown, DARK[:3], sh=2.2, line=INK)
+    fill(p, rect(17, 2, 18, 5) | rect(15, 1, 26, 1), DARK[2])
+    fill(p, rect(15, 6, 26, 8), SCARF[2], crown)
+    fill(p, rect(15, 8, 26, 8) | rect(24, 6, 26, 7), SCARF[1], crown)
+    fill(p, rect(17, 6, 18, 6), SCARF[3], crown)
+    fill(p, rect(11, 9, 30, 10) | {(10, 9), (31, 9), (10, 8), (31, 8)}, DARK[1])
+    fill(p, rect(11, 10, 30, 10), DARK[0])
+    fill(p, rect(12, 9, 19, 9), DARK[2])
+    p.outline()
+    # over his outline: his glass and its chain, his whiskers
+    dots(p, GOLD[3], *GLASS)
+    dots(p, GOLD[4], (25, 13), (24, 14), (23, 15))
+    dots(p, WHITE, (25, 14))
+    for i, at in enumerate(((28, 19), (29, 20), (29, 21), (29, 22), (28, 23), (27, 24), (26, 25))):
+        dots(p, GOLD[3] if i % 2 else GOLD[2], at)
+    for side in (-1, 1):
+        for i in range(1, 5):
+            dots(p, WHITE, (22 + side * (5 + i), 20 if i < 3 else 19), (22 + side * (5 + i), 22 if i < 3 else 23))
+    return p
+
+
+def tail_clear(p: Pic) -> int:
+    """How many rows on end the Baron's tail, at the picture's left, stands clear of his body."""
+    best = run = 0
+    for row in p.p:
+        x = next((i for i, c in enumerate(row) if c), len(row))
+        clear = x < 8 and any(row[i] and not row[i - 1] for i in range(x + 1, 20))
+        run = run + 1 if clear else 0
+        best = max(best, run)
+    return best
+
+
+def barons() -> list[Pic]:
+    """The Baron's pictures: three of his tail's sway, a blink, two of him pointing."""
+    return [baron(f=0), baron(f=1), baron(f=2), baron(f=1, blink=True), baron(True, 0), baron(True, 2)]
 
 
 def milkfloat() -> Pic:
@@ -1792,8 +2205,6 @@ def intro(k: int) -> list[tuple[int, Pic, bool, int]]:
         (k + 16, crate(), True, -1),
         (k + 18, hedge(), True, -1),
         (k + 20, milkfloat(), True, -1),
-        (k + 22, baron(False), True, -1),
-        (k + 24, baron(True), True, -1),
         (k + 26, basket(), True, -1),
     ]
 
@@ -3639,7 +4050,6 @@ def pictures() -> list[tuple[int, Pic, bool, int]]:
         (k + 48, lamp(), True, -1),
     ]
     out += [(k + 50 + i * 2, t, True, k + 130 + i * 2) for i, t in enumerate(tilts())]
-    out += [(k + 370 + f * 2, family(f), True, -1) for f in range(2)]
     out += [
         (7, words("CHARLIE", 170, 26, 2.8, 5), True, -1),
         (k + 374, words("BARKLEY", 170, 26, 2.8, 5), True, -1),
@@ -3647,6 +4057,10 @@ def pictures() -> list[tuple[int, Pic, bool, int]]:
     ]
     # the Chrome Works' own
     z = k + 490 + 9
+    # who meets Charlie, each in FAMF pictures, after the pass's last; then the Baron's, the Downs' own
+    out += [(z + 1110 + (n * FAMF + f) * 2, p, True, -1) for n, one in enumerate(family()) for f, p in enumerate(one)]
+    out += [(z + 1200 + f * 2, p, True, -1) for f, p in enumerate(barons())]
+    OWN[0].update(range(z + 1200, z + 1212))
     out.append((z + 18, shelf(), True, -1))
     m, steel = mural(), PANEL[::-1]
     out += [(z + 54 + c, span(1, c), False, -1) for c in range(4)]
@@ -3851,11 +4265,19 @@ def sound(n: int, s: list[int | str]) -> None:
         bad("has DATA left over")
 
 
+def game_const(name: str) -> int:
+    """A CONST of the game's, a whole number."""
+    m = re.search(rf"(?i)\b{name} = (\d+)", DAT.with_suffix(".BAS").read_text())
+    if not m:
+        sys.exit(f"charlieart: the game has no const {name}")
+    return int(m[1])
+
+
 def audit(pics: list[tuple[int, Pic, bool, int]]) -> None:
     """A zone's own colours are only in its own pictures: elsewhere they would show as another zone's."""
     # the game's store ran out, an Illegal function call as it loaded: these with their masks and mirrors, the 160
     # turned runs it flops and its own glyphs and HUD (6000 at most) must fit it
-    room = int(re.search(r"(?i)const IMGSZ = (\d+)", DAT.with_suffix(".BAS").read_text())[1])
+    room = game_const("IMGSZ")
     need = sum(len(p.longs()) * (2 if m else 1) * (2 if k2 >= 0 else 1) for _, p, m, k2 in pics) + 160 * 258 + 6000
     if need > room:
         sys.exit(f"charlieart: the pictures need {need} LONGs of the game's IMGSZ, {room}")
@@ -3873,6 +4295,24 @@ def audit(pics: list[tuple[int, Pic, bool, int]]) -> None:
         or sum(pk.get(x, 17) in FUR for x in range(3, 27)) < 8
     ):
         sys.exit("charlieart: Charlie at the van's window is cut off, or its glass shows")
+    # the Baron had two lumps on his back, his tail's end and a paw hard against him: his tail is one thing, clear
+    # of his body five rows or more
+    if any(tail_clear(b) < 5 for b in barons()):
+        sys.exit("charlieart: the Baron's tail does not stand clear of his back")
+    # the family were one picture waiting and one cheering: each of them has three and five or more, as many as
+    # the game counts; the game stands each by its picture's middle column and last row
+    fam = family()
+    if len(fam) != game_const("NFAM") or {len(one) for one in fam} != {game_const("FAMF")}:
+        sys.exit("charlieart: the family's pictures are not the game's NFAM by FAMF")
+    for n, one in enumerate(fam):
+        wait, cheer = ({tuple(map(tuple, p.p)) for p in some} for some in (one[:3], one[3:]))
+        if len(wait) < 3 or len(cheer) < 5:
+            sys.exit(f"charlieart: the family's {n} has {len(wait)} pictures waiting and {len(cheer)} cheering")
+        if one[0].w % 2 == 0 or not all(any(p.p[-1]) for p in one[:3]):
+            sys.exit(f"charlieart: the family's {n} has no middle column, or stands off its picture's last row")
+    # an arm thrown up or out was cut off at its picture's edge: on the stage nothing reaches the edge
+    if any(any(p.p[0]) or any(row[0] or row[-1] for row in p.p) for who, _ in WHO for p in staged(who)):
+        sys.exit("charlieart: one of the family is cut off at the stage's edge")
     # the game draws the comb from 12 tiles a kind: it must repeat every 64 across and 48 down
     if any(comb(x, y) != comb(x + 64, y) or comb(x, y) != comb(x, y + 48) for x in range(64) for y in range(48)):
         sys.exit("charlieart: the comb does not repeat every 64 by 48")

@@ -49,7 +49,7 @@ LoadLevel wd, 0
 dim g as Game, p as Hero, k as Pad, i as long, j as integer, loops as integer, was as integer
 dim c as integer, v as integer, m as integer, zp as integer, seen as string, brim as integer, ebb as integer
 dim hid as long, shown as long, bt as single, colA(SH - 1) as integer, colB(SH - 1) as integer, act1 as string
-dim lo(NLOOSE - 1) as Loose, pt(NPART - 1) as Part, cu(NCUE) as Cue, spans as integer
+dim lo(NLOOSE - 1) as Loose, pt(NPART - 1) as Part, cu(NCUE) as Cue, spans as integer, fs as Session
 wd.mu.muted = -1
 StartGame wd, g, p, lo(), pt()
 for j = 0 to wd.lv.nObj - 1
@@ -441,6 +441,37 @@ next
 Render wd, g, p, lo(), pt()
 was = p.win and abs(p.x - (wd.lv.famX - 106)) < 3 and wd.se.cheer
 if was and abs(g.camx - (wd.lv.famX - 166)) < 3 then print "met ok"
+' They were one picture waiting and one cheering, and the Baron two lumps on a back: each of them waits in three
+' pictures and cheers in six, he sits in four and points in two, and each one's last is the art tool's, its size
+' read from the picture
+was = 0
+for c = 0 to NFAM - 1
+    v = 0
+    m = 0
+    for i = 0 to 400
+        fs.ticks = i
+        j = (FamPic%(fs, c, 0) - IFAM) \\ 2 - c * FAMF
+        if j < 0 or j > 2 then was = -99 else v = v or 2 ^ j
+        j = (FamPic%(fs, c, -1) - IFAM) \\ 2 - c * FAMF
+        if j < 3 or j >= FAMF then was = -99 else m = m or 2 ^ j
+    next
+    if v = 7 and m = 504 then was = was + 1
+    j = IFAM + (c * FAMF + FAMF - 1) * 2
+    line (0, 0)-(99, 99), 0, BF
+    Blit wd.art, 0, 0, j, (Img(wd.art.at(j)) and 65535) \\ 8, Img(wd.art.at(j)) \\ 65536
+    print "fam"; Pix&(0, 100, 0, 99)
+next
+v = 0
+m = 0
+for i = 0 to 400
+    fs.ticks = i
+    v = v or 2 ^ (((BaronPic%(fs, 0) - IBARON) \\ 2) and 7)
+    m = m or 2 ^ (((BaronPic%(fs, 1) - IBARON) \\ 2) and 7)
+next
+line (0, 0)-(99, 99), 0, BF
+Blit wd.art, 0, 0, IBARON + 10, 40, 44
+print "baron"; Pix&(0, 100, 0, 99)
+if was = NFAM and v = 15 and m = 48 then print "cast ok"
 ' it stays a while, fades, and the Downs' evening begins in full colour, the score and lives kept
 was = 0
 j = g.lives
@@ -2493,6 +2524,13 @@ def main() -> None:
     if tank[1:2] != [str(pix(charlieart.tank()))] or tree[1:4] != [str(pix(charlieart.tree())), "0", "-1"]:
         sys.exit(
             f"charlie: a zone's own pictures not the store's while it is played, or the store fuller: {out[-300:]}"
+        )
+    cast = [str(pix(one[-1])) for one in charlieart.family()] + [str(pix(charlieart.barons()[-1]))]
+    drawn = [ln.split()[1] for ln in out.splitlines() if ln.split()[:1] in (["fam"], ["baron"])]
+    if "cast ok" not in out or drawn != cast:
+        sys.exit(
+            "charlie: the family not each in three pictures waiting and six cheering, the Baron in four and two, "
+            f"or not the art tool's: {out[-300:]}"
         )
     if "title met ok" not in out:
         sys.exit(f"charlie: the title's run not ended with the family, held and faded: {out[-300:]}")
