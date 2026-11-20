@@ -27,6 +27,7 @@ DEMO = ROOT / "src/plat/wasm/web/demos/CHARLIE.BAS"
 
 DRIVER = """declare function GroundAt% (lv as Level, x as integer)
 declare sub Stand (lv as Level, gr as Ground, p as Hero, x as integer, v as single)
+declare sub StandUnder (lv as Level, gr as Ground, p as Hero, x as integer, x0 as integer)
 declare function FlatRun% (lv as Level, ice as integer)
 declare function Fall% (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part, hue%, a%, b%)
 declare function Fur% (x as integer, w as integer, y0 as integer, y1 as integer)
@@ -1599,6 +1600,109 @@ for i = 1 to 80
 next
 k.d = 0
 if was and p.dug = c + 1 and p.x = wd.lv.ob(c).x then print "burrow ok"
+' a squirrel stands on its bough, and keeps over him who is under it, turned his way; SQWAIT of the things' steps
+' on, the last SQAIM of them with an acorn held out, it lets one fall: 39 pixels to his head, 19 steps, and it
+' hurts; run under, he is gone before it lands; a bark cows it, still and without acorns; on its bough he is
+' scratched by it on foot, and beats it curled
+for c = 0 to wd.lv.nObj - 1
+    if wd.lv.ob(c).k = KSQUIRREL then exit for
+next
+v = wd.lv.ob(c).a
+was = c < wd.lv.nObj and wd.lv.ob(c).s <> 0 and GroundAt%(wd.lv, v) = wd.lv.ob(c).y
+was = was and GroundAt%(wd.lv, v + 100) = wd.lv.ob(c).y + 64
+p.inv = 0
+p.stun = 0
+p.roll = 0
+k.d = 0
+StandUnder wd.lv, wd.gr, p, v + 30, v + 100
+Camera wd.lv, wd.zn, g, p, -1
+if wd.se.ticks and 1 then Tick wd, g, p, k, lo(), pt()
+wd.lv.ob(c).x = v
+wd.lv.ob(c).s = SQWAIT
+g.bones = 5
+for i = 1 to 40
+    Tick wd, g, p, k, lo(), pt()
+next
+g.shake = 0
+Render wd, g, p, lo(), pt()
+j = wd.lv.ob(c).x - int(g.camx)
+m = wd.lv.ob(c).y - int(g.camy)
+was = was and abs(wd.lv.ob(c).x - v - 30) < SQV and wd.lv.ob(c).s = SQWAIT - 20
+was = was and point(j - 4, m - 13) = 160 and point(j + 6, m - 5) <> 116
+for i = 41 to 119
+    Tick wd, g, p, k, lo(), pt()
+next
+g.shake = 0
+Render wd, g, p, lo(), pt()
+was = was and point(j + 6, m - 5) = 116 and wd.lv.lobN = 0 and p.stun = 0
+Tick wd, g, p, k, lo(), pt()
+was = was and wd.lv.lobN = 1 and wd.lv.ob(c).s = SQWAIT
+for i = 1 to 18
+    Tick wd, g, p, k, lo(), pt()
+next
+g.shake = 0
+Render wd, g, p, lo(), pt()
+j = cint(wd.lv.lobs(0).x) - int(g.camx) - 1
+was = was and wd.lv.lobN = 1 and p.stun = 0 and g.bones = 5
+was = was and point(j, cint(wd.lv.lobs(0).y) - int(g.camy) - 2) = 161
+Tick wd, g, p, k, lo(), pt()
+was = was and wd.lv.lobN = 0 and p.stun <> 0 and g.bones = 0 and not p.dead
+' it bursts in its own colour
+m = 0
+for i = 0 to NPART - 1
+    if pt(i).t > 0 and pt(i).c = CNUT then m = m + 1
+next
+was = was and m = 6
+' run under it as it holds one out, it falls once he is near, and he is past before it lands
+for i = 1 to 60
+    Tick wd, g, p, k, lo(), pt()
+next
+p.inv = 0
+p.stun = 0
+g.bones = 5
+StandUnder wd.lv, wd.gr, p, v - 130, v + 100
+p.gsp = TOP
+wd.lv.ob(c).x = v - SQRUN
+wd.lv.ob(c).s = -2
+k.r = -1
+bx = NONE
+for i = 1 to 40
+    Tick wd, g, p, k, lo(), pt()
+    if wd.lv.lobN > 0 and bx = NONE then bx = p.x - wd.lv.ob(c).x
+next
+k.r = 0
+was = was and abs(bx) < SQNEAR and wd.lv.lobN = 0 and p.stun = 0 and g.bones >= 5 and p.x > v + 60 and g.mode = PLAYING
+' a bark under it: it keeps still, and nothing falls
+StandUnder wd.lv, wd.gr, p, v + 30, v + 100
+p.gsp = 0
+p.barkT = 0
+wd.lv.ob(c).x = v
+wd.lv.ob(c).s = SQWAIT
+k.bark = -1
+Tick wd, g, p, k, lo(), pt()
+k.bark = 0
+was = was and abs(wd.lv.ob(c).s) > SQWAIT
+for i = 1 to 100
+    Tick wd, g, p, k, lo(), pt()
+    was = was and wd.lv.ob(c).x = v and wd.lv.lobN = 0
+next
+' on its bough: on foot it scratches him, curled he beats it
+for j = 0 to 1
+    wd.lv.ob(c).x = v
+    wd.lv.ob(c).s = SQWAIT
+    p.inv = 0
+    p.stun = 0
+    g.bones = 5
+    hid = g.score
+    Stand wd.lv, wd.gr, p, v - 40, 200
+    p.roll = -j
+    for i = 1 to 20
+        Tick wd, g, p, k, lo(), pt()
+        if p.stun or wd.lv.ob(c).s = 0 then exit for
+    next
+    colA(j) = (p.stun <> 0) + 2 * (wd.lv.ob(c).s = 0) + 4 * (g.score = hid + 100)
+next
+if was and colA(0) = -1 and colA(1) = -6 then print "squirrel ok"
 ' the pass's bare ice keeps his speed and will not give it back: let go at a run he slides on where snow stops
 ' him, held back he is long in stopping, and from a stand he is slow away; it is drawn bare, the snow's white gone
 GoStage wd, 6, g, p, lo(), pt()
@@ -1799,6 +1903,11 @@ for j = 0 to 1
         if wd.lv.lobN then exit for
     next
     was = was and wd.lv.lobN = 1
+    ' a snowball, as it is drawn
+    g.shake = 0
+    Render wd, g, p, lo(), pt()
+    v = cint(wd.lv.lobs(0).x) - int(g.camx) - 1
+    was = was and point(v, cint(wd.lv.lobs(0).y) - int(g.camy) - 2) = 116
     if j then Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 160, 0
     for i = 1 to 70
         Tick wd, g, p, k, lo(), pt()
@@ -2678,6 +2787,13 @@ function Uneven% (hz as single, grain as integer, per as integer, most as intege
 end function
 
 ' Charlie on the tiles' ground at x, running at v.
+' Charlie stood at x under a shelf, on the ground as high as it is at x0, which the shelf is not over.
+sub StandUnder (lv as Level, gr as Ground, p as Hero, x as integer, x0 as integer)
+    Stand lv, gr, p, x0, 0
+    p.x = x
+    p.sg = SegAt%(lv, gr, x, p.y)
+end sub
+
 sub Stand (lv as Level, gr as Ground, p as Hero, x as integer, v as single)
     p.x = x
     p.y = GroundAt%(lv, x)
@@ -2923,6 +3039,7 @@ def main() -> None:
             "burrow ok",
             "a burrow takes him crouched on its mound, unseen and unhurt, to its other, and not back at once",
         ),
+        ("squirrel ok", "a squirrel keeps over him, drops an acorn on the slow, is cowed by a bark, beaten by a roll"),
         ("ice ok", "bare ice keeps his speed: a long slide, a long stop, a slow start; drawn bare of snow"),
         ("sled ok", "a sled is boarded, follows the slope, has no brake, keeps him through a hop, ends in deep snow"),
         ("geyser ok", "in the pass a jet is a geyser, the pass's water: it throws him up as it blows"),

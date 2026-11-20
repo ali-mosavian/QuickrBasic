@@ -4336,6 +4336,33 @@ def hollowlog() -> Pic:
     return p.outline(WOODINK)
 
 
+SQUIRREL = both(159, "#F4A454 #D46E2C #8E3C24 #FFF0D0", "#AC8870 #845C5C #563648 #C8C4D0", 4)  # light to dark, belly
+SQUIRRELSAT = (
+    "............RRR... ...........RrrrR.. ..d.d.....RrrrrrR. .drdrd....Rrrrrrr. .RRrrr....rrrrrrr. "
+    "RRkrrrr....rrrrrd. nrrrrrr.....rrrrd. .wwrrrrr....rrrdd. ..wwrrrrr...rrrd.. ..awwrrrrr.rrrdd.. "
+    ".aaawrrrrrrrrdd... .AAawwrrrrrrdd.... ..A.wwrrrrrrd..... ....wrrrrrrrd..... ...ddrr..drrd..... "
+    "..ddd....dddd....."
+)
+
+
+def squirrel(held: bool, right: bool) -> Pic:
+    """A squirrel sat up, its tail over its back: an acorn held out before it or not, turned left or right."""
+    rows = SQUIRRELSAT if held else SQUIRRELSAT.replace("a", ".").replace("A", ".")
+    if right:
+        rows = " ".join(r[::-1] for r in rows.split())
+    a, b, c, d = SQUIRREL
+    p = Pic(20, 18)
+    stamp(p, rows, 1, 1, {"R": a, "r": b, "d": c, "w": d, "k": WOODINK, "n": WOODINK, "a": LITTER[1], "A": LITTER[0]})
+    return p.outline(WOODINK)
+
+
+def acorn() -> Pic:
+    """An acorn in the air: its cup over it."""
+    p = Pic(8, 8)
+    stamp(p, ".ddd. ddddd .AAa. .AAa. ..a..", 1, 1, {"d": SQUIRREL[2], "A": LITTER[0], "a": LITTER[1]})
+    return p.outline(WOODINK)
+
+
 def mound() -> Pic:
     """A burrow's mound: thrown loam, the hole in its face, leaves on it."""
     p = Pic(34, 14)
@@ -4388,6 +4415,8 @@ def russet() -> list[tuple[int, Pic, bool, int]]:
         (z + 1224, bramble(True), True, -1),
         (z + 1226, hollowlog(), True, -1),
         (z + 1228, mound(), True, -1),
+        *[(z + 1230 + f * 2, squirrel(f % 2 == 1, f > 1), True, -1) for f in range(4)],
+        (z + 1238, acorn(), True, -1),
     ]
     return out
 

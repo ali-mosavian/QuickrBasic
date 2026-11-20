@@ -130,13 +130,17 @@ type Part
     c as integer
 end type
 
-' A thrown snowball on its arc.
+' What is thrown or dropped, on its arc: its picture, and the colour it bursts in. bedded: let go in a bough,
+' which it falls out of before any ground stops it.
 type Lob
     x as single
     y as single
     vx as single
     vy as single
     live as integer
+    pic as integer
+    c as integer
+    bedded as integer
 end type
 
 ' A cue of the intro's script: what, from beat t0 to t1, on its way from x0, y0 to x1, y1 in the world, y from the
@@ -309,9 +313,9 @@ const IFAM = IDUNKED + 2, NFAM = 5, FAMF = 9, FAMSTEP = 36, IBARON = IFAM + NFAM
 ' The pass's load of snow on its ledge, and down in a heap.
 const ILOAD = IBARON + 12, IHEAP = ILOAD + 2
 ' The wood's keepsake, the Pomchi's ball; a sapling bowed, and sprung; bramble grown, and cut; a hollow log; a
-' burrow's mound.
+' burrow's mound; a squirrel to the left, and with an acorn held out, and both to the right; an acorn.
 const IBALL = IHEAP + 2, ISAPLING = IBALL + 2, IBRAMBLE = ISAPLING + 4, ILOG = IBRAMBLE + 4, IMOUND = ILOG + 2
-const NIMG = IMOUND + 2
+const ISQUIRREL = IMOUND + 2, IACORN = ISQUIRREL + 8, NIMG = IACORN + 2
 ' The wood's night: its fireflies' two colours, never dimmed; the steps a bark's light lasts, the last of them
 ' fading; the parts its light is counted in; the fireflies awake, and at rest.
 const CFLY = 163, GLOWT = 300, GLOWFADE = 60, GLOWN = 8, NFLY = 18, FLYREST = 5
@@ -328,6 +332,11 @@ const KLOG = 51, LOGR = 32, LOGH = 30, LOGV = 520!
 ' A burrow's mound: how near he digs in; his speed under the ground, and up out of the other end; the loam's
 ' colour.
 const KMOUND = 52, MOUNDR = 12, DIGV = 400!, DIGPOP = 260!, CLOAM = 124
+' A squirrel on a bough: how far it runs either side of its home, and how far past that it follows him with
+' its eye; its run a things' step; the steps between its acorns, the last of them stood with one held out,
+' and how near under it he must be for it to fall; the steps a bark keeps it cowed; an acorn's colour.
+const KSQUIRREL = 53, SQRUN = 48, SQSEE = 100, SQV = 3, SQWAIT = 60, SQAIM = 15, SQNEAR = 24, SQFRIGHT = 150
+const CNUT = 130
 const HUDW = 108, HUDH = 40
 ' The levels: a zone's two acts, the second at another hour in other colours, zone by zone.
 ' the stages played, and after them the intro's road
@@ -679,6 +688,8 @@ declare sub DrawFrost (lv as Level, zn as Realm, art as Store, se as Session, cx
 declare sub Plunge (lv as Level, mu as Deck, se as Session, g as Game, pt() as Part, i as integer)
 declare sub Shatter (lv as Level, mu as Deck, se as Session, pt() as Part, i as integer)
 declare sub Hurl (lv as Level, i as integer, p as Hero)
+declare sub Loft (lv as Level, x as single, y as single, vx as single, vy as single, pic as integer, c as integer)
+declare sub Scamper (lv as Level, i as integer, p as Hero)
 declare sub Volley (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose, pt() as Part)
 declare sub Splat (lv as Level, mu as Deck, se as Session, n as integer, pt() as Part)
 declare sub MeetThrow (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
@@ -1526,6 +1537,7 @@ sub LoadLevel (wd as World, st as integer)
         case "bramble": k = KBRAMBLE
         case "log": k = KLOG
         case "vine": AddObj wd.lv, KVINE, c * TS + 8, s - n * TS
+        case "squirrel": AddObj wd.lv, KSQUIRREL, c * TS + 8, s - n * TS
         case "burrow"
             ' a burrow's mound, its other end the mound of the same n: till they are told each other, -n - 1
             AddObj wd.lv, KMOUND, c * TS + 8, s
@@ -3533,6 +3545,7 @@ sub ResetWorld (wd as World, g as Game, p as Hero, lo() as Loose, pt() as Part)
         if wd.lv.ob(i).k = KCAT or wd.lv.ob(i).k = KCRAB or wd.lv.ob(i).k = KSWEEP then wd.lv.ob(i).s = -1
         if wd.lv.ob(i).k = KJELLY then wd.lv.ob(i).s = 1
         if wd.lv.ob(i).k = KTHROW then wd.lv.ob(i).s = THROWC
+        if wd.lv.ob(i).k = KSQUIRREL then wd.lv.ob(i).s = SQWAIT
         if wd.lv.ob(i).k = KGOAT or wd.lv.ob(i).k = KWALL then wd.lv.ob(i).s = 1
     next
     for i = 0 to NLOB - 1
@@ -4034,7 +4047,7 @@ sub Touch (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as
         dx = abs(x - px)
         select case lv.ob(i).k
         case KBONE: MeetBone lv, mu, se, g, p, i, pt()
-        case KCAT: MeetCat lv, mu, se, g, p, i, lo(), pt()
+        case KCAT, KSQUIRREL: MeetCat lv, mu, se, g, p, i, lo(), pt()
         case KCRAB: MeetCrab lv, mu, se, g, p, i, lo(), pt()
         case KSWEEP: MeetSweep lv, mu, se, g, p, i, lo(), pt()
         case KTHROW: MeetThrow lv, mu, se, g, p, i, lo(), pt()
@@ -4088,7 +4101,7 @@ sub MeetBone (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as
     Sfx mu, se, SBONE
 end sub
 
-' A cat of the Mob: rolled or charged into it is beaten, and he bounces off it; else it scratches.
+' A cat of the Mob, or a squirrel: rolled or charged into it is beaten, and he bounces off it; else it scratches.
 sub MeetCat (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
     if lv.ob(i).s = 0 or abs(lv.ob(i).x - cint(p.x)) >= 15 then exit sub
     if abs(lv.ob(i).y - 6 - cint(p.y) + 13) >= 17 then exit sub
@@ -5129,40 +5142,79 @@ end function
 
 ' Thrower i's snowball, from its paw, lobbed to land where Charlie is now; none if he is far.
 sub Hurl (lv as Level, i as integer, p as Hero)
-    dim n as integer
+    dim x as single, y as single
     if abs(p.x - lv.ob(i).x) > THROWR or abs(p.y - lv.ob(i).y) > 60 then exit sub
+    x = lv.ob(i).x + 6 * sgn(lv.ob(i).s)
+    y = lv.ob(i).y - 20
+    Loft lv, x, y, (p.x - x) / LOBT, (p.y - 12 - y) / LOBT - GRAV * LOBT / 2, ILOB, CWHITE
+end sub
+
+' Something let go at x, y with the speed vx, vy, to fly till it meets Charlie or the ground: its picture, and
+' the colour it bursts in. None while NLOB are in the air.
+sub Loft (lv as Level, x as single, y as single, vx as single, vy as single, pic as integer, c as integer)
+    dim n as integer
     for n = 0 to NLOB - 1
         if not lv.lobs(n).live then exit for
     next
     if n = NLOB then exit sub
-    lv.lobs(n).x = lv.ob(i).x + 6 * sgn(lv.ob(i).s)
-    lv.lobs(n).y = lv.ob(i).y - 20
-    lv.lobs(n).vx = (p.x - lv.lobs(n).x) / LOBT
-    lv.lobs(n).vy = (p.y - 12 - lv.lobs(n).y) / LOBT - GRAV * LOBT / 2
+    lv.lobs(n).x = x
+    lv.lobs(n).y = y
+    lv.lobs(n).vx = vx
+    lv.lobs(n).vy = vy
+    lv.lobs(n).pic = pic
+    lv.lobs(n).c = c
+    lv.lobs(n).bedded = Solid%(lv, cint(x), cint(y))
     lv.lobs(n).live = -1
     lv.lobN = lv.lobN + 1
 end sub
 
-' Snowball n bursts.
+' Squirrel i on its bough: while Charlie is under its run it keeps over him, else it goes home; every SQWAIT
+' steps it stops, an acorn held out the last SQAIM of them, and lets it fall once he is near under it. Cowed,
+' it keeps still. Its state: the steps till the acorn falls, signed the way it faces.
+sub Scamper (lv as Level, i as integer, p as Hero)
+    dim n as integer, d as integer, perch as integer, quarry as integer
+    n = abs(lv.ob(i).s) - 1
+    d = sgn(lv.ob(i).s)
+    quarry = abs(p.x - lv.ob(i).a) < SQRUN + SQSEE and p.y > lv.ob(i).y
+    if n = 0 and quarry and abs(p.x - lv.ob(i).x) >= SQNEAR then n = 1
+    if n = 0 then
+        if quarry then Loft lv, lv.ob(i).x + 5 * d, lv.ob(i).y + 1, 0, 0, IACORN, CNUT
+        n = SQWAIT
+    end if
+    lv.ob(i).s = d * n
+    if n <= SQAIM or n > SQWAIT then exit sub
+    perch = lv.ob(i).a
+    if quarry then perch = cint(p.x)
+    if perch < lv.ob(i).a - SQRUN then perch = lv.ob(i).a - SQRUN
+    if perch > lv.ob(i).a + SQRUN then perch = lv.ob(i).a + SQRUN
+    if abs(perch - lv.ob(i).x) < SQV then exit sub
+    d = sgn(perch - lv.ob(i).x)
+    lv.ob(i).x = lv.ob(i).x + d * SQV
+    lv.ob(i).s = d * n
+end sub
+
+' What is in the air, n, bursts.
 sub Splat (lv as Level, mu as Deck, se as Session, n as integer, pt() as Part)
     lv.lobs(n).live = 0
     lv.lobN = lv.lobN - 1
-    Burst se, pt(), lv.lobs(n).x, lv.lobs(n).y, 6, 90, CWHITE
+    Burst se, pt(), lv.lobs(n).x, lv.lobs(n).y, 6, 90, lv.lobs(n).c
     Sfx mu, se, SPOP
 end sub
 
-' The snowballs in the air, each on its arc till it meets Charlie, whom it hurts, or the ground.
+' What is in the air, each on its arc till it meets Charlie, whom it hurts, or the ground.
 sub Volley (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose, pt() as Part)
-    dim n as integer
+    dim n as integer, aground as integer
     for n = 0 to NLOB - 1
         if lv.lobs(n).live = 0 then continue for
         lv.lobs(n).vy = lv.lobs(n).vy + GRAV * STEPT
         lv.lobs(n).x = lv.lobs(n).x + lv.lobs(n).vx * STEPT
         lv.lobs(n).y = lv.lobs(n).y + lv.lobs(n).vy * STEPT
+        aground = Solid%(lv, cint(lv.lobs(n).x), cint(lv.lobs(n).y))
+        if not aground then lv.lobs(n).bedded = 0
         if abs(lv.lobs(n).x - p.x) < 10 and abs(lv.lobs(n).y - p.y + 13) < 14 then
             Hurt mu, se, g, p, cint(lv.lobs(n).x - sgn(lv.lobs(n).vx) * 10), lo(), SHURT
             Splat lv, mu, se, n, pt()
-        elseif Solid%(lv, cint(lv.lobs(n).x), cint(lv.lobs(n).y)) or lv.lobs(n).y > MH * TS then
+        elseif (aground and not lv.lobs(n).bedded) or lv.lobs(n).y > MH * TS then
             Splat lv, mu, se, n, pt()
         end if
     next
@@ -5186,18 +5238,19 @@ sub MeetThrow (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i a
     Sfx mu, se, SBUMP
 end sub
 
-' The snowballs in the air.
+' What is in the air.
 sub DrawLobs (lv as Level, art as Store, cx as integer, cy as integer)
     dim n as integer
     for n = 0 to NLOB - 1
-        if lv.lobs(n).live then Blit art, cint(lv.lobs(n).x) - cx - 4, cint(lv.lobs(n).y) - cy - 4, ILOB, 8, 8
+        if lv.lobs(n).live = 0 then continue for
+        Blit art, cint(lv.lobs(n).x) - cx - 4, cint(lv.lobs(n).y) - cy - 4, lv.lobs(n).pic, 8, 8
     next
 end sub
 
 ' Charlie barks: every cat the bark reaches flinches, every crab goes into its shell, every gull is scared, every
-' snow-thrower ducks.
+' snow-thrower ducks, every squirrel is cowed.
 sub Bark (lv as Level, mu as Deck, se as Session, p as Hero)
-    dim i as integer, c as integer, dx as single, dy as single, hung as integer
+    dim i as integer, c as integer, dx as single, dy as single, hung as integer, cowed as integer
     p.barkT = BARKT
     Sfx mu, se, SBARK
     if lv.murk then lv.glow = GLOWT
@@ -5210,6 +5263,9 @@ sub Bark (lv as Level, mu as Deck, se as Session, p as Hero)
         ' an icicle or a ledge's load is loosed from further under it than he can jump
         hung = lv.ob(i).k = KICICLE or lv.ob(i).k = KLOAD
         if hung and lv.ob(i).s = 0 and dx <= BARKR and dy < 140 then lv.ob(i).s = 1
+        ' and a squirrel on its bough is cowed
+        cowed = lv.ob(i).k = KSQUIRREL and lv.ob(i).s <> 0 and dx <= BARKR and dy < 140
+        if cowed then lv.ob(i).s = sgn(lv.ob(i).s) * SQFRIGHT
         if lv.ob(i).s = 0 or dx > BARKR or dy >= 40 then continue for
         select case lv.ob(i).k
         case KCAT: Flinch lv, i, cint(p.x)
@@ -5239,6 +5295,7 @@ sub Things (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() a
         case KLOAD: Unload lv, mu, se, g, p, lo(), pt(), i
         case KGOAT: if lv.ob(i).s <> 0 then Graze lv, se, i, p
         case KTHROW: TakeAim lv, i, p
+        case KSQUIRREL: if lv.ob(i).s <> 0 then Scamper lv, i, p
         case KSPRING, KBUMP, KHOOP, KSAPLING: if lv.ob(i).s > 0 then lv.ob(i).s = lv.ob(i).s - 1
         case KBRAMBLE: Regrow lv, se, pt(), i
         case KVINE: if p.vine <> i + 1 then lv.ob(i).s = lv.ob(i).s * 7 \ 8
@@ -6371,6 +6428,10 @@ sub DrawThings (lv as Level, zn as Realm, art as Store, se as Session, cx as int
         case KTHORN: Blit art, x - 8, y - 10, ITHORN, 16, 12
         case KBRAMBLE: Blit art, x - 19, y - 25, IBRAMBLE - 2 * (lv.ob(i).s > 0), 38, 26
         case KMOUND: Blit art, x - 17, y - 12, IMOUND, 34, 14
+        case KSQUIRREL
+            ' an acorn held out, it is about to drop it
+            k = ISQUIRREL - 2 * (abs(lv.ob(i).s) <= SQAIM) - 4 * (lv.ob(i).s > 0)
+            if lv.ob(i).s then Blit art, x - 10, y - 17, k, 20, 18
         case KFAM
             ' who meets Charlie: they cheer once it has come to them
             DrawFamily art, se, x, y, se.cheer
