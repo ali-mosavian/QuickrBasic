@@ -110,13 +110,14 @@ Progress is saved at each zone.
   chugs, metal hits off the beat, a saw lead that slides. Night, to add: half-time drums, the lead an octave
   down, more room.
 
-### 3. Saltwick Sands (its look built)
+### 3. Saltwick Sands (built, but for its tune)
 
 - Built: its backdrop, ground, props and card at noon and sunset, on the Downs' layout; the tide, paddling,
   and wet till a roll; both levels, with tide pools, a low road under a jetty, and boats adrift in pools,
   afloat on the tide and aground at low water; buoys that bump, deckchairs for springs; crabs, a step when
-  barked into their shells; jellyfish, afloat or stranded; gulls, which drop the bones they took at a bark.
-  To add: flumes, its chase and tune.
+  barked into their shells; jellyfish, afloat or stranded; gulls, which drop the bones they took at a bark;
+  its chase, Kipper's pedal boat up and down a sea channel, sunk by three landings on its deck.
+  To add: flumes, its tune.
 - Rule: the tide. Water rises and falls on a clock, and roads open and close with it. Charlie paddles on the
   surface, slow, and stays slow out of it until a roll shakes him dry.
 - Gadgets: boats, flumes that end in water, deckchair springs, buoys that bump.

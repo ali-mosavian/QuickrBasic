@@ -2724,6 +2724,59 @@ def gull(f: int) -> Pic:
     return p.outline(SEAINK)
 
 
+def pedalo(hit: bool) -> Pic:
+    """Captain Kipper's pedal boat, 52 by 34, its deck at row 22 and its waterline four rows from its foot: a
+    paddle wheel at its stern, the cat at its helm in a captain's cap; hit: bumped, the cat off its feet and its
+    cap off its head."""
+    p = Pic(52, 34)
+    for x in range(4, 50):
+        lo = 33 - (round((x - 42) * 1.3) if x > 42 else 0)
+        for y in range(22, lo + 1):
+            d = y - 22
+            tone = (
+                WHITE
+                if d == 0
+                else TOWER[1]
+                if d == 1
+                else CORAL[4]
+                if d in (2, 8)
+                else CORAL[1]
+                if d == 3
+                else CORAL[2]
+            )
+            p.put(x, y, CORAL[3] if (x > 38 or d > 8) and d >= 2 and d != 8 else tone)
+    for i in range(8):  # the wheel: a rim, and blades about its hub
+        ang = math.pi * i / 4 + (0.4 if hit else 0)
+        p.line(8, 25, 8 + 6.5 * math.cos(ang), 25 + 6.5 * math.sin(ang), PLANK[2 + i % 2], 2)
+    p.ball(8, 25, 2.2, 2.2, [PLANK[4], PLANK[3], PLANK[1]], 0.3, 1.0)
+    p.box(44, 14, 44, 21, PLANK[3])  # a staff at its bow, a pennant on it
+    for i in range(3):
+        p.box(45, 14 + i, 47 - i, 14 + i, LAGOON[2] if i < 2 else LAGOON[3])
+    paste(p, startled() if hit else cat(0), 18, 5 if hit else 8)
+    hy = 1 if hit else 8  # its cap: white, a dark peak, a gold badge
+    p.box(30, hy, 35, hy + 1, WHITE)
+    p.box(30, hy + 2, 37, hy + 2, SEAINK)
+    p.put(33, hy + 1, GOLD[3])
+    return p.outline(SEAINK)
+
+
+def teddy() -> Pic:
+    """The little one's teddy, afloat: round ears, a pale muzzle, arms out."""
+    fur = EARTH[1:]
+    p = Pic(14, 16)
+    for x in (3.2, 10.8):
+        p.ball(x, 2.6, 2.0, 2.0, fur, 0.3, 1.0)
+    p.line(2, 10, 12, 10, fur[1], 3)
+    p.ball(7, 11.5, 4.2, 4.2, fur, 0.3, 1.1)
+    p.ball(7, 5.5, 4.4, 4.0, fur, 0.3, 1.1)
+    p.box(6, 6, 8, 7, fur[-1])
+    p.put(7, 6, SEAINK)
+    p.put(5, 4, SEAINK)
+    p.put(9, 4, SEAINK)
+    p.box(6, 11, 8, 12, fur[-1])
+    return p.outline(SEAINK)
+
+
 def lifepost() -> Pic:
     """A post with a life ring where the Downs have a lantern plant."""
     p = Pic(20, 44)
@@ -2770,6 +2823,8 @@ def sands() -> list[tuple[int, Pic, bool, int]]:
     for i, thing in enumerate((jelly, buoy, deckchair)):
         out += [(z + 938 + i * 4 + f * 2, thing(f), True, -1) for f in range(2)]
     out += [(z + 950 + f * 2, gull(f), True, z + 954 + f * 2) for f in range(2)]
+    out += [(z + 958 + h * 2, pedalo(bool(h)), True, -1) for h in range(2)]
+    out.append((z + 962, teddy(), True, -1))
     out += [
         (k + 36, brolly(), True, -1),
         (k + 38, marram(), True, -1),

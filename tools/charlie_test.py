@@ -755,19 +755,29 @@ k.r = 0
 if was and p.gsp > WETTOP + 60 then print "wet ok"
 ' no water is a trap: the bank past each stretch swum at high water is within a hop of it, two tiles, or the
 ' stretch is waded at low water, to its spring. A sea gap's far bank was seven tiles up, Charlie afloat for good.
+GoStage 0, g, p, lo(), pt()
 was = -1
+zp = -1
 for m = 4 to 5
     GoStage m, g, p, lo(), pt()
     brim = TideLo
     ebb = TideHi
+    ' the level's own tide, not one a check before this held it at: the sands' noon was read at such a one
+    if brim = ebb then was = 0
     if TideHi < brim then swap brim, ebb
     for c = 1 to LW - 2
         v = ColTop(c) * TS
         j = ColTop(c + 1) * TS
         if v > brim + WADE and j <= brim + WADE and brim - j > 2 * TS and v > ebb + WADE then was = 0
     next
+    ' and no bone nor spring lies where the sea never leaves: the sunset's pools had bones on their floors
+    for i = 0 to NObj - 1
+        if ObK(i) = KBONE and ObY(i) > ebb + 9 then zp = 0
+        if ObK(i) = KSPRING and ObY(i) > ebb + WADE then zp = 0
+    next
 next
 if was and brim < ebb then print "shore ok"
+if zp then print "reach ok"
 ' a boat lies on the floor of its pool at low water, and still; afloat it drifts, its deck just over the sea, and
 ' Charlie aboard goes up with it
 GoStage 4, g, p, lo(), pt()
@@ -1000,6 +1010,70 @@ Gulls(0).tx = p.x
 Gulls(0).ty = p.y - 13
 Tick g, p, k, lo(), pt()
 if was and Gulls(0).st = 0 and g.score = hid + 100 then print "gull ok"
+' Kipper's pedal boat waits on the sea in its channel; Charlie come to it, it goes to the channel's end and
+' turns round
+Cart.st = 0
+GoStage 5, g, p, lo(), pt()
+' its channel's buoys out of the way of these landings
+for i = 0 to NObj - 1
+    if ObK(i) = KBUOY and ObX(i) > ChaseX then ObK(i) = 0
+next
+Tick g, p, k, lo(), pt()
+v = Cart.st = 0 and Cart.y = Tide - PEDALUP
+p.x = ChaseX + 30
+p.y = Tide + AFLOAT
+p.ground = 0
+p.swim = -1
+p.vx = 0
+for i = 1 to 10
+    Tick g, p, k, lo(), pt()
+next
+was = v and Cart.st = 1 and Cart.y = Tide - PEDALUP and Cart.x > ChaseX + CARTLEAD and Cart.v = PEDALV
+for i = 1 to 600
+    Tick g, p, k, lo(), pt()
+    if Cart.v < 0 then exit for
+next
+Tick g, p, k, lo(), pt()
+was = was and Cart.v = -PEDALV and abs(Cart.x - (ChaseEnd - PEDALW \\ 2)) < 8
+' a swimmer at its side is no bump; Charlie down on its deck out of the air is: it turns round, he goes up off
+' it, and while it is dazed a second landing is none. Each bump makes it faster
+p.x = Cart.x
+Tick g, p, k, lo(), pt()
+was = was and Cart.hits = 0 and p.inv <= 0
+hid = g.score
+for j = 1 to 3
+    for c = 0 to 1
+        p.swim = 0
+        p.ground = 0
+        p.x = Cart.x
+        p.y = Cart.y - 8
+        p.vx = 0
+        p.vy = 100
+        for i = 1 to 12
+            Tick g, p, k, lo(), pt()
+            if p.vy < 0 or p.swim then exit for
+        next
+        if c = 0 then was = was and p.vy < 0
+    next
+    was = was and Cart.hits = j
+    if j = 1 then was = was and Cart.v > 0 and g.score = hid + 500
+    p.x = ChaseX + 30
+    for i = 1 to 90
+        Tick g, p, k, lo(), pt()
+    next
+    if j < 3 then was = was and abs(Cart.v) = PEDALV + j * PEDALMORE
+next
+' its third bump sinks it, and the teddy is his as he comes down there; afloat on the sea, it waits for a
+' swimmer to come to it
+was = was and Cart.st = 3
+Cart.st = 2
+Cart.x = p.x + 60
+Tick g, p, k, lo(), pt()
+was = was and Cart.st = 2 and Cart.y = Tide
+hid = g.score
+p.x = Cart.x
+Tick g, p, k, lo(), pt()
+if was and Cart.st = 3 and g.score = hid + 1000 then print "pedalo ok"
 was = 0
 ' a lift goes up under Charlie to the ground above, and back down once it is left
 GoStage 2, g, p, lo(), pt()
@@ -1093,6 +1167,8 @@ for m = 1 to NSTAGE - 1
     ' the Downs' evening ends in a chase: the cart fled down the race to the chase's tune, was bumped till it broke,
     ' and its keepsake taken, the zone's tune back
     if m = 1 and was and Cart.st = 3 and Cart.hits = NBUMP and ZHeld = 1 then print "chase ok"
+    ' and the sands' sunset: the pilot hops out of the sea onto Kipper's boat till it sinks, and takes the teddy
+    if m = 5 and Cart.st = 3 and Cart.hits = NBUMP then print "kipper ok"
     print "act"; m; g.mode; g.lives - j; Stage; Zone; cint(p.x)
     k.l = 0
     k.r = 0
@@ -1349,6 +1425,9 @@ def main() -> None:
         ("dazed ok", "a Charlie hurt into the sea paddles again"),
         ("buoy ok", "a buoy rides the sea's top and bumps Charlie off it"),
         ("gull ok", "a gull dives for five bones and keeps them till barked at; a roll knocks it away"),
+        ("reach ok", "no bone nor spring of the sands lies where the sea never leaves"),
+        ("pedalo ok", "Kipper's boat goes up and down its channel, is bumped from above, faster each time, and sunk"),
+        ("kipper ok", "the sands' sunset ended in its chase: the boat sunk by three bumps, the teddy taken"),
     ):
         if said not in out:
             sys.exit(f"charlie: not {what}: {out[-300:]}")

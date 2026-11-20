@@ -215,7 +215,8 @@ const ICART = IBASKET + 2, ICARTW = ICART + 12, CARTW = 56, CARTH = 34, CARTLEAN
 const ICRANE = ICARTW + 4, IRAIL = ICRANE + 4, IWBOX = IRAIL + 2, ITOOLS = IWBOX + 2
 ' The sands' ground again as it is under the tide, picture for picture, and the water's edge.
 const IWET = ITOOLS + 2, WETO = IWET - IAF, ISURF = IWET + 278, ICRAB = ISURF + 2
-const IJELLY = ICRAB + 6, IBUOY = IJELLY + 4, ICHAIR = IBUOY + 4, IGULL = ICHAIR + 4, NIMG = IGULL + 8
+const IJELLY = ICRAB + 6, IBUOY = IJELLY + 4, ICHAIR = IBUOY + 4, IGULL = ICHAIR + 4
+const IPEDAL = IGULL + 8, ITEDDY = IPEDAL + 4, NIMG = ITEDDY + 2
 const HUDW = 108, HUDH = 40
 ' The levels: a zone's two acts, the second at another hour in other colours, zone by zone.
 ' the stages played, and after them the intro's road
@@ -245,6 +246,8 @@ const JELLYV = 480!, JELLYD = 10
 ' the bones it takes, how far a bark reaches it; and what it is doing: gone is 0.
 const NGULL = 6, GULLSEE = 100, DIVEV = 210!, CLIMBV = 90!, GULLREST = 2.5, GULLTAKE = 5, GULLHEAR = 130
 const GHOVER = 1, GDIVE = 2, GCLIMB = 3, GSCARED = 4
+' Kipper's pedal boat: its speed, what each bump adds to it, its length, and its deck over the sea.
+const PEDALV = 130!, PEDALMORE = 40!, PEDALW = 48, PEDALUP = 8
 ' A chase: the cart's speed, when Charlie is far behind it, and away from a bump; how far ahead of the race's
 ' start it waits; how near touches it; the seconds a bump tells, the last of them bolting; the bumps that break
 ' it; its tune's number in CHARLIE.DAT.
@@ -344,6 +347,10 @@ declare sub MeetCrab (g as Game, p as Hero, i as integer, lo() as Loose, pt() as
 declare function CrabPic% (s as integer)
 declare sub MeetJelly (g as Game, p as Hero, i as integer, lo() as Loose, pt() as Part)
 declare function Bob% (x as integer, h as integer, up as integer)
+declare function Sunk% (y as integer)
+declare sub MovePedalo ()
+declare sub MeetPedalo (g as Game, p as Hero, pt() as Part)
+declare sub DrawPedalo (cx as integer, cy as integer)
 declare function Glide% (b as Bird, x as single, y as single, v as single)
 declare sub Spill (b as Bird, lo() as Loose)
 declare sub Gull (b as Bird, n as integer, g as Game, p as Hero, lo() as Loose, pt() as Part)
@@ -1355,13 +1362,24 @@ end sub
 ' Under a jump or a platform, not a fall to nothing: n columns from c of floor PITD under the ground g, bones on
 ' it, a spring at its far wall.
 sub Pit (c as integer, g as integer, n as integer)
-    dim i as integer
+    dim i as integer, y as integer
+    y = (MH - g + PITD) * TS
     for i = 0 to n - 1
         Column c + i, g - PITD, 1
-        if i > 1 and i < n - 3 and (i and 1) = 0 then AddObj KBONE, (c + i) * TS + 8, (MH - g + PITD) * TS - 14
+        if i > 1 and i < n - 3 and (i and 1) = 0 and not Sunk%(y) then AddObj KBONE, (c + i) * TS + 8, y - 14
     next
-    AddObj KSPRING, (c + n - 2) * TS + 8, (MH - g + PITD) * TS
+    if not Sunk%(y) then AddObj KSPRING, (c + n - 2) * TS + 8, y
 end sub
+
+' Ground at y is under the sea for good: deeper than Charlie wades, at low water too.
+function Sunk% (y as integer)
+    dim ebb as integer
+    Sunk% = 0
+    if TideLo = NONE then exit function
+    ebb = TideLo
+    if TideHi > ebb then ebb = TideHi
+    Sunk% = y > ebb + WADE
+end function
 
 sub AddObj (k as integer, x as integer, y as integer)
     ObK(NObj) = k
@@ -2474,6 +2492,12 @@ sub Pilot (p as Hero, k as Pad)
             if ObK(i) = KJELLY and ObX(i) > p.x then want = -1
             i = i + 1
         loop
+        ' Kipper's boat about: still, and a hop as it comes, to come down on its deck
+        if Zone = 2 and Cart.st = 1 then
+            k.r = 0
+            d = cint(Cart.x - p.x)
+            want = Cart.t <= 0 and abs(d) < abs(Cart.v) * .55 + 12 and abs(d) > abs(Cart.v) * .45 and sgn(d) <> sgn(Cart.v)
+        end if
         if want then
             k.hit = -1
             hold = 24
@@ -2565,6 +2589,8 @@ sub Pilot (p as Hero, k as Pad)
             end if
         next
     elseif not p.ground then
+        ' over Kipper's channel: straight down, onto its deck or into the sea
+        if Zone = 2 and Cart.st = 1 then k.r = 0
         ' in the air toward a platform's gap: slowed, to come down before it
         for m = 0 to NMv - 1
             d = MvE(m) - cint(p.x)
@@ -3567,6 +3593,7 @@ sub Flee (g as Game, p as Hero, lo() as Loose, pt() as Part)
     if Cart.t > 0 then Cart.t = Cart.t - STEPT
     select case Cart.st
     case 0
+        if Zone = 2 then Cart.y = Tide - PEDALUP
         if p.x >= ChaseX then StartChase
     case 1
         select case Zone
@@ -3577,9 +3604,14 @@ sub Flee (g as Game, p as Hero, lo() as Loose, pt() as Part)
             MoveCrane p
             MeetCrane g, p, pt()
             DropBox g, p, lo(), pt()
+        case 2
+            MovePedalo
+            MeetPedalo g, p, pt()
         end select
     case 2
         if Zone = 1 and Cart.t > 2 - TOOLFALL then exit sub
+        ' the sands' keepsake floats
+        if Zone = 2 then Cart.y = Tide
         ' over it will do: he comes down off the last bump past it
         if abs(p.x - Cart.x) < 16 and p.y > Cart.y - 90 and p.y < Cart.y + 8 then TakeKeep g, pt()
     end select
@@ -3663,7 +3695,48 @@ sub DrawChase (cx as integer, cy as integer)
         DrawCart cx, cy
     case 1
         DrawCrane cx, cy
+    case 2
+        DrawPedalo cx, cy
     end select
+end sub
+
+' Kipper's pedal boat on the sea, from one end of its channel to the other and back: faster for each bump it has
+' taken, and still a moment after one.
+sub MovePedalo
+    Cart.y = Tide - PEDALUP
+    if Cart.t > BOLTS then exit sub
+    if Cart.v = 0 then Cart.v = 1
+    Cart.v = sgn(Cart.v) * (PEDALV + Cart.hits * PEDALMORE)
+    Cart.x = Cart.x + Cart.v * STEPT
+    if Cart.x > ChaseEnd - PEDALW \ 2 then Cart.v = -1
+    if Cart.x < ChaseX + PEDALW \ 2 then Cart.v = 1
+end sub
+
+' Charlie down onto the pedal boat's deck, out of the air: a bump, it turns round and he goes up off it.
+sub MeetPedalo (g as Game, p as Hero, pt() as Part)
+    if Cart.t > BOLTS or p.dead or p.ground or p.swim or p.vy <= 0 then exit sub
+    if abs(p.x - Cart.x) > PEDALW \ 2 or p.y < Cart.y - 6 or p.y > Cart.y + 14 then exit sub
+    Bumped g, pt(), Cart.y - 8
+    Cart.v = -Cart.v
+    p.vy = -BOUNCEV
+    p.jumped = 0
+end sub
+
+' The pedal boat, a pip over it for each bump it can still take; broken, the teddy afloat where it sank, and the
+' cat paddling off a while.
+sub DrawPedalo (cx as integer, cy as integer)
+    dim x as integer, y as integer, i as integer
+    x = cint(Cart.x) - cx
+    y = cint(Cart.y) - cy
+    if Cart.st = 2 then
+        Blit x - 7, y - 12 - ((Ticks \ 16) and 1), ITEDDY, 14, 16
+        if Cart.t > 0 then Blit x + cint((2 - Cart.t) * 120), y - 9, ICAT + ((Ticks \ 4) and 1) * 2, 20, 14
+        exit sub
+    end if
+    Blit x - 26, y - 22, IPEDAL - 2 * (Cart.t > BOLTS), 52, 34
+    for i = Cart.hits to NBUMP - 1
+        line (x - 10 + i * 8, y - 34)-(x - 6 + i * 8, y - 30), CYELLOW, BF
+    next
 end sub
 
 ' The cart, a pip over it for each bump it can still take; broken, the keepsake where it fell, and the cat making
