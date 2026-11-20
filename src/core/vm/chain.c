@@ -20,7 +20,7 @@
  * | chn_start | chai_start | MIRROR |
  * | sc_cmn, sc_chain | chai_cmn, chai_chain | MIRROR |
  * | chn_kind, chn_cell, chn_elems, chn_room, chn_sout, chn_sin, chn_save | kind_of, elem_count, put*, get*, save, set_file | MIRROR |
- * | g_chr, g_che, g_chf, g_cmn, g_cmid, g_chb, NCMN, CHBSZ | Chai.next, end, chained, n, id, buf; NCMN, CHAIN_BUF_SIZE (chain.h) | MIRROR |
+ * | g_chr, g_che, g_chf, g_cmn, g_cmid, g_chb, NCMN, CHBSZ | Chai.next, end, chained, n, id, buf; grown, no NCMN, CHBSZ | DIVERGES |
  */
 #include "vm/chain.h"
 #include "session.h"
@@ -68,10 +68,10 @@ static uint32_t elem_count(const ArrayHdr *const a)
 
 /* ---- out: the values to the buffer ---------------------------------------------------------- */
 
-/* n bytes from src after the buffer's len. Out of memory: past CHAIN_BUF_SIZE. */
+/* n bytes from src after the buffer's len. Out of memory. */
 static void put(Chai *const ch, Fault *const f, const void *const src, const uint32_t n)
 {
-    if (ch->len + n > CHAIN_BUF_SIZE || !GROW(ch->buf, ch->cap, ch->len + n))
+    if (n > UINT32_MAX - ch->len || !GROW(ch->buf, ch->cap, ch->len + n))
         fault_error(f, E_OM);
 
     memcpy(ch->buf + ch->len, src, n);
@@ -182,12 +182,12 @@ static void get_array(Session *const S, const uint8_t **const p, const uint32_t 
 }
 
 /* COMMON's variable ( id -- ): named, for a CHAIN; CHAIN's next value, if any, stored in it.
-   Type mismatch: not the value's kind. Out of memory: past NCMN variables. */
+   Type mismatch: not the value's kind. Out of memory. */
 void chai_cmn(Session *const S)
 {
     const uint32_t id = exec_pop(&S->vm).u;
 
-    if (S->chai.n >= NCMN)
+    if (!GROW(S->chai.id, S->chai.ncap, S->chai.n + 1))
         repl_error(S, E_OM);
 
     S->chai.id[S->chai.n++] = id;

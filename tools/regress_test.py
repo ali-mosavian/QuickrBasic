@@ -259,6 +259,9 @@ CASES = {
     # COMMON's values past the CHAIN buffer's first bytes: it grows.
     "qb_chainbig": ('COMMON s$, x()\r\nDIM x(600)\r\nx(500) = 5: s$ = STRING$(3000, "z")\r\nCHAIN "QB_CH3"\r\n',
                     " 3000 z 5 \r\n", None),
+    # 512 COMMON variables and 64 KB of values at most: past either, CHAIN was Out of memory.
+    "qb_chain_many": (f"COMMON {', '.join(f'c{i}' for i in range(600))}, x() AS LONG\r\nDIM x(30000) AS LONG\r\n"
+                      'c0 = 1: c599 = 599: x(30000) = 7\r\nCHAIN "QB_CH5"\r\n', " 1  599  7 \r\n", "ERROR"),
     # Declarations were by name, program-wide: a module's DIM AS typed a SUB's local, a SUB's DIM AS
     # and CONST the module's and other SUBs' (Type mismatch; the module's k became 2), and a GOSUB
     # took another procedure's label. Each scope is now its own, the module's seen when shared.
@@ -1186,6 +1189,7 @@ FILES = {
     "WHERE.BI": b"' included\r\n\r\nY = 1 +\r\n",
     "QB_CH3.BAS": b'COMMON q$, y()\r\nPRINT LEN(q$); RIGHT$(q$, 1); y(500)\r\n',
     "QB_CH4.BAS": b"COMMON m AS BYTE, y() AS BYTE\r\nPRINT m; LEN(m); y(2)\r\nm = m + 6\r\n",
+    "QB_CH5.BAS": f"COMMON {', '.join(f'd{i}' for i in range(600))}, y() AS LONG\r\nPRINT d0; d599; y(30000)\r\n".encode(),
     "QB_CH2.BAS": b'COMMON b%, q$, e#, y(), u AS SHORT\r\nPRINT b%; q$; e#; y(3); LBOUND(y); u; t\r\n'
                   b'PRINT #1, "kept": CLOSE #1\r\nON ERROR GOTO h\r\nCHAIN "NONE"\r\nEND\r\nh: PRINT "e"; ERR: RESUME NEXT\r\n',
 }
