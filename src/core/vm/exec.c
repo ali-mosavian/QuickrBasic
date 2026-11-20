@@ -173,16 +173,16 @@ static inline bool elem_index(
    handler's. */
 static inline bool fe_addr(Regs *const r)
 {
-    const uint8_t n = r->ip[3];
-    const ArrSlot *const s = (const ArrSlot *)at(r->sp[n].a + load16(r->ip + 1));
+    const uint8_t n = r->ip[5];
+    const ArrSlot *const s = (const ArrSlot *)at(r->sp[n].a + load32(r->ip + 1));
     uint32_t idx;
 
     if (!s->hdr || !elem_index((const ArrayHdr *)at(s->hdr), r->sp, n, &idx))
         return false;
 
     r->sp += n;
-    r->sp->a = ((const ArrayHdr *)at(s->hdr))->data + idx * load16(r->ip + 4);
-    r->ip += 6;
+    r->sp->a = ((const ArrayHdr *)at(s->hdr))->data + idx * load32(r->ip + 6);
+    r->ip += 10;
     return true;
 }
 
@@ -1042,9 +1042,9 @@ Addr exec_elem(Arry *const ar, Vm *const vm)
    Subscript out of range: empty, n not its dimensions, past its bounds. */
 void exec_fe_addr(Session *const S)
 {
-    const uint32_t off = exec_u16(&S->vm);
+    const uint32_t off = exec_u32(&S->vm);
     const uint8_t n = exec_u8(&S->vm);
-    (void)exec_u16(&S->vm); /* the element's size: the header's */
+    (void)exec_u32(&S->vm); /* the element's size: the header's */
 
     for (uint8_t i = n; i-- > 0;)
         S->arry.subs[i] = exec_popi(&S->vm);

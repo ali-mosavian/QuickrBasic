@@ -20,6 +20,7 @@ typedef struct Arry {
     Strg *strg;          /* collected for room; a string element's block follows it */
     Vm *vm;              /* the run: its call's frame (vm.fp), the calls that own a heap's array */
     Addr hdr;            /* past the headers (mm.ahd) */
+    Addr fcells;         /* the field cells' foot: they run to the headers' region's end */
     int32_t subs[ADIMS]; /* the subscripts (g_dimbuf) */
     uint32_t counts[ADIMS]; /* the counts (g_cntbuf) */
     int32_t lbounds[ADIMS]; /* the lower bounds (g_lbbuf) */
@@ -27,6 +28,8 @@ typedef struct Arry {
 
 /* ay's links set. */
 void arry_init(Arry *ay, Allo *al, Fault *f, Symb *sy, const Decl *d, Strg *sg, Vm *vm);
+/* No heap headers, no field cells. */
+void arry_clear_heap(Arry *ay);
 /* Array id's cell in the running call: its own, a local's in the frame, a parameter's its
    argument's. */
 ArrSlot *arry_slot(const Arry *ay, uint32_t id);
@@ -87,7 +90,8 @@ static inline uint32_t arry_esize(const Arry *const ay, const uint32_t id)
 enum { ARRY_FRAME_HDR1 = (sizeof(ArrayHdr) + 2 * sizeof(uint32_t) + 7) & ~7 };
 /* A header of dims dimensions in a frame: its bytes to the data, 8-aligned. */
 uint32_t arry_frame_hdr(uint8_t dims);
-/* Header h is a frame's, its local's DIMmed with constant bounds (comp/frame.c): REDIM never. */
+/* Header h is a frame's, its local's DIMmed with constant bounds (comp/frame.c), or a field cell's:
+   REDIM never. */
 bool arry_fixed(const Arry *ay, Addr h);
 /* arry.counts[0..n): arry.subs' + 1. Illegal function call: a subscript under 0. */
 void arry_counts(Arry *ay, uint8_t n);
@@ -119,7 +123,7 @@ void arry_move_rec(const Arry *ay, Addr dst, Addr src, const TypeDef *td);
 void arry_swap_rec(Arry *ay, Addr a, Addr b, const TypeDef *td);
 /* a() = b() or f(..), ours: cell d takes the array of cell s, its old one freed; s is left empty.
    s's array in a frame or on the arena, d a cell its call may outlive: copied to the heap first.
-   Duplicate definition: d a DIM's with elements. Out of memory. */
+   s a field cell's: copied, s kept. Duplicate definition: d a DIM's with elements. Out of memory. */
 void arry_move(Arry *ay, Vm *vm, ArrSlot *d, ArrSlot *s);
 /* An array result emptied as its FUNCTION starts, ours: cell s's array freed, s dynamic and empty. */
 void arry_reset(Arry *ay, Vm *vm, ArrSlot *s);
@@ -149,6 +153,10 @@ uint32_t arry_view_count(const ArrView *v, uint32_t i);
 int32_t arry_view_lbound(const ArrView *v, uint32_t i);
 uint32_t arry_view_elems(const ArrView *v);
 uint32_t arry_view_size(const Arry *ay, const ArrView *v);
+/* A cell for the fixed array field key names (decl_fieldkey) at data, passed whole to an array
+   parameter, ours: its header the field's shape. It lives while the call does, its arguments
+   above vm.sp, and follows its record as the heap moves. Out of memory. */
+ArrSlot *arry_field_cell(Arry *ay, Addr data, uint32_t key);
 /* ERASE of a DIM'd array or a fixed array field: its elements zeroed, its records' arrays freed and
    emptied (ours). */
 void arry_clear(Arry *ay, Vm *vm, const ArrView *v);

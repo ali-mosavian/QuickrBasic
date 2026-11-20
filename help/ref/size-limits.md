@@ -28,7 +28,7 @@ File number             1 to 255
 Arrays
 The subscript is an integer; the default lowest is 0, or 1 after
 [OPTION BASE](OPTION BASE) 1. An array has at most 60 dimensions,
-in a [TYPE](TYPE) too.
+in a [TYPE](TYPE) too. A TYPE holds up to 16 MB.
 
 Screen
 Text is 25, 43 or 50 rows. Graphics go up to 640x480; see

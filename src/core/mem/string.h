@@ -76,7 +76,7 @@ Addr strg_text(Strg *sg, const uint8_t *text, uint16_t len);
 void strg_move(const Strg *sg, Addr from, Addr to);
 /* A record copied from src to dst, ours: the n Descs at offs in dst made their own copies. Out of
    memory. */
-void strg_copy_owned(Strg *sg, Addr dst, Addr src, const uint16_t *offs, uint32_t n);
+void strg_copy_owned(Strg *sg, Addr dst, Addr src, const uint32_t *offs, uint32_t n);
 /* A record moved from src to dst, ours: the n Descs at offs, their blocks' owners follow. */
-void strg_move_owned(const Strg *sg, Addr dst, Addr src, const uint16_t *offs, uint32_t n);
+void strg_move_owned(const Strg *sg, Addr dst, Addr src, const uint32_t *offs, uint32_t n);
 #endif

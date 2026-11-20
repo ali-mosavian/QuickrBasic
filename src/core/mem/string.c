@@ -330,7 +330,7 @@ void strg_copy_owned(
     Strg *const sg,
     const Addr dst,
     const Addr src,
-    const uint16_t *const offs,
+    const uint32_t *const offs,
     const uint32_t n
 )
 {
@@ -342,7 +342,7 @@ void strg_move_owned(
     const Strg *const sg,
     const Addr dst,
     const Addr src,
-    const uint16_t *const offs,
+    const uint32_t *const offs,
     const uint32_t n
 )
 {

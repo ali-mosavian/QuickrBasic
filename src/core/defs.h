@@ -121,7 +121,7 @@ static inline uint32_t va_pack(const uint8_t kind, const uint32_t n)
     return (uint32_t)kind << 24 | n;
 }
 static inline uint8_t va_kind(const uint32_t v) { return (uint8_t)(v >> 24); }
-static inline uint16_t va_n(const uint32_t v) { return (uint16_t)v; }
+static inline uint32_t va_n(const uint32_t v) { return v & 0xFFFFFF; }
 
 enum : uint8_t { SF_BRK = 1, SF_EV = 2 };
 
