@@ -298,7 +298,7 @@ static ErrOp declared_op;
 
 static void declare_big_field(Session *const S)
 {
-    uint8_t text[] = "c AS SHORT";
+    uint8_t text[] = "c(1 TO 17000000) AS BYTE";
     S->vm.line = DLINE;
     lexr_line(&S->lexr, text, S->comp.cbuf);
     declared = repl_declare_check(S, S->comp.cbuf, &declared_op);
@@ -310,15 +310,13 @@ TEST(typed_declaration_error_returned_at_its_place)
 {
     static const char *const lines[] = {
         "10 TYPE T",
-        "20 a AS STRING * 32767",
-        "30 b AS STRING * 32767",
         nullptr,
     };
 
     unit_store(S, lines);
     declared = ST_OK;
     CHECK(repl_call(S, declare_big_field) == ST_OK);
-    CHECK(declared == E_TTB);
-    CHECK(declared_op.code == E_TTB && declared_op.at == 0); /* at c, the field */
+    CHECK(declared == E_OM);
+    CHECK(declared_op.code == E_OM && declared_op.at == 0); /* at c, the field */
     CHECK(!S->vm.err.active);
 }

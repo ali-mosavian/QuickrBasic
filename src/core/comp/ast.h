@@ -99,8 +99,8 @@ enum : uint8_t { WH_PAREN = 1, WH_FIXED = 2 };
    elements', wr how it was written, key a fixed one's (decl_fieldkey), 0 a dynamic one's. */
 typedef struct {
     uint32_t et;
-    uint16_t off;
-    uint16_t fix;
+    uint32_t off;
+    uint32_t fix;
     bool arr;
     Written wr;
     uint32_t key;

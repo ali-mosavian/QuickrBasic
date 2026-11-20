@@ -888,17 +888,30 @@ static void cg_ref(Code *const c, const Node *const n)
     c->iload = c->iloadend = nullptr;
 }
 
+/* A field's offset off in the record at the stack's top, as an op's 16 bits: past them, ours, added
+   to the address first, 0 left. */
+static uint16_t field_off(Code *const c, const uint32_t off)
+{
+    if (off <= UINT16_MAX)
+        return (uint16_t)off;
+
+    code_int(c, off);
+    code_op(c, O_I_ADD);
+    return 0;
+}
+
 /* A record's field's value: SF.LD off fix, FL.LD off et. */
 static void cg_field(Code *const c, const Node *const n)
 {
     gen(c, n->a);
     const RecRef *const rec = &n->a->rec;
+    const uint16_t off = field_off(c, rec->off);
 
     if (rec->et == ET_SD) {
-        code_opw(c, O_SF_LD, rec->off);
-        code_word(c, rec->fix);
+        code_opw(c, O_SF_LD, off);
+        code_word(c, (uint16_t)rec->fix);
     } else {
-        code_opw(c, O_FL_LD, rec->off);
+        code_opw(c, O_FL_LD, off);
         code_byte(c, (uint8_t)rec->et); /* a number's */
     }
 
@@ -951,7 +964,7 @@ static void cg_arg(Code *const c, const Node *const n)
 
     case PA_PREF:
         gen(c, n->a);
-        code_opw(c, O_P_REF, n->a->rec.off);
+        code_opw(c, O_P_REF, field_off(c, n->a->rec.off));
         break;
 
     case PA_NREF:

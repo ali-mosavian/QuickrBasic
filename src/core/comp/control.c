@@ -756,8 +756,8 @@ static bool recpair(Comp *const C, const uint8_t sep, RecRef *const rec)
     return false;
 }
 
-/* ct_rcopy: a = b of two records of one TYPE: R.COPY; a TYPE with STRINGs, ours: its index, CALL
-   RCOPY. */
+/* ct_rcopy: a = b of two records of one TYPE: R.COPY; a TYPE with STRINGs or past R.COPY's 16 bits,
+   ours: its index, CALL RCOPY. */
 static bool reccopy(Comp *const C)
 {
     RecRef rec;
@@ -767,13 +767,13 @@ static bool reccopy(Comp *const C)
 
     const uint32_t t = rec.et - ET_REC;
 
-    if (decl_dynamic(decl_type(C->decl, t))) {
+    if (decl_dynamic(decl_type(C->decl, t)) || rec.fix > UINT16_MAX) {
         comp_int(C, t);
         comp_call(C, K_RCOPY);
         return true;
     }
 
-    comp_word(comp_op(C, O_R_COPY), rec.fix);
+    comp_word(comp_op(C, O_R_COPY), (uint16_t)rec.fix);
     return true;
 }
 
