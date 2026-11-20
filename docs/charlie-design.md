@@ -218,8 +218,9 @@ Progress is saved at each zone.
   that cat's own style. The big one's guitar.
 - Look: fish-scale roof tiles over brick. Indigo, lantern orange, brick red. Stacked houses, lit windows, the
   moon; fireworks in act 2.
-- Music: a sly swing in A minor at 132. An accordion lead, plucked bass, brushed snare, a muted trumpet's
-  answer, the Mob's motif under it. Festival: 144, full brass, toms for the fireworks, claps.
+- Music (written): a sly swing in A minor at 132. An accordion lead, plucked bass, brushed snare, a muted
+  trumpet's answer, the Mob's motif under it. Festival (written): 144, full brass, toms for the fireworks,
+  claps.
 
 ### 7. Clock Tower
 
@@ -288,7 +289,8 @@ A still mockup of each zone is agreed before it is wired in.
 - Levels in the data file, not the program's DATA (built): written in `tools/charlielevels.txt`.
 - Songs loaded a zone at a time, more than the two there are.
 - A kit named by each song. The horn, organ and clavinet are fixed in the loader now.
-- A song that ends, swing, and scenes cut on a song's bar count.
+- A song that ends, swing (built: a song's off-beat eighths on the triplet's last), and scenes cut on a song's
+  bar count.
 - The bark, and each zone's rule: tide, grip, sled, catapult, swing, dark, lines, turning ground.
 - A chase: a cat that flees along the course and is bumped.
 - A save file (built): `CHARLIE.SAV` keeps the furthest zone reached; Left and Right on the title pick the

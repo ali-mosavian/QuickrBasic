@@ -27,7 +27,7 @@ DEMO = ROOT / "src/plat/wasm/web/demos/CHARLIE.BAS"
 
 DRIVER = """from barkley.engine.video import Blit, OpenScreen, SH, SW
 from barkley.engine.clock import Clock, Pace, Steps, STEPT
-from barkley.engine.audio import Beat, Half, NBAR, NextHalf, NSLOT, NVOICE, StartSong
+from barkley.engine.audio import Beat, Half, NBAR, NextHalf, NSLOT, NVOICE, Song, StartSong
 from barkley.model.images import FAMF, IBARON, ICISTERN, IFAM, ITANK, ITREE, NFAM
 from barkley.model.hero import Hero, Pad
 from barkley.model.level import GRAV, Ground, KBONE, KBRAMBLE, KBUOY, KCAT, KCISTERN, KCRAB, KDRIFT, KGOAT, KHOOP
@@ -40,7 +40,7 @@ from barkley.assets.palette import CBEE, CFLY, CNUT, CSEA, CVINE, CVINED, CWHITE
 from barkley.assets.store import BuildArt
 from barkley.assets.cast import BaronPic, FamPic
 from barkley.assets.tunes import CAUGHT, CAUGHTUP, EndBeat, LEFTBEHIND, LoadSongs, PACKING, PickSong, SCLANK, Sfx, SHURT
-from barkley.assets.tunes import SJUMP, SongFor, Sudden, ZTUNE
+from barkley.assets.tunes import SJUMP, SongFor, Sudden, ZoneTune, ZTUNE
 from barkley.world.terrain.ground import LoadTables, LOOPR, SegAt, Solid, Surf, WADE, WAVEL
 from barkley.world.terrain.track import MOVEW, WAVEA
 from barkley.world.layout import PITD
@@ -68,6 +68,9 @@ from barkley.flow.intro import BEATS, BETWEEN, BUMP0, CueAt, HORIZON, ILEN, Intr
 from barkley.flow.states import GoStage, ResetWorld, StartGame, TALLYN, Tick
 from barkley.main import Advance
 declare function GroundAt% (lv as Level, x as integer)
+declare function HalfLen% (x as string)
+declare function Tripled% (x as string)
+declare function SongLasts% (sg as Song)
 declare sub Stand (lv as Level, gr as Ground, p as Hero, x as integer, v as single)
 declare sub StandUnder (lv as Level, gr as Ground, p as Hero, x as integer, x0 as integer)
 declare sub AtBall (lv as Level, p as Hero)
@@ -798,6 +801,25 @@ for m = 1 to 9 step 2
 next
 GoStage wd, 0, g, p, lo(), pt()
 if was then print "arranged ok"
+' a swung song's off-beat eighth comes on the triplet's last: each voice of each of its half bars still lasts half
+' a bar. A string plucked on the off beats is a rest of two thirds of a beat, a twenty-fourth's note and its rest;
+' the brushes on the beat a twelfth, then the beat's rests. A straight song has no such lengths. Swing was not
+' played at all: the quarter's tune would have been straight
+dim swingOk as integer
+swingOk = wd.mu.song(ZTUNE).swing = 0 and SongLasts%(wd.mu.song(ZTUNE))
+for i = 0 to 7
+    swingOk = swingOk and not Tripled%(wd.mu.song(ZTUNE).half(i).lead + wd.mu.song(ZTUNE).half(i).bass)
+next
+ZoneTune wd.mu, 17
+swingOk = swingOk and wd.mu.song(ZTUNE).swing = 1 and wd.mu.song(ZTUNE).tempo = 132 and SongLasts%(wd.mu.song(ZTUNE))
+swingOk = swingOk and wd.mu.song(ZTUNE).half(2).one = "P6L24N49P6P24L24N53P24"
+swingOk = swingOk and left$(wd.mu.song(ZTUNE).half(0).drums, 3) = "L12"
+swingOk = swingOk and right$(wd.mu.song(ZTUNE).half(0).drums, 9) = "P12P24P24"
+for i = 0 to 39
+    swingOk = swingOk and HalfLen%(wd.mu.song(ZTUNE).half(i).drums) = 24
+next
+ZoneTune wd.mu, 0
+if swingOk then print "swing ok"
 ' after a chase the level's end is the longer one, twelve bars that end, the cat sent packing first, its first half
 ' bar played; where there is no chase it is the eight. It was the eight everywhere
 GoStage wd, 1, g, p, lo(), pt()
@@ -3054,6 +3076,46 @@ sub AtBall (lv as Level, p as Hero)
     p.jumped = 0
 end sub
 
+' What a half bar's PLAY string lasts, in forty-eighths of a bar: each L or P its length, a dotted one half as
+' long again.
+function HalfLen% (x as string)
+    dim i as integer, n as integer, total as integer, one as integer, ch as string
+    i = 1
+    do while i <= len(x)
+        ch = mid$(x, i, 1)
+        i = i + 1
+        if ch <> "L" and ch <> "P" then continue do
+        n = val(mid$(x, i, 2))
+        i = i + len(ltrim$(str$(n)))
+        one = 48 \\ n
+        ' a note's dot is after its number
+        if ch = "L" and mid$(x, i, 1) = "N" then i = i + 1 + len(ltrim$(str$(val(mid$(x, i + 1, 2)))))
+        if mid$(x, i, 1) = "." then one = one + one \\ 2
+        total = total + one
+    loop
+    HalfLen% = total
+end function
+
+' Whether a PLAY string has a triplet's length in it.
+function Tripled% (x as string)
+    Tripled% = instr(x, "L12") > 0 or instr(x, "L24") > 0 or instr(x, "P12") > 0 or instr(x, "P24") > 0
+end function
+
+' Whether each voice of each of a song's half bars lasts half a bar.
+function SongLasts% (sg as Song)
+    dim i as integer, h as integer, nBars as integer
+    for i = 1 to len(sg.order)
+        if asc(mid$(sg.order, i, 1)) - 96 > nBars then nBars = asc(mid$(sg.order, i, 1)) - 96
+    next
+    SongLasts% = 0
+    for h = 0 to nBars * 2 - 1
+        if HalfLen%(sg.half(h).bass) <> 24 or HalfLen%(sg.half(h).one) <> 24 then exit function
+        if HalfLen%(sg.half(h).lead) <> 24 or HalfLen%(sg.half(h).two) <> 24 then exit function
+        if HalfLen%(sg.half(h).under) <> 24 or HalfLen%(sg.half(h).third) <> 24 then exit function
+    next
+    SongLasts% = -1
+end function
+
 ' Charlie on the tiles' ground at x, running at v.
 ' Charlie stood at x under a shelf, on the ground as high as it is at x0, which the shelf is not over.
 sub StandUnder (lv as Level, gr as Ground, p as Hero, x as integer, x0 as integer)
@@ -3273,6 +3335,7 @@ def main() -> None:
         ("works tune ok", "the Chrome Works played to their own tune"),
         ("sands tune ok", "Saltwick Sands played to their own tune"),
         ("arranged ok", "a zone's second act played to its tune arranged again: evening, night, sunset, blizzard"),
+        ("swing ok", "a swung song's off-beat eighths on the triplet's last, each half bar still half a bar long"),
         ("packing ok", "after a chase the level's end is the longer one, twelve bars; the eight elsewhere"),
         ("over ok", "game over played by its own tune and held while it plays; then the title"),
         ("tally ok", "the level's end's bonus counted on its tune's beats, a step each, and all at once at a key"),

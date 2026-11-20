@@ -30,6 +30,7 @@ type Song
     fade as integer
     entry as integer
     ends as integer
+    swing as integer
     leadP as string
     bassP as string
     underP as string
@@ -98,6 +99,7 @@ sub LoadSong (mu as Deck, s as integer, id as integer)
     mu.song(s).entry = Word&
     mu.song(s).ends = Word&
     octs = Word&
+    mu.song(s).swing = Word&
     ReadKit mu, s
     ReadList bas()
     ReadList hits()
@@ -169,23 +171,27 @@ private sub ReadBar (mu as Deck, s as integer, n as integer, bas() as string, hi
         h = n * 2 + j
         mu.song(s).half(h).kit = mid$(pat(nd), j * 8 + 1, 8)
         mu.song(s).half(h).drums = Beat$(mu, s, mu.song(s).half(h).kit, 8)
-        mu.song(s).half(h).bass = Riff$(bas(nb - 1), j, 15 + root)
-        mu.song(s).half(h).one = Riff$(br, j, 27)
-        mu.song(s).half(h).lead = Riff$(sol, j, lead)
-        mu.song(s).half(h).two = Riff$(st, j, low)
-        mu.song(s).half(h).under = Riff$(br, j, 15)
-        mu.song(s).half(h).third = Riff$(mid, j, 27)
+        mu.song(s).half(h).bass = Riff$(bas(nb - 1), j, 15 + root, mu.song(s).swing)
+        mu.song(s).half(h).one = Riff$(br, j, 27, mu.song(s).swing)
+        mu.song(s).half(h).lead = Riff$(sol, j, lead, mu.song(s).swing)
+        mu.song(s).half(h).two = Riff$(st, j, low, mu.song(s).swing)
+        mu.song(s).half(h).under = Riff$(br, j, 15, mu.song(s).swing)
+        mu.song(s).half(h).third = Riff$(mid, j, 27, mu.song(s).swing)
     next
 end sub
 
 ' Half a bar of slot s's drums, `loud` eighths as loud: each of x's letters its drum, any other a rest.
 function Beat$ (mu as Deck, s as integer, x as string, loud as integer)
-    dim q as integer, n as integer, d as string
+    dim q as integer, n as integer, d as string, ln as string
     for q = 1 to 8
         n = instr(mu.song(s).drLet, mid$(x, q, 1)) - 1
+        ' a swung song's sixteenths: a beat's first two a twelfth each, its last two a twenty-fourth
+        ln = "16"
+        if mu.song(s).swing then ln = Triplet$(Swung%(q, q))
         if n < 0 then
-            d = d + "P16"
+            d = d + "P" + ln
         else
+            if mu.song(s).swing then d = d + "L" + ln
             d = d + mu.song(s).drPatch(n) + Vol$(mu.song(s).drVol(n), loud, mu.song(s).drUp(n)) + mu.song(s).drNote(n)
         end if
     next
@@ -197,8 +203,57 @@ private function Vol$ (level as integer, loud as integer, up as integer)
     Vol$ = "V" + ltrim$(str$((level * loud + up) \ 8))
 end function
 
-' Half h of a bar's riff as PLAY's notes, its lowest note `low`: at most eight, as the drums' always are.
-private function Riff$ (p as string, h as integer, low as integer)
+' A bar's sixteenths from its i-th to its j-th, swung, in twenty-fourths of a bar: a beat's first two are two
+' each and its last two one, so its off-beat eighth comes on the triplet's last.
+private function Swung% (i as integer, j as integer)
+    dim k as integer, n as integer
+    for k = i to j
+        n = n + 1
+        if ((k - 1) and 3) < 2 then n = n + 1
+    next
+    Swung% = n
+end function
+
+' PLAY's length for n twenty-fourths of a bar, of those one length says.
+private function Triplet$ (n as integer)
+    select case n
+    case 1: Triplet$ = "24"
+    case 2: Triplet$ = "12"
+    case 3: Triplet$ = "8"
+    case 4: Triplet$ = "6"
+    case 6: Triplet$ = "4"
+    case 8: Triplet$ = "3"
+    case 9: Triplet$ = "4."
+    case else: Triplet$ = "2"
+    end select
+end function
+
+' A swung note, a rest where it is 0, n twenty-fourths of a bar long; slid: into from the note before. A length
+' no one PLAY length says is the next shorter, then a rest.
+private function Shuffle$ (note as integer, slid as integer, n as integer)
+    dim cut as integer, ln as string, dot as string
+    select case n
+    case 5, 7, 10: cut = 1
+    case 11: cut = 2
+    end select
+    ln = Triplet$(n - cut)
+    if right$(ln, 1) = "." then
+        dot = "."
+        ln = left$(ln, len(ln) - 1)
+    end if
+    if note then
+        ln = "L" + ln + "N" + ltrim$(str$(note)) + dot
+    else
+        ln = "P" + ln + dot
+    end if
+    if note > 0 and slid then ln = "K6" + ln + "K0"
+    if cut then ln = ln + "P" + Triplet$(cut)
+    Shuffle$ = ln
+end function
+
+' Half h of a bar's riff as PLAY's notes, its lowest note `low`: at most eight, as the drums' always are. swing:
+' its sixteenths swung.
+private function Riff$ (p as string, h as integer, low as integer, swing as integer)
     dim i as integer, j as integer, r as integer, last as integer, note as integer
     dim c as string, s as string, ln as string
     if len(p) < 16 then
@@ -228,6 +283,10 @@ private function Riff$ (p as string, h as integer, low as integer)
             loop
         end if
         i = i + r
+        if swing then
+            s = s + Shuffle$(note, c <> lcase$(c), Swung%(i - r, i - 1))
+            continue do
+        end if
         ' five and seven sixteenths: four and six, then a rest
         j = 0
         if r = 5 or r = 7 then

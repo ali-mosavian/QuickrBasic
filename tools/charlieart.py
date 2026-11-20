@@ -5118,7 +5118,7 @@ def sound(n: int, s: list[int | str]) -> None:
 
     order, voicing = texts(2)
     bars = int(next(it))
-    for _ in range(12):
+    for _ in range(13):
         next(it)
     patches = texts(4)
     voices, drums, notes = [], [], []
