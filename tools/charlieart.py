@@ -4314,6 +4314,28 @@ def bramble(cut: bool) -> Pic:
     return p.outline(WOODINK)
 
 
+def hollowlog() -> Pic:
+    """A hollow log lying along the ground, wide enough for him curled, its near end open, moss along its top."""
+    p = Pic(64, 32)
+    for x in range(10, 62):
+        for d in range(28):
+            if x > 59 and d in (0, 27):
+                continue
+            mossy = x % 11 < 7 and x > 18
+            tone = (MOSS[d] if mossy else OAKBARK[d]) if d < 2 else OAKBARK[1 if d < 9 else 2 if d < 21 else 3]
+            if d in (8, 14, 20) and (x * 3) % 17 > 4:
+                tone = OAKBARK[4]
+            if mossy and d == 2 and x % 5 == 0:
+                tone = MOSS[1]
+            p.put(x, 2 + d, tone)
+    for y in range(1, 31):  # its open end: a ring of pale wood round the dark
+        for x in range(1, 19):
+            d = ((x - 9.5) / 8.5) ** 2 + ((y - 15.5) / 14.5) ** 2
+            if d <= 1:
+                p.put(x, y, WOODINK if d < 0.5 else OAKBARK[3] if d < 0.64 else OAKBARK[0])
+    return p.outline(WOODINK)
+
+
 def pomball() -> Pic:
     """The Pomchi's ball: red, a white band round it."""
     p = Pic(14, 14)
@@ -4347,6 +4369,7 @@ def russet() -> list[tuple[int, Pic, bool, int]]:
         (z + 1220, sapling(True), True, -1),
         (z + 1222, bramble(False), True, -1),
         (z + 1224, bramble(True), True, -1),
+        (z + 1226, hollowlog(), True, -1),
     ]
     return out
 

@@ -1477,6 +1477,59 @@ for m = 0 to 2
     was = was and wd.lv.ob(c).s = 0 and colB(0) <> 125 and colB(1) = 125
 next
 if was then print "bramble ok"
+' a hollow log stops him on foot at its end, and a jump clears it, as does a throw over it; curled he is shot
+' through it and leaves it at LOGV, none of his fur seen while he is in it
+for c = 0 to wd.lv.nObj - 1
+    if wd.lv.ob(c).k = KLOG then exit for
+next
+was = c < wd.lv.nObj
+p.inv = 0
+p.stun = 0
+' the bones the bramble knocked loose are white as he is: gone before his fur is looked for
+for i = 0 to NLOOSE - 1
+    lo(i).t = 0
+next
+wd.se.looseN = 0
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 60, 0
+k.r = -1
+for i = 1 to 90
+    Tick wd, g, p, k, lo(), pt()
+next
+was = was and abs(p.x - (wd.lv.ob(c).x - LOGR)) < 2 and p.ground
+k.hit = -1
+for i = 1 to 90
+    Tick wd, g, p, k, lo(), pt()
+    k.hit = 0
+    if p.ground and p.x > wd.lv.ob(c).x + LOGR then exit for
+next
+was = was and p.ground and p.x > wd.lv.ob(c).x + LOGR
+k.r = 0
+' thrown over it uncurled he is not stopped in the air
+p.ground = 0
+p.roll = 0
+p.x = wd.lv.ob(c).x - LOGR - 20
+p.y = wd.lv.ob(c).y - LOGH - 40
+p.vx = 200
+p.vy = -150
+for i = 1 to 20
+    Tick wd, g, p, k, lo(), pt()
+next
+was = was and p.x > wd.lv.ob(c).x
+Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 60, 200
+p.roll = -1
+colA(0) = 0
+colA(1) = 0
+for i = 1 to 90
+    Tick wd, g, p, k, lo(), pt()
+    if p.x > wd.lv.ob(c).x + LOGR + 2 then exit for
+    if abs(p.x - wd.lv.ob(c).x) >= 8 then continue for
+    g.shake = 0
+    Render wd, g, p, lo(), pt()
+    colA(0) = Fur%(cint(p.x) - int(g.camx), 14, cint(p.y) - 26 - int(g.camy), cint(p.y) - int(g.camy))
+    colA(1) = 1
+next
+was = was and colA(1) = 1 and colA(0) = 0 and p.x > wd.lv.ob(c).x + LOGR and p.roll
+if was and abs(p.gsp - LOGV) < 30 then print "log ok"
 ' the pass's bare ice keeps his speed and will not give it back: let go at a run he slides on where snow stops
 ' him, held back he is long in stopping, and from a stand he is slow away; it is drawn bare, the snow's white gone
 GoStage wd, 6, g, p, lo(), pt()
@@ -2796,6 +2849,7 @@ def main() -> None:
         ("sapling ok", "a bowed sapling throws him who crosses its crown, higher the faster; sprung it throws no one"),
         ("vine ok", "a vine caught in the air swings him as a weight, lets go at a jump, and hangs straight again"),
         ("bramble ok", "bramble hurts on foot, is cut by a roll with his bones kept, and grows back to hurt again"),
+        ("log ok", "a hollow log stops him on foot, is jumped, and shoots him through it curled, out of sight"),
         ("ice ok", "bare ice keeps his speed: a long slide, a long stop, a slow start; drawn bare of snow"),
         ("sled ok", "a sled is boarded, follows the slope, has no brake, keeps him through a hop, ends in deep snow"),
         ("geyser ok", "in the pass a jet is a geyser, the pass's water: it throws him up as it blows"),

@@ -306,8 +306,8 @@ const IFROST = IWALL + 4, IDUNKED = IFROST + 10
 const IFAM = IDUNKED + 2, NFAM = 5, FAMF = 9, FAMSTEP = 36, IBARON = IFAM + NFAM * FAMF * 2
 ' The pass's load of snow on its ledge, and down in a heap.
 const ILOAD = IBARON + 12, IHEAP = ILOAD + 2
-' The wood's keepsake, the Pomchi's ball; a sapling bowed, and sprung; bramble grown, and cut.
-const IBALL = IHEAP + 2, ISAPLING = IBALL + 2, IBRAMBLE = ISAPLING + 4, NIMG = IBRAMBLE + 4
+' The wood's keepsake, the Pomchi's ball; a sapling bowed, and sprung; bramble grown, and cut; a hollow log.
+const IBALL = IHEAP + 2, ISAPLING = IBALL + 2, IBRAMBLE = ISAPLING + 4, ILOG = IBRAMBLE + 4, NIMG = ILOG + 2
 ' The wood's night: its fireflies' two colours, never dimmed; the steps a bark's light lasts, the last of them
 ' fading; the parts its light is counted in; the fireflies awake, and at rest.
 const CFLY = 163, GLOWT = 300, GLOWFADE = 60, GLOWN = 8, NFLY = 18, FLYREST = 5
@@ -319,6 +319,8 @@ const KSAPLING = 38, SAPREACH = 38, SAPV = 280!, SAPGAIN = .8, SAPMAX = 700!, SA
 const KVINE = 39, VINELEN = 56, VINEGRIP = 14, VINEHOP = 150!, VINEWAIT = .4, CVINE = 147, CVINED = 156
 ' Bramble: how near hurts; the things' steps till it has grown back; its leaves' colour.
 const KBRAMBLE = 50, BRAMBLER = 16, BRAMBLET = 90, CLEAF = 135
+' A hollow log: half its length, its height, and the speed he is shot through it curled.
+const KLOG = 51, LOGR = 32, LOGH = 30, LOGV = 520!
 const HUDW = 108, HUDH = 40
 ' The levels: a zone's two acts, the second at another hour in other colours, zone by zone.
 ' the stages played, and after them the intro's road
@@ -615,7 +617,8 @@ declare sub MeetSapling (lv as Level, mu as Deck, se as Session, p as Hero, i as
 declare sub MeetVine (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
 declare sub MeetBramble (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, lo() as Loose)
 declare sub Regrow (lv as Level, se as Session, pt() as Part, i as integer)
-declare sub PilotBramble (lv as Level, p as Hero, k as Pad, want as integer)
+declare sub PilotCurl (lv as Level, p as Hero, k as Pad, want as integer)
+declare sub MeetLog (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
 declare sub Hang (lv as Level, mu as Deck, se as Session, p as Hero, hit as integer)
 declare sub DrawVine (x as integer, y as integer, a as single)
 declare sub MeetBoost (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i as integer, pt() as Part)
@@ -1511,6 +1514,7 @@ sub LoadLevel (wd as World, st as integer)
         case "spring": k = KSPRING
         case "sapling": k = KSAPLING
         case "bramble": k = KBRAMBLE
+        case "log": k = KLOG
         case "vine": AddObj wd.lv, KVINE, c * TS + 8, s - n * TS
         case "mark": k = KMARK
         case "boost": k = KBOOST
@@ -3359,20 +3363,21 @@ function PilotRun% (lv as Level, gr as Ground, zn as Realm, se as Session, p as 
     PilotGoat lv, p, k, want
     ' who flees is rolled into, once there is the speed to roll
     k.d = (zn.id = 0 or zn.id = 3) and lv.cart.st = 1 and lv.cart.x > x and lv.cart.x - x < 120 and p.gsp > 150
-    PilotBramble lv, p, k, want
+    PilotCurl lv, p, k, want
     PilotGaps lv, se, p, k, want
     PilotRun% = want
 end function
 
-' Grown bramble ahead, or about him: rolled through with the speed to roll, else jumped.
-sub PilotBramble (lv as Level, p as Hero, k as Pad, want as integer)
+' Grown bramble or a log ahead, or about him: rolled through with the speed to roll, else jumped.
+sub PilotCurl (lv as Level, p as Hero, k as Pad, want as integer)
     dim i as integer, x as integer, c as integer
     x = cint(p.x)
-    c = (x - 24) \ TS
+    c = (x - LOGR - 8) \ TS
     if c < 0 then c = 0
     for i = lv.first(c) to lv.nObj - 1
-        if lv.ob(i).x > x + 70 then exit for
-        if lv.ob(i).k <> KBRAMBLE or lv.ob(i).s > 0 or lv.ob(i).x < x - 20 then continue for
+        if lv.ob(i).x > x + 80 then exit for
+        if lv.ob(i).x < x - LOGR - 4 then continue for
+        if not ((lv.ob(i).k = KBRAMBLE and lv.ob(i).s = 0) or lv.ob(i).k = KLOG) then continue for
         if p.gsp > 150 then
             k.d = -1
         else
@@ -4009,6 +4014,7 @@ sub Touch (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as
         case KSAPLING: MeetSapling lv, mu, se, p, i
         case KVINE: MeetVine lv, mu, se, p, i
         case KBRAMBLE: MeetBramble lv, mu, se, g, p, i, lo()
+        case KLOG: MeetLog lv, mu, se, p, i
         case KBOOST: MeetBoost lv, mu, se, g, p, i, pt()
         case KFLUME, KSPOUT: MeetFlume lv, mu, se, p, i
         case KMARK: MeetMark lv, mu, se, g, p, i, pt()
@@ -4190,6 +4196,24 @@ sub MeetBramble (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, i
     end if
     lv.ob(i).s = BRAMBLET
     Sfx mu, se, SPOP
+end sub
+
+' A hollow log across the way: on foot he is stopped at its end; curled he is shot through it, out of sight, and
+' leaves it at LOGV. Its state: he is in it.
+sub MeetLog (lv as Level, mu as Deck, se as Session, p as Hero, i as integer)
+    dim s as integer
+    if abs(lv.ob(i).x - p.x) >= LOGR or p.y <= lv.ob(i).y - LOGH or p.y > lv.ob(i).y + 4 then
+        lv.ob(i).s = 0
+        exit sub
+    end if
+    if not p.roll then
+        Balk p, lv.ob(i).x, LOGR
+        exit sub
+    end if
+    if lv.ob(i).s = 0 then Sfx mu, se, SSPRING
+    lv.ob(i).s = 1
+    s = 1 + 2 * (p.gsp < 0)
+    if p.ground and p.gsp * s < LOGV then p.gsp = s * LOGV
 end sub
 
 ' Bramble's step: just cut, its leaves fly; cut, it grows back BRAMBLET steps on.
@@ -6385,7 +6409,8 @@ end sub
 
 ' Charlie, and streaks of wind behind it at speed; running on a slope, the
 ' frame turned to it.
-' What is nearer than Charlie: the near half of each ribbon's twist, which hides what runs behind it.
+' What is nearer than Charlie: the near half of each ribbon's twist, which hides what runs behind it, and a
+' hollow log.
 sub DrawOver (lv as Level, zn as Realm, art as Store, cx as integer, cy as integer)
     dim i as integer, c as integer, x as integer
     c = (cx - WAVEL) \ TS
@@ -6395,6 +6420,7 @@ sub DrawOver (lv as Level, zn as Realm, art as Store, cx as integer, cy as integ
         x = lv.ob(i).x - cx
         if x > SW then exit do
         if lv.ob(i).k = KWAVE2 then Blit art, x, lv.ob(i).y - cy - WAVEA - 22, zn.wave + 2, WAVEL, WAVEH
+        if lv.ob(i).k = KLOG then Blit art, x - LOGR, lv.ob(i).y - cy - 31, ILOG, 64, 32
         i = i + 1
     loop
 end sub
