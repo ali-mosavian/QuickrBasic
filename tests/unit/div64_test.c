@@ -2,10 +2,11 @@
 #include "lib/div64.h"
 #include "unit.h"
 
+/* div64_u's, the CPU's own here, and div64_by32's, i386's way. */
 static bool unsigned_ok(const uint64_t n, const uint64_t d)
 {
-    uint64_t r;
-    return !d || (div64_u(n, d, &r) == n / d && r == n % d);
+    uint64_t r, s;
+    return !d || (div64_u(n, d, &r) == n / d && r == n % d && div64_by32(n, d, &s) == n / d && s == n % d);
 }
 
 /* Past INT64_MIN / -1 the machine's own is undefined. */
