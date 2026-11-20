@@ -3333,6 +3333,41 @@ def deepsnow() -> Pic:
     return p.outline(FROSTINK)
 
 
+def geyservent() -> Pic:
+    """A geyser's mouth in the snow, where the works have a jet's: a rim of ice round a dark hole."""
+    p = Pic(16, 6)
+    p.box(1, 3, 14, 5, ICE[3])
+    p.box(3, 1, 12, 2, ICE[1])
+    p.box(3, 1, 12, 1, ICE[0])
+    p.box(6, 1, 9, 2, FROSTINK)
+    return p.outline(FROSTINK)
+
+
+def geyserjet(f: int) -> Pic:
+    """A geyser's column, frame f: water in pulses up it, darker at its edges, a head of spray, drops thrown off."""
+    p = Pic(12, 64)
+    for y in range(9, 64):
+        half = 4 if ((y + f * 3) // 6) % 2 else 3
+        for dx in range(-half, half + 1):
+            tone = ICE[3] if abs(dx) == half else SNOW[0] if dx < -1 else ICE[0] if dx < 2 else ICE[1]
+            p.put(5 + dx + (dx >= 0), y, tone)
+    for cx, cy, r in ((5.5, 6, 5.4), (2.5 + f, 9, 2.6), (9.5 - f, 10, 2.6), (5.5, 2 + f, 2.4)):
+        p.ball(cx, cy, r, r * 0.8, [ICE[3], ICE[1], ICE[0], SNOW[0]], 0.3, 1.1)
+    for x, y in ((0, 20), (11, 25), (0, 34), (11, 41), (0, 48)):
+        p.put(x, y + f * 4, ICE[1])
+    return p
+
+
+def snowball(f: int) -> Pic:
+    """The snowball Charlie is in, rolling: frame f, a crease in it gone half round."""
+    p = Pic(28, 28)
+    p.ball(13.5, 13.5, 13, 13, [SNOW[3], SNOW[2], SNOW[1], SNOW[0]], 0.35, 1.2)
+    for i in range(5):
+        a = math.pi * (0.25 + f + i * 0.09)
+        p.put(round(13.5 + 8 * math.cos(a)), round(13.5 - 8 * math.sin(a)), SNOW[3])
+    return p.outline(FROSTINK)
+
+
 def whitecap() -> list[tuple[int, Pic, bool, int]]:
     """Whitecap Pass's own pictures, at the indices the Downs' own have; its keepsake after the works' last."""
     k, z = 126, 625
@@ -3356,6 +3391,11 @@ def whitecap() -> list[tuple[int, Pic, bool, int]]:
         (k + 376, words("WHITECAP PASS", 178, 18, 1.53, 2.85), True, -1),
         (z + 1012, snapshot(), True, -1),
         (z + 1024, deepsnow(), True, -1),
+        (z + 1026, geyservent(), True, -1),
+        (z + 1028, geyserjet(0), True, -1),
+        (z + 1030, geyserjet(1), True, -1),
+        (z + 1032, snowball(0), True, -1),
+        (z + 1034, snowball(1), True, -1),
     ]
     # a sled as the ground lies: falling steeply to the right, gently, level, rising gently, steeply
     out += [(z + 1014 + (lean + 2) * 2, sledge(-lean), True, -1) for lean in range(-2, 3)]

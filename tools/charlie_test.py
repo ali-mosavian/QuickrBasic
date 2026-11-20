@@ -1313,6 +1313,74 @@ was = was and p.sled
 Hurt g, p, cint(p.x) + 10, lo(), SHURT
 Tick g, p, k, lo(), pt()
 if was and not p.sled and p.inv > 0 then print "sled ok"
+' in the pass a jet is a geyser: its column the pass's water and not the works' steam; who is over it while it
+' blows goes up, and stays down while it sleeps
+GoStage 6, g, p, lo(), pt()
+for c = 0 to NObj - 1
+    if ObK(c) = KJET then exit for
+next
+was = c < NObj
+for j = 0 to 1
+    do until (Ticks + ObX(c)) mod 180 = 10 + j * 90
+        Ticks = Ticks + 1
+    loop
+    Stand p, ObX(c), 0
+    p.vy = 0
+    Tick g, p, k, lo(), pt()
+    was = was and (not p.ground) = (j = 0)
+    g.camx = ObX(c) - 100
+    g.shake = 0
+    Render g, p, lo(), pt()
+    colA(j) = point(100, ObY(c) - 34 - int(g.camy))
+next
+if was and colA(0) >= 116 and colA(0) <= 126 and colA(1) <> colA(0) then print "geyser ok"
+' deep snow rolled through at speed packs round him, and not walked through nor rolled through slowly: a snowball,
+' none of him seen in it; it takes a hit for him, his bones kept, and flies apart; it lasts no longer than his roll
+GoStage 7, g, p, lo(), pt()
+for m = 0 to NObj - 1
+    if ObK(m) = KDRIFT then exit for
+next
+was = m < NObj
+' till the act's card is off the screen
+for i = 1 to 240
+    Tick g, p, k, lo(), pt()
+next
+for j = 0 to 2
+    Stand p, ObX(m) - 40, 200 - 140 * (j and 1)
+    if j then p.roll = -1
+    for i = 1 to 30
+        Tick g, p, k, lo(), pt()
+        if p.snow then exit for
+    next
+    was = was and (p.snow <> 0) = (j = 2)
+next
+g.shake = 0
+Render g, p, lo(), pt()
+c = cint(p.x) - int(g.camx)
+v = cint(p.y) - int(g.camy)
+was = was and Fur%(c, 14, v - 28, v) = 0 and point(c, v - 14) >= 116 and point(c, v - 14) <= 120
+' rolled on out of the snow, it is his still
+for i = 1 to 20
+    Tick g, p, k, lo(), pt()
+next
+was = was and p.snow < 0 and p.x > ObX(m) + 30
+g.bones = 5
+p.inv = 0
+Hurt g, p, cint(p.x) + 10, lo(), SHURT
+was = was and g.bones = 5 and p.inv > 0 and p.roll
+Tick g, p, k, lo(), pt()
+was = was and p.snow = 0
+p.inv = 0
+Stand p, ObX(m) - 40, 200
+p.roll = -1
+for i = 1 to 30
+    Tick g, p, k, lo(), pt()
+    if p.snow then exit for
+next
+was = was and p.snow <> 0
+p.roll = 0
+Tick g, p, k, lo(), pt()
+if was and p.snow = 0 then print "snowball ok"
 ' a crab pinches at its side, a rolling Charlie too; down on its back he goes up off it unhurt and it ducks into
 ' its shell, and comes out again
 GoStage 4, g, p, lo(), pt()
@@ -1979,6 +2047,8 @@ def main() -> None:
         ("pass ok", "Whitecap Pass, the fourth zone: its snow white on a clear morning, not at dusk"),
         ("ice ok", "bare ice keeps his speed: a long slide, a long stop, a slow start; drawn bare of snow"),
         ("sled ok", "a sled is boarded, follows the slope, has no brake, keeps him through a hop, ends in deep snow"),
+        ("geyser ok", "in the pass a jet is a geyser, the pass's water: it throws him up as it blows"),
+        ("snowball ok", "deep snow rolled through fast makes him a snowball: it takes one hit, and ends with the roll"),
         ("crab ok", "a crab pinches at its side and is a step from above; barked into its shell, a higher one"),
         ("jelly ok", "a jellyfish afloat or aground: a high bounce off its bell, a sting for feet in it only"),
         ("dazed ok", "a Charlie hurt into the sea paddles again"),

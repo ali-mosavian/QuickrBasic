@@ -44,6 +44,7 @@ type Hero
     swim as integer
     wet as single
     sled as integer
+    snow as integer
 end type
 
 ' The game's time against the screen's frames: lag, the time not yet stepped; span, a frame's length as learnt; late,
@@ -191,6 +192,8 @@ const KPRESS = 32, KLEG = 33, KSWEEP = 43, KSPARK = 44, SPARKR = 40, SPARKP = 15
 ' The pass's own: deep snow, and a sled. Boarded, a sled goes off at SLEDV at the least; the snow's friction on
 ' it is SLEDGRIP of a roll's; Charlie stands SLEDH over the ground on it.
 const KDRIFT = 34, KSLED = 45, SLEDV = 120!, SLEDGRIP = .3, SLEDH = 5
+' Rolled through at SNOWV or faster, deep snow packs round him.
+const SNOWV = 100!
 const PRESSH = 112, PRESSUP = 68, PRESSP = 180, PRESSFALL = 90, PRESSRISE = 130, PRESSLAG = 4
 ' From KFRONT on: drawn over the ground. The sands' flume: a column of its fall, its level end, the tank at its
 ' head; the speed its water carries Charlie at.
@@ -242,7 +245,10 @@ const IFLUME = ITEDDY + 2, ISPOUT = IFLUME + 8, IRUNNEL = ISPOUT + 8, ICISTERN =
 const ISWEEP = ICISTERN + 2, ISPARK = ISWEEP + 8, ISRAIL = ISPARK + 6, IPRESS = ISRAIL + 2
 ' The pass's keepsake, the fair one's camera.
 ' A sled as the ground lies, from a steep fall to the right to a steep rise; deep snow.
-const ICAMERA = IPRESS + 6, ISLED = ICAMERA + 2, IDRIFT = ISLED + 10, NIMG = IDRIFT + 2
+const ICAMERA = IPRESS + 6, ISLED = ICAMERA + 2, IDRIFT = ISLED + 10
+' A geyser, where the works have a jet: its mouth, its column at two beats.
+' The snowball he is in, at two turns.
+const IGEYSER = IDRIFT + 2, ISNOWBALL = IGEYSER + 6, NIMG = ISNOWBALL + 4
 const HUDW = 108, HUDH = 40
 ' The levels: a zone's two acts, the second at another hour in other colours, zone by zone.
 ' the stages played, and after them the intro's road
@@ -393,6 +399,7 @@ declare sub MeetPress (g as Game, p as Hero, i as integer, lo() as Loose)
 declare sub Beaten (g as Game, pt() as Part, i as integer, dy as integer)
 declare function Lit% (i as integer)
 declare function Slick% (p as Hero)
+declare sub Weed (x as integer)
 declare sub Board (p as Hero, i as integer)
 declare sub Alight (p as Hero, pt() as Part, c as integer)
 declare function PressT% (i as integer)
@@ -500,7 +507,7 @@ declare function Num$ (v as long, w as integer)
 dim shared Map(MW - 1, MH - 1) as integer, Prof(7, TS - 1) as integer
 dim shared ColTop(MW) as integer, ColVis(MW) as integer, FaceL(MW) as integer, FaceR(MW) as integer
 ' The pass's bare ice: the columns glazed, and whether those the level lays now are.
-dim shared Glaze(MW) as integer, Icing as integer
+dim shared Glaze(MW) as integer, Icing as integer, Fallow as integer
 ' The ground's line, what Charlie runs on: points GX, GY, GN of them; from each to the next a stretch of kind GK (0
 ' none, 1 the tiles' top, 2 a curve), GL long, GU, GV a pixel along it, its rise GA. ColSeg: a column's stretch;
 ' PlatA: the platforms' first. A curve z: stretches ZA to ZB, from ZM on a loop's far half, between x ZL and ZR.
@@ -861,6 +868,7 @@ sub LoadLevel (st as integer)
     erase Map
     erase Glaze
     Icing = 0
+    Fallow = 0
     NObj = 0
     NMv = 0
     NGulls = 0
@@ -911,9 +919,7 @@ sub LoadLevel (st as integer)
         case "flume"
             ' a 45 degree fall of n and a flume down it, from the tank at its head to its level end a column on;
             ' nothing grows by the tank
-            for i = 0 to NObj - 1
-                if ObK(i) >= KTREE and ObK(i) <= KLAMP and ObX(i) > c * TS - 44 then ObK(i) = 0
-            next
+            Weed c * TS - 44
             AddObj KCISTERN, c * TS, s
             for i = 1 to n
                 g = g - 1
@@ -1092,6 +1098,9 @@ sub LoadLevel (st as integer)
         case "thorn"
             k = KTHORN
         case "jet"
+            ' nothing grows at its mouth, to hide it
+            Weed c * TS - 28
+            Fallow = c + 3
             k = KJET
         case "spin"
             k = KSPIN
@@ -1497,9 +1506,17 @@ function SegAt% (x as integer, y as single)
     next
 end function
 
-' Flowers, bushes and lantern plants along the flats, by the column.
+' What grows past x is pulled up.
+sub Weed (x as integer)
+    dim i as integer
+    for i = 0 to NObj - 1
+        if ObK(i) >= KTREE and ObK(i) <= KLAMP and ObX(i) > x then ObK(i) = 0
+    next
+end sub
+
+' Flowers, bushes and lantern plants along the flats, by the column; none before column Fallow.
 sub Scatter (c as integer, s as integer)
-    if c < 8 then exit sub
+    if c < 8 or c < Fallow then exit sub
     if Decked then
         ' lamp posts, tanks and valve stacks along the decks
         select case (c * 37 + 11) mod 23
@@ -3014,6 +3031,13 @@ end sub
 sub MoveHero (p as Hero, k as Pad, pt() as Part)
     dim l as integer, r as integer, d as integer, hit as integer, hold as integer
     dim v as single
+    ' a snowball lasts as long as its roll; broken, by a hit or his uncurling, it flies apart
+    if p.snow < 0 and not p.roll then p.snow = 1
+    if p.snow > 0 then
+        p.snow = 0
+        Burst pt(), p.x, p.y - 12, 12, 140, CWHITE
+        Sfx SPOP
+    end if
     ' a ride lasts as long as its roll: come to a stand, hurt or thrown, the sled is left in pieces
     if p.sled and not p.roll then Alight p, pt(), CEARTH + 4
     ' a jump held through the hit is a jump as it ends: it was forgotten
@@ -3360,11 +3384,18 @@ sub Touch (g as Game, p as Hero, lo() as Loose, pt() as Part)
             d = p.ground or p.vy > 0
             if ObS(i) = 0 and not p.sled and not p.stun and d and dx < 14 and abs(py - ObY(i) + 5) < 10 then Board p, i
         case KDRIFT
-            ' deep snow stops a sled dead: he tumbles out of it
-            if p.sled and p.ground and dx < 22 and abs(py - ObY(i)) < 8 then
-                Alight p, pt(), CWHITE
-                p.roll = 0
-                p.gsp = p.gsp * .25
+            if p.ground and dx < 22 and abs(py - ObY(i)) < 8 then
+                if p.sled then
+                    ' deep snow stops a sled dead: he tumbles out of it
+                    Alight p, pt(), CWHITE
+                    p.roll = 0
+                    p.gsp = p.gsp * .25
+                elseif p.roll and p.snow = 0 and abs(p.gsp) >= SNOWV then
+                    ' rolled through, it packs round him
+                    p.snow = -1
+                    Burst pt(), p.x, p.y - 8, 8, 100, CWHITE
+                    Sfx SROLL
+                end if
             end if
         case KSPARK
             if Lit%(i) and dx < 11 and py > ObY(i) - 24 and py - 26 < ObY(i) then Hurt g, p, x, lo(), SHISS
@@ -3480,6 +3511,12 @@ end sub
 sub Hurt (g as Game, p as Hero, fromX as integer, lo() as Loose, snd as integer)
     dim i as integer, n as integer, a as single, v as single
     if p.inv > 0 then exit sub
+    ' a snowball takes the hit for him
+    if p.snow < 0 then
+        p.snow = 1
+        p.inv = 1
+        exit sub
+    end if
     if snd = SHISS then Sfx snd
     if g.bones = 0 then
         Lose p
@@ -4877,8 +4914,11 @@ sub DrawThings (cx as integer, cy as integer, back as integer)
             case KLAMP
                 Blit x - 10, y - 42, ILAMP, 20, 44
             case KJET
-                Blit x - 8, y - 6, IJET, 16, 6
-                if (Ticks + ObX(i)) mod 180 < 80 then Blit x - 6, y - 70, IJET + 2 + ((Ticks \ 3) and 1) * 2, 12, 64
+                ' in the pass a geyser
+                k = IJET
+                if Zone = 3 then k = IGEYSER
+                Blit x - 8, y - 6, k, 16, 6
+                if (Ticks + ObX(i)) mod 180 < 80 then Blit x - 6, y - 70, k + 2 + ((Ticks \ 3) and 1) * 2, 12, 64
             case KBUMP
                 Blit x - 12, y - 12, IBUMP - 2 * (ObS(i) > 0), 24, 24
             case KBUOY
@@ -5102,6 +5142,11 @@ sub DrawHero (p as Hero, cx as integer, cy as integer)
         if p.ground and f >= FBALL and f < FBALL + 4 then
             x = x + cint(13 * hv)
             y = y + 13 - cint(13 * hu)
+        end if
+        ' in a snowball, none of him shows
+        if p.snow < 0 and f >= FBALL and f < FBALL + 4 then
+            Blit x - 14, y - 28, ISNOWBALL + (int(p.anim) and 1) * 2, 28, 28
+            exit sub
         end if
         ' afraid, it shakes
         if f = FHURT or f = FSHIVER then x = x + ((Ticks \ 2) and 1) * 2 - 1
