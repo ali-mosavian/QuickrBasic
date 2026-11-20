@@ -124,7 +124,7 @@ Addr arry_new(Arry *ay, uint16_t id, uint8_t n, bool dyn);
 /* The data's bytes of the array with header hdr. */
 uint32_t arry_size(const Arry *ay, Addr hdr);
 /* Header h's array dead, ours, and the arrays its records hold: arry_sweep removes them. A frame's
-   is not the heap's: it goes with the frame. */
+   is not the heap's: it goes with the frame, its records' arrays here. */
 void arry_kill(const Arry *ay, Addr h);
 /* The arrays the records of header h's array hold dead, ours; the array itself kept. */
 void arry_kill_elems(const Arry *ay, Addr h);

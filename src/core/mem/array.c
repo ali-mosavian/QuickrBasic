@@ -126,6 +126,15 @@ uint32_t arry_frame_hdr(const uint8_t dims) { return (arry_hdr_size(dims) + 7) &
 
 static_assert(ARRY_FRAME_HDR1 == ((sizeof(ArrayHdr) + 2 * sizeof(uint32_t) + 7) & ~7u));
 
+/* Header h's records' array fields empty, ours. */
+static void arry_empty_recs(const Arry *const ay, const Addr h)
+{
+    const ArrayHdr *const a = arry_hdr_at(h);
+
+    if (a->et >= ET_REC)
+        arry_empty_cells(a->data, arry_elem_count(a), decl_type(ay->decl, a->et - ET_REC));
+}
+
 bool arry_heap(const Arry *const ay, const Addr h)
 {
     return h >= ay->allo->hdr_base && h < ay->hdr;
@@ -155,6 +164,7 @@ static bool arry_in_frame(Arry *const ay, const uint16_t id, const uint8_t n)
     memcpy(&a->count[0], ay->counts, n * sizeof ay->counts[0]);
     memcpy(&a->count[n], ay->lbounds, n * sizeof ay->lbounds[0]);
     *arry_slot(ay, id) = (ArrSlot){h, false};
+    arry_empty_recs(ay, h);
 
     return true;
 }
@@ -259,13 +269,7 @@ Addr arry_make(Arry *const ay, ArrSlot *const s, const uint8_t et, const uint8_t
     memcpy(&a->count[n], ay->lbounds, n * sizeof ay->lbounds[0]);
     ay->hdr = h + arry_hdr_size(n);
     *s = (ArrSlot){h, dyn};
-
-    if (et >= ET_REC) /* its records' array fields empty, ours */
-        arry_empty_cells(
-            data,
-            (uint32_t)(size / arry_et_size(ay->decl, et)),
-            decl_type(ay->decl, et - ET_REC)
-        );
+    arry_empty_recs(ay, h);
 
     return h;
 }
@@ -398,10 +402,11 @@ void arry_kill_elems(const Arry *const ay, const Addr h)
 
 void arry_kill(const Arry *const ay, const Addr h)
 {
-    if (!h || !arry_heap(ay, h)) /* a frame's goes with the frame */
+    if (!h)
         return;
+    if (arry_heap(ay, h)) /* a frame's goes with the frame, its records' arrays do not */
+        arry_hdr_at(h)->owner = 0;
 
-    arry_hdr_at(h)->owner = 0;
     arry_kill_elems(ay, h);
 }
 

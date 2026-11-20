@@ -1090,6 +1090,25 @@ CASES |= {
                                " for i = 1 to n: redim mk.kids(i).pts(1 to 3): mk.kids(i).title = str$(i): next",
                                "end function"),
                            " 0 -1 \r\n", "ERROR"),
+    # A local record array kept in its frame: its records' arrays were never freed, 176616 bytes in 198 calls.
+    "field_dynamic_frame_free": (bas(*MESH, "declare sub frame (n as integer)",
+                                     "for k = 1 to 200", " frame 5", " if k = 2 then f0& = fre(-1)", "next",
+                                     "print f0& - fre(-1)", "end", "sub frame (n as integer)", " dim rs(2) as Mesh",
+                                     " redim rs(1).pts(1 to 100): rs(1).pts(n).x = n",
+                                     ' redim rs(2).tags(n): rs(2).tags(n) = string$(50, "t")', "end sub"),
+                                 " 0 \r\n", "ERROR"),
+    # Its array fields were not empty: UBOUND made one of 10, as an undeclared array's.
+    "field_dynamic_frame_empty": (bas(*MESH, "declare sub frame ()", "frame", "end", "sub frame",
+                                      " dim q(2) as Mesh", " print ubound(q(0).pts)", "end sub"),
+                                  "Subscript out of range in line", None),
+    # A returned call's leaked array, its owner cell in the frame gone: compaction wrote it into the
+    # next call's record there, which then held the dead call's 7 elements.
+    "field_dynamic_frame_dead": (bas(*MESH, "declare sub t ()", "declare sub u ()", "dim shared early() as long",
+                                     "redim early(1000)", "on error goto h", "t", "u", "end", OV, "sub t",
+                                     " dim rs(2) as Mesh", " redim rs(0).pts(7): rs(0).pts(3).x = 33", "end sub",
+                                     "sub u", " dim q(2) as Mesh", " erase early", " print ubound(q(0).pts)",
+                                     "end sub"),
+                                 "ov 9 \r\n", "ERROR"),
     # Records that own arrays and strings, moved by REDIMs around them 1000 times and more.
     "field_dynamic_moves": (bas("type Cell", " v as long", " xs() as long", " s as string", "end type",
                                 "dim rs() as Cell, junk() as long, last(1 to 20) as long", "redim rs(1 to 20)",
