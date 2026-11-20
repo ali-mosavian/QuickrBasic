@@ -1013,6 +1013,33 @@ for i = m to NMv - 1
     if MvK(i) = 6 and GY(MvS(i)) > MvY(i) + 200 then j = j + 1
 next
 if was and j = spans then print "pier ok"
+' the sands' flume: walked onto, Charlie is swept down it curled, no slower than its water runs, and thrown from
+' its end over the pool; its trough is drawn over the ground, the planks under the ground's line as dark as its
+' end's cap over it. A slope took him at his own pace
+GoStage 4, g, p, lo(), pt()
+for j = 0 to NObj - 1
+    if ObK(j) = KCISTERN then exit for
+next
+was = j < NObj
+Stand p, ObX(j) - 30, 80
+k.r = -1
+v = 0
+for i = 1 to 200
+    Tick g, p, k, lo(), pt()
+    if p.ground and p.x > ObX(j) + 30 and p.x < ObX(j) + 70 then
+        v = v + 1
+        if p.gsp < FLUMEV or not p.roll then was = 0
+    end if
+    if not p.ground and p.x > ObX(j) + 96 then exit for
+next
+k.r = 0
+was = was and v > 2 and i < 60 and p.vx >= FLUMEV
+g.camx = ObX(j) - 100
+g.shake = 0
+Render g, p, lo(), pt()
+c = 100
+m = ObY(j) - int(g.camy)
+if was and point(c + 40, m + 42) = point(c + 95, m + 77) and At(ICISTERN) > 0 then print "flume ok"
 ' a crab pinches at its side, a rolling Charlie too; down on its back he goes up off it unhurt and it ducks into
 ' its shell, and comes out again
 GoStage 4, g, p, lo(), pt()
@@ -1639,6 +1666,7 @@ def main() -> None:
         ("shore ok", "no water of the sands is a trap: its far bank a hop over high water, or waded at low"),
         ("boat ok", "a boat aground and still at low water, afloat and adrift at high, Charlie aboard up with it"),
         ("pier ok", "the old pier's spans totter and fall once trodden, hold under a run, and are back at a restart"),
+        ("flume ok", "a flume sweeps Charlie down it curled and throws him from its end; drawn over the ground"),
         ("crab ok", "a crab pinches at its side and is a step from above; barked into its shell, a higher one"),
         ("jelly ok", "a jellyfish afloat or aground: a high bounce off its bell, a sting for feet in it only"),
         ("dazed ok", "a Charlie hurt into the sea paddles again"),

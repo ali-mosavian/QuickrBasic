@@ -2778,6 +2778,62 @@ def teddy() -> Pic:
     return p.outline(SEAINK)
 
 
+def trough(p: Pic, x: int, y: int, f: int, batten: bool) -> None:
+    """A column of a flume at x, the ground's line at y: its water over its near wall, planks and a coral band; the
+    water's flecks 2 further on a frame, round every 8."""
+    wall = (PLANK[0], PLANK[1], PLANK[1], CORAL[2], CORAL[3], PLANK[2], PLANK[2], PLANK[3], PLANK[4])
+    for d, tone in enumerate(LAGOON[:4]):
+        p.put(x, y - 8 + d, tone)
+    if (x - f * 2) % 8 < 3:
+        p.put(x, y - 7, WHITE)
+    for d, tone in enumerate(wall):
+        p.put(x, y - 4 + d, PLANK[4] if batten else tone)
+
+
+def sluice(f: int) -> Pic:
+    """A flume's fall over one column, a tile down: where a slope's tile is, 8 over it."""
+    p = Pic(16, 29)
+    for x in range(16):
+        trough(p, x, x + 8, f, x == 8)
+    return p
+
+
+def spout(f: int) -> Pic:
+    """A flume's level end over its last column, capped."""
+    p = Pic(16, 13)
+    for x in range(16):
+        trough(p, x, 8, f, x in (8, 15))
+    return p
+
+
+def runnel(f: int) -> Pic:
+    """A length of the water that falls from a flume's end, 8 down."""
+    p = Pic(5, 8)
+    for y in range(8):
+        for x in range(5):
+            fleck = x in (1, 2, 3) and (x * 2 + y - f * 2) % 8 < 3
+            p.put(x, y, WHITE if fleck else LAGOON[1] if x in (0, 4) else LAGOON[2])
+    return p
+
+
+def cistern() -> Pic:
+    """A flume's head: the tank that fills it, on legs, and the first of its trough."""
+    p = Pic(30, 30)
+    p.box(3, 4, 18, 19, PLANK[2])
+    p.box(3, 4, 18, 5, PLANK[0])
+    for x in (7, 11, 15):
+        p.box(x, 6, x, 19, PLANK[3])
+    p.box(2, 9, 19, 10, CORAL[3])
+    p.box(2, 15, 19, 16, CORAL[3])
+    p.box(4, 2, 17, 3, LAGOON[2])
+    for x in (4, 17):
+        p.box(x, 20, x + 1, 25, PLANK[4])
+    p.outline(SEAINK)
+    for x in range(24, 30):
+        trough(p, x, 25, 0, x == 24)
+    return p
+
+
 def lifepost() -> Pic:
     """A post with a life ring where the Downs have a lantern plant."""
     p = Pic(20, 44)
@@ -2826,6 +2882,10 @@ def sands() -> list[tuple[int, Pic, bool, int]]:
     out += [(z + 950 + f * 2, gull(f), True, z + 954 + f * 2) for f in range(2)]
     out += [(z + 958 + h * 2, pedalo(bool(h)), True, -1) for h in range(2)]
     out.append((z + 962, teddy(), True, -1))
+    out += [(z + 964 + f * 2, sluice(f), True, -1) for f in range(4)]
+    out += [(z + 972 + f * 2, spout(f), True, -1) for f in range(4)]
+    out += [(z + 980 + f * 2, runnel(f), True, -1) for f in range(4)]
+    out.append((z + 988, cistern(), True, -1))
     out += [
         (k + 36, brolly(), True, -1),
         (k + 38, marram(), True, -1),

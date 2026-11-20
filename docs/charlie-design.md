@@ -117,8 +117,9 @@ Progress is saved at each zone.
   and wet till a roll; both levels, with tide pools, a low road under a jetty, and boats adrift in pools,
   afloat on the tide and aground at low water; the old pier at noon, a span falling once trodden; buoys that
   bump, deckchairs for springs; crabs, a step when barked into their shells; jellyfish, afloat or stranded;
-  gulls, which drop the bones they took at a bark; its chase, Kipper's pedal boat up and down a sea channel,
-  sunk by three landings on its deck; its tune, and the sunset's arrangement of it. To add: flumes.
+  gulls, which drop the bones they took at a bark; flumes, which sweep him down a bank and throw him over a pool;
+  its chase, Kipper's pedal boat up and down a sea channel, sunk by three landings on its deck; its tune, and
+  the sunset's arrangement of it.
 - Rule: the tide. Water rises and falls on a clock, and roads open and close with it. Charlie paddles on the
   surface, slow, and stays slow out of it until a roll shakes him dry.
 - Gadgets: boats, flumes that end in water, deckchair springs, buoys that bump.

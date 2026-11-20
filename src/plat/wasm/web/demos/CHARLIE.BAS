@@ -180,6 +180,9 @@ const KMOVE = 17, KPOST = 18, KTANK = 19, KVENT = 20, KJET = 21, KBUMP = 22, KSP
 const CABLED = 64, CABLEH = 44, KBUTTON = 27, KCRAB = 28, KJELLY = 29, KBUOY = 30
 ' A span of the sands' old pier: the seconds it totters once trodden, and how far it falls.
 const KSPAN = 31, SPANT = .25, SPANDROP = 400
+' From KFRONT on: drawn over the ground. The sands' flume: a column of its fall, its level end, the tank at its
+' head; the speed its water carries Charlie at.
+const KFRONT = 40, KFLUME = 40, KSPOUT = 41, KCISTERN = 42, FLUMEV = 460!
 const KWAVE = 25, KWAVE2 = 26, WAVEA = 96, WAVEH = WAVEA + 36, WAVEL = 192
 const JETV = 500!, BUMPV = 400!, HOOPV = 640!, SPINR = 30, SPINH = 70, PITD = 5
 
@@ -219,7 +222,9 @@ const ICRANE = ICARTW + 4, IRAIL = ICRANE + 4, IWBOX = IRAIL + 2, ITOOLS = IWBOX
 ' The sands' ground again as it is under the tide, picture for picture, and the water's edge.
 const IWET = ITOOLS + 2, WETO = IWET - IAF, ISURF = IWET + 278, ICRAB = ISURF + 2
 const IJELLY = ICRAB + 6, IBUOY = IJELLY + 4, ICHAIR = IBUOY + 4, IGULL = ICHAIR + 4
-const IPEDAL = IGULL + 8, ITEDDY = IPEDAL + 4, NIMG = ITEDDY + 2
+const IPEDAL = IGULL + 8, ITEDDY = IPEDAL + 4
+' The flume: its fall and its end, four frames each of running water, the water falling from it, its tank.
+const IFLUME = ITEDDY + 2, ISPOUT = IFLUME + 8, IRUNNEL = ISPOUT + 8, ICISTERN = IRUNNEL + 8, NIMG = ICISTERN + 2
 const HUDW = 108, HUDH = 40
 ' The levels: a zone's two acts, the second at another hour in other colours, zone by zone.
 ' the stages played, and after them the intro's road
@@ -259,7 +264,8 @@ const PEDALV = 130!, PEDALMORE = 40!, PEDALW = 48, PEDALUP = 8
 ' it; its tune's number in CHARLIE.DAT.
 const CRUISE = 330!, DAWDLE = 200!, BOLT = 560!, CARTLEAD = 260, CARTR = 26
 const DAZED = 1.4, BOLTS = 1!, NBUMP = 3, CHASETUNE = 5
-' The level's end's songs, and game over's, by their numbers in CHARLIE.DAT; how long game over stays, its tune's length.
+' The level's end's songs, and game over's, by their numbers in CHARLIE.DAT; how long game over stays, its tune's
+' length.
 const CAUGHTUP = 2, PACKING = 10, LEFTBEHIND = 11, OVERT = 13
 ' The bonus is counted over the level's end's bars its lead plays, the last six but two: a step a beat.
 const TALLYN = 16, TALLYBARS = 6
@@ -307,6 +313,8 @@ declare function EndBeat! (g as Game)
 declare sub Tally (g as Game, k as Pad)
 declare sub HushSong ()
 declare sub Mend ()
+declare sub Slide (p as Hero)
+declare sub DrawSpout (x as integer, y as integer, c as integer, cy as integer)
 declare sub ResetChase ()
 declare sub Flee (g as Game, p as Hero, lo() as Loose, pt() as Part)
 declare sub StartChase ()
@@ -865,6 +873,22 @@ sub LoadLevel (st as integer)
                 Column c, g, 3
                 c = c + 1
             next
+        case "flume"
+            ' a 45 degree fall of n and a flume down it, from the tank at its head to its level end a column on;
+            ' nothing grows by the tank
+            for i = 0 to NObj - 1
+                if ObK(i) >= KTREE and ObK(i) <= KLAMP and ObX(i) > c * TS - 44 then ObK(i) = 0
+            next
+            AddObj KCISTERN, c * TS, s
+            for i = 1 to n
+                g = g - 1
+                Column c, g, 3
+                AddObj KFLUME, c * TS, (MH - g - 1) * TS
+                c = c + 1
+            next
+            Column c, g, 1
+            AddObj KSPOUT, c * TS, (MH - g) * TS
+            c = c + 1
         case "upg"
             for i = 1 to n
                 Column c, g, 4
@@ -1247,6 +1271,14 @@ sub AddMover (x as integer, y as integer, a as integer, k as integer, e as integ
     MvK(NMv) = k
     MvE(NMv) = e
     NMv = NMv + 1
+end sub
+
+' Down a flume: swept off his feet, curled, and no slower than its water runs.
+sub Slide (p as Hero)
+    if not p.roll then Sfx SBOOST
+    p.roll = -1
+    p.face = 0
+    if p.gsp < FLUMEV then p.gsp = FLUMEV
 end sub
 
 ' The pier's fallen spans back in their places: Charlie starts again before them.
@@ -3237,6 +3269,8 @@ sub Touch (g as Game, p as Hero, lo() as Loose, pt() as Part)
                 Burst pt(), p.x, p.y - 4, 8, 150, CGOLD + 4
                 Sfx SBOOST
             end if
+        case KFLUME, KSPOUT
+            if p.ground and px >= x and px < x + TS and py > ObY(i) - 6 and py < ObY(i) + TS + 6 then Slide p
         case KMARK
             if ObS(i) = 0 and px >= x then
                 ObS(i) = 1
@@ -4553,7 +4587,7 @@ sub DrawThings (cx as integer, cy as integer, back as integer)
         x = ObX(i) - cx
         if x > SW + 96 then exit do
         k = ObK(i)
-        if (k >= KLOOP) = back then
+        if (k >= KLOOP and k < KFRONT) = back then
             y = ObY(i) - cy
             select case k
             case KBONE
@@ -4587,6 +4621,12 @@ sub DrawThings (cx as integer, cy as integer, back as integer)
                     k = IAP + (((ObX(i) \ TS + 1) and 3) * 3 + (ObY(i) \ TS) mod 3) * 2
                     Blit x - PIPER, y - PIPER, k, PIPER, PIPER + TS
                 end if
+            case KFLUME
+                Blit x, y - 8, IFLUME + ((Ticks \ 3) and 3) * 2, TS, 29
+            case KSPOUT
+                DrawSpout x, y, ObX(i) \ TS, cy
+            case KCISTERN
+                Blit x - 30, y - 25, ICISTERN, 30, 30
             case KSPAN
                 ' three planks; tottering, it shakes
                 if ObS(i) then y = y + ((Ticks \ 2) and 1)
@@ -4650,6 +4690,23 @@ sub DrawThings (cx as integer, cy as integer, back as integer)
         end if
         i = i + 1
     loop
+end sub
+
+' A flume's end at x, y on the screen, over column c: the water falling from it to the sea, or to the floor of a
+' dry pool, then its trough.
+sub DrawSpout (x as integer, y as integer, c as integer, cy as integer)
+    dim e as integer, yy as integer, k as integer
+    k = ((Ticks \ 3) and 3) * 2
+    e = ColTop(c + 1) * TS
+    if Tide <> NONE and Tide < e then e = Tide + 2
+    e = e - cy
+    if e > y then
+        Blit x + TS - 1, y - 8, IRUNNEL + k, 5, 8
+        for yy = e - 8 to y step -8
+            Blit x + TS - 1, yy, IRUNNEL + k, 5, 8
+        next
+    end if
+    Blit x, y - 8, ISPOUT + k, TS, 13
 end sub
 
 ' The cables and what their baskets hang by.
