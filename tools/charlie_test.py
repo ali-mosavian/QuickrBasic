@@ -1442,6 +1442,41 @@ g.camy = wd.lv.ob(c).y - 40
 Render wd, g, p, lo(), pt()
 j = point(wd.lv.ob(c).x - int(g.camx), 68)
 if was and wd.lv.ob(c).s = 0 and j = CVINE then print "vine ok"
+' bramble hurts him who walks into it, his bones lost; curled he goes through it, his bones kept, and it is drawn
+' cut, its leaves in the air; BRAMBLET steps on it is grown again and hurts
+for c = 0 to wd.lv.nObj - 1
+    if wd.lv.ob(c).k = KBRAMBLE then exit for
+next
+was = c < wd.lv.nObj
+for m = 0 to 2
+    p.inv = 0
+    p.stun = 0
+    g.bones = 5
+    wd.se.partN = 0
+    Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 40, 300
+    p.roll = m = 1
+    k.r = m <> 1
+    for i = 1 to 60
+        Tick wd, g, p, k, lo(), pt()
+        if g.bones = 0 or p.x > wd.lv.ob(c).x + 24 then exit for
+    next
+    k.r = 0
+    if m <> 1 then was = was and g.bones = 0 and wd.lv.ob(c).s = 0
+    if m <> 1 then continue for
+    was = was and g.bones = 5 and wd.lv.ob(c).s > 0 and p.x > wd.lv.ob(c).x and wd.se.partN > 0
+    Stand wd.lv, wd.gr, p, wd.lv.ob(c).x - 60, 0
+    for j = 0 to 1
+        for i = 1 to 4 + j * 2 * BRAMBLET
+            Tick wd, g, p, k, lo(), pt()
+        next
+        g.shake = 0
+        Render wd, g, p, lo(), pt()
+        colB(j) = point(wd.lv.ob(c).x - 19 + 22 - int(g.camx), wd.lv.ob(c).y - 25 + 7 - int(g.camy))
+    next
+    ' a thorn's pale point is there grown, and not cut
+    was = was and wd.lv.ob(c).s = 0 and colB(0) <> 125 and colB(1) = 125
+next
+if was then print "bramble ok"
 ' the pass's bare ice keeps his speed and will not give it back: let go at a run he slides on where snow stops
 ' him, held back he is long in stopping, and from a stand he is slow away; it is drawn bare, the snow's white gone
 GoStage wd, 6, g, p, lo(), pt()
@@ -2760,6 +2795,7 @@ def main() -> None:
         ("firefly ok", "the wood's night dark but for a few fireflies; a bark wakes them and lights it for a while"),
         ("sapling ok", "a bowed sapling throws him who crosses its crown, higher the faster; sprung it throws no one"),
         ("vine ok", "a vine caught in the air swings him as a weight, lets go at a jump, and hangs straight again"),
+        ("bramble ok", "bramble hurts on foot, is cut by a roll with his bones kept, and grows back to hurt again"),
         ("ice ok", "bare ice keeps his speed: a long slide, a long stop, a slow start; drawn bare of snow"),
         ("sled ok", "a sled is boarded, follows the slope, has no brake, keeps him through a hop, ends in deep snow"),
         ("geyser ok", "in the pass a jet is a geyser, the pass's water: it throws him up as it blows"),

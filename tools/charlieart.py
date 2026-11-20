@@ -4290,6 +4290,30 @@ def sapling(sprung: bool) -> Pic:
     return p.outline(WOODINK)
 
 
+def bramble(cut: bool) -> Pic:
+    """Bramble: three canes arched over, thorns along them, leaves and berries; cut: their stubs."""
+    p = Pic(38, 26)
+    canes = [((3, 25), (9, -2), (23, 25)), ((13, 25), (24, -6), (35, 22)), ((7, 25), (20, 8), (31, 25))]
+    for n, (a, b, d) in enumerate(canes):
+        pts = bent(Pic(38, 26) if cut else p, a, b, d, LITTER[3], 2)
+        if cut:
+            for (xa, ya), (xb, yb) in itertools.pairwise(pts[: 5 + n]):
+                p.line(xa, ya, xb, yb, LITTER[3], 2)
+            p.put(round(pts[4 + n][0]), round(pts[4 + n][1]), ROOTS[0])
+            continue
+        for i in range(3, 38, 5):
+            p.put(round(pts[i][0]) + (1 if i % 2 else -1), round(pts[i][1]) - 2, ROOTS[0])
+        for i in range(6 + n * 2, 36, 11):
+            x, y = round(pts[i][0]), round(pts[i][1])
+            p.box(x - 2, y + 1, x - 1, y + 2, MOSS[2])
+            p.put(x - 2, y + 1, MOSS[1])
+        for i in range(11 + n * 3, 36, 13):
+            x, y = round(pts[i][0]), round(pts[i][1])
+            p.box(x + 1, y + 1, x + 2, y + 2, BERRY[1])
+            p.put(x + 1, y + 1, BERRY[0])
+    return p.outline(WOODINK)
+
+
 def pomball() -> Pic:
     """The Pomchi's ball: red, a white band round it."""
     p = Pic(14, 14)
@@ -4321,6 +4345,8 @@ def russet() -> list[tuple[int, Pic, bool, int]]:
         (z + 1216, pomball(), True, -1),
         (z + 1218, sapling(False), True, -1),
         (z + 1220, sapling(True), True, -1),
+        (z + 1222, bramble(False), True, -1),
+        (z + 1224, bramble(True), True, -1),
     ]
     return out
 

@@ -178,7 +178,8 @@ Progress is saved at each zone.
   own colours sunk and a few fireflies about, and the bark that wakes the rest and lights it for five
   seconds, the last of them fading; saplings bowed to the ground, which throw him who crosses their crown,
   the higher the faster he came, and stand sprung a second; vines, caught by their end in the air, which
-  swing him as a weight till a jump lets go. To add: height, logs, burrows, its enemies, levels and chase.
+  swing him as a weight till a jump lets go; bramble, which hurts on foot, is cut by a roll and grows back
+  three seconds on. To add: height, logs, burrows, squirrels, bees, its levels and chase.
 - Rule: height. The way is up, and a fall costs the climb, not a life.
 - Gadgets: sapling catapults, which bend under him and throw by his speed; vine swings; hollow logs; burrows,
   dug into at one mound and left by another.
