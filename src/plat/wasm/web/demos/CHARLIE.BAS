@@ -215,13 +215,17 @@ const KICICLE = 35, TREMBLE = 10
 ' A ski lift's chair, a platform that goes up its cable SEATV of the way a second while he stands on it; its
 ' frame stands SEATH over its seat.
 const KSEAT = 36, SEATV = .35, SEATH = 30
-' A goat, its state's sign the way it faces: 1 at graze, till it sees him within GOATSEE on its ledge; then its
+' A goat, its state's sign the way it faces: 1 at graze, at home, till it sees him within GOATSEE on its ledge; then its
 ' head is down GOATWIND of the things' steps and it charges, GOATSTEP a step, till it is under or past him or
 ' GOATRUN from home, and stands dazed GOATDAZE steps; 0 while it is ridden or on its way home. Its lowered horns
 ' hurt. Come down on, it bolts on along the road, to the right, at GOATV, he astride GOATH up, till he is off the
 ' ground, stopped or GOATRIDE seconds on; then it runs home at STRAYV.
 const KGOAT = 47, GOATSEE = 72, GOATWIND = 12, GCHARGE = 100, GOATDAZE = 30, GOATSTEP = 8, GOATRUN = 64
 const GOATV = 240!, GOATH = 14, GOATRIDE = 2!, STRAYV = 300!
+' A blizzard: of every GUSTP ticks the wind blows the last GUSTON, from the right, the snow streaming GUSTTELL
+' before it does. On his feet it bears him back, WINDG a second each second on the ground and WINDA in the air,
+' curled or not, till he goes with it at WINDV; curled or crouched on the ground, or mounted, it passes over him.
+const GUSTP = 192, GUSTON = 72, GUSTTELL = 24, WINDG = 600!, WINDA = 900!, WINDV = 200!, CFLAKE = 118
 ' An ice wall, WALLH tall, stops him WALLR from its middle: only a goat ridden breaks it.
 const KWALL = 37, WALLH = 80, WALLR = 15
 const PRESSH = 112, PRESSUP = 68, PRESSP = 180, PRESSFALL = 90, PRESSRISE = 130, PRESSLAG = 4
@@ -521,6 +525,9 @@ declare sub Dying (g as Game, p as Hero)
 declare sub Things (g as Game, p as Hero, lo() as Loose, pt() as Part)
 declare function Risen% (i as integer)
 declare function Fallen% (i as integer)
+declare function Lull% ()
+declare sub Buffet (p as Hero)
+declare sub DrawGale ()
 declare sub Graze (i as integer, p as Hero)
 declare sub MeetGoat (g as Game, p as Hero, i as integer, lo() as Loose)
 declare sub Mount (p as Hero, i as integer)
@@ -644,6 +651,7 @@ type Rover
     st as integer
 end type
 dim shared Stray as Rover
+dim shared Gale as integer
 
 Main
 end
@@ -932,6 +940,7 @@ sub LoadLevel (st as integer)
     erase Map
     erase Glaze
     Icing = 0
+    Gale = 0
     Fallow = 0
     NObj = 0
     NMv = 0
@@ -1128,6 +1137,8 @@ sub LoadLevel (st as integer)
             k = KSLED
         case "thrower"
             k = KTHROW
+        case "gale"
+            Gale = -1
         case "goat"
             Clearing c
             k = KGOAT
@@ -2987,6 +2998,19 @@ sub Pilot (p as Hero, k as Pad)
             end if
         next
     end if
+    ' a blizzard: no jump is begun from a walk that a gust would catch, and while it blows he keeps low
+    if Gale and p.ground then
+        if Lull%() < 56 and want and abs(p.gsp) < 150 then
+            want = 0
+            k.r = 0
+            if p.gsp > 20 then k.l = -1
+        end if
+        if Lull%() = 0 then k.d = -1
+        ' and from a crouch no jump: that would wind up a dash
+        if p.crouch then want = 0
+        ' curled and come to a stand on a slope, held there by the key: out of it by a jump
+        if p.roll and abs(p.gsp) < 30 then want = -1
+    end if
     if want and hold = 0 then
         k.hit = -1
         hold = 24
@@ -3212,6 +3236,7 @@ sub MoveHero (p as Hero, k as Pad, pt() as Part)
             r = 0
         end if
     end if
+    if Gale then Buffet p
     if p.swim then
         Paddle p, l, r, hit, pt()
     elseif p.ground then
@@ -3989,16 +4014,61 @@ function Fallen% (i as integer)
     Fallen% = cint(GRAV * t * t / 2)
 end function
 
-' A goat's step: at graze it faces him and, seeing him on its ledge, lowers its head; then it charges till it is
-' under or past him or its ledge ends, and stands dazed.
+' The ticks of calm left before the blizzard's next gust: 0 while it blows.
+function Lull% ()
+    dim t as integer
+    t = GUSTP - GUSTON - Ticks mod GUSTP
+    if t < 0 then t = 0
+    Lull% = t
+end function
+
+' A gust on him: borne back on his feet and in the air, spared curled or crouched on the ground, or mounted.
+sub Buffet (p as Hero)
+    if Lull%() > 0 or p.swim or p.sled or p.goat then exit sub
+    if not p.ground then
+        if p.vx > -WINDV then p.vx = p.vx - WINDA * STEPT
+    elseif not (p.roll or p.crouch or p.charging) then
+        if p.gsp > -WINDV then p.gsp = p.gsp - WINDG * STEPT
+    end if
+end sub
+
+' The blizzard over the view: flakes aslant always; a gust's streaks of snow from the right, fewer as it rises.
+sub DrawGale
+    dim j as integer, x as integer, y as integer, n as integer
+    for j = 0 to 23
+        x = SW - (Ticks * (2 + (j and 3)) + j * 61) mod (SW + 16)
+        y = (Ticks * (1 + (j and 1)) + j * 37) mod SH
+        pset (x, y), CWHITE
+        pset (x + 1, y - 1), CFLAKE
+    next
+    if Lull%() > GUSTTELL then exit sub
+    n = 17
+    if Lull%() > 0 then n = 7
+    for j = 0 to n
+        x = SW + 40 - (Ticks * (9 + j mod 5) + j * 71) mod (SW + 80)
+        y = (j * 47 + (Ticks \ 2) * 3) mod SH
+        line (x, y)-(x + 8 + (j mod 3) * 6, y - 2 - j mod 3), CWHITE
+        line (x + 4, y + 1)-(x + 10 + (j mod 3) * 6, y - 1 - j mod 3), CFLAKE
+    next
+end sub
+
+' A goat's step: off its place it trots home; at graze there it faces him and, seeing him on its ledge, lowers its
+' head, in a blizzard only with the calm left to charge in; then it charges till it is under or past him or its
+' ledge ends, and stands dazed.
 sub Graze (i as integer, p as Hero)
     dim s as integer, f as integer, x as integer
     s = abs(ObS(i))
     f = sgn(ObS(i))
     select case s
     case 1
-        f = 1 + 2 * (p.x < ObX(i))
-        if p.goat = 0 and abs(p.x - ObX(i)) < GOATSEE and abs(p.y - ObY(i)) < 30 then s = GOATWIND + 1
+        if ObX(i) <> ObA(i) then
+            f = sgn(ObA(i) - ObX(i))
+            ObX(i) = ObX(i) + f * GOATSTEP \ 2
+        else
+            f = 1 + 2 * (p.x < ObX(i))
+            x = abs(p.x - ObX(i)) < GOATSEE and abs(p.y - ObY(i)) < 30
+            if x and p.goat = 0 and (not Gale or Lull%() > GUSTP \ 2) then s = GOATWIND + 1
+        end if
     case 2
         s = GCHARGE
     case GCHARGE
@@ -5101,6 +5171,7 @@ sub Render (g as Game, p as Hero, lo() as Loose, pt() as Part)
     if LooseN then DrawLoose cx, cy, lo()
     DrawChase cx, cy
     DrawHero p, cx, cy
+    if Gale then DrawGale
     if NGulls then DrawGulls cx, cy
     if LobN then DrawLobs cx, cy
     if Tide <> NONE then DrawSurf cx, cy

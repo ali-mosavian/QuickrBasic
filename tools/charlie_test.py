@@ -1875,8 +1875,77 @@ for i = 1 to 300
     if Stray.st = 0 then exit for
 next
 if was and i < 300 and abs(ObS(m)) = 1 and ObX(m) = ObA(m) then print "goat ok"
+' the dusk's blizzard, none on the morning: of every 192 ticks it blows the last 72. In its calm he stands where
+' he is. In a gust, on his feet, 600 against his friction's 280 bears him back to 200 a second: 165 to 190 by
+' its end; crouched he keeps his place; curled at 200 he rolls on 88 to 97 in half a second, as in a calm; a jump
+' begun as it starts is carried back 150 to 175 by its landing, 900 to 200 a second. Its snow streams as it blows
+GoStage 6, g, p, lo(), pt()
+was = Gale = 0
+GoStage 7, g, p, lo(), pt()
+for m = 0 to NObj - 1
+    if ObK(m) = KTHROW then exit for
+next
+ObS(m) = 0
+j = ObX(m) - 120
+was = was and Gale and m < NObj
+Ticks = 1920
+Stand p, j, 0
+for i = 1 to 100
+    Tick g, p, k, lo(), pt()
+next
+was = was and abs(p.x - j) < 1 and Lull%() = 20
+Render g, p, lo(), pt()
+hid = 0
+for i = 0 to 39
+    for c = 0 to SW - 1
+        if point(c, i) = CWHITE then hid = hid - 1
+    next
+next
+Ticks = 2040
+Stand p, j, 0
+for i = 1 to 72
+    Tick g, p, k, lo(), pt()
+next
+was = was and p.x - j < -165 and p.x - j > -190 and Lull%() = 120
+Ticks = 2040
+Stand p, j, 0
+k.d = -1
+for i = 1 to 36
+    Tick g, p, k, lo(), pt()
+next
+Render g, p, lo(), pt()
+for i = 0 to 39
+    for c = 0 to SW - 1
+        if point(c, i) = CWHITE then hid = hid + 1
+    next
+next
+for i = 1 to 36
+    Tick g, p, k, lo(), pt()
+next
+was = was and abs(p.x - j) < 1 and hid > 20
+Ticks = 2040
+Stand p, j - 150, 200
+for i = 1 to 30
+    Tick g, p, k, lo(), pt()
+next
+k.d = 0
+was = was and p.roll and p.x - (j - 150) > 88 and p.x - (j - 150) < 97
+Ticks = 2040
+Stand p, j, 0
+k.hit = -1
+k.jump = -1
+for i = 1 to 90
+    Tick g, p, k, lo(), pt()
+    if p.ground and i > 5 then exit for
+next
+k.jump = 0
+was = was and i > 50 and i < 57 and p.x - j < -150 and p.x - j > -175
+' and it is over with its level
+GoStage 6, g, p, lo(), pt()
+if was and Gale = 0 then print "gale ok"
 ' the pass's ski lift: its chair takes him up its cable steadily, to the ground CABLED higher past the pit in
-' 1 / SEATV seconds, and goes back down once he is off it
+' 1 / SEATV seconds, and goes back down once he is off it. He rides and waits crouched: the dusk's gusts would
+' have him off it
 GoStage 7, g, p, lo(), pt()
 for m = 0 to NMv - 1
     if MvK(m) = 7 then exit for
@@ -1888,6 +1957,7 @@ p.y = GY(c)
 p.sg = c
 p.ground = -1
 p.gsp = 0
+k.d = -1
 for i = 1 to 400
     Tick g, p, k, lo(), pt()
     if i = 86 then was = was and abs(p.y - (MvY(m) - CABLED \\ 2)) < 3
@@ -1895,15 +1965,19 @@ for i = 1 to 400
 next
 was = was and i >= 171 and i <= 174 and p.ground and p.sg = c and abs(p.x - (MvX(m) + MvA(m) + 24)) < 2
 was = was and abs(p.y - (MvY(m) - CABLED)) < 2 and ObK(MvO(m)) = KSEAT
+k.d = 0
 k.r = -1
+Ticks = 1920
 for i = 1 to 40
     Tick g, p, k, lo(), pt()
 next
 k.r = 0
+k.d = -1
 was = was and p.ground and GK(p.sg) = 1 and abs(p.y - (MvY(m) - CABLED)) < 2 and p.x > MvX(m) + MvA(m) + MOVEW
 for i = 1 to 200
     Tick g, p, k, lo(), pt()
 next
+k.d = 0
 if was and MvT(m) = 0 then print "chair ok"
 ' a button trodden raises its bridge out of the pit, and the bridge carries
 GoStage 2, g, p, lo(), pt()
@@ -2275,6 +2349,7 @@ def main() -> None:
         ("sled ok", "a sled is boarded, follows the slope, has no brake, keeps him through a hop, ends in deep snow"),
         ("geyser ok", "in the pass a jet is a geyser, the pass's water: it throws him up as it blows"),
         ("snowball ok", "deep snow rolled through fast makes him a snowball: it takes one hit, and ends with the roll"),
+        ("gale ok", "the dusk's gusts bear him back on his feet and in the air, not crouched or curled; snow streams"),
         ("goat ok", "an ice wall stops him; a goat's charge hurts; jumped, it is ridden through, as the ground lies"),
         ("thrower ok", "a snow-thrower's wall throws a roll back; its snowball hurts where he stood; up, it is beaten"),
         ("icicle ok", "an icicle is loosed from under it or by a bark, trembles, falls on him or a snow-thrower"),
