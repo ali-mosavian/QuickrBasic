@@ -1484,6 +1484,10 @@ CASES |= {
                             "plot 3  0 \r\n 9  320 \r\n", "ERROR"),
     "import_star_own": (beside(bas("from gfx import *", "plot 1", "sub plot (x)", ' print "own"; x', "end sub"), GFX),
                         "own 1 \r\n", "ERROR"),
+    # QB's multi-file programs DECLARE the SUBs another file has.
+    "import_star_declared": (beside(bas("declare sub plot (p as any)", "from gfx import *", "dim q as pt", "plot q"),
+                                    GFX),
+                             "plot 0  0 \r\n", "ERROR"),
     "import_star_two": (beside(bas("from k1 import *", "from k2 import *", "print k"),
                                {"k1.bas": bas("const k = 1"), "k2.bas": bas("const k = 2")}),
                         "IMPORT_S.BAS:3: Duplicate definition", None),
@@ -1551,6 +1555,30 @@ CASES |= {
                     " 10 \r\na 1 \r\n 20 \r\na 2 \r\na 1 \r\na 2 \r\nOut of DATA", "a 99"),
 }
 
+CM = {"cm.bas": bas("type pt", " x as integer", "end type", "common shared x, y$, w(), o as pt",
+                    "common shared /blk/ r", "sub show", " print x; y$; w(2); o.x; r", "end sub")}
+# COMMON joins a program's files' variables by position, a named block's by its name. Each file's were its own:
+# a module saw none of the main's values, and a CHAIN passed each file's in turn.
+CASES |= {
+    "import_common": (beside(bas("from cm import show", "type pt", " x as integer", "end type",
+                                 "common shared /blk/ p", "common shared a, b$, v(), q as pt", "dim v(3)",
+                                 'a = 1: b$ = "b": v(2) = 3: q.x = 4: p = 5', "show"), CM),
+                      " 1 b 3  4  5 \r\n", "ERROR"),
+    "import_common_type": (beside(bas("from cm import show", "common shared a$"), CM),
+                           "IMPORT_C.BAS:2: Type mismatch", None),
+    "import_common_array": (beside(bas("from cm import show", "common shared a, b$, v"), CM),
+                            "IMPORT_C.BAS:2: Type mismatch", None),
+    "import_common_record": (beside(bas("from cm import show", "type pt", " y as integer", "end type",
+                                        "common shared a, b$, v(), q as pt"), CM),
+                             "IMPORT_C.BAS:5: Type mismatch", None),
+    # A variable two files name passes once, each way.
+    "import_common_chain": (beside(bas("import ck", "common shared a, b$, c", 'a = 1: b$ = "b": c = 9',
+                                       'chain "QB_CN1"'), {"ck.bas": bas("common shared x, y$")}),
+                            " 1 b 9 \r\n", "ERROR"),
+    "import_common_chained": (bas("common a, b$, c", 'a = 1: b$ = "b": c = 9', 'chain "QB_CN2"'),
+                              " 1 b\r\n 9 \r\n", "ERROR"),
+}
+
 
 # Typed at the prompt, not run as a file.
 REPL = {
@@ -1569,6 +1597,9 @@ FILES = {
     "QB_CH3.BAS": b'COMMON q$, y()\r\nPRINT LEN(q$); RIGHT$(q$, 1); y(500)\r\n',
     "QB_CH4.BAS": b"COMMON m AS BYTE, y() AS BYTE\r\nPRINT m; LEN(m); y(2)\r\nm = m + 6\r\n",
     "QB_CH5.BAS": f"COMMON {', '.join(f'd{i}' for i in range(600))}, y() AS LONG\r\nPRINT d0; d599; y(30000)\r\n".encode(),
+    "QB_CN1.BAS": bas("common d, e$, h", "print d; e$; h").encode(),
+    "QB_CN2.BAS": bas("from qbcnm import pr", "common d, e$, h", "pr", "print h").encode(),
+    "qbcnm.bas": bas("common shared k, l$", "sub pr", " print k; l$", "end sub").encode(),
     "QB_CH2.BAS": b'COMMON b%, q$, e#, y(), u AS SHORT\r\nPRINT b%; q$; e#; y(3); LBOUND(y); u; t\r\n'
                   b'PRINT #1, "kept": CLOSE #1\r\nON ERROR GOTO h\r\nCHAIN "NONE"\r\nEND\r\nh: PRINT "e"; ERR: RESUME NEXT\r\n',
 }

@@ -598,7 +598,7 @@ void stmt_rungo(Session *const S, const uint32_t line)
 {
     flow_drop_calls(S);
     evnt_clear(S);
-    chai_start(&S->chai);
+    chai_start(&S->chai, &S->symb);
     modu_run_reset(&S->modu);
     S->vm.err.active = false;
     S->vm.err.code = 0;

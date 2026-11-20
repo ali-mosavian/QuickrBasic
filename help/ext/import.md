@@ -28,9 +28,10 @@ is that folder, `..` its parent, and so on.
 
 Each module is loaded once, after the program's own lines, however
 many lines import it, cycles included. Its declarations go before
-those of the file importing it, so its TYPEs can be used there. One that is not found is a
-[File not found](File not found) error at the importing line. An error
-in a module is reported at its own file and line.
+those of the file importing it, so its TYPEs can be used there. One
+that is not found is a [File not found](File not found) error at the
+importing line. An error in a module is reported at its own file and
+line.
 
 Each file's names are its own: its variables, CONSTs, SUBs,
 FUNCTIONs, TYPEs, labels and line numbers. DEFtype, OPTION BASE and
@@ -72,6 +73,18 @@ CONST, SUB, FUNCTION, TYPE), or binds twice, is [Duplicate definition](Duplicate
 AS renames one. A name * binds yields to the file's own. One two *
 imports bind is Duplicate definition where used: write `gfx.plot`.
 
+## COMMON
+COMMON joins variables across a program's files by position, as QB
+linked its modules: the first variable of each file's COMMON is the
+same variable, then the second, and so on. A named block,
+`COMMON /name/`, joins by its name, apart from the unnamed one. Each
+position's type must match, a TYPE laid out the same included; else
+[Type mismatch](Type mismatch).
+
+CHAIN passes each such variable once. The new program loads its own
+modules; the old one's are dropped.
+
+## Keywords
 IMPORT and FROM are keywords only at the start of a line's first
 statement, outside SUBs and FUNCTIONs. PRIVATE is one only before
 SUB, FUNCTION, CONST or TYPE, PUBLIC only after DIM. A variable called

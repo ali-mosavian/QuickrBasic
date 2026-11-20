@@ -48,6 +48,17 @@ typedef struct {
     uint8_t deft[NLETTERS];
 } DefEvent;
 
+/* A COMMON block's variable, at its place in it: the first module's name for it, which the others'
+   stand for. */
+typedef struct {
+    uint32_t block; /* its block's name, the main's; 0 the blank block */
+    uint32_t name;
+    uint32_t type;  /* ET_*, ET_REC + t */
+    uint32_t scope; /* the last module to name it, sc_module's */
+    uint16_t fix;   /* STRING * n's n */
+    bool array;
+} CmnVar;
+
 /* A file's OPTIONs: OPTION BASE 1, OPTION EXPLICIT. */
 enum : uint8_t { DO_BASE1 = 1, DO_EXPLICIT = 2 };
 
@@ -72,6 +83,8 @@ typedef struct {
     BTab types; /* TypeDef, g_typ: by number, from 1 */
     uint32_t ndims, dimcap;
     FieldDim *dims; /* the fixed array fields' dimensions */
+    uint32_t ncmn, cmncap;
+    CmnVar *cmn; /* COMMON's variables, each block's in order */
 } Decl;
 
 extern const uint8_t decl_astype[5]; /* g_dast: AS INTEGER .. AS STRING to ET_* */

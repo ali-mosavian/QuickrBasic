@@ -54,7 +54,8 @@ enum : uint8_t {
 };
 
 /* A binding's flags (mem/scope). BF_IMP: another module's variable or CONST, the name's alias.
-   BF_PUB: DIM PUBLIC's, exported. BF_PROC: a SUB or FUNCTION its module defines. */
+   BF_PUB: DIM PUBLIC's, exported. BF_PROC: a SUB or FUNCTION its module defines. BF_CMN: COMMON's
+   name for another module's COMMON variable, BF_IMP too. */
 enum : uint16_t {
     BF_SHR = 1,
     BF_REF = 2,
@@ -66,7 +67,8 @@ enum : uint16_t {
     BF_VAL = 128, /* a CONST's integer value known as declared: Binding.val */
     BF_IMP = 256,
     BF_PUB = 512,
-    BF_PROC = 1024
+    BF_PROC = 1024,
+    BF_CMN = 2048
 };
 /* A scope key's flags (mem/scope): a line number's, an array's, a module's (an imported file's,
    its number below; the main's is 0), the labels any scope of a module has. Names are below. */

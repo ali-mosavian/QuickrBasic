@@ -19,7 +19,8 @@ typedef struct PACKED {
     uint32_t type; /* ET_*, ET_REC + t a TYPE's */
     uint32_t name;
     uint8_t info; /* VI_ARR, SK_DBL, the kind */
-    uint8_t pad[3];
+    bool cmn;     /* a COMMON named it this run (vm/chain.c) */
+    uint8_t pad[2];
 } Var;            /* TVAR */
 typedef struct PACKED {
     uint32_t next;  /* its hash chain's next */

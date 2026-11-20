@@ -12,6 +12,9 @@
  * starts `gfx.` stands for gfx's export up to the next dot, or is Name not exported where used
  * (NM_BAD). A * binding yields to the module's own declaration, before or after it, and to a listed
  * name; one two *'s bind is Duplicate definition where used.
+ *
+ * COMMON joins the program's files' variables by position (comp/declare.c): a later module's name
+ * for one stands for the first's, BF_IMP as an import's, BF_CMN its own still.
  */
 #include "comp/bind.h"
 
@@ -209,18 +212,24 @@ void bind_star(Scop *const sc, Symb *const sy, const uint32_t m, const uint32_t 
     }
 }
 
+void bind_common(Scop *const sc, Symb *const sy, const uint32_t n, const uint32_t to)
+{
+    *symb_alias(sy, n) = to;
+    module_binding(sc, sy, n)->flags |= BF_IMP | BF_CMN;
+}
+
 bool bind_own(Scop *const sc, Symb *const sy, const uint32_t n)
 {
     Name *const nm = symb_name(sy, n);
     uint32_t *const a = symb_alias(sy, n);
+    Binding *const b = module_binding(sc, sy, n);
 
+    if (b && b->flags & BF_CMN) /* COMMON's, its own still: DIM gives its array's size */
+        return true;
     if (nm->flags & NM_MOD || (*a && !(*a & BIND_STAR) && !(nm->flags & NM_BAD)))
         return false;
     if (!*a)
         return true;
-
-    Binding *const b = module_binding(sc, sy, n);
-
     if (b && b->flags & BF_IMP)
         *b = (Binding){.scope = b->scope, .name = b->name, .next = b->next};
 

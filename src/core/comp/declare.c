@@ -58,7 +58,9 @@ typedef struct {
     bool deft_only;      /* decl_defevents': the names' uses not noted */
     const uint8_t *body; /* the line entered's, its errors' places in it; null none */
     const uint8_t *at;
-    bool priv; /* the statement's PRIVATE */
+    bool priv;      /* the statement's PRIVATE */
+    bool common;    /* the statement's a COMMON */
+    uint32_t block; /* COMMON's block's name, the main's; 0 the blank block */
 } DeclScan;
 
 /* The scope of the procedure being entered, else its module's. */
@@ -624,6 +626,84 @@ static void decl_params(DeclScan *const ds)
     }
 }
 
+/* Types a and b (ET_*, ET_REC + t) the same: two TYPEs laid out the same, field by field. */
+static bool decl_sametype(const Decl *const d, const uint32_t a, const uint32_t b)
+{
+    if (a == b)
+        return true;
+    if (a < ET_REC || b < ET_REC)
+        return false;
+
+    const TypeDef *const s = decl_type(d, a - ET_REC), *const t = decl_type(d, b - ET_REC);
+
+    if (s->nfld != t->nfld || s->size != t->size)
+        return false;
+
+    for (uint32_t i = 0; i < s->nfld; i++) {
+        const Field *const f = &s->fields[i], *const g = &t->fields[i];
+
+        if (f->name != g->name || f->off != g->off || f->fix != g->fix || f->ndim != g->ndim ||
+            f->dyn != g->dyn || !decl_sametype(d, decl_fieldtype(f), decl_fieldtype(g)))
+            return false;
+
+        for (uint32_t k = 0; k < f->ndim; k++)
+            if (memcmp(decl_fielddim(d, f, k), decl_fielddim(d, g, k), sizeof(FieldDim)))
+                return false;
+    }
+
+    return true;
+}
+
+/* COMMON's name n at p, its suffix sfx, an array's: the variable at its place in its block, the
+   module's next. Another module's: n stands for it. Type mismatch: not of its type. */
+static void decl_join(
+    DeclScan *const ds,
+    const uint8_t *const p,
+    const uint32_t n,
+    const uint8_t sfx,
+    const bool arr
+)
+{
+    Decl *const d = ds->d;
+
+    if (!ds->loading) /* typed: the main's alone */
+        return;
+
+    Binding *const b = scop_get(ds->sc, d->module, n);
+    const uint32_t type = b->rec[arr]  ? ET_REC + b->rec[arr]
+                          : b->et[arr] ? b->et[arr]
+                          : sfx        ? comp_suffix(sfx)
+                                       : ds->sy->deft[symb_text(ds->sy, n)[1] - 'A'];
+    CmnVar *v = d->cmn;
+    const CmnVar *const end = d->cmn + d->ncmn;
+
+    while (v < end && (v->block != ds->block || v->scope == d->module))
+        v++;
+
+    if (v == end) {
+        decl_room(ds, (void **)&d->cmn, d->ncmn, &d->cmncap, sizeof *d->cmn);
+        d->cmn[d->ncmn++] = (CmnVar){
+            .block = ds->block,
+            .name = n,
+            .type = type,
+            .scope = d->module,
+            .fix = b->fix[arr],
+            .array = arr,
+        };
+
+        return;
+    }
+
+    v->scope = d->module;
+
+    if (v->array != arr || v->fix != b->fix[arr] || !decl_sametype(d, v->type, type))
+        decl_fail_at(ds, p, E_TM);
+    if (type >= ET_REC) /* its TYPE the first's */
+        b->rec[arr] = v->type - ET_REC;
+
+    bind_common(ds->sc, ds->sy, n, v->name);
+}
+
 /* DIM's names, flags their bindings'. */
 static void decl_dimlist(DeclScan *const ds, const uint16_t flags)
 {
@@ -651,6 +731,8 @@ static void decl_dimlist(DeclScan *const ds, const uint16_t flags)
 
         if (flags & BF_PUB && !b->et[arr] && !b->rec[arr]) /* its type, whoever imports it */
             b->et[arr] = sfx ? comp_suffix(sfx) : ds->sy->deft[symb_text(ds->sy, n)[1] - 'A'];
+        if (ds->common)
+            decl_join(ds, at, n, sfx, arr);
 
         if (*ds->at != ',')
             return;
@@ -1043,20 +1125,24 @@ static void decl_deflist(DeclScan *const ds, const uint8_t et)
     }
 }
 
-/* COMMON [SHARED] [/b/]: as DIM's. */
+/* COMMON [SHARED] [/b/]: as DIM's, each name joined to its block's variable at its place. */
 static void decl_common(DeclScan *const ds)
 {
     ds->at += 2;
     ds->d->scope = ds->d->module;
     const bool shared = *ds->at == TK_SHARED;
+    ds->block = 0;
 
     if (shared)
         ds->at++;
     if (*ds->at == TK_DIV) {
-        if (ds->at[1] != M_VAR)
+        const uint8_t *const name = ds->at + 1;
+
+        if (*name != M_VAR)
             return;
 
-        ds->at = comp_skipname(ds->at + 1);
+        ds->block = symb_find_name(ds->sy, 0, name + 2, name[1]);
+        ds->at = comp_skipname(name);
 
         if (*ds->at != TK_DIV)
             return;
@@ -1064,7 +1150,9 @@ static void decl_common(DeclScan *const ds)
         ds->at++;
     }
 
+    ds->common = true;
     decl_dimlist(ds, shared ? BF_SHR : 0);
+    ds->common = false;
 }
 
 /* DIM [SHARED] n[( )] [AS type] {, ..} */

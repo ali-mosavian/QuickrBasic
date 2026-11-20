@@ -23,6 +23,8 @@ void bind_star(Scop *sc, Symb *sy, uint32_t m, uint32_t from);
 bool bind_own(Scop *sc, Symb *sy, uint32_t n);
 /* Name n used: its error, NM_BAD's; Duplicate definition: a module IMPORT binds. */
 void bind_use(const Symb *sy, Fault *f, uint32_t n);
+/* Name n, COMMON's, stands for another module's COMMON variable, to. */
+void bind_common(Scop *sc, Symb *sy, uint32_t n, uint32_t to);
 /* Each alias's procedure, its exporter's: after link gave each procedure's name its own. */
 void bind_procs(Symb *sy);
 #endif
