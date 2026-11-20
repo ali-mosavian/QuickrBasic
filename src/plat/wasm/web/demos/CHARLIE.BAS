@@ -336,10 +336,10 @@ const NGULL = 6, GULLSEE = 100, DIVEV = 210!, CLIMBV = 90!, GULLREST = 2.5, GULL
 const GHOVER = 1, GDIVE = 2, GCLIMB = 3, GSCARED = 4
 ' Kipper's pedal boat: its speed, what each bump adds to it, its length, and its deck over the sea.
 const PEDALV = 130!, PEDALMORE = 40!, PEDALW = 48, PEDALUP = 8
-' A chase: the cart's speed, when Charlie is far behind it, and away from a bump; how far ahead of the race's
-' start it waits; how near touches it; the seconds a bump tells, the last of them bolting; the bumps that break
-' it; its tune's number in CHARLIE.DAT.
-const CRUISE = 330!, DAWDLE = 200!, BOLT = 560!, CARTLEAD = 260, CARTR = 26
+' A chase: the cart's speed, when Charlie is far behind it, and away from a bump, a toboggan's less, for a sled to
+' catch it again; how far ahead of the race's start it waits; how near touches it; the seconds a bump tells, the
+' last of them bolting; the bumps that break it; its tune's number in CHARLIE.DAT.
+const CRUISE = 330!, DAWDLE = 200!, BOLT = 560!, TOBOLT = 400!, CARTLEAD = 260, CARTR = 26
 const DAZED = 1.4, BOLTS = 1!, NBUMP = 3, CHASETUNE = 5
 ' The level's end's songs, and game over's, by their numbers in CHARLIE.DAT; how long game over stays, its tune's
 ' length.
@@ -400,7 +400,8 @@ declare sub DrawSpout (lv as Level, art as Store, se as Session, x as integer, y
 declare sub ResetChase (lv as Level, mu as Deck)
 declare sub Flee (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose, pt() as Part)
 declare sub StartChase (lv as Level, mu as Deck)
-declare sub MoveCart (lv as Level, p as Hero)
+declare function MakesOff! (zn as Realm)
+declare sub MoveCart (lv as Level, p as Hero, away as single)
 declare sub MeetCart (lv as Level, mu as Deck, se as Session, g as Game, p as Hero, lo() as Loose, pt() as Part)
 declare sub BreakCart (lv as Level, mu as Deck, se as Session, pt() as Part)
 declare sub TakeKeep (lv as Level, mu as Deck, se as Session, g as Game, pt() as Part)
@@ -5120,7 +5121,7 @@ sub Flee (lv as Level, zn as Realm, mu as Deck, se as Session, g as Game, p as H
         select case zn.id
         case 0, 3
             ' a cart and a toboggan go alike
-            MoveCart lv, p
+            MoveCart lv, p, MakesOff!(zn)
             MeetCart lv, mu, se, g, p, lo(), pt()
         case 1
             MoveCrane lv, p
@@ -5149,13 +5150,19 @@ sub StartChase (lv as Level, mu as Deck)
     mu.song(CAUGHT).leadP = zlead
 end sub
 
-' The cart along the ground: dawdling when Charlie is far behind it, slow while a bump has it dazed, then bolting;
-' no further than the race's end.
-sub MoveCart (lv as Level, p as Hero)
+' How fast who flees makes off from a bump.
+function MakesOff! (zn as Realm)
+    MakesOff! = BOLT
+    if zn.id = 3 then MakesOff! = TOBOLT
+end function
+
+' The cart along the ground: dawdling when Charlie is far behind it, slow while a bump has it dazed, then making
+' off at `away`; no further than the race's end.
+sub MoveCart (lv as Level, p as Hero, away as single)
     dim want as single, s as integer
     want = CRUISE
     if lv.cart.x - p.x > 240 then want = DAWDLE
-    if lv.cart.t > 0 then want = BOLT
+    if lv.cart.t > 0 then want = away
     if lv.cart.t > BOLTS then want = 60
     lv.cart.v = lv.cart.v + (want - lv.cart.v) * 5 * STEPT
     lv.cart.x = lv.cart.x + lv.cart.v * STEPT

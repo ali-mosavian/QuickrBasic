@@ -154,8 +154,9 @@ Progress is saved at each zone.
   lies; a sled waits at its head, and on it a bump checks him rather than throws him; deep snow ends his
   ride short of the race's end, where what bumps she has left he gives her curled, and she sits in the
   snow, the camera by her; the blizzard's arrangement of the tune; a ledge's load of snow at dusk, which a
-  bark brings down on the snow-thrower past it and which lies a heap across the road, jumped. To add: more of
-  the chase's bumps sled against sled.
+  bark brings down on the snow-thrower past it and which lies a heap across the road, jumped. The race is
+  long and steep at its head, and her toboggan makes off from a bump less fast than a cart, so a sled catches
+  her again: two bumps or all three are made sled against sled.
 - Rule: grip. Ice keeps speed and will not give it back. Stopping and turning are the challenge, not going.
 - Gadgets: sleds, steered by jumps; ski-lift cables; geysers; a snowball gathered by rolling through deep
   snow, which takes one hit.

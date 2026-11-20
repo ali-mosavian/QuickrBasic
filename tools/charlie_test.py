@@ -2120,14 +2120,14 @@ if was and i < 400 and g.lives = j - 1 and wd.lv.aval.st = 0 and p.x < wd.lv.ava
 ' is checked to a sled's pace, not thrown; her last bump leaves the camera, and reaching it he has it
 GoStage wd, 7, g, p, lo(), pt()
 wd.se.ticks = 1920
-Stand wd.lv, wd.gr, p, wd.lv.chaseX + 120, 0
+Stand wd.lv, wd.gr, p, wd.lv.chaseX + 180, 0
 k.d = -1
 for i = 1 to 150
     Tick wd, g, p, k, lo(), pt()
 next
 was = wd.lv.cart.st = 1
 for j = 0 to 1
-    wd.lv.cart.x = wd.lv.chaseX + 150 + j * 74
+    wd.lv.cart.x = wd.lv.chaseX + 230 - j * 118
     wd.lv.cart.y = Surf%(wd.lv, cint(wd.lv.cart.x), cint(p.y) + 8)
     g.shake = 0
     Render wd, g, p, lo(), pt()
@@ -2247,14 +2247,18 @@ if was and abs(p.y - (wd.lv.mv(m).y - wd.lv.mv(m).a)) < 2 then print "bridge ok"
 GoStage wd, 1, g, p, lo(), pt()
 j = g.lives
 was = 0
+dim rams as integer
 for m = 1 to NSTAGE - 1
     for i = 1 to 3000
         if wd.zn.stage = m and g.mode = PLAYING then exit for
         Advance wd, g, p, k, lo(), pt(), cu()
     next
+    rams = 0
     for i = 1 to 16000
         Pilot wd.lv, wd.gr, wd.zn, wd.se, p, k
+        v = wd.lv.cart.hits
         Tick wd, g, p, k, lo(), pt()
+        if wd.lv.cart.hits > v and p.sled then rams = rams + 1
         if wd.lv.cart.st = 1 and wd.mu.zHeld = CHASETUNE + 1 and wd.lv.cart.x > wd.lv.chaseX + 600 then was = -1
         if g.mode <> PLAYING then exit for
     next
@@ -2263,8 +2267,9 @@ for m = 1 to NSTAGE - 1
     if m = 1 and was and wd.lv.cart.st = 3 and wd.lv.cart.hits = NBUMP and wd.mu.zHeld = 8 then print "chase ok"
     ' and the sands' sunset: the pilot hops out of the sea onto Kipper's boat till it sinks, and takes the teddy
     if m = 5 and wd.lv.cart.st = 3 and wd.lv.cart.hits = NBUMP then print "kipper ok"
-    ' and the pass's dusk: Frost bumped off her toboggan, on his sled and at the race's end, and the camera taken
-    if m = 7 and wd.lv.cart.st = 3 and wd.lv.cart.hits = NBUMP then print "frost ok"
+    ' and the pass's dusk: Frost bumped off her toboggan, twice at the least sled against sled, and the camera
+    ' taken. Checked by a bump, his sled never caught her up again: one bump of the three was made on it
+    if m = 7 and wd.lv.cart.st = 3 and wd.lv.cart.hits = NBUMP and rams >= 2 then print "frost ok"
     print "act"; m; g.mode; g.lives - j; wd.zn.stage; wd.zn.id; cint(p.x)
     k.l = 0
     k.r = 0
@@ -2594,7 +2599,7 @@ def main() -> None:
         ("snowball ok", "deep snow rolled through fast makes him a snowball: it takes one hit, and ends with the roll"),
         ("avalanche ok", "the dusk's avalanche waits till he is past, comes on behind him, takes him where he stops"),
         ("toboggan ok", "Frost's toboggan lies as the ground does; on his sled a bump checks him; the camera is taken"),
-        ("frost ok", "the pass's dusk ended in its chase: Frost bumped off her toboggan, the camera taken"),
+        ("frost ok", "the pass's dusk ended in its chase: Frost bumped twice sled against sled, the camera taken"),
         ("gale ok", "the dusk's gusts bear him back on his feet and in the air, not crouched or curled; snow streams"),
         ("goat ok", "an ice wall stops him; a goat's charge hurts; jumped, it is ridden through, as the ground lies"),
         ("thrower ok", "a snow-thrower's wall throws a roll back; its snowball hurts where he stood; up, it is beaten"),

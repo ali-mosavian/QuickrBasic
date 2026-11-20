@@ -148,8 +148,8 @@ goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
 
 ' Whitecap Pass at dusk: up to the summit by slope, chair and lift, then the run down from it. gale: a blizzard
 ' blows over the level, in gusts. avalanche: its head; once he is past, the snow comes down behind him to the goal.
-' chase: from here Frost flees on her toboggan, that many columns, down gentle falls; a sled waits before it and
-' deep snow ends its ride short of the race's end, where she is come to on foot.
+' chase: from here Frost flees on her toboggan, that many columns, down a fall at its head and gentle ones after;
+' a sled waits before it and deep snow ends its ride short of the race's end, where she is come to on foot.
 ' load: a shelf of four that many tiles up, a load of snow on it: a bark brings it down, from five up eight columns
 ' and a half on, on the snow-thrower there, and it lies a heap across the road.
 Level Pass2
@@ -164,8 +164,8 @@ dng,4, boost,0, bones,10, flat,10, loop,0, flat,8, boost,0, flat,6, pipe,6, flat
 mark,0, flat,1, load,5, flat,8, thrower,0, flat,21, button,0, flat,8, bridge,10, flat,8
 upg,3, flat,8, icicle,6, flat,6, lift,5, flat,12, thrower,0, flat,14, tree,0, flat,6
 mark,0, flat,10, sled,0, flat,6
-chase,134, flat,12, bones,8, dng,2, flat,16, dng,2, flat,16, bones,8, dng,2, flat,16, dng,2, flat,16, bones,8, dng,2
-flat,16, drift,0, flat,26
+chase,170, flat,4, dng,3, flat,8, bones,8, dng,2, flat,14, dng,2, flat,14, bones,8, dng,2, flat,14, dng,2, flat,14
+bones,8, dng,2, flat,14, dng,2, flat,14, bones,8, dng,1, flat,16, dng,1, flat,16, drift,0, flat,32
 mark,0, flat,10, avalanche,0, dng,5, boost,0, bones,10, flat,12, loop,0, flat,8
 up45,4, hoop,1, arc,11, pit,12, flat,10, dng,4, bones,10, flat,14
 goal,0, flat,9, fam,0, flat,6, bush,0, flat,5, end,0
