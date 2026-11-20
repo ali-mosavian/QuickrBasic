@@ -45,6 +45,7 @@
 #include "comp/declare.h"
 #include "comp/dfa.h"
 #include "comp/fold.h"
+#include "comp/import.h"
 #include "comp/lexer.h"
 #include "comp/link.h"
 #include "comp/listing.h"
@@ -52,6 +53,7 @@
 #include "io/console.h"
 #include "io/diag.h"
 #include "io/errmsg.h"
+#include "io/locate.h"
 #include "io/path.h"
 #include "io/source.h"
 #include "mem/alloc.h"
@@ -135,11 +137,12 @@ void repl_ready(Session *const S) { longjmp(*S->repl.top, REPL_READY); }
 /* A source file's channel; an include's the number below its includer's. */
 enum { SOURCE_FILENO = FILENO_MAX, MODULE_WIDTH = 8 };
 
-/* The module's name, as BC's: the file's without its path and type, MODULE_WIDTH characters,
-   blanks after. */
-static void module_name(Session *const S)
+/* The module's name, as BC's: its file's at path without its folder and type, MODULE_WIDTH
+   characters, blanks after. */
+static void module_name(Session *const S, const char *s)
 {
-    const char *s = S->repl.file;
+    if (!*s) /* a typed program's: the main's */
+        s = S->repl.file;
 
     for (const char *p = s; *p; p++)
         if (*p == '\\' || *p == '/' || *p == ':')
@@ -153,28 +156,11 @@ static void module_name(Session *const S)
         cons_putc(&S->cons, ' ');
 }
 
-static bool is_include(Session *S, const uint8_t *text, uint32_t len);
-
-/* Source file n's name: the main's, else the nth '$INCLUDE line's in the store. */
+/* Source file n's name: as it was opened; a typed program's, the main's. */
 static const char *source_name(Session *const S, const uint16_t file)
 {
-    uint16_t n = 0;
-
-    for (uint32_t line = PROGBASE; file && prog_line(&S->prog, line)->len;
-
-         line += prog_line(&S->prog, line)->len) {
-        const uint8_t *body = at(prog_addr(&S->prog, line) + HDR);
-
-        if (comp_peek(&body) != TK_REM)
-            continue;
-
-        list_text(&S->comp, body, 0);
-
-        if (is_include(S, S->cons.sbuf, S->cons.sblen) && ++n == file)
-            return S->repl.incl;
-    }
-
-    return S->repl.file;
+    const char *const name = modu_path(&S->modu, file);
+    return *name ? name : S->repl.file;
 }
 
 /* The error's line in its source file, its file in *file; 0 for a line not read from one. */
@@ -333,7 +319,7 @@ static void report(Session *const S, const uint8_t code)
                 cons_puts(&S->cons, "No line number");
 
             cons_puts(&S->cons, " in module ");
-            module_name(S);
+            module_name(S, modu_module_path(&S->modu, modu_of(&S->modu, file)));
             cons_puts(&S->cons, " at address ");
             const uint32_t off = (uint32_t)(S->vm.opip - at(S->allo.cache));
             cons_hex4(&S->cons, (uint16_t)(off >> 16));
@@ -811,6 +797,73 @@ static const char *include_path(const char *const from, const char *const name, 
     return out;
 }
 
+/* An IMPORT or FROM line's modules being found: where to look, FROM's package folder. */
+typedef struct {
+    Session *S;
+    Locate where;
+    char from[PFIL_PATH]; /* the line's file's path: the table it is in may move as it grows */
+    char package[PFIL_PATH];
+    bool in_package; /* FROM's module is a folder: its names are its modules */
+} Imports;
+
+[[noreturn]]
+static void not_found(Session *const S)
+{
+    fault_qberr(&S->fault, QB_FILE_NOT_FOUND);
+}
+
+/* One name the line gives: a module's file added to those to load, once. */
+static void imported(void *const ctx, const ImptKind kind, const ImptName *const n)
+{
+    Imports *const im = ctx;
+    char path[PFIL_PATH];
+
+    switch (kind) {
+    case IMPT_MODULE:
+        if (!locate(&im->where, n, path, nullptr))
+            not_found(im->S);
+
+        modu_module(&im->S->modu, path);
+        return;
+
+    case IMPT_FROM:
+        if (!locate(&im->where, n, path, &im->in_package))
+            not_found(im->S);
+        if (im->in_package)
+            strcpy(im->package, path);
+        else
+            modu_module(&im->S->modu, path);
+
+        return;
+
+    case IMPT_NAME: /* a module's export: its file is there already */
+        if (!im->in_package)
+            return;
+        if (!locate_in(im->package, n, path))
+            not_found(im->S);
+
+        modu_module(&im->S->modu, path);
+    }
+}
+
+/* The line just entered (comp.cbuf), of the file at path: the modules its IMPORT or FROM names
+   found, each to be loaded once after the program's lines. One in a SUB is the compiler's to
+   refuse. File not found. */
+static void find_imports(Session *const S, const char *const path)
+{
+    const uint8_t *body = S->comp.cbuf;
+
+    if (S->decl.proc)
+        return;
+    if (comp_peek(&body) == M_INT) /* past its number */
+        body += INT_TOKEN_SIZE;
+
+    Imports im = {.S = S, .where = {S->repl.file, syst_env(&S->syst, "BASICLIB"), im.from}};
+
+    strcpy(im.from, path);
+    impt_line(body, imported, &im);
+}
+
 /* Enter the lines of file name, read as file number num; an include's on the number below, in
    place. Then the console's again. */
 static void read_file(Session *const S, const char *const name, const int32_t num)
@@ -828,6 +881,7 @@ static void read_file(Session *const S, const char *const name, const int32_t nu
     const uint16_t fline = S->repl.fline, file = S->prog.add_file;
     S->repl.fline = 0;
     S->prog.add_file = S->repl.nfile++;
+    modu_file(&S->modu, S->prog.add_file, name, S->repl.module);
 
     for (;;) {
         S->prog.add_src = S->repl.fline + 1; /* a continued line's first */
@@ -842,6 +896,7 @@ static void read_file(Session *const S, const char *const name, const int32_t nu
         S->lexr.source = &S->srcr.src;
         repl_enter(S, (uint32_t)len);
         S->lexr.source = nullptr;
+        find_imports(S, name);
 
         if (inc) { /* its lines next */
             char path[PFIL_PATH];
@@ -859,20 +914,45 @@ static void read_file(Session *const S, const char *const name, const int32_t nu
     S->prog.add_file = file;
 }
 
+/* The modules the program imports, after its lines, each once and in the order first named; a
+   module's own imports after it. Their lines are LF_MOD, and so is the END before each: a run, by
+   any way to the next line, stops where its module's lines end. */
+static void read_modules(Session *const S)
+{
+    static const uint8_t end[] = {TK_END, 0};
+
+    const uint8_t flags = S->prog.add_flags;
+    S->prog.add_flags = flags | LF_MOD;
+
+    for (uint32_t m = 1; m < modu_count(&S->modu); m++) {
+        char path[PFIL_PATH]; /* the table may move as it grows */
+        strcpy(path, modu_module_path(&S->modu, m));
+        prog_add(&S->prog, NONUM, end, sizeof end);
+        S->repl.module = m;
+        read_file(S, path, SOURCE_FILENO);
+    }
+
+    S->repl.module = 0;
+    S->prog.add_flags = flags;
+}
+
 void repl_load(Session *const S)
 {
     S->repl.loading = true;
     S->repl.batch = true;
     S->repl.fline = 0;
     S->repl.nfile = 0;
+    S->repl.module = 0;
+    modu_clear(&S->modu, S->repl.file);
     read_file(S, S->repl.file, SOURCE_FILENO);
+    read_modules(S);
     S->repl.loading = false;
 }
 
 void repl_relink(Session *const S)
 {
-    for (uint32_t line = PROGBASE; prog_line(&S->prog, line)->len;) /* the include's lines out */
-        if (prog_line(&S->prog, line)->flags & LF_INC)
+    for (uint32_t line = PROGBASE; prog_line(&S->prog, line)->len;) /* includes' and modules' out */
+        if (prog_line(&S->prog, line)->flags & (LF_INC | LF_MOD))
             prog_cut(&S->prog, line);
         else
             line += prog_line(&S->prog, line)->len;
@@ -882,6 +962,9 @@ void repl_relink(Session *const S)
     session_drop(S);
     S->repl.loading = true;
     S->repl.nfile = 1; /* the includes' numbers as the load's */
+    S->repl.module = 0;
+    modu_clear(&S->modu, S->repl.file);
+    modu_file(&S->modu, 0, S->repl.file, 0);
 
     for (uint32_t line = PROGBASE; prog_line(&S->prog, line)->len;) {
         S->vm.line = line;
@@ -896,6 +979,7 @@ void repl_relink(Session *const S)
 
         prog_body(&S->prog, line, d);
         const uint8_t *body = enter_decls(S, line);
+        find_imports(S, source_name(S, prog_line(&S->prog, line)->file));
         const uint8_t tok = comp_peek(&body);
         line += prog_line(&S->prog, line)->len;
 
@@ -916,5 +1000,6 @@ void repl_relink(Session *const S)
         S->prog.add_flags = 0;
     }
 
+    read_modules(S);
     S->repl.loading = false;
 }

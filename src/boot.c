@@ -65,6 +65,7 @@ void boot(Session *const S, const FrontEnd *const fe)
     file_init(&S->file, &S->allo, &S->chnl, &S->strg, &S->cons, &S->fault);
     S->comp.fault = &S->fault;
     S->comp.allo = &S->allo;
+    modu_init(&S->modu, &S->fault);
     S->comp.prog = &S->prog;
     S->comp.symb = &S->symb;
     S->comp.scop = &S->scop;

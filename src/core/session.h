@@ -27,6 +27,7 @@
 #include "mem/array.h"
 #include "mem/program.h"
 #include "mem/scope.h"
+#include "mem/module.h"
 #include "mem/string.h"
 #include "mem/symbols.h"
 #include "num/random.h"
@@ -65,6 +66,7 @@ struct Session {
     Lexr lexr;
     Link link;
     List list;
+    Modu modu;
     Prog prog;
     ProgUser prog_user;
     CompRun comp_run;

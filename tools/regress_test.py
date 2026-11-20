@@ -1369,7 +1369,6 @@ CASES |= {
                          ") as byte\r\n  ^\r\nAn array has at most 60 dimensions", None),
 }
 
-# Typed at the prompt, not run as a file.
 # IMPORT and FROM, ours: keywords only where they start such a statement, so a variable or SUB of
 # either name still works; the statement is its line's first, at module level.
 CASES |= {
@@ -1385,6 +1384,47 @@ CASES |= {
 }
 
 
+def beside(prog: str, files: dict[str, str]) -> tuple[str, str, str, dict[str, bytes]]:
+    """A case run with files in its own folder, its modules found there."""
+    return prog, "", "", {n: text.encode("latin-1") for n, text in files.items()}
+
+
+SPR = {"lib/pkg/sprite.bas": bas("sub spr (x)", ' print "spr"; x', "end sub"),
+       "lib/pkg/util.bas": bas("sub utl (x)", ' print "utl"; x', "end sub")}
+# The modules an IMPORT or FROM names load once each, after the program's lines: the main program's
+# folder, a package's, FROM's dots from the importing file's. IMPORT and FROM loaded nothing:
+# each module's SUBs were Subprogram not defined.
+CASES |= {
+    "import_star": (beside(bas("from gfx import *", "plot 3", "print area(2)"),
+                           {"gfx.bas": bas("sub plot (x)", ' print "plot"; x', "end sub",
+                                           "function area (r)", " area = r * r", "end function")}),
+                    "plot 3 \r\n 4 \r\n", "ERROR"),
+    "import_package": (beside(bas("import lib.pkg.sprite", "from lib.pkg import util", "spr 1: utl 2"), SPR),
+                       "spr 1 \r\nutl 2 \r\n", "ERROR"),
+    "import_relative": (beside(bas("import lib.pkg.rel", "nr 1: tp 2"),
+                               {"lib/pkg/rel.bas": bas("from . import near", "from ..top import tp"),
+                                "lib/pkg/near.bas": bas("sub nr (x)", ' print "nr"; x', "end sub"),
+                                "lib/top.bas": bas("sub tp (x)", ' print "tp"; x', "end sub")}),
+                        "nr 1 \r\ntp 2 \r\n", "ERROR"),
+    # Imported twice, and in a cycle: loaded twice, its SUB was a Duplicate definition.
+    "import_twice": (beside(bas("import ca", "from ca import *", "a 1: b 2"),
+                            {"ca.bas": bas("import cb", "sub a (x)", ' print "a"; x', "end sub"),
+                             "cb.bas": bas("import ca", "sub b (x)", ' print "b"; x', "end sub")}),
+                     "a 1 \r\nb 2 \r\n", "ERROR"),
+    # The main program's end, a false one-line IF's too, ran on into a module's top-level code.
+    "import_main_ends": (beside(bas("import noisy", 'print "main"', 'if 0 then print "x"'),
+                                {"noisy.bas": bas('print "noisy"', "sub nz", "end sub")}),
+                         "main\r\n", "noisy"),
+    "import_missing": (bas("print 1", "import nothere"), "IMPORT_M.BAS:2: File not found\r\n  import nothere", " 1"),
+    "import_missing_name": (beside(bas("from lib.pkg import util, nothere"), SPR),
+                            "IMPORT_M.BAS:1: File not found", None),
+    # An error in a module: at its own file's line.
+    "import_module_error": (beside(bas("import bad"), {"bad.bas": bas("sub b", "end sub", "x =")}),
+                            "bad.bas:3: Syntax error\r\n  x =", None),
+}
+
+
+# Typed at the prompt, not run as a file.
 REPL = {
     # A direct line ran from DCODE, its statement map's place: nothing printed.
     "repl_direct": ("PRINT 5\r\n", " 5 \r\n", "ERROR"),

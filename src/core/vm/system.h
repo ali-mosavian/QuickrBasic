@@ -17,6 +17,8 @@ typedef struct {
 
 /* sys_init: the environment and the command line, from the platform's (psys). */
 void syst_init(Syst *sys);
+/* The environment's value of name, case not told; null none. */
+const char *syst_env(Syst *sys, const char *name);
 /* sx_sret: cons.sbuf's first len chars pushed as a temporary string. */
 void syst_ret(Session *S, uint32_t len);
 #endif

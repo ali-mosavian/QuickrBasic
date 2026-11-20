@@ -88,12 +88,13 @@ typedef struct PACKED {
     uint8_t flags; /* LF_* */
     uint8_t sep;   /* the byte before the body the compiler reads */
     uint16_t src;  /* its first line in its source file, 0 none */
-    uint16_t file; /* that file: 0 the main, n the nth include read */
+    uint16_t file; /* that file: 0 the main, n the nth include or module read (mem/module.h) */
 } Line;
 static_assert(sizeof(Line) == 20);
 enum { HDR = sizeof(Line) };
-/* LF_NODEF: decl_line found no DEFtype in it, decl_defevents passes it. */
-enum : uint8_t { LF_ASIS = 1, LF_BP = 2, LF_INC = 4, LF_NODEF = 8 };
+/* LF_NODEF: decl_line found no DEFtype in it, decl_defevents passes it. LF_MOD: an imported
+   module's, loaded with the program as an include's lines are. */
+enum : uint8_t { LF_ASIS = 1, LF_BP = 2, LF_INC = 4, LF_NODEF = 8, LF_MOD = 16 };
 enum : uint32_t {
     NONUM = 0xFFFF,
     LMAX = 0x17000,    /* a line's body at most: 0xFEE0 with 2-byte name ids, times 7/5 */

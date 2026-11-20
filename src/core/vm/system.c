@@ -295,6 +295,12 @@ static char *env_find(Syst *const sys, const uint8_t *const name, const uint32_t
     return nullptr;
 }
 
+const char *syst_env(Syst *const sys, const char *const name)
+{
+    char *const e = env_find(sys, (const uint8_t *)name, (uint32_t)strlen(name));
+    return e ? e + strlen(name) + 1 : nullptr;
+}
+
 /* The last 0, after the entries' 0s. */
 static char *env_end(Syst *const sys)
 {
