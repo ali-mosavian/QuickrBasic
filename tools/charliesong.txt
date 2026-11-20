@@ -462,3 +462,64 @@ DATA 12, 3, 3, "s---------------", "j.osv.soj.osv.so", "o-------s-------", ""
 DATA 12, 3, 1, "s---------------", "j.osv.soj.osv.so", "x---v---s---o---", "........o-------"
 DATA 11, 4, 1, "q---------------", "i.nqu.qni.nqu.qn", "q---u---x---u---", ""
 DATA 14, 2, 2, "q---------------", "i.lqu.qli.lqu.ql", "q-s-u-v-x-z-x-u-", ""
+
+' The wood's bars: both its acts play them.
+Part WoodBars:
+DATA 0, 4, 4, "c---------------", "", "", ""
+DATA 0, 4, 4, "c---------------", "..j...o...j...o.", "", ""
+DATA -2, 4, 1, "a---------------", "..h...m...h...m.", "", "........t-v-y---"
+DATA 0, 1, 3, "c---------------", "..j...o...j...o.", "........j-l-m-q-", ""
+DATA 0, 1, 1, "c---------------", "..j...o...j...o.", "o-j-o-q-rqr-o-j-", ""
+DATA 0, 2, 1, "c---------------", "..j...o...j...o.", "r-q-o-q-r-t-v-t-", ""
+DATA -2, 1, 2, "a---------------", "..h...m...h...m.", "q-m-q-t-q-m-j-m-", ""
+DATA -2, 2, 2, "a---------------", "..h...m...h...m.", "q-t-q-m-j-l-m-q-", "........y-x-v-t-"
+DATA 0, 1, 1, "c---------------", "..j...o...j...o.", "o-j-o-q-rqr-o-j-", ""
+DATA 0, 2, 1, "c---------------", "..j...o...j...o.", "r-q-o-q-r-t-v-y-", ""
+DATA -2, 3, 2, "a---------------", "..h...m...h...m.", "x-v-t-q-t-v-t-q-", ""
+DATA 0, 1, 3, "c---------------", "..j...o...j...o.", "r-q-o-m-o---o---", "........r-t-v---"
+DATA 3, 1, 2, "f---------------", "..j...m...j...m.", "v-r-v-y-v-r-o-r-", "y---------------"
+DATA -2, 2, 2, "a---------------", "..h...m...h...m.", "t-q-t-y-t-q-m-q-", "t---------------"
+DATA 0, 1, 2, "c---------------", "..j...o...j...o.", "r-o-r-v-r-o-j-o-", "v---------------"
+DATA -5, 3, 2, "e---------------", "..j...m...j...q.", "q-m-q-v-q-m-j-l-", "........x-y-x-v-"
+DATA 3, 1, 2, "f---------------", "..j...m...j...m.", "v-r-v-y-v-r-o-r-", "y---------------"
+DATA -2, 2, 2, "a---------------", "..h...m...h...m.", "t-q-t-y-xyx-t-q-", "t---------------"
+DATA -5, 3, 2, "e---------------", "..j...m...j...q.", "v-q-m-q-j-l-m-q-", "q-------........"
+DATA 0, 1, 3, "c---------------", "..j...o...j...o.", "r-q-o-m-o---o---", "........r-t-v---"
+
+' The wood's tune, Leaf Fall: 36 bars of 20 in D minor at 126, a reel, round and round. A fiddle leads in running
+' eighths, a bowed saw that scoops into its notes; a flute answers at a phrase's end and holds over the second
+' part; a plucked bass steps root and fifth, a string is plucked off the beat over a drone, and a hand drum and
+' two wood blocks keep time. Four bars in, then A twice, B, and A.
+Song Russet:
+DATA "abcdefghijklefghijklmnopqrstefghijkl", "ffffffffffffffffffff", 20, 126, 1, 7, 12, 6, 0, 11, 8, 0, 0, 0, 0
+DATA "W2Y1,2600,3H2,3,12,2U6K1,0,1R4"
+DATA "W4Z1,12,4,4H0,8,0,3", "W4Z1,12,4,4H0,8,0,3", "S10R5W1H3,2,12,3U5"
+DATA 1
+DATA "f", "S5R3W4Z2,6,3,2H0,6,0,2", "S11R3W2Y1,900,2H4,3,10,4", 0
+DATA 5
+DATA "D", "W4Z1,4,2,0H0,4,0,2K1,3", 12, 0, "O1G"
+DATA "d", "W4Z1,4,2,0H0,3,0,1K1,2", 8, 0, "O2D"
+DATA "B", "W1H0,2,0,1", 10, 0, "O5E"
+DATA "b", "W1H0,2,0,1", 10, 0, "O5C"
+DATA "h", "W3H0,2,0,1K0Y3,2500,0", 5, 0, "O6B"
+DATA 4, "0...7...0...7...", "0...7...c...7...", "0.0.7...0.0.7.c.", "0-------7-------"
+DATA 0
+DATA 5, "................", "D..dD.d.D..dD.d.", "D.b.d.B.D.b.d.Bb", "D.d.D.d.DdDdBbBb", "B...b...B..bb..."
+USE WoodBars
+
+' The wood on the firefly night, Glow Worms: Leaf Fall at 112, the flute leading and a muted fiddle answering; the
+' bass plucks a note a bar or two, the string is softer, and crickets chirr where the drum and the blocks were.
+Song Fireflies:
+DATA "abcdefghijklefghijklmnopqrstefghijkl", "ffffffffffffffffffff", 20, 112, 1, 4, 11, 6, 0, 9, 7, 0, 0, 0, 0
+DATA "R6W1H3,2,12,3U5"
+DATA "W4Z1,12,4,4H0,8,0,3", "W4Z1,12,4,4H0,8,0,3", "S6R6W2Y1,1400,2H4,3,10,3U4"
+DATA 1
+DATA "f", "S5R4W4Z2,5,3,1H0,5,0,2", "S11R5W1H5,3,9,5", 0
+DATA 3
+DATA "D", "W4Z1,4,2,0H0,4,0,2K1,3", 8, 0, "O1G"
+DATA "C", "W0Q12H0,1,0,1", 5, 0, "O6G"
+DATA "c", "W0Q12H0,1,0,1", 4, 0, "O6E"
+DATA 4, "0-------........", "0-------7-------", "0---....7---....", "0---------------"
+DATA 0
+DATA 5, "................", "C.C.C.......c.c.", "D.......C.C.C...", "D...c.c.....C.C.", "C.C.C..........."
+USE WoodBars

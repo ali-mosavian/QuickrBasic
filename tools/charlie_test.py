@@ -736,7 +736,14 @@ was = was and wd.mu.zHeld = 14 and instr(wd.mu.song(ZTUNE).half(8).bass, "N22") 
 GoStage wd, 7, g, p, lo(), pt()
 was = was and wd.mu.zHeld = 15 and wd.mu.song(ZTUNE).tempo = 150 and len(wd.mu.song(ZTUNE).order) = 36
 was = was and instr(wd.mu.song(ZTUNE).half(8).bass, "N19") > 0 and instr(wd.mu.song(ZTUNE).midP, "W3") > 0
-for m = 1 to 7 step 2
+' the wood's reel in D minor at 126, a fiddle's saw leading; its night at 112, the flute's triangle leading: both
+' played the Downs' tunes
+GoStage wd, 8, g, p, lo(), pt()
+was = was and wd.mu.zHeld = 16 and wd.mu.song(ZTUNE).tempo = 126 and len(wd.mu.song(ZTUNE).order) = 36
+was = was and instr(wd.mu.song(ZTUNE).half(8).bass, "N15") > 0 and instr(wd.mu.song(ZTUNE).leadP, "W2") > 0
+GoStage wd, 9, g, p, lo(), pt()
+was = was and wd.mu.zHeld = 17 and wd.mu.song(ZTUNE).tempo = 112 and instr(wd.mu.song(ZTUNE).leadP, "W1") > 0
+for m = 1 to 9 step 2
     GoStage wd, m, g, p, lo(), pt()
     PickSong wd.mu, SongFor%(g), 0
     NextHalf wd.mu, wd.se
