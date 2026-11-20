@@ -37,7 +37,7 @@ typedef struct {
     uint32_t last;
     uint16_t npar;
     uint32_t result; /* a FUNCTION's result variable */
-    uint16_t nframe; /* its frame's cells (comp/frame.c) */
+    uint32_t nframe; /* its frame's cells (comp/frame.c) */
     Param *params;
     uint32_t skip; /* past its END: a target */
 } Proc;

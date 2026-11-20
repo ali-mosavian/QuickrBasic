@@ -153,7 +153,7 @@ OP(F_JF, flow_f_jf, JSIZE, 0)
 OP(I_JT, flow_i_jt, JSIZE, 0)
 OP(F_JT, flow_f_jt, JSIZE, 0)
 OP(NXLN, flow_nextln, 1, 0)
-OP(PCALL, flow_pcall, JSIZE + 7, 0) /* proc, its locals' cells and parameters (link's), body's Jump */
+OP(PCALL, flow_pcall, PCALL_SIZE, 0) /* proc, its locals' cells and parameters (link's), body's Jump */
 OP(PRET, flow_pret, 5 + VCELL, 0) /* proc; link's: a FUNCTION's result's cell, or PRET.X */
 OP(I_MOD, oper_i_mod, 1, FX + FK)
 OP(I_XOR, oper_i_xor, 1, FX + FK)

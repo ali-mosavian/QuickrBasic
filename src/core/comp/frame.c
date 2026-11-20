@@ -52,5 +52,5 @@ void frame_layout(Symb *const sy, const Decl *const d, Proc *const p, const uint
         fa->at = -(int32_t)(cells * sizeof(Cell));
     }
 
-    p->nframe = (uint16_t)cells;
+    p->nframe = cells;
 }

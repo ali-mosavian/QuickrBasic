@@ -62,6 +62,8 @@ typedef struct PACKED {
     uint32_t dest; /* its code's offset in the cache; under 3 the mode, till found (flow) */
 } Jump;
 enum { JSIZE = 1 + sizeof(Jump) };
+/* PCALL's operands: the procedure, its frame's cells and its parameters (link's), its body's Jump. */
+enum { PCALL_PROC = 1, PCALL_CELLS = 5, PCALL_NPAR = 9, PCALL_JUMP = 11, PCALL_SIZE = PCALL_JUMP + sizeof(Jump) };
 /* An FV op's operand: the variable's id as compiled, its cell's Addr once linked. */
 enum { VCELL = 4 };
 /* An FA or FP op's operand: the variable's id; an FP op's its ref cell's frame offset once linked. */

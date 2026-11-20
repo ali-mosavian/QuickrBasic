@@ -1270,6 +1270,13 @@ BIG |= {
     # String formula too complex.
     "limit_temps": (bas("function wrap$ (n)", ' if n = 0 then wrap$ = "" else wrap$ = "(" + wrap$(n - 1) + ")"',
                         "end function", "print len(wrap$(1000)); right$(wrap$(1000), 3)"), " 2000 )))\r\n", "ERROR"),
+    # A call's parameter count in a byte: past 255 the return left the stack short, 5 + f(..) * 2 598.
+    "limit_params": (bas("for i = 1 to 2", f"print 5 + f({', '.join(map(str, range(300)))}) * 2; 9", "next",
+                         f"function f ({', '.join(f'p{i}' for i in range(300))})", " f = p0 + p299", "end function"),
+                     " 603  9 \r\n 603  9 \r\n", "ERROR"),
+    # A frame's cells in 16 bits: 65,540 locals made a 4-cell frame, and the call wrote past the stack.
+    "limit_frame": (bas("s", "sub s", *[":".join(f"v{i} = {i}" for i in range(k, k + 20)) for k in range(0, 65540, 20)],
+                        "end sub"), "Out of stack space", ""),
 }
 
 

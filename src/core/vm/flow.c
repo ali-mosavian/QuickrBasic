@@ -450,9 +450,8 @@ void flow_pcall(Session *const S)
         return;
 
     Vm *const vm = &S->vm;
-    uint8_t *const call = vm->ip;
-    const uint32_t proc = load32(call);
-    const uint32_t n = load16(call + 4);
+    uint8_t *const op = vm->ip - 1;
+    const uint32_t n = load32(op + PCALL_CELLS);
 
     if (vm->sp < vm->stklim || (uint32_t)(vm->sp - vm->stklim) < n || !frame_room(vm))
         repl_error(S, E_OS);
@@ -463,19 +462,19 @@ void flow_pcall(Session *const S)
     memset(vm->sp, 0, n * sizeof(Cell));
     *vm->ftop++ = (Frame){
         .kind = FRAME_CALL,
-        .ret = {vm->line, cache_off(&S->allo, call + 7 + sizeof(Jump))},
+        .ret = {vm->line, cache_off(&S->allo, op + PCALL_SIZE)},
         .call = {
-            .proc = proc,
+            .proc = load32(op + PCALL_PROC),
             .temp_floor = S->strg.tmp_floor,
             .stack = vm->sp,
             .fp = vm->fp,
-            .npar = blok_proc(&S->blok, proc)->npar,
+            .npar = load16(op + PCALL_NPAR),
             .caller = caller,
         },
     };
 
     S->strg.tmp_floor = S->strg.tmp_used;
-    vm->ip = call + 7;
+    vm->ip = op + PCALL_JUMP;
     take_jump(vm, &S->strg, &S->allo, &S->fault);
 }
 

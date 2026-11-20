@@ -635,8 +635,8 @@ pcall: /* PCALL proc n npar body: the frame at the arguments, n local cells zero
         goto slow;
 
     {
-        const uint32_t n = load16(r.ip + 5);
-        const Jump *const j = (const Jump *)(r.ip + 8);
+        const uint32_t n = load32(r.ip + PCALL_CELLS);
+        const Jump *const j = (const Jump *)(r.ip + PCALL_JUMP);
 
         if (r.sp < v->stklim || (uint32_t)(r.sp - v->stklim) < n || v->ftop == v->fend ||
             j->dest <= TO_NEXT_STMT)
@@ -645,12 +645,12 @@ pcall: /* PCALL proc n npar body: the frame at the arguments, n local cells zero
         const Addr fp = addr_of(r.sp);
         Frame *const f = v->ftop++; /* field by field: no padding zeroed */
         f->kind = FRAME_CALL;
-        f->ret = (Place){v->line, addr_of(r.ip + 8 + sizeof(Jump)) - S->allo.cache};
+        f->ret = (Place){v->line, addr_of(r.ip + PCALL_SIZE) - S->allo.cache};
 
-        f->call.proc = load32(r.ip + 1);
+        f->call.proc = load32(r.ip + PCALL_PROC);
         f->call.temp_floor = S->strg.tmp_floor;
         f->call.fp = fp;
-        f->call.npar = r.ip[7];
+        f->call.npar = load16(r.ip + PCALL_NPAR);
         f->call.caller = r.fp;
         f->call.on_error = 0;
         r.fp = v->fp = fp;

@@ -974,8 +974,8 @@ static void cg_call(Code *const c, const Node *const n)
 
     code_op(c, O_PCALL); /* the procedure, its locals' cells, its parameters (link's), its Jump */
     code_dword(c, n->num);
+    code_dword(c, 0);
     code_word(c, 0);
-    code_byte(c, 0);
     code_dword(c, n->jump.line);
     code_dword(c, n->jump.body);
     code_dword(c, n->jump.dest);

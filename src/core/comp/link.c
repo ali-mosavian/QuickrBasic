@@ -485,10 +485,10 @@ static void resolve_op(Comp *const C, const uint32_t line, const Addr base, uint
         break;
 
     case O_PCALL: /* the procedure, its locals' cells, its parameters, the Jump */
-        store16(op + 5, blok_proc(C->blok, load32(op + 1))->nframe);
-        op[7] = (uint8_t)blok_proc(C->blok, load32(op + 1))->npar;
+        store32(op + PCALL_CELLS, blok_proc(C->blok, load32(op + PCALL_PROC))->nframe);
+        store16(op + PCALL_NPAR, blok_proc(C->blok, load32(op + PCALL_PROC))->npar);
 
-        j = (Jump *)(op + 8);
+        j = (Jump *)(op + PCALL_JUMP);
         break;
 
     case O_I_NEXT_UP: /* comp/fuse.c's: three cells (FV3), then the Jump */
