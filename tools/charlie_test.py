@@ -120,18 +120,12 @@ for i = 1 to 4000
     if g.mode <> INTRO then exit for
     if i mod 15 = 0 then IntroDraw wd, g, p, cu()
     select case i
-    case 60
-        if point(0, 0) <> 0 or point(30, 100) < 130 or point(30, 100) > 136 then was = 0
-    case 300
-        if g.camx < 0 or g.camx > 60 or p.x < 70 or p.x > 250 then was = 0
-    case 1200
-        if g.camx <> 1400 then was = 0
-    case 1680
-        if g.camx <> 2140 then was = 0
-    case 2700
-        if g.camx <> 3900 or p.x <> 4060 or p.gsp <> 0 then was = 0
-    case 3300
-        if p.gsp < 400 or p.x - g.camx < 150 or p.x - g.camx > 300 then was = 0
+    case 60: if point(0, 0) <> 0 or point(30, 100) < 130 or point(30, 100) > 136 then was = 0
+    case 300: if g.camx < 0 or g.camx > 60 or p.x < 70 or p.x > 250 then was = 0
+    case 1200: if g.camx <> 1400 then was = 0
+    case 1680: if g.camx <> 2140 then was = 0
+    case 2700: if g.camx <> 3900 or p.x <> 4060 or p.gsp <> 0 then was = 0
+    case 3300: if p.gsp < 400 or p.x - g.camx < 150 or p.x - g.camx > 300 then was = 0
     end select
 next
 was = was and abs(i - ILEN * 30) < 3 and g.mode = TITLE
@@ -458,7 +452,7 @@ for c = 0 to NFAM - 1
     if v = 7 and m = 504 then was = was + 1
     j = IFAM + (c * FAMF + FAMF - 1) * 2
     line (0, 0)-(99, 99), 0, BF
-    Blit wd.art, 0, 0, j, (Img(wd.art.at(j)) and 65535) \\ 8, Img(wd.art.at(j)) \\ 65536
+    Blit wd.art, 0, 0, j, (wd.art.img(wd.art.at(j)) and 65535) \\ 8, wd.art.img(wd.art.at(j)) \\ 65536
     print "fam"; Pix&(0, 100, 0, 99)
 next
 v = 0

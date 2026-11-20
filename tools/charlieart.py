@@ -4026,7 +4026,7 @@ def earth(a: int, skin: Skin) -> list[tuple[int, Pic, bool, int]]:
 
 
 def pictures() -> list[tuple[int, Pic, bool, int]]:
-    """Each picture's index in the game's Img table, whether it is masked, and its mirror's index or -1."""
+    """Each picture's index in the game's img array, whether it is masked, and its mirror's index or -1."""
     out: list[tuple[int, Pic, bool, int]] = []
     itile, ihero, nf = 10, 34, 23
     out.append((itile + 18, ledge(), True, -1))
